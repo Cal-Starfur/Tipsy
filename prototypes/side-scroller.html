@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>TIP — a clumsy delivery</title>
+<style>
+  html,body{margin:0;padding:0;background:#1a1c22;height:100%;overflow:hidden;touch-action:none;
+    font-family:-apple-system,'Helvetica Neue',Arial,sans-serif;-webkit-user-select:none;user-select:none;}
+  #game{width:100%;height:100%;}
+  .overlay{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    background:rgba(18,20,26,.82);color:#fff;text-align:center;z-index:10;padding:24px;}
+  .overlay h1{font-size:52px;margin:0 0 6px;letter-spacing:2px;}
+  .overlay h2{font-size:30px;margin:0 0 10px;}
+  .overlay p{font-size:17px;line-height:1.45;color:#cfd3dc;max-width:320px;margin:6px 0;}
+  .overlay .btn{margin-top:22px;background:#ff7a1a;color:#fff;border:none;border-radius:14px;
+    padding:16px 42px;font-size:20px;font-weight:700;box-shadow:0 4px 0 #b5540e;}
+  .overlay .btn:active{transform:translateY(3px);box-shadow:0 1px 0 #b5540e;}
+  .tag{color:#ff9c4d;font-weight:700;letter-spacing:1px;font-size:13px;text-transform:uppercase;}
+  .hidden{display:none!important;}
+  .big{font-size:44px;margin:4px 0;}
+</style>
+</head>
+<body>
+<div id="game"></div>
+
+<div id="titleOverlay" class="overlay">
+  <div class="tag">A clumsy delivery</div>
+  <h1>TIP</h1>
+  <p><b>Hold the right side</b> of the screen to roll.<br>
+     <b>Hold the left side</b> to brake / reverse.</p>
+  <p>Get the burrito to the <b style="color:#ff9c4d">red doormat</b> at the end of the street.</p>
+  <p>Careful: the burrito is <b>loose in the box</b>.<br>It slides. You lurch. Physics is cruel.</p>
+  <button class="btn" id="startBtn">DELIVER</button>
+</div>
+
+<div id="failOverlay" class="overlay hidden">
+  <div class="big">🤖💥</div>
+  <h2 id="failMsg">The pavement won.</h2>
+  <p id="failSub">Delivery status: horizontal.</p>
+  <button class="btn" id="retryBtn">RETRY</button>
+</div>
+
+<div id="winOverlay" class="overlay hidden">
+  <div class="big">🌯✅</div>
+  <h2>DELIVERED!</h2>
+  <p id="winTime"></p>
+  <p id="winBest"></p>
+  <button class="btn" id="againBtn">AGAIN</button>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/phaser@3.85.2/dist/phaser.min.js"></script>
+<script>
+"use strict";
+
+/* ============================================================
+   TIP — v1 prototype
+   Phaser 3 + Matter physics. Pure canvas art, no assets.
+   Robot = compound body (low base + tall heavy cargo box)
+   with two free-spinning wheels pinned by constraints.
+   Tipping is emergent: high center of mass + broken pavement.
+   ============================================================ */
+
+const DESIGN_W = 400, DESIGN_H = 780;
+const WORLD_W = 2900, WORLD_H = 820;
+const GROUND_Y = 640;          // main sidewalk top
+const CURB_RAISE = 12;         // raised section height (climbable with momentum)
+const TIP_ANGLE = 1.15;        // radians before fail
+const TIP_HOLD_MS = 400;
+const WIN_HOLD_MS = 600;
+
+const FAIL_LINES = [
+  ["The pavement won.", "Delivery status: horizontal."],
+  ["Robot down. Robot down.", "The burrito never stood a chance."],
+  ["Tell your MP:", "pavements are for robots."],
+  ["Gravity: 1. Robot: 0.", "A passerby films you. Great."],
+  ["You had ONE job.", "It was a soft launch. Literally."]
+];
+
+let bestTime = null; // in-memory only
+
+class StreetScene extends Phaser.Scene {
+  constructor(){ super("street"); }
+
+  create(){
+    const M = Phaser.Physics.Matter.Matter;
+    this.M = M;
+
+    this.state = "play";        // play | fail | win
+    this.startTime = this.time.now;
+    this.tipTimer = 0;
+    this.winTimer = 0;
+    this.driveDir = 0;          // -1, 0, +1
+    this.flagLean = 0;
+
+    this.cameras.main.setBounds(0, 0, WORLD_W, DESIGN_H);
+    this.cameras.main.setBackgroundColor("#8fc7e8");
+
+    this.drawBackdrop();
+    this.buildGround();
+    this.buildObstacles();
+    this.buildRobot();
+    this.buildUI();
+    this.bindInput();
+  }
+
+  /* ---------- static world ---------- */
+
+  drawBackdrop(){
+    const g = this.add.graphics();
+    // distant terrace houses
+    for(let x = -60; x < WORLD_W + 200; x += 170){
+      const h = 180 + ((x*7919) % 70);
+      g.fillStyle(0xb0655a + ((x/170|0)%3)*0x050a08, 1);
+      g.fillRect(x, GROUND_Y - h, 150, h);
+      g.fillStyle(0x7d4038, 1);
+      g.fillTriangle(x-8, GROUND_Y-h, x+75, GROUND_Y-h-42, x+158, GROUND_Y-h);
+      // windows
+      g.fillStyle(0xdfe8ef, 1);
+      for(let wy = GROUND_Y - h + 26; wy < GROUND_Y - 40; wy += 56){
+        g.fillRect(x+18, wy, 26, 34);
+        g.fillRect(x+62, wy, 26, 34);
+        g.fillRect(x+106, wy, 26, 34);
+      }
+    }
+    // road below sidewalk edge
+    g.fillStyle(0x3a3d45, 1);
+    g.fillRect(0, GROUND_Y + 88, WORLD_W, DESIGN_H - GROUND_Y);
+    this.gStatic = g;
+  }
+
+  buildGround(){
+    const M = this.M;
+    const statics = [];
+    const seg = (cx, cy, w, h, opts={}) =>
+      statics.push(M.Bodies.rectangle(cx, cy, w, h,
+        Object.assign({ isStatic:true, friction:0.9, label:"ground" }, opts)));
+
+    // sidewalk: flat -> raised (curb up at 950, down at 1550) -> flat
+    seg(475,  GROUND_Y+60, 950,  120);
+    seg(1250, GROUND_Y+50-CURB_RAISE, 600, 140);
+    seg(2225, GROUND_Y+60, 1350, 120);
+
+    // beveled curb edge: momentum gets you up, the jolt threatens the tip
+    seg(952, GROUND_Y-4, 36, 8, { angle:-0.32, label:"bevel" });
+
+    // pavement cracks on raised section (small bumps)
+    seg(1150, GROUND_Y-CURB_RAISE-4, 16, 8);
+    seg(1330, GROUND_Y-CURB_RAISE-4, 16, 8);
+
+    // broken paving slab (angled ramp sticking up)
+    seg(2050, GROUND_Y-8, 120, 14, { angle:-0.18, label:"slab" });
+
+    // world walls
+    seg(-20, 400, 40, 1600);
+    seg(WORLD_W+20, 400, 40, 1600);
+
+    M.Composite.add(this.matter.world.localWorld, statics);
+
+    // draw sidewalk
+    const g = this.gStatic;
+    g.fillStyle(0x9aa0a8, 1);
+    g.fillRect(0, GROUND_Y, 950, 100);
+    g.fillRect(1550, GROUND_Y, 1350, 100);
+    g.fillStyle(0xa8aeb6, 1);
+    g.fillRect(950, GROUND_Y-CURB_RAISE, 600, 100+CURB_RAISE);
+    // curb faces: beveled going up, sharp drop coming down
+    g.fillStyle(0x8b9199, 1);
+    g.fillTriangle(934, GROUND_Y, 970, GROUND_Y, 970, GROUND_Y-CURB_RAISE);
+    g.fillStyle(0x7c828a, 1);
+    g.fillRect(1544, GROUND_Y-CURB_RAISE, 6, CURB_RAISE);
+    // paving joints
+    g.lineStyle(2, 0x878d95, 1);
+    for(let x=0; x<WORLD_W; x+=96){
+      const top = (x>=950 && x<1550) ? GROUND_Y-CURB_RAISE : GROUND_Y;
+      g.lineBetween(x, top, x, top+14);
+    }
+    // cracks + slab visuals
+    g.fillStyle(0x6d7278, 1);
+    g.fillRect(1142, GROUND_Y-CURB_RAISE-8, 16, 8);
+    g.fillRect(1322, GROUND_Y-CURB_RAISE-8, 16, 8);
+    const slab = this.add.rectangle(2050, GROUND_Y-8, 120, 14, 0x8b9199).setAngle(-10.3);
+    slab.setStrokeStyle(2, 0x6d7278);
+
+    // delivery zone: doormat + door
+    g.fillStyle(0x5a3d2b, 1); g.fillRect(2652, GROUND_Y-150, 60, 150);        // door
+    g.fillStyle(0xd8b23a, 1); g.fillCircle(2664, GROUND_Y-78, 4);             // knob
+    g.fillStyle(0xc2452e, 1); g.fillRect(2560, GROUND_Y-8, 120, 8);           // mat
+    const txt = this.add.text(2620, GROUND_Y-190, "DELIVER\nHERE", {
+      fontSize:"18px", fontStyle:"bold", color:"#2e3138", align:"center"
+    }).setOrigin(0.5);
+    this.tweens.add({ targets:txt, y:txt.y-8, duration:700, yoyo:true, repeat:-1 });
+
+    // delivery sensor
+    this.mat = M.Bodies.rectangle(2620, GROUND_Y-12, 120, 24,
+      { isStatic:true, isSensor:true, label:"mat" });
+    M.Composite.add(this.matter.world.localWorld, this.mat);
+  }
+
+  buildObstacles(){
+    const M = this.M;
+    // traffic cone — dynamic, knockable, trippable
+    this.cone = M.Bodies.rectangle(1780, GROUND_Y-16, 24, 32,
+      { friction:0.6, density:0.0006, label:"cone", chamfer:{radius:4} });
+    M.Composite.add(this.matter.world.localWorld, this.cone);
+    this.coneArt = this.add.container(1780, GROUND_Y-16, [
+      this.add.triangle(0, 0, -13,16, 13,16, 0,-16, 0xff7a1a).setStrokeStyle(2, 0xd85f0a),
+      this.add.rectangle(0, 4, 18, 5, 0xffffff)
+    ]);
+  }
+
+  /* ---------- the robot ---------- */
+
+  buildRobot(){
+    const M = this.M;
+    const spawnX = 140;
+    const geoY = GROUND_Y - 33;               // geometric chassis center
+    const wheelY = GROUND_Y - 11;
+
+    // compound: low base + tall heavy cargo box (raises center of mass)
+    const base  = M.Bodies.rectangle(spawnX, geoY+8,  74, 24, { density:0.001 });
+    const cargo = M.Bodies.rectangle(spawnX, geoY-24, 60, 46, { density:0.0022 });
+    this.chassis = M.Body.create({
+      parts:[base, cargo], friction:0.3, frictionAir:0.012, restitution:0, label:"robot"
+    });
+
+    this.wheelL = M.Bodies.circle(spawnX-25, wheelY, 11,
+      { friction:0.95, frictionStatic:1.2, density:0.0015, label:"wheel" });
+    this.wheelR = M.Bodies.circle(spawnX+25, wheelY, 11,
+      { friction:0.95, frictionStatic:1.2, density:0.0015, label:"wheel" });
+
+    // pin wheels to chassis (offsets relative to compound center of mass)
+    const com = this.chassis.position;
+    const pin = (wheel, wx) => M.Constraint.create({
+      bodyA:this.chassis, pointA:{ x:wx-com.x, y:wheelY-com.y },
+      bodyB:wheel, stiffness:1, length:0
+    });
+    M.Composite.add(this.matter.world.localWorld,
+      [this.chassis, this.wheelL, this.wheelR, pin(this.wheelL, spawnX-25), pin(this.wheelR, spawnX+25)]);
+
+    // ---- THE BURRITO: loose cargo on a soft spring. It sloshes, you suffer. ----
+    this.burrito = M.Bodies.circle(spawnX, geoY-24, 9, {
+      density:0.004, frictionAir:0.03, label:"burrito",
+      collisionFilter:{ mask:0 }   // collides with nothing; acts through the spring
+    });
+    const com0 = this.chassis.position;
+    this.burritoSpring = M.Constraint.create({
+      bodyA:this.chassis,
+      pointA:{ x:spawnX-com0.x, y:(geoY-24)-com0.y },   // cargo box centre
+      bodyB:this.burrito,
+      stiffness:0.02, damping:0.08, length:0
+    });
+    M.Composite.add(this.matter.world.localWorld, [this.burrito, this.burritoSpring]);
+
+    // ---- art (offsets relative to center of mass) ----
+    const dx = com.x - spawnX, dy = com.y - geoY;
+    const A = (x,y) => ({ x:x-dx, y:y-dy });
+    const p1=A(0,8), p2=A(0,-24), p3=A(-30,14), p4=A(22,-2), p5=A(0,-24), p6=A(27,-44);
+
+    this.flagPole = this.add.rectangle(p6.x, p6.y-24, 3, 52, 0x2e3138).setOrigin(0.5,1);
+    this.flagCloth = this.add.triangle(p6.x, p6.y-70, 0,0, 16,6, 0,12, 0xff5722);
+
+    this.cargoOff = p2;   // cargo centre offset from CoM (for porthole sync)
+
+    this.robotArt = this.add.container(com.x, com.y, [
+      this.add.rectangle(p1.x, p1.y, 74, 24, 0x3a3d45).setStrokeStyle(2, 0x24262c), // base
+      this.add.rectangle(p2.x, p2.y, 60, 46, 0xf4f5f7).setStrokeStyle(2, 0xc9ccd2), // cargo
+      this.add.rectangle(p2.x, p2.y+16, 60, 7, 0xc2452e),                            // stripe
+      this.add.circle(p2.x, p2.y, 13, 0x2a2c33).setStrokeStyle(3, 0x9aa0a8),         // porthole
+      this.add.circle(p4.x+11, p1.y-2, 4, 0xfff3b0).setStrokeStyle(1, 0xd8b23a),     // headlight
+      this.add.rectangle(p2.x, p2.y-17, 34, 9, 0x2e3138),                            // "face" visor
+      this.add.circle(p2.x-8, p2.y-17, 2.5, 0x7fe3ff),                               // eye
+      this.add.circle(p2.x+8, p2.y-17, 2.5, 0x7fe3ff),                               // eye
+      this.flagPole, this.flagCloth
+    ]);
+
+    // burrito visible through the porthole
+    this.burritoArt = this.add.ellipse(com.x, com.y-24, 15, 9, 0xe8b04b)
+      .setStrokeStyle(2, 0xb5813a).setDepth(2);
+
+    this.wheelArtL = this.add.circle(spawnX-25, wheelY, 11, 0x24262c).setStrokeStyle(3, 0x4a4e57);
+    this.wheelArtR = this.add.circle(spawnX+25, wheelY, 11, 0x24262c).setStrokeStyle(3, 0x4a4e57);
+    this.wheelSpokeL = this.add.rectangle(spawnX-25, wheelY, 16, 3, 0x777d86);
+    this.wheelSpokeR = this.add.rectangle(spawnX+25, wheelY, 16, 3, 0x777d86);
+  }
+
+  /* ---------- UI + input ---------- */
+
+  buildUI(){
+    this.hud = this.add.graphics().setScrollFactor(0).setDepth(5);
+    this.timeText = this.add.text(12, 12, "0.0s", {
+      fontSize:"20px", fontStyle:"bold", color:"#2e3138"
+    }).setScrollFactor(0).setDepth(5);
+    this.hintL = this.add.text(60, DESIGN_H-46, "◀ BRAKE", { fontSize:"15px", color:"#2e3138" })
+      .setOrigin(0.5).setScrollFactor(0).setAlpha(0.7).setDepth(5);
+    this.hintR = this.add.text(DESIGN_W-60, DESIGN_H-46, "ROLL ▶", { fontSize:"15px", color:"#2e3138" })
+      .setOrigin(0.5).setScrollFactor(0).setAlpha(0.7).setDepth(5);
+
+    // objective arrow at spawn
+    this.goArrow = this.add.text(260, GROUND_Y-150, "DELIVER ➜", {
+      fontSize:"24px", fontStyle:"bold", color:"#c2452e"
+    }).setOrigin(0.5).setDepth(4);
+    this.tweens.add({ targets:this.goArrow, x:"+=14", duration:500, yoyo:true, repeat:-1 });
+  }
+
+  bindInput(){
+    const setDir = (px, down) => {
+      if(!down){ this.driveDir = 0; return; }
+      this.driveDir = (px > this.scale.gameSize.width/2) ? 1 : -1;
+    };
+    this.input.on("pointerdown", p => setDir(p.x, true));
+    this.input.on("pointermove", p => { if(p.isDown) setDir(p.x, true); });
+    this.input.on("pointerup",   () => setDir(0, false));
+    // desktop testing
+    this.cursors = this.input.keyboard.addKeys({ left:"LEFT", right:"RIGHT", a:"A", d:"D" });
+  }
+
+  /* ---------- game loop ---------- */
+
+  update(t, dtMs){
+    if(this.state !== "play") return;
+    const M = this.M;
+
+    // input: touch / keyboard
+    let drive = this.driveDir;
+    if(this.cursors.right.isDown || this.cursors.d.isDown) drive = 1;
+    else if(this.cursors.left.isDown || this.cursors.a.isDown) drive = -1;
+
+    // drive: ease wheel angular velocity toward target
+    const targetAV = drive > 0 ? 0.46*drive : 0.32*drive;
+    for(const w of [this.wheelL, this.wheelR]){
+      const av = Phaser.Math.Linear(w.angularVelocity, targetAV, drive !== 0 ? 0.14 : 0.06);
+      M.Body.setAngularVelocity(w, av);
+    }
+
+    // sync burrito inside porthole (clamped to the window)
+    {
+      const cA = Math.cos(this.chassis.angle), sA = Math.sin(this.chassis.angle);
+      const o = this.cargoOff;
+      const wx = this.chassis.position.x + o.x*cA - o.y*sA;
+      const wy = this.chassis.position.y + o.x*sA + o.y*cA;
+      let bx = this.burrito.position.x - wx, by = this.burrito.position.y - wy;
+      const d = Math.hypot(bx, by) || 1;
+      const m = Math.min(d, 8) / d;
+      this.burritoArt.setPosition(wx + bx*m, wy + by*m)
+                     .setRotation(Math.atan2(by, bx)*0.3);
+    }
+
+    // sync art
+    const c = this.chassis;
+    this.robotArt.setPosition(c.position.x, c.position.y).setRotation(c.angle);
+    for(const [art, b] of [[this.wheelArtL,this.wheelL],[this.wheelArtR,this.wheelR],
+                           [this.wheelSpokeL,this.wheelL],[this.wheelSpokeR,this.wheelR]]){
+      art.setPosition(b.position.x, b.position.y); art.setRotation(b.angle);
+    }
+    this.coneArt.setPosition(this.cone.position.x, this.cone.position.y)
+                .setRotation(this.cone.angle);
+
+    // flag lag (fake spring — pure juice)
+    const targetLean = Phaser.Math.Clamp(-c.angularVelocity*7 - (c.velocity.x*0.05), -0.8, 0.8);
+    this.flagLean = Phaser.Math.Linear(this.flagLean, targetLean, 0.08);
+    this.flagPole.setRotation(this.flagLean);
+    this.flagCloth.setRotation(this.flagLean*1.4);
+    this.flagCloth.setPosition(
+      this.flagPole.x + Math.sin(this.flagLean)*52,
+      this.flagPole.y - Math.cos(this.flagLean)*52 + 6
+    );
+
+    // camera
+    this.cameras.main.scrollX = Phaser.Math.Clamp(
+      c.position.x - this.scale.gameSize.width*0.38, 0, WORLD_W - this.scale.gameSize.width);
+
+    // timer
+    const secs = (this.time.now - this.startTime)/1000;
+    this.timeText.setText(secs.toFixed(1) + "s");
+    if(this.goArrow.alpha > 0 && c.position.x > 420) this.goArrow.setAlpha(this.goArrow.alpha - 0.04);
+
+    // tilt meter
+    this.drawTiltMeter(c.angle);
+
+    // ---- fail: tipped over ----
+    if(Math.abs(c.angle) > TIP_ANGLE){
+      this.tipTimer += dtMs;
+      if(this.tipTimer > TIP_HOLD_MS) return this.fail();
+    } else this.tipTimer = 0;
+    if(c.position.y > DESIGN_H + 100) return this.fail();
+
+    // ---- win: on the mat, upright, stopped ----
+    const onMat = c.position.x > 2565 && c.position.x < 2690 &&
+                  c.position.y > GROUND_Y - 120;
+    const settled = Math.abs(c.angle) < 0.3 && Math.abs(c.velocity.x) < 0.5;
+    if(onMat && settled){
+      this.winTimer += dtMs;
+      if(this.winTimer > WIN_HOLD_MS) return this.win(secs);
+    } else this.winTimer = 0;
+  }
+
+  drawTiltMeter(angle){
+    const g = this.hud; g.clear();
+
+    // progress bar: spawn -> doormat
+    const pct = Phaser.Math.Clamp((this.chassis.position.x - 140) / (2620 - 140), 0, 1);
+    const bx = 70, bw = DESIGN_W - 140;
+    g.fillStyle(0xffffff, 0.55); g.fillRoundedRect(bx, 66, bw, 8, 4);
+    g.fillStyle(0xff7a1a, 1);   g.fillRoundedRect(bx, 66, Math.max(bw*pct, 8), 8, 4);
+    g.fillStyle(0xc2452e, 1);   g.fillRect(bx+bw-2, 60, 4, 20);   // the door
+    g.fillStyle(0x2e3138, 1);   g.fillCircle(bx+bw*pct, 70, 6);   // you
+
+    const cx = DESIGN_W/2, cy = 34, r = 26;
+    const danger = Math.min(Math.abs(angle)/TIP_ANGLE, 1);
+    g.lineStyle(5, 0xd0d4da, 1);
+    g.beginPath(); g.arc(cx, cy, r, Math.PI, 0); g.strokePath();
+    g.lineStyle(5, danger > 0.75 ? 0xc2452e : danger > 0.45 ? 0xff7a1a : 0x4caf50, 1);
+    g.beginPath();
+    g.arc(cx, cy, r, -Math.PI/2, -Math.PI/2 + Phaser.Math.Clamp(angle, -TIP_ANGLE, TIP_ANGLE)*1.2,
+          angle < 0);
+    g.strokePath();
+    // needle
+    g.lineStyle(3, 0x2e3138, 1);
+    g.lineBetween(cx, cy, cx + Math.sin(angle)*r, cy - Math.cos(angle)*r);
+    if(danger > 0.75 && (this.time.now/120|0) % 2 === 0){
+      g.fillStyle(0xc2452e, 0.9);
+      g.fillCircle(cx, cy+14, 5);
+    }
+  }
+
+  /* ---------- end states ---------- */
+
+  fail(){
+    this.state = "fail";
+    this.cameras.main.shake(220, 0.012);
+    const [msg, sub] = Phaser.Utils.Array.GetRandom(FAIL_LINES);
+    document.getElementById("failMsg").textContent = msg;
+    document.getElementById("failSub").textContent = sub;
+    setTimeout(() => show("failOverlay"), 350);
+  }
+
+  win(secs){
+    this.state = "win";
+    if(bestTime === null || secs < bestTime) bestTime = secs;
+    document.getElementById("winTime").textContent = "Time: " + secs.toFixed(1) + "s";
+    document.getElementById("winBest").textContent = "Best this session: " + bestTime.toFixed(1) + "s";
+    show("winOverlay");
+  }
+}
+
+/* ---------- boot ---------- */
+
+const game = new Phaser.Game({
+  type: Phaser.AUTO,
+  parent: "game",
+  backgroundColor: "#8fc7e8",
+  scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH,
+           width: DESIGN_W, height: DESIGN_H },
+  physics: { default: "matter",
+             matter: { gravity: { x: 0, y: 1.15 }, enableSleeping: false } },
+  scene: [StreetScene]
+});
+game.scene.pause("street");
+
+function show(id){ document.getElementById(id).classList.remove("hidden"); }
+function hide(id){ document.getElementById(id).classList.add("hidden"); }
+function restart(){
+  hide("failOverlay"); hide("winOverlay");
+  game.scene.getScene("street").scene.restart();
+}
+document.getElementById("startBtn").addEventListener("click", () => {
+  hide("titleOverlay");
+  const s = game.scene.getScene("street");
+  game.scene.resume("street");
+  s.startTime = s.time.now;
+});
+document.getElementById("retryBtn").addEventListener("click", restart);
+document.getElementById("againBtn").addEventListener("click", restart);
+</script>
+</body>
+</html>
