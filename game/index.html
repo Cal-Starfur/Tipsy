@@ -867,10 +867,13 @@ class WorldScene extends Phaser.Scene {
       { n:{x:0,y:-1,z:0}, pts:[C( 1,-1,0), C(-1,-1,0), C(-1,-1,1), C( 1,-1,1)] }
     ];
     for(const fc of faces){
+      /* decals have no geometric top/bottom — but their SIDE faces always draw,
+         even when a roll points them skyward (fixes the vanishing stripe) */
+      if(decal && fc.n.z !== 0) continue;
       const w = this.R(fc.n.x, fc.n.y, fc.n.z);
       if((w.x + w.y + w.z) <= 0) continue;
       let col;
-      if(w.z > 0.5)       col = cTop;
+      if(w.z > 0.5)       col = decal ? cRight : cTop;
       else if(w.z < -0.5) col = decal ? null : cBottom;
       else                col = (w.x >= w.y) ? cRight : cLeft;
       if(col == null) continue;
