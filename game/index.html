@@ -398,8 +398,16 @@ class WorldScene extends Phaser.Scene {
       ], d.paveEdge);
     }
 
-    /* props then hazards, depth-split around the robot (iso depth = x + y) */
+    /* ground decals first: flat on the pavement, can never occlude anything */
+    const GROUND_KINDS = { driveway:1, crack:1 };
     this.gFront.clear();
+    for(const hz of r.hazards){
+      if(!GROUND_KINDS[hz.type]) continue;
+      if(Math.abs(hz.x - this.camX) < halfSpan)
+        this.drawProp(g, hz.type, hz.x, hz.row*TILE*2, t);
+    }
+
+    /* volumetric props + hazards, depth-split around the robot (iso depth = x + y) */
     const botDepth = this.botX + this.botY;
     const layerFor = (px, py) => (px + py > botDepth + 14) ? this.gFront : g;
     for(const [kind, px, prow] of r.props){
@@ -407,6 +415,7 @@ class WorldScene extends Phaser.Scene {
         this.drawProp(layerFor(px, prow*TILE*2), kind, px, prow*TILE*2, t);
     }
     for(const hz of r.hazards){
+      if(GROUND_KINDS[hz.type]) continue;
       if(Math.abs(hz.x - this.camX) < halfSpan)
         this.drawProp(layerFor(hz.x, hz.row*TILE*2), hz.type, hz.x, hz.row*TILE*2, t);
     }
