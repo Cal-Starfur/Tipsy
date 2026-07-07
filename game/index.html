@@ -53,7 +53,7 @@
   <h1>TIPSY</h1>
   <div class="card" id="orderCard">…</div>
   <p><b>HOLD right side</b> — throttle · <b>HOLD left side</b> — brake<br>
-     <b>SWIPE up / down</b> — change lane</p>
+     <b>SWIPE up / down</b> — three lanes. Palms live on the inside one.</p>
   <p>Fast over cracks, curbs and driveways = you tip.<br>You are the routing AI now. Good luck.</p>
   <button class="btn" id="startBtn">START SHIFT</button>
 </div>
@@ -139,14 +139,14 @@ function generateRoute(dateStr){
     else if(r < 0.75)                 type = rng() < 0.5 ? "driveway" : "cone";
     else                              type = rng() < 0.5 ? "dog" : "bin";
     hazards.push({ type, x: Math.round(x),
-                   row: type === "driveway" ? 0.5 : (rng() < 0.5 ? 0 : 1),
+                   row: type === "driveway" ? 0.5 : Math.floor(rng()*3) - 1,
                    hit:false });
   }
 
-  /* set dressing */
+  /* palms populate the building-side lane as fixed obstacles */
   const props = [];
-  for(let px = STRIP_X0; px < STRIP_X1; px += 130 + rng()*120){
-    if(rng() < hood.palms) props.push(["palm", Math.round(px), -1]);
+  for(let px = STRIP_X0 + 120; px < STRIP_X1 - 200; px += 130 + rng()*120){
+    if(rng() < hood.palms) hazards.push({ type:"palm", x: Math.round(px), row:-1, hit:false });
   }
   if(rng() < 0.5) props.push(["car", Math.round(STRIP_X0 + rng()*900), 2.6]);
 
@@ -189,7 +189,7 @@ class WorldScene extends Phaser.Scene {
   constructor(){ super("world"); }
 
   create(){
-    this.K = 1.9;
+    this.K = 1.5;
     this.f = 0;
     this.roll = 0;
     this.pitch = 0;
@@ -202,8 +202,11 @@ class WorldScene extends Phaser.Scene {
     this.state = "idle";        // idle | play | tipped | won
     this.speed = 0;
     this.tilt = 0;              // stability: fail beyond ±1
-    this.botRow = 0;            // lane 0 (inner) or 1 (curbside)
+    this.botRow = 0;            // lane -1 (inner), 0, or 1 (curbside)
     this.botY = 0;
+    this.hopAnim = null;        // active lane-change maneuver
+    this.yaw = 0;               // nose steer during lane change
+    this.hopKick = 0;           // stability cost, bled in over the maneuver
     this.damage = 0;            // cargo damage %
     this.runT = 0;
     this.throttle = 0;          // -1 brake, 0 coast, 1 gas
@@ -212,6 +215,7 @@ class WorldScene extends Phaser.Scene {
     this.gSky = this.add.graphics();
     this.gWorld = this.add.graphics();
     this.g = this.add.graphics();
+    this.gFront = this.add.graphics();     // hazards nearer the camera than the robot
     this.hud = this.add.graphics().setDepth(5);
     this.addrText = this.add.text(0, 0, "", { fontSize:"22px", fontStyle:"bold", color:"#2e3138" }).setOrigin(0.5);
     this.hudText = this.add.text(10, 8, "", { fontSize:"15px", fontStyle:"bold", color:"#2e3138" }).setDepth(5);
@@ -244,11 +248,13 @@ class WorldScene extends Phaser.Scene {
 
   hop(dir){
     if(this.state !== "play") return;
-    const target = Phaser.Math.Clamp(this.botRow + dir, 0, 1);
+    const target = Phaser.Math.Clamp(this.botRow + dir, -1, 1);
     if(target === this.botRow) return;
     this.botRow = target;
-    /* the math problem: lane changes cost stability, scaled by speed */
-    this.tilt += dir * (0.16 + this.speed * 4.5);
+    this.hopAnim = { from: this.botY, to: target * TILE*2, start: this.time.now, dir };
+    /* the math problem: lane changes cost stability, scaled by speed —
+       bled in across the maneuver rather than spiked */
+    this.hopKick += dir * (0.16 + this.speed * 4.5);
   }
 
   loadRoute(dateStr){
@@ -258,7 +264,8 @@ class WorldScene extends Phaser.Scene {
     this.botX = STRIP_X0 + 60;
     this.botZ = this.groundZ(this.botX);
     this.botRow = 0; this.botY = 0;
-    this.camX = this.botX; this.camZ = this.botZ;
+    this.hopAnim = null; this.yaw = 0; this.hopKick = 0;
+    this.camX = this.botX; this.camY = 0; this.camZ = this.botZ;
     this.speed = 0; this.tilt = 0; this.damage = 0; this.runT = 0;
     this.roll = 0; this.tipT = 0; this.lidAng = 0; this.items = []; this.spilled = false;
     this.state = "idle";
@@ -270,7 +277,9 @@ class WorldScene extends Phaser.Scene {
 
   layout(){
     const w = this.scale.gameSize.width, h = this.scale.gameSize.height;
-    this.cx = w/2; this.cy = h/2 + 30;
+    this.cx = w/2;
+    /* center the view on the middle of the lane band, not the top lane */
+    this.cy = h/2 - TILE*0.5*this.K + 10;
   }
 
   /* ---------- terrain from the generated heightmap ---------- */
@@ -286,8 +295,12 @@ class WorldScene extends Phaser.Scene {
     return (this.groundZ(x+16) - this.groundZ(x-16)) / 32;
   }
 
-  /* ---------- projection: pitch, then roll, then facing ---------- */
+  /* ---------- projection: yaw, pitch, roll, then facing ---------- */
   T(x, y, z){
+    if(this.yaw !== 0){
+      const c = Math.cos(this.yaw), s = Math.sin(this.yaw);
+      const x2 = x*c - y*s; y = x*s + y*c; x = x2;
+    }
     if(this.pitch !== 0){
       const c = Math.cos(this.pitch), s = Math.sin(this.pitch);
       const x2 = x*c - z*s; z = x*s + z*c; x = x2;
@@ -301,6 +314,10 @@ class WorldScene extends Phaser.Scene {
     return { x:rx, y:ry, z };
   }
   R(nx, ny, nz){
+    if(this.yaw !== 0){
+      const cy = Math.cos(this.yaw), sy = Math.sin(this.yaw);
+      const nx2 = nx*cy - ny*sy; ny = nx*sy + ny*cy; nx = nx2;
+    }
     if(this.pitch !== 0){
       const c = Math.cos(this.pitch), s = Math.sin(this.pitch);
       const x2 = nx*c - nz*s; nz = nx*s + nz*c; nx = x2;
@@ -311,11 +328,11 @@ class WorldScene extends Phaser.Scene {
     for(let i=0; i<this.f; i++){ const t = rx; rx = -ry; ry = t; }
     return { x:rx, y:ry, z:nz2 };
   }
-  /* world-space projection (camera follows the bot along x and height) */
+  /* world-space projection (camera tracks the bot on both iso axes + height) */
   W(x, y, z){
-    const xr = x - this.camX;
-    return { x:(xr - y)*this.K + this.cx,
-             y:((xr + y)*0.5 - (z - this.camZ))*this.K + this.cy };
+    const xr = x - this.camX, yr = y - this.camY;
+    return { x:(xr - yr)*this.K + this.cx,
+             y:((xr + yr)*0.5 - (z - this.camZ))*this.K + this.cy };
   }
   /* robot-space projection: model -> robot pose -> world */
   P(x, y, z){
@@ -381,12 +398,17 @@ class WorldScene extends Phaser.Scene {
       ], d.paveEdge);
     }
 
-    /* props then hazards (camera-culled) */
+    /* props then hazards, depth-split around the robot (iso depth = x + y) */
+    this.gFront.clear();
+    const botDepth = this.botX + this.botY;
+    const layerFor = (px, py) => (px + py > botDepth + 14) ? this.gFront : g;
     for(const [kind, px, prow] of r.props){
-      if(Math.abs(px - this.camX) < halfSpan) this.drawProp(g, kind, px, prow*TILE*2, t);
+      if(Math.abs(px - this.camX) < halfSpan)
+        this.drawProp(layerFor(px, prow*TILE*2), kind, px, prow*TILE*2, t);
     }
     for(const hz of r.hazards){
-      if(Math.abs(hz.x - this.camX) < halfSpan) this.drawProp(g, hz.type, hz.x, hz.row*TILE*2, t);
+      if(Math.abs(hz.x - this.camX) < halfSpan)
+        this.drawProp(layerFor(hz.x, hz.row*TILE*2), hz.type, hz.x, hz.row*TILE*2, t);
     }
 
     /* the address: door, delivery mat, floating label */
@@ -533,8 +555,24 @@ class WorldScene extends Phaser.Scene {
       this.botX += this.speed * dt;
       this.wheelPhase += this.speed * dt * 0.28;
 
-      /* lane */
-      this.botY = Phaser.Math.Linear(this.botY, this.botRow * TILE*2, 0.12);
+      /* lane maneuver: eased diagonal glide with nose steer */
+      if(this.hopAnim){
+        const HOP_MS = 480;
+        const k = Phaser.Math.Clamp((this.time.now - this.hopAnim.start) / HOP_MS, 0, 1);
+        const e = k*k*(3 - 2*k);                           // smoothstep
+        this.botY = this.hopAnim.from + (this.hopAnim.to - this.hopAnim.from)*e;
+        this.yaw = this.hopAnim.dir * 0.26 * Math.sin(Math.PI*k);
+        if(k >= 1){ this.hopAnim = null; this.yaw = 0; }
+      } else {
+        this.yaw = Phaser.Math.Linear(this.yaw, 0, 0.2);
+      }
+      /* bleed the hop's stability cost in over ~0.3s */
+      if(this.hopKick !== 0){
+        const apply = this.hopKick * Math.min(1, dt/300);
+        this.tilt += apply;
+        this.hopKick -= apply;
+        if(Math.abs(this.hopKick) < 0.002) this.hopKick = 0;
+      }
 
       /* hazards: each one is the math problem */
       for(const hz of this.route.hazards){
@@ -542,6 +580,19 @@ class WorldScene extends Phaser.Scene {
         if(hz.type === "driveway"){
           if(Math.abs(dx) < 44)                            // cross-slope while on it
             this.tilt += this.speed * 0.055 * dt;
+        } else if(hz.type === "palm"){
+          /* a trunk is a wall: you stop, you do not pass */
+          if(hz.row === this.botRow && this.botX > hz.x - 30 && this.botX < hz.x){
+            this.botX = hz.x - 30;
+            if(this.speed > 0.035 && !hz.hit){
+              hz.hit = true;                               // the bonk (once per approach)
+              const kick = this.speed * 7 * (Math.random() < 0.5 ? 1 : -1);
+              this.tilt += kick;
+              this.damage = Math.min(95, this.damage + Math.abs(kick)*40);
+            }
+            this.speed = 0;
+          }
+          if(Math.abs(dx) > 40) hz.hit = false;            // re-arm after backing off
         } else if(!hz.hit && Math.abs(dx) < 26 && hz.row === this.botRow){
           hz.hit = true;
           const sev = { crack:4, cone:6, trash:7, bin:8, scooter:9, dog:5 }[hz.type] ?? 5;
@@ -576,6 +627,7 @@ class WorldScene extends Phaser.Scene {
     }
 
     /* tipped: roll over + spill (the sprite-lab pratfall) */
+    if(this.state !== "play") this.yaw = Phaser.Math.Linear(this.yaw, 0, 0.15);
     if(this.state === "tipped"){
       this.tipT = Phaser.Math.Linear(this.tipT, 1, 0.09);
       this.lidAng = Phaser.Math.Linear(this.lidAng, this.tipT > 0.5 ? 2.35 : 0, 0.085);
@@ -588,7 +640,8 @@ class WorldScene extends Phaser.Scene {
 
     this.botZ = this.groundZ(this.botX);
     if(this.state !== "tipped") this.pitch = -Math.atan(this.groundSlope(this.botX));
-    this.camX = Phaser.Math.Linear(this.camX, this.botX + 60, 0.08);
+    this.camX = Phaser.Math.Linear(this.camX, this.botX + 95, 0.08);
+    this.camY = Phaser.Math.Linear(this.camY, this.botY, 0.06);
     this.camZ = Phaser.Math.Linear(this.camZ, this.botZ, 0.08);
 
     const driving = this.state === "play" && this.speed > 0.01;
