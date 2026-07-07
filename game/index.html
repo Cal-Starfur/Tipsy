@@ -109,63 +109,117 @@ function hashStr(s){ let h = 1779033703; for(let i=0;i<s.length;i++){ h = Math.i
 function mulberry32(a){ return function(){ a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
 
 /* ---------- the daily generator ---------- */
-const STRIP_X0 = -560, STRIP_X1 = 560;   // street extent, model units
+/* ---------- routes now TURN: legs in 4 compass directions ----------
+   The player never steers; Tipsy follows the route line and auto-turns
+   through fillet arcs at corners. Corners are a tilt source. */
+const DIRV = [{x:1,y:0},{x:0,y:1},{x:-1,y:0},{x:0,y:-1}];   // facing 0..3
+const CORNER_R = 70;
+const SPAWN_S = 60;
+
 function generateRoute(dateStr){
   const seed = hashStr(dateStr);
   const rng = mulberry32(seed);
   const hood = HOODS[seed % HOODS.length];
 
-  /* heightmap: random-walk grades scaled by hilliness, tile-resolution */
+  /* legs: 2-4, alternating turn direction (guarantees no self-intersection) */
+  const nLegs = 2 + Math.floor(rng()*3);
+  const legs = [{ f:0, len: 460 + rng()*260 }];
+  let turn = rng() < 0.5 ? 1 : -1;
+  for(let i=1; i<nLegs; i++){
+    legs.push({ f: ((legs[i-1].f + turn) % 4 + 4) % 4, len: 400 + rng()*320 });
+    turn = -turn;
+  }
+
+  /* fillet path: line segments trimmed by CORNER_R, quarter-circle arcs between */
+  const segs = [];
+  let s = 0, p = {x:0, y:0};
+  for(let i=0; i<legs.length; i++){
+    const f = legs[i].f, d = DIRV[f], rv = DIRV[(f+1)%4];
+    const trimS = i > 0 ? CORNER_R : 0;
+    const trimE = i < legs.length-1 ? CORNER_R : 0;
+    const lineLen = legs[i].len - trimS - trimE;
+    segs.push({ type:"line", s0:s, s1:s+lineLen, f, hA:f*Math.PI/2,
+                start:{ x:p.x + d.x*trimS, y:p.y + d.y*trimS } });
+    s += lineLen;
+    const cornerP = { x:p.x + d.x*legs[i].len, y:p.y + d.y*legs[i].len };
+    if(i < legs.length-1){
+      const sign = ((legs[i+1].f - f + 4) % 4 === 1) ? 1 : -1;   // +1 = right turn
+      const center = {
+        x: cornerP.x - d.x*CORNER_R + sign*rv.x*CORNER_R,
+        y: cornerP.y - d.y*CORNER_R + sign*rv.y*CORNER_R };
+      const startPt = { x:cornerP.x - d.x*CORNER_R, y:cornerP.y - d.y*CORNER_R };
+      const a0 = Math.atan2(startPt.y - center.y, startPt.x - center.x);
+      const arcLen = Math.PI/2 * CORNER_R;
+      segs.push({ type:"arc", s0:s, s1:s+arcLen, center, a0, sign,
+                  R:CORNER_R, hA:f*Math.PI/2, f });
+      s += arcLen;
+    }
+    p = cornerP;
+  }
+  const totalLen = s;
+  const inCorner = sv => segs.some(sg => sg.type === "arc" && sv > sg.s0 - 110 && sv < sg.s1 + 110);
+
+  /* heightmap along the path; grades flatten through corners */
   const tiles = [];
-  const nT = Math.round((STRIP_X1 - STRIP_X0) / (TILE*2)) + 2;
+  const nT = Math.ceil(totalLen / (TILE*2)) + 3;
   let h = 0, grade = 0;
   for(let i=0; i<nT; i++){
-    if(rng() < 0.25) grade = (rng()*2 - 0.8) * 11 * hood.hill;   // new grade segment
+    const sv = i*TILE*2;
+    if(inCorner(sv)) grade = 0;
+    else if(rng() < 0.25) grade = (rng()*2 - 0.8) * 11 * hood.hill;
     h = Math.max(0, h + grade);
     tiles.push(h);
   }
+  const facingAt = sv => {
+    for(const sg of segs) if(sv >= sg.s0 && sv <= sg.s1) return sg.f;
+    return segs[segs.length-1].f;
+  };
 
-  /* hazards along the sidewalk, spacing tightens with litter + bad pavement */
+  /* hazards along the route; corners stay clear (the corner IS the hazard there) */
   const hazards = [];
   const density = 0.45 + hood.litter*0.35 + (1 - hood.pave)*0.3;
-  let x = STRIP_X0 + 140;
-  while(x < STRIP_X1 - 160){
-    x += (150 - density*80) + rng()*90;
-    const r = rng();
+  let hs = SPAWN_S + 120;
+  while(hs < totalLen - 220){
+    hs += (150 - density*80) + rng()*90;
+    if(inCorner(hs)) continue;
+    const r2 = rng();
     let type;
-    if(r < (1 - hood.pave)*0.45)      type = "crack";
-    else if(r < (1-hood.pave)*0.45 + hood.litter*0.35)
-                                      type = rng() < 0.6 ? "scooter" : "trash";
-    else if(r < 0.75)                 type = rng() < 0.5 ? "driveway" : "cone";
-    else                              type = rng() < 0.5 ? "dog" : "bin";
-    hazards.push({ type, x: Math.round(x),
+    if(r2 < (1 - hood.pave)*0.45)      type = "crack";
+    else if(r2 < (1-hood.pave)*0.45 + hood.litter*0.35)
+                                       type = rng() < 0.6 ? "scooter" : "trash";
+    else if(r2 < 0.75)                 type = rng() < 0.5 ? "driveway" : "cone";
+    else                               type = rng() < 0.5 ? "dog" : "bin";
+    hazards.push({ type, s: Math.round(hs),
                    row: type === "driveway" ? 0.5 : Math.floor(rng()*3) - 1,
-                   hit:false });
+                   f: facingAt(hs), hit:false });
   }
 
   /* palms populate the building-side lane as fixed obstacles */
   const props = [];
-  for(let px = STRIP_X0 + 120; px < STRIP_X1 - 200; px += 130 + rng()*120){
-    if(rng() < hood.palms) hazards.push({ type:"palm", x: Math.round(px), row:-1, hit:false });
+  for(let ps = SPAWN_S + 140; ps < totalLen - 220; ps += 130 + rng()*120){
+    if(inCorner(ps)) continue;
+    if(rng() < hood.palms) hazards.push({ type:"palm", s: Math.round(ps), row:-1, f: facingAt(ps), hit:false });
   }
-  if(rng() < 0.5) props.push(["car", Math.round(STRIP_X0 + rng()*900), 2.6]);
+  if(rng() < 0.5){
+    const cs = SPAWN_S + 150 + rng()*(totalLen - 500);
+    if(!inCorner(cs)) props.push({ kind:"car", s: Math.round(cs), row:2.6, f: facingAt(cs) });
+  }
 
   /* the address */
   const number = 100 + Math.floor(rng()*3800);
   const street = hood.streets[Math.floor(rng()*hood.streets.length)];
-  const doorX = STRIP_X1 - 90;
+  const doorS = totalLen - 90;
 
-  /* palette blends by attributes */
   const pal = hood.hill > 0.55
     ? { sky:0xf2c48d, pave:0xbdb6a8, paveB:0xb3ac9e, paveEdge:0x9c9588, road:0x45484f, roadLine:0xcfc9b9 }
     : hood.pave < 0.5
     ? { sky:0xc9b49b, pave:0xa19a8e, paveB:0x958e82, paveEdge:0x7d7669, road:0x3d4046, roadLine:0x8f897b }
     : { sky:0x9fd4e8, pave:0xc9c3b4, paveB:0xbfb9aa, paveEdge:0xa8a294, road:0x4a4d55, roadLine:0xd8d2c2 };
 
-  const tipMult = (1 + hood.hill*1.2 + (1-hood.pave)*1.0 + hood.litter*0.8).toFixed(1);
+  const tipMult = (1 + hood.hill*1.2 + (1-hood.pave)*1.0 + hood.litter*0.8 + (nLegs-2)*0.15).toFixed(1);
 
-  return { hood, tiles, hazards, props, pal,
-           address:`${number} ${street}`, doorX, tipMult, dateStr };
+  return { hood, legs, segs, totalLen, tiles, hazards, props, pal,
+           address:`${number} ${street}`, doorS, tipMult, dateStr };
 }
 
 /* ---------- robot palette (approved in sprite lab) ---------- */
@@ -251,7 +305,7 @@ class WorldScene extends Phaser.Scene {
     const target = Phaser.Math.Clamp(this.botRow + dir, -1, 1);
     if(target === this.botRow) return;
     this.botRow = target;
-    this.hopAnim = { from: this.botY, to: target * TILE*2, start: this.time.now, dir };
+    this.hopAnim = { from: this.laneOff, to: target * TILE*2, start: this.time.now, dir };
     /* the math problem: lane changes cost stability, scaled by speed —
        bled in across the maneuver rather than spiked */
     this.hopKick += dir * (0.16 + this.speed * 4.5);
@@ -261,11 +315,13 @@ class WorldScene extends Phaser.Scene {
     this.route = generateRoute(dateStr);
     for(const hz of this.route.hazards) hz.hit = false;
     this.d = this.route.pal;
-    this.botX = STRIP_X0 + 60;
-    this.botZ = this.groundZ(this.botX);
-    this.botRow = 0; this.botY = 0;
-    this.hopAnim = null; this.yaw = 0; this.hopKick = 0;
-    this.camX = this.botX; this.camY = 0; this.camZ = this.botZ;
+    this.botS = SPAWN_S;
+    this.botZ = this.groundZ(this.botS);
+    const sp = this.posAt(this.botS);
+    this.botX = sp.x; this.botY = sp.y;
+    this.botRow = 0; this.laneOff = 0;
+    this.hopAnim = null; this.yaw = 0; this.hopYaw = 0; this.hopKick = 0;
+    this.camX = this.botX; this.camY = this.botY; this.camZ = this.botZ;
     this.speed = 0; this.tilt = 0; this.damage = 0; this.runT = 0;
     this.roll = 0; this.tipT = 0; this.lidAng = 0; this.items = []; this.spilled = false;
     this.state = "idle";
@@ -282,17 +338,36 @@ class WorldScene extends Phaser.Scene {
     this.cy = h/2 - TILE*0.5*this.K + 10;
   }
 
-  /* ---------- terrain from the generated heightmap ---------- */
-  groundZ(x){
+  /* ---------- path + terrain (s = distance along the route) ---------- */
+  segAt(s){
+    const segs = this.route.segs;
+    for(const sg of segs) if(s <= sg.s1) return sg;
+    return segs[segs.length-1];
+  }
+  posAt(s){
+    const sg = this.segAt(s);
+    if(sg.type === "line"){
+      const d = DIRV[sg.f], u = Phaser.Math.Clamp(s, sg.s0, sg.s1) - sg.s0;
+      return { x: sg.start.x + d.x*u, y: sg.start.y + d.y*u };
+    }
+    const a = sg.a0 + sg.sign * (Phaser.Math.Clamp(s, sg.s0, sg.s1) - sg.s0) / sg.R;
+    return { x: sg.center.x + Math.cos(a)*sg.R, y: sg.center.y + Math.sin(a)*sg.R };
+  }
+  headingAt(s){
+    const sg = this.segAt(s);
+    if(sg.type === "line") return sg.hA;
+    return sg.hA + sg.sign * (Phaser.Math.Clamp(s, sg.s0, sg.s1) - sg.s0) / sg.R;
+  }
+  groundZ(s){
     const t = this.route.tiles;
-    const fx = (x - STRIP_X0) / (TILE*2);
+    const fx = s / (TILE*2);
     const i = Math.floor(fx);
     if(i < 0) return t[0];
     if(i >= t.length-1) return t[t.length-1];
     return Phaser.Math.Linear(t[i], t[i+1], fx - i);
   }
-  groundSlope(x){
-    return (this.groundZ(x+16) - this.groundZ(x-16)) / 32;
+  groundSlope(s){
+    return (this.groundZ(s+16) - this.groundZ(s-16)) / 32;
   }
 
   /* ---------- projection: yaw, pitch, roll, then facing ---------- */
@@ -360,84 +435,99 @@ class WorldScene extends Phaser.Scene {
     this.gSky.fillStyle(d.sky, 1);
     this.gSky.fillRect(0, 0, this.scale.gameSize.width, this.scale.gameSize.height);
 
-    /* visible tile window around the camera */
-    const halfSpan = (this.scale.gameSize.width / this.K) * 0.75 + TILE*4;
-    const tx0 = Math.floor((this.camX - halfSpan) / (TILE*2));
-    const tx1 = Math.ceil((this.camX + halfSpan) / (TILE*2));
+    const T2 = TILE*2;
+    const cullSpan = (this.scale.gameSize.width / this.K) * 0.9 + TILE*6;
+    const near = (wx, wy) => (Math.abs(wx - this.camX) + Math.abs(wy - this.camY)) < cullSpan;
 
-    for(let ty = -1; ty <= 4; ty++){
-      for(let tx = tx0; tx <= tx1; tx++){
-        const cxm = tx*TILE*2, cym = ty*TILE*2;
-        if(cxm < STRIP_X0 - TILE*2 || cxm > STRIP_X1 + TILE*2) continue;
-        const road = ty >= 2;
-        const zL = this.groundZ(cxm-TILE), zR = this.groundZ(cxm+TILE);
-        const pts = [
-          this.W(cxm+TILE, cym-TILE, zR), this.W(cxm+TILE, cym+TILE, zR),
-          this.W(cxm-TILE, cym+TILE, zL), this.W(cxm-TILE, cym-TILE, zL)
-        ];
-        const base = road ? d.road : (((tx+ty)%2===0) ? d.pave : d.paveB);
-        this.quadOn(g, pts, base);
-        if(!road) this.edgeOn(g, pts, d.paveEdge, 1.5);
-        if(ty === 3 && tx % 2 === 0){
-          const dz0 = this.groundZ(cxm-14), dz1 = this.groundZ(cxm+14);
-          this.quadOn(g, [
-            this.W(cxm-14, cym-TILE-4, dz0), this.W(cxm+14, cym-TILE-4, dz1),
-            this.W(cxm+14, cym-TILE+4, dz1), this.W(cxm-14, cym-TILE+4, dz0)
-          ], d.roadLine);
+    /* street tiles per line leg; strips extend ±2 tiles to cover junctions */
+    for(const sg of r.segs){
+      if(sg.type !== "line") continue;
+      const dv = DIRV[sg.f], rv = DIRV[(sg.f+1)%4];
+      const n = Math.ceil((sg.s1 - sg.s0) / T2);
+      for(let a = -2; a <= n + 2; a++){
+        const sv = sg.s0 + a*T2;
+        const rowX = sg.start.x + dv.x*a*T2, rowY = sg.start.y + dv.y*a*T2;
+        if(!near(rowX, rowY)) continue;
+        const zA = this.groundZ(sv - TILE), zB = this.groundZ(sv + TILE);
+        for(let c = -1; c <= 4; c++){
+          const road = c >= 2;
+          const cx = rowX + rv.x*c*T2, cy = rowY + rv.y*c*T2;
+          const Ax = dv.x*TILE, Ay = dv.y*TILE, Bx = rv.x*TILE, By = rv.y*TILE;
+          const pts = [
+            this.W(cx+Ax-Bx, cy+Ay-By, zB), this.W(cx+Ax+Bx, cy+Ay+By, zB),
+            this.W(cx-Ax+Bx, cy-Ay+By, zA), this.W(cx-Ax-Bx, cy-Ay-By, zA)
+          ];
+          this.quadOn(g, pts, road ? d.road : (((a+c)%2===0) ? d.pave : d.paveB));
+          if(!road) this.edgeOn(g, pts, d.paveEdge, 1.5);
+          if(c === 3 && a % 2 === 0 && a >= 0 && a <= n){
+            this.quadOn(g, [
+              this.W(cx - dv.x*14 - rv.x*4, cy - dv.y*14 - rv.y*4, zA),
+              this.W(cx + dv.x*14 - rv.x*4, cy + dv.y*14 - rv.y*4, zB),
+              this.W(cx + dv.x*14 + rv.x*4, cy + dv.y*14 + rv.y*4, zB),
+              this.W(cx - dv.x*14 + rv.x*4, cy - dv.y*14 + rv.y*4, zA)
+            ], d.roadLine);
+          }
         }
+        /* curb lip between sidewalk and road */
+        const kx = rowX + rv.x*TILE*3, ky = rowY + rv.y*TILE*3;
+        this.quadOn(g, [
+          this.W(kx - dv.x*TILE, ky - dv.y*TILE, zA+3), this.W(kx + dv.x*TILE, ky + dv.y*TILE, zB+3),
+          this.W(kx + dv.x*TILE, ky + dv.y*TILE, zB-2), this.W(kx - dv.x*TILE, ky - dv.y*TILE, zA-2)
+        ], d.paveEdge);
       }
     }
-    /* curb line */
-    for(let tx = tx0; tx <= tx1; tx++){
-      const cxm = tx*TILE*2;
-      if(cxm < STRIP_X0 || cxm > STRIP_X1) continue;
-      const z0 = this.groundZ(cxm-TILE), z1 = this.groundZ(cxm+TILE);
-      this.quadOn(g, [
-        this.W(cxm-TILE, TILE*3, z0+3), this.W(cxm+TILE, TILE*3, z1+3),
-        this.W(cxm+TILE, TILE*3, z1-2), this.W(cxm-TILE, TILE*3, z0-2)
-      ], d.paveEdge);
-    }
+
+    /* world position of an s/row entity */
+    const worldOf = (s, row, f) => {
+      const p = this.posAt(s), rv = DIRV[(f+1)%4];
+      return { x: p.x + rv.x*row*T2, y: p.y + rv.y*row*T2, z: this.groundZ(s) };
+    };
 
     /* ground decals first: flat on the pavement, can never occlude anything */
     const GROUND_KINDS = { driveway:1, crack:1 };
     this.gFront.clear();
     for(const hz of r.hazards){
       if(!GROUND_KINDS[hz.type]) continue;
-      if(Math.abs(hz.x - this.camX) < halfSpan)
-        this.drawProp(g, hz.type, hz.x, hz.row*TILE*2, t);
+      const wp = worldOf(hz.s, hz.row, hz.f);
+      if(near(wp.x, wp.y)) this.drawProp(g, hz.type, wp.x, wp.y, t, hz.f, wp.z);
     }
 
     /* volumetric props + hazards, depth-split around the robot (iso depth = x + y) */
     const botDepth = this.botX + this.botY;
     const layerFor = (px, py) => (px + py > botDepth + 14) ? this.gFront : g;
-    for(const [kind, px, prow] of r.props){
-      if(Math.abs(px - this.camX) < halfSpan)
-        this.drawProp(layerFor(px, prow*TILE*2), kind, px, prow*TILE*2, t);
+    for(const pr of r.props){
+      const wp = worldOf(pr.s, pr.row, pr.f);
+      if(near(wp.x, wp.y)) this.drawProp(layerFor(wp.x, wp.y), pr.kind, wp.x, wp.y, t, pr.f, wp.z);
     }
     for(const hz of r.hazards){
       if(GROUND_KINDS[hz.type]) continue;
-      if(Math.abs(hz.x - this.camX) < halfSpan)
-        this.drawProp(layerFor(hz.x, hz.row*TILE*2), hz.type, hz.x, hz.row*TILE*2, t);
+      const wp = worldOf(hz.s, hz.row, hz.f);
+      if(near(wp.x, wp.y)) this.drawProp(layerFor(wp.x, wp.y), hz.type, wp.x, wp.y, t, hz.f, wp.z);
     }
 
-    /* the address: door, delivery mat, floating label */
-    const dx = r.doorX, dz = this.groundZ(dx);
-    const door = this.W(dx, -TILE-6, dz);
+    /* the address: door, delivery mat, floating label — oriented by the last leg */
+    const lastF = r.segs[r.segs.length-1].f;
+    const dv = DIRV[lastF], rv = DIRV[(lastF+1)%4];
+    const dp = this.posAt(r.doorS), dz = this.groundZ(r.doorS);
+    const doorW = { x: dp.x + rv.x*(-TILE-6), y: dp.y + rv.y*(-TILE-6) };
+    const door = this.W(doorW.x, doorW.y, dz);
     g.fillStyle(0x5a3d2b, 1);
     g.fillRect(door.x-22, door.y-96, 44, 96);
     g.fillStyle(0xd8b23a, 1);
     g.fillCircle(door.x+12, door.y-46, 4);
     this.quadOn(g, [
-      this.W(dx-34, -8, dz+0.6), this.W(dx+34, -8, dz+0.6),
-      this.W(dx+34, TILE+18, dz+0.6), this.W(dx-34, TILE+18, dz+0.6)
+      this.W(dp.x - dv.x*34 - rv.x*8,        dp.y - dv.y*34 - rv.y*8,        dz+0.6),
+      this.W(dp.x + dv.x*34 - rv.x*8,        dp.y + dv.y*34 - rv.y*8,        dz+0.6),
+      this.W(dp.x + dv.x*34 + rv.x*(TILE+18), dp.y + dv.y*34 + rv.y*(TILE+18), dz+0.6),
+      this.W(dp.x - dv.x*34 + rv.x*(TILE+18), dp.y - dv.y*34 + rv.y*(TILE+18), dz+0.6)
     ], 0xc2452e);
     this.addrText.setPosition(door.x, door.y - 128 + Math.sin(t*0.003)*5);
     this.addrText.setText(this.route.address);
   }
 
-  drawProp(g, kind, x, y, t){
-    const z = this.groundZ(x);
-    const W = (dx, dy, dz) => this.W(x+dx, y+dy, z+dz);
+  drawProp(g, kind, x, y, t, fdir = 0, z = 0){
+    const dv = DIRV[fdir], rv = DIRV[(fdir+1)%4];
+    const W = (dx, dy, dz) => this.W(x + dv.x*dx + rv.x*dy, y + dv.y*dx + rv.y*dy, z + dz);
     if(kind === "palm"){
       const sway = Math.sin(t*0.0012 + x)*3;
       g.lineStyle(7, 0x8a6a48, 1);
@@ -555,25 +645,29 @@ class WorldScene extends Phaser.Scene {
       this.runT += dt;
 
       /* throttle / brake / hill gravity / friction */
-      const slope = this.groundSlope(this.botX);          // + uphill
+      const slope = this.groundSlope(this.botS);          // + uphill
       if(this.throttle === 1) this.speed += 0.00028*dt;
       if(this.throttle === -1) this.speed -= 0.00050*dt;
       this.speed -= slope * 0.00030 * dt;                 // gravity
       this.speed -= this.speed * 0.0009 * dt;             // rolling friction
       this.speed = Phaser.Math.Clamp(this.speed, 0, 0.15);
-      this.botX += this.speed * dt;
+      this.botS += this.speed * dt;
       this.wheelPhase += this.speed * dt * 0.28;
+
+      /* corners: Tipsy turns himself — centrifugal lean (∝ v²) is YOUR problem */
+      const seg = this.segAt(this.botS);
+      if(seg.type === "arc") this.tilt += seg.sign * this.speed * this.speed * 0.08 * dt;
 
       /* lane maneuver: eased diagonal glide with nose steer */
       if(this.hopAnim){
         const HOP_MS = 480;
         const k = Phaser.Math.Clamp((this.time.now - this.hopAnim.start) / HOP_MS, 0, 1);
         const e = k*k*(3 - 2*k);                           // smoothstep
-        this.botY = this.hopAnim.from + (this.hopAnim.to - this.hopAnim.from)*e;
-        this.yaw = this.hopAnim.dir * 0.26 * Math.sin(Math.PI*k);
-        if(k >= 1){ this.hopAnim = null; this.yaw = 0; }
+        this.laneOff = this.hopAnim.from + (this.hopAnim.to - this.hopAnim.from)*e;
+        this.hopYaw = this.hopAnim.dir * 0.26 * Math.sin(Math.PI*k);
+        if(k >= 1){ this.hopAnim = null; this.hopYaw = 0; }
       } else {
-        this.yaw = Phaser.Math.Linear(this.yaw, 0, 0.2);
+        this.hopYaw = Phaser.Math.Linear(this.hopYaw, 0, 0.2);
       }
       /* bleed the hop's stability cost in over ~0.3s */
       if(this.hopKick !== 0){
@@ -585,14 +679,14 @@ class WorldScene extends Phaser.Scene {
 
       /* hazards: each one is the math problem */
       for(const hz of this.route.hazards){
-        const dx = this.botX - hz.x;
+        const dx = this.botS - hz.s;
         if(hz.type === "driveway"){
           if(Math.abs(dx) < 44)                            // cross-slope while on it
             this.tilt += this.speed * 0.055 * dt;
         } else if(hz.type === "palm"){
           /* a trunk is a wall: you stop, you do not pass */
-          if(hz.row === this.botRow && this.botX > hz.x - 30 && this.botX < hz.x){
-            this.botX = hz.x - 30;
+          if(hz.row === this.botRow && this.botS > hz.s - 30 && this.botS < hz.s){
+            this.botS = hz.s - 30;
             if(this.speed > 0.035 && !hz.hit){
               hz.hit = true;                               // the bonk (once per approach)
               const kick = this.speed * 7 * (Math.random() < 0.5 ? 1 : -1);
@@ -625,13 +719,13 @@ class WorldScene extends Phaser.Scene {
         setTimeout(() => showFail(), 1500);
       }
       /* win: at the door, slow, upright */
-      const remain = this.route.doorX - this.botX;
+      const remain = this.route.doorS - this.botS;
       if(remain < 34 && remain > -60 && this.speed < 0.02 && Math.abs(this.tilt) < 0.5){
         this.state = "won";
         showWin(this);
       }
-      if(this.botX > STRIP_X1 - 30){                       // overshot the strip
-        this.botX = STRIP_X1 - 30; this.speed = 0; this.tilt += 0.5;
+      if(this.botS > this.route.totalLen - 30){            // overshot the route
+        this.botS = this.route.totalLen - 30; this.speed = 0; this.tilt += 0.5;
       }
     }
 
@@ -647,10 +741,20 @@ class WorldScene extends Phaser.Scene {
     }
     this.simItems(dt);
 
-    this.botZ = this.groundZ(this.botX);
-    if(this.state !== "tipped") this.pitch = -Math.atan(this.groundSlope(this.botX));
-    this.camX = Phaser.Math.Linear(this.camX, this.botX + 95, 0.08);
-    this.camY = Phaser.Math.Linear(this.camY, this.botY, 0.06);
+    /* world pose from the path: position + lane, facing snapped + residual yaw */
+    const hdg = this.headingAt(this.botS);
+    const pp = this.posAt(this.botS);
+    const rvx = -Math.sin(hdg), rvy = Math.cos(hdg);       // right of travel
+    this.botX = pp.x + rvx*this.laneOff;
+    this.botY = pp.y + rvy*this.laneOff;
+    const fi = Math.round(hdg / (Math.PI/2));
+    this.f = ((fi % 4) + 4) % 4;
+    this.yaw = (hdg - fi*(Math.PI/2)) + this.hopYaw;
+
+    this.botZ = this.groundZ(this.botS);
+    if(this.state !== "tipped") this.pitch = -Math.atan(this.groundSlope(this.botS));
+    this.camX = Phaser.Math.Linear(this.camX, this.botX + Math.cos(hdg)*95, 0.08);
+    this.camY = Phaser.Math.Linear(this.camY, this.botY + Math.sin(hdg)*95, 0.06);
     this.camZ = Phaser.Math.Linear(this.camZ, this.botZ, 0.08);
 
     const driving = this.state === "play" && this.speed > 0.01;
@@ -962,7 +1066,7 @@ class WorldScene extends Phaser.Scene {
     const w = this.scale.gameSize.width;
 
     /* progress: spawn -> door */
-    const pct = Phaser.Math.Clamp((this.botX - (STRIP_X0+60)) / (this.route.doorX - (STRIP_X0+60)), 0, 1);
+    const pct = Phaser.Math.Clamp((this.botS - SPAWN_S) / (this.route.doorS - SPAWN_S), 0, 1);
     const bx = 70, bw = w - 140;
     g.fillStyle(0xffffff, 0.5); g.fillRoundedRect(bx, 14, bw, 7, 3);
     g.fillStyle(0xff7a1a, 1);   g.fillRoundedRect(bx, 14, Math.max(bw*pct, 7), 7, 3);
