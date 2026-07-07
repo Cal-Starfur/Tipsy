@@ -1,0 +1,975 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>TIPSY — a clumsy delivery</title>
+<style>
+  html,body{margin:0;padding:0;background:#14161b;height:100%;overflow:hidden;touch-action:none;
+    font-family:-apple-system,'Helvetica Neue',Arial,sans-serif;-webkit-user-select:none;user-select:none;color:#e8eaef;}
+  #wrap{display:flex;flex-direction:column;height:100%;}
+  #game{flex:1;min-height:0;}
+  #panel{padding:8px 12px calc(10px + env(safe-area-inset-bottom));background:#1c1f26;border-top:1px solid #2b2f38;}
+  .row{display:flex;gap:8px;align-items:center;}
+  .lbl{font-size:11px;letter-spacing:1.5px;color:#8f95a1;width:56px;text-transform:uppercase;}
+  button{flex:1;background:#262a33;color:#e8eaef;border:1px solid #363b46;border-radius:10px;
+    padding:10px 4px;font-size:13px;font-weight:600;}
+  button.on{background:#ff7a1a;border-color:#ff7a1a;color:#fff;}
+  button:active{transform:scale(0.96);}
+  #hdr{padding:8px 14px 2px;font-size:12px;letter-spacing:2px;color:#8f95a1;text-transform:uppercase;}
+  #hdr b{color:#ff9c4d;}
+  #blurb{padding:0 14px 6px;font-size:12px;color:#8f95a1;}
+  .overlay{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    background:rgba(18,20,26,.86);color:#fff;text-align:center;z-index:10;padding:24px;}
+  .overlay h1{font-size:52px;margin:0 0 4px;letter-spacing:2px;}
+  .overlay h2{font-size:28px;margin:0 0 8px;}
+  .overlay p{font-size:16px;line-height:1.5;color:#cfd3dc;max-width:330px;margin:5px 0;}
+  .overlay .card{background:#20242d;border:1px solid #363b46;border-radius:14px;padding:14px 22px;margin:10px 0;}
+  .overlay .card b{color:#ff9c4d;}
+  .overlay .btn{margin-top:18px;background:#ff7a1a;color:#fff;border:none;border-radius:14px;
+    padding:15px 44px;font-size:19px;font-weight:700;box-shadow:0 4px 0 #b5540e;}
+  .overlay .btn:active{transform:translateY(3px);box-shadow:0 1px 0 #b5540e;}
+  .tag{color:#ff9c4d;font-weight:700;letter-spacing:1px;font-size:12px;text-transform:uppercase;}
+  .hidden{display:none!important;}
+  .big{font-size:42px;margin:2px 0;}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="hdr"><b>TIPSY</b> · Costa Palma · one address a day</div>
+  <div id="blurb">…</div>
+  <div id="game"></div>
+  <div id="panel">
+    <div class="row">
+      <span class="lbl">Route</span>
+      <button class="on" id="todayBtn">TODAY</button>
+      <button id="rerollBtn">RANDOM DAY</button>
+    </div>
+  </div>
+</div>
+
+<div id="titleOverlay" class="overlay">
+  <div class="tag">A clumsy delivery</div>
+  <h1>TIPSY</h1>
+  <div class="card" id="orderCard">…</div>
+  <p><b>HOLD right side</b> — throttle · <b>HOLD left side</b> — brake<br>
+     <b>SWIPE up / down</b> — change lane</p>
+  <p>Fast over cracks, curbs and driveways = you tip.<br>You are the routing AI now. Good luck.</p>
+  <button class="btn" id="startBtn">START SHIFT</button>
+</div>
+
+<div id="failOverlay" class="overlay hidden">
+  <div class="big">🤖💥</div>
+  <h2 id="failMsg">The pavement won.</h2>
+  <p id="failSub">Delivery status: horizontal.</p>
+  <button class="btn" id="retryBtn">RETRY ROUTE</button>
+</div>
+
+<div id="winOverlay" class="overlay hidden">
+  <div class="big">🌯✅</div>
+  <h2>DELIVERED</h2>
+  <div class="card" id="winCard">…</div>
+  <button class="btn" id="againBtn">RUN IT AGAIN</button>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/phaser@3.85.2/dist/phaser.min.js"></script>
+<script>
+"use strict";
+
+/* ============================================================
+   TIP — Route Lab
+   One address a day. A real-LA-neighborhood roster drives a
+   seeded procedural street: hilliness, pavement quality, and
+   scooter litter are per-neighborhood knobs. Same date = same
+   street for every player. Difficulty is always framed as
+   INFRASTRUCTURE (pavement, litter, grades) — never residents.
+   ============================================================ */
+
+/* ---------- COSTA PALMA: a fictional city that is legally distinct from
+   any city where a burrito has ever hit the pavement ----------
+   hill: grade intensity · pave: pavement quality (1=smooth)
+   litter: scooters/trash density · palms: set dressing */
+const HOODS = [
+  { n:"The Flats",       hill:0.0, pave:0.9, litter:0.2, palms:0.9, streets:["Palmline Ave","Pelican St","Marina Way"] },
+  { n:"Boardwalk",       hill:0.0, pave:0.6, litter:1.0, palms:1.0, streets:["Pier Ave","Saltbox Ln","Tide St"] },
+  { n:"Old Town",        hill:0.2, pave:0.2, litter:0.4, palms:0.4, streets:["Founders St","Cobble Ct","Lantern Row"] },
+  { n:"Scooter Row",     hill:0.1, pave:0.5, litter:1.0, palms:0.6, streets:["Beryl Ave","Kickstand St","Charger Way"] },
+  { n:"University",      hill:0.2, pave:0.7, litter:0.7, palms:0.5, streets:["Campus Loop","Quad St","Provost Ave"] },
+  { n:"Warehouse Dist.", hill:0.0, pave:0.3, litter:0.6, palms:0.1, streets:["Freight St","Dock Ave","Pallet Way"] },
+  { n:"Sunset Terrace",  hill:0.6, pave:0.7, litter:0.3, palms:0.8, streets:["Terrace Dr","Vista Ct","Golden Steps"] },
+  { n:"The Bluffs",      hill:1.0, pave:0.6, litter:0.2, palms:0.5, streets:["Switchback Rd","Crestline Dr","Ladder St"] },
+  { n:"Meridian Hts.",   hill:0.8, pave:0.5, litter:0.4, palms:0.5, streets:["Meridian Ave","Summit Walk","Cable Ct"] },
+  { n:"Market Dist.",    hill:0.1, pave:0.5, litter:0.7, palms:0.4, streets:["Stall St","Grocer Ave","Crate Ln"] },
+  { n:"Little Harbor",   hill:0.3, pave:0.6, litter:0.5, palms:0.7, streets:["Wharf St","Anchor Ave","Gull Ct"] },
+  { n:"Palm Gardens",    hill:0.2, pave:0.8, litter:0.3, palms:1.0, streets:["Frond Ave","Coconut Ct","Shade St"] },
+];
+
+/* ---------- deterministic rng ---------- */
+function hashStr(s){ let h = 1779033703; for(let i=0;i<s.length;i++){ h = Math.imul(h ^ s.charCodeAt(i), 3432918353); h = (h << 13) | (h >>> 19); } return h >>> 0; }
+function mulberry32(a){ return function(){ a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+
+/* ---------- the daily generator ---------- */
+const STRIP_X0 = -560, STRIP_X1 = 560;   // street extent, model units
+function generateRoute(dateStr){
+  const seed = hashStr(dateStr);
+  const rng = mulberry32(seed);
+  const hood = HOODS[seed % HOODS.length];
+
+  /* heightmap: random-walk grades scaled by hilliness, tile-resolution */
+  const tiles = [];
+  const nT = Math.round((STRIP_X1 - STRIP_X0) / (TILE*2)) + 2;
+  let h = 0, grade = 0;
+  for(let i=0; i<nT; i++){
+    if(rng() < 0.25) grade = (rng()*2 - 0.8) * 11 * hood.hill;   // new grade segment
+    h = Math.max(0, h + grade);
+    tiles.push(h);
+  }
+
+  /* hazards along the sidewalk, spacing tightens with litter + bad pavement */
+  const hazards = [];
+  const density = 0.45 + hood.litter*0.35 + (1 - hood.pave)*0.3;
+  let x = STRIP_X0 + 140;
+  while(x < STRIP_X1 - 160){
+    x += (150 - density*80) + rng()*90;
+    const r = rng();
+    let type;
+    if(r < (1 - hood.pave)*0.45)      type = "crack";
+    else if(r < (1-hood.pave)*0.45 + hood.litter*0.35)
+                                      type = rng() < 0.6 ? "scooter" : "trash";
+    else if(r < 0.75)                 type = rng() < 0.5 ? "driveway" : "cone";
+    else                              type = rng() < 0.5 ? "dog" : "bin";
+    hazards.push({ type, x: Math.round(x),
+                   row: type === "driveway" ? 0.5 : (rng() < 0.5 ? 0 : 1),
+                   hit:false });
+  }
+
+  /* set dressing */
+  const props = [];
+  for(let px = STRIP_X0; px < STRIP_X1; px += 130 + rng()*120){
+    if(rng() < hood.palms) props.push(["palm", Math.round(px), -1]);
+  }
+  if(rng() < 0.5) props.push(["car", Math.round(STRIP_X0 + rng()*900), 2.6]);
+
+  /* the address */
+  const number = 100 + Math.floor(rng()*3800);
+  const street = hood.streets[Math.floor(rng()*hood.streets.length)];
+  const doorX = STRIP_X1 - 90;
+
+  /* palette blends by attributes */
+  const pal = hood.hill > 0.55
+    ? { sky:0xf2c48d, pave:0xbdb6a8, paveB:0xb3ac9e, paveEdge:0x9c9588, road:0x45484f, roadLine:0xcfc9b9 }
+    : hood.pave < 0.5
+    ? { sky:0xc9b49b, pave:0xa19a8e, paveB:0x958e82, paveEdge:0x7d7669, road:0x3d4046, roadLine:0x8f897b }
+    : { sky:0x9fd4e8, pave:0xc9c3b4, paveB:0xbfb9aa, paveEdge:0xa8a294, road:0x4a4d55, roadLine:0xd8d2c2 };
+
+  const tipMult = (1 + hood.hill*1.2 + (1-hood.pave)*1.0 + hood.litter*0.8).toFixed(1);
+
+  return { hood, tiles, hazards, props, pal,
+           address:`${number} ${street}`, doorX, tipMult, dateStr };
+}
+
+/* ---------- robot palette (approved in sprite lab) ---------- */
+const SKIN = {
+  bodyTop:0xf7f8fa, bodyRight:0xe3e6ea, bodyLeft:0xc9cdd4, outline:0x30343d,
+  stripe:0xc2452e, stripeDk:0xa03824,
+  wheel:0x24262c, wheelDark:0x1a1c21, wheelHubFace:0x3d424c, wheelHub:0x8a919c,
+  visor:0x22242b, eye:0x7fe3ff, eyeAlert:0xffb04d,
+  lidInner:0xb2b7bf, cavityWall:0x9ba1a9, cavityFloor:0x7b818a,
+  belly:0x494e58, flagPole:0x2e3138, flag:0xff5722, shadow:0x000000
+};
+
+const TILE = 46;                 // half-tile, model units
+const BODY = { hx:26, hy:20, z0:14, z1:54 };
+const LID  = { hx:22, hy:16, z0:54, z1:61 };
+const STRIPE = { z0:20, z1:27 };
+const WHEEL = { r:10, z:10, xs:[-16, 0, 16], side:22 };
+const FLAG = { base:{x:-21, y:13}, z0:61, z1:104 };
+
+class WorldScene extends Phaser.Scene {
+  constructor(){ super("world"); }
+
+  create(){
+    this.K = 1.9;
+    this.f = 0;
+    this.roll = 0;
+    this.pitch = 0;
+    this.wheelPhase = 0;
+    this.flagLean = 0;
+    this.blinkT = 0;
+    this.camX = 0;
+
+    /* game state */
+    this.state = "idle";        // idle | play | tipped | won
+    this.speed = 0;
+    this.tilt = 0;              // stability: fail beyond ±1
+    this.botRow = 0;            // lane 0 (inner) or 1 (curbside)
+    this.botY = 0;
+    this.damage = 0;            // cargo damage %
+    this.runT = 0;
+    this.throttle = 0;          // -1 brake, 0 coast, 1 gas
+    this.tipT = 0; this.lidAng = 0; this.items = []; this.spilled = false;
+
+    this.gSky = this.add.graphics();
+    this.gWorld = this.add.graphics();
+    this.g = this.add.graphics();
+    this.hud = this.add.graphics().setDepth(5);
+    this.addrText = this.add.text(0, 0, "", { fontSize:"22px", fontStyle:"bold", color:"#2e3138" }).setOrigin(0.5);
+    this.hudText = this.add.text(10, 8, "", { fontSize:"15px", fontStyle:"bold", color:"#2e3138" }).setDepth(5);
+
+    this.bindInput();
+    this.loadRoute(new Date().toISOString().slice(0,10));
+    this.scale.on("resize", () => this.layout());
+    this.layout();
+  }
+
+  bindInput(){
+    let downY = 0, downT = 0, hopped = false;
+    this.input.on("pointerdown", p => {
+      downY = p.y; downT = this.time.now; hopped = false;
+      this.throttle = p.x > this.scale.gameSize.width/2 ? 1 : -1;
+    });
+    this.input.on("pointermove", p => {
+      if(!p.isDown || hopped) return;
+      const dy = p.y - downY;
+      if(Math.abs(dy) > 34 && this.time.now - downT < 320){
+        hopped = true; this.throttle = 0;
+        this.hop(dy < 0 ? -1 : 1);
+      }
+    });
+    this.input.on("pointerup", () => { this.throttle = 0; hopped = false; });
+    this.keys = this.input.keyboard.addKeys({ up:"UP", down:"DOWN", left:"LEFT", right:"RIGHT" });
+    this.input.keyboard.on("keydown-UP",   () => this.hop(-1));
+    this.input.keyboard.on("keydown-DOWN", () => this.hop(1));
+  }
+
+  hop(dir){
+    if(this.state !== "play") return;
+    const target = Phaser.Math.Clamp(this.botRow + dir, 0, 1);
+    if(target === this.botRow) return;
+    this.botRow = target;
+    /* the math problem: lane changes cost stability, scaled by speed */
+    this.tilt += dir * (0.16 + this.speed * 4.5);
+  }
+
+  loadRoute(dateStr){
+    this.route = generateRoute(dateStr);
+    for(const hz of this.route.hazards) hz.hit = false;
+    this.d = this.route.pal;
+    this.botX = STRIP_X0 + 60;
+    this.botZ = this.groundZ(this.botX);
+    this.botRow = 0; this.botY = 0;
+    this.camX = this.botX; this.camZ = this.botZ;
+    this.speed = 0; this.tilt = 0; this.damage = 0; this.runT = 0;
+    this.roll = 0; this.tipT = 0; this.lidAng = 0; this.items = []; this.spilled = false;
+    this.state = "idle";
+    document.getElementById("blurb").textContent =
+      `${this.route.dateStr} · ${this.route.hood.n} · ${this.route.address} · tips ×${this.route.tipMult}`;
+    document.getElementById("orderCard").innerHTML =
+      `<b>${this.route.hood.n}</b> — deliver to <b>${this.route.address}</b><br>tip multiplier <b>×${this.route.tipMult}</b>`;
+  }
+
+  layout(){
+    const w = this.scale.gameSize.width, h = this.scale.gameSize.height;
+    this.cx = w/2; this.cy = h/2 + 30;
+  }
+
+  /* ---------- terrain from the generated heightmap ---------- */
+  groundZ(x){
+    const t = this.route.tiles;
+    const fx = (x - STRIP_X0) / (TILE*2);
+    const i = Math.floor(fx);
+    if(i < 0) return t[0];
+    if(i >= t.length-1) return t[t.length-1];
+    return Phaser.Math.Linear(t[i], t[i+1], fx - i);
+  }
+  groundSlope(x){
+    return (this.groundZ(x+16) - this.groundZ(x-16)) / 32;
+  }
+
+  /* ---------- projection: pitch, then roll, then facing ---------- */
+  T(x, y, z){
+    if(this.pitch !== 0){
+      const c = Math.cos(this.pitch), s = Math.sin(this.pitch);
+      const x2 = x*c - z*s; z = x*s + z*c; x = x2;
+    }
+    if(this.roll !== 0){
+      const PIV = 22, y0 = y + PIV, c = Math.cos(this.roll), s = Math.sin(this.roll);
+      y = -PIV + y0*c - z*s; z = y0*s + z*c;
+    }
+    let rx = x, ry = y;
+    for(let i=0; i<this.f; i++){ const t = rx; rx = -ry; ry = t; }
+    return { x:rx, y:ry, z };
+  }
+  R(nx, ny, nz){
+    if(this.pitch !== 0){
+      const c = Math.cos(this.pitch), s = Math.sin(this.pitch);
+      const x2 = nx*c - nz*s; nz = nx*s + nz*c; nx = x2;
+    }
+    const c = Math.cos(this.roll), s = Math.sin(this.roll);
+    const ny2 = ny*c - nz*s, nz2 = ny*s + nz*c;
+    let rx = nx, ry = ny2;
+    for(let i=0; i<this.f; i++){ const t = rx; rx = -ry; ry = t; }
+    return { x:rx, y:ry, z:nz2 };
+  }
+  /* world-space projection (camera follows the bot along x and height) */
+  W(x, y, z){
+    const xr = x - this.camX;
+    return { x:(xr - y)*this.K + this.cx,
+             y:((xr + y)*0.5 - (z - this.camZ))*this.K + this.cy };
+  }
+  /* robot-space projection: model -> robot pose -> world */
+  P(x, y, z){
+    const q = this.T(x, y, z);
+    return this.W(q.x + this.botX, q.y + this.botY, q.z + this.botZ);
+  }
+  depth(x, y, z){
+    const q = this.T(x, y, z);
+    return q.x + q.y + q.z*0.4;
+  }
+
+  quadOn(g, pts, color, alpha=1){
+    g.fillStyle(color, alpha);
+    g.fillPoints(pts.map(p => new Phaser.Geom.Point(p.x, p.y)), true);
+  }
+  edgeOn(g, pts, color=SKIN.outline, w=2){
+    g.lineStyle(w, color, 1);
+    g.strokePoints(pts.map(p => new Phaser.Geom.Point(p.x, p.y)), true);
+  }
+
+  /* ---------- world drawing ---------- */
+  drawWorld(t){
+    const d = this.d, g = this.gWorld, r = this.route; g.clear();
+    this.gSky.clear();
+    this.gSky.fillStyle(d.sky, 1);
+    this.gSky.fillRect(0, 0, this.scale.gameSize.width, this.scale.gameSize.height);
+
+    /* visible tile window around the camera */
+    const halfSpan = (this.scale.gameSize.width / this.K) * 0.75 + TILE*4;
+    const tx0 = Math.floor((this.camX - halfSpan) / (TILE*2));
+    const tx1 = Math.ceil((this.camX + halfSpan) / (TILE*2));
+
+    for(let ty = -1; ty <= 4; ty++){
+      for(let tx = tx0; tx <= tx1; tx++){
+        const cxm = tx*TILE*2, cym = ty*TILE*2;
+        if(cxm < STRIP_X0 - TILE*2 || cxm > STRIP_X1 + TILE*2) continue;
+        const road = ty >= 2;
+        const zL = this.groundZ(cxm-TILE), zR = this.groundZ(cxm+TILE);
+        const pts = [
+          this.W(cxm+TILE, cym-TILE, zR), this.W(cxm+TILE, cym+TILE, zR),
+          this.W(cxm-TILE, cym+TILE, zL), this.W(cxm-TILE, cym-TILE, zL)
+        ];
+        const base = road ? d.road : (((tx+ty)%2===0) ? d.pave : d.paveB);
+        this.quadOn(g, pts, base);
+        if(!road) this.edgeOn(g, pts, d.paveEdge, 1.5);
+        if(ty === 3 && tx % 2 === 0){
+          const dz0 = this.groundZ(cxm-14), dz1 = this.groundZ(cxm+14);
+          this.quadOn(g, [
+            this.W(cxm-14, cym-TILE-4, dz0), this.W(cxm+14, cym-TILE-4, dz1),
+            this.W(cxm+14, cym-TILE+4, dz1), this.W(cxm-14, cym-TILE+4, dz0)
+          ], d.roadLine);
+        }
+      }
+    }
+    /* curb line */
+    for(let tx = tx0; tx <= tx1; tx++){
+      const cxm = tx*TILE*2;
+      if(cxm < STRIP_X0 || cxm > STRIP_X1) continue;
+      const z0 = this.groundZ(cxm-TILE), z1 = this.groundZ(cxm+TILE);
+      this.quadOn(g, [
+        this.W(cxm-TILE, TILE*3, z0+3), this.W(cxm+TILE, TILE*3, z1+3),
+        this.W(cxm+TILE, TILE*3, z1-2), this.W(cxm-TILE, TILE*3, z0-2)
+      ], d.paveEdge);
+    }
+
+    /* props then hazards (camera-culled) */
+    for(const [kind, px, prow] of r.props){
+      if(Math.abs(px - this.camX) < halfSpan) this.drawProp(g, kind, px, prow*TILE*2, t);
+    }
+    for(const hz of r.hazards){
+      if(Math.abs(hz.x - this.camX) < halfSpan) this.drawProp(g, hz.type, hz.x, hz.row*TILE*2, t);
+    }
+
+    /* the address: door, delivery mat, floating label */
+    const dx = r.doorX, dz = this.groundZ(dx);
+    const door = this.W(dx, -TILE-6, dz);
+    g.fillStyle(0x5a3d2b, 1);
+    g.fillRect(door.x-22, door.y-96, 44, 96);
+    g.fillStyle(0xd8b23a, 1);
+    g.fillCircle(door.x+12, door.y-46, 4);
+    this.quadOn(g, [
+      this.W(dx-34, -8, dz+0.6), this.W(dx+34, -8, dz+0.6),
+      this.W(dx+34, TILE+18, dz+0.6), this.W(dx-34, TILE+18, dz+0.6)
+    ], 0xc2452e);
+    this.addrText.setPosition(door.x, door.y - 128 + Math.sin(t*0.003)*5);
+    this.addrText.setText(this.route.address);
+  }
+
+  drawProp(g, kind, x, y, t){
+    const z = this.groundZ(x);
+    const W = (dx, dy, dz) => this.W(x+dx, y+dy, z+dz);
+    if(kind === "palm"){
+      const sway = Math.sin(t*0.0012 + x)*3;
+      g.lineStyle(7, 0x8a6a48, 1);
+      g.beginPath(); g.moveTo(W(0,0,0).x, W(0,0,0).y);
+      const top = W(sway, 0, 95);
+      g.lineTo(top.x, top.y); g.strokePath();
+      g.fillStyle(0x4e8f4a, 1);
+      for(let i=0; i<6; i++){
+        const a = (i/6)*Math.PI*2 + t*0.0006;
+        const fx = Math.cos(a)*34, fy = Math.sin(a)*20;
+        const f = this.W(x+sway+fx, y+fy, z+95-8);
+        g.fillTriangle(top.x, top.y, f.x-7, f.y, f.x+7, f.y+4);
+      }
+      g.fillStyle(0x6b4f33, 1);
+      g.fillCircle(top.x, top.y+2, 5);
+    } else if(kind === "scooter"){
+      // rental scooter, lying flat across the pavement (the LA classic)
+      g.fillStyle(0x2ec4b6, 1);
+      const a=W(-18,0,3), b=W(18,4,3), c2=W(18,10,2), dd=W(-18,6,2);
+      this.quadOn(g, [a,b,c2,dd], 0x2ec4b6);
+      g.lineStyle(4, 0x1f857c, 1);
+      const h0=W(14,2,3), h1=W(34,2,10);
+      g.lineBetween(h0.x, h0.y, h1.x, h1.y);
+      g.lineBetween(h1.x-6, h1.y-2, h1.x+6, h1.y-4);
+      g.fillStyle(0x24262c,1);
+      g.fillEllipse(W(-16,3,2).x, W(-16,3,2).y, 9, 5);
+      g.fillEllipse(W(16,7,2).x, W(16,7,2).y, 9, 5);
+    } else if(kind === "trash"){
+      g.fillStyle(0x3b3f47, 1);
+      g.fillEllipse(W(0,0,6).x, W(0,0,6).y, 26, 18);
+      g.fillEllipse(W(6,3,10).x, W(6,3,10).y, 18, 13);
+      g.lineStyle(2, 0x2b2e34, 1);
+      g.strokeEllipse(W(0,0,6).x, W(0,0,6).y, 26, 18);
+    } else if(kind === "cone"){
+      const b0=W(-8,-6,0), b1=W(8,-6,0), b2=W(8,6,0), b3=W(-8,6,0), tp=W(0,0,22);
+      this.quadOn(g, [b0,b1,b2,b3], 0xd85f0a);
+      g.fillStyle(0xff7a1a,1);
+      g.fillTriangle(b0.x, b0.y, b2.x, b2.y, tp.x, tp.y);
+      g.fillStyle(0xffffff,1);
+      g.fillRect(tp.x-7, tp.y+8, 14, 4);
+    } else if(kind === "hydrant"){
+      g.fillStyle(0xd8b23a, 1);
+      const p=W(0,0,0);
+      g.fillRect(p.x-6, p.y-16, 12, 16);
+      g.fillEllipse(p.x, p.y-16, 12, 8);
+      g.fillEllipse(p.x, p.y, 16, 7);
+      g.lineStyle(2, 0xb5933a, 1);
+      g.strokeRect(p.x-6, p.y-16, 12, 16);
+    } else if(kind === "planter"){
+      const b0=W(-16,-10,0), b1=W(16,-10,0), b2=W(16,10,0), b3=W(-16,10,0);
+      this.quadOn(g, [W(-16,-10,10), W(16,-10,10), W(16,10,10), W(-16,10,10)], 0x8f8577);
+      this.quadOn(g, [b1, b2, W(16,10,10), W(16,-10,10)], 0x7a7164);
+      this.quadOn(g, [b2, b3, W(-16,10,10), W(16,10,10)], 0x6b6357);
+      g.fillStyle(0x4e8f4a, 1);
+      g.fillEllipse(W(0,0,16).x, W(0,0,16).y, 30, 14);
+    } else if(kind === "dog"){
+      // small dog, judging silently
+      const p=W(0,0,0);
+      g.fillStyle(0xc98d4b, 1);
+      g.fillEllipse(p.x, p.y-8, 20, 11);
+      g.fillCircle(p.x+11, p.y-13, 6);
+      g.fillTriangle(p.x+9, p.y-18, p.x+12, p.y-13, p.x+15, p.y-17);
+      g.fillStyle(0x2e3138, 1);
+      g.fillCircle(p.x+13, p.y-14, 1.5);
+      g.lineStyle(3, 0xc98d4b, 1);
+      g.lineBetween(p.x-9, p.y-8, p.x-14, p.y-14);
+    } else if(kind === "car"){
+      // parked car on the road
+      const cz = 6;
+      this.quadOn(g, [W(40,-16,cz), W(40,16,cz), W(40,16,cz+16), W(40,-16,cz+16)], 0x8695a5);
+      this.quadOn(g, [W(-40,16,cz), W(40,16,cz), W(40,16,cz+16), W(-40,16,cz+16)], 0x76839a);
+      this.quadOn(g, [W(-40,-16,cz+16), W(40,-16,cz+16), W(40,16,cz+16), W(-40,16,cz+16)], 0x9aa7b5);
+      this.quadOn(g, [W(-24,-13,cz+16), W(20,-13,cz+16), W(14,13,cz+28), W(-18,13,cz+28)], 0x5b6a7a);
+      g.fillStyle(0x24262c, 1);
+      g.fillEllipse(W(-26,17,3).x, W(-26,17,3).y, 16, 10);
+      g.fillEllipse(W(24,17,3).x, W(24,17,3).y, 16, 10);
+    } else if(kind === "bin"){
+      const p=W(0,0,0);
+      g.fillStyle(0x3f5147, 1);
+      g.fillRect(p.x-10, p.y-26, 20, 26);
+      g.fillEllipse(p.x, p.y-26, 20, 9);
+      g.fillEllipse(p.x, p.y, 22, 9);
+      g.lineStyle(2, 0x2e3d35, 1);
+      g.strokeRect(p.x-10, p.y-26, 20, 26);
+    } else if(kind === "driveway"){
+      // concrete apron cutting across the sidewalk — the cross-slope hazard
+      this.quadOn(g, [
+        W(-34,-TILE,2), W(34,-TILE,2), W(46,TILE+14,-3), W(-46,TILE+14,-3)
+      ], 0xb5afa2);
+      this.edgeOn(g, [
+        W(-34,-TILE,2), W(34,-TILE,2), W(46,TILE+14,-3), W(-46,TILE+14,-3)
+      ], 0x968f81, 2);
+      g.lineStyle(1.5, 0x968f81, 1);
+      for(const lx of [-18, 0, 18]){
+        const a=W(lx,-TILE,2), b=W(lx*1.35, TILE+14,-3);
+        g.lineBetween(a.x, a.y, b.x, b.y);
+      }
+    } else if(kind === "crack"){
+      g.lineStyle(2.5, 0x5d574c, 1);
+      let px = W(-14,-8,0.5);
+      g.beginPath(); g.moveTo(px.x, px.y);
+      for(const [dx,dy] of [[-4,6],[6,4],[2,10],[10,6]]){
+        const q = W(dx*2, dy, 0.5); g.lineTo(q.x, q.y);
+      }
+      g.strokePath();
+    }
+  }
+
+  /* ---------- robot (approved sprite, driving) ---------- */
+  drawRobot(t, dt){
+    const g = this.g; g.clear();
+
+    /* ---------- simulation ---------- */
+    if(this.state === "play"){
+      this.runT += dt;
+
+      /* throttle / brake / hill gravity / friction */
+      const slope = this.groundSlope(this.botX);          // + uphill
+      if(this.throttle === 1) this.speed += 0.00028*dt;
+      if(this.throttle === -1) this.speed -= 0.00050*dt;
+      this.speed -= slope * 0.00030 * dt;                 // gravity
+      this.speed -= this.speed * 0.0009 * dt;             // rolling friction
+      this.speed = Phaser.Math.Clamp(this.speed, 0, 0.15);
+      this.botX += this.speed * dt;
+      this.wheelPhase += this.speed * dt * 0.28;
+
+      /* lane */
+      this.botY = Phaser.Math.Linear(this.botY, this.botRow * TILE*2, 0.12);
+
+      /* hazards: each one is the math problem */
+      for(const hz of this.route.hazards){
+        const dx = this.botX - hz.x;
+        if(hz.type === "driveway"){
+          if(Math.abs(dx) < 44)                            // cross-slope while on it
+            this.tilt += this.speed * 0.055 * dt;
+        } else if(!hz.hit && Math.abs(dx) < 26 && hz.row === this.botRow){
+          hz.hit = true;
+          const sev = { crack:4, cone:6, trash:7, bin:8, scooter:9, dog:5 }[hz.type] ?? 5;
+          const kick = this.speed * sev * (Math.random() < 0.5 ? 1 : -1);
+          this.tilt += kick;
+          this.damage = Math.min(95, this.damage + Math.abs(kick)*46);
+          if(hz.type === "scooter" || hz.type === "bin") this.speed *= 0.45;
+          if(hz.type === "trash") this.speed *= 0.65;
+        }
+      }
+
+      /* stability spring + rough-pavement rumble */
+      this.tilt -= this.tilt * 0.0021 * dt;
+      this.tilt += (Math.random()-0.5) * this.speed * (1-this.route.hood.pave) * 0.012 * dt;
+
+      /* fail: we are horizontal */
+      if(Math.abs(this.tilt) >= 1){
+        this.state = "tipped";
+        this.tipDir = Math.sign(this.tilt);
+        this.speed = 0;
+        setTimeout(() => showFail(), 1500);
+      }
+      /* win: at the door, slow, upright */
+      const remain = this.route.doorX - this.botX;
+      if(remain < 34 && remain > -60 && this.speed < 0.02 && Math.abs(this.tilt) < 0.5){
+        this.state = "won";
+        showWin(this);
+      }
+      if(this.botX > STRIP_X1 - 30){                       // overshot the strip
+        this.botX = STRIP_X1 - 30; this.speed = 0; this.tilt += 0.5;
+      }
+    }
+
+    /* tipped: roll over + spill (the sprite-lab pratfall) */
+    if(this.state === "tipped"){
+      this.tipT = Phaser.Math.Linear(this.tipT, 1, 0.09);
+      this.lidAng = Phaser.Math.Linear(this.lidAng, this.tipT > 0.5 ? 2.35 : 0, 0.085);
+      if(this.tipT > 0.55 && !this.spilled) this.spillCargo();
+      this.roll = this.tipDir * (Math.PI*0.5) * this.tipT;
+    } else {
+      this.roll = Phaser.Math.Clamp(this.tilt, -1, 1) * 0.5;
+    }
+    this.simItems(dt);
+
+    this.botZ = this.groundZ(this.botX);
+    if(this.state !== "tipped") this.pitch = -Math.atan(this.groundSlope(this.botX));
+    this.camX = Phaser.Math.Linear(this.camX, this.botX + 60, 0.08);
+    this.camZ = Phaser.Math.Linear(this.camZ, this.botZ, 0.08);
+
+    const driving = this.state === "play" && this.speed > 0.01;
+    const bobZ = this.state === "tipped" ? 0 : (driving ? Math.sin(t*0.012)*1.1 : Math.sin(t*0.0022)*1.4);
+    const leanTarget = driving ? -0.3*(this.speed/0.15) : Math.sin(t*0.0022)*0.08;
+    this.flagLean = Phaser.Math.Linear(this.flagLean, leanTarget, 0.06);
+
+    /* shadow (never pitches or rolls) */
+    const sp = this.pitch, srl = this.roll; this.pitch = 0; this.roll = 0;
+    const sh = [];
+    for(let i=0;i<14;i++){
+      const a=(i/14)*Math.PI*2;
+      sh.push(this.P(Math.cos(a)*34, -this.tipT*26*(this.tipDir||1) + Math.sin(a)*(30 + this.tipT*26), 0.5));
+    }
+    this.quadOn(g, sh, SKIN.shadow, 0.16);
+    this.pitch = sp; this.roll = srl;
+
+    /* spilled cargo lies in the world, behind the robot */
+    this.drawItems();
+    if(!this.flagNear()) this.drawFlag(bobZ);
+
+    /* wheels far -> undercarriage -> body -> details -> wheels near -> flag */
+    const wheels = [];
+    for(const side of [-1, 1]){
+      for(const wx of WHEEL.xs){
+        const c = {x:wx, y:side*WHEEL.side, z:WHEEL.z};
+        wheels.push({ c, side,
+          near: this.depth(c.x, c.y, c.z) > this.depth(c.x, -c.y, c.z) });
+      }
+    }
+    for(const w of wheels) if(!w.near) this.drawWheel(w.c, w.side);
+    this.drawBox({hx:24, hy:17, z0:6, z1:BODY.z0+1}, 0x3f434c, 0x3a3d45, 0x2e3138, false);
+    this.drawBox({...BODY, z0:BODY.z0+bobZ, z1:BODY.z1+bobZ}, SKIN.bodyTop, SKIN.bodyRight, SKIN.bodyLeft);
+    this.drawBox({hx:BODY.hx+0.6, hy:BODY.hy+0.6, z0:STRIPE.z0+bobZ, z1:STRIPE.z1+bobZ},
+                 null, SKIN.stripe, SKIN.stripeDk, false, true);
+    /* cavity + hinged lid */
+    if(this.lidAng > 0.12){
+      const wn = this.R(0, 0, 1);
+      if(wn.x + wn.y + wn.z > 0){
+        const zc = LID.z0 + bobZ + 0.5;
+        const ring = (hx, hy) => [
+          this.P(hx,-hy,zc), this.P(hx,hy,zc), this.P(-hx,hy,zc), this.P(-hx,-hy,zc)
+        ];
+        this.quadOn(g, ring(LID.hx-2, LID.hy-2), SKIN.cavityWall);
+        this.quadOn(g, ring(LID.hx-6, LID.hy-6), SKIN.cavityFloor);
+      }
+    }
+    this.drawLid({...LID, z0:LID.z0+bobZ, z1:LID.z1+bobZ});
+
+    const fn = this.R(1, 0, 0);
+    if(fn.x + fn.y + fn.z > 0.3){
+      const F = (y, z) => this.P(BODY.hx + 0.8, y, z + bobZ);
+      this.quadOn(g, [F(-13,40), F(13,40), F(13,50), F(-13,50)], SKIN.visor);
+      this.edgeOn(g, [F(-13,40), F(13,40), F(13,50), F(-13,50)], SKIN.outline, 1.5);
+      if(this.state === "tipped"){
+        g.lineStyle(2.5, SKIN.eyeAlert, 1);
+        for(const ey of [-7, 7]){
+          const c = F(ey, 45);
+          g.lineBetween(c.x-4, c.y-4, c.x+4, c.y+4);
+          g.lineBetween(c.x-4, c.y+4, c.x+4, c.y-4);
+        }
+      } else {
+        this.blinkT -= dt;
+        if(this.blinkT < -3200 + Math.random()*80) this.blinkT = 130;
+        const open = this.blinkT > 0 ? 0.15 : 1;
+        const ec = Math.abs(this.tilt) > 0.6 ? SKIN.eyeAlert : SKIN.eye;
+        for(const ey of [-7, 7]){
+          const c = F(ey, 45);
+          g.fillStyle(ec, 1);
+          g.fillEllipse(c.x, c.y, 7, 7*open);
+        }
+      }
+      this.quadOn(g, [F(-16,18), F(16,18), F(16,22), F(-16,22)], 0xfff3b0);
+    }
+    for(const w of wheels) if(w.near) this.drawWheel(w.c, w.side);
+    if(this.flagNear()) this.drawFlag(bobZ);
+  }
+
+  flagNear(){
+    return this.depth(FLAG.base.x, FLAG.base.y, FLAG.z0 + 20) > this.depth(0, 0, 34);
+  }
+
+  rollPt(x, y, z){                 // roll only — no facing (for world-space spawns)
+    if(this.roll === 0) return {x, y, z};
+    const PIV = 22, y0 = y + PIV, c = Math.cos(this.roll), s = Math.sin(this.roll);
+    return { x, y:-PIV + y0*c - z*s, z:y0*s + z*c };
+  }
+
+  /* the lid: a box on a hinge along its rear edge; swings open by this.lidAng */
+  drawLid(b){
+    const {hx, hy, z0, z1} = b;
+    const A = this.lidAng, cA = Math.cos(A), sA = Math.sin(A);
+    const yh = -hy, zh = z0;                     // hinge line
+    const H = (x, y, z) => {                     // hinge rotation, then normal pipeline
+      const dy = y - yh, dz = z - zh;
+      return this.P(x, yh + dy*cA - dz*sA, zh + dy*sA + dz*cA);
+    };
+    const HN = (nx, ny, nz) => {                 // normals: hinge rot then roll+facing
+      const ny2 = ny*cA - nz*sA, nz2 = ny*sA + nz*cA;
+      return this.R(nx, ny2, nz2);
+    };
+    const C = (sx, sy, sz) => H(sx*hx, sy*hy, sz === 1 ? z1 : z0);
+    const faces = [
+      { n:{x:0,y:0,z: 1}, pts:[C( 1,-1,1), C( 1, 1,1), C(-1, 1,1), C(-1,-1,1)] },
+      { n:{x:0,y:0,z:-1}, pts:[C( 1,-1,0), C( 1, 1,0), C(-1, 1,0), C(-1,-1,0)] },
+      { n:{x: 1,y:0,z:0}, pts:[C( 1,-1,0), C( 1, 1,0), C( 1, 1,1), C( 1,-1,1)] },
+      { n:{x:-1,y:0,z:0}, pts:[C(-1,-1,0), C(-1, 1,0), C(-1, 1,1), C(-1,-1,1)] },
+      { n:{x:0,y: 1,z:0}, pts:[C( 1, 1,0), C(-1, 1,0), C(-1, 1,1), C( 1, 1,1)] },
+      { n:{x:0,y:-1,z:0}, pts:[C( 1,-1,0), C(-1,-1,0), C(-1,-1,1), C( 1,-1,1)] }
+    ];
+    for(const fc of faces){
+      const w = HN(fc.n.x, fc.n.y, fc.n.z);
+      if((w.x + w.y + w.z) <= 0) continue;
+      const col = w.z > 0.5 ? SKIN.bodyTop
+                : w.z < -0.5 ? SKIN.lidInner
+                : (w.x >= w.y) ? SKIN.bodyRight : SKIN.bodyLeft;
+      this.quad(fc.pts, col);
+      this.edge(fc.pts);
+    }
+  }
+
+  quad(pts, color, alpha=1){
+    this.g.fillStyle(color, alpha);
+    this.g.fillPoints(pts.map(p => new Phaser.Geom.Point(p.x, p.y)), true);
+  }
+  edge(pts, color=SKIN.outline, w=2){
+    this.g.lineStyle(w, color, 1);
+    this.g.strokePoints(pts.map(p => new Phaser.Geom.Point(p.x, p.y)), true);
+  }
+
+  /* ---------- spilled cargo ---------- */
+  spillCargo(){
+    this.spilled = true;
+    const mouth = this.rollPt(0, -LID.hy, LID.z1 + 4);   // lid opening, mid-fall
+    const spawn = (kind, size) => this.items.push({
+      kind, size,
+      x: mouth.x + (Math.random()-0.5)*10,
+      y: mouth.y - 4 - Math.random()*6,
+      z: mouth.z + Math.random()*4,
+      vx: (Math.random()-0.5)*2.2,
+      vy: -0.8 - Math.random()*1.4,
+      vz: 0.5 + Math.random()*0.9,
+      spin: (Math.random()-0.5)*0.3, ang: Math.random()*Math.PI,
+      rest: false
+    });
+    spawn("burrito", 9);
+    spawn("cup", 7);
+    for(let i=0;i<3;i++) spawn("fry", 4);
+  }
+
+  simItems(dt){
+    const k = dt/16.7;
+    for(const it of this.items){
+      if(it.rest) continue;
+      it.vz -= 0.14*k;
+      it.x += it.vx*k; it.y += it.vy*k; it.z += it.vz*k;
+      it.ang += it.spin*k;
+      if(it.z <= it.size*0.35){
+        it.z = it.size*0.35;
+        if(Math.abs(it.vz) < 0.25){ it.rest = true; it.vx = it.vy = it.vz = 0; }
+        else { it.vz *= -0.38; it.vx *= 0.7; it.vy *= 0.7; it.spin *= 0.6; }
+      }
+    }
+  }
+
+  drawItems(){
+    if(!this.items.length) return;
+    const sr = this.roll; this.roll = 0;         // items are world objects
+    const g = this.g, K = this.K;
+    for(const it of this.items){
+      // little ground shadow
+      const s = this.P(it.x, it.y, 0.4);
+      g.fillStyle(SKIN.shadow, 0.15);
+      g.fillEllipse(s.x, s.y, it.size*K*0.9, it.size*K*0.4);
+      const p = this.P(it.x, it.y, it.z);
+      if(it.kind === "burrito"){
+        g.fillStyle(0xe8b04b, 1);
+        g.fillEllipse(p.x, p.y, 16*K*0.8, 9*K*0.8);
+        g.lineStyle(2, 0xb5813a, 1); g.strokeEllipse(p.x, p.y, 16*K*0.8, 9*K*0.8);
+        g.fillStyle(0x7fae4e, 1);                       // sad lettuce
+        g.fillEllipse(p.x + 5*K*0.8, p.y, 4*K*0.8, 5*K*0.8);
+      } else if(it.kind === "cup"){
+        g.fillStyle(0xf4f5f7, 1);
+        g.fillRect(p.x - 4*K*0.7, p.y - 6*K*0.7, 8*K*0.7, 11*K*0.7);
+        g.lineStyle(2, 0xc9ccd2, 1);
+        g.strokeRect(p.x - 4*K*0.7, p.y - 6*K*0.7, 8*K*0.7, 11*K*0.7);
+        g.fillStyle(0x8b5a3c, 1);                       // the puddle
+        if(it.rest) g.fillEllipse(p.x + 7*K, p.y + 5*K*0.6, 14*K*0.8, 5*K*0.8);
+      } else {                                          // fry
+        g.fillStyle(0xf2c94c, 1);
+        const a = it.ang, L = 7*K*0.7, W2 = 2.2*K*0.7;
+        g.save(); g.translateCanvas(p.x, p.y); g.rotateCanvas(a);
+        g.fillRect(-L/2, -W2/2, L, W2);
+        g.restore();
+      }
+    }
+    this.roll = sr;
+  }
+
+  drawBox(b, cTop, cRight, cLeft, outline=true, decal=false, cBottom=SKIN.belly){
+    const {hx, hy, z0, z1} = b, ox = b.ox || 0, oy = b.oy || 0;
+    const C = (sx, sy, sz) => this.P(ox + sx*hx, oy + sy*hy, sz === 1 ? z1 : z0);
+    const faces = [
+      { n:{x:0,y:0,z: 1}, pts:[C( 1,-1,1), C( 1, 1,1), C(-1, 1,1), C(-1,-1,1)] },
+      { n:{x:0,y:0,z:-1}, pts:[C( 1,-1,0), C( 1, 1,0), C(-1, 1,0), C(-1,-1,0)] },
+      { n:{x: 1,y:0,z:0}, pts:[C( 1,-1,0), C( 1, 1,0), C( 1, 1,1), C( 1,-1,1)] },
+      { n:{x:-1,y:0,z:0}, pts:[C(-1,-1,0), C(-1, 1,0), C(-1, 1,1), C(-1,-1,1)] },
+      { n:{x:0,y: 1,z:0}, pts:[C( 1, 1,0), C(-1, 1,0), C(-1, 1,1), C( 1, 1,1)] },
+      { n:{x:0,y:-1,z:0}, pts:[C( 1,-1,0), C(-1,-1,0), C(-1,-1,1), C( 1,-1,1)] }
+    ];
+    for(const fc of faces){
+      const w = this.R(fc.n.x, fc.n.y, fc.n.z);
+      if((w.x + w.y + w.z) <= 0) continue;
+      let col;
+      if(w.z > 0.5)       col = cTop;
+      else if(w.z < -0.5) col = decal ? null : cBottom;
+      else                col = (w.x >= w.y) ? cRight : cLeft;
+      if(col == null) continue;
+      this.quadOn(this.g, fc.pts, col);
+      if(outline) this.edgeOn(this.g, fc.pts);
+    }
+  }
+
+  disc(center, r, color, outlineC){
+    const pts = [];
+    for(let i=0; i<14; i++){
+      const a = (i/14)*Math.PI*2;
+      pts.push(this.P(center.x + Math.cos(a)*r, center.y, center.z + Math.sin(a)*r));
+    }
+    this.quadOn(this.g, pts, color);
+    if(outlineC !== undefined) this.edgeOn(this.g, pts, outlineC, 2);
+  }
+
+  drawWheel(c, sideSign){
+    const W2 = 7.5, steps = 5;
+    const slices = [];
+    for(let i=0; i<=steps; i++){
+      const oy = c.y + sideSign*(-W2/2 + W2*i/steps);
+      slices.push({ y:oy, depth: this.depth(c.x, oy, c.z) });
+    }
+    slices.sort((a,b) => a.depth - b.depth);
+    for(let i=0; i<slices.length; i++){
+      const isFace = i === slices.length-1;
+      this.disc({x:c.x, y:slices[i].y, z:c.z}, WHEEL.r,
+                isFace ? SKIN.wheel : SKIN.wheelDark,
+                isFace ? SKIN.outline : undefined);
+    }
+    const face = slices[slices.length-1].y;
+    this.disc({x:c.x, y:face, z:c.z}, WHEEL.r*0.55, SKIN.wheelHubFace);
+    const a = this.wheelPhase + c.x*0.2;
+    this.disc({ x:c.x + Math.cos(a)*WHEEL.r*0.34, y:face,
+                z:c.z + Math.sin(a)*WHEEL.r*0.34 }, 2.4, SKIN.wheelHub);
+  }
+
+  drawFlag(bobZ){
+    const g = this.g;
+    const L = FLAG.z1 - FLAG.z0;
+    const bend = this.flagLean*0.5 + this.tipT*1.5;
+    const seg = 6, pts = [];
+    for(let i=0; i<=seg; i++){
+      const s = i/seg, a = bend*s;
+      pts.push(this.P(FLAG.base.x,
+                      FLAG.base.y - Math.sin(a)*L*s,
+                      FLAG.z0 + Math.cos(a)*L*s + bobZ));
+    }
+    g.lineStyle(3, SKIN.flagPole, 1);
+    g.beginPath();
+    g.moveTo(pts[0].x, pts[0].y);
+    for(let i=1; i<=seg; i++) g.lineTo(pts[i].x, pts[i].y);
+    g.strokePath();
+    const p = pts[seg], q = pts[seg-1];
+    let dx = p.x - q.x, dy = p.y - q.y;
+    const dl = Math.hypot(dx, dy) || 1; dx /= dl; dy /= dl;
+    g.fillStyle(SKIN.flag, 1);
+    g.fillTriangle(p.x, p.y, p.x - dy*11, p.y + dx*11, p.x + dx*20, p.y + dy*20 + 4);
+  }
+
+  update(t, dt){
+    /* desktop throttle */
+    if(this.keys){
+      if(this.keys.right.isDown) this.throttle = 1;
+      else if(this.keys.left.isDown) this.throttle = -1;
+      else if(!this.input.activePointer.isDown) this.throttle = 0;
+    }
+    this.drawWorld(t);
+    this.drawRobot(t, dt);
+    this.drawHUD();
+  }
+
+  drawHUD(){
+    const g = this.hud; g.clear();
+    const w = this.scale.gameSize.width;
+
+    /* progress: spawn -> door */
+    const pct = Phaser.Math.Clamp((this.botX - (STRIP_X0+60)) / (this.route.doorX - (STRIP_X0+60)), 0, 1);
+    const bx = 70, bw = w - 140;
+    g.fillStyle(0xffffff, 0.5); g.fillRoundedRect(bx, 14, bw, 7, 3);
+    g.fillStyle(0xff7a1a, 1);   g.fillRoundedRect(bx, 14, Math.max(bw*pct, 7), 7, 3);
+    g.fillStyle(0xc2452e, 1);   g.fillRect(bx+bw-2, 9, 4, 17);
+    g.fillStyle(0x2e3138, 1);   g.fillCircle(bx+bw*pct, 17.5, 5);
+
+    /* tilt meter */
+    const cx = w/2, cy = 56, r = 24;
+    const danger = Math.min(Math.abs(this.tilt), 1);
+    g.lineStyle(5, 0xffffff, 0.55);
+    g.beginPath(); g.arc(cx, cy, r, Math.PI, 0); g.strokePath();
+    g.lineStyle(5, danger > 0.75 ? 0xc2452e : danger > 0.45 ? 0xff7a1a : 0x3f7d43, 1);
+    g.beginPath();
+    g.arc(cx, cy, r, -Math.PI/2, -Math.PI/2 + Phaser.Math.Clamp(this.tilt, -1, 1)*1.35, this.tilt < 0);
+    g.strokePath();
+    g.lineStyle(3, 0x2e3138, 1);
+    g.lineBetween(cx, cy, cx + Math.sin(this.tilt*1.2)*r, cy - Math.cos(this.tilt*1.2)*r);
+
+    this.hudText.setText(
+      `${(this.runT/1000).toFixed(1)}s   cargo ${Math.round(100-this.damage)}%`);
+  }
+}
+
+/* ---------- boot + panel ---------- */
+const game = new Phaser.Game({
+  type: Phaser.AUTO, parent: "game",
+  scale: { mode: Phaser.Scale.RESIZE, width: "100%", height: "100%" },
+  scene: [WorldScene]
+});
+const scn = () => game.scene.getScene("world");
+
+const FAIL_LINES = [
+  ["The pavement won.", "Delivery status: horizontal."],
+  ["Robot down. Robot down.", "The burrito never stood a chance."],
+  ["Routing error: gravity.", "A passerby is filming you. Great."],
+  ["You had ONE address.", "Costa Palma claims another."],
+];
+
+function show(id){ document.getElementById(id).classList.remove("hidden"); }
+function hide(id){ document.getElementById(id).classList.add("hidden"); }
+
+function showFail(){
+  const [m, s] = FAIL_LINES[Math.floor(Math.random()*FAIL_LINES.length)];
+  document.getElementById("failMsg").textContent = m;
+  document.getElementById("failSub").textContent = s;
+  show("failOverlay");
+}
+function showWin(s){
+  const cargo = Math.round(100 - s.damage);
+  const secs = s.runT/1000;
+  const payout = Math.max(1, Math.round(parseFloat(s.route.tipMult) * cargo * 0.14 - secs*0.1));
+  document.getElementById("winCard").innerHTML =
+    `<b>${s.route.address}</b> · ${s.route.hood.n}<br>` +
+    `time <b>${secs.toFixed(1)}s</b> · cargo <b>${cargo}%</b><br>` +
+    `tip earned <b>$${payout}</b> <span style="color:#8f95a1">(×${s.route.tipMult})</span>`;
+  show("winOverlay");
+}
+
+document.getElementById("startBtn").addEventListener("click", () => {
+  hide("titleOverlay");
+  scn().state = "play";
+});
+document.getElementById("retryBtn").addEventListener("click", () => {
+  hide("failOverlay");
+  const s = scn(); s.loadRoute(s.route.dateStr); s.state = "play";
+});
+document.getElementById("againBtn").addEventListener("click", () => {
+  hide("winOverlay");
+  const s = scn(); s.loadRoute(s.route.dateStr); s.state = "play";
+});
+document.getElementById("todayBtn").addEventListener("click", e => {
+  document.getElementById("rerollBtn").classList.remove("on");
+  e.target.classList.add("on");
+  hide("failOverlay"); hide("winOverlay");
+  scn().loadRoute(new Date().toISOString().slice(0,10));
+  show("titleOverlay");
+});
+document.getElementById("rerollBtn").addEventListener("click", e => {
+  document.getElementById("todayBtn").classList.remove("on");
+  e.target.classList.add("on");
+  hide("failOverlay"); hide("winOverlay");
+  const off = 1 + Math.floor(Math.random()*3650);
+  const d = new Date(Date.now() + off*86400000);
+  scn().loadRoute(d.toISOString().slice(0,10));
+  show("titleOverlay");
+});
+</script>
+</body>
+</html>
