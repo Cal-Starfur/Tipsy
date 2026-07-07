@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>TIP — World Lab · LA</title>
+<style>
+  html,body{margin:0;padding:0;background:#14161b;height:100%;overflow:hidden;touch-action:manipulation;
+    font-family:-apple-system,'Helvetica Neue',Arial,sans-serif;-webkit-user-select:none;user-select:none;color:#e8eaef;}
+  #wrap{display:flex;flex-direction:column;height:100%;}
+  #game{flex:1;min-height:0;}
+  #panel{padding:10px 12px calc(14px + env(safe-area-inset-bottom));background:#1c1f26;border-top:1px solid #2b2f38;}
+  .row{display:flex;gap:8px;margin-bottom:8px;align-items:center;}
+  .row:last-child{margin-bottom:0;}
+  .lbl{font-size:11px;letter-spacing:1.5px;color:#8f95a1;width:56px;text-transform:uppercase;}
+  button{flex:1;background:#262a33;color:#e8eaef;border:1px solid #363b46;border-radius:10px;
+    padding:11px 4px;font-size:14px;font-weight:600;}
+  button.on{background:#ff7a1a;border-color:#ff7a1a;color:#fff;}
+  button:active{transform:scale(0.96);}
+  button.sm{flex:0 0 46px;}
+  #hdr{padding:10px 14px 6px;font-size:12px;letter-spacing:2px;color:#8f95a1;text-transform:uppercase;}
+  #hdr b{color:#ff9c4d;}
+  #blurb{padding:0 14px 8px;font-size:12px;color:#8f95a1;}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="hdr"><b>TIP</b> · world lab · Los Angeles</div>
+  <div id="blurb">Smooth pavement, easy tips. Tutorial country.</div>
+  <div id="game"></div>
+  <div id="panel">
+    <div class="row">
+      <span class="lbl">District</span>
+      <button class="on" data-d="flats">FLATS</button>
+      <button data-d="hills">HILLS</button>
+      <button data-d="blocks">BLOCKS</button>
+    </div>
+    <div class="row">
+      <span class="lbl">Zoom</span>
+      <button class="sm" id="zoomOut">−</button>
+      <button class="sm" id="zoomIn">＋</button>
+      <button id="pause">PAUSE BOT</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/phaser@3.85.2/dist/phaser.min.js"></script>
+<script>
+"use strict";
+
+/* ============================================================
+   TIP — World Lab · Los Angeles
+   Three districts around the approved robot:
+     FLATS  — smooth pavement, palms, easy
+     HILLS  — slope terrain; the robot pitches with the grade
+     BLOCKS — cracked ground, scooter litter, better tips
+   Same procedural iso pipeline as the sprite lab, plus a
+   pitch axis for hills and a prop library.
+   ============================================================ */
+
+/* ---------- robot palette (approved in sprite lab) ---------- */
+const SKIN = {
+  bodyTop:0xf7f8fa, bodyRight:0xe3e6ea, bodyLeft:0xc9cdd4, outline:0x30343d,
+  stripe:0xc2452e, stripeDk:0xa03824,
+  wheel:0x24262c, wheelDark:0x1a1c21, wheelHubFace:0x3d424c, wheelHub:0x8a919c,
+  visor:0x22242b, eye:0x7fe3ff,
+  belly:0x494e58, flagPole:0x2e3138, flag:0xff5722, shadow:0x000000
+};
+
+/* ---------- district palettes ---------- */
+const DISTRICTS = {
+  flats: {
+    name:"FLATS", blurb:"Smooth pavement, easy tips. Tutorial country.",
+    sky:0x9fd4e8, pave:0xc9c3b4, paveB:0xbfb9aa, paveEdge:0xa8a294,
+    road:0x4a4d55, roadLine:0xd8d2c2, slope:false,
+    props:[["palm",-150,-1],["palm",30,-1],["palm",210,-1],
+           ["hydrant",-60,-0.9],["planter",120,-0.95],["dog",90,0.5]]
+  },
+  hills: {
+    name:"HILLS", blurb:"Echo Park grades. Gravity has opinions.",
+    sky:0xf2c48d, pave:0xbdb6a8, paveB:0xb3ac9e, paveEdge:0x9c9588,
+    road:0x45484f, roadLine:0xcfc9b9, slope:true,
+    props:[["palm",-170,-1],["palm",130,-1],
+           ["bin",-40,-0.9],["bin",-18,-0.92],["car",100,2.6]]
+  },
+  blocks: {
+    name:"BLOCKS", blurb:"Cracked ground, scooter litter. Triple tips.",
+    sky:0xc9b49b, pave:0xa19a8e, paveB:0x958e82, paveEdge:0x7d7669,
+    road:0x3d4046, roadLine:0x8f897b, slope:false,
+    props:[["palm",-120,-1],["scooter",-40,0.4],["scooter",60,0.7],
+           ["trash",10,-0.85],["trash",26,-0.8],["cone",150,0.3],
+           ["crack",-90,0.5],["crack",40,0.2],["crack",120,0.8]]
+  }
+};
+
+const TILE = 46;                 // half-tile, model units
+const BODY = { hx:26, hy:20, z0:14, z1:54 };
+const LID  = { hx:22, hy:16, z0:54, z1:61 };
+const STRIPE = { z0:20, z1:27 };
+const WHEEL = { r:10, z:10, xs:[-16, 0, 16], side:22 };
+const FLAG = { base:{x:-21, y:13}, z0:61, z1:104 };
+
+class WorldScene extends Phaser.Scene {
+  constructor(){ super("world"); }
+
+  create(){
+    this.d = DISTRICTS.flats;
+    this.K = 1.9;
+    this.f = 0;                  // robot faces SE (+x travel)
+    this.roll = 0;               // no tipping in the lab
+    this.pitch = 0;              // hills grade
+    this.botX = -220;
+    this.botPaused = false;
+    this.wheelPhase = 0;
+    this.flagLean = 0;
+    this.blinkT = 0;
+
+    this.gSky = this.add.graphics();
+    this.gWorld = this.add.graphics();
+    this.g = this.add.graphics();      // robot layer
+    this.gFront = this.add.graphics(); // props in front of the robot
+
+    this.scale.on("resize", () => this.layout());
+    this.layout();
+  }
+
+  layout(){
+    const w = this.scale.gameSize.width, h = this.scale.gameSize.height;
+    this.cx = w/2; this.cy = h/2 + 30;
+  }
+
+  /* ---------- terrain height: the Hills ramp ---------- */
+  groundZ(x){
+    if(!this.d.slope) return 0;
+    // valley -> climb -> crest
+    return Phaser.Math.Clamp((x + 40) * 0.16, 0, 42);
+  }
+  groundSlope(x){
+    if(!this.d.slope) return 0;
+    return (x > -40 && x < 222) ? 0.16 : 0;
+  }
+
+  /* ---------- projection: pitch, then roll, then facing ---------- */
+  T(x, y, z){
+    if(this.pitch !== 0){
+      const c = Math.cos(this.pitch), s = Math.sin(this.pitch);
+      const x2 = x*c - z*s; z = x*s + z*c; x = x2;
+    }
+    if(this.roll !== 0){
+      const PIV = 22, y0 = y + PIV, c = Math.cos(this.roll), s = Math.sin(this.roll);
+      y = -PIV + y0*c - z*s; z = y0*s + z*c;
+    }
+    let rx = x, ry = y;
+    for(let i=0; i<this.f; i++){ const t = rx; rx = -ry; ry = t; }
+    return { x:rx, y:ry, z };
+  }
+  R(nx, ny, nz){
+    if(this.pitch !== 0){
+      const c = Math.cos(this.pitch), s = Math.sin(this.pitch);
+      const x2 = nx*c - nz*s; nz = nx*s + nz*c; nx = x2;
+    }
+    const c = Math.cos(this.roll), s = Math.sin(this.roll);
+    const ny2 = ny*c - nz*s, nz2 = ny*s + nz*c;
+    let rx = nx, ry = ny2;
+    for(let i=0; i<this.f; i++){ const t = rx; rx = -ry; ry = t; }
+    return { x:rx, y:ry, z:nz2 };
+  }
+  /* world-space projection (no robot transforms) */
+  W(x, y, z){
+    return { x:(x - y)*this.K + this.cx, y:((x + y)*0.5 - z)*this.K + this.cy };
+  }
+  /* robot-space projection: model -> robot pose -> world */
+  P(x, y, z){
+    const q = this.T(x, y, z);
+    return this.W(q.x + this.botX, q.y, q.z + this.botZ);
+  }
+  depth(x, y, z){
+    const q = this.T(x, y, z);
+    return q.x + q.y + q.z*0.4;
+  }
+
+  quadOn(g, pts, color, alpha=1){
+    g.fillStyle(color, alpha);
+    g.fillPoints(pts.map(p => new Phaser.Geom.Point(p.x, p.y)), true);
+  }
+  edgeOn(g, pts, color=SKIN.outline, w=2){
+    g.lineStyle(w, color, 1);
+    g.strokePoints(pts.map(p => new Phaser.Geom.Point(p.x, p.y)), true);
+  }
+
+  /* ---------- world drawing ---------- */
+  drawWorld(t){
+    const d = this.d, g = this.gWorld; g.clear();
+    this.gSky.clear();
+    this.gSky.fillStyle(d.sky, 1);
+    this.gSky.fillRect(0, 0, this.scale.gameSize.width, this.scale.gameSize.height);
+
+    /* tiles: sidewalk rows y=-1..1, road rows y=2..4 */
+    const x0 = -7, x1 = 7;
+    for(let ty = -1; ty <= 4; ty++){
+      for(let tx = x0; tx <= x1; tx++){
+        const cxm = tx*TILE*2, cym = ty*TILE*2;
+        const road = ty >= 2;
+        const zs = [
+          this.groundZ(cxm+TILE), this.groundZ(cxm+TILE),
+          this.groundZ(cxm-TILE), this.groundZ(cxm-TILE)
+        ];
+        const pts = [
+          this.W(cxm+TILE, cym-TILE, zs[0]), this.W(cxm+TILE, cym+TILE, zs[1]),
+          this.W(cxm-TILE, cym+TILE, zs[2]), this.W(cxm-TILE, cym-TILE, zs[3])
+        ];
+        const base = road ? d.road : (((tx+ty)%2===0) ? d.pave : d.paveB);
+        this.quadOn(g, pts, base);
+        if(!road) this.edgeOn(g, pts, d.paveEdge, 1.5);
+        /* road center dashes */
+        if(ty === 3 && tx % 2 === 0){
+          const dz0 = this.groundZ(cxm-14), dz1 = this.groundZ(cxm+14);
+          this.quadOn(g, [
+            this.W(cxm-14, cym-TILE-4, dz0), this.W(cxm+14, cym-TILE-4, dz1),
+            this.W(cxm+14, cym-TILE+4, dz1), this.W(cxm-14, cym-TILE+4, dz0)
+          ], d.roadLine);
+        }
+      }
+    }
+    /* curb line between sidewalk and road */
+    for(let tx = x0; tx <= x1; tx++){
+      const cxm = tx*TILE*2;
+      const z0 = this.groundZ(cxm-TILE), z1 = this.groundZ(cxm+TILE);
+      this.quadOn(g, [
+        this.W(cxm-TILE, TILE*3, z0+3), this.W(cxm+TILE, TILE*3, z1+3),
+        this.W(cxm+TILE, TILE*3, z1-2), this.W(cxm-TILE, TILE*3, z0-2)
+      ], d.paveEdge);
+    }
+
+    /* props behind/around the robot */
+    for(const [kind, px, prow] of d.props){
+      this.drawProp(this.gWorld, kind, px, prow*TILE*2, t);
+    }
+  }
+
+  drawProp(g, kind, x, y, t){
+    const z = this.groundZ(x);
+    const W = (dx, dy, dz) => this.W(x+dx, y+dy, z+dz);
+    if(kind === "palm"){
+      const sway = Math.sin(t*0.0012 + x)*3;
+      g.lineStyle(7, 0x8a6a48, 1);
+      g.beginPath(); g.moveTo(W(0,0,0).x, W(0,0,0).y);
+      const top = W(sway, 0, 95);
+      g.lineTo(top.x, top.y); g.strokePath();
+      g.fillStyle(0x4e8f4a, 1);
+      for(let i=0; i<6; i++){
+        const a = (i/6)*Math.PI*2 + t*0.0006;
+        const fx = Math.cos(a)*34, fy = Math.sin(a)*20;
+        const f = this.W(x+sway+fx, y+fy, z+95-8);
+        g.fillTriangle(top.x, top.y, f.x-7, f.y, f.x+7, f.y+4);
+      }
+      g.fillStyle(0x6b4f33, 1);
+      g.fillCircle(top.x, top.y+2, 5);
+    } else if(kind === "scooter"){
+      // rental scooter, lying flat across the pavement (the LA classic)
+      g.fillStyle(0x2ec4b6, 1);
+      const a=W(-18,0,3), b=W(18,4,3), c2=W(18,10,2), dd=W(-18,6,2);
+      this.quadOn(g, [a,b,c2,dd], 0x2ec4b6);
+      g.lineStyle(4, 0x1f857c, 1);
+      const h0=W(14,2,3), h1=W(34,2,10);
+      g.lineBetween(h0.x, h0.y, h1.x, h1.y);
+      g.lineBetween(h1.x-6, h1.y-2, h1.x+6, h1.y-4);
+      g.fillStyle(0x24262c,1);
+      g.fillEllipse(W(-16,3,2).x, W(-16,3,2).y, 9, 5);
+      g.fillEllipse(W(16,7,2).x, W(16,7,2).y, 9, 5);
+    } else if(kind === "trash"){
+      g.fillStyle(0x3b3f47, 1);
+      g.fillEllipse(W(0,0,6).x, W(0,0,6).y, 26, 18);
+      g.fillEllipse(W(6,3,10).x, W(6,3,10).y, 18, 13);
+      g.lineStyle(2, 0x2b2e34, 1);
+      g.strokeEllipse(W(0,0,6).x, W(0,0,6).y, 26, 18);
+    } else if(kind === "cone"){
+      const b0=W(-8,-6,0), b1=W(8,-6,0), b2=W(8,6,0), b3=W(-8,6,0), tp=W(0,0,22);
+      this.quadOn(g, [b0,b1,b2,b3], 0xd85f0a);
+      g.fillStyle(0xff7a1a,1);
+      g.fillTriangle(b0.x, b0.y, b2.x, b2.y, tp.x, tp.y);
+      g.fillStyle(0xffffff,1);
+      g.fillRect(tp.x-7, tp.y+8, 14, 4);
+    } else if(kind === "hydrant"){
+      g.fillStyle(0xd8b23a, 1);
+      const p=W(0,0,0);
+      g.fillRect(p.x-6, p.y-16, 12, 16);
+      g.fillEllipse(p.x, p.y-16, 12, 8);
+      g.fillEllipse(p.x, p.y, 16, 7);
+      g.lineStyle(2, 0xb5933a, 1);
+      g.strokeRect(p.x-6, p.y-16, 12, 16);
+    } else if(kind === "planter"){
+      const b0=W(-16,-10,0), b1=W(16,-10,0), b2=W(16,10,0), b3=W(-16,10,0);
+      this.quadOn(g, [W(-16,-10,10), W(16,-10,10), W(16,10,10), W(-16,10,10)], 0x8f8577);
+      this.quadOn(g, [b1, b2, W(16,10,10), W(16,-10,10)], 0x7a7164);
+      this.quadOn(g, [b2, b3, W(-16,10,10), W(16,10,10)], 0x6b6357);
+      g.fillStyle(0x4e8f4a, 1);
+      g.fillEllipse(W(0,0,16).x, W(0,0,16).y, 30, 14);
+    } else if(kind === "dog"){
+      // small dog, judging silently
+      const p=W(0,0,0);
+      g.fillStyle(0xc98d4b, 1);
+      g.fillEllipse(p.x, p.y-8, 20, 11);
+      g.fillCircle(p.x+11, p.y-13, 6);
+      g.fillTriangle(p.x+9, p.y-18, p.x+12, p.y-13, p.x+15, p.y-17);
+      g.fillStyle(0x2e3138, 1);
+      g.fillCircle(p.x+13, p.y-14, 1.5);
+      g.lineStyle(3, 0xc98d4b, 1);
+      g.lineBetween(p.x-9, p.y-8, p.x-14, p.y-14);
+    } else if(kind === "car"){
+      // parked car on the road
+      const cz = 6;
+      this.quadOn(g, [W(40,-16,cz), W(40,16,cz), W(40,16,cz+16), W(40,-16,cz+16)], 0x8695a5);
+      this.quadOn(g, [W(-40,16,cz), W(40,16,cz), W(40,16,cz+16), W(-40,16,cz+16)], 0x76839a);
+      this.quadOn(g, [W(-40,-16,cz+16), W(40,-16,cz+16), W(40,16,cz+16), W(-40,16,cz+16)], 0x9aa7b5);
+      this.quadOn(g, [W(-24,-13,cz+16), W(20,-13,cz+16), W(14,13,cz+28), W(-18,13,cz+28)], 0x5b6a7a);
+      g.fillStyle(0x24262c, 1);
+      g.fillEllipse(W(-26,17,3).x, W(-26,17,3).y, 16, 10);
+      g.fillEllipse(W(24,17,3).x, W(24,17,3).y, 16, 10);
+    } else if(kind === "crack"){
+      g.lineStyle(2.5, 0x5d574c, 1);
+      let px = W(-14,-8,0.5);
+      g.beginPath(); g.moveTo(px.x, px.y);
+      for(const [dx,dy] of [[-4,6],[6,4],[2,10],[10,6]]){
+        const q = W(dx*2, dy, 0.5); g.lineTo(q.x, q.y);
+      }
+      g.strokePath();
+    }
+  }
+
+  /* ---------- robot (approved sprite, driving) ---------- */
+  drawRobot(t, dt){
+    const g = this.g; g.clear();
+
+    if(!this.botPaused){
+      this.botX += dt*0.045;
+      if(this.botX > 340) this.botX = -340;
+      this.wheelPhase += dt*0.012;
+    }
+    this.botZ = this.groundZ(this.botX);
+    this.pitch = -Math.atan(this.groundSlope(this.botX)*2);   // nose up the grade
+
+    const bobZ = this.botPaused ? Math.sin(t*0.0022)*1.4 : Math.sin(t*0.012)*1.1;
+    const leanTarget = this.botPaused ? Math.sin(t*0.0022)*0.08 : -0.3;
+    this.flagLean = Phaser.Math.Linear(this.flagLean, leanTarget, 0.06);
+
+    /* shadow */
+    const sp = this.pitch; this.pitch = 0;
+    const sh = [];
+    for(let i=0;i<14;i++){
+      const a=(i/14)*Math.PI*2;
+      sh.push(this.P(Math.cos(a)*34, Math.sin(a)*30, 0.5));
+    }
+    this.quadOn(g, sh, SKIN.shadow, 0.16);
+    this.pitch = sp;
+
+    /* wheels far -> undercarriage -> body -> details -> wheels near -> flag */
+    const wheels = [];
+    for(const side of [-1, 1]){
+      for(const wx of WHEEL.xs){
+        const c = {x:wx, y:side*WHEEL.side, z:WHEEL.z};
+        wheels.push({ c, side,
+          near: this.depth(c.x, c.y, c.z) > this.depth(c.x, -c.y, c.z) });
+      }
+    }
+    for(const w of wheels) if(!w.near) this.drawWheel(w.c, w.side);
+    this.drawBox({hx:24, hy:17, z0:6, z1:BODY.z0+1}, 0x3f434c, 0x3a3d45, 0x2e3138, false);
+    this.drawBox({...BODY, z0:BODY.z0+bobZ, z1:BODY.z1+bobZ}, SKIN.bodyTop, SKIN.bodyRight, SKIN.bodyLeft);
+    this.drawBox({hx:BODY.hx+0.6, hy:BODY.hy+0.6, z0:STRIPE.z0+bobZ, z1:STRIPE.z1+bobZ},
+                 null, SKIN.stripe, SKIN.stripeDk, false, true);
+    this.drawBox({...LID, z0:LID.z0+bobZ, z1:LID.z1+bobZ}, SKIN.bodyTop, SKIN.bodyRight, SKIN.bodyLeft);
+
+    const fn = this.R(1, 0, 0);
+    if(fn.x + fn.y + fn.z > 0.3){
+      const F = (y, z) => this.P(BODY.hx + 0.8, y, z + bobZ);
+      this.quadOn(g, [F(-13,40), F(13,40), F(13,50), F(-13,50)], SKIN.visor);
+      this.edgeOn(g, [F(-13,40), F(13,40), F(13,50), F(-13,50)], SKIN.outline, 1.5);
+      this.blinkT -= dt;
+      if(this.blinkT < -3200 + Math.random()*80) this.blinkT = 130;
+      const open = this.blinkT > 0 ? 0.15 : 1;
+      for(const ey of [-7, 7]){
+        const c = F(ey, 45);
+        g.fillStyle(SKIN.eye, 1);
+        g.fillEllipse(c.x, c.y, 7, 7*open);
+      }
+      this.quadOn(g, [F(-16,18), F(16,18), F(16,22), F(-16,22)], 0xfff3b0);
+    }
+    for(const w of wheels) if(w.near) this.drawWheel(w.c, w.side);
+    this.drawFlag(bobZ);
+  }
+
+  drawBox(b, cTop, cRight, cLeft, outline=true, decal=false, cBottom=SKIN.belly){
+    const {hx, hy, z0, z1} = b, ox = b.ox || 0, oy = b.oy || 0;
+    const C = (sx, sy, sz) => this.P(ox + sx*hx, oy + sy*hy, sz === 1 ? z1 : z0);
+    const faces = [
+      { n:{x:0,y:0,z: 1}, pts:[C( 1,-1,1), C( 1, 1,1), C(-1, 1,1), C(-1,-1,1)] },
+      { n:{x:0,y:0,z:-1}, pts:[C( 1,-1,0), C( 1, 1,0), C(-1, 1,0), C(-1,-1,0)] },
+      { n:{x: 1,y:0,z:0}, pts:[C( 1,-1,0), C( 1, 1,0), C( 1, 1,1), C( 1,-1,1)] },
+      { n:{x:-1,y:0,z:0}, pts:[C(-1,-1,0), C(-1, 1,0), C(-1, 1,1), C(-1,-1,1)] },
+      { n:{x:0,y: 1,z:0}, pts:[C( 1, 1,0), C(-1, 1,0), C(-1, 1,1), C( 1, 1,1)] },
+      { n:{x:0,y:-1,z:0}, pts:[C( 1,-1,0), C(-1,-1,0), C(-1,-1,1), C( 1,-1,1)] }
+    ];
+    for(const fc of faces){
+      const w = this.R(fc.n.x, fc.n.y, fc.n.z);
+      if((w.x + w.y + w.z) <= 0) continue;
+      let col;
+      if(w.z > 0.5)       col = cTop;
+      else if(w.z < -0.5) col = decal ? null : cBottom;
+      else                col = (w.x >= w.y) ? cRight : cLeft;
+      if(col == null) continue;
+      this.quadOn(this.g, fc.pts, col);
+      if(outline) this.edgeOn(this.g, fc.pts);
+    }
+  }
+
+  disc(center, r, color, outlineC){
+    const pts = [];
+    for(let i=0; i<14; i++){
+      const a = (i/14)*Math.PI*2;
+      pts.push(this.P(center.x + Math.cos(a)*r, center.y, center.z + Math.sin(a)*r));
+    }
+    this.quadOn(this.g, pts, color);
+    if(outlineC !== undefined) this.edgeOn(this.g, pts, outlineC, 2);
+  }
+
+  drawWheel(c, sideSign){
+    const W2 = 7.5, steps = 5;
+    const slices = [];
+    for(let i=0; i<=steps; i++){
+      const oy = c.y + sideSign*(-W2/2 + W2*i/steps);
+      slices.push({ y:oy, depth: this.depth(c.x, oy, c.z) });
+    }
+    slices.sort((a,b) => a.depth - b.depth);
+    for(let i=0; i<slices.length; i++){
+      const isFace = i === slices.length-1;
+      this.disc({x:c.x, y:slices[i].y, z:c.z}, WHEEL.r,
+                isFace ? SKIN.wheel : SKIN.wheelDark,
+                isFace ? SKIN.outline : undefined);
+    }
+    const face = slices[slices.length-1].y;
+    this.disc({x:c.x, y:face, z:c.z}, WHEEL.r*0.55, SKIN.wheelHubFace);
+    const a = this.wheelPhase + c.x*0.2;
+    this.disc({ x:c.x + Math.cos(a)*WHEEL.r*0.34, y:face,
+                z:c.z + Math.sin(a)*WHEEL.r*0.34 }, 2.4, SKIN.wheelHub);
+  }
+
+  drawFlag(bobZ){
+    const g = this.g;
+    const L = FLAG.z1 - FLAG.z0;
+    const bend = this.flagLean*0.5;
+    const seg = 6, pts = [];
+    for(let i=0; i<=seg; i++){
+      const s = i/seg, a = bend*s;
+      pts.push(this.P(FLAG.base.x,
+                      FLAG.base.y - Math.sin(a)*L*s,
+                      FLAG.z0 + Math.cos(a)*L*s + bobZ));
+    }
+    g.lineStyle(3, SKIN.flagPole, 1);
+    g.beginPath();
+    g.moveTo(pts[0].x, pts[0].y);
+    for(let i=1; i<=seg; i++) g.lineTo(pts[i].x, pts[i].y);
+    g.strokePath();
+    const p = pts[seg], q = pts[seg-1];
+    let dx = p.x - q.x, dy = p.y - q.y;
+    const dl = Math.hypot(dx, dy) || 1; dx /= dl; dy /= dl;
+    g.fillStyle(SKIN.flag, 1);
+    g.fillTriangle(p.x, p.y, p.x - dy*11, p.y + dx*11, p.x + dx*20, p.y + dy*20 + 4);
+  }
+
+  update(t, dt){
+    this.drawWorld(t);
+    this.drawRobot(t, dt);
+  }
+}
+
+/* ---------- boot + panel ---------- */
+const game = new Phaser.Game({
+  type: Phaser.AUTO, parent: "game",
+  scale: { mode: Phaser.Scale.RESIZE, width: "100%", height: "100%" },
+  scene: [WorldScene]
+});
+const scn = () => game.scene.getScene("world");
+
+document.querySelectorAll("[data-d]").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll("[data-d]").forEach(b => b.classList.remove("on"));
+    btn.classList.add("on");
+    const s = scn();
+    s.d = DISTRICTS[btn.dataset.d];
+    s.botX = -220;
+    document.getElementById("blurb").textContent = s.d.blurb;
+  });
+});
+document.getElementById("zoomIn").addEventListener("click", () => { scn().K = Math.min(scn().K + 0.3, 4); });
+document.getElementById("zoomOut").addEventListener("click", () => { scn().K = Math.max(scn().K - 0.3, 1.0); });
+document.getElementById("pause").addEventListener("click", e => {
+  const s = scn(); s.botPaused = !s.botPaused;
+  e.target.classList.toggle("on", s.botPaused);
+  e.target.textContent = s.botPaused ? "RESUME BOT" : "PAUSE BOT";
+});
+</script>
+</body>
+</html>
