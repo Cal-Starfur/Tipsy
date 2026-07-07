@@ -32,6 +32,7 @@ const SKIN = {
   lidInner:0xb2b7bf, cavityWall:0x9ba1a9, cavityFloor:0x7b818a,
   belly:0x494e58, flagPole:0x2e3138, flag:0xff5722, shadow:0x000000
 };
+const DIRV = [{x:1,y:0},{x:0,y:1},{x:-1,y:0},{x:0,y:-1}];
 const TILE = 46;
 const BODY = { hx:26, hy:20, z0:14, z1:54 };
 const LID  = { hx:22, hy:16, z0:54, z1:61 };
@@ -509,9 +510,9 @@ class GalleryScene extends Phaser.Scene {
   }
 
   /* ========== INJECTED FROM game/index.html — keep in sync ========== */
-  drawProp(g, kind, x, y, t){
-    const z = this.groundZ(x);
-    const W = (dx, dy, dz) => this.W(x+dx, y+dy, z+dz);
+  drawProp(g, kind, x, y, t, fdir = 0, z = 0){
+    const dv = DIRV[fdir], rv = DIRV[(fdir+1)%4];
+    const W = (dx, dy, dz) => this.W(x + dv.x*dx + rv.x*dy, y + dv.y*dx + rv.y*dy, z + dz);
     if(kind === "palm"){
       const sway = Math.sin(t*0.0012 + x)*3;
       g.lineStyle(7, 0x8a6a48, 1);
