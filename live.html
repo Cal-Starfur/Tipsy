@@ -294,6 +294,13 @@ class GalleryScene extends Phaser.Scene {
     g.strokePoints(pts.map(p => new Phaser.Geom.Point(p.x, p.y)), true);
   }
 
+  lidNear(b){
+    const A = this.lidAng, c = Math.cos(A), s = Math.sin(A);
+    const yh = -b.hy, zh = b.z0;
+    const dy = -yh, dz = (b.z1 - b.z0)/2;
+    return this.depth(0, yh + dy*c - dz*s, zh + dy*s + dz*c) > this.depth(0, 0, 34);
+  }
+
   /* ---------- composite + card renderers ---------- */
   drawRobotComposite(t, o){
     this.setPose({ K:o.K, dy:o.dy });
@@ -327,6 +334,9 @@ class GalleryScene extends Phaser.Scene {
       }
     }
     for(const w of wheels) if(!w.near) this.drawWheel(w.c, w.side);
+    const lidBox = {...LID, z0:LID.z0+bobZ, z1:LID.z1+bobZ};
+    const lidIsNear = this.lidNear(lidBox);
+    if(!lidIsNear) this.drawLid(lidBox);
     this.drawBox({hx:24, hy:17, z0:6, z1:BODY.z0+1}, 0x3f434c, 0x3a3d45, 0x2e3138, false);
     this.drawBox({...BODY, z0:BODY.z0+bobZ, z1:BODY.z1+bobZ}, SKIN.bodyTop, SKIN.bodyRight, SKIN.bodyLeft);
     this.drawBox({hx:BODY.hx+0.6, hy:BODY.hy+0.6, z0:STRIPE.z0+bobZ, z1:STRIPE.z1+bobZ},
@@ -341,7 +351,7 @@ class GalleryScene extends Phaser.Scene {
         this.quadOn(this.g, ring(LID.hx-6, LID.hy-6), SKIN.cavityFloor);
       }
     }
-    this.drawLid({...LID, z0:LID.z0+bobZ, z1:LID.z1+bobZ});
+    if(lidIsNear) this.drawLid(lidBox);
 
     const fn = this.R(1, 0, 0);
     if(fn.x + fn.y + fn.z > 0.3){
