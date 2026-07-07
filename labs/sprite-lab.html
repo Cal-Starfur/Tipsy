@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>TIP — Sprite Lab</title>
+<style>
+  html,body{margin:0;padding:0;background:#14161b;height:100%;overflow:hidden;touch-action:manipulation;
+    font-family:-apple-system,'Helvetica Neue',Arial,sans-serif;-webkit-user-select:none;user-select:none;color:#e8eaef;}
+  #wrap{display:flex;flex-direction:column;height:100%;}
+  #game{flex:1;min-height:0;}
+  #panel{padding:10px 12px calc(14px + env(safe-area-inset-bottom));background:#1c1f26;border-top:1px solid #2b2f38;}
+  .row{display:flex;gap:8px;margin-bottom:8px;align-items:center;}
+  .row:last-child{margin-bottom:0;}
+  .lbl{font-size:11px;letter-spacing:1.5px;color:#8f95a1;width:52px;text-transform:uppercase;}
+  button{flex:1;background:#262a33;color:#e8eaef;border:1px solid #363b46;border-radius:10px;
+    padding:11px 4px;font-size:14px;font-weight:600;}
+  button.on{background:#ff7a1a;border-color:#ff7a1a;color:#fff;}
+  button:active{transform:scale(0.96);}
+  button.sm{flex:0 0 46px;}
+  #hdr{padding:10px 14px 6px;font-size:12px;letter-spacing:2px;color:#8f95a1;text-transform:uppercase;}
+  #hdr b{color:#ff9c4d;}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="hdr"><b>TIP</b> · sprite lab · dial in the robot</div>
+  <div id="game"></div>
+  <div id="panel">
+    <div class="row">
+      <span class="lbl">Facing</span>
+      <button class="sm" id="rotL">◀</button>
+      <button id="facingLabel" disabled style="flex:1;color:#ff9c4d;">SE</button>
+      <button class="sm" id="rotR">▶</button>
+      <button id="turntable">TURNTABLE</button>
+    </div>
+    <div class="row">
+      <span class="lbl">Anim</span>
+      <button class="on" data-anim="idle">IDLE</button>
+      <button data-anim="drive">DRIVE</button>
+      <button data-anim="stuck">STUCK</button>
+      <button data-anim="tipped">TIPPED</button>
+    </div>
+    <div class="row">
+      <span class="lbl">Zoom</span>
+      <button class="sm" id="zoomOut">−</button>
+      <button class="sm" id="zoomIn">＋</button>
+      <span style="flex:1"></span>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/phaser@3.85.2/dist/phaser.min.js"></script>
+<script>
+"use strict";
+
+/* ============================================================
+   TIP — Sprite Lab
+   The robot is a tiny 3D model projected to 2:1 isometric and
+   drawn with Phaser Graphics every frame. No image assets.
+   Approve the look here -> we bake facings/frames to textures
+   with generateTexture() for the real game.
+   ============================================================ */
+
+/* ---------- palette: tweak me ---------- */
+const SKIN = {
+  bodyTop:   0xf7f8fa,   // lid / top surfaces
+  bodyRight: 0xe3e6ea,   // camera-right face
+  bodyLeft:  0xc9cdd4,   // camera-left face (more shadow)
+  outline:   0x30343d,
+  stripe:    0xc2452e,   // red band
+  stripeDk:  0xa03824,
+  wheel:     0x24262c,
+  wheelDark: 0x1a1c21,   // tire tread / barrel
+  wheelHubFace: 0x3d424c,
+  wheelHub:  0x8a919c,
+  visor:     0x22242b,
+  lidInner:  0xb2b7bf,   // insulated liner on the lid underside
+  cavityWall:0x9ba1a9,   // liner walls around the opening
+  cavityFloor:0x7b818a,  // interior floor (in shadow)
+  belly:     0x494e58,   // undercarriage plate
+  axle:      0x3a3f49,   // axle housings
+  axleDk:    0x2c3039,
+  battery:   0x555b66,   // battery pack
+  batteryDk: 0x40454f,
+  eye:       0x7fe3ff,
+  eyeAlert:  0xffb04d,
+  flagPole:  0x2e3138,
+  flag:      0xff5722,
+  tileA:     0x9aa0a8,   // pavement
+  tileB:     0x8f959d,
+  tileEdge:  0x7c828a,
+  shadow:    0x000000
+};
+
+/* ---------- model dimensions (world units) ---------- */
+const BODY = { hx:26, hy:20, z0:14, z1:54 };     // main box
+const LID  = { hx:22, hy:16, z0:54, z1:61 };     // rounded-ish top
+const STRIPE = { z0:20, z1:27 };
+const WHEEL = { r:10, z:10, xs:[-16, 0, 16], side:22 };
+const FLAG = { base:{x:-21, y:13}, z0:61, z1:104 };
+
+const FACINGS = ["SE","SW","NW","NE"];           // f = 0..3, 90° CCW steps
+
+class LabScene extends Phaser.Scene {
+  constructor(){ super("lab"); }
+
+  create(){
+    this.f = 0;                 // facing index
+    this.anim = "idle";
+    this.K = 2.2;               // projection scale (zoom)
+    this.wheelPhase = 0;
+    this.flagLean = 0;
+    this.blinkT = 0;
+    this.tipT = 0;
+    this.roll = 0;
+    this.lidAng = 0;
+    this.items = [];
+    this.spilled = false;
+    this.turntable = false;
+    this.turnAcc = 0;
+
+    this.cameras.main.setBackgroundColor("#20232b");
+    this.gGround = this.add.graphics();
+    this.root = this.add.container(0, 0);
+    this.g = this.add.graphics();
+    this.root.add(this.g);
+    this.qtext = this.add.text(0, 0, "?!", {
+      fontSize:"30px", fontStyle:"bold", color:"#ffb04d"
+    }).setOrigin(0.5).setVisible(false);
+
+    this.scale.on("resize", () => this.layout());
+    this.layout();
+  }
+
+  layout(){
+    const w = this.scale.gameSize.width, h = this.scale.gameSize.height;
+    this.cx = w/2; this.cy = h/2 + 40;
+    this.root.setPosition(this.cx, this.cy);
+  }
+
+  /* ---------- projection ---------- */
+  rot(x, y){                       // facing: rotate model 90° CCW, f times
+    for(let i=0; i<this.f; i++){ const t = x; x = -y; y = t; }
+    return {x, y};
+  }
+  T(x, y, z){                      // full model transform: tip roll, then facing
+    if(this.roll !== 0){
+      const PIV = 22;              // ground-contact edge he falls over
+      const y0 = y + PIV, c = Math.cos(this.roll), s = Math.sin(this.roll);
+      y = -PIV + y0*c - z*s;
+      z = y0*s + z*c;
+    }
+    const r = this.rot(x, y);
+    return { x:r.x, y:r.y, z };
+  }
+  R(nx, ny, nz){                   // rotation-only (for normals)
+    const c = Math.cos(this.roll), s = Math.sin(this.roll);
+    const ny2 = ny*c - nz*s, nz2 = ny*s + nz*c;
+    const r = this.rot(nx, ny2);
+    return { x:r.x, y:r.y, z:nz2 };
+  }
+  P(x, y, z){                      // model -> screen (relative to root)
+    const q = this.T(x, y, z), K = this.K;
+    return { x:(q.x - q.y)*K, y:((q.x + q.y)*0.5 - q.z)*K };
+  }
+  depth(x, y, z){                  // larger = nearer the camera
+    const q = this.T(x, y, z);
+    return q.x + q.y + q.z*0.4;
+  }
+  rollPt(x, y, z){                 // roll only — no facing (for world-space spawns)
+    if(this.roll === 0) return {x, y, z};
+    const PIV = 22, y0 = y + PIV, c = Math.cos(this.roll), s = Math.sin(this.roll);
+    return { x, y:-PIV + y0*c - z*s, z:y0*s + z*c };
+  }
+
+  /* the lid: a box on a hinge along its rear edge; swings open by this.lidAng */
+  drawLid(b){
+    const {hx, hy, z0, z1} = b;
+    const A = this.lidAng, cA = Math.cos(A), sA = Math.sin(A);
+    const yh = -hy, zh = z0;                     // hinge line
+    const H = (x, y, z) => {                     // hinge rotation, then normal pipeline
+      const dy = y - yh, dz = z - zh;
+      return this.P(x, yh + dy*cA - dz*sA, zh + dy*sA + dz*cA);
+    };
+    const HN = (nx, ny, nz) => {                 // normals: hinge rot then roll+facing
+      const ny2 = ny*cA - nz*sA, nz2 = ny*sA + nz*cA;
+      return this.R(nx, ny2, nz2);
+    };
+    const C = (sx, sy, sz) => H(sx*hx, sy*hy, sz === 1 ? z1 : z0);
+    const faces = [
+      { n:{x:0,y:0,z: 1}, pts:[C( 1,-1,1), C( 1, 1,1), C(-1, 1,1), C(-1,-1,1)] },
+      { n:{x:0,y:0,z:-1}, pts:[C( 1,-1,0), C( 1, 1,0), C(-1, 1,0), C(-1,-1,0)] },
+      { n:{x: 1,y:0,z:0}, pts:[C( 1,-1,0), C( 1, 1,0), C( 1, 1,1), C( 1,-1,1)] },
+      { n:{x:-1,y:0,z:0}, pts:[C(-1,-1,0), C(-1, 1,0), C(-1, 1,1), C(-1,-1,1)] },
+      { n:{x:0,y: 1,z:0}, pts:[C( 1, 1,0), C(-1, 1,0), C(-1, 1,1), C( 1, 1,1)] },
+      { n:{x:0,y:-1,z:0}, pts:[C( 1,-1,0), C(-1,-1,0), C(-1,-1,1), C( 1,-1,1)] }
+    ];
+    for(const fc of faces){
+      const w = HN(fc.n.x, fc.n.y, fc.n.z);
+      if((w.x + w.y + w.z) <= 0) continue;
+      const col = w.z > 0.5 ? SKIN.bodyTop
+                : w.z < -0.5 ? SKIN.lidInner
+                : (w.x >= w.y) ? SKIN.bodyRight : SKIN.bodyLeft;
+      this.quad(fc.pts, col);
+      this.edge(fc.pts);
+    }
+  }
+
+  quad(pts, color, alpha=1){
+    this.g.fillStyle(color, alpha);
+    this.g.fillPoints(pts.map(p => new Phaser.Geom.Point(p.x, p.y)), true);
+  }
+  edge(pts, color=SKIN.outline, w=2){
+    this.g.lineStyle(w, color, 1);
+    this.g.strokePoints(pts.map(p => new Phaser.Geom.Point(p.x, p.y)), true);
+  }
+
+  /* box: all 6 faces, visibility-culled against the iso view axis (1,1,1).
+     Colors picked by where each face points AFTER the roll — so the belly
+     shows when he goes over. decal=true draws only camera-facing sides. */
+  drawBox(b, cTop, cRight, cLeft, outline=true, decal=false, cBottom=SKIN.belly){
+    const {hx, hy, z0, z1} = b, ox = b.ox || 0, oy = b.oy || 0;
+    const C = (sx, sy, sz) => this.P(ox + sx*hx, oy + sy*hy, sz === 1 ? z1 : z0);
+    const faces = [
+      { n:{x:0,y:0,z: 1}, pts:[C( 1,-1,1), C( 1, 1,1), C(-1, 1,1), C(-1,-1,1)], kind:"top" },
+      { n:{x:0,y:0,z:-1}, pts:[C( 1,-1,0), C( 1, 1,0), C(-1, 1,0), C(-1,-1,0)], kind:"bottom" },
+      { n:{x: 1,y:0,z:0}, pts:[C( 1,-1,0), C( 1, 1,0), C( 1, 1,1), C( 1,-1,1)], kind:"side" },
+      { n:{x:-1,y:0,z:0}, pts:[C(-1,-1,0), C(-1, 1,0), C(-1, 1,1), C(-1,-1,1)], kind:"side" },
+      { n:{x:0,y: 1,z:0}, pts:[C( 1, 1,0), C(-1, 1,0), C(-1, 1,1), C( 1, 1,1)], kind:"side" },
+      { n:{x:0,y:-1,z:0}, pts:[C( 1,-1,0), C(-1,-1,0), C(-1,-1,1), C( 1,-1,1)], kind:"side" }
+    ];
+    for(const fc of faces){
+      const w = this.R(fc.n.x, fc.n.y, fc.n.z);
+      const vis = (w.x + w.y + w.z) > 0;
+      if(!vis) continue;
+      let col;
+      if(w.z > 0.5)       col = cTop;
+      else if(w.z < -0.5) col = decal ? null : cBottom;
+      else                col = (w.x >= w.y) ? cRight : cLeft;
+      if(col == null) continue;
+      this.quad(fc.pts, col);
+      if(outline) this.edge(fc.pts);
+    }
+  }
+
+  /* filled disc lying in a vertical plane through `center`, spanning direction `dir`(2D) and z */
+  disc(center, dir, r, color, outlineC){
+    const pts = [];
+    for(let i=0; i<14; i++){
+      const a = (i/14)*Math.PI*2;
+      pts.push(this.P(center.x + Math.cos(a)*r*dir.x,
+                      center.y + Math.cos(a)*r*dir.y,
+                      center.z + Math.sin(a)*r));
+    }
+    this.quad(pts, color);
+    if(outlineC !== undefined) this.edge(pts, outlineC, 2);
+  }
+
+  /* ---------- the robot ---------- */
+  drawRobot(t, dt){
+    const g = this.g; g.clear();
+
+    /* anim state */
+    let bobZ = 0, jitterX = 0, eyeColor = SKIN.eye, eyesX = false, driving = false;
+    if(this.anim === "idle"){
+      bobZ = Math.sin(t*0.0022)*1.4;
+    } else if(this.anim === "drive"){
+      driving = true;
+      this.wheelPhase += dt*0.012;
+      bobZ = Math.sin(t*0.012)*1.1;
+    } else if(this.anim === "stuck"){
+      jitterX = (Math.random()-0.5)*2.4;
+      eyeColor = SKIN.eyeAlert;
+      this.wheelPhase += dt*0.02*(Math.random()>0.5?1:-1);   // wheels spinning uselessly
+    } else if(this.anim === "tipped"){
+      eyesX = true;
+      this.wheelPhase += dt*0.0035;             // wheels spinning sadly in the air
+    }
+
+    /* tipped: roll the 3D model over its far edge — belly to camera */
+    const tipTarget = this.anim === "tipped" ? 1 : 0;
+    this.tipT = Phaser.Math.Linear(this.tipT, tipTarget, 0.1);
+    const wob = this.tipT > 0.05 && this.tipT < 0.97 ? Math.sin(t*0.03)*0.08*(1-this.tipT) : 0;
+    this.roll = (Math.PI*0.5)*this.tipT + wob;
+    this.root.setRotation(0);
+    this.root.setPosition(this.cx + jitterX, this.cy);
+
+    /* lid flops open past half-fall; cargo spills once */
+    this.lidAng = Phaser.Math.Linear(this.lidAng, this.tipT > 0.5 ? 2.35 : 0, 0.085);
+    if(this.tipT > 0.55 && !this.spilled) this.spillCargo();
+    if(this.anim !== "tipped" && this.tipT < 0.08 && this.spilled){
+      this.spilled = false; this.items = [];
+    }
+    this.simItems(dt);
+
+    /* flag lag */
+    const leanTarget = driving ? -0.35 : (this.anim==="stuck" ? Math.sin(t*0.02)*0.25 : Math.sin(t*0.0022)*0.08);
+    this.flagLean = Phaser.Math.Linear(this.flagLean, leanTarget, 0.06);
+
+    /* ground shadow (never rolls; spreads as he goes over) */
+    const sr = this.roll; this.roll = 0;
+    const sh = [];
+    for(let i=0;i<14;i++){
+      const a=(i/14)*Math.PI*2;
+      sh.push(this.P(Math.cos(a)*34, -this.tipT*26 + Math.sin(a)*(30 + this.tipT*26), 0.5 - bobZ*0.5));
+    }
+    this.quad(sh, SKIN.shadow, 0.18);
+    this.roll = sr;
+
+    /* spilled cargo lies in the world — render before the robot (it's behind him) */
+    this.drawItems();
+
+    /* flag drawn early when its base is on the far side of the body */
+    if(!this.flagIsNear()) this.drawFlag(bobZ);
+
+    /* wheels: far side first, near side after body */
+    const wheels = [];
+    for(const side of [-1, 1]){
+      for(const wx of WHEEL.xs){
+        const c = {x:wx, y:side*WHEEL.side, z:WHEEL.z};
+        wheels.push({ c, side,
+          near: this.depth(c.x, c.y, c.z) > this.depth(c.x, -c.y, c.z) });
+      }
+    }
+    for(const w of wheels) if(!w.near) this.drawWheel(w.c, w.side);
+
+    /* undercarriage: skirt + axle boxes + battery pack (the reveal when he goes over) */
+    const bn = this.R(0, 0, -1);
+    const bellyUp = (bn.x + bn.y + bn.z) > 0.02;
+    const zb = bobZ*0.4;
+    const skirt = () => this.drawBox({hx:24, hy:17, z0:6+zb, z1:BODY.z0+bobZ+1},
+                                     0x3f434c, 0x3a3d45, 0x2e3138, false, false, SKIN.belly);
+    const parts = () => {
+      for(const ax of [-16, 16])
+        this.drawBox({ox:ax, hx:5, hy:19, z0:3+zb, z1:9+zb},
+                     SKIN.axle, SKIN.axle, SKIN.axleDk, false, false, SKIN.axleDk);
+      this.drawBox({hx:8, hy:11, z0:2+zb, z1:7+zb},
+                    SKIN.battery, SKIN.battery, SKIN.batteryDk, false, false, SKIN.batteryDk);
+    };
+    if(bellyUp){ skirt(); parts(); }   // belly toward camera: parts on top
+    else       { parts(); skirt(); }
+
+    /* body (with bob) */
+    const body = {...BODY, z0:BODY.z0+bobZ, z1:BODY.z1+bobZ};
+    const lid  = {...LID,  z0:LID.z0+bobZ,  z1:LID.z1+bobZ};
+    this.drawBox(body, SKIN.bodyTop, SKIN.bodyRight, SKIN.bodyLeft);
+    /* stripe band decal: camera-facing sides only, never belly */
+    this.drawBox({hx:BODY.hx+0.6, hy:BODY.hy+0.6, z0:STRIPE.z0+bobZ, z1:STRIPE.z1+bobZ},
+                 null, SKIN.stripe, SKIN.stripeDk, false, true);
+    /* open cavity shows when the lid lifts: liner rim + shadowed floor */
+    if(this.lidAng > 0.12){
+      const wn = this.R(0, 0, 1);
+      if(wn.x + wn.y + wn.z > 0){
+        const zc = LID.z0 + bobZ + 0.5;
+        const ring = (hx, hy) => [
+          this.P(hx,-hy,zc), this.P(hx,hy,zc), this.P(-hx,hy,zc), this.P(-hx,-hy,zc)
+        ];
+        this.quad(ring(LID.hx-2, LID.hy-2), SKIN.cavityWall);
+        this.quad(ring(LID.hx-6, LID.hy-6), SKIN.cavityFloor);
+      }
+    }
+    this.drawLid(lid);
+
+    /* face details on the model's FRONT (+x) if that face is camera-visible */
+    const fn = this.rot(1, 0);
+    if(fn.x === 1 || fn.y === 1){
+      const F = (y, z) => this.P(BODY.hx + 0.8, y, z + bobZ);
+      // visor
+      this.quad([F(-13,40), F(13,40), F(13,50), F(-13,50)], SKIN.visor);
+      this.edge([F(-13,40), F(13,40), F(13,50), F(-13,50)], SKIN.outline, 1.5);
+      // eyes
+      if(eyesX){
+        this.g.lineStyle(2.5, SKIN.eyeAlert, 1);
+        for(const ey of [-7, 7]){
+          const c = F(ey, 45);
+          this.g.lineBetween(c.x-4, c.y-4, c.x+4, c.y+4);
+          this.g.lineBetween(c.x-4, c.y+4, c.x+4, c.y-4);
+        }
+      } else {
+        this.blinkT -= dt;
+        if(this.blinkT < -3200 + Math.random()*80) this.blinkT = 130;
+        const open = this.blinkT > 0 ? 0.15 : 1;
+        for(const ey of [-7, 7]){
+          const c = F(ey, 45);
+          this.g.fillStyle(eyeColor, 1);
+          this.g.fillEllipse(c.x, c.y, 7, 7*open);
+        }
+      }
+      // headlight strip
+      this.quad([F(-16,18), F(16,18), F(16,22), F(-16,22)], 0xfff3b0);
+    }
+
+    /* near wheels */
+    for(const w of wheels) if(w.near) this.drawWheel(w.c, w.side);
+
+    /* flag: only drawn here if its base is on the camera side of the body */
+    if(this.flagIsNear()) this.drawFlag(bobZ);
+
+    /* stuck "?!" */
+    this.qtext.setVisible(this.anim === "stuck");
+    if(this.anim === "stuck"){
+      this.qtext.setPosition(this.cx + 60 + Math.random()*2, this.cy - 170 + Math.sin(t*0.008)*6);
+    }
+  }
+
+  /* ---------- flag ---------- */
+  flagIsNear(){
+    return this.depth(FLAG.base.x, FLAG.base.y, FLAG.z0 + 20) > this.depth(0, 0, 34);
+  }
+
+  drawFlag(bobZ){
+    const g = this.g;
+    const L = FLAG.z1 - FLAG.z0;
+    // model-space bend: idle sway + heavy sag toward the ground as he tips
+    const bend = this.flagLean*0.5 + this.tipT*1.5;
+    const seg = 6, pts = [];
+    for(let i=0; i<=seg; i++){
+      const s = i/seg, a = bend*s;
+      pts.push(this.P(FLAG.base.x,
+                      FLAG.base.y - Math.sin(a)*L*s,
+                      FLAG.z0 + Math.cos(a)*L*s + bobZ));
+    }
+    g.lineStyle(3, SKIN.flagPole, 1);
+    g.beginPath();
+    g.moveTo(pts[0].x, pts[0].y);
+    for(let i=1; i<=seg; i++) g.lineTo(pts[i].x, pts[i].y);
+    g.strokePath();
+    // pennant follows the pole tip's local direction
+    const p = pts[seg], q = pts[seg-1];
+    let dx = p.x - q.x, dy = p.y - q.y;
+    const dl = Math.hypot(dx, dy) || 1; dx /= dl; dy /= dl;
+    g.fillStyle(SKIN.flag, 1);
+    g.fillTriangle(p.x, p.y,
+                   p.x - dy*11, p.y + dx*11,
+                   p.x + dx*20, p.y + dy*20 + 4);
+  }
+
+  /* ---------- spilled cargo ---------- */
+  spillCargo(){
+    this.spilled = true;
+    const mouth = this.rollPt(0, -LID.hy, LID.z1 + 4);   // lid opening, mid-fall
+    const spawn = (kind, size) => this.items.push({
+      kind, size,
+      x: mouth.x + (Math.random()-0.5)*10,
+      y: mouth.y - 4 - Math.random()*6,
+      z: mouth.z + Math.random()*4,
+      vx: (Math.random()-0.5)*2.2,
+      vy: -0.8 - Math.random()*1.4,
+      vz: 0.5 + Math.random()*0.9,
+      spin: (Math.random()-0.5)*0.3, ang: Math.random()*Math.PI,
+      rest: false
+    });
+    spawn("burrito", 9);
+    spawn("cup", 7);
+    for(let i=0;i<3;i++) spawn("fry", 4);
+  }
+
+  simItems(dt){
+    const k = dt/16.7;
+    for(const it of this.items){
+      if(it.rest) continue;
+      it.vz -= 0.14*k;
+      it.x += it.vx*k; it.y += it.vy*k; it.z += it.vz*k;
+      it.ang += it.spin*k;
+      if(it.z <= it.size*0.35){
+        it.z = it.size*0.35;
+        if(Math.abs(it.vz) < 0.25){ it.rest = true; it.vx = it.vy = it.vz = 0; }
+        else { it.vz *= -0.38; it.vx *= 0.7; it.vy *= 0.7; it.spin *= 0.6; }
+      }
+    }
+  }
+
+  drawItems(){
+    if(!this.items.length) return;
+    const sr = this.roll; this.roll = 0;         // items are world objects
+    const g = this.g, K = this.K;
+    for(const it of this.items){
+      // little ground shadow
+      const s = this.P(it.x, it.y, 0.4);
+      g.fillStyle(SKIN.shadow, 0.15);
+      g.fillEllipse(s.x, s.y, it.size*K*0.9, it.size*K*0.4);
+      const p = this.P(it.x, it.y, it.z);
+      if(it.kind === "burrito"){
+        g.fillStyle(0xe8b04b, 1);
+        g.fillEllipse(p.x, p.y, 16*K*0.8, 9*K*0.8);
+        g.lineStyle(2, 0xb5813a, 1); g.strokeEllipse(p.x, p.y, 16*K*0.8, 9*K*0.8);
+        g.fillStyle(0x7fae4e, 1);                       // sad lettuce
+        g.fillEllipse(p.x + 5*K*0.8, p.y, 4*K*0.8, 5*K*0.8);
+      } else if(it.kind === "cup"){
+        g.fillStyle(0xf4f5f7, 1);
+        g.fillRect(p.x - 4*K*0.7, p.y - 6*K*0.7, 8*K*0.7, 11*K*0.7);
+        g.lineStyle(2, 0xc9ccd2, 1);
+        g.strokeRect(p.x - 4*K*0.7, p.y - 6*K*0.7, 8*K*0.7, 11*K*0.7);
+        g.fillStyle(0x8b5a3c, 1);                       // the puddle
+        if(it.rest) g.fillEllipse(p.x + 7*K, p.y + 5*K*0.6, 14*K*0.8, 5*K*0.8);
+      } else {                                          // fry
+        g.fillStyle(0xf2c94c, 1);
+        const a = it.ang, L = 7*K*0.7, W2 = 2.2*K*0.7;
+        g.save(); g.translateCanvas(p.x, p.y); g.rotateCanvas(a);
+        g.fillRect(-L/2, -W2/2, L, W2);
+        g.restore();
+      }
+    }
+    this.roll = sr;
+  }
+
+  drawWheel(c, sideSign){
+    // pseudo-cylinder: stack of discs along the wheel's axle, drawn back-to-front
+    const W = 7.5, steps = 5;
+    const dir = {x:1, y:0};                       // disc plane spans model x/z
+    const slices = [];
+    for(let i=0; i<=steps; i++){
+      const oy = c.y + sideSign*(-W/2 + W*i/steps);
+      slices.push({ y:oy, depth: this.depth(c.x, oy, c.z) });
+    }
+    slices.sort((a,b) => a.depth - b.depth);
+    for(let i=0; i<slices.length; i++){
+      const isFace = i === slices.length-1;
+      this.disc({x:c.x, y:slices[i].y, z:c.z}, dir, WHEEL.r,
+                isFace ? SKIN.wheel : SKIN.wheelDark,
+                isFace ? SKIN.outline : undefined);
+    }
+    // hub face + spinning dot on the camera-facing side
+    const face = slices[slices.length-1].y;
+    this.disc({x:c.x, y:face, z:c.z}, dir, WHEEL.r*0.55, SKIN.wheelHubFace);
+    const a = this.wheelPhase + c.x*0.2;
+    this.disc({ x:c.x + Math.cos(a)*WHEEL.r*0.34,
+                y:face,
+                z:c.z + Math.sin(a)*WHEEL.r*0.34 }, dir, 2.4, SKIN.wheelHub);
+  }
+
+  /* ---------- ground tiles ---------- */
+  drawGround(){
+    const g = this.gGround; g.clear();
+    const savedRoll = this.roll; this.roll = 0;   // tiles don't fall over
+    const T = 46;   // half-tile in model units
+    for(let tx=-1; tx<=1; tx++){
+      for(let ty=-1; ty<=1; ty++){
+        const cx0 = tx*T*2, cy0 = ty*T*2;
+        const pts = [
+          this.P(cx0+T, cy0-T, 0), this.P(cx0+T, cy0+T, 0),
+          this.P(cx0-T, cy0+T, 0), this.P(cx0-T, cy0-T, 0)
+        ].map(p => new Phaser.Geom.Point(p.x + this.cx, p.y + this.cy));
+        g.fillStyle(((tx+ty) % 2 === 0) ? SKIN.tileA : SKIN.tileB, 1);
+        g.fillPoints(pts, true);
+        g.lineStyle(2, SKIN.tileEdge, 1);
+        g.strokePoints(pts, true);
+      }
+    }
+    this.roll = savedRoll;
+  }
+
+  update(t, dt){
+    if(this.turntable){
+      this.turnAcc += dt;
+      if(this.turnAcc > 1100){ this.turnAcc = 0; setFacing(this.f + 1); }
+    }
+    this.drawGround();
+    this.drawRobot(t, dt);
+  }
+}
+
+/* ---------- boot + panel wiring ---------- */
+const game = new Phaser.Game({
+  type: Phaser.AUTO, parent: "game", transparent: false,
+  scale: { mode: Phaser.Scale.RESIZE, width: "100%", height: "100%" },
+  scene: [LabScene]
+});
+const scn = () => game.scene.getScene("lab");
+
+function setFacing(f){
+  const s = scn(); s.f = ((f % 4) + 4) % 4;
+  document.getElementById("facingLabel").textContent = FACINGS[s.f];
+}
+document.getElementById("rotL").addEventListener("click", () => setFacing(scn().f - 1));
+document.getElementById("rotR").addEventListener("click", () => setFacing(scn().f + 1));
+document.getElementById("turntable").addEventListener("click", e => {
+  const s = scn(); s.turntable = !s.turntable;
+  e.target.classList.toggle("on", s.turntable);
+});
+document.getElementById("zoomIn").addEventListener("click", () => { scn().K = Math.min(scn().K + 0.35, 5); });
+document.getElementById("zoomOut").addEventListener("click", () => { scn().K = Math.max(scn().K - 0.35, 1.0); });
+document.querySelectorAll("[data-anim]").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll("[data-anim]").forEach(b => b.classList.remove("on"));
+    btn.classList.add("on");
+    scn().anim = btn.dataset.anim;
+  });
+});
+</script>
+</body>
+</html>
