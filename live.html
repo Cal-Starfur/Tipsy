@@ -1,0 +1,761 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>TIPSY — Live Asset Gallery</title>
+<style>
+  html,body{margin:0;padding:0;background:#14161b;height:100%;overflow:hidden;touch-action:none;
+    font-family:-apple-system,'Helvetica Neue',Arial,sans-serif;-webkit-user-select:none;user-select:none;color:#e8eaef;}
+  #game{width:100%;height:100%;}
+</style>
+</head>
+<body>
+<div id="game"></div>
+<script src="https://cdn.jsdelivr.net/npm/phaser@3.85.2/dist/phaser.min.js"></script>
+<script>
+"use strict";
+
+/* ============================================================
+   TIPSY — Live Asset Gallery
+   Every named asset from docs/ASSETS.md, rendered live by the
+   SAME draw code as game/index.html. When an asset changes in
+   the game, port the function here in the same commit so this
+   page never lies. Drag / wheel to scroll.
+   ============================================================ */
+
+const SKIN = {
+  bodyTop:0xf7f8fa, bodyRight:0xe3e6ea, bodyLeft:0xc9cdd4, outline:0x30343d,
+  stripe:0xc2452e, stripeDk:0xa03824,
+  wheel:0x24262c, wheelDark:0x1a1c21, wheelHubFace:0x3d424c, wheelHub:0x8a919c,
+  visor:0x22242b, eye:0x7fe3ff, eyeAlert:0xffb04d,
+  lidInner:0xb2b7bf, cavityWall:0x9ba1a9, cavityFloor:0x7b818a,
+  belly:0x494e58, flagPole:0x2e3138, flag:0xff5722, shadow:0x000000
+};
+const TILE = 46;
+const BODY = { hx:26, hy:20, z0:14, z1:54 };
+const LID  = { hx:22, hy:16, z0:54, z1:61 };
+const STRIPE = { z0:20, z1:27 };
+const WHEEL = { r:10, z:10, xs:[-16, 0, 16], side:22 };
+const FLAG = { base:{x:-21, y:13}, z0:61, z1:104 };
+
+/* district palettes shown on the world cards */
+const PALETTES = {
+  "default": { sky:0x9fd4e8, pave:0xc9c3b4, paveB:0xbfb9aa, paveEdge:0xa8a294, road:0x4a4d55, roadLine:0xd8d2c2 },
+  "hills":   { sky:0xf2c48d, pave:0xbdb6a8, paveB:0xb3ac9e, paveEdge:0x9c9588, road:0x45484f, roadLine:0xcfc9b9 },
+  "rough":   { sky:0xc9b49b, pave:0xa19a8e, paveB:0x958e82, paveEdge:0x7d7669, road:0x3d4046, roadLine:0x8f897b }
+};
+
+class GalleryScene extends Phaser.Scene {
+  constructor(){ super("gallery"); }
+
+  create(){
+    this.K = 1.6;
+    this.f = 0; this.yaw = 0; this.pitch = 0; this.roll = 0;
+    this.ox = 0; this.oy = 0;
+    this.wheelPhase = 0; this.flagLean = 0; this.tipT = 0; this.lidAng = 0;
+    this.blinkT = 0;
+    this.d = PALETTES["default"];
+
+    this.g = this.add.graphics();
+    this.buildLayout();
+
+    /* scroll: drag + wheel */
+    this.scrollY = 0;
+    let dragY = null, dragS = 0;
+    this.input.on("pointerdown", p => { dragY = p.y; dragS = this.scrollY; });
+    this.input.on("pointermove", p => {
+      if(dragY === null || !p.isDown) return;
+      this.scrollY = Phaser.Math.Clamp(dragS - (p.y - dragY), 0, this.maxScroll);
+    });
+    this.input.on("pointerup", () => { dragY = null; });
+    this.input.on("wheel", (p, o, dx, dy) => {
+      this.scrollY = Phaser.Math.Clamp(this.scrollY + dy*0.6, 0, this.maxScroll);
+    });
+  }
+
+  /* ---------- layout ---------- */
+  buildLayout(){
+    const W = this.scale.gameSize.width;
+    const M = 10, GAP = 10;
+    const colW = (W - M*2 - GAP) / 2;
+    this.cards = [];
+    let y = 12;
+
+    const header = (txt) => {
+      this.add.text(M, y, txt, { fontSize:"13px", fontStyle:"bold", color:"#ff9c4d",
+        letterSpacing:2 }).setText(txt.toUpperCase());
+      y += 30;
+    };
+    const sub = (txt) => {
+      this.add.text(M, y, txt, { fontSize:"11px", color:"#8f95a1" });
+      y += 22;
+    };
+    let col = 0;
+    const card = (id, h, draw, wide=false) => {
+      if(wide && col === 1){ col = 0; y += this.lastH + GAP; }
+      const w = wide ? colW*2 + GAP : colW;
+      const x = M + (wide ? 0 : col*(colW + GAP));
+      this.cards.push({ id, x, y, w, h, draw });
+      this.add.text(x + 8, y + h - 20, id, { fontSize:"11px", color:"#8f95a1" });
+      if(wide){ y += h + GAP; col = 0; }
+      else if(col === 0){ col = 1; this.lastH = h; }
+      else { col = 0; y += Math.max(h, this.lastH) + GAP; }
+      this.lastH = h;
+    };
+    const flushRow = () => { if(col === 1){ col = 0; y += this.lastH + GAP; } };
+
+    this.add.text(M, y, "TIPSY · LIVE ASSET GALLERY", { fontSize:"17px", fontStyle:"bold", color:"#e8eaef" });
+    y += 24;
+    this.add.text(M, y, "drag to scroll · drawn by the game's own code · see docs/ASSETS.md", { fontSize:"11px", color:"#8f95a1" });
+    y += 28;
+
+    /* ---- ROBOT ---- */
+    header("1 · Robot — Tipsy");
+    card("robot.full (idle)", 230, (t) => this.drawRobotComposite(t, { K:1.7, dy:60 }), true);
+    card("robot.tipped + cargo spill", 230, (t) => this.drawRobotComposite(t, { K:1.5, dy:70, tipped:true }), true);
+    card("robot.wheel", 150, (t) => {
+      this.setPose({ K:4, dy:40 });
+      this.wheelPhase = t*0.004;
+      this.drawWheel({x:0, y:0, z:WHEEL.z}, 1);
+    });
+    card("robot.skirt", 150, () => {
+      this.setPose({ K:2.6, dy:30 });
+      this.drawBox({hx:24, hy:17, z0:6, z1:BODY.z0+1}, 0x3f434c, 0x3a3d45, 0x2e3138, false);
+    });
+    card("robot.body", 170, () => {
+      this.setPose({ K:1.9, dy:55 });
+      this.drawBox(BODY, SKIN.bodyTop, SKIN.bodyRight, SKIN.bodyLeft);
+    });
+    card("robot.stripe (decal)", 170, () => {
+      this.setPose({ K:1.9, dy:55 });
+      this.drawBox(BODY, SKIN.bodyTop, SKIN.bodyRight, SKIN.bodyLeft);
+      this.drawBox({hx:BODY.hx+0.6, hy:BODY.hy+0.6, z0:STRIPE.z0, z1:STRIPE.z1},
+                   null, SKIN.stripe, SKIN.stripeDk, false, true);
+    });
+    card("robot.lid (closed)", 150, () => {
+      this.setPose({ K:2.6, dy:75 });
+      this.lidAng = 0;
+      this.drawLid(LID);
+    });
+    card("robot.cavity + lid open", 150, () => {
+      this.setPose({ K:2.2, dy:70 });
+      this.lidAng = 2.35;
+      const ring = (hx, hy) => [
+        this.P(hx,-hy,LID.z0+0.5), this.P(hx,hy,LID.z0+0.5),
+        this.P(-hx,hy,LID.z0+0.5), this.P(-hx,-hy,LID.z0+0.5)];
+      this.quadOn(this.g, ring(LID.hx-2, LID.hy-2), SKIN.cavityWall);
+      this.quadOn(this.g, ring(LID.hx-6, LID.hy-6), SKIN.cavityFloor);
+      this.drawLid(LID);
+      this.lidAng = 0;
+    });
+    card("robot.visor / eye ×3 / headlight", 150, (t) => this.drawFaceCard(t), true);
+    card("robot.flag", 190, (t) => {
+      this.setPose({ K:2.0, dy:85 });
+      this.flagLean = Math.sin(t*0.002)*0.3;
+      this.drawFlag(0);
+    });
+    card("robot.shadow", 190, () => {
+      this.setPose({ K:2.2, dy:20 });
+      const sh = [];
+      for(let i=0;i<14;i++){
+        const a=(i/14)*Math.PI*2;
+        sh.push(this.P(Math.cos(a)*34, Math.sin(a)*30, 0.5));
+      }
+      this.quadOn(this.g, sh, SKIN.shadow, 0.16);
+    });
+    flushRow();
+
+    /* ---- CARGO ---- */
+    header("2 · Cargo (the spill)");
+    card("cargo.burrito", 120, () => this.drawBurrito(0, 8));
+    card("cargo.cup + puddle", 120, () => this.drawCup(0, 4, true));
+    card("cargo.fry ×3", 120, (t) => {
+      for(let i=0;i<3;i++) this.drawFry(-26 + i*26, 6, i*1.1);
+    });
+    flushRow();
+
+    /* ---- WORLD ---- */
+    header("3 · World");
+    sub("palette follows the day's district — default shown");
+    card("world.tile.sidewalk", 160, () => this.drawTileCard(false));
+    card("world.tile.road + dash", 160, () => this.drawTileCard(true));
+    card("world.curb", 130, () => {
+      this.setPose({ K:1.7, dy:10 });
+      this.quadOn(this.g, [
+        this.W(-TILE*1.6, 0, 3), this.W(TILE*1.6, 0, 3),
+        this.W(TILE*1.6, 0, -2), this.W(-TILE*1.6, 0, -2)
+      ], this.d.paveEdge);
+    });
+    card("world.door + knob + mat", 170, () => {
+      this.setPose({ K:1.5, dy:40 });
+      const door = this.W(0, -TILE-6, 0);
+      const g = this.g;
+      g.fillStyle(0x5a3d2b, 1); g.fillRect(door.x-22, door.y-96, 44, 96);
+      g.fillStyle(0xd8b23a, 1); g.fillCircle(door.x+12, door.y-46, 4);
+      this.quadOn(g, [
+        this.W(-34, -8, 0.6), this.W(34, -8, 0.6),
+        this.W(34, TILE+18, 0.6), this.W(-34, TILE+18, 0.6)
+      ], 0xc2452e);
+    });
+    card("world.palettes (default / hills / rough)", 150, () => this.drawPaletteRows(), true);
+
+    /* ---- PROPS ---- */
+    header("4 · Hazards & props");
+    const P = (kind, h=150, wide=false, dy=30) =>
+      card("prop." + kind, h, (t) => {
+        this.setPose({ K:1.8, dy });
+        this.drawProp(this.g, kind, 0, 0, t);
+      }, wide);
+    P("palm", 210, false, 90);
+    P("scooter", 210, false, 40);
+    P("trash");
+    P("cone");
+    P("hydrant");
+    P("planter");
+    P("dog");
+    P("bin");
+    P("car", 170, true, 40);
+    P("driveway", 170, true, 40);
+    P("crack", 120);
+    flushRow();
+
+    /* ---- HUD ---- */
+    header("5 · HUD");
+    card("hud.progress", 110, (t) => this.drawProgressCard(t), true);
+    card("hud.tiltMeter", 150, (t) => this.drawTiltCard(t), true);
+
+    /* ---- PALETTE ---- */
+    header("6 · Palette master (SKIN)");
+    card("SKIN swatches", 330, () => this.drawSwatches(), true);
+
+    this.totalH = y + 60;
+    this.maxScroll = Math.max(0, this.totalH - this.scale.gameSize.height);
+  }
+
+  /* ---------- pose + projection ---------- */
+  setPose(o = {}){
+    this.K = o.K ?? 1.6;
+    this.f = 0; this.yaw = 0; this.pitch = 0;
+    this.roll = o.roll ?? 0;
+    this.oy = this.cardCY + (o.dy ?? 0);
+    this.ox = this.cardCX;
+  }
+  T(x, y, z){
+    if(this.yaw !== 0){
+      const c = Math.cos(this.yaw), s = Math.sin(this.yaw);
+      const x2 = x*c - y*s; y = x*s + y*c; x = x2;
+    }
+    if(this.pitch !== 0){
+      const c = Math.cos(this.pitch), s = Math.sin(this.pitch);
+      const x2 = x*c - z*s; z = x*s + z*c; x = x2;
+    }
+    if(this.roll !== 0){
+      const PIV = 22, y0 = y + PIV, c = Math.cos(this.roll), s = Math.sin(this.roll);
+      y = -PIV + y0*c - z*s; z = y0*s + z*c;
+    }
+    let rx = x, ry = y;
+    for(let i=0; i<this.f; i++){ const t = rx; rx = -ry; ry = t; }
+    return { x:rx, y:ry, z };
+  }
+  R(nx, ny, nz){
+    if(this.yaw !== 0){
+      const cy = Math.cos(this.yaw), sy = Math.sin(this.yaw);
+      const nx2 = nx*cy - ny*sy; ny = nx*sy + ny*cy; nx = nx2;
+    }
+    if(this.pitch !== 0){
+      const c = Math.cos(this.pitch), s = Math.sin(this.pitch);
+      const nx2 = nx*c - nz*s; nz = nx*s + nz*c; nx = nx2;
+    }
+    const c = Math.cos(this.roll), s = Math.sin(this.roll);
+    const ny2 = ny*c - nz*s, nz2 = ny*s + nz*c;
+    let rx = nx, ry = ny2;
+    for(let i=0; i<this.f; i++){ const t = rx; rx = -ry; ry = t; }
+    return { x:rx, y:ry, z:nz2 };
+  }
+  P(x, y, z){
+    const q = this.T(x, y, z);
+    return { x:(q.x - q.y)*this.K + this.ox, y:((q.x + q.y)*0.5 - q.z)*this.K + this.oy };
+  }
+  W(x, y, z){
+    return { x:(x - y)*this.K + this.ox, y:((x + y)*0.5 - z)*this.K + this.oy };
+  }
+  depth(x, y, z){
+    const q = this.T(x, y, z);
+    return q.x + q.y + q.z*0.4;
+  }
+  groundZ(){ return 0; }
+  quadOn(g, pts, color, alpha=1){
+    g.fillStyle(color, alpha);
+    g.fillPoints(pts.map(p => new Phaser.Geom.Point(p.x, p.y)), true);
+  }
+  edgeOn(g, pts, color=SKIN.outline, w=2){
+    g.lineStyle(w, color, 1);
+    g.strokePoints(pts.map(p => new Phaser.Geom.Point(p.x, p.y)), true);
+  }
+
+  /* ---------- composite + card renderers ---------- */
+  drawRobotComposite(t, o){
+    this.setPose({ K:o.K, dy:o.dy });
+    const tipped = !!o.tipped;
+    this.tipT = tipped ? 1 : 0;
+    this.roll = tipped ? Math.PI*0.5 : 0;
+    this.lidAng = tipped ? 2.35 : 0;
+    const bobZ = tipped ? 0 : Math.sin(t*0.0022)*1.4;
+    if(!tipped) this.wheelPhase = t*0.0008;
+
+    /* shadow */
+    const sr = this.roll; this.roll = 0;
+    const sh = [];
+    for(let i=0;i<14;i++){
+      const a=(i/14)*Math.PI*2;
+      sh.push(this.P(Math.cos(a)*34, -this.tipT*26 + Math.sin(a)*(30 + this.tipT*26), 0.5));
+    }
+    this.quadOn(this.g, sh, SKIN.shadow, 0.16);
+    this.roll = sr;
+
+    if(tipped){
+      this.drawBurrito(-70, 34); this.drawCup(-104, 26, true);
+      this.drawFry(-52, 44, 0.6); this.drawFry(-86, 48, 2.1); this.drawFry(-40, 26, 1.4);
+    }
+
+    const wheels = [];
+    for(const side of [-1, 1]){
+      for(const wx of WHEEL.xs){
+        const c = {x:wx, y:side*WHEEL.side, z:WHEEL.z};
+        wheels.push({ c, side, near: this.depth(c.x, c.y, c.z) > this.depth(c.x, -c.y, c.z) });
+      }
+    }
+    for(const w of wheels) if(!w.near) this.drawWheel(w.c, w.side);
+    this.drawBox({hx:24, hy:17, z0:6, z1:BODY.z0+1}, 0x3f434c, 0x3a3d45, 0x2e3138, false);
+    this.drawBox({...BODY, z0:BODY.z0+bobZ, z1:BODY.z1+bobZ}, SKIN.bodyTop, SKIN.bodyRight, SKIN.bodyLeft);
+    this.drawBox({hx:BODY.hx+0.6, hy:BODY.hy+0.6, z0:STRIPE.z0+bobZ, z1:STRIPE.z1+bobZ},
+                 null, SKIN.stripe, SKIN.stripeDk, false, true);
+    if(this.lidAng > 0.12){
+      const ring = (hx, hy) => [
+        this.P(hx,-hy,LID.z0+0.5), this.P(hx,hy,LID.z0+0.5),
+        this.P(-hx,hy,LID.z0+0.5), this.P(-hx,-hy,LID.z0+0.5)];
+      const wn = this.R(0,0,1);
+      if(wn.x + wn.y + wn.z > 0){
+        this.quadOn(this.g, ring(LID.hx-2, LID.hy-2), SKIN.cavityWall);
+        this.quadOn(this.g, ring(LID.hx-6, LID.hy-6), SKIN.cavityFloor);
+      }
+    }
+    this.drawLid({...LID, z0:LID.z0+bobZ, z1:LID.z1+bobZ});
+
+    const fn = this.R(1, 0, 0);
+    if(fn.x + fn.y + fn.z > 0.3){
+      const F = (yy, zz) => this.P(BODY.hx + 0.8, yy, zz + bobZ);
+      this.quadOn(this.g, [F(-13,40), F(13,40), F(13,50), F(-13,50)], SKIN.visor);
+      this.edgeOn(this.g, [F(-13,40), F(13,40), F(13,50), F(-13,50)], SKIN.outline, 1.5);
+      if(tipped){
+        this.g.lineStyle(2.5, SKIN.eyeAlert, 1);
+        for(const ey of [-7, 7]){
+          const c = F(ey, 45);
+          this.g.lineBetween(c.x-4, c.y-4, c.x+4, c.y+4);
+          this.g.lineBetween(c.x-4, c.y+4, c.x+4, c.y-4);
+        }
+      } else {
+        const open = (Math.floor(t/2600) % 2 === 0 && t % 2600 < 140) ? 0.15 : 1;
+        for(const ey of [-7, 7]){
+          const c = F(ey, 45);
+          this.g.fillStyle(SKIN.eye, 1);
+          this.g.fillEllipse(c.x, c.y, 7, 7*open);
+        }
+      }
+      this.quadOn(this.g, [F(-16,18), F(16,18), F(16,22), F(-16,22)], 0xfff3b0);
+    }
+    for(const w of wheels) if(w.near) this.drawWheel(w.c, w.side);
+    this.flagLean = tipped ? 0 : Math.sin(t*0.002)*0.15;
+    this.drawFlag(bobZ);
+    this.tipT = 0; this.roll = 0; this.lidAng = 0;
+  }
+
+  drawFaceCard(t){
+    const g = this.g, cx = this.cardCX, cy = this.cardCY;
+    /* white panel */
+    g.fillStyle(SKIN.bodyRight, 1); g.fillRoundedRect(cx-120, cy-46, 240, 74, 8);
+    g.lineStyle(2, 0xc9ccd2, 1);   g.strokeRoundedRect(cx-120, cy-46, 240, 74, 8);
+    const states = [
+      { x:cx-72, mode:"normal" }, { x:cx, mode:"alert" }, { x:cx+72, mode:"dead" }
+    ];
+    for(const s of states){
+      g.fillStyle(SKIN.visor, 1); g.fillRect(s.x-26, cy-30, 52, 22);
+      if(s.mode === "dead"){
+        g.lineStyle(2.5, SKIN.eyeAlert, 1);
+        for(const ex of [-11, 11]){
+          g.lineBetween(s.x+ex-4, cy-23, s.x+ex+4, cy-15);
+          g.lineBetween(s.x+ex-4, cy-15, s.x+ex+4, cy-23);
+        }
+      } else {
+        const open = s.mode === "normal" && (t % 3000 < 140) ? 0.15 : 1;
+        g.fillStyle(s.mode === "alert" ? SKIN.eyeAlert : SKIN.eye, 1);
+        g.fillEllipse(s.x-11, cy-19, 12, 12*open);
+        g.fillEllipse(s.x+11, cy-19, 12, 12*open);
+      }
+      g.fillStyle(0xfff3b0, 1); g.fillRect(s.x-28, cy+8, 56, 8);
+    }
+  }
+
+  drawBurrito(dx, dy){
+    const g = this.g, K = 1.6;
+    const p = { x:this.cardCX+dx, y:this.cardCY+dy };
+    g.fillStyle(SKIN.shadow, 0.15); g.fillEllipse(p.x, p.y+8, 9*K*1.6, 4*K*1.6);
+    g.fillStyle(0xe8b04b, 1); g.fillEllipse(p.x, p.y, 16*K*0.8*1.6, 9*K*0.8*1.6);
+    g.lineStyle(2, 0xb5813a, 1); g.strokeEllipse(p.x, p.y, 16*K*0.8*1.6, 9*K*0.8*1.6);
+    g.fillStyle(0x7fae4e, 1); g.fillEllipse(p.x + 5*K*1.3, p.y, 4*K*1.3, 5*K*1.3);
+  }
+  drawCup(dx, dy, puddle){
+    const g = this.g, K = 1.6;
+    const p = { x:this.cardCX+dx, y:this.cardCY+dy };
+    if(puddle){ g.fillStyle(0x8b5a3c, 1); g.fillEllipse(p.x + 12*K, p.y + 8, 14*K*1.2, 5*K*1.2); }
+    g.fillStyle(SKIN.shadow, 0.15); g.fillEllipse(p.x, p.y+10, 8*K*1.4, 3.5*K*1.4);
+    g.fillStyle(0xf4f5f7, 1); g.fillRect(p.x - 4*K*1.1, p.y - 6*K*1.1, 8*K*1.1, 11*K*1.1);
+    g.lineStyle(2, 0xc9ccd2, 1); g.strokeRect(p.x - 4*K*1.1, p.y - 6*K*1.1, 8*K*1.1, 11*K*1.1);
+  }
+  drawFry(dx, dy, ang){
+    const g = this.g, K = 1.6;
+    g.fillStyle(0xf2c94c, 1);
+    g.save(); g.translateCanvas(this.cardCX+dx, this.cardCY+dy); g.rotateCanvas(ang);
+    g.fillRect(-7*K*0.7, -2.2*K*0.35, 14*K*0.7, 2.2*K*0.7);
+    g.restore();
+  }
+
+  drawTileCard(road){
+    this.setPose({ K:1.15, dy:0 });
+    const g = this.g, d = this.d;
+    for(let tx=-1; tx<=0; tx++){
+      for(let ty=-1; ty<=0; ty++){
+        const cxm = tx*TILE*2 + TILE, cym = ty*TILE*2 + TILE;
+        const pts = [
+          this.W(cxm+TILE, cym-TILE, 0), this.W(cxm+TILE, cym+TILE, 0),
+          this.W(cxm-TILE, cym+TILE, 0), this.W(cxm-TILE, cym-TILE, 0)];
+        this.quadOn(g, pts, road ? d.road : (((tx+ty)%2===0) ? d.pave : d.paveB));
+        if(!road) this.edgeOn(g, pts, d.paveEdge, 1.5);
+      }
+    }
+    if(road){
+      this.quadOn(g, [
+        this.W(-14, -4, 0.4), this.W(14, -4, 0.4),
+        this.W(14, 4, 0.4), this.W(-14, 4, 0.4)], d.roadLine);
+    }
+  }
+
+  drawPaletteRows(){
+    const g = this.g, names = Object.keys(PALETTES);
+    const cx = this.cardCX, cy0 = this.cardCY - 42;
+    names.forEach((n, i) => {
+      const pal = PALETTES[n], y = cy0 + i*30;
+      const keys = ["sky","pave","paveB","paveEdge","road","roadLine"];
+      keys.forEach((k, j) => {
+        g.fillStyle(pal[k], 1);
+        g.fillRect(cx - 130 + j*36, y, 30, 20);
+      });
+    });
+  }
+
+  drawProgressCard(t){
+    const g = this.g, cx = this.cardCX, cy = this.cardCY - 6;
+    const bw = 220, bx = cx - bw/2;
+    const pct = (Math.sin(t*0.0011) + 1)/2;
+    g.fillStyle(0xffffff, 0.5); g.fillRoundedRect(bx, cy, bw, 7, 3);
+    g.fillStyle(0xff7a1a, 1);   g.fillRoundedRect(bx, cy, Math.max(bw*pct, 7), 7, 3);
+    g.fillStyle(0xc2452e, 1);   g.fillRect(bx+bw-2, cy-5, 4, 17);
+    g.fillStyle(0x2e3138, 1);   g.fillCircle(bx+bw*pct, cy+3.5, 5);
+  }
+
+  drawTiltCard(t){
+    const g = this.g, cx = this.cardCX, cy = this.cardCY + 14, r = 30;
+    const tilt = Math.sin(t*0.0016)*0.95;
+    const danger = Math.min(Math.abs(tilt), 1);
+    g.lineStyle(6, 0xffffff, 0.55);
+    g.beginPath(); g.arc(cx, cy, r, Math.PI, 0); g.strokePath();
+    g.lineStyle(6, danger > 0.75 ? 0xc2452e : danger > 0.45 ? 0xff7a1a : 0x3f7d43, 1);
+    g.beginPath();
+    g.arc(cx, cy, r, -Math.PI/2, -Math.PI/2 + Phaser.Math.Clamp(tilt, -1, 1)*1.35, tilt < 0);
+    g.strokePath();
+    g.lineStyle(3, 0xe8eaef, 1);
+    g.lineBetween(cx, cy, cx + Math.sin(tilt*1.2)*r, cy - Math.cos(tilt*1.2)*r);
+  }
+
+  drawSwatches(){
+    const g = this.g;
+    const keys = Object.keys(SKIN);
+    const x0 = this.cardX + 14, y0 = this.cardY + 12, cw = 66, ch = 44;
+    keys.forEach((k, i) => {
+      const x = x0 + (i % 4)*cw, y = y0 + Math.floor(i/4)*ch;
+      g.fillStyle(SKIN[k], 1);
+      g.fillRoundedRect(x, y, cw-10, 22, 4);
+      g.lineStyle(1, 0x363b46, 1);
+      g.strokeRoundedRect(x, y, cw-10, 22, 4);
+    });
+    if(!this.swatchLabels){
+      this.swatchLabels = true;
+      keys.forEach((k, i) => {
+        const x = x0 + (i % 4)*cw, y = y0 + Math.floor(i/4)*ch;
+        this.add.text(x, y + 24, k, { fontSize:"9px", color:"#8f95a1" });
+      });
+    }
+  }
+
+  /* ========== INJECTED FROM game/index.html — keep in sync ========== */
+  drawProp(g, kind, x, y, t){
+    const z = this.groundZ(x);
+    const W = (dx, dy, dz) => this.W(x+dx, y+dy, z+dz);
+    if(kind === "palm"){
+      const sway = Math.sin(t*0.0012 + x)*3;
+      g.lineStyle(7, 0x8a6a48, 1);
+      g.beginPath(); g.moveTo(W(0,0,0).x, W(0,0,0).y);
+      const top = W(sway, 0, 95);
+      g.lineTo(top.x, top.y); g.strokePath();
+      g.fillStyle(0x4e8f4a, 1);
+      for(let i=0; i<6; i++){
+        const a = (i/6)*Math.PI*2 + t*0.0006;
+        const fx = Math.cos(a)*34, fy = Math.sin(a)*20;
+        const f = this.W(x+sway+fx, y+fy, z+95-8);
+        g.fillTriangle(top.x, top.y, f.x-7, f.y, f.x+7, f.y+4);
+      }
+      g.fillStyle(0x6b4f33, 1);
+      g.fillCircle(top.x, top.y+2, 5);
+    } else if(kind === "scooter"){
+      // rental scooter, lying flat across the pavement (the LA classic)
+      g.fillStyle(0x2ec4b6, 1);
+      const a=W(-18,0,3), b=W(18,4,3), c2=W(18,10,2), dd=W(-18,6,2);
+      this.quadOn(g, [a,b,c2,dd], 0x2ec4b6);
+      g.lineStyle(4, 0x1f857c, 1);
+      const h0=W(14,2,3), h1=W(34,2,10);
+      g.lineBetween(h0.x, h0.y, h1.x, h1.y);
+      g.lineBetween(h1.x-6, h1.y-2, h1.x+6, h1.y-4);
+      g.fillStyle(0x24262c,1);
+      g.fillEllipse(W(-16,3,2).x, W(-16,3,2).y, 9, 5);
+      g.fillEllipse(W(16,7,2).x, W(16,7,2).y, 9, 5);
+    } else if(kind === "trash"){
+      g.fillStyle(0x3b3f47, 1);
+      g.fillEllipse(W(0,0,6).x, W(0,0,6).y, 26, 18);
+      g.fillEllipse(W(6,3,10).x, W(6,3,10).y, 18, 13);
+      g.lineStyle(2, 0x2b2e34, 1);
+      g.strokeEllipse(W(0,0,6).x, W(0,0,6).y, 26, 18);
+    } else if(kind === "cone"){
+      const b0=W(-8,-6,0), b1=W(8,-6,0), b2=W(8,6,0), b3=W(-8,6,0), tp=W(0,0,22);
+      this.quadOn(g, [b0,b1,b2,b3], 0xd85f0a);
+      g.fillStyle(0xff7a1a,1);
+      g.fillTriangle(b0.x, b0.y, b2.x, b2.y, tp.x, tp.y);
+      g.fillStyle(0xffffff,1);
+      g.fillRect(tp.x-7, tp.y+8, 14, 4);
+    } else if(kind === "hydrant"){
+      g.fillStyle(0xd8b23a, 1);
+      const p=W(0,0,0);
+      g.fillRect(p.x-6, p.y-16, 12, 16);
+      g.fillEllipse(p.x, p.y-16, 12, 8);
+      g.fillEllipse(p.x, p.y, 16, 7);
+      g.lineStyle(2, 0xb5933a, 1);
+      g.strokeRect(p.x-6, p.y-16, 12, 16);
+    } else if(kind === "planter"){
+      const b0=W(-16,-10,0), b1=W(16,-10,0), b2=W(16,10,0), b3=W(-16,10,0);
+      this.quadOn(g, [W(-16,-10,10), W(16,-10,10), W(16,10,10), W(-16,10,10)], 0x8f8577);
+      this.quadOn(g, [b1, b2, W(16,10,10), W(16,-10,10)], 0x7a7164);
+      this.quadOn(g, [b2, b3, W(-16,10,10), W(16,10,10)], 0x6b6357);
+      g.fillStyle(0x4e8f4a, 1);
+      g.fillEllipse(W(0,0,16).x, W(0,0,16).y, 30, 14);
+    } else if(kind === "dog"){
+      // small dog, judging silently
+      const p=W(0,0,0);
+      g.fillStyle(0xc98d4b, 1);
+      g.fillEllipse(p.x, p.y-8, 20, 11);
+      g.fillCircle(p.x+11, p.y-13, 6);
+      g.fillTriangle(p.x+9, p.y-18, p.x+12, p.y-13, p.x+15, p.y-17);
+      g.fillStyle(0x2e3138, 1);
+      g.fillCircle(p.x+13, p.y-14, 1.5);
+      g.lineStyle(3, 0xc98d4b, 1);
+      g.lineBetween(p.x-9, p.y-8, p.x-14, p.y-14);
+    } else if(kind === "car"){
+      // parked car on the road
+      const cz = 6;
+      this.quadOn(g, [W(40,-16,cz), W(40,16,cz), W(40,16,cz+16), W(40,-16,cz+16)], 0x8695a5);
+      this.quadOn(g, [W(-40,16,cz), W(40,16,cz), W(40,16,cz+16), W(-40,16,cz+16)], 0x76839a);
+      this.quadOn(g, [W(-40,-16,cz+16), W(40,-16,cz+16), W(40,16,cz+16), W(-40,16,cz+16)], 0x9aa7b5);
+      this.quadOn(g, [W(-24,-13,cz+16), W(20,-13,cz+16), W(14,13,cz+28), W(-18,13,cz+28)], 0x5b6a7a);
+      g.fillStyle(0x24262c, 1);
+      g.fillEllipse(W(-26,17,3).x, W(-26,17,3).y, 16, 10);
+      g.fillEllipse(W(24,17,3).x, W(24,17,3).y, 16, 10);
+    } else if(kind === "bin"){
+      const p=W(0,0,0);
+      g.fillStyle(0x3f5147, 1);
+      g.fillRect(p.x-10, p.y-26, 20, 26);
+      g.fillEllipse(p.x, p.y-26, 20, 9);
+      g.fillEllipse(p.x, p.y, 22, 9);
+      g.lineStyle(2, 0x2e3d35, 1);
+      g.strokeRect(p.x-10, p.y-26, 20, 26);
+    } else if(kind === "driveway"){
+      // concrete apron cutting across the sidewalk — the cross-slope hazard
+      this.quadOn(g, [
+        W(-34,-TILE,2), W(34,-TILE,2), W(46,TILE+14,-3), W(-46,TILE+14,-3)
+      ], 0xb5afa2);
+      this.edgeOn(g, [
+        W(-34,-TILE,2), W(34,-TILE,2), W(46,TILE+14,-3), W(-46,TILE+14,-3)
+      ], 0x968f81, 2);
+      g.lineStyle(1.5, 0x968f81, 1);
+      for(const lx of [-18, 0, 18]){
+        const a=W(lx,-TILE,2), b=W(lx*1.35, TILE+14,-3);
+        g.lineBetween(a.x, a.y, b.x, b.y);
+      }
+    } else if(kind === "crack"){
+      g.lineStyle(2.5, 0x5d574c, 1);
+      let px = W(-14,-8,0.5);
+      g.beginPath(); g.moveTo(px.x, px.y);
+      for(const [dx,dy] of [[-4,6],[6,4],[2,10],[10,6]]){
+        const q = W(dx*2, dy, 0.5); g.lineTo(q.x, q.y);
+      }
+      g.strokePath();
+    }
+  }
+
+
+  drawLid(b){
+    const {hx, hy, z0, z1} = b;
+    const A = this.lidAng, cA = Math.cos(A), sA = Math.sin(A);
+    const yh = -hy, zh = z0;                     // hinge line
+    const H = (x, y, z) => {                     // hinge rotation, then normal pipeline
+      const dy = y - yh, dz = z - zh;
+      return this.P(x, yh + dy*cA - dz*sA, zh + dy*sA + dz*cA);
+    };
+    const HN = (nx, ny, nz) => {                 // normals: hinge rot then roll+facing
+      const ny2 = ny*cA - nz*sA, nz2 = ny*sA + nz*cA;
+      return this.R(nx, ny2, nz2);
+    };
+    const C = (sx, sy, sz) => H(sx*hx, sy*hy, sz === 1 ? z1 : z0);
+    const faces = [
+      { n:{x:0,y:0,z: 1}, pts:[C( 1,-1,1), C( 1, 1,1), C(-1, 1,1), C(-1,-1,1)] },
+      { n:{x:0,y:0,z:-1}, pts:[C( 1,-1,0), C( 1, 1,0), C(-1, 1,0), C(-1,-1,0)] },
+      { n:{x: 1,y:0,z:0}, pts:[C( 1,-1,0), C( 1, 1,0), C( 1, 1,1), C( 1,-1,1)] },
+      { n:{x:-1,y:0,z:0}, pts:[C(-1,-1,0), C(-1, 1,0), C(-1, 1,1), C(-1,-1,1)] },
+      { n:{x:0,y: 1,z:0}, pts:[C( 1, 1,0), C(-1, 1,0), C(-1, 1,1), C( 1, 1,1)] },
+      { n:{x:0,y:-1,z:0}, pts:[C( 1,-1,0), C(-1,-1,0), C(-1,-1,1), C( 1,-1,1)] }
+    ];
+    for(const fc of faces){
+      const w = HN(fc.n.x, fc.n.y, fc.n.z);
+      if((w.x + w.y + w.z) <= 0) continue;
+      const col = w.z > 0.5 ? SKIN.bodyTop
+                : w.z < -0.5 ? SKIN.lidInner
+                : (w.x >= w.y) ? SKIN.bodyRight : SKIN.bodyLeft;
+      this.quad(fc.pts, col);
+      this.edge(fc.pts);
+    }
+  }
+
+  quad(pts, color, alpha=1){
+    this.g.fillStyle(color, alpha);
+    this.g.fillPoints(pts.map(p => new Phaser.Geom.Point(p.x, p.y)), true);
+  }
+  edge(pts, color=SKIN.outline, w=2){
+    this.g.lineStyle(w, color, 1);
+    this.g.strokePoints(pts.map(p => new Phaser.Geom.Point(p.x, p.y)), true);
+  }
+
+
+  drawBox(b, cTop, cRight, cLeft, outline=true, decal=false, cBottom=SKIN.belly){
+    const {hx, hy, z0, z1} = b, ox = b.ox || 0, oy = b.oy || 0;
+    const C = (sx, sy, sz) => this.P(ox + sx*hx, oy + sy*hy, sz === 1 ? z1 : z0);
+    const faces = [
+      { n:{x:0,y:0,z: 1}, pts:[C( 1,-1,1), C( 1, 1,1), C(-1, 1,1), C(-1,-1,1)] },
+      { n:{x:0,y:0,z:-1}, pts:[C( 1,-1,0), C( 1, 1,0), C(-1, 1,0), C(-1,-1,0)] },
+      { n:{x: 1,y:0,z:0}, pts:[C( 1,-1,0), C( 1, 1,0), C( 1, 1,1), C( 1,-1,1)] },
+      { n:{x:-1,y:0,z:0}, pts:[C(-1,-1,0), C(-1, 1,0), C(-1, 1,1), C(-1,-1,1)] },
+      { n:{x:0,y: 1,z:0}, pts:[C( 1, 1,0), C(-1, 1,0), C(-1, 1,1), C( 1, 1,1)] },
+      { n:{x:0,y:-1,z:0}, pts:[C( 1,-1,0), C(-1,-1,0), C(-1,-1,1), C( 1,-1,1)] }
+    ];
+    for(const fc of faces){
+      const w = this.R(fc.n.x, fc.n.y, fc.n.z);
+      if((w.x + w.y + w.z) <= 0) continue;
+      let col;
+      if(w.z > 0.5)       col = cTop;
+      else if(w.z < -0.5) col = decal ? null : cBottom;
+      else                col = (w.x >= w.y) ? cRight : cLeft;
+      if(col == null) continue;
+      this.quadOn(this.g, fc.pts, col);
+      if(outline) this.edgeOn(this.g, fc.pts);
+    }
+  }
+
+  disc(center, r, color, outlineC){
+    const pts = [];
+    for(let i=0; i<14; i++){
+      const a = (i/14)*Math.PI*2;
+      pts.push(this.P(center.x + Math.cos(a)*r, center.y, center.z + Math.sin(a)*r));
+    }
+    this.quadOn(this.g, pts, color);
+    if(outlineC !== undefined) this.edgeOn(this.g, pts, outlineC, 2);
+  }
+
+  drawWheel(c, sideSign){
+    const W2 = 7.5, steps = 5;
+    const slices = [];
+    for(let i=0; i<=steps; i++){
+      const oy = c.y + sideSign*(-W2/2 + W2*i/steps);
+      slices.push({ y:oy, depth: this.depth(c.x, oy, c.z) });
+    }
+    slices.sort((a,b) => a.depth - b.depth);
+    for(let i=0; i<slices.length; i++){
+      const isFace = i === slices.length-1;
+      this.disc({x:c.x, y:slices[i].y, z:c.z}, WHEEL.r,
+                isFace ? SKIN.wheel : SKIN.wheelDark,
+                isFace ? SKIN.outline : undefined);
+    }
+    const face = slices[slices.length-1].y;
+    this.disc({x:c.x, y:face, z:c.z}, WHEEL.r*0.55, SKIN.wheelHubFace);
+    const a = this.wheelPhase + c.x*0.2;
+    this.disc({ x:c.x + Math.cos(a)*WHEEL.r*0.34, y:face,
+                z:c.z + Math.sin(a)*WHEEL.r*0.34 }, 2.4, SKIN.wheelHub);
+  }
+
+
+  drawFlag(bobZ){
+    const g = this.g;
+    const L = FLAG.z1 - FLAG.z0;
+    const bend = this.flagLean*0.5 + this.tipT*1.5;
+    const seg = 6, pts = [];
+    for(let i=0; i<=seg; i++){
+      const s = i/seg, a = bend*s;
+      pts.push(this.P(FLAG.base.x,
+                      FLAG.base.y - Math.sin(a)*L*s,
+                      FLAG.z0 + Math.cos(a)*L*s + bobZ));
+    }
+    g.lineStyle(3, SKIN.flagPole, 1);
+    g.beginPath();
+    g.moveTo(pts[0].x, pts[0].y);
+    for(let i=1; i<=seg; i++) g.lineTo(pts[i].x, pts[i].y);
+    g.strokePath();
+    const p = pts[seg], q = pts[seg-1];
+    let dx = p.x - q.x, dy = p.y - q.y;
+    const dl = Math.hypot(dx, dy) || 1; dx /= dl; dy /= dl;
+    g.fillStyle(SKIN.flag, 1);
+    g.fillTriangle(p.x, p.y, p.x - dy*11, p.y + dx*11, p.x + dx*20, p.y + dy*20 + 4);
+  }
+
+
+  /* ========== END INJECTED ========== */
+
+  update(t){
+    const g = this.g; g.clear();
+    this.cameras.main.scrollY = this.scrollY;
+    const viewTop = this.scrollY - 60, viewBot = this.scrollY + this.scale.gameSize.height + 60;
+    for(const c of this.cards){
+      if(c.y + c.h < viewTop || c.y > viewBot) continue;
+      /* panel */
+      g.fillStyle(0x1c1f26, 1); g.fillRoundedRect(c.x, c.y, c.w, c.h, 10);
+      g.lineStyle(1, 0x2b2f38, 1); g.strokeRoundedRect(c.x, c.y, c.w, c.h, 10);
+      this.cardX = c.x; this.cardY = c.y;
+      this.cardCX = c.x + c.w/2; this.cardCY = c.y + c.h/2 - 8;
+      c.draw(t);
+    }
+  }
+}
+
+const game = new Phaser.Game({
+  type: Phaser.AUTO, parent: "game", backgroundColor: "#14161b",
+  scale: { mode: Phaser.Scale.RESIZE, width: "100%", height: "100%" },
+  scene: [GalleryScene]
+});
+</script>
+</body>
+</html>
