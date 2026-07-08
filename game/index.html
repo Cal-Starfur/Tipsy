@@ -309,7 +309,7 @@ function generateRoute(dateStr){
   }
   if(rng() < 0.5){
     const cs = SPAWN_S + 150 + rng()*(totalLen - 500);
-    if(!inCorner(cs)) props.push({ kind:"car", s: Math.round(cs), row:2.6, f: facingAt(cs) });
+    if(!inCorner(cs)) props.push({ kind: rng() < 0.65 ? "car" : "truck", s: Math.round(cs), row:3.0, f: facingAt(cs) });
   }
 
   /* the address */
@@ -325,7 +325,23 @@ function generateRoute(dateStr){
 
   const tipMult = (1 + hood.hill*1.2 + (1-hood.pave)*1.0 + hood.litter*0.8 + (nLegs-2)*0.15).toFixed(1);
 
-  return { hood, legs, segs, totalLen, tiles, hazards, props, pal,
+  /* moving traffic: 1-2 vehicles looping continuously along the road,
+     in the outer lane (row 3.7, away from any parked car at row 3.0).
+     Position/wheel-spin computed fresh each frame from elapsed time —
+     same posAt/headingAt/groundZ the robot itself runs on, just a
+     second independent "s" that isn't gated by player input. */
+  const traffic = [];
+  const nTraffic = totalLen > 700 ? 2 : 1;
+  for(let i = 0; i < nTraffic; i++){
+    traffic.push({
+      kind: rng() < 0.6 ? "car" : "truck",
+      sBase: rng()*totalLen,
+      speed: 0.02 + rng()*0.014,          // units/ms, faster than the robot's own top speed
+      row: 3.7
+    });
+  }
+
+  return { hood, legs, segs, totalLen, tiles, hazards, props, pal, traffic,
            address:`${number} ${street}`, doorS, tipMult, dateStr };
 }
 
@@ -618,6 +634,18 @@ class WorldScene extends Phaser.Scene {
       const wp = worldOf(pr.s, pr.row, pr.f);
       if(near(wp.x, wp.y)) this.drawProp(layerFor(wp.x, wp.y), pr.kind, wp.x, wp.y, t, pr.f, wp.z);
     }
+    /* moving traffic: independent "s" advancing every frame, wrapped
+       with a plain modulo (an instant loop-back, same simplification
+       the car lab's DRIVE preview used) — always far from the player
+       when it happens since totalLen is large relative to view range. */
+    for(const tr of r.traffic){
+      const trS = ((tr.sBase + t*tr.speed) % r.totalLen + r.totalLen) % r.totalLen;
+      const hdg = this.headingAt(trS);
+      const fi = Math.round(hdg / (Math.PI/2));
+      const trF = ((fi % 4) + 4) % 4;
+      const wp = worldOf(trS, tr.row, trF);
+      if(near(wp.x, wp.y)) this.drawProp(layerFor(wp.x, wp.y), tr.kind, wp.x, wp.y, t, trF, wp.z, trS*0.28);
+    }
     for(const hz of r.hazards){
       if(GROUND_KINDS[hz.type]) continue;
       const wp = worldOf(hz.s, hz.row, hz.f);
@@ -644,7 +672,7 @@ class WorldScene extends Phaser.Scene {
     this.addrText.setText(this.route.address);
   }
 
-  drawProp(g, kind, x, y, t, fdir = 0, z = 0){
+  drawProp(g, kind, x, y, t, fdir = 0, z = 0, wheelPhase = null){
     const dv = DIRV[fdir], rv = DIRV[(fdir+1)%4];
     const W = (dx, dy, dz) => this.W(x + dv.x*dx + rv.x*dy, y + dv.y*dx + rv.y*dy, z + dz);
     if(kind === "palm" || kind === "palmDwarf"){
@@ -1263,9 +1291,19 @@ class WorldScene extends Phaser.Scene {
         const face = rr => ringAt(bOut, rr, U, HH, 14);
         this.quadOn(g, face(r), CR.wheel);
         this.quadOn(g, face(r*0.5), CR.hubFace);
-        const hub = GG(a0, bOut, cz);
-        g.fillStyle(CR.hub, 1);
-        g.fillCircle(hub.x, hub.y, r*0.34*this.K*0.42);
+        /* moving traffic gets a spinning marker dot (same trick the
+           robot's own wheels use in sprite-lab); a parked car just
+           gets a static centered hub. */
+        if(wheelPhase !== null){
+          const wp2 = wheelPhase + a0*0.02;
+          const hub = GG(a0 + Math.cos(wp2)*r*0.34, bOut, cz + Math.sin(wp2)*r*0.34);
+          g.fillStyle(CR.hub, 1);
+          g.fillCircle(hub.x, hub.y, r*0.2*this.K*0.42);
+        } else {
+          const hub = GG(a0, bOut, cz);
+          g.fillStyle(CR.hub, 1);
+          g.fillCircle(hub.x, hub.y, r*0.34*this.K*0.42);
+        }
       };
 
       const chassis = () => {
