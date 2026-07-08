@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>TIPSY — Planter Lab</title>
+<style>
+  html,body{margin:0;padding:0;background:#14161b;height:100%;overflow:hidden;touch-action:manipulation;
+    font-family:-apple-system,'Helvetica Neue',Arial,sans-serif;-webkit-user-select:none;user-select:none;color:#e8eaef;}
+  #wrap{display:flex;flex-direction:column;height:100%;}
+  #game{flex:1;min-height:0;}
+  #panel{padding:10px 12px calc(14px + env(safe-area-inset-bottom));background:#1c1f26;border-top:1px solid #2b2f38;}
+  .row{display:flex;gap:8px;margin-bottom:8px;align-items:center;}
+  .row:last-child{margin-bottom:0;}
+  .lbl{font-size:11px;letter-spacing:1.5px;color:#8f95a1;width:56px;text-transform:uppercase;}
+  button{flex:1;background:#262a33;color:#e8eaef;border:1px solid #363b46;border-radius:10px;
+    padding:10px 4px;font-size:13px;font-weight:600;}
+  button.on{background:#ff7a1a;border-color:#ff7a1a;color:#fff;}
+  button:active{transform:scale(0.96);}
+  button.sm{flex:0 0 44px;}
+  #hdr{padding:10px 14px 2px;font-size:12px;letter-spacing:2px;color:#8f95a1;text-transform:uppercase;}
+  #hdr b{color:#ff9c4d;}
+  #vals{padding:0 14px 6px;font-size:11px;color:#8f95a1;font-variant-numeric:tabular-nums;}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="hdr"><b>TIPSY</b> · planter lab · prop.planter makeover</div>
+  <div id="vals">…</div>
+  <div id="game"></div>
+  <div id="panel">
+    <div class="row">
+      <span class="lbl">Style</span>
+      <button id="oldBtn">OLD (game)</button>
+      <button class="on" id="newBtn">NEW</button>
+      <button id="flowerBtn">GREEN</button>
+    </div>
+    <div class="row">
+      <span class="lbl">View</span>
+      <button class="sm" id="rotL">◀</button>
+      <button class="sm" id="rotR">▶</button>
+      <span class="lbl">Zoom</span>
+      <button class="sm" id="zoomOut">−</button>
+      <button class="sm" id="zoomIn">＋</button>
+    </div>
+    <div class="row">
+      <span class="lbl">Box</span>
+      <button class="sm" data-p="boxW" data-d="-1">−</button>
+      <button class="sm" data-p="boxW" data-d="1">＋</button>
+      <span class="lbl">Height</span>
+      <button class="sm" data-p="boxH" data-d="-1">−</button>
+      <button class="sm" data-p="boxH" data-d="1">＋</button>
+    </div>
+    <div class="row">
+      <span class="lbl">Bush</span>
+      <button class="sm" data-p="bushH" data-d="-1">−</button>
+      <button class="sm" data-p="bushH" data-d="1">＋</button>
+      <span class="lbl">Fill</span>
+      <button class="sm" data-p="fullness" data-d="-1">−</button>
+      <button class="sm" data-p="fullness" data-d="1">＋</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/phaser@3.85.2/dist/phaser.min.js"></script>
+<script>
+"use strict";
+
+/* ============================================================
+   TIPSY — Planter Lab
+   Makeover bench for prop.planter: streetscape decor (not a
+   hazard — always upright, axis-aligned to facing like the
+   original, no free rotation). Tapered concrete box + a fuller
+   layered-blob bush instead of one flat ellipse.
+   ============================================================ */
+
+const PLANT = {
+  boxW: 16, boxD: 10, boxH: 10, rim: 1.4,
+  bushH: 15, fullness: 5,
+  box: 0x8f8577, boxDk: 0x7a7164, boxDk2: 0x6b6357,
+  soil: 0x4a3f34,
+  stalk: 0x5c6b3f,
+  leafA: 0x4e8f4a, leafB: 0x3c7a3c, leafC: 0x62a35c,
+  flower: 0xe86b8a,
+  shadow: 0x000000
+};
+
+const TILE = 46;
+const GROUND = { a:0xc9c3b4, b:0xbfb9aa, edge:0xa8a294, sky:0x9fd4e8 };
+
+function mulberry32(a){ return function(){ a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+
+class PlanterLab extends Phaser.Scene {
+  constructor(){ super("plantlab"); }
+
+  create(){
+    this.K = 5.5;
+    this.mode = "new";
+    this.flower = false;
+    this.heroAngle = 0;
+    this.g = this.add.graphics();
+    this.scale.on("resize", () => this.layout());
+    this.layout();
+    this.updateVals();
+  }
+  layout(){
+    this.cx = this.scale.gameSize.width/2;
+    this.cy = this.scale.gameSize.height*0.6;
+  }
+  updateVals(){
+    document.getElementById("vals").textContent =
+      `box ${PLANT.boxW}×${PLANT.boxD}×${PLANT.boxH} · bush ${PLANT.bushH} · fill ${PLANT.fullness} · ${this.flower ? "flowering" : "green"}`;
+  }
+
+  W(x, y, z, ox, oy){
+    return { x:(x - y)*this.K + ox, y:((x + y)*0.5 - z)*this.K + oy };
+  }
+  quad(pts, color, alpha=1){
+    this.g.fillStyle(color, alpha);
+    this.g.fillPoints(pts.map(p => new Phaser.Geom.Point(p.x, p.y)), true);
+  }
+  edge(pts, color, w=2){
+    this.g.lineStyle(w, color, 1);
+    this.g.strokePoints(pts.map(p => new Phaser.Geom.Point(p.x, p.y)), true);
+  }
+
+  drawGround(ox, oy, half){
+    for(let tx=-half; tx<half; tx++){
+      for(let ty=-half; ty<half; ty++){
+        const cxm = tx*TILE*2 + TILE, cym = ty*TILE*2 + TILE;
+        const pts = [
+          this.W(cxm+TILE, cym-TILE, 0, ox, oy), this.W(cxm+TILE, cym+TILE, 0, ox, oy),
+          this.W(cxm-TILE, cym+TILE, 0, ox, oy), this.W(cxm-TILE, cym-TILE, 0, ox, oy)];
+        this.quad(pts, ((tx+ty)%2===0) ? GROUND.a : GROUND.b);
+        this.edge(pts, GROUND.edge, 1.5);
+      }
+    }
+  }
+
+  /* ---------- OLD planter: the current game renderer ---------- */
+  drawPlanterOld(ox, oy){
+    const g = this.g;
+    const W = (dx, dy, dz) => this.W(dx, dy, dz, ox, oy);
+    const s = this.K / 1.6;
+    const b0=W(-16*s,-10*s,0), b1=W(16*s,-10*s,0), b2=W(16*s,10*s,0), b3=W(-16*s,10*s,0);
+    this.quad([W(-16*s,-10*s,10*s), W(16*s,-10*s,10*s), W(16*s,10*s,10*s), W(-16*s,10*s,10*s)], 0x8f8577);
+    this.quad([b1, b2, W(16*s,10*s,10*s), W(16*s,-10*s,10*s)], 0x7a7164);
+    this.quad([b2, b3, W(-16*s,10*s,10*s), W(16*s,10*s,10*s)], 0x6b6357);
+    g.fillStyle(0x4e8f4a, 1);
+    g.fillEllipse(W(0,0,16*s).x, W(0,0,16*s).y, 30*s, 14*s);
+  }
+
+  /* ---------- NEW planter ----------
+     Tapered concrete box (narrower base, flared rim) built from
+     explicit quad faces with a facing check so only the actually-
+     visible side faces draw — same principle as the bin/hydrant's
+     mouth-opening fix, applied to flat faces instead of rings.
+     Bush is layered overlapping blobs (canopy + satellite clumps)
+     instead of one flat ellipse, with seeded per-instance variety. */
+  drawPlanterNew(ox, oy, seed, thOverride){
+    const g = this.g, P = PLANT;
+    const rng = mulberry32(seed);
+    const th = thOverride !== undefined ? thOverride : 0;
+    const cs = Math.cos(th), sn = Math.sin(th);
+    const G = (a, b, h) => this.W(a*cs - b*sn, a*sn + b*cs, h, ox, oy);
+    const depthAt = (a, b, h) => a*(cs+sn) + b*(cs-sn) + h*0.4;
+
+    const hw = P.boxW/2, hd = P.boxD/2, H = P.boxH;
+    const baseShrink = 0.82;                     // tapered base, flared rim
+
+    /* shadow */
+    const sh = G(0, 0, 0);
+    g.fillStyle(P.shadow, 0.14);
+    g.fillEllipse(sh.x, sh.y + 2, (P.boxW+6)*this.K*0.42, (P.boxD+6)*this.K*0.36);
+
+    const corner = (sx, sy, h, shrink=1) => G(sx*hw*shrink, sy*hd*shrink, h);
+
+    const box = () => {
+      /* top rim (always visible) */
+      const top = [corner(-1,-1,H), corner(1,-1,H), corner(1,1,H), corner(-1,1,H)];
+      this.quad(top, P.box);
+      this.edge(top, P.boxDk, 1.2);
+
+      /* two outward side faces, chosen by which actually face camera —
+         same visibility principle as the bin/hydrant fixes: don't
+         paint a face that would be hidden behind the box's own bulk. */
+      const faceX = Math.sign(cs + sn) || 1;      // +x or -x wall faces us
+      const faceY = Math.sign(cs - sn) || 1;      // +y or -y wall faces us
+
+      const xFace = [
+        corner(faceX,-1,H), corner(faceX,1,H),
+        corner(faceX,1,0,baseShrink), corner(faceX,-1,0,baseShrink)
+      ];
+      this.quad(xFace, faceX > 0 ? P.boxDk : P.boxDk2);
+
+      const yFace = [
+        corner(-1,faceY,H), corner(1,faceY,H),
+        corner(1,faceY,0,baseShrink), corner(-1,faceY,0,baseShrink)
+      ];
+      this.quad(yFace, faceY > 0 ? P.boxDk2 : P.boxDk);
+
+      /* soil bed, slightly recessed below the rim */
+      const soil = [corner(-0.82,-0.82,H-0.6), corner(0.82,-0.82,H-0.6), corner(0.82,0.82,H-0.6), corner(-0.82,0.82,H-0.6)];
+      this.quad(soil, P.soil);
+    };
+
+    const bush = () => {
+      const cx0 = 0, cy0 = 0, baseH = H + 1;
+      const n = Math.max(3, P.fullness);
+      const puffs = [];
+      /* main canopy */
+      puffs.push({ a:0, b:0, h:baseH + P.bushH*0.55, r:P.bushH*0.5, c:P.leafA });
+      /* satellite clumps ringed around + above the canopy for volume */
+      for(let i=0; i<n; i++){
+        const ang = (i/n)*Math.PI*2 + rng()*0.4;
+        const rr = (P.boxW*0.28 + rng()*P.boxW*0.12);
+        const hh = baseH + P.bushH*(0.3 + rng()*0.55);
+        const size = P.bushH*(0.28 + rng()*0.16);
+        const shade = rng();
+        const col = shade < 0.33 ? P.leafA : shade < 0.66 ? P.leafB : P.leafC;
+        puffs.push({ a: Math.cos(ang)*rr, b: Math.sin(ang)*rr, h: hh, r: size, c: col });
+      }
+      /* depth-sort the puffs themselves so overlaps read correctly */
+      puffs.sort((p1,p2) => depthAt(p1.a,p1.b,p1.h) - depthAt(p2.a,p2.b,p2.h));
+      for(const pf of puffs){
+        /* stalk: rises from near the soil center out to the puff,
+           so every leaf cluster reads as attached to the plant
+           rather than floating above the box */
+        const s0 = G(pf.a*0.25, pf.b*0.25, baseH - 0.4);
+        const s1 = G(pf.a, pf.b, Math.max(pf.h - pf.r*0.35, baseH));
+        g.lineStyle(Math.max(1, 1.1*this.K*0.4), P.stalk, 1);
+        g.lineBetween(s0.x, s0.y, s1.x, s1.y);
+        const c = G(pf.a, pf.b, pf.h);
+        g.fillStyle(pf.c, 1);
+        g.fillCircle(c.x, c.y, pf.r*this.K*0.42);
+      }
+      if(this.flower){
+        const nf = Math.max(2, Math.round(n*0.6));
+        for(let i=0; i<nf; i++){
+          const ang = rng()*Math.PI*2;
+          const rr = P.boxW*0.22 + rng()*P.boxW*0.16;
+          const hh = baseH + P.bushH*(0.45 + rng()*0.5);
+          const c = G(Math.cos(ang)*rr, Math.sin(ang)*rr, hh);
+          g.fillStyle(P.flower, 1);
+          g.fillCircle(c.x, c.y, (1.6+rng())*this.K*0.42);
+        }
+      }
+    };
+
+    const parts = [
+      { d: depthAt(0,0,H*0.4), fn: box },
+      { d: depthAt(0,0,H + P.bushH*0.6), fn: bush }
+    ];
+    parts.sort((p1,p2) => p1.d - p2.d);
+    for(const pt of parts) pt.fn();
+  }
+
+  update(t){
+    const g = this.g; g.clear();
+    g.fillStyle(GROUND.sky, 1);
+    g.fillRect(0, 0, this.scale.gameSize.width, this.scale.gameSize.height);
+    this.drawGround(this.cx, this.cy, 3);
+    if(this.mode === "old"){
+      this.drawPlanterOld(this.cx, this.cy);
+    } else {
+      this.drawPlanterNew(this.cx, this.cy, 3, this.heroAngle);
+    }
+  }
+}
+
+const game = new Phaser.Game({
+  type: Phaser.AUTO, parent: "game",
+  scale: { mode: Phaser.Scale.RESIZE, width: "100%", height: "100%" },
+  scene: [PlanterLab]
+});
+const scn = () => game.scene.getScene("plantlab");
+
+document.getElementById("oldBtn").addEventListener("click", e => {
+  scn().mode = "old";
+  e.target.classList.add("on");
+  document.getElementById("newBtn").classList.remove("on");
+});
+document.getElementById("newBtn").addEventListener("click", e => {
+  scn().mode = "new";
+  e.target.classList.add("on");
+  document.getElementById("oldBtn").classList.remove("on");
+});
+document.getElementById("flowerBtn").addEventListener("click", e => {
+  const s = scn();
+  s.flower = !s.flower;
+  e.target.textContent = s.flower ? "FLOWERING" : "GREEN";
+  s.updateVals();
+});
+document.getElementById("rotL").addEventListener("click", () => { scn().heroAngle -= Math.PI/8; });
+document.getElementById("rotR").addEventListener("click", () => { scn().heroAngle += Math.PI/8; });
+document.getElementById("zoomIn").addEventListener("click", () => { scn().K = Math.min(scn().K + 0.4, 8); });
+document.getElementById("zoomOut").addEventListener("click", () => { scn().K = Math.max(scn().K - 0.4, 2); });
+document.querySelectorAll("[data-p]").forEach(btn => {
+  btn.addEventListener("click", () => {
+    const p = btn.dataset.p, d = +btn.dataset.d;
+    if(p === "boxW")     PLANT.boxW     = Phaser.Math.Clamp(PLANT.boxW + d*2, 10, 26);
+    if(p === "boxH")     PLANT.boxH     = Phaser.Math.Clamp(PLANT.boxH + d*1, 6, 16);
+    if(p === "bushH")    PLANT.bushH    = Phaser.Math.Clamp(PLANT.bushH + d*2, 8, 26);
+    if(p === "fullness") PLANT.fullness = Phaser.Math.Clamp(PLANT.fullness + d*1, 3, 9);
+    scn().updateVals();
+  });
+});
+</script>
+</body>
+</html>
