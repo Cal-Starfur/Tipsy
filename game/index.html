@@ -721,8 +721,11 @@ class WorldScene extends Phaser.Scene {
           top.push(GG(bc[0], bc[1], 5.2)); bot.push(GG(bc[0], bc[1], 0.8));
         }
         this.quadOn(g, convexHull(top.concat(bot)), brand.cDk);
-        this.quadOn(g, top, brand.c);
-        this.quadOn(g, [GG(-16*L,-4,5.6), GG(8*L,-4,5.6), GG(8*L,4,5.6), GG(-16*L,4,5.6)], S.grip);
+        const topVisible = lay ? (ssn - scs) > 0 : true;
+        if(topVisible){
+          this.quadOn(g, top, brand.c);
+          this.quadOn(g, [GG(-16*L,-4,5.6), GG(8*L,-4,5.6), GG(8*L,4,5.6), GG(-16*L,4,5.6)], S.grip);
+        }
       };
       const sstem = () => {
         const da = stemTipA - stemBaseA, dh = stemTipH - stemBaseH;
