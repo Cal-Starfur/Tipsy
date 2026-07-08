@@ -625,7 +625,7 @@ class GalleryScene extends Phaser.Scene {
   }
 
   /* ========== INJECTED FROM game/index.html — keep in sync ========== */
-  drawProp(g, kind, x, y, t, fdir = 0, z = 0){
+  drawProp(g, kind, x, y, t, fdir = 0, z = 0, wheelPhase = null){
     const dv = DIRV[fdir], rv = DIRV[(fdir+1)%4];
     const W = (dx, dy, dz) => this.W(x + dv.x*dx + rv.x*dy, y + dv.y*dx + rv.y*dy, z + dz);
     if(kind === "palm" || kind === "palmDwarf"){
@@ -1247,9 +1247,19 @@ class GalleryScene extends Phaser.Scene {
         const face = rr => ringAt(bOut, rr, U, HH, 14);
         this.quadOn(g, face(r), CR.wheel);
         this.quadOn(g, face(r*0.5), CR.hubFace);
-        const hub = GG(a0, bOut, cz);
-        g.fillStyle(CR.hub, 1);
-        g.fillCircle(hub.x, hub.y, r*0.34*this.K*0.42);
+        /* moving traffic gets a spinning marker dot (same trick the
+           robot's own wheels use in sprite-lab); a parked car just
+           gets a static centered hub. */
+        if(wheelPhase !== null){
+          const wp2 = wheelPhase + a0*0.02;
+          const hub = GG(a0 + Math.cos(wp2)*r*0.34, bOut, cz + Math.sin(wp2)*r*0.34);
+          g.fillStyle(CR.hub, 1);
+          g.fillCircle(hub.x, hub.y, r*0.2*this.K*0.42);
+        } else {
+          const hub = GG(a0, bOut, cz);
+          g.fillStyle(CR.hub, 1);
+          g.fillCircle(hub.x, hub.y, r*0.34*this.K*0.42);
+        }
       };
 
       const chassis = () => {
