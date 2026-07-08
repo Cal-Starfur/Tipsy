@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>TIPSY — Scooter Lab</title>
+<style>
+  html,body{margin:0;padding:0;background:#14161b;height:100%;overflow:hidden;touch-action:manipulation;
+    font-family:-apple-system,'Helvetica Neue',Arial,sans-serif;-webkit-user-select:none;user-select:none;color:#e8eaef;}
+  #wrap{display:flex;flex-direction:column;height:100%;}
+  #game{flex:1;min-height:0;}
+  #panel{padding:10px 12px calc(14px + env(safe-area-inset-bottom));background:#1c1f26;border-top:1px solid #2b2f38;}
+  .row{display:flex;gap:8px;margin-bottom:8px;align-items:center;}
+  .row:last-child{margin-bottom:0;}
+  .lbl{font-size:11px;letter-spacing:1.5px;color:#8f95a1;width:56px;text-transform:uppercase;}
+  button{flex:1;background:#262a33;color:#e8eaef;border:1px solid #363b46;border-radius:10px;
+    padding:10px 4px;font-size:13px;font-weight:600;}
+  button.on{background:#ff7a1a;border-color:#ff7a1a;color:#fff;}
+  button:active{transform:scale(0.96);}
+  button.sm{flex:0 0 44px;}
+  #hdr{padding:10px 14px 2px;font-size:12px;letter-spacing:2px;color:#8f95a1;text-transform:uppercase;}
+  #hdr b{color:#ff9c4d;}
+  #vals{padding:0 14px 6px;font-size:11px;color:#8f95a1;font-variant-numeric:tabular-nums;}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="hdr"><b>TIPSY</b> · scooter lab · prop.scooter makeover</div>
+  <div id="vals">…</div>
+  <div id="game"></div>
+  <div id="panel">
+    <div class="row">
+      <span class="lbl">Style</span>
+      <button id="oldBtn">OLD (game)</button>
+      <button class="on" id="newBtn">NEW</button>
+      <button id="poseBtn">STANDING</button>
+      <button id="brandBtn">TEAL</button>
+    </div>
+    <div class="row">
+      <span class="lbl">View</span>
+      <button class="sm" id="rotL">◀</button>
+      <button class="sm" id="rotR">▶</button>
+      <span class="lbl">Zoom</span>
+      <button class="sm" id="zoomOut">−</button>
+      <button class="sm" id="zoomIn">＋</button>
+    </div>
+    <div class="row">
+      <span class="lbl">Stem</span>
+      <button class="sm" data-p="stemH" data-d="-1">−</button>
+      <button class="sm" data-p="stemH" data-d="1">＋</button>
+      <span class="lbl">Bar</span>
+      <button class="sm" data-p="barW" data-d="-1">−</button>
+      <button class="sm" data-p="barW" data-d="1">＋</button>
+    </div>
+    <div class="row">
+      <span class="lbl">Wheel</span>
+      <button class="sm" data-p="wheelR" data-d="-1">−</button>
+      <button class="sm" data-p="wheelR" data-d="1">＋</button>
+      <span class="lbl">Length</span>
+      <button class="sm" data-p="len" data-d="-1">−</button>
+      <button class="sm" data-p="len" data-d="1">＋</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/phaser@3.85.2/dist/phaser.min.js"></script>
+<script>
+"use strict";
+
+/* ============================================================
+   TIPSY — Scooter Lab
+   Makeover bench for prop.scooter: the dumped rental, the
+   signature hazard. Seeded trio shows scatter + brand variety.
+   Approved renderer + SCOOT params port into game + gallery
+   together (sync rule).
+   ============================================================ */
+
+/* ---------- the dials ---------- */
+const SCOOT = {
+  len: 1.0,           // overall scale of deck + stem
+  scatter: 1.0,       // 0 = all parallel, 1 = fully random dump angles
+  pose: "standing",   // FOCUS: dialing the upright scooter
+  brand: "teal",
+  stemH: 42,          // upright stem height
+  barW: 13,           // handlebar half-width
+  wheelR: 5,          // wheel radius (approved)
+  deck: 0x2e3138, deckEdge: 0x1f2228, grip: 0x3d424c,
+  wheel: 0x24262c, wheelDk: 0x17191d, hub: 0x8a919c, hubFace: 0x3d424c,
+  metal: 0x9aa3ad, metalDk: 0x707a85,
+  shadow: 0x000000
+};
+const BRANDS = [
+  { n:"teal",  c:0x2ec4b6, cDk:0x1f857c },
+  { n:"lime",  c:0x8bc34a, cDk:0x649238 },
+  { n:"coral", c:0xff6b6b, cDk:0xc94f4f }
+];
+
+const TILE = 46;
+const GROUND = { a:0xc9c3b4, b:0xbfb9aa, edge:0xa8a294, sky:0x9fd4e8 };
+
+function convexHull(pts){
+  const P = pts.slice().sort((a,b) => a.x - b.x || a.y - b.y);
+  const cross = (o, a, b) => (a.x-o.x)*(b.y-o.y) - (a.y-o.y)*(b.x-o.x);
+  const lo = [], hi = [];
+  for(const p of P){
+    while(lo.length >= 2 && cross(lo[lo.length-2], lo[lo.length-1], p) <= 0) lo.pop();
+    lo.push(p);
+  }
+  for(let i = P.length-1; i >= 0; i--){
+    const p = P[i];
+    while(hi.length >= 2 && cross(hi[hi.length-2], hi[hi.length-1], p) <= 0) hi.pop();
+    hi.push(p);
+  }
+  lo.pop(); hi.pop();
+  return lo.concat(hi);
+}
+
+function mulberry32(a){ return function(){ a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+
+class ScooterLab extends Phaser.Scene {
+  constructor(){ super("scootlab"); }
+
+  create(){
+    this.K = 3.2;
+    this.mode = "new";
+    this.seedBase = 7;
+    this.heroAngle = 0.5;
+    this.g = this.add.graphics();
+    this.scale.on("resize", () => this.layout());
+    this.layout();
+    this.updateVals();
+  }
+  layout(){
+    this.cx = this.scale.gameSize.width/2;
+    this.cy = this.scale.gameSize.height*0.55;
+  }
+  updateVals(){
+    document.getElementById("vals").textContent =
+      `${SCOOT.pose.toUpperCase()} · stem ${SCOOT.stemH} · bar ${SCOOT.barW} · wheel ${SCOOT.wheelR} · len ${SCOOT.len.toFixed(2)} · brand ${SCOOT.brand}`;
+  }
+
+  W(x, y, z, ox, oy){
+    return { x:(x - y)*this.K + ox, y:((x + y)*0.5 - z)*this.K + oy };
+  }
+  quad(pts, color, alpha=1){
+    this.g.fillStyle(color, alpha);
+    this.g.fillPoints(pts.map(p => new Phaser.Geom.Point(p.x, p.y)), true);
+  }
+  edge(pts, color, w=2){
+    this.g.lineStyle(w, color, 1);
+    this.g.strokePoints(pts.map(p => new Phaser.Geom.Point(p.x, p.y)), true);
+  }
+
+  drawGround(ox, oy, half){
+    for(let tx=-half; tx<half; tx++){
+      for(let ty=-half; ty<half; ty++){
+        const cxm = tx*TILE*2 + TILE, cym = ty*TILE*2 + TILE;
+        const pts = [
+          this.W(cxm+TILE, cym-TILE, 0, ox, oy), this.W(cxm+TILE, cym+TILE, 0, ox, oy),
+          this.W(cxm-TILE, cym+TILE, 0, ox, oy), this.W(cxm-TILE, cym-TILE, 0, ox, oy)];
+        this.quad(pts, ((tx+ty)%2===0) ? GROUND.a : GROUND.b);
+        this.edge(pts, GROUND.edge, 1.5);
+      }
+    }
+  }
+
+  /* ---------- OLD scooter: the current game renderer ---------- */
+  drawScooterOld(ox, oy){
+    const g = this.g;
+    const W = (dx, dy, dz) => this.W(dx, dy, dz, ox, oy);
+    const a=W(-18,0,3), b=W(18,4,3), c2=W(18,10,2), dd=W(-18,6,2);
+    this.quad([a,b,c2,dd], 0x2ec4b6);
+    g.lineStyle(4, 0x1f857c, 1);
+    const h0=W(14,2,3), h1=W(34,2,10);
+    g.lineBetween(h0.x, h0.y, h1.x, h1.y);
+    g.lineBetween(h1.x-6, h1.y-2, h1.x+6, h1.y-4);
+    g.fillStyle(0x24262c,1);
+    g.fillEllipse(W(-16,3,2).x, W(-16,3,2).y, 9, 5);
+    g.fillEllipse(W(16,7,2).x, W(16,7,2).y, 9, 5);
+  }
+
+  /* ---------- NEW scooter: the dumped rental ----------
+     Lying on its side. Local frame: u along the body (seeded
+     dump rotation), v across. All parts in ground-plane coords
+     with small z pops, so it sits IN the iso world. */
+  drawScooterNew(ox, oy, seed, thOverride){
+    const g = this.g, S = SCOOT;
+    const rng = mulberry32(seed);
+    const th = thOverride !== undefined ? thOverride
+             : (rng()*2 - 1) * Math.PI * 0.9 * S.scatter;
+    const cs = Math.cos(th), sn = Math.sin(th);
+    const brand = S.brand === "mix"
+      ? BRANDS[Math.floor(rng()*BRANDS.length)]
+      : BRANDS.find(b => b.n === S.brand) || BRANDS[0];
+    const lay = S.pose === "flat" ? true
+              : S.pose === "standing" ? false
+              : rng() < 0.8;                       // mix: mostly dumped
+    const L = S.len;
+
+    /* ONE scooter — the approved standing build. "Flat" is the same rigid
+       object laid on its side: height becomes ground spread, width becomes
+       (squashed) height, resting on its grip/deck edge. */
+    const M = (a, b, h) => lay ? { a, b: -h - 2, h: (b + 7) * 0.55 } : { a, b, h };
+    const G = (a, b, h) => {
+      const m = M(a, b, h);
+      return this.W(m.a*cs - m.b*sn, m.a*sn + m.b*cs, m.h, ox, oy);
+    };
+    const depthAt = (a, b, h) => {
+      const m = M(a, b, h);
+      return m.a*(cs+sn) + m.b*(cs-sn) + m.h*0.4;
+    };
+
+    /* approved standing geometry — the only geometry */
+    const wheelR = S.wheelR*L;
+    const stemBaseA = 11*L, stemBaseH = 5.2;
+    const stemTipA = 13*L, stemTipH = 4 + S.stemH*L;
+    const fwA = 16*L + wheelR*0.95;
+    const rwA = -20*L - wheelR*0.9;
+    const wheelH = wheelR*0.72;
+
+    const ringAt = (a0, b0, h0, r, d1, d2, n=12) => {
+      const pts = [];
+      for(let i=0; i<n; i++){
+        const phi = (i/n)*Math.PI*2, c = Math.cos(phi)*r, s2 = Math.sin(phi)*r;
+        pts.push(G(a0 + c*d1.a + s2*d2.a, b0 + c*d1.b + s2*d2.b, h0 + c*d1.h + s2*d2.h));
+      }
+      return pts;
+    };
+    const U = {a:1,b:0,h:0}, V = {a:0,b:1,h:0}, HH = {a:0,b:0,h:1};
+
+    /* main shadow: elongates under a dumped scooter */
+    const shOff = lay ? this.W(-26*sn, 26*cs, 0, ox, oy) : this.W(2*cs, 2*sn, 0, ox, oy);
+    g.fillStyle(S.shadow, 0.13);
+    g.fillEllipse(shOff.x, shOff.y, (lay ? 84 : 50)*L, lay ? 30 : 18);
+
+    /* ---- parts (all standing-frame; M handles the dump) ---- */
+    const WW = 4.6;
+    const wheel = (a, r) => {
+      if(!lay){
+        const csh = G(a, 0, 0);
+        g.fillStyle(S.shadow, 0.12);
+        g.fillEllipse(csh.x, csh.y + 2, r*2.4, r*0.9);
+      }
+      const end = k => ringAt(a, k, wheelH, r, U, HH, 14);
+      this.quad(convexHull(end(-WW/2).concat(end(WW/2))), S.wheelDk);
+      const kF = depthAt(a, WW/2, wheelH) > depthAt(a, -WW/2, wheelH) ? WW/2 : -WW/2;
+      const face = rr => ringAt(a, kF, wheelH, rr, U, HH, 14);
+      this.quad(face(r), S.wheel);
+      this.quad(face(r*0.42), S.hubFace);
+      this.quad(face(r*0.2), S.hub);
+    };
+    const deck = () => {
+      const top = [], bot = [];
+      for(const [a2, b2] of [[-20*L,-7],[16*L,-7],[16*L,7],[-20*L,7]]){
+        top.push(G(a2, b2, 5.2)); bot.push(G(a2, b2, 0.8));
+      }
+      this.quad(convexHull(top.concat(bot)), brand.cDk);    // slab body
+      this.quad(top, brand.c);                               // deck surface matches the stem
+      this.quad([G(-16*L,-4,5.6), G(8*L,-4,5.6), G(8*L,4,5.6), G(-16*L,4,5.6)], S.grip);
+    };
+    const stem = () => {
+      const da = stemTipA - stemBaseA, dh = stemTipH - stemBaseH;
+      const len = Math.hypot(da, dh) || 1;
+      const perp = {a:-dh/len, b:0, h:da/len};
+      const base = ringAt(stemBaseA, 0, stemBaseH, 3.1, V, perp, 10);
+      const tip  = ringAt(stemTipA, 0, stemTipH, 2.0, V, perp, 10);
+      this.quad(convexHull(base.concat(tip)), brand.c);
+    };
+    const bar = () => {
+      const capsule = (b0, b1, r, col) => {
+        const e0 = ringAt(stemTipA, b0, stemTipH, r, U, HH, 8);
+        const e1 = ringAt(stemTipA, b1, stemTipH, r, U, HH, 8);
+        this.quad(convexHull(e0.concat(e1)), col);
+      };
+      capsule(-S.barW, S.barW, 1.6, S.metal);
+      capsule(-S.barW, -S.barW + 6, 2.5, S.deck);
+      capsule(S.barW - 6, S.barW, 2.5, S.deck);
+      g.lineStyle(2, S.metalDk, 1);
+      const bl = G(stemTipA, S.barW, stemTipH);
+      g.lineBetween(bl.x+2, bl.y+2, bl.x+8, bl.y+5);
+    };
+    const kick = () => {
+      const ks0 = G(-4*L, -7, 4);
+      const ks1 = G(-6*L, -12, 0);
+      g.lineStyle(2.5, S.metalDk, 1);
+      g.lineBetween(ks0.x, ks0.y, ks1.x, ks1.y);
+    };
+
+    /* depth-sorted assembly */
+    const parts = [
+      { d: depthAt(rwA, 0, wheelH),  fn: () => wheel(rwA, wheelR) },
+      { d: depthAt(-2*L, 0, 3),      fn: deck },
+      { d: depthAt((stemBaseA + stemTipA)/2, 0, (stemBaseH + stemTipH)/2), fn: stem },
+      { d: depthAt(fwA, 0, wheelH),  fn: () => wheel(fwA, wheelR*0.92) },
+      { d: depthAt(stemTipA, 0, stemTipH), fn: bar },
+      { d: depthAt(-5*L, -9, 3),     fn: kick }
+    ];
+    parts.sort((x, y) => x.d - y.d);
+    for(const pt of parts) pt.fn();
+  }
+
+  update(t){
+    const g = this.g; g.clear();
+    g.fillStyle(GROUND.sky, 1);
+    g.fillRect(0, 0, this.scale.gameSize.width, this.scale.gameSize.height);
+    this.drawGround(this.cx, this.cy, 3);
+
+    if(this.mode === "old"){
+      this.drawScooterOld(this.cx, this.cy);
+    } else {
+      /* FOCUS: single upright hero at a controlled angle */
+      this.drawScooterNew(this.cx, this.cy, this.seedBase, this.heroAngle);
+    }
+  }
+}
+
+const game = new Phaser.Game({
+  type: Phaser.AUTO, parent: "game",
+  scale: { mode: Phaser.Scale.RESIZE, width: "100%", height: "100%" },
+  scene: [ScooterLab]
+});
+const scn = () => game.scene.getScene("scootlab");
+
+document.getElementById("oldBtn").addEventListener("click", e => {
+  scn().mode = "old";
+  e.target.classList.add("on");
+  document.getElementById("newBtn").classList.remove("on");
+});
+document.getElementById("newBtn").addEventListener("click", e => {
+  scn().mode = "new";
+  e.target.classList.add("on");
+  document.getElementById("oldBtn").classList.remove("on");
+});
+document.getElementById("rotL").addEventListener("click", () => { scn().heroAngle -= Math.PI/8; });
+document.getElementById("rotR").addEventListener("click", () => { scn().heroAngle += Math.PI/8; });
+document.getElementById("zoomIn").addEventListener("click", () => { scn().K = Math.min(scn().K + 0.4, 6); });
+document.getElementById("zoomOut").addEventListener("click", () => { scn().K = Math.max(scn().K - 0.4, 1.4); });
+document.getElementById("poseBtn").addEventListener("click", e => {
+  const order = ["standing", "flat"];
+  SCOOT.pose = order[(order.indexOf(SCOOT.pose) + 1) % order.length];
+  e.target.textContent = SCOOT.pose.toUpperCase();
+  scn().updateVals();
+});
+document.getElementById("brandBtn").addEventListener("click", e => {
+  const order = BRANDS.map(b => b.n);
+  SCOOT.brand = order[(order.indexOf(SCOOT.brand) + 1) % order.length];
+  e.target.textContent = SCOOT.brand.toUpperCase();
+  scn().updateVals();
+});
+document.querySelectorAll("[data-p]").forEach(btn => {
+  btn.addEventListener("click", () => {
+    const p = btn.dataset.p, d = +btn.dataset.d;
+    if(p === "len")    SCOOT.len    = Phaser.Math.Clamp(+(SCOOT.len + d*0.1).toFixed(2), 0.7, 1.5);
+    if(p === "stemH")  SCOOT.stemH  = Phaser.Math.Clamp(SCOOT.stemH + d*4, 26, 70);
+    if(p === "barW")   SCOOT.barW   = Phaser.Math.Clamp(SCOOT.barW + d*2, 7, 23);
+    if(p === "wheelR") SCOOT.wheelR = Phaser.Math.Clamp(SCOOT.wheelR + d*1, 6, 16);
+    scn().updateVals();
+  });
+});
+</script>
+</body>
+</html>
