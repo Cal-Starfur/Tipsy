@@ -82,6 +82,16 @@ const BIN = {
   liner: 0x1f2822,
   shadow: 0x000000
 };
+/* approved in hydrant lab: height 20 · base 8 · dome 6.5 · nozzle 2.6 · red.
+   hydrantBurst is the same rigid hydrant with a sheared front nozzle,
+   animated water arc, and a puddle spanning most of the neighboring tile. */
+const HYD = {
+  height: 20, baseR: 8, domeR: 6.5, nozR: 2.6,
+  cap: 0xb5342b, capDk: 0x8a2822,
+  nut: 0x3a3d43,
+  water: 0xbfe6f2, waterDk: 0x8fc8dc,
+  shadow: 0x000000
+};
 function convexHull(pts){
   const P2 = pts.slice().sort((a,b) => a.x - b.x || a.y - b.y);
   const cross = (o, a, b) => (a.x-o.x)*(b.y-o.y) - (a.y-o.y)*(b.x-o.x);
@@ -282,7 +292,8 @@ class GalleryScene extends Phaser.Scene {
     P("trash");
     P("cone", 190, false, 60);
     P("coneTipped", 150, false, 45);
-    P("hydrant");
+    P("hydrant", 150, false, 45);
+    P("hydrantBurst", 170, false, 60);
     P("planter");
     P("dog");
     P("bin", 190, false, 60);
@@ -816,14 +827,137 @@ class GalleryScene extends Phaser.Scene {
       ];
       cparts.sort((p1, p2) => p1.d - p2.d);
       for(const pt of cparts) pt.fn();
-    } else if(kind === "hydrant"){
-      g.fillStyle(0xd8b23a, 1);
-      const p=W(0,0,0);
-      g.fillRect(p.x-6, p.y-16, 12, 16);
-      g.fillEllipse(p.x, p.y-16, 12, 8);
-      g.fillEllipse(p.x, p.y, 16, 7);
-      g.lineStyle(2, 0xb5933a, 1);
-      g.strokeRect(p.x-6, p.y-16, 12, 16);
+    } else if(kind === "hydrant" || kind === "hydrantBurst"){
+      /* approved in hydrant lab: height 20 · base 8 · dome 6.5 · nozzle 2.6.
+         hydrantBurst shears the front nozzle open with an animated water
+         arc and a puddle that paints early (ground layer, like the
+         shadow) so the hydrant's own body always draws over it. */
+      const HH = HYD, bursting = kind === "hydrantBurst";
+      const seed = ((Math.round(x)*7919) ^ (Math.round(y)*104729) ^ 0x4a7d) >>> 0;
+      const rng = mulberry32(seed);
+      const hth = rng()*Math.PI*2;
+      const hcs = Math.cos(hth), hsn = Math.sin(hth);
+      const height = HH.height;
+      const GG = (a, b, h) => W(a*hcs - b*hsn, a*hsn + b*hcs, h);
+      const dAt = (a, b, h) => a*(hcs+hsn) + b*(hcs-hsn) + h*0.4;
+
+      const rOf = h => {
+        const u = h / height;
+        if(u < 0.08) return HH.baseR;
+        if(u < 0.75) return HH.baseR*0.62 - (HH.baseR*0.62 - HH.baseR*0.5)*((u-0.08)/0.67);
+        return HH.baseR*0.5 + (HH.baseR*0.78 - HH.baseR*0.5) * ((u-0.75)/0.25);
+      };
+      const place = (h, r, n=14) => {
+        const pts = [];
+        for(let i=0; i<n; i++){
+          const phi = (i/n)*Math.PI*2, c3 = Math.cos(phi)*r, s3 = Math.sin(phi)*r;
+          pts.push(GG(c3, s3, h));
+        }
+        return pts;
+      };
+
+      const hsh = GG(0, 0, 0);
+      g.fillStyle(HH.shadow, 0.14);
+      g.fillEllipse(hsh.x, hsh.y + 2, HH.baseR*2.1*this.K*0.42, HH.baseR*0.95*this.K*0.42);
+
+      /* puddle: ground decal, paints BEFORE the hydrant's own body
+         parts so the barrel/dome/nozzles naturally draw over it. */
+      if(bursting){
+        const nc0 = 1, ns0 = 0;
+        const facing0 = nc0*(hcs+hsn) + ns0*(hcs-hsn) > 0;
+        if(facing0){
+          const tipA0 = HH.baseR*0.55 + HH.nozR*2.2;
+          const landA = tipA0 + nc0*26, landB = ns0*26;
+          const puddleRing = (rad, nn=16) => {
+            const pts = [];
+            for(let i=0; i<nn; i++){
+              const phi = (i/nn)*Math.PI*2;
+              pts.push(GG(landA + Math.cos(phi)*rad, landB + Math.sin(phi)*rad, 0.3));
+            }
+            return pts;
+          };
+          this.quadOn(g, puddleRing(TILE*0.85), HH.water, 0.28);
+          this.quadOn(g, puddleRing(TILE*0.55), HH.water, 0.22);
+        }
+      }
+
+      const hbarrel = () => {
+        const n = 6, all = [];
+        for(let i=0; i<=n; i++) all.push(...place(i/n*height*0.9, rOf(i/n*height*0.9)));
+        this.quadOn(g, convexHull(all), HH.cap);
+      };
+      const hshoulder = () => {
+        const h0 = height*0.75, h1 = height*0.9;
+        this.quadOn(g, convexHull(place(h0, rOf(h0)).concat(place(h1, rOf(h1)))), HH.cap);
+      };
+      const hdome = () => {
+        const domeBase = height*0.9, domeR = HH.domeR;
+        const n = 8, rings = [];
+        for(let i=0; i<=n; i++){
+          const u = i/n, r2 = domeR * Math.cos(u*Math.PI*0.5);
+          rings.push(place(domeBase + u*domeR*0.9, r2));
+        }
+        const all = []; for(const r2 of rings) all.push(...r2);
+        this.quadOn(g, convexHull(all), HH.cap);
+        const capTop = GG(0, 0, domeBase + domeR*0.9 + 1);
+        g.fillStyle(HH.capDk, 1);
+        g.fillCircle(capTop.x, capTop.y, 1.8*this.K*0.45);
+      };
+      const hnozzleSpray = (ang, r) => () => {
+        if(!bursting) return;
+        const nc = Math.cos(ang), ns = Math.sin(ang);
+        const facing = nc*(hcs+hsn) + ns*(hcs-hsn) > 0;
+        if(!facing) return;
+        const tipA = nc*(HH.baseR*0.55 + r*2.2), tipB = ns*(HH.baseR*0.55 + r*2.2);
+        const hgt = height*0.42;
+        const n = 9;
+        for(let i=0; i<n; i++){
+          const u = ((t*0.0026 + i/n) % 1);
+          const dist = u * 26;
+          const arcH = hgt + 14*u - 26*u*u;
+          const pt = GG(tipA + nc*dist, tipB + ns*dist, Math.max(arcH, 0.5));
+          const alpha = 0.9 * (1 - u*0.55);
+          const r2 = Math.max(0.6, 1.6 - u*1.0);
+          g.fillStyle(u > 0.82 ? HH.waterDk : HH.water, alpha);
+          g.fillCircle(pt.x, pt.y, r2*this.K*0.4);
+        }
+      };
+      const hnozzle = (ang, r, breakable) => () => {
+        const nc = Math.cos(ang), ns = Math.sin(ang);
+        const baseA = nc*(HH.baseR*0.55), baseB = ns*(HH.baseR*0.55);
+        const tipA = nc*(HH.baseR*0.55 + r*2.2), tipB = ns*(HH.baseR*0.55 + r*2.2);
+        const hgt = height*0.42;
+        const ring = (a0,b0,rad) => {
+          const pts = [];
+          for(let i=0;i<10;i++){
+            const phi=(i/10)*Math.PI*2;
+            const perpA = -ns, perpB = nc;
+            pts.push(GG(a0 + Math.cos(phi)*rad*perpA, b0 + Math.cos(phi)*rad*perpB, hgt + Math.sin(phi)*rad));
+          }
+          return pts;
+        };
+        this.quadOn(g, convexHull(ring(baseA,baseB,r).concat(ring(tipA,tipB,r))), HH.cap);
+        const facing = nc*(hcs+hsn) + ns*(hcs-hsn) > 0;
+        if(!facing) return;
+        if(bursting && breakable){
+          this.quadOn(g, ring(tipA,tipB,r*0.9), HH.nut);
+          this.quadOn(g, ring(tipA,tipB,r*0.5), HH.capDk);
+        } else {
+          this.quadOn(g, ring(tipA,tipB,r*0.8), HH.capDk);
+        }
+      };
+
+      const domeBase = height*0.9, domeR = HH.domeR;
+      const hparts = [
+        { d: dAt(0,0,height*0.3), fn: hbarrel },
+        { d: dAt(0,0,height*0.82), fn: hshoulder },
+        { d: dAt(HH.baseR*0.55*Math.cos(0), HH.baseR*0.55*Math.sin(0), height*0.42), fn: hnozzle(0, HH.nozR, true) },
+        { d: dAt(HH.baseR*0.55*Math.cos(Math.PI), HH.baseR*0.55*Math.sin(Math.PI), height*0.42), fn: hnozzle(Math.PI, HH.nozR, false) },
+        { d: dAt(0,0, domeBase+domeR*0.9), fn: hdome },
+        { d: dAt(HH.baseR*0.55 + HH.nozR*2.2 + 20, 0, height*0.42 + 8), fn: hnozzleSpray(0, HH.nozR) }
+      ];
+      hparts.sort((p1, p2) => p1.d - p2.d);
+      for(const pt of hparts) pt.fn();
     } else if(kind === "planter"){
       const b0=W(-16,-10,0), b1=W(16,-10,0), b2=W(16,10,0), b3=W(-16,10,0);
       this.quadOn(g, [W(-16,-10,10), W(16,-10,10), W(16,10,10), W(-16,10,10)], 0x8f8577);
