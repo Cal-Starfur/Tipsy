@@ -102,6 +102,26 @@ const PLANTER = {
   flower: 0xe86b8a,
   shadow: 0x000000
 };
+/* approved in car lab: len 150 · wid 60 · chassis 28 · cabin 32 · wheel 16.
+   Scaled to tower over the robot (robot: 52w x 40d x 61h to the lid).
+   kind "truck" is the same rig with a shorter cab (cl 0.24 vs 0.62 of
+   half-length), a vertical rear wall instead of a sloped one, a small
+   flush rear window instead of the sedan's full sloped backlight, and
+   an open cargo bed with raised rails behind the cab. */
+const CARC = {
+  len: 150, wid: 60, chassisH: 28, cabinH: 32, wheelR: 16,
+  glass: 0x4a5560, glassDk: 0x3a434c, windshield: 0x9fc4d6, windshieldEdge: 0x6f8fa0,
+  bumper: 0xb8bcc2, light: 0xf4e9b0, tail: 0xc94f4f,
+  wheel: 0x24262c, wheelDk: 0x17191d, hub: 0x8a919c, hubFace: 0x3d424c,
+  bedFloor: 0x3d434a,
+  shadow: 0x000000
+};
+const CAR_COLORS = [
+  { n:"silver", body:0x9aa7b5, bodyDk:0x76839a, roof:0x8695a5 },
+  { n:"red",    body:0xc45a4e, bodyDk:0x9c473d, roof:0xaf4f44 },
+  { n:"blue",   body:0x5678a8, bodyDk:0x435e87, roof:0x4c6c99 },
+  { n:"white",  body:0xe4e6ea, bodyDk:0xc0c3c9, roof:0xd6d9dd }
+];
 function convexHull(pts){
   const P2 = pts.slice().sort((a,b) => a.x - b.x || a.y - b.y);
   const cross = (o, a, b) => (a.x-o.x)*(b.y-o.y) - (a.y-o.y)*(b.x-o.x);
@@ -308,7 +328,8 @@ class GalleryScene extends Phaser.Scene {
     P("dog");
     P("bin", 190, false, 60);
     P("binKnocked", 150, false, 40);
-    P("car", 170, true, 40);
+    P("car", 220, true, 60);
+    P("truck", 220, true, 60);
     P("driveway", 170, true, 40);
     P("crack", 120);
     flushRow();
@@ -1186,16 +1207,160 @@ class GalleryScene extends Phaser.Scene {
       ];
       dparts.sort((p1, p2) => p1.d - p2.d);
       for(const pt of dparts) pt.fn();
-    } else if(kind === "car"){
-      // parked car on the road
-      const cz = 6;
-      this.quadOn(g, [W(40,-16,cz), W(40,16,cz), W(40,16,cz+16), W(40,-16,cz+16)], 0x8695a5);
-      this.quadOn(g, [W(-40,16,cz), W(40,16,cz), W(40,16,cz+16), W(-40,16,cz+16)], 0x76839a);
-      this.quadOn(g, [W(-40,-16,cz+16), W(40,-16,cz+16), W(40,16,cz+16), W(-40,16,cz+16)], 0x9aa7b5);
-      this.quadOn(g, [W(-24,-13,cz+16), W(20,-13,cz+16), W(14,13,cz+28), W(-18,13,cz+28)], 0x5b6a7a);
-      g.fillStyle(0x24262c, 1);
-      g.fillEllipse(W(-26,17,3).x, W(-26,17,3).y, 16, 10);
-      g.fillEllipse(W(24,17,3).x, W(24,17,3).y, 16, 10);
+    } else if(kind === "car" || kind === "truck"){
+      /* approved in car lab: len 150 · wid 60 · chassis 28 · cabin 32 ·
+         wheel 16. Axis-aligned to facing (no free rotation) — parked
+         along the road, matching the planter's convention, so the
+         "near" side/end is always the same fixed +y/+a combination
+         under this game's fixed camera (faceY/faceA both always 1
+         here, unlike the lab's free-rotate preview). Seeded body
+         color per instance. kind "truck" swaps in the shorter cab,
+         vertical rear wall, small rear window, and open cargo bed. */
+      const CR = CARC, isTruck = kind === "truck";
+      const seed = ((Math.round(x)*7919) ^ (Math.round(y)*104729) ^ 0x9c31) >>> 0;
+      const rng = mulberry32(seed);
+      const col = CAR_COLORS[Math.floor(rng()*CAR_COLORS.length)];
+      const GG = W;
+      const cz = CR.wheelR;
+      const hl = CR.len/2, hw = CR.wid/2, chassisTop = cz + CR.chassisH;
+      const cl = isTruck ? hl*0.24 : hl*0.62;
+      const cabinTop = chassisTop + CR.cabinH;
+
+      const csh = GG(0, 0, 0);
+      g.fillStyle(CR.shadow, 0.16);
+      g.fillEllipse(csh.x, csh.y + 3, (CR.len+8)*this.K*0.42, (CR.wid+10)*this.K*0.36);
+
+      const wheel = (a0, r, side) => () => {
+        const WW = 3.6*(CR.wheelR/16);
+        const ringAt = (bc, rad, d1, d2, n=12) => {
+          const pts = [];
+          for(let i=0; i<n; i++){
+            const phi = (i/n)*Math.PI*2, c3 = Math.cos(phi)*rad, s3 = Math.sin(phi)*rad;
+            pts.push(GG(a0 + c3*d1.a + s3*d2.a, bc + c3*d1.b + s3*d2.b, cz + c3*d1.h + s3*d2.h));
+          }
+          return pts;
+        };
+        const U = {a:1,b:0,h:0}, HH = {a:0,b:0,h:1};
+        const bIn = side*(hw - 1), bOut = side*(hw + WW - 1);
+        const end = bb => ringAt(bb, r, U, HH, 14);
+        this.quadOn(g, convexHull(end(bIn).concat(end(bOut))), CR.wheelDk);
+        const face = rr => ringAt(bOut, rr, U, HH, 14);
+        this.quadOn(g, face(r), CR.wheel);
+        this.quadOn(g, face(r*0.5), CR.hubFace);
+        const hub = GG(a0, bOut, cz);
+        g.fillStyle(CR.hub, 1);
+        g.fillCircle(hub.x, hub.y, r*0.34*this.K*0.42);
+      };
+
+      const chassis = () => {
+        const top = [GG(-hl,-hw,chassisTop), GG(hl,-hw,chassisTop), GG(hl,hw,chassisTop), GG(-hl,hw,chassisTop)];
+        const bot = [GG(-hl,-hw,cz), GG(hl,-hw,cz), GG(hl,hw,cz), GG(-hl,hw,cz)];
+        const hullBody = () => {
+          this.quadOn(g, convexHull(top.concat(bot)), col.bodyDk);
+          this.quadOn(g, top, col.body);
+        };
+        const bumperFront = () => {
+          this.quadOn(g, [GG(hl-0.3,-hw,cz), GG(hl,-hw,cz+3), GG(hl,hw,cz+3), GG(hl-0.3,hw,cz)], CR.bumper);
+          g.fillStyle(CR.light, 1);
+          for(const side of [-1, 1]){
+            const hlp = GG(hl-0.4, side*(hw-3), cz+5);
+            g.fillCircle(hlp.x, hlp.y, 2*this.K*0.42);
+          }
+        };
+        const bumperRear = () => {
+          this.quadOn(g, [GG(-hl+0.3,-hw,cz), GG(-hl,-hw,cz+3), GG(-hl,hw,cz+3), GG(-hl+0.3,hw,cz)], CR.bumper);
+          g.fillStyle(CR.tail, 1);
+          for(const side of [-1, 1]){
+            const tlp = GG(-hl+0.4, side*(hw-3), cz+5);
+            g.fillCircle(tlp.x, tlp.y, 1.8*this.K*0.42);
+          }
+        };
+        bumperRear(); hullBody(); bumperFront();
+        g.lineStyle(Math.max(1, 0.6*this.K*0.42), col.bodyDk, 0.6);
+        const d0 = GG(0,hw,cz+1), d1 = GG(0,hw,chassisTop-1);
+        g.lineBetween(d0.x, d0.y, d1.x, d1.y);
+      };
+
+      const bed = () => {
+        if(!isTruck) return;
+        const bedBackA = -hl+1, bedFrontA = -cl-2;
+        const railTop = chassisTop + CR.chassisH*0.55;
+        const floorH = chassisTop + 1;
+        const wallFar = [GG(bedBackA,-hw,floorH), GG(bedFrontA,-hw,floorH), GG(bedFrontA,-hw,railTop), GG(bedBackA,-hw,railTop)];
+        const floor = [GG(bedBackA,-hw*0.88,floorH), GG(bedFrontA,-hw*0.88,floorH), GG(bedFrontA,hw*0.88,floorH), GG(bedBackA,hw*0.88,floorH)];
+        const cabBackWall = [GG(bedFrontA,-hw*0.88,floorH), GG(bedFrontA,hw*0.88,floorH), GG(bedFrontA,hw*0.88,railTop), GG(bedFrontA,-hw*0.88,railTop)];
+        const wallNear = [GG(bedBackA,hw,floorH), GG(bedFrontA,hw,floorH), GG(bedFrontA,hw,railTop), GG(bedBackA,hw,railTop)];
+        this.quadOn(g, wallFar, col.bodyDk);
+        this.quadOn(g, floor, CR.bedFloor);
+        this.quadOn(g, cabBackWall, col.bodyDk);
+        this.quadOn(g, wallNear, col.body);
+      };
+
+      const cabin = () => {
+        const roofF = isTruck ? -cl : -cl*0.35, roofR = cl*0.55;
+        const top = [GG(roofF,-hw*0.86,cabinTop), GG(roofR,-hw*0.86,cabinTop), GG(roofR,hw*0.86,cabinTop), GG(roofF,hw*0.86,cabinTop)];
+        const beltF = [GG(cl,-hw*0.92,chassisTop), GG(cl,hw*0.92,chassisTop)];
+        const beltR = [GG(-cl,-hw*0.92,chassisTop), GG(-cl,hw*0.92,chassisTop)];
+
+        const cabinHull = () => {
+          this.quadOn(g, convexHull([...beltF, ...beltR, ...top]), col.roof);
+        };
+        const windshield = () => {
+          const wind = [GG(roofR,-hw*0.86,cabinTop), GG(roofR,hw*0.86,cabinTop), beltF[1], beltF[0]];
+          this.quadOn(g, wind, CR.windshield);
+          this.edgeOn(g, wind, CR.windshieldEdge, 1);
+        };
+        const backlight = () => {
+          if(isTruck){
+            const winW = hw*0.5;
+            const winH0 = chassisTop + (cabinTop-chassisTop)*0.35;
+            const winH1 = chassisTop + (cabinTop-chassisTop)*0.85;
+            const back = [GG(roofF,-winW,winH1), GG(roofF,winW,winH1), GG(roofF,winW,winH0), GG(roofF,-winW,winH0)];
+            this.quadOn(g, back, CR.windshield);
+            this.edgeOn(g, back, CR.windshieldEdge, 1);
+          } else {
+            const back = [GG(roofF,-hw*0.86,cabinTop), GG(roofF,hw*0.86,cabinTop), beltR[1], beltR[0]];
+            this.quadOn(g, back, CR.windshield);
+            this.edgeOn(g, back, CR.windshieldEdge, 1);
+          }
+        };
+        backlight(); cabinHull(); windshield();
+
+        this.quadOn(g, top, col.roof);
+        this.edgeOn(g, top, col.bodyDk, 1);
+        const sgB = hw*0.86, beltB = hw*0.92;
+        const sgPts = [
+          { a: roofF, b: sgB,   h: cabinTop },
+          { a: roofR, b: sgB,   h: cabinTop },
+          { a: cl,    b: beltB, h: chassisTop },
+          { a: -cl,   b: beltB, h: chassisTop }
+        ];
+        const cA = sgPts.reduce((s,p) => s+p.a, 0)/4;
+        const cB = sgPts.reduce((s,p) => s+p.b, 0)/4;
+        const cH = sgPts.reduce((s,p) => s+p.h, 0)/4;
+        const shrink = 0.7;
+        const sideFrame = sgPts.map(p => GG(p.a, p.b, p.h));
+        const sidePane = sgPts.map(p => GG(cA+(p.a-cA)*shrink, cB+(p.b-cB)*shrink, cH+(p.h-cH)*shrink));
+        this.quadOn(g, sideFrame, col.body);
+        this.quadOn(g, sidePane, CR.windshield);
+      };
+
+      const mirror = side => () => {
+        const roofR = cl*0.55;
+        const mb = GG(roofR - 3, hw*0.9*side, chassisTop + 3);
+        g.fillStyle(col.bodyDk, 1);
+        g.fillCircle(mb.x, mb.y, 1.6*this.K*0.42);
+      };
+
+      wheel(-hl*0.55, CR.wheelR, -1)();
+      wheel(hl*0.55, CR.wheelR*0.95, -1)();
+      chassis();
+      bed();
+      wheel(-hl*0.55, CR.wheelR, 1)();
+      wheel(hl*0.55, CR.wheelR*0.95, 1)();
+      mirror(-1)();
+      cabin();
+      mirror(1)();
     } else if(kind === "bin" || kind === "binKnocked"){
       /* approved in bin lab: height 40 · base 13 · lid 15 · band 3
          standing / 0 knocked. Knocked is the SAME barrel resting on
