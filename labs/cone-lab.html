@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>TIPSY — Cone Lab</title>
+<style>
+  html,body{margin:0;padding:0;background:#14161b;height:100%;overflow:hidden;touch-action:manipulation;
+    font-family:-apple-system,'Helvetica Neue',Arial,sans-serif;-webkit-user-select:none;user-select:none;color:#e8eaef;}
+  #wrap{display:flex;flex-direction:column;height:100%;}
+  #game{flex:1;min-height:0;}
+  #panel{padding:10px 12px calc(14px + env(safe-area-inset-bottom));background:#1c1f26;border-top:1px solid #2b2f38;}
+  .row{display:flex;gap:8px;margin-bottom:8px;align-items:center;}
+  .row:last-child{margin-bottom:0;}
+  .lbl{font-size:11px;letter-spacing:1.5px;color:#8f95a1;width:56px;text-transform:uppercase;}
+  button{flex:1;background:#262a33;color:#e8eaef;border:1px solid #363b46;border-radius:10px;
+    padding:10px 4px;font-size:13px;font-weight:600;}
+  button.on{background:#ff7a1a;border-color:#ff7a1a;color:#fff;}
+  button:active{transform:scale(0.96);}
+  button.sm{flex:0 0 44px;}
+  #hdr{padding:10px 14px 2px;font-size:12px;letter-spacing:2px;color:#8f95a1;text-transform:uppercase;}
+  #hdr b{color:#ff9c4d;}
+  #vals{padding:0 14px 6px;font-size:11px;color:#8f95a1;font-variant-numeric:tabular-nums;}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="hdr"><b>TIPSY</b> · cone lab · prop.cone makeover</div>
+  <div id="vals">…</div>
+  <div id="game"></div>
+  <div id="panel">
+    <div class="row">
+      <span class="lbl">Style</span>
+      <button id="oldBtn">OLD (game)</button>
+      <button class="on" id="newBtn">NEW</button>
+      <button id="poseBtn">STANDING</button>
+    </div>
+    <div class="row">
+      <span class="lbl">View</span>
+      <button class="sm" id="rotL">◀</button>
+      <button class="sm" id="rotR">▶</button>
+      <span class="lbl">Zoom</span>
+      <button class="sm" id="zoomOut">−</button>
+      <button class="sm" id="zoomIn">＋</button>
+    </div>
+    <div class="row">
+      <span class="lbl">Height</span>
+      <button class="sm" data-p="height" data-d="-1">−</button>
+      <button class="sm" data-p="height" data-d="1">＋</button>
+      <span class="lbl">Base</span>
+      <button class="sm" data-p="base" data-d="-1">−</button>
+      <button class="sm" data-p="base" data-d="1">＋</button>
+    </div>
+    <div class="row">
+      <span class="lbl">Band</span>
+      <button class="sm" data-p="band" data-d="-1">−</button>
+      <button class="sm" data-p="band" data-d="1">＋</button>
+      <span style="flex:1"></span>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/phaser@3.85.2/dist/phaser.min.js"></script>
+<script>
+"use strict";
+
+/* ============================================================
+   TIPSY — Cone Lab
+   Built with the scooter lessons from line one:
+   · hull volumes only — gapless at every rotation
+   · depth-sorted parts
+   · ONE rigid geometry; KNOCKED is the same cone resting on its
+     slant side (no pose interpolation, ever again)
+   · manual view rotation, per-instance seeding
+   ============================================================ */
+
+const CONE = {
+  height: 38,         // cone body height (approved)
+  base: 18,           // base slab width (approved)
+  band: 0,            // white band thickness (approved: none)
+  body: 0xff7a1a, bodyDk: 0xd85f0a,
+  band_c: 0xf4f5f7, bandDk: 0xd8dade,
+  shadow: 0x000000
+};
+
+const TILE = 46;
+const GROUND = { a:0xc9c3b4, b:0xbfb9aa, edge:0xa8a294, sky:0x9fd4e8 };
+
+function convexHull(pts){
+  const P = pts.slice().sort((a,b) => a.x - b.x || a.y - b.y);
+  const cross = (o, a, b) => (a.x-o.x)*(b.y-o.y) - (a.y-o.y)*(b.x-o.x);
+  const lo = [], hi = [];
+  for(const p of P){
+    while(lo.length >= 2 && cross(lo[lo.length-2], lo[lo.length-1], p) <= 0) lo.pop();
+    lo.push(p);
+  }
+  for(let i = P.length-1; i >= 0; i--){
+    const p = P[i];
+    while(hi.length >= 2 && cross(hi[hi.length-2], hi[hi.length-1], p) <= 0) hi.pop();
+    hi.push(p);
+  }
+  lo.pop(); hi.pop();
+  return lo.concat(hi);
+}
+function mulberry32(a){ return function(){ a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+
+class ConeLab extends Phaser.Scene {
+  constructor(){ super("conelab"); }
+
+  create(){
+    this.K = 3.4;
+    this.mode = "new";
+    this.heroAngle = 0.5;
+    this.g = this.add.graphics();
+    this.scale.on("resize", () => this.layout());
+    this.layout();
+    this.updateVals();
+  }
+  layout(){
+    this.cx = this.scale.gameSize.width/2;
+    this.cy = this.scale.gameSize.height*0.6;
+  }
+  updateVals(){
+    document.getElementById("vals").textContent =
+      `${CONE.pose === undefined ? "" : ""}height ${CONE.height} · base ${CONE.base} · band ${CONE.band} · pose ${this.pose || "standing"}`;
+  }
+
+  W(x, y, z, ox, oy){
+    return { x:(x - y)*this.K + ox, y:((x + y)*0.5 - z)*this.K + oy };
+  }
+  quad(pts, color, alpha=1){
+    this.g.fillStyle(color, alpha);
+    this.g.fillPoints(pts.map(p => new Phaser.Geom.Point(p.x, p.y)), true);
+  }
+  edge(pts, color, w=2){
+    this.g.lineStyle(w, color, 1);
+    this.g.strokePoints(pts.map(p => new Phaser.Geom.Point(p.x, p.y)), true);
+  }
+
+  drawGround(ox, oy, half){
+    for(let tx=-half; tx<half; tx++){
+      for(let ty=-half; ty<half; ty++){
+        const cxm = tx*TILE*2 + TILE, cym = ty*TILE*2 + TILE;
+        const pts = [
+          this.W(cxm+TILE, cym-TILE, 0, ox, oy), this.W(cxm+TILE, cym+TILE, 0, ox, oy),
+          this.W(cxm-TILE, cym+TILE, 0, ox, oy), this.W(cxm-TILE, cym-TILE, 0, ox, oy)];
+        this.quad(pts, ((tx+ty)%2===0) ? GROUND.a : GROUND.b);
+        this.edge(pts, GROUND.edge, 1.5);
+      }
+    }
+  }
+
+  /* ---------- OLD cone: the current game renderer ---------- */
+  drawConeOld(ox, oy){
+    const g = this.g;
+    const W = (dx, dy, dz) => this.W(dx, dy, dz, ox, oy);
+    const b0=W(-8,-6,0), b1=W(8,-6,0), b2=W(8,6,0), b3=W(-8,6,0), tp=W(0,0,22);
+    this.quad([b0,b1,b2,b3], 0xd85f0a);
+    g.fillStyle(0xff7a1a,1);
+    g.fillTriangle(b0.x, b0.y, b2.x, b2.y, tp.x, tp.y);
+    g.fillStyle(0xffffff,1);
+    g.fillRect(tp.x-7, tp.y+8, 14, 4);
+  }
+
+  /* ---------- NEW cone ----------
+     One rigid build. Standing: horizontal rings stacked up.
+     Knocked: the SAME rings placed lying — each ring vertical at
+     a = its original height, centred at its own radius, which is
+     exactly how a cone rests on its slant side (tip low). */
+  drawConeNew(ox, oy, seed, pose, thOverride){
+    const g = this.g, C = CONE;
+    const rng = mulberry32(seed);
+    const th = thOverride !== undefined ? thOverride : rng()*Math.PI*2;
+    const cs = Math.cos(th), sn = Math.sin(th);
+    const hVar = 0.9 + rng()*0.2;
+    const H = C.height * hVar;
+    const knocked = pose === "knocked";
+
+    const G = (a, b, h) => this.W(a*cs - b*sn, a*sn + b*cs, h, ox, oy);
+    const depthAt = (a, b, h) => a*(cs+sn) + b*(cs-sn) + h*0.4;
+
+    /* ring placement: the one function that encodes the pose */
+    const rOf = h => 8.5 - (8.5 - 1.8) * (h / H);            // cone taper
+    const place = (h, r, n=12) => {
+      const pts = [];
+      for(let i=0; i<n; i++){
+        const phi = (i/n)*Math.PI*2, c = Math.cos(phi)*r, s2 = Math.sin(phi)*r;
+        if(knocked) pts.push(G(1 + h, c, rOf(h) + s2));      // vertical ring, flush to the plate
+        else        pts.push(G(c, s2, h));                    // horizontal ring, stacked
+      }
+      return pts;
+    };
+    const ringDepth = h => knocked ? depthAt(1 + h, 0, rOf(h)) : depthAt(0, 0, h);
+
+    /* shadow */
+    const sh = knocked ? this.W((1 + H/2)*cs, (1 + H/2)*sn, 0, ox, oy)
+                       : this.W(0, 0, 0, ox, oy);
+    g.fillStyle(C.shadow, 0.13);
+    g.fillEllipse(sh.x, sh.y + 2, knocked ? H + 18 : C.base*1.7, knocked ? 20 : C.base*0.75);
+
+    /* base slab: hull box standing; vertical plate resting on edge, knocked */
+    const baseSlab = () => {
+      const hb = C.base/2, pts = [];
+      for(const [a2, b2] of [[-hb,-hb],[hb,-hb],[hb,hb],[-hb,hb]]){
+        if(knocked){ pts.push(G(0, a2, hb + b2)); pts.push(G(3, a2, hb + b2)); }
+        else       { pts.push(G(a2, b2, 0));      pts.push(G(a2, b2, 3)); }
+      }
+      this.quad(convexHull(pts), C.bodyDk);
+      if(!knocked){
+        const top = [G(-hb,-hb,3), G(hb,-hb,3), G(hb,hb,3), G(-hb,hb,3)];
+        this.quad(top, C.body);
+        this.edge(top, C.bodyDk, 1.5);
+      }
+    };
+    /* cone body: frustum hull + white band hull */
+    const body = () => {
+      this.quad(convexHull(place(2, rOf(2)).concat(place(H, 1.8))), C.body);
+      const b0 = H*0.52, b1 = Math.min(H*0.52 + C.band, H*0.9);
+      this.quad(convexHull(place(b0, rOf(b0)+0.5).concat(place(b1, rOf(b1)+0.5))), C.band_c);
+      /* tip cap */
+      this.quad(place(H, 1.8, 8), C.bodyDk);
+    };
+
+    /* depth-sorted parts */
+    const parts = [
+      { d: knocked ? depthAt(1.5, 0, C.base/2) : depthAt(0, 0, 1.5), fn: baseSlab },
+      { d: ringDepth(H*0.45), fn: body }
+    ];
+    parts.sort((x, y) => x.d - y.d);
+    for(const pt of parts) pt.fn();
+  }
+
+  update(t){
+    const g = this.g; g.clear();
+    g.fillStyle(GROUND.sky, 1);
+    g.fillRect(0, 0, this.scale.gameSize.width, this.scale.gameSize.height);
+    this.drawGround(this.cx, this.cy, 3);
+    if(this.mode === "old"){
+      this.drawConeOld(this.cx, this.cy);
+    } else {
+      this.drawConeNew(this.cx, this.cy, 7, this.pose || "standing", this.heroAngle);
+    }
+  }
+}
+
+const game = new Phaser.Game({
+  type: Phaser.AUTO, parent: "game",
+  scale: { mode: Phaser.Scale.RESIZE, width: "100%", height: "100%" },
+  scene: [ConeLab]
+});
+const scn = () => game.scene.getScene("conelab");
+
+document.getElementById("oldBtn").addEventListener("click", e => {
+  scn().mode = "old";
+  e.target.classList.add("on");
+  document.getElementById("newBtn").classList.remove("on");
+});
+document.getElementById("newBtn").addEventListener("click", e => {
+  scn().mode = "new";
+  e.target.classList.add("on");
+  document.getElementById("oldBtn").classList.remove("on");
+});
+document.getElementById("poseBtn").addEventListener("click", e => {
+  const s = scn();
+  s.pose = (s.pose || "standing") === "standing" ? "knocked" : "standing";
+  e.target.textContent = s.pose.toUpperCase();
+  s.updateVals();
+});
+document.getElementById("rotL").addEventListener("click", () => { scn().heroAngle -= Math.PI/8; });
+document.getElementById("rotR").addEventListener("click", () => { scn().heroAngle += Math.PI/8; });
+document.getElementById("zoomIn").addEventListener("click", () => { scn().K = Math.min(scn().K + 0.4, 6); });
+document.getElementById("zoomOut").addEventListener("click", () => { scn().K = Math.max(scn().K - 0.4, 1.4); });
+document.querySelectorAll("[data-p]").forEach(btn => {
+  btn.addEventListener("click", () => {
+    const p = btn.dataset.p, d = +btn.dataset.d;
+    if(p === "height") CONE.height = Phaser.Math.Clamp(CONE.height + d*3, 16, 44);
+    if(p === "base")   CONE.base   = Phaser.Math.Clamp(CONE.base + d*2, 12, 26);
+    if(p === "band")   CONE.band   = Phaser.Math.Clamp(CONE.band + d*1, 0, 9);
+    scn().updateVals();
+  });
+});
+</script>
+</body>
+</html>
