@@ -33,6 +33,56 @@ const SKIN = {
   belly:0x494e58, flagPole:0x2e3138, flag:0xff5722, shadow:0x000000
 };
 const DIRV = [{x:1,y:0},{x:0,y:1},{x:-1,y:0},{x:0,y:-1}];
+/* approved palm (palm lab, 2026-07-07): the Costa Palma house style */
+const PALM = {
+  height: 165, fronds: 8, droop: 1.0, wind: 1.0, trunkLean: 0.16,
+  trunk: 0x8a6a48, trunkDk: 0x6f5439, ring: 0x7a5c40,
+  frondA: 0x4e8f4a, frondB: 0x3f7a3e,
+  coco: 0x6b4f33, cocoHi: 0x7d5e40, shadow: 0x000000
+};
+const PALM_DWARF = {   // approved in palm lab: bush-type dwarf palm
+  height: 55, fronds: 8, droop: 0.3, wind: 0.3, spread: 1.0, trunkLean: 0.16,
+  trunk: 0x8a6a48, trunkDk: 0x6f5439, ring: 0x7a5c40,
+  frondA: 0x4e8f4a, frondB: 0x3f7a3e,
+  coco: 0x6b4f33, cocoHi: 0x7d5e40, shadow: 0x000000
+};
+
+/* approved cone (cone lab, 2026-07-07) */
+const CONE = {
+  height: 38, base: 18, band: 0,
+  body: 0xff7a1a, bodyDk: 0xd85f0a, band_c: 0xf4f5f7, shadow: 0x000000
+};
+
+/* approved scooter (scooter lab, 2026-07-07): stem 42 · bar 13 · wheel 5 */
+const SCOOT = {
+  stemH: 42, barW: 13, wheelR: 5,
+  deck: 0x2e3138, grip: 0x3d424c,
+  wheel: 0x24262c, wheelDk: 0x17191d, hub: 0x8a919c, hubFace: 0x3d424c,
+  metal: 0x9aa3ad, metalDk: 0x707a85, shadow: 0x000000
+};
+const BRANDS = [
+  { n:"teal",  c:0x2ec4b6, cDk:0x1f857c },
+  { n:"lime",  c:0x8bc34a, cDk:0x649238 },
+  { n:"coral", c:0xff6b6b, cDk:0xc94f4f }
+];
+function convexHull(pts){
+  const P2 = pts.slice().sort((a,b) => a.x - b.x || a.y - b.y);
+  const cross = (o, a, b) => (a.x-o.x)*(b.y-o.y) - (a.y-o.y)*(b.x-o.x);
+  const lo = [], hi = [];
+  for(const p of P2){
+    while(lo.length >= 2 && cross(lo[lo.length-2], lo[lo.length-1], p) <= 0) lo.pop();
+    lo.push(p);
+  }
+  for(let i = P2.length-1; i >= 0; i--){
+    const p = P2[i];
+    while(hi.length >= 2 && cross(hi[hi.length-2], hi[hi.length-1], p) <= 0) hi.pop();
+    hi.push(p);
+  }
+  lo.pop(); hi.pop();
+  return lo.concat(hi);
+}
+function mulberry32(a){ return function(){ a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+
 const TILE = 46;
 const BODY = { hx:26, hy:20, z0:14, z1:54 };
 const LID  = { hx:22, hy:16, z0:54, z1:61 };
@@ -208,10 +258,13 @@ class GalleryScene extends Phaser.Scene {
         this.setPose({ K:1.8, dy });
         this.drawProp(this.g, kind, 0, 0, t);
       }, wide);
-    P("palm", 210, false, 90);
-    P("scooter", 210, false, 40);
+    P("palm", 340, true, 150);
+    P("palmDwarf", 190, false, 60);
+    P("scooter", 200, false, 45);
+    P("scooterStanding", 230, false, 75);
     P("trash");
-    P("cone");
+    P("cone", 190, false, 60);
+    P("coneTipped", 150, false, 45);
     P("hydrant");
     P("planter");
     P("dog");
@@ -252,7 +305,8 @@ class GalleryScene extends Phaser.Scene {
       const x2 = x*c - z*s; z = x*s + z*c; x = x2;
     }
     if(this.roll !== 0){
-      const PIV = 22, y0 = y + PIV, c = Math.cos(this.roll), s = Math.sin(this.roll);
+      const PIV = this.roll >= 0 ? 22 : -22;
+      const y0 = y + PIV, c = Math.cos(this.roll), s = Math.sin(this.roll);
       y = -PIV + y0*c - z*s; z = y0*s + z*c;
     }
     let rx = x, ry = y;
@@ -296,8 +350,9 @@ class GalleryScene extends Phaser.Scene {
   }
 
   lidNear(b){
-    const A = this.lidAng, c = Math.cos(A), s = Math.sin(A);
-    const yh = -b.hy, zh = b.z0;
+    const hs = (this.tipDir || 1) >= 0 ? 1 : -1;
+    const A = this.lidAng * hs, c = Math.cos(A), s = Math.sin(A);
+    const yh = -b.hy * hs, zh = b.z0;
     const dy = -yh, dz = (b.z1 - b.z0)/2;
     return this.depth(0, yh + dy*c - dz*s, zh + dy*s + dz*c) > this.depth(0, 0, 34);
   }
@@ -513,46 +568,233 @@ class GalleryScene extends Phaser.Scene {
   drawProp(g, kind, x, y, t, fdir = 0, z = 0){
     const dv = DIRV[fdir], rv = DIRV[(fdir+1)%4];
     const W = (dx, dy, dz) => this.W(x + dv.x*dx + rv.x*dy, y + dv.y*dx + rv.y*dy, z + dz);
-    if(kind === "palm"){
-      const sway = Math.sin(t*0.0012 + x)*3;
-      g.lineStyle(7, 0x8a6a48, 1);
-      g.beginPath(); g.moveTo(W(0,0,0).x, W(0,0,0).y);
-      const top = W(sway, 0, 95);
-      g.lineTo(top.x, top.y); g.strokePath();
-      g.fillStyle(0x4e8f4a, 1);
-      for(let i=0; i<6; i++){
-        const a = (i/6)*Math.PI*2 + t*0.0006;
-        const fx = Math.cos(a)*34, fy = Math.sin(a)*20;
-        const f = this.W(x+sway+fx, y+fy, z+95-8);
-        g.fillTriangle(top.x, top.y, f.x-7, f.y, f.x+7, f.y+4);
+    if(kind === "palm" || kind === "palmDwarf"){
+      /* approved in palm lab — tall (165/8/1.0) and dwarf (55/8/0.3) presets */
+      const P = kind === "palmDwarf" ? PALM_DWARF : PALM, K = this.K;
+      const o = W(0, 0, 0);
+      const seed = ((Math.round(x)*7919) ^ (Math.round(y)*104729)) >>> 0;
+      const rng = mulberry32(seed);
+      const lean = P.trunkLean * (rng()*2 - 1) * 2;
+      const H = P.height * (0.85 + rng()*0.3);
+      const phase = rng()*Math.PI*2;
+      const sway = Math.sin(t*0.0011 + phase) * 3.2 * P.wind;
+
+      g.fillStyle(P.shadow, 0.13);
+      g.fillEllipse(o.x + lean*22*K, o.y + 3, (36 + H*0.14)*K, 12*K);
+
+      const SEG = 8, spine = [];
+      for(let i=0; i<=SEG; i++){
+        const u = i/SEG;
+        spine.push({ x: o.x + (lean*H*u*u + sway*u*u)*K, y: o.y - H*u*K, w: (7.5 - 4.5*u)*K });
       }
-      g.fillStyle(0x6b4f33, 1);
-      g.fillCircle(top.x, top.y+2, 5);
-    } else if(kind === "scooter"){
-      // rental scooter, lying flat across the pavement (the LA classic)
-      g.fillStyle(0x2ec4b6, 1);
-      const a=W(-18,0,3), b=W(18,4,3), c2=W(18,10,2), dd=W(-18,6,2);
-      this.quadOn(g, [a,b,c2,dd], 0x2ec4b6);
-      g.lineStyle(4, 0x1f857c, 1);
-      const h0=W(14,2,3), h1=W(34,2,10);
-      g.lineBetween(h0.x, h0.y, h1.x, h1.y);
-      g.lineBetween(h1.x-6, h1.y-2, h1.x+6, h1.y-4);
-      g.fillStyle(0x24262c,1);
-      g.fillEllipse(W(-16,3,2).x, W(-16,3,2).y, 9, 5);
-      g.fillEllipse(W(16,7,2).x, W(16,7,2).y, 9, 5);
+      for(let i=0; i<SEG; i++){
+        const a2 = spine[i], b2 = spine[i+1];
+        this.quadOn(g, [
+          {x:a2.x-a2.w/2, y:a2.y}, {x:a2.x+a2.w/2, y:a2.y},
+          {x:b2.x+b2.w/2, y:b2.y}, {x:b2.x-b2.w/2, y:b2.y}
+        ], i % 2 === 0 ? P.trunk : P.trunkDk);
+        if(i % 2 === 1){
+          g.lineStyle(1.5, P.ring, 1);
+          g.lineBetween(a2.x-a2.w/2, a2.y, a2.x+a2.w/2, a2.y);
+        }
+      }
+      const crown = spine[SEG];
+      const fronds = [];
+      for(let i=0; i<P.fronds; i++){
+        const baseA = (i/P.fronds)*Math.PI*2 + rng()*0.25;
+        const dirY = Math.sin(baseA)*0.45 - 0.12;
+        fronds.push({
+          dirX: Math.cos(baseA), dirY,
+          flut: Math.sin(t*0.0021 + phase + i*1.7) * 0.06 * P.wind,
+          len: (44 + rng()*14)*(P.spread || 1)*K,
+          back: dirY < -0.18
+        });
+      }
+      const drawFrond = (f2, color) => {
+        const steps = 7;
+        let px = crown.x, py = crown.y;
+        for(let sI=1; sI<=steps; sI++){
+          const u = sI/steps;
+          const nx = crown.x + f2.dirX*f2.len*u;
+          const ny = crown.y + f2.dirY*f2.len*u + (P.droop*30*u*u + f2.flut*26*u)*K;
+          const lw = (9 - 7*u)*K;
+          const tx2 = nx - px, ty2 = ny - py;
+          const tl = Math.hypot(tx2, ty2) || 1;
+          const pxn = -ty2/tl, pyn = tx2/tl;
+          g.fillStyle(color, 1);
+          g.fillTriangle(px, py, nx, ny, px + pxn*lw + tx2*0.3, py + pyn*lw + ty2*0.3);
+          g.fillTriangle(px, py, nx, ny, px - pxn*lw + tx2*0.3, py - pyn*lw + ty2*0.3);
+          px = nx; py = ny;
+        }
+      };
+      for(const f2 of fronds) if(f2.back) drawFrond(f2, P.frondB);
+      for(let i=0; i<3; i++){
+        const a3 = phase + i*2.1;
+        g.fillStyle(i === 1 ? P.cocoHi : P.coco, 1);
+        g.fillCircle(crown.x + Math.cos(a3)*6*K, crown.y + 4*K + Math.sin(a3)*3*K, 4.2*K);
+      }
+      for(const f2 of fronds) if(!f2.back) drawFrond(f2, P.frondA);
+    } else if(kind === "scooter" || kind === "scooterStanding"){
+      /* approved in scooter lab: stem 42 · bar 13 · wheel 5, brand-liveried.
+         ONE rigid standing build; dumped = laid on its side. Seeded pose
+         (~80% dumped), scatter rotation, rental brand. */
+      const S = SCOOT;
+      const seed = ((Math.round(x)*7919) ^ (Math.round(y)*104729)) >>> 0;
+      const rng = mulberry32(seed);
+      const sth = (rng()*2 - 1) * Math.PI * 0.9;
+      const scs = Math.cos(sth), ssn = Math.sin(sth);
+      const brand = BRANDS[Math.floor(rng()*BRANDS.length)];
+      const lay = kind === "scooterStanding" ? false : rng() < 0.8;
+      const L = 1;
+
+      const M = (a, b, h) => lay ? { a, b: -h - 2, h: (b + 7) * 0.55 } : { a, b, h };
+      const GG = (a, b, h) => {
+        const m = M(a, b, h);
+        return W(m.a*scs - m.b*ssn, m.a*ssn + m.b*scs, m.h);
+      };
+      const dAt = (a, b, h) => {
+        const m = M(a, b, h);
+        return m.a*(scs+ssn) + m.b*(scs-ssn) + m.h*0.4;
+      };
+
+      const wheelR = S.wheelR*L;
+      const stemBaseA = 11*L, stemBaseH = 5.2;
+      const stemTipA = 13*L, stemTipH = 4 + S.stemH*L;
+      const fwA = 16*L + wheelR*0.95;
+      const rwA = -20*L - wheelR*0.9;
+      const wheelH = wheelR*0.72;
+
+      const ringAt = (a0, b0, h0, r, d1, d2, n=12) => {
+        const pts = [];
+        for(let i=0; i<n; i++){
+          const phi = (i/n)*Math.PI*2, c3 = Math.cos(phi)*r, s3 = Math.sin(phi)*r;
+          pts.push(GG(a0 + c3*d1.a + s3*d2.a, b0 + c3*d1.b + s3*d2.b, h0 + c3*d1.h + s3*d2.h));
+        }
+        return pts;
+      };
+      const U = {a:1,b:0,h:0}, VV = {a:0,b:1,h:0}, HHH = {a:0,b:0,h:1};
+
+      const shp = lay ? W(-26*ssn, 26*scs, 0) : W(2*scs, 2*ssn, 0);
+      g.fillStyle(S.shadow, 0.13);
+      g.fillEllipse(shp.x, shp.y, ((lay ? 84 : 50)*L)*this.K*0.45, (lay ? 30 : 18)*this.K*0.4);
+
+      const WW = 4.6;
+      const swheel = (a, r) => {
+        if(!lay){
+          const csh = GG(a, 0, 0);
+          g.fillStyle(S.shadow, 0.12);
+          g.fillEllipse(csh.x, csh.y + 2, r*2.4, r*0.9);
+        }
+        const end = k => ringAt(a, k, wheelH, r, U, HHH, 14);
+        this.quadOn(g, convexHull(end(-WW/2).concat(end(WW/2))), S.wheelDk);
+        const kF = dAt(a, WW/2, wheelH) > dAt(a, -WW/2, wheelH) ? WW/2 : -WW/2;
+        const face = rr => ringAt(a, kF, wheelH, rr, U, HHH, 14);
+        this.quadOn(g, face(r), S.wheel);
+        this.quadOn(g, face(r*0.42), S.hubFace);
+        this.quadOn(g, face(r*0.2), S.hub);
+      };
+      const sdeck = () => {
+        const top = [], bot = [];
+        for(const bc of [[-20*L,-7],[16*L,-7],[16*L,7],[-20*L,7]]){
+          top.push(GG(bc[0], bc[1], 5.2)); bot.push(GG(bc[0], bc[1], 0.8));
+        }
+        this.quadOn(g, convexHull(top.concat(bot)), brand.cDk);
+        this.quadOn(g, top, brand.c);
+        this.quadOn(g, [GG(-16*L,-4,5.6), GG(8*L,-4,5.6), GG(8*L,4,5.6), GG(-16*L,4,5.6)], S.grip);
+      };
+      const sstem = () => {
+        const da = stemTipA - stemBaseA, dh = stemTipH - stemBaseH;
+        const slen = Math.hypot(da, dh) || 1;
+        const perp = {a:-dh/slen, b:0, h:da/slen};
+        const base = ringAt(stemBaseA, 0, stemBaseH, 3.1, VV, perp, 10);
+        const tip  = ringAt(stemTipA, 0, stemTipH, 2.0, VV, perp, 10);
+        this.quadOn(g, convexHull(base.concat(tip)), brand.c);
+      };
+      const sbar = () => {
+        const capsule = (b0, b1, r, col) => {
+          const e0 = ringAt(stemTipA, b0, stemTipH, r, U, HHH, 8);
+          const e1 = ringAt(stemTipA, b1, stemTipH, r, U, HHH, 8);
+          this.quadOn(g, convexHull(e0.concat(e1)), col);
+        };
+        capsule(-S.barW, S.barW, 1.6, S.metal);
+        capsule(-S.barW, -S.barW + 6, 2.5, S.deck);
+        capsule(S.barW - 6, S.barW, 2.5, S.deck);
+      };
+      const skick = () => {
+        const ks0 = GG(-4*L, -7, 4), ks1 = GG(-6*L, -12, 0);
+        g.lineStyle(2.5, S.metalDk, 1);
+        g.lineBetween(ks0.x, ks0.y, ks1.x, ks1.y);
+      };
+
+      const sparts = [
+        { d: dAt(rwA, 0, wheelH),  fn: () => swheel(rwA, wheelR) },
+        { d: dAt(-2*L, 0, 3),      fn: sdeck },
+        { d: dAt((stemBaseA + stemTipA)/2, 0, (stemBaseH + stemTipH)/2), fn: sstem },
+        { d: dAt(fwA, 0, wheelH),  fn: () => swheel(fwA, wheelR*0.92) },
+        { d: dAt(stemTipA, 0, stemTipH), fn: sbar },
+        { d: dAt(-5*L, -9, 3),     fn: skick }
+      ];
+      sparts.sort((p1, p2) => p1.d - p2.d);
+      for(const pt of sparts) pt.fn();
     } else if(kind === "trash"){
       g.fillStyle(0x3b3f47, 1);
       g.fillEllipse(W(0,0,6).x, W(0,0,6).y, 26, 18);
       g.fillEllipse(W(6,3,10).x, W(6,3,10).y, 18, 13);
       g.lineStyle(2, 0x2b2e34, 1);
       g.strokeEllipse(W(0,0,6).x, W(0,0,6).y, 26, 18);
-    } else if(kind === "cone"){
-      const b0=W(-8,-6,0), b1=W(8,-6,0), b2=W(8,6,0), b3=W(-8,6,0), tp=W(0,0,22);
-      this.quadOn(g, [b0,b1,b2,b3], 0xd85f0a);
-      g.fillStyle(0xff7a1a,1);
-      g.fillTriangle(b0.x, b0.y, b2.x, b2.y, tp.x, tp.y);
-      g.fillStyle(0xffffff,1);
-      g.fillRect(tp.x-7, tp.y+8, 14, 4);
+    } else if(kind === "cone" || kind === "coneTipped"){
+      /* approved in cone lab: height 38 · base 18 · no band. coneTipped is
+         the same rigid cone resting on its slant side. */
+      const C = CONE, K = this.K;
+      const seed = ((Math.round(x)*7919) ^ (Math.round(y)*104729)) >>> 0;
+      const rng = mulberry32(seed);
+      const cth = rng()*Math.PI*2;
+      const cc = Math.cos(cth), sc = Math.sin(cth);
+      const H = C.height * (0.9 + rng()*0.2);
+      const knocked = kind === "coneTipped";
+      const GG = (a, b, h) => W(a*cc - b*sc, a*sc + b*cc, h);
+      const dAt = (a, b, h) => a*(cc+sc) + b*(cc-sc) + h*0.4;
+      const rOf = hh => 8.5 - (8.5 - 1.8) * (hh / H);
+      const place = (hh, r, n=12) => {
+        const pts = [];
+        for(let i=0; i<n; i++){
+          const phi = (i/n)*Math.PI*2, c3 = Math.cos(phi)*r, s3 = Math.sin(phi)*r;
+          if(knocked) pts.push(GG(1 + hh, c3, rOf(hh) + s3));
+          else        pts.push(GG(c3, s3, hh));
+        }
+        return pts;
+      };
+      const sh = knocked ? GG(1 + H/2, 0, 0) : GG(0, 0, 0);
+      g.fillStyle(C.shadow, 0.13);
+      g.fillEllipse(sh.x, sh.y + 2, (knocked ? H + 16 : C.base*1.6)*K*0.55,
+                    (knocked ? 14 : C.base*0.7)*K*0.55);
+      const baseSlab = () => {
+        const hb = C.base/2, pts = [];
+        for(const bc of [[-hb,-hb],[hb,-hb],[hb,hb],[-hb,hb]]){
+          if(knocked){ pts.push(GG(0, bc[0], hb + bc[1])); pts.push(GG(3, bc[0], hb + bc[1])); }
+          else       { pts.push(GG(bc[0], bc[1], 0));      pts.push(GG(bc[0], bc[1], 3)); }
+        }
+        this.quadOn(g, convexHull(pts), C.bodyDk);
+        if(!knocked){
+          const top = [GG(-hb,-hb,3), GG(hb,-hb,3), GG(hb,hb,3), GG(-hb,hb,3)];
+          this.quadOn(g, top, C.body);
+          this.edgeOn(g, top, C.bodyDk, 1.5);
+        }
+      };
+      const body = () => {
+        this.quadOn(g, convexHull(place(2, rOf(2)).concat(place(H, 1.8))), C.body);
+        if(C.band > 0){
+          const b0 = H*0.52, b1 = Math.min(H*0.52 + C.band, H*0.9);
+          this.quadOn(g, convexHull(place(b0, rOf(b0)+0.5).concat(place(b1, rOf(b1)+0.5))), C.band_c);
+        }
+        this.quadOn(g, place(H, 1.8, 8), C.bodyDk);
+      };
+      const cparts = [
+        { d: knocked ? dAt(1.5, 0, C.base/2) : dAt(0, 0, 1.5), fn: baseSlab },
+        { d: knocked ? dAt(1 + H*0.45, 0, rOf(H*0.45)) : dAt(0, 0, H*0.45), fn: body }
+      ];
+      cparts.sort((p1, p2) => p1.d - p2.d);
+      for(const pt of cparts) pt.fn();
     } else if(kind === "hydrant"){
       g.fillStyle(0xd8b23a, 1);
       const p=W(0,0,0);
@@ -624,8 +866,9 @@ class GalleryScene extends Phaser.Scene {
 
   drawLid(b){
     const {hx, hy, z0, z1} = b;
-    const A = this.lidAng, cA = Math.cos(A), sA = Math.sin(A);
-    const yh = -hy, zh = z0;                     // hinge line
+    const hs = (this.tipDir || 1) >= 0 ? 1 : -1; // hinge on the side that meets the ground
+    const A = this.lidAng * hs, cA = Math.cos(A), sA = Math.sin(A);
+    const yh = -hy * hs, zh = z0;                // hinge line
     const H = (x, y, z) => {                     // hinge rotation, then normal pipeline
       const dy = y - yh, dz = z - zh;
       return this.P(x, yh + dy*cA - dz*sA, zh + dy*sA + dz*cA);
