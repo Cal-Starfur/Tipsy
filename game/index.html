@@ -168,6 +168,16 @@ const DOG = {
   eye: 0x1c1e24, glint: 0xf4f2ec, nose: 0x25272d,
   collar: 0xd94f3d, shadow: 0x000000
 };
+/* approved in bin lab: height 40 · base 13 · lid 15 · band 3 (standing) / 0 (knocked) */
+const BIN = {
+  height: 40, baseR: 13, lidR: 15, band: 3,
+  body: 0x3f5147, bodyDk: 0x2e3d35,
+  band_c: 0xd8dade,
+  lid: 0x4a5d52, lidDk: 0x384539,
+  pedal: 0x8a919c, pedalDk: 0x5f656e,
+  liner: 0x1f2822,
+  shadow: 0x000000
+};
    // facing 0..3
 const CORNER_R = 130;
 const SPAWN_S = 60;
@@ -245,7 +255,7 @@ function generateRoute(dateStr){
                                        type = rng() < 0.6 ? "scooter" : "trash";
     else if(r2 < 0.75)                 type = rng() < 0.5 ? "driveway"
                                             : (rng() < 0.6 ? "cone" : "coneTipped");
-    else                               type = rng() < 0.5 ? "dog" : "bin";
+    else                               type = rng() < 0.5 ? "dog" : (rng() < 0.6 ? "bin" : "binKnocked");
     hazards.push({ type, s: Math.round(hs),
                    row: type === "driveway" ? 0.5 : Math.floor(rng()*3) - 1,
                    f: facingAt(hs), hit:false });
@@ -979,14 +989,126 @@ class WorldScene extends Phaser.Scene {
       g.fillStyle(0x24262c, 1);
       g.fillEllipse(W(-26,17,3).x, W(-26,17,3).y, 16, 10);
       g.fillEllipse(W(24,17,3).x, W(24,17,3).y, 16, 10);
-    } else if(kind === "bin"){
-      const p=W(0,0,0);
-      g.fillStyle(0x3f5147, 1);
-      g.fillRect(p.x-10, p.y-26, 20, 26);
-      g.fillEllipse(p.x, p.y-26, 20, 9);
-      g.fillEllipse(p.x, p.y, 22, 9);
-      g.lineStyle(2, 0x2e3d35, 1);
-      g.strokeRect(p.x-10, p.y-26, 20, 26);
+    } else if(kind === "bin" || kind === "binKnocked"){
+      /* approved in bin lab: height 40 · base 13 · lid 15 · band 3
+         standing / 0 knocked. Knocked is the SAME barrel resting on
+         its side (same trick as cone), lid sprung open, trash spilled. */
+      const B = BIN;
+      const seed = ((Math.round(x)*7919) ^ (Math.round(y)*104729) ^ 0x8177) >>> 0;
+      const rng = mulberry32(seed);
+      const bth = rng()*Math.PI*2;
+      const bcs = Math.cos(bth), bsn = Math.sin(bth);
+      const H = B.height;
+      const knocked = kind === "binKnocked";
+      const band = knocked ? 0 : B.band;
+      const GG = (a, b, h) => W(a*bcs - b*bsn, a*bsn + b*bcs, h);
+      const dAt = (a, b, h) => a*(bcs+bsn) + b*(bcs-bsn) + h*0.4;
+
+      const rOf = h => { const u = h / H; return B.baseR * (0.88 + 0.12*Math.sin(u*Math.PI)); };
+      const place = (h, r, n=14) => {
+        const pts = [];
+        for(let i=0; i<n; i++){
+          const phi = (i/n)*Math.PI*2, c3 = Math.cos(phi)*r, s3 = Math.sin(phi)*r;
+          if(knocked) pts.push(GG(1 + h, c3, r + s3));
+          else        pts.push(GG(c3, s3, h));
+        }
+        return pts;
+      };
+      const ringDepth = h => knocked ? dAt(1 + h, 0, rOf(h)) : dAt(0, 0, h);
+
+      const bsh = knocked ? GG(1 + H/2, 0, 0) : GG(0, 0, 0);
+      g.fillStyle(B.shadow, 0.14);
+      g.fillEllipse(bsh.x, bsh.y + 2, (knocked ? H + 20 : B.lidR*2.1)*this.K*0.42,
+                    (knocked ? 22 : B.lidR*0.95)*this.K*0.42);
+
+      const bbody = () => {
+        /* safety-net base: one full hull, so even if a rib band's
+           hull is imperfect at its edge, whatever shows through is
+           still correct barrel color, never sky. */
+        const n = 6, all = [];
+        for(let i=0; i<=n; i++) all.push(...place(i/n*H, rOf(i/n*H)));
+        this.quadOn(g, convexHull(all), B.body);
+        /* corrugated ribbing: full-contrast alternating bands, same
+           wide 6-segment spacing as the base hull (not the original
+           10-thin-band version, whose narrow slivers near the tapered
+           ends were the actual source of the stray-piece artifact). */
+        const ribN = 6, ribs = [];
+        for(let i=0; i<=ribN; i++) ribs.push(place(i/ribN*H, rOf(i/ribN*H)));
+        for(let i=0; i<ribN; i++){
+          this.quadOn(g, convexHull(ribs[i].concat(ribs[i+1])), i % 2 === 0 ? B.body : B.bodyDk);
+        }
+        /* shadow half: lower hull only, darkens the ground-facing side */
+        const lowerN = 3, lower = [];
+        for(let i=0; i<=lowerN; i++) lower.push(...place(i/lowerN*(H*0.5), rOf(i/lowerN*(H*0.5))));
+        this.quadOn(g, convexHull(lower), B.bodyDk, 0.2);
+        if(band > 0){
+          const b0 = H*0.6, b1 = Math.min(b0 + band, H*0.92);
+          this.quadOn(g, convexHull(place(b0, rOf(b0)+0.3).concat(place(b1, rOf(b1)+0.3))), B.band_c);
+          /* back ellipse: dark far wall glimpsed over the top edge of
+             the band — without this the band reads as a flat painted
+             stripe; with it, it reads as a rim with real depth behind. */
+          this.quadOn(g, place(b1, rOf(b1)*0.7, 12), B.liner);
+        }
+        /* liner lip: the dark interior only reads as visible when the
+           mouth end is actually the NEAR side of the tube. When knocked
+           and rotated so the mouth faces away, this must stay hidden —
+           otherwise it paints through the barrel's own far wall. */
+        const mouthFacing = !knocked || (bcs + bsn) > 0;
+        if(mouthFacing) this.quadOn(g, place(H - 0.5, rOf(H)*0.86, 12), B.liner);
+      };
+      const blid = () => {
+        if(!knocked){
+          const rim = place(H, B.lidR, 14);
+          this.quadOn(g, rim, B.lidDk);
+          const dome = [];
+          for(let i=0; i<12; i++){
+            const phi = (i/12)*Math.PI*2, r2 = B.lidR*0.82;
+            dome.push(GG(Math.cos(phi)*r2, Math.sin(phi)*r2, H + 2.6));
+          }
+          this.quadOn(g, dome, B.lid);
+          const knob = GG(0, 0, H + 4.4);
+          g.fillStyle(B.lidDk, 1);
+          g.fillCircle(knob.x, knob.y, 2.6*this.K*0.45);
+          const hinge = GG(-B.lidR*0.85, 0, H + 0.6);
+          g.fillStyle(B.pedalDk, 1);
+          g.fillCircle(hinge.x, hinge.y, 1.6*this.K*0.45);
+        } else {
+          /* lid lies flat on the ground, just past the OPEN end of
+             the fallen barrel — mouth is at a = 1+H (not the closed
+             base at a = 1), so the lid sits beyond that. */
+          const La = 1 + H + B.lidR*0.75, Lh = 1;
+          const disc = [], inner = [];
+          for(let i=0; i<12; i++){
+            const phi = (i/12)*Math.PI*2;
+            disc.push(GG(La + Math.cos(phi)*B.lidR, Math.sin(phi)*B.lidR, Lh));
+            const r2 = B.lidR*0.8;
+            inner.push(GG(La + Math.cos(phi)*r2, Math.sin(phi)*r2, Lh + 0.7));
+          }
+          this.quadOn(g, disc, B.lidDk);
+          this.quadOn(g, inner, B.lid);
+          const knob = GG(La, 0, Lh + 1.3);
+          g.fillStyle(B.lidDk, 1);
+          g.fillCircle(knob.x, knob.y, 2.2*this.K*0.45);
+        }
+      };
+      const bpedal = () => {
+        if(knocked) return;
+        const a0 = GG(B.baseR*0.55, 0, 1.5);
+        const a1 = GG(B.baseR*0.95, 0, 5.5);
+        g.lineStyle(Math.max(1.5, 1.4*this.K*0.4), B.pedalDk, 1);
+        g.lineBetween(a0.x, a0.y, a1.x, a1.y);
+        const p0 = GG(B.baseR*0.95, -3.2, 0.6), p1 = GG(B.baseR*1.25, 3.2, 0.6);
+        g.fillStyle(B.pedal, 1);
+        g.fillEllipse((p0.x+p1.x)/2, (p0.y+p1.y)/2, 7*this.K*0.42, 3*this.K*0.42);
+      };
+
+      const bparts = [
+        { d: knocked ? dAt(1.5, 0, B.baseR) : dAt(0, 0, 1.5), fn: bbody },
+        { d: knocked ? dAt(0.5, -6, 3) : dAt(B.baseR*0.9, 0, 3), fn: bpedal },
+        { d: knocked ? dAt(1+H+B.lidR*0.75, 0, 1) : ringDepth(H), fn: blid }
+      ];
+      bparts.sort((p1, p2) => p1.d - p2.d);
+      for(const pt of bparts) pt.fn();
     } else if(kind === "driveway"){
       // concrete apron cutting across the sidewalk — the cross-slope hazard
       this.quadOn(g, [
@@ -1081,11 +1203,11 @@ class WorldScene extends Phaser.Scene {
           if(Math.abs(dx) > 40) hz.hit = false;            // re-arm after backing off
         } else if(!hz.hit && Math.abs(dx) < 26 && hz.row === this.botRow){
           hz.hit = true;
-          const sev = { crack:4, cone:6, coneTipped:5, trash:7, bin:8, scooter:9, dog:5 }[hz.type] ?? 5;
+          const sev = { crack:4, cone:6, coneTipped:5, trash:7, bin:8, binKnocked:9, scooter:9, dog:5 }[hz.type] ?? 5;
           const kick = this.speed * sev * (Math.random() < 0.5 ? 1 : -1);
           this.tilt += kick;
           this.damage = Math.min(95, this.damage + Math.abs(kick)*46);
-          if(hz.type === "scooter" || hz.type === "bin") this.speed *= 0.45;
+          if(hz.type === "scooter" || hz.type === "bin" || hz.type === "binKnocked") this.speed *= 0.45;
           if(hz.type === "trash") this.speed *= 0.65;
         }
       }
