@@ -146,7 +146,7 @@ class LabScene extends Phaser.Scene {
   }
   T(x, y, z){                      // full model transform: tip roll, then facing
     if(this.roll !== 0){
-      const PIV = 22;              // ground-contact edge he falls over
+      const PIV = this.roll >= 0 ? 22 : -22;   // pivot on the grounded edge
       const y0 = y + PIV, c = Math.cos(this.roll), s = Math.sin(this.roll);
       y = -PIV + y0*c - z*s;
       z = y0*s + z*c;
@@ -170,15 +170,17 @@ class LabScene extends Phaser.Scene {
   }
   rollPt(x, y, z){                 // roll only — no facing (for world-space spawns)
     if(this.roll === 0) return {x, y, z};
-    const PIV = 22, y0 = y + PIV, c = Math.cos(this.roll), s = Math.sin(this.roll);
+    const PIV = this.roll >= 0 ? 22 : -22;
+    const y0 = y + PIV, c = Math.cos(this.roll), s = Math.sin(this.roll);
     return { x, y:-PIV + y0*c - z*s, z:y0*s + z*c };
   }
 
   /* the lid: a box on a hinge along its rear edge; swings open by this.lidAng */
   drawLid(b){
     const {hx, hy, z0, z1} = b;
-    const A = this.lidAng, cA = Math.cos(A), sA = Math.sin(A);
-    const yh = -hy, zh = z0;                     // hinge line
+    const hs = (this.tipDir || 1) >= 0 ? 1 : -1; // hinge on the side that meets the ground
+    const A = this.lidAng * hs, cA = Math.cos(A), sA = Math.sin(A);
+    const yh = -hy * hs, zh = z0;                // hinge line
     const H = (x, y, z) => {                     // hinge rotation, then normal pipeline
       const dy = y - yh, dz = z - zh;
       return this.P(x, yh + dy*cA - dz*sA, zh + dy*sA + dz*cA);
@@ -231,11 +233,12 @@ class LabScene extends Phaser.Scene {
       { n:{x:0,y:-1,z:0}, pts:[C( 1,-1,0), C(-1,-1,0), C(-1,-1,1), C( 1,-1,1)], kind:"side" }
     ];
     for(const fc of faces){
+      if(decal && fc.n.z !== 0) continue;        // decal band: side faces only
       const w = this.R(fc.n.x, fc.n.y, fc.n.z);
       const vis = (w.x + w.y + w.z) > 0;
       if(!vis) continue;
       let col;
-      if(w.z > 0.5)       col = cTop;
+      if(w.z > 0.5)       col = decal ? cRight : cTop;
       else if(w.z < -0.5) col = decal ? null : cBottom;
       else                col = (w.x >= w.y) ? cRight : cLeft;
       if(col == null) continue;
