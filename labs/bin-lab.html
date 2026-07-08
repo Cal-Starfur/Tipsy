@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>TIPSY — Bin Lab</title>
+<style>
+  html,body{margin:0;padding:0;background:#14161b;height:100%;overflow:hidden;touch-action:manipulation;
+    font-family:-apple-system,'Helvetica Neue',Arial,sans-serif;-webkit-user-select:none;user-select:none;color:#e8eaef;}
+  #wrap{display:flex;flex-direction:column;height:100%;}
+  #game{flex:1;min-height:0;}
+  #panel{padding:10px 12px calc(14px + env(safe-area-inset-bottom));background:#1c1f26;border-top:1px solid #2b2f38;}
+  .row{display:flex;gap:8px;margin-bottom:8px;align-items:center;}
+  .row:last-child{margin-bottom:0;}
+  .lbl{font-size:11px;letter-spacing:1.5px;color:#8f95a1;width:56px;text-transform:uppercase;}
+  button{flex:1;background:#262a33;color:#e8eaef;border:1px solid #363b46;border-radius:10px;
+    padding:10px 4px;font-size:13px;font-weight:600;}
+  button.on{background:#ff7a1a;border-color:#ff7a1a;color:#fff;}
+  button:active{transform:scale(0.96);}
+  button.sm{flex:0 0 44px;}
+  #hdr{padding:10px 14px 2px;font-size:12px;letter-spacing:2px;color:#8f95a1;text-transform:uppercase;}
+  #hdr b{color:#ff9c4d;}
+  #vals{padding:0 14px 6px;font-size:11px;color:#8f95a1;font-variant-numeric:tabular-nums;}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="hdr"><b>TIPSY</b> · bin lab · prop.bin makeover</div>
+  <div id="vals">…</div>
+  <div id="game"></div>
+  <div id="panel">
+    <div class="row">
+      <span class="lbl">Style</span>
+      <button id="oldBtn">OLD (game)</button>
+      <button class="on" id="newBtn">NEW</button>
+      <button id="poseBtn">STANDING</button>
+      <button id="colorBtn">FOREST</button>
+    </div>
+    <div class="row">
+      <span class="lbl">View</span>
+      <button class="sm" id="rotL">◀</button>
+      <button class="sm" id="rotR">▶</button>
+      <span class="lbl">Zoom</span>
+      <button class="sm" id="zoomOut">−</button>
+      <button class="sm" id="zoomIn">＋</button>
+    </div>
+    <div class="row">
+      <span class="lbl">Height</span>
+      <button class="sm" data-p="height" data-d="-1">−</button>
+      <button class="sm" data-p="height" data-d="1">＋</button>
+      <span class="lbl">Base</span>
+      <button class="sm" data-p="baseR" data-d="-1">−</button>
+      <button class="sm" data-p="baseR" data-d="1">＋</button>
+    </div>
+    <div class="row">
+      <span class="lbl">Lid</span>
+      <button class="sm" data-p="lidR" data-d="-1">−</button>
+      <button class="sm" data-p="lidR" data-d="1">＋</button>
+      <span class="lbl">Band</span>
+      <button class="sm" data-p="band" data-d="-1">−</button>
+      <button class="sm" data-p="band" data-d="1">＋</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/phaser@3.85.2/dist/phaser.min.js"></script>
+<script>
+"use strict";
+
+/* ============================================================
+   TIPSY — Bin Lab
+   Makeover bench for prop.bin: the municipal street bin, the
+   heaviest sidewalk hazard (sev 8, second only to the scooter).
+   Same rigor as the cone lab:
+   · hull volumes only — gapless at every rotation
+   · depth-sorted parts
+   · ONE rigid geometry; KNOCKED is the same barrel resting on
+     its side, lid sprung open, contents spilled
+   · manual view rotation, per-instance seeding
+   ============================================================ */
+
+const BIN = {
+  height: 34,          // barrel height
+  baseR: 11,           // barrel radius (mid-bulge)
+  lidR: 13,            // lid overhang radius
+  band: 3,             // reflective band thickness
+  body: 0x3f5147, bodyDk: 0x2e3d35,
+  band_c: 0xd8dade, bandDk: 0xb9bcc2,
+  lid: 0x4a5d52, lidDk: 0x384539,
+  pedal: 0x8a919c, pedalDk: 0x5f656e,
+  liner: 0x1f2822,
+  shadow: 0x000000
+};
+const COLORS = [
+  { n:"forest",   body:0x3f5147, bodyDk:0x2e3d35, lid:0x4a5d52, lidDk:0x384539 },
+  { n:"charcoal", body:0x3a3d43, bodyDk:0x2a2c30, lid:0x44474e, lidDk:0x323438 }
+];
+
+const TILE = 46;
+const GROUND = { a:0xc9c3b4, b:0xbfb9aa, edge:0xa8a294, sky:0x9fd4e8 };
+
+function convexHull(pts){
+  const P = pts.slice().sort((a,b) => a.x - b.x || a.y - b.y);
+  const cross = (o, a, b) => (a.x-o.x)*(b.y-o.y) - (a.y-o.y)*(b.x-o.x);
+  const lo = [], hi = [];
+  for(const p of P){
+    while(lo.length >= 2 && cross(lo[lo.length-2], lo[lo.length-1], p) <= 0) lo.pop();
+    lo.push(p);
+  }
+  for(let i = P.length-1; i >= 0; i--){
+    const p = P[i];
+    while(hi.length >= 2 && cross(hi[hi.length-2], hi[hi.length-1], p) <= 0) hi.pop();
+    hi.push(p);
+  }
+  lo.pop(); hi.pop();
+  return lo.concat(hi);
+}
+function mulberry32(a){ return function(){ a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+
+class BinLab extends Phaser.Scene {
+  constructor(){ super("binlab"); }
+
+  create(){
+    this.K = 3.6;
+    this.mode = "new";
+    this.color = "forest";
+    this.heroAngle = 0.5;
+    this.g = this.add.graphics();
+    this.scale.on("resize", () => this.layout());
+    this.layout();
+    this.updateVals();
+  }
+  layout(){
+    this.cx = this.scale.gameSize.width/2;
+    this.cy = this.scale.gameSize.height*0.58;
+  }
+  updateVals(){
+    document.getElementById("vals").textContent =
+      `${(this.pose || "standing").toUpperCase()} · height ${BIN.height} · base ${BIN.baseR} · lid ${BIN.lidR} · band ${BIN.band} · ${this.color}`;
+  }
+
+  W(x, y, z, ox, oy){
+    return { x:(x - y)*this.K + ox, y:((x + y)*0.5 - z)*this.K + oy };
+  }
+  quad(pts, color, alpha=1){
+    this.g.fillStyle(color, alpha);
+    this.g.fillPoints(pts.map(p => new Phaser.Geom.Point(p.x, p.y)), true);
+  }
+  edge(pts, color, w=2){
+    this.g.lineStyle(w, color, 1);
+    this.g.strokePoints(pts.map(p => new Phaser.Geom.Point(p.x, p.y)), true);
+  }
+
+  drawGround(ox, oy, half){
+    for(let tx=-half; tx<half; tx++){
+      for(let ty=-half; ty<half; ty++){
+        const cxm = tx*TILE*2 + TILE, cym = ty*TILE*2 + TILE;
+        const pts = [
+          this.W(cxm+TILE, cym-TILE, 0, ox, oy), this.W(cxm+TILE, cym+TILE, 0, ox, oy),
+          this.W(cxm-TILE, cym+TILE, 0, ox, oy), this.W(cxm-TILE, cym-TILE, 0, ox, oy)];
+        this.quad(pts, ((tx+ty)%2===0) ? GROUND.a : GROUND.b);
+        this.edge(pts, GROUND.edge, 1.5);
+      }
+    }
+  }
+
+  /* ---------- OLD bin: the current game renderer ---------- */
+  drawBinOld(ox, oy){
+    const g = this.g;
+    const W = (dx, dy, dz) => this.W(dx, dy, dz, ox, oy);
+    const p = W(0, 0, 0);
+    const s = this.K / 1.6;
+    g.fillStyle(0x3f5147, 1);
+    g.fillRect(p.x - 10*s, p.y - 26*s, 20*s, 26*s);
+    g.fillEllipse(p.x, p.y - 26*s, 20*s, 9*s);
+    g.fillEllipse(p.x, p.y, 22*s, 9*s);
+    g.lineStyle(2*s, 0x2e3d35, 1);
+    g.strokeRect(p.x - 10*s, p.y - 26*s, 20*s, 26*s);
+  }
+
+  /* ---------- NEW bin ----------
+     One rigid build. Standing: horizontal rings stacked up with a
+     mid-barrel bulge. Knocked: the SAME rings placed lying — each
+     ring vertical at a = its original height, exactly how a
+     cylinder rests on its side (same trick as the cone). Lid pops
+     off its hinge and trash spills near the open mouth. */
+  drawBinNew(ox, oy, seed, pose, thOverride){
+    const g = this.g, B = BIN;
+    const rng = mulberry32(seed);
+    const th = thOverride !== undefined ? thOverride : rng()*Math.PI*2;
+    const cs = Math.cos(th), sn = Math.sin(th);
+    const H = B.height;
+    const knocked = pose === "knocked";
+
+    const G = (a, b, h) => this.W(a*cs - b*sn, a*sn + b*cs, h, ox, oy);
+    const depthAt = (a, b, h) => a*(cs+sn) + b*(cs-sn) + h*0.4;
+
+    /* barrel profile: slight bulge at mid-height, necks in top/bottom */
+    const rOf = h => {
+      const u = h / H;
+      return B.baseR * (0.88 + 0.12*Math.sin(u*Math.PI));
+    };
+    const place = (h, r, n=14) => {
+      const pts = [];
+      for(let i=0; i<n; i++){
+        const phi = (i/n)*Math.PI*2, c = Math.cos(phi)*r, s2 = Math.sin(phi)*r;
+        if(knocked) pts.push(G(1 + h, c, r + s2));           // vertical ring, flush to ground
+        else        pts.push(G(c, s2, h));                    // horizontal ring, stacked
+      }
+      return pts;
+    };
+    const ringDepth = h => knocked ? depthAt(1 + h, 0, rOf(h)) : depthAt(0, 0, h);
+
+    /* shadow */
+    const sh = knocked ? G(1 + H/2, 0, 0) : G(0, 0, 0);
+    g.fillStyle(B.shadow, 0.14);
+    g.fillEllipse(sh.x, sh.y + 2, knocked ? H + 20 : B.lidR*2.1, knocked ? 22 : B.lidR*0.95);
+
+    /* barrel body: ONE hull across all height samples — same robust
+       pattern as the cone (single frustum hull, no thin per-band
+       slices that can degenerate into stray slivers at the ends). */
+    const body = () => {
+      /* safety-net base: one full hull, so even if a rib band's hull
+         is imperfect at its edge, whatever shows through is still
+         correct barrel color, never sky. */
+      const n = 6, all = [];
+      for(let i=0; i<=n; i++) all.push(...place(i/n*H, rOf(i/n*H)));
+      this.quad(convexHull(all), B.body);
+      /* corrugated ribbing: full-contrast alternating bands, same
+         wide 6-segment spacing as the base hull (not the original
+         10-thin-band version, whose narrow slivers near the tapered
+         ends were the actual source of the stray-piece artifact). */
+      const ribN = 6, ribs = [];
+      for(let i=0; i<=ribN; i++) ribs.push(place(i/ribN*H, rOf(i/ribN*H)));
+      for(let i=0; i<ribN; i++){
+        this.quad(convexHull(ribs[i].concat(ribs[i+1])), i % 2 === 0 ? B.body : B.bodyDk);
+      }
+      /* shadow half: lower hull only, darkens the ground-facing side */
+      const lowerN = 3, lower = [];
+      for(let i=0; i<=lowerN; i++) lower.push(...place(i/lowerN*(H*0.5), rOf(i/lowerN*(H*0.5))));
+      this.quad(convexHull(lower), B.bodyDk, 0.2);
+      /* reflective band, upper third */
+      const b0 = H*0.6, b1 = Math.min(b0 + B.band, H*0.92);
+      if(B.band > 0){
+        this.quad(convexHull(place(b0, rOf(b0)+0.3).concat(place(b1, rOf(b1)+0.3))), B.band_c);
+        /* back ellipse: dark far wall glimpsed over the top edge of
+           the band — without this the band reads as a flat painted
+           stripe; with it, it reads as a rim with real depth behind. */
+        this.quad(place(b1, rOf(b1)*0.7, 12), B.liner);
+      }
+      /* liner lip: the dark interior only reads as visible when the
+         mouth end is actually the NEAR side of the tube. When knocked
+         and rotated so the mouth faces away, this must stay hidden —
+         otherwise it paints through the barrel's own far wall. */
+      const mouthFacing = !knocked || (cs + sn) > 0;
+      if(mouthFacing) this.quad(place(H - 0.5, rOf(H)*0.86, 12), B.liner);
+    };
+
+    /* lid: flat disc + shallow dome, hinge lug on the back edge.
+       Standing: sits centred on the rim. Knocked: sprung open,
+       ONE clean disc resting beside the mouth (not two loose
+       triangles that read as stray geometry). */
+    const lid = () => {
+      if(!knocked){
+        const rim = place(H, B.lidR, 14);
+        this.quad(rim, B.lidDk);
+        const dome = [];
+        for(let i=0; i<12; i++){
+          const phi = (i/12)*Math.PI*2, r2 = B.lidR*0.82;
+          dome.push(G(Math.cos(phi)*r2, Math.sin(phi)*r2, H + 2.6));
+        }
+        this.quad(dome, B.lid);
+        const knob = G(0, 0, H + 4.4);
+        g.fillStyle(B.lidDk, 1);
+        g.fillCircle(knob.x, knob.y, 2.6*this.K*0.45);
+        const hinge = G(-B.lidR*0.85, 0, H + 0.6);
+        g.fillStyle(B.pedalDk, 1);
+        g.fillCircle(hinge.x, hinge.y, 1.6*this.K*0.45);
+      } else {
+        /* lid lies flat on the ground, just past the OPEN end of the
+           fallen barrel — mouth is at a = 1+H (not the closed base
+           at a = 1), so the lid sits beyond that, not tucked near
+           the bottom. */
+        const La = 1 + H + B.lidR*0.75, Lh = 1;
+        const disc = [], inner = [];
+        for(let i=0; i<12; i++){
+          const phi = (i/12)*Math.PI*2;
+          disc.push(G(La + Math.cos(phi)*B.lidR, Math.sin(phi)*B.lidR, Lh));
+          const r2 = B.lidR*0.8;
+          inner.push(G(La + Math.cos(phi)*r2, Math.sin(phi)*r2, Lh + 0.7));
+        }
+        this.quad(disc, B.lidDk);
+        this.quad(inner, B.lid);
+        const knob = G(La, 0, Lh + 1.3);
+        g.fillStyle(B.lidDk, 1);
+        g.fillCircle(knob.x, knob.y, 2.2*this.K*0.45);
+      }
+    };
+
+    /* foot pedal: only reads standing, tucked at the base front */
+    const pedal = () => {
+      if(knocked) return;
+      const a0 = G(B.baseR*0.55, 0, 1.5);
+      const a1 = G(B.baseR*0.95, 0, 5.5);
+      g.lineStyle(Math.max(1.5, 1.4*this.K*0.4), B.pedalDk, 1);
+      g.lineBetween(a0.x, a0.y, a1.x, a1.y);
+      const p0 = G(B.baseR*0.95, -3.2, 0.6), p1 = G(B.baseR*1.25, 3.2, 0.6);
+      g.fillStyle(B.pedal, 1);
+      g.fillEllipse((p0.x+p1.x)/2, (p0.y+p1.y)/2, 7*this.K*0.42, 3*this.K*0.42);
+    };
+
+    /* depth-sorted parts */
+    const parts = [
+      { d: knocked ? depthAt(1.5, 0, B.baseR) : depthAt(0, 0, 1.5), fn: body },
+      { d: knocked ? depthAt(0.5, -6, 3) : depthAt(B.baseR*0.9, 0, 3), fn: pedal },
+      { d: knocked ? depthAt(1+H+B.lidR*0.75, 0, 1) : ringDepth(H), fn: lid }
+    ];
+    parts.sort((x, y) => x.d - y.d);
+    for(const pt of parts) pt.fn();
+  }
+
+  update(t){
+    const g = this.g; g.clear();
+    g.fillStyle(GROUND.sky, 1);
+    g.fillRect(0, 0, this.scale.gameSize.width, this.scale.gameSize.height);
+    this.drawGround(this.cx, this.cy, 3);
+    if(this.mode === "old"){
+      this.drawBinOld(this.cx, this.cy);
+    } else {
+      this.drawBinNew(this.cx, this.cy, 11, this.pose || "standing", this.heroAngle);
+    }
+  }
+}
+
+const game = new Phaser.Game({
+  type: Phaser.AUTO, parent: "game",
+  scale: { mode: Phaser.Scale.RESIZE, width: "100%", height: "100%" },
+  scene: [BinLab]
+});
+const scn = () => game.scene.getScene("binlab");
+
+document.getElementById("oldBtn").addEventListener("click", e => {
+  scn().mode = "old";
+  e.target.classList.add("on");
+  document.getElementById("newBtn").classList.remove("on");
+});
+document.getElementById("newBtn").addEventListener("click", e => {
+  scn().mode = "new";
+  e.target.classList.add("on");
+  document.getElementById("oldBtn").classList.remove("on");
+});
+document.getElementById("poseBtn").addEventListener("click", e => {
+  const s = scn();
+  s.pose = (s.pose || "standing") === "standing" ? "knocked" : "standing";
+  e.target.textContent = s.pose.toUpperCase();
+  s.updateVals();
+});
+document.getElementById("colorBtn").addEventListener("click", e => {
+  const s = scn();
+  const order = COLORS.map(c => c.n);
+  s.color = order[(order.indexOf(s.color) + 1) % order.length];
+  const c = COLORS.find(cc => cc.n === s.color);
+  Object.assign(BIN, { body:c.body, bodyDk:c.bodyDk, lid:c.lid, lidDk:c.lidDk });
+  e.target.textContent = s.color.toUpperCase();
+  s.updateVals();
+});
+document.getElementById("rotL").addEventListener("click", () => { scn().heroAngle -= Math.PI/8; });
+document.getElementById("rotR").addEventListener("click", () => { scn().heroAngle += Math.PI/8; });
+document.getElementById("zoomIn").addEventListener("click", () => { scn().K = Math.min(scn().K + 0.4, 6); });
+document.getElementById("zoomOut").addEventListener("click", () => { scn().K = Math.max(scn().K - 0.4, 1.4); });
+document.querySelectorAll("[data-p]").forEach(btn => {
+  btn.addEventListener("click", () => {
+    const p = btn.dataset.p, d = +btn.dataset.d;
+    if(p === "height") BIN.height = Phaser.Math.Clamp(BIN.height + d*3, 22, 48);
+    if(p === "baseR")  BIN.baseR  = Phaser.Math.Clamp(BIN.baseR + d*1, 7, 16);
+    if(p === "lidR")   BIN.lidR   = Phaser.Math.Clamp(BIN.lidR + d*1, 8, 19);
+    if(p === "band")   BIN.band   = Phaser.Math.Clamp(BIN.band + d*1, 0, 8);
+    scn().updateVals();
+  });
+});
+</script>
+</body>
+</html>
