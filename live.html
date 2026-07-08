@@ -65,6 +65,13 @@ const BRANDS = [
   { n:"lime",  c:0x8bc34a, cDk:0x649238 },
   { n:"coral", c:0xff6b6b, cDk:0xc94f4f }
 ];
+/* approved dog (dog lab, 2026-07-08): chihuahua — head 7.5 · ears 5 · legs 6 · tail 0.4 · size 0.8 · fawn */
+const DOG = {
+  len: 0.8, headR: 7.5, earH: 5, legH: 6, tailCurl: 0.4,
+  body: 0xc98d4b, bodyDk: 0xa06e38, chest: 0xe8d9b8, ear: 0xd99a8c,
+  eye: 0x1c1e24, glint: 0xf4f2ec, nose: 0x25272d,
+  collar: 0xd94f3d, shadow: 0x000000
+};
 function convexHull(pts){
   const P2 = pts.slice().sort((a,b) => a.x - b.x || a.y - b.y);
   const cross = (o, a, b) => (a.x-o.x)*(b.y-o.y) - (a.y-o.y)*(b.x-o.x);
@@ -814,16 +821,135 @@ class GalleryScene extends Phaser.Scene {
       g.fillStyle(0x4e8f4a, 1);
       g.fillEllipse(W(0,0,16).x, W(0,0,16).y, 30, 14);
     } else if(kind === "dog"){
-      // small dog, judging silently
-      const p=W(0,0,0);
-      g.fillStyle(0xc98d4b, 1);
-      g.fillEllipse(p.x, p.y-8, 20, 11);
-      g.fillCircle(p.x+11, p.y-13, 6);
-      g.fillTriangle(p.x+9, p.y-18, p.x+12, p.y-13, p.x+15, p.y-17);
-      g.fillStyle(0x2e3138, 1);
-      g.fillCircle(p.x+13, p.y-14, 1.5);
-      g.lineStyle(3, 0xc98d4b, 1);
-      g.lineBetween(p.x-9, p.y-8, p.x-14, p.y-14);
+      /* approved in dog lab: chihuahua — apple-dome head, bat ears,
+         bug eyes, pin legs, sickle tail. Small seeded facing variance
+         so dogs on the route don't all stare the same way. */
+      const D = DOG, L = D.len;
+      const seed = ((Math.round(x)*7919) ^ (Math.round(y)*104729) ^ 0x5a5a) >>> 0;
+      const rng = mulberry32(seed);
+      const dth = (rng()*2 - 1) * 0.6;
+      const dcs = Math.cos(dth), dsn = Math.sin(dth);
+      const GG = (a, b, h) => W(a*dcs - b*dsn, a*dsn + b*dcs, h);
+      const dAt = (a, b, h) => a*(dcs+dsn) + b*(dcs-dsn) + h*0.4;
+
+      const ringAt = (a0, b0, h0, r, d1, d2, n=12) => {
+        const pts = [];
+        for(let i=0; i<n; i++){
+          const phi = (i/n)*Math.PI*2, c3 = Math.cos(phi)*r, s3 = Math.sin(phi)*r;
+          pts.push(GG(a0 + c3*d1.a + s3*d2.a, b0 + c3*d1.b + s3*d2.b, h0 + c3*d1.h + s3*d2.h));
+        }
+        return pts;
+      };
+      const VV = {a:0,b:1,h:0}, HHH = {a:0,b:0,h:1};
+      const px = r => r * this.K * 1.12;
+
+      const legH = D.legH*L, bodyR = 5.0*L, chestR = 5.6*L, headR = D.headR*L, earH = D.earH*L;
+      const rearA = -9*L, rearH = legH + bodyR*0.72;
+      const chestA = 6*L, chestH = legH + bodyR*0.72;
+      const headA = 9.5*L, headH = chestH + 6.2*L + headR*0.35;
+
+      const dsh = GG((rearA+chestA)/2, 0, 0);
+      g.fillStyle(D.shadow, 0.13);
+      g.fillEllipse(dsh.x, dsh.y + 1, (40*L)*this.K*0.45, (14*L)*this.K*0.4);
+
+      const dbody = () => {
+        const rear = ringAt(rearA, 0, rearH, bodyR, VV, HHH, 12);
+        const chest = ringAt(chestA, 0, chestH, chestR, VV, HHH, 12);
+        this.quadOn(g, convexHull(rear.concat(chest)), D.body);
+        this.quadOn(g, ringAt(rearA - bodyR*0.25, 0, rearH, bodyR*0.9, VV, HHH, 12), D.bodyDk);
+      };
+      const dleg = (a0, s, foot) => () => {
+        const top = GG(a0, s*2.9*L, chestH - 1*L);
+        const bot = GG(a0 + foot, s*2.9*L, 0.8);
+        g.lineStyle(Math.max(2, 0.9*L*this.K*0.42), D.body, 1);
+        g.lineBetween(top.x, top.y, bot.x, bot.y);
+        g.fillStyle(D.bodyDk, 1);
+        g.fillEllipse(bot.x, bot.y + 1, px(1.4*L)*1.5, px(1.4*L)*0.7);
+      };
+      const dchest = () => {
+        const c = GG(chestA + chestR*0.45, 0, chestH - chestR*0.3);
+        g.fillStyle(D.chest, 1);
+        g.fillCircle(c.x, c.y, px(chestR*0.52));
+      };
+      const dneck = () => {
+        const n0 = ringAt(chestA + 1*L, 0, chestH + 2*L, 2.5*L, VV, HHH, 10);
+        const n1 = ringAt(headA - 1*L, 0, headH - headR*0.55, 2.2*L, VV, HHH, 10);
+        this.quadOn(g, convexHull(n0.concat(n1)), D.body);
+      };
+      const dcollar = () => {
+        const cA = chestA + 1.6*L, cH = chestH + 2.8*L;
+        const c0 = ringAt(cA, 0, cH, 2.7*L, VV, HHH, 10);
+        const c1 = ringAt(cA + 0.7*L, 0, cH + 0.9*L, 2.6*L, VV, HHH, 10);
+        this.quadOn(g, convexHull(c0.concat(c1)), D.collar);
+        const tag = GG(cA + 2.4*L, 0, cH - 1.4*L);
+        g.fillStyle(0xe8c34a, 1);
+        g.fillCircle(tag.x, tag.y, px(0.7*L));
+      };
+      const dhead = () => {
+        const c = GG(headA, 0, headH);
+        g.fillStyle(D.body, 1);
+        g.fillCircle(c.x, c.y, px(headR));
+      };
+      const dear = s => () => {
+        const b1 = GG(headA - headR*0.15, s*headR*0.35, headH + headR*0.6);
+        const b2 = GG(headA - headR*0.7,  s*headR*0.6,  headH + headR*0.28);
+        const tp = GG(headA - headR*0.5,  s*(headR*0.85 + earH*0.32), headH + headR*0.45 + earH);
+        g.fillStyle(D.body, 1);
+        g.fillTriangle(b1.x, b1.y, b2.x, b2.y, tp.x, tp.y);
+        g.lineStyle(1.5, D.bodyDk, 1);
+        g.strokeTriangle(b1.x, b1.y, b2.x, b2.y, tp.x, tp.y);
+        const cx2 = (b1.x+b2.x+tp.x)/3, cy2 = (b1.y+b2.y+tp.y)/3;
+        const lerp = (pp, k) => ({ x: pp.x + (cx2-pp.x)*k, y: pp.y + (cy2-pp.y)*k });
+        const i1 = lerp(b1,0.38), i2 = lerp(b2,0.38), i3 = lerp(tp,0.3);
+        g.fillStyle(D.ear, 1);
+        g.fillTriangle(i1.x, i1.y, i2.x, i2.y, i3.x, i3.y);
+      };
+      const deye = s => () => {
+        const c = GG(headA + headR*0.42, s*headR*0.44, headH + headR*0.12);
+        g.fillStyle(D.eye, 1);
+        g.fillCircle(c.x, c.y, px(headR*0.21));
+        g.fillStyle(D.glint, 1);
+        g.fillCircle(c.x - px(headR*0.07), c.y - px(headR*0.08), px(headR*0.06));
+      };
+      const dmuzzle = () => {
+        const m0 = ringAt(headA + headR*0.5,  0, headH - headR*0.28, headR*0.4,  VV, HHH, 10);
+        const m1 = ringAt(headA + headR*0.95, 0, headH - headR*0.34, headR*0.22, VV, HHH, 10);
+        this.quadOn(g, convexHull(m0.concat(m1)), D.chest);
+        const n = GG(headA + headR*1.02, 0, headH - headR*0.3);
+        g.fillStyle(D.nose, 1);
+        g.fillCircle(n.x, n.y, px(headR*0.13));
+      };
+      const dtail = () => {
+        const rr = 3.9*L, Ca = rearA - 0.8*L, Ch = rearH + bodyR*0.15 + rr;
+        const thMax = Math.min((0.55 + 0.85*D.tailCurl) * Math.PI, 1.9*Math.PI);
+        const n = 8;
+        for(let i=0; i<=n; i++){
+          const u = i/n, ang = u*thMax;
+          const p2 = GG(Ca - rr*Math.sin(ang), 1.0*L + u*0.8*L, Ch - rr*Math.cos(ang));
+          g.fillStyle(u > 0.75 ? D.chest : D.bodyDk, 1);
+          g.fillCircle(p2.x, p2.y, px((1.25 - u*0.55)*L));
+        }
+      };
+
+      const dparts = [
+        { d: dAt(rearA - 2*L, 1*L, rearH + bodyR), fn: dtail },
+        { d: dAt(rearA, 0, rearH), fn: dbody },
+        { d: dAt(chestA + chestR*0.45, 0, chestH - chestR*0.3), fn: dchest },
+        { d: dAt(chestA + 1.5*L, 0, chestH + 2*L), fn: dneck },
+        { d: dAt(chestA + 2*L, 0, chestH + 3*L), fn: dcollar },
+        { d: dAt(headA, 0, headH), fn: dhead },
+        { d: dAt(headA - headR*0.5, headR*0.85 + earH*0.3, headH + earH*0.6), fn: dear(1) },
+        { d: dAt(headA - headR*0.5, -(headR*0.85 + earH*0.3), headH + earH*0.6), fn: dear(-1) },
+        { d: dAt(headA + headR*0.42, headR*0.44, headH), fn: deye(1) },
+        { d: dAt(headA + headR*0.42, -headR*0.44, headH), fn: deye(-1) },
+        { d: dAt(headA + headR*0.8, 0, headH - headR*0.3), fn: dmuzzle },
+        { d: dAt(chestA + 0.5*L,  2.9*L, legH*0.4), fn: dleg(chestA + 0.5*L, 1, 0.4*L) },
+        { d: dAt(chestA + 0.5*L, -2.9*L, legH*0.4), fn: dleg(chestA + 0.5*L, -1, 0.4*L) },
+        { d: dAt(rearA + 1*L,  2.9*L, legH*0.4), fn: dleg(rearA + 1*L, 1, -0.4*L) },
+        { d: dAt(rearA + 1*L, -2.9*L, legH*0.4), fn: dleg(rearA + 1*L, -1, -0.4*L) }
+      ];
+      dparts.sort((p1, p2) => p1.d - p2.d);
+      for(const pt of dparts) pt.fn();
     } else if(kind === "car"){
       // parked car on the road
       const cz = 6;
