@@ -3,7 +3,7 @@
 *Reference doc. Every piece of art in the game, individually named, so it can be
 addressed precisely ("make `prop.hydrant` taller", "brighten `robot.eye`").
 All art is procedural — drawn in code, zero image files. Update this doc when
-assets are added or renamed. Last audited against `game/index.html` v7, 2026-07-07.*
+assets are added or renamed. Last audited against `game/index.html` v17, 2026-07-07.*
 
 **Naming convention:** `category.asset.part` — use these names in change requests.
 
@@ -34,6 +34,7 @@ Dimensions in the `BODY` / `LID` / `STRIPE` / `WHEEL` / `FLAG` constants.
 | `robot.headlight` | Pale strip low on the front face | `0xfff3b0` |
 | `robot.flag.pole` | 6-segment bending polyline; sways driving, sags when tipped | `flagPole` |
 | `robot.flag.pennant` | Triangle following the pole tip direction | `flag` |
+| `robot.stuckIndicator` | Floating bobbing "?!" above the robot while pinned against a palm with throttle held; body jitter + wheel churn + alert eyes ramp with stuck intensity | `#ffb04d` |
 
 ### Robot undercarriage (revealed on tip-over)
 | Asset name | What it is | Palette keys |
@@ -82,10 +83,13 @@ in the sim loop, not here — this is the art only.
 
 | Asset name | Parts | Colors |
 |---|---|---|
-| `prop.palm` | `trunk` (thick swaying line), `fronds` (6 rotating triangles), `coconuts` (brown circle at crown) | trunk `0x8a6a48`, fronds `0x4e8f4a`, coconuts `0x6b4f33` |
-| `prop.scooter` | `deck` (teal quad, lying flat), `stem` + `handlebar` (lines), `wheels` (2 dark ellipses) | deck `0x2ec4b6`, stem `0x1f857c`, wheels `0x24262c` |
+| `prop.palm` | Tall Costa Palma palm (PALM preset: h165 · f8 · droop 1.0). Parts: `trunk` (curved tapered segments + ring marks), `fronds` (leaflet pairs on drooping spines, front/back greens), `coconuts` (3-cluster in crown), per-tree seeded variety (lean, height, sway phase) | `PALM` const: trunk `0x8a6a48`/`0x6f5439`, fronds `0x4e8f4a`/`0x3f7a3e`, coco `0x6b4f33` |
+| `prop.palmDwarf` | Bush-type dwarf palm (PALM_DWARF preset: h55 · f8 · droop 0.3 · wind 0.3). Same renderer as `prop.palm`. Gallery-registered; not yet placed in routes | `PALM_DWARF` const (same palette) |
+| `prop.scooter` | Dumped rental (SCOOT preset: stem42 · bar13 · wheel5). ONE rigid standing build; seeded per-scooter: ~80% laid on its side, scatter rotation, rental brand (teal/lime/coral). Parts: `deck` (brand slab + grip tape), `stem` (tapered capsule), `bar` + `grips`, 2 hull-barrel `wheels`, `kickstand` | `SCOOT` + `BRANDS` consts |
+| `prop.scooterStanding` | Forced-upright variant of the same build (reference/gallery kind) | same |
 | `prop.trash` | Two overlapping dark bag ellipses, outlined | `0x3b3f47` / `0x2b2e34` |
-| `prop.cone` | `base` quad, `body` triangle, `stripe` white band | `0xd85f0a`, `0xff7a1a`, white |
+| `prop.cone` | Traffic cone (CONE preset: h38 · base18 · no band). Parts: `baseSlab` (hull box, orange top), `body` (frustum hull, seeded height variance), `tipCap` | `CONE` const: `0xff7a1a` / `0xd85f0a` |
+| `prop.coneTipped` | The same rigid cone resting on its slant side (tip low, base plate on edge). Generator mixes ~40% of cones as pre-knocked | same |
 | `prop.hydrant` | Yellow post + dome cap + base ellipse, outlined | `0xd8b23a` / `0xb5933a` |
 | `prop.planter` | Concrete box (3 shaded faces) + `shrub` green ellipse | `0x8f8577`/`0x7a7164`/`0x6b6357`, shrub `0x4e8f4a` |
 | `prop.dog` | `body` ellipse, `head` circle, `ear` triangle, `eye` dot, `tail` line | `0xc98d4b`, eye `0x2e3138` |
@@ -137,4 +141,3 @@ Signature accent (UI + brand): **orange `#ff7a1a`**, danger red `#c2452e`.
 - `robot.axle` + `robot.battery` exist in sprite-lab v9 but aren't in the game build.
 - No building fronts behind the sidewalk yet (upper band of the frame is bare sky).
 - `prop.dog` is static; a wandering dog is on the wishlist.
-- No `?!` stuck indicator in the game build (exists in sprite lab).
