@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>TIPSY — Dog Lab</title>
+<style>
+  html,body{margin:0;padding:0;background:#14161b;height:100%;overflow:hidden;touch-action:manipulation;
+    font-family:-apple-system,'Helvetica Neue',Arial,sans-serif;-webkit-user-select:none;user-select:none;color:#e8eaef;}
+  #wrap{display:flex;flex-direction:column;height:100%;}
+  #game{flex:1;min-height:0;}
+  #panel{padding:10px 12px calc(14px + env(safe-area-inset-bottom));background:#1c1f26;border-top:1px solid #2b2f38;}
+  .row{display:flex;gap:8px;margin-bottom:8px;align-items:center;}
+  .row:last-child{margin-bottom:0;}
+  .lbl{font-size:11px;letter-spacing:1.5px;color:#8f95a1;width:56px;text-transform:uppercase;}
+  button{flex:1;background:#262a33;color:#e8eaef;border:1px solid #363b46;border-radius:10px;
+    padding:10px 4px;font-size:13px;font-weight:600;}
+  button.on{background:#ff7a1a;border-color:#ff7a1a;color:#fff;}
+  button:active{transform:scale(0.96);}
+  button.sm{flex:0 0 44px;}
+  #hdr{padding:10px 14px 2px;font-size:12px;letter-spacing:2px;color:#8f95a1;text-transform:uppercase;}
+  #hdr b{color:#ff9c4d;}
+  #vals{padding:0 14px 6px;font-size:11px;color:#8f95a1;font-variant-numeric:tabular-nums;}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="hdr"><b>TIPSY</b> · dog lab · prop.dog makeover</div>
+  <div id="vals">…</div>
+  <div id="game"></div>
+  <div id="panel">
+    <div class="row">
+      <span class="lbl">Style</span>
+      <button id="oldBtn">OLD (game)</button>
+      <button class="on" id="newBtn">NEW</button>
+      <button id="poseBtn">STANDING</button>
+      <button id="coatBtn">FAWN</button>
+    </div>
+    <div class="row">
+      <span class="lbl">View</span>
+      <button class="sm" id="rotL">◀</button>
+      <button class="sm" id="rotR">▶</button>
+      <span class="lbl">Zoom</span>
+      <button class="sm" id="zoomOut">−</button>
+      <button class="sm" id="zoomIn">＋</button>
+    </div>
+    <div class="row">
+      <span class="lbl">Head</span>
+      <button class="sm" data-p="headR" data-d="-1">−</button>
+      <button class="sm" data-p="headR" data-d="1">＋</button>
+      <span class="lbl">Ears</span>
+      <button class="sm" data-p="earH" data-d="-1">−</button>
+      <button class="sm" data-p="earH" data-d="1">＋</button>
+    </div>
+    <div class="row">
+      <span class="lbl">Legs</span>
+      <button class="sm" data-p="legH" data-d="-1">−</button>
+      <button class="sm" data-p="legH" data-d="1">＋</button>
+      <span class="lbl">Size</span>
+      <button class="sm" data-p="len" data-d="-1">−</button>
+      <button class="sm" data-p="len" data-d="1">＋</button>
+    </div>
+    <div class="row">
+      <span class="lbl">Tail</span>
+      <button class="sm" data-p="tailCurl" data-d="-1">−</button>
+      <button class="sm" data-p="tailCurl" data-d="1">＋</button>
+      <button id="trembleBtn" class="on">TREMBLE</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/phaser@3.85.2/dist/phaser.min.js"></script>
+<script>
+"use strict";
+
+/* ============================================================
+   TIPSY — Dog Lab
+   Makeover bench for prop.dog: the sidewalk chihuahua, judging
+   silently. Signature reads: apple-dome head nearly as big as
+   the body, giant upright bat ears, bug eyes, pin legs, sickle
+   tail curled over the back. Optional tremble because it is a
+   chihuahua. Approved renderer + DOG params port into game +
+   gallery together (sync rule).
+   ============================================================ */
+
+/* ---------- the dials ---------- */
+const DOG = {
+  len: 1.0,          // overall scale
+  headR: 6.5,        // head radius — chihuahua: nearly body-sized
+  earH: 9,           // bat-ear height above the dome
+  legH: 8,           // pin-leg length (body rides on top)
+  tailCurl: 1.0,     // 0 = stub droop, 1.6 = full cinnamon roll
+  tremble: true,     // classic chihuahua idle
+  pose: "standing",  // standing | sitting
+  coat: "fawn",
+  eye: 0x1c1e24, glint: 0xf4f2ec, nose: 0x25272d,
+  collar: 0xd94f3d, collarDk: 0xa83b2d,
+  shadow: 0x000000
+};
+const COATS = [
+  { n:"fawn",    body:0xc98d4b, dk:0xa06e38, chest:0xe8d9b8, ear:0xd99a8c },
+  { n:"cream",   body:0xe3d3b3, dk:0xbfa987, chest:0xf3ece0, ear:0xdca493 },
+  { n:"blk&tan", body:0x33363e, dk:0x22242b, chest:0xc98d4b, ear:0xb0837b }
+];
+
+const TILE = 46;
+const GROUND = { a:0xc9c3b4, b:0xbfb9aa, edge:0xa8a294, sky:0x9fd4e8 };
+
+function convexHull(pts){
+  const P = pts.slice().sort((a,b) => a.x - b.x || a.y - b.y);
+  const cross = (o, a, b) => (a.x-o.x)*(b.y-o.y) - (a.y-o.y)*(b.x-o.x);
+  const lo = [], hi = [];
+  for(const p of P){
+    while(lo.length >= 2 && cross(lo[lo.length-2], lo[lo.length-1], p) <= 0) lo.pop();
+    lo.push(p);
+  }
+  for(let i = P.length-1; i >= 0; i--){
+    const p = P[i];
+    while(hi.length >= 2 && cross(hi[hi.length-2], hi[hi.length-1], p) <= 0) hi.pop();
+    hi.push(p);
+  }
+  lo.pop(); hi.pop();
+  return lo.concat(hi);
+}
+
+class DogLab extends Phaser.Scene {
+  constructor(){ super("doglab"); }
+
+  create(){
+    this.K = 4.2;
+    this.mode = "new";
+    this.heroAngle = 0.5;
+    this.g = this.add.graphics();
+    this.scale.on("resize", () => this.layout());
+    this.layout();
+    this.updateVals();
+  }
+  layout(){
+    this.cx = this.scale.gameSize.width/2;
+    this.cy = this.scale.gameSize.height*0.55;
+  }
+  updateVals(){
+    document.getElementById("vals").textContent =
+      `${DOG.pose.toUpperCase()} · head ${DOG.headR} · ears ${DOG.earH} · legs ${DOG.legH} · tail ${DOG.tailCurl.toFixed(1)} · size ${DOG.len.toFixed(2)} · ${DOG.coat} · tremble ${DOG.tremble ? "on" : "off"}`;
+  }
+
+  W(x, y, z, ox, oy){
+    return { x:(x - y)*this.K + ox, y:((x + y)*0.5 - z)*this.K + oy };
+  }
+  quad(pts, color, alpha=1){
+    this.g.fillStyle(color, alpha);
+    this.g.fillPoints(pts.map(p => new Phaser.Geom.Point(p.x, p.y)), true);
+  }
+  edge(pts, color, w=2){
+    this.g.lineStyle(w, color, 1);
+    this.g.strokePoints(pts.map(p => new Phaser.Geom.Point(p.x, p.y)), true);
+  }
+
+  drawGround(ox, oy, half){
+    for(let tx=-half; tx<half; tx++){
+      for(let ty=-half; ty<half; ty++){
+        const cxm = tx*TILE*2 + TILE, cym = ty*TILE*2 + TILE;
+        const pts = [
+          this.W(cxm+TILE, cym-TILE, 0, ox, oy), this.W(cxm+TILE, cym+TILE, 0, ox, oy),
+          this.W(cxm-TILE, cym+TILE, 0, ox, oy), this.W(cxm-TILE, cym-TILE, 0, ox, oy)];
+        this.quad(pts, ((tx+ty)%2===0) ? GROUND.a : GROUND.b);
+        this.edge(pts, GROUND.edge, 1.5);
+      }
+    }
+  }
+
+  /* ---------- OLD dog: the current game renderer ----------
+     Raw px offsets in the game; scaled here so zoom works. */
+  drawDogOld(ox, oy){
+    const g = this.g;
+    const p = this.W(0, 0, 0, ox, oy);
+    const s = this.K / 1.6;               // px scale so the old sketch tracks zoom
+    g.fillStyle(0xc98d4b, 1);
+    g.fillEllipse(p.x, p.y - 8*s, 20*s, 11*s);
+    g.fillCircle(p.x + 11*s, p.y - 13*s, 6*s);
+    g.fillTriangle(p.x + 9*s, p.y - 18*s, p.x + 12*s, p.y - 13*s, p.x + 15*s, p.y - 17*s);
+    g.fillStyle(0x2e3138, 1);
+    g.fillCircle(p.x + 13*s, p.y - 14*s, 1.5*s);
+    g.lineStyle(3*s, 0xc98d4b, 1);
+    g.lineBetween(p.x - 9*s, p.y - 8*s, p.x - 14*s, p.y - 14*s);
+  }
+
+  /* ---------- NEW dog: the chihuahua ----------
+     Local frame: a along the body (nose = +a), b across, h up.
+     th spins the whole frame; every feature is fixed in local
+     coords so eyes/muzzle/ears occlude correctly at any angle
+     via painter's depth — same trick as the scooter wheel face. */
+  drawDogNew(ox, oy, th, t){
+    const g = this.g, D = DOG, L = D.len;
+    const cs = Math.cos(th), sn = Math.sin(th);
+    const coat = COATS.find(c => c.n === D.coat) || COATS[0];
+
+    const G = (a, b, h) => this.W(a*cs - b*sn, a*sn + b*cs, h, ox, oy);
+    const depthAt = (a, b, h) => a*(cs+sn) + b*(cs-sn) + h*0.4;
+
+    /* tremble: tiny high-frequency shiver on the front end only —
+       the body plants, the head vibrates. */
+    const tr = (D.tremble && this.mode === "new") ? 1 : 0;
+    const jb = tr * (Math.sin(t*0.052) + Math.sin(t*0.083)*0.5) * 0.28 * L;
+    const jh = tr * Math.sin(t*0.097) * 0.18 * L;
+
+    /* ---- pose anchors ---- */
+    const sit = D.pose === "sitting";
+    const legH = D.legH * L;
+    const bodyR = 5.0 * L, chestR = 5.6 * L;
+    const headR = D.headR * L;
+    const earH = D.earH * L;
+
+    const rearA  = sit ? -8*L  : -9*L;
+    const rearH  = sit ? bodyR*0.95 : legH + bodyR*0.72;
+    const chestA = sit ? 4.5*L : 6*L;
+    const chestH = sit ? legH + chestR*0.85 : legH + bodyR*0.72;
+    const headA  = (sit ? 7.5*L : 9.5*L) + jb*0.15;
+    const headH  = chestH + 6.2*L + headR*0.35 + jh;
+
+    const ringAt = (a0, b0, h0, r, d1, d2, n=12) => {
+      const pts = [];
+      for(let i=0; i<n; i++){
+        const phi = (i/n)*Math.PI*2, c = Math.cos(phi)*r, s2 = Math.sin(phi)*r;
+        pts.push(G(a0 + c*d1.a + s2*d2.a, b0 + c*d1.b + s2*d2.b, h0 + c*d1.h + s2*d2.h));
+      }
+      return pts;
+    };
+    const V = {a:0,b:1,h:0}, HH = {a:0,b:0,h:1};
+    const px = r => r * this.K * 1.12;          // sphere → screen radius
+
+    /* ---- shadow ---- */
+    const sh = G((rearA + chestA)/2, 0, 0);
+    g.fillStyle(D.shadow, 0.13);
+    g.fillEllipse(sh.x, sh.y + 1, (sit ? 34 : 40)*L, 14*L);
+
+    /* ---- parts (built as closures, depth-sorted) ---- */
+
+    const body = () => {
+      const rear = ringAt(rearA, 0, rearH, bodyR, V, HH, 12);
+      const chest = ringAt(chestA, 0, chestH, chestR, V, HH, 12);
+      this.quad(convexHull(rear.concat(chest)), coat.body);
+      const cap = ringAt(rearA - bodyR*0.25, 0, rearH, bodyR*0.9, V, HH, 12);
+      this.quad(cap, coat.dk);                   // shaded rump cap
+    };
+
+    const haunch = s => () => {                  // sitting only: folded rear leg
+      const c = G(rearA + 0.5*L, s*bodyR*0.72, bodyR*1.0);
+      g.fillStyle(coat.body, 1);
+      g.fillCircle(c.x, c.y, px(bodyR*0.9));
+      g.lineStyle(1.5, coat.dk, 1);
+      g.strokeCircle(c.x, c.y, px(bodyR*0.9));
+      const f = G(rearA + 3*L, s*bodyR*0.8, 0.6);
+      g.fillStyle(coat.dk, 1);
+      g.fillEllipse(f.x, f.y, px(1.7*L)*1.6, px(1.7*L)*0.8);
+    };
+
+    const leg = (a0, s, foot) => () => {         // pin leg + paw
+      const top = G(a0, s*2.9*L, chestH - 1*L);
+      const bot = G(a0 + foot, s*2.9*L, 0.8);
+      g.lineStyle(Math.max(2, 0.9*L*this.K*0.42), coat.body, 1);
+      g.lineBetween(top.x, top.y, bot.x, bot.y);
+      g.fillStyle(coat.dk, 1);
+      g.fillEllipse(bot.x, bot.y + 1, px(1.4*L)*1.5, px(1.4*L)*0.7);
+    };
+
+    const chestPatch = () => {
+      const c = G(chestA + chestR*0.45, 0, chestH - chestR*0.3);
+      g.fillStyle(coat.chest, 1);
+      g.fillCircle(c.x, c.y, px(chestR*0.52));
+    };
+
+    const neck = () => {
+      const n0 = ringAt(chestA + 1*L, jb*0.3, chestH + 2*L, 2.5*L, V, HH, 10);
+      const n1 = ringAt(headA - 1*L, jb*0.6, headH - headR*0.55, 2.2*L, V, HH, 10);
+      this.quad(convexHull(n0.concat(n1)), coat.body);
+    };
+
+    const collar = () => {
+      const cA = chestA + 1.6*L, cH = chestH + 2.8*L;
+      const c0 = ringAt(cA, jb*0.35, cH, 2.7*L, V, HH, 10);
+      const c1 = ringAt(cA + 0.7*L, jb*0.35, cH + 0.9*L, 2.6*L, V, HH, 10);
+      this.quad(convexHull(c0.concat(c1)), D.collar);
+      const tag = G(cA + 2.4*L, jb*0.35, cH - 1.4*L);
+      g.fillStyle(0xe8c34a, 1);
+      g.fillCircle(tag.x, tag.y, px(0.7*L));
+    };
+
+    const head = () => {                          // the apple dome
+      const c = G(headA, jb, headH);
+      g.fillStyle(coat.body, 1);
+      g.fillCircle(c.x, c.y, px(headR));
+    };
+
+    const ear = s => () => {                      // giant bat ear
+      const b1 = G(headA - headR*0.15, jb + s*headR*0.35, headH + headR*0.6);
+      const b2 = G(headA - headR*0.7,  jb + s*headR*0.6,  headH + headR*0.28);
+      const tp = G(headA - headR*0.5,  jb + s*(headR*0.85 + earH*0.32), headH + headR*0.45 + earH);
+      g.fillStyle(coat.body, 1);
+      g.fillTriangle(b1.x, b1.y, b2.x, b2.y, tp.x, tp.y);
+      g.lineStyle(1.5, coat.dk, 1);
+      g.strokeTriangle(b1.x, b1.y, b2.x, b2.y, tp.x, tp.y);
+      const cx2 = (b1.x + b2.x + tp.x)/3, cy2 = (b1.y + b2.y + tp.y)/3;
+      const lerp = (p2, k) => ({ x: p2.x + (cx2 - p2.x)*k, y: p2.y + (cy2 - p2.y)*k });
+      const i1 = lerp(b1, 0.38), i2 = lerp(b2, 0.38), i3 = lerp(tp, 0.3);
+      g.fillStyle(coat.ear, 1);
+      g.fillTriangle(i1.x, i1.y, i2.x, i2.y, i3.x, i3.y);
+    };
+
+    const eye = s => () => {                      // bug eye + glint
+      const c = G(headA + headR*0.42, jb + s*headR*0.44, headH + headR*0.12);
+      g.fillStyle(D.eye, 1);
+      g.fillCircle(c.x, c.y, px(headR*0.21));
+      g.fillStyle(D.glint, 1);
+      g.fillCircle(c.x - px(headR*0.07), c.y - px(headR*0.08), px(headR*0.06));
+      if(coat.n === "blk&tan"){                   // tan eyebrow dots
+        const eb = G(headA + headR*0.28, jb + s*headR*0.46, headH + headR*0.46);
+        g.fillStyle(0xc98d4b, 1);
+        g.fillCircle(eb.x, eb.y, px(headR*0.12));
+      }
+    };
+
+    const muzzle = () => {                        // short tapered snoot + nose
+      const m0 = ringAt(headA + headR*0.5,  jb, headH - headR*0.28, headR*0.4,  V, HH, 10);
+      const m1 = ringAt(headA + headR*0.95, jb, headH - headR*0.34, headR*0.22, V, HH, 10);
+      this.quad(convexHull(m0.concat(m1)), coat.chest);
+      const n = G(headA + headR*1.02, jb, headH - headR*0.3);
+      g.fillStyle(D.nose, 1);
+      g.fillCircle(n.x, n.y, px(headR*0.13));
+    };
+
+    const tail = () => {                          // sickle curl over the back
+      const rr = 3.9*L;
+      const Ca = rearA - 0.8*L, Ch = rearH + bodyR*0.15 + rr;
+      const thMax = Math.min((0.55 + 0.85*D.tailCurl) * Math.PI, 1.9*Math.PI);
+      const n = 8;
+      for(let i=0; i<=n; i++){
+        const u = i/n, ang = u*thMax;
+        const a2 = Ca - rr*Math.sin(ang);
+        const h2 = Ch - rr*Math.cos(ang);
+        const b2 = 1.0*L + u*0.8*L;
+        const p2 = G(a2, b2, h2);
+        g.fillStyle(u > 0.75 ? coat.chest : coat.dk, 1);
+        g.fillCircle(p2.x, p2.y, px((1.25 - u*0.55)*L));
+      }
+    };
+
+    /* ---- depth-sorted assembly ---- */
+    const parts = [
+      { d: depthAt(rearA - 2*L, 1*L, rearH + bodyR), fn: tail },
+      { d: depthAt(rearA, 0, rearH), fn: body },
+      { d: depthAt(chestA + chestR*0.45, 0, chestH - chestR*0.3), fn: chestPatch },
+      { d: depthAt(chestA + 1.5*L, 0, chestH + 2*L), fn: neck },
+      { d: depthAt(chestA + 2*L, 0, chestH + 3*L), fn: collar },
+      { d: depthAt(headA, 0, headH), fn: head },
+      { d: depthAt(headA - headR*0.5, headR*0.85 + earH*0.3, headH + earH*0.6), fn: ear(1) },
+      { d: depthAt(headA - headR*0.5, -(headR*0.85 + earH*0.3), headH + earH*0.6), fn: ear(-1) },
+      { d: depthAt(headA + headR*0.42, headR*0.44, headH), fn: eye(1) },
+      { d: depthAt(headA + headR*0.42, -headR*0.44, headH), fn: eye(-1) },
+      { d: depthAt(headA + headR*0.8, 0, headH - headR*0.3), fn: muzzle }
+    ];
+    /* legs: front pair always; rear pair standing, haunches sitting */
+    parts.push({ d: depthAt(chestA + 0.5*L,  2.9*L, legH*0.4), fn: leg(chestA + 0.5*L, 1, 0.4*L) });
+    parts.push({ d: depthAt(chestA + 0.5*L, -2.9*L, legH*0.4), fn: leg(chestA + 0.5*L, -1, 0.4*L) });
+    if(sit){
+      parts.push({ d: depthAt(rearA + 0.5*L,  bodyR*0.72, bodyR), fn: haunch(1) });
+      parts.push({ d: depthAt(rearA + 0.5*L, -bodyR*0.72, bodyR), fn: haunch(-1) });
+    } else {
+      parts.push({ d: depthAt(rearA + 1*L,  2.9*L, legH*0.4), fn: leg(rearA + 1*L, 1, -0.4*L) });
+      parts.push({ d: depthAt(rearA + 1*L, -2.9*L, legH*0.4), fn: leg(rearA + 1*L, -1, -0.4*L) });
+    }
+    parts.sort((x, y) => x.d - y.d);
+    for(const pt of parts) pt.fn();
+  }
+
+  update(t){
+    const g = this.g; g.clear();
+    g.fillStyle(GROUND.sky, 1);
+    g.fillRect(0, 0, this.scale.gameSize.width, this.scale.gameSize.height);
+    this.drawGround(this.cx, this.cy, 3);
+
+    if(this.mode === "old"){
+      this.drawDogOld(this.cx, this.cy);
+    } else {
+      this.drawDogNew(this.cx, this.cy, this.heroAngle, t);
+    }
+  }
+}
+
+const game = new Phaser.Game({
+  type: Phaser.AUTO, parent: "game",
+  scale: { mode: Phaser.Scale.RESIZE, width: "100%", height: "100%" },
+  scene: [DogLab]
+});
+const scn = () => game.scene.getScene("doglab");
+
+document.getElementById("oldBtn").addEventListener("click", e => {
+  scn().mode = "old";
+  e.target.classList.add("on");
+  document.getElementById("newBtn").classList.remove("on");
+});
+document.getElementById("newBtn").addEventListener("click", e => {
+  scn().mode = "new";
+  e.target.classList.add("on");
+  document.getElementById("oldBtn").classList.remove("on");
+});
+document.getElementById("rotL").addEventListener("click", () => { scn().heroAngle -= Math.PI/8; });
+document.getElementById("rotR").addEventListener("click", () => { scn().heroAngle += Math.PI/8; });
+document.getElementById("zoomIn").addEventListener("click", () => { scn().K = Math.min(scn().K + 0.4, 7); });
+document.getElementById("zoomOut").addEventListener("click", () => { scn().K = Math.max(scn().K - 0.4, 1.8); });
+document.getElementById("poseBtn").addEventListener("click", e => {
+  const order = ["standing", "sitting"];
+  DOG.pose = order[(order.indexOf(DOG.pose) + 1) % order.length];
+  e.target.textContent = DOG.pose.toUpperCase();
+  scn().updateVals();
+});
+document.getElementById("coatBtn").addEventListener("click", e => {
+  const order = COATS.map(c => c.n);
+  DOG.coat = order[(order.indexOf(DOG.coat) + 1) % order.length];
+  e.target.textContent = DOG.coat.toUpperCase();
+  scn().updateVals();
+});
+document.getElementById("trembleBtn").addEventListener("click", e => {
+  DOG.tremble = !DOG.tremble;
+  e.target.classList.toggle("on", DOG.tremble);
+  scn().updateVals();
+});
+document.querySelectorAll("[data-p]").forEach(btn => {
+  btn.addEventListener("click", () => {
+    const p = btn.dataset.p, d = +btn.dataset.d;
+    if(p === "len")      DOG.len      = Phaser.Math.Clamp(+(DOG.len + d*0.1).toFixed(2), 0.7, 1.5);
+    if(p === "headR")    DOG.headR    = Phaser.Math.Clamp(DOG.headR + d*0.5, 4, 10);
+    if(p === "earH")     DOG.earH     = Phaser.Math.Clamp(DOG.earH + d*1, 5, 16);
+    if(p === "legH")     DOG.legH     = Phaser.Math.Clamp(DOG.legH + d*1, 5, 13);
+    if(p === "tailCurl") DOG.tailCurl = Phaser.Math.Clamp(+(DOG.tailCurl + d*0.2).toFixed(1), 0, 1.6);
+    scn().updateVals();
+  });
+});
+</script>
+</body>
+</html>
