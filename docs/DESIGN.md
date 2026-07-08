@@ -38,8 +38,12 @@ street-name pool. Roster lives in `game/index.html` (`HOODS`).
 
 1. **Impacts** — hazard hit at speed: impulse = speed × severity
    (crack 4, dog 5, cone 6, trash 7, bin 8, scooter 9). Scooter/bin also halve speed.
-2. **Driveways** — cross-slope, spans all lanes; continuous tilt while crossing,
-   proportional to speed. The only counter is arriving slow.
+2. **Driveways** (`prop.driveway`, live in-game today) — cross-slope, spans
+   all lanes; continuous tilt while crossing, proportional to speed. The
+   only counter is arriving slow. Separately, a rethought/renamed version
+   of this concept — proper ADA curb ramps (`prop.sidewalkend`) — is fully
+   prototyped with its own richer physics (lane-dependent tilt, pitch,
+   curb-drop tipping) but not yet ported; see the dedicated section below.
 3. **Lane changes** — 0.16 + speed × 4.5 stability cost, bled in over ~0.3s of the
    maneuver (not a spike). Changing lanes at speed is a gamble.
 3b. **Palms are solid.** Lane −1 (building side) is planted with palm trunks that
@@ -84,6 +88,83 @@ insulated-liner interior, sagging flag, spill physics.
 
 **Known debt:** hand-managed draw order between parts. If layering bugs reappear,
 move to a single global depth-sorted face renderer.
+
+## Sidewalkend curb ramps (prototyped, not yet in game)
+
+Started as `prop.driveway` (a flat cross-slope apron), rethought entirely into
+an ADA-style curb ramp system. Fully built and physics-tested in
+`labs/sidewalkend-lab.html` — nothing here is wired into `game/index.html`
+yet. This section is the port spec.
+
+**Geometry — exactly 2×3 sidewalk tiles (184×276 units):**
+- Cross-width (perpendicular to travel) is fixed at exactly 3 sidewalk tiles
+  (276 units = `1.5*T2` each side), matching the real 3-lane sidewalk.
+- Along-travel depth is exactly 2 tiles (184 units = `T2` each side of the
+  anchor), snapped to whole tile-row boundaries (anchor at a half-integer
+  `s`, e.g. `s=3.5` spans tile-rows 3+4 with no fractional overlap).
+- Only the **center lane** has a ramp. Outer lanes are flat sidewalk the
+  whole way, with a real curb (no ramp) where the sidewalk ends.
+- Two mirrored variants, each its own function (`drawRampDown` /
+  `drawRampUp` in the lab) — not one function with an "inverse" flag, that
+  approach kept producing mismatches. Real ADA design in both directions:
+  the detectable warning pad sits on a flat landing, never on the active
+  slope. Down-ramp: tile 1 slopes sidewalk→street, tile 2 (pad) flat at
+  street height. Up-ramp: tile 1 (pad) flat at street height, tile 2 slopes
+  street→sidewalk. `sidewalkZ=2`, `streetZ=-3` (5-unit drop) — **not yet
+  matched by the base tile system**, which renders sidewalk and road at the
+  same flat z=0 (see open issue below).
+- Yellow ADA pad is exactly one sidewalk tile (92×92), always the tile that
+  touches the street, with a 5×5 truncated-dome dot grid and a lighter
+  highlight dot per bump for texture.
+- Curb walls bridge the sloped strip to the flat outer columns — needed
+  because a lone sloped tile next to untouched flat columns otherwise reads
+  as a floating/glitched edge, not a real curb.
+
+**Physics (all confirmed working in the lab, needs porting + tuning):**
+- **Tilt (roll):** `tilt += botRow * speed * 0.055 * dt` while within the
+  ramp's along-travel extent. `botRow` (−1/0/1) is already the correct sign
+  — opposite lean in the two outer lanes, zero in the center lane (the
+  center sits on the pad's straight slope: pure pitch, no side-to-side
+  lean). Same `0.055` coefficient the game already uses for driveway tilt.
+- **Pitch:** `pitch = -atan(groundSlopeAt(s, row))`, identical formula to
+  the game's own hill pitch, just fed a ramp-aware slope sample instead of
+  terrain grade.
+- **Jitter:** small random roll wobble (`±0.05`) while crossing the yellow
+  pad specifically, layered on top of tilt-derived roll but *not* folded
+  into the `tilt` accumulator itself — simulates rolling over the dome
+  texture without affecting the tip-over threshold or lingering past the pad.
+- **Outer-lane curb block:** no ramp under the outer lanes, so the far curb
+  is a real wall — position clamps right at the boundary, `stuckAmt` ramps
+  up same as the game's palm-tree stuck mechanic (jitLoop position offset +
+  a "?!" bubble past `stuckAmt > 0.5`), decays back down if not blocked.
+- **Curb-drop tip trigger:** dropping off an unramped curb while *already*
+  leaning hard (`|tilt| > 0.55`) is enough to fully tip, same direction as
+  the existing lean — works either side. Otherwise it's a stumble kick
+  (`tilt += sign * 0.35`) without a full tip.
+
+**Open architecture question — placement isn't resolved.** The original
+assumption (ramps at every corner, robot experiences the physics crossing
+each intersection) doesn't fit the current route: corners are smooth
+filleted arcs, not street crossings — the robot never actually leaves its
+own sidewalk or changes elevation going around one. Explored two directions
+in `labs/world-lab.html`:
+  1. A full rewrite where corners become real perpendicular intersections
+     (robot crosses straight, ramp physics apply, turns at the far corner)
+     — a genuine architecture change, not attempted.
+  2. **Current direction:** random background cross-streets, *not* part of
+     the robot's own path — decorative junctions along straight sidewalk
+     legs (gated by a frequency roll, never inside a corner), rendered with
+     the same ramp geometry as ground decals only, no physics hook, since
+     the robot never actually interacts with them. If this is the final
+     direction, the tilt/pitch/stuck physics above may end up unused unless
+     a *different* on-path trigger for sidewalkend ramps gets designed.
+
+**Known issue to resolve before porting:** the base tile system (both in
+`game/index.html` and the lab) renders sidewalk and road at identical flat
+z=0 — only a cosmetic curb-lip line marks the boundary, no real elevation
+difference. The ramps assume a real 5-unit drop. Needs a decision: model
+real sidewalk elevation everywhere, or make the ramps a color/texture cue
+only with no actual height change.
 
 ## Reference docs
 
