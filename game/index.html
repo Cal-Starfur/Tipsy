@@ -620,7 +620,7 @@ class WorldScene extends Phaser.Scene {
     };
 
     /* ground decals first: flat on the pavement, can never occlude anything */
-    const GROUND_KINDS = { driveway:1, crack:1 };
+    const GROUND_KINDS = { driveway:1, crack:1, sidewalkend:1 };
     this.gFront.clear();
     for(const hz of r.hazards){
       if(!GROUND_KINDS[hz.type]) continue;
@@ -1556,6 +1556,46 @@ class WorldScene extends Phaser.Scene {
       for(const lx of [-18, 0, 18]){
         const a=W(lx,-TILE,2), b=W(lx*1.35, TILE+14,-3);
         g.lineBetween(a.x, a.y, b.x, b.y);
+      }
+    } else if(kind === "sidewalkend"){
+      /* approved in sidewalkend lab: ADA curb ramp, exactly 2x3 sidewalk
+         tiles (184 along-travel x 276 cross-width). Ground decal only,
+         same convention driveway already uses (z-varying quad on a flat
+         tile field) — static visual, no tilt/pitch/stuck physics wired
+         in yet; see docs/DESIGN.md "Sidewalkend curb ramps" for the full
+         spec and the open placement question. This is the DOWN variant
+         (sidewalk -> street); tile 1 slopes, tile 2 (pad) is the flat
+         landing with the ADA dome texture. */
+      const T2s = TILE*2, wHalf = 92, crossHalf = 1.5*T2s;
+      const sidewalkZ = 2, streetZ = -3;
+      this.quadOn(g, [W(-wHalf,-crossHalf,sidewalkZ), W(wHalf,-crossHalf,sidewalkZ),
+                      W(wHalf,crossHalf,sidewalkZ), W(-wHalf,crossHalf,sidewalkZ)], 0xb5afa2);
+      this.edgeOn(g, [W(-wHalf,-crossHalf,sidewalkZ), W(wHalf,-crossHalf,sidewalkZ),
+                      W(wHalf,crossHalf,sidewalkZ), W(-wHalf,crossHalf,sidewalkZ)], 0x968f81, 2);
+      g.lineStyle(1.5, 0x968f81, 0.9);
+      for(const u of [-0.62, 0, 0.62]){
+        const a = W(wHalf*u,-crossHalf,sidewalkZ), b = W(wHalf*u,crossHalf,sidewalkZ);
+        g.lineBetween(a.x, a.y, b.x, b.y);
+      }
+      // tile 1: slopes sidewalk->street. tile 2: flat landing at street height.
+      this.quadOn(g, [W(-wHalf,-T2s/2,sidewalkZ), W(0,-T2s/2,streetZ),
+                      W(0,T2s/2,streetZ), W(-wHalf,T2s/2,sidewalkZ)], 0xb5afa2);
+      this.edgeOn(g, [W(-wHalf,-T2s/2,sidewalkZ), W(0,-T2s/2,streetZ),
+                      W(0,T2s/2,streetZ), W(-wHalf,T2s/2,sidewalkZ)], 0x968f81, 1.5);
+      this.quadOn(g, [W(0,-T2s/2,streetZ), W(wHalf,-T2s/2,streetZ),
+                      W(wHalf,T2s/2,streetZ), W(0,T2s/2,streetZ)], 0xb5afa2);
+      this.edgeOn(g, [W(0,-T2s/2,streetZ), W(wHalf,-T2s/2,streetZ),
+                      W(wHalf,T2s/2,streetZ), W(0,T2s/2,streetZ)], 0x968f81, 1.5);
+      // ADA pad: the flat landing tile, dome-textured
+      this.quadOn(g, [W(0,-T2s/2,streetZ), W(wHalf,-T2s/2,streetZ),
+                      W(wHalf,T2s/2,streetZ), W(0,T2s/2,streetZ)], 0xf4c430);
+      this.edgeOn(g, [W(0,-T2s/2,streetZ), W(wHalf,-T2s/2,streetZ),
+                      W(wHalf,T2s/2,streetZ), W(0,T2s/2,streetZ)], 0xb9911f, 1.5);
+      for(let ri=0; ri<5; ri++) for(let ci=0; ci<5; ci++){
+        const py = -T2s/2 + T2s*(ri/4), px = wHalf*(ci/4);
+        const p = W(px, py, streetZ);
+        g.fillStyle(0xc9911f, 0.8);
+        g.fillCircle(p.x, p.y, 1.5);
       }
     } else if(kind === "crack"){
       g.lineStyle(2.5, 0x5d574c, 1);
