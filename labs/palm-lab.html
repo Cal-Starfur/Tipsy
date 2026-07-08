@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>TIPSY — Palm Lab</title>
+<style>
+  html,body{margin:0;padding:0;background:#14161b;height:100%;overflow:hidden;touch-action:manipulation;
+    font-family:-apple-system,'Helvetica Neue',Arial,sans-serif;-webkit-user-select:none;user-select:none;color:#e8eaef;}
+  #wrap{display:flex;flex-direction:column;height:100%;}
+  #game{flex:1;min-height:0;}
+  #panel{padding:10px 12px calc(14px + env(safe-area-inset-bottom));background:#1c1f26;border-top:1px solid #2b2f38;}
+  .row{display:flex;gap:8px;margin-bottom:8px;align-items:center;}
+  .row:last-child{margin-bottom:0;}
+  .lbl{font-size:11px;letter-spacing:1.5px;color:#8f95a1;width:56px;text-transform:uppercase;}
+  button{flex:1;background:#262a33;color:#e8eaef;border:1px solid #363b46;border-radius:10px;
+    padding:10px 4px;font-size:13px;font-weight:600;}
+  button.on{background:#ff7a1a;border-color:#ff7a1a;color:#fff;}
+  button:active{transform:scale(0.96);}
+  button.sm{flex:0 0 44px;}
+  #hdr{padding:10px 14px 2px;font-size:12px;letter-spacing:2px;color:#8f95a1;text-transform:uppercase;}
+  #hdr b{color:#ff9c4d;}
+  #vals{padding:0 14px 6px;font-size:11px;color:#8f95a1;font-variant-numeric:tabular-nums;}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="hdr"><b>TIPSY</b> · palm lab · prop.palm makeover</div>
+  <div id="vals">…</div>
+  <div id="game"></div>
+  <div id="panel">
+    <div class="row">
+      <span class="lbl">Style</span>
+      <button id="oldBtn">OLD (game)</button>
+      <button class="on" id="newBtn">TALL</button>
+      <button id="dwarfBtn">DWARF</button>
+      <button id="reseed">RESEED TRIO</button>
+    </div>
+    <div class="row">
+      <span class="lbl">Height</span>
+      <button class="sm" data-p="height" data-d="-1">−</button>
+      <button class="sm" data-p="height" data-d="1">＋</button>
+      <span class="lbl">Fronds</span>
+      <button class="sm" data-p="fronds" data-d="-1">−</button>
+      <button class="sm" data-p="fronds" data-d="1">＋</button>
+    </div>
+    <div class="row">
+      <span class="lbl">Spread</span>
+      <button class="sm" data-p="spread" data-d="-1">−</button>
+      <button class="sm" data-p="spread" data-d="1">＋</button>
+      <span class="lbl">Droop</span>
+      <button class="sm" data-p="droop" data-d="-1">−</button>
+      <button class="sm" data-p="droop" data-d="1">＋</button>
+      <span class="lbl">Wind</span>
+      <button class="sm" data-p="wind" data-d="-1">−</button>
+      <button class="sm" data-p="wind" data-d="1">＋</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/phaser@3.85.2/dist/phaser.min.js"></script>
+<script>
+"use strict";
+
+/* ============================================================
+   TIPSY — Palm Lab
+   Makeover bench for prop.palm. Dial in the look here, then the
+   approved renderer + PALM params port into game/index.html and
+   live.html together (gallery sync rule).
+   Hero palm center; seeded trio right, to judge per-tree variety.
+   ============================================================ */
+
+/* ---------- the dials (ported into the game once approved) ---------- */
+const PALM = {
+  height: 165,        // trunk length (approved)
+  fronds: 8,          // frond count
+  droop: 1.0,         // 0 = spiky umbrella, 1 = weeping (approved)
+  spread: 1.0,        // crown width: frond length multiplier
+  wind: 1.0,          // sway multiplier
+  trunkLean: 0.16,    // base curve of the trunk
+  trunk:  0x8a6a48, trunkDk: 0x6f5439, ring: 0x7a5c40,
+  frondA: 0x4e8f4a, frondB: 0x3f7a3e,  // front / back greens
+  coco:   0x6b4f33, cocoHi: 0x7d5e40,
+  shadow: 0x000000
+};
+
+const TILE = 46;
+const GROUND = { a:0xc9c3b4, b:0xbfb9aa, edge:0xa8a294, sky:0x9fd4e8 };
+
+function hashStr(s){ let h = 1779033703; for(let i=0;i<s.length;i++){ h = Math.imul(h ^ s.charCodeAt(i), 3432918353); h = (h << 13) | (h >>> 19); } return h >>> 0; }
+function mulberry32(a){ return function(){ a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+
+class PalmLab extends Phaser.Scene {
+  constructor(){ super("palmlab"); }
+
+  create(){
+    this.K = 1.6;
+    this.mode = "new";
+    this.seedBase = 1;
+    this.g = this.add.graphics();
+    this.scale.on("resize", () => this.layout());
+    this.layout();
+    this.updateVals();
+  }
+  layout(){
+    this.cx = this.scale.gameSize.width/2;
+    this.cy = this.scale.gameSize.height*0.72;
+  }
+  updateVals(){
+    document.getElementById("vals").textContent =
+      `height ${PALM.height} · fronds ${PALM.fronds} · spread ${PALM.spread.toFixed(2)} · droop ${PALM.droop.toFixed(2)} · wind ${PALM.wind.toFixed(1)} · seeds #${this.seedBase}`;
+  }
+
+  /* iso ground patch so the palm sits in the game's world, not a void */
+  W(x, y, z, ox, oy){
+    return { x:(x - y)*this.K + ox, y:((x + y)*0.5 - z)*this.K + oy };
+  }
+  quad(pts, color, alpha=1){
+    this.g.fillStyle(color, alpha);
+    this.g.fillPoints(pts.map(p => new Phaser.Geom.Point(p.x, p.y)), true);
+  }
+
+  drawGround(ox, oy, half){
+    for(let tx=-half; tx<half; tx++){
+      for(let ty=-half; ty<half; ty++){
+        const cxm = tx*TILE*2 + TILE, cym = ty*TILE*2 + TILE;
+        const pts = [
+          this.W(cxm+TILE, cym-TILE, 0, ox, oy), this.W(cxm+TILE, cym+TILE, 0, ox, oy),
+          this.W(cxm-TILE, cym+TILE, 0, ox, oy), this.W(cxm-TILE, cym-TILE, 0, ox, oy)];
+        this.quad(pts, ((tx+ty)%2===0) ? GROUND.a : GROUND.b);
+        this.g.lineStyle(1.5, GROUND.edge, 1);
+        this.g.strokePoints(pts.map(p => new Phaser.Geom.Point(p.x, p.y)), true);
+      }
+    }
+  }
+
+  /* ---------- OLD palm: the current game renderer, for comparison ---------- */
+  drawPalmOld(t, ox, oy, scale=1){
+    const g = this.g, K = this.K*scale;
+    const sway = Math.sin(t*0.0012)*3;
+    const base = { x:ox, y:oy };
+    g.lineStyle(7*scale, 0x8a6a48, 1);
+    g.beginPath(); g.moveTo(base.x, base.y);
+    const top = { x:base.x + sway*K, y:base.y - 95*K };
+    g.lineTo(top.x, top.y); g.strokePath();
+    g.fillStyle(0x4e8f4a, 1);
+    for(let i=0; i<6; i++){
+      const a = (i/6)*Math.PI*2 + t*0.0006;
+      const fx = Math.cos(a)*34*K, fy = Math.sin(a)*20*K;
+      g.fillTriangle(top.x, top.y, top.x+fx-7, top.y+fy, top.x+fx+7, top.y+fy+4);
+    }
+    g.fillStyle(0x6b4f33, 1);
+    g.fillCircle(top.x, top.y+2, 5*scale);
+  }
+
+  /* ---------- NEW palm: the makeover ----------
+     Curved tapered trunk with ring marks; drooping fronds built
+     from leaflet pairs along a curved spine; front/back greens;
+     coconut cluster; per-tree seed for natural variety. */
+  drawPalmNew(t, ox, oy, seed, scale=1){
+    const g = this.g, K = this.K*scale, P = PALM;
+    const rng = mulberry32(seed);
+    const lean = P.trunkLean * (rng()*2 - 1) * 2;          // which way it grew
+    const hVar = 0.85 + rng()*0.3;
+    const H = P.height * hVar;
+    const phase = rng()*Math.PI*2;
+    const sway = Math.sin(t*0.0011 + phase) * 3.2 * P.wind;
+
+    /* ground shadow pools opposite the lean */
+    g.fillStyle(P.shadow, 0.13);
+    g.fillEllipse(ox + lean*22*K, oy + 3, (36 + H*0.14)*K, 12*K);
+
+    /* trunk: curved spine, tapered segments, ring marks */
+    const SEG = 8, spine = [];
+    for(let i=0; i<=SEG; i++){
+      const u = i/SEG;
+      spine.push({
+        x: ox + (lean*H*u*u + sway*u*u) * K,
+        y: oy - H*u*K,
+        w: (7.5 - 4.5*u) * K * scale
+      });
+    }
+    for(let i=0; i<SEG; i++){
+      const a = spine[i], b = spine[i+1];
+      g.fillStyle(i % 2 === 0 ? P.trunk : P.trunkDk, 1);
+      this.quad([
+        {x:a.x-a.w/2, y:a.y}, {x:a.x+a.w/2, y:a.y},
+        {x:b.x+b.w/2, y:b.y}, {x:b.x-b.w/2, y:b.y}
+      ], i % 2 === 0 ? P.trunk : P.trunkDk);
+      if(i % 2 === 1){
+        g.lineStyle(1.5, P.ring, 1);
+        g.lineBetween(a.x-a.w/2, a.y, a.x+a.w/2, a.y);
+      }
+    }
+    const crown = spine[SEG];
+
+    /* fronds: back layer first (darker), then front (lighter) */
+    const N = P.fronds;
+    const fronds = [];
+    for(let i=0; i<N; i++){
+      const baseA = (i/N)*Math.PI*2 + rng()*0.25;
+      const flut = Math.sin(t*0.0021 + phase + i*1.7) * 0.06 * P.wind;
+      /* screen-space direction of this frond */
+      const dirX = Math.cos(baseA), dirY = Math.sin(baseA)*0.45 - 0.12;
+      const len = (44 + rng()*14) * P.spread * K;
+      fronds.push({ dirX, dirY, flut, len, back: dirY < -0.18 });
+    }
+    const drawFrond = (f, color) => {
+      const steps = 7;
+      let px = crown.x, py = crown.y;
+      for(let sIdx=1; sIdx<=steps; sIdx++){
+        const u = sIdx/steps;
+        const nx = crown.x + f.dirX * f.len * u;
+        const ny = crown.y + f.dirY * f.len * u
+                 + (P.droop * 30 * u*u + f.flut*26*u) * K;
+        /* leaflet pair: small triangles either side of the spine */
+        const lw = (9 - 7*u) * K, ll = (13 - 6*u) * K;
+        const tx2 = nx - px, ty2 = ny - py;
+        const tl = Math.hypot(tx2, ty2) || 1;
+        const pxn = -ty2/tl, pyn = tx2/tl;
+        g.fillStyle(color, 1);
+        g.fillTriangle(px, py, nx, ny, px + pxn*lw + tx2*0.3, py + pyn*lw + ty2*0.3);
+        g.fillTriangle(px, py, nx, ny, px - pxn*lw + tx2*0.3, py - pyn*lw + ty2*0.3);
+        px = nx; py = ny;
+      }
+    };
+    for(const f of fronds) if(f.back)  drawFrond(f, PALM.frondB);
+    /* coconuts nestle between layers */
+    for(let i=0; i<3; i++){
+      const a = phase + i*2.1;
+      g.fillStyle(i === 1 ? P.cocoHi : P.coco, 1);
+      g.fillCircle(crown.x + Math.cos(a)*6*K, crown.y + 4*K + Math.sin(a)*3*K, 4.2*K*scale);
+    }
+    for(const f of fronds) if(!f.back) drawFrond(f, PALM.frondA);
+  }
+
+  update(t){
+    const g = this.g; g.clear();
+    g.fillStyle(GROUND.sky, 1);
+    g.fillRect(0, 0, this.scale.gameSize.width, this.scale.gameSize.height);
+    this.drawGround(this.cx, this.cy, 3);
+
+    if(this.mode === "old"){
+      this.drawPalmOld(t, this.cx, this.cy, 1.4);
+      this.drawPalmOld(t + 700, this.cx - 150, this.cy - 60, 0.9);
+      this.drawPalmOld(t + 1400, this.cx + 150, this.cy - 40, 0.9);
+    } else {
+      /* seeded trio: hero + two companions — judge the VARIETY */
+      this.drawPalmNew(t, this.cx, this.cy, this.seedBase, 1.4);
+      this.drawPalmNew(t, this.cx - 150, this.cy - 60, this.seedBase + 1, 0.9);
+      this.drawPalmNew(t, this.cx + 150, this.cy - 40, this.seedBase + 2, 0.9);
+    }
+  }
+}
+
+const game = new Phaser.Game({
+  type: Phaser.AUTO, parent: "game",
+  scale: { mode: Phaser.Scale.RESIZE, width: "100%", height: "100%" },
+  scene: [PalmLab]
+});
+const scn = () => game.scene.getScene("palmlab");
+
+document.getElementById("oldBtn").addEventListener("click", e => {
+  scn().mode = "old";
+  e.target.classList.add("on");
+  document.getElementById("newBtn").classList.remove("on");
+});
+const PRESETS = {
+  tall:  { height:165, fronds:8, droop:1.0, wind:1.0, spread:1.0 },
+  dwarf: { height:55,  fronds:8, droop:0.3, wind:0.3, spread:1.0 }
+};
+function applyPreset(name, btn){
+  Object.assign(PALM, PRESETS[name]);
+  scn().mode = "new";
+  document.querySelectorAll("#oldBtn,#newBtn,#dwarfBtn").forEach(b => b.classList.remove("on"));
+  btn.classList.add("on");
+  scn().updateVals();
+}
+document.getElementById("newBtn").addEventListener("click", e => applyPreset("tall", e.target));
+document.getElementById("dwarfBtn").addEventListener("click", e => applyPreset("dwarf", e.target));
+document.getElementById("reseed").addEventListener("click", () => {
+  scn().seedBase = Math.floor(Math.random()*99999);
+  scn().updateVals();
+});
+document.querySelectorAll("[data-p]").forEach(btn => {
+  btn.addEventListener("click", () => {
+    const p = btn.dataset.p, d = +btn.dataset.d;
+    if(p === "height") PALM.height = Phaser.Math.Clamp(PALM.height + d*15, 55, 260);
+    if(p === "fronds") PALM.fronds = Phaser.Math.Clamp(PALM.fronds + d, 5, 12);
+    if(p === "droop")  PALM.droop  = Phaser.Math.Clamp(+(PALM.droop + d*0.1).toFixed(2), 0, 1);
+    if(p === "spread") PALM.spread = Phaser.Math.Clamp(+(PALM.spread + d*0.15).toFixed(2), 0.7, 2.0);
+    if(p === "wind")   PALM.wind   = Phaser.Math.Clamp(+(PALM.wind + d*0.25).toFixed(2), 0, 2.5);
+    scn().updateVals();
+  });
+});
+</script>
+</body>
+</html>
