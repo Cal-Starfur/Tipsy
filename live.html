@@ -625,7 +625,7 @@ class GalleryScene extends Phaser.Scene {
   }
 
   /* ========== INJECTED FROM game/index.html — keep in sync ========== */
-  drawProp(g, kind, x, y, t, fdir = 0, z = 0, wheelPhase = null){
+  drawProp(g, kind, x, y, t, fdir = 0, z = 0, wheelPhase = null, colorSeed = null){
     const dv = DIRV[fdir], rv = DIRV[(fdir+1)%4];
     const W = (dx, dy, dz) => this.W(x + dv.x*dx + rv.x*dy, y + dv.y*dx + rv.y*dy, z + dz);
     if(kind === "palm" || kind === "palmDwarf"){
@@ -1217,7 +1217,15 @@ class GalleryScene extends Phaser.Scene {
          color per instance. kind "truck" swaps in the shorter cab,
          vertical rear wall, small rear window, and open cargo bed. */
       const CR = CARC, isTruck = kind === "truck";
-      const seed = ((Math.round(x)*7919) ^ (Math.round(y)*104729) ^ 0x9c31) >>> 0;
+      /* color seed: position-based for a parked car (fixed, so the
+         color is stable), but a MOVING vehicle's x/y changes every
+         single frame — seeding from live position there re-rolls a
+         new random color every frame, which read as flickering.
+         colorSeed lets the caller pass a fixed per-vehicle value
+         instead, for anything that actually moves. */
+      const seed = colorSeed !== null
+        ? (colorSeed ^ 0x9c31) >>> 0
+        : ((Math.round(x)*7919) ^ (Math.round(y)*104729) ^ 0x9c31) >>> 0;
       const rng = mulberry32(seed);
       const col = CAR_COLORS[Math.floor(rng()*CAR_COLORS.length)];
       const GG = W;
