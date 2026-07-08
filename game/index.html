@@ -337,7 +337,8 @@ function generateRoute(dateStr){
       kind: rng() < 0.6 ? "car" : "truck",
       sBase: rng()*totalLen,
       speed: 0.02 + rng()*0.014,          // units/ms, faster than the robot's own top speed
-      row: 3.7
+      row: 3.7,
+      colorSeed: Math.floor(rng()*0xffffffff) >>> 0   // fixed — position moves every frame, color must not
     });
   }
 
@@ -644,7 +645,7 @@ class WorldScene extends Phaser.Scene {
       const fi = Math.round(hdg / (Math.PI/2));
       const trF = ((fi % 4) + 4) % 4;
       const wp = worldOf(trS, tr.row, trF);
-      if(near(wp.x, wp.y)) this.drawProp(layerFor(wp.x, wp.y), tr.kind, wp.x, wp.y, t, trF, wp.z, trS*0.28);
+      if(near(wp.x, wp.y)) this.drawProp(layerFor(wp.x, wp.y), tr.kind, wp.x, wp.y, t, trF, wp.z, trS*0.28, tr.colorSeed);
     }
     for(const hz of r.hazards){
       if(GROUND_KINDS[hz.type]) continue;
@@ -672,7 +673,7 @@ class WorldScene extends Phaser.Scene {
     this.addrText.setText(this.route.address);
   }
 
-  drawProp(g, kind, x, y, t, fdir = 0, z = 0, wheelPhase = null){
+  drawProp(g, kind, x, y, t, fdir = 0, z = 0, wheelPhase = null, colorSeed = null){
     const dv = DIRV[fdir], rv = DIRV[(fdir+1)%4];
     const W = (dx, dy, dz) => this.W(x + dv.x*dx + rv.x*dy, y + dv.y*dx + rv.y*dy, z + dz);
     if(kind === "palm" || kind === "palmDwarf"){
@@ -1261,7 +1262,15 @@ class WorldScene extends Phaser.Scene {
          color per instance. kind "truck" swaps in the shorter cab,
          vertical rear wall, small rear window, and open cargo bed. */
       const CR = CARC, isTruck = kind === "truck";
-      const seed = ((Math.round(x)*7919) ^ (Math.round(y)*104729) ^ 0x9c31) >>> 0;
+      /* color seed: position-based for a parked car (fixed, so the
+         color is stable), but a MOVING vehicle's x/y changes every
+         single frame — seeding from live position there re-rolls a
+         new random color every frame, which read as flickering.
+         colorSeed lets the caller pass a fixed per-vehicle value
+         instead, for anything that actually moves. */
+      const seed = colorSeed !== null
+        ? (colorSeed ^ 0x9c31) >>> 0
+        : ((Math.round(x)*7919) ^ (Math.round(y)*104729) ^ 0x9c31) >>> 0;
       const rng = mulberry32(seed);
       const col = CAR_COLORS[Math.floor(rng()*CAR_COLORS.length)];
       const GG = W;
