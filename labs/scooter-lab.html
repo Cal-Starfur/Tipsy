@@ -255,8 +255,13 @@ class ScooterLab extends Phaser.Scene {
         top.push(G(a2, b2, 5.2)); bot.push(G(a2, b2, 0.8));
       }
       this.quad(convexHull(top.concat(bot)), brand.cDk);    // slab body
-      this.quad(top, brand.c);                               // deck surface matches the stem
-      this.quad([G(-16*L,-4,5.6), G(8*L,-4,5.6), G(8*L,4,5.6), G(-16*L,4,5.6)], S.grip);
+      /* the deck's top face is only drawn when it actually faces the camera —
+         lying, the local +h normal maps to world -b */
+      const topVisible = lay ? (sn - cs) > 0 : true;
+      if(topVisible){
+        this.quad(top, brand.c);
+        this.quad([G(-16*L,-4,5.6), G(8*L,-4,5.6), G(8*L,4,5.6), G(-16*L,4,5.6)], S.grip);
+      }
     };
     const stem = () => {
       const da = stemTipA - stemBaseA, dh = stemTipH - stemBaseH;
