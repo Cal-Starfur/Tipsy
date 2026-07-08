@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>TIPSY — Hydrant Lab</title>
+<style>
+  html,body{margin:0;padding:0;background:#14161b;height:100%;overflow:hidden;touch-action:manipulation;
+    font-family:-apple-system,'Helvetica Neue',Arial,sans-serif;-webkit-user-select:none;user-select:none;color:#e8eaef;}
+  #wrap{display:flex;flex-direction:column;height:100%;}
+  #game{flex:1;min-height:0;}
+  #panel{padding:10px 12px calc(14px + env(safe-area-inset-bottom));background:#1c1f26;border-top:1px solid #2b2f38;}
+  .row{display:flex;gap:8px;margin-bottom:8px;align-items:center;}
+  .row:last-child{margin-bottom:0;}
+  .lbl{font-size:11px;letter-spacing:1.5px;color:#8f95a1;width:56px;text-transform:uppercase;}
+  button{flex:1;background:#262a33;color:#e8eaef;border:1px solid #363b46;border-radius:10px;
+    padding:10px 4px;font-size:13px;font-weight:600;}
+  button.on{background:#ff7a1a;border-color:#ff7a1a;color:#fff;}
+  button:active{transform:scale(0.96);}
+  button.sm{flex:0 0 44px;}
+  #hdr{padding:10px 14px 2px;font-size:12px;letter-spacing:2px;color:#8f95a1;text-transform:uppercase;}
+  #hdr b{color:#ff9c4d;}
+  #vals{padding:0 14px 6px;font-size:11px;color:#8f95a1;font-variant-numeric:tabular-nums;}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="hdr"><b>TIPSY</b> · hydrant lab · prop.hydrant makeover</div>
+  <div id="vals">…</div>
+  <div id="game"></div>
+  <div id="panel">
+    <div class="row">
+      <span class="lbl">Style</span>
+      <button id="oldBtn">OLD (game)</button>
+      <button class="on" id="newBtn">NEW</button>
+      <button id="colorBtn">RED</button>
+      <button id="burstBtn">BURST</button>
+    </div>
+    <div class="row">
+      <span class="lbl">View</span>
+      <button class="sm" id="rotL">◀</button>
+      <button class="sm" id="rotR">▶</button>
+      <span class="lbl">Zoom</span>
+      <button class="sm" id="zoomOut">−</button>
+      <button class="sm" id="zoomIn">＋</button>
+    </div>
+    <div class="row">
+      <span class="lbl">Height</span>
+      <button class="sm" data-p="height" data-d="-1">−</button>
+      <button class="sm" data-p="height" data-d="1">＋</button>
+      <span class="lbl">Base</span>
+      <button class="sm" data-p="baseR" data-d="-1">−</button>
+      <button class="sm" data-p="baseR" data-d="1">＋</button>
+    </div>
+    <div class="row">
+      <span class="lbl">Dome</span>
+      <button class="sm" data-p="domeR" data-d="-1">−</button>
+      <button class="sm" data-p="domeR" data-d="1">＋</button>
+      <span class="lbl">Nozzle</span>
+      <button class="sm" data-p="nozR" data-d="-1">−</button>
+      <button class="sm" data-p="nozR" data-d="1">＋</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/phaser@3.85.2/dist/phaser.min.js"></script>
+<script>
+"use strict";
+
+/* ============================================================
+   TIPSY — Hydrant Lab
+   Makeover bench for prop.hydrant: municipal streetscape decor
+   (not a hazard — always upright, no tipped state). Same robust
+   ring-body pattern as the bin/cone: single hull silhouette,
+   depth-sorted parts, capsule nozzles built the same way the
+   scooter's handlebar was.
+   ============================================================ */
+
+const HYD = {
+  height: 20, baseR: 8, domeR: 6.5, nozR: 2.6, collarR: 1.2,
+  body: 0xd8443a, bodyDk: 0xa8352c,
+  cap: 0xb5342b, capDk: 0x8a2822,
+  nut: 0x3a3d43, chain: 0x5f656e,
+  water: 0xbfe6f2, waterDk: 0x8fc8dc,
+  shadow: 0x000000
+};
+const COLORS = [
+  { n:"red",    body:0xd8443a, bodyDk:0xa8352c, cap:0xb5342b, capDk:0x8a2822 },
+  { n:"yellow", body:0xd8b23a, bodyDk:0xa8862c, cap:0xb5933a, capDk:0x8a6f22 }
+];
+
+const TILE = 46;
+const GROUND = { a:0xc9c3b4, b:0xbfb9aa, edge:0xa8a294, sky:0x9fd4e8 };
+
+function convexHull(pts){
+  const P = pts.slice().sort((a,b) => a.x - b.x || a.y - b.y);
+  const cross = (o, a, b) => (a.x-o.x)*(b.y-o.y) - (a.y-o.y)*(b.x-o.x);
+  const lo = [], hi = [];
+  for(const p of P){
+    while(lo.length >= 2 && cross(lo[lo.length-2], lo[lo.length-1], p) <= 0) lo.pop();
+    lo.push(p);
+  }
+  for(let i = P.length-1; i >= 0; i--){
+    const p = P[i];
+    while(hi.length >= 2 && cross(hi[hi.length-2], hi[hi.length-1], p) <= 0) hi.pop();
+    hi.push(p);
+  }
+  lo.pop(); hi.pop();
+  return lo.concat(hi);
+}
+function mulberry32(a){ return function(){ a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+
+class HydrantLab extends Phaser.Scene {
+  constructor(){ super("hydlab"); }
+
+  create(){
+    this.K = 5.2;
+    this.mode = "new";
+    this.color = "red";
+    this.heroAngle = 0.5;
+    this.bursting = false;
+    this.g = this.add.graphics();
+    this.scale.on("resize", () => this.layout());
+    this.layout();
+    this.updateVals();
+  }
+  layout(){
+    this.cx = this.scale.gameSize.width/2;
+    this.cy = this.scale.gameSize.height*0.6;
+  }
+  updateVals(){
+    document.getElementById("vals").textContent =
+      `height ${HYD.height} · base ${HYD.baseR} · dome ${HYD.domeR} · nozzle ${HYD.nozR} · ${this.color}`;
+  }
+
+  W(x, y, z, ox, oy){
+    return { x:(x - y)*this.K + ox, y:((x + y)*0.5 - z)*this.K + oy };
+  }
+  quad(pts, color, alpha=1){
+    this.g.fillStyle(color, alpha);
+    this.g.fillPoints(pts.map(p => new Phaser.Geom.Point(p.x, p.y)), true);
+  }
+  edge(pts, color, w=2){
+    this.g.lineStyle(w, color, 1);
+    this.g.strokePoints(pts.map(p => new Phaser.Geom.Point(p.x, p.y)), true);
+  }
+
+  drawGround(ox, oy, half){
+    for(let tx=-half; tx<half; tx++){
+      for(let ty=-half; ty<half; ty++){
+        const cxm = tx*TILE*2 + TILE, cym = ty*TILE*2 + TILE;
+        const pts = [
+          this.W(cxm+TILE, cym-TILE, 0, ox, oy), this.W(cxm+TILE, cym+TILE, 0, ox, oy),
+          this.W(cxm-TILE, cym+TILE, 0, ox, oy), this.W(cxm-TILE, cym-TILE, 0, ox, oy)];
+        this.quad(pts, ((tx+ty)%2===0) ? GROUND.a : GROUND.b);
+        this.edge(pts, GROUND.edge, 1.5);
+      }
+    }
+  }
+
+  /* ---------- OLD hydrant: the current game renderer ---------- */
+  drawHydrantOld(ox, oy){
+    const g = this.g;
+    const W = (dx, dy, dz) => this.W(dx, dy, dz, ox, oy);
+    const s = this.K / 1.6;
+    const p = W(0, 0, 0);
+    g.fillStyle(0xd8b23a, 1);
+    g.fillRect(p.x - 6*s, p.y - 16*s, 12*s, 16*s);
+    g.fillEllipse(p.x, p.y - 16*s, 12*s, 8*s);
+    g.fillEllipse(p.x, p.y, 16*s, 7*s);
+    g.lineStyle(2*s, 0xb5933a, 1);
+    g.strokeRect(p.x - 6*s, p.y - 16*s, 12*s, 16*s);
+  }
+
+  /* ---------- NEW hydrant ----------
+     Single rigid build, always upright (no tipped state — this is
+     decor, not a hazard). Same robust single-hull ring pattern as
+     the bin/cone. Side nozzles are capsules built the same way the
+     scooter's handlebar was; seeded rotation only varies which way
+     the nozzles face, for variety along the route. */
+  drawHydrantNew(ox, oy, seed, thOverride, t){
+    const g = this.g, H = HYD;
+    const rng = mulberry32(seed);
+    const th = thOverride !== undefined ? thOverride : rng()*Math.PI*2;
+    const cs = Math.cos(th), sn = Math.sin(th);
+    const col = COLORS.find(c => c.n === this.color) || COLORS[0];
+    const height = H.height;
+
+    const G = (a, b, h) => this.W(a*cs - b*sn, a*sn + b*cs, h, ox, oy);
+    const depthAt = (a, b, h) => a*(cs+sn) + b*(cs-sn) + h*0.4;
+
+    /* barrel profile: flanged base, tapered neck, flared shoulder
+       just under the dome (the collar bulge real hydrants have) */
+    const rOf = h => {
+      const u = h / height;
+      if(u < 0.08) return H.baseR;                        // base flange
+      if(u < 0.75) return H.baseR*0.62 - (H.baseR*0.62 - H.baseR*0.5)*((u-0.08)/0.67);
+      return H.baseR*0.5 + (H.baseR*0.78 - H.baseR*0.5) * ((u-0.75)/0.25); // shoulder flare
+    };
+    const place = (h, r, n=14) => {
+      const pts = [];
+      for(let i=0; i<n; i++){
+        const phi = (i/n)*Math.PI*2, c = Math.cos(phi)*r, s2 = Math.sin(phi)*r;
+        pts.push(G(c, s2, h));
+      }
+      return pts;
+    };
+
+    /* shadow */
+    const sh = G(0, 0, 0);
+    g.fillStyle(H.shadow, 0.14);
+    g.fillEllipse(sh.x, sh.y + 2, H.baseR*2.1*this.K*0.42, H.baseR*0.95*this.K*0.42);
+
+    /* puddle: ground decal, must paint BEFORE the hydrant's own body
+       parts (same reason the shadow does) so the barrel/dome/nozzles
+       naturally draw over it instead of it floating on top. Uses the
+       fixed front nozzle (ang=0) since that's the one that breaks. */
+    if(this.bursting){
+      const nc0 = 1, ns0 = 0;
+      const facing0 = nc0*(cs+sn) + ns0*(cs-sn) > 0;
+      if(facing0){
+        const tipA0 = H.baseR*0.55 + H.nozR*2.2;
+        const landA = tipA0 + nc0*26, landB = ns0*26;
+        const puddleRing = (rad, nn=16) => {
+          const pts = [];
+          for(let i=0; i<nn; i++){
+            const phi = (i/nn)*Math.PI*2;
+            pts.push(G(landA + Math.cos(phi)*rad, landB + Math.sin(phi)*rad, 0.3));
+          }
+          return pts;
+        };
+        this.quad(puddleRing(TILE*0.85), H.water, 0.28);
+        this.quad(puddleRing(TILE*0.55), H.water, 0.22);
+      }
+    }
+
+    const barrel = () => {
+      const n = 6, all = [];
+      for(let i=0; i<=n; i++) all.push(...place(i/n*height*0.9, rOf(i/n*height*0.9)));
+      this.quad(convexHull(all), col.cap);
+    };
+    const shoulder = () => {
+      /* flared shoulder collar just under the dome */
+      const h0 = height*0.75, h1 = height*0.9;
+      this.quad(convexHull(place(h0, rOf(h0)).concat(place(h1, rOf(h1)))), col.cap);
+    };
+    const dome = () => {
+      const domeBase = height*0.9, domeR = H.domeR;
+      const n = 8, rings = [];
+      for(let i=0; i<=n; i++){
+        const u = i/n, r2 = domeR * Math.cos(u*Math.PI*0.5);
+        rings.push(place(domeBase + u*domeR*0.9, r2));
+      }
+      const all = []; for(const r2 of rings) all.push(...r2);
+      this.quad(convexHull(all), col.cap);
+      const capTop = G(0, 0, domeBase + domeR*0.9 + 1);
+      g.fillStyle(col.capDk, 1);
+      g.fillCircle(capTop.x, capTop.y, 1.8*this.K*0.45);
+    };
+    const nozzleSpray = (ang, r) => () => {
+      if(!this.bursting) return;
+      const nc = Math.cos(ang), ns = Math.sin(ang);
+      const facing = nc*(cs+sn) + ns*(cs-sn) > 0;
+      if(!facing) return;
+      const tipA = nc*(H.baseR*0.55 + r*2.2), tipB = ns*(H.baseR*0.55 + r*2.2);
+      const hgt = height*0.42;
+      const n = 9;
+      for(let i=0; i<n; i++){
+        const u = ((t*0.0026 + i/n) % 1);
+        const dist = u * 26;
+        const arcH = hgt + 14*u - 26*u*u;               // rises then falls — gravity arc
+        const pt = G(tipA + nc*dist, tipB + ns*dist, Math.max(arcH, 0.5));
+        const alpha = 0.9 * (1 - u*0.55);
+        const r2 = Math.max(0.6, 1.6 - u*1.0);
+        g.fillStyle(u > 0.82 ? H.waterDk : H.water, alpha);
+        g.fillCircle(pt.x, pt.y, r2*this.K*0.4);
+      }
+    };
+    const nozzle = (ang, r, breakable) => () => {
+      const nc = Math.cos(ang), ns = Math.sin(ang);
+      const baseA = nc*(H.baseR*0.55), baseB = ns*(H.baseR*0.55);
+      const tipA = nc*(H.baseR*0.55 + r*2.2), tipB = ns*(H.baseR*0.55 + r*2.2);
+      const hgt = height*0.42;
+      const ring = (a0,b0,rad) => {
+        const pts = [];
+        for(let i=0;i<10;i++){
+          const phi=(i/10)*Math.PI*2;
+          const perpA = -ns, perpB = nc;
+          pts.push(G(a0 + Math.cos(phi)*rad*perpA, b0 + Math.cos(phi)*rad*perpB, hgt + Math.sin(phi)*rad));
+        }
+        return pts;
+      };
+      this.quad(convexHull(ring(baseA,baseB,r).concat(ring(tipA,tipB,r))), col.cap);
+      /* end-cap disc: only reads as visible when this nozzle's tip
+         actually faces the camera. When it points away (hidden on
+         the far side of the hydrant), this must stay hidden — same
+         fix as the bin's mouth-opening visibility. */
+      const facing = nc*(cs+sn) + ns*(cs-sn) > 0;
+      if(!facing) return;
+      if(this.bursting && breakable){
+        /* sheared-off cap: dark broken hole instead of the smooth
+           end disc, where the water is escaping from */
+        this.quad(ring(tipA,tipB,r*0.9), HYD.nut);
+        this.quad(ring(tipA,tipB,r*0.5), col.capDk);
+      } else {
+        this.quad(ring(tipA,tipB,r*0.8), col.capDk);
+      }
+    };
+
+    const domeBase = height*0.9, domeR = H.domeR;
+    const parts = [
+      { d: depthAt(0,0,height*0.3), fn: barrel },
+      { d: depthAt(0,0,height*0.82), fn: shoulder },
+      { d: depthAt(H.baseR*0.55*Math.cos(0), H.baseR*0.55*Math.sin(0), height*0.42), fn: nozzle(0, H.nozR, true) },
+      { d: depthAt(H.baseR*0.55*Math.cos(Math.PI), H.baseR*0.55*Math.sin(Math.PI), height*0.42), fn: nozzle(Math.PI, H.nozR, false) },
+      { d: depthAt(0,0, domeBase+domeR*0.9), fn: dome },
+      { d: depthAt(H.baseR*0.55 + H.nozR*2.2 + 20, 0, height*0.42 + 8), fn: nozzleSpray(0, H.nozR) }
+    ];
+    parts.sort((p1, p2) => p1.d - p2.d);
+    for(const pt of parts) pt.fn();
+  }
+
+  update(t){
+    const g = this.g; g.clear();
+    g.fillStyle(GROUND.sky, 1);
+    g.fillRect(0, 0, this.scale.gameSize.width, this.scale.gameSize.height);
+    this.drawGround(this.cx, this.cy, 3);
+    if(this.mode === "old"){
+      this.drawHydrantOld(this.cx, this.cy);
+    } else {
+      this.drawHydrantNew(this.cx, this.cy, 5, this.heroAngle, t);
+    }
+  }
+}
+
+const game = new Phaser.Game({
+  type: Phaser.AUTO, parent: "game",
+  scale: { mode: Phaser.Scale.RESIZE, width: "100%", height: "100%" },
+  scene: [HydrantLab]
+});
+const scn = () => game.scene.getScene("hydlab");
+
+document.getElementById("oldBtn").addEventListener("click", e => {
+  scn().mode = "old";
+  e.target.classList.add("on");
+  document.getElementById("newBtn").classList.remove("on");
+});
+document.getElementById("newBtn").addEventListener("click", e => {
+  scn().mode = "new";
+  e.target.classList.add("on");
+  document.getElementById("oldBtn").classList.remove("on");
+});
+document.getElementById("colorBtn").addEventListener("click", e => {
+  const s = scn();
+  const order = COLORS.map(c => c.n);
+  s.color = order[(order.indexOf(s.color) + 1) % order.length];
+  e.target.textContent = s.color.toUpperCase();
+  s.updateVals();
+});
+document.getElementById("burstBtn").addEventListener("click", e => {
+  const s = scn();
+  s.bursting = !s.bursting;
+  e.target.classList.toggle("on", s.bursting);
+});
+document.getElementById("rotL").addEventListener("click", () => { scn().heroAngle -= Math.PI/8; });
+document.getElementById("rotR").addEventListener("click", () => { scn().heroAngle += Math.PI/8; });
+document.getElementById("zoomIn").addEventListener("click", () => { scn().K = Math.min(scn().K + 0.4, 8); });
+document.getElementById("zoomOut").addEventListener("click", () => { scn().K = Math.max(scn().K - 0.4, 2); });
+document.querySelectorAll("[data-p]").forEach(btn => {
+  btn.addEventListener("click", () => {
+    const p = btn.dataset.p, d = +btn.dataset.d;
+    if(p === "height") HYD.height = Phaser.Math.Clamp(HYD.height + d*2, 20, 42);
+    if(p === "baseR")  HYD.baseR  = Phaser.Math.Clamp(HYD.baseR + d*1, 5, 12);
+    if(p === "domeR")  HYD.domeR  = Phaser.Math.Clamp(HYD.domeR + d*0.5, 4, 9);
+    if(p === "nozR")   HYD.nozR   = Phaser.Math.Clamp(HYD.nozR + d*0.3, 1.5, 4);
+    scn().updateVals();
+  });
+});
+</script>
+</body>
+</html>
