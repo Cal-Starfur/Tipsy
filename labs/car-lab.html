@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>TIPSY — Car Lab</title>
+<style>
+  html,body{margin:0;padding:0;background:#14161b;height:100%;overflow:hidden;touch-action:manipulation;
+    font-family:-apple-system,'Helvetica Neue',Arial,sans-serif;-webkit-user-select:none;user-select:none;color:#e8eaef;}
+  #wrap{display:flex;flex-direction:column;height:100%;}
+  #game{flex:1;min-height:0;}
+  #panel{padding:10px 12px calc(14px + env(safe-area-inset-bottom));background:#1c1f26;border-top:1px solid #2b2f38;}
+  .row{display:flex;gap:8px;margin-bottom:8px;align-items:center;}
+  .row:last-child{margin-bottom:0;}
+  .lbl{font-size:11px;letter-spacing:1.5px;color:#8f95a1;width:56px;text-transform:uppercase;}
+  button{flex:1;background:#262a33;color:#e8eaef;border:1px solid #363b46;border-radius:10px;
+    padding:10px 4px;font-size:13px;font-weight:600;}
+  button.on{background:#ff7a1a;border-color:#ff7a1a;color:#fff;}
+  button:active{transform:scale(0.96);}
+  button.sm{flex:0 0 44px;}
+  #hdr{padding:10px 14px 2px;font-size:12px;letter-spacing:2px;color:#8f95a1;text-transform:uppercase;}
+  #hdr b{color:#ff9c4d;}
+  #vals{padding:0 14px 6px;font-size:11px;color:#8f95a1;font-variant-numeric:tabular-nums;}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="hdr"><b>TIPSY</b> · car lab · prop.car makeover</div>
+  <div id="vals">…</div>
+  <div id="game"></div>
+  <div id="panel">
+    <div class="row">
+      <span class="lbl">Style</span>
+      <button id="oldBtn">OLD (game)</button>
+      <button class="on" id="newBtn">NEW</button>
+      <button id="colorBtn">SILVER</button>
+      <button id="driveBtn">DRIVE</button>
+    </div>
+    <div class="row">
+      <span class="lbl">Body</span>
+      <button class="on" id="carBtn">CAR</button>
+      <button id="truckBtn">TRUCK</button>
+      <span style="flex:2"></span>
+    </div>
+    <div class="row">
+      <span class="lbl">View</span>
+      <button class="sm" id="rotL">◀</button>
+      <button class="sm" id="rotR">▶</button>
+      <span class="lbl">Zoom</span>
+      <button class="sm" id="zoomOut">−</button>
+      <button class="sm" id="zoomIn">＋</button>
+    </div>
+    <div class="row">
+      <span class="lbl">Length</span>
+      <button class="sm" data-p="len" data-d="-1">−</button>
+      <button class="sm" data-p="len" data-d="1">＋</button>
+      <span class="lbl">Width</span>
+      <button class="sm" data-p="wid" data-d="-1">−</button>
+      <button class="sm" data-p="wid" data-d="1">＋</button>
+    </div>
+    <div class="row">
+      <span class="lbl">Cabin</span>
+      <button class="sm" data-p="cabinH" data-d="-1">−</button>
+      <button class="sm" data-p="cabinH" data-d="1">＋</button>
+      <span class="lbl">Wheel</span>
+      <button class="sm" data-p="wheelR" data-d="-1">−</button>
+      <button class="sm" data-p="wheelR" data-d="1">＋</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/phaser@3.85.2/dist/phaser.min.js"></script>
+<script>
+"use strict";
+
+/* ============================================================
+   TIPSY — Car Lab
+   Makeover bench for prop.car: the parked car along the road
+   (decorative — always upright, axis-aligned to the road facing,
+   no free rotation, one per route). Proper chassis + greenhouse
+   cabin instead of a flat box, ring-based wheels like the
+   scooter's, seeded body color variety.
+   ============================================================ */
+
+const CAR = {
+  len: 150, wid: 60, chassisH: 28, cabinH: 32, wheelR: 16,
+  glass: 0x4a5560, glassDk: 0x3a434c, windshield: 0x9fc4d6, windshieldEdge: 0x6f8fa0,
+  trim: 0x24262c, trimDk: 0x17191d,
+  bumper: 0xb8bcc2, light: 0xf4e9b0, tail: 0xc94f4f,
+  wheel: 0x24262c, wheelDk: 0x17191d, hub: 0x8a919c, hubFace: 0x3d424c,
+  bedFloor: 0x3d434a,
+  shadow: 0x000000
+};
+const COLORS = [
+  { n:"silver", body:0x9aa7b5, bodyDk:0x76839a, roof:0x8695a5 },
+  { n:"red",    body:0xc45a4e, bodyDk:0x9c473d, roof:0xaf4f44 },
+  { n:"blue",   body:0x5678a8, bodyDk:0x435e87, roof:0x4c6c99 },
+  { n:"white",  body:0xe4e6ea, bodyDk:0xc0c3c9, roof:0xd6d9dd }
+];
+
+const TILE = 46;
+const GROUND = { a:0xc9c3b4, b:0xbfb9aa, edge:0xa8a294, sky:0x9fd4e8, road:0x4a4d55 };
+
+function convexHull(pts){
+  const P = pts.slice().sort((a,b) => a.x - b.x || a.y - b.y);
+  const cross = (o, a, b) => (a.x-o.x)*(b.y-o.y) - (a.y-o.y)*(b.x-o.x);
+  const lo = [], hi = [];
+  for(const p of P){
+    while(lo.length >= 2 && cross(lo[lo.length-2], lo[lo.length-1], p) <= 0) lo.pop();
+    lo.push(p);
+  }
+  for(let i = P.length-1; i >= 0; i--){
+    const p = P[i];
+    while(hi.length >= 2 && cross(hi[hi.length-2], hi[hi.length-1], p) <= 0) hi.pop();
+    hi.push(p);
+  }
+  lo.pop(); hi.pop();
+  return lo.concat(hi);
+}
+function mulberry32(a){ return function(){ a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+
+class CarLab extends Phaser.Scene {
+  constructor(){ super("carlab"); }
+
+  create(){
+    this.K = 1.4;
+    this.mode = "new";
+    this.color = "silver";
+    this.heroAngle = 0;
+    this.driving = false;
+    this.truck = false;
+    this.wheelPhase = 0;
+    this.g = this.add.graphics();
+    this.scale.on("resize", () => this.layout());
+    this.layout();
+    this.updateVals();
+  }
+  layout(){
+    this.cx = this.scale.gameSize.width/2;
+    this.cy = this.scale.gameSize.height*0.58;
+  }
+  updateVals(){
+    document.getElementById("vals").textContent =
+      `len ${CAR.len} · wid ${CAR.wid} · cabin ${CAR.cabinH} · wheel ${CAR.wheelR} · ${this.color}`;
+  }
+
+  W(x, y, z, ox, oy){
+    return { x:(x - y)*this.K + ox, y:((x + y)*0.5 - z)*this.K + oy };
+  }
+  quad(pts, color, alpha=1){
+    this.g.fillStyle(color, alpha);
+    this.g.fillPoints(pts.map(p => new Phaser.Geom.Point(p.x, p.y)), true);
+  }
+  edge(pts, color, w=2){
+    this.g.lineStyle(w, color, 1);
+    this.g.strokePoints(pts.map(p => new Phaser.Geom.Point(p.x, p.y)), true);
+  }
+
+  drawGround(ox, oy, half){
+    for(let tx=-half; tx<half; tx++){
+      for(let ty=-half; ty<half; ty++){
+        const cxm = tx*TILE*2 + TILE, cym = ty*TILE*2 + TILE;
+        const pts = [
+          this.W(cxm+TILE, cym-TILE, 0, ox, oy), this.W(cxm+TILE, cym+TILE, 0, ox, oy),
+          this.W(cxm-TILE, cym+TILE, 0, ox, oy), this.W(cxm-TILE, cym-TILE, 0, ox, oy)];
+        this.quad(pts, ((tx+ty)%2===0) ? GROUND.a : GROUND.b);
+        this.edge(pts, GROUND.edge, 1.5);
+      }
+    }
+  }
+
+  /* ---------- OLD car: the current game renderer ---------- */
+  drawCarOld(ox, oy){
+    const g = this.g;
+    const W = (dx, dy, dz) => this.W(dx, dy, dz, ox, oy);
+    const s = this.K / 1.6;
+    const cz = 6*s;
+    this.quad([W(40*s,-16*s,cz), W(40*s,16*s,cz), W(40*s,16*s,cz+16*s), W(40*s,-16*s,cz+16*s)], 0x8695a5);
+    this.quad([W(-40*s,16*s,cz), W(40*s,16*s,cz), W(40*s,16*s,cz+16*s), W(-40*s,16*s,cz+16*s)], 0x76839a);
+    this.quad([W(-40*s,-16*s,cz+16*s), W(40*s,-16*s,cz+16*s), W(40*s,16*s,cz+16*s), W(-40*s,16*s,cz+16*s)], 0x9aa7b5);
+    this.quad([W(-24*s,-13*s,cz+16*s), W(20*s,-13*s,cz+16*s), W(14*s,13*s,cz+28*s), W(-18*s,13*s,cz+28*s)], 0x5b6a7a);
+    g.fillStyle(0x24262c, 1);
+    g.fillEllipse(W(-26*s,17*s,3*s).x, W(-26*s,17*s,3*s).y, 16*s, 10*s);
+    g.fillEllipse(W(24*s,17*s,3*s).x, W(24*s,17*s,3*s).y, 16*s, 10*s);
+  }
+
+  /* ---------- NEW car ----------
+     Local frame: a = length axis (front +a), b = width, h = up.
+     Chassis (lower box) + greenhouse cabin (tapered, sloped
+     windshield/backlight) + ring-based wheels like the scooter's.
+     Axis-aligned to facing (no free rotation) — this is a parked
+     car along the road, not a rotated hazard. */
+  drawCarNew(ox, oy, seed, thOverride, t){
+    const g = this.g, C = CAR;
+    const rng = mulberry32(seed);
+    const th = thOverride !== undefined ? thOverride : 0;
+    const cs = Math.cos(th), sn = Math.sin(th);
+    const col = COLORS.find(c => c.n === this.color) || COLORS[0];
+    const cz = C.wheelR;
+
+    /* DRIVE mode: the car actually travels along its own forward (a)
+       axis, looping through a fixed range, and wheelPhase advances
+       with distance traveled — same technique as the robot's own
+       wheel spin (a marker dot orbiting the hub, not real geometry). */
+    const distTraveled = this.driving ? t*0.032 : 0;
+    const loopHalf = 300;
+    const travel = this.driving ? (distTraveled % (loopHalf*2)) - loopHalf : 0;
+    this.wheelPhase = distTraveled * 0.28;
+
+    const G = (a, b, h) => this.W((a+travel)*cs - b*sn, (a+travel)*sn + b*cs, h, ox, oy);
+    /* which width-wise side (+y or -y) and which lengthwise end (+a
+       front or -a rear) actually face the camera at this rotation —
+       same visible-face principle as the bin/planter fixes, so
+       glass/mirror/wheel-bulge/lights/bumpers all track the real
+       near side and near end instead of assuming a fixed one. */
+    const faceY = Math.sign(cs - sn) || 1;
+    const faceA = Math.sign(cs + sn) || 1;
+
+    const hl = C.len/2, hw = C.wid/2, chassisTop = cz + C.chassisH;
+    /* truck cab is much shorter (real pickups: cab ~30% of length,
+       bed takes up the rear) — everything else about the greenhouse
+       (windshield, roof, mirrors, rear cab window) is unchanged,
+       just built around a smaller cl. */
+    const cl = this.truck ? hl*0.24 : hl*0.62;
+    const cabinTop = chassisTop + C.cabinH;
+
+    /* shadow */
+    const sh = G(0, 0, 0);
+    g.fillStyle(C.shadow, 0.16);
+    g.fillEllipse(sh.x, sh.y + 3, (C.len+8)*this.K*0.42, (C.wid+10)*this.K*0.36);
+
+    const wheel = (a0, r, side) => () => {
+      const WW = 3.6;
+      const ringAt = (bc, rad, d1, d2, n=12) => {
+        const pts = [];
+        for(let i=0; i<n; i++){
+          const phi = (i/n)*Math.PI*2, c3 = Math.cos(phi)*rad, s3 = Math.sin(phi)*rad;
+          pts.push(G(a0 + c3*d1.a + s3*d2.a, bc + c3*d1.b + s3*d2.b, cz + c3*d1.h + s3*d2.h));
+        }
+        return pts;
+      };
+      const U = {a:1,b:0,h:0}, HH = {a:0,b:0,h:1};
+      const bIn = side*(hw - 1), bOut = side*(hw + WW - 1);
+      const end = bb => ringAt(bb, r, U, HH, 14);
+      this.quad(convexHull(end(bIn).concat(end(bOut))), C.wheelDk);
+      const face = rr => ringAt(bOut, rr, U, HH, 14);
+      this.quad(face(r), C.wheel);
+      this.quad(face(r*0.5), C.hubFace);
+      /* spinning marker dot instead of static geometry — orbits the
+         hub center based on wheelPhase, exactly how the robot's own
+         wheels fake rotation in sprite-lab. Phase offset by a0 so
+         front/rear wheels don't spin in lockstep. */
+      const wp = this.wheelPhase + a0*0.2;
+      const hub = G(a0 + Math.cos(wp)*r*0.34, bOut, cz + Math.sin(wp)*r*0.34);
+      g.fillStyle(C.hub, 1);
+      g.fillCircle(hub.x, hub.y, 2.4*this.K*0.42);
+    };
+
+    const chassis = () => {
+      const top = [G(-hl,-hw,chassisTop), G(hl,-hw,chassisTop), G(hl,hw,chassisTop), G(-hl,hw,chassisTop)];
+      const bot = [G(-hl,-hw,cz), G(hl,-hw,cz), G(hl,hw,cz), G(-hl,hw,cz)];
+      const hullBody = () => {
+        this.quad(convexHull(top.concat(bot)), col.bodyDk);
+        this.quad(top, col.body);
+      };
+
+      /* Bumpers/lights are now FLUSH with the hull (not sticking out
+         past it) instead of separate protruding 3D shapes — a
+         protruding shape can never be fully covered by the hull
+         since it physically extends beyond the hull's own volume,
+         no matter what order things draw in. Flush accents sit
+         entirely INSIDE the hull's own footprint, so drawing the
+         far one, then the solid hull body, then the near one gives
+         correct occlusion for real (same trick as the wheels) —
+         not a toggle that either hides a whole feature or shows it
+         floating with nothing actually blocking it. */
+      const bumperFront = () => {
+        this.quad([G(hl-0.3,-hw,cz), G(hl,-hw,cz+3), G(hl,hw,cz+3), G(hl-0.3,hw,cz)], C.bumper);
+        g.fillStyle(C.light, 1);
+        for(const side of [-1, 1]){
+          const hlp = G(hl-0.4, side*(hw-3), cz+5);
+          g.fillCircle(hlp.x, hlp.y, 2*this.K*0.42);
+        }
+      };
+      const bumperRear = () => {
+        this.quad([G(-hl+0.3,-hw,cz), G(-hl,-hw,cz+3), G(-hl,hw,cz+3), G(-hl+0.3,hw,cz)], C.bumper);
+        g.fillStyle(C.tail, 1);
+        for(const side of [-1, 1]){
+          const tlp = G(-hl+0.4, side*(hw-3), cz+5);
+          g.fillCircle(tlp.x, tlp.y, 1.8*this.K*0.42);
+        }
+      };
+      if(faceA > 0){ bumperRear(); hullBody(); bumperFront(); }
+      else { bumperFront(); hullBody(); bumperRear(); }
+      /* door seam, on the visible side */
+      g.lineStyle(Math.max(1, 0.6*this.K*0.42), col.bodyDk, 0.6);
+      const d0 = G(0,hw*faceY,cz+1), d1 = G(0,hw*faceY,chassisTop-1);
+      g.lineBetween(d0.x, d0.y, d1.x, d1.y);
+    };
+
+    const cabin = () => {
+      /* sloped windshield (front) and backlight (rear) — greenhouse
+         narrows front and back, full width at the doors. Roof is a
+         thin cap between them (real car roofs are short), not a
+         block spanning most of the cabin — that read as an oversized
+         disconnected slab rather than a roofline flowing into the
+         windshield.
+         Truck mode extends the roof's rear edge all the way back to
+         -cl (flush with the beltline's rear corner) instead of the
+         sedan's shorter, sloped-back cap — that makes the rear wall
+         (and the rear window sitting on it) vertical, perpendicular
+         to the bed floor, instead of raked backward like a sedan's
+         trunk slope. */
+      const roofF = this.truck ? -cl : -cl*0.35, roofR = cl*0.55;
+      const top = [G(roofF,-hw*0.86,cabinTop), G(roofR,-hw*0.86,cabinTop), G(roofR,hw*0.86,cabinTop), G(roofF,hw*0.86,cabinTop)];
+      const beltF = [G(cl,-hw*0.92,chassisTop), G(cl,hw*0.92,chassisTop)];
+      const beltR = [G(-cl,-hw*0.92,chassisTop), G(-cl,hw*0.92,chassisTop)];
+
+      /* solid greenhouse volume (roofline down to the beltline, full
+         length) — this is what actually occludes the far windshield
+         or backlight now, the same way the chassis hull occludes the
+         far bumper. The thin roof strip alone never reached down to
+         where the glass sits, so it could never cover it no matter
+         the draw order — that was the real gap. */
+      const cabinHull = () => {
+        this.quad(convexHull([...beltF, ...beltR, ...top]), col.roof);
+      };
+      const windshield = () => {
+        const wind = [G(roofR,-hw*0.86,cabinTop), G(roofR,hw*0.86,cabinTop), beltF[1], beltF[0]];
+        this.quad(wind, C.windshield);
+        this.edge(wind, C.windshieldEdge, 1);
+      };
+      const backlight = () => {
+        if(this.truck){
+          /* small rectangular rear window, flush against the truck's
+             now-vertical rear wall (roofF === -cl in truck mode) */
+          const winW = hw*0.5;
+          const winH0 = chassisTop + (cabinTop-chassisTop)*0.35;
+          const winH1 = chassisTop + (cabinTop-chassisTop)*0.85;
+          const back = [G(roofF,-winW,winH1), G(roofF,winW,winH1), G(roofF,winW,winH0), G(roofF,-winW,winH0)];
+          this.quad(back, C.windshield);
+          this.edge(back, C.windshieldEdge, 1);
+        } else {
+          /* sedan's rear wall is still sloped (roofF is short of -cl),
+             so the window has to be the full raked panel like the
+             windshield — a flat rectangle fixed at one depth doesn't
+             sit on a sloped surface, it floats clear of it at the
+             bottom edge */
+          const back = [G(roofF,-hw*0.86,cabinTop), G(roofF,hw*0.86,cabinTop), beltR[1], beltR[0]];
+          this.quad(back, C.windshield);
+          this.edge(back, C.windshieldEdge, 1);
+        }
+      };
+      if(faceA > 0){ backlight(); cabinHull(); windshield(); }
+      else { windshield(); cabinHull(); backlight(); }
+
+      /* Roof cap draws BEFORE the side window now, not after — it
+         was painting over the new inset pane at extreme side angles
+         (roof and window share the same top edge, and after
+         projection at a near-90° side view their footprints can
+         overlap even though they don't in local 3D space). That
+         was reading as "wrong color" — flat roof-gray instead of
+         the window's glass tint. */
+      this.quad(top, col.roof);
+      this.edge(top, col.bodyDk, 1);
+
+      /* side glass: outer panel body-colored (reads as the door/
+         pillar frame), smaller inset pane in the windshield's glass
+         tint — same idea as a real window sitting inside its frame.
+         Drawn last so it's always on top, never covered. */
+      const sgB = hw*0.86*faceY, beltB = hw*0.92*faceY;
+      const sgPts = [
+        { a: roofF, b: sgB,   h: cabinTop },
+        { a: roofR, b: sgB,   h: cabinTop },
+        { a: cl,    b: beltB, h: chassisTop },
+        { a: -cl,   b: beltB, h: chassisTop }
+      ];
+      const cA = sgPts.reduce((s,p) => s+p.a, 0)/4;
+      const cB = sgPts.reduce((s,p) => s+p.b, 0)/4;
+      const cH = sgPts.reduce((s,p) => s+p.h, 0)/4;
+      const shrink = 0.7;
+      const sideFrame = sgPts.map(p => G(p.a, p.b, p.h));
+      const sidePane = sgPts.map(p => G(cA+(p.a-cA)*shrink, cB+(p.b-cB)*shrink, cH+(p.h-cH)*shrink));
+      this.quad(sideFrame, col.body);
+      this.quad(sidePane, C.windshield);
+    };
+
+    const mirror = side => () => {
+      const roofR = cl*0.55;
+      const mb = G(roofR - 3, hw*0.9*side, chassisTop + 3);
+      g.fillStyle(col.bodyDk, 1);
+      g.fillCircle(mb.x, mb.y, 1.6*this.K*0.42);
+    };
+
+    /* truck bed: open cargo box behind the (shortened) cab, raised
+       rails on both sides + a wall where it meets the back of the
+       cab. Same near/far wall treatment as everything else — far
+       wall first, floor, cab-back wall, near wall last. */
+    const bed = () => {
+      if(!this.truck) return;
+      const bedBackA = -hl+1, bedFrontA = -cl-2;
+      const railTop = chassisTop + C.chassisH*0.55;
+      const floorH = chassisTop + 1;
+      const wallFar = [G(bedBackA,-hw*faceY,floorH), G(bedFrontA,-hw*faceY,floorH), G(bedFrontA,-hw*faceY,railTop), G(bedBackA,-hw*faceY,railTop)];
+      const floor = [G(bedBackA,-hw*0.88,floorH), G(bedFrontA,-hw*0.88,floorH), G(bedFrontA,hw*0.88,floorH), G(bedBackA,hw*0.88,floorH)];
+      const cabBackWall = [G(bedFrontA,-hw*0.88,floorH), G(bedFrontA,hw*0.88,floorH), G(bedFrontA,hw*0.88,railTop), G(bedFrontA,-hw*0.88,railTop)];
+      const wallNear = [G(bedBackA,hw*faceY,floorH), G(bedFrontA,hw*faceY,floorH), G(bedFrontA,hw*faceY,railTop), G(bedBackA,hw*faceY,railTop)];
+      this.quad(wallFar, col.bodyDk);
+      this.quad(floor, C.bedFloor);
+      this.quad(cabBackWall, col.bodyDk);
+      this.quad(wallNear, col.body);
+    };
+
+    /* Draw order, not a per-frame depth sort — and that's deliberate.
+       A coarse single-point depthAt() per part actively gets this
+       WRONG here: the chassis is a wide flat box sampled at its
+       center (a=0), while each wheel sits far off-center along the
+       length axis (a=±hl*0.55). Comparing those two points can flip
+       sign depending on rotation even though the true relationship
+       never changes — the visible-side wheel always sticks out past
+       the chassis wall, so it must always paint after it, at every
+       angle. Cabin sits entirely above both (ground-level wheels,
+       roof-level glass) so it's always last. This is the correct
+       painter's-algorithm answer for this geometry: fixed order,
+       not because sorting was skipped, but because the depth
+       relationship is provably constant once you check it — unlike
+       the bin's mouth-opening, which genuinely flips with rotation
+       and does need a per-frame check.
+
+       Now that all 4 wheels and both mirrors are drawn, the far-side
+       ones need the same "hide, don't just skip" treatment as the
+       bin's mouth: painted BEFORE the body that hides them, while
+       the near-side ones paint AFTER so they still show in front. */
+    wheel(-hl*0.55, C.wheelR, -faceY)();       // far rear wheel — hidden behind the body
+    wheel(hl*0.55, C.wheelR*0.95, -faceY)();   // far front wheel
+    chassis();
+    bed();
+    wheel(-hl*0.55, C.wheelR, faceY)();        // near rear wheel — visible, in front
+    wheel(hl*0.55, C.wheelR*0.95, faceY)();    // near front wheel
+    mirror(-faceY)();                           // far mirror — hidden behind the cabin
+    cabin();
+    mirror(faceY)();                             // near mirror — visible, in front
+  }
+
+  update(t){
+    const g = this.g; g.clear();
+    g.fillStyle(GROUND.sky, 1);
+    g.fillRect(0, 0, this.scale.gameSize.width, this.scale.gameSize.height);
+    this.drawGround(this.cx, this.cy, 5);
+    if(this.mode === "old"){
+      this.drawCarOld(this.cx, this.cy);
+    } else {
+      this.drawCarNew(this.cx, this.cy, 4, this.heroAngle, t);
+    }
+  }
+}
+
+const game = new Phaser.Game({
+  type: Phaser.AUTO, parent: "game",
+  scale: { mode: Phaser.Scale.RESIZE, width: "100%", height: "100%" },
+  scene: [CarLab]
+});
+const scn = () => game.scene.getScene("carlab");
+
+document.getElementById("oldBtn").addEventListener("click", e => {
+  scn().mode = "old";
+  e.target.classList.add("on");
+  document.getElementById("newBtn").classList.remove("on");
+});
+document.getElementById("newBtn").addEventListener("click", e => {
+  scn().mode = "new";
+  e.target.classList.add("on");
+  document.getElementById("oldBtn").classList.remove("on");
+});
+document.getElementById("colorBtn").addEventListener("click", e => {
+  const s = scn();
+  const order = COLORS.map(c => c.n);
+  s.color = order[(order.indexOf(s.color) + 1) % order.length];
+  e.target.textContent = s.color.toUpperCase();
+  s.updateVals();
+});
+document.getElementById("driveBtn").addEventListener("click", e => {
+  const s = scn();
+  s.driving = !s.driving;
+  e.target.classList.toggle("on", s.driving);
+});
+document.getElementById("carBtn").addEventListener("click", () => {
+  const s = scn();
+  s.truck = false;
+  document.getElementById("carBtn").classList.add("on");
+  document.getElementById("truckBtn").classList.remove("on");
+});
+document.getElementById("truckBtn").addEventListener("click", () => {
+  const s = scn();
+  s.truck = true;
+  document.getElementById("truckBtn").classList.add("on");
+  document.getElementById("carBtn").classList.remove("on");
+});
+document.getElementById("rotL").addEventListener("click", () => { scn().heroAngle -= Math.PI/8; });
+document.getElementById("rotR").addEventListener("click", () => { scn().heroAngle += Math.PI/8; });
+document.getElementById("zoomIn").addEventListener("click", () => { scn().K = Math.min(scn().K + 0.2, 3); });
+document.getElementById("zoomOut").addEventListener("click", () => { scn().K = Math.max(scn().K - 0.2, 0.6); });
+document.querySelectorAll("[data-p]").forEach(btn => {
+  btn.addEventListener("click", () => {
+    const p = btn.dataset.p, d = +btn.dataset.d;
+    if(p === "len")     CAR.len     = Phaser.Math.Clamp(CAR.len + d*10, 100, 180);
+    if(p === "wid")     CAR.wid     = Phaser.Math.Clamp(CAR.wid + d*5, 40, 80);
+    if(p === "cabinH")  CAR.cabinH  = Phaser.Math.Clamp(CAR.cabinH + d*4, 20, 45);
+    if(p === "wheelR")  CAR.wheelR  = Phaser.Math.Clamp(CAR.wheelR + d*2, 10, 24);
+    scn().updateVals();
+  });
+});
+</script>
+</body>
+</html>
