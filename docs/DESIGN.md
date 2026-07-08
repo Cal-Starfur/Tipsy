@@ -95,6 +95,9 @@ move to a single global depth-sorted face renderer.
 
 1. Feel pass — tune tilt/brake/hop numbers from playtests. **← current**
 2. Juice pass — hazard "!" telegraphs, hit shake, dust, sound, near-miss reward.
+   - Idea: robot does a spin-out animation on puddle contact (hydrant burst
+     variant spills a puddle — see prop.hydrantBurst in hydrant lab). Not
+     wired into the game yet; hydrant is still decorative-only.
 3. Devvit port — bundle phaser.min.js locally (CSP), server date for seed,
    Redis leaderboard (time + cargo + payout).
 4. Share card — "I earned $31 in Scooter Row 🌯" + day's route.
