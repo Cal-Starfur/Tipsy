@@ -92,6 +92,16 @@ const HYD = {
   water: 0xbfe6f2, waterDk: 0x8fc8dc,
   shadow: 0x000000
 };
+/* approved in planter lab: tapered box + layered stalked bush.
+   Dimensions vary per-instance (seeded) rather than one locked size —
+   box 13-19w × 8-12d × 8-12h, bush 12-20h, fullness 4-7, ~30% flowering. */
+const PLANTER = {
+  box: 0x8f8577, boxDk: 0x7a7164, boxDk2: 0x6b6357,
+  soil: 0x4a3f34, stalk: 0x5c6b3f,
+  leafA: 0x4e8f4a, leafB: 0x3c7a3c, leafC: 0x62a35c,
+  flower: 0xe86b8a,
+  shadow: 0x000000
+};
 function convexHull(pts){
   const P2 = pts.slice().sort((a,b) => a.x - b.x || a.y - b.y);
   const cross = (o, a, b) => (a.x-o.x)*(b.y-o.y) - (a.y-o.y)*(b.x-o.x);
@@ -959,12 +969,93 @@ class GalleryScene extends Phaser.Scene {
       hparts.sort((p1, p2) => p1.d - p2.d);
       for(const pt of hparts) pt.fn();
     } else if(kind === "planter"){
-      const b0=W(-16,-10,0), b1=W(16,-10,0), b2=W(16,10,0), b3=W(-16,10,0);
-      this.quadOn(g, [W(-16,-10,10), W(16,-10,10), W(16,10,10), W(-16,10,10)], 0x8f8577);
-      this.quadOn(g, [b1, b2, W(16,10,10), W(16,-10,10)], 0x7a7164);
-      this.quadOn(g, [b2, b3, W(-16,10,10), W(16,10,10)], 0x6b6357);
-      g.fillStyle(0x4e8f4a, 1);
-      g.fillEllipse(W(0,0,16).x, W(0,0,16).y, 30, 14);
+      /* approved in planter lab: tapered concrete box + layered stalked
+         bush. Every dimension varies per-instance (seeded) so planters
+         along the route don't look identical — box size, bush size,
+         fullness, and flowering are all randomized within tested ranges. */
+      const PL = PLANTER;
+      const seed = ((Math.round(x)*7919) ^ (Math.round(y)*104729) ^ 0x2f61) >>> 0;
+      const rng = mulberry32(seed);
+      const boxW = 13 + rng()*6, boxD = 8 + rng()*4, boxH = 8 + rng()*4;
+      const bushH = 12 + rng()*8, fullness = 4 + Math.floor(rng()*4);
+      const flowering = rng() < 0.3;
+      /* no extra rotation needed: facing is already baked into the
+         outer W(dx,dy,dz) closure via fdir, and the camera is fixed —
+         so the visible faces are always the same two (+x, +y), same
+         convention the original placeholder used. */
+      const GG = W;
+      const dAt = (a, b, h) => a + b + h*0.4;
+
+      const hw = boxW/2, hd = boxD/2, H = boxH;
+      const baseShrink = 0.82;
+      const corner = (sx, sy, h, shrink=1) => GG(sx*hw*shrink, sy*hd*shrink, h);
+
+      const psh = GG(0, 0, 0);
+      g.fillStyle(PL.shadow, 0.14);
+      g.fillEllipse(psh.x, psh.y + 2, (boxW+6)*this.K*0.42, (boxD+6)*this.K*0.36);
+
+      const pbox = () => {
+        const top = [corner(-1,-1,H), corner(1,-1,H), corner(1,1,H), corner(-1,1,H)];
+        this.quadOn(g, top, PL.box);
+        this.edgeOn(g, top, PL.boxDk, 1.2);
+        /* the two outward faces always visible under this fixed camera */
+        const faceX = 1, faceY = 1;
+        const xFace = [
+          corner(faceX,-1,H), corner(faceX,1,H),
+          corner(faceX,1,0,baseShrink), corner(faceX,-1,0,baseShrink)
+        ];
+        this.quadOn(g, xFace, faceX > 0 ? PL.boxDk : PL.boxDk2);
+        const yFace = [
+          corner(-1,faceY,H), corner(1,faceY,H),
+          corner(1,faceY,0,baseShrink), corner(-1,faceY,0,baseShrink)
+        ];
+        this.quadOn(g, yFace, faceY > 0 ? PL.boxDk2 : PL.boxDk);
+        const soil = [corner(-0.82,-0.82,H-0.6), corner(0.82,-0.82,H-0.6), corner(0.82,0.82,H-0.6), corner(-0.82,0.82,H-0.6)];
+        this.quadOn(g, soil, PL.soil);
+      };
+      const pbush = () => {
+        const baseH = H + 1;
+        const n = fullness;
+        const puffs = [];
+        puffs.push({ a:0, b:0, h:baseH + bushH*0.55, r:bushH*0.5, c:PL.leafA });
+        for(let i=0; i<n; i++){
+          const ang = (i/n)*Math.PI*2 + rng()*0.4;
+          const rr = (boxW*0.28 + rng()*boxW*0.12);
+          const hh = baseH + bushH*(0.3 + rng()*0.55);
+          const size = bushH*(0.28 + rng()*0.16);
+          const shade = rng();
+          const col = shade < 0.33 ? PL.leafA : shade < 0.66 ? PL.leafB : PL.leafC;
+          puffs.push({ a: Math.cos(ang)*rr, b: Math.sin(ang)*rr, h: hh, r: size, c: col });
+        }
+        puffs.sort((p1,p2) => dAt(p1.a,p1.b,p1.h) - dAt(p2.a,p2.b,p2.h));
+        for(const pf of puffs){
+          const s0 = GG(pf.a*0.25, pf.b*0.25, baseH - 0.4);
+          const s1 = GG(pf.a, pf.b, Math.max(pf.h - pf.r*0.35, baseH));
+          g.lineStyle(Math.max(1, 1.1*this.K*0.4), PL.stalk, 1);
+          g.lineBetween(s0.x, s0.y, s1.x, s1.y);
+          const c = GG(pf.a, pf.b, pf.h);
+          g.fillStyle(pf.c, 1);
+          g.fillCircle(c.x, c.y, pf.r*this.K*0.42);
+        }
+        if(flowering){
+          const nf = Math.max(2, Math.round(n*0.6));
+          for(let i=0; i<nf; i++){
+            const ang = rng()*Math.PI*2;
+            const rr = boxW*0.22 + rng()*boxW*0.16;
+            const hh = baseH + bushH*(0.45 + rng()*0.5);
+            const c = GG(Math.cos(ang)*rr, Math.sin(ang)*rr, hh);
+            g.fillStyle(PL.flower, 1);
+            g.fillCircle(c.x, c.y, (1.6+rng())*this.K*0.42);
+          }
+        }
+      };
+
+      const pparts = [
+        { d: dAt(0,0,H*0.4), fn: pbox },
+        { d: dAt(0,0,H + bushH*0.6), fn: pbush }
+      ];
+      pparts.sort((p1, p2) => p1.d - p2.d);
+      for(const pt of pparts) pt.fn();
     } else if(kind === "dog"){
       /* approved in dog lab: chihuahua — apple-dome head, bat ears,
          bug eyes, pin legs, sickle tail. Small seeded facing variance
