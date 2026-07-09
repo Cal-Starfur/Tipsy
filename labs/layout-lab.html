@@ -1,0 +1,911 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>TIP — Layout Lab</title>
+<style>
+  html,body{margin:0;padding:0;background:#14161b;height:100%;overflow:hidden;touch-action:none;
+    font-family:-apple-system,'Helvetica Neue',Arial,sans-serif;-webkit-user-select:none;user-select:none;color:#e8eaef;}
+  #wrap{display:flex;flex-direction:column;height:100%;}
+  #game{flex:1;min-height:0;position:relative;}
+  #hud{position:absolute;top:8px;left:8px;font-size:11px;line-height:1.5;color:#c9cdd4;
+    background:rgba(20,22,27,0.72);padding:6px 9px;border-radius:8px;pointer-events:none;
+    white-space:pre;}
+  #hud b{color:#ff9c4d;}
+  #panel{padding:10px 12px calc(14px + env(safe-area-inset-bottom));background:#1c1f26;border-top:1px solid #2b2f38;}
+  .row{display:flex;gap:8px;margin-bottom:8px;align-items:center;}
+  .row:last-child{margin-bottom:0;}
+  .lbl{font-size:11px;letter-spacing:1.5px;color:#8f95a1;width:44px;text-transform:uppercase;flex:0 0 44px;}
+  button{flex:1;background:#262a33;color:#e8eaef;border:1px solid #363b46;border-radius:10px;
+    padding:11px 4px;font-size:14px;font-weight:600;}
+  button.on{background:#ff7a1a;border-color:#ff7a1a;color:#fff;}
+  button:active{transform:scale(0.96);}
+  button.sm{flex:0 0 46px;}
+  input[type=range]{flex:1;accent-color:#ff7a1a;}
+  #hdr{padding:10px 14px 6px;font-size:12px;letter-spacing:2px;color:#8f95a1;text-transform:uppercase;}
+  #hdr b{color:#ff9c4d;}
+  #blurb{padding:0 14px 8px;font-size:12px;color:#8f95a1;}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="hdr"><b>TIP</b> · layout lab · real street grid</div>
+  <div id="blurb">Streets generate independently of the walked route. Corners are real intersections.</div>
+  <div id="game"><div id="hud"></div></div>
+  <div id="panel">
+    <div class="row">
+      <span class="lbl">Route</span>
+      <button class="on" id="todayBtn">TODAY</button>
+      <button id="rerollBtn">RANDOM</button>
+      <button class="sm" id="gridBtn">GRID</button>
+      <button class="sm" id="propsBtn">PROP</button>
+    </div>
+    <div class="row">
+      <span class="lbl">Zoom</span>
+      <button class="sm" id="zoomOut">−</button>
+      <button class="sm" id="zoomIn">＋</button>
+      <button id="fitBtn">FIT ALL</button>
+    </div>
+    <div class="row">
+      <span class="lbl">Fly</span>
+      <button class="sm" id="flyBack">◀</button>
+      <input type="range" id="sSlider" min="0" max="1000" value="0">
+      <button class="sm" id="flyFwd">▶</button>
+    </div>
+    <div class="row">
+      <span class="lbl">Row</span>
+      <button class="sm" id="rowDown">▼</button>
+      <button id="rowReadout">row 0.0</button>
+      <button class="sm" id="rowUp">▲</button>
+    </div>
+    <div class="row">
+      <span class="lbl">City</span>
+      <button id="newGridBtn">NEW GRID</button>
+      <button id="newWalkBtn">NEW WALK</button>
+      <button class="sm" id="trafficBtn">CAR</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/phaser@3.85.2/dist/phaser.min.js"></script>
+<script>
+"use strict";
+
+/* ============================================================
+   TIP — Layout Lab v2 — real street grid
+   Fixes the root problem, not the symptom: the old system had ONE
+   path that bent through fillet arcs, so "roads" and "sidewalks"
+   were never more than a single ribbon rendered twice at different
+   row offsets. There was no second street to cross.
+
+   This version is a real planar graph: nodes = intersections,
+   edges = streets (a symmetric road-divides-two-sidewalks cross-
+   road cross-section from the live game — that math didn't need to
+   change). The grid is generated FIRST, independently of any route.
+   The walked path ("legs", same 2-4-turn concept as before) is a
+   walk chosen THROUGH that graph afterward — so every turn is a
+   real intersection where the street you didn't take keeps going.
+
+   Because the grid is rectilinear (BLOCK is a whole multiple of
+   T2), there's no fractional tile-alignment problem: every edge
+   meets every other edge at a shared, tile-aligned node, and the
+   existing ±2-tile overshoot each edge already does at both ends
+   is exactly what fills the intersection square — no special
+   plaza-drawing code needed. Sidewalks are drawn in a second global
+   pass over ALL edges (not per-edge), so at every corner the
+   pedestrian path wins over the roadway underneath it, same as a
+   real curb corner.
+   ============================================================ */
+
+const HOODS = [
+  { n:"The Flats",       hill:0.0, pave:0.9, litter:0.2, palms:0.9 },
+  { n:"Boardwalk",       hill:0.0, pave:0.6, litter:1.0, palms:1.0 },
+  { n:"Old Town",        hill:0.2, pave:0.2, litter:0.4, palms:0.4 },
+  { n:"Scooter Row",     hill:0.1, pave:0.5, litter:1.0, palms:0.6 },
+  { n:"University",      hill:0.2, pave:0.7, litter:0.7, palms:0.5 },
+  { n:"Warehouse Dist.", hill:0.0, pave:0.3, litter:0.6, palms:0.1 },
+  { n:"Sunset Terrace",  hill:0.6, pave:0.7, litter:0.3, palms:0.8 },
+  { n:"The Bluffs",      hill:1.0, pave:0.6, litter:0.2, palms:0.5 },
+  { n:"Meridian Hts.",   hill:0.8, pave:0.5, litter:0.4, palms:0.5 },
+  { n:"Market Dist.",    hill:0.1, pave:0.5, litter:0.7, palms:0.4 },
+  { n:"Little Harbor",   hill:0.3, pave:0.6, litter:0.5, palms:0.7 },
+  { n:"Palm Gardens",    hill:0.2, pave:0.8, litter:0.3, palms:1.0 },
+];
+
+function hashStr(s){ let h = 1779033703; for(let i=0;i<s.length;i++){ h = Math.imul(h ^ s.charCodeAt(i), 3432918353); h = (h << 13) | (h >>> 19); } return h >>> 0; }
+function mulberry32(a){ return function(){ a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+
+/* DIRV index doubles as the NESW bit for the intersection bitmask:
+   0=E, 1=S, 2=W, 3=N */
+const DIRV = [{x:1,y:0},{x:0,y:1},{x:-1,y:0},{x:0,y:-1}];
+const TILE = 46;
+const T2 = TILE*2;
+const BLOCK = 22 * T2;   // node-to-node spacing — bumped again for the wider
+                          // corridor below (4-row sidewalk per side, not 2);
+                          // still a whole multiple of T2.
+const ROAD_HALF = 4*T2;      // 8 rows total (2× the 4-row sidewalk), symmetric about centerline
+const SIDEWALK_ROWS = 4;     // per side — matches the live game's sidewalk exactly
+const SIDEWALK_W = SIDEWALK_ROWS*T2;
+const OVERSHOOT = ROAD_HALF; // sufficient by construction — see classifyAt
+const CORNER_R = ROAD_HALF;  // the robot's own turning radius through an
+                              // intersection — tied to ROAD_HALF so the
+                              // curve stays within the intersection's own
+                              // footprint, and it's automatically a
+                              // multiple of T2 (the exact thing that broke
+                              // tile alignment back when this was 130).
+const CELL = TILE;           // sidewalk render/classification resolution — finer than T2
+                              // so intersection corners resolve cleanly instead of in
+                              // whole-tile steps
+
+const ROBOT_SIDE = -1;       // the walk always stays on ONE side's sidewalk band —
+                              // matches the live game's single-sidewalk convention.
+                              // Lane 0 = nearest the buildings, lane 3 = nearest the
+                              // curb/road, same near/far sense the old -1..1 lanes had.
+function laneOffset(lane){ return ROBOT_SIDE * (ROAD_HALF + (lane+0.5)*T2); }
+/* the robot's own default walking lane — middle of the 4-lane sidewalk
+   band, in the same T2-multiplied "row" units the camera already uses.
+   Without this, the walk's own posAt(s) sits exactly on the STREET
+   centerline (correct for turn/intersection geometry, wrong for where
+   a sidewalk robot should actually be standing). */
+const ROBOT_ROW = laneOffset(1.5) / T2;
+const CAR_LANE = ROAD_HALF / 2;  // each direction's lane sits at half the road's
+                                  // half-width — comfortably inside ROAD_HALF, so
+                                  // it can never stray onto the sidewalk even
+                                  // through a fillet-arc turn.
+
+/* ---------- the single source of truth for "what is at this point" ----------
+   Previously this question only had an answer inside the renderer's per-frame
+   draw loop (a tile-skip check), which meant nothing else — prop placement,
+   eventually the robot's own collision — could ask it without re-deriving the
+   same logic separately and risking disagreement. That's the exact failure
+   pattern that produced the original road/sidewalk mess: independent systems
+   computing their own answer and trusting them to agree. This is the one
+   place that answer gets computed now. Road always wins over sidewalk (a
+   crossing street's road legitimately owns that ground), which is what
+   resolves the intersection-corner ambiguity correctly instead of by luck. */
+function classifyAt(edges, x, y){
+  let sidewalk = false;
+  for(const e of edges){
+    const dv = DIRV[e.f], rv = DIRV[(e.f+1)%4];
+    const relX = x - e.a.x, relY = y - e.a.y;
+    const along = relX*dv.x + relY*dv.y;
+    const perp  = relX*rv.x + relY*rv.y;
+    if(along >= -OVERSHOOT && along <= BLOCK + OVERSHOOT){
+      if(Math.abs(perp) <= ROAD_HALF) return "road";
+      if(Math.abs(perp) <= ROAD_HALF + SIDEWALK_W) sidewalk = true;
+    }
+  }
+  return sidewalk ? "sidewalk" : "block";
+}
+
+/* Splits sidewalk geometry into two kinds instead of one flat cell list:
+     - runs: mid-block, one quad per (edge, side, row) covering the section
+       that's provably far enough from every other street that no conflict
+       is geometrically possible — no per-cell check needed there at all.
+     - cornerCells: fine CELL-resolution, classifyAt-checked, but ONLY in
+       the small zone within OVERSHOOT of each end of each edge — i.e. only
+       near actual intersections, which is the one place the coarse/cheap
+       version can go wrong.
+   This scales with node count for the expensive part and edge count for
+   the cheap part, instead of scaling with total sidewalk area — the old
+   all-fine-cells version got proportionally slower as the town grew; this
+   one doesn't. */
+function buildSidewalkGeometry(grid){
+  const runs = [];
+  const safeLen = BLOCK - 2*OVERSHOOT;
+  if(safeLen > CELL){
+    for(const e of grid.edges)
+      for(const side of [-1, 1])
+        for(let t = 0; t < SIDEWALK_ROWS; t++)
+          runs.push({ edge:e, side, t });
+  }
+
+  const cornerCells = [], seen = new Set();
+  const perpSteps = Math.round(SIDEWALK_W / CELL);
+  const alongSteps = Math.round((2*OVERSHOOT) / CELL);
+  for(const e of grid.edges){
+    const dv = DIRV[e.f], rv = DIRV[(e.f+1)%4];
+    for(const end of [0, 1]){                    // 0 = near e.a, 1 = near e.b
+      for(let ai = 0; ai <= alongSteps; ai++){
+        const along = end === 0 ? (-OVERSHOOT + ai*CELL) : (BLOCK - OVERSHOOT + ai*CELL);
+        for(const side of [-1, 1])
+        for(let pi = 0; pi < perpSteps; pi++){
+          const perp = side * (ROAD_HALF + (pi+0.5)*CELL);
+          const x = e.a.x + dv.x*along + rv.x*perp;
+          const y = e.a.y + dv.y*along + rv.y*perp;
+          const key = Math.round(x/CELL) + "," + Math.round(y/CELL);
+          if(seen.has(key)) continue;
+          seen.add(key);
+          if(classifyAt(grid.edges, x, y) === "sidewalk"){
+            cornerCells.push({ x, y, parity: (Math.round(x/CELL) + Math.round(y/CELL)) % 2 });
+          }
+        }
+      }
+    }
+  }
+  return { runs, cornerCells };
+}
+
+/* ---------- the street grid: a real planar graph ---------- */
+function buildGrid(cols, rows){
+  const nodes = [];
+  for(let j=0; j<rows; j++) for(let i=0; i<cols; i++)
+    nodes.push({ i, j, x:i*BLOCK, y:j*BLOCK, conn:[false,false,false,false] });
+  const nodeAt = (i,j) => (i<0||i>=cols||j<0||j>=rows) ? null : nodes[j*cols+i];
+
+  const edges = [];
+  for(let j=0; j<rows; j++) for(let i=0; i<cols-1; i++){       // E-W streets
+    const a = nodeAt(i,j), b = nodeAt(i+1,j);
+    a.conn[0] = true; b.conn[2] = true;
+    edges.push({ a, b, f:0 });
+  }
+  for(let j=0; j<rows-1; j++) for(let i=0; i<cols; i++){        // N-S streets
+    const a = nodeAt(i,j), b = nodeAt(i,j+1);
+    a.conn[1] = true; b.conn[3] = true;
+    edges.push({ a, b, f:1 });
+  }
+  for(const n of nodes) n.shape = nodeShape(n);
+  const grid = { cols, rows, nodes, edges, nodeAt };
+  grid.classify = (x, y) => classifyAt(grid.edges, x, y);
+  const sw = buildSidewalkGeometry(grid);
+  grid.sidewalkRuns = sw.runs;
+  grid.sidewalkCornerCells = sw.cornerCells;
+  return grid;
+}
+function nodeShape(n){
+  const c = n.conn, count = c.filter(Boolean).length;
+  if(count === 4) return "cross";
+  if(count === 3) return "t";
+  if(count === 2) return (c[0]&&c[2]) || (c[1]&&c[3]) ? "straight" : "corner";
+  if(count === 1) return "end";
+  return "isolated";
+}
+
+/* ---------- the walked route: a random walk THROUGH the graph ----------
+   Same 2-4-turn feel as the original generateRoute, but every leg now
+   has to be an edge that actually exists in the grid — this is what
+   guarantees the walked path is always a legal path through real streets,
+   and that every turn happens at a real intersection with a cross-street
+   that keeps going.
+
+   Two stages, kept deliberately separate:
+     A. Graph traversal — figure out WHICH streets and how many blocks.
+        This is what makes the walk legal (only ever follows real edges).
+     B. Fillet-arc construction — ported verbatim from game/index.html's
+        generateRoute (trim each leg by CORNER_R, insert a quarter-circle
+        arc at each turn). This is what gives the ROBOT'S PATH the same
+        curved-turn feel and tilt/banking physics the live game already
+        has. The grid tiles themselves stay perfectly sharp/rectilinear
+        — real intersections — only the walked line curves through them,
+        same as a car cutting a smooth arc through a real 90° corner. */
+function buildWalk(grid, rng){
+  const { cols, rows, nodeAt } = grid;
+  let ci = 1 + Math.floor(rng()*(cols-2 || 1));
+  let cj = 1 + Math.floor(rng()*(rows-2 || 1));
+  let cur = nodeAt(ci, cj) || grid.nodes[Math.floor(rng()*grid.nodes.length)];
+  let dir = Math.floor(rng()*4);
+  while(!cur.conn[dir]) dir = (dir+1)%4;   // make sure we can actually move
+  let turnSign = rng() < 0.5 ? 1 : -1;
+  const nTurns = 5 + Math.floor(rng()*6);
+
+  /* Stage A — same graph walk as before, just recording {f, blocks}
+     leg descriptors instead of building world-space segs directly. */
+  const startNode = cur;
+  const legDescs = [];
+  for(let leg = 0; leg <= nTurns; leg++){
+    const maxBlocks = 3 + Math.floor(rng()*4);
+    let blocks = 0;
+    for(let b=0; b<maxBlocks; b++){
+      if(!cur.conn[dir]) break;
+      const d = DIRV[dir];
+      const nxt = nodeAt(cur.i + d.x, cur.j + d.y);
+      if(!nxt) break;
+      cur = nxt; blocks++;
+    }
+    if(blocks > 0){
+      legDescs.push({ f:dir, blocks });
+    } else if(legDescs.length === 0){
+      let alt = 0; while(alt<4 && !cur.conn[alt]) alt++;
+      if(alt === 4) break;
+      dir = alt; leg--; continue;
+    }
+    if(leg < nTurns){
+      let nd = ((dir + turnSign) % 4 + 4) % 4;
+      if(!cur.conn[nd]){ turnSign = -turnSign; nd = ((dir + turnSign) % 4 + 4) % 4; }
+      if(!cur.conn[nd]) break;
+      dir = nd; turnSign = -turnSign;
+    }
+  }
+
+  /* Stage B — fillet-arc path, same construction as generateRoute's
+     "fillet path: line segments trimmed by CORNER_R, quarter-circle
+     arcs between" — legDescs plays the role legs[] played there.
+     Also records crossings: every s-value where the walk passes an
+     interior grid node WITHOUT turning there (a straight-through
+     intersection). Multi-block legs merge those nodes into one long
+     line segment with no marker of their own — without this list,
+     hazard placement has no way to know a crossing street is still
+     physically there partway through what looks like a plain
+     straight run. */
+  const segs = [], crossings = [];
+  let s = 0, p = { x:startNode.x, y:startNode.y };
+  for(let i = 0; i < legDescs.length; i++){
+    const f = legDescs[i].f, d = DIRV[f], rv = DIRV[(f+1)%4];
+    const legLen = legDescs[i].blocks * BLOCK;
+    const trimS = i > 0 ? CORNER_R : 0;
+    const trimE = i < legDescs.length-1 ? CORNER_R : 0;
+    const lineLen = legLen - trimS - trimE;
+    const segStartS = s;
+    segs.push({ type:"line", s0:s, s1:s+lineLen, f, hA:f*Math.PI/2,
+                start:{ x:p.x + d.x*trimS, y:p.y + d.y*trimS } });
+    for(let b = 1; b < legDescs[i].blocks; b++) crossings.push(segStartS + b*BLOCK - trimS);
+    s += lineLen;
+    const cornerP = { x:p.x + d.x*legLen, y:p.y + d.y*legLen };
+    if(i < legDescs.length-1){
+      const nextF = legDescs[i+1].f;
+      const sign = ((nextF - f + 4) % 4 === 1) ? 1 : -1;   // +1 = right turn
+      const center = {
+        x: cornerP.x - d.x*CORNER_R + sign*rv.x*CORNER_R,
+        y: cornerP.y - d.y*CORNER_R + sign*rv.y*CORNER_R };
+      const startPt = { x:cornerP.x - d.x*CORNER_R, y:cornerP.y - d.y*CORNER_R };
+      const a0 = Math.atan2(startPt.y - center.y, startPt.x - center.x);
+      const arcLen = Math.PI/2 * CORNER_R;
+      segs.push({ type:"arc", s0:s, s1:s+arcLen, center, a0, sign,
+                  R:CORNER_R, hA:f*Math.PI/2, f });
+      s += arcLen;
+    }
+    p = cornerP;
+  }
+  return { segs, totalLen: s || 1, crossings };
+}
+
+/* ---------- path math, standalone ----------
+   Same math the scene uses for rendering (segAt/posAt/headingAt),
+   factored out so spawnPlaceholders can compute the exact same world
+   positions the renderer will later draw at — one implementation,
+   not two that could quietly drift apart. No Phaser dependency, so
+   it works identically in a headless test harness. */
+function walkSegAt(walk, s){
+  for(const sg of walk.segs) if(s <= sg.s1) return sg;
+  return walk.segs[walk.segs.length-1];
+}
+function walkPosAt(walk, s){
+  const sg = walkSegAt(walk, s);
+  const clamp = (v,a,b) => Math.max(a, Math.min(b, v));
+  if(sg.type === "line"){
+    const d = DIRV[sg.f], u = clamp(s, sg.s0, sg.s1) - sg.s0;
+    return { x: sg.start.x + d.x*u, y: sg.start.y + d.y*u };
+  }
+  const a = sg.a0 + sg.sign * (clamp(s, sg.s0, sg.s1) - sg.s0) / sg.R;
+  return { x: sg.center.x + Math.cos(a)*sg.R, y: sg.center.y + Math.sin(a)*sg.R };
+}
+function walkHeadingAt(walk, s){
+  const sg = walkSegAt(walk, s);
+  const clamp = (v,a,b) => Math.max(a, Math.min(b, v));
+  if(sg.type === "line") return sg.hA;
+  return sg.hA + sg.sign * (clamp(s, sg.s0, sg.s1) - sg.s0) / sg.R;
+}
+function walkTangentAt(walk, s){
+  const h = walkHeadingAt(walk, s);
+  return { x:Math.cos(h), y:Math.sin(h) };
+}
+function walkWorldOf(walk, s, offsetUnits){
+  const p = walkPosAt(walk, s), tan = walkTangentAt(walk, s);
+  const nrm = { x:-tan.y, y:tan.x };
+  return { x: p.x + nrm.x*offsetUnits, y: p.y + nrm.y*offsetUnits };
+}
+
+/* ---------- placeholder hazards/props ----------
+   Dots, not art — the point right now is proving the PLACEMENT logic
+   against the real grid (which lane, which side, avoiding turns, road
+   vs sidewalk) before any real prop geometry exists. Same roster the
+   live game already has, same rough spacing/density feel, just
+   rendered as small colored circles instead of built-out geometry. */
+const PLACEHOLDER = {
+  palm:    { color:0x3f8f5c },
+  hydrant: { color:0xe0453a },
+  cone:    { color:0xff8a2b },
+  trash:   { color:0x7a6a52 },
+  dog:     { color:0xcaa568 },
+  scooter: { color:0x35a7ff },
+  bin:     { color:0x5a5f6b },
+  slab:    { color:0xb59f7a },
+  crack:   { color:0x24262b },
+  car:     { color:0x4fd1c5 },
+};
+/* inTurn stays as a cheap pre-filter (skip the obviously-bad candidates
+   near the walk's own turn without doing a full classify() call), but
+   it is NOT the source of truth anymore — see below. */
+function inTurn(walk, sv, margin){
+  return walk.segs.some(sg => sg.type === "arc" && sv > sg.s0 - margin && sv < sg.s1 + margin);
+}
+/* ---------- traffic ----------
+   Cars reuse buildWalk exactly — same graph traversal, same fillet-arc
+   turn construction the robot uses. The only thing that changes is
+   the lateral offset (CAR_LANE, well inside the road) and that each
+   route runs TWO cars: one each direction, sharing the same physical
+   path but opposite lanes, opposite sign of travel along s. This is
+   also why traffic is automatically road-aware and turn-aware in a
+   way the live game's fixed row:3.0/3.7 never was — it isn't special
+   logic, it's the exact same path system everything else already
+   uses. */
+function buildTraffic(grid, rng, nRoutes){
+  const cars = [];
+  for(let r = 0; r < nRoutes; r++){
+    const routeRng = mulberry32(Math.floor(rng()*4294967296));
+    const walk = buildWalk(grid, routeRng);
+    if(!walk.segs.length) continue;
+    const speed = 0.15 + rng()*0.08;
+    const sBase = rng()*walk.totalLen;
+    cars.push({ walk, sBase, speed, dir:1, laneOffset:CAR_LANE, color:0x4fd1c5 });
+    cars.push({ walk, sBase:(sBase + walk.totalLen*0.5) % walk.totalLen,
+                speed: speed*(0.85+rng()*0.3), dir:-1, laneOffset:-CAR_LANE, color:0xffb04d });
+  }
+  return cars;
+}
+
+function spawnPlaceholders(grid, walk, rng){
+  const items = [], SPAWN_S = 60, total = walk.totalLen;
+
+  /* The real guarantee comes from classify() itself, not from trying
+     to predict every conflict via s-distance heuristics. A long walk
+     (routinely tens of thousands of units, inside a town only a
+     fraction of that across) regularly passes near ITS OWN earlier
+     path — a hazard's local leg can end up geometrically inside a
+     completely different, later leg's road. No local margin catches
+     that. So every candidate gets computed to a real world position
+     and checked against the grid directly; if it doesn't match, it's
+     dropped, full stop — same discipline as the ground renderer. */
+  const verify = (s, offset, wantRoad) => {
+    const wp = walkWorldOf(walk, s, offset);
+    const cls = grid.classify(wp.x, wp.y);
+    return wantRoad ? cls === "road" : cls === "sidewalk";
+  };
+
+  /* sidewalk hazards: palm fixed at lane 0 (building side), hydrant
+     fixed at lane 3 (curbside), everything else free to roam the
+     4-lane band — same near/far convention the live game already
+     uses for palms/hydrants specifically. */
+  let hs = SPAWN_S + 100;
+  while(hs < total - 150){
+    hs += 140 + rng()*160;
+    if(inTurn(walk, hs, 110)) continue;
+    const r = rng();
+    let kind, lane;
+    if(r < 0.15){ kind="palm"; lane=0; }
+    else if(r < 0.25){ kind="hydrant"; lane=3; }
+    else if(r < 0.40){ kind="cone"; lane=1+Math.floor(rng()*3); }
+    else if(r < 0.55){ kind="trash"; lane=Math.floor(rng()*4); }
+    else if(r < 0.68){ kind="dog"; lane=Math.floor(rng()*4); }
+    else if(r < 0.80){ kind="scooter"; lane=Math.floor(rng()*4); }
+    else if(r < 0.92){ kind="bin"; lane=Math.floor(rng()*4); }
+    else { kind="slab"; lane=Math.floor(rng()*4); }
+    const off = laneOffset(lane);
+    if(!verify(hs, off, false)) continue;
+    items.push({ kind, s:hs, lane });
+  }
+
+  /* road decoration: cracks (pure texture) + occasional parked car,
+     both offset from the road centerline, never on the sidewalk. */
+  let rs = SPAWN_S + 150;
+  while(rs < total - 200){
+    rs += 300 + rng()*300;
+    if(inTurn(walk, rs, 110)) continue;
+    if(rng() < 0.5){
+      const off = (rng()<0.5?-1:1)*(T2*1.2 + rng()*T2);
+      if(!verify(rs, off, true)) continue;
+      items.push({ kind:"crack", s:rs, roadOffset:off });
+    } else {
+      const off = -1*(T2*1.5);
+      if(!verify(rs, off, true)) continue;
+      items.push({ kind:"car", s:rs, roadOffset:off });
+    }
+  }
+  return items;
+}
+
+class LabScene extends Phaser.Scene {
+  constructor(){ super("lab"); }
+
+  create(){
+    this.K = 0.4;
+    this.camX = 0; this.camY = 0; this.camZ = 0;
+    this.mode = "free";
+    this.camS = 0;
+    this.camRow = ROBOT_ROW;   // start on the sidewalk, not the road centerline
+    this.throttleDir = 0;
+    this.flySpeed = 0.4;
+    this.showGrid = true;
+    this.showProps = true;
+    this.showTraffic = true;
+
+    this.cols = 4; this.rows = 4;
+    this.grid = buildGrid(this.cols, this.rows);
+    this.traffic = buildTraffic(this.grid, mulberry32(hashStr("initial-traffic")), 4);
+    this.loadWalk(new Date().toISOString().slice(0,10));
+
+    this.gWorld = this.add.graphics();
+    this.gOverlay = this.add.graphics();
+    this.gProps = this.add.graphics();
+    this.gTraffic = this.add.graphics();
+    this._labels = {};
+
+    this.layout();
+    this.scale.on("resize", () => this.layout());
+
+    this.input.addPointer(2);
+    this.touches = new Map();
+    this.input.on("pointerdown", p => { this.touches.set(p.id, {x:p.x,y:p.y}); this.mode = "free"; });
+    this.input.on("pointermove", p => {
+      if(!this.touches.has(p.id)) return;
+      const prev = this.touches.get(p.id);
+      if(this.touches.size === 1){
+        this.panBy(p.x - prev.x, p.y - prev.y);
+      } else if(this.touches.size === 2){
+        const ids = [...this.touches.keys()];
+        const other = ids[0] === p.id ? this.touches.get(ids[1]) : this.touches.get(ids[0]);
+        const prevDist = Math.hypot(prev.x - other.x, prev.y - other.y);
+        const newDist  = Math.hypot(p.x - other.x, p.y - other.y);
+        if(prevDist > 4) this.zoomAround((p.x+other.x)/2, (p.y+other.y)/2, newDist/prevDist);
+      }
+      this.touches.set(p.id, { x:p.x, y:p.y });
+    });
+    const release = p => this.touches.delete(p.id);
+    this.input.on("pointerup", release);
+    this.input.on("pointerupoutside", release);
+
+    const $ = id => document.getElementById(id);
+    $("todayBtn").addEventListener("click", e => {
+      $("rerollBtn").classList.remove("on"); e.target.classList.add("on");
+      this.newGrid(new Date().toISOString().slice(0,10));
+    });
+    $("rerollBtn").addEventListener("click", e => {
+      $("todayBtn").classList.remove("on"); e.target.classList.add("on");
+      const off = 1 + Math.floor(Math.random()*3650);
+      const d = new Date(Date.now() + off*86400000);
+      this.newGrid(d.toISOString().slice(0,10));
+    });
+    $("gridBtn").addEventListener("click", e => { this.showGrid = !this.showGrid; e.target.classList.toggle("on", this.showGrid); });
+    $("propsBtn").addEventListener("click", e => { this.showProps = !this.showProps; e.target.classList.toggle("on", this.showProps); });
+    $("trafficBtn").addEventListener("click", e => { this.showTraffic = !this.showTraffic; e.target.classList.toggle("on", this.showTraffic); });
+    $("zoomOut").addEventListener("click", () => this.zoomAround(this.cx, this.cy, 0.8));
+    $("zoomIn").addEventListener("click", () => this.zoomAround(this.cx, this.cy, 1.25));
+    $("fitBtn").addEventListener("click", () => this.fitAll());
+
+    const flyHold = (btn, dir) => {
+      const on = () => { this.throttleDir = dir; this.mode = "drive"; };
+      const off = () => { if(this.throttleDir === dir) this.throttleDir = 0; };
+      btn.addEventListener("pointerdown", on);
+      btn.addEventListener("pointerup", off);
+      btn.addEventListener("pointerleave", off);
+    };
+    flyHold($("flyFwd"), 1);
+    flyHold($("flyBack"), -1);
+    $("sSlider").addEventListener("input", e => { this.camS = Number(e.target.value); this.mode = "drive"; });
+    $("rowUp").addEventListener("click", () => { this.camRow = Phaser.Math.Clamp(this.camRow+0.5, -4, 8); this.mode="drive"; this.updateRowReadout(); });
+    $("rowDown").addEventListener("click", () => { this.camRow = Phaser.Math.Clamp(this.camRow-0.5, -4, 8); this.mode="drive"; this.updateRowReadout(); });
+
+    $("newGridBtn").addEventListener("click", () => this.newGrid(this.dateStr));
+    $("newWalkBtn").addEventListener("click", () => this.loadWalk(this.dateStr, true));
+
+    $("gridBtn").classList.add("on");
+    $("propsBtn").classList.add("on");
+    $("trafficBtn").classList.add("on");
+    this.applyRouteToUI();
+    this.fitAll();
+  }
+
+  newGrid(dateStr){
+    const seed = hashStr(dateStr + "|grid|" + Math.random());
+    const rng = mulberry32(seed);
+    this.cols = 6 + Math.floor(rng()*4);
+    this.rows = 6 + Math.floor(rng()*4);
+    this.grid = buildGrid(this.cols, this.rows);
+    this.traffic = buildTraffic(this.grid, rng, 4);
+    this._labels = {};
+    this.loadWalk(dateStr);
+    this.fitAll();
+  }
+  loadWalk(dateStr, keepCamera = false){
+    this.dateStr = dateStr;
+    const seed = hashStr(dateStr);
+    const rng = mulberry32(seed);
+    this.hood = HOODS[seed % HOODS.length];
+    this.pal = this.hood.hill > 0.55
+      ? { sky:0xf2c48d, pave:0xbdb6a8, paveB:0xb3ac9e, paveEdge:0x9c9588, road:0x45484f, roadLine:0xcfc9b9 }
+      : this.hood.pave < 0.5
+      ? { sky:0xc9b49b, pave:0xa19a8e, paveB:0x958e82, paveEdge:0x7d7669, road:0x3d4046, roadLine:0x8f897b }
+      : { sky:0x9fd4e8, pave:0xc9c3b4, paveB:0xbfb9aa, paveEdge:0xa8a294, road:0x4a4d55, roadLine:0xd8d2c2 };
+    this.walk = buildWalk(this.grid, rng);
+    this.walk.placeholders = spawnPlaceholders(this.grid, this.walk, rng);
+    if(!keepCamera){ this.camS = 0; this.camRow = ROBOT_ROW; }
+    this.applyRouteToUI();
+  }
+  applyRouteToUI(){
+    document.getElementById("sSlider").max = String(Math.round(this.walk.totalLen));
+    document.getElementById("sSlider").value = "0";
+    this.updateRowReadout();
+  }
+  updateRowReadout(){ document.getElementById("rowReadout").textContent = `row ${this.camRow.toFixed(1)}`; }
+
+  layout(){
+    const w = this.scale.gameSize.width, h = this.scale.gameSize.height;
+    this.cx = w/2; this.cy = h/2;
+  }
+
+  /* ---------- path over the WALK (verbatim math, arcs removed — a
+     rectilinear grid never needs a curved segment; corners are real
+     intersections now, not a bend that has to fake its way around) ---------- */
+  segAt(s){ return walkSegAt(this.walk, s); }
+  posAt(s){ return walkPosAt(this.walk, s); }
+  headingAt(s){ return walkHeadingAt(this.walk, s); }
+  tangentAt(s){ return walkTangentAt(this.walk, s); }
+  walkWorldOf(s, offsetUnits){ return walkWorldOf(this.walk, s, offsetUnits); }
+  groundZ(){ return 0; } // flat for this structural pass — hill grading is future work
+
+  W(x, y, z){
+    const xr = x - this.camX, yr = y - this.camY;
+    return { x:(xr - yr)*this.K + this.cx, y:((xr + yr)*0.5 - (z - this.camZ))*this.K + this.cy };
+  }
+  worldOfScreen(px, py){
+    const sx = (px - this.cx)/this.K, sy = (py - this.cy)/this.K;
+    const xr = (sx + 2*sy)/2, yr = (2*sy - sx)/2;
+    return { x: xr + this.camX, y: yr + this.camY };
+  }
+  panBy(dxS, dyS){
+    const dxr = (dxS/this.K + 2*dyS/this.K)/2, dyr = (2*dyS/this.K - dxS/this.K)/2;
+    this.camX -= dxr; this.camY -= dyr;
+  }
+  zoomAround(px, py, ratio){
+    const before = this.worldOfScreen(px, py);
+    this.K = Phaser.Math.Clamp(this.K * ratio, 0.04, 3.5);
+    const after = this.worldOfScreen(px, py);
+    this.camX += before.x - after.x; this.camY += before.y - after.y;
+  }
+  fitAll(){
+    const g = this.grid, margin = 9*T2;
+    const minX = -margin, maxX = (g.cols-1)*BLOCK + margin;
+    const minY = -margin, maxY = (g.rows-1)*BLOCK + margin;
+    const cx0 = (minX+maxX)/2, cy0 = (minY+maxY)/2;
+    const corners = [[minX,minY],[maxX,minY],[minX,maxY],[maxX,maxY]];
+    let minSx=Infinity,maxSx=-Infinity,minSy=Infinity,maxSy=-Infinity;
+    for(const [x,y] of corners){
+      const xr=x-cx0, yr=y-cy0, sx=xr-yr, sy=(xr+yr)*0.5;
+      if(sx<minSx)minSx=sx; if(sx>maxSx)maxSx=sx;
+      if(sy<minSy)minSy=sy; if(sy>maxSy)maxSy=sy;
+    }
+    const w = this.scale.gameSize.width, h = this.scale.gameSize.height;
+    const K = Math.min((w*0.88)/Math.max(1,maxSx-minSx), (h*0.82)/Math.max(1,maxSy-minSy));
+    this.K = Phaser.Math.Clamp(K, 0.04, 3.5);
+    this.camX = cx0; this.camY = cy0;
+    this.mode = "free";
+  }
+
+  quadOn(g, pts, color, alpha=1){ g.fillStyle(color, alpha); g.fillPoints(pts.map(p => new Phaser.Geom.Point(p.x, p.y)), true); }
+  edgeOn(g, pts, color, w=2, alpha=1){ g.lineStyle(w, color, alpha); g.strokePoints(pts.map(p => new Phaser.Geom.Point(p.x, p.y)), true); }
+
+  /* ---------- ground: every graph edge drawn with its own tile
+     loop (same T2-tile mechanics game/index.html uses). Two passes
+     across ALL edges globally — every edge's road tiles first, then
+     every edge's sidewalk tiles on top — so at any corner the
+     pedestrian path wins over the roadway beneath it, same as a
+     real curb. No plaza/intersection special-casing: each edge's
+     own ±2-tile overshoot past its endpoint is what fills the
+     intersection square, and because BLOCK is a whole multiple of
+     T2 that overshoot always lands on the same lattice as every
+     other edge touching that node. */
+  /* cross-section, symmetric about the street centerline (the node
+     line itself): road always occupies the middle 3 rows, sidewalk
+     occupies 2 rows on EACH side — each side's sidewalk belongs to
+     whichever block sits on that side. This is the actual fix: the
+     old c=-2..4 range was lopsided (4 sidewalk rows then road, with
+     nothing past it), inherited from the original single-path game
+     where only one side of the street ever existed. A real block
+     grid needs the road to divide two facing sidewalks, not sit
+     beside a single one. */
+  drawGround(){
+    const d = this.pal, g = this.gWorld; g.clear();
+    const cullSpan = (this.scale.gameSize.width / this.K) * 0.9 + TILE*6 + 4000;
+    const near = (wx, wy) => (Math.abs(wx - this.camX) + Math.abs(wy - this.camY)) < cullSpan;
+
+    /* road surface: ONE quad per edge, full length, no internal tile
+       seams. The old per-tile loop drew ~17 separate small quads per
+       edge for a uniformly-colored surface — every seam between two
+       identically-colored adjacent quads is invisible up close but
+       becomes a visible hairline grid at low zoom, which is exactly
+       the "dotted line" artifact. A single quad has no seams at all. */
+    for(const edge of this.grid.edges){
+      const dv = DIRV[edge.f], rv = DIRV[(edge.f+1)%4];
+      if(!near(edge.a.x, edge.a.y) && !near(edge.b.x, edge.b.y)) continue;
+      const ax = edge.a.x - dv.x*OVERSHOOT, ay = edge.a.y - dv.y*OVERSHOOT;
+      const bx = edge.b.x + dv.x*OVERSHOOT, by = edge.b.y + dv.y*OVERSHOOT;
+      this.quadOn(g, [
+        this.W(ax - rv.x*ROAD_HALF, ay - rv.y*ROAD_HALF, 0),
+        this.W(bx - rv.x*ROAD_HALF, by - rv.y*ROAD_HALF, 0),
+        this.W(bx + rv.x*ROAD_HALF, by + rv.y*ROAD_HALF, 0),
+        this.W(ax + rv.x*ROAD_HALF, ay + rv.y*ROAD_HALF, 0)
+      ], d.road);
+    }
+
+    /* sidewalks, two tiers — see buildSidewalkGeometry. Runs: one quad
+       per (edge, side, row) for the mid-block stretch, cheap regardless
+       of how long the street is. Corner cells: fine, classifyAt-checked,
+       only near actual intersections — the one place a cheap quad could
+       be wrong. */
+    for(const r of this.grid.sidewalkRuns){
+      const dv = DIRV[r.edge.f], rv = DIRV[(r.edge.f+1)%4];
+      if(!near(r.edge.a.x, r.edge.a.y) && !near(r.edge.b.x, r.edge.b.y)) continue;
+      const perp = r.side * (ROAD_HALF + (r.t+0.5)*T2);
+      const a0x = r.edge.a.x + dv.x*OVERSHOOT, a0y = r.edge.a.y + dv.y*OVERSHOOT;
+      const b0x = r.edge.b.x - dv.x*OVERSHOOT, b0y = r.edge.b.y - dv.y*OVERSHOOT;
+      const pts = [
+        this.W(a0x + rv.x*perp - rv.x*T2/2, a0y + rv.y*perp - rv.y*T2/2, 0),
+        this.W(b0x + rv.x*perp - rv.x*T2/2, b0y + rv.y*perp - rv.y*T2/2, 0),
+        this.W(b0x + rv.x*perp + rv.x*T2/2, b0y + rv.y*perp + rv.y*T2/2, 0),
+        this.W(a0x + rv.x*perp + rv.x*T2/2, a0y + rv.y*perp + rv.y*T2/2, 0)
+      ];
+      this.quadOn(g, pts, (r.side+r.t)%2===0 ? d.pave : d.paveB);
+      this.edgeOn(g, pts, d.paveEdge, 1);
+    }
+    for(const cell of this.grid.sidewalkCornerCells){
+      if(!near(cell.x, cell.y)) continue;
+      const half = CELL/2;
+      const pts = [
+        this.W(cell.x-half, cell.y-half, 0), this.W(cell.x+half, cell.y-half, 0),
+        this.W(cell.x+half, cell.y+half, 0), this.W(cell.x-half, cell.y+half, 0)
+      ];
+      this.quadOn(g, pts, cell.parity === 0 ? d.pave : d.paveB);
+      this.edgeOn(g, pts, d.paveEdge, 1);
+    }
+
+    /* continuous center line + both curb lips, drawn ONCE per edge
+       end-to-end (not stamped per tile) — a real street's paint
+       and curb don't break every 92 units, and drawing one strip
+       per edge also means it stays unbroken through intersections
+       since adjacent edges meet exactly at the shared node. Center
+       line sits at offset 0 regardless of road width, so it's
+       always exactly down the middle. */
+    for(const edge of this.grid.edges){
+      const dv = DIRV[edge.f], rv = DIRV[(edge.f+1)%4];
+      const a0 = edge.a, b0 = edge.b;
+      const stripe = (offUnits, halfW, color) => {
+        const ox = rv.x*offUnits, oy = rv.y*offUnits;
+        this.quadOn(g, [
+          this.W(a0.x+ox - rv.x*halfW, a0.y+oy - rv.y*halfW, offUnits===0?3:6),
+          this.W(b0.x+ox - rv.x*halfW, b0.y+oy - rv.y*halfW, offUnits===0?3:6),
+          this.W(b0.x+ox + rv.x*halfW, b0.y+oy + rv.y*halfW, offUnits===0?3:-2),
+          this.W(a0.x+ox + rv.x*halfW, a0.y+oy + rv.y*halfW, offUnits===0?3:-2)
+        ], color);
+      };
+      stripe(0, 4, d.roadLine);              // center line — down the middle
+      stripe(-ROAD_HALF, TILE, d.paveEdge);  // curb lip, sidewalk side (negative)
+      stripe(ROAD_HALF, TILE, d.paveEdge);   // curb lip, sidewalk side (positive)
+    }
+  }
+
+  drawOverlay(){
+    const g = this.gOverlay; g.clear();
+    if(!this.showGrid){ for(const k in this._labels) this._labels[k].setVisible(false); return; }
+
+    /* highlight the walked route — offset onto ROBOT_ROW (the sidewalk
+       lane) rather than the raw street centerline, since that's where
+       the robot actually is, not where the street's spine runs. Same
+       walkWorldOf used for hazards, sampled uniformly so line and arc
+       segments both get the correct lateral offset. */
+    g.lineStyle(4, 0x39ff8a, 0.9);
+    for(const sg of this.walk.segs){
+      const steps = sg.type === "line" ? 2 : 16;
+      let prev = null;
+      for(let i = 0; i <= steps; i++){
+        const sv = sg.s0 + (sg.s1 - sg.s0)*(i/steps);
+        const wp0 = this.walkWorldOf(sv, ROBOT_ROW*T2), wp = this.W(wp0.x, wp0.y, 0);
+        if(prev) g.lineBetween(prev.x, prev.y, wp.x, wp.y);
+        prev = wp;
+      }
+    }
+
+    /* label every node by its real bitmask-derived shape */
+    const COLORS = { cross:0xff9c4d, t:0x7fe3ff, corner:0xff2fd6, straight:0x555a66, end:0xff4d4d, isolated:0x555a66 };
+    for(const n of this.grid.nodes){
+      const key = `${n.i},${n.j}`;
+      const wp = this.W(n.x, n.y, 0);
+      if(!this._labels[key]){
+        this._labels[key] = this.add.text(0,0,"", { fontSize:"11px", fontFamily:"monospace",
+          color:"#fff", backgroundColor:"rgba(20,22,27,0.7)", padding:{x:3,y:1} }).setDepth(1000);
+      }
+      const lab = this._labels[key];
+      lab.setVisible(true);
+      lab.setText(n.shape === "straight" ? "" : n.shape);
+      lab.setColor("#" + COLORS[n.shape].toString(16).padStart(6,"0"));
+      lab.setPosition(wp.x - lab.width/2, wp.y - 10);
+      g.fillStyle(COLORS[n.shape], n.shape==="straight" ? 0.35 : 0.9);
+      g.fillCircle(wp.x, wp.y, n.shape==="straight" ? 2 : 4);
+    }
+  }
+
+  /* placeholder hazards/props — small colored dots keyed to
+     PLACEHOLDER, positioned via walkWorldOf so they follow the
+     robot's actual curved path through turns, not just straight
+     legs. Independent of the GRID toggle on purpose — this is the
+     thing actually being tested right now. */
+  drawPlaceholders(){
+    const g = this.gProps; g.clear();
+    if(!this.showProps) return;
+    const cullSpan = (this.scale.gameSize.width / this.K) * 0.9 + TILE*6 + 4000;
+    const near = (wx, wy) => (Math.abs(wx - this.camX) + Math.abs(wy - this.camY)) < cullSpan;
+    for(const it of this.walk.placeholders){
+      const off = it.lane !== undefined ? laneOffset(it.lane) : it.roadOffset;
+      const wp = this.walkWorldOf(it.s, off);
+      if(!near(wp.x, wp.y)) continue;
+      const proj = this.W(wp.x, wp.y, 0);
+      g.fillStyle(PLACEHOLDER[it.kind].color, 1);
+      g.fillCircle(proj.x, proj.y, 5);
+      g.lineStyle(1, 0x14161b, 0.8);
+      g.strokeCircle(proj.x, proj.y, 5);
+    }
+  }
+
+  /* traffic: each car's position is computed fresh from elapsed time
+     (t*speed*dir, wrapped with modulo) — no stored velocity state,
+     same pattern the live game's traffic already uses. What's new is
+     that walkWorldOf/headingAt make it road-aware and turn-aware for
+     free, instead of a fixed row:3.0/3.7 that never knew where the
+     road actually was. */
+  drawTraffic(t){
+    const g = this.gTraffic; g.clear();
+    if(!this.showTraffic || !this.traffic) return;
+    const cullSpan = (this.scale.gameSize.width / this.K) * 0.9 + TILE*6 + 4000;
+    const near = (wx, wy) => (Math.abs(wx - this.camX) + Math.abs(wy - this.camY)) < cullSpan;
+    for(const car of this.traffic){
+      const total = car.walk.totalLen;
+      const s = ((car.sBase + t*car.speed*car.dir) % total + total) % total;
+      const wp = walkWorldOf(car.walk, s, car.laneOffset);
+      if(!near(wp.x, wp.y)) continue;
+      const proj = this.W(wp.x, wp.y, 0);
+      const hdg = walkHeadingAt(car.walk, s) + (car.dir < 0 ? Math.PI : 0);
+      const ahead = walkWorldOf(car.walk, s + car.dir*24, car.laneOffset);
+      const aheadProj = this.W(ahead.x, ahead.y, 0);
+      g.lineStyle(3, car.color, 0.5);
+      g.lineBetween(proj.x, proj.y, aheadProj.x, aheadProj.y);
+      g.fillStyle(car.color, 1);
+      g.fillCircle(proj.x, proj.y, 6);
+      g.lineStyle(1, 0x14161b, 0.9);
+      g.strokeCircle(proj.x, proj.y, 6);
+    }
+  }
+
+  update(t, dt){
+    if(this.mode === "drive"){
+      this.camS = Phaser.Math.Clamp(this.camS + this.throttleDir*this.flySpeed*dt, 0, this.walk.totalLen);
+      const p = this.posAt(this.camS), tan = this.tangentAt(this.camS);
+      const nrm = { x:-tan.y, y:tan.x };
+      this.camX = p.x + nrm.x*this.camRow*T2;
+      this.camY = p.y + nrm.y*this.camRow*T2;
+      const slider = document.getElementById("sSlider");
+      if(document.activeElement !== slider) slider.value = String(Math.round(this.camS));
+    }
+
+    this.drawGround();
+    this.drawOverlay();
+    this.drawPlaceholders();
+    this.drawTraffic(t);
+
+    const counts = { cross:0, t:0, corner:0, straight:0, end:0 };
+    for(const n of this.grid.nodes) counts[n.shape] = (counts[n.shape]||0) + 1;
+    document.getElementById("hud").textContent =
+      `${this.hood.n}  ·  ${this.mode.toUpperCase()}\n` +
+      `grid ${this.cols}×${this.rows}  ·  ${this.rows+this.cols} streets (${this.grid.edges.length} block segments)\n` +
+      `nodes: ${counts.cross} cross / ${counts.t} T / ${counts.corner} corner\n` +
+      `s=${Math.round(this.camS)}  row=${this.camRow.toFixed(1)}  K=${this.K.toFixed(2)}`;
+  }
+}
+
+const game = new Phaser.Game({
+  type: Phaser.AUTO, parent: "game",
+  scale: { mode: Phaser.Scale.RESIZE, width: "100%", height: "100%" },
+  scene: [LabScene]
+});
+</script>
+</body>
+</html>
