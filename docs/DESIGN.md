@@ -71,6 +71,18 @@ street-name pool. Roster lives in `game/index.html` (`HOODS`).
    slabs (spacing 92) with row drift, rarity `0.18 + (1−pave)×0.75` per spawn
    window — bad-pavement districts get bad sidewalks. Lift 3–8 seeded per slab:
    at full speed lift 7+ is near-certain death; crept over, all survivable.
+2c. **Hydrants + hydroplane** (`prop.hydrant`, live in-game; dialed in the
+   hydrant hit lab) — sparse curb-side (row 1) fixtures, ~0.6/route. Cast
+   iron: hard blocker, palm contract (stop 26 out); arriving > 0.035 adds
+   the bonk (sev 10 × speed + damage). Hit speed ≥ 0.055 shears the nozzle:
+   burst persists for the route — water arc + a flood pooling around the
+   base (grows 1.8s to r41.4). Entering the flood with speed > 0.02
+   hydroplanes: eased pirouette of spin × (entry/0.05) turns over
+   0.8–1.1s (slipYaw layered into facing yaw), hydro drag, tilt wobble,
+   then grip (0.012 rad/ms) unwinds the shortest way straight. Robot eyes
+   go alert-orange for the whole slide. One slide per soaking; re-arms
+   after leaving the flood. The trap: the flood covers where a blocked
+   robot stands, so re-approaching your own burst is how most spins start.
 3. **Lane changes** — 0.16 + speed × 4.5 stability cost, bled in over ~0.3s of the
    maneuver (not a spike). Changing lanes at speed is a gamble.
 3b. **Palms are solid.** Lane −1 (building side) is planted with palm trunks that
