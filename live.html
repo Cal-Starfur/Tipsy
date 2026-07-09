@@ -75,6 +75,24 @@ const CONE = {
   height: 38, base: 18, band: 0,
   body: 0xff7a1a, bodyDk: 0xd85f0a, band_c: 0xf4f5f7, shadow: 0x000000
 };
+/* approved in cone hit lab (2026-07-09): rigid pivot-fall physics —
+   see game/index.html for the full write-up. Ported here only so the
+   gallery can show the knocked rest pose (phiRest); the gallery is
+   static, it doesn't run the integrator. */
+const coneR = h => 8.5 - (8.5 - 1.8) * (h / CONE.height);
+const CONE_HIT = (() => {
+  const pvt = CONE.base/2, H = CONE.height;
+  const phiBal = Math.atan(pvt / (3 + H*0.25));
+  let phiRest = Math.PI*0.97;
+  const cand = [[1.8, H], [-1.8, H], [-pvt, 3]];
+  for(let h = 2; h <= H; h += 4) cand.push([coneR(h), h], [-coneR(h), h]);
+  for(const [u, h] of cand){
+    if(u >= pvt || h <= 3) continue;
+    const f = Math.PI - Math.atan((h - 3) / (pvt - u));
+    if(f > Math.PI/2 && f < phiRest) phiRest = f;
+  }
+  return { phiBal, phiRest, kick:1.0, grav:0.6, punt:2.0 };
+})();
 
 /* approved scooter (scooter lab, 2026-07-07): stem 42 · bar 13 · wheel 5 */
 const SCOOT = {
@@ -395,10 +413,10 @@ class GalleryScene extends Phaser.Scene {
 
     /* ---- PROPS ---- */
     header("4 · Hazards & props");
-    const P = (kind, h=150, wide=false, dy=30) =>
-      card("prop." + kind, h, (t) => {
+    const P = (kind, h=150, wide=false, dy=30, data=null, label=kind) =>
+      card("prop." + label, h, (t) => {
         this.setPose({ K:1.8, dy });
-        this.drawProp(this.g, kind, 0, 0, t);
+        this.drawProp(this.g, kind, 0, 0, t, 0, 0, null, null, data);
       }, wide);
     P("palm", 340, true, 150);
     P("palmDwarf", 190, false, 60);
@@ -406,7 +424,7 @@ class GalleryScene extends Phaser.Scene {
     P("scooterStanding", 230, false, 75);
     P("trash", 170, false, 45);
     P("cone", 190, false, 60);
-    P("coneTipped", 150, false, 45);
+    P("cone", 150, false, 45, { phi: CONE_HIT.phiRest, phase: 2, fallPsi: 0 }, "coneKnocked");
     P("hydrant", 150, false, 45);
     P("hydrantBurst", 170, false, 60);
     P("planter");
@@ -1036,41 +1054,71 @@ class GalleryScene extends Phaser.Scene {
       }
       items.sort((a2,b2) => (a2.x + a2.y) - (b2.x + b2.y));
       for(const it of items) it.draw();
-    } else if(kind === "cone" || kind === "coneTipped"){
-      /* approved in cone lab: height 38 · base 18 · no band. coneTipped is
-         the same rigid cone resting on its slant side. */
+    } else if(kind === "cone"){
+      /* approved in cone hit lab (2026-07-09): ONE rigid geometry driven
+         by a continuous tip angle phi about a physical pivot — every
+         frame between standing (phi=0) and knocked (phi=phiRest) is the
+         same solid mid-fall, no keyframe swap. phase 1 pivots on the
+         front base-rim edge; phase 2 hands off to the landed slab
+         corner at 90°. fallPsi (set once, at the hit that starts the
+         fall) plays the same role the old per-tile rotation did: it
+         orients the fall within this prop's local frame. */
       const C = CONE, K = this.K;
       const seed = ((Math.round(x)*7919) ^ (Math.round(y)*104729)) >>> 0;
       const rng = mulberry32(seed);
-      const cth = rng()*Math.PI*2;
-      const cc = Math.cos(cth), sc = Math.sin(cth);
+      const cthSeed = rng()*Math.PI*2;             // decorative facet jitter while standing
       const H = C.height * (0.9 + rng()*0.2);
-      const knocked = kind === "coneTipped";
-      const GG = (a, b, h) => W(a*cc - b*sc, a*sc + b*cc, h);
-      const dAt = (a, b, h) => a*(cc+sc) + b*(cc-sc) + h*0.4;
-      const rOf = hh => 8.5 - (8.5 - 1.8) * (hh / H);
+      const phi = (data && data.phi) || 0;
+      const ph2 = !!(data && data.phase === 2);
+      const cth = (data && data.fallPsi !== undefined) ? data.fallPsi : cthSeed;
+      const fc = Math.cos(cth), fsn = Math.sin(cth);
+      const cphi = Math.cos(phi), sphi = Math.sin(phi);
+      const pvt = C.base/2;
+
+      /* tip(u,h): the one function that encodes the pose, in the
+         (fall-axis, height) plane — bends within a frame fixed by cth */
+      const tip = (u, h) => {
+        if(phi === 0) return { u, z: h };
+        if(!ph2) return { u: pvt + (u - pvt)*cphi + h*sphi, z: -(u - pvt)*sphi + h*cphi };
+        return { u: pvt + 3 + (u - pvt)*cphi + (h - 3)*sphi, z: -(u - pvt)*sphi + (h - 3)*cphi };
+      };
+      const L = (u, v, h) => {
+        const tt = tip(u, h);
+        return W(tt.u*fc - v*fsn, tt.u*fsn + v*fc, tt.z);
+      };
+      const dAt = (u, v, h) => {
+        const tt = tip(u, h);
+        return (tt.u*fc - v*fsn) + (tt.u*fsn + v*fc) + tt.z*0.4;
+      };
+      const rOf = hh => 8.5 - (8.5 - 1.8) * (hh / H);   // per-instance taper (visual variety, as before)
       const place = (hh, r, n=12) => {
         const pts = [];
         for(let i=0; i<n; i++){
-          const phi = (i/n)*Math.PI*2, c3 = Math.cos(phi)*r, s3 = Math.sin(phi)*r;
-          if(knocked) pts.push(GG(1 + hh, c3, rOf(hh) + s3));
-          else        pts.push(GG(c3, s3, hh));
+          const psi2 = (i/n)*Math.PI*2;
+          pts.push(L(Math.cos(psi2)*r, Math.sin(psi2)*r, hh));
         }
         return pts;
       };
-      const sh = knocked ? GG(1 + H/2, 0, 0) : GG(0, 0, 0);
+
+      /* shadow: base ellipse morphing toward an elongated slant shadow
+         as the cone goes over */
+      const mid = tip(0, H*0.5);
+      const k = Math.min(1, sphi*1.1);
+      const sh = W(mid.u*k*fc, mid.u*k*fsn, 0);
       g.fillStyle(C.shadow, 0.13);
-      g.fillEllipse(sh.x, sh.y + 2, (knocked ? H + 16 : C.base*1.6)*K*0.55,
-                    (knocked ? 14 : C.base*0.7)*K*0.55);
+      g.fillEllipse(sh.x, sh.y + 2,
+        (C.base*1.6 + (H + 16 - C.base*1.6)*k) * K * 0.55,
+        (C.base*0.7 + (14 - C.base*0.7)*k) * K * 0.55);
+
       const baseSlab = () => {
         const hb = C.base/2, pts = [];
         for(const bc of [[-hb,-hb],[hb,-hb],[hb,hb],[-hb,hb]]){
-          if(knocked){ pts.push(GG(0, bc[0], hb + bc[1])); pts.push(GG(3, bc[0], hb + bc[1])); }
-          else       { pts.push(GG(bc[0], bc[1], 0));      pts.push(GG(bc[0], bc[1], 3)); }
+          pts.push(L(bc[0], bc[1], 0)); pts.push(L(bc[0], bc[1], 3));
         }
         this.quadOn(g, convexHull(pts), C.bodyDk);
-        if(!knocked){
-          const top = [GG(-hb,-hb,3), GG(hb,-hb,3), GG(hb,hb,3), GG(-hb,hb,3)];
+        const nu = sphi, nz = cphi;
+        if(nu*fc + nu*fsn + nz > 0.05){
+          const top = [L(-hb,-hb,3), L(hb,-hb,3), L(hb,hb,3), L(-hb,hb,3)];
           this.quadOn(g, top, C.body);
           this.edgeOn(g, top, C.bodyDk, 1.5);
         }
@@ -1084,8 +1132,8 @@ class GalleryScene extends Phaser.Scene {
         this.quadOn(g, place(H, 1.8, 8), C.bodyDk);
       };
       const cparts = [
-        { d: knocked ? dAt(1.5, 0, C.base/2) : dAt(0, 0, 1.5), fn: baseSlab },
-        { d: knocked ? dAt(1 + H*0.45, 0, rOf(H*0.45)) : dAt(0, 0, H*0.45), fn: body }
+        { d: dAt(0, 0, 1.5), fn: baseSlab },
+        { d: dAt(0, 0, H*0.45), fn: body }
       ];
       cparts.sort((p1, p2) => p1.d - p2.d);
       for(const pt of cparts) pt.fn();
