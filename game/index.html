@@ -189,8 +189,40 @@ const DOG = {
   len: 0.8, headR: 7.5, earH: 5, legH: 6, tailCurl: 0.4,
   body: 0xc98d4b, bodyDk: 0xa06e38, chest: 0xe8d9b8, ear: 0xd99a8c,
   eye: 0x1c1e24, glint: 0xf4f2ec, nose: 0x25272d,
-  collar: 0xd94f3d, shadow: 0x000000
+  collar: 0xd94f3d, collarDk: 0xa83b2d, shadow: 0x000000
 };
+/* dog lab v2: three street coats + the deterministic wander */
+const DOG_COATS = [
+  { n:"fawn",    body:0xc98d4b, dk:0xa06e38, chest:0xe8d9b8, ear:0xd99a8c },
+  { n:"cream",   body:0xe3d3b3, dk:0xbfa987, chest:0xf3ece0, ear:0xdca493 },
+  { n:"blk&tan", body:0x33363e, dk:0x22242b, chest:0xc98d4b, ear:0xb0837b }
+];
+/* the dog's position/heading/stride at time t — a PURE function of
+   (t, seed), no mutable state: renderer and sim call the same thing,
+   so the hitbox always matches the art. Sitters get one fixed seeded
+   spot. Offsets are tile-local (±30 along, ±26 across) so he never
+   leaves the square he spawned in. Walk legs are 62% of each 2.6s
+   segment (smoothstepped), the rest is standing and judging. */
+function dogSpotAt(tms, seed, sit){
+  const wp = i => {
+    const r = mulberry32((seed ^ Math.imul(i|0, 2654435761)) >>> 0);
+    return { a: -30 + r()*60, b: -26 + r()*52 };
+  };
+  if(sit){
+    const p = wp(0);
+    return { a: p.a, b: p.b, th: mulberry32(seed)()*Math.PI*2, walk: 0 };
+  }
+  const SEG = 2600;
+  const i = Math.floor(tms/SEG), u = (tms % SEG)/SEG;
+  const p0 = wp(i), p1 = wp(i+1);
+  const w = Math.min(u/0.62, 1), e = w*w*(3 - 2*w);
+  return {
+    a: p0.a + (p1.a - p0.a)*e,
+    b: p0.b + (p1.b - p0.b)*e,
+    th: Math.atan2(p1.b - p0.b, p1.a - p0.a),
+    walk: u < 0.62 ? Math.sin(Math.PI*w) : 0
+  };
+}
 /* approved in bin lab: height 40 · base 13 · lid 15 · band 3 (standing) / 0 (knocked) */
 const BIN = {
   height: 40, baseR: 13, lidR: 15, band: 3,
@@ -322,6 +354,8 @@ function generateRoute(dateStr){
                     row: Math.floor(rng()*3) - 1,
                     f: facingAt(hs), hit:false };
     if(type === "crack") hzObj.len = 24 + Math.floor(rng()*49);   // spall size -> art + severity
+    if(type === "dog"){ hzObj.dogSeed = (rng()*4294967296) >>> 0;  // coat + scar + waypoints
+                        hzObj.sit = rng() < 0.4; }                 // ~40% sitters
     hazards.push(hzObj);
   }
 
@@ -712,7 +746,7 @@ class WorldScene extends Phaser.Scene {
     for(const hz of r.hazards){
       if(GROUND_KINDS[hz.type]) continue;
       const wp = worldOf(hz.s, hz.row, hz.f);
-      if(near(wp.x, wp.y)) this.drawProp(layerFor(wp.x, wp.y), hz.type, wp.x, wp.y, t, hz.f, wp.z);
+      if(near(wp.x, wp.y)) this.drawProp(layerFor(wp.x, wp.y), hz.type, wp.x, wp.y, t, hz.f, wp.z, null, null, hz);
     }
 
     /* the address: door, delivery mat, floating label — oriented by the last leg */
@@ -1326,135 +1360,226 @@ class WorldScene extends Phaser.Scene {
       pparts.sort((p1, p2) => p1.d - p2.d);
       for(const pt of pparts) pt.fn();
     } else if(kind === "dog"){
-      /* approved in dog lab: chihuahua — apple-dome head, bat ears,
-         bug eyes, pin legs, sickle tail. Small seeded facing variance
-         so dogs on the route don't all stare the same way. */
+      /* approved in dog lab v2: the one-eyed sidewalk chihuahua.
+         SIZE unchanged — the game's approved DOG preset (0.8 scale)
+         drives all proportions. Seeded per spawn: coat (3), scar
+         side (L/R), and behavior — ~40% sit at a fixed spot, the
+         rest patrol their spawn tile via dogSpotAt(t, seed): a pure
+         function of time + seed, so the sim shifts the hitbox with
+         the exact same call and the robot can bump a dog that walks
+         into the lane (or be bumped by one). Trot is diagonal-pair
+         legs, easing in/out between waypoints; he trembles when he
+         stands still, because he is a chihuahua. */
       const D = DOG, L = D.len;
-      const seed = ((Math.round(x)*7919) ^ (Math.round(y)*104729) ^ 0x5a5a) >>> 0;
-      const rng = mulberry32(seed);
-      const dth = (rng()*2 - 1) * 0.6;
-      const dcs = Math.cos(dth), dsn = Math.sin(dth);
-      const GG = (a, b, h) => W(a*dcs - b*dsn, a*dsn + b*dcs, h);
-      const dAt = (a, b, h) => a*(dcs+dsn) + b*(dcs-dsn) + h*0.4;
+      const pseed = ((Math.round(x)*7919) ^ (Math.round(y)*104729) ^ 0x6d0a) >>> 0;
+      const dseed = (data && data.dogSeed !== undefined) ? data.dogSeed : pseed;
+      const sit = data ? !!data.sit : ((dseed >> 3) % 5 < 2);
+      const spot = dogSpotAt(t, dseed, sit);
+      const thW = fdir*Math.PI/2 + spot.th;
+      const cs = Math.cos(thW), sn = Math.sin(thW);
+      const coat = DOG_COATS[dseed % 3];
+      const blindSide = (dseed & 4) ? 1 : -1;
+      const ax = x + dv.x*spot.a + rv.x*spot.b;
+      const ay = y + dv.y*spot.a + rv.y*spot.b;
+      const G = (a, b, h) => this.W(ax + a*cs - b*sn, ay + a*sn + b*cs, z + h);
+      const depthAt = (a, b, h) => (ax + a*cs - b*sn) + (ay + a*sn + b*cs) + h*0.4;
+      const walkPhase = t * 0.014;
+      const walkAmt = spot.walk;
+      const tr = spot.walk < 0.25 ? 1 : 0;   // tremble only while standing
+      const jb = tr * (Math.sin(t*0.052) + Math.sin(t*0.083)*0.5) * 0.28 * L;
+      const jh = tr * Math.sin(t*0.097) * 0.18 * L;
 
-      const ringAt = (a0, b0, h0, r, d1, d2, n=12) => {
-        const pts = [];
-        for(let i=0; i<n; i++){
-          const phi = (i/n)*Math.PI*2, c3 = Math.cos(phi)*r, s3 = Math.sin(phi)*r;
-          pts.push(GG(a0 + c3*d1.a + s3*d2.a, b0 + c3*d1.b + s3*d2.b, h0 + c3*d1.h + s3*d2.h));
-        }
-        return pts;
-      };
-      const VV = {a:0,b:1,h:0}, HHH = {a:0,b:0,h:1};
-      const px = r => r * this.K * 1.12;
+    /* ---- pose anchors ---- */
+    /* sit: seeded per spawn (see header) */
+    const legH = D.legH * L;
+    const bodyR = 5.0 * L, chestR = 5.6 * L;
+    const headR = D.headR * L;
+    const earH = D.earH * L;
 
-      const legH = D.legH*L, bodyR = 5.0*L, chestR = 5.6*L, headR = D.headR*L, earH = D.earH*L;
-      const rearA = -9*L, rearH = legH + bodyR*0.72;
-      const chestA = 6*L, chestH = legH + bodyR*0.72;
-      const headA = 9.5*L, headH = chestH + 6.2*L + headR*0.35;
+    const rearA  = sit ? -8*L  : -9*L;
+    const rearH  = sit ? bodyR*0.95 : legH + bodyR*0.72;
+    const chestA = sit ? 4.5*L : 6*L;
+    const chestH = sit ? legH + chestR*0.85 : legH + bodyR*0.72;
+    const headA  = (sit ? 7.5*L : 9.5*L) + jb*0.15;
+    const headH  = chestH + 6.2*L + headR*0.35 + jh;
 
-      const dsh = GG((rearA+chestA)/2, 0, 0);
-      g.fillStyle(D.shadow, 0.13);
-      g.fillEllipse(dsh.x, dsh.y + 1, (40*L)*this.K*0.45, (14*L)*this.K*0.4);
+    const ringAt = (a0, b0, h0, r, d1, d2, n=12) => {
+      const pts = [];
+      for(let i=0; i<n; i++){
+        const phi = (i/n)*Math.PI*2, c = Math.cos(phi)*r, s2 = Math.sin(phi)*r;
+        pts.push(G(a0 + c*d1.a + s2*d2.a, b0 + c*d1.b + s2*d2.b, h0 + c*d1.h + s2*d2.h));
+      }
+      return pts;
+    };
+    const V = {a:0,b:1,h:0}, HH = {a:0,b:0,h:1};
+    const px = r => r * this.K * 1.12;          // sphere → screen radius
 
-      const dbody = () => {
-        const rear = ringAt(rearA, 0, rearH, bodyR, VV, HHH, 12);
-        const chest = ringAt(chestA, 0, chestH, chestR, VV, HHH, 12);
-        this.quadOn(g, convexHull(rear.concat(chest)), D.body);
-        this.quadOn(g, ringAt(rearA - bodyR*0.25, 0, rearH, bodyR*0.9, VV, HHH, 12), D.bodyDk);
-      };
-      const dleg = (a0, s, foot) => () => {
-        const top = GG(a0, s*2.9*L, chestH - 1*L);
-        const bot = GG(a0 + foot, s*2.9*L, 0.8);
-        g.lineStyle(Math.max(2, 0.9*L*this.K*0.42), D.body, 1);
-        g.lineBetween(top.x, top.y, bot.x, bot.y);
-        g.fillStyle(D.bodyDk, 1);
-        g.fillEllipse(bot.x, bot.y + 1, px(1.4*L)*1.5, px(1.4*L)*0.7);
-      };
-      const dchest = () => {
-        const c = GG(chestA + chestR*0.45, 0, chestH - chestR*0.3);
-        g.fillStyle(D.chest, 1);
-        g.fillCircle(c.x, c.y, px(chestR*0.52));
-      };
-      const dneck = () => {
-        const n0 = ringAt(chestA + 1*L, 0, chestH + 2*L, 2.5*L, VV, HHH, 10);
-        const n1 = ringAt(headA - 1*L, 0, headH - headR*0.55, 2.2*L, VV, HHH, 10);
-        this.quadOn(g, convexHull(n0.concat(n1)), D.body);
-      };
-      const dcollar = () => {
-        const cA = chestA + 1.6*L, cH = chestH + 2.8*L;
-        const c0 = ringAt(cA, 0, cH, 2.7*L, VV, HHH, 10);
-        const c1 = ringAt(cA + 0.7*L, 0, cH + 0.9*L, 2.6*L, VV, HHH, 10);
-        this.quadOn(g, convexHull(c0.concat(c1)), D.collar);
-        const tag = GG(cA + 2.4*L, 0, cH - 1.4*L);
-        g.fillStyle(0xe8c34a, 1);
-        g.fillCircle(tag.x, tag.y, px(0.7*L));
-      };
-      const dhead = () => {
-        const c = GG(headA, 0, headH);
-        g.fillStyle(D.body, 1);
-        g.fillCircle(c.x, c.y, px(headR));
-      };
-      const dear = s => () => {
-        const b1 = GG(headA - headR*0.15, s*headR*0.35, headH + headR*0.6);
-        const b2 = GG(headA - headR*0.7,  s*headR*0.6,  headH + headR*0.28);
-        const tp = GG(headA - headR*0.5,  s*(headR*0.85 + earH*0.32), headH + headR*0.45 + earH);
-        g.fillStyle(D.body, 1);
-        g.fillTriangle(b1.x, b1.y, b2.x, b2.y, tp.x, tp.y);
-        g.lineStyle(1.5, D.bodyDk, 1);
-        g.strokeTriangle(b1.x, b1.y, b2.x, b2.y, tp.x, tp.y);
-        const cx2 = (b1.x+b2.x+tp.x)/3, cy2 = (b1.y+b2.y+tp.y)/3;
-        const lerp = (pp, k) => ({ x: pp.x + (cx2-pp.x)*k, y: pp.y + (cy2-pp.y)*k });
-        const i1 = lerp(b1,0.38), i2 = lerp(b2,0.38), i3 = lerp(tp,0.3);
-        g.fillStyle(D.ear, 1);
-        g.fillTriangle(i1.x, i1.y, i2.x, i2.y, i3.x, i3.y);
-      };
-      const deye = s => () => {
-        const c = GG(headA + headR*0.42, s*headR*0.44, headH + headR*0.12);
-        g.fillStyle(D.eye, 1);
-        g.fillCircle(c.x, c.y, px(headR*0.21));
-        g.fillStyle(D.glint, 1);
-        g.fillCircle(c.x - px(headR*0.07), c.y - px(headR*0.08), px(headR*0.06));
-      };
-      const dmuzzle = () => {
-        const m0 = ringAt(headA + headR*0.5,  0, headH - headR*0.28, headR*0.4,  VV, HHH, 10);
-        const m1 = ringAt(headA + headR*0.95, 0, headH - headR*0.34, headR*0.22, VV, HHH, 10);
-        this.quadOn(g, convexHull(m0.concat(m1)), D.chest);
-        const n = GG(headA + headR*1.02, 0, headH - headR*0.3);
-        g.fillStyle(D.nose, 1);
-        g.fillCircle(n.x, n.y, px(headR*0.13));
-      };
-      const dtail = () => {
-        const rr = 3.9*L, Ca = rearA - 0.8*L, Ch = rearH + bodyR*0.15 + rr;
-        const thMax = Math.min((0.55 + 0.85*D.tailCurl) * Math.PI, 1.9*Math.PI);
-        const n = 8;
-        for(let i=0; i<=n; i++){
-          const u = i/n, ang = u*thMax;
-          const p2 = GG(Ca - rr*Math.sin(ang), 1.0*L + u*0.8*L, Ch - rr*Math.cos(ang));
-          g.fillStyle(u > 0.75 ? D.chest : D.bodyDk, 1);
-          g.fillCircle(p2.x, p2.y, px((1.25 - u*0.55)*L));
-        }
-      };
+    /* ---- shadow ---- */
+    const sh = G((rearA + chestA)/2, 0, 0);
+    g.fillStyle(D.shadow, 0.13);
+    g.fillEllipse(sh.x, sh.y + 1, (sit ? 34 : 40)*L, 14*L);
 
-      const dparts = [
-        { d: dAt(rearA - 2*L, 1*L, rearH + bodyR), fn: dtail },
-        { d: dAt(rearA, 0, rearH), fn: dbody },
-        { d: dAt(chestA + chestR*0.45, 0, chestH - chestR*0.3), fn: dchest },
-        { d: dAt(chestA + 1.5*L, 0, chestH + 2*L), fn: dneck },
-        { d: dAt(chestA + 2*L, 0, chestH + 3*L), fn: dcollar },
-        { d: dAt(headA, 0, headH), fn: dhead },
-        { d: dAt(headA - headR*0.5, headR*0.85 + earH*0.3, headH + earH*0.6), fn: dear(1) },
-        { d: dAt(headA - headR*0.5, -(headR*0.85 + earH*0.3), headH + earH*0.6), fn: dear(-1) },
-        { d: dAt(headA + headR*0.42, headR*0.44, headH), fn: deye(1) },
-        { d: dAt(headA + headR*0.42, -headR*0.44, headH), fn: deye(-1) },
-        { d: dAt(headA + headR*0.8, 0, headH - headR*0.3), fn: dmuzzle },
-        { d: dAt(chestA + 0.5*L,  2.9*L, legH*0.4), fn: dleg(chestA + 0.5*L, 1, 0.4*L) },
-        { d: dAt(chestA + 0.5*L, -2.9*L, legH*0.4), fn: dleg(chestA + 0.5*L, -1, 0.4*L) },
-        { d: dAt(rearA + 1*L,  2.9*L, legH*0.4), fn: dleg(rearA + 1*L, 1, -0.4*L) },
-        { d: dAt(rearA + 1*L, -2.9*L, legH*0.4), fn: dleg(rearA + 1*L, -1, -0.4*L) }
-      ];
-      dparts.sort((p1, p2) => p1.d - p2.d);
-      for(const pt of dparts) pt.fn();
+    /* ---- parts (built as closures, depth-sorted) ---- */
+
+    const body = () => {
+      const rear = ringAt(rearA, 0, rearH, bodyR, V, HH, 12);
+      const chest = ringAt(chestA, 0, chestH, chestR, V, HH, 12);
+      this.quadOn(g, convexHull(rear.concat(chest)), coat.body);
+      const cap = ringAt(rearA - bodyR*0.25, 0, rearH, bodyR*0.9, V, HH, 12);
+      this.quadOn(g, cap, coat.dk);                   // shaded rump cap
+    };
+
+    const haunch = s => () => {                  // sitting only: folded rear leg
+      const c = G(rearA + 0.5*L, s*bodyR*0.72, bodyR*1.0);
+      g.fillStyle(coat.body, 1);
+      g.fillCircle(c.x, c.y, px(bodyR*0.9));
+      g.lineStyle(1.5, coat.dk, 1);
+      g.strokeCircle(c.x, c.y, px(bodyR*0.9));
+      const f = G(rearA + 3*L, s*bodyR*0.8, 0.6);
+      g.fillStyle(coat.dk, 1);
+      g.fillEllipse(f.x, f.y, px(1.7*L)*1.6, px(1.7*L)*0.8);
+    };
+
+    const leg = (a0, s, foot) => () => {         // pin leg + paw
+      const top = G(a0, s*2.9*L, chestH - 1*L);
+      const bot = G(a0 + foot, s*2.9*L, 0.8);
+      g.lineStyle(Math.max(2, 0.9*L*this.K*0.42), coat.body, 1);
+      g.lineBetween(top.x, top.y, bot.x, bot.y);
+      g.fillStyle(coat.dk, 1);
+      g.fillEllipse(bot.x, bot.y + 1, px(1.4*L)*1.5, px(1.4*L)*0.7);
+    };
+
+    const chestPatch = () => {
+      const c = G(chestA + chestR*0.45, 0, chestH - chestR*0.3);
+      g.fillStyle(coat.chest, 1);
+      g.fillCircle(c.x, c.y, px(chestR*0.52));
+    };
+
+    const neck = () => {
+      const n0 = ringAt(chestA + 1*L, jb*0.3, chestH + 2*L, 2.5*L, V, HH, 10);
+      const n1 = ringAt(headA - 1*L, jb*0.6, headH - headR*0.55, 2.2*L, V, HH, 10);
+      this.quadOn(g, convexHull(n0.concat(n1)), coat.body);
+    };
+
+    const collar = () => {
+      const cA = chestA + 1.6*L, cH = chestH + 2.8*L;
+      const c0 = ringAt(cA, jb*0.35, cH, 2.7*L, V, HH, 10);
+      const c1 = ringAt(cA + 0.7*L, jb*0.35, cH + 0.9*L, 2.6*L, V, HH, 10);
+      this.quadOn(g, convexHull(c0.concat(c1)), D.collar);
+      const tag = G(cA + 2.4*L, jb*0.35, cH - 1.4*L);
+      g.fillStyle(0xe8c34a, 1);
+      g.fillCircle(tag.x, tag.y, px(0.7*L));
+    };
+
+    const head = () => {                          // the apple dome
+      const c = G(headA, jb, headH);
+      g.fillStyle(coat.body, 1);
+      g.fillCircle(c.x, c.y, px(headR));
+    };
+
+    const ear = s => () => {                      // giant bat ear
+      const b1 = G(headA - headR*0.15, jb + s*headR*0.35, headH + headR*0.6);
+      const b2 = G(headA - headR*0.7,  jb + s*headR*0.6,  headH + headR*0.28);
+      const tp = G(headA - headR*0.5,  jb + s*(headR*0.85 + earH*0.32), headH + headR*0.45 + earH);
+      g.fillStyle(coat.body, 1);
+      g.fillTriangle(b1.x, b1.y, b2.x, b2.y, tp.x, tp.y);
+      g.lineStyle(1.5, coat.dk, 1);
+      g.strokeTriangle(b1.x, b1.y, b2.x, b2.y, tp.x, tp.y);
+      const cx2 = (b1.x + b2.x + tp.x)/3, cy2 = (b1.y + b2.y + tp.y)/3;
+      const lerp = (p2, k) => ({ x: p2.x + (cx2 - p2.x)*k, y: p2.y + (cy2 - p2.y)*k });
+      const i1 = lerp(b1, 0.38), i2 = lerp(b2, 0.38), i3 = lerp(tp, 0.3);
+      g.fillStyle(coat.ear, 1);
+      g.fillTriangle(i1.x, i1.y, i2.x, i2.y, i3.x, i3.y);
+    };
+
+    const scarEye = s => () => {                  // the missing one: healed shut
+      /* a short closed-lid stroke where the bug eye would sit, plus a
+         faint scar nick crossing it — the street-veteran squint */
+      const c0 = G(headA + headR*0.42, jb + s*headR*0.30, headH + headR*0.12);
+      const c1 = G(headA + headR*0.42, jb + s*headR*0.58, headH + headR*0.08);
+      g.lineStyle(px(headR*0.10), D.eye, 1);
+      g.lineBetween(c0.x, c0.y, c1.x, c1.y);
+      const n0 = G(headA + headR*0.32, jb + s*headR*0.44, headH + headR*0.32);
+      const n1 = G(headA + headR*0.54, jb + s*headR*0.44, headH - headR*0.06);
+      g.lineStyle(px(headR*0.05), coat.dk, 1);
+      g.lineBetween(n0.x, n0.y, n1.x, n1.y);
+      if(coat.n === "blk&tan"){                   // eyebrow dot survives the scar
+        const eb = G(headA + headR*0.28, jb + s*headR*0.46, headH + headR*0.46);
+        g.fillStyle(0xc98d4b, 1);
+        g.fillCircle(eb.x, eb.y, px(headR*0.12));
+      }
+    };
+
+    const eye = s => () => {                      // bug eye + glint
+      const c = G(headA + headR*0.42, jb + s*headR*0.44, headH + headR*0.12);
+      g.fillStyle(D.eye, 1);
+      g.fillCircle(c.x, c.y, px(headR*0.21));
+      g.fillStyle(D.glint, 1);
+      g.fillCircle(c.x - px(headR*0.07), c.y - px(headR*0.08), px(headR*0.06));
+      if(coat.n === "blk&tan"){                   // tan eyebrow dots
+        const eb = G(headA + headR*0.28, jb + s*headR*0.46, headH + headR*0.46);
+        g.fillStyle(0xc98d4b, 1);
+        g.fillCircle(eb.x, eb.y, px(headR*0.12));
+      }
+    };
+
+    const muzzle = () => {                        // short tapered snoot + nose
+      const m0 = ringAt(headA + headR*0.5,  jb, headH - headR*0.28, headR*0.4,  V, HH, 10);
+      const m1 = ringAt(headA + headR*0.95, jb, headH - headR*0.34, headR*0.22, V, HH, 10);
+      this.quadOn(g, convexHull(m0.concat(m1)), coat.chest);
+      const n = G(headA + headR*1.02, jb, headH - headR*0.3);
+      g.fillStyle(D.nose, 1);
+      g.fillCircle(n.x, n.y, px(headR*0.13));
+    };
+
+    const tail = () => {                          // sickle curl over the back
+      const rr = 3.9*L;
+      const Ca = rearA - 0.8*L, Ch = rearH + bodyR*0.15 + rr;
+      const thMax = Math.min((0.55 + 0.85*D.tailCurl) * Math.PI, 1.9*Math.PI);
+      const n = 8;
+      for(let i=0; i<=n; i++){
+        const u = i/n, ang = u*thMax;
+        const a2 = Ca - rr*Math.sin(ang);
+        const h2 = Ch - rr*Math.cos(ang);
+        const b2 = 1.0*L + u*0.8*L;
+        const p2 = G(a2, b2, h2);
+        g.fillStyle(u > 0.75 ? coat.chest : coat.dk, 1);
+        g.fillCircle(p2.x, p2.y, px((1.25 - u*0.55)*L));
+      }
+    };
+
+    /* ---- depth-sorted assembly ---- */
+    const parts = [
+      { d: depthAt(rearA - 2*L, 1*L, rearH + bodyR), fn: tail },
+      { d: depthAt(rearA, 0, rearH), fn: body },
+      { d: depthAt(chestA + chestR*0.45, 0, chestH - chestR*0.3), fn: chestPatch },
+      { d: depthAt(chestA + 1.5*L, 0, chestH + 2*L), fn: neck },
+      { d: depthAt(chestA + 2*L, 0, chestH + 3*L), fn: collar },
+      { d: depthAt(headA, 0, headH), fn: head },
+      { d: depthAt(headA - headR*0.5, headR*0.85 + earH*0.3, headH + earH*0.6), fn: ear(1) },
+      { d: depthAt(headA - headR*0.5, -(headR*0.85 + earH*0.3), headH + earH*0.6), fn: ear(-1) },
+      { d: depthAt(headA + headR*0.42, headR*0.44, headH),
+        fn: (blindSide !== 1) ? eye(1) : scarEye(1) },
+      { d: depthAt(headA + headR*0.42, -headR*0.44, headH),
+        fn: (blindSide !== -1) ? eye(-1) : scarEye(-1) },
+      { d: depthAt(headA + headR*0.8, 0, headH - headR*0.3), fn: muzzle }
+    ];
+    /* legs: front pair always; rear pair standing, haunches sitting.
+       Trot: diagonal pairs swing together (FL+RR vs FR+RL), feet
+       reaching fore/aft by walkPhase; walkAmt eases the stride in
+       and out so he settles to a stand instead of freezing mid-step */
+    const sw = ph => Math.sin(walkPhase + ph) * 1.5 * L * walkAmt;
+    parts.push({ d: depthAt(chestA + 0.5*L,  2.9*L, legH*0.4), fn: leg(chestA + 0.5*L, 1, 0.4*L + sw(0)) });
+    parts.push({ d: depthAt(chestA + 0.5*L, -2.9*L, legH*0.4), fn: leg(chestA + 0.5*L, -1, 0.4*L + sw(Math.PI)) });
+    if(sit){
+      parts.push({ d: depthAt(rearA + 0.5*L,  bodyR*0.72, bodyR), fn: haunch(1) });
+      parts.push({ d: depthAt(rearA + 0.5*L, -bodyR*0.72, bodyR), fn: haunch(-1) });
+    } else {
+      parts.push({ d: depthAt(rearA + 1*L,  2.9*L, legH*0.4), fn: leg(rearA + 1*L, 1, -0.4*L + sw(Math.PI)) });
+      parts.push({ d: depthAt(rearA + 1*L, -2.9*L, legH*0.4), fn: leg(rearA + 1*L, -1, -0.4*L + sw(0)) });
+    }
+    parts.sort((x, y) => x.d - y.d);
+    for(const pt of parts) pt.fn();
     } else if(kind === "car" || kind === "truck"){
       /* approved in car lab: len 150 · wid 60 · chassis 28 · cabin 32 ·
          wheel 16. Axis-aligned to facing (no free rotation) — parked
@@ -2038,7 +2163,10 @@ class WorldScene extends Phaser.Scene {
       this.isBlocked = false;
       let slabUnder = null;
       for(const hz of this.route.hazards){
-        const dx = this.botS - hz.s;
+        let dx = this.botS - hz.s;
+        /* the dog moves; his hitbox moves with him — same pure
+           function the renderer uses, so art and impact agree */
+        if(hz.type === "dog") dx -= dogSpotAt(t, hz.dogSeed || 0, hz.sit).a;
         if(hz.type === "palm"){
           /* a trunk is a wall: you stop, you do not pass */
           if(hz.row === this.botRow && this.botS > hz.s - 30 && this.botS < hz.s){
