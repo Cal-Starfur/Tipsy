@@ -47,6 +47,29 @@ const PALM_DWARF = {   // approved in palm lab: bush-type dwarf palm
   coco: 0x6b4f33, cocoHi: 0x7d5e40, shadow: 0x000000
 };
 
+/* approved heaved slab (ramp lab v2): prop.ramp's redesign into a single
+   sidewalk tile — root-heaved panel, lifted along one side edge */
+const SLAB_ART = {
+  top: 0xc4bdae, topDk: 0x9d9687, gap: 0x4a4238,
+  rootA: 0x8a6a48, rootB: 0x6f5439
+};
+
+/* approved crack (crack lab v3): broken-off piece (spall) */
+const CRACK_ART = {
+  sidewalk: { crack:0x5d574c, core:0x453f36, piece:0xa89f8f, wall:0x8f8879, rubble:0x968d7c },
+  road:     { crack:0x2c2e34, core:0x14161a, piece:0x3a3d44, wall:0x2f3138, rubble:0x35383f }
+};
+
+/* approved trash (trash lab v1): seeded litter cluster */
+const TRASH_ART = {
+  bagC: 0xe9eaec, bagHi: 0xf7f8fa, bagShade: 0xc3c7cc, bagDeep: 0xa8adb4,
+  botBody: 0xd8eef4, botHi: 0xf4fbfd, botCap: 0x2d7dd2, botLabel: 0xf4f5f7, botShade: 0xaacdd6,
+  paper: 0xf1efe6, paperShade: 0xd0ccbd,
+  canA: 0xc2452e, canB: 0x9aa7b5, canHi: 0xc9d3dd,
+  wrap: [0xf2c94c, 0x7fae4e, 0xff7a1a],
+  outline: 0x30343d, shadow: 0x000000
+};
+
 /* approved cone (cone lab, 2026-07-07) */
 const CONE = {
   height: 38, base: 18, band: 0,
@@ -319,7 +342,7 @@ class GalleryScene extends Phaser.Scene {
     P("palmDwarf", 190, false, 60);
     P("scooter", 200, false, 45);
     P("scooterStanding", 230, false, 75);
-    P("trash");
+    P("trash", 170, false, 45);
     P("cone", 190, false, 60);
     P("coneTipped", 150, false, 45);
     P("hydrant", 150, false, 45);
@@ -331,10 +354,13 @@ class GalleryScene extends Phaser.Scene {
     P("car", 220, true, 60);
     P("truck", 220, true, 60);
     P("driveway", 170, true, 40);
+    P("slab", 210, true, 60);
     P("sidewalkend", 320, true, 60);
-    P("sidewalkbegin", 320, true, 60);
-    P("sidewalkbeginTurn", 380, true, 70);
-    P("crack", 120);
+    P("crack", 190, false, 50);
+    card("prop.crack (road)", 190, (t) => {
+      this.setPose({ K:1.8, dy:50 });
+      this.drawProp(this.g, "crack", 0, 0, t, 0, 0, null, null, { row: 2 });
+    });
     flushRow();
 
     /* ---- HUD ---- */
@@ -628,7 +654,7 @@ class GalleryScene extends Phaser.Scene {
   }
 
   /* ========== INJECTED FROM game/index.html — keep in sync ========== */
-  drawProp(g, kind, x, y, t, fdir = 0, z = 0, wheelPhase = null, colorSeed = null){
+  drawProp(g, kind, x, y, t, fdir = 0, z = 0, wheelPhase = null, colorSeed = null, data = null){
     const dv = DIRV[fdir], rv = DIRV[(fdir+1)%4];
     const W = (dx, dy, dz) => this.W(x + dv.x*dx + rv.x*dy, y + dv.y*dx + rv.y*dy, z + dz);
     if(kind === "palm" || kind === "palmDwarf"){
@@ -803,11 +829,152 @@ class GalleryScene extends Phaser.Scene {
       sparts.sort((p1, p2) => p1.d - p2.d);
       for(const pt of sparts) pt.fn();
     } else if(kind === "trash"){
-      g.fillStyle(0x3b3f47, 1);
-      g.fillEllipse(W(0,0,6).x, W(0,0,6).y, 26, 18);
-      g.fillEllipse(W(6,3,10).x, W(6,3,10).y, 18, 13);
-      g.lineStyle(2, 0x2b2e34, 1);
-      g.strokeEllipse(W(0,0,6).x, W(0,0,6).y, 26, 18);
+      /* approved in trash lab v1: seeded litter cluster — water bottle
+         on its side (translucent body, crush dent, label, blue cap),
+         crumpled plastic bag (raised crumple + creases + knot), and
+         rubbish bits (paper balls, cans, wrapper scraps). Composition
+         and layout roll per instance from the position seed; items
+         depth-sorted (iso x+y). Physics unchanged (sev 7 + drag). */
+      const T3 = TRASH_ART, K = this.K;
+      const seed = ((Math.round(x)*7919) ^ (Math.round(y)*104729) ^ 0x7e2d) >>> 0;
+      const rng = mulberry32(seed);
+      const spread = 0.7 + rng()*0.6;
+      const bits = 2 + Math.floor(rng()*4);
+      const bagS = 0.8 + rng()*0.5;
+      const botS = 0.8 + rng()*0.5;
+      const poly = (pts, col, a=1) => this.quadOn(g, pts, col, a);
+      const circ = (cx2, cy2, r, z2, col, outC, n=10) => {
+        const pts = [];
+        for(let i=0; i<n; i++){
+          const a2 = (i/n)*Math.PI*2;
+          pts.push(W(cx2 + Math.cos(a2)*r, cy2 + Math.sin(a2)*r, z2));
+        }
+        poly(pts, col);
+        if(outC !== undefined) this.edgeOn(g, pts, outC, 1.1);
+      };
+      const items = [];
+
+      if(rng() < 0.85){   /* crumpled plastic bag */
+        const bx = (rng()-0.5)*12*spread, by = (rng()-0.5)*12*spread;
+        const R = (7.5 + rng()*3) * bagS;
+        const lump = [];
+        for(let i=0; i<9; i++){
+          const a2 = (i/9)*Math.PI*2;
+          const rr = R * (0.72 + rng()*0.55);
+          lump.push({ x: bx + Math.cos(a2)*rr, y: by + Math.sin(a2)*rr });
+        }
+        const kx = bx + (rng()-0.5)*R*0.5, ky = by + (rng()-0.5)*R*0.5;
+        items.push({ x:bx, y:by, r:R, draw: () => {
+          poly(lump.map(p => W(p.x, p.y, 0.8)), T3.bagC);
+          this.edgeOn(g, lump.map(p => W(p.x, p.y, 0.8)), T3.bagShade, 1.2);
+          const top = [];
+          for(let i=0; i<8; i++){
+            const a2 = (i/8)*Math.PI*2;
+            top.push(W(bx + Math.cos(a2)*R*0.55*(0.75+rng()*0.4),
+                       by + Math.sin(a2)*R*0.55*(0.75+rng()*0.4), 3.4*bagS));
+          }
+          poly(top, T3.bagHi);
+          this.edgeOn(g, top, T3.bagShade, 1);
+          for(let i=0; i<2; i++){
+            const a2 = rng()*Math.PI*2;
+            poly([
+              W(bx + Math.cos(a2)*R*0.2, by + Math.sin(a2)*R*0.2, 1.4),
+              W(bx + Math.cos(a2+0.7)*R*0.7, by + Math.sin(a2+0.7)*R*0.7, 0.9),
+              W(bx + Math.cos(a2-0.5)*R*0.8, by + Math.sin(a2-0.5)*R*0.8, 0.9)
+            ], T3.bagShade, 0.55);
+          }
+          circ(kx, ky, 1.8*bagS, 5*bagS, T3.bagDeep);
+        }});
+      }
+
+      if(rng() < 0.85){   /* water bottle on its side */
+        const cx2 = (rng()-0.5)*16*spread, cy2 = (rng()-0.5)*16*spread;
+        const th = rng()*Math.PI*2;
+        const L = 13*botS, r = 3*botS;
+        const dxu = Math.cos(th), dyu = Math.sin(th);
+        const nx = -dyu, ny = dxu;
+        const p0 = { x: cx2 - dxu*L/2, y: cy2 - dyu*L/2 };
+        const p1 = { x: cx2 + dxu*L/2, y: cy2 + dyu*L/2 };
+        items.push({ x:cx2, y:cy2, r:L/2, draw: () => {
+          const zB = 1.4*botS;
+          poly([
+            W(p0.x + nx*r, p0.y + ny*r, zB), W(p1.x + nx*r*0.72, p1.y + ny*r*0.72, zB),
+            W(p1.x - nx*r*0.72, p1.y - ny*r*0.72, zB), W(p0.x - nx*r, p0.y - ny*r, zB)
+          ], T3.botBody);
+          circ(p0.x, p0.y, r, zB, T3.botBody, T3.botShade);
+          poly([
+            W(p0.x + dxu*L*0.22 + nx*r*0.9, p0.y + dyu*L*0.22 + ny*r*0.9, zB),
+            W(p0.x + dxu*L*0.38 + nx*r*0.55, p0.y + dyu*L*0.38 + ny*r*0.55, zB),
+            W(p0.x + dxu*L*0.38 - nx*r*0.55, p0.y + dyu*L*0.38 - ny*r*0.55, zB),
+            W(p0.x + dxu*L*0.22 - nx*r*0.9, p0.y + dyu*L*0.22 - ny*r*0.9, zB)
+          ], T3.botShade, 0.7);
+          poly([
+            W(cx2 - dxu*L*0.14 + nx*r, cy2 - dyu*L*0.14 + ny*r, zB),
+            W(cx2 + dxu*L*0.14 + nx*r, cy2 + dyu*L*0.14 + ny*r, zB),
+            W(cx2 + dxu*L*0.14 - nx*r, cy2 + dyu*L*0.14 - ny*r, zB),
+            W(cx2 - dxu*L*0.14 - nx*r, cy2 - dyu*L*0.14 - ny*r, zB)
+          ], T3.botLabel);
+          poly([
+            W(p1.x + nx*r*0.72, p1.y + ny*r*0.72, zB), W(p1.x + dxu*2.4*botS + nx*r*0.42, p1.y + dyu*2.4*botS + ny*r*0.42, zB),
+            W(p1.x + dxu*2.4*botS - nx*r*0.42, p1.y + dyu*2.4*botS - ny*r*0.42, zB), W(p1.x - nx*r*0.72, p1.y - ny*r*0.72, zB)
+          ], T3.botBody);
+          circ(p1.x + dxu*3.2*botS, p1.y + dyu*3.2*botS, r*0.55, zB, T3.botCap, T3.outline);
+          g.lineStyle(1.1, T3.botHi, 0.9);
+          const h0 = W(p0.x + nx*r*0.45, p0.y + ny*r*0.45, zB + r*0.5);
+          const h1 = W(p1.x + nx*r*0.35, p1.y + ny*r*0.35, zB + r*0.5);
+          g.lineBetween(h0.x, h0.y, h1.x, h1.y);
+        }});
+      }
+
+      for(let i=0; i<bits; i++){   /* rubbish bits */
+        const bx = (rng()-0.5)*30*spread, by = (rng()-0.5)*30*spread;
+        const kind2 = rng();
+        if(kind2 < 0.4){
+          const r = 2.4 + rng()*1.6;
+          items.push({ x:bx, y:by, r, draw: () => {
+            circ(bx, by, r, 1, T3.paper, T3.paperShade, 8);
+            circ(bx + r*0.3, by + r*0.3, r*0.45, 1.4, T3.paperShade, undefined, 7);
+          }});
+        } else if(kind2 < 0.7){
+          const th = rng()*Math.PI*2, L2 = 6, r2 = 2;
+          const du = {x:Math.cos(th), y:Math.sin(th)}, nu = {x:-du.y, y:du.x};
+          const col = rng() < 0.5 ? T3.canA : T3.canB;
+          items.push({ x:bx, y:by, r:L2/2, draw: () => {
+            poly([
+              W(bx - du.x*L2/2 + nu.x*r2, by - du.y*L2/2 + nu.y*r2, 1),
+              W(bx + du.x*L2/2 + nu.x*r2, by + du.y*L2/2 + nu.y*r2, 1),
+              W(bx + du.x*L2/2 - nu.x*r2, by + du.y*L2/2 - nu.y*r2, 1),
+              W(bx - du.x*L2/2 - nu.x*r2, by - du.y*L2/2 - nu.y*r2, 1)
+            ], col);
+            circ(bx + du.x*L2/2, by + du.y*L2/2, r2, 1, T3.canHi, T3.outline, 8);
+          }});
+        } else {
+          const th = rng()*Math.PI*2;
+          const du = {x:Math.cos(th), y:Math.sin(th)}, nu = {x:-du.y, y:du.x};
+          const col = T3.wrap[Math.floor(rng()*T3.wrap.length)];
+          const w2 = 2.4 + rng()*2, h2 = 1.6 + rng()*1.4;
+          items.push({ x:bx, y:by, r:w2, draw: () => {
+            poly([
+              W(bx - du.x*w2 + nu.x*h2, by - du.y*w2 + nu.y*h2, 0.8),
+              W(bx + du.x*w2 + nu.x*h2, by + du.y*w2 + nu.y*h2, 0.8),
+              W(bx + du.x*w2 - nu.x*h2, by + du.y*w2 - nu.y*h2, 0.8),
+              W(bx - du.x*w2 - nu.x*h2, by - du.y*w2 - nu.y*h2, 0.8)
+            ], col);
+            g.lineStyle(0.8, T3.outline, 0.5);
+            const f0 = W(bx - du.x*w2*0.3, by - du.y*w2*0.3, 0.9);
+            const f1 = W(bx + du.x*w2*0.4, by + du.y*w2*0.4, 0.9);
+            g.lineBetween(f0.x, f0.y, f1.x, f1.y);
+          }});
+        }
+      }
+
+      for(const it of items){
+        const sh = W(it.x + 1, it.y + 1, 0.3);
+        g.fillStyle(T3.shadow, 0.12);
+        g.fillEllipse(sh.x, sh.y, it.r*2.2*K*0.5, it.r*1.2*K*0.5);
+      }
+      items.sort((a2,b2) => (a2.x + a2.y) - (b2.x + b2.y));
+      for(const it of items) it.draw();
     } else if(kind === "cone" || kind === "coneTipped"){
       /* approved in cone lab: height 38 · base 18 · no band. coneTipped is
          the same rigid cone resting on its slant side. */
@@ -1515,6 +1682,89 @@ class GalleryScene extends Phaser.Scene {
         const a=W(lx,-TILE,2), b=W(lx*1.35, TILE+14,-3);
         g.lineBetween(a.x, a.y, b.x, b.y);
       }
+    } else if(kind === "slab"){
+      /* approved in ramp lab v2: heaved slab — the ramp concept redesigned
+         into ONE sidewalk tile (92×92), lifted along one side edge by a
+         palm root, flush at the other. Draw order: soil gap under the
+         raised edges → exposed joint walls → root bulge → top wedge +
+         seeded cracks + chipped lip. lift/side/root ride on the hazard
+         object (data); cracks/chips are position-seeded like every prop. */
+      const D = data || { lift: 6, side: 1, root: true };
+      const seed = ((Math.round(x)*7919) ^ (Math.round(y)*104729) ^ 0x51ab) >>> 0;
+      const rng = mulberry32(seed);
+      const A = SLAB_ART, L = D.lift, sd = D.side;
+      const yFlush = -sd*TILE, yUp = sd*TILE;
+      const ZT = dy => L * ((sd*dy + TILE) / (2*TILE));
+
+      /* soil shadow in the opened gap */
+      this.quadOn(g, [
+        W(-TILE, yUp - sd*10, 0), W(TILE, yUp - sd*10, 0),
+        W(TILE + 4, yUp + sd*4, 0), W(-TILE - 4, yUp + sd*4, 0)
+      ], A.gap, 0.55);
+
+      /* exposed joint walls: triangles at both travel joints, full
+         lifted wall along the raised side edge */
+      for(const jx of [-TILE, TILE]){
+        this.quadOn(g, [W(jx, yFlush, 0), W(jx, yUp, ZT(yUp)), W(jx, yUp, 0)], A.topDk, 0.9);
+      }
+      this.quadOn(g, [
+        W(-TILE, yUp, ZT(yUp)), W(TILE, yUp, ZT(yUp)),
+        W(TILE, yUp, 0), W(-TILE, yUp, 0)
+      ], A.topDk);
+      this.edgeOn(g, [
+        W(-TILE, yUp, ZT(yUp)), W(TILE, yUp, ZT(yUp)),
+        W(TILE, yUp, 0), W(-TILE, yUp, 0)
+      ], A.gap, 1.2);
+
+      /* the culprit: palm root shouldering the raised edge up */
+      if(D.root){
+        const segsN = 6;
+        for(let i=0; i<segsN; i++){
+          const t0 = i/segsN, t1 = (i+1)/segsN;
+          const x0 = -TILE + 2*TILE*t0, x1 = -TILE + 2*TILE*t1;
+          const bump = 2.2 + Math.sin(t0*Math.PI)*2.2 + (rng()-0.5)*1.2;
+          const pts = [
+            W(x0, yUp + sd*2, 0), W(x1, yUp + sd*2, 0),
+            W(x1, yUp + sd*7, bump), W(x0, yUp + sd*7, bump)
+          ];
+          this.quadOn(g, pts, i%2 ? A.rootA : A.rootB);
+          this.edgeOn(g, pts, A.rootB, 1);
+        }
+      }
+
+      /* top wedge */
+      const top = [
+        W(-TILE, yFlush, ZT(yFlush)), W(TILE, yFlush, ZT(yFlush)),
+        W(TILE, yUp, ZT(yUp)), W(-TILE, yUp, ZT(yUp))
+      ];
+      this.quadOn(g, top, A.top);
+      this.edgeOn(g, top, A.topDk, 1.5);
+
+      /* hairline cracks radiating from the stressed (raised) edge */
+      g.lineStyle(1.2, A.topDk, 0.8);
+      const nCracks = 2 + Math.floor(rng()*3);
+      for(let i=0; i<nCracks; i++){
+        let px = -TILE*0.7 + rng()*TILE*1.4;
+        let py = yUp - sd*(4 + rng()*8);
+        let p = W(px, py, ZT(py) + 0.1);
+        g.beginPath(); g.moveTo(p.x, p.y);
+        for(let k=0; k<4; k++){
+          px += (rng()-0.5)*22;
+          py -= sd*(8 + rng()*14);
+          py = Math.max(-TILE+3, Math.min(TILE-3, py));
+          const q = W(px, py, ZT(py) + 0.1);
+          g.lineTo(q.x, q.y);
+        }
+        g.strokePath();
+      }
+
+      /* chipped lip along the raised edge */
+      for(let i=0; i<4; i++){
+        const cxp = -TILE + 8 + rng()*(2*TILE - 16);
+        const p = W(cxp, yUp - sd*1.5, ZT(yUp) + 0.1);
+        g.fillStyle(A.gap, 0.5);
+        g.fillEllipse(p.x, p.y, (3 + rng()*4)*this.K*0.6, (1.5 + rng()*2)*this.K*0.6);
+      }
     } else if(kind === "sidewalkend"){
       /* approved in sidewalkend lab: ADA curb ramp, exactly 2x3 sidewalk
          tiles (184 along-travel x 276 cross-width). Ground decal only,
@@ -1555,111 +1805,120 @@ class GalleryScene extends Phaser.Scene {
         g.fillStyle(0xc9911f, 0.8);
         g.fillCircle(p.x, p.y, 1.5);
       }
-    } else if(kind === "sidewalkbegin"){
-      /* the ascending mirror of prop.sidewalkend — completes the pair.
-         Real ADA design in both directions: the pad sits on a flat
-         landing, never the active slope. Here that means tile 1 (the
-         street-facing end) is the flat pad, tile 2 is the climb up to
-         sidewalk height — reversed from sidewalkend, not just its
-         mirror image; see docs/DESIGN.md for why (drawRampDown/Up in
-         the lab are independent functions, not one flipped by a
-         flag — that approach kept producing mismatches). */
-      const T2s = TILE*2, wHalf = 92, crossHalf = 1.5*T2s;
-      const sidewalkZ = 2, streetZ = -3;
-      this.quadOn(g, [W(-wHalf,-crossHalf,sidewalkZ), W(wHalf,-crossHalf,sidewalkZ),
-                      W(wHalf,crossHalf,sidewalkZ), W(-wHalf,crossHalf,sidewalkZ)], 0xb5afa2);
-      this.edgeOn(g, [W(-wHalf,-crossHalf,sidewalkZ), W(wHalf,-crossHalf,sidewalkZ),
-                      W(wHalf,crossHalf,sidewalkZ), W(-wHalf,crossHalf,sidewalkZ)], 0x968f81, 2);
-      g.lineStyle(1.5, 0x968f81, 0.9);
-      for(const u of [-0.62, 0, 0.62]){
-        const a = W(wHalf*u,-crossHalf,sidewalkZ), b = W(wHalf*u,crossHalf,sidewalkZ);
-        g.lineBetween(a.x, a.y, b.x, b.y);
-      }
-      // tile 1: flat landing at street height. tile 2: slopes street->sidewalk.
-      this.quadOn(g, [W(-wHalf,-T2s/2,streetZ), W(0,-T2s/2,streetZ),
-                      W(0,T2s/2,streetZ), W(-wHalf,T2s/2,streetZ)], 0xb5afa2);
-      this.edgeOn(g, [W(-wHalf,-T2s/2,streetZ), W(0,-T2s/2,streetZ),
-                      W(0,T2s/2,streetZ), W(-wHalf,T2s/2,streetZ)], 0x968f81, 1.5);
-      this.quadOn(g, [W(0,-T2s/2,streetZ), W(wHalf,-T2s/2,sidewalkZ),
-                      W(wHalf,T2s/2,sidewalkZ), W(0,T2s/2,streetZ)], 0xb5afa2);
-      this.edgeOn(g, [W(0,-T2s/2,streetZ), W(wHalf,-T2s/2,sidewalkZ),
-                      W(wHalf,T2s/2,sidewalkZ), W(0,T2s/2,streetZ)], 0x968f81, 1.5);
-      // ADA pad: the flat landing tile, dome-textured — street-facing end
-      this.quadOn(g, [W(-wHalf,-T2s/2,streetZ), W(0,-T2s/2,streetZ),
-                      W(0,T2s/2,streetZ), W(-wHalf,T2s/2,streetZ)], 0xf4c430);
-      this.edgeOn(g, [W(-wHalf,-T2s/2,streetZ), W(0,-T2s/2,streetZ),
-                      W(0,T2s/2,streetZ), W(-wHalf,T2s/2,streetZ)], 0xb9911f, 1.5);
-      for(let ri=0; ri<5; ri++) for(let ci=0; ci<5; ci++){
-        const py = -T2s/2 + T2s*(ri/4), px = -wHalf + wHalf*(ci/4);
-        const p = W(px, py, streetZ);
-        g.fillStyle(0xc9911f, 0.8);
-        g.fillCircle(p.x, p.y, 1.5);
-      }
-    } else if(kind === "sidewalkbeginTurn"){
-      /* approved in sidewalkendturn lab: the full junction — curb ramp
-         down, a wide arc turn onto a new heading, curb ramp back up.
-         Full 1:1 geometry (the actual arc, the second road crossing)
-         is many tiles across — too large for a gallery card, so this
-         is a compact L-shaped diorama: down ramp, a corner tile
-         standing in for the turn, up ramp rotated 90°. Same slope/pad
-         technique as prop.sidewalkend, used twice. Static visual only,
-         no physics — see docs/DESIGN.md "prop.sidewalkbeginTurn" for the
-         full spec (built + physics-tested in
-         labs/sidewalkendturn-lab.html, not yet ported into the game). */
-      const T2s = TILE*2, wHalf = 92, crossHalf = 1.5*T2s;
-      const sidewalkZ = 2, streetZ = -3;
-
-      // DOWN ramp — identical to prop.sidewalkend, anchored at origin
-      this.quadOn(g, [W(-wHalf,-crossHalf,sidewalkZ), W(wHalf,-crossHalf,sidewalkZ),
-                      W(wHalf,crossHalf,sidewalkZ), W(-wHalf,crossHalf,sidewalkZ)], 0xb5afa2);
-      this.edgeOn(g, [W(-wHalf,-crossHalf,sidewalkZ), W(wHalf,-crossHalf,sidewalkZ),
-                      W(wHalf,crossHalf,sidewalkZ), W(-wHalf,crossHalf,sidewalkZ)], 0x968f81, 2);
-      this.quadOn(g, [W(-wHalf,-T2s/2,sidewalkZ), W(0,-T2s/2,streetZ),
-                      W(0,T2s/2,streetZ), W(-wHalf,T2s/2,sidewalkZ)], 0xb5afa2);
-      this.quadOn(g, [W(0,-T2s/2,streetZ), W(wHalf,-T2s/2,streetZ),
-                      W(wHalf,T2s/2,streetZ), W(0,T2s/2,streetZ)], 0xb5afa2);
-      this.quadOn(g, [W(0,-T2s/2,streetZ), W(wHalf,-T2s/2,streetZ),
-                      W(wHalf,T2s/2,streetZ), W(0,T2s/2,streetZ)], 0xf4c430);
-      this.edgeOn(g, [W(0,-T2s/2,streetZ), W(wHalf,-T2s/2,streetZ),
-                      W(wHalf,T2s/2,streetZ), W(0,T2s/2,streetZ)], 0xb9911f, 1.5);
-      for(let ri=0; ri<5; ri++) for(let ci=0; ci<5; ci++){
-        const py = -T2s/2 + T2s*(ri/4), px = wHalf*(ci/4);
-        const p = W(px, py, streetZ);
-        g.fillStyle(0xc9911f, 0.8);
-        g.fillCircle(p.x, p.y, 1.5);
-      }
-
-      // CORNER: a road-colored square standing in for the arc turn
-      const cx = wHalf + 46, cy = 0;
-      this.quadOn(g, [W(cx-46,cy-46,streetZ), W(cx+46,cy-46,streetZ),
-                      W(cx+46,cy+46,streetZ), W(cx-46,cy+46,streetZ)], 0x4a4d55);
-
-      // UP ramp — rotated 90°: Wup swaps dx/dy roles, anchored off the corner
-      const Wup = (dx, dy, dz) => W(cx+46+dy, cy+dx, dz);
-      this.quadOn(g, [Wup(-wHalf,-crossHalf,sidewalkZ), Wup(wHalf,-crossHalf,sidewalkZ),
-                      Wup(wHalf,crossHalf,sidewalkZ), Wup(-wHalf,crossHalf,sidewalkZ)], 0xb5afa2);
-      this.edgeOn(g, [Wup(-wHalf,-crossHalf,sidewalkZ), Wup(wHalf,-crossHalf,sidewalkZ),
-                      Wup(wHalf,crossHalf,sidewalkZ), Wup(-wHalf,crossHalf,sidewalkZ)], 0x968f81, 2);
-      this.quadOn(g, [Wup(-wHalf,-T2s/2,streetZ), Wup(0,-T2s/2,streetZ),
-                      Wup(0,T2s/2,streetZ), Wup(-wHalf,T2s/2,streetZ)], 0xf4c430);
-      this.edgeOn(g, [Wup(-wHalf,-T2s/2,streetZ), Wup(0,-T2s/2,streetZ),
-                      Wup(0,T2s/2,streetZ), Wup(-wHalf,T2s/2,streetZ)], 0xb9911f, 1.5);
-      for(let ri=0; ri<5; ri++) for(let ci=0; ci<5; ci++){
-        const py = -T2s/2 + T2s*(ri/4), px = -wHalf + wHalf*(ci/4);
-        const p = Wup(px, py, streetZ);
-        g.fillStyle(0xc9911f, 0.8);
-        g.fillCircle(p.x, p.y, 1.5);
-      }
-      this.quadOn(g, [Wup(0,-T2s/2,streetZ), Wup(wHalf,-T2s/2,sidewalkZ),
-                      Wup(wHalf,T2s/2,sidewalkZ), Wup(0,T2s/2,streetZ)], 0xb5afa2);
     } else if(kind === "crack"){
-      g.lineStyle(2.5, 0x5d574c, 1);
-      let px = W(-14,-8,0.5);
-      g.beginPath(); g.moveTo(px.x, px.y);
-      for(const [dx,dy] of [[-4,6],[6,4],[2,10],[10,6]]){
-        const q = W(dx*2, dy, 0.5); g.lineTo(q.x, q.y);
+      /* approved in crack lab v3: broken-off piece (spall). A jagged
+         fracture runs between two seeded points on the tile boundary;
+         everything between fracture and boundary is a broken-off
+         piece, sunken below grade — corner break-offs and edge bites
+         fall out of the same code depending where the seeds land.
+         Per-instance: size (hz.len from the generator, or seeded),
+         raggedness, branch count, drop depth. Palette follows the
+         surface: road rows (data.row >= 2) get the asphalt tones. */
+      const seed = ((Math.round(x)*7919) ^ (Math.round(y)*104729) ^ 0x3c99) >>> 0;
+      const rng = mulberry32(seed);
+      const pal = (data && data.row >= 2) ? CRACK_ART.road : CRACK_ART.sidewalk;
+      const len = (data && data.len) || (24 + Math.floor(rng()*49));
+      const jag = 0.6 + rng()*1.0;
+      const nBr = 1 + Math.floor(rng()*3);
+      const drop = 3.3 + rng()*2.2;
+      const T = TILE - 2, ZT = 0.5;
+      const arc = 0.4 + (len/84) * 1.4;
+      const bite = Math.min(58, 10 + len*0.5);
+
+      const perim = tv => {
+        tv = ((tv % 4) + 4) % 4;
+        const e = Math.floor(tv), u = tv - e;
+        if(e === 0) return { x:-T + 2*T*u, y:-T };
+        if(e === 1) return { x: T, y:-T + 2*T*u };
+        if(e === 2) return { x: T - 2*T*u, y: T };
+        return { x:-T, y: T - 2*T*u };
+      };
+      const tA = rng()*4, tB = tA + arc;
+      const A = perim(tA), B = perim(tB);
+
+      /* fracture path A->B, pulled inward by the bite, seeded jitter */
+      const N = Math.max(5, 4 + Math.round(len/10));
+      const frac = [];
+      for(let i=0; i<=N; i++){
+        const u = i/N;
+        let fx = A.x + (B.x - A.x)*u, fy = A.y + (B.y - A.y)*u;
+        const inward = Math.pow(Math.sin(Math.PI*u), 0.8) * bite;
+        const mag = Math.hypot(fx, fy) || 1;
+        fx -= (fx/mag) * inward;
+        fy -= (fy/mag) * inward;
+        if(i > 0 && i < N){
+          fx += (rng()-0.5) * 9 * jag;
+          fy += (rng()-0.5) * 9 * jag;
+        }
+        frac.push({ x: Math.max(-T, Math.min(T, fx)),
+                    y: Math.max(-T, Math.min(T, fy)) });
+      }
+
+      /* piece region: fracture + boundary walk back B->A */
+      const bound = [];
+      for(let c2 = Math.ceil(tA); c2 < tB; c2++) bound.push(perim(c2));
+      const region = frac.concat([B]).concat(bound.reverse());
+
+      /* sunken piece top */
+      this.quadOn(g, region.map(p => W(p.x, p.y, ZT - drop)), pal.piece);
+      this.edgeOn(g, region.map(p => W(p.x, p.y, ZT - drop)), pal.core, 1);
+
+      /* hairline across the piece itself when it's big */
+      if(bite > 26){
+        const m0 = frac[Math.floor(N*0.3)], m1 = frac[Math.floor(N*0.7)];
+        g.lineStyle(1, pal.core, 0.9);
+        const q0 = W(m0.x*0.6, m0.y*0.6, ZT - drop + 0.1);
+        const q1 = W(m1.x*0.9, m1.y*0.9, ZT - drop + 0.1);
+        g.lineBetween(q0.x, q0.y, q1.x, q1.y);
+      }
+
+      /* rubble chips on the piece near the break */
+      const nCh = 3 + Math.floor(rng()*3);
+      for(let i=0; i<nCh; i++){
+        const fp = frac[1 + Math.floor(rng()*(N-1))];
+        const p = W(fp.x*(0.82 + rng()*0.1), fp.y*(0.82 + rng()*0.1), ZT - drop + 0.3);
+        g.fillStyle(rng() < 0.5 ? pal.crack : pal.rubble, 0.95);
+        g.fillEllipse(p.x, p.y, (2 + rng()*3.5)*this.K*0.5, (1.2 + rng()*2)*this.K*0.5);
+      }
+
+      /* exposed fracture wall: the intact slab's broken face */
+      for(let i=0; i<frac.length-1; i++){
+        const a2 = frac[i], b2 = frac[i+1];
+        this.quadOn(g, [
+          W(a2.x, a2.y, ZT), W(b2.x, b2.y, ZT),
+          W(b2.x, b2.y, ZT - drop), W(a2.x, a2.y, ZT - drop)
+        ], i % 2 ? pal.core : pal.wall);
+      }
+
+      /* ragged lip along the fracture at top level */
+      g.lineStyle(1.4, pal.crack, 1);
+      g.beginPath();
+      const l0 = W(frac[0].x, frac[0].y, ZT);
+      g.moveTo(l0.x, l0.y);
+      for(let i=1; i<frac.length; i++){
+        const q = W(frac[i].x, frac[i].y, ZT);
+        g.lineTo(q.x, q.y);
       }
       g.strokePath();
+
+      /* hairlines radiating into the intact slab */
+      for(let b=0; b<nBr; b++){
+        const i0 = 1 + Math.floor(rng()*(N-1));
+        let bx = frac[i0].x, by = frac[i0].y;
+        const mag = Math.hypot(bx, by) || 1;
+        let ba = Math.atan2(-by/mag, -bx/mag) + (rng()-0.5)*1.4;
+        let bl = 5 + rng()*8;
+        for(let k=0; k<3; k++){
+          const nx2 = Math.max(-T, Math.min(T, bx + Math.cos(ba)*bl));
+          const ny2 = Math.max(-T, Math.min(T, by + Math.sin(ba)*bl));
+          g.lineStyle(Math.max(0.8, (1.5 - k*0.45)*this.K*0.4), pal.crack, 0.95);
+          const p1 = W(bx, by, ZT), p2 = W(nx2, ny2, ZT);
+          g.lineBetween(p1.x, p1.y, p2.x, p2.y);
+          bx = nx2; by = ny2;
+          ba += (rng()-0.5)*1.2*jag;
+          bl *= 0.6;
+        }
+      }
     }
   }
 
