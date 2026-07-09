@@ -38,6 +38,12 @@ street-name pool. Roster lives in `game/index.html` (`HOODS`).
 
 1. **Impacts** — hazard hit at speed: impulse = speed × severity
    (dog 5, cone 6, trash 7, bin 8, scooter 9). Scooter/bin also halve speed.
+   Dogs are now MOVING hazards: each spawn seeds coat, scar side, and
+   behavior (sit vs patrol). Wanderers move within their spawn tile via
+   `dogSpotAt(t, seed)` — deterministic, stateless — and the impact check
+   shifts by the same function's along-offset, so a dog can walk into the
+   robot's path (or bump a parked robot) and the hitbox always matches
+   what's drawn.
    Cracks (spall redesign, crack lab v3) scale severity with their seeded
    size instead: 4 × (len/46), clamped 2–8 — a hairline is a shiver, a big
    break-off is a real lurch. Road rows also get decorative spalls in
