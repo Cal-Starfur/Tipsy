@@ -169,6 +169,14 @@ const HYD = {
   water: 0xbfe6f2, waterDk: 0x8fc8dc,
   shadow: 0x000000
 };
+/* dialed in the hydrant hit lab: burst + hydroplane numbers */
+const HYD_SLIP = {
+  thresh: 0.055,   // hit speed that shears the nozzle
+  bonk: 10,        // cast-iron impact severity
+  spin: 1.0,       // pirouette turns × (entry speed / 0.05)
+  grip: 1.0,       // traction recovery: yaw unwind rate
+  pud: 41.4        // full-grown flood radius (TILE*0.9 — literal: TILE declares later)
+};
 /* approved in planter lab: tapered box + layered stalked bush.
    Dimensions vary per-instance (seeded) rather than one locked size —
    box 13-19w × 8-12d × 8-12h, bush 12-20h, fullness 4-7, ~30% flowering. */
@@ -1086,7 +1094,10 @@ class GalleryScene extends Phaser.Scene {
          hydrantBurst shears the front nozzle open with an animated water
          arc and a puddle that paints early (ground layer, like the
          shadow) so the hydrant's own body always draws over it. */
-      const HH = HYD, bursting = kind === "hydrantBurst";
+      const HH = HYD;
+      const bursting = kind === "hydrantBurst" || !!(data && data.burst);
+      const grow = (data && data.burstT !== undefined)
+        ? Math.min(1, (t - data.burstT)/1800) : 1;
       const seed = ((Math.round(x)*7919) ^ (Math.round(y)*104729) ^ 0x4a7d) >>> 0;
       const rng = mulberry32(seed);
       const hth = rng()*Math.PI*2;
@@ -1121,7 +1132,11 @@ class GalleryScene extends Phaser.Scene {
         const facing0 = nc0*(hcs+hsn) + ns0*(hcs-hsn) > 0;
         if(facing0){
           const tipA0 = HH.baseR*0.55 + HH.nozR*2.2;
-          const landA = tipA0 + nc0*26, landB = ns0*26;
+          /* robot-burst floods pool around the base (that's where the
+             slip zone lives); the lab's static gallery kind keeps the
+             original thrown-landing rings */
+          const landA = (data && data.burst) ? 8 : tipA0 + nc0*26;
+          const landB = (data && data.burst) ? 0 : ns0*26;
           const puddleRing = (rad, nn=16) => {
             const pts = [];
             for(let i=0; i<nn; i++){
@@ -1130,8 +1145,8 @@ class GalleryScene extends Phaser.Scene {
             }
             return pts;
           };
-          this.quadOn(g, puddleRing(TILE*0.85), HH.water, 0.28);
-          this.quadOn(g, puddleRing(TILE*0.55), HH.water, 0.22);
+          this.quadOn(g, puddleRing(((data && data.burst) ? HYD_SLIP.pud : TILE*0.85) * grow), HH.water, 0.28);
+          this.quadOn(g, puddleRing(((data && data.burst) ? HYD_SLIP.pud*0.62 : TILE*0.55) * grow), HH.water, 0.22);
         }
       }
 
