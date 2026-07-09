@@ -40,6 +40,7 @@
       <span class="lbl">View</span>
       <button class="sm" id="rotL">◀</button>
       <button class="sm" id="rotR">▶</button>
+      <button id="wanderBtn" class="on">WANDER</button>
       <span class="lbl">Zoom</span>
       <button class="sm" id="zoomOut">−</button>
       <button class="sm" id="zoomIn">＋</button>
@@ -65,6 +66,7 @@
       <button class="sm" data-p="tailCurl" data-d="-1">−</button>
       <button class="sm" data-p="tailCurl" data-d="1">＋</button>
       <button id="trembleBtn" class="on">TREMBLE</button>
+      <button id="eyeBtn">EYE 1L</button>
     </div>
   </div>
 </div>
@@ -91,6 +93,8 @@ const DOG = {
   legH: 8,           // pin-leg length (body rides on top)
   tailCurl: 1.0,     // 0 = stub droop, 1.6 = full cinnamon roll
   tremble: true,     // classic chihuahua idle
+  eyes: 1,           // 1 = one-eyed street veteran, 2 = matched pair
+  blindSide: -1,     // which side healed shut (+1 / -1); the glint side survives
   pose: "standing",  // standing | sitting
   coat: "fawn",
   eye: 0x1c1e24, glint: 0xf4f2ec, nose: 0x25272d,
@@ -130,6 +134,17 @@ class DogLab extends Phaser.Scene {
     this.K = 4.2;
     this.mode = "new";
     this.heroAngle = 0.5;
+    /* wander: he patrols the square he spawned in — tile (0,0),
+       world 0..92 on both axes, with a paw margin. Simple state
+       machine: walk a bit, pause, pick a new heading, repeat. */
+    this.wander = true;
+    this.dogX = 46; this.dogY = 46;
+    this.dogH = Math.random()*Math.PI*2;   // heading (nose direction)
+    this.dogState = "walk";
+    this.dogTimer = 1200;
+    this.walkPhase = 0;                    // trot cycle
+    this.walkAmt = 0;                      // eased 0..1: legs settle when he stops
+    this.lastT = 0;
     this.g = this.add.graphics();
     this.scale.on("resize", () => this.layout());
     this.layout();
@@ -141,7 +156,7 @@ class DogLab extends Phaser.Scene {
   }
   updateVals(){
     document.getElementById("vals").textContent =
-      `${DOG.pose.toUpperCase()} · head ${DOG.headR} · ears ${DOG.earH} · legs ${DOG.legH} · tail ${DOG.tailCurl.toFixed(1)} · size ${DOG.len.toFixed(2)} · ${DOG.coat} · tremble ${DOG.tremble ? "on" : "off"}`;
+      `${DOG.pose.toUpperCase()} · head ${DOG.headR} · ears ${DOG.earH} · legs ${DOG.legH} · tail ${DOG.tailCurl.toFixed(1)} · size ${DOG.len.toFixed(2)} · ${DOG.coat} · eyes ${DOG.eyes === 2 ? "2" : (DOG.blindSide === -1 ? "1 (L scar)" : "1 (R scar)")} · tremble ${DOG.tremble ? "on" : "off"} · wander ${this.wander ? this.dogState : "off"}`;
   }
 
   W(x, y, z, ox, oy){
@@ -307,6 +322,24 @@ class DogLab extends Phaser.Scene {
       g.fillTriangle(i1.x, i1.y, i2.x, i2.y, i3.x, i3.y);
     };
 
+    const scarEye = s => () => {                  // the missing one: healed shut
+      /* a short closed-lid stroke where the bug eye would sit, plus a
+         faint scar nick crossing it — the street-veteran squint */
+      const c0 = G(headA + headR*0.42, jb + s*headR*0.30, headH + headR*0.12);
+      const c1 = G(headA + headR*0.42, jb + s*headR*0.58, headH + headR*0.08);
+      g.lineStyle(px(headR*0.10), D.eye, 1);
+      g.lineBetween(c0.x, c0.y, c1.x, c1.y);
+      const n0 = G(headA + headR*0.32, jb + s*headR*0.44, headH + headR*0.32);
+      const n1 = G(headA + headR*0.54, jb + s*headR*0.44, headH - headR*0.06);
+      g.lineStyle(px(headR*0.05), coat.dk, 1);
+      g.lineBetween(n0.x, n0.y, n1.x, n1.y);
+      if(coat.n === "blk&tan"){                   // eyebrow dot survives the scar
+        const eb = G(headA + headR*0.28, jb + s*headR*0.46, headH + headR*0.46);
+        g.fillStyle(0xc98d4b, 1);
+        g.fillCircle(eb.x, eb.y, px(headR*0.12));
+      }
+    };
+
     const eye = s => () => {                      // bug eye + glint
       const c = G(headA + headR*0.42, jb + s*headR*0.44, headH + headR*0.12);
       g.fillStyle(D.eye, 1);
@@ -355,19 +388,25 @@ class DogLab extends Phaser.Scene {
       { d: depthAt(headA, 0, headH), fn: head },
       { d: depthAt(headA - headR*0.5, headR*0.85 + earH*0.3, headH + earH*0.6), fn: ear(1) },
       { d: depthAt(headA - headR*0.5, -(headR*0.85 + earH*0.3), headH + earH*0.6), fn: ear(-1) },
-      { d: depthAt(headA + headR*0.42, headR*0.44, headH), fn: eye(1) },
-      { d: depthAt(headA + headR*0.42, -headR*0.44, headH), fn: eye(-1) },
+      { d: depthAt(headA + headR*0.42, headR*0.44, headH),
+        fn: (DOG.eyes === 2 || DOG.blindSide !== 1) ? eye(1) : scarEye(1) },
+      { d: depthAt(headA + headR*0.42, -headR*0.44, headH),
+        fn: (DOG.eyes === 2 || DOG.blindSide !== -1) ? eye(-1) : scarEye(-1) },
       { d: depthAt(headA + headR*0.8, 0, headH - headR*0.3), fn: muzzle }
     ];
-    /* legs: front pair always; rear pair standing, haunches sitting */
-    parts.push({ d: depthAt(chestA + 0.5*L,  2.9*L, legH*0.4), fn: leg(chestA + 0.5*L, 1, 0.4*L) });
-    parts.push({ d: depthAt(chestA + 0.5*L, -2.9*L, legH*0.4), fn: leg(chestA + 0.5*L, -1, 0.4*L) });
+    /* legs: front pair always; rear pair standing, haunches sitting.
+       Trot: diagonal pairs swing together (FL+RR vs FR+RL), feet
+       reaching fore/aft by walkPhase; walkAmt eases the stride in
+       and out so he settles to a stand instead of freezing mid-step */
+    const sw = ph => Math.sin(this.walkPhase + ph) * 1.5 * L * this.walkAmt;
+    parts.push({ d: depthAt(chestA + 0.5*L,  2.9*L, legH*0.4), fn: leg(chestA + 0.5*L, 1, 0.4*L + sw(0)) });
+    parts.push({ d: depthAt(chestA + 0.5*L, -2.9*L, legH*0.4), fn: leg(chestA + 0.5*L, -1, 0.4*L + sw(Math.PI)) });
     if(sit){
       parts.push({ d: depthAt(rearA + 0.5*L,  bodyR*0.72, bodyR), fn: haunch(1) });
       parts.push({ d: depthAt(rearA + 0.5*L, -bodyR*0.72, bodyR), fn: haunch(-1) });
     } else {
-      parts.push({ d: depthAt(rearA + 1*L,  2.9*L, legH*0.4), fn: leg(rearA + 1*L, 1, -0.4*L) });
-      parts.push({ d: depthAt(rearA + 1*L, -2.9*L, legH*0.4), fn: leg(rearA + 1*L, -1, -0.4*L) });
+      parts.push({ d: depthAt(rearA + 1*L,  2.9*L, legH*0.4), fn: leg(rearA + 1*L, 1, -0.4*L + sw(Math.PI)) });
+      parts.push({ d: depthAt(rearA + 1*L, -2.9*L, legH*0.4), fn: leg(rearA + 1*L, -1, -0.4*L + sw(0)) });
     }
     parts.sort((x, y) => x.d - y.d);
     for(const pt of parts) pt.fn();
@@ -379,8 +418,49 @@ class DogLab extends Phaser.Scene {
     g.fillRect(0, 0, this.scale.gameSize.width, this.scale.gameSize.height);
     this.drawGround(this.cx, this.cy, 3);
 
+    const dt = Math.min(t - (this.lastT || t), 50);
+    this.lastT = t;
+
+    /* ---- wander sim: only while NEW + standing + WANDER on ---- */
+    const wandering = this.mode === "new" && this.wander && DOG.pose === "standing";
+    if(wandering){
+      this.dogTimer -= dt;
+      if(this.dogState === "walk"){
+        /* heading wobble + gentle forward drift */
+        this.dogH += (Math.random()-0.5) * 0.0024 * dt;
+        const spd = 0.011;                                   // world units/ms
+        let nx = this.dogX + Math.cos(this.dogH)*spd*dt;
+        let ny = this.dogY + Math.sin(this.dogH)*spd*dt;
+        /* stay in the spawn square: steer back toward the middle
+           (with a little slop so he doesn't orbit the center) */
+        const M = 14;
+        if(nx < M || nx > 92-M || ny < M || ny > 92-M){
+          this.dogH = Math.atan2(46 - this.dogY, 46 - this.dogX) + (Math.random()-0.5)*0.7;
+          nx = this.dogX; ny = this.dogY;
+        }
+        this.dogX = nx; this.dogY = ny;
+        this.walkPhase += dt * 0.014;
+        if(this.dogTimer <= 0){
+          this.dogState = "pause";
+          this.dogTimer = 700 + Math.random()*1700;
+        }
+      } else {                                               // pause: stand, judge
+        if(this.dogTimer <= 0){
+          this.dogState = "walk";
+          this.dogTimer = 900 + Math.random()*1900;
+          this.dogH += (Math.random()-0.5) * 2.6;            // new idea, new direction
+        }
+      }
+    }
+    this.walkAmt = Phaser.Math.Linear(this.walkAmt,
+      (wandering && this.dogState === "walk") ? 1 : 0, Math.min(1, dt/160));
+
     if(this.mode === "old"){
       this.drawDogOld(this.cx, this.cy);
+    } else if(wandering || this.walkAmt > 0.02){
+      /* anchor the dog at his world position inside tile (0,0) */
+      const p = this.W(this.dogX, this.dogY, 0, this.cx, this.cy);
+      this.drawDogNew(p.x, p.y, this.dogH, t);
     } else {
       this.drawDogNew(this.cx, this.cy, this.heroAngle, t);
     }
@@ -404,6 +484,12 @@ document.getElementById("newBtn").addEventListener("click", e => {
   e.target.classList.add("on");
   document.getElementById("oldBtn").classList.remove("on");
 });
+document.getElementById("wanderBtn").addEventListener("click", e => {
+  const s2 = scn();
+  s2.wander = !s2.wander;
+  e.target.classList.toggle("on", s2.wander);
+  s2.updateVals();
+});
 document.getElementById("rotL").addEventListener("click", () => { scn().heroAngle -= Math.PI/8; });
 document.getElementById("rotR").addEventListener("click", () => { scn().heroAngle += Math.PI/8; });
 document.getElementById("zoomIn").addEventListener("click", () => { scn().K = Math.min(scn().K + 0.4, 7); });
@@ -418,6 +504,12 @@ document.getElementById("coatBtn").addEventListener("click", e => {
   const order = COATS.map(c => c.n);
   DOG.coat = order[(order.indexOf(DOG.coat) + 1) % order.length];
   e.target.textContent = DOG.coat.toUpperCase();
+  scn().updateVals();
+});
+document.getElementById("eyeBtn").addEventListener("click", e => {
+  if(DOG.eyes === 1 && DOG.blindSide === -1){ DOG.blindSide = 1; e.target.textContent = "EYE 1R"; }
+  else if(DOG.eyes === 1){ DOG.eyes = 2; e.target.textContent = "EYES 2"; }
+  else { DOG.eyes = 1; DOG.blindSide = -1; e.target.textContent = "EYE 1L"; }
   scn().updateVals();
 });
 document.getElementById("trembleBtn").addEventListener("click", e => {
