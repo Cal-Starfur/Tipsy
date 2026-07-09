@@ -43,7 +43,12 @@ street-name pool. Roster lives in `game/index.html` (`HOODS`).
    `dogSpotAt(t, seed)` — deterministic, stateless — and the impact check
    shifts by the same function's along-offset, so a dog can walk into the
    robot's path (or bump a parked robot) and the hitbox always matches
-   what's drawn.
+   what's drawn. On impact the dog LEAVES (`dogFleeAt`, 2.6s): launches away
+   from the robot along the route, angled toward the buildings and off
+   the road, flat-out with tail tucked and shock marks at launch, then
+   he's gone for the rest of the route — a hit dog does not loiter.
+   Still stateless: just hitT + flee direction stamped on the hazard;
+   once stamped the hazard is inert to further impacts.
    Cracks (spall redesign, crack lab v3) scale severity with their seeded
    size instead: 4 × (len/46), clamped 2–8 — a hairline is a shiver, a big
    break-off is a real lurch. Road rows also get decorative spalls in
