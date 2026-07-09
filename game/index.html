@@ -273,9 +273,9 @@ function dogFleeAt(tms, hz){
     gone: false
   };
 }
-/* approved in bin lab: height 40 · base 13 · lid 15 · band 3 (standing) / 0 (knocked) */
+/* approved in bin lab: height 34 · base 11 · lid 13 · band 3 (standing) / 0 (knocked) */
 const BIN = {
-  height: 40, baseR: 13, lidR: 15, band: 3,
+  height: 34, baseR: 11, lidR: 13, band: 3,
   body: 0x3f5147, bodyDk: 0x2e3d35,
   band_c: 0xd8dade,
   lid: 0x4a5d52, lidDk: 0x384539,
@@ -283,6 +283,41 @@ const BIN = {
   liner: 0x1f2822,
   shadow: 0x000000
 };
+/* approved in bin hit lab (2026-07-09): rigid pivot-fall physics —
+   simpler than the cone's, since a barrel's own round bottom is the
+   whole base (no separate slab plate with corners), so it's ONE
+   pivot all the way from standing to lying flat at exactly 90°. */
+const binR = h => { const u = h / BIN.height; return BIN.baseR * (0.88 + 0.12*Math.sin(u*Math.PI)); };
+function binTipPoint(u, h, phi){
+  const pvt = binR(0);
+  if(phi === 0) return { u, z: h };
+  const cphi = Math.cos(phi), sphi = Math.sin(phi);
+  return { u: pvt + (u - pvt)*cphi + h*sphi, z: -(u - pvt)*sphi + h*cphi };
+}
+/* the wall IS the bin: samples the actual barrel silhouette at the
+   current tip angle to find the nearest-to-robot point, rather than
+   using a fixed clearance number. Standing, that's the lid overhang;
+   as it topples away (always downstream, same as the punt) the near
+   side swings up and shrinks toward the pivot, where it locks once
+   knocked — the physical boundary just stops moving, which is what
+   makes a knocked bin block the lane just as permanently as a
+   standing one. */
+function binNearEdge(phi){
+  let minU = Infinity;
+  for(let hi=0; hi<=8; hi++){
+    const h = hi/8*BIN.height, r = binR(h);
+    for(const u of [-r, r]){ const t = binTipPoint(u, h, phi); if(t.u < minU) minU = t.u; }
+  }
+  for(const u of [-BIN.lidR, BIN.lidR]){
+    const t = binTipPoint(u, BIN.height, phi); if(t.u < minU) minU = t.u;
+  }
+  return minU;
+}
+const BIN_HIT = (() => {
+  const r0 = binR(0);
+  const phiBal = Math.atan(r0 / (BIN.height * 0.42));   // CM biased low — a loaded bin's weight sits low
+  return { phiBal, phiRest: Math.PI/2, kick: 1.0, grav: 0.6, punt: 2.0 };
+})();
 /* approved in hydrant lab: height 20 · base 8 · dome 6.5 · nozzle 2.6 · red.
    hydrantBurst is the same rigid hydrant with a sheared front nozzle,
    animated water arc, and a puddle spanning most of the neighboring tile. */
@@ -407,7 +442,7 @@ function generateRoute(dateStr){
     else if(r2 < (1-hood.pave)*0.45 + hood.litter*0.35)
                                        type = rng() < 0.6 ? "scooter" : "trash";
     else if(r2 < 0.75)                 type = "cone";
-    else                               type = rng() < 0.5 ? "dog" : (rng() < 0.6 ? "bin" : "binKnocked");
+    else                               type = rng() < 0.5 ? "dog" : "bin";
     const hzObj = { type, s: Math.round(hs),
                     row: Math.floor(rng()*3) - 1,
                     f: facingAt(hs), hit:false };
@@ -423,6 +458,20 @@ function generateRoute(dateStr){
       hzObj.angVel = 0; hzObj.moving = false;
       hzObj.pose = preKnocked ? "knocked" : "standing";
       hzObj.slide = 0; hzObj.slideVel = 0;
+      if(preKnocked) hzObj.fallPsi = rng()*Math.PI*2;
+    }
+    if(type === "bin"){
+      /* ~40% spawn already knocked (route variety), same as the cone.
+         A knocked bin blocks its lane exactly as permanently as a
+         standing one — see BIN_HIT / binNearEdge. */
+      const preKnocked = rng() < 0.4;
+      hzObj.phi = preKnocked ? BIN_HIT.phiRest : 0;
+      hzObj.angVel = 0; hzObj.moving = false;
+      hzObj.pose = preKnocked ? "knocked" : "standing";
+      hzObj.slide = 0; hzObj.slideVel = 0;
+      hzObj.bonked = false;
+      hzObj.items = []; hzObj.spilled = false;
+      hzObj.thetaF = 0;
       if(preKnocked) hzObj.fallPsi = rng()*Math.PI*2;
     }
     hazards.push(hzObj);
@@ -1897,126 +1946,169 @@ class WorldScene extends Phaser.Scene {
       mirror(-1)();
       cabin();
       mirror(1)();
-    } else if(kind === "bin" || kind === "binKnocked"){
-      /* approved in bin lab: height 40 · base 13 · lid 15 · band 3
-         standing / 0 knocked. Knocked is the SAME barrel resting on
-         its side (same trick as cone), lid sprung open, trash spilled. */
-      const B = BIN;
+    } else if(kind === "bin"){
+      /* approved in bin hit lab (2026-07-09): ONE rigid geometry
+         driven by a continuous tip angle phi about the base rim —
+         single phase, since a barrel's own round bottom is the whole
+         base (phiRest is exactly 90°, no slab-corner handoff like
+         the cone needed). fallPsi is set once, at the hit that starts
+         the fall, and plays the same role the old per-tile rotation
+         did. The lid rides shut until phi crosses the balance angle,
+         then springs open — same trigger that flings the trash. */
+      const B = BIN, K = this.K;
       const seed = ((Math.round(x)*7919) ^ (Math.round(y)*104729) ^ 0x8177) >>> 0;
       const rng = mulberry32(seed);
-      const bth = rng()*Math.PI*2;
-      const bcs = Math.cos(bth), bsn = Math.sin(bth);
+      const cthSeed = rng()*Math.PI*2;
       const H = B.height;
-      const knocked = kind === "binKnocked";
-      const band = knocked ? 0 : B.band;
-      const GG = (a, b, h) => W(a*bcs - b*bsn, a*bsn + b*bcs, h);
-      const dAt = (a, b, h) => a*(bcs+bsn) + b*(bcs-bsn) + h*0.4;
+      const phi = (data && data.phi) || 0;
+      const cth = (data && data.fallPsi !== undefined) ? data.fallPsi : cthSeed;
+      const fc = Math.cos(cth), fsn = Math.sin(cth);
+      const cphi = Math.cos(phi), sphi = Math.sin(phi);
+      const slide = (data && data.slide) || 0;
 
-      const rOf = h => { const u = h / H; return B.baseR * (0.88 + 0.12*Math.sin(u*Math.PI)); };
+      const tip = (u, h) => {
+        if(phi === 0) return { u, z: h };
+        return { u: binR(0) + (u - binR(0))*cphi + h*sphi, z: -(u - binR(0))*sphi + h*cphi };
+      };
+      const L = (u, v, h) => {
+        const tt = tip(u, h);
+        return W((tt.u + slide)*fc - v*fsn, (tt.u + slide)*fsn + v*fc, tt.z);
+      };
+      const dAt = (u, v, h) => {
+        const tt = tip(u, h);
+        const a2 = (tt.u + slide)*fc - v*fsn, b2 = (tt.u + slide)*fsn + v*fc;
+        return a2 + b2 + tt.z*0.4;
+      };
       const place = (h, r, n=14) => {
         const pts = [];
         for(let i=0; i<n; i++){
-          const phi = (i/n)*Math.PI*2, c3 = Math.cos(phi)*r, s3 = Math.sin(phi)*r;
-          if(knocked) pts.push(GG(1 + h, c3, r + s3));
-          else        pts.push(GG(c3, s3, h));
+          const psi = (i/n)*Math.PI*2;
+          pts.push(L(Math.cos(psi)*r, Math.sin(psi)*r, h));
         }
         return pts;
       };
-      const ringDepth = h => knocked ? dAt(1 + h, 0, rOf(h)) : dAt(0, 0, h);
 
-      const bsh = knocked ? GG(1 + H/2, 0, 0) : GG(0, 0, 0);
+      const mid = tip(0, H*0.5);
+      const kk = Math.min(1, sphi*1.1);
+      const sh = W((mid.u*kk + slide)*fc, (mid.u*kk + slide)*fsn, 0);
       g.fillStyle(B.shadow, 0.14);
-      g.fillEllipse(bsh.x, bsh.y + 2, (knocked ? H + 20 : B.lidR*2.1)*this.K*0.42,
-                    (knocked ? 22 : B.lidR*0.95)*this.K*0.42);
+      g.fillEllipse(sh.x, sh.y + 2,
+        (B.lidR*2.1 + (H + 20 - B.lidR*2.1)*kk) * K * 0.42,
+        (B.lidR*0.95 + (22 - B.lidR*0.95)*kk) * K * 0.42);
 
       const bbody = () => {
-        /* safety-net base: one full hull, so even if a rib band's
-           hull is imperfect at its edge, whatever shows through is
-           still correct barrel color, never sky. */
         const n = 6, all = [];
-        for(let i=0; i<=n; i++) all.push(...place(i/n*H, rOf(i/n*H)));
+        for(let i=0; i<=n; i++) all.push(...place(i/n*H, binR(i/n*H)));
         this.quadOn(g, convexHull(all), B.body);
-        /* corrugated ribbing: full-contrast alternating bands, same
-           wide 6-segment spacing as the base hull (not the original
-           10-thin-band version, whose narrow slivers near the tapered
-           ends were the actual source of the stray-piece artifact). */
         const ribN = 6, ribs = [];
-        for(let i=0; i<=ribN; i++) ribs.push(place(i/ribN*H, rOf(i/ribN*H)));
+        for(let i=0; i<=ribN; i++) ribs.push(place(i/ribN*H, binR(i/ribN*H)));
         for(let i=0; i<ribN; i++){
           this.quadOn(g, convexHull(ribs[i].concat(ribs[i+1])), i % 2 === 0 ? B.body : B.bodyDk);
         }
-        /* shadow half: lower hull only, darkens the ground-facing side */
         const lowerN = 3, lower = [];
-        for(let i=0; i<=lowerN; i++) lower.push(...place(i/lowerN*(H*0.5), rOf(i/lowerN*(H*0.5))));
+        for(let i=0; i<=lowerN; i++) lower.push(...place(i/lowerN*(H*0.5), binR(i/lowerN*(H*0.5))));
         this.quadOn(g, convexHull(lower), B.bodyDk, 0.2);
-        if(band > 0){
-          const b0 = H*0.6, b1 = Math.min(b0 + band, H*0.92);
-          this.quadOn(g, convexHull(place(b0, rOf(b0)+0.3).concat(place(b1, rOf(b1)+0.3))), B.band_c);
-          /* back ellipse: dark far wall glimpsed over the top edge of
-             the band — without this the band reads as a flat painted
-             stripe; with it, it reads as a rim with real depth behind. */
-          this.quadOn(g, place(b1, rOf(b1)*0.7, 12), B.liner);
+        const b0 = H*0.6, b1 = Math.min(b0 + B.band, H*0.92);
+        if(B.band > 0){
+          this.quadOn(g, convexHull(place(b0, binR(b0)+0.3).concat(place(b1, binR(b1)+0.3))), B.band_c);
+          this.quadOn(g, place(b1, binR(b1)*0.7, 12), B.liner);
         }
-        /* liner lip: the dark interior only reads as visible when the
-           mouth end is actually the NEAR side of the tube. When knocked
-           and rotated so the mouth faces away, this must stay hidden —
-           otherwise it paints through the barrel's own far wall. */
-        const mouthFacing = !knocked || (bcs + bsn) > 0;
-        if(mouthFacing) this.quadOn(g, place(H - 0.5, rOf(H)*0.86, 12), B.liner);
+        /* liner lip: camera-facing test, same pattern used everywhere
+           else in this projection (rotated local normal dotted with
+           the view direction) */
+        const nu = cphi, nh = -sphi;
+        const mouthFacing = (nu*fc + nu*fsn + nh) > 0.05;
+        if(mouthFacing) this.quadOn(g, place(H - 0.5, binR(H)*0.86, 12), B.liner);
       };
+      const lidOpen = phi >= BIN_HIT.phiBal;
       const blid = () => {
-        if(!knocked){
+        if(!lidOpen){
           const rim = place(H, B.lidR, 14);
           this.quadOn(g, rim, B.lidDk);
           const dome = [];
           for(let i=0; i<12; i++){
-            const phi = (i/12)*Math.PI*2, r2 = B.lidR*0.82;
-            dome.push(GG(Math.cos(phi)*r2, Math.sin(phi)*r2, H + 2.6));
+            const psi = (i/12)*Math.PI*2, r2 = B.lidR*0.82;
+            dome.push(L(Math.cos(psi)*r2, Math.sin(psi)*r2, H + 2.6));
           }
           this.quadOn(g, dome, B.lid);
-          const knob = GG(0, 0, H + 4.4);
+          const knob = L(0, 0, H + 4.4);
           g.fillStyle(B.lidDk, 1);
-          g.fillCircle(knob.x, knob.y, 2.6*this.K*0.45);
-          const hinge = GG(-B.lidR*0.85, 0, H + 0.6);
+          g.fillCircle(knob.x, knob.y, 2.6*K*0.45);
+          const hinge = L(-B.lidR*0.85, 0, H + 0.6);
           g.fillStyle(B.pedalDk, 1);
-          g.fillCircle(hinge.x, hinge.y, 1.6*this.K*0.45);
+          g.fillCircle(hinge.x, hinge.y, 1.6*K*0.45);
         } else {
-          /* lid lies flat on the ground, just past the OPEN end of
-             the fallen barrel — mouth is at a = 1+H (not the closed
-             base at a = 1), so the lid sits beyond that. */
-          const La = 1 + H + B.lidR*0.75, Lh = 1;
+          const La = H + B.lidR*0.75;
           const disc = [], inner = [];
           for(let i=0; i<12; i++){
-            const phi = (i/12)*Math.PI*2;
-            disc.push(GG(La + Math.cos(phi)*B.lidR, Math.sin(phi)*B.lidR, Lh));
+            const psi = (i/12)*Math.PI*2;
+            disc.push(L(La + Math.cos(psi)*B.lidR, Math.sin(psi)*B.lidR, 1));
             const r2 = B.lidR*0.8;
-            inner.push(GG(La + Math.cos(phi)*r2, Math.sin(phi)*r2, Lh + 0.7));
+            inner.push(L(La + Math.cos(psi)*r2, Math.sin(psi)*r2, 1.7));
           }
           this.quadOn(g, disc, B.lidDk);
           this.quadOn(g, inner, B.lid);
-          const knob = GG(La, 0, Lh + 1.3);
+          const knob = L(La, 0, 2.3);
           g.fillStyle(B.lidDk, 1);
-          g.fillCircle(knob.x, knob.y, 2.2*this.K*0.45);
+          g.fillCircle(knob.x, knob.y, 2.2*K*0.45);
         }
       };
       const bpedal = () => {
-        if(knocked) return;
-        const a0 = GG(B.baseR*0.55, 0, 1.5);
-        const a1 = GG(B.baseR*0.95, 0, 5.5);
-        g.lineStyle(Math.max(1.5, 1.4*this.K*0.4), B.pedalDk, 1);
+        if(phi > 0.05) return;
+        const a0 = L(B.baseR*0.55, 0, 1.5);
+        const a1 = L(B.baseR*0.95, 0, 5.5);
+        g.lineStyle(Math.max(1.5, 1.4*K*0.4), B.pedalDk, 1);
         g.lineBetween(a0.x, a0.y, a1.x, a1.y);
-        const p0 = GG(B.baseR*0.95, -3.2, 0.6), p1 = GG(B.baseR*1.25, 3.2, 0.6);
+        const p0 = L(B.baseR*0.95, -3.2, 0.6), p1 = L(B.baseR*1.25, 3.2, 0.6);
         g.fillStyle(B.pedal, 1);
-        g.fillEllipse((p0.x+p1.x)/2, (p0.y+p1.y)/2, 7*this.K*0.42, 3*this.K*0.42);
+        g.fillEllipse((p0.x+p1.x)/2, (p0.y+p1.y)/2, 7*K*0.42, 3*K*0.42);
       };
 
       const bparts = [
-        { d: knocked ? dAt(1.5, 0, B.baseR) : dAt(0, 0, 1.5), fn: bbody },
-        { d: knocked ? dAt(0.5, -6, 3) : dAt(B.baseR*0.9, 0, 3), fn: bpedal },
-        { d: knocked ? dAt(1+H+B.lidR*0.75, 0, 1) : ringDepth(H), fn: blid }
+        { d: dAt(0, 0, 1.5), fn: bbody },
+        { d: dAt(B.baseR*0.9, 0, 3), fn: bpedal },
+        { d: lidOpen ? dAt(H + B.lidR*0.75, 0, 1) : dAt(0, 0, H*0.95), fn: blid }
       ];
       bparts.sort((p1, p2) => p1.d - p2.d);
       for(const pt of bparts) pt.fn();
+
+      /* flung debris: independent projectiles once launched, stored
+         in the hazard's own local (u,v,h) frame — drawn with the
+         PLAIN local W(), not tip()-rotated, since they've detached
+         from the rigid body by the time they're airborne */
+      if(data && data.items && data.items.length){
+        for(const it of data.items){
+          const s2 = W(it.x + 1, it.y + 1, 0.4);
+          g.fillStyle(TRASH_ART.shadow, 0.15);
+          g.fillEllipse(s2.x, s2.y, it.size*K*0.9, it.size*K*0.4);
+        }
+        for(const it of data.items){
+          const p = W(it.x, it.y, it.z);
+          if(it.kind === "paper"){
+            g.fillStyle(TRASH_ART.paper, 1);
+            g.fillRect(p.x - it.size*K*0.4, p.y - it.size*K*0.3, it.size*K*0.8, it.size*K*0.6);
+            g.lineStyle(1, TRASH_ART.paperShade, 1);
+            g.strokeRect(p.x - it.size*K*0.4, p.y - it.size*K*0.3, it.size*K*0.8, it.size*K*0.6);
+          } else if(it.kind === "can"){
+            g.fillStyle(TRASH_ART.canA, 1);
+            g.fillEllipse(p.x, p.y, it.size*K*0.7, it.size*K*1.1);
+            g.fillStyle(TRASH_ART.canHi, 1);
+            g.fillEllipse(p.x - it.size*K*0.15, p.y, it.size*K*0.2, it.size*K*0.9);
+            g.lineStyle(1, TRASH_ART.outline, 1);
+            g.strokeEllipse(p.x, p.y, it.size*K*0.7, it.size*K*1.1);
+          } else {
+            const col = TRASH_ART.wrap[Math.floor(it.ang) % TRASH_ART.wrap.length];
+            const c2 = Math.cos(it.ang), s3 = Math.sin(it.ang);
+            g.fillStyle(col, 1);
+            this.quadOn(g, [
+              { x:p.x + c2*it.size*K*0.6, y:p.y + s3*it.size*K*0.35 },
+              { x:p.x - s3*it.size*K*0.35, y:p.y + c2*it.size*K*0.35 },
+              { x:p.x - c2*it.size*K*0.6, y:p.y - s3*it.size*K*0.35 },
+              { x:p.x + s3*it.size*K*0.35, y:p.y - c2*it.size*K*0.35 }
+            ], col);
+          }
+        }
+      }
     } else if(kind === "slab"){
       /* approved in ramp lab v2: heaved slab — the ramp concept redesigned
          into ONE sidewalk tile (92×92), lifted along one side edge by a
@@ -2442,15 +2534,76 @@ class WorldScene extends Phaser.Scene {
             this.speed *= 0.86;
           }
           if(Math.abs(dx) > 40) hz.hit = false;
+        } else if(hz.type === "bin"){
+          /* the wall IS the bin (approved bin hit lab, 2026-07-09):
+             a municipal bin is too big to plow through standing OR
+             lying down — same cast-iron contract as the hydrant, but
+             permanent. binNearEdge samples the barrel's actual live
+             silhouette so the stop line creeps forward realistically
+             as it topples away, then locks the instant phi stops
+             changing (knocked) — no separate "stay stuck" flag
+             needed, the physical boundary just stops moving. */
+          const BOT_HALF = 15;
+          const binU0 = hz.s;
+          const stopU = binU0 + binNearEdge(hz.phi) - BOT_HALF;
+          if(hz.row === this.botRow && this.botS > binU0 - 200 && this.botS >= stopU){
+            this.botS = stopU;
+            this.isBlocked = true;
+            if(this.speed > 0.035 && !hz.bonked && hz.pose !== "knocked"){
+              hz.bonked = true;
+              if(hz.fallPsi === undefined) hz.fallPsi = (Math.random() - 0.5) * 0.5;
+              const sp = this.speed;
+              hz.moving = true;
+              hz.angVel += sp * 0.06 * BIN_HIT.kick;
+              hz.slideVel += sp * 0.6 * BIN_HIT.punt;   // a shove as it goes over, not a full punt
+              const kick = sp * 2.6 * (Math.random() < 0.5 ? 1 : -1);
+              this.tilt += kick;
+              this.damage = Math.min(95, this.damage + Math.abs(kick)*40);
+            }
+            this.speed = 0;
+          }
+          if(Math.abs(dx) > 40) hz.bonked = false;   // re-arm after backing off, if it rocked back up
+
+          /* single-phase gravity pivot about the base rim — no slab
+             handoff needed, a barrel just lies flat on its side */
+          if(hz.moving){
+            const KG = 1.5e-5 * BIN_HIT.grav;
+            const steps = Math.max(1, Math.ceil(dt/8));
+            const hdt = dt/steps;
+            for(let i=0; i<steps; i++){
+              hz.angVel += KG * Math.sin(hz.phi - BIN_HIT.phiBal) * hdt;
+              hz.phi += hz.angVel * hdt;
+              if(!hz.spilled && hz.phi >= BIN_HIT.phiBal){ hz.spilled = true; this.spillBinTrash(hz); }
+              if(hz.phi >= BIN_HIT.phiRest){
+                hz.phi = BIN_HIT.phiRest;
+                if(Math.abs(hz.angVel) < 0.0006){
+                  hz.angVel = 0; hz.moving = false; hz.pose = "knocked"; break;
+                }
+                hz.angVel = -hz.angVel * 0.2;
+              }
+              if(hz.phi <= 0){
+                hz.phi = 0;
+                if(Math.abs(hz.angVel) < 0.0006){
+                  hz.angVel = 0; hz.moving = false; hz.pose = "standing"; break;
+                }
+                hz.angVel = -hz.angVel * 0.22;
+              }
+            }
+          }
+          if(hz.slideVel > 0.0001){
+            hz.slide += hz.slideVel * dt;
+            hz.slideVel *= Math.exp(-0.0045 * dt);
+          } else hz.slideVel = 0;
+          this.simBinTrash(hz, dt);
         } else if(!hz.hit && Math.abs(dx) < 26 && hz.row === this.botRow){
           hz.hit = true;
           const sev = hz.type === "crack"
             ? Math.min(8, Math.max(2, 4 * (hz.len || 46) / 46))   // bigger spall, bigger jolt (crack lab v3)
-            : ({ trash:7, bin:8, binKnocked:9, scooter:9, dog:5, palmDwarf:6 }[hz.type] ?? 5);
+            : ({ trash:7, scooter:9, dog:5, palmDwarf:6 }[hz.type] ?? 5);
           const kick = this.speed * sev * (Math.random() < 0.5 ? 1 : -1);
           this.tilt += kick;
           this.damage = Math.min(95, this.damage + Math.abs(kick)*46);
-          if(hz.type === "scooter" || hz.type === "bin" || hz.type === "binKnocked") this.speed *= 0.45;
+          if(hz.type === "scooter") this.speed *= 0.45;
           if(hz.type === "trash") this.speed *= 0.65;
           if(hz.type === "palmDwarf") this.speed *= 0.5;   // dragging through fronds
           if(hz.type === "dog"){
@@ -2729,6 +2882,50 @@ class WorldScene extends Phaser.Scene {
   simItems(dt){
     const k = dt/16.7;
     for(const it of this.items){
+      if(it.rest) continue;
+      it.vz -= 0.14*k;
+      it.x += it.vx*k; it.y += it.vy*k; it.z += it.vz*k;
+      it.ang += it.spin*k;
+      if(it.z <= it.size*0.35){
+        it.z = it.size*0.35;
+        if(Math.abs(it.vz) < 0.25){ it.rest = true; it.vx = it.vy = it.vz = 0; }
+        else { it.vz *= -0.38; it.vx *= 0.7; it.vy *= 0.7; it.spin *= 0.6; }
+      }
+    }
+  }
+
+  /* ---------- bin debris (approved bin hit lab, 2026-07-09) ----------
+     Same ballistic-arc-then-settle pattern as the robot's own
+     spillCargo/simItems, just per-hazard: each knocked bin owns its
+     own hz.items array. Coordinates are LOCAL to the hazard's own
+     (u,v,h) axes — the same frame binTipPoint/drawProp's W() already
+     use — so this needs no knowledge of the route's actual world
+     direction; that translation happens later, at render time. */
+  spillBinTrash(hz){
+    const cth = hz.fallPsi !== undefined ? hz.fallPsi : (hz.thetaF || 0);
+    const fc = Math.cos(cth), fsn = Math.sin(cth);
+    const tt = binTipPoint(BIN.height, 2, hz.phi);
+    const slide = hz.slide || 0;
+    const mx = (tt.u + slide)*fc, my = (tt.u + slide)*fsn, mz = tt.z;
+    const spawn = (kind, size) => hz.items.push({
+      kind, size,
+      x: mx + (Math.random()-0.5)*6,
+      y: my + (Math.random()-0.5)*6,
+      z: mz + Math.random()*4,
+      vx: fc*(1.8 + Math.random()*2.4) + (Math.random()-0.5)*2.4,
+      vy: fsn*(1.8 + Math.random()*2.4) + (Math.random()-0.5)*2.4,
+      vz: 2.4 + Math.random()*2.0,
+      spin: (Math.random()-0.5)*0.3, ang: Math.random()*Math.PI,
+      rest: false
+    });
+    spawn("paper", 5);
+    spawn("can", 4);
+    for(let i=0; i<2; i++) spawn("wrap", 3);
+  }
+  simBinTrash(hz, dt){
+    if(!hz.items || !hz.items.length) return;
+    const k = dt/16.7;
+    for(const it of hz.items){
       if(it.rest) continue;
       it.vz -= 0.14*k;
       it.x += it.vx*k; it.y += it.vy*k; it.z += it.vz*k;
