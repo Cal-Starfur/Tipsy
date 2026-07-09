@@ -265,6 +265,14 @@ const HYD = {
   water: 0xbfe6f2, waterDk: 0x8fc8dc,
   shadow: 0x000000
 };
+/* dialed in the hydrant hit lab: burst + hydroplane numbers */
+const HYD_SLIP = {
+  thresh: 0.055,   // hit speed that shears the nozzle
+  bonk: 10,        // cast-iron impact severity
+  spin: 1.0,       // pirouette turns × (entry speed / 0.05)
+  grip: 1.0,       // traction recovery: yaw unwind rate
+  pud: 41.4        // full-grown flood radius (TILE*0.9 — literal: TILE declares later)
+};
 /* approved in planter lab: tapered box + layered stalked bush.
    Dimensions vary per-instance (seeded) rather than one locked size —
    box 13-19w × 8-12d × 8-12h, bush 12-20h, fullness 4-7, ~30% flowering. */
@@ -400,6 +408,14 @@ function generateRoute(dateStr){
     if(rng() > (1 - hood.pave)*0.8 + 0.1) continue;
     hazards.push({ type:"crack", s: Math.round(rs), row: 2 + Math.floor(rng()*2),
                    len: 24 + Math.floor(rng()*49), f: facingAt(rs), hit:false });
+  }
+
+  /* hydrants: curb-side lane (row 1), sparse fixtures. Cast iron —
+     they block like palms, and hitting one fast enough bursts it. */
+  for(let ys = SPAWN_S + 220; ys < totalLen - 280; ys += 480 + rng()*520){
+    if(inCorner(ys)) continue;
+    if(rng() < 0.55) hazards.push({ type:"hydrant", s: Math.round(ys), row: 1,
+                                    f: facingAt(ys), hit:false, burst:false });
   }
 
   /* heaved slabs (prop.slab): runs of bad sidewalk — 1-3 consecutive
@@ -570,6 +586,7 @@ class WorldScene extends Phaser.Scene {
     this.botX = sp.x; this.botY = sp.y;
     this.botRow = 0; this.laneOff = 0;
     this.hopAnim = null; this.yaw = 0; this.hopYaw = 0; this.hopKick = 0;
+    this.slide = null; this.slipYaw = 0;
     this.camX = this.botX; this.camY = this.botY; this.camZ = this.botZ;
     this.speed = 0; this.tilt = 0; this.damage = 0; this.runT = 0;
     this.roll = 0; this.tipT = 0; this.lidAng = 0; this.items = []; this.spilled = false;
@@ -1171,7 +1188,10 @@ class WorldScene extends Phaser.Scene {
          hydrantBurst shears the front nozzle open with an animated water
          arc and a puddle that paints early (ground layer, like the
          shadow) so the hydrant's own body always draws over it. */
-      const HH = HYD, bursting = kind === "hydrantBurst";
+      const HH = HYD;
+      const bursting = kind === "hydrantBurst" || !!(data && data.burst);
+      const grow = (data && data.burstT !== undefined)
+        ? Math.min(1, (t - data.burstT)/1800) : 1;
       const seed = ((Math.round(x)*7919) ^ (Math.round(y)*104729) ^ 0x4a7d) >>> 0;
       const rng = mulberry32(seed);
       const hth = rng()*Math.PI*2;
@@ -1206,7 +1226,11 @@ class WorldScene extends Phaser.Scene {
         const facing0 = nc0*(hcs+hsn) + ns0*(hcs-hsn) > 0;
         if(facing0){
           const tipA0 = HH.baseR*0.55 + HH.nozR*2.2;
-          const landA = tipA0 + nc0*26, landB = ns0*26;
+          /* robot-burst floods pool around the base (that's where the
+             slip zone lives); the lab's static gallery kind keeps the
+             original thrown-landing rings */
+          const landA = (data && data.burst) ? 8 : tipA0 + nc0*26;
+          const landB = (data && data.burst) ? 0 : ns0*26;
           const puddleRing = (rad, nn=16) => {
             const pts = [];
             for(let i=0; i<nn; i++){
@@ -1215,8 +1239,8 @@ class WorldScene extends Phaser.Scene {
             }
             return pts;
           };
-          this.quadOn(g, puddleRing(TILE*0.85), HH.water, 0.28);
-          this.quadOn(g, puddleRing(TILE*0.55), HH.water, 0.22);
+          this.quadOn(g, puddleRing(((data && data.burst) ? HYD_SLIP.pud : TILE*0.85) * grow), HH.water, 0.28);
+          this.quadOn(g, puddleRing(((data && data.burst) ? HYD_SLIP.pud*0.62 : TILE*0.55) * grow), HH.water, 0.22);
         }
       }
 
@@ -2259,6 +2283,38 @@ class WorldScene extends Phaser.Scene {
               slabUnder = hz;
             }
           }
+        } else if(hz.type === "hydrant"){
+          /* cast iron: a wall, same contract as the palm — you stop.
+             Arriving fast adds the bonk; past the burst threshold the
+             nozzle shears: water arc + a flood that grows around the
+             base and stays wet for the rest of the route. */
+          if(hz.row === this.botRow && this.botS > hz.s - 26 && this.botS < hz.s){
+            this.botS = hz.s - 26;
+            this.isBlocked = true;
+            if(this.speed > 0.035 && !hz.hit){
+              hz.hit = true;
+              const kick = this.speed * HYD_SLIP.bonk * (Math.random() < 0.5 ? 1 : -1);
+              this.tilt += kick;
+              this.damage = Math.min(95, this.damage + Math.abs(kick)*40);
+              if(!hz.burst && this.speed >= HYD_SLIP.thresh){
+                hz.burst = true; hz.burstT = t;
+              }
+            }
+            this.speed = 0;
+          }
+          if(Math.abs(dx) > 40) hz.hit = false;
+          /* the flood: wheels in the wet with speed -> hydroplane */
+          if(hz.burst && !this.slide && !hz.slid){
+            const grow = Math.min(1, (t - hz.burstT)/1800);
+            if(hz.row === this.botRow && Math.abs(dx) < HYD_SLIP.pud*grow && this.speed > 0.02){
+              hz.slid = true;
+              this.slide = { t0: t, dur: 800 + 300*HYD_SLIP.spin,
+                             dir: Math.random() < 0.5 ? 1 : -1,
+                             turns: HYD_SLIP.spin * (this.speed/0.05) };
+              this.tilt += this.speed * 3 * (Math.random() < 0.5 ? 1 : -1);
+            }
+          }
+          if(Math.abs(dx) > HYD_SLIP.pud + 40) hz.slid = false;
         } else if(!hz.hit && Math.abs(dx) < 26 && hz.row === this.botRow){
           hz.hit = true;
           const sev = hz.type === "crack"
@@ -2286,6 +2342,26 @@ class WorldScene extends Phaser.Scene {
       this.slabZ = Phaser.Math.Linear(this.slabZ || 0, slabUnder ? slabUnder.lift*0.5 : 0, 0.25);
       this.slabRoll = Phaser.Math.Linear(this.slabRoll || 0,
         slabUnder ? slabUnder.side * Math.atan(slabUnder.lift/(2*TILE)) : 0, 0.2);
+
+      /* hydroplane: eased pirouette from a burst hydrant's flood.
+         slipYaw layers into the facing yaw; when the slide ends,
+         Grip unwinds it the short way back to straight. */
+      if(this.slide){
+        const su = (t - this.slide.t0)/this.slide.dur;
+        if(su >= 1){ this.slide = null; }
+        else {
+          const se = su < 0.5 ? 2*su*su : 1 - Math.pow(-2*su + 2, 2)/2;
+          this.slipYaw = this.slide.dir * Math.PI*2 * this.slide.turns * se;
+          this.speed *= (1 - 0.0006*dt);
+          this.tilt += (Math.random()-0.5) * this.speed * 0.05 * dt;
+        }
+      } else if(this.slipYaw){
+        let y2 = this.slipYaw % (Math.PI*2);
+        if(y2 > Math.PI) y2 -= Math.PI*2;
+        if(y2 < -Math.PI) y2 += Math.PI*2;
+        const step = HYD_SLIP.grip * 0.012 * dt;
+        this.slipYaw = Math.abs(y2) <= step ? 0 : y2 - Math.sign(y2)*step;
+      }
 
       /* stuck on a trunk: wheels churn, robot rattles, dignity evaporates */
       const stuckTarget = (this.isBlocked && this.throttle === 1) ? 1 : 0;
@@ -2335,7 +2411,7 @@ class WorldScene extends Phaser.Scene {
     this.botY = pp.y + rvy*this.laneOff;
     const fi = Math.round(hdg / (Math.PI/2));
     this.f = ((fi % 4) + 4) % 4;
-    this.yaw = (hdg - fi*(Math.PI/2)) + this.hopYaw;
+    this.yaw = (hdg - fi*(Math.PI/2)) + this.hopYaw + (this.slipYaw || 0);
 
     /* stuck jitter rattles the whole body */
     if(this.stuckAmt > 0.05){
@@ -2426,7 +2502,7 @@ class WorldScene extends Phaser.Scene {
         this.blinkT -= dt;
         if(this.blinkT < -3200 + Math.random()*80) this.blinkT = 130;
         const open = this.blinkT > 0 ? 0.15 : 1;
-        const ec = (Math.abs(this.tilt) > 0.6 || this.stuckAmt > 0.4) ? SKIN.eyeAlert : SKIN.eye;
+        const ec = (Math.abs(this.tilt) > 0.6 || this.stuckAmt > 0.4 || this.slide) ? SKIN.eyeAlert : SKIN.eye;
         for(const ey of [-7, 7]){
           const c = F(ey, 45);
           g.fillStyle(ec, 1);
