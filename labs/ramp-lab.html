@@ -1,0 +1,733 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>TIPSY — Ramp Lab</title>
+<style>
+  html,body{margin:0;padding:0;background:#14161b;height:100%;overflow:hidden;touch-action:manipulation;
+    font-family:-apple-system,'Helvetica Neue',Arial,sans-serif;-webkit-user-select:none;user-select:none;color:#e8eaef;}
+  #wrap{display:flex;flex-direction:column;height:100%;}
+  #game{flex:1;min-height:0;}
+  #panel{padding:10px 12px calc(14px + env(safe-area-inset-bottom));background:#1c1f26;border-top:1px solid #2b2f38;}
+  .row{display:flex;gap:8px;margin-bottom:8px;align-items:center;}
+  .row:last-child{margin-bottom:0;}
+  .lbl{font-size:11px;letter-spacing:1.5px;color:#8f95a1;width:56px;text-transform:uppercase;}
+  button{flex:1;background:#262a33;color:#e8eaef;border:1px solid #363b46;border-radius:10px;
+    padding:10px 4px;font-size:13px;font-weight:600;}
+  button.on{background:#ff7a1a;border-color:#ff7a1a;color:#fff;}
+  button:active{transform:scale(0.96);}
+  button.sm{flex:0 0 44px;}
+  #hdr{padding:10px 14px 2px;font-size:12px;letter-spacing:2px;color:#8f95a1;text-transform:uppercase;}
+  #hdr b{color:#ff9c4d;}
+  #vals{padding:0 14px 6px;font-size:11px;color:#8f95a1;font-variant-numeric:tabular-nums;}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="hdr"><b>TIPSY</b> · ramp lab · prop.ramp redesign → heaved slab</div>
+  <div id="vals">…</div>
+  <div id="game"></div>
+  <div id="panel">
+    <div class="row">
+      <button id="oldBtn">OLD (2×3 ramp)</button>
+      <button class="on" id="newBtn">SLAB</button>
+      <button id="driveBtn">DRIVE</button>
+      <button id="reseed">RESEED</button>
+    </div>
+    <div class="row">
+      <span class="lbl">Lift</span>
+      <button class="sm" data-p="lift" data-d="-1">−</button>
+      <button class="sm" data-p="lift" data-d="1">＋</button>
+      <span class="lbl">Side</span>
+      <button class="sm" id="sideBtn">R</button>
+      <span class="lbl">Root</span>
+      <button class="sm on" id="rootBtn">ON</button>
+    </div>
+    <div class="row">
+      <span class="lbl">Zoom</span>
+      <button class="sm" id="zoomOut">−</button>
+      <button class="sm" id="zoomIn">＋</button>
+      <span class="lbl">Bot</span>
+      <button class="sm" id="botBack">◀</button>
+      <button class="sm" id="botFwd">▶</button>
+      <span class="lbl">Row</span>
+      <button class="sm" id="rowDown">−</button>
+      <button class="sm" id="rowUp">＋</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/phaser@3.85.2/dist/phaser.min.js"></script>
+<script>
+"use strict";
+
+/* ============================================================
+   TIPSY — Ramp Lab v1
+   prop.ramp redesign: the old 2×3-tile ADA curb ramp shrinks to
+   a SINGLE sidewalk tile (92×92) — a heaved slab, lifted along
+   one side edge (root heave), flush at the other. Crossing it
+   puts the wheels on a cross-slope wedge; the raised lip at the
+   leading joint adds a roll kick on entry. That combination is
+   what tips the robot — this is a live tilt hazard, not a decal.
+
+   Robot + tiles are pulled verbatim from game/index.html via the
+   sidewalkend lab (T()/R()/W()/P()/depth(), drawBox/drawWheel/
+   drawLid/lidNear, BODY/LID/WHEEL/STRIPE/SKIN). Tip threshold is
+   the game's own: |tilt| >= 1 -> tipped.
+   ============================================================ */
+
+/* ---------- the dials (ported into the game once approved) ---------- */
+const SLAB = {
+  lift: 5,          // raised-edge height in world units (curb drop is 5, for scale)
+  side: 1,          // +1 = road-side edge raised, -1 = building-side edge raised
+  root: true,       // the culprit: palm root bulging out of the opened joint
+  cracks: 3,        // seeded hairline cracks on the slab top
+  s: 4,             // tile index along the run (slab center = s*T2)
+  row: 0,           // center lane
+  /* physics — same shape as the game's driveway hazard, scaled by lift:
+     tilt += side * speed * tiltRate * (lift/5) * dt while on the slab,
+     plus a one-time entry kick when the wheels climb the raised lip */
+  tiltRate: 0.030,
+  lipKick: 0.90,    // kick = side * speed * lift * lipKick at the leading joint
+  top: 0xc4bdae, topDk: 0x9d9687, gap: 0x4a4238, soil: 0x5d4a35,
+  rootA: 0x8a6a48, rootB: 0x6f5439
+};
+
+/* ---------- ported verbatim from game/index.html ---------- */
+const TILE = 46;
+const T2 = TILE*2;
+const DIRV = [{x:1,y:0},{x:0,y:1},{x:-1,y:0},{x:0,y:-1}];
+const PAL = { sky:0x9fd4e8, pave:0xc9c3b4, paveB:0xbfb9aa, paveEdge:0xa8a294, road:0x4a4d55, roadLine:0xd8d2c2 };
+const SKIN = {
+  bodyTop:0xf7f8fa, bodyRight:0xe3e6ea, bodyLeft:0xc9cdd4, outline:0x30343d,
+  stripe:0xc2452e, stripeDk:0xa03824,
+  wheel:0x24262c, wheelDark:0x1a1c21, wheelHubFace:0x3d424c, wheelHub:0x8a919c,
+  visor:0x22242b, eye:0x7fe3ff, eyeAlert:0xffb04d,
+  lidInner:0xb2b7bf, cavityWall:0x9ba1a9, cavityFloor:0x7b818a,
+  belly:0x494e58, flagPole:0x2e3138, flag:0xff5722, shadow:0x000000
+};
+const BODY = { hx:26, hy:20, z0:14, z1:54 };
+const LID  = { hx:22, hy:16, z0:54, z1:61 };
+const STRIPE = { z0:20, z1:27 };
+const WHEEL = { r:10, z:10, xs:[-16, 0, 16], side:22 };
+
+function mulberry32(a){ return function(){ a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+
+class RampLab extends Phaser.Scene {
+  constructor(){ super("ramplab"); }
+
+  create(){
+    this.K = 2.2;
+    this.mode = "new";
+    this.seed = 7;
+    this.botS = 1.5;
+    this.botRow = 0;
+    this.pitch = 0; this.roll = 0; this.yaw = 0; this.f = 0;
+    this.tilt = 0; this.lidAng = 0; this.tipDir = 1; this.state = "idle";
+    this.wheelPhase = 0;
+    this.camX = 0; this.camY = 0; this.camZ = 0;
+    this.driving = false;
+    this.tipT = 0; this.tipResetT = 0;
+    this.speed = 0.05;             // fixed walking speed (world units/ms)
+    this.lipArmed = true;          // entry-kick re-arm
+    this.pitchKick = 0;            // short pulse when wheels climb/drop the lip
+    this.botZ = 2;
+    this.g = this.add.graphics();
+    this.scale.on("resize", () => this.layout());
+    this.layout();
+    this.updateVals();
+  }
+  layout(){
+    this.cx = this.scale.gameSize.width/2;
+    this.cy = this.scale.gameSize.height*0.42;
+  }
+  updateVals(){
+    document.getElementById("vals").textContent =
+      `1 tile (92×92) · lift ${SLAB.lift} · side ${SLAB.side > 0 ? "R" : "L"} · root ${SLAB.root ? "on" : "off"} · s ${this.botS.toFixed(2)} · tilt ${this.tilt.toFixed(2)} · roll ${this.roll.toFixed(2)} · ${this.state === "tipped" ? "TIPPED" : "ok"}`;
+  }
+
+  /* ---------- ground-plane helpers (camera-relative, same as
+     sidewalkend lab so tiles/slab/robot all shift together) ---------- */
+  Wg(x, y, z, ox, oy){
+    const xr = x - this.camX, yr = y - this.camY;
+    return { x:(xr - yr)*this.K + ox, y:((xr + yr)*0.5 - (z - this.camZ))*this.K + oy };
+  }
+  quadg(pts, color, alpha=1){
+    this.g.fillStyle(color, alpha);
+    this.g.fillPoints(pts.map(p => new Phaser.Geom.Point(p.x, p.y)), true);
+  }
+  edgeg(pts, color, w=2){
+    this.g.lineStyle(w, color, 1);
+    this.g.strokePoints(pts.map(p => new Phaser.Geom.Point(p.x, p.y)), true);
+  }
+
+  /* ---------- verbatim from game/index.html: robot transform +
+     projection pipeline ---------- */
+  T(x, y, z){
+    if(this.yaw !== 0){
+      const c = Math.cos(this.yaw), s = Math.sin(this.yaw);
+      const x2 = x*c - y*s; y = x*s + y*c; x = x2;
+    }
+    if(this.pitch !== 0){
+      const c = Math.cos(this.pitch), s = Math.sin(this.pitch);
+      const x2 = x*c - z*s; z = x*s + z*c; x = x2;
+    }
+    if(this.roll !== 0){
+      const PIV = this.roll >= 0 ? 22 : -22;
+      const y0 = y + PIV, c = Math.cos(this.roll), s = Math.sin(this.roll);
+      y = -PIV + y0*c - z*s; z = y0*s + z*c;
+    }
+    let rx = x, ry = y;
+    for(let i=0; i<this.f; i++){ const t = rx; rx = -ry; ry = t; }
+    return { x:rx, y:ry, z };
+  }
+  R(nx, ny, nz){
+    if(this.yaw !== 0){
+      const cy = Math.cos(this.yaw), sy = Math.sin(this.yaw);
+      const nx2 = nx*cy - ny*sy; ny = nx*sy + ny*cy; nx = nx2;
+    }
+    if(this.pitch !== 0){
+      const c = Math.cos(this.pitch), s = Math.sin(this.pitch);
+      const x2 = nx*c - nz*s; nz = nx*s + nz*c; nx = x2;
+    }
+    const c = Math.cos(this.roll), s = Math.sin(this.roll);
+    const ny2 = ny*c - nz*s, nz2 = ny*s + nz*c;
+    let rx = nx, ry = ny2;
+    for(let i=0; i<this.f; i++){ const t = rx; rx = -ry; ry = t; }
+    return { x:rx, y:ry, z:nz2 };
+  }
+  W(x, y, z){
+    const xr = x - this.camX, yr = y - this.camY;
+    return { x:(xr - yr)*this.K + this.cx,
+             y:((xr + yr)*0.5 - (z - this.camZ))*this.K + this.cy };
+  }
+  P(x, y, z){
+    const q = this.T(x, y, z);
+    return this.W(q.x + this.botX, q.y + this.botY, q.z + this.botZ);
+  }
+  depth(x, y, z){
+    const q = this.T(x, y, z);
+    return q.x + q.y + q.z*0.4;
+  }
+  quadOn(g, pts, color, alpha=1){
+    g.fillStyle(color, alpha);
+    g.fillPoints(pts.map(p => new Phaser.Geom.Point(p.x, p.y)), true);
+  }
+  edgeOn(g, pts, color=SKIN.outline, w=2){
+    g.lineStyle(w, color, 1);
+    g.strokePoints(pts.map(p => new Phaser.Geom.Point(p.x, p.y)), true);
+  }
+  quad(pts, color, alpha=1){ this.quadOn(this.g, pts, color, alpha); }
+  edge(pts, color=SKIN.outline, w=2){ this.edgeOn(this.g, pts, color, w); }
+
+  lidNear(b){
+    const hs = (this.tipDir || 1) >= 0 ? 1 : -1;
+    const A = this.lidAng * hs, c = Math.cos(A), s = Math.sin(A);
+    const yh = -b.hy * hs, zh = b.z0;
+    const dy = -yh, dz = (b.z1 - b.z0)/2;
+    return this.depth(0, yh + dy*c - dz*s, zh + dy*s + dz*c) > this.depth(0, 0, 34);
+  }
+
+  drawLid(b){
+    const {hx, hy, z0, z1} = b;
+    const hs = (this.tipDir || 1) >= 0 ? 1 : -1;
+    const A = this.lidAng * hs, cA = Math.cos(A), sA = Math.sin(A);
+    const yh = -hy * hs, zh = z0;
+    const H = (x, y, z) => {
+      const dy = y - yh, dz = z - zh;
+      return this.P(x, yh + dy*cA - dz*sA, zh + dy*sA + dz*cA);
+    };
+    const HN = (nx, ny, nz) => {
+      const ny2 = ny*cA - nz*sA, nz2 = ny*sA + nz*cA;
+      return this.R(nx, ny2, nz2);
+    };
+    const C = (sx, sy, sz) => H(sx*hx, sy*hy, sz === 1 ? z1 : z0);
+    const faces = [
+      { n:{x:0,y:0,z: 1}, pts:[C( 1,-1,1), C( 1, 1,1), C(-1, 1,1), C(-1,-1,1)] },
+      { n:{x:0,y:0,z:-1}, pts:[C( 1,-1,0), C( 1, 1,0), C(-1, 1,0), C(-1,-1,0)] },
+      { n:{x: 1,y:0,z:0}, pts:[C( 1,-1,0), C( 1, 1,0), C( 1, 1,1), C( 1,-1,1)] },
+      { n:{x:-1,y:0,z:0}, pts:[C(-1,-1,0), C(-1, 1,0), C(-1, 1,1), C(-1,-1,1)] },
+      { n:{x:0,y: 1,z:0}, pts:[C( 1, 1,0), C(-1, 1,0), C(-1, 1,1), C( 1, 1,1)] },
+      { n:{x:0,y:-1,z:0}, pts:[C( 1,-1,0), C(-1,-1,0), C(-1,-1,1), C( 1,-1,1)] }
+    ];
+    for(const fc of faces){
+      const w = HN(fc.n.x, fc.n.y, fc.n.z);
+      if((w.x + w.y + w.z) <= 0) continue;
+      const col = w.z > 0.5 ? SKIN.bodyTop
+                : w.z < -0.5 ? SKIN.lidInner
+                : (w.x >= w.y) ? SKIN.bodyRight : SKIN.bodyLeft;
+      this.quad(fc.pts, col);
+      this.edge(fc.pts);
+    }
+  }
+
+  disc(center, r, color, outlineC){
+    const pts = [];
+    for(let i=0; i<14; i++){
+      const a = (i/14)*Math.PI*2;
+      pts.push(this.P(center.x + Math.cos(a)*r, center.y, center.z + Math.sin(a)*r));
+    }
+    this.quadOn(this.g, pts, color);
+    if(outlineC !== undefined) this.edgeOn(this.g, pts, outlineC, 2);
+  }
+
+  drawBox(b, cTop, cRight, cLeft, outline=true, decal=false, cBottom=SKIN.belly){
+    const {hx, hy, z0, z1} = b, ox = b.ox || 0, oy = b.oy || 0;
+    const C = (sx, sy, sz) => this.P(ox + sx*hx, oy + sy*hy, sz === 1 ? z1 : z0);
+    const faces = [
+      { n:{x:0,y:0,z: 1}, pts:[C( 1,-1,1), C( 1, 1,1), C(-1, 1,1), C(-1,-1,1)] },
+      { n:{x:0,y:0,z:-1}, pts:[C( 1,-1,0), C( 1, 1,0), C(-1, 1,0), C(-1,-1,0)] },
+      { n:{x: 1,y:0,z:0}, pts:[C( 1,-1,0), C( 1, 1,0), C( 1, 1,1), C( 1,-1,1)] },
+      { n:{x:-1,y:0,z:0}, pts:[C(-1,-1,0), C(-1, 1,0), C(-1, 1,1), C(-1,-1,1)] },
+      { n:{x:0,y: 1,z:0}, pts:[C( 1, 1,0), C(-1, 1,0), C(-1, 1,1), C( 1, 1,1)] },
+      { n:{x:0,y:-1,z:0}, pts:[C( 1,-1,0), C(-1,-1,0), C(-1,-1,1), C( 1,-1,1)] }
+    ];
+    for(const fc of faces){
+      if(decal && fc.n.z !== 0) continue;
+      const w = this.R(fc.n.x, fc.n.y, fc.n.z);
+      if((w.x + w.y + w.z) <= 0) continue;
+      let col;
+      if(w.z > 0.5)       col = decal ? cRight : cTop;
+      else if(w.z < -0.5) col = decal ? null : cBottom;
+      else                col = (w.x >= w.y) ? cRight : cLeft;
+      if(col == null) continue;
+      this.quadOn(this.g, fc.pts, col);
+      if(outline) this.edgeOn(this.g, fc.pts);
+    }
+  }
+
+  drawWheel(c, sideSign){
+    const W2 = 7.5, steps = 5;
+    const slices = [];
+    for(let i=0; i<=steps; i++){
+      const oy = c.y + sideSign*(-W2/2 + W2*i/steps);
+      slices.push({ y:oy, depth: this.depth(c.x, oy, c.z) });
+    }
+    slices.sort((a,b) => a.depth - b.depth);
+    for(let i=0; i<slices.length; i++){
+      const isFace = i === slices.length-1;
+      this.disc({x:c.x, y:slices[i].y, z:c.z}, WHEEL.r,
+                isFace ? SKIN.wheel : SKIN.wheelDark,
+                isFace ? SKIN.outline : undefined);
+    }
+    const face = slices[slices.length-1].y;
+    this.disc({x:c.x, y:face, z:c.z}, WHEEL.r*0.55, SKIN.wheelHubFace);
+    const a = this.wheelPhase + c.x*0.2;
+    this.disc({ x:c.x + Math.cos(a)*WHEEL.r*0.34, y:face,
+                z:c.z + Math.sin(a)*WHEEL.r*0.34 }, 2.4, SKIN.wheelHub);
+  }
+
+  drawRobotReal(wx, wy, wz){
+    const g = this.g;
+    this.botX = wx; this.botY = wy; this.botZ = wz;
+
+    const sh = [];
+    for(let i=0;i<14;i++){
+      const a=(i/14)*Math.PI*2;
+      sh.push(this.P(Math.cos(a)*34, Math.sin(a)*30, 0.5));
+    }
+    this.quadOn(g, sh, SKIN.shadow, 0.16);
+
+    const wheels = [];
+    for(const side of [-1, 1]){
+      for(const wxi of WHEEL.xs){
+        const c = {x:wxi, y:side*WHEEL.side, z:WHEEL.z};
+        wheels.push({ c, side, near: this.depth(c.x, c.y, c.z) > this.depth(c.x, -c.y, c.z) });
+      }
+    }
+    for(const w of wheels) if(!w.near) this.drawWheel(w.c, w.side);
+
+    const lidBox = {...LID};
+    const lidIsNear = this.lidNear(lidBox);
+    if(!lidIsNear) this.drawLid(lidBox);
+
+    this.drawBox({hx:24, hy:17, z0:6, z1:BODY.z0+1}, 0x3f434c, 0x3a3d45, 0x2e3138, false);
+    this.drawBox({...BODY}, SKIN.bodyTop, SKIN.bodyRight, SKIN.bodyLeft);
+    this.drawBox({hx:BODY.hx+0.6, hy:BODY.hy+0.6, z0:STRIPE.z0, z1:STRIPE.z1},
+                 null, SKIN.stripe, SKIN.stripeDk, false, true);
+
+    if(lidIsNear) this.drawLid(lidBox);
+
+    const fn = this.R(1, 0, 0);
+    if(fn.x + fn.y + fn.z > 0.3){
+      const F = (y, z) => this.P(BODY.hx + 0.8, y, z);
+      this.quadOn(g, [F(-13,40), F(13,40), F(13,50), F(-13,50)], SKIN.visor);
+      this.edgeOn(g, [F(-13,40), F(13,40), F(13,50), F(-13,50)], SKIN.outline, 1.5);
+      for(const ey of [-7, 7]){
+        const c = F(ey, 45);
+        g.fillStyle(SKIN.eye, 1);
+        g.fillEllipse(c.x, c.y, 7, 7);
+      }
+      this.quadOn(g, [F(-16,18), F(16,18), F(16,22), F(-16,22)], 0xfff3b0);
+    }
+    for(const w of wheels) if(w.near) this.drawWheel(w.c, w.side);
+  }
+
+  /* ---------- real tile system, ported verbatim from drawWorld ----------
+     No sidewalk end here — the slab is a MID-run hazard, so the run
+     is just flat sidewalk + road the whole way. */
+  drawTiles(ox, oy){
+    const g = this.g;
+    const dv = DIRV[0], rv = DIRV[1];
+    for(let a = -1; a <= 10; a++){
+      const rowX = a*T2, rowY = 0;
+      for(let c = -1; c <= 4; c++){
+        const road = c >= 2;
+        const cx = rowX + rv.x*c*T2, cy = rowY + rv.y*c*T2;
+        const Ax = dv.x*TILE, Ay = dv.y*TILE, Bx = rv.x*TILE, By = rv.y*TILE;
+        const pts = [
+          this.Wg(cx+Ax-Bx, cy+Ay-By, 0, ox, oy), this.Wg(cx+Ax+Bx, cy+Ay+By, 0, ox, oy),
+          this.Wg(cx-Ax+Bx, cy-Ay+By, 0, ox, oy), this.Wg(cx-Ax-Bx, cy-Ay-By, 0, ox, oy)
+        ];
+        /* the slab tile itself: skip the flat pave fill in NEW mode —
+           the wedge replaces it entirely (drawn after tiles) */
+        const isSlabTile = this.mode === "new" && a === SLAB.s && c === SLAB.row;
+        if(!isSlabTile){
+          this.quadg(pts, road ? PAL.road : (((a+c)%2===0) ? PAL.pave : PAL.paveB));
+          if(!road) this.edgeg(pts, PAL.paveEdge, 1.5);
+        }
+        if(c === 3 && a % 2 === 0 && a >= 0 && a < 10){
+          this.quadg([
+            this.Wg(cx - dv.x*14 - rv.x*4, cy - dv.y*14 - rv.y*4, 0, ox, oy),
+            this.Wg(cx + dv.x*14 - rv.x*4, cy + dv.y*14 - rv.y*4, 0, ox, oy),
+            this.Wg(cx + dv.x*14 + rv.x*4, cy + dv.y*14 + rv.y*4, 0, ox, oy),
+            this.Wg(cx - dv.x*14 + rv.x*4, cy - dv.y*14 + rv.y*4, 0, ox, oy)
+          ], PAL.roadLine);
+        }
+      }
+      const kx = rowX + rv.x*TILE*3, ky = rowY + rv.y*TILE*3;
+      this.quadg([
+        this.Wg(kx - dv.x*TILE, ky - dv.y*TILE, 3, ox, oy), this.Wg(kx + dv.x*TILE, ky + dv.y*TILE, 3, ox, oy),
+        this.Wg(kx + dv.x*TILE, ky + dv.y*TILE, -2, ox, oy), this.Wg(kx - dv.x*TILE, ky - dv.y*TILE, -2, ox, oy)
+      ], PAL.paveEdge);
+    }
+  }
+
+  worldOf(s, row){
+    const dv = DIRV[0], rv = DIRV[1];
+    return { x: s*T2*dv.x + rv.x*row*T2, y: s*T2*dv.y + rv.y*row*T2 };
+  }
+
+  /* ---------- slab geometry helpers ----------
+     The wedge: flush (z=0 tile plane) along one side edge, lifted
+     SLAB.lift along the other. side=+1 raises the +dy (road-side)
+     edge; side=-1 raises the -dy (building-side) edge.
+     zTopAt(dy) is the slab's TOP surface height at cross offset dy
+     (dy measured from tile center, -TILE..+TILE). */
+  zTopAt(dy){
+    const v = (SLAB.side*dy + TILE) / (2*TILE);   // 0 at flush edge, 1 at raised edge
+    return SLAB.lift * v;
+  }
+
+  /* ground height under the robot's feet: flat tile plane except on
+     the slab, where the wheels ride the wedge at the robot's own
+     cross position within the tile (the robot is lane-centered, so
+     dy=0 -> mid-wedge = lift/2). Base z 2 = the wheel-contact
+     convention this lab family uses over the z=0 tile plane. */
+  groundZAt(s, row){
+    if(this.mode !== "new") return 2;
+    if(row !== SLAB.row) return 2;
+    const dx = s*T2 - SLAB.s*T2;
+    if(Math.abs(dx) >= TILE) return 2;
+    return 2 + this.zTopAt(0);
+  }
+
+  /* surface roll while on the slab: the actual wedge angle, signed
+     so the robot leans DOWNHILL toward the flush edge. Positive roll
+     leans +dy (same convention as tilt/tipDir throughout). */
+  surfaceRollAt(s, row){
+    if(this.mode !== "new" || row !== SLAB.row) return 0;
+    const dx = s*T2 - SLAB.s*T2;
+    if(Math.abs(dx) >= TILE) return 0;
+    return SLAB.side * Math.atan(SLAB.lift / (2*TILE));
+  }
+
+  /* ---------- OLD: the game's current sidewalkend decal (2×3 ADA
+     curb ramp) drawn at the slab's spot for footprint comparison —
+     ported from drawProp kind === "sidewalkend" ---------- */
+  drawRampOld(ox, oy, wx, wy){
+    const W = (dx, dy, dz) => this.Wg(wx+dx, wy+dy, dz, ox, oy);
+    const T2s = TILE*2, wHalf = 92, crossHalf = 1.5*T2s;
+    const sidewalkZ = 2, streetZ = -3;
+    this.quadg([W(-wHalf,-crossHalf,sidewalkZ), W(wHalf,-crossHalf,sidewalkZ),
+                W(wHalf,crossHalf,sidewalkZ), W(-wHalf,crossHalf,sidewalkZ)], 0xb5afa2);
+    this.edgeg([W(-wHalf,-crossHalf,sidewalkZ), W(wHalf,-crossHalf,sidewalkZ),
+                W(wHalf,crossHalf,sidewalkZ), W(-wHalf,crossHalf,sidewalkZ)], 0x968f81, 2);
+    this.g.lineStyle(1.5, 0x968f81, 0.9);
+    for(const u of [-0.62, 0, 0.62]){
+      const a = W(wHalf*u,-crossHalf,sidewalkZ), b = W(wHalf*u,crossHalf,sidewalkZ);
+      this.g.lineBetween(a.x, a.y, b.x, b.y);
+    }
+    this.quadg([W(-wHalf,-T2s/2,sidewalkZ), W(0,-T2s/2,streetZ),
+                W(0,T2s/2,streetZ), W(-wHalf,T2s/2,sidewalkZ)], 0xb5afa2);
+    this.edgeg([W(-wHalf,-T2s/2,sidewalkZ), W(0,-T2s/2,streetZ),
+                W(0,T2s/2,streetZ), W(-wHalf,T2s/2,sidewalkZ)], 0x968f81, 1.5);
+    this.quadg([W(0,-T2s/2,streetZ), W(wHalf,-T2s/2,streetZ),
+                W(wHalf,T2s/2,streetZ), W(0,T2s/2,streetZ)], 0xf4c430);
+    this.edgeg([W(0,-T2s/2,streetZ), W(wHalf,-T2s/2,streetZ),
+                W(wHalf,T2s/2,streetZ), W(0,T2s/2,streetZ)], 0xb9911f, 1.5);
+    for(let ri=0; ri<5; ri++) for(let ci=0; ci<5; ci++){
+      const py = -T2s/2 + T2s*(ri/4), px = wHalf*(ci/4);
+      const p = W(px, py, streetZ);
+      this.g.fillStyle(0xc9911f, 0.8);
+      this.g.fillCircle(p.x, p.y, 1.5);
+    }
+  }
+
+  /* ---------- NEW: the heaved slab, exactly one sidewalk tile ----------
+     Draw order matters for the iso read:
+       1. soil gap under the raised edges (dark, so the lift reads
+          as the slab having LEFT the ground, not grown out of it)
+       2. exposed concrete side faces (the broken joint walls) —
+          triangular along the travel joints, full-height along the
+          raised side edge
+       3. root bulge in the opened gap (the culprit)
+       4. top wedge surface + seeded hairline cracks + chipped lip */
+  drawSlabNew(ox, oy, wx, wy, seed){
+    const g = this.g;
+    const rng = mulberry32(seed);
+    const W = (dx, dy, dz) => this.Wg(wx+dx, wy+dy, dz, ox, oy);
+    const L = SLAB.lift, sd = SLAB.side;
+    const yFlush = -sd*TILE, yUp = sd*TILE;   // flush edge vs raised edge (cross axis)
+    const Z = dy => this.zTopAt(dy);
+
+    /* 1 — soil shadow in the opened gap, hugging the raised edge */
+    this.quadg([
+      W(-TILE, yUp - sd*10, 0), W(TILE, yUp - sd*10, 0),
+      W(TILE + 4, yUp + sd*4, 0), W(-TILE - 4, yUp + sd*4, 0)
+    ], SLAB.gap, 0.55);
+
+    /* 2 — side faces. Travel joints (dx = ±TILE): triangles from
+       flush corner (z0) up to raised corner (z=L). Raised side edge:
+       the full lifted wall. Backface: in this fixed iso view the
+       faces that read are the +dx joint and whichever side edge
+       faces the camera — cheap and correct here: draw +dx joint,
+       -dy... draw all three that can show, painter handles it. */
+    const wall = SLAB.topDk;
+    // leading joint (-dx) and trailing joint (+dx)
+    for(const jx of [-TILE, TILE]){
+      this.quadg([
+        W(jx, yFlush, 0), W(jx, yUp, Z(yUp)), W(jx, yUp, 0)
+      ], wall, 0.9);
+    }
+    // raised side edge wall (runs the slab's full length)
+    this.quadg([
+      W(-TILE, yUp, Z(yUp)), W(TILE, yUp, Z(yUp)),
+      W(TILE, yUp, 0), W(-TILE, yUp, 0)
+    ], wall);
+    this.edgeg([
+      W(-TILE, yUp, Z(yUp)), W(TILE, yUp, Z(yUp)),
+      W(TILE, yUp, 0), W(-TILE, yUp, 0)
+    ], SLAB.gap, 1.2);
+
+    /* 3 — the culprit: a palm root shouldering the raised edge up,
+       bulging out of the gap. Lumpy along the edge, trunk-brown. */
+    if(SLAB.root){
+      const segs = 6;
+      for(let i=0; i<segs; i++){
+        const t0 = i/segs, t1 = (i+1)/segs;
+        const x0 = -TILE + 2*TILE*t0, x1 = -TILE + 2*TILE*t1;
+        const bump = 2.2 + Math.sin(t0*Math.PI)*2.2 + (rng()-0.5)*1.2;
+        const pts = [
+          W(x0, yUp + sd*2, 0), W(x1, yUp + sd*2, 0),
+          W(x1, yUp + sd*7, bump), W(x0, yUp + sd*7, bump)
+        ];
+        this.quadg(pts, i%2 ? SLAB.rootA : SLAB.rootB);
+        this.edgeg(pts, SLAB.rootB, 1);
+      }
+    }
+
+    /* 4 — top wedge */
+    const top = [
+      W(-TILE, yFlush, Z(yFlush)), W(TILE, yFlush, Z(yFlush)),
+      W(TILE, yUp, Z(yUp)), W(-TILE, yUp, Z(yUp))
+    ];
+    this.quadg(top, SLAB.top);
+    this.edgeg(top, SLAB.topDk, 1.5);
+
+    /* hairline cracks radiating from the raised edge (the stress
+       side), seeded so RESEED gives a new fracture pattern */
+    g.lineStyle(1.2, SLAB.topDk, 0.8);
+    for(let i=0; i<SLAB.cracks; i++){
+      let px = -TILE*0.7 + rng()*TILE*1.4;
+      let py = yUp - sd*(4 + rng()*8);
+      let p = W(px, py, Z(py) + 0.1);
+      g.beginPath(); g.moveTo(p.x, p.y);
+      for(let k=0; k<4; k++){
+        px += (rng()-0.5)*22;
+        py -= sd*(8 + rng()*14);
+        py = Phaser.Math.Clamp(py, -TILE+3, TILE-3);
+        const q = W(px, py, Z(py) + 0.1);
+        g.lineTo(q.x, q.y);
+      }
+      g.strokePath();
+    }
+
+    /* chipped lip along the raised edge — little missing bites */
+    for(let i=0; i<4; i++){
+      const cxp = -TILE + 8 + rng()*(2*TILE - 16);
+      const p = W(cxp, yUp - sd*1.5, Z(yUp) + 0.1);
+      g.fillStyle(SLAB.gap, 0.5);
+      g.fillEllipse(p.x, p.y, (3 + rng()*4)*this.K*0.6, (1.5 + rng()*2)*this.K*0.6);
+    }
+  }
+
+  update(time, delta){
+    const g = this.g; g.clear();
+    g.fillStyle(PAL.sky, 1);
+    g.fillRect(0, 0, this.scale.gameSize.width, this.scale.gameSize.height);
+
+    const dt = Math.min(delta || 16.7, 50);
+
+    /* DRIVE: same conversion as the sidewalkend lab — this.speed is
+       world-units/ms, botS is in tile multiples, so ds = speed/T2*dt.
+       Slab physics, physically ordered:
+         a) LIP KICK at the leading joint — the wheels on the raised
+            side climb the lip first, so the kick rolls the robot
+            toward the FLUSH side: tilt -= ... no — the body pivots
+            over the raised wheels, mass swings toward the low side:
+            kick sign = -side. One-shot, re-arms after passing.
+         b) CROSS-SLOPE while on the wedge — the sustained tilt
+            accumulation, the game's driveway formula scaled by lift.
+         c) the game's own stability spring bleeds tilt back.
+       Tip check is the game's exact threshold: |tilt| >= 1. */
+    if(this.driving && this.state !== "tipped"){
+      this.botS += (this.speed / T2) * dt;
+      this.wheelPhase += this.speed * dt * 0.28;
+      const botWorldX = this.botS * T2;
+      const dx = botWorldX - SLAB.s*T2;
+      const onSlab = this.mode === "new" && this.botRow === SLAB.row && Math.abs(dx) < TILE;
+
+      if(this.mode === "new" && this.botRow === SLAB.row){
+        // a) lip kick — fires once as the leading joint passes under the axle
+        if(this.lipArmed && dx > -TILE && dx < -TILE + 14){
+          this.lipArmed = false;
+          this.tilt += SLAB.side * this.speed * SLAB.lift * SLAB.lipKick;
+          this.pitchKick = -0.10 - SLAB.lift*0.012;   // nose pops up climbing the lip
+        }
+        if(dx > TILE + 20 || dx < -TILE - 20) this.lipArmed = true;
+        // b) cross-slope accumulation while riding the wedge
+        if(onSlab) this.tilt += SLAB.side * this.speed * SLAB.tiltRate * (SLAB.lift/5) * dt;
+      }
+
+      // c) stability spring — the game's own bleed
+      this.tilt -= this.tilt * 0.0021 * dt;
+
+      // pitch pulse decay (lip climb / drop-off)
+      this.pitchKick = Phaser.Math.Linear(this.pitchKick, 0, Math.min(1, dt/140));
+
+      // roll = accumulated instability + the honest wedge angle underfoot
+      this.roll = Phaser.Math.Clamp(this.tilt, -1, 1) * 0.5
+                + this.surfaceRollAt(this.botS, this.botRow);
+      this.pitch = this.pitchKick;
+
+      const prevZ = this.botZ;
+      this.botZ = this.groundZAt(this.botS, this.botRow);
+      if(prevZ - this.botZ > 1 && !onSlab){
+        // trailing joint drop-off: small nose-down pulse, and if the
+        // lean is already extreme the landing finishes the job
+        this.pitchKick = 0.08 + SLAB.lift*0.008;
+        if(Math.abs(this.tilt) > 0.85) this.tilt += Math.sign(this.tilt)*0.2;
+      }
+
+      if(Math.abs(this.tilt) >= 1){
+        this.state = "tipped";
+        this.tipDir = Math.sign(this.tilt);
+        this.tipT = 0;
+      }
+
+      if(this.botS > 8){
+        this.botS = 0; this.tilt = 0; this.roll = 0; this.pitch = 0;
+        this.pitchKick = 0; this.botZ = 2; this.lipArmed = true;
+      }
+    }
+
+    /* tipped-state rollover: the game's formula, auto-reset so DRIVE
+       keeps looping without manual cleanup */
+    if(this.state === "tipped"){
+      this.tipT = Math.min(1, this.tipT + dt/900);
+      this.roll = this.tipDir * (Math.PI*0.5) * this.tipT;
+      if(this.tipT >= 1){
+        this.tipResetT = (this.tipResetT || 0) + dt;
+        if(this.tipResetT > 1400){
+          this.state = "idle"; this.tipT = 0; this.tipResetT = 0;
+          this.botS = 0; this.tilt = 0; this.roll = 0; this.pitch = 0;
+          this.pitchKick = 0; this.botZ = 2; this.lipArmed = true;
+        }
+      }
+    }
+
+    /* camera follows with forward lead, set before any drawing */
+    const bwp = this.worldOf(this.botS, this.botRow);
+    const dv = DIRV[0];
+    this.camX = bwp.x + dv.x*60;
+    this.camY = bwp.y + dv.y*60;
+    this.camZ = 0;
+
+    this.drawTiles(this.cx, this.cy);
+
+    const swp = this.worldOf(SLAB.s, SLAB.row);
+    if(this.mode === "old"){
+      this.drawRampOld(this.cx, this.cy, swp.x, swp.y);
+    } else {
+      this.drawSlabNew(this.cx, this.cy, swp.x, swp.y, this.seed);
+    }
+
+    this.drawRobotReal(bwp.x, bwp.y, this.botZ);
+    if(this.driving || this.state === "tipped") this.updateVals();
+  }
+}
+
+const game = new Phaser.Game({
+  type: Phaser.AUTO, parent: "game",
+  scale: { mode: Phaser.Scale.RESIZE, width: "100%", height: "100%" },
+  scene: [RampLab]
+});
+const scn = () => game.scene.getScene("ramplab");
+
+document.getElementById("oldBtn").addEventListener("click", e => {
+  scn().mode = "old";
+  e.target.classList.add("on");
+  document.getElementById("newBtn").classList.remove("on");
+});
+document.getElementById("newBtn").addEventListener("click", e => {
+  scn().mode = "new";
+  e.target.classList.add("on");
+  document.getElementById("oldBtn").classList.remove("on");
+});
+document.getElementById("driveBtn").addEventListener("click", e => {
+  const s = scn();
+  s.driving = !s.driving;
+  e.target.classList.toggle("on", s.driving);
+});
+document.getElementById("reseed").addEventListener("click", () => {
+  scn().seed = Math.floor(Math.random()*99999);
+});
+document.getElementById("sideBtn").addEventListener("click", e => {
+  SLAB.side *= -1;
+  e.target.textContent = SLAB.side > 0 ? "R" : "L";
+  scn().updateVals();
+});
+document.getElementById("rootBtn").addEventListener("click", e => {
+  SLAB.root = !SLAB.root;
+  e.target.textContent = SLAB.root ? "ON" : "OFF";
+  e.target.classList.toggle("on", SLAB.root);
+  scn().updateVals();
+});
+document.getElementById("zoomIn").addEventListener("click", () => { scn().K = Math.min(scn().K + 0.4, 6); });
+document.getElementById("zoomOut").addEventListener("click", () => { scn().K = Math.max(scn().K - 0.4, 1.2); });
+document.getElementById("botBack").addEventListener("click", () => { const s=scn(); s.botS = Math.max(0, s.botS - 0.5); s.botZ = s.groundZAt(s.botS, s.botRow); s.updateVals(); });
+document.getElementById("botFwd").addEventListener("click", () => { const s=scn(); s.botS = Math.min(8, s.botS + 0.5); s.botZ = s.groundZAt(s.botS, s.botRow); s.updateVals(); });
+document.getElementById("rowDown").addEventListener("click", () => { const s=scn(); s.botRow = Math.max(-1, s.botRow - 1); s.botZ = s.groundZAt(s.botS, s.botRow); s.updateVals(); });
+document.getElementById("rowUp").addEventListener("click", () => { const s=scn(); s.botRow = Math.min(1, s.botRow + 1); s.botZ = s.groundZAt(s.botS, s.botRow); s.updateVals(); });
+document.querySelectorAll("[data-p]").forEach(btn => {
+  btn.addEventListener("click", () => {
+    const p = btn.dataset.p, d = +btn.dataset.d;
+    if(p === "lift") SLAB.lift = Phaser.Math.Clamp(SLAB.lift + d*1, 1, 12);
+    scn().updateVals();
+  });
+});
+</script>
+</body>
+</html>
