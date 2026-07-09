@@ -1,0 +1,746 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>TIPSY — Scooter Hit Lab</title>
+<style>
+  html,body{margin:0;padding:0;background:#14161b;height:100%;overflow:hidden;touch-action:manipulation;
+    font-family:-apple-system,'Helvetica Neue',Arial,sans-serif;-webkit-user-select:none;user-select:none;color:#e8eaef;}
+  #wrap{display:flex;flex-direction:column;height:100%;}
+  #game{flex:1;min-height:0;}
+  #panel{padding:10px 12px calc(14px + env(safe-area-inset-bottom));background:#1c1f26;border-top:1px solid #2b2f38;}
+  .row{display:flex;gap:8px;margin-bottom:8px;align-items:center;}
+  .row:last-child{margin-bottom:0;}
+  .lbl{font-size:11px;letter-spacing:1.5px;color:#8f95a1;width:56px;text-transform:uppercase;}
+  button{flex:1;background:#262a33;color:#e8eaef;border:1px solid #363b46;border-radius:10px;
+    padding:10px 4px;font-size:13px;font-weight:600;}
+  button.on{background:#ff7a1a;border-color:#ff7a1a;color:#fff;}
+  button:active{transform:scale(0.96);}
+  button.sm{flex:0 0 44px;}
+  #hdr{padding:10px 14px 2px;font-size:12px;letter-spacing:2px;color:#8f95a1;text-transform:uppercase;}
+  #hdr b{color:#ff9c4d;}
+  #vals{padding:0 14px 6px;font-size:11px;color:#8f95a1;font-variant-numeric:tabular-nums;}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="hdr"><b>TIPSY</b> · scooter hit lab · nudge → topple → punt</div>
+  <div id="vals">…</div>
+  <div id="game"></div>
+  <div id="panel">
+    <div class="row">
+      <button class="on" id="driveBtn2">DRIVE</button>
+      <button id="resetBtn">RESET</button>
+      <button id="knockBtn">KNOCK</button>
+      <span class="lbl">Lane</span>
+      <button class="sm" id="laneBtn">0</button>
+    </div>
+    <div class="row">
+      <span class="lbl">Speed</span>
+      <button class="sm" data-p="speed" data-d="-1">−</button>
+      <button class="sm" data-p="speed" data-d="1">＋</button>
+      <span class="lbl">Kick</span>
+      <button class="sm" data-p="kick" data-d="-1">−</button>
+      <button class="sm" data-p="kick" data-d="1">＋</button>
+      <span class="lbl">Grav</span>
+      <button class="sm" data-p="grav" data-d="-1">−</button>
+      <button class="sm" data-p="grav" data-d="1">＋</button>
+    </div>
+    <div class="row">
+      <span class="lbl">Punt</span>
+      <button class="sm" data-p="punt" data-d="-1">−</button>
+      <button class="sm" data-p="punt" data-d="1">＋</button>
+      <span class="lbl">Zoom</span>
+      <button class="sm" id="zoomOut">−</button>
+      <button class="sm" id="zoomIn">＋</button>
+      <span class="lbl">Bot</span>
+      <button class="sm" id="botBack">◀</button>
+      <button class="sm" id="botFwd">▶</button>
+    </div>
+    <div class="row">
+      <span class="lbl">Row</span>
+      <button class="sm" id="rowDown">−</button>
+      <button class="sm" id="rowUp">＋</button>
+      <span style="flex:1"></span>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/phaser@3.85.2/dist/phaser.min.js"></script>
+<script>
+"use strict";
+
+/* ============================================================
+   TIPSY — Scooter Hit Lab v1
+   Interaction bench for prop.scooter on the shared drive chassis,
+   ported from the cone/bin hit labs. A genuinely different case
+   from either of them:
+     · the cone and bin "knocked" poses are real rigid rotations —
+       tip() bends a physical pivot, and the geometry is honest
+       3D the whole way down.
+     · the scooter's approved "dumped" pose is NOT a rotation — the
+       art lab's M(a,b,h) is a stylized squash transform (height
+       becomes ground-spread, offset and scaled by hand-tuned
+       constants) chosen for how it reads at this scale, not for
+       physical accuracy.
+   So the physics here drives a REAL fall integrator (gravity
+   torque, balance-angle threshold, restitution bounce — same
+   pattern as the other two) to get an honest topple *timing* and
+   *threshold feel*, but the angle that comes out of it is used only
+   as a blend fraction (layAmount = phi / phiRest) between the
+   approved standing geometry and the approved squash geometry —
+   linearly interpolating M() itself rather than rotating a rigid
+   body. It still reads as "falling over" because the endpoints are
+   both real approved poses; the physics just decides how fast you
+   get from one to the other, and whether a soft tap even clears the
+   threshold at all.
+   Scooters are notoriously tippy — phiBal is deliberately small.
+   Soft hazard, not a wall (matches the existing severity-9 contract:
+   you pay a big tilt kick and 55% of your speed, but you don't
+   stop). */
+
+/* ---------- approved in scooter lab: stem 42 · bar 13 · wheel 5 ---------- */
+const SCOOT = {
+  stemH: 42, barW: 13, wheelR: 5,
+  deck: 0x2e3138, grip: 0x3d424c,
+  wheel: 0x24262c, wheelDk: 0x17191d, hub: 0x8a919c, hubFace: 0x3d424c,
+  metal: 0x9aa3ad, metalDk: 0x707a85, shadow: 0x000000
+};
+const BRANDS = [
+  { n:"teal",  c:0x2ec4b6, cDk:0x1f857c },
+  { n:"lime",  c:0x8bc34a, cDk:0x649238 },
+  { n:"coral", c:0xff6b6b, cDk:0xc94f4f }
+];
+function convexHull(pts){
+  const P2 = pts.slice().sort((a,b) => a.x - b.x || a.y - b.y);
+  const cross = (o, a, b) => (a.x-o.x)*(b.y-o.y) - (a.y-o.y)*(b.x-o.x);
+  const lo = [], hi = [];
+  for(const p of P2){
+    while(lo.length >= 2 && cross(lo[lo.length-2], lo[lo.length-1], p) <= 0) lo.pop();
+    lo.push(p);
+  }
+  for(let i = P2.length-1; i >= 0; i--){
+    const p = P2[i];
+    while(hi.length >= 2 && cross(hi[hi.length-2], hi[hi.length-1], p) <= 0) hi.pop();
+    hi.push(p);
+  }
+  lo.pop(); hi.pop();
+  return lo.concat(hi);
+}
+
+/* ---------- the dials (ported into the game once approved) ---------- */
+const SCOOTB = {
+  s: 4, row: 0,
+  speed: 0.09,
+  kick: 1.0,
+  grav: 1.0,        // scooters are light — falls quicker than the cone/bin default
+  punt: 1.6
+};
+/* deliberately tippy — a light two-wheeled rental doesn't need much
+   of a shove. phiRest is the same "fully down" endpoint used to
+   drive the M() blend (layAmount = phi/phiRest), not a literal
+   rest angle the way the cone/bin's is. */
+const SCOOT_HIT = {
+  phiBal: 12 * Math.PI/180,
+  phiRest: Math.PI/2,
+  kick: SCOOTB.kick, grav: SCOOTB.grav, punt: SCOOTB.punt
+};
+
+/* ---------- ported verbatim from game/index.html ---------- */
+const TILE = 46;
+const T2 = TILE*2;
+const DIRV = [{x:1,y:0},{x:0,y:1},{x:-1,y:0},{x:0,y:-1}];
+const PAL = { sky:0x9fd4e8, pave:0xc9c3b4, paveB:0xbfb9aa, paveEdge:0xa8a294, road:0x4a4d55, roadLine:0xd8d2c2 };
+const SKIN = {
+  bodyTop:0xf7f8fa, bodyRight:0xe3e6ea, bodyLeft:0xc9cdd4, outline:0x30343d,
+  stripe:0xc2452e, stripeDk:0xa03824,
+  wheel:0x24262c, wheelDark:0x1a1c21, wheelHubFace:0x3d424c, wheelHub:0x8a919c,
+  visor:0x22242b, eye:0x7fe3ff, eyeAlert:0xffb04d,
+  lidInner:0xb2b7bf, cavityWall:0x9ba1a9, cavityFloor:0x7b818a,
+  belly:0x494e58, flagPole:0x2e3138, flag:0xff5722, shadow:0x000000
+};
+const BODY = { hx:26, hy:20, z0:14, z1:54 };
+const LID  = { hx:22, hy:16, z0:54, z1:61 };
+const STRIPE = { z0:20, z1:27 };
+const WHEEL = { r:10, z:10, xs:[-16, 0, 16], side:22 };
+
+function mulberry32(a){ return function(){ a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+
+class ScooterHitLab extends Phaser.Scene {
+  constructor(){ super("scootlab2"); }
+
+  create(){
+    this.K = 2.2;
+    this.botS = 1.5;
+    this.botRow = 0;
+    this.pitch = 0; this.roll = 0; this.yaw = 0; this.f = 0;
+    this.tilt = 0; this.lidAng = 0; this.tipDir = 1; this.state = "idle";
+    this.wheelPhase = 0;
+    this.camX = 0; this.camY = 0; this.camZ = 0;
+    this.driving = false;
+    this.tipT = 0; this.tipResetT = 0;
+    this.speed = SCOOTB.speed;
+    this.botZ = 2;
+    this.hitFlash = false;
+    this.hitFlashT = 0;
+    this.scoot = this.freshScoot();
+    this.g = this.add.graphics();
+    this.scale.on("resize", () => this.layout());
+    this.layout();
+    this.updateVals();
+  }
+  freshScoot(){
+    return {
+      phi: 0,
+      angVel: 0,
+      moving: false,
+      pose: "standing",
+      thetaF: (Math.random()*2 - 1) * Math.PI * 0.9,   // decorative facing while standing
+      fallPsi: undefined,
+      slide: 0,
+      slideVel: 0,
+      hit: false,
+      brand: BRANDS[Math.floor(Math.random()*BRANDS.length)]
+    };
+  }
+  layout(){
+    this.cx = this.scale.gameSize.width/2;
+    this.cy = this.scale.gameSize.height*0.42;
+  }
+  updateVals(){
+    const sc = this.scoot;
+    const pose = sc.moving ? (sc.phi > SCOOT_HIT.phiBal ? "FALLING" : "ROCKING")
+               : sc.pose === "knocked" ? "KNOCKED" : "standing";
+    document.getElementById("vals").textContent =
+      `spd ${(SCOOTB.speed*1000).toFixed(0)} · kick ${SCOOTB.kick.toFixed(1)} · grav ${SCOOTB.grav.toFixed(1)} · punt ${SCOOTB.punt.toFixed(1)} · lane ${SCOOTB.row} · ${pose} · φ ${(sc.phi*180/Math.PI).toFixed(0)}° · slide ${sc.slide.toFixed(0)} · tilt ${this.tilt.toFixed(2)} · ${this.state === "tipped" ? "TIPPED" : "ok"}`;
+  }
+
+  Wg(x, y, z, ox, oy){
+    const xr = x - this.camX, yr = y - this.camY;
+    return { x:(xr - yr)*this.K + ox, y:((xr + yr)*0.5 - (z - this.camZ))*this.K + oy };
+  }
+  quadg(pts, color, alpha=1){
+    this.g.fillStyle(color, alpha);
+    this.g.fillPoints(pts.map(p => new Phaser.Geom.Point(p.x, p.y)), true);
+  }
+  edgeg(pts, color, w=2){
+    this.g.lineStyle(w, color, 1);
+    this.g.strokePoints(pts.map(p => new Phaser.Geom.Point(p.x, p.y)), true);
+  }
+
+  T(x, y, z){
+    if(this.yaw !== 0){
+      const c = Math.cos(this.yaw), s = Math.sin(this.yaw);
+      const x2 = x*c - y*s; y = x*s + y*c; x = x2;
+    }
+    if(this.pitch !== 0){
+      const c = Math.cos(this.pitch), s = Math.sin(this.pitch);
+      const x2 = x*c - z*s; z = x*s + z*c; x = x2;
+    }
+    if(this.roll !== 0){
+      const PIV = this.roll >= 0 ? 22 : -22;
+      const y0 = y + PIV, c = Math.cos(this.roll), s = Math.sin(this.roll);
+      y = -PIV + y0*c - z*s; z = y0*s + z*c;
+    }
+    let rx = x, ry = y;
+    for(let i=0; i<this.f; i++){ const t = rx; rx = -ry; ry = t; }
+    return { x:rx, y:ry, z };
+  }
+  R(nx, ny, nz){
+    if(this.yaw !== 0){
+      const cy = Math.cos(this.yaw), sy = Math.sin(this.yaw);
+      const nx2 = nx*cy - ny*sy; ny = nx*sy + ny*cy; nx = nx2;
+    }
+    if(this.pitch !== 0){
+      const c = Math.cos(this.pitch), s = Math.sin(this.pitch);
+      const x2 = nx*c - nz*s; nz = nx*s + nz*c; nx = x2;
+    }
+    const c = Math.cos(this.roll), s = Math.sin(this.roll);
+    const ny2 = ny*c - nz*s, nz2 = ny*s + nz*c;
+    let rx = nx, ry = ny2;
+    for(let i=0; i<this.f; i++){ const t = rx; rx = -ry; ry = t; }
+    return { x:rx, y:ry, z:nz2 };
+  }
+  W(x, y, z){
+    const xr = x - this.camX, yr = y - this.camY;
+    return { x:(xr - yr)*this.K + this.cx,
+             y:((xr + yr)*0.5 - (z - this.camZ))*this.K + this.cy };
+  }
+  P(x, y, z){
+    const q = this.T(x, y, z);
+    return this.W(q.x + this.botX, q.y + this.botY, q.z + this.botZ);
+  }
+  depth(x, y, z){
+    const q = this.T(x, y, z);
+    return q.x + q.y + q.z*0.4;
+  }
+  quadOn(g, pts, color, alpha=1){
+    g.fillStyle(color, alpha);
+    g.fillPoints(pts.map(p => new Phaser.Geom.Point(p.x, p.y)), true);
+  }
+  edgeOn(g, pts, color=SKIN.outline, w=2){
+    g.lineStyle(w, color, 1);
+    g.strokePoints(pts.map(p => new Phaser.Geom.Point(p.x, p.y)), true);
+  }
+  quad(pts, color, alpha=1){ this.quadOn(this.g, pts, color, alpha); }
+  edge(pts, color=SKIN.outline, w=2){ this.edgeOn(this.g, pts, color, w); }
+
+  lidNear(b){
+    const hs = (this.tipDir || 1) >= 0 ? 1 : -1;
+    const A = this.lidAng * hs, c = Math.cos(A), s = Math.sin(A);
+    const yh = -b.hy * hs, zh = b.z0;
+    const dy = -yh, dz = (b.z1 - b.z0)/2;
+    return this.depth(0, yh + dy*c - dz*s, zh + dy*s + dz*c) > this.depth(0, 0, 34);
+  }
+
+  drawLid(b){
+    const {hx, hy, z0, z1} = b;
+    const hs = (this.tipDir || 1) >= 0 ? 1 : -1;
+    const A = this.lidAng * hs, cA = Math.cos(A), sA = Math.sin(A);
+    const yh = -hy * hs, zh = z0;
+    const H = (x, y, z) => {
+      const dy = y - yh, dz = z - zh;
+      return this.P(x, yh + dy*cA - dz*sA, zh + dy*sA + dz*cA);
+    };
+    const HN = (nx, ny, nz) => {
+      const ny2 = ny*cA - nz*sA, nz2 = ny*sA + nz*cA;
+      return this.R(nx, ny2, nz2);
+    };
+    const C = (sx, sy, sz) => H(sx*hx, sy*hy, sz === 1 ? z1 : z0);
+    const faces = [
+      { n:{x:0,y:0,z: 1}, pts:[C( 1,-1,1), C( 1, 1,1), C(-1, 1,1), C(-1,-1,1)] },
+      { n:{x:0,y:0,z:-1}, pts:[C( 1,-1,0), C( 1, 1,0), C(-1, 1,0), C(-1,-1,0)] },
+      { n:{x: 1,y:0,z:0}, pts:[C( 1,-1,0), C( 1, 1,0), C( 1, 1,1), C( 1,-1,1)] },
+      { n:{x:-1,y:0,z:0}, pts:[C(-1,-1,0), C(-1, 1,0), C(-1, 1,1), C(-1,-1,1)] },
+      { n:{x:0,y: 1,z:0}, pts:[C( 1, 1,0), C(-1, 1,0), C(-1, 1,1), C( 1, 1,1)] },
+      { n:{x:0,y:-1,z:0}, pts:[C( 1,-1,0), C(-1,-1,0), C(-1,-1,1), C( 1,-1,1)] }
+    ];
+    for(const fc of faces){
+      const w = HN(fc.n.x, fc.n.y, fc.n.z);
+      if((w.x + w.y + w.z) <= 0) continue;
+      const col = w.z > 0.5 ? SKIN.bodyTop
+                : w.z < -0.5 ? SKIN.lidInner
+                : (w.x >= w.y) ? SKIN.bodyRight : SKIN.bodyLeft;
+      this.quad(fc.pts, col);
+      this.edge(fc.pts);
+    }
+  }
+
+  disc(center, r, color, outlineC){
+    const pts = [];
+    for(let i=0; i<14; i++){
+      const a = (i/14)*Math.PI*2;
+      pts.push(this.P(center.x + Math.cos(a)*r, center.y, center.z + Math.sin(a)*r));
+    }
+    this.quadOn(this.g, pts, color);
+    if(outlineC !== undefined) this.edgeOn(this.g, pts, outlineC, 2);
+  }
+
+  drawBox(b, cTop, cRight, cLeft, outline=true, decal=false, cBottom=SKIN.belly){
+    const {hx, hy, z0, z1} = b, ox = b.ox || 0, oy = b.oy || 0;
+    const C = (sx, sy, sz) => this.P(ox + sx*hx, oy + sy*hy, sz === 1 ? z1 : z0);
+    const faces = [
+      { n:{x:0,y:0,z: 1}, pts:[C( 1,-1,1), C( 1, 1,1), C(-1, 1,1), C(-1,-1,1)] },
+      { n:{x:0,y:0,z:-1}, pts:[C( 1,-1,0), C( 1, 1,0), C(-1, 1,0), C(-1,-1,0)] },
+      { n:{x: 1,y:0,z:0}, pts:[C( 1,-1,0), C( 1, 1,0), C( 1, 1,1), C( 1,-1,1)] },
+      { n:{x:-1,y:0,z:0}, pts:[C(-1,-1,0), C(-1, 1,0), C(-1, 1,1), C(-1,-1,1)] },
+      { n:{x:0,y: 1,z:0}, pts:[C( 1, 1,0), C(-1, 1,0), C(-1, 1,1), C( 1, 1,1)] },
+      { n:{x:0,y:-1,z:0}, pts:[C( 1,-1,0), C(-1,-1,0), C(-1,-1,1), C( 1,-1,1)] }
+    ];
+    for(const fc of faces){
+      if(decal && fc.n.z !== 0) continue;
+      const w = this.R(fc.n.x, fc.n.y, fc.n.z);
+      if((w.x + w.y + w.z) <= 0) continue;
+      let col;
+      if(w.z > 0.5)       col = decal ? cRight : cTop;
+      else if(w.z < -0.5) col = decal ? null : cBottom;
+      else                col = (w.x >= w.y) ? cRight : cLeft;
+      if(col == null) continue;
+      this.quadOn(this.g, fc.pts, col);
+      if(outline) this.edgeOn(this.g, fc.pts);
+    }
+  }
+
+  drawWheel(c, sideSign){
+    const W2 = 7.5, steps = 5;
+    const slices = [];
+    for(let i=0; i<=steps; i++){
+      const oy = c.y + sideSign*(-W2/2 + W2*i/steps);
+      slices.push({ y:oy, depth: this.depth(c.x, oy, c.z) });
+    }
+    slices.sort((a,b) => a.depth - b.depth);
+    for(let i=0; i<slices.length; i++){
+      const isFace = i === slices.length-1;
+      this.disc({x:c.x, y:slices[i].y, z:c.z}, WHEEL.r,
+                isFace ? SKIN.wheel : SKIN.wheelDark,
+                isFace ? SKIN.outline : undefined);
+    }
+    const face = slices[slices.length-1].y;
+    this.disc({x:c.x, y:face, z:c.z}, WHEEL.r*0.55, SKIN.wheelHubFace);
+    const a = this.wheelPhase + c.x*0.2;
+    this.disc({ x:c.x + Math.cos(a)*WHEEL.r*0.34, y:face,
+                z:c.z + Math.sin(a)*WHEEL.r*0.34 }, 2.4, SKIN.wheelHub);
+  }
+
+  drawRobotReal(wx, wy, wz){
+    const g = this.g;
+    this.botX = wx; this.botY = wy; this.botZ = wz;
+
+    const sh = [];
+    for(let i=0;i<14;i++){
+      const a=(i/14)*Math.PI*2;
+      sh.push(this.P(Math.cos(a)*34, Math.sin(a)*30, 0.5));
+    }
+    this.quadOn(g, sh, SKIN.shadow, 0.16);
+
+    const wheels = [];
+    for(const side of [-1, 1]){
+      for(const wxi of WHEEL.xs){
+        const c = {x:wxi, y:side*WHEEL.side, z:WHEEL.z};
+        wheels.push({ c, side, near: this.depth(c.x, c.y, c.z) > this.depth(c.x, -c.y, c.z) });
+      }
+    }
+    for(const w of wheels) if(!w.near) this.drawWheel(w.c, w.side);
+
+    const lidBox = {...LID};
+    const lidIsNear = this.lidNear(lidBox);
+    if(!lidIsNear) this.drawLid(lidBox);
+
+    this.drawBox({hx:24, hy:17, z0:6, z1:BODY.z0+1}, 0x3f434c, 0x3a3d45, 0x2e3138, false);
+    this.drawBox({...BODY}, SKIN.bodyTop, SKIN.bodyRight, SKIN.bodyLeft);
+    this.drawBox({hx:BODY.hx+0.6, hy:BODY.hy+0.6, z0:STRIPE.z0, z1:STRIPE.z1},
+                 null, SKIN.stripe, SKIN.stripeDk, false, true);
+
+    if(lidIsNear) this.drawLid(lidBox);
+
+    const fn = this.R(1, 0, 0);
+    if(fn.x + fn.y + fn.z > 0.3){
+      const F = (y, z) => this.P(BODY.hx + 0.8, y, z);
+      this.quadOn(g, [F(-13,40), F(13,40), F(13,50), F(-13,50)], SKIN.visor);
+      this.edgeOn(g, [F(-13,40), F(13,40), F(13,50), F(-13,50)], SKIN.outline, 1.5);
+      for(const ey of [-7, 7]){
+        const c = F(ey, 45);
+        g.fillStyle(this.hitFlash ? SKIN.eyeAlert : SKIN.eye, 1);
+        g.fillEllipse(c.x, c.y, 7, 7);
+      }
+      this.quadOn(g, [F(-16,18), F(16,18), F(16,22), F(-16,22)], 0xfff3b0);
+    }
+    for(const w of wheels) if(w.near) this.drawWheel(w.c, w.side);
+  }
+
+  drawTiles(ox, oy){
+    const g = this.g;
+    const dv = DIRV[0], rv = DIRV[1];
+    for(let a = -1; a <= 10; a++){
+      const rowX = a*T2, rowY = 0;
+      for(let c = -1; c <= 4; c++){
+        const road = c >= 2;
+        const cx = rowX + rv.x*c*T2, cy = rowY + rv.y*c*T2;
+        const Ax = dv.x*TILE, Ay = dv.y*TILE, Bx = rv.x*TILE, By = rv.y*TILE;
+        const pts = [
+          this.Wg(cx+Ax-Bx, cy+Ay-By, 0, ox, oy), this.Wg(cx+Ax+Bx, cy+Ay+By, 0, ox, oy),
+          this.Wg(cx-Ax+Bx, cy-Ay+By, 0, ox, oy), this.Wg(cx-Ax-Bx, cy-Ay-By, 0, ox, oy)
+        ];
+        this.quadg(pts, road ? PAL.road : (((a+c)%2===0) ? PAL.pave : PAL.paveB));
+        if(!road) this.edgeg(pts, PAL.paveEdge, 1.5);
+        if(c === 3 && a % 2 === 0 && a >= 0 && a < 10){
+          this.quadg([
+            this.Wg(cx - dv.x*14 - rv.x*4, cy - dv.y*14 - rv.y*4, 0, ox, oy),
+            this.Wg(cx + dv.x*14 - rv.x*4, cy + dv.y*14 - rv.y*4, 0, ox, oy),
+            this.Wg(cx + dv.x*14 + rv.x*4, cy + dv.y*14 + rv.y*4, 0, ox, oy),
+            this.Wg(cx - dv.x*14 + rv.x*4, cy - dv.y*14 + rv.y*4, 0, ox, oy)
+          ], PAL.roadLine);
+        }
+      }
+      const kx = rowX + rv.x*TILE*3, ky = rowY + rv.y*TILE*3;
+      this.quadg([
+        this.Wg(kx - dv.x*TILE, ky - dv.y*TILE, 3, ox, oy), this.Wg(kx + dv.x*TILE, ky + dv.y*TILE, 3, ox, oy),
+        this.Wg(kx + dv.x*TILE, ky + dv.y*TILE, -2, ox, oy), this.Wg(kx - dv.x*TILE, ky - dv.y*TILE, -2, ox, oy)
+      ], PAL.paveEdge);
+    }
+  }
+
+  worldOf(s, row){
+    const dv = DIRV[0], rv = DIRV[1];
+    return { x: s*T2*dv.x + rv.x*row*T2, y: s*T2*dv.y + rv.y*row*T2 };
+  }
+  groundZAt(s, row){ return 2; }
+
+  /* ---------- scooter renderer: the approved standing build, with
+     M() continuously blended toward the approved dumped-squash pose
+     by layAmount = phi/phiRest. Every part already routes through
+     M() via G()/dAt(), so blending it once affects the whole
+     assembly — no per-part special-casing needed. ---------- */
+  drawScooterHit(wx, wy, ox, oy, sc){
+    const g = this.g, S = SCOOT;
+    const th = sc.fallPsi !== undefined ? sc.fallPsi : sc.thetaF;
+    const cs = Math.cos(th), sn = Math.sin(th);
+    const brand = sc.brand;
+    const layAmount = Math.min(1, sc.phi / SCOOT_HIT.phiRest);
+
+    const M = (a, b, h) => {
+      const bLay = -h - 2, hLay = (b + 7) * 0.55;
+      return {
+        a,
+        b: b + (bLay - b)*layAmount,
+        h: h + (hLay - h)*layAmount
+      };
+    };
+    const G = (a, b, h) => {
+      const m = M(a, b, h);
+      return this.Wg(wx + (m.a + sc.slide)*cs - m.b*sn, wy + (m.a + sc.slide)*sn + m.b*cs, m.h, ox, oy);
+    };
+    const dAt = (a, b, h) => {
+      const m = M(a, b, h);
+      const a2 = (m.a + sc.slide)*cs - m.b*sn, b2 = (m.a + sc.slide)*sn + m.b*cs;
+      return a2 + b2 + m.h*0.4;
+    };
+
+    const wheelR = S.wheelR;
+    const stemBaseA = 11, stemBaseH = 5.2;
+    const stemTipA = 13, stemTipH = 4 + S.stemH;
+    const fwA = 16 + wheelR*0.95;
+    const rwA = -20 - wheelR*0.9;
+    const wheelH = wheelR*0.72;
+
+    const ringAt = (a0, b0, h0, r, d1, d2, n=12) => {
+      const pts = [];
+      for(let i=0; i<n; i++){
+        const psi = (i/n)*Math.PI*2, c3 = Math.cos(psi)*r, s3 = Math.sin(psi)*r;
+        pts.push(G(a0 + c3*d1.a + s3*d2.a, b0 + c3*d1.b + s3*d2.b, h0 + c3*d1.h + s3*d2.h));
+      }
+      return pts;
+    };
+    const U = {a:1,b:0,h:0}, VV = {a:0,b:1,h:0}, HHH = {a:0,b:0,h:1};
+
+    const WW = 4.6;
+    const wheel = (a, r) => {
+      const end = k => ringAt(a, k, wheelH, r, U, HHH, 14);
+      this.quadOn(g, convexHull(end(-WW/2).concat(end(WW/2))), S.wheelDk);
+      const kF = dAt(a, WW/2, wheelH) > dAt(a, -WW/2, wheelH) ? WW/2 : -WW/2;
+      const face = rr => ringAt(a, kF, wheelH, rr, U, HHH, 14);
+      this.quadOn(g, face(r), S.wheel);
+      this.quadOn(g, face(r*0.42), S.hubFace);
+      this.quadOn(g, face(r*0.2), S.hub);
+    };
+    const deck = () => {
+      const top = [], bot = [];
+      for(const bc of [[-20,-7],[16,-7],[16,7],[-20,7]]){
+        top.push(G(bc[0], bc[1], 5.2)); bot.push(G(bc[0], bc[1], 0.8));
+      }
+      this.quadOn(g, convexHull(top.concat(bot)), brand.cDk);
+      const topVisible = layAmount < 0.5 ? true : (sn - cs) > 0;
+      if(topVisible){
+        this.quadOn(g, top, brand.c);
+        this.quadOn(g, [G(-16,-4,5.6), G(8,-4,5.6), G(8,4,5.6), G(-16,4,5.6)], S.grip);
+      }
+    };
+    const stem = () => {
+      const da = stemTipA - stemBaseA, dh = stemTipH - stemBaseH;
+      const len = Math.hypot(da, dh) || 1;
+      const perp = {a:-dh/len, b:0, h:da/len};
+      const base = ringAt(stemBaseA, 0, stemBaseH, 3.1, VV, perp, 10);
+      const tip  = ringAt(stemTipA, 0, stemTipH, 2.0, VV, perp, 10);
+      this.quadOn(g, convexHull(base.concat(tip)), brand.c);
+    };
+    const bar = () => {
+      const capsule = (b0, b1, r, col) => {
+        const e0 = ringAt(stemTipA, b0, stemTipH, r, U, HHH, 8);
+        const e1 = ringAt(stemTipA, b1, stemTipH, r, U, HHH, 8);
+        this.quadOn(g, convexHull(e0.concat(e1)), col);
+      };
+      capsule(-S.barW, S.barW, 1.6, S.metal);
+      capsule(-S.barW, -S.barW + 6, 2.5, S.deck);
+      capsule(S.barW - 6, S.barW, 2.5, S.deck);
+    };
+    const kick2 = () => {
+      const ks0 = G(-4, -7, 4), ks1 = G(-6, -12, 0);
+      g.lineStyle(2.5, S.metalDk, 1);
+      g.lineBetween(ks0.x, ks0.y, ks1.x, ks1.y);
+    };
+
+    const parts = [
+      { d: dAt(rwA, 0, wheelH),  fn: () => wheel(rwA, wheelR) },
+      { d: dAt(-2, 0, 3),        fn: deck },
+      { d: dAt((stemBaseA + stemTipA)/2, 0, (stemBaseH + stemTipH)/2), fn: stem },
+      { d: dAt(fwA, 0, wheelH),  fn: () => wheel(fwA, wheelR*0.92) },
+      { d: dAt(stemTipA, 0, stemTipH), fn: bar },
+      { d: dAt(-5, -9, 3),       fn: kick2 }
+    ];
+    parts.sort((x, y) => x.d - y.d);
+    for(const pt of parts) pt.fn();
+  }
+
+  update(time, delta){
+    const g = this.g; g.clear();
+    g.fillStyle(PAL.sky, 1);
+    g.fillRect(0, 0, this.scale.gameSize.width, this.scale.gameSize.height);
+
+    const dt = Math.min(delta || 16.7, 50);
+    const sc = this.scoot;
+
+    if(this.driving && this.state !== "tipped"){
+      this.botS += (this.speed / T2) * dt;
+      this.wheelPhase += this.speed * dt * 0.28;
+      const botU = this.botS*T2;
+      const scootU0 = SCOOTB.s*T2;
+      const dx = scootU0 - botU;
+
+      /* soft hazard, same as the cone — not a wall. One-shot hit
+         using the UNADJUSTED route distance (not slide-shifted), the
+         same fix the cone port needed: gating re-arm on the slide
+         would feed the punt back into re-triggering itself. */
+      if(!sc.hit && dx > -14 && dx < 28 && this.botRow === SCOOTB.row && this.speed > 0.015){
+        sc.hit = true;
+        if(sc.fallPsi === undefined) sc.fallPsi = (Math.random() - 0.5) * 0.6;
+        const sp = this.speed;
+        if(sc.pose !== "knocked"){
+          sc.moving = true;
+          sc.angVel += sp * 0.06 * SCOOTB.kick;
+        }
+        sc.slideVel += sp * 1.2 * SCOOTB.punt;
+        this.tilt += sp * 9 * (Math.random() < 0.5 ? 1 : -1);   // sev-9 contract, unchanged
+        this.speed *= 0.45;
+        this.hitFlash = true; this.hitFlashT = time;
+        this.updateVals();
+      }
+      if(Math.abs(dx) > 40) sc.hit = false;
+
+      this.botZ = 2;
+      this.pitch -= this.pitch * 0.01 * dt;
+
+      this.speed = Math.min(SCOOTB.speed, this.speed + 0.00004*dt);
+
+      this.tilt -= this.tilt * 0.0021 * dt;
+      this.roll = Phaser.Math.Clamp(this.tilt, -1, 1) * 0.5;
+
+      if(Math.abs(this.tilt) >= 1){
+        this.state = "tipped";
+        this.tipDir = Math.sign(this.tilt);
+        this.tipT = 0;
+      }
+
+      if(this.botS > 8){
+        this.botS = 0; this.tilt = 0; this.roll = 0; this.pitch = 0;
+        this.speed = SCOOTB.speed;   // re-armed naturally by the dx>40 check next lap
+      }
+    }
+    if(this.hitFlash && time - this.hitFlashT > 450) this.hitFlash = false;
+
+    /* fall integrator: identical shape to the cone/bin, but phi here
+       drives a blend fraction (layAmount) rather than a rigid
+       rotation — see header note */
+    if(sc.moving){
+      const KG = 1.5e-5 * SCOOTB.grav;
+      const steps = Math.max(1, Math.ceil(dt/8));
+      const hdt = dt/steps;
+      for(let i=0; i<steps; i++){
+        sc.angVel += KG * Math.sin(sc.phi - SCOOT_HIT.phiBal) * hdt;
+        sc.phi += sc.angVel * hdt;
+        if(sc.phi >= SCOOT_HIT.phiRest){
+          sc.phi = SCOOT_HIT.phiRest;
+          if(Math.abs(sc.angVel) < 0.0006){
+            sc.angVel = 0; sc.moving = false; sc.pose = "knocked";
+            this.updateVals(); break;
+          }
+          sc.angVel = -sc.angVel * 0.18;
+        }
+        if(sc.phi <= 0){
+          sc.phi = 0;
+          if(Math.abs(sc.angVel) < 0.0006){
+            sc.angVel = 0; sc.moving = false; sc.pose = "standing";
+            this.updateVals(); break;
+          }
+          sc.angVel = -sc.angVel * 0.2;
+        }
+      }
+    }
+    if(sc.slideVel > 0.0001){
+      sc.slide += sc.slideVel * dt;
+      sc.slideVel *= Math.exp(-0.004 * dt);
+    } else sc.slideVel = 0;
+
+    if(this.state === "tipped"){
+      this.tipT = Math.min(1, this.tipT + dt/900);
+      this.roll = this.tipDir * (Math.PI*0.5) * this.tipT;
+      if(this.tipT >= 1){
+        this.tipResetT = (this.tipResetT || 0) + dt;
+        if(this.tipResetT > 1400){
+          this.state = "idle"; this.tipT = 0; this.tipResetT = 0;
+          this.botS = 0; this.tilt = 0; this.roll = 0; this.pitch = 0;
+          this.botZ = 2; this.speed = SCOOTB.speed; sc.hit = false;
+        }
+      }
+    }
+
+    const bwp = this.worldOf(this.botS, this.botRow);
+    const dv = DIRV[0];
+    this.camX = bwp.x + dv.x*60;
+    this.camY = bwp.y + dv.y*60;
+    this.camZ = 0;
+
+    this.drawTiles(this.cx, this.cy);
+
+    const swp = this.worldOf(SCOOTB.s, SCOOTB.row);
+    const slideTh = sc.fallPsi !== undefined ? sc.fallPsi : sc.thetaF;
+    const slidX = swp.x + sc.slide*Math.cos(slideTh);
+    const slidY = swp.y + sc.slide*Math.sin(slideTh);
+    const scootBehind = (slidX + slidY) <= (bwp.x + bwp.y) + 14;
+    if(scootBehind) this.drawScooterHit(swp.x, swp.y, this.cx, this.cy, sc);
+    this.drawRobotReal(bwp.x, bwp.y, this.botZ);
+    if(!scootBehind) this.drawScooterHit(swp.x, swp.y, this.cx, this.cy, sc);
+    if(this.driving || sc.moving || this.state === "tipped") this.updateVals();
+  }
+}
+
+const game = new Phaser.Game({
+  type: Phaser.AUTO, parent: "game",
+  scale: { mode: Phaser.Scale.RESIZE, width: "100%", height: "100%" },
+  scene: [ScooterHitLab]
+});
+const scn = () => game.scene.getScene("scootlab2");
+
+document.getElementById("driveBtn2").addEventListener("click", e => {
+  const s = scn();
+  s.driving = !s.driving;
+  e.target.classList.toggle("on", s.driving);
+});
+document.getElementById("laneBtn").addEventListener("click", e => {
+  const order = [-1, 0, 1];
+  SCOOTB.row = order[(order.indexOf(SCOOTB.row) + 1) % order.length];
+  e.target.textContent = String(SCOOTB.row);
+  scn().updateVals();
+});
+document.getElementById("resetBtn").addEventListener("click", () => {
+  const s2 = scn();
+  s2.scoot = s2.freshScoot();
+  s2.updateVals();
+});
+document.getElementById("knockBtn").addEventListener("click", () => {
+  const s2 = scn(), sc = s2.scoot;
+  sc.phi = SCOOT_HIT.phiRest; sc.angVel = 0;
+  sc.moving = false; sc.pose = "knocked"; sc.fallPsi = 0;
+  s2.updateVals();
+});
+document.getElementById("zoomIn").addEventListener("click", () => { scn().K = Math.min(scn().K + 0.4, 6); });
+document.getElementById("zoomOut").addEventListener("click", () => { scn().K = Math.max(scn().K - 0.4, 1.2); });
+document.getElementById("botBack").addEventListener("click", () => { const s=scn(); s.botS = Math.max(0, s.botS - 0.5); s.botZ = s.groundZAt(s.botS, s.botRow); s.updateVals(); });
+document.getElementById("botFwd").addEventListener("click", () => { const s=scn(); s.botS = Math.min(8, s.botS + 0.5); s.botZ = s.groundZAt(s.botS, s.botRow); s.updateVals(); });
+document.getElementById("rowDown").addEventListener("click", () => { const s=scn(); s.botRow = Math.max(-1, s.botRow - 1); s.botZ = s.groundZAt(s.botS, s.botRow); s.updateVals(); });
+document.getElementById("rowUp").addEventListener("click", () => { const s=scn(); s.botRow = Math.min(1, s.botRow + 1); s.botZ = s.groundZAt(s.botS, s.botRow); s.updateVals(); });
+document.querySelectorAll("[data-p]").forEach(btn => {
+  btn.addEventListener("click", () => {
+    const p = btn.dataset.p, d = +btn.dataset.d;
+    if(p === "speed") SCOOTB.speed = Phaser.Math.Clamp(+(SCOOTB.speed + d*0.01).toFixed(3), 0.03, 0.09);
+    if(p === "kick")  SCOOTB.kick  = Phaser.Math.Clamp(+(SCOOTB.kick + d*0.2).toFixed(1), 0.4, 2.0);
+    if(p === "grav")  SCOOTB.grav  = Phaser.Math.Clamp(+(SCOOTB.grav + d*0.2).toFixed(1), 0.4, 2.0);
+    if(p === "punt")  SCOOTB.punt  = Phaser.Math.Clamp(+(SCOOTB.punt + d*0.2).toFixed(1), 0.4, 2.0);
+    const s2 = scn();
+    if(p === "speed") s2.speed = Math.min(s2.speed, SCOOTB.speed);
+    s2.updateVals();
+  });
+});
+</script>
+</body>
+</html>
