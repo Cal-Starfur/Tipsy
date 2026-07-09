@@ -212,6 +212,18 @@ const BRANDS = [
   { n:"lime",  c:0x8bc34a, cDk:0x649238 },
   { n:"coral", c:0xff6b6b, cDk:0xc94f4f }
 ];
+/* approved in scooter hit lab (2026-07-09): the dumped pose isn't a
+   real rotation (it's a stylized squash — see the lab's header note
+   for the full reasoning), so phi drives a BLEND fraction between
+   the standing and dumped geometry rather than a rigid tip. The
+   fall integrator itself (gravity torque, threshold, bounce) is the
+   same pattern as the cone/bin. Deliberately tippy — a light
+   two-wheeled rental barely needs a nudge. */
+const SCOOT_HIT = {
+  phiBal: 12 * Math.PI/180,
+  phiRest: Math.PI/2,
+  kick: 1.0, grav: 1.0, punt: 1.6
+};
 /* approved in dog lab: head 7.5 · ears 5 · legs 6 · tail 0.4 · size 0.8 · fawn · no tremble */
 const DOG = {
   len: 0.8, headR: 7.5, earH: 5, legH: 6, tailCurl: 0.4,
@@ -473,6 +485,23 @@ function generateRoute(dateStr){
       hzObj.items = []; hzObj.spilled = false;
       hzObj.thetaF = 0;
       if(preKnocked) hzObj.fallPsi = rng()*Math.PI*2;
+    }
+    if(type === "scooter"){
+      /* ~80% spawn already dumped — matches the original design's
+         "signature hazard, always seems to be lying around" flavor.
+         The rest stand until the robot's own hit puts them down;
+         it's deliberately tippy (SCOOT_HIT.phiBal), barely needs a
+         nudge. Dump direction for the pre-fallen ones is arbitrary
+         (never hit, no "away from robot" to respect); for the ones
+         that fall live, fallPsi gets set at hit-time instead. */
+      const preKnocked = rng() < 0.8;
+      hzObj.thetaF = (rng()*2 - 1) * Math.PI * 0.9;
+      hzObj.brand = BRANDS[Math.floor(rng()*BRANDS.length)];
+      hzObj.phi = preKnocked ? SCOOT_HIT.phiRest : 0;
+      hzObj.angVel = 0; hzObj.moving = false;
+      hzObj.pose = preKnocked ? "knocked" : "standing";
+      hzObj.slide = 0; hzObj.slideVel = 0;
+      if(preKnocked) hzObj.fallPsi = hzObj.thetaF;
     }
     hazards.push(hzObj);
   }
@@ -969,57 +998,63 @@ class WorldScene extends Phaser.Scene {
         g.fillCircle(crown.x + Math.cos(a3)*6*K, crown.y + 4*K + Math.sin(a3)*3*K, 4.2*K);
       }
       for(const f2 of fronds) if(!f2.back) drawFrond(f2, P.frondA);
-    } else if(kind === "scooter" || kind === "scooterStanding"){
-      /* approved in scooter lab: stem 42 · bar 13 · wheel 5, brand-liveried.
-         ONE rigid standing build; dumped = laid on its side. Seeded pose
-         (~80% dumped), scatter rotation, rental brand. */
+    } else if(kind === "scooter"){
+      /* approved in scooter hit lab (2026-07-09): the dumped pose is
+         a stylized squash (M below), not a rigid rotation — see the
+         lab's header note. phi comes from a real fall integrator and
+         drives layAmount, a blend fraction between the approved
+         standing and dumped geometry. Every part already routes
+         through M() via G()/dAt(), so blending it once moves the
+         whole assembly. */
       const S = SCOOT;
       const seed = ((Math.round(x)*7919) ^ (Math.round(y)*104729)) >>> 0;
       const rng = mulberry32(seed);
-      const sth = (rng()*2 - 1) * Math.PI * 0.9;
-      const scs = Math.cos(sth), ssn = Math.sin(sth);
-      const brand = BRANDS[Math.floor(rng()*BRANDS.length)];
-      const lay = kind === "scooterStanding" ? false : rng() < 0.8;
-      const L = 1;
+      const thSeed = (rng()*2 - 1) * Math.PI * 0.9;
+      const brandSeed = BRANDS[Math.floor(rng()*BRANDS.length)];
+      const th = (data && data.fallPsi !== undefined) ? data.fallPsi : ((data && data.thetaF !== undefined) ? data.thetaF : thSeed);
+      const scs = Math.cos(th), ssn = Math.sin(th);
+      const brand = (data && data.brand) || brandSeed;
+      const slide = (data && data.slide) || 0;
+      const phi = (data && data.phi) || 0;
+      const layAmount = Math.min(1, phi / SCOOT_HIT.phiRest);
 
-      const M = (a, b, h) => lay ? { a, b: -h - 2, h: (b + 7) * 0.55 } : { a, b, h };
+      const M = (a, b, h) => {
+        const bLay = -h - 2, hLay = (b + 7) * 0.55;
+        return {
+          a,
+          b: b + (bLay - b)*layAmount,
+          h: h + (hLay - h)*layAmount
+        };
+      };
       const GG = (a, b, h) => {
         const m = M(a, b, h);
-        return W(m.a*scs - m.b*ssn, m.a*ssn + m.b*scs, m.h);
+        return W((m.a + slide)*scs - m.b*ssn, (m.a + slide)*ssn + m.b*scs, m.h);
       };
       const dAt = (a, b, h) => {
         const m = M(a, b, h);
-        return m.a*(scs+ssn) + m.b*(scs-ssn) + m.h*0.4;
+        const a2 = (m.a + slide)*scs - m.b*ssn, b2 = (m.a + slide)*ssn + m.b*scs;
+        return a2 + b2 + m.h*0.4;
       };
 
-      const wheelR = S.wheelR*L;
-      const stemBaseA = 11*L, stemBaseH = 5.2;
-      const stemTipA = 13*L, stemTipH = 4 + S.stemH*L;
-      const fwA = 16*L + wheelR*0.95;
-      const rwA = -20*L - wheelR*0.9;
+      const wheelR = S.wheelR;
+      const stemBaseA = 11, stemBaseH = 5.2;
+      const stemTipA = 13, stemTipH = 4 + S.stemH;
+      const fwA = 16 + wheelR*0.95;
+      const rwA = -20 - wheelR*0.9;
       const wheelH = wheelR*0.72;
 
       const ringAt = (a0, b0, h0, r, d1, d2, n=12) => {
         const pts = [];
         for(let i=0; i<n; i++){
-          const phi = (i/n)*Math.PI*2, c3 = Math.cos(phi)*r, s3 = Math.sin(phi)*r;
+          const psi = (i/n)*Math.PI*2, c3 = Math.cos(psi)*r, s3 = Math.sin(psi)*r;
           pts.push(GG(a0 + c3*d1.a + s3*d2.a, b0 + c3*d1.b + s3*d2.b, h0 + c3*d1.h + s3*d2.h));
         }
         return pts;
       };
       const U = {a:1,b:0,h:0}, VV = {a:0,b:1,h:0}, HHH = {a:0,b:0,h:1};
 
-      const shp = lay ? W(-26*ssn, 26*scs, 0) : W(2*scs, 2*ssn, 0);
-      g.fillStyle(S.shadow, 0.13);
-      g.fillEllipse(shp.x, shp.y, ((lay ? 84 : 50)*L)*this.K*0.45, (lay ? 30 : 18)*this.K*0.4);
-
       const WW = 4.6;
       const swheel = (a, r) => {
-        if(!lay){
-          const csh = GG(a, 0, 0);
-          g.fillStyle(S.shadow, 0.12);
-          g.fillEllipse(csh.x, csh.y + 2, r*2.4, r*0.9);
-        }
         const end = k => ringAt(a, k, wheelH, r, U, HHH, 14);
         this.quadOn(g, convexHull(end(-WW/2).concat(end(WW/2))), S.wheelDk);
         const kF = dAt(a, WW/2, wheelH) > dAt(a, -WW/2, wheelH) ? WW/2 : -WW/2;
@@ -1030,12 +1065,15 @@ class WorldScene extends Phaser.Scene {
       };
       const sdeck = () => {
         const top = [], bot = [];
-        for(const bc of [[-20*L,-7],[16*L,-7],[16*L,7],[-20*L,7]]){
+        for(const bc of [[-20,-7],[16,-7],[16,7],[-20,7]]){
           top.push(GG(bc[0], bc[1], 5.2)); bot.push(GG(bc[0], bc[1], 0.8));
         }
         this.quadOn(g, convexHull(top.concat(bot)), brand.cDk);
-        this.quadOn(g, top, brand.c);
-        this.quadOn(g, [GG(-16*L,-4,5.6), GG(8*L,-4,5.6), GG(8*L,4,5.6), GG(-16*L,4,5.6)], S.grip);
+        const topVisible = layAmount < 0.5 ? true : (ssn - scs) > 0;
+        if(topVisible){
+          this.quadOn(g, top, brand.c);
+          this.quadOn(g, [GG(-16,-4,5.6), GG(8,-4,5.6), GG(8,4,5.6), GG(-16,4,5.6)], S.grip);
+        }
       };
       const sstem = () => {
         const da = stemTipA - stemBaseA, dh = stemTipH - stemBaseH;
@@ -1056,18 +1094,18 @@ class WorldScene extends Phaser.Scene {
         capsule(S.barW - 6, S.barW, 2.5, S.deck);
       };
       const skick = () => {
-        const ks0 = GG(-4*L, -7, 4), ks1 = GG(-6*L, -12, 0);
+        const ks0 = GG(-4, -7, 4), ks1 = GG(-6, -12, 0);
         g.lineStyle(2.5, S.metalDk, 1);
         g.lineBetween(ks0.x, ks0.y, ks1.x, ks1.y);
       };
 
       const sparts = [
         { d: dAt(rwA, 0, wheelH),  fn: () => swheel(rwA, wheelR) },
-        { d: dAt(-2*L, 0, 3),      fn: sdeck },
+        { d: dAt(-2, 0, 3),        fn: sdeck },
         { d: dAt((stemBaseA + stemTipA)/2, 0, (stemBaseH + stemTipH)/2), fn: sstem },
         { d: dAt(fwA, 0, wheelH),  fn: () => swheel(fwA, wheelR*0.92) },
         { d: dAt(stemTipA, 0, stemTipH), fn: sbar },
-        { d: dAt(-5*L, -9, 3),     fn: skick }
+        { d: dAt(-5, -9, 3),       fn: skick }
       ];
       sparts.sort((p1, p2) => p1.d - p2.d);
       for(const pt of sparts) pt.fn();
@@ -2595,15 +2633,66 @@ class WorldScene extends Phaser.Scene {
             hz.slideVel *= Math.exp(-0.0045 * dt);
           } else hz.slideVel = 0;
           this.simBinTrash(hz, dt);
+        } else if(hz.type === "scooter"){
+          /* soft hazard, same contract as before (sev 9, 55% speed
+             loss) — this doesn't change. What's new: a standing
+             scooter now actually topples via a real fall integrator
+             (approved scooter hit lab, 2026-07-09) instead of the
+             pose being a fixed coin-flip at spawn. One-shot hit
+             using the UNADJUSTED route distance — the same fix the
+             cone needed, since gating re-arm on the slide feeds the
+             punt back into re-triggering itself. */
+          if(!hz.hit && Math.abs(dx) < 26 && hz.row === this.botRow){
+            hz.hit = true;
+            if(hz.fallPsi === undefined) hz.fallPsi = (Math.random() - 0.5) * 0.6;
+            const sp = this.speed;
+            if(hz.pose !== "knocked"){
+              hz.moving = true;
+              hz.angVel += sp * 0.06 * SCOOT_HIT.kick;
+            }
+            hz.slideVel += sp * 1.2 * SCOOT_HIT.punt;
+            const kick = sp * 9 * (Math.random() < 0.5 ? 1 : -1);
+            this.tilt += kick;
+            this.damage = Math.min(95, this.damage + Math.abs(kick)*46);
+            this.speed *= 0.45;
+          }
+          if(Math.abs(dx) > 40) hz.hit = false;
+
+          if(hz.moving){
+            const KG = 1.5e-5 * SCOOT_HIT.grav;
+            const steps = Math.max(1, Math.ceil(dt/8));
+            const hdt = dt/steps;
+            for(let i=0; i<steps; i++){
+              hz.angVel += KG * Math.sin(hz.phi - SCOOT_HIT.phiBal) * hdt;
+              hz.phi += hz.angVel * hdt;
+              if(hz.phi >= SCOOT_HIT.phiRest){
+                hz.phi = SCOOT_HIT.phiRest;
+                if(Math.abs(hz.angVel) < 0.0006){
+                  hz.angVel = 0; hz.moving = false; hz.pose = "knocked"; break;
+                }
+                hz.angVel = -hz.angVel * 0.18;
+              }
+              if(hz.phi <= 0){
+                hz.phi = 0;
+                if(Math.abs(hz.angVel) < 0.0006){
+                  hz.angVel = 0; hz.moving = false; hz.pose = "standing"; break;
+                }
+                hz.angVel = -hz.angVel * 0.2;
+              }
+            }
+          }
+          if(hz.slideVel > 0.0001){
+            hz.slide += hz.slideVel * dt;
+            hz.slideVel *= Math.exp(-0.004 * dt);
+          } else hz.slideVel = 0;
         } else if(!hz.hit && Math.abs(dx) < 26 && hz.row === this.botRow){
           hz.hit = true;
           const sev = hz.type === "crack"
             ? Math.min(8, Math.max(2, 4 * (hz.len || 46) / 46))   // bigger spall, bigger jolt (crack lab v3)
-            : ({ trash:7, scooter:9, dog:5, palmDwarf:6 }[hz.type] ?? 5);
+            : ({ trash:7, dog:5, palmDwarf:6 }[hz.type] ?? 5);
           const kick = this.speed * sev * (Math.random() < 0.5 ? 1 : -1);
           this.tilt += kick;
           this.damage = Math.min(95, this.damage + Math.abs(kick)*46);
-          if(hz.type === "scooter") this.speed *= 0.45;
           if(hz.type === "trash") this.speed *= 0.65;
           if(hz.type === "palmDwarf") this.speed *= 0.5;   // dragging through fronds
           if(hz.type === "dog"){
