@@ -42,13 +42,9 @@ street-name pool. Roster lives in `game/index.html` (`HOODS`).
    size instead: 4 × (len/46), clamped 2–8 — a hairline is a shiver, a big
    break-off is a real lurch. Road rows also get decorative spalls in
    asphalt tones (rows 2–3, unreachable, zero physics).
-2. **Driveways** (`prop.driveway`, live in-game today) — cross-slope, spans
-   all lanes; continuous tilt while crossing, proportional to speed. The
-   only counter is arriving slow. Separately, a rethought/renamed version
-   of this concept — proper ADA curb ramps (`prop.sidewalkend`) — is fully
-   prototyped with its own richer physics (lane-dependent tilt, pitch,
-   curb-drop tipping) but not yet ported; see the dedicated section below.
-2b. **Heaved slabs** (`prop.slab`, live in-game) — the ramp concept redesigned
+2. **Heaved slabs** (`prop.slab`, live in-game; replaced `prop.driveway`,
+   removed V19 — slabs are the cross-slope hazard now, lane-specific and
+   dodgeable where driveways spanned all lanes undodgeably) — the ramp concept redesigned
    (ramp lab v2) into a single sidewalk tile lifted along one side edge (root
    heave). Lane-specific, unlike driveways. Two-stage physics, physically
    ordered: (a) lip kick at the leading joint, one-shot, `side × speed × lift × 0.9`
