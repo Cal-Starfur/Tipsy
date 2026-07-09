@@ -1,0 +1,724 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>TIPSY — Trash Lab</title>
+<style>
+  html,body{margin:0;padding:0;background:#14161b;height:100%;overflow:hidden;touch-action:manipulation;
+    font-family:-apple-system,'Helvetica Neue',Arial,sans-serif;-webkit-user-select:none;user-select:none;color:#e8eaef;}
+  #wrap{display:flex;flex-direction:column;height:100%;}
+  #game{flex:1;min-height:0;}
+  #panel{padding:10px 12px calc(14px + env(safe-area-inset-bottom));background:#1c1f26;border-top:1px solid #2b2f38;}
+  .row{display:flex;gap:8px;margin-bottom:8px;align-items:center;}
+  .row:last-child{margin-bottom:0;}
+  .lbl{font-size:11px;letter-spacing:1.5px;color:#8f95a1;width:56px;text-transform:uppercase;}
+  button{flex:1;background:#262a33;color:#e8eaef;border:1px solid #363b46;border-radius:10px;
+    padding:10px 4px;font-size:13px;font-weight:600;}
+  button.on{background:#ff7a1a;border-color:#ff7a1a;color:#fff;}
+  button:active{transform:scale(0.96);}
+  button.sm{flex:0 0 44px;}
+  #hdr{padding:10px 14px 2px;font-size:12px;letter-spacing:2px;color:#8f95a1;text-transform:uppercase;}
+  #hdr b{color:#ff9c4d;}
+  #vals{padding:0 14px 6px;font-size:11px;color:#8f95a1;font-variant-numeric:tabular-nums;}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="hdr"><b>TIPSY</b> · trash lab · prop.trash makeover (drive bench)</div>
+  <div id="vals">…</div>
+  <div id="game"></div>
+  <div id="panel">
+    <div class="row">
+      <button id="oldBtn">OLD (game)</button>
+      <button class="on" id="newBtn">NEW</button>
+      <button id="driveBtn">DRIVE</button>
+      <button id="reseed">RESEED</button>
+    </div>
+    <div class="row">
+      <span class="lbl">Spread</span>
+      <button class="sm" data-p="spread" data-d="-1">−</button>
+      <button class="sm" data-p="spread" data-d="1">＋</button>
+      <span class="lbl">Bits</span>
+      <button class="sm" data-p="bits" data-d="-1">−</button>
+      <button class="sm" data-p="bits" data-d="1">＋</button>
+    </div>
+    <div class="row">
+      <span class="lbl">Bag</span>
+      <button class="sm" data-p="bag" data-d="-1">−</button>
+      <button class="sm" data-p="bag" data-d="1">＋</button>
+      <span class="lbl">Bottle</span>
+      <button class="sm" data-p="bottle" data-d="-1">−</button>
+      <button class="sm" data-p="bottle" data-d="1">＋</button>
+      <span class="lbl">Lane</span>
+      <button class="sm" id="laneBtn">0</button>
+    </div>
+    <div class="row">
+      <span class="lbl">Zoom</span>
+      <button class="sm" id="zoomOut">−</button>
+      <button class="sm" id="zoomIn">＋</button>
+      <span class="lbl">Bot</span>
+      <button class="sm" id="botBack">◀</button>
+      <button class="sm" id="botFwd">▶</button>
+      <span class="lbl">Row</span>
+      <button class="sm" id="rowDown">−</button>
+      <button class="sm" id="rowUp">＋</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/phaser@3.85.2/dist/phaser.min.js"></script>
+<script>
+"use strict";
+
+/* ============================================================
+   TIPSY — Trash Lab v1
+   Drive bench for the prop.trash makeover, on the shared lab
+   chassis: verbatim robot + the 3-lane run, trash pinned to a
+   lane tile, DRIVE to test the physics. The game's current trash
+   is two flat dark ellipses; the redesign is a seeded LITTER
+   CLUSTER on the tile:
+     · water bottle lying on its side — pale translucent body,
+       blue cap, label band, seeded rotation
+     · crumpled plastic bag — lumpy white blob with a raised
+       crumple, crease facets, and a knot
+     · rubbish bits — paper balls, drink cans (seeded colors),
+       bright wrapper scraps, scattered per seed
+   Composition varies per seed (~85% bottle, ~85% bag, bits
+   always). Physics is the game's own: one-shot impact sev 7
+   (kick = speed × 7 × random ±1) AND speed × 0.65 — litter drags.
+   Throttle recovers speed afterward so the loop keeps testing.
+   ============================================================ */
+
+/* ---------- the dials (ported into the game once approved) ---------- */
+const TRASH = {
+  spread: 1.0,      // how scattered across the tile (1 = loose pile)
+  bits: 3,          // rubbish bit count
+  bag: 1.0,         // bag size multiplier
+  bottle: 1.0,      // bottle size multiplier
+  s: 4,             // tile index along the run
+  row: 0,           // lane: -1/0/1
+  bagC: 0xe9eaec, bagHi: 0xf7f8fa, bagShade: 0xc3c7cc, bagDeep: 0xa8adb4,
+  botBody: 0xd8eef4, botHi: 0xf4fbfd, botCap: 0x2d7dd2, botLabel: 0xf4f5f7, botShade: 0xaacdd6,
+  paper: 0xf1efe6, paperShade: 0xd0ccbd,
+  canA: 0xc2452e, canB: 0x9aa7b5, canHi: 0xc9d3dd,
+  wrap: [0xf2c94c, 0x7fae4e, 0xff7a1a],
+  outline: 0x30343d, shadow: 0x000000
+};
+
+/* ---------- ported verbatim from game/index.html ---------- */
+const TILE = 46;
+const T2 = TILE*2;
+const DIRV = [{x:1,y:0},{x:0,y:1},{x:-1,y:0},{x:0,y:-1}];
+const PAL = { sky:0x9fd4e8, pave:0xc9c3b4, paveB:0xbfb9aa, paveEdge:0xa8a294, road:0x4a4d55, roadLine:0xd8d2c2 };
+const SKIN = {
+  bodyTop:0xf7f8fa, bodyRight:0xe3e6ea, bodyLeft:0xc9cdd4, outline:0x30343d,
+  stripe:0xc2452e, stripeDk:0xa03824,
+  wheel:0x24262c, wheelDark:0x1a1c21, wheelHubFace:0x3d424c, wheelHub:0x8a919c,
+  visor:0x22242b, eye:0x7fe3ff, eyeAlert:0xffb04d,
+  lidInner:0xb2b7bf, cavityWall:0x9ba1a9, cavityFloor:0x7b818a,
+  belly:0x494e58, flagPole:0x2e3138, flag:0xff5722, shadow:0x000000
+};
+const BODY = { hx:26, hy:20, z0:14, z1:54 };
+const LID  = { hx:22, hy:16, z0:54, z1:61 };
+const STRIPE = { z0:20, z1:27 };
+const WHEEL = { r:10, z:10, xs:[-16, 0, 16], side:22 };
+
+function mulberry32(a){ return function(){ a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+
+class TrashLab extends Phaser.Scene {
+  constructor(){ super("trashlab"); }
+
+  create(){
+    this.K = 2.2;
+    this.mode = "new";
+    this.seed = 7;
+    this.botS = 1.5;
+    this.botRow = 0;
+    this.pitch = 0; this.roll = 0; this.yaw = 0; this.f = 0;
+    this.tilt = 0; this.lidAng = 0; this.tipDir = 1; this.state = "idle";
+    this.wheelPhase = 0;
+    this.camX = 0; this.camY = 0; this.camZ = 0;
+    this.driving = false;
+    this.tipT = 0; this.tipResetT = 0;
+    this.speed = 0.05;             // fixed walking speed (world units/ms)
+    this.trashHit = false;         // one-shot impact re-arm, same as the game's hz.hit
+    this.botZ = 2;
+    this.g = this.add.graphics();
+    this.scale.on("resize", () => this.layout());
+    this.layout();
+    this.updateVals();
+  }
+  layout(){
+    this.cx = this.scale.gameSize.width/2;
+    this.cy = this.scale.gameSize.height*0.42;
+  }
+  updateVals(){
+    document.getElementById("vals").textContent =
+      `spread ${TRASH.spread.toFixed(2)} · bits ${TRASH.bits} · bag ${TRASH.bag.toFixed(2)} · bottle ${TRASH.bottle.toFixed(2)} · lane ${TRASH.row} · spd ${(this.speed*1000).toFixed(0)} · tilt ${this.tilt.toFixed(2)} · ${this.state === "tipped" ? "TIPPED" : "ok"}`;
+  }
+
+  /* ---------- ground-plane helpers (camera-relative, same as
+     sidewalkend lab so tiles/slab/robot all shift together) ---------- */
+  Wg(x, y, z, ox, oy){
+    const xr = x - this.camX, yr = y - this.camY;
+    return { x:(xr - yr)*this.K + ox, y:((xr + yr)*0.5 - (z - this.camZ))*this.K + oy };
+  }
+  quadg(pts, color, alpha=1){
+    this.g.fillStyle(color, alpha);
+    this.g.fillPoints(pts.map(p => new Phaser.Geom.Point(p.x, p.y)), true);
+  }
+  edgeg(pts, color, w=2){
+    this.g.lineStyle(w, color, 1);
+    this.g.strokePoints(pts.map(p => new Phaser.Geom.Point(p.x, p.y)), true);
+  }
+
+  /* ---------- verbatim from game/index.html: robot transform +
+     projection pipeline ---------- */
+  T(x, y, z){
+    if(this.yaw !== 0){
+      const c = Math.cos(this.yaw), s = Math.sin(this.yaw);
+      const x2 = x*c - y*s; y = x*s + y*c; x = x2;
+    }
+    if(this.pitch !== 0){
+      const c = Math.cos(this.pitch), s = Math.sin(this.pitch);
+      const x2 = x*c - z*s; z = x*s + z*c; x = x2;
+    }
+    if(this.roll !== 0){
+      const PIV = this.roll >= 0 ? 22 : -22;
+      const y0 = y + PIV, c = Math.cos(this.roll), s = Math.sin(this.roll);
+      y = -PIV + y0*c - z*s; z = y0*s + z*c;
+    }
+    let rx = x, ry = y;
+    for(let i=0; i<this.f; i++){ const t = rx; rx = -ry; ry = t; }
+    return { x:rx, y:ry, z };
+  }
+  R(nx, ny, nz){
+    if(this.yaw !== 0){
+      const cy = Math.cos(this.yaw), sy = Math.sin(this.yaw);
+      const nx2 = nx*cy - ny*sy; ny = nx*sy + ny*cy; nx = nx2;
+    }
+    if(this.pitch !== 0){
+      const c = Math.cos(this.pitch), s = Math.sin(this.pitch);
+      const x2 = nx*c - nz*s; nz = nx*s + nz*c; nx = x2;
+    }
+    const c = Math.cos(this.roll), s = Math.sin(this.roll);
+    const ny2 = ny*c - nz*s, nz2 = ny*s + nz*c;
+    let rx = nx, ry = ny2;
+    for(let i=0; i<this.f; i++){ const t = rx; rx = -ry; ry = t; }
+    return { x:rx, y:ry, z:nz2 };
+  }
+  W(x, y, z){
+    const xr = x - this.camX, yr = y - this.camY;
+    return { x:(xr - yr)*this.K + this.cx,
+             y:((xr + yr)*0.5 - (z - this.camZ))*this.K + this.cy };
+  }
+  P(x, y, z){
+    const q = this.T(x, y, z);
+    return this.W(q.x + this.botX, q.y + this.botY, q.z + this.botZ);
+  }
+  depth(x, y, z){
+    const q = this.T(x, y, z);
+    return q.x + q.y + q.z*0.4;
+  }
+  quadOn(g, pts, color, alpha=1){
+    g.fillStyle(color, alpha);
+    g.fillPoints(pts.map(p => new Phaser.Geom.Point(p.x, p.y)), true);
+  }
+  edgeOn(g, pts, color=SKIN.outline, w=2){
+    g.lineStyle(w, color, 1);
+    g.strokePoints(pts.map(p => new Phaser.Geom.Point(p.x, p.y)), true);
+  }
+  quad(pts, color, alpha=1){ this.quadOn(this.g, pts, color, alpha); }
+  edge(pts, color=SKIN.outline, w=2){ this.edgeOn(this.g, pts, color, w); }
+
+  lidNear(b){
+    const hs = (this.tipDir || 1) >= 0 ? 1 : -1;
+    const A = this.lidAng * hs, c = Math.cos(A), s = Math.sin(A);
+    const yh = -b.hy * hs, zh = b.z0;
+    const dy = -yh, dz = (b.z1 - b.z0)/2;
+    return this.depth(0, yh + dy*c - dz*s, zh + dy*s + dz*c) > this.depth(0, 0, 34);
+  }
+
+  drawLid(b){
+    const {hx, hy, z0, z1} = b;
+    const hs = (this.tipDir || 1) >= 0 ? 1 : -1;
+    const A = this.lidAng * hs, cA = Math.cos(A), sA = Math.sin(A);
+    const yh = -hy * hs, zh = z0;
+    const H = (x, y, z) => {
+      const dy = y - yh, dz = z - zh;
+      return this.P(x, yh + dy*cA - dz*sA, zh + dy*sA + dz*cA);
+    };
+    const HN = (nx, ny, nz) => {
+      const ny2 = ny*cA - nz*sA, nz2 = ny*sA + nz*cA;
+      return this.R(nx, ny2, nz2);
+    };
+    const C = (sx, sy, sz) => H(sx*hx, sy*hy, sz === 1 ? z1 : z0);
+    const faces = [
+      { n:{x:0,y:0,z: 1}, pts:[C( 1,-1,1), C( 1, 1,1), C(-1, 1,1), C(-1,-1,1)] },
+      { n:{x:0,y:0,z:-1}, pts:[C( 1,-1,0), C( 1, 1,0), C(-1, 1,0), C(-1,-1,0)] },
+      { n:{x: 1,y:0,z:0}, pts:[C( 1,-1,0), C( 1, 1,0), C( 1, 1,1), C( 1,-1,1)] },
+      { n:{x:-1,y:0,z:0}, pts:[C(-1,-1,0), C(-1, 1,0), C(-1, 1,1), C(-1,-1,1)] },
+      { n:{x:0,y: 1,z:0}, pts:[C( 1, 1,0), C(-1, 1,0), C(-1, 1,1), C( 1, 1,1)] },
+      { n:{x:0,y:-1,z:0}, pts:[C( 1,-1,0), C(-1,-1,0), C(-1,-1,1), C( 1,-1,1)] }
+    ];
+    for(const fc of faces){
+      const w = HN(fc.n.x, fc.n.y, fc.n.z);
+      if((w.x + w.y + w.z) <= 0) continue;
+      const col = w.z > 0.5 ? SKIN.bodyTop
+                : w.z < -0.5 ? SKIN.lidInner
+                : (w.x >= w.y) ? SKIN.bodyRight : SKIN.bodyLeft;
+      this.quad(fc.pts, col);
+      this.edge(fc.pts);
+    }
+  }
+
+  disc(center, r, color, outlineC){
+    const pts = [];
+    for(let i=0; i<14; i++){
+      const a = (i/14)*Math.PI*2;
+      pts.push(this.P(center.x + Math.cos(a)*r, center.y, center.z + Math.sin(a)*r));
+    }
+    this.quadOn(this.g, pts, color);
+    if(outlineC !== undefined) this.edgeOn(this.g, pts, outlineC, 2);
+  }
+
+  drawBox(b, cTop, cRight, cLeft, outline=true, decal=false, cBottom=SKIN.belly){
+    const {hx, hy, z0, z1} = b, ox = b.ox || 0, oy = b.oy || 0;
+    const C = (sx, sy, sz) => this.P(ox + sx*hx, oy + sy*hy, sz === 1 ? z1 : z0);
+    const faces = [
+      { n:{x:0,y:0,z: 1}, pts:[C( 1,-1,1), C( 1, 1,1), C(-1, 1,1), C(-1,-1,1)] },
+      { n:{x:0,y:0,z:-1}, pts:[C( 1,-1,0), C( 1, 1,0), C(-1, 1,0), C(-1,-1,0)] },
+      { n:{x: 1,y:0,z:0}, pts:[C( 1,-1,0), C( 1, 1,0), C( 1, 1,1), C( 1,-1,1)] },
+      { n:{x:-1,y:0,z:0}, pts:[C(-1,-1,0), C(-1, 1,0), C(-1, 1,1), C(-1,-1,1)] },
+      { n:{x:0,y: 1,z:0}, pts:[C( 1, 1,0), C(-1, 1,0), C(-1, 1,1), C( 1, 1,1)] },
+      { n:{x:0,y:-1,z:0}, pts:[C( 1,-1,0), C(-1,-1,0), C(-1,-1,1), C( 1,-1,1)] }
+    ];
+    for(const fc of faces){
+      if(decal && fc.n.z !== 0) continue;
+      const w = this.R(fc.n.x, fc.n.y, fc.n.z);
+      if((w.x + w.y + w.z) <= 0) continue;
+      let col;
+      if(w.z > 0.5)       col = decal ? cRight : cTop;
+      else if(w.z < -0.5) col = decal ? null : cBottom;
+      else                col = (w.x >= w.y) ? cRight : cLeft;
+      if(col == null) continue;
+      this.quadOn(this.g, fc.pts, col);
+      if(outline) this.edgeOn(this.g, fc.pts);
+    }
+  }
+
+  drawWheel(c, sideSign){
+    const W2 = 7.5, steps = 5;
+    const slices = [];
+    for(let i=0; i<=steps; i++){
+      const oy = c.y + sideSign*(-W2/2 + W2*i/steps);
+      slices.push({ y:oy, depth: this.depth(c.x, oy, c.z) });
+    }
+    slices.sort((a,b) => a.depth - b.depth);
+    for(let i=0; i<slices.length; i++){
+      const isFace = i === slices.length-1;
+      this.disc({x:c.x, y:slices[i].y, z:c.z}, WHEEL.r,
+                isFace ? SKIN.wheel : SKIN.wheelDark,
+                isFace ? SKIN.outline : undefined);
+    }
+    const face = slices[slices.length-1].y;
+    this.disc({x:c.x, y:face, z:c.z}, WHEEL.r*0.55, SKIN.wheelHubFace);
+    const a = this.wheelPhase + c.x*0.2;
+    this.disc({ x:c.x + Math.cos(a)*WHEEL.r*0.34, y:face,
+                z:c.z + Math.sin(a)*WHEEL.r*0.34 }, 2.4, SKIN.wheelHub);
+  }
+
+  drawRobotReal(wx, wy, wz){
+    const g = this.g;
+    this.botX = wx; this.botY = wy; this.botZ = wz;
+
+    const sh = [];
+    for(let i=0;i<14;i++){
+      const a=(i/14)*Math.PI*2;
+      sh.push(this.P(Math.cos(a)*34, Math.sin(a)*30, 0.5));
+    }
+    this.quadOn(g, sh, SKIN.shadow, 0.16);
+
+    const wheels = [];
+    for(const side of [-1, 1]){
+      for(const wxi of WHEEL.xs){
+        const c = {x:wxi, y:side*WHEEL.side, z:WHEEL.z};
+        wheels.push({ c, side, near: this.depth(c.x, c.y, c.z) > this.depth(c.x, -c.y, c.z) });
+      }
+    }
+    for(const w of wheels) if(!w.near) this.drawWheel(w.c, w.side);
+
+    const lidBox = {...LID};
+    const lidIsNear = this.lidNear(lidBox);
+    if(!lidIsNear) this.drawLid(lidBox);
+
+    this.drawBox({hx:24, hy:17, z0:6, z1:BODY.z0+1}, 0x3f434c, 0x3a3d45, 0x2e3138, false);
+    this.drawBox({...BODY}, SKIN.bodyTop, SKIN.bodyRight, SKIN.bodyLeft);
+    this.drawBox({hx:BODY.hx+0.6, hy:BODY.hy+0.6, z0:STRIPE.z0, z1:STRIPE.z1},
+                 null, SKIN.stripe, SKIN.stripeDk, false, true);
+
+    if(lidIsNear) this.drawLid(lidBox);
+
+    const fn = this.R(1, 0, 0);
+    if(fn.x + fn.y + fn.z > 0.3){
+      const F = (y, z) => this.P(BODY.hx + 0.8, y, z);
+      this.quadOn(g, [F(-13,40), F(13,40), F(13,50), F(-13,50)], SKIN.visor);
+      this.edgeOn(g, [F(-13,40), F(13,40), F(13,50), F(-13,50)], SKIN.outline, 1.5);
+      for(const ey of [-7, 7]){
+        const c = F(ey, 45);
+        g.fillStyle(SKIN.eye, 1);
+        g.fillEllipse(c.x, c.y, 7, 7);
+      }
+      this.quadOn(g, [F(-16,18), F(16,18), F(16,22), F(-16,22)], 0xfff3b0);
+    }
+    for(const w of wheels) if(w.near) this.drawWheel(w.c, w.side);
+  }
+
+  /* ---------- real tile system, ported verbatim from drawWorld ----------
+     No sidewalk end here — the slab is a MID-run hazard, so the run
+     is just flat sidewalk + road the whole way. */
+  drawTiles(ox, oy){
+    const g = this.g;
+    const dv = DIRV[0], rv = DIRV[1];
+    for(let a = -1; a <= 10; a++){
+      const rowX = a*T2, rowY = 0;
+      for(let c = -1; c <= 4; c++){
+        const road = c >= 2;
+        const cx = rowX + rv.x*c*T2, cy = rowY + rv.y*c*T2;
+        const Ax = dv.x*TILE, Ay = dv.y*TILE, Bx = rv.x*TILE, By = rv.y*TILE;
+        const pts = [
+          this.Wg(cx+Ax-Bx, cy+Ay-By, 0, ox, oy), this.Wg(cx+Ax+Bx, cy+Ay+By, 0, ox, oy),
+          this.Wg(cx-Ax+Bx, cy-Ay+By, 0, ox, oy), this.Wg(cx-Ax-Bx, cy-Ay-By, 0, ox, oy)
+        ];
+        this.quadg(pts, road ? PAL.road : (((a+c)%2===0) ? PAL.pave : PAL.paveB));
+        if(!road) this.edgeg(pts, PAL.paveEdge, 1.5);
+        if(c === 3 && a % 2 === 0 && a >= 0 && a < 10){
+          this.quadg([
+            this.Wg(cx - dv.x*14 - rv.x*4, cy - dv.y*14 - rv.y*4, 0, ox, oy),
+            this.Wg(cx + dv.x*14 - rv.x*4, cy + dv.y*14 - rv.y*4, 0, ox, oy),
+            this.Wg(cx + dv.x*14 + rv.x*4, cy + dv.y*14 + rv.y*4, 0, ox, oy),
+            this.Wg(cx - dv.x*14 + rv.x*4, cy - dv.y*14 + rv.y*4, 0, ox, oy)
+          ], PAL.roadLine);
+        }
+      }
+      const kx = rowX + rv.x*TILE*3, ky = rowY + rv.y*TILE*3;
+      this.quadg([
+        this.Wg(kx - dv.x*TILE, ky - dv.y*TILE, 3, ox, oy), this.Wg(kx + dv.x*TILE, ky + dv.y*TILE, 3, ox, oy),
+        this.Wg(kx + dv.x*TILE, ky + dv.y*TILE, -2, ox, oy), this.Wg(kx - dv.x*TILE, ky - dv.y*TILE, -2, ox, oy)
+      ], PAL.paveEdge);
+    }
+  }
+
+  worldOf(s, row){
+    const dv = DIRV[0], rv = DIRV[1];
+    return { x: s*T2*dv.x + rv.x*row*T2, y: s*T2*dv.y + rv.y*row*T2 };
+  }
+
+  /* a crack is flat: the ground never changes under the robot */
+  groundZAt(s, row){ return 2; }
+
+  /* ---------- OLD: the game's current trash, verbatim ---------- */
+  drawTrashOld(ox, oy, wx, wy){
+    const g = this.g;
+    const W = (dx, dy, dz) => this.Wg(wx+dx, wy+dy, dz, ox, oy);
+    g.fillStyle(0x3b3f47, 1);
+    g.fillEllipse(W(0,0,6).x, W(0,0,6).y, 26, 18);
+    g.fillEllipse(W(6,3,10).x, W(6,3,10).y, 18, 13);
+    g.lineStyle(2, 0x2b2e34, 1);
+    g.strokeEllipse(W(0,0,6).x, W(0,0,6).y, 26, 18);
+  }
+
+  /* ---------- NEW: seeded litter cluster ----------
+     Water bottle + crumpled plastic bag + rubbish bits, composed
+     per seed (~85% bottle, ~85% bag, bits always), scattered by
+     the Spread dial, depth-sorted (iso x+y) so overlaps read
+     correctly. All geometry is ground-plane world units projected
+     through Wg — same convention as every ground prop. */
+  drawTrashNew(ox, oy, wx, wy, seed){
+    const g = this.g;
+    const rng = mulberry32(seed);
+    const T = TRASH;
+    const Wp = (dx, dy, dz) => this.Wg(wx+dx, wy+dy, dz, ox, oy);
+    const poly = (pts, col, a=1) => this.quadg(pts, col, a);
+    const circ = (cx2, cy2, r, z, col, outC, n=10) => {
+      const pts = [];
+      for(let i=0; i<n; i++){
+        const a2 = (i/n)*Math.PI*2;
+        pts.push(Wp(cx2 + Math.cos(a2)*r, cy2 + Math.sin(a2)*r, z));
+      }
+      poly(pts, col);
+      if(outC !== undefined) this.edgeg(pts, outC, 1.1);
+    };
+    const items = [];
+
+    /* crumpled plastic bag (~85%) */
+    if(rng() < 0.85){
+      const bx = (rng()-0.5)*12*T.spread, by = (rng()-0.5)*12*T.spread;
+      const R = (7.5 + rng()*3) * T.bag;
+      const lump = [];
+      for(let i=0; i<9; i++){
+        const a2 = (i/9)*Math.PI*2;
+        const rr = R * (0.72 + rng()*0.55);
+        lump.push({ x: bx + Math.cos(a2)*rr, y: by + Math.sin(a2)*rr });
+      }
+      const kx = bx + (rng()-0.5)*R*0.5, ky = by + (rng()-0.5)*R*0.5;
+      items.push({ x:bx, y:by, r:R, draw: () => {
+        poly(lump.map(p => Wp(p.x, p.y, 0.8)), T.bagC);
+        this.edgeg(lump.map(p => Wp(p.x, p.y, 0.8)), T.bagShade, 1.2);
+        /* raised crumple: smaller lighter blob lifted off the ground */
+        const top = [];
+        for(let i=0; i<8; i++){
+          const a2 = (i/8)*Math.PI*2;
+          top.push(Wp(bx + Math.cos(a2)*R*0.55*(0.75+rng()*0.4),
+                      by + Math.sin(a2)*R*0.55*(0.75+rng()*0.4), 3.4*T.bag));
+        }
+        poly(top, T.bagHi);
+        this.edgeg(top, T.bagShade, 1);
+        /* crease facets */
+        for(let i=0; i<2; i++){
+          const a2 = rng()*Math.PI*2;
+          poly([
+            Wp(bx + Math.cos(a2)*R*0.2, by + Math.sin(a2)*R*0.2, 1.4),
+            Wp(bx + Math.cos(a2+0.7)*R*0.7, by + Math.sin(a2+0.7)*R*0.7, 0.9),
+            Wp(bx + Math.cos(a2-0.5)*R*0.8, by + Math.sin(a2-0.5)*R*0.8, 0.9)
+          ], T.bagShade, 0.55);
+        }
+        /* the knot */
+        circ(kx, ky, 1.8*T.bag, 5*T.bag, T.bagDeep);
+      }});
+    }
+
+    /* water bottle lying on its side (~85%) */
+    if(rng() < 0.85){
+      const cx2 = (rng()-0.5)*16*T.spread, cy2 = (rng()-0.5)*16*T.spread;
+      const th = rng()*Math.PI*2;
+      const L = 13*T.bottle, r = 3*T.bottle;
+      const dxu = Math.cos(th), dyu = Math.sin(th);
+      const nx = -dyu, ny = dxu;
+      const p0 = { x: cx2 - dxu*L/2, y: cy2 - dyu*L/2 };   // base end
+      const p1 = { x: cx2 + dxu*L/2, y: cy2 + dyu*L/2 };   // cap end
+      items.push({ x:cx2, y:cy2, r:L/2, draw: () => {
+        const zB = 1.4*T.bottle;
+        /* body capsule: side quad + end circles */
+        poly([
+          Wp(p0.x + nx*r, p0.y + ny*r, zB), Wp(p1.x + nx*r*0.72, p1.y + ny*r*0.72, zB),
+          Wp(p1.x - nx*r*0.72, p1.y - ny*r*0.72, zB), Wp(p0.x - nx*r, p0.y - ny*r, zB)
+        ], T.botBody);
+        circ(p0.x, p0.y, r, zB, T.botBody, T.botShade);
+        /* crush dent near the base third */
+        poly([
+          Wp(p0.x + dxu*L*0.22 + nx*r*0.9, p0.y + dyu*L*0.22 + ny*r*0.9, zB),
+          Wp(p0.x + dxu*L*0.38 + nx*r*0.55, p0.y + dyu*L*0.38 + ny*r*0.55, zB),
+          Wp(p0.x + dxu*L*0.38 - nx*r*0.55, p0.y + dyu*L*0.38 - ny*r*0.55, zB),
+          Wp(p0.x + dxu*L*0.22 - nx*r*0.9, p0.y + dyu*L*0.22 - ny*r*0.9, zB)
+        ], T.botShade, 0.7);
+        /* label band across the middle */
+        poly([
+          Wp(cx2 - dxu*L*0.14 + nx*r, cy2 - dyu*L*0.14 + ny*r, zB),
+          Wp(cx2 + dxu*L*0.14 + nx*r, cy2 + dyu*L*0.14 + ny*r, zB),
+          Wp(cx2 + dxu*L*0.14 - nx*r, cy2 + dyu*L*0.14 - ny*r, zB),
+          Wp(cx2 - dxu*L*0.14 - nx*r, cy2 - dyu*L*0.14 - ny*r, zB)
+        ], T.botLabel);
+        /* neck + cap */
+        poly([
+          Wp(p1.x + nx*r*0.72, p1.y + ny*r*0.72, zB), Wp(p1.x + dxu*2.4*T.bottle + nx*r*0.42, p1.y + dyu*2.4*T.bottle + ny*r*0.42, zB),
+          Wp(p1.x + dxu*2.4*T.bottle - nx*r*0.42, p1.y + dyu*2.4*T.bottle - ny*r*0.42, zB), Wp(p1.x - nx*r*0.72, p1.y - ny*r*0.72, zB)
+        ], T.botBody);
+        circ(p1.x + dxu*3.2*T.bottle, p1.y + dyu*3.2*T.bottle, r*0.55, zB, T.botCap, T.outline);
+        /* highlight streak */
+        g.lineStyle(1.1, T.botHi, 0.9);
+        const h0 = Wp(p0.x + nx*r*0.45, p0.y + ny*r*0.45, zB + r*0.5);
+        const h1 = Wp(p1.x + nx*r*0.35, p1.y + ny*r*0.35, zB + r*0.5);
+        g.lineBetween(h0.x, h0.y, h1.x, h1.y);
+      }});
+    }
+
+    /* rubbish bits: paper balls / cans / wrapper scraps */
+    for(let i=0; i<T.bits; i++){
+      const bx = (rng()-0.5)*30*T.spread, by = (rng()-0.5)*30*T.spread;
+      const kind2 = rng();
+      if(kind2 < 0.4){          /* crumpled paper */
+        const r = 2.4 + rng()*1.6;
+        items.push({ x:bx, y:by, r, draw: () => {
+          circ(bx, by, r, 1, T.paper, T.paperShade, 8);
+          circ(bx + r*0.3, by + r*0.3, r*0.45, 1.4, T.paperShade, undefined, 7);
+        }});
+      } else if(kind2 < 0.7){   /* drink can on its side */
+        const th = rng()*Math.PI*2, L2 = 6, r2 = 2;
+        const du = {x:Math.cos(th), y:Math.sin(th)}, nu = {x:-du.y, y:du.x};
+        const col = rng() < 0.5 ? T.canA : T.canB;
+        items.push({ x:bx, y:by, r:L2/2, draw: () => {
+          poly([
+            Wp(bx - du.x*L2/2 + nu.x*r2, by - du.y*L2/2 + nu.y*r2, 1),
+            Wp(bx + du.x*L2/2 + nu.x*r2, by + du.y*L2/2 + nu.y*r2, 1),
+            Wp(bx + du.x*L2/2 - nu.x*r2, by + du.y*L2/2 - nu.y*r2, 1),
+            Wp(bx - du.x*L2/2 - nu.x*r2, by - du.y*L2/2 - nu.y*r2, 1)
+          ], col);
+          circ(bx + du.x*L2/2, by + du.y*L2/2, r2, 1, T.canHi, T.outline, 8);
+        }});
+      } else {                  /* bright wrapper scrap */
+        const th = rng()*Math.PI*2;
+        const du = {x:Math.cos(th), y:Math.sin(th)}, nu = {x:-du.y, y:du.x};
+        const col = T.wrap[Math.floor(rng()*T.wrap.length)];
+        const w2 = 2.4 + rng()*2, h2 = 1.6 + rng()*1.4;
+        items.push({ x:bx, y:by, r:w2, draw: () => {
+          poly([
+            Wp(bx - du.x*w2 + nu.x*h2, by - du.y*w2 + nu.y*h2, 0.8),
+            Wp(bx + du.x*w2 + nu.x*h2, by + du.y*w2 + nu.y*h2, 0.8),
+            Wp(bx + du.x*w2 - nu.x*h2, by + du.y*w2 - nu.y*h2, 0.8),
+            Wp(bx - du.x*w2 - nu.x*h2, by - du.y*w2 - nu.y*h2, 0.8)
+          ], col);
+          g.lineStyle(0.8, T.outline, 0.5);
+          const f0 = Wp(bx - du.x*w2*0.3, by - du.y*w2*0.3, 0.9);
+          const f1 = Wp(bx + du.x*w2*0.4, by + du.y*w2*0.4, 0.9);
+          g.lineBetween(f0.x, f0.y, f1.x, f1.y);
+        }});
+      }
+    }
+
+    /* shadows first, then items back-to-front (iso depth x+y) */
+    for(const it of items){
+      const sh = Wp(it.x + 1, it.y + 1, 0.3);
+      g.fillStyle(T.shadow, 0.12);
+      g.fillEllipse(sh.x, sh.y, it.r*2.2*this.K*0.5, it.r*1.2*this.K*0.5);
+    }
+    items.sort((a2,b2) => (a2.x + a2.y) - (b2.x + b2.y));
+    for(const it of items) it.draw();
+  }
+
+  update(time, delta){
+    const g = this.g; g.clear();
+    g.fillStyle(PAL.sky, 1);
+    g.fillRect(0, 0, this.scale.gameSize.width, this.scale.gameSize.height);
+
+    const dt = Math.min(delta || 16.7, 50);
+
+    /* DRIVE: this.speed is world-units/ms, botS in tile multiples.
+       Trash physics is the game's own generic impact, ported exactly:
+         if(!hz.hit && |dx| < 26 && row match){
+           kick = speed × 7 × (random ±1); tilt += kick;
+           speed ×= 0.65                      // litter drags the wheels
+         }
+       one-shot per approach, re-armed past 40. Throttle then recovers
+       speed toward the bench's 0.05 walking pace so the loop keeps
+       demonstrating the slowdown. Spring + tip threshold are the
+       game's own. */
+    if(this.driving && this.state !== "tipped"){
+      this.botS += (this.speed / T2) * dt;
+      this.wheelPhase += this.speed * dt * 0.28;
+      const dx = this.botS*T2 - TRASH.s*T2;
+
+      if(this.botRow === TRASH.row){
+        if(!this.trashHit && Math.abs(dx) < 26){
+          this.trashHit = true;
+          const kick = this.speed * 7 * (Math.random() < 0.5 ? 1 : -1);
+          this.tilt += kick;
+          this.speed *= 0.65;
+        }
+        if(Math.abs(dx) > 40) this.trashHit = false;   // re-arm, same as the game
+      }
+      this.speed = Math.min(0.05, this.speed + 0.00004*dt);   // throttle recovery
+
+      this.tilt -= this.tilt * 0.0021 * dt;            // stability spring
+      this.roll = Phaser.Math.Clamp(this.tilt, -1, 1) * 0.5;
+
+      if(Math.abs(this.tilt) >= 1){
+        this.state = "tipped";
+        this.tipDir = Math.sign(this.tilt);
+        this.tipT = 0;
+      }
+
+      if(this.botS > 8){
+        this.botS = 0; this.tilt = 0; this.roll = 0; this.pitch = 0;
+        this.trashHit = false; this.speed = 0.05;
+      }
+    }
+
+    /* tipped-state rollover: the game's formula, auto-reset so DRIVE
+       keeps looping without manual cleanup */
+    if(this.state === "tipped"){
+      this.tipT = Math.min(1, this.tipT + dt/900);
+      this.roll = this.tipDir * (Math.PI*0.5) * this.tipT;
+      if(this.tipT >= 1){
+        this.tipResetT = (this.tipResetT || 0) + dt;
+        if(this.tipResetT > 1400){
+          this.state = "idle"; this.tipT = 0; this.tipResetT = 0;
+          this.botS = 0; this.tilt = 0; this.roll = 0; this.pitch = 0;
+          this.botZ = 2; this.trashHit = false;
+        }
+      }
+    }
+
+    /* camera follows with forward lead, set before any drawing */
+    const bwp = this.worldOf(this.botS, this.botRow);
+    const dv = DIRV[0];
+    this.camX = bwp.x + dv.x*60;
+    this.camY = bwp.y + dv.y*60;
+    this.camZ = 0;
+
+    this.drawTiles(this.cx, this.cy);
+
+    const swp = this.worldOf(TRASH.s, TRASH.row);
+    if(this.mode === "old"){
+      this.drawTrashOld(this.cx, this.cy, swp.x, swp.y);
+    } else {
+      this.drawTrashNew(this.cx, this.cy, swp.x, swp.y, this.seed*7919 + 13);
+    }
+
+    this.drawRobotReal(bwp.x, bwp.y, this.botZ);
+    if(this.driving || this.state === "tipped") this.updateVals();
+  }
+}
+
+const game = new Phaser.Game({
+  type: Phaser.AUTO, parent: "game",
+  scale: { mode: Phaser.Scale.RESIZE, width: "100%", height: "100%" },
+  scene: [TrashLab]
+});
+const scn = () => game.scene.getScene("trashlab");
+
+document.getElementById("oldBtn").addEventListener("click", e => {
+  scn().mode = "old";
+  e.target.classList.add("on");
+  document.getElementById("newBtn").classList.remove("on");
+});
+document.getElementById("newBtn").addEventListener("click", e => {
+  scn().mode = "new";
+  e.target.classList.add("on");
+  document.getElementById("oldBtn").classList.remove("on");
+});
+document.getElementById("driveBtn").addEventListener("click", e => {
+  const s = scn();
+  s.driving = !s.driving;
+  e.target.classList.toggle("on", s.driving);
+});
+document.getElementById("reseed").addEventListener("click", () => {
+  scn().seed = Math.floor(Math.random()*99999);
+});
+document.getElementById("laneBtn").addEventListener("click", e => {
+  /* cycle -1 -> 0 -> 1 (the three sidewalk lanes) */
+  const order = [-1, 0, 1];
+  TRASH.row = order[(order.indexOf(TRASH.row) + 1) % order.length];
+  e.target.textContent = String(TRASH.row);
+  scn().updateVals();
+});
+document.getElementById("zoomIn").addEventListener("click", () => { scn().K = Math.min(scn().K + 0.4, 6); });
+document.getElementById("zoomOut").addEventListener("click", () => { scn().K = Math.max(scn().K - 0.4, 1.2); });
+document.getElementById("botBack").addEventListener("click", () => { const s=scn(); s.botS = Math.max(0, s.botS - 0.5); s.botZ = s.groundZAt(s.botS, s.botRow); s.updateVals(); });
+document.getElementById("botFwd").addEventListener("click", () => { const s=scn(); s.botS = Math.min(8, s.botS + 0.5); s.botZ = s.groundZAt(s.botS, s.botRow); s.updateVals(); });
+document.getElementById("rowDown").addEventListener("click", () => { const s=scn(); s.botRow = Math.max(-1, s.botRow - 1); s.botZ = s.groundZAt(s.botS, s.botRow); s.updateVals(); });
+document.getElementById("rowUp").addEventListener("click", () => { const s=scn(); s.botRow = Math.min(1, s.botRow + 1); s.botZ = s.groundZAt(s.botS, s.botRow); s.updateVals(); });
+document.querySelectorAll("[data-p]").forEach(btn => {
+  btn.addEventListener("click", () => {
+    const p = btn.dataset.p, d = +btn.dataset.d;
+    if(p === "spread") TRASH.spread = Phaser.Math.Clamp(+(TRASH.spread + d*0.2).toFixed(2), 0.4, 2.0);
+    if(p === "bits")   TRASH.bits   = Phaser.Math.Clamp(TRASH.bits + d, 0, 7);
+    if(p === "bag")    TRASH.bag    = Phaser.Math.Clamp(+(TRASH.bag + d*0.15).toFixed(2), 0.6, 1.8);
+    if(p === "bottle") TRASH.bottle = Phaser.Math.Clamp(+(TRASH.bottle + d*0.15).toFixed(2), 0.6, 1.8);
+    scn().updateVals();
+  });
+});
+</script>
+</body>
+</html>
