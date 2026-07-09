@@ -37,13 +37,30 @@ street-name pool. Roster lives in `game/index.html` (`HOODS`).
 ## What makes you tip (tilt sources)
 
 1. **Impacts** — hazard hit at speed: impulse = speed × severity
-   (crack 4, dog 5, cone 6, trash 7, bin 8, scooter 9). Scooter/bin also halve speed.
+   (dog 5, cone 6, trash 7, bin 8, scooter 9). Scooter/bin also halve speed.
+   Cracks (spall redesign, crack lab v3) scale severity with their seeded
+   size instead: 4 × (len/46), clamped 2–8 — a hairline is a shiver, a big
+   break-off is a real lurch. Road rows also get decorative spalls in
+   asphalt tones (rows 2–3, unreachable, zero physics).
 2. **Driveways** (`prop.driveway`, live in-game today) — cross-slope, spans
    all lanes; continuous tilt while crossing, proportional to speed. The
    only counter is arriving slow. Separately, a rethought/renamed version
    of this concept — proper ADA curb ramps (`prop.sidewalkend`) — is fully
    prototyped with its own richer physics (lane-dependent tilt, pitch,
    curb-drop tipping) but not yet ported; see the dedicated section below.
+2b. **Heaved slabs** (`prop.slab`, live in-game) — the ramp concept redesigned
+   (ramp lab v2) into a single sidewalk tile lifted along one side edge (root
+   heave). Lane-specific, unlike driveways. Two-stage physics, physically
+   ordered: (a) lip kick at the leading joint, one-shot, `side × speed × lift × 0.9`
+   (+ cargo damage ×30) — the raised-side wheels climb first, mass swings to the
+   low side; (b) sustained cross-slope while on the wedge,
+   `side × speed × 0.030 × (lift/5)` per ms. The spring makes slow crossings
+   safe (steady-state tilt ∝ speed), so the counterplay is creep or lane-hop.
+   Underfoot the robot rides `lift/2` height + the honest wedge angle
+   (`atan(lift/92)`), both smoothed. Generator spawns runs of 1–3 consecutive
+   slabs (spacing 92) with row drift, rarity `0.18 + (1−pave)×0.75` per spawn
+   window — bad-pavement districts get bad sidewalks. Lift 3–8 seeded per slab:
+   at full speed lift 7+ is near-certain death; crept over, all survivable.
 3. **Lane changes** — 0.16 + speed × 4.5 stability cost, bled in over ~0.3s of the
    maneuver (not a spike). Changing lanes at speed is a gamble.
 3b. **Palms are solid.** Lane −1 (building side) is planted with palm trunks that
