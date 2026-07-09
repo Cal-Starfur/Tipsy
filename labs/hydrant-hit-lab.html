@@ -1,0 +1,777 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>TIPSY — Hydrant Hit Lab</title>
+<style>
+  html,body{margin:0;padding:0;background:#14161b;height:100%;overflow:hidden;touch-action:manipulation;
+    font-family:-apple-system,'Helvetica Neue',Arial,sans-serif;-webkit-user-select:none;user-select:none;color:#e8eaef;}
+  #wrap{display:flex;flex-direction:column;height:100%;}
+  #game{flex:1;min-height:0;}
+  #panel{padding:10px 12px calc(14px + env(safe-area-inset-bottom));background:#1c1f26;border-top:1px solid #2b2f38;}
+  .row{display:flex;gap:8px;margin-bottom:8px;align-items:center;}
+  .row:last-child{margin-bottom:0;}
+  .lbl{font-size:11px;letter-spacing:1.5px;color:#8f95a1;width:56px;text-transform:uppercase;}
+  button{flex:1;background:#262a33;color:#e8eaef;border:1px solid #363b46;border-radius:10px;
+    padding:10px 4px;font-size:13px;font-weight:600;}
+  button.on{background:#ff7a1a;border-color:#ff7a1a;color:#fff;}
+  button:active{transform:scale(0.96);}
+  button.sm{flex:0 0 44px;}
+  #hdr{padding:10px 14px 2px;font-size:12px;letter-spacing:2px;color:#8f95a1;text-transform:uppercase;}
+  #hdr b{color:#ff9c4d;}
+  #vals{padding:0 14px 6px;font-size:11px;color:#8f95a1;font-variant-numeric:tabular-nums;}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="hdr"><b>TIPSY</b> · hydrant hit lab · bonk → burst → puddle → spin</div>
+  <div id="vals">…</div>
+  <div id="game"></div>
+  <div id="panel">
+    <div class="row">
+      <button class="on" id="driveBtn2">DRIVE</button>
+      <button id="resetBtn">RESET</button>
+      <button id="burstBtn">BURST</button>
+      <span class="lbl">Lane</span>
+      <button class="sm" id="laneBtn">0</button>
+    </div>
+    <div class="row">
+      <span class="lbl">Speed</span>
+      <button class="sm" data-p="speed" data-d="-1">−</button>
+      <button class="sm" data-p="speed" data-d="1">＋</button>
+      <span class="lbl">Spin</span>
+      <button class="sm" data-p="spin" data-d="-1">−</button>
+      <button class="sm" data-p="spin" data-d="1">＋</button>
+      <span class="lbl">Grip</span>
+      <button class="sm" data-p="grip" data-d="-1">−</button>
+      <button class="sm" data-p="grip" data-d="1">＋</button>
+    </div>
+    <div class="row">
+      <span class="lbl">Thresh</span>
+      <button class="sm" data-p="thresh" data-d="-1">−</button>
+      <button class="sm" data-p="thresh" data-d="1">＋</button>
+      <span class="lbl">Bonk</span>
+      <button class="sm" data-p="bonk" data-d="-1">−</button>
+      <button class="sm" data-p="bonk" data-d="1">＋</button>
+      <span class="lbl">Pudl</span>
+      <button class="sm" data-p="pud" data-d="-1">−</button>
+      <button class="sm" data-p="pud" data-d="1">＋</button>
+    </div>
+    <div class="row">
+      <span class="lbl">Zoom</span>
+      <button class="sm" id="zoomOut">−</button>
+      <button class="sm" id="zoomIn">＋</button>
+      <span class="lbl">Bot</span>
+      <button class="sm" id="botBack">◀</button>
+      <button class="sm" id="botFwd">▶</button>
+      <span class="lbl">Row</span>
+      <button class="sm" id="rowDown">−</button>
+      <button class="sm" id="rowUp">＋</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/phaser@3.85.2/dist/phaser.min.js"></script>
+<script>
+"use strict";
+
+/* ============================================================
+   TIPSY — Hydrant Hit Lab v1
+   Interaction bench for prop.hydrant / prop.hydrantBurst on the
+   shared drive chassis (verbatim robot + game's approved hydrant
+   renderer). The full chain, each stage dialable:
+     1. WALL — cast iron: a hard stop, same contract as the palm
+        (stop 26 out). Arriving fast adds the bonk (Bonk dial).
+     2. BURST — if the hit speed clears the Thresh dial, the front
+        nozzle shears: water arc starts, the hydrant is burst for
+        the rest of the run.
+     3. FLOOD — pools around the base, growing over ~1.8s to the
+        Pudl radius; it covers where the blocked robot stands.
+     4. SPIN — enter the puddle with speed and the wheels
+        hydroplane: an eased pirouette (Spin = turns multiplier,
+        scaled by entry speed), tilt wobble while sliding, then
+        traction unwinds the yaw at the Grip rate.
+   The bench loops itself: blocked for >1.4s -> back to the start
+   (burst persists), so pass 2 drives into the flood edge at speed
+   and SPINS mid-approach before slamming the hydrant again. Eyes
+   go alert-orange for the whole slide. RESET restores an intact
+   hydrant; BURST forces the burst state. */
+
+/* ---------- verbatim from game/index.html ---------- */
+const HYD = {
+  height: 20, baseR: 8, domeR: 6.5, nozR: 2.6,
+  cap: 0xb5342b, capDk: 0x8a2822,
+  nut: 0x3a3d43,
+  water: 0xbfe6f2, waterDk: 0x8fc8dc,
+  shadow: 0x000000
+};
+function convexHull(pts){
+  const P2 = pts.slice().sort((a,b) => a.x - b.x || a.y - b.y);
+  const cross = (o, a, b) => (a.x-o.x)*(b.y-o.y) - (a.y-o.y)*(b.x-o.x);
+  const lo = [], hi = [];
+  for(const p of P2){
+    while(lo.length >= 2 && cross(lo[lo.length-2], lo[lo.length-1], p) <= 0) lo.pop();
+    lo.push(p);
+  }
+  for(let i = P2.length-1; i >= 0; i--){
+    const p = P2[i];
+    while(hi.length >= 2 && cross(hi[hi.length-2], hi[hi.length-1], p) <= 0) hi.pop();
+    hi.push(p);
+  }
+  lo.pop(); hi.pop();
+  return lo.concat(hi);
+}
+
+/* ---------- the dials (ported into the game once approved) ---------- */
+const HYDB = {
+  s: 4, row: 0,
+  speed: 0.05,      // approach speed (world units/ms)
+  thresh: 0.055,    // hit speed that shears the nozzle
+  bonk: 10,         // cast-iron impact severity
+  spin: 1.0,        // pirouette turns multiplier (× entry speed / 0.05)
+  grip: 1.0,        // traction recovery: yaw unwind rate
+  pud: 42           // full-grown puddle radius (world units)
+};
+/* flood is centered on the hydrant base — where the water actually pools */
+
+/* ---------- ported verbatim from game/index.html ---------- */
+const TILE = 46;
+const T2 = TILE*2;
+const DIRV = [{x:1,y:0},{x:0,y:1},{x:-1,y:0},{x:0,y:-1}];
+const PAL = { sky:0x9fd4e8, pave:0xc9c3b4, paveB:0xbfb9aa, paveEdge:0xa8a294, road:0x4a4d55, roadLine:0xd8d2c2 };
+const SKIN = {
+  bodyTop:0xf7f8fa, bodyRight:0xe3e6ea, bodyLeft:0xc9cdd4, outline:0x30343d,
+  stripe:0xc2452e, stripeDk:0xa03824,
+  wheel:0x24262c, wheelDark:0x1a1c21, wheelHubFace:0x3d424c, wheelHub:0x8a919c,
+  visor:0x22242b, eye:0x7fe3ff, eyeAlert:0xffb04d,
+  lidInner:0xb2b7bf, cavityWall:0x9ba1a9, cavityFloor:0x7b818a,
+  belly:0x494e58, flagPole:0x2e3138, flag:0xff5722, shadow:0x000000
+};
+const BODY = { hx:26, hy:20, z0:14, z1:54 };
+const LID  = { hx:22, hy:16, z0:54, z1:61 };
+const STRIPE = { z0:20, z1:27 };
+const WHEEL = { r:10, z:10, xs:[-16, 0, 16], side:22 };
+
+function mulberry32(a){ return function(){ a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+
+class HydrantHitLab extends Phaser.Scene {
+  constructor(){ super("hydrantlab"); }
+
+  create(){
+    this.K = 2.2;
+    this.seed = 7;
+    this.botS = 1.5;
+    this.botRow = 0;
+    this.pitch = 0; this.roll = 0; this.yaw = 0; this.f = 0;
+    this.tilt = 0; this.lidAng = 0; this.tipDir = 1; this.state = "idle";
+    this.wheelPhase = 0;
+    this.camX = 0; this.camY = 0; this.camZ = 0;
+    this.driving = false;
+    this.tipT = 0; this.tipResetT = 0;
+    this.speed = HYDB.speed;       // approach speed (dialable)
+    this.hyd = { burst: false, burstT: 0, bonked: false };
+    this.slide = null;             // active hydroplane event
+    this.slideArmed = true;        // re-arm after leaving the flood
+    this.blockedT = 0;             // time pinned against the wall
+    this.botZ = 2;
+    this.g = this.add.graphics();
+    this.scale.on("resize", () => this.layout());
+    this.layout();
+    this.updateVals();
+  }
+  layout(){
+    this.cx = this.scale.gameSize.width/2;
+    this.cy = this.scale.gameSize.height*0.42;
+  }
+  updateVals(){
+    document.getElementById("vals").textContent =
+      `spd ${(HYDB.speed*1000).toFixed(0)} · thresh ${(HYDB.thresh*1000).toFixed(0)} · bonk ${HYDB.bonk} · spin ${HYDB.spin.toFixed(1)} · grip ${HYDB.grip.toFixed(1)} · pudl ${HYDB.pud} · lane ${HYDB.row} · ${this.hyd.burst ? "BURST" : "intact"}${this.slide ? " · SPINNING" : ""} · tilt ${this.tilt.toFixed(2)} · ${this.state === "tipped" ? "TIPPED" : "ok"}`;
+  }
+
+  /* ---------- ground-plane helpers (camera-relative, same as
+     sidewalkend lab so tiles/slab/robot all shift together) ---------- */
+  Wg(x, y, z, ox, oy){
+    const xr = x - this.camX, yr = y - this.camY;
+    return { x:(xr - yr)*this.K + ox, y:((xr + yr)*0.5 - (z - this.camZ))*this.K + oy };
+  }
+  quadg(pts, color, alpha=1){
+    this.g.fillStyle(color, alpha);
+    this.g.fillPoints(pts.map(p => new Phaser.Geom.Point(p.x, p.y)), true);
+  }
+  edgeg(pts, color, w=2){
+    this.g.lineStyle(w, color, 1);
+    this.g.strokePoints(pts.map(p => new Phaser.Geom.Point(p.x, p.y)), true);
+  }
+
+  /* ---------- verbatim from game/index.html: robot transform +
+     projection pipeline ---------- */
+  T(x, y, z){
+    if(this.yaw !== 0){
+      const c = Math.cos(this.yaw), s = Math.sin(this.yaw);
+      const x2 = x*c - y*s; y = x*s + y*c; x = x2;
+    }
+    if(this.pitch !== 0){
+      const c = Math.cos(this.pitch), s = Math.sin(this.pitch);
+      const x2 = x*c - z*s; z = x*s + z*c; x = x2;
+    }
+    if(this.roll !== 0){
+      const PIV = this.roll >= 0 ? 22 : -22;
+      const y0 = y + PIV, c = Math.cos(this.roll), s = Math.sin(this.roll);
+      y = -PIV + y0*c - z*s; z = y0*s + z*c;
+    }
+    let rx = x, ry = y;
+    for(let i=0; i<this.f; i++){ const t = rx; rx = -ry; ry = t; }
+    return { x:rx, y:ry, z };
+  }
+  R(nx, ny, nz){
+    if(this.yaw !== 0){
+      const cy = Math.cos(this.yaw), sy = Math.sin(this.yaw);
+      const nx2 = nx*cy - ny*sy; ny = nx*sy + ny*cy; nx = nx2;
+    }
+    if(this.pitch !== 0){
+      const c = Math.cos(this.pitch), s = Math.sin(this.pitch);
+      const x2 = nx*c - nz*s; nz = nx*s + nz*c; nx = x2;
+    }
+    const c = Math.cos(this.roll), s = Math.sin(this.roll);
+    const ny2 = ny*c - nz*s, nz2 = ny*s + nz*c;
+    let rx = nx, ry = ny2;
+    for(let i=0; i<this.f; i++){ const t = rx; rx = -ry; ry = t; }
+    return { x:rx, y:ry, z:nz2 };
+  }
+  W(x, y, z){
+    const xr = x - this.camX, yr = y - this.camY;
+    return { x:(xr - yr)*this.K + this.cx,
+             y:((xr + yr)*0.5 - (z - this.camZ))*this.K + this.cy };
+  }
+  P(x, y, z){
+    const q = this.T(x, y, z);
+    return this.W(q.x + this.botX, q.y + this.botY, q.z + this.botZ);
+  }
+  depth(x, y, z){
+    const q = this.T(x, y, z);
+    return q.x + q.y + q.z*0.4;
+  }
+  quadOn(g, pts, color, alpha=1){
+    g.fillStyle(color, alpha);
+    g.fillPoints(pts.map(p => new Phaser.Geom.Point(p.x, p.y)), true);
+  }
+  edgeOn(g, pts, color=SKIN.outline, w=2){
+    g.lineStyle(w, color, 1);
+    g.strokePoints(pts.map(p => new Phaser.Geom.Point(p.x, p.y)), true);
+  }
+  quad(pts, color, alpha=1){ this.quadOn(this.g, pts, color, alpha); }
+  edge(pts, color=SKIN.outline, w=2){ this.edgeOn(this.g, pts, color, w); }
+
+  lidNear(b){
+    const hs = (this.tipDir || 1) >= 0 ? 1 : -1;
+    const A = this.lidAng * hs, c = Math.cos(A), s = Math.sin(A);
+    const yh = -b.hy * hs, zh = b.z0;
+    const dy = -yh, dz = (b.z1 - b.z0)/2;
+    return this.depth(0, yh + dy*c - dz*s, zh + dy*s + dz*c) > this.depth(0, 0, 34);
+  }
+
+  drawLid(b){
+    const {hx, hy, z0, z1} = b;
+    const hs = (this.tipDir || 1) >= 0 ? 1 : -1;
+    const A = this.lidAng * hs, cA = Math.cos(A), sA = Math.sin(A);
+    const yh = -hy * hs, zh = z0;
+    const H = (x, y, z) => {
+      const dy = y - yh, dz = z - zh;
+      return this.P(x, yh + dy*cA - dz*sA, zh + dy*sA + dz*cA);
+    };
+    const HN = (nx, ny, nz) => {
+      const ny2 = ny*cA - nz*sA, nz2 = ny*sA + nz*cA;
+      return this.R(nx, ny2, nz2);
+    };
+    const C = (sx, sy, sz) => H(sx*hx, sy*hy, sz === 1 ? z1 : z0);
+    const faces = [
+      { n:{x:0,y:0,z: 1}, pts:[C( 1,-1,1), C( 1, 1,1), C(-1, 1,1), C(-1,-1,1)] },
+      { n:{x:0,y:0,z:-1}, pts:[C( 1,-1,0), C( 1, 1,0), C(-1, 1,0), C(-1,-1,0)] },
+      { n:{x: 1,y:0,z:0}, pts:[C( 1,-1,0), C( 1, 1,0), C( 1, 1,1), C( 1,-1,1)] },
+      { n:{x:-1,y:0,z:0}, pts:[C(-1,-1,0), C(-1, 1,0), C(-1, 1,1), C(-1,-1,1)] },
+      { n:{x:0,y: 1,z:0}, pts:[C( 1, 1,0), C(-1, 1,0), C(-1, 1,1), C( 1, 1,1)] },
+      { n:{x:0,y:-1,z:0}, pts:[C( 1,-1,0), C(-1,-1,0), C(-1,-1,1), C( 1,-1,1)] }
+    ];
+    for(const fc of faces){
+      const w = HN(fc.n.x, fc.n.y, fc.n.z);
+      if((w.x + w.y + w.z) <= 0) continue;
+      const col = w.z > 0.5 ? SKIN.bodyTop
+                : w.z < -0.5 ? SKIN.lidInner
+                : (w.x >= w.y) ? SKIN.bodyRight : SKIN.bodyLeft;
+      this.quad(fc.pts, col);
+      this.edge(fc.pts);
+    }
+  }
+
+  disc(center, r, color, outlineC){
+    const pts = [];
+    for(let i=0; i<14; i++){
+      const a = (i/14)*Math.PI*2;
+      pts.push(this.P(center.x + Math.cos(a)*r, center.y, center.z + Math.sin(a)*r));
+    }
+    this.quadOn(this.g, pts, color);
+    if(outlineC !== undefined) this.edgeOn(this.g, pts, outlineC, 2);
+  }
+
+  drawBox(b, cTop, cRight, cLeft, outline=true, decal=false, cBottom=SKIN.belly){
+    const {hx, hy, z0, z1} = b, ox = b.ox || 0, oy = b.oy || 0;
+    const C = (sx, sy, sz) => this.P(ox + sx*hx, oy + sy*hy, sz === 1 ? z1 : z0);
+    const faces = [
+      { n:{x:0,y:0,z: 1}, pts:[C( 1,-1,1), C( 1, 1,1), C(-1, 1,1), C(-1,-1,1)] },
+      { n:{x:0,y:0,z:-1}, pts:[C( 1,-1,0), C( 1, 1,0), C(-1, 1,0), C(-1,-1,0)] },
+      { n:{x: 1,y:0,z:0}, pts:[C( 1,-1,0), C( 1, 1,0), C( 1, 1,1), C( 1,-1,1)] },
+      { n:{x:-1,y:0,z:0}, pts:[C(-1,-1,0), C(-1, 1,0), C(-1, 1,1), C(-1,-1,1)] },
+      { n:{x:0,y: 1,z:0}, pts:[C( 1, 1,0), C(-1, 1,0), C(-1, 1,1), C( 1, 1,1)] },
+      { n:{x:0,y:-1,z:0}, pts:[C( 1,-1,0), C(-1,-1,0), C(-1,-1,1), C( 1,-1,1)] }
+    ];
+    for(const fc of faces){
+      if(decal && fc.n.z !== 0) continue;
+      const w = this.R(fc.n.x, fc.n.y, fc.n.z);
+      if((w.x + w.y + w.z) <= 0) continue;
+      let col;
+      if(w.z > 0.5)       col = decal ? cRight : cTop;
+      else if(w.z < -0.5) col = decal ? null : cBottom;
+      else                col = (w.x >= w.y) ? cRight : cLeft;
+      if(col == null) continue;
+      this.quadOn(this.g, fc.pts, col);
+      if(outline) this.edgeOn(this.g, fc.pts);
+    }
+  }
+
+  drawWheel(c, sideSign){
+    const W2 = 7.5, steps = 5;
+    const slices = [];
+    for(let i=0; i<=steps; i++){
+      const oy = c.y + sideSign*(-W2/2 + W2*i/steps);
+      slices.push({ y:oy, depth: this.depth(c.x, oy, c.z) });
+    }
+    slices.sort((a,b) => a.depth - b.depth);
+    for(let i=0; i<slices.length; i++){
+      const isFace = i === slices.length-1;
+      this.disc({x:c.x, y:slices[i].y, z:c.z}, WHEEL.r,
+                isFace ? SKIN.wheel : SKIN.wheelDark,
+                isFace ? SKIN.outline : undefined);
+    }
+    const face = slices[slices.length-1].y;
+    this.disc({x:c.x, y:face, z:c.z}, WHEEL.r*0.55, SKIN.wheelHubFace);
+    const a = this.wheelPhase + c.x*0.2;
+    this.disc({ x:c.x + Math.cos(a)*WHEEL.r*0.34, y:face,
+                z:c.z + Math.sin(a)*WHEEL.r*0.34 }, 2.4, SKIN.wheelHub);
+  }
+
+  drawRobotReal(wx, wy, wz){
+    const g = this.g;
+    this.botX = wx; this.botY = wy; this.botZ = wz;
+
+    const sh = [];
+    for(let i=0;i<14;i++){
+      const a=(i/14)*Math.PI*2;
+      sh.push(this.P(Math.cos(a)*34, Math.sin(a)*30, 0.5));
+    }
+    this.quadOn(g, sh, SKIN.shadow, 0.16);
+
+    const wheels = [];
+    for(const side of [-1, 1]){
+      for(const wxi of WHEEL.xs){
+        const c = {x:wxi, y:side*WHEEL.side, z:WHEEL.z};
+        wheels.push({ c, side, near: this.depth(c.x, c.y, c.z) > this.depth(c.x, -c.y, c.z) });
+      }
+    }
+    for(const w of wheels) if(!w.near) this.drawWheel(w.c, w.side);
+
+    const lidBox = {...LID};
+    const lidIsNear = this.lidNear(lidBox);
+    if(!lidIsNear) this.drawLid(lidBox);
+
+    this.drawBox({hx:24, hy:17, z0:6, z1:BODY.z0+1}, 0x3f434c, 0x3a3d45, 0x2e3138, false);
+    this.drawBox({...BODY}, SKIN.bodyTop, SKIN.bodyRight, SKIN.bodyLeft);
+    this.drawBox({hx:BODY.hx+0.6, hy:BODY.hy+0.6, z0:STRIPE.z0, z1:STRIPE.z1},
+                 null, SKIN.stripe, SKIN.stripeDk, false, true);
+
+    if(lidIsNear) this.drawLid(lidBox);
+
+    const fn = this.R(1, 0, 0);
+    if(fn.x + fn.y + fn.z > 0.3){
+      const F = (y, z) => this.P(BODY.hx + 0.8, y, z);
+      this.quadOn(g, [F(-13,40), F(13,40), F(13,50), F(-13,50)], SKIN.visor);
+      this.edgeOn(g, [F(-13,40), F(13,40), F(13,50), F(-13,50)], SKIN.outline, 1.5);
+      for(const ey of [-7, 7]){
+        const c = F(ey, 45);
+        g.fillStyle(this.slide ? SKIN.eyeAlert : SKIN.eye, 1);
+        g.fillEllipse(c.x, c.y, 7, 7);
+      }
+      this.quadOn(g, [F(-16,18), F(16,18), F(16,22), F(-16,22)], 0xfff3b0);
+    }
+    for(const w of wheels) if(w.near) this.drawWheel(w.c, w.side);
+  }
+
+  /* ---------- real tile system, ported verbatim from drawWorld ----------
+     No sidewalk end here — the slab is a MID-run hazard, so the run
+     is just flat sidewalk + road the whole way. */
+  drawTiles(ox, oy){
+    const g = this.g;
+    const dv = DIRV[0], rv = DIRV[1];
+    for(let a = -1; a <= 10; a++){
+      const rowX = a*T2, rowY = 0;
+      for(let c = -1; c <= 4; c++){
+        const road = c >= 2;
+        const cx = rowX + rv.x*c*T2, cy = rowY + rv.y*c*T2;
+        const Ax = dv.x*TILE, Ay = dv.y*TILE, Bx = rv.x*TILE, By = rv.y*TILE;
+        const pts = [
+          this.Wg(cx+Ax-Bx, cy+Ay-By, 0, ox, oy), this.Wg(cx+Ax+Bx, cy+Ay+By, 0, ox, oy),
+          this.Wg(cx-Ax+Bx, cy-Ay+By, 0, ox, oy), this.Wg(cx-Ax-Bx, cy-Ay-By, 0, ox, oy)
+        ];
+        this.quadg(pts, road ? PAL.road : (((a+c)%2===0) ? PAL.pave : PAL.paveB));
+        if(!road) this.edgeg(pts, PAL.paveEdge, 1.5);
+        if(c === 3 && a % 2 === 0 && a >= 0 && a < 10){
+          this.quadg([
+            this.Wg(cx - dv.x*14 - rv.x*4, cy - dv.y*14 - rv.y*4, 0, ox, oy),
+            this.Wg(cx + dv.x*14 - rv.x*4, cy + dv.y*14 - rv.y*4, 0, ox, oy),
+            this.Wg(cx + dv.x*14 + rv.x*4, cy + dv.y*14 + rv.y*4, 0, ox, oy),
+            this.Wg(cx - dv.x*14 + rv.x*4, cy - dv.y*14 + rv.y*4, 0, ox, oy)
+          ], PAL.roadLine);
+        }
+      }
+      const kx = rowX + rv.x*TILE*3, ky = rowY + rv.y*TILE*3;
+      this.quadg([
+        this.Wg(kx - dv.x*TILE, ky - dv.y*TILE, 3, ox, oy), this.Wg(kx + dv.x*TILE, ky + dv.y*TILE, 3, ox, oy),
+        this.Wg(kx + dv.x*TILE, ky + dv.y*TILE, -2, ox, oy), this.Wg(kx - dv.x*TILE, ky - dv.y*TILE, -2, ox, oy)
+      ], PAL.paveEdge);
+    }
+  }
+
+  worldOf(s, row){
+    const dv = DIRV[0], rv = DIRV[1];
+    return { x: s*T2*dv.x + rv.x*row*T2, y: s*T2*dv.y + rv.y*row*T2 };
+  }
+
+  /* a crack is flat: the ground never changes under the robot */
+  groundZAt(s, row){ return 2; }
+
+
+      /* approved in hydrant lab: height 20 · base 8 · dome 6.5 · nozzle 2.6.
+         hydrantBurst shears the front nozzle open with an animated water
+         arc and a puddle that paints early (ground layer, like the
+         shadow) so the hydrant's own body always draws over it. */
+  /* ---------- the GAME's hydrant branch, verbatim — bench binding:
+     bursting is live state, rotation forced so the sheared nozzle
+     faces down-lane (+a): the robot's shove shears the downstream
+     cap, water lands where he's headed. Puddle rings scale with the
+     Pudl dial × growth. ---------- */
+  drawHydrantGame(wx, wy, ox, oy, t, bursting, puddleK){
+    const g = this.g;
+    const W = (dx2, dy2, dz2) => this.Wg(wx+dx2, wy+dy2, dz2, ox, oy);
+    const HH = HYD;
+    const hth = 0;
+      const hcs = Math.cos(hth), hsn = Math.sin(hth);
+      const height = HH.height;
+      const GG = (a, b, h) => W(a*hcs - b*hsn, a*hsn + b*hcs, h);
+      const dAt = (a, b, h) => a*(hcs+hsn) + b*(hcs-hsn) + h*0.4;
+
+      const rOf = h => {
+        const u = h / height;
+        if(u < 0.08) return HH.baseR;
+        if(u < 0.75) return HH.baseR*0.62 - (HH.baseR*0.62 - HH.baseR*0.5)*((u-0.08)/0.67);
+        return HH.baseR*0.5 + (HH.baseR*0.78 - HH.baseR*0.5) * ((u-0.75)/0.25);
+      };
+      const place = (h, r, n=14) => {
+        const pts = [];
+        for(let i=0; i<n; i++){
+          const phi = (i/n)*Math.PI*2, c3 = Math.cos(phi)*r, s3 = Math.sin(phi)*r;
+          pts.push(GG(c3, s3, h));
+        }
+        return pts;
+      };
+
+      const hsh = GG(0, 0, 0);
+      g.fillStyle(HH.shadow, 0.14);
+      g.fillEllipse(hsh.x, hsh.y + 2, HH.baseR*2.1*this.K*0.42, HH.baseR*0.95*this.K*0.42);
+
+      /* puddle: ground decal, paints BEFORE the hydrant's own body
+         parts so the barrel/dome/nozzles naturally draw over it. */
+      if(bursting){
+        const nc0 = 1, ns0 = 0;
+        const facing0 = nc0*(hcs+hsn) + ns0*(hcs-hsn) > 0;
+        if(facing0){
+          const tipA0 = HH.baseR*0.55 + HH.nozR*2.2;
+          const landA = 8, landB = 0;   // pooled around the base — matches the slip zone
+          const puddleRing = (rad, nn=16) => {
+            const pts = [];
+            for(let i=0; i<nn; i++){
+              const phi = (i/nn)*Math.PI*2;
+              pts.push(GG(landA + Math.cos(phi)*rad, landB + Math.sin(phi)*rad, 0.3));
+            }
+            return pts;
+          };
+          if(puddleK > 0.03) this.quadOn(g, puddleRing(HYDB.pud * puddleK), HH.water, 0.28);
+          if(puddleK > 0.03) this.quadOn(g, puddleRing(HYDB.pud * 0.62 * puddleK), HH.water, 0.22);
+        }
+      }
+
+      const hbarrel = () => {
+        const n = 6, all = [];
+        for(let i=0; i<=n; i++) all.push(...place(i/n*height*0.9, rOf(i/n*height*0.9)));
+        this.quadOn(g, convexHull(all), HH.cap);
+      };
+      const hshoulder = () => {
+        const h0 = height*0.75, h1 = height*0.9;
+        this.quadOn(g, convexHull(place(h0, rOf(h0)).concat(place(h1, rOf(h1)))), HH.cap);
+      };
+      const hdome = () => {
+        const domeBase = height*0.9, domeR = HH.domeR;
+        const n = 8, rings = [];
+        for(let i=0; i<=n; i++){
+          const u = i/n, r2 = domeR * Math.cos(u*Math.PI*0.5);
+          rings.push(place(domeBase + u*domeR*0.9, r2));
+        }
+        const all = []; for(const r2 of rings) all.push(...r2);
+        this.quadOn(g, convexHull(all), HH.cap);
+        const capTop = GG(0, 0, domeBase + domeR*0.9 + 1);
+        g.fillStyle(HH.capDk, 1);
+        g.fillCircle(capTop.x, capTop.y, 1.8*this.K*0.45);
+      };
+      const hnozzleSpray = (ang, r) => () => {
+        if(!bursting) return;
+        const nc = Math.cos(ang), ns = Math.sin(ang);
+        const facing = nc*(hcs+hsn) + ns*(hcs-hsn) > 0;
+        if(!facing) return;
+        const tipA = nc*(HH.baseR*0.55 + r*2.2), tipB = ns*(HH.baseR*0.55 + r*2.2);
+        const hgt = height*0.42;
+        const n = 9;
+        for(let i=0; i<n; i++){
+          const u = ((t*0.0026 + i/n) % 1);
+          const dist = u * 26;
+          const arcH = hgt + 14*u - 26*u*u;
+          const pt = GG(tipA + nc*dist, tipB + ns*dist, Math.max(arcH, 0.5));
+          const alpha = 0.9 * (1 - u*0.55);
+          const r2 = Math.max(0.6, 1.6 - u*1.0);
+          g.fillStyle(u > 0.82 ? HH.waterDk : HH.water, alpha);
+          g.fillCircle(pt.x, pt.y, r2*this.K*0.4);
+        }
+      };
+      const hnozzle = (ang, r, breakable) => () => {
+        const nc = Math.cos(ang), ns = Math.sin(ang);
+        const baseA = nc*(HH.baseR*0.55), baseB = ns*(HH.baseR*0.55);
+        const tipA = nc*(HH.baseR*0.55 + r*2.2), tipB = ns*(HH.baseR*0.55 + r*2.2);
+        const hgt = height*0.42;
+        const ring = (a0,b0,rad) => {
+          const pts = [];
+          for(let i=0;i<10;i++){
+            const phi=(i/10)*Math.PI*2;
+            const perpA = -ns, perpB = nc;
+            pts.push(GG(a0 + Math.cos(phi)*rad*perpA, b0 + Math.cos(phi)*rad*perpB, hgt + Math.sin(phi)*rad));
+          }
+          return pts;
+        };
+        this.quadOn(g, convexHull(ring(baseA,baseB,r).concat(ring(tipA,tipB,r))), HH.cap);
+        const facing = nc*(hcs+hsn) + ns*(hcs-hsn) > 0;
+        if(!facing) return;
+        if(bursting && breakable){
+          this.quadOn(g, ring(tipA,tipB,r*0.9), HH.nut);
+          this.quadOn(g, ring(tipA,tipB,r*0.5), HH.capDk);
+        } else {
+          this.quadOn(g, ring(tipA,tipB,r*0.8), HH.capDk);
+        }
+      };
+
+      const domeBase = height*0.9, domeR = HH.domeR;
+      const hparts = [
+        { d: dAt(0,0,height*0.3), fn: hbarrel },
+        { d: dAt(0,0,height*0.82), fn: hshoulder },
+        { d: dAt(HH.baseR*0.55*Math.cos(0), HH.baseR*0.55*Math.sin(0), height*0.42), fn: hnozzle(0, HH.nozR, true) },
+        { d: dAt(HH.baseR*0.55*Math.cos(Math.PI), HH.baseR*0.55*Math.sin(Math.PI), height*0.42), fn: hnozzle(Math.PI, HH.nozR, false) },
+        { d: dAt(0,0, domeBase+domeR*0.9), fn: hdome },
+        { d: dAt(HH.baseR*0.55 + HH.nozR*2.2 + 20, 0, height*0.42 + 8), fn: hnozzleSpray(0, HH.nozR) }
+      ];
+      hparts.sort((p1, p2) => p1.d - p2.d);
+      for(const pt of hparts) pt.fn();
+  }
+
+  update(time, delta){
+    const g = this.g; g.clear();
+    g.fillStyle(PAL.sky, 1);
+    g.fillRect(0, 0, this.scale.gameSize.width, this.scale.gameSize.height);
+
+    const dt = Math.min(delta || 16.7, 50);
+
+    /* DRIVE — the chain, physically ordered:
+       BONK: glancing cast-iron hit (one-shot, re-armed past 40):
+         kick = speed × Bonk × (random ±1), speed halves; if the hit
+         speed clears Thresh, the nozzle shears -> BURST (persists).
+       PUDDLE: grows over 1.8s at the landing point down-lane.
+       SPIN: entering the grown puddle with speed hydroplanes —
+         eased pirouette of Spin × (entrySpeed/0.05) turns, tilt
+         wobble while sliding, then Grip unwinds the yaw. Throttle
+         recovers speed toward the Speed dial between events. */
+    if(this.driving && this.state !== "tipped"){
+      this.botS += (this.speed / T2) * dt;
+      this.wheelPhase += this.speed * dt * 0.28;
+      const hz = this.hyd;
+      const dx = this.botS*T2 - HYDB.s*T2;
+
+      /* 1 — the wall (palm contract) + bonk + maybe burst */
+      let blockedNow = false;
+      if(this.botRow === HYDB.row && this.botS*T2 > HYDB.s*T2 - 26 && this.botS*T2 < HYDB.s*T2){
+        this.botS = (HYDB.s*T2 - 26)/T2;
+        blockedNow = true;
+        if(this.speed > 0.035 && !hz.bonked){
+          hz.bonked = true;
+          const hitSpeed = this.speed;
+          const kick = hitSpeed * HYDB.bonk * (Math.random() < 0.5 ? 1 : -1);
+          this.tilt += kick;
+          if(!hz.burst && hitSpeed >= HYDB.thresh){
+            hz.burst = true;
+            hz.burstT = time;
+          }
+          this.updateVals();
+        }
+        this.speed = 0;
+      }
+      if(Math.abs(dx) > 40) hz.bonked = false;
+      this.blockedT = blockedNow ? this.blockedT + dt : 0;
+
+      /* 2/3 — the grown puddle is a slip zone */
+      if(hz.burst && !this.slide && this.slideArmed){
+        const grow = Math.min(1, (time - hz.burstT)/1800);
+        const pdx = this.botS*T2 - HYDB.s*T2;
+        if(this.botRow === HYDB.row && Math.abs(pdx) < HYDB.pud*grow && this.speed > 0.02){
+          this.slideArmed = false;
+          this.slide = {
+            t0: time,
+            dur: 800 + 300*HYDB.spin,
+            dir: Math.random() < 0.5 ? 1 : -1,
+            turns: HYDB.spin * (this.speed/0.05)
+          };
+          this.tilt += this.speed * 3 * (Math.random() < 0.5 ? 1 : -1);
+          this.updateVals();
+        }
+      }
+      if(Math.abs(this.botS*T2 - HYDB.s*T2) > HYDB.pud + 30) this.slideArmed = true;
+
+      /* 4 — the spin itself: eased pirouette, wobble, then grip */
+      if(this.slide){
+        const u = (time - this.slide.t0)/this.slide.dur;
+        if(u >= 1){
+          this.slide = null; this.updateVals();
+        } else {
+          const e = u < 0.5 ? 2*u*u : 1 - Math.pow(-2*u + 2, 2)/2;
+          this.yaw = this.slide.dir * Math.PI*2 * this.slide.turns * e;
+          this.speed *= (1 - 0.0006*dt);              // hydro drag
+          this.tilt += (Math.random()-0.5) * this.speed * 0.05 * dt;
+        }
+      } else if(this.yaw !== 0){
+        let y2 = this.yaw % (Math.PI*2);
+        if(y2 > Math.PI) y2 -= Math.PI*2;
+        if(y2 < -Math.PI) y2 += Math.PI*2;
+        const step = HYDB.grip * 0.012 * dt;
+        this.yaw = Math.abs(y2) <= step ? 0 : y2 - Math.sign(y2)*step;
+      }
+
+      this.speed = Math.min(HYDB.speed, this.speed + 0.00004*dt);   // throttle recovery
+
+      this.tilt -= this.tilt * 0.0021 * dt;            // stability spring
+      this.roll = Phaser.Math.Clamp(this.tilt, -1, 1) * 0.5;
+
+      if(Math.abs(this.tilt) >= 1){
+        this.state = "tipped";
+        this.tipDir = Math.sign(this.tilt);
+        this.tipT = 0;
+      }
+
+      if(this.botS > 8 || this.blockedT > 1400){
+        this.botS = 0; this.tilt = 0; this.roll = 0; this.pitch = 0;
+        this.yaw = 0; this.slide = null; this.slideArmed = true;
+        this.hyd.bonked = false; this.speed = HYDB.speed;
+        this.blockedT = 0;                        // burst persists — pass 2 hits the flood
+      }
+    }
+
+    /* tipped-state rollover: the game's formula, auto-reset so DRIVE
+       keeps looping without manual cleanup */
+    if(this.state === "tipped"){
+      this.tipT = Math.min(1, this.tipT + dt/900);
+      this.roll = this.tipDir * (Math.PI*0.5) * this.tipT;
+      if(this.tipT >= 1){
+        this.tipResetT = (this.tipResetT || 0) + dt;
+        if(this.tipResetT > 1400){
+          this.state = "idle"; this.tipT = 0; this.tipResetT = 0;
+          this.botS = 0; this.tilt = 0; this.roll = 0; this.pitch = 0;
+          this.botZ = 2; this.yaw = 0; this.slide = null; this.slideArmed = true;
+          this.hyd.bonked = false; this.speed = HYDB.speed;
+        }
+      }
+    }
+
+    /* camera follows with forward lead, set before any drawing */
+    const bwp = this.worldOf(this.botS, this.botRow);
+    const dv = DIRV[0];
+    this.camX = bwp.x + dv.x*60;
+    this.camY = bwp.y + dv.y*60;
+    this.camZ = 0;
+
+    this.drawTiles(this.cx, this.cy);
+
+    const swp = this.worldOf(HYDB.s, HYDB.row);
+    const grow = this.hyd.burst ? Math.min(1, ((time || 0) - this.hyd.burstT)/1800) : 0;
+    const hydBehind = (swp.x + swp.y) <= (bwp.x + bwp.y) + 14;
+    if(hydBehind) this.drawHydrantGame(swp.x, swp.y, this.cx, this.cy, time, this.hyd.burst, grow);
+    this.drawRobotReal(bwp.x, bwp.y, this.botZ);
+    if(!hydBehind) this.drawHydrantGame(swp.x, swp.y, this.cx, this.cy, time, this.hyd.burst, grow);
+    if(this.driving || this.state === "tipped") this.updateVals();
+  }
+}
+
+const game = new Phaser.Game({
+  type: Phaser.AUTO, parent: "game",
+  scale: { mode: Phaser.Scale.RESIZE, width: "100%", height: "100%" },
+  scene: [HydrantHitLab]
+});
+const scn = () => game.scene.getScene("hydrantlab");
+
+document.getElementById("driveBtn2").addEventListener("click", e => {
+  const s = scn();
+  s.driving = !s.driving;
+  e.target.classList.toggle("on", s.driving);
+});
+
+document.getElementById("laneBtn").addEventListener("click", e => {
+  const order = [-1, 0, 1];
+  HYDB.row = order[(order.indexOf(HYDB.row) + 1) % order.length];
+  e.target.textContent = String(HYDB.row);
+  scn().updateVals();
+});
+document.getElementById("resetBtn").addEventListener("click", () => {
+  const s2 = scn();
+  s2.hyd = { burst: false, burstT: 0, bonked: false };
+  s2.slide = null; s2.slideArmed = true; s2.yaw = 0;
+  s2.updateVals();
+});
+document.getElementById("burstBtn").addEventListener("click", () => {
+  const s2 = scn();
+  if(!s2.hyd.burst){ s2.hyd.burst = true; s2.hyd.burstT = s2.time.now; }
+  s2.updateVals();
+});
+document.getElementById("zoomIn").addEventListener("click", () => { scn().K = Math.min(scn().K + 0.4, 6); });
+document.getElementById("zoomOut").addEventListener("click", () => { scn().K = Math.max(scn().K - 0.4, 1.2); });
+document.getElementById("botBack").addEventListener("click", () => { const s=scn(); s.botS = Math.max(0, s.botS - 0.5); s.botZ = s.groundZAt(s.botS, s.botRow); s.updateVals(); });
+document.getElementById("botFwd").addEventListener("click", () => { const s=scn(); s.botS = Math.min(8, s.botS + 0.5); s.botZ = s.groundZAt(s.botS, s.botRow); s.updateVals(); });
+document.getElementById("rowDown").addEventListener("click", () => { const s=scn(); s.botRow = Math.max(-1, s.botRow - 1); s.botZ = s.groundZAt(s.botS, s.botRow); s.updateVals(); });
+document.getElementById("rowUp").addEventListener("click", () => { const s=scn(); s.botRow = Math.min(1, s.botRow + 1); s.botZ = s.groundZAt(s.botS, s.botRow); s.updateVals(); });
+document.querySelectorAll("[data-p]").forEach(btn => {
+  btn.addEventListener("click", () => {
+    const p = btn.dataset.p, d = +btn.dataset.d;
+    if(p === "speed")  HYDB.speed  = Phaser.Math.Clamp(+(HYDB.speed + d*0.01).toFixed(3), 0.03, 0.09);
+    if(p === "thresh") HYDB.thresh = Phaser.Math.Clamp(+(HYDB.thresh + d*0.005).toFixed(3), 0.03, 0.08);
+    if(p === "bonk")   HYDB.bonk   = Phaser.Math.Clamp(HYDB.bonk + d, 6, 14);
+    if(p === "spin")   HYDB.spin   = Phaser.Math.Clamp(+(HYDB.spin + d*0.2).toFixed(1), 0.2, 3.0);
+    if(p === "grip")   HYDB.grip   = Phaser.Math.Clamp(+(HYDB.grip + d*0.2).toFixed(1), 0.4, 2.0);
+    if(p === "pud")    HYDB.pud    = Phaser.Math.Clamp(HYDB.pud + d*4, 24, 64);
+    const s2 = scn();
+    if(p === "speed" && !s2.slide) s2.speed = Math.min(s2.speed, HYDB.speed);
+    s2.updateVals();
+  });
+});
+</script>
+</body>
+</html>
