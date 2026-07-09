@@ -54,7 +54,7 @@
   <div class="card" id="orderCard">…</div>
   <p><b>HOLD right side</b> — throttle · <b>HOLD left side</b> — brake<br>
      <b>SWIPE up / down</b> — three lanes. Palms live on the inside one.</p>
-  <p>Fast over cracks, curbs and driveways = you tip.<br>You are the routing AI now. Good luck.</p>
+  <p>Fast over cracks, curbs and broken slabs = you tip.<br>You are the routing AI now. Good luck.</p>
   <button class="btn" id="startBtn">START SHIFT</button>
 </div>
 
@@ -316,11 +316,10 @@ function generateRoute(dateStr){
     if(r2 < (1 - hood.pave)*0.45)      type = "crack";
     else if(r2 < (1-hood.pave)*0.45 + hood.litter*0.35)
                                        type = rng() < 0.6 ? "scooter" : "trash";
-    else if(r2 < 0.75)                 type = rng() < 0.5 ? "driveway"
-                                            : (rng() < 0.6 ? "cone" : "coneTipped");
+    else if(r2 < 0.75)                 type = rng() < 0.6 ? "cone" : "coneTipped";
     else                               type = rng() < 0.5 ? "dog" : (rng() < 0.6 ? "bin" : "binKnocked");
     const hzObj = { type, s: Math.round(hs),
-                    row: type === "driveway" ? 0.5 : Math.floor(rng()*3) - 1,
+                    row: Math.floor(rng()*3) - 1,
                     f: facingAt(hs), hit:false };
     if(type === "crack") hzObj.len = 24 + Math.floor(rng()*49);   // spall size -> art + severity
     hazards.push(hzObj);
@@ -683,7 +682,7 @@ class WorldScene extends Phaser.Scene {
     };
 
     /* ground decals first: flat on the pavement, can never occlude anything */
-    const GROUND_KINDS = { driveway:1, crack:1, sidewalkend:1, slab:1 };
+    const GROUND_KINDS = { crack:1, sidewalkend:1, slab:1 };
     this.gFront.clear();
     for(const hz of r.hazards){
       if(!GROUND_KINDS[hz.type]) continue;
@@ -1748,19 +1747,6 @@ class WorldScene extends Phaser.Scene {
       ];
       bparts.sort((p1, p2) => p1.d - p2.d);
       for(const pt of bparts) pt.fn();
-    } else if(kind === "driveway"){
-      // concrete apron cutting across the sidewalk — the cross-slope hazard
-      this.quadOn(g, [
-        W(-34,-TILE,2), W(34,-TILE,2), W(46,TILE+14,-3), W(-46,TILE+14,-3)
-      ], 0xb5afa2);
-      this.edgeOn(g, [
-        W(-34,-TILE,2), W(34,-TILE,2), W(46,TILE+14,-3), W(-46,TILE+14,-3)
-      ], 0x968f81, 2);
-      g.lineStyle(1.5, 0x968f81, 1);
-      for(const lx of [-18, 0, 18]){
-        const a=W(lx,-TILE,2), b=W(lx*1.35, TILE+14,-3);
-        g.lineBetween(a.x, a.y, b.x, b.y);
-      }
     } else if(kind === "slab"){
       /* approved in ramp lab v2: heaved slab — the ramp concept redesigned
          into ONE sidewalk tile (92×92), lifted along one side edge by a
@@ -1847,7 +1833,7 @@ class WorldScene extends Phaser.Scene {
     } else if(kind === "sidewalkend"){
       /* approved in sidewalkend lab: ADA curb ramp, exactly 2x3 sidewalk
          tiles (184 along-travel x 276 cross-width). Ground decal only,
-         same convention driveway already uses (z-varying quad on a flat
+         same z-varying-quad-on-flat-tiles ground-decal convention (as
          tile field) — static visual, no tilt/pitch/stuck physics wired
          in yet; see docs/DESIGN.md "Sidewalkend curb ramps" for the full
          spec and the open placement question. This is the DOWN variant
@@ -2053,10 +2039,7 @@ class WorldScene extends Phaser.Scene {
       let slabUnder = null;
       for(const hz of this.route.hazards){
         const dx = this.botS - hz.s;
-        if(hz.type === "driveway"){
-          if(Math.abs(dx) < 44)                            // cross-slope while on it
-            this.tilt += this.speed * 0.055 * dt;
-        } else if(hz.type === "palm"){
+        if(hz.type === "palm"){
           /* a trunk is a wall: you stop, you do not pass */
           if(hz.row === this.botRow && this.botS > hz.s - 30 && this.botS < hz.s){
             this.botS = hz.s - 30;
@@ -2077,7 +2060,7 @@ class WorldScene extends Phaser.Scene {
              side climb the lip at the leading joint — one-shot roll
              kick toward the low side, ∝ speed × lift, so creeping over
              is the counterplay; (b) sustained cross-slope tilt while
-             riding the wedge, the driveway formula scaled by lift.
+             riding the wedge, continuous cross-slope tilt scaled by lift.
              Positive roll leans −dy, so side=+1 (road edge up) feeds
              tilt POSITIVE — falls toward the buildings. */
           if(hz.row === this.botRow){
