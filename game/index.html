@@ -620,7 +620,7 @@ class WorldScene extends Phaser.Scene {
     };
 
     /* ground decals first: flat on the pavement, can never occlude anything */
-    const GROUND_KINDS = { driveway:1, crack:1, sidewalkend:1 };
+    const GROUND_KINDS = { driveway:1, crack:1, sidewalkend:1, sidewalkbegin:1, sidewalkbeginTurn:1 };
     this.gFront.clear();
     for(const hz of r.hazards){
       if(!GROUND_KINDS[hz.type]) continue;
@@ -1597,6 +1597,103 @@ class WorldScene extends Phaser.Scene {
         g.fillStyle(0xc9911f, 0.8);
         g.fillCircle(p.x, p.y, 1.5);
       }
+    } else if(kind === "sidewalkbegin"){
+      /* the ascending mirror of prop.sidewalkend — completes the pair.
+         Real ADA design in both directions: the pad sits on a flat
+         landing, never the active slope. Here that means tile 1 (the
+         street-facing end) is the flat pad, tile 2 is the climb up to
+         sidewalk height — reversed from sidewalkend, not just its
+         mirror image; see docs/DESIGN.md for why (drawRampDown/Up in
+         the lab are independent functions, not one flipped by a
+         flag — that approach kept producing mismatches). */
+      const T2s = TILE*2, wHalf = 92, crossHalf = 1.5*T2s;
+      const sidewalkZ = 2, streetZ = -3;
+      this.quadOn(g, [W(-wHalf,-crossHalf,sidewalkZ), W(wHalf,-crossHalf,sidewalkZ),
+                      W(wHalf,crossHalf,sidewalkZ), W(-wHalf,crossHalf,sidewalkZ)], 0xb5afa2);
+      this.edgeOn(g, [W(-wHalf,-crossHalf,sidewalkZ), W(wHalf,-crossHalf,sidewalkZ),
+                      W(wHalf,crossHalf,sidewalkZ), W(-wHalf,crossHalf,sidewalkZ)], 0x968f81, 2);
+      g.lineStyle(1.5, 0x968f81, 0.9);
+      for(const u of [-0.62, 0, 0.62]){
+        const a = W(wHalf*u,-crossHalf,sidewalkZ), b = W(wHalf*u,crossHalf,sidewalkZ);
+        g.lineBetween(a.x, a.y, b.x, b.y);
+      }
+      // tile 1: flat landing at street height. tile 2: slopes street->sidewalk.
+      this.quadOn(g, [W(-wHalf,-T2s/2,streetZ), W(0,-T2s/2,streetZ),
+                      W(0,T2s/2,streetZ), W(-wHalf,T2s/2,streetZ)], 0xb5afa2);
+      this.edgeOn(g, [W(-wHalf,-T2s/2,streetZ), W(0,-T2s/2,streetZ),
+                      W(0,T2s/2,streetZ), W(-wHalf,T2s/2,streetZ)], 0x968f81, 1.5);
+      this.quadOn(g, [W(0,-T2s/2,streetZ), W(wHalf,-T2s/2,sidewalkZ),
+                      W(wHalf,T2s/2,sidewalkZ), W(0,T2s/2,streetZ)], 0xb5afa2);
+      this.edgeOn(g, [W(0,-T2s/2,streetZ), W(wHalf,-T2s/2,sidewalkZ),
+                      W(wHalf,T2s/2,sidewalkZ), W(0,T2s/2,streetZ)], 0x968f81, 1.5);
+      // ADA pad: the flat landing tile, dome-textured — street-facing end
+      this.quadOn(g, [W(-wHalf,-T2s/2,streetZ), W(0,-T2s/2,streetZ),
+                      W(0,T2s/2,streetZ), W(-wHalf,T2s/2,streetZ)], 0xf4c430);
+      this.edgeOn(g, [W(-wHalf,-T2s/2,streetZ), W(0,-T2s/2,streetZ),
+                      W(0,T2s/2,streetZ), W(-wHalf,T2s/2,streetZ)], 0xb9911f, 1.5);
+      for(let ri=0; ri<5; ri++) for(let ci=0; ci<5; ci++){
+        const py = -T2s/2 + T2s*(ri/4), px = -wHalf + wHalf*(ci/4);
+        const p = W(px, py, streetZ);
+        g.fillStyle(0xc9911f, 0.8);
+        g.fillCircle(p.x, p.y, 1.5);
+      }
+    } else if(kind === "sidewalkbeginTurn"){
+      /* approved in sidewalkendturn lab: the full junction — curb ramp
+         down, a wide arc turn onto a new heading, curb ramp back up.
+         Full 1:1 geometry (the actual arc, the second road crossing)
+         is many tiles across — too large for a gallery card, so this
+         is a compact L-shaped diorama: down ramp, a corner tile
+         standing in for the turn, up ramp rotated 90°. Same slope/pad
+         technique as prop.sidewalkend, used twice. Static visual only,
+         no physics — see docs/DESIGN.md "prop.sidewalkbeginTurn" for the
+         full spec (built + physics-tested in
+         labs/sidewalkendturn-lab.html, not yet ported into the game). */
+      const T2s = TILE*2, wHalf = 92, crossHalf = 1.5*T2s;
+      const sidewalkZ = 2, streetZ = -3;
+
+      // DOWN ramp — identical to prop.sidewalkend, anchored at origin
+      this.quadOn(g, [W(-wHalf,-crossHalf,sidewalkZ), W(wHalf,-crossHalf,sidewalkZ),
+                      W(wHalf,crossHalf,sidewalkZ), W(-wHalf,crossHalf,sidewalkZ)], 0xb5afa2);
+      this.edgeOn(g, [W(-wHalf,-crossHalf,sidewalkZ), W(wHalf,-crossHalf,sidewalkZ),
+                      W(wHalf,crossHalf,sidewalkZ), W(-wHalf,crossHalf,sidewalkZ)], 0x968f81, 2);
+      this.quadOn(g, [W(-wHalf,-T2s/2,sidewalkZ), W(0,-T2s/2,streetZ),
+                      W(0,T2s/2,streetZ), W(-wHalf,T2s/2,sidewalkZ)], 0xb5afa2);
+      this.quadOn(g, [W(0,-T2s/2,streetZ), W(wHalf,-T2s/2,streetZ),
+                      W(wHalf,T2s/2,streetZ), W(0,T2s/2,streetZ)], 0xb5afa2);
+      this.quadOn(g, [W(0,-T2s/2,streetZ), W(wHalf,-T2s/2,streetZ),
+                      W(wHalf,T2s/2,streetZ), W(0,T2s/2,streetZ)], 0xf4c430);
+      this.edgeOn(g, [W(0,-T2s/2,streetZ), W(wHalf,-T2s/2,streetZ),
+                      W(wHalf,T2s/2,streetZ), W(0,T2s/2,streetZ)], 0xb9911f, 1.5);
+      for(let ri=0; ri<5; ri++) for(let ci=0; ci<5; ci++){
+        const py = -T2s/2 + T2s*(ri/4), px = wHalf*(ci/4);
+        const p = W(px, py, streetZ);
+        g.fillStyle(0xc9911f, 0.8);
+        g.fillCircle(p.x, p.y, 1.5);
+      }
+
+      // CORNER: a road-colored square standing in for the arc turn
+      const cx = wHalf + 46, cy = 0;
+      this.quadOn(g, [W(cx-46,cy-46,streetZ), W(cx+46,cy-46,streetZ),
+                      W(cx+46,cy+46,streetZ), W(cx-46,cy+46,streetZ)], 0x4a4d55);
+
+      // UP ramp — rotated 90°: Wup swaps dx/dy roles, anchored off the corner
+      const Wup = (dx, dy, dz) => W(cx+46+dy, cy+dx, dz);
+      this.quadOn(g, [Wup(-wHalf,-crossHalf,sidewalkZ), Wup(wHalf,-crossHalf,sidewalkZ),
+                      Wup(wHalf,crossHalf,sidewalkZ), Wup(-wHalf,crossHalf,sidewalkZ)], 0xb5afa2);
+      this.edgeOn(g, [Wup(-wHalf,-crossHalf,sidewalkZ), Wup(wHalf,-crossHalf,sidewalkZ),
+                      Wup(wHalf,crossHalf,sidewalkZ), Wup(-wHalf,crossHalf,sidewalkZ)], 0x968f81, 2);
+      this.quadOn(g, [Wup(-wHalf,-T2s/2,streetZ), Wup(0,-T2s/2,streetZ),
+                      Wup(0,T2s/2,streetZ), Wup(-wHalf,T2s/2,streetZ)], 0xf4c430);
+      this.edgeOn(g, [Wup(-wHalf,-T2s/2,streetZ), Wup(0,-T2s/2,streetZ),
+                      Wup(0,T2s/2,streetZ), Wup(-wHalf,T2s/2,streetZ)], 0xb9911f, 1.5);
+      for(let ri=0; ri<5; ri++) for(let ci=0; ci<5; ci++){
+        const py = -T2s/2 + T2s*(ri/4), px = -wHalf + wHalf*(ci/4);
+        const p = Wup(px, py, streetZ);
+        g.fillStyle(0xc9911f, 0.8);
+        g.fillCircle(p.x, p.y, 1.5);
+      }
+      this.quadOn(g, [Wup(0,-T2s/2,streetZ), Wup(wHalf,-T2s/2,sidewalkZ),
+                      Wup(wHalf,T2s/2,sidewalkZ), Wup(0,T2s/2,streetZ)], 0xb5afa2);
     } else if(kind === "crack"){
       g.lineStyle(2.5, 0x5d574c, 1);
       let px = W(-14,-8,0.5);
