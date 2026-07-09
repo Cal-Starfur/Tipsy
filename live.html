@@ -127,6 +127,28 @@ function dogSpotAt(tms, seed, sit){
     walk: u < 0.62 ? Math.sin(Math.PI*w) : 0
   };
 }
+/* the startle: when the robot clips a dog the sim stamps hitT +
+   flee direction on the hazard, and the dog LEAVES — a hit dog does
+   not loiter. He launches away from the robot along the route and
+   angles toward the buildings (away from the road), accelerating out
+   of his launch turn and running flat-out into the distance for
+   2.6s; after that he's gone for the rest of the route. Pure
+   function of (t, hz), same contract as dogSpotAt. */
+function dogFleeAt(tms, hz){
+  if(!hz || hz.hitT === undefined) return null;
+  const el = tms - hz.hitT;
+  if(el <= 0) return null;
+  const DUR = 2600;
+  if(el >= DUR) return { gone: true };
+  const u = el / DUR;
+  const dist = 250 * Math.pow(u, 1.35);        // launch turn, then flat-out
+  return {
+    da: (hz.fleeA || 1) * dist,
+    db: -dist * 0.45,                          // toward the buildings, off the road
+    u,
+    gone: false
+  };
+}
 /* approved in bin lab: height 40 · base 13 · lid 15 · band 3 (standing) / 0 (knocked) */
 const BIN = {
   height: 40, baseR: 13, lidR: 15, band: 3,
@@ -1292,19 +1314,32 @@ class GalleryScene extends Phaser.Scene {
       const D = DOG, L = D.len;
       const pseed = ((Math.round(x)*7919) ^ (Math.round(y)*104729) ^ 0x6d0a) >>> 0;
       const dseed = (data && data.dogSeed !== undefined) ? data.dogSeed : pseed;
-      const sit = data ? !!data.sit : ((dseed >> 3) % 5 < 2);
-      const spot = dogSpotAt(t, dseed, sit);
-      const thW = fdir*Math.PI/2 + spot.th;
+      const sitSeed = data ? !!data.sit : ((dseed >> 3) % 5 < 2);
+      const spot = dogSpotAt(t, dseed, sitSeed);
+      const flee = dogFleeAt(t, data);
+      if(flee && flee.gone) return;                  // he left. respect it.
+      const sit = sitSeed && !flee;                  // a hit sitter leaps up
+      let spotA = spot.a, spotB = spot.b, spotTh = spot.th, walk = spot.walk;
+      let tailCurlNow = D.tailCurl, scramble = false;
+      if(flee){
+        spotA += flee.da;                            // no clamp: he is LEAVING the tile
+        spotB += flee.db;
+        spotTh = Math.atan2(-0.45, (data.fleeA || 1)); // face the run: along the flee, angled to the buildings
+        walk = 1;                                    // flat-out the whole way
+        tailCurlNow = 0;                             // tail stays tucked till he's gone
+        scramble = true;                             // panic legs, no easing off
+      }
+      const thW = fdir*Math.PI/2 + spotTh;
       const cs = Math.cos(thW), sn = Math.sin(thW);
       const coat = DOG_COATS[dseed % 3];
       const blindSide = (dseed & 4) ? 1 : -1;
-      const ax = x + dv.x*spot.a + rv.x*spot.b;
-      const ay = y + dv.y*spot.a + rv.y*spot.b;
+      const ax = x + dv.x*spotA + rv.x*spotB;
+      const ay = y + dv.y*spotA + rv.y*spotB;
       const G = (a, b, h) => this.W(ax + a*cs - b*sn, ay + a*sn + b*cs, z + h);
       const depthAt = (a, b, h) => (ax + a*cs - b*sn) + (ay + a*sn + b*cs) + h*0.4;
-      const walkPhase = t * 0.014;
-      const walkAmt = spot.walk;
-      const tr = spot.walk < 0.25 ? 1 : 0;   // tremble only while standing
+      const walkPhase = t * (scramble ? 0.038 : 0.014);   // panic legs
+      const walkAmt = walk;
+      const tr = (walk < 0.25 && !flee) ? 1 : 0;   // tremble only while calmly standing
       const jb = tr * (Math.sin(t*0.052) + Math.sin(t*0.083)*0.5) * 0.28 * L;
       const jh = tr * Math.sin(t*0.097) * 0.18 * L;
 
@@ -1454,7 +1489,7 @@ class GalleryScene extends Phaser.Scene {
     const tail = () => {                          // sickle curl over the back
       const rr = 3.9*L;
       const Ca = rearA - 0.8*L, Ch = rearH + bodyR*0.15 + rr;
-      const thMax = Math.min((0.55 + 0.85*D.tailCurl) * Math.PI, 1.9*Math.PI);
+      const thMax = Math.min((0.55 + 0.85*tailCurlNow) * Math.PI, 1.9*Math.PI);
       const n = 8;
       for(let i=0; i<=n; i++){
         const u = i/n, ang = u*thMax;
@@ -1499,6 +1534,19 @@ class GalleryScene extends Phaser.Scene {
     }
     parts.sort((x, y) => x.d - y.d);
     for(const pt of parts) pt.fn();
+
+    /* startle marks: three short strokes radiating above the head,
+       fading through the first 40% of the reaction */
+    if(flee && flee.u < 0.4){
+      const hp = G(headA, jb, headH + headR + earH*0.6 + 2);
+      const alpha = 1 - flee.u/0.4;
+      g.lineStyle(1.5, 0xffb04d, alpha);
+      for(const aoff of [-0.7, 0, 0.7]){
+        const r1 = px(headR*0.5), r2 = px(headR*1.05);
+        g.lineBetween(hp.x + Math.sin(aoff)*r1, hp.y - Math.cos(aoff)*r1,
+                      hp.x + Math.sin(aoff)*r2, hp.y - Math.cos(aoff)*r2);
+      }
+    }
     } else if(kind === "car" || kind === "truck"){
       /* approved in car lab: len 150 · wid 60 · chassis 28 · cabin 32 ·
          wheel 16. Axis-aligned to facing (no free rotation) — parked
