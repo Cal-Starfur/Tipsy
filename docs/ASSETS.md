@@ -87,7 +87,7 @@ in the sim loop, not here — this is the art only.
 | `prop.palmDwarf` | Bush-type dwarf palm (PALM_DWARF preset: h55 · f8 · droop 0.3 · wind 0.3). Same renderer as `prop.palm`. Gallery-registered; not yet placed in routes | `PALM_DWARF` const (same palette) |
 | `prop.scooter` | Dumped rental (SCOOT preset: stem42 · bar13 · wheel5). ONE rigid standing build; seeded per-scooter: ~80% laid on its side, scatter rotation, rental brand (teal/lime/coral). Parts: `deck` (brand slab + grip tape), `stem` (tapered capsule), `bar` + `grips`, 2 hull-barrel `wheels`, `kickstand` | `SCOOT` + `BRANDS` consts |
 | `prop.scooterStanding` | Forced-upright variant of the same build (reference/gallery kind) | same |
-| `prop.trash` | Two overlapping dark bag ellipses, outlined | `0x3b3f47` / `0x2b2e34` |
+| `prop.trash` | Litter cluster (trash lab v1): seeded composition (~85% each bottle/bag, bits always), depth-sorted. Parts: `bottle` (side-lying translucent body, crush dent, label band, neck + blue cap, highlight streak), `bag` (lumpy blob + raised crumple + crease facets + knot), `bits` (paper balls / cans in soda-red or silver / bright wrapper scraps), per-item shadows. Per-instance: spread, bit count, bag/bottle size. Physics unchanged: sev 7 impact + speed ×0.65 drag | `TRASH_ART`: bag `0xe9eaec`, bottle `0xd8eef4`/cap `0x2d7dd2`, cans `0xc2452e`/`0x9aa7b5`, wraps `0xf2c94c`/`0x7fae4e`/`0xff7a1a` |
 | `prop.cone` | Traffic cone (CONE preset: h38 · base18 · no band). Parts: `baseSlab` (hull box, orange top), `body` (frustum hull, seeded height variance), `tipCap` | `CONE` const: `0xff7a1a` / `0xd85f0a` |
 | `prop.coneTipped` | The same rigid cone resting on its slant side (tip low, base plate on edge). Generator mixes ~40% of cones as pre-knocked | same |
 | `prop.hydrant` | Yellow post + dome cap + base ellipse, outlined | `0xd8b23a` / `0xb5933a` |
@@ -95,8 +95,9 @@ in the sim loop, not here — this is the art only.
 | `prop.dog` | `body` ellipse, `head` circle, `ear` triangle, `eye` dot, `tail` line | `0xc98d4b`, eye `0x2e3138` |
 | `prop.car` | Parked on road: `side`/`front` faces, `roofline` quad, `cabin` window quad, `wheels` ×2 | grays `0x9aa7b5`/`0x8695a5`/`0x76839a`, cabin `0x5b6a7a` |
 | `prop.bin` | Green cylinder-ish: post rect + top/bottom ellipses, outlined | `0x3f5147` / `0x2e3d35` |
+| `prop.slab` | Heaved sidewalk slab (ramp lab v2): exactly ONE sidewalk tile (92×92), lifted along one side edge, flush at the other. Parts: `topWedge` (cross-sloped panel + seeded hairline cracks), `jointWalls` (exposed concrete at both travel joints + full raised-side wall), `soilGap` (dark opened joint), `root` (seeded ~55%: palm root bulge, the culprit), `chips` (bitten lip). Per-instance: lift 3–8, side ±1, root — carried on the hazard object. LIVE tilt hazard: lip kick on entry + sustained cross-slope (see DESIGN.md) | `SLAB_ART`: top `0xc4bdae`/`0x9d9687`, gap `0x4a4238`, root `0x8a6a48`/`0x6f5439` |
 | `prop.driveway` | `apron` light concrete quad cutting across all lanes + 3 `seam` lines | `0xb5afa2` / `0x968f81` |
-| `prop.crack` | Dark jagged polyline on the pavement | `0x5d574c` |
+| `prop.crack` | Broken-off piece / spall (crack lab v3): jagged fracture between two seeded tile-boundary points; the cut-off region is a sunken fragment. Parts: `piece` (sunken top + own hairline when big), `fractureWall` (intact slab's exposed broken face), `lip` (ragged top-level stroke), `rubble` (seeded chips), `hairlines` (radiating into intact concrete). Per-instance: len 24–72 (drives impact severity 2–8), jag, branches, drop — corner break-offs and edge bites from the same code. Two palettes by surface; decorative road-row instances are physics-free | `CRACK_ART`: sidewalk `0x5d574c`/`0x453f36`/piece `0xa89f8f`; road `0x2c2e34`/`0x14161a`/piece `0x3a3d44` |
 
 ---
 
