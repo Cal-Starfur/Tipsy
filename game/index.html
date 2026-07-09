@@ -285,6 +285,25 @@ function dogFleeAt(tms, hz){
     gone: false
   };
 }
+/* where a hit dog ends up once the flee run finishes: he doesn't pop
+   back to his spawn tile and resume the old wander loop (dogSpotAt is
+   a pure function of absolute time + seed, so "resuming" it would just
+   snap him to wherever that cycle currently says, nowhere near where he
+   actually ran to) - he settles down right where he landed and stays
+   there. Pure function of hz alone: hitT/fleeA/fleeB/dogSeed/sit never
+   change once a flee starts, and DUR is fixed, so the landing point is
+   fully determined the moment he's hit - no need to depend on the
+   current time at all. */
+function dogSettledSpot(hz){
+  if(!hz || hz.hitT === undefined) return null;
+  const DUR = 2600, DIST = 250;                // matches dogFleeAt's values at u=1
+  const base = dogSpotAt(hz.hitT + DUR, hz.dogSeed || 0, hz.sit);
+  return {
+    a: base.a + (hz.fleeA || 1) * DIST,
+    b: base.b - DIST * 0.45,
+    th: Math.atan2(-0.45, hz.fleeA || 1)
+  };
+}
 /* approved in bin lab: height 34 · base 11 · lid 13 · band 3 (standing) / 0 (knocked) */
 const BIN = {
   height: 34, baseR: 11, lidR: 13, band: 3,
@@ -1860,11 +1879,17 @@ class WorldScene extends Phaser.Scene {
       const sitSeed = data ? !!data.sit : ((dseed >> 3) % 5 < 2);
       const spot = dogSpotAt(t, dseed, sitSeed);
       const flee = dogFleeAt(t, data);
-      if(flee && flee.gone) return;                  // he left. respect it.
-      const sit = sitSeed && !flee;                  // a hit sitter leaps up
+      const settled = flee && flee.gone;
+      const settledSpot = settled ? dogSettledSpot(data) : null;
+      const sit = (sitSeed && !flee) || settled;     // a hit sitter leaps up; a settled dog sits too
       let spotA = spot.a, spotB = spot.b, spotTh = spot.th, walk = spot.walk;
       let tailCurlNow = D.tailCurl, scramble = false;
-      if(flee){
+      if(settled){
+        spotA = settledSpot.a;                        // stays right where the flee left him,
+        spotB = settledSpot.b;                        // not wherever the old wander cycle
+        spotTh = settledSpot.th;                       // has drifted to by now
+        walk = 0;
+      } else if(flee){
         spotA += flee.da;                            // no clamp: he is LEAVING the tile
         spotB += flee.db;
         spotTh = Math.atan2(-0.45, (data.fleeA || 1)); // face the run: along the flee, angled to the buildings
@@ -2762,15 +2787,18 @@ class WorldScene extends Phaser.Scene {
            function the renderer uses, so art and impact agree */
         if(hz.type === "dog"){
           if(hz.hitT !== undefined){
-            /* he was gone for good before - now he settles back into his
-               wander loop once the flee run finishes, instead of staying
-               invisible for the rest of the route. Re-arming hz.hit too
-               means he can be startled again later, same as the first time. */
+            /* once settled (flee finished) he's parked at a fixed spot -
+               dogSettledSpot, not the old time-based wander cycle, which
+               would've drifted somewhere else entirely by now. Re-arm
+               hz.hit so he can be startled again from wherever he's
+               sitting, same as the first time. */
             const flee = dogFleeAt(t, hz);
-            if(flee && flee.gone){ hz.hitT = undefined; hz.hit = false; }
-            else continue;   // still fleeing this frame - no collision check yet
+            if(flee && !flee.gone) continue;   // still actively fleeing - no collision check yet
+            hz.hit = false;
+            dx -= dogSettledSpot(hz).a;
+          } else {
+            dx -= dogSpotAt(t, hz.dogSeed || 0, hz.sit).a;
           }
-          dx -= dogSpotAt(t, hz.dogSeed || 0, hz.sit).a;
         }
         if(hz.type === "palm"){
           /* a trunk is a wall: you stop, you do not pass */
