@@ -385,7 +385,11 @@ function generateRoute(dateStr){
   const props = [];
   for(let ps = SPAWN_S + 140; ps < totalLen - 220; ps += 130 + rng()*120){
     if(inCorner(ps)) continue;
-    if(rng() < hood.palms) hazards.push({ type:"palm", s: Math.round(ps), row:-1, f: facingAt(ps), hit:false });
+    if(rng() < hood.palms) hazards.push({
+      /* ~25% of building-side plantings are dwarf palms — bush-type,
+         a SOFT hazard: you can drive through one, it just costs you */
+      type: rng() < 0.25 ? "palmDwarf" : "palm",
+      s: Math.round(ps), row:-1, f: facingAt(ps), hit:false });
   }
   /* decorative road cracks: same spall art in asphalt tones, out on
      rows 2-3 where the robot can never reach — pure texture, zero
@@ -2259,12 +2263,13 @@ class WorldScene extends Phaser.Scene {
           hz.hit = true;
           const sev = hz.type === "crack"
             ? Math.min(8, Math.max(2, 4 * (hz.len || 46) / 46))   // bigger spall, bigger jolt (crack lab v3)
-            : ({ cone:6, coneTipped:5, trash:7, bin:8, binKnocked:9, scooter:9, dog:5 }[hz.type] ?? 5);
+            : ({ cone:6, coneTipped:5, trash:7, bin:8, binKnocked:9, scooter:9, dog:5, palmDwarf:6 }[hz.type] ?? 5);
           const kick = this.speed * sev * (Math.random() < 0.5 ? 1 : -1);
           this.tilt += kick;
           this.damage = Math.min(95, this.damage + Math.abs(kick)*46);
           if(hz.type === "scooter" || hz.type === "bin" || hz.type === "binKnocked") this.speed *= 0.45;
           if(hz.type === "trash") this.speed *= 0.65;
+          if(hz.type === "palmDwarf") this.speed *= 0.5;   // dragging through fronds
           if(hz.type === "dog"){
             /* the dog reacts: remember when, and which way he bolts —
                along the route away from the robot, sideways at random */
