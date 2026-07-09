@@ -53,7 +53,7 @@
   <h1>TIPSY</h1>
   <div class="card" id="orderCard">…</div>
   <p><b>HOLD right side</b> — throttle · <b>HOLD left side</b> — brake<br>
-     <b>SWIPE up / down</b> — three lanes. Palms live on the inside one.</p>
+     <b>SWIPE up / down</b> — four lanes. Palms live on the inside one.</p>
   <p>Fast over cracks, curbs and broken slabs = you tip.<br>You are the routing AI now. Good luck.</p>
   <button class="btn" id="startBtn">START SHIFT</button>
 </div>
@@ -379,37 +379,202 @@ const CAR_COLORS = [
   { n:"white",  body:0xe4e6ea, bodyDk:0xc0c3c9, roof:0xd6d9dd }
 ];
    // facing 0..3
-const CORNER_R = 130;
+const TILE = 46;             // half-tile, model units — was previously declared only
+const T2 = TILE*2;           // locally inside drawWorld(); now needed globally for the grid.
+const BLOCK = 22 * T2;       // node-to-node street spacing (whole multiple of T2 —
+                              // keeps every intersection tile-aligned by construction)
+const ROAD_HALF = 4*T2;      // road is 8 rows wide, symmetric about the centerline
+const SIDEWALK_ROWS = 4;     // per side — the sidewalk width already live in-game
+const SIDEWALK_W = SIDEWALK_ROWS*T2;
+const OVERSHOOT = ROAD_HALF; // sufficient by construction — see classifyAt
+const CELL = TILE;           // sidewalk classification/render resolution
+const CORNER_R = ROAD_HALF + SIDEWALK_W;       // the robot's (and traffic's) turning radius through an
+                              // intersection. MUST exceed the widest sidewalk lane offset
+                              // (up to ROAD_HALF + 3.5*T2) or the offset math folds through
+                              // the arc's center and the path reverses mid-turn on the inside
+                              // of corners. The old (pre-4-lane-band) game kept CORNER_R(130)
+                              // safely above its lane offset (max 92) for exactly this reason;
+                              // porting to the wider band without raising CORNER_R to match
+                              // broke that invariant. Tying it to ROAD_HALF+SIDEWALK_W restores
+                              // the same margin the old game always had, and keeps it an exact
+                              // multiple of T2.
+const ROBOT_SIDE = -1;       // the walk stays on ONE side's sidewalk band —
+                              // lane 0 is closest to the road (curb side),
+                              // lane 3 is farthest (building side).
+function laneOffset(lane){ return ROBOT_SIDE * (ROAD_HALF + (lane+0.5)*T2); }
+function farLaneOffset(lane){ return -ROBOT_SIDE * (ROAD_HALF + (lane+0.5)*T2); } // opposite sidewalk — decoration only, never robot-reachable
+const ROBOT_ROW = laneOffset(1.5);       // default sidewalk lane, in raw world units (not T2-multiplied)
+const CAR_LANE = ROAD_HALF / 2;          // each traffic direction's lane, inside ROAD_HALF
 const SPAWN_S = 60;
 
-function generateRoute(dateStr){
-  const seed = hashStr(dateStr);
-  const rng = mulberry32(seed);
-  const hood = HOODS[seed % HOODS.length];
+/* ---------- the single source of truth for "what is at this point" ----------
+   Road always wins over sidewalk — a crossing street's road legitimately
+   owns that ground, which is what resolves intersection corners correctly. */
+function classifyAt(edges, x, y){
+  let sidewalk = false;
+  for(const e of edges){
+    const dv = DIRV[e.f], rv = DIRV[(e.f+1)%4];
+    const relX = x - e.a.x, relY = y - e.a.y;
+    const along = relX*dv.x + relY*dv.y;
+    const perp  = relX*rv.x + relY*rv.y;
+    if(along >= -OVERSHOOT && along <= BLOCK + OVERSHOOT){
+      if(Math.abs(perp) <= ROAD_HALF) return "road";
+      if(Math.abs(perp) <= ROAD_HALF + SIDEWALK_W) sidewalk = true;
+    }
+  }
+  return sidewalk ? "sidewalk" : "block";
+}
 
-  /* legs: 2-4, alternating turn direction (guarantees no self-intersection) */
-  const nLegs = 2 + Math.floor(rng()*3);
-  const legs = [{ f:0, len: 460 + rng()*260 }];
-  let turn = rng() < 0.5 ? 1 : -1;
-  for(let i=1; i<nLegs; i++){
-    legs.push({ f: ((legs[i-1].f + turn) % 4 + 4) % 4, len: 400 + rng()*320 });
-    turn = -turn;
+/* precomputed once per grid: cheap full-length runs for the safe mid-block
+   stretch, fine classify()-checked cells only near actual intersections. */
+function buildSidewalkGeometry(grid){
+  const runs = [];  // individual T2-square tiles along the safe mid-block zone —
+                     // NOT long rectangles. A real sidewalk has visible panel
+                     // seams every tile-width; one giant rectangle per lane
+                     // erased that entirely. Still no classify() check needed
+                     // here — this zone is provably conflict-free by construction,
+                     // same guarantee as before, just rendered at the right grain.
+  const safeLen = BLOCK - 2*OVERSHOOT;
+  if(safeLen > T2){
+    const nTiles = Math.floor(safeLen / T2);
+    for(const e of grid.edges){
+      const dv = DIRV[e.f], rv = DIRV[(e.f+1)%4];
+      for(const side of [-1, 1])
+        for(let t = 0; t < SIDEWALK_ROWS; t++){
+          const perp = side * (ROAD_HALF + (t+0.5)*T2);
+          for(let ai = 0; ai < nTiles; ai++){
+            const along = OVERSHOOT + (ai+0.5)*T2;
+            const x = e.a.x + dv.x*along + rv.x*perp;
+            const y = e.a.y + dv.y*along + rv.y*perp;
+            runs.push({ x, y, parity: (ai + t) % 2 });
+          }
+        }
+    }
+  }
+  const cornerCells = [], seen = new Set();
+  const perpSteps = Math.round(SIDEWALK_W / CELL);
+  const alongSteps = Math.round((2*OVERSHOOT) / CELL);
+  for(const e of grid.edges){
+    const dv = DIRV[e.f], rv = DIRV[(e.f+1)%4];
+    for(const end of [0, 1]){
+      for(let ai = 0; ai <= alongSteps; ai++){
+        const along = end === 0 ? (-OVERSHOOT + ai*CELL) : (BLOCK - OVERSHOOT + ai*CELL);
+        for(const side of [-1, 1])
+        for(let pi = 0; pi < perpSteps; pi++){
+          const perp = side * (ROAD_HALF + (pi+0.5)*CELL);
+          const x = e.a.x + dv.x*along + rv.x*perp;
+          const y = e.a.y + dv.y*along + rv.y*perp;
+          const key = Math.round(x/CELL) + "," + Math.round(y/CELL);
+          if(seen.has(key)) continue;
+          seen.add(key);
+          if(classifyAt(grid.edges, x, y) === "sidewalk"){
+            cornerCells.push({ x, y, parity: (Math.round(x/CELL) + Math.round(y/CELL)) % 2 });
+          }
+        }
+      }
+    }
+  }
+  return { runs, cornerCells };
+}
+
+/* ---------- the street grid: a real planar graph ---------- */
+function nodeShape(n){
+  const c = n.conn, count = c.filter(Boolean).length;
+  if(count === 4) return "cross";
+  if(count === 3) return "t";
+  if(count === 2) return (c[0]&&c[2]) || (c[1]&&c[3]) ? "straight" : "corner";
+  if(count === 1) return "end";
+  return "isolated";
+}
+function buildGrid(cols, rows){
+  const nodes = [];
+  for(let j=0; j<rows; j++) for(let i=0; i<cols; i++)
+    nodes.push({ i, j, x:i*BLOCK, y:j*BLOCK, conn:[false,false,false,false] });
+  const nodeAt = (i,j) => (i<0||i>=cols||j<0||j>=rows) ? null : nodes[j*cols+i];
+  const edges = [];
+  for(let j=0; j<rows; j++) for(let i=0; i<cols-1; i++){
+    const a = nodeAt(i,j), b = nodeAt(i+1,j);
+    a.conn[0] = true; b.conn[2] = true;
+    edges.push({ a, b, f:0 });
+  }
+  for(let j=0; j<rows-1; j++) for(let i=0; i<cols; i++){
+    const a = nodeAt(i,j), b = nodeAt(i,j+1);
+    a.conn[1] = true; b.conn[3] = true;
+    edges.push({ a, b, f:1 });
+  }
+  for(const n of nodes) n.shape = nodeShape(n);
+  const grid = { cols, rows, nodes, edges, nodeAt };
+  grid.classify = (x, y) => classifyAt(grid.edges, x, y);
+  const sw = buildSidewalkGeometry(grid);
+  grid.sidewalkRuns = sw.runs;
+  grid.sidewalkCornerCells = sw.cornerCells;
+  return grid;
+}
+
+/* ---------- the walked route: a random walk THROUGH the graph ----------
+   Two stages: graph traversal (only ever follows real edges — this is
+   what guarantees every turn is a real intersection), then the exact
+   fillet-arc construction the game already used, now fed by the graph
+   walk instead of arbitrary legs. The street grid stays perfectly
+   rectilinear; only the walked line curves through it. */
+function buildWalk(grid, rng){
+  const { cols, rows, nodeAt } = grid;
+  let ci = 1 + Math.floor(rng()*(cols-2 || 1));
+  let cj = 1 + Math.floor(rng()*(rows-2 || 1));
+  let cur = nodeAt(ci, cj) || grid.nodes[Math.floor(rng()*grid.nodes.length)];
+  let dir = Math.floor(rng()*4);
+  while(!cur.conn[dir]) dir = (dir+1)%4;
+  let turnSign = rng() < 0.5 ? 1 : -1;
+  const nTurns = 5 + Math.floor(rng()*6);
+
+  const startNode = cur;
+  const legDescs = [];
+  for(let leg = 0; leg <= nTurns; leg++){
+    const maxBlocks = 3 + Math.floor(rng()*4);
+    let blocks = 0;
+    for(let b=0; b<maxBlocks; b++){
+      if(!cur.conn[dir]) break;
+      const d = DIRV[dir];
+      const nxt = nodeAt(cur.i + d.x, cur.j + d.y);
+      if(!nxt) break;
+      cur = nxt; blocks++;
+    }
+    if(blocks > 0){
+      legDescs.push({ f:dir, blocks });
+    } else if(legDescs.length === 0){
+      let alt = 0; while(alt<4 && !cur.conn[alt]) alt++;
+      if(alt === 4) break;
+      dir = alt; leg--; continue;
+    }
+    if(leg < nTurns){
+      let attemptSign = turnSign;
+      let nd = ((dir + attemptSign) % 4 + 4) % 4;
+      if(!cur.conn[nd]){ attemptSign = -attemptSign; nd = ((dir + attemptSign) % 4 + 4) % 4; }
+      if(!cur.conn[nd]) break;
+      dir = nd;
+      turnSign = -attemptSign;   // alternate from the sign ACTUALLY used, not the original
+                                  // intended one — the old code flipped once for the fallback
+                                  // then flipped again unconditionally, canceling out and
+                                  // silently permitting two same-direction turns in a row
+                                  // whenever a boundary block triggered the fallback.
+    }
   }
 
-  /* fillet path: line segments trimmed by CORNER_R, quarter-circle arcs between */
   const segs = [];
-  let s = 0, p = {x:0, y:0};
-  for(let i=0; i<legs.length; i++){
-    const f = legs[i].f, d = DIRV[f], rv = DIRV[(f+1)%4];
+  let s = 0, p = { x:startNode.x, y:startNode.y };
+  for(let i = 0; i < legDescs.length; i++){
+    const f = legDescs[i].f, d = DIRV[f], rv = DIRV[(f+1)%4];
+    const legLen = legDescs[i].blocks * BLOCK;
     const trimS = i > 0 ? CORNER_R : 0;
-    const trimE = i < legs.length-1 ? CORNER_R : 0;
-    const lineLen = legs[i].len - trimS - trimE;
+    const trimE = i < legDescs.length-1 ? CORNER_R : 0;
+    const lineLen = legLen - trimS - trimE;
     segs.push({ type:"line", s0:s, s1:s+lineLen, f, hA:f*Math.PI/2,
                 start:{ x:p.x + d.x*trimS, y:p.y + d.y*trimS } });
     s += lineLen;
-    const cornerP = { x:p.x + d.x*legs[i].len, y:p.y + d.y*legs[i].len };
-    if(i < legs.length-1){
-      const sign = ((legs[i+1].f - f + 4) % 4 === 1) ? 1 : -1;   // +1 = right turn
+    const cornerP = { x:p.x + d.x*legLen, y:p.y + d.y*legLen };
+    if(i < legDescs.length-1){
+      const nextF = legDescs[i+1].f;
+      const sign = ((nextF - f + 4) % 4 === 1) ? 1 : -1;
       const center = {
         x: cornerP.x - d.x*CORNER_R + sign*rv.x*CORNER_R,
         y: cornerP.y - d.y*CORNER_R + sign*rv.y*CORNER_R };
@@ -422,32 +587,104 @@ function generateRoute(dateStr){
     }
     p = cornerP;
   }
-  const totalLen = s;
-  const inCorner = sv => segs.some(sg => sg.type === "arc" && sv > sg.s0 - 110 && sv < sg.s1 + 110);
+  return { segs, totalLen: s || 1 };
+}
 
-  /* heightmap along the path; grades flatten through corners */
-  const tiles = [];
-  const nT = Math.ceil(totalLen / (TILE*2)) + 3;
-  let h = 0, grade = 0;
-  for(let i=0; i<nT; i++){
-    const sv = i*TILE*2;
-    if(inCorner(sv)) grade = 0;
-    else if(rng() < 0.25) grade = (rng()*2 - 0.8) * 11 * hood.hill;
-    h = Math.max(0, h + grade);
-    tiles.push(h);
+/* ---------- traffic: reuses buildWalk verbatim for each route, two
+   cars per route (one each direction, opposite lane) ---------- */
+function buildTraffic(grid, rng, nRoutes){
+  const cars = [];
+  for(let r = 0; r < nRoutes; r++){
+    const routeRng = mulberry32(Math.floor(rng()*4294967296));
+    const walk = buildWalk(grid, routeRng);
+    if(!walk.segs.length) continue;
+    const speed = 0.02 + rng()*0.014;
+    const sBase = rng()*walk.totalLen;
+    cars.push({ walk, sBase, speed, dir:1, laneOffset:CAR_LANE, kind: rng()<0.6?"car":"truck", colorSeed: Math.floor(rng()*0xffffffff) >>> 0 });
+    cars.push({ walk, sBase:(sBase + walk.totalLen*0.5) % walk.totalLen,
+                speed: speed*(0.85+rng()*0.3), dir:-1, laneOffset:-CAR_LANE,
+                kind: rng()<0.6?"car":"truck", colorSeed: Math.floor(rng()*0xffffffff) >>> 0 });
   }
+  return cars;
+}
+
+/* standalone path helpers for generateRoute (a plain function, no `this`) —
+   mirror the scene's own segAt/posAt/headingAt exactly so hazard placement
+   lines up with wherever the robot's own position code says it should. */
+function segsSegAt(segs, s){
+  for(const sg of segs) if(s <= sg.s1) return sg;
+  return segs[segs.length-1];
+}
+function segsPosAt(segs, s){
+  const sg = segsSegAt(segs, s);
+  const clamp = (v,a,b) => Math.max(a, Math.min(b, v));
+  if(sg.type === "line"){
+    const d = DIRV[sg.f], u = clamp(s, sg.s0, sg.s1) - sg.s0;
+    return { x: sg.start.x + d.x*u, y: sg.start.y + d.y*u };
+  }
+  const a = sg.a0 + sg.sign * (clamp(s, sg.s0, sg.s1) - sg.s0) / sg.R;
+  return { x: sg.center.x + Math.cos(a)*sg.R, y: sg.center.y + Math.sin(a)*sg.R };
+}
+function segsHeadingAt(segs, s){
+  const sg = segsSegAt(segs, s);
+  const clamp = (v,a,b) => Math.max(a, Math.min(b, v));
+  if(sg.type === "line") return sg.hA;
+  return sg.hA + sg.sign * (clamp(s, sg.s0, sg.s1) - sg.s0) / sg.R;
+}
+function segsWorldOf(segs, s, offsetUnits){
+  const hdg = segsHeadingAt(segs, s), p = segsPosAt(segs, s);
+  const rvx = -Math.sin(hdg), rvy = Math.cos(hdg);
+  return { x: p.x + rvx*offsetUnits, y: p.y + rvy*offsetUnits };
+}
+
+function generateRoute(dateStr){
+  const seed = hashStr(dateStr);
+  const rng = mulberry32(seed);
+  const hood = HOODS[seed % HOODS.length];
+
+  /* real street grid, generated independently of the walked route —
+     this is what makes actual intersections possible. */
+  const cols = 12 + Math.floor(rng()*6);
+  const rows = 12 + Math.floor(rng()*6);
+  const grid = buildGrid(cols, rows);
+  const walk = buildWalk(grid, rng);
+  const segs = walk.segs, totalLen = walk.totalLen;
+
+  const inCorner = sv => segs.some(sg => sg.type === "arc" && sv > sg.s0 - CORNER_R && sv < sg.s1 + CORNER_R);
   const facingAt = sv => {
     for(const sg of segs) if(sv >= sg.s0 && sv <= sg.s1) return sg.f;
     return segs[segs.length-1].f;
   };
+  /* verifies a candidate placement against the grid directly instead of
+     predicting conflicts via s-distance heuristics — a long route can
+     pass near its own earlier path, which no local margin can see. */
+  const onSidewalk = (s, offsetUnits) => {
+    const wp = segsWorldOf(segs, s, offsetUnits);
+    return grid.classify(wp.x, wp.y) === "sidewalk";
+  };
+  const onRoad = (s, offsetUnits) => {
+    const wp = segsWorldOf(segs, s, offsetUnits);
+    return grid.classify(wp.x, wp.y) === "road";
+  };
 
-  /* hazards along the route; corners stay clear (the corner IS the hazard there) */
+  /* flat heightmap for now — hills need a real 2D system across the grid,
+     future work; groundSlope/pitch/gravity all fall out to zero cleanly
+     with a flat map, no other code needed to change. */
+  const tiles = [];
+  const nT = Math.ceil(totalLen / (TILE*2)) + 3;
+  for(let i=0; i<nT; i++) tiles.push(0);
+
+  /* hazards along the route; corners stay clear (the corner IS the hazard
+     there), and classify() is the final word on every placement. */
   const hazards = [];
   const density = 0.45 + hood.litter*0.35 + (1 - hood.pave)*0.3;
   let hs = SPAWN_S + 120;
   while(hs < totalLen - 220){
-    hs += (150 - density*80) + rng()*90;
-    if(inCorner(hs)) continue;
+    hs += (330 - density*176) + rng()*198;
+    const hsR = Math.round(hs);
+    if(inCorner(hsR)) continue;
+    const lane = Math.floor(rng()*4);
+    if(!onSidewalk(hsR, laneOffset(lane))) continue;
     const r2 = rng();
     let type;
     if(r2 < (1 - hood.pave)*0.45)      type = "crack";
@@ -455,15 +692,11 @@ function generateRoute(dateStr){
                                        type = rng() < 0.6 ? "scooter" : "trash";
     else if(r2 < 0.75)                 type = "cone";
     else                               type = rng() < 0.5 ? "dog" : "bin";
-    const hzObj = { type, s: Math.round(hs),
-                    row: Math.floor(rng()*3) - 1,
-                    f: facingAt(hs), hit:false };
-    if(type === "crack") hzObj.len = 24 + Math.floor(rng()*49);   // spall size -> art + severity
+    const hzObj = { type, s: hsR, row: lane, f: facingAt(hsR), hit:false };
+    if(type === "crack"){ hzObj.len = 24 + Math.floor(rng()*49); hzObj.surface = "sidewalk"; }   // spall size -> art + severity
     if(type === "dog"){ hzObj.dogSeed = (rng()*4294967296) >>> 0;  // coat + scar + waypoints
                         hzObj.sit = rng() < 0.4; }                 // ~40% sitters
     if(type === "cone"){
-      /* ~40% spawn already knocked over (route variety); the rest
-         stand until the robot's own physics puts them down */
       const preKnocked = rng() < 0.4;
       hzObj.phi = preKnocked ? CONE_HIT.phiRest : 0;
       hzObj.phase = preKnocked ? 2 : 1;
@@ -473,9 +706,6 @@ function generateRoute(dateStr){
       if(preKnocked) hzObj.fallPsi = rng()*Math.PI*2;
     }
     if(type === "bin"){
-      /* ~40% spawn already knocked (route variety), same as the cone.
-         A knocked bin blocks its lane exactly as permanently as a
-         standing one — see BIN_HIT / binNearEdge. */
       const preKnocked = rng() < 0.4;
       hzObj.phi = preKnocked ? BIN_HIT.phiRest : 0;
       hzObj.angVel = 0; hzObj.moving = false;
@@ -487,13 +717,6 @@ function generateRoute(dateStr){
       if(preKnocked) hzObj.fallPsi = rng()*Math.PI*2;
     }
     if(type === "scooter"){
-      /* ~80% spawn already dumped — matches the original design's
-         "signature hazard, always seems to be lying around" flavor.
-         The rest stand until the robot's own hit puts them down;
-         it's deliberately tippy (SCOOT_HIT.phiBal), barely needs a
-         nudge. Dump direction for the pre-fallen ones is arbitrary
-         (never hit, no "away from robot" to respect); for the ones
-         that fall live, fallPsi gets set at hit-time instead. */
       const preKnocked = rng() < 0.8;
       hzObj.thetaF = (rng()*2 - 1) * Math.PI * 0.9;
       hzObj.brand = BRANDS[Math.floor(rng()*BRANDS.length)];
@@ -506,76 +729,82 @@ function generateRoute(dateStr){
     hazards.push(hzObj);
   }
 
-  /* palms populate the building-side lane as fixed obstacles */
+  /* palms: lane 3, farthest from the road — nearest the buildings, same
+     "building-side" flavor the game already used. */
   const props = [];
-  for(let ps = SPAWN_S + 140; ps < totalLen - 220; ps += 130 + rng()*120){
-    if(inCorner(ps)) continue;
+  for(let ps = SPAWN_S + 140; ps < totalLen - 220; ps += 286 + rng()*264){
+    const psR = Math.round(ps);
+    if(inCorner(psR)) continue;
+    if(!onSidewalk(psR, laneOffset(3))) continue;
     if(rng() < hood.palms) hazards.push({
-      /* ~25% of building-side plantings are dwarf palms — bush-type,
-         a SOFT hazard: you can drive through one, it just costs you */
       type: rng() < 0.25 ? "palmDwarf" : "palm",
-      s: Math.round(ps), row:-1, f: facingAt(ps), hit:false });
+      s: psR, row:3, f: facingAt(psR), hit:false });
   }
-  /* storefront dressing (prop.planter / prop.bin): a 4th sidewalk row
-     (row:-2), one tile further from the street than the building-side
-     palm lane. Pure decoration in the `props` layer (same as parked
-     cars/traffic) — never a hazard, so it needs no collision check.
-     It's already out of the robot's reach since botRow only ever
-     clamps to [-1, 1]; this row simply exists off that range. */
+  /* storefront dressing (prop.planter / prop.bin): the FAR sidewalk —
+     the opposite side of the street from the robot's own lane. Pure
+     decoration, never a hazard, never reachable (the robot's walk
+     never puts it on that side of the road). */
   for(let fs = SPAWN_S + 160; fs < totalLen - 240; fs += 150 + rng()*160){
-    if(inCorner(fs)) continue;
+    const fsR = Math.round(fs);
+    if(inCorner(fsR)) continue;
+    const farLane = Math.floor(rng()*4);
+    const off = farLaneOffset(farLane);
+    if(!onSidewalk(fsR, off)) continue;
     if(rng() < 0.6) props.push({
       kind: rng() < 0.55 ? "planter" : "bin",
-      s: Math.round(fs), row: -2, f: facingAt(fs) });
+      s: fsR, roadOffset: off, f: facingAt(fsR) });
   }
-  /* decorative road cracks: same spall art in asphalt tones, out on
-     rows 2-3 where the robot can never reach — pure texture, zero
-     physics (the impact check requires row === botRow). Denser in
-     low-pavement districts, same as everything else broken here. */
+  /* decorative road cracks: asphalt-tone spall out on the road itself,
+     pure texture, zero physics (the impact check requires row===botRow,
+     and these never get a `row` field at all, so they can never match). */
   for(let rs = SPAWN_S + 200; rs < totalLen - 260; rs += 380 + rng()*400){
-    if(inCorner(rs)) continue;
+    const rsR = Math.round(rs);
+    if(inCorner(rsR)) continue;
     if(rng() > (1 - hood.pave)*0.8 + 0.1) continue;
-    hazards.push({ type:"crack", s: Math.round(rs), row: 2 + Math.floor(rng()*2),
-                   len: 24 + Math.floor(rng()*49), f: facingAt(rs), hit:false });
+    const off = (rng()<0.5?-1:1) * (T2 + rng()*T2*1.5);
+    if(!onRoad(rsR, off)) continue;
+    hazards.push({ type:"crack", s: rsR, roadOffset: off, surface: "road",
+                   len: 24 + Math.floor(rng()*49), f: facingAt(rsR), hit:false });
   }
 
-  /* hydrants: curb-side lane (row 1), sparse fixtures. Cast iron —
-     they block like palms, and hitting one fast enough bursts it. */
-  for(let ys = SPAWN_S + 220; ys < totalLen - 280; ys += 480 + rng()*520){
-    if(inCorner(ys)) continue;
-    if(rng() < 0.55) hazards.push({ type:"hydrant", s: Math.round(ys), row: 1,
-                                    f: facingAt(ys), hit:false, burst:false });
+  /* hydrants: lane 0, closest to the road — the real curb side. */
+  for(let ys = SPAWN_S + 220; ys < totalLen - 280; ys += 1056 + rng()*1144){
+    const ysR = Math.round(ys);
+    if(inCorner(ysR)) continue;
+    if(!onSidewalk(ysR, laneOffset(0))) continue;
+    if(rng() < 0.55) hazards.push({ type:"hydrant", s: ysR, row: 0,
+                                    f: facingAt(ysR), hit:false, burst:false });
   }
 
-  /* heaved slabs (prop.slab): runs of bad sidewalk — 1-3 consecutive
-     tiles with root-heaved panels, denser where pavement quality is
-     low. Each slab rolls its own lift (3..8) and raised side (±1),
-     and the run drifts across rows so the clean line snakes: the
-     player has to thread it slow and careful, or lane-hop through.
-     Corners stay clear, same rule as every other hazard. */
+  /* heaved slabs (prop.slab): runs of bad sidewalk across the full
+     4-lane band now, same drifting-run logic as before. */
   let ss = SPAWN_S + 260;
   while(ss < totalLen - 320){
-    ss += 300 + rng()*420;
+    ss += 660 + rng()*924;
     if(inCorner(ss)) continue;
     if(rng() > 0.18 + (1 - hood.pave)*0.75) continue;
     const runN = 1 + Math.floor(rng()*3);
-    let srow = Math.floor(rng()*3) - 1;
+    let srow = Math.floor(rng()*4);
     for(let k=0; k<runN; k++){
-      const sk = ss + k*TILE*2;
-      if(inCorner(sk)) break;
-      hazards.push({ type:"slab", s: Math.round(sk), row: srow,
+      const skR = Math.round(ss + k*TILE*2);
+      if(inCorner(skR)) break;
+      if(!onSidewalk(skR, laneOffset(srow))){ srow = Math.floor(rng()*4); continue; }
+      hazards.push({ type:"slab", s: skR, row: srow,
                      lift: 3 + Math.floor(rng()*6),
                      side: rng() < 0.5 ? 1 : -1,
                      root: rng() < 0.55,
-                     f: facingAt(sk), hit:false, lipHit:false });
-      if(rng() < 0.6) srow = Math.max(-1, Math.min(1, srow + (rng() < 0.5 ? -1 : 1)));
+                     f: facingAt(skR), hit:false, lipHit:false });
+      if(rng() < 0.6) srow = Math.max(0, Math.min(3, srow + (rng() < 0.5 ? -1 : 1)));
     }
     ss += runN*TILE*2;
   }
 
+  /* parked car: on the road, off to one side (never blocking either
+     traffic lane's centerline). */
   if(rng() < 0.5){
-    const cs = SPAWN_S + 150 + rng()*(totalLen - 500);
-    if(!inCorner(cs)) props.push({ kind: rng() < 0.65 ? "car" : "truck", s: Math.round(cs), row:3.0, f: facingAt(cs) });
+    const cs = Math.round(SPAWN_S + 150 + rng()*(totalLen - 500));
+    const off = -1*(T2*1.5);
+    if(!inCorner(cs) && onRoad(cs, off)) props.push({ kind: rng() < 0.65 ? "car" : "truck", s: cs, roadOffset: off, f: facingAt(cs) });
   }
 
   /* the address */
@@ -589,26 +818,14 @@ function generateRoute(dateStr){
     ? { sky:0xc9b49b, pave:0xa19a8e, paveB:0x958e82, paveEdge:0x7d7669, road:0x3d4046, roadLine:0x8f897b }
     : { sky:0x9fd4e8, pave:0xc9c3b4, paveB:0xbfb9aa, paveEdge:0xa8a294, road:0x4a4d55, roadLine:0xd8d2c2 };
 
-  const tipMult = (1 + hood.hill*1.2 + (1-hood.pave)*1.0 + hood.litter*0.8 + (nLegs-2)*0.15).toFixed(1);
+  const tipMult = (1 + hood.hill*1.2 + (1-hood.pave)*1.0 + hood.litter*0.8 + (walk.segs.filter(s=>s.type==="arc").length-2)*0.15).toFixed(1);
 
-  /* moving traffic: 1-2 vehicles looping continuously along the road,
-     in the outer lane (row 3.7, away from any parked car at row 3.0).
-     Position/wheel-spin computed fresh each frame from elapsed time —
-     same posAt/headingAt/groundZ the robot itself runs on, just a
-     second independent "s" that isn't gated by player input. */
-  const traffic = [];
-  const nTraffic = totalLen > 700 ? 2 : 1;
-  for(let i = 0; i < nTraffic; i++){
-    traffic.push({
-      kind: rng() < 0.6 ? "car" : "truck",
-      sBase: rng()*totalLen,
-      speed: 0.02 + rng()*0.014,          // units/ms, faster than the robot's own top speed
-      row: 3.7,
-      colorSeed: Math.floor(rng()*0xffffffff) >>> 0   // fixed — position moves every frame, color must not
-    });
-  }
+  /* traffic: real road-aware two-way loops through the same grid,
+     instead of a fixed row that never knew where the road was. */
+  const nTrafficRoutes = totalLen > 40000 ? 3 : 2;
+  const traffic = buildTraffic(grid, rng, nTrafficRoutes);
 
-  return { hood, legs, segs, totalLen, tiles, hazards, props, pal, traffic,
+  return { hood, grid, segs, totalLen, tiles, hazards, props, pal, traffic,
            address:`${number} ${street}`, doorS, tipMult, dateStr };
 }
 
@@ -622,11 +839,10 @@ const SKIN = {
   belly:0x494e58, flagPole:0x2e3138, flag:0xff5722, shadow:0x000000
 };
 
-const TILE = 46;                 // half-tile, model units
 const BODY = { hx:26, hy:20, z0:14, z1:54 };
 const LID  = { hx:22, hy:16, z0:54, z1:61 };
 const STRIPE = { z0:20, z1:27 };
-const WHEEL = { r:10, z:10, xs:[-16, 0, 16], side:22 };
+const WHEEL = { r:8, z:10, xs:[-16, 0, 16], side:22 };
 const FLAG = { base:{x:-21, y:13}, z0:61, z1:104 };
 
 class WorldScene extends Phaser.Scene {
@@ -646,7 +862,7 @@ class WorldScene extends Phaser.Scene {
     this.state = "idle";        // idle | play | tipped | won
     this.speed = 0;
     this.tilt = 0;              // stability: fail beyond ±1
-    this.botRow = 0;            // lane -1 (inner), 0, or 1 (curbside)
+    this.botRow = 1;            // lane 0 (building side) .. lane 3 (curb side), 4 lanes total
     this.botY = 0;
     this.hopAnim = null;        // active lane-change maneuver
     this.yaw = 0;               // nose steer during lane change
@@ -696,10 +912,18 @@ class WorldScene extends Phaser.Scene {
 
   hop(dir){
     if(this.state !== "play") return;
-    const target = Phaser.Math.Clamp(this.botRow + dir, -1, 1);
+    /* no lane changes mid-turn: a hop's lateral swing (up to 276 units,
+       nearly the turn's own radius) happening over the short arc-length
+       distance covered during a turn was overwhelming the actual
+       quarter-circle geometry — the ROBOT'S real path, not just the
+       debug trail, hooks and loops when this happens. Same rule real
+       driving already has: commit to your lane before the turn, not
+       mid-turn. */
+    if(this.segAt(this.botS).type === "arc") return;
+    const target = Phaser.Math.Clamp(this.botRow + dir, 0, 3);
     if(target === this.botRow) return;
     this.botRow = target;
-    this.hopAnim = { from: this.laneOff, to: target * TILE*2, start: this.time.now, dir };
+    this.hopAnim = { from: this.laneOff, to: laneOffset(target), start: this.time.now, dir };
     /* the math problem: lane changes cost stability, scaled by speed —
        bled in across the maneuver rather than spiked */
     this.hopKick += dir * (0.16 + this.speed * 4.5);
@@ -711,9 +935,11 @@ class WorldScene extends Phaser.Scene {
     this.d = this.route.pal;
     this.botS = SPAWN_S;
     this.botZ = this.groundZ(this.botS);
+    this.botRow = 1; this.laneOff = laneOffset(this.botRow);
     const sp = this.posAt(this.botS);
-    this.botX = sp.x; this.botY = sp.y;
-    this.botRow = 0; this.laneOff = 0;
+    const hdg0 = this.headingAt(this.botS);
+    this.botX = sp.x + (-Math.sin(hdg0))*this.laneOff;
+    this.botY = sp.y + Math.cos(hdg0)*this.laneOff;
     this.hopAnim = null; this.yaw = 0; this.hopYaw = 0; this.hopKick = 0;
     this.slide = null; this.slipYaw = 0;
     this.camX = this.botX; this.camY = this.botY; this.camZ = this.botZ;
@@ -834,65 +1060,100 @@ class WorldScene extends Phaser.Scene {
     this.gSky.fillStyle(d.sky, 1);
     this.gSky.fillRect(0, 0, this.scale.gameSize.width, this.scale.gameSize.height);
 
-    const T2 = TILE*2;
-    const cullSpan = (this.scale.gameSize.width / this.K) * 0.9 + TILE*6;
+    const cullSpan = (this.scale.gameSize.width / this.K) * 0.9 + TILE*6 + 4000;
     const near = (wx, wy) => (Math.abs(wx - this.camX) + Math.abs(wy - this.camY)) < cullSpan;
 
-    /* street tiles per line leg; strips extend ±2 tiles to cover junctions.
-       Two passes — roads first, sidewalks second — so junctions resolve as
-       sidewalk plazas instead of a crossing street's road painting over them. */
-    for(let pass = 0; pass <= 1; pass++)
-    for(const sg of r.segs){
-      if(sg.type !== "line") continue;
-      const dv = DIRV[sg.f], rv = DIRV[(sg.f+1)%4];
-      const n = Math.ceil((sg.s1 - sg.s0) / T2);
-      for(let a = -2; a <= n + 2; a++){
-        const sv = sg.s0 + a*T2;
-        const rowX = sg.start.x + dv.x*a*T2, rowY = sg.start.y + dv.y*a*T2;
-        if(!near(rowX, rowY)) continue;
-        const zA = this.groundZ(sv - TILE), zB = this.groundZ(sv + TILE);
-        for(let c = -2; c <= 4; c++){
-          const road = c >= 2;
-          if(road !== (pass === 0)) continue;
-          const cx = rowX + rv.x*c*T2, cy = rowY + rv.y*c*T2;
-          const Ax = dv.x*TILE, Ay = dv.y*TILE, Bx = rv.x*TILE, By = rv.y*TILE;
-          const pts = [
-            this.W(cx+Ax-Bx, cy+Ay-By, zB), this.W(cx+Ax+Bx, cy+Ay+By, zB),
-            this.W(cx-Ax+Bx, cy-Ay+By, zA), this.W(cx-Ax-Bx, cy-Ay-By, zA)
-          ];
-          this.quadOn(g, pts, road ? d.road : (((a+c)%2===0) ? d.pave : d.paveB));
-          if(!road) this.edgeOn(g, pts, d.paveEdge, 1.5);
-          if(pass === 0 && c === 3 && a % 2 === 0 && a >= 0 && a <= n){
-            this.quadOn(g, [
-              this.W(cx - dv.x*14 - rv.x*4, cy - dv.y*14 - rv.y*4, zA),
-              this.W(cx + dv.x*14 - rv.x*4, cy + dv.y*14 - rv.y*4, zB),
-              this.W(cx + dv.x*14 + rv.x*4, cy + dv.y*14 + rv.y*4, zB),
-              this.W(cx - dv.x*14 + rv.x*4, cy - dv.y*14 + rv.y*4, zA)
-            ], d.roadLine);
-          }
-        }
-        /* curb lip between sidewalk and road */
-        if(pass === 0) continue;
-        const kx = rowX + rv.x*TILE*3, ky = rowY + rv.y*TILE*3;
-        this.quadOn(g, [
-          this.W(kx - dv.x*TILE, ky - dv.y*TILE, zA+3), this.W(kx + dv.x*TILE, ky + dv.y*TILE, zB+3),
-          this.W(kx + dv.x*TILE, ky + dv.y*TILE, zB-2), this.W(kx - dv.x*TILE, ky - dv.y*TILE, zA-2)
-        ], d.paveEdge);
-      }
+    /* roads: ONE quad per street, full length — no internal tile seams
+       (a uniformly-colored surface built from many small quads shows
+       every seam as a hairline at low zoom; a single quad has none). */
+    for(const edge of r.grid.edges){
+      const dv = DIRV[edge.f], rv = DIRV[(edge.f+1)%4];
+      if(!near(edge.a.x, edge.a.y) && !near(edge.b.x, edge.b.y)) continue;
+      const ax = edge.a.x - dv.x*OVERSHOOT, ay = edge.a.y - dv.y*OVERSHOOT;
+      const bx = edge.b.x + dv.x*OVERSHOOT, by = edge.b.y + dv.y*OVERSHOOT;
+      this.quadOn(g, [
+        this.W(ax - rv.x*ROAD_HALF, ay - rv.y*ROAD_HALF, 0),
+        this.W(bx - rv.x*ROAD_HALF, by - rv.y*ROAD_HALF, 0),
+        this.W(bx + rv.x*ROAD_HALF, by + rv.y*ROAD_HALF, 0),
+        this.W(ax + rv.x*ROAD_HALF, ay + rv.y*ROAD_HALF, 0)
+      ], d.road);
     }
 
-    /* world position of an s/row entity */
-    const worldOf = (s, row, f) => {
-      const p = this.posAt(s), rv = DIRV[(f+1)%4];
-      return { x: p.x + rv.x*row*T2, y: p.y + rv.y*row*T2, z: this.groundZ(s) };
+    /* sidewalks: T2-square tiles for the safe mid-block stretch (real
+       panel seams, provably conflict-free by construction — no classify()
+       check needed), fine classify()-verified cells only near actual
+       intersections — the one place a cheap tile could be wrong. */
+    for(const rn of r.grid.sidewalkRuns){
+      if(!near(rn.x, rn.y)) continue;
+      const half = T2/2;
+      const pts = [
+        this.W(rn.x-half, rn.y-half, 0), this.W(rn.x+half, rn.y-half, 0),
+        this.W(rn.x+half, rn.y+half, 0), this.W(rn.x-half, rn.y+half, 0)
+      ];
+      this.quadOn(g, pts, rn.parity === 0 ? d.pave : d.paveB);
+      this.edgeOn(g, pts, d.paveEdge, 1);
+    }
+    for(const cell of r.grid.sidewalkCornerCells){
+      if(!near(cell.x, cell.y)) continue;
+      const half = CELL/2;
+      const pts = [
+        this.W(cell.x-half, cell.y-half, 0), this.W(cell.x+half, cell.y-half, 0),
+        this.W(cell.x+half, cell.y+half, 0), this.W(cell.x-half, cell.y+half, 0)
+      ];
+      this.quadOn(g, pts, cell.parity === 0 ? d.pave : d.paveB);
+      this.edgeOn(g, pts, d.paveEdge, 1);
+    }
+    /* center line: flat road paint, no depth. */
+    for(const edge of r.grid.edges){
+      const dv = DIRV[edge.f], rv = DIRV[(edge.f+1)%4];
+      const a0 = edge.a, b0 = edge.b;
+      const pts = [
+        this.W(a0.x - rv.x*4, a0.y - rv.y*4, 3),
+        this.W(b0.x - rv.x*4, b0.y - rv.y*4, 3),
+        this.W(b0.x + rv.x*4, b0.y + rv.y*4, 3),
+        this.W(a0.x + rv.x*4, a0.y + rv.y*4, 3)
+      ];
+      this.quadOn(g, pts, d.roadLine);
+    }
+    /* curb: a genuine vertical riser face, not a wide sloped strip —
+       zero width ACROSS the curb line, just a height difference from
+       bottom to top AT that one lateral position. A sloped quad across
+       a 92-unit-wide strip made an 8-unit rise basically unreadable;
+       a true vertical face (same lateral spot, different height) is
+       what actually looks like a curb, matching how the original
+       single-path game drew it (a small wall, not a ramp). */
+    for(const edge of r.grid.edges){
+      const dv = DIRV[edge.f], rv = DIRV[(edge.f+1)%4];
+      const a0 = edge.a, b0 = edge.b;
+      const curbFace = offUnits => {
+        const ox = rv.x*offUnits, oy = rv.y*offUnits;
+        this.quadOn(g, [
+          this.W(a0.x+ox, a0.y+oy, 3),
+          this.W(b0.x+ox, b0.y+oy, 3),
+          this.W(b0.x+ox, b0.y+oy, -2),
+          this.W(a0.x+ox, a0.y+oy, -2)
+        ], d.paveEdge);
+      };
+      curbFace(-ROAD_HALF);
+      curbFace(ROAD_HALF);
+    }
+
+    /* world position of an s/offset entity — tangent-based (same formula
+       the robot's own position already used), so it's correct through
+       arcs too, not just straight legs. */
+    const worldOf = (s, offsetUnits) => {
+      const hdg = this.headingAt(s), p = this.posAt(s);
+      const rvx = -Math.sin(hdg), rvy = Math.cos(hdg);
+      return { x: p.x + rvx*offsetUnits, y: p.y + rvy*offsetUnits, z: this.groundZ(s) };
     };
+    const hazardOffset = hz => hz.row !== undefined ? laneOffset(hz.row) : hz.roadOffset;
 
     /* ground decals first: flat on the pavement, can never occlude anything */
     const GROUND_KINDS = { crack:1, sidewalkend:1, slab:1 };
     this.gFront.clear();
     for(const hz of r.hazards){
       if(!GROUND_KINDS[hz.type]) continue;
-      const wp = worldOf(hz.s + (hz.slide || 0), hz.row, hz.f);
+      const wp = worldOf(hz.s + (hz.slide || 0), hazardOffset(hz));
       if(near(wp.x, wp.y)) this.drawProp(g, hz.type, wp.x, wp.y, t, hz.f, wp.z, null, null, hz);
     }
 
@@ -900,30 +1161,35 @@ class WorldScene extends Phaser.Scene {
     const botDepth = this.botX + this.botY;
     const layerFor = (px, py) => (px + py > botDepth + 14) ? this.gFront : g;
     for(const pr of r.props){
-      const wp = worldOf(pr.s, pr.row, pr.f);
+      const wp = worldOf(pr.s, pr.roadOffset);
       if(near(wp.x, wp.y)) this.drawProp(layerFor(wp.x, wp.y), pr.kind, wp.x, wp.y, t, pr.f, wp.z);
     }
-    /* moving traffic: independent "s" advancing every frame, wrapped
-       with a plain modulo (an instant loop-back, same simplification
-       the car lab's DRIVE preview used) — always far from the player
-       when it happens since totalLen is large relative to view range. */
+    /* moving traffic: each car follows its OWN independent path (a
+       separate buildWalk through the same grid, not the player's
+       route) — trS wraps on that car's own totalLen, and heading/
+       position come from that car's own segs, not the main route's. */
     for(const tr of r.traffic){
-      const trS = ((tr.sBase + t*tr.speed) % r.totalLen + r.totalLen) % r.totalLen;
-      const hdg = this.headingAt(trS);
+      const trTotal = tr.walk.totalLen;
+      const trS = ((tr.sBase + t*tr.speed*tr.dir) % trTotal + trTotal) % trTotal;
+      const hdg = segsHeadingAt(tr.walk.segs, trS) + (tr.dir < 0 ? Math.PI : 0);
       const fi = Math.round(hdg / (Math.PI/2));
       const trF = ((fi % 4) + 4) % 4;
-      const wp = worldOf(trS, tr.row, trF);
+      const wp = segsWorldOf(tr.walk.segs, trS, tr.laneOffset);
+      wp.z = 0;
       if(near(wp.x, wp.y)) this.drawProp(layerFor(wp.x, wp.y), tr.kind, wp.x, wp.y, t, trF, wp.z, trS*0.28, tr.colorSeed);
     }
     for(const hz of r.hazards){
       if(GROUND_KINDS[hz.type]) continue;
-      const wp = worldOf(hz.s + (hz.slide || 0), hz.row, hz.f);
+      const wp = worldOf(hz.s + (hz.slide || 0), hazardOffset(hz));
       if(near(wp.x, wp.y)) this.drawProp(layerFor(wp.x, wp.y), hz.type, wp.x, wp.y, t, hz.f, wp.z, null, null, hz);
     }
 
-    /* the address: door, delivery mat, floating label — oriented by the last leg */
-    const lastF = r.segs[r.segs.length-1].f;
-    const dv = DIRV[lastF], rv = DIRV[(lastF+1)%4];
+    /* the address: door, delivery mat, floating label — oriented by the
+       real tangent at the door, not the last segment's raw facing (which
+       could be wrong if the route happens to end inside an arc). */
+    const doorHdg = this.headingAt(r.doorS);
+    const dv = { x:Math.cos(doorHdg), y:Math.sin(doorHdg) };
+    const rv = { x:-Math.sin(doorHdg), y:Math.cos(doorHdg) };
     const dp = this.posAt(r.doorS), dz = this.groundZ(r.doorS);
     const doorW = { x: dp.x + rv.x*(-TILE-6), y: dp.y + rv.y*(-TILE-6) };
     const door = this.W(doorW.x, doorW.y, dz);
@@ -2290,10 +2556,16 @@ class WorldScene extends Phaser.Scene {
          fall out of the same code depending where the seeds land.
          Per-instance: size (hz.len from the generator, or seeded),
          raggedness, branch count, drop depth. Palette follows the
-         surface: road rows (data.row >= 2) get the asphalt tones. */
+         explicit surface tag set at generation time — sidewalk cracks
+         (from the sidewalk hazard loop) always get sidewalk tones,
+         road cracks (from the decorative road-crack loop) always get
+         asphalt tones. The old data.row>=2 guess was wrong both ways:
+         sidewalk cracks in lanes 2-3 got asphalt tones, and road
+         cracks (which never had a `row` field at all) fell through
+         to sidewalk tones by default. */
       const seed = ((Math.round(x)*7919) ^ (Math.round(y)*104729) ^ 0x3c99) >>> 0;
       const rng = mulberry32(seed);
-      const pal = (data && data.row >= 2) ? CRACK_ART.road : CRACK_ART.sidewalk;
+      const pal = (data && data.surface === "road") ? CRACK_ART.road : CRACK_ART.sidewalk;
       const len = (data && data.len) || (24 + Math.floor(rng()*49));
       const jag = 0.6 + rng()*1.0;
       const nBr = 1 + Math.floor(rng()*3);
@@ -2405,6 +2677,7 @@ class WorldScene extends Phaser.Scene {
 
     /* ---------- simulation ---------- */
     if(this.state === "play"){
+      const _botS_frameStart = this.botS;   // debug: for the backward-motion assertion below
       this.runT += dt;
 
       /* throttle / brake / hill gravity / friction */
@@ -2420,14 +2693,31 @@ class WorldScene extends Phaser.Scene {
       /* corners: Tipsy turns himself — centrifugal lean (∝ v²) is YOUR problem */
       const seg = this.segAt(this.botS);
       if(seg.type === "arc") this.tilt += seg.sign * this.speed * this.speed * 0.08 * dt;
-      /* visual banking: only the INSIDE lane lifts wheels; center + outside stay flat */
+      /* visual banking: only the INSIDE lane lifts wheels; center + outside stay flat.
+         The sidewalk band sits entirely on ONE side of the street now (not
+         straddling the centerline like the old 3-lane system), which means
+         a whole turn direction puts the ENTIRE band either fully inside or
+         fully outside — that's the dominant effect. Using deviation from
+         the band's center (my earlier fix) only captured the smaller
+         lane-to-lane gradient and got the dominant direction backwards.
+         The full laneOff, normalized against the band's own max extent,
+         captures both correctly: same sign convention the arc's own
+         center offset uses (sign*rv*R), so sign*laneOff > 0 means the
+         band is on the same side as the turn's center — i.e. inside. */
       const inside = seg.type === "arc"
-        ? Phaser.Math.Clamp(seg.sign * this.laneOff / (TILE*2), 0, 1) : 0;
+        ? Phaser.Math.Clamp(seg.sign * this.laneOff / (ROAD_HALF + SIDEWALK_W), 0, 1) : 0;
       const leanTarget = seg.type === "arc"
         ? seg.sign * Math.min(this.speed/0.15, 1) * 0.32 * inside : 0;
       this.cornerLean = Phaser.Math.Linear(this.cornerLean, leanTarget, 0.07);
 
       /* lane maneuver: eased diagonal glide with nose steer */
+      if(this.hopAnim && seg.type === "arc"){
+        /* a hop that was already in progress when the turn started —
+           resolve it immediately instead of letting it keep swinging
+           mid-arc, same reasoning as hop() refusing to start a new one. */
+        this.laneOff = this.hopAnim.to;
+        this.hopAnim = null; this.hopYaw = 0;
+      }
       if(this.hopAnim){
         const HOP_MS = 480;
         const k = Phaser.Math.Clamp((this.time.now - this.hopAnim.start) / HOP_MS, 0, 1);
@@ -2449,18 +2739,43 @@ class WorldScene extends Phaser.Scene {
       /* hazards: each one is the math problem */
       this.isBlocked = false;
       let slabUnder = null;
+      /* botRow updates the INSTANT hop() is called, but the robot's
+         actual visual position (laneOff) animates toward it over
+         480ms. Using botRow directly for collision meant a hazard on
+         the TARGET lane could hard-stop you the moment you started a
+         hop, before you'd visually arrived — if your botS was already
+         past where it'd stop you, that snapped you backward. This
+         checks where the robot actually IS instead of where it's
+         logically headed. */
+      const onLane = row => Math.abs(this.laneOff - laneOffset(row)) < T2*0.5;
+      /* defensive floor: no single hazard-triggered stop should ever move
+         botS backward by more than the largest legitimate offset already
+         in use (palm=30, hydrant=26, bin's own small creep). Whatever the
+         exact trigger for the reported "reversing around the arc" turns
+         out to be, this makes a LARGE backward jump structurally
+         impossible regardless of cause, while leaving the small
+         intentional wall-stop nudges untouched. */
+      const safeStop = target => Math.max(target, this.botS - 60);
       for(const hz of this.route.hazards){
         let dx = this.botS - hz.s;
         /* the dog moves; his hitbox moves with him — same pure
            function the renderer uses, so art and impact agree */
         if(hz.type === "dog"){
-          if(hz.hitT !== undefined) continue;   // he's fleeing or gone — done here
+          if(hz.hitT !== undefined){
+            /* he was gone for good before - now he settles back into his
+               wander loop once the flee run finishes, instead of staying
+               invisible for the rest of the route. Re-arming hz.hit too
+               means he can be startled again later, same as the first time. */
+            const flee = dogFleeAt(t, hz);
+            if(flee && flee.gone){ hz.hitT = undefined; hz.hit = false; }
+            else continue;   // still fleeing this frame - no collision check yet
+          }
           dx -= dogSpotAt(t, hz.dogSeed || 0, hz.sit).a;
         }
         if(hz.type === "palm"){
           /* a trunk is a wall: you stop, you do not pass */
-          if(hz.row === this.botRow && this.botS > hz.s - 30 && this.botS < hz.s){
-            this.botS = hz.s - 30;
+          if(onLane(hz.row) && this.botS > hz.s - 30 && this.botS < hz.s){
+            this.botS = safeStop(hz.s - 30);
             this.isBlocked = true;
             if(this.speed > 0.035 && !hz.hit){
               hz.hit = true;                               // the bonk (once per approach)
@@ -2481,7 +2796,7 @@ class WorldScene extends Phaser.Scene {
              riding the wedge, continuous cross-slope tilt scaled by lift.
              Positive roll leans −dy, so side=+1 (road edge up) feeds
              tilt POSITIVE — falls toward the buildings. */
-          if(hz.row === this.botRow){
+          if(onLane(hz.row)){
             if(!hz.lipHit && dx > -TILE && dx < -TILE + 14){
               hz.lipHit = true;
               const kick = hz.side * this.speed * hz.lift * 0.9;
@@ -2499,8 +2814,8 @@ class WorldScene extends Phaser.Scene {
              Arriving fast adds the bonk; past the burst threshold the
              nozzle shears: water arc + a flood that grows around the
              base and stays wet for the rest of the route. */
-          if(hz.row === this.botRow && this.botS > hz.s - 26 && this.botS < hz.s){
-            this.botS = hz.s - 26;
+          if(onLane(hz.row) && this.botS > hz.s - 26 && this.botS < hz.s){
+            this.botS = safeStop(hz.s - 26);
             this.isBlocked = true;
             if(this.speed > 0.035 && !hz.hit){
               hz.hit = true;
@@ -2517,7 +2832,7 @@ class WorldScene extends Phaser.Scene {
           /* the flood: wheels in the wet with speed -> hydroplane */
           if(hz.burst && !this.slide && !hz.slid){
             const grow = Math.min(1, (t - hz.burstT)/1800);
-            if(hz.row === this.botRow && Math.abs(dx) < HYD_SLIP.pud*grow && this.speed > 0.02){
+            if(onLane(hz.row) && Math.abs(dx) < HYD_SLIP.pud*grow && this.speed > 0.02){
               hz.slid = true;
               this.slide = { t0: t, dur: 800 + 300*HYD_SLIP.spin,
                              dir: Math.random() < 0.5 ? 1 : -1,
@@ -2569,7 +2884,7 @@ class WorldScene extends Phaser.Scene {
              feed the punt back into re-triggering itself, stacking
              redundant tilt/damage on the robot for what should read
              as a single clean bonk. */
-          if(!hz.hit && Math.abs(dx) < 26 && hz.row === this.botRow && this.speed > 0.015){
+          if(!hz.hit && Math.abs(dx) < 26 && onLane(hz.row) && this.speed > 0.015){
             hz.hit = true;
             if(hz.fallPsi === undefined) hz.fallPsi = (Math.random() - 0.5) * 0.5;
             const sp = this.speed;
@@ -2596,8 +2911,13 @@ class WorldScene extends Phaser.Scene {
           const BOT_HALF = 15;
           const binU0 = hz.s;
           const stopU = binU0 + binNearEdge(hz.phi) - BOT_HALF;
-          if(hz.row === this.botRow && this.botS > binU0 - 200 && this.botS >= stopU){
-            this.botS = stopU;
+          /* upper bound was missing entirely — botS >= stopU stays true
+             forever once you've passed the bin, so hopping back onto its
+             lane at ANY later point in the route (even thousands of units
+             on) snapped you back to it. palm/hydrant both gate on
+             botS < hz.s for exactly this reason; bin needs the same. */
+          if(onLane(hz.row) && this.botS > binU0 - 200 && this.botS >= stopU && this.botS < binU0 + 50){
+            this.botS = safeStop(stopU);
             this.isBlocked = true;
             if(this.speed > 0.035 && !hz.bonked && hz.pose !== "knocked"){
               hz.bonked = true;
@@ -2654,7 +2974,7 @@ class WorldScene extends Phaser.Scene {
              using the UNADJUSTED route distance — the same fix the
              cone needed, since gating re-arm on the slide feeds the
              punt back into re-triggering itself. */
-          if(!hz.hit && Math.abs(dx) < 26 && hz.row === this.botRow){
+          if(!hz.hit && Math.abs(dx) < 26 && onLane(hz.row)){
             hz.hit = true;
             if(hz.fallPsi === undefined) hz.fallPsi = (Math.random() - 0.5) * 0.6;
             const sp = this.speed;
@@ -2697,7 +3017,7 @@ class WorldScene extends Phaser.Scene {
             hz.slide += hz.slideVel * dt;
             hz.slideVel *= Math.exp(-0.004 * dt);
           } else hz.slideVel = 0;
-        } else if(!hz.hit && Math.abs(dx) < 26 && hz.row === this.botRow){
+        } else if(!hz.hit && Math.abs(dx) < 26 && onLane(hz.row)){
           hz.hit = true;
           const sev = hz.type === "crack"
             ? Math.min(8, Math.max(2, 4 * (hz.len || 46) / 46))   // bigger spall, bigger jolt (crack lab v3)
@@ -2759,6 +3079,16 @@ class WorldScene extends Phaser.Scene {
         this.state = "tipped";
         this.tipDir = Math.sign(this.tilt);
         this.speed = 0;
+        /* the lid's hinge rotation compounds with whatever yaw/pitch is
+           still active when we go over — mid-turn yaw was only ever
+           eased toward 0 (not reset), and pitch from hill slope was
+           never reset at all (frozen at its last pre-tip value, forever).
+           Compounded with the hinge's own rotation this is what twisted
+           the lid. The sprite-lab reference this was built from has no
+           yaw/pitch concept at all, which is why it never showed this -
+           zeroing both the instant we tip matches that. */
+        this.yaw = 0;
+        this.pitch = 0;
         setTimeout(() => showFail(), 1500);
       }
       /* win: at the door, slow, upright */
@@ -2769,6 +3099,9 @@ class WorldScene extends Phaser.Scene {
       }
       if(this.botS > this.route.totalLen - 30){            // overshot the route
         this.botS = this.route.totalLen - 30; this.speed = 0; this.tilt += 0.5;
+      }
+      if(this.botS < _botS_frameStart - 0.01){
+        console.warn(`[BACKWARD] botS ${_botS_frameStart.toFixed(1)} -> ${this.botS.toFixed(1)} (Δ${(this.botS-_botS_frameStart).toFixed(1)}) botRow=${this.botRow} isBlocked=${this.isBlocked} segType=${this.segAt(this.botS).type}`);
       }
     }
 
@@ -3111,25 +3444,38 @@ class WorldScene extends Phaser.Scene {
   }
 
   drawWheel(c, sideSign){
-    const W2 = 7.5, steps = 5;
-    const slices = [];
-    for(let i=0; i<=steps; i++){
-      const oy = c.y + sideSign*(-W2/2 + W2*i/steps);
-      slices.push({ y:oy, depth: this.depth(c.x, oy, c.z) });
-    }
-    slices.sort((a,b) => a.depth - b.depth);
-    for(let i=0; i<slices.length; i++){
-      const isFace = i === slices.length-1;
-      this.disc({x:c.x, y:slices[i].y, z:c.z}, WHEEL.r,
-                isFace ? SKIN.wheel : SKIN.wheelDark,
-                isFace ? SKIN.outline : undefined);
-    }
-    const face = slices[slices.length-1].y;
+    /* was: 6 depth-sorted flat discs stacked along the wheel's width.
+       Each disc alone degenerates to a hairline exactly when residual
+       yaw hits +/-45 deg (screen width is proportional to cos(yaw)-sin(yaw),
+       which is zero right there) - and every turn's facing-snap sweeps
+       through exactly that angle, so every corner clipped the wheels to
+       slices. The scooter and traffic props (drawProp's swheel/wheel)
+       never had this problem because they build the tread as a single
+       convexHull spanning TWO rings offset along the width axis, instead
+       of one ring's own outline - the guaranteed gap between the two
+       rings contributes width independent of the collapsing term, so it
+       can't go to zero. Porting that same construction here. */
+    const W2 = 7.5;
+    const ring = (oy, r) => {
+      const pts = [];
+      for(let i=0; i<14; i++){
+        const a = (i/14)*Math.PI*2;
+        pts.push(this.P(c.x + Math.cos(a)*r, oy, c.z + Math.sin(a)*r));
+      }
+      return pts;
+    };
+    const b0 = c.y - W2/2, b1 = c.y + W2/2;
+    this.quadOn(this.g, convexHull(ring(b0, WHEEL.r).concat(ring(b1, WHEEL.r))), SKIN.wheelDark);
+    const face = this.depth(c.x, b1, c.z) > this.depth(c.x, b0, c.z) ? b1 : b0;
+    const faceRing = ring(face, WHEEL.r);
+    this.quadOn(this.g, faceRing, SKIN.wheel);
+    this.edgeOn(this.g, faceRing, SKIN.outline, 2);
     this.disc({x:c.x, y:face, z:c.z}, WHEEL.r*0.55, SKIN.wheelHubFace);
     const a = this.wheelPhase + c.x*0.2;
     this.disc({ x:c.x + Math.cos(a)*WHEEL.r*0.34, y:face,
                 z:c.z + Math.sin(a)*WHEEL.r*0.34 }, 2.4, SKIN.wheelHub);
   }
+
 
   drawFlag(bobZ){
     const g = this.g;
