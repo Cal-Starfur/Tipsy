@@ -516,6 +516,18 @@ function generateRoute(dateStr){
       type: rng() < 0.25 ? "palmDwarf" : "palm",
       s: Math.round(ps), row:-1, f: facingAt(ps), hit:false });
   }
+  /* storefront dressing (prop.planter / prop.bin): a 4th sidewalk row
+     (row:-2), one tile further from the street than the building-side
+     palm lane. Pure decoration in the `props` layer (same as parked
+     cars/traffic) — never a hazard, so it needs no collision check.
+     It's already out of the robot's reach since botRow only ever
+     clamps to [-1, 1]; this row simply exists off that range. */
+  for(let fs = SPAWN_S + 160; fs < totalLen - 240; fs += 150 + rng()*160){
+    if(inCorner(fs)) continue;
+    if(rng() < 0.6) props.push({
+      kind: rng() < 0.55 ? "planter" : "bin",
+      s: Math.round(fs), row: -2, f: facingAt(fs) });
+  }
   /* decorative road cracks: same spall art in asphalt tones, out on
      rows 2-3 where the robot can never reach — pure texture, zero
      physics (the impact check requires row === botRow). Denser in
@@ -839,7 +851,7 @@ class WorldScene extends Phaser.Scene {
         const rowX = sg.start.x + dv.x*a*T2, rowY = sg.start.y + dv.y*a*T2;
         if(!near(rowX, rowY)) continue;
         const zA = this.groundZ(sv - TILE), zB = this.groundZ(sv + TILE);
-        for(let c = -1; c <= 4; c++){
+        for(let c = -2; c <= 4; c++){
           const road = c >= 2;
           if(road !== (pass === 0)) continue;
           const cx = rowX + rv.x*c*T2, cy = rowY + rv.y*c*T2;
