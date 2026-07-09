@@ -37,7 +37,10 @@ street-name pool. Roster lives in `game/index.html` (`HOODS`).
 ## What makes you tip (tilt sources)
 
 1. **Impacts** — hazard hit at speed: impulse = speed × severity
-   (dog 5, cone 6, trash 7, bin 8, scooter 9). Scooter/bin also halve speed.
+   (dog 5, cone 6, trash 7, bin 8, scooter 9, dwarf palm 6). Scooter/bin also
+   halve speed; dwarf palms halve it too (fronds drag) — the bush is the
+   SOFT counterpart to the solid tall palm: ~25% of building-side
+   plantings, passable at a price.
    Dogs are now MOVING hazards: each spawn seeds coat, scar side, and
    behavior (sit vs patrol). Wanderers move within their spawn tile via
    `dogSpotAt(t, seed)` — deterministic, stateless — and the impact check
