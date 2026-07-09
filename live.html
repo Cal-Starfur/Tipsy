@@ -353,7 +353,6 @@ class GalleryScene extends Phaser.Scene {
     P("binKnocked", 150, false, 40);
     P("car", 220, true, 60);
     P("truck", 220, true, 60);
-    P("driveway", 170, true, 40);
     P("slab", 210, true, 60);
     P("sidewalkend", 320, true, 60);
     P("crack", 190, false, 50);
@@ -1669,19 +1668,6 @@ class GalleryScene extends Phaser.Scene {
       ];
       bparts.sort((p1, p2) => p1.d - p2.d);
       for(const pt of bparts) pt.fn();
-    } else if(kind === "driveway"){
-      // concrete apron cutting across the sidewalk — the cross-slope hazard
-      this.quadOn(g, [
-        W(-34,-TILE,2), W(34,-TILE,2), W(46,TILE+14,-3), W(-46,TILE+14,-3)
-      ], 0xb5afa2);
-      this.edgeOn(g, [
-        W(-34,-TILE,2), W(34,-TILE,2), W(46,TILE+14,-3), W(-46,TILE+14,-3)
-      ], 0x968f81, 2);
-      g.lineStyle(1.5, 0x968f81, 1);
-      for(const lx of [-18, 0, 18]){
-        const a=W(lx,-TILE,2), b=W(lx*1.35, TILE+14,-3);
-        g.lineBetween(a.x, a.y, b.x, b.y);
-      }
     } else if(kind === "slab"){
       /* approved in ramp lab v2: heaved slab — the ramp concept redesigned
          into ONE sidewalk tile (92×92), lifted along one side edge by a
@@ -1768,7 +1754,7 @@ class GalleryScene extends Phaser.Scene {
     } else if(kind === "sidewalkend"){
       /* approved in sidewalkend lab: ADA curb ramp, exactly 2x3 sidewalk
          tiles (184 along-travel x 276 cross-width). Ground decal only,
-         same convention driveway already uses (z-varying quad on a flat
+         same z-varying-quad-on-flat-tiles ground-decal convention (as
          tile field) — static visual, no tilt/pitch/stuck physics wired
          in yet; see docs/DESIGN.md "Sidewalkend curb ramps" for the full
          spec and the open placement question. This is the DOWN variant
