@@ -1,0 +1,764 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>TIPSY — Cone Hit Lab</title>
+<style>
+  html,body{margin:0;padding:0;background:#14161b;height:100%;overflow:hidden;touch-action:manipulation;
+    font-family:-apple-system,'Helvetica Neue',Arial,sans-serif;-webkit-user-select:none;user-select:none;color:#e8eaef;}
+  #wrap{display:flex;flex-direction:column;height:100%;}
+  #game{flex:1;min-height:0;}
+  #panel{padding:10px 12px calc(14px + env(safe-area-inset-bottom));background:#1c1f26;border-top:1px solid #2b2f38;}
+  .row{display:flex;gap:8px;margin-bottom:8px;align-items:center;}
+  .row:last-child{margin-bottom:0;}
+  .lbl{font-size:11px;letter-spacing:1.5px;color:#8f95a1;width:56px;text-transform:uppercase;}
+  button{flex:1;background:#262a33;color:#e8eaef;border:1px solid #363b46;border-radius:10px;
+    padding:10px 4px;font-size:13px;font-weight:600;}
+  button.on{background:#ff7a1a;border-color:#ff7a1a;color:#fff;}
+  button:active{transform:scale(0.96);}
+  button.sm{flex:0 0 44px;}
+  #hdr{padding:10px 14px 2px;font-size:12px;letter-spacing:2px;color:#8f95a1;text-transform:uppercase;}
+  #hdr b{color:#ff9c4d;}
+  #vals{padding:0 14px 6px;font-size:11px;color:#8f95a1;font-variant-numeric:tabular-nums;}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="hdr"><b>TIPSY</b> · cone hit lab · nudge → rock → topple → punt</div>
+  <div id="vals">…</div>
+  <div id="game"></div>
+  <div id="panel">
+    <div class="row">
+      <button class="on" id="driveBtn2">DRIVE</button>
+      <button id="resetBtn">RESET</button>
+      <button id="knockBtn">KNOCK</button>
+      <span class="lbl">Lane</span>
+      <button class="sm" id="laneBtn">0</button>
+    </div>
+    <div class="row">
+      <span class="lbl">Speed</span>
+      <button class="sm" data-p="speed" data-d="-1">−</button>
+      <button class="sm" data-p="speed" data-d="1">＋</button>
+      <span class="lbl">Kick</span>
+      <button class="sm" data-p="kick" data-d="-1">−</button>
+      <button class="sm" data-p="kick" data-d="1">＋</button>
+      <span class="lbl">Grav</span>
+      <button class="sm" data-p="grav" data-d="-1">−</button>
+      <button class="sm" data-p="grav" data-d="1">＋</button>
+    </div>
+    <div class="row">
+      <span class="lbl">Punt</span>
+      <button class="sm" data-p="punt" data-d="-1">−</button>
+      <button class="sm" data-p="punt" data-d="1">＋</button>
+      <span class="lbl">Zoom</span>
+      <button class="sm" id="zoomOut">−</button>
+      <button class="sm" id="zoomIn">＋</button>
+      <span class="lbl">Bot</span>
+      <button class="sm" id="botBack">◀</button>
+      <button class="sm" id="botFwd">▶</button>
+    </div>
+    <div class="row">
+      <span class="lbl">Row</span>
+      <button class="sm" id="rowDown">−</button>
+      <button class="sm" id="rowUp">＋</button>
+      <span style="flex:1"></span>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/phaser@3.85.2/dist/phaser.min.js"></script>
+<script>
+"use strict";
+
+/* ============================================================
+   TIPSY — Cone Hit Lab v1
+   Interaction bench for prop.cone on the shared drive chassis
+   (verbatim robot + the approved cone-lab NEW renderer). The
+   cone is NOT a wall — it's a light plastic prop. Physics is
+   ONE integrator, no keyframes, so the tip threshold emerges
+   from the geometry instead of a dial:
+     · RIGID PIVOT FALL — the standing geometry rotates about
+       its front base-rim edge. Gravity torque:
+         angAcc = KG · sin(φ − φ_bal)
+       φ_bal = balance angle (CM over the pivot). Below it the
+       torque restores; past it the cone accelerates over.
+     · NUDGE / ROCK — a weak hit gives angular velocity that
+       can't reach φ_bal: the cone leans, falls back, slaps its
+       base down (restitution bounce), settles upright.
+     · TOPPLE — a hard hit clears φ_bal. TWO-PHASE pivot:
+       rim edge to 90°, then the pivot hands off to the landed
+       slab corner until the cone's slant line contacts ground
+       (φ_rest ≈ 102°, computed numerically from the live
+       geometry so Height/Base survive changes). Restitution
+       bounces at contact settle it — same integrator.
+     · PUNT — the hit also slides the cone down-lane with
+       exponential friction; the fall direction gets a small
+       random lateral deflection per hit.
+   The robot never stops for a cone: mild tilt kick, ~14%
+   speed loss, and once the cone is down he drives over it
+   with a pitch-bob bump. Bench loops (botS > 8 → restart,
+   cone state persists). RESET stands it back up; KNOCK
+   forces the knocked pose. */
+
+/* ---------- approved in cone lab: height 38 · base 18 · band 0 ---------- */
+const CONE = {
+  height: 38, base: 18, band: 0,
+  body: 0xff7a1a, bodyDk: 0xd85f0a,
+  band_c: 0xf4f5f7, bandDk: 0xd8dade,
+  shadow: 0x000000
+};
+function convexHull(pts){
+  const P2 = pts.slice().sort((a,b) => a.x - b.x || a.y - b.y);
+  const cross = (o, a, b) => (a.x-o.x)*(b.y-o.y) - (a.y-o.y)*(b.x-o.x);
+  const lo = [], hi = [];
+  for(const p of P2){
+    while(lo.length >= 2 && cross(lo[lo.length-2], lo[lo.length-1], p) <= 0) lo.pop();
+    lo.push(p);
+  }
+  for(let i = P2.length-1; i >= 0; i--){
+    const p = P2[i];
+    while(hi.length >= 2 && cross(hi[hi.length-2], hi[hi.length-1], p) <= 0) hi.pop();
+    hi.push(p);
+  }
+  lo.pop(); hi.pop();
+  return lo.concat(hi);
+}
+/* cone taper, shared by renderer and rest-angle solver */
+const coneR = h => 8.5 - (8.5 - 1.8) * (h / CONE.height);
+
+/* ---------- the dials (ported into the game once approved) ---------- */
+const CONB = {
+  s: 4, row: 0,
+  speed: 0.09,      // approach speed (world units/ms) — approved
+  kick: 1.0,        // hit impulse multiplier (angVel += speed × 0.06 × Kick)
+  grav: 0.6,        // gravity torque multiplier (fall speed + threshold) — approved
+  punt: 2.0         // slide impulse multiplier (slideVel += speed × 1.2 × Punt) — approved
+};
+
+/* ---------- ported verbatim from game/index.html ---------- */
+const TILE = 46;
+const T2 = TILE*2;
+const DIRV = [{x:1,y:0},{x:0,y:1},{x:-1,y:0},{x:0,y:-1}];
+const PAL = { sky:0x9fd4e8, pave:0xc9c3b4, paveB:0xbfb9aa, paveEdge:0xa8a294, road:0x4a4d55, roadLine:0xd8d2c2 };
+const SKIN = {
+  bodyTop:0xf7f8fa, bodyRight:0xe3e6ea, bodyLeft:0xc9cdd4, outline:0x30343d,
+  stripe:0xc2452e, stripeDk:0xa03824,
+  wheel:0x24262c, wheelDark:0x1a1c21, wheelHubFace:0x3d424c, wheelHub:0x8a919c,
+  visor:0x22242b, eye:0x7fe3ff, eyeAlert:0xffb04d,
+  lidInner:0xb2b7bf, cavityWall:0x9ba1a9, cavityFloor:0x7b818a,
+  belly:0x494e58, flagPole:0x2e3138, flag:0xff5722, shadow:0x000000
+};
+const BODY = { hx:26, hy:20, z0:14, z1:54 };
+const LID  = { hx:22, hy:16, z0:54, z1:61 };
+const STRIPE = { z0:20, z1:27 };
+const WHEEL = { r:10, z:10, xs:[-16, 0, 16], side:22 };
+
+class ConeHitLab extends Phaser.Scene {
+  constructor(){ super("conehitlab"); }
+
+  create(){
+    this.K = 2.2;
+    this.botS = 1.5;
+    this.botRow = 0;
+    this.pitch = 0; this.roll = 0; this.yaw = 0; this.f = 0;
+    this.tilt = 0; this.lidAng = 0; this.tipDir = 1; this.state = "idle";
+    this.wheelPhase = 0;
+    this.camX = 0; this.camY = 0; this.camZ = 0;
+    this.driving = false;
+    this.tipT = 0; this.tipResetT = 0;
+    this.speed = CONB.speed;
+    this.botZ = 2;
+    this.hitFlash = false;       // eyes flick alert on the frame of impact
+    this.hitFlashT = 0;
+    this.cone = this.freshCone();
+    this.g = this.add.graphics();
+    this.scale.on("resize", () => this.layout());
+    this.layout();
+    this.updateVals();
+  }
+  freshCone(){
+    return {
+      phi: 0,                // tip angle about the pivot (rad)
+      angVel: 0,             // rad/ms
+      phase: 1,              // 1: rim-edge pivot · 2: slab-corner pivot
+      moving: false,
+      pose: "standing",      // standing | knocked (settled states)
+      thetaF: 0,             // fall direction (world, radians off +a)
+      slide: 0,              // punt distance along thetaF (world units)
+      slideVel: 0,
+      hitArmed: true,
+      phiBal: this.balanceAngle(),
+      phiRest: this.restAngle()
+    };
+  }
+  /* CM over pivot: slab (3 tall) + cone CM at H/4 above the slab */
+  balanceAngle(){
+    return Math.atan((CONE.base/2) / (3 + CONE.height*0.25));
+  }
+  /* rest angle solved from the live geometry: in phase 2 the pivot
+     is the landed slab corner (local u=pvt, h=3); the first sample
+     point of the cone surface to reach z=0 past 90° stops the fall.
+     Samples: forward/back ring extremes along the fall plane. */
+  restAngle(){
+    const pvt = CONE.base/2, H = CONE.height;
+    let best = Math.PI*0.97;
+    const cand = [[1.8, H], [-1.8, H], [-pvt, 3]];
+    for(let h = 2; h <= H; h += 4) cand.push([coneR(h), h], [-coneR(h), h]);
+    for(const [u, h] of cand){
+      if(u >= pvt || h <= 3) continue;
+      const f = Math.PI - Math.atan((h - 3) / (pvt - u));
+      if(f > Math.PI/2 && f < best) best = f;
+    }
+    return best;
+  }
+  layout(){
+    this.cx = this.scale.gameSize.width/2;
+    this.cy = this.scale.gameSize.height*0.42;
+  }
+  updateVals(){
+    const cn = this.cone;
+    const pose = cn.moving ? (cn.phi > cn.phiBal ? "FALLING" : "ROCKING")
+               : cn.pose === "knocked" ? "KNOCKED" : "standing";
+    document.getElementById("vals").textContent =
+      `spd ${(CONB.speed*1000).toFixed(0)} · kick ${CONB.kick.toFixed(1)} · grav ${CONB.grav.toFixed(1)} · punt ${CONB.punt.toFixed(1)} · lane ${CONB.row} · ${pose} · φ ${(cn.phi*180/Math.PI).toFixed(0)}° · slide ${cn.slide.toFixed(0)} · tilt ${this.tilt.toFixed(2)} · ${this.state === "tipped" ? "TIPPED" : "ok"}`;
+  }
+
+  /* ---------- ground-plane helpers (camera-relative) ---------- */
+  Wg(x, y, z, ox, oy){
+    const xr = x - this.camX, yr = y - this.camY;
+    return { x:(xr - yr)*this.K + ox, y:((xr + yr)*0.5 - (z - this.camZ))*this.K + oy };
+  }
+  quadg(pts, color, alpha=1){
+    this.g.fillStyle(color, alpha);
+    this.g.fillPoints(pts.map(p => new Phaser.Geom.Point(p.x, p.y)), true);
+  }
+  edgeg(pts, color, w=2){
+    this.g.lineStyle(w, color, 1);
+    this.g.strokePoints(pts.map(p => new Phaser.Geom.Point(p.x, p.y)), true);
+  }
+
+  /* ---------- verbatim from game/index.html: robot transform +
+     projection pipeline ---------- */
+  T(x, y, z){
+    if(this.yaw !== 0){
+      const c = Math.cos(this.yaw), s = Math.sin(this.yaw);
+      const x2 = x*c - y*s; y = x*s + y*c; x = x2;
+    }
+    if(this.pitch !== 0){
+      const c = Math.cos(this.pitch), s = Math.sin(this.pitch);
+      const x2 = x*c - z*s; z = x*s + z*c; x = x2;
+    }
+    if(this.roll !== 0){
+      const PIV = this.roll >= 0 ? 22 : -22;
+      const y0 = y + PIV, c = Math.cos(this.roll), s = Math.sin(this.roll);
+      y = -PIV + y0*c - z*s; z = y0*s + z*c;
+    }
+    let rx = x, ry = y;
+    for(let i=0; i<this.f; i++){ const t = rx; rx = -ry; ry = t; }
+    return { x:rx, y:ry, z };
+  }
+  R(nx, ny, nz){
+    if(this.yaw !== 0){
+      const cy = Math.cos(this.yaw), sy = Math.sin(this.yaw);
+      const nx2 = nx*cy - ny*sy; ny = nx*sy + ny*cy; nx = nx2;
+    }
+    if(this.pitch !== 0){
+      const c = Math.cos(this.pitch), s = Math.sin(this.pitch);
+      const x2 = nx*c - nz*s; nz = nx*s + nz*c; nx = x2;
+    }
+    const c = Math.cos(this.roll), s = Math.sin(this.roll);
+    const ny2 = ny*c - nz*s, nz2 = ny*s + nz*c;
+    let rx = nx, ry = ny2;
+    for(let i=0; i<this.f; i++){ const t = rx; rx = -ry; ry = t; }
+    return { x:rx, y:ry, z:nz2 };
+  }
+  W(x, y, z){
+    const xr = x - this.camX, yr = y - this.camY;
+    return { x:(xr - yr)*this.K + this.cx,
+             y:((xr + yr)*0.5 - (z - this.camZ))*this.K + this.cy };
+  }
+  P(x, y, z){
+    const q = this.T(x, y, z);
+    return this.W(q.x + this.botX, q.y + this.botY, q.z + this.botZ);
+  }
+  depth(x, y, z){
+    const q = this.T(x, y, z);
+    return q.x + q.y + q.z*0.4;
+  }
+  quadOn(g, pts, color, alpha=1){
+    g.fillStyle(color, alpha);
+    g.fillPoints(pts.map(p => new Phaser.Geom.Point(p.x, p.y)), true);
+  }
+  edgeOn(g, pts, color=SKIN.outline, w=2){
+    g.lineStyle(w, color, 1);
+    g.strokePoints(pts.map(p => new Phaser.Geom.Point(p.x, p.y)), true);
+  }
+  quad(pts, color, alpha=1){ this.quadOn(this.g, pts, color, alpha); }
+  edge(pts, color=SKIN.outline, w=2){ this.edgeOn(this.g, pts, color, w); }
+
+  lidNear(b){
+    const hs = (this.tipDir || 1) >= 0 ? 1 : -1;
+    const A = this.lidAng * hs, c = Math.cos(A), s = Math.sin(A);
+    const yh = -b.hy * hs, zh = b.z0;
+    const dy = -yh, dz = (b.z1 - b.z0)/2;
+    return this.depth(0, yh + dy*c - dz*s, zh + dy*s + dz*c) > this.depth(0, 0, 34);
+  }
+
+  drawLid(b){
+    const {hx, hy, z0, z1} = b;
+    const hs = (this.tipDir || 1) >= 0 ? 1 : -1;
+    const A = this.lidAng * hs, cA = Math.cos(A), sA = Math.sin(A);
+    const yh = -hy * hs, zh = z0;
+    const H = (x, y, z) => {
+      const dy = y - yh, dz = z - zh;
+      return this.P(x, yh + dy*cA - dz*sA, zh + dy*sA + dz*cA);
+    };
+    const HN = (nx, ny, nz) => {
+      const ny2 = ny*cA - nz*sA, nz2 = ny*sA + nz*cA;
+      return this.R(nx, ny2, nz2);
+    };
+    const C = (sx, sy, sz) => H(sx*hx, sy*hy, sz === 1 ? z1 : z0);
+    const faces = [
+      { n:{x:0,y:0,z: 1}, pts:[C( 1,-1,1), C( 1, 1,1), C(-1, 1,1), C(-1,-1,1)] },
+      { n:{x:0,y:0,z:-1}, pts:[C( 1,-1,0), C( 1, 1,0), C(-1, 1,0), C(-1,-1,0)] },
+      { n:{x: 1,y:0,z:0}, pts:[C( 1,-1,0), C( 1, 1,0), C( 1, 1,1), C( 1,-1,1)] },
+      { n:{x:-1,y:0,z:0}, pts:[C(-1,-1,0), C(-1, 1,0), C(-1, 1,1), C(-1,-1,1)] },
+      { n:{x:0,y: 1,z:0}, pts:[C( 1, 1,0), C(-1, 1,0), C(-1, 1,1), C( 1, 1,1)] },
+      { n:{x:0,y:-1,z:0}, pts:[C( 1,-1,0), C(-1,-1,0), C(-1,-1,1), C( 1,-1,1)] }
+    ];
+    for(const fc of faces){
+      const w = HN(fc.n.x, fc.n.y, fc.n.z);
+      if((w.x + w.y + w.z) <= 0) continue;
+      const col = w.z > 0.5 ? SKIN.bodyTop
+                : w.z < -0.5 ? SKIN.lidInner
+                : (w.x >= w.y) ? SKIN.bodyRight : SKIN.bodyLeft;
+      this.quad(fc.pts, col);
+      this.edge(fc.pts);
+    }
+  }
+
+  disc(center, r, color, outlineC){
+    const pts = [];
+    for(let i=0; i<14; i++){
+      const a = (i/14)*Math.PI*2;
+      pts.push(this.P(center.x + Math.cos(a)*r, center.y, center.z + Math.sin(a)*r));
+    }
+    this.quadOn(this.g, pts, color);
+    if(outlineC !== undefined) this.edgeOn(this.g, pts, outlineC, 2);
+  }
+
+  drawBox(b, cTop, cRight, cLeft, outline=true, decal=false, cBottom=SKIN.belly){
+    const {hx, hy, z0, z1} = b, ox = b.ox || 0, oy = b.oy || 0;
+    const C = (sx, sy, sz) => this.P(ox + sx*hx, oy + sy*hy, sz === 1 ? z1 : z0);
+    const faces = [
+      { n:{x:0,y:0,z: 1}, pts:[C( 1,-1,1), C( 1, 1,1), C(-1, 1,1), C(-1,-1,1)] },
+      { n:{x:0,y:0,z:-1}, pts:[C( 1,-1,0), C( 1, 1,0), C(-1, 1,0), C(-1,-1,0)] },
+      { n:{x: 1,y:0,z:0}, pts:[C( 1,-1,0), C( 1, 1,0), C( 1, 1,1), C( 1,-1,1)] },
+      { n:{x:-1,y:0,z:0}, pts:[C(-1,-1,0), C(-1, 1,0), C(-1, 1,1), C(-1,-1,1)] },
+      { n:{x:0,y: 1,z:0}, pts:[C( 1, 1,0), C(-1, 1,0), C(-1, 1,1), C( 1, 1,1)] },
+      { n:{x:0,y:-1,z:0}, pts:[C( 1,-1,0), C(-1,-1,0), C(-1,-1,1), C( 1,-1,1)] }
+    ];
+    for(const fc of faces){
+      if(decal && fc.n.z !== 0) continue;
+      const w = this.R(fc.n.x, fc.n.y, fc.n.z);
+      if((w.x + w.y + w.z) <= 0) continue;
+      let col;
+      if(w.z > 0.5)       col = decal ? cRight : cTop;
+      else if(w.z < -0.5) col = decal ? null : cBottom;
+      else                col = (w.x >= w.y) ? cRight : cLeft;
+      if(col == null) continue;
+      this.quadOn(this.g, fc.pts, col);
+      if(outline) this.edgeOn(this.g, fc.pts);
+    }
+  }
+
+  drawWheel(c, sideSign){
+    const W2 = 7.5, steps = 5;
+    const slices = [];
+    for(let i=0; i<=steps; i++){
+      const oy = c.y + sideSign*(-W2/2 + W2*i/steps);
+      slices.push({ y:oy, depth: this.depth(c.x, oy, c.z) });
+    }
+    slices.sort((a,b) => a.depth - b.depth);
+    for(let i=0; i<slices.length; i++){
+      const isFace = i === slices.length-1;
+      this.disc({x:c.x, y:slices[i].y, z:c.z}, WHEEL.r,
+                isFace ? SKIN.wheel : SKIN.wheelDark,
+                isFace ? SKIN.outline : undefined);
+    }
+    const face = slices[slices.length-1].y;
+    this.disc({x:c.x, y:face, z:c.z}, WHEEL.r*0.55, SKIN.wheelHubFace);
+    const a = this.wheelPhase + c.x*0.2;
+    this.disc({ x:c.x + Math.cos(a)*WHEEL.r*0.34, y:face,
+                z:c.z + Math.sin(a)*WHEEL.r*0.34 }, 2.4, SKIN.wheelHub);
+  }
+
+  drawRobotReal(wx, wy, wz){
+    const g = this.g;
+    this.botX = wx; this.botY = wy; this.botZ = wz;
+
+    const sh = [];
+    for(let i=0;i<14;i++){
+      const a=(i/14)*Math.PI*2;
+      sh.push(this.P(Math.cos(a)*34, Math.sin(a)*30, 0.5));
+    }
+    this.quadOn(g, sh, SKIN.shadow, 0.16);
+
+    const wheels = [];
+    for(const side of [-1, 1]){
+      for(const wxi of WHEEL.xs){
+        const c = {x:wxi, y:side*WHEEL.side, z:WHEEL.z};
+        wheels.push({ c, side, near: this.depth(c.x, c.y, c.z) > this.depth(c.x, -c.y, c.z) });
+      }
+    }
+    for(const w of wheels) if(!w.near) this.drawWheel(w.c, w.side);
+
+    const lidBox = {...LID};
+    const lidIsNear = this.lidNear(lidBox);
+    if(!lidIsNear) this.drawLid(lidBox);
+
+    this.drawBox({hx:24, hy:17, z0:6, z1:BODY.z0+1}, 0x3f434c, 0x3a3d45, 0x2e3138, false);
+    this.drawBox({...BODY}, SKIN.bodyTop, SKIN.bodyRight, SKIN.bodyLeft);
+    this.drawBox({hx:BODY.hx+0.6, hy:BODY.hy+0.6, z0:STRIPE.z0, z1:STRIPE.z1},
+                 null, SKIN.stripe, SKIN.stripeDk, false, true);
+
+    if(lidIsNear) this.drawLid(lidBox);
+
+    const fn = this.R(1, 0, 0);
+    if(fn.x + fn.y + fn.z > 0.3){
+      const F = (y, z) => this.P(BODY.hx + 0.8, y, z);
+      this.quadOn(g, [F(-13,40), F(13,40), F(13,50), F(-13,50)], SKIN.visor);
+      this.edgeOn(g, [F(-13,40), F(13,40), F(13,50), F(-13,50)], SKIN.outline, 1.5);
+      for(const ey of [-7, 7]){
+        const c = F(ey, 45);
+        g.fillStyle(this.hitFlash ? SKIN.eyeAlert : SKIN.eye, 1);
+        g.fillEllipse(c.x, c.y, 7, 7);
+      }
+      this.quadOn(g, [F(-16,18), F(16,18), F(16,22), F(-16,22)], 0xfff3b0);
+    }
+    for(const w of wheels) if(w.near) this.drawWheel(w.c, w.side);
+  }
+
+  /* ---------- real tile system, ported verbatim: flat sidewalk +
+     road the whole way ---------- */
+  drawTiles(ox, oy){
+    const g = this.g;
+    const dv = DIRV[0], rv = DIRV[1];
+    for(let a = -1; a <= 10; a++){
+      const rowX = a*T2, rowY = 0;
+      for(let c = -1; c <= 4; c++){
+        const road = c >= 2;
+        const cx = rowX + rv.x*c*T2, cy = rowY + rv.y*c*T2;
+        const Ax = dv.x*TILE, Ay = dv.y*TILE, Bx = rv.x*TILE, By = rv.y*TILE;
+        const pts = [
+          this.Wg(cx+Ax-Bx, cy+Ay-By, 0, ox, oy), this.Wg(cx+Ax+Bx, cy+Ay+By, 0, ox, oy),
+          this.Wg(cx-Ax+Bx, cy-Ay+By, 0, ox, oy), this.Wg(cx-Ax-Bx, cy-Ay-By, 0, ox, oy)
+        ];
+        this.quadg(pts, road ? PAL.road : (((a+c)%2===0) ? PAL.pave : PAL.paveB));
+        if(!road) this.edgeg(pts, PAL.paveEdge, 1.5);
+        if(c === 3 && a % 2 === 0 && a >= 0 && a < 10){
+          this.quadg([
+            this.Wg(cx - dv.x*14 - rv.x*4, cy - dv.y*14 - rv.y*4, 0, ox, oy),
+            this.Wg(cx + dv.x*14 - rv.x*4, cy + dv.y*14 - rv.y*4, 0, ox, oy),
+            this.Wg(cx + dv.x*14 + rv.x*4, cy + dv.y*14 + rv.y*4, 0, ox, oy),
+            this.Wg(cx - dv.x*14 + rv.x*4, cy - dv.y*14 + rv.y*4, 0, ox, oy)
+          ], PAL.roadLine);
+        }
+      }
+      const kx = rowX + rv.x*TILE*3, ky = rowY + rv.y*TILE*3;
+      this.quadg([
+        this.Wg(kx - dv.x*TILE, ky - dv.y*TILE, 3, ox, oy), this.Wg(kx + dv.x*TILE, ky + dv.y*TILE, 3, ox, oy),
+        this.Wg(kx + dv.x*TILE, ky + dv.y*TILE, -2, ox, oy), this.Wg(kx - dv.x*TILE, ky - dv.y*TILE, -2, ox, oy)
+      ], PAL.paveEdge);
+    }
+  }
+
+  worldOf(s, row){
+    const dv = DIRV[0], rv = DIRV[1];
+    return { x: s*T2*dv.x + rv.x*row*T2, y: s*T2*dv.y + rv.y*row*T2 };
+  }
+  groundZAt(s, row){ return 2; }
+
+  /* ---------- the approved cone-lab NEW renderer, generalized:
+     the SAME rigid geometry driven by a continuous tip angle φ
+     about a physical pivot. φ=0 is the lab's standing pose;
+     φ=φ_rest is (up to the slab's tumble) its knocked pose —
+     every frame in between is the same solid mid-fall.
+       phase 1: pivot = front base-rim edge, local (pvt, 0)
+       phase 2: pivot = landed slab corner, local (pvt, 3),
+                world u = pvt + 3 (continuous at φ=90°)
+     Local frame: u along the fall direction, v perpendicular,
+     h up. thetaF rotates the fall plane into the world. ---------- */
+  drawConeHit(wx, wy, ox, oy, cn){
+    const g = this.g, C = CONE;
+    const pvt = C.base/2, H = C.height;
+    const phi = cn.phi, ph2 = cn.phase === 2;
+    const cphi = Math.cos(phi), sphi = Math.sin(phi);
+    const fc = Math.cos(cn.thetaF), fsn = Math.sin(cn.thetaF);
+
+    const tip = (u, h) => {
+      if(phi === 0) return { u, z: h };
+      if(!ph2) return { u: pvt + (u - pvt)*cphi + h*sphi,
+                        z: -(u - pvt)*sphi + h*cphi };
+      return { u: pvt + 3 + (u - pvt)*cphi + (h - 3)*sphi,
+               z: -(u - pvt)*sphi + (h - 3)*cphi };
+    };
+    const L = (u, v, h) => {
+      const t = tip(u, h);
+      const a = (t.u + cn.slide)*fc - v*fsn, b = (t.u + cn.slide)*fsn + v*fc;
+      return this.Wg(wx + a, wy + b, t.z, ox, oy);
+    };
+    const dAt = (u, v, h) => {
+      const t = tip(u, h);
+      const a = (t.u + cn.slide)*fc - v*fsn, b = (t.u + cn.slide)*fsn + v*fc;
+      return a + b + t.z*0.4;
+    };
+
+    const place = (h, r, n=12) => {
+      const pts = [];
+      for(let i=0; i<n; i++){
+        const psi = (i/n)*Math.PI*2;
+        pts.push(L(Math.cos(psi)*r, Math.sin(psi)*r, h));
+      }
+      return pts;
+    };
+
+    /* shadow: base ellipse morphing toward an elongated slant
+       shadow as the cone goes over, tracking the axis midpoint */
+    const mid = tip(0, H*0.5);
+    const sa = (mid.u*Math.min(1, sphi*1.1) + cn.slide)*fc,
+          sb = (mid.u*Math.min(1, sphi*1.1) + cn.slide)*fsn;
+    const shp = this.Wg(wx + sa, wy + sb, 0, ox, oy);
+    const k = Math.min(1, sphi*1.1);
+    g.fillStyle(C.shadow, 0.13);
+    g.fillEllipse(shp.x, shp.y + 2,
+      (C.base*1.7 + (H + 18 - C.base*1.7)*k) * this.K * 0.42,
+      (C.base*0.75 + (20 - C.base*0.75)*k) * this.K * 0.42);
+
+    /* base slab: hull of the 8 transformed corners; top face
+       painted when its rotated normal still faces the camera */
+    const baseSlab = () => {
+      const hb = C.base/2, pts = [];
+      for(const [a2, b2] of [[-hb,-hb],[hb,-hb],[hb,hb],[-hb,hb]]){
+        pts.push(L(a2, b2, 0)); pts.push(L(a2, b2, 3));
+      }
+      this.quad(convexHull(pts), C.bodyDk);
+      const nz = cphi, nu = sphi;             // local (0,0,1) rotated in the fall plane
+      const nx = nu*fc, ny = nu*fsn;
+      if(nx + ny + nz > 0.05){
+        const top = [L(-hb,-hb,3), L(hb,-hb,3), L(hb,hb,3), L(-hb,hb,3)];
+        this.quad(top, C.body);
+        this.edge(top, C.bodyDk, 1.5);
+      }
+    };
+    /* cone body: frustum hull + optional band hull + tip cap */
+    const body = () => {
+      this.quad(convexHull(place(2, coneR(2)).concat(place(H, 1.8))), C.body);
+      if(C.band > 0){
+        const b0 = H*0.52, b1 = Math.min(H*0.52 + C.band, H*0.9);
+        this.quad(convexHull(place(b0, coneR(b0)+0.5).concat(place(b1, coneR(b1)+0.5))), C.band_c);
+      }
+      this.quad(place(H, 1.8, 8), C.bodyDk);
+    };
+
+    const parts = [
+      { d: dAt(0, 0, 1.5), fn: baseSlab },
+      { d: dAt(0, 0, H*0.45), fn: body }
+    ];
+    parts.sort((x, y) => x.d - y.d);
+    for(const pt of parts) pt.fn();
+  }
+
+  update(time, delta){
+    const g = this.g; g.clear();
+    g.fillStyle(PAL.sky, 1);
+    g.fillRect(0, 0, this.scale.gameSize.width, this.scale.gameSize.height);
+
+    const dt = Math.min(delta || 16.7, 50);
+    const cn = this.cone;
+
+    /* DRIVE — cone contract: never a wall.
+         HIT: one-shot while overlapped (re-armed once clear).
+           angVel += speed × 0.06 × Kick   (topple impulse)
+           slideVel += speed × 1.2 × Punt  (down-lane punt)
+           robot: tilt kick ± speed × 2.2, speed × 0.86
+         The threshold is physics: the impulse either clears the
+         balance angle or it doesn't. Slow plowing = repeated
+         shoves that rock it more each pass until it topples.
+         KNOCKED: robot rolls over it — pitch bob + lift bump. */
+    if(this.driving && this.state !== "tipped"){
+      this.botS += (this.speed / T2) * dt;
+      this.wheelPhase += this.speed * dt * 0.28;
+      const botU = this.botS*T2;
+      const coneU = CONB.s*T2 + cn.slide*Math.cos(cn.thetaF);
+      const dx = coneU - botU;
+
+      if(this.botRow === CONB.row && dx > -10 && dx < 30 && cn.hitArmed && this.speed > 0.015){
+        cn.hitArmed = false;
+        const sp = this.speed;
+        if(cn.pose !== "knocked" && (!cn.moving || cn.phi < Math.PI/2)){
+          if(!cn.moving && cn.phi === 0) cn.thetaF = (Math.random() - 0.5)*0.5;
+          cn.moving = true;
+          cn.angVel += sp * 0.06 * CONB.kick;
+        }
+        cn.slideVel += sp * 1.2 * CONB.punt;
+        this.tilt += sp * 2.2 * (Math.random() < 0.5 ? 1 : -1);
+        this.speed *= 0.86;
+        this.hitFlash = true; this.hitFlashT = time;
+        this.updateVals();
+      }
+      if(dx < -14 || dx > 44) cn.hitArmed = true;
+
+      /* rolling over the downed cone */
+      if(cn.pose === "knocked" && !cn.moving && this.botRow === CONB.row && Math.abs(dx) < 26){
+        const b = 1 - Math.abs(dx)/26;
+        this.botZ = 2 + 3.5*b*b;
+        this.pitch = 0.06 * Math.sin(Math.PI * dx / 26);
+      } else {
+        this.botZ = 2;
+        this.pitch -= this.pitch * 0.01 * dt;
+      }
+
+      this.speed = Math.min(CONB.speed, this.speed + 0.00004*dt);   // throttle recovery
+
+      this.tilt -= this.tilt * 0.0021 * dt;            // stability spring
+      this.roll = Phaser.Math.Clamp(this.tilt, -1, 1) * 0.5;
+
+      if(Math.abs(this.tilt) >= 1){
+        this.state = "tipped";
+        this.tipDir = Math.sign(this.tilt);
+        this.tipT = 0;
+      }
+
+      if(this.botS > 8){
+        this.botS = 0; this.tilt = 0; this.roll = 0; this.pitch = 0;
+        this.speed = CONB.speed; cn.hitArmed = true;
+        /* cone state persists — pass 2 meets whatever pass 1 left */
+      }
+    }
+    if(this.hitFlash && time - this.hitFlashT > 450) this.hitFlash = false;
+
+    /* ---- cone integrator: gravity about the live pivot ----
+       angAcc = KG · sin(φ − φ_bal) · Grav — restoring below the
+       balance angle, toppling above it. Floor bounce at φ=0
+       (base slap-down), phase handoff at 90°, slant-contact
+       bounce at φ_rest. Restitution settles both ends. */
+    if(cn.moving){
+      const KG = 1.5e-5 * CONB.grav;
+      const steps = Math.max(1, Math.ceil(dt/8));
+      const hdt = dt/steps;
+      for(let i=0; i<steps; i++){
+        cn.angVel += KG * Math.sin(cn.phi - cn.phiBal) * hdt;
+        cn.phi += cn.angVel * hdt;
+        if(cn.phase === 1 && cn.phi >= Math.PI/2) cn.phase = 2;
+        if(cn.phase === 2 && cn.phi < Math.PI/2) cn.phase = 1;
+        if(cn.phi >= cn.phiRest){
+          cn.phi = cn.phiRest;
+          if(Math.abs(cn.angVel) < 0.0006){
+            cn.angVel = 0; cn.moving = false; cn.pose = "knocked";
+            this.updateVals(); break;
+          }
+          cn.angVel = -cn.angVel * 0.22;
+        }
+        if(cn.phi <= 0){
+          cn.phi = 0; cn.phase = 1;
+          if(Math.abs(cn.angVel) < 0.0006){
+            cn.angVel = 0; cn.moving = false; cn.pose = "standing";
+            this.updateVals(); break;
+          }
+          cn.angVel = -cn.angVel * 0.25;
+        }
+      }
+    }
+    /* punt slide: exponential friction */
+    if(cn.slideVel > 0.0001){
+      cn.slide += cn.slideVel * dt;
+      cn.slideVel *= Math.exp(-0.004 * dt);
+    } else cn.slideVel = 0;
+
+    /* tipped-state rollover: the game's formula, auto-reset */
+    if(this.state === "tipped"){
+      this.tipT = Math.min(1, this.tipT + dt/900);
+      this.roll = this.tipDir * (Math.PI*0.5) * this.tipT;
+      if(this.tipT >= 1){
+        this.tipResetT = (this.tipResetT || 0) + dt;
+        if(this.tipResetT > 1400){
+          this.state = "idle"; this.tipT = 0; this.tipResetT = 0;
+          this.botS = 0; this.tilt = 0; this.roll = 0; this.pitch = 0;
+          this.botZ = 2; this.speed = CONB.speed; cn.hitArmed = true;
+        }
+      }
+    }
+
+    /* camera follows with forward lead */
+    const bwp = this.worldOf(this.botS, this.botRow);
+    const dv = DIRV[0];
+    this.camX = bwp.x + dv.x*60;
+    this.camY = bwp.y + dv.y*60;
+    this.camZ = 0;
+
+    this.drawTiles(this.cx, this.cy);
+
+    const swp = this.worldOf(CONB.s, CONB.row);
+    const slidX = swp.x + cn.slide*Math.cos(cn.thetaF);
+    const slidY = swp.y + cn.slide*Math.sin(cn.thetaF);
+    const coneBehind = (slidX + slidY) <= (bwp.x + bwp.y) + 14;
+    if(coneBehind) this.drawConeHit(swp.x, swp.y, this.cx, this.cy, cn);
+    this.drawRobotReal(bwp.x, bwp.y, this.botZ);
+    if(!coneBehind) this.drawConeHit(swp.x, swp.y, this.cx, this.cy, cn);
+    if(this.driving || cn.moving || this.state === "tipped") this.updateVals();
+  }
+}
+
+const game = new Phaser.Game({
+  type: Phaser.AUTO, parent: "game",
+  scale: { mode: Phaser.Scale.RESIZE, width: "100%", height: "100%" },
+  scene: [ConeHitLab]
+});
+const scn = () => game.scene.getScene("conehitlab");
+
+document.getElementById("driveBtn2").addEventListener("click", e => {
+  const s = scn();
+  s.driving = !s.driving;
+  e.target.classList.toggle("on", s.driving);
+});
+document.getElementById("laneBtn").addEventListener("click", e => {
+  const order = [-1, 0, 1];
+  CONB.row = order[(order.indexOf(CONB.row) + 1) % order.length];
+  e.target.textContent = String(CONB.row);
+  scn().updateVals();
+});
+document.getElementById("resetBtn").addEventListener("click", () => {
+  const s2 = scn();
+  s2.cone = s2.freshCone();
+  s2.updateVals();
+});
+document.getElementById("knockBtn").addEventListener("click", () => {
+  const s2 = scn(), cn = s2.cone;
+  cn.phi = cn.phiRest; cn.phase = 2; cn.angVel = 0;
+  cn.moving = false; cn.pose = "knocked"; cn.thetaF = 0;
+  s2.updateVals();
+});
+document.getElementById("zoomIn").addEventListener("click", () => { scn().K = Math.min(scn().K + 0.4, 6); });
+document.getElementById("zoomOut").addEventListener("click", () => { scn().K = Math.max(scn().K - 0.4, 1.2); });
+document.getElementById("botBack").addEventListener("click", () => { const s=scn(); s.botS = Math.max(0, s.botS - 0.5); s.botZ = s.groundZAt(s.botS, s.botRow); s.updateVals(); });
+document.getElementById("botFwd").addEventListener("click", () => { const s=scn(); s.botS = Math.min(8, s.botS + 0.5); s.botZ = s.groundZAt(s.botS, s.botRow); s.updateVals(); });
+document.getElementById("rowDown").addEventListener("click", () => { const s=scn(); s.botRow = Math.max(-1, s.botRow - 1); s.botZ = s.groundZAt(s.botS, s.botRow); s.updateVals(); });
+document.getElementById("rowUp").addEventListener("click", () => { const s=scn(); s.botRow = Math.min(1, s.botRow + 1); s.botZ = s.groundZAt(s.botS, s.botRow); s.updateVals(); });
+document.querySelectorAll("[data-p]").forEach(btn => {
+  btn.addEventListener("click", () => {
+    const p = btn.dataset.p, d = +btn.dataset.d;
+    if(p === "speed") CONB.speed = Phaser.Math.Clamp(+(CONB.speed + d*0.01).toFixed(3), 0.03, 0.09);
+    if(p === "kick")  CONB.kick  = Phaser.Math.Clamp(+(CONB.kick + d*0.2).toFixed(1), 0.4, 2.0);
+    if(p === "grav")  CONB.grav  = Phaser.Math.Clamp(+(CONB.grav + d*0.2).toFixed(1), 0.4, 2.0);
+    if(p === "punt")  CONB.punt  = Phaser.Math.Clamp(+(CONB.punt + d*0.2).toFixed(1), 0.4, 2.0);
+    const s2 = scn();
+    if(p === "speed") s2.speed = Math.min(s2.speed, CONB.speed);
+    if(p === "grav"){ s2.cone.phiBal = s2.balanceAngle(); }
+    s2.updateVals();
+  });
+});
+</script>
+</body>
+</html>
