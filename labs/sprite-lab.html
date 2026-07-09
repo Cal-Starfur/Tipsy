@@ -97,8 +97,25 @@ const SKIN = {
 const BODY = { hx:26, hy:20, z0:14, z1:54 };     // main box
 const LID  = { hx:22, hy:16, z0:54, z1:61 };     // rounded-ish top
 const STRIPE = { z0:20, z1:27 };
-const WHEEL = { r:10, z:10, xs:[-16, 0, 16], side:22 };
+const WHEEL = { r:8, z:10, xs:[-16, 0, 16], side:22 };   // r was 10 - overlapped at the 16-unit spacing; approved size
 const FLAG = { base:{x:-21, y:13}, z0:61, z1:104 };
+
+function convexHull(pts){
+  const P2 = pts.slice().sort((a,b) => a.x - b.x || a.y - b.y);
+  const cross = (o, a, b) => (a.x-o.x)*(b.y-o.y) - (a.y-o.y)*(b.x-o.x);
+  const lo = [], hi = [];
+  for(const p of P2){
+    while(lo.length >= 2 && cross(lo[lo.length-2], lo[lo.length-1], p) <= 0) lo.pop();
+    lo.push(p);
+  }
+  for(let i = P2.length-1; i >= 0; i--){
+    const p = P2[i];
+    while(hi.length >= 2 && cross(hi[hi.length-2], hi[hi.length-1], p) <= 0) hi.pop();
+    hi.push(p);
+  }
+  lo.pop(); hi.pop();
+  return lo.concat(hi);
+}
 
 const FACINGS = ["SE","SW","NW","NE"];           // f = 0..3, 90° CCW steps
 
@@ -509,28 +526,40 @@ class LabScene extends Phaser.Scene {
   }
 
   drawWheel(c, sideSign){
-    // pseudo-cylinder: stack of discs along the wheel's axle, drawn back-to-front
-    const W = 7.5, steps = 5;
-    const dir = {x:1, y:0};                       // disc plane spans model x/z
-    const slices = [];
-    for(let i=0; i<=steps; i++){
-      const oy = c.y + sideSign*(-W/2 + W*i/steps);
-      slices.push({ y:oy, depth: this.depth(c.x, oy, c.z) });
-    }
-    slices.sort((a,b) => a.depth - b.depth);
-    for(let i=0; i<slices.length; i++){
-      const isFace = i === slices.length-1;
-      this.disc({x:c.x, y:slices[i].y, z:c.z}, dir, WHEEL.r,
-                isFace ? SKIN.wheel : SKIN.wheelDark,
-                isFace ? SKIN.outline : undefined);
-    }
-    // hub face + spinning dot on the camera-facing side
-    const face = slices[slices.length-1].y;
-    this.disc({x:c.x, y:face, z:c.z}, dir, WHEEL.r*0.55, SKIN.wheelHubFace);
+    /* was: 6 depth-sorted flat discs stacked along the wheel's width.
+       Each disc alone degenerates to a hairline exactly when residual
+       yaw hits +/-45 deg (screen width is proportional to cos(yaw)-sin(yaw),
+       which is zero right there) - and every turn's facing-snap sweeps
+       through exactly that angle, so every corner clipped the wheels to
+       slices. The scooter and traffic props never had this problem
+       because they build the tread as a single convexHull spanning TWO
+       rings offset along the width axis, instead of one ring's own
+       outline - the guaranteed gap between the two rings contributes
+       width independent of the collapsing term, so it can't go to zero.
+       Porting that same construction here - this lab was the actual
+       source the game's broken version was ported from, so it needs
+       the fix too or it'll just get re-broken next time someone builds
+       off this file. Fixed 2026-07-09, see main game commit. */
+    const W2 = 7.5;
+    const ring = (oy, r) => {
+      const pts = [];
+      for(let i=0; i<14; i++){
+        const a = (i/14)*Math.PI*2;
+        pts.push(this.P(c.x + Math.cos(a)*r, oy, c.z + Math.sin(a)*r));
+      }
+      return pts;
+    };
+    const b0 = c.y - W2/2, b1 = c.y + W2/2;
+    this.quad(convexHull(ring(b0, WHEEL.r).concat(ring(b1, WHEEL.r))), SKIN.wheelDark);
+    const face = this.depth(c.x, b1, c.z) > this.depth(c.x, b0, c.z) ? b1 : b0;
+    const faceRing = ring(face, WHEEL.r);
+    this.quad(faceRing, SKIN.wheel);
+    this.edge(faceRing, SKIN.outline, 2);
+    this.disc({x:c.x, y:face, z:c.z}, {x:1,y:0}, WHEEL.r*0.55, SKIN.wheelHubFace);
     const a = this.wheelPhase + c.x*0.2;
     this.disc({ x:c.x + Math.cos(a)*WHEEL.r*0.34,
                 y:face,
-                z:c.z + Math.sin(a)*WHEEL.r*0.34 }, dir, 2.4, SKIN.wheelHub);
+                z:c.z + Math.sin(a)*WHEEL.r*0.34 }, {x:1,y:0}, 2.4, SKIN.wheelHub);
   }
 
   /* ---------- ground tiles ---------- */
