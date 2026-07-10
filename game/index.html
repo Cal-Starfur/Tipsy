@@ -3800,9 +3800,17 @@ class WorldScene extends Phaser.Scene {
       for(const wx of WHEEL.xs){
         const c = {x:wx, y:side*WHEEL.side, z:WHEEL.z};
         wheels.push({ c, side,
-          near: this.depth(c.x, c.y, c.z) > this.depth(c.x, -c.y, c.z) });
+          near: this.depth(c.x, c.y, c.z) > this.depth(c.x, -c.y, c.z),
+          d: this.depth(c.x, c.y, c.z) });
       }
     }
+    /* the 3 wheels on a given side (front/mid/rear along the body) were
+       always drawn in fixed array order (-16, 0, 16) regardless of
+       which one the current yaw/facing actually put closer to camera —
+       sorting by real depth first keeps that trio in the right
+       front-to-back order at every angle instead of just at the ones
+       where the fixed order happened to already match. */
+    wheels.sort((a,b) => a.d - b.d);
     for(const w of wheels) if(!w.near) this.drawWheel(w.c, w.side);
 
     /* the open lid can swing to the far side of the body — draw it first there */
@@ -4235,6 +4243,7 @@ document.getElementById("rerollBtn").addEventListener("click", e => {
 </script>
 </body>
 </html>
+
 
 
 
