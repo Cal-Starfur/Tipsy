@@ -1,0 +1,1899 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>TIPSY — Block Wrap Lab (housing/park/commercial)</title>
+<style>
+  html,body{margin:0;padding:0;background:#111;overflow:hidden;height:100%;font-family:-apple-system,sans-serif;}
+  canvas{display:block;touch-action:none;}
+  #hud{position:fixed;top:8px;left:8px;right:8px;color:#fff;font-size:12px;z-index:10;
+       display:flex;gap:6px;flex-wrap:wrap;}
+  #hud button{background:#2a2a2e;color:#eee;border:1px solid #444;border-radius:8px;
+       padding:8px 10px;font-size:12px;}
+  #hud button.active{background:#4e7a52;border-color:#6ea672;}
+  #legend{position:fixed;bottom:8px;left:8px;color:#ccc;font-size:11px;background:rgba(0,0,0,0.5);
+       padding:6px 8px;border-radius:6px;z-index:10;}
+</style>
+</head>
+<body>
+<div id="hud">
+  <button id="btnReroll">Reroll seed</button>
+  <button id="btnHouses" class="active">Houses ON</button>
+  <button id="btnFill" class="active">Fill ON</button>
+  <button id="btnScatter" class="active">Scatter ON</button>
+  <button id="btnAddress">Find Address</button>
+  <button id="btnPickup">Find Pickup</button>
+  <button id="btnSimulate">Simulate Route</button>
+</div>
+<div id="legend">Block-wrap lab · 5×5 block map — perimeter ring included · housing / park / commercial storefronts · drag to pan · pinch/wheel to zoom</div>
+<canvas id="c"></canvas>
+<script>
+/* ---------- COSTA PALMA: a fictional city that is legally distinct from
+   any city where a burrito has ever hit the pavement ----------
+   hill: grade intensity · pave: pavement quality (1=smooth)
+   litter: scooters/trash density · palms: set dressing */
+const HOODS = [
+  { n:"The Flats",       hill:0.0, pave:0.9, litter:0.2, palms:0.9, streets:["Palmline Ave","Pelican St","Marina Way"] },
+  { n:"Boardwalk",       hill:0.0, pave:0.6, litter:1.0, palms:1.0, streets:["Pier Ave","Saltbox Ln","Tide St"] },
+  { n:"Old Town",        hill:0.2, pave:0.2, litter:0.4, palms:0.4, streets:["Founders St","Cobble Ct","Lantern Row"] },
+  { n:"Scooter Row",     hill:0.1, pave:0.5, litter:1.0, palms:0.6, streets:["Beryl Ave","Kickstand St","Charger Way"] },
+  { n:"University",      hill:0.2, pave:0.7, litter:0.7, palms:0.5, streets:["Campus Loop","Quad St","Provost Ave"] },
+  { n:"Warehouse Dist.", hill:0.0, pave:0.3, litter:0.6, palms:0.1, streets:["Freight St","Dock Ave","Pallet Way"] },
+  { n:"Sunset Terrace",  hill:0.6, pave:0.7, litter:0.3, palms:0.8, streets:["Terrace Dr","Vista Ct","Golden Steps"] },
+  { n:"The Bluffs",      hill:1.0, pave:0.6, litter:0.2, palms:0.5, streets:["Switchback Rd","Crestline Dr","Ladder St"] },
+  { n:"Meridian Hts.",   hill:0.8, pave:0.5, litter:0.4, palms:0.5, streets:["Meridian Ave","Summit Walk","Cable Ct"] },
+  { n:"Market Dist.",    hill:0.1, pave:0.5, litter:0.7, palms:0.4, streets:["Stall St","Grocer Ave","Crate Ln"] },
+  { n:"Little Harbor",   hill:0.3, pave:0.6, litter:0.5, palms:0.7, streets:["Wharf St","Anchor Ave","Gull Ct"] },
+  { n:"Palm Gardens",    hill:0.2, pave:0.8, litter:0.3, palms:1.0, streets:["Frond Ave","Coconut Ct","Shade St"] },
+];
+
+/* ---------- deterministic rng ---------- */
+function hashStr(s){ let h = 1779033703; for(let i=0;i<s.length;i++){ h = Math.imul(h ^ s.charCodeAt(i), 3432918353); h = (h << 13) | (h >>> 19); } return h >>> 0; }
+function convexHull(pts){
+  const P2 = pts.slice().sort((a,b) => a.x - b.x || a.y - b.y);
+  const cross = (o, a, b) => (a.x-o.x)*(b.y-o.y) - (a.y-o.y)*(b.x-o.x);
+  const lo = [], hi = [];
+  for(const p of P2){
+    while(lo.length >= 2 && cross(lo[lo.length-2], lo[lo.length-1], p) <= 0) lo.pop();
+    lo.push(p);
+  }
+  for(let i = P2.length-1; i >= 0; i--){
+    const p = P2[i];
+    while(hi.length >= 2 && cross(hi[hi.length-2], hi[hi.length-1], p) <= 0) hi.pop();
+    hi.push(p);
+  }
+  lo.pop(); hi.pop();
+  return lo.concat(hi);
+}
+function mulberry32(a){ return function(){ a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+
+/* ---------- the daily generator ---------- */
+/* ---------- routes now TURN: legs in 4 compass directions ----------
+   The player never steers; Tipsy follows the route line and auto-turns
+   through fillet arcs at corners. Corners are a tilt source. */
+const DIRV = [{x:1,y:0},{x:0,y:1},{x:-1,y:0},{x:0,y:-1}];
+/* approved palm (palm lab, 2026-07-07): the Costa Palma house style */
+const PALM = {
+  height: 165, fronds: 8, droop: 1.0, wind: 1.0, trunkLean: 0.16,
+  trunk: 0x8a6a48, trunkDk: 0x6f5439, ring: 0x7a5c40,
+  frondA: 0x4e8f4a, frondB: 0x3f7a3e,
+  coco: 0x6b4f33, cocoHi: 0x7d5e40, shadow: 0x000000
+};
+const PALM_DWARF = {   // approved in palm lab: bush-type dwarf palm
+  height: 55, fronds: 8, droop: 0.3, wind: 0.3, spread: 1.0, trunkLean: 0.16,
+  trunk: 0x8a6a48, trunkDk: 0x6f5439, ring: 0x7a5c40,
+  frondA: 0x4e8f4a, frondB: 0x3f7a3e,
+  coco: 0x6b4f33, cocoHi: 0x7d5e40, shadow: 0x000000
+};
+
+/* approved heaved slab (ramp lab v2): prop.ramp's redesign into a single
+   sidewalk tile — root-heaved panel, lifted along one side edge */
+const SLAB_ART = {
+  top: 0xc4bdae, topDk: 0x9d9687, gap: 0x4a4238,
+  rootA: 0x8a6a48, rootB: 0x6f5439
+};
+
+/* approved crack (crack lab v3): broken-off piece (spall) */
+const CRACK_ART = {
+  sidewalk: { crack:0x5d574c, core:0x453f36, piece:0xa89f8f, wall:0x8f8879, rubble:0x968d7c },
+  road:     { crack:0x2c2e34, core:0x14161a, piece:0x3a3d44, wall:0x2f3138, rubble:0x35383f }
+};
+
+/* approved trash (trash lab v1): seeded litter cluster */
+const TRASH_ART = {
+  bagC: 0xe9eaec, bagHi: 0xf7f8fa, bagShade: 0xc3c7cc, bagDeep: 0xa8adb4,
+  botBody: 0xd8eef4, botHi: 0xf4fbfd, botCap: 0x2d7dd2, botLabel: 0xf4f5f7, botShade: 0xaacdd6,
+  paper: 0xf1efe6, paperShade: 0xd0ccbd,
+  canA: 0xc2452e, canB: 0x9aa7b5, canHi: 0xc9d3dd,
+  wrap: [0xf2c94c, 0x7fae4e, 0xff7a1a],
+  outline: 0x30343d, shadow: 0x000000
+};
+
+/* approved cone (cone lab, 2026-07-07) */
+const CONE = {
+  height: 38, base: 18, band: 0,
+  body: 0xff7a1a, bodyDk: 0xd85f0a, band_c: 0xf4f5f7, shadow: 0x000000
+};
+/* approved in cone hit lab (2026-07-09): rigid pivot-fall physics.
+   ONE integrator drives every cone — no keyframes, no binary
+   standing/knocked swap. phi is the live tip angle about a physical
+   pivot: phase 1 pivots on the front base-rim edge (0-90°), phase 2
+   hands off to the landed slab corner (90°-phiRest). phiBal is the
+   balance angle (CM over the pivot) — gravity torque restores below
+   it, topples past it, so the fall threshold emerges from the
+   geometry rather than a tuned number. phiRest is solved once from
+   the live CONE dimensions (the slant line's ground-contact angle). */
+const coneR = h => 8.5 - (8.5 - 1.8) * (h / CONE.height);
+const CONE_HIT = (() => {
+  const pvt = CONE.base/2, H = CONE.height;
+  const phiBal = Math.atan(pvt / (3 + H*0.25));
+  let phiRest = Math.PI*0.97;
+  const cand = [[1.8, H], [-1.8, H], [-pvt, 3]];
+  for(let h = 2; h <= H; h += 4) cand.push([coneR(h), h], [-coneR(h), h]);
+  for(const [u, h] of cand){
+    if(u >= pvt || h <= 3) continue;
+    const f = Math.PI - Math.atan((h - 3) / (pvt - u));
+    if(f > Math.PI/2 && f < phiRest) phiRest = f;
+  }
+  return {
+    phiBal, phiRest,
+    kick: 1.0,   // hit impulse multiplier — approved
+    grav: 0.6,   // gravity torque multiplier — approved
+    punt: 2.0    // slide impulse multiplier — approved
+  };
+})();
+
+/* approved scooter (scooter lab, 2026-07-07): stem 42 · bar 13 · wheel 5 */
+const SCOOT = {
+  stemH: 42, barW: 13, wheelR: 5,
+  deck: 0x2e3138, grip: 0x3d424c,
+  wheel: 0x24262c, wheelDk: 0x17191d, hub: 0x8a919c, hubFace: 0x3d424c,
+  metal: 0x9aa3ad, metalDk: 0x707a85, shadow: 0x000000
+};
+const BRANDS = [
+  { n:"teal",  c:0x2ec4b6, cDk:0x1f857c },
+  { n:"lime",  c:0x8bc34a, cDk:0x649238 },
+  { n:"coral", c:0xff6b6b, cDk:0xc94f4f }
+];
+/* approved in scooter hit lab (2026-07-09): the dumped pose isn't a
+   real rotation (it's a stylized squash — see the lab's header note
+   for the full reasoning), so phi drives a BLEND fraction between
+   the standing and dumped geometry rather than a rigid tip. The
+   fall integrator itself (gravity torque, threshold, bounce) is the
+   same pattern as the cone/bin. Deliberately tippy — a light
+   two-wheeled rental barely needs a nudge. */
+const SCOOT_HIT = {
+  phiBal: 12 * Math.PI/180,
+  phiRest: Math.PI/2,
+  kick: 1.0, grav: 1.0, punt: 1.6
+};
+/* approved in dog lab: head 7.5 · ears 5 · legs 6 · tail 0.4 · size 0.8 · fawn · no tremble */
+const DOG = {
+  len: 0.8, headR: 7.5, earH: 5, legH: 6, tailCurl: 0.4,
+  body: 0xc98d4b, bodyDk: 0xa06e38, chest: 0xe8d9b8, ear: 0xd99a8c,
+  eye: 0x1c1e24, glint: 0xf4f2ec, nose: 0x25272d,
+  collar: 0xd94f3d, collarDk: 0xa83b2d, shadow: 0x000000
+};
+/* dog lab v2: three street coats + the deterministic wander */
+const DOG_COATS = [
+  { n:"fawn",    body:0xc98d4b, dk:0xa06e38, chest:0xe8d9b8, ear:0xd99a8c },
+  { n:"cream",   body:0xe3d3b3, dk:0xbfa987, chest:0xf3ece0, ear:0xdca493 },
+  { n:"blk&tan", body:0x33363e, dk:0x22242b, chest:0xc98d4b, ear:0xb0837b }
+];
+/* the dog's position/heading/stride at time t — a PURE function of
+   (t, seed), no mutable state: renderer and sim call the same thing,
+   so the hitbox always matches the art. Sitters get one fixed seeded
+   spot. Offsets are tile-local (±30 along, ±26 across) so he never
+   leaves the square he spawned in. Walk legs are 62% of each 2.6s
+   segment (smoothstepped), the rest is standing and judging. */
+function dogSpotAt(tms, seed, sit){
+  const wp = i => {
+    const r = mulberry32((seed ^ Math.imul(i|0, 2654435761)) >>> 0);
+    return { a: -30 + r()*60, b: -26 + r()*52 };
+  };
+  if(sit){
+    const p = wp(0);
+    return { a: p.a, b: p.b, th: mulberry32(seed)()*Math.PI*2, walk: 0 };
+  }
+  const SEG = 2600;
+  const i = Math.floor(tms/SEG), u = (tms % SEG)/SEG;
+  const p0 = wp(i), p1 = wp(i+1);
+  const w = Math.min(u/0.62, 1), e = w*w*(3 - 2*w);
+  return {
+    a: p0.a + (p1.a - p0.a)*e,
+    b: p0.b + (p1.b - p0.b)*e,
+    th: Math.atan2(p1.b - p0.b, p1.a - p0.a),
+    walk: u < 0.62 ? Math.sin(Math.PI*w) : 0
+  };
+}
+/* the startle: when the robot clips a dog the sim stamps hitT +
+   flee direction on the hazard, and the dog LEAVES — a hit dog does
+   not loiter. He launches away from the robot along the route and
+   angles toward the buildings (away from the road), accelerating out
+   of his launch turn and running flat-out into the distance for
+   2.6s; after that he's gone for the rest of the route. Pure
+   function of (t, hz), same contract as dogSpotAt. */
+function dogFleeAt(tms, hz){
+  if(!hz || hz.hitT === undefined) return null;
+  const el = tms - hz.hitT;
+  if(el <= 0) return null;
+  const DUR = 2600;
+  if(el >= DUR) return { gone: true };
+  const u = el / DUR;
+  const dist = 250 * Math.pow(u, 1.35);        // launch turn, then flat-out
+  return {
+    da: (hz.fleeA || 1) * dist,
+    db: -dist * 0.45,                          // toward the buildings, off the road
+    u,
+    gone: false
+  };
+}
+/* where a hit dog ends up once the flee run finishes: he doesn't pop
+   back to his spawn tile and resume the old wander loop (dogSpotAt is
+   a pure function of absolute time + seed, so "resuming" it would just
+   snap him to wherever that cycle currently says, nowhere near where he
+   actually ran to) - he settles down right where he landed and stays
+   there. Pure function of hz alone: hitT/fleeA/fleeB/dogSeed/sit never
+   change once a flee starts, and DUR is fixed, so the landing point is
+   fully determined the moment he's hit - no need to depend on the
+   current time at all. */
+function dogSettledSpot(hz){
+  if(!hz || hz.hitT === undefined) return null;
+  const DUR = 2600, DIST = 250;                // matches dogFleeAt's values at u=1
+  const base = dogSpotAt(hz.hitT + DUR, hz.dogSeed || 0, hz.sit);
+  return {
+    a: base.a + (hz.fleeA || 1) * DIST,
+    b: base.b - DIST * 0.45,
+    th: Math.atan2(-0.45, hz.fleeA || 1)
+  };
+}
+/* prop.people — ported from the customer lab (dial bench approved).
+   Same hull-box construction as the robot/props: top face + the two
+   camera-facing side faces per box. Two body presets (randomly picked
+   per spawn, like DOG_COATS) rather than one fixed shape, plus
+   independently seeded skin/shirt/pants/hair/shoe. Reacts exactly like
+   prop.dog: a hit starts a flee run (same DUR/DIST curve), and once
+   the flee finishes they settle and stand there for the rest of the
+   route — re-armed if hit again. */
+const PEOPLE_ART = { walkStride: 8, walkSpeed: 0.006, shadow: 0x000000 };
+const PEOPLE_BUILD = [
+  { n:"a", legH:52, legW:10, hipW:16, torsoW:34, torsoD:19, torsoH:44, headR:14, armW:7, armLen:40, hairStyle:"short" },
+  { n:"b", legH:52, legW:10, hipW:19, torsoW:28, torsoD:19, torsoH:44, headR:13, armW:7, armLen:40, hairStyle:"long"  }
+];
+const PEOPLE_SKIN  = [{c:0xd9a774,dk:0xb98456},{c:0xf0c8a0,dk:0xc9a583},{c:0xc98a5a,dk:0xa8724a},{c:0x8a5a3a,dk:0x6e4830},{c:0x5c3d28,dk:0x4a3120}];
+const PEOPLE_SHIRT = [{c:0x3f8f8a,dk:0x2f6b67},{c:0xc2452e,dk:0x963522},{c:0xb15a7a,dk:0x8a475f},{c:0x4a6c9c,dk:0x3a557a},{c:0xe8b04b,dk:0xb98a3a},{c:0x6b6b6b,dk:0x525252},{c:0x5c8a4e,dk:0x486d3d}];
+const PEOPLE_PANTS = [{c:0x3a4658,dk:0x2c3543},{c:0x2e2e2e,dk:0x1e1e1e},{c:0x6b4a34,dk:0x543a29},{c:0x8a8a8a,dk:0x6d6d6d},{c:0x4a3a5c,dk:0x3a2d47}];
+const PEOPLE_HAIR  = [0x3a2b20, 0x1a1a1a, 0x8a6a3a, 0xd4c088, 0xb03a2e, 0x6b6b6b];
+const PEOPLE_SHOE  = [{c:0x1c1c1c,dk:0x121212},{c:0x5c4530,dk:0x483623},{c:0xf2f0e8,dk:0xc4c2ba}];
+
+/* people patrol their spawn tile exactly like the dog does — same
+   waypoint construction, same tile-local bounds (±30 along, ±26
+   across), same SEG timing — so they're actually walking the
+   sidewalk instead of standing frozen until hit. Pure function of
+   (t, seed): the sim's collision check and the renderer call the same
+   thing, so the hitbox always matches the art. */
+function peopleSpotAt(tms, seed){
+  const wp = i => {
+    const r = mulberry32((seed ^ Math.imul(i|0, 2654435761)) >>> 0);
+    return { a: -30 + r()*60, b: -26 + r()*52 };
+  };
+  const SEG = 2600;
+  const i = Math.floor(tms/SEG), u = (tms % SEG)/SEG;
+  const p0 = wp(i), p1 = wp(i+1);
+  const w = Math.min(u/0.62, 1), e = w*w*(3 - 2*w);
+  return {
+    a: p0.a + (p1.a - p0.a)*e,
+    b: p0.b + (p1.b - p0.b)*e,
+    th: Math.atan2(p1.b - p0.b, p1.a - p0.a),
+    walk: u < 0.62 ? Math.sin(Math.PI*w) : 0
+  };
+}
+/* the flee/settle curve — same DUR/DIST as the dog, same contract:
+   pure functions of (t, hz) / (hz). */
+function peopleFleeAt(tms, hz){
+  if(!hz || hz.hitT === undefined) return null;
+  const el = tms - hz.hitT;
+  if(el <= 0) return null;
+  const DUR = 2600;
+  if(el >= DUR) return { gone: true };
+  const u = el / DUR;
+  const dist = 250 * Math.pow(u, 1.35);
+  return { da:(hz.fleeA || 1)*dist, db:-dist*0.45, u, gone:false };
+}
+function peopleSettledSpot(hz){
+  if(!hz || hz.hitT === undefined) return null;
+  const DUR = 2600, DIST = 250;
+  const base = peopleSpotAt(hz.hitT + DUR, hz.peopleSeed || 0);
+  return {
+    a: base.a + (hz.fleeA || 1) * DIST,
+    b: base.b - DIST * 0.45,
+    th: Math.atan2(-0.45, hz.fleeA || 1)
+  };
+}
+
+/* approved in bin lab: height 34 · base 11 · lid 13 · band 3 (standing) / 0 (knocked) */
+const BIN = {
+  height: 34, baseR: 11, lidR: 13, band: 3,
+  body: 0x3f5147, bodyDk: 0x2e3d35,
+  band_c: 0xd8dade,
+  lid: 0x4a5d52, lidDk: 0x384539,
+  pedal: 0x8a919c, pedalDk: 0x5f656e,
+  liner: 0x1f2822,
+  shadow: 0x000000
+};
+/* approved in bin hit lab (2026-07-09): rigid pivot-fall physics —
+   simpler than the cone's, since a barrel's own round bottom is the
+   whole base (no separate slab plate with corners), so it's ONE
+   pivot all the way from standing to lying flat at exactly 90°. */
+const binR = h => { const u = h / BIN.height; return BIN.baseR * (0.88 + 0.12*Math.sin(u*Math.PI)); };
+function binTipPoint(u, h, phi){
+  const pvt = binR(0);
+  if(phi === 0) return { u, z: h };
+  const cphi = Math.cos(phi), sphi = Math.sin(phi);
+  return { u: pvt + (u - pvt)*cphi + h*sphi, z: -(u - pvt)*sphi + h*cphi };
+}
+/* the wall IS the bin: samples the actual barrel silhouette at the
+   current tip angle to find the nearest-to-robot point, rather than
+   using a fixed clearance number. Standing, that's the lid overhang;
+   as it topples away (always downstream, same as the punt) the near
+   side swings up and shrinks toward the pivot, where it locks once
+   knocked — the physical boundary just stops moving, which is what
+   makes a knocked bin block the lane just as permanently as a
+   standing one. */
+function binNearEdge(phi){
+  let minU = Infinity;
+  for(let hi=0; hi<=8; hi++){
+    const h = hi/8*BIN.height, r = binR(h);
+    for(const u of [-r, r]){ const t = binTipPoint(u, h, phi); if(t.u < minU) minU = t.u; }
+  }
+  for(const u of [-BIN.lidR, BIN.lidR]){
+    const t = binTipPoint(u, BIN.height, phi); if(t.u < minU) minU = t.u;
+  }
+  return minU;
+}
+const BIN_HIT = (() => {
+  const r0 = binR(0);
+  const phiBal = Math.atan(r0 / (BIN.height * 0.42));   // CM biased low — a loaded bin's weight sits low
+  return { phiBal, phiRest: Math.PI/2, kick: 1.0, grav: 0.6, punt: 2.0 };
+})();
+/* approved in hydrant lab: height 20 · base 8 · dome 6.5 · nozzle 2.6 · red.
+   hydrantBurst is the same rigid hydrant with a sheared front nozzle,
+   animated water arc, and a puddle spanning most of the neighboring tile. */
+const HYD = {
+  height: 20, baseR: 8, domeR: 6.5, nozR: 2.6,
+  cap: 0xb5342b, capDk: 0x8a2822,
+  nut: 0x3a3d43,
+  water: 0xbfe6f2, waterDk: 0x8fc8dc,
+  shadow: 0x000000
+};
+/* dialed in the hydrant hit lab: burst + hydroplane numbers */
+const HYD_SLIP = {
+  thresh: 0.055,   // hit speed that shears the nozzle
+  bonk: 10,        // cast-iron impact severity
+  spin: 1.0,       // pirouette turns × (entry speed / 0.05)
+  grip: 1.0,       // traction recovery: yaw unwind rate
+  pud: 41.4        // full-grown flood radius (TILE*0.9 — literal: TILE declares later)
+};
+/* approved in planter lab: tapered box + layered stalked bush.
+   Dimensions vary per-instance (seeded) rather than one locked size —
+   box 13-19w × 8-12d × 8-12h, bush 12-20h, fullness 4-7, ~30% flowering. */
+const PLANTER = {
+  box: 0x8f8577, boxDk: 0x7a7164, boxDk2: 0x6b6357,
+  soil: 0x4a3f34, stalk: 0x5c6b3f,
+  shadow: 0x000000
+};
+/* ported from the planter collision lab, 2026-07-10: plant variety —
+   color palette + puff silhouette, picked per-instance from a seeded
+   RNG the same way CAR_COLORS/PEOPLE_SHIRT already are. "round" is
+   the original bushy-puff look; "spiky" swaps the puffs for thin
+   radiating blades (ornamental-grass/succulent silhouette) instead
+   of circles — a real shape difference, not just a recolor. */
+const PLANTER_VARIANTS = [
+  { n:"garden",    leafA:0x4e8f4a, leafB:0x3c7a3c, leafC:0x62a35c, flower:0xe86b8a, style:"round" },
+  { n:"sage",       leafA:0x8a9a6e, leafB:0x707f57, leafC:0x9fae82, flower:0xd9c37a, style:"round" },
+  { n:"tropical",   leafA:0x2f7a4e, leafB:0x1f5c38, leafC:0x3f9463, flower:0xff7a3d, style:"spiky" },
+  { n:"autumn",     leafA:0xa88a3a, leafB:0x8a6f2a, leafC:0xc4a54e, flower:0xd94f3d, style:"round" },
+  { n:"succulent",  leafA:0x4a8a86, leafB:0x396c69, leafC:0x5fa39e, flower:0xe8d9b8, style:"spiky" }
+];
+const PLANTER_BASE = { boxW: 22, boxD: 14, boxH: 14, bushH: 20, fullness: 6 };
+/* approved in planter collision lab (2026-07-10): a COLLIDABLE planter
+   hazard, distinct from the existing prop.planter (which stays pure
+   decoration on the far, unreachable sidewalk — see its placement
+   comment). This one spawns reachable, on the robot's own side.
+     · balance angle is scale-INVARIANT — atan of two dimensions that
+       scale together — so a bigger planter isn't more top-heavy, it
+       just takes a harder hit to reach the same angle (potPower).
+     · below thresh: one hit topples it (like cone/bin), robot drives
+       on, never a wall.
+     · at/above thresh: too heavy to plow through standing OR lying
+       down (bin's "too big" contract, same BOT_CLEAR fixed-clearance
+       pattern — the one proven to still work in this file) — it still
+       eventually topples under a sustained push, but the lane stays
+       blocked either way, so the player has to change lanes. */
+const PLANTER_HIT = {
+  phiBal: Math.atan((PLANTER_BASE.boxW/2) / (PLANTER_BASE.boxH*0.55)),
+  phiRest: Math.PI/2,
+  thresh: 1.4, kick: 1.0, potPower: 1.3
+};
+/* approved in car lab: len 150 · wid 60 · chassis 28 · cabin 32 · wheel 16.
+   Scaled to tower over the robot (robot: 52w x 40d x 61h to the lid).
+   kind "truck" is the same rig with a shorter cab (cl 0.24 vs 0.62 of
+   half-length), a vertical rear wall instead of a sloped one, a small
+   flush rear window instead of the sedan's full sloped backlight, and
+   an open cargo bed with raised rails behind the cab. */
+const CARC = {
+  len: 450, wid: 180, chassisH: 84, cabinH: 96, wheelR: 48,
+  glass: 0x4a5560, glassDk: 0x3a434c, windshield: 0x9fc4d6, windshieldEdge: 0x6f8fa0,
+  bumper: 0xb8bcc2, light: 0xf4e9b0, tail: 0xc94f4f,
+  wheel: 0x24262c, wheelDk: 0x17191d, hub: 0x8a919c, hubFace: 0x3d424c,
+  bedFloor: 0x3d434a,
+  shadow: 0x000000
+};
+const CAR_COLORS = [
+  { n:"silver", body:0x9aa7b5, bodyDk:0x76839a, roof:0x8695a5 },
+  { n:"red",    body:0xc45a4e, bodyDk:0x9c473d, roof:0xaf4f44 },
+  { n:"blue",   body:0x5678a8, bodyDk:0x435e87, roof:0x4c6c99 },
+  { n:"white",  body:0xe4e6ea, bodyDk:0xc0c3c9, roof:0xd6d9dd }
+];
+   // facing 0..3
+const TILE = 46;             // half-tile, model units — was previously declared only
+const T2 = TILE*2;           // locally inside drawWorld(); now needed globally for the grid.
+const BLOCK = 34 * T2;       // SCALED UP for the block-wrap lab (was 22*T2) — the
+                              // interior needs to comfortably hold 3-4 of the new,
+                              // door-scaled houses (220-386 wide) instead of just
+                              // 1-2. node-to-node street spacing (whole multiple of T2 —
+                              // keeps every intersection tile-aligned by construction)
+const ROAD_HALF = 4*T2;      // road is 8 rows wide, symmetric about the centerline
+const SIDEWALK_ROWS = 4;     // per side — the sidewalk width already live in-game
+const SIDEWALK_W = SIDEWALK_ROWS*T2;
+const OVERSHOOT = ROAD_HALF; // sufficient by construction — see classifyAt
+const CELL = TILE;           // sidewalk classification/render resolution
+const CORNER_R = ROAD_HALF + SIDEWALK_W;       // the robot's (and traffic's) turning radius through an
+                              // intersection. MUST exceed the widest sidewalk lane offset
+                              // (up to ROAD_HALF + 3.5*T2) or the offset math folds through
+                              // the arc's center and the path reverses mid-turn on the inside
+                              // of corners. The old (pre-4-lane-band) game kept CORNER_R(130)
+                              // safely above its lane offset (max 92) for exactly this reason;
+                              // porting to the wider band without raising CORNER_R to match
+                              // broke that invariant. Tying it to ROAD_HALF+SIDEWALK_W restores
+                              // the same margin the old game always had, and keeps it an exact
+                              // multiple of T2.
+const ROBOT_SIDE = -1;       // the walk stays on ONE side's sidewalk band —
+                              // lane 0 is closest to the road (curb side),
+                              // lane 3 is farthest (building side).
+function laneOffset(lane){ return ROBOT_SIDE * (ROAD_HALF + (lane+0.5)*T2); }
+function farLaneOffset(lane){ return -ROBOT_SIDE * (ROAD_HALF + (lane+0.5)*T2); } // opposite sidewalk — decoration only, never robot-reachable
+const ROBOT_ROW = laneOffset(1.5);       // default sidewalk lane, in raw world units (not T2-multiplied)
+
+/* ---- door lab port: exact lane math for where the door/mat/house sit ---- */
+const MAT_PERP  = laneOffset(3);               // center of lane 3, the last real sidewalk row
+const DOOR_PERP = -(ROAD_HALF + SIDEWALK_W);   // outer edge of lane 3 / where lane 4 would start
+const DOOR_ALONG = T2/2;   // sidewalk tiles are centered at odd multiples of T2/2, never at along=0 —
+                            // door/mat/house column has to sit on T2/2 to land on a real tile center
+
+/* hull door: frame + slab + 2 panels + knob, hinge-open on theta.
+   Ported verbatim from the door lab (dial bench approved). */
+const DOOR_ART = {
+  w: T2, h: T2*2,
+  panelInset: 8,
+  panelTopFrom: 0.46, panelTopTo: 0.90,
+  panelBotFrom: 0.10, panelBotTo: 0.38,
+  knobR: 2.8, knobDX: 30, knobDZ: 84,
+  openAngle: Math.PI/2, openEase: 0.09,
+  frame: 0x4a2f20, frameLt: 0x5c3c28, frameDk: 0x3a2417,
+  slab: 0x6b4530, slabLt: 0x7c5238, slabDk: 0x5a3a28,
+  groove: 0x3f2a1c,
+  knob: 0xd8b23a, knobDk: 0xa5842a, knobHi: 0xf6e29a, plate: 0x241a10,
+  step: 0x9d9687, stepDk: 0x847d70,
+  shadow: 0x000000
+};
+const MAT_ART = { red: 0xc2452e, redDk: 0x8f331f, border: 0x6e2718, fiber: 0xa8391f };
+
+/* house facade: green center house (with the door) + two flanking
+   neighbors, dark blue left / tan right. Ported verbatim from the
+   door lab. */
+const HOUSE_ART = {
+  spanTiles: 5, winCount: 2, h: 220, baseH: 30,
+  wall: 0x4e7a52, wallDk: 0x3e6244, wallLt: 0x5c8a60, trim: 0x2f4a32,
+  winFrame: 0xf4efe2, winFrameDk: 0xd8d0bd,
+  winGlass: 0x6b93a8, winGlassLt: 0x86adc0,
+  winW: DOOR_ART.w - DOOR_ART.panelInset*2,
+  winZ0: DOOR_ART.h*DOOR_ART.panelTopFrom, winZ1: DOOR_ART.h*DOOR_ART.panelTopTo,
+  winSillH: 4
+};
+const NEIGHBOR_L_ART = { spanTiles: 4, winCount: 2, h: 200, baseH: 26, wall: 0x2e4d68, wallDk: 0x22394e, trim: 0x1a2a3a };
+const NEIGHBOR_R_ART = { spanTiles: 4, winCount: 2, h: 205, baseH: 26, wall: 0xc9a56e, wallDk: 0xa8875a, trim: 0x7a6040 };
+
+const CAR_LANE = ROAD_HALF / 2;          // each traffic direction's lane, inside ROAD_HALF
+const SPAWN_S = 60;
+
+/* ---------- the single source of truth for "what is at this point" ----------
+   Road always wins over sidewalk — a crossing street's road legitimately
+   owns that ground, which is what resolves intersection corners correctly. */
+function classifyAt(edges, x, y){
+  let sidewalk = false;
+  for(const e of edges){
+    const dv = DIRV[e.f], rv = DIRV[(e.f+1)%4];
+    const relX = x - e.a.x, relY = y - e.a.y;
+    const along = relX*dv.x + relY*dv.y;
+    const perp  = relX*rv.x + relY*rv.y;
+    if(along >= -OVERSHOOT && along <= BLOCK + OVERSHOOT){
+      if(Math.abs(perp) <= ROAD_HALF) return "road";
+      if(Math.abs(perp) <= ROAD_HALF + SIDEWALK_W) sidewalk = true;
+    }
+  }
+  return sidewalk ? "sidewalk" : "block";
+}
+
+/* precomputed once per grid: cheap full-length runs for the safe mid-block
+   stretch, fine classify()-checked cells only near actual intersections. */
+function buildSidewalkGeometry(grid){
+  const runs = [];  // individual T2-square tiles along the safe mid-block zone —
+                     // NOT long rectangles. A real sidewalk has visible panel
+                     // seams every tile-width; one giant rectangle per lane
+                     // erased that entirely. Still no classify() check needed
+                     // here — this zone is provably conflict-free by construction,
+                     // same guarantee as before, just rendered at the right grain.
+  const safeLen = BLOCK - 2*OVERSHOOT;
+  if(safeLen > T2){
+    const nTiles = Math.floor(safeLen / T2);
+    for(const e of grid.edges){
+      const dv = DIRV[e.f], rv = DIRV[(e.f+1)%4];
+      for(const side of [-1, 1])
+        for(let t = 0; t < SIDEWALK_ROWS; t++){
+          const perp = side * (ROAD_HALF + (t+0.5)*T2);
+          for(let ai = 0; ai < nTiles; ai++){
+            const along = OVERSHOOT + (ai+0.5)*T2;
+            const x = e.a.x + dv.x*along + rv.x*perp;
+            const y = e.a.y + dv.y*along + rv.y*perp;
+            runs.push({ x, y, parity: (ai + t) % 2 });
+          }
+        }
+    }
+  }
+  const cornerCells = [], seen = new Set();
+  const perpSteps = Math.round(SIDEWALK_W / CELL);
+  const alongSteps = Math.round((2*OVERSHOOT) / CELL);
+  for(const e of grid.edges){
+    const dv = DIRV[e.f], rv = DIRV[(e.f+1)%4];
+    for(const end of [0, 1]){
+      for(let ai = 0; ai <= alongSteps; ai++){
+        const along = end === 0 ? (-OVERSHOOT + ai*CELL) : (BLOCK - OVERSHOOT + ai*CELL);
+        for(const side of [-1, 1])
+        for(let pi = 0; pi < perpSteps; pi++){
+          const perp = side * (ROAD_HALF + (pi+0.5)*CELL);
+          const x = e.a.x + dv.x*along + rv.x*perp;
+          const y = e.a.y + dv.y*along + rv.y*perp;
+          const key = Math.round(x/CELL) + "," + Math.round(y/CELL);
+          if(seen.has(key)) continue;
+          seen.add(key);
+          if(classifyAt(grid.edges, x, y) === "sidewalk"){
+            cornerCells.push({ x, y, parity: (Math.round(x/CELL) + Math.round(y/CELL)) % 2 });
+          }
+        }
+      }
+    }
+  }
+  return { runs, cornerCells };
+}
+
+/* ---------- the street grid: a real planar graph ---------- */
+function nodeShape(n){
+  const c = n.conn, count = c.filter(Boolean).length;
+  if(count === 4) return "cross";
+  if(count === 3) return "t";
+  if(count === 2) return (c[0]&&c[2]) || (c[1]&&c[3]) ? "straight" : "corner";
+  if(count === 1) return "end";
+  return "isolated";
+}
+function buildGrid(cols, rows){
+  const nodes = [];
+  for(let j=0; j<rows; j++) for(let i=0; i<cols; i++)
+    nodes.push({ i, j, x:i*BLOCK, y:j*BLOCK, conn:[false,false,false,false] });
+  const nodeAt = (i,j) => (i<0||i>=cols||j<0||j>=rows) ? null : nodes[j*cols+i];
+  const edges = [];
+  for(let j=0; j<rows; j++) for(let i=0; i<cols-1; i++){
+    const a = nodeAt(i,j), b = nodeAt(i+1,j);
+    a.conn[0] = true; b.conn[2] = true;
+    edges.push({ a, b, f:0 });
+  }
+  for(let j=0; j<rows-1; j++) for(let i=0; i<cols; i++){
+    const a = nodeAt(i,j), b = nodeAt(i,j+1);
+    a.conn[1] = true; b.conn[3] = true;
+    edges.push({ a, b, f:1 });
+  }
+  for(const n of nodes) n.shape = nodeShape(n);
+  const grid = { cols, rows, nodes, edges, nodeAt };
+  grid.classify = (x, y) => classifyAt(grid.edges, x, y);
+  const sw = buildSidewalkGeometry(grid);
+  grid.sidewalkRuns = sw.runs;
+  grid.sidewalkCornerCells = sw.cornerCells;
+  return grid;
+}
+
+/* ================= LAB-SPECIFIC: new block-content system ================= */
+
+/* palette (borrowed from the game's low-pave hood tone — tropical, matches
+   Costa Palma) plus two new fills this lab introduces: grass (park) and
+   plaza pavers (plaza) — distinct from sidewalk concrete. */
+const D = { sky:0x9fd4e8, pave:0xc9c3b4, paveB:0xbfb9aa, paveEdge:0xa8a294, road:0x4a4d55, roadLine:0xd8d2c2 };
+const GRASS = { a:0x5a9c52, b:0x519246, edge:0x3f7a3a };
+const PLAZA = { a:0xd9c9a8, b:0xceba95, edge:0xb09b74 };
+
+/* six house-wrap palettes — tropical streetscape variety. Window frame/
+   glass stay constant (HOUSE_ART.win*) across all of them, only the wall
+   family changes, same convention PLANTER_VARIANTS uses for planters. */
+const HOUSE_WRAP_PALETTES = [
+  { wall:0x4e7a52, wallDk:0x3e6244, wallLt:0x5c8a60, trim:0x2f4a32, roof:0x2f4a32 },  // green
+  { wall:0x2e4d68, wallDk:0x22394e, wallLt:0x3a5f7e, trim:0x1a2a3a, roof:0x1a2a3a },  // navy
+  { wall:0xc9a56e, wallDk:0xa8875a, wallLt:0xd8b884, trim:0x7a6040, roof:0x7a6040 },  // tan
+  { wall:0xc46a4a, wallDk:0x9e5138, wallLt:0xd88264, trim:0x6e3624, roof:0x6e3624 },  // terracotta
+  { wall:0xe8ddc0, wallDk:0xc9bc9a, wallLt:0xf2ead6, trim:0x9a8c68, roof:0x9a8c68 },  // cream
+  { wall:0xd98a9e, wallDk:0xb56a7e, wallLt:0xe6a4b6, trim:0x7a4252, roof:0x7a4252 }   // coral pink
+];
+const HOUSE_DEPTH = T2 * 3; // exactly 3 tiles deep — real footprint, not a thin cutout
+
+/* ================= SCALE REFERENCE: everything below is sized off the
+   door and the customer, not picked independently per-object. The real
+   door (DOOR_ART.h=184) and the real person (~124 tall, from
+   PEOPLE_BUILD) are the two fixed points that already exist elsewhere
+   in the game and can't move — so they anchor the rest of the new set
+   dressing instead of the other way around. ================= */
+const PERSON_H = 124;      // PEOPLE_BUILD legH(52)+torsoH(44)+headR*2(28)
+const DOOR_H = DOOR_ART.h; // 184 — real door, canonical, don't touch
+const DOOR_W = DOOR_ART.w; // 92
+
+/* new prop: park/plaza bench. Paper-thin iso facade in the same
+   architectural language as the wrap houses (flat planes at tiny perp
+   offsets), not a full hull volume — benches are small enough that the
+   flat-facade look reads fine at this camera distance and it keeps the
+   art budget cheap for something spawned many times per map. */
+const BENCH_ART = {
+  w: PERSON_H*1.3, seatH: PERSON_H*0.35, backH: PERSON_H*0.3,
+  wood: 0x9d7a4e, woodDk: 0x7c5f3c, woodLt: 0xb8935e,
+  leg: 0x3a3d43
+};
+
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+function resize(){ canvas.width = innerWidth*devicePixelRatio; canvas.height = innerHeight*devicePixelRatio; canvas.style.width=innerWidth+'px'; canvas.style.height=innerHeight+'px'; }
+resize(); addEventListener('resize', resize);
+
+const cam = { x:0, y:0, z:0, K: 1.6, cx:0, cy:0 };
+function W(x, y, z){
+  const xr = x - cam.x, yr = y - cam.y;
+  const dpr = devicePixelRatio;
+  return {
+    x: ((xr - yr)*cam.K + cam.cx) * dpr,
+    y: (((xr + yr)*0.5 - (z - cam.z))*cam.K + cam.cy) * dpr
+  };
+}
+function hex(c){ return '#' + c.toString(16).padStart(6,'0'); }
+function quadOn(pts, color, alpha=1){
+  ctx.fillStyle = hex(color); ctx.globalAlpha = alpha;
+  ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y);
+  for(let i=1;i<pts.length;i++) ctx.lineTo(pts[i].x, pts[i].y);
+  ctx.closePath(); ctx.fill(); ctx.globalAlpha = 1;
+}
+function edgeOn(pts, color, w=1, alpha=1){
+  ctx.strokeStyle = hex(color); ctx.lineWidth = w*devicePixelRatio; ctx.globalAlpha = alpha;
+  ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y);
+  for(let i=1;i<pts.length;i++) ctx.lineTo(pts[i].x, pts[i].y);
+  ctx.closePath(); ctx.stroke(); ctx.globalAlpha = 1;
+}
+/* Phaser-Graphics-shaped primitives, so code ported verbatim from the
+   real game's g.fillEllipse/g.fillCircle/g.lineBetween/g.lineStyle calls
+   needs minimal translation (just g.-> these, this.W-> W, this.K-> cam.K). */
+function fillEllipse(x, y, rx, ry, color, alpha=1){
+  ctx.fillStyle = hex(color); ctx.globalAlpha = alpha;
+  ctx.beginPath(); ctx.ellipse(x, y, Math.max(0.01,rx), Math.max(0.01,ry), 0, 0, Math.PI*2); ctx.fill();
+  ctx.globalAlpha = 1;
+}
+function fillCircle(x, y, r, color, alpha=1){
+  ctx.fillStyle = hex(color); ctx.globalAlpha = alpha;
+  ctx.beginPath(); ctx.arc(x, y, Math.max(0.01,r), 0, Math.PI*2); ctx.fill();
+  ctx.globalAlpha = 1;
+}
+function lineBetween(x0, y0, x1, y1, color, width=1, alpha=1){
+  ctx.strokeStyle = hex(color); ctx.lineWidth = width*devicePixelRatio; ctx.globalAlpha = alpha;
+  ctx.beginPath(); ctx.moveTo(x0,y0); ctx.lineTo(x1,y1); ctx.stroke();
+  ctx.globalAlpha = 1;
+}
+
+/* ---------- block layout: the new grid.blocks precompute ----------
+   Position-seeded per block center (same convention as palm/planter
+   instance variety elsewhere in the game — a pure function of world
+   position, no threaded rng, no mutable state), 33/33/33 split via a
+   single rng() draw. innerRect is the block interior beyond the
+   sidewalk's INSIDE line — x0/x1/y0/y1 inset by ROAD_HALF+SIDEWALK_W
+   from the block's own outer node coordinates. */
+function buildBlockLayout(grid, forceTypes){
+  const { cols, rows } = grid;
+  const inset = ROAD_HALF + SIDEWALK_W;
+  const blocks = [];
+  let bi = 0;
+  for(let j = 0; j < rows-1; j++){
+    for(let i = 0; i < cols-1; i++){
+      const x0 = i*BLOCK, y0 = j*BLOCK;
+      const cx = x0 + BLOCK/2, cy = y0 + BLOCK/2;
+      let type;
+      if(forceTypes && forceTypes[bi] !== undefined){
+        type = forceTypes[bi];
+      } else {
+        const seed = ((Math.round(cx)*7919) ^ (Math.round(cy)*104729) ^ SALT) >>> 0;
+        const rng = mulberry32(seed);
+        const r = rng();
+        type = r < 1/3 ? "housing" : r < 2/3 ? "park" : "commercial";
+      }
+      blocks.push({
+        i, j, cx, cy,
+        x0: x0+inset, x1: x0+BLOCK-inset,
+        y0: y0+inset, y1: y0+BLOCK-inset,
+        type
+      });
+      bi++;
+    }
+  }
+  return blocks;
+}
+
+/* ---------- housing wrap: spaced individual houses along the block's
+   inner (sidewalk-facing) perimeter ----------
+   Greedy pack per edge: random unit widths (1.6-2.6 T2) separated by
+   random yard gaps (0.5-1.1 T2), seeded off the edge's own position so
+   the same block always packs the same way. Corner returns on BOTH
+   sides of every unit (freestanding houses, not a continuous row —
+   per Sir's call), same tiny-perp-offset facade language as the
+   existing address house (drawHouseFacade), just parametrized to any
+   edge instead of only the door edge. */
+function packEdge(edgeLen, rng){
+  const minGap = T2*0.5, maxGap = T2*1.1;
+  /* wide enough that DOOR_W (92) reads as ~25-40% of the facade instead
+     of dominating it — the old 1.6-2.6*T2 range put the door at 60%+
+     of a narrow unit's width. */
+  const minW = T2*2.4, maxW = T2*4.2;
+  const units = [];
+  let cursor = minGap*0.5 + rng()*(maxGap-minGap)*0.5;
+  while(true){
+    const w = minW + rng()*(maxW-minW);
+    if(cursor + w > edgeLen - minGap*0.5) break;
+    units.push({ start: cursor, w });
+    cursor += w + (minGap + rng()*(maxGap-minGap));
+  }
+  return units;
+}
+
+function drawHouseUnit(ox, oy, dv, rv, w, seed, isAddress=false){
+  const rng = mulberry32(seed);
+  /* a = along the edge (0..w), b = depth (0 at the sidewalk-facing front,
+     -D back into the block interior), h = height. A REAL box now, not a
+     paper-thin cutout: front, back, both sides, and a top all exist as
+     actual geometry. Faces drawn back-to-front so the fully-detailed
+     front face (windows/door) always paints last, on top. */
+  const G = (a,b,h) => W(ox + dv.x*a + rv.x*b, oy + dv.y*a + rv.y*b, h);
+  const C = HOUSE_WRAP_PALETTES[Math.floor(rng()*HOUSE_WRAP_PALETTES.length)];
+  /* height is DOOR_H + a randomized roof margin — every house, address
+     or not, is now guaranteed taller than the real door with headroom
+     for trim/roofline, instead of picking H independently and hoping
+     it happened to clear the door (it often didn't). */
+  const H = DOOR_H + 50 + rng()*40, baseH = 26, D = HOUSE_DEPTH;
+  const hasDoor = isAddress ? true : rng() < 0.5;
+  const winCount = 1 + Math.floor(rng()*2);
+
+  /* back wall (dim — never gets direct light in this fixed camera) */
+  const back = [G(0,-D,H), G(w,-D,H), G(w,-D,0), G(0,-D,0)];
+  quadOn(back, C.wallDk);
+
+  /* left + right side walls close the box in profile */
+  const left = [G(0,0,H), G(0,-D,H), G(0,-D,0), G(0,0,0)];
+  quadOn(left, C.wallDk); edgeOn(left, C.trim, 1, 0.5);
+  const right = [G(w,0,H), G(w,-D,H), G(w,-D,0), G(w,0,0)];
+  quadOn(right, C.wallLt); edgeOn(right, C.trim, 1, 0.5);
+
+  /* roof — true top face over the full footprint, small eave overhang */
+  const ov = 5;
+  const roof = [G(-ov,ov,H), G(w+ov,ov,H), G(w+ov,-D-ov,H), G(-ov,-D-ov,H)];
+  quadOn(roof, C.roof);
+  edgeOn(roof, C.wallDk, 1, 0.5);
+
+  /* front wall — the detailed face, painted last so it's always on top */
+  const face = [G(0,0.4,H), G(w,0.4,H), G(w,0.4,0), G(0,0.4,0)];
+  quadOn(face, C.wall);
+  const base = [G(0,0.42,baseH), G(w,0.42,baseH), G(w,0.42,0), G(0,0.42,0)];
+  quadOn(base, C.wallDk);
+  const trim = [G(0,0.42,H), G(w,0.42,H), G(w,0.42,H-9), G(0,0.42,H-9)];
+  quadOn(trim, C.trim);
+  ctx.strokeStyle = hex(C.wallDk); ctx.globalAlpha = 0.35; ctx.lineWidth = 1;
+  for(let x = T2; x < w; x += T2){ const a=G(x,0.41,H), b=G(x,0.41,0); ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke(); }
+  ctx.globalAlpha = 1;
+
+  /* windows — sized off the door too (DOOR_W-derived width, spans a
+     band matching the door's own vertical extent) so a window doesn't
+     read as a slit next to a full-size door on the same wall. */
+  const winW = DOOR_W*0.32, winZ0 = DOOR_H*0.16, winZ1 = DOOR_H*0.82, sillH = 4;
+  const wf = 0xf4efe2, wfd = 0xd8d0bd, wg = 0x6b93a8, wgl = 0x86adc0;
+  const window = cx => {
+    const wHW = winW/2;
+    const sill = [G(cx-wHW-3,0.5,winZ0), G(cx+wHW+3,0.5,winZ0), G(cx+wHW+3,0.5,winZ0-sillH), G(cx-wHW-3,0.5,winZ0-sillH)];
+    quadOn(sill, wfd);
+    const frame = [G(cx-wHW-2,0.5,winZ1+2), G(cx+wHW+2,0.5,winZ1+2), G(cx+wHW+2,0.5,winZ0), G(cx-wHW-2,0.5,winZ0)];
+    quadOn(frame, wf);
+    const glass = [G(cx-wHW,0.55,winZ1), G(cx+wHW,0.55,winZ1), G(cx+wHW,0.55,winZ0), G(cx-wHW,0.55,winZ0)];
+    quadOn(glass, wg);
+    const hl = [G(cx-wHW+2,0.56,winZ1-2), G(cx-2,0.56,winZ1-2), G(cx-2,0.56,winZ0+3), G(cx-wHW+2,0.56,winZ0+3)];
+    quadOn(hl, wgl, 0.6);
+  };
+  /* the plain (non-address) door: same DOOR_W/DOOR_H proportions as
+     the real hull door, just flattened — a house whose door you never
+     open shouldn't look like a different, smaller building. */
+  const door = cx => {
+    const dHW = DOOR_W*0.4, dZ1 = DOOR_H*0.85;
+    const step = [G(cx-dHW-3,0.48,6), G(cx+dHW+3,0.48,6), G(cx+dHW+3,0.48,0), G(cx-dHW-3,0.48,0)];
+    quadOn(step, 0x9d9687);
+    const slab = [G(cx-dHW,0.5,dZ1), G(cx+dHW,0.5,dZ1), G(cx+dHW,0.5,0), G(cx-dHW,0.5,0)];
+    quadOn(slab, 0x6b4530);
+    const panel = [G(cx-dHW+4,0.52,dZ1-10), G(cx+dHW-4,0.52,dZ1-10), G(cx+dHW-4,0.52,12), G(cx-dHW+4,0.52,12)];
+    quadOn(panel, 0x5a3a28);
+    const knob = G(cx+dHW-6,0.56,dZ1*0.42);
+    ctx.fillStyle = hex(0xd8b23a); ctx.beginPath(); ctx.arc(knob.x, knob.y, 2.6*devicePixelRatio, 0, 7); ctx.fill();
+  };
+
+  if((hasDoor && w > T2*1.9) || isAddress){
+    const dcx = w/2;
+    if(!isAddress) door(dcx); // address unit's REAL door assembly draws separately, on top
+    for(let i=1;i<=winCount;i++){
+      if(dcx - i*T2*0.9 > 14) window(dcx - i*T2*0.9);
+      if(dcx + i*T2*0.9 < w-14) window(dcx + i*T2*0.9);
+    }
+  } else {
+    const n = Math.max(1, Math.min(winCount+1, Math.floor(w/T2)));
+    for(let i=0;i<n;i++) window(w*(i+0.5)/n);
+  }
+}
+
+/* ---------- draw-order fix: ground is flat and order-independent, so it
+   always paints first, globally. Vertical content (houses/stores/scatter)
+   gets QUEUED here instead of drawn immediately, then sorted by world
+   depth (x+y) and flushed in one global pass — otherwise a farther
+   block's flat fill can paint over a nearer block's tall house, since
+   the old per-block draw order didn't account for height at all. */
+let VQ = [];
+function queueVert(depth, fn){ VQ.push({ depth, fn }); }
+/* captured each frame by queueHousingBlock/queueCommercialBlock when
+   they reach the designated unit — single source of truth for "where
+   exactly is the pickup/address door", so the robot route always
+   matches whatever the buildings actually drew, never a stale copy. */
+let addressSpot = null, pickupSpot = null;
+
+/* ---------- fences: fill the yard gaps between spaced houses ----------
+   packEdge() already leaves gaps by design (that was the whole point of
+   "spaced individual houses"); now those gaps get a real fence instead
+   of empty grass. Wood picket or chainlink, picked per-gap so a single
+   block reads as a real mixed streetscape, not a uniform HOA. */
+function gapsFromUnits(units, edgeLen){
+  const gaps = []; let cursor = 0;
+  for(const u of units){
+    if(u.start > cursor + 2) gaps.push({ start:cursor, w:u.start-cursor });
+    cursor = u.start + u.w;
+  }
+  if(edgeLen > cursor + 2) gaps.push({ start:cursor, w:edgeLen-cursor });
+  return gaps;
+}
+
+function drawWoodFence(ox, oy, dv, rv, w){
+  const G = (a,b,h) => W(ox + dv.x*a + rv.x*b, oy + dv.y*a + rv.y*b, h);
+  const H = PERSON_H*0.8, wood = 0x9d7a4e, woodDk = 0x7c5f3c; // ~chest height on a real person
+  const post = x => quadOn([G(x-3,0.4,H+5),G(x+3,0.4,H+5),G(x+3,0.4,0),G(x-3,0.4,0)], woodDk);
+  post(2); post(Math.max(4,w-2));
+  const rail = [G(0,0.42,H),G(w,0.42,H),G(w,0.42,H-8),G(0,0.42,H-8)];
+  quadOn(rail, woodDk);
+  const pickW = 7, gap = 5;
+  for(let x = 8; x < w-6; x += pickW+gap){
+    const p = [G(x,0.44,H+3),G(x+pickW,0.44,H+3),G(x+pickW,0.44,0),G(x,0.44,0)];
+    quadOn(p, wood); edgeOn(p, woodDk, 1, 0.4);
+  }
+}
+
+function drawChainFence(ox, oy, dv, rv, w){
+  const G = (a,b,h) => W(ox + dv.x*a + rv.x*b, oy + dv.y*a + rv.y*b, h);
+  const H = PERSON_H*1.02, post = 0x74797d, mesh = 0x9aa0a4; // just over head height, like a real chainlink yard fence
+  const postAt = x => { const p0=G(x,0.4,H), p1=G(x,0.4,0); lineBetween(p0.x,p0.y,p1.x,p1.y, post, 3); };
+  postAt(2); postAt(Math.max(4,w-2));
+  const rail = G(0,0.4,H), rail2 = G(w,0.4,H);
+  lineBetween(rail.x, rail.y, rail2.x, rail2.y, post, 2);
+  /* diamond mesh: a clean cell-grid cross-hatch, cell size fixed so
+     taller/wider fences just get more cells instead of stretched
+     diamonds — reads as chainlink at this camera distance. */
+  const cell = 16;
+  const cols = Math.max(1, Math.round(w/cell));
+  const rows = Math.max(1, Math.round(H/cell));
+  for(let c=0; c<cols; c++){
+    const x0 = c*(w/cols), x1 = (c+1)*(w/cols);
+    for(let r=0; r<rows; r++){
+      const z0 = r*(H/rows), z1 = (r+1)*(H/rows);
+      const p00 = G(x0,0.42,z1), p11 = G(x1,0.42,z0);
+      lineBetween(p00.x,p00.y,p11.x,p11.y, mesh, 1, 0.5);
+      const p01 = G(x0,0.42,z0), p10 = G(x1,0.42,z1);
+      lineBetween(p01.x,p01.y,p10.x,p10.y, mesh, 1, 0.5);
+    }
+  }
+}
+
+function drawFenceGap(ox, oy, dv, rv, w, seed){
+  if(w < 8) return;
+  const rng = mulberry32(seed);
+  if(rng() < 0.5) drawWoodFence(ox, oy, dv, rv, w);
+  else drawChainFence(ox, oy, dv, rv, w);
+}
+
+function queueHousingBlock(blk){
+  const edges = [
+    { ox: blk.x0, oy: blk.y0, dv: DIRV[0], rv: DIRV[3], len: blk.x1-blk.x0 }, // north, outward = -y
+    { ox: blk.x1, oy: blk.y0, dv: DIRV[1], rv: DIRV[0], len: blk.y1-blk.y0 }, // east,  outward = +x
+    { ox: blk.x1, oy: blk.y1, dv: DIRV[2], rv: DIRV[1], len: blk.x1-blk.x0 }, // south, outward = +y
+    { ox: blk.x0, oy: blk.y1, dv: DIRV[3], rv: DIRV[2], len: blk.y1-blk.y0 }  // west,  outward = -x
+  ];
+  const isAddressBlock = blk === addressBlock;
+  edges.forEach((e, ei) => {
+    const eseed = ((Math.round(e.ox*3+e.dv.x)*7919) ^ (Math.round(e.oy*3+e.dv.y)*104729) ^ 0x9e3779b9 ^ SALT) >>> 0;
+    const rng = mulberry32(eseed);
+    const units = packEdge(e.len, rng);
+    units.forEach((u, ui) => {
+      const hx = e.ox + e.dv.x*(u.start + u.w/2), hy = e.oy + e.dv.y*(u.start + u.w/2);
+      const hseed = ((Math.round(hx)*7919) ^ (Math.round(hy)*104729) ^ SALT) >>> 0;
+      const ux = e.ox + e.dv.x*u.start, uy = e.oy + e.dv.y*u.start;
+      const isAddress = isAddressBlock && ei === 0 && ui === 0;
+      if(isAddress) addressSpot = { ox:ux, oy:uy, dv:e.dv, rv:e.rv, doorCenterX:u.w/2 };
+      queueVert(hx+hy, () => {
+        drawHouseUnit(ux, uy, e.dv, e.rv, u.w, hseed, isAddress);
+        if(isAddress) drawAddressUnit(ux, uy, e.dv, e.rv, u.w/2, hseed);
+      });
+    });
+    for(const gp of gapsFromUnits(units, e.len)){
+      const gx = e.ox + e.dv.x*(gp.start+gp.w/2), gy = e.oy + e.dv.y*(gp.start+gp.w/2);
+      const gseed = ((Math.round(gx)*7919) ^ (Math.round(gy)*104729) ^ SALT ^ 0x2f6c) >>> 0;
+      const fx = e.ox + e.dv.x*gp.start, fy = e.oy + e.dv.y*gp.start;
+      queueVert(gx+gy, () => drawFenceGap(fx, fy, e.dv, e.rv, gp.w, gseed));
+    }
+  });
+}
+
+/* ---------- fill tiling, shared by park + plaza (T2-grain two-tone,
+   same visual grammar as the sidewalk runs so it reads as "ground") ---------- */
+function fillBlockInterior(blk, tone){
+  const half = T2/2;
+  for(let y = blk.y0 + half; y < blk.y1; y += T2){
+    for(let x = blk.x0 + half; x < blk.x1; x += T2){
+      const parity = (Math.round((x-blk.x0)/T2) + Math.round((y-blk.y0)/T2)) % 2;
+      const pts = [W(x-half,y-half,0), W(x+half,y-half,0), W(x+half,y+half,0), W(x-half,y+half,0)];
+      quadOn(pts, parity===0 ? tone.a : tone.b);
+      if(tone.edge) edgeOn(pts, tone.edge, 1, 0.5);
+    }
+  }
+}
+
+/* placeholder marks standing in for the game's existing palm/planter
+   drawProp art (already approved elsewhere — this lab only needs to
+   validate DENSITY/SPACING here, not re-dial art that already works).
+   Ported into the real game, these become direct this.drawProp(g,
+   "palmDwarf"/"planter", x, y, t) calls. */
+function scatterMark(x, y, kind, seed){
+  const rng = mulberry32(seed);
+  const o = W(x, y, 0);
+  if(kind === "palm"){
+    const P = PALM_DWARF; // real approved constant — placeholder shape, real height/scale
+    const trunk = [W(x-3,y,P.height), W(x+3,y,P.height), W(x+3,y,0), W(x-3,y,0)];
+    quadOn(trunk, P.trunk);
+    ctx.fillStyle = hex(P.frondB);
+    const top = W(x,y,P.height);
+    ctx.beginPath(); ctx.arc(top.x, top.y, 13*cam.K*devicePixelRatio, 0, 7); ctx.fill();
+  } else if(kind === "planter"){
+    const PB = PLANTER_BASE; // real approved constant
+    const box = [W(x-PB.boxW/2,y-PB.boxD/2,PB.boxH), W(x+PB.boxW/2,y-PB.boxD/2,PB.boxH), W(x+PB.boxW/2,y+PB.boxD/2,PB.boxH), W(x-PB.boxW/2,y+PB.boxD/2,PB.boxH)];
+    quadOn(box, PLANTER.box);
+    const bush = W(x,y,PB.boxH+PB.bushH*0.6);
+    ctx.fillStyle = hex(0x4e8f4a);
+    ctx.beginPath(); ctx.arc(bush.x, bush.y, (PB.bushH*0.45)*cam.K*devicePixelRatio, 0, 7); ctx.fill();
+  } else if(kind === "bench"){
+    drawBench(x, y, DIRV[rng()<0.5?0:2]);
+  }
+}
+
+/* ---------- new prop: bench (paper-thin facade, same language as the
+   houses) — seat slab + backrest + two legs. ---------- */
+function drawBench(x, y, dv){
+  const rv = DIRV[(DIRV.indexOf(dv)+1)%4] || {x:-dv.y,y:dv.x};
+  const B = BENCH_ART;
+  const G = (a,b,h) => W(x + dv.x*a + rv.x*b, y + dv.y*a + rv.y*b, h);
+  const hw = B.w/2;
+
+  const legL = [G(-hw+4,0.3,B.seatH), G(-hw+4,0.3,0)];
+  const legR = [G(hw-4,0.3,B.seatH), G(hw-4,0.3,0)];
+  ctx.strokeStyle = hex(B.leg); ctx.lineWidth = 4*devicePixelRatio;
+  ctx.beginPath(); ctx.moveTo(legL[0].x,legL[0].y); ctx.lineTo(legL[1].x,legL[1].y); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(legR[0].x,legR[0].y); ctx.lineTo(legR[1].x,legR[1].y); ctx.stroke();
+
+  const seat = [G(-hw,0.4,B.seatH), G(hw,0.4,B.seatH), G(hw,0.15,B.seatH), G(-hw,0.15,B.seatH)];
+  quadOn(seat, B.wood); edgeOn(seat, B.woodDk, 1);
+  const seatFace = [G(-hw,0.4,B.seatH), G(hw,0.4,B.seatH), G(hw,0.4,B.seatH-4), G(-hw,0.4,B.seatH-4)];
+  quadOn(seatFace, B.woodDk);
+
+  const back = [G(-hw,0.42,B.seatH+B.backH), G(hw,0.42,B.seatH+B.backH), G(hw,0.42,B.seatH), G(-hw,0.42,B.seatH)];
+  quadOn(back, B.woodLt); edgeOn(back, B.woodDk, 1);
+  ctx.strokeStyle = hex(B.woodDk); ctx.globalAlpha = 0.4; ctx.lineWidth = 1;
+  for(let i=1;i<3;i++){ const yy=B.seatH + B.backH*i/3; const a=G(-hw,0.42,yy), b=G(hw,0.42,yy); ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke(); }
+  ctx.globalAlpha = 1;
+}
+
+/* ================= THE ADDRESS: door + mat + customer, ported from
+   the door lab / customer lab verbatim, just re-anchored. The original
+   versions computed their origin from the ROUTE's position (dp) minus
+   ROBOT_ROW plus DOOR_PERP — two corrections to walk from "wherever
+   the robot is on its sidewalk lane" back to "the inside line of the
+   sidewalk". A house unit's own origin (ux,uy at a=0,b=0) IS ALREADY
+   that exact line, so neither correction is needed here — G() just
+   uses the unit's own frame directly, with the door's local x offset
+   inside the unit (doorCenterX) standing in for DOOR_ALONG. ================= */
+
+function drawDoorAssembly(ox, oy, dv, rv, doorCenterX, theta){
+  const A = DOOR_ART;
+  const G = (dx, dy, dzz) => W(ox + dv.x*(doorCenterX+dx) + rv.x*dy, oy + dv.y*(doorCenterX+dx) + rv.y*dy, dzz);
+  const depthAt = (dx, dy, dzz) => (dv.x+dv.y)*dx*0.5 + (rv.x+rv.y)*dy*0.5 - dzz*0.35;
+
+  const hw = A.w/2, H = A.h, dyF = 2.4;
+  const cT = Math.cos(theta), sT = Math.sin(theta);
+  const SL = (u, perp, dzz) => G(-hw + u*cT - perp*sT, perp*cT + u*sT, dzz);
+  const slabDepthDy = dyF*cT + (2*hw)*sT;
+
+  const step = () => {
+    const pts = [G(-hw-2,1.5,0), G(hw+2,1.5,0), G(hw+2,7,0), G(-hw-2,7,0)];
+    quadOn(pts, A.step); edgeOn(pts, A.stepDk, 1);
+  };
+  const frame = () => {
+    const trim = 5;
+    const top = [G(-hw-trim,1,H+trim), G(hw+trim,1,H+trim), G(hw+trim,1,H), G(-hw-trim,1,H)];
+    const outer = [G(-hw-trim,1,H+trim), G(hw+trim,1,H+trim), G(hw+trim,1,0), G(-hw-trim,1,0)];
+    quadOn(outer, A.frame); quadOn(top, A.frameLt); edgeOn(outer, A.frameDk, 1.2);
+    const sideSign = (dv.x+dv.y) >= 0 ? 1 : -1;
+    const lip = [G(sideSign*(hw+trim),1,H+trim), G(sideSign*(hw+trim),2.6,H+trim), G(sideSign*(hw+trim),2.6,-1), G(sideSign*(hw+trim),1,0)];
+    quadOn(lip, A.frameDk, 0.8);
+  };
+  const interior = () => {
+    const wallColor = 0xdcd4c2, floorColor = 0xb99f78;
+    quadOn([G(-hw,1.02,H),G(hw,1.02,H),G(hw,1.02,0),G(-hw,1.02,0)], wallColor);
+    quadOn([G(-hw,1.03,H*0.3),G(hw,1.03,H*0.3),G(hw,1.03,0),G(-hw,1.03,0)], floorColor);
+    quadOn([G(-hw,1.04,H*0.82),G(-hw*0.05,1.04,H*0.82),G(-hw*0.05,1.04,0),G(-hw,1.04,0)], 0xf2c98a, 0.3);
+    quadOn([G(-hw*0.85,1.05,H*0.7),G(-hw*0.35,1.05,H*0.7),G(-hw*0.35,1.05,H*0.3),G(-hw*0.85,1.05,H*0.3)], 0xfff0cf, 0.5);
+  };
+  const slab = () => {
+    const face = [SL(0,dyF,H), SL(2*hw,dyF,H), SL(2*hw,dyF,0), SL(0,dyF,0)];
+    quadOn(face, A.slab); edgeOn(face, A.slabDk, 1);
+    const panel = (f0, f1) => {
+      const z0 = H*f0, z1 = H*f1, pin = A.panelInset;
+      quadOn([SL(pin,dyF+0.15,z1),SL(2*hw-pin,dyF+0.15,z1),SL(2*hw-pin,dyF+0.15,z0),SL(pin,dyF+0.15,z0)], A.groove);
+      quadOn([SL(pin+2,dyF+0.35,z1-2),SL(2*hw-pin-2,dyF+0.35,z1-2),SL(2*hw-pin-2,dyF+0.35,z0+2),SL(pin-2,dyF+0.35,z0+2)], A.slabLt);
+    };
+    panel(A.panelBotFrom, A.panelBotTo);
+    panel(A.panelTopFrom, A.panelTopTo);
+  };
+  const knob = () => {
+    const u = A.knobDX + hw, dzk = A.knobDZ;
+    const plate = SL(u, 2.6, dzk);
+    fillCircle(plate.x, plate.y, A.knobR*cam.K*0.6, A.plate);
+    const c = SL(u, 3.2, dzk);
+    fillCircle(c.x, c.y, A.knobR*cam.K*0.5, A.knobDk);
+    fillCircle(c.x, c.y, A.knobR*cam.K*0.42, A.knob);
+    fillCircle(c.x - 1.1*cam.K*0.42, c.y - 1.1*cam.K*0.42, A.knobR*cam.K*0.14, A.knobHi);
+  };
+
+  const parts = [
+    { d: depthAt(0,1,H*0.5), fn: frame },
+    { d: depthAt(0,1.02,H*0.5), fn: interior },
+    { d: depthAt(0,slabDepthDy,H*0.5), fn: slab },
+    { d: depthAt(A.knobDX,slabDepthDy,A.knobDZ), fn: knob },
+    { d: depthAt(0,4,0), fn: step }
+  ];
+  parts.sort((p1,p2) => p1.d - p2.d);
+  for(const p of parts) p.fn();
+}
+
+function drawMatQuad(ox, oy, dv, rv, doorCenterX){
+  const M = (dx, dy, dzz) => W(ox + dv.x*(doorCenterX+dx) + rv.x*dy, oy + dv.y*(doorCenterX+dx) + rv.y*dy, dzz);
+  const half = T2/2;
+  /* b-axis: 0 is the house's own face plane, positive = out toward the
+     sidewalk (matches the box convention: front face b=0, house body
+     extends the OTHER way at negative b). One tile deep, centered just
+     off the door. */
+  const matNear = T2*0.5 - half, matFar = T2*0.5 + half;
+  const outer = [M(-half,matNear,0.6), M(half,matNear,0.6), M(half,matFar,0.6), M(-half,matFar,0.6)];
+  quadOn(outer, MAT_ART.redDk);
+  const bw = 3.5;
+  const inner = [M(-half+bw,matNear+bw,0.65), M(half-bw,matNear+bw,0.65), M(half-bw,matFar-bw,0.65), M(-half+bw,matFar-bw,0.65)];
+  quadOn(inner, MAT_ART.red);
+  edgeOn(outer, MAT_ART.border, 1.4);
+  const rows = 6, cols = 3;
+  for(let i=1;i<rows;i++){
+    for(let j=0;j<cols;j++){
+      const u = matNear+bw + (matFar-matNear-bw*2)*(i/rows);
+      const v0 = -half+bw + (T2-bw*2)*(j/cols) + 3;
+      const v1 = v0 + (T2-bw*2)/cols - 6;
+      const p0 = M(v0,u,0.66), p1 = M(v1,u,0.66);
+      lineBetween(p0.x,p0.y,p1.x,p1.y, MAT_ART.fiber, 1, 0.5);
+    }
+  }
+}
+
+/* shared person-hull renderer (customer lab / prop.people), ported
+   verbatim — hull-box construction, top face + two camera-facing
+   sides per box. */
+function drawPersonHull(ax, ay, z, thW, build, pSkin, pShirt, pPants, pHair, pShoe, walkPhase, moving){
+  const cs = Math.cos(thW), sn = Math.sin(thW);
+  const G = (a,b,h) => W(ax + a*cs - b*sn, ay + a*sn + b*cs, z + h);
+  const faceA = Math.sign(cs+sn) || 1, faceB = Math.sign(cs-sn) || 1;
+
+  const box = (aC,bC,ha,hb,z0,z1,cTop,cA,cB,noTop=false) => {
+    const corner = (sa,sb,zz) => G(aC+sa*ha, bC+sb*hb, zz);
+    if(!noTop){
+      const top = [corner(-1,-1,z1), corner(1,-1,z1), corner(1,1,z1), corner(-1,1,z1)];
+      quadOn(top, cTop); edgeOn(top, cA, 1);
+    }
+    quadOn([corner(faceA,-1,z1),corner(faceA,1,z1),corner(faceA,1,z0),corner(faceA,-1,z0)], cA);
+    quadOn([corner(-1,faceB,z1),corner(1,faceB,z1),corner(1,faceB,z0),corner(-1,faceB,z0)], cB);
+  };
+
+  const hipH = build.legH, shoulderH = hipH+build.torsoH, headH = shoulderH+build.headR*2;
+
+  const leg = side => {
+    const bC = walkPhase*side*PEOPLE_ART.walkStride*0.35;
+    const legW = build.legW*0.55, legD = build.legW*0.6;
+    const shoeH = Math.max(5, build.legH*0.13);
+    box(side*build.hipW*0.3, bC+legD*0.3, legW*1.2, legD*1.5, 0, shoeH, pShoe.c, pShoe.dk, pShoe.c);
+    box(side*build.hipW*0.3, bC, legW, legD, shoeH, hipH, pPants.c, pPants.dk, pPants.c);
+  };
+  const torso = () => box(0, 0, build.torsoW/2, build.torsoD/2, hipH-2, shoulderH, pShirt.c, pShirt.dk, pShirt.c);
+  const shoulderZ = shoulderH - 1;
+  const sleeveLen = build.armLen*0.48, foreLen = build.armLen*0.52;
+  const elbowZ = shoulderZ - sleeveLen;
+  const arm = side => {
+    const shoulderAx = side*(build.torsoW/2 - 1);
+    const armSwing = moving ? -walkPhase*side*3 : 0;
+    const armB = armSwing*0.4;
+    box(shoulderAx, armB, build.armW*0.58, build.armW*0.58, elbowZ, shoulderZ, pShirt.c, pShirt.dk, pShirt.c);
+    box(shoulderAx, armB, build.armW*0.46, build.armW*0.46, elbowZ-foreLen, elbowZ+1, pSkin.c, pSkin.dk, pSkin.c, true);
+  };
+  const head = () => {
+    const z0 = shoulderH, z1 = headH;
+    box(0, 0, build.headR, build.headR, z0, z1, pSkin.c, pSkin.dk, pSkin.c);
+    const hairZ0 = z0 + (z1-z0)*0.55;
+    box(0, 0, build.headR*1.06, build.headR*1.06, hairZ0, z1+1.5, pHair, pHair, pHair);
+  };
+  const hairBack = () => {
+    if(build.hairStyle !== "long") return;
+    const backB = -build.headR*0.75;
+    box(0, backB, build.headR*0.62, build.headR*0.4, hipH+build.torsoH*0.35, headH-1, pHair, pHair, pHair);
+  };
+
+  const nearSide = faceA;
+  leg(-nearSide); leg(nearSide);
+  hairBack();
+  arm(-nearSide);
+  torso();
+  arm(nearSide);
+  head();
+}
+
+/* the address unit itself: door state (theta 0=closed..openAngle=open)
+   is a simple ping-pong animation in the lab so you can see the whole
+   sequence without a real delivery event driving it. */
+let doorTheta = 0, doorPhase = 0;
+function drawAddressUnit(ox, oy, dv, rv, doorCenterX, seed){
+  const rng = mulberry32(seed);
+  doorPhase += 0.006;
+  const cyc = (Math.sin(doorPhase)+1)/2; // 0..1..0
+  doorTheta = cyc * DOOR_ART.openAngle;
+
+  drawDoorAssembly(ox, oy, dv, rv, doorCenterX, doorTheta);
+  drawMatQuad(ox, oy, dv, rv, doorCenterX);
+
+  const walkT = Phaser.MathClamp(doorTheta / DOOR_ART.openAngle, 0, 1);
+  if(walkT > 0.02){
+    const u = 1 - Math.pow(1-walkT, 2);
+    const dyStart = 4, dyEnd = T2-8;
+    const dy = dyStart + (dyEnd-dyStart)*u;
+    const cx = ox + dv.x*doorCenterX + rv.x*dy, cy = oy + dv.y*doorCenterX + rv.y*dy;
+    const thW = Math.atan2(rv.y, rv.x);
+    const moving = walkT < 0.97;
+    const walkPhase = moving ? Math.sin(Date.now()*PEOPLE_ART.walkSpeed) : 0;
+    const crng = mulberry32(seed ^ 0x4c75);
+    const cBuild = PEOPLE_BUILD[crng()<0.5?0:1];
+    const cSkin = PEOPLE_SKIN[Math.floor(crng()*PEOPLE_SKIN.length)];
+    const cShirt = PEOPLE_SHIRT[Math.floor(crng()*PEOPLE_SHIRT.length)];
+    const cPants = PEOPLE_PANTS[Math.floor(crng()*PEOPLE_PANTS.length)];
+    const cHair = PEOPLE_HAIR[Math.floor(crng()*PEOPLE_HAIR.length)];
+    const cShoe = PEOPLE_SHOE[Math.floor(crng()*PEOPLE_SHOE.length)];
+    drawPersonHull(cx, cy, 0, thW, cBuild, cSkin, cShirt, cPants, cHair, cShoe, walkPhase, moving);
+  }
+}
+/* tiny stand-in — the real game uses Phaser.Math.Clamp */
+const Phaser = { MathClamp: (v,a,b) => Math.max(a, Math.min(b, v)) };
+
+/* ================= PICKUP: the route's START — a worker carrying
+   cargo out to the robot in front of a designated shop, mirroring the
+   address's door/mat/customer choreography but running the other way:
+   cargo goes INTO the robot instead of the customer taking a delivery
+   out of it. No real robot hull exists in this lab (that's a whole
+   separate wheels/lid system in the real game) — ROBOT_MARKER is just
+   a placeholder for where it idles while loading. ================= */
+const CARGO_ART = { box: 0xc9a56e, boxDk: 0xa8875a, band: 0x8a3f36 };
+function drawCargoBox(x, y, z, dv){
+  const rv = { x:-dv.y, y:dv.x };
+  const G = (a,b,h) => W(x+dv.x*a+rv.x*b, y+dv.y*a+rv.y*b, z+h);
+  const hw = 13, hd = 10, H = 20;
+  const top = [G(-hw,-hd,H),G(hw,-hd,H),G(hw,hd,H),G(-hw,hd,H)];
+  quadOn(top, CARGO_ART.box); edgeOn(top, CARGO_ART.boxDk, 1);
+  const faceA = [G(hw,-hd,H),G(hw,hd,H),G(hw,hd,0),G(hw,-hd,0)];
+  quadOn(faceA, CARGO_ART.boxDk);
+  const faceB = [G(-hw,hd,H),G(hw,hd,H),G(hw,hd,0),G(-hw,hd,0)];
+  quadOn(faceB, CARGO_ART.box);
+  const band = [G(-hw,hd+0.5,H*0.62),G(hw,hd+0.5,H*0.62),G(hw,hd+0.5,H*0.4),G(-hw,hd+0.5,H*0.4)];
+  quadOn(band, CARGO_ART.band);
+}
+function drawRobotMarker(x, y, dv){
+  const rv = { x:-dv.y, y:dv.x };
+  const G = (a,b,h) => W(x+dv.x*a+rv.x*b, y+dv.y*a+rv.y*b, h);
+  const w=26, d=36, H=26;
+  const top = [G(-w,-d,H),G(w,-d,H),G(w,d,H),G(-w,d,H)];
+  quadOn(top, 0xff7a1a, 0.5);
+  edgeOn(top, 0xd85f0a, 2, 0.85);
+  const faceA=[G(w,-d,H),G(w,d,H),G(w,d,0),G(w,-d,0)];
+  quadOn(faceA, 0xd85f0a, 0.35);
+  const faceB=[G(-w,d,H),G(w,d,H),G(w,d,0),G(-w,d,0)];
+  quadOn(faceB, 0xff7a1a, 0.35);
+}
+
+/* ================= THE ROBOT ================= real color palette
+   and body/lid/stripe/flag dimensions, ported verbatim from the actual
+   game (SKIN/BODY/LID/STRIPE/FLAG). NOT the full physics hull — no
+   wheel-spin, lid-crack, or tipping simulation, just enough geometry
+   (box body, lid cap, stripe band, flag, wheel hints) to read as the
+   real robot silhouette while it drives the simulated route. */
+const R_SKIN = {
+  bodyTop:0xf7f8fa, bodyRight:0xe3e6ea, bodyLeft:0xc9cdd4, outline:0x30343d,
+  stripe:0xc2452e, stripeDk:0xa03824,
+  wheel:0x24262c, wheelHub:0x8a919c,
+  lidInner:0xb2b7bf, belly:0x494e58, flagPole:0x2e3138, flag:0xff5722
+};
+const R_BODY = { hx:26, hy:20, z0:14, z1:54 };
+const R_LID  = { hx:22, hy:16, z0:54, z1:61 };
+const R_STRIPE = { z0:20, z1:27 };
+
+function drawRobotBody(x, y, thW){
+  const cs = Math.cos(thW), sn = Math.sin(thW);
+  const G = (a,b,h) => W(x + a*cs - b*sn, y + a*sn + b*cs, h);
+  const faceA = Math.sign(cs+sn) || 1, faceB = Math.sign(cs-sn) || 1;
+
+  const box = (ha,hb,z0,z1,cTop,cA,cB) => {
+    const corner = (sa,sb,zz) => G(sa*ha, sb*hb, zz);
+    const top = [corner(-1,-1,z1),corner(1,-1,z1),corner(1,1,z1),corner(-1,1,z1)];
+    quadOn(top, cTop); edgeOn(top, R_SKIN.outline, 1);
+    quadOn([corner(faceA,-1,z1),corner(faceA,1,z1),corner(faceA,1,z0),corner(faceA,-1,z0)], cA);
+    quadOn([corner(-1,faceB,z1),corner(1,faceB,z1),corner(1,faceB,z0),corner(-1,faceB,z0)], cB);
+  };
+
+  /* wheels: three per side, simple dark discs at ground level */
+  for(const wx of [-16,0,16]){
+    for(const side of [-1,1]){
+      const wp = G(wx, side*22, 8);
+      ctx.fillStyle = hex(R_SKIN.wheel);
+      ctx.beginPath(); ctx.arc(wp.x, wp.y, 6*cam.K*devicePixelRatio, 0, Math.PI*2); ctx.fill();
+    }
+  }
+
+  const B = R_BODY;
+  box(B.hx, B.hy, B.z0, B.z1, R_SKIN.bodyTop, R_SKIN.bodyRight, R_SKIN.bodyLeft);
+
+  /* stripe band, wrapped on the near-facing side */
+  const S = R_STRIPE;
+  const stripe = [G(-B.hx,faceB*B.hy,S.z1),G(B.hx,faceB*B.hy,S.z1),G(B.hx,faceB*B.hy,S.z0),G(-B.hx,faceB*B.hy,S.z0)];
+  quadOn(stripe, R_SKIN.stripe);
+
+  const L = R_LID;
+  box(L.hx, L.hy, L.z0, L.z1, R_SKIN.lidInner, R_SKIN.outline, R_SKIN.outline);
+
+  /* flag: anchored outside the lid's footprint, at a body corner */
+  const poleBase = G(-25, 17, B.z1), poleTop = G(-25, 17, 97);
+  lineBetween(poleBase.x, poleBase.y, poleTop.x, poleTop.y, R_SKIN.flagPole, 2);
+  ctx.fillStyle = hex(R_SKIN.flag);
+  ctx.beginPath();
+  ctx.moveTo(poleTop.x, poleTop.y);
+  ctx.lineTo(poleTop.x + 11*cam.K*devicePixelRatio*0.42, poleTop.y + 4*cam.K*devicePixelRatio*0.42);
+  ctx.lineTo(poleTop.x, poleTop.y + 8*cam.K*devicePixelRatio*0.42);
+  ctx.closePath(); ctx.fill();
+}
+
+let pickupPhase = 0;
+function drawPickupUnit(ox, oy, dv, rv, doorCenterX, seed){
+  pickupPhase += 0.006;
+  const u = (Math.sin(pickupPhase)+1)/2; // 0..1..0, worker walks out and back
+
+  const robotDy = T2*2.1;
+  const robotX = ox + dv.x*doorCenterX + rv.x*robotDy, robotY = oy + dv.y*doorCenterX + rv.y*robotDy;
+  drawRobotMarker(robotX, robotY, dv);
+
+  const dyStart = T2*0.35, dyEnd = robotDy - 24;
+  const dy = dyStart + (dyEnd-dyStart)*u;
+  const thW = Math.atan2(rv.y, rv.x);
+  const moving = u > 0.03 && u < 0.97;
+  const walkPhase = moving ? Math.sin(Date.now()*PEOPLE_ART.walkSpeed) : 0;
+
+  const wrng = mulberry32(seed ^ 0x77b1);
+  const wBuild = PEOPLE_BUILD[wrng()<0.5?0:1];
+  const wSkin = PEOPLE_SKIN[Math.floor(wrng()*PEOPLE_SKIN.length)];
+  const wShirt = PEOPLE_SHIRT[Math.floor(wrng()*PEOPLE_SHIRT.length)];
+  const wPants = PEOPLE_PANTS[Math.floor(wrng()*PEOPLE_PANTS.length)];
+  const wHair = PEOPLE_HAIR[Math.floor(wrng()*PEOPLE_HAIR.length)];
+  const wShoe = PEOPLE_SHOE[Math.floor(wrng()*PEOPLE_SHOE.length)];
+
+  const workerX = ox + dv.x*doorCenterX + rv.x*dy, workerY = oy + dv.y*doorCenterX + rv.y*dy;
+  drawPersonHull(workerX, workerY, 0, thW, wBuild, wSkin, wShirt, wPants, wHair, wShoe, walkPhase, moving);
+  const boxDy = dy + 14;
+  const boxX = ox + dv.x*doorCenterX + rv.x*boxDy, boxY = oy + dv.y*doorCenterX + rv.y*boxDy;
+  drawCargoBox(boxX, boxY, 0, dv);
+}
+
+function fillParkBlock(blk){
+  fillBlockInterior(blk, GRASS);
+}
+function queueParkBlock(blk){
+  const cx = (blk.x0+blk.x1)/2, cy = (blk.y0+blk.y1)/2;
+  const seed = ((Math.round(cx)*7919) ^ (Math.round(cy)*104729) ^ 0x50a2 ^ SALT) >>> 0;
+  const rng = mulberry32(seed);
+  const nPalm = 3 + Math.floor(rng()*3);
+  for(let k=0;k<nPalm;k++){
+    const x = blk.x0 + rng()*(blk.x1-blk.x0), y = blk.y0 + rng()*(blk.y1-blk.y0);
+    const s = ((Math.round(x)*7919)^(Math.round(y)*104729)^SALT)>>>0;
+    queueVert(x+y, () => scatterMark(x, y, "palm", s));
+  }
+  const nBench = 1 + Math.floor(rng()*2);
+  for(let k=0;k<nBench;k++){
+    const edge = Math.floor(rng()*4);
+    const t = 0.2+rng()*0.6;
+    let x,y;
+    if(edge===0){ x = blk.x0+(blk.x1-blk.x0)*t; y = blk.y0+14; }
+    else if(edge===1){ x = blk.x1-14; y = blk.y0+(blk.y1-blk.y0)*t; }
+    else if(edge===2){ x = blk.x0+(blk.x1-blk.x0)*t; y = blk.y1-14; }
+    else { x = blk.x0+14; y = blk.y0+(blk.y1-blk.y0)*t; }
+    const s = ((Math.round(x)*7919)^(Math.round(y)*104729)^SALT)>>>0;
+    queueVert(x+y, () => scatterMark(x, y, "bench", s));
+  }
+}
+
+/* ---------- commercial: continuous storefronts, NO gaps ----------
+   Unlike housing (freestanding, spaced), storefronts pack edge-to-edge
+   like a real shopping street — party walls between units, only the
+   two ends of each edge run get an outward corner return. Widths are
+   normalized to sum exactly to the edge length (no leftover gap). */
+const STORE_PALETTES = [
+  { wall:0x8a3f36, wallDk:0x6e2f28, wallLt:0x9e4c42, trim:0x3a2018, sign:0xe8ddc0 },  // brick red
+  { wall:0x2a5c5c, wallDk:0x1e4646, wallLt:0x357070, trim:0x16302f, sign:0xf0e6cc },  // deep teal
+  { wall:0x3a3a3e, wallDk:0x28282b, wallLt:0x4a4a4f, trim:0x18181a, sign:0xd8b23a },  // charcoal
+  { wall:0xc4a23a, wallDk:0x9e802c, wallLt:0xd8b854, trim:0x5c4a1a, sign:0x2a2a2a },  // mustard
+  { wall:0x3f6b4a, wallDk:0x2f5238, wallLt:0x4e8058, trim:0x1e3524, sign:0xe8ddc0 }   // forest green
+];
+const AWNING_STRIPES = [0xffffff, 0xc4c4c4];
+const STORE_DEPTH = T2 * 3; // exactly 3 tiles deep, matching houses
+
+function packEdgeNoGap(edgeLen, rng){
+  const avgW = T2*2.2;
+  const n = Math.max(1, Math.round(edgeLen/avgW));
+  const raw = [];
+  for(let i=0;i<n;i++) raw.push(0.8 + rng()*0.4);
+  const sum = raw.reduce((a,b)=>a+b, 0);
+  const units = []; let cursor = 0;
+  for(let i=0;i<n;i++){
+    const w = edgeLen * raw[i]/sum;
+    units.push({ start: cursor, w });
+    cursor += w;
+  }
+  return units;
+}
+
+function drawStoreUnit(ox, oy, dv, rv, w, seed, isFirst, isLast){
+  const rng = mulberry32(seed);
+  const G = (a,b,h) => W(ox + dv.x*a + rv.x*b, oy + dv.y*a + rv.y*b, h);
+  const C = STORE_PALETTES[Math.floor(rng()*STORE_PALETTES.length)];
+  const D = STORE_DEPTH;
+  const doorLeft = rng() < 0.5;
+
+  /* height stack built bottom-up from the real door, not guessed from
+     the top down — a commercial glass door is slightly shorter than
+     the ornate residential hull door (DOOR_H) but still clearly
+     human-scale, and everything above it (window top, awning, sign,
+     roofline) is placed with guaranteed clearance instead of hoping a
+     randomly-picked H happened to fit. */
+  const kickH = 18;
+  const dZ1 = DOOR_H*0.88;                      // commercial door height
+  const winZ0 = kickH+2, winZ1 = dZ1 + 14 + rng()*16;
+  const awnZ0 = winZ1+4, awnZ1 = awnZ0+18;
+  const signZ0 = awnZ1+8, signZ1 = signZ0+16;
+  const H = signZ1 + 16 + rng()*12;              // roofline clears the sign with margin
+
+  const back = [G(0,-D,H), G(w,-D,H), G(w,-D,0), G(0,-D,0)];
+  quadOn(back, C.wallDk);
+
+  /* party-wall sides: only the two OUTER ends of the whole run get a
+     visible return face — interior seams between adjacent storefronts
+     are shared walls, nothing to render there. */
+  if(isFirst){ const l=[G(0,0,H),G(0,-D,H),G(0,-D,0),G(0,0,0)]; quadOn(l,C.wallDk); edgeOn(l,C.trim,1,0.5); }
+  if(isLast){  const r=[G(w,0,H),G(w,-D,H),G(w,-D,0),G(w,0,0)]; quadOn(r,C.wallLt); edgeOn(r,C.trim,1,0.5); }
+
+  /* flat parapet roof, tiles seamlessly unit-to-unit */
+  const ov = isFirst||isLast ? 5 : 0;
+  const roof = [G(isFirst?-ov:0,ov,H), G(isLast?w+ov:w,ov,H), G(isLast?w+ov:w,-D-ov,H), G(isFirst?-ov:0,-D-ov,H)];
+  quadOn(roof, C.trim);
+  edgeOn(roof, C.wallDk, 1, 0.5);
+
+  /* front: base kick plate, big glass display window, canvas awning,
+     signage band — the commercial-street language, distinct from the
+     residential window/door pairing houses use. */
+  const face = [G(0,0.4,H), G(w,0.4,H), G(w,0.4,0), G(0,0.4,0)];
+  quadOn(face, C.wall);
+
+  const kick = [G(2,0.42,kickH), G(w-2,0.42,kickH), G(w-2,0.42,0), G(2,0.42,0)];
+  quadOn(kick, C.wallDk);
+
+  const doorW = Math.min(DOOR_W*0.72, w*0.3);   // wide glass commercial door, still narrower than DOOR_W
+  const doorX = doorLeft ? 6 : w - doorW - 6;
+  const glassX0 = doorLeft ? doorX+doorW+4 : 6;
+  const glassX1 = doorLeft ? w-6 : doorX-4;
+
+  /* door */
+  quadOn([G(doorX,0.5,dZ1),G(doorX+doorW,0.5,dZ1),G(doorX+doorW,0.5,0),G(doorX,0.5,0)], C.wallDk);
+  quadOn([G(doorX+3,0.53,dZ1-4),G(doorX+doorW-3,0.53,dZ1-4),G(doorX+doorW-3,0.53,4),G(doorX+3,0.53,4)], 0x6b93a8, 0.85);
+
+  /* big display window, if there's room */
+  if(glassX1 - glassX0 > 12){
+    quadOn([G(glassX0,0.5,winZ1+3),G(glassX1,0.5,winZ1+3),G(glassX1,0.5,winZ0-3),G(glassX0,0.5,winZ0-3)], 0xd8d0bd);
+    quadOn([G(glassX0+2,0.54,winZ1),G(glassX1-2,0.54,winZ1),G(glassX1-2,0.54,winZ0),G(glassX0+2,0.54,winZ0)], 0x6b93a8);
+    quadOn([G(glassX0+3,0.55,winZ1-3),G(glassX0+ (glassX1-glassX0)*0.4,0.55,winZ1-3),G(glassX0+(glassX1-glassX0)*0.4,0.55,winZ0+3),G(glassX0+3,0.55,winZ0+3)], 0x86adc0, 0.55);
+  }
+
+  /* awning: slanted stripe canopy over the window band */
+  const awnOut = 20;
+  const stripeN = 6;
+  for(let i=0;i<stripeN;i++){
+    const sx0 = w*i/stripeN, sx1 = w*(i+1)/stripeN;
+    const col = AWNING_STRIPES[i%2===0?0:1] === 0xffffff ? 0xf0ece0 : C.wallLt;
+    quadOn([G(sx0,0.5,awnZ1),G(sx1,0.5,awnZ1),G(sx1,0.5+awnOut*0.01,awnZ0),G(sx0,0.5+awnOut*0.01,awnZ0)], col);
+  }
+  quadOn([G(0,0.42,awnZ1+3),G(w,0.42,awnZ1+3),G(w,0.42,awnZ1),G(0,0.42,awnZ1)], C.trim);
+
+  /* signage band above the awning */
+  quadOn([G(4,0.44,signZ1),G(w-4,0.44,signZ1),G(w-4,0.44,signZ0),G(4,0.44,signZ0)], C.sign);
+  edgeOn([G(4,0.44,signZ1),G(w-4,0.44,signZ1),G(w-4,0.44,signZ0),G(4,0.44,signZ0)], C.trim, 1, 0.5);
+}
+
+function fillCommercialBlock(blk){
+  fillBlockInterior(blk, PLAZA);
+}
+function queueCommercialBlock(blk){
+  const edges = [
+    { ox: blk.x0, oy: blk.y0, dv: DIRV[0], rv: DIRV[3], len: blk.x1-blk.x0 },
+    { ox: blk.x1, oy: blk.y0, dv: DIRV[1], rv: DIRV[0], len: blk.y1-blk.y0 },
+    { ox: blk.x1, oy: blk.y1, dv: DIRV[2], rv: DIRV[1], len: blk.x1-blk.x0 },
+    { ox: blk.x0, oy: blk.y1, dv: DIRV[3], rv: DIRV[2], len: blk.y1-blk.y0 }
+  ];
+  const isPickupBlock = blk === pickupBlock;
+  edges.forEach((e, ei) => {
+    const eseed = ((Math.round(e.ox*3+e.dv.x)*7919) ^ (Math.round(e.oy*3+e.dv.y)*104729) ^ 0x51b3 ^ SALT) >>> 0;
+    const rng = mulberry32(eseed);
+    const units = packEdgeNoGap(e.len, rng);
+    units.forEach((u, idx) => {
+      const hx = e.ox + e.dv.x*(u.start + u.w/2), hy = e.oy + e.dv.y*(u.start + u.w/2);
+      const hseed = ((Math.round(hx)*7919) ^ (Math.round(hy)*104729) ^ SALT) >>> 0;
+      const ux = e.ox + e.dv.x*u.start, uy = e.oy + e.dv.y*u.start;
+      const isFirst = idx===0, isLast = idx===units.length-1;
+      const isPickup = isPickupBlock && ei === 0 && idx === 0;
+      if(isPickup) pickupSpot = { ox:ux, oy:uy, dv:e.dv, rv:e.rv, doorCenterX:u.w/2 };
+      queueVert(hx+hy, () => {
+        drawStoreUnit(ux, uy, e.dv, e.rv, u.w, hseed, isFirst, isLast);
+        if(isPickup) drawPickupUnit(ux, uy, e.dv, e.rv, u.w/2, hseed);
+      });
+    });
+  });
+  const cx = (blk.x0+blk.x1)/2, cy = (blk.y0+blk.y1)/2;
+  const seed = ((Math.round(cx)*7919) ^ (Math.round(cy)*104729) ^ 0x71c4 ^ SALT) >>> 0;
+  const rng = mulberry32(seed);
+  const nPlanter = 2 + Math.floor(rng()*2);
+  for(let k=0;k<nPlanter;k++){
+    const x = blk.x0 + rng()*(blk.x1-blk.x0), y = blk.y0 + rng()*(blk.y1-blk.y0);
+    const s = ((Math.round(x)*7919)^(Math.round(y)*104729)^SALT)>>>0;
+    queueVert(x+y, () => scatterMark(x, y, "planter", s));
+  }
+  const nBench = 1 + Math.floor(rng()*2);
+  for(let k=0;k<nBench;k++){
+    const x = blk.x0 + rng()*(blk.x1-blk.x0), y = blk.y0 + rng()*(blk.y1-blk.y0);
+    const s = ((Math.round(x)*7919)^(Math.round(y)*104729)^SALT)>>>0;
+    queueVert(x+y, () => scatterMark(x, y, "bench", s));
+  }
+}
+
+const YARD_TONE = { a:0xb9b09a, b:0xb0a690 }; // kept for reference; housing now uses GRASS
+function fillBlockGround(blk){
+  if(blk.type === "park") return fillParkBlock(blk);
+  if(blk.type === "commercial") return fillCommercialBlock(blk);
+  fillBlockInterior(blk, GRASS); // grass yard, same tone as park blocks
+}
+function queueBlockContent(blk){
+  if(blk.type === "park"){ if(state.scatter) queueParkBlock(blk); return; }
+  if(blk.type === "commercial"){
+    if(state.houses) queueCommercialBlock(blk);
+    return;
+  }
+  if(state.houses) queueHousingBlock(blk);
+}
+
+/* ================= exterior lots: the OUTSIDE of the world's outermost
+   sidewalk ================= Every real street edge already gets a
+   sidewalk on BOTH sides (buildSidewalkGeometry does this by
+   construction) — the outermost ring's outward-facing sidewalk was
+   just backing onto empty sky. Exterior lots are the same "inside line
+   of the sidewalk" convention as interior blocks, just with only ONE
+   bounding street (there's nothing further out to close the far side),
+   so each lot is a single wrapped edge rather than a 4-sided block.
+   One lot per outer grid.edges segment — same BLOCK-length granularity
+   as everything else, so lot seams land exactly at cross streets. */
+const EXT_YARD_DEPTH = 220, EXT_PARK_DEPTH = 380;
+
+function lotRect(ox, oy, dv, rv, len, depth){
+  const corners = [
+    { x:ox, y:oy },
+    { x:ox+dv.x*len, y:oy+dv.y*len },
+    { x:ox+dv.x*len+rv.x*depth, y:oy+dv.y*len+rv.y*depth },
+    { x:ox+rv.x*depth, y:oy+rv.y*depth }
+  ];
+  const xs = corners.map(c=>c.x), ys = corners.map(c=>c.y);
+  return { x0:Math.min(...xs), x1:Math.max(...xs), y0:Math.min(...ys), y1:Math.max(...ys) };
+}
+
+function buildExteriorLots(grid, forceTypes){
+  const { cols, rows, edges } = grid;
+  const inset = ROAD_HALF + SIDEWALK_W;
+  const lots = []; let li = 0;
+  for(const e of edges){
+    let outward = null;
+    if(e.f === 0){
+      if(e.a.j === 0) outward = DIRV[3];
+      else if(e.a.j === rows-1) outward = DIRV[1];
+    } else {
+      if(e.a.i === 0) outward = DIRV[2];
+      else if(e.a.i === cols-1) outward = DIRV[0];
+    }
+    if(!outward) continue;
+    const dv = DIRV[e.f];
+    const ox = e.a.x + outward.x*inset, oy = e.a.y + outward.y*inset;
+    const cx = (e.a.x+e.b.x)/2 + outward.x*(inset+80), cy = (e.a.y+e.b.y)/2 + outward.y*(inset+80);
+    let type;
+    if(forceTypes && forceTypes[li] !== undefined) type = forceTypes[li];
+    else {
+      const seed = ((Math.round(cx)*7919) ^ (Math.round(cy)*104729) ^ SALT ^ 0x3c11) >>> 0;
+      const r = mulberry32(seed)();
+      type = r < 1/3 ? "housing" : r < 2/3 ? "park" : "commercial";
+    }
+    lots.push({ kind:"lot", ox, oy, dv, rv:outward, len:BLOCK, cx, cy, type });
+    li++;
+  }
+  return lots;
+}
+
+function fillExteriorLot(lot){
+  if(lot.type === "park"){
+    const rect = lotRect(lot.ox, lot.oy, lot.dv, lot.rv, lot.len, EXT_PARK_DEPTH);
+    fillParkBlock(rect);
+    return;
+  }
+  const rect = lotRect(lot.ox, lot.oy, lot.dv, lot.rv, lot.len, EXT_YARD_DEPTH);
+  fillBlockInterior(rect, lot.type === "commercial" ? PLAZA : GRASS);
+}
+
+function queueExteriorLot(lot){
+  if(lot.type === "park"){
+    if(!state.scatter) return;
+    const rect = lotRect(lot.ox, lot.oy, lot.dv, lot.rv, lot.len, EXT_PARK_DEPTH);
+    queueParkBlock(rect);
+    return;
+  }
+  if(!state.houses) return;
+  /* the unit's body still extends AWAY from the grid (out into the
+     exterior lot's own ground), but the detailed/windowed face needs
+     to point back IN toward the sidewalk — so the front-facing normal
+     passed to drawHouseUnit/drawStoreUnit is the INVERSE of the lot's
+     own outward vector, not the outward vector itself. */
+  const faceIn = { x:-lot.rv.x, y:-lot.rv.y };
+  if(lot.type === "commercial"){
+    const eseed = ((Math.round(lot.ox*3+lot.dv.x)*7919) ^ (Math.round(lot.oy*3+lot.dv.y)*104729) ^ 0x51b3 ^ SALT) >>> 0;
+    const units = packEdgeNoGap(lot.len, mulberry32(eseed));
+    units.forEach((u, idx) => {
+      const hx = lot.ox + lot.dv.x*(u.start+u.w/2), hy = lot.oy + lot.dv.y*(u.start+u.w/2);
+      const hseed = ((Math.round(hx)*7919) ^ (Math.round(hy)*104729) ^ SALT) >>> 0;
+      const ux = lot.ox+lot.dv.x*u.start, uy = lot.oy+lot.dv.y*u.start;
+      const isFirst = idx===0, isLast = idx===units.length-1;
+      queueVert(hx+hy, () => drawStoreUnit(ux, uy, lot.dv, faceIn, u.w, hseed, isFirst, isLast));
+    });
+  } else {
+    const eseed = ((Math.round(lot.ox*3+lot.dv.x)*7919) ^ (Math.round(lot.oy*3+lot.dv.y)*104729) ^ 0x9e3779b9 ^ SALT) >>> 0;
+    const units = packEdge(lot.len, mulberry32(eseed));
+    for(const u of units){
+      const hx = lot.ox + lot.dv.x*(u.start+u.w/2), hy = lot.oy + lot.dv.y*(u.start+u.w/2);
+      const hseed = ((Math.round(hx)*7919) ^ (Math.round(hy)*104729) ^ SALT) >>> 0;
+      const ux = lot.ox+lot.dv.x*u.start, uy = lot.oy+lot.dv.y*u.start;
+      queueVert(hx+hy, () => drawHouseUnit(ux, uy, lot.dv, faceIn, u.w, hseed));
+    }
+    for(const gp of gapsFromUnits(units, lot.len)){
+      const gx = lot.ox + lot.dv.x*(gp.start+gp.w/2), gy = lot.oy + lot.dv.y*(gp.start+gp.w/2);
+      const gseed = ((Math.round(gx)*7919) ^ (Math.round(gy)*104729) ^ SALT ^ 0x2f6c) >>> 0;
+      const fx = lot.ox + lot.dv.x*gp.start, fy = lot.oy + lot.dv.y*gp.start;
+      queueVert(gx+gy, () => drawFenceGap(fx, fy, lot.dv, faceIn, gp.w, gseed));
+    }
+  }
+}
+
+/* ================= scene setup: a real chunk of the map (5x5 blocks)
+   so the OUTER ring — the perimeter of the whole world, not just one
+   demo row — gets the same housing/park/commercial treatment as every
+   interior block. Types are no longer forced; the natural seeded
+   33/33/33 split runs across all 25 blocks, edge blocks included. ===== */
+let SALT = 0;
+const grid = buildGrid(6, 6); // 5x5 blocks
+let blocks = buildBlockLayout(grid);
+let extLots = buildExteriorLots(grid);
+
+/* the delivery address: always a real block, forced to "housing" (a
+   business or a park can't be the destination), always the SAME block
+   (i=2,j=2 — a central block, not a perimeter one, so it's easy to
+   find while dialing this in) across rerolls, so it's a stable target
+   to tune rather than jumping around the map every reroll. */
+function pickAddressBlock(){
+  const target = blocks.find(b => b.i===2 && b.j===2) || blocks[0];
+  target.type = "housing";
+  return target;
+}
+let addressBlock = pickAddressBlock();
+
+/* the pickup: always a real commercial block, a different stable spot
+   from the address (i=1,j=2) so the two never collide, forced to
+   "commercial" the same way the address forces "housing". */
+function pickPickupBlock(){
+  const target = blocks.find(b => b.i===1 && b.j===2) || blocks[1];
+  target.type = "commercial";
+  return target;
+}
+let pickupBlock = pickPickupBlock();
+
+/* ================= ROUTE SIMULATION ================= a polyline from
+   the pickup marker to the address marker, routed along real street
+   GRID NODES (Manhattan path — the full grid has every edge present,
+   so no pathfinding is needed, just walk i then j). This is NOT the
+   real game's fillet-arc cornering system — no lane offsets, no
+   rounded turns — it's a zoomed-out proof that "the robot can get from
+   pickup to address through the grid", not a physics-accurate drive. */
+function nodePath(i0, j0, i1, j1){
+  const pts = []; let i = i0, j = j0;
+  pts.push({ x:i*BLOCK, y:j*BLOCK });
+  while(i !== i1){ i += i1>i ? 1 : -1; pts.push({ x:i*BLOCK, y:j*BLOCK }); }
+  while(j !== j1){ j += j1>j ? 1 : -1; pts.push({ x:i*BLOCK, y:j*BLOCK }); }
+  return pts;
+}
+function spotMarkerPos(spot){
+  const dy = T2*2.1;
+  return { x: spot.ox+spot.dv.x*spot.doorCenterX+spot.rv.x*dy, y: spot.oy+spot.dv.y*spot.doorCenterX+spot.rv.y*dy };
+}
+/* offset a street-centerline segment onto a sidewalk lane, same "inside
+   the sidewalk band" convention spotMarkerPos already uses for the
+   start/end markers (inset minus 2.1 tiles — lands mid-sidewalk, never
+   on the road, never against the building face). */
+const SIDEWALK_OFFSET = (ROAD_HALF+SIDEWALK_W) - T2*2.1;
+
+function buildRobotRoute(){
+  if(!pickupSpot || !addressSpot) return null;
+  const pStart = spotMarkerPos(pickupSpot), aEnd = spotMarkerPos(addressSpot);
+  const nodes = nodePath(pickupBlock.i, pickupBlock.j, addressBlock.i, addressBlock.j);
+
+  /* side-picking heuristic: for each street segment, offset onto
+     whichever sidewalk keeps the path closest to the direct line
+     between the two markers — in practice this means "stay on the
+     same side the buildings are already on" without needing full
+     block-adjacency awareness. */
+  const sideOf = (px,py) => {
+    const dx=aEnd.x-pStart.x, dy=aEnd.y-pStart.y, len=Math.hypot(dx,dy)||1;
+    return ((px-pStart.x)*dy - (py-pStart.y)*dx)/len;
+  };
+
+  const raw = [pStart];
+  for(let k=0;k<nodes.length-1;k++){
+    const A = nodes[k], B = nodes[k+1];
+    const horiz = A.y === B.y;
+    const rv = horiz ? {x:0,y:1} : {x:1,y:0}; // perpendicular to this street's direction
+    const dv = horiz ? {x:Math.sign(B.x-A.x),y:0} : {x:0,y:Math.sign(B.y-A.y)};
+    const segLen = Math.hypot(B.x-A.x, B.y-A.y);
+    /* trim back from each intersection by CORNER_R (same constant the
+       real game uses for its own corner geometry) — otherwise the
+       waypoint sits exactly at the crossing street's centerline and
+       still reads as "road" in that street's own band, even after our
+       perpendicular sidewalk offset. */
+    const trim = Math.min(CORNER_R, segLen*0.45);
+    const Atr = { x:A.x+dv.x*trim, y:A.y+dv.y*trim };
+    const Btr = { x:B.x-dv.x*trim, y:B.y-dv.y*trim };
+    const mx=(Atr.x+Btr.x)/2, my=(Atr.y+Btr.y)/2;
+    const s1 = sideOf(mx+rv.x*SIDEWALK_OFFSET, my+rv.y*SIDEWALK_OFFSET);
+    const s2 = sideOf(mx-rv.x*SIDEWALK_OFFSET, my-rv.y*SIDEWALK_OFFSET);
+    const sign = Math.abs(s1) <= Math.abs(s2) ? 1 : -1;
+    raw.push({ x:Atr.x+rv.x*SIDEWALK_OFFSET*sign, y:Atr.y+rv.y*SIDEWALK_OFFSET*sign });
+    raw.push({ x:Btr.x+rv.x*SIDEWALK_OFFSET*sign, y:Btr.y+rv.y*SIDEWALK_OFFSET*sign });
+  }
+  raw.push(aEnd);
+
+  const clean = [raw[0]];
+  for(let k=1;k<raw.length;k++){
+    const a = clean[clean.length-1], b = raw[k];
+    if(Math.hypot(b.x-a.x, b.y-a.y) > 1) clean.push(b);
+  }
+  return clean;
+}
+function routeTotalLen(route){
+  let len = 0;
+  for(let k=1;k<route.length;k++) len += Math.hypot(route[k].x-route[k-1].x, route[k].y-route[k-1].y);
+  return len;
+}
+function posOnRoute(route, s){
+  let remaining = s;
+  for(let k=1;k<route.length;k++){
+    const a = route[k-1], b = route[k];
+    const segLen = Math.hypot(b.x-a.x, b.y-a.y);
+    if(remaining <= segLen || k === route.length-1){
+      const t = segLen > 0 ? Math.max(0,Math.min(1,remaining/segLen)) : 0;
+      return { x:a.x+(b.x-a.x)*t, y:a.y+(b.y-a.y)*t, heading:Math.atan2(b.y-a.y, b.x-a.x) };
+    }
+    remaining -= segLen;
+  }
+  const last = route[route.length-1];
+  return { x:last.x, y:last.y, heading:0 };
+}
+function drawRoutePath(route){
+  ctx.setLineDash([12,9]);
+  ctx.strokeStyle = hex(0xffee58); ctx.lineWidth = 3*devicePixelRatio; ctx.globalAlpha = 0.85;
+  ctx.beginPath();
+  const p0 = W(route[0].x, route[0].y, 4);
+  ctx.moveTo(p0.x, p0.y);
+  for(let k=1;k<route.length;k++){ const p = W(route[k].x, route[k].y, 4); ctx.lineTo(p.x, p.y); }
+  ctx.stroke();
+  ctx.setLineDash([]); ctx.globalAlpha = 1;
+}
+
+let robotRoute = null, robotRouteLen = 0, routeS = 0, routeDir = 1, simulating = false;
+const ROBOT_SPEED = 6; // world units per frame
+
+const state = { houses:true, fill:true, scatter:true };
+
+function reroll(){
+  SALT = Math.floor(Math.random()*1e9);
+  blocks = buildBlockLayout(grid);
+  extLots = buildExteriorLots(grid);
+  addressBlock = pickAddressBlock();
+  pickupBlock = pickPickupBlock();
+  render();
+}
+
+/* ---------- input: drag pan, wheel/pinch zoom ---------- */
+let dragging=false, lastX=0, lastY=0;
+canvas.addEventListener('pointerdown', e=>{ dragging=true; lastX=e.clientX; lastY=e.clientY; });
+addEventListener('pointerup', ()=>dragging=false);
+addEventListener('pointermove', e=>{
+  if(!dragging) return;
+  const dx=(e.clientX-lastX), dy=(e.clientY-lastY);
+  lastX=e.clientX; lastY=e.clientY;
+  cam.x -= (dx/cam.K + dy/cam.K);
+  cam.y -= (dy/cam.K - dx/cam.K);
+  render();
+});
+canvas.addEventListener('wheel', e=>{ e.preventDefault(); cam.K = Math.max(0.14, Math.min(3.2, cam.K * (1 - e.deltaY*0.001))); render(); }, {passive:false});
+let pinchD=null;
+canvas.addEventListener('touchmove', e=>{
+  if(e.touches.length===2){
+    e.preventDefault();
+    const dx=e.touches[0].clientX-e.touches[1].clientX, dy=e.touches[0].clientY-e.touches[1].clientY;
+    const d=Math.hypot(dx,dy);
+    if(pinchD) cam.K = Math.max(0.14, Math.min(3.2, cam.K * (d/pinchD)));
+    pinchD = d; render();
+  }
+}, {passive:false});
+canvas.addEventListener('touchend', ()=>{ pinchD=null; });
+
+document.getElementById('btnReroll').onclick = reroll;
+document.getElementById('btnHouses').onclick = e=>{ state.houses=!state.houses; e.target.classList.toggle('active'); render(); };
+document.getElementById('btnFill').onclick = e=>{ state.fill=!state.fill; e.target.classList.toggle('active'); render(); };
+document.getElementById('btnScatter').onclick = e=>{ state.scatter=!state.scatter; e.target.classList.toggle('active'); render(); };
+document.getElementById('btnAddress').onclick = () => {
+  cam.x = addressBlock.x0; cam.y = addressBlock.y0; cam.K = 1.0; render();
+};
+document.getElementById('btnPickup').onclick = () => {
+  cam.x = pickupBlock.x0; cam.y = pickupBlock.y0; cam.K = 1.0; render();
+};
+document.getElementById('btnSimulate').onclick = e => {
+  simulating = !simulating;
+  e.target.textContent = simulating ? 'Stop Simulation' : 'Simulate Route';
+  e.target.classList.toggle('active', simulating);
+  if(simulating){
+    cam.x = gridSpan/2; cam.y = gridSpan/2; cam.K = 0.21; // zoomed out to see the whole map
+  }
+};
+
+function render(){
+  cam.cx = innerWidth/2; cam.cy = innerHeight/2;
+  ctx.setTransform(1,0,0,1,0,0);
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.fillStyle = hex(D.sky); ctx.fillRect(0,0,canvas.width,canvas.height);
+
+  /* route uses last frame's captured spots (stable after frame 1 —
+     spots only change on reroll, which briefly nulls them out) */
+  robotRoute = buildRobotRoute();
+  if(robotRoute) robotRouteLen = routeTotalLen(robotRoute);
+
+  /* ---- pass 1: flat ground (roads, sidewalks, block/lot fills) ----
+     All coplanar at z=0, so draw order among them doesn't matter —
+     they never occlude each other, only vertical content can occlude
+     ground, never the reverse. This ALWAYS goes first, globally. */
+  for(const edge of grid.edges){
+    const dv = DIRV[edge.f], rv = DIRV[(edge.f+1)%4];
+    const ax = edge.a.x - dv.x*OVERSHOOT, ay = edge.a.y - dv.y*OVERSHOOT;
+    const bx = edge.b.x + dv.x*OVERSHOOT, by = edge.b.y + dv.y*OVERSHOOT;
+    quadOn([W(ax-rv.x*ROAD_HALF,ay-rv.y*ROAD_HALF,0), W(bx-rv.x*ROAD_HALF,by-rv.y*ROAD_HALF,0),
+            W(bx+rv.x*ROAD_HALF,by+rv.y*ROAD_HALF,0), W(ax+rv.x*ROAD_HALF,ay+rv.y*ROAD_HALF,0)], D.road);
+  }
+  for(const rn of grid.sidewalkRuns){
+    const half=T2/2;
+    const pts=[W(rn.x-half,rn.y-half,0),W(rn.x+half,rn.y-half,0),W(rn.x+half,rn.y+half,0),W(rn.x-half,rn.y+half,0)];
+    quadOn(pts, rn.parity===0?D.pave:D.paveB); edgeOn(pts,D.paveEdge,1);
+  }
+  for(const cell of grid.sidewalkCornerCells){
+    const half=CELL/2;
+    const pts=[W(cell.x-half,cell.y-half,0),W(cell.x+half,cell.y-half,0),W(cell.x+half,cell.y+half,0),W(cell.x-half,cell.y+half,0)];
+    quadOn(pts, cell.parity===0?D.pave:D.paveB); edgeOn(pts,D.paveEdge,1);
+  }
+  if(robotRoute) drawRoutePath(robotRoute);
+  if(state.fill){
+    for(const blk of blocks) fillBlockGround(blk);
+    for(const lot of extLots) fillExteriorLot(lot);
+  }
+
+  /* ---- pass 2: vertical content, ONE global depth sort ----
+     Houses, storefronts, and scatter props from every block AND every
+     exterior lot compete for the same depth order — sorting per-block
+     (the old bug) let a farther block's content win against a nearer
+     block's just because of draw order, not actual depth. */
+  VQ = [];
+  for(const blk of blocks) queueBlockContent(blk); // refreshes addressSpot/pickupSpot for next frame
+  for(const lot of extLots) queueExteriorLot(lot);
+  if(robotRoute){
+    if(simulating){
+      routeS += routeDir*ROBOT_SPEED;
+      if(routeS >= robotRouteLen){ routeS = robotRouteLen; routeDir = -1; }
+      if(routeS <= 0){ routeS = 0; routeDir = 1; }
+    }
+    const pos = posOnRoute(robotRoute, routeS);
+    queueVert(pos.x+pos.y, () => drawRobotBody(pos.x, pos.y, pos.heading));
+  }
+  VQ.sort((a,b) => a.depth - b.depth);
+  for(const item of VQ) item.fn();
+}
+
+const gridSpan = grid.nodes[grid.nodes.length-1].x;
+cam.x = gridSpan/2;
+cam.y = gridSpan/2;
+cam.K = 0.21;
+function tick(){ render(); requestAnimationFrame(tick); }
+requestAnimationFrame(tick);
+</script>
+</body>
+</html>
