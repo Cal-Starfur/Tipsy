@@ -653,7 +653,7 @@ function buildWalk(grid, rng){
   const startNode = cur;
   const legDescs = [];
   for(let leg = 0; leg <= nTurns; leg++){
-    const maxBlocks = 3 + Math.floor(rng()*4);
+    const maxBlocks = 1 + Math.floor(rng()*3);   // 1-3 blocks/leg — cut from 3-6 to bring total route length down to ~half, same turn character
     let blocks = 0;
     for(let b=0; b<maxBlocks; b++){
       if(!cur.conn[dir]) break;
@@ -4235,6 +4235,7 @@ document.getElementById("rerollBtn").addEventListener("click", e => {
 </script>
 </body>
 </html>
+
 
 
 
