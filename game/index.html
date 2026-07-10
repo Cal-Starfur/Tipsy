@@ -437,9 +437,40 @@ const HYD_SLIP = {
 const PLANTER = {
   box: 0x8f8577, boxDk: 0x7a7164, boxDk2: 0x6b6357,
   soil: 0x4a3f34, stalk: 0x5c6b3f,
-  leafA: 0x4e8f4a, leafB: 0x3c7a3c, leafC: 0x62a35c,
-  flower: 0xe86b8a,
   shadow: 0x000000
+};
+/* ported from the planter collision lab, 2026-07-10: plant variety —
+   color palette + puff silhouette, picked per-instance from a seeded
+   RNG the same way CAR_COLORS/PEOPLE_SHIRT already are. "round" is
+   the original bushy-puff look; "spiky" swaps the puffs for thin
+   radiating blades (ornamental-grass/succulent silhouette) instead
+   of circles — a real shape difference, not just a recolor. */
+const PLANTER_VARIANTS = [
+  { n:"garden",    leafA:0x4e8f4a, leafB:0x3c7a3c, leafC:0x62a35c, flower:0xe86b8a, style:"round" },
+  { n:"sage",       leafA:0x8a9a6e, leafB:0x707f57, leafC:0x9fae82, flower:0xd9c37a, style:"round" },
+  { n:"tropical",   leafA:0x2f7a4e, leafB:0x1f5c38, leafC:0x3f9463, flower:0xff7a3d, style:"spiky" },
+  { n:"autumn",     leafA:0xa88a3a, leafB:0x8a6f2a, leafC:0xc4a54e, flower:0xd94f3d, style:"round" },
+  { n:"succulent",  leafA:0x4a8a86, leafB:0x396c69, leafC:0x5fa39e, flower:0xe8d9b8, style:"spiky" }
+];
+const PLANTER_BASE = { boxW: 22, boxD: 14, boxH: 14, bushH: 20, fullness: 6 };
+/* approved in planter collision lab (2026-07-10): a COLLIDABLE planter
+   hazard, distinct from the existing prop.planter (which stays pure
+   decoration on the far, unreachable sidewalk — see its placement
+   comment). This one spawns reachable, on the robot's own side.
+     · balance angle is scale-INVARIANT — atan of two dimensions that
+       scale together — so a bigger planter isn't more top-heavy, it
+       just takes a harder hit to reach the same angle (potPower).
+     · below thresh: one hit topples it (like cone/bin), robot drives
+       on, never a wall.
+     · at/above thresh: too heavy to plow through standing OR lying
+       down (bin's "too big" contract, same BOT_CLEAR fixed-clearance
+       pattern — the one proven to still work in this file) — it still
+       eventually topples under a sustained push, but the lane stays
+       blocked either way, so the player has to change lanes. */
+const PLANTER_HIT = {
+  phiBal: Math.atan((PLANTER_BASE.boxW/2) / (PLANTER_BASE.boxH*0.55)),
+  phiRest: Math.PI/2,
+  thresh: 1.4, kick: 1.0, potPower: 1.3
 };
 /* approved in car lab: len 150 · wid 60 · chassis 28 · cabin 32 · wheel 16.
    Scaled to tower over the robot (robot: 52w x 40d x 61h to the lid).
@@ -842,7 +873,7 @@ function generateRoute(dateStr){
     else if(r2 < (1-hood.pave)*0.45 + hood.litter*0.35)
                                        type = rng() < 0.6 ? "scooter" : "trash";
     else if(r2 < 0.75)                 type = "cone";
-    else { const r3 = rng(); type = r3 < 0.32 ? "dog" : r3 < 0.6 ? "people" : "bin"; }
+    else { const r3 = rng(); type = r3 < 0.25 ? "dog" : r3 < 0.48 ? "people" : r3 < 0.73 ? "bin" : "planter"; }
     const hzObj = { type, s: hsR, row: lane, f: facingAt(hsR), hit:false };
     if(type === "crack"){ hzObj.len = 24 + Math.floor(rng()*49); hzObj.surface = "sidewalk"; }   // spall size -> art + severity
     if(type === "dog"){ hzObj.dogSeed = (rng()*4294967296) >>> 0;  // coat + scar + waypoints
@@ -867,6 +898,17 @@ function generateRoute(dateStr){
       hzObj.items = []; hzObj.spilled = false;
       hzObj.thetaF = 0;
       if(preKnocked) hzObj.fallPsi = rng()*Math.PI*2;
+    }
+    if(type === "planter"){
+      hzObj.scale = 1.0 + rng()*1.2;                 // 1.0-2.2x, straddles PLANTER_HIT.thresh (1.4)
+      hzObj.variantIdx = Math.floor(rng()*PLANTER_VARIANTS.length);
+      const preKnocked = rng() < 0.25;                // rarer than bin's 0.4 — a bigger visual event
+      hzObj.phi = preKnocked ? PLANTER_HIT.phiRest : 0;
+      hzObj.angVel = 0; hzObj.moving = false;
+      hzObj.pose = preKnocked ? "knocked" : "standing";
+      hzObj.bonked = false;
+      hzObj.items = []; hzObj.spilled = false;
+      if(preKnocked) hzObj.fallPsi = (rng()*2 - 1) * 0.4;   // small fall-direction jitter, same idea as bin's
     }
     if(type === "scooter"){
       const preKnocked = rng() < 0.8;
@@ -1221,7 +1263,7 @@ class WorldScene extends Phaser.Scene {
 
   quadOn(g, pts, color, alpha=1){
     g.fillStyle(color, alpha);
-    g.fillPoints(pts.map(p => new Phaser.Geom.Point(p.x, p.y)), true);
+    g.fillPoints(pts.map(p => new Phaser.Geom.Point(p.x, p.y)), true, true);
   }
   edgeOn(g, pts, color=SKIN.outline, w=2){
     g.lineStyle(w, color, 1);
@@ -2235,93 +2277,182 @@ class WorldScene extends Phaser.Scene {
       hparts.sort((p1, p2) => p1.d - p2.d);
       for(const pt of hparts) pt.fn();
     } else if(kind === "planter"){
-      /* approved in planter lab: tapered concrete box + layered stalked
-         bush. Every dimension varies per-instance (seeded) so planters
-         along the route don't look identical — box size, bush size,
-         fullness, and flowering are all randomized within tested ranges. */
+      /* approved in planter lab (2026-07-08), sized up in the planter
+         makeover (2026-07-10), variety + collision ported from the
+         planter collision lab (2026-07-10): tapered concrete box +
+         layered stalked bush. Two callers: the pure-decoration far-
+         sidewalk placement (data===null, seeded random scale/variant,
+         never falls) and the collidable hazard (data has its own
+         scale/variantIdx/phi/pose/fallPsi/items — same convention
+         bin/cone/scooter already use for their hazard data). */
       const PL = PLANTER;
       const seed = ((Math.round(x)*7919) ^ (Math.round(y)*104729) ^ 0x2f61) >>> 0;
       const rng = mulberry32(seed);
-      const boxW = 13 + rng()*6, boxD = 8 + rng()*4, boxH = 8 + rng()*4;
-      const bushH = 12 + rng()*8, fullness = 4 + Math.floor(rng()*4);
+      const isHaz = !!(data && data.scale !== undefined);
+      const V = isHaz ? PLANTER_VARIANTS[data.variantIdx || 0] : PLANTER_VARIANTS[Math.floor(rng()*PLANTER_VARIANTS.length)];
+      const scale = isHaz ? data.scale : (0.85 + rng()*0.5);
+      const phi = isHaz ? (data.phi || 0) : 0;
+      const boxW = 22*scale, boxD = 14*scale, boxH = 14*scale;
+      const bushH = 20*scale, fullness = 5 + Math.floor(rng()*4);
       const flowering = rng() < 0.3;
-      /* no extra rotation needed: facing is already baked into the
-         outer W(dx,dy,dz) closure via fdir, and the camera is fixed —
-         so the visible faces are always the same two (+x, +y), same
-         convention the original placeholder used. */
       const GG = W;
       const dAt = (a, b, h) => a + b + h*0.4;
-
       const hw = boxW/2, hd = boxD/2, H = boxH;
-      const baseShrink = 0.82;
-      const corner = (sx, sy, h, shrink=1) => GG(sx*hw*shrink, sy*hd*shrink, h);
 
-      const psh = GG(0, 0, 0);
-      g.fillStyle(PL.shadow, 0.14);
-      g.fillEllipse(psh.x, psh.y + 2, (boxW+6)*this.K*0.42, (boxD+6)*this.K*0.36);
+      if(phi > 0){
+        /* fallen pose: true rigid rotation about the pivot edge,
+           matching bin's own binTipPoint pattern exactly (verified in
+           the collision lab — collision no longer depends on a hand-
+           faked "low" pose, so there's no reason to fake one here
+           either). fallPsi rotates the whole fall into world space,
+           same role bin's fallPsi/cth plays. */
+        const cth = data.fallPsi || 0;
+        const fc = Math.cos(cth), fsn = Math.sin(cth);
+        const pivotA = hw;
+        const cphi = Math.cos(phi), sphi = Math.sin(phi);
+        const tip = (u, h) => ({ u: pivotA - (pivotA-u)*cphi + h*sphi, z: (pivotA-u)*sphi + h*cphi });
+        const L = (u, v, h) => { const t = tip(u, h); return W(x + t.u*fc - v*fsn, y + t.u*fsn + v*fc, t.z); };
+        const dAt2 = (u, v, h) => { const t = tip(u, h); return (t.u*fc - v*fsn) + (t.u*fsn + v*fc) + t.z*0.4; };
+        const corner = (sx, sy, h) => L(sx*hw, sy*hd, h);
 
-      const pbox = () => {
-        const top = [corner(-1,-1,H), corner(1,-1,H), corner(1,1,H), corner(-1,1,H)];
-        this.quadOn(g, top, PL.box);
-        this.edgeOn(g, top, PL.boxDk, 1.2);
-        /* the two outward faces always visible under this fixed camera */
-        const faceX = 1, faceY = 1;
-        const xFace = [
-          corner(faceX,-1,H), corner(faceX,1,H),
-          corner(faceX,1,0,baseShrink), corner(faceX,-1,0,baseShrink)
-        ];
-        this.quadOn(g, xFace, faceX > 0 ? PL.boxDk : PL.boxDk2);
-        const yFace = [
-          corner(-1,faceY,H), corner(1,faceY,H),
-          corner(1,faceY,0,baseShrink), corner(-1,faceY,0,baseShrink)
-        ];
-        this.quadOn(g, yFace, faceY > 0 ? PL.boxDk2 : PL.boxDk);
-        const soil = [corner(-0.82,-0.82,H-0.6), corner(0.82,-0.82,H-0.6), corner(0.82,0.82,H-0.6), corner(-0.82,0.82,H-0.6)];
-        this.quadOn(g, soil, PL.soil);
-      };
-      const pbush = () => {
-        const baseH = H + 1;
-        const n = fullness;
-        const puffs = [];
-        puffs.push({ a:0, b:0, h:baseH + bushH*0.55, r:bushH*0.5, c:PL.leafA });
-        for(let i=0; i<n; i++){
-          const ang = (i/n)*Math.PI*2 + rng()*0.4;
-          const rr = (boxW*0.28 + rng()*boxW*0.12);
-          const hh = baseH + bushH*(0.3 + rng()*0.55);
-          const size = bushH*(0.28 + rng()*0.16);
-          const shade = rng();
-          const col = shade < 0.33 ? PL.leafA : shade < 0.66 ? PL.leafB : PL.leafC;
-          puffs.push({ a: Math.cos(ang)*rr, b: Math.sin(ang)*rr, h: hh, r: size, c: col });
-        }
-        puffs.sort((p1,p2) => dAt(p1.a,p1.b,p1.h) - dAt(p2.a,p2.b,p2.h));
-        for(const pf of puffs){
-          const s0 = GG(pf.a*0.25, pf.b*0.25, baseH - 0.4);
-          const s1 = GG(pf.a, pf.b, Math.max(pf.h - pf.r*0.35, baseH));
-          g.lineStyle(Math.max(1, 1.1*this.K*0.4), PL.stalk, 1);
-          g.lineBetween(s0.x, s0.y, s1.x, s1.y);
-          const c = GG(pf.a, pf.b, pf.h);
-          g.fillStyle(pf.c, 1);
-          g.fillCircle(c.x, c.y, pf.r*this.K*0.42);
-        }
-        if(flowering){
-          const nf = Math.max(2, Math.round(n*0.6));
-          for(let i=0; i<nf; i++){
-            const ang = rng()*Math.PI*2;
-            const rr = boxW*0.22 + rng()*boxW*0.16;
-            const hh = baseH + bushH*(0.45 + rng()*0.5);
-            const c = GG(Math.cos(ang)*rr, Math.sin(ang)*rr, hh);
-            g.fillStyle(PL.flower, 1);
-            g.fillCircle(c.x, c.y, (1.6+rng())*this.K*0.42);
+        const psh = W(x + pivotA*(1-cphi)*0.5*fc, y + pivotA*(1-cphi)*0.5*fsn, 0);
+        g.fillStyle(PL.shadow, 0.16);
+        g.fillEllipse(psh.x, psh.y + 2, (boxW+H)*this.K*0.42, (boxD+6)*this.K*0.36);
+
+        const fbox = () => {
+          const top = [corner(-1,-1,H), corner(1,-1,H), corner(1,1,H), corner(-1,1,H)];
+          const bot = [corner(-1,-1,0), corner(1,-1,0), corner(1,1,0), corner(-1,1,0)];
+          this.quadOn(g, convexHull(top.concat(bot)), PL.boxDk);
+          this.quadOn(g, top, PL.box);
+          this.edgeOn(g, top, PL.boxDk, 1.2);
+        };
+        const fbush = () => {
+          const bushSeed = ((Math.round(x)*7919) ^ (Math.round(y)*104729) ^ 0x51c3) >>> 0;
+          const brng = mulberry32(bushSeed);
+          const n = fullness;
+          for(let i=0; i<n+1; i++){
+            const ang = (i/n)*Math.PI*2 + brng()*0.4;
+            const rr = bushH*0.5*(0.5 + brng()*0.4);
+            const hh = 2 + brng()*3;
+            const bOff = Math.sin(ang)*bushH*0.6;
+            const aOff = pivotA + bushH*0.3 + Math.cos(ang)*bushH*0.3;
+            const c = W(x + aOff*fc - bOff*fsn, y + aOff*fsn + bOff*fc, hh);
+            g.fillStyle(i%3===0 ? V.leafA : i%3===1 ? V.leafB : V.leafC, 1);
+            g.fillCircle(c.x, c.y, (bushH*0.22)*this.K*0.42);
           }
-        }
-      };
+        };
+        const fparts = [{ d: dAt2(0,0,H*0.4), fn: fbox }, { d: dAt2(pivotA+bushH*0.3,0,3), fn: fbush }];
+        fparts.sort((p1,p2) => p1.d - p2.d);
+        for(const pt of fparts) pt.fn();
+      } else {
+        const baseShrink = 0.82;
+        const corner = (sx, sy, h, shrink=1) => GG(sx*hw*shrink, sy*hd*shrink, h);
 
-      const pparts = [
-        { d: dAt(0,0,H*0.4), fn: pbox },
-        { d: dAt(0,0,H + bushH*0.6), fn: pbush }
-      ];
-      pparts.sort((p1, p2) => p1.d - p2.d);
-      for(const pt of pparts) pt.fn();
+        const psh = GG(0, 0, 0);
+        g.fillStyle(PL.shadow, 0.14);
+        g.fillEllipse(psh.x, psh.y + 2, (boxW+6)*this.K*0.42, (boxD+6)*this.K*0.36);
+
+        const pbox = () => {
+          const top = [corner(-1,-1,H), corner(1,-1,H), corner(1,1,H), corner(-1,1,H)];
+          this.quadOn(g, top, PL.box);
+          this.edgeOn(g, top, PL.boxDk, 1.2);
+          /* the two outward faces always visible under this fixed camera */
+          const faceX = 1, faceY = 1;
+          const xFace = [
+            corner(faceX,-1,H), corner(faceX,1,H),
+            corner(faceX,1,0,baseShrink), corner(faceX,-1,0,baseShrink)
+          ];
+          this.quadOn(g, xFace, faceX > 0 ? PL.boxDk : PL.boxDk2);
+          /* yFace overlaps xFace by a hair at their shared edge (sx
+             pushed just past 1) — a defensive seam guard. The two
+             faces meet at an exact edge, and without a tiny overlap,
+             sub-pixel rasterization gaps at that seam can make the
+             face drawn first (xFace) show through as a sliver on some
+             renderers, even though both faces are geometrically valid
+             (verified: comparable non-degenerate area on every facing
+             direction, nothing else drawn over it — this is purely a
+             rasterization seam fix, invisible at normal zoom). */
+          const yFace = [
+            corner(-1,faceY,H), corner(faceX*1.03,faceY,H),
+            corner(faceX*1.03,faceY,0,baseShrink), corner(-1,faceY,0,baseShrink)
+          ];
+          this.quadOn(g, yFace, faceY > 0 ? PL.boxDk2 : PL.boxDk);
+          const soil = [corner(-0.82,-0.82,H-0.6), corner(0.82,-0.82,H-0.6), corner(0.82,0.82,H-0.6), corner(-0.82,0.82,H-0.6)];
+          this.quadOn(g, soil, PL.soil);
+        };
+        const pbush = () => {
+          const baseH = H + 1;
+          const n = fullness;
+          const puffs = [];
+          puffs.push({ a:0, b:0, h:baseH + bushH*0.55, r:bushH*0.5, c:V.leafA });
+          for(let i=0; i<n; i++){
+            const ang = (i/n)*Math.PI*2 + rng()*0.4;
+            const rr = (boxW*0.28 + rng()*boxW*0.12);
+            const hh = baseH + bushH*(0.3 + rng()*0.55);
+            const size = bushH*(0.28 + rng()*0.16);
+            const shade = rng();
+            const col = shade < 0.33 ? V.leafA : shade < 0.66 ? V.leafB : V.leafC;
+            puffs.push({ a: Math.cos(ang)*rr, b: Math.sin(ang)*rr, h: hh, r: size, c: col, ang });
+          }
+          puffs.sort((p1,p2) => dAt(p1.a,p1.b,p1.h) - dAt(p2.a,p2.b,p2.h));
+          for(const pf of puffs){
+            const s0 = GG(pf.a*0.25, pf.b*0.25, baseH - 0.4);
+            const s1 = GG(pf.a, pf.b, Math.max(pf.h - pf.r*0.35, baseH));
+            g.lineStyle(Math.max(1, 1.1*this.K*0.4), PL.stalk, 1);
+            g.lineBetween(s0.x, s0.y, s1.x, s1.y);
+            const c = GG(pf.a, pf.b, pf.h);
+            g.fillStyle(pf.c, 1);
+            if(V.style === "spiky"){
+              // ornamental-grass blade: thin triangles radiating from
+              // the stalk tip instead of one round puff
+              const nb = 4;
+              for(let bIdx=0; bIdx<nb; bIdx++){
+                const bAng = (pf.ang || 0) + (bIdx/nb)*Math.PI*2 + rng()*0.3;
+                const tip = GG(pf.a + Math.cos(bAng)*pf.r*1.3, pf.b + Math.sin(bAng)*pf.r*1.3, pf.h + pf.r*0.7);
+                const base1 = GG(pf.a + Math.cos(bAng+0.3)*pf.r*0.3, pf.b + Math.sin(bAng+0.3)*pf.r*0.3, pf.h - pf.r*0.3);
+                const base2 = GG(pf.a + Math.cos(bAng-0.3)*pf.r*0.3, pf.b + Math.sin(bAng-0.3)*pf.r*0.3, pf.h - pf.r*0.3);
+                g.fillTriangle(tip.x, tip.y, base1.x, base1.y, base2.x, base2.y);
+              }
+            } else {
+              g.fillCircle(c.x, c.y, pf.r*this.K*0.42);
+            }
+          }
+          if(flowering){
+            const nf = Math.max(2, Math.round(n*0.6));
+            for(let i=0; i<nf; i++){
+              const ang = rng()*Math.PI*2;
+              const rr = boxW*0.22 + rng()*boxW*0.16;
+              const hh = baseH + bushH*(0.45 + rng()*0.5);
+              const c = GG(Math.cos(ang)*rr, Math.sin(ang)*rr, hh);
+              g.fillStyle(V.flower, 1);
+              g.fillCircle(c.x, c.y, (1.6+rng())*this.K*0.42);
+            }
+          }
+        };
+
+        const pparts = [
+          { d: dAt(0,0,H*0.4), fn: pbox },
+          { d: dAt(0,0,H + bushH*0.6), fn: pbush }
+        ];
+        pparts.sort((p1, p2) => p1.d - p2.d);
+        for(const pt of pparts) pt.fn();
+      }
+
+      /* spilled leaves/flowers: independent projectiles once launched,
+         same "plain local W(), not tip()-rotated" convention bin's
+         flung debris uses. */
+      if(data && data.items && data.items.length){
+        for(const it of data.items){
+          const s2 = W(it.x + 1, it.y + 1, 0.4);
+          g.fillStyle(PL.shadow, 0.13);
+          g.fillEllipse(s2.x, s2.y, it.size*this.K*0.9, it.size*this.K*0.4);
+        }
+        for(const it of data.items){
+          const p = W(it.x, it.y, it.z);
+          g.fillStyle(it.col, 1);
+          g.fillCircle(p.x, p.y, it.size*this.K*0.42);
+        }
+      }
     } else if(kind === "dog"){
       /* approved in dog lab v2: the one-eyed sidewalk chihuahua.
          SIZE unchanged — the game's approved DOG preset (0.8 scale)
@@ -3648,6 +3779,84 @@ class WorldScene extends Phaser.Scene {
             hz.slideVel *= Math.exp(-0.0045 * dt);
           } else hz.slideVel = 0;
           this.simBinTrash(hz, dt);
+        } else if(hz.type === "planter"){
+          /* approved in planter collision lab (2026-07-10) — see
+             PLANTER_HIT for the constants. Below thresh: one hit
+             topples it, never a wall (cone/bin-style, uses the same
+             hz.hit/dx<26 convention every simple hazard here uses).
+             At/above thresh: too heavy to plow through standing or
+             lying down — bin's exact BOT_CLEAR contract, the one
+             fixed-clearance pattern proven to still work in this
+             file. Difference from bin: this box's balance angle
+             (~55deg, much higher than bin's round base) doesn't
+             reliably clear from one impulse at real gameplay speeds,
+             and the robot can't back off and re-approach once it's
+             clamped at the stop line — so the oversized case grinds
+             against it every frame instead of a single hit. */
+          const oversized = hz.scale >= PLANTER_HIT.thresh;
+          const halfW = (PLANTER_BASE.boxW/2) * hz.scale;
+
+          if(oversized){
+            /* stop distance calibrated against the KNOCKED near edge
+               (+halfW once fallen, not -halfW like standing —
+               verified by sampling the actual rendered geometry in
+               the lab), since an oversized planter always ends up
+               knocked eventually and stays blocked either way. */
+            const BOT_CLEAR = BODY.hx - halfW + 4;
+            if(onLane(hz.row) && this.botS > hz.s - BOT_CLEAR && this.botS < hz.s + 20){
+              this.botS = safeStop(hz.s - BOT_CLEAR);
+              this.isBlocked = true;
+              this.speed = 0;
+              if(hz.pose !== "knocked"){
+                if(!hz.hit){
+                  hz.hit = true;
+                  if(hz.fallPsi === undefined) hz.fallPsi = (Math.random()-0.5)*0.4;
+                  const kick = 0.05 * 1.6 * (Math.random() < 0.5 ? 1 : -1);
+                  this.tilt += kick;
+                  this.damage = Math.min(95, this.damage + Math.abs(kick)*40);
+                }
+                hz.moving = true;
+                hz.angVel += 0.07 * 0.012 * PLANTER_HIT.kick / Math.pow(hz.scale, PLANTER_HIT.potPower) * (dt/16);
+              }
+            }
+          } else if(!hz.hit && Math.abs(dx) < 26 && onLane(hz.row) && this.speed > 0.035 && hz.pose !== "knocked"){
+            hz.hit = true;
+            if(hz.fallPsi === undefined) hz.fallPsi = (Math.random()-0.5)*0.4;
+            const sp = this.speed;
+            hz.moving = true;
+            hz.angVel += sp * 0.09 * PLANTER_HIT.kick / Math.pow(hz.scale, PLANTER_HIT.potPower);
+            const kick = sp * 1.6 * (Math.random() < 0.5 ? 1 : -1);
+            this.tilt += kick;
+            this.damage = Math.min(95, this.damage + Math.abs(kick)*40);
+            this.speed *= 0.9;
+          }
+          if(Math.abs(dx) > 40) hz.hit = false;
+
+          if(hz.moving){
+            const KG = 1.5e-5;
+            const steps = Math.max(1, Math.ceil(dt/8));
+            const hdt = dt/steps;
+            for(let i=0; i<steps; i++){
+              hz.angVel += KG * Math.sin(hz.phi - PLANTER_HIT.phiBal) * hdt;
+              hz.phi += hz.angVel * hdt;
+              if(!hz.spilled && hz.phi >= PLANTER_HIT.phiBal){ hz.spilled = true; this.spillPlanterLeaves(hz); }
+              if(hz.phi >= PLANTER_HIT.phiRest){
+                hz.phi = PLANTER_HIT.phiRest;
+                if(Math.abs(hz.angVel) < 0.0006){
+                  hz.angVel = 0; hz.moving = false; hz.pose = "knocked"; break;
+                }
+                hz.angVel = -hz.angVel * 0.18;
+              }
+              if(hz.phi <= 0){
+                hz.phi = 0;
+                if(Math.abs(hz.angVel) < 0.0006){
+                  hz.angVel = 0; hz.moving = false; hz.pose = "standing"; break;
+                }
+                hz.angVel = -hz.angVel * 0.3;
+              }
+            }
+          }
+          this.simPlanterLeaves(hz, dt);
         } else if(hz.type === "scooter"){
           /* soft hazard, same contract as before (sev 9, 55% speed
              loss) — this doesn't change. What's new: a standing
@@ -3965,6 +4174,18 @@ class WorldScene extends Phaser.Scene {
 
   /* depth of the lid's centre AFTER hinge rotation — decides draw order vs body */
   lidNear(b){
+    /* a closed (or nearly closed) lid always draws on top of the body,
+       regardless of roll — there's no case where the body should
+       occlude a shut lid. The depth-comparison test below is
+       mathematically guaranteed to flip at roll=atan(0.4)~21.8deg for
+       ANY reference point lower than the lid's own (a hard consequence
+       of the depth formula's z*0.4 weighting, not a tunable constant —
+       verified: changing the reference point's z value never moves
+       this crossover). That's what made the lid vanish during any
+       moderate-to-hard tilt. Only defer to the depth test once the lid
+       is open enough to actually expose the cavity, where near/far
+       against the newly-visible interior genuinely needs deciding. */
+    if(this.lidAng < 0.15) return true;
     const A = this.lidAng, c = Math.cos(A), s = Math.sin(A);
     const yh = -b.hy, zh = b.z0;   // fixed hinge edge — doesn't mirror with tip direction,
                                      // it's a real mechanical hinge, not a mirror
@@ -4015,7 +4236,7 @@ class WorldScene extends Phaser.Scene {
 
   quad(pts, color, alpha=1){
     this.g.fillStyle(color, alpha);
-    this.g.fillPoints(pts.map(p => new Phaser.Geom.Point(p.x, p.y)), true);
+    this.g.fillPoints(pts.map(p => new Phaser.Geom.Point(p.x, p.y)), true, true);
   }
   edge(pts, color=SKIN.outline, w=2){
     this.g.lineStyle(w, color, 1);
@@ -4102,6 +4323,37 @@ class WorldScene extends Phaser.Scene {
         it.z = it.size*0.35;
         if(Math.abs(it.vz) < 0.25){ it.rest = true; it.vx = it.vy = it.vz = 0; }
         else { it.vz *= -0.38; it.vx *= 0.7; it.vy *= 0.7; it.spin *= 0.6; }
+      }
+    }
+  }
+  /* spilled plants — same shape as bin's trash spill, colored from
+     the planter's own variant so a tropical planter spills tropical
+     leaves, not generic green ones. */
+  spillPlanterLeaves(hz){
+    const V = PLANTER_VARIANTS[hz.variantIdx || 0];
+    const n = 5 + Math.floor(Math.random()*3);
+    for(let i=0; i<n; i++){
+      hz.items.push({
+        col: [V.leafA, V.leafB, V.leafC, V.flower][Math.floor(Math.random()*4)],
+        size: (2 + Math.random()*2) * (hz.scale || 1),
+        x: (Math.random()-0.5)*10*(hz.scale||1), y: (Math.random()-0.5)*10*(hz.scale||1), z: 6 + Math.random()*6,
+        vx: (Math.random()-0.5)*1.6, vy: (Math.random()-0.5)*1.6, vz: 0.6 + Math.random()*0.8,
+        spin: (Math.random()-0.5)*0.3, ang: Math.random()*Math.PI,
+        rest: false
+      });
+    }
+  }
+  simPlanterLeaves(hz, dt){
+    if(!hz.items || !hz.items.length) return;
+    const k = dt/16.7;
+    for(const it of hz.items){
+      if(it.rest) continue;
+      it.vz -= 0.09*k;
+      it.x += it.vx*k; it.y += it.vy*k; it.z += it.vz*k;
+      if(it.z <= 0.5){
+        it.z = 0.5;
+        if(Math.abs(it.vz) < 0.2){ it.rest = true; it.vx = it.vy = it.vz = 0; }
+        else { it.vz *= -0.3; it.vx *= 0.6; it.vy *= 0.6; }
       }
     }
   }
