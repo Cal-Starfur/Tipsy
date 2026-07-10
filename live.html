@@ -274,7 +274,9 @@ const BODY = { hx:26, hy:20, z0:14, z1:54 };
 const LID  = { hx:22, hy:16, z0:54, z1:61 };
 const STRIPE = { z0:20, z1:27 };
 const WHEEL = { r:10, z:10, xs:[-16, 0, 16], side:22 };
-const FLAG = { base:{x:-21, y:13}, z0:61, z1:104 };
+const FLAG = { base:{x:-25, y:17}, z0:54, z1:97 };  // anchored to the body's top edge, at a
+                                                      // corner outside the lid's footprint —
+                                                      // synced from game/index.html V30
 
 /* prop.people (customer lab, dial bench approved) — ported verbatim
    from game/index.html so the gallery stays pixel-identical. */
@@ -399,7 +401,7 @@ class GalleryScene extends Phaser.Scene {
     card("robot.tipped + cargo spill", 230, (t) => this.drawRobotComposite(t, { K:1.5, dy:70, tipped:true }), true);
     card("robot.wheel", 150, (t) => {
       this.setPose({ K:4, dy:40 });
-      this.wheelPhase = t*0.004;
+      this.wheelPhase = -t*0.004;
       this.drawWheel({x:0, y:0, z:WHEEL.z}, 1);
     });
     card("robot.skirt", 150, () => {
@@ -745,7 +747,7 @@ class GalleryScene extends Phaser.Scene {
     this.roll = tipped ? Math.PI*0.5 : 0;
     this.lidAng = tipped ? 2.35 : 0;
     const bobZ = tipped ? 0 : Math.sin(t*0.0022)*1.4;
-    if(!tipped) this.wheelPhase = t*0.0008;
+    if(!tipped) this.wheelPhase = -t*0.0008;
 
     /* shadow */
     const sr = this.roll; this.roll = 0;
