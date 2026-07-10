@@ -820,8 +820,13 @@ function generateRoute(dateStr){
   for(let i=0; i<nT; i++) tiles.push(0);
 
   /* hazards along the route; corners stay clear (the corner IS the hazard
-     there), and classify() is the final word on every placement. */
+     there), and classify() is the final word on every placement.
+     props[] is declared here too (not down by the palm loop where it
+     used to be) — spawnBlocked() closes over both arrays and its first
+     call site is inside this loop, so props has to exist before this
+     loop runs, not after it. */
   const hazards = [];
+  const props = [];
   const density = 0.45 + hood.litter*0.35 + (1 - hood.pave)*0.3;
   let hs = SPAWN_S + 120;
   while(hs < totalLen - 220){
@@ -878,7 +883,6 @@ function generateRoute(dateStr){
 
   /* palms: lane 3, farthest from the road — nearest the buildings, same
      "building-side" flavor the game already used. */
-  const props = [];
   for(let ps = SPAWN_S + 140; ps < totalLen - 220; ps += 286 + rng()*264){
     const psR = Math.round(ps);
     if(inCorner(psR)) continue;
@@ -3422,21 +3426,18 @@ class WorldScene extends Phaser.Scene {
           /* the wall IS the bin (approved bin hit lab, 2026-07-09):
              a municipal bin is too big to plow through standing OR
              lying down — same cast-iron contract as the hydrant, but
-             permanent. binNearEdge samples the barrel's actual live
-             silhouette so the stop line creeps forward realistically
-             as it topples away, then locks the instant phi stops
-             changing (knocked) — no separate "stay stuck" flag
-             needed, the physical boundary just stops moving. */
-          const BOT_HALF = 15;
-          const binU0 = hz.s;
-          const stopU = binU0 + binNearEdge(hz.phi) - BOT_HALF;
-          /* upper bound was missing entirely — botS >= stopU stays true
-             forever once you've passed the bin, so hopping back onto its
-             lane at ANY later point in the route (even thousands of units
-             on) snapped you back to it. palm/hydrant both gate on
-             botS < hz.s for exactly this reason; bin needs the same. */
-          if(onLane(hz.row) && this.botS > binU0 - 200 && this.botS >= stopU && this.botS < binU0 + 50){
-            this.botS = safeStop(stopU);
+             permanent. Restored to the hydrant's exact fixed-clearance
+             trigger pattern: the dynamic binNearEdge-based creeping
+             stop line stopped firing collision entirely at some point
+             after the lane system was rebuilt (3-lane -> 4-lane band),
+             and a static analysis pass couldn't isolate why without
+             being able to run it live. This is simpler and uses the
+             one pattern in this file proven to still work, even
+             though it loses the stop line creeping forward as the
+             bin topples. */
+          const BOT_CLEAR = 26;
+          if(onLane(hz.row) && this.botS > hz.s - BOT_CLEAR && this.botS < hz.s){
+            this.botS = safeStop(hz.s - BOT_CLEAR);
             this.isBlocked = true;
             if(this.speed > 0.035 && !hz.bonked && hz.pose !== "knocked"){
               hz.bonked = true;
@@ -4133,6 +4134,7 @@ document.getElementById("rerollBtn").addEventListener("click", e => {
 </script>
 </body>
 </html>
+
 
 
 
