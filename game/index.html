@@ -1032,8 +1032,10 @@ class WorldScene extends Phaser.Scene {
     this.damage = 0;            // cargo damage %
     this.runT = 0;
     this.throttle = 0;          // -1 brake, 0 coast, 1 gas
-    this.tipT = 0; this.lidAng = 0; this.items = []; this.spilled = false;
+    this.tipT = 0; this.tipStartRoll = 0; this.lidAng = 0; this.items = []; this.spilled = false;
     this.cornerLean = 0;
+    this.corneringSpeedSmooth = 0;   // lagged speed feeding cornering lean —
+                                      // see loadRoute() reset for the full note
     this.stuckAmt = 0; this.isBlocked = false;
 
     this.gSky = this.add.graphics();
@@ -1107,9 +1109,10 @@ class WorldScene extends Phaser.Scene {
     this.slide = null; this.slipYaw = 0;
     this.camX = this.botX; this.camY = this.botY; this.camZ = this.botZ;
     this.speed = 0; this.tilt = 0; this.damage = 0; this.runT = 0;
-    this.roll = 0; this.tipT = 0; this.lidAng = 0; this.items = []; this.spilled = false;
+    this.roll = 0; this.tipT = 0; this.tipStartRoll = 0; this.lidAng = 0; this.items = []; this.spilled = false;
     this.slabZ = 0; this.slabRoll = 0;
     this.cornerLean = 0;
+    this.corneringSpeedSmooth = 0;
     this.stuckAmt = 0; this.isBlocked = false;
     this.doorTheta = 0;   // hull door hinge angle — opens once this.state becomes "won"
     this.state = "idle";
@@ -3329,7 +3332,27 @@ class WorldScene extends Phaser.Scene {
 
       /* corners: Tipsy turns himself — centrifugal lean (∝ v²) is YOUR problem */
       const seg = this.segAt(this.botS);
-      if(seg.type === "arc") this.tilt += seg.sign * this.speed * this.speed * 0.115 * dt;
+      /* cornering lean reacts to this SMOOTHED speed, not raw this.speed —
+         reapplying throttle after coasting/braking mid-corner used to spike
+         tilt instantly (confirmed: coast ~1s then punch it spiked tilt
+         0.263->0.924 and tipped within another second), since raw speed can
+         rise much faster than the tilt spring can react. Steady cornering
+         (the common case) tracks actual speed closely within a couple
+         hundred ms and is unaffected; a sudden speed spike now takes a
+         moment to reach the lean formula, giving the spring room to keep up
+         instead of getting outrun. */
+      this.corneringSpeedSmooth = Phaser.Math.Linear(this.corneringSpeedSmooth, this.speed, Math.min(1, 0.0018*dt));
+      /* cornering-lean sensitivity tapers off as you get further through
+         the turn — full strength for the first 40% (still risky to gun it
+         right from turn entry, that's intentional and unchanged), easing
+         down to 35% by the exit. This is the direct fix for "tipping
+         should be way less once you're past the curve" — the speed
+         smoothing above only softens a sudden reflex-correction spike, it
+         can't by itself prevent a tip if the player just holds throttle
+         long enough for the smoothed speed to catch up anyway. */
+      const arcProgress = seg.type === "arc" ? Phaser.Math.Clamp((this.botS - seg.s0)/(seg.s1 - seg.s0), 0, 1) : 0;
+      const tiltTaper = arcProgress < 0.4 ? 1 : Phaser.Math.Linear(1, 0.35, (arcProgress - 0.4)/0.6);
+      if(seg.type === "arc") this.tilt += seg.sign * this.corneringSpeedSmooth * this.corneringSpeedSmooth * 0.115 * tiltTaper * dt;
       /* visual banking: only the INSIDE lane lifts wheels; center + outside stay flat.
          The sidewalk band sits entirely on ONE side of the street now (not
          straddling the centerline like the old 3-lane system), which means
@@ -3347,10 +3370,12 @@ class WorldScene extends Phaser.Scene {
         ? seg.sign * Math.min(this.speed/0.15, 1) * 0.32 * inside : 0;
       this.cornerLean = Phaser.Math.Linear(this.cornerLean, leanTarget, 0.07);
 
-      /* experiment: crack the lid open while cornering fast — see if
-         changing the lid's geometry mid-turn affects the residual
-         draw-order behavior around it */
-      const lidCrackTarget = (seg.type === "arc" && this.speed > 0.11) ? 0.4 : 0;
+      /* crack the lid open once actually in tip danger — matches the HUD
+         gauge's own red threshold (drawHUD: danger > 0.75) exactly, instead
+         of a flat speed threshold that didn't track real risk (a wide
+         outside turn at speed>0.11 has very low actual tilt; a tight
+         inside turn is genuinely dangerous at that same speed) */
+      const lidCrackTarget = Math.abs(this.tilt) > 0.75 ? 0.4 : 0;
       this.lidAng = Phaser.Math.Linear(this.lidAng, lidCrackTarget, 0.08);
 
       /* lane maneuver: eased diagonal glide with nose steer */
@@ -3743,6 +3768,9 @@ class WorldScene extends Phaser.Scene {
       if(Math.abs(this.tilt) >= 1){
         this.state = "tipped";
         this.tipDir = Math.sign(this.tilt);
+        this.tipStartRoll = this.roll;   // whatever lean we actually had the instant
+                                          // we tipped — the fall animation eases FROM
+                                          // this, not from an implicit flat start
         this.speed = 0;
         /* the lid's hinge rotation compounds with whatever yaw/pitch is
            still active when we go over — mid-turn yaw was only ever
@@ -3774,9 +3802,9 @@ class WorldScene extends Phaser.Scene {
     if(this.state !== "play") this.yaw = Phaser.Math.Linear(this.yaw, 0, 0.15);
     if(this.state === "tipped"){
       this.tipT = Phaser.Math.Linear(this.tipT, 1, 0.09);
-      this.lidAng = Phaser.Math.Linear(this.lidAng, this.tipT > 0.5 ? 2.35 : 0, 0.085);
+      this.lidAng = Phaser.Math.Linear(this.lidAng, Math.max(this.lidAng, this.tipT > 0.5 ? 1.78 : 0), 0.05);
       if(this.tipT > 0.55 && !this.spilled) this.spillCargo();
-      this.roll = this.tipDir * (Math.PI*0.5) * this.tipT;
+      this.roll = Phaser.Math.Linear(this.tipStartRoll, this.tipDir * (Math.PI*0.5), this.tipT);
     } else {
       this.roll = Phaser.Math.Clamp(this.tilt, -1, 1) * 0.5 + this.cornerLean + (this.slabRoll || 0);
     }
