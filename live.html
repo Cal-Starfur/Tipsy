@@ -815,7 +815,7 @@ class GalleryScene extends Phaser.Scene {
     if(lidIsNear) this.drawLid(lidBox);
 
     const fn = this.R(1, 0, 0);
-    if(fn.x + fn.y + fn.z > 0.3){
+    if(fn.x + fn.y + fn.z > 0){
       const F = (yy, zz) => this.P(BODY.hx + 0.8, yy, zz + bobZ);
       this.quadOn(this.g, [F(-13,40), F(13,40), F(13,50), F(-13,50)], SKIN.visor);
       this.edgeOn(this.g, [F(-13,40), F(13,40), F(13,50), F(-13,50)], SKIN.outline, 1.5);
