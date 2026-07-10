@@ -1,0 +1,794 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>TIPSY — Corner + Robot Lab</title>
+<style>
+  html,body{margin:0;padding:0;background:#14161b;height:100%;overflow:hidden;touch-action:manipulation;
+    font-family:-apple-system,'Helvetica Neue',Arial,sans-serif;-webkit-user-select:none;user-select:none;color:#e8eaef;}
+  #wrap{display:flex;flex-direction:column;height:100%;}
+  #game{flex:1;min-height:0;}
+  #panel{padding:8px 12px calc(12px + env(safe-area-inset-bottom));background:#1c1f26;border-top:1px solid #2b2f38;
+    max-height:46%;overflow-y:auto;}
+  .row{display:flex;gap:6px;margin-bottom:7px;align-items:center;}
+  .row:last-child{margin-bottom:0;}
+  .lbl{font-size:10.5px;letter-spacing:1.2px;color:#8f95a1;width:44px;flex:0 0 44px;text-transform:uppercase;}
+  button{flex:1;background:#262a33;color:#e8eaef;border:1px solid #363b46;border-radius:9px;
+    padding:9px 3px;font-size:12.5px;font-weight:600;}
+  button.on{background:#ff7a1a;border-color:#ff7a1a;color:#fff;}
+  button:active{transform:scale(0.96);}
+  button.sm{flex:0 0 40px;}
+  input[type=range]{flex:1;accent-color:#ff7a1a;height:26px;}
+  #hdr{padding:8px 14px 2px;font-size:12px;letter-spacing:2px;color:#8f95a1;text-transform:uppercase;}
+  #hdr b{color:#ff9c4d;}
+  #vals{padding:0 14px 6px;font-size:10.5px;color:#8f95a1;font-variant-numeric:tabular-nums;line-height:1.5;}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="hdr"><b>TIPSY</b> · corner + robot lab · full rig, drive & scrub a real 90° turn</div>
+  <div id="vals">…</div>
+  <div id="game"></div>
+  <div id="panel">
+    <div class="row">
+      <button class="on" id="driveBtn">DRIVE</button>
+      <button id="scrubBtn">SCRUB</button>
+      <button id="dirBtn">TURN L</button>
+      <button id="ghostBtn">GHOST</button>
+      <button id="resetBtn">RESET</button>
+    </div>
+    <div class="row">
+      <span class="lbl">Scrub S</span>
+      <input type="range" id="scrubSlider" min="0" max="1000" value="0" step="1">
+    </div>
+    <div class="row">
+      <span class="lbl">Speed</span>
+      <input type="range" id="speedSlider" min="0" max="150" value="70" step="1">
+      <span class="lbl" style="width:34px;flex:0 0 34px" id="speedVal">.070</span>
+    </div>
+    <div class="row">
+      <span class="lbl">Lane</span>
+      <button class="sm" id="rowDown">−</button>
+      <button class="sm" id="rowUp">＋</button>
+      <span class="lbl" style="width:20px;flex:0 0 20px" id="rowVal">1</span>
+      <span class="lbl">Zoom</span>
+      <button class="sm" id="zoomOut">−</button>
+      <button class="sm" id="zoomIn">＋</button>
+      <span class="lbl">Step</span>
+      <button class="sm" id="stepBack">◀</button>
+      <button class="sm" id="stepFwd">▶</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/phaser@3.85.2/dist/phaser.min.js"></script>
+<script>
+"use strict";
+
+/* ============================================================
+   TIPSY — Corner + Robot Lab v1
+   Purpose: isolate the two things that need fixing together —
+   the robot's own drawing (hull box body, hull-ring wheels, lid,
+   visor) and the cornering geometry (the real fillet-arc corner
+   builder, CORNER_R, lane-offset banking) — in one bench with no
+   route generation, hazards, or gameplay state in the way.
+
+   Everything below the "ported verbatim" markers is lifted
+   directly from game/index.html: the projection pipeline
+   (T/R/W/P/depth), drawBox/drawLid/drawWheel (the convexHull
+   two-ring wheel construction that replaced the disc-slice
+   version — that one degenerated to a hairline at yaw ±45°,
+   exactly the angle every facing-snap turn sweeps through),
+   classifyAt + buildSidewalkGeometry (the single source of truth
+   for road vs sidewalk vs block), and the real corner-segment
+   builder + corner lean/tilt physics from drawRobot's simulation
+   block. Nothing here is a reconstruction.
+   ============================================================ */
+
+function convexHull(pts){
+  const P2 = pts.slice().sort((a,b) => a.x - b.x || a.y - b.y);
+  const cross = (o, a, b) => (a.x-o.x)*(b.y-o.y) - (a.y-o.y)*(b.x-o.x);
+  const lo = [], hi = [];
+  for(const p of P2){
+    while(lo.length >= 2 && cross(lo[lo.length-2], lo[lo.length-1], p) <= 0) lo.pop();
+    lo.push(p);
+  }
+  for(let i = P2.length-1; i >= 0; i--){
+    const p = P2[i];
+    while(hi.length >= 2 && cross(hi[hi.length-2], hi[hi.length-1], p) <= 0) hi.pop();
+    hi.push(p);
+  }
+  lo.pop(); hi.pop();
+  return lo.concat(hi);
+}
+
+/* ---------- ported verbatim: grid/geometry constants ---------- */
+const TILE = 46;
+const T2 = TILE*2;
+const DIRV = [{x:1,y:0},{x:0,y:1},{x:-1,y:0},{x:0,y:-1}];
+const BLOCK = 16*T2;                   // must exceed CORNER_R (below) with real margin —
+                                        // CORNER_R eats into each leg via trimS/trimE, and
+                                        // if a leg is shorter than CORNER_R the trimmed line
+                                        // segment comes out NEGATIVE length. segAt() then
+                                        // silently skips it (s <= s1 never true), so the
+                                        // "straight approach" and "straight exit" quietly
+                                        // vanish and the entire drivable s-range collapses
+                                        // into a slice of the arc's own s-window — which is
+                                        // exactly what caused the loop-reset teleport: the
+                                        // whole lap was secretly just the arc's middle third,
+                                        // snapping back to itself every reset instead of ever
+                                        // reaching a real straight leg. 16*T2 leaves a solid
+                                        // ~8-tile straight run on each side after the trim.
+const ROAD_HALF = 4*T2;
+const SIDEWALK_ROWS = 4;
+const SIDEWALK_W = SIDEWALK_ROWS*T2;
+const OVERSHOOT = ROAD_HALF;
+const CELL = TILE;
+const CORNER_R = ROAD_HALF + SIDEWALK_W;   // must exceed the widest lane offset — this is
+                                            // the exact invariant that broke cornering before
+const ROBOT_SIDE = -1;
+function laneOffset(lane){ return ROBOT_SIDE * (ROAD_HALF + (lane+0.5)*T2); }
+
+const PAL = { sky:0x9fd4e8, pave:0xc9c3b4, paveB:0xbfb9aa, paveEdge:0xa8a294, road:0x4a4d55, roadLine:0xd8d2c2 };
+const SKIN = {
+  bodyTop:0xf7f8fa, bodyRight:0xe3e6ea, bodyLeft:0xc9cdd4, outline:0x30343d,
+  stripe:0xc2452e, stripeDk:0xa03824,
+  wheel:0x24262c, wheelDark:0x1a1c21, wheelHubFace:0x3d424c, wheelHub:0x8a919c,
+  visor:0x22242b, eye:0x7fe3ff, eyeAlert:0xffb04d,
+  lidInner:0xb2b7bf, cavityWall:0x9ba1a9, cavityFloor:0x7b818a,
+  belly:0x494e58, flagPole:0x2e3138, flag:0xff5722, shadow:0x000000
+};
+const BODY = { hx:26, hy:20, z0:14, z1:54 };
+const LID  = { hx:22, hy:16, z0:54, z1:61 };
+const STRIPE = { z0:20, z1:27 };
+const WHEEL = { r:8, z:10, xs:[-16, 0, 16], side:22 };
+
+/* ---------- ported verbatim: classifyAt (single source of truth) ---------- */
+function classifyAt(edges, x, y){
+  let sidewalk = false;
+  for(const e of edges){
+    const dv = DIRV[e.f], rv = DIRV[(e.f+1)%4];
+    const relX = x - e.a.x, relY = y - e.a.y;
+    const along = relX*dv.x + relY*dv.y;
+    const perp  = relX*rv.x + relY*rv.y;
+    if(along >= -OVERSHOOT && along <= (e.len !== undefined ? e.len : BLOCK) + OVERSHOOT){
+      if(Math.abs(perp) <= ROAD_HALF) return "road";
+      if(Math.abs(perp) <= ROAD_HALF + SIDEWALK_W) sidewalk = true;
+    }
+  }
+  return sidewalk ? "sidewalk" : "block";
+}
+
+/* ---------- ported verbatim: buildSidewalkGeometry ---------- */
+function buildSidewalkGeometry(edges){
+  const runs = [];
+  for(const e of edges){
+    const dv = DIRV[e.f], rv = DIRV[(e.f+1)%4];
+    const len = e.len !== undefined ? e.len : BLOCK;
+    const safeLen = len - 2*OVERSHOOT;
+    if(safeLen > T2){
+      const nTiles = Math.floor(safeLen / T2);
+      for(const side of [-1, 1])
+        for(let t = 0; t < SIDEWALK_ROWS; t++){
+          const perp = side * (ROAD_HALF + (t+0.5)*T2);
+          for(let ai = 0; ai < nTiles; ai++){
+            const along = OVERSHOOT + (ai+0.5)*T2;
+            const x = e.a.x + dv.x*along + rv.x*perp;
+            const y = e.a.y + dv.y*along + rv.y*perp;
+            runs.push({ x, y, parity: (ai + t) % 2 });
+          }
+        }
+    }
+  }
+  const cornerCells = [], seen = new Set();
+  const perpSteps = Math.round(SIDEWALK_W / CELL);
+  for(const e of edges){
+    const dv = DIRV[e.f], rv = DIRV[(e.f+1)%4];
+    const len = e.len !== undefined ? e.len : BLOCK;
+    const alongSteps = Math.round((2*OVERSHOOT) / CELL);
+    for(const end of [0, 1]){
+      for(let ai = 0; ai <= alongSteps; ai++){
+        const along = end === 0 ? (-OVERSHOOT + ai*CELL) : (len - OVERSHOOT + ai*CELL);
+        for(const side of [-1, 1])
+        for(let pi = 0; pi < perpSteps; pi++){
+          const perp = side * (ROAD_HALF + (pi+0.5)*CELL);
+          const x = e.a.x + dv.x*along + rv.x*perp;
+          const y = e.a.y + dv.y*along + rv.y*perp;
+          const key = Math.round(x/CELL) + "," + Math.round(y/CELL);
+          if(seen.has(key)) continue;
+          seen.add(key);
+          if(classifyAt(edges, x, y) === "sidewalk"){
+            cornerCells.push({ x, y, parity: (Math.round(x/CELL) + Math.round(y/CELL)) % 2 });
+          }
+        }
+      }
+    }
+  }
+  return { runs, cornerCells };
+}
+
+/* ---------- ported verbatim: the corner-segment builder, lifted
+   straight out of buildWalk's per-leg loop, just fed a fixed
+   two-leg [in, out] description instead of a random walk. ---------- */
+function buildCorner(f0, turnSign){
+  const f1 = ((f0 + turnSign) % 4 + 4) % 4;
+  const legDescs = [{ f:f0, blocks:1 }, { f:f1, blocks:1 }];
+  const segs = [], edges = [];
+  let s = 0, p = { x:0, y:0 };
+  for(let i = 0; i < legDescs.length; i++){
+    const f = legDescs[i].f, d = DIRV[f], rv = DIRV[(f+1)%4];
+    const legLen = legDescs[i].blocks * BLOCK;
+    const trimS = i > 0 ? CORNER_R : 0;
+    const trimE = i < legDescs.length-1 ? CORNER_R : 0;
+    const lineLen = legLen - trimS - trimE;
+    segs.push({ type:"line", s0:s, s1:s+lineLen, f, hA:f*Math.PI/2,
+                start:{ x:p.x + d.x*trimS, y:p.y + d.y*trimS } });
+    s += lineLen;
+    const cornerP = { x:p.x + d.x*legLen, y:p.y + d.y*legLen };
+    edges.push({ a:p, b:cornerP, f, len:legLen });
+    if(i < legDescs.length-1){
+      const nextF = legDescs[i+1].f;
+      const sign = ((nextF - f + 4) % 4 === 1) ? 1 : -1;
+      const center = {
+        x: cornerP.x - d.x*CORNER_R + sign*rv.x*CORNER_R,
+        y: cornerP.y - d.y*CORNER_R + sign*rv.y*CORNER_R };
+      const startPt = { x:cornerP.x - d.x*CORNER_R, y:cornerP.y - d.y*CORNER_R };
+      const a0 = Math.atan2(startPt.y - center.y, startPt.x - center.x);
+      const arcLen = Math.PI/2 * CORNER_R;
+      segs.push({ type:"arc", s0:s, s1:s+arcLen, center, a0, sign,
+                  R:CORNER_R, hA:f*Math.PI/2, f });
+      s += arcLen;
+    }
+    p = cornerP;
+  }
+  return { segs, edges, totalLen: s };
+}
+
+class CornerRobotLab extends Phaser.Scene {
+  constructor(){ super("cornerlab"); }
+
+  create(){
+    this.K = 1.5;
+    this.f = 0;
+    this.roll = 0; this.pitch = 0; this.yaw = 0; this.drawAngle = 0;
+    this.tilt = 0; this.cornerLean = 0;
+    this.wheelPhase = 0;
+    this.tipDir = 1; this.lidAng = 0;
+    this.camX = 0; this.camY = 0; this.camZ = 0;
+    this.botRow = 1;
+    this.turnSign = 1;
+    this.driving = true;
+    this.speedDial = 0.070;         // units/ms, dial-controlled — no throttle/friction sim here
+    this.ghost = false;
+    this.ghosts = [];
+    this.lastGhostS = -9999;
+
+    this.g = this.add.graphics();
+    this.gGhost = this.add.graphics();
+
+    this.rebuildCorner();
+    this.botS = this.corner.segs[0].s0 + 40;   // start a little way into the approach leg
+    this.laneOff = laneOffset(this.botRow);
+
+    this.scale.on("resize", () => this.layout());
+    this.layout();
+    this.updateVals();
+  }
+
+  rebuildCorner(){
+    this.corner = buildCorner(0, this.turnSign);
+    this.sw = buildSidewalkGeometry(this.corner.edges);
+    if(this.botS === undefined) this.botS = 40;
+    this.botS = Phaser.Math.Clamp(this.botS, 0, this.corner.totalLen);
+    document.getElementById("scrubSlider").max = Math.floor(this.corner.totalLen);
+    this.ghosts = []; this.lastGhostS = -9999;
+  }
+
+  layout(){
+    this.cx = this.scale.gameSize.width/2;
+    this.cy = this.scale.gameSize.height*0.46;
+  }
+
+  segAt(s){
+    const segs = this.corner.segs;
+    for(const sg of segs) if(s <= sg.s1) return sg;
+    return segs[segs.length-1];
+  }
+  posAt(s){
+    const sg = this.segAt(s);
+    if(sg.type === "line"){
+      const d = DIRV[sg.f], u = Phaser.Math.Clamp(s, sg.s0, sg.s1) - sg.s0;
+      return { x: sg.start.x + d.x*u, y: sg.start.y + d.y*u };
+    }
+    const a = sg.a0 + sg.sign * (Phaser.Math.Clamp(s, sg.s0, sg.s1) - sg.s0) / sg.R;
+    return { x: sg.center.x + Math.cos(a)*sg.R, y: sg.center.y + Math.sin(a)*sg.R };
+  }
+  headingAt(s){
+    const sg = this.segAt(s);
+    if(sg.type === "line") return sg.hA;
+    return sg.hA + sg.sign * (Phaser.Math.Clamp(s, sg.s0, sg.s1) - sg.s0) / sg.R;
+  }
+
+  /* ---------- ported verbatim: projection pipeline ---------- */
+  T(x, y, z){
+    if(this.drawAngle !== 0){
+      const c = Math.cos(this.drawAngle), s = Math.sin(this.drawAngle);
+      const x2 = x*c - y*s; y = x*s + y*c; x = x2;
+    }
+    if(this.pitch !== 0){
+      const c = Math.cos(this.pitch), s = Math.sin(this.pitch);
+      const x2 = x*c - z*s; z = x*s + z*c; x = x2;
+    }
+    if(this.roll !== 0){
+      const PIV = this.roll >= 0 ? 22 : -22;
+      const y0 = y + PIV, c = Math.cos(this.roll), s = Math.sin(this.roll);
+      y = -PIV + y0*c - z*s; z = y0*s + z*c;
+    }
+    return { x, y, z };
+  }
+  R(nx, ny, nz){
+    if(this.drawAngle !== 0){
+      const cy = Math.cos(this.drawAngle), sy = Math.sin(this.drawAngle);
+      const nx2 = nx*cy - ny*sy; ny = nx*sy + ny*cy; nx = nx2;
+    }
+    if(this.pitch !== 0){
+      const c = Math.cos(this.pitch), s = Math.sin(this.pitch);
+      const x2 = nx*c - nz*s; nz = nx*s + nz*c; nx = x2;
+    }
+    const c = Math.cos(this.roll), s = Math.sin(this.roll);
+    const ny2 = ny*c - nz*s, nz2 = ny*s + nz*c;
+    return { x:nx, y:ny2, z:nz2 };
+  }
+  W(x, y, z){
+    const xr = x - this.camX, yr = y - this.camY;
+    return { x:(xr - yr)*this.K + this.cx,
+             y:((xr + yr)*0.5 - (z - this.camZ))*this.K + this.cy };
+  }
+  P(x, y, z){
+    const q = this.T(x, y, z);
+    return this.W(q.x + this.botX, q.y + this.botY, q.z + this.botZ);
+  }
+  depth(x, y, z){
+    const q = this.T(x, y, z);
+    return q.x + q.y + q.z*0.4;
+  }
+  quadOn(g, pts, color, alpha=1){
+    g.fillStyle(color, alpha);
+    g.fillPoints(pts.map(p => new Phaser.Geom.Point(p.x, p.y)), true);
+  }
+  edgeOn(g, pts, color=SKIN.outline, w=2){
+    g.lineStyle(w, color, 1);
+    g.strokePoints(pts.map(p => new Phaser.Geom.Point(p.x, p.y)), true);
+  }
+  quad(pts, color, alpha=1){ this.quadOn(this.g, pts, color, alpha); }
+  edge(pts, color=SKIN.outline, w=2){ this.edgeOn(this.g, pts, color, w); }
+
+  lidNear(b){
+    const hs = (this.tipDir || 1) >= 0 ? 1 : -1;
+    const A = this.lidAng * hs, c = Math.cos(A), s = Math.sin(A);
+    const yh = -b.hy * hs, zh = b.z0;
+    const dy = -yh, dz = (b.z1 - b.z0)/2;
+    return this.depth(0, yh + dy*c - dz*s, zh + dy*s + dz*c) > this.depth(0, 0, 34);
+  }
+  drawLid(b){
+    const {hx, hy, z0, z1} = b;
+    const hs = (this.tipDir || 1) >= 0 ? 1 : -1;
+    const A = this.lidAng * hs, cA = Math.cos(A), sA = Math.sin(A);
+    const yh = -hy * hs, zh = z0;
+    const H = (x, y, z) => {
+      const dy = y - yh, dz = z - zh;
+      return this.P(x, yh + dy*cA - dz*sA, zh + dy*sA + dz*cA);
+    };
+    const HN = (nx, ny, nz) => {
+      const ny2 = ny*cA - nz*sA, nz2 = ny*sA + nz*cA;
+      return this.R(nx, ny2, nz2);
+    };
+    const C = (sx, sy, sz) => H(sx*hx, sy*hy, sz === 1 ? z1 : z0);
+    const faces = [
+      { n:{x:0,y:0,z: 1}, pts:[C( 1,-1,1), C( 1, 1,1), C(-1, 1,1), C(-1,-1,1)] },
+      { n:{x:0,y:0,z:-1}, pts:[C( 1,-1,0), C( 1, 1,0), C(-1, 1,0), C(-1,-1,0)] },
+      { n:{x: 1,y:0,z:0}, pts:[C( 1,-1,0), C( 1, 1,0), C( 1, 1,1), C( 1,-1,1)] },
+      { n:{x:-1,y:0,z:0}, pts:[C(-1,-1,0), C(-1, 1,0), C(-1, 1,1), C(-1,-1,1)] },
+      { n:{x:0,y: 1,z:0}, pts:[C( 1, 1,0), C(-1, 1,0), C(-1, 1,1), C( 1, 1,1)] },
+      { n:{x:0,y:-1,z:0}, pts:[C( 1,-1,0), C(-1,-1,0), C(-1,-1,1), C( 1,-1,1)] }
+    ];
+    for(const fc of faces){
+      const w = HN(fc.n.x, fc.n.y, fc.n.z);
+      if((w.x + w.y + w.z) <= 0) continue;
+      const col = w.z > 0.5 ? SKIN.bodyTop
+                : w.z < -0.5 ? SKIN.lidInner
+                : (w.x >= w.y) ? SKIN.bodyRight : SKIN.bodyLeft;
+      this.quad(fc.pts, col);
+      this.edge(fc.pts);
+    }
+  }
+  drawBox(b, cTop, cRight, cLeft, outline=true, decal=false, cBottom=SKIN.belly){
+    const {hx, hy, z0, z1} = b, ox = b.ox || 0, oy = b.oy || 0;
+    const C = (sx, sy, sz) => this.P(ox + sx*hx, oy + sy*hy, sz === 1 ? z1 : z0);
+    const faces = [
+      { n:{x:0,y:0,z: 1}, pts:[C( 1,-1,1), C( 1, 1,1), C(-1, 1,1), C(-1,-1,1)] },
+      { n:{x:0,y:0,z:-1}, pts:[C( 1,-1,0), C( 1, 1,0), C(-1, 1,0), C(-1,-1,0)] },
+      { n:{x: 1,y:0,z:0}, pts:[C( 1,-1,0), C( 1, 1,0), C( 1, 1,1), C( 1,-1,1)] },
+      { n:{x:-1,y:0,z:0}, pts:[C(-1,-1,0), C(-1, 1,0), C(-1, 1,1), C(-1,-1,1)] },
+      { n:{x:0,y: 1,z:0}, pts:[C( 1, 1,0), C(-1, 1,0), C(-1, 1,1), C( 1, 1,1)] },
+      { n:{x:0,y:-1,z:0}, pts:[C( 1,-1,0), C(-1,-1,0), C(-1,-1,1), C( 1,-1,1)] }
+    ];
+    for(const fc of faces){
+      if(decal && fc.n.z !== 0) continue;
+      const w = this.R(fc.n.x, fc.n.y, fc.n.z);
+      if((w.x + w.y + w.z) <= 0) continue;
+      let col;
+      if(w.z > 0.5)       col = decal ? cRight : cTop;
+      else if(w.z < -0.5) col = decal ? null : cBottom;
+      else                col = (w.x >= w.y) ? cRight : cLeft;
+      if(col == null) continue;
+      this.quadOn(this.g, fc.pts, col);
+      if(outline) this.edgeOn(this.g, fc.pts);
+    }
+  }
+  /* the hull-ring wheel — replaces the old 6-stacked-flat-disc build,
+     which degenerated to a hairline exactly at yaw ±45°, i.e. exactly
+     the angle every facing-snap turn sweeps through. Two rings offset
+     along the width axis, hulled together, guarantee nonzero on-screen
+     width independent of the collapsing cos(yaw)-sin(yaw) term. */
+  disc(center, r, color, outlineC){
+    const pts = [];
+    for(let i=0; i<14; i++){
+      const a = (i/14)*Math.PI*2;
+      pts.push(this.P(center.x + Math.cos(a)*r, center.y, center.z + Math.sin(a)*r));
+    }
+    this.quadOn(this.g, pts, color);
+    if(outlineC !== undefined) this.edgeOn(this.g, pts, outlineC, 2);
+  }
+  drawWheel(c, sideSign){
+    const W2 = 7.5;
+    const ring = (oy, r) => {
+      const pts = [];
+      for(let i=0; i<14; i++){
+        const a = (i/14)*Math.PI*2;
+        pts.push(this.P(c.x + Math.cos(a)*r, oy, c.z + Math.sin(a)*r));
+      }
+      return pts;
+    };
+    const b0 = c.y - W2/2, b1 = c.y + W2/2;
+    this.quadOn(this.g, convexHull(ring(b0, WHEEL.r).concat(ring(b1, WHEEL.r))), SKIN.wheelDark);
+    const face = this.depth(c.x, b1, c.z) > this.depth(c.x, b0, c.z) ? b1 : b0;
+    const faceRing = ring(face, WHEEL.r);
+    this.quadOn(this.g, faceRing, SKIN.wheel);
+    this.edgeOn(this.g, faceRing, SKIN.outline, 2);
+    this.disc({x:c.x, y:face, z:c.z}, WHEEL.r*0.55, SKIN.wheelHubFace);
+    const a = this.wheelPhase + c.x*0.2;
+    this.disc({ x:c.x + Math.cos(a)*WHEEL.r*0.34, y:face,
+                z:c.z + Math.sin(a)*WHEEL.r*0.34 }, 2.4, SKIN.wheelHub);
+  }
+
+  /* ---------- full robot draw, ported from drawRobot (no hazards,
+     no lane hop, no cargo — just body + wheels + lid + visor,
+     driven by whatever this.botX/Y/Z/f/yaw/roll currently are) ---------- */
+  drawRobotFull(){
+    const g = this.g;
+    const sh = [];
+    for(let i=0;i<14;i++){
+      const a=(i/14)*Math.PI*2;
+      sh.push(this.P(Math.cos(a)*34, Math.sin(a)*30, 0.5));
+    }
+    this.quadOn(g, sh, SKIN.shadow, 0.16);
+
+    const wheels = [];
+    for(const side of [-1, 1]){
+      for(const wx of WHEEL.xs){
+        const c = {x:wx, y:side*WHEEL.side, z:WHEEL.z};
+        wheels.push({ c, side,
+          near: this.depth(c.x, c.y, c.z) > this.depth(c.x, -c.y, c.z),
+          d: this.depth(c.x, c.y, c.z) });
+      }
+    }
+    wheels.sort((a,b) => a.d - b.d);
+    for(const w of wheels) if(!w.near) this.drawWheel(w.c, w.side);
+
+    const lidBox = {...LID};
+    const lidIsNear = this.lidNear(lidBox);
+    if(!lidIsNear) this.drawLid(lidBox);
+
+    this.drawBox({hx:24, hy:17, z0:6, z1:BODY.z0+1}, 0x3f434c, 0x3a3d45, 0x2e3138, false);
+    this.drawBox({...BODY}, SKIN.bodyTop, SKIN.bodyRight, SKIN.bodyLeft);
+    this.drawBox({hx:BODY.hx+0.6, hy:BODY.hy+0.6, z0:STRIPE.z0, z1:STRIPE.z1},
+                 null, SKIN.stripe, SKIN.stripeDk, false, true);
+
+    if(lidIsNear) this.drawLid(lidBox);
+
+    const fn = this.R(1, 0, 0);
+    if(fn.x + fn.y + fn.z > 0.3){
+      const F = (y, z) => this.P(BODY.hx + 0.8, y, z);
+      this.quadOn(g, [F(-13,40), F(13,40), F(13,50), F(-13,50)], SKIN.visor);
+      this.edgeOn(g, [F(-13,40), F(13,40), F(13,50), F(-13,50)], SKIN.outline, 1.5);
+      const ec = (Math.abs(this.tilt) > 0.6) ? SKIN.eyeAlert : SKIN.eye;
+      for(const ey of [-7, 7]){
+        const c = F(ey, 45);
+        g.fillStyle(ec, 1);
+        g.fillEllipse(c.x, c.y, 7, 7);
+      }
+      this.quadOn(g, [F(-16,18), F(16,18), F(16,22), F(-16,22)], 0xfff3b0);
+    }
+    for(const w of wheels) if(w.near) this.drawWheel(w.c, w.side);
+  }
+
+  /* light ghost silhouette — body box outline + wheel-center dots —
+     for onion-skinning several frames through the arc at once, so a
+     wheel-slice or body-clip glitch at one specific yaw shows up as
+     a visible discontinuity across the stack instead of a single
+     frame you have to catch by eye mid-drive. */
+  drawGhost(snap){
+    const g = this.gGhost;
+    const saveX=this.botX, saveY=this.botY, saveZ=this.botZ, saveAngle=this.drawAngle, saveRoll=this.roll;
+    this.botX=snap.x; this.botY=snap.y; this.botZ=snap.z; this.drawAngle=snap.drawAngle; this.roll=snap.roll;
+    const C = (sx, sy, sz) => this.P(sx*BODY.hx, sy*BODY.hy, sz===1?BODY.z1:BODY.z0);
+    const pts = [C(1,-1,1), C(1,1,1), C(-1,1,1), C(-1,-1,1), C(1,-1,1)];
+    g.lineStyle(1.3, 0x6fe0ff, 0.55);
+    g.strokePoints(pts.map(p=>new Phaser.Geom.Point(p.x,p.y)), true);
+    for(const side of [-1,1]) for(const wx of WHEEL.xs){
+      const p = this.P(wx, side*WHEEL.side, WHEEL.z);
+      g.fillStyle(0x6fe0ff, 0.45);
+      g.fillCircle(p.x, p.y, 2.4);
+    }
+    this.botX=saveX; this.botY=saveY; this.botZ=saveZ; this.drawAngle=saveAngle; this.roll=saveRoll;
+  }
+
+  /* ---------- ground: road + sidewalk + curb + centerline,
+     ported verbatim from drawWorld ---------- */
+  drawGround(){
+    const g = this.g;
+    for(const edge of this.corner.edges){
+      const dv = DIRV[edge.f], rv = DIRV[(edge.f+1)%4];
+      const ax = edge.a.x - dv.x*OVERSHOOT, ay = edge.a.y - dv.y*OVERSHOOT;
+      const bx = edge.b.x + dv.x*OVERSHOOT, by = edge.b.y + dv.y*OVERSHOOT;
+      this.quadOn(g, [
+        this.W(ax - rv.x*ROAD_HALF, ay - rv.y*ROAD_HALF, 0),
+        this.W(bx - rv.x*ROAD_HALF, by - rv.y*ROAD_HALF, 0),
+        this.W(bx + rv.x*ROAD_HALF, by + rv.y*ROAD_HALF, 0),
+        this.W(ax + rv.x*ROAD_HALF, ay + rv.y*ROAD_HALF, 0)
+      ], PAL.road);
+    }
+    for(const rn of this.sw.runs){
+      const half = T2/2;
+      const pts = [
+        this.W(rn.x-half, rn.y-half, 0), this.W(rn.x+half, rn.y-half, 0),
+        this.W(rn.x+half, rn.y+half, 0), this.W(rn.x-half, rn.y+half, 0)
+      ];
+      this.quadOn(g, pts, rn.parity === 0 ? PAL.pave : PAL.paveB);
+      this.edgeOn(g, pts, PAL.paveEdge, 1);
+    }
+    for(const cell of this.sw.cornerCells){
+      const half = CELL/2;
+      const pts = [
+        this.W(cell.x-half, cell.y-half, 0), this.W(cell.x+half, cell.y-half, 0),
+        this.W(cell.x+half, cell.y+half, 0), this.W(cell.x-half, cell.y+half, 0)
+      ];
+      this.quadOn(g, pts, cell.parity === 0 ? PAL.pave : PAL.paveB);
+      this.edgeOn(g, pts, PAL.paveEdge, 1);
+    }
+    for(const edge of this.corner.edges){
+      const dv = DIRV[edge.f], rv = DIRV[(edge.f+1)%4];
+      const a0 = edge.a, b0 = edge.b;
+      const pts = [
+        this.W(a0.x - rv.x*4, a0.y - rv.y*4, 3),
+        this.W(b0.x - rv.x*4, b0.y - rv.y*4, 3),
+        this.W(b0.x + rv.x*4, b0.y + rv.y*4, 3),
+        this.W(a0.x + rv.x*4, a0.y + rv.y*4, 3)
+      ];
+      this.quadOn(g, pts, PAL.roadLine);
+    }
+    for(const edge of this.corner.edges){
+      const dv = DIRV[edge.f], rv = DIRV[(edge.f+1)%4];
+      const a0 = edge.a, b0 = edge.b;
+      const curbFace = offUnits => {
+        const ox = rv.x*offUnits, oy = rv.y*offUnits;
+        this.quadOn(g, [
+          this.W(a0.x+ox, a0.y+oy, 3),
+          this.W(b0.x+ox, b0.y+oy, 3),
+          this.W(b0.x+ox, b0.y+oy, -2),
+          this.W(a0.x+ox, a0.y+oy, -2)
+        ], PAL.paveEdge);
+      };
+      curbFace(-ROAD_HALF);
+      curbFace(ROAD_HALF);
+    }
+  }
+
+  updateVals(){
+    const sg = this.segAt(this.botS);
+    document.getElementById("vals").textContent =
+      `s ${this.botS.toFixed(0)}/${this.corner.totalLen.toFixed(0)} · seg ${sg.type}${sg.type==="arc" ? " sign"+(sg.sign>0?"+":"-") : ""} · `+
+      `f ${this.f} · yaw ${this.yaw.toFixed(3)} · tilt ${this.tilt.toFixed(3)} · lean ${this.cornerLean.toFixed(3)} · roll ${this.roll.toFixed(3)} · `+
+      `lane ${this.botRow} (off ${this.laneOff.toFixed(0)}) · CORNER_R ${CORNER_R} · turn ${this.turnSign>0?"L":"R"}`;
+  }
+
+  update(t, dt){
+    this.laneOff = laneOffset(this.botRow);
+
+    if(this.driving){
+      /* ground-speed correction: botS parameterizes the CENTERLINE arc
+         length, but the robot is drawn offset sideways by laneOff. On
+         an arc, the robot's actual traced radius is (R - seg.sign*laneOff)
+         — smaller when the lane sits toward the turn's inside (crawls),
+         larger toward the outside (speeds up) — a 5x-30x real-world
+         ground-speed difference between turn directions at a fixed lane,
+         purely from parameterizing by the wrong arc length. Scale botS's
+         advance by (R / effectiveR) so actual ground speed matches the
+         dial regardless of which way the lane sits relative to the curve. */
+      const seg0 = this.segAt(this.botS);
+      let stretch = 1;
+      if(seg0.type === "arc"){
+        const effR = seg0.R - seg0.sign*this.laneOff;
+        stretch = Phaser.Math.Clamp(effR / seg0.R, 0.05, 20);
+      }
+      this.botS += (this.speedDial/stretch) * dt;
+      if(this.botS >= this.corner.totalLen){
+        this.botS = 0; this.ghosts = []; this.lastGhostS = -9999;
+        this.drawAngle = this.headingAt(this.botS);   // position teleports on loop wrap —
+                                                        // rotation has to teleport with it,
+                                                        // not ease back from the old heading
+      }
+    }
+
+    /* ---------- ported verbatim: corner lean/tilt physics ---------- */
+    const seg = this.segAt(this.botS);
+    if(seg.type === "arc" && this.driving) this.tilt += seg.sign * this.speedDial * this.speedDial * 0.115 * dt;
+    const inside = seg.type === "arc"
+      ? Phaser.Math.Clamp(seg.sign * this.laneOff / (ROAD_HALF + SIDEWALK_W), 0, 1) : 0;
+    const leanTarget = seg.type === "arc"
+      ? seg.sign * Math.min(this.speedDial/0.15, 1) * 0.32 * inside : 0;
+    this.cornerLean = Phaser.Math.Linear(this.cornerLean, leanTarget, 0.07);
+    this.tilt -= this.tilt * 0.0021 * dt;
+    this.roll = Phaser.Math.Clamp(this.tilt, -1, 1) * 0.5 + this.cornerLean;
+
+    /* crack the lid open while cornering fast — matches the game */
+    const lidCrackTarget = (seg.type === "arc" && this.speedDial > 0.11) ? 0.4 : 0;
+    this.lidAng = Phaser.Math.Linear(this.lidAng, lidCrackTarget, 0.08);
+
+    /* ---------- ported verbatim: world pose from path ---------- */
+    const hdg = this.headingAt(this.botS);
+    const pp = this.posAt(this.botS);
+    const rvx = -Math.sin(hdg), rvy = Math.cos(hdg);
+    this.botX = pp.x + rvx*this.laneOff;
+    this.botY = pp.y + rvy*this.laneOff;
+    const fi = Math.round(hdg / (Math.PI/2));
+    this.f = ((fi % 4) + 4) % 4;
+    this.yaw = (hdg - fi*(Math.PI/2));   // kept for the HUD readout only, not used for drawing
+    /* the actual rendering rotation: ease this single continuous angle
+       directly toward the true heading. hdg itself never jumps — it's
+       a plain continuous function of botS — so there is no modular
+       reset left anywhere in the pipeline for drawAngle to snap across.
+       This replaces the earlier attempt (easing the residual "yaw"
+       while "f" still hard-snapped the quadrant), which produced a
+       mismatched, wobbly transition since the two were catching up on
+       different schedules. One eased value, one true target, done. */
+    /* unwrap: headingAt() can report the same physical direction with
+       a different numeric value depending which segment it's reading
+       from (the exit leg always computes f*90° in canonical [0,2pi),
+       while the arc feeding into it may have swept into negative
+       numbers) — at the facing-0-to-3 wrap specifically (this right
+       turn) those two representations land a full 2pi apart even
+       though they mean the same heading. The old discrete f+yaw system
+       was accidentally immune (recomputed fresh from hdg every frame);
+       drawAngle trusts the raw value, so bring the target to whichever
+       representation is closest to where drawAngle already is before
+       easing toward it, instead of chasing the raw 360° jump. */
+    let targetAngle = hdg;
+    while(targetAngle - this.drawAngle >  Math.PI) targetAngle -= Math.PI*2;
+    while(targetAngle - this.drawAngle < -Math.PI) targetAngle += Math.PI*2;
+    this.drawAngle = Phaser.Math.Linear(this.drawAngle, targetAngle, 0.12);
+    this.botZ = 2;
+    this.wheelPhase -= this.speedDial * dt * 0.28;
+
+    this.camX = Phaser.Math.Linear(this.camX, this.botX + Math.cos(hdg)*95, 0.08);
+    this.camY = Phaser.Math.Linear(this.camY, this.botY + Math.sin(hdg)*95, 0.06);
+    this.camZ = Phaser.Math.Linear(this.camZ, this.botZ, 0.08);
+
+    if(this.ghost && this.driving && Math.abs(this.botS - this.lastGhostS) > 26){
+      this.ghosts.push({ x:this.botX, y:this.botY, z:this.botZ, drawAngle:this.drawAngle, roll:this.roll });
+      if(this.ghosts.length > 14) this.ghosts.shift();
+      this.lastGhostS = this.botS;
+    }
+
+    this.g.clear();
+    this.gGhost.clear();
+    this.drawGround();
+    if(this.ghost) for(const snap of this.ghosts) this.drawGhost(snap);
+    this.drawRobotFull();
+
+    document.getElementById("scrubSlider").value = Math.floor(this.botS);
+    this.updateVals();
+  }
+}
+
+const config = {
+  type: Phaser.AUTO,
+  parent: "game",
+  backgroundColor: "#9fd4e8",
+  scale: { mode: Phaser.Scale.RESIZE, width: "100%", height: "100%" },
+  scene: [CornerRobotLab]
+};
+const game = new Phaser.Game(config);
+
+window.addEventListener("load", () => {
+  const scene = () => game.scene.keys.cornerlab;
+
+  const driveBtn = document.getElementById("driveBtn");
+  const scrubBtn = document.getElementById("scrubBtn");
+  driveBtn.onclick = () => {
+    const s = scene(); s.driving = true;
+    driveBtn.classList.add("on"); scrubBtn.classList.remove("on");
+  };
+  scrubBtn.onclick = () => {
+    const s = scene(); s.driving = false;
+    scrubBtn.classList.add("on"); driveBtn.classList.remove("on");
+  };
+
+  document.getElementById("scrubSlider").addEventListener("input", e => {
+    const s = scene(); if(!s) return;
+    s.driving = false;
+    driveBtn.classList.remove("on"); scrubBtn.classList.add("on");
+    s.botS = Phaser.Math.Clamp(parseFloat(e.target.value), 0, s.corner.totalLen);
+    s.drawAngle = s.headingAt(s.botS);
+  });
+
+  document.getElementById("speedSlider").addEventListener("input", e => {
+    const v = parseFloat(e.target.value)/1000;
+    const s = scene(); if(s) s.speedDial = v;
+    document.getElementById("speedVal").textContent = v.toFixed(3);
+  });
+
+  document.getElementById("dirBtn").onclick = () => {
+    const s = scene(); if(!s) return;
+    s.turnSign = -s.turnSign;
+    document.getElementById("dirBtn").textContent = s.turnSign > 0 ? "TURN L" : "TURN R";
+    s.rebuildCorner();
+    s.botS = s.corner.segs[0].s0 + 40;
+    s.drawAngle = s.headingAt(s.botS);
+  };
+
+  document.getElementById("ghostBtn").onclick = () => {
+    const s = scene(); if(!s) return;
+    s.ghost = !s.ghost;
+    document.getElementById("ghostBtn").classList.toggle("on", s.ghost);
+    if(!s.ghost) s.gGhost.clear();
+  };
+
+  document.getElementById("resetBtn").onclick = () => {
+    const s = scene(); if(!s) return;
+    s.botS = s.corner.segs[0].s0 + 40;
+    s.tilt = 0; s.cornerLean = 0; s.yaw = 0; s.drawAngle = s.headingAt(s.botS);
+    s.ghosts = []; s.lastGhostS = -9999;
+    s.driving = true; driveBtn.classList.add("on"); scrubBtn.classList.remove("on");
+  };
+
+  document.getElementById("rowUp").onclick = () => {
+    const s = scene(); if(!s) return;
+    s.botRow = Phaser.Math.Clamp(s.botRow+1, 0, 3);
+    document.getElementById("rowVal").textContent = s.botRow;
+  };
+  document.getElementById("rowDown").onclick = () => {
+    const s = scene(); if(!s) return;
+    s.botRow = Phaser.Math.Clamp(s.botRow-1, 0, 3);
+    document.getElementById("rowVal").textContent = s.botRow;
+  };
+
+  document.getElementById("zoomIn").onclick = () => { const s = scene(); if(s) s.K = Math.min(3.2, s.K+0.2); };
+  document.getElementById("zoomOut").onclick = () => { const s = scene(); if(s) s.K = Math.max(0.8, s.K-0.2); };
+
+  document.getElementById("stepFwd").onclick = () => {
+    const s = scene(); if(!s) return;
+    s.driving = false; driveBtn.classList.remove("on"); scrubBtn.classList.add("on");
+    s.botS = Phaser.Math.Clamp(s.botS + 8, 0, s.corner.totalLen);
+  };
+  document.getElementById("stepBack").onclick = () => {
+    const s = scene(); if(!s) return;
+    s.driving = false; driveBtn.classList.remove("on"); scrubBtn.classList.add("on");
+    s.botS = Phaser.Math.Clamp(s.botS - 8, 0, s.corner.totalLen);
+  };
+});
+</script>
+</body>
+</html>
