@@ -1,6 +1,6 @@
 # TIPSY — Design Document
 
-*Living doc. Update when decisions change. Last updated: 2026-07-08 (v8).*
+*Living doc. Update when decisions change. Last updated: 2026-07-10 (v9).*
 
 ## Concept
 
@@ -92,7 +92,10 @@ street-name pool. Roster lives in `game/index.html` (`HOODS`).
    feeds every other tilt source.
 5. **Rough pavement rumble** — constant noise scaled by speed × (1 − pave).
 
-Tilt spring-returns (decay 0.0021/ms). |tilt| ≥ 1 → tipped.
+Tilt spring-returns (decay 0.0021/ms). |tilt| ≥ 1 → tipped. Cornering-lean
+coefficient is 0.115 as of 2026-07-10 (was 0.08 — see "Cornering physics &
+rotation" below; the old value made full-speed cornering asymptote just
+under the tip threshold and never actually cross it).
 
 ## Win / lose / payout
 
@@ -127,6 +130,113 @@ insulated-liner interior, sagging flag, spill physics.
 
 **Known debt:** hand-managed draw order between parts. If layering bugs reappear,
 move to a single global depth-sorted face renderer.
+
+## Cornering physics & rotation (rewritten 2026-07-10)
+
+Built and dialed in `labs/corner-robot-lab.html` — a standalone bench with the
+verbatim robot rig and a real fillet-arc corner, isolated from route
+generation/hazards specifically so the rotation math could be scrubbed
+frame-by-frame. Four real bugs found this way, all ported into
+`game/index.html`:
+
+- **Cross-turn ground-speed asymmetry (fixed).** `botS` parameterizes the
+  route's CENTERLINE arc length, but the robot draws offset sideways by
+  `laneOff`. On an arc, the robot's actual traced radius is
+  `R − seg.sign*laneOff` — smaller toward the turn's inside (crawls), larger
+  toward the outside (speeds up). Measured up to a **30× real ground-speed
+  difference** between turn directions at a fixed lane before the fix, purely
+  from parameterizing motion by the wrong arc length. Fix: scale `botS`'s
+  per-frame advance by `R / effectiveR` (clamped 0.05–20) so real ground
+  speed matches the throttle-controlled speed regardless of which way the
+  lane sits relative to the curve.
+- **Rotation snap at every facing-quadrant boundary (fixed).** The robot's
+  draw orientation used to be `this.f` (a discrete 0–3 facing, swapped in
+  90° steps) plus `this.yaw` (a residual angle reset every time `f`
+  incremented). That reset is a real, unavoidable discontinuity in the raw
+  yaw number, and several downstream draw decisions were hard-thresholded on
+  continuous quantities that happened to cross zero at exactly that same
+  moment — a body panel's shading swatch and visibility, and which side's
+  wheels draw in front of vs. behind the chassis — all popping in a single
+  frame. Fix: replaced the `f`/`yaw` split entirely with one continuous
+  `drawAngle`, eased toward the true heading every frame
+  (`Phaser.Math.Linear(this.drawAngle, target, 0.12)`), with the target
+  angle **unwrapped** to the representation closest to the current
+  `drawAngle` first — `headingAt()` can report the same physical direction
+  a full 2π apart depending which route segment it reads from (the exit leg
+  of a turn computes heading as `f*90°` in canonical `[0, 2π)`, while the
+  arc feeding into it may have swept negative), and without unwrapping,
+  `drawAngle` chased that fake 360° jump instead of the real heading.
+  `this.f` is kept around for hazard/HUD logic only; nothing in the draw
+  pipeline uses it anymore.
+  - *Explored and reverted:* smoothing the hard-threshold draw decisions
+    directly (alpha-blend the shading/visibility crossings, cross-fade the
+    wheel draw order) fixed the pop as a standalone patch, but became
+    unnecessary once `drawAngle` removed the underlying discontinuity —
+    kept as *more* code for a benefit that's now imperceptible, so both were
+    reverted back to the original hard-threshold versions. One exception
+    surfaced during that work: alpha-blending the LID's draw order actively
+    made things worse, because unlike the body/wheel crossings (fast,
+    few-frame passes) the lid's near/far delta can *plateau* near zero for
+    hundreds of units during a sustained lean — both crossfade passes fire
+    for that whole stretch, and the far-layer copy gets fully painted over
+    by the body's opaque top face regardless of alpha, leaving only a
+    washed-out near-layer remainder visible. Lesson for any future crossfade
+    fix: check whether the underlying delta *crosses* quickly or *hovers*
+    before picking blend vs. clean binary.
+- **Cornering roll leaking into false forward pitch (fixed).** Local
+  vehicle-frame tilts (hop nose-steer yaw, hill pitch, cornering lean/roll)
+  have to apply BEFORE the heading rotation, not after — pitch/roll rotate
+  around the robot's own current axes, and the heading rotation then points
+  that already-tilted shape the right way on screen. The first pass at the
+  `drawAngle` rewrite applied heading first by mistake, which is fine at
+  the start/end of a turn (heading ≈ cardinal) but wrong mid-turn: roll's
+  banking axis gets rotated by however far into the turn the robot is,
+  bleeding cornering lean into an apparent nose-down/up tilt instead of a
+  clean left-right bank. Verified numerically in the lab: same 0.35 rad
+  roll, zero pitch — buggy order gave the body's front and back corners a
+  14-unit height difference (a fake pitch); corrected order gives exactly
+  0.00, with the full lean correctly concentrated left-right instead.
+- **Full-speed cornering couldn't tip (fixed).** The cornering-lean tilt
+  accumulator (`tilt += seg.sign * speed² * COEF * dt`) fights the stability
+  spring (`tilt -= tilt * 0.0021 * dt`) every frame — a stable equilibrium,
+  not a ramp, at `tilt_eq = speed² * COEF/0.0021`. At the old `COEF = 0.08`
+  and max speed 0.15, that equilibrium was **0.857** — mathematically
+  incapable of ever reaching the `|tilt| ≥ 1` tip threshold no matter how
+  long the corner, confirmed both algebraically and by driving real routes
+  at full throttle (peak measured: 0.854). Raised to `COEF = 0.115`
+  (equilibrium ≈ 1.23 at max speed) so sustained full-speed cornering now
+  genuinely tips, while moderate cornering speed (~0.10) stays well clear
+  (eq. ≈ 0.56) — only reckless full-speed turns are punished.
+
+Two smaller fixes landed alongside the above, found while driving the lab:
+- **Wheel spin direction.** `wheelPhase` was incrementing with forward
+  motion, which put the top of each wheel moving backward relative to
+  travel — physically backwards for rolling-without-slipping (the top
+  should move forward, the bottom backward, relative to the body). Flipped
+  to decrement instead.
+- **Flag anchor moved from the lid to the body.** Previously anchored
+  exactly at `LID.z1` with its base inside the lid's own footprint —
+  visually mounted on the lid. Moved to a body corner just outside the
+  lid's footprint (`LID` is `hx:22/hy:16`, `BODY` is `hx:26/hy:20`) so it
+  doesn't clash with the lid now cracking open mid-corner (see below).
+
+**New, unresolved by design:** the lid now cracks open partway
+(`lidAng` eases toward `0.4` rad) whenever cornering fast (`seg.type ===
+"arc" && speed > 0.11`), as a cornering-speed tell. Added as an experiment
+(hypothesis: changing the lid's geometry mid-turn would affect residual
+draw-order behavior around it); kept because it reads well, not because it
+was confirmed to fix anything specific.
+
+Predicted conflict with the cargo-spill lid-hinge animation on tip was
+confirmed during the same-day consistency pass: since tipping can now
+happen mid-corner (see the tip-threshold fix above), the lid can be
+mid-crack (`lidAng ≈ 0.4`) at the exact instant `state` flips to
+`"tipped"`. The tip animation's own target (`tipT > 0.5 ? 2.35 : 0`)
+overrides that with `0` until `tipT` crosses 0.5, so the lid briefly
+**closes** before swinging open — confirmed frame-by-frame
+(`0.396 → 0.362` right at the transition). A fix was drafted (clamp the
+tip animation's target to never go below the lid's current angle) but not
+yet applied to `game/index.html` — still open.
 
 ## Sidewalkend curb ramps (prototyped, not yet in game)
 
@@ -218,49 +328,50 @@ difference. The ramps assume a real 5-unit drop. Needs a decision: model
 real sidewalk elevation everywhere, or make the ramps a color/texture cue
 only with no actual height change.
 
-## Known architecture problem: road/sidewalk generation isn't coherent
+## Road/sidewalk architecture: unified (resolved)
 
-Flagged directly, not softened: **the road and sidewalk systems don't
-actually know about each other.** Building `sidewalkendTurn` surfaced this
-repeatedly rather than being a one-off bug. Concretely:
+Was flagged as a genuine architecture problem — the road, sidewalk, and
+traffic systems used to be independently-tuned pieces that happened to line
+up by hand, not because they referenced a shared layout. **Resolved**:
+verified against the current `game/index.html` that all of it now derives
+from one shared system.
 
-- **The road isn't one continuous thing.** It's assembled from separate,
-  independently-sized pieces — the near-sidewalk's parallel road, a
-  cross-street at the intersection, and the turn junction's own road —
-  each with its own width computed in isolation. They happen to sit next
-  to each other, not because they reference a shared layout, but because
-  their numbers were hand-tuned to line up. Change one and the others
-  don't know to follow.
-- **Sidewalks don't spawn tile-aligned by default.** The turn junction's
-  own grid-alignment bug (arc radius not a multiple of `T2`, silently
-  producing a fractional-offset tile grid) was only caught because it was
-  visually obvious. Nothing in the system *guarantees* alignment — it's
-  something each new piece has to get right by hand, and it's been gotten
-  wrong more than once this session.
-- **Roads and sidewalks aren't mutually aware.** Neither one is generated
-  with knowledge of where the other actually is; they're placed at
-  fixed offsets and trusted to match up. A real system would derive both
-  from one shared description of "here's the street," not compute a
-  sidewalk and a road as separate acts that happen to agree today.
-- **Traffic (`prop.car`/`prop.truck`) isn't road-aware either.** Cars spawn
-  along a fixed row (`row:3.0`) rather than referencing the road's actual
-  current width or lane structure — same disconnected-systems problem,
-  just in the prop layer instead of the tile layer. If road width ever
-  becomes dynamic (per the point above), traffic placement breaks
-  immediately since it isn't derived from the same source.
+- **`buildGrid(cols, rows)`** constructs a real planar graph — actual
+  intersection nodes (`nodeShape` classifies each as cross/t/straight/
+  corner/end), not independently-placed pieces that coincidentally sit next
+  to each other.
+- **`classifyAt(edges, x, y)`** is the single source of truth for
+  road-vs-sidewalk-vs-block at any point, read by tile rendering,
+  `buildSidewalkGeometry()`, and route generation alike — one function,
+  not three systems trusted to agree.
+- **Sidewalk tiles are generated by iterating the road's own `grid.edges`**
+  (`buildSidewalkGeometry`), not placed at an independently-computed offset
+  — alignment is guaranteed by construction instead of by hand-tuning.
+- **Traffic is road-derived**: `CAR_LANE = ROAD_HALF / 2`, not the old
+  fixed disconnected row (`row:3.0`). If `ROAD_HALF` ever changes, traffic
+  placement follows automatically.
+- **`CORNER_R = ROAD_HALF + SIDEWALK_W`** — the robot's turning radius
+  through an intersection is itself derived from the same road/sidewalk
+  constants, not a separately-tuned number (this is also the invariant
+  that had to hold for the cross-turn ground-speed fix above: `CORNER_R`
+  must exceed the widest lane offset or the offset math folds through the
+  arc's center).
 
-This isn't a quick fix — it's a genuine redesign: one shared road/sidewalk
-description that tile generation, ramp placement, AND traffic all read
-from, instead of three-plus independent systems that currently coincide
-by careful tuning. Worth a dedicated pass before building more junction
-types on top of the current foundation, since each new piece is currently
-paying the alignment tax by hand.
+Worth noting this is a different, narrower thing than the
+`prop.sidewalkendTurn` open question below (curb ramps at corners) — that's
+about whether the robot's own smooth fillet-arc path should ever cross a
+real street boundary at all, which is a route-construction decision, not a
+road/sidewalk-coherence one. Still open, unrelated to this fix.
 
 ## Reference docs
 
 - `docs/ASSETS.md` — canonical name for every art element (address art by these names).
 - `/live.html` — live asset gallery on Pages; drawn by the game's own code.
   **Rule: change an asset in the game → re-inject into live.html → push both together.**
+- `labs/corner-robot-lab.html` — standalone dial bench for the robot's own
+  drawing + cornering rotation/physics, isolated from route generation and
+  hazards. Drive/scrub controls, ghost onion-skinning for catching
+  frame-by-frame draw glitches, both turn directions, all four lanes.
 
 ## Roadmap (hackathon: July 15)
 
@@ -273,10 +384,11 @@ paying the alignment tax by hand.
    Redis leaderboard (time + cargo + payout).
 4. Share card — "I earned $31 in Scooter Row 🌯" + day's route.
 5. Stretch: order choice as difficulty select (flat pizza vs boba tray = CoM).
-6. Not scheduled, flagged for whenever junction work resumes: the road/
-   sidewalk coherence redesign — see "Known architecture problem" above.
-   Blocks porting `prop.sidewalkendTurn` cleanly and any future junction
-   type; not blocking the July 15 hackathon deadline itself.
+6. `prop.sidewalkendTurn` port is unblocked now that road/sidewalk
+   architecture is unified (see above) — the remaining open question is
+   the route-construction one in "Sidewalkend curb ramps" (whether/where
+   the robot's own fillet-arc path should cross a real street boundary),
+   not an architecture blocker. Not scheduled before July 15.
 
 ## History
 
@@ -286,3 +398,6 @@ paying the alignment tax by hand.
   Since then: per-prop labs for each new asset (car, sidewalkend,
   sidewalkendturn, etc.) — see `docs/ASSETS.md` and the `labs/` folder for
   the current full roster.
+- 2026-07-10: cornering physics + rotation rewrite (V29/V30) — see
+  "Cornering physics & rotation" above. New lab:
+  `labs/corner-robot-lab.html`.
