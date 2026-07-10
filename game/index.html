@@ -999,7 +999,12 @@ const BODY = { hx:26, hy:20, z0:14, z1:54 };
 const LID  = { hx:22, hy:16, z0:54, z1:61 };
 const STRIPE = { z0:20, z1:27 };
 const WHEEL = { r:8, z:10, xs:[-16, 0, 16], side:22 };
-const FLAG = { base:{x:-21, y:13}, z0:61, z1:104 };
+const FLAG = { base:{x:-25, y:17}, z0:54, z1:97 };  // anchored to the body's top edge, at a
+                                                      // corner outside the lid's footprint
+                                                      // (lid hx:22/hy:16 vs body hx:26/hy:20) —
+                                                      // was anchored to the lid (z0 matched
+                                                      // LID.z1 exactly, base x/y sat inside the
+                                                      // lid's own footprint)
 
 class WorldScene extends Phaser.Scene {
   constructor(){ super("world"); }
@@ -3320,11 +3325,11 @@ class WorldScene extends Phaser.Scene {
         _stretch = Phaser.Math.Clamp(_effR / _preSeg.R, 0.05, 20);
       }
       this.botS += (this.speed/_stretch) * dt;
-      this.wheelPhase += this.speed * dt * 0.28;
+      this.wheelPhase -= this.speed * dt * 0.28;
 
       /* corners: Tipsy turns himself — centrifugal lean (∝ v²) is YOUR problem */
       const seg = this.segAt(this.botS);
-      if(seg.type === "arc") this.tilt += seg.sign * this.speed * this.speed * 0.08 * dt;
+      if(seg.type === "arc") this.tilt += seg.sign * this.speed * this.speed * 0.115 * dt;
       /* visual banking: only the INSIDE lane lifts wheels; center + outside stay flat.
          The sidewalk band sits entirely on ONE side of the street now (not
          straddling the centerline like the old 3-lane system), which means
@@ -3341,6 +3346,12 @@ class WorldScene extends Phaser.Scene {
       const leanTarget = seg.type === "arc"
         ? seg.sign * Math.min(this.speed/0.15, 1) * 0.32 * inside : 0;
       this.cornerLean = Phaser.Math.Linear(this.cornerLean, leanTarget, 0.07);
+
+      /* experiment: crack the lid open while cornering fast — see if
+         changing the lid's geometry mid-turn affects the residual
+         draw-order behavior around it */
+      const lidCrackTarget = (seg.type === "arc" && this.speed > 0.11) ? 0.4 : 0;
+      this.lidAng = Phaser.Math.Linear(this.lidAng, lidCrackTarget, 0.08);
 
       /* lane maneuver: eased diagonal glide with nose steer */
       if(this.hopAnim && seg.type === "arc"){
