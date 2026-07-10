@@ -312,7 +312,7 @@ function dogSettledSpot(hz){
    prop.dog: a hit starts a flee run (same DUR/DIST curve), and once
    the flee finishes they settle and stand there for the rest of the
    route — re-armed if hit again. */
-const PEOPLE_ART = { walkStride: 8, shadow: 0x000000 };
+const PEOPLE_ART = { walkStride: 8, walkSpeed: 0.006, shadow: 0x000000 };
 const PEOPLE_BUILD = [
   { n:"a", legH:52, legW:10, hipW:16, torsoW:34, torsoD:19, torsoH:44, headR:14, armW:7, armLen:40, hairStyle:"short" },
   { n:"b", legH:52, legW:10, hipW:19, torsoW:28, torsoD:19, torsoH:44, headR:13, armW:7, armLen:40, hairStyle:"long"  }
@@ -1264,11 +1264,16 @@ class WorldScene extends Phaser.Scene {
     ], 0xc2452e);
 
     /* world.customer: the resident, using the exact same design as
-       prop.people via drawPersonHull(). No new mutable animation state —
-       walkT is a pure function of distance to the door (same philosophy
-       as dogSpotAt/peopleFleeAt), so it can't drift out of sync with
-       wherever the robot actually is. Seeded off the address so the
-       same house always gets the same person. */
+       prop.people via drawPersonHull(). Walk path pulled straight from
+       the door lab: dyStart=4, dyEnd=T2-8 (stops near the mat's
+       road-side edge, not out at the robot), same ease-out curve,
+       measured from the door anchor exactly like the lab's G(dx,dy,dz).
+       walkT itself is still a pure function of distance to the door
+       (no door-hinge to key off yet, since the live door is still the
+       flat billboard) — same philosophy as dogSpotAt/peopleFleeAt, so
+       it can't drift out of sync with wherever the robot actually is.
+       Seeded off the door position so the same house always gets the
+       same person. */
     const remain = r.doorS - this.botS;
     if(remain < 260 && remain > -400){
       const custSeed = ((Math.round(dp.x)*7919) ^ (Math.round(dp.y)*104729) ^ 0x4c75) >>> 0;
@@ -1282,12 +1287,13 @@ class WorldScene extends Phaser.Scene {
 
       const walkT = Phaser.Math.Clamp(1 - remain/220, 0, 1);
       if(walkT > 0.02){
-        const u = 1 - Math.pow(1 - walkT, 2);            // ease out as they arrive
-        const perp = Phaser.Math.Linear(-TILE-6, TILE*0.7, u);
-        const cx = dp.x + rv.x*perp, cy = dp.y + rv.y*perp;
+        const u = 1 - Math.pow(1 - walkT, 2);            // ease out as they arrive — door lab's curve
+        const dyStart = 4, dyEnd = T2 - 8;                // door lab's exact stop point: near the mat's edge
+        const dy = Phaser.Math.Linear(dyStart, dyEnd, u);
+        const cx = doorW.x + rv.x*dy, cy = doorW.y + rv.y*dy;
         const thW = Math.atan2(rv.y, rv.x);              // facing out toward the street/robot
         const moving = walkT < 0.97;
-        const walkPhase = moving ? Math.sin(t*0.012) : 0;
+        const walkPhase = moving ? Math.sin(t*PEOPLE_ART.walkSpeed) : 0;
         this.drawPersonHull(g, cx, cy, dz, thW, cBuild, cSkin, cShirt, cPants, cHair, cShoe, walkPhase, moving, 0);
       }
     }
@@ -2294,7 +2300,7 @@ class WorldScene extends Phaser.Scene {
       const thW = fdir*Math.PI/2 + spotTh;
       const ax = x + dv.x*spotA + rv.x*spotB, ay = y + dv.y*spotA + rv.y*spotB;
       const moving = !!flee && !settled;
-      const walkPhase = moving ? Math.sin(t*0.012) : 0;
+      const walkPhase = moving ? Math.sin(t*PEOPLE_ART.walkSpeed) : 0;
       const startleAlpha = (flee && flee.u < 0.4) ? 1 - flee.u/0.4 : 0;
 
       this.drawPersonHull(g, ax, ay, z, thW, build, pSkin, pShirt, pPants, pHair, pShoe, walkPhase, moving, startleAlpha);
