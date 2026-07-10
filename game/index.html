@@ -323,10 +323,30 @@ const PEOPLE_PANTS = [{c:0x3a4658,dk:0x2c3543},{c:0x2e2e2e,dk:0x1e1e1e},{c:0x6b4
 const PEOPLE_HAIR  = [0x3a2b20, 0x1a1a1a, 0x8a6a3a, 0xd4c088, 0xb03a2e, 0x6b6b6b];
 const PEOPLE_SHOE  = [{c:0x1c1c1c,dk:0x121212},{c:0x5c4530,dk:0x483623},{c:0xf2f0e8,dk:0xc4c2ba}];
 
-/* people don't wander like the dog — they stand still at their spawn
-   spot (local offset 0,0) until hit, so no spotAt() equivalent is
-   needed; only the post-hit flee curve moves them. Same DUR/DIST as
-   the dog, same contract: pure functions of (t, hz) / (hz). */
+/* people patrol their spawn tile exactly like the dog does — same
+   waypoint construction, same tile-local bounds (±30 along, ±26
+   across), same SEG timing — so they're actually walking the
+   sidewalk instead of standing frozen until hit. Pure function of
+   (t, seed): the sim's collision check and the renderer call the same
+   thing, so the hitbox always matches the art. */
+function peopleSpotAt(tms, seed){
+  const wp = i => {
+    const r = mulberry32((seed ^ Math.imul(i|0, 2654435761)) >>> 0);
+    return { a: -30 + r()*60, b: -26 + r()*52 };
+  };
+  const SEG = 2600;
+  const i = Math.floor(tms/SEG), u = (tms % SEG)/SEG;
+  const p0 = wp(i), p1 = wp(i+1);
+  const w = Math.min(u/0.62, 1), e = w*w*(3 - 2*w);
+  return {
+    a: p0.a + (p1.a - p0.a)*e,
+    b: p0.b + (p1.b - p0.b)*e,
+    th: Math.atan2(p1.b - p0.b, p1.a - p0.a),
+    walk: u < 0.62 ? Math.sin(Math.PI*w) : 0
+  };
+}
+/* the flee/settle curve — same DUR/DIST as the dog, same contract:
+   pure functions of (t, hz) / (hz). */
 function peopleFleeAt(tms, hz){
   if(!hz || hz.hitT === undefined) return null;
   const el = tms - hz.hitT;
@@ -339,8 +359,13 @@ function peopleFleeAt(tms, hz){
 }
 function peopleSettledSpot(hz){
   if(!hz || hz.hitT === undefined) return null;
-  const DIST = 250;
-  return { a:(hz.fleeA || 1)*DIST, b:-DIST*0.45, th:Math.atan2(-0.45, hz.fleeA || 1) };
+  const DUR = 2600, DIST = 250;
+  const base = peopleSpotAt(hz.hitT + DUR, hz.peopleSeed || 0);
+  return {
+    a: base.a + (hz.fleeA || 1) * DIST,
+    b: base.b - DIST * 0.45,
+    th: Math.atan2(-0.45, hz.fleeA || 1)
+  };
 }
 
 /* approved in bin lab: height 34 · base 11 · lid 13 · band 3 (standing) / 0 (knocked) */
@@ -2278,7 +2303,8 @@ class WorldScene extends Phaser.Scene {
     } else if(kind === "people"){
       /* ported from the customer lab (dial bench approved), now drawn
          via the shared drawPersonHull() so prop.people and
-         world.customer stay visually identical. Stands still until
+         world.customer stay visually identical. Patrols the spawn
+         tile via peopleSpotAt() — same construction as the dog — until
          hit; flee/settle use the dog's exact DUR/DIST curve. */
       const pseed = ((Math.round(x)*7919) ^ (Math.round(y)*104729) ^ 0x9c3a) >>> 0;
       const pSeed = (data && data.peopleSeed !== undefined) ? data.peopleSeed : pseed;
@@ -2290,16 +2316,17 @@ class WorldScene extends Phaser.Scene {
       const pHair = PEOPLE_HAIR[Math.floor(prng()*PEOPLE_HAIR.length)];
       const pShoe = PEOPLE_SHOE[Math.floor(prng()*PEOPLE_SHOE.length)];
 
+      const spot = peopleSpotAt(t, pSeed);
       const flee = peopleFleeAt(t, data);
       const settled = flee && flee.gone;
       const settledSpot = settled ? peopleSettledSpot(data) : null;
-      let spotA = 0, spotB = 0, spotTh = 0;
-      if(settled){ spotA = settledSpot.a; spotB = settledSpot.b; spotTh = settledSpot.th; }
-      else if(flee){ spotA = flee.da; spotB = flee.db; spotTh = Math.atan2(-0.45, (data.fleeA || 1)); }
+      let spotA = spot.a, spotB = spot.b, spotTh = spot.th, walkAmt = spot.walk;
+      if(settled){ spotA = settledSpot.a; spotB = settledSpot.b; spotTh = settledSpot.th; walkAmt = 0; }
+      else if(flee){ spotA += flee.da; spotB += flee.db; spotTh = Math.atan2(-0.45, (data.fleeA || 1)); walkAmt = 1; }
 
       const thW = fdir*Math.PI/2 + spotTh;
       const ax = x + dv.x*spotA + rv.x*spotB, ay = y + dv.y*spotA + rv.y*spotB;
-      const moving = !!flee && !settled;
+      const moving = walkAmt > 0.05;
       const walkPhase = moving ? Math.sin(t*PEOPLE_ART.walkSpeed) : 0;
       const startleAlpha = (flee && flee.u < 0.4) ? 1 - flee.u/0.4 : 0;
 
@@ -2989,16 +3016,20 @@ class WorldScene extends Phaser.Scene {
             dx -= dogSpotAt(t, hz.dogSeed || 0, hz.sit).a;
           }
         }
-        if(hz.type === "people" && hz.hitT !== undefined){
-          /* same contract as the dog: while actively fleeing, no
-             collision check; once settled, re-arm so they can be
-             startled again from wherever they ended up. Unlike the
-             dog they have no wander offset before being hit, so
-             there's nothing to subtract in that case. */
-          const flee = peopleFleeAt(t, hz);
-          if(flee && !flee.gone) continue;
-          hz.hit = false;
-          dx -= peopleSettledSpot(hz).a;
+        if(hz.type === "people"){
+          /* same contract as the dog: his hitbox moves with him. While
+             actively fleeing, no collision check; once settled, re-arm
+             so they can be startled again from wherever they landed.
+             Before ever being hit, track the same patrol wander the
+             renderer uses via peopleSpotAt(). */
+          if(hz.hitT !== undefined){
+            const flee = peopleFleeAt(t, hz);
+            if(flee && !flee.gone) continue;
+            hz.hit = false;
+            dx -= peopleSettledSpot(hz).a;
+          } else {
+            dx -= peopleSpotAt(t, hz.peopleSeed || 0).a;
+          }
         }
         if(hz.type === "palm"){
           /* a trunk is a wall: you stop, you do not pass */
@@ -3842,4 +3873,5 @@ document.getElementById("rerollBtn").addEventListener("click", e => {
 </script>
 </body>
 </html>
+
 
