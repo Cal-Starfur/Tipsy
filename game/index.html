@@ -1032,7 +1032,7 @@ class WorldScene extends Phaser.Scene {
     this.damage = 0;            // cargo damage %
     this.runT = 0;
     this.throttle = 0;          // -1 brake, 0 coast, 1 gas
-    this.tipT = 0; this.tipStartRoll = 0; this.lidAng = 0; this.items = []; this.spilled = false;
+    this.tipT = 0; this.tipStartRoll = 0; this.postSpillMs = 0; this.lidAng = 0; this.items = []; this.spilled = false;
     this.cornerLean = 0;
     this.corneringSpeedSmooth = 0;   // lagged speed feeding cornering lean —
                                       // see loadRoute() reset for the full note
@@ -1109,7 +1109,7 @@ class WorldScene extends Phaser.Scene {
     this.slide = null; this.slipYaw = 0;
     this.camX = this.botX; this.camY = this.botY; this.camZ = this.botZ;
     this.speed = 0; this.tilt = 0; this.damage = 0; this.runT = 0;
-    this.roll = 0; this.tipT = 0; this.tipStartRoll = 0; this.lidAng = 0; this.items = []; this.spilled = false;
+    this.roll = 0; this.tipT = 0; this.tipStartRoll = 0; this.postSpillMs = 0; this.lidAng = 0; this.items = []; this.spilled = false;
     this.slabZ = 0; this.slabRoll = 0;
     this.cornerLean = 0;
     this.corneringSpeedSmooth = 0;
@@ -3802,8 +3802,21 @@ class WorldScene extends Phaser.Scene {
     if(this.state !== "play") this.yaw = Phaser.Math.Linear(this.yaw, 0, 0.15);
     if(this.state === "tipped"){
       this.tipT = Phaser.Math.Linear(this.tipT, 1, 0.09);
-      this.lidAng = Phaser.Math.Linear(this.lidAng, Math.max(this.lidAng, this.tipT > 0.5 ? 1.78 : 0), 0.05);
       if(this.tipT > 0.55 && !this.spilled) this.spillCargo();
+      /* lid: pops open just enough to spill the cargo, holds briefly,
+         then flops back closed — not a dramatic full swing that stays
+         open. postSpillMs gates the close phase on real elapsed time
+         since the spill (tipT itself ramps through both thresholds too
+         fast to give the open pose any real hang time). Opening still
+         uses Math.max so a pre-tip cornering-crack doesn't snap closed
+         first; closing is a direct ease with no floor, so it actually
+         comes back down. */
+      if(this.spilled) this.postSpillMs = (this.postSpillMs || 0) + dt;
+      const closing = this.spilled && this.postSpillMs > 400;
+      const lidOpenTarget = this.tipT > 0.5 ? 0.9 : 0;
+      this.lidAng = closing
+        ? Phaser.Math.Linear(this.lidAng, 0, 0.05)
+        : Phaser.Math.Linear(this.lidAng, Math.max(this.lidAng, lidOpenTarget), 0.05);
       this.roll = Phaser.Math.Linear(this.tipStartRoll, this.tipDir * (Math.PI*0.5), this.tipT);
     } else {
       this.roll = Phaser.Math.Clamp(this.tilt, -1, 1) * 0.5 + this.cornerLean + (this.slabRoll || 0);
@@ -3949,9 +3962,9 @@ class WorldScene extends Phaser.Scene {
 
   /* depth of the lid's centre AFTER hinge rotation — decides draw order vs body */
   lidNear(b){
-    const hs = (this.tipDir || 1) >= 0 ? 1 : -1;
-    const A = this.lidAng * hs, c = Math.cos(A), s = Math.sin(A);
-    const yh = -b.hy * hs, zh = b.z0;
+    const A = this.lidAng, c = Math.cos(A), s = Math.sin(A);
+    const yh = -b.hy, zh = b.z0;   // fixed hinge edge — doesn't mirror with tip direction,
+                                     // it's a real mechanical hinge, not a mirror
     const dy = -yh, dz = (b.z1 - b.z0)/2;
     return this.depth(0, yh + dy*c - dz*s, zh + dy*s + dz*c) > this.depth(0, 0, 34);
   }
@@ -3966,9 +3979,9 @@ class WorldScene extends Phaser.Scene {
   /* the lid: a box on a hinge along its rear edge; swings open by this.lidAng */
   drawLid(b){
     const {hx, hy, z0, z1} = b;
-    const hs = (this.tipDir || 1) >= 0 ? 1 : -1; // hinge on the side that meets the ground
-    const A = this.lidAng * hs, cA = Math.cos(A), sA = Math.sin(A);
-    const yh = -hy * hs, zh = z0;                // hinge line
+    const A = this.lidAng, cA = Math.cos(A), sA = Math.sin(A);
+    const yh = -hy, zh = z0;                      // hinge line — fixed edge, doesn't
+                                                     // mirror with tip direction
     const H = (x, y, z) => {                     // hinge rotation, then normal pipeline
       const dy = y - yh, dz = z - zh;
       return this.P(x, yh + dy*cA - dz*sA, zh + dy*sA + dz*cA);
@@ -4009,15 +4022,19 @@ class WorldScene extends Phaser.Scene {
   /* ---------- spilled cargo ---------- */
   spillCargo(){
     this.spilled = true;
-    const hs = (this.tipDir || 1) >= 0 ? 1 : -1;
-    const mouth = this.rollPt(0, -LID.hy*hs, LID.z1 + 4);   // lid opening, mid-fall
+    const mouth = this.rollPt(0, LID.hy, LID.z1 + 4);   // lid opening, mid-fall — fixed
+                                                          // edge (opposite the now-fixed
+                                                          // hinge), not mirrored by tip
+                                                          // direction; rollPt() still
+                                                          // carries the tip-direction-
+                                                          // dependent world-space effect
     const spawn = (kind, size) => this.items.push({
       kind, size,
       x: mouth.x + (Math.random()-0.5)*10,
-      y: mouth.y - (4 + Math.random()*6)*hs,
+      y: mouth.y + (4 + Math.random()*6),
       z: mouth.z + Math.random()*4,
       vx: (Math.random()-0.5)*2.2,
-      vy: (-0.8 - Math.random()*1.4)*hs,
+      vy: (0.8 + Math.random()*1.4),
       vz: 0.5 + Math.random()*0.9,
       spin: (Math.random()-0.5)*0.3, ang: Math.random()*Math.PI,
       rest: false
