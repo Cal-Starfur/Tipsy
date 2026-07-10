@@ -1009,6 +1009,7 @@ class WorldScene extends Phaser.Scene {
     this.f = 0;
     this.roll = 0;
     this.pitch = 0;
+    this.drawAngle = 0;
     this.wheelPhase = 0;
     this.flagLean = 0;
     this.blinkT = 0;
@@ -1097,6 +1098,7 @@ class WorldScene extends Phaser.Scene {
     this.botX = sp.x + (-Math.sin(hdg0))*this.laneOff;
     this.botY = sp.y + Math.cos(hdg0)*this.laneOff;
     this.hopAnim = null; this.yaw = 0; this.hopYaw = 0; this.hopKick = 0;
+    this.drawAngle = hdg0;   // position teleports on route load — rotation teleports with it
     this.slide = null; this.slipYaw = 0;
     this.camX = this.botX; this.camY = this.botY; this.camZ = this.botZ;
     this.speed = 0; this.tilt = 0; this.damage = 0; this.runT = 0;
@@ -1153,7 +1155,7 @@ class WorldScene extends Phaser.Scene {
 
   /* ---------- projection: yaw, pitch, roll, then facing ---------- */
   T(x, y, z){
-    if(this.yaw !== 0){
+    if(this.yaw !== 0){   // small local perturbations only now (hop nose-dip, hazard slip)
       const c = Math.cos(this.yaw), s = Math.sin(this.yaw);
       const x2 = x*c - y*s; y = x*s + y*c; x = x2;
     }
@@ -1166,9 +1168,14 @@ class WorldScene extends Phaser.Scene {
       const y0 = y + PIV, c = Math.cos(this.roll), s = Math.sin(this.roll);
       y = -PIV + y0*c - z*s; z = y0*s + z*c;
     }
-    let rx = x, ry = y;
-    for(let i=0; i<this.f; i++){ const t = rx; rx = -ry; ry = t; }
-    return { x:rx, y:ry, z };
+    /* heading rotation LAST — points the already-tilted local shape the
+       right way on screen, same role the discrete facing-swap used to
+       play (also last), just continuous now instead of 90°-snapped. */
+    if(this.drawAngle !== 0){
+      const c = Math.cos(this.drawAngle), s = Math.sin(this.drawAngle);
+      const x2 = x*c - y*s; y = x*s + y*c; x = x2;
+    }
+    return { x, y, z };
   }
   R(nx, ny, nz){
     if(this.yaw !== 0){
@@ -1182,7 +1189,10 @@ class WorldScene extends Phaser.Scene {
     const c = Math.cos(this.roll), s = Math.sin(this.roll);
     const ny2 = ny*c - nz*s, nz2 = ny*s + nz*c;
     let rx = nx, ry = ny2;
-    for(let i=0; i<this.f; i++){ const t = rx; rx = -ry; ry = t; }
+    if(this.drawAngle !== 0){
+      const cy = Math.cos(this.drawAngle), sy = Math.sin(this.drawAngle);
+      const rx2 = rx*cy - ry*sy; ry = rx*sy + ry*cy; rx = rx2;
+    }
     return { x:rx, y:ry, z:nz2 };
   }
   /* world-space projection (camera tracks the bot on both iso axes + height) */
@@ -3293,7 +3303,23 @@ class WorldScene extends Phaser.Scene {
       this.speed -= slope * 0.00030 * dt;                 // gravity
       this.speed -= this.speed * 0.0009 * dt;             // rolling friction
       this.speed = Phaser.Math.Clamp(this.speed, 0, 0.15);
-      this.botS += this.speed * dt;
+      /* ground-speed correction (ported from the corner+robot lab): botS
+         parameterizes the CENTERLINE arc length, but the robot draws
+         offset sideways by laneOff. On an arc, the robot's actual traced
+         radius is (R - seg.sign*laneOff) — smaller toward the turn's
+         inside (crawls), larger toward the outside (speeds up) — a
+         5x-30x real ground-speed difference between turn directions at a
+         fixed lane, purely from parameterizing by the wrong arc length.
+         Scale botS's advance by (R / effectiveR) so actual ground speed
+         matches the throttle-controlled speed regardless of which way
+         the lane sits relative to the curve. */
+      const _preSeg = this.segAt(this.botS);
+      let _stretch = 1;
+      if(_preSeg.type === "arc"){
+        const _effR = _preSeg.R - _preSeg.sign*this.laneOff;
+        _stretch = Phaser.Math.Clamp(_effR / _preSeg.R, 0.05, 20);
+      }
+      this.botS += (this.speed/_stretch) * dt;
       this.wheelPhase += this.speed * dt * 0.28;
 
       /* corners: Tipsy turns himself — centrifugal lean (∝ v²) is YOUR problem */
@@ -3745,15 +3771,28 @@ class WorldScene extends Phaser.Scene {
     }
     this.simItems(dt);
 
-    /* world pose from the path: position + lane, facing snapped + residual yaw */
+    /* world pose from the path: position + lane, eased continuous heading */
     const hdg = this.headingAt(this.botS);
     const pp = this.posAt(this.botS);
     const rvx = -Math.sin(hdg), rvy = Math.cos(hdg);       // right of travel
     this.botX = pp.x + rvx*this.laneOff;
     this.botY = pp.y + rvy*this.laneOff;
     const fi = Math.round(hdg / (Math.PI/2));
-    this.f = ((fi % 4) + 4) % 4;
-    this.yaw = (hdg - fi*(Math.PI/2)) + this.hopYaw + (this.slipYaw || 0);
+    this.f = ((fi % 4) + 4) % 4;   // kept for hazard/HUD logic only — not used for drawing anymore
+    /* unwrap: headingAt() can report the same physical direction with a
+       different numeric value depending which segment it's reading from
+       (an exit leg computes its heading as f*90° in canonical [0,2pi),
+       while the arc feeding into it may have swept into negative
+       numbers) — at certain facing wraps those two representations land
+       a full 2pi apart even though they mean the same heading. Bring the
+       target to whichever representation is closest to where drawAngle
+       already is before easing toward it, instead of chasing a fake
+       360° jump. (Full derivation + verification: corner+robot lab.) */
+    let _targetAngle = hdg;
+    while(_targetAngle - this.drawAngle >  Math.PI) _targetAngle -= Math.PI*2;
+    while(_targetAngle - this.drawAngle < -Math.PI) _targetAngle += Math.PI*2;
+    this.drawAngle = Phaser.Math.Linear(this.drawAngle, _targetAngle, 0.12);
+    this.yaw = this.hopYaw + (this.slipYaw || 0);
 
     /* stuck jitter rattles the whole body */
     if(this.stuckAmt > 0.05){
