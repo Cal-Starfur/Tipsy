@@ -3803,20 +3803,23 @@ class WorldScene extends Phaser.Scene {
     if(this.state === "tipped"){
       this.tipT = Phaser.Math.Linear(this.tipT, 1, 0.09);
       if(this.tipT > 0.55 && !this.spilled) this.spillCargo();
-      /* lid: pops open just enough to spill the cargo, holds briefly,
-         then flops back closed — not a dramatic full swing that stays
-         open. postSpillMs gates the close phase on real elapsed time
-         since the spill (tipT itself ramps through both thresholds too
-         fast to give the open pose any real hang time). Opening still
-         uses Math.max so a pre-tip cornering-crack doesn't snap closed
-         first; closing is a direct ease with no floor, so it actually
-         comes back down. */
-      if(this.spilled) this.postSpillMs = (this.postSpillMs || 0) + dt;
-      const closing = this.spilled && this.postSpillMs > 400;
-      const lidOpenTarget = this.tipT > 0.5 ? 0.9 : 0;
-      this.lidAng = closing
-        ? Phaser.Math.Linear(this.lidAng, 0, 0.05)
-        : Phaser.Math.Linear(this.lidAng, Math.max(this.lidAng, lidOpenTarget), 0.05);
+      /* lid behavior genuinely differs by tip direction now that the
+         hinge is a fixed edge (not mirrored) — gravity swings it back
+         shut on one side, holds it open on the other. This is NOT the
+         same animation mirrored, it's two different physical outcomes.
+         tipDir<0: pops open to spill, holds ~400ms, flops back closed.
+         tipDir>=0: opens and stays open (original behavior). Confirmed
+         in-game 2026-07-10 — first guess had this backwards. */
+      if(this.tipDir < 0){
+        if(this.spilled) this.postSpillMs = (this.postSpillMs || 0) + dt;
+        const closing = this.spilled && this.postSpillMs > 400;
+        const lidOpenTarget = this.tipT > 0.5 ? 0.9 : 0;
+        this.lidAng = closing
+          ? Phaser.Math.Linear(this.lidAng, 0, 0.05)
+          : Phaser.Math.Linear(this.lidAng, Math.max(this.lidAng, lidOpenTarget), 0.05);
+      } else {
+        this.lidAng = Phaser.Math.Linear(this.lidAng, Math.max(this.lidAng, this.tipT > 0.5 ? 1.78 : 0), 0.05);
+      }
       this.roll = Phaser.Math.Linear(this.tipStartRoll, this.tipDir * (Math.PI*0.5), this.tipT);
     } else {
       this.roll = Phaser.Math.Clamp(this.tilt, -1, 1) * 0.5 + this.cornerLean + (this.slabRoll || 0);
@@ -4211,7 +4214,7 @@ class WorldScene extends Phaser.Scene {
   drawFlag(bobZ){
     const g = this.g;
     const L = FLAG.z1 - FLAG.z0;
-    const bend = this.flagLean*0.5 + this.tipT*1.5;
+    const bend = this.flagLean*0.5 + this.tipT*0.7;
     const seg = 6, pts = [];
     for(let i=0; i<=seg; i++){
       const s = i/seg, a = bend*s;
