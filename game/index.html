@@ -487,6 +487,46 @@ const ROBOT_SIDE = -1;       // the walk stays on ONE side's sidewalk band —
 function laneOffset(lane){ return ROBOT_SIDE * (ROAD_HALF + (lane+0.5)*T2); }
 function farLaneOffset(lane){ return -ROBOT_SIDE * (ROAD_HALF + (lane+0.5)*T2); } // opposite sidewalk — decoration only, never robot-reachable
 const ROBOT_ROW = laneOffset(1.5);       // default sidewalk lane, in raw world units (not T2-multiplied)
+
+/* ---- door lab port: exact lane math for where the door/mat/house sit ---- */
+const MAT_PERP  = laneOffset(3);               // center of lane 3, the last real sidewalk row
+const DOOR_PERP = -(ROAD_HALF + SIDEWALK_W);   // outer edge of lane 3 / where lane 4 would start
+const DOOR_ALONG = T2/2;   // sidewalk tiles are centered at odd multiples of T2/2, never at along=0 —
+                            // door/mat/house column has to sit on T2/2 to land on a real tile center
+
+/* hull door: frame + slab + 2 panels + knob, hinge-open on theta.
+   Ported verbatim from the door lab (dial bench approved). */
+const DOOR_ART = {
+  w: T2, h: T2*2,
+  panelInset: 8,
+  panelTopFrom: 0.46, panelTopTo: 0.90,
+  panelBotFrom: 0.10, panelBotTo: 0.38,
+  knobR: 2.8, knobDX: 30, knobDZ: 84,
+  openAngle: Math.PI/2, openEase: 0.09,
+  frame: 0x4a2f20, frameLt: 0x5c3c28, frameDk: 0x3a2417,
+  slab: 0x6b4530, slabLt: 0x7c5238, slabDk: 0x5a3a28,
+  groove: 0x3f2a1c,
+  knob: 0xd8b23a, knobDk: 0xa5842a, knobHi: 0xf6e29a, plate: 0x241a10,
+  step: 0x9d9687, stepDk: 0x847d70,
+  shadow: 0x000000
+};
+const MAT_ART = { red: 0xc2452e, redDk: 0x8f331f, border: 0x6e2718, fiber: 0xa8391f };
+
+/* house facade: green center house (with the door) + two flanking
+   neighbors, dark blue left / tan right. Ported verbatim from the
+   door lab. */
+const HOUSE_ART = {
+  spanTiles: 5, winCount: 2, h: 220, baseH: 30,
+  wall: 0x4e7a52, wallDk: 0x3e6244, wallLt: 0x5c8a60, trim: 0x2f4a32,
+  winFrame: 0xf4efe2, winFrameDk: 0xd8d0bd,
+  winGlass: 0x6b93a8, winGlassLt: 0x86adc0,
+  winW: DOOR_ART.w - DOOR_ART.panelInset*2,
+  winZ0: DOOR_ART.h*DOOR_ART.panelTopFrom, winZ1: DOOR_ART.h*DOOR_ART.panelTopTo,
+  winSillH: 4
+};
+const NEIGHBOR_L_ART = { spanTiles: 4, winCount: 2, h: 200, baseH: 26, wall: 0x2e4d68, wallDk: 0x22394e, trim: 0x1a2a3a };
+const NEIGHBOR_R_ART = { spanTiles: 4, winCount: 2, h: 205, baseH: 26, wall: 0xc9a56e, wallDk: 0xa8875a, trim: 0x7a6040 };
+
 const CAR_LANE = ROAD_HALF / 2;          // each traffic direction's lane, inside ROAD_HALF
 const SPAWN_S = 60;
 
@@ -1032,6 +1072,7 @@ class WorldScene extends Phaser.Scene {
     this.slabZ = 0; this.slabRoll = 0;
     this.cornerLean = 0;
     this.stuckAmt = 0; this.isBlocked = false;
+    this.doorTheta = 0;   // hull door hinge angle — opens once this.state becomes "won"
     this.state = "idle";
     document.getElementById("blurb").textContent =
       `${this.route.dateStr} · ${this.route.hood.n} · ${this.route.address} · tips ×${this.route.tipMult}`;
@@ -1268,62 +1309,51 @@ class WorldScene extends Phaser.Scene {
       if(near(wp.x, wp.y)) this.drawProp(layerFor(wp.x, wp.y), hz.type, wp.x, wp.y, t, hz.f, wp.z, null, null, hz);
     }
 
-    /* the address: door, delivery mat, floating label — oriented by the
-       real tangent at the door, not the last segment's raw facing (which
-       could be wrong if the route happens to end inside an arc). */
-    const doorHdg = this.headingAt(r.doorS);
-    const dv = { x:Math.cos(doorHdg), y:Math.sin(doorHdg) };
-    const rv = { x:-Math.sin(doorHdg), y:Math.cos(doorHdg) };
+    /* the address: door, delivery mat, house, floating label — grid-
+       quantized facing (same DIRV convention every hull prop uses) so
+       the door/mat/house always read correctly under the fixed iso
+       camera. Ported from the door lab: real street geometry the mat/
+       door already sit in, DOOR_ALONG tile-snapping, hull door with a
+       working hinge, and a green house + two flanking neighbors where
+       there used to be bare sky. */
+    const doorHdgRaw = this.headingAt(r.doorS);
+    const fdir = ((Math.round(doorHdgRaw / (Math.PI/2)) % 4) + 4) % 4;
+    const dv = DIRV[fdir], rv = DIRV[(fdir+1)%4];
     const dp = this.posAt(r.doorS), dz = this.groundZ(r.doorS);
-    const doorW = { x: dp.x + rv.x*(-TILE-6), y: dp.y + rv.y*(-TILE-6) };
-    const door = this.W(doorW.x, doorW.y, dz);
-    g.fillStyle(0x5a3d2b, 1);
-    g.fillRect(door.x-22, door.y-96, 44, 96);
-    g.fillStyle(0xd8b23a, 1);
-    g.fillCircle(door.x+12, door.y-46, 4);
-    this.quadOn(g, [
-      this.W(dp.x - dv.x*34 - rv.x*8,        dp.y - dv.y*34 - rv.y*8,        dz+0.6),
-      this.W(dp.x + dv.x*34 - rv.x*8,        dp.y + dv.y*34 - rv.y*8,        dz+0.6),
-      this.W(dp.x + dv.x*34 + rv.x*(TILE+18), dp.y + dv.y*34 + rv.y*(TILE+18), dz+0.6),
-      this.W(dp.x - dv.x*34 + rv.x*(TILE+18), dp.y - dv.y*34 + rv.y*(TILE+18), dz+0.6)
-    ], 0xc2452e);
+    const ec = { x: dp.x - rv.x*ROBOT_ROW, y: dp.y - rv.y*ROBOT_ROW };
+    const doorW = { x: ec.x + dv.x*DOOR_ALONG + rv.x*DOOR_PERP, y: ec.y + dv.y*DOOR_ALONG + rv.y*DOOR_PERP };
 
-    /* world.customer: the resident, using the exact same design as
-       prop.people via drawPersonHull(). Walk path pulled straight from
-       the door lab: dyStart=4, dyEnd=T2-8 (stops near the mat's
-       road-side edge, not out at the robot), same ease-out curve,
-       measured from the door anchor exactly like the lab's G(dx,dy,dz).
-       walkT itself is still a pure function of distance to the door
-       (no door-hinge to key off yet, since the live door is still the
-       flat billboard) — same philosophy as dogSpotAt/peopleFleeAt, so
-       it can't drift out of sync with wherever the robot actually is.
-       Seeded off the door position so the same house always gets the
-       same person. */
-    const remain = r.doorS - this.botS;
-    if(remain < 260 && remain > -400){
-      const custSeed = ((Math.round(dp.x)*7919) ^ (Math.round(dp.y)*104729) ^ 0x4c75) >>> 0;
-      const crng = mulberry32(custSeed);
-      const cBuild = PEOPLE_BUILD[crng() < 0.5 ? 0 : 1];
-      const cSkin = PEOPLE_SKIN[Math.floor(crng()*PEOPLE_SKIN.length)];
-      const cShirt = PEOPLE_SHIRT[Math.floor(crng()*PEOPLE_SHIRT.length)];
-      const cPants = PEOPLE_PANTS[Math.floor(crng()*PEOPLE_PANTS.length)];
-      const cHair = PEOPLE_HAIR[Math.floor(crng()*PEOPLE_HAIR.length)];
-      const cShoe = PEOPLE_SHOE[Math.floor(crng()*PEOPLE_SHOE.length)];
+    this.drawHouseFacade(g, dp, dz, dv, rv);
+    this.drawMatQuad(g, dp, dz, dv, rv);
+    this.drawDoorAssembly(g, dp, dz, dv, rv, this.doorTheta);
 
-      const walkT = Phaser.Math.Clamp(1 - remain/220, 0, 1);
-      if(walkT > 0.02){
-        const u = 1 - Math.pow(1 - walkT, 2);            // ease out as they arrive — door lab's curve
-        const dyStart = 4, dyEnd = T2 - 8;                // door lab's exact stop point: near the mat's edge
-        const dy = Phaser.Math.Linear(dyStart, dyEnd, u);
-        const cx = doorW.x + rv.x*dy, cy = doorW.y + rv.y*dy;
-        const thW = Math.atan2(rv.y, rv.x);              // facing out toward the street/robot
-        const moving = walkT < 0.97;
-        const walkPhase = moving ? Math.sin(t*PEOPLE_ART.walkSpeed) : 0;
-        this.drawPersonHull(g, cx, cy, dz, thW, cBuild, cSkin, cShirt, cPants, cHair, cShoe, walkPhase, moving, 0);
-      }
+    /* world.customer: same design as prop.people via drawPersonHull().
+       Walk path from the door lab: dyStart=4, dyEnd=T2-8 (stops near
+       the mat's road-side edge). Trigger is now the door's own hinge
+       angle — same as the lab originally intended — instead of the
+       distance-based stand-in used before the door had a real hinge. */
+    const custSeed = ((Math.round(dp.x)*7919) ^ (Math.round(dp.y)*104729) ^ 0x4c75) >>> 0;
+    const crng = mulberry32(custSeed);
+    const cBuild = PEOPLE_BUILD[crng() < 0.5 ? 0 : 1];
+    const cSkin = PEOPLE_SKIN[Math.floor(crng()*PEOPLE_SKIN.length)];
+    const cShirt = PEOPLE_SHIRT[Math.floor(crng()*PEOPLE_SHIRT.length)];
+    const cPants = PEOPLE_PANTS[Math.floor(crng()*PEOPLE_PANTS.length)];
+    const cHair = PEOPLE_HAIR[Math.floor(crng()*PEOPLE_HAIR.length)];
+    const cShoe = PEOPLE_SHOE[Math.floor(crng()*PEOPLE_SHOE.length)];
+    const walkT = Phaser.Math.Clamp(this.doorTheta / DOOR_ART.openAngle, 0, 1);
+    if(walkT > 0.02){
+      const u = 1 - Math.pow(1 - walkT, 2);
+      const dyStart = 4, dyEnd = T2 - 8;
+      const dy = Phaser.Math.Linear(dyStart, dyEnd, u);
+      const cx = doorW.x + rv.x*dy, cy = doorW.y + rv.y*dy;
+      const thW = Math.atan2(rv.y, rv.x);
+      const moving = walkT < 0.97;
+      const walkPhase = moving ? Math.sin(t*PEOPLE_ART.walkSpeed) : 0;
+      this.drawPersonHull(g, cx, cy, dz, thW, cBuild, cSkin, cShirt, cPants, cHair, cShoe, walkPhase, moving, 0);
     }
 
-    this.addrText.setPosition(door.x, door.y - 128 + Math.sin(t*0.003)*5);
+    const doorScreen = this.W(doorW.x, doorW.y, dz);
+    this.addrText.setPosition(doorScreen.x, doorScreen.y - 128 + Math.sin(t*0.003)*5);
     this.addrText.setText(this.route.address);
   }
 
@@ -1341,6 +1371,195 @@ class WorldScene extends Phaser.Scene {
        walkPhase  — sin() walk-cycle phase, 0 if not moving
        moving     — whether the walk cycle / arm swing should animate
        startleAlpha — 0..1, draws the "!" burst at that alpha when > 0 */
+  /* ---------- hull door + knob (door lab, dial bench approved) ----------
+     Slab (and its panels + knob) pivot on a vertical hinge at dx=-hw.
+     theta=0 reproduces the closed pose; theta=DOOR_ART.openAngle swings
+     it flat against the hinge post, out over the mat. Ported verbatim. */
+  drawDoorAssembly(g, dp, dz, dv, rv, theta){
+    const D = DOOR_ART;
+    const ec = { x: dp.x - rv.x*ROBOT_ROW, y: dp.y - rv.y*ROBOT_ROW };
+    const doorWx = ec.x + dv.x*DOOR_ALONG + rv.x*DOOR_PERP, doorWy = ec.y + dv.y*DOOR_ALONG + rv.y*DOOR_PERP;
+    const G = (dx, dy, dzz) => this.W(doorWx + dv.x*dx + rv.x*dy, doorWy + dv.y*dx + rv.y*dy, dz+dzz);
+    const depthAt = (dx, dy, dzz) => (dv.x+dv.y)*dx*0.5 + (rv.x+rv.y)*dy*0.5 - dzz*0.35;
+
+    const hw = D.w/2, H = D.h, dyF = 2.4;
+    const cT = Math.cos(theta), sT = Math.sin(theta);
+    const SL = (u, perp, dzz) => G(-hw + u*cT - perp*sT, perp*cT + u*sT, dzz);
+    const slabDepthDy = dyF*cT + (2*hw)*sT;
+
+    const shadow = () => {
+      const s = G(0, 3, 0);
+      g.fillStyle(D.shadow, 0.16);
+      g.fillEllipse(s.x, s.y+1, (D.w+18)*this.K*0.42, 10*this.K*0.42);
+    };
+    const step = () => {
+      const pts = [G(-hw-2, 1.5, 0), G(hw+2, 1.5, 0), G(hw+2, 7, 0), G(-hw-2, 7, 0)];
+      this.quadOn(g, pts, D.step);
+      this.edgeOn(g, pts, D.stepDk, 1);
+    };
+    const frame = () => {
+      const trim = 5;
+      const top = [G(-hw-trim, 1, H+trim), G(hw+trim, 1, H+trim), G(hw+trim, 1, H), G(-hw-trim, 1, H)];
+      const outer = [G(-hw-trim, 1, H+trim), G(hw+trim, 1, H+trim), G(hw+trim, 1, 0), G(-hw-trim, 1, 0)];
+      this.quadOn(g, outer, D.frame);
+      this.quadOn(g, top, D.frameLt);
+      this.edgeOn(g, outer, D.frameDk, 1.2);
+      const sideSign = (dv.x+dv.y) >= 0 ? 1 : -1;
+      const lip = [
+        G(sideSign*(hw+trim), 1, H+trim), G(sideSign*(hw+trim), 2.6, H+trim),
+        G(sideSign*(hw+trim), 2.6, -1),   G(sideSign*(hw+trim), 1, 0)
+      ];
+      this.quadOn(g, lip, D.frameDk, 0.8);
+    };
+    /* a bit of a room behind the door, lit from a window on the left */
+    const interior = () => {
+      const wallColor = 0xdcd4c2, floorColor = 0xb99f78;
+      const face = [G(-hw, 1.02, H), G(hw, 1.02, H), G(hw, 1.02, 0), G(-hw, 1.02, 0)];
+      this.quadOn(g, face, wallColor);
+      const floor = [G(-hw, 1.03, H*0.3), G(hw, 1.03, H*0.3), G(hw, 1.03, 0), G(-hw, 1.03, 0)];
+      this.quadOn(g, floor, floorColor);
+      const lit = [G(-hw, 1.04, H*0.82), G(-hw*0.05, 1.04, H*0.82), G(-hw*0.05, 1.04, 0), G(-hw, 1.04, 0)];
+      this.quadOn(g, lit, 0xf2c98a, 0.3);
+      const glow = [G(-hw*0.85, 1.05, H*0.7), G(-hw*0.35, 1.05, H*0.7), G(-hw*0.35, 1.05, H*0.3), G(-hw*0.85, 1.05, H*0.3)];
+      this.quadOn(g, glow, 0xfff0cf, 0.5);
+    };
+    const slab = () => {
+      const face = [SL(0,dyF,H), SL(2*hw,dyF,H), SL(2*hw,dyF,0), SL(0,dyF,0)];
+      this.quadOn(g, face, D.slab);
+      this.edgeOn(g, face, D.slabDk, 1);
+      const panel = (f0, f1) => {
+        const z0 = H*f0, z1 = H*f1, pin = D.panelInset;
+        const grooveOuter = [
+          SL(pin,dyF+0.15,z1), SL(2*hw-pin,dyF+0.15,z1),
+          SL(2*hw-pin,dyF+0.15,z0), SL(pin,dyF+0.15,z0)
+        ];
+        this.quadOn(g, grooveOuter, D.groove);
+        const inner = [
+          SL(pin+2,dyF+0.35,z1-2), SL(2*hw-pin-2,dyF+0.35,z1-2),
+          SL(2*hw-pin-2,dyF+0.35,z0+2), SL(pin-2,dyF+0.35,z0+2)
+        ];
+        this.quadOn(g, inner, D.slabLt);
+      };
+      panel(D.panelBotFrom, D.panelBotTo);
+      panel(D.panelTopFrom, D.panelTopTo);
+    };
+    const knob = () => {
+      const u = D.knobDX + hw, dzk = D.knobDZ;
+      const plate = SL(u, 2.6, dzk);
+      g.fillStyle(D.plate, 1);
+      g.fillCircle(plate.x, plate.y, D.knobR*this.K*0.6);
+      const c = SL(u, 3.2, dzk);
+      g.fillStyle(D.knobDk, 1);
+      g.fillCircle(c.x, c.y, D.knobR*this.K*0.5);
+      g.fillStyle(D.knob, 1);
+      g.fillCircle(c.x, c.y, D.knobR*this.K*0.42);
+      g.fillStyle(D.knobHi, 1);
+      g.fillCircle(c.x - 1.1*this.K*0.42, c.y - 1.1*this.K*0.42, D.knobR*this.K*0.14);
+    };
+
+    const parts = [
+      { d: depthAt(0, 0, 0)-50, fn: shadow },
+      { d: depthAt(0, 1, H*0.5), fn: frame },
+      { d: depthAt(0, 1.02, H*0.5), fn: interior },
+      { d: depthAt(0, slabDepthDy, H*0.5), fn: slab },
+      { d: depthAt(D.knobDX, slabDepthDy, D.knobDZ), fn: knob },
+      { d: depthAt(0, 4, 0), fn: step }
+    ];
+    parts.sort((p1,p2) => p1.d - p2.d);
+    for(const p of parts) p.fn();
+  }
+
+  /* ---------- delivery mat (door lab, dial bench approved) ----------
+     Exactly one sidewalk square, sitting flush on lane 3's tile,
+     flush against the door at its near edge. Border rim + fiber
+     texture instead of a flat quad. */
+  drawMatQuad(g, dp, dz, dv, rv){
+    const ec = { x: dp.x - rv.x*ROBOT_ROW, y: dp.y - rv.y*ROBOT_ROW };
+    const M = (dx, dy, dzz) => this.W(ec.x + dv.x*(dx+DOOR_ALONG) + rv.x*dy, ec.y + dv.y*(dx+DOOR_ALONG) + rv.y*dy, dz+dzz);
+    const half = T2/2;
+    const matNear = MAT_PERP - half, matFar = MAT_PERP + half;
+    const outer = [M(-half,matNear,0.6), M(half,matNear,0.6), M(half,matFar,0.6), M(-half,matFar,0.6)];
+    this.quadOn(g, outer, MAT_ART.redDk);
+    const bw = 3.5;
+    const inner = [M(-half+bw,matNear+bw,0.65), M(half-bw,matNear+bw,0.65), M(half-bw,matFar-bw,0.65), M(-half+bw,matFar-bw,0.65)];
+    this.quadOn(g, inner, MAT_ART.red);
+    this.edgeOn(g, outer, MAT_ART.border, 1.4);
+    g.lineStyle(1, MAT_ART.fiber, 0.5);
+    const rows = 6, cols = 3;
+    for(let i=1; i<rows; i++){
+      for(let j=0; j<cols; j++){
+        const u = matNear+bw + (matFar-matNear-bw*2)*(i/rows);
+        const v0 = -half+bw + (T2-bw*2)*(j/cols) + 3;
+        const v1 = v0 + (T2-bw*2)/cols - 6;
+        const p0 = M(v0, u, 0.66), p1 = M(v1, u, 0.66);
+        g.lineBetween(p0.x, p0.y, p1.x, p1.y);
+      }
+    }
+  }
+
+  /* ---------- house facade (door lab, dial bench approved) ----------
+     Center green house (with the door) + two flanking neighbors —
+     dark blue left, tan right — flush against its outer edges, each
+     with a corner-return face at its own outermost edge. */
+  drawHouseFacade(g, dp, dz, dv, rv){
+    const ec = { x: dp.x - rv.x*ROBOT_ROW, y: dp.y - rv.y*ROBOT_ROW };
+    const doorWx = ec.x + dv.x*DOOR_ALONG + rv.x*DOOR_PERP, doorWy = ec.y + dv.y*DOOR_ALONG + rv.y*DOOR_PERP;
+    const G = (dx, dy, dzz) => this.W(doorWx + dv.x*dx + rv.x*dy, doorWy + dv.y*dx + rv.y*dy, dz+dzz);
+
+    const wallBlock = (x0, x1, C, opts={}) => {
+      const face = [G(x0, 0.4, C.h), G(x1, 0.4, C.h), G(x1, 0.4, 0), G(x0, 0.4, 0)];
+      this.quadOn(g, face, C.wall);
+      const base = [G(x0, 0.42, C.baseH), G(x1, 0.42, C.baseH), G(x1, 0.42, 0), G(x0, 0.42, 0)];
+      this.quadOn(g, base, C.wallDk);
+      const trim = [G(x0, 0.42, C.h), G(x1, 0.42, C.h), G(x1, 0.42, C.h-10), G(x0, 0.42, C.h-10)];
+      this.quadOn(g, trim, C.trim);
+      g.lineStyle(1, C.wallDk, 0.35);
+      for(let x = x0 + T2; x < x1; x += T2){ const a=G(x,0.41,C.h), b=G(x,0.41,0); g.lineBetween(a.x,a.y,b.x,b.y); }
+      if(opts.cornerLeft){
+        const pts = [G(x0, 0.4, C.h), G(x0-16, 0.1, C.h), G(x0-16, 0.1, 0), G(x0, 0.4, 0)];
+        this.quadOn(g, pts, C.wallDk);
+        this.edgeOn(g, pts, C.trim, 1);
+      }
+      if(opts.cornerRight){
+        const pts = [G(x1, 0.4, C.h), G(x1+16, 0.1, C.h), G(x1+16, 0.1, 0), G(x1, 0.4, 0)];
+        this.quadOn(g, pts, C.wallDk);
+        this.edgeOn(g, pts, C.trim, 1);
+      }
+    };
+    const window = (cx, C, z0, z1, w) => {
+      const wHW = w/2, wf = HOUSE_ART.winFrame, wfd = HOUSE_ART.winFrameDk, wg = HOUSE_ART.winGlass, wgl = HOUSE_ART.winGlassLt;
+      const sill = [G(cx-wHW-3, 0.5, z0), G(cx+wHW+3, 0.5, z0), G(cx+wHW+3, 0.5, z0-HOUSE_ART.winSillH), G(cx-wHW-3, 0.5, z0-HOUSE_ART.winSillH)];
+      this.quadOn(g, sill, wfd);
+      const frame = [G(cx-wHW-2, 0.5, z1+2), G(cx+wHW+2, 0.5, z1+2), G(cx+wHW+2, 0.5, z0), G(cx-wHW-2, 0.5, z0)];
+      this.quadOn(g, frame, wf);
+      const glass = [G(cx-wHW, 0.55, z1), G(cx+wHW, 0.55, z1), G(cx+wHW, 0.55, z0), G(cx-wHW, 0.55, z0)];
+      this.quadOn(g, glass, wg);
+      const pane = [G(cx-1, 0.56, z1), G(cx+1, 0.56, z1), G(cx+1, 0.56, z0), G(cx-1, 0.56, z0)];
+      this.quadOn(g, pane, wfd);
+      const hl = [G(cx-wHW+2, 0.56, z1-2), G(cx-2, 0.56, z1-2), G(cx-2, 0.56, z0+3), G(cx-wHW+2, 0.56, z0+3)];
+      this.quadOn(g, hl, wgl, 0.6);
+    };
+
+    const doorHW = DOOR_ART.w/2;
+    const greenSpan = HOUSE_ART.spanTiles*T2;
+    const gL = -doorHW - greenSpan, gR = doorHW + greenSpan;
+    const lSpan = NEIGHBOR_L_ART.spanTiles*T2, rSpan = NEIGHBOR_R_ART.spanTiles*T2;
+    const nlL = gL - lSpan, nlR = gL;
+    const nrL = gR, nrR = gR + rSpan;
+
+    wallBlock(nlL, nlR, NEIGHBOR_L_ART, { cornerLeft:true });
+    for(let i=1; i<=NEIGHBOR_L_ART.winCount; i++) window(nlR - (i-0.5)*T2, NEIGHBOR_L_ART, HOUSE_ART.winZ0*0.95, HOUSE_ART.winZ1*0.95, HOUSE_ART.winW*0.85);
+
+    wallBlock(gL, gR, HOUSE_ART, {});
+    for(let i=1; i<=HOUSE_ART.winCount; i++){
+      window(-doorHW - (i+0.5)*T2, HOUSE_ART, HOUSE_ART.winZ0, HOUSE_ART.winZ1, HOUSE_ART.winW);
+      window( doorHW + (i+0.5)*T2, HOUSE_ART, HOUSE_ART.winZ0, HOUSE_ART.winZ1, HOUSE_ART.winW);
+    }
+
+    wallBlock(nrL, nrR, NEIGHBOR_R_ART, { cornerRight:true });
+    for(let i=1; i<=NEIGHBOR_R_ART.winCount; i++) window(nrL + (i-0.5)*T2, NEIGHBOR_R_ART, HOUSE_ART.winZ0*0.95, HOUSE_ART.winZ1*0.95, HOUSE_ART.winW*0.85);
+  }
+
   drawPersonHull(g, ax, ay, z, thW, build, pSkin, pShirt, pPants, pHair, pShoe, walkPhase, moving, startleAlpha=0){
     const cs = Math.cos(thW), sn = Math.sin(thW);
     const G = (a,b,h) => this.W(ax + a*cs - b*sn, ay + a*sn + b*cs, z + h);
@@ -2922,6 +3141,13 @@ class WorldScene extends Phaser.Scene {
   drawRobot(t, dt){
     const g = this.g; g.clear();
 
+    /* hull door hinge: opens once the route is won, eases every frame
+       independent of sim state (same DOOR_ART.openEase rate approved
+       in the door lab) */
+    const doorTarget = (this.state === "won") ? DOOR_ART.openAngle : 0;
+    this.doorTheta += (doorTarget - this.doorTheta) * DOOR_ART.openEase;
+    if(Math.abs(doorTarget - this.doorTheta) < 0.002) this.doorTheta = doorTarget;
+
     /* ---------- simulation ---------- */
     if(this.state === "play"){
       const _botS_frameStart = this.botS;   // debug: for the backward-motion assertion below
@@ -3879,5 +4105,6 @@ document.getElementById("rerollBtn").addEventListener("click", e => {
 </script>
 </body>
 </html>
+
 
 
