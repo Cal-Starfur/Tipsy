@@ -790,6 +790,28 @@ function generateRoute(dateStr){
     return grid.classify(wp.x, wp.y) === "road";
   };
 
+  /* RULE: no two props/hazards stack at the same spot. Every spawn loop
+     below checks a candidate placement against everything already
+     placed this route (both hazards[] and props[], since either array
+     can hold something at a given lane) before pushing — same-lane
+     items within MIN_GAP_S of each other are rejected. offsetOf()
+     normalizes the two placement conventions in use (row = sidewalk
+     lane index, roadOffset = raw lateral offset) to one comparable
+     number. This is a placement-time check, not a runtime one: once
+     the route is built, item positions don't move (flee/wander only
+     animate the art, not the spawn point), so checking once here is
+     sufficient — nothing needs to re-check at draw time. */
+  const MIN_GAP_S = 60, MIN_GAP_OFFSET = T2*0.6;
+  const offsetOf = item => item.row !== undefined ? laneOffset(item.row) : item.roadOffset;
+  const spawnBlocked = (s, offsetUnits) => {
+    for(const list of [hazards, props]){
+      for(const it of list){
+        if(Math.abs(it.s - s) < MIN_GAP_S && Math.abs(offsetOf(it) - offsetUnits) < MIN_GAP_OFFSET) return true;
+      }
+    }
+    return false;
+  };
+
   /* flat heightmap for now — hills need a real 2D system across the grid,
      future work; groundSlope/pitch/gravity all fall out to zero cleanly
      with a flat map, no other code needed to change. */
@@ -808,6 +830,7 @@ function generateRoute(dateStr){
     if(inCorner(hsR)) continue;
     const lane = Math.floor(rng()*4);
     if(!onSidewalk(hsR, laneOffset(lane))) continue;
+    if(spawnBlocked(hsR, laneOffset(lane))) continue;
     const r2 = rng();
     let type;
     if(r2 < (1 - hood.pave)*0.45)      type = "crack";
@@ -860,6 +883,7 @@ function generateRoute(dateStr){
     const psR = Math.round(ps);
     if(inCorner(psR)) continue;
     if(!onSidewalk(psR, laneOffset(3))) continue;
+    if(spawnBlocked(psR, laneOffset(3))) continue;
     if(rng() < hood.palms) hazards.push({
       type: rng() < 0.25 ? "palmDwarf" : "palm",
       s: psR, row:3, f: facingAt(psR), hit:false });
@@ -874,6 +898,7 @@ function generateRoute(dateStr){
     const farLane = Math.floor(rng()*4);
     const off = farLaneOffset(farLane);
     if(!onSidewalk(fsR, off)) continue;
+    if(spawnBlocked(fsR, off)) continue;
     if(rng() < 0.6) props.push({
       kind: rng() < 0.55 ? "planter" : "bin",
       s: fsR, roadOffset: off, f: facingAt(fsR) });
@@ -887,6 +912,7 @@ function generateRoute(dateStr){
     if(rng() > (1 - hood.pave)*0.8 + 0.1) continue;
     const off = (rng()<0.5?-1:1) * (T2 + rng()*T2*1.5);
     if(!onRoad(rsR, off)) continue;
+    if(spawnBlocked(rsR, off)) continue;
     hazards.push({ type:"crack", s: rsR, roadOffset: off, surface: "road",
                    len: 24 + Math.floor(rng()*49), f: facingAt(rsR), hit:false });
   }
@@ -896,6 +922,7 @@ function generateRoute(dateStr){
     const ysR = Math.round(ys);
     if(inCorner(ysR)) continue;
     if(!onSidewalk(ysR, laneOffset(0))) continue;
+    if(spawnBlocked(ysR, laneOffset(0))) continue;
     if(rng() < 0.55) hazards.push({ type:"hydrant", s: ysR, row: 0,
                                     f: facingAt(ysR), hit:false, burst:false });
   }
@@ -913,6 +940,7 @@ function generateRoute(dateStr){
       const skR = Math.round(ss + k*TILE*2);
       if(inCorner(skR)) break;
       if(!onSidewalk(skR, laneOffset(srow))){ srow = Math.floor(rng()*4); continue; }
+      if(spawnBlocked(skR, laneOffset(srow))){ srow = Math.floor(rng()*4); continue; }
       hazards.push({ type:"slab", s: skR, row: srow,
                      lift: 3 + Math.floor(rng()*6),
                      side: rng() < 0.5 ? 1 : -1,
@@ -928,7 +956,7 @@ function generateRoute(dateStr){
   if(rng() < 0.5){
     const cs = Math.round(SPAWN_S + 150 + rng()*(totalLen - 500));
     const off = -1*(T2*1.5);
-    if(!inCorner(cs) && onRoad(cs, off)) props.push({ kind: rng() < 0.65 ? "car" : "truck", s: cs, roadOffset: off, f: facingAt(cs) });
+    if(!inCorner(cs) && onRoad(cs, off) && !spawnBlocked(cs, off)) props.push({ kind: rng() < 0.65 ? "car" : "truck", s: cs, roadOffset: off, f: facingAt(cs) });
   }
 
   /* the address */
@@ -4105,6 +4133,7 @@ document.getElementById("rerollBtn").addEventListener("click", e => {
 </script>
 </body>
 </html>
+
 
 
 
