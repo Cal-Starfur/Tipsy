@@ -1262,8 +1262,122 @@ class WorldScene extends Phaser.Scene {
       this.W(dp.x + dv.x*34 + rv.x*(TILE+18), dp.y + dv.y*34 + rv.y*(TILE+18), dz+0.6),
       this.W(dp.x - dv.x*34 + rv.x*(TILE+18), dp.y - dv.y*34 + rv.y*(TILE+18), dz+0.6)
     ], 0xc2452e);
+
+    /* world.customer: the resident, using the exact same design as
+       prop.people via drawPersonHull(). No new mutable animation state —
+       walkT is a pure function of distance to the door (same philosophy
+       as dogSpotAt/peopleFleeAt), so it can't drift out of sync with
+       wherever the robot actually is. Seeded off the address so the
+       same house always gets the same person. */
+    const remain = r.doorS - this.botS;
+    if(remain < 260 && remain > -400){
+      const custSeed = ((Math.round(dp.x)*7919) ^ (Math.round(dp.y)*104729) ^ 0x4c75) >>> 0;
+      const crng = mulberry32(custSeed);
+      const cBuild = PEOPLE_BUILD[crng() < 0.5 ? 0 : 1];
+      const cSkin = PEOPLE_SKIN[Math.floor(crng()*PEOPLE_SKIN.length)];
+      const cShirt = PEOPLE_SHIRT[Math.floor(crng()*PEOPLE_SHIRT.length)];
+      const cPants = PEOPLE_PANTS[Math.floor(crng()*PEOPLE_PANTS.length)];
+      const cHair = PEOPLE_HAIR[Math.floor(crng()*PEOPLE_HAIR.length)];
+      const cShoe = PEOPLE_SHOE[Math.floor(crng()*PEOPLE_SHOE.length)];
+
+      const walkT = Phaser.Math.Clamp(1 - remain/220, 0, 1);
+      if(walkT > 0.02){
+        const u = 1 - Math.pow(1 - walkT, 2);            // ease out as they arrive
+        const perp = Phaser.Math.Linear(-TILE-6, TILE*0.7, u);
+        const cx = dp.x + rv.x*perp, cy = dp.y + rv.y*perp;
+        const thW = Math.atan2(rv.y, rv.x);              // facing out toward the street/robot
+        const moving = walkT < 0.97;
+        const walkPhase = moving ? Math.sin(t*0.012) : 0;
+        this.drawPersonHull(g, cx, cy, dz, thW, cBuild, cSkin, cShirt, cPants, cHair, cShoe, walkPhase, moving, 0);
+      }
+    }
+
     this.addrText.setPosition(door.x, door.y - 128 + Math.sin(t*0.003)*5);
     this.addrText.setText(this.route.address);
+  }
+
+  /* ---------- shared person-hull renderer ----------
+     Single source of truth for the character design (approved in the
+     customer lab, first shipped as prop.people): hull-box construction,
+     top face + the two camera-facing side faces per box. Both
+     prop.people and world.customer call this directly rather than
+     keeping two copies of the same body, so a future tweak to one
+     shows up in both automatically.
+       ax,ay,z    — world anchor (already includes any wander/flee/walk offset)
+       thW        — facing angle (radians)
+       build      — one of PEOPLE_BUILD
+       pSkin/pShirt/pPants/pHair/pShoe — color entries ({c,dk} except pHair, a bare color)
+       walkPhase  — sin() walk-cycle phase, 0 if not moving
+       moving     — whether the walk cycle / arm swing should animate
+       startleAlpha — 0..1, draws the "!" burst at that alpha when > 0 */
+  drawPersonHull(g, ax, ay, z, thW, build, pSkin, pShirt, pPants, pHair, pShoe, walkPhase, moving, startleAlpha=0){
+    const cs = Math.cos(thW), sn = Math.sin(thW);
+    const G = (a,b,h) => this.W(ax + a*cs - b*sn, ay + a*sn + b*cs, z + h);
+    const faceA = Math.sign(cs+sn) || 1, faceB = Math.sign(cs-sn) || 1;
+
+    const box = (aC,bC,ha,hb,z0,z1,cTop,cA,cB,noTop=false) => {
+      const corner = (sa,sb,zz) => G(aC+sa*ha, bC+sb*hb, zz);
+      if(!noTop){
+        const top = [corner(-1,-1,z1), corner(1,-1,z1), corner(1,1,z1), corner(-1,1,z1)];
+        this.quadOn(g, top, cTop);
+        this.edgeOn(g, top, cA, 1);
+      }
+      const aFace = [corner(faceA,-1,z1), corner(faceA,1,z1), corner(faceA,1,z0), corner(faceA,-1,z0)];
+      this.quadOn(g, aFace, cA);
+      const bFace = [corner(-1,faceB,z1), corner(1,faceB,z1), corner(1,faceB,z0), corner(-1,faceB,z0)];
+      this.quadOn(g, bFace, cB);
+    };
+
+    const hipH = build.legH, shoulderH = hipH+build.torsoH, headH = shoulderH+build.headR*2;
+
+    const sh = G(0,0,0);
+    g.fillStyle(PEOPLE_ART.shadow, 0.18);
+    g.fillEllipse(sh.x, sh.y+1, 20*this.K*0.42, 9*this.K*0.42);
+
+    const leg = side => {
+      const bC = walkPhase*side*PEOPLE_ART.walkStride*0.35;
+      const legW = build.legW*0.55, legD = build.legW*0.6;
+      const shoeH = Math.max(5, build.legH*0.13);
+      box(side*build.hipW*0.3, bC+legD*0.3, legW*1.2, legD*1.5, 0, shoeH, pShoe.c, pShoe.dk, pShoe.c);
+      box(side*build.hipW*0.3, bC, legW, legD, shoeH, hipH, pPants.c, pPants.dk, pPants.c);
+    };
+    const torso = () => box(0, 0, build.torsoW/2, build.torsoD/2, hipH-2, shoulderH, pShirt.c, pShirt.dk, pShirt.c);
+    const shoulderZ = shoulderH - 1;
+    const sleeveLen = build.armLen*0.48, foreLen = build.armLen*0.52;
+    const elbowZ = shoulderZ - sleeveLen;
+    const arm = side => {
+      const shoulderAx = side*(build.torsoW/2 - 1);
+      const armSwing = moving ? -walkPhase*side*3 : 0;
+      const armB = armSwing*0.4;
+      box(shoulderAx, armB, build.armW*0.58, build.armW*0.58, elbowZ, shoulderZ, pShirt.c, pShirt.dk, pShirt.c);
+      box(shoulderAx, armB, build.armW*0.46, build.armW*0.46, elbowZ-foreLen, elbowZ+1, pSkin.c, pSkin.dk, pSkin.c, true);
+    };
+    const head = () => {
+      const z0 = shoulderH, z1 = headH;
+      box(0, 0, build.headR, build.headR, z0, z1, pSkin.c, pSkin.dk, pSkin.c);
+      const hairZ0 = z0 + (z1-z0)*0.55;
+      box(0, 0, build.headR*1.06, build.headR*1.06, hairZ0, z1+1.5, pHair, pHair, pHair);
+      if(build.hairStyle === "long"){
+        const backB = -build.headR*0.75;
+        box(0, backB, build.headR*0.62, build.headR*0.4, hipH+build.torsoH*0.35, z1-1, pHair, pHair, pHair);
+      }
+    };
+
+    const nearSide = faceA;
+    leg(-1); leg(1);
+    arm(-nearSide);
+    torso();
+    arm(nearSide);
+    head();
+
+    if(startleAlpha > 0){
+      const hp = G(0, 0, headH + build.headR + 4);
+      g.lineStyle(1.5, 0xffb04d, startleAlpha);
+      for(const aoff of [-0.7, 0, 0.7]){
+        g.lineBetween(hp.x + Math.sin(aoff)*4, hp.y - Math.cos(aoff)*4,
+                      hp.x + Math.sin(aoff)*9, hp.y - Math.cos(aoff)*9);
+      }
+    }
   }
 
   drawProp(g, kind, x, y, t, fdir = 0, z = 0, wheelPhase = null, colorSeed = null, data = null){
@@ -2156,11 +2270,10 @@ class WorldScene extends Phaser.Scene {
       }
     }
     } else if(kind === "people"){
-      /* ported from the customer lab (dial bench approved): hull-box
-         construction, two body presets + independently seeded skin/
-         shirt/pants/hair/shoe, same startle-burst flourish as the dog
-         when freshly hit. Stands still until hit; flee/settle use the
-         dog's exact DUR/DIST curve. */
+      /* ported from the customer lab (dial bench approved), now drawn
+         via the shared drawPersonHull() so prop.people and
+         world.customer stay visually identical. Stands still until
+         hit; flee/settle use the dog's exact DUR/DIST curve. */
       const pseed = ((Math.round(x)*7919) ^ (Math.round(y)*104729) ^ 0x9c3a) >>> 0;
       const pSeed = (data && data.peopleSeed !== undefined) ? data.peopleSeed : pseed;
       const prng = mulberry32(pSeed);
@@ -2179,78 +2292,12 @@ class WorldScene extends Phaser.Scene {
       else if(flee){ spotA = flee.da; spotB = flee.db; spotTh = Math.atan2(-0.45, (data.fleeA || 1)); }
 
       const thW = fdir*Math.PI/2 + spotTh;
-      const cs = Math.cos(thW), sn = Math.sin(thW);
       const ax = x + dv.x*spotA + rv.x*spotB, ay = y + dv.y*spotA + rv.y*spotB;
-      const G = (a,b,h) => this.W(ax + a*cs - b*sn, ay + a*sn + b*cs, z + h);
-      const faceA = Math.sign(cs+sn) || 1, faceB = Math.sign(cs-sn) || 1;
-
-      const box = (aC,bC,ha,hb,z0,z1,cTop,cA,cB,noTop=false) => {
-        const corner = (sa,sb,zz) => G(aC+sa*ha, bC+sb*hb, zz);
-        if(!noTop){
-          const top = [corner(-1,-1,z1), corner(1,-1,z1), corner(1,1,z1), corner(-1,1,z1)];
-          this.quadOn(g, top, cTop);
-          this.edgeOn(g, top, cA, 1);
-        }
-        const aFace = [corner(faceA,-1,z1), corner(faceA,1,z1), corner(faceA,1,z0), corner(faceA,-1,z0)];
-        this.quadOn(g, aFace, cA);
-        const bFace = [corner(-1,faceB,z1), corner(1,faceB,z1), corner(1,faceB,z0), corner(-1,faceB,z0)];
-        this.quadOn(g, bFace, cB);
-      };
-
       const moving = !!flee && !settled;
       const walkPhase = moving ? Math.sin(t*0.012) : 0;
-      const hipH = build.legH, shoulderH = hipH+build.torsoH, headH = shoulderH+build.headR*2;
+      const startleAlpha = (flee && flee.u < 0.4) ? 1 - flee.u/0.4 : 0;
 
-      const sh = G(0,0,0);
-      g.fillStyle(PEOPLE_ART.shadow, 0.18);
-      g.fillEllipse(sh.x, sh.y+1, 20*this.K*0.42, 9*this.K*0.42);
-
-      const leg = side => {
-        const bC = walkPhase*side*PEOPLE_ART.walkStride*0.35;
-        const legW = build.legW*0.55, legD = build.legW*0.6;
-        const shoeH = Math.max(5, build.legH*0.13);
-        box(side*build.hipW*0.3, bC+legD*0.3, legW*1.2, legD*1.5, 0, shoeH, pShoe.c, pShoe.dk, pShoe.c);
-        box(side*build.hipW*0.3, bC, legW, legD, shoeH, hipH, pPants.c, pPants.dk, pPants.c);
-      };
-      const torso = () => box(0, 0, build.torsoW/2, build.torsoD/2, hipH-2, shoulderH, pShirt.c, pShirt.dk, pShirt.c);
-      const shoulderZ = shoulderH - 1;
-      const sleeveLen = build.armLen*0.48, foreLen = build.armLen*0.52;
-      const elbowZ = shoulderZ - sleeveLen;
-      const arm = side => {
-        const shoulderAx = side*(build.torsoW/2 - 1);
-        const armSwing = moving ? -walkPhase*side*3 : 0;
-        const armB = armSwing*0.4;
-        box(shoulderAx, armB, build.armW*0.58, build.armW*0.58, elbowZ, shoulderZ, pShirt.c, pShirt.dk, pShirt.c);
-        box(shoulderAx, armB, build.armW*0.46, build.armW*0.46, elbowZ-foreLen, elbowZ+1, pSkin.c, pSkin.dk, pSkin.c, true);
-      };
-      const head = () => {
-        const z0 = shoulderH, z1 = headH;
-        box(0, 0, build.headR, build.headR, z0, z1, pSkin.c, pSkin.dk, pSkin.c);
-        const hairZ0 = z0 + (z1-z0)*0.55;
-        box(0, 0, build.headR*1.06, build.headR*1.06, hairZ0, z1+1.5, pHair, pHair, pHair);
-        if(build.hairStyle === "long"){
-          const backB = -build.headR*0.75;
-          box(0, backB, build.headR*0.62, build.headR*0.4, hipH+build.torsoH*0.35, z1-1, pHair, pHair, pHair);
-        }
-      };
-
-      const nearSide = faceA;
-      leg(-1); leg(1);
-      arm(-nearSide);
-      torso();
-      arm(nearSide);
-      head();
-
-      /* startle burst, same visual language as the dog's */
-      if(flee && flee.u < 0.4){
-        const hp = G(0, 0, headH + build.headR + 4);
-        const alpha = 1 - flee.u/0.4;
-        g.lineStyle(1.5, 0xffb04d, alpha);
-        for(const aoff of [-0.7, 0, 0.7]){
-          g.lineBetween(hp.x + Math.sin(aoff)*4, hp.y - Math.cos(aoff)*4,
-                        hp.x + Math.sin(aoff)*9, hp.y - Math.cos(aoff)*9);
-        }
-      }
+      this.drawPersonHull(g, ax, ay, z, thW, build, pSkin, pShirt, pPants, pHair, pShoe, walkPhase, moving, startleAlpha);
     } else if(kind === "car" || kind === "truck"){
       /* approved in car lab: len 150 · wid 60 · chassis 28 · cabin 32 ·
          wheel 16. Axis-aligned to facing (no free rotation) — parked
