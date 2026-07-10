@@ -479,7 +479,7 @@ const PLANTER_HIT = {
    flush rear window instead of the sedan's full sloped backlight, and
    an open cargo bed with raised rails behind the cab. */
 const CARC = {
-  len: 150, wid: 60, chassisH: 28, cabinH: 32, wheelR: 16,
+  len: 450, wid: 180, chassisH: 84, cabinH: 96, wheelR: 48,
   glass: 0x4a5560, glassDk: 0x3a434c, windshield: 0x9fc4d6, windshieldEdge: 0x6f8fa0,
   bumper: 0xb8bcc2, light: 0xf4e9b0, tail: 0xc94f4f,
   wheel: 0x24262c, wheelDk: 0x17191d, hub: 0x8a919c, hubFace: 0x3d424c,
@@ -4246,19 +4246,35 @@ class WorldScene extends Phaser.Scene {
   /* ---------- spilled cargo ---------- */
   spillCargo(){
     this.spilled = true;
-    const mouth = this.rollPt(0, LID.hy, LID.z1 + 4);   // lid opening, mid-fall — fixed
+    /* opening point: the lid's far edge (opposite the fixed hinge),
+       rotated by the CURRENT lidAng first — matching drawLid's own
+       hinge geometry exactly — before applying the body's roll. The
+       old version skipped the hinge rotation entirely and used a
+       fixed local point as if the lid were still shut, so once the
+       lid had actually swung open the spill came out of the wrong
+       spot/direction relative to where the opening really was. */
+    const hA = this.lidAng, chA = Math.cos(hA), shA = Math.sin(hA);
+    const hyh = -LID.hy, hzh = LID.z0;
+    const hdy = LID.hy - hyh, hdz = 0;   // far-bottom edge, opposite the hinge
+    const hingedY = hyh + hdy*chA - hdz*shA;
+    const hingedZ = hzh + hdy*shA + hdz*chA;
+    const mouth = this.rollPt(0, hingedY, hingedZ + 4);   // lid opening, mid-fall — fixed
                                                           // edge (opposite the now-fixed
                                                           // hinge), not mirrored by tip
                                                           // direction; rollPt() still
                                                           // carries the tip-direction-
                                                           // dependent world-space effect
+    const outSign = this.tipDir >= 0 ? -1 : 1;   // the two tip types roll opposite
+                                                    // ways around the same fixed hinge,
+                                                    // so "away from the opening" flips
+                                                    // horizontally between them
     const spawn = (kind, size) => this.items.push({
       kind, size,
       x: mouth.x + (Math.random()-0.5)*10,
-      y: mouth.y + (4 + Math.random()*6),
+      y: mouth.y + outSign*(4 + Math.random()*6),
       z: mouth.z + Math.random()*4,
       vx: (Math.random()-0.5)*2.2,
-      vy: (0.8 + Math.random()*1.4),
+      vy: outSign*(0.8 + Math.random()*1.4),
       vz: 0.5 + Math.random()*0.9,
       spin: (Math.random()-0.5)*0.3, ang: Math.random()*Math.PI,
       rest: false
