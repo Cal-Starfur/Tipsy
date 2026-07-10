@@ -304,6 +304,45 @@ function dogSettledSpot(hz){
     th: Math.atan2(-0.45, hz.fleeA || 1)
   };
 }
+/* prop.people — ported from the customer lab (dial bench approved).
+   Same hull-box construction as the robot/props: top face + the two
+   camera-facing side faces per box. Two body presets (randomly picked
+   per spawn, like DOG_COATS) rather than one fixed shape, plus
+   independently seeded skin/shirt/pants/hair/shoe. Reacts exactly like
+   prop.dog: a hit starts a flee run (same DUR/DIST curve), and once
+   the flee finishes they settle and stand there for the rest of the
+   route — re-armed if hit again. */
+const PEOPLE_ART = { walkStride: 8, shadow: 0x000000 };
+const PEOPLE_BUILD = [
+  { n:"a", legH:52, legW:10, hipW:16, torsoW:34, torsoD:19, torsoH:44, headR:14, armW:7, armLen:40, hairStyle:"short" },
+  { n:"b", legH:52, legW:10, hipW:19, torsoW:28, torsoD:19, torsoH:44, headR:13, armW:7, armLen:40, hairStyle:"long"  }
+];
+const PEOPLE_SKIN  = [{c:0xd9a774,dk:0xb98456},{c:0xf0c8a0,dk:0xc9a583},{c:0xc98a5a,dk:0xa8724a},{c:0x8a5a3a,dk:0x6e4830},{c:0x5c3d28,dk:0x4a3120}];
+const PEOPLE_SHIRT = [{c:0x3f8f8a,dk:0x2f6b67},{c:0xc2452e,dk:0x963522},{c:0xb15a7a,dk:0x8a475f},{c:0x4a6c9c,dk:0x3a557a},{c:0xe8b04b,dk:0xb98a3a},{c:0x6b6b6b,dk:0x525252},{c:0x5c8a4e,dk:0x486d3d}];
+const PEOPLE_PANTS = [{c:0x3a4658,dk:0x2c3543},{c:0x2e2e2e,dk:0x1e1e1e},{c:0x6b4a34,dk:0x543a29},{c:0x8a8a8a,dk:0x6d6d6d},{c:0x4a3a5c,dk:0x3a2d47}];
+const PEOPLE_HAIR  = [0x3a2b20, 0x1a1a1a, 0x8a6a3a, 0xd4c088, 0xb03a2e, 0x6b6b6b];
+const PEOPLE_SHOE  = [{c:0x1c1c1c,dk:0x121212},{c:0x5c4530,dk:0x483623},{c:0xf2f0e8,dk:0xc4c2ba}];
+
+/* people don't wander like the dog — they stand still at their spawn
+   spot (local offset 0,0) until hit, so no spotAt() equivalent is
+   needed; only the post-hit flee curve moves them. Same DUR/DIST as
+   the dog, same contract: pure functions of (t, hz) / (hz). */
+function peopleFleeAt(tms, hz){
+  if(!hz || hz.hitT === undefined) return null;
+  const el = tms - hz.hitT;
+  if(el <= 0) return null;
+  const DUR = 2600;
+  if(el >= DUR) return { gone: true };
+  const u = el / DUR;
+  const dist = 250 * Math.pow(u, 1.35);
+  return { da:(hz.fleeA || 1)*dist, db:-dist*0.45, u, gone:false };
+}
+function peopleSettledSpot(hz){
+  if(!hz || hz.hitT === undefined) return null;
+  const DIST = 250;
+  return { a:(hz.fleeA || 1)*DIST, b:-DIST*0.45, th:Math.atan2(-0.45, hz.fleeA || 1) };
+}
+
 /* approved in bin lab: height 34 · base 11 · lid 13 · band 3 (standing) / 0 (knocked) */
 const BIN = {
   height: 34, baseR: 11, lidR: 13, band: 3,
@@ -710,11 +749,12 @@ function generateRoute(dateStr){
     else if(r2 < (1-hood.pave)*0.45 + hood.litter*0.35)
                                        type = rng() < 0.6 ? "scooter" : "trash";
     else if(r2 < 0.75)                 type = "cone";
-    else                               type = rng() < 0.5 ? "dog" : "bin";
+    else { const r3 = rng(); type = r3 < 0.32 ? "dog" : r3 < 0.6 ? "people" : "bin"; }
     const hzObj = { type, s: hsR, row: lane, f: facingAt(hsR), hit:false };
     if(type === "crack"){ hzObj.len = 24 + Math.floor(rng()*49); hzObj.surface = "sidewalk"; }   // spall size -> art + severity
     if(type === "dog"){ hzObj.dogSeed = (rng()*4294967296) >>> 0;  // coat + scar + waypoints
                         hzObj.sit = rng() < 0.4; }                 // ~40% sitters
+    if(type === "people"){ hzObj.peopleSeed = (rng()*4294967296) >>> 0; }  // body/skin/shirt/pants/hair/shoe
     if(type === "cone"){
       const preKnocked = rng() < 0.4;
       hzObj.phi = preKnocked ? CONE_HIT.phiRest : 0;
@@ -2115,6 +2155,102 @@ class WorldScene extends Phaser.Scene {
                       hp.x + Math.sin(aoff)*r2, hp.y - Math.cos(aoff)*r2);
       }
     }
+    } else if(kind === "people"){
+      /* ported from the customer lab (dial bench approved): hull-box
+         construction, two body presets + independently seeded skin/
+         shirt/pants/hair/shoe, same startle-burst flourish as the dog
+         when freshly hit. Stands still until hit; flee/settle use the
+         dog's exact DUR/DIST curve. */
+      const pseed = ((Math.round(x)*7919) ^ (Math.round(y)*104729) ^ 0x9c3a) >>> 0;
+      const pSeed = (data && data.peopleSeed !== undefined) ? data.peopleSeed : pseed;
+      const prng = mulberry32(pSeed);
+      const build = PEOPLE_BUILD[prng() < 0.5 ? 0 : 1];
+      const pSkin = PEOPLE_SKIN[Math.floor(prng()*PEOPLE_SKIN.length)];
+      const pShirt = PEOPLE_SHIRT[Math.floor(prng()*PEOPLE_SHIRT.length)];
+      const pPants = PEOPLE_PANTS[Math.floor(prng()*PEOPLE_PANTS.length)];
+      const pHair = PEOPLE_HAIR[Math.floor(prng()*PEOPLE_HAIR.length)];
+      const pShoe = PEOPLE_SHOE[Math.floor(prng()*PEOPLE_SHOE.length)];
+
+      const flee = peopleFleeAt(t, data);
+      const settled = flee && flee.gone;
+      const settledSpot = settled ? peopleSettledSpot(data) : null;
+      let spotA = 0, spotB = 0, spotTh = 0;
+      if(settled){ spotA = settledSpot.a; spotB = settledSpot.b; spotTh = settledSpot.th; }
+      else if(flee){ spotA = flee.da; spotB = flee.db; spotTh = Math.atan2(-0.45, (data.fleeA || 1)); }
+
+      const thW = fdir*Math.PI/2 + spotTh;
+      const cs = Math.cos(thW), sn = Math.sin(thW);
+      const ax = x + dv.x*spotA + rv.x*spotB, ay = y + dv.y*spotA + rv.y*spotB;
+      const G = (a,b,h) => this.W(ax + a*cs - b*sn, ay + a*sn + b*cs, z + h);
+      const faceA = Math.sign(cs+sn) || 1, faceB = Math.sign(cs-sn) || 1;
+
+      const box = (aC,bC,ha,hb,z0,z1,cTop,cA,cB,noTop=false) => {
+        const corner = (sa,sb,zz) => G(aC+sa*ha, bC+sb*hb, zz);
+        if(!noTop){
+          const top = [corner(-1,-1,z1), corner(1,-1,z1), corner(1,1,z1), corner(-1,1,z1)];
+          this.quadOn(g, top, cTop);
+          this.edgeOn(g, top, cA, 1);
+        }
+        const aFace = [corner(faceA,-1,z1), corner(faceA,1,z1), corner(faceA,1,z0), corner(faceA,-1,z0)];
+        this.quadOn(g, aFace, cA);
+        const bFace = [corner(-1,faceB,z1), corner(1,faceB,z1), corner(1,faceB,z0), corner(-1,faceB,z0)];
+        this.quadOn(g, bFace, cB);
+      };
+
+      const moving = !!flee && !settled;
+      const walkPhase = moving ? Math.sin(t*0.012) : 0;
+      const hipH = build.legH, shoulderH = hipH+build.torsoH, headH = shoulderH+build.headR*2;
+
+      const sh = G(0,0,0);
+      g.fillStyle(PEOPLE_ART.shadow, 0.18);
+      g.fillEllipse(sh.x, sh.y+1, 20*this.K*0.42, 9*this.K*0.42);
+
+      const leg = side => {
+        const bC = walkPhase*side*PEOPLE_ART.walkStride*0.35;
+        const legW = build.legW*0.55, legD = build.legW*0.6;
+        const shoeH = Math.max(5, build.legH*0.13);
+        box(side*build.hipW*0.3, bC+legD*0.3, legW*1.2, legD*1.5, 0, shoeH, pShoe.c, pShoe.dk, pShoe.c);
+        box(side*build.hipW*0.3, bC, legW, legD, shoeH, hipH, pPants.c, pPants.dk, pPants.c);
+      };
+      const torso = () => box(0, 0, build.torsoW/2, build.torsoD/2, hipH-2, shoulderH, pShirt.c, pShirt.dk, pShirt.c);
+      const shoulderZ = shoulderH - 1;
+      const sleeveLen = build.armLen*0.48, foreLen = build.armLen*0.52;
+      const elbowZ = shoulderZ - sleeveLen;
+      const arm = side => {
+        const shoulderAx = side*(build.torsoW/2 - 1);
+        const armSwing = moving ? -walkPhase*side*3 : 0;
+        const armB = armSwing*0.4;
+        box(shoulderAx, armB, build.armW*0.58, build.armW*0.58, elbowZ, shoulderZ, pShirt.c, pShirt.dk, pShirt.c);
+        box(shoulderAx, armB, build.armW*0.46, build.armW*0.46, elbowZ-foreLen, elbowZ+1, pSkin.c, pSkin.dk, pSkin.c, true);
+      };
+      const head = () => {
+        const z0 = shoulderH, z1 = headH;
+        box(0, 0, build.headR, build.headR, z0, z1, pSkin.c, pSkin.dk, pSkin.c);
+        const hairZ0 = z0 + (z1-z0)*0.55;
+        box(0, 0, build.headR*1.06, build.headR*1.06, hairZ0, z1+1.5, pHair, pHair, pHair);
+        if(build.hairStyle === "long"){
+          const backB = -build.headR*0.75;
+          box(0, backB, build.headR*0.62, build.headR*0.4, hipH+build.torsoH*0.35, z1-1, pHair, pHair, pHair);
+        }
+      };
+
+      const nearSide = faceA;
+      leg(-1); leg(1);
+      arm(-nearSide);
+      torso();
+      arm(nearSide);
+      head();
+
+      /* startle burst, same visual language as the dog's */
+      if(flee && flee.u < 0.4){
+        const hp = G(0, 0, headH + build.headR + 4);
+        const alpha = 1 - flee.u/0.4;
+        g.lineStyle(1.5, 0xffb04d, alpha);
+        for(const aoff of [-0.7, 0, 0.7]){
+          g.lineBetween(hp.x + Math.sin(aoff)*4, hp.y - Math.cos(aoff)*4,
+                        hp.x + Math.sin(aoff)*9, hp.y - Math.cos(aoff)*9);
+        }
+      }
     } else if(kind === "car" || kind === "truck"){
       /* approved in car lab: len 150 · wid 60 · chassis 28 · cabin 32 ·
          wheel 16. Axis-aligned to facing (no free rotation) — parked
@@ -2800,6 +2936,17 @@ class WorldScene extends Phaser.Scene {
             dx -= dogSpotAt(t, hz.dogSeed || 0, hz.sit).a;
           }
         }
+        if(hz.type === "people" && hz.hitT !== undefined){
+          /* same contract as the dog: while actively fleeing, no
+             collision check; once settled, re-arm so they can be
+             startled again from wherever they ended up. Unlike the
+             dog they have no wander offset before being hit, so
+             there's nothing to subtract in that case. */
+          const flee = peopleFleeAt(t, hz);
+          if(flee && !flee.gone) continue;
+          hz.hit = false;
+          dx -= peopleSettledSpot(hz).a;
+        }
         if(hz.type === "palm"){
           /* a trunk is a wall: you stop, you do not pass */
           if(onLane(hz.row) && this.botS > hz.s - 30 && this.botS < hz.s){
@@ -3049,7 +3196,7 @@ class WorldScene extends Phaser.Scene {
           hz.hit = true;
           const sev = hz.type === "crack"
             ? Math.min(8, Math.max(2, 4 * (hz.len || 46) / 46))   // bigger spall, bigger jolt (crack lab v3)
-            : ({ trash:7, dog:5, palmDwarf:6 }[hz.type] ?? 5);
+            : ({ trash:7, dog:5, palmDwarf:6, people:8 }[hz.type] ?? 5);   // hitting a person costs more than a dog bump — same mechanism that tips you on a hard palm/hydrant hit applies here too
           const kick = this.speed * sev * (Math.random() < 0.5 ? 1 : -1);
           this.tilt += kick;
           this.damage = Math.min(95, this.damage + Math.abs(kick)*46);
@@ -3058,6 +3205,13 @@ class WorldScene extends Phaser.Scene {
           if(hz.type === "dog"){
             /* the dog reacts: remember when, and which way he bolts —
                along the route away from the robot, sideways at random */
+            hz.hitT = t;
+            hz.fleeA = dx >= 0 ? -1 : 1;
+            hz.fleeB = Math.random() < 0.5 ? 1 : -1;
+          }
+          if(hz.type === "people"){
+            /* same reaction as the dog: bolt away from the robot,
+               toward the buildings, sideways at random */
             hz.hitT = t;
             hz.fleeA = dx >= 0 ? -1 : 1;
             hz.fleeB = Math.random() < 0.5 ? 1 : -1;
@@ -3635,3 +3789,4 @@ document.getElementById("rerollBtn").addEventListener("click", e => {
 </script>
 </body>
 </html>
+
