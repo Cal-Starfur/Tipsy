@@ -1388,14 +1388,20 @@ class WorldScene extends Phaser.Scene {
       box(0, 0, build.headR, build.headR, z0, z1, pSkin.c, pSkin.dk, pSkin.c);
       const hairZ0 = z0 + (z1-z0)*0.55;
       box(0, 0, build.headR*1.06, build.headR*1.06, hairZ0, z1+1.5, pHair, pHair, pHair);
-      if(build.hairStyle === "long"){
-        const backB = -build.headR*0.75;
-        box(0, backB, build.headR*0.62, build.headR*0.4, hipH+build.torsoH*0.35, z1-1, pHair, pHair, pHair);
-      }
+    };
+    /* long hair hangs down the BACK — has to draw before the torso/
+       shoulders so the body occludes the part that's actually behind
+       it; drawing it last (inside head(), after everything) made it
+       always render in front instead */
+    const hairBack = () => {
+      if(build.hairStyle !== "long") return;
+      const backB = -build.headR*0.75;
+      box(0, backB, build.headR*0.62, build.headR*0.4, hipH+build.torsoH*0.35, headH-1, pHair, pHair, pHair);
     };
 
     const nearSide = faceA;
-    leg(-1); leg(1);
+    leg(-nearSide); leg(nearSide);
+    hairBack();
     arm(-nearSide);
     torso();
     arm(nearSide);
