@@ -979,6 +979,30 @@ function findGoodS(segs, totalLen, preferredS, scanFromEnd){
   return Math.max(0, Math.min(totalLen, preferredS)); // no good leg anywhere (rare) — fall back to the original point
 }
 
+/* which real block sits next to a given route position — only valid
+   for a "line" segment with f===0 or f===3 (guaranteed by findGoodS's
+   search), same restriction the block-wrap cutaway already relies on.
+   The robot's fixed sidewalk lane means the near block edge is always
+   (f+2)%4 — for f===0 (east) that's the block one row NORTH of the
+   street; for f===3 (north), one column WEST of it. Same derivation
+   already verified for the cutaway system, just read in the other
+   direction (position -> block, not heading -> edge-to-cut). */
+function findAdjacentBlock(segs, s, grid){
+  const seg = segsSegAt(segs, s);
+  const pos = segsPosAt(segs, s);
+  let bi, bj;
+  if(seg.f === 0){
+    bi = Math.floor(pos.x / BLOCK);
+    bj = Math.round(pos.y / BLOCK) - 1;
+  } else {
+    bi = Math.round(pos.x / BLOCK) - 1;
+    bj = Math.floor(pos.y / BLOCK);
+  }
+  bi = Math.max(0, Math.min(grid.cols-2, bi));
+  bj = Math.max(0, Math.min(grid.rows-2, bj));
+  return grid.blocks.find(b => b.i === bi && b.j === bj) || null;
+}
+
 function generateRoute(dateStr){
   const seed = hashStr(dateStr);
   const rng = mulberry32(seed);
@@ -1219,6 +1243,18 @@ function generateRoute(dateStr){
   const doorS = findGoodS(segs, totalLen, totalLen - 90, true);
   const pickupS = findGoodS(segs, totalLen, SPAWN_S + 90, false);
 
+  /* the address is always a real block, forced to housing (a park or
+     shop can't be the delivery destination); the pickup is always a
+     real block, forced to commercial. Same override the lab used with
+     a hardcoded i,j — now driven by where the route actually put
+     doorS/pickupS instead of a fixed test position. */
+  const addressBlock = findAdjacentBlock(segs, doorS, grid);
+  if(addressBlock) addressBlock.type = "housing";
+  const addressEdgeIdx = (segsSegAt(segs, doorS).f + 2) % 4;
+  const pickupBlock = findAdjacentBlock(segs, pickupS, grid);
+  if(pickupBlock && pickupBlock !== addressBlock) pickupBlock.type = "commercial";
+  const pickupEdgeIdx = (segsSegAt(segs, pickupS).f + 2) % 4;
+
   const pal = hood.hill > 0.55
     ? { sky:0xf2c48d, pave:0xbdb6a8, paveB:0xb3ac9e, paveEdge:0x9c9588, road:0x45484f, roadLine:0xcfc9b9 }
     : hood.pave < 0.5
@@ -1233,7 +1269,7 @@ function generateRoute(dateStr){
   const traffic = buildTraffic(grid, rng, nTrafficRoutes);
 
   return { hood, grid, segs, totalLen, tiles, hazards, props, pal, traffic,
-           address:`${number} ${street}`, doorS, pickupS, tipMult, dateStr };
+           address:`${number} ${street}`, doorS, pickupS, addressBlock, pickupBlock, addressEdgeIdx, pickupEdgeIdx, tipMult, dateStr };
 }
 
 /* ---------- robot palette (approved in sprite lab) ---------- */
@@ -1349,7 +1385,7 @@ class WorldScene extends Phaser.Scene {
     this.route = generateRoute(dateStr);
     for(const hz of this.route.hazards) hz.hit = false;
     this.d = this.route.pal;
-    this.botS = SPAWN_S;
+    this.botS = this.route.pickupS;
     this.botZ = this.groundZ(this.botS);
     this.botRow = 1; this.laneOff = laneOffset(this.botRow);
     const sp = this.posAt(this.botS);
@@ -2166,6 +2202,67 @@ class WorldScene extends Phaser.Scene {
     else this.drawChainFence(g, ox, oy, dv, rv, w);
   }
 
+  /* ================= PICKUP SHOP: a worker carrying cargo out to
+     where the robot idles, in front of the designated pickup unit.
+     Ported from the block-wrap lab, same choreography, now using the
+     real drawPersonHull (already exists as a Scene method) instead of
+     a lab stand-in. Ambient/looping — there's no explicit "pickup"
+     game state to gate on (cargo is just loaded at spawn currently),
+     so this plays continuously as set dressing, same as the lab. */
+  drawCargoBox(g, x, y, z, dv){
+    const rv = { x:-dv.y, y:dv.x };
+    const G = (a,b,h) => this.W(x+dv.x*a+rv.x*b, y+dv.y*a+rv.y*b, z+h);
+    const hw = 13, hd = 10, H = 20;
+    const box = 0xc9a56e, boxDk = 0xa8875a, band = 0x8a3f36;
+    const top = [G(-hw,-hd,H),G(hw,-hd,H),G(hw,hd,H),G(-hw,hd,H)];
+    this.quadOn(g, top, box); this.edgeOn(g, top, boxDk, 1);
+    const faceA = [G(hw,-hd,H),G(hw,hd,H),G(hw,hd,0),G(hw,-hd,0)];
+    this.quadOn(g, faceA, boxDk);
+    const faceB = [G(-hw,hd,H),G(hw,hd,H),G(hw,hd,0),G(-hw,hd,0)];
+    this.quadOn(g, faceB, box);
+    const bandQ = [G(-hw,hd+0.5,H*0.62),G(hw,hd+0.5,H*0.62),G(hw,hd+0.5,H*0.4),G(-hw,hd+0.5,H*0.4)];
+    this.quadOn(g, bandQ, band);
+  }
+  drawRobotMarker(g, x, y, dv){
+    const rv = { x:-dv.y, y:dv.x };
+    const G = (a,b,h) => this.W(x+dv.x*a+rv.x*b, y+dv.y*a+rv.y*b, h);
+    const w=26, d=36, H=26;
+    const top = [G(-w,-d,H),G(w,-d,H),G(w,d,H),G(-w,d,H)];
+    this.quadOn(g, top, 0xff7a1a, 0.5);
+    this.edgeOn(g, top, 0xd85f0a, 2);
+    const faceA=[G(w,-d,H),G(w,d,H),G(w,d,0),G(w,-d,0)];
+    this.quadOn(g, faceA, 0xd85f0a, 0.35);
+    const faceB=[G(-w,d,H),G(w,d,H),G(w,d,0),G(-w,d,0)];
+    this.quadOn(g, faceB, 0xff7a1a, 0.35);
+  }
+  drawPickupUnit(g, ox, oy, dv, rv, doorCenterX, seed, t){
+    const cyc = (Math.sin(t*0.006)+1)/2; // 0..1..0, worker walks out and back
+    const u = cyc;
+    const robotDy = T2*2.1;
+    const robotX = ox + dv.x*doorCenterX + rv.x*robotDy, robotY = oy + dv.y*doorCenterX + rv.y*robotDy;
+    this.drawRobotMarker(g, robotX, robotY, dv);
+
+    const dyStart = T2*0.35, dyEnd = robotDy - 24;
+    const dy = dyStart + (dyEnd-dyStart)*u;
+    const thW = Math.atan2(rv.y, rv.x);
+    const moving = u > 0.03 && u < 0.97;
+    const walkPhase = moving ? Math.sin(t*PEOPLE_ART.walkSpeed) : 0;
+
+    const wrng = mulberry32(seed ^ 0x77b1);
+    const wBuild = PEOPLE_BUILD[wrng()<0.5?0:1];
+    const wSkin = PEOPLE_SKIN[Math.floor(wrng()*PEOPLE_SKIN.length)];
+    const wShirt = PEOPLE_SHIRT[Math.floor(wrng()*PEOPLE_SHIRT.length)];
+    const wPants = PEOPLE_PANTS[Math.floor(wrng()*PEOPLE_PANTS.length)];
+    const wHair = PEOPLE_HAIR[Math.floor(wrng()*PEOPLE_HAIR.length)];
+    const wShoe = PEOPLE_SHOE[Math.floor(wrng()*PEOPLE_SHOE.length)];
+
+    const workerX = ox + dv.x*doorCenterX + rv.x*dy, workerY = oy + dv.y*doorCenterX + rv.y*dy;
+    this.drawPersonHull(g, workerX, workerY, 0, thW, wBuild, wSkin, wShirt, wPants, wHair, wShoe, walkPhase, moving);
+    const boxDy = dy + 14;
+    const boxX = ox + dv.x*doorCenterX + rv.x*boxDy, boxY = oy + dv.y*doorCenterX + rv.y*boxDy;
+    this.drawCargoBox(g, boxX, boxY, 0, dv);
+  }
+
   /* what replaces a culled housing edge: one continuous fence spanning
      the whole edge (fences are paper-thin, no real depth into the
      block, so unlike houses they don't have a corner-overlap problem
@@ -2288,7 +2385,7 @@ class WorldScene extends Phaser.Scene {
     this.blockEdges(blk).forEach((e, idx) => { if(idx !== excludeEdge) this.queueHousingEdgeAt(vq, e); });
   }
 
-  queueCommercialEdgeAt(vq, e){
+  queueCommercialEdgeAt(vq, e, isPickupEdge=false){
     const eseed = ((Math.round(e.ox*3+e.dv.x)*7919) ^ (Math.round(e.oy*3+e.dv.y)*104729) ^ 0x51b3) >>> 0;
     const units = packEdgeNoGap(e.len, mulberry32(eseed));
     units.forEach((u, idx) => {
@@ -2296,12 +2393,20 @@ class WorldScene extends Phaser.Scene {
       const hseed = ((Math.round(hx)*7919) ^ (Math.round(hy)*104729)) >>> 0;
       const ux = e.ox + e.dv.x*u.start, uy = e.oy + e.dv.y*u.start;
       const isFirst = idx===0, isLast = idx===units.length-1;
-      vq.push({ depth:hx+hy, fn:(g)=>this.drawStoreUnit(g, ux, uy, e.dv, e.rv, u.w, hseed, isFirst, isLast, 'body') });
+      const isPickup = isPickupEdge && idx === 0;
+      vq.push({ depth:hx+hy, fn:(g,t)=>{
+        this.drawStoreUnit(g, ux, uy, e.dv, e.rv, u.w, hseed, isFirst, isLast, 'body');
+        if(isPickup) this.drawPickupUnit(g, ux, uy, e.dv, e.rv, u.w/2, hseed, t);
+      }});
       vq.push({ depth:hx+hy, isRoof:true, fn:(g)=>this.drawStoreUnit(g, ux, uy, e.dv, e.rv, u.w, hseed, isFirst, isLast, 'roof') });
     });
   }
   queueCommercialBlock(vq, blk, excludeEdge=-1){
-    this.blockEdges(blk).forEach((e, idx) => { if(idx !== excludeEdge) this.queueCommercialEdgeAt(vq, e); });
+    const isPickupBlock = (blk === this.route.pickupBlock);
+    this.blockEdges(blk).forEach((e, idx) => {
+      if(idx === excludeEdge) return;
+      this.queueCommercialEdgeAt(vq, e, isPickupBlock && idx === this.route.pickupEdgeIdx);
+    });
     const cx = (blk.x0+blk.x1)/2, cy = (blk.y0+blk.y1)/2;
     const rng = mulberry32(((Math.round(cx)*7919) ^ (Math.round(cy)*104729) ^ 0x71c4) >>> 0);
     const nPlanter = 2 + Math.floor(rng()*2);
