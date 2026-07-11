@@ -2181,34 +2181,43 @@ class WorldScene extends Phaser.Scene {
      the shop you can't currently see the front of" rather than a
      dead gap in the street. */
   drawParkingRow(g, ox, oy, dv, rv, w, seed, t=0){
-    /* nose-in, sized to the REAL car (CARC: 450 long x 180 wide) — the
-       block's own commercial depth allocation (STORE_DEPTH=276) isn't
-       enough for a 450-long car nose-in, so this extends deeper into
-       the block than a storefront would; the ground underneath is
-       already paved for the whole block regardless (fillBlockGround),
-       so there's nothing uncovered by going deeper, and 1656 total
-       block depth leaves plenty of room before reaching the opposite
-       edge's own content. */
-    const margin = T2*0.4;
-    const usable = w - margin*2;
-    const stallW = CARC.wid + 40;      // side-to-side along the curb
-    const stallDepth = CARC.len + 50;  // nose-in, into the block
-    if(usable < stallW) return;
+    /* nose-in, sized to the REAL car (CARC: 450 long x 180 wide).
+       Two things fixed here after the first pass:
+       1. Sign — every other block-wrap element treats NEGATIVE b as
+          "into the block" (houses' back wall is at -D). The first
+          version positioned stalls at POSITIVE b, which extended the
+          whole lot outward onto the sidewalk/street instead of inward
+          — not a sizing issue, a flipped sign.
+       2. Position — stalls now start behind where the culled
+          building's own footprint was (STORE_DEPTH+margin), not right
+          at the edge line. Cars end up parked roughly where the house
+          used to be, not on the sidewalk path the robot walks.
+       3. Count — a small FIXED cluster (2-3), centered on the edge,
+          instead of packing however many fit across the whole block
+          face, which read as a parking garage rather than a few
+          customer spots for one small business. */
+    const rng = mulberry32(seed);
+    const stallW = CARC.wid + 40;
+    const stallDepth = CARC.len + 50;
+    const nStalls = 2 + Math.floor(rng()*2); // 2-3
+    const clusterW = nStalls * stallW;
+    if(w < clusterW + T2) return;
+    const startAlong = (w - clusterW) / 2; // centered along the edge, not spanning it
+    const depthNear = -6;  // rear bumper right at the block boundary line — same depth a house's front wall sits at, so it's back in the camera's normal framing (300-800 deep was outside typical view around the robot)
+    const depthFar = depthNear - stallDepth;
     const G = (a,b,h) => this.W(ox + dv.x*a + rv.x*b, oy + dv.y*a + rv.y*b, h);
-    const n = Math.max(1, Math.floor(usable/stallW));
-    const actualW = usable/n;
     g.lineStyle(2, 0xf0ece0, 0.75);
-    for(let i=0; i<=n; i++){
-      const x = margin + i*actualW;
-      const a = G(x, 1, 1), b = G(x, stallDepth, 1);
+    for(let i=0; i<=nStalls; i++){
+      const x = startAlong + i*stallW;
+      const a = G(x, depthNear, 1), b = G(x, depthFar, 1);
       g.lineBetween(a.x, a.y, b.x, b.y);
     }
-    const fdirIn = DIRV.findIndex(d => d.x===-rv.x && d.y===-rv.y); // nose pointing into the block, pulled forward into the space
-    const rng = mulberry32(seed);
-    for(let i=0; i<n; i++){
-      const cx = margin + (i+0.5)*actualW;
-      const cWorldX = ox + dv.x*cx + rv.x*(stallDepth/2), cWorldY = oy + dv.y*cx + rv.y*(stallDepth/2);
-      if(rng() < 0.55){
+    const fdirIn = DIRV.findIndex(d => d.x===-rv.x && d.y===-rv.y); // nose pointing deeper into the block
+    for(let i=0; i<nStalls; i++){
+      const cx = startAlong + (i+0.5)*stallW;
+      const cDepth = (depthNear + depthFar) / 2;
+      const cWorldX = ox + dv.x*cx + rv.x*cDepth, cWorldY = oy + dv.y*cx + rv.y*cDepth;
+      if(rng() < 0.85){
         const kind = rng() < 0.75 ? "car" : "truck";
         this.drawProp(g, kind, cWorldX, cWorldY, t, fdirIn, 0);
       }
