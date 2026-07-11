@@ -1,6 +1,6 @@
 # TIPSY — Design Document
 
-*Living doc. Update when decisions change. Last updated: 2026-07-10 (v9).*
+*Living doc. Update when decisions change. Last updated: 2026-07-11 (v10).*
 
 ## Concept
 
@@ -19,8 +19,15 @@ spills across the pavement.
 
 - **Daily seeded route** — date string seeds everything; every player gets the
   identical street. Community glue for Devvit: shared fails, shared leaderboard.
-- **One address per day** (decided over multi-stop shifts): 60-second runs,
-  Wordle energy. Multi-delivery "shifts" are a possible later mode.
+- **One address per day** (decided over multi-stop shifts): targeting
+  ~140-second runs, Wordle energy. Multi-delivery "shifts" are a possible
+  later mode.
+  **Not yet hit consistently (audited 2026-07-11):** actual generated
+  routes vary enormously — measured across 100 seeds, playable distance
+  (pickup to door) at max speed alone ranges from ~3s to ~490s, median
+  ~250s. Route-generation randomness (`nTurns = 5+random(6)`, 1-3 blocks
+  per leg) needs actual tuning against this target, not just a number
+  change here.
 
 ## The city: Costa Palma (fictional)
 
@@ -33,6 +40,19 @@ scooter litter, grades — never residents or safety.
 
 12 districts, each with 4 gameplay attributes (hill, pave, litter, palms) and a
 street-name pool. Roster lives in `game/index.html` (`HOODS`).
+
+**Audit (2026-07-11) — attributes aren't equally tapped into:**
+- `pave`, `litter`, `palms` are genuinely used: hazard density, crack/litter
+  spawn mix, palm spawn rate, palette selection, a steering-jitter effect,
+  and the tip multiplier.
+- **`hill` is not** — it only touches palette selection and the tip
+  multiplier formula. The actual terrain heightmap (`route.tiles`, read by
+  `groundZ`) is hardcoded flat (`tiles.push(0)` for every tile, every
+  route) — a district named for hilliness has zero effect on the ground
+  actually driven on. **This is a real, wanted feature, not just an
+  under-used stat** — real slope (grade affecting speed/tilt, hills adding
+  a genuine difficulty axis distinct from hazard density) is planned and
+  hasn't been built yet. See Roadmap.
 
 ## What makes you tip (tilt sources)
 
@@ -99,7 +119,21 @@ under the tip threshold and never actually cross it).
 
 ## Win / lose / payout
 
-- **Win:** within the door zone, speed < 0.02, |tilt| < 0.5.
+- **Win:** `doorS - botS` within (-60, 34), speed < 0.02, |tilt| < 0.5 —
+  distance-along-route only.
+  **Known issue (found 2026-07-11, not yet fixed):** a same-day-earlier
+  session added an `onLane(3)` check here specifically to stop the robot
+  "winning" from out in the road at the right distance but the wrong
+  lateral position — but the current code doesn't have it, and even if it
+  did, `onLane(3)`/lane-3 was tied to the OLD `MAT_PERP`/`DOOR_PERP`
+  address system, which is now fully retired (see block-wrap section
+  below) in favor of a real house unit whose position doesn't correspond
+  to a fixed lane number anymore. In the current 4-lane system (see
+  Controls) the mat is conceptually lane 3 (building side) and the robot
+  spawns at lane 1, so the right check is likely lane 2 or 3 — needs
+  confirming against `this.addrDoorPos` (the real door's actual position,
+  already computed each frame the address block is visible) before
+  picking the exact number.
 - **Lose:** tip over → 3D roll, lid hinges open, burrito + cup + fries spill
   with physics, X eyes. (The pratfall is the share moment.)
 - **Payout:** tipMult × cargo% × 0.14 − seconds × 0.1, floored at $1.
@@ -108,7 +142,8 @@ under the tip threshold and never actually cross it).
 ## Controls
 
 Hold right = throttle · hold left = brake · swipe vertical = lane change
-(**3 lanes**: −1 building side w/ palms, 0 middle, +1 curbside).
+(**4 lanes**, `SIDEWALK_ROWS=4`: lane 0 curbside → lane 3 building side
+w/ palms; robot spawns on lane 1).
 The lane change is a 480ms smoothstep maneuver: forward motion continues
 (diagonal path), the robot yaws its nose into the turn (peaks mid-crossing),
 and the stability cost bleeds onto the tilt meter across the maneuver.
@@ -313,9 +348,14 @@ explored in the labs:
      consolidated into a single `this.sidewalkendTurn` object rather than
      scattered properties, specifically so a second instance could be
      dropped onto another corner later without a rebuild.
-  2. **Not pursued further** — random background cross-streets not on
-     the robot's own path (explored briefly in `labs/world-lab.html`).
-     Superseded by direction 1 once it proved out.
+  2. **Not pursued further, likely moot now** — random background
+     cross-streets not on the robot's own path (explored briefly in
+     `labs/world-lab.html`), meant to make the city feel populated.
+     Superseded by direction 1 (below) once it proved out, and now
+     further superseded by the block-wrap city (houses/storefronts/parks
+     behind the sidewalk — see "City block-wrap" below), which solves the
+     same "feels like a real place" goal a different way. Worth an
+     explicit call on whether this is dead or just deprioritized.
   Still open: **none of this is ported into `game/index.html`.** It's a
   fully working, physics-complete prototype for ONE corner. Placing it at
   actual route corners (and deciding whether every corner gets one, or
@@ -363,6 +403,96 @@ about whether the robot's own smooth fillet-arc path should ever cross a
 real street boundary at all, which is a route-construction decision, not a
 road/sidewalk-coherence one. Still open, unrelated to this fix.
 
+## City block-wrap: houses, storefronts, parks, address & pickup (built)
+
+Previously flagged as "known design debt" — the road/sidewalk was real but
+the space behind it was bare sky/ground. **Resolved.** Every block in the
+grid now renders as housing, park, or commercial (seeded 1/3 each), with a
+full prop ecosystem, and the day's address and pickup are real locations
+within it rather than a floating set piece.
+
+**Architecture:**
+- `buildBlockLayout`/`buildExteriorLots` assign a type to every interior
+  block and every perimeter lot around the world's outer edge.
+- `packEdge`/`packEdgeNoGap` pack houses (with yard-fence gaps) or
+  storefronts (edge-to-edge, no gaps) along a block's 4 edges, with corner
+  clearance (`cornerMargin = HOUSE_DEPTH+T2*0.3`) so perpendicular edges'
+  buildings never overlap at the corner.
+- **Hull volumes + per-part depth sorting + single geometry with
+  orientation transforms** is the standing pattern for every prop — not
+  pose interpolation or rendering hacks.
+- Roofs draw as a **separate, globally-last pass** (`isRoof` tag on queued
+  items, flushed after every body) — the per-unit depth sort is too coarse
+  (one number per unit) to guarantee a roof never gets painted over by a
+  neighboring unit otherwise.
+
+**Wall cutaway (f===1/f===2 headings only):** the fixed iso camera means
+only two of the four travel directions can put a nearby block's near wall
+between the camera and the robot. That block's near edge (`(f+2)%4`) gets
+excluded from normal rendering and replaced: a single continuous wood
+fence for housing (grass stays), painted parking stalls with real
+`car`/`truck` props (nose-in, sized to the actual prop dimensions, capped
+to a small 2-3 stall cluster, ~85% occupancy) for commercial. The
+replacement fence is the one piece of block-wrap content routed through
+proper depth occlusion (`layerFor`) rather than always-behind-the-robot —
+it sits right at the robot's own sidewalk line, unlike a house which is
+set back, so "always behind" made him look like he was standing through it.
+
+**Address & pickup are real locations, not floating points:**
+- `findGoodS` picks `doorS`/`pickupS` only on `f===0`/`f===3` legs (the
+  two headings the cutaway never touches), so the delivery/pickup point
+  can never collide with its own building being cut away.
+- `findAdjacentBlock` derives which real block borders that route
+  position (same `(f+2)%4` relationship the cutaway uses, read in the
+  other direction) and forces it to `housing`/`commercial`.
+- `closestUnitIndex` picks whichever packed house/store unit is actually
+  closest to where the route crosses that block's edge — not just the
+  first one. On a 1600+-unit block face, "always unit 0" could put the
+  door/shop over a thousand units from the route; this was a real,
+  confirmed bug, fixed for both address and pickup.
+- The address's real door/mat/`world.customer` now render as part of that
+  specific house unit (`drawHouseUnit`'s `isAddress` flag, wired for the
+  first time). The old floating system (`drawHouseFacade`, `HOUSE_ART`,
+  `NEIGHBOR_L_ART`, `NEIGHBOR_R_ART`, plus the `ROBOT_ROW`/`MAT_PERP`/
+  `DOOR_PERP`/`DOOR_ALONG` route-relative constants it depended on) is
+  fully retired, not kept as a fallback.
+- The robot now spawns at `pickupSpot` — the real position just outside
+  the pickup shop, computed once in `generateRoute` and refined so
+  `pickupS` lands on the closest matching on-route point (fast analytical
+  per-segment projection, not brute-force stepping — that cost ~320ms/
+  route before being replaced). Progress bar now measures
+  `pickupS → doorS`, not the old fixed `SPAWN_S → doorS`.
+- The pickup shop itself is a stationary worker standing beside the
+  robot's real spawn point, facing it — position and facing computed
+  directly from the two known world points rather than edge-relative
+  axis assumptions, after an animated out-and-back walk went through
+  several rounds of direction/timing bugs (wrong facing, walk distance
+  drifting from the robot's actual position, landing behind instead of
+  beside). No cargo-pickup game state exists yet, so this is ambient set
+  dressing, not gated on an actual pickup event.
+
+**Prop variety fixes (2026-07-11):**
+- Park trees: were always an isolated single `palmDwarf`, now cluster
+  into groups of 1-3 with an occasional tall `palm` mixed in, and heights
+  vary more widely (~12% chance of a dramatically tall specimen).
+- Sidewalk hazard palms: same clustering added as decorative-only
+  companions (never added to the hazard array, so collision/spacing
+  balance is untouched).
+- `prop.planter` had two real bugs: hardcoded face selection only correct
+  for one of four possible orientations (fixed with the same direction-
+  aware formula `drawPersonHull` already used), and the fallen/tipped-over
+  pose called a locally-shadowed relative-offset `W()` with already-
+  absolute coordinates, doubling its position on anything but the origin
+  (invisible in the lab, which tested near the origin).
+- `prop.car`/`prop.truck` halved in size (450×180 → 225×90) — full-size
+  was disproportionate once seen parked in the new stalls.
+
+**Known follow-up, not yet fixed:** `buildSidewalkGeometry`'s corner-cell
+loop calls `classifyAt` (itself O(edges)) for a large candidate set —
+roughly O(edges²), costing ~310ms per route generation on a 15×15 grid.
+Found while investigating an unrelated performance question; unrelated to
+anything in this section, but real and worth a look before the deadline.
+
 ## Reference docs
 
 - `docs/ASSETS.md` — canonical name for every art element (address art by these names).
@@ -375,20 +505,42 @@ road/sidewalk-coherence one. Still open, unrelated to this fix.
 
 ## Roadmap (hackathon: July 15)
 
-1. Feel pass — tune tilt/brake/hop numbers from playtests. **← current**
-2. Juice pass — hazard "!" telegraphs, hit shake, dust, sound, near-miss reward.
+1. **Fix the win-condition lateral check** — see "Known issue" under
+   Win/lose/payout above. Small, scoped, but affects whether a delivery
+   can complete without the robot actually being at the door. **← current**
+2. **Real hills** — `hood.hill` currently only affects palette and the tip
+   multiplier; `route.tiles` (the terrain heightmap `groundZ` reads) is
+   hardcoded flat for every route regardless of district. Wanted as a
+   genuine difficulty axis (grade affecting speed/tilt), not just an
+   under-used stat — see district audit above.
+3. **Route-length tuning** — targeting ~140s runs; actual generated
+   routes currently range ~3s to ~490s at max speed (median ~250s,
+   measured across 100 seeds). Needs tuning against `nTurns`/blocks-per-leg
+   in `buildWalk`, not just a target-number change.
+4. Feel pass — tune tilt/brake/hop numbers from playtests.
+5. Juice pass — hazard "!" telegraphs, hit shake, dust, sound, near-miss reward.
    - Idea: robot does a spin-out animation on puddle contact (hydrant burst
      variant spills a puddle — see prop.hydrantBurst in hydrant lab). Not
      wired into the game yet; hydrant is still decorative-only.
-3. Devvit port — bundle phaser.min.js locally (CSP), server date for seed,
+6. Devvit port — bundle phaser.min.js locally (CSP), server date for seed,
    Redis leaderboard (time + cargo + payout).
-4. Share card — "I earned $31 in Scooter Row 🌯" + day's route.
-5. Stretch: order choice as difficulty select (flat pizza vs boba tray = CoM).
-6. `prop.sidewalkendTurn` port is unblocked now that road/sidewalk
+7. Share card — "I earned $31 in Scooter Row 🌯" + day's route.
+8. Stretch: order choice as difficulty select (flat pizza vs boba tray = CoM).
+9. `prop.sidewalkendTurn` port is unblocked now that road/sidewalk
    architecture is unified (see above) — the remaining open question is
    the route-construction one in "Sidewalkend curb ramps" (whether/where
    the robot's own fillet-arc path should cross a real street boundary),
    not an architecture blocker. Not scheduled before July 15.
+10. `buildSidewalkGeometry` performance (~310ms/route, see block-wrap
+    section) — not urgent for a once-a-day route load, but worth fixing if
+    time allows; O(edges²) from an unbounded `classifyAt` call per
+    candidate cell.
+
+**Done since last update:** the block-wrap city (houses/storefronts/parks/
+address/pickup) — see new section above. This was the bulk of the "planter
+and car makeovers" line item from the previous roadmap; planter had two
+real bugs fixed, car/truck halved in size, but "makeover" as a visual
+redesign wasn't otherwise pursued.
 
 ## History
 
@@ -401,3 +553,6 @@ road/sidewalk-coherence one. Still open, unrelated to this fix.
 - 2026-07-10: cornering physics + rotation rewrite (V29/V30) — see
   "Cornering physics & rotation" above. New lab:
   `labs/corner-robot-lab.html`.
+- 2026-07-11: block-wrap city (houses/storefronts/parks/fences/parking),
+  real address & pickup locations, roof/planter/palm/car fixes — see
+  "City block-wrap" above.
