@@ -16,9 +16,6 @@
     padding:10px 4px;font-size:13px;font-weight:600;}
   button.on{background:#ff7a1a;border-color:#ff7a1a;color:#fff;}
   button:active{transform:scale(0.96);}
-  #hdr{padding:8px 14px 2px;font-size:12px;letter-spacing:2px;color:#8f95a1;text-transform:uppercase;}
-  #hdr b{color:#ff9c4d;}
-  #blurb{padding:0 14px 6px;font-size:12px;color:#8f95a1;}
   .overlay{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
     background:rgba(18,20,26,.86);color:#fff;text-align:center;z-index:10;padding:24px;}
   .overlay h1{font-size:52px;margin:0 0 4px;letter-spacing:2px;}
@@ -30,14 +27,20 @@
     padding:15px 44px;font-size:19px;font-weight:700;box-shadow:0 4px 0 #b5540e;}
   .overlay .btn:active{transform:translateY(3px);box-shadow:0 1px 0 #b5540e;}
   .tag{color:#ff9c4d;font-weight:700;letter-spacing:1px;font-size:12px;text-transform:uppercase;}
+  .brand{font-size:18px;font-weight:800;letter-spacing:1px;color:#ff9c4d;margin-bottom:8px;}
+  #routeMap{display:block;border-radius:14px;}
+  #mapCard{position:relative;width:280px;border-radius:14px;overflow:hidden;box-shadow:0 4px 0 #b5540e33;}
+  #mapCard .brand{position:absolute;top:12px;left:14px;margin:0;text-shadow:0 1px 4px rgba(255,255,255,.9),0 1px 4px rgba(255,255,255,.9);}
+  #mapCard .card{position:absolute;top:44px;left:12px;right:12px;margin:0;background:rgba(240,236,224,.92);color:#2e3138;backdrop-filter:blur(3px);}
+  #mapCard .card b{color:#b5540e;}
+  #mapCard .btn{position:absolute;bottom:16px;left:50%;transform:translateX(-50%);margin-top:0;}
+  #mapCard .btn:active{transform:translateX(-50%) translateY(3px);}
   .hidden{display:none!important;}
   .big{font-size:42px;margin:2px 0;}
 </style>
 </head>
 <body>
 <div id="wrap">
-  <div id="hdr"><b>TIPSY</b> · Costa Palma · one address a day</div>
-  <div id="blurb">…</div>
   <div id="game"></div>
   <div id="panel">
     <div class="row">
@@ -49,13 +52,12 @@
 </div>
 
 <div id="titleOverlay" class="overlay">
-  <div class="tag">A clumsy delivery</div>
-  <h1>TIPSY</h1>
-  <div class="card" id="orderCard">…</div>
-  <p><b>HOLD right side</b> — throttle · <b>HOLD left side</b> — brake<br>
-     <b>SWIPE up / down</b> — four lanes. Palms live on the inside one.</p>
-  <p>Fast over cracks, curbs and broken slabs = you tip.<br>You are the routing AI now. Good luck.</p>
-  <button class="btn" id="startBtn">START SHIFT</button>
+  <div id="mapCard">
+    <canvas id="routeMap" width="280" height="476"></canvas>
+    <div class="brand">TIPSY</div>
+    <div class="card" id="orderCard">…</div>
+    <button class="btn" id="startBtn">GO</button>
+  </div>
 </div>
 
 <div id="failOverlay" class="overlay hidden">
@@ -1409,7 +1411,7 @@ class WorldScene extends Phaser.Scene {
     this.gFront = this.add.graphics();     // hazards nearer the camera than the robot
     this.hud = this.add.graphics().setDepth(5);
     this.addrText = this.add.text(0, 0, "", { fontSize:"22px", fontStyle:"bold", color:"#2e3138" }).setOrigin(0.5);
-    this.hudText = this.add.text(10, 8, "", { fontSize:"15px", fontStyle:"bold", color:"#2e3138" }).setDepth(5);
+    this.hudText = this.add.text(10, 8, "", { fontSize:"15px", fontStyle:"bold", color:"#ff7a1a", lineSpacing:4 }).setDepth(5);
     this.qtext = this.add.text(0, 0, "?!", { fontSize:"30px", fontStyle:"bold", color:"#ffb04d" })
       .setOrigin(0.5).setDepth(4).setVisible(false);
 
@@ -1492,10 +1494,9 @@ class WorldScene extends Phaser.Scene {
     this.stuckAmt = 0; this.isBlocked = false;
     this.doorTheta = 0;   // hull door hinge angle — opens once this.state becomes "won"
     this.state = "idle";
-    document.getElementById("blurb").textContent =
-      `${this.route.dateStr} · ${this.route.hood.n} · ${this.route.address} · tips ×${this.route.tipMult}`;
     document.getElementById("orderCard").innerHTML =
       `<b>${this.route.hood.n}</b> — deliver to <b>${this.route.address}</b><br>tip multiplier <b>×${this.route.tipMult}</b>`;
+    drawRouteMap(this.route);
   }
 
   layout(){
@@ -5396,17 +5397,50 @@ class WorldScene extends Phaser.Scene {
     this.drawHUD();
   }
 
+  /* next upcoming turn ahead of the robot's current position, for the
+     turn-by-turn HUD. sign>0 is a CCW (angle-increasing, atan2 sense)
+     rotation — in any right-handed 2D frame that's a turn toward the
+     traveler's own left, independent of how the axes get projected to
+     screen, so sign>0 = Left, sign<0 = Right. Small back-tolerance (20
+     units) so the indicator doesn't blink away right as the robot
+     enters the arc. */
+  findNextTurn(){
+    for(const sg of this.route.segs){
+      if(sg.type === "arc" && sg.s0 > this.botS - 20) return sg;
+    }
+    return null;
+  }
   drawHUD(){
     const g = this.hud; g.clear();
     const w = this.scale.gameSize.width;
 
-    /* progress: spawn -> door */
-    const pct = Phaser.Math.Clamp((this.botS - this.route.pickupS) / (this.route.doorS - this.route.pickupS), 0, 1);
-    const bx = 70, bw = w - 140;
-    g.fillStyle(0xffffff, 0.5); g.fillRoundedRect(bx, 14, bw, 7, 3);
-    g.fillStyle(0xff7a1a, 1);   g.fillRoundedRect(bx, 14, Math.max(bw*pct, 7), 7, 3);
-    g.fillStyle(0xc2452e, 1);   g.fillRect(bx+bw-2, 9, 4, 17);
-    g.fillStyle(0x2e3138, 1);   g.fillCircle(bx+bw*pct, 17.5, 5);
+    /* delivery-app style HUD: distance/ETA/turn-by-turn, replacing the
+       old progress bar + live timer/cargo%. Quality (cargo%) and
+       elapsed time are reported once, at the end, in showWin — not
+       shown live during the trip anymore. */
+    const remainDist = Math.max(0, this.route.doorS - this.botS);
+    const FT_PER_UNIT = 0.6; // flavor conversion, not a real-world claim
+    const distFt = remainDist * FT_PER_UNIT;
+    const distText = distFt > 1000 ? (distFt/5280).toFixed(1)+" mi" : Math.round(distFt/10)*10 + " ft";
+
+    const speedFloor = 0.03; // avoids a huge/blinking ETA the instant the robot brakes to a stop
+    const etaSec = remainDist / Math.max(this.speed, speedFloor) / 1000;
+    const etaText = etaSec > 60
+      ? Math.floor(etaSec/60) + ":" + String(Math.round(etaSec%60)).padStart(2,"0")
+      : Math.round(etaSec) + "s";
+
+    const nextTurn = this.findNextTurn();
+    let turnText;
+    if(nextTurn){
+      const distToTurn = Math.max(0, nextTurn.s0 - this.botS);
+      const dir = nextTurn.sign > 0 ? "Left" : "Right";
+      const arrow = nextTurn.sign > 0 ? "←" : "→";
+      turnText = distToTurn < 20
+        ? `${arrow} Turn ${dir}`
+        : `${arrow} Turn ${dir} in ${Math.round(distToTurn*FT_PER_UNIT/10)*10} ft`;
+    } else {
+      turnText = "🏁 Straight ahead to drop-off";
+    }
 
     /* tilt meter */
     const cx = w/2, cy = 56, r = 24;
@@ -5420,8 +5454,7 @@ class WorldScene extends Phaser.Scene {
     g.lineStyle(3, 0x2e3138, 1);
     g.lineBetween(cx, cy, cx + Math.sin(this.tilt*1.2)*r, cy - Math.cos(this.tilt*1.2)*r);
 
-    this.hudText.setText(
-      `${(this.runT/1000).toFixed(1)}s   cargo ${Math.round(100-this.damage)}%`);
+    this.hudText.setText(`${distText} · ETA ${etaText}\n${turnText}`);
   }
 }
 
@@ -5442,6 +5475,104 @@ const FAIL_LINES = [
 
 function show(id){ document.getElementById(id).classList.remove("hidden"); }
 function hide(id){ document.getElementById(id).classList.add("hidden"); }
+
+/* top-down route preview for the title screen — reuses the same real
+   route geometry (segsPosAt) the game itself drives on, just sampled
+   flat with no iso transform, scaled/centered to fit the canvas. Colors
+   pull from the day's own hood palette so it matches that day's
+   in-game look rather than a fixed generic style. */
+function drawRouteMap(route){
+  const canvas = document.getElementById("routeMap");
+  if(!canvas) return;
+  const ctx = canvas.getContext("2d");
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0, 0, W, H);
+
+  const startS = route.pickupS, endS = route.doorS;
+  const n = 60;
+  const samples = [];
+  for(let i=0; i<=n; i++){
+    const s = startS + (endS-startS)*i/n;
+    samples.push(segsPosAt(route.segs, s));
+  }
+
+  let minX=Infinity, maxX=-Infinity, minY=Infinity, maxY=-Infinity;
+  for(const p of samples){
+    minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x);
+    minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y);
+  }
+  /* pad the route's own bounding box out by half a block on each side
+     so nearby streets/blocks are visible as real neighborhood context,
+     not just the exact corridor the route runs through. */
+  const margin = BLOCK*0.5;
+  minX -= margin; maxX += margin; minY -= margin; maxY += margin;
+
+  const pad = 22;
+  const availW = W - 2*pad, availH = H - 2*pad;
+  const cx0 = (minX+maxX)/2, cy0 = (minY+maxY)/2;
+  /* whichever axis has slack gets grown (symmetrically, staying
+     centered on the route) until the box's own proportions match the
+     canvas's — that's what fills the whole canvas on any route shape
+     instead of leaving one axis under-filled. Since the map already
+     draws from route.grid (the real street network), a bigger box just
+     means more of that same real data, not distortion or fake filler. */
+  let spanX = Math.max(1, maxX-minX), spanY = Math.max(1, maxY-minY);
+  const targetRatio = availW / availH;
+  if(spanX/spanY > targetRatio) spanY = spanX / targetRatio;
+  else spanX = spanY * targetRatio;
+  const scale = availW / spanX;
+  const toScreen = p => ({ x: W/2 + (p.x-cx0)*scale, y: H/2 + (p.y-cy0)*scale });
+  const viewMinX = cx0 - spanX/2, viewMaxX = cx0 + spanX/2;
+  const viewMinY = cy0 - spanY/2, viewMaxY = cy0 + spanY/2;
+  const inView = (x, y) => x >= viewMinX-BLOCK && x <= viewMaxX+BLOCK && y >= viewMinY-BLOCK && y <= viewMaxY+BLOCK;
+
+  const pal = route.pal;
+  const hex = n => "#" + n.toString(16).padStart(6,"0");
+  ctx.fillStyle = hex(pal.pave);
+  ctx.fillRect(0, 0, W, H);
+
+  /* real blocks from the same grid the game itself renders — housing,
+     park, and commercial each get a distinct flat tone. Only blocks
+     near the route are drawn, keeping it a legible neighborhood view
+     instead of the whole city. */
+  const blockColor = { housing: "#e3d4b8", park: "#8fbf7a", commercial: "#c4c8cc" };
+  for(const blk of route.grid.blocks){
+    if(!inView(blk.cx, blk.cy)) continue;
+    const a = toScreen({x:blk.x0, y:blk.y0}), b = toScreen({x:blk.x1, y:blk.y1});
+    ctx.fillStyle = blockColor[blk.type] || "#d8d2c2";
+    ctx.fillRect(Math.min(a.x,b.x), Math.min(a.y,b.y), Math.abs(b.x-a.x), Math.abs(b.y-a.y));
+  }
+
+  /* real streets from route.grid.edges */
+  ctx.strokeStyle = hex(pal.road);
+  ctx.lineWidth = 3;
+  ctx.lineCap = "round";
+  for(const e of route.grid.edges){
+    if(!inView(e.a.x, e.a.y) && !inView(e.b.x, e.b.y)) continue;
+    const pa = toScreen(e.a), pb = toScreen(e.b);
+    ctx.beginPath(); ctx.moveTo(pa.x, pa.y); ctx.lineTo(pb.x, pb.y); ctx.stroke();
+  }
+
+  ctx.strokeStyle = "#ff7a1a";
+  ctx.lineWidth = 4;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  ctx.beginPath();
+  samples.forEach((p, i) => {
+    const sp = toScreen(p);
+    if(i === 0) ctx.moveTo(sp.x, sp.y); else ctx.lineTo(sp.x, sp.y);
+  });
+  ctx.stroke();
+
+  const startPt = toScreen(samples[0]);
+  ctx.fillStyle = "#2e3138";
+  ctx.beginPath(); ctx.arc(startPt.x, startPt.y, 5, 0, Math.PI*2); ctx.fill();
+
+  const endPt = toScreen(samples[samples.length-1]);
+  ctx.fillStyle = "#c2452e";
+  ctx.beginPath(); ctx.arc(endPt.x, endPt.y, 7, 0, Math.PI*2); ctx.fill();
+  ctx.strokeStyle = "#fff"; ctx.lineWidth = 2; ctx.stroke();
+}
 
 function showFail(){
   const [m, s] = FAIL_LINES[Math.floor(Math.random()*FAIL_LINES.length)];
