@@ -1112,15 +1112,35 @@ function generateRoute(dateStr){
   }
 
   /* palms: lane 3, farthest from the road — nearest the buildings, same
-     "building-side" flavor the game already used. */
+     "building-side" flavor the game already used. Real palms grow in
+     clumps, not perfectly isolated — clusterExtras are small along/
+     lateral offsets from the main (collidable) hazard, each with its
+     own independently-rolled kind, purely decorative (never pushed
+     into hazards[], so spawnBlocked/collision spacing is completely
+     untouched — only the ONE real hazard per spawn point still counts
+     for gameplay). Different offset = different position = drawProp's
+     own position-seeded rng naturally varies lean/height/sway per
+     companion without any extra seeding work needed. */
   for(let ps = SPAWN_S + 140; ps < totalLen - 220; ps += 286 + rng()*264){
     const psR = Math.round(ps);
     if(inCorner(psR)) continue;
     if(!onSidewalk(psR, laneOffset(3))) continue;
     if(spawnBlocked(psR, laneOffset(3))) continue;
-    if(rng() < hood.palms) hazards.push({
-      type: rng() < 0.25 ? "palmDwarf" : "palm",
-      s: psR, row:3, f: facingAt(psR), hit:false });
+    if(rng() < hood.palms){
+      const sizeRoll = rng();
+      const clusterSize = sizeRoll < 0.6 ? 1 : sizeRoll < 0.85 ? 2 : 3;
+      const clusterExtras = [];
+      for(let c=1; c<clusterSize; c++){
+        clusterExtras.push({
+          ds: (rng()-0.5)*70,
+          dOff: (rng()-0.5)*T2*0.9,
+          kind: rng() < 0.25 ? "palmDwarf" : "palm"
+        });
+      }
+      hazards.push({
+        type: rng() < 0.25 ? "palmDwarf" : "palm",
+        s: psR, row:3, f: facingAt(psR), hit:false, clusterExtras });
+    }
   }
   /* storefront dressing (prop.planter / prop.bin): the FAR sidewalk —
      the opposite side of the street from the robot's own lane. Pure
@@ -1672,6 +1692,12 @@ class WorldScene extends Phaser.Scene {
       if(GROUND_KINDS[hz.type]) continue;
       const wp = worldOf(hz.s + (hz.slide || 0), hazardOffset(hz));
       if(near(wp.x, wp.y)) this.drawProp(layerFor(wp.x, wp.y), hz.type, wp.x, wp.y, t, hz.f, wp.z, null, null, hz);
+      if(hz.clusterExtras){
+        for(const ex of hz.clusterExtras){
+          const exWp = worldOf(hz.s + (hz.slide || 0) + ex.ds, hazardOffset(hz) + ex.dOff);
+          if(near(exWp.x, exWp.y)) this.drawProp(layerFor(exWp.x, exWp.y), ex.kind, exWp.x, exWp.y, t, hz.f, exWp.z);
+        }
+      }
     }
 
     /* the address: door, delivery mat, house, floating label — grid-
@@ -2283,10 +2309,21 @@ class WorldScene extends Phaser.Scene {
 
   queueParkBlock(vq, blk){
     const rng = mulberry32(((Math.round((blk.x0+blk.x1)/2)*7919) ^ (Math.round((blk.y0+blk.y1)/2)*104729) ^ 0x50a2) >>> 0);
-    const nPalm = 3 + Math.floor(rng()*3);
-    for(let k=0;k<nPalm;k++){
-      const x = blk.x0 + rng()*(blk.x1-blk.x0), y = blk.y0 + rng()*(blk.y1-blk.y0);
-      vq.push({ depth:x+y, fn:(g,t)=>this.scatterBlockProp(g, x, y, "palmDwarf", t) });
+    /* clusters, not isolated single trees — real palms/dwarf palms
+       (both already exist as approved props, height ratio ~3x) mixed
+       in per-tree, with each cluster member independently offset so
+       drawProp's own position-seeded height jitter (±15%) gives
+       natural variety within a group too, not just between groups. */
+    const nClusters = 2 + Math.floor(rng()*3);
+    for(let k=0;k<nClusters;k++){
+      const cx = blk.x0 + rng()*(blk.x1-blk.x0), cy = blk.y0 + rng()*(blk.y1-blk.y0);
+      const sizeRoll = rng();
+      const clusterSize = sizeRoll < 0.5 ? 1 : sizeRoll < 0.8 ? 2 : 3;
+      for(let m=0; m<clusterSize; m++){
+        const tx = cx + (rng()-0.5)*T2*1.2, ty = cy + (rng()-0.5)*T2*1.2;
+        const kind = rng() < 0.3 ? "palm" : "palmDwarf"; // occasional tall accent tree
+        vq.push({ depth:tx+ty, fn:(g,t)=>this.scatterBlockProp(g, tx, ty, kind, t) });
+      }
     }
     const nBench = 1 + Math.floor(rng()*2);
     for(let k=0;k<nBench;k++){
@@ -2441,7 +2478,8 @@ class WorldScene extends Phaser.Scene {
       const seed = ((Math.round(x)*7919) ^ (Math.round(y)*104729)) >>> 0;
       const rng = mulberry32(seed);
       const lean = P.trunkLean * (rng()*2 - 1) * 2;
-      const H = P.height * (0.85 + rng()*0.3);
+      const tallRoll = rng();
+      const H = P.height * (tallRoll < 0.12 ? (1.6 + rng()*0.5) : (0.85 + rng()*0.3)); // ~12% chance of a dramatically tall specimen
       const phase = rng()*Math.PI*2;
       const sway = Math.sin(t*0.0011 + phase) * 3.2 * P.wind;
 
@@ -3014,11 +3052,22 @@ class WorldScene extends Phaser.Scene {
         const pivotA = hw;
         const cphi = Math.cos(phi), sphi = Math.sin(phi);
         const tip = (u, h) => ({ u: pivotA - (pivotA-u)*cphi + h*sphi, z: (pivotA-u)*sphi + h*cphi });
-        const L = (u, v, h) => { const t = tip(u, h); return W(x + t.u*fc - v*fsn, y + t.u*fsn + v*fc, t.z); };
+        /* L/psh/fbush all compute FULLY ABSOLUTE world coordinates
+           themselves (x + t.u*fc - ..., not a small offset) — they
+           need the raw this.W(), not this function's own locally-
+           shadowed W(dx,dy,dz) (which treats its args as offsets from
+           x,y and re-applies the dv/rv rotation). Calling the
+           shadowed one here added x,y in a second time on top of the
+           position already baked into the argument, which is why a
+           knocked-over planter's geometry jumped to roughly double
+           its real position the moment phi>0 — this never showed up
+           in the lab because the lab's test planter sat at/near the
+           origin, where doubling an offset is invisible. */
+        const L = (u, v, h) => { const t = tip(u, h); return this.W(x + t.u*fc - v*fsn, y + t.u*fsn + v*fc, t.z); };
         const dAt2 = (u, v, h) => { const t = tip(u, h); return (t.u*fc - v*fsn) + (t.u*fsn + v*fc) + t.z*0.4; };
         const corner = (sx, sy, h) => L(sx*hw, sy*hd, h);
 
-        const psh = W(x + pivotA*(1-cphi)*0.5*fc, y + pivotA*(1-cphi)*0.5*fsn, 0);
+        const psh = this.W(x + pivotA*(1-cphi)*0.5*fc, y + pivotA*(1-cphi)*0.5*fsn, 0);
         g.fillStyle(PL.shadow, 0.16);
         g.fillEllipse(psh.x, psh.y + 2, (boxW+H)*this.K*0.42, (boxD+6)*this.K*0.36);
 
@@ -3039,7 +3088,7 @@ class WorldScene extends Phaser.Scene {
             const hh = 2 + brng()*3;
             const bOff = Math.sin(ang)*bushH*0.6;
             const aOff = pivotA + bushH*0.3 + Math.cos(ang)*bushH*0.3;
-            const c = W(x + aOff*fc - bOff*fsn, y + aOff*fsn + bOff*fc, hh);
+            const c = this.W(x + aOff*fc - bOff*fsn, y + aOff*fsn + bOff*fc, hh);
             g.fillStyle(i%3===0 ? V.leafA : i%3===1 ? V.leafB : V.leafC, 1);
             g.fillCircle(c.x, c.y, (bushH*0.22)*this.K*0.42);
           }
@@ -3059,8 +3108,19 @@ class WorldScene extends Phaser.Scene {
           const top = [corner(-1,-1,H), corner(1,-1,H), corner(1,1,H), corner(-1,1,H)];
           this.quadOn(g, top, PL.box);
           this.edgeOn(g, top, PL.boxDk, 1.2);
-          /* the two outward faces always visible under this fixed camera */
-          const faceX = 1, faceY = 1;
+          /* the two outward faces visible under this fixed camera —
+             was hardcoded to faceX=1,faceY=1, which is ONLY correct
+             when fdir===0 (dv={1,0}). The collidable planter hazard
+             (and now block-wrap scatter) can spawn at any of the 4
+             facings via facingAt()/scatterBlockProp, and for the other
+             3 the hardcoded version drew the WRONG two faces — this is
+             the exact same "which 2 box faces face the camera" problem
+             drawPersonHull already solves correctly for a continuous
+             heading (faceA=sign(cs+sn), faceB=sign(cs-sn)); dv is just
+             (cos,sin) of this box's 90°-snapped heading, so the same
+             formula applies directly, for any orientation. */
+          const faceX = Math.sign(dv.x + dv.y) || 1;
+          const faceY = Math.sign(dv.x - dv.y) || 1;
           const xFace = [
             corner(faceX,-1,H), corner(faceX,1,H),
             corner(faceX,1,0,baseShrink), corner(faceX,-1,0,baseShrink)
