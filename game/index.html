@@ -479,7 +479,7 @@ const PLANTER_HIT = {
    flush rear window instead of the sedan's full sloped backlight, and
    an open cargo bed with raised rails behind the cab. */
 const CARC = {
-  len: 450, wid: 180, chassisH: 84, cabinH: 96, wheelR: 48,
+  len: 225, wid: 90, chassisH: 42, cabinH: 48, wheelR: 24,
   glass: 0x4a5560, glassDk: 0x3a434c, windshield: 0x9fc4d6, windshieldEdge: 0x6f8fa0,
   bumper: 0xb8bcc2, light: 0xf4e9b0, tail: 0xc94f4f,
   wheel: 0x24262c, wheelDk: 0x17191d, hub: 0x8a919c, hubFace: 0x3d424c,
@@ -523,13 +523,6 @@ const ROBOT_SIDE = -1;       // the walk stays on ONE side's sidewalk band —
                               // lane 3 is farthest (building side).
 function laneOffset(lane){ return ROBOT_SIDE * (ROAD_HALF + (lane+0.5)*T2); }
 function farLaneOffset(lane){ return -ROBOT_SIDE * (ROAD_HALF + (lane+0.5)*T2); } // opposite sidewalk — decoration only, never robot-reachable
-const ROBOT_ROW = laneOffset(1.5);       // default sidewalk lane, in raw world units (not T2-multiplied)
-
-/* ---- door lab port: exact lane math for where the door/mat/house sit ---- */
-const MAT_PERP  = laneOffset(3);               // center of lane 3, the last real sidewalk row
-const DOOR_PERP = -(ROAD_HALF + SIDEWALK_W);   // outer edge of lane 3 / where lane 4 would start
-const DOOR_ALONG = T2/2;   // sidewalk tiles are centered at odd multiples of T2/2, never at along=0 —
-                            // door/mat/house column has to sit on T2/2 to land on a real tile center
 
 /* hull door: frame + slab + 2 panels + knob, hinge-open on theta.
    Ported verbatim from the door lab (dial bench approved). */
@@ -548,21 +541,6 @@ const DOOR_ART = {
   shadow: 0x000000
 };
 const MAT_ART = { red: 0xc2452e, redDk: 0x8f331f, border: 0x6e2718, fiber: 0xa8391f };
-
-/* house facade: green center house (with the door) + two flanking
-   neighbors, dark blue left / tan right. Ported verbatim from the
-   door lab. */
-const HOUSE_ART = {
-  spanTiles: 5, winCount: 2, h: 220, baseH: 30,
-  wall: 0x4e7a52, wallDk: 0x3e6244, wallLt: 0x5c8a60, trim: 0x2f4a32,
-  winFrame: 0xf4efe2, winFrameDk: 0xd8d0bd,
-  winGlass: 0x6b93a8, winGlassLt: 0x86adc0,
-  winW: DOOR_ART.w - DOOR_ART.panelInset*2,
-  winZ0: DOOR_ART.h*DOOR_ART.panelTopFrom, winZ1: DOOR_ART.h*DOOR_ART.panelTopTo,
-  winSillH: 4
-};
-const NEIGHBOR_L_ART = { spanTiles: 4, winCount: 2, h: 200, baseH: 26, wall: 0x2e4d68, wallDk: 0x22394e, trim: 0x1a2a3a };
-const NEIGHBOR_R_ART = { spanTiles: 4, winCount: 2, h: 205, baseH: 26, wall: 0xc9a56e, wallDk: 0xa8875a, trim: 0x7a6040 };
 
 /* ================= BLOCK-WRAP: housing/park/commercial filling the
    interior beyond the sidewalk's inside line, ported from the
@@ -1658,6 +1636,7 @@ class WorldScene extends Phaser.Scene {
     const botCol = cutEdgeIdx >= 0 ? Math.floor(this.botX / BLOCK) : null;
     const botRow = cutEdgeIdx >= 0 ? Math.floor(this.botY / BLOCK) : null;
 
+    this.addrDoorPos = null;
     const blockVQ = [];
     for(const blk of visBlocks){
       const cutThis = cutEdgeIdx >= 0 && blk.i === botCol && blk.j === botRow && blk.type !== "park";
@@ -1737,52 +1716,20 @@ class WorldScene extends Phaser.Scene {
       }
     }
 
-    /* the address: door, delivery mat, house, floating label — grid-
-       quantized facing (same DIRV convention every hull prop uses) so
-       the door/mat/house always read correctly under the fixed iso
-       camera. Ported from the door lab: real street geometry the mat/
-       door already sit in, DOOR_ALONG tile-snapping, hull door with a
-       working hinge, and a green house + two flanking neighbors where
-       there used to be bare sky. */
-    const doorHdgRaw = this.headingAt(r.doorS);
-    const fdir = ((Math.round(doorHdgRaw / (Math.PI/2)) % 4) + 4) % 4;
-    const dv = DIRV[fdir], rv = DIRV[(fdir+1)%4];
-    const dp = this.posAt(r.doorS), dz = this.groundZ(r.doorS);
-    const ec = { x: dp.x - rv.x*ROBOT_ROW, y: dp.y - rv.y*ROBOT_ROW };
-    const doorW = { x: ec.x + dv.x*DOOR_ALONG + rv.x*DOOR_PERP, y: ec.y + dv.y*DOOR_ALONG + rv.y*DOOR_PERP };
-
-    this.drawHouseFacade(g, dp, dz, dv, rv);
-    this.drawMatQuad(g, dp, dz, dv, rv);
-    this.drawDoorAssembly(g, dp, dz, dv, rv, this.doorTheta);
-
-    /* world.customer: same design as prop.people via drawPersonHull().
-       Walk path from the door lab: dyStart=4, dyEnd=T2-8 (stops near
-       the mat's road-side edge). Trigger is now the door's own hinge
-       angle — same as the lab originally intended — instead of the
-       distance-based stand-in used before the door had a real hinge. */
-    const custSeed = ((Math.round(dp.x)*7919) ^ (Math.round(dp.y)*104729) ^ 0x4c75) >>> 0;
-    const crng = mulberry32(custSeed);
-    const cBuild = PEOPLE_BUILD[crng() < 0.5 ? 0 : 1];
-    const cSkin = PEOPLE_SKIN[Math.floor(crng()*PEOPLE_SKIN.length)];
-    const cShirt = PEOPLE_SHIRT[Math.floor(crng()*PEOPLE_SHIRT.length)];
-    const cPants = PEOPLE_PANTS[Math.floor(crng()*PEOPLE_PANTS.length)];
-    const cHair = PEOPLE_HAIR[Math.floor(crng()*PEOPLE_HAIR.length)];
-    const cShoe = PEOPLE_SHOE[Math.floor(crng()*PEOPLE_SHOE.length)];
-    const walkT = Phaser.Math.Clamp(this.doorTheta / DOOR_ART.openAngle, 0, 1);
-    if(walkT > 0.02){
-      const u = 1 - Math.pow(1 - walkT, 2);
-      const dyStart = 4, dyEnd = T2 - 8;
-      const dy = Phaser.Math.Linear(dyStart, dyEnd, u);
-      const cx = doorW.x + rv.x*dy, cy = doorW.y + rv.y*dy;
-      const thW = Math.atan2(rv.y, rv.x);
-      const moving = walkT < 0.97;
-      const walkPhase = moving ? Math.sin(t*PEOPLE_ART.walkSpeed) : 0;
-      this.drawPersonHull(g, cx, cy, dz, thW, cBuild, cSkin, cShirt, cPants, cHair, cShoe, walkPhase, moving, 0);
+    /* the address label: door/mat/house/customer now render as part of
+       the real address house unit (see queueHousingEdgeAt's isAddress
+       branch) instead of a floating set piece computed independently
+       here. this.addrDoorPos is set as a side effect of that pass when
+       the address block is actually visible this frame — if it's out
+       of view, there's nothing to point the label at, so it hides
+       rather than show a stale/wrong position. */
+    if(this.addrDoorPos){
+      const doorScreen = this.W(this.addrDoorPos.x, this.addrDoorPos.y, this.addrDoorPos.z);
+      this.addrText.setPosition(doorScreen.x, doorScreen.y - 128 + Math.sin(t*0.003)*5);
+      this.addrText.setText(this.route.address);
+    } else {
+      this.addrText.setText("");
     }
-
-    const doorScreen = this.W(doorW.x, doorW.y, dz);
-    this.addrText.setPosition(doorScreen.x, doorScreen.y - 128 + Math.sin(t*0.003)*5);
-    this.addrText.setText(this.route.address);
   }
 
   /* ---------- shared person-hull renderer ----------
@@ -1803,11 +1750,9 @@ class WorldScene extends Phaser.Scene {
      Slab (and its panels + knob) pivot on a vertical hinge at dx=-hw.
      theta=0 reproduces the closed pose; theta=DOOR_ART.openAngle swings
      it flat against the hinge post, out over the mat. Ported verbatim. */
-  drawDoorAssembly(g, dp, dz, dv, rv, theta){
+  drawDoorAssembly(g, ox, oy, dv, rv, doorCenterX, dz, theta){
     const D = DOOR_ART;
-    const ec = { x: dp.x - rv.x*ROBOT_ROW, y: dp.y - rv.y*ROBOT_ROW };
-    const doorWx = ec.x + dv.x*DOOR_ALONG + rv.x*DOOR_PERP, doorWy = ec.y + dv.y*DOOR_ALONG + rv.y*DOOR_PERP;
-    const G = (dx, dy, dzz) => this.W(doorWx + dv.x*dx + rv.x*dy, doorWy + dv.y*dx + rv.y*dy, dz+dzz);
+    const G = (dx, dy, dzz) => this.W(ox + dv.x*(doorCenterX+dx) + rv.x*dy, oy + dv.y*(doorCenterX+dx) + rv.y*dy, dz+dzz);
     const depthAt = (dx, dy, dzz) => (dv.x+dv.y)*dx*0.5 + (rv.x+rv.y)*dy*0.5 - dzz*0.35;
 
     const hw = D.w/2, H = D.h, dyF = 2.4;
@@ -1901,11 +1846,10 @@ class WorldScene extends Phaser.Scene {
      Exactly one sidewalk square, sitting flush on lane 3's tile,
      flush against the door at its near edge. Border rim + fiber
      texture instead of a flat quad. */
-  drawMatQuad(g, dp, dz, dv, rv){
-    const ec = { x: dp.x - rv.x*ROBOT_ROW, y: dp.y - rv.y*ROBOT_ROW };
-    const M = (dx, dy, dzz) => this.W(ec.x + dv.x*(dx+DOOR_ALONG) + rv.x*dy, ec.y + dv.y*(dx+DOOR_ALONG) + rv.y*dy, dz+dzz);
+  drawMatQuad(g, ox, oy, dv, rv, doorCenterX, dz){
+    const M = (dx, dy, dzz) => this.W(ox + dv.x*(doorCenterX+dx) + rv.x*dy, oy + dv.y*(doorCenterX+dx) + rv.y*dy, dz+dzz);
     const half = T2/2;
-    const matNear = MAT_PERP - half, matFar = MAT_PERP + half;
+    const matNear = T2*0.5 - half, matFar = T2*0.5 + half;
     const outer = [M(-half,matNear,0.6), M(half,matNear,0.6), M(half,matFar,0.6), M(-half,matFar,0.6)];
     this.quadOn(g, outer, MAT_ART.redDk);
     const bw = 3.5;
@@ -1925,68 +1869,6 @@ class WorldScene extends Phaser.Scene {
     }
   }
 
-  /* ---------- house facade (door lab, dial bench approved) ----------
-     Center green house (with the door) + two flanking neighbors —
-     dark blue left, tan right — flush against its outer edges, each
-     with a corner-return face at its own outermost edge. */
-  drawHouseFacade(g, dp, dz, dv, rv){
-    const ec = { x: dp.x - rv.x*ROBOT_ROW, y: dp.y - rv.y*ROBOT_ROW };
-    const doorWx = ec.x + dv.x*DOOR_ALONG + rv.x*DOOR_PERP, doorWy = ec.y + dv.y*DOOR_ALONG + rv.y*DOOR_PERP;
-    const G = (dx, dy, dzz) => this.W(doorWx + dv.x*dx + rv.x*dy, doorWy + dv.y*dx + rv.y*dy, dz+dzz);
-
-    const wallBlock = (x0, x1, C, opts={}) => {
-      const face = [G(x0, 0.4, C.h), G(x1, 0.4, C.h), G(x1, 0.4, 0), G(x0, 0.4, 0)];
-      this.quadOn(g, face, C.wall);
-      const base = [G(x0, 0.42, C.baseH), G(x1, 0.42, C.baseH), G(x1, 0.42, 0), G(x0, 0.42, 0)];
-      this.quadOn(g, base, C.wallDk);
-      const trim = [G(x0, 0.42, C.h), G(x1, 0.42, C.h), G(x1, 0.42, C.h-10), G(x0, 0.42, C.h-10)];
-      this.quadOn(g, trim, C.trim);
-      g.lineStyle(1, C.wallDk, 0.35);
-      for(let x = x0 + T2; x < x1; x += T2){ const a=G(x,0.41,C.h), b=G(x,0.41,0); g.lineBetween(a.x,a.y,b.x,b.y); }
-      if(opts.cornerLeft){
-        const pts = [G(x0, 0.4, C.h), G(x0-16, 0.1, C.h), G(x0-16, 0.1, 0), G(x0, 0.4, 0)];
-        this.quadOn(g, pts, C.wallDk);
-        this.edgeOn(g, pts, C.trim, 1);
-      }
-      if(opts.cornerRight){
-        const pts = [G(x1, 0.4, C.h), G(x1+16, 0.1, C.h), G(x1+16, 0.1, 0), G(x1, 0.4, 0)];
-        this.quadOn(g, pts, C.wallDk);
-        this.edgeOn(g, pts, C.trim, 1);
-      }
-    };
-    const window = (cx, C, z0, z1, w) => {
-      const wHW = w/2, wf = HOUSE_ART.winFrame, wfd = HOUSE_ART.winFrameDk, wg = HOUSE_ART.winGlass, wgl = HOUSE_ART.winGlassLt;
-      const sill = [G(cx-wHW-3, 0.5, z0), G(cx+wHW+3, 0.5, z0), G(cx+wHW+3, 0.5, z0-HOUSE_ART.winSillH), G(cx-wHW-3, 0.5, z0-HOUSE_ART.winSillH)];
-      this.quadOn(g, sill, wfd);
-      const frame = [G(cx-wHW-2, 0.5, z1+2), G(cx+wHW+2, 0.5, z1+2), G(cx+wHW+2, 0.5, z0), G(cx-wHW-2, 0.5, z0)];
-      this.quadOn(g, frame, wf);
-      const glass = [G(cx-wHW, 0.55, z1), G(cx+wHW, 0.55, z1), G(cx+wHW, 0.55, z0), G(cx-wHW, 0.55, z0)];
-      this.quadOn(g, glass, wg);
-      const pane = [G(cx-1, 0.56, z1), G(cx+1, 0.56, z1), G(cx+1, 0.56, z0), G(cx-1, 0.56, z0)];
-      this.quadOn(g, pane, wfd);
-      const hl = [G(cx-wHW+2, 0.56, z1-2), G(cx-2, 0.56, z1-2), G(cx-2, 0.56, z0+3), G(cx-wHW+2, 0.56, z0+3)];
-      this.quadOn(g, hl, wgl, 0.6);
-    };
-
-    const doorHW = DOOR_ART.w/2;
-    const greenSpan = HOUSE_ART.spanTiles*T2;
-    const gL = -doorHW - greenSpan, gR = doorHW + greenSpan;
-    const lSpan = NEIGHBOR_L_ART.spanTiles*T2, rSpan = NEIGHBOR_R_ART.spanTiles*T2;
-    const nlL = gL - lSpan, nlR = gL;
-    const nrL = gR, nrR = gR + rSpan;
-
-    wallBlock(nlL, nlR, NEIGHBOR_L_ART, { cornerLeft:true });
-    for(let i=1; i<=NEIGHBOR_L_ART.winCount; i++) window(nlR - (i-0.5)*T2, NEIGHBOR_L_ART, HOUSE_ART.winZ0*0.95, HOUSE_ART.winZ1*0.95, HOUSE_ART.winW*0.85);
-
-    wallBlock(gL, gR, HOUSE_ART, {});
-    for(let i=1; i<=HOUSE_ART.winCount; i++){
-      window(-doorHW - (i+0.5)*T2, HOUSE_ART, HOUSE_ART.winZ0, HOUSE_ART.winZ1, HOUSE_ART.winW);
-      window( doorHW + (i+0.5)*T2, HOUSE_ART, HOUSE_ART.winZ0, HOUSE_ART.winZ1, HOUSE_ART.winW);
-    }
-
-    wallBlock(nrL, nrR, NEIGHBOR_R_ART, { cornerRight:true });
-    for(let i=1; i<=NEIGHBOR_R_ART.winCount; i++) window(nrL + (i-0.5)*T2, NEIGHBOR_R_ART, HOUSE_ART.winZ0*0.95, HOUSE_ART.winZ1*0.95, HOUSE_ART.winW*0.85);
-  }
 
   /* ================= BLOCK-WRAP: houses/storefronts/fences/bench,
      ported from labs/block-wrap.html. Scale anchored on the real door
@@ -2364,15 +2246,52 @@ class WorldScene extends Phaser.Scene {
     ];
   }
 
-  queueHousingEdgeAt(vq, e){
+  queueHousingEdgeAt(vq, e, isAddressEdge=false){
     const eseed = ((Math.round(e.ox*3+e.dv.x)*7919) ^ (Math.round(e.oy*3+e.dv.y)*104729) ^ 0x9e3779b9) >>> 0;
     const units = packEdge(e.len, mulberry32(eseed));
-    units.forEach((u) => {
+    units.forEach((u, idx) => {
       const hx = e.ox + e.dv.x*(u.start + u.w/2), hy = e.oy + e.dv.y*(u.start + u.w/2);
       const hseed = ((Math.round(hx)*7919) ^ (Math.round(hy)*104729)) >>> 0;
       const ux = e.ox + e.dv.x*u.start, uy = e.oy + e.dv.y*u.start;
-      vq.push({ depth:hx+hy, fn:(g)=>this.drawHouseUnit(g, ux, uy, e.dv, e.rv, u.w, hseed, false, 'body') });
-      vq.push({ depth:hx+hy, isRoof:true, fn:(g)=>this.drawHouseUnit(g, ux, uy, e.dv, e.rv, u.w, hseed, false, 'roof') });
+      const isAddress = isAddressEdge && idx === 0;
+      if(isAddress){
+        const doorCenterX = u.w/2;
+        const dz = this.groundZ(this.route.doorS);
+        this.addrDoorPos = { x: ux + e.dv.x*doorCenterX, y: uy + e.dv.y*doorCenterX, z: dz };
+        vq.push({ depth:hx+hy, fn:(g,t)=>{
+          this.drawHouseUnit(g, ux, uy, e.dv, e.rv, u.w, hseed, true, 'body');
+          this.drawDoorAssembly(g, ux, uy, e.dv, e.rv, doorCenterX, dz, this.doorTheta);
+          this.drawMatQuad(g, ux, uy, e.dv, e.rv, doorCenterX, dz);
+          /* world.customer: same design as prop.people via drawPersonHull().
+             Walk path from the door lab: dyStart=4, dyEnd=T2-8 (stops near
+             the mat's road-side edge), triggered by the door's own hinge
+             angle. Position now anchored to the real house unit instead
+             of a route-relative point. */
+          const custSeed = (hseed ^ 0x4c75) >>> 0;
+          const crng = mulberry32(custSeed);
+          const cBuild = PEOPLE_BUILD[crng() < 0.5 ? 0 : 1];
+          const cSkin = PEOPLE_SKIN[Math.floor(crng()*PEOPLE_SKIN.length)];
+          const cShirt = PEOPLE_SHIRT[Math.floor(crng()*PEOPLE_SHIRT.length)];
+          const cPants = PEOPLE_PANTS[Math.floor(crng()*PEOPLE_PANTS.length)];
+          const cHair = PEOPLE_HAIR[Math.floor(crng()*PEOPLE_HAIR.length)];
+          const cShoe = PEOPLE_SHOE[Math.floor(crng()*PEOPLE_SHOE.length)];
+          const walkT = Phaser.Math.Clamp(this.doorTheta / DOOR_ART.openAngle, 0, 1);
+          if(walkT > 0.02){
+            const wu = 1 - Math.pow(1 - walkT, 2);
+            const dyStart = 4, dyEnd = T2 - 8;
+            const dy = Phaser.Math.Linear(dyStart, dyEnd, wu);
+            const cx = ux + e.dv.x*doorCenterX + e.rv.x*dy, cy = uy + e.dv.y*doorCenterX + e.rv.y*dy;
+            const thW = Math.atan2(e.rv.y, e.rv.x);
+            const moving = walkT < 0.97;
+            const walkPhase = moving ? Math.sin(t*PEOPLE_ART.walkSpeed) : 0;
+            this.drawPersonHull(g, cx, cy, dz, thW, cBuild, cSkin, cShirt, cPants, cHair, cShoe, walkPhase, moving, 0);
+          }
+        }});
+        vq.push({ depth:hx+hy, isRoof:true, fn:(g)=>this.drawHouseUnit(g, ux, uy, e.dv, e.rv, u.w, hseed, true, 'roof') });
+      } else {
+        vq.push({ depth:hx+hy, fn:(g)=>this.drawHouseUnit(g, ux, uy, e.dv, e.rv, u.w, hseed, false, 'body') });
+        vq.push({ depth:hx+hy, isRoof:true, fn:(g)=>this.drawHouseUnit(g, ux, uy, e.dv, e.rv, u.w, hseed, false, 'roof') });
+      }
     });
     for(const gp of gapsFromUnits(units, e.len)){
       const gx = e.ox + e.dv.x*(gp.start+gp.w/2), gy = e.oy + e.dv.y*(gp.start+gp.w/2);
@@ -2382,7 +2301,11 @@ class WorldScene extends Phaser.Scene {
     }
   }
   queueHousingBlock(vq, blk, excludeEdge=-1){
-    this.blockEdges(blk).forEach((e, idx) => { if(idx !== excludeEdge) this.queueHousingEdgeAt(vq, e); });
+    const isAddressBlock = (blk === this.route.addressBlock);
+    this.blockEdges(blk).forEach((e, idx) => {
+      if(idx === excludeEdge) return;
+      this.queueHousingEdgeAt(vq, e, isAddressBlock && idx === this.route.addressEdgeIdx);
+    });
   }
 
   queueCommercialEdgeAt(vq, e, isPickupEdge=false){
@@ -5396,7 +5319,7 @@ class WorldScene extends Phaser.Scene {
     const w = this.scale.gameSize.width;
 
     /* progress: spawn -> door */
-    const pct = Phaser.Math.Clamp((this.botS - SPAWN_S) / (this.route.doorS - SPAWN_S), 0, 1);
+    const pct = Phaser.Math.Clamp((this.botS - this.route.pickupS) / (this.route.doorS - this.route.pickupS), 0, 1);
     const bx = 70, bw = w - 140;
     g.fillStyle(0xffffff, 0.5); g.fillRoundedRect(bx, 14, bw, 7, 3);
     g.fillStyle(0xff7a1a, 1);   g.fillRoundedRect(bx, 14, Math.max(bw*pct, 7), 7, 3);
