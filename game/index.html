@@ -956,6 +956,29 @@ function segsWorldOf(segs, s, offsetUnits){
   return { x: p.x + rvx*offsetUnits, y: p.y + rvy*offsetUnits };
 }
 
+/* the address (and, later, the pickup) needs to sit on a straight leg
+   whose heading is f===0 or f===3 — the two directions the block-wrap
+   cutaway never touches. f===1/f===2 are exactly the headings where a
+   nearby block's near wall gets cut away, so a door placed on one of
+   those legs could have its own house wall vanish out from under it
+   the moment the robot arrives. Search outward from the natural
+   position (still totalLen-90 / SPAWN_S+90 — this does NOT change
+   route length or leg count, just which existing point along the
+   already-generated route gets used) for the nearest usable leg. */
+function findGoodS(segs, totalLen, preferredS, scanFromEnd){
+  const isGood = sg => sg.type === "line" && (sg.f === 0 || sg.f === 3);
+  const order = scanFromEnd ? [...segs].reverse() : segs;
+  for(const sg of order){
+    if(!isGood(sg)) continue;
+    const len = sg.s1 - sg.s0;
+    const inset = Math.min(90, len*0.3);
+    const lo = sg.s0 + inset, hi = sg.s1 - inset;
+    if(hi < lo) continue; // leg too short even for its own inset — skip
+    return Math.max(lo, Math.min(hi, preferredS));
+  }
+  return Math.max(0, Math.min(totalLen, preferredS)); // no good leg anywhere (rare) — fall back to the original point
+}
+
 function generateRoute(dateStr){
   const seed = hashStr(dateStr);
   const rng = mulberry32(seed);
@@ -1173,7 +1196,8 @@ function generateRoute(dateStr){
   /* the address */
   const number = 100 + Math.floor(rng()*3800);
   const street = hood.streets[Math.floor(rng()*hood.streets.length)];
-  const doorS = totalLen - 90;
+  const doorS = findGoodS(segs, totalLen, totalLen - 90, true);
+  const pickupS = findGoodS(segs, totalLen, SPAWN_S + 90, false);
 
   const pal = hood.hill > 0.55
     ? { sky:0xf2c48d, pave:0xbdb6a8, paveB:0xb3ac9e, paveEdge:0x9c9588, road:0x45484f, roadLine:0xcfc9b9 }
@@ -1189,7 +1213,7 @@ function generateRoute(dateStr){
   const traffic = buildTraffic(grid, rng, nTrafficRoutes);
 
   return { hood, grid, segs, totalLen, tiles, hazards, props, pal, traffic,
-           address:`${number} ${street}`, doorS, tipMult, dateStr };
+           address:`${number} ${street}`, doorS, pickupS, tipMult, dateStr };
 }
 
 /* ---------- robot palette (approved in sprite lab) ---------- */
