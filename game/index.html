@@ -981,6 +981,23 @@ function findAdjacentBlock(segs, s, grid){
   return grid.blocks.find(b => b.i === bi && b.j === bj) || null;
 }
 
+/* which packed unit (house/store) on an edge is actually closest to
+   where a route position crosses that edge — NOT always the first
+   one. On a long edge (a full block face can be 1600+ units) the
+   route can cross anywhere along it, while packEdge/packEdgeNoGap's
+   units[0] always sits near one fixed end; picking units[0]
+   unconditionally could put the address/pickup unit over a thousand
+   units from where the route actually is. */
+function closestUnitIndex(units, targetAlong){
+  let best = 0, bestDist = Infinity;
+  units.forEach((u, idx) => {
+    const mid = u.start + u.w/2;
+    const d = Math.abs(mid - targetAlong);
+    if(d < bestDist){ bestDist = d; best = idx; }
+  });
+  return best;
+}
+
 function generateRoute(dateStr){
   const seed = hashStr(dateStr);
   const rng = mulberry32(seed);
@@ -1219,7 +1236,7 @@ function generateRoute(dateStr){
   const number = 100 + Math.floor(rng()*3800);
   const street = hood.streets[Math.floor(rng()*hood.streets.length)];
   const doorS = findGoodS(segs, totalLen, totalLen - 90, true);
-  const pickupS = findGoodS(segs, totalLen, SPAWN_S + 90, false);
+  let pickupS = findGoodS(segs, totalLen, SPAWN_S + 90, false);
 
   /* the address is always a real block, forced to housing (a park or
      shop can't be the delivery destination); the pickup is always a
@@ -1229,9 +1246,91 @@ function generateRoute(dateStr){
   const addressBlock = findAdjacentBlock(segs, doorS, grid);
   if(addressBlock) addressBlock.type = "housing";
   const addressEdgeIdx = (segsSegAt(segs, doorS).f + 2) % 4;
+  let addressUnitIdx = 0;
+  if(addressBlock){
+    const abEdges = [
+      { ox: addressBlock.x0, oy: addressBlock.y0, dv: DIRV[0], rv: DIRV[3], len: addressBlock.x1-addressBlock.x0 },
+      { ox: addressBlock.x1, oy: addressBlock.y0, dv: DIRV[1], rv: DIRV[0], len: addressBlock.y1-addressBlock.y0 },
+      { ox: addressBlock.x1, oy: addressBlock.y1, dv: DIRV[2], rv: DIRV[1], len: addressBlock.x1-addressBlock.x0 },
+      { ox: addressBlock.x0, oy: addressBlock.y1, dv: DIRV[3], rv: DIRV[2], len: addressBlock.y1-addressBlock.y0 }
+    ];
+    const ae = abEdges[addressEdgeIdx];
+    const aeseed = ((Math.round(ae.ox*3+ae.dv.x)*7919) ^ (Math.round(ae.oy*3+ae.dv.y)*104729) ^ 0x9e3779b9) >>> 0;
+    const aunits = packEdge(ae.len, mulberry32(aeseed));
+    if(aunits.length){
+      const aPos = segsPosAt(segs, doorS);
+      const aAlong = ae.dv.x*(aPos.x-ae.ox) + ae.dv.y*(aPos.y-ae.oy);
+      addressUnitIdx = closestUnitIndex(aunits, aAlong);
+    }
+  }
   const pickupBlock = findAdjacentBlock(segs, pickupS, grid);
   if(pickupBlock && pickupBlock !== addressBlock) pickupBlock.type = "commercial";
   const pickupEdgeIdx = (segsSegAt(segs, pickupS).f + 2) % 4;
+
+  /* the pickup spot is a real, sensible point (just outside the shop
+     door) — the robot should spawn AT it, not the other way around.
+     Since the robot's position is always route-driven (posAt(botS) +
+     laneOffset), spawning it exactly at an independently-computed
+     shop-relative point would either require breaking that (causing a
+     jump the instant it starts moving) or finding the closest point
+     ON the route that already lines up. Same edge-packing computation
+     queueCommercialEdgeAt will independently do for rendering — kept
+     in sync by storing the result once here rather than recomputing
+     it twice and risking drift. */
+  let pickupSpot = null, pickupUnitIdx = 0;
+  if(pickupBlock){
+    const pbEdges = [
+      { ox: pickupBlock.x0, oy: pickupBlock.y0, dv: DIRV[0], rv: DIRV[3], len: pickupBlock.x1-pickupBlock.x0 },
+      { ox: pickupBlock.x1, oy: pickupBlock.y0, dv: DIRV[1], rv: DIRV[0], len: pickupBlock.y1-pickupBlock.y0 },
+      { ox: pickupBlock.x1, oy: pickupBlock.y1, dv: DIRV[2], rv: DIRV[1], len: pickupBlock.x1-pickupBlock.x0 },
+      { ox: pickupBlock.x0, oy: pickupBlock.y1, dv: DIRV[3], rv: DIRV[2], len: pickupBlock.y1-pickupBlock.y0 }
+    ];
+    const pe = pbEdges[pickupEdgeIdx];
+    const peseed = ((Math.round(pe.ox*3+pe.dv.x)*7919) ^ (Math.round(pe.oy*3+pe.dv.y)*104729) ^ 0x51b3) >>> 0;
+    const punits = packEdgeNoGap(pe.len, mulberry32(peseed));
+    if(punits.length){
+      const pPos = segsPosAt(segs, pickupS);
+      const pAlong = pe.dv.x*(pPos.x-pe.ox) + pe.dv.y*(pPos.y-pe.oy);
+      pickupUnitIdx = closestUnitIndex(punits, pAlong);
+      const pu = punits[pickupUnitIdx];
+      const pux = pe.ox + pe.dv.x*pu.start, puy = pe.oy + pe.dv.y*pu.start;
+      const pDoorCenterX = pu.w/2, pRobotDy = T2*2.1;
+      pickupSpot = {
+        x: pux + pe.dv.x*pDoorCenterX + pe.rv.x*pRobotDy,
+        y: puy + pe.dv.y*pDoorCenterX + pe.rv.y*pRobotDy
+      };
+    }
+  }
+  /* refine pickupS to whichever on-route point (still on a good
+     f===0/f===3 leg) is closest to pickupSpot. Each such leg has a
+     CONSTANT heading, so position is linear in s along it — the
+     closest point is one projection (dot product) away, no need to
+     step through it. Checking every good segment in the whole route
+     this way is both faster (a few dozen segments vs. hundreds of
+     stepped positions) and more accurate (exact optimum per segment,
+     not limited to a step grid) than the brute-force version this
+     replaced, which cost ~320ms/route — unacceptable for something
+     that runs on every route load. */
+  if(pickupSpot){
+    let bestS = pickupS, bestDist = Infinity;
+    const off = laneOffset(1);
+    for(const sg of segs){
+      if(sg.type !== "line" || (sg.f !== 0 && sg.f !== 3)) continue;
+      const p0 = segsPosAt(segs, sg.s0);
+      const hdg = segsHeadingAt(segs, sg.s0); // constant across this whole line segment
+      const dirX = Math.cos(hdg), dirY = Math.sin(hdg);
+      const baseX = p0.x + (-Math.sin(hdg))*off, baseY = p0.y + Math.cos(hdg)*off;
+      const segLen = sg.s1 - sg.s0;
+      const inset = Math.min(90, segLen*0.3);
+      if(segLen - inset*2 < 0) continue;
+      let k = (pickupSpot.x-baseX)*dirX + (pickupSpot.y-baseY)*dirY;
+      k = Math.max(inset, Math.min(segLen-inset, k));
+      const candX = baseX + dirX*k, candY = baseY + dirY*k;
+      const d = (candX-pickupSpot.x)**2 + (candY-pickupSpot.y)**2;
+      if(d < bestDist){ bestDist = d; bestS = sg.s0 + k; }
+    }
+    pickupS = bestS;
+  }
 
   const pal = hood.hill > 0.55
     ? { sky:0xf2c48d, pave:0xbdb6a8, paveB:0xb3ac9e, paveEdge:0x9c9588, road:0x45484f, roadLine:0xcfc9b9 }
@@ -1247,7 +1346,7 @@ function generateRoute(dateStr){
   const traffic = buildTraffic(grid, rng, nTrafficRoutes);
 
   return { hood, grid, segs, totalLen, tiles, hazards, props, pal, traffic,
-           address:`${number} ${street}`, doorS, pickupS, addressBlock, pickupBlock, addressEdgeIdx, pickupEdgeIdx, tipMult, dateStr };
+           address:`${number} ${street}`, doorS, pickupS, pickupSpot, addressBlock, pickupBlock, addressEdgeIdx, pickupEdgeIdx, addressUnitIdx, pickupUnitIdx, tipMult, dateStr };
 }
 
 /* ---------- robot palette (approved in sprite lab) ---------- */
@@ -1366,10 +1465,21 @@ class WorldScene extends Phaser.Scene {
     this.botS = this.route.pickupS;
     this.botZ = this.groundZ(this.botS);
     this.botRow = 1; this.laneOff = laneOffset(this.botRow);
-    const sp = this.posAt(this.botS);
     const hdg0 = this.headingAt(this.botS);
-    this.botX = sp.x + (-Math.sin(hdg0))*this.laneOff;
-    this.botY = sp.y + Math.cos(hdg0)*this.laneOff;
+    if(this.route.pickupSpot){
+      /* spawn exactly at the real shop-relative point, not wherever
+         the route's own centerline math independently lands — pickupS
+         was refined during generation to the closest ON-ROUTE position
+         to this spot, so this is consistent with normal route-driven
+         movement the instant the robot starts moving, not a one-frame
+         override that then jumps. */
+      this.botX = this.route.pickupSpot.x;
+      this.botY = this.route.pickupSpot.y;
+    } else {
+      const sp = this.posAt(this.botS);
+      this.botX = sp.x + (-Math.sin(hdg0))*this.laneOff;
+      this.botY = sp.y + Math.cos(hdg0)*this.laneOff;
+    }
     this.hopAnim = null; this.yaw = 0; this.hopYaw = 0; this.hopKick = 0;
     this.drawAngle = hdg0;   // position teleports on route load — rotation teleports with it
     this.slide = null; this.slipYaw = 0;
@@ -2084,51 +2194,27 @@ class WorldScene extends Phaser.Scene {
     else this.drawChainFence(g, ox, oy, dv, rv, w);
   }
 
-  /* ================= PICKUP SHOP: a worker carrying cargo out to
-     where the robot idles, in front of the designated pickup unit.
-     Ported from the block-wrap lab, same choreography, now using the
-     real drawPersonHull (already exists as a Scene method) instead of
-     a lab stand-in. Ambient/looping — there's no explicit "pickup"
-     game state to gate on (cargo is just loaded at spawn currently),
-     so this plays continuously as set dressing, same as the lab. */
-  drawCargoBox(g, x, y, z, dv){
-    const rv = { x:-dv.y, y:dv.x };
-    const G = (a,b,h) => this.W(x+dv.x*a+rv.x*b, y+dv.y*a+rv.y*b, z+h);
-    const hw = 13, hd = 10, H = 20;
-    const box = 0xc9a56e, boxDk = 0xa8875a, band = 0x8a3f36;
-    const top = [G(-hw,-hd,H),G(hw,-hd,H),G(hw,hd,H),G(-hw,hd,H)];
-    this.quadOn(g, top, box); this.edgeOn(g, top, boxDk, 1);
-    const faceA = [G(hw,-hd,H),G(hw,hd,H),G(hw,hd,0),G(hw,-hd,0)];
-    this.quadOn(g, faceA, boxDk);
-    const faceB = [G(-hw,hd,H),G(hw,hd,H),G(hw,hd,0),G(-hw,hd,0)];
-    this.quadOn(g, faceB, box);
-    const bandQ = [G(-hw,hd+0.5,H*0.62),G(hw,hd+0.5,H*0.62),G(hw,hd+0.5,H*0.4),G(-hw,hd+0.5,H*0.4)];
-    this.quadOn(g, bandQ, band);
-  }
-  drawRobotMarker(g, x, y, dv){
-    const rv = { x:-dv.y, y:dv.x };
-    const G = (a,b,h) => this.W(x+dv.x*a+rv.x*b, y+dv.y*a+rv.y*b, h);
-    const w=26, d=36, H=26;
-    const top = [G(-w,-d,H),G(w,-d,H),G(w,d,H),G(-w,d,H)];
-    this.quadOn(g, top, 0xff7a1a, 0.5);
-    this.edgeOn(g, top, 0xd85f0a, 2);
-    const faceA=[G(w,-d,H),G(w,d,H),G(w,d,0),G(w,-d,0)];
-    this.quadOn(g, faceA, 0xd85f0a, 0.35);
-    const faceB=[G(-w,d,H),G(w,d,H),G(w,d,0),G(-w,d,0)];
-    this.quadOn(g, faceB, 0xff7a1a, 0.35);
-  }
+  /* ================= PICKUP SHOP: a worker standing near where the
+     robot idles, in front of the designated pickup unit. Simplified
+     from an animated out-and-back walk after repeated direction/
+     timing mismatches (computed-direction facing, dyEnd drifting from
+     pickupSpot's own value, a lane-boundary guess landing 300+ units
+     off) — a stationary worker positioned and facing directly off the
+     two actual known world points (his own spot, pickupSpot) sidesteps
+     all of that: no edge-relative axis assumptions, no animation
+     timing to keep in sync with a moving target. */
   drawPickupUnit(g, ox, oy, dv, rv, doorCenterX, seed, t){
-    const cyc = (Math.sin(t*0.006)+1)/2; // 0..1..0, worker walks out and back
-    const u = cyc;
-    const robotDy = T2*2.1;
-    const robotX = ox + dv.x*doorCenterX + rv.x*robotDy, robotY = oy + dv.y*doorCenterX + rv.y*robotDy;
-    this.drawRobotMarker(g, robotX, robotY, dv);
-
-    const dyStart = T2*0.35, dyEnd = robotDy - 24;
-    const dy = dyStart + (dyEnd-dyStart)*u;
-    const thW = Math.atan2(rv.y, rv.x);
-    const moving = u > 0.03 && u < 0.97;
-    const walkPhase = moving ? Math.sin(t*PEOPLE_ART.walkSpeed) : 0;
+    if(!this.route.pickupSpot) return;
+    const spot = this.route.pickupSpot;
+    /* stand beside the robot — perpendicular to the ROBOT's own
+       actual heading (same convention every lane offset in the game
+       uses: -sin(hdg), cos(hdg)), not the shop edge's dv, which
+       turned out to align with the robot's forward axis rather than
+       sideways (that's why he landed behind instead of beside). */
+    const hdg = this.headingAt(this.route.pickupS);
+    const sideX = -Math.sin(hdg), sideY = Math.cos(hdg);
+    const workerX = spot.x + sideX*46, workerY = spot.y + sideY*46;
+    const thW = Math.atan2(spot.y - workerY, spot.x - workerX); // faces directly at the robot's real position
 
     const wrng = mulberry32(seed ^ 0x77b1);
     const wBuild = PEOPLE_BUILD[wrng()<0.5?0:1];
@@ -2138,11 +2224,7 @@ class WorldScene extends Phaser.Scene {
     const wHair = PEOPLE_HAIR[Math.floor(wrng()*PEOPLE_HAIR.length)];
     const wShoe = PEOPLE_SHOE[Math.floor(wrng()*PEOPLE_SHOE.length)];
 
-    const workerX = ox + dv.x*doorCenterX + rv.x*dy, workerY = oy + dv.y*doorCenterX + rv.y*dy;
-    this.drawPersonHull(g, workerX, workerY, 0, thW, wBuild, wSkin, wShirt, wPants, wHair, wShoe, walkPhase, moving);
-    const boxDy = dy + 14;
-    const boxX = ox + dv.x*doorCenterX + rv.x*boxDy, boxY = oy + dv.y*doorCenterX + rv.y*boxDy;
-    this.drawCargoBox(g, boxX, boxY, 0, dv);
+    this.drawPersonHull(g, workerX, workerY, 0, thW, wBuild, wSkin, wShirt, wPants, wHair, wShoe, 0, false);
   }
 
   /* what replaces a culled housing edge: one continuous fence spanning
@@ -2253,7 +2335,7 @@ class WorldScene extends Phaser.Scene {
       const hx = e.ox + e.dv.x*(u.start + u.w/2), hy = e.oy + e.dv.y*(u.start + u.w/2);
       const hseed = ((Math.round(hx)*7919) ^ (Math.round(hy)*104729)) >>> 0;
       const ux = e.ox + e.dv.x*u.start, uy = e.oy + e.dv.y*u.start;
-      const isAddress = isAddressEdge && idx === 0;
+      const isAddress = isAddressEdge && idx === this.route.addressUnitIdx;
       if(isAddress){
         const doorCenterX = u.w/2;
         const dz = this.groundZ(this.route.doorS);
@@ -2316,7 +2398,7 @@ class WorldScene extends Phaser.Scene {
       const hseed = ((Math.round(hx)*7919) ^ (Math.round(hy)*104729)) >>> 0;
       const ux = e.ox + e.dv.x*u.start, uy = e.oy + e.dv.y*u.start;
       const isFirst = idx===0, isLast = idx===units.length-1;
-      const isPickup = isPickupEdge && idx === 0;
+      const isPickup = isPickupEdge && idx === this.route.pickupUnitIdx;
       vq.push({ depth:hx+hy, fn:(g,t)=>{
         this.drawStoreUnit(g, ux, uy, e.dv, e.rv, u.w, hseed, isFirst, isLast, 'body');
         if(isPickup) this.drawPickupUnit(g, ux, uy, e.dv, e.rv, u.w/2, hseed, t);
