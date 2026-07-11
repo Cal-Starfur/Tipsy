@@ -1631,9 +1631,10 @@ class WorldScene extends Phaser.Scene {
         const eseed = ((Math.round(e.ox*3+e.dv.x)*7919) ^ (Math.round(e.oy*3+e.dv.y)*104729) ^ 0x6f2a) >>> 0;
         const ecx = e.ox + e.dv.x*e.len/2, ecy = e.oy + e.dv.y*e.len/2;
         if(blk.type === "commercial"){
-          blockVQ.push({ depth: ecx+ecy, fn:(g)=>this.drawParkingRow(g, e.ox, e.oy, e.dv, e.rv, e.len, eseed) });
+          blockVQ.push({ depth: ecx+ecy, fn:(g,t)=>this.drawParkingRow(g, e.ox, e.oy, e.dv, e.rv, e.len, eseed, t) });
         } else {
-          blockVQ.push({ depth: ecx+ecy, fn:(g)=>this.drawSolidFenceRow(g, e.ox, e.oy, e.dv, e.rv, e.len, eseed) });
+          const fenceLayer = layerFor(ecx, ecy);
+          blockVQ.push({ depth: ecx+ecy, fn:()=>this.drawSolidFenceRow(fenceLayer, e.ox, e.oy, e.dv, e.rv, e.len, eseed) });
         }
       }
     }
@@ -2179,39 +2180,38 @@ class WorldScene extends Phaser.Scene {
      along the curb, some occupied — reads as "customer parking for
      the shop you can't currently see the front of" rather than a
      dead gap in the street. */
-  drawParkedCar(g, x, y, dv, rv, seed){
-    const G = (a,b,h) => this.W(x + dv.x*a + rv.x*b, y + dv.y*a + rv.y*b, h);
-    const rng = mulberry32(seed);
-    const colors = [0xc2452e, 0x4a6c9c, 0x6b6b6b, 0xe8b04b, 0x3f8f8a, 0xb15a7a];
-    const col = colors[Math.floor(rng()*colors.length)];
-    const hw = 20, hd = 46, H = 32;
-    const top = [G(-hw,4,H), G(hw,4,H), G(hw,4+hd,H), G(-hw,4+hd,H)];
-    this.quadOn(g, top, col);
-    this.edgeOn(g, top, 0x000000, 1);
-    const side = [G(hw,4,H), G(hw,4+hd,H), G(hw,4+hd,0), G(hw,4,0)];
-    this.quadOn(g, side, col);
-    const windshield = [G(-hw+3,4+6,H), G(hw-3,4+6,H), G(hw-6,4+16,H), G(-hw+6,4+16,H)];
-    this.quadOn(g, windshield, 0x9bb8c4, 0.7);
-  }
-  drawParkingRow(g, ox, oy, dv, rv, w, seed){
+  drawParkingRow(g, ox, oy, dv, rv, w, seed, t=0){
+    /* nose-in, sized to the REAL car (CARC: 450 long x 180 wide) — the
+       block's own commercial depth allocation (STORE_DEPTH=276) isn't
+       enough for a 450-long car nose-in, so this extends deeper into
+       the block than a storefront would; the ground underneath is
+       already paved for the whole block regardless (fillBlockGround),
+       so there's nothing uncovered by going deeper, and 1656 total
+       block depth leaves plenty of room before reaching the opposite
+       edge's own content. */
     const margin = T2*0.4;
     const usable = w - margin*2;
-    if(usable < T2) return;
+    const stallW = CARC.wid + 40;      // side-to-side along the curb
+    const stallDepth = CARC.len + 50;  // nose-in, into the block
+    if(usable < stallW) return;
     const G = (a,b,h) => this.W(ox + dv.x*a + rv.x*b, oy + dv.y*a + rv.y*b, h);
-    const stallW = T2*1.4, stallD = T2*1.7;
     const n = Math.max(1, Math.floor(usable/stallW));
     const actualW = usable/n;
     g.lineStyle(2, 0xf0ece0, 0.75);
     for(let i=0; i<=n; i++){
       const x = margin + i*actualW;
-      const a = G(x, 1, 1), b = G(x, stallD, 1);
+      const a = G(x, 1, 1), b = G(x, stallDepth, 1);
       g.lineBetween(a.x, a.y, b.x, b.y);
     }
+    const fdirIn = DIRV.findIndex(d => d.x===-rv.x && d.y===-rv.y); // nose pointing into the block, pulled forward into the space
     const rng = mulberry32(seed);
     for(let i=0; i<n; i++){
       const cx = margin + (i+0.5)*actualW;
-      const carSeed = ((Math.round(ox+dv.x*cx)*7919) ^ (Math.round(oy+dv.y*cx)*104729) ^ 0x9a11) >>> 0;
-      if(rng() < 0.55) this.drawParkedCar(g, ox+dv.x*cx, oy+dv.y*cx, dv, rv, carSeed);
+      const cWorldX = ox + dv.x*cx + rv.x*(stallDepth/2), cWorldY = oy + dv.y*cx + rv.y*(stallDepth/2);
+      if(rng() < 0.55){
+        const kind = rng() < 0.75 ? "car" : "truck";
+        this.drawProp(g, kind, cWorldX, cWorldY, t, fdirIn, 0);
+      }
     }
   }
 
