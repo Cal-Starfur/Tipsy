@@ -30,9 +30,9 @@
   .brand{font-size:18px;font-weight:800;letter-spacing:1px;color:#ff7a1a;margin-bottom:8px;}
   #routeMap{display:block;}
   #titleOverlay{padding:0;justify-content:flex-start;}
-  #screenWrap{width:280px;height:100vh;height:100dvh;display:flex;flex-direction:column;
+  #screenWrap{width:100vw;height:100vh;height:100dvh;display:flex;flex-direction:column;
     border-radius:20px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,.35);}
-  #mapCard{position:relative;width:280px;flex:1;min-height:0;overflow:hidden;}
+  #mapCard{position:relative;width:100%;flex:1;min-height:0;overflow:hidden;}
   #mapCard .brand{position:absolute;top:14px;left:50%;transform:translateX(-50%);margin:0;text-shadow:0 1px 4px rgba(181,84,14,.9),0 1px 4px rgba(181,84,14,.9);}
   #mapCard .card{position:absolute;top:60px;left:12px;right:12px;margin:0;background:rgba(240,236,224,.55);color:#2e3138;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);}
   #mapCard .card b{color:#b5540e;}
@@ -44,7 +44,7 @@
     display:flex;align-items:center;justify-content:center;font-size:16px;box-shadow:0 2px 6px rgba(0,0,0,.25);}
   #searchIcon{left:14px;}
   #avatarIcon{right:14px;background:#ff7a1a;}
-  #bottomSheet{width:280px;background:#f0ece0;
+  #bottomSheet{width:100%;background:#f0ece0;
     padding:12px 16px calc(10px + env(safe-area-inset-bottom));color:#2e3138;}
   #bottomSheet .sheetRow{display:flex;align-items:center;justify-content:space-between;}
   #bottomSheet .chev{font-size:13px;color:#8f95a1;}
@@ -5534,7 +5534,8 @@ function resizeRouteMap(){
   const canvas = document.getElementById("routeMap");
   if(!canvas) return;
   const dpr = window.devicePixelRatio || 1;
-  const cssW = 280, cssH = document.getElementById("mapCard").clientHeight;
+  const mc = document.getElementById("mapCard");
+  const cssW = mc.clientWidth, cssH = mc.clientHeight;
   canvas.style.width = cssW + "px";
   canvas.style.height = cssH + "px";
   canvas.width = Math.round(cssW * dpr);
