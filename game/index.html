@@ -855,17 +855,22 @@ function buildGrid(cols, rows, seed=0){
    fillet-arc construction the game already used, now fed by the graph
    walk instead of arbitrary legs. The street grid stays perfectly
    rectilinear; only the walked line curves through it. */
-function buildWalk(grid, rng){
+function buildWalk(grid, rng, startOverride, turnsRange){
   const { cols, rows, nodeAt } = grid;
-  let ci = 1 + Math.floor(rng()*(cols-2 || 1));
-  let cj = 1 + Math.floor(rng()*(rows-2 || 1));
+  let ci = startOverride ? startOverride.i : 1 + Math.floor(rng()*(cols-2 || 1));
+  let cj = startOverride ? startOverride.j : 1 + Math.floor(rng()*(rows-2 || 1));
   let cur = nodeAt(ci, cj) || grid.nodes[Math.floor(rng()*grid.nodes.length)];
   let dir = Math.floor(rng()*4);
   while(!cur.conn[dir]) dir = (dir+1)%4;
   let turnSign = rng() < 0.5 ? 1 : -1;
-  const nTurns = 5 + Math.floor(rng()*6);
+  const tMin = turnsRange ? turnsRange.min : 5, tSpan = turnsRange ? (turnsRange.max - turnsRange.min + 1) : 6;
+  const nTurns = tMin + Math.floor(rng()*tSpan);
 
   const startNode = cur;
+  const visited = [startNode];   // every real grid node this walk passes through --
+                                  // exposed so traffic can seed its own walks from
+                                  // points actually along the player's route instead
+                                  // of a uniformly random spot anywhere on the map.
   const legDescs = [];
   for(let leg = 0; leg <= nTurns; leg++){
     const maxBlocks = 1 + Math.floor(rng()*3);   // 1-3 blocks/leg — cut from 3-6 to bring total route length down to ~half, same turn character
@@ -876,6 +881,7 @@ function buildWalk(grid, rng){
       const nxt = nodeAt(cur.i + d.x, cur.j + d.y);
       if(!nxt) break;
       cur = nxt; blocks++;
+      visited.push(cur);
     }
     if(blocks > 0){
       legDescs.push({ f:dir, blocks });
@@ -925,16 +931,24 @@ function buildWalk(grid, rng){
     }
     p = cornerP;
   }
-  return { segs, totalLen: s || 1 };
+  return { segs, totalLen: s || 1, nodes: visited };
 }
 
 /* ---------- traffic: reuses buildWalk verbatim for each route, two
    cars per route (one each direction, opposite lane) ---------- */
-function buildTraffic(grid, rng, nRoutes){
+function buildTraffic(grid, rng, nRoutes, pathNodes){
   const cars = [];
   for(let r = 0; r < nRoutes; r++){
     const routeRng = mulberry32(Math.floor(rng()*4294967296));
-    const walk = buildWalk(grid, routeRng);
+    /* seed from a random point ALONG the player's own route path (if
+       given) instead of a uniformly random grid node. Also: a SHORT
+       turn range (2-3 vs the player's 5-10) so each loop's own
+       footprint stays small and local to that seed point instead of
+       wandering off across the map -- otherwise "starts near the
+       player" didn't mean "stays anywhere near the player", since the
+       loop keeps re-tracing whatever path it wandered into. */
+    const seedNode = pathNodes && pathNodes.length ? pathNodes[Math.floor(rng()*pathNodes.length)] : null;
+    const walk = buildWalk(grid, routeRng, seedNode, {min:2, max:3});
     if(!walk.segs.length) continue;
     const speed = 0.02 + rng()*0.014;
     const sBase = rng()*walk.totalLen;
@@ -942,8 +956,16 @@ function buildTraffic(grid, rng, nRoutes){
     cars.push({ walk, sBase:(sBase + walk.totalLen*0.5) % walk.totalLen,
                 speed: speed*(0.85+rng()*0.3), dir:-1, laneOffset:-CAR_LANE,
                 kind: rng()<0.6?"car":"truck", colorSeed: Math.floor(rng()*0xffffffff) >>> 0 });
+    /* third car on the same loop, staggered a third of the way around
+       and running the opposite direction to the first -- same loop,
+       same lane geometry, just another phase so the loop reads as busy
+       instead of empty most of the time. */
+    cars.push({ walk, sBase:(sBase + walk.totalLen*0.33) % walk.totalLen,
+                speed: speed*(0.9+rng()*0.25), dir:1, laneOffset:CAR_LANE,
+                kind: rng()<0.6?"car":"truck", colorSeed: Math.floor(rng()*0xffffffff) >>> 0 });
   }
   return cars;
+
 }
 
 /* standalone path helpers for generateRoute (a plain function, no `this`) —
@@ -973,6 +995,19 @@ function segsWorldOf(segs, s, offsetUnits){
   const hdg = segsHeadingAt(segs, s), p = segsPosAt(segs, s);
   const rvx = -Math.sin(hdg), rvy = Math.cos(hdg);
   return { x: p.x + rvx*offsetUnits, y: p.y + rvy*offsetUnits };
+}
+/* pure, shared by both the renderer and the collision check (drawRobot)
+   so a car's hitbox always matches exactly where it's drawn -- same
+   principle as dogSpotAt/dogFleeAt already use for the dog. */
+function trafficWorldAt(tr, t){
+  const trTotal = tr.walk.totalLen;
+  const trS = ((tr.sBase + t*tr.speed*tr.dir) % trTotal + trTotal) % trTotal;
+  const hdg = segsHeadingAt(tr.walk.segs, trS) + (tr.dir < 0 ? Math.PI : 0);
+  const fi = Math.round(hdg / (Math.PI/2));
+  const trF = ((fi % 4) + 4) % 4;
+  const wp = segsWorldOf(tr.walk.segs, trS, tr.laneOffset);
+  wp.z = 0;
+  return { wp, f: trF, trS };
 }
 
 /* the address (and, later, the pickup) needs to sit on a straight leg
@@ -1383,9 +1418,15 @@ function generateRoute(dateStr){
   const tipMult = (1 + hood.hill*1.2 + (1-hood.pave)*1.0 + hood.litter*0.8 + (walk.segs.filter(s=>s.type==="arc").length-2)*0.15).toFixed(1);
 
   /* traffic: real road-aware two-way loops through the same grid,
-     instead of a fixed row that never knew where the road was. */
-  const nTrafficRoutes = totalLen > 40000 ? 3 : 2;
-  const traffic = buildTraffic(grid, rng, nTrafficRoutes);
+     instead of a fixed row that never knew where the road was.
+     Bumped up for heavier traffic (was 2-3 routes / 4-6 cars total) --
+     each route is still cheap (one buildWalk at route-gen time, not
+     per-frame), and per-frame cost only applies to cars actually within
+     cullSpan of the camera via near(), so more independent routes just
+     means denser coverage across the grid, not a flat per-frame cost
+     increase. */
+  const nTrafficRoutes = totalLen > 50000 ? 18 : totalLen > 30000 ? 15 : 12;
+  const traffic = buildTraffic(grid, rng, nTrafficRoutes, walk.nodes);
 
   return { hood, grid, segs, totalLen, tiles, hazards, props, pal, traffic,
            address:`${number} ${street}`, doorS, pickupS, pickupSpot, pickupShopName, addressBlock, pickupBlock, addressEdgeIdx, pickupEdgeIdx, addressUnitIdx, pickupUnitIdx, tipMult, dateStr };
@@ -1846,13 +1887,7 @@ class WorldScene extends Phaser.Scene {
       trafficPts.push({ kind: pr.kind, wp, f: pr.f, wheelPhase: null, colorSeed: null });
     }
     for(const tr of r.traffic){
-      const trTotal = tr.walk.totalLen;
-      const trS = ((tr.sBase + t*tr.speed*tr.dir) % trTotal + trTotal) % trTotal;
-      const hdg = segsHeadingAt(tr.walk.segs, trS) + (tr.dir < 0 ? Math.PI : 0);
-      const fi = Math.round(hdg / (Math.PI/2));
-      const trF = ((fi % 4) + 4) % 4;
-      const wp = segsWorldOf(tr.walk.segs, trS, tr.laneOffset);
-      wp.z = 0;
+      const { wp, f: trF, trS } = trafficWorldAt(tr, t);
       trafficPts.push({ kind: tr.kind, wp, f: trF, wheelPhase: trS*0.28, colorSeed: tr.colorSeed });
     }
     const MIN_TRAFFIC_GAP = CARC.len * 0.9;
@@ -5024,6 +5059,29 @@ class WorldScene extends Phaser.Scene {
       /* stability spring + rough-pavement rumble */
       this.tilt -= this.tilt * 0.0021 * dt;
       this.tilt += (Math.random()-0.5) * this.speed * (1-this.route.hood.pave) * 0.012 * dt;
+
+      /* traffic collision: unlike the other hazards above, this isn't
+         gated on the robot's own speed -- a moving car can hit a robot
+         that's standing still, not just the other way around. Position
+         comes from trafficWorldAt, the exact same pure function the
+         renderer uses, so the hitbox always matches what's on screen
+         (same principle as dogSpotAt/dogFleeAt). A hit forces a full
+         tip rather than a partial tilt kick like the cone -- getting
+         hit by a car should always tip the robot, not just sometimes --
+         by pushing tilt straight past the existing |tilt|>=1 threshold
+         below, reusing all of that machinery instead of duplicating it. */
+      const CAR_HIT_R = 70;
+      for(const tr of this.route.traffic){
+        const { wp } = trafficWorldAt(tr, t);
+        const ddx = this.botX - wp.x, ddy = this.botY - wp.y;
+        const distSq = ddx*ddx + ddy*ddy;
+        if(!tr.hit && distSq < CAR_HIT_R*CAR_HIT_R){
+          tr.hit = true;
+          this.tilt = 1.1 * (Math.sign(ddx || ddy) || 1);
+          this.damage = Math.min(95, this.damage + 45);
+        }
+        if(distSq > (CAR_HIT_R*3)*(CAR_HIT_R*3)) tr.hit = false;
+      }
 
       /* fail: we are horizontal */
       if(Math.abs(this.tilt) >= 1){
