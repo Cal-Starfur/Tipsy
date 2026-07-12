@@ -1792,6 +1792,7 @@ class WorldScene extends Phaser.Scene {
 
     this.addrDoorPos = null;
     const blockVQ = [];
+    const topLayer = [];
     for(const blk of visBlocks){
       const cutThis = cutEdgeIdx >= 0 && blk.i === botCol && blk.j === botRow && blk.type !== "park";
       this.queueBlockContent(blockVQ, blk, cutThis ? cutEdgeIdx : -1);
@@ -1800,7 +1801,10 @@ class WorldScene extends Phaser.Scene {
         const eseed = ((Math.round(e.ox*3+e.dv.x)*7919) ^ (Math.round(e.oy*3+e.dv.y)*104729) ^ 0x6f2a) >>> 0;
         const ecx = e.ox + e.dv.x*e.len/2, ecy = e.oy + e.dv.y*e.len/2;
         if(blk.type === "commercial"){
-          blockVQ.push({ depth: ecx+ecy, fn:(g,t)=>this.drawParkingRow(g, e.ox, e.oy, e.dv, e.rv, e.len, eseed, t) });
+          blockVQ.push({ depth: ecx+ecy, fn:(g,t)=>{
+            const cars = this.drawParkingRow(g, e.ox, e.oy, e.dv, e.rv, e.len, eseed, t);
+            for(const c of cars) topLayer.push(c);
+          }});
         } else {
           const fenceLayer = layerFor(ecx, ecy);
           blockVQ.push({ depth: ecx+ecy, fn:()=>this.drawSolidFenceRow(fenceLayer, e.ox, e.oy, e.dv, e.rv, e.len, eseed) });
@@ -1820,6 +1824,16 @@ class WorldScene extends Phaser.Scene {
     for(const item of bodies) item.fn(g, t); // always gWorld — the robot must stay visible over block-wrap dressing, never hidden behind it
     roofs.sort((a,b) => a.depth - b.depth);
     for(const item of roofs) item.fn(g, t);
+    /* parking-row cars draw in a THIRD pass, after roofs — they were
+       part of the normal body pass before, so any visible building's
+       roof (drawn unconditionally last, globally, regardless of true
+       depth — see the roof comment above) could paint right over a
+       parked car, looking exactly like a disconnected floating panel
+       near the vehicle. This wasn't a car-drawing bug at all; it was
+       the roof-ordering system (built to fix a real, different bug)
+       colliding with a feature added afterward that never got the
+       same "must stay visible" treatment the robot itself has. */
+    for(const c of topLayer) this.drawProp(g, c.kind, c.x, c.y, t, c.fdir, 0);
 
     /* world position of an s/offset entity — tangent-based (same formula
        the robot's own position already used), so it's correct through
@@ -1839,15 +1853,34 @@ class WorldScene extends Phaser.Scene {
       if(near(wp.x, wp.y)) this.drawProp(g, hz.type, wp.x, wp.y, t, hz.f, wp.z, null, null, hz);
     }
 
-    /* volumetric props + hazards, depth-split around the robot (iso depth = x + y) */
+    /* volumetric props + hazards, depth-split around the robot (iso depth = x + y).
+       car/truck-kind props (the single roadside parked car) are pulled out
+       and checked together with traffic below -- see that comment for why. */
     for(const pr of r.props){
+      if(pr.kind === "car" || pr.kind === "truck") continue;
       const wp = worldOf(pr.s, pr.roadOffset);
       if(near(wp.x, wp.y)) this.drawProp(layerFor(wp.x, wp.y), pr.kind, wp.x, wp.y, t, pr.f, wp.z);
     }
     /* moving traffic: each car follows its OWN independent path (a
        separate buildWalk through the same grid, not the player's
        route) — trS wraps on that car's own totalLen, and heading/
-       position come from that car's own segs, not the main route's. */
+       position come from that car's own segs, not the main route's.
+       Different routes can legitimately cross paths with zero
+       awareness of each other, so two cars can land at the exact same
+       spot at the same moment with completely mismatched orientations
+       (rendered as an overlapping mashup). The single roadside parked-
+       car prop has the exact same blind spot against traffic — pulled
+       into this same check rather than left as a second, separate gap.
+       Purely a visual fix — none of these are collidable with the
+       player — skip drawing a vehicle too close to one already queued
+       this frame, rather than solving path-crossing physics between
+       independent systems. */
+    const trafficPts = [];
+    for(const pr of r.props){
+      if(pr.kind !== "car" && pr.kind !== "truck") continue;
+      const wp = worldOf(pr.s, pr.roadOffset);
+      trafficPts.push({ kind: pr.kind, wp, f: pr.f, wheelPhase: null, colorSeed: null });
+    }
     for(const tr of r.traffic){
       const trTotal = tr.walk.totalLen;
       const trS = ((tr.sBase + t*tr.speed*tr.dir) % trTotal + trTotal) % trTotal;
@@ -1856,7 +1889,15 @@ class WorldScene extends Phaser.Scene {
       const trF = ((fi % 4) + 4) % 4;
       const wp = segsWorldOf(tr.walk.segs, trS, tr.laneOffset);
       wp.z = 0;
-      if(near(wp.x, wp.y)) this.drawProp(layerFor(wp.x, wp.y), tr.kind, wp.x, wp.y, t, trF, wp.z, trS*0.28, tr.colorSeed);
+      trafficPts.push({ kind: tr.kind, wp, f: trF, wheelPhase: trS*0.28, colorSeed: tr.colorSeed });
+    }
+    const MIN_TRAFFIC_GAP = CARC.len * 0.9;
+    const drawnTrafficPts = [];
+    for(const p of trafficPts){
+      if(!near(p.wp.x, p.wp.y)) continue;
+      if(drawnTrafficPts.some(q => Math.hypot(q.x-p.wp.x, q.y-p.wp.y) < MIN_TRAFFIC_GAP)) continue;
+      drawnTrafficPts.push(p.wp);
+      this.drawProp(layerFor(p.wp.x, p.wp.y), p.kind, p.wp.x, p.wp.y, t, p.f, p.wp.z, p.wheelPhase, p.colorSeed);
     }
     for(const hz of r.hazards){
       if(GROUND_KINDS[hz.type]) continue;
@@ -2306,7 +2347,7 @@ class WorldScene extends Phaser.Scene {
     const stallDepth = CARC.len + 50;
     const nStalls = 2 + Math.floor(rng()*2); // 2-3
     const clusterW = nStalls * stallW;
-    if(w < clusterW + T2) return;
+    if(w < clusterW + T2) return [];
     const startAlong = (w - clusterW) / 2; // centered along the edge, not spanning it
     const depthNear = -6;  // rear bumper right at the block boundary line — same depth a house's front wall sits at, so it's back in the camera's normal framing (300-800 deep was outside typical view around the robot)
     const depthFar = depthNear - stallDepth;
@@ -2318,15 +2359,17 @@ class WorldScene extends Phaser.Scene {
       g.lineBetween(a.x, a.y, b.x, b.y);
     }
     const fdirIn = DIRV.findIndex(d => d.x===-rv.x && d.y===-rv.y); // nose pointing deeper into the block
+    const cars = [];
     for(let i=0; i<nStalls; i++){
       const cx = startAlong + (i+0.5)*stallW;
       const cDepth = (depthNear + depthFar) / 2;
       const cWorldX = ox + dv.x*cx + rv.x*cDepth, cWorldY = oy + dv.y*cx + rv.y*cDepth;
       if(rng() < 0.85){
         const kind = rng() < 0.75 ? "car" : "truck";
-        this.drawProp(g, kind, cWorldX, cWorldY, t, fdirIn, 0);
+        cars.push({ x: cWorldX, y: cWorldY, fdir: fdirIn, kind });
       }
     }
+    return cars;
   }
 
   drawBenchProp(g, x, y, dv){
@@ -3664,95 +3707,103 @@ class WorldScene extends Phaser.Scene {
 
       this.drawPersonHull(g, ax, ay, z, thW, build, pSkin, pShirt, pPants, pHair, pShoe, walkPhase, moving, startleAlpha);
     } else if(kind === "car" || kind === "truck"){
-      /* approved in car lab: len 150 · wid 60 · chassis 28 · cabin 32 ·
-         wheel 16. Axis-aligned to facing (no free rotation) — parked
-         along the road, matching the planter's convention, so the
-         "near" side/end is always the same fixed +y/+a combination
-         under this game's fixed camera (faceY/faceA both always 1
-         here, unlike the lab's free-rotate preview). Seeded body
-         color per instance. kind "truck" swaps in the shorter cab,
-         vertical rear wall, small rear window, and open cargo bed. */
+      /* rebuilt (2026-07-12) on the SAME rigid-rotation pattern the
+         robot's own body already uses (T()/P()/depth()): the car's
+         entire shape -- chassis, cabin, wheels, everything -- is
+         defined ONCE in a fixed local frame (a=length, b=width,
+         h=height, car always "facing +a" in this local space), then
+         the WHOLE THING rotates together as one rigid unit into world
+         space via carT/carP, exactly like the robot rotates as one
+         piece via T()/P(). This is a structural fix, not a patch: the
+         previous version independently hand-tuned each panel's (a,b,h)
+         and just swapped which world axis stood in for "front" per
+         fdir, so the body's own coverage and the wheels' own position
+         could drift apart depending on facing (the wheel-on-the-hood
+         bug). With one rigid rotation, body and wheels can never
+         drift apart -- whatever relationship holds in local space
+         holds in every orientation. Where a specific panel needs to
+         know which side is camera-facing (side glass), it uses
+         carDepth to pick dynamically -- the same technique the
+         robot's own drawWheel already uses to pick its visible face. */
       const CR = CARC, isTruck = kind === "truck";
-      /* color seed: position-based for a parked car (fixed, so the
-         color is stable), but a MOVING vehicle's x/y changes every
-         single frame — seeding from live position there re-rolls a
-         new random color every frame, which read as flickering.
-         colorSeed lets the caller pass a fixed per-vehicle value
-         instead, for anything that actually moves. */
       const seed = colorSeed !== null
         ? (colorSeed ^ 0x9c31) >>> 0
         : ((Math.round(x)*7919) ^ (Math.round(y)*104729) ^ 0x9c31) >>> 0;
       const rng = mulberry32(seed);
       const col = CAR_COLORS[Math.floor(rng()*CAR_COLORS.length)];
-      const GG = W;
-      const cz = CR.wheelR;
-      const hl = CR.len/2, hw = CR.wid/2, chassisTop = cz + CR.chassisH;
+      const hl = CR.len/2, hw = CR.wid/2, cz = CR.wheelR;
+      const chassisTop = cz + CR.chassisH, cabinTop = chassisTop + CR.cabinH;
       const cl = isTruck ? hl*0.24 : hl*0.62;
-      const cabinTop = chassisTop + CR.cabinH;
 
-      const csh = GG(0, 0, 0);
+      /* rigid rotation: local (a,b,h) -> world -> screen, and a matching
+         depth() for camera-relative comparisons -- same pair the robot
+         uses (T/P and depth), just yaw-only (fdir snapped to 90 deg
+         steps today; ready for free rotation later without touching
+         any panel below, since they never reference fdir directly). */
+      const carTheta = fdir * (Math.PI/2);
+      const cTh = Math.cos(carTheta), sTh = Math.sin(carTheta);
+      const carT = (a, b, h) => ({ x: a*cTh - b*sTh, y: a*sTh + b*cTh, z: h });
+      const carP = (a, b, h) => { const q = carT(a, b, h); return this.W(x + q.x, y + q.y, z + q.z); };
+      const carDepth = (a, b, h) => { const q = carT(a, b, h); return q.x + q.y + q.z*0.4; };
+
+      const csh = carP(0, 0, 0);
       g.fillStyle(CR.shadow, 0.16);
       g.fillEllipse(csh.x, csh.y + 3, (CR.len+8)*this.K*0.42, (CR.wid+10)*this.K*0.36);
 
       const wheel = (a0, r, side) => () => {
         const WW = 3.6*(CR.wheelR/16);
-        const ringAt = (bc, rad, d1, d2, n=12) => {
+        const ringAt = (bc, rad, n=12) => {
           const pts = [];
           for(let i=0; i<n; i++){
-            const phi = (i/n)*Math.PI*2, c3 = Math.cos(phi)*rad, s3 = Math.sin(phi)*rad;
-            pts.push(GG(a0 + c3*d1.a + s3*d2.a, bc + c3*d1.b + s3*d2.b, cz + c3*d1.h + s3*d2.h));
+            const phi = (i/n)*Math.PI*2;
+            pts.push(carP(a0 + Math.cos(phi)*rad, bc, cz + Math.sin(phi)*rad));
           }
           return pts;
         };
-        const U = {a:1,b:0,h:0}, HH = {a:0,b:0,h:1};
         const bIn = side*(hw - 1), bOut = side*(hw + WW - 1);
-        const end = bb => ringAt(bb, r, U, HH, 14);
-        this.quadOn(g, convexHull(end(bIn).concat(end(bOut))), CR.wheelDk);
-        const face = rr => ringAt(bOut, rr, U, HH, 14);
-        this.quadOn(g, face(r), CR.wheel);
-        this.quadOn(g, face(r*0.5), CR.hubFace);
-        /* moving traffic gets a spinning marker dot (same trick the
-           robot's own wheels use in sprite-lab); a parked car just
-           gets a static centered hub. */
+        this.quadOn(g, convexHull(ringAt(bIn, r).concat(ringAt(bOut, r))), CR.wheelDk);
+        /* which of the two rings is actually camera-facing -- same
+           depth-comparison technique the robot's own drawWheel uses,
+           instead of assuming bOut is always the visible one. */
+        const faceB = carDepth(a0, bOut, cz) > carDepth(a0, bIn, cz) ? bOut : bIn;
+        const faceRing = rr => ringAt(faceB, rr);
+        this.quadOn(g, faceRing(r), CR.wheel);
+        this.quadOn(g, faceRing(r*0.5), CR.hubFace);
         if(wheelPhase !== null){
           const wp2 = wheelPhase + a0*0.02;
-          const hub = GG(a0 + Math.cos(wp2)*r*0.34, bOut, cz + Math.sin(wp2)*r*0.34);
+          const hub = carP(a0 + Math.cos(wp2)*r*0.34, faceB, cz + Math.sin(wp2)*r*0.34);
           g.fillStyle(CR.hub, 1);
           g.fillCircle(hub.x, hub.y, r*0.2*this.K*0.42);
         } else {
-          const hub = GG(a0, bOut, cz);
+          const hub = carP(a0, faceB, cz);
           g.fillStyle(CR.hub, 1);
           g.fillCircle(hub.x, hub.y, r*0.34*this.K*0.42);
         }
       };
 
       const chassis = () => {
-        const top = [GG(-hl,-hw,chassisTop), GG(hl,-hw,chassisTop), GG(hl,hw,chassisTop), GG(-hl,hw,chassisTop)];
-        const bot = [GG(-hl,-hw,cz), GG(hl,-hw,cz), GG(hl,hw,cz), GG(-hl,hw,cz)];
-        const hullBody = () => {
-          this.quadOn(g, convexHull(top.concat(bot)), col.bodyDk);
-          this.quadOn(g, top, col.body);
-        };
-        const bumperFront = () => {
-          this.quadOn(g, [GG(hl-0.3,-hw,cz), GG(hl,-hw,cz+3), GG(hl,hw,cz+3), GG(hl-0.3,hw,cz)], CR.bumper);
-          g.fillStyle(CR.light, 1);
-          for(const side of [-1, 1]){
-            const hlp = GG(hl-0.4, side*(hw-3), cz+5);
-            g.fillCircle(hlp.x, hlp.y, 2*this.K*0.42);
-          }
-        };
-        const bumperRear = () => {
-          this.quadOn(g, [GG(-hl+0.3,-hw,cz), GG(-hl,-hw,cz+3), GG(-hl,hw,cz+3), GG(-hl+0.3,hw,cz)], CR.bumper);
-          g.fillStyle(CR.tail, 1);
-          for(const side of [-1, 1]){
-            const tlp = GG(-hl+0.4, side*(hw-3), cz+5);
-            g.fillCircle(tlp.x, tlp.y, 1.8*this.K*0.42);
-          }
-        };
-        bumperRear(); hullBody(); bumperFront();
-        g.lineStyle(Math.max(1, 0.6*this.K*0.42), col.bodyDk, 0.6);
-        const d0 = GG(0,hw,cz+1), d1 = GG(0,hw,chassisTop-1);
-        g.lineBetween(d0.x, d0.y, d1.x, d1.y);
+        const top = [carP(-hl,-hw,chassisTop), carP(hl,-hw,chassisTop), carP(hl,hw,chassisTop), carP(-hl,hw,chassisTop)];
+        const bot = [carP(-hl,-hw,cz), carP(hl,-hw,cz), carP(hl,hw,cz), carP(-hl,hw,cz)];
+        this.quadOn(g, convexHull(top.concat(bot)), col.bodyDk);
+        this.quadOn(g, top, col.body);
+      };
+      const bumperFront = () => {
+        const q = [carP(hl-0.3,-hw,cz), carP(hl,-hw,cz+3), carP(hl,hw,cz+3), carP(hl-0.3,hw,cz)];
+        this.quadOn(g, q, CR.bumper);
+        g.fillStyle(CR.light, 1);
+        for(const side of [-1, 1]){
+          const hlp = carP(hl-0.4, side*(hw-3), cz+5);
+          g.fillCircle(hlp.x, hlp.y, 2*this.K*0.42);
+        }
+      };
+      const bumperRear = () => {
+        const q = [carP(-hl+0.3,-hw,cz), carP(-hl,-hw,cz+3), carP(-hl,hw,cz+3), carP(-hl+0.3,hw,cz)];
+        this.quadOn(g, q, CR.bumper);
+        g.fillStyle(CR.tail, 1);
+        for(const side of [-1, 1]){
+          const tlp = carP(-hl+0.4, side*(hw-3), cz+5);
+          g.fillCircle(tlp.x, tlp.y, 1.8*this.K*0.42);
+        }
       };
 
       const bed = () => {
@@ -3760,10 +3811,10 @@ class WorldScene extends Phaser.Scene {
         const bedBackA = -hl+1, bedFrontA = -cl-2;
         const railTop = chassisTop + CR.chassisH*0.55;
         const floorH = chassisTop + 1;
-        const wallFar = [GG(bedBackA,-hw,floorH), GG(bedFrontA,-hw,floorH), GG(bedFrontA,-hw,railTop), GG(bedBackA,-hw,railTop)];
-        const floor = [GG(bedBackA,-hw*0.88,floorH), GG(bedFrontA,-hw*0.88,floorH), GG(bedFrontA,hw*0.88,floorH), GG(bedBackA,hw*0.88,floorH)];
-        const cabBackWall = [GG(bedFrontA,-hw*0.88,floorH), GG(bedFrontA,hw*0.88,floorH), GG(bedFrontA,hw*0.88,railTop), GG(bedFrontA,-hw*0.88,railTop)];
-        const wallNear = [GG(bedBackA,hw,floorH), GG(bedFrontA,hw,floorH), GG(bedFrontA,hw,railTop), GG(bedBackA,hw,railTop)];
+        const wallFar = [carP(bedBackA,-hw,floorH), carP(bedFrontA,-hw,floorH), carP(bedFrontA,-hw,railTop), carP(bedBackA,-hw,railTop)];
+        const floor = [carP(bedBackA,-hw*0.88,floorH), carP(bedFrontA,-hw*0.88,floorH), carP(bedFrontA,hw*0.88,floorH), carP(bedBackA,hw*0.88,floorH)];
+        const cabBackWall = [carP(bedFrontA,-hw*0.88,floorH), carP(bedFrontA,hw*0.88,floorH), carP(bedFrontA,hw*0.88,railTop), carP(bedFrontA,-hw*0.88,railTop)];
+        const wallNear = [carP(bedBackA,hw,floorH), carP(bedFrontA,hw,floorH), carP(bedFrontA,hw,railTop), carP(bedBackA,hw,railTop)];
         this.quadOn(g, wallFar, col.bodyDk);
         this.quadOn(g, floor, CR.bedFloor);
         this.quadOn(g, cabBackWall, col.bodyDk);
@@ -3772,37 +3823,43 @@ class WorldScene extends Phaser.Scene {
 
       const cabin = () => {
         const roofF = isTruck ? -cl : -cl*0.35, roofR = cl*0.55;
-        const top = [GG(roofF,-hw*0.86,cabinTop), GG(roofR,-hw*0.86,cabinTop), GG(roofR,hw*0.86,cabinTop), GG(roofF,hw*0.86,cabinTop)];
-        const beltF = [GG(cl,-hw*0.92,chassisTop), GG(cl,hw*0.92,chassisTop)];
-        const beltR = [GG(-cl,-hw*0.92,chassisTop), GG(-cl,hw*0.92,chassisTop)];
+        const roofPts = [carP(roofF,-hw*0.86,cabinTop), carP(roofR,-hw*0.86,cabinTop), carP(roofR,hw*0.86,cabinTop), carP(roofF,hw*0.86,cabinTop)];
+        const beltPts = [carP(cl,-hw*0.92,chassisTop), carP(cl,hw*0.92,chassisTop), carP(-cl,hw*0.92,chassisTop), carP(-cl,-hw*0.92,chassisTop)];
+        /* ONE hull over every cabin corner -- same technique chassis's
+           own hullBody already uses. Guarantees full, gap-free coverage
+           of anything behind it (like a wheel) in every orientation,
+           instead of separately-tuned windshield/backlight/side-glass
+           panels that only happened to line up for one assumed facing. */
+        this.quadOn(g, convexHull(roofPts.concat(beltPts)), col.roof);
+        this.quadOn(g, roofPts, col.roof);
+        this.edgeOn(g, roofPts, col.bodyDk, 1);
 
-        const cabinHull = () => {
-          this.quadOn(g, convexHull([...beltF, ...beltR, ...top]), col.roof);
-        };
-        const windshield = () => {
-          const wind = [GG(roofR,-hw*0.86,cabinTop), GG(roofR,hw*0.86,cabinTop), beltF[1], beltF[0]];
-          this.quadOn(g, wind, CR.windshield);
-          this.edgeOn(g, wind, CR.windshieldEdge, 1);
-        };
-        const backlight = () => {
-          if(isTruck){
-            const winW = hw*0.5;
-            const winH0 = chassisTop + (cabinTop-chassisTop)*0.35;
-            const winH1 = chassisTop + (cabinTop-chassisTop)*0.85;
-            const back = [GG(roofF,-winW,winH1), GG(roofF,winW,winH1), GG(roofF,winW,winH0), GG(roofF,-winW,winH0)];
-            this.quadOn(g, back, CR.windshield);
-            this.edgeOn(g, back, CR.windshieldEdge, 1);
-          } else {
-            const back = [GG(roofF,-hw*0.86,cabinTop), GG(roofF,hw*0.86,cabinTop), beltR[1], beltR[0]];
-            this.quadOn(g, back, CR.windshield);
-            this.edgeOn(g, back, CR.windshieldEdge, 1);
-          }
-        };
-        backlight(); cabinHull(); windshield();
+        /* windshield: local front is always +cl regardless of fdir,
+           since rotation happens after this is defined -- no per-
+           orientation logic needed here. */
+        const windFront = [carP(roofR,-hw*0.85,cabinTop), carP(roofR,hw*0.85,cabinTop), carP(cl,hw*0.9,chassisTop), carP(cl,-hw*0.9,chassisTop)];
+        this.quadOn(g, windFront, CR.windshield);
+        this.edgeOn(g, windFront, CR.windshieldEdge, 1);
 
-        this.quadOn(g, top, col.roof);
-        this.edgeOn(g, top, col.bodyDk, 1);
-        const sgB = hw*0.86, beltB = hw*0.92;
+        if(isTruck){
+          const winW = hw*0.5;
+          const winH0 = chassisTop + (cabinTop-chassisTop)*0.35;
+          const winH1 = chassisTop + (cabinTop-chassisTop)*0.85;
+          const back = [carP(roofF,-winW,winH1), carP(roofF,winW,winH1), carP(roofF,winW,winH0), carP(roofF,-winW,winH0)];
+          this.quadOn(g, back, CR.windshield);
+          this.edgeOn(g, back, CR.windshieldEdge, 1);
+        } else {
+          const back = [carP(roofF,-hw*0.86,cabinTop), carP(roofF,hw*0.86,cabinTop), carP(-cl,hw*0.92,chassisTop), carP(-cl,-hw*0.92,chassisTop)];
+          this.quadOn(g, back, CR.windshield);
+          this.edgeOn(g, back, CR.windshieldEdge, 1);
+        }
+
+        /* side glass: which physical side (+b or -b) is camera-facing
+           is picked dynamically via carDepth -- same technique the
+           robot's own drawWheel uses for its visible face, rather than
+           the old hardcoded "always +b" assumption. */
+        const sgSide = carDepth(0, hw*0.9, cabinTop) > carDepth(0, -hw*0.9, cabinTop) ? 1 : -1;
+        const sgB = sgSide*hw*0.86, beltB = sgSide*hw*0.92;
         const sgPts = [
           { a: roofF, b: sgB,   h: cabinTop },
           { a: roofR, b: sgB,   h: cabinTop },
@@ -3813,27 +3870,49 @@ class WorldScene extends Phaser.Scene {
         const cB = sgPts.reduce((s,p) => s+p.b, 0)/4;
         const cH = sgPts.reduce((s,p) => s+p.h, 0)/4;
         const shrink = 0.7;
-        const sideFrame = sgPts.map(p => GG(p.a, p.b, p.h));
-        const sidePane = sgPts.map(p => GG(cA+(p.a-cA)*shrink, cB+(p.b-cB)*shrink, cH+(p.h-cH)*shrink));
+        const sideFrame = sgPts.map(p => carP(p.a, p.b, p.h));
+        const sidePane = sgPts.map(p => carP(cA+(p.a-cA)*shrink, cB+(p.b-cB)*shrink, cH+(p.h-cH)*shrink));
         this.quadOn(g, sideFrame, col.body);
         this.quadOn(g, sidePane, CR.windshield);
       };
 
       const mirror = side => () => {
         const roofR = cl*0.55;
-        const mb = GG(roofR - 3, hw*0.9*side, chassisTop + 3);
+        const mb = carP(roofR - 3, hw*0.9*side, chassisTop + 3);
         g.fillStyle(col.bodyDk, 1);
         g.fillCircle(mb.x, mb.y, 1.6*this.K*0.42);
       };
+
+      /* the far-side wheels are reliably hidden by chassis's own hull
+         (verified), so they always draw early. Everything else that
+         sits at an extreme a-position (near-side wheels, both
+         bumpers) gets placed relative to the cabin by comparing its
+         OWN depth against the cabin's -- whichever is actually closer
+         to camera for THIS orientation draws after cabin (guaranteed
+         visible), farther ones draw before (hidden as normal). This
+         has to be per-element and computed at runtime: which specific
+         piece ends up "closer" rotates with fdir, so a fixed draw
+         order can only ever be correct for one orientation. */
+      const cabinRefDepth = carDepth(0, 0, (chassisTop+cabinTop)/2);
+      const nearRearWheelDepth = carDepth(-hl*0.55, hw, cz);
+      const nearFrontWheelDepth = carDepth(hl*0.55, hw, cz);
+      const bumperFrontDepth = carDepth(hl-0.15, 0, cz+1.5);
+      const bumperRearDepth = carDepth(-hl+0.15, 0, cz+1.5);
 
       wheel(-hl*0.55, CR.wheelR, -1)();
       wheel(hl*0.55, CR.wheelR*0.95, -1)();
       chassis();
       bed();
-      wheel(-hl*0.55, CR.wheelR, 1)();
-      wheel(hl*0.55, CR.wheelR*0.95, 1)();
+      if(nearRearWheelDepth <= cabinRefDepth) wheel(-hl*0.55, CR.wheelR, 1)();
+      if(nearFrontWheelDepth <= cabinRefDepth) wheel(hl*0.55, CR.wheelR*0.95, 1)();
+      if(bumperFrontDepth <= cabinRefDepth) bumperFront();
+      if(bumperRearDepth <= cabinRefDepth) bumperRear();
       mirror(-1)();
       cabin();
+      if(bumperFrontDepth > cabinRefDepth) bumperFront();
+      if(bumperRearDepth > cabinRefDepth) bumperRear();
+      if(nearRearWheelDepth > cabinRefDepth) wheel(-hl*0.55, CR.wheelR, 1)();
+      if(nearFrontWheelDepth > cabinRefDepth) wheel(hl*0.55, CR.wheelR*0.95, 1)();
       mirror(1)();
     } else if(kind === "bin"){
       /* approved in bin hit lab (2026-07-09): ONE rigid geometry
