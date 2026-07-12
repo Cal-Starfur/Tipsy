@@ -1741,6 +1741,22 @@ class WorldScene extends Phaser.Scene {
     const botDepth = this.botX + this.botY;
     const layerFor = (px, py) => (px + py > botDepth + 14) ? this.gFront : g;
 
+    /* moved up from below: cars/traffic now need world position before
+       the body depth-sort runs (see the trafficPts block after the
+       block-wrap pass), so worldOf has to exist this early too. */
+    const worldOf = (s, offsetUnits) => {
+      const hdg = this.headingAt(s), p = this.posAt(s);
+      const rvx = -Math.sin(hdg), rvy = Math.cos(hdg);
+      return { x: p.x + rvx*offsetUnits, y: p.y + rvy*offsetUnits, z: this.groundZ(s) };
+    };
+    const hazardOffset = hz => hz.row !== undefined ? laneOffset(hz.row) : hz.roadOffset;
+    /* sidewalkend/sidewalkbegin/sidewalkbeginTurn are ADA curb ramps
+       with real height and slope, not flat decals -- "crack" is the
+       only genuinely flat one here. The rest can visually overlap a
+       car or house the same way any other volumetric thing can, so
+       they need the same depth-sort treatment, not an exemption. */
+    const GROUND_KINDS = { crack:1, sidewalkend:1, sidewalkbegin:1, sidewalkbeginTurn:1, slab:1 };
+
     /* ---------- block-wrap: housing/park/commercial beyond the
        sidewalk's inside line, all around the grid (interior blocks
        AND the world's outer perimeter lots). Two passes, same fix as
@@ -1812,69 +1828,17 @@ class WorldScene extends Phaser.Scene {
       }
     }
     for(const lot of visLots) this.queueExteriorLot(blockVQ, lot);
-    /* roofs always draw last, globally — pulled out of the normal
-       single-point depth sort entirely so no body (house, store, fence,
-       from ANY unit) can ever paint over ANY roof, regardless of how
-       the coarse depth numbers compare. This is what "force a roof
-       onto all houses" actually needed: not more roof geometry (it was
-       already unconditional inside drawHouseUnit/drawStoreUnit), but a
-       paint-order guarantee that nothing drawn afterward could cover it. */
-    const bodies = blockVQ.filter(it => !it.isRoof), roofs = blockVQ.filter(it => it.isRoof);
-    bodies.sort((a,b) => a.depth - b.depth);
-    for(const item of bodies) item.fn(g, t); // always gWorld — the robot must stay visible over block-wrap dressing, never hidden behind it
-    roofs.sort((a,b) => a.depth - b.depth);
-    for(const item of roofs) item.fn(g, t);
-    /* parking-row cars draw in a THIRD pass, after roofs — they were
-       part of the normal body pass before, so any visible building's
-       roof (drawn unconditionally last, globally, regardless of true
-       depth — see the roof comment above) could paint right over a
-       parked car, looking exactly like a disconnected floating panel
-       near the vehicle. This wasn't a car-drawing bug at all; it was
-       the roof-ordering system (built to fix a real, different bug)
-       colliding with a feature added afterward that never got the
-       same "must stay visible" treatment the robot itself has. */
-    for(const c of topLayer) this.drawProp(g, c.kind, c.x, c.y, t, c.fdir, 0);
 
-    /* world position of an s/offset entity — tangent-based (same formula
-       the robot's own position already used), so it's correct through
-       arcs too, not just straight legs. */
-    const worldOf = (s, offsetUnits) => {
-      const hdg = this.headingAt(s), p = this.posAt(s);
-      const rvx = -Math.sin(hdg), rvy = Math.cos(hdg);
-      return { x: p.x + rvx*offsetUnits, y: p.y + rvy*offsetUnits, z: this.groundZ(s) };
-    };
-    const hazardOffset = hz => hz.row !== undefined ? laneOffset(hz.row) : hz.roadOffset;
-
-    /* ground decals first: flat on the pavement, can never occlude anything */
-    const GROUND_KINDS = { crack:1, sidewalkend:1, sidewalkbegin:1, sidewalkbeginTurn:1, slab:1 };
-    for(const hz of r.hazards){
-      if(!GROUND_KINDS[hz.type]) continue;
-      const wp = worldOf(hz.s + (hz.slide || 0), hazardOffset(hz));
-      if(near(wp.x, wp.y)) this.drawProp(g, hz.type, wp.x, wp.y, t, hz.f, wp.z, null, null, hz);
-    }
-
-    /* volumetric props + hazards, depth-split around the robot (iso depth = x + y).
-       car/truck-kind props (the single roadside parked car) are pulled out
-       and checked together with traffic below -- see that comment for why. */
-    for(const pr of r.props){
-      if(pr.kind === "car" || pr.kind === "truck") continue;
-      const wp = worldOf(pr.s, pr.roadOffset);
-      if(near(wp.x, wp.y)) this.drawProp(layerFor(wp.x, wp.y), pr.kind, wp.x, wp.y, t, pr.f, wp.z);
-    }
-    /* moving traffic: each car follows its OWN independent path (a
-       separate buildWalk through the same grid, not the player's
-       route) — trS wraps on that car's own totalLen, and heading/
-       position come from that car's own segs, not the main route's.
-       Different routes can legitimately cross paths with zero
-       awareness of each other, so two cars can land at the exact same
-       spot at the same moment with completely mismatched orientations
-       (rendered as an overlapping mashup). The single roadside parked-
-       car prop has the exact same blind spot against traffic — pulled
-       into this same check rather than left as a second, separate gap.
-       Purely a visual fix — none of these are collidable with the
-       player — skip drawing a vehicle too close to one already queued
-       this frame, rather than solving path-crossing physics between
-       independent systems. */
+    /* moving traffic + roadside parked car/truck props: computed here,
+       BEFORE the body depth-sort below, and pushed into blockVQ exactly
+       like any house/store body -- so a car now sorts correctly against
+       buildings by real depth (x+y), instead of being painted in a
+       separate pass that ran after the whole gWorld body pass had
+       already finished (which meant a car always painted on top of
+       every house regardless of true depth -- the reported "draw order
+       confused in world space" bug). Dedup (skip a vehicle too close to
+       one already queued this frame -- independent traffic routes can
+       overlap with zero mutual awareness) is unchanged from before. */
     const trafficPts = [];
     for(const pr of r.props){
       if(pr.kind !== "car" && pr.kind !== "truck") continue;
@@ -1897,8 +1861,76 @@ class WorldScene extends Phaser.Scene {
       if(!near(p.wp.x, p.wp.y)) continue;
       if(drawnTrafficPts.some(q => Math.hypot(q.x-p.wp.x, q.y-p.wp.y) < MIN_TRAFFIC_GAP)) continue;
       drawnTrafficPts.push(p.wp);
-      this.drawProp(layerFor(p.wp.x, p.wp.y), p.kind, p.wp.x, p.wp.y, t, p.f, p.wp.z, p.wheelPhase, p.colorSeed);
+      const pk = p.kind, pwx = p.wp.x, pwy = p.wp.y, pwz = p.wp.z, pf = p.f, pwp2 = p.wheelPhase, pcs = p.colorSeed;
+      blockVQ.push({ depth: pwx+pwy, fn:(g,t)=>this.drawProp(layerFor(pwx,pwy), pk, pwx, pwy, t, pf, pwz, pwp2, pcs) });
     }
+
+    /* other volumetric props (bins, cones, hydrants, dogs, people, etc.):
+       same fix, same reason -- these used to draw in their own pass
+       AFTER the whole body+roof pass had already finished, so a prop
+       standing near a parked car always painted on top of it (and of
+       any house) regardless of which was actually closer to camera.
+       Pushing them into blockVQ here, sorted by real depth alongside
+       houses/cars/traffic, fixes prop-vs-car and prop-vs-house the same
+       way car-vs-house was fixed above. */
+    for(const pr of r.props){
+      if(pr.kind === "car" || pr.kind === "truck") continue;
+      const wp = worldOf(pr.s, pr.roadOffset);
+      if(!near(wp.x, wp.y)) continue;
+      const prk = pr.kind, pwx2 = wp.x, pwy2 = wp.y, pwz2 = wp.z, pf2 = pr.f;
+      blockVQ.push({ depth: pwx2+pwy2, fn:(g,t)=>this.drawProp(layerFor(pwx2,pwy2), prk, pwx2, pwy2, t, pf2, pwz2) });
+    }
+
+    /* ground-kind hazards: crack really is flat, but sidewalkend/
+       sidewalkbegin/sidewalkbeginTurn are actual curb ramps with height
+       and slope -- they got the same "always draws late, unsorted"
+       treatment as the other props/cars bug above, just via a separate
+       code path (the old "flat, can never occlude" assumption), so a
+       ramp near a parked car painted over it regardless of depth. Same
+       fix: push into blockVQ so it's depth-sorted against everything
+       else instead of drawn unconditionally on top afterward. */
+    for(const hz of r.hazards){
+      if(!GROUND_KINDS[hz.type]) continue;
+      const wp = worldOf(hz.s + (hz.slide || 0), hazardOffset(hz));
+      if(!near(wp.x, wp.y)) continue;
+      const hzt = hz.type, hwx = wp.x, hwy = wp.y, hwz = wp.z, hf = hz.f, hzObj = hz;
+      blockVQ.push({ depth: hwx+hwy, fn:(g,t)=>this.drawProp(layerFor(hwx,hwy), hzt, hwx, hwy, t, hf, hwz, null, null, hzObj) });
+    }
+
+    /* roofs always draw last, globally — pulled out of the normal
+       single-point depth sort entirely so no body (house, store, fence,
+       from ANY unit) can ever paint over ANY roof, regardless of how
+       the coarse depth numbers compare. This is what "force a roof
+       onto all houses" actually needed: not more roof geometry (it was
+       already unconditional inside drawHouseUnit/drawStoreUnit), but a
+       paint-order guarantee that nothing drawn afterward could cover it. */
+    const bodies = blockVQ.filter(it => !it.isRoof), roofs = blockVQ.filter(it => it.isRoof);
+    bodies.sort((a,b) => a.depth - b.depth);
+    for(const item of bodies) item.fn(g, t); // always gWorld — the robot must stay visible over block-wrap dressing, never hidden behind it
+    roofs.sort((a,b) => a.depth - b.depth);
+    for(const item of roofs) item.fn(g, t);
+    /* parking-row cars draw in a THIRD pass, after roofs — they were
+       part of the normal body pass before, so any visible building's
+       roof (drawn unconditionally last, globally, regardless of true
+       depth — see the roof comment above) could paint right over a
+       parked car, looking exactly like a disconnected floating panel
+       near the vehicle. This wasn't a car-drawing bug at all; it was
+       the roof-ordering system (built to fix a real, different bug)
+       colliding with a feature added afterward that never got the
+       same "must stay visible" treatment the robot itself has. */
+    /* layerFor, not hardcoded g: these cars were always drawn into
+       gWorld regardless of true depth vs the robot, so the robot
+       painted over them unconditionally even when a car was actually
+       closer to camera and should have stayed in front. Every other
+       car/prop in this file already goes through layerFor; this pass
+       just never got that same treatment when it was split out to fix
+       the earlier roof-covering-car bug. */
+    for(const c of topLayer) this.drawProp(layerFor(c.x, c.y), c.kind, c.x, c.y, t, c.fdir, 0);
+
+    /* volumetric props (and ground-kind hazards like curb ramps) are
+       handled earlier now -- pushed into blockVQ before the body
+       depth-sort so they land correctly against houses and cars; see
+       the comments above that block for why. */
     for(const hz of r.hazards){
       if(GROUND_KINDS[hz.type]) continue;
       const wp = worldOf(hz.s + (hz.slide || 0), hazardOffset(hz));
@@ -3822,7 +3854,7 @@ class WorldScene extends Phaser.Scene {
       };
 
       const cabin = () => {
-        const roofF = isTruck ? -cl : -cl*0.35, roofR = cl*0.55;
+        const roofF = isTruck ? -cl : -cl*0.55, roofR = cl*0.55;
         const roofPts = [carP(roofF,-hw*0.86,cabinTop), carP(roofR,-hw*0.86,cabinTop), carP(roofR,hw*0.86,cabinTop), carP(roofF,hw*0.86,cabinTop)];
         const beltPts = [carP(cl,-hw*0.92,chassisTop), carP(cl,hw*0.92,chassisTop), carP(-cl,hw*0.92,chassisTop), carP(-cl,-hw*0.92,chassisTop)];
         /* ONE hull over every cabin corner -- same technique chassis's
@@ -3854,6 +3886,15 @@ class WorldScene extends Phaser.Scene {
           this.edgeOn(g, back, CR.windshieldEdge, 1);
         }
 
+        /* roof redraw: this car's greenhouse used to be front/back
+           asymmetric, and iso projection isn't rotationally uniform, so
+           the windshield/backlight panels above could end up overlapping
+           part of the roof's own screen footprint at some headings even
+           though they never did at others. Repainting the roof top face
+           here guarantees it always wins that overlap regardless of fdir. */
+        this.quadOn(g, roofPts, col.roof);
+        this.edgeOn(g, roofPts, col.bodyDk, 1);
+
         /* side glass: which physical side (+b or -b) is camera-facing
            is picked dynamically via carDepth -- same technique the
            robot's own drawWheel uses for its visible face, rather than
@@ -3884,35 +3925,41 @@ class WorldScene extends Phaser.Scene {
       };
 
       /* the far-side wheels are reliably hidden by chassis's own hull
-         (verified), so they always draw early. Everything else that
-         sits at an extreme a-position (near-side wheels, both
-         bumpers) gets placed relative to the cabin by comparing its
-         OWN depth against the cabin's -- whichever is actually closer
-         to camera for THIS orientation draws after cabin (guaranteed
-         visible), farther ones draw before (hidden as normal). This
-         has to be per-element and computed at runtime: which specific
-         piece ends up "closer" rotates with fdir, so a fixed draw
-         order can only ever be correct for one orientation. */
+         (verified), so they always draw early. Near-side wheels and both
+         bumpers get placed by comparing depth against the cabin's own,
+         same as before -- but WHICH physical side (+b or -b) counts as
+         "near" for each wheel is now picked dynamically via carDepth,
+         same technique faceB/sgSide already use, instead of hardcoding
+         side=+1. The hardcoded version only happened to be correct at
+         two of the four fdir headings (0 and 3); at 1 and 2 it picked
+         the wrong side entirely, so neither near wheel poked through. */
       const cabinRefDepth = carDepth(0, 0, (chassisTop+cabinTop)/2);
-      const nearRearWheelDepth = carDepth(-hl*0.55, hw, cz);
-      const nearFrontWheelDepth = carDepth(hl*0.55, hw, cz);
+      const rearNearSide = carDepth(-hl*0.55, hw, cz) > carDepth(-hl*0.55, -hw, cz) ? 1 : -1;
+      const frontNearSide = carDepth(hl*0.55, hw, cz) > carDepth(hl*0.55, -hw, cz) ? 1 : -1;
+      const nearRearWheelDepth = carDepth(-hl*0.55, hw*rearNearSide, cz);
+      const nearFrontWheelDepth = carDepth(hl*0.55, hw*frontNearSide, cz);
       const bumperFrontDepth = carDepth(hl-0.15, 0, cz+1.5);
       const bumperRearDepth = carDepth(-hl+0.15, 0, cz+1.5);
 
-      wheel(-hl*0.55, CR.wheelR, -1)();
-      wheel(hl*0.55, CR.wheelR*0.95, -1)();
+      wheel(-hl*0.55, CR.wheelR, -rearNearSide)();
+      wheel(hl*0.55, CR.wheelR*0.95, -frontNearSide)();
       chassis();
       bed();
-      if(nearRearWheelDepth <= cabinRefDepth) wheel(-hl*0.55, CR.wheelR, 1)();
-      if(nearFrontWheelDepth <= cabinRefDepth) wheel(hl*0.55, CR.wheelR*0.95, 1)();
-      if(bumperFrontDepth <= cabinRefDepth) bumperFront();
-      if(bumperRearDepth <= cabinRefDepth) bumperRear();
+      if(nearRearWheelDepth <= cabinRefDepth) wheel(-hl*0.55, CR.wheelR, rearNearSide)();
+      if(nearFrontWheelDepth <= cabinRefDepth) wheel(hl*0.55, CR.wheelR*0.95, frontNearSide)();
       mirror(-1)();
       cabin();
-      if(bumperFrontDepth > cabinRefDepth) bumperFront();
-      if(bumperRearDepth > cabinRefDepth) bumperRear();
-      if(nearRearWheelDepth > cabinRefDepth) wheel(-hl*0.55, CR.wheelR, 1)();
-      if(nearFrontWheelDepth > cabinRefDepth) wheel(hl*0.55, CR.wheelR*0.95, 1)();
+      /* bumpers: chassis() above already unconditionally paints the far
+         tip's silhouette, and cabin() never reaches out to a=+-hl to
+         occlude anything there -- so drawing both bumperFront/bumperRear
+         every frame (the old early/late-vs-cabin split) meant whichever
+         one drew second always painted over chassis and stayed visible,
+         regardless of facing. Only the one actually facing the camera
+         should be drawn at all; the far one is already represented by
+         chassis's own solid end. */
+      if(bumperFrontDepth > bumperRearDepth) bumperFront(); else bumperRear();
+      if(nearRearWheelDepth > cabinRefDepth) wheel(-hl*0.55, CR.wheelR, rearNearSide)();
+      if(nearFrontWheelDepth > cabinRefDepth) wheel(hl*0.55, CR.wheelR*0.95, frontNearSide)();
       mirror(1)();
     } else if(kind === "bin"){
       /* approved in bin hit lab (2026-07-09): ONE rigid geometry
