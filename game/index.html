@@ -27,14 +27,29 @@
     padding:15px 44px;font-size:19px;font-weight:700;box-shadow:0 4px 0 #b5540e;}
   .overlay .btn:active{transform:translateY(3px);box-shadow:0 1px 0 #b5540e;}
   .tag{color:#ff9c4d;font-weight:700;letter-spacing:1px;font-size:12px;text-transform:uppercase;}
-  .brand{font-size:18px;font-weight:800;letter-spacing:1px;color:#ff9c4d;margin-bottom:8px;}
-  #routeMap{display:block;border-radius:14px;}
-  #mapCard{position:relative;width:280px;border-radius:14px;overflow:hidden;box-shadow:0 4px 0 #b5540e33;}
-  #mapCard .brand{position:absolute;top:12px;left:14px;margin:0;text-shadow:0 1px 4px rgba(255,255,255,.9),0 1px 4px rgba(255,255,255,.9);}
-  #mapCard .card{position:absolute;top:44px;left:12px;right:12px;margin:0;background:rgba(240,236,224,.92);color:#2e3138;backdrop-filter:blur(3px);}
+  .brand{font-size:18px;font-weight:800;letter-spacing:1px;color:#ff7a1a;margin-bottom:8px;}
+  #routeMap{display:block;}
+  #titleOverlay{padding:0;justify-content:flex-start;}
+  #screenWrap{width:280px;height:100vh;height:100dvh;display:flex;flex-direction:column;
+    border-radius:20px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,.35);}
+  #mapCard{position:relative;width:280px;flex:1;min-height:0;overflow:hidden;}
+  #mapCard .brand{position:absolute;top:14px;left:50%;transform:translateX(-50%);margin:0;text-shadow:0 1px 4px rgba(181,84,14,.9),0 1px 4px rgba(181,84,14,.9);}
+  #mapCard .card{position:absolute;top:60px;left:12px;right:12px;margin:0;background:rgba(240,236,224,.55);color:#2e3138;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);}
   #mapCard .card b{color:#b5540e;}
-  #mapCard .btn{position:absolute;bottom:16px;left:50%;transform:translateX(-50%);margin-top:0;}
+  #mapCard .btn{position:absolute;bottom:16px;left:50%;transform:translateX(-50%);margin-top:0;
+    width:88px;height:88px;border-radius:50%;padding:0;
+    display:flex;align-items:center;justify-content:center;}
   #mapCard .btn:active{transform:translateX(-50%) translateY(3px);}
+  .iconBtn{position:absolute;top:12px;width:38px;height:38px;border-radius:50%;background:rgba(255,255,255,.92);
+    display:flex;align-items:center;justify-content:center;font-size:16px;box-shadow:0 2px 6px rgba(0,0,0,.25);}
+  #searchIcon{left:14px;}
+  #avatarIcon{right:14px;background:#ff7a1a;}
+  #bottomSheet{width:280px;background:#f0ece0;
+    padding:12px 16px calc(10px + env(safe-area-inset-bottom));color:#2e3138;}
+  #bottomSheet .sheetRow{display:flex;align-items:center;justify-content:space-between;}
+  #bottomSheet .chev{font-size:13px;color:#8f95a1;}
+  #bottomSheet .status{font-weight:700;font-size:15px;color:#b5540e;}
+  #bottomSheet .listIcon{font-size:17px;color:#8f95a1;}
   .hidden{display:none!important;}
   .big{font-size:42px;margin:2px 0;}
 </style>
@@ -52,11 +67,35 @@
 </div>
 
 <div id="titleOverlay" class="overlay">
-  <div id="mapCard">
-    <canvas id="routeMap" width="280" height="476"></canvas>
-    <div class="brand">TIPSY</div>
-    <div class="card" id="orderCard">…</div>
-    <button class="btn" id="startBtn">GO</button>
+  <div id="screenWrap">
+    <div id="mapCard">
+      <canvas id="routeMap" width="280" height="476"></canvas>
+      <div class="brand">TIPSY</div>
+      <button class="iconBtn" id="searchIcon">🔍</button>
+      <div class="iconBtn" id="avatarIcon">
+        <svg viewBox="0 0 40 46" width="23" height="27">
+          <line x1="13" y1="5" x2="13" y2="11" stroke="#2e3138" stroke-width="1.5"/>
+          <circle cx="13" cy="5" r="2" fill="#ff5722"/>
+          <rect x="9" y="11" width="22" height="7" fill="#f7f8fa" stroke="#30343d" stroke-width="1.2"/>
+          <rect x="5" y="18" width="30" height="21" fill="#f7f8fa" stroke="#30343d" stroke-width="1.2"/>
+          <rect x="9" y="22" width="22" height="8" fill="#22242b"/>
+          <circle cx="16" cy="26" r="1.9" fill="#7fe3ff"/>
+          <circle cx="24" cy="26" r="1.9" fill="#7fe3ff"/>
+          <rect x="5" y="32" width="30" height="4" fill="#c2452e"/>
+          <rect x="5" y="34" width="30" height="3" fill="#ffcc33" stroke="#c9a020" stroke-width="0.5"/>
+          <rect x="5" y="36" width="30" height="3" fill="#494e58"/>
+        </svg>
+      </div>
+      <div class="card" id="orderCard">…</div>
+      <button class="btn" id="startBtn">GO</button>
+    </div>
+    <div id="bottomSheet">
+      <div class="sheetRow">
+        <span class="chev">︿</span>
+        <span class="status" id="sheetStatus">Ready for pickup</span>
+        <span class="listIcon">☰</span>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -92,18 +131,18 @@
    hill: grade intensity · pave: pavement quality (1=smooth)
    litter: scooters/trash density · palms: set dressing */
 const HOODS = [
-  { n:"The Flats",       hill:0.0, pave:0.9, litter:0.2, palms:0.9, streets:["Palmline Ave","Pelican St","Marina Way"] },
-  { n:"Boardwalk",       hill:0.0, pave:0.6, litter:1.0, palms:1.0, streets:["Pier Ave","Saltbox Ln","Tide St"] },
-  { n:"Old Town",        hill:0.2, pave:0.2, litter:0.4, palms:0.4, streets:["Founders St","Cobble Ct","Lantern Row"] },
-  { n:"Scooter Row",     hill:0.1, pave:0.5, litter:1.0, palms:0.6, streets:["Beryl Ave","Kickstand St","Charger Way"] },
-  { n:"University",      hill:0.2, pave:0.7, litter:0.7, palms:0.5, streets:["Campus Loop","Quad St","Provost Ave"] },
-  { n:"Warehouse Dist.", hill:0.0, pave:0.3, litter:0.6, palms:0.1, streets:["Freight St","Dock Ave","Pallet Way"] },
-  { n:"Sunset Terrace",  hill:0.6, pave:0.7, litter:0.3, palms:0.8, streets:["Terrace Dr","Vista Ct","Golden Steps"] },
-  { n:"The Bluffs",      hill:1.0, pave:0.6, litter:0.2, palms:0.5, streets:["Switchback Rd","Crestline Dr","Ladder St"] },
-  { n:"Meridian Hts.",   hill:0.8, pave:0.5, litter:0.4, palms:0.5, streets:["Meridian Ave","Summit Walk","Cable Ct"] },
-  { n:"Market Dist.",    hill:0.1, pave:0.5, litter:0.7, palms:0.4, streets:["Stall St","Grocer Ave","Crate Ln"] },
-  { n:"Little Harbor",   hill:0.3, pave:0.6, litter:0.5, palms:0.7, streets:["Wharf St","Anchor Ave","Gull Ct"] },
-  { n:"Palm Gardens",    hill:0.2, pave:0.8, litter:0.3, palms:1.0, streets:["Frond Ave","Coconut Ct","Shade St"] },
+  { n:"The Flats",       hill:0.0, pave:0.9, litter:0.2, palms:0.9, streets:["Palmline Ave","Pelican St","Marina Way"], parks:["Pelican","Driftwood","Marina","Tidewater","Sandpiper","Cove","Seabreeze","Lagoon","Estuary","Harbor Seal"], shops:["Pelican Coffee","Marina Provisions","Driftwood Deli"] },
+  { n:"Boardwalk",       hill:0.0, pave:0.6, litter:1.0, palms:1.0, streets:["Pier Ave","Saltbox Ln","Tide St"], parks:["Tide Pool","Carousel","Salt Air","Arcade","Ferris","Shoreline","Funhouse","Taffy","Pier's End","Sun Deck"], shops:["Tide Pool Tacos","Carousel Creamery","Salt Air Surf Shop"] },
+  { n:"Old Town",        hill:0.2, pave:0.2, litter:0.4, palms:0.4, streets:["Founders St","Cobble Ct","Lantern Row"], parks:["Founders","Lantern","Ivy","Cobblestone","Heritage","Chapel","Brickyard","Archway","Old Bell","Cornerstone"], shops:["Founders Hardware","Lantern Books","Cobblestone Bakery"] },
+  { n:"Scooter Row",     hill:0.1, pave:0.5, litter:1.0, palms:0.6, streets:["Beryl Ave","Kickstand St","Charger Way"], parks:["Volt","Spoke & Wheel","Recharge","Throttle","Gearhead","Battery","Piston","Ignition","Rev","Torque"], shops:["Volt Bike Co.","Kickstand Cafe","Charger Depot"] },
+  { n:"University",      hill:0.2, pave:0.7, litter:0.7, palms:0.5, streets:["Campus Loop","Quad St","Provost Ave"], parks:["The Quad","Provost","Scholars","Bell Tower","Ivy League","Commencement","Lecture Hall","Dean's","Alumni","Sophomore"], shops:["Quad Coffee","Provost Pizza","Scholars Stationery"] },
+  { n:"Warehouse Dist.", hill:0.0, pave:0.3, litter:0.6, palms:0.1, streets:["Freight St","Dock Ave","Pallet Way"], parks:["Sparrow","Crate","Rustwater","Loading Dock","Silo","Gantry","Forklift","Cargo","Freighter","Depot"], shops:["Freight Diner","Dockside Hardware","Pallet Coffee Co."] },
+  { n:"Sunset Terrace",  hill:0.6, pave:0.7, litter:0.3, palms:0.8, streets:["Terrace Dr","Vista Ct","Golden Steps"], parks:["Golden Hour","Vista","Amber","Sundial","Horizon","Dusk","Twilight","Marigold","Copper Sky","Afterglow"], shops:["Golden Hour Bakery","Vista Market","Terrace Coffee"] },
+  { n:"The Bluffs",      hill:1.0, pave:0.6, litter:0.2, palms:0.5, streets:["Switchback Rd","Crestline Dr","Ladder St"], parks:["Overlook","Crestline","Windward","Precipice","Eagle's Nest","Ridge","Cliffside","Updraft","Timberline","Vantage"], shops:["Crestline Cafe","Overlook Market","Switchback Coffee"] },
+  { n:"Meridian Hts.",   hill:0.8, pave:0.5, litter:0.4, palms:0.5, streets:["Meridian Ave","Summit Walk","Cable Ct"], parks:["Summit","Cable Car","Highline","Zenith","Alpine","Skyline","Ascent","Peak","Tramline","Overhead"], shops:["Summit Bakery","Cable Car Diner","Highline Market"] },
+  { n:"Market Dist.",    hill:0.1, pave:0.5, litter:0.7, palms:0.4, streets:["Stall St","Grocer Ave","Crate Ln"], parks:["Grocers","Barrel","Peddlers","Bazaar","Spice","Vendor's","Stallkeeper's","Basket","Farmstand","Tradewind"], shops:["Grocer's Corner","Barrel & Stall Deli","Peddler's Pantry"] },
+  { n:"Little Harbor",   hill:0.3, pave:0.6, litter:0.5, palms:0.7, streets:["Wharf St","Anchor Ave","Gull Ct"], parks:["Anchor","Gull Point","Fishmongers","Lighthouse","Tidewater","Skipper's","Buoy","Netmender's","Harbor Master's","Sailmaker's"], shops:["Anchor Diner","Gull Point Bakery","Wharfside Coffee"] },
+  { n:"Palm Gardens",    hill:0.2, pave:0.8, litter:0.3, palms:1.0, streets:["Frond Ave","Coconut Ct","Shade St"], parks:["Frond","Coconut Grove","Shade","Palmetto","Oasis","Tropic","Banyan","Hibiscus","Canopy","Sunfern"], shops:["Frond Cafe","Coconut Grove Deli","Shade Market"] },
 ];
 
 /* ---------- deterministic rng ---------- */
@@ -1279,7 +1318,7 @@ function generateRoute(dateStr){
      queueCommercialEdgeAt will independently do for rendering — kept
      in sync by storing the result once here rather than recomputing
      it twice and risking drift. */
-  let pickupSpot = null, pickupUnitIdx = 0;
+  let pickupSpot = null, pickupUnitIdx = 0, pickupShopName = null;
   if(pickupBlock){
     const pbEdges = [
       { ox: pickupBlock.x0, oy: pickupBlock.y0, dv: DIRV[0], rv: DIRV[3], len: pickupBlock.x1-pickupBlock.x0 },
@@ -1301,6 +1340,7 @@ function generateRoute(dateStr){
         x: pux + pe.dv.x*pDoorCenterX + pe.rv.x*pRobotDy,
         y: puy + pe.dv.y*pDoorCenterX + pe.rv.y*pRobotDy
       };
+      pickupShopName = hood.shops[Math.abs(Math.round(pux)+Math.round(puy)) % hood.shops.length];
     }
   }
   /* refine pickupS to whichever on-route point (still on a good
@@ -1348,7 +1388,7 @@ function generateRoute(dateStr){
   const traffic = buildTraffic(grid, rng, nTrafficRoutes);
 
   return { hood, grid, segs, totalLen, tiles, hazards, props, pal, traffic,
-           address:`${number} ${street}`, doorS, pickupS, pickupSpot, addressBlock, pickupBlock, addressEdgeIdx, pickupEdgeIdx, addressUnitIdx, pickupUnitIdx, tipMult, dateStr };
+           address:`${number} ${street}`, doorS, pickupS, pickupSpot, pickupShopName, addressBlock, pickupBlock, addressEdgeIdx, pickupEdgeIdx, addressUnitIdx, pickupUnitIdx, tipMult, dateStr };
 }
 
 /* ---------- robot palette (approved in sprite lab) ---------- */
@@ -1494,8 +1534,11 @@ class WorldScene extends Phaser.Scene {
     this.stuckAmt = 0; this.isBlocked = false;
     this.doorTheta = 0;   // hull door hinge angle — opens once this.state becomes "won"
     this.state = "idle";
-    document.getElementById("orderCard").innerHTML =
-      `<b>${this.route.hood.n}</b> — deliver to <b>${this.route.address}</b><br>tip multiplier <b>×${this.route.tipMult}</b>`;
+    document.getElementById("orderCard").innerHTML = this.route.pickupShopName
+      ? `<b>${this.route.hood.n}</b> — pickup at <b>${this.route.pickupShopName}</b>, deliver to <b>${this.route.address}</b>`
+      : `<b>${this.route.hood.n}</b> — deliver to <b>${this.route.address}</b>`;
+    document.getElementById("sheetStatus").textContent = `Tips ×${this.route.tipMult}`;
+    resizeRouteMap();
     drawRouteMap(this.route);
   }
 
@@ -5481,11 +5524,46 @@ function hide(id){ document.getElementById(id).classList.add("hidden"); }
    flat with no iso transform, scaled/centered to fit the canvas. Colors
    pull from the day's own hood palette so it matches that day's
    in-game look rather than a fixed generic style. */
+/* sizes the canvas to the actual device viewport at real device-pixel
+   resolution (not just CSS-stretching a small fixed buffer, which
+   would look blurry on anything bigger than the old 280x476 box) —
+   the drawing-buffer size is set in real pixels (CSS size * DPR), then
+   a matching transform is applied so drawRouteMap's own coordinate
+   math can keep working in plain CSS-pixel units, unaware of DPR. */
+function resizeRouteMap(){
+  const canvas = document.getElementById("routeMap");
+  if(!canvas) return;
+  const dpr = window.devicePixelRatio || 1;
+  const cssW = 280, cssH = document.getElementById("mapCard").clientHeight;
+  canvas.style.width = cssW + "px";
+  canvas.style.height = cssH + "px";
+  canvas.width = Math.round(cssW * dpr);
+  canvas.height = Math.round(cssH * dpr);
+  canvas.getContext("2d").setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+/* tiny front-view of the actual robot for the pickup marker on the
+   map, same real colors as the avatar icon SVG (SKIN.bodyTop/outline/
+   visor/eye/stripe) -- canvas primitives instead of SVG since this
+   draws directly onto the map canvas. */
+function drawRobotMarker(ctx, x, y){
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.fillStyle = "#f7f8fa"; ctx.strokeStyle = "#30343d"; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.rect(-7, -6, 14, 12); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = "#22242b";
+  ctx.fillRect(-5, -3, 10, 4);
+  ctx.fillStyle = "#7fe3ff";
+  ctx.beginPath(); ctx.arc(-2.5, -1, 1, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(2.5, -1, 1, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = "#c2452e";
+  ctx.fillRect(-7, 3, 14, 3);
+  ctx.restore();
+}
 function drawRouteMap(route){
   const canvas = document.getElementById("routeMap");
   if(!canvas) return;
   const ctx = canvas.getContext("2d");
-  const W = canvas.width, H = canvas.height;
+  const W = canvas.clientWidth, H = canvas.clientHeight;
   ctx.clearRect(0, 0, W, H);
 
   const startS = route.pickupS, endS = route.doorS;
@@ -5509,7 +5587,7 @@ function drawRouteMap(route){
 
   const pad = 22;
   const availW = W - 2*pad, availH = H - 2*pad;
-  const cx0 = (minX+maxX)/2, cy0 = (minY+maxY)/2;
+  let cx0 = (minX+maxX)/2, cy0 = (minY+maxY)/2;
   /* whichever axis has slack gets grown (symmetrically, staying
      centered on the route) until the box's own proportions match the
      canvas's — that's what fills the whole canvas on any route shape
@@ -5520,7 +5598,18 @@ function drawRouteMap(route){
   const targetRatio = availW / availH;
   if(spanX/spanY > targetRatio) spanY = spanX / targetRatio;
   else spanX = spanY * targetRatio;
-  const scale = availW / spanX;
+  let scale = availW / spanX;
+  /* don't keep shrinking to fit an arbitrarily long route — past this
+     floor, hold the zoom level and recenter on the pickup point
+     instead (guaranteed visible), letting the rest of the route run
+     off-frame. A route that fits within the floor is unaffected and
+     keeps the original whole-route-centered framing. */
+  const MIN_SCALE = Math.min(availW, availH) / (BLOCK*4.5);
+  if(scale < MIN_SCALE){
+    scale = MIN_SCALE;
+    spanX = availW / scale; spanY = availH / scale;
+    cx0 = samples[0].x; cy0 = samples[0].y;
+  }
   const toScreen = p => ({ x: W/2 + (p.x-cx0)*scale, y: H/2 + (p.y-cy0)*scale });
   const viewMinX = cx0 - spanX/2, viewMaxX = cx0 + spanX/2;
   const viewMinY = cy0 - spanY/2, viewMaxY = cy0 + spanY/2;
@@ -5534,9 +5623,27 @@ function drawRouteMap(route){
   /* real blocks from the same grid the game itself renders — housing,
      park, and commercial each get a distinct flat tone. Only blocks
      near the route are drawn, keeping it a legible neighborhood view
-     instead of the whole city. */
+     instead of the whole city. Exterior lots (the perimeter houses/
+     shops/parks wrapping the outside edge of the world) use a
+     different field structure (ox/oy/dv/rv/len, a strip along an
+     edge, not two corners) — converted to the same x0/y0/x1/y1/cx/cy
+     shape as interior blocks so both draw through the same code below
+     instead of needing a separate pass. */
+  const lotDepth = BLOCK*0.4;
+  const extRects = route.grid.extLots.map(lot => {
+    const p2x = lot.ox + lot.dv.x*lot.len, p2y = lot.oy + lot.dv.y*lot.len;
+    const p3x = p2x + lot.rv.x*lotDepth, p3y = p2y + lot.rv.y*lotDepth;
+    const p4x = lot.ox + lot.rv.x*lotDepth, p4y = lot.oy + lot.rv.y*lotDepth;
+    const xs = [lot.ox, p2x, p3x, p4x], ys = [lot.oy, p2y, p3y, p4y];
+    return {
+      x0: Math.min(...xs), x1: Math.max(...xs), y0: Math.min(...ys), y1: Math.max(...ys),
+      cx: (lot.ox+p2x)/2 + lot.rv.x*lotDepth/2, cy: (lot.oy+p2y)/2 + lot.rv.y*lotDepth/2,
+      type: lot.type
+    };
+  });
+  const allBlocks = route.grid.blocks.concat(extRects);
   const blockColor = { housing: "#e3d4b8", park: "#8fbf7a", commercial: "#c4c8cc" };
-  for(const blk of route.grid.blocks){
+  for(const blk of allBlocks){
     if(!inView(blk.cx, blk.cy)) continue;
     const a = toScreen({x:blk.x0, y:blk.y0}), b = toScreen({x:blk.x1, y:blk.y1});
     ctx.fillStyle = blockColor[blk.type] || "#d8d2c2";
@@ -5553,6 +5660,49 @@ function drawRouteMap(route){
     ctx.beginPath(); ctx.moveTo(pa.x, pa.y); ctx.lineTo(pb.x, pb.y); ctx.stroke();
   }
 
+  /* street name labels — one per row/col (not per grid-cell segment,
+     which would repeat the same street's name many times). Horizontal
+     streets use the hood's own real street-name pool; vertical streets
+     are numbered — the common named-one-way/numbered-other-way grid
+     convention most American cities actually use. */
+  ctx.font = "11px sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillStyle = "#5a5448";
+  const labeledRows = new Set(), labeledCols = new Set();
+  for(const e of route.grid.edges){
+    const midX = (e.a.x+e.b.x)/2, midY = (e.a.y+e.b.y)/2;
+    if(!inView(midX, midY)) continue;
+    const p = toScreen({x:midX, y:midY});
+    if(e.f === 0){
+      if(labeledRows.has(e.a.j)) continue;
+      labeledRows.add(e.a.j);
+      const name = route.hood.streets[e.a.j % route.hood.streets.length];
+      ctx.save(); ctx.translate(p.x, p.y-7); ctx.fillText(name, 0, 0); ctx.restore();
+    } else {
+      if(labeledCols.has(e.a.i)) continue;
+      labeledCols.add(e.a.i);
+      const n = e.a.i+1, suffix = (n%10===1&&n!==11) ? "st" : (n%10===2&&n!==12) ? "nd" : (n%10===3&&n!==13) ? "rd" : "th";
+      ctx.save(); ctx.translate(p.x-7, p.y); ctx.rotate(-Math.PI/2); ctx.fillText(n+suffix+" St", 0, 0); ctx.restore();
+    }
+  }
+
+  /* park landmarks — small icon + name on visible park blocks, pulled
+     from the hood's own named park pool (same spirit as real street
+     names) instead of a generic fixed list. */
+  for(const blk of allBlocks){
+    if(blk.type !== "park" || !inView(blk.cx, blk.cy)) continue;
+    const p = toScreen({x:blk.cx, y:blk.cy});
+    ctx.fillStyle = "#3f7a4a";
+    ctx.beginPath(); ctx.arc(p.x, p.y-8, 7, 0, Math.PI*2); ctx.fill();
+    ctx.font = "9px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText("🌳", p.x, p.y-8);
+    const pnameSeed = ((Math.round(blk.cx)*7919) ^ (Math.round(blk.cy)*104729)) >>> 0;
+    const pname = route.hood.parks[Math.floor(mulberry32(pnameSeed)() * route.hood.parks.length)];
+    ctx.fillStyle = "#2e3138"; ctx.font = "10px sans-serif";
+    ctx.fillText(pname, p.x, p.y+8);
+  }
+
   ctx.strokeStyle = "#ff7a1a";
   ctx.lineWidth = 4;
   ctx.lineCap = "round";
@@ -5565,8 +5715,7 @@ function drawRouteMap(route){
   ctx.stroke();
 
   const startPt = toScreen(samples[0]);
-  ctx.fillStyle = "#2e3138";
-  ctx.beginPath(); ctx.arc(startPt.x, startPt.y, 5, 0, Math.PI*2); ctx.fill();
+  drawRobotMarker(ctx, startPt.x, startPt.y);
 
   const endPt = toScreen(samples[samples.length-1]);
   ctx.fillStyle = "#c2452e";
@@ -5591,6 +5740,10 @@ function showWin(s){
   show("winOverlay");
 }
 
+window.addEventListener("resize", () => {
+  const s = scn();
+  if(s && s.route) { resizeRouteMap(); drawRouteMap(s.route); }
+});
 document.getElementById("startBtn").addEventListener("click", () => {
   hide("titleOverlay");
   scn().state = "play";
@@ -5607,8 +5760,8 @@ document.getElementById("todayBtn").addEventListener("click", e => {
   document.getElementById("rerollBtn").classList.remove("on");
   e.target.classList.add("on");
   hide("failOverlay"); hide("winOverlay");
-  scn().loadRoute(new Date().toISOString().slice(0,10));
   show("titleOverlay");
+  scn().loadRoute(new Date().toISOString().slice(0,10));
 });
 document.getElementById("rerollBtn").addEventListener("click", e => {
   document.getElementById("todayBtn").classList.remove("on");
@@ -5616,8 +5769,8 @@ document.getElementById("rerollBtn").addEventListener("click", e => {
   hide("failOverlay"); hide("winOverlay");
   const off = 1 + Math.floor(Math.random()*3650);
   const d = new Date(Date.now() + off*86400000);
-  scn().loadRoute(d.toISOString().slice(0,10));
   show("titleOverlay");
+  scn().loadRoute(d.toISOString().slice(0,10));
 });
 </script>
 </body>
