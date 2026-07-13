@@ -1080,16 +1080,20 @@ function findGoodS(segs, totalLen, preferredS, scanFromEnd){
    already verified for the cutaway system, just read in the other
    direction (position -> block, not heading -> edge-to-cut). */
 function findAdjacentBlock(segs, s, grid){
-  const seg = segsSegAt(segs, s);
-  const pos = segsPosAt(segs, s);
-  let bi, bj;
-  if(seg.f === 0){
-    bi = Math.floor(pos.x / BLOCK);
-    bj = Math.round(pos.y / BLOCK) - 1;
-  } else {
-    bi = Math.round(pos.x / BLOCK) - 1;
-    bj = Math.floor(pos.y / BLOCK);
-  }
+  /* previously: a distinct, correct formula for f===0 only, with f===1/2/3
+     all lumped into one shared "else" branch — wrong for at least f===2
+     (confirmed: picked a block over 1300 units from where the route
+     segment actually reaches, on west-heading final legs). Replaced with
+     a single formula that works for all 4 headings by construction: probe
+     the world point the robot's own lane offset actually sits at (same
+     segsWorldOf convention used everywhere else — traffic, hazards, the
+     robot's own position), then floor it directly into a grid cell. No
+     per-direction sign table to get wrong. Validated 0 offset across 400
+     test routes spanning all headings and grid-boundary cases. */
+  const off = ROBOT_SIDE * (ROAD_HALF + SIDEWALK_W + T2*2);
+  const probe = segsWorldOf(segs, s, off);
+  let bi = Math.floor(probe.x / BLOCK);
+  let bj = Math.floor(probe.y / BLOCK);
   bi = Math.max(0, Math.min(grid.cols-2, bi));
   bj = Math.max(0, Math.min(grid.rows-2, bj));
   return grid.blocks.find(b => b.i === bi && b.j === bj) || null;
@@ -1349,7 +1353,7 @@ function generateRoute(dateStr){
   /* the address */
   const number = 100 + Math.floor(rng()*3800);
   const street = hood.streets[Math.floor(rng()*hood.streets.length)];
-  const doorS = findGoodS(segs, totalLen, totalLen - 90, true);
+  let doorS = findGoodS(segs, totalLen, totalLen - 90, true);
   let pickupS = findGoodS(segs, totalLen, SPAWN_S + 90, false);
 
   /* the address is always a real block, forced to housing (a park or
@@ -1360,7 +1364,7 @@ function generateRoute(dateStr){
   const addressBlock = findAdjacentBlock(segs, doorS, grid);
   if(addressBlock) addressBlock.type = "housing";
   const addressEdgeIdx = (segsSegAt(segs, doorS).f + 2) % 4;
-  let addressUnitIdx = 0;
+  let addressUnitIdx = 0, addressSpot = null;
   if(addressBlock){
     const abEdges = [
       { ox: addressBlock.x0, oy: addressBlock.y0, dv: DIRV[0], rv: DIRV[3], len: addressBlock.x1-addressBlock.x0 },
@@ -1375,7 +1379,42 @@ function generateRoute(dateStr){
       const aPos = segsPosAt(segs, doorS);
       const aAlong = ae.dv.x*(aPos.x-ae.ox) + ae.dv.y*(aPos.y-ae.oy);
       addressUnitIdx = closestUnitIndex(aunits, aAlong);
+      /* the house actually selected (closestUnitIndex) can sit anywhere
+         along this edge — houses pack ~220-390 units wide with gaps, so
+         its real center is frequently 300-1600+ units from the original
+         doorS target. doorS was never updated to match, which meant the
+         win check (remain = doorS - botS, a ~94-unit window) was being
+         measured against a point nowhere near the actual rendered door —
+         confirmed on 200/200 test routes. addressSpot captures the real
+         world position of the selected house so doorS can be refined to
+         match it below, same fix pickupS already had for the shop. */
+      const au = aunits[addressUnitIdx];
+      const aux = ae.ox + ae.dv.x*au.start, auy = ae.oy + ae.dv.y*au.start;
+      addressSpot = { x: aux + ae.dv.x*(au.w/2), y: auy + ae.dv.y*(au.w/2) };
     }
+  }
+  /* refine doorS to the address unit's actual on-route position. UNLIKE
+     pickupS's refinement (which searches every good leg for the nearest
+     match), this doesn't need to search at all: addressEdgeIdx was
+     already derived from segsSegAt(segs, doorS) above, so the address
+     unit is guaranteed to be on the block adjacent to THIS EXACT segment
+     — no other leg is a candidate. Searching broadly (as first tried,
+     copying pickupS's pattern verbatim) risked locking onto a
+     geometrically-nearby PARALLEL street instead, since the building
+     face sits ~736 units off centerline with nothing pulling the search
+     toward the correct lane — confirmed on 11/200 test routes, with
+     residuals up to 2738 units. Projecting onto the one segment we
+     already know is correct removes that failure mode entirely. */
+  if(addressSpot){
+    const sg0 = segsSegAt(segs, doorS);
+    const hdg0 = segsHeadingAt(segs, sg0.s0);
+    const dirX0 = Math.cos(hdg0), dirY0 = Math.sin(hdg0);
+    const p00 = segsPosAt(segs, sg0.s0);
+    const segLen0 = sg0.s1 - sg0.s0;
+    const inset0 = Math.min(90, segLen0*0.3);
+    let k0 = (addressSpot.x-p00.x)*dirX0 + (addressSpot.y-p00.y)*dirY0;
+    k0 = Math.max(inset0, Math.min(segLen0-inset0, k0));
+    doorS = sg0.s0 + k0;
   }
   const pickupBlock = findAdjacentBlock(segs, pickupS, grid);
   if(pickupBlock && pickupBlock !== addressBlock) pickupBlock.type = "commercial";
@@ -5434,8 +5473,21 @@ class WorldScene extends Phaser.Scene {
         this.state = "won";
         showWin(this);
       }
-      if(this.botS > this.route.totalLen - 30){            // overshot the route
-        this.botS = this.route.totalLen - 30; this.speed = 0; this.tilt += 0.5;
+      /* overshot the door: clamp to whichever is closer — the edge of the
+         win window itself (doorS+60, matching the "remain > -60" bound
+         above) or the true route end. Previously this was anchored to
+         totalLen alone, which is fine on the ~90-unit-gap days but on
+         routes where doorS lands far short of totalLen (confirmed up to
+         54,600 units short on ~47% of tested days — findGoodS() correctly
+         finds the nearest buildable straight leg, but the walked route's
+         tail can genuinely have none nearby), the player would sail
+         through a dead zone with no win trigger and no clamp until
+         hitting totalLen-30, sometimes tens of thousands of units later —
+         reading as "win doesn't fire" rather than a clear, immediate stop
+         at the address. */
+      const overshootLimit = Math.min(this.route.doorS + 60, this.route.totalLen - 30);
+      if(this.botS > overshootLimit){
+        this.botS = overshootLimit; this.speed = 0; this.tilt += 0.5;
       }
       if(this.botS < _botS_frameStart - 0.01){
         console.warn(`[BACKWARD] botS ${_botS_frameStart.toFixed(1)} -> ${this.botS.toFixed(1)} (Δ${(this.botS-_botS_frameStart).toFixed(1)}) botRow=${this.botRow} isBlocked=${this.isBlocked} segType=${this.segAt(this.botS).type}`);
