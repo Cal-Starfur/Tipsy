@@ -1,0 +1,789 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>TIPSY — Pickup Lab</title>
+<style>
+  html,body{margin:0;padding:0;background:#14161b;height:100%;overflow:hidden;touch-action:manipulation;
+    font-family:-apple-system,'Helvetica Neue',Arial,sans-serif;-webkit-user-select:none;user-select:none;color:#e8eaef;}
+  #wrap{display:flex;flex-direction:column;height:100%;}
+  #game{flex:1;min-height:0;}
+  #panel{padding:10px 12px calc(14px + env(safe-area-inset-bottom));background:#1c1f26;border-top:1px solid #2b2f38;
+    max-height:52%;overflow-y:auto;}
+  .row{display:flex;gap:8px;margin-bottom:8px;align-items:center;}
+  .row:last-child{margin-bottom:0;}
+  .lbl{font-size:11px;letter-spacing:1.5px;color:#8f95a1;width:56px;text-transform:uppercase;flex-shrink:0;}
+  button{flex:1;background:#262a33;color:#e8eaef;border:1px solid #363b46;border-radius:10px;
+    padding:10px 4px;font-size:13px;font-weight:600;}
+  button.on{background:#ff7a1a;border-color:#ff7a1a;color:#fff;}
+  button:active{transform:scale(0.96);}
+  button.sm{flex:0 0 44px;}
+  button.go{background:#3f8f8a;border-color:#3f8f8a;}
+  button.go.on{background:#c2452e;border-color:#c2452e;}
+  #hdr{padding:10px 14px 2px;font-size:12px;letter-spacing:2px;color:#8f95a1;text-transform:uppercase;}
+  #hdr b{color:#ff9c4d;}
+  #vals{padding:0 14px 8px;font-size:11px;color:#8f95a1;font-variant-numeric:tabular-nums;line-height:1.6;}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="hdr"><b>TIPSY</b> · pickup lab · worker walk / facing dial bench</div>
+  <div id="vals">…</div>
+  <div id="game"></div>
+  <div id="panel">
+    <div class="row">
+      <span class="lbl">Sim</span>
+      <button class="go" id="goBtn">GO (start route)</button>
+      <button class="sm" id="resetBtn">↺</button>
+    </div>
+    <div class="row">
+      <span class="lbl">Facing</span>
+      <button class="on" id="fixedBtn">FIXED (rv)</button>
+      <button id="dynBtn">DYNAMIC (at bot)</button>
+    </div>
+    <div class="row">
+      <span class="lbl">Heading</span>
+      <button class="sm" id="flipView" style="flex:1">Flip (±dv)</button>
+      <span class="lbl">Zoom</span>
+      <button class="sm" id="zoomOut">−</button>
+      <button class="sm" id="zoomIn">＋</button>
+    </div>
+    <div class="row">
+      <span class="lbl">Edge</span>
+      <button class="sm" data-p="fdir" data-d="-1">◀</button>
+      <button class="sm" data-p="fdir" data-d="1">▶</button>
+      <span class="lbl">Unit W</span>
+      <button class="sm" data-p="unitW" data-d="-10">−</button>
+      <button class="sm" data-p="unitW" data-d="10">＋</button>
+    </div>
+    <div class="row">
+      <span class="lbl">Row out</span>
+      <button class="sm" data-p="dyEnd" data-d="-6">−</button>
+      <button class="sm" data-p="dyEnd" data-d="6">＋</button>
+      <span class="lbl">At wall</span>
+      <button class="sm" data-p="dyStart" data-d="-2">−</button>
+      <button class="sm" data-p="dyStart" data-d="2">＋</button>
+    </div>
+    <div class="row">
+      <span class="lbl">Bot along</span>
+      <button class="sm" data-p="botAlong" data-d="-10">−</button>
+      <button class="sm" data-p="botAlong" data-d="10">＋</button>
+      <span class="lbl">Bot out</span>
+      <button class="sm" data-p="botOut" data-d="-10">−</button>
+      <button class="sm" data-p="botOut" data-d="10">＋</button>
+    </div>
+    <div class="row">
+      <span class="lbl">Walk ms</span>
+      <button class="sm" data-p="walkMs" data-d="-200">−</button>
+      <button class="sm" data-p="walkMs" data-d="200">＋</button>
+      <span style="flex:1"></span>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/phaser@3.85.2/dist/phaser.min.js"></script>
+<script>
+"use strict";
+
+/* ============================================================
+   TIPSY — Pickup Lab
+   Isolates the pickup-worker walk from the full game so the
+   shop-edge anchoring, row offset, and facing (fixed-vs-dynamic)
+   can be dialed in against a robot marker whose position can be
+   moved independently of the shop unit — this is the thing that
+   couldn't be checked in-game: whether the robot's real pickupSpot
+   actually lines up with a fixed rv-facing, or whether it lands
+   off to the side and needs a dynamic look-at instead.
+
+   drawPersonHull() below is ported VERBATIM from game/index.html
+   so whatever gets dialed in here ports back with no translation.
+   ============================================================ */
+
+const TILE = 46, T2 = TILE*2;
+const DIRV = [{x:1,y:0},{x:0,y:1},{x:-1,y:0},{x:0,y:-1}];
+const GROUND = { a:0xc9c3b4, b:0xbfb9aa, edge:0xa8a294, sky:0x9fd4e8 };
+const WALL = { body:0xd8d2c2, dk:0xb8b2a2 };
+const BOT = { body:0xff7a1a, dk:0xd85f0a, top:0xffb783 };
+
+const PEOPLE_ART = { walkStride: 8, walkSpeed: 0.006, shadow: 0x000000 };
+const LIFT_MAX_ANGLE = Math.PI/2; // full lift = arm swung forward to horizontal, pivoting at the shoulder
+
+/* commercial swinging door — same SL-hinge-rotation technique as the
+   house's drawDoorAssembly (ported from game/index.html), but styled
+   as a glass storefront door (thin aluminum frame + glass pane +
+   handle bar) instead of the house's ornate wood slab+knob. Sized off
+   the real drawStoreUnit proportions (doorW capped at DOOR_W*0.72,
+   dZ1 = DOOR_H*0.88) so it reads at the correct scale once ported. */
+const DOOR_W = T2, DOOR_H = T2*2;
+const SHOPDOOR_ART = {
+  openAngle: Math.PI*0.42, openEase: 0.1,
+  frame: 0x2b2f38, frameLt: 0x3a3f4a, frameDk: 0x1c1f26,
+  glass: 0x6b93a8, glassHi: 0x9fc2d4,
+  handle: 0x1c1c1c, handleHi: 0x4a4a4a,
+  shadow: 0x000000
+};
+
+/* pickup loading phase: robot's cargo lid opens, worker places a
+   takeout bag into the bay, lid closes — all BEFORE the walk-back
+   phase starts. Reuses the robot's existing lidAng hinge mechanism
+   (drawLid, currently only driven by the tip/spill crash state) with
+   a new, separate open target — same hinge geometry, no new geometry
+   needed for the lid itself. */
+const LOAD_ART = {
+  ms: 1400,             // total loading phase duration before the walk timer starts
+  dropFrac: 0.70,        // bag arrives / drops into the bin at this fraction of ms
+  arcH: 26,              // extra z-height at the midpoint of the bag's travel arc
+  lidOpenAngle: 1.1,     // radians — plain symmetric open, unlike the tip/spill's asymmetric targets
+  lidEase: 0.09
+};
+const BAG_ART = {
+  w: 14, d: 10, h: 16,          // width, depth, height — was 22x16x26, oversized relative to the person
+  paper: 0xc19a6b, paperDk: 0x9c7a4f, paperLt: 0xd4b483,
+  foldLine: 0x8a6a45,
+  holdFwd: 0,    // was 18 — that compensated for handWorldPos's old centered (a=0)
+                 // approximation, which never matched either arm's true position. Now that
+                 // handWorldPos matches the actual rendered rest-pose arm exactly (verified),
+                 // that compensation is stale and was pushing the bag away from the real hand.
+                 // Resetting to 0 as a clean baseline — redial from here if it still needs a nudge.
+  holdDown: 4    // was 8, brought back up a bit
+};
+const PEOPLE_BUILD = [
+  { n:"a", legH:52, legW:10, hipW:16, torsoW:34, torsoD:19, torsoH:44, headR:14, armW:7, armLen:40, hairStyle:"short" },
+  { n:"b", legH:52, legW:10, hipW:19, torsoW:28, torsoD:19, torsoH:44, headR:13, armW:7, armLen:40, hairStyle:"long"  }
+];
+const PEOPLE_SKIN  = [{c:0xd9a774,dk:0xb98456},{c:0xf0c8a0,dk:0xc9a583},{c:0xc98a5a,dk:0xa8724a},{c:0x8a5a3a,dk:0x6e4830},{c:0x5c3d28,dk:0x4a3120}];
+const PEOPLE_SHIRT = [{c:0x3f8f8a,dk:0x2f6b67},{c:0xc2452e,dk:0x963522},{c:0xb15a7a,dk:0x8a475f},{c:0x4a6c9c,dk:0x3a557a},{c:0xe8b04b,dk:0xb98a3a},{c:0x6b6b6b,dk:0x525252},{c:0x5c8a4e,dk:0x486d3d}];
+const PEOPLE_PANTS = [{c:0x3a4658,dk:0x2c3543},{c:0x2e2e2e,dk:0x1e1e1e},{c:0x6b4a34,dk:0x543a29},{c:0x8a8a8a,dk:0x6d6d6d},{c:0x4a3a5c,dk:0x3a2d47}];
+const PEOPLE_HAIR  = [0x3a2b20, 0x1a1a1a, 0x8a6a3a, 0xd4c088, 0xb03a2e, 0x6b6b6b];
+const PEOPLE_SHOE  = [{c:0x1c1c1c,dk:0x121212},{c:0x5c4530,dk:0x483623},{c:0xf2f0e8,dk:0xc4c2ba}];
+
+function mulberry32(a){ return function(){ a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+
+class PickupLab extends Phaser.Scene {
+  constructor(){ super("pickuplab"); }
+
+  create(){
+    this.K = 1.8;
+    this.camX = 0; this.camY = 0; this.camZ = 0;
+    this.drawAngle = 0;
+    this.viewFlip = false; // true = robot heading -dv instead of +dv (the two plausible real
+                            // in-game headings, since the road runs both directions along dv)
+
+    /* dial state — mirrors the real constants/knobs */
+    this.fdir = 1;           // shop edge orientation — game only uses f=1/f=2, so that's all this dials through
+    this.unitW = 120;       // shop unit width (doorCenterX = unitW/2)
+    this.dyStart = -30;    // past the door plane, into the shop interior — was 4 (flush with
+                            // the wall/door), which made him stop AT the door instead of
+                            // walking through it
+    this.dyEnd = T2*2.1 - 50;   // = 143.2 — closer to the robot than the old T2-8 (84),
+                                 // leaves a 50-unit clearance so he doesn't clip into the bot marker
+    this.walkMs = 2000;      // real elapsed ms for the walk-back, matches game's runT-driven timer
+    this.botAlong = 0;      // robot offset along dv, relative to doorCenterX — real pickupSpot
+                             // anchors here too (pDoorCenterX = pu.w/2), so 0 is correct, not a guess
+    this.botOut = T2*2.1;   // = 193.2 — matches the real route-gen formula exactly
+                             // (pRobotDy = T2*2.1 in loadRoute's pickupSpot calc); the lab's
+                             // earlier default (T2+40=172) was an unverified guess
+    this.facingMode = "fixed"; // "fixed" | "dynamic"
+
+    /* sim state — mirrors this.state / this.pickupWalk in the game */
+    this.playing = false;
+    this.pickupWalk = 1;
+    this.goAt = null; // timestamp captured when GO is pressed
+    this.doorSwing = 0; // 0=closed, SHOPDOOR_ART.openAngle=open
+    this.lidAng = 0; // robot's cargo lid — reuses the real lidAng hinge, new "loading" target
+    this.loadDone = false; // true once the loading phase has finished and the walk phase can start
+    this.walkAt = null; // timestamp captured when the walk phase actually begins (after loading)
+
+    this.workerSeed = 7;
+
+    this.g = this.add.graphics();
+    this.scale.on("resize", () => this.layout());
+    this.layout();
+    this.updateVals();
+  }
+  layout(){
+    this.cx = this.scale.gameSize.width/2;
+    this.cy = this.scale.gameSize.height*0.62;
+  }
+  updateVals(){
+    document.getElementById("vals").textContent =
+      `edge fdir ${this.fdir} · unitW ${this.unitW} · dyStart ${this.dyStart} dyEnd ${this.dyEnd} · walkMs ${this.walkMs}\n` +
+      `bot along ${this.botAlong} out ${this.botOut} · facing ${this.facingMode} · walkT ${this.pickupWalk.toFixed(2)} · door ${(this.doorSwing/SHOPDOOR_ART.openAngle*100).toFixed(0)}%\n` +
+      `loadDone ${this.loadDone} · lid ${(this.lidAng/LOAD_ART.lidOpenAngle*100).toFixed(0)}% · heading ${(this.drawAngle*180/Math.PI).toFixed(0)}deg (game view) · ${this.playing ? "PLAYING" : "idle"}`;
+  }
+
+  /* world-space projection — same convention as game/index.html's W(),
+     plus a camera-azimuth rotation (drawAngle) for the View buttons,
+     which the real game applies elsewhere (T()) since its camera
+     always faces the robot's own heading; this lab has no robot
+     heading to lock to, so it's rolled into W() directly here. */
+  W(x, y, z){
+    let xr = x - this.camX, yr = y - this.camY;
+    if(this.drawAngle !== 0){
+      const cs = Math.cos(this.drawAngle), sn = Math.sin(this.drawAngle);
+      const xr2 = xr*cs - yr*sn; yr = xr*sn + yr*cs; xr = xr2;
+    }
+    return { x:(xr - yr)*this.K + this.cx,
+             y:((xr + yr)*0.5 - (z - this.camZ))*this.K + this.cy };
+  }
+  quadOn(g, pts, color, alpha=1){
+    g.fillStyle(color, alpha);
+    g.fillPoints(pts.map(p => new Phaser.Geom.Point(p.x, p.y)), true, true);
+  }
+  edgeOn(g, pts, color=0x000000, w=2){
+    g.lineStyle(w, color, 1);
+    g.strokePoints(pts.map(p => new Phaser.Geom.Point(p.x, p.y)), true);
+  }
+
+  drawGround(half){
+    const g = this.g;
+    for(let tx=-half; tx<half; tx++){
+      for(let ty=-half; ty<half; ty++){
+        const cxm = tx*TILE*2 + TILE, cym = ty*TILE*2 + TILE;
+        const pts = [this.W(cxm+TILE, cym-TILE, 0), this.W(cxm+TILE, cym+TILE, 0),
+                     this.W(cxm-TILE, cym+TILE, 0), this.W(cxm-TILE, cym-TILE, 0)];
+        this.quadOn(g, pts, ((tx+ty)%2===0) ? GROUND.a : GROUND.b);
+        this.edgeOn(g, pts, GROUND.edge, 1);
+      }
+    }
+  }
+
+  /* simple block wall standing in for drawStoreUnit — just enough
+     geometry to see the edge (ox,oy / dv / rv) it's anchored to.
+     Height raised to DOOR_H*0.95 so the door isn't taller than the wall. */
+  drawWall(ox, oy, dv, rv, w){
+    const g = this.g, h = DOOR_H*0.95;
+    const b0 = this.W(ox, oy, 0), b1 = this.W(ox+dv.x*w, oy+dv.y*w, 0);
+    const t0 = this.W(ox, oy, h), t1 = this.W(ox+dv.x*w, oy+dv.y*w, h);
+    this.quadOn(g, [b0,b1,t1,t0], WALL.body);
+    this.edgeOn(g, [b0,b1,t1,t0], WALL.dk, 2);
+  }
+
+  /* commercial swinging door — hinge at the LEFT edge of the door
+     rectangle (dx=-hw, same convention as the house's drawDoorAssembly),
+     swinging open away from the wall over rv as theta goes 0 -> openAngle.
+     CENTERED on the unit (doorMidX = doorCenterX) rather than replicating
+     drawStoreUnit's randomized doorLeft/doorX — that's the actual fix:
+     the real pickupSpot already anchors to the unit's center (pu.w/2),
+     so centering the door here is what makes robot/door/worker all agree,
+     rather than chasing the door to match the robot or vice versa. */
+  drawShopDoor(ox, oy, dv, rv, doorMidX, doorW, dZ1, theta){
+    const g = this.g, D = SHOPDOOR_ART, hw = doorW/2;
+    const G = (dx, dy, dzz) => this.W(ox + dv.x*(doorMidX+dx) + rv.x*dy, oy + dv.y*(doorMidX+dx) + rv.y*dy, dzz);
+    const cT = Math.cos(theta), sT = Math.sin(theta);
+    const SL = (u, perp, dzz) => G(-hw + u*cT - perp*sT, perp*cT + u*sT, dzz);
+
+    /* frame — static, does not rotate with the slab */
+    const trim = 3;
+    const frameOuter = [G(-hw-trim,0.5,dZ1+trim), G(hw+trim,0.5,dZ1+trim), G(hw+trim,0.5,0), G(-hw-trim,0.5,0)];
+    this.quadOn(g, frameOuter, D.frame);
+    const frameTop = [G(-hw-trim,0.5,dZ1+trim), G(hw+trim,0.5,dZ1+trim), G(hw+trim,0.52,dZ1), G(-hw-trim,0.52,dZ1)];
+    this.quadOn(g, frameTop, D.frameLt);
+
+    /* glass slab — rotates about the hinge at dx=-hw */
+    const face = [SL(0,2.2,dZ1), SL(2*hw,2.2,dZ1), SL(2*hw,2.2,0), SL(0,2.2,0)];
+    this.quadOn(g, face, D.glass, 0.88);
+    this.edgeOn(g, face, D.frameDk, 1.2);
+    const gloss = [SL(3,2.3,dZ1-4), SL(2*hw*0.4,2.3,dZ1-4), SL(2*hw*0.4,2.3,dZ1*0.4), SL(3,2.3,dZ1*0.4)];
+    this.quadOn(g, gloss, D.glassHi, 0.35);
+
+    /* handle bar — rotates with the slab, near the swinging (far) edge */
+    const h0 = SL(2*hw-6, 2.6, dZ1*0.62), h1 = SL(2*hw-6, 2.6, dZ1*0.38);
+    g.lineStyle(3, D.handle, 1);
+    g.lineBetween(h0.x, h0.y, h1.x, h1.y);
+    const hk = SL(2*hw-6, 2.6, dZ1*0.5);
+    g.fillStyle(D.handleHi, 1);
+    g.fillCircle(hk.x, hk.y, 1.5*this.K*0.5);
+  }
+
+  /* simple robot marker standing in for the real sprite — just a
+     box + a heading notch so facing is checkable at a glance.
+     Oriented along dv/rv (the robot travels the road PARALLEL to
+     the shop wall, forward = dv, sideways/lane = rv) — not world
+     x/y, which is what made it look wrong at f=1: it never actually
+     rotated with the edge before. */
+  drawBot(x, y, dv, rv){
+    const g = this.g, hw = 22, hl = 34, h = 26;
+    /* face visibility: was hardcoded sl=1/sw=1 — same bug the bag had
+       before its fix, just never caught because the lab wasn't using
+       a game-realistic drawAngle yet. Same fix: rotate dv/rv by the
+       camera's current drawAngle before the sign test. */
+    const dA = this.drawAngle || 0;
+    const rotDA = (dx, dy) => dA === 0 ? {x:dx, y:dy} : {
+      x: dx*Math.cos(dA) - dy*Math.sin(dA),
+      y: dx*Math.sin(dA) + dy*Math.cos(dA)
+    };
+    const dvR = rotDA(dv.x, dv.y), rvR = rotDA(rv.x, rv.y);
+    const faceDV = Math.sign(dvR.x + dvR.y) || 1;
+    const faceRV = Math.sign(rvR.x + rvR.y) || 1;
+    const corner = (sl, sw, z) => this.W(x + dv.x*sl*hl + rv.x*sw*hw, y + dv.y*sl*hl + rv.y*sw*hw, z);
+    const front = [corner(faceDV,-1,h), corner(faceDV,1,h), corner(faceDV,1,0), corner(faceDV,-1,0)];
+    const side = [corner(-1,faceRV,h), corner(1,faceRV,h), corner(1,faceRV,0), corner(-1,faceRV,0)];
+    this.quadOn(g, side, BOT.dk);
+    this.quadOn(g, front, BOT.body);
+
+    if(this.lidAng < 0.15){
+      /* closed — flat top, same as before */
+      const top = [corner(-1,-1,h), corner(1,-1,h), corner(1,1,h), corner(-1,1,h)];
+      this.quadOn(g, top, BOT.top);
+      this.edgeOn(g, top, BOT.dk, 1.5);
+    } else {
+      /* open — recessed cavity floor stands in for the bin interior */
+      const floor = [corner(-1,-1,h-8), corner(1,-1,h-8), corner(1,1,h-8), corner(-1,1,h-8)];
+      this.quadOn(g, floor, BOT.dk, 0.9);
+    }
+    this.drawRobotLid(x, y, dv, rv, hw, hl, h, this.lidAng);
+  }
+
+  /* cargo lid — flip-top, hinged on the FAR side from the worker
+     (+rv, away from the shop), lifting the NEAR side (-rv, facing the
+     shop/worker) up and back as it opens. Previous version hinged
+     along dv (front-to-back, the robot's travel direction) — wrong
+     axis entirely, since which side of the robot the worker's
+     standing on has nothing to do with which way the robot is facing.
+     The worker approaches from -rv (he walks from the wall at rv=0
+     out to the robot at rv=botOut), so hinging on +rv and lifting -rv
+     is what actually reads as "opening toward him." */
+  drawRobotLid(x, y, dv, rv, hw, hl, h, theta){
+    const g = this.g;
+    const LID = (p, sl) => {
+      const rvOff = hw - p*Math.cos(theta), zz = h + p*Math.sin(theta);
+      return this.W(x + dv.x*sl*hl + rv.x*rvOff, y + dv.y*sl*hl + rv.y*rvOff, zz);
+    };
+    const lidTop = [LID(0,-1), LID(0,1), LID(2*hw,1), LID(2*hw,-1)];
+    this.quadOn(g, lidTop, BOT.top);
+    this.edgeOn(g, lidTop, BOT.dk, 1.5);
+  }
+
+  /* takeout bag — brown kraft paper, simple box with a lighter top
+     face and a fold-line accent to read as a folded/rolled closure
+     rather than a flat rectangle. Oriented to dv/rv like everything
+     else in the scene. Split into two passes (top/handle vs body) so
+     the caller can draw the top+handle BEFORE the arm (getting
+     covered by it, like a hand gripping over the top of a bag) and
+     the front/side AFTER (staying visible in front) — same shared
+     corner()/face math, just called at two different points in the
+     draw order instead of one atomic call. */
+  bagCorners(cx, cy, cz, dv, rv){
+    const B = BAG_ART, hw = B.w/2, hd = B.d/2;
+    /* rotated 90deg from the first version: width now runs along rv
+       and depth along dv (was dv/rv respectively) — swapping which
+       axis carries which dimension is a clean 90-degree turn in the
+       horizontal plane. Face-visibility signs swap along with it.
+       Same fix as drawPersonHull's faceA/faceB: must account for the
+       camera's own rotation (this.drawAngle, now driven by the real
+       in-game heading per edge orientation), not just dv/rv's raw
+       world direction — this was the same bug, just not visible until
+       the lab started using the correct game-realistic view. */
+    const dA = this.drawAngle || 0;
+    const rotDA = (dx, dy) => dA === 0 ? {x:dx, y:dy} : {
+      x: dx*Math.cos(dA) - dy*Math.sin(dA),
+      y: dx*Math.sin(dA) + dy*Math.cos(dA)
+    };
+    const dvR = rotDA(dv.x, dv.y), rvR = rotDA(rv.x, rv.y);
+    const faceDV = Math.sign(dvR.x + dvR.y) || 1;
+    const faceRV = Math.sign(rvR.x + rvR.y) || 1;
+    /* hang from a top handle point rather than sitting with its
+       bottom at the hand — cz is now the top (grip height), and the
+       bag hangs down from there, which reads as actually held rather
+       than resting on an invisible shelf at hand height. */
+    const corner = (sx, sy, sz) => this.W(cx + rv.x*sx*hw + dv.x*sy*hd, cy + rv.y*sx*hw + dv.y*sy*hd, cz - (1-sz)*B.h);
+    return { corner, faceDV, faceRV };
+  }
+
+  drawBagTop(cx, cy, cz, dv, rv){
+    const g = this.g, B = BAG_ART;
+    const { corner } = this.bagCorners(cx, cy, cz, dv, rv);
+    const top = [corner(-1,-1,1), corner(1,-1,1), corner(1,1,1), corner(-1,1,1)];
+    this.quadOn(g, top, B.paperLt);
+    this.edgeOn(g, top, B.foldLine, 1);
+    const f0 = corner(-0.55,-0.55,1), f1 = corner(0.55,0.55,1);
+    g.lineStyle(1.5, B.foldLine, 0.8);
+    g.lineBetween(f0.x, f0.y, f1.x, f1.y);
+  }
+
+  drawBagBody(cx, cy, cz, dv, rv){
+    const g = this.g, B = BAG_ART;
+    const { corner, faceDV, faceRV } = this.bagCorners(cx, cy, cz, dv, rv);
+    const front = [corner(faceRV,-1,1), corner(faceRV,1,1), corner(faceRV,1,0), corner(faceRV,-1,0)];
+    const side = [corner(-1,faceDV,1), corner(1,faceDV,1), corner(1,faceDV,0), corner(-1,faceDV,0)];
+    this.quadOn(g, side, B.paperDk);
+    this.quadOn(g, front, B.paper);
+  }
+
+
+  drawPersonHull(g, ax, ay, z, thW, build, pSkin, pShirt, pPants, pHair, pShoe, walkPhase, moving, startleAlpha=0, liftT=0, onBeforeCarryArm=null){
+    const cs = Math.cos(thW), sn = Math.sin(thW);
+    const G = (a,b,h) => this.W(ax + a*cs - b*sn, ay + a*sn + b*cs, z + h);
+    /* face visibility must account for the CAMERA's own rotation
+       (this.drawAngle, driven by the View buttons), not just the
+       person's facing — these were only ever tested against the
+       default camera angle, so rotating the view to inspect
+       something (like checking the arm from a different side) picks
+       the wrong faces for whatever angle is actually being looked
+       from. W() applies drawAngle to world coords before projecting,
+       so the same rotation needs applying here before the sign test. */
+    const dA = this.drawAngle || 0;
+    const rotDA = (dx, dy) => dA === 0 ? {x:dx, y:dy} : {
+      x: dx*Math.cos(dA) - dy*Math.sin(dA),
+      y: dx*Math.sin(dA) + dy*Math.cos(dA)
+    };
+    const aDir = rotDA(cs, sn), bDir = rotDA(-sn, cs);
+    const faceA = Math.sign(aDir.x + aDir.y) || 1, faceB = Math.sign(bDir.x + bDir.y) || 1;
+
+    const box = (aC,bC,ha,hb,z0,z1,cTop,cA,cB,noTop=false) => {
+      const corner = (sa,sb,zz) => G(aC+sa*ha, bC+sb*hb, zz);
+      if(!noTop){
+        const top = [corner(-1,-1,z1), corner(1,-1,z1), corner(1,1,z1), corner(-1,1,z1)];
+        this.quadOn(g, top, cTop);
+        this.edgeOn(g, top, cA, 1);
+      }
+      const aFace = [corner(faceA,-1,z1), corner(faceA,1,z1), corner(faceA,1,z0), corner(faceA,-1,z0)];
+      this.quadOn(g, aFace, cA);
+      const bFace = [corner(-1,faceB,z1), corner(1,faceB,z1), corner(1,faceB,z0), corner(-1,faceB,z0)];
+      this.quadOn(g, bFace, cB);
+    };
+
+    const hipH = build.legH, shoulderH = hipH+build.torsoH, headH = shoulderH+build.headR*2;
+
+    const sh = G(0,0,0);
+    g.fillStyle(PEOPLE_ART.shadow, 0.18);
+    g.fillEllipse(sh.x, sh.y+1, 20*this.K*0.42, 9*this.K*0.42);
+
+    const leg = side => {
+      const bC = walkPhase*side*PEOPLE_ART.walkStride*0.35;
+      const legW = build.legW*0.55, legD = build.legW*0.6;
+      const shoeH = Math.max(5, build.legH*0.13);
+      box(side*build.hipW*0.3, bC+legD*0.3, legW*1.2, legD*1.5, 0, shoeH, pShoe.c, pShoe.dk, pShoe.c);
+      box(side*build.hipW*0.3, bC, legW, legD, shoeH, hipH, pPants.c, pPants.dk, pPants.c);
+    };
+    const torso = () => box(0, 0, build.torsoW/2, build.torsoD/2, hipH-2, shoulderH, pShirt.c, pShirt.dk, pShirt.c);
+    const shoulderZ = shoulderH - 1;
+    const sleeveLen = build.armLen*0.48, foreLen = build.armLen*0.52;
+    const elbowZ = shoulderZ - sleeveLen;
+    const arm = (side, isCarryArm) => {
+      const shoulderAx = side*(build.torsoW/2 - 1);
+      if(liftT <= 0.001 || !isCarryArm){
+        /* at rest — flat box, walk-swing only. Also always used for
+           the non-carrying arm regardless of liftT, so only the arm
+           actually holding the bag lifts; the other stays down like
+           a normal standing pose instead of both arms rising
+           symmetrically (which read like a strange two-armed reach
+           rather than someone carrying a bag in one hand). */
+        const armSwing = moving ? -walkPhase*side*3 : 0;
+        const armB = armSwing*0.4;
+        box(shoulderAx, armB, build.armW*0.58, build.armW*0.58, elbowZ, shoulderZ, pShirt.c, pShirt.dk, pShirt.c);
+        box(shoulderAx, armB, build.armW*0.46, build.armW*0.46, elbowZ-foreLen, elbowZ+1, pSkin.c, pSkin.dk, pSkin.c, true);
+        return;
+      }
+      /* lift gesture: a real rotation around a fixed shoulder pivot,
+         same technique as the door hinge / cargo lid (SL-style: a
+         point at distance p from the pivot, rotated by theta). Was
+         three independent Linear() tweens on armB/elbowZL/handZL —
+         no fixed pivot, no fixed arm length, so it read as the limb
+         reshaping in z-space rather than swinging on a joint. Now the
+         arm is a rigid segment of fixed length that genuinely rotates
+         forward-and-up from the shoulder as theta goes 0->max. */
+      const theta = liftT * LIFT_MAX_ANGLE;
+      const cT = Math.cos(theta), sT = Math.sin(theta);
+      // point at (p = distance from shoulder along the arm, perp = thickness offset perpendicular to the arm)
+      const armCorner = (aOff, p, perp) => G(shoulderAx + aOff, p*sT + perp*cT, shoulderZ - p*cT + perp*sT);
+      const seg = (p0, p1, ha, hb, cSide, cFront, cCap) => {
+        const sideFace = [armCorner(ha*faceA,p0,-hb), armCorner(ha*faceA,p1,-hb), armCorner(ha*faceA,p1,hb), armCorner(ha*faceA,p0,hb)];
+        this.quadOn(g, sideFace, cSide);
+        const frontFace = [armCorner(-ha,p0,hb*faceB), armCorner(ha,p0,hb*faceB), armCorner(ha,p1,hb*faceB), armCorner(-ha,p1,hb*faceB)];
+        this.quadOn(g, frontFace, cFront);
+        /* end caps at BOTH ends — the original rest-pose box's cap
+           sat at the SHOULDER end (p0), not the far end; the first
+           rotated version only capped p1 (elbow/hand), so the
+           near-shoulder cap that's visible at rest simply vanished
+           the instant rotation started, which is what actually read
+           as "missing the top." Capping both ends now. */
+        const capFar = [armCorner(-ha,p1,-hb), armCorner(ha,p1,-hb), armCorner(ha,p1,hb), armCorner(-ha,p1,hb)];
+        this.quadOn(g, capFar, cCap);
+        const capNear = [armCorner(-ha,p0,-hb), armCorner(ha,p0,-hb), armCorner(ha,p0,hb), armCorner(-ha,p0,hb)];
+        this.quadOn(g, capNear, cCap);
+      };
+      seg(0, sleeveLen, build.armW*0.58, build.armW*0.58, pShirt.dk, pShirt.c, pShirt.c);
+      seg(sleeveLen, sleeveLen+foreLen, build.armW*0.46, build.armW*0.46, pSkin.dk, pSkin.c, pSkin.dk);
+    };
+    const head = () => {
+      const z0 = shoulderH, z1 = headH;
+      box(0, 0, build.headR, build.headR, z0, z1, pSkin.c, pSkin.dk, pSkin.c);
+      const hairZ0 = z0 + (z1-z0)*0.55;
+      box(0, 0, build.headR*1.06, build.headR*1.06, hairZ0, z1+1.5, pHair, pHair, pHair);
+    };
+    const hairBack = () => {
+      if(build.hairStyle !== "long") return;
+      const backB = -build.headR*0.75;
+      box(0, backB, build.headR*0.62, build.headR*0.4, hipH+build.torsoH*0.35, headH-1, pHair, pHair, pHair);
+    };
+
+    const nearSide = faceA;
+    leg(-nearSide); leg(nearSide);
+    hairBack();
+    arm(-nearSide, false);
+    torso();
+    if(onBeforeCarryArm) onBeforeCarryArm(); // torso/legs already drawn, carrying arm not yet —
+    // anything drawn here sits on top of the body but UNDER the carrying arm specifically,
+    // not the whole silhouette (that was the earlier bug: drawing before the whole person
+    // let torso/legs/head also cover it, not just the arm)
+    arm(nearSide, true);
+    head();
+
+    if(startleAlpha > 0){
+      const hp = G(0, 0, headH + build.headR + 4);
+      g.lineStyle(1.5, 0xffb04d, startleAlpha);
+      for(const aoff of [-0.7, 0, 0.7]){
+        g.lineBetween(hp.x + Math.sin(aoff)*4, hp.y - Math.cos(aoff)*4,
+                      hp.x + Math.sin(aoff)*9, hp.y - Math.cos(aoff)*9);
+      }
+    }
+  }
+
+  /* hand world position — mirrors arm()'s exact shoulder-pivot
+     rotation for the CARRYING arm specifically (only one arm lifts
+     now, not both), so the bag can be locked to wherever that hand
+     actually is. nearSide/faceA matches drawPersonHull's own
+     near-side test so this picks the same arm that's actually drawn
+     as the carrying one. */
+  handWorldPos(ax, ay, thW, build, liftT){
+    const cs = Math.cos(thW), sn = Math.sin(thW);
+    const nearSide = Math.sign(cs+sn) || 1;
+    const shoulderAx = nearSide*(build.torsoW/2 - 1);
+    const hipH = build.legH, shoulderH = hipH + build.torsoH, shoulderZ = shoulderH - 1;
+    const sleeveLen = build.armLen*0.48, foreLen = build.armLen*0.52;
+    const armLen = sleeveLen + foreLen;
+    const theta = liftT * LIFT_MAX_ANGLE;
+    const handB = armLen * Math.sin(theta), handZ = shoulderZ - armLen * Math.cos(theta);
+    return { x: ax + shoulderAx*cs - handB*sn, y: ay + shoulderAx*sn + handB*cs, z: handZ };
+  }
+
+
+  /* ---------- the thing being dialed in — mirrors drawPickupUnit() ---------- */
+  drawPickupWorker(workerX, workerY, thW, wBuild, wSkin, wShirt, wPants, wHair, wShoe, t, liftT, onBeforeCarryArm){
+    const walkT = this.pickupWalk;
+    const moving = walkT > 0.02 && walkT < 0.98;
+    const walkPhase = moving ? Math.sin(t*PEOPLE_ART.walkSpeed) : 0;
+    this.drawPersonHull(this.g, workerX, workerY, 0, thW, wBuild, wSkin, wShirt, wPants, wHair, wShoe, walkPhase, moving, 0, liftT, onBeforeCarryArm);
+  }
+
+  update(t){
+    const g = this.g; g.clear();
+    g.fillStyle(GROUND.sky, 1);
+    g.fillRect(0, 0, this.scale.gameSize.width, this.scale.gameSize.height);
+    this.drawGround(4);
+
+    /* timeline: GO -> [loading phase: lid opens, bag travels to the
+       bin, lid closes] -> [walk phase: existing 2s walk-back + shop
+       door open/close]. The walk phase doesn't start counting until
+       loading actually finishes — previously the walk timer and the
+       facing-flip both fired the instant "go" was pressed, which left
+       no room for a loading beat at all. */
+    let loadFrac = 0;
+    if(this.playing){
+      if(this.goAt === null) this.goAt = t;
+      const loadT = t - this.goAt;
+      loadFrac = Phaser.Math.Clamp(loadT / LOAD_ART.ms, 0, 1);
+      this.loadDone = loadT >= LOAD_ART.ms;
+      if(this.loadDone){
+        if(this.walkAt === null) this.walkAt = t;
+        this.pickupWalk = Phaser.Math.Clamp(1 - (t - this.walkAt)/this.walkMs, 0, 1);
+      } else {
+        this.walkAt = null;
+        this.pickupWalk = 1; // still idle at the robot during loading
+      }
+    } else {
+      this.goAt = null; this.walkAt = null; this.loadDone = false;
+      this.pickupWalk = 1;
+    }
+
+    /* cargo lid: opens early in the loading phase, closes again once
+       the bag has dropped in — reuses the real lidAng hinge mechanism,
+       just with a plain open/close target instead of the tip/spill
+       state machine's asymmetric ones. */
+    const lidTarget = (this.playing && loadFrac > 0.05 && loadFrac < LOAD_ART.dropFrac) ? LOAD_ART.lidOpenAngle : 0;
+    this.lidAng += (lidTarget - this.lidAng) * LOAD_ART.lidEase;
+    if(Math.abs(lidTarget - this.lidAng) < 0.002) this.lidAng = lidTarget;
+
+    /* door swing: opens while he's still walking toward it, starts
+       closing the moment he arrives (walkT hits 0) — previously this
+       just tracked "playing" directly, which meant the door opened
+       and then STAYED open for the rest of the route; it never
+       actually closed behind him. Now also gated on the walk phase
+       having actually started (loadDone), so it doesn't open during
+       the loading beat, before he's even facing the shop yet. */
+    const doorTarget = (this.playing && this.loadDone && this.pickupWalk > 0) ? SHOPDOOR_ART.openAngle : 0;
+    this.doorSwing += (doorTarget - this.doorSwing) * SHOPDOOR_ART.openEase;
+    if(Math.abs(doorTarget - this.doorSwing) < 0.002) this.doorSwing = doorTarget;
+
+    const dv = DIRV[this.fdir], rv = DIRV[(this.fdir+1)%4];
+    /* camera heading: the real game sets drawAngle to the robot's own
+       live heading (eases toward it every frame — see game/index.html
+       ~line 5168), which is essentially always nonzero during normal
+       driving. For a parked/departing pickup robot that heading is
+       dv's direction (the robot travels parallel to the shop wall,
+       not into it) — so this is what "the correct in-game view"
+       actually looks like, not the lab's old fixed drawAngle=0. */
+    this.drawAngle = Math.atan2(dv.y, dv.x) + (this.viewFlip ? Math.PI : 0);
+    const ox = -dv.x*this.unitW/2, oy = -dv.y*this.unitW/2; // center the unit under camera
+    const doorCenterX = this.unitW/2;
+    const doorW = Math.min(DOOR_W*0.72, this.unitW*0.3); // matches drawStoreUnit's real proportions
+    const dZ1 = DOOR_H*0.88;
+
+    const botX = ox + dv.x*(doorCenterX + this.botAlong) + rv.x*this.botOut;
+    const botY = oy + dv.y*(doorCenterX + this.botAlong) + rv.y*this.botOut;
+
+    /* worker position/facing/appearance — computed once here and
+       shared by both drawPickupWorker and the bag placement below, so
+       the two can never drift out of sync with each other. */
+    const walkT = this.pickupWalk;
+    const wu = 1 - Math.pow(1 - walkT, 2);
+    const dy = Phaser.Math.Linear(this.dyStart, this.dyEnd, wu);
+    const workerX = ox + dv.x*doorCenterX + rv.x*dy, workerY = oy + dv.y*doorCenterX + rv.y*dy;
+    const facingAway = Math.atan2(rv.y, rv.x) - Math.PI/2 + Math.PI;
+    const thW = this.facingMode === "fixed"
+      ? (this.walkAt !== null ? facingAway : Math.atan2(rv.y, rv.x) - Math.PI/2)
+      : Math.atan2(botY - workerY, botX - workerX);
+    const wrng = mulberry32(this.workerSeed ^ 0x77b1);
+    const wBuild = PEOPLE_BUILD[wrng()<0.5?0:1];
+    const wSkin = PEOPLE_SKIN[Math.floor(wrng()*PEOPLE_SKIN.length)];
+    const wShirt = PEOPLE_SHIRT[Math.floor(wrng()*PEOPLE_SHIRT.length)];
+    const wPants = PEOPLE_PANTS[Math.floor(wrng()*PEOPLE_PANTS.length)];
+    const wHair = PEOPLE_HAIR[Math.floor(wrng()*PEOPLE_HAIR.length)];
+    const wShoe = PEOPLE_SHOE[Math.floor(wrng()*PEOPLE_SHOE.length)];
+
+    /* camera: recenter on the midpoint of the door, the bot, the
+       worker's furthest resting point (dyStart), AND the fully-raised
+       hand position — previously camZ stayed fixed at 0 always, with
+       no term ever accounting for the arm's height when lifted, which
+       is what pushed it off the TOP of the canvas once the lift
+       gesture was added (found by measuring the actual screen
+       projection: shoulder came out at y=-32, above the visible
+       canvas — the "missing" front face was really an off-screen
+       face, not a geometry bug). armReach uses liftT=1 (max height)
+       so framing doesn't shift mid-swing, only once at setup. */
+    const doorX = ox + dv.x*doorCenterX, doorY = oy + dv.y*doorCenterX;
+    const workerFarX = doorX + rv.x*this.dyStart, workerFarY = doorY + rv.y*this.dyStart;
+    const armReach = this.handWorldPos(workerX, workerY, thW, wBuild, 1);
+    this.camX = (doorX + botX + workerFarX + armReach.x) / 4;
+    this.camY = (doorY + botY + workerFarY + armReach.y) / 4;
+    this.camZ = (0 + 0 + 0 + armReach.z) / 4;
+
+    /* rise -> hold -> release: arm starts at his side (liftT=0,
+       natural rest — NOT already raised), pivots up from the shoulder
+       through RISE_END, holds briefly at the top, then eases back
+       down while the bag simultaneously detaches and continues on its
+       own arc to the bin. Previously liftT was pinned at 1 constantly
+       whenever not yet released, which meant he stood there with his
+       arm already raised at idle — this fixes that: idle now falls
+       through to the liftT=0/released=false defaults below, same as
+       the start of the loading phase. */
+    const RISE_END = 0.22, HOLD_END = 0.27, RELEASE_END = 0.42;
+    let liftT = 0, released = false;
+    if(this.playing){
+      if(this.loadDone){ liftT = 0; released = true; }
+      else if(loadFrac <= RISE_END) liftT = loadFrac / RISE_END;
+      else if(loadFrac <= HOLD_END) liftT = 1;
+      else { liftT = Math.max(0, 1 - (loadFrac-HOLD_END)/(RELEASE_END-HOLD_END)); released = true; }
+    }
+
+    /* depth-ish ordering: wall, then whichever of worker/bot is farther back first */
+    this.drawWall(ox, oy, dv, rv, this.unitW);
+    this.drawShopDoor(ox, oy, dv, rv, doorCenterX, doorW, dZ1, this.doorSwing);
+    this.drawBot(botX, botY, dv, rv);
+
+    /* bag: locked to the actual hand position (handWorldPos, same
+       formula the arm is drawn with) while still held — including
+       idle, so he's holding it from frame one at the natural resting
+       height, not floating separately or popping in. Once released,
+       it arcs from the exact point it left his hand to the bin.
+       Position computed here, before the worker draws, so it's ready
+       for the mid-sequence callback below. */
+    const bagVisible = !this.loadDone;
+    let bagX, bagY, bagZ;
+    if(bagVisible){
+      if(!released){
+        const hp = this.handWorldPos(workerX, workerY, thW, wBuild, liftT);
+        bagX = hp.x + rv.x*BAG_ART.holdFwd; bagY = hp.y + rv.y*BAG_ART.holdFwd; bagZ = hp.z - BAG_ART.holdDown;
+      } else {
+        const hp = this.handWorldPos(workerX, workerY, thW, wBuild, 1);
+        const releasePt = { x: hp.x + rv.x*BAG_ART.holdFwd, y: hp.y + rv.y*BAG_ART.holdFwd, z: hp.z - BAG_ART.holdDown };
+        const arcT = Phaser.Math.Clamp((loadFrac - HOLD_END) / (LOAD_ART.dropFrac - HOLD_END), 0, 1);
+        bagX = Phaser.Math.Linear(releasePt.x, botX, arcT);
+        bagY = Phaser.Math.Linear(releasePt.y, botY, arcT);
+        bagZ = Phaser.Math.Linear(releasePt.z, 26, arcT) + Math.sin(arcT*Math.PI)*LOAD_ART.arcH;
+      }
+    }
+
+    /* stay visible until he's both arrived (walkT==0) AND the door has
+       swung shut behind him. The bag-top callback fires INSIDE the
+       person's own draw sequence — after torso/legs (so it stays on
+       top of them), before the carrying arm specifically (so only the
+       arm covers it, not the whole silhouette — that was the earlier
+       bug: drawing the whole bag before the whole person let torso/
+       legs/head also swallow it, nearly erasing it to 14px). */
+    if(!(walkT <= 0.001 && this.doorSwing <= 0.02)){
+      const topCb = bagVisible ? () => this.drawBagTop(bagX, bagY, bagZ, dv, rv) : null;
+      this.drawPickupWorker(workerX, workerY, thW, wBuild, wSkin, wShirt, wPants, wHair, wShoe, t, liftT, topCb);
+    }
+
+    if(bagVisible){
+      this.drawBagBody(bagX, bagY, bagZ, dv, rv);
+    }
+
+    this.updateVals();
+  }
+}
+
+const game = new Phaser.Game({
+  type: Phaser.AUTO, parent: "game",
+  scale: { mode: Phaser.Scale.RESIZE, width: "100%", height: "100%" },
+  scene: [PickupLab]
+});
+const scn = () => game.scene.getScene("pickuplab");
+
+document.getElementById("goBtn").addEventListener("click", e => {
+  const s = scn();
+  s.playing = !s.playing;
+  e.target.classList.toggle("on", s.playing);
+  e.target.textContent = s.playing ? "GO (playing — tap to reset)" : "GO (start route)";
+});
+document.getElementById("resetBtn").addEventListener("click", () => {
+  const s = scn();
+  s.playing = false; s.pickupWalk = 1; s.doorSwing = 0;
+  s.lidAng = 0; s.loadDone = false; s.goAt = null; s.walkAt = null;
+  document.getElementById("goBtn").classList.remove("on");
+  document.getElementById("goBtn").textContent = "GO (start route)";
+});
+document.getElementById("fixedBtn").addEventListener("click", e => {
+  scn().facingMode = "fixed";
+  e.target.classList.add("on");
+  document.getElementById("dynBtn").classList.remove("on");
+});
+document.getElementById("dynBtn").addEventListener("click", e => {
+  scn().facingMode = "dynamic";
+  e.target.classList.add("on");
+  document.getElementById("fixedBtn").classList.remove("on");
+});
+document.getElementById("flipView").addEventListener("click", () => { const s = scn(); s.viewFlip = !s.viewFlip; });
+document.getElementById("zoomIn").addEventListener("click", () => { scn().K = Math.min(scn().K + 0.3, 5); });
+document.getElementById("zoomOut").addEventListener("click", () => { scn().K = Math.max(scn().K - 0.3, 1.2); });
+document.querySelectorAll("[data-p]").forEach(btn => {
+  btn.addEventListener("click", () => {
+    const s = scn();
+    const p = btn.dataset.p, d = +btn.dataset.d;
+    if(p === "fdir")     s.fdir = ((s.fdir + d) % 4 + 4) % 4;
+    if(p === "unitW")    s.unitW = Phaser.Math.Clamp(s.unitW + d, 60, 260);
+    if(p === "dyStart")  s.dyStart = Phaser.Math.Clamp(s.dyStart + d, -80, 40);
+    if(p === "dyEnd")    s.dyEnd = Phaser.Math.Clamp(s.dyEnd + d, 20, 240);
+    if(p === "botAlong") s.botAlong = Phaser.Math.Clamp(s.botAlong + d, -120, 120);
+    if(p === "botOut")   s.botOut = Phaser.Math.Clamp(s.botOut + d, 20, 300);
+    if(p === "walkMs")   s.walkMs = Phaser.Math.Clamp(s.walkMs + d, 200, 6000);
+    s.updateVals();
+  });
+});
+</script>
+</body>
+</html>
