@@ -3798,10 +3798,17 @@ class WorldScene extends Phaser.Scene {
              renderers, even though both faces are geometrically valid
              (verified: comparable non-degenerate area on every facing
              direction, nothing else drawn over it — this is purely a
-             rasterization seam fix, invisible at normal zoom). */
+             rasterization seam fix, invisible at normal zoom).
+             The far corner used to be hardcoded to -1, written back
+             when "past 1" only ever meant the +1 case — it never
+             tracked faceX flipping to -1 (fdir 2/3), so instead of
+             spanning the box's actual far edge it sat 0.03 units from
+             the near corner: a sliver, not a face. -faceX is that far
+             edge for either sign, so this is now the same full-width
+             face (plus the same seam overlap) at every heading. */
           const yFace = [
-            corner(-1,faceY,H), corner(faceX*1.03,faceY,H),
-            corner(faceX*1.03,faceY,0,baseShrink), corner(-1,faceY,0,baseShrink)
+            corner(-faceX,faceY,H), corner(faceX*1.03,faceY,H),
+            corner(faceX*1.03,faceY,0,baseShrink), corner(-faceX,faceY,0,baseShrink)
           ];
           this.quadOn(g, yFace, faceY > 0 ? PL.boxDk2 : PL.boxDk);
           const soil = [corner(-0.82,-0.82,H-0.6), corner(0.82,-0.82,H-0.6), corner(0.82,0.82,H-0.6), corner(-0.82,0.82,H-0.6)];
