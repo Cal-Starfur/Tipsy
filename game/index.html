@@ -5825,7 +5825,23 @@ class WorldScene extends Phaser.Scene {
   }
 
   flagNear(){
-    return this.depth(FLAG.base.x, FLAG.base.y, FLAG.z0 + 20) > this.depth(0, 0, 34);
+    /* roll excluded here, same fix lidNear() already needed for the
+       same reason: the depth formula's z*0.4 weighting is guaranteed
+       to flip this comparison somewhere in the middle of any large
+       roll sweep -- not a tunable constant, a consequence of the
+       formula itself. Left in, the flag would flicker in front of and
+       behind the lid throughout the whole crash instead of holding
+       one answer. The flag's actual near/far relationship to the lid
+       is fixed by their local positions and doesn't change just
+       because the robot's currently rolling over -- roll is how the
+       crash looks, not a reason the two should swap places. Verified
+       across all 4 headings x both tip directions x the full tipT
+       sweep: zero flips with roll excluded, versus flipping multiple
+       times per crash with it included. */
+    const sr = this.roll; this.roll = 0;
+    const result = this.depth(FLAG.base.x, FLAG.base.y, FLAG.z0 + 20) > this.depth(0, 0, 34);
+    this.roll = sr;
+    return result;
   }
 
   /* depth of the lid's centre AFTER hinge rotation — decides draw order vs body */
@@ -6148,7 +6164,7 @@ class WorldScene extends Phaser.Scene {
   drawFlag(bobZ){
     const g = this.g;
     const L = FLAG.z1 - FLAG.z0;
-    const bend = this.flagLean*0.5 + this.tipT*0.7;
+    const bend = this.flagLean*0.5 + this.tipT*0.7*(this.tipDir||1);
     const seg = 6, pts = [];
     for(let i=0; i<=seg; i++){
       const s = i/seg, a = bend*s;
