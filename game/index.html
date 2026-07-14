@@ -2130,7 +2130,20 @@ class WorldScene extends Phaser.Scene {
     for(const hz of r.hazards){
       if(GROUND_KINDS[hz.type]) continue;
       const wp = worldOf(hz.s + (hz.slide || 0), hazardOffset(hz));
-      if(near(wp.x, wp.y)) this.drawProp(layerFor(wp.x, wp.y), hz.type, wp.x, wp.y, t, hz.f, wp.z, null, null, hz);
+      /* a fallen/falling scooter (phi>0) reaches out along its own
+         local a-axis well past its single anchor point once laid
+         down (see the scooter draw fn's M()) -- layerFor only tests
+         that one anchor, so a scooter sprawled toward the robot can
+         get classified by a point that isn't where its extended deck
+         actually ends up on screen. It's also, almost by definition,
+         sitting right where the robot just was: the same "always
+         behind" case the slab already gets, and for the same reason
+         -- pin it instead of trusting a point-sample this close to
+         the robot's own position. Standing (phi===0) scooters are
+         compact and can be genuinely ahead of the robot on the
+         sidewalk, so they still go through the normal test. */
+      const hzLayer = (hz.type === "scooter" && hz.phi > 0) ? g : layerFor(wp.x, wp.y);
+      if(near(wp.x, wp.y)) this.drawProp(hzLayer, hz.type, wp.x, wp.y, t, hz.f, wp.z, null, null, hz);
       if(hz.clusterExtras){
         for(const ex of hz.clusterExtras){
           const exWp = worldOf(hz.s + (hz.slide || 0) + ex.ds, hazardOffset(hz) + ex.dOff);
