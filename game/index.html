@@ -2049,7 +2049,16 @@ class WorldScene extends Phaser.Scene {
       const wp = worldOf(hz.s + (hz.slide || 0), hazardOffset(hz));
       if(!near(wp.x, wp.y)) continue;
       const hzt = hz.type, hwx = wp.x, hwy = wp.y, hwz = wp.z, hf = hz.f, hzObj = hz;
-      blockVQ.push({ depth: hwx+hwy, fn:(g,t)=>this.drawProp(layerFor(hwx,hwy), hzt, hwx, hwy, t, hf, hwz, null, null, hzObj) });
+      /* slab is a full T2 tile the robot drives directly across and
+         rides elevated on top of (slabZ) -- a single depth-vs-robot
+         flip evaluated once at the tile's center pops the whole panel
+         from in-front to behind partway through the crossing (the
+         reported "over for the first half, under for the second"
+         bug). It should stay under the robot the entire time, same
+         "always behind" guarantee houses/roofs already get, not the
+         point-depth test meant for freestanding side-by-side props. */
+      const slabLayer = hzt === "slab" ? g : layerFor(hwx, hwy);
+      blockVQ.push({ depth: hwx+hwy, fn:(g,t)=>this.drawProp(slabLayer, hzt, hwx, hwy, t, hf, hwz, null, null, hzObj) });
     }
 
     /* roofs always draw last, globally — pulled out of the normal
