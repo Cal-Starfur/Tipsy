@@ -31,7 +31,7 @@
     padding:15px 44px;font-size:19px;font-weight:700;box-shadow:0 4px 0 #b5540e;}
   .overlay .btn:active{transform:translateY(3px);box-shadow:0 1px 0 #b5540e;}
   #failOverlay{background:rgba(18,20,26,0);}
-  #failOverlay h2,#failOverlay p{text-shadow:0 2px 3px #b5540e;transform:translateY(-50px);}
+  #failOverlay h2,#failOverlay p{text-shadow:0 2px 3px #b5540e;transform:translateY(-135px);}
   #failOverlay p{color:#fff;}
   #failOverlay .btn{position:absolute;left:50%;bottom:59px;transform:translateX(-50%);
     flex:none;width:88px;height:88px;border-radius:50%;padding:0;
@@ -6522,6 +6522,12 @@ document.getElementById("rerollBtn").addEventListener("click", e => {
 document.getElementById("panelToggle").addEventListener("click", () => {
   const collapsed = document.getElementById("panel").classList.toggle("hidden");
   document.getElementById("panelToggle").classList.toggle("flipped", collapsed);
+});
+document.addEventListener("keydown", e => {
+  if(e.key.toLowerCase() !== "h") return;
+  const toggle = document.getElementById("panelToggle");
+  const fullyHidden = toggle.classList.toggle("hidden");
+  document.getElementById("panel").classList.toggle("hidden", fullyHidden);
 });
 </script>
 </body>
