@@ -37,6 +37,12 @@
     flex:none;width:88px;height:88px;border-radius:50%;padding:0;
     display:flex;align-items:center;justify-content:center;}
   #failOverlay .btn:active{transform:translateX(-50%) translateY(3px);}
+  #winOverlay{background:rgba(18,20,26,0);}
+  #winOverlay h2,#winOverlay .card{text-shadow:0 2px 3px #b5540e;transform:translateY(-135px);}
+  #winOverlay .btn{position:absolute;left:50%;bottom:59px;transform:translateX(-50%);
+    flex:none;width:88px;height:88px;border-radius:50%;padding:0;
+    display:flex;align-items:center;justify-content:center;}
+  #winOverlay .btn:active{transform:translateX(-50%) translateY(3px);}
   .tag{color:#ff9c4d;font-weight:700;letter-spacing:1px;font-size:12px;text-transform:uppercase;}
   .brand{font-size:18px;font-weight:800;letter-spacing:1px;color:#ff7a1a;margin-bottom:8px;}
   #routeMap{display:block;}
@@ -118,10 +124,9 @@
 </div>
 
 <div id="winOverlay" class="overlay hidden">
-  <div class="big">🌯✅</div>
   <h2>DELIVERED</h2>
   <div class="card" id="winCard">…</div>
-  <button class="btn" id="againBtn">RUN IT AGAIN</button>
+  <button class="btn" id="againBtn">Again</button>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/phaser@3.85.2/dist/phaser.min.js"></script>
