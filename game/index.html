@@ -1486,35 +1486,32 @@ function generateRoute(dateStr){
       pickupShopName = hood.shops[Math.abs(Math.round(pux)+Math.round(puy)) % hood.shops.length];
     }
   }
-  /* refine pickupS to whichever on-route point (still on a good
-     f===0/f===3 leg) is closest to pickupSpot. Each such leg has a
-     CONSTANT heading, so position is linear in s along it — the
-     closest point is one projection (dot product) away, no need to
-     step through it. Checking every good segment in the whole route
-     this way is both faster (a few dozen segments vs. hundreds of
-     stepped positions) and more accurate (exact optimum per segment,
-     not limited to a step grid) than the brute-force version this
-     replaced, which cost ~320ms/route — unacceptable for something
-     that runs on every route load. */
+  /* refine pickupS to the pickup unit's actual on-route position.
+     PREVIOUSLY: searched every f===0/f===3 leg in the whole route for
+     whichever point was closest to pickupSpot. That's the same
+     broad-search pattern doorS's refinement tried first and rejected
+     (see addressSpot's comment above: "copying pickupS's pattern
+     verbatim ... confirmed on 11/200 test routes, with residuals up
+     to 2738 units") — on a route that loops back near itself, a later
+     unrelated leg can sit closer to pickupSpot in raw distance than
+     the leg the shop was actually placed on, so pickupS would lock
+     onto the WRONG leg. Since this.botS starts at route.pickupS and
+     the robot's initial heading is headingAt(botS), that wrong leg
+     meant an occasional wrong start-facing angle. Fixed the same way
+     doorS was: no search at all. pickupEdgeIdx above was already
+     derived from segsSegAt(segs, pickupS), so the pickup unit is
+     guaranteed to be on the block adjacent to THIS EXACT segment —
+     project onto it directly. */
   if(pickupSpot){
-    let bestS = pickupS, bestDist = Infinity;
-    const off = laneOffset(1);
-    for(const sg of segs){
-      if(sg.type !== "line" || (sg.f !== 0 && sg.f !== 3)) continue;
-      const p0 = segsPosAt(segs, sg.s0);
-      const hdg = segsHeadingAt(segs, sg.s0); // constant across this whole line segment
-      const dirX = Math.cos(hdg), dirY = Math.sin(hdg);
-      const baseX = p0.x + (-Math.sin(hdg))*off, baseY = p0.y + Math.cos(hdg)*off;
-      const segLen = sg.s1 - sg.s0;
-      const inset = Math.min(90, segLen*0.3);
-      if(segLen - inset*2 < 0) continue;
-      let k = (pickupSpot.x-baseX)*dirX + (pickupSpot.y-baseY)*dirY;
-      k = Math.max(inset, Math.min(segLen-inset, k));
-      const candX = baseX + dirX*k, candY = baseY + dirY*k;
-      const d = (candX-pickupSpot.x)**2 + (candY-pickupSpot.y)**2;
-      if(d < bestDist){ bestDist = d; bestS = sg.s0 + k; }
-    }
-    pickupS = bestS;
+    const sg0 = segsSegAt(segs, pickupS);
+    const hdg0 = segsHeadingAt(segs, sg0.s0);
+    const dirX0 = Math.cos(hdg0), dirY0 = Math.sin(hdg0);
+    const p00 = segsPosAt(segs, sg0.s0);
+    const segLen0 = sg0.s1 - sg0.s0;
+    const inset0 = Math.min(90, segLen0*0.3);
+    let k0 = (pickupSpot.x-p00.x)*dirX0 + (pickupSpot.y-p00.y)*dirY0;
+    k0 = Math.max(inset0, Math.min(segLen0-inset0, k0));
+    pickupS = sg0.s0 + k0;
   }
 
   const pal = hood.hill > 0.55
