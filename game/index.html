@@ -901,6 +901,19 @@ function buildWalk(grid, rng, startOverride, turnsRange){
   let dir = Math.floor(rng()*4);
   while(!cur.conn[dir]) dir = (dir+1)%4;
   let turnSign = rng() < 0.5 ? 1 : -1;
+  /* the turn loop below alternates between exactly two headings (dir
+     and dir+turnSign) for the whole route unless a grid boundary
+     forces a fallback — so if BOTH of those two headings land in
+     {1,2} (south/west), the entire route can end up with zero f===0
+     or f===3 legs. findGoodS then has nothing to find and falls back
+     to an unguarded position, which is what caused occasional
+     wrong-heading (f===1/f===2) starts. Bias the first turn's sign
+     away from that trap so the alternating pair always includes at
+     least one good heading — this only affects the coin-flip default,
+     the per-turn connectivity fallback further down is untouched. */
+  const isGoodF = f => f === 0 || f === 3;
+  const firstAlt = ((dir + turnSign) % 4 + 4) % 4;
+  if(!isGoodF(dir) && !isGoodF(firstAlt)) turnSign = -turnSign;
   const tMin = turnsRange ? turnsRange.min : 5, tSpan = turnsRange ? (turnsRange.max - turnsRange.min + 1) : 6;
   const nTurns = tMin + Math.floor(rng()*tSpan);
 
