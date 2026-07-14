@@ -170,6 +170,29 @@ function mulberry32(a){ return function(){ a |= 0; a = (a + 0x6D2B79F5) | 0; let
    The player never steers; Tipsy follows the route line and auto-turns
    through fillet arcs at corners. Corners are a tilt source. */
 const DIRV = [{x:1,y:0},{x:0,y:1},{x:-1,y:0},{x:0,y:-1}];
+
+/* HEADING EXCEPTIONS — the only place a genuine per-f special case is
+   allowed to live. Everything that draws a shape (props, people, the
+   robot, the car) goes through one shared rotation and must never
+   hand-branch on f/fdir/heading itself. These two are real exceptions,
+   not shortcuts: they're about the fixed iso camera and the robot's
+   fixed sidewalk lane, which really do treat one or two headings
+   differently. Four slots per table, indexed by f (0..3) — most
+   entries are null/false. Editing one slot can't touch another: these
+   are separate array entries, not branches tangled through a shared
+   function. */
+
+/* f===1 cuts the near block's WEST edge (3); f===2 cuts its NORTH
+   edge (0) — the only two travel directions where this fixed iso
+   camera's height-lift can push a nearby block's wall over the
+   robot's own screen position. See the block-wrap cutaway below. */
+const NORTH_WALL_CUT_EDGE = [null, 3, 0, null];
+
+/* f===0/f===3 are the two directions the cutaway above never
+   touches — the only legs safe to place a door/pickup on. See
+   findGoodS. */
+const GOOD_LEG_HEADING = [true, false, false, true];
+
 /* approved palm (palm lab, 2026-07-07): the Costa Palma house style */
 const PALM = {
   height: 165, fronds: 8, droop: 1.0, wind: 1.0, trunkLean: 0.16,
@@ -1071,7 +1094,7 @@ function trafficWorldAt(tr, t){
    route length or leg count, just which existing point along the
    already-generated route gets used) for the nearest usable leg. */
 function findGoodS(segs, totalLen, preferredS, scanFromEnd){
-  const isGood = sg => sg.type === "line" && (sg.f === 0 || sg.f === 3);
+  const isGood = sg => sg.type === "line" && GOOD_LEG_HEADING[sg.f];
   const order = scanFromEnd ? [...segs].reverse() : segs;
   for(const sg of order){
     if(!isGood(sg)) continue;
@@ -1969,11 +1992,8 @@ class WorldScene extends Phaser.Scene {
        single edge of the adjacent block is the "near" wall that can
        loom over his screen position under this fixed iso camera. */
     const curSeg = this.segAt(this.botS);
-    let cutEdgeIdx = -1;
-    if(curSeg.type === "line"){
-      if(curSeg.f === 2) cutEdgeIdx = 0;
-      else if(curSeg.f === 1) cutEdgeIdx = 3;
-    }
+    const cutEdgeIdx = (curSeg.type === "line" && NORTH_WALL_CUT_EDGE[curSeg.f] != null)
+      ? NORTH_WALL_CUT_EDGE[curSeg.f] : -1;
     const botCol = cutEdgeIdx >= 0 ? Math.floor(this.botX / BLOCK) : null;
     const botRow = cutEdgeIdx >= 0 ? Math.floor(this.botY / BLOCK) : null;
 
@@ -2581,17 +2601,20 @@ class WorldScene extends Phaser.Scene {
 
     /* door draws every frame regardless of worker visibility — it has
        its own idle-closed resting state (doorSwing eases back to 0
-       whenever state !== "play", same as normal storefronts look) */
+       whenever state !== "play", same as normal storefronts look).
+       Deferred to a callback now instead of drawing here immediately:
+       once he's walking back in (dy goes negative — past the door
+       plane), he needs to draw BEHIND the door, not always under it. */
     const unitW = doorCenterX*2;
     const doorW = Math.min(DOOR_W*0.72, unitW*0.3);
     const dZ1 = DOOR_H*0.88;
-    this.drawShopDoor(g, ox, oy, dv, rv, doorCenterX, doorW, dZ1, dz, this.doorSwing);
+    const drawDoor = () => this.drawShopDoor(g, ox, oy, dv, rv, doorCenterX, doorW, dZ1, dz, this.doorSwing);
 
     /* stay visible until he's both arrived (walkT===0) AND the door has
        actually swung shut behind him — previously this cut him at
        walkT<=0.02 regardless of the door, so he could vanish while the
        door was still wide open. */
-    if(walkT <= 0.001 && this.doorSwing <= 0.02) return;
+    if(walkT <= 0.001 && this.doorSwing <= 0.02){ drawDoor(); return; }
 
     const wrng = mulberry32(seed ^ 0x77b1);
     const wBuild = PEOPLE_BUILD[wrng()<0.5?0:1];
@@ -2650,11 +2673,24 @@ class WorldScene extends Phaser.Scene {
     }
 
     const topCb = bagVisible ? () => this.drawBagTop(g, bagX, bagY, bagZ, dv, rv) : null;
-    this.drawPersonHull(g, workerX, workerY, dz, thW, wBuild, wSkin, wShirt, wPants, wHair, wShoe, walkPhase, moving, 0, liftT, topCb);
+    const drawWorker = () => {
+      this.drawPersonHull(g, workerX, workerY, dz, thW, wBuild, wSkin, wShirt, wPants, wHair, wShoe, walkPhase, moving, 0, liftT, topCb);
+      if(bagVisible) this.drawBagBody(g, bagX, bagY, bagZ, dv, rv);
+    };
 
-    if(bagVisible){
-      this.drawBagBody(g, bagX, bagY, bagZ, dv, rv);
-    }
+    /* which side of the door plane he's actually on decides draw
+       order now, not a fixed sequence — same "compute it, don't
+       hardcode it" idea as lidNear()/flagNear(), just answered with
+       dy (already shop-local, already correct in all 4 orientations
+       by construction) instead of a raw world x+y comparison, which
+       flips sign depending on which way rv happens to point and gave
+       the wrong answer on two of the four shop-facing directions when
+       tried. Previously the door always painted first and he always
+       painted over it, which only looked right while dy>=0 (still out
+       front). Once "go" sends him walking back in past the door plane
+       (dy<0), he needs to be the one that gets painted over instead. */
+    if(dy < 0){ drawWorker(); drawDoor(); }
+    else { drawDoor(); drawWorker(); }
   }
 
   /* what replaces a culled housing edge: one continuous fence spanning
