@@ -1146,6 +1146,27 @@ function generateRoute(dateStr){
     return grid.classify(wp.x, wp.y) === "road";
   };
 
+  /* snap a candidate along-path s to the nearest REAL sidewalk tile
+     center (grid.sidewalkRuns, the same T2 grid buildSidewalkGeometry
+     draws) — for tile-sized props like the slab, an unsnapped s can
+     land anywhere within a tile, so the panel straddles a seam or
+     bleeds toward the road edge instead of sitting on one panel.
+     Only the along-path component needs correcting: laneOffset(row)
+     already lands exactly on the tile's row center by construction
+     (same ROAD_HALF+(t+0.5)*T2 formula the tile grid itself uses). */
+  const snapToSidewalkTile = (sv, row) => {
+    const wp = segsWorldOf(segs, sv, laneOffset(row));
+    let best = null, bestD = Infinity;
+    for(const tl of grid.sidewalkRuns){
+      const d = (tl.x-wp.x)*(tl.x-wp.x) + (tl.y-wp.y)*(tl.y-wp.y);
+      if(d < bestD){ bestD = d; best = tl; }
+    }
+    if(!best || bestD > (T2*1.5)*(T2*1.5)) return null; // no real tile nearby (corner mesh) — don't place one
+    const d = DIRV[facingAt(sv)];
+    const ds = (best.x-wp.x)*d.x + (best.y-wp.y)*d.y;
+    return Math.round(sv + ds);
+  };
+
   /* RULE: no two props/hazards stack at the same spot. Every spawn loop
      below checks a candidate placement against everything already
      placed this route (both hazards[] and props[], since either array
@@ -1314,8 +1335,16 @@ function generateRoute(dateStr){
     if(inCorner(ysR)) continue;
     if(!onSidewalk(ysR, laneOffset(0))) continue;
     if(spawnBlocked(ysR, laneOffset(0))) continue;
-    if(rng() < 0.55) hazards.push({ type:"hydrant", s: ysR, row: 0,
-                                    f: facingAt(ysR), hit:false, burst:false });
+    if(rng() < 0.55){
+      /* ~15% of spawned hydrants start already-burst: nozzle sheared,
+         flood already pooled. burstT set far in the past so the same
+         grow-ratio math the hit-triggered burst uses ((t-burstT)/1800)
+         clamps to 1 immediately — no separate "already grown" path. */
+      const startsBurst = rng() < 0.15;
+      hazards.push({ type:"hydrant", s: ysR, row: 0, f: facingAt(ysR),
+                     hit:false, burst:startsBurst,
+                     burstT: startsBurst ? -1e9 : undefined });
+    }
   }
 
   /* heaved slabs (prop.slab): runs of bad sidewalk across the full
@@ -1328,9 +1357,11 @@ function generateRoute(dateStr){
     const runN = 1 + Math.floor(rng()*3);
     let srow = Math.floor(rng()*4);
     for(let k=0; k<runN; k++){
-      const skR = Math.round(ss + k*TILE*2);
-      if(inCorner(skR)) break;
-      if(!onSidewalk(skR, laneOffset(srow))){ srow = Math.floor(rng()*4); continue; }
+      const skR0 = Math.round(ss + k*TILE*2);
+      if(inCorner(skR0)) break;
+      if(!onSidewalk(skR0, laneOffset(srow))){ srow = Math.floor(rng()*4); continue; }
+      const skR = snapToSidewalkTile(skR0, srow);
+      if(skR === null || inCorner(skR) || !onSidewalk(skR, laneOffset(srow))){ srow = Math.floor(rng()*4); continue; }
       if(spawnBlocked(skR, laneOffset(srow))){ srow = Math.floor(rng()*4); continue; }
       hazards.push({ type:"slab", s: skR, row: srow,
                      lift: 3 + Math.floor(rng()*6),
@@ -2489,18 +2520,11 @@ class WorldScene extends Phaser.Scene {
      in labs/pickup-lab.html. */
   bagCorners(cx, cy, cz, dv, rv){
     const B = BAG_ART, hw = B.w/2, hd = B.d/2;
-    /* face visibility must account for the camera's own rotation
-       (this.drawAngle), same fix as drawPersonHull's faceA/faceB —
-       these were computed from dv/rv's raw world direction alone
-       before, which only happened to be right at drawAngle=0. */
-    const dA = this.drawAngle || 0;
-    const rotDA = (dx, dy) => dA === 0 ? {x:dx, y:dy} : {
-      x: dx*Math.cos(dA) - dy*Math.sin(dA),
-      y: dx*Math.sin(dA) + dy*Math.cos(dA)
-    };
-    const dvR = rotDA(dv.x, dv.y), rvR = rotDA(rv.x, rv.y);
-    const faceDV = Math.sign(dvR.x + dvR.y) || 1;
-    const faceRV = Math.sign(rvR.x + rvR.y) || 1;
+    /* face visibility: dv/rv are already real world-space direction
+       vectors, same as drawPersonHull's G() points — no drawAngle
+       rotation belongs here either, same fix/same reasoning. */
+    const faceDV = Math.sign(dv.x + dv.y) || 1;
+    const faceRV = Math.sign(rv.x + rv.y) || 1;
     /* hang from a top handle point rather than sitting with its
        bottom at the hand — cz is the top (grip height), bag hangs
        down from there. */
@@ -2530,6 +2554,9 @@ class WorldScene extends Phaser.Scene {
 
   drawPickupUnit(g, ox, oy, dv, rv, doorCenterX, seed, t){
     if(!this.route.pickupSpot) return;
+    this.pickupDoorDV = dv; this.pickupDoorRV = rv;
+    this.pickupDoorUX = ox; this.pickupDoorUY = oy; this.pickupDoorCenterX = doorCenterX;
+    this.pickupWorkerSeed = (seed ^ 0x77b1) >>> 0;
     const walkT = this.pickupWalk;
     const dz = this.groundZ(this.route.pickupS);
 
@@ -2726,6 +2753,9 @@ class WorldScene extends Phaser.Scene {
         const doorCenterX = u.w/2;
         const dz = this.groundZ(this.route.doorS);
         this.addrDoorPos = { x: ux + e.dv.x*doorCenterX, y: uy + e.dv.y*doorCenterX, z: dz };
+        this.addrDoorDV = e.dv; this.addrDoorRV = e.rv;
+        this.addrDoorUX = ux; this.addrDoorUY = uy; this.addrDoorCenterX = doorCenterX;
+        this.addrCustSeed = (hseed ^ 0x4c75) >>> 0;
         vq.push({ depth:hx+hy, fn:(g,t)=>{
           this.drawHouseUnit(g, ux, uy, e.dv, e.rv, u.w, hseed, true, 'body');
           this.drawDoorAssembly(g, ux, uy, e.dv, e.rv, doorCenterX, dz, this.doorTheta);
@@ -2900,23 +2930,12 @@ class WorldScene extends Phaser.Scene {
   drawPersonHull(g, ax, ay, z, thW, build, pSkin, pShirt, pPants, pHair, pShoe, walkPhase, moving, startleAlpha=0, liftT=0, onBeforeCarryArm=null){
     const cs = Math.cos(thW), sn = Math.sin(thW);
     const G = (a,b,h) => this.W(ax + a*cs - b*sn, ay + a*sn + b*cs, z + h);
-    /* face visibility must account for the CAMERA's own rotation
-       (this.drawAngle, which eases toward the robot's live heading
-       every frame — see headingAt(botS)/`_targetAngle` below in
-       update()), not just the person's own facing. This was computed
-       only from thW before, which is only correct when drawAngle
-       happens to be 0 — but drawAngle is essentially never 0 during
-       normal driving, so this affected every rendered person (any
-       pedestrian, the dropoff customer) any time the robot wasn't at
-       that one specific heading. Found and fixed in the pickup lab
-       (labs/pickup-lab.html) once it started using the real in-game
-       heading instead of a fixed default view. */
-    const dA = this.drawAngle || 0;
-    const rotDA = (dx, dy) => dA === 0 ? {x:dx, y:dy} : {
-      x: dx*Math.cos(dA) - dy*Math.sin(dA),
-      y: dx*Math.sin(dA) + dy*Math.cos(dA)
-    };
-    const aDir = rotDA(cs, sn), bDir = rotDA(-sn, cs);
+    /* face visibility: drawPersonHull's points (G() above) are real
+       world-space, never rotated by this.drawAngle — only the robot's
+       own body geometry goes through that rotation (via T()). The face
+       test must match the geometry it's testing, so it stays plain
+       (cs,sn)/(-sn,cs) with no drawAngle rotation applied. */
+    const aDir = { x: cs, y: sn }, bDir = { x: -sn, y: cs };
     const faceA = Math.sign(aDir.x + aDir.y) || 1, faceB = Math.sign(bDir.x + bDir.y) || 1;
 
     const box = (aC,bC,ha,hb,z0,z1,cTop,cA,cB,noTop=false) => {
@@ -5553,9 +5572,43 @@ class WorldScene extends Phaser.Scene {
 
     this.botZ = this.groundZ(this.botS) + (this.slabZ || 0);
     if(this.state !== "tipped") this.pitch = -Math.atan(this.groundSlope(this.botS));
-    this.camX = Phaser.Math.Linear(this.camX, this.botX + Math.cos(hdg)*95, 0.08);
-    this.camY = Phaser.Math.Linear(this.camY, this.botY + Math.sin(hdg)*95, 0.06);
-    this.camZ = Phaser.Math.Linear(this.camZ, this.botZ, 0.08);
+
+    /* camera reframe: at f=3 the worker/customer's walk-out direction
+       pushes them far enough sideways on screen that tracking only the
+       robot leaves them off-frame (confirmed: 227px past a 430px-wide
+       screen's left edge while the robot sat centered). Widen the
+       target to a blend of door + bot + their far position + raised-
+       hand reach whenever they're actually visible. */
+    let camTargetX = this.botX + Math.cos(hdg)*95;
+    let camTargetY = this.botY + Math.sin(hdg)*95;
+    let camTargetZ = this.botZ;
+
+    const pickupWorkerVisible = this.pickupWalk > 0.001 || this.doorSwing > 0.02;
+    if(this.state === "play" && this.pickupDoorDV && pickupWorkerVisible){
+      const dv3 = this.pickupDoorDV, rv3 = this.pickupDoorRV;
+      const doorX3 = this.pickupDoorUX + dv3.x*this.pickupDoorCenterX, doorY3 = this.pickupDoorUY + dv3.y*this.pickupDoorCenterX;
+      const workerFarX = doorX3 + rv3.x*(T2*2.1-50), workerFarY = doorY3 + rv3.y*(T2*2.1-50);
+      const facingRobot = Math.atan2(rv3.y, rv3.x) - Math.PI/2;
+      const wBuild2 = PEOPLE_BUILD[mulberry32(this.pickupWorkerSeed)() < 0.5 ? 0 : 1];
+      const armReach2 = this.handWorldPos(workerFarX, workerFarY, facingRobot, wBuild2, 1);
+      camTargetX = (doorX3 + this.botX + workerFarX + armReach2.x) / 4;
+      camTargetY = (doorY3 + this.botY + workerFarY + armReach2.y) / 4;
+      camTargetZ = (0 + 0 + 0 + armReach2.z) / 4;
+    } else if(this.state === "won" && this.addrDoorDV){
+      const dv2 = this.addrDoorDV, rv2 = this.addrDoorRV;
+      const doorX = this.addrDoorUX + dv2.x*this.addrDoorCenterX, doorY = this.addrDoorUY + dv2.y*this.addrDoorCenterX;
+      const custFarX = doorX + rv2.x*(T2-8), custFarY = doorY + rv2.y*(T2-8);
+      const thW2 = Math.atan2(rv2.y, rv2.x) - Math.PI/2;
+      const cBuild2 = PEOPLE_BUILD[mulberry32(this.addrCustSeed)() < 0.5 ? 0 : 1];
+      const armReach = this.handWorldPos(custFarX, custFarY, thW2, cBuild2, 1);
+      camTargetX = (doorX + this.botX + custFarX + armReach.x) / 4;
+      camTargetY = (doorY + this.botY + custFarY + armReach.y) / 4;
+      camTargetZ = (0 + 0 + 0 + armReach.z) / 4;
+    }
+
+    this.camX = Phaser.Math.Linear(this.camX, camTargetX, 0.08);
+    this.camY = Phaser.Math.Linear(this.camY, camTargetY, 0.06);
+    this.camZ = Phaser.Math.Linear(this.camZ, camTargetZ, 0.08);
 
     /* the "?!" of a machine confronting a tree */
     if(this.stuckAmt > 0.5 && this.state === "play"){
