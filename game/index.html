@@ -1727,6 +1727,8 @@ class WorldScene extends Phaser.Scene {
                            // actually begins, after loading finishes
     this.lidHingeFlip = false; // true only during pickup loading — opens the cargo lid
                                 // from the opposite edge than the tip/spill crash animation uses
+    this.pickupLidClosing = false; // latches true while the lid still owes a close-out on
+                                    // that flipped hinge, even after loading itself has ended
     this.state = "idle";
     document.getElementById("orderCard").innerHTML = this.route.pickupShopName
       ? `<b>${this.route.hood.n}</b> — pickup at <b>${this.route.pickupShopName}</b>, deliver to <b>${this.route.address}</b>`
@@ -4922,10 +4924,30 @@ class WorldScene extends Phaser.Scene {
        the bag has dropped in — reuses the existing lidAng hinge
        (normally driven by the tip/spill state machine below, gated on
        state==="tipped" so the two never fight), just with a plain
-       open/close target instead of the tip/spill's asymmetric ones. */
-    const lidLoadTarget = (this.state === "play" && loadFrac > 0.05 && loadFrac < LOAD_ART.dropFrac) ? LOAD_ART.lidOpenAngle : 0;
-    this.lidHingeFlip = (this.state === "play"); // only ever true here, never during
-    // "tipped" (mutually exclusive states), so the crash animation's hinge is untouched
+       open/close target instead of the tip/spill's asymmetric ones.
+       lidHingeFlip used to be gated on state==="play" alone, which is
+       the whole drive, not just this beat — it leaked into the "crack
+       the lid open when cornering gets risky" effect further down,
+       which writes to this same lidAng but should use the tip/spill's
+       fixed hinge.
+       Tying it directly to loadingLidOpen fixed that but broke the
+       close-out: lidAng EASES toward its target (LOAD_ART.lidEase),
+       it doesn't snap, so the instant loadingLidOpen goes false the
+       lid is still most of the way open (confirmed: still 0.42 rad
+       the same frame, 0.35 rad the next) — flipping the hinge right
+       then swaps which side it's swinging from while still visibly
+       open. pickupLidClosing latches true for the whole time we owe
+       that close-out, and only releases once lidAng has actually
+       eased under 0.15 (lidNear()'s own "basically closed" bar) — a
+       latch instead of a raw lidAng>=0.15 check specifically so the
+       cornering-crack effect, which opens this same lidAng for an
+       unrelated reason, can't re-trigger it: the latch only ever gets
+       set by loadingLidOpen itself, never by lidAng's value alone. */
+    const loadingLidOpen = this.state === "play" && loadFrac > 0.05 && loadFrac < LOAD_ART.dropFrac;
+    const lidLoadTarget = loadingLidOpen ? LOAD_ART.lidOpenAngle : 0;
+    if(loadingLidOpen) this.pickupLidClosing = true;
+    else if(this.lidAng < 0.15) this.pickupLidClosing = false;
+    this.lidHingeFlip = this.state === "play" && (loadingLidOpen || this.pickupLidClosing);
     if(this.state === "play"){
       this.lidAng += (lidLoadTarget - this.lidAng) * LOAD_ART.lidEase;
       if(Math.abs(lidLoadTarget - this.lidAng) < 0.002) this.lidAng = lidLoadTarget;
