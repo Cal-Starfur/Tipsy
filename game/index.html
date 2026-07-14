@@ -43,9 +43,11 @@
     flex:none;width:88px;height:88px;border-radius:50%;padding:0;
     display:flex;align-items:center;justify-content:center;}
   #winOverlay .btn:active{transform:translateX(-50%) translateY(3px);}
-  #winCard{position:absolute;left:12px;right:12px;bottom:160px;margin:0;
-    background:rgba(240,236,224,.55);color:#2e3138;
-    -webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);}
+  #winCard{position:absolute;left:0;right:0;bottom:0;margin:0;
+    background:#f0ece0;color:#2e3138;border:none;border-radius:0;
+    padding:2px 16px calc(2px + env(safe-area-inset-bottom));}
+  #winCard .sheetRow{display:flex;align-items:center;justify-content:center;
+    font-weight:700;font-size:15px;line-height:1.1;}
   #winCard b{color:#b5540e;}
   .tag{color:#ff9c4d;font-weight:700;letter-spacing:1px;font-size:12px;text-transform:uppercase;}
   .brand{font-size:18px;font-weight:800;letter-spacing:1px;color:#ff7a1a;margin-bottom:8px;}
@@ -1652,7 +1654,6 @@ class WorldScene extends Phaser.Scene {
     this.g = this.add.graphics();
     this.gFront = this.add.graphics();     // hazards nearer the camera than the robot
     this.hud = this.add.graphics().setDepth(5);
-    this.addrText = this.add.text(0, 0, "", { fontSize:"22px", fontStyle:"bold", color:"#2e3138" }).setOrigin(0.5);
     this.hudText = this.add.text(10, 8, "", { fontSize:"15px", fontStyle:"bold", color:"#ff7a1a", lineSpacing:4 }).setDepth(5);
     this.qtext = this.add.text(0, 0, "?!", { fontSize:"30px", fontStyle:"bold", color:"#ffb04d" })
       .setOrigin(0.5).setDepth(4).setVisible(false);
@@ -2172,20 +2173,14 @@ class WorldScene extends Phaser.Scene {
       }
     }
 
-    /* the address label: door/mat/house/customer now render as part of
-       the real address house unit (see queueHousingEdgeAt's isAddress
-       branch) instead of a floating set piece computed independently
-       here. this.addrDoorPos is set as a side effect of that pass when
-       the address block is actually visible this frame — if it's out
-       of view, there's nothing to point the label at, so it hides
-       rather than show a stale/wrong position. */
-    if(this.addrDoorPos){
-      const doorScreen = this.W(this.addrDoorPos.x, this.addrDoorPos.y, this.addrDoorPos.z);
-      this.addrText.setPosition(doorScreen.x, doorScreen.y - 128 + Math.sin(t*0.003)*5);
-      this.addrText.setText(this.route.address);
-    } else {
-      this.addrText.setText("");
-    }
+    /* addrDoorPos/addrDoorDV/etc. are still set below as a side effect
+       of the real address house unit's own render pass (see
+       queueHousingEdgeAt's isAddress branch) -- the door/mat/house/
+       customer render as part of that unit, not as anything drawn
+       here. The floating address label that used to read this data
+       and hover near the door is gone; the win-state camera reframe
+       is the only remaining consumer, blending its shot toward
+       wherever this data says the door actually is. */
   }
 
   /* ---------- shared person-hull renderer ----------
@@ -6506,9 +6501,9 @@ function showWin(s){
   const secs = s.runT/1000;
   const payout = Math.max(1, Math.round(parseFloat(s.route.tipMult) * cargo * 0.14 - secs*0.1));
   document.getElementById("winCard").innerHTML =
-    `<b>${s.route.address}</b> · ${s.route.hood.n}<br>` +
-    `time <b>${secs.toFixed(1)}s</b> · cargo <b>${cargo}%</b><br>` +
-    `tip earned <b>$${payout}</b> <span style="color:#8f95a1">(×${s.route.tipMult})</span>`;
+    `<div class="sheetRow"><b>${s.route.address}</b>&nbsp;·&nbsp;${s.route.hood.n}</div>` +
+    `<div class="sheetRow">time <b>${secs.toFixed(1)}s</b>&nbsp;·&nbsp;cargo <b>${cargo}%</b></div>` +
+    `<div class="sheetRow">tip earned <b>$${payout}</b>&nbsp;<span style="color:#8f95a1">(×${s.route.tipMult})</span></div>`;
   show("winOverlay");
 }
 
