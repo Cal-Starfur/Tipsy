@@ -9,7 +9,11 @@
     font-family:-apple-system,'Helvetica Neue',Arial,sans-serif;-webkit-user-select:none;user-select:none;color:#e8eaef;}
   #wrap{display:flex;flex-direction:column;height:100%;}
   #game{flex:1;min-height:0;}
-  #panel{padding:8px 12px calc(10px + env(safe-area-inset-bottom));background:#1c1f26;border-top:1px solid #2b2f38;}
+  #panel{padding:calc(10px + env(safe-area-inset-top)) 12px 8px;background:#1c1f26;border-bottom:1px solid #2b2f38;}
+  #panelToggle{position:fixed;left:50%;top:56px;transform:translateX(-50%);
+    color:#8f95a1;font-size:13px;letter-spacing:1px;padding:4px 12px;z-index:5;}
+  #panelToggle:active{opacity:0.6;}
+  #panelToggle.flipped{transform:translateX(-50%) rotate(180deg);}
   .row{display:flex;gap:8px;align-items:center;}
   .lbl{font-size:11px;letter-spacing:1.5px;color:#8f95a1;width:56px;text-transform:uppercase;}
   button{flex:1;background:#262a33;color:#e8eaef;border:1px solid #363b46;border-radius:10px;
@@ -26,6 +30,13 @@
   .overlay .btn{margin-top:18px;background:#ff7a1a;color:#fff;border:none;border-radius:14px;
     padding:15px 44px;font-size:19px;font-weight:700;box-shadow:0 4px 0 #b5540e;}
   .overlay .btn:active{transform:translateY(3px);box-shadow:0 1px 0 #b5540e;}
+  #failOverlay{background:rgba(18,20,26,0);}
+  #failOverlay h2,#failOverlay p{text-shadow:0 2px 3px #b5540e;transform:translateY(-50px);}
+  #failOverlay p{color:#fff;}
+  #failOverlay .btn{position:absolute;left:50%;bottom:59px;transform:translateX(-50%);
+    flex:none;width:88px;height:88px;border-radius:50%;padding:0;
+    display:flex;align-items:center;justify-content:center;}
+  #failOverlay .btn:active{transform:translateX(-50%) translateY(3px);}
   .tag{color:#ff9c4d;font-weight:700;letter-spacing:1px;font-size:12px;text-transform:uppercase;}
   .brand{font-size:18px;font-weight:800;letter-spacing:1px;color:#ff7a1a;margin-bottom:8px;}
   #routeMap{display:block;}
@@ -56,7 +67,6 @@
 </head>
 <body>
 <div id="wrap">
-  <div id="game"></div>
   <div id="panel">
     <div class="row">
       <span class="lbl">Route</span>
@@ -64,6 +74,8 @@
       <button id="rerollBtn">RANDOM DAY</button>
     </div>
   </div>
+  <div id="game"></div>
+  <div id="panelToggle">︿</div>
 </div>
 
 <div id="titleOverlay" class="overlay">
@@ -100,10 +112,9 @@
 </div>
 
 <div id="failOverlay" class="overlay hidden">
-  <div class="big">🤖💥</div>
   <h2 id="failMsg">The pavement won.</h2>
   <p id="failSub">Delivery status: horizontal.</p>
-  <button class="btn" id="retryBtn">RETRY ROUTE</button>
+  <button class="btn" id="retryBtn">Retry</button>
 </div>
 
 <div id="winOverlay" class="overlay hidden">
@@ -5701,6 +5712,14 @@ class WorldScene extends Phaser.Scene {
       camTargetX = (doorX + this.botX + custFarX + armReach.x) / 4;
       camTargetY = (doorY + this.botY + custFarY + armReach.y) / 4;
       camTargetZ = (0 + 0 + 0 + armReach.z) / 4;
+    } else if(this.state === "tipped"){
+      /* the default target above leads the robot by 95 units along
+         the route heading -- meant to bias the view toward what's
+         coming up next while driving, which is meaningless once
+         he's down. Centering directly on him instead, same pattern
+         as the pickup/won branches above. */
+      camTargetX = this.botX;
+      camTargetY = this.botY;
     }
 
     this.camX = Phaser.Math.Linear(this.camX, camTargetX, 0.08);
@@ -6176,7 +6195,7 @@ class WorldScene extends Phaser.Scene {
   }
   drawHUD(){
     const g = this.hud; g.clear();
-    const w = this.scale.gameSize.width;
+    const w = this.scale.gameSize.width, h = this.scale.gameSize.height;
 
     /* delivery-app style HUD: distance/ETA/turn-by-turn, replacing the
        old progress bar + live timer/cargo%. Quality (cargo%) and
@@ -6218,7 +6237,13 @@ class WorldScene extends Phaser.Scene {
     g.lineStyle(3, 0x2e3138, 1);
     g.lineBetween(cx, cy, cx + Math.sin(this.tilt*1.2)*r, cy - Math.cos(this.tilt*1.2)*r);
 
-    this.hudText.setText(`${distText} · ETA ${etaText}\n${turnText}`);
+    /* moved to the bottom, single line -- was two lines anchored at
+       the top (10,8) from creation. Position is set here every frame
+       instead of once at creation, so it tracks the canvas's actual
+       current height -- it can change (device rotation, the route
+       panel toggling) and a fixed y from creation would go stale. */
+    this.hudText.setPosition(10, h - 28);
+    this.hudText.setText(`${distText} · ETA ${etaText} · ${turnText}`);
   }
 }
 
@@ -6493,6 +6518,10 @@ document.getElementById("rerollBtn").addEventListener("click", e => {
   const d = new Date(Date.now() + off*86400000);
   show("titleOverlay");
   scn().loadRoute(d.toISOString().slice(0,10));
+});
+document.getElementById("panelToggle").addEventListener("click", () => {
+  const collapsed = document.getElementById("panel").classList.toggle("hidden");
+  document.getElementById("panelToggle").classList.toggle("flipped", collapsed);
 });
 </script>
 </body>
