@@ -863,6 +863,10 @@ const EXT_YARD_DEPTH = 220, EXT_PARK_DEPTH = 380; // exterior (world-perimeter) 
 
 const CAR_LANE = ROAD_HALF / 2;          // each traffic direction's lane, inside ROAD_HALF
 const SPAWN_S = 60;
+/* minimum drivable route length: ONE displayed mile. The HUD's flavor
+   conversion is FT_PER_UNIT = 0.6 and 5280 ft/mi, so 1 mi = 8800 route
+   units — plus the spawn offset so the readout starts at >= 1.0 mi. */
+const MIN_ROUTE_UNITS = 5280 / 0.6 + SPAWN_S;
 
 /* ---------- the single source of truth for "what is at this point" ----------
    Road always wins over sidewalk — a crossing street's road legitimately
@@ -1112,7 +1116,11 @@ function buildWalk(grid, rng, startOverride, turnsRange){
   const isGoodF = f => f === 0 || f === 3;
   const firstAlt = ((dir + turnSign) % 4 + 4) % 4;
   if(!isGoodF(dir) && !isGoodF(firstAlt)) turnSign = -turnSign;
-  const tMin = turnsRange ? turnsRange.min : 2, tSpan = turnsRange ? (turnsRange.max - turnsRange.min + 1) : 2;
+  /* player-route default raised from 2-3 turns to 4-6: the 1-mile
+     route minimum (MIN_ROUTE_UNITS) needs a good-heading leg past the
+     mile mark to exist, and 3-4-leg walks frequently had none —
+     traffic keeps its own explicit {2,3} range. */
+  const tMin = turnsRange ? turnsRange.min : 4, tSpan = turnsRange ? (turnsRange.max - turnsRange.min + 1) : 3;
   const nTurns = tMin + Math.floor(rng()*tSpan);
 
   const startNode = cur;
@@ -1273,7 +1281,7 @@ function trafficWorldAt(tr, t){
    position (still totalLen-90 / SPAWN_S+90 — this does NOT change
    route length or leg count, just which existing point along the
    already-generated route gets used) for the nearest usable leg. */
-function findGoodS(segs, totalLen, preferredS, scanFromEnd, grid, avoidBlock){
+function findGoodS(segs, totalLen, preferredS, scanFromEnd, grid, avoidBlock, minS = 0){
   const isGood = sg => sg.type === "line" && GOOD_LEG_HEADING[sg.f];
   /* PERIMETER GUARD: a good leg can still run along the grid's outer edge
      with the robot's lane facing OUTWARD, off the grid. There, the address
@@ -1302,8 +1310,11 @@ function findGoodS(segs, totalLen, preferredS, scanFromEnd, grid, avoidBlock){
     if(!isGood(sg)) continue;
     const len = sg.s1 - sg.s0;
     const inset = Math.min(90, len*0.3);
-    const lo = sg.s0 + inset, hi = sg.s1 - inset;
-    if(hi < lo) continue; // leg too short even for its own inset — skip
+    /* minS floor (used by the door search to guarantee a >= 1 mile
+       route): any candidate below it is skipped entirely — legs wholly
+       under the floor never qualify, straddling legs clamp up to it. */
+    const lo = Math.max(sg.s0 + inset, minS), hi = sg.s1 - inset;
+    if(hi < lo) continue; // leg too short (or wholly under minS) — skip
     const s = Math.max(lo, Math.min(hi, preferredS));
     if(anyFallback === null) anyFallback = s;
     if(!facesInterior(s)) continue;                 // perimeter — reject (guard)
@@ -1851,7 +1862,13 @@ function generateRoute(dateStr){
   /* the address */
   const number = 100 + Math.floor(rng()*3800);
   const street = hood.streets[Math.floor(rng()*hood.streets.length)];
-  let doorS = findGoodS(segs, totalLen, totalLen - 90, true, grid);
+  let doorS = findGoodS(segs, totalLen, totalLen - 90, true, grid, null, MIN_ROUTE_UNITS);
+  /* graceful degradation: if no interior good leg exists past the mile
+     mark (short-walk day), take the best route the map offers rather
+     than none — findGoodS's own final fallback returns preferredS-ish
+     even with the floor, so re-run unfloored only if the floored pick
+     itself landed short (it only can via that last-resort path). */
+  if(doorS < MIN_ROUTE_UNITS) doorS = Math.max(doorS, findGoodS(segs, totalLen, totalLen - 90, true, grid));
 
   /* the address is always a real block, forced to housing (a park or
      shop can't be the delivery destination); the pickup is always a
