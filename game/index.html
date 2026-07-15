@@ -38,7 +38,7 @@
     display:flex;align-items:center;justify-content:center;}
   #failOverlay .btn:active{transform:translateX(-50%) translateY(3px);}
   #winOverlay{background:rgba(18,20,26,0);}
-  #winOverlay h2{text-shadow:0 2px 3px #b5540e;transform:translateY(-135px);}
+  #winOverlay h2{text-shadow:0 2px 3px #b5540e;transform:translateY(-165px);}
   #winOverlay .btn{position:absolute;left:50%;bottom:59px;transform:translateX(-50%);
     flex:none;width:88px;height:88px;border-radius:50%;padding:0;
     display:flex;align-items:center;justify-content:center;}
@@ -2807,9 +2807,12 @@ class WorldScene extends Phaser.Scene {
   }
 
   /* park/commercial scatter: real approved props (palm/planter), not
-     lab placeholders — this.drawProp already handles both kinds. */
-  scatterBlockProp(g, x, y, kind, t){
-    if(kind === "bench") this.drawBenchProp(g, x, y, DIRV[0]);
+     lab placeholders — this.drawProp already handles both kinds.
+     dv defaults to DIRV[0] for callers that don't care (commercial
+     interior scatter, fully random placement, no nearby edge to
+     stay parallel to). */
+  scatterBlockProp(g, x, y, kind, t, dv=DIRV[0]){
+    if(kind === "bench") this.drawBenchProp(g, x, y, dv);
     else this.drawProp(g, kind, x, y, t);
   }
 
@@ -2949,11 +2952,20 @@ class WorldScene extends Phaser.Scene {
     for(let k=0;k<nBench;k++){
       const edge = Math.floor(rng()*4), tt = 0.2+rng()*0.6;
       let x,y;
-      if(edge===0){ x = blk.x0+(blk.x1-blk.x0)*tt; y = blk.y0+14; }
-      else if(edge===1){ x = blk.x1-14; y = blk.y0+(blk.y1-blk.y0)*tt; }
-      else if(edge===2){ x = blk.x0+(blk.x1-blk.x0)*tt; y = blk.y1-14; }
-      else { x = blk.x0+14; y = blk.y0+(blk.y1-blk.y0)*tt; }
-      vq.push({ depth:x+y, fn:(g,t)=>this.scatterBlockProp(g, x, y, "bench", t) });
+      /* bench half-width is ~80 units (PERSON_H*1.3/2) -- the 14-unit
+         inward offset only keeps it clear of the boundary along the
+         SHORT axis (seat depth, under 1 unit). The long axis has to
+         run parallel to whichever edge it's near, or it punches
+         straight through onto the sidewalk on the other side. Top/
+         bottom edges want it horizontal (DIRV[0]); left/right want
+         it vertical (DIRV[1]) -- swapped from each other, not the
+         same orientation everywhere. */
+      let dv;
+      if(edge===0){ x = blk.x0+(blk.x1-blk.x0)*tt; y = blk.y0+14; dv = DIRV[0]; }
+      else if(edge===1){ x = blk.x1-14; y = blk.y0+(blk.y1-blk.y0)*tt; dv = DIRV[1]; }
+      else if(edge===2){ x = blk.x0+(blk.x1-blk.x0)*tt; y = blk.y1-14; dv = DIRV[0]; }
+      else { x = blk.x0+14; y = blk.y0+(blk.y1-blk.y0)*tt; dv = DIRV[1]; }
+      vq.push({ depth:x+y, fn:(g,t)=>this.scatterBlockProp(g, x, y, "bench", t, dv) });
     }
   }
 
