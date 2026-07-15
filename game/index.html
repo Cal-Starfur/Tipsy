@@ -618,9 +618,11 @@ function farLaneOffset(lane){ return -ROBOT_SIDE * (ROAD_HALF + (lane+0.5)*T2); 
    are EXACTLY the prop art's own (sidewalkZ=2, streetZ=-3 in the
    sidewalkend/sidewalkbegin drawProp branches) — the robot rides the
    surfaces the player can see, not a parallel invisible model.
-   Geometry mirrors the spawn anchors exactly: node at cx.s, road spans
-   ±ROAD_HALF, each ramp is 2 tiles deep just outside it — slope tile on
-   the sidewalk side, ADA pad tile touching the street.
+   Geometry mirrors the spawn anchors exactly: each crossing is a span
+   [sA, sB] of walk-gone route-s (straight crossing: the crossing
+   street's ±ROAD_HALF around the node; outside turn: the arc seg's
+   full sweep), each ramp 2 tiles deep just outside an end — slope tile
+   on the sidewalk side, ADA pad tile touching the street.
    Lane model (game rows 0-3, ramp strip on row 1 per the spawn's row:1
    anchor over rows 0-2):
    - row 1: the ramp lane — smooth slope down, flat street crossing,
@@ -634,21 +636,29 @@ const CROSSING_SIDEWALK_Z = 2, CROSSING_STREET_Z = -3;
 function crossingGroundAt(crossings, s, row){
   const drop = CROSSING_STREET_Z - CROSSING_SIDEWALK_Z;   // -5, the lab's real curb height
   for(const cx of crossings){
-    const d = s - cx.s;
-    if(d < -ROAD_HALF - 2*T2 || d > ROAD_HALF + 2*T2) continue;
-    const onRoad = Math.abs(d) < ROAD_HALF;
+    if(cx.kind === "turn") continue;   // turns use turnCrossingGroundAt (world-space)
+    /* every crossing is a SPAN [sA, sB] of route-s where the walk is
+       gone: straight crossings (sB - sA = 2*ROAD_HALF, the crossing
+       street's width) and outside-turn sweeps (sB - sA = the arc
+       length) share this exact model — ramps on the two tiles outside
+       each end, street level between. For turns, s runs THROUGH the
+       arc seg, so "street level for the whole span" is the
+       lab-approved sidewalkendturn shape: descend before the corner,
+       sweep low, climb after. */
+    if(s < cx.sA - 2*T2 || s > cx.sB + 2*T2) continue;
+    const onRoad = s > cx.sA && s < cx.sB;
     if(row === 1){
       let z, slope = 0, onPad = false;
-      if(d <= -ROAD_HALF - T2){                 // descending slope tile
-        const u = (d + ROAD_HALF + 2*T2) / T2;  // 0 at rear edge -> 1 at pad
+      if(s <= cx.sA - T2){                      // descending slope tile
+        const u = (s - (cx.sA - 2*T2)) / T2;    // 0 at rear edge -> 1 at pad
         z = CROSSING_SIDEWALK_Z + u*drop; slope = drop / T2;
-      } else if(d >= ROAD_HALF + T2){           // ascending slope tile
-        const u = (d - ROAD_HALF - T2) / T2;    // 0 at pad -> 1 at rear edge
+      } else if(s >= cx.sB + T2){               // ascending slope tile
+        const u = (s - (cx.sB + T2)) / T2;      // 0 at pad -> 1 at rear edge
         z = CROSSING_STREET_Z - u*drop; slope = -drop / T2;
       } else {
         z = CROSSING_STREET_Z;
-        /* the two yellow ADA pad tiles — the dome-bump rumble zone */
-        onPad = Math.abs(d) >= ROAD_HALF && Math.abs(d) <= ROAD_HALF + T2;
+        /* the two yellow ADA pad tiles — the dome-bump rumble zones */
+        onPad = (s >= cx.sA - T2 && s <= cx.sA) || (s >= cx.sB && s <= cx.sB + T2);
       }
       return { z, slope, tiltSign: 0, onPad, wallS: null, onRoad };
     }
@@ -665,10 +675,72 @@ function crossingGroundAt(crossings, s, row){
          raw mapping leaned the wrong way on both flanking rows. */
       tiltSign: (row === 3 || onRoad) ? 0 : (1 - row),
       onPad: false,
-      wallS: cx.s + ROAD_HALF,   // the far curb — a real wall for the no-ramp lanes
+      wallS: cx.sB,   // the far curb (span end) — a real wall for the no-ramp lanes
       onRoad };
   }
   return null;
+}
+
+/* ---------- outside-turn crossing ground (pure, WORLD-space) ----------
+   Turn crossings can't use route-s geometry: the ramps sit at the true
+   curb lines and the robot's arc crosses them DIAGONALLY, so the ground
+   under him is a function of his world position, not his route
+   coordinate. Same art/physics contract as crossingGroundAt: z
+   constants are the prop's own.
+   Model (traced per-lane against the real arc radii): each ramp
+   footprint is the prop's 2x3-tile world rectangle, and the PHYSICS
+   surface is the slope/pad profile across the footprint's FULL width —
+   not just the center strip. Reason: a diagonal crossing of a
+   strip-recessed ramp would clip the strip's side wall (the row-1 lane
+   verified to exit through the row-0 flank on the pad tile), so
+   flat-flank physics would strand the default lane on the pad. With
+   the full-width surface every lane that touches a footprint rides it
+   smoothly; lanes that miss it (row 3 grazes a footprint corner) get
+   the honest curb drop on the way out and the honest curb WALL on the
+   way back up — enforced by the caller's climb rule, not a wallS here.
+   Rumble stays tied to the drawn yellow: pad along-range AND the
+   center-strip cross-tile. No flank tilt on turns — cornerLean already
+   owns the lean through the bend.
+   Fallback outside both footprints: classify — road level in the
+   sweep, plain walk elsewhere. Total within the caller's s-gate. */
+function turnCrossingGroundAt(cx, wx, wy, classify){
+  const drop = CROSSING_STREET_Z - CROSSING_SIDEWALK_Z;   // -5
+  const dIn = DIRV[cx.fIn],  rvIn = DIRV[(cx.fIn+1)%4];
+  const dOut = DIRV[cx.fOut], rvOut = DIRV[(cx.fOut+1)%4];
+  const ax = wx - cx.nx, ay = wy - cx.ny;
+  const a = ax*dIn.x  + ay*dIn.y,  c = ax*rvIn.x  + ay*rvIn.y;
+  const b = ax*dOut.x + ay*dOut.y, e = ax*rvOut.x + ay*rvOut.y;
+  /* ROBOT_SIDE = -1: the walk band sits on the negative-rv side, so the
+     footprint's cross range (rows 0-2) and the strip (row-1 tile) are: */
+  const inBand = v => v >= -ROAD_HALF - 3*T2 && v <= -ROAD_HALF;
+  const inStrip = v => v >= -ROAD_HALF - 2*T2 && v <= -ROAD_HALF - T2;
+  if(a >= -ROAD_HALF - 2*T2 && a <= -ROAD_HALF && inBand(c)){
+    /* down-ramp footprint: slope tile then pad, along the OLD heading */
+    const onSlope = a <= -ROAD_HALF - T2;
+    const z = onSlope ? CROSSING_SIDEWALK_Z + ((a + ROAD_HALF + 2*T2)/T2)*drop : CROSSING_STREET_Z;
+    const grad = onSlope ? drop/T2 : 0;
+    return { z, gx: dIn.x*grad, gy: dIn.y*grad, onPad: !onSlope && inStrip(c) };
+  }
+  if(b >= ROAD_HALF && b <= ROAD_HALF + 2*T2 && inBand(e)){
+    /* up-ramp footprint: pad then climb, along the NEW heading */
+    const onSlope = b >= ROAD_HALF + T2;
+    const z = onSlope ? CROSSING_STREET_Z - ((b - ROAD_HALF - T2)/T2)*drop : CROSSING_STREET_Z;
+    const grad = onSlope ? -drop/T2 : 0;
+    return { z, gx: dOut.x*grad, gy: dOut.y*grad, onPad: !onSlope && inStrip(e) };
+  }
+  /* the corner POCKET: everything between the two ramps' street-edge
+     planes is street level, unconditionally. classify alone is wrong
+     here: at grid-edge and T nodes some intersection legs don't exist,
+     leaving walk-level islands mid-sweep that the route drives the
+     robot straight through — an island would pop him up 3 and then
+     WALL him on its far curb with no way forward (verified: nodes on
+     the grid boundary produced exactly that). The pocket is also what
+     puts row 3's curb drop right at the down-ramp's curb plane — the
+     same place the straight model drops it. Outside the pocket,
+     classify still rules (plain walk vs road). */
+  const inPocket = a > -ROAD_HALF && b < ROAD_HALF;
+  return { z: (inPocket || classify(wx, wy) === "road") ? CROSSING_STREET_Z : 0,
+           gx: 0, gy: 0, onPad: false };
 }
 
 /* hull door: frame + slab + 2 panels + knob, hinge-open on theta.
@@ -1354,17 +1426,70 @@ function generateRoute(dateStr){
          (they sit at or beyond s0/s1) and route start/end crossings,
          where a lone half-pair would read as broken. */
       if(sN - ROAD_HALF - 2*T2 < sg.s0 || sN + ROAD_HALF + 2*T2 > sg.s1) continue;
-      crossings.push({ s: sN, f: sg.f });
+      /* crossings are stored as SPANS of route-s where the walk is
+         genuinely gone — [sA, sB] — so straight crossings and turn
+         crossings (below) share one geometry model everywhere
+         downstream: ramps at the span's ends, street level between. */
+      crossings.push({ sA: sN - ROAD_HALF, sB: sN + ROAD_HALF, fIn: sg.f, fOut: sg.f });
     }
   }
-  /* keep every other spawn out of the crossing: the road gap itself
+
+  /* ---------- outside-turn crossings ----------
+     The earlier "corners never break the walk" note is only true of
+     INSIDE turns (sidewalk on the inside of the bend, robot radius
+     CORNER_R - |laneOff|, sweep stays on the corner sidewalk patch).
+     On an OUTSIDE turn the robot's radius is CORNER_R + |laneOff| and
+     its real arc cuts diagonally across the intersection corner —
+     over its own curb and/or the side street's, past the corner point,
+     back up onto the new street's walk (traced numerically: row 0 dips
+     ~46 units past its own curb, row 3 crosses the side street's curb
+     ~270 units out). Which side is "outside" falls out of the arc's
+     own sign: sign=+1 turns toward +rv, and ROBOT_SIDE=-1 puts the
+     walk at -rv, so outside ⟺ sign === -ROBOT_SIDE.
+     The junction model is the lab-approved sidewalkendturn shape,
+     built ONLY from the two existing straight ramps per Sir's spec
+     (no sidewalkbeginTurn): ramp down on the last two tiles of the
+     straight before the arc (old heading), the whole sweep at street
+     level, ramp up on the first two tiles after it (new heading).
+     Arc endpoints sit CORNER_R = 8*T2 from the node — tile-aligned by
+     construction, same free alignment the straight crossings got.
+     Accepted lab-model compromise: the descent happens on the straight
+     BEFORE the actual curb, so early/late in the sweep the robot rides
+     at street level over a few tiles of drawn sidewalk. */
+  for(let i = 0; i < segs.length; i++){
+    const sg = segs[i];
+    if(sg.type !== "arc") continue;
+    if(sg.sign !== -ROBOT_SIDE) continue;                  // inside turn: walk never breaks
+    const prev = segs[i-1], next = segs[i+1];
+    if(!prev || !next || prev.type !== "line" || next.type !== "line") continue;
+    /* ramps must fit on the adjacent straights (always true for
+       >=1-block legs: lineLen >= BLOCK - 2*CORNER_R = 18*T2, but the
+       guard keeps route-shape assumptions out of the invariant) */
+    if(sg.s0 - 2*T2 < prev.s0 + T2 || sg.s1 + 2*T2 > next.s1 - T2) continue;
+    /* the corner NODE's world position, recovered from the arc's own
+       stored geometry (center = cornerP - d*CORNER_R + sign*rv*CORNER_R,
+       inverted). Turn crossings are WORLD-anchored, not route-s
+       anchored: the visually correct ramp positions sit at the true
+       curb lines — down-ramp where the old walk actually ends (the
+       side street's curb), up-ramp where the new walk actually begins
+       (the old street's curb) — and the robot's arc crosses those
+       footprints DIAGONALLY mid-sweep, at route-s values that don't
+       map to them linearly. Confirmed on-device: anchoring ramps at
+       the arc's endpoints (8 tiles out) put them mid-sidewalk. */
+    const dA = DIRV[sg.f], rvA = DIRV[(sg.f+1)%4];
+    const nx = sg.center.x + dA.x*CORNER_R - sg.sign*rvA.x*CORNER_R;
+    const ny = sg.center.y + dA.y*CORNER_R - sg.sign*rvA.y*CORNER_R;
+    crossings.push({ kind:"turn", sA: sg.s0, sB: sg.s1, nx, ny,
+                     fIn: sg.f, fOut: (sg.f + sg.sign + 4) % 4 });
+  }
+  /* keep every other spawn out of any crossing span: the gap itself
      plus one ramp (2 tiles) each side, small margin on top. Checked
      inside spawnBlocked so every spawn loop below inherits it —
      MIN_GAP_S/MIN_GAP_OFFSET alone can't protect a 2x3-tile decal
      (60 < the ramp's own 92-unit half-depth, and the row-offset gate
      only sees the anchor row, not the full 3-row span). */
-  const CROSSING_CLEAR = ROAD_HALF + 2*T2 + 30;
-  const inCrossing = sv => crossings.some(cx => Math.abs(sv - cx.s) < CROSSING_CLEAR);
+  const CROSSING_CLEAR = 2*T2 + 30;
+  const inCrossing = sv => crossings.some(cx => sv > cx.sA - CROSSING_CLEAR && sv < cx.sB + CROSSING_CLEAR);
 
   /* RULE: no two props/hazards stack at the same spot. Every spawn loop
      below checks a candidate placement against everything already
@@ -1405,21 +1530,41 @@ function generateRoute(dateStr){
   const hazards = [];
   const props = [];
 
-  /* ADA curb ramps at every straight-through crossing (see the
-     crossings[] derivation above). Down-ramp owns the LAST two
-     sidewalk tiles before the curb line (anchor at sN-ROAD_HALF-T2,
-     prop spans anchor±T2 along-travel), up-ramp mirrors it on the far
-     side — pad tile touching the street in both, per the ADA spec the
-     lab settled on. Cross axis: the prop is 3 tiles wide but the game
-     sidewalk is 4 rows; row:1 centers it on rows 0-2 exactly on tile
-     seams (laneOffset(1) ± 1.5*T2 = ROAD_HALF .. ROAD_HALF+3*T2),
-     leaving row 3 (building side) as plain flat walk — the choice
-     that keeps the ramp against the street corner where a real one
-     sits. Static visuals only, no tilt/pitch/curb physics wired yet
-     (docs/DESIGN.md) — the sim loop skips these types explicitly. */
+  /* ADA curb ramps at both ends of every crossing SPAN — straight
+     crossings and outside turns alike (see crossings[] above).
+     Down-ramp owns the LAST two walk tiles before the span (anchor at
+     sA - T2, prop spans anchor±T2 along-travel), up-ramp mirrors it on
+     the far side, each oriented to its own end's heading (fIn/fOut —
+     identical for straights, perpendicular for turns). Pad tile
+     touching the street in both, per the ADA spec the lab settled on.
+     Cross axis: the prop is 3 tiles wide but the game sidewalk is 4
+     rows; row:1 centers it on rows 0-2 exactly on tile seams
+     (laneOffset(1) ± 1.5*T2 = ROAD_HALF .. ROAD_HALF+3*T2), leaving
+     row 3 (building side) as plain flat walk — the choice that keeps
+     the ramp against the street corner where a real one sits. */
   for(const cx of crossings){
-    hazards.push({ type:"sidewalkend",   s: cx.s - ROAD_HALF - T2, row: 1, f: cx.f, hit:true });
-    hazards.push({ type:"sidewalkbegin", s: cx.s + ROAD_HALF + T2, row: 1, f: cx.f, hit:true });
+    if(cx.kind !== "turn"){
+      hazards.push({ type:"sidewalkend",   s: cx.sA - T2, row: 1, f: cx.fIn,  hit:true });
+      hazards.push({ type:"sidewalkbegin", s: cx.sB + T2, row: 1, f: cx.fOut, hit:true });
+      continue;
+    }
+    /* turn crossings: world-anchored at the TRUE curb lines (see the
+       detection note above). Down-ramp: (ROAD_HALF + T2) before the
+       node along the OLD heading — exactly where a straight crossing's
+       near ramp would sit — cross-centered on rows 0-2 via
+       laneOffset(1), tile-aligned by construction. Up-ramp mirrored
+       along the NEW heading. hz.s carries the arc span midpointish
+       value purely for the near()-culling and sorting paths that
+       expect one; position comes from wx/wy. */
+    const dI = DIRV[cx.fIn],  rI = DIRV[(cx.fIn+1)%4];
+    const dO = DIRV[cx.fOut], rO = DIRV[(cx.fOut+1)%4];
+    const off1 = laneOffset(1);
+    hazards.push({ type:"sidewalkend", row: 1, f: cx.fIn, hit:true, s: cx.sA,
+      wx: cx.nx - dI.x*(ROAD_HALF + T2) + rI.x*off1,
+      wy: cx.ny - dI.y*(ROAD_HALF + T2) + rI.y*off1, wz: 0 });
+    hazards.push({ type:"sidewalkbegin", row: 1, f: cx.fOut, hit:true, s: cx.sB,
+      wx: cx.nx + dO.x*(ROAD_HALF + T2) + rO.x*off1,
+      wy: cx.ny + dO.y*(ROAD_HALF + T2) + rO.y*off1, wz: 0 });
   }
 
   const density = 0.45 + hood.litter*0.35 + (1 - hood.pave)*0.3;
@@ -2317,7 +2462,13 @@ class WorldScene extends Phaser.Scene {
        else instead of drawn unconditionally on top afterward. */
     for(const hz of r.hazards){
       if(!GROUND_KINDS[hz.type]) continue;
-      const wp = worldOf(hz.s + (hz.slide || 0), hazardOffset(hz));
+      /* world-anchored ramps (turn crossings) carry their own wx/wy —
+         they sit at the true curb lines, positions the route-s mapping
+         can't express (the arc seg owns that s-range); everything else
+         stays route-anchored via worldOf as before. */
+      const wp = hz.wx !== undefined
+        ? { x: hz.wx, y: hz.wy, z: hz.wz || 0 }
+        : worldOf(hz.s + (hz.slide || 0), hazardOffset(hz));
       if(!near(wp.x, wp.y)) continue;
       const hzt = hz.type, hwx = wp.x, hwy = wp.y, hwz = wp.z, hf = hz.f, hzObj = hz;
       /* slab is a full T2 tile the robot drives directly across and
@@ -5934,28 +6085,79 @@ class WorldScene extends Phaser.Scene {
         this.isBlocked = true;
         _cg = crossingGroundAt(this.route.crossings, this.botS, _vRow);
       }
+      /* turn crossings (world-space model — see turnCrossingGroundAt):
+         gated by the arc span's route-s range, then everything keys off
+         the robot's actual world position, because the ramps sit at the
+         true curb lines and his arc crosses them diagonally. The wall
+         here is the generalized climb rule: he can DROP any height and
+         can mount the ramp's 2-unit rear lip, but cannot climb a real
+         curb face (3 or 5 units) — blocking clamps this frame's own
+         advance only, then re-samples, same discipline as the straight
+         wall above. */
+      let _tg = null;
+      if(!_cg){
+        for(const cx of this.route.crossings){
+          if(cx.kind !== "turn") continue;
+          if(this.botS < cx.sA - 3*T2 || this.botS > cx.sB + 3*T2) continue;
+          const wp0 = segsWorldOf(this.route.segs, this.botS, this.laneOff);
+          _tg = turnCrossingGroundAt(cx, wp0.x, wp0.y, this.route.grid.classify);
+          if(_tg.z - (this.crossZ || 0) > 2.5 && this.botS > _botS_frameStart){
+            this.botS = _botS_frameStart;
+            this.isBlocked = true;
+            const wp1 = segsWorldOf(this.route.segs, this.botS, this.laneOff);
+            _tg = turnCrossingGroundAt(cx, wp1.x, wp1.y, this.route.grid.classify);
+          }
+          break;
+        }
+      }
       const _prevCrossZ = this.crossZ || 0;
-      this.crossZ = _cg ? _cg.z : 0;
-      this.crossSlope = _cg ? _cg.slope : 0;
-      /* truncated-dome rumble crossing the yellow pad — roll-only,
-         layered on at the roll composition line below, never folded
-         into this.tilt, so it can't push toward a tip or outlive the
-         pad (lab: jitterRoll = (rand-0.5)*0.1, center lane only). */
-      this.crossJitter = (_cg && _cg.onPad) ? (Math.random()-0.5) * 0.1 : 0;
-      /* cross-slope lean off the ramp's flared sides — mirrored sign in
-         the two lanes flanking the ramp strip, zero on the strip and on
-         row 3 (lab: tilt += botRow * speed * 0.055 * dt) */
-      if(_cg && _cg.tiltSign) this.tilt += _cg.tiltSign * this.speed * 0.055 * dt;
-      /* curb drop: falling off the unramped edge in any non-ramp lane.
-         A stumble kick in the direction you were already leaning (or
-         away from the ramp strip if upright); if you were ALREADY
-         leaning hard, or the kick lands you past the lab's 0.85 line,
-         push tilt to 1.1 and let the game's own tip pipeline take it. */
-      if(_cg && _vRow !== 1 && _prevCrossZ - this.crossZ > 1){
-        const _wasLeaning = Math.abs(this.tilt) > 0.55;
-        this.tilt += Math.sign(this.tilt || (1 - _vRow) || 1) * 0.35;   // (1 - row): same axis mirror as tiltSign
-        if(_wasLeaning || Math.abs(this.tilt) > 0.85)
-          this.tilt = 1.1 * Math.sign(this.tilt);
+      if(_cg){
+        this.crossZ = _cg.z;
+        this.crossSlope = _cg.slope;
+        /* truncated-dome rumble crossing the yellow pad — roll-only,
+           layered on at the roll composition line below, never folded
+           into this.tilt, so it can't push toward a tip or outlive the
+           pad (lab: jitterRoll = (rand-0.5)*0.1, center lane only). */
+        this.crossJitter = _cg.onPad ? (Math.random()-0.5) * 0.1 : 0;
+        /* cross-slope lean off the ramp's flared sides — mirrored sign in
+           the two lanes flanking the ramp strip, zero on the strip and on
+           row 3 (lab: tilt += botRow * speed * 0.055 * dt) */
+        if(_cg.tiltSign) this.tilt += _cg.tiltSign * this.speed * 0.055 * dt;
+        /* curb drop: falling off the unramped edge in any non-ramp lane.
+           A stumble kick in the direction you were already leaning (or
+           away from the ramp strip if upright); if you were ALREADY
+           leaning hard, or the kick lands you past the lab's 0.85 line,
+           push tilt to 1.1 and let the game's own tip pipeline take it. */
+        if(_vRow !== 1 && _prevCrossZ - this.crossZ > 1){
+          const _wasLeaning = Math.abs(this.tilt) > 0.55;
+          this.tilt += Math.sign(this.tilt || (1 - _vRow) || 1) * 0.35;   // (1 - row): same axis mirror as tiltSign
+          if(_wasLeaning || Math.abs(this.tilt) > 0.85)
+            this.tilt = 1.1 * Math.sign(this.tilt);
+        }
+      } else if(_tg){
+        this.crossZ = _tg.z;
+        /* pitch along TRAVEL: the surface gradient is axis-aligned (old
+           heading on the down slope, new on the up) but the robot's
+           heading rotates through the arc — project the gradient onto
+           his actual travel direction. */
+        const _hdg = segsHeadingAt(this.route.segs, this.botS);
+        this.crossSlope = _tg.gx*Math.cos(_hdg) + _tg.gy*Math.sin(_hdg);
+        this.crossJitter = _tg.onPad ? (Math.random()-0.5) * 0.1 : 0;
+        /* curb drop off an unramped edge — same lab kick/tip handoff.
+           Threshold 2.5, NOT the straight model's 1: on turns every
+           lane exits the up-ramp over its 2-unit rear lip (verified in
+           the per-lane trace), and only the real curb faces (3-unit
+           plain-walk curb, 5-unit prop curb) should stumble. No flank
+           tilt on turns (cornerLean owns the bend), so the upright
+           fallback direction is just the current lean or +. */
+        if(_prevCrossZ - this.crossZ > 2.5){
+          const _wasLeaning = Math.abs(this.tilt) > 0.55;
+          this.tilt += Math.sign(this.tilt || 1) * 0.35;
+          if(_wasLeaning || Math.abs(this.tilt) > 0.85)
+            this.tilt = 1.1 * Math.sign(this.tilt);
+        }
+      } else {
+        this.crossZ = 0; this.crossSlope = 0; this.crossJitter = 0;
       }
 
       /* hydroplane: eased pirouette from a burst hydrant's flood.
