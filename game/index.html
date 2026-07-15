@@ -38,14 +38,23 @@
     display:flex;align-items:center;justify-content:center;}
   #failOverlay .btn:active{transform:translateX(-50%) translateY(3px);}
   #winOverlay{background:rgba(18,20,26,0);}
-  #winOverlay h2{text-shadow:0 2px 3px #b5540e;transform:translateY(-165px);}
-  #winOverlay .btn{position:absolute;left:50%;bottom:59px;transform:translateX(-50%);
+  #winOverlay h2,#winOverlay p{text-shadow:0 2px 3px #b5540e;transform:translateY(-165px);}
+  #winOverlay p{color:#fff;}
+  /* 16px above the panel top (panel = 12 + two 15px rows + 3 gap + 10 +
+     safe inset), same clearance GO keeps over the map's bottom sheet —
+     no more landing on the delivery info. */
+  #winOverlay .btn{position:absolute;left:50%;bottom:calc(74px + env(safe-area-inset-bottom));transform:translateX(-50%);
     flex:none;width:88px;height:88px;border-radius:50%;padding:0;
     display:flex;align-items:center;justify-content:center;}
   #winOverlay .btn:active{transform:translateX(-50%) translateY(3px);}
+  /* matches #bottomSheet's recipe exactly (same cream, same padding, same
+     safe-area fold) plus the 20px bottom curve it can't inherit: the map
+     screen gets its corners from #screenWrap's border-radius+overflow
+     clip, but the win overlay lives outside that wrapper. */
   #winCard{position:absolute;left:0;right:0;bottom:0;margin:0;
-    background:#f0ece0;color:#2e3138;border:none;border-radius:0;
-    padding:2px 16px calc(2px + env(safe-area-inset-bottom));}
+    background:#f0ece0;color:#2e3138;border:none;border-radius:0 0 20px 20px;
+    padding:12px 16px calc(10px + env(safe-area-inset-bottom));}
+  #winCard .sheetRow + .sheetRow{margin-top:3px;}
   #winCard .sheetRow{display:flex;align-items:center;justify-content:center;
     font-weight:700;font-size:15px;line-height:1.1;}
   #winCard b{color:#b5540e;}
@@ -131,6 +140,7 @@
 
 <div id="winOverlay" class="overlay hidden">
   <h2>DELIVERED</h2>
+  <p id="winSub">…</p>
   <div class="card" id="winCard">…</div>
   <button class="btn" id="againBtn">Again</button>
 </div>
@@ -2003,7 +2013,7 @@ class WorldScene extends Phaser.Scene {
     this.runT = 0;
     this.throttle = 0;          // -1 brake, 0 coast, 1 gas
     this.tipT = 0; this.tipStartRoll = 0; this.postSpillMs = 0; this.lidAng = 0; this.items = []; this.spilled = false;
-    this.wonT = 0; this.wonFrac = 0; this.wonLiftT = 0; this.wonLidClosing = false; this.wonWalkAt = null; this.wonWalk = 0;
+    this.wonT = 0; this.wonFrac = 0; this.wonLiftT = 0; this.wonLidClosing = false; this.wonWalkAt = null; this.wonWalk = 0; this.wonOutT = 0; this.wonOutFrac = 0; this.wonMeet = null;
     this.cornerLean = 0;
     this.corneringSpeedSmooth = 0;   // lagged speed feeding cornering lean —
                                       // see loadRoute() reset for the full note
@@ -2092,7 +2102,7 @@ class WorldScene extends Phaser.Scene {
     this.camX = this.botX; this.camY = this.botY; this.camZ = this.botZ;
     this.speed = 0; this.tilt = 0; this.damage = 0; this.runT = 0;
     this.roll = 0; this.tipT = 0; this.tipStartRoll = 0; this.postSpillMs = 0; this.lidAng = 0; this.items = []; this.spilled = false;
-    this.wonT = 0; this.wonFrac = 0; this.wonLiftT = 0; this.wonLidClosing = false; this.wonWalkAt = null; this.wonWalk = 0;
+    this.wonT = 0; this.wonFrac = 0; this.wonLiftT = 0; this.wonLidClosing = false; this.wonWalkAt = null; this.wonWalk = 0; this.wonOutT = 0; this.wonOutFrac = 0; this.wonMeet = null;
     this.slabZ = 0; this.slabRoll = 0;
     this.crossZ = 0; this.crossSlope = 0; this.crossJitter = 0;
     this.cornerLean = 0;
@@ -3251,38 +3261,42 @@ class WorldScene extends Phaser.Scene {
           const cHair = PEOPLE_HAIR[Math.floor(crng()*PEOPLE_HAIR.length)];
           const cShoe = PEOPLE_SHOE[Math.floor(crng()*PEOPLE_SHOE.length)];
           const walkT = Phaser.Math.Clamp(this.doorTheta / DOOR_ART.openAngle, 0, 1);
-          /* walk-back phase (this.wonWalk, driven by the won timeline in
-             drawRobot): he turns around and carries the bag back inside
-             — the pickup worker's walk-back mirrored, including the
-             dyStart past the door plane (worker used -30) so he actually
-             walks THROUGH the doorway instead of stopping at it, and the
-             same "gone" test: invisible only once he's fully in AND the
-             door has swung shut behind him. NOTE: during walk-back the
-             door is CLOSING, so walkT (door-derived) can no longer drive
-             his position — wonWalk has its own clock for exactly that
-             reason. */
+          /* the customer now walks the full line from the door to the
+             robot's actual stop (this.wonMeet, computed in the won
+             timeline in drawRobot), instead of stopping at the mat's
+             edge and lobbing the bag through the air. Walk-out and
+             walk-back both run on distance-based clocks (wonOutFrac /
+             wonWalk); facing comes from the real approach vector
+             (wonMeetTh), flipped +PI on the way home. */
+          const meet = this.wonMeet;
+          if(!meet){ drawDoorAndMat(); return; }
+          const doorPx = ux + e.dv.x*doorCenterX, doorPy = uy + e.dv.y*doorCenterX;
+          const startPx = doorPx + e.rv.x*4,   startPy = doorPy + e.rv.y*4;    // just outside the door
+          const backPx  = doorPx - e.rv.x*24,  backPy  = doorPy - e.rv.y*24;   // through the plane, inside
+          const outFrac = this.wonOutFrac || 0;
           const wonWalk = this.state === "won" ? (this.wonWalk || 0) : 0;
           const inWalkBack = wonWalk > 0;
           const goneInside = inWalkBack && wonWalk >= 0.999 && this.doorTheta <= 0.02;
-          const custVisible = !goneInside && (inWalkBack || walkT > 0.02);
+          const custVisible = !goneInside && (inWalkBack || outFrac > 0.001);
           if(!custVisible){ drawDoorAndMat(); return; }
-          const dyStart = 4, dyEnd = T2 - 8, dyBack = -24;
-          let dy;
+          let cx, cy, thW, moving;
           if(inWalkBack){
             const wu2 = 1 - Math.pow(1 - wonWalk, 2);
-            dy = Phaser.Math.Linear(dyEnd, dyBack, wu2);
+            cx = Phaser.Math.Linear(meet.x, backPx, wu2);
+            cy = Phaser.Math.Linear(meet.y, backPy, wu2);
+            thW = this.wonMeetTh + Math.PI;                 // faces home
+            moving = wonWalk > 0.02 && wonWalk < 0.98;
           } else {
-            const wu = 1 - Math.pow(1 - walkT, 2);
-            dy = Phaser.Math.Linear(dyStart, dyEnd, wu);
+            const wu = 1 - Math.pow(1 - outFrac, 2);
+            cx = Phaser.Math.Linear(startPx, meet.x, wu);
+            cy = Phaser.Math.Linear(startPy, meet.y, wu);
+            thW = this.wonMeetTh;                           // faces the robot
+            moving = outFrac > 0.02 && outFrac < 0.98;
           }
-          const cx = ux + e.dv.x*doorCenterX + e.rv.x*dy, cy = uy + e.dv.y*doorCenterX + e.rv.y*dy;
-          // face the robot (out along rv), not down the sidewalk. drawPersonHull's
-          // thW=atan2(rv) points 90 deg off rv, so the -PI/2 is required — identical
-          // to the pickup worker's facingRobot. World-space offset: correct for all 4 headings.
-          // Walking back: +PI, faces the house — same flip-only turn the worker uses.
-          const facingRobot = Math.atan2(e.rv.y, e.rv.x) - Math.PI/2;
-          const thW = inWalkBack ? facingRobot + Math.PI : facingRobot;
-          const moving = inWalkBack ? (wonWalk > 0.02 && wonWalk < 0.98) : walkT < 0.97;
+          /* signed distance from the door plane, along rv — the same
+             computed draw-order test as before, now taken from his
+             actual position since the path is no longer a pure rv line. */
+          const dy = (cx - doorPx)*e.rv.x + (cy - doorPy)*e.rv.y;
           const walkPhase = moving ? Math.sin(t*PEOPLE_ART.walkSpeed) : 0;
           /* dropoff bag: the pickup's arc run in reverse — rises out
              of the bin (same z-26 grip height the worker dropped it
@@ -3308,9 +3322,13 @@ class WorldScene extends Phaser.Scene {
             if(wonFrac < LOAD_ART.dropFrac){
               const arcT = (wonFrac - LOAD_ART.holdEnd) / (LOAD_ART.dropFrac - LOAD_ART.holdEnd);
               const hp1 = this.handWorldPos(cx, cy, thW, cBuild, 1);   // catch point: full reach, zero taper
+              /* arc height scales with the flight distance now that he
+                 stands right at the bin — a fixed 26-unit loop over a
+                 ~40-unit pass read as a moon shot. */
+              const arcHz = Math.min(LOAD_ART.arcH, Math.hypot(this.botX - cx, this.botY - cy) * 0.3);
               bagX = Phaser.Math.Linear(this.botX, hp1.x, arcT);
               bagY = Phaser.Math.Linear(this.botY, hp1.y, arcT);
-              bagZ = Phaser.Math.Linear(this.botZ + 26, hp1.z, arcT) + Math.sin(arcT*Math.PI)*LOAD_ART.arcH;
+              bagZ = Phaser.Math.Linear(this.botZ + 26, hp1.z, arcT) + Math.sin(arcT*Math.PI)*arcHz;
             } else {
               /* held: locked EXACTLY to the hand — no holdFwd/holdDown
                  at all. Those offsets are the WORKER's dialed
@@ -5445,12 +5463,42 @@ class WorldScene extends Phaser.Scene {
        the doorway. showWin is untouched: the overlay fires immediately
        and this plays out underneath it. */
     if(this.state === "won"){
-      /* clock starts when the customer has arrived (door ~fully open)
-         but once started it NEVER re-gates on the door — the door
-         closes again during the walk-back below, and re-checking it
-         would freeze the timeline mid-walk and deadlock him in the
-         doorway. */
-      if((this.wonT || 0) > 0 || this.doorTheta >= DOOR_ART.openAngle * 0.97)
+      /* the MEET POINT: the customer now walks all the way to the
+         robot, not just to the mat's edge — straight line from the
+         door to wherever the robot actually stopped (the win window
+         allows ~94 units of s-slop plus any lane, so this is a real
+         vector, correct in all 4 headings), stopping 35 units short so
+         he stands facing the bin. Robot is frozen in "won", so these
+         are stable frame to frame. Recomputed cheaply each frame
+         because the door anchors (addrDoor*) are only refreshed by the
+         world draw. */
+      if(this.addrDoorDV){
+        const ddv = this.addrDoorDV, drv = this.addrDoorRV;
+        const doorX = this.addrDoorUX + ddv.x*this.addrDoorCenterX;
+        const doorY = this.addrDoorUY + ddv.y*this.addrDoorCenterX;
+        let vx = this.botX - doorX, vy = this.botY - doorY;
+        const dist = Math.hypot(vx, vy) || 1; vx /= dist; vy /= dist;
+        this.wonDoor = { x: doorX, y: doorY };
+        this.wonMeet = { x: this.botX - vx*35, y: this.botY - vy*35 };
+        this.wonMeetTh = Math.atan2(vy, vx) - Math.PI/2;  // faces the robot along the real approach
+        this.wonApproachDist = dist;
+      }
+      /* walk-out: his own clock at constant pace (the pickup worker's
+         ~0.11 units/ms), duration proportional to the actual distance —
+         riding the door angle like before would make a far-parked robot
+         look like a sprint. Steps out once the door is half open. */
+      const WON_WALK_SPEED = 0.11;
+      if(this.wonMeet){
+        const sx = this.wonDoor.x + this.addrDoorRV.x*4, sy = this.wonDoor.y + this.addrDoorRV.y*4;
+        const outLen = Math.max(1, Math.hypot(this.wonMeet.x - sx, this.wonMeet.y - sy));
+        if(this.doorTheta >= DOOR_ART.openAngle * 0.5) this.wonOutT = (this.wonOutT || 0) + dt;
+        this.wonOutFrac = Math.min(1, (this.wonOutT || 0) / (outLen / WON_WALK_SPEED));
+      }
+      /* handoff clock: gated on ARRIVAL at the meet point now (not the
+         door angle) — and once started it never re-gates, since the
+         door closes during the walk-back and re-checking would freeze
+         the timeline mid-walk. */
+      if((this.wonT || 0) > 0 || (this.wonOutFrac || 0) >= 1)
         this.wonT = (this.wonT || 0) + dt;
       this.wonFrac = Phaser.Math.Clamp((this.wonT || 0) / LOAD_ART.ms, 0, 1);
       /* receiving arm: rises through the bag's flight so full reach
@@ -5460,14 +5508,20 @@ class WorldScene extends Phaser.Scene {
       else if(this.wonFrac < LOAD_ART.dropFrac)
         this.wonLiftT = (this.wonFrac - LOAD_ART.holdEnd) / (LOAD_ART.dropFrac - LOAD_ART.holdEnd);
       else this.wonLiftT = Math.max(0, (this.wonLiftT || 0) - dt/600);
-      /* walk-back: once the handoff has fully settled (bag caught, arm
-         back down at his side), he carries it inside on his own clock —
-         the pickup worker's walk-back mirrored, same PICKUP_ART.walkMs. */
+      /* walk-back: once the handoff has fully settled, he carries it
+         inside at the same pace — duration from the real return
+         distance (meet -> just past the door plane). */
       const settled = this.wonFrac >= 1 && this.wonLiftT <= 0.01;
       if(settled && this.wonWalkAt == null) this.wonWalkAt = this.wonT;
+      let backMs = PICKUP_ART.walkMs;
+      if(this.wonMeet){
+        const bx = this.wonDoor.x - this.addrDoorRV.x*24, by = this.wonDoor.y - this.addrDoorRV.y*24;
+        backMs = Math.max(400, Math.hypot(this.wonMeet.x - bx, this.wonMeet.y - by) / WON_WALK_SPEED);
+      }
       this.wonWalk = this.wonWalkAt == null ? 0
-        : Phaser.Math.Clamp((this.wonT - this.wonWalkAt) / PICKUP_ART.walkMs, 0, 1);
-    } else { this.wonT = 0; this.wonFrac = 0; this.wonLiftT = 0; this.wonWalkAt = null; this.wonWalk = 0; }
+        : Phaser.Math.Clamp((this.wonT - this.wonWalkAt) / backMs, 0, 1);
+    } else { this.wonT = 0; this.wonFrac = 0; this.wonLiftT = 0; this.wonWalkAt = null; this.wonWalk = 0;
+             this.wonOutT = 0; this.wonOutFrac = 0; this.wonMeet = null; }
 
     /* cargo lid: opens early in the loading phase, closes again once
        the bag has dropped in — reuses the existing lidAng hinge
@@ -6356,8 +6410,12 @@ class WorldScene extends Phaser.Scene {
     } else if(this.state === "won" && this.addrDoorDV){
       const dv2 = this.addrDoorDV, rv2 = this.addrDoorRV;
       const doorX = this.addrDoorUX + dv2.x*this.addrDoorCenterX, doorY = this.addrDoorUY + dv2.y*this.addrDoorCenterX;
-      const custFarX = doorX + rv2.x*(T2-8), custFarY = doorY + rv2.y*(T2-8);
-      const thW2 = Math.atan2(rv2.y, rv2.x) - Math.PI/2;
+      /* frame the REAL meet point (the customer walks to the robot
+         now), falling back to the old mat-edge spot for the first
+         frames before the won timeline has computed it. */
+      const custFarX = this.wonMeet ? this.wonMeet.x : doorX + rv2.x*(T2-8);
+      const custFarY = this.wonMeet ? this.wonMeet.y : doorY + rv2.y*(T2-8);
+      const thW2 = this.wonMeet ? this.wonMeetTh : Math.atan2(rv2.y, rv2.x) - Math.PI/2;
       const cBuild2 = PEOPLE_BUILD[mulberry32(this.addrCustSeed)() < 0.5 ? 0 : 1];
       const armReach = this.handWorldPos(custFarX, custFarY, thW2, cBuild2, 1);
       camTargetX = (doorX + this.botX + custFarX + armReach.x) / 4;
@@ -6922,6 +6980,15 @@ const game = new Phaser.Game({
 });
 const scn = () => game.scene.getScene("world");
 
+/* one-liners under DELIVERED — the fail screen's deadpan voice, but
+   winning. Single strings, not pairs: the headline is always DELIVERED. */
+const WIN_LINES = [
+  "Still upright. Statistically remarkable.",
+  "The burrito arrives victorious.",
+  "Gravity: 0 · Robot: 1.",
+  "Costa Palma tips its hat.",
+];
+
 const FAIL_LINES = [
   ["The pavement won.", "Delivery status: horizontal."],
   ["Robot down. Robot down.", "The burrito never stood a chance."],
@@ -7144,13 +7211,29 @@ function showFail(){
   show("failOverlay");
 }
 function showWin(s){
+  document.getElementById("winSub").textContent =
+    WIN_LINES[Math.floor(Math.random()*WIN_LINES.length)];
   const cargo = Math.round(100 - s.damage);
   const secs = s.runT/1000;
-  const payout = Math.max(1, Math.round(parseFloat(s.route.tipMult) * cargo * 0.14 - secs*0.1));
+  /* walk penalty: the customer walks all the way to the robot now, and
+     the tip drops the further he has to come. Distance measured
+     door -> robot at the moment of the win (the robot is already
+     frozen); the first ~120 units are free — that's roughly a stop
+     flush with the mat — then 3 cents a unit, so the worst legal stops
+     (far lane, edge of the win window, ~400+ units) cost real money.
+     Shown in the panel so parking tight reads as strategy. */
+  let walkPen = 0;
+  if(s.addrDoorDV){
+    const doorX = s.addrDoorUX + s.addrDoorDV.x*s.addrDoorCenterX;
+    const doorY = s.addrDoorUY + s.addrDoorDV.y*s.addrDoorCenterX;
+    walkPen = Math.round(Math.max(0, Math.hypot(s.botX - doorX, s.botY - doorY) - 120) * 0.03);
+  }
+  const payout = Math.max(1, Math.round(parseFloat(s.route.tipMult) * cargo * 0.14 - secs*0.1) - walkPen);
+  /* two rows, not three — fits the map bottom sheet's height so the win
+     panel and the map panel read as the same component. */
   document.getElementById("winCard").innerHTML =
     `<div class="sheetRow"><b>${s.route.address}</b>&nbsp;·&nbsp;${s.route.hood.n}</div>` +
-    `<div class="sheetRow">time <b>${secs.toFixed(1)}s</b>&nbsp;·&nbsp;cargo <b>${cargo}%</b></div>` +
-    `<div class="sheetRow">tip earned <b>$${payout}</b>&nbsp;<span style="color:#8f95a1">(×${s.route.tipMult})</span></div>`;
+    `<div class="sheetRow">time <b>${secs.toFixed(1)}s</b>&nbsp;·&nbsp;cargo <b>${cargo}%</b>&nbsp;·&nbsp;tip <b>$${payout}</b>&nbsp;<span style="color:#8f95a1">(×${s.route.tipMult}${walkPen > 0 ? `, walk −$${walkPen}` : ""})</span></div>`;
   show("winOverlay");
 }
 
