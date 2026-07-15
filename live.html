@@ -659,6 +659,7 @@ class GalleryScene extends Phaser.Scene {
     P("slab", 210, true, 60);
     P("sidewalkend", 320, true, 60);
     P("sidewalkbegin", 320, true, 60);
+    P("grade", 240, true, 60, { dir: 1 });
     P("sidewalkbeginTurn", 380, true, 70);
     P("crack", 190, false, 50);
     card("prop.crack (road)", 190, (t) => {
@@ -2489,6 +2490,29 @@ class GalleryScene extends Phaser.Scene {
         g.fillStyle(0xc9911f, 0.8);
         g.fillCircle(p.x, p.y, 1.5);
       }
+    } else if(kind === "grade"){
+      /* grade chevrons — flat road-paint on the walk marking a steep
+         stretch of the virtual grade profile. Three nested V's pointing
+         DOWNhill (data.dir: +1 = downhill along +dv, -1 = reversed),
+         same warning-yellow family as the ADA pads so "yellow paint =
+         terrain talking to you" stays one visual language. Pure paint:
+         z=0, no volume, no physics (skipped in the sim loop), pinned
+         under the robot like the ramps. Two leg quads per V, all
+         through W() — correct in all 4 headings by construction. */
+      const dir = (data && data.dir) || 1;
+      const paint = 0xf4c430, edge = 0xb9911f;
+      for(let k = -1; k <= 1; k++){
+        const bx = k*30, tip = bx + 15, tail = bx - 13, thick = 7;
+        for(const side of [-1, 1]){
+          const q = [
+            W(dir*tip,           0,       0),
+            W(dir*(tip - thick), 0,       0),
+            W(dir*(tail - thick), side*22, 0),
+            W(dir*tail,           side*22, 0)];
+          this.quadOn(g, q, paint, 0.9);   // 4th arg is ALPHA in quadOn — slight fade reads as paint
+          this.edgeOn(g, q, edge, 0.8);
+        }
+      }
     } else if(kind === "sidewalkbeginTurn"){
       /* approved in sidewalkendturn lab: the full junction — curb ramp
          down, a wide arc turn onto a new heading, curb ramp back up.
@@ -2809,5 +2833,6 @@ const game = new Phaser.Game({
 </script>
 </body>
 </html>
+
 
 
