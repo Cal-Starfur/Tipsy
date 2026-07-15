@@ -1115,18 +1115,52 @@ function trafficWorldAt(tr, t){
    position (still totalLen-90 / SPAWN_S+90 — this does NOT change
    route length or leg count, just which existing point along the
    already-generated route gets used) for the nearest usable leg. */
-function findGoodS(segs, totalLen, preferredS, scanFromEnd){
+function findGoodS(segs, totalLen, preferredS, scanFromEnd, grid, avoidBlock){
   const isGood = sg => sg.type === "line" && GOOD_LEG_HEADING[sg.f];
+  /* PERIMETER GUARD: a good leg can still run along the grid's outer edge
+     with the robot's lane facing OUTWARD, off the grid. There, the address
+     forcing (findAdjacentBlock -> .type="housing") clamps to a far interior
+     block that the robot never reaches, while the building actually rendered
+     at the robot's side is an exterior lot (buildExteriorLots) whose type is
+     never forced -- so the route can end in front of a park or a business
+     instead of a house. Reject any candidate whose near-side probe leaves the
+     interior grid. Probe MUST match findAdjacentBlock's (same nearOff) so the
+     leg we accept is the leg whose interior block is the one that gets forced.
+     AVOID_BLOCK: the pickup must not land on the address's own block — a single
+     block is forced to ONE type, so a shared block means the pickup silently
+     renders as the address house instead of a shop. Passing the address block
+     here keeps dropoff and pickup on distinct blocks so each gets its own type. */
+  const nearOff = ROBOT_SIDE * (ROAD_HALF + SIDEWALK_W + T2*2);
+  const facesInterior = (s) => {
+    if(!grid) return true; // no grid supplied -> legacy behaviour (never reject)
+    const p = segsWorldOf(segs, s, nearOff);
+    const bi = Math.floor(p.x / BLOCK), bj = Math.floor(p.y / BLOCK);
+    return bi >= 0 && bi <= grid.cols-2 && bj >= 0 && bj <= grid.rows-2;
+  };
   const order = scanFromEnd ? [...segs].reverse() : segs;
+  let interiorFallback = null; // interior-facing, but on the avoided block
+  let anyFallback = null;      // any usable good leg (even facing outward)
   for(const sg of order){
     if(!isGood(sg)) continue;
     const len = sg.s1 - sg.s0;
     const inset = Math.min(90, len*0.3);
     const lo = sg.s0 + inset, hi = sg.s1 - inset;
     if(hi < lo) continue; // leg too short even for its own inset — skip
-    return Math.max(lo, Math.min(hi, preferredS));
+    const s = Math.max(lo, Math.min(hi, preferredS));
+    if(anyFallback === null) anyFallback = s;
+    if(!facesInterior(s)) continue;                 // perimeter — reject (guard)
+    if(interiorFallback === null) interiorFallback = s;
+    if(avoidBlock && grid){
+      const blk = findAdjacentBlock(segs, s, grid);
+      if(blk === avoidBlock) continue;              // same block as the address — keep looking
+    }
+    return s; // interior-facing, distinct-block good leg — the ideal case
   }
-  return Math.max(0, Math.min(totalLen, preferredS)); // no good leg anywhere (rare) — fall back to the original point
+  // graceful degradation on tight routes: prefer an interior-facing leg (correct
+  // building type) even if it shares the address block, over an outward leg.
+  if(interiorFallback !== null) return interiorFallback;
+  if(anyFallback !== null) return anyFallback;
+  return Math.max(0, Math.min(totalLen, preferredS)); // no good leg anywhere (rare)
 }
 
 /* which real block sits next to a given route position — only valid
@@ -1471,8 +1505,7 @@ function generateRoute(dateStr){
   /* the address */
   const number = 100 + Math.floor(rng()*3800);
   const street = hood.streets[Math.floor(rng()*hood.streets.length)];
-  let doorS = findGoodS(segs, totalLen, totalLen - 90, true);
-  let pickupS = findGoodS(segs, totalLen, SPAWN_S + 90, false);
+  let doorS = findGoodS(segs, totalLen, totalLen - 90, true, grid);
 
   /* the address is always a real block, forced to housing (a park or
      shop can't be the delivery destination); the pickup is always a
@@ -1481,6 +1514,10 @@ function generateRoute(dateStr){
      doorS/pickupS instead of a fixed test position. */
   const addressBlock = findAdjacentBlock(segs, doorS, grid);
   if(addressBlock) addressBlock.type = "housing";
+  /* pickup chosen AFTER the address block is known, so it can steer clear of
+     it (a shared block can only hold one type, which would make the pickup
+     render as the address house instead of a shop). */
+  let pickupS = findGoodS(segs, totalLen, SPAWN_S + 90, false, grid, addressBlock);
   const addressEdgeIdx = (segsSegAt(segs, doorS).f + 2) % 4;
   let addressUnitIdx = 0, addressSpot = null;
   if(addressBlock){
@@ -1600,6 +1637,29 @@ function generateRoute(dateStr){
     k0 = Math.max(inset0, Math.min(segLen0-inset0, k0));
     pickupS = sg0.s0 + k0;
   }
+
+  /* EXTERIOR-LOT BACKSTOP (degenerate routes only): findGoodS's perimeter
+     guard keeps the door/pickup on an interior-facing leg whenever one
+     exists. On a tiny route whose ONLY good legs all hug the grid edge
+     facing outward (≈1% of days), it falls back to an outward leg — there
+     the robot faces an exterior lot (buildExteriorLots), not an interior
+     block, and that lot's random type is what forcing the interior block
+     missed. Force the faced lot's type to match so the ending building is
+     always the right kind: housing at the door, commercial at the pickup.
+     (The full isAddress door/customer treatment on a lot is the shelved
+     perimeter-delivery feature; this only guarantees the building TYPE.) */
+  const forceFacedLot = (s, wantType) => {
+    const off = ROBOT_SIDE * (ROAD_HALF + SIDEWALK_W + T2*2);
+    const p = segsWorldOf(segs, s, off);
+    const bi = Math.floor(p.x / BLOCK), bj = Math.floor(p.y / BLOCK);
+    const interior = bi >= 0 && bi <= grid.cols-2 && bj >= 0 && bj <= grid.rows-2;
+    if(interior) return; // faces a real interior block — already handled
+    let best = null, bestD = Infinity;
+    for(const l of grid.extLots){ const d = (l.cx-p.x)**2 + (l.cy-p.y)**2; if(d < bestD){ bestD = d; best = l; } }
+    if(best) best.type = wantType;
+  };
+  forceFacedLot(doorS, "housing");
+  forceFacedLot(pickupS, "commercial");
 
   const pal = hood.hill > 0.55
     ? { sky:0xf2c48d, pave:0xbdb6a8, paveB:0xb3ac9e, paveEdge:0x9c9588, road:0x45484f, roadLine:0xcfc9b9 }
