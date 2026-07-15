@@ -658,8 +658,12 @@ function crossingGroundAt(crossings, s, row){
       slope: 0,
       /* cross-slope lean off the ramp's flared sides — only while on the
          prop itself (lab applied it within the ramp's 2-tile extent),
-         mirrored sign each side of the ramp strip, none for row 3 */
-      tiltSign: (row === 3 || onRoad) ? 0 : (row - 1),
+         mirrored sign each side of the ramp strip, none for row 3.
+         Sign is (1 - row), NOT the lab's raw (row - center): ROBOT_SIDE
+         = -1 mirrors the game's lateral axis relative to the lab's, so
+         the lab's lane sign flips once here. Confirmed on-device: the
+         raw mapping leaned the wrong way on both flanking rows. */
+      tiltSign: (row === 3 || onRoad) ? 0 : (1 - row),
       onPad: false,
       wallS: cx.s + ROAD_HALF,   // the far curb — a real wall for the no-ramp lanes
       onRoad };
@@ -5815,7 +5819,7 @@ class WorldScene extends Phaser.Scene {
          push tilt to 1.1 and let the game's own tip pipeline take it. */
       if(_cg && _vRow !== 1 && _prevCrossZ - this.crossZ > 1){
         const _wasLeaning = Math.abs(this.tilt) > 0.55;
-        this.tilt += Math.sign(this.tilt || (_vRow - 1) || 1) * 0.35;
+        this.tilt += Math.sign(this.tilt || (1 - _vRow) || 1) * 0.35;   // (1 - row): same axis mirror as tiltSign
         if(_wasLeaning || Math.abs(this.tilt) > 0.85)
           this.tilt = 1.1 * Math.sign(this.tilt);
       }
