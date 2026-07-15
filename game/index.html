@@ -1858,6 +1858,7 @@ class WorldScene extends Phaser.Scene {
     this.runT = 0;
     this.throttle = 0;          // -1 brake, 0 coast, 1 gas
     this.tipT = 0; this.tipStartRoll = 0; this.postSpillMs = 0; this.lidAng = 0; this.items = []; this.spilled = false;
+    this.wonT = 0; this.wonFrac = 0; this.wonLiftT = 0; this.wonLidClosing = false; this.wonWalkAt = null; this.wonWalk = 0;
     this.cornerLean = 0;
     this.corneringSpeedSmooth = 0;   // lagged speed feeding cornering lean —
                                       // see loadRoute() reset for the full note
@@ -1946,6 +1947,7 @@ class WorldScene extends Phaser.Scene {
     this.camX = this.botX; this.camY = this.botY; this.camZ = this.botZ;
     this.speed = 0; this.tilt = 0; this.damage = 0; this.runT = 0;
     this.roll = 0; this.tipT = 0; this.tipStartRoll = 0; this.postSpillMs = 0; this.lidAng = 0; this.items = []; this.spilled = false;
+    this.wonT = 0; this.wonFrac = 0; this.wonLiftT = 0; this.wonLidClosing = false; this.wonWalkAt = null; this.wonWalk = 0;
     this.slabZ = 0; this.slabRoll = 0;
     this.crossZ = 0; this.crossSlope = 0; this.crossJitter = 0;
     this.cornerLean = 0;
@@ -2915,17 +2917,24 @@ class WorldScene extends Phaser.Scene {
     const bagVisible = !this.loadDone;
     let bagX, bagY, bagZ;
     if(bagVisible){
+      /* holdFwd/holdDown taper with lift, same reasoning as the
+         dropoff customer's catch: the offsets are LEG clearance for
+         the resting pose, not part of the raised-arm geometry — at
+         full extension they floated the bag past the fingertips.
+         Idle stance (liftT=0) is pixel-identical to the approved
+         look; only the mid-rise tracking tightens. */
       if(!released){
         const hp = this.handWorldPos(workerX, workerY, thW, wBuild, liftT);
-        bagX = hp.x + rv.x*BAG_ART.holdFwd; bagY = hp.y + rv.y*BAG_ART.holdFwd; bagZ = hp.z - BAG_ART.holdDown;
+        const taper = 1 - liftT;
+        bagX = hp.x + rv.x*BAG_ART.holdFwd*taper; bagY = hp.y + rv.y*BAG_ART.holdFwd*taper; bagZ = hp.z - BAG_ART.holdDown*taper;
       } else {
         const hp = this.handWorldPos(workerX, workerY, thW, wBuild, 1);
-        const releasePt = { x: hp.x + rv.x*BAG_ART.holdFwd, y: hp.y + rv.y*BAG_ART.holdFwd, z: hp.z - BAG_ART.holdDown };
+        const releasePt = { x: hp.x, y: hp.y, z: hp.z };   // full reach: zero taper — departs exactly from the hand
         const arcT = Phaser.Math.Clamp((loadFrac - LOAD_ART.holdEnd) / (LOAD_ART.dropFrac - LOAD_ART.holdEnd), 0, 1);
         const botX = this.botX, botY = this.botY;
         bagX = Phaser.Math.Linear(releasePt.x, botX, arcT);
         bagY = Phaser.Math.Linear(releasePt.y, botY, arcT);
-        bagZ = Phaser.Math.Linear(releasePt.z, 26, arcT) + Math.sin(arcT*Math.PI)*LOAD_ART.arcH;
+        bagZ = Phaser.Math.Linear(releasePt.z, this.botZ + 26, arcT) + Math.sin(arcT*Math.PI)*LOAD_ART.arcH;
       }
     }
 
@@ -3073,8 +3082,10 @@ class WorldScene extends Phaser.Scene {
         this.addrCustSeed = (hseed ^ 0x4c75) >>> 0;
         vq.push({ depth:hx+hy, fn:(g,t)=>{
           this.drawHouseUnit(g, ux, uy, e.dv, e.rv, u.w, hseed, true, 'body');
-          this.drawDoorAssembly(g, ux, uy, e.dv, e.rv, doorCenterX, dz, this.doorTheta);
-          this.drawMatQuad(g, ux, uy, e.dv, e.rv, doorCenterX, dz);
+          const drawDoorAndMat = () => {
+            this.drawDoorAssembly(g, ux, uy, e.dv, e.rv, doorCenterX, dz, this.doorTheta);
+            this.drawMatQuad(g, ux, uy, e.dv, e.rv, doorCenterX, dz);
+          };
           /* world.customer: same design as prop.people via drawPersonHull().
              Walk path from the door lab: dyStart=4, dyEnd=T2-8 (stops near
              the mat's road-side edge), triggered by the door's own hinge
@@ -3089,19 +3100,92 @@ class WorldScene extends Phaser.Scene {
           const cHair = PEOPLE_HAIR[Math.floor(crng()*PEOPLE_HAIR.length)];
           const cShoe = PEOPLE_SHOE[Math.floor(crng()*PEOPLE_SHOE.length)];
           const walkT = Phaser.Math.Clamp(this.doorTheta / DOOR_ART.openAngle, 0, 1);
-          if(walkT > 0.02){
+          /* walk-back phase (this.wonWalk, driven by the won timeline in
+             drawRobot): he turns around and carries the bag back inside
+             — the pickup worker's walk-back mirrored, including the
+             dyStart past the door plane (worker used -30) so he actually
+             walks THROUGH the doorway instead of stopping at it, and the
+             same "gone" test: invisible only once he's fully in AND the
+             door has swung shut behind him. NOTE: during walk-back the
+             door is CLOSING, so walkT (door-derived) can no longer drive
+             his position — wonWalk has its own clock for exactly that
+             reason. */
+          const wonWalk = this.state === "won" ? (this.wonWalk || 0) : 0;
+          const inWalkBack = wonWalk > 0;
+          const goneInside = inWalkBack && wonWalk >= 0.999 && this.doorTheta <= 0.02;
+          const custVisible = !goneInside && (inWalkBack || walkT > 0.02);
+          if(!custVisible){ drawDoorAndMat(); return; }
+          const dyStart = 4, dyEnd = T2 - 8, dyBack = -24;
+          let dy;
+          if(inWalkBack){
+            const wu2 = 1 - Math.pow(1 - wonWalk, 2);
+            dy = Phaser.Math.Linear(dyEnd, dyBack, wu2);
+          } else {
             const wu = 1 - Math.pow(1 - walkT, 2);
-            const dyStart = 4, dyEnd = T2 - 8;
-            const dy = Phaser.Math.Linear(dyStart, dyEnd, wu);
-            const cx = ux + e.dv.x*doorCenterX + e.rv.x*dy, cy = uy + e.dv.y*doorCenterX + e.rv.y*dy;
-            // face the robot (out along rv), not down the sidewalk. drawPersonHull's
-            // thW=atan2(rv) points 90 deg off rv, so the -PI/2 is required — identical
-            // to the pickup worker's facingRobot. World-space offset: correct for all 4 headings.
-            const thW = Math.atan2(e.rv.y, e.rv.x) - Math.PI/2;
-            const moving = walkT < 0.97;
-            const walkPhase = moving ? Math.sin(t*PEOPLE_ART.walkSpeed) : 0;
-            this.drawPersonHull(g, cx, cy, dz, thW, cBuild, cSkin, cShirt, cPants, cHair, cShoe, walkPhase, moving, 0);
+            dy = Phaser.Math.Linear(dyStart, dyEnd, wu);
           }
+          const cx = ux + e.dv.x*doorCenterX + e.rv.x*dy, cy = uy + e.dv.y*doorCenterX + e.rv.y*dy;
+          // face the robot (out along rv), not down the sidewalk. drawPersonHull's
+          // thW=atan2(rv) points 90 deg off rv, so the -PI/2 is required — identical
+          // to the pickup worker's facingRobot. World-space offset: correct for all 4 headings.
+          // Walking back: +PI, faces the house — same flip-only turn the worker uses.
+          const facingRobot = Math.atan2(e.rv.y, e.rv.x) - Math.PI/2;
+          const thW = inWalkBack ? facingRobot + Math.PI : facingRobot;
+          const moving = inWalkBack ? (wonWalk > 0.02 && wonWalk < 0.98) : walkT < 0.97;
+          const walkPhase = moving ? Math.sin(t*PEOPLE_ART.walkSpeed) : 0;
+          /* dropoff bag: the pickup's arc run in reverse — rises out
+             of the bin (same z-26 grip height the worker dropped it
+             to) and flies to where the customer's hand WILL be at
+             full reach, not where the mid-rise hand currently is,
+             then locks to the hand while his arm eases back down and
+             stays there for the whole carry back inside. Timeline
+             values come from the won-handoff block in drawRobot
+             (this.wonFrac / this.wonLiftT) — the same "compute in
+             drawRobot, read in the world draw" pattern drawPickupUnit
+             already uses. Same interleave as the worker too: bag top
+             via the onBeforeCarryArm callback (so only the carrying
+             arm covers it), body after. */
+          const liftT = this.wonLiftT || 0;
+          const wonFrac = this.wonFrac || 0;
+          let bagVisible = false, bagX, bagY, bagZ;
+          if(this.state === "won" && wonFrac > LOAD_ART.holdEnd){
+            bagVisible = true;
+            /* the catch point is the bare hand at full reach — the
+               holdFwd/holdDown offsets are worker-only (his dialed
+               "presenting it out in front" pose); the customer's bag
+               targets and rides the hand itself. */
+            if(wonFrac < LOAD_ART.dropFrac){
+              const arcT = (wonFrac - LOAD_ART.holdEnd) / (LOAD_ART.dropFrac - LOAD_ART.holdEnd);
+              const hp1 = this.handWorldPos(cx, cy, thW, cBuild, 1);   // catch point: full reach, zero taper
+              bagX = Phaser.Math.Linear(this.botX, hp1.x, arcT);
+              bagY = Phaser.Math.Linear(this.botY, hp1.y, arcT);
+              bagZ = Phaser.Math.Linear(this.botZ + 26, hp1.z, arcT) + Math.sin(arcT*Math.PI)*LOAD_ART.arcH;
+            } else {
+              /* held: locked EXACTLY to the hand — no holdFwd/holdDown
+                 at all. Those offsets are the WORKER's dialed
+                 "presenting the delivery out in front" pose; the
+                 customer just carries it, so it rides the hand down
+                 the whole descent and settles hanging at his SIDE
+                 (hand at rest sits below the shoulder on his flank,
+                 bag hangs from the grip). Draws after the hull, so
+                 it reads in front of the near leg, like a carried
+                 bag brushing it. Through the turn-around, thW's flip
+                 moves hand and bag together — it stays in his grip. */
+              const hp = this.handWorldPos(cx, cy, thW, cBuild, liftT);
+              bagX = hp.x; bagY = hp.y; bagZ = hp.z;
+            }
+          }
+          const topCb = bagVisible ? () => this.drawBagTop(g, bagX, bagY, bagZ, e.dv, e.rv) : null;
+          const drawCust = () => {
+            this.drawPersonHull(g, cx, cy, dz, thW, cBuild, cSkin, cShirt, cPants, cHair, cShoe, walkPhase, moving, 0, liftT, topCb);
+            if(bagVisible) this.drawBagBody(g, bagX, bagY, bagZ, e.dv, e.rv);
+          };
+          /* which side of the door plane he's on decides draw order —
+             same computed test as the pickup worker (his dy<0 branch):
+             once he's back through the doorway he draws BEHIND the
+             door/mat, not painted over them. */
+          if(dy < 0){ drawCust(); drawDoorAndMat(); }
+          else { drawDoorAndMat(); drawCust(); }
         }});
         vq.push({ depth:hx+hy, isRoof:true, fn:(g)=>this.drawHouseUnit(g, ux, uy, e.dv, e.rv, u.w, hseed, true, 'roof') });
       } else {
@@ -5165,10 +5249,12 @@ class WorldScene extends Phaser.Scene {
   drawRobot(t, dt){
     const g = this.g; g.clear();
 
-    /* hull door hinge: opens once the route is won, eases every frame
+    /* house door hinge: opens once the route is won, and swings shut
+       again once the customer is carrying the bag back through it
+       (wonWalk past the door-plane crossing) — eases every frame
        independent of sim state (same DOOR_ART.openEase rate approved
        in the door lab) */
-    const doorTarget = (this.state === "won") ? DOOR_ART.openAngle : 0;
+    const doorTarget = (this.state === "won" && (this.wonWalk || 0) < 0.55) ? DOOR_ART.openAngle : 0;
     this.doorTheta += (doorTarget - this.doorTheta) * DOOR_ART.openEase;
     if(Math.abs(doorTarget - this.doorTheta) < 0.002) this.doorTheta = doorTarget;
 
@@ -5197,6 +5283,41 @@ class WorldScene extends Phaser.Scene {
       this.pickupWalk = 1;
     }
 
+    /* ---------- dropoff handoff timeline: the pickup's loading phase
+       mirrored (dial choreography shared via LOAD_ART so both handoffs
+       read as the same beat). won -> [customer walks out, driven by
+       doorTheta exactly as before] -> [lid opens, bag rises out of the
+       bin and arcs to the customer's raised hand, lid closes, he holds
+       it]. The clock only starts once he's actually arrived at the mat
+       (doorTheta nearly fully open — walkT and the door share that
+       driver), so the bag never launches at a customer who's still in
+       the doorway. showWin is untouched: the overlay fires immediately
+       and this plays out underneath it. */
+    if(this.state === "won"){
+      /* clock starts when the customer has arrived (door ~fully open)
+         but once started it NEVER re-gates on the door — the door
+         closes again during the walk-back below, and re-checking it
+         would freeze the timeline mid-walk and deadlock him in the
+         doorway. */
+      if((this.wonT || 0) > 0 || this.doorTheta >= DOOR_ART.openAngle * 0.97)
+        this.wonT = (this.wonT || 0) + dt;
+      this.wonFrac = Phaser.Math.Clamp((this.wonT || 0) / LOAD_ART.ms, 0, 1);
+      /* receiving arm: rises through the bag's flight so full reach
+         lands exactly when the bag does, then eases back down with the
+         bag locked to the hand (drops with him into a natural carry) */
+      if(this.wonFrac <= LOAD_ART.holdEnd) this.wonLiftT = 0;
+      else if(this.wonFrac < LOAD_ART.dropFrac)
+        this.wonLiftT = (this.wonFrac - LOAD_ART.holdEnd) / (LOAD_ART.dropFrac - LOAD_ART.holdEnd);
+      else this.wonLiftT = Math.max(0, (this.wonLiftT || 0) - dt/600);
+      /* walk-back: once the handoff has fully settled (bag caught, arm
+         back down at his side), he carries it inside on his own clock —
+         the pickup worker's walk-back mirrored, same PICKUP_ART.walkMs. */
+      const settled = this.wonFrac >= 1 && this.wonLiftT <= 0.01;
+      if(settled && this.wonWalkAt == null) this.wonWalkAt = this.wonT;
+      this.wonWalk = this.wonWalkAt == null ? 0
+        : Phaser.Math.Clamp((this.wonT - this.wonWalkAt) / PICKUP_ART.walkMs, 0, 1);
+    } else { this.wonT = 0; this.wonFrac = 0; this.wonLiftT = 0; this.wonWalkAt = null; this.wonWalk = 0; }
+
     /* cargo lid: opens early in the loading phase, closes again once
        the bag has dropped in — reuses the existing lidAng hinge
        (normally driven by the tip/spill state machine below, gated on
@@ -5224,10 +5345,23 @@ class WorldScene extends Phaser.Scene {
     const lidLoadTarget = loadingLidOpen ? LOAD_ART.lidOpenAngle : 0;
     if(loadingLidOpen) this.pickupLidClosing = true;
     else if(this.lidAng < 0.15) this.pickupLidClosing = false;
-    this.lidHingeFlip = this.state === "play" && (loadingLidOpen || this.pickupLidClosing);
+    /* won-handoff lid: same hinge, same open target, same close-out
+       latch pattern as the loading phase above — gated on state==="won"
+       so it can never fight the loading driver (play), the tip/spill
+       writer (tipped), or the cornering-crack effect (play). Opens
+       while the bag is still in the bin, closes once it's out. */
+    const wonLidOpen = this.state === "won" && this.wonFrac > 0.02 && this.wonFrac < LOAD_ART.dropFrac;
+    if(wonLidOpen) this.wonLidClosing = true;
+    else if(this.lidAng < 0.15) this.wonLidClosing = false;
+    this.lidHingeFlip = (this.state === "play" && (loadingLidOpen || this.pickupLidClosing))
+                     || (this.state === "won" && (wonLidOpen || this.wonLidClosing));
     if(this.state === "play"){
       this.lidAng += (lidLoadTarget - this.lidAng) * LOAD_ART.lidEase;
       if(Math.abs(lidLoadTarget - this.lidAng) < 0.002) this.lidAng = lidLoadTarget;
+    } else if(this.state === "won"){
+      const lidWonTarget = wonLidOpen ? LOAD_ART.lidOpenAngle : 0;
+      this.lidAng += (lidWonTarget - this.lidAng) * LOAD_ART.lidEase;
+      if(Math.abs(lidWonTarget - this.lidAng) < 0.002) this.lidAng = lidWonTarget;
     }
 
     /* rise -> hold -> release: the carrying arm starts at his side
