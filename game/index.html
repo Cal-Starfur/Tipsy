@@ -1189,7 +1189,12 @@ function buildTraffic(grid, rng, nRoutes, pathNodes){
     const seedNode = pathNodes && pathNodes.length ? pathNodes[Math.floor(rng()*pathNodes.length)] : null;
     const walk = buildWalk(grid, routeRng, seedNode, {min:2, max:3});
     if(!walk.segs.length) continue;
-    const speed = 0.02 + rng()*0.014;
+    /* 0.055-0.085 units/ms — roughly 3x the original crawl. The robot
+       clamps at 0.15, cruises ~0.10; city traffic should read faster
+       than a delivery robot, and at the old 0.02-0.034 it never did.
+       (On-device report: "the speed of the cars/truck doesn't seem
+       fast enough.") */
+    const speed = 0.055 + rng()*0.03;
     const sBase = rng()*walk.totalLen;
     cars.push({ walk, sBase, speed, dir:1, laneOffset:CAR_LANE, kind: rng()<0.6?"car":"truck", colorSeed: Math.floor(rng()*0xffffffff) >>> 0 });
     cars.push({ walk, sBase:(sBase + walk.totalLen*0.5) % walk.totalLen,
@@ -1524,12 +1529,47 @@ function generateRoute(dateStr){
     return false;
   };
 
-  /* flat heightmap for now — hills need a real 2D system across the grid,
-     future work; groundSlope/pitch/gravity all fall out to zero cleanly
-     with a flat map, no other code needed to change. */
+  /* ---------- virtual grade profile ----------
+     Grades are FEEL, not geometry: this profile is consumed as SLOPE
+     only (pitch, hill gravity, speed strain — the physics ramp-lab and
+     the sidewalkend lab already dialed, live in the sim since). groundZ
+     stays hard-zero, so the flat-drawn world and every z consumer
+     (props, doors, robot, camera) remain in exact agreement — the
+     "robot floats above his own street" failure of literal 1D heights
+     can't happen. True drawn elevation stays the deferred "real 2D
+     system across the grid" this comment block used to punt on.
+     The model is spatially consistent: two octaves of node-lattice
+     value noise over WORLD position (wavelengths two blocks and one
+     block), scaled by the hood's hill knob — so a crossing sampled
+     twice by the route gets one answer, The Flats (hill 0) stays
+     perfectly flat, and The Bluffs (hill 1) becomes a leg-burner. */
+  const lerp = (a, b, t) => a + (b - a)*t;
+  const HILL_AMP = 1100 * hood.hill;
+  const elevLattice = (i, j) =>
+    mulberry32(((i*73856093) ^ (j*19349663) ^ (seed ^ 0x9e37)) >>> 0)() - 0.5;
+  const smoothT = v => v*v*(3 - 2*v);
+  const elevAtWorld = (x, y) => {
+    if(HILL_AMP === 0) return 0;
+    const oct = (wl, w) => {
+      const u = x/(BLOCK*wl), v = y/(BLOCK*wl);
+      const i0 = Math.floor(u), j0 = Math.floor(v);
+      const fu = smoothT(u - i0), fv = smoothT(v - j0);
+      return w * lerp(lerp(elevLattice(i0, j0),   elevLattice(i0+1, j0),   fu),
+                      lerp(elevLattice(i0, j0+1), elevLattice(i0+1, j0+1), fu), fv);
+    };
+    return HILL_AMP * (oct(2, 1) + oct(1, 0.5));
+  };
   const tiles = [];
   const nT = Math.ceil(totalLen / (TILE*2)) + 3;
-  for(let i=0; i<nT; i++) tiles.push(0);
+  for(let i = 0; i < nT; i++){
+    const p = segsPosAt(segs, Math.min(i*T2, totalLen));
+    tiles.push(elevAtWorld(p.x, p.y));
+  }
+  /* two passes of light smoothing so grades ease at block seams
+     instead of kinking the pitch */
+  for(let pass = 0; pass < 2; pass++)
+    for(let i = 1; i < nT-1; i++) tiles[i] = (tiles[i-1] + 2*tiles[i] + tiles[i+1]) / 4;
+
 
   /* hazards along the route; corners stay clear (the corner IS the hazard
      there), and classify() is the final word on every placement.
@@ -1575,6 +1615,21 @@ function generateRoute(dateStr){
     hazards.push({ type:"sidewalkbegin", row: 1, f: cx.fOut, hit:true, s: cx.sB,
       wx: cx.nx + dO.x*(ROAD_HALF + T2) + rO.x*off1,
       wy: cx.ny + dO.y*(ROAD_HALF + T2) + rO.y*off1, wz: 0 });
+  }
+  /* grade chevrons: painted on the walk wherever the route is steep —
+     the visual language for a hill in a world whose ground stays
+     drawn flat. Sparse (every ~6 tiles of a steep stretch), pointing
+     DOWNhill, line segs only (arcs have cornerLean doing the talking),
+     never inside a crossing span. */
+  for(let i = 6; i < nT - 6; i += 6){
+    const s = i*T2;
+    const sl = (tiles[i+1] - tiles[i-1]) / (2*T2);
+    if(Math.abs(sl) < 0.10) continue;
+    if(inCrossing(s)) continue;
+    const sg2 = segs.find(g => s >= g.s0 && s <= g.s1);
+    if(!sg2 || sg2.type !== "line") continue;
+    if(spawnBlocked(s, laneOffset(1))) continue;
+    hazards.push({ type:"grade", s, row: 1, f: sg2.f, dir: sl < 0 ? 1 : -1, hit:true });
   }
 
   const density = 0.45 + hood.litter*0.35 + (1 - hood.pave)*0.3;
@@ -2025,7 +2080,12 @@ class WorldScene extends Phaser.Scene {
     this.g = this.add.graphics();
     this.gFront = this.add.graphics();     // hazards nearer the camera than the robot
     this.hud = this.add.graphics().setDepth(5);
-    this.hudText = this.add.text(10, 8, "", { fontSize:"15px", fontStyle:"bold", color:"#ff7a1a", lineSpacing:4 }).setDepth(5);
+    /* in-game GPS readout: 2x (30px) with a black drop shadow so it
+       stays readable over pale sidewalk and dark asphalt alike;
+       centered + shrink-to-fit handled at the per-frame position
+       update in drawHud. */
+    this.hudText = this.add.text(10, 8, "", { fontSize:"30px", fontStyle:"bold", color:"#ff7a1a", lineSpacing:4 })
+      .setShadow(2, 2, "#000000", 4, false, true).setDepth(5);
     this.qtext = this.add.text(0, 0, "?!", { fontSize:"30px", fontStyle:"bold", color:"#ffb04d" })
       .setOrigin(0.5).setDepth(4).setVisible(false);
 
@@ -2160,6 +2220,14 @@ class WorldScene extends Phaser.Scene {
     return sg.hA + sg.sign * (Phaser.Math.Clamp(s, sg.s0, sg.s1) - sg.s0) / sg.R;
   }
   groundZ(s){
+    /* flat, always. route.tiles is a VIRTUAL grade profile — consumed
+       as slope only (elevAt/groundSlope below feed pitch and hill
+       gravity), never as geometry, so the flat-drawn world and every
+       z consumer (props, doors, robot, camera) stay in exact
+       agreement. See the profile build in generateRoute. */
+    return 0;
+  }
+  elevAt(s){
     const t = this.route.tiles;
     const fx = s / (TILE*2);
     const i = Math.floor(fx);
@@ -2168,7 +2236,7 @@ class WorldScene extends Phaser.Scene {
     return Phaser.Math.Linear(t[i], t[i+1], fx - i);
   }
   groundSlope(s){
-    return (this.groundZ(s+16) - this.groundZ(s-16)) / 32;
+    return (this.elevAt(s+16) - this.elevAt(s-16)) / 32;
   }
 
   /* ---------- projection: yaw, pitch, roll, then facing ---------- */
@@ -2345,7 +2413,7 @@ class WorldScene extends Phaser.Scene {
        only genuinely flat one here. The rest can visually overlap a
        car or house the same way any other volumetric thing can, so
        they need the same depth-sort treatment, not an exemption. */
-    const GROUND_KINDS = { crack:1, sidewalkend:1, sidewalkbegin:1, sidewalkbeginTurn:1, slab:1 };
+    const GROUND_KINDS = { crack:1, sidewalkend:1, sidewalkbegin:1, sidewalkbeginTurn:1, slab:1, grade:1 };
 
     /* ---------- block-wrap: housing/park/commercial beyond the
        sidewalk's inside line, all around the grid (interior blocks
@@ -2499,7 +2567,7 @@ class WorldScene extends Phaser.Scene {
          comment at the top of this file). Body-vs-body order against
          cars/houses is unaffected — that comes from the blockVQ sort,
          not the layer choice. */
-      const slabLayer = (hzt === "slab" || hzt === "sidewalkend" || hzt === "sidewalkbegin")
+      const slabLayer = (hzt === "slab" || hzt === "sidewalkend" || hzt === "sidewalkbegin" || hzt === "grade")
         ? g : layerFor(hwx, hwy);
       blockVQ.push({ depth: hwx+hwy, fn:(g,t)=>this.drawProp(slabLayer, hzt, hwx, hwy, t, hf, hwz, null, null, hzObj) });
     }
@@ -5234,6 +5302,29 @@ class WorldScene extends Phaser.Scene {
         g.fillStyle(0xc9911f, 0.8);
         g.fillCircle(p.x, p.y, 1.5);
       }
+    } else if(kind === "grade"){
+      /* grade chevrons — flat road-paint on the walk marking a steep
+         stretch of the virtual grade profile. Three nested V's pointing
+         DOWNhill (data.dir: +1 = downhill along +dv, -1 = reversed),
+         same warning-yellow family as the ADA pads so "yellow paint =
+         terrain talking to you" stays one visual language. Pure paint:
+         z=0, no volume, no physics (skipped in the sim loop), pinned
+         under the robot like the ramps. Two leg quads per V, all
+         through W() — correct in all 4 headings by construction. */
+      const dir = (data && data.dir) || 1;
+      const paint = 0xf4c430, edge = 0xb9911f;
+      for(let k = -1; k <= 1; k++){
+        const bx = k*30, tip = bx + 15, tail = bx - 13, thick = 7;
+        for(const side of [-1, 1]){
+          const q = [
+            W(dir*tip,           0,       0),
+            W(dir*(tip - thick), 0,       0),
+            W(dir*(tail - thick), side*22, 0),
+            W(dir*tail,           side*22, 0)];
+          this.quadOn(g, q, paint, 0.9);   // 4th arg is ALPHA in quadOn — slight fade reads as paint
+          this.edgeOn(g, q, edge, 0.8);
+        }
+      }
     } else if(kind === "sidewalkbeginTurn"){
       /* approved in sidewalkendturn lab: the full junction — curb ramp
          down, a wide arc turn onto a new heading, curb ramp back up.
@@ -5725,7 +5816,7 @@ class WorldScene extends Phaser.Scene {
            bump else-branch at the bottom of this chain and kick/damage
            the robot on every street crossing. hit:true at spawn is the
            belt to this suspender. */
-        if(hz.type === "sidewalkend" || hz.type === "sidewalkbegin") continue;
+        if(hz.type === "sidewalkend" || hz.type === "sidewalkbegin" || hz.type === "grade") continue;   // ramps + grade paint: no collision
         let dx = this.botS - hz.s;
         /* the dog moves; his hitbox moves with him — same pure
            function the renderer uses, so art and impact agree */
@@ -6254,17 +6345,30 @@ class WorldScene extends Phaser.Scene {
          hit by a car should always tip the robot, not just sometimes --
          by pushing tilt straight past the existing |tilt|>=1 threshold
          below, reusing all of that machinery instead of duplicating it. */
-      const CAR_HIT_R = 70;
+      /* two test points per vehicle now, not one: the old single
+         center-point circle (r=70) let half a 225-unit-long car pass
+         visually THROUGH the robot before the hit registered — the
+         bumper reached him ~112 units before the center did. The NOSE
+         point sits at the drawn front (center + DIRV of the same
+         quantized facing the renderer uses, so hitbox matches art in
+         all 4 headings), with a tighter radius sized to bumper-meets-
+         robot; the center point keeps side impacts honest. Tilt sign
+         still pushes away from the car's CENTER. */
+      const CAR_HIT_CENTER_R = 60, CAR_HIT_NOSE_R = 50;
       for(const tr of this.route.traffic){
-        const { wp } = trafficWorldAt(tr, t);
+        const { wp, f: trF } = trafficWorldAt(tr, t);
+        const nd = DIRV[trF];
+        const nx = wp.x + nd.x*CARC.len*0.45, ny = wp.y + nd.y*CARC.len*0.45;
         const ddx = this.botX - wp.x, ddy = this.botY - wp.y;
-        const distSq = ddx*ddx + ddy*ddy;
-        if(!tr.hit && distSq < CAR_HIT_R*CAR_HIT_R){
+        const cSq = ddx*ddx + ddy*ddy;
+        const nnx = this.botX - nx, nny = this.botY - ny;
+        const nSq = nnx*nnx + nny*nny;
+        if(!tr.hit && (cSq < CAR_HIT_CENTER_R*CAR_HIT_CENTER_R || nSq < CAR_HIT_NOSE_R*CAR_HIT_NOSE_R)){
           tr.hit = true;
           this.tilt = 1.1 * (Math.sign(ddx || ddy) || 1);
           this.damage = Math.min(95, this.damage + 45);
         }
-        if(distSq > (CAR_HIT_R*3)*(CAR_HIT_R*3)) tr.hit = false;
+        if(cSq > (CAR_HIT_CENTER_R*4)*(CAR_HIT_CENTER_R*4)) tr.hit = false;
       }
 
       /* fail: we are horizontal */
@@ -6937,17 +7041,29 @@ class WorldScene extends Phaser.Scene {
       ? Math.floor(etaSec/60) + ":" + String(Math.round(etaSec%60)).padStart(2,"0")
       : Math.round(etaSec) + "s";
 
-    const nextTurn = this.findNextTurn();
+    /* mid-turn HOLD: while the robot is actually ON an arc, show just
+       the current turn's arrow — no distance. findNextTurn() looks
+       AHEAD, so without this the readout jumped to the next corner's
+       countdown the instant the current turn began, mid-steer. The
+       countdown resumes only once the robot exits onto the straight. */
+    const curSeg = this.segAt(this.botS);
     let turnText;
-    if(nextTurn){
-      const distToTurn = Math.max(0, nextTurn.s0 - this.botS);
-      const dir = nextTurn.sign > 0 ? "Left" : "Right";
-      const arrow = nextTurn.sign > 0 ? "←" : "→";
-      turnText = distToTurn < 20
-        ? `${arrow} Turn ${dir}`
-        : `${arrow} Turn ${dir} in ${Math.round(distToTurn*FT_PER_UNIT/10)*10} ft`;
+    if(curSeg.type === "arc"){
+      const dir = curSeg.sign > 0 ? "Left" : "Right";
+      const arrow = curSeg.sign > 0 ? "←" : "→";
+      turnText = `${arrow} Turn ${dir}`;
     } else {
-      turnText = "🏁 Straight ahead to drop-off";
+      const nextTurn = this.findNextTurn();
+      if(nextTurn){
+        const distToTurn = Math.max(0, nextTurn.s0 - this.botS);
+        const dir = nextTurn.sign > 0 ? "Left" : "Right";
+        const arrow = nextTurn.sign > 0 ? "←" : "→";
+        turnText = distToTurn < 20
+          ? `${arrow} Turn ${dir}`
+          : `${arrow} Turn ${dir} in ${Math.round(distToTurn*FT_PER_UNIT/10)*10} ft`;
+      } else {
+        turnText = "🏁 Straight ahead to drop-off";
+      }
     }
 
     /* tilt meter */
@@ -6962,13 +7078,15 @@ class WorldScene extends Phaser.Scene {
     g.lineStyle(3, 0x2e3138, 1);
     g.lineBetween(cx, cy, cx + Math.sin(this.tilt*1.2)*r, cy - Math.cos(this.tilt*1.2)*r);
 
-    /* moved to the bottom, single line -- was two lines anchored at
-       the top (10,8) from creation. Position is set here every frame
-       instead of once at creation, so it tracks the canvas's actual
-       current height -- it can change (device rotation, the route
-       panel toggling) and a fixed y from creation would go stale. */
-    this.hudText.setPosition(10, h - 28);
+    /* bottom-CENTERED now (origin set here, cheap and idempotent),
+       repositioned every frame so it tracks the canvas's real current
+       size (rotation, panel toggling). 2x text can outgrow a narrow
+       phone, so it shrinks-to-fit only when the line is wider than
+       the screen — full 30px whenever it fits. */
+    this.hudText.setOrigin(0.5, 1);
     this.hudText.setText(`${distText} · ETA ${etaText} · ${turnText}`);
+    this.hudText.setScale(Math.min(1, (w - 16) / Math.max(1, this.hudText.width)));
+    this.hudText.setPosition(w/2, h - 10);
   }
 }
 
