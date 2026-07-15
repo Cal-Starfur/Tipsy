@@ -1273,13 +1273,19 @@ function generateRoute(dateStr){
     if(spawnBlocked(hsR, laneOffset(lane))) continue;
     const r2 = rng();
     let type;
-    if(r2 < (1 - hood.pave)*0.45)      type = "crack";
-    else if(r2 < (1-hood.pave)*0.45 + hood.litter*0.35)
-                                       type = rng() < 0.6 ? "scooter" : "trash";
+    /* crack used to be a branch here (r2 < (1-hood.pave)*0.45), but
+       moved to its own dedicated spawn pass below -- same reason
+       slabs already have their own loop instead of sharing this
+       roll: a 3x density target needs a spacing lever, and cracks
+       can't get one while sharing a single probability budget with
+       scooter/trash/cone/dog/people/bin/planter. Removing the branch
+       here doesn't rebalance the rest -- litter/cone/dog+ranges are
+       unchanged, cone's effective share just widens to cover what
+       used to be crack's slice of r2. */
+    if(r2 < hood.litter*0.35)          type = rng() < 0.6 ? "scooter" : "trash";
     else if(r2 < 0.75)                 type = "cone";
     else { const r3 = rng(); type = r3 < 0.25 ? "dog" : r3 < 0.48 ? "people" : r3 < 0.73 ? "bin" : "planter"; }
     const hzObj = { type, s: hsR, row: lane, f: facingAt(hsR), hit:false };
-    if(type === "crack"){ hzObj.len = 24 + Math.floor(rng()*49); hzObj.surface = "sidewalk"; }   // spall size -> art + severity
     if(type === "dog"){ hzObj.dogSeed = (rng()*4294967296) >>> 0;  // coat + scar + waypoints
                         hzObj.sit = rng() < 0.4; }                 // ~40% sitters
     if(type === "people"){ hzObj.peopleSeed = (rng()*4294967296) >>> 0; }  // body/skin/shirt/pants/hair/shoe
@@ -1406,10 +1412,14 @@ function generateRoute(dateStr){
   }
 
   /* heaved slabs (prop.slab): runs of bad sidewalk across the full
-     4-lane band now, same drifting-run logic as before. */
+     4-lane band now, same drifting-run logic as before.
+     3x density: spacing cut to a third (was 660+rng()*924) rather
+     than scaling the 0.18+(1-pave)*0.75 success probability, since
+     that already reaches ~0.78 in low-pave hoods -- tripling it
+     would exceed 1.0 there. Spacing has no such ceiling. */
   let ss = SPAWN_S + 260;
   while(ss < totalLen - 320){
-    ss += 660 + rng()*924;
+    ss += 200 + rng()*277;
     if(inCorner(ss)) continue;
     if(rng() > 0.18 + (1 - hood.pave)*0.75) continue;
     const runN = 1 + Math.floor(rng()*3);
@@ -1429,6 +1439,25 @@ function generateRoute(dateStr){
       if(rng() < 0.6) srow = Math.max(0, Math.min(3, srow + (rng() < 0.5 ? -1 : 1)));
     }
     ss += runN*TILE*2;
+  }
+
+  /* sidewalk cracks (prop.crack): own pass now instead of a shared-roll
+     branch, same reasoning as the slab loop above -- needs an
+     independently tunable spacing to hit a 3x density target without
+     touching scooter/trash/cone/dog/people/bin/planter's odds. */
+  let cs = SPAWN_S + 180;
+  while(cs < totalLen - 240){
+    cs += 22 + rng()*110;
+    if(inCorner(cs)) continue;
+    if(rng() > (1 - hood.pave)*0.45) continue;
+    const crow = Math.floor(rng()*4);
+    if(!onSidewalk(cs, laneOffset(crow))) continue;
+    const csR = snapToSidewalkTile(cs, crow);
+    if(csR === null || inCorner(csR) || !onSidewalk(csR, laneOffset(crow))) continue;
+    if(spawnBlocked(csR, laneOffset(crow))) continue;
+    hazards.push({ type:"crack", s: csR, row: crow,
+                   len: 24 + Math.floor(rng()*49), surface:"sidewalk",
+                   f: facingAt(csR), hit:false });
   }
 
   /* parked car: on the road, off to one side (never blocking either
@@ -5707,7 +5736,19 @@ class WorldScene extends Phaser.Scene {
     let camTargetY = this.botY + Math.sin(hdg)*95;
     let camTargetZ = this.botZ;
 
-    const pickupWorkerVisible = this.pickupWalk > 0.001 || this.doorSwing > 0.02;
+    /* doorSwing used to be checked here too, but it never added
+       anything on the opening side (the door's target already flips
+       open the same instant pickupWalk starts at 1) -- its only real
+       effect was keeping this true during the door's own lingering
+       close after the worker had already finished walking back,
+       which is what held the camera on an empty doorway. The door
+       still closes exactly the same as before; the camera just stops
+       waiting on it. */
+    /* pickupWalk counts DOWN from 1 (walk just started) to 0 (worker
+       back at the door) -- so a HIGHER threshold releases EARLIER,
+       not later. 0.75 means the camera lets go once the walk is only
+       25% along, well ahead of the halfway point. */
+    const pickupWorkerVisible = this.pickupWalk > 0.75;
     if(this.state === "play" && this.pickupDoorDV && pickupWorkerVisible){
       const dv3 = this.pickupDoorDV, rv3 = this.pickupDoorRV;
       const doorX3 = this.pickupDoorUX + dv3.x*this.pickupDoorCenterX, doorY3 = this.pickupDoorUY + dv3.y*this.pickupDoorCenterX;
