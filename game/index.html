@@ -82,6 +82,15 @@
   #bottomSheet .chev{font-size:13px;color:#8f95a1;}
   #bottomSheet .status{font-weight:700;font-size:15px;color:#b5540e;}
   #bottomSheet .listIcon{font-size:17px;color:#8f95a1;}
+  /* in-game GPS readout — DOM, not canvas text: the Phaser framebuffer
+     renders at CSS resolution (Scale.RESIZE, no DPR handling; K is a
+     fixed constant so retina-scaling the buffer would rescale the whole
+     world), which is why canvas text looked fuzzy next to the crisp DOM
+     DELIVERED/fail headlines. Same element class of fix as those
+     headlines: native-DPR text with their exact shadow. */
+  #gpsHud{position:fixed;left:50%;bottom:calc(3px + env(safe-area-inset-bottom));
+    transform:translateX(-50%);z-index:4;pointer-events:none;white-space:nowrap;
+    font-size:min(22px, 4.5vw);font-weight:700;color:#fff;text-shadow:0 2px 3px #b5540e;}
   .hidden{display:none!important;}
   .big{font-size:42px;margin:2px 0;}
 </style>
@@ -96,6 +105,7 @@
     </div>
   </div>
   <div id="game"></div>
+  <div id="gpsHud" class="hidden"></div>
   <div id="panelToggle">︿</div>
 </div>
 
@@ -2016,7 +2026,47 @@ function generateRoute(dateStr){
   const nTrafficRoutes = totalLen > 50000 ? 18 : totalLen > 30000 ? 15 : 12;
   const traffic = buildTraffic(grid, rng, nTrafficRoutes, walk.nodes);
 
-  return { hood, grid, segs, totalLen, tiles, hazards, props, pal, traffic, crossings,
+  /* ---------- precomputed cutaway edges ----------
+     The north-wall cutaway (NORTH_WALL_CUT_EDGE: f=1 cuts a block's
+     west edge, f=2 its north — the two headings where the fixed iso
+     camera can push the near block's wall over the robot) used to be
+     evaluated LIVE per frame against the current seg + the block the
+     robot stood in. That made it snap three ways: houses vanished the
+     instant the heading seg flipped, jumped block-to-block mid-leg,
+     and popped back through every corner arc. The route is fully
+     known here, so the whole thing is now computed ONCE: every block
+     the robot's lane traverses on a cut-heading leg goes into a
+     static map, block(i,j) -> [edges], permanent for the route —
+     those edges show their fence/parking replacement from frame one
+     and never change. Arcs contribute BOTH neighbor legs' cut edges
+     to the blocks they sweep, so corners are covered without any
+     transition. The address door's edge and the pickup shop's edge
+     are never cut — the live version would happily vanish the
+     customer's house if you approached it westbound. */
+  const cutEdges = {};
+  const addCut = (bi, bj, edge) => {
+    if(edge == null) return;
+    if(addressBlock && bi === addressBlock.i && bj === addressBlock.j && edge === addressEdgeIdx) return;
+    if(pickupBlock && bi === pickupBlock.i && bj === pickupBlock.j && edge === pickupEdgeIdx) return;
+    const k = bi + "," + bj;
+    if(!cutEdges[k]) cutEdges[k] = [];
+    if(!cutEdges[k].includes(edge)) cutEdges[k].push(edge);
+  };
+  for(const sg of segs){
+    const eIn = NORTH_WALL_CUT_EDGE[sg.f];
+    const eOut = sg.type === "arc" ? NORTH_WALL_CUT_EDGE[(sg.f + sg.sign + 4) % 4] : null;
+    if(eIn == null && eOut == null) continue;
+    for(let s = sg.s0; ; s += T2){
+      const sv = Math.min(s, sg.s1);
+      const wp = segsWorldOf(segs, sv, laneOffset(1));   // any lane row lands in the same block
+      const bi = Math.floor(wp.x/BLOCK), bj = Math.floor(wp.y/BLOCK);
+      if(sg.type === "line") addCut(bi, bj, eIn);
+      else { addCut(bi, bj, eIn); addCut(bi, bj, eOut); }
+      if(sv >= sg.s1) break;
+    }
+  }
+
+  return { hood, grid, segs, totalLen, tiles, hazards, props, pal, traffic, crossings, cutEdges,
            address:`${number} ${street}`, doorS, pickupS, pickupSpot, pickupShopName, addressBlock, pickupBlock, addressEdgeIdx, pickupEdgeIdx, addressUnitIdx, pickupUnitIdx, tipMult, dateStr };
 }
 
@@ -2069,6 +2119,7 @@ class WorldScene extends Phaser.Scene {
     this.throttle = 0;          // -1 brake, 0 coast, 1 gas
     this.tipT = 0; this.tipStartRoll = 0; this.postSpillMs = 0; this.lidAng = 0; this.items = []; this.spilled = false;
     this.wonT = 0; this.wonFrac = 0; this.wonLiftT = 0; this.wonLidClosing = false; this.wonWalkAt = null; this.wonWalk = 0; this.wonOutT = 0; this.wonOutFrac = 0; this.wonMeet = null;
+    this.bagOnBoard = false;
     this.cornerLean = 0;
     this.corneringSpeedSmooth = 0;   // lagged speed feeding cornering lean —
                                       // see loadRoute() reset for the full note
@@ -2080,12 +2131,6 @@ class WorldScene extends Phaser.Scene {
     this.g = this.add.graphics();
     this.gFront = this.add.graphics();     // hazards nearer the camera than the robot
     this.hud = this.add.graphics().setDepth(5);
-    /* in-game GPS readout: 2x (30px) with a black drop shadow so it
-       stays readable over pale sidewalk and dark asphalt alike;
-       centered + shrink-to-fit handled at the per-frame position
-       update in drawHud. */
-    this.hudText = this.add.text(10, 8, "", { fontSize:"30px", fontStyle:"bold", color:"#ff7a1a", lineSpacing:4 })
-      .setShadow(2, 2, "#000000", 4, false, true).setDepth(5);
     this.qtext = this.add.text(0, 0, "?!", { fontSize:"30px", fontStyle:"bold", color:"#ffb04d" })
       .setOrigin(0.5).setDepth(4).setVisible(false);
 
@@ -2163,6 +2208,7 @@ class WorldScene extends Phaser.Scene {
     this.speed = 0; this.tilt = 0; this.damage = 0; this.runT = 0;
     this.roll = 0; this.tipT = 0; this.tipStartRoll = 0; this.postSpillMs = 0; this.lidAng = 0; this.items = []; this.spilled = false;
     this.wonT = 0; this.wonFrac = 0; this.wonLiftT = 0; this.wonLidClosing = false; this.wonWalkAt = null; this.wonWalk = 0; this.wonOutT = 0; this.wonOutFrac = 0; this.wonMeet = null;
+    this.bagOnBoard = false;
     this.slabZ = 0; this.slabRoll = 0;
     this.crossZ = 0; this.crossSlope = 0; this.crossJitter = 0;
     this.cornerLean = 0;
@@ -2455,19 +2501,24 @@ class WorldScene extends Phaser.Scene {
        on one consistent side of the street, and that determines which
        single edge of the adjacent block is the "near" wall that can
        loom over his screen position under this fixed iso camera. */
-    const curSeg = this.segAt(this.botS);
-    const cutEdgeIdx = (curSeg.type === "line" && NORTH_WALL_CUT_EDGE[curSeg.f] != null)
-      ? NORTH_WALL_CUT_EDGE[curSeg.f] : -1;
-    const botCol = cutEdgeIdx >= 0 ? Math.floor(this.botX / BLOCK) : null;
-    const botRow = cutEdgeIdx >= 0 ? Math.floor(this.botY / BLOCK) : null;
-
+    /* north-wall cutaway — STATIC now. The which-edge derivation is
+       unchanged (NORTH_WALL_CUT_EDGE: f=2's westbound walk puts the
+       block's north wall over the robot under this fixed iso camera,
+       f=1 the west wall — confirmed from the W() projection math),
+       but the trigger moved to route generation: route.cutEdges maps
+       block(i,j) -> [edges] for every block the route's cut-heading
+       legs traverse, permanent for the whole route. No live heading
+       test, no live block test — so nothing snaps when the heading
+       changes, when the robot crosses a block seam mid-leg, or through
+       corner arcs (all three were reported on-device). A block can
+       carry TWO cut edges if both an f=1 and an f=2 leg touch it. */
     this.addrDoorPos = null;
     const blockVQ = [];
     const topLayer = [];
     for(const blk of visBlocks){
-      const cutThis = cutEdgeIdx >= 0 && blk.i === botCol && blk.j === botRow && blk.type !== "park";
-      this.queueBlockContent(blockVQ, blk, cutThis ? cutEdgeIdx : -1);
-      if(cutThis){
+      const cuts = (blk.type !== "park") ? this.route.cutEdges[blk.i + "," + blk.j] : null;
+      this.queueBlockContent(blockVQ, blk, cuts || null);
+      if(cuts) for(const cutEdgeIdx of cuts){
         const e = this.blockEdges(blk)[cutEdgeIdx];
         const eseed = ((Math.round(e.ox*3+e.dv.x)*7919) ^ (Math.round(e.oy*3+e.dv.y)*104729) ^ 0x6f2a) >>> 0;
         const ecx = e.ox + e.dv.x*e.len/2, ecy = e.oy + e.dv.y*e.len/2;
@@ -3437,10 +3488,10 @@ class WorldScene extends Phaser.Scene {
       vq.push({ depth:gx+gy, fn:(g)=>this.drawFenceGap(g, fx, fy, e.dv, e.rv, gp.w, gseed) });
     }
   }
-  queueHousingBlock(vq, blk, excludeEdge=-1){
+  queueHousingBlock(vq, blk, excludeEdges=null){
     const isAddressBlock = (blk === this.route.addressBlock);
     this.blockEdges(blk).forEach((e, idx) => {
-      if(idx === excludeEdge) return;
+      if(excludeEdges && excludeEdges.includes(idx)) return;
       this.queueHousingEdgeAt(vq, e, isAddressBlock && idx === this.route.addressEdgeIdx);
     });
   }
@@ -3461,10 +3512,10 @@ class WorldScene extends Phaser.Scene {
       vq.push({ depth:hx+hy, isRoof:true, fn:(g)=>this.drawStoreUnit(g, ux, uy, e.dv, e.rv, u.w, hseed, isFirst, isLast, 'roof') });
     });
   }
-  queueCommercialBlock(vq, blk, excludeEdge=-1){
+  queueCommercialBlock(vq, blk, excludeEdges=null){
     const isPickupBlock = (blk === this.route.pickupBlock);
     this.blockEdges(blk).forEach((e, idx) => {
-      if(idx === excludeEdge) return;
+      if(excludeEdges && excludeEdges.includes(idx)) return;
       this.queueCommercialEdgeAt(vq, e, isPickupBlock && idx === this.route.pickupEdgeIdx);
     });
     const cx = (blk.x0+blk.x1)/2, cy = (blk.y0+blk.y1)/2;
@@ -3525,10 +3576,10 @@ class WorldScene extends Phaser.Scene {
     if(blk.type === "commercial") return this.fillBlockInterior(g, blk, PLAZA);
     this.fillBlockInterior(g, blk, GRASS); // housing yard
   }
-  queueBlockContent(vq, blk, excludeEdge=-1){
+  queueBlockContent(vq, blk, excludeEdges=null){
     if(blk.type === "park") return this.queueParkBlock(vq, blk);
-    if(blk.type === "commercial") return this.queueCommercialBlock(vq, blk, excludeEdge);
-    this.queueHousingBlock(vq, blk, excludeEdge);
+    if(blk.type === "commercial") return this.queueCommercialBlock(vq, blk, excludeEdges);
+    this.queueHousingBlock(vq, blk, excludeEdges);
   }
 
   fillExteriorLot(g, lot){
@@ -5531,6 +5582,12 @@ class WorldScene extends Phaser.Scene {
       const loadT = this.runT;
       loadFrac = Phaser.Math.Clamp(loadT / LOAD_ART.ms, 0, 1);
       this.loadDone = loadT >= LOAD_ART.ms;
+      /* persistent latch for the spill: loadDone itself is VOLATILE —
+         the else branch below wipes it the instant state leaves "play",
+         and spillCargo fires frames AFTER state becomes "tipped", so
+         gating the spilled bag on loadDone always missed. This flag
+         survives the state change; spillCargo consumes it. */
+      if(this.loadDone) this.bagOnBoard = true;
       if(this.loadDone){
         if(this.walkAt === null) this.walkAt = this.runT;
         this.pickupWalk = Phaser.Math.Clamp(1 - (this.runT - this.walkAt)/PICKUP_ART.walkMs, 0, 1);
@@ -5640,7 +5697,13 @@ class WorldScene extends Phaser.Scene {
     const loadingLidOpen = this.state === "play" && loadFrac > 0.05 && loadFrac < LOAD_ART.dropFrac;
     const lidLoadTarget = loadingLidOpen ? LOAD_ART.lidOpenAngle : 0;
     if(loadingLidOpen) this.pickupLidClosing = true;
-    else if(this.lidAng < 0.15) this.pickupLidClosing = false;
+    else if(this.lidAng < 0.02) this.pickupLidClosing = false;
+    /* 0.02 rad (~1 degree), NOT the old 0.15 (~8.5 degrees): the hinge
+       mirrors the instant this latch releases, and at 0.15 the lid was
+       still visibly open — the reported "switches the hinge to the
+       other side" pop. At 0.02 the swap is invisible. (0.15 was
+       borrowed from lidNear's draw-order bar, which has nothing to do
+       with hinge correctness.) */
     /* won-handoff lid: same hinge, same open target, same close-out
        latch pattern as the loading phase above — gated on state==="won"
        so it can never fight the loading driver (play), the tip/spill
@@ -5648,7 +5711,7 @@ class WorldScene extends Phaser.Scene {
        while the bag is still in the bin, closes once it's out. */
     const wonLidOpen = this.state === "won" && this.wonFrac > 0.02 && this.wonFrac < LOAD_ART.dropFrac;
     if(wonLidOpen) this.wonLidClosing = true;
-    else if(this.lidAng < 0.15) this.wonLidClosing = false;
+    else if(this.lidAng < 0.02) this.wonLidClosing = false;   // same invisible-swap bar as the pickup latch
     this.lidHingeFlip = (this.state === "play" && (loadingLidOpen || this.pickupLidClosing))
                      || (this.state === "won" && (wonLidOpen || this.wonLidClosing));
     if(this.state === "play"){
@@ -5761,7 +5824,17 @@ class WorldScene extends Phaser.Scene {
          outside turn at speed>0.11 has very low actual tilt; a tight
          inside turn is genuinely dangerous at that same speed) */
       const lidCrackTarget = Math.abs(this.tilt) > 0.75 ? 0.4 : 0;
-      this.lidAng = Phaser.Math.Linear(this.lidAng, lidCrackTarget, 0.08);
+      /* stand down while the pickup loading latch owns the lid: this
+         writer runs every play frame, so during the loading phase it
+         was FIGHTING the loading ease (open toward 1.1 in drawRobot,
+         then Linear'd back toward 0 here, every single frame) — the
+         lid ground to a half-open ~0.6 equilibrium instead of the
+         dialed 1.1, on the flipped hinge, then popped hinges at the
+         latch release. pickupLidClosing spans the loading open AND its
+         close-out, so gating on it hands the lid back to this writer
+         only once it's genuinely shut. */
+      if(!this.pickupLidClosing)
+        this.lidAng = Phaser.Math.Linear(this.lidAng, lidCrackTarget, 0.08);
 
       /* lane maneuver: eased diagonal glide with nose steer */
       if(this.hopAnim && seg.type === "arc"){
@@ -6774,6 +6847,24 @@ class WorldScene extends Phaser.Scene {
       spin: (Math.random()-0.5)*0.3, ang: Math.random()*Math.PI,
       rest: false
     });
+    /* the takeout BAG itself tumbles out first — it's the thing the
+       whole delivery is about, and spilling only its contents read as
+       the bag never existing. Gated on loadDone so a tip during the
+       loading beat (bag still in the worker's hand / mid-arc) can't
+       duplicate it. Slightly heavier throw than the contents: the
+       container leads, the burrito chases. */
+    if(this.bagOnBoard) this.items.push({
+      kind:"bag", size: 12,
+      x: mouth.x + (Math.random()-0.5)*8,
+      y: mouth.y + outSign*(6 + Math.random()*5),
+      z: mouth.z + 3,
+      vx: (Math.random()-0.5)*1.8,
+      vy: outSign*(1.1 + Math.random()*1.2),
+      vz: 0.7 + Math.random()*0.7,
+      spin: (Math.random()-0.5)*0.22, ang: Math.random()*Math.PI,
+      rest: false
+    });
+    this.bagOnBoard = false;   // it's on the pavement now
     spawn("burrito", 9);
     spawn("cup", 7);
     for(let i=0;i<3;i++) spawn("fry", 4);
@@ -6892,6 +6983,22 @@ class WorldScene extends Phaser.Scene {
         g.strokeRect(p.x - 4*K*0.7, p.y - 6*K*0.7, 8*K*0.7, 11*K*0.7);
         g.fillStyle(0x8b5a3c, 1);                       // the puddle
         if(it.rest) g.fillEllipse(p.x + 7*K, p.y + 5*K*0.6, 14*K*0.8, 5*K*0.8);
+      } else if(it.kind === "bag"){
+        /* kraft paper bag, drawn as flat primitives in the same this.P
+           space as every other spilled item — drawBagTop/drawBagBody
+           live in W() space and would place it in the wrong frame
+           here. Same BAG_ART palette as the held bag so it reads as
+           the same object, tumbling via the shared ang/spin sim. */
+        const a2 = it.ang * 0.6, bw = BAG_ART.w*K*0.8, bh = BAG_ART.h*K*0.8;
+        g.save(); g.translateCanvas(p.x, p.y); g.rotateCanvas(a2);
+        g.fillStyle(BAG_ART.paper, 1);
+        g.fillRect(-bw/2, -bh/2, bw, bh);
+        g.fillStyle(BAG_ART.paperLt, 1);
+        g.fillRect(-bw/2, -bh/2, bw, bh*0.3);           // folded/rolled top
+        g.lineStyle(2, BAG_ART.foldLine, 1);
+        g.strokeRect(-bw/2, -bh/2, bw, bh);
+        g.lineBetween(-bw/2, -bh/2 + bh*0.3, bw/2, -bh/2 + bh*0.3);
+        g.restore();
       } else {                                          // fry
         g.fillStyle(0xf2c94c, 1);
         const a = it.ang, L = 7*K*0.7, W2 = 2.2*K*0.7;
@@ -7078,15 +7185,13 @@ class WorldScene extends Phaser.Scene {
     g.lineStyle(3, 0x2e3138, 1);
     g.lineBetween(cx, cy, cx + Math.sin(this.tilt*1.2)*r, cy - Math.cos(this.tilt*1.2)*r);
 
-    /* bottom-CENTERED now (origin set here, cheap and idempotent),
-       repositioned every frame so it tracks the canvas's real current
-       size (rotation, panel toggling). 2x text can outgrow a narrow
-       phone, so it shrinks-to-fit only when the line is wider than
-       the screen — full 30px whenever it fits. */
-    this.hudText.setOrigin(0.5, 1);
-    this.hudText.setText(`${distText} · ETA ${etaText} · ${turnText}`);
-    this.hudText.setScale(Math.min(1, (w - 16) / Math.max(1, this.hudText.width)));
-    this.hudText.setPosition(w/2, h - 10);
+    /* DOM readout (see #gpsHud CSS): textContent update is cheap, the
+       browser centers it, font-size:min() shrinks it on narrow screens,
+       and native-DPR rendering keeps it as crisp as the overlay
+       headlines it's styled after. Visible only while driving. */
+    const gpsEl = document.getElementById("gpsHud");
+    gpsEl.textContent = `${distText} · ETA ${etaText} · ${turnText}`;
+    gpsEl.classList.toggle("hidden", this.state !== "play");
   }
 }
 
