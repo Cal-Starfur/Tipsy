@@ -610,6 +610,63 @@ const ROBOT_SIDE = -1;       // the walk stays on ONE side's sidewalk band —
 function laneOffset(lane){ return ROBOT_SIDE * (ROAD_HALF + (lane+0.5)*T2); }
 function farLaneOffset(lane){ return -ROBOT_SIDE * (ROAD_HALF + (lane+0.5)*T2); } // opposite sidewalk — decoration only, never robot-reachable
 
+/* ---------- street-crossing curb-ramp ground (pure) ----------
+   Ported from labs/sidewalkend-lab.html (groundZAt/groundSlopeAt + the
+   per-zone flags its update loop derived ad hoc). Pure function shared
+   by the sim loop and the robot's own botZ, same contract as dogSpotAt/
+   trafficWorldAt: art and physics must agree, so the z constants here
+   are EXACTLY the prop art's own (sidewalkZ=2, streetZ=-3 in the
+   sidewalkend/sidewalkbegin drawProp branches) — the robot rides the
+   surfaces the player can see, not a parallel invisible model.
+   Geometry mirrors the spawn anchors exactly: node at cx.s, road spans
+   ±ROAD_HALF, each ramp is 2 tiles deep just outside it — slope tile on
+   the sidewalk side, ADA pad tile touching the street.
+   Lane model (game rows 0-3, ramp strip on row 1 per the spawn's row:1
+   anchor over rows 0-2):
+   - row 1: the ramp lane — smooth slope down, flat street crossing,
+     slope back up. tiltSign 0 (pure pitch, no lean).
+   - rows 0/2: the prop's flat outer lanes at sidewalkZ, then a real
+     curb DROP at the road edge and a hard curb WALL at the far side.
+     tiltSign ∓1 while on the flared ramp sides (lab: botRow -1/0/+1).
+   - row 3: not on the prop at all — plain flat walk (z 0), same
+     drop/wall treatment as 0 and 2, but no cross-slope lean. */
+const CROSSING_SIDEWALK_Z = 2, CROSSING_STREET_Z = -3;
+function crossingGroundAt(crossings, s, row){
+  const drop = CROSSING_STREET_Z - CROSSING_SIDEWALK_Z;   // -5, the lab's real curb height
+  for(const cx of crossings){
+    const d = s - cx.s;
+    if(d < -ROAD_HALF - 2*T2 || d > ROAD_HALF + 2*T2) continue;
+    const onRoad = Math.abs(d) < ROAD_HALF;
+    if(row === 1){
+      let z, slope = 0, onPad = false;
+      if(d <= -ROAD_HALF - T2){                 // descending slope tile
+        const u = (d + ROAD_HALF + 2*T2) / T2;  // 0 at rear edge -> 1 at pad
+        z = CROSSING_SIDEWALK_Z + u*drop; slope = drop / T2;
+      } else if(d >= ROAD_HALF + T2){           // ascending slope tile
+        const u = (d - ROAD_HALF - T2) / T2;    // 0 at pad -> 1 at rear edge
+        z = CROSSING_STREET_Z - u*drop; slope = -drop / T2;
+      } else {
+        z = CROSSING_STREET_Z;
+        /* the two yellow ADA pad tiles — the dome-bump rumble zone */
+        onPad = Math.abs(d) >= ROAD_HALF && Math.abs(d) <= ROAD_HALF + T2;
+      }
+      return { z, slope, tiltSign: 0, onPad, wallS: null, onRoad };
+    }
+    const preZ = row === 3 ? 0 : CROSSING_SIDEWALK_Z;   // rows 0/2 ride the prop's raised base
+    return {
+      z: onRoad ? CROSSING_STREET_Z : preZ,
+      slope: 0,
+      /* cross-slope lean off the ramp's flared sides — only while on the
+         prop itself (lab applied it within the ramp's 2-tile extent),
+         mirrored sign each side of the ramp strip, none for row 3 */
+      tiltSign: (row === 3 || onRoad) ? 0 : (row - 1),
+      onPad: false,
+      wallS: cx.s + ROAD_HALF,   // the far curb — a real wall for the no-ramp lanes
+      onRoad };
+  }
+  return null;
+}
+
 /* hull door: frame + slab + 2 panels + knob, hinge-open on theta.
    Ported verbatim from the door lab (dial bench approved). */
 const DOOR_ART = {
@@ -1259,6 +1316,52 @@ function generateRoute(dateStr){
     return Math.round(sv + ds);
   };
 
+  /* ---------- straight-through street crossings ----------
+     The only places on a route where the robot's sidewalk genuinely
+     BREAKS. Corners never do it — they're filleted arcs on continuous
+     sidewalk (the robot never leaves its own walk going around one,
+     which is exactly why the original "curb ramps at every corner"
+     plan for prop.sidewalkend/sidewalkbegin never fit; see
+     docs/DESIGN.md "Sidewalkend curb ramps", open placement question).
+     But a 2-block leg passes straight THROUGH an interior grid node,
+     and classifyAt gives the crossing street's road priority over our
+     sidewalk band — so the walk really does end at sN-ROAD_HALF and
+     begin again at sN+ROAD_HALF. Both boundaries land exactly on tile
+     seams by construction (ROAD_HALF = 4*T2, nodes at multiples of
+     BLOCK = 34*T2), which is the whole-tile snap the ramp spec asks
+     for, with zero snapping needed.
+     A node only cuts OUR band if a road edge extends toward the
+     robot's own side: ROBOT_SIDE = -1 puts the walk along
+     -DIRV[(f+1)%4] = DIRV[(f+3)%4], so the test is conn[(f+3)%4] —
+     a T-intersection whose stem points the other way leaves our
+     sidewalk unbroken (classifyAt's OVERSHOOT window confirms this:
+     the band sits entirely outside that stem's along-extent). */
+  const crossings = [];
+  for(const sg of segs){
+    if(sg.type !== "line") continue;
+    const d = DIRV[sg.f], rv = DIRV[(sg.f+1)%4];
+    for(const n of grid.nodes){
+      if(!n.conn[(sg.f+3)%4]) continue;                    // no road on the robot's side
+      const relX = n.x - sg.start.x, relY = n.y - sg.start.y;
+      if(Math.abs(relX*rv.x + relY*rv.y) > 1) continue;    // node not on this leg's centerline
+      const sN = sg.s0 + (relX*d.x + relY*d.y);
+      /* both 2-tile-deep ramps must fit fully inside this straight leg —
+         this also cleanly rejects the leg's own endpoint/corner nodes
+         (they sit at or beyond s0/s1) and route start/end crossings,
+         where a lone half-pair would read as broken. */
+      if(sN - ROAD_HALF - 2*T2 < sg.s0 || sN + ROAD_HALF + 2*T2 > sg.s1) continue;
+      crossings.push({ s: sN, f: sg.f });
+    }
+  }
+  /* keep every other spawn out of the crossing: the road gap itself
+     plus one ramp (2 tiles) each side, small margin on top. Checked
+     inside spawnBlocked so every spawn loop below inherits it —
+     MIN_GAP_S/MIN_GAP_OFFSET alone can't protect a 2x3-tile decal
+     (60 < the ramp's own 92-unit half-depth, and the row-offset gate
+     only sees the anchor row, not the full 3-row span). */
+  const CROSSING_CLEAR = ROAD_HALF + 2*T2 + 30;
+  const inCrossing = sv => crossings.some(cx => Math.abs(sv - cx.s) < CROSSING_CLEAR);
+
   /* RULE: no two props/hazards stack at the same spot. Every spawn loop
      below checks a candidate placement against everything already
      placed this route (both hazards[] and props[], since either array
@@ -1273,6 +1376,7 @@ function generateRoute(dateStr){
   const MIN_GAP_S = 60, MIN_GAP_OFFSET = T2*0.6;
   const offsetOf = item => item.row !== undefined ? laneOffset(item.row) : item.roadOffset;
   const spawnBlocked = (s, offsetUnits) => {
+    if(inCrossing(s)) return true;   // nothing spawns in an intersection crossing or on its curb ramps
     for(const list of [hazards, props]){
       for(const it of list){
         if(Math.abs(it.s - s) < MIN_GAP_S && Math.abs(offsetOf(it) - offsetUnits) < MIN_GAP_OFFSET) return true;
@@ -1296,6 +1400,24 @@ function generateRoute(dateStr){
      loop runs, not after it. */
   const hazards = [];
   const props = [];
+
+  /* ADA curb ramps at every straight-through crossing (see the
+     crossings[] derivation above). Down-ramp owns the LAST two
+     sidewalk tiles before the curb line (anchor at sN-ROAD_HALF-T2,
+     prop spans anchor±T2 along-travel), up-ramp mirrors it on the far
+     side — pad tile touching the street in both, per the ADA spec the
+     lab settled on. Cross axis: the prop is 3 tiles wide but the game
+     sidewalk is 4 rows; row:1 centers it on rows 0-2 exactly on tile
+     seams (laneOffset(1) ± 1.5*T2 = ROAD_HALF .. ROAD_HALF+3*T2),
+     leaving row 3 (building side) as plain flat walk — the choice
+     that keeps the ramp against the street corner where a real one
+     sits. Static visuals only, no tilt/pitch/curb physics wired yet
+     (docs/DESIGN.md) — the sim loop skips these types explicitly. */
+  for(const cx of crossings){
+    hazards.push({ type:"sidewalkend",   s: cx.s - ROAD_HALF - T2, row: 1, f: cx.f, hit:true });
+    hazards.push({ type:"sidewalkbegin", s: cx.s + ROAD_HALF + T2, row: 1, f: cx.f, hit:true });
+  }
+
   const density = 0.45 + hood.litter*0.35 + (1 - hood.pave)*0.3;
   let hs = SPAWN_S + 120;
   while(hs < totalLen - 220){
@@ -1680,7 +1802,7 @@ function generateRoute(dateStr){
   const nTrafficRoutes = totalLen > 50000 ? 18 : totalLen > 30000 ? 15 : 12;
   const traffic = buildTraffic(grid, rng, nTrafficRoutes, walk.nodes);
 
-  return { hood, grid, segs, totalLen, tiles, hazards, props, pal, traffic,
+  return { hood, grid, segs, totalLen, tiles, hazards, props, pal, traffic, crossings,
            address:`${number} ${street}`, doorS, pickupS, pickupSpot, pickupShopName, addressBlock, pickupBlock, addressEdgeIdx, pickupEdgeIdx, addressUnitIdx, pickupUnitIdx, tipMult, dateStr };
 }
 
@@ -1821,6 +1943,7 @@ class WorldScene extends Phaser.Scene {
     this.speed = 0; this.tilt = 0; this.damage = 0; this.runT = 0;
     this.roll = 0; this.tipT = 0; this.tipStartRoll = 0; this.postSpillMs = 0; this.lidAng = 0; this.items = []; this.spilled = false;
     this.slabZ = 0; this.slabRoll = 0;
+    this.crossZ = 0; this.crossSlope = 0; this.crossJitter = 0;
     this.cornerLean = 0;
     this.corneringSpeedSmooth = 0;
     this.stuckAmt = 0; this.isBlocked = false;
@@ -2199,7 +2322,18 @@ class WorldScene extends Phaser.Scene {
          bug). It should stay under the robot the entire time, same
          "always behind" guarantee houses/roofs already get, not the
          point-depth test meant for freestanding side-by-side props. */
-      const slabLayer = hzt === "slab" ? g : layerFor(hwx, hwy);
+      /* sidewalkend/sidewalkbegin get the same pin as slab, same reason:
+         the robot drives DIRECTLY ACROSS them (they sit under his own
+         lane at every street crossing), so a single point-depth test at
+         the decal's center would flip the whole 2x3-tile panel from
+         behind to in-front partway through — over-the-robot for half
+         the crossing. Pinning to gWorld is orientation-independent, so
+         it's correct for all 4 headings at once (see the invariants
+         comment at the top of this file). Body-vs-body order against
+         cars/houses is unaffected — that comes from the blockVQ sort,
+         not the layer choice. */
+      const slabLayer = (hzt === "slab" || hzt === "sidewalkend" || hzt === "sidewalkbegin")
+        ? g : layerFor(hwx, hwy);
       blockVQ.push({ depth: hwx+hwy, fn:(g,t)=>this.drawProp(slabLayer, hzt, hwx, hwy, t, hf, hwz, null, null, hzObj) });
     }
 
@@ -5242,6 +5376,13 @@ class WorldScene extends Phaser.Scene {
          intentional wall-stop nudges untouched. */
       const safeStop = target => Math.max(target, this.botS - 60);
       for(const hz of this.route.hazards){
+        /* curb ramps are static ground visuals for now — no tilt/pitch/
+           curb physics wired yet (docs/DESIGN.md "Sidewalkend curb
+           ramps"). Without this skip they'd fall through to the generic
+           bump else-branch at the bottom of this chain and kick/damage
+           the robot on every street crossing. hit:true at spawn is the
+           belt to this suspender. */
+        if(hz.type === "sidewalkend" || hz.type === "sidewalkbegin") continue;
         let dx = this.botS - hz.s;
         /* the dog moves; his hitbox moves with him — same pure
            function the renderer uses, so art and impact agree */
@@ -5629,6 +5770,56 @@ class WorldScene extends Phaser.Scene {
       this.slabRoll = Phaser.Math.Linear(this.slabRoll || 0,
         slabUnder ? slabUnder.side * Math.atan(slabUnder.lift/(2*TILE)) : 0, 0.2);
 
+      /* ---------- street-crossing curb ramps ----------
+         Physics ported from labs/sidewalkend-lab.html (constants
+         verbatim: 0.055 cross-slope coefficient, 0.35 curb-drop kick,
+         0.55 already-leaning threshold, 0.85 post-kick tip line, ±0.05
+         pad jitter). Everything routes through the game's OWN machinery
+         instead of the lab's local copies: isBlocked feeds the existing
+         stuckAmt rattle + "?!" bubble, and a tip hands the robot to the
+         existing |tilt|>=1 pipeline (same pattern as the traffic hit)
+         rather than setting state="tipped" from a second place.
+         The row used everywhere is the VISUAL row (nearest laneOff),
+         same reasoning as onLane() in the hazard loop: botRow flips the
+         instant hop() is called, but the robot takes 480ms to actually
+         arrive — the ground under him is where he IS. */
+      const _vRow = [0,1,2,3].reduce((b,r) =>
+        Math.abs(this.laneOff - laneOffset(r)) < Math.abs(this.laneOff - laneOffset(b)) ? r : b, 0);
+      let _cg = crossingGroundAt(this.route.crossings, this.botS, _vRow);
+      /* far-curb wall for the no-ramp lanes: clamp forward motion right
+         at the boundary (lab clamped at boundary-1 too), then re-sample
+         the ground from the corrected position so z/tilt never read a
+         spot the robot was just pushed back from. Only ever shortens
+         THIS frame's own advance — can't violate the safeStop floor. */
+      if(_cg && _cg.wallS !== null && this.botS >= _cg.wallS - 1 && this.botS > _botS_frameStart){
+        this.botS = Math.max(_cg.wallS - 1, _botS_frameStart);
+        this.isBlocked = true;
+        _cg = crossingGroundAt(this.route.crossings, this.botS, _vRow);
+      }
+      const _prevCrossZ = this.crossZ || 0;
+      this.crossZ = _cg ? _cg.z : 0;
+      this.crossSlope = _cg ? _cg.slope : 0;
+      /* truncated-dome rumble crossing the yellow pad — roll-only,
+         layered on at the roll composition line below, never folded
+         into this.tilt, so it can't push toward a tip or outlive the
+         pad (lab: jitterRoll = (rand-0.5)*0.1, center lane only). */
+      this.crossJitter = (_cg && _cg.onPad) ? (Math.random()-0.5) * 0.1 : 0;
+      /* cross-slope lean off the ramp's flared sides — mirrored sign in
+         the two lanes flanking the ramp strip, zero on the strip and on
+         row 3 (lab: tilt += botRow * speed * 0.055 * dt) */
+      if(_cg && _cg.tiltSign) this.tilt += _cg.tiltSign * this.speed * 0.055 * dt;
+      /* curb drop: falling off the unramped edge in any non-ramp lane.
+         A stumble kick in the direction you were already leaning (or
+         away from the ramp strip if upright); if you were ALREADY
+         leaning hard, or the kick lands you past the lab's 0.85 line,
+         push tilt to 1.1 and let the game's own tip pipeline take it. */
+      if(_cg && _vRow !== 1 && _prevCrossZ - this.crossZ > 1){
+        const _wasLeaning = Math.abs(this.tilt) > 0.55;
+        this.tilt += Math.sign(this.tilt || (_vRow - 1) || 1) * 0.35;
+        if(_wasLeaning || Math.abs(this.tilt) > 0.85)
+          this.tilt = 1.1 * Math.sign(this.tilt);
+      }
+
       /* hydroplane: eased pirouette from a burst hydrant's flood.
          slipYaw layers into the facing yaw; when the slide ends,
          Grip unwinds it the short way back to straight. */
@@ -5753,7 +5944,7 @@ class WorldScene extends Phaser.Scene {
       }
       this.roll = Phaser.Math.Linear(this.tipStartRoll, this.tipDir * (Math.PI*0.5), this.tipT);
     } else {
-      this.roll = Phaser.Math.Clamp(this.tilt, -1, 1) * 0.5 + this.cornerLean + (this.slabRoll || 0);
+      this.roll = Phaser.Math.Clamp(this.tilt, -1, 1) * 0.5 + this.cornerLean + (this.slabRoll || 0) + (this.crossJitter || 0);
     }
     this.simItems(dt);
 
@@ -5786,8 +5977,8 @@ class WorldScene extends Phaser.Scene {
       this.botY += (Math.random()-0.5) * 1.4 * this.stuckAmt;
     }
 
-    this.botZ = this.groundZ(this.botS) + (this.slabZ || 0);
-    if(this.state !== "tipped") this.pitch = -Math.atan(this.groundSlope(this.botS));
+    this.botZ = this.groundZ(this.botS) + (this.slabZ || 0) + (this.crossZ || 0);
+    if(this.state !== "tipped") this.pitch = -Math.atan(this.groundSlope(this.botS) + (this.crossSlope || 0));
 
     /* camera reframe: at f=3 the worker/customer's walk-out direction
        pushes them far enough sideways on screen that tracking only the
