@@ -2956,7 +2956,10 @@ class WorldScene extends Phaser.Scene {
             const dyStart = 4, dyEnd = T2 - 8;
             const dy = Phaser.Math.Linear(dyStart, dyEnd, wu);
             const cx = ux + e.dv.x*doorCenterX + e.rv.x*dy, cy = uy + e.dv.y*doorCenterX + e.rv.y*dy;
-            const thW = Math.atan2(e.rv.y, e.rv.x);
+            // face the robot (out along rv), not down the sidewalk. drawPersonHull's
+            // thW=atan2(rv) points 90 deg off rv, so the -PI/2 is required — identical
+            // to the pickup worker's facingRobot. World-space offset: correct for all 4 headings.
+            const thW = Math.atan2(e.rv.y, e.rv.x) - Math.PI/2;
             const moving = walkT < 0.97;
             const walkPhase = moving ? Math.sin(t*PEOPLE_ART.walkSpeed) : 0;
             this.drawPersonHull(g, cx, cy, dz, thW, cBuild, cSkin, cShirt, cPants, cHair, cShoe, walkPhase, moving, 0);
