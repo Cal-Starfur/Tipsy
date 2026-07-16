@@ -2460,9 +2460,14 @@ class WorldScene extends Phaser.Scene {
       }
     });
     this.input.on("pointerup", () => { this.throttle = 0; hopped = false; });
-    this.keys = this.input.keyboard.addKeys({ up:"UP", down:"DOWN", left:"LEFT", right:"RIGHT" });
+    /* WASD mirrors the arrows exactly: W/S hop (screen-relative, same
+       translation as swipes), A/D throttle. */
+    this.keys = this.input.keyboard.addKeys({ up:"UP", down:"DOWN", left:"LEFT", right:"RIGHT",
+                                              w:"W", a:"A", s:"S", d:"D" });
     this.input.keyboard.on("keydown-UP",   () => this.hop(-1));
     this.input.keyboard.on("keydown-DOWN", () => this.hop(1));
+    this.input.keyboard.on("keydown-W",    () => this.hop(-1));
+    this.input.keyboard.on("keydown-S",    () => this.hop(1));
   }
 
   /* screenDir: -1 = the swipe/key said UP-screen, +1 = DOWN-screen.
@@ -7075,6 +7080,17 @@ class WorldScene extends Phaser.Scene {
            zeroing both the instant we tip matches that. */
         this.yaw = 0;
         this.pitch = 0;
+        /* same family as the yaw/pitch zeroing above: mid-turn tips
+           freeze whatever non-quarter drawAngle the facing ease was
+           blending through, and every tipped-pose face-visibility test
+           (n·(1,1,1), mounting-face wheels, lid hinge planes) is only
+           verified at quarters — headless renders of the exact draw
+           math reproduce the broken panels at 2.0/2.7/3pi/4 rad and
+           render clean at all 8 quarter x tip-direction combos. Snap
+           to the nearest quarter the instant we go over; the ease is
+           gated off while tipped so this holds. The 45-degree-max pop
+           reads as impact chaos. */
+        this.drawAngle = Math.round(this.drawAngle / (Math.PI/2)) * (Math.PI/2);
         setTimeout(() => showFail(), 1500);
       }
       /* CANCELLATION: par + grace expired -> the order dies. A fail
@@ -7162,7 +7178,7 @@ class WorldScene extends Phaser.Scene {
     let _targetAngle = hdg;
     while(_targetAngle - this.drawAngle >  Math.PI) _targetAngle -= Math.PI*2;
     while(_targetAngle - this.drawAngle < -Math.PI) _targetAngle += Math.PI*2;
-    this.drawAngle = Phaser.Math.Linear(this.drawAngle, _targetAngle, 0.12);
+    if(this.state !== "tipped") this.drawAngle = Phaser.Math.Linear(this.drawAngle, _targetAngle, 0.12);   // tipped: hold the quarter snap (see the tip transition)
     this.yaw = this.hopYaw + (this.slipYaw || 0);
 
     /* stuck jitter rattles the whole body */
@@ -7909,8 +7925,8 @@ class WorldScene extends Phaser.Scene {
   update(t, dt){
     /* desktop throttle */
     if(this.keys){
-      if(this.keys.right.isDown) this.throttle = 1;
-      else if(this.keys.left.isDown) this.throttle = -1;
+      if(this.keys.right.isDown || this.keys.d.isDown) this.throttle = 1;
+      else if(this.keys.left.isDown || this.keys.a.isDown) this.throttle = -1;
       else if(!this.input.activePointer.isDown) this.throttle = 0;
     }
     this.drawWorld(t);
@@ -8323,10 +8339,15 @@ function showWin(s){
      original two-row card — every growth spurt parked the button on
      the text again (on-device, twice now). 16px above the real top,
      the same clearance GO keeps over the map sheet. */
+  /* ORDER MATTERS: show() first. Measuring while the overlay is still
+     display:none reads offsetHeight = 0, which parked Again at
+     bottom:16px — on top of the stats (on-device, the bug's third
+     costume). Once display flips, layout is synchronous and the
+     measurement is real. */
+  show("winOverlay");
   const cardEl = document.getElementById("winCard");
   const againBtn = document.querySelector("#winOverlay .btn");
   if(againBtn) againBtn.style.bottom = (cardEl.offsetHeight + 16) + "px";
-  show("winOverlay");
 }
 
 window.addEventListener("resize", () => {
