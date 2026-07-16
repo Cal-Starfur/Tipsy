@@ -2186,6 +2186,27 @@ function generateRoute(dateStr){
   const nTrafficRoutes = totalLen > 50000 ? 18 : totalLen > 30000 ? 15 : 12;
   const traffic = buildTraffic(grid, rng, nTrafficRoutes, walk.nodes);
 
+  /* ---------- clear stage for the choreography ----------
+     Volumetric hazards are swept out of a window around BOTH scene
+     anchors (pickup shop, dropoff door). The three-canvas stacking
+     draws the worker/customer with the building pass while hazards
+     ride the depth layers, so a cone spawned at the shop door paints
+     over the worker's face regardless of true depth (reported
+     on-device). Runs post-spawn because pickupS/doorS are only chosen
+     after the hazard passes. Ground paint (crack/slab/grade) and the
+     curb ramps stay — they're pinned under everything and can't
+     occlude anyone. */
+  {
+    const GROUNDY = { crack:1, slab:1, grade:1, sidewalkend:1, sidewalkbegin:1 };
+    const CLEAR = 240;
+    for(let i = hazards.length - 1; i >= 0; i--){
+      const hz = hazards[i];
+      if(GROUNDY[hz.type]) continue;
+      if(Math.abs(hz.s - pickupS) < CLEAR || Math.abs(hz.s - doorS) < CLEAR)
+        hazards.splice(i, 1);
+    }
+  }
+
   /* ---------- precomputed cutaway edges ----------
      The north-wall cutaway (NORTH_WALL_CUT_EDGE: f=1 cuts a block's
      west edge, f=2 its north — the two headings where the fixed iso
@@ -2320,8 +2341,26 @@ class WorldScene extends Phaser.Scene {
     this.input.keyboard.on("keydown-DOWN", () => this.hop(1));
   }
 
-  hop(dir){
+  /* screenDir: -1 = the swipe/key said UP-screen, +1 = DOWN-screen.
+     Lanes live in fixed world-space (row 0 road side, row 3 building
+     side), but which row direction is visually up-screen flips with
+     heading — the lane axis rv rotates under the fixed camera, so the
+     old direct dy -> row mapping made the same swipe move the robot
+     up-screen on one street and down-screen on the next (on-device:
+     "switches direction depending on the f="). Translate here: one
+     sign test on the lane axis's screen-y projection, using the same
+     quantized heading the renderer uses. Muscle memory follows the
+     SCREEN, the map follows along. */
+  hop(screenDir){
     if(this.state !== "play") return;
+    const hdg = this.headingAt(this.botS);
+    const fq = ((Math.round(hdg / (Math.PI/2)) % 4) + 4) % 4;
+    const rv = DIRV[(fq + 1) % 4];
+    /* screen-y of one +1 row step: rows step by (laneOffset(r+1) -
+       laneOffset(r)) along rv; screen y grows with (x + y). Sign is all
+       we need — spacing is uniform, so sample rows 0->1. */
+    const rowPlusDown = (rv.x + rv.y) * (laneOffset(1) - laneOffset(0)) > 0;
+    const dir = rowPlusDown ? screenDir : -screenDir;
     /* no lane changes mid-turn: a hop's lateral swing (up to 276 units,
        nearly the turn's own radius) happening over the short arc-length
        distance covered during a turn was overwhelming the actual
@@ -3513,7 +3552,7 @@ class WorldScene extends Phaser.Scene {
     ];
   }
 
-  queueHousingEdgeAt(vq, e, isAddressEdge=false){
+  queueHousingEdgeAt(vq, e, isAddressEdge=false, cornerSkip=null){
     const eseed = ((Math.round(e.ox*3+e.dv.x)*7919) ^ (Math.round(e.oy*3+e.dv.y)*104729) ^ 0x9e3779b9) >>> 0;
     const units = packEdge(e.len, mulberry32(eseed));
     units.forEach((u, idx) => {
@@ -3521,6 +3560,7 @@ class WorldScene extends Phaser.Scene {
       const hseed = ((Math.round(hx)*7919) ^ (Math.round(hy)*104729)) >>> 0;
       const ux = e.ox + e.dv.x*u.start, uy = e.oy + e.dv.y*u.start;
       const isAddress = isAddressEdge && idx === this.route.addressUnitIdx;
+      if(cornerSkip && !isAddress && cornerSkip(hx, hy)) return;   // corner-loom trim
       if(isAddress){
         const doorCenterX = u.w/2;
         const dz = this.groundZ(this.route.doorS);
@@ -3656,15 +3696,15 @@ class WorldScene extends Phaser.Scene {
       vq.push({ depth:gx+gy, fn:(g)=>this.drawFenceGap(g, fx, fy, e.dv, e.rv, gp.w, gseed) });
     }
   }
-  queueHousingBlock(vq, blk, excludeEdges=null){
+  queueHousingBlock(vq, blk, excludeEdges=null, cornerSkip=null){
     const isAddressBlock = (blk === this.route.addressBlock);
     this.blockEdges(blk).forEach((e, idx) => {
       if(excludeEdges && excludeEdges.includes(idx)) return;
-      this.queueHousingEdgeAt(vq, e, isAddressBlock && idx === this.route.addressEdgeIdx);
+      this.queueHousingEdgeAt(vq, e, isAddressBlock && idx === this.route.addressEdgeIdx, cornerSkip);
     });
   }
 
-  queueCommercialEdgeAt(vq, e, isPickupEdge=false){
+  queueCommercialEdgeAt(vq, e, isPickupEdge=false, cornerSkip=null){
     const eseed = ((Math.round(e.ox*3+e.dv.x)*7919) ^ (Math.round(e.oy*3+e.dv.y)*104729) ^ 0x51b3) >>> 0;
     const units = packEdgeNoGap(e.len, mulberry32(eseed));
     units.forEach((u, idx) => {
@@ -3673,6 +3713,7 @@ class WorldScene extends Phaser.Scene {
       const ux = e.ox + e.dv.x*u.start, uy = e.oy + e.dv.y*u.start;
       const isFirst = idx===0, isLast = idx===units.length-1;
       const isPickup = isPickupEdge && idx === this.route.pickupUnitIdx;
+      if(cornerSkip && !isPickup && cornerSkip(hx, hy)) return;    // corner-loom trim
       vq.push({ depth:hx+hy, fn:(g,t)=>{
         this.drawStoreUnit(g, ux, uy, e.dv, e.rv, u.w, hseed, isFirst, isLast, 'body');
         if(isPickup) this.drawPickupUnit(g, ux, uy, e.dv, e.rv, u.w/2, hseed, t);
@@ -3680,11 +3721,11 @@ class WorldScene extends Phaser.Scene {
       vq.push({ depth:hx+hy, isRoof:true, fn:(g)=>this.drawStoreUnit(g, ux, uy, e.dv, e.rv, u.w, hseed, isFirst, isLast, 'roof') });
     });
   }
-  queueCommercialBlock(vq, blk, excludeEdges=null){
+  queueCommercialBlock(vq, blk, excludeEdges=null, cornerSkip=null){
     const isPickupBlock = (blk === this.route.pickupBlock);
     this.blockEdges(blk).forEach((e, idx) => {
       if(excludeEdges && excludeEdges.includes(idx)) return;
-      this.queueCommercialEdgeAt(vq, e, isPickupBlock && idx === this.route.pickupEdgeIdx);
+      this.queueCommercialEdgeAt(vq, e, isPickupBlock && idx === this.route.pickupEdgeIdx, cornerSkip);
     });
     const cx = (blk.x0+blk.x1)/2, cy = (blk.y0+blk.y1)/2;
     const rng = mulberry32(((Math.round(cx)*7919) ^ (Math.round(cy)*104729) ^ 0x71c4) >>> 0);
@@ -3746,8 +3787,26 @@ class WorldScene extends Phaser.Scene {
   }
   queueBlockContent(vq, blk, excludeEdges=null){
     if(blk.type === "park") return this.queueParkBlock(vq, blk);
-    if(blk.type === "commercial") return this.queueCommercialBlock(vq, blk, excludeEdges);
-    this.queueHousingBlock(vq, blk, excludeEdges);
+    /* corner-loom trim: cutting a street-facing edge removes ITS units,
+       but the perpendicular edges' corner-most units still hug that
+       same street and loom over the walk near block ends (reported on
+       f=1). Suppress any unit whose center falls within CORNER_TRIM of
+       a cut street line — a world-space test, so it's correct for
+       every cut edge and heading by construction. The pickup and
+       address units are immune (guarded at the unit loops), matching
+       the cutEdges guards. */
+    let cornerSkip = null;
+    if(excludeEdges && excludeEdges.length){
+      const CORNER_TRIM = 420;
+      const x0 = blk.i*BLOCK, x1 = (blk.i+1)*BLOCK, y0 = blk.j*BLOCK, y1 = (blk.j+1)*BLOCK;
+      cornerSkip = (hx, hy) => excludeEdges.some(e2 =>
+        (e2 === 0 && hy < y0 + CORNER_TRIM) ||
+        (e2 === 2 && hy > y1 - CORNER_TRIM) ||
+        (e2 === 3 && hx < x0 + CORNER_TRIM) ||
+        (e2 === 1 && hx > x1 - CORNER_TRIM));
+    }
+    if(blk.type === "commercial") return this.queueCommercialBlock(vq, blk, excludeEdges, cornerSkip);
+    this.queueHousingBlock(vq, blk, excludeEdges, cornerSkip);
   }
 
   fillExteriorLot(g, lot){
