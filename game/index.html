@@ -7970,7 +7970,7 @@ class WorldScene extends Phaser.Scene {
        CANCEL countdown through the grace window — a second, scarier
        timer instead of a mysterious negative number. */
     const timerText = remainMs >= 0
-      ? "⏱ " + fmtMs(remainMs)
+      ? fmtMs(remainMs)
       : "⚠ cancels " + fmtMs(Math.max(0, this.route.parMs + CANCEL_GRACE_MS - this.runT));
 
     /* mid-turn HOLD: while the robot is actually ON an arc, show just
@@ -8018,7 +8018,7 @@ class WorldScene extends Phaser.Scene {
        and native-DPR rendering keeps it as crisp as the overlay
        headlines it's styled after. Visible only while driving. */
     const gpsEl = document.getElementById("gpsHud");
-    gpsEl.textContent = `${distText} · ${timerText} · ${turnText}`;
+    gpsEl.textContent = `${timerText} · ${distText} · ${turnText}`;
     gpsEl.classList.toggle("hidden", this.state !== "play");
   }
 }
