@@ -2778,7 +2778,15 @@ class WorldScene extends Phaser.Scene {
          comment at the top of this file). Body-vs-body order against
          cars/houses is unaffected — that comes from the blockVQ sort,
          not the layer choice. */
-      const slabLayer = (hzt === "slab" || hzt === "sidewalkend" || hzt === "sidewalkbegin" || hzt === "grade")
+      /* crack joined the pin list: flat ground paint the robot ALWAYS
+         drives over, but it was still going through layerFor()'s
+         point-depth test — which flips to the front layer the moment
+         botDepth sweeps past the crack's single center point, painting
+         the crack OVER the robot just after passing it (on-device
+         report). Same class as the original slab pop: large flat
+         objects with a known layer relationship get pinned, not
+         point-tested. */
+      const slabLayer = (hzt === "slab" || hzt === "sidewalkend" || hzt === "sidewalkbegin" || hzt === "grade" || hzt === "crack")
         ? g : layerFor(hwx, hwy);
       blockVQ.push({ depth: hwx+hwy, fn:(g,t)=>this.drawProp(slabLayer, hzt, hwx, hwy, t, hf, hwz, null, null, hzObj) });
     }
