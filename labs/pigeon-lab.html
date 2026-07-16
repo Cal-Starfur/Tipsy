@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<!-- TIPSY — Pigeon Lab
+     Dial bench for prop.pigeons: a seeded flock of 3-6 birds on a
+     sidewalk tile. Idle = offset peck cycles + tail twitch. Trigger =
+     radial scatter burst with flapping wings, up and away.
+     Conventions: same iso W() projection as game/index.html (K=1.5),
+     position-seeded mulberry32 (no mutable per-bird state for the
+     idle), heading button to verify all 4 f's per the README
+     invariants. Physics-free prop: the burst is pure art. -->
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Pigeon Lab</title>
+<style>
+  html,body{margin:0;padding:0;background:#17181c;color:#e8e4d8;font-family:-apple-system,system-ui,sans-serif;overflow:hidden;}
+  #bar{position:fixed;top:0;left:0;right:0;display:flex;gap:8px;padding:10px;z-index:5;align-items:center;flex-wrap:wrap;}
+  button{background:#e8712c;color:#fff;border:none;border-radius:10px;padding:10px 16px;font-weight:700;font-size:15px;}
+  button.alt{background:#3a3d45;}
+  #info{font-size:13px;color:#8f95a1;margin-left:auto;}
+</style>
+</head>
+<body>
+<div id="bar">
+  <button id="scatter">SCATTER</button>
+  <button id="reset" class="alt">Reset</button>
+  <button id="reseed" class="alt">New flock</button>
+  <button id="face" class="alt">f=0</button>
+  <span id="info"></span>
+</div>
+<div id="game"></div>
+<script src="https://cdn.jsdelivr.net/npm/phaser@3.85.2/dist/phaser.min.js"></script>
+<script>
+"use strict";
+const TILE = 46, T2 = 92, K = 1.5;
+function mulberry32(a){ return function(){ a|=0; a=a+0x6D2B79F5|0;
+  let t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t;
+  return ((t^t>>>14)>>>0)/4294967296; }; }
+const DIRV = [{x:1,y:0},{x:0,y:1},{x:-1,y:0},{x:0,y:-1}];
+
+/* ---------- pigeon palette (SKIN-adjacent greys + the one iridescent fleck) ---------- */
+const PIG = {
+  neck: 0x3f8f7a,                    // the iridescent fleck — every variant carries it
+  beak: 0xe8912c, leg: 0xd97b24, eye: 0x1a1c21, shadow: 0x000000,
+  bodyL: 11, bodyH: 7,               // plump little loaf
+  flapRate: 0.035, burstMs: 1100
+};
+/* three plumages — mid (the original), sooty dark, dusty light — mixed
+   per-bird so a flock reads as a flock, not six clones */
+const PIG_VARIANTS = [
+  { body: 0x8d939e, breast: 0xb4bac4, wing: 0x6c727d, head: 0x565b66 },   // mid
+  { body: 0x5a5f6a, breast: 0x7b818c, wing: 0x40444d, head: 0x2f333b },   // sooty
+  { body: 0xb8bdc6, breast: 0xdde1e8, wing: 0x9aa0aa, head: 0x7d838e },   // dusty light
+];
+
+/* ---------- pure flock layout: position-seeded, no mutable idle state ----------
+   Everything a bird IS (spot in the tile, size, facing, peck phase,
+   scatter angle) comes from the flock's world position + index, so the
+   renderer and any future sim agree by construction. */
+function flockBirds(fx, fy){
+  const rng = mulberry32(((Math.round(fx)*73856093) ^ (Math.round(fy)*19349663)) >>> 0);
+  const n = 3 + Math.floor(rng()*4);          // 3-6 birds
+  const birds = [];
+  for(let i=0;i<n;i++){
+    const a = rng()*Math.PI*2, r = 8 + rng()*30;
+    birds.push({
+      ox: Math.cos(a)*r, oy: Math.sin(a)*r,   // spot within the tile
+      pal: PIG_VARIANTS[Math.floor(rng()*3)], // one of the three plumages
+      size: 0.85 + rng()*0.3,
+      /* wander: two seeded ellipse frequencies + a faster epicycle —
+         a pure function of time, so every bird meanders aimlessly
+         around its home spot forever with zero mutable state, and
+         facing falls out of the analytic velocity */
+      w1: 0.00035 + rng()*0.00035, w2: 0.00035 + rng()*0.00035, w3: 0.0011 + rng()*0.0006,
+      rx: 10 + rng()*10, ry: 10 + rng()*10,
+      p1: rng()*Math.PI*2, p2: rng()*Math.PI*2,
+      peckPh: rng()*Math.PI*2,
+      peckRate: 0.0016 + rng()*0.0009,
+      scatterA: a + (rng()-0.5)*0.9,          // burst direction: radial + jitter
+      scatterV: 0.10 + rng()*0.05,
+      flapPh: rng()*Math.PI*2
+    });
+  }
+  return birds;
+}
+
+/* pure: where a bird's meander puts it (offset from home) and which way
+   it's walking, at time t. Derivative-based facing means the bird always
+   faces its direction of travel; the two base frequencies plus the
+   epicycle never all zero out together, so it never spins in place. */
+function birdWanderAt(b, t){
+  const x = Math.cos(t*b.w1 + b.p1)*b.rx + Math.cos(t*b.w3 + b.p2)*4;
+  const y = Math.sin(t*b.w2 + b.p2)*b.ry + Math.sin(t*b.w3 + b.p1)*4;
+  const vx = -Math.sin(t*b.w1 + b.p1)*b.rx*b.w1 - Math.sin(t*b.w3 + b.p2)*4*b.w3;
+  const vy =  Math.cos(t*b.w2 + b.p2)*b.ry*b.w2 + Math.cos(t*b.w3 + b.p1)*4*b.w3;
+  return { x, y, th: Math.atan2(vy, vx) };
+}
+
+class Lab extends Phaser.Scene {
+  constructor(){ super("lab"); }
+  create(){
+    this.g = this.add.graphics();
+    this.camX = 0; this.camY = 0; this.camZ = 0;
+    this.f = 0;
+    this.flockX = 0; this.flockY = 0;
+    this.fledAt = null;                        // null = idle; timestamp = bursting
+    this.seedBump = 0;
+    const el = id => document.getElementById(id);
+    el("scatter").onclick = () => { if(this.fledAt === null) this.fledAt = this.time.now; };
+    el("reset").onclick = () => { this.fledAt = null; };
+    el("reseed").onclick = () => { this.seedBump += 977; this.flockX = this.seedBump; this.fledAt = null; };
+    el("face").onclick = () => { this.f = (this.f+1)%4; el("face").textContent = "f="+this.f; };
+    this.scale.on("resize", () => this.layout()); this.layout();
+  }
+  layout(){
+    this.cx = this.scale.gameSize.width/2;
+    this.cy = this.scale.gameSize.height/2 + 30;
+  }
+  W(x, y, z){
+    return { x:(x - y)*K + this.cx, y:((x + y)*0.5 - z)*K + this.cy };
+  }
+  quad(pts, color, alpha=1){
+    this.g.fillStyle(color, alpha);
+    this.g.fillPoints(pts.map(p => new Phaser.Geom.Point(p.x, p.y)), true, true);
+  }
+
+  /* ---------- one pigeon ----------
+     dv/rv are the flock's heading axes (the game passes DIRV[f] like
+     every prop); the bird's own facing th rotates inside that frame.
+     peck drives the head dip; flap/z/vel only apply once fled. */
+  drawPigeon(bx, by, b, t, fled){
+    const s = b.size;
+    let px = bx + b.ox, py = by + b.oy, wing = 0, thB = b.th;
+    let z = fled === null ? Math.abs(Math.sin(t*0.012 + b.flapPh))*0.6 : 0;   // waddle bob
+    if(fled !== null){
+      const ft = (t - fled)/1000;
+      px += Math.cos(b.scatterA) * b.scatterV * 1000 * ft;
+      py += Math.sin(b.scatterA) * b.scatterV * 1000 * ft;
+      z = 14*ft + 90*ft*ft;                            // up and accelerating away
+      wing = Math.sin(t*PIG.flapRate + b.flapPh);      // full beat
+      thB = b.scatterA + Math.PI/2;                    // flies the way it flees
+    }
+    const c = Math.cos(thB), sn = Math.sin(thB);
+    const L = (fx, fy, fz) => this.W(px + fx*c - fy*sn, py + fx*sn + fy*c, z + fz);
+    const peck = fled === null ? Math.pow(Math.max(0, Math.sin(t*b.peckRate + b.peckPh)), 6) : 0;
+
+    /* shadow — shrinks and fades as the bird climbs */
+    const shA = Math.max(0, 0.16 - z*0.0016);
+    if(shA > 0.01){
+      const sh = []; for(let i=0;i<8;i++){ const a=(i/8)*Math.PI*2;
+        sh.push(this.W(px + Math.cos(a)*7*s, py + Math.sin(a)*5*s, 0.4)); }
+      this.quad(sh, PIG.shadow, shA);
+    }
+    /* legs (grounded only) */
+    if(fled === null){
+      this.g.lineStyle(1.6, PIG.leg, 1);
+      for(const ly of [-2.2, 2.2]){
+        const a1 = L(-1, ly, 2.4), a2 = L(-1, ly, 0);
+        this.g.lineBetween(a1.x, a1.y, a2.x, a2.y);
+      }
+    }
+    /* ---------- the HULL: a tapered volumetric loaf, mini-drawBox style ----------
+       Real faces with backface culling instead of stacked flat planes:
+       top strip (back plumage), two side flanks, the lit breast face at
+       the front, and the tail-end face. Visibility per face is the same
+       projection-exact test the game's boxes use — local normal rotated
+       by the bird's facing, summed against the iso view axis. */
+    const B = PIG.bodyL*s, H = PIG.bodyH*s;
+    const c2 = Math.cos(thB), s2 = Math.sin(thB);
+    const vis = (nx, ny) => (nx*c2 - ny*s2) + (nx*s2 + ny*c2) > 0;
+    /* corner frame: chest end high and narrow-ish, tail end lower/wider */
+    const FT = B*0.45, FB = B*0.5, RT = -B*0.42, RB = -B*0.55;
+    const yFT = 2.1*s, yFB = 2.9*s, yRT = 2.5*s, yRB = 3.4*s;
+    const zT = 2 + H, zTr = 2 + H*0.85, zB = 2, zBr = 2.4;
+    /* far-to-near face order: rear, far-side handled by culling, top, near side, chest */
+    if(vis(-1, 0))
+      this.quad([L(RB,-yRB,zBr), L(RB,yRB,zBr), L(RT,yRT,zTr), L(RT,-yRT,zTr)], b.pal.wing);
+    for(const side of [-1, 1]){
+      if(!vis(0, side)) continue;
+      /* flank */
+      this.quad([L(FB,side*yFB,zB), L(FT,side*yFT,zT), L(RT,side*yRT,zTr), L(RB,side*yRB,zBr)], b.pal.body);
+      /* folded WING: a raised panel lying on the flank — pushed outboard
+         and inset from the body outline, so it reads as a wing resting
+         on the body instead of a painted seam */
+      if(fled === null)
+        this.quad([L(FT*0.7, side*(yFT+0.9), zT - H*0.15),
+                   L(FT*0.2, side*(yFB+0.9), zB + H*0.45),
+                   L(RB*0.92, side*(yRB+0.7), zBr + H*0.25),
+                   L(RT*0.95, side*(yRT+0.9), zTr - H*0.1)], b.pal.wing);
+    }
+    /* top strip — the back */
+    this.quad([L(FT,-yFT,zT), L(FT,yFT,zT), L(RT,yRT,zTr), L(RT,-yRT,zTr)], b.pal.body);
+    /* the lit breast face */
+    if(vis(1, 0))
+      this.quad([L(FB,-yFB,zB), L(FB,yFB,zB), L(FT,yFT,zT), L(FT,-yFT,zT)], b.pal.breast);
+    /* tail: dark fan off the tail-end top edge, twitches at rest */
+    const tw = fled === null ? Math.sin(t*0.004 + b.peckPh)*0.6 : 0;
+    this.quad([L(RT,-1.8*s,zTr), L(-B*1.05, (-1.2+tw)*s, zTr + 0.8),
+               L(-B*1.05, (1.2+tw)*s, zTr + 0.8), L(RT,1.8*s,zTr)], b.pal.wing);
+    /* flight wings: two segments each with a dihedral BEND — inner panel
+       rises to a mid joint, outer panel continues to the tip at extra
+       lift, both riding the flap, so the beat reads as a folding 3D
+       wing instead of a flapping triangle */
+    if(fled !== null){
+      const spread = 10*s + wing*7*s, lift = 3 + Math.abs(wing)*5;
+      for(const side of [-1, 1]){
+        const shF = L(FT*0.7, side*yFT, zT - 0.5), shR = L(RT*0.8, side*yRT, zTr - 0.5);
+        const midF = L(B*0.28, side*spread*0.55, zT + lift*0.55);
+        const midR = L(-B*0.42, side*spread*0.5, zTr + lift*0.5);
+        const tip  = L(-B*0.1, side*spread, zT + lift + Math.abs(wing)*2);
+        this.quad([shF, midF, midR, shR], b.pal.wing);
+        this.quad([midF, tip, midR], b.pal.body);   // outer panel catches light
+      }
+    }
+    /* head: dark knob; peck dips it forward and down */
+    const hx = B*0.5 + 2.1*s + peck*3.5*s, hz = 2 + H + 2.3*s - peck*5*s;
+    const hs = 3.1*s;
+    /* the NECK — a tapered dark quad from the body's shoulder up to the
+       head base, drawn before the head so the knob caps it. Follows the
+       peck (its far end IS the head anchor), so it stretches and bows
+       into every dip instead of the head detaching. */
+    this.quad([L(B*0.3, -2.4*s, 2+H*0.8), L(hx - hs*0.2, -1.7*s, hz - hs*0.35),
+               L(hx - hs*0.2,  1.7*s, hz - hs*0.35), L(B*0.3,  2.4*s, 2+H*0.8)], b.pal.head);
+    this.quad([L(B*0.3, -2.4*s, 2+H*0.5), L(hx - hs*0.2, -1.7*s, hz - hs*0.8),
+               L(hx - hs*0.2, -1.7*s, hz - hs*0.35), L(B*0.3, -2.4*s, 2+H*0.8)], b.pal.head);
+    this.quad([L(B*0.3,  2.4*s, 2+H*0.5), L(hx - hs*0.2,  1.7*s, hz - hs*0.8),
+               L(hx - hs*0.2,  1.7*s, hz - hs*0.35), L(B*0.3,  2.4*s, 2+H*0.8)], b.pal.head);
+    const hd = []; for(let i=0;i<8;i++){ const a=(i/8)*Math.PI*2;
+      hd.push(L(hx + Math.cos(a)*hs, Math.sin(a)*hs, hz + Math.sin(a)*hs*0.4)); }
+    this.quad(hd, PIG.head);
+    /* the iridescent neck fleck */
+    this.quad([L(hx-hs*0.9,-1.4*s,hz-1.6), L(hx-hs*0.2,-1.1*s,hz-1.2),
+               L(hx-hs*0.2,1.1*s,hz-1.2), L(hx-hs*0.9,1.4*s,hz-1.6)], PIG.neck);
+    /* beak tick + eye */
+    this.quad([L(hx+hs*0.8,-0.8*s,hz), L(hx+hs*1.7,0,hz-0.6*s - peck*1.2), L(hx+hs*0.8,0.8*s,hz)], PIG.beak);
+    const eye = L(hx + hs*0.35, -hs*0.75, hz + hs*0.35);
+    this.g.fillStyle(PIG.eye, 1); this.g.fillCircle(eye.x, eye.y, 1.3*s*K*0.8);
+  }
+
+  update(t){
+    const g = this.g; g.clear();
+    /* sidewalk tiles */
+    for(let ti=-2; ti<=2; ti++) for(let tj=-2; tj<=2; tj++){
+      const x0 = ti*T2 - T2/2, y0 = tj*T2 - T2/2;
+      this.quad([this.W(x0,y0,0), this.W(x0+T2,y0,0), this.W(x0+T2,y0+T2,0), this.W(x0,y0+T2,0)],
+                (ti+tj)%2 ? 0xbdb7a8 : 0xc6c0b1);
+      g.lineStyle(1, 0xa9a394, 0.5);
+      const c1 = this.W(x0,y0,0), c2 = this.W(x0+T2,y0,0), c3 = this.W(x0+T2,y0+T2,0), c4 = this.W(x0,y0+T2,0);
+      g.strokePoints([c1,c2,c3,c4].map(p=>new Phaser.Geom.Point(p.x,p.y)), true);
+    }
+    /* the flock, in the current heading's frame — birds sorted by
+       screen depth so near ones paint over far ones */
+    const dv = DIRV[this.f], rv = DIRV[(this.f+1)%4];
+    const birds = flockBirds(this.flockX, this.flockY);
+    const fled = (this.fledAt !== null && t - this.fledAt < PIG.burstMs*3) ? this.fledAt : (this.fledAt !== null ? this.fledAt : null);
+    const placed = birds.map(b => {
+      const wo = birdWanderAt(b, t);
+      const lx = b.ox + wo.x, ly = b.oy + wo.y;
+      const wx = (lx*dv.x + ly*rv.x), wy = (lx*dv.y + ly*rv.y);
+      return { b: { ...b, ox: wx, oy: wy,
+                    th: wo.th + this.f*Math.PI/2,
+                    scatterA: b.scatterA + this.f*Math.PI/2 },
+               d: wx + wy };
+    }).sort((a,bb) => a.d - bb.d);
+    for(const p of placed) this.drawPigeon(0, 0, p.b, t, fled);
+    document.getElementById("info").textContent =
+      `${birds.length} birds · ${this.fledAt === null ? "pecking" : "scattered"} · tap SCATTER`;
+  }
+}
+new Phaser.Game({ type: Phaser.AUTO, parent: "game",
+  scale: { mode: Phaser.Scale.RESIZE, width: "100%", height: "100%" },
+  backgroundColor: "#17181c", scene: [Lab] });
+</script>
+</body>
+</html>
