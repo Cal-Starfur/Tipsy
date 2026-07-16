@@ -84,7 +84,7 @@
     padding:12px 16px calc(10px + env(safe-area-inset-bottom));color:#2e3138;}
   #bottomSheet .sheetRow{display:flex;align-items:center;justify-content:space-between;}
   #bottomSheet .chev{font-size:13px;color:#8f95a1;}
-  #bottomSheet .status{font-weight:700;font-size:15px;color:#b5540e;}
+  #bottomSheet .status{font-weight:700;font-size:15px;color:#b5540e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:78%;}
   #bottomSheet .listIcon{font-size:17px;color:#8f95a1;}
   /* in-game GPS readout — DOM, not canvas text: the Phaser framebuffer
      renders at CSS resolution (Scale.RESIZE, no DPR handling; K is a
@@ -2173,7 +2173,41 @@ function generateRoute(dateStr){
     ? { sky:0xc9b49b, pave:0xa19a8e, paveB:0x958e82, paveEdge:0x7d7669, road:0x3d4046, roadLine:0x8f897b }
     : { sky:0x9fd4e8, pave:0xc9c3b4, paveB:0xbfb9aa, paveEdge:0xa8a294, road:0x4a4d55, roadLine:0xd8d2c2 };
 
-  const tipMult = (1 + hood.hill*1.2 + (1-hood.pave)*1.0 + hood.litter*0.8 + (walk.segs.filter(s=>s.type==="arc").length-2)*0.15).toFixed(1);
+  /* ---------- the ORDER (replaces the tip multiplier) ----------
+     Each delivery is a real seeded order with contents and a dollar
+     value. The old tipMult difficulty score (hills + rough pavement +
+     litter + turns) now scales the ORDER SIZE instead of floating over
+     the payout as a bare multiplier — harder route, bigger order,
+     bigger stakes, same economics delivered as fiction. Tips are a
+     PERCENTAGE of this value: 20% baseline, deductions for damage /
+     lateness / walk distance, small bonuses to a 22% ceiling (engine
+     in showWin). */
+  const difficulty = 1 + hood.hill*1.2 + (1-hood.pave)*1.0 + hood.litter*0.8 + (walk.segs.filter(s=>s.type==="arc").length-2)*0.15;
+  const MENU = [
+    ["burrito", 11], ["tacos al pastor", 9.5], ["torta", 10],
+    ["quesadilla", 8.5], ["carne asada fries", 7.5], ["elote", 4.5],
+    ["horchata", 3.75], ["agua fresca", 3.25],
+  ];
+  const orderLines = [];
+  let orderValue = 0;
+  const nLineItems = 1 + Math.floor(rng()*3);
+  for(let i = 0; i < nLineItems; i++){
+    const [oname, oprice] = MENU[Math.floor(rng()*MENU.length)];
+    const qty = 1 + (rng() < 0.3 ? 1 : 0);
+    const ex = orderLines.find(l => l.name === oname);
+    if(ex) ex.qty += qty; else orderLines.push({ name: oname, qty });
+    orderValue += oprice * qty;
+  }
+  orderValue = Math.round(orderValue * (0.85 + difficulty*0.45) * 100) / 100;
+  const order = { lines: orderLines, value: orderValue,
+    text: orderLines.map(l => l.qty > 1 ? `${l.qty}× ${l.name}` : l.name).join(", ") };
+
+  /* par time — CASUAL tuning to start (tighten later by shrinking
+     these): the drive at a relaxed 0.075 u/ms cruise, +3s per turn,
+     +hill allowance, +15s flat grace. The HUD counts it down; tip
+     decays past it (showWin). */
+  const nTurns = walk.segs.filter(s => s.type === "arc").length;
+  const parMs = Math.round((doorS - SPAWN_S)/0.075 + nTurns*3000 + hood.hill*20000 + 15000);
 
   /* traffic: real road-aware two-way loops through the same grid,
      instead of a fixed row that never knew where the road was.
@@ -2248,7 +2282,7 @@ function generateRoute(dateStr){
   }
 
   return { hood, grid, segs, totalLen, tiles, hazards, props, pal, traffic, crossings, cutEdges,
-           address:`${number} ${street}`, doorS, pickupS, pickupSpot, pickupShopName, addressBlock, pickupBlock, addressEdgeIdx, pickupEdgeIdx, addressUnitIdx, pickupUnitIdx, tipMult, dateStr };
+           address:`${number} ${street}`, doorS, pickupS, pickupSpot, pickupShopName, addressBlock, pickupBlock, addressEdgeIdx, pickupEdgeIdx, addressUnitIdx, pickupUnitIdx, order, parMs, dateStr };
 }
 
 /* ---------- robot palette (approved in sprite lab) ---------- */
@@ -2432,7 +2466,7 @@ class WorldScene extends Phaser.Scene {
     document.getElementById("orderCard").innerHTML = this.route.pickupShopName
       ? `<b>${this.route.hood.n}</b> — pickup at <b>${this.route.pickupShopName}</b>, deliver to <b>${this.route.address}</b>`
       : `<b>${this.route.hood.n}</b> — deliver to <b>${this.route.address}</b>`;
-    document.getElementById("sheetStatus").textContent = `Tips ×${this.route.tipMult}`;
+    document.getElementById("sheetStatus").textContent = `$${this.route.order.value.toFixed(2)} · ${this.route.order.text}`;
     resizeRouteMap();
     drawRouteMap(this.route);
   }
@@ -7546,11 +7580,14 @@ class WorldScene extends Phaser.Scene {
     const distFt = remainDist * FT_PER_UNIT;
     const distText = distFt > 1000 ? (distFt/5280).toFixed(1)+" mi" : Math.round(distFt/10)*10 + " ft";
 
-    const speedFloor = 0.03; // avoids a huge/blinking ETA the instant the robot brakes to a stop
-    const etaSec = remainDist / Math.max(this.speed, speedFloor) / 1000;
-    const etaText = etaSec > 60
-      ? Math.floor(etaSec/60) + ":" + String(Math.round(etaSec%60)).padStart(2,"0")
-      : Math.round(etaSec) + "s";
+    /* delivery TIMER (replaces the ETA estimate): counts down the
+       route's par time; past zero it shows the overage with a minus —
+       the tip is decaying (1%/5s, see showWin) and the driver should
+       feel it. */
+    const remainMs = this.route.parMs - this.runT;
+    const aMs = Math.abs(remainMs);
+    const timerText = (remainMs < 0 ? "-" : "")
+      + Math.floor(aMs/60000) + ":" + String(Math.floor((aMs%60000)/1000)).padStart(2,"0");
 
     /* mid-turn HOLD: while the robot is actually ON an arc, show just
        the current turn's arrow — no distance. findNextTurn() looks
@@ -7597,7 +7634,7 @@ class WorldScene extends Phaser.Scene {
        and native-DPR rendering keeps it as crisp as the overlay
        headlines it's styled after. Visible only while driving. */
     const gpsEl = document.getElementById("gpsHud");
-    gpsEl.textContent = `${distText} · ETA ${etaText} · ${turnText}`;
+    gpsEl.textContent = `${distText} · ⏱ ${timerText} · ${turnText}`;
     gpsEl.classList.toggle("hidden", this.state !== "play");
   }
 }
@@ -7852,18 +7889,51 @@ function showWin(s){
      flush with the mat — then 3 cents a unit, so the worst legal stops
      (far lane, edge of the win window, ~400+ units) cost real money.
      Shown in the panel so parking tight reads as strategy. */
-  let walkPen = 0;
+  /* ---------- the TIP ENGINE ----------
+     A percentage of the ORDER VALUE, not a multiplier: 20% baseline.
+     Deductions: cargo damage (0.2%/pt — trash the burrito, lose the
+     tip), lateness past par (1% per 5s, casual for now), and the walk
+     the customer makes to a badly parked robot (per unit past the
+     free 120). Bonuses: flawless cargo +1%, beating par with 20% to
+     spare +1% — the 22% ceiling for a perfect run. Floor 0%: mess it
+     up completely and you deliver for free. */
+  let walkExtra = 0;
   if(s.addrDoorDV){
     const doorX = s.addrDoorUX + s.addrDoorDV.x*s.addrDoorCenterX;
     const doorY = s.addrDoorUY + s.addrDoorDV.y*s.addrDoorCenterX;
-    walkPen = Math.round(Math.max(0, Math.hypot(s.botX - doorX, s.botY - doorY) - 120) * 0.03);
+    walkExtra = Math.max(0, Math.hypot(s.botX - doorX, s.botY - doorY) - 120);
   }
-  const payout = Math.max(1, Math.round(parseFloat(s.route.tipMult) * cargo * 0.14 - secs*0.1) - walkPen);
-  /* two rows, not three — fits the map bottom sheet's height so the win
-     panel and the map panel read as the same component. */
+  const order = s.route.order;
+  const dmgPen  = s.damage * 0.2;
+  const latePen = Math.max(0, s.runT - s.route.parMs) / 5000;
+  const walkPen = walkExtra * 0.008;
+  let pct = 20 - dmgPen - latePen - walkPen;
+  if(s.damage === 0) pct += 1;
+  if(s.runT < s.route.parMs * 0.8) pct += 1;
+  pct = Math.max(0, Math.min(22, pct));
+  const payout = Math.round(order.value * pct) / 100;
+  const pctShow = Math.round(pct);
+  const cuts = [];
+  if(dmgPen  >= 0.5) cuts.push(`dmg −${Math.round(dmgPen)}%`);
+  if(latePen >= 0.5) cuts.push(`late −${Math.round(latePen)}%`);
+  if(walkPen >= 0.5) cuts.push(`walk −${Math.round(walkPen)}%`);
+  /* daily best — tip dollars ranked, time the tiebreak. Local until
+     Devvit lands (which turns this same record into the shared
+     leaderboard). */
+  let bestRow = "";
+  try {
+    const key = "tipsy-best-" + s.route.dateStr;
+    const prev = JSON.parse(localStorage.getItem(key) || "null");
+    const better = !prev || payout > prev.tip || (payout === prev.tip && s.runT < prev.ms);
+    if(better) localStorage.setItem(key, JSON.stringify({ tip: payout, ms: s.runT }));
+    bestRow = better
+      ? `<div class="sheetRow" style="color:#3f7d43;font-size:13px">★ NEW DAILY BEST</div>`
+      : `<div class="sheetRow" style="color:#8f95a1;font-size:13px">daily best $${prev.tip.toFixed(2)} · ${(prev.ms/1000).toFixed(1)}s</div>`;
+  } catch(e){}
   document.getElementById("winCard").innerHTML =
-    `<div class="sheetRow"><b>${s.route.address}</b>&nbsp;·&nbsp;${s.route.hood.n}</div>` +
-    `<div class="sheetRow">time <b>${secs.toFixed(1)}s</b>&nbsp;·&nbsp;cargo <b>${cargo}%</b>&nbsp;·&nbsp;tip <b>$${payout}</b>&nbsp;<span style="color:#8f95a1">(×${s.route.tipMult}${walkPen > 0 ? `, walk −$${walkPen}` : ""})</span></div>`;
+    `<div class="sheetRow"><b>${s.route.address}</b>&nbsp;·&nbsp;${s.route.hood.n}&nbsp;<span style="color:#8f95a1">· ${order.text} · $${order.value.toFixed(2)}</span></div>` +
+    `<div class="sheetRow">time <b>${secs.toFixed(1)}s</b>&nbsp;·&nbsp;cargo <b>${cargo}%</b>&nbsp;·&nbsp;tip <b>${pctShow}% · $${payout.toFixed(2)}</b>${cuts.length ? `&nbsp;<span style="color:#8f95a1">(${cuts.join(", ")})</span>` : ""}</div>` +
+    bestRow;
   show("winOverlay");
 }
 
