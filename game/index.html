@@ -518,6 +518,19 @@ function binNearEdge(phi){
   }
   return minU;
 }
+/* where a knocked bin's BLOCKING footprint actually sits, relative to
+   its spawn anchor, along the route (+s): the shove's slide plus the
+   topple's pivot reach (the barrel swings ~half its height forward as
+   it lies down), projected through the fall angle. PURE — same fields
+   the draw animates from, so the stop line and the art always agree
+   (the fixed anchor wall blocked the robot at empty pavement while the
+   bin lay a shove away — on-device). */
+function binShiftAt(hz){
+  const lay = Math.min(1, (hz.phi || 0) / (Math.PI/2));
+  const reach = lay * BIN.height * 0.5;
+  return ((hz.slide || 0) + reach) * Math.cos(hz.fallPsi || 0);
+}
+
 const BIN_HIT = (() => {
   const r0 = binR(0);
   const phiBal = Math.atan(r0 / (BIN.height * 0.42));   // CM biased low — a loaded bin's weight sits low
@@ -2859,8 +2872,27 @@ class WorldScene extends Phaser.Scene {
          report). Same class as the original slab pop: large flat
          objects with a known layer relationship get pinned, not
          point-tested. */
+      /* KNOCKED props join the depth-anchor fixes: a downed planter /
+         bin / cone / scooter's visual mass pivots or slides well away
+         from its spawn anchor, so layerFor() at the anchor tests a
+         point that's no longer under the art — robot pressed against a
+         tipped planter drew OVER it (on-device). Can't pin these (the
+         robot can be on either side), so instead test the silhouette
+         point NEAREST the robot: shift the test point toward the robot
+         by up to the prop's knocked radius. Far apart, either answer
+         is fine (no overlap possible); close, this is the point that
+         decides the truth. Orientation-independent — correct at all 4
+         headings by construction. */
+      let ltx = hwx, lty = hwy;
+      if((hzt === "planter" || hzt === "bin" || hzt === "cone" || hzt === "scooter")
+         && hzObj && (hzObj.phi || 0) > 0.5){
+        let kx = this.botX - hwx, ky = this.botY - hwy;
+        const kd = Math.hypot(kx, ky) || 1;
+        const kR = Math.min(kd, hzt === "scooter" ? 30 : 28);
+        ltx += kx/kd*kR; lty += ky/kd*kR;
+      }
       const slabLayer = (hzt === "slab" || hzt === "sidewalkend" || hzt === "sidewalkbegin" || hzt === "grade" || hzt === "crack")
-        ? g : layerFor(hwx, hwy);
+        ? g : layerFor(ltx, lty);
       blockVQ.push({ depth: hwx+hwy, fn:(g,t)=>this.drawProp(slabLayer, hzt, hwx, hwy, t, hf, hwz, null, null, hzObj) });
     }
 
@@ -3405,12 +3437,26 @@ class WorldScene extends Phaser.Scene {
     const wShoe = PEOPLE_SHOE[Math.floor(wrng()*PEOPLE_SHOE.length)];
 
     const wu = 1 - Math.pow(1 - walkT, 2);
-    const dyStart = -30, dyEnd = T2*2.1 - 50; // dyStart past the door plane, into the shop
-    // interior — was 4 (flush with the wall/door), which made him stop AT the doorway
-    // instead of walking through it. dyEnd = 143.2 — closer to the robot's actual stop point
-    const dy = Phaser.Math.Linear(dyStart, dyEnd, wu);
-    const workerX = ox + dv.x*doorCenterX + rv.x*dy, workerY = oy + dv.y*doorCenterX + rv.y*dy;
-    const facingRobot = Math.atan2(rv.y, rv.x) - Math.PI/2;
+    /* MEET POINT, the dropoff treatment mirrored: the worker stands at
+       the real door->robot line stopped 35 units short of the bin — not
+       the old fixed dy (T2*2.1-50), which left an air gap the bag had
+       to be TOSSED across. This close, the hand-to-bin pass reads as
+       SETTING the bag in (on-device request). pickupSpot is where the
+       robot is teleported at route load, so the meet is static and
+       exact; correct in all 4 headings since it's a world vector. */
+    const doorPx = ox + dv.x*doorCenterX, doorPy = oy + dv.y*doorCenterX;
+    const spot = this.route.pickupSpot;
+    let mvx = spot.x - doorPx, mvy = spot.y - doorPy;
+    const meetDist = Math.hypot(mvx, mvy) || 1; mvx /= meetDist; mvy /= meetDist;
+    /* 12 from CENTER (walked in from 35 -> 20 -> 12 on-device): his hull
+       overlaps the shell's footprint slightly in plan, which in iso is
+       exactly what "leaning over the open bin" looks like — the hand
+       lands inside the mouth. */
+    const meetX = spot.x - mvx*12, meetY = spot.y - mvy*12;
+    const backX = doorPx - rv.x*30, backY = doorPy - rv.y*30;   // walk-back ends past the door plane
+    const workerX = Phaser.Math.Linear(backX, meetX, wu), workerY = Phaser.Math.Linear(backY, meetY, wu);
+    const dy = (workerX - doorPx)*rv.x + (workerY - doorPy)*rv.y;  // signed door-plane side (draw order below)
+    const facingRobot = Math.atan2(mvy, mvx) - Math.PI/2;          // faces the BIN along the true approach
     /* flip to face the shop only once the WALK phase has actually
        begun (loadDone), not just state==="play" broadly — that raw
        state check would have flipped him the instant "go" was
@@ -3453,9 +3499,24 @@ class WorldScene extends Phaser.Scene {
         const releasePt = { x: hp.x, y: hp.y, z: hp.z };   // full reach: zero taper — departs exactly from the hand
         const arcT = Phaser.Math.Clamp((loadFrac - LOAD_ART.holdEnd) / (LOAD_ART.dropFrac - LOAD_ART.holdEnd), 0, 1);
         const botX = this.botX, botY = this.botY;
-        bagX = Phaser.Math.Linear(releasePt.x, botX, arcT);
-        bagY = Phaser.Math.Linear(releasePt.y, botY, arcT);
-        bagZ = Phaser.Math.Linear(releasePt.z, this.botZ + 26, arcT) + Math.sin(arcT*Math.PI)*LOAD_ART.arcH;
+        /* target the MOUTH, not the torso: the old endpoint (center,
+           z+26) sent the bag diving behind the body wall — and the
+           robot draws after the world pass, so the shell painted over
+           the final approach and the bag just vanished into the side
+           (on-device: "doesn't look like it goes into the bin"). The
+           bin's mouth is at the TOP of the shell under the open lid:
+           land on its NEAR RIM (worker's side, 8 units in from the
+           edge line) at rim height, so the whole drop stays visible
+           until the lid closes over it. Arc height ∝ distance, with a
+           floor so the crest always clears the rim. */
+        const tvx = releasePt.x - botX, tvy = releasePt.y - botY;
+        const td = Math.hypot(tvx, tvy) || 1;
+        const rimX = botX + tvx/td*8, rimY = botY + tvy/td*8;
+        const rimZ = this.botZ + 50;
+        const arcHz = Math.max(6, Math.min(LOAD_ART.arcH, td * 0.3));
+        bagX = Phaser.Math.Linear(releasePt.x, rimX, arcT);
+        bagY = Phaser.Math.Linear(releasePt.y, rimY, arcT);
+        bagZ = Phaser.Math.Linear(releasePt.z, rimZ, arcT) + Math.sin(arcT*Math.PI)*arcHz;
       }
     }
 
@@ -6006,7 +6067,21 @@ class WorldScene extends Phaser.Scene {
       if(this.loadDone) this.bagOnBoard = true;
       if(this.loadDone){
         if(this.walkAt === null) this.walkAt = this.runT;
-        this.pickupWalk = Phaser.Math.Clamp(1 - (this.runT - this.walkAt)/PICKUP_ART.walkMs, 0, 1);
+        /* duration from the REAL walk distance (meet point -> past the
+           door plane) at the standard 0.11 u/ms pace — the fixed
+           walkMs was tuned for the old short dy and would sprint the
+           longer meet-to-door return. */
+        let backMs = PICKUP_ART.walkMs;
+        if(this.route.pickupSpot && this.pickupDoorDV){
+          const dpx = this.pickupDoorUX + this.pickupDoorDV.x*this.pickupDoorCenterX;
+          const dpy = this.pickupDoorUY + this.pickupDoorDV.y*this.pickupDoorCenterX;
+          let bvx = this.route.pickupSpot.x - dpx, bvy = this.route.pickupSpot.y - dpy;
+          const bd = Math.hypot(bvx, bvy) || 1;
+          const mx = this.route.pickupSpot.x - bvx/bd*12, my = this.route.pickupSpot.y - bvy/bd*12;
+          const bx2 = dpx - this.pickupDoorRV.x*30, by2 = dpy - this.pickupDoorRV.y*30;
+          backMs = Math.max(400, Math.hypot(mx - bx2, my - by2) / 0.11);
+        }
+        this.pickupWalk = Phaser.Math.Clamp(1 - (this.runT - this.walkAt)/backMs, 0, 1);
       } else {
         this.walkAt = null;
         this.pickupWalk = 1; // still idle at the robot during loading
@@ -6489,8 +6564,13 @@ class WorldScene extends Phaser.Scene {
              though it loses the stop line creeping forward as the
              bin topples. */
           const BOT_CLEAR = 26;
-          if(onLane(hz.row) && this.botS > hz.s - BOT_CLEAR && this.botS < hz.s){
-            this.botS = safeStop(hz.s - BOT_CLEAR);
+          /* the wall tracks the BIN, not the anchor: binShiftAt gives
+             the knocked footprint's real +s displacement (slide +
+             topple reach), so after a shove the robot stops at the
+             lying barrel instead of at the empty spot it left. */
+          const binS = hz.s + binShiftAt(hz);
+          if(onLane(hz.row) && this.botS > binS - BOT_CLEAR && this.botS < binS){
+            this.botS = safeStop(binS - BOT_CLEAR);
             this.isBlocked = true;
             if(this.speed > 0.035 && !hz.bonked && hz.pose !== "knocked"){
               hz.bonked = true;
@@ -6505,7 +6585,7 @@ class WorldScene extends Phaser.Scene {
             }
             this.speed = 0;
           }
-          if(Math.abs(dx) > 40) hz.bonked = false;   // re-arm after backing off, if it rocked back up
+          if(Math.abs(this.botS - (hz.s + binShiftAt(hz))) > 40) hz.bonked = false;   // re-arm after backing off, measured from the MOVED footprint
 
           /* single-phase gravity pivot about the base rim — no slab
              handoff needed, a barrel just lies flat on its side */
@@ -7002,8 +7082,18 @@ class WorldScene extends Phaser.Scene {
     if(this.state === "play" && this.pickupDoorDV && pickupWorkerVisible){
       const dv3 = this.pickupDoorDV, rv3 = this.pickupDoorRV;
       const doorX3 = this.pickupDoorUX + dv3.x*this.pickupDoorCenterX, doorY3 = this.pickupDoorUY + dv3.y*this.pickupDoorCenterX;
-      const workerFarX = doorX3 + rv3.x*(T2*2.1-50), workerFarY = doorY3 + rv3.y*(T2*2.1-50);
-      const facingRobot = Math.atan2(rv3.y, rv3.x) - Math.PI/2;
+      /* the worker's far spot is the MEET beside the robot now, and his
+         facing follows the true door->robot approach — mirrors the won
+         branch below. */
+      let workerFarX = doorX3 + rv3.x*(T2*2.1-50), workerFarY = doorY3 + rv3.y*(T2*2.1-50);
+      let facingRobot = Math.atan2(rv3.y, rv3.x) - Math.PI/2;
+      if(this.route.pickupSpot){
+        let cvx = this.route.pickupSpot.x - doorX3, cvy = this.route.pickupSpot.y - doorY3;
+        const cd = Math.hypot(cvx, cvy) || 1; cvx /= cd; cvy /= cd;
+        workerFarX = this.route.pickupSpot.x - cvx*12;
+        workerFarY = this.route.pickupSpot.y - cvy*12;
+        facingRobot = Math.atan2(cvy, cvx) - Math.PI/2;
+      }
       const wBuild2 = PEOPLE_BUILD[mulberry32(this.pickupWorkerSeed)() < 0.5 ? 0 : 1];
       const armReach2 = this.handWorldPos(workerFarX, workerFarY, facingRobot, wBuild2, 1);
       camTargetX = (doorX3 + this.botX + workerFarX + armReach2.x) / 4;
