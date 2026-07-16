@@ -1776,7 +1776,12 @@ function generateRoute(dateStr){
   const density = 0.45 + hood.litter*0.35 + (1 - hood.pave)*0.3;
   let hs = SPAWN_S + 120;
   while(hs < totalLen - 220){
-    hs += (330 - density*176) + rng()*198;
+    /* halved step = DOUBLED obstacle count (requested). spawnBlocked's
+       60-unit floor still guarantees breathing room between props, and
+       crossing/corner exclusions are unchanged — the course just gets
+       twice as busy. Cracks and slabs keep their own dedicated passes
+       and levers. */
+    hs += ((330 - density*176) + rng()*198) * 0.5;
     const hsR = Math.round(hs);
     if(inCorner(hsR)) continue;
     const lane = Math.floor(rng()*4);
@@ -1832,8 +1837,26 @@ function generateRoute(dateStr){
       if(preKnocked) hzObj.fallPsi = (rng()*2 - 1) * 0.4;   // small fall-direction jitter, same idea as bin's
     }
     if(type === "scooter"){
-      const preKnocked = rng() < 0.8;
-      hzObj.thetaF = (rng()*2 - 1) * Math.PI * 0.9;
+      /* 0.8 -> 0.5: at 80% dumped, routes with a few scooters routinely
+         showed EVERY one down (reported once fallen/standing both read
+         correctly). Half and half keeps the dockless-litter flavor with
+         standing ones actually visible. Same single draw — layout
+         stream unchanged; only the 0.5-0.8 band flips to standing. */
+      const preKnocked = rng() < 0.5;
+      /* ALONG the walk, nose either way, slop — the spawn's thetaF is
+         what the draw actually uses (it overrides the draw branch's own
+         seed, which is why the v32 constraint there was dead code for
+         spawned scooters). The old free ±162° roll aimed dumped stems
+         up-screen in iso, where a flat squashed scooter masquerades as
+         standing with pancake wheels (on-device report). Parked AND
+         fallen both read right lying on the street's own axis. */
+      const uTh = rng();   // ONE draw for direction AND slop — keeps the
+                           // spawn stream length identical, so the same
+                           // date keeps the same world layout it had
+                           // before this fix (two draws reshuffled every
+                           // downstream roll: standing scooters re-rolled
+                           // fallen, reported on-device)
+      hzObj.thetaF = (uTh < 0.5 ? 0 : Math.PI) + (((uTh * 977) % 1) - 0.5) * 0.3;
       hzObj.brand = BRANDS[Math.floor(rng()*BRANDS.length)];
       hzObj.phi = preKnocked ? SCOOT_HIT.phiRest : 0;
       hzObj.angVel = 0; hzObj.moving = false;
@@ -3979,7 +4002,12 @@ class WorldScene extends Phaser.Scene {
       const S = SCOOT;
       const seed = ((Math.round(x)*7919) ^ (Math.round(y)*104729)) >>> 0;
       const rng = mulberry32(seed);
-      const thSeed = (rng()*2 - 1) * Math.PI * 0.9;
+      /* parked ALONG the walk, nose either way, a few degrees of slop —
+         was a free ±162° roll, which parked scooters broadside or
+         nose-into-the-buildings with no relationship to the street the
+         leg actually runs (on-device: orientation contradicts the f=
+         view). 0 in this frame IS the travel axis — W applies DIRV[f]. */
+      const thSeed = (rng() < 0.5 ? 0 : Math.PI) + (rng() - 0.5) * 0.3;
       const brandSeed = BRANDS[Math.floor(rng()*BRANDS.length)];
       const th = (data && data.fallPsi !== undefined) ? data.fallPsi : ((data && data.thetaF !== undefined) ? data.thetaF : thSeed);
       const scs = Math.cos(th), ssn = Math.sin(th);
@@ -4024,14 +4052,39 @@ class WorldScene extends Phaser.Scene {
       const U = {a:1,b:0,h:0}, VV = {a:0,b:1,h:0}, HHH = {a:0,b:0,h:1};
 
       const WW = 4.6;
+      /* RIGID wheel frame from M's normalized differentials — the hull
+         treatment. M is a stylized affine squash, not a rotation, so
+         pushing the wheel circles through it collapsed them into
+         flattened lenses as the scooter lay down (reported: fallen
+         wheels don't look right). Normalizing M's constant differential
+         axes (∂/∂h = (−lay, 1−lay), ∂/∂b = (1−lay, 0.55·lay)) turns the
+         same blend into a true rotation for the wheels alone: the wheel
+         plane tips from vertical to flat on the ground and the axle
+         swings skyward, while the HUB stays glued to the squashed frame
+         the deck and fenders use. layAmount 0 reproduces the standing
+         wheel byte-for-byte (frame degenerates to U/HHH exactly). */
+      let ehB = -layAmount, ehH = 1 - layAmount;
+      { const L2 = Math.hypot(ehB, ehH) || 1; ehB /= L2; ehH /= L2; }
+      let ebB = 1 - layAmount, ebH = 0.55*layAmount;
+      { const L2 = Math.hypot(ebB, ebH) || 1; ebB /= L2; ebH /= L2; }
+      const GRAW = (ma, mb, mh) => W((ma + slide)*scs - mb*ssn, (ma + slide)*ssn + mb*scs, mh);
+      const dRAW = (ma, mb, mh) => { const a2 = (ma + slide)*scs - mb*ssn, b2 = (ma + slide)*ssn + mb*scs; return a2 + b2 + mh*0.4; };
       const swheel = (a, r) => {
-        const end = k => ringAt(a, k, wheelH, r, U, HHH, 14);
-        this.quadOn(g, convexHull(end(-WW/2).concat(end(WW/2))), S.wheelDk);
-        const kF = dAt(a, WW/2, wheelH) > dAt(a, -WW/2, wheelH) ? WW/2 : -WW/2;
-        const face = rr => ringAt(a, kF, wheelH, rr, U, HHH, 14);
-        this.quadOn(g, face(r), S.wheel);
-        this.quadOn(g, face(r*0.42), S.hubFace);
-        this.quadOn(g, face(r*0.2), S.hub);
+        const hub = M(a, 0, wheelH);
+        const ringR = (k, rr, n = 14) => {
+          const pts = [];
+          for(let i = 0; i < n; i++){
+            const psi = (i/n)*Math.PI*2, c3 = Math.cos(psi)*rr, s3 = Math.sin(psi)*rr;
+            pts.push(GRAW(hub.a + c3, hub.b + k*ebB + s3*ehB, hub.h + k*ebH + s3*ehH));
+          }
+          return pts;
+        };
+        this.quadOn(g, convexHull(ringR(-WW/2, r).concat(ringR(WW/2, r))), S.wheelDk);
+        const kF = dRAW(hub.a, hub.b + (WW/2)*ebB, hub.h + (WW/2)*ebH) >
+                   dRAW(hub.a, hub.b - (WW/2)*ebB, hub.h - (WW/2)*ebH) ? WW/2 : -WW/2;
+        this.quadOn(g, ringR(kF, r), S.wheel);
+        this.quadOn(g, ringR(kF, r*0.42), S.hubFace);
+        this.quadOn(g, ringR(kF, r*0.2), S.hub);
       };
       const sdeck = () => {
         const top = [], bot = [];
@@ -4238,7 +4291,11 @@ class WorldScene extends Phaser.Scene {
       const C = CONE, K = this.K;
       const seed = ((Math.round(x)*7919) ^ (Math.round(y)*104729)) >>> 0;
       const rng = mulberry32(seed);
-      const cthSeed = rng()*Math.PI*2;             // decorative facet jitter while standing
+      /* SQUARE-based cone: squared to the street (seeded quarter + a few
+         degrees of slop) instead of a free 2π roll that cocked the base
+         at any stray angle to the curb line. Variety survives in which
+         quarter, the slop, and the height jitter below. */
+      const cthSeed = Math.floor(rng()*4) * (Math.PI/2) + (rng() - 0.5) * 0.16;
       const H = C.height * (0.9 + rng()*0.2);
       const phi = (data && data.phi) || 0;
       const ph2 = !!(data && data.phase === 2);
@@ -4272,15 +4329,8 @@ class WorldScene extends Phaser.Scene {
         return pts;
       };
 
-      /* shadow: base ellipse morphing toward an elongated slant shadow
-         as the cone goes over */
-      const mid = tip(0, H*0.5);
-      const k = Math.min(1, sphi*1.1);
-      const sh = W(mid.u*k*fc, mid.u*k*fsn, 0);
-      g.fillStyle(C.shadow, 0.13);
-      g.fillEllipse(sh.x, sh.y + 2,
-        (C.base*1.6 + (H + 16 - C.base*1.6)*k) * K * 0.55,
-        (C.base*0.7 + (14 - C.base*0.7)*k) * K * 0.55);
+      /* shadow removed (requested) — the cone sits directly on its
+         base slab with no cast ellipse. */
 
       const baseSlab = () => {
         const hb = C.base/2, pts = [];
@@ -4497,9 +4547,7 @@ class WorldScene extends Phaser.Scene {
         const dAt2 = (u, v, h) => { const t = tip(u, h); return (t.u*fc - v*fsn) + (t.u*fsn + v*fc) + t.z*0.4; };
         const corner = (sx, sy, h) => L(sx*hw, sy*hd, h);
 
-        const psh = this.W(x + pivotA*(1-cphi)*0.5*fc, y + pivotA*(1-cphi)*0.5*fsn, 0);
-        g.fillStyle(PL.shadow, 0.16);
-        g.fillEllipse(psh.x, psh.y + 2, (boxW+H)*this.K*0.42, (boxD+6)*this.K*0.36);
+        /* shadow removed (requested). */
 
         const fbox = () => {
           const top = [corner(-1,-1,H), corner(1,-1,H), corner(1,1,H), corner(-1,1,H)];
@@ -4530,9 +4578,7 @@ class WorldScene extends Phaser.Scene {
         const baseShrink = 0.82;
         const corner = (sx, sy, h, shrink=1) => GG(sx*hw*shrink, sy*hd*shrink, h);
 
-        const psh = GG(0, 0, 0);
-        g.fillStyle(PL.shadow, 0.14);
-        g.fillEllipse(psh.x, psh.y + 2, (boxW+6)*this.K*0.42, (boxD+6)*this.K*0.36);
+        /* planter body shadow removed (requested). */
 
         const pbox = () => {
           const top = [corner(-1,-1,H), corner(1,-1,H), corner(1,1,H), corner(-1,1,H)];
@@ -5172,7 +5218,12 @@ class WorldScene extends Phaser.Scene {
       const B = BIN, K = this.K;
       const seed = ((Math.round(x)*7919) ^ (Math.round(y)*104729) ^ 0x8177) >>> 0;
       const rng = mulberry32(seed);
-      const cthSeed = rng()*Math.PI*2;
+      /* a BOX squared to the curb — seeded quarter (faces street, walk,
+         or either along-axis, all believable placements) + a few degrees
+         of slop, replacing the free 2π roll that left bins cocked at
+         arbitrary angles to the street. fallPsi knocks stay free: falls
+         are chaos, PARKED is order. */
+      const cthSeed = Math.floor(rng()*4) * (Math.PI/2) + (rng() - 0.5) * 0.16;
       const H = B.height;
       const phi = (data && data.phi) || 0;
       const cth = (data && data.fallPsi !== undefined) ? data.fallPsi : cthSeed;
