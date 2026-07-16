@@ -2244,7 +2244,13 @@ function generateRoute(dateStr){
      curb ramps stay — they're pinned under everything and can't
      occlude anyone. */
   {
-    const GROUNDY = { crack:1, slab:1, grade:1, sidewalkend:1, sidewalkbegin:1 };
+    /* slab REMOVED from the exemptions (it originally rode along as
+       "ground paint"): slabs are RAISED terrain pinned to the mid
+       layer, so one under the pickup worker painted over his legs —
+       the worker draws with the building pass beneath it (on-device).
+       Cracks and grade chevrons are truly flat and stay; the curb
+       ramps are structural to crossings and stay. */
+    const GROUNDY = { crack:1, grade:1, sidewalkend:1, sidewalkbegin:1 };
     const CLEAR = 240;
     for(let i = hazards.length - 1; i >= 0; i--){
       const hz = hazards[i];
@@ -4693,7 +4699,8 @@ class WorldScene extends Phaser.Scene {
         const fc = Math.cos(cth), fsn = Math.sin(cth);
         const pivotA = hw;
         const cphi = Math.cos(phi), sphi = Math.sin(phi);
-        const tip = (u, h) => ({ u: pivotA - (pivotA-u)*cphi + h*sphi, z: (pivotA-u)*sphi + h*cphi });
+        const pslide = (data && data.slide) || 0;   // the shove skid — bin's data.slide, same convention
+        const tip = (u, h) => ({ u: pslide + pivotA - (pivotA-u)*cphi + h*sphi, z: (pivotA-u)*sphi + h*cphi });
         /* L/psh/fbush all compute FULLY ABSOLUTE world coordinates
            themselves (x + t.u*fc - ..., not a small offset) — they
            need the raw this.W(), not this function's own locally-
@@ -6649,7 +6656,14 @@ class WorldScene extends Phaser.Scene {
               if(hz.pose !== "knocked"){
                 if(!hz.hit){
                   hz.hit = true;
-                  if(hz.fallPsi === undefined) hz.fallPsi = (Math.random()-0.5)*0.4;
+                  /* fall AWAY from the robot, always: the oversized
+                     contract lets the robot sit up to 20 past the
+                     anchor, and the old always-(+s) topple dropped the
+                     box straight onto him (on-device: "rolls toward
+                     the robot"). Base direction from which side he's
+                     actually on, jitter on top. */
+                  if(hz.fallPsi === undefined)
+                    hz.fallPsi = (this.botS <= hz.s ? 0 : Math.PI) + (Math.random()-0.5)*0.4;
                   const kick = 0.05 * 1.6 * (Math.random() < 0.5 ? 1 : -1);
                   this.tilt += kick;
                   this.damage = Math.min(95, this.damage + Math.abs(kick)*40);
@@ -6660,10 +6674,16 @@ class WorldScene extends Phaser.Scene {
             }
           } else if(!hz.hit && Math.abs(dx) < 26 && onLane(hz.row) && this.speed > 0.035 && hz.pose !== "knocked"){
             hz.hit = true;
-            if(hz.fallPsi === undefined) hz.fallPsi = (Math.random()-0.5)*0.4;
+            if(hz.fallPsi === undefined)
+              hz.fallPsi = (this.botS <= hz.s ? 0 : Math.PI) + (Math.random()-0.5)*0.4;   // away from the robot, like the oversized case
             const sp = this.speed;
             hz.moving = true;
             hz.angVel += sp * 0.09 * PLANTER_HIT.kick / Math.pow(hz.scale, PLANTER_HIT.potPower);
+            /* the SHOVE — the bin's slide, the missing half of its
+               knock feel: a light planter skids away from the impact
+               as it topples (oversized stays planted: too heavy to
+               shove, which is the point of oversized). */
+            hz.slideVel = (hz.slideVel || 0) + sp * 0.45 / Math.pow(hz.scale, PLANTER_HIT.potPower);
             const kick = sp * 1.6 * (Math.random() < 0.5 ? 1 : -1);
             this.tilt += kick;
             this.damage = Math.min(95, this.damage + Math.abs(kick)*40);
@@ -6695,6 +6715,10 @@ class WorldScene extends Phaser.Scene {
               }
             }
           }
+          if(hz.slideVel > 0.0001){
+            hz.slide = (hz.slide || 0) + hz.slideVel * dt;
+            hz.slideVel *= Math.exp(-0.0045 * dt);   // bin's exact skid decay
+          } else hz.slideVel = 0;
           this.simPlanterLeaves(hz, dt);
         } else if(hz.type === "scooter"){
           /* soft hazard, same contract as before (sev 9, 55% speed
