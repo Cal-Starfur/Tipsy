@@ -1527,7 +1527,10 @@ class GalleryScene extends Phaser.Scene {
           /* robot-burst floods pool around the base (that's where the
              slip zone lives); the lab's static gallery kind keeps the
              original thrown-landing rings */
-          const landA = (data && data.burst) ? 8 : tipA0 + nc0*26;
+          /* pre-burst (pudDir set at spawn): the flood a full tile over
+             along the walk; fresh robot-bursts still pool at the base. */
+          const preOff = (data && data.pudDir) ? data.pudDir * T2 : 0;
+          const landA = (data && data.burst) ? 8 + preOff : tipA0 + nc0*26;
           const landB = (data && data.burst) ? 0 : ns0*26;
           const puddleRing = (rad, nn=16) => {
             const pts = [];
