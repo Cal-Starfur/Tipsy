@@ -6662,12 +6662,25 @@ class WorldScene extends Phaser.Scene {
 
     /* wheels far -> undercarriage -> body -> details -> wheels near -> flag */
     const wheels = [];
+    /* near/far by MOUNTING-FACE VISIBILITY — the same projection-exact
+       normal test drawBox uses for every hull face: a wheel row draws
+       in front of the body iff the body face it's bolted to (local
+       (0, side, 0)) faces the camera. The old depth() comparison had
+       the z*0.4 pathology lidNear()/flagNear() each already fixed: a
+       tipped robot's air row out-depthed its grounded mirror at EVERY
+       heading, so the trio painted over the hull wherever the body
+       should hide it (reported at f=2 tipped). A planimetric fix is
+       degenerate at the 90-degree rest pose (the rows stack vertically,
+       identical x/y) — the face-normal test has no such hole: upright
+       it reduces exactly to the heading answer, rolled it hands the
+       sky-facing row to the near pass, and every angle between is
+       continuous, all 4 headings by construction. */
     for(const side of [-1, 1]){
+      const wnorm = this.R(0, side, 0);
+      const sideNear = (wnorm.x + wnorm.y + wnorm.z) > 0;
       for(const wx of WHEEL.xs){
         const c = {x:wx, y:side*WHEEL.side, z:WHEEL.z};
-        wheels.push({ c, side,
-          near: this.depth(c.x, c.y, c.z) > this.depth(c.x, -c.y, c.z),
-          d: this.depth(c.x, c.y, c.z) });
+        wheels.push({ c, side, near: sideNear, d: this.depth(c.x, c.y, c.z) });
       }
     }
     /* the 3 wheels on a given side (front/mid/rear along the body) were
@@ -7177,15 +7190,18 @@ class WorldScene extends Phaser.Scene {
     const curSeg = this.segAt(this.botS);
     let turnText;
     if(curSeg.type === "arc"){
-      const dir = curSeg.sign > 0 ? "Left" : "Right";
-      const arrow = curSeg.sign > 0 ? "←" : "→";
+      /* sign>0 means the heading steps f -> f+1, which under this iso
+         projection reads on screen as a RIGHT turn — the old mapping
+         had it backwards (on-device: "says right, robot goes left"). */
+      const dir = curSeg.sign > 0 ? "Right" : "Left";
+      const arrow = curSeg.sign > 0 ? "→" : "←";
       turnText = `${arrow} Turn ${dir}`;
     } else {
       const nextTurn = this.findNextTurn();
       if(nextTurn){
         const distToTurn = Math.max(0, nextTurn.s0 - this.botS);
-        const dir = nextTurn.sign > 0 ? "Left" : "Right";
-        const arrow = nextTurn.sign > 0 ? "←" : "→";
+        const dir = nextTurn.sign > 0 ? "Right" : "Left";   // same screen-handedness fix as the hold branch
+        const arrow = nextTurn.sign > 0 ? "→" : "←";
         turnText = distToTurn < 20
           ? `${arrow} Turn ${dir}`
           : `${arrow} Turn ${dir} in ${Math.round(distToTurn*FT_PER_UNIT/10)*10} ft`;
