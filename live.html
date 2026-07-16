@@ -1653,7 +1653,8 @@ class GalleryScene extends Phaser.Scene {
         const fc = Math.cos(cth), fsn = Math.sin(cth);
         const pivotA = hw;
         const cphi = Math.cos(phi), sphi = Math.sin(phi);
-        const tip = (u, h) => ({ u: pivotA - (pivotA-u)*cphi + h*sphi, z: (pivotA-u)*sphi + h*cphi });
+        const pslide = (data && data.slide) || 0;   // the shove skid — bin's data.slide, same convention
+        const tip = (u, h) => ({ u: pslide + pivotA - (pivotA-u)*cphi + h*sphi, z: (pivotA-u)*sphi + h*cphi });
         const L = (u, v, h) => { const t = tip(u, h); return W(x + t.u*fc - v*fsn, y + t.u*fsn + v*fc, t.z); };
         const dAt2 = (u, v, h) => { const t = tip(u, h); return (t.u*fc - v*fsn) + (t.u*fsn + v*fc) + t.z*0.4; };
         const corner = (sx, sy, h) => L(sx*hw, sy*hd, h);
