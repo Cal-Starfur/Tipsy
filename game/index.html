@@ -176,6 +176,65 @@
    any city where a burrito has ever hit the pavement ----------
    hill: grade intensity · pave: pavement quality (1=smooth)
    litter: scooters/trash density · palms: set dressing */
+/* ---------- shop taxonomy + typed menus ----------
+   The city has 36 pickup shops and only ONE sells tacos — yet every
+   order was Mexican (on-device). Each shop name classifies by keyword
+   into one of 8 types; each type gets its own menu; and each menu item
+   carries its SPILL kinds, because the spill is now the actual order
+   hitting the pavement (see spillCargo): books outside Lantern Books,
+   rolling apples outside the markets, a pizza box shedding slices
+   outside Provost. [name, price, spillKinds[]] */
+function shopTypeOf(name){
+  const n = (name || "").toLowerCase();
+  if(n.includes("taco")) return "tacos";
+  if(n.includes("coffee") || n.includes("cafe")) return "coffee";
+  if(n.includes("bakery")) return "bakery";
+  if(n.includes("deli") || n.includes("diner")) return "deli";
+  if(n.includes("pizza")) return "pizza";
+  if(n.includes("creamery")) return "creamery";
+  if(n.includes("market") || n.includes("provisions") || n.includes("grocer") || n.includes("pantry")) return "grocery";
+  return "retail";   // hardware, books, stationery, bike, surf — goods
+}
+const SHOP_MENUS = {
+  tacos: [
+    ["burrito", 11, ["burrito"]], ["tacos al pastor", 9.5, ["taco","taco"]],
+    ["torta", 10, ["sandwich"]], ["quesadilla", 8.5, ["taco"]],
+    ["carne asada fries", 7.5, ["fry","fry","fry"]], ["elote", 4.5, ["burrito"]],
+    ["horchata", 3.75, ["cup"]], ["agua fresca", 3.25, ["cup"]],
+  ],
+  coffee: [
+    ["latte", 4.75, ["cup"]], ["cold brew", 4.25, ["cup"]], ["espresso", 3.25, ["cup"]],
+    ["croissant", 3.75, ["croissant"]], ["muffin", 3.5, ["donut"]], ["bagel", 2.75, ["donut"]],
+  ],
+  bakery: [
+    ["sourdough loaf", 7, ["loaf"]], ["baguette", 4.5, ["loaf"]],
+    ["croissant", 3.75, ["croissant"]], ["half-dozen donuts", 8, ["donut","donut","donut"]],
+    ["birthday cake", 24, ["pizzabox"]],
+  ],
+  deli: [
+    ["club sandwich", 9, ["sandwich"]], ["pastrami on rye", 12, ["sandwich"]],
+    ["soup of the day", 6, ["cup"]], ["fries", 4.5, ["fry","fry","fry"]],
+    ["milkshake", 5.5, ["cup"]],
+  ],
+  pizza: [
+    ["large pepperoni", 18, ["pizzabox","slice","slice"]], ["slice", 4, ["slice"]],
+    ["garlic knots", 6, ["donut","donut"]], ["2-liter soda", 3.5, ["cup"]],
+  ],
+  creamery: [
+    ["double scoop", 5.5, ["cone"]], ["pint of strawberry", 7, ["pint"]], ["sundae", 6.5, ["cup"]],
+  ],
+  grocery: [
+    ["apples", 4, ["apple","apple","apple"]], ["milk", 3.5, ["milk"]],
+    ["dozen eggs", 5, ["eggs"]], ["produce bag", 9, ["apple","apple","milk"]],
+    ["orange juice", 4.5, ["milk"]],
+  ],
+  retail: [
+    ["parcel", 22, ["parcel"]], ["used books", 12, ["book","book"]],
+    ["paint, one gallon", 19, ["paintcan"]], ["replacement parts", 25, ["parcel"]],
+    ["stationery bundle", 14, ["parcel"]],
+  ],
+};
+
 const HOODS = [
   { n:"The Flats",       hill:0.0, pave:0.9, litter:0.2, palms:0.9, streets:["Palmline Ave","Pelican St","Marina Way"], parks:["Pelican","Driftwood","Marina","Tidewater","Sandpiper","Cove","Seabreeze","Lagoon","Estuary","Harbor Seal"], shops:["Pelican Coffee","Marina Provisions","Driftwood Deli"] },
   { n:"Boardwalk",       hill:0.0, pave:0.6, litter:1.0, palms:1.0, streets:["Pier Ave","Saltbox Ln","Tide St"], parks:["Tide Pool","Carousel","Salt Air","Arcade","Ferris","Shoreline","Funhouse","Taffy","Pier's End","Sun Deck"], shops:["Tide Pool Tacos","Carousel Creamery","Salt Air Surf Shop"] },
@@ -1947,14 +2006,27 @@ function generateRoute(dateStr){
     if(!onSidewalk(ysR, laneOffset(0))) continue;
     if(spawnBlocked(ysR, laneOffset(0))) continue;
     if(rng() < 0.55){
-      /* ~15% of spawned hydrants start already-burst: nozzle sheared,
-         flood already pooled. burstT set far in the past so the same
-         grow-ratio math the hit-triggered burst uses ((t-burstT)/1800)
-         clamps to 1 immediately — no separate "already grown" path. */
-      const startsBurst = rng() < 0.15;
+      /* ~35% of spawned hydrants start already-burst (was 15% — too
+         rare to ever meet, on-device). burstT far in the past so the
+         hit-burst's own grow math clamps to 1 immediately.
+         PRE-burst floods live ONE TILE OVER (pudDir · T2 along the
+         walk) instead of pooling at the base like a fresh hit: old
+         water has had time to RUN — and it runs DOWNHILL when the
+         grade profile has an opinion, seeded coin on the flats. The
+         slick zone moves with it (see the sim), so art and physics
+         agree, and dodging the hydrant no longer means you dodged
+         the water. */
+      const startsBurst = rng() < 0.35;
+      let pudDir;
+      if(startsBurst){
+        const ti = Math.round(ysR / T2);
+        const sl = (tiles[Math.min(tiles.length-1, ti+1)] - tiles[Math.max(0, ti-1)]) / (2*T2);
+        pudDir = sl > 0.02 ? -1 : sl < -0.02 ? 1 : (rng() < 0.5 ? -1 : 1);
+      }
       hazards.push({ type:"hydrant", s: ysR, row: 0, f: facingAt(ysR),
                      hit:false, burst:startsBurst,
-                     burstT: startsBurst ? -1e9 : undefined });
+                     burstT: startsBurst ? -1e9 : undefined,
+                     pudDir });
     }
   }
 
@@ -2196,31 +2268,30 @@ function generateRoute(dateStr){
      lateness / walk distance, small bonuses to a 22% ceiling (engine
      in showWin). */
   const difficulty = 1 + hood.hill*1.2 + (1-hood.pave)*1.0 + hood.litter*0.8 + (walk.segs.filter(s=>s.type==="arc").length-2)*0.15;
-  const MENU = [
-    ["burrito", 11], ["tacos al pastor", 9.5], ["torta", 10],
-    ["quesadilla", 8.5], ["carne asada fries", 7.5], ["elote", 4.5],
-    ["horchata", 3.75], ["agua fresca", 3.25],
-  ];
+  const MENU = SHOP_MENUS[shopTypeOf(pickupShopName)] || SHOP_MENUS.tacos;
   const orderLines = [];
   let orderValue = 0;
   const nLineItems = 1 + Math.floor(rng()*3);
   for(let i = 0; i < nLineItems; i++){
-    const [oname, oprice] = MENU[Math.floor(rng()*MENU.length)];
+    const [oname, oprice, ospill] = MENU[Math.floor(rng()*MENU.length)];
     const qty = 1 + (rng() < 0.3 ? 1 : 0);
     const ex = orderLines.find(l => l.name === oname);
-    if(ex) ex.qty += qty; else orderLines.push({ name: oname, qty });
+    if(ex) ex.qty += qty; else orderLines.push({ name: oname, qty, spill: ospill });
     orderValue += oprice * qty;
   }
-  orderValue = Math.round(orderValue * (0.85 + difficulty*0.45) * 100) / 100;
+  /* softened from x0.45: typed menus brought genuinely pricey goods
+     (retail parcels/parts), and the old multiplier double-dipped into
+     ~$190 orders. Cap keeps the worst stacks honest. */
+  orderValue = Math.min(99, Math.round(orderValue * (0.85 + difficulty*0.3) * 100) / 100);
   const order = { lines: orderLines, value: orderValue,
     text: orderLines.map(l => l.qty > 1 ? `${l.qty}× ${l.name}` : l.name).join(", ") };
 
-  /* par time — CASUAL tuning to start (tighten later by shrinking
-     these): the drive at a relaxed 0.075 u/ms cruise, +3s per turn,
-     +hill allowance, +15s flat grace. The HUD counts it down; tip
-     decays past it (showWin). */
+  /* par time — TIGHTENED from the casual launch tuning (0.075 cruise,
+     3s/turn, 15s grace): beatable clean, not beatable sightseeing.
+     The HUD counts it down; the tip decays 1%/5s past it; the ORDER
+     CANCELS at par + 60s (see the cancel check in the sim). */
   const nTurns = walk.segs.filter(s => s.type === "arc").length;
-  const parMs = Math.round((doorS - SPAWN_S)/0.075 + nTurns*3000 + hood.hill*20000 + 15000);
+  const parMs = Math.round((doorS - SPAWN_S)/0.088 + nTurns*2000 + hood.hill*15000 + 8000);
 
   /* traffic: real road-aware two-way loops through the same grid,
      instead of a fixed row that never knew where the road was.
@@ -4573,7 +4644,10 @@ class WorldScene extends Phaser.Scene {
           /* robot-burst floods pool around the base (that's where the
              slip zone lives); the lab's static gallery kind keeps the
              original thrown-landing rings */
-          const landA = (data && data.burst) ? 8 : tipA0 + nc0*26;
+          /* pre-burst (pudDir set at spawn): the flood a full tile over
+             along the walk; fresh robot-bursts still pool at the base. */
+          const preOff = (data && data.pudDir) ? data.pudDir * T2 : 0;
+          const landA = (data && data.burst) ? 8 + preOff : tipA0 + nc0*26;
           const landB = (data && data.burst) ? 0 : ns0*26;
           const puddleRing = (rad, nn=16) => {
             const pts = [];
@@ -6487,10 +6561,15 @@ class WorldScene extends Phaser.Scene {
             this.speed = 0;
           }
           if(Math.abs(dx) > 40) hz.hit = false;
-          /* the flood: wheels in the wet with speed -> hydroplane */
+          /* the flood: wheels in the wet with speed -> hydroplane.
+             Pre-burst floods sit a tile over (hz.pudDir), so the slick
+             tests against the flood's REAL center — same s-offset the
+             puddle draws at. */
+          const slickS = hz.s + (hz.pudDir ? hz.pudDir * T2 : 0);
+          const sdx = this.botS - slickS;
           if(hz.burst && !this.slide && !hz.slid){
             const grow = Math.min(1, (t - hz.burstT)/1800);
-            if(onLane(hz.row) && Math.abs(dx) < HYD_SLIP.pud*grow && this.speed > 0.02){
+            if(onLane(hz.row) && Math.abs(sdx) < HYD_SLIP.pud*grow && this.speed > 0.02){
               hz.slid = true;
               this.slide = { t0: t, dur: 800 + 300*HYD_SLIP.spin,
                              dir: Math.random() < 0.5 ? 1 : -1,
@@ -6498,7 +6577,7 @@ class WorldScene extends Phaser.Scene {
               this.tilt += this.speed * 3 * (Math.random() < 0.5 ? 1 : -1);
             }
           }
-          if(Math.abs(dx) > HYD_SLIP.pud + 40) hz.slid = false;
+          if(Math.abs(sdx) > HYD_SLIP.pud + 40) hz.slid = false;
         } else if(hz.type === "cone"){
           /* not a wall — a light plastic prop. ONE integrator, no
              keyframes: gravity torque about the live pivot runs every
@@ -6570,7 +6649,12 @@ class WorldScene extends Phaser.Scene {
              one pattern in this file proven to still work, even
              though it loses the stop line creeping forward as the
              bin topples. */
-          const BOT_CLEAR = 26;
+          /* clearance eases from 26 (standing — the lab-calibrated
+             figure) down to 16 fully knocked: a lying barrel presents
+             low and the standing clearance read as daylight between
+             nose and barrel (on-device: "still a little too far
+             back"). */
+          const BOT_CLEAR = 26 - Math.min(1, (hz.phi || 0)/(Math.PI/2)) * 10;
           /* the wall tracks the BIN, not the anchor: binShiftAt gives
              the knocked footprint's real +s displacement (slide +
              topple reach), so after a shove the robot stops at the
@@ -6992,6 +7076,16 @@ class WorldScene extends Phaser.Scene {
         this.yaw = 0;
         this.pitch = 0;
         setTimeout(() => showFail(), 1500);
+      }
+      /* CANCELLATION: par + grace expired -> the order dies. A fail
+         with the robot upright: the state gate stops the sim, input
+         goes dead, fail overlay with the cancel pool. No payout, no
+         daily-best entry — a canceled order never happened. */
+      if(this.runT > this.route.parMs + CANCEL_GRACE_MS){
+        this.state = "canceled";
+        this.speed = 0; this.throttle = 0;
+        setTimeout(() => showFail(CANCEL_LINES), 900);
+        return;
       }
       /* win: at the door, slow, upright */
       const remain = this.route.doorS - this.botS;
@@ -7417,9 +7511,20 @@ class WorldScene extends Phaser.Scene {
       rest: false
     });
     this.bagOnBoard = false;   // it's on the pavement now
-    spawn("burrito", 9);
-    spawn("cup", 7);
-    for(let i=0;i<3;i++) spawn("fry", 4);
+    /* the spill IS the order: every line item's spill kinds hit the
+       pavement — books outside the bookstore, apples outside the
+       market, a pizza box shedding slices. Capped at 8 pieces (perf +
+       readability); a missing order falls back to the classic trio. */
+    const SPILL_SIZE = { burrito:9, cup:7, fry:4, taco:7, croissant:6, donut:5.5,
+                         loaf:9, sandwich:7, pizzabox:11, slice:7, cone:6, pint:6,
+                         apple:5, milk:6.5, eggs:8, parcel:10, book:7, paintcan:6.5 };
+    const spillKinds = [];
+    if(this.route.order)
+      for(const l of this.route.order.lines)
+        for(let q = 0; q < l.qty; q++) spillKinds.push(...(l.spill || ["burrito"]));
+    while(spillKinds.length > 8) spillKinds.splice(Math.floor(Math.random()*spillKinds.length), 1);
+    if(!spillKinds.length) spillKinds.push("burrito", "cup", "fry", "fry", "fry");
+    for(const sk of spillKinds) spawn(sk, SPILL_SIZE[sk] || 6);
   }
 
   simItems(dt){
@@ -7551,6 +7656,151 @@ class WorldScene extends Phaser.Scene {
         g.strokeRect(-bw/2, -bh/2, bw, bh);
         g.lineBetween(-bw/2, -bh/2 + bh*0.3, bw/2, -bh/2 + bh*0.3);
         g.restore();
+      } else if(it.kind === "taco"){
+        g.save(); g.translateCanvas(p.x, p.y); g.rotateCanvas(it.ang*0.5);
+        g.fillStyle(0xe8c07a, 1);                       // shell half-moon
+        g.slice(0, 2*K, 8*K*0.8, Math.PI, 0, false); g.fillPath();
+        g.lineStyle(2, 0xc09a52, 1);
+        g.slice(0, 2*K, 8*K*0.8, Math.PI, 0, false); g.strokePath();
+        g.fillStyle(0x7fae4e, 1);                       // filling peeking out
+        for(const fx of [-4, 0, 4]) g.fillCircle(fx*K*0.8, 0.5*K, 1.6*K);
+        g.fillStyle(0xc2452e, 1); g.fillCircle(-2*K*0.8, 0.2*K, 1.2*K);
+        g.restore();
+      } else if(it.kind === "croissant"){
+        g.save(); g.translateCanvas(p.x, p.y); g.rotateCanvas(it.ang*0.5);
+        g.fillStyle(0xd9973f, 1);                       // three tapering lobes
+        g.fillEllipse(0, 0, 9*K*0.8, 5.5*K*0.8);
+        g.fillEllipse(-6*K*0.8, 1.5*K*0.8, 5*K*0.8, 4*K*0.8);
+        g.fillEllipse(6*K*0.8, 1.5*K*0.8, 5*K*0.8, 4*K*0.8);
+        g.lineStyle(1.6, 0xb0742c, 1);
+        g.lineBetween(-3*K*0.8, -2*K*0.8, -2*K*0.8, 2.4*K*0.8);
+        g.lineBetween(3*K*0.8, -2*K*0.8, 2*K*0.8, 2.4*K*0.8);
+        g.restore();
+      } else if(it.kind === "donut"){
+        g.fillStyle(0xd97b9c, 1);                       // frosting ring
+        g.fillCircle(p.x, p.y, 5.5*K*0.8);
+        g.fillStyle(0xc9a06a, 1);                       // the hole (dough shows through)
+        g.fillCircle(p.x, p.y, 2*K*0.8);
+        g.lineStyle(1.4, 0xf7e8b0, 1);                  // sprinkles
+        g.lineBetween(p.x-3*K, p.y-2*K, p.x-1.8*K, p.y-1.4*K);
+        g.lineBetween(p.x+2*K, p.y-3*K, p.x+3*K, p.y-2.2*K);
+        g.lineBetween(p.x+1*K, p.y+3*K, p.x+2.2*K, p.y+3.6*K);
+      } else if(it.kind === "loaf"){
+        g.save(); g.translateCanvas(p.x, p.y); g.rotateCanvas(it.ang*0.4);
+        g.fillStyle(0xc98d4f, 1);
+        g.fillRoundedRect(-9*K*0.8, -5*K*0.8, 18*K*0.8, 10*K*0.8, 4*K*0.8);
+        g.lineStyle(1.6, 0xa06c34, 1);                  // score marks
+        for(const sx of [-4, 0, 4]) g.lineBetween((sx-1.5)*K*0.8, -3*K*0.8, (sx+1.5)*K*0.8, 3*K*0.8);
+        g.restore();
+      } else if(it.kind === "sandwich"){
+        g.save(); g.translateCanvas(p.x, p.y); g.rotateCanvas(it.ang*0.5);
+        g.fillStyle(0xe8d9b0, 1);                       // triangle half
+        g.fillTriangle(-7*K*0.8, 6*K*0.8, 7*K*0.8, 6*K*0.8, 7*K*0.8, -7*K*0.8);
+        g.lineStyle(2, 0xc2b183, 1);
+        g.strokeTriangle(-7*K*0.8, 6*K*0.8, 7*K*0.8, 6*K*0.8, 7*K*0.8, -7*K*0.8);
+        g.lineStyle(2.2, 0x7fae4e, 1);                  // filling along the cut
+        g.lineBetween(-5*K*0.8, 4.6*K*0.8, 5.6*K*0.8, -5*K*0.8);
+        g.lineStyle(2.2, 0xd98a8a, 1);
+        g.lineBetween(-3.4*K*0.8, 5.4*K*0.8, 6.2*K*0.8, -3.2*K*0.8);
+        g.restore();
+      } else if(it.kind === "pizzabox"){
+        g.save(); g.translateCanvas(p.x, p.y); g.rotateCanvas(it.ang*0.35);
+        g.fillStyle(0xd9c9a8, 1);
+        g.fillRect(-11*K*0.8, -11*K*0.8, 22*K*0.8, 22*K*0.8);
+        g.lineStyle(2, 0xb5a479, 1);
+        g.strokeRect(-11*K*0.8, -11*K*0.8, 22*K*0.8, 22*K*0.8);
+        g.lineBetween(-11*K*0.8, -5*K*0.8, 11*K*0.8, -5*K*0.8);   // lid seam
+        g.fillStyle(0xc2452e, 1); g.fillCircle(0, 3*K*0.8, 2.4*K*0.8);  // logo
+        g.restore();
+      } else if(it.kind === "slice"){
+        g.save(); g.translateCanvas(p.x, p.y); g.rotateCanvas(it.ang*0.6);
+        g.fillStyle(0xe8b84f, 1);                       // cheese wedge
+        g.fillTriangle(0, -8*K*0.8, -5.5*K*0.8, 6*K*0.8, 5.5*K*0.8, 6*K*0.8);
+        g.lineStyle(3, 0xc98d4f, 1);                    // crust
+        g.lineBetween(-5.5*K*0.8, 6*K*0.8, 5.5*K*0.8, 6*K*0.8);
+        g.fillStyle(0xc2452e, 1);                       // pepperoni
+        g.fillCircle(-1.4*K*0.8, 1*K*0.8, 1.5*K*0.8);
+        g.fillCircle(2*K*0.8, 3.4*K*0.8, 1.5*K*0.8);
+        g.fillCircle(0.4*K*0.8, -3*K*0.8, 1.3*K*0.8);
+        g.restore();
+      } else if(it.kind === "cone"){
+        g.save(); g.translateCanvas(p.x, p.y); g.rotateCanvas(it.ang*0.5);
+        g.fillStyle(0xd9a45f, 1);                       // wafer
+        g.fillTriangle(0, 8*K*0.8, -4*K*0.8, -2*K*0.8, 4*K*0.8, -2*K*0.8);
+        g.lineStyle(1.2, 0xb0742c, 1);
+        g.lineBetween(-2.6*K*0.8, 1*K*0.8, 2.6*K*0.8, 1*K*0.8);
+        g.lineBetween(-1.4*K*0.8, 4.4*K*0.8, 1.4*K*0.8, 4.4*K*0.8);
+        g.fillStyle(0xf7dce8, 1);                       // the scoop (splatted once at rest)
+        g.fillEllipse(0, -3.4*K*0.8, (it.rest ? 9 : 6.5)*K*0.8, (it.rest ? 5.5 : 6)*K*0.8);
+        g.restore();
+      } else if(it.kind === "pint"){
+        g.fillStyle(0xf4f5f7, 1);
+        g.fillRect(p.x - 4.5*K*0.7, p.y - 4*K*0.7, 9*K*0.7, 8*K*0.7);
+        g.fillStyle(0xd97b9c, 1);                       // strawberry band
+        g.fillRect(p.x - 4.5*K*0.7, p.y - 1*K*0.7, 9*K*0.7, 2.6*K*0.7);
+        g.lineStyle(2, 0xc9ccd2, 1);
+        g.strokeRect(p.x - 4.5*K*0.7, p.y - 4*K*0.7, 9*K*0.7, 8*K*0.7);
+        g.fillStyle(0xf7dce8, 1);                       // melt puddle
+        if(it.rest) g.fillEllipse(p.x + 6*K, p.y + 4*K*0.6, 11*K*0.8, 4.5*K*0.8);
+      } else if(it.kind === "apple"){
+        g.fillStyle(0xc23b2e, 1);
+        g.fillCircle(p.x, p.y, 4.5*K*0.8);
+        g.lineStyle(1.6, 0x6b4a2c, 1);                  // stem
+        g.lineBetween(p.x, p.y - 4*K*0.8, p.x + 1.4*K*0.8, p.y - 6*K*0.8);
+        g.fillStyle(0x7fae4e, 1);                       // leaf
+        g.fillEllipse(p.x + 2.6*K*0.8, p.y - 5.4*K*0.8, 2.6*K*0.8, 1.4*K*0.8);
+      } else if(it.kind === "milk"){
+        g.save(); g.translateCanvas(p.x, p.y); g.rotateCanvas(it.ang*0.4);
+        g.fillStyle(0xf0ece0, 1);                       // carton body
+        g.fillRect(-4*K*0.8, -3*K*0.8, 8*K*0.8, 9*K*0.8);
+        g.fillTriangle(-4*K*0.8, -3*K*0.8, 4*K*0.8, -3*K*0.8, 0, -7*K*0.8);   // gable top
+        g.lineStyle(1.6, 0xc9c2b0, 1);
+        g.strokeRect(-4*K*0.8, -3*K*0.8, 8*K*0.8, 9*K*0.8);
+        g.fillStyle(0x4f7fb8, 1);                       // label band
+        g.fillRect(-4*K*0.8, 0.5*K*0.8, 8*K*0.8, 2.4*K*0.8);
+        g.restore();
+      } else if(it.kind === "eggs"){
+        g.save(); g.translateCanvas(p.x, p.y); g.rotateCanvas(it.ang*0.3);
+        g.fillStyle(0xd9d2c4, 1);                       // carton
+        g.fillRoundedRect(-8*K*0.8, -4*K*0.8, 16*K*0.8, 8*K*0.8, 2*K*0.8);
+        g.lineStyle(1.6, 0xb0a993, 1);
+        g.strokeRoundedRect(-8*K*0.8, -4*K*0.8, 16*K*0.8, 8*K*0.8, 2*K*0.8);
+        g.fillStyle(0xf4f0e4, 1);                       // the dome bumps
+        for(const ex of [-5, 0, 5]) g.fillCircle(ex*K*0.8, -1*K*0.8, 2*K*0.8);
+        /* one casualty at rest */
+        if(it.rest){ g.fillStyle(0xf2c94c, 1); g.fillCircle(9*K*0.8, 3*K*0.8, 1.8*K*0.8);
+          g.fillStyle(0xf4f0e4, 0.9); g.fillEllipse(9*K*0.8, 3*K*0.8, 5.5*K*0.8, 3.5*K*0.8); }
+        g.restore();
+      } else if(it.kind === "parcel"){
+        g.save(); g.translateCanvas(p.x, p.y); g.rotateCanvas(it.ang*0.4);
+        const pw = 16*K*0.8, ph = 12*K*0.8;
+        g.fillStyle(0xc9a06a, 1);
+        g.fillRect(-pw/2, -ph/2, pw, ph);
+        g.lineStyle(2, 0xa8824e, 1);
+        g.strokeRect(-pw/2, -ph/2, pw, ph);
+        g.lineStyle(2.4, 0xe8dcc4, 1);                  // packing tape cross
+        g.lineBetween(0, -ph/2, 0, ph/2);
+        g.lineBetween(-pw/2, 0, pw/2, 0);
+        g.restore();
+      } else if(it.kind === "book"){
+        g.save(); g.translateCanvas(p.x, p.y); g.rotateCanvas(it.ang*0.5);
+        const bw2 = 12*K*0.8, bh2 = 9*K*0.8;
+        g.fillStyle(0x3f6e8f, 1);                       // cover
+        g.fillRect(-bw2/2, -bh2/2, bw2, bh2);
+        g.fillStyle(0xf0ece0, 1);                       // page edge
+        g.fillRect(bw2/2 - 1.6*K*0.8, -bh2/2 + 1*K*0.8, 1.6*K*0.8, bh2 - 2*K*0.8);
+        g.lineStyle(2, 0x2c4d63, 1);                    // spine
+        g.lineBetween(-bw2/2 + 1.4*K*0.8, -bh2/2, -bw2/2 + 1.4*K*0.8, bh2/2);
+        g.restore();
+      } else if(it.kind === "paintcan"){
+        g.fillStyle(0x9aa0aa, 1);                       // tin body
+        g.fillRect(p.x - 4.5*K*0.7, p.y - 4*K*0.7, 9*K*0.7, 8.5*K*0.7);
+        g.fillStyle(0xb8bdc6, 1);
+        g.fillEllipse(p.x, p.y - 4*K*0.7, 9*K*0.7, 3*K*0.7);       // lid
+        g.lineStyle(1.6, 0x6c727d, 1);
+        g.strokeRect(p.x - 4.5*K*0.7, p.y - 4*K*0.7, 9*K*0.7, 8.5*K*0.7);
+        g.fillStyle(0x3f8f7a, 1);                       // the spill at rest
+        if(it.rest) g.fillEllipse(p.x + 7*K, p.y + 5*K*0.6, 13*K*0.8, 5*K*0.8);
       } else {                                          // fry
         g.fillStyle(0xf2c94c, 1);
         const a = it.ang, L = 7*K*0.7, W2 = 2.2*K*0.7;
@@ -7699,9 +7949,13 @@ class WorldScene extends Phaser.Scene {
        the tip is decaying (1%/5s, see showWin) and the driver should
        feel it. */
     const remainMs = this.route.parMs - this.runT;
-    const aMs = Math.abs(remainMs);
-    const timerText = (remainMs < 0 ? "-" : "")
-      + Math.floor(aMs/60000) + ":" + String(Math.floor((aMs%60000)/1000)).padStart(2,"0");
+    const fmtMs = v => Math.floor(v/60000) + ":" + String(Math.floor((v%60000)/1000)).padStart(2,"0");
+    /* two clocks in one: par countdown while there's time, then the
+       CANCEL countdown through the grace window — a second, scarier
+       timer instead of a mysterious negative number. */
+    const timerText = remainMs >= 0
+      ? "⏱ " + fmtMs(remainMs)
+      : "⚠ cancels " + fmtMs(Math.max(0, this.route.parMs + CANCEL_GRACE_MS - this.runT));
 
     /* mid-turn HOLD: while the robot is actually ON an arc, show just
        the current turn's arrow — no distance. findNextTurn() looks
@@ -7748,7 +8002,7 @@ class WorldScene extends Phaser.Scene {
        and native-DPR rendering keeps it as crisp as the overlay
        headlines it's styled after. Visible only while driving. */
     const gpsEl = document.getElementById("gpsHud");
-    gpsEl.textContent = `${distText} · ⏱ ${timerText} · ${turnText}`;
+    gpsEl.textContent = `${distText} · ${timerText} · ${turnText}`;
     gpsEl.classList.toggle("hidden", this.state !== "play");
   }
 }
@@ -7768,6 +8022,19 @@ const WIN_LINES = [
   "The burrito arrives victorious.",
   "Gravity: 0 · Robot: 1.",
   "Costa Palma tips its hat.",
+];
+
+/* order cancellation: 60s of grace past par (drain stays 1%/5s — the
+   tip can still pay up to ~8% if you land inside the window), then the
+   customer walks. */
+const CANCEL_GRACE_MS = 60000;
+/* the order-canceled endings — the house fail voice, but the crime is
+   lateness, not gravity. Robot stays upright; the customer just gave up. */
+const CANCEL_LINES = [
+  ["Order canceled.", "The customer ordered from someone with legs."],
+  ["Refund issued.", "Dignity not included."],
+  ["The app has unmatched you.", "It's not you. It's your ETA."],
+  ["Canceled.", "The burrito grew cold waiting. So did the customer."],
 ];
 
 const FAIL_LINES = [
@@ -7985,8 +8252,9 @@ function drawRouteMap(route){
   ctx.strokeStyle = "#fff"; ctx.lineWidth = 2; ctx.stroke();
 }
 
-function showFail(){
-  const [m, s] = FAIL_LINES[Math.floor(Math.random()*FAIL_LINES.length)];
+function showFail(pool){
+  const P = pool || FAIL_LINES;
+  const [m, s] = P[Math.floor(Math.random()*P.length)];
   document.getElementById("failMsg").textContent = m;
   document.getElementById("failSub").textContent = s;
   show("failOverlay");
@@ -8045,9 +8313,19 @@ function showWin(s){
       : `<div class="sheetRow" style="color:#8f95a1;font-size:13px">daily best $${prev.tip.toFixed(2)} · ${(prev.ms/1000).toFixed(1)}s</div>`;
   } catch(e){}
   document.getElementById("winCard").innerHTML =
-    `<div class="sheetRow"><b>${s.route.address}</b>&nbsp;·&nbsp;${s.route.hood.n}&nbsp;<span style="color:#8f95a1">· ${order.text} · $${order.value.toFixed(2)}</span></div>` +
+    `<div class="sheetRow"><b>${s.route.address}</b>&nbsp;·&nbsp;${s.route.hood.n}</div>` +
+    `<div class="sheetRow" style="color:#8f95a1;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;text-align:center">${order.text} · $${order.value.toFixed(2)}</div>` +
     `<div class="sheetRow">time <b>${secs.toFixed(1)}s</b>&nbsp;·&nbsp;cargo <b>${cargo}%</b>&nbsp;·&nbsp;tip <b>${pctShow}% · $${payout.toFixed(2)}</b>${cuts.length ? `&nbsp;<span style="color:#8f95a1">(${cuts.join(", ")})</span>` : ""}</div>` +
     bestRow;
+  /* Again anchors to the MEASURED panel, not a CSS constant: the
+     receipt's height varies (order length, deduction notes, the
+     daily-best row), and the old fixed bottom was budgeted for the
+     original two-row card — every growth spurt parked the button on
+     the text again (on-device, twice now). 16px above the real top,
+     the same clearance GO keeps over the map sheet. */
+  const cardEl = document.getElementById("winCard");
+  const againBtn = document.querySelector("#winOverlay .btn");
+  if(againBtn) againBtn.style.bottom = (cardEl.offsetHeight + 16) + "px";
   show("winOverlay");
 }
 
