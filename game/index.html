@@ -889,23 +889,38 @@ function birdWanderAt(b, t){
    under him is a function of his world position, not his route
    coordinate. Same art/physics contract as crossingGroundAt: z
    constants are the prop's own.
-   Model (traced per-lane against the real arc radii): each ramp
-   footprint is the prop's 2x3-tile world rectangle, and the PHYSICS
-   surface is the slope/pad profile across the footprint's FULL width —
-   not just the center strip. Reason: a diagonal crossing of a
-   strip-recessed ramp would clip the strip's side wall (the row-1 lane
-   verified to exit through the row-0 flank on the pad tile), so
-   flat-flank physics would strand the default lane on the pad. With
-   the full-width surface every lane that touches a footprint rides it
-   smoothly; lanes that miss it (row 3 grazes a footprint corner) get
-   the honest curb drop on the way out and the honest curb WALL on the
-   way back up — enforced by the caller's climb rule, not a wallS here.
+   Footprint DETECTION (which ramp, if either, wx/wy sits over) stays
+   world-position-based across the full 2x3-tile rectangle regardless of
+   lane — that part has to be robust to the diagonal crossing (a
+   strip-only footprint test previously clipped the row-1 lane through
+   the row-0 flank mid-diagonal, which is why this uses the full width).
+   BEHAVIOR once a footprint is found is now gated by the robot's actual
+   logical row (passed in, same _vRow the straight crossings use) rather
+   than by world position, which sidesteps that original bug entirely —
+   world position decides WHICH footprint, row decides WHAT that footprint
+   feels like:
+   - row 1 (the ramp lane): unchanged — smooth slope down, flat pad,
+     smooth slope back up.
+   - rows 0/2 (flanking, no ramp under them): flat at sidewalk height
+     until the pad tile, then a real curb DROP to street level (down-
+     ramp side) — same split crossingGroundAt already uses. On the up-
+     ramp side they stay CAPPED at street level the whole footprint —
+     no ramp means no way up. The moment their world position clears the
+     footprint onto the real far sidewalk, the fallback below jumps them
+     back to walk height and the caller's existing climb-rule (z jump >
+     2.5) reads that as a real curb wall, same as the straight model's
+     wallS — no separate wall needed here. Mirrored tiltSign lean while
+     on the down-ramp's flared side, same (1-row) convention
+     crossingGroundAt uses, zero once at street level or on the capped
+     up-ramp (there's no flared side to lean on there, just flat street).
+   - row 3: never in the footprint at all (outside inBand) — gets the
+     honest curb drop/wall from the pocket-fallback transition alone,
+     as before.
    Rumble stays tied to the drawn yellow: pad along-range AND the
-   center-strip cross-tile. No flank tilt on turns — cornerLean already
-   owns the lean through the bend.
+   center-strip cross-tile, row-1 only.
    Fallback outside both footprints: classify — road level in the
    sweep, plain walk elsewhere. Total within the caller's s-gate. */
-function turnCrossingGroundAt(cx, wx, wy, classify){
+function turnCrossingGroundAt(cx, wx, wy, classify, row){
   const drop = CROSSING_STREET_Z - CROSSING_SIDEWALK_Z;   // -5
   const dIn = DIRV[cx.fIn],  rvIn = DIRV[(cx.fIn+1)%4];
   const dOut = DIRV[cx.fOut], rvOut = DIRV[(cx.fOut+1)%4];
@@ -916,19 +931,28 @@ function turnCrossingGroundAt(cx, wx, wy, classify){
      footprint's cross range (rows 0-2) and the strip (row-1 tile) are: */
   const inBand = v => v >= -ROAD_HALF - 3*T2 && v <= -ROAD_HALF;
   const inStrip = v => v >= -ROAD_HALF - 2*T2 && v <= -ROAD_HALF - T2;
+  const onRamp = row === 1;
+  const flankTilt = (row === 0 || row === 2) ? (1 - row) : 0;   // same mirror as crossingGroundAt
   if(a >= -ROAD_HALF - 2*T2 && a <= -ROAD_HALF && inBand(c)){
     /* down-ramp footprint: slope tile then pad, along the OLD heading */
     const onSlope = a <= -ROAD_HALF - T2;
-    const z = onSlope ? CROSSING_SIDEWALK_Z + ((a + ROAD_HALF + 2*T2)/T2)*drop : CROSSING_STREET_Z;
-    const grad = onSlope ? drop/T2 : 0;
-    return { z, gx: dIn.x*grad, gy: dIn.y*grad, onPad: !onSlope && inStrip(c) };
+    if(onRamp){
+      const z = onSlope ? CROSSING_SIDEWALK_Z + ((a + ROAD_HALF + 2*T2)/T2)*drop : CROSSING_STREET_Z;
+      const grad = onSlope ? drop/T2 : 0;
+      return { z, gx: dIn.x*grad, gy: dIn.y*grad, onPad: !onSlope && inStrip(c), tiltSign: 0 };
+    }
+    return { z: onSlope ? CROSSING_SIDEWALK_Z : CROSSING_STREET_Z, gx: 0, gy: 0,
+             onPad: false, tiltSign: onSlope ? flankTilt : 0 };
   }
   if(b >= ROAD_HALF && b <= ROAD_HALF + 2*T2 && inBand(e)){
     /* up-ramp footprint: pad then climb, along the NEW heading */
     const onSlope = b >= ROAD_HALF + T2;
-    const z = onSlope ? CROSSING_STREET_Z - ((b - ROAD_HALF - T2)/T2)*drop : CROSSING_STREET_Z;
-    const grad = onSlope ? -drop/T2 : 0;
-    return { z, gx: dOut.x*grad, gy: dOut.y*grad, onPad: !onSlope && inStrip(e) };
+    if(onRamp){
+      const z = onSlope ? CROSSING_STREET_Z - ((b - ROAD_HALF - T2)/T2)*drop : CROSSING_STREET_Z;
+      const grad = onSlope ? -drop/T2 : 0;
+      return { z, gx: dOut.x*grad, gy: dOut.y*grad, onPad: !onSlope && inStrip(e), tiltSign: 0 };
+    }
+    return { z: CROSSING_STREET_Z, gx: 0, gy: 0, onPad: false, tiltSign: 0 };
   }
   /* the corner POCKET: everything between the two ramps' street-edge
      planes is street level, unconditionally. classify alone is wrong
@@ -938,11 +962,14 @@ function turnCrossingGroundAt(cx, wx, wy, classify){
      WALL him on its far curb with no way forward (verified: nodes on
      the grid boundary produced exactly that). The pocket is also what
      puts row 3's curb drop right at the down-ramp's curb plane — the
-     same place the straight model drops it. Outside the pocket,
-     classify still rules (plain walk vs road). */
+     same place the straight model drops it, and now also what turns
+     the capped up-ramp above into a real wall for rows 0/2: their z
+     stays flat at CROSSING_STREET_Z right up to this boundary, then
+     jumps to walk height the instant they clear it. Outside the
+     pocket, classify still rules (plain walk vs road). */
   const inPocket = a > -ROAD_HALF && b < ROAD_HALF;
   return { z: (inPocket || classify(wx, wy) === "road") ? CROSSING_STREET_Z : 0,
-           gx: 0, gy: 0, onPad: false };
+           gx: 0, gy: 0, onPad: false, tiltSign: 0 };
 }
 
 /* hull door: frame + slab + 2 panels + knob, hinge-open on theta.
@@ -6972,12 +6999,12 @@ class WorldScene extends Phaser.Scene {
           if(cx.kind !== "turn") continue;
           if(this.botS < cx.sA - 3*T2 || this.botS > cx.sB + 3*T2) continue;
           const wp0 = segsWorldOf(this.route.segs, this.botS, this.laneOff);
-          _tg = turnCrossingGroundAt(cx, wp0.x, wp0.y, this.route.grid.classify);
+          _tg = turnCrossingGroundAt(cx, wp0.x, wp0.y, this.route.grid.classify, _vRow);
           if(_tg.z - (this.crossZ || 0) > 2.5 && this.botS > _botS_frameStart){
             this.botS = _botS_frameStart;
             this.isBlocked = true;
             const wp1 = segsWorldOf(this.route.segs, this.botS, this.laneOff);
-            _tg = turnCrossingGroundAt(cx, wp1.x, wp1.y, this.route.grid.classify);
+            _tg = turnCrossingGroundAt(cx, wp1.x, wp1.y, this.route.grid.classify, _vRow);
           }
           break;
         }
@@ -7015,13 +7042,28 @@ class WorldScene extends Phaser.Scene {
         const _hdg = segsHeadingAt(this.route.segs, this.botS);
         this.crossSlope = _tg.gx*Math.cos(_hdg) + _tg.gy*Math.sin(_hdg);
         this.crossJitter = _tg.onPad ? (Math.random()-0.5) * 0.1 : 0;
+        /* cross-slope lean off the down-ramp's flared side, rows 0/2
+           only — same mirrored (1-row) tiltSign the straight model
+           uses, now actually wired up here too (previously computed by
+           turnCrossingGroundAt's row split but never read). Own rate,
+           NOT the straight model's 0.055: this crossing sits on top of
+           the arc segment (TURN_R aligned them by construction), so a
+           flanking lane is already picking up the arc's own centrifugal
+           cornering tilt at the same time — whichever lane's flank sign
+           matches the turn's own direction gets both added together.
+           Straight crossings never have that second force, so 0.055
+           was tuned for fighting alone; halved-ish here so the two
+           stacking doesn't tip him before he reaches the curb. Tune
+           further after playtesting like everything else in this file. */
+        if(_tg.tiltSign) this.tilt += _tg.tiltSign * this.speed * 0.03 * dt;
         /* curb drop off an unramped edge — same lab kick/tip handoff.
            Threshold 2.5, NOT the straight model's 1: on turns every
            lane exits the up-ramp over its 2-unit rear lip (verified in
            the per-lane trace), and only the real curb faces (3-unit
-           plain-walk curb, 5-unit prop curb) should stumble. No flank
-           tilt on turns (cornerLean owns the bend), so the upright
-           fallback direction is just the current lean or +. */
+           plain-walk curb, 5-unit prop curb) should stumble. Rows 0/2
+           now get their own flank tilt above (turnCrossingGroundAt's
+           row split), so the upright fallback direction here still
+           just falls back to the current lean or +. */
         if(_prevCrossZ - this.crossZ > 2.5){
           const _wasLeaning = Math.abs(this.tilt) > 0.55;
           this.tilt += Math.sign(this.tilt || 1) * 0.35;
