@@ -700,6 +700,17 @@ const CORNER_R = ROAD_HALF + SIDEWALK_W;       // the robot's (and traffic's) tu
                               // broke that invariant. Tying it to ROAD_HALF+SIDEWALK_W restores
                               // the same margin the old game always had, and keeps it an exact
                               // multiple of T2.
+const TURN_R = ROAD_HALF + T2;    // PLAYER-ROUTE-ONLY wide-turn fillet radius (5*T2) — deliberately
+                              // SMALLER than CORNER_R so the arc's tangent points land exactly on
+                              // the yellow ramps (also ROAD_HALF+T2 from the corner node) instead of
+                              // CORNER_R's 8*T2, which started the turn+tip mechanic ~3 tiles before
+                              // the down-ramp. Knowingly reopens the fold-through-center invariant
+                              // CORNER_R's own comment warns about, for lane offsets beyond TURN_R
+                              // (rows 1-3): outer lanes will slow through the turn, and at the
+                              // widest offset (row 3) the offset math can fold past the arc's
+                              // center. Accepted tradeoff (Sir, 2026-07-17) in exchange for the
+                              // turn visually starting/landing on the ramps. Traffic keeps CORNER_R
+                              // unchanged — buildWalk only gets TURN_R from generateRoute's own call.
 const ROBOT_SIDE = -1;       // the walk stays on ONE side's sidewalk band —
                               // lane 0 is closest to the road (curb side),
                               // lane 3 is farthest (building side).
@@ -1266,7 +1277,7 @@ function buildGrid(cols, rows, seed=0){
    fillet-arc construction the game already used, now fed by the graph
    walk instead of arbitrary legs. The street grid stays perfectly
    rectilinear; only the walked line curves through it. */
-function buildWalk(grid, rng, startOverride, turnsRange){
+function buildWalk(grid, rng, startOverride, turnsRange, turnR = CORNER_R){
   const { cols, rows, nodeAt } = grid;
   let ci = startOverride ? startOverride.i : 1 + Math.floor(rng()*(cols-2 || 1));
   let cj = startOverride ? startOverride.j : 1 + Math.floor(rng()*(rows-2 || 1));
@@ -1332,29 +1343,48 @@ function buildWalk(grid, rng, startOverride, turnsRange){
     }
   }
 
+  /* per-corner radius: only OUTSIDE turns (sign === -ROBOT_SIDE) get the
+     smaller turnR — those are the only ones that cross the street via
+     ramps and need their tangent points aligned to them. INSIDE turns
+     (walk stays on continuous sidewalk, no ramps at all — see the
+     "outside-turn crossings" block below) keep CORNER_R exactly as
+     before; they were never part of the ramp-alignment problem and
+     shrinking their radius too is what broke them just now — CORNER_R's
+     own comment explains why it can't safely go smaller for a lane that
+     has no ramp-crossing reason to. Precomputed per corner (not inline
+     in the loop) because trimS on leg i+1 has to match the SAME radius
+     used for trimE on leg i — both sides of one corner must agree or
+     the fillet stops being tangent. */
+  const cornerSign = [];
+  for(let c = 0; c < legDescs.length - 1; c++){
+    const f0 = legDescs[c].f, f1 = legDescs[c+1].f;
+    cornerSign.push(((f1 - f0 + 4) % 4 === 1) ? 1 : -1);
+  }
+  const cornerRadius = cornerSign.map(sg => sg === -ROBOT_SIDE ? turnR : CORNER_R);
+
   const segs = [];
   let s = 0, p = { x:startNode.x, y:startNode.y };
   for(let i = 0; i < legDescs.length; i++){
     const f = legDescs[i].f, d = DIRV[f], rv = DIRV[(f+1)%4];
     const legLen = legDescs[i].blocks * BLOCK;
-    const trimS = i > 0 ? CORNER_R : 0;
-    const trimE = i < legDescs.length-1 ? CORNER_R : 0;
+    const trimS = i > 0 ? cornerRadius[i-1] : 0;
+    const trimE = i < legDescs.length-1 ? cornerRadius[i] : 0;
     const lineLen = legLen - trimS - trimE;
     segs.push({ type:"line", s0:s, s1:s+lineLen, f, hA:f*Math.PI/2,
                 start:{ x:p.x + d.x*trimS, y:p.y + d.y*trimS } });
     s += lineLen;
     const cornerP = { x:p.x + d.x*legLen, y:p.y + d.y*legLen };
     if(i < legDescs.length-1){
-      const nextF = legDescs[i+1].f;
-      const sign = ((nextF - f + 4) % 4 === 1) ? 1 : -1;
+      const sign = cornerSign[i];
+      const R = cornerRadius[i];
       const center = {
-        x: cornerP.x - d.x*CORNER_R + sign*rv.x*CORNER_R,
-        y: cornerP.y - d.y*CORNER_R + sign*rv.y*CORNER_R };
-      const startPt = { x:cornerP.x - d.x*CORNER_R, y:cornerP.y - d.y*CORNER_R };
+        x: cornerP.x - d.x*R + sign*rv.x*R,
+        y: cornerP.y - d.y*R + sign*rv.y*R };
+      const startPt = { x:cornerP.x - d.x*R, y:cornerP.y - d.y*R };
       const a0 = Math.atan2(startPt.y - center.y, startPt.x - center.x);
-      const arcLen = Math.PI/2 * CORNER_R;
+      const arcLen = Math.PI/2 * R;
       segs.push({ type:"arc", s0:s, s1:s+arcLen, center, a0, sign,
-                  R:CORNER_R, hA:f*Math.PI/2, f });
+                  R, hA:f*Math.PI/2, f });
       s += arcLen;
     }
     p = cornerP;
@@ -1558,7 +1588,7 @@ function generateRoute(dateStr){
   const cols = 12 + Math.floor(rng()*6);
   const rows = 12 + Math.floor(rng()*6);
   const grid = buildGrid(cols, rows, seed);
-  const walk = buildWalk(grid, rng);
+  const walk = buildWalk(grid, rng, undefined, undefined, TURN_R);
   const segs = walk.segs, totalLen = walk.totalLen;
 
   const inCorner = sv => segs.some(sg => sg.type === "arc" && sv > sg.s0 - CORNER_R && sv < sg.s1 + CORNER_R);
@@ -1658,11 +1688,12 @@ function generateRoute(dateStr){
      (no sidewalkbeginTurn): ramp down on the last two tiles of the
      straight before the arc (old heading), the whole sweep at street
      level, ramp up on the first two tiles after it (new heading).
-     Arc endpoints sit CORNER_R = 8*T2 from the node — tile-aligned by
-     construction, same free alignment the straight crossings got.
-     Accepted lab-model compromise: the descent happens on the straight
-     BEFORE the actual curb, so early/late in the sweep the robot rides
-     at street level over a few tiles of drawn sidewalk. */
+     Arc endpoints sit TURN_R = 5*T2 from the node (player route only —
+     see TURN_R's own comment) — tile-aligned by construction, same free
+     alignment the straight crossings got, and now the SAME 5*T2 the
+     ramps themselves sit at, so the turn+tip mechanic (gated on
+     seg.type==="arc" elsewhere) starts and ends on the ramps instead of
+     several tiles early/late. */
   for(let i = 0; i < segs.length; i++){
     const sg = segs[i];
     if(sg.type !== "arc") continue;
@@ -1670,22 +1701,23 @@ function generateRoute(dateStr){
     const prev = segs[i-1], next = segs[i+1];
     if(!prev || !next || prev.type !== "line" || next.type !== "line") continue;
     /* ramps must fit on the adjacent straights (always true for
-       >=1-block legs: lineLen >= BLOCK - 2*CORNER_R = 18*T2, but the
-       guard keeps route-shape assumptions out of the invariant) */
+       >=1-block legs: lineLen >= BLOCK - 2*TURN_R = 24*T2 on the player
+       route (was 18*T2 at the old CORNER_R trim), but the guard keeps
+       route-shape assumptions out of the invariant) */
     if(sg.s0 - 2*T2 < prev.s0 + T2 || sg.s1 + 2*T2 > next.s1 - T2) continue;
     /* the corner NODE's world position, recovered from the arc's own
-       stored geometry (center = cornerP - d*CORNER_R + sign*rv*CORNER_R,
-       inverted). Turn crossings are WORLD-anchored, not route-s
-       anchored: the visually correct ramp positions sit at the true
-       curb lines — down-ramp where the old walk actually ends (the
-       side street's curb), up-ramp where the new walk actually begins
-       (the old street's curb) — and the robot's arc crosses those
-       footprints DIAGONALLY mid-sweep, at route-s values that don't
-       map to them linearly. Confirmed on-device: anchoring ramps at
-       the arc's endpoints (8 tiles out) put them mid-sidewalk. */
+       stored geometry (center = cornerP - d*sg.R + sign*rv*sg.R,
+       inverted — uses sg.R, not the CORNER_R constant, since the
+       player route now builds this arc at TURN_R). Still WORLD-anchored
+       rather than route-s anchored for the lateral (cross-axis) offset,
+       since laneOff still shifts a diagonal-crossing robot off the
+       centerline the same way it always did — but now that the arc's
+       own endpoints sit at TURN_R (== the ramps' own ROAD_HALF+T2), the
+       along-axis component lines up with the true curb by construction
+       instead of needing the 8-tiles-out correction this used to. */
     const dA = DIRV[sg.f], rvA = DIRV[(sg.f+1)%4];
-    const nx = sg.center.x + dA.x*CORNER_R - sg.sign*rvA.x*CORNER_R;
-    const ny = sg.center.y + dA.y*CORNER_R - sg.sign*rvA.y*CORNER_R;
+    const nx = sg.center.x + dA.x*sg.R - sg.sign*rvA.x*sg.R;
+    const ny = sg.center.y + dA.y*sg.R - sg.sign*rvA.y*sg.R;
     crossings.push({ kind:"turn", sA: sg.s0, sB: sg.s1, nx, ny,
                      fIn: sg.f, fOut: (sg.f + sg.sign + 4) % 4 });
   }
