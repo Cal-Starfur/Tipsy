@@ -7400,7 +7400,7 @@ class WorldScene extends Phaser.Scene {
 
     /* the open lid can swing to the far side of the body — draw it first there */
     const lidBox = {...LID, z0:LID.z0+bobZ, z1:LID.z1+bobZ};
-    const lidIsNear = this.lidNear(lidBox);
+    const lidIsNear = this.lidNear();
     if(!lidIsNear) this.drawLid(lidBox);
 
     this.drawBox({hx:24, hy:17, z0:6, z1:BODY.z0+1}, 0x3f434c, 0x3a3d45, 0x2e3138, false);
@@ -7470,25 +7470,30 @@ class WorldScene extends Phaser.Scene {
     return result;
   }
 
-  /* depth of the lid's centre AFTER hinge rotation — decides draw order vs body */
-  lidNear(b){
-    /* a closed (or nearly closed) lid always draws on top of the body,
-       regardless of roll — there's no case where the body should
-       occlude a shut lid. The depth-comparison test below is
-       mathematically guaranteed to flip at roll=atan(0.4)~21.8deg for
-       ANY reference point lower than the lid's own (a hard consequence
-       of the depth formula's z*0.4 weighting, not a tunable constant —
-       verified: changing the reference point's z value never moves
-       this crossover). That's what made the lid vanish during any
-       moderate-to-hard tilt. Only defer to the depth test once the lid
-       is open enough to actually expose the cavity, where near/far
-       against the newly-visible interior genuinely needs deciding. */
-    if(this.lidAng < 0.15) return true;
-    const A = this.lidAng, c = Math.cos(A), s = Math.sin(A);
-    const yh = -b.hy, zh = b.z0;   // fixed hinge edge — doesn't mirror with tip direction,
-                                     // it's a real mechanical hinge, not a mirror
-    const dy = -yh, dz = (b.z1 - b.z0)/2;
-    return this.depth(0, yh + dy*c - dz*s, zh + dy*s + dz*c) > this.depth(0, 0, 34);
+  /* near/far by TOP-FACE VISIBILITY, not a depth comparison. The lid is
+     hinged along the body's rear top edge and only ever swings within
+     the hemisphere above that face — it can never end up behind the
+     body when the top face itself is camera-facing, or in front of it
+     when the top face faces away. So the same test the cavity gate
+     below already uses for "is the top face visible" (this.R(0,0,1),
+     summed) also answers "is the lid near", and the two can never
+     disagree with each other since it's the literal same expression
+     evaluated in the same frame.
+     Replaces a point-depth comparison (this.depth(), which weights z
+     by 0.4) that was forced-near below lidAng 0.15 and only ran the
+     depth test above that. That combination (a) kept painting the shut
+     lid over the body for several frames after the body had already
+     rolled past the point it should occlude it, (b) popped visibly at
+     the 0.15 threshold mid-roll, and (c) is mathematically guaranteed
+     to flip mid-sweep for any large roll — same z*0.4 root cause
+     already fixed in flagNear() and the wheel mounting-face test, just
+     never carried over here. The normal test is continuous through the
+     whole roll sweep instead. lidAng and lidHingeFlip don't factor in
+     at all now — which edge is the physical hinge never changes which
+     side of the body's own top plane the lid is swinging into. */
+  lidNear(){
+    const w = this.R(0, 0, 1);
+    return (w.x + w.y + w.z) > 0;
   }
 
   rollPt(x, y, z){                 // roll only — no facing (for world-space spawns)
