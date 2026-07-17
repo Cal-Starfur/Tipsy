@@ -2942,10 +2942,10 @@ class WorldScene extends Phaser.Scene {
          the decal's center would flip the whole 2x3-tile panel from
          behind to in-front partway through — over-the-robot for half
          the crossing. Pinning to gWorld is orientation-independent, so
-         it's correct for all 4 headings at once (see the invariants
-         comment at the top of this file). Body-vs-body order against
-         cars/houses is unaffected — that comes from the blockVQ sort,
-         not the layer choice. */
+         it's correct for all 4 headings at once — no per-heading
+         special-casing needed, unlike a point-depth test. Body-vs-body
+         order against cars/houses is unaffected — that comes from the
+         blockVQ sort, not the layer choice. */
       /* crack joined the pin list: flat ground paint the robot ALWAYS
          drives over, but it was still going through layerFor()'s
          point-depth test — which flips to the front layer the moment
@@ -5947,9 +5947,8 @@ class WorldScene extends Phaser.Scene {
          is a compact L-shaped diorama: down ramp, a corner tile
          standing in for the turn, up ramp rotated 90°. Same slope/pad
          technique as prop.sidewalkend, used twice. Static visual only,
-         no physics — see docs/DESIGN.md "prop.sidewalkbeginTurn" for the
-         full spec (built + physics-tested in
-         labs/sidewalkendturn-lab.html, not yet ported into the game). */
+         no physics — built + physics-tested in
+         labs/sidewalkendturn-lab.html, not yet ported into the game. */
       const T2s = TILE*2, wHalf = 92, crossHalf = 1.5*T2s;
       const sidewalkZ = 2, streetZ = -3;
 
