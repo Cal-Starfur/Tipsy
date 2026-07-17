@@ -111,7 +111,7 @@ Devvit.addCustomPostType({
       <zstack width="100%" height="100%" alignment="center middle" onPress={() => webView.mount()}>
         <vstack alignment="center middle" height="100%" width="100%">
           <text size="xxlarge" weight="bold">🤖 TIPSY</text>
-          <text size="medium" color="#8f95a1">a clumsy delivery — tap to play</text>
+          <text size="medium" color="neutral-content-weak">a clumsy delivery — tap to play</text>
         </vstack>
       </zstack>
     );
