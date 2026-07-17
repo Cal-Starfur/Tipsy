@@ -1769,6 +1769,20 @@ function generateRoute(dateStr){
      perfectly flat, and The Bluffs (hill 1) becomes a leg-burner. */
   const lerp = (a, b, t) => a + (b - a)*t;
   const HILL_AMP = 1100 * hood.hill;
+  /* directional bias: real slope should agree with the isometric
+     camera's own depth cue instead of being pure coin-flip noise. W()'s
+     screen-y is (x+y)*0.5 - z, so +x/+y (f=0/f=1) increases screen-y —
+     lower on screen, which reads as coming toward the viewer/downhill —
+     and -x/-y (f=2/f=3) reads the opposite, uphill. Before this,
+     elevAtWorld was symmetric noise with no relationship to that reading
+     at all. GRADE_BIAS is sized to roughly match the noise octaves' own
+     typical per-block slope (see oct() below) so it reliably sets the
+     overall trend direction per leg without flattening out the local
+     texture/bumps the noise still provides. Scales with HILL_AMP like
+     everything else here, so The Flats (hill 0) stays exactly flat —
+     no bias either. Tune GRADE_BIAS's multiplier on HILL_AMP/BLOCK if
+     playtesting wants the trend stronger/weaker relative to the bumps. */
+  const GRADE_BIAS = HILL_AMP / BLOCK;
   const elevLattice = (i, j) =>
     mulberry32(((i*73856093) ^ (j*19349663) ^ (seed ^ 0x9e37)) >>> 0)() - 0.5;
   const smoothT = v => v*v*(3 - 2*v);
@@ -1781,7 +1795,7 @@ function generateRoute(dateStr){
       return w * lerp(lerp(elevLattice(i0, j0),   elevLattice(i0+1, j0),   fu),
                       lerp(elevLattice(i0, j0+1), elevLattice(i0+1, j0+1), fu), fv);
     };
-    return HILL_AMP * (oct(2, 1) + oct(1, 0.5));
+    return HILL_AMP * (oct(2, 1) + oct(1, 0.5)) - GRADE_BIAS * (x + y);
   };
   const tiles = [];
   const nT = Math.ceil(totalLen / (TILE*2)) + 3;
