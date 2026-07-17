@@ -163,6 +163,34 @@
 <script>
 "use strict";
 
+/* ---------- Devvit bridge (optional) ----------
+   Detects whether this page is running inside the Devvit webview (vs the
+   standalone GitHub Pages build) and, if so, swaps the daily-best
+   leaderboard's persistence from localStorage to the Blocks/Redis layer
+   via postMessage. Keyed by dateStr (not just "today") because reroll
+   mode (see rerollBtn) plays arbitrary future dates, each with its own
+   independently-tracked best — the same thing the plain-localStorage
+   version already did for free since every read/write there was already
+   per-dateStr. requestDailyBest() is called once per loadRoute(dateStr)
+   (see loadRoute — the one function every date change already flows
+   through: boot, today, reroll). Nothing else in the game reads or
+   writes tipsyBridge. If no reply ever arrives (standalone build, or
+   webview blocked), tipsyBridge.active just stays false and showWin()
+   falls straight back to localStorage — same behavior as before this
+   bridge existed. */
+const tipsyBridge = { active: false, best: {} };
+function requestDailyBest(dateStr){
+  try { window.parent.postMessage({ type: "TIPSY_REQUEST_BEST", payload: { dateStr } }, "*"); } catch(e){}
+}
+window.addEventListener("message", (e) => {
+  const m = e.data;
+  if(!m || typeof m !== "object") return;
+  if(m.type === "TIPSY_BEST_REPLY" && m.payload && m.payload.dateStr){
+    tipsyBridge.active = true;
+    tipsyBridge.best[m.payload.dateStr] = m.payload.best || null;
+  }
+});
+
 /* ============================================================
    TIP — Route Lab
    One address a day. A real-LA-neighborhood roster drives a
@@ -2572,6 +2600,7 @@ class WorldScene extends Phaser.Scene {
   }
 
   loadRoute(dateStr){
+    requestDailyBest(dateStr);   // Devvit bridge — no-op if not embedded (see shim near top of file)
     this.route = generateRoute(dateStr);
     for(const hz of this.route.hazards) hz.hit = false;
     this.d = this.route.pal;
@@ -8398,15 +8427,27 @@ function showWin(s){
   if(dmgPen  >= 0.5) cuts.push(`dmg −${Math.round(dmgPen)}%`);
   if(latePen >= 0.5) cuts.push(`late −${Math.round(latePen)}%`);
   if(walkPen >= 0.5) cuts.push(`walk −${Math.round(walkPen)}%`);
-  /* daily best — tip dollars ranked, time the tiebreak. Local until
-     Devvit lands (which turns this same record into the shared
-     leaderboard). */
+  /* daily best — tip dollars ranked, time the tiebreak. Shared across
+     everyone on the subreddit when running in the Devvit webview
+     (tipsyBridge.active — see the bridge shim near the top of the
+     script); falls back to a local-only best via localStorage in the
+     standalone GitHub Pages build, exactly as before this bridge
+     existed. */
   let bestRow = "";
   try {
     const key = "tipsy-best-" + s.route.dateStr;
-    const prev = JSON.parse(localStorage.getItem(key) || "null");
+    const prev = tipsyBridge.active
+      ? tipsyBridge.best[s.route.dateStr]
+      : JSON.parse(localStorage.getItem(key) || "null");
     const better = !prev || payout > prev.tip || (payout === prev.tip && s.runT < prev.ms);
-    if(better) localStorage.setItem(key, JSON.stringify({ tip: payout, ms: s.runT }));
+    if(better){
+      if(tipsyBridge.active){
+        tipsyBridge.best[s.route.dateStr] = { tip: payout, ms: s.runT };   // optimistic — server is source of truth next load
+        try { window.parent.postMessage({ type: "TIPSY_DAILY_BEST", payload: { dateStr: s.route.dateStr, tip: payout, ms: s.runT } }, "*"); } catch(e){}
+      } else {
+        localStorage.setItem(key, JSON.stringify({ tip: payout, ms: s.runT }));
+      }
+    }
     bestRow = better
       ? `<div class="sheetRow" style="color:#3f7d43;font-size:13px">★ NEW DAILY BEST</div>`
       : `<div class="sheetRow" style="color:#8f95a1;font-size:13px">daily best $${prev.tip.toFixed(2)} · ${(prev.ms/1000).toFixed(1)}s</div>`;
