@@ -1861,21 +1861,12 @@ function generateRoute(dateStr){
     }
   }
 
-  /* grade chevrons: painted on the walk wherever the route is steep —
-     the visual language for a hill in a world whose ground stays
-     drawn flat. Sparse (every ~6 tiles of a steep stretch), pointing
-     DOWNhill, line segs only (arcs have cornerLean doing the talking),
-     never inside a crossing span. */
-  for(let i = 6; i < nT - 6; i += 6){
-    const s = i*T2;
-    const sl = (tiles[i+1] - tiles[i-1]) / (2*T2);
-    if(Math.abs(sl) < 0.10) continue;
-    if(inCrossing(s)) continue;
-    const sg2 = segs.find(g => s >= g.s0 && s <= g.s1);
-    if(!sg2 || sg2.type !== "line") continue;
-    if(spawnBlocked(s, laneOffset(1))) continue;
-    hazards.push({ type:"grade", s, row: 1, f: sg2.f, dir: sl < 0 ? 1 : -1, hit:true });
-  }
+  /* grade chevrons: DISABLED per Sir's request (2026-07-17) — the yellow
+     slope-indicator chevrons are gone from the walk. The underlying hill
+     physics (pitch, hill gravity, speed strain — driven by the `tiles`
+     elevation profile via groundSlope/elevAt, not by these hazard
+     markers) are completely untouched; this only stops the paint from
+     spawning. Re-enable by restoring the loop body below if wanted back. */
 
   const density = 0.45 + hood.litter*0.35 + (1 - hood.pave)*0.3;
   let hs = SPAWN_S + 120;
