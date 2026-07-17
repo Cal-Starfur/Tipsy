@@ -1,0 +1,5 @@
+{
+  "name": "Tipsy",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:20",
+  "postStartCommand": "bash .devcontainer/start-bridge.sh"
+}
