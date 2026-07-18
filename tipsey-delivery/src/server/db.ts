@@ -1,18 +1,5 @@
 import {redis} from '@devvit/web/server'
-import type {T3} from '@devvit/web/shared'
 import type {DailyBest} from '../shared/api.ts'
-
-export async function dbGetCounter(t3: T3): Promise<number> {
-  return Number((await redis.get(counterKey(t3))) ?? 0)
-}
-
-export async function dbIncCounter(t3: T3, amount: number): Promise<number> {
-  return redis.incrBy(counterKey(t3), amount)
-}
-
-function counterKey(t3: T3): string {
-  return `count:${t3}`
-}
 
 /** Today's date, UTC, "YYYY-MM-DD" — matches the client's own
  *  `new Date().toISOString().slice(0,10)` exactly (see requestDailyBest()
@@ -41,7 +28,8 @@ export async function dbSetDailyBestIfBetter(
   username: string,
 ): Promise<DailyBest> {
   const current = await dbGetDailyBest(dateStr)
-  const better = !current || tip > current.tip || (tip === current.tip && ms < current.ms)
+  const better =
+    !current || tip > current.tip || (tip === current.tip && ms < current.ms)
   if (!better) return current
   const record: DailyBest = {tip, ms, username}
   await redis.set(dailyBestKey(dateStr), JSON.stringify(record))

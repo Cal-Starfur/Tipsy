@@ -10,18 +10,13 @@ import {
   Endpoint,
   EndpointMethod,
   type ErrorRsp,
-  type GetCounterRsp,
   type GetDailyBestRsp,
-  type IncCounterReq,
-  type IncCounterRsp,
   type SubmitDailyBestReq,
   type SubmitDailyBestRsp,
 } from '../shared/api.ts'
-import {dbGetCounter, dbGetDailyBest, dbIncCounter, dbSetDailyBestIfBetter, todayUTC} from './db.ts'
+import {dbGetDailyBest, dbSetDailyBestIfBetter, todayUTC} from './db.ts'
 
 type AnyRsp =
-  | GetCounterRsp
-  | IncCounterRsp
   | GetDailyBestRsp
   | SubmitDailyBestRsp
   | UiResponse
@@ -53,12 +48,6 @@ async function route(
     rsp = {error: 'not found', status: 404}
   } else {
     switch (endpoint) {
-      case Endpoint.GetCounter:
-        rsp = await routeGetCounter()
-        break
-      case Endpoint.IncCounter:
-        rsp = await routeInc(reqMsg)
-        break
       case Endpoint.GetDailyBest:
         rsp = await routeGetDailyBest()
         break
@@ -79,19 +68,6 @@ async function route(
   }
 
   writeJson<PartialJsonValue>('status' in rsp ? rsp.status : 200, rsp, rspMsg)
-}
-
-async function routeGetCounter(): Promise<GetCounterRsp> {
-  const t3 = context.postId
-  if (!t3) throw Error('no t3')
-  return {count: await dbGetCounter(t3)}
-}
-
-async function routeInc(reqMsg: IncomingMessage): Promise<IncCounterRsp> {
-  const t3 = context.postId
-  if (!t3) throw Error('no t3')
-  const req = await readJson<IncCounterReq>(reqMsg)
-  return {count: await dbIncCounter(t3, req.amount)}
 }
 
 async function routeGetDailyBest(): Promise<GetDailyBestRsp> {
