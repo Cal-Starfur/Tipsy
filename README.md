@@ -27,15 +27,3 @@ Desktop: arrow keys (←/→ throttle-brake, ↑/↓ lane).
 Every hazard is a small real-time routing problem: hop lanes (costs stability,
 scaled by speed) or brake (costs time). Driveways cross-tilt you continuously
 while you're on them. Hills add speed whether you like it or not.
-
-## Repo layout
-
-- `game/index.html` — the playable prototype (Phaser 3 via CDN)
-- `labs/` — the development labs: sprite dial-in, district visuals, daily route generator
-- `prototypes/` — the original Matter.js side-scroller proof of concept
-- `docs/DESIGN.md` — living design document (decisions, tuning values, roadmap)
-
-## Status
-
-Playable prototype. Built for the Reddit hackathon (Games with a Hook · Best Use
-of Phaser), July 2026. Built with Claude for code; original game design.
