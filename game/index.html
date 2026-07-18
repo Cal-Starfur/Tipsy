@@ -163,44 +163,40 @@
 <script>
 "use strict";
 
-/* ---------- Devvit bridge (optional) ----------
-   Detects whether this page is running inside the Devvit webview (vs the
-   standalone GitHub Pages build) and, if so, swaps the daily-best
-   leaderboard's persistence from localStorage to the Blocks/Redis layer
-   via postMessage. Keyed by dateStr (not just "today") because reroll
-   mode (see rerollBtn) plays arbitrary future dates, each with its own
-   independently-tracked best — the same thing the plain-localStorage
-   version already did for free since every read/write there was already
-   per-dateStr. requestDailyBest() is called once per loadRoute(dateStr)
-   (see loadRoute — the one function every date change already flows
-   through: boot, today, reroll). Nothing else in the game reads or
-   writes tipsyBridge. If no reply ever arrives (standalone build, or
-   webview blocked), tipsyBridge.active just stays false and showWin()
-   falls straight back to localStorage — same behavior as before this
-   bridge existed. */
-const tipsyBridge = { active: false, best: {} };
-
 /* Reddit/Devvit build only ever plays the daily map — a synchronous
-   query-param flag (set by main.tsx when it builds the webview URL)
-   lets us hide the Today/Random Day selector before the title screen
-   ever paints. Unlike tipsyBridge.active this can't wait on a
-   postMessage round trip, since the panel has to be gone from frame
-   one, not after a reply arrives. Standalone GitHub Pages / itch.io
-   builds never carry this param, so they're unaffected. */
+   query-param flag lets us hide the Today/Random Day selector before
+   the title screen ever paints, and drives the leaderboard swap below.
+   Standalone GitHub Pages / itch.io builds never carry this param, so
+   they're unaffected. */
 const IS_DEVVIT_BUILD = new URLSearchParams(location.search).get("platform") === "devvit";
 if(IS_DEVVIT_BUILD){ hide("panel"); hide("panelToggle"); }
-function requestDailyBest(dateStr){
-  try { window.parent.postMessage({ type: "TIPSY_REQUEST_BEST", payload: { dateStr } }, "*"); } catch(e){}
-}
-window.addEventListener("message", (e) => {
-  const m = e.data;
-  if(!m || typeof m !== "object") return;
-  if(m.type === "TIPSY_BEST_REPLY" && m.payload && m.payload.dateStr){
-    tipsyBridge.active = true;
-    tipsyBridge.best[m.payload.dateStr] = m.payload.best || null;
-  }
-});
 
+/* ---------- Devvit bridge (optional) ----------
+   On the Devvit build, swaps the daily-best leaderboard's persistence
+   from localStorage to the tipsey-delivery server's Redis-backed
+   api/tipsy/best endpoint (src/server/server.ts + db.ts in the
+   tipsey-delivery/ Devvit project) via plain fetch — no postMessage,
+   no envelope unwrapping, since Devvit Web webviews can just hit their
+   own server directly. The server keys the record off its own UTC
+   "today", not a client-supplied dateStr — reroll is unreachable here
+   (panel's hidden above), so there's never a legitimate reason for the
+   Devvit build to ask about any date but today, and not trusting a
+   client-supplied date closes off a spoofing angle for free.
+   tipsyBridge.active is set synchronously from IS_DEVVIT_BUILD (unlike
+   the old postMessage version, which only flipped true after a round
+   trip reply) — showWin() no longer has to guess whether a reply is
+   still in flight. requestDailyBest() is called once per
+   loadRoute(dateStr) (see loadRoute). Standalone GitHub Pages / itch.io
+   builds never call fetch() here at all and fall straight back to
+   localStorage, same as before this bridge existed. */
+const tipsyBridge = { active: IS_DEVVIT_BUILD, best: {} };
+function requestDailyBest(dateStr){
+  if(!IS_DEVVIT_BUILD) return;
+  fetch("api/tipsy/best", { headers: { Accept: "application/json" } })
+    .then(rsp => rsp.ok ? rsp.json() : null)
+    .then(data => { if(data) tipsyBridge.best[dateStr] = data.best || null; })
+    .catch(()=>{});
+}
 /* ============================================================
    TIP — Route Lab
    One address a day. A real-LA-neighborhood roster drives a
@@ -8453,7 +8449,11 @@ function showWin(s){
     if(better){
       if(tipsyBridge.active){
         tipsyBridge.best[s.route.dateStr] = { tip: payout, ms: s.runT };   // optimistic — server is source of truth next load
-        try { window.parent.postMessage({ type: "TIPSY_DAILY_BEST", payload: { dateStr: s.route.dateStr, tip: payout, ms: s.runT } }, "*"); } catch(e){}
+        fetch("api/tipsy/best/submit", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Accept: "application/json" },
+          body: JSON.stringify({ tip: payout, ms: s.runT })
+        }).catch(()=>{});
       } else {
         localStorage.setItem(key, JSON.stringify({ tip: payout, ms: s.runT }));
       }
