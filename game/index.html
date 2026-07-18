@@ -179,6 +179,16 @@
    falls straight back to localStorage — same behavior as before this
    bridge existed. */
 const tipsyBridge = { active: false, best: {} };
+
+/* Reddit/Devvit build only ever plays the daily map — a synchronous
+   query-param flag (set by main.tsx when it builds the webview URL)
+   lets us hide the Today/Random Day selector before the title screen
+   ever paints. Unlike tipsyBridge.active this can't wait on a
+   postMessage round trip, since the panel has to be gone from frame
+   one, not after a reply arrives. Standalone GitHub Pages / itch.io
+   builds never carry this param, so they're unaffected. */
+const IS_DEVVIT_BUILD = new URLSearchParams(location.search).get("platform") === "devvit";
+if(IS_DEVVIT_BUILD){ hide("panel"); hide("panelToggle"); }
 function requestDailyBest(dateStr){
   try { window.parent.postMessage({ type: "TIPSY_REQUEST_BEST", payload: { dateStr } }, "*"); } catch(e){}
 }
@@ -8511,6 +8521,7 @@ document.getElementById("panelToggle").addEventListener("click", () => {
   document.getElementById("panelToggle").classList.toggle("flipped", collapsed);
 });
 document.addEventListener("keydown", e => {
+  if(IS_DEVVIT_BUILD) return;
   if(e.key.toLowerCase() !== "h") return;
   const toggle = document.getElementById("panelToggle");
   const fullyHidden = toggle.classList.toggle("hidden");
