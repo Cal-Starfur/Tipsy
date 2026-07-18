@@ -874,37 +874,6 @@ function flockBirds(fx, fy){
   return birds;
 }
 
-/* ---------- pure flock layout: position-seeded, no mutable idle state ----------
-   Everything a bird IS (spot in the tile, size, facing, peck phase,
-   scatter angle) comes from the flock's world position + index, so the
-   renderer and any future sim agree by construction. */
-function flockBirds(fx, fy){
-  const rng = mulberry32(((Math.round(fx)*73856093) ^ (Math.round(fy)*19349663)) >>> 0);
-  const n = 3 + Math.floor(rng()*4);          // 3-6 birds
-  const birds = [];
-  for(let i=0;i<n;i++){
-    const a = rng()*Math.PI*2, r = 8 + rng()*30;
-    birds.push({
-      ox: Math.cos(a)*r, oy: Math.sin(a)*r,   // spot within the tile
-      pal: PIG_VARIANTS[Math.floor(rng()*3)], // one of the three plumages
-      size: 0.85 + rng()*0.3,
-      /* wander: two seeded ellipse frequencies + a faster epicycle —
-         a pure function of time, so every bird meanders aimlessly
-         around its home spot forever with zero mutable state, and
-         facing falls out of the analytic velocity */
-      w1: 0.00035 + rng()*0.00035, w2: 0.00035 + rng()*0.00035, w3: 0.0011 + rng()*0.0006,
-      rx: 10 + rng()*10, ry: 10 + rng()*10,
-      p1: rng()*Math.PI*2, p2: rng()*Math.PI*2,
-      peckPh: rng()*Math.PI*2,
-      peckRate: 0.0016 + rng()*0.0009,
-      scatterA: a + (rng()-0.5)*0.9,          // burst direction: radial + jitter
-      scatterV: 0.10 + rng()*0.05,
-      flapPh: rng()*Math.PI*2
-    });
-  }
-  return birds;
-}
-
 /* pure: where a bird's meander puts it (offset from home) and which way
    it's walking, at time t. Derivative-based facing means the bird always
    faces its direction of travel; the two base frequencies plus the
