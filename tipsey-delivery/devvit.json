@@ -27,5 +27,8 @@
   },
   "scripts": {
     "dev": "npm run watch"
+  },
+  "dev": {
+    "subreddit": "tipsey_delivery_dev"
   }
 }
