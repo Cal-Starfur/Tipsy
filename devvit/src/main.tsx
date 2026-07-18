@@ -54,7 +54,7 @@ Devvit.addCustomPostType({
     const { redis } = context;
 
     const webView = useWebView({
-      url: 'index.html',
+      url: 'index.html?platform=devvit',
 
       async onMessage(rawMessage: any) {
         // Unwrap Devvit's message envelope if present (same pattern as
