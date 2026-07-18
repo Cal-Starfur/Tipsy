@@ -1,0 +1,25 @@
+name: Deploy to itch.io
+
+on:
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Package game
+        run: |
+          mkdir -p build
+          cp game/index.html build/
+          cp game/icon-180.png build/
+
+      - name: Setup butler
+        uses: remarkablegames/setup-butler@v3
+
+      - name: Push to itch.io
+        run: butler push build cal-starfur/tipsy:html5
+        env:
+          BUTLER_API_KEY: ${{ secrets.BUTLER_API_KEY }}
