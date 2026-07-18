@@ -168,7 +168,7 @@
    the title screen ever paints, and drives the leaderboard swap below.
    Standalone GitHub Pages / itch.io builds never carry this param, so
    they're unaffected. */
-const IS_DEVVIT_BUILD = new URLSearchParams(location.search).get("platform") === "devvit";
+const IS_DEVVIT_BUILD = true; // hardcoded — this file is only ever served by Devvit (see game/index.html for the itch.io/GitHub Pages version, which still detects via query param)
 if(IS_DEVVIT_BUILD){ hide("panel"); hide("panelToggle"); }
 
 /* ---------- Devvit bridge (optional) ----------
