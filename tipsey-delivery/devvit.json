@@ -11,6 +11,9 @@
       }
     }
   },
+  "marketingAssets": {
+    "icon": "assets/icon.png"
+  },
   "server": {},
   "menu": {
     "items": [
