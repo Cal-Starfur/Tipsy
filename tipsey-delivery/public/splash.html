@@ -12,31 +12,55 @@
       --ink-dim: rgba(255, 247, 236, 0.72);
       --accent: #ffb454;
       --accent-deep: #ff7a3d;
-      --card: rgba(20, 12, 36, 0.55);
     }
     * { box-sizing: border-box; }
     body {
       margin: 0;
-      width: 100dvw;
-      height: 100dvh;
-      overflow: hidden;
+      min-height: 100dvh;
+      overflow-x: hidden;
       display: grid;
       place-items: center;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       background: radial-gradient(120% 90% at 50% -10%, #4a2a72 0%, #2a1246 45%, #150a26 100%);
       color: var(--ink);
+      padding: 24px 0;
     }
     main {
+      position: relative;
+      width: min(92vw, 380px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 24px;
+      overflow: hidden;
+    }
+    .party {
+      position: absolute;
+      inset: 0;
+    }
+    .avatar {
+      position: absolute;
+      transform: translate(-50%, -50%);
+    }
+    .scrim {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(180deg,
+        rgba(20, 12, 36, 0.55) 0%,
+        rgba(20, 12, 36, 0.45) 22%,
+        rgba(20, 12, 36, 0.62) 45%,
+        rgba(20, 12, 36, 0.78) 65%,
+        rgba(20, 12, 36, 0.88) 100%);
+    }
+    .content {
+      position: relative;
+      z-index: 2;
+      padding: 2rem 1.6rem 0.6rem;
+    }
+    .hero {
       display: grid;
       gap: 0.9rem;
       justify-items: center;
       text-align: center;
-      width: min(92vw, 380px);
-      padding: 2rem 1.6rem 1.8rem;
-      background: var(--card);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 24px;
-      backdrop-filter: blur(6px);
+      padding-bottom: 1.4rem;
     }
     #robot-canvas {
       display: block;
@@ -82,17 +106,67 @@
       transform: translateY(4px);
       box-shadow: 0 2px 0 #b8501f, 0 4px 10px rgba(0, 0, 0, 0.3);
     }
+    .list {
+      padding-bottom: 1.4rem;
+      min-height: 1px;
+    }
+    .row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 7px 0;
+      font-size: 13px;
+    }
+    .row .rank {
+      width: 18px;
+      color: rgba(255, 247, 236, 0.55);
+      font-variant-numeric: tabular-nums;
+    }
+    .row .chip {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      flex: none;
+      border: 1.5px solid rgba(255, 255, 255, 0.35);
+      overflow: hidden;
+      display: grid;
+      place-items: center;
+      background: rgba(255, 255, 255, 0.08);
+    }
+    .row .chip img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+    .row .name {
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+    }
+    .row .score {
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+    }
     </style>
   </head>
   <body>
-    <main>
-      <canvas id="robot-canvas" role="img" aria-label="Tipsey the delivery robot"></canvas>
-      <h1>TIPSEY</h1>
-      <p class="tagline">a clumsy delivery</p>
-      <p id="greet">Hey there — ready for today's route?</p>
-      <p id="stat"></p>
-      <button id="start-btn" type="button">Start Delivery</button>
-      <p id="debug" style="font-size:9px;color:rgba(255,247,236,0.4);margin:0.4rem 0 0;word-break:break-all;"></p>
+    <main id="card">
+      <div class="party" id="party"></div>
+      <div class="scrim"></div>
+      <div class="content">
+        <div class="hero">
+          <canvas id="robot-canvas" role="img" aria-label="Tipsey the delivery robot"></canvas>
+          <h1>TIPSEY</h1>
+          <p class="tagline">a clumsy delivery</p>
+          <p id="greet">Hey there — ready for today's route?</p>
+          <p id="stat"></p>
+          <button id="start-btn" type="button">Start Delivery</button>
+        </div>
+        <div class="list" id="list"></div>
+      </div>
     </main>
     <script src="splash.js" type="module"></script>
   </body>
