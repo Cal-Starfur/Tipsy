@@ -1,23 +1,6 @@
 import {requestExpandedMode} from '@devvit/web/client'
 import {Endpoint, type GetDailyBestRsp} from '../shared/api.ts'
 
-const startBtn = document.getElementById('start-btn') as HTMLButtonElement
-const greetEl = document.getElementById('greet') as HTMLParagraphElement
-const statEl = document.getElementById('stat') as HTMLParagraphElement
-const robotCanvas = document.getElementById('robot-canvas') as HTMLCanvasElement
-
-// Start never waits on the network — the challenge copy is a bonus, not
-// a gate. If the fetch is slow or fails, the default markup copy stands
-// and the button still works.
-startBtn.addEventListener('click', ev => requestExpandedMode(ev, 'game'))
-
-try {
-  renderRobotIcon(robotCanvas)
-} catch (err) {
-  console.error('splash: robot render failed', err)
-}
-loadDailyBest()
-
 async function loadDailyBest(): Promise<void> {
   try {
     const rsp = await fetch(Endpoint.GetDailyBest)
@@ -606,3 +589,31 @@ function showDebug(lines: string[]): void {
   if (el) el.textContent = lines.join(' | ')
   console.log('splash debug:', lines.join(' | '))
 }
+
+/* ============================================================
+ * Kickoff — deliberately last in the file. RobotRenderer is a
+ * `class`, not a function; classes aren't hoisted the way function
+ * declarations are, so anything that constructs one must run after
+ * the class declaration has actually executed. Calling
+ * renderRobotIcon() from up near the top (before this class exists)
+ * worked in unminified test bundles but broke under the real
+ * --minify'd build on-device — this ordering removes that ambiguity
+ * entirely rather than relying on bundler-specific behavior.
+ * ============================================================ */
+
+const startBtn = document.getElementById('start-btn') as HTMLButtonElement
+const greetEl = document.getElementById('greet') as HTMLParagraphElement
+const statEl = document.getElementById('stat') as HTMLParagraphElement
+const robotCanvas = document.getElementById('robot-canvas') as HTMLCanvasElement
+
+// Start never waits on the network — the challenge copy is a bonus, not
+// a gate. If the fetch is slow or fails, the default markup copy stands
+// and the button still works.
+startBtn.addEventListener('click', ev => requestExpandedMode(ev, 'game'))
+
+try {
+  renderRobotIcon(robotCanvas)
+} catch (err) {
+  console.error('splash: robot render failed', err)
+}
+loadDailyBest()
