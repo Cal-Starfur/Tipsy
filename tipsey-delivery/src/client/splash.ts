@@ -509,69 +509,100 @@ class RobotRenderer {
  *  constants above (lidAng, etc.) change later — no separate asset to
  *  re-export by hand. */
 function renderRobotIcon(canvas: HTMLCanvasElement): void {
-  const cssWidth = 104
-  const workSize = 500
-
-  const off = document.createElement('canvas')
-  off.width = workSize
-  off.height = workSize
-  const offCtx = off.getContext('2d')
-  if (!offCtx) return
-
-  const renderer = new RobotRenderer(offCtx, workSize / 2, workSize * 0.66, 2.3)
-  renderer.draw({x: 1, y: 0})
-
-  // Fixed fallback bounds, measured once for this exact pose/camera setup
-  // (cx=250, cy=330, K=2.3 on a 500x500 canvas). Used if getImageData is
-  // blocked — some mobile/sandboxed webviews throw a SecurityError on
-  // canvas readback as an anti-fingerprinting measure, and a blocked read
-  // here must never take down the rest of the splash script with it.
-  let minX = 126
-  let minY = 71
-  let maxX = 373
-  let maxY = 386
-
+  const debug: string[] = []
   try {
-    const {data} = offCtx.getImageData(0, 0, workSize, workSize)
-    let scanMinX = workSize
-    let scanMinY = workSize
-    let scanMaxX = 0
-    let scanMaxY = 0
-    let found = false
-    for (let y = 0; y < workSize; y++) {
-      for (let x = 0; x < workSize; x++) {
-        const alpha = data[(y * workSize + x) * 4 + 3] ?? 0
-        if (alpha > 10) {
-          found = true
-          if (x < scanMinX) scanMinX = x
-          if (x > scanMaxX) scanMaxX = x
-          if (y < scanMinY) scanMinY = y
-          if (y > scanMaxY) scanMaxY = y
+    const cssWidth = 104
+    const workSize = 500
+
+    const off = document.createElement('canvas')
+    off.width = workSize
+    off.height = workSize
+    const offCtx = off.getContext('2d')
+    debug.push(`offCtx=${offCtx ? 'ok' : 'NULL'}`)
+    if (!offCtx) {
+      showDebug(debug)
+      return
+    }
+
+    const renderer = new RobotRenderer(offCtx, workSize / 2, workSize * 0.66, 2.3)
+    renderer.draw({x: 1, y: 0})
+    debug.push('draw=ok')
+
+    // Fixed fallback bounds, measured once for this exact pose/camera setup
+    // (cx=250, cy=330, K=2.3 on a 500x500 canvas). Used if getImageData is
+    // blocked — some mobile/sandboxed webviews throw a SecurityError on
+    // canvas readback as an anti-fingerprinting measure, and a blocked
+    // read here must never take down the rest of the splash script.
+    let minX = 126
+    let minY = 71
+    let maxX = 373
+    let maxY = 386
+
+    try {
+      const {data} = offCtx.getImageData(0, 0, workSize, workSize)
+      let scanMinX = workSize
+      let scanMinY = workSize
+      let scanMaxX = 0
+      let scanMaxY = 0
+      let found = false
+      for (let y = 0; y < workSize; y++) {
+        for (let x = 0; x < workSize; x++) {
+          const alpha = data[(y * workSize + x) * 4 + 3] ?? 0
+          if (alpha > 10) {
+            found = true
+            if (x < scanMinX) scanMinX = x
+            if (x > scanMaxX) scanMaxX = x
+            if (y < scanMinY) scanMinY = y
+            if (y > scanMaxY) scanMaxY = y
+          }
         }
       }
+      if (found) {
+        const pad = 10
+        minX = Math.max(0, scanMinX - pad)
+        minY = Math.max(0, scanMinY - pad)
+        maxX = Math.min(workSize, scanMaxX + pad)
+        maxY = Math.min(workSize, scanMaxY + pad)
+        debug.push('scan=found')
+      } else {
+        debug.push('scan=notfound-fallback')
+      }
+    } catch (err) {
+      debug.push(`getImageData=threw:${String(err).slice(0, 60)}`)
     }
-    if (found) {
-      const pad = 10
-      minX = Math.max(0, scanMinX - pad)
-      minY = Math.max(0, scanMinY - pad)
-      maxX = Math.min(workSize, scanMaxX + pad)
-      maxY = Math.min(workSize, scanMaxY + pad)
+
+    const cropW = maxX - minX
+    const cropH = maxY - minY
+    debug.push(`crop=${cropW}x${cropH}`)
+
+    const dpr = window.devicePixelRatio || 1
+    const cssHeight = (cssWidth * cropH) / cropW
+    canvas.width = cssWidth * dpr
+    canvas.height = cssHeight * dpr
+    canvas.style.width = `${cssWidth}px`
+    canvas.style.height = `${cssHeight}px`
+    debug.push(`canvasSize=${canvas.width}x${canvas.height} dpr=${dpr}`)
+
+    const ctx = canvas.getContext('2d')
+    debug.push(`onscreenCtx=${ctx ? 'ok' : 'NULL'}`)
+    if (!ctx) {
+      showDebug(debug)
+      return
     }
+    ctx.drawImage(off, minX, minY, cropW, cropH, 0, 0, canvas.width, canvas.height)
+    debug.push('drawImage=ok')
+    showDebug(debug)
   } catch (err) {
-    console.error('splash: getImageData blocked, using fixed crop', err)
+    debug.push(`FATAL=${String(err).slice(0, 80)}`)
+    showDebug(debug)
   }
+}
 
-  const cropW = maxX - minX
-  const cropH = maxY - minY
-
-  const dpr = window.devicePixelRatio || 1
-  const cssHeight = (cssWidth * cropH) / cropW
-  canvas.width = cssWidth * dpr
-  canvas.height = cssHeight * dpr
-  canvas.style.width = `${cssWidth}px`
-  canvas.style.height = `${cssHeight}px`
-
-  const ctx = canvas.getContext('2d')
-  if (!ctx) return
-  ctx.drawImage(off, minX, minY, cropW, cropH, 0, 0, canvas.width, canvas.height)
+/** TEMPORARY — remove once the on-device robot render issue is root-caused.
+ *  Writes checkpoint state to a visible on-page element since we can't get
+ *  console access from the reporting device directly. */
+function showDebug(lines: string[]): void {
+  const el = document.getElementById('debug')
+  if (el) el.textContent = lines.join(' | ')
+  console.log('splash debug:', lines.join(' | '))
 }
