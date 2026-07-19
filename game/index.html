@@ -1798,7 +1798,9 @@ function generateRoute(dateStr){
      twice by the route gets one answer, The Flats (hill 0) stays
      perfectly flat, and The Bluffs (hill 1) becomes a leg-burner. */
   const lerp = (a, b, t) => a + (b - a)*t;
-  const HILL_AMP = 1100 * hood.hill;
+  const HILL_AMP = 73 * hood.hill;   // retuned so hill:1 (The Bluffs) tops out
+                                      // around a 5% grade — see MAX_GRADE clamp
+                                      // on the pitch calc below for the hard cap
   /* directional bias: real slope should agree with the isometric
      camera's own depth cue instead of being pure coin-flip noise. W()'s
      screen-y is (x+y)*0.5 - z, so +x/+y (f=0/f=1) increases screen-y —
@@ -7270,7 +7272,12 @@ class WorldScene extends Phaser.Scene {
     }
 
     this.botZ = this.groundZ(this.botS) + (this.slabZ || 0) + (this.crossZ || 0);
-    if(this.state !== "tipped") this.pitch = -Math.atan(this.groundSlope(this.botS) + (this.crossSlope || 0));
+    /* MAX_GRADE: hard ceiling at a real 5% grade (atan(0.05) ≈ 2.86°),
+       on top of the HILL_AMP retune above — the retune sets the typical
+       feel per neighborhood, this guarantees no unlucky noise seed ever
+       exceeds the stated max regardless. */
+    const MAX_GRADE = 0.05;
+    if(this.state !== "tipped") this.pitch = -Math.atan(Phaser.Math.Clamp(this.groundSlope(this.botS) + (this.crossSlope || 0), -MAX_GRADE, MAX_GRADE));
 
     /* camera reframe: at f=3 the worker/customer's walk-out direction
        pushes them far enough sideways on screen that tracking only the
