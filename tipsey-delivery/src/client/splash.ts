@@ -11,7 +11,11 @@ const robotCanvas = document.getElementById('robot-canvas') as HTMLCanvasElement
 // and the button still works.
 startBtn.addEventListener('click', ev => requestExpandedMode(ev, 'game'))
 
-renderRobotIcon(robotCanvas)
+try {
+  renderRobotIcon(robotCanvas)
+} catch (err) {
+  console.error('splash: robot render failed', err)
+}
 loadDailyBest()
 
 async function loadDailyBest(): Promise<void> {
@@ -517,31 +521,46 @@ function renderRobotIcon(canvas: HTMLCanvasElement): void {
   const renderer = new RobotRenderer(offCtx, workSize / 2, workSize * 0.66, 2.3)
   renderer.draw({x: 1, y: 0})
 
-  const {data} = offCtx.getImageData(0, 0, workSize, workSize)
-  let minX = workSize
-  let minY = workSize
-  let maxX = 0
-  let maxY = 0
-  let found = false
-  for (let y = 0; y < workSize; y++) {
-    for (let x = 0; x < workSize; x++) {
-      const alpha = data[(y * workSize + x) * 4 + 3] ?? 0
-      if (alpha > 10) {
-        found = true
-        if (x < minX) minX = x
-        if (x > maxX) maxX = x
-        if (y < minY) minY = y
-        if (y > maxY) maxY = y
+  // Fixed fallback bounds, measured once for this exact pose/camera setup
+  // (cx=250, cy=330, K=2.3 on a 500x500 canvas). Used if getImageData is
+  // blocked — some mobile/sandboxed webviews throw a SecurityError on
+  // canvas readback as an anti-fingerprinting measure, and a blocked read
+  // here must never take down the rest of the splash script with it.
+  let minX = 126
+  let minY = 71
+  let maxX = 373
+  let maxY = 386
+
+  try {
+    const {data} = offCtx.getImageData(0, 0, workSize, workSize)
+    let scanMinX = workSize
+    let scanMinY = workSize
+    let scanMaxX = 0
+    let scanMaxY = 0
+    let found = false
+    for (let y = 0; y < workSize; y++) {
+      for (let x = 0; x < workSize; x++) {
+        const alpha = data[(y * workSize + x) * 4 + 3] ?? 0
+        if (alpha > 10) {
+          found = true
+          if (x < scanMinX) scanMinX = x
+          if (x > scanMaxX) scanMaxX = x
+          if (y < scanMinY) scanMinY = y
+          if (y > scanMaxY) scanMaxY = y
+        }
       }
     }
+    if (found) {
+      const pad = 10
+      minX = Math.max(0, scanMinX - pad)
+      minY = Math.max(0, scanMinY - pad)
+      maxX = Math.min(workSize, scanMaxX + pad)
+      maxY = Math.min(workSize, scanMaxY + pad)
+    }
+  } catch (err) {
+    console.error('splash: getImageData blocked, using fixed crop', err)
   }
-  if (!found) return
 
-  const pad = 10
-  minX = Math.max(0, minX - pad)
-  minY = Math.max(0, minY - pad)
-  maxX = Math.min(workSize, maxX + pad)
-  maxY = Math.min(workSize, maxY + pad)
   const cropW = maxX - minX
   const cropH = maxY - minY
 
