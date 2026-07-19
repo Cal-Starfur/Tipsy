@@ -1,5 +1,5 @@
 import {requestExpandedMode} from '@devvit/web/client'
-import {Endpoint, type GetDailyBestRsp} from '../shared/api.ts'
+import {Endpoint, type GetDailyBestRsp, type LeaderboardEntry} from '../shared/api.ts'
 
 async function loadDailyBest(): Promise<void> {
   try {
@@ -11,7 +11,7 @@ async function loadDailyBest(): Promise<void> {
   }
 }
 
-function render({best, viewerUsername}: GetDailyBestRsp): void {
+function render({best, viewerUsername, top}: GetDailyBestRsp): void {
   const handle = viewerUsername ?? 'there'
 
   if (best) {
@@ -21,6 +21,8 @@ function render({best, viewerUsername}: GetDailyBestRsp): void {
     greetEl.textContent = `Hey, ${handle} — nobody's delivered today yet.`
     statEl.textContent = 'be the first on the board'
   }
+
+  renderLeaderboard(top)
 }
 
 function formatTip(tip: number): string {
@@ -29,6 +31,154 @@ function formatTip(tip: number): string {
 
 function formatTime(ms: number): string {
   return `${(ms / 1000).toFixed(1)}s`
+}
+
+/* ============================================================
+ * Leaderboard — ranked list rows plus a "party" of avatars spread
+ * across the full card as background texture (see renderParty below).
+ * Avatar URLs come pre-cached from the server (fetched once, at
+ * submission time, not live per view) — a missing avatarUrl just
+ * means that Redditor has no snoovatar set, not a load failure.
+ * ============================================================ */
+
+const CHIP_COLORS = [
+  '#ff9c4d', '#ffb454', '#7fe3ff', '#ff5722', '#c2452e',
+  '#a679ff', '#5dcaa5', '#f0997b', '#85b7eb', '#d4537e',
+]
+
+function colorFor(username: string): string {
+  let hash = 0
+  for (let i = 0; i < username.length; i++) hash = (hash * 31 + username.charCodeAt(i)) | 0
+  return CHIP_COLORS[Math.abs(hash) % CHIP_COLORS.length] ?? '#ffb454'
+}
+
+/** Small circular chip for the list rows — clipped, consistent size,
+ *  falls back to a colored initial if there's no avatar. */
+function makeListChip(entry: LeaderboardEntry): HTMLElement {
+  const chip = document.createElement('div')
+  chip.className = 'chip'
+  if (entry.avatarUrl) {
+    const img = document.createElement('img')
+    img.src = entry.avatarUrl
+    img.alt = ''
+    img.onerror = () => {
+      img.remove()
+      chip.style.background = colorFor(entry.username)
+      chip.textContent = entry.username.charAt(0).toUpperCase()
+    }
+    chip.appendChild(img)
+  } else {
+    chip.style.background = colorFor(entry.username)
+    chip.style.color = 'rgba(0,0,0,0.55)'
+    chip.style.fontWeight = '700'
+    chip.style.fontSize = '11px'
+    chip.textContent = entry.username.charAt(0).toUpperCase()
+  }
+  return chip
+}
+
+/** Full-size, natural-aspect avatar for the party layer — snoovatars
+ *  are full character art, not headshots, so these are never clipped
+ *  to a circle. Falls back to a plain colored circle so a missing
+ *  avatar doesn't leave a hole in the cluster. */
+function makePartyAvatar(entry: LeaderboardEntry, size: number): HTMLElement {
+  if (entry.avatarUrl) {
+    const img = document.createElement('img')
+    img.src = entry.avatarUrl
+    img.alt = ''
+    img.className = 'avatar'
+    img.style.width = `${size}px`
+    img.style.height = `${size}px`
+    img.style.objectFit = 'contain'
+    img.onerror = () => {
+      const fallback = fallbackBlob(entry, size)
+      fallback.className = 'avatar'
+      fallback.style.left = img.style.left
+      fallback.style.top = img.style.top
+      img.replaceWith(fallback)
+    }
+    return img
+  }
+  const blob = fallbackBlob(entry, size)
+  blob.className = 'avatar'
+  return blob
+}
+
+function fallbackBlob(entry: LeaderboardEntry, size: number): HTMLElement {
+  const el = document.createElement('div')
+  el.style.width = `${size}px`
+  el.style.height = `${size}px`
+  el.style.borderRadius = '50%'
+  el.style.background = colorFor(entry.username)
+  el.style.border = '2px solid rgba(255,255,255,0.25)'
+  return el
+}
+
+function renderLeaderboard(top: LeaderboardEntry[]): void {
+  listEl.innerHTML = ''
+  for (const [i, entry] of top.entries()) {
+    const row = document.createElement('div')
+    row.className = 'row'
+
+    const rankEl = document.createElement('span')
+    rankEl.className = 'rank'
+    rankEl.textContent = String(i + 1)
+
+    const nameEl = document.createElement('span')
+    nameEl.className = 'name'
+    nameEl.textContent = entry.username
+
+    const scoreEl = document.createElement('span')
+    scoreEl.className = 'score'
+    scoreEl.textContent = `${formatTip(entry.tip)} · ${formatTime(entry.ms)}`
+
+    row.append(rankEl, makeListChip(entry), nameEl, scoreEl)
+    listEl.appendChild(row)
+  }
+
+  // The party is sized against the card's real, already-laid-out
+  // height (list included) so it reaches all the way down rather
+  // than stopping at the hero section.
+  renderParty(top)
+}
+
+const PARTY_SIZES = [104, 88, 88, 74, 74, 74, 60, 60, 60, 60]
+
+function renderParty(top: LeaderboardEntry[]): void {
+  partyEl.innerHTML = ''
+  if (top.length === 0) return
+
+  const w = cardEl.offsetWidth
+  const h = cardEl.offsetHeight
+  const golden = (137.508 * Math.PI) / 180
+  const placed: {x: number; y: number; r: number; entry: LeaderboardEntry}[] = []
+
+  top.forEach((entry, i) => {
+    const size = PARTY_SIZES[i] ?? 60
+    const radius = size / 2
+    const angle = i * golden
+    let dist = 0
+    let x = w / 2
+    let y = h / 2
+    for (let step = 0; step < 400; step++) {
+      x = w / 2 + Math.cos(angle) * dist
+      y = h / 2 + Math.sin(angle) * dist * 3.2
+      const clear = placed.every(p => Math.hypot(x - p.x, y - p.y) >= (radius + p.r) * 1.1)
+      if (clear) break
+      dist += 2.5
+    }
+    placed.push({x, y, r: radius, entry})
+  })
+
+  // paint back-to-front: lowest rank first, rank 1 last (on top)
+  for (const p of [...placed].reverse()) {
+    const chip = makePartyAvatar(p.entry, p.r * 2)
+    chip.style.position = 'absolute'
+    chip.style.left = `${p.x}px`
+    chip.style.top = `${p.y}px`
+    chip.style.transform = 'translate(-50%, -50%)'
+    partyEl.appendChild(chip)
+  }
 }
 
 /* ============================================================
@@ -492,102 +642,71 @@ class RobotRenderer {
  *  constants above (lidAng, etc.) change later — no separate asset to
  *  re-export by hand. */
 function renderRobotIcon(canvas: HTMLCanvasElement): void {
-  const debug: string[] = []
+  const cssWidth = 104
+  const workSize = 500
+
+  const off = document.createElement('canvas')
+  off.width = workSize
+  off.height = workSize
+  const offCtx = off.getContext('2d')
+  if (!offCtx) return
+
+  const renderer = new RobotRenderer(offCtx, workSize / 2, workSize * 0.66, 2.3)
+  renderer.draw({x: 1, y: 0})
+
+  // Fixed fallback bounds, measured once for this exact pose/camera setup
+  // (cx=250, cy=330, K=2.3 on a 500x500 canvas). Used if getImageData is
+  // blocked — some mobile/sandboxed webviews throw a SecurityError on
+  // canvas readback as an anti-fingerprinting measure, and a blocked
+  // read here must never take down the rest of the splash script.
+  let minX = 126
+  let minY = 71
+  let maxX = 373
+  let maxY = 386
+
   try {
-    const cssWidth = 104
-    const workSize = 500
-
-    const off = document.createElement('canvas')
-    off.width = workSize
-    off.height = workSize
-    const offCtx = off.getContext('2d')
-    debug.push(`offCtx=${offCtx ? 'ok' : 'NULL'}`)
-    if (!offCtx) {
-      showDebug(debug)
-      return
-    }
-
-    const renderer = new RobotRenderer(offCtx, workSize / 2, workSize * 0.66, 2.3)
-    renderer.draw({x: 1, y: 0})
-    debug.push('draw=ok')
-
-    // Fixed fallback bounds, measured once for this exact pose/camera setup
-    // (cx=250, cy=330, K=2.3 on a 500x500 canvas). Used if getImageData is
-    // blocked — some mobile/sandboxed webviews throw a SecurityError on
-    // canvas readback as an anti-fingerprinting measure, and a blocked
-    // read here must never take down the rest of the splash script.
-    let minX = 126
-    let minY = 71
-    let maxX = 373
-    let maxY = 386
-
-    try {
-      const {data} = offCtx.getImageData(0, 0, workSize, workSize)
-      let scanMinX = workSize
-      let scanMinY = workSize
-      let scanMaxX = 0
-      let scanMaxY = 0
-      let found = false
-      for (let y = 0; y < workSize; y++) {
-        for (let x = 0; x < workSize; x++) {
-          const alpha = data[(y * workSize + x) * 4 + 3] ?? 0
-          if (alpha > 10) {
-            found = true
-            if (x < scanMinX) scanMinX = x
-            if (x > scanMaxX) scanMaxX = x
-            if (y < scanMinY) scanMinY = y
-            if (y > scanMaxY) scanMaxY = y
-          }
+    const {data} = offCtx.getImageData(0, 0, workSize, workSize)
+    let scanMinX = workSize
+    let scanMinY = workSize
+    let scanMaxX = 0
+    let scanMaxY = 0
+    let found = false
+    for (let y = 0; y < workSize; y++) {
+      for (let x = 0; x < workSize; x++) {
+        const alpha = data[(y * workSize + x) * 4 + 3] ?? 0
+        if (alpha > 10) {
+          found = true
+          if (x < scanMinX) scanMinX = x
+          if (x > scanMaxX) scanMaxX = x
+          if (y < scanMinY) scanMinY = y
+          if (y > scanMaxY) scanMaxY = y
         }
       }
-      if (found) {
-        const pad = 10
-        minX = Math.max(0, scanMinX - pad)
-        minY = Math.max(0, scanMinY - pad)
-        maxX = Math.min(workSize, scanMaxX + pad)
-        maxY = Math.min(workSize, scanMaxY + pad)
-        debug.push('scan=found')
-      } else {
-        debug.push('scan=notfound-fallback')
-      }
-    } catch (err) {
-      debug.push(`getImageData=threw:${String(err).slice(0, 60)}`)
     }
-
-    const cropW = maxX - minX
-    const cropH = maxY - minY
-    debug.push(`crop=${cropW}x${cropH}`)
-
-    const dpr = window.devicePixelRatio || 1
-    const cssHeight = (cssWidth * cropH) / cropW
-    canvas.width = cssWidth * dpr
-    canvas.height = cssHeight * dpr
-    canvas.style.width = `${cssWidth}px`
-    canvas.style.height = `${cssHeight}px`
-    debug.push(`canvasSize=${canvas.width}x${canvas.height} dpr=${dpr}`)
-
-    const ctx = canvas.getContext('2d')
-    debug.push(`onscreenCtx=${ctx ? 'ok' : 'NULL'}`)
-    if (!ctx) {
-      showDebug(debug)
-      return
+    if (found) {
+      const pad = 10
+      minX = Math.max(0, scanMinX - pad)
+      minY = Math.max(0, scanMinY - pad)
+      maxX = Math.min(workSize, scanMaxX + pad)
+      maxY = Math.min(workSize, scanMaxY + pad)
     }
-    ctx.drawImage(off, minX, minY, cropW, cropH, 0, 0, canvas.width, canvas.height)
-    debug.push('drawImage=ok')
-    showDebug(debug)
   } catch (err) {
-    debug.push(`FATAL=${String(err).slice(0, 80)}`)
-    showDebug(debug)
+    console.error('splash: getImageData blocked, using fixed crop', err)
   }
-}
 
-/** TEMPORARY — remove once the on-device robot render issue is root-caused.
- *  Writes checkpoint state to a visible on-page element since we can't get
- *  console access from the reporting device directly. */
-function showDebug(lines: string[]): void {
-  const el = document.getElementById('debug')
-  if (el) el.textContent = lines.join(' | ')
-  console.log('splash debug:', lines.join(' | '))
+  const cropW = maxX - minX
+  const cropH = maxY - minY
+
+  const dpr = window.devicePixelRatio || 1
+  const cssHeight = (cssWidth * cropH) / cropW
+  canvas.width = cssWidth * dpr
+  canvas.height = cssHeight * dpr
+  canvas.style.width = `${cssWidth}px`
+  canvas.style.height = `${cssHeight}px`
+
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return
+  ctx.drawImage(off, minX, minY, cropW, cropH, 0, 0, canvas.width, canvas.height)
 }
 
 /* ============================================================
@@ -605,6 +724,9 @@ const startBtn = document.getElementById('start-btn') as HTMLButtonElement
 const greetEl = document.getElementById('greet') as HTMLParagraphElement
 const statEl = document.getElementById('stat') as HTMLParagraphElement
 const robotCanvas = document.getElementById('robot-canvas') as HTMLCanvasElement
+const cardEl = document.getElementById('card') as HTMLElement
+const listEl = document.getElementById('list') as HTMLElement
+const partyEl = document.getElementById('party') as HTMLElement
 
 // Start never waits on the network — the challenge copy is a bonus, not
 // a gate. If the fetch is slow or fails, the default markup copy stands
