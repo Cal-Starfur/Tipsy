@@ -14,18 +14,22 @@ export function todayUTC(): string {
  *  fields (tip desc, then time asc as tiebreak — matching the local
  *  leaderboard convention). Encode both into one score: tip dominates
  *  since the multiplier comfortably exceeds any plausible ms value for
- *  this game (well under a minute per run), and subtracting ms means a
- *  faster time produces a higher score at equal tips. Lossless to
- *  decode back given tip is always a 2-decimal dollar amount. */
+ *  this game (well under a minute per run), and the bounded remainder
+ *  term means a faster time produces a higher score at equal tips.
+ *  Adding a bounded remainder (rather than subtracting ms directly)
+ *  is what makes floor-division decode back to the exact tipCents —
+ *  subtracting let ms push the value into the next tipCents bucket
+ *  down, silently corrupting both fields on decode. */
 const SCORE_MULT = 10_000_000
 
 function encodeScore(tipCents: number, ms: number): number {
-  return tipCents * SCORE_MULT - ms
+  return tipCents * SCORE_MULT + (SCORE_MULT - 1 - ms)
 }
 
 function decodeScore(score: number): {tipCents: number; ms: number} {
   const tipCents = Math.floor(score / SCORE_MULT)
-  const ms = tipCents * SCORE_MULT - score
+  const remainder = score - tipCents * SCORE_MULT
+  const ms = SCORE_MULT - 1 - remainder
   return {tipCents, ms}
 }
 
