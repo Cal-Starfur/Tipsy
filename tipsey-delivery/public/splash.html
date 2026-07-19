@@ -3,9 +3,18 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Splash</title>
+    <title>Tipsey</title>
     <link rel="modulepreload" href="splash.js">
     <style>
+    :root {
+      color-scheme: dark;
+      --ink: #fff7ec;
+      --ink-dim: rgba(255, 247, 236, 0.72);
+      --accent: #ffb454;
+      --accent-deep: #ff7a3d;
+      --card: rgba(20, 12, 36, 0.55);
+    }
+    * { box-sizing: border-box; }
     body {
       margin: 0;
       width: 100dvw;
@@ -13,18 +22,76 @@
       overflow: hidden;
       display: grid;
       place-items: center;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: radial-gradient(120% 90% at 50% -10%, #4a2a72 0%, #2a1246 45%, #150a26 100%);
+      color: var(--ink);
     }
     main {
       display: grid;
-      gap: 1rem;
+      gap: 0.9rem;
       justify-items: center;
+      text-align: center;
+      width: min(92vw, 380px);
+      padding: 2rem 1.6rem 1.8rem;
+      background: var(--card);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 24px;
+      backdrop-filter: blur(6px);
+    }
+    #robot-canvas {
+      display: block;
+    }
+    h1 {
+      margin: 0;
+      font-size: 1.5rem;
+      letter-spacing: 0.04em;
+    }
+    .tagline {
+      margin: -0.6rem 0 0.4rem;
+      font-size: 0.85rem;
+      color: var(--ink-dim);
+      font-style: italic;
+    }
+    #greet {
+      margin: 0;
+      font-size: 1.05rem;
+      font-weight: 600;
+      line-height: 1.4;
+    }
+    #stat {
+      margin: -0.3rem 0 0.4rem;
+      font-size: 0.8rem;
+      color: var(--ink-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      min-height: 1em;
+    }
+    #start-btn {
+      appearance: none;
+      border: none;
+      padding: 0.85rem 2.4rem;
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: #2a1246;
+      background: linear-gradient(180deg, var(--accent), var(--accent-deep));
+      border-radius: 999px;
+      box-shadow: 0 6px 0 #b8501f, 0 8px 18px rgba(0, 0, 0, 0.35);
+      transition: transform 0.08s ease, box-shadow 0.08s ease;
+    }
+    #start-btn:active {
+      transform: translateY(4px);
+      box-shadow: 0 2px 0 #b8501f, 0 4px 10px rgba(0, 0, 0, 0.3);
     }
     </style>
   </head>
   <body>
     <main>
-      <img src="/snoo.png" width="201" height="200" alt="Snoo">
-      <button id="start-btn" type="button">Start</button>
+      <canvas id="robot-canvas" role="img" aria-label="Tipsey the delivery robot"></canvas>
+      <h1>TIPSEY</h1>
+      <p class="tagline">a clumsy delivery</p>
+      <p id="greet">Hey there — ready for today's route?</p>
+      <p id="stat"></p>
+      <button id="start-btn" type="button">Start Delivery</button>
     </main>
     <script src="splash.js" type="module"></script>
   </body>
