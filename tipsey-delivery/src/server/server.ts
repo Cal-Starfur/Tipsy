@@ -72,7 +72,11 @@ async function route(
 
 async function routeGetDailyBest(): Promise<GetDailyBestRsp> {
   const dateStr = todayUTC()
-  return {dateStr, best: await dbGetDailyBest(dateStr)}
+  const [best, user] = await Promise.all([
+    dbGetDailyBest(dateStr),
+    reddit.getCurrentUser().catch(() => null),
+  ])
+  return {dateStr, best, viewerUsername: user?.username ?? null}
 }
 
 async function routeSubmitDailyBest(
