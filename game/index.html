@@ -6387,7 +6387,12 @@ class WorldScene extends Phaser.Scene {
       if(settled && this.wonWalkAt == null) this.wonWalkAt = this.wonT;
       let backMs = PICKUP_ART.walkMs;
       if(this.wonMeet){
-        const bx = this.wonDoor.x - this.addrDoorRV.x*24, by = this.wonDoor.y - this.addrDoorRV.y*24;
+        /* must match queueHousingEdgeAt's backDist exactly, or this
+           duration calc budgets the wrong distance and he covers the
+           real (gate-mode) distance at the wrong speed — confirmed
+           on-device: this is what caused the "sprinting" walk-back. */
+        const backDist = (this.route && this.route.addressUsesGate) ? GATE_WALKOFF_DIST : 24;
+        const bx = this.wonDoor.x - this.addrDoorRV.x*backDist, by = this.wonDoor.y - this.addrDoorRV.y*backDist;
         backMs = Math.max(400, Math.hypot(this.wonMeet.x - bx, this.wonMeet.y - by) / WON_WALK_SPEED);
       }
       this.wonWalk = this.wonWalkAt == null ? 0
