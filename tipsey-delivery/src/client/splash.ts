@@ -1,5 +1,9 @@
 import {requestExpandedMode} from '@devvit/web/client'
-import {Endpoint, type GetDailyBestRsp, type LeaderboardEntry} from '../shared/api.ts'
+import {
+  Endpoint,
+  type GetDailyBestRsp,
+  type LeaderboardEntry,
+} from '../shared/api.ts'
 
 /** The most recent fetch, kept around so the Today/All-Time tab toggle
  *  can re-render instantly from what's already in memory rather than
@@ -59,13 +63,22 @@ function formatTime(ms: number): string {
  * ============================================================ */
 
 const CHIP_COLORS = [
-  '#ff9c4d', '#ffb454', '#7fe3ff', '#ff5722', '#c2452e',
-  '#a679ff', '#5dcaa5', '#f0997b', '#85b7eb', '#d4537e',
+  '#ff9c4d',
+  '#ffb454',
+  '#7fe3ff',
+  '#ff5722',
+  '#c2452e',
+  '#a679ff',
+  '#5dcaa5',
+  '#f0997b',
+  '#85b7eb',
+  '#d4537e',
 ]
 
 function colorFor(username: string): string {
   let hash = 0
-  for (let i = 0; i < username.length; i++) hash = (hash * 31 + username.charCodeAt(i)) | 0
+  for (let i = 0; i < username.length; i++)
+    hash = (hash * 31 + username.charCodeAt(i)) | 0
   return CHIP_COLORS[Math.abs(hash) % CHIP_COLORS.length] ?? '#ffb454'
 }
 
@@ -168,7 +181,8 @@ function renderParty(top: LeaderboardEntry[]): void {
   const w = cardEl.offsetWidth
   const h = cardEl.offsetHeight
   const golden = (137.508 * Math.PI) / 180
-  const placed: {x: number; y: number; r: number; entry: LeaderboardEntry}[] = []
+  const placed: {x: number; y: number; r: number; entry: LeaderboardEntry}[] =
+    []
 
   top.forEach((entry, i) => {
     const size = PARTY_SIZES[i] ?? 60
@@ -180,7 +194,9 @@ function renderParty(top: LeaderboardEntry[]): void {
     for (let step = 0; step < 400; step++) {
       x = w / 2 + Math.cos(angle) * dist
       y = h / 2 + Math.sin(angle) * dist * 3.2
-      const clear = placed.every(p => Math.hypot(x - p.x, y - p.y) >= (radius + p.r) * 1.1)
+      const clear = placed.every(
+        p => Math.hypot(x - p.x, y - p.y) >= (radius + p.r) * 1.1,
+      )
       if (clear) break
       dist += 2.5
     }
@@ -210,6 +226,17 @@ function renderParty(top: LeaderboardEntry[]): void {
  * ============================================================ */
 
 type Pt = {x: number; y: number; z: number}
+
+/** Bounds-checked array access, used in place of the `!` non-null
+ *  assertion operator (forbidden by lint). The index is always in range
+ *  here — each call site's own loop condition already guarantees it —
+ *  so the thrown error is a should-never-happen guard, not expected
+ *  control flow. */
+function at<T>(arr: readonly T[], i: number): T {
+  const v = arr[i]
+  if (v === undefined) throw new Error(`index ${i} out of bounds`)
+  return v
+}
 
 const ROBOT_SKIN = {
   bodyTop: '#f7f8fa',
@@ -243,16 +270,25 @@ const ROBOT_FLAG = {base: {x: -25, y: 17}, z0: 54, z1: 97}
 
 function convexHull(points: readonly Pt[]): Pt[] {
   const sorted = [...points].sort((a, b) => a.x - b.x || a.y - b.y)
-  const cross = (o: Pt, a: Pt, b: Pt) => (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x)
+  const cross = (o: Pt, a: Pt, b: Pt) =>
+    (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x)
   const lo: Pt[] = []
   for (const p of sorted) {
-    while (lo.length >= 2 && cross(lo[lo.length - 2]!, lo[lo.length - 1]!, p) <= 0) lo.pop()
+    while (
+      lo.length >= 2 &&
+      cross(at(lo, lo.length - 2), at(lo, lo.length - 1), p) <= 0
+    )
+      lo.pop()
     lo.push(p)
   }
   const hi: Pt[] = []
   for (let i = sorted.length - 1; i >= 0; i--) {
-    const p = sorted[i]!
-    while (hi.length >= 2 && cross(hi[hi.length - 2]!, hi[hi.length - 1]!, p) <= 0) hi.pop()
+    const p = at(sorted, i)
+    while (
+      hi.length >= 2 &&
+      cross(at(hi, hi.length - 2), at(hi, hi.length - 1), p) <= 0
+    )
+      hi.pop()
     hi.push(p)
   }
   lo.pop()
@@ -260,7 +296,11 @@ function convexHull(points: readonly Pt[]): Pt[] {
   return lo.concat(hi)
 }
 
-function fillPoly(ctx: CanvasRenderingContext2D, pts: readonly Pt[], color: string): void {
+function fillPoly(
+  ctx: CanvasRenderingContext2D,
+  pts: readonly Pt[],
+  color: string,
+): void {
   ctx.fillStyle = color
   ctx.beginPath()
   let started = false
@@ -276,7 +316,12 @@ function fillPoly(ctx: CanvasRenderingContext2D, pts: readonly Pt[], color: stri
   ctx.fill()
 }
 
-function strokePoly(ctx: CanvasRenderingContext2D, pts: readonly Pt[], color: string, width = 2): void {
+function strokePoly(
+  ctx: CanvasRenderingContext2D,
+  pts: readonly Pt[],
+  color: string,
+  width = 2,
+): void {
   ctx.strokeStyle = color
   ctx.lineWidth = width
   ctx.beginPath()
@@ -314,7 +359,12 @@ class RobotRenderer {
   readonly k: number
   private readonly ctx: CanvasRenderingContext2D
 
-  constructor(ctx: CanvasRenderingContext2D, cx: number, cy: number, k: number) {
+  constructor(
+    ctx: CanvasRenderingContext2D,
+    cx: number,
+    cy: number,
+    k: number,
+  ) {
     this.ctx = ctx
     this.cx = cx
     this.cy = cy
@@ -409,13 +459,22 @@ class RobotRenderer {
     const pts: Pt[] = []
     for (let i = 0; i < 14; i++) {
       const a = (i / 14) * Math.PI * 2
-      pts.push(this.p(c.x + Math.cos(a) * radius, c.y, c.z + Math.sin(a) * radius))
+      pts.push(
+        this.p(c.x + Math.cos(a) * radius, c.y, c.z + Math.sin(a) * radius),
+      )
     }
     fillPoly(this.ctx, pts, color)
   }
 
   private drawBox(
-    b: {hx: number; hy: number; z0: number; z1: number; ox?: number; oy?: number},
+    b: {
+      hx: number
+      hy: number
+      z0: number
+      z1: number
+      ox?: number
+      oy?: number
+    },
     cTop: string | null,
     cRight: string | null,
     cLeft: string | null,
@@ -426,14 +485,33 @@ class RobotRenderer {
     const {hx, hy, z0, z1} = b
     const ox = b.ox ?? 0
     const oy = b.oy ?? 0
-    const c = (sx: number, sy: number, sz: number) => this.p(ox + sx * hx, oy + sy * hy, sz === 1 ? z1 : z0)
+    const c = (sx: number, sy: number, sz: number) =>
+      this.p(ox + sx * hx, oy + sy * hy, sz === 1 ? z1 : z0)
     const faces: {n: Pt; pts: Pt[]}[] = [
-      {n: {x: 0, y: 0, z: 1}, pts: [c(1, -1, 1), c(1, 1, 1), c(-1, 1, 1), c(-1, -1, 1)]},
-      {n: {x: 0, y: 0, z: -1}, pts: [c(1, -1, 0), c(1, 1, 0), c(-1, 1, 0), c(-1, -1, 0)]},
-      {n: {x: 1, y: 0, z: 0}, pts: [c(1, -1, 0), c(1, 1, 0), c(1, 1, 1), c(1, -1, 1)]},
-      {n: {x: -1, y: 0, z: 0}, pts: [c(-1, -1, 0), c(-1, 1, 0), c(-1, 1, 1), c(-1, -1, 1)]},
-      {n: {x: 0, y: 1, z: 0}, pts: [c(1, 1, 0), c(-1, 1, 0), c(-1, 1, 1), c(1, 1, 1)]},
-      {n: {x: 0, y: -1, z: 0}, pts: [c(1, -1, 0), c(-1, -1, 0), c(-1, -1, 1), c(1, -1, 1)]},
+      {
+        n: {x: 0, y: 0, z: 1},
+        pts: [c(1, -1, 1), c(1, 1, 1), c(-1, 1, 1), c(-1, -1, 1)],
+      },
+      {
+        n: {x: 0, y: 0, z: -1},
+        pts: [c(1, -1, 0), c(1, 1, 0), c(-1, 1, 0), c(-1, -1, 0)],
+      },
+      {
+        n: {x: 1, y: 0, z: 0},
+        pts: [c(1, -1, 0), c(1, 1, 0), c(1, 1, 1), c(1, -1, 1)],
+      },
+      {
+        n: {x: -1, y: 0, z: 0},
+        pts: [c(-1, -1, 0), c(-1, 1, 0), c(-1, 1, 1), c(-1, -1, 1)],
+      },
+      {
+        n: {x: 0, y: 1, z: 0},
+        pts: [c(1, 1, 0), c(-1, 1, 0), c(-1, 1, 1), c(1, 1, 1)],
+      },
+      {
+        n: {x: 0, y: -1, z: 0},
+        pts: [c(1, -1, 0), c(-1, -1, 0), c(-1, -1, 1), c(1, -1, 1)],
+      },
     ]
     for (const fc of faces) {
       if (decal && fc.n.z !== 0) continue
@@ -458,21 +536,35 @@ class RobotRenderer {
       const pts: Pt[] = []
       for (let i = 0; i < 14; i++) {
         const a = (i / 14) * Math.PI * 2
-        pts.push(this.p(c.x + Math.cos(a) * radius, oy, c.z + Math.sin(a) * radius))
+        pts.push(
+          this.p(c.x + Math.cos(a) * radius, oy, c.z + Math.sin(a) * radius),
+        )
       }
       return pts
     }
     const b0 = c.y - w2 / 2
     const b1 = c.y + w2 / 2
-    fillPoly(this.ctx, convexHull(ring(b0, ROBOT_WHEEL.r).concat(ring(b1, ROBOT_WHEEL.r))), ROBOT_SKIN.wheelDark)
+    fillPoly(
+      this.ctx,
+      convexHull(ring(b0, ROBOT_WHEEL.r).concat(ring(b1, ROBOT_WHEEL.r))),
+      ROBOT_SKIN.wheelDark,
+    )
     const face = this.depth(c.x, b1, c.z) > this.depth(c.x, b0, c.z) ? b1 : b0
     const faceRing = ring(face, ROBOT_WHEEL.r)
     fillPoly(this.ctx, faceRing, ROBOT_SKIN.wheel)
     strokePoly(this.ctx, faceRing, ROBOT_SKIN.outline, 2)
-    this.disc({x: c.x, y: face, z: c.z}, ROBOT_WHEEL.r * 0.55, ROBOT_SKIN.wheelHubFace)
+    this.disc(
+      {x: c.x, y: face, z: c.z},
+      ROBOT_WHEEL.r * 0.55,
+      ROBOT_SKIN.wheelHubFace,
+    )
     const a = this.wheelPhase + c.x * 0.2
     this.disc(
-      {x: c.x + Math.cos(a) * ROBOT_WHEEL.r * 0.34, y: face, z: c.z + Math.sin(a) * ROBOT_WHEEL.r * 0.34},
+      {
+        x: c.x + Math.cos(a) * ROBOT_WHEEL.r * 0.34,
+        y: face,
+        z: c.z + Math.sin(a) * ROBOT_WHEEL.r * 0.34,
+      },
       2.4,
       ROBOT_SKIN.wheelHub,
     )
@@ -518,10 +610,18 @@ class RobotRenderer {
   }
 
   private flagNear(): boolean {
-    return this.depth(ROBOT_FLAG.base.x, ROBOT_FLAG.base.y, ROBOT_FLAG.z0 + 20) > this.depth(0, 0, 34)
+    return (
+      this.depth(ROBOT_FLAG.base.x, ROBOT_FLAG.base.y, ROBOT_FLAG.z0 + 20) >
+      this.depth(0, 0, 34)
+    )
   }
 
-  private lidNear(b: {hx: number; hy: number; z0: number; z1: number}): boolean {
+  private lidNear(b: {
+    hx: number
+    hy: number
+    z0: number
+    z1: number
+  }): boolean {
     if (this.lidAng < 0.15) return true
     const a = this.lidAng
     const c = Math.cos(a)
@@ -530,7 +630,10 @@ class RobotRenderer {
     const zh = b.z0
     const dy = -yh
     const dz = (b.z1 - b.z0) / 2
-    return this.depth(0, yh + dy * c - dz * s, zh + dy * s + dz * c) > this.depth(0, 0, 34)
+    return (
+      this.depth(0, yh + dy * c - dz * s, zh + dy * s + dz * c) >
+      this.depth(0, 0, 34)
+    )
   }
 
   private drawLid(b: {hx: number; hy: number; z0: number; z1: number}): void {
@@ -550,14 +653,33 @@ class RobotRenderer {
       const nz2 = ny * sA + nz * cA
       return this.r(nx, ny2, nz2)
     }
-    const c = (sx: number, sy: number, sz: number) => h(sx * hx, sy * hy, sz === 1 ? z1 : z0)
+    const c = (sx: number, sy: number, sz: number) =>
+      h(sx * hx, sy * hy, sz === 1 ? z1 : z0)
     const faces: {n: Pt; pts: Pt[]}[] = [
-      {n: {x: 0, y: 0, z: 1}, pts: [c(1, -1, 1), c(1, 1, 1), c(-1, 1, 1), c(-1, -1, 1)]},
-      {n: {x: 0, y: 0, z: -1}, pts: [c(1, -1, 0), c(1, 1, 0), c(-1, 1, 0), c(-1, -1, 0)]},
-      {n: {x: 1, y: 0, z: 0}, pts: [c(1, -1, 0), c(1, 1, 0), c(1, 1, 1), c(1, -1, 1)]},
-      {n: {x: -1, y: 0, z: 0}, pts: [c(-1, -1, 0), c(-1, 1, 0), c(-1, 1, 1), c(-1, -1, 1)]},
-      {n: {x: 0, y: 1, z: 0}, pts: [c(1, 1, 0), c(-1, 1, 0), c(-1, 1, 1), c(1, 1, 1)]},
-      {n: {x: 0, y: -1, z: 0}, pts: [c(1, -1, 0), c(-1, -1, 0), c(-1, -1, 1), c(1, -1, 1)]},
+      {
+        n: {x: 0, y: 0, z: 1},
+        pts: [c(1, -1, 1), c(1, 1, 1), c(-1, 1, 1), c(-1, -1, 1)],
+      },
+      {
+        n: {x: 0, y: 0, z: -1},
+        pts: [c(1, -1, 0), c(1, 1, 0), c(-1, 1, 0), c(-1, -1, 0)],
+      },
+      {
+        n: {x: 1, y: 0, z: 0},
+        pts: [c(1, -1, 0), c(1, 1, 0), c(1, 1, 1), c(1, -1, 1)],
+      },
+      {
+        n: {x: -1, y: 0, z: 0},
+        pts: [c(-1, -1, 0), c(-1, 1, 0), c(-1, 1, 1), c(-1, -1, 1)],
+      },
+      {
+        n: {x: 0, y: 1, z: 0},
+        pts: [c(1, 1, 0), c(-1, 1, 0), c(-1, 1, 1), c(1, 1, 1)],
+      },
+      {
+        n: {x: 0, y: -1, z: 0},
+        pts: [c(1, -1, 0), c(-1, -1, 0), c(-1, -1, 1), c(1, -1, 1)],
+      },
     ]
     for (const fc of faces) {
       const wv = hn(fc.n.x, fc.n.y, fc.n.z)
@@ -582,17 +704,29 @@ class RobotRenderer {
 
     if (!this.flagNear()) this.drawFlag(bobZ)
 
-    const wheels: {c: {x: number; y: number; z: number}; near: boolean; d: number}[] = []
+    const wheels: {
+      c: {x: number; y: number; z: number}
+      near: boolean
+      d: number
+    }[] = []
     for (const side of [-1, 1]) {
       for (const wx of ROBOT_WHEEL.xs) {
         const c = {x: wx, y: side * ROBOT_WHEEL.side, z: ROBOT_WHEEL.z}
-        wheels.push({c, near: this.depth(c.x, c.y, c.z) > this.depth(c.x, -c.y, c.z), d: this.depth(c.x, c.y, c.z)})
+        wheels.push({
+          c,
+          near: this.depth(c.x, c.y, c.z) > this.depth(c.x, -c.y, c.z),
+          d: this.depth(c.x, c.y, c.z),
+        })
       }
     }
     wheels.sort((a, b) => a.d - b.d)
     for (const wobj of wheels) if (!wobj.near) this.drawWheel(wobj.c)
 
-    const lidBox = {...ROBOT_LID, z0: ROBOT_LID.z0 + bobZ, z1: ROBOT_LID.z1 + bobZ}
+    const lidBox = {
+      ...ROBOT_LID,
+      z0: ROBOT_LID.z0 + bobZ,
+      z1: ROBOT_LID.z1 + bobZ,
+    }
     const lidIsNear = this.lidNear(lidBox)
     if (!lidIsNear) this.drawLid(lidBox)
 
@@ -610,7 +744,12 @@ class RobotRenderer {
       ROBOT_SKIN.bodyLeft,
     )
     this.drawBox(
-      {hx: ROBOT_BODY.hx + 0.6, hy: ROBOT_BODY.hy + 0.6, z0: ROBOT_STRIPE.z0 + bobZ, z1: ROBOT_STRIPE.z1 + bobZ},
+      {
+        hx: ROBOT_BODY.hx + 0.6,
+        hy: ROBOT_BODY.hy + 0.6,
+        z0: ROBOT_STRIPE.z0 + bobZ,
+        z1: ROBOT_STRIPE.z1 + bobZ,
+      },
       null,
       ROBOT_SKIN.stripe,
       ROBOT_SKIN.stripeDk,
@@ -627,15 +766,24 @@ class RobotRenderer {
           this.p(-hx, hy, zc),
           this.p(-hx, -hy, zc),
         ]
-        fillPoly(ctx, ring(ROBOT_LID.hx - 2, ROBOT_LID.hy - 2), ROBOT_SKIN.cavityWall)
-        fillPoly(ctx, ring(ROBOT_LID.hx - 6, ROBOT_LID.hy - 6), ROBOT_SKIN.cavityFloor)
+        fillPoly(
+          ctx,
+          ring(ROBOT_LID.hx - 2, ROBOT_LID.hy - 2),
+          ROBOT_SKIN.cavityWall,
+        )
+        fillPoly(
+          ctx,
+          ring(ROBOT_LID.hx - 6, ROBOT_LID.hy - 6),
+          ROBOT_SKIN.cavityFloor,
+        )
       }
     }
     if (lidIsNear) this.drawLid(lidBox)
 
     const fn = this.r(1, 0, 0)
     if (fn.x + fn.y + fn.z > 0) {
-      const f = (y: number, z: number) => this.p(ROBOT_BODY.hx + 0.8, y, z + bobZ)
+      const f = (y: number, z: number) =>
+        this.p(ROBOT_BODY.hx + 0.8, y, z + bobZ)
       const visorPts = [f(-13, 40), f(13, 40), f(13, 50), f(-13, 50)]
       fillPoly(ctx, visorPts, ROBOT_SKIN.visor)
       strokePoly(ctx, visorPts, ROBOT_SKIN.outline, 1.5)
@@ -723,7 +871,17 @@ function renderRobotIcon(canvas: HTMLCanvasElement): void {
 
   const ctx = canvas.getContext('2d')
   if (!ctx) return
-  ctx.drawImage(off, minX, minY, cropW, cropH, 0, 0, canvas.width, canvas.height)
+  ctx.drawImage(
+    off,
+    minX,
+    minY,
+    cropW,
+    cropH,
+    0,
+    0,
+    canvas.width,
+    canvas.height,
+  )
 }
 
 /* ============================================================
@@ -745,10 +903,14 @@ const cardEl = document.getElementById('card') as HTMLElement
 const listEl = document.getElementById('list') as HTMLElement
 const partyEl = document.getElementById('party') as HTMLElement
 const tabDailyBtn = document.getElementById('tab-daily') as HTMLButtonElement
-const tabAllTimeBtn = document.getElementById('tab-alltime') as HTMLButtonElement
+const tabAllTimeBtn = document.getElementById(
+  'tab-alltime',
+) as HTMLButtonElement
 const howToBtn = document.getElementById('how-to-btn') as HTMLButtonElement
 const howToModal = document.getElementById('how-to-modal') as HTMLElement
-const howToCloseBtn = document.getElementById('how-to-close') as HTMLButtonElement
+const howToCloseBtn = document.getElementById(
+  'how-to-close',
+) as HTMLButtonElement
 
 // Start never waits on the network — the challenge copy is a bonus, not
 // a gate. If the fetch is slow or fails, the default markup copy stands
@@ -765,7 +927,9 @@ tabDailyBtn.addEventListener('click', () => selectTab('daily'))
 tabAllTimeBtn.addEventListener('click', () => selectTab('allTime'))
 
 howToBtn.addEventListener('click', () => howToModal.classList.add('open'))
-howToCloseBtn.addEventListener('click', () => howToModal.classList.remove('open'))
+howToCloseBtn.addEventListener('click', () =>
+  howToModal.classList.remove('open'),
+)
 // Tapping the dimmed backdrop closes it too, not just the explicit close
 // button — but only when the tap lands on the backdrop itself, not
 // anything inside the card.
@@ -778,4 +942,4 @@ try {
 } catch (err) {
   console.error('splash: robot render failed', err)
 }
-loadDailyBest()
+void loadDailyBest()
