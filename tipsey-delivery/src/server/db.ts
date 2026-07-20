@@ -196,3 +196,60 @@ export async function dbRemoveUser(username: string): Promise<void> {
   ])
 }
 
+/** "YYYY-MM-DD" in America/New_York, not UTC — deliberately separate
+ *  from todayUTC() (which the route/leaderboard day boundary still
+ *  uses, untouched). Intl's timeZone handling resolves real IANA
+ *  daylight-saving transitions automatically, so this doesn't drift
+ *  across the DST switch the way a fixed UTC-offset cron would. */
+function todayET(): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/New_York',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date())
+}
+
+/** Current hour in America/New_York, 0-23, DST-correct for the same
+ *  reason as todayET(). */
+function currentHourET(): number {
+  const hourStr = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York',
+    hour: 'numeric',
+    hour12: false,
+  }).format(new Date())
+  // "24" shows up at midnight with hour12:false in some environments;
+  // normalize it to 0 rather than trust the raw string.
+  const h = parseInt(hourStr, 10)
+  return h === 24 ? 0 : h
+}
+
+const DAILY_POST_CLAIM_PREFIX = 'tipsy:global:dailypost:claim:'
+const DAILY_POST_ID_KEY = 'tipsy:global:dailypost:id'
+
+/** Should the scheduled 6am-ET check actually post right now? Checks
+ *  the real ET wall-clock hour (not just "did the cron fire" — the
+ *  cron runs every 15 minutes all day so the server itself decides
+ *  the actual moment), then atomically claims today's ET date so the
+ *  four checks that land inside the 6am hour only ever result in one
+ *  post, however many times this endpoint gets hit. */
+export async function dbShouldPostDaily(): Promise<boolean> {
+  if (currentHourET() !== 6) return false
+  const dateStr = todayET()
+  const tomorrow = new Date(Date.now() + 26 * 60 * 60 * 1000) // generous — this key only needs to outlive today
+  const claimed = await redis.set(DAILY_POST_CLAIM_PREFIX + dateStr, '1', {
+    nx: true,
+    expiration: tomorrow,
+  })
+  return claimed !== null
+}
+
+export async function dbGetDailyPostId(): Promise<string | null> {
+  const id = await redis.get(DAILY_POST_ID_KEY)
+  return id ?? null
+}
+
+export async function dbSetDailyPostId(id: string): Promise<void> {
+  await redis.set(DAILY_POST_ID_KEY, id)
+}
+
