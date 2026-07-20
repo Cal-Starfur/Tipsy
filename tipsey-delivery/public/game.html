@@ -9,7 +9,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>TIPSY — a clumsy delivery</title>
 <style>
-  html,body{margin:0;padding:0;background:#14161b;height:100%;overflow:hidden;touch-action:none;
+  html,body{margin:0;padding:0;background:#14161b;height:100%;height:100dvh;height:var(--vvh, 100dvh);overflow:hidden;touch-action:none;
     font-family:-apple-system,'Helvetica Neue',Arial,sans-serif;-webkit-user-select:none;user-select:none;color:#e8eaef;}
   #wrap{display:flex;flex-direction:column;height:100%;}
   #game{flex:1;min-height:0;}
@@ -159,6 +159,28 @@
   <button class="btn" id="againBtn">Again</button>
 </div>
 
+<script>
+  /* --vvh: the real currently-visible height, not the static viewport
+     assumption 100dvh alone gives you. Exists because entering Devvit's
+     expanded mode (requestExpandedMode, called from splash.ts) is a
+     platform-level transition, not a normal browser window resize —
+     nothing guarantees the browser re-evaluates 100dvh against the new
+     modal size on its own. visualViewport tracks the actual visible
+     area directly and fires its own resize event independent of the
+     window's, which is the more reliable signal in an embedded/modal
+     context like this. Falls back to innerHeight where visualViewport
+     isn't available at all. */
+  function fixViewportHeight(){
+    var h = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
+    document.documentElement.style.setProperty('--vvh', h + 'px');
+  }
+  fixViewportHeight();
+  window.addEventListener('resize', fixViewportHeight);
+  window.addEventListener('orientationchange', fixViewportHeight);
+  if(window.visualViewport){
+    window.visualViewport.addEventListener('resize', fixViewportHeight);
+  }
+</script>
 <script src="phaser.min.js"></script>
 <script src="game-logic.js"></script>
 </body>
