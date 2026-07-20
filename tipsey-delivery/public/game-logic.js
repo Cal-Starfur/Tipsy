@@ -2803,26 +2803,13 @@ class WorldScene extends Phaser.Scene {
       trafficPts.push({ kind: tr.kind, wp, f: trF, wheelPhase: trS*0.28, colorSeed: tr.colorSeed });
     }
     const MIN_TRAFFIC_GAP = CARC.len * 0.9;
-    /* cars sorted by their bare center point can visually overlap
-       wrong when parked close together — MIN_TRAFFIC_GAP only
-       guarantees centers stay roughly apart, not that bodies never
-       overlap (a car is CARC.len units long; the gap rule permits
-       centers as close as 0.9x that, which still allows real body
-       overlap). Bias the depth key toward the car's own front bumper
-       instead of its center, so overlapping cars order by where
-       their bodies actually reach. DIRV is symmetric in x/y by
-       construction, so this doesn't favor any one heading over
-       another — same fix, same effect, on all four. */
-    const CAR_DEPTH_BIAS = CARC.len/2;
     const drawnTrafficPts = [];
     for(const p of trafficPts){
       if(!near(p.wp.x, p.wp.y)) continue;
       if(drawnTrafficPts.some(q => Math.hypot(q.x-p.wp.x, q.y-p.wp.y) < MIN_TRAFFIC_GAP)) continue;
       drawnTrafficPts.push(p.wp);
       const pk = p.kind, pwx = p.wp.x, pwy = p.wp.y, pwz = p.wp.z, pf = p.f, pwp2 = p.wheelPhase, pcs = p.colorSeed;
-      const carBias = (pk === "car" || pk === "truck") && pf != null
-        ? (DIRV[pf].x + DIRV[pf].y) * CAR_DEPTH_BIAS : 0;
-      blockVQ.push({ depth: pwx+pwy+carBias, fn:(g,t)=>this.drawProp(layerFor(pwx,pwy), pk, pwx, pwy, t, pf, pwz, pwp2, pcs) });
+      blockVQ.push({ depth: pwx+pwy, fn:(g,t)=>this.drawProp(layerFor(pwx,pwy), pk, pwx, pwy, t, pf, pwz, pwp2, pcs) });
     }
 
     /* other volumetric props (bins, cones, hydrants, dogs, people, etc.):
