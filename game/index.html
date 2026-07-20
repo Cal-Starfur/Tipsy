@@ -3974,6 +3974,16 @@ class WorldScene extends Phaser.Scene {
           else { drawDoorAndMat(); drawCust(); }
         }});
         vq.push({ depth:hx+hy, isRoof:true, fn:(g)=>{ if(!isGateMode) this.drawHouseUnit(g, ux, uy, e.dv, e.rv, u.w, hseed, true, 'roof'); } });
+      } else if(isAddressEdge && this.route.addressUsesGate){
+        /* every OTHER house packed on the gate's own edge — the address
+           unit above already got its own gate via isGateMode, but this
+           edge's blanket exemption from cutEdges (needed so that gate
+           can render at all) meant every neighboring house on the same
+           edge was still drawing as a full, un-cut house right next to
+           it, on a heading where the cutaway exists specifically
+           because that's not safe. Fence them too, same as the generic
+           cutaway would if this edge weren't specially exempted. */
+        vq.push({ depth:hx+hy, fn:(g)=>this.drawFenceGap(g, ux, uy, e.dv, e.rv, u.w, hseed) });
       } else {
         vq.push({ depth:hx+hy, fn:(g)=>this.drawHouseUnit(g, ux, uy, e.dv, e.rv, u.w, hseed, false, 'body') });
         vq.push({ depth:hx+hy, isRoof:true, fn:(g)=>this.drawHouseUnit(g, ux, uy, e.dv, e.rv, u.w, hseed, false, 'roof') });
