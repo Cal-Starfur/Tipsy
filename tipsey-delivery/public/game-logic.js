@@ -8349,18 +8349,25 @@ function showWin(s){
     const prev = tipsyBridge.active
       ? tipsyBridge.best[s.route.dateStr]
       : JSON.parse(localStorage.getItem(key) || "null");
+    /* `prev` (tipsyBridge.best) is today's #1 score overall, not the
+       player's OWN prior run — it's only correct for the "did I just
+       take the top spot" banner below. Submission must NOT be gated
+       on it: a run that beats your own last score but isn't yet #1
+       overall would never reach the server at all. The server already
+       compares against your own prior score correctly (dbSubmitScore),
+       so every completed delivery submits unconditionally and lets
+       the server decide whether it's actually an improvement — cheap
+       no-op there when it isn't. */
     const better = !prev || payout > prev.tip || (payout === prev.tip && s.runT < prev.ms);
-    if(better){
-      if(tipsyBridge.active){
-        tipsyBridge.best[s.route.dateStr] = { tip: payout, ms: s.runT };   // optimistic — server is source of truth next load
-        fetch("api/tipsy/best/submit", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Accept: "application/json" },
-          body: JSON.stringify({ tip: payout, ms: s.runT })
-        }).catch(()=>{});
-      } else {
-        localStorage.setItem(key, JSON.stringify({ tip: payout, ms: s.runT }));
-      }
+    if(tipsyBridge.active){
+      if(better) tipsyBridge.best[s.route.dateStr] = { tip: payout, ms: s.runT };   // optimistic — server is source of truth next load
+      fetch("api/tipsy/best/submit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({ tip: payout, ms: s.runT })
+      }).catch(()=>{});
+    } else if(better){
+      localStorage.setItem(key, JSON.stringify({ tip: payout, ms: s.runT }));
     }
     bestRow = better
       ? `<div class="sheetRow" style="color:#3f7d43;font-size:13px">★ NEW DAILY BEST</div>`
