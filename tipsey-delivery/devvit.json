@@ -35,6 +35,14 @@
   "triggers": {
     "onAppInstall": "/internal/on/app/install"
   },
+  "scheduler": {
+    "tasks": {
+      "daily-post-check": {
+        "endpoint": "/internal/scheduler/daily-post-check",
+        "cron": "*/15 * * * *"
+      }
+    }
+  },
   "scripts": {
     "dev": "npm run watch"
   },
@@ -42,4 +50,5 @@
     "subreddit": "tipsey_delivery_dev"
   }
 }
+
 
