@@ -14,7 +14,7 @@ import {
   type SubmitDailyBestReq,
   type SubmitDailyBestRsp,
 } from '../shared/api.ts'
-import {dbGetDailyBest, dbGetTop, dbSubmitScore, todayUTC} from './db.ts'
+import {dbGetAllTimeBest, dbGetAllTimeTop, dbGetDailyBest, dbGetTop, dbSubmitScore, todayUTC} from './db.ts'
 
 type AnyRsp =
   | GetDailyBestRsp
@@ -72,12 +72,20 @@ async function route(
 
 async function routeGetDailyBest(): Promise<GetDailyBestRsp> {
   const dateStr = todayUTC()
-  const [best, top, user] = await Promise.all([
+  const [best, top, allTimeBest, allTimeTop, user] = await Promise.all([
     dbGetDailyBest(dateStr),
     dbGetTop(dateStr, 10),
+    dbGetAllTimeBest(),
+    dbGetAllTimeTop(10),
     reddit.getCurrentUser().catch(() => null),
   ])
-  return {dateStr, best, viewerUsername: user?.username ?? null, top}
+  return {
+    dateStr,
+    best,
+    viewerUsername: user?.username ?? null,
+    top,
+    allTime: {best: allTimeBest, top: allTimeTop},
+  }
 }
 
 async function routeSubmitDailyBest(
@@ -87,10 +95,14 @@ async function routeSubmitDailyBest(
   const req = await readJson<SubmitDailyBestReq>(reqMsg)
   const user = await reddit.getCurrentUser().catch(() => null)
   const username = user?.username ?? 'anonymous'
-  const top = await dbSubmitScore(dateStr, req.tip, req.ms, username)
-  const first = top[0]
+  const {daily, allTime} = await dbSubmitScore(dateStr, req.tip, req.ms, username)
+  const first = daily[0]
   const best = first ? {tip: first.tip, ms: first.ms, username: first.username} : null
-  return {dateStr, best, top}
+  const allTimeFirst = allTime[0]
+  const allTimeBest = allTimeFirst
+    ? {tip: allTimeFirst.tip, ms: allTimeFirst.ms, username: allTimeFirst.username}
+    : null
+  return {dateStr, best, top: daily, allTime: {best: allTimeBest, top: allTime}}
 }
 
 async function routeMenuNewPost(): Promise<UiResponse> {
