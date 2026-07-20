@@ -37,10 +37,13 @@ export const Endpoint = {
   SubmitDailyBest: 'api/tipsy/best/submit',
   OnAppInstall: 'internal/on/app/install',
   OnMenuNewPost: 'internal/on/menu/new-post',
+  OnMenuBackfillAllTime: 'internal/on/menu/backfill-alltime',
 } as const
 export const EndpointMethod = {
   [Endpoint.GetDailyBest]: 'GET',
   [Endpoint.SubmitDailyBest]: 'POST',
   [Endpoint.OnAppInstall]: 'POST',
   [Endpoint.OnMenuNewPost]: 'POST',
+  [Endpoint.OnMenuBackfillAllTime]: 'POST',
 } as const satisfies {[endpoint: string]: 'GET' | 'POST'}
+
