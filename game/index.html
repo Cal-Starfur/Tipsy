@@ -1038,6 +1038,7 @@ const SHOPDOOR_ART = {
    not picked independently — see the lab's SCALE REFERENCE comment
    for the reasoning. ================= */
 const PERSON_H = 124; // PEOPLE_BUILD legH(52)+torsoH(44)+headR*2(28)
+const GATE_HALF_W = 30; // gate fence opening half-width — 60 units total, enough for the customer to walk through comfortably
 const DOOR_H = DOOR_ART.h, DOOR_W = DOOR_ART.w; // scale anchors for block-wrap houses/stores
 
 const HOUSE_WRAP_PALETTES = [
@@ -2178,7 +2179,17 @@ function generateRoute(dateStr){
      it (a shared block can only hold one type, which would make the pickup
      render as the address house instead of a shop). */
   let pickupS = findGoodS(segs, totalLen, SPAWN_S + 90, false, grid, addressBlock);
-  const addressEdgeIdx = (segsSegAt(segs, doorS).f + 2) % 4;
+  const doorHeadingF = segsSegAt(segs, doorS).f;
+  const addressEdgeIdx = (doorHeadingF + 2) % 4;
+  /* f===1/f===2 addresses only happen via findGoodS's rare no-good-leg
+     fallback (see GOOD_LEG_HEADING) — the cutaway system says a house
+     wall isn't safe to render on that heading. Rather than keep
+     force-protecting a house there, this address renders as a fence
+     with a gate instead (see queueHousingEdgeAt / drawGateFence) —
+     the same treatment every OTHER house on a cut heading already
+     gets, just with an opening so the customer still has somewhere
+     to stand. */
+  const addressUsesGate = !GOOD_LEG_HEADING[doorHeadingF];
   let addressUnitIdx = 0, addressSpot = null;
   if(addressBlock){
     const abEdges = [
@@ -2441,7 +2452,7 @@ function generateRoute(dateStr){
   }
 
   return { hood, grid, segs, totalLen, tiles, hazards, props, pal, traffic, crossings, cutEdges,
-           address:`${number} ${street}`, doorS, pickupS, pickupSpot, pickupShopName, addressBlock, pickupBlock, addressEdgeIdx, pickupEdgeIdx, addressUnitIdx, pickupUnitIdx, order, parMs, dateStr };
+           address:`${number} ${street}`, doorS, pickupS, pickupSpot, pickupShopName, addressBlock, pickupBlock, addressEdgeIdx, pickupEdgeIdx, addressUnitIdx, pickupUnitIdx, addressUsesGate, order, parMs, dateStr };
 }
 
 /* ---------- robot palette (approved in sprite lab) ---------- */
@@ -3469,6 +3480,32 @@ class WorldScene extends Phaser.Scene {
     else this.drawChainFence(g, ox, oy, dv, rv, w);
   }
 
+  /* address fallback for the rare f===1/f===2 delivery (see
+     GOOD_LEG_HEADING / route.addressUsesGate): same fence style the
+     generic cutaway already uses everywhere else on the map, spanning
+     the full house-unit width, with a gap at the door's exact
+     position so the customer still has a real threshold to walk
+     through. Static gate posts frame the opening — unlike the real
+     door, there's no swing animation yet; first pass, revisit once
+     it's been seen on-device. */
+  drawGateFence(g, ox, oy, dv, rv, w, gateCenterX, gateHalfW, seed){
+    const rng = mulberry32(seed);
+    const useWood = rng() < 0.5;
+    const seg = (sox, soy, sw) => {
+      if(sw < 4) return;
+      if(useWood) this.drawWoodFence(g, sox, soy, dv, rv, sw);
+      else this.drawChainFence(g, sox, soy, dv, rv, sw);
+    };
+    const gLo = Math.max(0, gateCenterX - gateHalfW);
+    const gHi = Math.min(w, gateCenterX + gateHalfW);
+    seg(ox, oy, gLo);
+    seg(ox + dv.x*gHi, oy + dv.y*gHi, w - gHi);
+    const G = (a,b,h) => this.W(ox + dv.x*a + rv.x*b, oy + dv.y*a + rv.y*b, h);
+    const H = PERSON_H*0.8, woodDk = 0x7c5f3c;
+    const post = x => this.quadOn(g, [G(x-3,0.4,H+5),G(x+3,0.4,H+5),G(x+3,0.4,0),G(x-3,0.4,0)], woodDk);
+    post(gLo); post(gHi);
+  }
+
   /* commercial swinging door — same SL-hinge-rotation technique as
      drawDoorAssembly, restyled as glass storefront (thin frame, glass
      pane, handle bar). CENTERED on the unit rather than replicating
@@ -3807,6 +3844,7 @@ class WorldScene extends Phaser.Scene {
       const hseed = ((Math.round(hx)*7919) ^ (Math.round(hy)*104729)) >>> 0;
       const ux = e.ox + e.dv.x*u.start, uy = e.oy + e.dv.y*u.start;
       const isAddress = isAddressEdge && idx === this.route.addressUnitIdx;
+      const isGateMode = isAddress && this.route.addressUsesGate;
       if(cornerSkip && !isAddress && cornerSkip(hx, hy)) return;   // corner-loom trim
       if(isAddress){
         const doorCenterX = u.w/2;
@@ -3816,11 +3854,13 @@ class WorldScene extends Phaser.Scene {
         this.addrDoorUX = ux; this.addrDoorUY = uy; this.addrDoorCenterX = doorCenterX;
         this.addrCustSeed = (hseed ^ 0x4c75) >>> 0;
         vq.push({ depth:hx+hy, fn:(g,t)=>{
-          this.drawHouseUnit(g, ux, uy, e.dv, e.rv, u.w, hseed, true, 'body');
-          const drawDoorAndMat = () => {
-            this.drawDoorAssembly(g, ux, uy, e.dv, e.rv, doorCenterX, dz, this.doorTheta);
-            this.drawMatQuad(g, ux, uy, e.dv, e.rv, doorCenterX, dz);
-          };
+          if(!isGateMode) this.drawHouseUnit(g, ux, uy, e.dv, e.rv, u.w, hseed, true, 'body');
+          const drawDoorAndMat = isGateMode
+            ? () => this.drawGateFence(g, ux, uy, e.dv, e.rv, u.w, doorCenterX, GATE_HALF_W, hseed)
+            : () => {
+                this.drawDoorAssembly(g, ux, uy, e.dv, e.rv, doorCenterX, dz, this.doorTheta);
+                this.drawMatQuad(g, ux, uy, e.dv, e.rv, doorCenterX, dz);
+              };
           /* world.customer: same design as prop.people via drawPersonHull().
              Walk path from the door lab: dyStart=4, dyEnd=T2-8 (stops near
              the mat's road-side edge), triggered by the door's own hinge
@@ -3930,7 +3970,7 @@ class WorldScene extends Phaser.Scene {
           if(dy < 0){ drawCust(); drawDoorAndMat(); }
           else { drawDoorAndMat(); drawCust(); }
         }});
-        vq.push({ depth:hx+hy, isRoof:true, fn:(g)=>this.drawHouseUnit(g, ux, uy, e.dv, e.rv, u.w, hseed, true, 'roof') });
+        vq.push({ depth:hx+hy, isRoof:true, fn:(g)=>{ if(!isGateMode) this.drawHouseUnit(g, ux, uy, e.dv, e.rv, u.w, hseed, true, 'roof'); } });
       } else {
         vq.push({ depth:hx+hy, fn:(g)=>this.drawHouseUnit(g, ux, uy, e.dv, e.rv, u.w, hseed, false, 'body') });
         vq.push({ depth:hx+hy, isRoof:true, fn:(g)=>this.drawHouseUnit(g, ux, uy, e.dv, e.rv, u.w, hseed, false, 'roof') });
@@ -8506,6 +8546,7 @@ document.addEventListener("keydown", e => {
 </script>
 </body>
 </html>
+
 
 
 
