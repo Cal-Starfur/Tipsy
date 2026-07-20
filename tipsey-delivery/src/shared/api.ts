@@ -31,6 +31,13 @@ export type SubmitDailyBestRsp = {
   top: LeaderboardEntry[]
   allTime: {best: DailyBest; top: LeaderboardEntry[]}
 }
+/** The subset of Reddit's AccountDelete trigger payload this app needs.
+ *  `user` is optional per Devvit's own docs — if it's missing, there's
+ *  no username to key our Redis entries on, so the handler no-ops. */
+export type AccountDeleteEvent = {
+  userId: string
+  user?: {username?: string}
+}
 export type Endpoint = (typeof Endpoint)[keyof typeof Endpoint]
 export const Endpoint = {
   GetDailyBest: 'api/tipsy/best',
@@ -38,6 +45,7 @@ export const Endpoint = {
   OnAppInstall: 'internal/on/app/install',
   OnMenuNewPost: 'internal/on/menu/new-post',
   OnMenuBackfillAllTime: 'internal/on/menu/backfill-alltime',
+  OnAccountDelete: 'internal/on/account/delete',
 } as const
 export const EndpointMethod = {
   [Endpoint.GetDailyBest]: 'GET',
@@ -45,5 +53,6 @@ export const EndpointMethod = {
   [Endpoint.OnAppInstall]: 'POST',
   [Endpoint.OnMenuNewPost]: 'POST',
   [Endpoint.OnMenuBackfillAllTime]: 'POST',
+  [Endpoint.OnAccountDelete]: 'POST',
 } as const satisfies {[endpoint: string]: 'GET' | 'POST'}
 
