@@ -253,3 +253,62 @@ export async function dbSetDailyPostId(id: string): Promise<void> {
   await redis.set(DAILY_POST_ID_KEY, id)
 }
 
+const SWEEP_CLAIM_PREFIX = 'tipsy:global:sweep:claim:'
+
+/** One claim slot per week (Unix-epoch-week number, not calendar-week —
+ *  doesn't need to line up with any particular day, just needs to be
+ *  stable and change roughly weekly). Defensive insurance in case the
+ *  weekly cron fires more than once around its scheduled time; the
+ *  actual cadence is set by the cron itself (devvit.json), not by
+ *  this key. */
+function currentWeekKey(): string {
+  return String(Math.floor(Date.now() / (7 * 24 * 60 * 60 * 1000)))
+}
+
+export async function dbShouldRunWeeklySweep(): Promise<boolean> {
+  const key = SWEEP_CLAIM_PREFIX + currentWeekKey()
+  const expiration = new Date(Date.now() + 8 * 24 * 60 * 60 * 1000) // 8 days — generous, just needs to outlive this week
+  const claimed = await redis.set(key, '1', {nx: true, expiration})
+  return claimed !== null
+}
+
+/** Compliance sweep: reddit.getCurrentUser() can't tell us when an
+ *  account is deleted (Devvit's AccountDelete trigger isn't supported
+ *  in this app's generation), so this actively checks instead. Every
+ *  username currently on today's board or the permanent all-time
+ *  board (not just the visible top 10 — the full membership) gets
+ *  verified against Reddit; anyone who no longer resolves is purged
+ *  via dbRemoveUser, the same function the (unreachable) delete
+ *  trigger was always going to call. userExists is injected rather
+ *  than imported so db.ts stays Redis-only and the Reddit API call
+ *  lives in server.ts, matching how the rest of this file is split. */
+export async function dbSweepDeletedUsers(
+  userExists: (username: string) => Promise<boolean>,
+): Promise<{checked: number; removed: number}> {
+  const dateStr = todayUTC()
+  const [dailyRows, allTimeRows] = await Promise.all([
+    redis.zRange(leaderboardKey(dateStr), 0, -1, {by: 'rank'}),
+    redis.zRange(ALLTIME_KEY, 0, -1, {by: 'rank'}),
+  ])
+  const usernames = [
+    ...new Set([...dailyRows, ...allTimeRows].map(r => r.member)),
+  ]
+
+  let removed = 0
+  for (const username of usernames) {
+    let exists = true
+    try {
+      exists = await userExists(username)
+    } catch (err) {
+      console.error(`dbSweepDeletedUsers: check failed for ${username}`, err)
+      continue // don't remove on an inconclusive check — err toward keeping data over a network hiccup
+    }
+    if (!exists) {
+      await dbRemoveUser(username)
+      removed++
+    }
+  }
+  return {checked: usernames.length, removed}
+}
+
+
