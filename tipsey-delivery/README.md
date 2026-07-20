@@ -18,14 +18,32 @@ earn the best tip.
 - Beat the par time for a bigger tip. A perfect run (fast, clean, no
   damage) earns the maximum.
 
+## Controls
+
+| Action | Touch | Keys |
+| --- | --- | --- |
+| Throttle | Hold right side of the screen | → / D |
+| Brake | Hold left side of the screen | ← / A |
+| Change lane | Swipe up / down | ↑ / W, ↓ / S |
+
+Payout = tip multiplier × cargo condition − time penalty.
+
 ## Daily leaderboard
 
 Every player's best run of the day is ranked on a shared leaderboard,
 tip-ranked with time as the tiebreaker. The splash screen greets you by
 name and challenges you to beat the current top score, with a cluster of
-today's top players' Snoo avatars in the background.
+today's top players' avatars in the background.
 
 A new route generates every day — same city, new streets, new hazards.
+Each day's route and leaderboard reset automatically at midnight UTC.
+
+## Installing on a subreddit
+
+Add Tipsey to a subreddit from the app's listing page, then create a post
+from the subreddit's mod menu (**[tipsey-delivery] New Post**). No setup
+or configuration is required — the app works immediately after install,
+and there's nothing for moderators to maintain day-to-day.
 
 ## Credits
 
