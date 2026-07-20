@@ -1,4 +1,4 @@
-import {requestExpandedMode} from '@devvit/web/client'
+import {navigateTo, requestExpandedMode} from '@devvit/web/client'
 import {
   Endpoint,
   type GetDailyBestRsp,
@@ -907,6 +907,7 @@ const tabAllTimeBtn = document.getElementById(
   'tab-alltime',
 ) as HTMLButtonElement
 const howToBtn = document.getElementById('how-to-btn') as HTMLButtonElement
+const notifyBtn = document.getElementById('notify-btn') as HTMLButtonElement
 const howToModal = document.getElementById('how-to-modal') as HTMLElement
 const howToCloseBtn = document.getElementById(
   'how-to-close',
@@ -927,6 +928,15 @@ tabDailyBtn.addEventListener('click', () => selectTab('daily'))
 tabAllTimeBtn.addEventListener('click', () => selectTab('allTime'))
 
 howToBtn.addEventListener('click', () => howToModal.classList.add('open'))
+/* no permission to subscribe a player directly (Reddit's own
+   subscribeToCurrentSubreddit() only ever subscribes the app account
+   itself — subscribing a player requires Reddit's explicit sign-off,
+   same shape as the push-notification beta). This just takes them to
+   the subreddit so they can tap Reddit's own native Join/bell button
+   there — one extra tap, but fully functional today. */
+notifyBtn.addEventListener('click', () =>
+  navigateTo('https://www.reddit.com/r/Tipsey/'),
+)
 howToCloseBtn.addEventListener('click', () =>
   howToModal.classList.remove('open'),
 )
@@ -943,4 +953,5 @@ try {
   console.error('splash: robot render failed', err)
 }
 void loadDailyBest()
+
 
