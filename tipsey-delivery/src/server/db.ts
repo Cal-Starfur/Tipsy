@@ -22,6 +22,13 @@ export function todayUTC(): string {
  *  down, silently corrupting both fields on decode. */
 const SCORE_MULT = 10_000_000
 
+/** Daily boards are never explicitly deleted (Redis on Devvit can't list
+ *  keys, so a deleted user's entry on an old day's board can't be found
+ *  and purged directly — see dbRemoveUser). Auto-expiring each daily key
+ *  30 days after it's last written closes that gap on its own, matching
+ *  Reddit's own recommended retention window for stored user data. */
+const DAILY_TTL_SECONDS = 30 * 24 * 60 * 60
+
 function encodeScore(tipCents: number, ms: number): number {
   return tipCents * SCORE_MULT + (SCORE_MULT - 1 - ms)
 }
@@ -128,6 +135,8 @@ export async function dbSubmitScore(
     if (dailyBetter) {
       await redis.zAdd(dailyKey, {member: username, score: newScore})
       if (url) await redis.hSet(avatarKey(dateStr), {[username]: url})
+      await redis.expire(dailyKey, DAILY_TTL_SECONDS)
+      await redis.expire(avatarKey(dateStr), DAILY_TTL_SECONDS)
     }
     if (allTimeBetter) {
       await redis.zAdd(ALLTIME_KEY, {member: username, score: newScore})
@@ -170,5 +179,20 @@ export async function dbBackfillAllTimeFromDate(
     }
   }
   return {merged, total: rows.length}
+}
+
+/** Handles AccountDelete: strips the user from every board this app can
+ *  actually still reach — today's daily board and the permanent all-time
+ *  board. Past days' boards can't be targeted directly (no key listing
+ *  on Devvit Redis; see DAILY_TTL_SECONDS above for how those expire on
+ *  their own instead). */
+export async function dbRemoveUser(username: string): Promise<void> {
+  const dateStr = todayUTC()
+  await Promise.all([
+    redis.zRem(leaderboardKey(dateStr), [username]),
+    redis.hDel(avatarKey(dateStr), [username]),
+    redis.zRem(ALLTIME_KEY, [username]),
+    redis.hDel(ALLTIME_AVATAR_KEY, [username]),
+  ])
 }
 
