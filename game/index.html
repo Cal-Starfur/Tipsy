@@ -1039,6 +1039,7 @@ const SHOPDOOR_ART = {
    for the reasoning. ================= */
 const PERSON_H = 124; // PEOPLE_BUILD legH(52)+torsoH(44)+headR*2(28)
 const GATE_HALF_W = 30; // gate fence opening half-width — 60 units total, enough for the customer to walk through comfortably
+const GATE_WALKOFF_DIST = 3000; // how far the gate customer retreats before "gone" — no wall to hide behind, so this needs real distance to read as off-screen
 const DOOR_H = DOOR_ART.h, DOOR_W = DOOR_ART.w; // scale anchors for block-wrap houses/stores
 
 const HOUSE_WRAP_PALETTES = [
@@ -3855,6 +3856,13 @@ class WorldScene extends Phaser.Scene {
         this.addrCustSeed = (hseed ^ 0x4c75) >>> 0;
         vq.push({ depth:hx+hy, fn:(g,t)=>{
           if(!isGateMode) this.drawHouseUnit(g, ux, uy, e.dv, e.rv, u.w, hseed, true, 'body');
+          /* gate mode draws the customer/bag on gFront instead of
+             gWorld — gFront is structurally the one layer above the
+             robot's own layer (used elsewhere for "hazards nearer the
+             camera than the robot"), so this is what actually puts
+             him in front of the robot rather than behind it. The
+             fence/gate/mat stay on gWorld, unchanged. */
+          const custG = isGateMode ? this.gFront : g;
           const drawDoorAndMat = isGateMode
             ? () => {
                 this.drawGateFence(g, ux, uy, e.dv, e.rv, u.w, doorCenterX, GATE_HALF_W, hseed);
@@ -3886,18 +3894,35 @@ class WorldScene extends Phaser.Scene {
              wonWalk); facing comes from the real approach vector
              (wonMeetTh), flipped +PI on the way home. */
           const meet = this.wonMeet;
-          if(!meet){ drawDoorAndMat(); return; }
+          /* gate mode: he's standing there waiting from the moment the
+             gate is visible at all — there's no door to knock on, so
+             "wait for the knock" doesn't apply the way it does for a
+             real house. Door mode is completely untouched: still bails
+             to door+mat only until winning starts, exactly as before. */
+          if(!meet && !isGateMode){ drawDoorAndMat(); return; }
           const doorPx = ux + e.dv.x*doorCenterX, doorPy = uy + e.dv.y*doorCenterX;
           const startPx = doorPx + e.rv.x*4,   startPy = doorPy + e.rv.y*4;    // just outside the door
-          const backPx  = doorPx - e.rv.x*24,  backPy  = doorPy - e.rv.y*24;   // through the plane, inside
+          /* gate mode walks much further back before he's "gone" — a
+             real house wall hides him after 24 units; an open gate has
+             nothing to hide behind, so it takes actual distance to
+             read as having left the scene rather than just stopping
+             short. First-pass distance, worth eyeballing on-device. */
+          const backDist = isGateMode ? GATE_WALKOFF_DIST : 24;
+          const backPx  = doorPx - e.rv.x*backDist,  backPy  = doorPy - e.rv.y*backDist;
           const outFrac = this.wonOutFrac || 0;
           const wonWalk = this.state === "won" ? (this.wonWalk || 0) : 0;
           const inWalkBack = wonWalk > 0;
-          const goneInside = inWalkBack && wonWalk >= 0.999 && this.doorTheta <= 0.02;
-          const custVisible = !goneInside && (inWalkBack || outFrac > 0.001);
+          /* doorTheta (the hinge angle) is meaningless for a gate — nothing
+             ever opens it — so gate mode drops that half of the check. */
+          const goneInside = inWalkBack && wonWalk >= 0.999 && (isGateMode || this.doorTheta <= 0.02);
+          const custVisible = isGateMode ? !goneInside : (!goneInside && (inWalkBack || outFrac > 0.001));
           if(!custVisible){ drawDoorAndMat(); return; }
           let cx, cy, thW, moving;
-          if(inWalkBack){
+          if(!meet){
+            /* gate mode only, pre-win: static wait, facing out through
+               the gate toward the street. */
+            cx = startPx; cy = startPy; thW = Math.atan2(e.rv.y, e.rv.x); moving = false;
+          } else if(inWalkBack){
             const wu2 = 1 - Math.pow(1 - wonWalk, 2);
             cx = Phaser.Math.Linear(meet.x, backPx, wu2);
             cy = Phaser.Math.Linear(meet.y, backPy, wu2);
@@ -3961,10 +3986,10 @@ class WorldScene extends Phaser.Scene {
               bagX = hp.x; bagY = hp.y; bagZ = hp.z;
             }
           }
-          const topCb = bagVisible ? () => this.drawBagTop(g, bagX, bagY, bagZ, e.dv, e.rv) : null;
+          const topCb = bagVisible ? () => this.drawBagTop(custG, bagX, bagY, bagZ, e.dv, e.rv) : null;
           const drawCust = () => {
-            this.drawPersonHull(g, cx, cy, dz, thW, cBuild, cSkin, cShirt, cPants, cHair, cShoe, walkPhase, moving, 0, liftT, topCb);
-            if(bagVisible) this.drawBagBody(g, bagX, bagY, bagZ, e.dv, e.rv);
+            this.drawPersonHull(custG, cx, cy, dz, thW, cBuild, cSkin, cShirt, cPants, cHair, cShoe, walkPhase, moving, 0, liftT, topCb);
+            if(bagVisible) this.drawBagBody(custG, bagX, bagY, bagZ, e.dv, e.rv);
           };
           /* which side of the door plane he's on decides draw order —
              same computed test as the pickup worker (his dy<0 branch):
