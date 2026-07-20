@@ -33,7 +33,8 @@
     ]
   },
   "triggers": {
-    "onAppInstall": "/internal/on/app/install"
+    "onAppInstall": "/internal/on/app/install",
+    "onAccountDelete": "/internal/on/account/delete"
   },
   "scripts": {
     "dev": "npm run watch"
