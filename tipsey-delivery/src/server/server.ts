@@ -7,6 +7,7 @@ import type {
   UiResponse,
 } from '@devvit/web/shared'
 import {
+  type AccountDeleteEvent,
   Endpoint,
   EndpointMethod,
   type ErrorRsp,
@@ -20,6 +21,7 @@ import {
   dbGetAllTimeTop,
   dbGetDailyBest,
   dbGetTop,
+  dbRemoveUser,
   dbSubmitScore,
   todayUTC,
 } from './db.ts'
@@ -70,6 +72,9 @@ async function route(
         break
       case Endpoint.OnMenuBackfillAllTime:
         rsp = await routeMenuBackfillAllTime()
+        break
+      case Endpoint.OnAccountDelete:
+        rsp = await routeAccountDelete(reqMsg)
         break
       default:
         endpoint satisfies never
@@ -148,6 +153,19 @@ async function routeMenuBackfillAllTime(): Promise<UiResponse> {
       appearance: 'success',
     },
   }
+}
+
+async function routeAccountDelete(
+  reqMsg: IncomingMessage,
+): Promise<TriggerResponse> {
+  const event = await readJson<AccountDeleteEvent>(reqMsg)
+  const username = event.user?.username
+  // Devvit marks `user` as optional on this event — without a username
+  // there's nothing to key our Redis entries on, so just no-op rather
+  // than guess. (userId alone can't help here: boards are keyed by
+  // username, not t2_id.)
+  if (username) await dbRemoveUser(username)
+  return {}
 }
 
 async function readJson<T>(reqMsg: IncomingMessage): Promise<T> {
