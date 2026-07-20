@@ -106,10 +106,10 @@
       transform: translateY(4px);
       box-shadow: 0 2px 0 #b8501f, 0 4px 10px rgba(0, 0, 0, 0.3);
     }
-    #how-to-btn {
+    #how-to-btn,
+    #notify-btn {
       position: absolute;
       top: 14px;
-      right: 14px;
       z-index: 3;
       height: 30px;
       padding: 0 14px;
@@ -126,6 +126,12 @@
       display: grid;
       place-items: center;
       cursor: pointer;
+    }
+    #how-to-btn {
+      right: 14px;
+    }
+    #notify-btn {
+      left: 14px;
     }
     .tabs {
       display: flex;
@@ -278,6 +284,7 @@
   <body>
     <main id="card">
       <button id="how-to-btn" type="button">How to Play</button>
+      <button id="notify-btn" type="button">Notify Me</button>
       <div class="party" id="party"></div>
       <div class="scrim"></div>
       <div class="content">
@@ -313,4 +320,5 @@
     <script src="splash.js" type="module"></script>
   </body>
 </html>
+
 
