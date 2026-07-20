@@ -41,19 +41,39 @@ function avatarKey(dateStr: string): string {
   return `tipsy:global:avatars:${dateStr}`
 }
 
-export async function dbGetTop(dateStr: string, n: number): Promise<LeaderboardEntry[]> {
-  const rows = await redis.zRange(leaderboardKey(dateStr), 0, n - 1, {by: 'rank', reverse: true})
+/** All-time board is a single pair of keys, never date-scoped — unlike
+ *  the daily board's key, these never rotate, so a user's best run ever
+ *  stays ranked regardless of when it happened. */
+const ALLTIME_KEY = 'tipsy:global:board:alltime'
+const ALLTIME_AVATAR_KEY = 'tipsy:global:avatars:alltime'
+
+async function dbGetTopFromKey(key: string, avatarsKey: string, n: number): Promise<LeaderboardEntry[]> {
+  const rows = await redis.zRange(key, 0, n - 1, {by: 'rank', reverse: true})
   if (rows.length === 0) return []
   const usernames = rows.map(r => r.member)
-  const avatars = await redis.hMGet(avatarKey(dateStr), usernames)
+  const avatars = await redis.hMGet(avatarsKey, usernames)
   return rows.map((r, i) => {
     const {tipCents, ms} = decodeScore(r.score)
     return {username: r.member, tip: tipCents / 100, ms, avatarUrl: avatars[i] ?? null}
   })
 }
 
+export async function dbGetTop(dateStr: string, n: number): Promise<LeaderboardEntry[]> {
+  return dbGetTopFromKey(leaderboardKey(dateStr), avatarKey(dateStr), n)
+}
+
+export async function dbGetAllTimeTop(n: number): Promise<LeaderboardEntry[]> {
+  return dbGetTopFromKey(ALLTIME_KEY, ALLTIME_AVATAR_KEY, n)
+}
+
 export async function dbGetDailyBest(dateStr: string): Promise<DailyBest> {
   const top = await dbGetTop(dateStr, 1)
+  const first = top[0]
+  return first ? {tip: first.tip, ms: first.ms, username: first.username} : null
+}
+
+export async function dbGetAllTimeBest(): Promise<DailyBest> {
+  const top = await dbGetAllTimeTop(1)
   const first = top[0]
   return first ? {tip: first.tip, ms: first.ms, username: first.username} : null
 }
@@ -66,22 +86,42 @@ export async function dbGetDailyBest(dateStr: string): Promise<DailyBest> {
  *  of direction, so the current score is fetched and compared first.
  *  The snoovatar is only looked up (and only overwrites the cache) when
  *  this submission actually becomes that user's new best for today —
- *  not on every attempt — since it's an extra Reddit API call. */
+ *  not on every attempt — since it's an extra Reddit API call.
+ *
+ *  The daily and all-time boards are updated independently in the same
+ *  call: a run can be this user's new daily best without being their
+ *  all-time best (or vice versa, on a day they don't beat an old
+ *  personal record), so each is checked and written on its own rather
+ *  than assuming one implies the other. */
 export async function dbSubmitScore(
   dateStr: string,
   tip: number,
   ms: number,
   username: string,
-): Promise<LeaderboardEntry[]> {
+): Promise<{daily: LeaderboardEntry[]; allTime: LeaderboardEntry[]}> {
   const tipCents = Math.round(tip * 100)
   const newScore = encodeScore(tipCents, ms)
-  const key = leaderboardKey(dateStr)
-  const current = await redis.zScore(key, username)
-  const better = current === undefined || newScore > current
-  if (better) {
-    await redis.zAdd(key, {member: username, score: newScore})
+  const dailyKey = leaderboardKey(dateStr)
+
+  const [dailyCurrent, allTimeCurrent] = await Promise.all([
+    redis.zScore(dailyKey, username),
+    redis.zScore(ALLTIME_KEY, username),
+  ])
+  const dailyBetter = dailyCurrent === undefined || newScore > dailyCurrent
+  const allTimeBetter = allTimeCurrent === undefined || newScore > allTimeCurrent
+
+  if (dailyBetter || allTimeBetter) {
     const url = await reddit.getSnoovatarUrl(username).catch(() => undefined)
-    if (url) await redis.hSet(avatarKey(dateStr), {[username]: url})
+    if (dailyBetter) {
+      await redis.zAdd(dailyKey, {member: username, score: newScore})
+      if (url) await redis.hSet(avatarKey(dateStr), {[username]: url})
+    }
+    if (allTimeBetter) {
+      await redis.zAdd(ALLTIME_KEY, {member: username, score: newScore})
+      if (url) await redis.hSet(ALLTIME_AVATAR_KEY, {[username]: url})
+    }
   }
-  return dbGetTop(dateStr, 10)
+
+  const [daily, allTime] = await Promise.all([dbGetTop(dateStr, 10), dbGetAllTimeTop(10)])
+  return {daily, allTime}
 }
