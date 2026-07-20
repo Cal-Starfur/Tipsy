@@ -1,6 +1,12 @@
 import {requestExpandedMode} from '@devvit/web/client'
 import {Endpoint, type GetDailyBestRsp, type LeaderboardEntry} from '../shared/api.ts'
 
+/** The most recent fetch, kept around so the Today/All-Time tab toggle
+ *  can re-render instantly from what's already in memory rather than
+ *  round-tripping to the server on every tap. */
+let lastData: GetDailyBestRsp | null = null
+let activeTab: 'daily' | 'allTime' = 'daily'
+
 async function loadDailyBest(): Promise<void> {
   try {
     const rsp = await fetch(Endpoint.GetDailyBest)
@@ -11,7 +17,9 @@ async function loadDailyBest(): Promise<void> {
   }
 }
 
-function render({best, viewerUsername, top}: GetDailyBestRsp): void {
+function render(data: GetDailyBestRsp): void {
+  lastData = data
+  const {best, viewerUsername} = data
   const handle = viewerUsername ?? 'there'
 
   if (best) {
@@ -22,6 +30,15 @@ function render({best, viewerUsername, top}: GetDailyBestRsp): void {
     statEl.textContent = 'be the first on the board'
   }
 
+  renderActiveTab()
+}
+
+/** Redraws the list + party from whichever board is currently selected,
+ *  without touching greet/stat — those stay tied to the daily challenge
+ *  regardless of which board is being browsed. */
+function renderActiveTab(): void {
+  if (!lastData) return
+  const top = activeTab === 'daily' ? lastData.top : lastData.allTime.top
   renderLeaderboard(top)
 }
 
@@ -727,11 +744,34 @@ const robotCanvas = document.getElementById('robot-canvas') as HTMLCanvasElement
 const cardEl = document.getElementById('card') as HTMLElement
 const listEl = document.getElementById('list') as HTMLElement
 const partyEl = document.getElementById('party') as HTMLElement
+const tabDailyBtn = document.getElementById('tab-daily') as HTMLButtonElement
+const tabAllTimeBtn = document.getElementById('tab-alltime') as HTMLButtonElement
+const howToBtn = document.getElementById('how-to-btn') as HTMLButtonElement
+const howToModal = document.getElementById('how-to-modal') as HTMLElement
+const howToCloseBtn = document.getElementById('how-to-close') as HTMLButtonElement
 
 // Start never waits on the network — the challenge copy is a bonus, not
 // a gate. If the fetch is slow or fails, the default markup copy stands
 // and the button still works.
 startBtn.addEventListener('click', ev => requestExpandedMode(ev, 'game'))
+
+function selectTab(tab: 'daily' | 'allTime'): void {
+  activeTab = tab
+  tabDailyBtn.classList.toggle('active', tab === 'daily')
+  tabAllTimeBtn.classList.toggle('active', tab === 'allTime')
+  renderActiveTab()
+}
+tabDailyBtn.addEventListener('click', () => selectTab('daily'))
+tabAllTimeBtn.addEventListener('click', () => selectTab('allTime'))
+
+howToBtn.addEventListener('click', () => howToModal.classList.add('open'))
+howToCloseBtn.addEventListener('click', () => howToModal.classList.remove('open'))
+// Tapping the dimmed backdrop closes it too, not just the explicit close
+// button — but only when the tap lands on the backdrop itself, not
+// anything inside the card.
+howToModal.addEventListener('click', ev => {
+  if (ev.target === howToModal) howToModal.classList.remove('open')
+})
 
 try {
   renderRobotIcon(robotCanvas)
