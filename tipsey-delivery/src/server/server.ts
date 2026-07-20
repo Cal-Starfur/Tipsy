@@ -20,8 +20,11 @@ import {
   dbGetAllTimeBest,
   dbGetAllTimeTop,
   dbGetDailyBest,
+  dbGetDailyPostId,
   dbGetTop,
   dbRemoveUser,
+  dbSetDailyPostId,
+  dbShouldPostDaily,
   dbSubmitScore,
   todayUTC,
 } from './db.ts'
@@ -75,6 +78,9 @@ async function route(
         break
       case Endpoint.OnAccountDelete:
         rsp = await routeAccountDelete(reqMsg)
+        break
+      case Endpoint.OnSchedulerDailyPost:
+        rsp = await routeSchedulerDailyPost()
         break
       default:
         endpoint satisfies never
@@ -190,6 +196,40 @@ async function routeAccountDelete(
   return {}
 }
 
+/** Fires every 15 minutes (see devvit.json's cron), but only actually
+ *  posts once — dbShouldPostDaily() checks the real ET wall-clock
+ *  hour and atomically claims the day, so of the ~4 checks that land
+ *  inside the 6am ET hour, exactly one proceeds past this point.
+ *  Unstickying the previous day's post is best-effort: if it's
+ *  already gone or the call fails for any reason, that shouldn't
+ *  block today's post from going up. */
+async function routeSchedulerDailyPost(): Promise<TriggerResponse> {
+  const shouldPost = await dbShouldPostDaily()
+  if (!shouldPost) return {}
+
+  const prevId = await dbGetDailyPostId()
+  if (prevId) {
+    try {
+      const prevPost = await reddit.getPostById(prevId)
+      await prevPost.unsticky()
+    } catch (err) {
+      console.error(
+        'routeSchedulerDailyPost: failed to unsticky previous post',
+        err,
+      )
+    }
+  }
+
+  const post = await reddit.submitCustomPost({title: context.appSlug})
+  await dbSetDailyPostId(post.id)
+  try {
+    await post.sticky()
+  } catch (err) {
+    console.error('routeSchedulerDailyPost: failed to sticky new post', err)
+  }
+  return {}
+}
+
 async function readJson<T>(reqMsg: IncomingMessage): Promise<T> {
   const chunks: Uint8Array[] = []
   reqMsg.on('data', chunk => chunks.push(chunk))
@@ -210,5 +250,6 @@ function writeJson<T extends PartialJsonValue>(
   })
   rsp.end(body)
 }
+
 
 
