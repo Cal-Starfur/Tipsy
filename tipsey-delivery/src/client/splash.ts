@@ -807,7 +807,7 @@ class RobotRenderer {
  *  constants above (lidAng, etc.) change later — no separate asset to
  *  re-export by hand. */
 function renderRobotIcon(canvas: HTMLCanvasElement): void {
-  const cssWidth = 104
+  const cssWidth = 88
   const workSize = 500
 
   const off = document.createElement('canvas')
@@ -943,3 +943,4 @@ try {
   console.error('splash: robot render failed', err)
 }
 void loadDailyBest()
+
