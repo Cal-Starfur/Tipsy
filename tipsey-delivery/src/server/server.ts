@@ -15,6 +15,7 @@ import {
   type SubmitDailyBestRsp,
 } from '../shared/api.ts'
 import {
+  dbBackfillAllTimeFromDate,
   dbGetAllTimeBest,
   dbGetAllTimeTop,
   dbGetDailyBest,
@@ -66,6 +67,9 @@ async function route(
         break
       case Endpoint.OnAppInstall:
         rsp = await routeAppInstall()
+        break
+      case Endpoint.OnMenuBackfillAllTime:
+        rsp = await routeMenuBackfillAllTime()
         break
       default:
         endpoint satisfies never
@@ -136,6 +140,16 @@ async function routeAppInstall(): Promise<TriggerResponse> {
   return {}
 }
 
+async function routeMenuBackfillAllTime(): Promise<UiResponse> {
+  const {merged, total} = await dbBackfillAllTimeFromDate(todayUTC())
+  return {
+    showToast: {
+      text: `Backfilled ${merged} of ${total} of today's runs into the all-time board.`,
+      appearance: 'success',
+    },
+  }
+}
+
 async function readJson<T>(reqMsg: IncomingMessage): Promise<T> {
   const chunks: Uint8Array[] = []
   reqMsg.on('data', chunk => chunks.push(chunk))
@@ -156,3 +170,4 @@ function writeJson<T extends PartialJsonValue>(
   })
   rsp.end(body)
 }
+
