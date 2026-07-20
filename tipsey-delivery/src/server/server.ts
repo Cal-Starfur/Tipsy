@@ -86,6 +86,28 @@ async function route(
   writeJson<PartialJsonValue>('status' in rsp ? rsp.status : 200, rsp, rspMsg)
 }
 
+/** reddit.getCurrentUser() has been observed failing intermittently in
+ *  ways we've never been able to see, since it was previously wrapped
+ *  in a bare `.catch(() => null)` that swallowed the actual error —
+ *  confirmed on-device: a real player's submitted score landed under
+ *  'anonymous' instead of their username. Retries a couple of times
+ *  before giving up (cheap insurance against a transient failure,
+ *  whatever the cause), and actually logs it now so `devvit logs`
+ *  shows a real error next time instead of nothing. */
+async function getCurrentUserRetrying() {
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const user = await reddit.getCurrentUser()
+      if (user) return user
+    } catch (err) {
+      console.error(`getCurrentUser() attempt ${attempt} failed:`, err)
+    }
+    if (attempt < 3) await new Promise(r => setTimeout(r, 150 * attempt))
+  }
+  console.error('getCurrentUser() failed after 3 attempts -- falling back to anonymous')
+  return null
+}
+
 async function routeGetDailyBest(): Promise<GetDailyBestRsp> {
   const dateStr = todayUTC()
   const [best, top, allTimeBest, allTimeTop, user] = await Promise.all([
@@ -93,7 +115,7 @@ async function routeGetDailyBest(): Promise<GetDailyBestRsp> {
     dbGetTop(dateStr, 10),
     dbGetAllTimeBest(),
     dbGetAllTimeTop(10),
-    reddit.getCurrentUser().catch(() => null),
+    getCurrentUserRetrying(),
   ])
   return {
     dateStr,
@@ -109,7 +131,7 @@ async function routeSubmitDailyBest(
 ): Promise<SubmitDailyBestRsp> {
   const dateStr = todayUTC()
   const req = await readJson<SubmitDailyBestReq>(reqMsg)
-  const user = await reddit.getCurrentUser().catch(() => null)
+  const user = await getCurrentUserRetrying()
   const username = user?.username ?? 'anonymous'
   const {daily, allTime} = await dbSubmitScore(
     dateStr,
@@ -188,4 +210,5 @@ function writeJson<T extends PartialJsonValue>(
   })
   rsp.end(body)
 }
+
 
