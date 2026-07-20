@@ -25,7 +25,9 @@ import {
   dbRemoveUser,
   dbSetDailyPostId,
   dbShouldPostDaily,
+  dbShouldRunWeeklySweep,
   dbSubmitScore,
+  dbSweepDeletedUsers,
   todayUTC,
 } from './db.ts'
 
@@ -81,6 +83,9 @@ async function route(
         break
       case Endpoint.OnSchedulerDailyPost:
         rsp = await routeSchedulerDailyPost()
+        break
+      case Endpoint.OnSchedulerDeletedUserSweep:
+        rsp = await routeSchedulerDeletedUserSweep()
         break
       default:
         endpoint satisfies never
@@ -230,6 +235,29 @@ async function routeSchedulerDailyPost(): Promise<TriggerResponse> {
   return {}
 }
 
+/** Fires roughly weekly (see devvit.json's cron; dbShouldRunWeeklySweep
+ *  is defensive insurance against a duplicate firing, not the actual
+ *  cadence). This is the real substitute for the AccountDelete trigger
+ *  this app can't register (unsupported in this Devvit generation,
+ *  confirmed against the actual schema) — instead of reacting to a
+ *  deletion event, this actively checks every username currently
+ *  stored against Reddit and purges anyone who no longer resolves.
+ *  reddit.getUserByUsername returns undefined for a deleted or
+ *  suspended account. */
+async function routeSchedulerDeletedUserSweep(): Promise<TriggerResponse> {
+  const shouldRun = await dbShouldRunWeeklySweep()
+  if (!shouldRun) return {}
+
+  const {checked, removed} = await dbSweepDeletedUsers(async username => {
+    const user = await reddit.getUserByUsername(username)
+    return user !== undefined
+  })
+  console.log(
+    `routeSchedulerDeletedUserSweep: checked ${checked}, removed ${removed}`,
+  )
+  return {}
+}
+
 async function readJson<T>(reqMsg: IncomingMessage): Promise<T> {
   const chunks: Uint8Array[] = []
   reqMsg.on('data', chunk => chunks.push(chunk))
@@ -250,6 +278,7 @@ function writeJson<T extends PartialJsonValue>(
   })
   rsp.end(body)
 }
+
 
 
 
