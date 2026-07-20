@@ -141,3 +141,34 @@ export async function dbSubmitScore(
   ])
   return {daily, allTime}
 }
+
+/** One-time (safe to re-run) utility: copies every entry on today's
+ *  board into the all-time board wherever it's better than what's
+ *  already there. Exists to backfill all-time after it was added
+ *  mid-day, so runs that happened before the feature existed aren't
+ *  lost. Reads the full daily board, not just the top 10, so nobody
+ *  who played today is skipped. Re-running is harmless — an entry
+ *  only ever gets overwritten if it's actually an improvement. */
+export async function dbBackfillAllTimeFromDate(
+  dateStr: string,
+): Promise<{merged: number; total: number}> {
+  const dailyKey = leaderboardKey(dateStr)
+  const rows = await redis.zRange(dailyKey, 0, -1, {by: 'rank', reverse: true})
+  if (rows.length === 0) return {merged: 0, total: 0}
+
+  const usernames = rows.map(r => r.member)
+  const avatars = await redis.hMGet(avatarKey(dateStr), usernames)
+
+  let merged = 0
+  for (const [i, row] of rows.entries()) {
+    const allTimeCurrent = await redis.zScore(ALLTIME_KEY, row.member)
+    if (allTimeCurrent === undefined || row.score > allTimeCurrent) {
+      await redis.zAdd(ALLTIME_KEY, {member: row.member, score: row.score})
+      const url = avatars[i]
+      if (url) await redis.hSet(ALLTIME_AVATAR_KEY, {[row.member]: url})
+      merged++
+    }
+  }
+  return {merged, total: rows.length}
+}
+
