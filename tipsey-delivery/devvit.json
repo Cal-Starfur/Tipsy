@@ -40,6 +40,10 @@
       "daily-post-check": {
         "endpoint": "/internal/scheduler/daily-post-check",
         "cron": "*/15 * * * *"
+      },
+      "deleted-user-sweep": {
+        "endpoint": "/internal/scheduler/deleted-user-sweep",
+        "cron": "0 8 * * 0"
       }
     }
   },
@@ -50,5 +54,6 @@
     "subreddit": "tipsey_delivery_dev"
   }
 }
+
 
 
