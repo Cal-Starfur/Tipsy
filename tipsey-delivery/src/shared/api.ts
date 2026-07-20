@@ -46,6 +46,7 @@ export const Endpoint = {
   OnMenuNewPost: 'internal/on/menu/new-post',
   OnMenuBackfillAllTime: 'internal/on/menu/backfill-alltime',
   OnAccountDelete: 'internal/on/account/delete',
+  OnSchedulerDailyPost: 'internal/scheduler/daily-post-check',
 } as const
 export const EndpointMethod = {
   [Endpoint.GetDailyBest]: 'GET',
@@ -54,5 +55,7 @@ export const EndpointMethod = {
   [Endpoint.OnMenuNewPost]: 'POST',
   [Endpoint.OnMenuBackfillAllTime]: 'POST',
   [Endpoint.OnAccountDelete]: 'POST',
+  [Endpoint.OnSchedulerDailyPost]: 'POST',
 } as const satisfies {[endpoint: string]: 'GET' | 'POST'}
+
 
