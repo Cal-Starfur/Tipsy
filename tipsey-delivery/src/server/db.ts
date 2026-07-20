@@ -47,18 +47,30 @@ function avatarKey(dateStr: string): string {
 const ALLTIME_KEY = 'tipsy:global:board:alltime'
 const ALLTIME_AVATAR_KEY = 'tipsy:global:avatars:alltime'
 
-async function dbGetTopFromKey(key: string, avatarsKey: string, n: number): Promise<LeaderboardEntry[]> {
+async function dbGetTopFromKey(
+  key: string,
+  avatarsKey: string,
+  n: number,
+): Promise<LeaderboardEntry[]> {
   const rows = await redis.zRange(key, 0, n - 1, {by: 'rank', reverse: true})
   if (rows.length === 0) return []
   const usernames = rows.map(r => r.member)
   const avatars = await redis.hMGet(avatarsKey, usernames)
   return rows.map((r, i) => {
     const {tipCents, ms} = decodeScore(r.score)
-    return {username: r.member, tip: tipCents / 100, ms, avatarUrl: avatars[i] ?? null}
+    return {
+      username: r.member,
+      tip: tipCents / 100,
+      ms,
+      avatarUrl: avatars[i] ?? null,
+    }
   })
 }
 
-export async function dbGetTop(dateStr: string, n: number): Promise<LeaderboardEntry[]> {
+export async function dbGetTop(
+  dateStr: string,
+  n: number,
+): Promise<LeaderboardEntry[]> {
   return dbGetTopFromKey(leaderboardKey(dateStr), avatarKey(dateStr), n)
 }
 
@@ -108,7 +120,8 @@ export async function dbSubmitScore(
     redis.zScore(ALLTIME_KEY, username),
   ])
   const dailyBetter = dailyCurrent === undefined || newScore > dailyCurrent
-  const allTimeBetter = allTimeCurrent === undefined || newScore > allTimeCurrent
+  const allTimeBetter =
+    allTimeCurrent === undefined || newScore > allTimeCurrent
 
   if (dailyBetter || allTimeBetter) {
     const url = await reddit.getSnoovatarUrl(username).catch(() => undefined)
@@ -122,6 +135,9 @@ export async function dbSubmitScore(
     }
   }
 
-  const [daily, allTime] = await Promise.all([dbGetTop(dateStr, 10), dbGetAllTimeTop(10)])
+  const [daily, allTime] = await Promise.all([
+    dbGetTop(dateStr, 10),
+    dbGetAllTimeTop(10),
+  ])
   return {daily, allTime}
 }
