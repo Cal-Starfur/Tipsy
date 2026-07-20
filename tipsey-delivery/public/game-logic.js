@@ -2925,6 +2925,14 @@ class WorldScene extends Phaser.Scene {
        car/prop in this file already goes through layerFor; this pass
        just never got that same treatment when it was split out to fix
        the earlier roof-covering-car bug. */
+    /* sorted by real world depth before drawing — otherwise cars within
+       this pass draw in raw insertion order (stall 0, then 1, then 2),
+       which only happens to look right when a parking row's edge
+       orientation lines up with that order by coincidence, and reads
+       as visibly wrong otherwise (reported on-device, f=1 specifically).
+       Still its own pass, still after roofs — this only fixes ordering
+       WITHIN the pass, not when the pass itself runs. */
+    topLayer.sort((a, b) => (a.x + a.y) - (b.x + b.y));
     for(const c of topLayer) this.drawProp(layerFor(c.x, c.y), c.kind, c.x, c.y, t, c.fdir, 0);
 
     /* volumetric props (and ground-kind hazards like curb ramps) are
