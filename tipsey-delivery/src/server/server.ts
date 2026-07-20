@@ -14,7 +14,14 @@ import {
   type SubmitDailyBestReq,
   type SubmitDailyBestRsp,
 } from '../shared/api.ts'
-import {dbGetAllTimeBest, dbGetAllTimeTop, dbGetDailyBest, dbGetTop, dbSubmitScore, todayUTC} from './db.ts'
+import {
+  dbGetAllTimeBest,
+  dbGetAllTimeTop,
+  dbGetDailyBest,
+  dbGetTop,
+  dbSubmitScore,
+  todayUTC,
+} from './db.ts'
 
 type AnyRsp =
   | GetDailyBestRsp
@@ -95,12 +102,23 @@ async function routeSubmitDailyBest(
   const req = await readJson<SubmitDailyBestReq>(reqMsg)
   const user = await reddit.getCurrentUser().catch(() => null)
   const username = user?.username ?? 'anonymous'
-  const {daily, allTime} = await dbSubmitScore(dateStr, req.tip, req.ms, username)
+  const {daily, allTime} = await dbSubmitScore(
+    dateStr,
+    req.tip,
+    req.ms,
+    username,
+  )
   const first = daily[0]
-  const best = first ? {tip: first.tip, ms: first.ms, username: first.username} : null
+  const best = first
+    ? {tip: first.tip, ms: first.ms, username: first.username}
+    : null
   const allTimeFirst = allTime[0]
   const allTimeBest = allTimeFirst
-    ? {tip: allTimeFirst.tip, ms: allTimeFirst.ms, username: allTimeFirst.username}
+    ? {
+        tip: allTimeFirst.tip,
+        ms: allTimeFirst.ms,
+        username: allTimeFirst.username,
+      }
     : null
   return {dateStr, best, top: daily, allTime: {best: allTimeBest, top: allTime}}
 }
