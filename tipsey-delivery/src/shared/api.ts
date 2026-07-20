@@ -21,10 +21,16 @@ export type GetDailyBestRsp = {
   best: DailyBest
   viewerUsername: string | null
   top: LeaderboardEntry[]
+  allTime: {best: DailyBest; top: LeaderboardEntry[]}
 }
 /** A completed run's tip/time, to be checked against the current best. */
 export type SubmitDailyBestReq = {tip: number; ms: number}
-export type SubmitDailyBestRsp = {dateStr: string; best: DailyBest; top: LeaderboardEntry[]}
+export type SubmitDailyBestRsp = {
+  dateStr: string
+  best: DailyBest
+  top: LeaderboardEntry[]
+  allTime: {best: DailyBest; top: LeaderboardEntry[]}
+}
 export type Endpoint = (typeof Endpoint)[keyof typeof Endpoint]
 export const Endpoint = {
   GetDailyBest: 'api/tipsy/best',
