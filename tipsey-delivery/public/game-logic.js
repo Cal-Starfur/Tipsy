@@ -3693,7 +3693,10 @@ class WorldScene extends Phaser.Scene {
         vq.push({ depth:hx+hy, fn:(g,t)=>{
           if(!isGateMode) this.drawHouseUnit(g, ux, uy, e.dv, e.rv, u.w, hseed, true, 'body');
           const drawDoorAndMat = isGateMode
-            ? () => this.drawGateFence(g, ux, uy, e.dv, e.rv, u.w, doorCenterX, GATE_HALF_W, hseed)
+            ? () => {
+                this.drawGateFence(g, ux, uy, e.dv, e.rv, u.w, doorCenterX, GATE_HALF_W, hseed);
+                this.drawMatQuad(g, ux, uy, e.dv, e.rv, doorCenterX, dz);
+              }
             : () => {
                 this.drawDoorAssembly(g, ux, uy, e.dv, e.rv, doorCenterX, dz, this.doorTheta);
                 this.drawMatQuad(g, ux, uy, e.dv, e.rv, doorCenterX, dz);
