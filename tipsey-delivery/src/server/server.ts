@@ -16,12 +16,12 @@ import {
   type SubmitDailyBestRsp,
 } from '../shared/api.ts'
 import {
-  dbBackfillAllTimeFromDate,
   dbGetAllTimeBest,
   dbGetAllTimeTop,
   dbGetDailyBest,
   dbGetDailyPostId,
   dbGetTop,
+  dbMigrateAllTimeToCumulative,
   dbRemoveUser,
   dbSetDailyPostId,
   dbShouldPostDaily,
@@ -75,8 +75,8 @@ async function route(
       case Endpoint.OnAppInstall:
         rsp = await routeAppInstall()
         break
-      case Endpoint.OnMenuBackfillAllTime:
-        rsp = await routeMenuBackfillAllTime()
+      case Endpoint.OnMenuMigrateAllTimeCumulative:
+        rsp = await routeMenuMigrateAllTimeCumulative()
         break
       case Endpoint.OnAccountDelete:
         rsp = await routeAccountDelete(reqMsg)
@@ -178,11 +178,13 @@ async function routeAppInstall(): Promise<TriggerResponse> {
   return {}
 }
 
-async function routeMenuBackfillAllTime(): Promise<UiResponse> {
-  const {merged, total} = await dbBackfillAllTimeFromDate(todayUTC())
+async function routeMenuMigrateAllTimeCumulative(): Promise<UiResponse> {
+  const {migrated, alreadyRan} = await dbMigrateAllTimeToCumulative()
   return {
     showToast: {
-      text: `Backfilled ${merged} of ${total} of today's runs into the all-time board.`,
+      text: alreadyRan
+        ? 'Already migrated — no changes made.'
+        : `Migrated ${migrated} player${migrated === 1 ? '' : 's'} to cumulative all-time totals.`,
       appearance: 'success',
     },
   }
