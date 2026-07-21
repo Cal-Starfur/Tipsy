@@ -278,9 +278,18 @@ function mulberry32(seed: number): () => number {
 
 function renderCityBackdrop(
   canvas: HTMLCanvasElement,
-  w: number,
-  h: number,
+  wIn: number,
+  hIn: number,
 ): void {
+  // Devvit's webview doesn't always have #card laid out yet at the instant
+  // this first runs (unlike the robot canvas, which computes its own fixed
+  // offscreen size and never depends on DOM measurement) — a 0×0 backing
+  // store just renders nothing, even though the CSS box still stretches to
+  // fill the card. Fall back to a sane default so there's always something
+  // on screen; sizeAndRenderCityBackdrop below re-renders at the real size
+  // once layout/ResizeObserver confirms it.
+  const w = wIn > 0 ? wIn : 380
+  const h = hIn > 0 ? hIn : 660
   const dpr = window.devicePixelRatio || 1
   canvas.width = w * dpr
   canvas.height = h * dpr
@@ -1125,10 +1134,24 @@ howToModal.addEventListener('click', ev => {
   if (ev.target === howToModal) howToModal.classList.remove('open')
 })
 
-try {
-  renderCityBackdrop(cityCanvas, cardEl.clientWidth, cardEl.clientHeight)
-} catch (err) {
-  console.error('splash: city backdrop render failed', err)
+function sizeAndRenderCityBackdrop(): void {
+  try {
+    renderCityBackdrop(cityCanvas, cardEl.clientWidth, cardEl.clientHeight)
+  } catch (err) {
+    console.error('splash: city backdrop render failed', err)
+  }
+}
+sizeAndRenderCityBackdrop()
+// #card's real size isn't always settled on the very first tick in
+// Devvit's webview (see renderCityBackdrop's fallback comment) — a
+// ResizeObserver catches the real layout whenever it lands, and also
+// keeps the map correctly framed across orientation/size changes, which
+// a one-shot render never would.
+if (typeof ResizeObserver !== 'undefined') {
+  const cityResizeObserver = new ResizeObserver(() =>
+    sizeAndRenderCityBackdrop(),
+  )
+  cityResizeObserver.observe(cardEl)
 }
 try {
   renderRobotIcon(robotCanvas)
