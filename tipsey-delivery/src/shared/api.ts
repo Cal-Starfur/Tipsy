@@ -2,7 +2,10 @@
 export type ErrorRsp = {error: string; status: number}
 /** A shared daily-best record — null if nobody's set one yet today. */
 export type DailyBest = {tip: number; ms: number; username: string} | null
-/** One row of the daily leaderboard — best single run for that user today.
+/** One row of a leaderboard. On the daily board, tip/ms is that user's
+ *  best single run that day. On the all-time board, tip is a running
+ *  cumulative total across every run they've ever submitted and ms is
+ *  always 0 (there's no meaningful "time" for a sum of runs).
  *  avatarUrl is cached at submission time (not fetched live per view) —
  *  null if the user has no snoovatar set, or the lookup failed. */
 export type LeaderboardEntry = {
@@ -44,7 +47,7 @@ export const Endpoint = {
   SubmitDailyBest: 'api/tipsy/best/submit',
   OnAppInstall: 'internal/on/app/install',
   OnMenuNewPost: 'internal/on/menu/new-post',
-  OnMenuBackfillAllTime: 'internal/on/menu/backfill-alltime',
+  OnMenuMigrateAllTimeCumulative: 'internal/on/menu/migrate-alltime-cumulative',
   OnAccountDelete: 'internal/on/account/delete',
   OnSchedulerDailyPost: 'internal/scheduler/daily-post-check',
   OnSchedulerDeletedUserSweep: 'internal/scheduler/deleted-user-sweep',
@@ -54,7 +57,7 @@ export const EndpointMethod = {
   [Endpoint.SubmitDailyBest]: 'POST',
   [Endpoint.OnAppInstall]: 'POST',
   [Endpoint.OnMenuNewPost]: 'POST',
-  [Endpoint.OnMenuBackfillAllTime]: 'POST',
+  [Endpoint.OnMenuMigrateAllTimeCumulative]: 'POST',
   [Endpoint.OnAccountDelete]: 'POST',
   [Endpoint.OnSchedulerDailyPost]: 'POST',
   [Endpoint.OnSchedulerDeletedUserSweep]: 'POST',
