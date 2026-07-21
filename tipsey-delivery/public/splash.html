@@ -21,7 +21,7 @@
       display: grid;
       place-items: center;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background: radial-gradient(120% 90% at 50% -10%, #4a2a72 0%, #2a1246 45%, #150a26 100%);
+      background: #14161b;
       color: var(--ink);
       padding: 24px 0;
     }
@@ -31,6 +31,19 @@
       border: 1px solid rgba(255, 255, 255, 0.08);
       border-radius: 24px;
       overflow: hidden;
+      background: #14161b;
+    }
+    /* Costa Palma neighborhood grid — same block/road palette as the
+       real in-game map (drawRouteMap in game/index.html), drawn fresh
+       here in plain Canvas 2D since the splash intentionally never
+       pulls Phaser in (see splash.ts kickoff comment). Fixed seed, so
+       it's a consistent location shot, not a randomized background. */
+    #city-bg {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
     }
     .party {
       position: absolute;
@@ -44,11 +57,11 @@
       position: absolute;
       inset: 0;
       background: linear-gradient(180deg,
-        rgba(20, 12, 36, 0.55) 0%,
-        rgba(20, 12, 36, 0.45) 22%,
-        rgba(20, 12, 36, 0.62) 45%,
-        rgba(20, 12, 36, 0.78) 65%,
-        rgba(20, 12, 36, 0.88) 100%);
+        rgba(16, 17, 22, 0.60) 0%,
+        rgba(16, 17, 22, 0.42) 24%,
+        rgba(16, 17, 22, 0.55) 46%,
+        rgba(14, 15, 20, 0.74) 68%,
+        rgba(12, 13, 18, 0.90) 100%);
     }
     .content {
       position: relative;
@@ -283,6 +296,7 @@
   </head>
   <body>
     <main id="card">
+      <canvas id="city-bg"></canvas>
       <button id="how-to-btn" type="button">How to Play</button>
       <button id="notify-btn" type="button">Notify Me</button>
       <div class="party" id="party"></div>
