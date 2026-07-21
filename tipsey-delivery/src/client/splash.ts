@@ -160,7 +160,13 @@ function renderLeaderboard(top: LeaderboardEntry[]): void {
 
     const scoreEl = document.createElement('span')
     scoreEl.className = 'score'
-    scoreEl.textContent = `${formatTip(entry.tip)} · ${formatTime(entry.ms)}`
+    // Daily rows are a single best run (tip + time both mean something).
+    // All-time rows are a cumulative total across every run — there's no
+    // single "time" to show alongside a sum, so just the total.
+    scoreEl.textContent =
+      activeTab === 'daily'
+        ? `${formatTip(entry.tip)} · ${formatTime(entry.ms)}`
+        : formatTip(entry.tip)
 
     row.append(rankEl, makeListChip(entry), nameEl, scoreEl)
     listEl.appendChild(row)
@@ -953,5 +959,3 @@ try {
   console.error('splash: robot render failed', err)
 }
 void loadDailyBest()
-
-
