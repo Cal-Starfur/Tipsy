@@ -1086,6 +1086,7 @@ const greetEl = document.getElementById('greet') as HTMLParagraphElement
 const statEl = document.getElementById('stat') as HTMLParagraphElement
 const robotCanvas = document.getElementById('robot-canvas') as HTMLCanvasElement
 const cityCanvas = document.getElementById('city-bg') as HTMLCanvasElement
+const pageBgCanvas = document.getElementById('page-bg') as HTMLCanvasElement
 const cardEl = document.getElementById('card') as HTMLElement
 const listEl = document.getElementById('list') as HTMLElement
 const partyEl = document.getElementById('party') as HTMLElement
@@ -1153,6 +1154,22 @@ if (typeof ResizeObserver !== 'undefined') {
   )
   cityResizeObserver.observe(cardEl)
 }
+
+// Same map, extended to the full page behind #card — Reddit gives this
+// post a taller frame than the compact card fills, and a flat color
+// back there reads as dead space next to the card's own detailed map.
+// Viewport-sized rather than element-sized, so it tracks window resize
+// rather than #card's own layout.
+function sizeAndRenderPageBackdrop(): void {
+  try {
+    renderCityBackdrop(pageBgCanvas, window.innerWidth, window.innerHeight)
+  } catch (err) {
+    console.error('splash: page backdrop render failed', err)
+  }
+}
+sizeAndRenderPageBackdrop()
+window.addEventListener('resize', sizeAndRenderPageBackdrop)
+
 try {
   renderRobotIcon(robotCanvas)
 } catch (err) {
