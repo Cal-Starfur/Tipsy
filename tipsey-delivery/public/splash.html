@@ -27,11 +27,24 @@
     }
     main {
       position: relative;
+      z-index: 1;
       width: min(92vw, 380px);
       border: 1px solid rgba(255, 255, 255, 0.08);
       border-radius: 24px;
       overflow: hidden;
       background: #14161b;
+    }
+    /* the same Costa Palma grid, extended behind the whole page — Reddit
+       gives this post a taller frame than the card fills, and a flat
+       color there read as dead space next to the card's own detailed
+       map. Dimmed so the card still reads as the foreground focus. */
+    #page-bg {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 0;
+      filter: brightness(0.5) saturate(0.85);
     }
     /* Costa Palma neighborhood grid — same block/road palette as the
        real in-game map (drawRouteMap in game/index.html), drawn fresh
@@ -295,6 +308,7 @@
     </style>
   </head>
   <body>
+    <canvas id="page-bg"></canvas>
     <main id="card">
       <canvas id="city-bg"></canvas>
       <button id="how-to-btn" type="button">How to Play</button>
