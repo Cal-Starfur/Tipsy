@@ -24,11 +24,11 @@
         "endpoint": "/internal/on/menu/new-post"
       },
       {
-        "label": "[tipsey-delivery] Backfill All-Time from Today",
-        "description": "One-time utility: copies today's runs into the all-time board. Safe to re-run.",
+        "label": "[tipsey-delivery] Migrate All-Time to Cumulative",
+        "description": "One-time: switches the all-time board from best-run to a running total, seeded from each player's current best run. Safe to re-run — only takes effect once.",
         "location": "subreddit",
         "forUserType": "moderator",
-        "endpoint": "/internal/on/menu/backfill-alltime"
+        "endpoint": "/internal/on/menu/migrate-alltime-cumulative"
       }
     ]
   },
