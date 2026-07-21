@@ -49,8 +49,11 @@ function avatarKey(dateStr: string): string {
 }
 
 /** All-time board is a single pair of keys, never date-scoped — unlike
- *  the daily board's key, these never rotate, so a user's best run ever
- *  stays ranked regardless of when it happened. */
+ *  the daily board's key, these never rotate. Score is a running
+ *  cumulative total of every tip a player has ever earned (see
+ *  dbSubmitScore), not a best-single-run comparison like the daily
+ *  board — so someone who plays often outranks someone who only had
+ *  one great run. */
 const ALLTIME_KEY = 'tipsy:global:board:alltime'
 const ALLTIME_AVATAR_KEY = 'tipsy:global:avatars:alltime'
 
@@ -58,13 +61,14 @@ async function dbGetTopFromKey(
   key: string,
   avatarsKey: string,
   n: number,
+  decode: (score: number) => {tipCents: number; ms: number},
 ): Promise<LeaderboardEntry[]> {
   const rows = await redis.zRange(key, 0, n - 1, {by: 'rank', reverse: true})
   if (rows.length === 0) return []
   const usernames = rows.map(r => r.member)
   const avatars = await redis.hMGet(avatarsKey, usernames)
   return rows.map((r, i) => {
-    const {tipCents, ms} = decodeScore(r.score)
+    const {tipCents, ms} = decode(r.score)
     return {
       username: r.member,
       tip: tipCents / 100,
@@ -78,11 +82,25 @@ export async function dbGetTop(
   dateStr: string,
   n: number,
 ): Promise<LeaderboardEntry[]> {
-  return dbGetTopFromKey(leaderboardKey(dateStr), avatarKey(dateStr), n)
+  return dbGetTopFromKey(
+    leaderboardKey(dateStr),
+    avatarKey(dateStr),
+    n,
+    decodeScore,
+  )
 }
 
+/** All-time scores are a plain cumulative cent total (see dbSubmitScore),
+ *  not the tip+time encoding the daily board uses — there's no per-run
+ *  time to decode out of a running sum, so ms is always 0 here. Decoding
+ *  an all-time score with the daily decodeScore() would silently read
+ *  back as $0.00 for any real total (it divides by the 10,000,000
+ *  multiplier meant for single-run scores), so this needs its own decode. */
 export async function dbGetAllTimeTop(n: number): Promise<LeaderboardEntry[]> {
-  return dbGetTopFromKey(ALLTIME_KEY, ALLTIME_AVATAR_KEY, n)
+  return dbGetTopFromKey(ALLTIME_KEY, ALLTIME_AVATAR_KEY, n, score => ({
+    tipCents: score,
+    ms: 0,
+  }))
 }
 
 export async function dbGetDailyBest(dateStr: string): Promise<DailyBest> {
@@ -103,15 +121,19 @@ export async function dbGetAllTimeBest(): Promise<DailyBest> {
  *  overwrite each other with a worse one. Only one entry per user is
  *  kept per day (their best) — a plain zAdd would overwrite regardless
  *  of direction, so the current score is fetched and compared first.
- *  The snoovatar is only looked up (and only overwrites the cache) when
- *  this submission actually becomes that user's new best for today —
- *  not on every attempt — since it's an extra Reddit API call.
  *
- *  The daily and all-time boards are updated independently in the same
- *  call: a run can be this user's new daily best without being their
- *  all-time best (or vice versa, on a day they don't beat an old
- *  personal record), so each is checked and written on its own rather
- *  than assuming one implies the other. */
+ *  The all-time board is a running total, not a best-run comparison —
+ *  every completed delivery adds its tip via zIncrBy, unconditionally,
+ *  so a player who plays often climbs the board over time rather than
+ *  needing one lucky run. Daily and all-time are otherwise independent:
+ *  a run can be this user's new daily best without changing their
+ *  all-time rank much at all, and vice versa.
+ *
+ *  The snoovatar is only looked up (and only written) when it'll
+ *  actually be used for the first time: a new daily best (existing
+ *  rule), or this user's first-ever appearance on the all-time board
+ *  (their avatar isn't cached there yet) — not on every attempt, since
+ *  it's an extra Reddit API call and snoovatars rarely change. */
 export async function dbSubmitScore(
   dateStr: string,
   tip: number,
@@ -127,10 +149,9 @@ export async function dbSubmitScore(
     redis.zScore(ALLTIME_KEY, username),
   ])
   const dailyBetter = dailyCurrent === undefined || newScore > dailyCurrent
-  const allTimeBetter =
-    allTimeCurrent === undefined || newScore > allTimeCurrent
+  const isFirstAllTimeAppearance = allTimeCurrent === undefined
 
-  if (dailyBetter || allTimeBetter) {
+  if (dailyBetter || isFirstAllTimeAppearance) {
     const url = await reddit.getSnoovatarUrl(username).catch(() => undefined)
     if (dailyBetter) {
       await redis.zAdd(dailyKey, {member: username, score: newScore})
@@ -138,11 +159,14 @@ export async function dbSubmitScore(
       await redis.expire(dailyKey, DAILY_TTL_SECONDS)
       await redis.expire(avatarKey(dateStr), DAILY_TTL_SECONDS)
     }
-    if (allTimeBetter) {
-      await redis.zAdd(ALLTIME_KEY, {member: username, score: newScore})
-      if (url) await redis.hSet(ALLTIME_AVATAR_KEY, {[username]: url})
+    if (isFirstAllTimeAppearance && url) {
+      await redis.hSet(ALLTIME_AVATAR_KEY, {[username]: url})
     }
   }
+
+  // Every completed delivery contributes to the cumulative total,
+  // regardless of whether it was a personal best.
+  await redis.zIncrBy(ALLTIME_KEY, username, tipCents)
 
   const [daily, allTime] = await Promise.all([
     dbGetTop(dateStr, 10),
@@ -151,34 +175,33 @@ export async function dbSubmitScore(
   return {daily, allTime}
 }
 
-/** One-time (safe to re-run) utility: copies every entry on today's
- *  board into the all-time board wherever it's better than what's
- *  already there. Exists to backfill all-time after it was added
- *  mid-day, so runs that happened before the feature existed aren't
- *  lost. Reads the full daily board, not just the top 10, so nobody
- *  who played today is skipped. Re-running is harmless — an entry
- *  only ever gets overwritten if it's actually an improvement. */
-export async function dbBackfillAllTimeFromDate(
-  dateStr: string,
-): Promise<{merged: number; total: number}> {
-  const dailyKey = leaderboardKey(dateStr)
-  const rows = await redis.zRange(dailyKey, 0, -1, {by: 'rank', reverse: true})
-  if (rows.length === 0) return {merged: 0, total: 0}
+const ALLTIME_CUMULATIVE_MIGRATION_KEY =
+  'tipsy:global:board:alltime:migrated-cumulative'
 
-  const usernames = rows.map(r => r.member)
-  const avatars = await redis.hMGet(avatarKey(dateStr), usernames)
+/** One-time (safe to re-run) migration: the all-time board used to store
+ *  each player's single best-ever run (tip+time encoded together, see
+ *  encodeScore). It's now a running cumulative total instead (see
+ *  dbSubmitScore), so every existing entry needs rewriting from "best
+ *  run" to "current total" — seeded from that best run, since real
+ *  per-run history was never recorded and can't be reconstructed.
+ *  Claimed via the same nx-set pattern as the daily-post and
+ *  weekly-sweep checks (see dbShouldPostDaily) so a second click on the
+ *  admin menu can't re-seed anyone and silently double their total. */
+export async function dbMigrateAllTimeToCumulative(): Promise<{
+  migrated: number
+  alreadyRan: boolean
+}> {
+  const claimed = await redis.set(ALLTIME_CUMULATIVE_MIGRATION_KEY, '1', {
+    nx: true,
+  })
+  if (claimed === null) return {migrated: 0, alreadyRan: true}
 
-  let merged = 0
-  for (const [i, row] of rows.entries()) {
-    const allTimeCurrent = await redis.zScore(ALLTIME_KEY, row.member)
-    if (allTimeCurrent === undefined || row.score > allTimeCurrent) {
-      await redis.zAdd(ALLTIME_KEY, {member: row.member, score: row.score})
-      const url = avatars[i]
-      if (url) await redis.hSet(ALLTIME_AVATAR_KEY, {[row.member]: url})
-      merged++
-    }
+  const rows = await redis.zRange(ALLTIME_KEY, 0, -1, {by: 'rank'})
+  for (const row of rows) {
+    const {tipCents} = decodeScore(row.score)
+    await redis.zAdd(ALLTIME_KEY, {member: row.member, score: tipCents})
   }
-  return {merged, total: rows.length}
+  return {migrated: rows.length, alreadyRan: false}
 }
 
 /** Handles AccountDelete: strips the user from every board this app can
@@ -310,5 +333,3 @@ export async function dbSweepDeletedUsers(
   }
   return {checked: usernames.length, removed}
 }
-
-
