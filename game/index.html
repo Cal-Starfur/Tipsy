@@ -639,6 +639,13 @@ const HYD = {
   water: 0xbfe6f2, waterDk: 0x8fc8dc,
   shadow: 0x000000
 };
+/* cargo damage meter (spec: red-zone dwell damage) — a top-speed
+   hydrant/scooter bonk deals ~55-62 damage in one shot (kick*mult,
+   speed capped at 0.15), so this needs to stay well under "one hit
+   per second" or it'd dominate the damage stat outright. Starting
+   value, not yet tuned on-device. */
+const DAMAGE_REDZONE_DPS = 8;   // cargo damage/sec while |tilt| stays past the 0.75 danger line
+
 /* dialed in the hydrant hit lab: burst + hydroplane numbers */
 const HYD_SLIP = {
   thresh: 0.055,   // hit speed that shears the nozzle
@@ -7201,6 +7208,15 @@ class WorldScene extends Phaser.Scene {
       this.tilt -= this.tilt * 0.0021 * dt;
       this.tilt += (Math.random()-0.5) * this.speed * (1-this.route.hood.pave) * 0.012 * dt;
 
+      /* cargo damage meter (spec, red-zone dwell): riding past the same
+         0.75 danger line the HUD gauge and lid-crack already key off
+         bleeds cargo damage continuously, not just on impact — a near-
+         tip you HOLD costs more than one you snap out of. Unlike a
+         hazard kick this is dt-scaled (per second, not per hit), and
+         still respects the same 95 cap every other damage source uses. */
+      if(Math.abs(this.tilt) > 0.75)
+        this.damage = Math.min(95, this.damage + DAMAGE_REDZONE_DPS * dt/1000);
+
       /* traffic collision: unlike the other hazards above, this isn't
          gated on the robot's own speed -- a moving car can hit a robot
          that's standing still, not just the other way around. Position
@@ -8197,6 +8213,23 @@ class WorldScene extends Phaser.Scene {
     g.strokePath();
     g.lineStyle(3, 0x2e3138, 1);
     g.lineBetween(cx, cy, cx + Math.sin(this.tilt*1.2)*r, cy - Math.cos(this.tilt*1.2)*r);
+
+    /* cargo damage meter — separate bar under the tilt gauge (spec:
+       tied to the red zone, own widget rather than fused into tilt's).
+       Fills 0->95, the same cap the tip-deduction math uses (dmgPen =
+       damage*0.2 in showWin), so what the player watches fill IS the
+       real payout hit, not a cosmetic stand-in. No decay: unlike tilt,
+       cargo damage is permanent for the run. Reuses tilt gauge's own
+       0.45/0.75 color breakpoints for a consistent visual language,
+       against damage's own 0-1 fraction rather than tilt's. */
+    const dmgFrac = Phaser.Math.Clamp(this.damage / 95, 0, 1);
+    const barW = 70, barH = 6, barX = cx - barW/2, barY = cy + r + 14;
+    g.fillStyle(0x000000, 0.35);
+    g.fillRoundedRect(barX, barY, barW, barH, barH/2);
+    if(dmgFrac > 0){
+      g.fillStyle(dmgFrac > 0.75 ? 0xc2452e : dmgFrac > 0.45 ? 0xff7a1a : 0x3f7d43, 1);
+      g.fillRoundedRect(barX, barY, Math.max(barH, barW*dmgFrac), barH, barH/2);
+    }
 
     /* DOM readout (see #gpsHud CSS): textContent update is cheap, the
        browser centers it, font-size:min() shrinks it on narrow screens,
