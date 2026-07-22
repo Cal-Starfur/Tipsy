@@ -20,6 +20,6 @@ jobs:
         uses: remarkablegames/setup-butler@v3
 
       - name: Push to itch.io
-        run: butler push build cal-starfur/tipsy:html5
+        run: butler push build cal-starfur/tipsey:html5
         env:
           BUTLER_API_KEY: ${{ secrets.BUTLER_API_KEY }}
