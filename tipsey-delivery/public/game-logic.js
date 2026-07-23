@@ -8058,21 +8058,26 @@ class WorldScene extends Phaser.Scene {
     g.lineStyle(3, 0x2e3138, 1);
     g.lineBetween(cx, cy, cx + Math.sin(this.tilt*1.2)*r, cy - Math.cos(this.tilt*1.2)*r);
 
-    /* cargo damage meter — separate bar under the tilt gauge (spec:
+    /* cargo condition meter — separate bar under the tilt gauge (spec:
        tied to the red zone, own widget rather than fused into tilt's).
-       Fills 0->95, the same cap the tip-deduction math uses (dmgPen =
-       damage*0.2 in showWin), so what the player watches fill IS the
-       real payout hit, not a cosmetic stand-in. No decay: unlike tilt,
-       cargo damage is permanent for the run. Reuses tilt gauge's own
-       0.45/0.75 color breakpoints for a consistent visual language,
-       against damage's own 0-1 fraction rather than tilt's. */
+       Starts full green (pristine cargo) and DRAINS toward empty as
+       damage/95 climbs -- reads as "quality remaining," not "damage
+       taken," so a fresh run is visibly full rather than visibly
+       blank. Cap of 95 matches the tip-deduction math (dmgPen =
+       damage*0.2 in showWin), so what the player watches drain IS the
+       real payout hit. No refill: unlike tilt, cargo damage is
+       permanent for the run. Color still keys off raw damage fraction
+       (tilt gauge's own 0.45/0.75 breakpoints) even though width now
+       tracks the inverse -- a crash snaps damage to 95, which drains
+       this to fully empty: nothing left, goods ruined. */
     const dmgFrac = Phaser.Math.Clamp(this.damage / 95, 0, 1);
+    const qualityFrac = 1 - dmgFrac;
     const barW = 70, barH = 6, barX = cx - barW/2, barY = cy + r + 14;
     g.fillStyle(0x000000, 0.35);
     g.fillRoundedRect(barX, barY, barW, barH, barH/2);
-    if(dmgFrac > 0){
+    if(qualityFrac > 0){
       g.fillStyle(dmgFrac > 0.75 ? 0xc2452e : dmgFrac > 0.45 ? 0xff7a1a : 0x3f7d43, 1);
-      g.fillRoundedRect(barX, barY, Math.max(barH, barW*dmgFrac), barH, barH/2);
+      g.fillRoundedRect(barX, barY, barW*qualityFrac, barH, barH/2);
     }
 
     /* DOM readout (see #gpsHud CSS): textContent update is cheap, the
