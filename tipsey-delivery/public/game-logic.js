@@ -7094,6 +7094,13 @@ class WorldScene extends Phaser.Scene {
       if(Math.abs(this.tilt) >= 1){
         this.state = "tipped";
         this.tipDir = Math.sign(this.tilt);
+        /* cargo damage meter: a crash always fully ruins the goods,
+           independent of whatever the accumulated damage number
+           happened to be. Without this, a single fatal hit early in an
+           otherwise-clean run could tip the robot while the bar was
+           still green -- the crash itself IS the worst thing that can
+           happen to the cargo, so it should always read that way. */
+        this.damage = 95;
         this.tipStartRoll = this.roll;   // whatever lean we actually had the instant
                                           // we tipped — the fall animation eases FROM
                                           // this, not from an implicit flat start
