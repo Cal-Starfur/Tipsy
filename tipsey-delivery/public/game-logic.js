@@ -8066,9 +8066,11 @@ class WorldScene extends Phaser.Scene {
        blank. Cap of 95 matches the tip-deduction math (dmgPen =
        damage*0.2 in showWin), so what the player watches drain IS the
        real payout hit. No refill: unlike tilt, cargo damage is
-       permanent for the run. Color still keys off raw damage fraction
-       (tilt gauge's own 0.45/0.75 breakpoints) even though width now
-       tracks the inverse -- a crash snaps damage to 95, which drains
+       permanent for the run. Color keys off raw damage fraction, width
+       off its inverse. Thresholds (0.25/0.5) are intentionally earlier
+       than the tilt gauge's own 0.45/0.75 -- cargo condition is meant
+       to read as compromised well before a tip-over is imminent, not
+       in lockstep with it. A crash snaps damage to 95, which drains
        this to fully empty: nothing left, goods ruined. */
     const dmgFrac = Phaser.Math.Clamp(this.damage / 95, 0, 1);
     const qualityFrac = 1 - dmgFrac;
@@ -8076,7 +8078,7 @@ class WorldScene extends Phaser.Scene {
     g.fillStyle(0x000000, 0.35);
     g.fillRoundedRect(barX, barY, barW, barH, barH/2);
     if(qualityFrac > 0){
-      g.fillStyle(dmgFrac > 0.75 ? 0xc2452e : dmgFrac > 0.45 ? 0xff7a1a : 0x3f7d43, 1);
+      g.fillStyle(dmgFrac > 0.5 ? 0xc2452e : dmgFrac > 0.25 ? 0xff7a1a : 0x3f7d43, 1);
       g.fillRoundedRect(barX, barY, barW*qualityFrac, barH, barH/2);
     }
 
