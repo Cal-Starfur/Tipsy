@@ -66,7 +66,7 @@
   .brand{font-size:18px;font-weight:800;letter-spacing:1px;color:#ff7a1a;margin-bottom:8px;}
   #routeMap{display:block;}
   #titleOverlay{padding:0;justify-content:flex-start;}
-  #screenWrap{width:100vw;height:100vh;height:100dvh;height:calc(var(--vh, 1vh) * 100);display:flex;flex-direction:column;
+  #screenWrap{width:100vw;height:100vh;height:100dvh;display:flex;flex-direction:column;
     border-radius:20px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,.35);}
   #mapCard{position:relative;width:100%;flex:1;min-height:0;overflow:hidden;}
   #mapCard .brand{position:absolute;top:14px;left:50%;transform:translateX(-50%);margin:0;text-shadow:0 1px 4px rgba(181,84,14,.9),0 1px 4px rgba(181,84,14,.9);}
@@ -162,22 +162,6 @@
 <script src="https://cdn.jsdelivr.net/npm/phaser@3.85.2/dist/phaser.min.js"></script>
 <script>
 "use strict";
-
-/* Real visible-viewport height, in px, written to --vh — iOS Safari's
-   dynamic toolbar (and some iframe embeds, e.g. itch.io) can report a
-   dvh taller than what's actually on screen with no way to scroll and
-   reveal the rest (touch-action:none below blocks all scrolling), which
-   parked the GO button off the bottom of the screen on larger phones.
-   window.innerHeight is measured post-layout against whatever box we're
-   actually given (top-level Safari tab, standalone PWA, or an itch.io
-   iframe), so #screenWrap can never be sized taller than what's visible. */
-function setRealVH(){
-  document.documentElement.style.setProperty("--vh", (window.innerHeight * 0.01) + "px");
-}
-setRealVH();
-window.addEventListener("resize", setRealVH);
-window.addEventListener("orientationchange", setRealVH);
-if(window.visualViewport) window.visualViewport.addEventListener("resize", setRealVH);
 
 /* Reddit/Devvit build only ever plays the daily map — a synchronous
    query-param flag lets us hide the Today/Random Day selector before
@@ -7273,6 +7257,13 @@ class WorldScene extends Phaser.Scene {
       if(Math.abs(this.tilt) >= 1){
         this.state = "tipped";
         this.tipDir = Math.sign(this.tilt);
+        /* cargo damage meter: a crash always fully ruins the goods,
+           independent of whatever the accumulated damage number
+           happened to be. Without this, a single fatal hit early in an
+           otherwise-clean run could tip the robot while the bar was
+           still green -- the crash itself IS the worst thing that can
+           happen to the cargo, so it should always read that way. */
+        this.damage = 95;
         this.tipStartRoll = this.roll;   // whatever lean we actually had the instant
                                           // we tipped — the fall animation eases FROM
                                           // this, not from an implicit flat start
