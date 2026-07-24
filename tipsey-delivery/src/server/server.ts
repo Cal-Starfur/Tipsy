@@ -201,7 +201,7 @@ async function routeSchedulerDailyPost(): Promise<TriggerResponse> {
   const prevId = await dbGetDailyPostId()
   if (prevId) {
     try {
-      const prevPost = await reddit.getPostById(prevId)
+      const prevPost = await reddit.getPostById(prevId as `t3_${string}`)
       await prevPost.unsticky()
     } catch (err) {
       console.error(
