@@ -21,7 +21,6 @@ import {
   dbGetDailyBest,
   dbGetDailyPostId,
   dbGetTop,
-  dbResetAllTime,
   dbRemoveUser,
   dbSetDailyPostId,
   dbShouldPostDaily,
@@ -74,9 +73,6 @@ async function route(
         break
       case Endpoint.OnAppInstall:
         rsp = await routeAppInstall()
-        break
-      case Endpoint.OnMenuResetAllTime:
-        rsp = await routeMenuResetAllTime()
         break
       case Endpoint.OnAccountDelete:
         rsp = await routeAccountDelete(reqMsg)
@@ -176,27 +172,6 @@ async function routeMenuNewPost(): Promise<UiResponse> {
 async function routeAppInstall(): Promise<TriggerResponse> {
   await reddit.submitCustomPost({title: context.appSlug})
   return {}
-}
-
-/** Refusal is the expected outcome once real play resumes, so it's
- *  reported as a neutral toast rather than an error — see dbResetAllTime
- *  for why the precondition is the safety mechanism. */
-async function routeMenuResetAllTime(): Promise<UiResponse> {
-  const {cleared, refused} = await dbResetAllTime()
-  if (refused) {
-    return {
-      showToast: {
-        text: 'Refused — the all-time board has live scores on it. Reset only runs on a fully zeroed board.',
-        appearance: 'neutral',
-      },
-    }
-  }
-  return {
-    showToast: {
-      text: `All-time board reset — ${cleared} entr${cleared === 1 ? 'y' : 'ies'} cleared. Everyone starts from zero on their next delivery.`,
-      appearance: 'success',
-    },
-  }
 }
 
 async function routeAccountDelete(
