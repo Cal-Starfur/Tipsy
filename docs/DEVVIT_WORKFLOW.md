@@ -71,46 +71,35 @@ part of the actual workflow here; don't default to suggesting it.
 
 ## Updating r/tipsey (production)
 
-**This is a two-step process: `publish`, then a separate `install`.**
-Confirmed straight from the CLI's own help text:
-
-- **`upload`** — creates a new version, but that version is only
-  installable on a subreddit under 200 subscribers. Not r/tipsey's
-  situation.
-- **`publish`** — creates the version, uploads it, *and* files it for
-  Reddit's review. This already includes what `upload` does — never run
-  both.
-- **`install`** — the separate step that actually points a specific
-  subreddit at a specific version. **A subreddit does NOT auto-jump to
-  a new version just because one was published or approved** — it
-  stays pinned to whatever version it was last installed with until
-  `install` is run again.
+**Confirmed working, no review needed:** `devvit upload` followed by
+`devvit install r/tipsey` — run from inside `tipsey-delivery/`, no app
+name argument (the CLI already knows which app from the current
+directory; `devvit install tipsey-delivery r/tipsey` — two args — is
+WRONG and errors with "App r/tipsey is not found").
 
 ```bash
 cd /workspaces/Tipsy
 git pull
 cd tipsey-delivery
-npm run test
-devvit publish
+devvit upload
+devvit install r/tipsey
 ```
 
-That submits the new version for review — nothing more to do until
-Reddit approves it (check status at
-`https://developers.reddit.com/apps/tipsey-delivery`, or ask Claude to
-poll it). **Once approved**, this is the command that actually makes
-r/tipsey run it:
-
-```bash
-devvit install tipsey-delivery r/tipsey
-```
-
-(defaults to `@latest`, i.e. whatever version was just approved)
+That's the whole thing — this is the actual command for getting a
+change onto r/tipsey, verified working end to end (confirmed live at
+version 0.0.20). Don't reach for `devvit publish` by default; it files
+the app for Reddit review, which is unnecessary friction for a routine
+update and isn't what's actually been used here.
 
 If `devvit install` errors with *"That version of this app isn't ready
-to be installed yet"* right after publishing/uploading, that's a
-benign, known timing issue — Reddit's backend needs a few moments to
-finish processing server-side. Just wait ~30s and retry, don't
-re-upload.
+to be installed yet"* right after uploading, that's a benign, known
+timing issue — Reddit's backend needs a few moments to finish
+processing server-side. Wait ~30s and retry, don't re-upload.
+
+(`publish` + review may become necessary again someday — e.g. if a
+future upload does get rejected by `install` for a subscriber-count or
+review-status reason — but don't default to it. Let the actual error
+tell you if it's needed.)
 
 ## The itch.io deploy is separate from all of the above
 
