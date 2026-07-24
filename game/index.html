@@ -6498,11 +6498,11 @@ class WorldScene extends Phaser.Scene {
 
       /* throttle / brake / hill gravity / friction */
       const slope = this.groundSlope(this.botS);          // + uphill
-      if(this.throttle === 1) this.speed += 0.00028*dt;
-      if(this.throttle === -1) this.speed -= 0.00050*dt;
+      if(this.throttle === 1) this.speed += 0.00042*dt;
+      if(this.throttle === -1) this.speed -= 0.00075*dt;
       this.speed -= slope * 0.00030 * dt;                 // gravity
       this.speed -= this.speed * 0.0009 * dt;             // rolling friction
-      this.speed = Phaser.Math.Clamp(this.speed, 0, 0.15);
+      this.speed = Phaser.Math.Clamp(this.speed, 0, 0.225);
       /* ground-speed correction (ported from the corner+robot lab): botS
          parameterizes the CENTERLINE arc length, but the robot draws
          offset sideways by laneOff. On an arc, the robot's actual traced
@@ -6681,7 +6681,7 @@ class WorldScene extends Phaser.Scene {
           if(onLane(hz.row) && this.botS > hz.s - 30 && this.botS < hz.s){
             this.botS = safeStop(hz.s - 30);
             this.isBlocked = true;
-            if(this.speed > 0.035 && !hz.hit){
+            if(this.speed > 0.08 && !hz.hit){
               hz.hit = true;                               // the bonk (once per approach)
               const kick = this.speed * 7 * (Math.random() < 0.5 ? 1 : -1);
               this.tilt += kick;
@@ -6721,7 +6721,7 @@ class WorldScene extends Phaser.Scene {
           if(onLane(hz.row) && this.botS > hz.s - 26 && this.botS < hz.s){
             this.botS = safeStop(hz.s - 26);
             this.isBlocked = true;
-            if(this.speed > 0.035 && !hz.hit){
+            if(this.speed > 0.08 && !hz.hit){
               hz.hit = true;
               const kick = this.speed * HYD_SLIP.bonk * (Math.random() < 0.5 ? 1 : -1);
               this.tilt += kick;
@@ -6793,7 +6793,7 @@ class WorldScene extends Phaser.Scene {
              feed the punt back into re-triggering itself, stacking
              redundant tilt/damage on the robot for what should read
              as a single clean bonk. */
-          if(!hz.hit && Math.abs(dx) < 26 && onLane(hz.row) && this.speed > 0.015){
+          if(!hz.hit && Math.abs(dx) < 26 && onLane(hz.row) && this.speed > 0.08){
             hz.hit = true;
             if(hz.fallPsi === undefined) hz.fallPsi = (Math.random() - 0.5) * 0.5;
             const sp = this.speed;
@@ -6835,7 +6835,7 @@ class WorldScene extends Phaser.Scene {
           if(onLane(hz.row) && this.botS > binS - BOT_CLEAR && this.botS < binS){
             this.botS = safeStop(binS - BOT_CLEAR);
             this.isBlocked = true;
-            if(this.speed > 0.035 && !hz.bonked && hz.pose !== "knocked"){
+            if(this.speed > 0.08 && !hz.bonked && hz.pose !== "knocked"){
               hz.bonked = true;
               if(hz.fallPsi === undefined) hz.fallPsi = (Math.random() - 0.5) * 0.5;
               const sp = this.speed;
@@ -6928,7 +6928,7 @@ class WorldScene extends Phaser.Scene {
                 hz.angVel += 0.07 * 0.012 * PLANTER_HIT.kick / Math.pow(hz.scale, PLANTER_HIT.potPower) * (dt/16);
               }
             }
-          } else if(!hz.hit && Math.abs(dx) < 26 && onLane(hz.row) && this.speed > 0.035 && hz.pose !== "knocked"){
+          } else if(!hz.hit && Math.abs(dx) < 26 && onLane(hz.row) && this.speed > 0.08 && hz.pose !== "knocked"){
             hz.hit = true;
             if(hz.fallPsi === undefined)
               hz.fallPsi = (this.botS <= hz.s ? 0 : Math.PI) + (Math.random()-0.5)*0.4;   // away from the robot, like the oversized case
