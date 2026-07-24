@@ -69,20 +69,27 @@ the real testing loop — no Codespace, no devvit CLI needed. `playtest`
 against `tipsey_delivery_dev` exists as a Devvit-CLI feature but isn't
 part of the actual workflow here; don't default to suggesting it.
 
-## Publishing live to r/tipsey (production)
+## Updating r/tipsey (production)
+
+**Use `devvit upload`, not `devvit publish`.** `publish` is for changing
+the app's public directory listing (name, description, review flow) —
+`upload` pushes a new version to the app as already installed on
+r/tipsey without re-triggering any of that. There's no npm script for
+this yet, so it's the raw commands:
 
 ```bash
 cd /workspaces/Tipsy
 git pull
 cd tipsey-delivery
 npm install
-npm run publish
+npm run clean
+npm run build
+devvit upload
 ```
 
-This runs `npm run clean && npm run build && devvit publish` (already
-scripted in `package.json`). Unconfirmed whether an update to an
-already-installed app republishes instantly or queues for Reddit's own
-review — read whatever `devvit publish` prints after it finishes.
+Read whatever `devvit upload` prints when it finishes — should confirm
+the new version is live on already-installed instances, including
+r/tipsey.
 
 ## The itch.io deploy is separate from all of the above
 
