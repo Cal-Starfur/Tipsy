@@ -553,10 +553,10 @@ function peopleSpotAt(tms, hz){
     const phase = seed % 100000;   // desyncs everyone so they don't all turn in lockstep
     const u = ((tms + phase) % cyc + cyc) % cyc;
     let a, th, walking;
-    if(u < legMs){                          a = lo + u*SPEED;                     th = 0;        walking = true;  }
-    else if(u < legMs + PAUSE){              a = hi;                               th = 0;        walking = false; }
-    else if(u < legMs*2 + PAUSE){            a = hi - (u - legMs - PAUSE)*SPEED;   th = Math.PI;  walking = true;  }
-    else {                                   a = lo;                               th = Math.PI;  walking = false; }
+    if(u < legMs){                          a = lo + u*SPEED;                     th = -Math.PI/2; walking = true;  }
+    else if(u < legMs + PAUSE){              a = hi;                               th = -Math.PI/2; walking = false; }
+    else if(u < legMs*2 + PAUSE){            a = hi - (u - legMs - PAUSE)*SPEED;   th = Math.PI/2;  walking = true;  }
+    else {                                   a = lo;                               th = Math.PI/2;  walking = false; }
     return { a, b: 0, th, walk: walking ? 1 : 0 };
   }
   const wp = i => {
