@@ -532,7 +532,33 @@ const PEOPLE_SHOE  = [{c:0x1c1c1c,dk:0x121212},{c:0x5c4530,dk:0x483623},{c:0xf2f
    sidewalk instead of standing frozen until hit. Pure function of
    (t, seed): the sim's collision check and the renderer call the same
    thing, so the hitbox always matches the art. */
-function peopleSpotAt(tms, seed){
+function peopleSpotAt(tms, hz){
+  const seed = (hz && hz.peopleSeed) || 0;
+  /* sidewalk walk (requested 2026-07-24): if this person got a walk
+     range at spawn time (walkS0/walkS1 -- see the people spawn branch;
+     only set for a wide-enough straight sidewalk run), ping-pong along
+     it at a steady clip with a brief pause at each end, instead of
+     idling in the old +-30 box. Returned .a is still an offset from
+     hz.s -- same contract both callers already expect (render's
+     ax = x + dv.x*spotA..., collision's dx -= spotA) -- so nothing
+     downstream needs to know which mode produced it. No range (or a
+     range that collapsed to a point, see spawn branch) falls through
+     to the original idle wander unchanged. */
+  if(hz && hz.walkS0 !== undefined && hz.walkS1 !== undefined && hz.walkS1 > hz.walkS0){
+    const lo = hz.walkS0 - hz.s, hi = hz.walkS1 - hz.s;
+    const SPEED = 0.02;      // units/ms -- brisk walking pace, ~9% of the robot's 0.225 top speed
+    const PAUSE = 900;       // ms idle at each end before turning back
+    const legMs = (hi - lo) / SPEED;
+    const cyc = legMs*2 + PAUSE*2;
+    const phase = seed % 100000;   // desyncs everyone so they don't all turn in lockstep
+    const u = ((tms + phase) % cyc + cyc) % cyc;
+    let a, th, walking;
+    if(u < legMs){                          a = lo + u*SPEED;                     th = 0;        walking = true;  }
+    else if(u < legMs + PAUSE){              a = hi;                               th = 0;        walking = false; }
+    else if(u < legMs*2 + PAUSE){            a = hi - (u - legMs - PAUSE)*SPEED;   th = Math.PI;  walking = true;  }
+    else {                                   a = lo;                               th = Math.PI;  walking = false; }
+    return { a, b: 0, th, walk: walking ? 1 : 0 };
+  }
   const wp = i => {
     const r = mulberry32((seed ^ Math.imul(i|0, 2654435761)) >>> 0);
     return { a: -30 + r()*60, b: -26 + r()*52 };
@@ -563,7 +589,7 @@ function peopleFleeAt(tms, hz){
 function peopleSettledSpot(hz){
   if(!hz || hz.hitT === undefined) return null;
   const DUR = 2600, DIST = 250;
-  const base = peopleSpotAt(hz.hitT + DUR, hz.peopleSeed || 0);
+  const base = peopleSpotAt(hz.hitT + DUR, hz);
   return {
     a: base.a + (hz.fleeA || 1) * DIST,
     b: base.b - DIST * 0.45,
@@ -1954,7 +1980,23 @@ function generateRoute(dateStr){
     const hzObj = { type, s: hsR, row: lane, f: facingAt(hsR), hit:false };
     if(type === "dog"){ hzObj.dogSeed = (rng()*4294967296) >>> 0;  // coat + scar + waypoints
                         hzObj.sit = rng() < 0.4; }                 // ~40% sitters
-    if(type === "people"){ hzObj.peopleSeed = (rng()*4294967296) >>> 0; }  // body/skin/shirt/pants/hair/shoe
+    if(type === "people"){
+      hzObj.peopleSeed = (rng()*4294967296) >>> 0;  // body/skin/shirt/pants/hair/shoe
+      /* sidewalk-walking range (requested 2026-07-24): confined to the
+         straight run they spawned on -- same "line"-segment-only
+         restriction the pigeon flocks already use above, so nobody
+         gets routed through a corner's arc geometry. Margin (same
+         CROSSING_CLEAR the route generator already uses) keeps the
+         walk off the curb cut at each end. If the block's too short
+         after margins, walkS0/walkS1 collapse to a point and
+         peopleSpotAt's own fallback leaves them on the old idle
+         wander -- nobody regresses, they just don't get a route. */
+      const pSeg = segs.find(g => hsR >= g.s0 && hsR <= g.s1 && g.type === "line");
+      if(pSeg){
+        const w0 = pSeg.s0 + CROSSING_CLEAR, w1 = pSeg.s1 - CROSSING_CLEAR;
+        if(w1 - w0 >= T2){ hzObj.walkS0 = w0; hzObj.walkS1 = w1; }
+      }
+    }
     if(type === "cone"){
       const preKnocked = rng() < 0.4;
       hzObj.phi = preKnocked ? CONE_HIT.phiRest : 0;
@@ -5379,7 +5421,7 @@ class WorldScene extends Phaser.Scene {
       const pHair = PEOPLE_HAIR[Math.floor(prng()*PEOPLE_HAIR.length)];
       const pShoe = PEOPLE_SHOE[Math.floor(prng()*PEOPLE_SHOE.length)];
 
-      const spot = peopleSpotAt(t, pSeed);
+      const spot = peopleSpotAt(t, data || {peopleSeed: pSeed});
       const flee = peopleFleeAt(t, data);
       const settled = flee && flee.gone;
       const settledSpot = settled ? peopleSettledSpot(data) : null;
@@ -6673,7 +6715,7 @@ class WorldScene extends Phaser.Scene {
             hz.hit = false;
             dx -= peopleSettledSpot(hz).a;
           } else {
-            dx -= peopleSpotAt(t, hz.peopleSeed || 0).a;
+            dx -= peopleSpotAt(t, hz).a;
           }
         }
         if(hz.type === "palm"){
