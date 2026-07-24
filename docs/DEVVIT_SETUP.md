@@ -1,3 +1,9 @@
+> **⚠️ SUPERSEDED — historical only.** This describes the old
+> `devvit/` Blocks scaffold and the `tools/bridge3.js` remote
+> bridge, neither of which reflect the current setup. For the
+> real, current workflow (`tipsey-delivery/`, login, playtest,
+> publish), see `docs/DEVVIT_WORKFLOW.md` instead.
+
 # Devvit setup — porting TIPSY to Reddit
 
 ## What's here
