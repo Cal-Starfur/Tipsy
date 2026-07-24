@@ -175,33 +175,46 @@ export async function dbSubmitScore(
   return {daily, allTime}
 }
 
-const ALLTIME_CUMULATIVE_MIGRATION_KEY =
-  'tipsy:global:board:alltime:migrated-cumulative'
-
-/** One-time (safe to re-run) migration: the all-time board used to store
- *  each player's single best-ever run (tip+time encoded together, see
- *  encodeScore). It's now a running cumulative total instead (see
- *  dbSubmitScore), so every existing entry needs rewriting from "best
- *  run" to "current total" — seeded from that best run, since real
- *  per-run history was never recorded and can't be reconstructed.
- *  Claimed via the same nx-set pattern as the daily-post and
- *  weekly-sweep checks (see dbShouldPostDaily) so a second click on the
- *  admin menu can't re-seed anyone and silently double their total. */
-export async function dbMigrateAllTimeToCumulative(): Promise<{
-  migrated: number
-  alreadyRan: boolean
+/** Clears the all-time board outright — every member, every score, and
+ *  the cached snoovatars that went with them. dbSubmitScore's zIncrBy
+ *  recreates the key on the next completed delivery, so there's nothing
+ *  to re-seed afterward: the board simply starts accumulating again
+ *  from zero.
+ *
+ *  This exists because the cumulative migration it replaces destroyed
+ *  the board. That migration ran decodeScore() over every entry on the
+ *  assumption they were still in the old best-run encoding, but
+ *  dbSubmitScore's zIncrBy (plain cents) shipped in the same deploy and
+ *  had been writing the new format for days by the time the mod menu
+ *  was clicked — so every real total floored to zero
+ *  (Math.floor(1250 / 10_000_000) === 0; a plain total has to clear
+ *  $100,000 to survive that divide) and zAdd wrote the zeros back over
+ *  every member. The true values are unrecoverable: zAdd overwrote in
+ *  place, Devvit Redis offers no snapshot, and per-run history was
+ *  never recorded anywhere. Rebuilding from the surviving daily boards
+ *  was considered and rejected — those keep only each player's best run
+ *  per day, so the result would misstate totals in both directions.
+ *
+ *  REFUSES TO RUN IF ANY SCORE IS NONZERO. This is the whole safety
+ *  design, and it's deliberately not an nx claim flag: a flag is what
+ *  let the migration report a destructive pass as a completed one, and
+ *  it protects nothing on a second click that a real precondition
+ *  wouldn't protect better. The only state this can act on is a board
+ *  where every entry is zero — which is precisely the damaged state and
+ *  nothing else. The moment real play resumes, the board has live
+ *  scores and this refuses permanently. It cannot become the landmine
+ *  the migration was; deliberately resetting again later would take a
+ *  code change, which is the correct amount of friction for an
+ *  irreversible operation. */
+export async function dbResetAllTime(): Promise<{
+  cleared: number
+  refused: boolean
 }> {
-  const claimed = await redis.set(ALLTIME_CUMULATIVE_MIGRATION_KEY, '1', {
-    nx: true,
-  })
-  if (claimed === null) return {migrated: 0, alreadyRan: true}
-
   const rows = await redis.zRange(ALLTIME_KEY, 0, -1, {by: 'rank'})
-  for (const row of rows) {
-    const {tipCents} = decodeScore(row.score)
-    await redis.zAdd(ALLTIME_KEY, {member: row.member, score: tipCents})
-  }
-  return {migrated: rows.length, alreadyRan: false}
+  if (rows.some(row => row.score > 0)) return {cleared: 0, refused: true}
+
+  await redis.del(ALLTIME_KEY, ALLTIME_AVATAR_KEY)
+  return {cleared: rows.length, refused: false}
 }
 
 /** Handles AccountDelete: strips the user from every board this app can
