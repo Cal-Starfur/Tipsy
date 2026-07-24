@@ -1931,7 +1931,7 @@ function generateRoute(dateStr){
        crossing/corner exclusions are unchanged — the course just gets
        twice as busy. Cracks and slabs keep their own dedicated passes
        and levers. */
-    hs += ((330 - density*176) + rng()*198) * 0.5;
+    hs += ((330 - density*176) + rng()*198) * 0.25;
     const hsR = Math.round(hs);
     if(inCorner(hsR)) continue;
     const lane = Math.floor(rng()*4);
@@ -2027,7 +2027,7 @@ function generateRoute(dateStr){
      for gameplay). Different offset = different position = drawProp's
      own position-seeded rng naturally varies lean/height/sway per
      companion without any extra seeding work needed. */
-  for(let ps = SPAWN_S + 140; ps < totalLen - 220; ps += 286 + rng()*264){
+  for(let ps = SPAWN_S + 140; ps < totalLen - 220; ps += (286 + rng()*264) * 0.25){
     const psR = Math.round(ps);
     if(inCorner(psR)) continue;
     if(!onSidewalk(psR, laneOffset(3))) continue;
@@ -2078,7 +2078,7 @@ function generateRoute(dateStr){
   }
 
   /* hydrants: lane 0, closest to the road — the real curb side. */
-  for(let ys = SPAWN_S + 220; ys < totalLen - 280; ys += 1056 + rng()*1144){
+  for(let ys = SPAWN_S + 220; ys < totalLen - 280; ys += (1056 + rng()*1144) * 0.25){
     const ysR = Math.round(ys);
     if(inCorner(ysR)) continue;
     if(!onSidewalk(ysR, laneOffset(0))) continue;
@@ -2116,7 +2116,7 @@ function generateRoute(dateStr){
      would exceed 1.0 there. Spacing has no such ceiling. */
   let ss = SPAWN_S + 260;
   while(ss < totalLen - 320){
-    ss += 200 + rng()*277;
+    ss += (200 + rng()*277) * 0.5;
     if(inCorner(ss)) continue;
     if(rng() > 0.18 + (1 - hood.pave)*0.75) continue;
     const runN = 1 + Math.floor(rng()*3);
@@ -2144,7 +2144,7 @@ function generateRoute(dateStr){
      touching scooter/trash/cone/dog/people/bin/planter's odds. */
   let cs = SPAWN_S + 180;
   while(cs < totalLen - 240){
-    cs += 22 + rng()*110;
+    cs += (22 + rng()*110) * 0.5;
     if(inCorner(cs)) continue;
     if(rng() > (1 - hood.pave)*0.45) continue;
     const crow = Math.floor(rng()*4);
@@ -6739,9 +6739,15 @@ class WorldScene extends Phaser.Scene {
              puddle draws at. */
           const slickS = hz.s + (hz.pudDir ? hz.pudDir * T2 : 0);
           const sdx = this.botS - slickS;
+          /* water spreads off the curb — the flood shouldn't need the
+             exact lane the hydrant itself sits in (onLane's T2*0.5 half-
+             tile band). Widened to 1.5 tiles so the puddle also catches
+             the adjacent lane; hydrants only ever spawn at row 0, and a
+             player who isn't hugging the curb was never getting wet. */
+          const inFlood = Math.abs(this.laneOff - laneOffset(hz.row)) < T2*1.5;
           if(hz.burst && !this.slide && !hz.slid){
             const grow = Math.min(1, (t - hz.burstT)/1800);
-            if(onLane(hz.row) && Math.abs(sdx) < HYD_SLIP.pud*grow && this.speed > 0.02){
+            if(inFlood && Math.abs(sdx) < HYD_SLIP.pud*grow && this.speed > 0.02){
               hz.slid = true;
               this.slide = { t0: t, dur: 800 + 300*HYD_SLIP.spin,
                              dir: Math.random() < 0.5 ? 1 : -1,
