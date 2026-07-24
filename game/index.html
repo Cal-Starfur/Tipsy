@@ -4815,6 +4815,19 @@ class WorldScene extends Phaser.Scene {
          shadow) so the hydrant's own body always draws over it. */
       const HH = HYD;
       const bursting = kind === "hydrantBurst" || !!(data && data.burst);
+      /* the "facing" checks below (puddle, spray, breakable nozzle) all
+         gate on hth -- a per-hydrant RANDOM decorative rotation, not the
+         route's actual heading or camera direction. For the static lab
+         gallery (kind==="hydrantBurst", no live data) that randomness is
+         fine, just visual variety across instances. But for a real,
+         player-triggered burst (data.burst) it meant roughly half of
+         all burst hydrants never showed water at all -- the slip/
+         collision physics don't care about hth, so the player could
+         hydroplane with nothing visible to explain it (reported
+         2026-07-24). forceVisible makes the breakable nozzle's spray +
+         puddle always show for a live burst; the decorative rear nozzle
+         and the static gallery kind are untouched. */
+      const forceVisible = !!(data && data.burst);
       const grow = (data && data.burstT !== undefined)
         ? Math.min(1, (t - data.burstT)/1800) : 1;
       const seed = ((Math.round(x)*7919) ^ (Math.round(y)*104729) ^ 0x4a7d) >>> 0;
@@ -4848,7 +4861,7 @@ class WorldScene extends Phaser.Scene {
          parts so the barrel/dome/nozzles naturally draw over it. */
       if(bursting){
         const nc0 = 1, ns0 = 0;
-        const facing0 = nc0*(hcs+hsn) + ns0*(hcs-hsn) > 0;
+        const facing0 = (nc0*(hcs+hsn) + ns0*(hcs-hsn) > 0) || forceVisible;
         if(facing0){
           const tipA0 = HH.baseR*0.55 + HH.nozR*2.2;
           /* robot-burst floods pool around the base (that's where the
@@ -4897,7 +4910,7 @@ class WorldScene extends Phaser.Scene {
       const hnozzleSpray = (ang, r) => () => {
         if(!bursting) return;
         const nc = Math.cos(ang), ns = Math.sin(ang);
-        const facing = nc*(hcs+hsn) + ns*(hcs-hsn) > 0;
+        const facing = (nc*(hcs+hsn) + ns*(hcs-hsn) > 0) || forceVisible;
         if(!facing) return;
         const tipA = nc*(HH.baseR*0.55 + r*2.2), tipB = ns*(HH.baseR*0.55 + r*2.2);
         const hgt = height*0.42;
@@ -4928,7 +4941,7 @@ class WorldScene extends Phaser.Scene {
           return pts;
         };
         this.quadOn(g, convexHull(ring(baseA,baseB,r).concat(ring(tipA,tipB,r))), HH.cap);
-        const facing = nc*(hcs+hsn) + ns*(hcs-hsn) > 0;
+        const facing = (nc*(hcs+hsn) + ns*(hcs-hsn) > 0) || (breakable && forceVisible);
         if(!facing) return;
         if(bursting && breakable){
           this.quadOn(g, ring(tipA,tipB,r*0.9), HH.nut);
