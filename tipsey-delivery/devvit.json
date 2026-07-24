@@ -22,13 +22,6 @@
         "description": "Create a new tipsey-delivery post.",
         "location": "subreddit",
         "endpoint": "/internal/on/menu/new-post"
-      },
-      {
-        "label": "[tipsey-delivery] Reset All-Time Board",
-        "description": "Clears the all-time board so it starts from zero. Refuses to run if the board has any nonzero score.",
-        "location": "subreddit",
-        "forUserType": "moderator",
-        "endpoint": "/internal/on/menu/reset-alltime"
       }
     ]
   },
@@ -54,6 +47,3 @@
     "subreddit": "tipsey_delivery_dev"
   }
 }
-
-
-
