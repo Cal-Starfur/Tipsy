@@ -71,25 +71,46 @@ part of the actual workflow here; don't default to suggesting it.
 
 ## Updating r/tipsey (production)
 
-**Use `devvit upload`, not `devvit publish`.** `publish` is for changing
-the app's public directory listing (name, description, review flow) —
-`upload` pushes a new version to the app as already installed on
-r/tipsey without re-triggering any of that. There's no npm script for
-this yet, so it's the raw commands:
+**This is a two-step process: `publish`, then a separate `install`.**
+Confirmed straight from the CLI's own help text:
+
+- **`upload`** — creates a new version, but that version is only
+  installable on a subreddit under 200 subscribers. Not r/tipsey's
+  situation.
+- **`publish`** — creates the version, uploads it, *and* files it for
+  Reddit's review. This already includes what `upload` does — never run
+  both.
+- **`install`** — the separate step that actually points a specific
+  subreddit at a specific version. **A subreddit does NOT auto-jump to
+  a new version just because one was published or approved** — it
+  stays pinned to whatever version it was last installed with until
+  `install` is run again.
 
 ```bash
 cd /workspaces/Tipsy
 git pull
 cd tipsey-delivery
-npm install
-npm run clean
-npm run build
-devvit upload
+npm run test
+devvit publish
 ```
 
-Read whatever `devvit upload` prints when it finishes — should confirm
-the new version is live on already-installed instances, including
-r/tipsey.
+That submits the new version for review — nothing more to do until
+Reddit approves it (check status at
+`https://developers.reddit.com/apps/tipsey-delivery`, or ask Claude to
+poll it). **Once approved**, this is the command that actually makes
+r/tipsey run it:
+
+```bash
+devvit install tipsey-delivery r/tipsey
+```
+
+(defaults to `@latest`, i.e. whatever version was just approved)
+
+If `devvit install` errors with *"That version of this app isn't ready
+to be installed yet"* right after publishing/uploading, that's a
+benign, known timing issue — Reddit's backend needs a few moments to
+finish processing server-side. Just wait ~30s and retry, don't
+re-upload.
 
 ## The itch.io deploy is separate from all of the above
 
