@@ -62,27 +62,20 @@ logged-in username after (`Logged in as X`) actually matches the
 intended account before doing anything else — worth a sanity check
 every time, not just once.
 
-## Getting a change onto the dev subreddit (playtest)
+## Testing
 
-Dev target is pinned in `tipsey-delivery/devvit.json` →
-`"dev": {"subreddit": "tipsey_delivery_dev"}` — no need to pass a
-subreddit name.
+GitHub Pages (`https://cal-starfur.github.io/Tipsy/game/index.html`) is
+the real testing loop — no Codespace, no devvit CLI needed. `playtest`
+against `tipsey_delivery_dev` exists as a Devvit-CLI feature but isn't
+part of the actual workflow here; don't default to suggesting it.
+
+## Publishing live to r/tipsey (production)
 
 ```bash
 cd /workspaces/Tipsy
 git pull
 cd tipsey-delivery
 npm install
-npm run playtest
-```
-
-`npm run playtest` → `devvit playtest`. Live-syncs on further file
-changes once running — no need to re-run per edit.
-
-## Publishing live to r/tipsey (production)
-
-```bash
-cd /workspaces/Tipsy/tipsey-delivery
 npm run publish
 ```
 
