@@ -21,7 +21,7 @@ import {
   dbGetDailyBest,
   dbGetDailyPostId,
   dbGetTop,
-  dbMigrateAllTimeToCumulative,
+  dbResetAllTime,
   dbRemoveUser,
   dbSetDailyPostId,
   dbShouldPostDaily,
@@ -75,8 +75,8 @@ async function route(
       case Endpoint.OnAppInstall:
         rsp = await routeAppInstall()
         break
-      case Endpoint.OnMenuMigrateAllTimeCumulative:
-        rsp = await routeMenuMigrateAllTimeCumulative()
+      case Endpoint.OnMenuResetAllTime:
+        rsp = await routeMenuResetAllTime()
         break
       case Endpoint.OnAccountDelete:
         rsp = await routeAccountDelete(reqMsg)
@@ -178,13 +178,22 @@ async function routeAppInstall(): Promise<TriggerResponse> {
   return {}
 }
 
-async function routeMenuMigrateAllTimeCumulative(): Promise<UiResponse> {
-  const {migrated, alreadyRan} = await dbMigrateAllTimeToCumulative()
+/** Refusal is the expected outcome once real play resumes, so it's
+ *  reported as a neutral toast rather than an error — see dbResetAllTime
+ *  for why the precondition is the safety mechanism. */
+async function routeMenuResetAllTime(): Promise<UiResponse> {
+  const {cleared, refused} = await dbResetAllTime()
+  if (refused) {
+    return {
+      showToast: {
+        text: 'Refused — the all-time board has live scores on it. Reset only runs on a fully zeroed board.',
+        appearance: 'neutral',
+      },
+    }
+  }
   return {
     showToast: {
-      text: alreadyRan
-        ? 'Already migrated — no changes made.'
-        : `Migrated ${migrated} player${migrated === 1 ? '' : 's'} to cumulative all-time totals.`,
+      text: `All-time board reset — ${cleared} entr${cleared === 1 ? 'y' : 'ies'} cleared. Everyone starts from zero on their next delivery.`,
       appearance: 'success',
     },
   }
