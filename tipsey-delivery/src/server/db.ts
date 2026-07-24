@@ -95,7 +95,14 @@ export async function dbGetTop(
  *  time to decode out of a running sum, so ms is always 0 here. Decoding
  *  an all-time score with the daily decodeScore() would silently read
  *  back as $0.00 for any real total (it divides by the 10,000,000
- *  multiplier meant for single-run scores), so this needs its own decode. */
+ *  multiplier meant for single-run scores), so this needs its own decode.
+ *
+ *  This is not hypothetical: a one-time migration once ran decodeScore()
+ *  across the whole all-time board on the assumption it was still in the
+ *  old best-run encoding, floored every real total to zero, and wrote
+ *  the zeros back over every member. The board had to be reset from
+ *  scratch — the values were unrecoverable. NEVER put an all-time score
+ *  through decodeScore(); the two key families do not share a format. */
 export async function dbGetAllTimeTop(n: number): Promise<LeaderboardEntry[]> {
   return dbGetTopFromKey(ALLTIME_KEY, ALLTIME_AVATAR_KEY, n, score => ({
     tipCents: score,
@@ -173,48 +180,6 @@ export async function dbSubmitScore(
     dbGetAllTimeTop(10),
   ])
   return {daily, allTime}
-}
-
-/** Clears the all-time board outright — every member, every score, and
- *  the cached snoovatars that went with them. dbSubmitScore's zIncrBy
- *  recreates the key on the next completed delivery, so there's nothing
- *  to re-seed afterward: the board simply starts accumulating again
- *  from zero.
- *
- *  This exists because the cumulative migration it replaces destroyed
- *  the board. That migration ran decodeScore() over every entry on the
- *  assumption they were still in the old best-run encoding, but
- *  dbSubmitScore's zIncrBy (plain cents) shipped in the same deploy and
- *  had been writing the new format for days by the time the mod menu
- *  was clicked — so every real total floored to zero
- *  (Math.floor(1250 / 10_000_000) === 0; a plain total has to clear
- *  $100,000 to survive that divide) and zAdd wrote the zeros back over
- *  every member. The true values are unrecoverable: zAdd overwrote in
- *  place, Devvit Redis offers no snapshot, and per-run history was
- *  never recorded anywhere. Rebuilding from the surviving daily boards
- *  was considered and rejected — those keep only each player's best run
- *  per day, so the result would misstate totals in both directions.
- *
- *  REFUSES TO RUN IF ANY SCORE IS NONZERO. This is the whole safety
- *  design, and it's deliberately not an nx claim flag: a flag is what
- *  let the migration report a destructive pass as a completed one, and
- *  it protects nothing on a second click that a real precondition
- *  wouldn't protect better. The only state this can act on is a board
- *  where every entry is zero — which is precisely the damaged state and
- *  nothing else. The moment real play resumes, the board has live
- *  scores and this refuses permanently. It cannot become the landmine
- *  the migration was; deliberately resetting again later would take a
- *  code change, which is the correct amount of friction for an
- *  irreversible operation. */
-export async function dbResetAllTime(): Promise<{
-  cleared: number
-  refused: boolean
-}> {
-  const rows = await redis.zRange(ALLTIME_KEY, 0, -1, {by: 'rank'})
-  if (rows.some(row => row.score > 0)) return {cleared: 0, refused: true}
-
-  await redis.del(ALLTIME_KEY, ALLTIME_AVATAR_KEY)
-  return {cleared: rows.length, refused: false}
 }
 
 /** Handles AccountDelete: strips the user from every board this app can
