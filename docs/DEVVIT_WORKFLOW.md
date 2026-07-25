@@ -43,11 +43,46 @@ node --check tipsey-delivery/public/game-logic.js
 
 ## Where to actually run commands
 
-No local terminal, no bridge (deprioritized — `tools/bridge3.js` and the
-`Cal-Starfur/codespace-bridge` relay are not in active use). The real
-setup: a **GitHub Codespace opened in a browser** (often the iPhone
-browser). Claude gives copy-paste command blocks; Sir runs them in that
-terminal and pastes the output back.
+**Devvit CLI commands that talk to Reddit (`login`, `upload`, `install`,
+`playtest`, `publish`) cannot run inside Claude's own container.** That
+container's network is firewalled to GitHub/npm/PyPI only — any call to
+`reddit.com` / `developers.reddit.com` comes back `403 Forbidden`. The CLI
+installs fine there and offline commands (`npm run build`, `lint`,
+`test:types`, `node --check`) work, but anything that reaches Reddit will
+fail. Don't try to `devvit login`/`upload` from the Claude sandbox; it's a
+network wall, not a fixable bug.
+
+### The primary path — Claude-driven GitHub Actions deploy
+
+`.github/workflows/deploy-devvit.yml` runs the Devvit CLI on a
+GitHub-hosted runner (full network, reaches Reddit fine) and does
+`devvit upload` + `devvit install r/<subreddit>`. Claude triggers it via
+the GitHub Actions API (`workflow_dispatch`) and reads the run logs back —
+**no Codespace, no terminal.** To ship, you just ask Claude to deploy; it
+dispatches the workflow, watches it, and reports the result.
+
+**One-time setup (do this once):**
+
+1. Get a Devvit auth token. Run `devvit login --copy-paste` **once**
+   somewhere with real network — a local machine, or
+   [Google Cloud Shell](https://shell.cloud.google.com) (free, works in
+   iPhone Safari). After it prints `Logged in as ...`, copy the contents of
+   `~/.devvit/token` (`cat ~/.devvit/token`).
+2. Add it as a repo secret: GitHub → the `Cal-Starfur/Tipsy` repo →
+   **Settings → Secrets and variables → Actions → New repository secret**,
+   name it exactly **`DEVVIT_TOKEN`**, paste the token contents, save.
+
+That's the only manual step, and only until the token expires. After that
+every deploy is Claude-driven. (Keep the token private — it's a password.
+Never paste it into chat or commit it; only into the GitHub secret box.)
+
+### Fallback path — a browser Codespace / Cloud Shell
+
+If the Actions token isn't set up yet, the old manual route still works: a
+**GitHub Codespace or Google Cloud Shell opened in a browser** (often the
+iPhone browser). Claude gives copy-paste command blocks; Sir runs them and
+pastes the output back. The `tools/bridge3.js` / `Cal-Starfur/codespace-bridge`
+relay is deprioritized and not in active use.
 
 ## Logging in
 
@@ -71,11 +106,17 @@ part of the actual workflow here; don't default to suggesting it.
 
 ## Updating r/tipsey (production)
 
-**Confirmed working, no review needed:** `devvit upload` followed by
-`devvit install r/tipsey` — run from inside `tipsey-delivery/`, no app
-name argument (the CLI already knows which app from the current
-directory; `devvit install tipsey-delivery r/tipsey` — two args — is
-WRONG and errors with "App r/tipsey is not found").
+**Preferred: ask Claude to deploy.** Once `DEVVIT_TOKEN` is set (see
+setup above), Claude dispatches `deploy-devvit.yml` with
+`subreddit: tipsey` and reads the logs — no terminal needed. The workflow
+runs exactly the commands below on the runner.
+
+**The underlying commands** (what the workflow runs, and what to type by
+hand in a Codespace/Cloud Shell if you're doing it manually) —
+`devvit upload` followed by `devvit install r/tipsey`, run from inside
+`tipsey-delivery/`, no app name argument (the CLI already knows which app
+from the current directory; `devvit install tipsey-delivery r/tipsey` —
+two args — is WRONG and errors with "App r/tipsey is not found").
 
 ```bash
 cd /workspaces/Tipsy

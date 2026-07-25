@@ -1,0 +1,90 @@
+name: Deploy Devvit App
+
+# Runs the Devvit CLI on a GitHub-hosted runner, which (unlike Claude's
+# sandbox) can reach Reddit's servers. Claude triggers this via the GitHub
+# Actions API (workflow_dispatch) and reads the logs back — so a deploy to
+# r/tipsey needs no Codespace and no local terminal.
+#
+# ONE-TIME SETUP (see docs/DEVVIT_WORKFLOW.md):
+#   1. Run `devvit login` once somewhere with real network (local machine or
+#      Google Cloud Shell), then copy the contents of ~/.devvit/token.
+#   2. In GitHub: Settings -> Secrets and variables -> Actions -> New repository
+#      secret, name it exactly  DEVVIT_TOKEN , paste the token contents.
+# After that, every deploy is one Actions run — no re-login until the token
+# expires.
+
+on:
+  workflow_dispatch:
+    inputs:
+      subreddit:
+        description: "Subreddit to install to (WITHOUT the r/ prefix)"
+        required: true
+        default: "tipsey"
+      publish:
+        description: "Also run `devvit publish` (files app for Reddit review). Normally leave OFF — upload+install is enough for a routine r/tipsey update."
+        type: boolean
+        default: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: tipsey-delivery
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.6.0
+
+      - name: Install project dependencies
+        # Needed: postinstall copies phaser.min.js into public/, which the
+        # Devvit bundle serves.
+        run: npm install --no-fund
+
+      - name: Install Devvit CLI
+        run: npm install -g devvit && devvit --version
+
+      - name: Restore Devvit auth token
+        env:
+          DEVVIT_TOKEN: ${{ secrets.DEVVIT_TOKEN }}
+        run: |
+          if [ -z "$DEVVIT_TOKEN" ]; then
+            echo "::error::DEVVIT_TOKEN secret is not set. See the setup notes at the top of this workflow file."
+            exit 1
+          fi
+          mkdir -p ~/.devvit
+          printf '%s' "$DEVVIT_TOKEN" > ~/.devvit/token
+
+      - name: Verify auth
+        run: devvit whoami
+
+      - name: Upload new version
+        # Devvit auto-increments the app version on each upload. The uploaded
+        # version stays private to the app directory until it's installed.
+        run: devvit upload
+
+      - name: Install to subreddit (with retry)
+        # Right after an upload, `devvit install` can briefly report the version
+        # "isn't ready to be installed yet" while Reddit finishes processing
+        # server-side. That's benign — wait and retry, don't re-upload.
+        run: |
+          target="r/${{ inputs.subreddit }}"
+          for attempt in 1 2 3 4; do
+            echo "Install attempt $attempt -> $target"
+            if devvit install "$target"; then
+              echo "Installed to $target"
+              exit 0
+            fi
+            echo "Not ready yet; waiting 30s before retry..."
+            sleep 30
+          done
+          echo "::error::Install to $target failed after 4 attempts."
+          exit 1
+
+      - name: Publish for review (optional)
+        if: ${{ inputs.publish }}
+        run: devvit publish
