@@ -700,6 +700,17 @@ function binShiftAt(hz){
   const reach = lay * BIN.height * 0.5;
   return ((hz.slide || 0) + reach) * Math.cos(hz.fallPsi || 0);
 }
+/* same idea as binShiftAt, for the planter's oversized wall (requested
+   2026-07-25, aligning planter with bin): where the planter's actual
+   blocking footprint sits, relative to spawn, as it topples. Oversized
+   planters never get a shove (too heavy to slide -- see the collision
+   comment), so hz.slide naturally stays 0 and this reduces to pure
+   topple reach, same shape as bin's own formula. */
+function planterShiftAt(hz){
+  const lay = Math.min(1, (hz.phi || 0) / (Math.PI/2));
+  const reach = lay * (PLANTER_BASE.boxH + PLANTER_BASE.bushH) * (hz.scale || 1) * 0.5;
+  return ((hz.slide || 0) + reach) * Math.cos(hz.fallPsi || 0);
+}
 
 const BIN_HIT = (() => {
   const r0 = binR(0);
@@ -7457,27 +7468,30 @@ class WorldScene extends Phaser.Scene {
                (+halfW once fallen, not -halfW like standing —
                verified by sampling the actual rendered geometry in
                the lab), since an oversized planter always ends up
-               knocked eventually and stays blocked either way. */
+               knocked eventually and stays blocked either way. Wall
+               now tracks the planter's actual current footprint
+               (planterShiftAt) instead of the frozen spawn anchor --
+               same fix bin's own binShiftAt already got for this
+               exact bug (2026-07-25, aligning planter with bin). */
             const BOT_CLEAR = BODY.hx - halfW + 4;
-            if(onLane(hz.row) && this.botS > hz.s - BOT_CLEAR && this.botS < hz.s + 20){
-              this.botS = safeStop(hz.s - BOT_CLEAR);
+            const plS = hz.s + planterShiftAt(hz);
+            if(onLane(hz.row) && this.botS > plS - BOT_CLEAR && this.botS < plS + 20){
+              this.botS = safeStop(plS - BOT_CLEAR);
               this.isBlocked = true;
               this.speed = 0;
-              if(hz.pose !== "knocked"){
-                if(!hz.hit){
-                  hz.hit = true;
-                  /* fall AWAY from the robot, always: the oversized
-                     contract lets the robot sit up to 20 past the
-                     anchor, and the old always-(+s) topple dropped the
-                     box straight onto him (on-device: "rolls toward
-                     the robot"). Base direction from which side he's
-                     actually on, jitter on top. */
-                  if(hz.fallPsi === undefined)
-                    hz.fallPsi = (this.botS <= hz.s ? 0 : Math.PI) + (Math.random()-0.5)*0.4;
-                  const kick = 0.05 * 1.6 * (Math.random() < 0.5 ? 1 : -1);
-                  this.tilt += kick * TILT_SENS;
-                  this.damage = Math.min(95, this.damage + Math.abs(kick)*40*CARGO_DAMAGE_SENS);
-                }
+              if(hz.pose !== "knocked" && !hz.hit){
+                hz.hit = true;
+                /* fall AWAY from the robot, always: the oversized
+                   contract lets the robot sit up to 20 past the
+                   anchor, and the old always-(+s) topple dropped the
+                   box straight onto him (on-device: "rolls toward
+                   the robot"). Base direction from which side he's
+                   actually on, jitter on top. */
+                if(hz.fallPsi === undefined)
+                  hz.fallPsi = (this.botS <= hz.s ? 0 : Math.PI) + (Math.random()-0.5)*0.4;
+                const kick = 0.05 * 1.6 * (Math.random() < 0.5 ? 1 : -1);
+                this.tilt += kick * TILT_SENS;
+                this.damage = Math.min(95, this.damage + Math.abs(kick)*40*CARGO_DAMAGE_SENS);
                 hz.moving = true;
                 hz.angVel += 0.07 * 0.012 * PLANTER_HIT.kick / Math.pow(hz.scale, PLANTER_HIT.potPower) * (dt/16);
               }
@@ -7499,7 +7513,7 @@ class WorldScene extends Phaser.Scene {
             this.damage = Math.min(95, this.damage + Math.abs(kick)*40*CARGO_DAMAGE_SENS);
             this.speed *= 0.9;
           }
-          if(Math.abs(dx) > 40) hz.hit = false;
+          if(oversized ? Math.abs(this.botS - (hz.s + planterShiftAt(hz))) > 40 : Math.abs(dx) > 40) hz.hit = false;
 
           if(hz.moving){
             const KG = 1.5e-5;
