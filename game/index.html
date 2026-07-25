@@ -5200,8 +5200,13 @@ class WorldScene extends Phaser.Scene {
          length/height plane, same axes drawWheel's own ring(oy,r)
          varies), not a flat screen-space circle -- so it reads as a
          real iso-skewed disc like Tipsy's actual wheels instead of a
-         perfect flat dot. Simplified to one ring per wheel (no tread-
-         width double-ring) -- reasonable for a background prop. */
+         perfect flat dot. Only the camera-facing side (faceB) draws --
+         was drawing both sides unconditionally, and since wheels paint
+         after the body with no occlusion, the far side's wheels showed
+         up fully visible poking out where they should've been hidden
+         behind the body (reported 2026-07-24). The far side would
+         never be visible behind an opaque body anyway, so skipping it
+         entirely is correct, not just a simplification. */
       const wheelRing = (wx, wb, r, n=12) => {
         const pts = [];
         for(let i=0; i<n; i++){
@@ -5210,12 +5215,10 @@ class WorldScene extends Phaser.Scene {
         }
         return pts;
       };
-      for(const side of [-1, 1]){
-        for(const wx of WHEEL.xs){
-          const wb = side*WHEEL.side;
-          this.quadOn(g, wheelRing(wx*squash, wb, WHEEL.r*squash), SKIN.wheelDark);
-          this.quadOn(g, wheelRing(wx*squash, wb, WHEEL.r*0.55*squash), SKIN.wheelHubFace);
-        }
+      for(const wx of WHEEL.xs){
+        const wb = faceB*WHEEL.side;
+        this.quadOn(g, wheelRing(wx*squash, wb, WHEEL.r*squash), SKIN.wheelDark);
+        this.quadOn(g, wheelRing(wx*squash, wb, WHEEL.r*0.55*squash), SKIN.wheelHubFace);
       }
 
       if(!knocked){
