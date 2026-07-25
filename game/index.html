@@ -672,6 +672,16 @@ const HYD = {
    value, not yet tuned on-device. */
 const DAMAGE_REDZONE_DPS = 8;   // cargo damage/sec while |tilt| stays past the 0.75 danger line
 
+/* difficulty pass (requested 2026-07-24: more people finishing runs).
+   Both apply only to GRADUAL/routine sources -- hazard-contact kicks,
+   cornering, road jitter. The explicit instant-fail triggers (getting
+   hit by traffic, driving off the good path onto a curb/wedge) set
+   this.tilt directly to a fixed value rather than accumulating, so
+   they're untouched by either constant -- those stay exactly as
+   punishing as before. Starting values, not yet tuned on-device. */
+const CARGO_DAMAGE_SENS = 0.4;  // multiplier on cargo damage from routine contacts (lower = cargo survives bumps better)
+const TILT_SENS = 0.5;          // multiplier on tilt buildup from routine contacts/cornering/jitter (lower = harder to tip)
+
 /* dialed in the hydrant hit lab: burst + hydroplane numbers */
 const HYD_SLIP = {
   thresh: 0.055,   // hit speed that shears the nozzle
@@ -6599,7 +6609,7 @@ class WorldScene extends Phaser.Scene {
          long enough for the smoothed speed to catch up anyway. */
       const arcProgress = seg.type === "arc" ? Phaser.Math.Clamp((this.botS - seg.s0)/(seg.s1 - seg.s0), 0, 1) : 0;
       const tiltTaper = arcProgress < 0.4 ? 1 : Phaser.Math.Linear(1, 0.35, (arcProgress - 0.4)/0.6);
-      if(seg.type === "arc") this.tilt += seg.sign * this.corneringSpeedSmooth * this.corneringSpeedSmooth * 0.115 * tiltTaper * dt;
+      if(seg.type === "arc") this.tilt += seg.sign * this.corneringSpeedSmooth * this.corneringSpeedSmooth * 0.115 * tiltTaper * dt * TILT_SENS;
       /* visual banking: only the INSIDE lane lifts wheels; center + outside stay flat.
          The sidewalk band sits entirely on ONE side of the street now (not
          straddling the centerline like the old 3-lane system), which means
@@ -6656,7 +6666,7 @@ class WorldScene extends Phaser.Scene {
       /* bleed the hop's stability cost in over ~0.3s */
       if(this.hopKick !== 0){
         const apply = this.hopKick * Math.min(1, dt/300);
-        this.tilt += apply;
+        this.tilt += apply * TILT_SENS;
         this.hopKick -= apply;
         if(Math.abs(this.hopKick) < 0.002) this.hopKick = 0;
       }
@@ -6739,8 +6749,8 @@ class WorldScene extends Phaser.Scene {
             if(this.speed > 0.08 && !hz.hit){
               hz.hit = true;                               // the bonk (once per approach)
               const kick = this.speed * 7 * (Math.random() < 0.5 ? 1 : -1);
-              this.tilt += kick;
-              this.damage = Math.min(95, this.damage + Math.abs(kick)*40);
+              this.tilt += kick * TILT_SENS;
+              this.damage = Math.min(95, this.damage + Math.abs(kick)*40*CARGO_DAMAGE_SENS);
             }
             this.speed = 0;
           }
@@ -6759,12 +6769,12 @@ class WorldScene extends Phaser.Scene {
             if(!hz.lipHit && dx > -TILE && dx < -TILE + 14){
               hz.lipHit = true;
               const kick = hz.side * this.speed * hz.lift * 0.9;
-              this.tilt += kick;
-              this.damage = Math.min(95, this.damage + Math.abs(kick)*30);
+              this.tilt += kick * TILT_SENS;
+              this.damage = Math.min(95, this.damage + Math.abs(kick)*30*CARGO_DAMAGE_SENS);
             }
             if(Math.abs(dx) > TILE + 20) hz.lipHit = false; // re-arm after clearing it
             if(Math.abs(dx) < TILE){
-              this.tilt += hz.side * this.speed * 0.030 * (hz.lift/5) * dt;
+              this.tilt += hz.side * this.speed * 0.030 * (hz.lift/5) * dt * TILT_SENS;
               slabUnder = hz;
             }
           }
@@ -6779,8 +6789,8 @@ class WorldScene extends Phaser.Scene {
             if(this.speed > 0.08 && !hz.hit){
               hz.hit = true;
               const kick = this.speed * HYD_SLIP.bonk * (Math.random() < 0.5 ? 1 : -1);
-              this.tilt += kick;
-              this.damage = Math.min(95, this.damage + Math.abs(kick)*40);
+              this.tilt += kick * TILT_SENS;
+              this.damage = Math.min(95, this.damage + Math.abs(kick)*40*CARGO_DAMAGE_SENS);
               if(!hz.burst && this.speed >= HYD_SLIP.thresh){
                 hz.burst = true; hz.burstT = t;
               }
@@ -6807,7 +6817,7 @@ class WorldScene extends Phaser.Scene {
               this.slide = { t0: t, dur: 800 + 300*HYD_SLIP.spin,
                              dir: Math.random() < 0.5 ? 1 : -1,
                              turns: HYD_SLIP.spin * (this.speed/0.05) };
-              this.tilt += this.speed * 3 * (Math.random() < 0.5 ? 1 : -1);
+              this.tilt += this.speed * 3 * (Math.random() < 0.5 ? 1 : -1) * TILT_SENS;
             }
           }
           if(Math.abs(sdx) > HYD_SLIP.pud + 40) hz.slid = false;
@@ -6864,8 +6874,8 @@ class WorldScene extends Phaser.Scene {
             }
             hz.slideVel += sp * 1.2 * CONE_HIT.punt;
             const kick = sp * 2.2 * (Math.random() < 0.5 ? 1 : -1);
-            this.tilt += kick;
-            this.damage = Math.min(95, this.damage + Math.abs(kick)*20);
+            this.tilt += kick * TILT_SENS;
+            this.damage = Math.min(95, this.damage + Math.abs(kick)*20*CARGO_DAMAGE_SENS);
             this.speed *= 0.86;
           }
           if(Math.abs(dx) > 40) hz.hit = false;
@@ -6904,8 +6914,8 @@ class WorldScene extends Phaser.Scene {
               hz.angVel += sp * 0.06 * BIN_HIT.kick;
               hz.slideVel += sp * 0.6 * BIN_HIT.punt;   // a shove as it goes over, not a full punt
               const kick = sp * 2.6 * (Math.random() < 0.5 ? 1 : -1);
-              this.tilt += kick;
-              this.damage = Math.min(95, this.damage + Math.abs(kick)*40);
+              this.tilt += kick * TILT_SENS;
+              this.damage = Math.min(95, this.damage + Math.abs(kick)*40*CARGO_DAMAGE_SENS);
             }
             this.speed = 0;
           }
@@ -6982,8 +6992,8 @@ class WorldScene extends Phaser.Scene {
                   if(hz.fallPsi === undefined)
                     hz.fallPsi = (this.botS <= hz.s ? 0 : Math.PI) + (Math.random()-0.5)*0.4;
                   const kick = 0.05 * 1.6 * (Math.random() < 0.5 ? 1 : -1);
-                  this.tilt += kick;
-                  this.damage = Math.min(95, this.damage + Math.abs(kick)*40);
+                  this.tilt += kick * TILT_SENS;
+                  this.damage = Math.min(95, this.damage + Math.abs(kick)*40*CARGO_DAMAGE_SENS);
                 }
                 hz.moving = true;
                 hz.angVel += 0.07 * 0.012 * PLANTER_HIT.kick / Math.pow(hz.scale, PLANTER_HIT.potPower) * (dt/16);
@@ -7002,8 +7012,8 @@ class WorldScene extends Phaser.Scene {
                shove, which is the point of oversized). */
             hz.slideVel = (hz.slideVel || 0) + sp * 0.45 / Math.pow(hz.scale, PLANTER_HIT.potPower);
             const kick = sp * 1.6 * (Math.random() < 0.5 ? 1 : -1);
-            this.tilt += kick;
-            this.damage = Math.min(95, this.damage + Math.abs(kick)*40);
+            this.tilt += kick * TILT_SENS;
+            this.damage = Math.min(95, this.damage + Math.abs(kick)*40*CARGO_DAMAGE_SENS);
             this.speed *= 0.9;
           }
           if(Math.abs(dx) > 40) hz.hit = false;
@@ -7056,8 +7066,8 @@ class WorldScene extends Phaser.Scene {
             }
             hz.slideVel += sp * 1.2 * SCOOT_HIT.punt;
             const kick = sp * 9 * (Math.random() < 0.5 ? 1 : -1);
-            this.tilt += kick;
-            this.damage = Math.min(95, this.damage + Math.abs(kick)*46);
+            this.tilt += kick * TILT_SENS;
+            this.damage = Math.min(95, this.damage + Math.abs(kick)*46*CARGO_DAMAGE_SENS);
             this.speed *= 0.45;
           }
           if(Math.abs(dx) > 40) hz.hit = false;
@@ -7095,8 +7105,8 @@ class WorldScene extends Phaser.Scene {
             ? Math.min(8, Math.max(2, 4 * (hz.len || 46) / 46))   // bigger spall, bigger jolt (crack lab v3)
             : ({ trash:7, dog:5, palmDwarf:6, people:8 }[hz.type] ?? 5);   // hitting a person costs more than a dog bump — same mechanism that tips you on a hard palm/hydrant hit applies here too
           const kick = this.speed * sev * (Math.random() < 0.5 ? 1 : -1);
-          this.tilt += kick;
-          this.damage = Math.min(95, this.damage + Math.abs(kick)*46);
+          this.tilt += kick * TILT_SENS;
+          this.damage = Math.min(95, this.damage + Math.abs(kick)*46*CARGO_DAMAGE_SENS);
           if(hz.type === "trash") this.speed *= 0.65;
           if(hz.type === "palmDwarf") this.speed *= 0.5;   // dragging through fronds
           if(hz.type === "dog"){
@@ -7186,7 +7196,7 @@ class WorldScene extends Phaser.Scene {
         /* cross-slope lean off the ramp's flared sides — mirrored sign in
            the two lanes flanking the ramp strip, zero on the strip and on
            row 3 (lab: tilt += botRow * speed * 0.055 * dt) */
-        if(_cg.tiltSign) this.tilt += _cg.tiltSign * this.speed * 0.055 * dt;
+        if(_cg.tiltSign) this.tilt += _cg.tiltSign * this.speed * 0.055 * dt * TILT_SENS;
         /* curb drop: falling off the unramped edge in any non-ramp lane.
            A stumble kick in the direction you were already leaning (or
            away from the ramp strip if upright); if you were ALREADY
@@ -7220,7 +7230,7 @@ class WorldScene extends Phaser.Scene {
            was tuned for fighting alone; halved-ish here so the two
            stacking doesn't tip him before he reaches the curb. Tune
            further after playtesting like everything else in this file. */
-        if(_tg.tiltSign) this.tilt += _tg.tiltSign * this.speed * 0.03 * dt;
+        if(_tg.tiltSign) this.tilt += _tg.tiltSign * this.speed * 0.03 * dt * TILT_SENS;
         /* curb drop off an unramped edge — same lab kick/tip handoff.
            Threshold 2.5, NOT the straight model's 1: on turns every
            lane exits the up-ramp over its 2-unit rear lip (verified in
@@ -7249,7 +7259,7 @@ class WorldScene extends Phaser.Scene {
           const se = su < 0.5 ? 2*su*su : 1 - Math.pow(-2*su + 2, 2)/2;
           this.slipYaw = this.slide.dir * Math.PI*2 * this.slide.turns * se;
           this.speed *= (1 - 0.0006*dt);
-          this.tilt += (Math.random()-0.5) * this.speed * 0.05 * dt;
+          this.tilt += (Math.random()-0.5) * this.speed * 0.05 * dt * TILT_SENS;
         }
       } else if(this.slipYaw){
         let y2 = this.slipYaw % (Math.PI*2);
@@ -7267,7 +7277,7 @@ class WorldScene extends Phaser.Scene {
 
       /* stability spring + rough-pavement rumble */
       this.tilt -= this.tilt * 0.0021 * dt;
-      this.tilt += (Math.random()-0.5) * this.speed * (1-this.route.hood.pave) * 0.012 * dt;
+      this.tilt += (Math.random()-0.5) * this.speed * (1-this.route.hood.pave) * 0.012 * dt * TILT_SENS;
 
       /* cargo damage meter (spec, red-zone dwell): riding past the same
          0.75 danger line the HUD gauge and lid-crack already key off
