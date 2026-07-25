@@ -5196,29 +5196,43 @@ class WorldScene extends Phaser.Scene {
       /* lid: smaller box on top -- was missing entirely before */
       if(!knocked) box(LID.hx, LID.hy, LID.z0, LID.z1, SKIN.bodyTop, SKIN.bodyRight, SKIN.bodyLeft);
 
-      /* wheels: a projected ring per wheel (world-space circle in the
-         length/height plane, same axes drawWheel's own ring(oy,r)
-         varies), not a flat screen-space circle -- so it reads as a
-         real iso-skewed disc like Tipsy's actual wheels instead of a
-         perfect flat dot. Only the camera-facing side (faceB) draws --
-         was drawing both sides unconditionally, and since wheels paint
-         after the body with no occlusion, the far side's wheels showed
-         up fully visible poking out where they should've been hidden
-         behind the body (reported 2026-07-24). The far side would
-         never be visible behind an opaque body anyway, so skipping it
-         entirely is correct, not just a simplification. */
-      const wheelRing = (wx, wb, r, n=12) => {
+      /* wheels: TWO rings offset along the tread width, combined via
+         convexHull -- same fix drawWheel itself uses for "a single
+         ring's outline degenerates to a flat line at certain yaw
+         angles." A single ring (what was here before) is exactly that
+         degenerate case: always flat, no matter the angle, which is
+         why it read as having no volume. Only the camera-facing side
+         (faceB) draws -- the far side would never be visible behind
+         an opaque body anyway. Roving robots' wheels actually spin
+         (a small bolt marker orbits the hub, same trick drawWheel
+         uses, driven by elapsed time instead of drawWheel's own
+         wheelPhase since that's player-only state); parked robots'
+         wheels sit still, matching drawWheel's own convention where
+         only the marker orbits, not the whole tire face. */
+      const W2 = 7.5;
+      const wheelRingAt = (wx, ob, r) => {
         const pts = [];
-        for(let i=0; i<n; i++){
-          const a = (i/n)*Math.PI*2;
-          pts.push(RW(wx + Math.cos(a)*r, wb, WHEEL.z*squash + Math.sin(a)*r));
+        for(let i=0; i<14; i++){
+          const a = (i/14)*Math.PI*2;
+          pts.push(RW(wx + Math.cos(a)*r, ob, WHEEL.z*squash + Math.sin(a)*r));
         }
         return pts;
       };
+      const wheelSpinPhase = (roving && !knocked) ? t*0.03 : 0;
       for(const wx of WHEEL.xs){
         const wb = faceB*WHEEL.side;
-        this.quadOn(g, wheelRing(wx*squash, wb, WHEEL.r*squash), SKIN.wheelDark);
-        this.quadOn(g, wheelRing(wx*squash, wb, WHEEL.r*0.55*squash), SKIN.wheelHubFace);
+        const bIn = wb - faceB*W2/2*squash, bOut = wb + faceB*W2/2*squash;
+        this.quadOn(g, convexHull(wheelRingAt(wx*squash, bIn, WHEEL.r*squash)
+                                   .concat(wheelRingAt(wx*squash, bOut, WHEEL.r*squash))), SKIN.wheelDark);
+        const faceRing = wheelRingAt(wx*squash, bOut, WHEEL.r*squash);
+        this.quadOn(g, faceRing, SKIN.wheel);
+        this.edgeOn(g, faceRing, SKIN.outline, 2);
+        this.quadOn(g, wheelRingAt(wx*squash, bOut, WHEEL.r*0.55*squash), SKIN.wheelHubFace);
+        const spinA = wheelSpinPhase + wx*0.2;
+        const boltPt = RW(wx*squash + Math.cos(spinA)*WHEEL.r*0.34*squash, bOut,
+                           WHEEL.z*squash + Math.sin(spinA)*WHEEL.r*0.34*squash);
+        g.fillStyle(SKIN.wheelHub, 1);
+        g.fillCircle(boltPt.x, boltPt.y, 2.4);
       }
 
       if(!knocked){
