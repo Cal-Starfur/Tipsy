@@ -743,10 +743,17 @@ const TILT_SENS = 0.5;          // multiplier on tilt buildup from routine conta
    difficulty pass, despite TILT_SENS -- exactly what got reported.
    First pass landed on 0.051 (~50% of original pre-boost, pre-
    TILT_SENS cornering tilt) -- still too easy on further testing.
-   0.0255 targets ~25% of that same original baseline: a quarter as
-   tippy in turns as the game was before any of this difficulty work
-   started, at the current (boosted) top speed. */
-const CORNER_TILT_COEF = 0.0255;
+   Second pass, 0.0255 (~25% of original): fixed the over-tipping, but
+   went far enough that cornering could never reach the 0.75 red-
+   damage zone at all -- even an infinitely long turn only asymptoted
+   to ~0.31 tilt (steady-state = rate/decay, decay=0.0021/ms). Turns
+   stopped costing any cargo condition whatsoever, which wasn't the
+   goal -- only guaranteed TIPPING from cornering alone was. Current
+   0.07 targets a ~0.85 equilibrium: a genuinely wide, sustained
+   (~1s+) turn at speed can now cross into the red zone and bleed
+   cargo damage, but even a turn held forever stays well short of the
+   1.0 fail line -- cornering still can't tip you by itself. */
+const CORNER_TILT_COEF = 0.07;
 
 /* other-robot collision thresholds (requested 2026-07-24). Top speed
    is 0.225 -- ROBOT_TIP_THRESH sits at ~84% of that, meant to read as
