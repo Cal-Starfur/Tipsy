@@ -1,0 +1,110 @@
+# Deploy tipsey-delivery to Reddit (upload + install) with no Codespace.
+#
+# Runs entirely on a GitHub-hosted runner, which — unlike the Claude Code
+# sandbox — has open network access to Reddit's servers. Authentication is
+# non-interactive via the DEVVIT_AUTH_TOKEN repo secret (see one-time setup in
+# docs/DEVVIT_WORKFLOW.md). Trigger it from the Actions tab, the phone, or have
+# Claude fire it via the Actions API.
+name: Deploy to Reddit
+
+on:
+  workflow_dispatch:
+    inputs:
+      subreddit:
+        description: "Subreddit to install to (r/ prefix optional)"
+        required: true
+        default: "r/tipsey"
+      bump:
+        description: "Version bump applied by devvit upload"
+        required: true
+        default: "patch"
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+          - prerelease
+      run_checks:
+        description: "Run typecheck + lint + unit tests before uploading"
+        required: true
+        default: true
+        type: boolean
+
+# Never let two deploys race each other onto the same app.
+concurrency:
+  group: devvit-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: tipsey-delivery
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: tipsey-delivery/.nvmrc
+          cache: npm
+          cache-dependency-path: tipsey-delivery/package-lock.json
+
+      - name: Verify auth token secret is present
+        env:
+          DEVVIT_AUTH_TOKEN: ${{ secrets.DEVVIT_AUTH_TOKEN }}
+        run: |
+          if [ -z "$DEVVIT_AUTH_TOKEN" ]; then
+            echo "::error::The DEVVIT_AUTH_TOKEN repository secret is not set."
+            echo "One-time setup: run 'devvit login --copy-paste' anywhere with a"
+            echo "browser, then paste the contents of ~/.devvit/token into a repo"
+            echo "secret named DEVVIT_AUTH_TOKEN. See docs/DEVVIT_WORKFLOW.md."
+            exit 1
+          fi
+
+      - name: Install dependencies
+        run: npm ci --no-fund
+
+      - name: Confirm logged-in account
+        env:
+          DEVVIT_AUTH_TOKEN: ${{ secrets.DEVVIT_AUTH_TOKEN }}
+        run: npx devvit whoami
+
+      - name: Checks (typecheck, lint, unit tests)
+        if: ${{ inputs.run_checks }}
+        run: |
+          npm run test:types
+          npm run lint
+          npm run test:unit
+
+      - name: Build
+        run: npm run build
+
+      - name: Upload app
+        env:
+          DEVVIT_AUTH_TOKEN: ${{ secrets.DEVVIT_AUTH_TOKEN }}
+        run: npx devvit upload --bump ${{ inputs.bump }}
+
+      - name: Install to subreddit
+        env:
+          DEVVIT_AUTH_TOKEN: ${{ secrets.DEVVIT_AUTH_TOKEN }}
+          SUBREDDIT: ${{ inputs.subreddit }}
+        run: |
+          # Right after upload, Reddit's backend needs a few moments to finish
+          # processing the new version; "isn't ready to be installed yet" is a
+          # benign timing error, so retry a few times before giving up.
+          for attempt in 1 2 3 4 5; do
+            echo "::group::Install attempt $attempt — devvit install $SUBREDDIT"
+            if npx devvit install "$SUBREDDIT"; then
+              echo "::endgroup::"
+              echo "Installed $SUBREDDIT successfully."
+              exit 0
+            fi
+            echo "::endgroup::"
+            echo "Install attempt $attempt failed (new version likely still processing). Waiting 30s..."
+            sleep 30
+          done
+          echo "::error::devvit install did not succeed after 5 attempts."
+          exit 1

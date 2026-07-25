@@ -69,7 +69,49 @@ the real testing loop — no Codespace, no devvit CLI needed. `playtest`
 against `tipsey_delivery_dev` exists as a Devvit-CLI feature but isn't
 part of the actual workflow here; don't default to suggesting it.
 
-## Updating r/tipsey (production)
+## Updating r/tipsey (production) — the no-Codespace path
+
+**This is now the preferred way to ship.** Deploying used to require a
+Codespace because the Claude Code sandbox's egress proxy blocks
+`developers.reddit.com` / `reddit.com` (org network policy — a hard 403,
+not something Claude can route around), so the Devvit CLI's `login` /
+`upload` / `install` all fail *inside* a Claude session. GitHub Actions
+runners have open network, so we deploy from CI instead.
+
+**The workflow:** `.github/workflows/devvit-deploy.yml` (`workflow_dispatch`,
+"Deploy to Reddit"). It runs, from a GitHub-hosted runner:
+`npm ci` → checks → `npm run build` → `devvit upload` → `devvit install`
+(with a retry loop for the "isn't ready yet" timing issue below).
+
+**How to run it:**
+- From the Actions tab (works on the phone browser): **Actions → Deploy to
+  Reddit → Run workflow**, pick the subreddit (default `r/tipsey`) and
+  version bump.
+- Or ask Claude to trigger it — it's a `workflow_dispatch` on `ref: main`,
+  drivable straight from a chat via the GitHub Actions API, no terminal.
+
+### One-time setup: the `DEVVIT_AUTH_TOKEN` secret
+
+CI authenticates non-interactively by reading a `DEVVIT_AUTH_TOKEN` env var
+(the CLI checks this before the on-disk token — see
+`@devvit/cli` `AuthTokenStore.readFSToken`). To mint it, log in **once**
+anywhere with a browser (local machine, or a Codespace this one last time):
+
+```bash
+devvit login --copy-paste   # approve in browser, paste the code back
+devvit whoami               # sanity-check the account is right
+cat ~/.devvit/token         # copy this ENTIRE line — it's the token value
+```
+
+Then in GitHub: **Settings → Secrets and variables → Actions → New
+repository secret**, name `DEVVIT_AUTH_TOKEN`, value = the full contents of
+`~/.devvit/token` (a JSON string like `{"token":"<base64>","copyPaste":true}`).
+That's the last Codespace login you should ever need; the token carries a
+refresh token, so the workflow keeps working until you `devvit logout` or the
+grant is revoked. If a deploy ever fails at `devvit whoami` with a "not
+logged in" error, the token was revoked — repeat this one-time step.
+
+### The equivalent manual commands (still valid, for reference / debugging)
 
 **Confirmed working, no review needed:** `devvit upload` followed by
 `devvit install r/tipsey` — run from inside `tipsey-delivery/`, no app
