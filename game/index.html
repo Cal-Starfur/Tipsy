@@ -446,6 +446,31 @@ const DOG_COATS = [
    spot. Offsets are tile-local (±30 along, ±26 across) so he never
    leaves the square he spawned in. Walk legs are 62% of each 2.6s
    segment (smoothstepped), the rest is standing and judging. */
+/* other robots, roving (requested 2026-07-24, phase 2): same ping-
+   pong walk pattern as peopleSpotAt/dogSpotAt, but also reports which
+   direction (dir: +-1) it's currently walking so the render code can
+   flip the robot to actually face its direction of travel -- for a
+   vehicle that's not cosmetic the way it is for a person's idle
+   wander, the wheels/face need to genuinely point where it's going. */
+function robotSpotAt(tms, hz){
+  if(!(hz && hz.walkS0 !== undefined && hz.walkS1 !== undefined && hz.walkS1 > hz.walkS0))
+    return { a: 0, dir: 1, walking: false };
+  const seed = hz.robotSeed || 0;
+  const lo = hz.walkS0 - hz.s, hi = hz.walkS1 - hz.s;
+  const SPEED = 0.06;   // units/ms -- ~27% of Tipsy's 0.225 top speed, "slower than Tipsy" but a
+                         // real cruise, not a pedestrian pace; Tipsy can catch up at higher speed
+  const PAUSE = 500;    // ms idle at each end before turning back
+  const legMs = (hi - lo) / SPEED;
+  const cyc = legMs*2 + PAUSE*2;
+  const phase = seed % 100000;
+  const u = ((tms + phase) % cyc + cyc) % cyc;
+  let a, dir, walking;
+  if(u < legMs){                          a = lo + u*SPEED;                     dir = 1;  walking = true;  }
+  else if(u < legMs + PAUSE){              a = hi;                               dir = 1;  walking = false; }
+  else if(u < legMs*2 + PAUSE){            a = hi - (u - legMs - PAUSE)*SPEED;   dir = -1; walking = true;  }
+  else {                                   a = lo;                               dir = -1; walking = false; }
+  return { a, dir, walking };
+}
 function dogSpotAt(tms, hz){
   const seed = (hz && hz.dogSeed) || 0;
   const sit = hz ? !!hz.sit : false;
@@ -2216,6 +2241,32 @@ function generateRoute(dateStr){
                      hit:false, robotSeed: (rng()*4294967296) >>> 0,
                      knocked:false, fallPsi: (rng()*2-1)*0.4 });
     }
+  }
+
+  /* other robots, roving (requested 2026-07-24, phase 2): other
+     delivery bots out on their own routes -- same sidewalk-block walk
+     system as people/dogs (line segments only, CROSSING_CLEAR margin
+     at each end), placed at any lane rather than fixed to lane 3 like
+     the parked ones above. roving:true switches the render code's
+     axis mapping so the face points along the direction of travel
+     (like a vehicle actually driving somewhere) instead of across the
+     lane band toward the road. Lower density than parked -- these are
+     a genuinely dynamic, catchable-and-collidable hazard, shouldn't
+     flood the route. */
+  for(let rr = SPAWN_S + 300; rr < totalLen - 360; rr += 1400 + rng()*1000){
+    const rrR = Math.round(rr);
+    if(inCorner(rrR)) continue;
+    const rLane = Math.floor(rng()*4);
+    if(!onSidewalk(rrR, laneOffset(rLane))) continue;
+    if(spawnBlocked(rrR, laneOffset(rLane))) continue;
+    const rSeg = segs.find(g => rrR >= g.s0 && rrR <= g.s1 && g.type === "line");
+    if(!rSeg) continue;
+    const rw0 = rSeg.s0 + CROSSING_CLEAR, rw1 = rSeg.s1 - CROSSING_CLEAR;
+    if(rw1 - rw0 < T2) continue;   // block too short after margins -- skip, don't spawn stationary
+    hazards.push({ type:"robot", s: rrR, row: rLane, f: facingAt(rrR),
+                   hit:false, robotSeed: (rng()*4294967296) >>> 0,
+                   knocked:false, fallPsi: (rng()*2-1)*0.4,
+                   roving:true, walkS0: rw0, walkS1: rw1 });
   }
 
   /* hydrants: lane 0, closest to the road — the real curb side. */
@@ -5075,28 +5126,37 @@ class WorldScene extends Phaser.Scene {
          roll/pitch state to safely reuse. Same BODY/LID/WHEEL/STRIPE/
          FLAG dimensions and SKIN-family colors as Tipsy though, so the
          silhouette reads as unmistakably "one of these" even with all
-         new code. Faces ACROSS the lane band (RA) toward the road.
+         new code.
+
+         Two variants (phase 2, 2026-07-25): parked robots face ACROSS
+         the lane band (fwd=rv) toward the road, same as before. Roving
+         ones (data.roving) face their actual direction of TRAVEL
+         (fwd=dv) via robotSpotAt, flipping RA with the walk direction
+         so they turn around like a real vehicle at each end of their
+         route instead of driving backwards. Once knocked, a roving
+         robot freezes at hz.knockA (captured by the collision code at
+         the moment of impact) rather than continuing to animate or
+         snapping back toward its spawn point.
 
          Fixed 2026-07-25: the body was drawing BOTH its left and
          right side faces (b=+hy AND b=-hy) instead of the one real
          camera-facing pair -- there's no viewing angle where you'd
          see both sides of a box at once, so the true front face was
-         never drawn at all. That's why the visor looked missing and
-         the body read as see-through (you were seeing past where a
-         solid face should have been). Now resolves which "a" face
-         and which "b" face actually face the camera -- same faceA/
-         faceB test drawPersonHull already uses -- and draws exactly
-         those two. Also added the lid box on top, which was missing
-         outright. Visor + flag both anchor off the resolved faceA
-         instead of a hardcoded side, so they never land on the same
-         (undrawn) face and never collide with each other regardless
-         of which way the camera ends up seeing a given instance. */
+         never drawn at all. Now resolves which "a" face and which "b"
+         face actually face the camera -- same faceA/faceB test
+         drawPersonHull already uses -- and draws exactly those two. */
       const col = ROBOT_NPC;
       const knocked = !!(data && data.knocked);
-      const RA = 1;   // which way "forward" (the face) points; flip to -1 to mirror
-      const RW = (a, b, h) => this.W(x + rv.x*a*RA + dv.x*b, y + rv.y*a*RA + dv.y*b, h);
+      const roving = !!(data && data.roving);
+      const spot = (roving && !knocked) ? robotSpotAt(t, data) : null;
+      const walkA = knocked ? ((data && data.knockA) || 0) : (spot ? spot.a : 0);
+      const ex = x + dv.x*walkA, ey = y + dv.y*walkA;
 
-      const aDir = { x: rv.x*RA, y: rv.y*RA }, bDir = { x: dv.x, y: dv.y };
+      const fwdV = roving ? dv : rv, sideV = roving ? rv : dv;
+      const RA = (roving && spot && !knocked) ? spot.dir : 1;
+      const RW = (a, b, h) => this.W(ex + fwdV.x*a*RA + sideV.x*b, ey + fwdV.y*a*RA + sideV.y*b, h);
+
+      const aDir = { x: fwdV.x*RA, y: fwdV.y*RA }, bDir = { x: sideV.x, y: sideV.y };
       const faceA = Math.sign(aDir.x + aDir.y) || 1;
       const faceB = Math.sign(bDir.x + bDir.y) || 1;
 
@@ -7179,19 +7239,26 @@ class WorldScene extends Phaser.Scene {
           } else hz.slideVel = 0;
           this.simBinTrash(hz, dt);
         } else if(hz.type === "robot"){
-          /* another robot on the sidewalk (requested 2026-07-24).
-             Standing: a wall, same cast-iron contract as the hydrant/
-             bin/palm -- you stop. Full-speed contact tips TIPSY (same
-             instant-fail as hitting traffic: this.tilt=1.1*sign, the
-             generic tip handler below takes it from there and sets
-             damage=95 on its own -- nothing extra needed here).
-             Below that speed the OTHER robot goes down instead
-             (routine-hazard treatment, same as any other bump) and
-             once knocked it's passable, same as a toppled cone -- no
-             longer a wall from the next frame on. */
+          /* another robot on the sidewalk (requested 2026-07-24;
+             roving variant added 2026-07-25). Standing: a wall, same
+             cast-iron contract as the hydrant/bin/palm -- you stop.
+             Full-speed contact tips TIPSY (same instant-fail as
+             hitting traffic: this.tilt=1.1*sign, the generic tip
+             handler below takes it from there and sets damage=95 on
+             its own -- nothing extra needed here). Below that speed
+             the OTHER robot goes down instead (routine-hazard
+             treatment, same as any other bump) and once knocked it's
+             passable, same as a toppled cone -- no longer a wall from
+             the next frame on. Roving robots use their CURRENT walked
+             position (robotSpotAt), not their spawn spot, same idea
+             as people/dogs adjusting dx by their own wander offset --
+             a roving robot you're catching up to has actually moved
+             since it spawned. */
+          const robotOff = (hz.roving && !hz.knocked) ? robotSpotAt(t, hz).a : 0;
+          const effS = hz.s + robotOff;
           if(!hz.knocked){
-            if(onLane(hz.row) && this.botS > hz.s - 28 && this.botS < hz.s){
-              this.botS = safeStop(hz.s - 28);
+            if(onLane(hz.row) && this.botS > effS - 28 && this.botS < effS){
+              this.botS = safeStop(effS - 28);
               this.isBlocked = true;
               if(this.speed > ROBOT_HIT_MIN && !hz.hit){
                 hz.hit = true;
@@ -7199,6 +7266,7 @@ class WorldScene extends Phaser.Scene {
                   this.tilt = 1.1 * (Math.random() < 0.5 ? 1 : -1);
                 } else {
                   hz.knocked = true;
+                  hz.knockA = robotOff;   // freeze the render right here, not back at spawn
                   const kick = this.speed * 6 * (Math.random() < 0.5 ? 1 : -1);
                   this.tilt += kick * TILT_SENS;
                   this.damage = Math.min(95, this.damage + Math.abs(kick)*40*CARGO_DAMAGE_SENS);
@@ -7206,7 +7274,7 @@ class WorldScene extends Phaser.Scene {
               }
               this.speed = 0;
             }
-            if(Math.abs(dx) > 40) hz.hit = false;
+            if(Math.abs(this.botS - effS) > 40) hz.hit = false;
           }
         } else if(hz.type === "planter"){
           /* approved in planter collision lab (2026-07-10) — see
