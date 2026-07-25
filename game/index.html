@@ -882,6 +882,17 @@ const TURN_R = ROAD_HALF + T2;    // PLAYER-ROUTE-ONLY wide-turn fillet radius (
                               // center. Accepted tradeoff (Sir, 2026-07-17) in exchange for the
                               // turn visually starting/landing on the ramps. Traffic keeps CORNER_R
                               // unchanged — buildWalk only gets TURN_R from generateRoute's own call.
+const CORNER_HAZARD_CLEAR = 3*T2;   // hazard-exclusion padding around corners, decoupled from
+                              // CORNER_R (investigated 2026-07-25): the player's actual corner
+                              // geometry uses TURN_R (5*T2=460), not CORNER_R (8*T2=736) --
+                              // CORNER_R exists purely for a separate traffic/offset-math
+                              // invariant unrelated to hazard placement. inCorner() was
+                              // borrowing CORNER_R's much larger margin for a concern it
+                              // doesn't have, creating dead zones up to ~2600 units (nearly
+                              // 10% of a route) around long corners. CORNER_R itself untouched
+                              // here -- has an explicit documented "path reverses mid-turn"
+                              // failure mode if shrunk, not worth risking for an unrelated
+                              // tuning change. Starting value, not yet tuned on-device.
 const ROBOT_SIDE = -1;       // the walk stays on ONE side's sidewalk band —
                               // lane 0 is closest to the road (curb side),
                               // lane 3 is farthest (building side).
@@ -1760,7 +1771,7 @@ function generateRoute(dateStr){
   const walk = buildWalk(grid, rng, undefined, undefined, TURN_R);
   const segs = walk.segs, totalLen = walk.totalLen;
 
-  const inCorner = sv => segs.some(sg => sg.type === "arc" && sv > sg.s0 - CORNER_R && sv < sg.s1 + CORNER_R);
+  const inCorner = sv => segs.some(sg => sg.type === "arc" && sv > sg.s0 - CORNER_HAZARD_CLEAR && sv < sg.s1 + CORNER_HAZARD_CLEAR);
   const facingAt = sv => {
     for(const sg of segs) if(sv >= sg.s0 && sv <= sg.s1) return sg.f;
     return segs[segs.length-1].f;
