@@ -2625,17 +2625,10 @@ const FLAG = { base:{x:-25, y:17}, z0:54, z1:97 };  // anchored to the body's to
                                                       // LID.z1 exactly, base x/y sat inside the
                                                       // lid's own footprint)
 
-/* other robots (requested 2026-07-24): recolored courier liveries for
-   background robots. Chassis stays the same white/grey family as
-   Tipsy's own SKIN -- only the stripe + flag accent changes, so every
-   one of these still reads immediately as "a robot like Tipsy" rather
-   than a different kind of prop. */
-const ROBOT_NPC_COLORS = [
-  { stripe:0x2e6fd1, stripeDk:0x24569f, flag:0x2e6fd1 },   // courier blue
-  { stripe:0x2e9e5b, stripeDk:0x237a46, flag:0x2e9e5b },   // depot green
-  { stripe:0xd1a02e, stripeDk:0x9f7a24, flag:0xd1a02e },   // taxi yellow
-  { stripe:0xc2452e, stripeDk:0xa03824, flag:0xff5722 },   // Tipsy's own colors -- a sibling unit
-];
+/* other robots (requested 2026-07-24): Tipsy's exact look, one swap --
+   blue stripe/flag instead of red (confirmed on-device, dropped the
+   earlier multi-color variety in favor of just this). */
+const ROBOT_NPC = { stripe:0x2e6fd1, stripeDk:0x24569f, flag:0x2e6fd1 };
 
 class WorldScene extends Phaser.Scene {
   constructor(){ super("world"); }
@@ -5077,39 +5070,78 @@ class WorldScene extends Phaser.Scene {
       for(const pt of hparts) pt.fn();
     } else if(kind === "robot"){
       /* other robots (requested 2026-07-24): a simplified sibling body,
-         NOT a call into the player's own 1300-line drawRobot -- that
-         function is tightly coupled to the pickup/dropoff timeline,
-         tip animation, and live tilt/roll/pitch state, far too risky
-         to reuse for a background NPC. Same BODY/WHEEL/STRIPE/FLAG
-         dimensions and SKIN-family colors as Tipsy though, so the
+         NOT a call into the player's own 1300-line drawRobot -- too
+         tightly coupled to the pickup/dropoff timeline and live tilt/
+         roll/pitch state to safely reuse. Same BODY/LID/WHEEL/STRIPE/
+         FLAG dimensions and SKIN-family colors as Tipsy though, so the
          silhouette reads as unmistakably "one of these" even with all
-         new code. Faces ACROSS the lane band (RA flips which world
-         axis is "forward") so the visor/eyes point toward the road --
-         toward Tipsy as he drives past -- instead of along the
-         sidewalk like every other prop in this file. If that reads
-         backwards on-device (facing the buildings instead), flip RA
-         below -- one-line fix, no need to touch spawn or collision. */
-      const col = ROBOT_NPC_COLORS[((data && data.robotSeed) || 0) % ROBOT_NPC_COLORS.length];
+         new code. Faces ACROSS the lane band (RA) toward the road.
+
+         Fixed 2026-07-25: the body was drawing BOTH its left and
+         right side faces (b=+hy AND b=-hy) instead of the one real
+         camera-facing pair -- there's no viewing angle where you'd
+         see both sides of a box at once, so the true front face was
+         never drawn at all. That's why the visor looked missing and
+         the body read as see-through (you were seeing past where a
+         solid face should have been). Now resolves which "a" face
+         and which "b" face actually face the camera -- same faceA/
+         faceB test drawPersonHull already uses -- and draws exactly
+         those two. Also added the lid box on top, which was missing
+         outright. Visor + flag both anchor off the resolved faceA
+         instead of a hardcoded side, so they never land on the same
+         (undrawn) face and never collide with each other regardless
+         of which way the camera ends up seeing a given instance. */
+      const col = ROBOT_NPC;
       const knocked = !!(data && data.knocked);
       const RA = 1;   // which way "forward" (the face) points; flip to -1 to mirror
       const RW = (a, b, h) => W(rv.x*a*RA + dv.x*b, rv.y*a*RA + dv.y*b, h);
+
+      const aDir = { x: rv.x*RA, y: rv.y*RA }, bDir = { x: dv.x, y: dv.y };
+      const faceA = Math.sign(aDir.x + aDir.y) || 1;
+      const faceB = Math.sign(bDir.x + bDir.y) || 1;
 
       const sh = RW(0, 0, 0);
       g.fillStyle(SKIN.shadow, 0.15);
       g.fillEllipse(sh.x, sh.y + 2, BODY.hx*2.1*this.K*0.42, BODY.hy*0.95*this.K*0.42);
 
       const squash = knocked ? 0.22 : 1;   // simplified fallen pose: squashed flat rather than a
-                                            // full 3D roll -- reads as "knocked over" at a glance,
-                                            // good enough for a background prop seen driving past
-      const bz0 = BODY.z0 * squash, bz1 = BODY.z1 * squash;
+                                            // full 3D roll -- reads as "knocked over" at a glance
       const hx = BODY.hx, hy = BODY.hy;
+      const bz0 = BODY.z0 * squash, bz1 = BODY.z1 * squash;
+
+      /* top + the ONE real camera-facing side on each axis -- local
+         helper, same face-resolution idea as drawPersonHull's box(),
+         built on this RW frame. */
+      const box = (bhx, bhy, z0, z1, cTop, cA, cB) => {
+        if(cTop !== null){
+          const top = [RW(-bhx,-bhy,z1), RW(bhx,-bhy,z1), RW(bhx,bhy,z1), RW(-bhx,bhy,z1)];
+          this.quadOn(g, top, cTop);
+          this.edgeOn(g, top, SKIN.outline, 1);
+        }
+        const aFace = [RW(faceA*bhx,-bhy,z1), RW(faceA*bhx,bhy,z1), RW(faceA*bhx,bhy,z0), RW(faceA*bhx,-bhy,z0)];
+        this.quadOn(g, aFace, cA);
+        const bFace = [RW(-bhx,faceB*bhy,z1), RW(bhx,faceB*bhy,z1), RW(bhx,faceB*bhy,z0), RW(-bhx,faceB*bhy,z0)];
+        this.quadOn(g, bFace, cB);
+      };
+
+      /* undercarriage: same dark base box Tipsy's own body sits on */
+      box(24, 17, 6*squash, (BODY.z0+1)*squash, 0x3f434c, 0x3a3d45, 0x2e3138);
+
+      /* body */
+      box(hx, hy, bz0, bz1, SKIN.bodyTop, SKIN.bodyRight, SKIN.bodyLeft);
+
+      /* stripe band, blue accent -- no top, just the two side faces */
+      box(hx+0.4, hy+0.4, STRIPE.z0*squash, STRIPE.z1*squash, null, col.stripe, col.stripeDk);
+
+      /* lid: smaller box on top -- was missing entirely before */
+      if(!knocked) box(LID.hx, LID.hy, LID.z0, LID.z1, SKIN.bodyTop, SKIN.bodyRight, SKIN.bodyLeft);
 
       /* wheels: simple screen-space discs, not full 3D rings -- a
          standing NPC never tilts, so there's no near/far ambiguity to
          resolve the way the player's own drawWheel has to handle. */
       for(const side of [-1, 1]){
         for(const wx of WHEEL.xs){
-          const wp = RW(hx + 4, side*WHEEL.side*squash, WHEEL.r*squash);
+          const wp = RW(wx*squash, side*WHEEL.side, WHEEL.z*squash);
           g.fillStyle(SKIN.wheelDark, 1);
           g.fillCircle(wp.x, wp.y, WHEEL.r*this.K*0.4);
           g.fillStyle(SKIN.wheel, 1);
@@ -5117,48 +5149,36 @@ class WorldScene extends Phaser.Scene {
         }
       }
 
-      /* body: top + two visible side faces, same convexHull-free
-         approach the simpler props (bin, planter) already use. */
-      const top = [RW(-hx,-hy,bz1), RW(hx,-hy,bz1), RW(hx,hy,bz1), RW(-hx,hy,bz1)];
-      this.quadOn(g, top, SKIN.bodyTop);
-      this.edgeOn(g, top, SKIN.outline, 1);
-      const faceR = [RW(-hx,hy,bz0), RW(hx,hy,bz0), RW(hx,hy,bz1), RW(-hx,hy,bz1)];
-      this.quadOn(g, faceR, SKIN.bodyRight);
-      const faceL = [RW(-hx,-hy,bz0), RW(hx,-hy,bz0), RW(hx,hy,bz0), RW(-hx,hy,bz0)];
-      this.quadOn(g, faceL, SKIN.bodyLeft);
-
-      /* stripe band, this robot's own recolored accent */
-      const sz0 = STRIPE.z0*squash, sz1 = STRIPE.z1*squash;
-      const stripeR = [RW(-hx-0.4,hy,sz0), RW(hx+0.4,hy,sz0), RW(hx+0.4,hy,sz1), RW(-hx-0.4,hy,sz1)];
-      this.quadOn(g, stripeR, col.stripe);
-
       if(!knocked){
-        /* flag, upright */
-        const poleBase = RW(FLAG.base.x, FLAG.base.y, FLAG.z0);
-        const poleTip = RW(FLAG.base.x, FLAG.base.y, FLAG.z1);
+        /* flag: opposite corner from wherever the face ends up, so
+           they can never land on top of each other */
+        const flagA = -faceA*25, flagB = 17;
+        const poleBase = RW(flagA, flagB, FLAG.z0);
+        const poleTip = RW(flagA, flagB, FLAG.z1);
         g.lineStyle(2, SKIN.flagPole, 1);
         g.lineBetween(poleBase.x, poleBase.y, poleTip.x, poleTip.y);
-        const flagTip = RW(FLAG.base.x + 14, FLAG.base.y, FLAG.z1 - 6);
-        const flagBot = RW(FLAG.base.x, FLAG.base.y, FLAG.z1 - 16);
+        const flagTip = RW(flagA - faceA*14, flagB, FLAG.z1 - 6);
+        const flagBot = RW(flagA, flagB, FLAG.z1 - 16);
         g.fillStyle(col.flag, 1);
         g.fillTriangle(poleTip.x, poleTip.y, flagTip.x, flagTip.y, flagBot.x, flagBot.y);
       }
 
-      /* face: visor + eyes on the front face (local +a, toward the road) */
+      /* face: visor + eyes on the resolved camera-facing a-face */
       const fz = knocked ? bz1*0.6 : (BODY.z0 + BODY.z1)/2;
-      const visor = [RW(hx+0.6,-13,fz+8), RW(hx+0.6,13,fz+8), RW(hx+0.6,13,fz-8), RW(hx+0.6,-13,fz-8)];
+      const fa = faceA*(hx+0.6);
+      const visor = [RW(fa,-13,fz+8), RW(fa,13,fz+8), RW(fa,13,fz-8), RW(fa,-13,fz-8)];
       this.quadOn(g, visor, SKIN.visor);
       this.edgeOn(g, visor, SKIN.outline, 1);
       if(knocked){
         g.lineStyle(2, SKIN.eyeAlert, 1);
         for(const ey of [-7, 7]){
-          const c = RW(hx+1, ey, fz);
+          const c = RW(faceA*(hx+1), ey, fz);
           g.lineBetween(c.x-4, c.y-4, c.x+4, c.y+4);
           g.lineBetween(c.x-4, c.y+4, c.x+4, c.y-4);
         }
       } else {
         for(const ey of [-7, 7]){
-          const c = RW(hx+1, ey, fz);
+          const c = RW(faceA*(hx+1), ey, fz);
           g.fillStyle(SKIN.eye, 1);
           g.fillEllipse(c.x, c.y, 7*this.K*0.4, 7*this.K*0.4);
         }
