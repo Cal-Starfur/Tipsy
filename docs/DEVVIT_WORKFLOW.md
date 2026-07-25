@@ -43,11 +43,29 @@ node --check tipsey-delivery/public/game-logic.js
 
 ## Where to actually run commands
 
-No local terminal, no bridge (deprioritized — `tools/bridge3.js` and the
-`Cal-Starfur/codespace-bridge` relay are not in active use). The real
-setup: a **GitHub Codespace opened in a browser** (often the iPhone
-browser). Claude gives copy-paste command blocks; Sir runs them in that
-terminal and pastes the output back.
+**Preferred: run devvit directly inside Claude Code, no codespace.** The
+`devvit` CLI and a wrapper (`tools/devvit.sh`) live in this repo, driven by
+the `devvit` skill (`.claude/skills/devvit/`). Claude runs the workflow in
+place — `preflight`, `ship` (upload+install to r/tipsey), `playtest`,
+`login`. Two things must be true for it to work:
+
+1. **Network** — the Claude environment must be allowed to reach
+   `reddit.com` + `developers.reddit.com`. Restricted environments block
+   these by default; widen the environment's network policy
+   (https://code.claude.com/docs/en/claude-code-on-the-web).
+   `tools/devvit.sh preflight` reports whether you're blocked.
+2. **Auth** — set a `DEVVIT_AUTH_TOKEN` environment secret (the contents of
+   a `~/.devvit/token` from any prior `devvit login`). Then every session is
+   authenticated with no interaction. Devvit's CLI reads this env var before
+   the token file (`AuthTokenStore`), so it needs no codespace at all.
+
+Run `tools/devvit.sh preflight` first, every time — it tells you exactly
+which of the two (if either) still needs attention.
+
+The old codespace relay (`tools/bridge3.js` + the `Cal-Starfur/codespace-bridge`
+repo) is **retired** — kept only for history. The browser-Codespace
+copy-paste flow still works as a manual fallback if the network policy can't
+be widened, but the direct path above is the intended workflow.
 
 ## Logging in
 
