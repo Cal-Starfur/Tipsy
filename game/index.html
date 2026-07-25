@@ -681,6 +681,21 @@ const DAMAGE_REDZONE_DPS = 8;   // cargo damage/sec while |tilt| stays past the 
    punishing as before. Starting values, not yet tuned on-device. */
 const CARGO_DAMAGE_SENS = 0.4;  // multiplier on cargo damage from routine contacts (lower = cargo survives bumps better)
 const TILT_SENS = 0.5;          // multiplier on tilt buildup from routine contacts/cornering/jitter (lower = harder to tip)
+/* cornering-specific fix (requested 2026-07-24 as a follow-up to the
+   TILT_SENS pass above): cornering tilt scales with speed SQUARED
+   (see the arc-segment line below), but the robot's top speed was
+   already raised 0.15 -> 0.225 in an earlier session (+50%). That
+   alone is a 1.5^2 = 2.25x jump in cornering tilt at top speed --
+   TILT_SENS's flat 0.5x only clawed back HALF of that, netting
+   2.25*0.5 = 1.125x the ORIGINAL pre-speed-boost cornering tilt.
+   So high-speed turns were tipping MORE easily than before the whole
+   difficulty pass, despite TILT_SENS -- exactly what got reported.
+   First pass landed on 0.051 (~50% of original pre-boost, pre-
+   TILT_SENS cornering tilt) -- still too easy on further testing.
+   0.0255 targets ~25% of that same original baseline: a quarter as
+   tippy in turns as the game was before any of this difficulty work
+   started, at the current (boosted) top speed. */
+const CORNER_TILT_COEF = 0.0255;
 
 /* dialed in the hydrant hit lab: burst + hydroplane numbers */
 const HYD_SLIP = {
@@ -6611,7 +6626,7 @@ class WorldScene extends Phaser.Scene {
          long enough for the smoothed speed to catch up anyway. */
       const arcProgress = seg.type === "arc" ? Phaser.Math.Clamp((this.botS - seg.s0)/(seg.s1 - seg.s0), 0, 1) : 0;
       const tiltTaper = arcProgress < 0.4 ? 1 : Phaser.Math.Linear(1, 0.35, (arcProgress - 0.4)/0.6);
-      if(seg.type === "arc") this.tilt += seg.sign * this.corneringSpeedSmooth * this.corneringSpeedSmooth * 0.115 * tiltTaper * dt * TILT_SENS;
+      if(seg.type === "arc") this.tilt += seg.sign * this.corneringSpeedSmooth * this.corneringSpeedSmooth * CORNER_TILT_COEF * tiltTaper * dt * TILT_SENS;
       /* visual banking: only the INSIDE lane lifts wheels; center + outside stay flat.
          The sidewalk band sits entirely on ONE side of the street now (not
          straddling the centerline like the old 3-lane system), which means
