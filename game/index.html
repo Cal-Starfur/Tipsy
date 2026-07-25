@@ -5205,19 +5205,45 @@ class WorldScene extends Phaser.Scene {
       g.fillStyle(SKIN.shadow, 0.15);
       g.fillEllipse(sh.x, sh.y + 2, BODY.hx*2.1*this.K*0.42, BODY.hy*0.95*this.K*0.42);
 
-      /* top + the ONE real camera-facing side on each axis -- local
-         helper, same face-resolution idea as drawPersonHull's box(),
-         built on this RW frame. */
+      /* Every box face tested individually against its OWN rotated
+         normal, same technique drawLid already uses (6 face normals,
+         draw whichever ones actually face the camera) -- NOT the
+         fixed "always top + one A-face + one B-face" from before.
+         That fixed selection was only ever valid for the UPRIGHT
+         case; once tipped, which faces are actually camera-facing
+         changes too, but the old code kept drawing the same three
+         regardless of rotation -- that's what produced the
+         fragmented, wrong-looking pieces (reported 2026-07-25).
+         World-facing test: rotate each face's local normal by the
+         same (b,h) tip rotation as points, map to world via fwdV/
+         sideV (the "h" component maps straight to world vertical,
+         same as points), sum x+y+z > 0 -- exactly drawLid's own
+         HN()+w.x+w.y+w.z test. At tipAngle=0 this reduces exactly to
+         the old faceA/faceB single-face selection (verified
+         algebraically before shipping), so the standing pose is
+         pixel-identical to before -- only the tipped pose changes. */
       const box = (bhx, bhy, z0, z1, cTop, cA, cB) => {
-        if(cTop !== null){
-          const top = [RW(-bhx,-bhy,z1), RW(bhx,-bhy,z1), RW(bhx,bhy,z1), RW(-bhx,bhy,z1)];
-          this.quadOn(g, top, cTop);
-          this.edgeOn(g, top, SKIN.outline, 1);
+        const faces = [
+          { na:0, nb:0,  nh:1,  col:cTop, pts:[[-bhx,-bhy,z1],[bhx,-bhy,z1],[bhx,bhy,z1],[-bhx,bhy,z1]] },
+          { na:0, nb:0,  nh:-1, col:cTop, pts:[[-bhx,-bhy,z0],[-bhx,bhy,z0],[bhx,bhy,z0],[bhx,-bhy,z0]] },
+          { na:1, nb:0,  nh:0,  col:cA,   pts:[[bhx,-bhy,z0],[bhx,bhy,z0],[bhx,bhy,z1],[bhx,-bhy,z1]] },
+          { na:-1,nb:0,  nh:0,  col:cA,   pts:[[-bhx,bhy,z0],[-bhx,-bhy,z0],[-bhx,-bhy,z1],[-bhx,bhy,z1]] },
+          { na:0, nb:1,  nh:0,  col:cB,   pts:[[bhx,bhy,z0],[-bhx,bhy,z0],[-bhx,bhy,z1],[bhx,bhy,z1]] },
+          { na:0, nb:-1, nh:0,  col:cB,   pts:[[-bhx,-bhy,z0],[bhx,-bhy,z0],[bhx,-bhy,z1],[-bhx,-bhy,z1]] },
+        ];
+        for(const f of faces){
+          if(f.col === null) continue;
+          let nb2 = f.nb, nh2 = f.nh;
+          if(tipAngle !== 0){
+            nb2 = f.nb*tpc - f.nh*tps;
+            nh2 = f.nb*tps + f.nh*tpc;
+          }
+          const wx = fwdV.x*f.na*RA + sideV.x*nb2, wy = fwdV.y*f.na*RA + sideV.y*nb2;
+          if(wx + wy + nh2 <= 0) continue;
+          const pts = f.pts.map(([a,b,h]) => RW(a, b, h));
+          this.quadOn(g, pts, f.col);
+          this.edgeOn(g, pts, SKIN.outline, 1);
         }
-        const aFace = [RW(faceA*bhx,-bhy,z1), RW(faceA*bhx,bhy,z1), RW(faceA*bhx,bhy,z0), RW(faceA*bhx,-bhy,z0)];
-        this.quadOn(g, aFace, cA);
-        const bFace = [RW(-bhx,faceB*bhy,z1), RW(bhx,faceB*bhy,z1), RW(bhx,faceB*bhy,z0), RW(-bhx,faceB*bhy,z0)];
-        this.quadOn(g, bFace, cB);
       };
 
       /* undercarriage: same dark base box Tipsy's own body sits on */
