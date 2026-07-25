@@ -5222,7 +5222,32 @@ class WorldScene extends Phaser.Scene {
          the old faceA/faceB single-face selection (verified
          algebraically before shipping), so the standing pose is
          pixel-identical to before -- only the tipped pose changes. */
-      const box = (bhx, bhy, z0, z1, cTop, cA, cB) => {
+      const box = (bhx, bhy, z0, z1, cTop, cA, cB, hingeAngle=0) => {
+        /* lid hinge (requested 2026-07-25, follow-up to the tip fix):
+           an independent swing-open rotation, composed with the whole-
+           body tip rather than replacing it -- same relationship
+           Tipsy's own lidAng has to his body roll. Position: rotate
+           around the hinge's own pivot (one edge of THIS box, matching
+           drawLid's -hy,z0 convention) first, then let the outer RW
+           apply the body-tip rotation on top -- two rotations applied
+           in sequence. Visibility only needs their SUM (tipAngle +
+           hingeAngle): rotations in the same plane add for a direction
+           vector regardless of what pivots the position math used, so
+           there's no need to redo the full two-pivot chain just for
+           the normal test. */
+        const hpc = Math.cos(hingeAngle), hps = Math.sin(hingeAngle);
+        const hPivotB = -bhy, hPivotH = z0;
+        const localRW = (a, b, h) => {
+          let b2 = b, h2 = h;
+          if(hingeAngle !== 0){
+            const db = b - hPivotB, dh = h - hPivotH;
+            b2 = hPivotB + db*hpc - dh*hps;
+            h2 = hPivotH + db*hps + dh*hpc;
+          }
+          return RW(a, b2, h2);
+        };
+        const effA = tipAngle + hingeAngle;
+        const epc = Math.cos(effA), eps = Math.sin(effA);
         const faces = [
           { na:0, nb:0,  nh:1,  col:cTop, pts:[[-bhx,-bhy,z1],[bhx,-bhy,z1],[bhx,bhy,z1],[-bhx,bhy,z1]] },
           { na:0, nb:0,  nh:-1, col:cTop, pts:[[-bhx,-bhy,z0],[-bhx,bhy,z0],[bhx,bhy,z0],[bhx,-bhy,z0]] },
@@ -5234,13 +5259,13 @@ class WorldScene extends Phaser.Scene {
         for(const f of faces){
           if(f.col === null) continue;
           let nb2 = f.nb, nh2 = f.nh;
-          if(tipAngle !== 0){
-            nb2 = f.nb*tpc - f.nh*tps;
-            nh2 = f.nb*tps + f.nh*tpc;
+          if(effA !== 0){
+            nb2 = f.nb*epc - f.nh*eps;
+            nh2 = f.nb*eps + f.nh*epc;
           }
           const wx = fwdV.x*f.na*RA + sideV.x*nb2, wy = fwdV.y*f.na*RA + sideV.y*nb2;
           if(wx + wy + nh2 <= 0) continue;
-          const pts = f.pts.map(([a,b,h]) => RW(a, b, h));
+          const pts = f.pts.map(([a,b,h]) => localRW(a, b, h));
           this.quadOn(g, pts, f.col);
           this.edgeOn(g, pts, SKIN.outline, 1);
         }
@@ -5255,9 +5280,12 @@ class WorldScene extends Phaser.Scene {
       /* stripe band, blue accent -- no top, just the two side faces */
       box(hx+0.6, hy+0.6, STRIPE.z0, STRIPE.z1, null, col.stripe, col.stripeDk);
 
-      /* lid: rotates along with everything else now instead of being
-         hidden when tipped */
-      box(LID.hx, LID.hy, LID.z0, LID.z1, SKIN.bodyTop, SKIN.bodyRight, SKIN.bodyLeft);
+      /* lid: swings open on its own hinge as it falls, same relationship
+         Tipsy's own lidAng has to his body roll -- not just rotating
+         along with the body rigidly. Target angle (1.78 rad) matches
+         Tipsy's own open target in drawRobot. */
+      const lidHingeAng = knocked ? Math.min(1, (t - knockT)/450) * 1.78 : 0;
+      box(LID.hx, LID.hy, LID.z0, LID.z1, SKIN.bodyTop, SKIN.bodyRight, SKIN.bodyLeft, lidHingeAng);
 
       /* wheels: TWO rings offset along the tread width, combined via
          convexHull -- same fix drawWheel itself uses for "a single
