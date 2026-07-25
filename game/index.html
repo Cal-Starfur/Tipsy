@@ -758,6 +758,17 @@ const CORNER_TILT_COEF = 0.0255;
 const ROBOT_HIT_MIN = 0.08;      // below this, no reaction at all (matches every other wall hazard's floor)
 const ROBOT_TIP_THRESH = 0.19;   // at/above this speed, Tipsy tips instead of the other robot
 
+/* curb-drop stumble cap (requested 2026-07-24): stepping off an
+   unramped sidewalk edge while already leaning used to hard-set
+   tilt=1.1 -- an unconditional instant-fail, same mechanism as
+   getting hit by traffic. Reported as tipping too easily. Traffic
+   stays exactly as punishing as before (a real collision should be),
+   but the curb stumble now caps well short of the >=1 fail line --
+   deep in the >0.75 red-damage zone (cargo bleeds condition, same
+   DAMAGE_REDZONE_DPS mechanic already in place) but recoverable
+   instead of a guaranteed crash. */
+const CURB_DROP_TILT_CAP = 0.9;
+
 /* dialed in the hydrant hit lab: burst + hydroplane numbers */
 const HYD_SLIP = {
   thresh: 0.055,   // hit speed that shears the nozzle
@@ -7547,7 +7558,7 @@ class WorldScene extends Phaser.Scene {
           const _wasLeaning = Math.abs(this.tilt) > 0.55;
           this.tilt += Math.sign(this.tilt || (1 - _vRow) || 1) * 0.35;   // (1 - row): same axis mirror as tiltSign
           if(_wasLeaning || Math.abs(this.tilt) > 0.85)
-            this.tilt = 1.1 * Math.sign(this.tilt);
+            this.tilt = CURB_DROP_TILT_CAP * Math.sign(this.tilt);
         }
       } else if(_tg){
         this.crossZ = _tg.z;
@@ -7584,7 +7595,7 @@ class WorldScene extends Phaser.Scene {
           const _wasLeaning = Math.abs(this.tilt) > 0.55;
           this.tilt += Math.sign(this.tilt || 1) * 0.35;
           if(_wasLeaning || Math.abs(this.tilt) > 0.85)
-            this.tilt = 1.1 * Math.sign(this.tilt);
+            this.tilt = CURB_DROP_TILT_CAP * Math.sign(this.tilt);
         }
       } else {
         this.crossZ = 0; this.crossSlope = 0; this.crossJitter = 0;
