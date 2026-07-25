@@ -446,7 +446,33 @@ const DOG_COATS = [
    spot. Offsets are tile-local (±30 along, ±26 across) so he never
    leaves the square he spawned in. Walk legs are 62% of each 2.6s
    segment (smoothstepped), the rest is standing and judging. */
-function dogSpotAt(tms, seed, sit){
+function dogSpotAt(tms, hz){
+  const seed = (hz && hz.dogSeed) || 0;
+  const sit = hz ? !!hz.sit : false;
+  /* sidewalk walk (requested 2026-07-24, same system as prop.people):
+     if this dog got a walk range at spawn (walkS0/walkS1 -- only ever
+     set for the free-roaming half, see the dog spawn branch; sitters
+     never get one), ping-pong along it with a pause at each end.
+     th=0/PI here, NOT people's -PI/2/PI/2 correction -- drawPersonHull
+     builds its body with the walk-step axis on local B, but the dog
+     model lays rearA/chestA/headA along local A (confirmed by reading
+     the dog draw code), so local A already IS the dog's own forward
+     axis and needs no extra rotation to align with world dv. */
+  if(hz && hz.walkS0 !== undefined && hz.walkS1 !== undefined && hz.walkS1 > hz.walkS0){
+    const lo = hz.walkS0 - hz.s, hi = hz.walkS1 - hz.s;
+    const SPEED = 0.024;     // units/ms -- a touch brisker than people's 0.02, dogs amble faster
+    const PAUSE = 700;       // ms idle at each end (sniffing around) before turning back
+    const legMs = (hi - lo) / SPEED;
+    const cyc = legMs*2 + PAUSE*2;
+    const phase = seed % 100000;
+    const u = ((tms + phase) % cyc + cyc) % cyc;
+    let a, th, walking;
+    if(u < legMs){                          a = lo + u*SPEED;                     th = 0;        walking = true;  }
+    else if(u < legMs + PAUSE){              a = hi;                               th = 0;        walking = false; }
+    else if(u < legMs*2 + PAUSE){            a = hi - (u - legMs - PAUSE)*SPEED;   th = Math.PI;  walking = true;  }
+    else {                                   a = lo;                               th = Math.PI;  walking = false; }
+    return { a, b: 0, th, walk: walking ? 1 : 0 };
+  }
   const wp = i => {
     const r = mulberry32((seed ^ Math.imul(i|0, 2654435761)) >>> 0);
     return { a: -30 + r()*60, b: -26 + r()*52 };
@@ -500,7 +526,7 @@ function dogFleeAt(tms, hz){
 function dogSettledSpot(hz){
   if(!hz || hz.hitT === undefined) return null;
   const DUR = 2600, DIST = 250;                // matches dogFleeAt's values at u=1
-  const base = dogSpotAt(hz.hitT + DUR, hz.dogSeed || 0, hz.sit);
+  const base = dogSpotAt(hz.hitT + DUR, hz);
   return {
     a: base.a + (hz.fleeA || 1) * DIST,
     b: base.b - DIST * 0.45,
@@ -2003,8 +2029,25 @@ function generateRoute(dateStr){
     else if(r2 < 0.75)                 type = "cone";
     else { const r3 = rng(); type = r3 < 0.25 ? "dog" : r3 < 0.48 ? "people" : r3 < 0.73 ? "bin" : "planter"; }
     const hzObj = { type, s: hsR, row: lane, f: facingAt(hsR), hit:false };
-    if(type === "dog"){ hzObj.dogSeed = (rng()*4294967296) >>> 0;  // coat + scar + waypoints
-                        hzObj.sit = rng() < 0.4; }                 // ~40% sitters
+    if(type === "dog"){
+      hzObj.dogSeed = (rng()*4294967296) >>> 0;  // coat + scar + waypoints
+      /* 50/50 free-roaming vs the original pace/sit behavior (requested
+         2026-07-24, same sidewalk-block system as prop.people above).
+         The free-roaming half never sits -- walking and sitting are
+         mutually exclusive, so sit only gets rolled for the half that
+         ISN'T getting a walk range, leaving their ~40% sitter rate
+         exactly as it always was. */
+      if(rng() < 0.5){
+        const dSeg = segs.find(g => hsR >= g.s0 && hsR <= g.s1 && g.type === "line");
+        if(dSeg){
+          const w0 = dSeg.s0 + CROSSING_CLEAR, w1 = dSeg.s1 - CROSSING_CLEAR;
+          if(w1 - w0 >= T2){ hzObj.walkS0 = w0; hzObj.walkS1 = w1; }
+        }
+        hzObj.sit = false;
+      } else {
+        hzObj.sit = rng() < 0.4;                 // ~40% sitters, same as always
+      }
+    }
     if(type === "people"){
       hzObj.peopleSeed = (rng()*4294967296) >>> 0;  // body/skin/shirt/pants/hair/shoe
       /* sidewalk-walking range (requested 2026-07-24): confined to the
@@ -5207,7 +5250,7 @@ class WorldScene extends Phaser.Scene {
       const pseed = ((Math.round(x)*7919) ^ (Math.round(y)*104729) ^ 0x6d0a) >>> 0;
       const dseed = (data && data.dogSeed !== undefined) ? data.dogSeed : pseed;
       const sitSeed = data ? !!data.sit : ((dseed >> 3) % 5 < 2);
-      const spot = dogSpotAt(t, dseed, sitSeed);
+      const spot = dogSpotAt(t, data || {dogSeed: dseed, sit: sitSeed});
       const flee = dogFleeAt(t, data);
       const settled = flee && flee.gone;
       const settledSpot = settled ? dogSettledSpot(data) : null;
@@ -6740,7 +6783,7 @@ class WorldScene extends Phaser.Scene {
             hz.hit = false;
             dx -= dogSettledSpot(hz).a;
           } else {
-            dx -= dogSpotAt(t, hz.dogSeed || 0, hz.sit).a;
+            dx -= dogSpotAt(t, hz).a;
           }
         }
         if(hz.type === "people"){
