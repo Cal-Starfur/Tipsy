@@ -5094,7 +5094,7 @@ class WorldScene extends Phaser.Scene {
       const col = ROBOT_NPC;
       const knocked = !!(data && data.knocked);
       const RA = 1;   // which way "forward" (the face) points; flip to -1 to mirror
-      const RW = (a, b, h) => W(rv.x*a*RA + dv.x*b, rv.y*a*RA + dv.y*b, h);
+      const RW = (a, b, h) => this.W(x + rv.x*a*RA + dv.x*b, y + rv.y*a*RA + dv.y*b, h);
 
       const aDir = { x: rv.x*RA, y: rv.y*RA }, bDir = { x: dv.x, y: dv.y };
       const faceA = Math.sign(aDir.x + aDir.y) || 1;
@@ -5131,56 +5131,71 @@ class WorldScene extends Phaser.Scene {
       box(hx, hy, bz0, bz1, SKIN.bodyTop, SKIN.bodyRight, SKIN.bodyLeft);
 
       /* stripe band, blue accent -- no top, just the two side faces */
-      box(hx+0.4, hy+0.4, STRIPE.z0*squash, STRIPE.z1*squash, null, col.stripe, col.stripeDk);
+      box(hx+0.6, hy+0.6, STRIPE.z0*squash, STRIPE.z1*squash, null, col.stripe, col.stripeDk);
 
       /* lid: smaller box on top -- was missing entirely before */
       if(!knocked) box(LID.hx, LID.hy, LID.z0, LID.z1, SKIN.bodyTop, SKIN.bodyRight, SKIN.bodyLeft);
 
-      /* wheels: simple screen-space discs, not full 3D rings -- a
-         standing NPC never tilts, so there's no near/far ambiguity to
-         resolve the way the player's own drawWheel has to handle. */
+      /* wheels: a projected ring per wheel (world-space circle in the
+         length/height plane, same axes drawWheel's own ring(oy,r)
+         varies), not a flat screen-space circle -- so it reads as a
+         real iso-skewed disc like Tipsy's actual wheels instead of a
+         perfect flat dot. Simplified to one ring per wheel (no tread-
+         width double-ring) -- reasonable for a background prop. */
+      const wheelRing = (wx, wb, r, n=12) => {
+        const pts = [];
+        for(let i=0; i<n; i++){
+          const a = (i/n)*Math.PI*2;
+          pts.push(RW(wx + Math.cos(a)*r, wb, WHEEL.z*squash + Math.sin(a)*r));
+        }
+        return pts;
+      };
       for(const side of [-1, 1]){
         for(const wx of WHEEL.xs){
-          const wp = RW(wx*squash, side*WHEEL.side, WHEEL.z*squash);
-          g.fillStyle(SKIN.wheelDark, 1);
-          g.fillCircle(wp.x, wp.y, WHEEL.r*this.K*0.4);
-          g.fillStyle(SKIN.wheel, 1);
-          g.fillCircle(wp.x, wp.y, WHEEL.r*this.K*0.28);
+          const wb = side*WHEEL.side;
+          this.quadOn(g, wheelRing(wx*squash, wb, WHEEL.r*squash), SKIN.wheelDark);
+          this.quadOn(g, wheelRing(wx*squash, wb, WHEEL.r*0.55*squash), SKIN.wheelHubFace);
         }
       }
 
       if(!knocked){
         /* flag: opposite corner from wherever the face ends up, so
-           they can never land on top of each other */
+           they can never land on top of each other. Straight pole (no
+           lean animation for a static NPC) -- its screen-space
+           direction is exactly (0,-1), so this reduces to the same
+           triangle drawFlag builds for an unbent pole: tip, tip
+           offset -dy*11/+dx*11, tip offset +dx*20/+dy*20+4. */
         const flagA = -faceA*25, flagB = 17;
         const poleBase = RW(flagA, flagB, FLAG.z0);
         const poleTip = RW(flagA, flagB, FLAG.z1);
-        g.lineStyle(2, SKIN.flagPole, 1);
+        g.lineStyle(3, SKIN.flagPole, 1);
         g.lineBetween(poleBase.x, poleBase.y, poleTip.x, poleTip.y);
-        const flagTip = RW(flagA - faceA*14, flagB, FLAG.z1 - 6);
-        const flagBot = RW(flagA, flagB, FLAG.z1 - 16);
         g.fillStyle(col.flag, 1);
-        g.fillTriangle(poleTip.x, poleTip.y, flagTip.x, flagTip.y, flagBot.x, flagBot.y);
+        g.fillTriangle(poleTip.x, poleTip.y, poleTip.x + 11, poleTip.y, poleTip.x, poleTip.y - 16);
       }
 
-      /* face: visor + eyes on the resolved camera-facing a-face */
-      const fz = knocked ? bz1*0.6 : (BODY.z0 + BODY.z1)/2;
-      const fa = faceA*(hx+0.6);
-      const visor = [RW(fa,-13,fz+8), RW(fa,13,fz+8), RW(fa,13,fz-8), RW(fa,-13,fz-8)];
+      /* face: visor + eyes on the resolved camera-facing a-face --
+         exact position/size from Tipsy's own drawRobot (x=hx+0.8,
+         visor z in [40,50], eyes at z=45 -- near the TOP of the body,
+         not centered on it). */
+      const fa = faceA*(hx+0.8);
+      const fvz0 = knocked ? bz1*0.5 : 40, fvz1 = knocked ? bz1*0.7 : 50;
+      const visor = [RW(fa,-13,fvz1), RW(fa,13,fvz1), RW(fa,13,fvz0), RW(fa,-13,fvz0)];
       this.quadOn(g, visor, SKIN.visor);
-      this.edgeOn(g, visor, SKIN.outline, 1);
+      this.edgeOn(g, visor, SKIN.outline, 1.5);
+      const fz = knocked ? bz1*0.6 : 45;
       if(knocked){
         g.lineStyle(2, SKIN.eyeAlert, 1);
         for(const ey of [-7, 7]){
-          const c = RW(faceA*(hx+1), ey, fz);
+          const c = RW(fa, ey, fz);
           g.lineBetween(c.x-4, c.y-4, c.x+4, c.y+4);
           g.lineBetween(c.x-4, c.y+4, c.x+4, c.y-4);
         }
       } else {
         for(const ey of [-7, 7]){
-          const c = RW(faceA*(hx+1), ey, fz);
+          const c = RW(fa, ey, fz);
           g.fillStyle(SKIN.eye, 1);
-          g.fillEllipse(c.x, c.y, 7*this.K*0.4, 7*this.K*0.4);
+          g.fillEllipse(c.x, c.y, 7, 7);
         }
       }
     } else if(kind === "planter"){
