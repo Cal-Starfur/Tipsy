@@ -2257,7 +2257,7 @@ function generateRoute(dateStr){
     if(rng() < 0.5){
       hazards.push({ type:"robot", s: rbR, row: 3, f: facingAt(rbR),
                      hit:false, robotSeed: (rng()*4294967296) >>> 0,
-                     knocked:false, fallPsi: (rng()*2-1)*0.4 });
+                     knocked:false, fallPsi: (rng()*2-1)*0.4, items:[] });
     }
   }
 
@@ -2284,7 +2284,7 @@ function generateRoute(dateStr){
     hazards.push({ type:"robot", s: rrR, row: rLane, f: facingAt(rrR),
                    hit:false, robotSeed: (rng()*4294967296) >>> 0,
                    knocked:false, fallPsi: (rng()*2-1)*0.4,
-                   roving:true, walkS0: rw0, walkS1: rw1 });
+                   roving:true, walkS0: rw0, walkS1: rw1, items:[] });
   }
 
   /* hydrants: lane 0, closest to the road — the real curb side. */
@@ -5172,20 +5172,38 @@ class WorldScene extends Phaser.Scene {
 
       const fwdV = roving ? dv : rv, sideV = roving ? rv : dv;
       const RA = (roving && spot && !knocked) ? spot.dir : 1;
-      const RW = (a, b, h) => this.W(ex + fwdV.x*a*RA + sideV.x*b, ey + fwdV.y*a*RA + sideV.y*b, h);
 
       const aDir = { x: fwdV.x*RA, y: fwdV.y*RA }, bDir = { x: sideV.x, y: sideV.y };
       const faceA = Math.sign(aDir.x + aDir.y) || 1;
       const faceB = Math.sign(bDir.x + bDir.y) || 1;
 
+      const hx = BODY.hx, hy = BODY.hy;
+
+      /* tipped-over pose (requested 2026-07-25): a real 90-degree
+         pivot rotation in the (b,h) plane, eased in over ~450ms from
+         the moment of impact (hz.knockT, set by the collision code),
+         pivoting on the camera-facing ground edge -- NOT the flat
+         height-squash from before, which just read as "goes flat"
+         rather than actually tipping over. Wrapping RW itself means
+         every part (body, wheels, lid, face) rotates together
+         automatically instead of needing special-cased math per part. */
+      const knockT = knocked ? ((data && data.knockT) || t) : t;
+      const tipAngle = knocked ? Math.min(1, (t - knockT)/450) * (Math.PI/2) : 0;
+      const tpc = Math.cos(tipAngle), tps = Math.sin(tipAngle);
+      const pivotB = faceB*hy, pivotH = 0;
+      const RW = (a, b, h) => {
+        let b2 = b, h2 = h;
+        if(tipAngle !== 0){
+          const db = b - pivotB, dh = h - pivotH;
+          b2 = pivotB + db*tpc - dh*tps;
+          h2 = pivotH + db*tps + dh*tpc;
+        }
+        return this.W(ex + fwdV.x*a*RA + sideV.x*b2, ey + fwdV.y*a*RA + sideV.y*b2, h2);
+      };
+
       const sh = RW(0, 0, 0);
       g.fillStyle(SKIN.shadow, 0.15);
       g.fillEllipse(sh.x, sh.y + 2, BODY.hx*2.1*this.K*0.42, BODY.hy*0.95*this.K*0.42);
-
-      const squash = knocked ? 0.22 : 1;   // simplified fallen pose: squashed flat rather than a
-                                            // full 3D roll -- reads as "knocked over" at a glance
-      const hx = BODY.hx, hy = BODY.hy;
-      const bz0 = BODY.z0 * squash, bz1 = BODY.z1 * squash;
 
       /* top + the ONE real camera-facing side on each axis -- local
          helper, same face-resolution idea as drawPersonHull's box(),
@@ -5203,52 +5221,46 @@ class WorldScene extends Phaser.Scene {
       };
 
       /* undercarriage: same dark base box Tipsy's own body sits on */
-      box(24, 17, 6*squash, (BODY.z0+1)*squash, 0x3f434c, 0x3a3d45, 0x2e3138);
+      box(24, 17, 6, BODY.z0+1, 0x3f434c, 0x3a3d45, 0x2e3138);
 
       /* body */
-      box(hx, hy, bz0, bz1, SKIN.bodyTop, SKIN.bodyRight, SKIN.bodyLeft);
+      box(hx, hy, BODY.z0, BODY.z1, SKIN.bodyTop, SKIN.bodyRight, SKIN.bodyLeft);
 
       /* stripe band, blue accent -- no top, just the two side faces */
-      box(hx+0.6, hy+0.6, STRIPE.z0*squash, STRIPE.z1*squash, null, col.stripe, col.stripeDk);
+      box(hx+0.6, hy+0.6, STRIPE.z0, STRIPE.z1, null, col.stripe, col.stripeDk);
 
-      /* lid: smaller box on top -- was missing entirely before */
-      if(!knocked) box(LID.hx, LID.hy, LID.z0, LID.z1, SKIN.bodyTop, SKIN.bodyRight, SKIN.bodyLeft);
+      /* lid: rotates along with everything else now instead of being
+         hidden when tipped */
+      box(LID.hx, LID.hy, LID.z0, LID.z1, SKIN.bodyTop, SKIN.bodyRight, SKIN.bodyLeft);
 
       /* wheels: TWO rings offset along the tread width, combined via
          convexHull -- same fix drawWheel itself uses for "a single
          ring's outline degenerates to a flat line at certain yaw
-         angles." A single ring (what was here before) is exactly that
-         degenerate case: always flat, no matter the angle, which is
-         why it read as having no volume. Only the camera-facing side
-         (faceB) draws -- the far side would never be visible behind
-         an opaque body anyway. Roving robots' wheels actually spin
-         (a small bolt marker orbits the hub, same trick drawWheel
-         uses, driven by elapsed time instead of drawWheel's own
-         wheelPhase since that's player-only state); parked robots'
-         wheels sit still, matching drawWheel's own convention where
-         only the marker orbits, not the whole tire face. */
+         angles." Only the camera-facing side (faceB) draws -- the far
+         side would never be visible behind an opaque body anyway.
+         Roving robots' wheels spin (a small bolt marker orbits the
+         hub); parked and knocked robots' wheels sit still. */
       const W2 = 7.5;
       const wheelRingAt = (wx, ob, r) => {
         const pts = [];
         for(let i=0; i<14; i++){
           const a = (i/14)*Math.PI*2;
-          pts.push(RW(wx + Math.cos(a)*r, ob, WHEEL.z*squash + Math.sin(a)*r));
+          pts.push(RW(wx + Math.cos(a)*r, ob, WHEEL.z + Math.sin(a)*r));
         }
         return pts;
       };
       const wheelSpinPhase = (roving && !knocked) ? t*0.03 : 0;
       for(const wx of WHEEL.xs){
         const wb = faceB*WHEEL.side;
-        const bIn = wb - faceB*W2/2*squash, bOut = wb + faceB*W2/2*squash;
-        this.quadOn(g, convexHull(wheelRingAt(wx*squash, bIn, WHEEL.r*squash)
-                                   .concat(wheelRingAt(wx*squash, bOut, WHEEL.r*squash))), SKIN.wheelDark);
-        const faceRing = wheelRingAt(wx*squash, bOut, WHEEL.r*squash);
+        const bIn = wb - faceB*W2/2, bOut = wb + faceB*W2/2;
+        this.quadOn(g, convexHull(wheelRingAt(wx, bIn, WHEEL.r)
+                                   .concat(wheelRingAt(wx, bOut, WHEEL.r))), SKIN.wheelDark);
+        const faceRing = wheelRingAt(wx, bOut, WHEEL.r);
         this.quadOn(g, faceRing, SKIN.wheel);
         this.edgeOn(g, faceRing, SKIN.outline, 2);
-        this.quadOn(g, wheelRingAt(wx*squash, bOut, WHEEL.r*0.55*squash), SKIN.wheelHubFace);
+        this.quadOn(g, wheelRingAt(wx, bOut, WHEEL.r*0.55), SKIN.wheelHubFace);
         const spinA = wheelSpinPhase + wx*0.2;
-        const boltPt = RW(wx*squash + Math.cos(spinA)*WHEEL.r*0.34*squash, bOut,
-                           WHEEL.z*squash + Math.sin(spinA)*WHEEL.r*0.34*squash);
+        const boltPt = RW(wx + Math.cos(spinA)*WHEEL.r*0.34, bOut, WHEEL.z + Math.sin(spinA)*WHEEL.r*0.34);
         g.fillStyle(SKIN.wheelHub, 1);
         g.fillCircle(boltPt.x, boltPt.y, 2.4);
       }
@@ -5271,26 +5283,56 @@ class WorldScene extends Phaser.Scene {
 
       /* face: visor + eyes on the resolved camera-facing a-face --
          exact position/size from Tipsy's own drawRobot (x=hx+0.8,
-         visor z in [40,50], eyes at z=45 -- near the TOP of the body,
-         not centered on it). */
+         visor z in [40,50], eyes at z=45). Always the same local
+         position now -- the tip rotation above handles making it look
+         different once knocked, no more special-casing per part. */
       const fa = faceA*(hx+0.8);
-      const fvz0 = knocked ? bz1*0.5 : 40, fvz1 = knocked ? bz1*0.7 : 50;
-      const visor = [RW(fa,-13,fvz1), RW(fa,13,fvz1), RW(fa,13,fvz0), RW(fa,-13,fvz0)];
+      const visor = [RW(fa,-13,50), RW(fa,13,50), RW(fa,13,40), RW(fa,-13,40)];
       this.quadOn(g, visor, SKIN.visor);
       this.edgeOn(g, visor, SKIN.outline, 1.5);
-      const fz = knocked ? bz1*0.6 : 45;
       if(knocked){
         g.lineStyle(2, SKIN.eyeAlert, 1);
         for(const ey of [-7, 7]){
-          const c = RW(fa, ey, fz);
+          const c = RW(fa, ey, 45);
           g.lineBetween(c.x-4, c.y-4, c.x+4, c.y+4);
           g.lineBetween(c.x-4, c.y+4, c.x+4, c.y-4);
         }
       } else {
         for(const ey of [-7, 7]){
-          const c = RW(fa, ey, fz);
+          const c = RW(fa, ey, 45);
           g.fillStyle(SKIN.eye, 1);
           g.fillEllipse(c.x, c.y, 7, 7);
+        }
+      }
+
+      /* spilled cargo: burrito + fries, same per-hazard hz.items
+         pattern bin/planter already use for their own spilled stuff.
+         Drawn in WORLD space (not through the tip-rotated RW) since
+         these are meant to be lying on the ground next to the fallen
+         robot, not attached to its rotating body. */
+      if(data && data.items && data.items.length){
+        for(const it of data.items){
+          const s2 = this.W(ex + it.x + 1, ey + it.y + 1, 0.4);
+          g.fillStyle(0x000000, 0.15);
+          g.fillEllipse(s2.x, s2.y, it.size*this.K*0.9, it.size*this.K*0.4);
+        }
+        for(const it of data.items){
+          const p = this.W(ex + it.x, ey + it.y, it.z);
+          if(it.kind === "burrito"){
+            g.fillStyle(0xE8C468, 1);
+            g.fillEllipse(p.x, p.y, it.size*this.K*1.3, it.size*this.K*0.7);
+            g.fillStyle(0xC9A83E, 1);
+            g.fillRect(p.x - it.size*this.K*0.55, p.y - 1, it.size*this.K*1.1, 2);
+          } else {
+            const c2 = Math.cos(it.ang), s3 = Math.sin(it.ang);
+            g.fillStyle(0xF2C55C, 1);
+            this.quadOn(g, [
+              { x:p.x + c2*it.size*this.K*0.5, y:p.y + s3*it.size*this.K*0.3 },
+              { x:p.x - s3*it.size*this.K*0.3, y:p.y + c2*it.size*this.K*0.3 },
+              { x:p.x - c2*it.size*this.K*0.5, y:p.y - s3*it.size*this.K*0.3 },
+              { x:p.x + s3*it.size*this.K*0.3, y:p.y - c2*it.size*this.K*0.3 }
+            ], 0xF2C55C);
+          }
         }
       }
     } else if(kind === "planter"){
@@ -7275,41 +7317,58 @@ class WorldScene extends Phaser.Scene {
           this.simBinTrash(hz, dt);
         } else if(hz.type === "robot"){
           /* another robot on the sidewalk (requested 2026-07-24;
-             roving variant added 2026-07-25). Standing: a wall, same
-             cast-iron contract as the hydrant/bin/palm -- you stop.
-             Full-speed contact tips TIPSY (same instant-fail as
-             hitting traffic: this.tilt=1.1*sign, the generic tip
-             handler below takes it from there and sets damage=95 on
-             its own -- nothing extra needed here). Below that speed
-             the OTHER robot goes down instead (routine-hazard
-             treatment, same as any other bump) and once knocked it's
-             passable, same as a toppled cone -- no longer a wall from
-             the next frame on. Roving robots use their CURRENT walked
-             position (robotSpotAt), not their spawn spot, same idea
-             as people/dogs adjusting dx by their own wander offset --
-             a roving robot you're catching up to has actually moved
-             since it spawned. */
+             roving variant + full collision rework 2026-07-25). Three
+             approach geometries, three outcomes:
+               - REAR/HEAD-ON (approaching along the route, from
+                 either direction -- both read the same to the player,
+                 "I drove straight into it"): full speed -> BOTH tip
+                 (same instant-fail as traffic for Tipsy; the other
+                 robot goes down too and spills its cargo). Below full
+                 speed -> Tipsy is just stuck against it, wall-blocked
+                 like a bin/planter -- nobody tips, nothing spills.
+               - SIDE (a lane-change/hop brings Tipsy alongside it):
+                 the OTHER robot always tips, regardless of speed --
+                 Tipsy never tips from a side hit and doesn't hard-
+                 stop, just bumps through (you slid into it, you keep
+                 going). Detected via this.hopAnim (mid lane-change)
+                 while roughly alongside the robot's current position.
+             Roving robots use their CURRENT walked position
+             (robotSpotAt), not their spawn spot, same idea as people/
+             dogs adjusting dx by their own wander offset. */
           const robotOff = (hz.roving && !hz.knocked) ? robotSpotAt(t, hz).a : 0;
           const effS = hz.s + robotOff;
           if(!hz.knocked){
-            if(onLane(hz.row) && this.botS > effS - 28 && this.botS < effS){
+            const alongside = onLane(hz.row) && Math.abs(this.botS - effS) < 30;
+            const sideHit = this.hopAnim && alongside;
+            if(sideHit && !hz.hit){
+              hz.hit = true;
+              hz.knocked = true;
+              hz.knockA = robotOff;
+              hz.knockT = t;
+              this.spillRobotCargo(hz);
+              const kick = this.speed * 6 * (Math.random() < 0.5 ? 1 : -1);
+              this.tilt += kick * TILT_SENS;
+              this.damage = Math.min(95, this.damage + Math.abs(kick)*40*CARGO_DAMAGE_SENS);
+              this.speed *= 0.7;   // bump-through, not a hard stop
+            } else if(onLane(hz.row) && this.botS > effS - 28 && this.botS < effS){
               this.botS = safeStop(effS - 28);
               this.isBlocked = true;
               if(this.speed > ROBOT_HIT_MIN && !hz.hit){
                 hz.hit = true;
                 if(this.speed >= ROBOT_TIP_THRESH){
                   this.tilt = 1.1 * (Math.random() < 0.5 ? 1 : -1);
-                } else {
                   hz.knocked = true;
-                  hz.knockA = robotOff;   // freeze the render right here, not back at spawn
-                  const kick = this.speed * 6 * (Math.random() < 0.5 ? 1 : -1);
-                  this.tilt += kick * TILT_SENS;
-                  this.damage = Math.min(95, this.damage + Math.abs(kick)*40*CARGO_DAMAGE_SENS);
+                  hz.knockA = robotOff;
+                  hz.knockT = t;
+                  this.spillRobotCargo(hz);
                 }
+                // below full speed: just stuck against it, no tip either way
               }
               this.speed = 0;
             }
             if(Math.abs(this.botS - effS) > 40) hz.hit = false;
+          } else {
+            this.simRobotCargo(hz, dt);
           }
         } else if(hz.type === "planter"){
           /* approved in planter collision lab (2026-07-10) — see
@@ -8267,6 +8326,35 @@ class WorldScene extends Phaser.Scene {
         it.z = 0.5;
         if(Math.abs(it.vz) < 0.2){ it.rest = true; it.vx = it.vy = it.vz = 0; }
         else { it.vz *= -0.3; it.vx *= 0.6; it.vy *= 0.6; }
+      }
+    }
+  }
+  /* other robots' spilled cargo (requested 2026-07-25): same ballistic-
+     arc-then-settle pattern as spillBinTrash/spillPlanterLeaves --
+     a burrito and fries instead of trash or leaves, but otherwise the
+     identical per-hazard hz.items contract. */
+  spillRobotCargo(hz){
+    const spawn = (kind, size) => hz.items.push({
+      kind, size,
+      x: (Math.random()-0.5)*10, y: (Math.random()-0.5)*10, z: 20 + Math.random()*8,
+      vx: (Math.random()-0.5)*2.4, vy: (Math.random()-0.5)*2.4, vz: 2.0 + Math.random()*1.6,
+      spin: (Math.random()-0.5)*0.3, ang: Math.random()*Math.PI, rest: false
+    });
+    spawn("burrito", 7);
+    spawn("fries", 5);
+  }
+  simRobotCargo(hz, dt){
+    if(!hz.items || !hz.items.length) return;
+    const k = dt/16.7;
+    for(const it of hz.items){
+      if(it.rest) continue;
+      it.vz -= 0.12*k;
+      it.x += it.vx*k; it.y += it.vy*k; it.z += it.vz*k;
+      it.ang += it.spin*k;
+      if(it.z <= it.size*0.3){
+        it.z = it.size*0.3;
+        if(Math.abs(it.vz) < 0.25){ it.rest = true; it.vx = it.vy = it.vz = 0; }
+        else { it.vz *= -0.35; it.vx *= 0.7; it.vy *= 0.7; it.spin *= 0.6; }
       }
     }
   }
