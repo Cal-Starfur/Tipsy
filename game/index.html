@@ -5195,8 +5195,7 @@ class WorldScene extends Phaser.Scene {
       const fwdV = roving ? dv : rv, sideV = roving ? rv : dv;
       const RA = (roving && spot && !knocked) ? spot.dir : 1;
 
-      const aDir = { x: fwdV.x*RA, y: fwdV.y*RA }, bDir = { x: sideV.x, y: sideV.y };
-      const faceA = Math.sign(aDir.x + aDir.y) || 1;
+      const bDir = { x: sideV.x, y: sideV.y };
       const faceB = Math.sign(bDir.x + bDir.y) || 1;
 
       const hx = BODY.hx, hy = BODY.hy;
@@ -5325,7 +5324,12 @@ class WorldScene extends Phaser.Scene {
         }
         return pts;
       };
-      const wheelSpinPhase = (roving && !knocked) ? t*0.03 : 0;
+      /* spin phase multiplied by RA: RW mirrors the wheel through the
+         travel axis when RA=-1, which would flip the bolt's apparent
+         rotation direction -- negating the phase with it keeps the
+         wheels visually rolling forward on both legs of the route
+         (fixed 2026-07-26, part of the reverse-driving cleanup). */
+      const wheelSpinPhase = (roving && !knocked) ? t*0.03*RA : 0;
       for(const wx of WHEEL.xs){
         const wb = faceB*WHEEL.side;
         const bIn = wb - faceB*W2/2, bOut = wb + faceB*W2/2;
@@ -5342,13 +5346,16 @@ class WorldScene extends Phaser.Scene {
       }
 
       if(!knocked){
-        /* flag: opposite corner from wherever the face ends up, so
-           they can never land on top of each other. Straight pole (no
-           lean animation for a static NPC) -- its screen-space
-           direction is exactly (0,-1), so this reduces to the same
-           triangle drawFlag builds for an unbent pole: tip, tip
-           offset -dy*11/+dx*11, tip offset +dx*20/+dy*20+4. */
-        const flagA = -faceA*25, flagB = 17;
+        /* flag: pinned to the REAR of the vehicle (-A in the RA travel
+           frame -- RW applies RA, so it turns around with the robot),
+           NOT "opposite the camera-facing face" as before. The old
+           -faceA*25 made the flag teleport ends whenever the camera-
+           facing test flipped (fixed 2026-07-26, same root cause as
+           the reverse-driving face bug below). Straight pole (no lean
+           animation for a static NPC) -- its screen-space direction is
+           exactly (0,-1), so this reduces to the same triangle
+           drawFlag builds for an unbent pole. */
+        const flagA = -25, flagB = 17;
         const poleBase = RW(flagA, flagB, FLAG.z0);
         const poleTip = RW(flagA, flagB, FLAG.z1);
         g.lineStyle(3, SKIN.flagPole, 1);
@@ -5357,27 +5364,38 @@ class WorldScene extends Phaser.Scene {
         g.fillTriangle(poleTip.x, poleTip.y, poleTip.x + 11, poleTip.y, poleTip.x, poleTip.y - 16);
       }
 
-      /* face: visor + eyes on the resolved camera-facing a-face --
-         exact position/size from Tipsy's own drawRobot (x=hx+0.8,
-         visor z in [40,50], eyes at z=45). Always the same local
-         position now -- the tip rotation above handles making it look
-         different once knocked, no more special-casing per part. */
-      const fa = faceA*(hx+0.8);
-      const visor = [RW(fa,-13,50), RW(fa,13,50), RW(fa,13,40), RW(fa,-13,40)];
-      this.quadOn(g, visor, SKIN.visor);
-      this.edgeOn(g, visor, SKIN.outline, 1.5);
-      if(knocked){
-        g.lineStyle(2, SKIN.eyeAlert, 1);
-        for(const ey of [-7, 7]){
-          const c = RW(fa, ey, 45);
-          g.lineBetween(c.x-4, c.y-4, c.x+4, c.y+4);
-          g.lineBetween(c.x-4, c.y+4, c.x+4, c.y-4);
-        }
-      } else {
-        for(const ey of [-7, 7]){
-          const c = RW(fa, ey, 45);
-          g.fillStyle(SKIN.eye, 1);
-          g.fillEllipse(c.x, c.y, 7, 7);
+      /* face: visor + eyes pinned to the TRUE FRONT (+A in the RA
+         travel frame), drawn only when that front actually faces the
+         camera -- same normal test the body's own +A panel uses (the
+         tip rotation is in the (b,h) plane, so the a-normal is
+         unaffected and the plain fwdV*RA test stays valid even while
+         knocked). This replaces the old faceA*(hx+0.8) placement,
+         which stamped the face on whichever END was camera-facing:
+         guaranteed-visible, but on any leg where the robot's front
+         pointed away from camera the face landed on its tail and the
+         robot read as driving in reverse (reported on-device
+         2026-07-26). Accepted tradeoff, confirmed: when a robot
+         drives/faces away, you simply don't see its face -- exactly
+         like a real vehicle. Position/size from Tipsy's own drawRobot
+         (x=hx+0.8, visor z in [40,50], eyes at z=45). */
+      if(fwdV.x*RA + fwdV.y*RA > 0){
+        const fa = hx+0.8;
+        const visor = [RW(fa,-13,50), RW(fa,13,50), RW(fa,13,40), RW(fa,-13,40)];
+        this.quadOn(g, visor, SKIN.visor);
+        this.edgeOn(g, visor, SKIN.outline, 1.5);
+        if(knocked){
+          g.lineStyle(2, SKIN.eyeAlert, 1);
+          for(const ey of [-7, 7]){
+            const c = RW(fa, ey, 45);
+            g.lineBetween(c.x-4, c.y-4, c.x+4, c.y+4);
+            g.lineBetween(c.x-4, c.y+4, c.x+4, c.y-4);
+          }
+        } else {
+          for(const ey of [-7, 7]){
+            const c = RW(fa, ey, 45);
+            g.fillStyle(SKIN.eye, 1);
+            g.fillEllipse(c.x, c.y, 7, 7);
+          }
         }
       }
 
