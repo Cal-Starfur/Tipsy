@@ -716,13 +716,25 @@ function binShiftAt(hz){
    comment), so hz.slide is deliberately not part of the wall. */
 function planterSpanS(hz){
   const sc = hz.scale || 1;
-  const lay = Math.min(1, (hz.phi || 0) / (Math.PI/2));
+  const phiC = Math.max(0, Math.min(Math.PI/2, hz.phi || 0));
   const psi = hz.fallPsi || 0;
   const cA = Math.cos(psi);
   const sideFall = Math.abs(Math.sin(psi)) > Math.abs(cA);
   const halfW = (PLANTER_BASE.boxW/2) * sc;
-  const reach = sideFall ? 0 : lay * (PLANTER_BASE.boxH + PLANTER_BASE.bushH) * sc * Math.abs(cA);
-  return cA >= 0 ? { lo: -halfW, hi: halfW + reach } : { lo: -halfW - reach, hi: halfW };
+  if(sideFall) return { lo: -halfW, hi: halfW };
+  /* fore/aft: the box pivots over its FAR edge, so the ground it
+     stood on is progressively VACATED as it goes over — the near
+     edge is the swept bottom corner, halfW - 2*halfW*cos(phi)
+     (-halfW standing, +halfW fully fallen), not a frozen -halfW.
+     Freezing it left a 2*halfW strip of empty sidewalk between the
+     robot's stop line and the fallen pot (reported on-device
+     2026-07-27, "gap from the tipped planter and robot"); tracking
+     it lets the wall advance with the fall so the robot can close
+     right up to the pot. Far edge: pivot + the laid-over box+bush,
+     sin(phi) projection. */
+  const near = halfW - 2*halfW*Math.cos(phiC);
+  const far  = halfW + Math.sin(phiC) * (PLANTER_BASE.boxH + PLANTER_BASE.bushH) * sc;
+  return cA >= 0 ? { lo: near, hi: far } : { lo: -far, hi: -near };
 }
 
 const BIN_HIT = (() => {
