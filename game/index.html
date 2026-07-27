@@ -1691,7 +1691,7 @@ function trafficWorldAt(tr, t){
    position (still totalLen-90 / SPAWN_S+90 — this does NOT change
    route length or leg count, just which existing point along the
    already-generated route gets used) for the nearest usable leg. */
-function findGoodS(segs, totalLen, preferredS, scanFromEnd, grid, avoidBlock, minS = 0){
+function findGoodS(segs, totalLen, preferredS, scanFromEnd, grid, avoidBlock, minS = 0, relaxed = false){
   const isGood = sg => sg.type === "line" && GOOD_LEG_HEADING[sg.f];
   /* PERIMETER GUARD: a good leg can still run along the grid's outer edge
      with the robot's lane facing OUTWARD, off the grid. There, the address
@@ -1719,7 +1719,11 @@ function findGoodS(segs, totalLen, preferredS, scanFromEnd, grid, avoidBlock, mi
   for(const sg of order){
     if(!isGood(sg)) continue;
     const len = sg.s1 - sg.s0;
-    const inset = Math.min(90, len*0.3);
+    /* relaxed pass (see the fallback chain at the bottom): accept
+       placement much closer to a corner rather than fall off the
+       good-heading legs entirely — a door 24 units from an arc beats
+       a door on an f=1 leg with no house behind it. */
+    const inset = relaxed ? Math.min(24, len*0.1) : Math.min(90, len*0.3);
     /* minS floor (used by the door search to guarantee a >= 1 mile
        route): any candidate below it is skipped entirely — legs wholly
        under the floor never qualify, straddling legs clamp up to it. */
@@ -1739,7 +1743,40 @@ function findGoodS(segs, totalLen, preferredS, scanFromEnd, grid, avoidBlock, mi
   // building type) even if it shares the address block, over an outward leg.
   if(interiorFallback !== null) return interiorFallback;
   if(anyFallback !== null) return anyFallback;
-  return Math.max(0, Math.min(totalLen, preferredS)); // no good leg anywhere (rare)
+  /* no good leg found at the standard inset (2026-07-27, "still
+     getting f=1"): this raw fall-through was the ONLY way gate mode
+     ever triggered, and it came with no guards at all — no heading
+     check, no perimeter check, not even a straight-leg check (the
+     door could land mid-arc, where the address-edge math is
+     meaningless, and findAdjacentBlock would clamp a perimeter probe
+     into the wrong interior block). Chain of last resorts instead:
+     1) rescan the same legs accepting near-corner placement — the
+        usual reason to be here is every good leg being too short for
+        the 90-unit inset, so this rescues most of them with all the
+        interior/avoid-block guards intact;
+     2) failing that, snap to the nearest STRAIGHT leg to preferredS
+        regardless of heading — gate mode, but at least on a real leg
+        with a well-defined edge;
+     3) the old raw clamp, only if the route somehow has no line
+        segments at all. */
+  if(!relaxed) return findGoodS(segs, totalLen, preferredS, scanFromEnd, grid, avoidBlock, minS, true);
+  /* 2) NO floor-dropping here: an earlier version searched below the
+     minS mile floor at this point, which traded route length for
+     heading (worst case a 0.22-mile delivery) — rejected. The walk
+     generator now guarantees a good leg past the mile mark instead
+     (see the hasGoodDoorLeg retry in generateRoute), so reaching this
+     line means something upstream broke; the straight-leg snap below
+     is purely a crash-proof net. */
+  let lineBest = null, lineBd = Infinity;
+  for(const sg of segs){
+    if(sg.type !== "line") continue;
+    const s = Math.max(sg.s0 + 12, Math.min(sg.s1 - 12, preferredS));
+    if(s < sg.s0 + 12) continue;   // degenerate leg
+    const d = Math.abs(s - preferredS);
+    if(d < lineBd){ lineBd = d; lineBest = s; }
+  }
+  if(lineBest !== null) return lineBest;
+  return Math.max(0, Math.min(totalLen, preferredS)); // no straight leg anywhere (should be impossible)
 }
 
 /* which real block sits next to a given route position — only valid
@@ -1797,7 +1834,25 @@ function generateRoute(dateStr){
   const cols = 12 + Math.floor(rng()*6);
   const rows = 12 + Math.floor(rng()*6);
   const grid = buildGrid(cols, rows, seed);
-  const walk = buildWalk(grid, rng, undefined, undefined, TURN_R);
+  /* good-heading guarantee (2026-07-27, "that is unacceptable"): the
+     door needs an f===0/f===3 straight leg past the 1-mile mark with
+     room for findGoodS's standard 90-unit inset. buildWalk's turnSign
+     bias makes such a leg LIKELY but not certain (census: 9/120 daily
+     routes had none, and the only alternatives were a gate address on
+     a cut heading or a sub-mile door — both rejected). Deterministic
+     retry instead: same date-seeded rng stream, so re-rolling is
+     reproducible per date; 92% per-attempt success makes 8 attempts
+     astronomically safe, and the door search below keeps its own
+     fallback chain as the final net regardless. Route length is
+     untouched — every accepted walk satisfies the full mile floor. */
+  const hasGoodDoorLeg = w => w.segs.some(sg => {
+    if(sg.type !== "line" || !GOOD_LEG_HEADING[sg.f]) return false;
+    const inset = Math.min(90, (sg.s1 - sg.s0)*0.3);
+    return sg.s1 - inset >= Math.max(sg.s0 + inset, MIN_ROUTE_UNITS);
+  });
+  let walk = buildWalk(grid, rng, undefined, undefined, TURN_R);
+  for(let att = 0; att < 8 && !hasGoodDoorLeg(walk); att++)
+    walk = buildWalk(grid, rng, undefined, undefined, TURN_R);
   const segs = walk.segs, totalLen = walk.totalLen;
 
   const inCorner = sv => segs.some(sg => sg.type === "arc" && sv > sg.s0 - CORNER_HAZARD_CLEAR && sv < sg.s1 + CORNER_HAZARD_CLEAR);
@@ -2690,6 +2745,16 @@ function generateRoute(dateStr){
      are never cut — the live version would happily vanish the
      customer's house if you approached it westbound. */
   const cutEdges = {};
+  /* cutExt (2026-07-27, "still getting f=1"): world-space spans of
+     every cut-heading leg portion whose near-side probe leaves the
+     interior grid — i.e. the robot's side faces an EXTERIOR LOT.
+     Exterior lots aren't in the block grid, so the cutEdges map above
+     can't reach them; before this, a perimeter f=1/f=2 leg showed
+     full, un-cut houses at the robot's side (queueExteriorLot never
+     consulted the cutaway at all). The render side (queueExteriorLot)
+     tests each lot unit against these spans and swaps house/store for
+     the same solid fence row an interior cut edge gets. */
+  const cutExt = [];
   const addCut = (bi, bj, edge) => {
     if(edge == null) return;
     if(addressBlock && bi === addressBlock.i && bj === addressBlock.j && edge === addressEdgeIdx) return;
@@ -2702,17 +2767,29 @@ function generateRoute(dateStr){
     const eIn = NORTH_WALL_CUT_EDGE[sg.f];
     const eOut = sg.type === "arc" ? NORTH_WALL_CUT_EDGE[(sg.f + sg.sign + 4) % 4] : null;
     if(eIn == null && eOut == null) continue;
+    let prevWp = null;
     for(let s = sg.s0; ; s += T2){
       const sv = Math.min(s, sg.s1);
       const wp = segsWorldOf(segs, sv, laneOffset(1));   // any lane row lands in the same block
       const bi = Math.floor(wp.x/BLOCK), bj = Math.floor(wp.y/BLOCK);
-      if(sg.type === "line") addCut(bi, bj, eIn);
-      else { addCut(bi, bj, eIn); addCut(bi, bj, eOut); }
+      const offGrid = bi < 0 || bi > grid.cols-2 || bj < 0 || bj > grid.rows-2;
+      if(offGrid){
+        /* beside an exterior lot — record the step as a cut span
+           (consecutive step points chain into a polyline; arcs come
+           out as short chords, which is all the render test needs).
+           addCut skipped: it used to file these under nonexistent
+           block keys like "-1,3" that nothing ever read. */
+        if(prevWp) cutExt.push({ x0: prevWp.x, y0: prevWp.y, x1: wp.x, y1: wp.y });
+      } else {
+        if(sg.type === "line") addCut(bi, bj, eIn);
+        else { addCut(bi, bj, eIn); addCut(bi, bj, eOut); }
+      }
+      prevWp = wp;
       if(sv >= sg.s1) break;
     }
   }
 
-  return { hood, grid, segs, totalLen, tiles, hazards, props, pal, traffic, crossings, cutEdges,
+  return { hood, grid, segs, totalLen, tiles, hazards, props, pal, traffic, crossings, cutEdges, cutExt,
            address:`${number} ${street}`, doorS, pickupS, pickupSpot, pickupShopName, addressBlock, pickupBlock, addressEdgeIdx, pickupEdgeIdx, addressUnitIdx, pickupUnitIdx, addressUsesGate, order, parMs, dateStr };
 }
 
@@ -4421,6 +4498,33 @@ class WorldScene extends Phaser.Scene {
       return this.queueParkBlock(vq, rect);
     }
     const faceIn = { x:-lot.rv.x, y:-lot.rv.y }; // body sits outside the grid, front faces back IN toward the sidewalk
+    /* cutaway for exterior lots (2026-07-27, "still getting f=1"):
+       interior blocks get their near walls fenced on f=1/f=2 legs via
+       route.cutEdges, but lots live outside the grid and never
+       consulted it — full houses drew beside the robot on exactly the
+       headings the cutaway exists for. route.cutExt holds the world
+       spans of every cut-heading leg portion that runs along the
+       perimeter; any unit whose center sits near one of those spans
+       renders as the same solid fence row an interior cut edge gets
+       (commercial included — no parking-row here because this path
+       has no topLayer plumbing for the parked cars, and a fence is
+       the same safe, view-clearing replacement). Per-unit test, so a
+       long lot only fences the portion the route actually passes.
+       Radius 0.75*BLOCK: probe runs one lane-band inward of the lot
+       front, and modest over-reach past a leg's end just fences a
+       little extra — the safe direction. */
+    const cutExt = (this.route && this.route.cutExt) || [];
+    const unitCut = (px, py) => {
+      for(const sg2 of cutExt){
+        const vx = sg2.x1 - sg2.x0, vy = sg2.y1 - sg2.y0;
+        const L2 = vx*vx + vy*vy || 1;
+        let tt = ((px - sg2.x0)*vx + (py - sg2.y0)*vy) / L2;
+        tt = Math.max(0, Math.min(1, tt));
+        const dx2 = px - (sg2.x0 + vx*tt), dy2 = py - (sg2.y0 + vy*tt);
+        if(dx2*dx2 + dy2*dy2 < (BLOCK*0.75)*(BLOCK*0.75)) return true;
+      }
+      return false;
+    };
     if(lot.type === "commercial"){
       const eseed = ((Math.round(lot.ox*3+lot.dv.x)*7919) ^ (Math.round(lot.oy*3+lot.dv.y)*104729) ^ 0x51b3) >>> 0;
       const units = packEdgeNoGap(lot.len, mulberry32(eseed));
@@ -4428,6 +4532,10 @@ class WorldScene extends Phaser.Scene {
         const hx = lot.ox + lot.dv.x*(u.start+u.w/2), hy = lot.oy + lot.dv.y*(u.start+u.w/2);
         const hseed = ((Math.round(hx)*7919) ^ (Math.round(hy)*104729)) >>> 0;
         const ux = lot.ox+lot.dv.x*u.start, uy = lot.oy+lot.dv.y*u.start;
+        if(unitCut(hx, hy)){
+          vq.push({ depth:hx+hy, fn:(g)=>this.drawSolidFenceRow(g, ux, uy, lot.dv, faceIn, u.w, hseed) });
+          return;
+        }
         const isFirst = idx===0, isLast = idx===units.length-1;
         vq.push({ depth:hx+hy, fn:(g)=>this.drawStoreUnit(g, ux, uy, lot.dv, faceIn, u.w, hseed, isFirst, isLast, 'body') });
         vq.push({ depth:hx+hy, isRoof:true, fn:(g)=>this.drawStoreUnit(g, ux, uy, lot.dv, faceIn, u.w, hseed, isFirst, isLast, 'roof') });
@@ -4439,6 +4547,10 @@ class WorldScene extends Phaser.Scene {
         const hx = lot.ox + lot.dv.x*(u.start+u.w/2), hy = lot.oy + lot.dv.y*(u.start+u.w/2);
         const hseed = ((Math.round(hx)*7919) ^ (Math.round(hy)*104729)) >>> 0;
         const ux = lot.ox+lot.dv.x*u.start, uy = lot.oy+lot.dv.y*u.start;
+        if(unitCut(hx, hy)){
+          vq.push({ depth:hx+hy, fn:(g)=>this.drawSolidFenceRow(g, ux, uy, lot.dv, faceIn, u.w, hseed) });
+          return;
+        }
         vq.push({ depth:hx+hy, fn:(g)=>this.drawHouseUnit(g, ux, uy, lot.dv, faceIn, u.w, hseed, false, 'body') });
         vq.push({ depth:hx+hy, isRoof:true, fn:(g)=>this.drawHouseUnit(g, ux, uy, lot.dv, faceIn, u.w, hseed, false, 'roof') });
       });
