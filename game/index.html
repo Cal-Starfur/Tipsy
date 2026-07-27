@@ -2477,6 +2477,52 @@ function generateRoute(dateStr){
                    f: facingAt(csR), hit:false });
   }
 
+  /* roving robots must not phase through static props (reported
+     on-device 2026-07-26, "they just drive over other props"):
+     robotSpotAt is a pure clock over [walkS0, walkS1] = the whole
+     block, so the fix belongs to the ROUTE, not the sim. This
+     post-pass runs after EVERY hazard spawn loop above (the rover
+     loop itself runs before hydrants/slabs/cracks, so an in-loop
+     check would miss anything spawned later): shrink each rover's
+     walk range to the clear sub-interval around its own spawn point,
+     bounded by static same-row obstacles. Static kinds only --
+     dogs/people move themselves and already have their own contact
+     rules; a fellow ROVER on the same row instead splits the block
+     at the midpoint between the two spawn points, so their ranges
+     are disjoint by construction and they can't drive through each
+     other either. ROVER_CLEAR (40) ~ robot half-length + the same
+     28-unit wall-stop gap the player collision uses. If the clamped
+     range collapses below T2, demote to parked (drop roving +
+     walkS0/S1) rather than leave a rover jittering in place --
+     robotSpotAt's own guard then treats it exactly like a spawn-time
+     parked robot. */
+  {
+    const ROVER_CLEAR = 40;
+    const ROVER_BLOCKERS = { robot:1, planter:1, bin:1, cone:1, hydrant:1,
+                             scooter:1, trash:1, palm:1, palmDwarf:1 };
+    for(const rv of hazards){
+      if(rv.type !== "robot" || !rv.roving) continue;
+      let lo = rv.walkS0, hi = rv.walkS1;
+      for(const ob of hazards){
+        if(ob === rv || ob.row !== rv.row || !ROVER_BLOCKERS[ob.type]) continue;
+        if(ob.type === "robot" && ob.roving){
+          const mid = (rv.s + ob.s) / 2;
+          if(ob.s > rv.s) hi = Math.min(hi, mid - ROVER_CLEAR/2);
+          else if(ob.s < rv.s) lo = Math.max(lo, mid + ROVER_CLEAR/2);
+          continue;
+        }
+        if(ob.s >= rv.s) hi = Math.min(hi, ob.s - ROVER_CLEAR);
+        else lo = Math.max(lo, ob.s + ROVER_CLEAR);
+      }
+      if(hi - lo < T2 || rv.s < lo || rv.s > hi){
+        rv.roving = false;
+        delete rv.walkS0; delete rv.walkS1;
+      } else {
+        rv.walkS0 = lo; rv.walkS1 = hi;
+      }
+    }
+  }
+
   /* parked car: on the road, off to one side (never blocking either
      traffic lane's centerline). */
   if(rng() < 0.5){
@@ -3471,8 +3517,39 @@ class WorldScene extends Phaser.Scene {
          the robot's own position. Standing (phi===0) scooters are
          compact and can be genuinely ahead of the robot on the
          sidewalk, so they still go through the normal test. */
-      const hzLayer = (hz.type === "scooter" && hz.phi > 0) ? g : layerFor(wp.x, wp.y);
-      if(near(wp.x, wp.y)) this.drawProp(hzLayer, hz.type, wp.x, wp.y, t, hz.f, wp.z, null, null, hz);
+      /* NPC robots' visual body sits at their WALKED position
+         (hz.s + walkA via robotSpotAt, frozen at knockA once
+         knocked), potentially a whole block from the spawn anchor.
+         The collision sim already tests the walked position
+         (robotOff); near()/layerFor() here still sampled the anchor,
+         so a roving robot got culled and front/back-classified by a
+         point it isn't standing on -- Tipsy between anchor and body
+         overlapped it in the wrong layer (reported on-device
+         2026-07-26). Test at the effective point; the drawProp x,y
+         deliberately stays the anchor, because the robot draw branch
+         applies walkA itself -- one source of truth for position.
+         Knocked robots additionally get the tipped planter/bin
+         nearest-silhouette shift: the fallen shell pivots ~a body
+         height off the wheelbase, so nudge the test point toward
+         Tipsy by up to the fallen radius -- far apart either answer
+         is fine, pressed close this is the point that decides. */
+      let htx = wp.x, hty = wp.y;
+      if(hz.type === "robot"){
+        const effA = hz.knocked ? (hz.knockA || 0)
+                   : (hz.roving ? robotSpotAt(t, hz).a : 0);
+        if(effA !== 0){
+          const effWp = worldOf(hz.s + effA, hazardOffset(hz));
+          htx = effWp.x; hty = effWp.y;
+        }
+        if(hz.knocked){
+          let kx = this.botX - htx, ky = this.botY - hty;
+          const kd = Math.hypot(kx, ky) || 1;
+          const kR = Math.min(kd, 30);
+          htx += kx/kd*kR; hty += ky/kd*kR;
+        }
+      }
+      const hzLayer = (hz.type === "scooter" && hz.phi > 0) ? g : layerFor(htx, hty);
+      if(near(htx, hty)) this.drawProp(hzLayer, hz.type, wp.x, wp.y, t, hz.f, wp.z, null, null, hz);
       if(hz.clusterExtras){
         for(const ex of hz.clusterExtras){
           const exWp = worldOf(hz.s + (hz.slide || 0) + ex.ds, hazardOffset(hz) + ex.dOff);
