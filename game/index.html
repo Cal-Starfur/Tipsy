@@ -3570,6 +3570,21 @@ class WorldScene extends Phaser.Scene {
        handled earlier now -- pushed into blockVQ before the body
        depth-sort so they land correctly against houses and cars; see
        the comments above that block for why. */
+    /* the volumetric HAZARDS below used to draw directly here, in raw
+       spawn-array order -- so a person always lost to every hazard
+       TYPE spawned later in the array (palms, parked/roving robots,
+       hydrants: all pushed after the mixed cone/dog/people/bin loop),
+       and within the mixed loop, order followed route-s, which only
+       matches camera depth on two of the four headings (reported
+       on-device 2026-07-26: props over people regardless of true
+       depth; the line-2072 coin-flip class, and the cone-over-worker
+       sighting documented at the shop-door comment). Fix: queue into
+       hazVQ, sort by real depth at each hazard's EFFECTIVE body
+       position, then draw -- same treatment blockVQ already gave
+       houses/cars/props. Still its own pass after roofs/topLayer, so
+       hazard-vs-building order is unchanged; this only fixes ordering
+       among the hazards themselves. */
+    const hazVQ = [];
     for(const hz of r.hazards){
       if(GROUND_KINDS[hz.type]) continue;
       const wp = worldOf(hz.s + (hz.slide || 0), hazardOffset(hz));
@@ -3594,53 +3609,76 @@ class WorldScene extends Phaser.Scene {
          point it isn't standing on -- Tipsy between anchor and body
          overlapped it in the wrong layer (reported on-device
          2026-07-26). Test at the effective point; the drawProp x,y
-         deliberately stays the anchor, because the robot draw branch
-         applies walkA itself -- one source of truth for position.
-         Knocked robots additionally get the tipped planter/bin
-         nearest-silhouette shift: the fallen shell pivots ~a body
-         height off the wheelbase, so nudge the test point toward
-         Tipsy by up to the fallen radius -- far apart either answer
-         is fine, pressed close this is the point that decides. */
-      let htx = wp.x, hty = wp.y;
-      /* dogs and people with a walk range (walkS0/walkS1) have the
-         exact same anchor-vs-body gap as roving robots -- their spot
-         functions share the .a-offset contract, so the same effective-
-         point test covers all three walkers (reported on-device
-         2026-07-26, follow-up to the rover fix). Idle wanderers stay
-         on the plain anchor test: their +-30 box is smaller than
-         layerFor's own slack. */
-      const isWalker = (hz.type === "dog" || hz.type === "people")
-                       && hz.walkS0 !== undefined && hz.walkS1 !== undefined;
-      if(hz.type === "robot" || isWalker){
+         deliberately stays the anchor, because each draw branch
+         applies its own walk/flee offsets -- one source of truth for
+         position. */
+      /* dogs and people: ALL of them now, not just the ones with a
+         walk range. The old exemption ("idle wanderers' +-30 box is
+         smaller than layerFor's own slack") was written against a
+         slack that is 14 today -- a +-30 idle wander crosses the flip
+         plane while the anchor test says behind, which is exactly the
+         reported Tipsy-over-person case. The spot functions are pure
+         (t, hz) and already cover idle mode, so the effective point
+         is free. Flee/settle are mirrored too (same composition the
+         draw branches use): a fled person settles up to 250 units
+         from the anchor -- anchor-testing THAT is a whole-lane error,
+         not a slack-sized one. */
+      let ebx = wp.x, eby = wp.y;   // effective body position (walk + flee/settle)
+      if(hz.type === "robot" || hz.type === "dog" || hz.type === "people"){
         /* .b too, not just .a: a detouring walker is a full lane off
            its home row while sidestepping a prop (detourBAt), and a
            knocked rover freezes wherever the sidestep had it
-           (knockA/knockB) -- the test point follows both axes. */
-        const effSpot = hz.type === "people" ? peopleSpotAt(t, hz)
-                      : hz.type === "dog"    ? dogSpotAt(t, hz)
-                      : (!hz.knocked && hz.roving) ? robotSpotAt(t, hz) : null;
-        const effA = effSpot ? effSpot.a : (hz.knocked ? (hz.knockA || 0) : 0);
-        const effB = effSpot ? (effSpot.b || 0) : (hz.knocked ? (hz.knockB || 0) : 0);
+           (knockA/knockB) -- the effective point follows both axes. */
+        let effA = 0, effB = 0;
+        if(hz.type === "robot"){
+          const effSpot = (!hz.knocked && hz.roving) ? robotSpotAt(t, hz) : null;
+          effA = effSpot ? effSpot.a : (hz.knocked ? (hz.knockA || 0) : 0);
+          effB = effSpot ? (effSpot.b || 0) : (hz.knocked ? (hz.knockB || 0) : 0);
+        } else {
+          const spot = hz.type === "people" ? peopleSpotAt(t, hz) : dogSpotAt(t, hz);
+          const flee = hz.type === "people" ? peopleFleeAt(t, hz) : dogFleeAt(t, hz);
+          effA = spot.a; effB = spot.b || 0;
+          if(flee && flee.gone){
+            const st = hz.type === "people" ? peopleSettledSpot(hz) : dogSettledSpot(hz);
+            if(st){ effA = st.a; effB = st.b; }
+          } else if(flee){ effA += flee.da; effB += flee.db; }
+        }
         if(effA !== 0 || effB !== 0){
           const effWp = worldOf(hz.s + effA, hazardOffset(hz) + effB);
-          htx = effWp.x; hty = effWp.y;
-        }
-        if(hz.knocked){
-          let kx = this.botX - htx, ky = this.botY - hty;
-          const kd = Math.hypot(kx, ky) || 1;
-          const kR = Math.min(kd, 30);
-          htx += kx/kd*kR; hty += ky/kd*kR;
+          ebx = effWp.x; eby = effWp.y;
         }
       }
+      /* layer test point: effective position, plus the knocked-rover
+         nearest-silhouette shift (fallen shell pivots ~a body height
+         off the wheelbase, so nudge toward Tipsy by up to the fallen
+         radius -- far apart either answer is fine, pressed close this
+         is the point that decides). The shift is a LAYER aid only --
+         it deliberately does not feed the hazVQ sort depth, which
+         must stay the true body position or a knocked rover would
+         sort as if it stood wherever Tipsy is. */
+      let htx = ebx, hty = eby;
+      if(hz.type === "robot" && hz.knocked){
+        let kx = this.botX - htx, ky = this.botY - hty;
+        const kd = Math.hypot(kx, ky) || 1;
+        const kR = Math.min(kd, 30);
+        htx += kx/kd*kR; hty += ky/kd*kR;
+      }
       const hzLayer = (hz.type === "scooter" && hz.phi > 0) ? g : layerFor(htx, hty);
-      if(near(htx, hty)) this.drawProp(hzLayer, hz.type, wp.x, wp.y, t, hz.f, wp.z, null, null, hz);
+      if(near(ebx, eby)){
+        const dhz = hz, dwx = wp.x, dwy = wp.y, dwz = wp.z, dhf = hz.f, dht = hz.type;
+        hazVQ.push({ depth: ebx+eby, fn:(gg,tt)=>this.drawProp(hzLayer, dht, dwx, dwy, tt, dhf, dwz, null, null, dhz) });
+      }
       if(hz.clusterExtras){
         for(const ex of hz.clusterExtras){
           const exWp = worldOf(hz.s + (hz.slide || 0) + ex.ds, hazardOffset(hz) + ex.dOff);
-          if(near(exWp.x, exWp.y)) this.drawProp(layerFor(exWp.x, exWp.y), ex.kind, exWp.x, exWp.y, t, hz.f, exWp.z);
+          if(!near(exWp.x, exWp.y)) continue;
+          const exk = ex.kind, exx = exWp.x, exy = exWp.y, exz = exWp.z, exf = hz.f;
+          hazVQ.push({ depth: exx+exy, fn:(gg,tt)=>this.drawProp(layerFor(exx, exy), exk, exx, exy, tt, exf, exz) });
         }
       }
     }
+    hazVQ.sort((a, b) => a.depth - b.depth);
+    for(const item of hazVQ) item.fn(g, t);
 
     /* addrDoorPos/addrDoorDV/etc. are still set below as a side effect
        of the real address house unit's own render pass (see
