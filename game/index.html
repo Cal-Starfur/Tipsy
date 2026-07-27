@@ -8334,6 +8334,30 @@ class WorldScene extends Phaser.Scene {
       }
     }
 
+    /* cosmetic particle sims keep ticking after play ends (reported
+       on-device 2026-07-27, "the puddle splash particles didn't
+       land"): the whole hazard sim loop above is play-gated, and a
+       hydrant's droplet eruption usually coincides with the very tip
+       that ENDS play -- bursting requires arriving at/above
+       HYD_SLIP.thresh, and that same bonk + hydroplane spin is what
+       tips you -- so the freshly-erupted droplets froze mid-air over
+       the tipped screen while the world kept drawing. Same class for
+       a knocked rover's cargo, bin trash, or planter leaves still
+       airborne at the tip/win moment. All four sims are pure item
+       integrators (no gameplay writes -- verified before adding
+       this), so ticking them outside play is side-effect-free; the
+       items-empty early-out makes the extra pass free on routes with
+       nothing airborne. */
+    if(this.route && this.state !== "play"){
+      for(const hz of this.route.hazards){
+        if(!hz.items || !hz.items.length) continue;
+        if(hz.type === "hydrant") this.simHydrantWater(hz, dt);
+        else if(hz.type === "bin") this.simBinTrash(hz, dt);
+        else if(hz.type === "planter") this.simPlanterLeaves(hz, dt);
+        else if(hz.type === "robot") this.simRobotCargo(hz, dt);
+      }
+    }
+
     /* tipped: roll over + spill (the sprite-lab pratfall) */
     if(this.state !== "play") this.yaw = Phaser.Math.Linear(this.yaw, 0, 0.15);
     if(this.state === "tipped"){
