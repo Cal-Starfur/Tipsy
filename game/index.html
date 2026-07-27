@@ -446,6 +446,27 @@ const DOG_COATS = [
    spot. Offsets are tile-local (±30 along, ±26 across) so he never
    leaves the square he spawned in. Walk legs are 62% of each 2.6s
    segment (smoothstepped), the rest is standing and judging. */
+/* detour sidestep (2026-07-26, replaces the walk-range clamp): pure
+   (hz, a) -> lateral offset-units b, same zero-mutable-state contract
+   as every spot function. hz.detours is built once at spawn (see the
+   detour builder in route gen): disjoint {s0,s1,db} intervals, each
+   one blocker-group the walker steps AROUND -- db is a full adjacent
+   lane's laneOffset delta. Smoothstep ramps over DETOUR_RAMP units on
+   each side; the builder merges groups closer than 2*RAMP so at most
+   one interval ever applies at a given s, hence the early return. */
+const DETOUR_RAMP = 30;
+function detourBAt(hz, a){
+  if(!hz || !hz.detours) return 0;
+  const s = hz.s + a;
+  for(const d of hz.detours){
+    if(s <= d.s0 - DETOUR_RAMP || s >= d.s1 + DETOUR_RAMP) continue;
+    let w = 1;
+    if(s < d.s0) w = (s - (d.s0 - DETOUR_RAMP)) / DETOUR_RAMP;
+    else if(s > d.s1) w = ((d.s1 + DETOUR_RAMP) - s) / DETOUR_RAMP;
+    return d.db * w*w*(3 - 2*w);
+  }
+  return 0;
+}
 /* other robots, roving (requested 2026-07-24, phase 2): same ping-
    pong walk pattern as peopleSpotAt/dogSpotAt, but also reports which
    direction (dir: +-1) it's currently walking so the render code can
@@ -469,7 +490,7 @@ function robotSpotAt(tms, hz){
   else if(u < legMs + PAUSE){              a = hi;                               dir = 1;  walking = false; }
   else if(u < legMs*2 + PAUSE){            a = hi - (u - legMs - PAUSE)*SPEED;   dir = -1; walking = true;  }
   else {                                   a = lo;                               dir = -1; walking = false; }
-  return { a, dir, walking };
+  return { a, b: detourBAt(hz, a), dir, walking };
 }
 function dogSpotAt(tms, hz){
   const seed = (hz && hz.dogSeed) || 0;
@@ -496,7 +517,7 @@ function dogSpotAt(tms, hz){
     else if(u < legMs + PAUSE){              a = hi;                               th = 0;        walking = false; }
     else if(u < legMs*2 + PAUSE){            a = hi - (u - legMs - PAUSE)*SPEED;   th = Math.PI;  walking = true;  }
     else {                                   a = lo;                               th = Math.PI;  walking = false; }
-    return { a, b: 0, th, walk: walking ? 1 : 0 };
+    return { a, b: detourBAt(hz, a), th, walk: walking ? 1 : 0 };
   }
   const wp = i => {
     const r = mulberry32((seed ^ Math.imul(i|0, 2654435761)) >>> 0);
@@ -608,7 +629,7 @@ function peopleSpotAt(tms, hz){
     else if(u < legMs + PAUSE){              a = hi;                               th = -Math.PI/2; walking = false; }
     else if(u < legMs*2 + PAUSE){            a = hi - (u - legMs - PAUSE)*SPEED;   th = Math.PI/2;  walking = true;  }
     else {                                   a = lo;                               th = Math.PI/2;  walking = false; }
-    return { a, b: 0, th, walk: walking ? 1 : 0 };
+    return { a, b: detourBAt(hz, a), th, walk: walking ? 1 : 0 };
   }
   const wp = i => {
     const r = mulberry32((seed ^ Math.imul(i|0, 2654435761)) >>> 0);
@@ -2477,48 +2498,95 @@ function generateRoute(dateStr){
                    f: facingAt(csR), hit:false });
   }
 
-  /* roving robots must not phase through static props (reported
-     on-device 2026-07-26, "they just drive over other props"):
-     robotSpotAt is a pure clock over [walkS0, walkS1] = the whole
-     block, so the fix belongs to the ROUTE, not the sim. This
-     post-pass runs after EVERY hazard spawn loop above (the rover
-     loop itself runs before hydrants/slabs/cracks, so an in-loop
-     check would miss anything spawned later): shrink each rover's
-     walk range to the clear sub-interval around its own spawn point,
-     bounded by static same-row obstacles. Static kinds only --
-     dogs/people move themselves and already have their own contact
-     rules; a fellow ROVER on the same row instead splits the block
-     at the midpoint between the two spawn points, so their ranges
-     are disjoint by construction and they can't drive through each
-     other either. ROVER_CLEAR (40) ~ robot half-length + the same
-     28-unit wall-stop gap the player collision uses. If the clamped
-     range collapses below T2, demote to parked (drop roving +
-     walkS0/S1) rather than leave a rover jittering in place --
-     robotSpotAt's own guard then treats it exactly like a spawn-time
-     parked robot. */
+  /* walker detours (2026-07-26, v2 -- replaces the walk-range clamp
+     shipped earlier the same day): a clamp shrinks the world every
+     time a route gets dense and eventually traps everyone in slivers;
+     a DETOUR keeps the full block alive. This post-pass runs after
+     EVERY hazard spawn loop above (rovers spawn before hydrants/
+     slabs/cracks, so anything earlier would miss late spawns). For
+     each walker (roving robot / walking dog / walking person), every
+     static same-row blocker inside its range becomes a sidestep
+     interval in hz.detours: the walker eases one full lane over
+     (whichever adjacent lane is actually clear across the whole
+     group, checked here at build time), passes the prop, and eases
+     back -- see detourBAt for the runtime half. Blockers closer
+     together than a full ease-out/ease-in merge into one longer
+     sidestep. Only if BOTH adjacent lanes are blocked at a group
+     (boxed in) does the old trim behavior apply, at that group only
+     -- the last-resort, not the default. Rover-vs-rover still splits
+     the block at the midpoint: both parties MOVE, so no spawn-time
+     sidestep can dodge one, and half a block each is honest.
+     Dogs/people never treat moving robots as blockers (NPC-vs-NPC
+     pass-through, pre-existing and accepted). A range that still
+     collapses below T2 demotes exactly as before: rovers park,
+     dogs/people fall back to their idle wander via their own
+     spot-function guard. */
   {
-    const ROVER_CLEAR = 40;
-    const ROVER_BLOCKERS = { robot:1, planter:1, bin:1, cone:1, hydrant:1,
-                             scooter:1, trash:1, palm:1, palmDwarf:1 };
-    for(const rv of hazards){
-      if(rv.type !== "robot" || !rv.roving) continue;
-      let lo = rv.walkS0, hi = rv.walkS1;
+    const DETOUR_CLEAR = { robot: 46, dog: 30, people: 30 };  // half-span of the sidestep around a blocker's s
+    const DETOUR_BLOCKERS = { robot:1, planter:1, bin:1, cone:1, hydrant:1,
+                              scooter:1, trash:1, palm:1, palmDwarf:1 };
+    const staticOn = (row, s0, s1, self) => {
+      const list = [];
       for(const ob of hazards){
-        if(ob === rv || ob.row !== rv.row || !ROVER_BLOCKERS[ob.type]) continue;
-        if(ob.type === "robot" && ob.roving){
-          const mid = (rv.s + ob.s) / 2;
-          if(ob.s > rv.s) hi = Math.min(hi, mid - ROVER_CLEAR/2);
-          else if(ob.s < rv.s) lo = Math.max(lo, mid + ROVER_CLEAR/2);
+        if(ob === self || !DETOUR_BLOCKERS[ob.type]) continue;
+        if(ob.type === "robot" && ob.roving) continue;
+        if(ob.row !== row || ob.s < s0 || ob.s > s1) continue;
+        list.push(ob);
+      }
+      return list;
+    };
+    for(const rv of hazards){
+      const clear = DETOUR_CLEAR[rv.type];
+      if(clear === undefined) continue;
+      if(rv.walkS0 === undefined || rv.walkS1 === undefined) continue;
+      if(rv.type === "robot" && !rv.roving) continue;
+      let lo = rv.walkS0, hi = rv.walkS1;
+      if(rv.type === "robot") for(const ob of hazards){
+        if(ob === rv || ob.type !== "robot" || !ob.roving || ob.row !== rv.row) continue;
+        const mid = (rv.s + ob.s) / 2;
+        if(ob.s > rv.s) hi = Math.min(hi, mid - 20);
+        else if(ob.s < rv.s) lo = Math.max(lo, mid + 20);
+      }
+      /* group blockers: sorted, merged when two sidesteps would touch
+         (gap < ease-out + ease-in = 2*DETOUR_RAMP) -- guarantees the
+         intervals detourBAt sees are disjoint even with their ramps */
+      const blocks = staticOn(rv.row, lo, hi, rv).sort((p,q) => p.s - q.s);
+      const groups = [];
+      for(const ob of blocks){
+        const g0 = ob.s - clear, g1 = ob.s + clear;
+        const last = groups[groups.length - 1];
+        if(last && g0 <= last.s1 + DETOUR_RAMP*2) last.s1 = Math.max(last.s1, g1);
+        else groups.push({ s0: g0, s1: g1 });
+      }
+      const detours = [];
+      for(const gp of groups){
+        let target = -1;
+        for(const cand of [rv.row - 1, rv.row + 1]){
+          if(cand < 0 || cand > 3) continue;
+          /* window = group + ramps + the walker's OWN clearance: the
+             walker occupies the candidate lane for the whole group
+             span and is still partially displaced across each ramp,
+             so a prop just past the ramp end must ALSO be `clear`
+             away or the ease-back grazes it (caught by the sweep
+             census: row-0 cone 2 units outside a ramp-only window). */
+          if(staticOn(cand, gp.s0 - DETOUR_RAMP - clear, gp.s1 + DETOUR_RAMP + clear, rv).length) continue;
+          target = cand; break;
+        }
+        if(target < 0){
+          /* boxed in on both sides -- trim at THIS group only */
+          if(gp.s0 > rv.s) hi = Math.min(hi, gp.s0);
+          else if(gp.s1 < rv.s) lo = Math.max(lo, gp.s1);
+          else { lo = hi = rv.s; }   // spawned inside a boxed group: collapse, demote below
           continue;
         }
-        if(ob.s >= rv.s) hi = Math.min(hi, ob.s - ROVER_CLEAR);
-        else lo = Math.max(lo, ob.s + ROVER_CLEAR);
+        detours.push({ s0: gp.s0, s1: gp.s1, db: laneOffset(target) - laneOffset(rv.row) });
       }
-      if(hi - lo < T2 || rv.s < lo || rv.s > hi){
-        rv.roving = false;
-        delete rv.walkS0; delete rv.walkS1;
+      if(hi - lo < T2){
+        if(rv.type === "robot") rv.roving = false;
+        delete rv.walkS0; delete rv.walkS1; delete rv.detours;
       } else {
         rv.walkS0 = lo; rv.walkS1 = hi;
+        rv.detours = detours.filter(d => d.s1 > lo && d.s0 < hi);
       }
     }
   }
@@ -3534,11 +3602,27 @@ class WorldScene extends Phaser.Scene {
          Tipsy by up to the fallen radius -- far apart either answer
          is fine, pressed close this is the point that decides. */
       let htx = wp.x, hty = wp.y;
-      if(hz.type === "robot"){
-        const effA = hz.knocked ? (hz.knockA || 0)
-                   : (hz.roving ? robotSpotAt(t, hz).a : 0);
-        if(effA !== 0){
-          const effWp = worldOf(hz.s + effA, hazardOffset(hz));
+      /* dogs and people with a walk range (walkS0/walkS1) have the
+         exact same anchor-vs-body gap as roving robots -- their spot
+         functions share the .a-offset contract, so the same effective-
+         point test covers all three walkers (reported on-device
+         2026-07-26, follow-up to the rover fix). Idle wanderers stay
+         on the plain anchor test: their +-30 box is smaller than
+         layerFor's own slack. */
+      const isWalker = (hz.type === "dog" || hz.type === "people")
+                       && hz.walkS0 !== undefined && hz.walkS1 !== undefined;
+      if(hz.type === "robot" || isWalker){
+        /* .b too, not just .a: a detouring walker is a full lane off
+           its home row while sidestepping a prop (detourBAt), and a
+           knocked rover freezes wherever the sidestep had it
+           (knockA/knockB) -- the test point follows both axes. */
+        const effSpot = hz.type === "people" ? peopleSpotAt(t, hz)
+                      : hz.type === "dog"    ? dogSpotAt(t, hz)
+                      : (!hz.knocked && hz.roving) ? robotSpotAt(t, hz) : null;
+        const effA = effSpot ? effSpot.a : (hz.knocked ? (hz.knockA || 0) : 0);
+        const effB = effSpot ? (effSpot.b || 0) : (hz.knocked ? (hz.knockB || 0) : 0);
+        if(effA !== 0 || effB !== 0){
+          const effWp = worldOf(hz.s + effA, hazardOffset(hz) + effB);
           htx = effWp.x; hty = effWp.y;
         }
         if(hz.knocked){
@@ -5450,7 +5534,12 @@ class WorldScene extends Phaser.Scene {
       const roving = !!(data && data.roving);
       const spot = (roving && !knocked) ? robotSpotAt(t, data) : null;
       const walkA = knocked ? ((data && data.knockA) || 0) : (spot ? spot.a : 0);
-      const ex = x + dv.x*walkA, ey = y + dv.y*walkA;
+      /* detour sidestep (see detourBAt): lateral along rv, the same
+         axis laneOffset lives on -- a rover eases a lane over around
+         a static prop and back. Frozen at knockB once knocked, same
+         contract as knockA. */
+      const walkB = knocked ? ((data && data.knockB) || 0) : (spot ? spot.b : 0);
+      const ex = x + dv.x*walkA + rv.x*walkB, ey = y + dv.y*walkA + rv.y*walkB;
 
       const fwdV = roving ? dv : rv, sideV = roving ? rv : dv;
       const RA = (roving && spot && !knocked) ? spot.dir : 1;
@@ -7412,6 +7501,14 @@ class WorldScene extends Phaser.Scene {
            belt to this suspender. */
         if(hz.type === "sidewalkend" || hz.type === "sidewalkbegin" || hz.type === "grade") continue;   // ramps + grade paint: no collision
         let dx = this.botS - hz.s;
+        /* lateral offset of a MOVING hazard's hitbox: a walker mid-
+           detour (detourBAt) is a full lane off its home row, and a
+           settled fleer stopped wherever the flee's own db left it.
+           Both spot/settled functions already report .b; the contact
+           gate below adds it to laneOffset(hz.row) so hitbox = art
+           on both axes, not just along-route. 0 for everything else
+           keeps the gate exactly what onLane(hz.row) was. */
+        let hzB = 0;
         if(hz.type === "pigeons"){
           /* pure trigger: drive into the flock and it bursts. Generous
              cross window (the flock mills ±30 around its row); no
@@ -7433,9 +7530,11 @@ class WorldScene extends Phaser.Scene {
             const flee = dogFleeAt(t, hz);
             if(flee && !flee.gone) continue;   // still actively fleeing - no collision check yet
             hz.hit = false;
-            dx -= dogSettledSpot(hz).a;
+            const dsp = dogSettledSpot(hz);
+            dx -= dsp.a; hzB = dsp.b || 0;
           } else {
-            dx -= dogSpotAt(t, hz).a;
+            const dsp = dogSpotAt(t, hz);
+            dx -= dsp.a; hzB = dsp.b || 0;
           }
         }
         if(hz.type === "people"){
@@ -7448,9 +7547,11 @@ class WorldScene extends Phaser.Scene {
             const flee = peopleFleeAt(t, hz);
             if(flee && !flee.gone) continue;
             hz.hit = false;
-            dx -= peopleSettledSpot(hz).a;
+            const psp = peopleSettledSpot(hz);
+            dx -= psp.a; hzB = psp.b || 0;
           } else {
-            dx -= peopleSpotAt(t, hz).a;
+            const psp = peopleSpotAt(t, hz);
+            dx -= psp.a; hzB = psp.b || 0;
           }
         }
         if(hz.type === "palm"){
@@ -7690,22 +7791,31 @@ class WorldScene extends Phaser.Scene {
              Roving robots use their CURRENT walked position
              (robotSpotAt), not their spawn spot, same idea as people/
              dogs adjusting dx by their own wander offset. */
-          const robotOff = (hz.roving && !hz.knocked) ? robotSpotAt(t, hz).a : 0;
+          const robotSpot = (hz.roving && !hz.knocked) ? robotSpotAt(t, hz) : null;
+          const robotOff = robotSpot ? robotSpot.a : 0;
+          /* detour lateral (see detourBAt): while sidestepping a prop
+             the rover genuinely occupies the adjacent lane, so the
+             lane test uses its EFFECTIVE offset (home laneOffset + b)
+             -- hitbox follows art, the house rule. Captured as knockB
+             on impact so the fallen shell stays where it was hit. */
+          const robotB = robotSpot ? (robotSpot.b || 0) : 0;
+          const onRobotLane = Math.abs(this.laneOff - (laneOffset(hz.row) + robotB)) < T2*0.5;
           const effS = hz.s + robotOff;
           if(!hz.knocked){
-            const alongside = onLane(hz.row) && Math.abs(this.botS - effS) < 30;
+            const alongside = onRobotLane && Math.abs(this.botS - effS) < 30;
             const sideHit = this.hopAnim && alongside;
             if(sideHit && !hz.hit){
               hz.hit = true;
               hz.knocked = true;
               hz.knockA = robotOff;
+              hz.knockB = robotB;
               hz.knockT = t;
               this.spillRobotCargo(hz);
               const kick = this.speed * 6 * (Math.random() < 0.5 ? 1 : -1);
               this.tilt += kick * TILT_SENS;
               this.damage = Math.min(95, this.damage + Math.abs(kick)*40*CARGO_DAMAGE_SENS);
               this.speed *= 0.7;   // bump-through, not a hard stop
-            } else if(onLane(hz.row) && this.botS > effS - 28 && this.botS < effS){
+            } else if(onRobotLane && this.botS > effS - 28 && this.botS < effS){
               this.botS = safeStop(effS - 28);
               this.isBlocked = true;
               if(this.speed > ROBOT_HIT_MIN && !hz.hit){
@@ -7714,6 +7824,7 @@ class WorldScene extends Phaser.Scene {
                   this.tilt = 1.1 * (Math.random() < 0.5 ? 1 : -1);
                   hz.knocked = true;
                   hz.knockA = robotOff;
+                  hz.knockB = robotB;
                   hz.knockT = t;
                   this.spillRobotCargo(hz);
                 }
@@ -7922,7 +8033,8 @@ class WorldScene extends Phaser.Scene {
             hz.slide += hz.slideVel * dt;
             hz.slideVel *= Math.exp(-0.004 * dt);
           } else hz.slideVel = 0;
-        } else if(!hz.hit && Math.abs(dx) < 26 && onLane(hz.row)){
+        } else if(!hz.hit && Math.abs(dx) < 26 &&
+                  Math.abs(this.laneOff - (laneOffset(hz.row) + hzB)) < T2*0.5){
           hz.hit = true;
           const sev = hz.type === "crack"
             ? Math.min(8, Math.max(2, 4 * (hz.len || 46) / 46))   // bigger spall, bigger jolt (crack lab v3)
