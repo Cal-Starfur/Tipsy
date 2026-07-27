@@ -5214,16 +5214,32 @@ class WorldScene extends Phaser.Scene {
           const landA = isLiveBurst ? 8 + preOff : tipA0 + nc0*26;
           const landB = isLiveBurst ? 0 : ns0*26;
           const place2D = isLiveBurst ? W : GG;
-          const puddleRing = (rad, nn=16) => {
+          /* the puddle must TELL THE TRUTH about the slip zone
+             (2026-07-27, "spinning out but the puddle isn't on the
+             square"): the sim's hydroplane test is a RECTANGLE —
+             |sdx| < HYD_SLIP.pud along the route by ±1.5·T2 across
+             the lanes (the lateral band was deliberately widened
+             2026-07-24 so a row-1 driver gets wet too), but the art
+             stayed a circle of radius pud=41 centered on row 0 —
+             not even reaching row 1's center 92 units away. Live
+             bursts now draw an ELLIPSE with exactly the sim's two
+             semi-axes, so wherever the robot can slip, there is
+             visible water. Gallery/decorative rings keep the
+             original circles (radB === radA). */
+          const puddleRing = (radA, radB, nn=16) => {
             const pts = [];
             for(let i=0; i<nn; i++){
               const phi = (i/nn)*Math.PI*2;
-              pts.push(place2D(landA + Math.cos(phi)*rad, landB + Math.sin(phi)*rad, 0.3));
+              pts.push(place2D(landA + Math.cos(phi)*radA, landB + Math.sin(phi)*radB, 0.3));
             }
             return pts;
           };
-          this.quadOn(g, puddleRing(((data && data.burst) ? HYD_SLIP.pud : TILE*0.85) * grow), HH.water, 0.28);
-          this.quadOn(g, puddleRing(((data && data.burst) ? HYD_SLIP.pud*0.62 : TILE*0.55) * grow), HH.water, 0.22);
+          const outerA = ((data && data.burst) ? HYD_SLIP.pud : TILE*0.85) * grow;
+          const outerB = isLiveBurst ? T2*1.5 * grow : outerA;
+          const innerA = ((data && data.burst) ? HYD_SLIP.pud*0.62 : TILE*0.55) * grow;
+          const innerB = isLiveBurst ? outerB*0.62 : innerA;
+          this.quadOn(g, puddleRing(outerA, outerB), HH.water, 0.28);
+          this.quadOn(g, puddleRing(innerA, innerB), HH.water, 0.22);
         }
       }
 
@@ -5304,6 +5320,28 @@ class WorldScene extends Phaser.Scene {
       ];
       hparts.sort((p1, p2) => p1.d - p2.d);
       for(const pt of hparts) pt.fn();
+
+      /* burst droplets: plain local W(), not decoratively rotated —
+         same convention as bin/planter debris. Airborne droplets get
+         a short fall streak; landed ones flatten into little splash
+         ellipses that fade as life runs out (they evaporate into the
+         flood rather than settling like leaves). */
+      if(data && data.items && data.items.length){
+        for(const it of data.items){
+          const p = W(it.x, it.y, it.z);
+          const a = Math.max(0, Math.min(1, it.life));
+          if(!it.landed){
+            g.fillStyle(it.col, 0.9*a);
+            g.fillCircle(p.x, p.y, it.size*this.K*0.42);
+            const p2 = W(it.x - it.vx*1.4, it.y - it.vy*1.4, it.z - it.vz*1.4 + 0.6);
+            g.lineStyle(Math.max(1, it.size*this.K*0.25), it.col, 0.4*a);
+            g.lineBetween(p2.x, p2.y, p.x, p.y);
+          } else {
+            g.fillStyle(it.col, 0.5*a);
+            g.fillEllipse(p.x, p.y, it.size*this.K*1.1*(2-a), it.size*this.K*0.45*(2-a));
+          }
+        }
+      }
     } else if(kind === "robot"){
       /* other robots (requested 2026-07-24): a simplified sibling body,
          NOT a call into the player's own 1300-line drawRobot -- too
@@ -7390,6 +7428,11 @@ class WorldScene extends Phaser.Scene {
               this.damage = Math.min(95, this.damage + Math.abs(kick)*40*CARGO_DAMAGE_SENS);
               if(!hz.burst && this.speed >= HYD_SLIP.thresh){
                 hz.burst = true; hz.burstT = t;
+                /* the shear payoff: one-shot droplet eruption from the
+                   broken nozzle (spillHydrantWater), simmed each frame
+                   below alongside the flood. */
+                hz.items = hz.items || [];
+                this.spillHydrantWater(hz);
               }
             }
             this.speed = 0;
@@ -7418,6 +7461,7 @@ class WorldScene extends Phaser.Scene {
             }
           }
           if(Math.abs(sdx) > HYD_SLIP.pud + 40) hz.slid = false;
+          this.simHydrantWater(hz, dt);
         } else if(hz.type === "cone"){
           /* not a wall — a light plastic prop. ONE integrator, no
              keyframes: gravity torque about the live pivot runs every
@@ -8585,6 +8629,40 @@ class WorldScene extends Phaser.Scene {
   /* spilled plants — same shape as bin's trash spill, colored from
      the planter's own variant so a tropical planter spills tropical
      leaves, not generic green ones. */
+  /* hydrant shear burst (requested 2026-07-27, "a little more life"):
+     same per-hazard hz.items contract as spillBinTrash/
+     spillPlanterLeaves, but water — droplets erupt from the sheared
+     front nozzle in an up-and-out cone, splash down, and EVAPORATE
+     into the flood (life fade) instead of settling permanently like
+     leaves/trash do. One-shot at the burst moment; the standing spray
+     arc + growing puddle remain the persistent part. */
+  spillHydrantWater(hz){
+    const n = 16 + Math.floor(Math.random()*8);
+    for(let i=0; i<n; i++){
+      hz.items.push({
+        col: Math.random() < 0.65 ? HYD.water : HYD.waterDk,
+        size: 1 + Math.random()*1.5,
+        x: 6 + Math.random()*4, y: (Math.random()-0.5)*6, z: 10 + Math.random()*5,
+        vx: (Math.random()-0.2)*2.5, vy: (Math.random()-0.5)*2.2, vz: 0.8 + Math.random()*1.0,
+        life: 1, landed: false
+      });
+    }
+  }
+  simHydrantWater(hz, dt){
+    if(!hz.items || !hz.items.length) return;
+    const k = dt/16.7;
+    for(const it of hz.items){
+      if(!it.landed){
+        it.vz -= 0.11*k;
+        it.x += it.vx*k; it.y += it.vy*k; it.z += it.vz*k;
+        if(it.z <= 0.4){ it.z = 0.4; it.landed = true; it.vx *= 0.3; it.vy *= 0.3; }
+      } else {
+        it.x += it.vx*k; it.y += it.vy*k;
+        it.life -= 0.03*k;
+      }
+    }
+    hz.items = hz.items.filter(it => it.life > 0);
+  }
   spillPlanterLeaves(hz){
     const V = PLANTER_VARIANTS[hz.variantIdx || 0];
     const n = 5 + Math.floor(Math.random()*3);
