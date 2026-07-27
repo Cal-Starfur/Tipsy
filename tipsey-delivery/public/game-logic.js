@@ -3243,8 +3243,16 @@ class WorldScene extends Phaser.Scene {
             for(const c of cars) topLayer.push(c);
           }});
         } else {
-          const fenceLayer = layerFor(ecx, ecy);
-          blockVQ.push({ depth: ecx+ecy, fn:()=>this.drawSolidFenceRow(fenceLayer, e.ox, e.oy, e.dv, e.rv, e.len, eseed) });
+          /* sliced (stage 1): per-strip keys AND per-strip layerFor —
+             the old single edge-center test classified a whole
+             block-length fence front/back of the robot by one point */
+          const nF = Math.max(1, Math.ceil(e.len / TILE));
+          for(let fi = 0; fi < nF; fi++){
+            const fa0 = e.len*fi/nF, fa1 = fi === nF-1 ? e.len : e.len*(fi+1)/nF;
+            const fam = (fa0+fa1)/2;
+            const fcx = e.ox + e.dv.x*fam, fcy = e.oy + e.dv.y*fam;
+            blockVQ.push({ depth: fcx+fcy, fn:()=>this.drawSolidFenceRow(layerFor(fcx, fcy), e.ox, e.oy, e.dv, e.rv, e.len, eseed, fa0, fa1) });
+          }
         }
       }
     }
@@ -3365,13 +3373,15 @@ class WorldScene extends Phaser.Scene {
       blockVQ.push({ depth: hwx+hwy, fn:(g,t)=>this.drawProp(slabLayer, hzt, hwx, hwy, t, hf, hwz, null, null, hzObj) });
     }
 
-    /* roofs always draw last, globally — pulled out of the normal
-       single-point depth sort entirely so no body (house, store, fence,
-       from ANY unit) can ever paint over ANY roof, regardless of how
-       the coarse depth numbers compare. This is what "force a roof
-       onto all houses" actually needed: not more roof geometry (it was
-       already unconditional inside drawHouseUnit/drawStoreUnit), but a
-       paint-order guarantee that nothing drawn afterward could cover it. */
+    /* roofs-last pass, RETIRED for generic units (stage 1): it existed
+       because the coarse single-key-per-unit sort could let a nearby
+       body paint over another unit's roof; the per-strip keys from
+       queueUnitStrips make that impossible, so generic house/store
+       roofs now ride their own slice entries in the normal body sort.
+       Only the ADDRESS house and the PICKUP store still queue whole
+       (their body entries are entangled with the customer/worker
+       choreography — extraction is stage 2), so this pass now carries
+       at most those two roofs. */
     const bodies = blockVQ.filter(it => !it.isRoof), roofs = blockVQ.filter(it => it.isRoof);
     bodies.sort((a,b) => a.depth - b.depth);
     for(const item of bodies) item.fn(g, t); // always gWorld — the robot must stay visible over block-wrap dressing, never hidden behind it
@@ -3643,7 +3653,7 @@ class WorldScene extends Phaser.Scene {
     }
   }
 
-  drawHouseUnit(g, ox, oy, dv, rv, w, seed, isAddress=false, part='all'){
+  drawHouseUnit(g, ox, oy, dv, rv, w, seed, isAddress=false, part='all', a0=0, a1=w){
     const rng = mulberry32(seed);
     /* a = along the edge (0..w), b = depth (0 at the sidewalk-facing
        front, -D back into the block interior). A real box: front,
@@ -3663,33 +3673,52 @@ class WorldScene extends Phaser.Scene {
     const hasDoor = isAddress ? true : rng() < 0.5;
     const winCount = 1 + Math.floor(rng()*2);
     const G = (a,b,h) => this.W(ox + dv.x*a + rv.x*b, oy + dv.y*a + rv.y*b, h);
+    /* slice window [a0,a1): geometry clips to it, discrete elements
+       (windows, doors, posts, end walls) belong to the slice holding
+       their center — half-open so nothing draws twice at a seam, with
+       the final slice (a1===w) closing the interval. rng() calls above
+       stay unconditional and slice-independent, the same parity trick
+       the body/roof split already relies on. */
+    const inS = c => c >= a0 && (c < a1 || a1 >= w);
 
     if(part !== 'roof'){
-      const back = [G(0,-D,H), G(w,-D,H), G(w,-D,0), G(0,-D,0)];
+      const back = [G(a0,-D,H), G(a1,-D,H), G(a1,-D,0), G(a0,-D,0)];
       this.quadOn(g, back, C.wallDk);
-      const left = [G(0,0,H), G(0,-D,H), G(0,-D,0), G(0,0,0)];
-      this.quadOn(g, left, C.wallDk); this.edgeOn(g, left, C.trim, 1);
-      const right = [G(w,0,H), G(w,-D,H), G(w,-D,0), G(w,0,0)];
-      this.quadOn(g, right, C.wallLt); this.edgeOn(g, right, C.trim, 1);
+      if(a0 === 0){
+        const left = [G(0,0,H), G(0,-D,H), G(0,-D,0), G(0,0,0)];
+        this.quadOn(g, left, C.wallDk); this.edgeOn(g, left, C.trim, 1);
+      }
+      if(a1 >= w){
+        const right = [G(w,0,H), G(w,-D,H), G(w,-D,0), G(w,0,0)];
+        this.quadOn(g, right, C.wallLt); this.edgeOn(g, right, C.trim, 1);
+      }
     }
 
     if(part !== 'body'){
       const ov = 5;
-      const roof = [G(-ov,ov,H), G(w+ov,ov,H), G(w+ov,-D-ov,H), G(-ov,-D-ov,H)];
+      const rL = a0 === 0 ? -ov : a0, rR = a1 >= w ? w+ov : a1;
+      const roof = [G(rL,ov,H), G(rR,ov,H), G(rR,-D-ov,H), G(rL,-D-ov,H)];
       this.quadOn(g, roof, C.roof);
-      this.edgeOn(g, roof, C.wallDk, 1);
+      /* open-edge border: front/back lips per slice, side edges only
+         at the real unit ends — a closed edgeOn per slice would paint
+         a seam line across the roof at every slice boundary */
+      g.lineStyle(1, C.wallDk, 1);
+      g.lineBetween(roof[0].x,roof[0].y,roof[1].x,roof[1].y);
+      g.lineBetween(roof[3].x,roof[3].y,roof[2].x,roof[2].y);
+      if(a0 === 0) g.lineBetween(roof[0].x,roof[0].y,roof[3].x,roof[3].y);
+      if(a1 >= w) g.lineBetween(roof[1].x,roof[1].y,roof[2].x,roof[2].y);
     }
 
     if(part === 'roof') return;
 
-    const face = [G(0,0.4,H), G(w,0.4,H), G(w,0.4,0), G(0,0.4,0)];
+    const face = [G(a0,0.4,H), G(a1,0.4,H), G(a1,0.4,0), G(a0,0.4,0)];
     this.quadOn(g, face, C.wall);
-    const base = [G(0,0.42,baseH), G(w,0.42,baseH), G(w,0.42,0), G(0,0.42,0)];
+    const base = [G(a0,0.42,baseH), G(a1,0.42,baseH), G(a1,0.42,0), G(a0,0.42,0)];
     this.quadOn(g, base, C.wallDk);
-    const trim = [G(0,0.42,H), G(w,0.42,H), G(w,0.42,H-9), G(0,0.42,H-9)];
+    const trim = [G(a0,0.42,H), G(a1,0.42,H), G(a1,0.42,H-9), G(a0,0.42,H-9)];
     this.quadOn(g, trim, C.trim);
     g.lineStyle(1, C.wallDk, 0.35);
-    for(let x = T2; x < w; x += T2){ const a=G(x,0.41,H), b=G(x,0.41,0); g.lineBetween(a.x,a.y,b.x,b.y); }
+    for(let x = T2; x < w; x += T2){ if(!inS(x)) continue; const a=G(x,0.41,H), b=G(x,0.41,0); g.lineBetween(a.x,a.y,b.x,b.y); }
 
     const winW = DOOR_W*0.32, winZ0 = DOOR_H*0.16, winZ1 = DOOR_H*0.82, sillH = 4;
     const wf = 0xf4efe2, wfd = 0xd8d0bd, wg = 0x6b93a8, wgl = 0x86adc0;
@@ -3718,20 +3747,28 @@ class WorldScene extends Phaser.Scene {
 
     if((hasDoor && w > T2*1.9) || isAddress){
       const dcx = w/2;
-      if(!isAddress) door(dcx); // address unit's real door assembly draws separately, on top
+      if(!isAddress && inS(dcx)) door(dcx); // address unit's real door assembly draws separately, on top
       for(let i=1;i<=winCount;i++){
-        if(dcx - i*T2*0.9 > 14) window(dcx - i*T2*0.9);
-        if(dcx + i*T2*0.9 < w-14) window(dcx + i*T2*0.9);
+        if(dcx - i*T2*0.9 > 14 && inS(dcx - i*T2*0.9)) window(dcx - i*T2*0.9);
+        if(dcx + i*T2*0.9 < w-14 && inS(dcx + i*T2*0.9)) window(dcx + i*T2*0.9);
       }
     } else {
       const n = Math.max(1, Math.min(winCount+1, Math.floor(w/T2)));
-      for(let i=0;i<n;i++) window(w*(i+0.5)/n);
+      for(let i=0;i<n;i++) if(inS(w*(i+0.5)/n)) window(w*(i+0.5)/n);
     }
   }
 
-  drawStoreUnit(g, ox, oy, dv, rv, w, seed, isFirst, isLast, part='all'){
+  drawStoreUnit(g, ox, oy, dv, rv, w, seed, isFirst, isLast, part='all', a0=0, a1=w){
     const rng = mulberry32(seed);
     const G = (a,b,h) => this.W(ox + dv.x*a + rv.x*b, oy + dv.y*a + rv.y*b, h);
+    /* slice window [a0,a1): same contract as drawHouseUnit — clip
+       bands, assign discrete elements by center, rng unconditional */
+    const inS = c => c >= a0 && (c < a1 || a1 >= w);
+    const clipQ = (lo, hi, bOff, z0, z1, color, alpha) => {
+      const q0 = Math.max(lo, a0), q1 = Math.min(hi, a1);
+      if(q1 - q0 < 0.5) return;
+      this.quadOn(g, [G(q0,bOff,z1),G(q1,bOff,z1),G(q1,bOff,z0),G(q0,bOff,z0)], color, alpha);
+    };
     const C = STORE_PALETTES[Math.floor(rng()*STORE_PALETTES.length)];
     const D = STORE_DEPTH;
     const doorLeft = rng() < 0.5;
@@ -3748,73 +3785,95 @@ class WorldScene extends Phaser.Scene {
     const H = signZ1 + 16 + rng()*12;
 
     if(part !== 'roof'){
-      const back = [G(0,-D,H), G(w,-D,H), G(w,-D,0), G(0,-D,0)];
+      const back = [G(a0,-D,H), G(a1,-D,H), G(a1,-D,0), G(a0,-D,0)];
       this.quadOn(g, back, C.wallDk);
-      if(isFirst){ const l=[G(0,0,H),G(0,-D,H),G(0,-D,0),G(0,0,0)]; this.quadOn(g,l,C.wallDk); this.edgeOn(g,l,C.trim,1); }
-      if(isLast){  const r=[G(w,0,H),G(w,-D,H),G(w,-D,0),G(w,0,0)]; this.quadOn(g,r,C.wallLt); this.edgeOn(g,r,C.trim,1); }
+      if(isFirst && a0 === 0){ const l=[G(0,0,H),G(0,-D,H),G(0,-D,0),G(0,0,0)]; this.quadOn(g,l,C.wallDk); this.edgeOn(g,l,C.trim,1); }
+      if(isLast && a1 >= w){  const r=[G(w,0,H),G(w,-D,H),G(w,-D,0),G(w,0,0)]; this.quadOn(g,r,C.wallLt); this.edgeOn(g,r,C.trim,1); }
     }
 
     if(part !== 'body'){
       const ov = isFirst||isLast ? 5 : 0;
-      const roof = [G(isFirst?-ov:0,ov,H), G(isLast?w+ov:w,ov,H), G(isLast?w+ov:w,-D-ov,H), G(isFirst?-ov:0,-D-ov,H)];
+      const rL = a0 === 0 ? (isFirst?-ov:0) : a0, rR = a1 >= w ? (isLast?w+ov:w) : a1;
+      const roof = [G(rL,ov,H), G(rR,ov,H), G(rR,-D-ov,H), G(rL,-D-ov,H)];
       this.quadOn(g, roof, C.trim);
-      this.edgeOn(g, roof, C.wallDk, 1);
+      /* open-edge border — see the house roof note */
+      g.lineStyle(1, C.wallDk, 1);
+      g.lineBetween(roof[0].x,roof[0].y,roof[1].x,roof[1].y);
+      g.lineBetween(roof[3].x,roof[3].y,roof[2].x,roof[2].y);
+      if(a0 === 0) g.lineBetween(roof[0].x,roof[0].y,roof[3].x,roof[3].y);
+      if(a1 >= w) g.lineBetween(roof[1].x,roof[1].y,roof[2].x,roof[2].y);
     }
 
     if(part === 'roof') return;
 
-    const face = [G(0,0.4,H), G(w,0.4,H), G(w,0.4,0), G(0,0.4,0)];
+    const face = [G(a0,0.4,H), G(a1,0.4,H), G(a1,0.4,0), G(a0,0.4,0)];
     this.quadOn(g, face, C.wall);
 
-    const kick = [G(2,0.42,kickH), G(w-2,0.42,kickH), G(w-2,0.42,0), G(2,0.42,0)];
-    this.quadOn(g, kick, C.wallDk);
+    clipQ(2, w-2, 0.42, 0, kickH, C.wallDk);
 
     const doorW = Math.min(DOOR_W*0.72, w*0.3);
     const doorX = doorLeft ? 6 : w - doorW - 6;
     const glassX0 = doorLeft ? doorX+doorW+4 : 6;
     const glassX1 = doorLeft ? w-6 : doorX-4;
 
-    this.quadOn(g, [G(doorX,0.5,dZ1),G(doorX+doorW,0.5,dZ1),G(doorX+doorW,0.5,0),G(doorX,0.5,0)], C.wallDk);
-    this.quadOn(g, [G(doorX+3,0.53,dZ1-4),G(doorX+doorW-3,0.53,dZ1-4),G(doorX+doorW-3,0.53,4),G(doorX+3,0.53,4)], 0x6b93a8, 0.85);
+    if(inS(doorX + doorW/2)){
+      this.quadOn(g, [G(doorX,0.5,dZ1),G(doorX+doorW,0.5,dZ1),G(doorX+doorW,0.5,0),G(doorX,0.5,0)], C.wallDk);
+      this.quadOn(g, [G(doorX+3,0.53,dZ1-4),G(doorX+doorW-3,0.53,dZ1-4),G(doorX+doorW-3,0.53,4),G(doorX+3,0.53,4)], 0x6b93a8, 0.85);
+    }
 
     if(glassX1 - glassX0 > 12){
-      this.quadOn(g, [G(glassX0,0.5,winZ1+3),G(glassX1,0.5,winZ1+3),G(glassX1,0.5,winZ0-3),G(glassX0,0.5,winZ0-3)], 0xd8d0bd);
-      this.quadOn(g, [G(glassX0+2,0.54,winZ1),G(glassX1-2,0.54,winZ1),G(glassX1-2,0.54,winZ0),G(glassX0+2,0.54,winZ0)], 0x6b93a8);
-      this.quadOn(g, [G(glassX0+3,0.55,winZ1-3),G(glassX0+ (glassX1-glassX0)*0.4,0.55,winZ1-3),G(glassX0+(glassX1-glassX0)*0.4,0.55,winZ0+3),G(glassX0+3,0.55,winZ0+3)], 0x86adc0, 0.55);
+      clipQ(glassX0, glassX1, 0.5, winZ0-3, winZ1+3, 0xd8d0bd);
+      clipQ(glassX0+2, glassX1-2, 0.54, winZ0, winZ1, 0x6b93a8);
+      clipQ(glassX0+3, glassX0+(glassX1-glassX0)*0.4, 0.55, winZ0+3, winZ1-3, 0x86adc0, 0.55);
     }
 
     const awnOut = 20, stripeN = 6;
     for(let i=0;i<stripeN;i++){
-      const sx0 = w*i/stripeN, sx1 = w*(i+1)/stripeN;
+      const sx0 = Math.max(w*i/stripeN, a0), sx1 = Math.min(w*(i+1)/stripeN, a1);
       const col = AWNING_STRIPES[i%2===0?0:1] === 0xffffff ? 0xf0ece0 : C.wallLt;
+      if(sx1 - sx0 < 0.5) continue;
       this.quadOn(g, [G(sx0,0.5,awnZ1),G(sx1,0.5,awnZ1),G(sx1,0.5+awnOut*0.01,awnZ0),G(sx0,0.5+awnOut*0.01,awnZ0)], col);
     }
-    this.quadOn(g, [G(0,0.42,awnZ1+3),G(w,0.42,awnZ1+3),G(w,0.42,awnZ1),G(0,0.42,awnZ1)], C.trim);
+    clipQ(0, w, 0.42, awnZ1, awnZ1+3, C.trim);
 
-    this.quadOn(g, [G(4,0.44,signZ1),G(w-4,0.44,signZ1),G(w-4,0.44,signZ0),G(4,0.44,signZ0)], C.sign);
-    this.edgeOn(g, [G(4,0.44,signZ1),G(w-4,0.44,signZ1),G(w-4,0.44,signZ0),G(4,0.44,signZ0)], C.trim, 1);
+    const gx0 = Math.max(4, a0), gx1 = Math.min(w-4, a1);
+    if(gx1 - gx0 > 0.5){
+      const sq = [G(gx0,0.44,signZ1),G(gx1,0.44,signZ1),G(gx1,0.44,signZ0),G(gx0,0.44,signZ0)];
+      this.quadOn(g, sq, C.sign);
+      /* open-edge sign border, verticals only at the sign's real ends */
+      g.lineStyle(1, C.trim, 1);
+      g.lineBetween(sq[0].x,sq[0].y,sq[1].x,sq[1].y);
+      g.lineBetween(sq[3].x,sq[3].y,sq[2].x,sq[2].y);
+      if(a0 <= 4) g.lineBetween(sq[0].x,sq[0].y,sq[3].x,sq[3].y);
+      if(a1 >= w-4) g.lineBetween(sq[1].x,sq[1].y,sq[2].x,sq[2].y);
+    }
   }
 
-  drawWoodFence(g, ox, oy, dv, rv, w){
+  drawWoodFence(g, ox, oy, dv, rv, w, a0=0, a1=w){
     const G = (a,b,h) => this.W(ox + dv.x*a + rv.x*b, oy + dv.y*a + rv.y*b, h);
+    const inS = c => c >= a0 && (c < a1 || a1 >= w);
     const H = PERSON_H*0.8, wood = 0x9d7a4e, woodDk = 0x7c5f3c; // ~chest height on a real person
     const post = x => this.quadOn(g, [G(x-3,0.4,H+5),G(x+3,0.4,H+5),G(x+3,0.4,0),G(x-3,0.4,0)], woodDk);
-    post(2); post(Math.max(4,w-2));
-    const rail = [G(0,0.42,H),G(w,0.42,H),G(w,0.42,H-8),G(0,0.42,H-8)];
+    if(inS(2)) post(2);
+    if(inS(Math.max(4,w-2))) post(Math.max(4,w-2));
+    const rail = [G(a0,0.42,H),G(a1,0.42,H),G(a1,0.42,H-8),G(a0,0.42,H-8)];
     this.quadOn(g, rail, woodDk);
     const pickW = 7, gap = 5;
     for(let x = 8; x < w-6; x += pickW+gap){
+      if(!inS(x + pickW/2)) continue;
       const p = [G(x,0.44,H+3),G(x+pickW,0.44,H+3),G(x+pickW,0.44,0),G(x,0.44,0)];
       this.quadOn(g, p, wood); g.lineStyle(1, woodDk, 0.4); g.strokePoints(p.map(pt=>new Phaser.Geom.Point(pt.x,pt.y)), true, true);
     }
   }
 
-  drawChainFence(g, ox, oy, dv, rv, w){
+  drawChainFence(g, ox, oy, dv, rv, w, a0=0, a1=w){
     const G = (a,b,h) => this.W(ox + dv.x*a + rv.x*b, oy + dv.y*a + rv.y*b, h);
+    const inS = c => c >= a0 && (c < a1 || a1 >= w);
     const H = PERSON_H*1.02, post = 0x74797d, mesh = 0x9aa0a4; // just over head height
     const postAt = x => { const p0=G(x,0.4,H), p1=G(x,0.4,0); g.lineStyle(3, post, 1); g.lineBetween(p0.x,p0.y,p1.x,p1.y); };
-    postAt(2); postAt(Math.max(4,w-2));
-    const rail = G(0,0.4,H), rail2 = G(w,0.4,H);
+    if(inS(2)) postAt(2);
+    if(inS(Math.max(4,w-2))) postAt(Math.max(4,w-2));
+    const rail = G(a0,0.4,H), rail2 = G(a1,0.4,H);
     g.lineStyle(2, post, 1); g.lineBetween(rail.x, rail.y, rail2.x, rail2.y);
     /* diamond mesh: a clean cell-grid cross-hatch, cell size fixed so
        taller/wider fences get more cells instead of stretched diamonds */
@@ -3824,6 +3883,7 @@ class WorldScene extends Phaser.Scene {
     g.lineStyle(1, mesh, 0.5);
     for(let c=0; c<cols; c++){
       const x0 = c*(w/cols), x1 = (c+1)*(w/cols);
+      if(!inS((x0+x1)/2)) continue;
       for(let r=0; r<rows; r++){
         const z0 = r*(H/rows), z1 = (r+1)*(H/rows);
         const p00 = G(x0,0.42,z1), p11 = G(x1,0.42,z0);
@@ -3834,11 +3894,11 @@ class WorldScene extends Phaser.Scene {
     }
   }
 
-  drawFenceGap(g, ox, oy, dv, rv, w, seed){
+  drawFenceGap(g, ox, oy, dv, rv, w, seed, a0=0, a1=w){
     if(w < 8) return;
     const rng = mulberry32(seed);
-    if(rng() < 0.5) this.drawWoodFence(g, ox, oy, dv, rv, w);
-    else this.drawChainFence(g, ox, oy, dv, rv, w);
+    if(rng() < 0.5) this.drawWoodFence(g, ox, oy, dv, rv, w, a0, a1);
+    else this.drawChainFence(g, ox, oy, dv, rv, w, a0, a1);
   }
 
   /* address fallback for the rare f===1/f===2 delivery (see
@@ -4096,9 +4156,14 @@ class WorldScene extends Phaser.Scene {
      block, so unlike houses they don't have a corner-overlap problem
      and can safely run edge-to-edge) — the grass stays, this is just
      the yard boundary instead of a row of houses. */
-  drawSolidFenceRow(g, ox, oy, dv, rv, w, seed){
-    const margin = T2*0.4;
-    this.drawWoodFence(g, ox+dv.x*margin, oy+dv.y*margin, dv, rv, w-margin*2);
+  drawSolidFenceRow(g, ox, oy, dv, rv, w, seed, a0=0, a1=w){
+    const margin = T2*0.4, iw = w - margin*2;
+    if(iw <= 0) return;
+    /* translate the row-space slice window into the inset fence's own
+       local coords so slicing composes with the margin shift */
+    const wa0 = Math.max(0, a0 - margin), wa1 = Math.min(iw, a1 - margin);
+    if(wa1 - wa0 < 0.5) return;
+    this.drawWoodFence(g, ox+dv.x*margin, oy+dv.y*margin, dv, rv, iw, wa0, wa1);
   }
 
   /* what replaces a culled commercial edge: painted parking stalls
@@ -4195,6 +4260,33 @@ class WorldScene extends Phaser.Scene {
       { ox: blk.x1, oy: blk.y1, dv: DIRV[2], rv: DIRV[1], len: blk.x1-blk.x0 },
       { ox: blk.x0, oy: blk.y1, dv: DIRV[3], rv: DIRV[2], len: blk.y1-blk.y0 }
     ];
+  }
+
+  /* ---------- strip slicing (depth-sort rearchitecture, stage 1) ----------
+     THE STRIP INVARIANT: no queue entry may span more world distance
+     ALONG its edge than the unit is DEEP. With entries keyed at their
+     footprint-center x+y, that single rule makes point-vs-box ordering
+     exact for every heading (proved in labs/depth-sort.html — the
+     valid key band for a slice [a0,a1] is (min-corner, max-corner)
+     of the OPPOSITE depth corners, which is non-empty iff sliceW < D).
+     This retires the whole-unit single-key sort that caused the
+     recurring heading-dependent class: a person in front of a long
+     facade's low-depth end used to lose to a unit keyed at its center.
+     Houses/stores slice at T2 (< HOUSE_DEPTH/STORE_DEPTH = 3*T2, and
+     T2 matches the siding-line cadence so seams land on existing art).
+     Fences are paper-thin (D=0): their residual misorder window is
+     sliceW/2 of CONTACT distance, so they slice at TILE to keep that
+     window inside the collision slack that keeps entities off them.
+     drawFn receives (g, t, a0, a1) — the slice window in unit-local a.
+     Stage 2 (queue unification) builds on these fine keys; until then
+     the pass structure around this is unchanged. */
+  queueUnitStrips(vq, ux, uy, dv, rv, w, D, sliceW, drawFn){
+    const n = Math.max(1, Math.ceil(w / sliceW));
+    for(let i = 0; i < n; i++){
+      const a0 = w*i/n, a1 = i === n-1 ? w : w*(i+1)/n, am = (a0+a1)/2;
+      const cx = ux + dv.x*am + rv.x*(-D/2), cy = uy + dv.y*am + rv.y*(-D/2);
+      vq.push({ depth: cx+cy, fn: (g,t) => drawFn(g, t, a0, a1) });
+    }
   }
 
   queueHousingEdgeAt(vq, e, isAddressEdge=false, cornerSkip=null){
@@ -4368,17 +4460,22 @@ class WorldScene extends Phaser.Scene {
            it, on a heading where the cutaway exists specifically
            because that's not safe. Fence them too, same as the generic
            cutaway would if this edge weren't specially exempted. */
-        vq.push({ depth:hx+hy, fn:(g)=>this.drawFenceGap(g, ux, uy, e.dv, e.rv, u.w, hseed) });
+        this.queueUnitStrips(vq, ux, uy, e.dv, e.rv, u.w, 0, TILE, (g,t,a0,a1)=>this.drawFenceGap(g, ux, uy, e.dv, e.rv, u.w, hseed, a0, a1));
       } else {
-        vq.push({ depth:hx+hy, fn:(g)=>this.drawHouseUnit(g, ux, uy, e.dv, e.rv, u.w, hseed, false, 'body') });
-        vq.push({ depth:hx+hy, isRoof:true, fn:(g)=>this.drawHouseUnit(g, ux, uy, e.dv, e.rv, u.w, hseed, false, 'roof') });
+        /* body then roof per slice, preserving the old body→roof paint
+           order within each strip; the fine per-strip keys replace the
+           globally-last roof pass for every generic unit */
+        this.queueUnitStrips(vq, ux, uy, e.dv, e.rv, u.w, HOUSE_DEPTH, T2, (g,t,a0,a1)=>{
+          this.drawHouseUnit(g, ux, uy, e.dv, e.rv, u.w, hseed, false, 'body', a0, a1);
+          this.drawHouseUnit(g, ux, uy, e.dv, e.rv, u.w, hseed, false, 'roof', a0, a1);
+        });
       }
     });
     for(const gp of gapsFromUnits(units, e.len)){
       const gx = e.ox + e.dv.x*(gp.start+gp.w/2), gy = e.oy + e.dv.y*(gp.start+gp.w/2);
       const gseed = ((Math.round(gx)*7919) ^ (Math.round(gy)*104729) ^ 0x2f6c) >>> 0;
       const fx = e.ox + e.dv.x*gp.start, fy = e.oy + e.dv.y*gp.start;
-      vq.push({ depth:gx+gy, fn:(g)=>this.drawFenceGap(g, fx, fy, e.dv, e.rv, gp.w, gseed) });
+      this.queueUnitStrips(vq, fx, fy, e.dv, e.rv, gp.w, 0, TILE, (g,t,a0,a1)=>this.drawFenceGap(g, fx, fy, e.dv, e.rv, gp.w, gseed, a0, a1));
     }
   }
   queueHousingBlock(vq, blk, excludeEdges=null, cornerSkip=null){
@@ -4399,11 +4496,22 @@ class WorldScene extends Phaser.Scene {
       const isFirst = idx===0, isLast = idx===units.length-1;
       const isPickup = isPickupEdge && idx === this.route.pickupUnitIdx;
       if(cornerSkip && !isPickup && cornerSkip(hx, hy)) return;    // corner-loom trim
-      vq.push({ depth:hx+hy, fn:(g,t)=>{
-        this.drawStoreUnit(g, ux, uy, e.dv, e.rv, u.w, hseed, isFirst, isLast, 'body');
-        if(isPickup) this.drawPickupUnit(g, ux, uy, e.dv, e.rv, u.w/2, hseed, t);
-      }});
-      vq.push({ depth:hx+hy, isRoof:true, fn:(g)=>this.drawStoreUnit(g, ux, uy, e.dv, e.rv, u.w, hseed, isFirst, isLast, 'roof') });
+      if(isPickup){
+        /* pickup unit stays whole: its body entry is entangled with the
+           worker/loading choreography (drawPickupUnit) — extracting the
+           worker to his own strip-keyed entry is stage 2. The CLEAR
+           sweep keeps hazards away from it meanwhile. */
+        vq.push({ depth:hx+hy, fn:(g,t)=>{
+          this.drawStoreUnit(g, ux, uy, e.dv, e.rv, u.w, hseed, isFirst, isLast, 'body');
+          this.drawPickupUnit(g, ux, uy, e.dv, e.rv, u.w/2, hseed, t);
+        }});
+        vq.push({ depth:hx+hy, isRoof:true, fn:(g)=>this.drawStoreUnit(g, ux, uy, e.dv, e.rv, u.w, hseed, isFirst, isLast, 'roof') });
+      } else {
+        this.queueUnitStrips(vq, ux, uy, e.dv, e.rv, u.w, STORE_DEPTH, T2, (g,t,a0,a1)=>{
+          this.drawStoreUnit(g, ux, uy, e.dv, e.rv, u.w, hseed, isFirst, isLast, 'body', a0, a1);
+          this.drawStoreUnit(g, ux, uy, e.dv, e.rv, u.w, hseed, isFirst, isLast, 'roof', a0, a1);
+        });
+      }
     });
   }
   queueCommercialBlock(vq, blk, excludeEdges=null, cornerSkip=null){
@@ -4543,12 +4651,14 @@ class WorldScene extends Phaser.Scene {
         const hseed = ((Math.round(hx)*7919) ^ (Math.round(hy)*104729)) >>> 0;
         const ux = lot.ox+lot.dv.x*u.start, uy = lot.oy+lot.dv.y*u.start;
         if(unitCut(hx, hy)){
-          vq.push({ depth:hx+hy, fn:(g)=>this.drawSolidFenceRow(g, ux, uy, lot.dv, faceIn, u.w, hseed) });
+          this.queueUnitStrips(vq, ux, uy, lot.dv, faceIn, u.w, 0, TILE, (g,t,a0,a1)=>this.drawSolidFenceRow(g, ux, uy, lot.dv, faceIn, u.w, hseed, a0, a1));
           return;
         }
         const isFirst = idx===0, isLast = idx===units.length-1;
-        vq.push({ depth:hx+hy, fn:(g)=>this.drawStoreUnit(g, ux, uy, lot.dv, faceIn, u.w, hseed, isFirst, isLast, 'body') });
-        vq.push({ depth:hx+hy, isRoof:true, fn:(g)=>this.drawStoreUnit(g, ux, uy, lot.dv, faceIn, u.w, hseed, isFirst, isLast, 'roof') });
+        this.queueUnitStrips(vq, ux, uy, lot.dv, faceIn, u.w, STORE_DEPTH, T2, (g,t,a0,a1)=>{
+          this.drawStoreUnit(g, ux, uy, lot.dv, faceIn, u.w, hseed, isFirst, isLast, 'body', a0, a1);
+          this.drawStoreUnit(g, ux, uy, lot.dv, faceIn, u.w, hseed, isFirst, isLast, 'roof', a0, a1);
+        });
       });
     } else {
       const eseed = ((Math.round(lot.ox*3+lot.dv.x)*7919) ^ (Math.round(lot.oy*3+lot.dv.y)*104729) ^ 0x9e3779b9) >>> 0;
@@ -4558,17 +4668,19 @@ class WorldScene extends Phaser.Scene {
         const hseed = ((Math.round(hx)*7919) ^ (Math.round(hy)*104729)) >>> 0;
         const ux = lot.ox+lot.dv.x*u.start, uy = lot.oy+lot.dv.y*u.start;
         if(unitCut(hx, hy)){
-          vq.push({ depth:hx+hy, fn:(g)=>this.drawSolidFenceRow(g, ux, uy, lot.dv, faceIn, u.w, hseed) });
+          this.queueUnitStrips(vq, ux, uy, lot.dv, faceIn, u.w, 0, TILE, (g,t,a0,a1)=>this.drawSolidFenceRow(g, ux, uy, lot.dv, faceIn, u.w, hseed, a0, a1));
           return;
         }
-        vq.push({ depth:hx+hy, fn:(g)=>this.drawHouseUnit(g, ux, uy, lot.dv, faceIn, u.w, hseed, false, 'body') });
-        vq.push({ depth:hx+hy, isRoof:true, fn:(g)=>this.drawHouseUnit(g, ux, uy, lot.dv, faceIn, u.w, hseed, false, 'roof') });
+        this.queueUnitStrips(vq, ux, uy, lot.dv, faceIn, u.w, HOUSE_DEPTH, T2, (g,t,a0,a1)=>{
+          this.drawHouseUnit(g, ux, uy, lot.dv, faceIn, u.w, hseed, false, 'body', a0, a1);
+          this.drawHouseUnit(g, ux, uy, lot.dv, faceIn, u.w, hseed, false, 'roof', a0, a1);
+        });
       });
       for(const gp of gapsFromUnits(units, lot.len)){
         const gx = lot.ox + lot.dv.x*(gp.start+gp.w/2), gy = lot.oy + lot.dv.y*(gp.start+gp.w/2);
         const gseed = ((Math.round(gx)*7919) ^ (Math.round(gy)*104729) ^ 0x2f6c) >>> 0;
         const fx = lot.ox + lot.dv.x*gp.start, fy = lot.oy + lot.dv.y*gp.start;
-        vq.push({ depth:gx+gy, fn:(g)=>this.drawFenceGap(g, fx, fy, lot.dv, faceIn, gp.w, gseed) });
+        this.queueUnitStrips(vq, fx, fy, lot.dv, faceIn, gp.w, 0, TILE, (g,t,a0,a1)=>this.drawFenceGap(g, fx, fy, lot.dv, faceIn, gp.w, gseed, a0, a1));
       }
     }
   }
