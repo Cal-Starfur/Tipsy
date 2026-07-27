@@ -847,7 +847,12 @@ const PLANTER_BASE = { boxW: 22, boxD: 14, boxH: 14, bushH: 20, fullness: 6 };
 const PLANTER_HIT = {
   phiBal: Math.atan((PLANTER_BASE.boxW/2) / (PLANTER_BASE.boxH*0.55)),
   phiRest: Math.PI/2,
-  thresh: 1.4, kick: 1.0, potPower: 1.3
+  /* three tiers (2026-07-26): < thresh = SMALL, topples + skids, never
+     blocks (unchanged). thresh..largeMin = MEDIUM, blocks AND topples
+     like the bin -- speed-scaled kick, a solid hit knocks it over, a
+     slow push just wall-stops. >= largeMin = LARGE, immovable street
+     furniture: pure wall, no kick, no motion, ever. */
+  thresh: 1.4, largeMin: 1.8, kick: 1.0, potPower: 1.3
 };
 /* approved in car lab: len 150 · wid 60 · chassis 28 · cabin 32 · wheel 16.
    Scaled to tower over the robot (robot: 52w x 40d x 61h to the lid).
@@ -2174,9 +2179,12 @@ function generateRoute(dateStr){
       if(preKnocked) hzObj.fallPsi = rng()*Math.PI*2;
     }
     if(type === "planter"){
-      hzObj.scale = 1.0 + rng()*1.2;                 // 1.0-2.2x, straddles PLANTER_HIT.thresh (1.4)
+      hzObj.scale = 1.0 + rng()*1.2;                 // 1.0-2.2x, straddles PLANTER_HIT.thresh (1.4) and largeMin (1.8)
       hzObj.variantIdx = Math.floor(rng()*PLANTER_VARIANTS.length);
-      const preKnocked = rng() < 0.25;                // rarer than bin's 0.4 — a bigger visual event
+      /* large planters are immovable street furniture (2026-07-26) --
+         they never fall, so they can't spawn already-fallen either;
+         a pre-knocked LARGE would contradict the contract on sight. */
+      const preKnocked = rng() < 0.25 && hzObj.scale < PLANTER_HIT.largeMin;   // rarer than bin's 0.4 — a bigger visual event
       hzObj.phi = preKnocked ? PLANTER_HIT.phiRest : 0;
       hzObj.angVel = 0; hzObj.moving = false;
       hzObj.pose = preKnocked ? "knocked" : "standing";
@@ -5462,85 +5470,66 @@ class WorldScene extends Phaser.Scene {
       const bushH = 20*scale, fullness = 5 + Math.floor(rng()*4);
       const flowering = rng() < 0.3;
       const GG = W;
-      const dAt = (a, b, h) => a + b + h*0.4;
+      /* (dAt is defined below, through the tip transform) */
       const hw = boxW/2, hd = boxD/2, H = boxH;
 
-      if(phi > 0){
-        /* fallen pose: true rigid rotation about the pivot edge,
-           matching bin's own binTipPoint pattern exactly (verified in
-           the collision lab — collision no longer depends on a hand-
-           faked "low" pose, so there's no reason to fake one here
-           either). fallPsi orients the fall within this prop's LOCAL
-           walk frame — the cone's own convention (2026-07-26): the
-           sim sets fallPsi in walk-frame terms ("away from the robot
-           along s"), so rendering it as a raw world angle (the
-           previous version) only agreed with the hitbox on f=0 and
-           tipped the art in the wrong world direction on the other
-           three headings. All four headings verified via the local-
-           frame mapping (dv/rv), same as every other prop.
+      /* ONE continuous geometry (2026-07-26, blink fix): standing is
+         just phi=0 of the tipped pose, the same architecture the cone
+         and bin already use. The old version had TWO geometries -- a
+         tapered pot with a domed bush for standing, a crude straight
+         box with a ground-level bush ring for phi>0 -- with a hard
+         switch at phi>0. The sim legitimately produces brief
+         sub-balance phi excursions (a wobble that rocks and settles
+         back), and every one of them popped the art to the fallen
+         geometry for a few frames and back: the "blinked like it
+         tipped but never did" artifact. Now the FULL standing art
+         (taper, soil, stalked bush, flowers) is drawn through a rigid
+         rotation about the pivot edge, so a wobble looks like a pot
+         rocking and a real fall carries the same art all the way to
+         the ground. fallPsi orients the fall in the LOCAL walk frame
+         (cone's convention); the pivot-edge distance |fc|*hw+|fsn|*hd
+         is exact for cardinal fall azimuths (fore/aft and cross-axis)
+         and a fine approximation under the sim's small psi jitter. */
+      const cth = (isHaz && data.fallPsi) || 0;
+      const fc = Math.cos(cth), fsn = Math.sin(cth);
+      const pivotA = Math.abs(fc)*hw + Math.abs(fsn)*hd;
+      const cphi = Math.cos(phi), sphi = Math.sin(phi);
+      const pslide = (isHaz && data.slide) || 0;   // the shove skid — bin's data.slide, same convention
+      const tip = (u, h) => ({ u: pslide + pivotA - (pivotA-u)*cphi + h*sphi, z: (pivotA-u)*sphi + h*cphi });
+      /* TP: local (a,b,h) offset -> project onto the fall frame,
+         rigid-rotate about the pivot edge, map back to dv/rv offsets.
+         GT feeds that through the locally-shadowed W (offsets from
+         x,y, added exactly once -- the old double-add bug came from
+         pre-adding x,y INTO the argument as well). Identity at phi=0,
+         so standing/decoration planters render pixel-identically. */
+      const TP = (a, b, h) => {
+        const u = a*fc + b*fsn, v = -a*fsn + b*fc;
+        const tt = tip(u, h);
+        return { dx: tt.u*fc - v*fsn, dy: tt.u*fsn + v*fc, z: tt.z };
+      };
+      const GT = (a, b, h) => { const p = TP(a, b, h); return GG(p.dx, p.dy, p.z); };
+      const dAt = (a, b, h) => { const p = TP(a, b, h); return p.dx + p.dy + p.z*0.4; };
+      const baseShrink = 0.82;
+      const corner = (sx, sy, h, shrink=1) => GT(sx*hw*shrink, sy*hd*shrink, h);
 
-           Cross-axis falls (2026-07-26): a side impact sets fallPsi
-           near ±π/2 (see the collision code). The pivot edge and box
-           extents swap axes with it — uHalf (along the fall azimuth)
-           is the SHORT half-depth hd for a side fall, not hw, so a
-           sideways-tipping box pivots on its long edge at the correct
-           distance and its plan stays continuous with the standing
-           pose at phi→0. */
-        const cth = data.fallPsi || 0;
-        const fc = Math.cos(cth), fsn = Math.sin(cth);
-        const sideFall = Math.abs(fsn) > Math.abs(fc);
-        const uHalf = sideFall ? hd : hw, vHalf = sideFall ? hw : hd;
-        const pivotA = uHalf;
-        const cphi = Math.cos(phi), sphi = Math.sin(phi);
-        const pslide = (data && data.slide) || 0;   // the shove skid — bin's data.slide, same convention
-        const tip = (u, h) => ({ u: pslide + pivotA - (pivotA-u)*cphi + h*sphi, z: (pivotA-u)*sphi + h*cphi });
-        /* L maps through the locally-shadowed W (GG) — offsets from
-           x,y in the dv/rv frame, added exactly once. (The old
-           double-add bug that pushed this branch to raw this.W() came
-           from pre-adding x,y INTO the argument as well; passing pure
-           offsets avoids it while keeping the local frame.) */
-        const L = (u, v, h) => { const t = tip(u, h); return GG(t.u*fc - v*fsn, t.u*fsn + v*fc, t.z); };
-        const dAt2 = (u, v, h) => {
-          const t = tip(u, h);
-          const lu = t.u*fc - v*fsn, lv = t.u*fsn + v*fc;
-          return (dv.x*lu + rv.x*lv) + (dv.y*lu + rv.y*lv) + t.z*0.4;
-        };
-        const corner = (sx, sy, h) => L(sx*uHalf, sy*vHalf, h);
+      /* planter body shadow removed (requested). */
 
-        /* shadow removed (requested). */
-
-        const fbox = () => {
-          const top = [corner(-1,-1,H), corner(1,-1,H), corner(1,1,H), corner(-1,1,H)];
-          const bot = [corner(-1,-1,0), corner(1,-1,0), corner(1,1,0), corner(-1,1,0)];
-          this.quadOn(g, convexHull(top.concat(bot)), PL.boxDk);
-          this.quadOn(g, top, PL.box);
-          this.edgeOn(g, top, PL.boxDk, 1.2);
-        };
-        const fbush = () => {
-          const bushSeed = ((Math.round(x)*7919) ^ (Math.round(y)*104729) ^ 0x51c3) >>> 0;
-          const brng = mulberry32(bushSeed);
-          const n = fullness;
-          for(let i=0; i<n+1; i++){
-            const ang = (i/n)*Math.PI*2 + brng()*0.4;
-            const rr = bushH*0.5*(0.5 + brng()*0.4);
-            const hh = 2 + brng()*3;
-            const bOff = Math.sin(ang)*bushH*0.6;
-            const aOff = pivotA + bushH*0.3 + Math.cos(ang)*bushH*0.3;
-            const c = GG(aOff*fc - bOff*fsn, aOff*fsn + bOff*fc, hh);
-            g.fillStyle(i%3===0 ? V.leafA : i%3===1 ? V.leafB : V.leafC, 1);
-            g.fillCircle(c.x, c.y, (bushH*0.22)*this.K*0.42);
-          }
-        };
-        const fparts = [{ d: dAt2(0,0,H*0.4), fn: fbox }, { d: dAt2(pivotA+bushH*0.3,0,3), fn: fbush }];
-        fparts.sort((p1,p2) => p1.d - p2.d);
-        for(const pt of fparts) pt.fn();
-      } else {
-        const baseShrink = 0.82;
-        const corner = (sx, sy, h, shrink=1) => GG(sx*hw*shrink, sy*hd*shrink, h);
-
-        /* planter body shadow removed (requested). */
-
+      {
         const pbox = () => {
+          /* silhouette backstop, tipped poses only: the two visible
+             side faces below are picked by the STANDING camera test
+             (faceX/faceY from dv) -- once the pot rotates, the set of
+             camera-facing faces changes (the base can come into view)
+             and gaps would show. A filled hull of all 8 corners
+             underneath keeps every mid-fall/fallen pose solid without
+             touching the standing art (guarded, phi=0 skips it). */
+          if(phi > 0.05){
+            const hull = [];
+            for(const sx of [-1,1]) for(const sy of [-1,1]){
+              hull.push(corner(sx,sy,H)); hull.push(corner(sx,sy,0,baseShrink));
+            }
+            this.quadOn(g, convexHull(hull), PL.boxDk);
+          }
           const top = [corner(-1,-1,H), corner(1,-1,H), corner(1,1,H), corner(-1,1,H)];
           this.quadOn(g, top, PL.box);
           this.edgeOn(g, top, PL.boxDk, 1.2);
@@ -5602,11 +5591,11 @@ class WorldScene extends Phaser.Scene {
           }
           puffs.sort((p1,p2) => dAt(p1.a,p1.b,p1.h) - dAt(p2.a,p2.b,p2.h));
           for(const pf of puffs){
-            const s0 = GG(pf.a*0.25, pf.b*0.25, baseH - 0.4);
-            const s1 = GG(pf.a, pf.b, Math.max(pf.h - pf.r*0.35, baseH));
+            const s0 = GT(pf.a*0.25, pf.b*0.25, baseH - 0.4);
+            const s1 = GT(pf.a, pf.b, Math.max(pf.h - pf.r*0.35, baseH));
             g.lineStyle(Math.max(1, 1.1*this.K*0.4), PL.stalk, 1);
             g.lineBetween(s0.x, s0.y, s1.x, s1.y);
-            const c = GG(pf.a, pf.b, pf.h);
+            const c = GT(pf.a, pf.b, pf.h);
             g.fillStyle(pf.c, 1);
             if(V.style === "spiky"){
               // ornamental-grass blade: thin triangles radiating from
@@ -5614,9 +5603,9 @@ class WorldScene extends Phaser.Scene {
               const nb = 4;
               for(let bIdx=0; bIdx<nb; bIdx++){
                 const bAng = (pf.ang || 0) + (bIdx/nb)*Math.PI*2 + rng()*0.3;
-                const tip = GG(pf.a + Math.cos(bAng)*pf.r*1.3, pf.b + Math.sin(bAng)*pf.r*1.3, pf.h + pf.r*0.7);
-                const base1 = GG(pf.a + Math.cos(bAng+0.3)*pf.r*0.3, pf.b + Math.sin(bAng+0.3)*pf.r*0.3, pf.h - pf.r*0.3);
-                const base2 = GG(pf.a + Math.cos(bAng-0.3)*pf.r*0.3, pf.b + Math.sin(bAng-0.3)*pf.r*0.3, pf.h - pf.r*0.3);
+                const tip = GT(pf.a + Math.cos(bAng)*pf.r*1.3, pf.b + Math.sin(bAng)*pf.r*1.3, pf.h + pf.r*0.7);
+                const base1 = GT(pf.a + Math.cos(bAng+0.3)*pf.r*0.3, pf.b + Math.sin(bAng+0.3)*pf.r*0.3, pf.h - pf.r*0.3);
+                const base2 = GT(pf.a + Math.cos(bAng-0.3)*pf.r*0.3, pf.b + Math.sin(bAng-0.3)*pf.r*0.3, pf.h - pf.r*0.3);
                 g.fillTriangle(tip.x, tip.y, base1.x, base1.y, base2.x, base2.y);
               }
             } else {
@@ -5629,7 +5618,7 @@ class WorldScene extends Phaser.Scene {
               const ang = rng()*Math.PI*2;
               const rr = boxW*0.22 + rng()*boxW*0.16;
               const hh = baseH + bushH*(0.45 + rng()*0.5);
-              const c = GG(Math.cos(ang)*rr, Math.sin(ang)*rr, hh);
+              const c = GT(Math.cos(ang)*rr, Math.sin(ang)*rr, hh);
               g.fillStyle(V.flower, 1);
               g.fillCircle(c.x, c.y, (1.6+rng())*this.K*0.42);
             }
@@ -7506,6 +7495,7 @@ class WorldScene extends Phaser.Scene {
              clamped at the stop line — so the oversized case grinds
              against it every frame instead of a single hit. */
           const oversized = hz.scale >= PLANTER_HIT.thresh;
+          const immovable = hz.scale >= PLANTER_HIT.largeMin;   // LARGE tier: pure wall, never moves
           const halfW = (PLANTER_BASE.boxW/2) * hz.scale;
 
           if(oversized){
@@ -7524,38 +7514,50 @@ class WorldScene extends Phaser.Scene {
             const spillBlocks = hz.spillRow !== undefined && hz.spillRow !== null
                                 && this.botRow === hz.spillRow && hz.phi > PLANTER_HIT.phiBal;
             if((onLane(hz.row) || spillBlocks) && this.botS > wallLo - BODY.hx && this.botS < wallHi + 20){
+              const impactSp = this.speed;   // BEFORE the wall zeroes it — this is the hit energy
               this.botS = safeStop(wallLo - BODY.hx);
               this.isBlocked = true;
               this.speed = 0;
               if(hz.pose !== "knocked" && !hz.hit){
                 hz.hit = true;
-                /* fall AWAY from the robot, always: the oversized
-                   contract lets the robot sit up to 20 past the far
-                   edge, and the old always-(+s) topple dropped the
-                   box straight onto him (on-device: "rolls toward
-                   the robot"). Cross-axis (2026-07-26): a hit taken
-                   while a lane-hop is in progress is a SIDE impact --
-                   the planter falls ACROSS the lane band, away from
-                   the row the robot hopped from, instead of fore/aft.
-                   sin-sign of ψ maps hop direction (row index) into
-                   the local rv axis via ROBOT_SIDE (laneOffset's own
-                   sign); spillRow is the lane the fallen box lands
-                   in, null when it fell off the band (road/building
-                   side). Driving hits keep the fore/aft pick. */
-                if(hz.fallPsi === undefined){
-                  if(this.hopAnim){
-                    hz.fallPsi = this.hopAnim.dir * ROBOT_SIDE * (Math.PI/2) + (Math.random()-0.5)*0.4;
-                    const sr = hz.row + this.hopAnim.dir;
-                    hz.spillRow = (sr >= 0 && sr <= 3) ? sr : null;
-                  } else {
-                    hz.fallPsi = (this.botS <= hz.s ? 0 : Math.PI) + (Math.random()-0.5)*0.4;
-                  }
-                }
-                const kick = 0.05 * 1.6 * (Math.random() < 0.5 ? 1 : -1);
+                /* bump feedback for the robot on any first contact,
+                   scaled to how hard he actually hit (floor keeps a
+                   creep-in touch from being completely free). */
+                const kick = Math.max(impactSp, 0.05) * 1.6 * (Math.random() < 0.5 ? 1 : -1);
                 this.tilt += kick * TILT_SENS;
                 this.damage = Math.min(95, this.damage + Math.abs(kick)*40*CARGO_DAMAGE_SENS);
-                hz.moving = true;
-                hz.angVel += 0.07 * 0.012 * PLANTER_HIT.kick / Math.pow(hz.scale, PLANTER_HIT.potPower) * (dt/16);
+                if(!immovable){
+                  /* MEDIUM tier only (2026-07-26): tips like the bin
+                     — a real speed-scaled kick, so a solid hit sends
+                     it over the balance angle and all the way down
+                     (then planterSpanS keeps blocking the fallen
+                     footprint), while a slow push just rocks it and
+                     it settles back. LARGE (>= largeMin) skips this
+                     whole block: immovable street furniture, no
+                     fallPsi, no angVel, no motion, ever — which is
+                     also what killed its wobble-blink at the source.
+
+                     Fall direction: AWAY from the robot, always.
+                     Cross-axis: a hit taken mid-lane-hop is a SIDE
+                     impact — the planter falls ACROSS the lane band,
+                     away from the row the robot hopped from. sin-sign
+                     of ψ maps hop direction (row index) into the
+                     local rv axis via ROBOT_SIDE (laneOffset's own
+                     sign); spillRow is the lane the fallen box lands
+                     in, null when it fell off the band (road/building
+                     side). Driving hits keep the fore/aft pick. */
+                  if(hz.fallPsi === undefined){
+                    if(this.hopAnim){
+                      hz.fallPsi = this.hopAnim.dir * ROBOT_SIDE * (Math.PI/2) + (Math.random()-0.5)*0.4;
+                      const sr = hz.row + this.hopAnim.dir;
+                      hz.spillRow = (sr >= 0 && sr <= 3) ? sr : null;
+                    } else {
+                      hz.fallPsi = (this.botS <= hz.s ? 0 : Math.PI) + (Math.random()-0.5)*0.4;
+                    }
+                  }
+                  hz.moving = true;
+                  hz.angVel += impactSp * 0.06 * PLANTER_HIT.kick / Math.pow(hz.scale, PLANTER_HIT.potPower);
+                }
               }
             }
           } else if(!hz.hit && Math.abs(dx) < BODY.hx + halfW && onLane(hz.row) && this.speed > 0.08 && hz.pose !== "knocked"){
