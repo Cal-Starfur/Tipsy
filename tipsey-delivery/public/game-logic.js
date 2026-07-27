@@ -283,7 +283,79 @@ const DOG_COATS = [
    spot. Offsets are tile-local (±30 along, ±26 across) so he never
    leaves the square he spawned in. Walk legs are 62% of each 2.6s
    segment (smoothstepped), the rest is standing and judging. */
-function dogSpotAt(tms, seed, sit){
+/* detour sidestep (2026-07-26, replaces the walk-range clamp): pure
+   (hz, a) -> lateral offset-units b, same zero-mutable-state contract
+   as every spot function. hz.detours is built once at spawn (see the
+   detour builder in route gen): disjoint {s0,s1,db} intervals, each
+   one blocker-group the walker steps AROUND -- db is a full adjacent
+   lane's laneOffset delta. Smoothstep ramps over DETOUR_RAMP units on
+   each side; the builder merges groups closer than 2*RAMP so at most
+   one interval ever applies at a given s, hence the early return. */
+const DETOUR_RAMP = 30;
+function detourBAt(hz, a){
+  if(!hz || !hz.detours) return 0;
+  const s = hz.s + a;
+  for(const d of hz.detours){
+    if(s <= d.s0 - DETOUR_RAMP || s >= d.s1 + DETOUR_RAMP) continue;
+    let w = 1;
+    if(s < d.s0) w = (s - (d.s0 - DETOUR_RAMP)) / DETOUR_RAMP;
+    else if(s > d.s1) w = ((d.s1 + DETOUR_RAMP) - s) / DETOUR_RAMP;
+    return d.db * w*w*(3 - 2*w);
+  }
+  return 0;
+}
+/* other robots, roving (requested 2026-07-24, phase 2): same ping-
+   pong walk pattern as peopleSpotAt/dogSpotAt, but also reports which
+   direction (dir: +-1) it's currently walking so the render code can
+   flip the robot to actually face its direction of travel -- for a
+   vehicle that's not cosmetic the way it is for a person's idle
+   wander, the wheels/face need to genuinely point where it's going. */
+function robotSpotAt(tms, hz){
+  if(!(hz && hz.walkS0 !== undefined && hz.walkS1 !== undefined && hz.walkS1 > hz.walkS0))
+    return { a: 0, dir: 1, walking: false };
+  const seed = hz.robotSeed || 0;
+  const lo = hz.walkS0 - hz.s, hi = hz.walkS1 - hz.s;
+  const SPEED = 0.06;   // units/ms -- ~27% of Tipsy's 0.225 top speed, "slower than Tipsy" but a
+                         // real cruise, not a pedestrian pace; Tipsy can catch up at higher speed
+  const PAUSE = 500;    // ms idle at each end before turning back
+  const legMs = (hi - lo) / SPEED;
+  const cyc = legMs*2 + PAUSE*2;
+  const phase = seed % 100000;
+  const u = ((tms + phase) % cyc + cyc) % cyc;
+  let a, dir, walking;
+  if(u < legMs){                          a = lo + u*SPEED;                     dir = 1;  walking = true;  }
+  else if(u < legMs + PAUSE){              a = hi;                               dir = 1;  walking = false; }
+  else if(u < legMs*2 + PAUSE){            a = hi - (u - legMs - PAUSE)*SPEED;   dir = -1; walking = true;  }
+  else {                                   a = lo;                               dir = -1; walking = false; }
+  return { a, b: detourBAt(hz, a), dir, walking };
+}
+function dogSpotAt(tms, hz){
+  const seed = (hz && hz.dogSeed) || 0;
+  const sit = hz ? !!hz.sit : false;
+  /* sidewalk walk (requested 2026-07-24, same system as prop.people):
+     if this dog got a walk range at spawn (walkS0/walkS1 -- only ever
+     set for the free-roaming half, see the dog spawn branch; sitters
+     never get one), ping-pong along it with a pause at each end.
+     th=0/PI here, NOT people's -PI/2/PI/2 correction -- drawPersonHull
+     builds its body with the walk-step axis on local B, but the dog
+     model lays rearA/chestA/headA along local A (confirmed by reading
+     the dog draw code), so local A already IS the dog's own forward
+     axis and needs no extra rotation to align with world dv. */
+  if(hz && hz.walkS0 !== undefined && hz.walkS1 !== undefined && hz.walkS1 > hz.walkS0){
+    const lo = hz.walkS0 - hz.s, hi = hz.walkS1 - hz.s;
+    const SPEED = 0.024;     // units/ms -- a touch brisker than people's 0.02, dogs amble faster
+    const PAUSE = 700;       // ms idle at each end (sniffing around) before turning back
+    const legMs = (hi - lo) / SPEED;
+    const cyc = legMs*2 + PAUSE*2;
+    const phase = seed % 100000;
+    const u = ((tms + phase) % cyc + cyc) % cyc;
+    let a, th, walking;
+    if(u < legMs){                          a = lo + u*SPEED;                     th = 0;        walking = true;  }
+    else if(u < legMs + PAUSE){              a = hi;                               th = 0;        walking = false; }
+    else if(u < legMs*2 + PAUSE){            a = hi - (u - legMs - PAUSE)*SPEED;   th = Math.PI;  walking = true;  }
+    else {                                   a = lo;                               th = Math.PI;  walking = false; }
+    return { a, b: detourBAt(hz, a), th, walk: walking ? 1 : 0 };
+  }
   const wp = i => {
     const r = mulberry32((seed ^ Math.imul(i|0, 2654435761)) >>> 0);
     return { a: -30 + r()*60, b: -26 + r()*52 };
@@ -337,7 +409,7 @@ function dogFleeAt(tms, hz){
 function dogSettledSpot(hz){
   if(!hz || hz.hitT === undefined) return null;
   const DUR = 2600, DIST = 250;                // matches dogFleeAt's values at u=1
-  const base = dogSpotAt(hz.hitT + DUR, hz.dogSeed || 0, hz.sit);
+  const base = dogSpotAt(hz.hitT + DUR, hz);
   return {
     a: base.a + (hz.fleeA || 1) * DIST,
     b: base.b - DIST * 0.45,
@@ -369,7 +441,33 @@ const PEOPLE_SHOE  = [{c:0x1c1c1c,dk:0x121212},{c:0x5c4530,dk:0x483623},{c:0xf2f
    sidewalk instead of standing frozen until hit. Pure function of
    (t, seed): the sim's collision check and the renderer call the same
    thing, so the hitbox always matches the art. */
-function peopleSpotAt(tms, seed){
+function peopleSpotAt(tms, hz){
+  const seed = (hz && hz.peopleSeed) || 0;
+  /* sidewalk walk (requested 2026-07-24): if this person got a walk
+     range at spawn time (walkS0/walkS1 -- see the people spawn branch;
+     only set for a wide-enough straight sidewalk run), ping-pong along
+     it at a steady clip with a brief pause at each end, instead of
+     idling in the old +-30 box. Returned .a is still an offset from
+     hz.s -- same contract both callers already expect (render's
+     ax = x + dv.x*spotA..., collision's dx -= spotA) -- so nothing
+     downstream needs to know which mode produced it. No range (or a
+     range that collapsed to a point, see spawn branch) falls through
+     to the original idle wander unchanged. */
+  if(hz && hz.walkS0 !== undefined && hz.walkS1 !== undefined && hz.walkS1 > hz.walkS0){
+    const lo = hz.walkS0 - hz.s, hi = hz.walkS1 - hz.s;
+    const SPEED = 0.02;      // units/ms -- brisk walking pace, ~9% of the robot's 0.225 top speed
+    const PAUSE = 900;       // ms idle at each end before turning back
+    const legMs = (hi - lo) / SPEED;
+    const cyc = legMs*2 + PAUSE*2;
+    const phase = seed % 100000;   // desyncs everyone so they don't all turn in lockstep
+    const u = ((tms + phase) % cyc + cyc) % cyc;
+    let a, th, walking;
+    if(u < legMs){                          a = lo + u*SPEED;                     th = -Math.PI/2; walking = true;  }
+    else if(u < legMs + PAUSE){              a = hi;                               th = -Math.PI/2; walking = false; }
+    else if(u < legMs*2 + PAUSE){            a = hi - (u - legMs - PAUSE)*SPEED;   th = Math.PI/2;  walking = true;  }
+    else {                                   a = lo;                               th = Math.PI/2;  walking = false; }
+    return { a, b: detourBAt(hz, a), th, walk: walking ? 1 : 0 };
+  }
   const wp = i => {
     const r = mulberry32((seed ^ Math.imul(i|0, 2654435761)) >>> 0);
     return { a: -30 + r()*60, b: -26 + r()*52 };
@@ -400,7 +498,7 @@ function peopleFleeAt(tms, hz){
 function peopleSettledSpot(hz){
   if(!hz || hz.hitT === undefined) return null;
   const DUR = 2600, DIST = 250;
-  const base = peopleSpotAt(hz.hitT + DUR, hz.peopleSeed || 0);
+  const base = peopleSpotAt(hz.hitT + DUR, hz);
   return {
     a: base.a + (hz.fleeA || 1) * DIST,
     b: base.b - DIST * 0.45,
@@ -460,6 +558,42 @@ function binShiftAt(hz){
   const reach = lay * BIN.height * 0.5;
   return ((hz.slide || 0) + reach) * Math.cos(hz.fallPsi || 0);
 }
+/* same idea as binShiftAt, for the planter's oversized wall — rebuilt
+   pose-aware (2026-07-26, "stopping edge in sync with placement"):
+   returns the planter's CURRENT blocking span along s, relative to
+   hz.s, instead of a single shifted center. The old center+fixed-
+   clearance version was calibrated only against the KNOCKED near
+   edge and applied to the standing pose too, which put the stop line
+   a full box-width late — the robot's nose crossed the whole standing
+   planter before stopping (reported on-device). Standing span is the
+   box's own ±halfW; a fore/aft fall extends the fallen side by the
+   laid-over height+bush, projected onto s; a SIDE fall (|sin ψ| >
+   |cos ψ|, see the cross-axis collision code) leaves the s-span at
+   ±halfW — its reach goes across the lane band instead (hz.spillRow).
+   Oversized planters never slide (too heavy — see the collision
+   comment), so hz.slide is deliberately not part of the wall. */
+function planterSpanS(hz){
+  const sc = hz.scale || 1;
+  const phiC = Math.max(0, Math.min(Math.PI/2, hz.phi || 0));
+  const psi = hz.fallPsi || 0;
+  const cA = Math.cos(psi);
+  const sideFall = Math.abs(Math.sin(psi)) > Math.abs(cA);
+  const halfW = (PLANTER_BASE.boxW/2) * sc;
+  if(sideFall) return { lo: -halfW, hi: halfW };
+  /* fore/aft: the box pivots over its FAR edge, so the ground it
+     stood on is progressively VACATED as it goes over — the near
+     edge is the swept bottom corner, halfW - 2*halfW*cos(phi)
+     (-halfW standing, +halfW fully fallen), not a frozen -halfW.
+     Freezing it left a 2*halfW strip of empty sidewalk between the
+     robot's stop line and the fallen pot (reported on-device
+     2026-07-27, "gap from the tipped planter and robot"); tracking
+     it lets the wall advance with the fall so the robot can close
+     right up to the pot. Far edge: pivot + the laid-over box+bush,
+     sin(phi) projection. */
+  const near = halfW - 2*halfW*Math.cos(phiC);
+  const far  = halfW + Math.sin(phiC) * (PLANTER_BASE.boxH + PLANTER_BASE.bushH) * sc;
+  return cA >= 0 ? { lo: near, hi: far } : { lo: -far, hi: -near };
+}
 
 const BIN_HIT = (() => {
   const r0 = binR(0);
@@ -482,6 +616,59 @@ const HYD = {
    per second" or it'd dominate the damage stat outright. Starting
    value, not yet tuned on-device. */
 const DAMAGE_REDZONE_DPS = 8;   // cargo damage/sec while |tilt| stays past the 0.75 danger line
+
+/* difficulty pass (requested 2026-07-24: more people finishing runs).
+   Both apply only to GRADUAL/routine sources -- hazard-contact kicks,
+   cornering, road jitter. The explicit instant-fail triggers (getting
+   hit by traffic, driving off the good path onto a curb/wedge) set
+   this.tilt directly to a fixed value rather than accumulating, so
+   they're untouched by either constant -- those stay exactly as
+   punishing as before. Starting values, not yet tuned on-device. */
+const CARGO_DAMAGE_SENS = 0.4;  // multiplier on cargo damage from routine contacts (lower = cargo survives bumps better)
+const TILT_SENS = 0.5;          // multiplier on tilt buildup from routine contacts/cornering/jitter (lower = harder to tip)
+/* cornering-specific fix (requested 2026-07-24 as a follow-up to the
+   TILT_SENS pass above): cornering tilt scales with speed SQUARED
+   (see the arc-segment line below), but the robot's top speed was
+   already raised 0.15 -> 0.225 in an earlier session (+50%). That
+   alone is a 1.5^2 = 2.25x jump in cornering tilt at top speed --
+   TILT_SENS's flat 0.5x only clawed back HALF of that, netting
+   2.25*0.5 = 1.125x the ORIGINAL pre-speed-boost cornering tilt.
+   So high-speed turns were tipping MORE easily than before the whole
+   difficulty pass, despite TILT_SENS -- exactly what got reported.
+   First pass landed on 0.051 (~50% of original pre-boost, pre-
+   TILT_SENS cornering tilt) -- still too easy on further testing.
+   Second pass, 0.0255 (~25% of original): fixed the over-tipping, but
+   went far enough that cornering could never reach the 0.75 red-
+   damage zone at all -- even an infinitely long turn only asymptoted
+   to ~0.31 tilt (steady-state = rate/decay, decay=0.0021/ms). Turns
+   stopped costing any cargo condition whatsoever, which wasn't the
+   goal -- only guaranteed TIPPING from cornering alone was. Current
+   0.07 targets a ~0.85 equilibrium: a genuinely wide, sustained
+   (~1s+) turn at speed can now cross into the red zone and bleed
+   cargo damage, but even a turn held forever stays well short of the
+   1.0 fail line -- cornering still can't tip you by itself. */
+const CORNER_TILT_COEF = 0.07;
+
+/* other-robot collision thresholds (requested 2026-07-24). Top speed
+   is 0.225 -- ROBOT_TIP_THRESH sits at ~84% of that, meant to read as
+   "you were really moving." Below it: the OTHER robot goes down
+   (routine-hazard treatment, same TILT_SENS/CARGO_DAMAGE_SENS scaling
+   as every other bump). At/above it: Tipsy goes down instead, via the
+   same this.tilt=1.1*sign instant-fail already used for traffic --
+   not a routine bump, so deliberately NOT scaled by TILT_SENS. */
+const ROBOT_HIT_MIN = 0.08;      // below this, no reaction at all (matches every other wall hazard's floor)
+const ROBOT_TIP_THRESH = 0.19;   // at/above this speed, Tipsy tips instead of the other robot
+
+/* curb-drop stumble cap (requested 2026-07-24): stepping off an
+   unramped sidewalk edge while already leaning used to hard-set
+   tilt=1.1 -- an unconditional instant-fail, same mechanism as
+   getting hit by traffic. Reported as tipping too easily. Traffic
+   stays exactly as punishing as before (a real collision should be),
+   but the curb stumble now caps well short of the >=1 fail line --
+   deep in the >0.75 red-damage zone (cargo bleeds condition, same
+   DAMAGE_REDZONE_DPS mechanic already in place) but recoverable
+   instead of a guaranteed crash. */
+const CURB_DROP_TILT_CAP = 0.9;
 
 /* dialed in the hydrant hit lab: burst + hydroplane numbers */
 const HYD_SLIP = {
@@ -530,7 +717,12 @@ const PLANTER_BASE = { boxW: 22, boxD: 14, boxH: 14, bushH: 20, fullness: 6 };
 const PLANTER_HIT = {
   phiBal: Math.atan((PLANTER_BASE.boxW/2) / (PLANTER_BASE.boxH*0.55)),
   phiRest: Math.PI/2,
-  thresh: 1.4, kick: 1.0, potPower: 1.3
+  /* three tiers (2026-07-26): < thresh = SMALL, topples + skids, never
+     blocks (unchanged). thresh..largeMin = MEDIUM, blocks AND topples
+     like the bin -- speed-scaled kick, a solid hit knocks it over, a
+     slow push just wall-stops. >= largeMin = LARGE, immovable street
+     furniture: pure wall, no kick, no motion, ever. */
+  thresh: 1.4, largeMin: 1.8, kick: 1.0, potPower: 1.3
 };
 /* approved in car lab: len 150 · wid 60 · chassis 28 · cabin 32 · wheel 16.
    Scaled to tower over the robot (robot: 52w x 40d x 61h to the lid).
@@ -589,6 +781,17 @@ const TURN_R = ROAD_HALF + T2;    // PLAYER-ROUTE-ONLY wide-turn fillet radius (
                               // center. Accepted tradeoff (Sir, 2026-07-17) in exchange for the
                               // turn visually starting/landing on the ramps. Traffic keeps CORNER_R
                               // unchanged — buildWalk only gets TURN_R from generateRoute's own call.
+const CORNER_HAZARD_CLEAR = 3*T2;   // hazard-exclusion padding around corners, decoupled from
+                              // CORNER_R (investigated 2026-07-25): the player's actual corner
+                              // geometry uses TURN_R (5*T2=460), not CORNER_R (8*T2=736) --
+                              // CORNER_R exists purely for a separate traffic/offset-math
+                              // invariant unrelated to hazard placement. inCorner() was
+                              // borrowing CORNER_R's much larger margin for a concern it
+                              // doesn't have, creating dead zones up to ~2600 units (nearly
+                              // 10% of a route) around long corners. CORNER_R itself untouched
+                              // here -- has an explicit documented "path reverses mid-turn"
+                              // failure mode if shrunk, not worth risking for an unrelated
+                              // tuning change. Starting value, not yet tuned on-device.
 const ROBOT_SIDE = -1;       // the walk stays on ONE side's sidewalk band —
                               // lane 0 is closest to the road (curb side),
                               // lane 3 is farthest (building side).
@@ -1358,7 +1561,7 @@ function trafficWorldAt(tr, t){
    position (still totalLen-90 / SPAWN_S+90 — this does NOT change
    route length or leg count, just which existing point along the
    already-generated route gets used) for the nearest usable leg. */
-function findGoodS(segs, totalLen, preferredS, scanFromEnd, grid, avoidBlock, minS = 0){
+function findGoodS(segs, totalLen, preferredS, scanFromEnd, grid, avoidBlock, minS = 0, relaxed = false){
   const isGood = sg => sg.type === "line" && GOOD_LEG_HEADING[sg.f];
   /* PERIMETER GUARD: a good leg can still run along the grid's outer edge
      with the robot's lane facing OUTWARD, off the grid. There, the address
@@ -1386,7 +1589,11 @@ function findGoodS(segs, totalLen, preferredS, scanFromEnd, grid, avoidBlock, mi
   for(const sg of order){
     if(!isGood(sg)) continue;
     const len = sg.s1 - sg.s0;
-    const inset = Math.min(90, len*0.3);
+    /* relaxed pass (see the fallback chain at the bottom): accept
+       placement much closer to a corner rather than fall off the
+       good-heading legs entirely — a door 24 units from an arc beats
+       a door on an f=1 leg with no house behind it. */
+    const inset = relaxed ? Math.min(24, len*0.1) : Math.min(90, len*0.3);
     /* minS floor (used by the door search to guarantee a >= 1 mile
        route): any candidate below it is skipped entirely — legs wholly
        under the floor never qualify, straddling legs clamp up to it. */
@@ -1406,7 +1613,40 @@ function findGoodS(segs, totalLen, preferredS, scanFromEnd, grid, avoidBlock, mi
   // building type) even if it shares the address block, over an outward leg.
   if(interiorFallback !== null) return interiorFallback;
   if(anyFallback !== null) return anyFallback;
-  return Math.max(0, Math.min(totalLen, preferredS)); // no good leg anywhere (rare)
+  /* no good leg found at the standard inset (2026-07-27, "still
+     getting f=1"): this raw fall-through was the ONLY way gate mode
+     ever triggered, and it came with no guards at all — no heading
+     check, no perimeter check, not even a straight-leg check (the
+     door could land mid-arc, where the address-edge math is
+     meaningless, and findAdjacentBlock would clamp a perimeter probe
+     into the wrong interior block). Chain of last resorts instead:
+     1) rescan the same legs accepting near-corner placement — the
+        usual reason to be here is every good leg being too short for
+        the 90-unit inset, so this rescues most of them with all the
+        interior/avoid-block guards intact;
+     2) failing that, snap to the nearest STRAIGHT leg to preferredS
+        regardless of heading — gate mode, but at least on a real leg
+        with a well-defined edge;
+     3) the old raw clamp, only if the route somehow has no line
+        segments at all. */
+  if(!relaxed) return findGoodS(segs, totalLen, preferredS, scanFromEnd, grid, avoidBlock, minS, true);
+  /* 2) NO floor-dropping here: an earlier version searched below the
+     minS mile floor at this point, which traded route length for
+     heading (worst case a 0.22-mile delivery) — rejected. The walk
+     generator now guarantees a good leg past the mile mark instead
+     (see the hasGoodDoorLeg retry in generateRoute), so reaching this
+     line means something upstream broke; the straight-leg snap below
+     is purely a crash-proof net. */
+  let lineBest = null, lineBd = Infinity;
+  for(const sg of segs){
+    if(sg.type !== "line") continue;
+    const s = Math.max(sg.s0 + 12, Math.min(sg.s1 - 12, preferredS));
+    if(s < sg.s0 + 12) continue;   // degenerate leg
+    const d = Math.abs(s - preferredS);
+    if(d < lineBd){ lineBd = d; lineBest = s; }
+  }
+  if(lineBest !== null) return lineBest;
+  return Math.max(0, Math.min(totalLen, preferredS)); // no straight leg anywhere (should be impossible)
 }
 
 /* which real block sits next to a given route position — only valid
@@ -1464,10 +1704,28 @@ function generateRoute(dateStr){
   const cols = 12 + Math.floor(rng()*6);
   const rows = 12 + Math.floor(rng()*6);
   const grid = buildGrid(cols, rows, seed);
-  const walk = buildWalk(grid, rng, undefined, undefined, TURN_R);
+  /* good-heading guarantee (2026-07-27, "that is unacceptable"): the
+     door needs an f===0/f===3 straight leg past the 1-mile mark with
+     room for findGoodS's standard 90-unit inset. buildWalk's turnSign
+     bias makes such a leg LIKELY but not certain (census: 9/120 daily
+     routes had none, and the only alternatives were a gate address on
+     a cut heading or a sub-mile door — both rejected). Deterministic
+     retry instead: same date-seeded rng stream, so re-rolling is
+     reproducible per date; 92% per-attempt success makes 8 attempts
+     astronomically safe, and the door search below keeps its own
+     fallback chain as the final net regardless. Route length is
+     untouched — every accepted walk satisfies the full mile floor. */
+  const hasGoodDoorLeg = w => w.segs.some(sg => {
+    if(sg.type !== "line" || !GOOD_LEG_HEADING[sg.f]) return false;
+    const inset = Math.min(90, (sg.s1 - sg.s0)*0.3);
+    return sg.s1 - inset >= Math.max(sg.s0 + inset, MIN_ROUTE_UNITS);
+  });
+  let walk = buildWalk(grid, rng, undefined, undefined, TURN_R);
+  for(let att = 0; att < 8 && !hasGoodDoorLeg(walk); att++)
+    walk = buildWalk(grid, rng, undefined, undefined, TURN_R);
   const segs = walk.segs, totalLen = walk.totalLen;
 
-  const inCorner = sv => segs.some(sg => sg.type === "arc" && sv > sg.s0 - CORNER_R && sv < sg.s1 + CORNER_R);
+  const inCorner = sv => segs.some(sg => sg.type === "arc" && sv > sg.s0 - CORNER_HAZARD_CLEAR && sv < sg.s1 + CORNER_HAZARD_CLEAR);
   const facingAt = sv => {
     for(const sg of segs) if(sv >= sg.s0 && sv <= sg.s1) return sg.f;
     return segs[segs.length-1].f;
@@ -1768,7 +2026,7 @@ function generateRoute(dateStr){
        crossing/corner exclusions are unchanged — the course just gets
        twice as busy. Cracks and slabs keep their own dedicated passes
        and levers. */
-    hs += ((330 - density*176) + rng()*198) * 0.5;
+    hs += ((330 - density*176) + rng()*198) * 0.25;
     const hsR = Math.round(hs);
     if(inCorner(hsR)) continue;
     const lane = Math.floor(rng()*4);
@@ -1789,9 +2047,42 @@ function generateRoute(dateStr){
     else if(r2 < 0.75)                 type = "cone";
     else { const r3 = rng(); type = r3 < 0.25 ? "dog" : r3 < 0.48 ? "people" : r3 < 0.73 ? "bin" : "planter"; }
     const hzObj = { type, s: hsR, row: lane, f: facingAt(hsR), hit:false };
-    if(type === "dog"){ hzObj.dogSeed = (rng()*4294967296) >>> 0;  // coat + scar + waypoints
-                        hzObj.sit = rng() < 0.4; }                 // ~40% sitters
-    if(type === "people"){ hzObj.peopleSeed = (rng()*4294967296) >>> 0; }  // body/skin/shirt/pants/hair/shoe
+    if(type === "dog"){
+      hzObj.dogSeed = (rng()*4294967296) >>> 0;  // coat + scar + waypoints
+      /* 50/50 free-roaming vs the original pace/sit behavior (requested
+         2026-07-24, same sidewalk-block system as prop.people above).
+         The free-roaming half never sits -- walking and sitting are
+         mutually exclusive, so sit only gets rolled for the half that
+         ISN'T getting a walk range, leaving their ~40% sitter rate
+         exactly as it always was. */
+      if(rng() < 0.5){
+        const dSeg = segs.find(g => hsR >= g.s0 && hsR <= g.s1 && g.type === "line");
+        if(dSeg){
+          const w0 = dSeg.s0 + CROSSING_CLEAR, w1 = dSeg.s1 - CROSSING_CLEAR;
+          if(w1 - w0 >= T2){ hzObj.walkS0 = w0; hzObj.walkS1 = w1; }
+        }
+        hzObj.sit = false;
+      } else {
+        hzObj.sit = rng() < 0.4;                 // ~40% sitters, same as always
+      }
+    }
+    if(type === "people"){
+      hzObj.peopleSeed = (rng()*4294967296) >>> 0;  // body/skin/shirt/pants/hair/shoe
+      /* sidewalk-walking range (requested 2026-07-24): confined to the
+         straight run they spawned on -- same "line"-segment-only
+         restriction the pigeon flocks already use above, so nobody
+         gets routed through a corner's arc geometry. Margin (same
+         CROSSING_CLEAR the route generator already uses) keeps the
+         walk off the curb cut at each end. If the block's too short
+         after margins, walkS0/walkS1 collapse to a point and
+         peopleSpotAt's own fallback leaves them on the old idle
+         wander -- nobody regresses, they just don't get a route. */
+      const pSeg = segs.find(g => hsR >= g.s0 && hsR <= g.s1 && g.type === "line");
+      if(pSeg){
+        const w0 = pSeg.s0 + CROSSING_CLEAR, w1 = pSeg.s1 - CROSSING_CLEAR;
+        if(w1 - w0 >= T2){ hzObj.walkS0 = w0; hzObj.walkS1 = w1; }
+      }
+    }
     if(type === "cone"){
       const preKnocked = rng() < 0.4;
       hzObj.phi = preKnocked ? CONE_HIT.phiRest : 0;
@@ -1813,9 +2104,12 @@ function generateRoute(dateStr){
       if(preKnocked) hzObj.fallPsi = rng()*Math.PI*2;
     }
     if(type === "planter"){
-      hzObj.scale = 1.0 + rng()*1.2;                 // 1.0-2.2x, straddles PLANTER_HIT.thresh (1.4)
+      hzObj.scale = 1.0 + rng()*1.2;                 // 1.0-2.2x, straddles PLANTER_HIT.thresh (1.4) and largeMin (1.8)
       hzObj.variantIdx = Math.floor(rng()*PLANTER_VARIANTS.length);
-      const preKnocked = rng() < 0.25;                // rarer than bin's 0.4 — a bigger visual event
+      /* large planters are immovable street furniture (2026-07-26) --
+         they never fall, so they can't spawn already-fallen either;
+         a pre-knocked LARGE would contradict the contract on sight. */
+      const preKnocked = rng() < 0.25 && hzObj.scale < PLANTER_HIT.largeMin;   // rarer than bin's 0.4 — a bigger visual event
       hzObj.phi = preKnocked ? PLANTER_HIT.phiRest : 0;
       hzObj.angVel = 0; hzObj.moving = false;
       hzObj.pose = preKnocked ? "knocked" : "standing";
@@ -1864,7 +2158,7 @@ function generateRoute(dateStr){
      for gameplay). Different offset = different position = drawProp's
      own position-seeded rng naturally varies lean/height/sway per
      companion without any extra seeding work needed. */
-  for(let ps = SPAWN_S + 140; ps < totalLen - 220; ps += 286 + rng()*264){
+  for(let ps = SPAWN_S + 140; ps < totalLen - 220; ps += (286 + rng()*264) * 0.25){
     const psR = Math.round(ps);
     if(inCorner(psR)) continue;
     if(!onSidewalk(psR, laneOffset(3))) continue;
@@ -1914,8 +2208,55 @@ function generateRoute(dateStr){
                    len: 24 + Math.floor(rng()*49), f: facingAt(rsR), hit:false });
   }
 
+  /* other robots (requested 2026-07-24): parked, lane 3 -- the inside/
+     building lane, confirmed geometrically via laneOffset (increasing
+     lane index moves further from the road), same lane palms already
+     use. Facing is rotated 90 degrees from the normal sidewalk-forward
+     convention in the render code (see drawProp) so the face looks
+     OUT across the lane band toward the road -- toward Tipsy as he
+     drives past -- rather than along the sidewalk like every other
+     prop. Moderate spacing: these read as a much bigger visual event
+     than a cone or hydrant, shouldn't crowd the route. */
+  for(let rb = SPAWN_S + 260; rb < totalLen - 320; rb += 900 + rng()*700){
+    const rbR = Math.round(rb);
+    if(inCorner(rbR)) continue;
+    if(!onSidewalk(rbR, laneOffset(3))) continue;
+    if(spawnBlocked(rbR, laneOffset(3))) continue;
+    if(rng() < 0.5){
+      hazards.push({ type:"robot", s: rbR, row: 3, f: facingAt(rbR),
+                     hit:false, robotSeed: (rng()*4294967296) >>> 0,
+                     knocked:false, fallPsi: (rng()*2-1)*0.4, items:[] });
+    }
+  }
+
+  /* other robots, roving (requested 2026-07-24, phase 2): other
+     delivery bots out on their own routes -- same sidewalk-block walk
+     system as people/dogs (line segments only, CROSSING_CLEAR margin
+     at each end), placed at any lane rather than fixed to lane 3 like
+     the parked ones above. roving:true switches the render code's
+     axis mapping so the face points along the direction of travel
+     (like a vehicle actually driving somewhere) instead of across the
+     lane band toward the road. Lower density than parked -- these are
+     a genuinely dynamic, catchable-and-collidable hazard, shouldn't
+     flood the route. */
+  for(let rr = SPAWN_S + 300; rr < totalLen - 360; rr += 1400 + rng()*1000){
+    const rrR = Math.round(rr);
+    if(inCorner(rrR)) continue;
+    const rLane = Math.floor(rng()*4);
+    if(!onSidewalk(rrR, laneOffset(rLane))) continue;
+    if(spawnBlocked(rrR, laneOffset(rLane))) continue;
+    const rSeg = segs.find(g => rrR >= g.s0 && rrR <= g.s1 && g.type === "line");
+    if(!rSeg) continue;
+    const rw0 = rSeg.s0 + CROSSING_CLEAR, rw1 = rSeg.s1 - CROSSING_CLEAR;
+    if(rw1 - rw0 < T2) continue;   // block too short after margins -- skip, don't spawn stationary
+    hazards.push({ type:"robot", s: rrR, row: rLane, f: facingAt(rrR),
+                   hit:false, robotSeed: (rng()*4294967296) >>> 0,
+                   knocked:false, fallPsi: (rng()*2-1)*0.4,
+                   roving:true, walkS0: rw0, walkS1: rw1, items:[] });
+  }
+
   /* hydrants: lane 0, closest to the road — the real curb side. */
-  for(let ys = SPAWN_S + 220; ys < totalLen - 280; ys += 1056 + rng()*1144){
+  for(let ys = SPAWN_S + 220; ys < totalLen - 280; ys += (1056 + rng()*1144) * 0.25){
     const ysR = Math.round(ys);
     if(inCorner(ysR)) continue;
     if(!onSidewalk(ysR, laneOffset(0))) continue;
@@ -1953,7 +2294,7 @@ function generateRoute(dateStr){
      would exceed 1.0 there. Spacing has no such ceiling. */
   let ss = SPAWN_S + 260;
   while(ss < totalLen - 320){
-    ss += 200 + rng()*277;
+    ss += (200 + rng()*277) * 0.5;
     if(inCorner(ss)) continue;
     if(rng() > 0.18 + (1 - hood.pave)*0.75) continue;
     const runN = 1 + Math.floor(rng()*3);
@@ -1981,7 +2322,7 @@ function generateRoute(dateStr){
      touching scooter/trash/cone/dog/people/bin/planter's odds. */
   let cs = SPAWN_S + 180;
   while(cs < totalLen - 240){
-    cs += 22 + rng()*110;
+    cs += (22 + rng()*110) * 0.5;
     if(inCorner(cs)) continue;
     if(rng() > (1 - hood.pave)*0.45) continue;
     const crow = Math.floor(rng()*4);
@@ -1992,6 +2333,99 @@ function generateRoute(dateStr){
     hazards.push({ type:"crack", s: csR, row: crow,
                    len: 24 + Math.floor(rng()*49), surface:"sidewalk",
                    f: facingAt(csR), hit:false });
+  }
+
+  /* walker detours (2026-07-26, v2 -- replaces the walk-range clamp
+     shipped earlier the same day): a clamp shrinks the world every
+     time a route gets dense and eventually traps everyone in slivers;
+     a DETOUR keeps the full block alive. This post-pass runs after
+     EVERY hazard spawn loop above (rovers spawn before hydrants/
+     slabs/cracks, so anything earlier would miss late spawns). For
+     each walker (roving robot / walking dog / walking person), every
+     static same-row blocker inside its range becomes a sidestep
+     interval in hz.detours: the walker eases one full lane over
+     (whichever adjacent lane is actually clear across the whole
+     group, checked here at build time), passes the prop, and eases
+     back -- see detourBAt for the runtime half. Blockers closer
+     together than a full ease-out/ease-in merge into one longer
+     sidestep. Only if BOTH adjacent lanes are blocked at a group
+     (boxed in) does the old trim behavior apply, at that group only
+     -- the last-resort, not the default. Rover-vs-rover still splits
+     the block at the midpoint: both parties MOVE, so no spawn-time
+     sidestep can dodge one, and half a block each is honest.
+     Dogs/people never treat moving robots as blockers (NPC-vs-NPC
+     pass-through, pre-existing and accepted). A range that still
+     collapses below T2 demotes exactly as before: rovers park,
+     dogs/people fall back to their idle wander via their own
+     spot-function guard. */
+  {
+    const DETOUR_CLEAR = { robot: 46, dog: 30, people: 30 };  // half-span of the sidestep around a blocker's s
+    const DETOUR_BLOCKERS = { robot:1, planter:1, bin:1, cone:1, hydrant:1,
+                              scooter:1, trash:1, palm:1, palmDwarf:1 };
+    const staticOn = (row, s0, s1, self) => {
+      const list = [];
+      for(const ob of hazards){
+        if(ob === self || !DETOUR_BLOCKERS[ob.type]) continue;
+        if(ob.type === "robot" && ob.roving) continue;
+        if(ob.row !== row || ob.s < s0 || ob.s > s1) continue;
+        list.push(ob);
+      }
+      return list;
+    };
+    for(const rv of hazards){
+      const clear = DETOUR_CLEAR[rv.type];
+      if(clear === undefined) continue;
+      if(rv.walkS0 === undefined || rv.walkS1 === undefined) continue;
+      if(rv.type === "robot" && !rv.roving) continue;
+      let lo = rv.walkS0, hi = rv.walkS1;
+      if(rv.type === "robot") for(const ob of hazards){
+        if(ob === rv || ob.type !== "robot" || !ob.roving || ob.row !== rv.row) continue;
+        const mid = (rv.s + ob.s) / 2;
+        if(ob.s > rv.s) hi = Math.min(hi, mid - 20);
+        else if(ob.s < rv.s) lo = Math.max(lo, mid + 20);
+      }
+      /* group blockers: sorted, merged when two sidesteps would touch
+         (gap < ease-out + ease-in = 2*DETOUR_RAMP) -- guarantees the
+         intervals detourBAt sees are disjoint even with their ramps */
+      const blocks = staticOn(rv.row, lo, hi, rv).sort((p,q) => p.s - q.s);
+      const groups = [];
+      for(const ob of blocks){
+        const g0 = ob.s - clear, g1 = ob.s + clear;
+        const last = groups[groups.length - 1];
+        if(last && g0 <= last.s1 + DETOUR_RAMP*2) last.s1 = Math.max(last.s1, g1);
+        else groups.push({ s0: g0, s1: g1 });
+      }
+      const detours = [];
+      for(const gp of groups){
+        let target = -1;
+        for(const cand of [rv.row - 1, rv.row + 1]){
+          if(cand < 0 || cand > 3) continue;
+          /* window = group + ramps + the walker's OWN clearance: the
+             walker occupies the candidate lane for the whole group
+             span and is still partially displaced across each ramp,
+             so a prop just past the ramp end must ALSO be `clear`
+             away or the ease-back grazes it (caught by the sweep
+             census: row-0 cone 2 units outside a ramp-only window). */
+          if(staticOn(cand, gp.s0 - DETOUR_RAMP - clear, gp.s1 + DETOUR_RAMP + clear, rv).length) continue;
+          target = cand; break;
+        }
+        if(target < 0){
+          /* boxed in on both sides -- trim at THIS group only */
+          if(gp.s0 > rv.s) hi = Math.min(hi, gp.s0);
+          else if(gp.s1 < rv.s) lo = Math.max(lo, gp.s1);
+          else { lo = hi = rv.s; }   // spawned inside a boxed group: collapse, demote below
+          continue;
+        }
+        detours.push({ s0: gp.s0, s1: gp.s1, db: laneOffset(target) - laneOffset(rv.row) });
+      }
+      if(hi - lo < T2){
+        if(rv.type === "robot") rv.roving = false;
+        delete rv.walkS0; delete rv.walkS1; delete rv.detours;
+      } else {
+        rv.walkS0 = lo; rv.walkS1 = hi;
+        rv.detours = detours.filter(d => d.s1 > lo && d.s0 < hi);
+      }
+    }
   }
 
   /* parked car: on the road, off to one side (never blocking either
@@ -2274,6 +2708,16 @@ function generateRoute(dateStr){
      are never cut — the live version would happily vanish the
      customer's house if you approached it westbound. */
   const cutEdges = {};
+  /* cutExt (2026-07-27, "still getting f=1"): world-space spans of
+     every cut-heading leg portion whose near-side probe leaves the
+     interior grid — i.e. the robot's side faces an EXTERIOR LOT.
+     Exterior lots aren't in the block grid, so the cutEdges map above
+     can't reach them; before this, a perimeter f=1/f=2 leg showed
+     full, un-cut houses at the robot's side (queueExteriorLot never
+     consulted the cutaway at all). The render side (queueExteriorLot)
+     tests each lot unit against these spans and swaps house/store for
+     the same solid fence row an interior cut edge gets. */
+  const cutExt = [];
   const addCut = (bi, bj, edge) => {
     if(edge == null) return;
     if(addressBlock && bi === addressBlock.i && bj === addressBlock.j && edge === addressEdgeIdx) return;
@@ -2286,17 +2730,29 @@ function generateRoute(dateStr){
     const eIn = NORTH_WALL_CUT_EDGE[sg.f];
     const eOut = sg.type === "arc" ? NORTH_WALL_CUT_EDGE[(sg.f + sg.sign + 4) % 4] : null;
     if(eIn == null && eOut == null) continue;
+    let prevWp = null;
     for(let s = sg.s0; ; s += T2){
       const sv = Math.min(s, sg.s1);
       const wp = segsWorldOf(segs, sv, laneOffset(1));   // any lane row lands in the same block
       const bi = Math.floor(wp.x/BLOCK), bj = Math.floor(wp.y/BLOCK);
-      if(sg.type === "line") addCut(bi, bj, eIn);
-      else { addCut(bi, bj, eIn); addCut(bi, bj, eOut); }
+      const offGrid = bi < 0 || bi > grid.cols-2 || bj < 0 || bj > grid.rows-2;
+      if(offGrid){
+        /* beside an exterior lot — record the step as a cut span
+           (consecutive step points chain into a polyline; arcs come
+           out as short chords, which is all the render test needs).
+           addCut skipped: it used to file these under nonexistent
+           block keys like "-1,3" that nothing ever read. */
+        if(prevWp) cutExt.push({ x0: prevWp.x, y0: prevWp.y, x1: wp.x, y1: wp.y });
+      } else {
+        if(sg.type === "line") addCut(bi, bj, eIn);
+        else { addCut(bi, bj, eIn); addCut(bi, bj, eOut); }
+      }
+      prevWp = wp;
       if(sv >= sg.s1) break;
     }
   }
 
-  return { hood, grid, segs, totalLen, tiles, hazards, props, pal, traffic, crossings, cutEdges,
+  return { hood, grid, segs, totalLen, tiles, hazards, props, pal, traffic, crossings, cutEdges, cutExt,
            address:`${number} ${street}`, doorS, pickupS, pickupSpot, pickupShopName, addressBlock, pickupBlock, addressEdgeIdx, pickupEdgeIdx, addressUnitIdx, pickupUnitIdx, addressUsesGate, order, parMs, dateStr };
 }
 
@@ -2320,6 +2776,11 @@ const FLAG = { base:{x:-25, y:17}, z0:54, z1:97 };  // anchored to the body's to
                                                       // was anchored to the lid (z0 matched
                                                       // LID.z1 exactly, base x/y sat inside the
                                                       // lid's own footprint)
+
+/* other robots (requested 2026-07-24): Tipsy's exact look, one swap --
+   blue stripe/flag instead of red (confirmed on-device, dropped the
+   earlier multi-color variety in favor of just this). */
+const ROBOT_NPC = { stripe:0x2e6fd1, stripeDk:0x24569f, flag:0x2e6fd1 };
 
 class WorldScene extends Phaser.Scene {
   constructor(){ super("world"); }
@@ -2961,8 +3422,55 @@ class WorldScene extends Phaser.Scene {
          the robot's own position. Standing (phi===0) scooters are
          compact and can be genuinely ahead of the robot on the
          sidewalk, so they still go through the normal test. */
-      const hzLayer = (hz.type === "scooter" && hz.phi > 0) ? g : layerFor(wp.x, wp.y);
-      if(near(wp.x, wp.y)) this.drawProp(hzLayer, hz.type, wp.x, wp.y, t, hz.f, wp.z, null, null, hz);
+      /* NPC robots' visual body sits at their WALKED position
+         (hz.s + walkA via robotSpotAt, frozen at knockA once
+         knocked), potentially a whole block from the spawn anchor.
+         The collision sim already tests the walked position
+         (robotOff); near()/layerFor() here still sampled the anchor,
+         so a roving robot got culled and front/back-classified by a
+         point it isn't standing on -- Tipsy between anchor and body
+         overlapped it in the wrong layer (reported on-device
+         2026-07-26). Test at the effective point; the drawProp x,y
+         deliberately stays the anchor, because the robot draw branch
+         applies walkA itself -- one source of truth for position.
+         Knocked robots additionally get the tipped planter/bin
+         nearest-silhouette shift: the fallen shell pivots ~a body
+         height off the wheelbase, so nudge the test point toward
+         Tipsy by up to the fallen radius -- far apart either answer
+         is fine, pressed close this is the point that decides. */
+      let htx = wp.x, hty = wp.y;
+      /* dogs and people with a walk range (walkS0/walkS1) have the
+         exact same anchor-vs-body gap as roving robots -- their spot
+         functions share the .a-offset contract, so the same effective-
+         point test covers all three walkers (reported on-device
+         2026-07-26, follow-up to the rover fix). Idle wanderers stay
+         on the plain anchor test: their +-30 box is smaller than
+         layerFor's own slack. */
+      const isWalker = (hz.type === "dog" || hz.type === "people")
+                       && hz.walkS0 !== undefined && hz.walkS1 !== undefined;
+      if(hz.type === "robot" || isWalker){
+        /* .b too, not just .a: a detouring walker is a full lane off
+           its home row while sidestepping a prop (detourBAt), and a
+           knocked rover freezes wherever the sidestep had it
+           (knockA/knockB) -- the test point follows both axes. */
+        const effSpot = hz.type === "people" ? peopleSpotAt(t, hz)
+                      : hz.type === "dog"    ? dogSpotAt(t, hz)
+                      : (!hz.knocked && hz.roving) ? robotSpotAt(t, hz) : null;
+        const effA = effSpot ? effSpot.a : (hz.knocked ? (hz.knockA || 0) : 0);
+        const effB = effSpot ? (effSpot.b || 0) : (hz.knocked ? (hz.knockB || 0) : 0);
+        if(effA !== 0 || effB !== 0){
+          const effWp = worldOf(hz.s + effA, hazardOffset(hz) + effB);
+          htx = effWp.x; hty = effWp.y;
+        }
+        if(hz.knocked){
+          let kx = this.botX - htx, ky = this.botY - hty;
+          const kd = Math.hypot(kx, ky) || 1;
+          const kR = Math.min(kd, 30);
+          htx += kx/kd*kR; hty += ky/kd*kR;
+        }
+      }
+      const hzLayer = (hz.type === "scooter" && hz.phi > 0) ? g : layerFor(htx, hty);
+      if(near(htx, hty)) this.drawProp(hzLayer, hz.type, wp.x, wp.y, t, hz.f, wp.z, null, null, hz);
       if(hz.clusterExtras){
         for(const ex of hz.clusterExtras){
           const exWp = worldOf(hz.s + (hz.slide || 0) + ex.ds, hazardOffset(hz) + ex.dOff);
@@ -4000,6 +4508,33 @@ class WorldScene extends Phaser.Scene {
       return this.queueParkBlock(vq, rect);
     }
     const faceIn = { x:-lot.rv.x, y:-lot.rv.y }; // body sits outside the grid, front faces back IN toward the sidewalk
+    /* cutaway for exterior lots (2026-07-27, "still getting f=1"):
+       interior blocks get their near walls fenced on f=1/f=2 legs via
+       route.cutEdges, but lots live outside the grid and never
+       consulted it — full houses drew beside the robot on exactly the
+       headings the cutaway exists for. route.cutExt holds the world
+       spans of every cut-heading leg portion that runs along the
+       perimeter; any unit whose center sits near one of those spans
+       renders as the same solid fence row an interior cut edge gets
+       (commercial included — no parking-row here because this path
+       has no topLayer plumbing for the parked cars, and a fence is
+       the same safe, view-clearing replacement). Per-unit test, so a
+       long lot only fences the portion the route actually passes.
+       Radius 0.75*BLOCK: probe runs one lane-band inward of the lot
+       front, and modest over-reach past a leg's end just fences a
+       little extra — the safe direction. */
+    const cutExt = (this.route && this.route.cutExt) || [];
+    const unitCut = (px, py) => {
+      for(const sg2 of cutExt){
+        const vx = sg2.x1 - sg2.x0, vy = sg2.y1 - sg2.y0;
+        const L2 = vx*vx + vy*vy || 1;
+        let tt = ((px - sg2.x0)*vx + (py - sg2.y0)*vy) / L2;
+        tt = Math.max(0, Math.min(1, tt));
+        const dx2 = px - (sg2.x0 + vx*tt), dy2 = py - (sg2.y0 + vy*tt);
+        if(dx2*dx2 + dy2*dy2 < (BLOCK*0.75)*(BLOCK*0.75)) return true;
+      }
+      return false;
+    };
     if(lot.type === "commercial"){
       const eseed = ((Math.round(lot.ox*3+lot.dv.x)*7919) ^ (Math.round(lot.oy*3+lot.dv.y)*104729) ^ 0x51b3) >>> 0;
       const units = packEdgeNoGap(lot.len, mulberry32(eseed));
@@ -4007,6 +4542,10 @@ class WorldScene extends Phaser.Scene {
         const hx = lot.ox + lot.dv.x*(u.start+u.w/2), hy = lot.oy + lot.dv.y*(u.start+u.w/2);
         const hseed = ((Math.round(hx)*7919) ^ (Math.round(hy)*104729)) >>> 0;
         const ux = lot.ox+lot.dv.x*u.start, uy = lot.oy+lot.dv.y*u.start;
+        if(unitCut(hx, hy)){
+          vq.push({ depth:hx+hy, fn:(g)=>this.drawSolidFenceRow(g, ux, uy, lot.dv, faceIn, u.w, hseed) });
+          return;
+        }
         const isFirst = idx===0, isLast = idx===units.length-1;
         vq.push({ depth:hx+hy, fn:(g)=>this.drawStoreUnit(g, ux, uy, lot.dv, faceIn, u.w, hseed, isFirst, isLast, 'body') });
         vq.push({ depth:hx+hy, isRoof:true, fn:(g)=>this.drawStoreUnit(g, ux, uy, lot.dv, faceIn, u.w, hseed, isFirst, isLast, 'roof') });
@@ -4018,6 +4557,10 @@ class WorldScene extends Phaser.Scene {
         const hx = lot.ox + lot.dv.x*(u.start+u.w/2), hy = lot.oy + lot.dv.y*(u.start+u.w/2);
         const hseed = ((Math.round(hx)*7919) ^ (Math.round(hy)*104729)) >>> 0;
         const ux = lot.ox+lot.dv.x*u.start, uy = lot.oy+lot.dv.y*u.start;
+        if(unitCut(hx, hy)){
+          vq.push({ depth:hx+hy, fn:(g)=>this.drawSolidFenceRow(g, ux, uy, lot.dv, faceIn, u.w, hseed) });
+          return;
+        }
         vq.push({ depth:hx+hy, fn:(g)=>this.drawHouseUnit(g, ux, uy, lot.dv, faceIn, u.w, hseed, false, 'body') });
         vq.push({ depth:hx+hy, isRoof:true, fn:(g)=>this.drawHouseUnit(g, ux, uy, lot.dv, faceIn, u.w, hseed, false, 'roof') });
       });
@@ -4610,6 +5153,19 @@ class WorldScene extends Phaser.Scene {
          shadow) so the hydrant's own body always draws over it. */
       const HH = HYD;
       const bursting = kind === "hydrantBurst" || !!(data && data.burst);
+      /* the "facing" checks below (puddle, spray, breakable nozzle) all
+         gate on hth -- a per-hydrant RANDOM decorative rotation, not the
+         route's actual heading or camera direction. For the static lab
+         gallery (kind==="hydrantBurst", no live data) that randomness is
+         fine, just visual variety across instances. But for a real,
+         player-triggered burst (data.burst) it meant roughly half of
+         all burst hydrants never showed water at all -- the slip/
+         collision physics don't care about hth, so the player could
+         hydroplane with nothing visible to explain it (reported
+         2026-07-24). forceVisible makes the breakable nozzle's spray +
+         puddle always show for a live burst; the decorative rear nozzle
+         and the static gallery kind are untouched. */
+      const forceVisible = !!(data && data.burst);
       const grow = (data && data.burstT !== undefined)
         ? Math.min(1, (t - data.burstT)/1800) : 1;
       const seed = ((Math.round(x)*7919) ^ (Math.round(y)*104729) ^ 0x4a7d) >>> 0;
@@ -4643,7 +5199,7 @@ class WorldScene extends Phaser.Scene {
          parts so the barrel/dome/nozzles naturally draw over it. */
       if(bursting){
         const nc0 = 1, ns0 = 0;
-        const facing0 = nc0*(hcs+hsn) + ns0*(hcs-hsn) > 0;
+        const facing0 = (nc0*(hcs+hsn) + ns0*(hcs-hsn) > 0) || forceVisible;
         if(facing0){
           const tipA0 = HH.baseR*0.55 + HH.nozR*2.2;
           /* robot-burst floods pool around the base (that's where the
@@ -4652,18 +5208,36 @@ class WorldScene extends Phaser.Scene {
           /* pre-burst (pudDir set at spawn): the flood a full tile over
              along the walk; fresh robot-bursts still pool at the base. */
           const preOff = (data && data.pudDir) ? data.pudDir * T2 : 0;
-          const landA = (data && data.burst) ? 8 + preOff : tipA0 + nc0*26;
-          const landB = (data && data.burst) ? 0 : ns0*26;
-          const puddleRing = (rad, nn=16) => {
+          const isLiveBurst = !!(data && data.burst);
+          const landA = isLiveBurst ? 8 + preOff : tipA0 + nc0*26;
+          const landB = isLiveBurst ? 0 : ns0*26;
+          const place2D = isLiveBurst ? W : GG;
+          /* the puddle must TELL THE TRUTH about the slip zone
+             (2026-07-27, "spinning out but the puddle isn't on the
+             square"): the sim's hydroplane test is a RECTANGLE —
+             |sdx| < HYD_SLIP.pud along the route by ±1.5·T2 across
+             the lanes (the lateral band was deliberately widened
+             2026-07-24 so a row-1 driver gets wet too), but the art
+             stayed a circle of radius pud=41 centered on row 0 —
+             not even reaching row 1's center 92 units away. Live
+             bursts now draw an ELLIPSE with exactly the sim's two
+             semi-axes, so wherever the robot can slip, there is
+             visible water. Gallery/decorative rings keep the
+             original circles (radB === radA). */
+          const puddleRing = (radA, radB, nn=16) => {
             const pts = [];
             for(let i=0; i<nn; i++){
               const phi = (i/nn)*Math.PI*2;
-              pts.push(GG(landA + Math.cos(phi)*rad, landB + Math.sin(phi)*rad, 0.3));
+              pts.push(place2D(landA + Math.cos(phi)*radA, landB + Math.sin(phi)*radB, 0.3));
             }
             return pts;
           };
-          this.quadOn(g, puddleRing(((data && data.burst) ? HYD_SLIP.pud : TILE*0.85) * grow), HH.water, 0.28);
-          this.quadOn(g, puddleRing(((data && data.burst) ? HYD_SLIP.pud*0.62 : TILE*0.55) * grow), HH.water, 0.22);
+          const outerA = ((data && data.burst) ? HYD_SLIP.pud : TILE*0.85) * grow;
+          const outerB = isLiveBurst ? T2*1.5 * grow : outerA;
+          const innerA = ((data && data.burst) ? HYD_SLIP.pud*0.62 : TILE*0.55) * grow;
+          const innerB = isLiveBurst ? outerB*0.62 : innerA;
+          this.quadOn(g, puddleRing(outerA, outerB), HH.water, 0.28);
+          this.quadOn(g, puddleRing(innerA, innerB), HH.water, 0.22);
         }
       }
 
@@ -4692,7 +5266,7 @@ class WorldScene extends Phaser.Scene {
       const hnozzleSpray = (ang, r) => () => {
         if(!bursting) return;
         const nc = Math.cos(ang), ns = Math.sin(ang);
-        const facing = nc*(hcs+hsn) + ns*(hcs-hsn) > 0;
+        const facing = (nc*(hcs+hsn) + ns*(hcs-hsn) > 0) || forceVisible;
         if(!facing) return;
         const tipA = nc*(HH.baseR*0.55 + r*2.2), tipB = ns*(HH.baseR*0.55 + r*2.2);
         const hgt = height*0.42;
@@ -4723,7 +5297,7 @@ class WorldScene extends Phaser.Scene {
           return pts;
         };
         this.quadOn(g, convexHull(ring(baseA,baseB,r).concat(ring(tipA,tipB,r))), HH.cap);
-        const facing = nc*(hcs+hsn) + ns*(hcs-hsn) > 0;
+        const facing = (nc*(hcs+hsn) + ns*(hcs-hsn) > 0) || (breakable && forceVisible);
         if(!facing) return;
         if(bursting && breakable){
           this.quadOn(g, ring(tipA,tipB,r*0.9), HH.nut);
@@ -4744,6 +5318,303 @@ class WorldScene extends Phaser.Scene {
       ];
       hparts.sort((p1, p2) => p1.d - p2.d);
       for(const pt of hparts) pt.fn();
+
+      /* burst droplets: plain local W(), not decoratively rotated —
+         same convention as bin/planter debris. Airborne droplets get
+         a short fall streak; landed ones flatten into little splash
+         ellipses that fade as life runs out (they evaporate into the
+         flood rather than settling like leaves). */
+      if(data && data.items && data.items.length){
+        for(const it of data.items){
+          const p = W(it.x, it.y, it.z);
+          const a = Math.max(0, Math.min(1, it.life));
+          if(!it.landed){
+            g.fillStyle(it.col, 0.9*a);
+            g.fillCircle(p.x, p.y, it.size*this.K*0.42);
+            const p2 = W(it.x - it.vx*1.4, it.y - it.vy*1.4, it.z - it.vz*1.4 + 0.6);
+            g.lineStyle(Math.max(1, it.size*this.K*0.25), it.col, 0.4*a);
+            g.lineBetween(p2.x, p2.y, p.x, p.y);
+          } else {
+            g.fillStyle(it.col, 0.5*a);
+            g.fillEllipse(p.x, p.y, it.size*this.K*1.1*(2-a), it.size*this.K*0.45*(2-a));
+          }
+        }
+      }
+    } else if(kind === "robot"){
+      /* other robots (requested 2026-07-24): a simplified sibling body,
+         NOT a call into the player's own 1300-line drawRobot -- too
+         tightly coupled to the pickup/dropoff timeline and live tilt/
+         roll/pitch state to safely reuse. Same BODY/LID/WHEEL/STRIPE/
+         FLAG dimensions and SKIN-family colors as Tipsy though, so the
+         silhouette reads as unmistakably "one of these" even with all
+         new code.
+
+         Two variants (phase 2, 2026-07-25): parked robots face ACROSS
+         the lane band (fwd=rv) toward the road, same as before. Roving
+         ones (data.roving) face their actual direction of TRAVEL
+         (fwd=dv) via robotSpotAt, flipping RA with the walk direction
+         so they turn around like a real vehicle at each end of their
+         route instead of driving backwards. Once knocked, a roving
+         robot freezes at hz.knockA (captured by the collision code at
+         the moment of impact) rather than continuing to animate or
+         snapping back toward its spawn point.
+
+         Fixed 2026-07-25: the body was drawing BOTH its left and
+         right side faces (b=+hy AND b=-hy) instead of the one real
+         camera-facing pair -- there's no viewing angle where you'd
+         see both sides of a box at once, so the true front face was
+         never drawn at all. Now resolves which "a" face and which "b"
+         face actually face the camera -- same faceA/faceB test
+         drawPersonHull already uses -- and draws exactly those two. */
+      const col = ROBOT_NPC;
+      const knocked = !!(data && data.knocked);
+      const roving = !!(data && data.roving);
+      const spot = (roving && !knocked) ? robotSpotAt(t, data) : null;
+      const walkA = knocked ? ((data && data.knockA) || 0) : (spot ? spot.a : 0);
+      /* detour sidestep (see detourBAt): lateral along rv, the same
+         axis laneOffset lives on -- a rover eases a lane over around
+         a static prop and back. Frozen at knockB once knocked, same
+         contract as knockA. */
+      const walkB = knocked ? ((data && data.knockB) || 0) : (spot ? spot.b : 0);
+      const ex = x + dv.x*walkA + rv.x*walkB, ey = y + dv.y*walkA + rv.y*walkB;
+
+      const fwdV = roving ? dv : rv, sideV = roving ? rv : dv;
+      const RA = (roving && spot && !knocked) ? spot.dir : 1;
+
+      const bDir = { x: sideV.x, y: sideV.y };
+      const faceB = Math.sign(bDir.x + bDir.y) || 1;
+
+      const hx = BODY.hx, hy = BODY.hy;
+
+      /* tipped-over pose (requested 2026-07-25): a real 90-degree
+         pivot rotation in the (b,h) plane, eased in over ~450ms from
+         the moment of impact (hz.knockT, set by the collision code),
+         pivoting on the camera-facing ground edge -- NOT the flat
+         height-squash from before, which just read as "goes flat"
+         rather than actually tipping over. Wrapping RW itself means
+         every part (body, wheels, lid, face) rotates together
+         automatically instead of needing special-cased math per part. */
+      const knockT = knocked ? ((data && data.knockT) || t) : t;
+      const tipAngle = knocked ? Math.min(1, (t - knockT)/450) * (Math.PI/2) : 0;
+      const tpc = Math.cos(tipAngle), tps = Math.sin(tipAngle);
+      const pivotB = faceB*hy, pivotH = 0;
+      const RW = (a, b, h) => {
+        let b2 = b, h2 = h;
+        if(tipAngle !== 0){
+          const db = b - pivotB, dh = h - pivotH;
+          b2 = pivotB + db*tpc - dh*tps;
+          h2 = pivotH + db*tps + dh*tpc;
+        }
+        return this.W(ex + fwdV.x*a*RA + sideV.x*b2, ey + fwdV.y*a*RA + sideV.y*b2, h2);
+      };
+
+      const sh = RW(0, 0, 0);
+      g.fillStyle(SKIN.shadow, 0.15);
+      g.fillEllipse(sh.x, sh.y + 2, BODY.hx*2.1*this.K*0.42, BODY.hy*0.95*this.K*0.42);
+
+      /* Every box face tested individually against its OWN rotated
+         normal, same technique drawLid already uses (6 face normals,
+         draw whichever ones actually face the camera) -- NOT the
+         fixed "always top + one A-face + one B-face" from before.
+         That fixed selection was only ever valid for the UPRIGHT
+         case; once tipped, which faces are actually camera-facing
+         changes too, but the old code kept drawing the same three
+         regardless of rotation -- that's what produced the
+         fragmented, wrong-looking pieces (reported 2026-07-25).
+         World-facing test: rotate each face's local normal by the
+         same (b,h) tip rotation as points, map to world via fwdV/
+         sideV (the "h" component maps straight to world vertical,
+         same as points), sum x+y+z > 0 -- exactly drawLid's own
+         HN()+w.x+w.y+w.z test. At tipAngle=0 this reduces exactly to
+         the old faceA/faceB single-face selection (verified
+         algebraically before shipping), so the standing pose is
+         pixel-identical to before -- only the tipped pose changes. */
+      const box = (bhx, bhy, z0, z1, cTop, cA, cB, hingeAngle=0) => {
+        /* lid hinge (requested 2026-07-25, follow-up to the tip fix):
+           an independent swing-open rotation, composed with the whole-
+           body tip rather than replacing it -- same relationship
+           Tipsy's own lidAng has to his body roll. Position: rotate
+           around the hinge's own pivot (one edge of THIS box, matching
+           drawLid's -hy,z0 convention) first, then let the outer RW
+           apply the body-tip rotation on top -- two rotations applied
+           in sequence. Visibility only needs their SUM (tipAngle +
+           hingeAngle): rotations in the same plane add for a direction
+           vector regardless of what pivots the position math used, so
+           there's no need to redo the full two-pivot chain just for
+           the normal test. */
+        const hpc = Math.cos(hingeAngle), hps = Math.sin(hingeAngle);
+        const hPivotB = -bhy, hPivotH = z0;
+        const localRW = (a, b, h) => {
+          let b2 = b, h2 = h;
+          if(hingeAngle !== 0){
+            const db = b - hPivotB, dh = h - hPivotH;
+            b2 = hPivotB + db*hpc - dh*hps;
+            h2 = hPivotH + db*hps + dh*hpc;
+          }
+          return RW(a, b2, h2);
+        };
+        const effA = tipAngle + hingeAngle;
+        const epc = Math.cos(effA), eps = Math.sin(effA);
+        const faces = [
+          { na:0, nb:0,  nh:1,  col:cTop, pts:[[-bhx,-bhy,z1],[bhx,-bhy,z1],[bhx,bhy,z1],[-bhx,bhy,z1]] },
+          { na:0, nb:0,  nh:-1, col:cTop, pts:[[-bhx,-bhy,z0],[-bhx,bhy,z0],[bhx,bhy,z0],[bhx,-bhy,z0]] },
+          { na:1, nb:0,  nh:0,  col:cA,   pts:[[bhx,-bhy,z0],[bhx,bhy,z0],[bhx,bhy,z1],[bhx,-bhy,z1]] },
+          { na:-1,nb:0,  nh:0,  col:cA,   pts:[[-bhx,bhy,z0],[-bhx,-bhy,z0],[-bhx,-bhy,z1],[-bhx,bhy,z1]] },
+          { na:0, nb:1,  nh:0,  col:cB,   pts:[[bhx,bhy,z0],[-bhx,bhy,z0],[-bhx,bhy,z1],[bhx,bhy,z1]] },
+          { na:0, nb:-1, nh:0,  col:cB,   pts:[[-bhx,-bhy,z0],[bhx,-bhy,z0],[bhx,-bhy,z1],[-bhx,-bhy,z1]] },
+        ];
+        for(const f of faces){
+          if(f.col === null) continue;
+          let nb2 = f.nb, nh2 = f.nh;
+          if(effA !== 0){
+            nb2 = f.nb*epc - f.nh*eps;
+            nh2 = f.nb*eps + f.nh*epc;
+          }
+          const wx = fwdV.x*f.na*RA + sideV.x*nb2, wy = fwdV.y*f.na*RA + sideV.y*nb2;
+          if(wx + wy + nh2 <= 0) continue;
+          const pts = f.pts.map(([a,b,h]) => localRW(a, b, h));
+          this.quadOn(g, pts, f.col);
+          this.edgeOn(g, pts, SKIN.outline, 1);
+        }
+      };
+
+      /* undercarriage: same dark base box Tipsy's own body sits on */
+      box(24, 17, 6, BODY.z0+1, 0x3f434c, 0x3a3d45, 0x2e3138);
+
+      /* body */
+      box(hx, hy, BODY.z0, BODY.z1, SKIN.bodyTop, SKIN.bodyRight, SKIN.bodyLeft);
+
+      /* stripe band, blue accent -- no top, just the two side faces */
+      box(hx+0.6, hy+0.6, STRIPE.z0, STRIPE.z1, null, col.stripe, col.stripeDk);
+
+      /* lid: swings open on its own hinge as it falls, same relationship
+         Tipsy's own lidAng has to his body roll -- not just rotating
+         along with the body rigidly. Target angle (1.78 rad) matches
+         Tipsy's own open target in drawRobot. */
+      const lidHingeAng = knocked ? Math.min(1, (t - knockT)/450) * 1.78 : 0;
+      box(LID.hx, LID.hy, LID.z0, LID.z1, SKIN.bodyTop, SKIN.bodyRight, SKIN.bodyLeft, lidHingeAng);
+
+      /* wheels: TWO rings offset along the tread width, combined via
+         convexHull -- same fix drawWheel itself uses for "a single
+         ring's outline degenerates to a flat line at certain yaw
+         angles." Only the camera-facing side (faceB) draws -- the far
+         side would never be visible behind an opaque body anyway.
+         Roving robots' wheels spin (a small bolt marker orbits the
+         hub); parked and knocked robots' wheels sit still. */
+      const W2 = 7.5;
+      const wheelRingAt = (wx, ob, r) => {
+        const pts = [];
+        for(let i=0; i<14; i++){
+          const a = (i/14)*Math.PI*2;
+          pts.push(RW(wx + Math.cos(a)*r, ob, WHEEL.z + Math.sin(a)*r));
+        }
+        return pts;
+      };
+      /* spin phase multiplied by RA: RW mirrors the wheel through the
+         travel axis when RA=-1, which would flip the bolt's apparent
+         rotation direction -- negating the phase with it keeps the
+         wheels visually rolling forward on both legs of the route
+         (fixed 2026-07-26, part of the reverse-driving cleanup). */
+      const wheelSpinPhase = (roving && !knocked) ? t*0.03*RA : 0;
+      for(const wx of WHEEL.xs){
+        const wb = faceB*WHEEL.side;
+        const bIn = wb - faceB*W2/2, bOut = wb + faceB*W2/2;
+        this.quadOn(g, convexHull(wheelRingAt(wx, bIn, WHEEL.r)
+                                   .concat(wheelRingAt(wx, bOut, WHEEL.r))), SKIN.wheelDark);
+        const faceRing = wheelRingAt(wx, bOut, WHEEL.r);
+        this.quadOn(g, faceRing, SKIN.wheel);
+        this.edgeOn(g, faceRing, SKIN.outline, 2);
+        this.quadOn(g, wheelRingAt(wx, bOut, WHEEL.r*0.55), SKIN.wheelHubFace);
+        const spinA = wheelSpinPhase + wx*0.2;
+        const boltPt = RW(wx + Math.cos(spinA)*WHEEL.r*0.34, bOut, WHEEL.z + Math.sin(spinA)*WHEEL.r*0.34);
+        g.fillStyle(SKIN.wheelHub, 1);
+        g.fillCircle(boltPt.x, boltPt.y, 2.4);
+      }
+
+      if(!knocked){
+        /* flag: pinned to the REAR of the vehicle (-A in the RA travel
+           frame -- RW applies RA, so it turns around with the robot),
+           NOT "opposite the camera-facing face" as before. The old
+           -faceA*25 made the flag teleport ends whenever the camera-
+           facing test flipped (fixed 2026-07-26, same root cause as
+           the reverse-driving face bug below). Straight pole (no lean
+           animation for a static NPC) -- its screen-space direction is
+           exactly (0,-1), so this reduces to the same triangle
+           drawFlag builds for an unbent pole. */
+        const flagA = -25, flagB = 17;
+        const poleBase = RW(flagA, flagB, FLAG.z0);
+        const poleTip = RW(flagA, flagB, FLAG.z1);
+        g.lineStyle(3, SKIN.flagPole, 1);
+        g.lineBetween(poleBase.x, poleBase.y, poleTip.x, poleTip.y);
+        g.fillStyle(col.flag, 1);
+        g.fillTriangle(poleTip.x, poleTip.y, poleTip.x + 11, poleTip.y, poleTip.x, poleTip.y - 16);
+      }
+
+      /* face: visor + eyes pinned to the TRUE FRONT (+A in the RA
+         travel frame), drawn only when that front actually faces the
+         camera -- same normal test the body's own +A panel uses (the
+         tip rotation is in the (b,h) plane, so the a-normal is
+         unaffected and the plain fwdV*RA test stays valid even while
+         knocked). This replaces the old faceA*(hx+0.8) placement,
+         which stamped the face on whichever END was camera-facing:
+         guaranteed-visible, but on any leg where the robot's front
+         pointed away from camera the face landed on its tail and the
+         robot read as driving in reverse (reported on-device
+         2026-07-26). Accepted tradeoff, confirmed: when a robot
+         drives/faces away, you simply don't see its face -- exactly
+         like a real vehicle. Position/size from Tipsy's own drawRobot
+         (x=hx+0.8, visor z in [40,50], eyes at z=45). */
+      if(fwdV.x*RA + fwdV.y*RA > 0){
+        const fa = hx+0.8;
+        const visor = [RW(fa,-13,50), RW(fa,13,50), RW(fa,13,40), RW(fa,-13,40)];
+        this.quadOn(g, visor, SKIN.visor);
+        this.edgeOn(g, visor, SKIN.outline, 1.5);
+        if(knocked){
+          g.lineStyle(2, SKIN.eyeAlert, 1);
+          for(const ey of [-7, 7]){
+            const c = RW(fa, ey, 45);
+            g.lineBetween(c.x-4, c.y-4, c.x+4, c.y+4);
+            g.lineBetween(c.x-4, c.y+4, c.x+4, c.y-4);
+          }
+        } else {
+          for(const ey of [-7, 7]){
+            const c = RW(fa, ey, 45);
+            g.fillStyle(SKIN.eye, 1);
+            g.fillEllipse(c.x, c.y, 7, 7);
+          }
+        }
+      }
+
+      /* spilled cargo: burrito + fries, same per-hazard hz.items
+         pattern bin/planter already use for their own spilled stuff.
+         Drawn in WORLD space (not through the tip-rotated RW) since
+         these are meant to be lying on the ground next to the fallen
+         robot, not attached to its rotating body. */
+      if(data && data.items && data.items.length){
+        for(const it of data.items){
+          const s2 = this.W(ex + it.x + 1, ey + it.y + 1, 0.4);
+          g.fillStyle(0x000000, 0.15);
+          g.fillEllipse(s2.x, s2.y, it.size*this.K*0.9, it.size*this.K*0.4);
+        }
+        for(const it of data.items){
+          const p = this.W(ex + it.x, ey + it.y, it.z);
+          if(it.kind === "burrito"){
+            g.fillStyle(0xE8C468, 1);
+            g.fillEllipse(p.x, p.y, it.size*this.K*1.3, it.size*this.K*0.7);
+            g.fillStyle(0xC9A83E, 1);
+            g.fillRect(p.x - it.size*this.K*0.55, p.y - 1, it.size*this.K*1.1, 2);
+          } else {
+            const c2 = Math.cos(it.ang), s3 = Math.sin(it.ang);
+            g.fillStyle(0xF2C55C, 1);
+            this.quadOn(g, [
+              { x:p.x + c2*it.size*this.K*0.5, y:p.y + s3*it.size*this.K*0.3 },
+              { x:p.x - s3*it.size*this.K*0.3, y:p.y + c2*it.size*this.K*0.3 },
+              { x:p.x - c2*it.size*this.K*0.5, y:p.y - s3*it.size*this.K*0.3 },
+              { x:p.x + s3*it.size*this.K*0.3, y:p.y - c2*it.size*this.K*0.3 }
+            ], 0xF2C55C);
+          }
+        }
+      }
     } else if(kind === "planter"){
       /* approved in planter lab (2026-07-08), sized up in the planter
          makeover (2026-07-10), variety + collision ported from the
@@ -4764,71 +5635,66 @@ class WorldScene extends Phaser.Scene {
       const bushH = 20*scale, fullness = 5 + Math.floor(rng()*4);
       const flowering = rng() < 0.3;
       const GG = W;
-      const dAt = (a, b, h) => a + b + h*0.4;
+      /* (dAt is defined below, through the tip transform) */
       const hw = boxW/2, hd = boxD/2, H = boxH;
 
-      if(phi > 0){
-        /* fallen pose: true rigid rotation about the pivot edge,
-           matching bin's own binTipPoint pattern exactly (verified in
-           the collision lab — collision no longer depends on a hand-
-           faked "low" pose, so there's no reason to fake one here
-           either). fallPsi rotates the whole fall into world space,
-           same role bin's fallPsi/cth plays. */
-        const cth = data.fallPsi || 0;
-        const fc = Math.cos(cth), fsn = Math.sin(cth);
-        const pivotA = hw;
-        const cphi = Math.cos(phi), sphi = Math.sin(phi);
-        const pslide = (data && data.slide) || 0;   // the shove skid — bin's data.slide, same convention
-        const tip = (u, h) => ({ u: pslide + pivotA - (pivotA-u)*cphi + h*sphi, z: (pivotA-u)*sphi + h*cphi });
-        /* L/psh/fbush all compute FULLY ABSOLUTE world coordinates
-           themselves (x + t.u*fc - ..., not a small offset) — they
-           need the raw this.W(), not this function's own locally-
-           shadowed W(dx,dy,dz) (which treats its args as offsets from
-           x,y and re-applies the dv/rv rotation). Calling the
-           shadowed one here added x,y in a second time on top of the
-           position already baked into the argument, which is why a
-           knocked-over planter's geometry jumped to roughly double
-           its real position the moment phi>0 — this never showed up
-           in the lab because the lab's test planter sat at/near the
-           origin, where doubling an offset is invisible. */
-        const L = (u, v, h) => { const t = tip(u, h); return this.W(x + t.u*fc - v*fsn, y + t.u*fsn + v*fc, t.z); };
-        const dAt2 = (u, v, h) => { const t = tip(u, h); return (t.u*fc - v*fsn) + (t.u*fsn + v*fc) + t.z*0.4; };
-        const corner = (sx, sy, h) => L(sx*hw, sy*hd, h);
+      /* ONE continuous geometry (2026-07-26, blink fix): standing is
+         just phi=0 of the tipped pose, the same architecture the cone
+         and bin already use. The old version had TWO geometries -- a
+         tapered pot with a domed bush for standing, a crude straight
+         box with a ground-level bush ring for phi>0 -- with a hard
+         switch at phi>0. The sim legitimately produces brief
+         sub-balance phi excursions (a wobble that rocks and settles
+         back), and every one of them popped the art to the fallen
+         geometry for a few frames and back: the "blinked like it
+         tipped but never did" artifact. Now the FULL standing art
+         (taper, soil, stalked bush, flowers) is drawn through a rigid
+         rotation about the pivot edge, so a wobble looks like a pot
+         rocking and a real fall carries the same art all the way to
+         the ground. fallPsi orients the fall in the LOCAL walk frame
+         (cone's convention); the pivot-edge distance |fc|*hw+|fsn|*hd
+         is exact for cardinal fall azimuths (fore/aft and cross-axis)
+         and a fine approximation under the sim's small psi jitter. */
+      const cth = (isHaz && data.fallPsi) || 0;
+      const fc = Math.cos(cth), fsn = Math.sin(cth);
+      const pivotA = Math.abs(fc)*hw + Math.abs(fsn)*hd;
+      const cphi = Math.cos(phi), sphi = Math.sin(phi);
+      const pslide = (isHaz && data.slide) || 0;   // the shove skid — bin's data.slide, same convention
+      const tip = (u, h) => ({ u: pslide + pivotA - (pivotA-u)*cphi + h*sphi, z: (pivotA-u)*sphi + h*cphi });
+      /* TP: local (a,b,h) offset -> project onto the fall frame,
+         rigid-rotate about the pivot edge, map back to dv/rv offsets.
+         GT feeds that through the locally-shadowed W (offsets from
+         x,y, added exactly once -- the old double-add bug came from
+         pre-adding x,y INTO the argument as well). Identity at phi=0,
+         so standing/decoration planters render pixel-identically. */
+      const TP = (a, b, h) => {
+        const u = a*fc + b*fsn, v = -a*fsn + b*fc;
+        const tt = tip(u, h);
+        return { dx: tt.u*fc - v*fsn, dy: tt.u*fsn + v*fc, z: tt.z };
+      };
+      const GT = (a, b, h) => { const p = TP(a, b, h); return GG(p.dx, p.dy, p.z); };
+      const dAt = (a, b, h) => { const p = TP(a, b, h); return p.dx + p.dy + p.z*0.4; };
+      const baseShrink = 0.82;
+      const corner = (sx, sy, h, shrink=1) => GT(sx*hw*shrink, sy*hd*shrink, h);
 
-        /* shadow removed (requested). */
+      /* planter body shadow removed (requested). */
 
-        const fbox = () => {
-          const top = [corner(-1,-1,H), corner(1,-1,H), corner(1,1,H), corner(-1,1,H)];
-          const bot = [corner(-1,-1,0), corner(1,-1,0), corner(1,1,0), corner(-1,1,0)];
-          this.quadOn(g, convexHull(top.concat(bot)), PL.boxDk);
-          this.quadOn(g, top, PL.box);
-          this.edgeOn(g, top, PL.boxDk, 1.2);
-        };
-        const fbush = () => {
-          const bushSeed = ((Math.round(x)*7919) ^ (Math.round(y)*104729) ^ 0x51c3) >>> 0;
-          const brng = mulberry32(bushSeed);
-          const n = fullness;
-          for(let i=0; i<n+1; i++){
-            const ang = (i/n)*Math.PI*2 + brng()*0.4;
-            const rr = bushH*0.5*(0.5 + brng()*0.4);
-            const hh = 2 + brng()*3;
-            const bOff = Math.sin(ang)*bushH*0.6;
-            const aOff = pivotA + bushH*0.3 + Math.cos(ang)*bushH*0.3;
-            const c = this.W(x + aOff*fc - bOff*fsn, y + aOff*fsn + bOff*fc, hh);
-            g.fillStyle(i%3===0 ? V.leafA : i%3===1 ? V.leafB : V.leafC, 1);
-            g.fillCircle(c.x, c.y, (bushH*0.22)*this.K*0.42);
-          }
-        };
-        const fparts = [{ d: dAt2(0,0,H*0.4), fn: fbox }, { d: dAt2(pivotA+bushH*0.3,0,3), fn: fbush }];
-        fparts.sort((p1,p2) => p1.d - p2.d);
-        for(const pt of fparts) pt.fn();
-      } else {
-        const baseShrink = 0.82;
-        const corner = (sx, sy, h, shrink=1) => GG(sx*hw*shrink, sy*hd*shrink, h);
-
-        /* planter body shadow removed (requested). */
-
+      {
         const pbox = () => {
+          /* silhouette backstop, tipped poses only: the two visible
+             side faces below are picked by the STANDING camera test
+             (faceX/faceY from dv) -- once the pot rotates, the set of
+             camera-facing faces changes (the base can come into view)
+             and gaps would show. A filled hull of all 8 corners
+             underneath keeps every mid-fall/fallen pose solid without
+             touching the standing art (guarded, phi=0 skips it). */
+          if(phi > 0.05){
+            const hull = [];
+            for(const sx of [-1,1]) for(const sy of [-1,1]){
+              hull.push(corner(sx,sy,H)); hull.push(corner(sx,sy,0,baseShrink));
+            }
+            this.quadOn(g, convexHull(hull), PL.boxDk);
+          }
           const top = [corner(-1,-1,H), corner(1,-1,H), corner(1,1,H), corner(-1,1,H)];
           this.quadOn(g, top, PL.box);
           this.edgeOn(g, top, PL.boxDk, 1.2);
@@ -4890,11 +5756,11 @@ class WorldScene extends Phaser.Scene {
           }
           puffs.sort((p1,p2) => dAt(p1.a,p1.b,p1.h) - dAt(p2.a,p2.b,p2.h));
           for(const pf of puffs){
-            const s0 = GG(pf.a*0.25, pf.b*0.25, baseH - 0.4);
-            const s1 = GG(pf.a, pf.b, Math.max(pf.h - pf.r*0.35, baseH));
+            const s0 = GT(pf.a*0.25, pf.b*0.25, baseH - 0.4);
+            const s1 = GT(pf.a, pf.b, Math.max(pf.h - pf.r*0.35, baseH));
             g.lineStyle(Math.max(1, 1.1*this.K*0.4), PL.stalk, 1);
             g.lineBetween(s0.x, s0.y, s1.x, s1.y);
-            const c = GG(pf.a, pf.b, pf.h);
+            const c = GT(pf.a, pf.b, pf.h);
             g.fillStyle(pf.c, 1);
             if(V.style === "spiky"){
               // ornamental-grass blade: thin triangles radiating from
@@ -4902,9 +5768,9 @@ class WorldScene extends Phaser.Scene {
               const nb = 4;
               for(let bIdx=0; bIdx<nb; bIdx++){
                 const bAng = (pf.ang || 0) + (bIdx/nb)*Math.PI*2 + rng()*0.3;
-                const tip = GG(pf.a + Math.cos(bAng)*pf.r*1.3, pf.b + Math.sin(bAng)*pf.r*1.3, pf.h + pf.r*0.7);
-                const base1 = GG(pf.a + Math.cos(bAng+0.3)*pf.r*0.3, pf.b + Math.sin(bAng+0.3)*pf.r*0.3, pf.h - pf.r*0.3);
-                const base2 = GG(pf.a + Math.cos(bAng-0.3)*pf.r*0.3, pf.b + Math.sin(bAng-0.3)*pf.r*0.3, pf.h - pf.r*0.3);
+                const tip = GT(pf.a + Math.cos(bAng)*pf.r*1.3, pf.b + Math.sin(bAng)*pf.r*1.3, pf.h + pf.r*0.7);
+                const base1 = GT(pf.a + Math.cos(bAng+0.3)*pf.r*0.3, pf.b + Math.sin(bAng+0.3)*pf.r*0.3, pf.h - pf.r*0.3);
+                const base2 = GT(pf.a + Math.cos(bAng-0.3)*pf.r*0.3, pf.b + Math.sin(bAng-0.3)*pf.r*0.3, pf.h - pf.r*0.3);
                 g.fillTriangle(tip.x, tip.y, base1.x, base1.y, base2.x, base2.y);
               }
             } else {
@@ -4917,7 +5783,7 @@ class WorldScene extends Phaser.Scene {
               const ang = rng()*Math.PI*2;
               const rr = boxW*0.22 + rng()*boxW*0.16;
               const hh = baseH + bushH*(0.45 + rng()*0.5);
-              const c = GG(Math.cos(ang)*rr, Math.sin(ang)*rr, hh);
+              const c = GT(Math.cos(ang)*rr, Math.sin(ang)*rr, hh);
               g.fillStyle(V.flower, 1);
               g.fillCircle(c.x, c.y, (1.6+rng())*this.K*0.42);
             }
@@ -4962,7 +5828,7 @@ class WorldScene extends Phaser.Scene {
       const pseed = ((Math.round(x)*7919) ^ (Math.round(y)*104729) ^ 0x6d0a) >>> 0;
       const dseed = (data && data.dogSeed !== undefined) ? data.dogSeed : pseed;
       const sitSeed = data ? !!data.sit : ((dseed >> 3) % 5 < 2);
-      const spot = dogSpotAt(t, dseed, sitSeed);
+      const spot = dogSpotAt(t, data || {dogSeed: dseed, sit: sitSeed});
       const flee = dogFleeAt(t, data);
       const settled = flee && flee.gone;
       const settledSpot = settled ? dogSettledSpot(data) : null;
@@ -5216,7 +6082,7 @@ class WorldScene extends Phaser.Scene {
       const pHair = PEOPLE_HAIR[Math.floor(prng()*PEOPLE_HAIR.length)];
       const pShoe = PEOPLE_SHOE[Math.floor(prng()*PEOPLE_SHOE.length)];
 
-      const spot = peopleSpotAt(t, pSeed);
+      const spot = peopleSpotAt(t, data || {peopleSeed: pSeed});
       const flee = peopleFleeAt(t, data);
       const settled = flee && flee.gone;
       const settledSpot = settled ? peopleSettledSpot(data) : null;
@@ -6335,11 +7201,11 @@ class WorldScene extends Phaser.Scene {
 
       /* throttle / brake / hill gravity / friction */
       const slope = this.groundSlope(this.botS);          // + uphill
-      if(this.throttle === 1) this.speed += 0.00028*dt;
-      if(this.throttle === -1) this.speed -= 0.00050*dt;
+      if(this.throttle === 1) this.speed += 0.00042*dt;
+      if(this.throttle === -1) this.speed -= 0.00075*dt;
       this.speed -= slope * 0.00030 * dt;                 // gravity
       this.speed -= this.speed * 0.0009 * dt;             // rolling friction
-      this.speed = Phaser.Math.Clamp(this.speed, 0, 0.15);
+      this.speed = Phaser.Math.Clamp(this.speed, 0, 0.225);
       /* ground-speed correction (ported from the corner+robot lab): botS
          parameterizes the CENTERLINE arc length, but the robot draws
          offset sideways by laneOff. On an arc, the robot's actual traced
@@ -6381,7 +7247,7 @@ class WorldScene extends Phaser.Scene {
          long enough for the smoothed speed to catch up anyway. */
       const arcProgress = seg.type === "arc" ? Phaser.Math.Clamp((this.botS - seg.s0)/(seg.s1 - seg.s0), 0, 1) : 0;
       const tiltTaper = arcProgress < 0.4 ? 1 : Phaser.Math.Linear(1, 0.35, (arcProgress - 0.4)/0.6);
-      if(seg.type === "arc") this.tilt += seg.sign * this.corneringSpeedSmooth * this.corneringSpeedSmooth * 0.115 * tiltTaper * dt;
+      if(seg.type === "arc") this.tilt += seg.sign * this.corneringSpeedSmooth * this.corneringSpeedSmooth * CORNER_TILT_COEF * tiltTaper * dt * TILT_SENS;
       /* visual banking: only the INSIDE lane lifts wheels; center + outside stay flat.
          The sidewalk band sits entirely on ONE side of the street now (not
          straddling the centerline like the old 3-lane system), which means
@@ -6438,7 +7304,7 @@ class WorldScene extends Phaser.Scene {
       /* bleed the hop's stability cost in over ~0.3s */
       if(this.hopKick !== 0){
         const apply = this.hopKick * Math.min(1, dt/300);
-        this.tilt += apply;
+        this.tilt += apply * TILT_SENS;
         this.hopKick -= apply;
         if(Math.abs(this.hopKick) < 0.002) this.hopKick = 0;
       }
@@ -6472,6 +7338,14 @@ class WorldScene extends Phaser.Scene {
            belt to this suspender. */
         if(hz.type === "sidewalkend" || hz.type === "sidewalkbegin" || hz.type === "grade") continue;   // ramps + grade paint: no collision
         let dx = this.botS - hz.s;
+        /* lateral offset of a MOVING hazard's hitbox: a walker mid-
+           detour (detourBAt) is a full lane off its home row, and a
+           settled fleer stopped wherever the flee's own db left it.
+           Both spot/settled functions already report .b; the contact
+           gate below adds it to laneOffset(hz.row) so hitbox = art
+           on both axes, not just along-route. 0 for everything else
+           keeps the gate exactly what onLane(hz.row) was. */
+        let hzB = 0;
         if(hz.type === "pigeons"){
           /* pure trigger: drive into the flock and it bursts. Generous
              cross window (the flock mills ±30 around its row); no
@@ -6493,9 +7367,11 @@ class WorldScene extends Phaser.Scene {
             const flee = dogFleeAt(t, hz);
             if(flee && !flee.gone) continue;   // still actively fleeing - no collision check yet
             hz.hit = false;
-            dx -= dogSettledSpot(hz).a;
+            const dsp = dogSettledSpot(hz);
+            dx -= dsp.a; hzB = dsp.b || 0;
           } else {
-            dx -= dogSpotAt(t, hz.dogSeed || 0, hz.sit).a;
+            const dsp = dogSpotAt(t, hz);
+            dx -= dsp.a; hzB = dsp.b || 0;
           }
         }
         if(hz.type === "people"){
@@ -6508,9 +7384,11 @@ class WorldScene extends Phaser.Scene {
             const flee = peopleFleeAt(t, hz);
             if(flee && !flee.gone) continue;
             hz.hit = false;
-            dx -= peopleSettledSpot(hz).a;
+            const psp = peopleSettledSpot(hz);
+            dx -= psp.a; hzB = psp.b || 0;
           } else {
-            dx -= peopleSpotAt(t, hz.peopleSeed || 0).a;
+            const psp = peopleSpotAt(t, hz);
+            dx -= psp.a; hzB = psp.b || 0;
           }
         }
         if(hz.type === "palm"){
@@ -6518,11 +7396,11 @@ class WorldScene extends Phaser.Scene {
           if(onLane(hz.row) && this.botS > hz.s - 30 && this.botS < hz.s){
             this.botS = safeStop(hz.s - 30);
             this.isBlocked = true;
-            if(this.speed > 0.035 && !hz.hit){
+            if(this.speed > 0.08 && !hz.hit){
               hz.hit = true;                               // the bonk (once per approach)
               const kick = this.speed * 7 * (Math.random() < 0.5 ? 1 : -1);
-              this.tilt += kick;
-              this.damage = Math.min(95, this.damage + Math.abs(kick)*40);
+              this.tilt += kick * TILT_SENS;
+              this.damage = Math.min(95, this.damage + Math.abs(kick)*40*CARGO_DAMAGE_SENS);
             }
             this.speed = 0;
           }
@@ -6541,12 +7419,12 @@ class WorldScene extends Phaser.Scene {
             if(!hz.lipHit && dx > -TILE && dx < -TILE + 14){
               hz.lipHit = true;
               const kick = hz.side * this.speed * hz.lift * 0.9;
-              this.tilt += kick;
-              this.damage = Math.min(95, this.damage + Math.abs(kick)*30);
+              this.tilt += kick * TILT_SENS;
+              this.damage = Math.min(95, this.damage + Math.abs(kick)*30*CARGO_DAMAGE_SENS);
             }
             if(Math.abs(dx) > TILE + 20) hz.lipHit = false; // re-arm after clearing it
             if(Math.abs(dx) < TILE){
-              this.tilt += hz.side * this.speed * 0.030 * (hz.lift/5) * dt;
+              this.tilt += hz.side * this.speed * 0.030 * (hz.lift/5) * dt * TILT_SENS;
               slabUnder = hz;
             }
           }
@@ -6558,13 +7436,18 @@ class WorldScene extends Phaser.Scene {
           if(onLane(hz.row) && this.botS > hz.s - 26 && this.botS < hz.s){
             this.botS = safeStop(hz.s - 26);
             this.isBlocked = true;
-            if(this.speed > 0.035 && !hz.hit){
+            if(this.speed > 0.08 && !hz.hit){
               hz.hit = true;
               const kick = this.speed * HYD_SLIP.bonk * (Math.random() < 0.5 ? 1 : -1);
-              this.tilt += kick;
-              this.damage = Math.min(95, this.damage + Math.abs(kick)*40);
+              this.tilt += kick * TILT_SENS;
+              this.damage = Math.min(95, this.damage + Math.abs(kick)*40*CARGO_DAMAGE_SENS);
               if(!hz.burst && this.speed >= HYD_SLIP.thresh){
                 hz.burst = true; hz.burstT = t;
+                /* the shear payoff: one-shot droplet eruption from the
+                   broken nozzle (spillHydrantWater), simmed each frame
+                   below alongside the flood. */
+                hz.items = hz.items || [];
+                this.spillHydrantWater(hz);
               }
             }
             this.speed = 0;
@@ -6576,17 +7459,24 @@ class WorldScene extends Phaser.Scene {
              puddle draws at. */
           const slickS = hz.s + (hz.pudDir ? hz.pudDir * T2 : 0);
           const sdx = this.botS - slickS;
+          /* water spreads off the curb — the flood shouldn't need the
+             exact lane the hydrant itself sits in (onLane's T2*0.5 half-
+             tile band). Widened to 1.5 tiles so the puddle also catches
+             the adjacent lane; hydrants only ever spawn at row 0, and a
+             player who isn't hugging the curb was never getting wet. */
+          const inFlood = Math.abs(this.laneOff - laneOffset(hz.row)) < T2*1.5;
           if(hz.burst && !this.slide && !hz.slid){
             const grow = Math.min(1, (t - hz.burstT)/1800);
-            if(onLane(hz.row) && Math.abs(sdx) < HYD_SLIP.pud*grow && this.speed > 0.02){
+            if(inFlood && Math.abs(sdx) < HYD_SLIP.pud*grow && this.speed > 0.02){
               hz.slid = true;
               this.slide = { t0: t, dur: 800 + 300*HYD_SLIP.spin,
                              dir: Math.random() < 0.5 ? 1 : -1,
                              turns: HYD_SLIP.spin * (this.speed/0.05) };
-              this.tilt += this.speed * 3 * (Math.random() < 0.5 ? 1 : -1);
+              this.tilt += this.speed * 3 * (Math.random() < 0.5 ? 1 : -1) * TILT_SENS;
             }
           }
           if(Math.abs(sdx) > HYD_SLIP.pud + 40) hz.slid = false;
+          this.simHydrantWater(hz, dt);
         } else if(hz.type === "cone"){
           /* not a wall — a light plastic prop. ONE integrator, no
              keyframes: gravity torque about the live pivot runs every
@@ -6630,7 +7520,7 @@ class WorldScene extends Phaser.Scene {
              feed the punt back into re-triggering itself, stacking
              redundant tilt/damage on the robot for what should read
              as a single clean bonk. */
-          if(!hz.hit && Math.abs(dx) < 26 && onLane(hz.row) && this.speed > 0.015){
+          if(!hz.hit && Math.abs(dx) < 26 && onLane(hz.row) && this.speed > 0.08){
             hz.hit = true;
             if(hz.fallPsi === undefined) hz.fallPsi = (Math.random() - 0.5) * 0.5;
             const sp = this.speed;
@@ -6640,8 +7530,8 @@ class WorldScene extends Phaser.Scene {
             }
             hz.slideVel += sp * 1.2 * CONE_HIT.punt;
             const kick = sp * 2.2 * (Math.random() < 0.5 ? 1 : -1);
-            this.tilt += kick;
-            this.damage = Math.min(95, this.damage + Math.abs(kick)*20);
+            this.tilt += kick * TILT_SENS;
+            this.damage = Math.min(95, this.damage + Math.abs(kick)*20*CARGO_DAMAGE_SENS);
             this.speed *= 0.86;
           }
           if(Math.abs(dx) > 40) hz.hit = false;
@@ -6672,7 +7562,7 @@ class WorldScene extends Phaser.Scene {
           if(onLane(hz.row) && this.botS > binS - BOT_CLEAR && this.botS < binS){
             this.botS = safeStop(binS - BOT_CLEAR);
             this.isBlocked = true;
-            if(this.speed > 0.035 && !hz.bonked && hz.pose !== "knocked"){
+            if(this.speed > 0.08 && !hz.bonked && hz.pose !== "knocked"){
               hz.bonked = true;
               if(hz.fallPsi === undefined) hz.fallPsi = (Math.random() - 0.5) * 0.5;
               const sp = this.speed;
@@ -6680,8 +7570,8 @@ class WorldScene extends Phaser.Scene {
               hz.angVel += sp * 0.06 * BIN_HIT.kick;
               hz.slideVel += sp * 0.6 * BIN_HIT.punt;   // a shove as it goes over, not a full punt
               const kick = sp * 2.6 * (Math.random() < 0.5 ? 1 : -1);
-              this.tilt += kick;
-              this.damage = Math.min(95, this.damage + Math.abs(kick)*40);
+              this.tilt += kick * TILT_SENS;
+              this.damage = Math.min(95, this.damage + Math.abs(kick)*40*CARGO_DAMAGE_SENS);
             }
             this.speed = 0;
           }
@@ -6718,6 +7608,71 @@ class WorldScene extends Phaser.Scene {
             hz.slideVel *= Math.exp(-0.0045 * dt);
           } else hz.slideVel = 0;
           this.simBinTrash(hz, dt);
+        } else if(hz.type === "robot"){
+          /* another robot on the sidewalk (requested 2026-07-24;
+             roving variant + full collision rework 2026-07-25). Three
+             approach geometries, three outcomes:
+               - REAR/HEAD-ON (approaching along the route, from
+                 either direction -- both read the same to the player,
+                 "I drove straight into it"): full speed -> BOTH tip
+                 (same instant-fail as traffic for Tipsy; the other
+                 robot goes down too and spills its cargo). Below full
+                 speed -> Tipsy is just stuck against it, wall-blocked
+                 like a bin/planter -- nobody tips, nothing spills.
+               - SIDE (a lane-change/hop brings Tipsy alongside it):
+                 the OTHER robot always tips, regardless of speed --
+                 Tipsy never tips from a side hit and doesn't hard-
+                 stop, just bumps through (you slid into it, you keep
+                 going). Detected via this.hopAnim (mid lane-change)
+                 while roughly alongside the robot's current position.
+             Roving robots use their CURRENT walked position
+             (robotSpotAt), not their spawn spot, same idea as people/
+             dogs adjusting dx by their own wander offset. */
+          const robotSpot = (hz.roving && !hz.knocked) ? robotSpotAt(t, hz) : null;
+          const robotOff = robotSpot ? robotSpot.a : 0;
+          /* detour lateral (see detourBAt): while sidestepping a prop
+             the rover genuinely occupies the adjacent lane, so the
+             lane test uses its EFFECTIVE offset (home laneOffset + b)
+             -- hitbox follows art, the house rule. Captured as knockB
+             on impact so the fallen shell stays where it was hit. */
+          const robotB = robotSpot ? (robotSpot.b || 0) : 0;
+          const onRobotLane = Math.abs(this.laneOff - (laneOffset(hz.row) + robotB)) < T2*0.5;
+          const effS = hz.s + robotOff;
+          if(!hz.knocked){
+            const alongside = onRobotLane && Math.abs(this.botS - effS) < 30;
+            const sideHit = this.hopAnim && alongside;
+            if(sideHit && !hz.hit){
+              hz.hit = true;
+              hz.knocked = true;
+              hz.knockA = robotOff;
+              hz.knockB = robotB;
+              hz.knockT = t;
+              this.spillRobotCargo(hz);
+              const kick = this.speed * 6 * (Math.random() < 0.5 ? 1 : -1);
+              this.tilt += kick * TILT_SENS;
+              this.damage = Math.min(95, this.damage + Math.abs(kick)*40*CARGO_DAMAGE_SENS);
+              this.speed *= 0.7;   // bump-through, not a hard stop
+            } else if(onRobotLane && this.botS > effS - 28 && this.botS < effS){
+              this.botS = safeStop(effS - 28);
+              this.isBlocked = true;
+              if(this.speed > ROBOT_HIT_MIN && !hz.hit){
+                hz.hit = true;
+                if(this.speed >= ROBOT_TIP_THRESH){
+                  this.tilt = 1.1 * (Math.random() < 0.5 ? 1 : -1);
+                  hz.knocked = true;
+                  hz.knockA = robotOff;
+                  hz.knockB = robotB;
+                  hz.knockT = t;
+                  this.spillRobotCargo(hz);
+                }
+                // below full speed: just stuck against it, no tip either way
+              }
+              this.speed = 0;
+            }
+            if(Math.abs(this.botS - effS) > 40) hz.hit = false;
+          } else {
+            this.simRobotCargo(hz, dt);
+          }
         } else if(hz.type === "planter"){
           /* approved in planter collision lab (2026-07-10) — see
              PLANTER_HIT for the constants. Below thresh: one hit
@@ -6733,42 +7688,89 @@ class WorldScene extends Phaser.Scene {
              clamped at the stop line — so the oversized case grinds
              against it every frame instead of a single hit. */
           const oversized = hz.scale >= PLANTER_HIT.thresh;
+          const immovable = hz.scale >= PLANTER_HIT.largeMin;   // LARGE tier: pure wall, never moves
           const halfW = (PLANTER_BASE.boxW/2) * hz.scale;
 
           if(oversized){
-            /* stop distance calibrated against the KNOCKED near edge
-               (+halfW once fallen, not -halfW like standing —
-               verified by sampling the actual rendered geometry in
-               the lab), since an oversized planter always ends up
-               knocked eventually and stays blocked either way. */
-            const BOT_CLEAR = BODY.hx - halfW + 4;
-            if(onLane(hz.row) && this.botS > hz.s - BOT_CLEAR && this.botS < hz.s + 20){
-              this.botS = safeStop(hz.s - BOT_CLEAR);
+            /* wall tracks the planter's ACTUAL current footprint span
+               (planterSpanS): standing near edge is -halfW, a fore/aft
+               fall extends the fallen side by the laid height+bush.
+               Replaces the single knocked-edge clearance that was
+               applied to the standing pose too and let the robot end
+               up ON TOP of a standing planter before stopping
+               (reported on-device 2026-07-26). A side-fallen planter
+               (cross-axis fall, below) additionally blocks the lane
+               it fell into (hz.spillRow) across the same ±halfW
+               s-span, once it's laid past the balance angle. */
+            const span = planterSpanS(hz);
+            const wallLo = hz.s + span.lo, wallHi = hz.s + span.hi;
+            const spillBlocks = hz.spillRow !== undefined && hz.spillRow !== null
+                                && this.botRow === hz.spillRow && hz.phi > PLANTER_HIT.phiBal;
+            if((onLane(hz.row) || spillBlocks) && this.botS > wallLo - BODY.hx && this.botS < wallHi + 20){
+              const impactSp = this.speed;   // BEFORE the wall zeroes it — this is the hit energy
+              this.botS = safeStop(wallLo - BODY.hx);
               this.isBlocked = true;
               this.speed = 0;
-              if(hz.pose !== "knocked"){
-                if(!hz.hit){
-                  hz.hit = true;
-                  /* fall AWAY from the robot, always: the oversized
-                     contract lets the robot sit up to 20 past the
-                     anchor, and the old always-(+s) topple dropped the
-                     box straight onto him (on-device: "rolls toward
-                     the robot"). Base direction from which side he's
-                     actually on, jitter on top. */
-                  if(hz.fallPsi === undefined)
-                    hz.fallPsi = (this.botS <= hz.s ? 0 : Math.PI) + (Math.random()-0.5)*0.4;
-                  const kick = 0.05 * 1.6 * (Math.random() < 0.5 ? 1 : -1);
-                  this.tilt += kick;
-                  this.damage = Math.min(95, this.damage + Math.abs(kick)*40);
+              if(hz.pose !== "knocked" && !hz.hit){
+                hz.hit = true;
+                /* bump feedback for the robot on any first contact,
+                   scaled to how hard he actually hit (floor keeps a
+                   creep-in touch from being completely free). */
+                const kick = Math.max(impactSp, 0.05) * 1.6 * (Math.random() < 0.5 ? 1 : -1);
+                this.tilt += kick * TILT_SENS;
+                this.damage = Math.min(95, this.damage + Math.abs(kick)*40*CARGO_DAMAGE_SENS);
+                if(!immovable){
+                  /* MEDIUM tier only (2026-07-26): tips like the bin
+                     — a real speed-scaled kick, so a solid hit sends
+                     it over the balance angle and all the way down
+                     (then planterSpanS keeps blocking the fallen
+                     footprint), while a slow push just rocks it and
+                     it settles back. LARGE (>= largeMin) skips this
+                     whole block: immovable street furniture, no
+                     fallPsi, no angVel, no motion, ever — which is
+                     also what killed its wobble-blink at the source.
+
+                     Fall direction: AWAY from the robot, always.
+                     Cross-axis: a hit taken mid-lane-hop is a SIDE
+                     impact — the planter falls ACROSS the lane band,
+                     away from the row the robot hopped from. sin-sign
+                     of ψ maps hop direction (row index) into the
+                     local rv axis via ROBOT_SIDE (laneOffset's own
+                     sign); spillRow is the lane the fallen box lands
+                     in, null when it fell off the band (road/building
+                     side). Driving hits keep the fore/aft pick. */
+                  if(hz.fallPsi === undefined){
+                    if(this.hopAnim){
+                      hz.fallPsi = this.hopAnim.dir * ROBOT_SIDE * (Math.PI/2) + (Math.random()-0.5)*0.4;
+                      const sr = hz.row + this.hopAnim.dir;
+                      hz.spillRow = (sr >= 0 && sr <= 3) ? sr : null;
+                    } else {
+                      hz.fallPsi = (this.botS <= hz.s ? 0 : Math.PI) + (Math.random()-0.5)*0.4;
+                    }
+                  }
+                  hz.moving = true;
+                  hz.angVel += impactSp * 0.06 * PLANTER_HIT.kick / Math.pow(hz.scale, PLANTER_HIT.potPower);
                 }
-                hz.moving = true;
-                hz.angVel += 0.07 * 0.012 * PLANTER_HIT.kick / Math.pow(hz.scale, PLANTER_HIT.potPower) * (dt/16);
               }
             }
-          } else if(!hz.hit && Math.abs(dx) < 26 && onLane(hz.row) && this.speed > 0.035 && hz.pose !== "knocked"){
+          } else if(!hz.hit && Math.abs(dx) < BODY.hx + halfW && onLane(hz.row) && this.speed > 0.08 && hz.pose !== "knocked"){
             hz.hit = true;
-            if(hz.fallPsi === undefined)
-              hz.fallPsi = (this.botS <= hz.s ? 0 : Math.PI) + (Math.random()-0.5)*0.4;   // away from the robot, like the oversized case
+            /* contact distance scaled to the actual geometry (robot
+               half-length + this planter's half-width) instead of the
+               old fixed 26 -- the nose was half a robot deep before
+               the topple fired (2026-07-26, same sync pass as the
+               oversized wall above). Fall pick: same cross-axis rule
+               as the oversized case -- side impact mid-hop falls
+               across the lane band, driving hit falls fore/aft. */
+            if(hz.fallPsi === undefined){
+              if(this.hopAnim){
+                hz.fallPsi = this.hopAnim.dir * ROBOT_SIDE * (Math.PI/2) + (Math.random()-0.5)*0.4;
+                const sr = hz.row + this.hopAnim.dir;
+                hz.spillRow = (sr >= 0 && sr <= 3) ? sr : null;
+              } else {
+                hz.fallPsi = (this.botS <= hz.s ? 0 : Math.PI) + (Math.random()-0.5)*0.4;   // away from the robot, like before
+              }
+            }
             const sp = this.speed;
             hz.moving = true;
             hz.angVel += sp * 0.09 * PLANTER_HIT.kick / Math.pow(hz.scale, PLANTER_HIT.potPower);
@@ -6778,11 +7780,14 @@ class WorldScene extends Phaser.Scene {
                shove, which is the point of oversized). */
             hz.slideVel = (hz.slideVel || 0) + sp * 0.45 / Math.pow(hz.scale, PLANTER_HIT.potPower);
             const kick = sp * 1.6 * (Math.random() < 0.5 ? 1 : -1);
-            this.tilt += kick;
-            this.damage = Math.min(95, this.damage + Math.abs(kick)*40);
+            this.tilt += kick * TILT_SENS;
+            this.damage = Math.min(95, this.damage + Math.abs(kick)*40*CARGO_DAMAGE_SENS);
             this.speed *= 0.9;
           }
-          if(Math.abs(dx) > 40) hz.hit = false;
+          if(oversized){
+            const span2 = planterSpanS(hz);
+            if(this.botS < hz.s + span2.lo - 40 || this.botS > hz.s + span2.hi + 40) hz.hit = false;
+          } else if(Math.abs(dx) > BODY.hx + halfW + 14) hz.hit = false;
 
           if(hz.moving){
             const KG = 1.5e-5;
@@ -6832,8 +7837,8 @@ class WorldScene extends Phaser.Scene {
             }
             hz.slideVel += sp * 1.2 * SCOOT_HIT.punt;
             const kick = sp * 9 * (Math.random() < 0.5 ? 1 : -1);
-            this.tilt += kick;
-            this.damage = Math.min(95, this.damage + Math.abs(kick)*46);
+            this.tilt += kick * TILT_SENS;
+            this.damage = Math.min(95, this.damage + Math.abs(kick)*46*CARGO_DAMAGE_SENS);
             this.speed *= 0.45;
           }
           if(Math.abs(dx) > 40) hz.hit = false;
@@ -6865,14 +7870,15 @@ class WorldScene extends Phaser.Scene {
             hz.slide += hz.slideVel * dt;
             hz.slideVel *= Math.exp(-0.004 * dt);
           } else hz.slideVel = 0;
-        } else if(!hz.hit && Math.abs(dx) < 26 && onLane(hz.row)){
+        } else if(!hz.hit && Math.abs(dx) < 26 &&
+                  Math.abs(this.laneOff - (laneOffset(hz.row) + hzB)) < T2*0.5){
           hz.hit = true;
           const sev = hz.type === "crack"
             ? Math.min(8, Math.max(2, 4 * (hz.len || 46) / 46))   // bigger spall, bigger jolt (crack lab v3)
             : ({ trash:7, dog:5, palmDwarf:6, people:8 }[hz.type] ?? 5);   // hitting a person costs more than a dog bump — same mechanism that tips you on a hard palm/hydrant hit applies here too
           const kick = this.speed * sev * (Math.random() < 0.5 ? 1 : -1);
-          this.tilt += kick;
-          this.damage = Math.min(95, this.damage + Math.abs(kick)*46);
+          this.tilt += kick * TILT_SENS;
+          this.damage = Math.min(95, this.damage + Math.abs(kick)*46*CARGO_DAMAGE_SENS);
           if(hz.type === "trash") this.speed *= 0.65;
           if(hz.type === "palmDwarf") this.speed *= 0.5;   // dragging through fronds
           if(hz.type === "dog"){
@@ -6962,7 +7968,7 @@ class WorldScene extends Phaser.Scene {
         /* cross-slope lean off the ramp's flared sides — mirrored sign in
            the two lanes flanking the ramp strip, zero on the strip and on
            row 3 (lab: tilt += botRow * speed * 0.055 * dt) */
-        if(_cg.tiltSign) this.tilt += _cg.tiltSign * this.speed * 0.055 * dt;
+        if(_cg.tiltSign) this.tilt += _cg.tiltSign * this.speed * 0.055 * dt * TILT_SENS;
         /* curb drop: falling off the unramped edge in any non-ramp lane.
            A stumble kick in the direction you were already leaning (or
            away from the ramp strip if upright); if you were ALREADY
@@ -6972,7 +7978,7 @@ class WorldScene extends Phaser.Scene {
           const _wasLeaning = Math.abs(this.tilt) > 0.55;
           this.tilt += Math.sign(this.tilt || (1 - _vRow) || 1) * 0.35;   // (1 - row): same axis mirror as tiltSign
           if(_wasLeaning || Math.abs(this.tilt) > 0.85)
-            this.tilt = 1.1 * Math.sign(this.tilt);
+            this.tilt = CURB_DROP_TILT_CAP * Math.sign(this.tilt);
         }
       } else if(_tg){
         this.crossZ = _tg.z;
@@ -6996,7 +8002,7 @@ class WorldScene extends Phaser.Scene {
            was tuned for fighting alone; halved-ish here so the two
            stacking doesn't tip him before he reaches the curb. Tune
            further after playtesting like everything else in this file. */
-        if(_tg.tiltSign) this.tilt += _tg.tiltSign * this.speed * 0.03 * dt;
+        if(_tg.tiltSign) this.tilt += _tg.tiltSign * this.speed * 0.03 * dt * TILT_SENS;
         /* curb drop off an unramped edge — same lab kick/tip handoff.
            Threshold 2.5, NOT the straight model's 1: on turns every
            lane exits the up-ramp over its 2-unit rear lip (verified in
@@ -7009,7 +8015,7 @@ class WorldScene extends Phaser.Scene {
           const _wasLeaning = Math.abs(this.tilt) > 0.55;
           this.tilt += Math.sign(this.tilt || 1) * 0.35;
           if(_wasLeaning || Math.abs(this.tilt) > 0.85)
-            this.tilt = 1.1 * Math.sign(this.tilt);
+            this.tilt = CURB_DROP_TILT_CAP * Math.sign(this.tilt);
         }
       } else {
         this.crossZ = 0; this.crossSlope = 0; this.crossJitter = 0;
@@ -7025,7 +8031,7 @@ class WorldScene extends Phaser.Scene {
           const se = su < 0.5 ? 2*su*su : 1 - Math.pow(-2*su + 2, 2)/2;
           this.slipYaw = this.slide.dir * Math.PI*2 * this.slide.turns * se;
           this.speed *= (1 - 0.0006*dt);
-          this.tilt += (Math.random()-0.5) * this.speed * 0.05 * dt;
+          this.tilt += (Math.random()-0.5) * this.speed * 0.05 * dt * TILT_SENS;
         }
       } else if(this.slipYaw){
         let y2 = this.slipYaw % (Math.PI*2);
@@ -7043,7 +8049,7 @@ class WorldScene extends Phaser.Scene {
 
       /* stability spring + rough-pavement rumble */
       this.tilt -= this.tilt * 0.0021 * dt;
-      this.tilt += (Math.random()-0.5) * this.speed * (1-this.route.hood.pave) * 0.012 * dt;
+      this.tilt += (Math.random()-0.5) * this.speed * (1-this.route.hood.pave) * 0.012 * dt * TILT_SENS;
 
       /* cargo damage meter (spec, red-zone dwell): riding past the same
          0.75 danger line the HUD gauge and lid-crack already key off
@@ -7162,6 +8168,30 @@ class WorldScene extends Phaser.Scene {
       }
       if(this.botS < _botS_frameStart - 0.01){
         console.warn(`[BACKWARD] botS ${_botS_frameStart.toFixed(1)} -> ${this.botS.toFixed(1)} (Δ${(this.botS-_botS_frameStart).toFixed(1)}) botRow=${this.botRow} isBlocked=${this.isBlocked} segType=${this.segAt(this.botS).type}`);
+      }
+    }
+
+    /* cosmetic particle sims keep ticking after play ends (reported
+       on-device 2026-07-27, "the puddle splash particles didn't
+       land"): the whole hazard sim loop above is play-gated, and a
+       hydrant's droplet eruption usually coincides with the very tip
+       that ENDS play -- bursting requires arriving at/above
+       HYD_SLIP.thresh, and that same bonk + hydroplane spin is what
+       tips you -- so the freshly-erupted droplets froze mid-air over
+       the tipped screen while the world kept drawing. Same class for
+       a knocked rover's cargo, bin trash, or planter leaves still
+       airborne at the tip/win moment. All four sims are pure item
+       integrators (no gameplay writes -- verified before adding
+       this), so ticking them outside play is side-effect-free; the
+       items-empty early-out makes the extra pass free on routes with
+       nothing airborne. */
+    if(this.route && this.state !== "play"){
+      for(const hz of this.route.hazards){
+        if(!hz.items || !hz.items.length) continue;
+        if(hz.type === "hydrant") this.simHydrantWater(hz, dt);
+        else if(hz.type === "bin") this.simBinTrash(hz, dt);
+        else if(hz.type === "planter") this.simPlanterLeaves(hz, dt);
+        else if(hz.type === "robot") this.simRobotCargo(hz, dt);
       }
     }
 
@@ -7649,6 +8679,40 @@ class WorldScene extends Phaser.Scene {
   /* spilled plants — same shape as bin's trash spill, colored from
      the planter's own variant so a tropical planter spills tropical
      leaves, not generic green ones. */
+  /* hydrant shear burst (requested 2026-07-27, "a little more life"):
+     same per-hazard hz.items contract as spillBinTrash/
+     spillPlanterLeaves, but water — droplets erupt from the sheared
+     front nozzle in an up-and-out cone, splash down, and EVAPORATE
+     into the flood (life fade) instead of settling permanently like
+     leaves/trash do. One-shot at the burst moment; the standing spray
+     arc + growing puddle remain the persistent part. */
+  spillHydrantWater(hz){
+    const n = 16 + Math.floor(Math.random()*8);
+    for(let i=0; i<n; i++){
+      hz.items.push({
+        col: Math.random() < 0.65 ? HYD.water : HYD.waterDk,
+        size: 1 + Math.random()*1.5,
+        x: 6 + Math.random()*4, y: (Math.random()-0.5)*6, z: 10 + Math.random()*5,
+        vx: (Math.random()-0.2)*2.5, vy: (Math.random()-0.5)*2.2, vz: 0.8 + Math.random()*1.0,
+        life: 1, landed: false
+      });
+    }
+  }
+  simHydrantWater(hz, dt){
+    if(!hz.items || !hz.items.length) return;
+    const k = dt/16.7;
+    for(const it of hz.items){
+      if(!it.landed){
+        it.vz -= 0.11*k;
+        it.x += it.vx*k; it.y += it.vy*k; it.z += it.vz*k;
+        if(it.z <= 0.4){ it.z = 0.4; it.landed = true; it.vx *= 0.3; it.vy *= 0.3; }
+      } else {
+        it.x += it.vx*k; it.y += it.vy*k;
+        it.life -= 0.03*k;
+      }
+    }
+    hz.items = hz.items.filter(it => it.life > 0);
+  }
   spillPlanterLeaves(hz){
     const V = PLANTER_VARIANTS[hz.variantIdx || 0];
     const n = 5 + Math.floor(Math.random()*3);
@@ -7674,6 +8738,35 @@ class WorldScene extends Phaser.Scene {
         it.z = 0.5;
         if(Math.abs(it.vz) < 0.2){ it.rest = true; it.vx = it.vy = it.vz = 0; }
         else { it.vz *= -0.3; it.vx *= 0.6; it.vy *= 0.6; }
+      }
+    }
+  }
+  /* other robots' spilled cargo (requested 2026-07-25): same ballistic-
+     arc-then-settle pattern as spillBinTrash/spillPlanterLeaves --
+     a burrito and fries instead of trash or leaves, but otherwise the
+     identical per-hazard hz.items contract. */
+  spillRobotCargo(hz){
+    const spawn = (kind, size) => hz.items.push({
+      kind, size,
+      x: (Math.random()-0.5)*10, y: (Math.random()-0.5)*10, z: 20 + Math.random()*8,
+      vx: (Math.random()-0.5)*2.4, vy: (Math.random()-0.5)*2.4, vz: 2.0 + Math.random()*1.6,
+      spin: (Math.random()-0.5)*0.3, ang: Math.random()*Math.PI, rest: false
+    });
+    spawn("burrito", 7);
+    spawn("fries", 5);
+  }
+  simRobotCargo(hz, dt){
+    if(!hz.items || !hz.items.length) return;
+    const k = dt/16.7;
+    for(const it of hz.items){
+      if(it.rest) continue;
+      it.vz -= 0.12*k;
+      it.x += it.vx*k; it.y += it.vy*k; it.z += it.vz*k;
+      it.ang += it.spin*k;
+      if(it.z <= it.size*0.3){
+        it.z = it.size*0.3;
+        if(Math.abs(it.vz) < 0.25){ it.rest = true; it.vx = it.vy = it.vz = 0; }
+        else { it.vz *= -0.35; it.vx *= 0.7; it.vy *= 0.7; it.spin *= 0.6; }
       }
     }
   }
