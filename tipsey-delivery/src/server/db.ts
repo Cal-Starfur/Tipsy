@@ -48,6 +48,17 @@ function avatarKey(dateStr: string): string {
   return `tipsy:global:avatars:${dateStr}`
 }
 
+/** Permanent per-user record of their best {tipCents, ms} for every day
+ *  they've ever completed — independent of the daily board's 30-day
+ *  TTL (DAILY_TTL_SECONDS above). This is the source of truth for the
+ *  Past Routes list (game/index.html's requestHistory) and for replay
+ *  eligibility + the all-time delta in dbSubmitReplayScore below; it is
+ *  NOT read from the daily board, which can expire out from under an
+ *  old date long before this should. */
+function historyKey(username: string): string {
+  return `tipsy:global:history:${username}`
+}
+
 /** All-time board is a single pair of keys, never date-scoped — unlike
  *  the daily board's key, these never rotate. Score is a running
  *  cumulative total of every tip a player has ever earned (see
@@ -122,6 +133,59 @@ export async function dbGetAllTimeBest(): Promise<DailyBest> {
   return first ? {tip: first.tip, ms: first.ms, username: first.username} : null
 }
 
+/** Every day this user has ever completed, most recent first, plus
+ *  their current all-time total (so the Past Routes header can show
+ *  it without a second round trip). Corrupt/unparseable entries are
+ *  skipped rather than thrown on — defensive only, nothing in this
+ *  file is expected to write a bad value here. */
+export async function dbGetHistory(
+  username: string,
+): Promise<{history: {dateStr: string; tip: number; ms: number}[]; allTimeTotal: number}> {
+  const [raw, allTimeScore] = await Promise.all([
+    redis.hGetAll(historyKey(username)),
+    redis.zScore(ALLTIME_KEY, username),
+  ])
+  const history = Object.entries(raw)
+    .map(([dateStr, json]) => {
+      try {
+        const {tipCents, ms} = JSON.parse(json) as {tipCents: number; ms: number}
+        return {dateStr, tip: tipCents / 100, ms}
+      } catch {
+        return null
+      }
+    })
+    .filter((e): e is {dateStr: string; tip: number; ms: number} => e !== null)
+    .sort((a, b) => b.dateStr.localeCompare(a.dateStr))
+  return {history, allTimeTotal: (allTimeScore ?? 0) / 100}
+}
+
+/** Writes {tipCents, ms} into this user's permanent history for dateStr,
+ *  but only if it beats whatever's already recorded there (same
+ *  tip-desc/ms-asc comparison as the daily board, via encodeScore).
+ *  Shared by both dbSubmitScore (today, bookkeeping only — does not
+ *  affect that function's unconditional all-time add) and
+ *  dbSubmitReplayScore (past days, where this comparison IS the
+ *  all-time gate). Returns whether it wrote. */
+async function dbWriteHistoryIfBetter(
+  username: string,
+  dateStr: string,
+  tipCents: number,
+  ms: number,
+): Promise<boolean> {
+  const key = historyKey(username)
+  const existingRaw = await redis.hGet(key, dateStr)
+  if (existingRaw !== undefined) {
+    try {
+      const existing = JSON.parse(existingRaw) as {tipCents: number; ms: number}
+      if (encodeScore(tipCents, ms) <= encodeScore(existing.tipCents, existing.ms)) return false
+    } catch {
+      // corrupt existing entry — fall through and overwrite it
+    }
+  }
+  await redis.hSet(key, {[dateStr]: JSON.stringify({tipCents, ms})})
+  return true
+}
+
 /** Re-verifies against Redis (source of truth) rather than trusting the
  *  caller's own "better than what I last saw" check, so two players
  *  finishing close together can't both think they set the record and
@@ -175,11 +239,101 @@ export async function dbSubmitScore(
   // regardless of whether it was a personal best.
   await redis.zIncrBy(ALLTIME_KEY, username, tipCents)
 
+  // Bookkeeping only — keeps today's result available in Past Routes
+  // once the day rolls over. Does not affect the unconditional add
+  // above, which is unique to today; replays of past days use
+  // dbSubmitReplayScore instead, where this same history record is
+  // the actual gate on the all-time total.
+  await dbWriteHistoryIfBetter(username, dateStr, tipCents, ms)
+
   const [daily, allTime] = await Promise.all([
     dbGetTop(dateStr, 10),
     dbGetAllTimeTop(10),
   ])
   return {daily, allTime}
+}
+
+/** Replaying a day the player has already completed. Unlike today's
+ *  flow above (every run adds its full tip to all-time), a replay only
+ *  nudges the all-time total by the IMPROVEMENT over this player's
+ *  prior best for that specific day — otherwise grinding old, easy
+ *  days would let the all-time board be farmed for free. This was an
+ *  explicit product decision (loyal players should be able to grow
+ *  their all-time total by replaying), not a security default, so the
+ *  guards here are about eligibility and correctness, not about
+ *  blocking replay itself:
+ *
+ *  - dateStr must be strictly before today. Today goes through
+ *    dbSubmitScore instead, which never checks this — if this function
+ *    silently accepted today's date too, a replay submission would
+ *    double-count alongside the normal submit.
+ *  - dateStr must already exist in this user's history. That history
+ *    entry can only have been written by dbSubmitScore (today's normal
+ *    flow) or a previous call to this same function, both of which are
+ *    server-authenticated — so this is really "you can only replay a
+ *    day you actually completed," not a new trust boundary. It's also
+ *    exactly what makes the delta computation possible at all: no
+ *    prior score, nothing to compare against.
+ */
+export async function dbSubmitReplayScore(
+  dateStr: string,
+  tip: number,
+  ms: number,
+  username: string,
+): Promise<{
+  improved: boolean
+  delta: number
+  tip: number
+  ms: number
+  allTime: {best: DailyBest; top: LeaderboardEntry[]}
+}> {
+  if (dateStr >= todayUTC()) {
+    throw new Error(`dbSubmitReplayScore: ${dateStr} is not a past date`)
+  }
+  const key = historyKey(username)
+  const existingRaw = await redis.hGet(key, dateStr)
+  if (existingRaw === undefined) {
+    throw new Error(`dbSubmitReplayScore: no history for ${username} on ${dateStr}`)
+  }
+  const existing = JSON.parse(existingRaw) as {tipCents: number; ms: number}
+  const tipCents = Math.round(tip * 100)
+  const improved = encodeScore(tipCents, ms) > encodeScore(existing.tipCents, existing.ms)
+
+  if (improved) {
+    const delta = Math.max(0, tipCents - existing.tipCents)
+    if (delta > 0) await redis.zIncrBy(ALLTIME_KEY, username, delta)
+    await redis.hSet(key, {[dateStr]: JSON.stringify({tipCents, ms})})
+
+    // Also refresh that day's own board, so a replay shows up in the
+    // historical leaderboard for that date too — same zAdd-if-better +
+    // TTL-refresh dbSubmitScore does for today, reused here against an
+    // arbitrary past date instead.
+    const dailyKey = leaderboardKey(dateStr)
+    const newScore = encodeScore(tipCents, ms)
+    const dailyCurrent = await redis.zScore(dailyKey, username)
+    if (dailyCurrent === undefined || newScore > dailyCurrent) {
+      await redis.zAdd(dailyKey, {member: username, score: newScore})
+      await redis.expire(dailyKey, DAILY_TTL_SECONDS)
+    }
+
+    const allTime = await dbGetAllTimeTop(10)
+    return {
+      improved,
+      delta: delta / 100,
+      tip,
+      ms,
+      allTime: {best: allTime[0] ?? null, top: allTime},
+    }
+  }
+
+  const allTime = await dbGetAllTimeTop(10)
+  return {
+    improved: false,
+    delta: 0,
+    tip: existing.tipCents / 100,
+    ms: existing.ms,
+    allTime: {best: allTime[0] ?? null, top: allTime},
+  }
 }
 
 /** Handles AccountDelete: strips the user from every board this app can
@@ -194,6 +348,7 @@ export async function dbRemoveUser(username: string): Promise<void> {
     redis.hDel(avatarKey(dateStr), [username]),
     redis.zRem(ALLTIME_KEY, [username]),
     redis.hDel(ALLTIME_AVATAR_KEY, [username]),
+    redis.del(historyKey(username)),
   ])
 }
 
