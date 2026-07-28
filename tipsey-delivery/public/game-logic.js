@@ -485,6 +485,44 @@ const PEOPLE_PANTS = [{c:0x3a4658,dk:0x2c3543},{c:0x2e2e2e,dk:0x1e1e1e},{c:0x6b4
 const PEOPLE_HAIR  = [0x3a2b20, 0x1a1a1a, 0x8a6a3a, 0xd4c088, 0xb03a2e, 0x6b6b6b];
 const PEOPLE_SHOE  = [{c:0x1c1c1c,dk:0x121212},{c:0x5c4530,dk:0x483623},{c:0xf2f0e8,dk:0xc4c2ba}];
 
+/* ================= THE KICKER — wrap-around-lap hostile pedestrian.
+   Original homage to the robot-kicking midlife-crisis-brewer sitcom
+   archetype: bucket hat + LOUD matching vacation shirt/bermuda set
+   (hat deliberately CLASHES, never matches) + bare shins into white
+   sneakers + beard/shades/gold chain. Outfit + print picked per spawn
+   from kickerSeed, so he varies day to day. Behavior + art approved in
+   labs/kicker-lab.html v6. ONE per day: he spawns exclusively on the
+   GPS reroute lap, so the only way to ever meet him is missing the
+   dropoff. */
+const KICKER_BUILD = { legH:50, legW:11, hipW:18, torsoW:38, torsoD:22, torsoH:42, headR:15, armW:8, armLen:38 };
+const KICKER_SKIN  = { c:0xf0c8a0, dk:0xc9a583 };
+const KICKER_BEARD = 0x4a382a, KICKER_CHAIN = 0xe8c15a, KICKER_SHADE = 0x1c1e24;
+const KICKER_SHOE  = { c:0xf2f0e8, dk:0xc4c2ba };
+const KICKER_FITS = [
+  { n:"coral", c:0xe0604a, dk:0xb54936, p1:0xf5e9d0, p2:0x3f8f8a,
+    hat:{ c:0x6fa8d8, dk:0x4f83b0, p:0x3f6a94 } },
+  { n:"teal",  c:0x2f8f86, dk:0x246b64, p1:0xf2c14e, p2:0xf5f0e4,
+    hat:{ c:0xd88a3f, dk:0xb06a2c, p:0x8f5522 } },
+  { n:"grape", c:0x7a5aa8, dk:0x5e4485, p1:0xf2c14e, p2:0xe8e2f2,
+    hat:{ c:0xa8c24e, dk:0x84993b, p:0x66782c } }
+];
+const KICKER_ACT = {
+  blockTrig: 180,   // he sees you coming: steps out into your lane
+  standoff: 34,     // wall clearance while blocking (palm contract)
+  hitAlong: 34,     // contact: |along| within the bot body
+  reach: 72,        // contact: lateral center-to-center <= boot tip
+                    // (leg segs ~54 x sin(extend) ~53) + hull half-width
+  chase: 0.085,     // stride speed stepping out / into the kick
+  windup: 120,      // plant-to-swing telegraph (dialed 2026-07-28)
+  swing: 190, contactU: 0.5,
+  lunge: 0.14, lungeMax: 0.42,
+  gloat: 1000, whiffBeat: 550, retMs: 900,
+  power: 1.4,       // > the balance threshold: a clean boot knocks
+                    // Tipsy OVER. Deliberate attack — NOT x TILT_SENS.
+  cock: -0.52, extend: 1.5,
+  armBlock: 0.32, armEngage: 0.45, armGloat: 1.0, gloatAngle: 2.35
+};
+
 /* people patrol their spawn tile exactly like the dog does — same
    waypoint construction, same tile-local bounds (±30 along, ±26
    across), same SEG timing — so they're actually walking the
@@ -2874,6 +2912,36 @@ function generateRoute(dateStr){
     }
     for(let pass = 0; pass < 2; pass++)
       for(let i = 1; i < nTL-1; i++) tiles[i] = (tiles[i-1] + 2*tiles[i] + tiles[i+1]) / 4;
+
+    /* THE KICKER — one per day, waiting on the wrap-around lap. Line
+       legs only (s past sCut), clear of crossings and every other
+       spawn (the no-stacking RULE), with a prop.people-style walk
+       range so he paces his block until you show up. */
+    {
+      const lapLines = segs.filter(sg => sg.type === "line" && sg.s0 >= loop.sCut - 1);
+      for(let att = 0; att < 24 && lapLines.length; att++){
+        const sg = lapLines[Math.floor(rng()*lapLines.length)];
+        const lo = sg.s0 + 2*T2, hi = sg.s1 - 2*T2;
+        if(hi - lo < T2) continue;
+        const ks = lo + rng()*(hi - lo);
+        if(crossings.some(cx => ks > cx.sA - 2*T2 && ks < cx.sB + 2*T2)) continue;
+        let kClear = true;
+        for(const list of [hazards, props])
+          for(const o of list) if(Math.abs(o.s - ks) < 2*T2){ kClear = false; break; }
+        if(!kClear) continue;
+        const kObj = { type:"kicker", s: ks, row: 0, f: facingAt(ks), hit:true,
+                       kickerSeed: (rng()*4294967296) >>> 0,
+                       peopleSeed: (rng()*4294967296) >>> 0 };
+        /* SHORT beat, not the whole (34-block-scaled) leg: his wall
+           plants at hz.s + ka, so the spawn point's crossing/stacking
+           clearances only mean something if he stays near his anchor */
+        const kw0 = Math.max(sg.s0 + CROSSING_CLEAR, ks - 3*T2);
+        const kw1 = Math.min(sg.s1 - CROSSING_CLEAR, ks + 3*T2);
+        if(kw1 - kw0 >= T2){ kObj.walkS0 = kw0; kObj.walkS1 = kw1; }
+        hazards.push(kObj);
+        break;
+      }
+    }
   }
 
   /* ---------- clear stage for the choreography ----------
@@ -3674,12 +3742,13 @@ class WorldScene extends Phaser.Scene {
          layerFor's own slack. */
       const isWalker = (hz.type === "dog" || hz.type === "people")
                        && hz.walkS0 !== undefined && hz.walkS1 !== undefined;
-      if(hz.type === "robot" || isWalker){
+      if(hz.type === "robot" || isWalker || hz.type === "kicker"){
         /* .b too, not just .a: a detouring walker is a full lane off
            its home row while sidestepping a prop (detourBAt), and a
            knocked rover freezes wherever the sidestep had it
            (knockA/knockB) -- the test point follows both axes. */
-        const effSpot = hz.type === "people" ? peopleSpotAt(t, hz)
+        const effSpot = hz.type === "kicker" ? ((hz.kst && hz.kst !== "patrol") ? { a: hz.ka || 0, b: hz.kb || 0 } : peopleSpotAt(t, hz))
+                      : hz.type === "people" ? peopleSpotAt(t, hz)
                       : hz.type === "dog"    ? dogSpotAt(t, hz)
                       : (!hz.knocked && hz.roving) ? robotSpotAt(t, hz) : null;
         const effA = effSpot ? effSpot.a : (hz.knocked ? (hz.knockA || 0) : 0);
@@ -4898,6 +4967,189 @@ class WorldScene extends Phaser.Scene {
         const fx = lot.ox + lot.dv.x*gp.start, fy = lot.oy + lot.dv.y*gp.start;
         this.queueUnitStrips(vq, fx, fy, lot.dv, faceIn, gp.w, 0, TILE, (g,t,a0,a1)=>this.drawFenceGap(g, fx, fy, lot.dv, faceIn, gp.w, gseed, a0, a1));
       }
+    }
+  }
+
+  /* THE KICKER's body — drawPersonHull's box construction (same
+     hull-box + faceA/faceB near-face convention, same walk swing,
+     same SL-hinge rotation for the kick leg and posed arms), extended
+     with his signature pieces: bucket hat (clashing, camo-patched),
+     seeded print patches on the matching shirt+shorts set, bare shins
+     into white sneakers, beard + shades (front-facing headings ONLY —
+     from behind he shows the back of his head, all four headings
+     verified in the lab via SPIN), gold chain. Ported verbatim from
+     labs/kicker-lab.html v6. */
+  drawKickerHull(g, ax, ay, z, thW, walkPhase, moving, kickAng, armLift, armAngle, fit, patternSeed){
+    const build = KICKER_BUILD, pSkin = KICKER_SKIN, pShoe = KICKER_SHOE, hat = fit.hat;
+    const cs = Math.cos(thW), sn = Math.sin(thW);
+    const G = (a,b,h) => this.W(ax + a*cs - b*sn, ay + a*sn + b*cs, z + h);
+    const aDir = { x: cs, y: sn }, bDir = { x: -sn, y: cs };
+    const faceA = Math.sign(aDir.x + aDir.y) || 1, faceB = Math.sign(bDir.x + bDir.y) || 1;
+
+    const box = (aC,bC,ha,hb,z0,z1,cTop,cA,cB,noTop=false) => {
+      const corner = (sa,sb,zz) => G(aC+sa*ha, bC+sb*hb, zz);
+      if(!noTop){
+        const top = [corner(-1,-1,z1), corner(1,-1,z1), corner(1,1,z1), corner(-1,1,z1)];
+        this.quadOn(g, top, cTop);
+        this.edgeOn(g, top, cA, 1);
+      }
+      const aFace = [corner(faceA,-1,z1), corner(faceA,1,z1), corner(faceA,1,z0), corner(faceA,-1,z0)];
+      this.quadOn(g, aFace, cA);
+      const bFace = [corner(-1,faceB,z1), corner(1,faceB,z1), corner(1,faceB,z0), corner(-1,faceB,z0)];
+      this.quadOn(g, bFace, cB);
+    };
+
+    const hipH = build.legH, shoulderH = hipH+build.torsoH, headH = shoulderH+build.headR*2;
+    const kneeH = build.legH*0.52;
+
+    const sh = G(0,0,0);
+    g.fillStyle(0x000000, 0.18);
+    g.fillEllipse(sh.x, sh.y+1, 22*this.K*0.42, 10*this.K*0.42);
+
+    /* seeded print patches painted onto a face plane */
+    const patches = (plane, aC, bC, ha, hb, z0, z1, n, seedSalt) => {
+      const r = mulberry32((patternSeed ^ seedSalt) >>> 0);
+      for(let i=0; i<n; i++){
+        const col = (i % 2 === 0) ? fit.p1 : fit.p2;
+        const u = -0.72 + r()*1.44;
+        const zc = z0 + 3 + r()*Math.max(1, (z1-z0-6));
+        const s2 = 2.2 + r()*2.6;
+        let pts;
+        if(plane === "a"){
+          pts = [G(aC+faceA*ha, bC+u*hb - s2, zc - s2*0.7), G(aC+faceA*ha, bC+u*hb + s2, zc - s2*0.7),
+                 G(aC+faceA*ha, bC+u*hb + s2, zc + s2*0.7), G(aC+faceA*ha, bC+u*hb - s2, zc + s2*0.7)];
+        } else {
+          pts = [G(aC+u*ha - s2, bC+faceB*hb, zc - s2*0.7), G(aC+u*ha + s2, bC+faceB*hb, zc - s2*0.7),
+                 G(aC+u*ha + s2, bC+faceB*hb, zc + s2*0.7), G(aC+u*ha - s2, bC+faceB*hb, zc + s2*0.7)];
+        }
+        this.quadOn(g, pts, col);
+      }
+    };
+
+    const leg = side => {
+      const bC = walkPhase*side*8*0.35;
+      const legW = build.legW*0.55, legD = build.legW*0.6;
+      const shoeH = Math.max(5, build.legH*0.14);
+      box(side*build.hipW*0.3, bC+legD*0.3, legW*1.25, legD*1.55, 0, shoeH, pShoe.c, pShoe.dk, pShoe.c);
+      box(side*build.hipW*0.3, bC, legW*0.92, legD*0.92, shoeH, kneeH, pSkin.c, pSkin.dk, pSkin.c);
+      box(side*build.hipW*0.3, bC, legW*1.3, legD*1.3, kneeH, hipH, fit.c, fit.dk, fit.c);
+      patches("b", side*build.hipW*0.3, bC, legW*1.3, legD*1.3, kneeH, hipH, 2, 0x51 + side);
+    };
+
+    /* KICK LEG — SL-hinge rotation about the hip pivot into the
+       forward (+b) plane; theta<0 cocked back ~30 deg, theta>0
+       extended. Same seg technique as the arm-lift hinge. */
+    const kickLeg = (side, theta) => {
+      const cT = Math.cos(theta), sT = Math.sin(theta);
+      const hipAx = side*build.hipW*0.3;
+      const LC = (aOff, p, perp) => G(hipAx + aOff, p*sT + perp*cT, hipH - p*cT + perp*sT);
+      const seg = (p0, p1, ha, hb, cSide, cFront, cCap) => {
+        const sideFace = [LC(ha*faceA,p0,-hb), LC(ha*faceA,p1,-hb), LC(ha*faceA,p1,hb), LC(ha*faceA,p0,hb)];
+        this.quadOn(g, sideFace, cSide);
+        const frontFace = [LC(-ha,p0,hb*faceB), LC(ha,p0,hb*faceB), LC(ha,p1,hb*faceB), LC(-ha,p1,hb*faceB)];
+        this.quadOn(g, frontFace, cFront);
+        const capFar = [LC(-ha,p1,-hb), LC(ha,p1,-hb), LC(ha,p1,hb), LC(-ha,p1,hb)];
+        this.quadOn(g, capFar, cCap);
+        const capNear = [LC(-ha,p0,-hb), LC(ha,p0,-hb), LC(ha,p0,hb), LC(-ha,p0,hb)];
+        this.quadOn(g, capNear, cCap);
+      };
+      const legW = build.legW*0.55;
+      const thighLen = hipH - kneeH, shinLen = kneeH - 5, shoeLen = 9;
+      seg(0, thighLen, legW*1.3, legW*1.3, fit.dk, fit.c, fit.c);
+      seg(thighLen, thighLen + shinLen, legW*0.92, legW*0.92, pSkin.dk, pSkin.c, pSkin.c);
+      seg(thighLen + shinLen, thighLen + shinLen + shoeLen, legW*1.2, legW*1.2, pShoe.dk, pShoe.c, pShoe.c);
+    };
+
+    const torso = () => {
+      box(0, 0, build.torsoW/2, build.torsoD/2, hipH-2, shoulderH, fit.c, fit.dk, fit.c);
+      patches("a", 0, 0, build.torsoW/2, build.torsoD/2, hipH+2, shoulderH-2, 5, 0x11);
+      patches("b", 0, 0, build.torsoW/2, build.torsoD/2, hipH+2, shoulderH-2, 5, 0x22);
+      box(0, 0, build.torsoW/2*0.55, build.torsoD/2*0.8, shoulderH-5, shoulderH-2.5, KICKER_CHAIN, KICKER_CHAIN, KICKER_CHAIN, true);
+    };
+
+    const shoulderZ = shoulderH - 1;
+    const sleeveLen = build.armLen*0.48, foreLen = build.armLen*0.52;
+    const elbowZ = shoulderZ - sleeveLen;
+    const arm = side => {
+      const shoulderAx = side*(build.torsoW/2 - 1);
+      if(armLift <= 0.001){
+        const armSwing = moving ? -walkPhase*side*3 : 0;
+        const armB = armSwing*0.4;
+        box(shoulderAx, armB, build.armW*0.58, build.armW*0.58, elbowZ, shoulderZ, fit.c, fit.dk, fit.c);
+        box(shoulderAx, armB, build.armW*0.46, build.armW*0.46, elbowZ-foreLen, elbowZ+1, pSkin.c, pSkin.dk, pSkin.c, true);
+        return;
+      }
+      const theta = armLift * armAngle;
+      const cT = Math.cos(theta), sT = Math.sin(theta);
+      const armCorner = (aOff, p, perp) => G(shoulderAx + aOff, p*sT + perp*cT, shoulderZ - p*cT + perp*sT);
+      const seg = (p0, p1, ha, hb, cSide, cFront, cCap) => {
+        const sideFace = [armCorner(ha*faceA,p0,-hb), armCorner(ha*faceA,p1,-hb), armCorner(ha*faceA,p1,hb), armCorner(ha*faceA,p0,hb)];
+        this.quadOn(g, sideFace, cSide);
+        const frontFace = [armCorner(-ha,p0,hb*faceB), armCorner(ha,p0,hb*faceB), armCorner(ha,p1,hb*faceB), armCorner(-ha,p1,hb*faceB)];
+        this.quadOn(g, frontFace, cFront);
+        const capFar = [armCorner(-ha,p1,-hb), armCorner(ha,p1,-hb), armCorner(ha,p1,hb), armCorner(-ha,p1,hb)];
+        this.quadOn(g, capFar, cCap);
+        const capNear = [armCorner(-ha,p0,-hb), armCorner(ha,p0,-hb), armCorner(ha,p0,hb), armCorner(-ha,p0,hb)];
+        this.quadOn(g, capNear, cCap);
+      };
+      seg(0, sleeveLen, build.armW*0.58, build.armW*0.58, fit.dk, fit.c, fit.c);
+      seg(sleeveLen, sleeveLen+foreLen, build.armW*0.46, build.armW*0.46, pSkin.dk, pSkin.c, pSkin.dk);
+    };
+
+    const head = () => {
+      const z0 = shoulderH, z1 = headH;
+      box(0, 0, build.headR, build.headR, z0, z1, pSkin.c, pSkin.dk, pSkin.c);
+      /* BEARD + SHADES — the front (+b) is the face; painted ONLY when
+         the front is camera-facing so from behind he shows the back of
+         his head, not beard-through-skull (all 4 headings verified) */
+      if(faceB === 1 && bDir.x + bDir.y > 0){
+        const bz0 = z0, bz1 = z0 + build.headR*0.85;
+        const bf = build.headR + 0.6;
+        this.quadOn(g, [G(-build.headR*0.92, bf, bz0), G(build.headR*0.92, bf, bz0),
+                        G(build.headR*0.92, bf, bz1), G(-build.headR*0.92, bf, bz1)], KICKER_BEARD);
+        const af = faceA*(build.headR + 0.6);
+        this.quadOn(g, [G(af, -build.headR*0.2, bz0), G(af, build.headR*0.95, bz0),
+                        G(af, build.headR*0.95, bz1), G(af, -build.headR*0.2, bz1)], KICKER_BEARD);
+        const sz0 = z0 + build.headR*1.05, sz1 = sz0 + build.headR*0.42;
+        this.quadOn(g, [G(-build.headR*0.85, bf, sz0), G(build.headR*0.85, bf, sz0),
+                        G(build.headR*0.85, bf, sz1), G(-build.headR*0.85, bf, sz1)], KICKER_SHADE);
+      }
+      /* BUCKET HAT — wide thin brim + camo-patched crown */
+      const brimZ = z1 - build.headR*0.45;
+      box(0, 0, build.headR*1.55, build.headR*1.55, brimZ, brimZ + 2.2, hat.dk, hat.dk, hat.dk);
+      box(0, 0, build.headR*1.12, build.headR*1.12, brimZ + 2.2, z1 + 3, hat.c, hat.c, hat.dk);
+      const cr = mulberry32((patternSeed ^ 0x99) >>> 0);
+      for(let i=0; i<3; i++){
+        const u = -0.6 + cr()*1.2, zc = brimZ + 4 + cr()*(z1 - brimZ - 3), s2 = 2 + cr()*2;
+        this.quadOn(g, [G(faceA*build.headR*1.12, u*build.headR - s2, zc - s2*0.6), G(faceA*build.headR*1.12, u*build.headR + s2, zc - s2*0.6),
+                        G(faceA*build.headR*1.12, u*build.headR + s2, zc + s2*0.6), G(faceA*build.headR*1.12, u*build.headR - s2, zc + s2*0.6)], hat.p);
+        const u2 = -0.6 + cr()*1.2, zc2 = brimZ + 4 + cr()*(z1 - brimZ - 3), s3 = 2 + cr()*2;
+        this.quadOn(g, [G(u2*build.headR - s3, faceB*build.headR*1.12, zc2 - s3*0.6), G(u2*build.headR + s3, faceB*build.headR*1.12, zc2 - s3*0.6),
+                        G(u2*build.headR + s3, faceB*build.headR*1.12, zc2 + s3*0.6), G(u2*build.headR - s3, faceB*build.headR*1.12, zc2 + s3*0.6)], hat.p);
+      }
+    };
+
+    const nearSide = faceA;
+    if(Math.abs(kickAng) > 0.02){
+      const planted = side => {
+        const legW = build.legW*0.55, legD = build.legW*0.6;
+        const shoeH = Math.max(5, build.legH*0.14);
+        box(side*build.hipW*0.3, legD*0.3, legW*1.25, legD*1.55, 0, shoeH, pShoe.c, pShoe.dk, pShoe.c);
+        box(side*build.hipW*0.3, 0, legW*0.92, legD*0.92, shoeH, kneeH, pSkin.c, pSkin.dk, pSkin.c);
+        box(side*build.hipW*0.3, 0, legW*1.3, legD*1.3, kneeH, hipH, fit.c, fit.dk, fit.c);
+      };
+      planted(-nearSide);
+      arm(-nearSide);
+      torso();
+      kickLeg(nearSide, kickAng);
+      arm(nearSide);
+      head();
+    } else {
+      leg(-nearSide); leg(nearSide);
+      arm(-nearSide);
+      torso();
+      arm(nearSide);
+      head();
     }
   }
 
@@ -6538,6 +6790,55 @@ class WorldScene extends Phaser.Scene {
       const startleAlpha = (flee && flee.u < 0.4) ? 1 - flee.u/0.4 : 0;
 
       this.drawPersonHull(g, ax, ay, z, thW, build, pSkin, pShirt, pPants, pHair, pShoe, walkPhase, moving, startleAlpha);
+    } else if(kind === "kicker"){
+      /* the wrap-lap robot-hater — labs/kicker-lab.html v6 (approved).
+         Pose derives from the SAME hz fields the sim writes (cone
+         pattern) + this t, so art always matches the state machine. */
+      const kz = data || {};
+      const kseed = (kz.kickerSeed !== undefined) ? kz.kickerSeed : 7;
+      const kfit = KICKER_FITS[kseed % KICKER_FITS.length];
+      const kst = kz.kst || "patrol";
+      const kel = t - (kz.kt0 || 0);
+      let ka = kz.ka || 0, kb = kz.kb || 0, klth = kz.kth || 0, kWalkAmt = 0;
+      if(kst === "patrol"){
+        const ksp = peopleSpotAt(t, kz);
+        ka = ksp.a; kb = ksp.b || 0; kWalkAmt = ksp.walk || 0;
+        if(kz.walkS0 !== undefined) klth = ksp.th;
+        else if(kWalkAmt > 0.05){
+          /* idle wander: derive facing from motion with the verified
+             (-sin,cos)-forward convention (two-sample tangent) */
+          const ksp2 = peopleSpotAt(t + 90, kz);
+          klth = Math.atan2(-(ksp2.a - ksp.a), (ksp2.b - (ksp.b || 0)) || 0.0001);
+        }
+      } else if(kst === "intercept" || kst === "return"){ kWalkAmt = 1; }
+      let kickAng = 0, kArmLift = 0, kArmAngle = LIFT_MAX_ANGLE;
+      if(kst === "block"){ kArmLift = KICKER_ACT.armBlock + Math.sin(t*0.004)*0.03; }
+      else if(kst === "windup"){
+        const ku = Math.min(1, kel/KICKER_ACT.windup), ke = ku*ku*(3-2*ku);
+        kickAng = KICKER_ACT.cock * ke; kArmLift = KICKER_ACT.armEngage * ke;
+      } else if(kst === "kick"){
+        const ku = Math.min(1, kel/KICKER_ACT.swing);
+        const ke = ku < 0.5 ? 2*ku*ku : 1 - Math.pow(-2*ku+2, 2)/2;
+        kickAng = KICKER_ACT.cock + (KICKER_ACT.extend - KICKER_ACT.cock)*ke;
+        kArmLift = KICKER_ACT.armEngage;
+      } else if(kst === "gloat"){
+        kArmLift = KICKER_ACT.armGloat * Math.min(1, kel/280);
+        kArmAngle = KICKER_ACT.gloatAngle;
+      } else if(kst === "whiff"){
+        kickAng = KICKER_ACT.extend * Math.max(0, 1 - kel/300);
+      }
+      const thWk = fdir*Math.PI/2 + klth;
+      const kax = x + dv.x*ka + rv.x*kb, kay = y + dv.y*ka + rv.y*kb;
+      const kMoving = kWalkAmt > 0.05;
+      const kWalkPhase = kMoving ? Math.sin(t*PEOPLE_ART.walkSpeed) : 0;
+      this.drawKickerHull(g, kax, kay, z, thWk, kWalkPhase, kMoving, kickAng, kArmLift, kArmAngle, kfit, kseed);
+      if(kst === "intercept" || kst === "block" || kst === "windup"){
+        /* the tell — "!" over the hat */
+        const khp = this.W(kax, kay, z + KICKER_BUILD.legH + KICKER_BUILD.torsoH + KICKER_BUILD.headR*2 + 14);
+        g.fillStyle(0xc2452e, 1);
+        g.fillRect(khp.x - 1.6, khp.y - 10, 3.2, 7);
+        g.fillCircle(khp.x, khp.y - 0.5, 1.8);
+      }
     } else if(kind === "car" || kind === "truck"){
       /* rebuilt (2026-07-12) on the SAME rigid-rotation pattern the
          robot's own body already uses (T()/P()/depth()): the car's
@@ -7831,6 +8132,127 @@ class WorldScene extends Phaser.Scene {
             const psp = peopleSpotAt(t, hz);
             dx -= psp.a; hzB = psp.b || 0;
           }
+        }
+        if(hz.type === "kicker"){
+          /* THE KICKER — the lap's resident robot-hater, ported from
+             labs/kicker-lab.html v6 (approved). Integrated state lives
+             on hz (cone pattern: sim writes ka/kb/kst, renderer reads
+             the same fields, so hitbox == art by construction); patrol
+             position is the shared pure peopleSpotAt, same contract as
+             prop.people. Timeline: PATROL -> INTERCEPT (steps into
+             YOUR lane) -> BLOCK (palm-contract wall) -> you swerve ->
+             WINDUP (facing FROZEN at entry: tracking here rotated the
+             body and made the cocked leg sweep sideways, lab-reported)
+             -> KICK (contact-checked boot) -> GLOAT/WHIFF -> return.
+             One attempt per pass (spent, hazard-standard re-arm).
+             Counterplay: commit the swerve early and pass fast — he
+             leads the target, so accelerating AFTER his windup starts
+             breaks the prediction and he boots air. */
+          const KA = KICKER_ACT;
+          if(hz.kst === undefined){ hz.kst = "patrol"; hz.kt0 = t; hz.ka = 0; hz.kb = 0; hz.kth = 0; hz.spent = false; }
+          const kel = t - hz.kt0;
+          const kLat = () => this.laneOff - (laneOffset(hz.row) + hz.kb);
+          if(hz.kst === "patrol"){
+            const ksp = peopleSpotAt(t, hz);
+            hz.ka = ksp.a; hz.kb = ksp.b || 0;
+            const kdx = dx - hz.ka;
+            if(hz.spent && Math.abs(kdx) > KA.blockTrig + 40) hz.spent = false;
+            if(!hz.spent && this.state === "play"){
+              const lead = this.speed*(KA.windup + KA.swing*KA.contactU);
+              if(Math.abs(kLat()) < 34 && kdx > -KA.blockTrig && kdx < -KA.standoff - 6){
+                hz.kst = "intercept"; hz.kt0 = t; hz.kicked = false; hz.klanded = false;
+                /* he steps into YOUR lane, wherever you are — clamped
+                   to the sidewalk band so he never plants in traffic */
+                hz.ktargetB = Phaser.Math.Clamp(this.laneOff - laneOffset(hz.row), -T2*1.5, T2*1.5);
+              } else if(Math.abs(kLat()) >= 40 && Math.abs(kdx + lead) < KA.hitAlong*0.9){
+                hz.kst = "windup"; hz.kt0 = t; hz.kicked = false; hz.klanded = false;
+                hz.kickDir = Math.sign(kLat()) || 1;
+                hz.kb0 = hz.kb;
+                hz.kth = Math.atan2(-kdx, kLat() || hz.kickDir);   // COMMIT: frozen
+              }
+            }
+          } else if(hz.kst === "intercept"){
+            const kdx = dx - hz.ka;
+            const kdb = hz.ktargetB - hz.kb;
+            hz.kth = Math.atan2(-kdx, kdb || -1);
+            hz.kb += Math.sign(kdb) * Math.min(Math.abs(kdb), KA.chase * dt);
+            if(Math.abs(hz.ktargetB - hz.kb) < 2){ hz.kb = hz.ktargetB; hz.kst = "block"; hz.kt0 = t; }
+          } else if(hz.kst === "block"){
+            const kdx = dx - hz.ka;
+            hz.kth = Math.atan2(-kdx, kLat() || -1);
+            const lead = this.speed*(KA.windup + KA.swing*KA.contactU);
+            if(Math.abs(kLat()) >= 40 && Math.abs(kdx + lead) < KA.hitAlong*0.9){
+              hz.kst = "windup"; hz.kt0 = t; hz.kicked = false; hz.klanded = false;
+              hz.kickDir = Math.sign(kLat()) || 1;
+              hz.kb0 = hz.kb;
+              hz.kth = Math.atan2(-kdx, kLat() || hz.kickDir);     // COMMIT: frozen
+            } else if(kdx < -(KA.blockTrig + 60) || kdx > 40){
+              hz.kst = "return"; hz.kt0 = t; hz.retA = hz.ka; hz.retB = hz.kb;
+            }
+          } else if(hz.kst === "windup"){
+            /* facing frozen; he steps toward your lane while cocking.
+               PHASE-driven, not dt-integrated: position and the state
+               timers share ONE clock (wall t), so at contact he has
+               ALWAYS fully stepped in regardless of framerate — the
+               dt-integrated version whiffed under dropped frames
+               because the 120ms windup expired before the body moved */
+            const kPh = Math.min(1, kel / (KA.windup + KA.swing*KA.contactU));
+            hz.kb = hz.kb0 + hz.kickDir * T2 * KA.lungeMax * kPh;
+            if(kel >= KA.windup){ hz.kst = "kick"; hz.kt0 = t; }
+          } else if(hz.kst === "kick"){
+            if(kel < KA.swing*KA.contactU){
+              const kPh = Math.min(1, (KA.windup + kel) / (KA.windup + KA.swing*KA.contactU));
+              hz.kb = hz.kb0 + hz.kickDir * T2 * KA.lungeMax * kPh;
+            }
+            if(!hz.kicked && kel >= KA.swing*KA.contactU){
+              hz.kicked = true;
+              const kdx = dx - hz.ka;
+              /* CONTACT, not proximity: the boot tip has to actually
+                 reach the hull — alongside AND within lateral reach
+                 (kicks were "landing" with daylight, lab-reported) */
+              if(this.state === "play" && Math.abs(kdx) < KA.hitAlong && Math.abs(kLat()) < KA.reach){
+                hz.klanded = true;
+                /* THE BOOT — deliberate attack, deliberately NOT
+                   scaled by TILT_SENS (the established "deliberate,
+                   not routine" carve-out). SIGN: positive tilt leans
+                   toward the BUILDINGS (the slab hazard's documented
+                   convention); the kick pushes the bot AWAY from him,
+                   so the impulse is NEGATED kickDir (lab-verified v6).
+                   power 1.4 > the balance threshold: a clean boot
+                   knocks Tipsy over. */
+                this.tilt += KA.power * -(hz.kickDir || 1);
+                this.damage = Math.min(95, this.damage + KA.power*14*CARGO_DAMAGE_SENS);
+                this.speed *= 0.8;
+              }
+            }
+            if(kel >= KA.swing){
+              hz.spent = true;
+              hz.kst = hz.klanded ? "gloat" : "whiff"; hz.kt0 = t;
+            }
+          } else if(hz.kst === "gloat"){
+            if(kel >= KA.gloat){ hz.kst = "return"; hz.kt0 = t; hz.retA = hz.ka; hz.retB = hz.kb; }
+          } else if(hz.kst === "whiff"){
+            if(kel >= KA.whiffBeat){ hz.kst = "return"; hz.kt0 = t; hz.retA = hz.ka; hz.retB = hz.kb; }
+          } else if(hz.kst === "return"){
+            const ku = Math.min(1, kel/KA.retMs), ke = ku*ku*(3-2*ku);
+            const ksp = peopleSpotAt(t, hz);
+            hz.ka = hz.retA + (ksp.a - hz.retA)*ke;
+            hz.kb = hz.retB + ((ksp.b || 0) - hz.retB)*ke;
+            hz.kth = Math.atan2(-(ksp.a - hz.retA), ((ksp.b || 0) - hz.retB) || 1);
+            if(ku >= 1){ hz.kst = "patrol"; hz.kt0 = t; }
+          }
+          /* THE WALL — palm contract while he's stepping out or
+             planted in your lane: you stop at standoff. The only way
+             through is AROUND him. */
+          if((hz.kst === "intercept" || hz.kst === "block") && Math.abs(kLat()) < 34){
+            const wallS = hz.s + hz.ka;
+            if(this.botS > wallS - KA.standoff && this.botS < wallS + 20){
+              this.botS = safeStop(wallS - KA.standoff);
+              this.isBlocked = true;
+              this.speed = 0;
+            }
+          }
+          continue;
         }
         if(hz.type === "palm"){
           /* a trunk is a wall: you stop, you do not pass */
