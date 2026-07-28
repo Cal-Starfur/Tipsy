@@ -12,19 +12,24 @@ import {
   EndpointMethod,
   type ErrorRsp,
   type GetDailyBestRsp,
+  type GetHistoryRsp,
   type SubmitDailyBestReq,
   type SubmitDailyBestRsp,
+  type SubmitReplayReq,
+  type SubmitReplayRsp,
 } from '../shared/api.ts'
 import {
   dbGetAllTimeBest,
   dbGetAllTimeTop,
   dbGetDailyBest,
   dbGetDailyPostId,
+  dbGetHistory,
   dbGetTop,
   dbRemoveUser,
   dbSetDailyPostId,
   dbShouldPostDaily,
   dbShouldRunWeeklySweep,
+  dbSubmitReplayScore,
   dbSubmitScore,
   dbSweepDeletedUsers,
   todayUTC,
@@ -33,6 +38,8 @@ import {
 type AnyRsp =
   | GetDailyBestRsp
   | SubmitDailyBestRsp
+  | GetHistoryRsp
+  | SubmitReplayRsp
   | UiResponse
   | TriggerResponse
   | ErrorRsp
@@ -67,6 +74,12 @@ async function route(
         break
       case Endpoint.SubmitDailyBest:
         rsp = await routeSubmitDailyBest(reqMsg)
+        break
+      case Endpoint.GetHistory:
+        rsp = await routeGetHistory()
+        break
+      case Endpoint.SubmitReplay:
+        rsp = await routeSubmitReplay(reqMsg)
         break
       case Endpoint.OnMenuNewPost:
         rsp = await routeMenuNewPost()
@@ -159,6 +172,28 @@ async function routeSubmitDailyBest(
       }
     : null
   return {dateStr, best, top: daily, allTime: {best: allTimeBest, top: allTime}}
+}
+
+async function routeGetHistory(): Promise<GetHistoryRsp> {
+  const user = await getCurrentUserRetrying()
+  const username = user?.username ?? 'anonymous'
+  return dbGetHistory(username)
+}
+
+async function routeSubmitReplay(
+  reqMsg: IncomingMessage,
+): Promise<SubmitReplayRsp | ErrorRsp> {
+  const req = await readJson<SubmitReplayReq>(reqMsg)
+  const user = await getCurrentUserRetrying()
+  const username = user?.username ?? 'anonymous'
+  try {
+    const result = await dbSubmitReplayScore(req.dateStr, req.tip, req.ms, username)
+    return {dateStr: req.dateStr, ...result}
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    console.error(`routeSubmitReplay: ${msg}`)
+    return {error: msg, status: 400}
+  }
 }
 
 async function routeMenuNewPost(): Promise<UiResponse> {
