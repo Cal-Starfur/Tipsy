@@ -82,10 +82,56 @@
   #avatarIcon{right:14px;background:#ff7a1a;}
   #bottomSheet{width:100%;background:#f0ece0;
     padding:12px 16px calc(10px + env(safe-area-inset-bottom));color:#2e3138;}
-  #bottomSheet .sheetRow{display:flex;align-items:center;justify-content:space-between;}
-  #bottomSheet .chev{font-size:13px;color:#8f95a1;}
-  #bottomSheet .status{font-weight:700;font-size:15px;color:#b5540e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:78%;}
-  #bottomSheet .listIcon{font-size:17px;color:#8f95a1;}
+  #bottomSheet .sheetRow{display:flex;align-items:center;gap:8px;}
+  #bottomSheet .chev{flex:none;font-size:13px;color:#8f95a1;}
+  #bottomSheet .status{flex:1;min-width:0;font-weight:700;font-size:15px;color:#b5540e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center;}
+  /* Past Routes entry point (Devvit only — see IS_DEVVIT_BUILD near
+     top of game-logic.js). Was a bare ☰ glyph; on-device feedback was
+     that nobody could tell what it did, so it's now a labeled pill in
+     the same tint as the rest of the brand accent. */
+  #bottomSheet .listIcon{flex:none;display:flex;align-items:center;gap:5px;font-size:12px;font-weight:800;
+    letter-spacing:0.4px;text-transform:uppercase;color:#b5540e;background:rgba(255,122,26,.14);
+    border:none;border-radius:20px;padding:7px 12px 7px 10px;}
+  #bottomSheet .listIcon .licon{font-size:14px;}
+  #bottomSheet .listIcon:active{transform:scale(0.94);background:rgba(255,122,26,.22);}
+
+  /* ---------- Past Routes: browse + replay any day you've already
+     completed. ---------- */
+  #pastRoutesOverlay{align-items:stretch;justify-content:flex-start;padding:0;background:rgba(18,20,26,.94);}
+  #pastRoutesOverlay .prHeader{padding:calc(18px + env(safe-area-inset-top)) 20px 12px;text-align:center;position:relative;flex:none;}
+  #pastRoutesOverlay .prHeader h2{margin:0;font-size:20px;letter-spacing:1px;}
+  #pastRoutesOverlay .prHeader .sub{font-size:12px;color:#8f95a1;margin-top:4px;line-height:1.4;}
+  #prClose{position:absolute;top:calc(16px + env(safe-area-inset-top));right:16px;flex:none;width:34px;height:34px;
+    border-radius:50%;padding:0;font-size:16px;display:flex;align-items:center;justify-content:center;}
+  #prAllTime{flex:none;margin:0 20px 10px;background:#20242d;border:1px solid #363b46;border-radius:12px;
+    padding:10px 16px;display:flex;align-items:center;justify-content:space-between;}
+  #prAllTime .lbl{font-size:11px;letter-spacing:1px;text-transform:uppercase;color:#8f95a1;}
+  #prAllTime .val{font-size:18px;font-weight:800;color:#ff9c4d;}
+  #prPlayToday{flex:none;margin:0 20px 14px;background:#ff7a1a;border:none;color:#fff;border-radius:12px;
+    padding:12px;font-size:13px;font-weight:800;letter-spacing:0.5px;text-transform:uppercase;}
+  #prPlayToday:active{transform:scale(0.98);}
+  #prList{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:0 14px calc(20px + env(safe-area-inset-bottom));}
+  .prRow{display:flex;align-items:center;gap:12px;background:#20242d;border:1px solid #363b46;border-radius:14px;
+    padding:12px 14px;margin-bottom:10px;text-align:left;width:100%;box-sizing:border-box;}
+  .prRow:active{transform:scale(0.98);}
+  .prDate{flex:none;width:44px;}
+  .prDate .d{font-size:20px;font-weight:800;line-height:1;color:#fff;}
+  .prDate .m{font-size:11px;color:#8f95a1;text-transform:uppercase;letter-spacing:0.5px;}
+  .prInfo{flex:1;min-width:0;}
+  .prInfo .addr{font-size:14px;font-weight:700;color:#e8eaef;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .prInfo .hood{font-size:12px;color:#8f95a1;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .prScore{flex:none;text-align:right;}
+  .prScore .tip{font-size:16px;font-weight:800;color:#ff9c4d;}
+  .prScore .time{font-size:11px;color:#8f95a1;margin-top:1px;}
+  .prChev{flex:none;color:#4a4f5a;font-size:14px;}
+  #prEmpty{color:#8f95a1;font-size:14px;padding:40px 20px;text-align:center;line-height:1.6;}
+
+  /* ---------- win/fail: a way back to the route picker. Placed at the
+     top, well clear of the bottom card/button geometry. ---------- */
+  .menuBtn{position:absolute;top:calc(16px + env(safe-area-inset-top));left:16px;z-index:2;
+    flex:none;width:auto;background:rgba(255,122,26,.14);color:#fff;border:none;border-radius:20px;
+    padding:7px 14px;font-size:12px;font-weight:800;letter-spacing:0.4px;text-transform:uppercase;}
+  .menuBtn:active{transform:scale(0.94);background:rgba(255,122,26,.24);}
   /* in-game GPS readout — DOM, not canvas text: the Phaser framebuffer
      renders at CSS resolution (Scale.RESIZE, no DPR handling; K is a
      fixed constant so retina-scaling the buffer would rescale the whole
@@ -138,21 +184,37 @@
     </div>
     <div id="bottomSheet">
       <div class="sheetRow">
-        <span class="chev">︿</span>
+        <button class="listIcon" id="listIcon"><span class="licon">☰</span>Past Routes</button>
         <span class="status" id="sheetStatus">Ready for pickup</span>
-        <span class="listIcon">☰</span>
+        <span class="chev">︿</span>
       </div>
     </div>
   </div>
 </div>
 
+<div id="pastRoutesOverlay" class="overlay hidden">
+  <div class="prHeader">
+    <h2>PAST ROUTES</h2>
+    <div class="sub">Replay a day you've completed.<br>Beat that day's best and the difference is added to your all-time total.</div>
+    <button id="prClose">✕</button>
+  </div>
+  <div id="prAllTime">
+    <span class="lbl">All-time total</span>
+    <span class="val" id="prAllTimeVal">—</span>
+  </div>
+  <button id="prPlayToday">▶ PLAY TODAY'S ROUTE</button>
+  <div id="prList"></div>
+</div>
+
 <div id="failOverlay" class="overlay hidden">
+  <button class="menuBtn hidden" id="failMenuBtn">↩ Menu</button>
   <h2 id="failMsg">The pavement won.</h2>
   <p id="failSub">Delivery status: horizontal.</p>
   <button class="btn" id="retryBtn">Retry</button>
 </div>
 
 <div id="winOverlay" class="overlay hidden">
+  <button class="menuBtn hidden" id="winMenuBtn">↩ Menu</button>
   <h2>DELIVERED</h2>
   <p id="winSub">…</p>
   <div class="card" id="winCard">…</div>
