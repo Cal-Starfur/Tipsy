@@ -5699,18 +5699,41 @@ class WorldScene extends Phaser.Scene {
 
       const hx = BODY.hx, hy = BODY.hy;
 
-      /* tipped-over pose (requested 2026-07-25): a real 90-degree
-         pivot rotation in the (b,h) plane, eased in over ~450ms from
-         the moment of impact (hz.knockT, set by the collision code),
-         pivoting on the camera-facing ground edge -- NOT the flat
-         height-squash from before, which just read as "goes flat"
-         rather than actually tipping over. Wrapping RW itself means
-         every part (body, wheels, lid, face) rotates together
-         automatically instead of needing special-cased math per part. */
+      /* tipped-over pose (requested 2026-07-25; physics rework
+         2026-07-27 to match Tipsy's own tip): a 90-degree pivot
+         rotation in the (b,h) plane, wrapping RW itself so every part
+         (body, wheels, lid, face) rotates together automatically.
+
+         Three fixes from the reported "tipping wrong / draw wrong"
+         (2026-07-27):
+         1. ROTATION SENSE. The old code pivoted on the +b edge but
+            rotated the body DOWN past it -- verified numerically, at
+            full tip the whole shell sat at h=-hy, 17 units below the
+            pavement, mirrored. The face-normal test rotated the same
+            inverted way, so face selection kept picking back faces as
+            it sank -- that's most of the "draw wrong". tps now
+            carries the sign (-knockDir), the same pivot-side/rotation
+            pairing Tipsy's own roll transform in T() uses (pivot on
+            the edge it falls TOWARD, body sweeps up and over it,
+            everything stays at h>=0).
+         2. DIRECTION. Was hardcoded to the camera-facing edge; now
+            hz.knockDir (captured by the collision code at impact,
+            Tipsy's own tipDir = sign(tilt) idea): side hits tip away
+            from Tipsy across the lane axis, head-on tips pick the
+            axis the impact actually pushed along (random side where
+            the impact axis can't map to b, matching Tipsy's own
+            random-sign convention for its robot collisions).
+         3. EASING. Was a constant-velocity 450ms ramp (read robotic);
+            now the closed-form equivalent of Tipsy's own per-frame
+            tipT = Linear(tipT, 1, 0.09) @60fps -- exponential
+            ease-out, tau ~185ms: fast initial fall settling into
+            rest. Closed form because this draw is stateless in t. */
       const knockT = knocked ? ((data && data.knockT) || t) : t;
-      const tipAngle = knocked ? Math.min(1, (t - knockT)/450) * (Math.PI/2) : 0;
-      const tpc = Math.cos(tipAngle), tps = Math.sin(tipAngle);
-      const pivotB = faceB*hy, pivotH = 0;
+      const knockDir = knocked ? ((data && data.knockDir) || faceB) : 1;
+      const tipProg = knocked ? 1 - Math.exp(-(t - knockT)/185) : 0;
+      const tipAngle = tipProg * (Math.PI/2);
+      const tpc = Math.cos(tipAngle), tps = -knockDir*Math.sin(tipAngle);
+      const pivotB = knockDir*hy, pivotH = 0;
       const RW = (a, b, h) => {
         let b2 = b, h2 = h;
         if(tipAngle !== 0){
@@ -5750,11 +5773,14 @@ class WorldScene extends Phaser.Scene {
            around the hinge's own pivot (one edge of THIS box, matching
            drawLid's -hy,z0 convention) first, then let the outer RW
            apply the body-tip rotation on top -- two rotations applied
-           in sequence. Visibility only needs their SUM (tipAngle +
-           hingeAngle): rotations in the same plane add for a direction
-           vector regardless of what pivots the position math used, so
-           there's no need to redo the full two-pivot chain just for
-           the normal test. */
+           in sequence. Visibility only needs their SUM: rotations in
+           the same plane add for a direction vector regardless of
+           what pivots the position math used, so there's no need to
+           redo the full two-pivot chain just for the normal test.
+           The body term is SIGNED (-knockDir*tipAngle) because RW's
+           tps carries the knockDir sign -- the normals must rotate
+           the same sense as the points or face selection breaks again
+           (that mismatch was the fragmented-draw bug's other half). */
         const hpc = Math.cos(hingeAngle), hps = Math.sin(hingeAngle);
         const hPivotB = -bhy, hPivotH = z0;
         const localRW = (a, b, h) => {
@@ -5766,7 +5792,7 @@ class WorldScene extends Phaser.Scene {
           }
           return RW(a, b2, h2);
         };
-        const effA = tipAngle + hingeAngle;
+        const effA = -knockDir*tipAngle + hingeAngle;
         const epc = Math.cos(effA), eps = Math.sin(effA);
         const faces = [
           { na:0, nb:0,  nh:1,  col:cTop, pts:[[-bhx,-bhy,z1],[bhx,-bhy,z1],[bhx,bhy,z1],[-bhx,bhy,z1]] },
@@ -5801,10 +5827,30 @@ class WorldScene extends Phaser.Scene {
       box(hx+0.6, hy+0.6, STRIPE.z0, STRIPE.z1, null, col.stripe, col.stripeDk);
 
       /* lid: swings open on its own hinge as it falls, same relationship
-         Tipsy's own lidAng has to his body roll -- not just rotating
-         along with the body rigidly. Target angle (1.78 rad) matches
-         Tipsy's own open target in drawRobot. */
-      const lidHingeAng = knocked ? Math.min(1, (t - knockT)/450) * 1.78 : 0;
+         Tipsy's own lidAng has to his body roll. Reworked 2026-07-27 to
+         mirror Tipsy's TWO physical outcomes (his tipped-state lid code,
+         "confirmed in-game 2026-07-10 -- first guess had this
+         backwards"): the hinge is a fixed edge (-bhy), so which way the
+         body fell decides what gravity does to the lid afterward.
+         Hinge edge lands DOWN (knockDir<0 here): lid falls open to 1.78
+         and stays. Hinge edge lands UP (knockDir>=0): lid pops to ~0.9
+         to spill, then gravity flops it back shut. Timing is the
+         closed-form of Tipsy's own per-frame lerps: gate at tip
+         half-way (~130ms, his tipT>0.5), approach at tau~333ms (his
+         0.05/frame @60fps), close starting ~420ms after the gate (his
+         postSpillMs>400). Closed form because this draw is stateless
+         in t -- no lidAng state to lerp. */
+      const lidT = knocked ? Math.max(0, t - knockT - 130) : 0;
+      let lidHingeAng = 0;
+      if(lidT > 0){
+        if(knockDir < 0){
+          lidHingeAng = 1.78 * (1 - Math.exp(-lidT/333));
+        } else if(lidT < 420){
+          lidHingeAng = 0.9 * (1 - Math.exp(-lidT/333));
+        } else {
+          lidHingeAng = 0.9 * (1 - Math.exp(-420/333)) * Math.exp(-(lidT - 420)/333);
+        }
+      }
       box(LID.hx, LID.hy, LID.z0, LID.z1, SKIN.bodyTop, SKIN.bodyRight, SKIN.bodyLeft, lidHingeAng);
 
       /* wheels: TWO rings offset along the tread width, combined via
@@ -7960,6 +8006,17 @@ class WorldScene extends Phaser.Scene {
               hz.knockA = robotOff;
               hz.knockB = robotB;
               hz.knockT = t;
+              /* tip direction (2026-07-27, Tipsy's own tipDir=sign(tilt)
+                 idea): a side hit is a shove across the LANE axis (rv),
+                 so tip away from Tipsy's lane. Rovers' draw b-axis IS
+                 rv, so the lane-space sign maps straight through.
+                 Parked robots' b-axis is dv (they face across the
+                 band) -- the rv impact can't map to their tip plane,
+                 so random side, Tipsy's own convention when the axis
+                 is ambiguous (his robot-collision tilt kick). */
+              hz.knockDir = hz.roving
+                ? (Math.sign((laneOffset(hz.row) + robotB) - this.laneOff) || 1)
+                : (Math.random() < 0.5 ? 1 : -1);
               this.spillRobotCargo(hz);
               const kick = this.speed * 6 * (Math.random() < 0.5 ? 1 : -1);
               this.tilt += kick * TILT_SENS;
@@ -7976,6 +8033,16 @@ class WorldScene extends Phaser.Scene {
                   hz.knockA = robotOff;
                   hz.knockB = robotB;
                   hz.knockT = t;
+                  /* head-on: the shove is along the ROUTE axis (dv).
+                     Parked robots' b-axis is dv, so they tip straight
+                     away from the impact (sign of the approach --
+                     always +s here since the stop-line clamp only
+                     fires from behind, but computed anyway). Rovers'
+                     b-axis is rv, perpendicular to the shove: random
+                     side, same as Tipsy's own head-on tilt above. */
+                  hz.knockDir = hz.roving
+                    ? (Math.random() < 0.5 ? 1 : -1)
+                    : (Math.sign(effS - this.botS) || 1);
                   this.spillRobotCargo(hz);
                 }
                 // below full speed: just stuck against it, no tip either way
