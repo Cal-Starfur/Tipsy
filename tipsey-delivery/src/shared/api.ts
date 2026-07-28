@@ -41,10 +41,35 @@ export type AccountDeleteEvent = {
   userId: string
   user?: {username?: string}
 }
+/** One day this player has completed, from the permanent per-user
+ *  history record (db.ts historyKey) — not the 30-day daily board, so
+ *  this list can reach further back than that. tip/ms is this player's
+ *  own best for that day, regardless of whether it came from the
+ *  original play or a later replay. */
+export type HistoryEntry = {dateStr: string; tip: number; ms: number}
+/** Every day this player has completed, most recent first, plus their
+ *  current all-time total (so the Past Routes screen doesn't need a
+ *  second request just for that number). Empty history for a
+ *  logged-out viewer, same convention as GetDailyBestRsp. */
+export type GetHistoryRsp = {history: HistoryEntry[]; allTimeTotal: number}
+/** A replay run for a day already in this player's history — see
+ *  db.ts dbSubmitReplayScore for why dateStr is trusted here in a way
+ *  it deliberately isn't for SubmitDailyBestReq. */
+export type SubmitReplayReq = {dateStr: string; tip: number; ms: number}
+export type SubmitReplayRsp = {
+  dateStr: string
+  improved: boolean
+  delta: number
+  tip: number
+  ms: number
+  allTime: {best: DailyBest; top: LeaderboardEntry[]}
+}
 export type Endpoint = (typeof Endpoint)[keyof typeof Endpoint]
 export const Endpoint = {
   GetDailyBest: 'api/tipsy/best',
   SubmitDailyBest: 'api/tipsy/best/submit',
+  GetHistory: 'api/tipsy/history',
+  SubmitReplay: 'api/tipsy/history/submit',
   OnAppInstall: 'internal/on/app/install',
   OnMenuNewPost: 'internal/on/menu/new-post',
   OnAccountDelete: 'internal/on/account/delete',
@@ -54,6 +79,8 @@ export const Endpoint = {
 export const EndpointMethod = {
   [Endpoint.GetDailyBest]: 'GET',
   [Endpoint.SubmitDailyBest]: 'POST',
+  [Endpoint.GetHistory]: 'GET',
+  [Endpoint.SubmitReplay]: 'POST',
   [Endpoint.OnAppInstall]: 'POST',
   [Endpoint.OnMenuNewPost]: 'POST',
   [Endpoint.OnAccountDelete]: 'POST',
