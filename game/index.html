@@ -5855,7 +5855,17 @@ class WorldScene extends Phaser.Scene {
       const ex = x + dv.x*walkA + rv.x*walkB, ey = y + dv.y*walkA + rv.y*walkB;
 
       const fwdV = roving ? dv : rv, sideV = roving ? rv : dv;
-      const RA = (roving && spot && !knocked) ? spot.dir : 1;
+      /* RA freeze (fixed 2026-07-27): a knocked rover keeps the travel
+         direction it had AT IMPACT (hz.knockRA, captured by the
+         collision code) instead of snapping to +1. The old expression
+         fell through to 1 the instant knocked went true, mirroring the
+         whole travel frame -- a rover on its return leg (dir=-1)
+         visibly flipped 180 degrees as it fell, which is why the face
+         appeared to jump to the other end. Same freeze contract as
+         knockA/knockB. */
+      const RA = roving
+        ? (knocked ? ((data && data.knockRA) || 1) : (spot ? spot.dir : 1))
+        : 1;
 
       const bDir = { x: sideV.x, y: sideV.y };
       const faceB = Math.sign(bDir.x + bDir.y) || 1;
@@ -5907,9 +5917,26 @@ class WorldScene extends Phaser.Scene {
         return this.W(ex + fwdV.x*a*RA + sideV.x*b2, ey + fwdV.y*a*RA + sideV.y*b2, h2);
       };
 
-      const sh = RW(0, 0, 0);
-      g.fillStyle(SKIN.shadow, 0.15);
-      g.fillEllipse(sh.x, sh.y + 2, BODY.hx*2.1*this.K*0.42, BODY.hy*0.95*this.K*0.42);
+      /* shadow: Tipsy's own tipped shadow ring, ported verbatim (his
+         ring is P(cos*34, -tipT*26*tipDir + sin*(30+tipT*26), 0.5)) --
+         a ground-plane ring that slides 26 toward the fall side and
+         stretches +26 along b as the body goes down. Same constants,
+         so NPC shadows match the player exactly, upright and fallen.
+         (Replaced the screen-space fillEllipse 2026-07-27: an ellipse
+         can't align with sideV, and its slide/stretch constants were
+         ad-hoc rather than Tipsy's. Earlier bug in the same spot: the
+         shadow went through RW(0,0,0), which the tip rotation lifts 17
+         units into the air -- a shadow is cast geometry, it never
+         rotates.) NPC fall side is +knockDir along b, so his
+         -tipT*26*tipDir maps to +tipProg*26*knockDir here. */
+      const shPts = [];
+      for(let i = 0; i < 12; i++){
+        const a = (i/12)*Math.PI*2;
+        const sb = knockDir*tipProg*26 + Math.sin(a)*(30 + tipProg*26);
+        const sa = Math.cos(a)*34;
+        shPts.push(this.W(ex + fwdV.x*sa + sideV.x*sb, ey + fwdV.y*sa + sideV.y*sb, 0.5));
+      }
+      this.quadOn(g, shPts, SKIN.shadow, 0.15);
 
       /* Every box face tested individually against its OWN rotated
          normal, same technique drawLid already uses (6 face normals,
@@ -5981,6 +6008,79 @@ class WorldScene extends Phaser.Scene {
       };
 
       /* undercarriage: same dark base box Tipsy's own body sits on */
+      /* wheels: Tipsy's own two-sided mounting-face system, ported
+         (rework 2026-07-27; replaces both the static camera-side
+         faceB pick AND the short-lived wheelsUnder ordering hack).
+         BOTH wheel rows exist; each row draws iff the body face it's
+         bolted to (local (0, side, 0)) faces the camera after the tip
+         rotation -- the same projection-exact normal test box() uses
+         for every hull face. Far row draws BEFORE the body (occluded
+         by the shell, only slivers peek below the undercarriage, same
+         as Tipsy upright), near row AFTER. Tipped, the test hands the
+         sky-facing row to the near pass in BOTH fall directions --
+         exactly Tipsy's fallen pose -- and the ground row to the far
+         pass where the shell hides it. Each ring is TWO rings offset
+         along the tread width combined via convexHull, drawWheel's
+         own degenerate-outline fix. The trio is depth-sorted per
+         Tipsy's wheels.sort (his depth(): x+y+z*0.4), not fixed array
+         order. Hub face picks whichever tread face's outward normal
+         faces the camera (his b0/b1 depth pick, normal-test form). */
+      const W2 = 7.5;
+      const wheelRingAt = (wx, ob, r) => {
+        const pts = [];
+        for(let i=0; i<14; i++){
+          const a = (i/14)*Math.PI*2;
+          pts.push(RW(wx + Math.cos(a)*r, ob, WHEEL.z + Math.sin(a)*r));
+        }
+        return pts;
+      };
+      /* spin phase multiplied by RA: RW mirrors the wheel through the
+         travel axis when RA=-1, which would flip the bolt's apparent
+         rotation direction -- negating the phase with it keeps the
+         wheels visually rolling forward on both legs of the route
+         (fixed 2026-07-26, part of the reverse-driving cleanup). */
+      const wheelSpinPhase = (roving && !knocked) ? t*0.03*RA : 0;
+      const bodyAngC = Math.cos(-knockDir*tipAngle), bodyAngS = Math.sin(-knockDir*tipAngle);
+      const wNormFaces = (nS) => {           // does a local b-normal of sign nS face camera?
+        const nb2 = nS*bodyAngC, nh2 = nS*bodyAngS;
+        return sideV.x*nb2 + sideV.y*nb2 + nh2;
+      };
+      const rotBH = (b, h) => {
+        if(tipAngle === 0) return { b, h };
+        const db = b - pivotB;
+        return { b: pivotB + db*tpc - h*tps, h: db*tps + h*tpc };
+      };
+      const drawWheelAt = (wx, side) => {
+        const wb = side*WHEEL.side;
+        const bA = wb - W2/2, bB = wb + W2/2;
+        const bOut = wNormFaces(1) >= wNormFaces(-1) ? bB : bA;   // camera-facing tread face
+        this.quadOn(g, convexHull(wheelRingAt(wx, bA, WHEEL.r)
+                                   .concat(wheelRingAt(wx, bB, WHEEL.r))), SKIN.wheelDark);
+        const faceRing = wheelRingAt(wx, bOut, WHEEL.r);
+        this.quadOn(g, faceRing, SKIN.wheel);
+        this.edgeOn(g, faceRing, SKIN.outline, 2);
+        this.quadOn(g, wheelRingAt(wx, bOut, WHEEL.r*0.55), SKIN.wheelHubFace);
+        const spinA = wheelSpinPhase + wx*0.2;
+        const boltPt = RW(wx + Math.cos(spinA)*WHEEL.r*0.34, bOut, WHEEL.z + Math.sin(spinA)*WHEEL.r*0.34);
+        g.fillStyle(SKIN.wheelHub, 1);
+        g.fillCircle(boltPt.x, boltPt.y, 2.4);
+      };
+      const drawWheelRows = (near) => {
+        const row = [];
+        for(const side of [-1, 1]){
+          if((wNormFaces(side) > 0) !== near) continue;
+          for(const wx of WHEEL.xs){
+            const r2 = rotBH(side*WHEEL.side, WHEEL.z);
+            const wxw = ex + fwdV.x*wx*RA + sideV.x*r2.b;
+            const wyw = ey + fwdV.y*wx*RA + sideV.y*r2.b;
+            row.push({ wx, side, d: wxw + wyw + r2.h*0.4 });
+          }
+        }
+        row.sort((a, b) => a.d - b.d);
+        for(const w of row) drawWheelAt(w.wx, w.side);
+      };
+      drawWheelRows(false);   // far row first -- the shell paints over it
+
       box(24, 17, 6, BODY.z0+1, 0x3f434c, 0x3a3d45, 0x2e3138);
 
       /* body */
@@ -6016,42 +6116,9 @@ class WorldScene extends Phaser.Scene {
       }
       box(LID.hx, LID.hy, LID.z0, LID.z1, SKIN.bodyTop, SKIN.bodyRight, SKIN.bodyLeft, lidHingeAng);
 
-      /* wheels: TWO rings offset along the tread width, combined via
-         convexHull -- same fix drawWheel itself uses for "a single
-         ring's outline degenerates to a flat line at certain yaw
-         angles." Only the camera-facing side (faceB) draws -- the far
-         side would never be visible behind an opaque body anyway.
-         Roving robots' wheels spin (a small bolt marker orbits the
-         hub); parked and knocked robots' wheels sit still. */
-      const W2 = 7.5;
-      const wheelRingAt = (wx, ob, r) => {
-        const pts = [];
-        for(let i=0; i<14; i++){
-          const a = (i/14)*Math.PI*2;
-          pts.push(RW(wx + Math.cos(a)*r, ob, WHEEL.z + Math.sin(a)*r));
-        }
-        return pts;
-      };
-      /* spin phase multiplied by RA: RW mirrors the wheel through the
-         travel axis when RA=-1, which would flip the bolt's apparent
-         rotation direction -- negating the phase with it keeps the
-         wheels visually rolling forward on both legs of the route
-         (fixed 2026-07-26, part of the reverse-driving cleanup). */
-      const wheelSpinPhase = (roving && !knocked) ? t*0.03*RA : 0;
-      for(const wx of WHEEL.xs){
-        const wb = faceB*WHEEL.side;
-        const bIn = wb - faceB*W2/2, bOut = wb + faceB*W2/2;
-        this.quadOn(g, convexHull(wheelRingAt(wx, bIn, WHEEL.r)
-                                   .concat(wheelRingAt(wx, bOut, WHEEL.r))), SKIN.wheelDark);
-        const faceRing = wheelRingAt(wx, bOut, WHEEL.r);
-        this.quadOn(g, faceRing, SKIN.wheel);
-        this.edgeOn(g, faceRing, SKIN.outline, 2);
-        this.quadOn(g, wheelRingAt(wx, bOut, WHEEL.r*0.55), SKIN.wheelHubFace);
-        const spinA = wheelSpinPhase + wx*0.2;
-        const boltPt = RW(wx + Math.cos(spinA)*WHEEL.r*0.34, bOut, WHEEL.z + Math.sin(spinA)*WHEEL.r*0.34);
-        g.fillStyle(SKIN.wheelHub, 1);
-        g.fillCircle(boltPt.x, boltPt.y, 2.4);
-      }
+      /* near wheel row after the body, Tipsy's own sequence -- see the
+         mounting-face rationale above the undercarriage. */
+      drawWheelRows(true);
 
       if(!knocked){
         /* flag: pinned to the REAR of the vehicle (-A in the RA travel
@@ -8160,8 +8227,19 @@ class WorldScene extends Phaser.Scene {
           const robotB = robotSpot ? (robotSpot.b || 0) : 0;
           const onRobotLane = Math.abs(this.laneOff - (laneOffset(hz.row) + robotB)) < T2*0.5;
           const effS = hz.s + robotOff;
+          /* contact at EXTERIOR FACES, not the midpoint (fixed
+             2026-07-27): the old 28/30-unit windows measured to the
+             robot's CENTER -- Tipsy's nose (his own half-length, 26)
+             ended up 2 units from the robot's midpoint before a
+             head-on registered, visually buried half-way inside it.
+             Face-to-face gap = the robot's along-route half-extent +
+             Tipsy's, using the same BODY dims the renderer draws:
+             rovers lie long-axis along the route (hx=26), parked ones
+             cross-ways (hy=20). Hitbox follows art, the house rule. */
+          const robotHalfS = hz.roving ? BODY.hx : BODY.hy;
+          const contactGap = robotHalfS + BODY.hx;
           if(!hz.knocked){
-            const alongside = onRobotLane && Math.abs(this.botS - effS) < 30;
+            const alongside = onRobotLane && Math.abs(this.botS - effS) < contactGap;
             const sideHit = this.hopAnim && alongside;
             if(sideHit && !hz.hit){
               hz.hit = true;
@@ -8169,6 +8247,7 @@ class WorldScene extends Phaser.Scene {
               hz.knockA = robotOff;
               hz.knockB = robotB;
               hz.knockT = t;
+              hz.knockRA = robotSpot ? robotSpot.dir : 1;   // freeze travel mirror (see draw RA)
               /* tip direction (2026-07-27, Tipsy's own tipDir=sign(tilt)
                  idea): a side hit is a shove across the LANE axis (rv),
                  so tip away from Tipsy's lane. Rovers' draw b-axis IS
@@ -8180,13 +8259,19 @@ class WorldScene extends Phaser.Scene {
               hz.knockDir = hz.roving
                 ? (Math.sign((laneOffset(hz.row) + robotB) - this.laneOff) || 1)
                 : (Math.random() < 0.5 ? 1 : -1);
-              this.spillRobotCargo(hz);
+              /* spill ~150ms into the fall, Tipsy's own tipT>0.55
+                 moment, not at the instant of impact. One-shot timer
+                 rather than a sim-loop gate: the post-play cargo
+                 ticker is contractually side-effect-free, and a
+                 head-on that tips BOTH robots ends play before the
+                 in-play gate would ever fire. */
+              setTimeout(() => this.spillRobotCargo(hz), 150);
               const kick = this.speed * 6 * (Math.random() < 0.5 ? 1 : -1);
               this.tilt += kick * TILT_SENS;
               this.damage = Math.min(95, this.damage + Math.abs(kick)*40*CARGO_DAMAGE_SENS);
               this.speed *= 0.7;   // bump-through, not a hard stop
-            } else if(onRobotLane && this.botS > effS - 28 && this.botS < effS){
-              this.botS = safeStop(effS - 28);
+            } else if(onRobotLane && this.botS > effS - contactGap && this.botS < effS){
+              this.botS = safeStop(effS - contactGap);
               this.isBlocked = true;
               if(this.speed > ROBOT_HIT_MIN && !hz.hit){
                 hz.hit = true;
@@ -8196,6 +8281,7 @@ class WorldScene extends Phaser.Scene {
                   hz.knockA = robotOff;
                   hz.knockB = robotB;
                   hz.knockT = t;
+                  hz.knockRA = robotSpot ? robotSpot.dir : 1;   // freeze travel mirror (see draw RA)
                   /* head-on: the shove is along the ROUTE axis (dv).
                      Parked robots' b-axis is dv, so they tip straight
                      away from the impact (sign of the approach --
@@ -8206,13 +8292,17 @@ class WorldScene extends Phaser.Scene {
                   hz.knockDir = hz.roving
                     ? (Math.random() < 0.5 ? 1 : -1)
                     : (Math.sign(effS - this.botS) || 1);
-                  this.spillRobotCargo(hz);
+                  setTimeout(() => this.spillRobotCargo(hz), 150);   // same 150ms fall-spill as the side hit
                 }
                 // below full speed: just stuck against it, no tip either way
               }
               this.speed = 0;
             }
-            if(Math.abs(this.botS - effS) > 40) hz.hit = false;
+            /* release hysteresis: must clear the face-gap stop line
+               (gap+12), or a blocked Tipsy parked AT the line would
+               re-arm hz.hit every frame. Was 40 back when the stop
+               line was 28. */
+            if(Math.abs(this.botS - effS) > contactGap + 12) hz.hit = false;
           } else {
             this.simRobotCargo(hz, dt);
           }
