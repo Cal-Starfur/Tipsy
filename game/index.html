@@ -82,10 +82,62 @@
   #avatarIcon{right:14px;background:#ff7a1a;}
   #bottomSheet{width:100%;background:#f0ece0;
     padding:12px 16px calc(10px + env(safe-area-inset-bottom));color:#2e3138;}
-  #bottomSheet .sheetRow{display:flex;align-items:center;justify-content:space-between;}
-  #bottomSheet .chev{font-size:13px;color:#8f95a1;}
-  #bottomSheet .status{font-weight:700;font-size:15px;color:#b5540e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:78%;}
-  #bottomSheet .listIcon{font-size:17px;color:#8f95a1;}
+  #bottomSheet .sheetRow{display:flex;align-items:center;gap:8px;}
+  #bottomSheet .chev{flex:none;font-size:13px;color:#8f95a1;}
+  #bottomSheet .status{flex:1;min-width:0;font-weight:700;font-size:15px;color:#b5540e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center;}
+  /* Past Routes entry point (Devvit only — see IS_DEVVIT_BUILD near
+     top of script). Was a bare ☰ glyph; on-device feedback was that
+     nobody could tell what it did, so it's now a labeled pill in the
+     same tint as the rest of the brand accent. */
+  #bottomSheet .listIcon{flex:none;display:flex;align-items:center;gap:5px;font-size:12px;font-weight:800;
+    letter-spacing:0.4px;text-transform:uppercase;color:#b5540e;background:rgba(255,122,26,.14);
+    border:none;border-radius:20px;padding:7px 12px 7px 10px;}
+  #bottomSheet .listIcon .licon{font-size:14px;}
+  #bottomSheet .listIcon:active{transform:scale(0.94);background:rgba(255,122,26,.22);}
+
+  /* ---------- Past Routes (Devvit only): browse + replay any day
+     you've already completed. Standalone GitHub Pages / itch.io
+     builds never see this — they keep the old Today/Random Day panel
+     instead (see IS_DEVVIT_BUILD near top of script). ---------- */
+  #pastRoutesOverlay{align-items:stretch;justify-content:flex-start;padding:0;background:rgba(18,20,26,.94);}
+  #pastRoutesOverlay .prHeader{padding:calc(18px + env(safe-area-inset-top)) 20px 12px;text-align:center;position:relative;flex:none;}
+  #pastRoutesOverlay .prHeader h2{margin:0;font-size:20px;letter-spacing:1px;}
+  #pastRoutesOverlay .prHeader .sub{font-size:12px;color:#8f95a1;margin-top:4px;line-height:1.4;}
+  #prClose{position:absolute;top:calc(16px + env(safe-area-inset-top));right:16px;flex:none;width:34px;height:34px;
+    border-radius:50%;padding:0;font-size:16px;display:flex;align-items:center;justify-content:center;}
+  #prAllTime{flex:none;margin:0 20px 10px;background:#20242d;border:1px solid #363b46;border-radius:12px;
+    padding:10px 16px;display:flex;align-items:center;justify-content:space-between;}
+  #prAllTime .lbl{font-size:11px;letter-spacing:1px;text-transform:uppercase;color:#8f95a1;}
+  #prAllTime .val{font-size:18px;font-weight:800;color:#ff9c4d;}
+  #prPlayToday{flex:none;margin:0 20px 14px;background:#ff7a1a;border:none;color:#fff;border-radius:12px;
+    padding:12px;font-size:13px;font-weight:800;letter-spacing:0.5px;text-transform:uppercase;}
+  #prPlayToday:active{transform:scale(0.98);}
+  #prList{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:0 14px calc(20px + env(safe-area-inset-bottom));}
+  .prRow{display:flex;align-items:center;gap:12px;background:#20242d;border:1px solid #363b46;border-radius:14px;
+    padding:12px 14px;margin-bottom:10px;text-align:left;width:100%;box-sizing:border-box;}
+  .prRow:active{transform:scale(0.98);}
+  .prDate{flex:none;width:44px;}
+  .prDate .d{font-size:20px;font-weight:800;line-height:1;color:#fff;}
+  .prDate .m{font-size:11px;color:#8f95a1;text-transform:uppercase;letter-spacing:0.5px;}
+  .prInfo{flex:1;min-width:0;}
+  .prInfo .addr{font-size:14px;font-weight:700;color:#e8eaef;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .prInfo .hood{font-size:12px;color:#8f95a1;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .prScore{flex:none;text-align:right;}
+  .prScore .tip{font-size:16px;font-weight:800;color:#ff9c4d;}
+  .prScore .time{font-size:11px;color:#8f95a1;margin-top:1px;}
+  .prChev{flex:none;color:#4a4f5a;font-size:14px;}
+  #prEmpty{color:#8f95a1;font-size:14px;padding:40px 20px;text-align:center;line-height:1.6;}
+
+  /* ---------- win/fail: a way back to the route picker (Devvit only)
+     Before this feature, Again/Retry were the only buttons because
+     the app only ever had one route to replay. Placed at the top,
+     well clear of the bottom card/button geometry that showWin()
+     measures dynamically (see the ORDER MATTERS note there) — this
+     never has to know the card's height. ---------- */
+  .menuBtn{position:absolute;top:calc(16px + env(safe-area-inset-top));left:16px;z-index:2;
+    flex:none;width:auto;background:rgba(255,122,26,.14);color:#fff;border:none;border-radius:20px;
+    padding:7px 14px;font-size:12px;font-weight:800;letter-spacing:0.4px;text-transform:uppercase;}
+  .menuBtn:active{transform:scale(0.94);background:rgba(255,122,26,.24);}
   /* in-game GPS readout — DOM, not canvas text: the Phaser framebuffer
      renders at CSS resolution (Scale.RESIZE, no DPR handling; K is a
      fixed constant so retina-scaling the buffer would rescale the whole
@@ -138,21 +190,37 @@
     </div>
     <div id="bottomSheet">
       <div class="sheetRow">
-        <span class="chev">︿</span>
+        <button class="listIcon" id="listIcon"><span class="licon">☰</span>Past Routes</button>
         <span class="status" id="sheetStatus">Ready for pickup</span>
-        <span class="listIcon">☰</span>
+        <span class="chev">︿</span>
       </div>
     </div>
   </div>
 </div>
 
+<div id="pastRoutesOverlay" class="overlay hidden">
+  <div class="prHeader">
+    <h2>PAST ROUTES</h2>
+    <div class="sub">Replay a day you've completed.<br>Beat that day's best and the difference is added to your all-time total.</div>
+    <button id="prClose">✕</button>
+  </div>
+  <div id="prAllTime">
+    <span class="lbl">All-time total</span>
+    <span class="val" id="prAllTimeVal">—</span>
+  </div>
+  <button id="prPlayToday">▶ PLAY TODAY'S ROUTE</button>
+  <div id="prList"></div>
+</div>
+
 <div id="failOverlay" class="overlay hidden">
+  <button class="menuBtn hidden" id="failMenuBtn">↩ Menu</button>
   <h2 id="failMsg">The pavement won.</h2>
   <p id="failSub">Delivery status: horizontal.</p>
   <button class="btn" id="retryBtn">Retry</button>
 </div>
 
 <div id="winOverlay" class="overlay hidden">
+  <button class="menuBtn hidden" id="winMenuBtn">↩ Menu</button>
   <h2>DELIVERED</h2>
   <p id="winSub">…</p>
   <div class="card" id="winCard">…</div>
@@ -169,7 +237,18 @@
    Standalone GitHub Pages / itch.io builds never carry this param, so
    they're unaffected. */
 const IS_DEVVIT_BUILD = new URLSearchParams(location.search).get("platform") === "devvit";
-if(IS_DEVVIT_BUILD){ hide("panel"); hide("panelToggle"); }
+if(IS_DEVVIT_BUILD){ hide("panel"); hide("panelToggle"); show("winMenuBtn"); show("failMenuBtn"); }
+if(!IS_DEVVIT_BUILD){ hide("listIcon"); }
+/* Local "today" used only for display (which pill to show, whether a
+   loaded route counts as a replay) — never for anything the server
+   trusts. Kept as its own function rather than reusing one of the
+   inline `new Date().toISOString().slice(0,10)` call sites already in
+   this file, so nothing about the existing today/reroll flow changes. */
+function clientTodayUTC(){ return new Date().toISOString().slice(0,10); }
+function fmtReplayDate(dateStr){
+  return new Date(dateStr + "T00:00:00Z")
+    .toLocaleDateString("en-US", { month:"short", day:"numeric", timeZone:"UTC" });
+}
 
 /* ---------- Devvit bridge (optional) ----------
    On the Devvit build, swaps the daily-best leaderboard's persistence
@@ -189,13 +268,52 @@ if(IS_DEVVIT_BUILD){ hide("panel"); hide("panelToggle"); }
    loadRoute(dateStr) (see loadRoute). Standalone GitHub Pages / itch.io
    builds never call fetch() here at all and fall straight back to
    localStorage, same as before this bridge existed. */
-const tipsyBridge = { active: IS_DEVVIT_BUILD, best: {} };
+/* historyBest caches this player's own best {tip,ms} per past date —
+   populated whenever Past Routes is opened (requestHistory) and kept
+   current afterward the same optimistic way tipsyBridge.best already
+   is: written locally the instant a replay win looks better, with the
+   server call itself fire-and-forget (server is still the real source
+   of truth on next load). allTimeTotal mirrors the same pattern for
+   the number shown atop the Past Routes list. */
+const tipsyBridge = { active: IS_DEVVIT_BUILD, best: {}, historyBest: {}, allTimeTotal: null };
 function requestDailyBest(dateStr){
   if(!IS_DEVVIT_BUILD) return;
   fetch("api/tipsy/best", { headers: { Accept: "application/json" } })
     .then(rsp => rsp.ok ? rsp.json() : null)
     .then(data => { if(data) tipsyBridge.best[dateStr] = data.best || null; })
     .catch(()=>{});
+}
+/** Fetches every day this player has ever completed (tipsey-delivery's
+ *  src/server/db.ts historyKey — permanent, not the 30-day daily-board
+ *  TTL) plus their current all-time total. cb receives the raw history
+ *  array for rendering; the cache fields above are populated as a
+ *  side effect regardless of whether a callback is passed. */
+function requestHistory(cb){
+  if(!IS_DEVVIT_BUILD) return;
+  fetch("api/tipsy/history", { headers: { Accept: "application/json" } })
+    .then(rsp => rsp.ok ? rsp.json() : null)
+    .then(data => {
+      if(!data) return;
+      for(const h of (data.history || [])) tipsyBridge.historyBest[h.dateStr] = { tip: h.tip, ms: h.ms };
+      tipsyBridge.allTimeTotal = data.allTimeTotal;
+      if(cb) cb(data.history || []);
+    })
+    .catch(()=>{});
+}
+/** Submits a replay run for a PAST date (today's route still goes
+ *  through requestDailyBest/api/tipsy/best/submit, untouched). The
+ *  server re-derives everything from its own history record for this
+ *  user+date — same trust model as the existing daily submit, just
+ *  with a per-day eligibility check added; see dbSubmitReplayScore's
+ *  own comment in db.ts for why a client-supplied date is safe here
+ *  specifically. Fire-and-forget, matching the existing submit call. */
+function submitReplay(dateStr, tip, ms){
+  if(!IS_DEVVIT_BUILD) return;
+  fetch("api/tipsy/history/submit", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ dateStr, tip, ms })
+  }).catch(()=>{});
 }
 /* ============================================================
    TIP — Route Lab
@@ -3271,9 +3389,12 @@ class WorldScene extends Phaser.Scene {
     this.pickupLidClosing = false; // latches true while the lid still owes a close-out on
                                     // that flipped hinge, even after loading itself has ended
     this.state = "idle";
-    document.getElementById("orderCard").innerHTML = this.route.pickupShopName
+    const modeTag = !IS_DEVVIT_BUILD ? "" : (dateStr === clientTodayUTC()
+      ? `<div class="tag" style="margin-bottom:4px">TODAY</div>`
+      : `<div class="tag" style="margin-bottom:4px">REPLAY · ${fmtReplayDate(dateStr)}</div>`);
+    document.getElementById("orderCard").innerHTML = modeTag + (this.route.pickupShopName
       ? `<b>${this.route.hood.n}</b> — pickup at <b>${this.route.pickupShopName}</b>, deliver to <b>${this.route.address}</b>`
-      : `<b>${this.route.hood.n}</b> — deliver to <b>${this.route.address}</b>`;
+      : `<b>${this.route.hood.n}</b> — deliver to <b>${this.route.address}</b>`);
     document.getElementById("sheetStatus").textContent = `$${this.route.order.value.toFixed(2)} · ${this.route.order.text}`;
     resizeRouteMap();
     drawRouteMap(this.route);
@@ -10143,42 +10264,75 @@ function showWin(s){
      (tipsyBridge.active — see the bridge shim near the top of the
      script); falls back to a local-only best via localStorage in the
      standalone GitHub Pages build, exactly as before this bridge
-     existed. */
-  let bestRow = "";
-  try {
-    const key = "tipsy-best-" + s.route.dateStr;
-    const prev = tipsyBridge.active
-      ? tipsyBridge.best[s.route.dateStr]
-      : JSON.parse(localStorage.getItem(key) || "null");
-    /* `prev` (tipsyBridge.best) is today's #1 score overall, not the
-       player's OWN prior run — it's only correct for the "did I just
-       take the top spot" banner below. Submission must NOT be gated
-       on it: a run that beats your own last score but isn't yet #1
-       overall would never reach the server at all. The server already
-       compares against your own prior score correctly (dbSubmitScore),
-       so every completed delivery submits unconditionally and lets
-       the server decide whether it's actually an improvement — cheap
-       no-op there when it isn't. */
-    const better = !prev || payout > prev.tip || (payout === prev.tip && s.runT < prev.ms);
-    if(tipsyBridge.active){
-      if(better) tipsyBridge.best[s.route.dateStr] = { tip: payout, ms: s.runT };   // optimistic — server is source of truth next load
-      fetch("api/tipsy/best/submit", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Accept: "application/json" },
-        body: JSON.stringify({ tip: payout, ms: s.runT })
-      }).catch(()=>{});
-    } else if(better){
-      localStorage.setItem(key, JSON.stringify({ tip: payout, ms: s.runT }));
-    }
-    bestRow = better
-      ? `<div class="sheetRow" style="color:#3f7d43;font-size:13px">★ NEW DAILY BEST</div>`
-      : `<div class="sheetRow" style="color:#8f95a1;font-size:13px">daily best $${prev.tip.toFixed(2)} · ${(prev.ms/1000).toFixed(1)}s</div>`;
-  } catch(e){}
+     existed.
+
+     isReplay is decided purely off the loaded route's own date: on
+     Devvit the ONLY way s.route.dateStr is ever not today is via the
+     Past Routes picker (the old reroll panel is hidden there), so
+     there's no separate "replay mode" flag to keep in sync — the date
+     already says everything. This also guarantees api/tipsy/best/submit
+     (today-only on the server; see db.ts todayUTC()) never receives a
+     replay's date by accident. */
+  const isReplay = IS_DEVVIT_BUILD && s.route.dateStr !== clientTodayUTC();
+  let bestRow = "", allTimeRow = "";
+  if(isReplay){
+    try {
+      /* tipsyBridge.historyBest was populated when Past Routes was
+         opened to reach this route in the first place, so it's already
+         warm — same optimistic-then-server-confirms pattern as the
+         today branch below, just against the history cache instead of
+         tipsyBridge.best. */
+      const prev = tipsyBridge.historyBest[s.route.dateStr];
+      const better = !prev || payout > prev.tip || (payout === prev.tip && s.runT < prev.ms);
+      const delta = Math.max(0, payout - (prev ? prev.tip : 0));
+      if(better){
+        tipsyBridge.historyBest[s.route.dateStr] = { tip: payout, ms: s.runT };
+        if(tipsyBridge.allTimeTotal != null) tipsyBridge.allTimeTotal += delta;
+      }
+      submitReplay(s.route.dateStr, payout, s.runT);
+      bestRow = better
+        ? `<div class="sheetRow" style="color:#3f7d43;font-size:13px">★ NEW BEST FOR THIS DAY</div>`
+        : `<div class="sheetRow" style="color:#8f95a1;font-size:13px">best for this day $${prev.tip.toFixed(2)} · ${(prev.ms/1000).toFixed(1)}s</div>`;
+      allTimeRow = (better && delta > 0)
+        ? `<div class="sheetRow" style="color:#ff9c4d;font-size:13px;font-weight:700">+$${delta.toFixed(2)} added to all-time</div>`
+        : "";
+    } catch(e){}
+  } else {
+    try {
+      const key = "tipsy-best-" + s.route.dateStr;
+      const prev = tipsyBridge.active
+        ? tipsyBridge.best[s.route.dateStr]
+        : JSON.parse(localStorage.getItem(key) || "null");
+      /* `prev` (tipsyBridge.best) is today's #1 score overall, not the
+         player's OWN prior run — it's only correct for the "did I just
+         take the top spot" banner below. Submission must NOT be gated
+         on it: a run that beats your own last score but isn't yet #1
+         overall would never reach the server at all. The server already
+         compares against your own prior score correctly (dbSubmitScore),
+         so every completed delivery submits unconditionally and lets
+         the server decide whether it's actually an improvement — cheap
+         no-op there when it isn't. */
+      const better = !prev || payout > prev.tip || (payout === prev.tip && s.runT < prev.ms);
+      if(tipsyBridge.active){
+        if(better) tipsyBridge.best[s.route.dateStr] = { tip: payout, ms: s.runT };   // optimistic — server is source of truth next load
+        fetch("api/tipsy/best/submit", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Accept: "application/json" },
+          body: JSON.stringify({ tip: payout, ms: s.runT })
+        }).catch(()=>{});
+      } else if(better){
+        localStorage.setItem(key, JSON.stringify({ tip: payout, ms: s.runT }));
+      }
+      bestRow = better
+        ? `<div class="sheetRow" style="color:#3f7d43;font-size:13px">★ NEW DAILY BEST</div>`
+        : `<div class="sheetRow" style="color:#8f95a1;font-size:13px">daily best $${prev.tip.toFixed(2)} · ${(prev.ms/1000).toFixed(1)}s</div>`;
+    } catch(e){}
+  }
   document.getElementById("winCard").innerHTML =
     `<div class="sheetRow"><b>${s.route.address}</b>&nbsp;·&nbsp;${s.route.hood.n}</div>` +
     `<div class="sheetRow" style="color:#8f95a1;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;text-align:center">${order.text} · $${order.value.toFixed(2)}</div>` +
     `<div class="sheetRow">time <b>${secs.toFixed(1)}s</b>&nbsp;·&nbsp;cargo <b>${cargo}%</b>&nbsp;·&nbsp;tip <b>${pctShow}% · $${payout.toFixed(2)}</b>${cuts.length ? `&nbsp;<span style="color:#8f95a1">(${cuts.join(", ")})</span>` : ""}</div>` +
-    bestRow;
+    bestRow + allTimeRow;
   /* Again anchors to the MEASURED panel, not a CSS constant: the
      receipt's height varies (order length, deduction notes, the
      daily-best row), and the old fixed bottom was budgeted for the
@@ -10231,6 +10385,65 @@ document.getElementById("rerollBtn").addEventListener("click", e => {
 document.getElementById("panelToggle").addEventListener("click", () => {
   const collapsed = document.getElementById("panel").classList.toggle("hidden");
   document.getElementById("panelToggle").classList.toggle("flipped", collapsed);
+});
+
+/* ---------- Past Routes (Devvit only) ---------- */
+function renderPastRoutes(history){
+  document.getElementById("prAllTimeVal").textContent =
+    tipsyBridge.allTimeTotal != null ? `$${tipsyBridge.allTimeTotal.toFixed(2)}` : "—";
+  const list = document.getElementById("prList");
+  if(!history || history.length === 0){
+    list.innerHTML = `<div id="prEmpty">No completed routes yet — play today's route to start building history.</div>`;
+    return;
+  }
+  /* generateRoute(dateStr) is pure and date-seeded (see Route Lab
+     comment near the top of this file) — calling it again here just
+     to pull address/hood/order flavor for the list is cheap and never
+     touches the network. Capped at 30 rows: history itself never
+     expires (unlike the 30-day daily board), so a long-time player's
+     full list could otherwise mean 30+ of these calls plus a very
+     long scroll for no real benefit over "recent". */
+  const sorted = [...history].sort((a,b) => b.dateStr.localeCompare(a.dateStr)).slice(0, 30);
+  list.innerHTML = sorted.map(h => {
+    const r = generateRoute(h.dateStr);
+    const d = new Date(h.dateStr + "T00:00:00Z");
+    const day = d.getUTCDate();
+    const mon = d.toLocaleDateString("en-US", { month:"short", timeZone:"UTC" });
+    return `<button class="prRow" data-date="${h.dateStr}">
+      <div class="prDate"><div class="d">${day}</div><div class="m">${mon}</div></div>
+      <div class="prInfo"><div class="addr">${r.address}</div><div class="hood">${r.hood.n} · ${r.order.text}</div></div>
+      <div class="prScore"><div class="tip">$${h.tip.toFixed(2)}</div><div class="time">${(h.ms/1000).toFixed(1)}s</div></div>
+      <div class="prChev">›</div>
+    </button>`;
+  }).join("");
+  list.querySelectorAll(".prRow").forEach(row => {
+    row.addEventListener("click", () => {
+      hide("pastRoutesOverlay"); hide("failOverlay"); hide("winOverlay");
+      show("titleOverlay");
+      scn().loadRoute(row.dataset.date);
+    });
+  });
+}
+document.getElementById("listIcon").addEventListener("click", () => {
+  document.getElementById("prList").innerHTML = `<div id="prEmpty">Loading…</div>`;
+  document.getElementById("prAllTimeVal").textContent =
+    tipsyBridge.allTimeTotal != null ? `$${tipsyBridge.allTimeTotal.toFixed(2)}` : "—";
+  show("pastRoutesOverlay");
+  requestHistory(renderPastRoutes);
+});
+document.getElementById("prClose").addEventListener("click", () => hide("pastRoutesOverlay"));
+document.getElementById("prPlayToday").addEventListener("click", () => {
+  hide("pastRoutesOverlay"); hide("failOverlay"); hide("winOverlay");
+  show("titleOverlay");
+  scn().loadRoute(clientTodayUTC());
+});
+document.getElementById("winMenuBtn").addEventListener("click", () => {
+  hide("winOverlay");
+  show("titleOverlay");
+});
+document.getElementById("failMenuBtn").addEventListener("click", () => {
+  hide("failOverlay");
+  show("titleOverlay");
 });
 document.addEventListener("keydown", e => {
   if(IS_DEVVIT_BUILD) return;
