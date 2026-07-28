@@ -2826,6 +2826,169 @@ function generateRoute(dateStr){
   const nTrafficRoutes = totalLen > 50000 ? 18 : totalLen > 30000 ? 15 : 12;
   const traffic = buildTraffic(grid, rng, nTrafficRoutes, walk.nodes);
 
+  /* ---------- GPS reroute loop (miss-the-door fallback, built at spawn) ----------
+     Sailing past the door no longer dead-ends into the clamp+tip: the
+     route is built WITH a rectangular block lap welded on just past the
+     address — continue to the next intersection, four same-direction
+     turns around the address block(s), rejoin the street behind the
+     door, pass it again. The lap is geometrically periodic (end point
+     and heading === start point and heading, guaranteed by the node
+     lattice), so the sim wraps botS by loop.len at loop.sEnd and the
+     player circles forever until the order cancels; doorS is retargeted
+     ONCE (+= len, its next-lap occurrence — F(s+len)===F(s) on the lap)
+     the moment the first pass is missed. See the sim's loop block.
+     Placement in this builder is load-bearing: AFTER difficulty/parMs
+     (which must read the ORIGINAL walk's turns/first-pass length) and
+     BEFORE the hazard clear / cutEdges / tiles rebuild below (which
+     must see the FINAL segs). SIGMA=-1 first (all inside turns,
+     R=CORNER_R, continuous sidewalk, zero turn crossings — circles the
+     address side); SIGMA=+1 fallback (outside turns, R=TURN_R, ramped
+     turn crossings same as any outside corner). If neither rectangle
+     has road connectivity (grid corner days), loop stays null and the
+     sim falls back to the clamp — minus its old auto-tip shove. */
+  let loop = null;
+  {
+    const sgD = segsSegAt(segs, doorS);
+    if(sgD && sgD.type === "line"){
+      const f = sgD.f, d = DIRV[f];
+      const pD = segsPosAt(segs, doorS);
+      const aDoor = pD.x*d.x + pD.y*d.y;   // signed along-axis coordinate (nodes live at multiples of BLOCK on it)
+      const cN = Math.round((d.x !== 0 ? pD.y : pD.x) / BLOCK) * BLOCK;
+      const chainOK = (n0, fh, nB) => {
+        let cur = n0; const dd = DIRV[fh];
+        for(let k = 0; k < nB; k++){
+          if(!cur || !cur.conn[fh]) return null;
+          cur = grid.nodeAt(cur.i + dd.x, cur.j + dd.y);
+        }
+        return cur;
+      };
+      for(const SIGMA of [-1, 1]){
+        const R = (SIGMA === -ROBOT_SIDE) ? TURN_R : CORNER_R;
+        /* first street node far enough past the win window (+60) that
+           the entry corner's fillet can't eat the stopping zone */
+        const aN0 = (Math.floor((aDoor + 60 + R + 20) / BLOCK) + 1) * BLOCK;
+        const Ax = d.x !== 0 ? aN0*d.x : cN, Ay = d.x !== 0 ? cN : aN0*d.y;
+        const A = grid.nodeAt(Math.round(Ax/BLOCK), Math.round(Ay/BLOCK));
+        if(!A) continue;
+        /* street sides span L blocks so the door sits safely inside the
+           lap's return straight, >= R+90 clear of the re-entry corner —
+           that keeps the door reachable with the same approach room a
+           first pass gets */
+        const L = Math.max(1, Math.ceil((aN0 - aDoor + R + 90) / BLOCK));
+        const f1 = ((f + SIGMA) % 4 + 4) % 4, f2 = (f + 2) % 4, f3 = ((f - SIGMA) % 4 + 4) % 4;
+        const B = chainOK(A, f1, 1); if(!B) continue;
+        const C = chainOK(B, f2, L); if(!C) continue;
+        const D = chainOK(C, f3, 1); if(!D) continue;
+        if(chainOK(D, f, L) !== A) continue;
+        /* truncate: the door leg now ends R short of corner A. A line
+           seg is start+f parametric, so pushing s1 OUT (A beyond the
+           leg's original trimmed end) is as valid as pulling it in —
+           both just re-window the same infinite line. */
+        const sCut = sgD.s0 + (Ax - R*d.x - sgD.start.x)*d.x + (Ay - R*d.y - sgD.start.y)*d.y;
+        if(sCut <= doorS + 60) continue;
+        segs.length = segs.indexOf(sgD) + 1;
+        sgD.s1 = sCut;
+        /* weld the lap: corners at A/B/C/D, seg construction copied
+           field-for-field from buildWalk so every downstream consumer
+           (segsPosAt, heading ease, corner tilt, arc-gated crossings)
+           sees ordinary route segs */
+        let s = sCut;
+        const corner = (node, fIn) => {
+          const dI = DIRV[fIn], rv = DIRV[(fIn+1)%4];
+          const center = { x: node.x - dI.x*R + SIGMA*rv.x*R, y: node.y - dI.y*R + SIGMA*rv.y*R };
+          const startPt = { x: node.x - dI.x*R, y: node.y - dI.y*R };
+          const a0 = Math.atan2(startPt.y - center.y, startPt.x - center.x);
+          const arcLen = Math.PI/2 * R;
+          segs.push({ type:"arc", s0:s, s1:s+arcLen, center, a0, sign:SIGMA, R, hA:fIn*Math.PI/2, f:fIn });
+          s += arcLen;
+        };
+        const leg = (node, fh, nB) => {
+          const dd = DIRV[fh], len = nB*BLOCK - 2*R;
+          segs.push({ type:"line", s0:s, s1:s+len, f:fh, hA:fh*Math.PI/2,
+                      start:{ x: node.x + dd.x*R, y: node.y + dd.y*R } });
+          s += len;
+        };
+        corner(A, f);  leg(A, f1, 1);
+        corner(B, f1); leg(B, f2, L);
+        corner(C, f2); leg(C, f3, 1);
+        corner(D, f3); leg(D, f, L);
+        loop = { sCut, sEnd: s, len: s - sCut, doorS0: doorS, missed: false };
+        break;
+      }
+    }
+  }
+  if(loop){
+    /* everything s-anchored past the cut now maps onto LAP geometry —
+       stale placements from the removed tail must go (their ramps
+       included; ramp anchors sit within a tile of their crossing) */
+    for(const list of [hazards, props])
+      for(let i = list.length - 1; i >= 0; i--)
+        if(list[i].s > loop.sCut - 100) list.splice(i, 1);
+    for(let i = crossings.length - 1; i >= 0; i--)
+      if(crossings[i].sB > loop.sCut) crossings.splice(i, 1);
+    /* fresh crossings for the extended door leg + lap — the SAME two
+       detection rules as the originals above (straight-through nodes on
+       line legs, outside-turn arcs), each with its ADA ramp pair pushed
+       here since the main ramp spawn already ran. Dedupe by sA against
+       the surviving originals (the door leg keeps its pre-cut ones). */
+    const lapSegs = segs.slice(segs.indexOf(segsSegAt(segs, doorS)));
+    const newCx = [];
+    for(const sg of lapSegs){
+      if(sg.type !== "line") continue;
+      const dL = DIRV[sg.f], rvL = DIRV[(sg.f+1)%4];
+      for(const n of grid.nodes){
+        if(!n.conn[(sg.f+3)%4]) continue;
+        const relX = n.x - sg.start.x, relY = n.y - sg.start.y;
+        if(Math.abs(relX*rvL.x + relY*rvL.y) > 1) continue;
+        const sN = sg.s0 + (relX*dL.x + relY*dL.y);
+        if(sN - ROAD_HALF - 2*T2 < sg.s0 || sN + ROAD_HALF + 2*T2 > sg.s1) continue;
+        if(crossings.some(cx => Math.abs(cx.sA - (sN - ROAD_HALF)) < 1)) continue;
+        newCx.push({ sA: sN - ROAD_HALF, sB: sN + ROAD_HALF, fIn: sg.f, fOut: sg.f });
+      }
+    }
+    for(let i = 0; i < lapSegs.length; i++){
+      const sg = lapSegs[i];
+      if(sg.type !== "arc") continue;
+      if(sg.sign !== -ROBOT_SIDE) continue;
+      const prev = lapSegs[i-1], next = lapSegs[i+1];
+      if(!prev || !next || prev.type !== "line" || next.type !== "line") continue;
+      if(sg.s0 - 2*T2 < prev.s0 + T2 || sg.s1 + 2*T2 > next.s1 - T2) continue;
+      const dA = DIRV[sg.f], rvA = DIRV[(sg.f+1)%4];
+      const nx = sg.center.x + dA.x*sg.R - sg.sign*rvA.x*sg.R;
+      const ny = sg.center.y + dA.y*sg.R - sg.sign*rvA.y*sg.R;
+      newCx.push({ kind:"turn", sA: sg.s0, sB: sg.s1, nx, ny,
+                   fIn: sg.f, fOut: (sg.f + sg.sign + 4) % 4 });
+    }
+    for(const cx of newCx){
+      crossings.push(cx);
+      if(cx.kind !== "turn"){
+        hazards.push({ type:"sidewalkend",   s: cx.sA - T2, row: 1, f: cx.fIn,  hit:true });
+        hazards.push({ type:"sidewalkbegin", s: cx.sB + T2, row: 1, f: cx.fOut, hit:true });
+      } else {
+        const dI = DIRV[cx.fIn],  rI = DIRV[(cx.fIn+1)%4];
+        const dO = DIRV[cx.fOut], rO = DIRV[(cx.fOut+1)%4];
+        const off1 = laneOffset(1);
+        hazards.push({ type:"sidewalkend", row: 1, f: cx.fIn, hit:true, s: cx.sA,
+          wx: cx.nx - dI.x*(ROAD_HALF + T2) + rI.x*off1,
+          wy: cx.ny - dI.y*(ROAD_HALF + T2) + rI.y*off1, wz: 0 });
+        hazards.push({ type:"sidewalkbegin", row: 1, f: cx.fOut, hit:true, s: cx.sB,
+          wx: cx.nx + dO.x*(ROAD_HALF + T2) + rO.x*off1,
+          wy: cx.ny + dO.y*(ROAD_HALF + T2) + rO.y*off1, wz: 0 });
+      }
+    }
+    /* the virtual grade profile is a per-s array — rebuild it over the
+       final segs (elevAtWorld is world-seeded, so shared stretches get
+       identical values; only the welded portion is genuinely new) */
+    tiles.length = 0;
+    const nTL = Math.ceil(loop.sEnd / (TILE*2)) + 3;
+    for(let i = 0; i < nTL; i++){
+      const p = segsPosAt(segs, Math.min(i*T2, loop.sEnd));
+      tiles.push(elevAtWorld(p.x, p.y));
+    }
+    for(let pass = 0; pass < 2; pass++)
+      for(let i = 1; i < nTL-1; i++) tiles[i] = (tiles[i-1] + 2*tiles[i] + tiles[i+1]) / 4;
+  }
+
   /* ---------- clear stage for the choreography ----------
      Volumetric hazards are swept out of a window around BOTH scene
      anchors (pickup shop, dropoff door). The three-canvas stacking
@@ -2915,7 +3078,7 @@ function generateRoute(dateStr){
     }
   }
 
-  return { hood, grid, segs, totalLen, tiles, hazards, props, pal, traffic, crossings, cutEdges, cutExt,
+  return { hood, grid, segs, totalLen: loop ? loop.sEnd : totalLen, loop, tiles, hazards, props, pal, traffic, crossings, cutEdges, cutExt,
            address:`${number} ${street}`, doorS, pickupS, pickupSpot, pickupShopName, addressBlock, pickupBlock, addressEdgeIdx, pickupEdgeIdx, addressUnitIdx, pickupUnitIdx, addressUsesGate, order, parMs, dateStr };
 }
 
@@ -8542,12 +8705,36 @@ class WorldScene extends Phaser.Scene {
          hitting totalLen-30, sometimes tens of thousands of units later —
          reading as "win doesn't fire" rather than a clear, immediate stop
          at the address. */
-      const overshootLimit = Math.min(this.route.doorS + 60, this.route.totalLen - 30);
-      if(this.botS > overshootLimit){
-        this.botS = overshootLimit; this.speed = 0; this.tilt += 0.5;
+      /* With a reroute loop welded in (route.loop, built at spawn) the
+         clamp never engages — the street simply continues into the lap.
+         The clamp remains ONLY as the no-loop fallback (rare grid-corner
+         days with no road ring around the address), and its old
+         tilt+=0.5 shove is gone: touching the end of the road stops the
+         robot, it doesn't knock him over. */
+      if(!this.route.loop){
+        const overshootLimit = Math.min(this.route.doorS + 60, this.route.totalLen - 30);
+        if(this.botS > overshootLimit){
+          this.botS = overshootLimit; this.speed = 0;
+        }
       }
       if(this.botS < _botS_frameStart - 0.01){
         console.warn(`[BACKWARD] botS ${_botS_frameStart.toFixed(1)} -> ${this.botS.toFixed(1)} (Δ${(this.botS-_botS_frameStart).toFixed(1)}) botRow=${this.botRow} isBlocked=${this.isBlocked} segType=${this.segAt(this.botS).type}`);
+      }
+      /* GPS reroute: past the win window and into the lap's entry
+         corner means the first pass is MISSED — retarget doorS to its
+         next-lap occurrence (the lap is periodic: world(s+len) ===
+         world(s), so doorS0+len IS the same physical door). At the
+         weld point wrap botS back one period — identical world position
+         and heading, invisible to the player, loops forever until the
+         par+grace cancel fires. Placed AFTER the backward-warn so the
+         wrap's negative Δ never trips it. */
+      const lp = this.route.loop;
+      if(lp){
+        if(!lp.missed && this.botS > lp.sCut - 20){
+          lp.missed = true;
+          this.route.doorS = lp.doorS0 + lp.len;
+        }
+        if(this.botS >= lp.sEnd) this.botS -= lp.len;
       }
     }
 
@@ -9473,7 +9660,11 @@ class WorldScene extends Phaser.Scene {
        old progress bar + live timer/cargo%. Quality (cargo%) and
        elapsed time are reported once, at the end, in showWin — not
        shown live during the trip anymore. */
-    const remainDist = Math.max(0, this.route.doorS - this.botS);
+    let remainDist = Math.max(0, this.route.doorS - this.botS);
+    /* mid-lap on the reroute loop (door already passed this lap):
+       show distance to the NEXT pass, GPS-style, instead of 0 ft */
+    if(this.route.loop && this.route.loop.missed && this.route.doorS - this.botS < -60)
+      remainDist = Math.max(0, this.route.doorS - this.botS + this.route.loop.len);
     const FT_PER_UNIT = 0.6; // flavor conversion, not a real-world claim
     const distFt = remainDist * FT_PER_UNIT;
     const distText = distFt > 1000 ? (distFt/5280).toFixed(1)+" mi" : Math.round(distFt/10)*10 + " ft";
