@@ -10540,7 +10540,21 @@ document.getElementById("panelToggle").addEventListener("click", () => {
   document.getElementById("panelToggle").classList.toggle("flipped", collapsed);
 });
 
-/* ---------- Past Routes ---------- */
+/* ---------- Past Routes ----------
+   Lives inside #bottomSheet, not a separate overlay — see the CSS
+   comment on #bottomSheet for why. expandSheet/collapseSheet just
+   toggle two classes; the flex reflow (mapCard vs bottomSheet, both
+   siblings in #screenWrap) does the actual layout work. */
+function expandSheet(){
+  document.getElementById("bottomSheet").classList.add("expanded");
+  document.getElementById("pastRoutesPanel").classList.remove("hidden");
+  document.getElementById("sheetChev").classList.add("flipped");
+}
+function collapseSheet(){
+  document.getElementById("bottomSheet").classList.remove("expanded");
+  document.getElementById("pastRoutesPanel").classList.add("hidden");
+  document.getElementById("sheetChev").classList.remove("flipped");
+}
 function renderPastRoutes(history){
   document.getElementById("prAllTimeVal").textContent =
     tipsyBridge.allTimeTotal != null ? `$${tipsyBridge.allTimeTotal.toFixed(2)}` : "—";
@@ -10571,31 +10585,33 @@ function renderPastRoutes(history){
   }).join("");
   list.querySelectorAll(".prRow").forEach(row => {
     row.addEventListener("click", () => {
-      hide("pastRoutesOverlay"); hide("failOverlay"); hide("winOverlay");
-      show("titleOverlay");
+      collapseSheet();
       scn().loadRoute(row.dataset.date);
     });
   });
 }
 document.getElementById("listIcon").addEventListener("click", () => {
+  const expanding = document.getElementById("pastRoutesPanel").classList.contains("hidden");
+  if(!expanding){ collapseSheet(); return; }
   document.getElementById("prList").innerHTML = `<div id="prEmpty">Loading…</div>`;
   document.getElementById("prAllTimeVal").textContent =
     tipsyBridge.allTimeTotal != null ? `$${tipsyBridge.allTimeTotal.toFixed(2)}` : "—";
-  show("pastRoutesOverlay");
+  expandSheet();
   requestHistory(renderPastRoutes);
 });
-document.getElementById("prClose").addEventListener("click", () => hide("pastRoutesOverlay"));
+document.getElementById("prClose").addEventListener("click", () => collapseSheet());
 document.getElementById("prPlayToday").addEventListener("click", () => {
-  hide("pastRoutesOverlay"); hide("failOverlay"); hide("winOverlay");
-  show("titleOverlay");
+  collapseSheet();
   scn().loadRoute(clientTodayUTC());
 });
 document.getElementById("winMenuBtn").addEventListener("click", () => {
   hide("winOverlay");
+  collapseSheet();
   show("titleOverlay");
 });
 document.getElementById("failMenuBtn").addEventListener("click", () => {
   hide("failOverlay");
+  collapseSheet();
   show("titleOverlay");
 });
 document.addEventListener("keydown", e => {
