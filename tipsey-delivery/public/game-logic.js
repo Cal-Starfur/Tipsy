@@ -84,6 +84,30 @@ function submitReplay(dateStr, tip, ms){
     body: JSON.stringify({ dateStr, tip, ms })
   }).catch(()=>{});
 }
+/** Server-authoritative Tipsy Profile sync (Phase B, Devvit only).
+ *  Called once whenever the profile panel opens (tpOpenProfile) so
+ *  walletCents/owned/equipped self-heal from whatever Redis actually
+ *  holds — same "local optimistic update, server wins on next load"
+ *  pattern tipsyBridge.best/historyBest already use above. tpProfile,
+ *  tpSaveProfile, and tpRender are defined later in this file (Tipsy
+ *  Profile section) but this function is only ever invoked from a user
+ *  action after the whole script has run, so they're already assigned
+ *  by call time. history/allTimeTotal are untouched here — those stay
+ *  requestHistory's job. */
+function requestTpProfile(){
+  if(!IS_DEVVIT_BUILD) return;
+  fetch("api/tipsy/profile", { headers: { Accept: "application/json" } })
+    .then(rsp => rsp.ok ? rsp.json() : null)
+    .then(data => {
+      if(!data) return;
+      tpProfile.walletCents = data.walletCents;
+      tpProfile.owned = new Set(data.owned);
+      tpProfile.equipped = data.equipped;
+      tpSaveProfile();
+      tpRender();
+    })
+    .catch(()=>{});
+}
 /* ============================================================
    TIP — Route Lab
    One address a day. A real-LA-neighborhood roster drives a
@@ -10983,6 +11007,7 @@ function tpOpenDetail(kind, id){
         tpSetTab("store");
         tpToast(`${rewardSkin.displayName} added to your Store — from ${tr.name}!`);
         tpPulseEl("tpSkinCard-" + rewardSkin.skinId);
+        tpSubmitClaim(tr.id);
       };
     } else if(rewardSkin && rewardOwned){
       btn.className = "tpDone"; btn.textContent = `Reward claimed — ${rewardSkin.displayName}`; btn.disabled = true;
@@ -11007,7 +11032,7 @@ function tpOpenDetail(kind, id){
       btn.className = "tpEquipped"; btn.textContent = "Equipped"; btn.disabled = true;
     } else if(owned){
       btn.className = "tpEquip"; btn.textContent = "Equip"; btn.disabled = false;
-      btn.onclick = ()=>{ tpProfile.equipped = id; tpSaveProfile(); tpRenderStore(); tpCloseDetail(); tpToast(`${skin.displayName} equipped`); };
+      btn.onclick = ()=>{ tpProfile.equipped = id; tpSaveProfile(); tpRenderStore(); tpCloseDetail(); tpToast(`${skin.displayName} equipped`); tpSubmitEquip(id); };
     } else if(isAchievement){
       const tr = tpTrophyForSkin(id);
       btn.className = "tpLink"; btn.textContent = `View trophy — ${tr.name}`; btn.disabled = false;
@@ -11024,6 +11049,7 @@ function tpOpenDetail(kind, id){
         tpProfile.equipped = id;
         tpSaveProfile(); tpRender(); tpCloseDetail();
         tpToast(`${skin.displayName} purchased & equipped`);
+        tpSubmitPurchase(id);
       };
     }
   }
@@ -11070,8 +11096,67 @@ function tpToast(msg){
   tpToast._t = setTimeout(()=>t.classList.remove("show"), 2200);
 }
 
+/* ---------- Phase B: server sync for wallet/store/trophy actions ----------
+   Each of these fires AFTER the local optimistic update above has already
+   applied and rendered — same trust model as submitReplay near the top of
+   this file: the local copy reflects what SHOULD happen, this tells the
+   server (source of truth) to actually make it so, and the response
+   re-syncs tpProfile in case the server disagreed (e.g. a stale client
+   wallet balance that db.ts's atomic hIncrBy would have rejected, or a
+   trophy the server can't yet verify — see tpcatalog.ts). Fire-and-forget
+   on failure, matching every other Devvit bridge call in this file. */
+function tpSubmitPurchase(skinId){
+  if(!IS_DEVVIT_BUILD) return;
+  fetch("api/tipsy/profile/purchase", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ skinId })
+  })
+    .then(rsp => rsp.ok ? rsp.json() : null)
+    .then(data => {
+      if(!data) return;
+      tpProfile.walletCents = data.walletCents;
+      tpProfile.owned = new Set(data.owned);
+      tpProfile.equipped = data.equipped;
+      tpSaveProfile();
+      tpRender();
+    })
+    .catch(()=>{});
+}
+function tpSubmitEquip(skinId){
+  if(!IS_DEVVIT_BUILD) return;
+  fetch("api/tipsy/profile/equip", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ skinId })
+  }).catch(()=>{});
+}
+/** Trophies the server can't yet verify (hydrant-hop, slalom-master —
+ *  see tpcatalog.ts) never reach this call in the shipped UI, since
+ *  their missionsCompleted flag can't be set yet either (see the file
+ *  header comment on tpCompleteMission). If that changes, a rejected
+ *  claim here just leaves tpProfile.owned as the optimistic local add
+ *  until the next requestTpProfile() self-heals it. */
+function tpSubmitClaim(trophyId){
+  if(!IS_DEVVIT_BUILD) return;
+  fetch("api/tipsy/profile/claim", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ trophyId })
+  })
+    .then(rsp => rsp.ok ? rsp.json() : null)
+    .then(data => {
+      if(!data) return;
+      tpProfile.owned = new Set(data.owned);
+      tpSaveProfile();
+      tpRender();
+    })
+    .catch(()=>{});
+}
+
 /* ---------- navigation ---------- */
 function tpOpenProfile(){
+  requestTpProfile();
   tpRender();
   tpSetTab("trophy");
   document.getElementById("tpProfilePanel").classList.add("open");
