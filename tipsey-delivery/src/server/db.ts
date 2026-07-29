@@ -1,5 +1,6 @@
 import {reddit, redis} from '@devvit/web/server'
-import type {DailyBest, LeaderboardEntry} from '../shared/api.ts'
+import type {DailyBest, LeaderboardEntry, TpProfileRsp} from '../shared/api.ts'
+import {TS_CLAIMABLE_TROPHIES, TS_SKINS} from './tpcatalog.ts'
 
 /** Today's date, UTC, "YYYY-MM-DD" — matches the client's own
  *  `new Date().toISOString().slice(0,10)` exactly (see requestDailyBest()
@@ -67,6 +68,27 @@ function historyKey(username: string): string {
  *  one great run. */
 const ALLTIME_KEY = 'tipsy:global:board:alltime'
 const ALLTIME_AVATAR_KEY = 'tipsy:global:avatars:alltime'
+
+/** Spendable wallet + equipped skin, as a single hash -- deliberately
+ *  NOT folded into ALLTIME_KEY's score. ALLTIME_KEY is the immutable
+ *  lifetime-earnings figure the leaderboard reads and must never go
+ *  down; walletCents is spendable and does go down (dbPurchaseSkin),
+ *  so the two numbers diverge the moment a player buys anything and
+ *  can never share a key. hIncrBy on the walletCents field is what
+ *  makes dbPurchaseSkin's deduct-then-refund-if-negative pattern
+ *  atomic without a read-check-write race; see that function. */
+function tpProfileKey(username: string): string {
+  return `tipsy:global:tpprofile:${username}`
+}
+/** One hash field per owned skinId, value always '1' -- presence is the
+ *  signal, not the value, which is what makes granting a skin (hSet on
+ *  its own field) safe to call twice: the second call just overwrites
+ *  '1' with '1'. 'classic' is never written here; it's free and
+ *  implicitly owned by every player, so dbGetTpProfile adds it back on
+ *  every read instead of paying for a field on every single user. */
+function tpOwnedKey(username: string): string {
+  return `tipsy:global:tpowned:${username}`
+}
 
 async function dbGetTopFromKey(
   key: string,
@@ -159,6 +181,115 @@ export async function dbGetHistory(
   return {history, allTimeTotal: (allTimeScore ?? 0) / 100}
 }
 
+/** Wallet + owned skins + equipped skin for the Tipsy Profile trophy
+ *  case / store (Phase B). 'classic' is added back into `owned` on
+ *  every read since it's never persisted (see tpOwnedKey) -- it's free
+ *  and everyone has it. Two parallel reads, not a shared key, since
+ *  tpProfileKey (scalar fields) and tpOwnedKey (one field per skin) are
+ *  different shapes for different reasons -- see each key fn's comment. */
+export async function dbGetTpProfile(username: string): Promise<TpProfileRsp> {
+  const [profile, ownedRaw] = await Promise.all([
+    redis.hGetAll(tpProfileKey(username)),
+    redis.hGetAll(tpOwnedKey(username)),
+  ])
+  const walletCents = parseInt(profile.walletCents ?? '0', 10) || 0
+  const equipped = profile.equipped || 'classic'
+  return {walletCents, owned: ['classic', ...Object.keys(ownedRaw)], equipped}
+}
+
+/** Server-authoritative skin purchase. Price/unlockType come from this
+ *  file's own TS_SKINS catalog (tpcatalog.ts), never from the client.
+ *
+ *  The wallet deduction is a single hIncrBy with a NEGATIVE delta,
+ *  applied unconditionally -- rather than reading the balance, checking
+ *  it, then writing. hIncrBy still drives the field negative if the
+ *  price exceeds the balance, and returns that (wrong) new value, so
+ *  the check happens AFTER the atomic write: if it went negative,
+ *  refund with the opposite hIncrBy and fail. Two concurrent purchase
+ *  attempts against a balance that can only cover one of them can't
+ *  both pass a stale read the way a get-then-set would -- at most one
+ *  nets a non-negative result; the other sees negative and self-heals
+ *  via the refund.
+ *
+ *  Ownership is a single hSet on the skin's own field in tpOwnedKey --
+ *  no read first (see that key's comment on why this is safe to call
+ *  twice), so a client retry after a dropped response can't double-add
+ *  or double-charge (the wallet debit already happened exactly once
+ *  per actual call; a genuine duplicate *request* would still charge
+ *  twice, but that's a network-retry problem, not a race -- same
+ *  exposure any real payment endpoint has without an idempotency key,
+ *  and out of scope for this pass). Purchasing auto-equips, matching
+ *  the client's own buy-button behavior in game/index.html. */
+export async function dbPurchaseSkin(
+  username: string,
+  skinId: string,
+): Promise<{ok: true; profile: TpProfileRsp} | {ok: false; error: string}> {
+  const skin = TS_SKINS[skinId]
+  if (!skin) return {ok: false, error: `unknown skin: ${skinId}`}
+  if (skin.unlockType !== 'purchase') {
+    return {ok: false, error: `${skinId} is not purchasable`}
+  }
+  const key = tpProfileKey(username)
+  const newBalance = await redis.hIncrBy(key, 'walletCents', -skin.priceCents)
+  if (newBalance < 0) {
+    await redis.hIncrBy(key, 'walletCents', skin.priceCents) // refund
+    return {ok: false, error: 'insufficient funds'}
+  }
+  await redis.hSet(tpOwnedKey(username), {[skinId]: '1'})
+  await redis.hSet(key, {equipped: skinId})
+  return {ok: true, profile: await dbGetTpProfile(username)}
+}
+
+/** Equip only checks ownership, never price/unlockType. A skin already
+ *  present in tpOwnedKey got there through a path that already
+ *  validated it (dbPurchaseSkin or dbClaimTrophyReward below), so
+ *  re-deriving eligibility here would just repeat that check for no
+ *  reason. 'classic' is always a valid target -- it's implicitly owned
+ *  by everyone (see tpOwnedKey) and never has its own field to check. */
+export async function dbEquipSkin(
+  username: string,
+  skinId: string,
+): Promise<{ok: true; equipped: string} | {ok: false; error: string}> {
+  if (skinId !== 'classic') {
+    const owned = await redis.hGet(tpOwnedKey(username), skinId)
+    if (owned === undefined) return {ok: false, error: `${skinId} not owned`}
+  }
+  await redis.hSet(tpProfileKey(username), {equipped: skinId})
+  return {ok: true, equipped: skinId}
+}
+
+/** Re-derives trophy eligibility from this same file's dbGetHistory --
+ *  never trusts a client claim of "I unlocked it." Only trophies in
+ *  TS_CLAIMABLE_TROPHIES (tpcatalog.ts) can be claimed this way; see
+ *  that file for why hydrant-hop/slalom-master are deliberately
+ *  excluded (no server-side mission-completion record exists yet).
+ *
+ *  No separate claimed-trophies ledger: every reward here is a skin
+ *  unlock, and granting the same skin twice (hSet on an already-'1'
+ *  field) is a no-op, so this endpoint is naturally replay-safe
+ *  without one. If a future trophy ever pays out something
+ *  non-idempotent (cash, say), that reward would need its own claimed
+ *  set before landing here -- flagging for whoever adds the next one. */
+export async function dbClaimTrophyReward(
+  username: string,
+  trophyId: string,
+): Promise<
+  {ok: true; profile: TpProfileRsp; skinId: string} | {ok: false; error: string}
+> {
+  const trophy = TS_CLAIMABLE_TROPHIES[trophyId]
+  if (!trophy) return {ok: false, error: `${trophyId} is not server-claimable yet`}
+  const {history, allTimeTotal} = await dbGetHistory(username)
+  if (!trophy.check(history, allTimeTotal)) {
+    return {ok: false, error: `${trophyId} not yet earned`}
+  }
+  await redis.hSet(tpOwnedKey(username), {[trophy.rewardSkinId]: '1'})
+  return {
+    ok: true,
+    profile: await dbGetTpProfile(username),
+    skinId: trophy.rewardSkinId,
+  }
+}
+
 /** Writes {tipCents, ms} into this user's permanent history for dateStr,
  *  but only if it beats whatever's already recorded there (same
  *  tip-desc/ms-asc comparison as the daily board, via encodeScore).
@@ -239,6 +370,13 @@ export async function dbSubmitScore(
   // regardless of whether it was a personal best.
   await redis.zIncrBy(ALLTIME_KEY, username, tipCents)
 
+  // Wallet credit piggybacks on the same unconditional add: every
+  // completed delivery pays into the spendable wallet too, same as it
+  // pays into the all-time total above. Separate hash field (see
+  // tpProfileKey) so a later purchase can spend it without touching
+  // the leaderboard's immutable lifetime figure.
+  await redis.hIncrBy(tpProfileKey(username), 'walletCents', tipCents)
+
   // Bookkeeping only — keeps today's result available in Past Routes
   // once the day rolls over. Does not affect the unconditional add
   // above, which is unique to today; replays of past days use
@@ -301,7 +439,13 @@ export async function dbSubmitReplayScore(
 
   if (improved) {
     const delta = Math.max(0, tipCents - existing.tipCents)
-    if (delta > 0) await redis.zIncrBy(ALLTIME_KEY, username, delta)
+    if (delta > 0) {
+      await redis.zIncrBy(ALLTIME_KEY, username, delta)
+      // Same wallet piggyback as dbSubmitScore, but gated on delta > 0
+      // like the all-time zIncrBy right above it -- a replay that
+      // doesn't improve the day's record credits nothing to either.
+      await redis.hIncrBy(tpProfileKey(username), 'walletCents', delta)
+    }
     await redis.hSet(key, {[dateStr]: JSON.stringify({tipCents, ms})})
 
     // Also refresh that day's own board, so a replay shows up in the
@@ -349,6 +493,8 @@ export async function dbRemoveUser(username: string): Promise<void> {
     redis.zRem(ALLTIME_KEY, [username]),
     redis.hDel(ALLTIME_AVATAR_KEY, [username]),
     redis.del(historyKey(username)),
+    redis.del(tpProfileKey(username)),
+    redis.del(tpOwnedKey(username)),
   ])
 }
 
