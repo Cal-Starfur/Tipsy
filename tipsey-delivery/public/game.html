@@ -67,7 +67,8 @@
   #routeMap{display:block;}
   #titleOverlay{padding:0;justify-content:flex-start;}
   #screenWrap{width:100vw;height:100vh;height:100dvh;display:flex;flex-direction:column;
-    border-radius:20px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,.35);}
+    border-radius:20px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,.35);
+    position:relative;} /* positioning context for the tp* panels' inset:0 */
   #mapCard{position:relative;width:100%;flex:1;min-height:0;overflow:hidden;}
   #mapCard .brand{position:absolute;top:14px;left:50%;transform:translateX(-50%);margin:0;text-shadow:0 1px 4px rgba(181,84,14,.9),0 1px 4px rgba(181,84,14,.9);}
   #mapCard .card{position:absolute;top:60px;left:12px;right:12px;margin:0;background:rgba(240,236,224,.55);color:#2e3138;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);}
@@ -157,6 +158,124 @@
     font-size:min(22px, 4.5vw);font-weight:700;color:#fff;text-shadow:0 2px 3px #b5540e;}
   .hidden{display:none!important;}
   .big{font-size:42px;margin:2px 0;}
+  /* ================= TIPSY PROFILE — Trophy Case + Store + Side Missions
+     (Phase A). Ported from profile-bench.html. All new selectors prefixed
+     tp* to guarantee no collision with the rest of this file. ================= */
+  #tpProfilePanel, #tpMissionsPanel{position:absolute;inset:0;background:#f0ece0;z-index:8;
+    display:flex;flex-direction:column;transform:translateY(100%);
+    transition:transform .24s ease-out;}
+  #tpProfilePanel.open, #tpMissionsPanel.open{transform:translateY(0);}
+
+  #tpProfHeader, #tpMissionsHeader{flex:none;padding:calc(14px + env(safe-area-inset-top)) 14px 10px;
+    background:#14161b;display:flex;align-items:center;gap:10px;}
+  #tpProfBack, #tpMissionsBack{flex:none;width:34px;height:34px;border-radius:50%;background:#20242d;
+    border:1px solid #363b46;color:#e8eaef;display:flex;align-items:center;
+    justify-content:center;font-size:15px;}
+  #tpProfBack:active, #tpMissionsBack:active{transform:scale(0.92);}
+  #tpProfTitle, #tpMissionsTitle{flex:1;font-size:16px;font-weight:800;letter-spacing:1px;color:#ff7a1a;}
+  #tpWalletPill{flex:none;background:#20242d;border:1px solid #363b46;border-radius:20px;
+    padding:6px 12px;display:flex;align-items:center;gap:6px;}
+  #tpWalletPill .tpWVal{font-size:14px;font-weight:800;color:#ff9c4d;}
+
+  #tpTabBar{flex:none;display:flex;background:#14161b;padding:0 14px 12px;gap:8px;}
+  .tpTabBtn{flex:1;background:#20242d;border:1px solid #363b46;color:#8f95a1;border-radius:10px;
+    padding:9px 4px;font-size:12px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;}
+  .tpTabBtn.tpActive{background:#ff7a1a;border-color:#ff7a1a;color:#fff;}
+  .tpTabBtn:active{transform:scale(0.97);}
+
+  #tpProfBody{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;
+    padding:14px 14px calc(14px + env(safe-area-inset-bottom));}
+
+  #tpMissionsSearchWrap{flex:none;background:#14161b;padding:0 14px 14px;}
+  #tpMissionsSearch{width:100%;background:#20242d;border:1px solid #363b46;border-radius:10px;
+    color:#e8eaef;padding:10px 12px;font-size:13px;font-family:inherit;}
+  #tpMissionsSearch::placeholder{color:#6b7280;}
+  #tpMissionsBody{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;
+    padding:14px 14px calc(14px + env(safe-area-inset-bottom));}
+  #tpMissionsEmpty{color:#8f8571;font-size:13px;text-align:center;padding:30px 10px;}
+  .tpMedal.tpMission{background:#cfe0f5;}
+  .tpMedal.tpComingSoon{background:#e4dfd0;}
+  .tpMedal.tpCompleted{background:#d7f0dc;}
+
+  /* ---- store grid ---- */
+  #tpStoreGrid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  .tpSkinCard{background:#fff;border:2px solid #ddd6c4;border-radius:14px;padding:10px 10px 12px;
+    display:flex;flex-direction:column;align-items:center;text-align:center;position:relative;
+    transition:box-shadow .3s;}
+  .tpSkinCard:active{transform:scale(0.97);}
+  .tpSkinCard.tpEquipped{border-color:#ff7a1a;background:#fff7ef;}
+  .tpSkinCard.tpLocked{opacity:.62;}
+  .tpSkinCard.tpPulse{box-shadow:0 0 0 4px rgba(255,122,26,.45);}
+  .tpSwatch{width:64px;height:64px;border-radius:12px;background:#f4f0e4;
+    display:flex;align-items:center;justify-content:center;margin-bottom:8px;border:1px solid #ece6d4;}
+  .tpSkinName{font-size:12.5px;font-weight:700;color:#2e3138;line-height:1.25;min-height:32px;
+    display:flex;align-items:center;justify-content:center;}
+  .tpStateRow{margin-top:6px;width:100%;}
+  .tpPriceTag{background:#f5f1e6;border-radius:20px;padding:5px 0;font-size:12px;font-weight:800;color:#b5540e;}
+  .tpPriceTag.tpShort{color:#a99f8a;}
+  .tpEquipBadge{background:#ff7a1a;color:#fff;border-radius:20px;padding:5px 0;font-size:10.5px;
+    font-weight:800;letter-spacing:.4px;text-transform:uppercase;}
+  .tpOwnedBadge{background:#e7f4e9;color:#2f8f4e;border-radius:20px;padding:5px 0;font-size:10.5px;
+    font-weight:800;letter-spacing:.4px;text-transform:uppercase;}
+  .tpLockRow{display:flex;flex-direction:column;align-items:center;gap:2px;font-size:9.5px;
+    color:#8f8571;font-weight:700;line-height:1.3;}
+
+  /* ---- trophy / mission list (shared row style) ---- */
+  .tpTrRow{background:#fff;border:1px solid #ddd6c4;border-radius:14px;padding:12px;
+    display:flex;align-items:center;gap:12px;margin-bottom:10px;transition:box-shadow .3s;}
+  .tpTrRow:active{transform:scale(0.98);}
+  .tpTrRow.tpLocked{opacity:.68;}
+  .tpTrRow.tpUnclaimed{border-color:#ff7a1a;background:#fff7ef;}
+  .tpTrRow.tpPulse{box-shadow:0 0 0 4px rgba(255,122,26,.45);}
+  .tpMedal{flex:none;width:46px;height:46px;border-radius:50%;display:flex;align-items:center;
+    justify-content:center;font-size:22px;}
+  .tpMedal.bronze{background:#e9d3b4;}
+  .tpMedal.silver{background:#dedee6;}
+  .tpMedal.gold{background:#ffe2a0;}
+  .tpTrInfo{flex:1;min-width:0;}
+  .tpTrName{font-size:13.5px;font-weight:800;color:#2e3138;}
+  .tpTrDesc{font-size:11px;color:#8f8571;margin-top:2px;line-height:1.35;}
+  .tpTrProgWrap{margin-top:6px;height:5px;border-radius:3px;background:#ece6d4;overflow:hidden;}
+  .tpTrProgFill{height:100%;background:#ff7a1a;border-radius:3px;}
+  .tpTrReward{margin-top:5px;font-size:10.5px;font-weight:700;color:#b5540e;display:flex;align-items:center;gap:4px;}
+  .tpCheckBadge{width:26px;height:26px;border-radius:50%;background:#e7f4e9;color:#2f8f4e;flex:none;
+    display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:900;}
+  .tpClaimDot{width:10px;height:10px;border-radius:50%;background:#ff7a1a;flex:none;
+    box-shadow:0 0 0 3px rgba(255,122,26,.25);}
+
+  /* ---- shared detail sheet ---- */
+  #tpDetailScrim{position:absolute;inset:0;background:rgba(20,22,27,.5);z-index:9;
+    display:flex;align-items:flex-end;opacity:0;pointer-events:none;transition:opacity .18s;}
+  #tpDetailScrim.open{opacity:1;pointer-events:auto;}
+  #tpDetailSheet{width:100%;background:#f0ece0;border-radius:20px 20px 0 0;
+    padding:18px 20px calc(20px + env(safe-area-inset-bottom));
+    transform:translateY(100%);transition:transform .22s ease-out;}
+  #tpDetailScrim.open #tpDetailSheet{transform:translateY(0);}
+  #tpDetailClose{position:absolute;top:-14px;right:16px;width:30px;height:30px;border-radius:50%;
+    background:#2e3138;color:#fff;border:none;display:flex;align-items:center;justify-content:center;font-size:13px;}
+  .tpDetailSwatch{width:92px;height:92px;border-radius:16px;background:#fff;margin:0 auto 12px;
+    display:flex;align-items:center;justify-content:center;border:1px solid #ddd6c4;font-size:38px;}
+  #tpDetailName{text-align:center;font-size:18px;font-weight:800;color:#2e3138;margin-bottom:4px;}
+  #tpDetailDesc{text-align:center;font-size:12.5px;color:#8f8571;line-height:1.5;margin-bottom:10px;}
+  #tpDetailProgWrap{height:8px;border-radius:4px;background:#ece6d4;overflow:hidden;margin-bottom:6px;}
+  #tpDetailProgFill{height:100%;background:#ff7a1a;border-radius:4px;transition:width .3s;}
+  #tpDetailProgLabel{text-align:center;font-size:11px;color:#a99f8a;margin:0 0 14px;}
+  #tpDetailAction{width:100%;border:none;border-radius:14px;padding:15px;font-size:15px;font-weight:800;letter-spacing:.3px;}
+  #tpDetailAction.tpBuy,#tpDetailAction.tpClaim{background:#ff7a1a;color:#fff;box-shadow:0 3px 0 #b5540e;}
+  #tpDetailAction.tpBuy:active,#tpDetailAction.tpClaim:active{transform:translateY(2px);box-shadow:0 1px 0 #b5540e;}
+  #tpDetailAction.tpEquip{background:#2e3138;color:#fff;}
+  #tpDetailAction.tpEquip:active{transform:scale(0.98);}
+  #tpDetailAction.tpDone,#tpDetailAction.tpEquipped{background:#e7f4e9;color:#2f8f4e;}
+  #tpDetailAction.tpLockedBtn{background:#e4dfd0;color:#8f8571;}
+  #tpDetailAction.tpLink{background:#2e3138;color:#fff;}
+  #tpDetailAction.tpLink:active{transform:scale(0.98);}
+  #tpDetailNote{text-align:center;font-size:11px;color:#a99f8a;margin-top:10px;}
+
+  #tpToast{position:absolute;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);
+    background:#2e3138;color:#fff;padding:10px 18px;border-radius:20px;font-size:13px;font-weight:700;
+    opacity:0;transition:all .2s;pointer-events:none;z-index:20;max-width:88%;
+    text-align:center;white-space:normal;}
+  #tpToast.show{opacity:1;transform:translateX(-50%) translateY(0);}
 </style>
 </head>
 <body>
@@ -178,7 +297,7 @@
     <div id="mapCard">
       <canvas id="routeMap" width="280" height="476"></canvas>
       <div class="brand">TIPSY</div>
-      <button class="iconBtn" id="searchIcon">🔍</button>
+      <button class="iconBtn" id="searchIcon"></button>
       <div class="iconBtn" id="avatarIcon">
         <svg viewBox="0 0 40 46" width="23" height="27">
           <line x1="13" y1="5" x2="13" y2="11" stroke="#2e3138" stroke-width="1.5"/>
@@ -216,6 +335,53 @@
         <div id="prList"></div>
       </div>
     </div>
+
+    <!-- ===== Tipsy Profile: Trophy Case + Store (Phase A) ===== -->
+    <div id="tpProfilePanel">
+      <div id="tpProfHeader">
+        <button id="tpProfBack"></button>
+        <div id="tpProfTitle">TROPHY CASE</div>
+        <div id="tpWalletPill"><span class="tpWVal" id="tpWalletVal">$0.00</span></div>
+      </div>
+      <div id="tpTabBar">
+        <button class="tpTabBtn" id="tpTabTrophy">Trophy Case</button>
+        <button class="tpTabBtn" id="tpTabStore">Store</button>
+      </div>
+      <div id="tpProfBody">
+        <div id="tpTrList"></div>
+        <div id="tpStoreGrid" style="display:none;"></div>
+      </div>
+    </div>
+
+    <!-- ===== Tipsy Profile: Side Missions (search, Phase A) ===== -->
+    <div id="tpMissionsPanel">
+      <div id="tpMissionsHeader">
+        <button id="tpMissionsBack"></button>
+        <div id="tpMissionsTitle">SIDE MISSIONS</div>
+      </div>
+      <div id="tpMissionsSearchWrap">
+        <input id="tpMissionsSearch" type="text" placeholder="Search the map…">
+      </div>
+      <div id="tpMissionsBody">
+        <div id="tpMissionsList"></div>
+      </div>
+    </div>
+
+    <!-- ===== Tipsy Profile: shared detail sheet ===== -->
+    <div id="tpDetailScrim">
+      <div id="tpDetailSheet">
+        <button id="tpDetailClose"></button>
+        <div class="tpDetailSwatch" id="tpDetailSwatch"></div>
+        <div id="tpDetailName">—</div>
+        <div id="tpDetailDesc">—</div>
+        <div id="tpDetailProgWrap" style="display:none;"><div id="tpDetailProgFill"></div></div>
+        <div id="tpDetailProgLabel"></div>
+        <button id="tpDetailAction">—</button>
+        <div id="tpDetailNote"></div>
+      </div>
+    </div>
+
+    <div id="tpToast"></div>
   </div>
 </div>
 
