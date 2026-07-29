@@ -75,9 +75,6 @@
       <span class="lbl">Level</span>
       <button class="sm" data-p="lvl" data-d="-1">−</button>
       <button class="sm" data-p="lvl" data-d="1">＋</button>
-      <span class="lbl">ChiefAt</span>
-      <button class="sm" data-p="chiefat" data-d="-1">−</button>
-      <button class="sm" data-p="chiefat" data-d="1">＋</button>
     </div>
     <div class="row">
       <span class="lbl">TapAdd</span>
@@ -341,7 +338,11 @@ const CH = {
      window therefore TIGHTENS with level for free, without escalating
      two difficulty axes at once. */
   absMin: 0.16, absGrad: 0.12,
-  chiefAt: 3,       // clear this level to earn the fire chief
+  /* NO chiefAt dial. The reward is earned by beating EVERY jump that is
+     POSSIBLE, and which levels are possible is already known — a level
+     with no pass band cannot be cleared. lastPossibleLevel() derives it,
+     so retuning any dial moves the target automatically instead of
+     leaving a stale hardcoded number behind. */
   smooth: 0.010,    // snapshot smoothing so the value at the lip is not
                     // a function of where you happen to be in the tap cycle
   autoTap: 0        // >0 = taps/sec, headless testing only
@@ -452,13 +453,17 @@ class HydrantChallengeLab extends Phaser.Scene {
     const tb = document.getElementById("tapBtn");
     if(tb) tb.classList.toggle("dead", this.lockedCharge !== null || this.state === "tipped");
     const hb = document.getElementById("hudBig");
-    if(hb) hb.textContent = "LEVEL " + CH.level + " · " + HYDS.length +
-      " HYDRANT" + (HYDS.length>1?"S":"") + " · BEST " + this.best;
+    if(hb){
+      const fin = this.lastPossibleLevel();
+      hb.textContent = "JUMP " + CH.level + " OF " + fin + " · " + HYDS.length +
+        " HYDRANT" + (HYDS.length>1?"S":"") + " · BEST " + this.best +
+        (this.unlocked ? " · CHIEF EARNED" : "");
+    }
 
     const bandTxt = b.lo === null ? "IMPOSSIBLE"
       : (b.lo*100).toFixed(0)+"%-"+(b.hi*100).toFixed(0)+"%";
     document.getElementById("vals").textContent =
-      `f${RUN.f} · lvl ${CH.level} (${HYDS.length} hyd) · land s${LAND.s.toFixed(2)} · band ${bandTxt} · chiefAt ${CH.chiefAt}
+      `f${RUN.f} · lvl ${CH.level} (${HYDS.length} hyd) · land s${LAND.s.toFixed(2)} · band ${bandTxt} · final L${this.lastPossibleLevel()}
 `+`add ${CH.add.toFixed(2)} · decay ${(CH.decay*1000).toFixed(1)}/s · spd ${CH.sp0.toFixed(3)}-${CH.sp1.toFixed(3)} · pow ${CH.pw0.toFixed(2)}-${CH.pw1.toFixed(2)} · gap ${CH.gap.toFixed(2)}
 `+`charge ${(c*100).toFixed(0)}% · taps ${this.tapCount} · ~${this.tapRate.toFixed(1)}/s · spd ${this.speed.toFixed(3)}
 `+`s ${this.botS.toFixed(2)} · ${air ? "AIR h"+(air.z-2).toFixed(0)+" ("+air.passed+"/"+HYDS.length+")" : "ground"} · tilt ${this.tilt.toFixed(2)} · ${this.state==="tipped"?"TIPPED":"ok"} · ${this.result||"—"} · chief ${this.unlocked?"UNLOCKED":"locked"}`;
@@ -483,13 +488,38 @@ class HydrantChallengeLab extends Phaser.Scene {
     this.tapCount++;
   }
 
-  buildLevel(n){
+  /* highest level that has a pass band at the CURRENT dial settings.
+     Cached because solveBand() is a full forward-sim per candidate. */
+  lastPossibleLevel(){
+    if(this._lpl && this._lplKey === this.dialKey()) return this._lpl;
+    const keepLvl = CH.level, keepLand = LAND.s, keepHyds = HYDS.slice(), keepBand = this.band;
+    let last = 1;
+    for(let n = 1; n <= CH.maxLevel; n++){
+      this.applyLevelGeometry(n);
+      if(this.solveBand().lo !== null) last = n; else break;
+    }
+    this.applyLevelGeometry(keepLvl);
+    CH.level = keepLvl; LAND.s = keepLand; HYDS = keepHyds; this.band = keepBand;
+    this._lpl = last; this._lplKey = this.dialKey();
+    return last;
+  }
+  dialKey(){
+    return [CH.gap,CH.sp0,CH.sp1,CH.pw0,CH.pw1,CH.absMin,CH.absGrad,
+            JUMP.grav,JUMP.clear,KICK.lift].join("|");
+  }
+  /* geometry only — split out of buildLevel() so lastPossibleLevel()
+     can probe candidate levels without touching camera or run state */
+  applyLevelGeometry(n){
     CH.level = Phaser.Math.Clamp(n, 1, CH.maxLevel);
     LAND.s = 6.75 + (CH.level-1)*CH.gap;
     const lip = KICK.s + 0.5;
     const a = lip + 0.55, b = LAND.s - 0.55;
     HYDS = [];
     for(let i=0; i<CH.level; i++) HYDS.push(a + (i+0.5)*(b-a)/CH.level);
+  }
+
+  buildLevel(n){
+    this.applyLevelGeometry(n);
     this.band = this.solveBand();
     /* pull the camera back as the gap grows so the whole arc stays on
        screen — a jump you cannot see is not a jump you can judge */
@@ -1087,7 +1117,9 @@ class HydrantChallengeLab extends Phaser.Scene {
       this.best = Math.max(this.best, CH.level);
       this.advance = true;              // consumed by the auto-loop
     }
-    if(clean && CH.level >= CH.chiefAt && grantSkin(FIRE_CHIEF)){
+    /* THE REWARD: only for beating every jump that CAN be beaten. */
+    const finalLevel = this.lastPossibleLevel();
+    if(clean && CH.level >= finalLevel && grantSkin(FIRE_CHIEF)){
       /* achievement satisfied -> entitlement granted -> auto-equip,
          so the reward is worn immediately instead of buried in a menu */
       ENTITLEMENTS.equippedSkin = FIRE_CHIEF.skinId;
@@ -1356,7 +1388,6 @@ document.querySelectorAll("[data-p]").forEach(btn => {
   btn.addEventListener("click", () => {
     const p = btn.dataset.p, d = +btn.dataset.d, sc = scn();
     if(p === "lvl")     { sc.buildLevel(CH.level + d); sc.resetRun(false); }
-    if(p === "chiefat") CH.chiefAt = Phaser.Math.Clamp(CH.chiefAt + d, 1, CH.maxLevel);
     if(p === "add")     CH.add   = Phaser.Math.Clamp(+(CH.add   + d*0.02 ).toFixed(3), 0.05, 0.90);
     if(p === "decay")   CH.decay = Phaser.Math.Clamp(+(CH.decay + d*0.0002).toFixed(5), 0.0004, 0.0080);
     if(p === "sp0")     CH.sp0   = Phaser.Math.Clamp(+(CH.sp0   + d*0.005).toFixed(3), 0.030, 0.120);
@@ -1368,6 +1399,7 @@ document.querySelectorAll("[data-p]").forEach(btn => {
     if(p === "gap")     { CH.gap = Phaser.Math.Clamp(+(CH.gap   + d*0.05 ).toFixed(2), 0.20, 1.20);
                           sc.buildLevel(CH.level); sc.resetRun(false); }
     /* any dial that moves the physics invalidates the pass band */
+    sc._lpl = null;   // dials can change WHICH levels are possible
     if(["add","decay","sp0","sp1","pw0","pw1","absmin","absgrad"].includes(p)) sc.band = sc.solveBand();
     sc.updateVals();
   });
