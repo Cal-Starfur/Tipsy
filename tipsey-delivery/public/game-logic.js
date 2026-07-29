@@ -10564,6 +10564,540 @@ function showFail(pool){
   document.getElementById("failSub").textContent = s;
   show("failOverlay");
 }
+/* =========================================================================
+   TIPSY PROFILE — Trophy Case + Store + Side Missions (Phase A)
+   Ported from the profile-bench.html lab prototype, approved on-device.
+   Client-only persistence via localStorage — no Redis/server yet (that's
+   Phase B). Works identically on itch/Pages/Devvit; nothing here is
+   IS_DEVVIT_BUILD-gated, unlike Past Routes.
+
+   Wallet is real tip money, not a separate currency: tipsyProfileOnDelivery
+   (called from showWin below) credits it the same dollars that land in
+   the win screen. TODAY credits unconditionally (mirrors db.ts's
+   dbSubmitScore zIncrBy); a REPLAY only credits the IMPROVEMENT over that
+   day's prior best (mirrors dbSubmitReplayScore) — same anti-farming rule
+   the server already enforces for the leaderboard, applied locally here
+   since there's no server yet for standalone builds to check against.
+
+   Side missions (Jump the Fire Hydrant, Cone Slalom Challenge) are listed
+   and searchable but NOT completable yet — completeMission() exists as
+   the future hook, unwired, until their real gameplay triggers exist
+   (Phase 2 jump/ramp system; a built slalom course). Nothing here fakes
+   a completion path in the shipped game.
+   ========================================================================= */
+
+/* ---------- icon helpers: flat SVG, no emoji ---------- */
+function tpRobotSvg(filter, size){
+  size = size || 34;
+  return `<svg viewBox="0 0 40 46" width="${size}" height="${size*46/40}" style="filter:${filter}">
+    <line x1="13" y1="5" x2="13" y2="11" stroke="#2e3138" stroke-width="1.5"/>
+    <circle cx="13" cy="5" r="2" fill="#ff5722"/>
+    <rect x="9" y="11" width="22" height="7" fill="#f7f8fa" stroke="#30343d" stroke-width="1.2"/>
+    <rect x="5" y="18" width="30" height="21" fill="#f7f8fa" stroke="#30343d" stroke-width="1.2"/>
+    <rect x="9" y="22" width="22" height="8" fill="#22242b"/>
+    <circle cx="16" cy="26" r="1.9" fill="#7fe3ff"/>
+    <circle cx="24" cy="26" r="1.9" fill="#7fe3ff"/>
+    <rect x="5" y="32" width="30" height="4" fill="#c2452e"/>
+    <rect x="5" y="34" width="30" height="3" fill="#ffcc33" stroke="#c9a020" stroke-width="0.5"/>
+    <rect x="5" y="36" width="30" height="3" fill="#494e58"/>
+  </svg>`;
+}
+const TP_TIER_COLOR = { bronze:"#b8733a", silver:"#9a9aa6", gold:"#d9a72c" };
+function tpTrophySvg(tier, size){
+  const fill = TP_TIER_COLOR[tier] || TP_TIER_COLOR.bronze;
+  return `<svg viewBox="0 0 24 28" width="${size}" height="${size*28/24}">
+    <path d="M6 3h12v2a6 6 0 0 1-6 6 6 6 0 0 1-6-6V3z" fill="${fill}"/>
+    <path d="M6 4H3a3 3 0 0 0 3 3" fill="none" stroke="${fill}" stroke-width="1.6"/>
+    <path d="M18 4h3a3 3 0 0 1-3 3" fill="none" stroke="${fill}" stroke-width="1.6"/>
+    <rect x="10.4" y="11" width="3.2" height="5" fill="${fill}"/>
+    <rect x="7" y="16" width="10" height="2.4" rx="1" fill="${fill}"/>
+    <rect x="9" y="18.4" width="6" height="2.6" rx="1" fill="${fill}"/>
+  </svg>`;
+}
+function tpSearchSvg(color, size){
+  return `<svg viewBox="0 0 24 24" width="${size}" height="${size}">
+    <circle cx="10" cy="10" r="6.5" fill="none" stroke="${color}" stroke-width="2.2"/>
+    <line x1="15" y1="15" x2="21" y2="21" stroke="${color}" stroke-width="2.4" stroke-linecap="round"/>
+  </svg>`;
+}
+function tpChevronSvg(color, size){
+  return `<svg viewBox="0 0 24 24" width="${size}" height="${size}">
+    <path d="M15 5l-7 7 7 7" fill="none" stroke="${color}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>`;
+}
+function tpCloseSvg(color, size){
+  return `<svg viewBox="0 0 24 24" width="${size}" height="${size}">
+    <line x1="6" y1="6" x2="18" y2="18" stroke="${color}" stroke-width="2.4" stroke-linecap="round"/>
+    <line x1="18" y1="6" x2="6" y2="18" stroke="${color}" stroke-width="2.4" stroke-linecap="round"/>
+  </svg>`;
+}
+function tpCheckSvg(color, size){
+  return `<svg viewBox="0 0 24 24" width="${size}" height="${size}">
+    <path d="M5 13l4.5 4.5L19 7" fill="none" stroke="${color}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>`;
+}
+function tpLockSvg(color, size){
+  return `<svg viewBox="0 0 24 24" width="${size}" height="${size}">
+    <rect x="5" y="11" width="14" height="10" rx="2.4" fill="${color}"/>
+    <path d="M8 11V8a4 4 0 0 1 8 0v3" fill="none" stroke="${color}" stroke-width="2.2"/>
+    <circle cx="12" cy="15.5" r="1.5" fill="#f0ece0"/>
+  </svg>`;
+}
+function tpPinSvg(color, size){
+  return `<svg viewBox="0 0 24 28" width="${size}" height="${size*28/24}">
+    <path d="M12 2C7.3 2 3.5 5.9 3.5 10.6c0 6.7 8.5 14.6 8.5 14.6s8.5-7.9 8.5-14.6C20.5 5.9 16.7 2 12 2z" fill="${color}"/>
+    <circle cx="12" cy="10.8" r="3.6" fill="#fff"/>
+  </svg>`;
+}
+/* flat front-view of the game's actual hydrant prop — colors from the
+   HYD constant above (cap:0xb5342b, capDk:0x8a2822, nut:0x3a3d43). The
+   real prop is a full isometric hull; this is the flat UI-scale version. */
+function tpHydrantSvg(size){
+  return `<svg viewBox="0 0 24 28" width="${size}" height="${size*28/24}">
+    <rect x="10.5" y="1.3" width="3" height="2.4" rx="1" fill="#8a2822"/>
+    <path d="M7 6.2c0-2.8 2.2-5 5-5s5 2.2 5 5v1.8H7V6.2z" fill="#b5342b"/>
+    <rect x="6" y="7.6" width="12" height="2.1" rx="1" fill="#8a2822"/>
+    <path d="M7.4 9.7h9.2l-1 14.1a1.6 1.6 0 0 1-1.6 1.5h-4a1.6 1.6 0 0 1-1.6-1.5l-1-14.1z" fill="#b5342b"/>
+    <circle cx="5.5" cy="14" r="2.3" fill="#3a3d43"/>
+    <circle cx="5.5" cy="14" r="0.9" fill="#24262a"/>
+    <circle cx="18.5" cy="14" r="2.3" fill="#3a3d43"/>
+    <circle cx="18.5" cy="14" r="0.9" fill="#24262a"/>
+    <rect x="6.4" y="23.4" width="11.2" height="2.6" rx="1" fill="#8a2822"/>
+  </svg>`;
+}
+/* flat front-view of the game's actual cone prop — colors from the CONE
+   constant above (body:0xff7a1a, bodyDk:0xd85f0a). No white band: CONE.band
+   is 0 in the live game, so that stripe never actually renders. */
+function tpConeSvg(size){
+  return `<svg viewBox="0 0 24 28" width="${size}" height="${size*28/24}">
+    <rect x="4.5" y="21.6" width="15" height="3.6" rx="1.2" fill="#d85f0a"/>
+    <path d="M8.6 21.8 11.5 4.3a1.05 1.05 0 0 1 2.07 0l2.83 17.5z" fill="#ff7a1a"/>
+    <ellipse cx="12.5" cy="4.6" rx="1.6" ry="1.2" fill="#d85f0a"/>
+  </svg>`;
+}
+function tpMoney(cents){ return "$" + (cents/100).toFixed(2); }
+
+/* ---------- data: single source of truth for Trophy Case + Store + missions ---------- */
+const TP_SKINS = [
+  { skinId:"classic",        displayName:"Classic Tipsey",  unlockType:"free",        priceCents:0,
+    filter:"none", desc:"The original. No charge, no fuss." },
+  { skinId:"sunset-cruiser", displayName:"Sunset Cruiser",  unlockType:"purchase",     priceCents:1500,
+    filter:"hue-rotate(-30deg) saturate(1.3)", desc:"Warm palm-gold plating for evening runs." },
+  { skinId:"neon-courier",   displayName:"Neon Courier",    unlockType:"purchase",     priceCents:2500,
+    filter:"hue-rotate(220deg) saturate(1.6)", desc:"High-visibility violet livery, city-night ready." },
+  { skinId:"chrome-plate",   displayName:"Chrome Plate",    unlockType:"purchase",     priceCents:4500,
+    filter:"grayscale(1) brightness(1.25) contrast(1.1)", desc:"Mirror-polish finish. Premium, and it shows." },
+  { skinId:"fire-chief",     displayName:"Fire Chief",      unlockType:"achievement",  trophyId:"hydrant-hop",
+    filter:"hue-rotate(-15deg) saturate(1.8) brightness(0.95)", desc:"Cleared the hydrant without a scratch. Wears the color to prove it." },
+  { skinId:"cone-dodger",    displayName:"Cone Dodger",     unlockType:"achievement",  trophyId:"slalom-master",
+    filter:"saturate(1.7) contrast(1.15) brightness(1.05)", desc:"Weaves through cones like they're standing still. High-viz paint to match." },
+];
+
+const TP_TROPHIES = [
+  { id:"first-run", name:"First Delivery", desc:"Complete your first route.", tier:"bronze", reward:null,
+    progress:(h)=>({current:Math.min(h.length,1), target:1}) },
+  { id:"regular", name:"Regular", desc:"Play 5 different days.", tier:"bronze", reward:null,
+    progress:(h)=>({current:Math.min(h.length,5), target:5}) },
+  { id:"streak5", name:"5-Day Streak", desc:"Deliver 5 days in a row.", tier:"silver", reward:null,
+    progress:(h)=>({current:Math.min(tpLongestStreak(h),5), target:5}) },
+  { id:"bigtip", name:"Big Tipper", desc:"Earn $50+ in a single day.", tier:"silver", reward:null,
+    progress:(h)=>({current: h.some(d=>d.tip>=50) ? 1 : 0, target:1}) },
+  { id:"speedrun", name:"Speed Demon", desc:"Finish a route in under 90 seconds.", tier:"silver", reward:null,
+    progress:(h)=>({current: h.some(d=>d.ms<90000) ? 1 : 0, target:1}) },
+  { id:"highroller", name:"High Roller", desc:"Earn $500 in lifetime tips.", tier:"gold", reward:null,
+    progress:(h,total)=>({current:Math.min(total,500), target:500, isMoney:true}) },
+  { id:"hydrant-hop", name:"Hydrant Hopper", desc:"Complete the \"Jump the Fire Hydrant\" side mission.", tier:"silver", reward:"fire-chief",
+    progress:(h,total,missions)=>({current: missions && missions.has("jump-hydrant") ? 1 : 0, target:1}) },
+  { id:"slalom-master", name:"Slalom Master", desc:"Complete the \"Cone Slalom Challenge\" side mission.", tier:"silver", reward:"cone-dodger",
+    progress:(h,total,missions)=>({current: missions && missions.has("cone-slalom") ? 1 : 0, target:1}) },
+];
+
+/* Side missions: listed and searchable, but not completable yet — see
+   the file header comment. New Sweater City is a named, locked "coming
+   soon" map entry, not a generic placeholder. */
+const TP_SIDE_MISSIONS = [
+  { id:"jump-hydrant", name:"Jump the Fire Hydrant",
+    desc:"Launch off a ramp and clear a fire hydrant without touching it.",
+    status:"available", trophyId:"hydrant-hop", icon:"hydrant",
+    note:"Needs the Phase 2 jump/ramp system — not shipped yet." },
+  { id:"cone-slalom", name:"Cone Slalom Challenge",
+    desc:"Weave through a full slalom course of cones without knocking one down.",
+    status:"available", trophyId:"slalom-master", icon:"cone",
+    note:"Needs a dedicated slalom course layout — not built yet." },
+  { id:"new-sweater-city", name:"New Sweater City", desc:"", status:"comingSoon" },
+  { id:"challenge-1", name:"???", desc:"Challenge routes are on the way.", status:"comingSoon" },
+];
+
+function tpSkinById(id){ return TP_SKINS.find(s=>s.skinId===id); }
+function tpTrophyById(id){ return TP_TROPHIES.find(t=>t.id===id); }
+function tpTrophyForSkin(skinId){ return TP_TROPHIES.find(t=>t.reward===skinId); }
+function tpMissionIconSvg(m, size, pinColor){
+  if(m.icon === "hydrant") return tpHydrantSvg(size);
+  if(m.icon === "cone") return tpConeSvg(size);
+  return tpPinSvg(pinColor, size);
+}
+function tpLongestStreak(history){
+  if(!history.length) return 0;
+  const days = [...new Set(history.map(h=>h.dateStr))].sort();
+  let best = 1, run = 1;
+  for(let i=1;i<days.length;i++){
+    const prev = new Date(days[i-1]+"T00:00:00Z").getTime();
+    const cur  = new Date(days[i]+"T00:00:00Z").getTime();
+    if(cur - prev === 86400000){ run++; best = Math.max(best, run); } else run = 1;
+  }
+  return best;
+}
+
+/* ---------- state: localStorage-backed (Phase A). Same field shapes
+   Phase B's Redis version will use, so that swap should be additive. ---- */
+const TIPSY_PROFILE_KEY = "tipsy-profile-v1";
+function tpLoadProfile(){
+  let raw = null;
+  try { raw = JSON.parse(localStorage.getItem(TIPSY_PROFILE_KEY) || "null"); } catch(e){}
+  return {
+    walletCents: (raw && raw.walletCents) || 0,
+    owned: new Set((raw && raw.owned) || ["classic"]),
+    equipped: (raw && raw.equipped) || "classic",
+    missionsCompleted: new Set((raw && raw.missionsCompleted) || []),
+    history: (raw && raw.history) || [],       // [{dateStr, tip, ms}]
+    allTimeTotal: (raw && raw.allTimeTotal) || 0,
+  };
+}
+function tpSaveProfile(){
+  try {
+    localStorage.setItem(TIPSY_PROFILE_KEY, JSON.stringify({
+      walletCents: tpProfile.walletCents,
+      owned: [...tpProfile.owned],
+      equipped: tpProfile.equipped,
+      missionsCompleted: [...tpProfile.missionsCompleted],
+      history: tpProfile.history,
+      allTimeTotal: tpProfile.allTimeTotal,
+    }));
+  } catch(e){}
+}
+let tpProfile = tpLoadProfile();
+
+/* Called from showWin() once payout/ms are final. TODAY credits the
+   wallet unconditionally (mirrors dbSubmitScore's zIncrBy — every
+   completed delivery counts, best-or-not). A REPLAY only credits the
+   IMPROVEMENT over that day's prior best (mirrors dbSubmitReplayScore),
+   same anti-farming rule the server enforces for the leaderboard. */
+function tipsyProfileOnDelivery(dateStr, payout, ms, isReplay){
+  const prevIdx = tpProfile.history.findIndex(h => h.dateStr === dateStr);
+  const prev = prevIdx >= 0 ? tpProfile.history[prevIdx] : null;
+  const better = !prev || payout > prev.tip || (payout === prev.tip && ms < prev.ms);
+
+  if(!isReplay){
+    tpProfile.walletCents += Math.round(payout * 100);
+    tpProfile.allTimeTotal += payout;
+    if(better){
+      const entry = {dateStr, tip:payout, ms};
+      if(prevIdx >= 0) tpProfile.history[prevIdx] = entry; else tpProfile.history.push(entry);
+    }
+  } else if(better){
+    const delta = Math.max(0, payout - (prev ? prev.tip : 0));
+    tpProfile.walletCents += Math.round(delta * 100);
+    tpProfile.allTimeTotal += delta;
+    const entry = {dateStr, tip:payout, ms};
+    if(prevIdx >= 0) tpProfile.history[prevIdx] = entry; else tpProfile.history.push(entry);
+  }
+  tpSaveProfile();
+}
+
+/* Future hook for real mission completion (Phase C) — Phase 2 jump
+   physics for jump-hydrant, a built course for cone-slalom. Not called
+   from anywhere yet; nothing in the shipped UI can trigger it. */
+function tpCompleteMission(id){
+  tpProfile.missionsCompleted.add(id);
+  tpSaveProfile();
+  tpRender();
+}
+
+let tpActiveTab = "trophy";
+
+/* ---------- rendering ---------- */
+function tpRender(){
+  document.getElementById("tpWalletVal").textContent = tpMoney(tpProfile.walletCents);
+  tpRenderTrophies();
+  tpRenderStore();
+  tpRenderMissions();
+}
+
+function tpRenderTrophies(){
+  const list = document.getElementById("tpTrList");
+  list.innerHTML = "";
+  TP_TROPHIES.forEach(tr=>{
+    const p = tr.progress(tpProfile.history, tpProfile.allTimeTotal, tpProfile.missionsCompleted);
+    const unlocked = p.current >= p.target;
+    const rewardOwned = tr.reward ? tpProfile.owned.has(tr.reward) : false;
+    const hasClaimableReward = unlocked && tr.reward && !rewardOwned;
+
+    const row = document.createElement("div");
+    row.id = "tpTrophyRow-" + tr.id;
+    row.className = "tpTrRow" + (!unlocked ? " tpLocked" : "") + (hasClaimableReward ? " tpUnclaimed" : "");
+
+    const pct = Math.min(100, Math.round((p.current/p.target)*100));
+    const rewardSkin = tr.reward ? tpSkinById(tr.reward) : null;
+    const rewardHtml = rewardSkin
+      ? `<div class="tpTrReward">${tpRobotSvg(rewardSkin.filter,16)} ${rewardOwned ? "Claimed: " : "Unlocks: "}${rewardSkin.displayName}</div>`
+      : "";
+
+    row.innerHTML = `
+      <div class="tpMedal ${tr.tier}">${unlocked ? tpTrophySvg(tr.tier, 22) : tpLockSvg("#6b6455", 20)}</div>
+      <div class="tpTrInfo">
+        <div class="tpTrName">${tr.name}</div>
+        <div class="tpTrDesc">${tr.desc}</div>
+        ${!unlocked ? `<div class="tpTrProgWrap"><div class="tpTrProgFill" style="width:${pct}%"></div></div>` : ""}
+        ${rewardHtml}
+      </div>
+      <div class="tpTrRight">${
+        hasClaimableReward ? `<div class="tpClaimDot"></div>`
+        : unlocked ? `<div class="tpCheckBadge">${tpCheckSvg("#2f8f4e", 13)}</div>` : ""
+      }</div>
+    `;
+    row.addEventListener("click", ()=>tpOpenDetail("trophy", tr.id));
+    list.appendChild(row);
+  });
+}
+
+function tpRenderStore(){
+  const grid = document.getElementById("tpStoreGrid");
+  grid.innerHTML = "";
+  TP_SKINS.forEach(skin=>{
+    const owned = tpProfile.owned.has(skin.skinId);
+    const equipped = tpProfile.equipped === skin.skinId;
+    const isAchievement = skin.unlockType === "achievement";
+    const locked = isAchievement && !owned;
+
+    const card = document.createElement("div");
+    card.id = "tpSkinCard-" + skin.skinId;
+    card.className = "tpSkinCard" + (equipped ? " tpEquipped" : "") + (locked ? " tpLocked" : "");
+
+    let stateHtml;
+    if (equipped) stateHtml = `<div class="tpEquipBadge">Equipped</div>`;
+    else if (owned) stateHtml = `<div class="tpOwnedBadge">Owned</div>`;
+    else if (isAchievement) stateHtml = `<div class="tpLockRow">${tpLockSvg("#8f8571", 14)} Trophy Case</div>`;
+    else {
+      const afford = tpProfile.walletCents >= skin.priceCents;
+      stateHtml = `<div class="tpPriceTag${afford ? "" : " tpShort"}">${tpMoney(skin.priceCents)}</div>`;
+    }
+
+    card.innerHTML = `
+      <div class="tpSwatch">${tpRobotSvg(skin.filter,34)}</div>
+      <div class="tpSkinName">${skin.displayName}</div>
+      <div class="tpStateRow">${stateHtml}</div>
+    `;
+    card.addEventListener("click", ()=>tpOpenDetail("skin", skin.skinId));
+    grid.appendChild(card);
+  });
+}
+
+function tpRenderMissions(){
+  const list = document.getElementById("tpMissionsList");
+  const q = (document.getElementById("tpMissionsSearch").value || "").trim().toLowerCase();
+  list.innerHTML = "";
+  const filtered = TP_SIDE_MISSIONS.filter(m =>
+    !q || m.name.toLowerCase().includes(q) || (m.desc && m.desc.toLowerCase().includes(q))
+  );
+  if(filtered.length === 0){
+    list.innerHTML = `<div id="tpMissionsEmpty">No missions found for "${q}".</div>`;
+    return;
+  }
+  filtered.forEach(m=>{
+    const completed = tpProfile.missionsCompleted.has(m.id);
+    const comingSoon = m.status === "comingSoon";
+
+    const row = document.createElement("div");
+    row.id = "tpMissionRow-" + m.id;
+    row.className = "tpTrRow" + (comingSoon ? " tpLocked" : "");
+
+    const trophy = m.trophyId ? tpTrophyById(m.trophyId) : null;
+    const rewardHtml = trophy
+      ? `<div class="tpTrReward">${tpTrophySvg(trophy.tier,14)} ${completed ? "Trophy earned: " : "Rewards: "}${trophy.name}</div>`
+      : "";
+
+    row.innerHTML = `
+      <div class="tpMedal ${comingSoon ? "tpComingSoon" : (completed ? "tpCompleted" : "tpMission")}">${
+        comingSoon ? tpLockSvg("#8f8571", 20) : tpMissionIconSvg(m, 22, "#2e3138")
+      }</div>
+      <div class="tpTrInfo">
+        <div class="tpTrName">${m.name}</div>
+        <div class="tpTrDesc">${m.desc || (comingSoon ? "Coming soon" : "")}</div>
+        ${rewardHtml}
+      </div>
+      <div class="tpTrRight">${completed ? `<div class="tpCheckBadge">${tpCheckSvg("#2f8f4e", 13)}</div>` : ""}</div>
+    `;
+    row.addEventListener("click", ()=>tpOpenDetail("mission", m.id));
+    list.appendChild(row);
+  });
+}
+
+/* ---------- tabs ---------- */
+function tpSetTab(tab){
+  tpActiveTab = tab;
+  document.getElementById("tpTabTrophy").className = "tpTabBtn" + (tab==="trophy" ? " tpActive" : "");
+  document.getElementById("tpTabStore").className = "tpTabBtn" + (tab==="store" ? " tpActive" : "");
+  document.getElementById("tpTrList").style.display = tab==="trophy" ? "" : "none";
+  document.getElementById("tpStoreGrid").style.display = tab==="store" ? "grid" : "none";
+  document.getElementById("tpProfTitle").textContent = tab==="trophy" ? "TROPHY CASE" : "STORE";
+}
+
+/* ---------- detail sheet: branches on kind ---------- */
+function tpOpenDetail(kind, id){
+  const btn = document.getElementById("tpDetailAction");
+  const note = document.getElementById("tpDetailNote");
+  const progWrap = document.getElementById("tpDetailProgWrap");
+  btn.onclick = null; note.textContent = ""; progWrap.style.display = "none";
+  document.getElementById("tpDetailProgLabel").textContent = "";
+  document.getElementById("tpDetailDesc").style.display = "";
+
+  if(kind === "trophy"){
+    const tr = tpTrophyById(id);
+    const p = tr.progress(tpProfile.history, tpProfile.allTimeTotal, tpProfile.missionsCompleted);
+    const unlocked = p.current >= p.target;
+    const rewardSkin = tr.reward ? tpSkinById(tr.reward) : null;
+    const rewardOwned = rewardSkin ? tpProfile.owned.has(rewardSkin.skinId) : false;
+
+    document.getElementById("tpDetailSwatch").innerHTML = unlocked ? tpTrophySvg(tr.tier,42) : tpLockSvg("#6b6455", 36);
+    document.getElementById("tpDetailName").textContent = tr.name;
+    document.getElementById("tpDetailDesc").textContent = tr.desc;
+
+    progWrap.style.display = "block";
+    const pct = Math.min(100, Math.round((p.current/p.target)*100));
+    document.getElementById("tpDetailProgFill").style.width = pct + "%";
+    document.getElementById("tpDetailProgLabel").textContent = p.isMoney
+      ? `$${p.current.toFixed(2)} / $${p.target} lifetime tips`
+      : `${p.current} / ${p.target}`;
+
+    if(rewardSkin && unlocked && !rewardOwned){
+      btn.className = "tpClaim"; btn.textContent = `Claim reward — ${rewardSkin.displayName} skin`; btn.disabled=false;
+      btn.onclick = ()=>{
+        tpProfile.owned.add(rewardSkin.skinId);
+        tpSaveProfile();
+        tpCloseDetail();
+        tpRender();
+        tpSetTab("store");
+        tpToast(`${rewardSkin.displayName} added to your Store — from ${tr.name}!`);
+        tpPulseEl("tpSkinCard-" + rewardSkin.skinId);
+      };
+    } else if(rewardSkin && rewardOwned){
+      btn.className = "tpDone"; btn.textContent = `Reward claimed — ${rewardSkin.displayName}`; btn.disabled = true;
+    } else if(unlocked){
+      btn.className = "tpDone"; btn.textContent = "Unlocked"; btn.disabled = true;
+    } else {
+      btn.className = "tpLockedBtn"; btn.textContent = "Locked"; btn.disabled = true;
+    }
+  }
+
+  if(kind === "skin"){
+    const skin = tpSkinById(id);
+    const owned = tpProfile.owned.has(id);
+    const equipped = tpProfile.equipped === id;
+    const isAchievement = skin.unlockType === "achievement";
+
+    document.getElementById("tpDetailSwatch").innerHTML = tpRobotSvg(skin.filter,52);
+    document.getElementById("tpDetailName").textContent = skin.displayName;
+    document.getElementById("tpDetailDesc").textContent = skin.desc;
+
+    if(equipped){
+      btn.className = "tpEquipped"; btn.textContent = "Equipped"; btn.disabled = true;
+    } else if(owned){
+      btn.className = "tpEquip"; btn.textContent = "Equip"; btn.disabled = false;
+      btn.onclick = ()=>{ tpProfile.equipped = id; tpSaveProfile(); tpRenderStore(); tpCloseDetail(); tpToast(`${skin.displayName} equipped`); };
+    } else if(isAchievement){
+      const tr = tpTrophyForSkin(id);
+      btn.className = "tpLink"; btn.textContent = `View trophy — ${tr.name}`; btn.disabled = false;
+      note.textContent = "This skin unlocks from the Trophy Case, not for sale.";
+      btn.onclick = ()=>{ tpCloseDetail(); tpSetTab("trophy"); tpOpenDetail("trophy", tr.id); tpPulseEl("tpTrophyRow-"+tr.id); };
+    } else {
+      const afford = tpProfile.walletCents >= skin.priceCents;
+      btn.className = "tpBuy"; btn.textContent = `Buy — ${tpMoney(skin.priceCents)}`; btn.disabled = !afford;
+      if(!afford){ btn.className = "tpLockedBtn"; note.textContent = `Need ${tpMoney(skin.priceCents - tpProfile.walletCents)} more`; }
+      btn.onclick = ()=>{
+        if(tpProfile.walletCents < skin.priceCents) return;
+        tpProfile.walletCents -= skin.priceCents;
+        tpProfile.owned.add(id);
+        tpProfile.equipped = id;
+        tpSaveProfile(); tpRender(); tpCloseDetail();
+        tpToast(`${skin.displayName} purchased & equipped`);
+      };
+    }
+  }
+
+  if(kind === "mission"){
+    const m = TP_SIDE_MISSIONS.find(x=>x.id===id);
+    const completed = tpProfile.missionsCompleted.has(m.id);
+    const comingSoon = m.status === "comingSoon";
+
+    document.getElementById("tpDetailSwatch").innerHTML = comingSoon ? tpLockSvg("#8f8571", 36) : tpMissionIconSvg(m, 44, "#2e3138");
+    document.getElementById("tpDetailName").textContent = m.name;
+    document.getElementById("tpDetailDesc").textContent = m.desc;
+    document.getElementById("tpDetailDesc").style.display = m.desc ? "" : "none";
+
+    if(comingSoon){
+      btn.className = "tpLockedBtn"; btn.textContent = "Coming soon"; btn.disabled = true;
+    } else if(completed){
+      btn.className = "tpDone"; btn.textContent = "Completed"; btn.disabled = true;
+      if(m.trophyId) note.textContent = `Trophy earned: ${tpTrophyById(m.trophyId).name}`;
+    } else {
+      btn.className = "tpBuy"; btn.textContent = "Play mission"; btn.disabled = false;
+      btn.onclick = ()=>{ tpCloseDetail(); tpToast("Coming soon — gameplay not built yet."); };
+      if(m.note) note.textContent = m.note;
+    }
+  }
+
+  document.getElementById("tpDetailScrim").classList.add("open");
+}
+function tpCloseDetail(){ document.getElementById("tpDetailScrim").classList.remove("open"); }
+
+function tpPulseEl(elId){
+  const el = document.getElementById(elId);
+  if(!el) return;
+  el.scrollIntoView({behavior:"smooth", block:"center"});
+  el.classList.add("tpPulse");
+  setTimeout(()=>el.classList.remove("tpPulse"), 1400);
+}
+
+function tpToast(msg){
+  const t = document.getElementById("tpToast");
+  t.textContent = msg;
+  t.classList.add("show");
+  clearTimeout(tpToast._t);
+  tpToast._t = setTimeout(()=>t.classList.remove("show"), 2200);
+}
+
+/* ---------- navigation ---------- */
+function tpOpenProfile(){
+  tpRender();
+  tpSetTab("trophy");
+  document.getElementById("tpProfilePanel").classList.add("open");
+}
+function tpCloseProfile(){ document.getElementById("tpProfilePanel").classList.remove("open"); }
+function tpOpenMissions(){
+  tpRender();
+  document.getElementById("tpMissionsPanel").classList.add("open");
+}
+function tpCloseMissions(){ document.getElementById("tpMissionsPanel").classList.remove("open"); }
+
+function tpInitStaticIcons(){
+  document.getElementById("searchIcon").innerHTML = tpSearchSvg("#2e3138", 18);
+  document.getElementById("tpProfBack").innerHTML = tpChevronSvg("#e8eaef", 16);
+  document.getElementById("tpMissionsBack").innerHTML = tpChevronSvg("#e8eaef", 16);
+  document.getElementById("tpDetailClose").innerHTML = tpCloseSvg("#fff", 13);
+}
+
+document.getElementById("avatarIcon").addEventListener("click", tpOpenProfile);
+document.getElementById("tpProfBack").addEventListener("click", tpCloseProfile);
+document.getElementById("tpDetailScrim").addEventListener("click", e=>{ if(e.target.id==="tpDetailScrim") tpCloseDetail(); });
+document.getElementById("tpDetailClose").addEventListener("click", tpCloseDetail);
+document.getElementById("searchIcon").addEventListener("click", tpOpenMissions);
+document.getElementById("tpMissionsBack").addEventListener("click", tpCloseMissions);
+document.getElementById("tpMissionsSearch").addEventListener("input", tpRenderMissions);
+document.getElementById("tpTabTrophy").addEventListener("click", ()=>tpSetTab("trophy"));
+document.getElementById("tpTabStore").addEventListener("click", ()=>tpSetTab("store"));
+tpInitStaticIcons();
+tpRender();
+
 function showWin(s){
   document.getElementById("winSub").textContent =
     WIN_LINES[Math.floor(Math.random()*WIN_LINES.length)];
@@ -10678,6 +11212,7 @@ function showWin(s){
     `<div class="sheetRow" style="color:#8f95a1;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;text-align:center">${order.text} · $${order.value.toFixed(2)}</div>` +
     `<div class="sheetRow">time <b>${secs.toFixed(1)}s</b>&nbsp;·&nbsp;cargo <b>${cargo}%</b>&nbsp;·&nbsp;tip <b>${pctShow}% · $${payout.toFixed(2)}</b>${cuts.length ? `&nbsp;<span style="color:#8f95a1">(${cuts.join(", ")})</span>` : ""}</div>` +
     bestRow + allTimeRow;
+  tipsyProfileOnDelivery(s.route.dateStr, payout, s.runT, isReplay);
   /* Again anchors to the MEASURED panel, not a CSS constant: the
      receipt's height varies (order length, deduction notes, the
      daily-best row), and the old fixed bottom was budgeted for the
