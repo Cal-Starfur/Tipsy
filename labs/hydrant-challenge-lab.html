@@ -1145,7 +1145,11 @@ class HydrantChallengeLab extends Phaser.Scene {
     const alongPrev = this.prevAlong;
     this.botS += (this.speed / T2) * dt;
     const along = this.botS*T2;
-    if(!this.air) this.wheelPhase += this.speed * dt * 0.28;
+    /* wheels FREEWHEEL in the air — nothing is driving or braking them,
+       so they keep turning at the speed they left the lip at. `speed`
+       is already frozen for the whole flight (no air control), so this
+       needs no separate air term. */
+    this.wheelPhase += this.speed * dt * 0.28;
 
     /* ---- LAUNCH: crossing the kicker's raised lip, at speed ---- */
     const lipA = KICK.s*T2 + KICK.dirSign*TILE;
