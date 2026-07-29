@@ -1,0 +1,1413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>TIPSY — Hydrant Challenge Lab</title>
+<style>
+  html,body{margin:0;padding:0;background:#14161b;height:100%;overflow:hidden;touch-action:manipulation;
+    font-family:-apple-system,'Helvetica Neue',Arial,sans-serif;-webkit-user-select:none;user-select:none;color:#e8eaef;}
+  #wrap{display:flex;flex-direction:column;height:100%;position:relative;}
+  #game{flex:1;min-height:0;}
+  #panel{padding:8px 10px calc(12px + env(safe-area-inset-bottom));background:#1c1f26;border-top:1px solid #2b2f38;}
+  .row{display:flex;gap:6px;margin-bottom:6px;align-items:center;}
+  .row:last-child{margin-bottom:0;}
+  .lbl{font-size:10px;letter-spacing:1.2px;color:#8f95a1;width:44px;text-transform:uppercase;flex:0 0 44px;}
+  button{flex:1;background:#262a33;color:#e8eaef;border:1px solid #363b46;border-radius:9px;
+    padding:9px 3px;font-size:12px;font-weight:600;}
+  button.on{background:#ff7a1a;border-color:#ff7a1a;color:#fff;}
+  button:active{transform:scale(0.96);}
+  button.sm{flex:0 0 38px;}
+  #hdr{padding:9px 14px 2px;font-size:11px;letter-spacing:1.8px;color:#8f95a1;text-transform:uppercase;}
+  #hdr b{color:#ff9c4d;}
+  #vals{padding:0 14px 6px;font-size:11px;color:#8f95a1;font-variant-numeric:tabular-nums;white-space:pre-line;}
+  #unlock{position:absolute;left:0;right:0;top:24%;text-align:center;pointer-events:none;
+    font-size:19px;font-weight:800;letter-spacing:2px;color:#ffd15c;text-shadow:0 2px 0 #7a3a00,0 0 18px rgba(255,140,0,.7);
+    opacity:0;transform:scale(.8);transition:opacity .25s,transform .25s;}
+  #unlock.show{opacity:1;transform:scale(1);}
+  /* ---- charge meter: the band is what makes tap-rate readable ---- */
+  #meterWrap{padding:6px 12px 0;background:#1c1f26;}
+  #meter{position:relative;height:20px;border-radius:10px;background:#0f1116;
+    border:1px solid #363b46;overflow:hidden;}
+  #band{position:absolute;top:0;bottom:0;background:rgba(96,222,120,.28);
+    border-left:2px solid #4fd167;border-right:2px solid #4fd167;}
+  #fill{position:absolute;left:0;top:0;bottom:0;width:0;background:#ff7a1a;opacity:.9;}
+  #fill.in{background:#4fd167;}
+  #needle{position:absolute;top:-2px;bottom:-2px;width:3px;background:#fff;box-shadow:0 0 6px #fff;}
+  #meterLbl{font-size:9px;letter-spacing:1.4px;color:#8f95a1;text-transform:uppercase;
+    padding:4px 0 0;text-align:center;}
+  #meterLbl.locked{color:#4fd167;}
+  #tapWrap{padding:6px 12px 0;background:#1c1f26;}
+  #tapBtn{width:100%;padding:20px 0;font-size:17px;font-weight:800;letter-spacing:3px;
+    background:#ff7a1a;border:none;border-color:#ff7a1a;color:#fff;border-radius:14px;
+    box-shadow:0 4px 0 #a84a08;}
+  #tapBtn:active{transform:translateY(3px);box-shadow:0 1px 0 #a84a08;}
+  #tapBtn.dead{background:#3a3f4a;box-shadow:0 4px 0 #23262d;color:#6d7380;}
+  #hudBig{position:absolute;left:0;right:0;top:8px;text-align:center;pointer-events:none;
+    font-size:13px;font-weight:700;letter-spacing:2px;color:#ffd15c;
+    text-shadow:0 1px 3px rgba(0,0,0,.8);}
+  #unlock small{display:block;font-size:11px;letter-spacing:3px;color:#ffb04d;font-weight:600;margin-top:4px;}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="hdr"><b>TIPSY</b> · hydrant challenge · tap to charge · clear them all, land the catch ramp</div>
+  <div id="vals">…</div>
+  <div id="game"></div>
+  <div id="hudBig"></div>
+  <div id="unlock">🚒 FIRE CHIEF UNLOCKED<small>STORE ENTITLEMENT GRANTED</small></div>
+  <div id="meterWrap">
+    <div id="meter">
+      <div id="band"></div>
+      <div id="fill"></div>
+      <div id="needle"></div>
+    </div>
+    <div id="meterLbl">CHARGE — hold the fill inside the band</div>
+  </div>
+  <div id="tapWrap"><button id="tapBtn">TAP  TAP  TAP</button></div>
+  <div id="panel">
+    <div class="row">
+      <button class="on" id="driveBtn">RUN</button>
+      <button id="resetBtn">RETRY</button>
+      <button id="chiefBtn">CHIEF SKIN</button>
+    </div>
+    <div class="row">
+      <span class="lbl">Level</span>
+      <button class="sm" data-p="lvl" data-d="-1">−</button>
+      <button class="sm" data-p="lvl" data-d="1">＋</button>
+      <span class="lbl">ChiefAt</span>
+      <button class="sm" data-p="chiefat" data-d="-1">−</button>
+      <button class="sm" data-p="chiefat" data-d="1">＋</button>
+    </div>
+    <div class="row">
+      <span class="lbl">TapAdd</span>
+      <button class="sm" data-p="add" data-d="-1">−</button>
+      <button class="sm" data-p="add" data-d="1">＋</button>
+      <span class="lbl">Decay</span>
+      <button class="sm" data-p="decay" data-d="-1">−</button>
+      <button class="sm" data-p="decay" data-d="1">＋</button>
+    </div>
+    <div class="row">
+      <span class="lbl">Spd0</span>
+      <button class="sm" data-p="sp0" data-d="-1">−</button>
+      <button class="sm" data-p="sp0" data-d="1">＋</button>
+      <span class="lbl">Spd1</span>
+      <button class="sm" data-p="sp1" data-d="-1">−</button>
+      <button class="sm" data-p="sp1" data-d="1">＋</button>
+    </div>
+    <div class="row">
+      <span class="lbl">Pow0</span>
+      <button class="sm" data-p="pw0" data-d="-1">−</button>
+      <button class="sm" data-p="pw0" data-d="1">＋</button>
+      <span class="lbl">Pow1</span>
+      <button class="sm" data-p="pw1" data-d="-1">−</button>
+      <button class="sm" data-p="pw1" data-d="1">＋</button>
+    </div>
+    <div class="row">
+      <span class="lbl">AbsMin</span>
+      <button class="sm" data-p="absmin" data-d="-1">−</button>
+      <button class="sm" data-p="absmin" data-d="1">＋</button>
+      <span class="lbl">AbsGrd</span>
+      <button class="sm" data-p="absgrad" data-d="-1">−</button>
+      <button class="sm" data-p="absgrad" data-d="1">＋</button>
+    </div>
+    <div class="row">
+      <span class="lbl">Gap</span>
+      <button class="sm" data-p="gap" data-d="-1">−</button>
+      <button class="sm" data-p="gap" data-d="1">＋</button>
+      <span class="lbl">Auto</span>
+      <button id="autoBtn">AUTO-TAP OFF</button>
+    </div>
+    <div class="row">
+      <span class="lbl">View</span>
+      <button class="sm" id="faceBtn">f0</button>
+      <button class="sm" id="pitchBtn">P+</button>
+      <button id="shadowBtn" class="on">SHADOW</button>
+      <button class="sm" id="zoomOut">−</button>
+      <button class="sm" id="zoomIn">＋</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/phaser@3.85.2/dist/phaser.min.js"></script>
+<script>
+"use strict";
+
+/* ============================================================
+   TIPSY — Hydrant Jump Lab v1
+   First bench for the launch/arc/landing system from
+   docs/ramp-jump-spec.md, built as the FIRE CHIEF unlock stunt:
+
+     KICKER SLAB  — one sidewalk tile heaved along the TRAVEL axis
+                    (flush at the near edge, lifted KICK.lift at the
+                    far edge). Same art vocabulary as ramp-lab's
+                    cross-slope heave, rotated 90° so it kicks
+                    instead of tipping. Clears the lip at speed and
+                    the wheels leave the ground.
+     ARC          — parabolic, tuned for feel not physics:
+                    vz0 = speed * Pow, then vz -= Grav*dt.
+                    Horizontal speed is UNCHANGED in air (no air
+                    control, per spec §1).
+     HYDRANT      — the game's approved prop.hydrant, one tile past
+                    the kicker, sitting inside the arc. Clearance is
+                    checked exactly as the robot crosses its along
+                    position: arc height must beat HYD.height + Clear.
+     LANDING SLAB — a second heaved tile, mirrored (lifted at the
+                    NEAR edge, flush at the far edge) so it's a
+                    down-ramp. Landing on it absorbs most of the slam;
+                    landing on flat sidewalk does not.
+     UNLOCK       — hydrant cleared + clean landing on the slab
+                    grants the fire chief entitlement. CHIEF SKIN
+                    previews the reward palette.
+
+   Robot, tiles, hydrant, T()/R()/W()/P()/depth(), drawBox/drawWheel/
+   drawLid/lidNear and the |tilt| >= 1 tip threshold are all verbatim
+   from game/index.html via hydrant-hit-lab / ramp-lab.
+
+   HEADING GATE (the pass/fail item in spec §2): everything is built
+   in (along, cross) run space and mapped through AC()/Wp(), so the
+   f0/f1/f2/f3 button rotates the whole scene — run direction, tiles,
+   both slabs, the hydrant and the robot's facing together. The
+   airborne depth bias MUST read correctly at all four before this
+   gets ported into game/index.html.
+   ============================================================ */
+
+/* ---------- ported verbatim from game/index.html ---------- */
+const SIM_STEP = 16.7;   // fixed sim slice; solveBand() MUST use the same
+const TILE = 46;
+const T2 = TILE*2;
+const DIRV = [{x:1,y:0},{x:0,y:1},{x:-1,y:0},{x:0,y:-1}];
+const PAL = { sky:0x9fd4e8, pave:0xc9c3b4, paveB:0xbfb9aa, paveEdge:0xa8a294, road:0x4a4d55, roadLine:0xd8d2c2 };
+const SKIN = {
+  bodyTop:0xf7f8fa, bodyRight:0xe3e6ea, bodyLeft:0xc9cdd4, outline:0x30343d,
+  stripe:0xc2452e, stripeDk:0xa03824,
+  wheel:0x24262c, wheelDark:0x1a1c21, wheelHubFace:0x3d424c, wheelHub:0x8a919c,
+  visor:0x22242b, eye:0x7fe3ff, eyeAlert:0xffb04d,
+  lidInner:0xb2b7bf, cavityWall:0x9ba1a9, cavityFloor:0x7b818a,
+  belly:0x494e58, flagPole:0x2e3138, flag:0xff5722, shadow:0x000000
+};
+/* reward palette preview — the thing the stunt actually unlocks.
+   Storefront-agnostic per docs/skins-spec.md: this is only the
+   render side, no entitlement plumbing in the bench. */
+/* ============================================================
+   FIRE CHIEF — the reward. Approved on device as-is; this palette
+   is FINAL, do not re-tune it on port.
+
+   Per docs/skins-spec.md this rides the FREE / achievement track,
+   not a purchase: earned by clearing the hydrant with a clean
+   landing. It produces the same entitlement shape a redeemed code
+   would, so there stays exactly one unlock path regardless of
+   storefront ("one unlock path, multiple ways to reach it").
+   ============================================================ */
+const FIRE_CHIEF = {
+  skinId: "fire-chief",
+  displayName: "Fire Chief",
+  unlockType: "achievement",
+  achievement: "hydrant-jump-clean"
+};
+
+/* THE ENTITLEMENT STUB — the ONLY place ownership is written, same
+   pattern as groundZAt(). In the lab it is in-memory. On port into
+   game/index.html this becomes the persisted ownedSkins /
+   equippedSkin list from the spec; no jump code changes. */
+const ENTITLEMENTS = { ownedSkins: [], equippedSkin: null };
+function grantSkin(skin){
+  if(ENTITLEMENTS.ownedSkins.includes(skin.skinId)) return false;
+  ENTITLEMENTS.ownedSkins.push(skin.skinId);
+  return true;                      // true = newly granted, fire the toast
+}
+function ownsSkin(skin){ return ENTITLEMENTS.ownedSkins.includes(skin.skinId); }
+
+const CHIEF = {
+  bodyTop:0xe04b32, bodyRight:0xc23d27, bodyLeft:0x9c301e, outline:0x2a1410,
+  stripe:0xf2c14e, stripeDk:0xc79a2f,
+  lidInner:0xf3f4f6, belly:0x3a1c16,
+  wheelHubFace:0x5a2a1e, wheelHub:0xf2c14e
+};
+const BODY = { hx:26, hy:20, z0:14, z1:54 };
+const LID  = { hx:22, hy:16, z0:54, z1:61 };
+const STRIPE = { z0:20, z1:27 };
+const WHEEL = { r:10, z:10, xs:[-16, 0, 16], side:22 };
+
+/* approved in hydrant lab: height 20 · base 8 · dome 6.5 · nozzle 2.6 */
+const HYD = {
+  height: 20, baseR: 8, domeR: 6.5, nozR: 2.6,
+  cap: 0xb5342b, capDk: 0x8a2822,
+  nut: 0x3a3d43,
+  water: 0xbfe6f2, waterDk: 0x8fc8dc,
+  shadow: 0x000000
+};
+
+/* ---------- the dials (ported into the game once approved) ---------- */
+const RUN = {
+  f: 0,             // run/heading index — the four-heading gate
+  pitchSign: 1      // SIGN: +1 means positive pitch = nose UP (derived
+                    // from T(): z' = x*sin(pitch), front is +x). Flip
+                    // if the nose reads inverted on device.
+};
+const JUMP = {
+  /* speed and pow now come from the CHARGE (see CH below) — they are
+     no longer fixed. grav, clear, bias, slam stay world constants. */
+  minSpeed: 0.045,  // below this the lip is a bump, not a launch (spec §1)
+  grav: 0.000085,   // world units/ms² — TUNED ON DEVICE (hang ~2200ms)
+  clear: 16,        // arc must beat HYD.height + clear — TUNED ON DEVICE
+  /* airborne depth bias (spec §2 option 1) — TUNED ON DEVICE, and the
+     tune was load-bearing, not cosmetic. Measured min depth margin over
+     every overlapping airborne frame at level 5:
+        bias  f0   f1   f2   f3
+        0.0  -32  -32  -32  -32     <- the artifact this exists to fix
+        1.0   15   15   -2   34     <- the old default STILL broke at f2
+        1.5   38   38   14   67
+        2.0   62   62   29   29     <- shipping value, real headroom
+     f2 is the binding heading: it fails last and by the least. Check f2
+     FIRST on any future change to the depth sort. */
+  bias: 2.0,
+  slam: 22,         // landing tilt kick per unit of descent velocity
+  shadow: true
+};
+/* both slabs share one wedge: lift + dirSign (+1 kicks, -1 lands) */
+const KICK = { s: 4, row: 0, lift: 12, dirSign:  1, root: true,  cracks: 3 };
+/* LAND.s is now DERIVED from the level — see buildLevel(). The tuned
+   6.75 from the jump lab is level 1, so level 1 is exactly the jump
+   that was already approved on device. */
+const LAND = { s: 6.75, row: 0, lift: 10, dirSign: -1, root: false, cracks: 2 };
+
+/* ============================================================
+   THE CHALLENGE — tap-to-charge, escalating gap
+   ============================================================
+   INPUT: an on-screen button. Each tap adds `add` to the charge; the
+   charge continuously bleeds at `decay` (proportional, so it settles
+   at an equilibrium). That makes the meter track tap RATE, not tap
+   COUNT — mashing for longer does not help, you have to SUSTAIN it.
+   Equilibrium:  charge ~= add * tapsPerSec / (decay * 1000)
+
+   OUTPUT: charge maps to speed UP and pow DOWN. Speed alone would
+   give the distance (reach goes as speed^2, so 2x speed = 4x reach)
+   but the arc would balloon: peak 51 -> 205 and hang 2.2s -> 4.4s at
+   4x. Dropping pow as speed rises FLATTENS the arc instead, holding
+   peak in a 47-90 band and hang under 2.9s across the whole range.
+   Mashing harder reads as a flatter, more committed launch — which is
+   what it should look like — not a moon shot.
+
+   `lift` and `grav` are deliberately NOT driven by charge. They are
+   world geometry; a player tapping a button must not change how tall
+   the concrete is.
+
+   THE FEEDBACK LOOP (this one is free, and it is the good part):
+   charge drives speed, and speed is also how fast you reach the lip.
+   So building charge shortens the very runway you need to build it
+   in — measured 4.3s of runway at 2 taps/sec down to 2.5s at 10.
+   Present enough to create tension, not enough to be self-defeating.
+
+   ESCALATION: level N = N hydrants and a catch ramp 0.55 tile-pairs
+   further out. Solved numerically (see the table below): levels 1-2
+   are landing-bound (over/undershoot is the risk), 3-6 become
+   clearance-bound because the arc is descending by the LAST hydrant,
+   L6 leaves a 9% band, and L7 is genuinely impossible. That wall is
+   the point — "adding more until they cant make it."
+
+     lvl hyd  landS   pass band   binding
+       1   1   6.75   12%- 36%    landing window
+       2   2   7.30   26%- 50%    landing window
+       3   3   7.85   39%- 64%    last-hydrant clearance
+       4   4   8.40   53%- 79%    last-hydrant clearance
+       5   5   8.95   69%-100%    last-hydrant clearance
+       6   6   9.50   91%-100%    last-hydrant clearance
+       7   7  10.05   IMPOSSIBLE  the wall
+   ============================================================ */
+const CH = {
+  level: 1,
+  maxLevel: 9,      // let it run past the wall on purpose
+  gap: 0.55,        // extra tile-pairs of catch-ramp distance per level
+  /* CALIBRATED against the level bands. Discrete steady state for a
+     sustained rate f is  add / (1 - exp(-decay*1000/f)) — NOT the
+     continuous  add*f/(decay*1000)  approximation, which is what got
+     this wrong first time round and made level 1 unwinnable (2 taps/s
+     produced 51% charge against a 12-36% band).
+     These values put 8 taps/sec at 100% and spread the ladder:
+       1/s 18% · 2/s 29% · 3/s 41% · 4/s 53% · 5/s 64% · 6/s 76% · 8/s 100%
+     which lines up on the level bands as:
+       L1 1.0-2.5/s · L2 2.0-3.8/s · L3 2.9-5.0/s
+       L4 4.0-6.2/s · L5 5.4-8.0/s · L6 7.2-8.0/s  */
+  add: 0.100,       // charge per tap
+  decay: 0.00084,   // proportional bleed per ms  (time constant ~1.2s)
+  sp0: 0.060, sp1: 0.165,   // speed at charge 0 / 1
+  pw0: 1.30,  pw1: 0.68,    // pow  at charge 0 / 1  (DOWN as charge rises)
+  /* landing absorption on the catch ramp: absMin at dead centre,
+     absMin+absGrad at the very edge. Deliberately shallow — at LOW
+     charge that makes the whole slab a clean landing (level 1 is
+     forgiving), while at HIGH charge the bigger descent velocity means
+     only the centre stays under the clean threshold. The landing
+     window therefore TIGHTENS with level for free, without escalating
+     two difficulty axes at once. */
+  absMin: 0.16, absGrad: 0.12,
+  chiefAt: 3,       // clear this level to earn the fire chief
+  smooth: 0.010,    // snapshot smoothing so the value at the lip is not
+                    // a function of where you happen to be in the tap cycle
+  autoTap: 0        // >0 = taps/sec, headless testing only
+};
+/* live hydrant list, rebuilt by buildLevel() */
+let HYDS = [];
+const HYDJ = { row: 0 };
+const SLABC = { top: 0xc4bdae, topDk: 0x9d9687, gap: 0x4a4238,
+                rootA: 0x8a6a48, rootB: 0x6f5439 };
+
+function mulberry32(a){ return function(){ a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+
+function convexHull(pts){
+  const P2 = pts.slice().sort((a,b) => a.x - b.x || a.y - b.y);
+  const cross = (o, a, b) => (a.x-o.x)*(b.y-o.y) - (a.y-o.y)*(b.x-o.x);
+  const lo = [], hi = [];
+  for(const p of P2){
+    while(lo.length >= 2 && cross(lo[lo.length-2], lo[lo.length-1], p) <= 0) lo.pop();
+    lo.push(p);
+  }
+  for(let i = P2.length-1; i >= 0; i--){
+    const p = P2[i];
+    while(hi.length >= 2 && cross(hi[hi.length-2], hi[hi.length-1], p) <= 0) hi.pop();
+    hi.push(p);
+  }
+  lo.pop(); hi.pop();
+  return lo.concat(hi);
+}
+
+class HydrantChallengeLab extends Phaser.Scene {
+  constructor(){ super("chlab"); }
+
+  create(){
+    this.K = 2.0;
+    this.seed = 11;
+    this.chief = false;
+    this.sk = SKIN;
+    this.unlocked = false;
+    this.best = 0;
+    this.buildLevel(CH.level);
+    this.resetRun(true);
+    this.g = this.add.graphics();
+    this.scale.on("resize", () => this.layout());
+    this.layout();
+    this.updateVals();
+  }
+  layout(){
+    this.cx = this.scale.gameSize.width/2;
+    this.cy = this.scale.gameSize.height*0.46;
+  }
+
+  /* one attempt, back to the top of the run. `unlocked` survives. */
+  resetRun(hard){
+    this.botS = 0;
+    this.botRow = 0;
+    this.pitch = 0; this.roll = 0; this.yaw = 0;
+    this.tilt = 0; this.lidAng = 0; this.tipDir = 1;
+    this.state = "idle";
+    this.wheelPhase = 0;
+    this.camX = 0; this.camY = 0; this.camZ = 0;
+    this.air = null;                 // null = grounded
+    this.botZ = 2;
+    this.result = "";
+    this.resultT = 0;
+    this.tipT = 0; this.tipResetT = 0;
+    this.blockedT = 0;
+    this.bonked = false;
+    this.prevAlong = -1e9;
+    this.charge = 0;
+    this.chargeSm = 0;
+    this.lockedCharge = null;   // snapshot taken at the lip
+    this.tapCount = 0;
+    this.lastTap = 0;
+    this.tapRate = 0;
+    this.nextAuto = 0;
+    this.simT = 0;
+    this.acc = 0;
+    this.speed = CH.sp0;
+    if(hard) this.driving = true;
+  }
+
+  updateVals(){
+    const air = this.air;
+    const c = this.lockedCharge !== null ? this.lockedCharge : this.chargeSm;
+    const b = this.band || {lo:null, hi:null};
+
+    /* ---- the meter: fill = live charge, band = the pass window ----
+       This is what makes tap-rate playable. The player cannot feel
+       "4 taps per second"; they can absolutely hold a bar in a box. */
+    const mf = document.getElementById("fill");
+    const mb = document.getElementById("band");
+    const mn = document.getElementById("needle");
+    const ml = document.getElementById("meterLbl");
+    if(mf){
+      mf.style.width = (c*100).toFixed(1) + "%";
+      const inBand = b.lo !== null && c >= b.lo && c <= b.hi;
+      mf.classList.toggle("in", inBand);
+      if(b.lo === null){ mb.style.left = "0%"; mb.style.width = "0%"; }
+      else { mb.style.left = (b.lo*100).toFixed(1) + "%";
+             mb.style.width = ((b.hi-b.lo)*100).toFixed(1) + "%"; }
+      mn.style.left = (c*100).toFixed(1) + "%";
+      ml.textContent = this.lockedCharge !== null
+        ? "LOCKED AT " + (c*100).toFixed(0) + "% — NO AIR CONTROL"
+        : b.lo === null ? "NO PASS BAND — THIS LEVEL IS THE WALL"
+        : (inBand ? "IN THE BAND — HOLD IT" : "CHARGE — HOLD THE FILL INSIDE THE BAND");
+      ml.classList.toggle("locked", this.lockedCharge !== null || (b.lo!==null && inBand));
+    }
+    const tb = document.getElementById("tapBtn");
+    if(tb) tb.classList.toggle("dead", this.lockedCharge !== null || this.state === "tipped");
+    const hb = document.getElementById("hudBig");
+    if(hb) hb.textContent = "LEVEL " + CH.level + " · " + HYDS.length +
+      " HYDRANT" + (HYDS.length>1?"S":"") + " · BEST " + this.best;
+
+    const bandTxt = b.lo === null ? "IMPOSSIBLE"
+      : (b.lo*100).toFixed(0)+"%-"+(b.hi*100).toFixed(0)+"%";
+    document.getElementById("vals").textContent =
+      `f${RUN.f} · lvl ${CH.level} (${HYDS.length} hyd) · land s${LAND.s.toFixed(2)} · band ${bandTxt} · chiefAt ${CH.chiefAt}
+`+`add ${CH.add.toFixed(2)} · decay ${(CH.decay*1000).toFixed(1)}/s · spd ${CH.sp0.toFixed(3)}-${CH.sp1.toFixed(3)} · pow ${CH.pw0.toFixed(2)}-${CH.pw1.toFixed(2)} · gap ${CH.gap.toFixed(2)}
+`+`charge ${(c*100).toFixed(0)}% · taps ${this.tapCount} · ~${this.tapRate.toFixed(1)}/s · spd ${this.speed.toFixed(3)}
+`+`s ${this.botS.toFixed(2)} · ${air ? "AIR h"+(air.z-2).toFixed(0)+" ("+air.passed+"/"+HYDS.length+")" : "ground"} · tilt ${this.tilt.toFixed(2)} · ${this.state==="tipped"?"TIPPED":"ok"} · ${this.result||"—"} · chief ${this.unlocked?"UNLOCKED":"locked"}`;
+  }
+
+  /* ---------- run space: (along, cross) -> world ----------
+     along = down-lane, cross = lateral (+ = road side).
+     Everything placed through here rotates with RUN.f, which is what
+     makes the four-heading gate a single button. */
+  /* ---------- THE LEVEL MODEL ----------
+     N hydrants spread evenly between the kicker lip and the catch
+     ramp, catch ramp pushed `gap` further out per level. Level 1
+     reproduces the exact jump approved on device (LAND.s 6.75). */
+  /* one press of the on-screen button */
+  tap(now){
+    if(!this.driving || this.state === "tipped") return;
+    if(this.lockedCharge !== null) return;      // airborne: no air control
+    this.charge = Math.min(1, this.charge + CH.add);
+    const t = now === undefined ? performance.now() : now;
+    if(this.lastTap) this.tapRate = 1000/Math.max(60, t - this.lastTap);
+    this.lastTap = t;
+    this.tapCount++;
+  }
+
+  buildLevel(n){
+    CH.level = Phaser.Math.Clamp(n, 1, CH.maxLevel);
+    LAND.s = 6.75 + (CH.level-1)*CH.gap;
+    const lip = KICK.s + 0.5;
+    const a = lip + 0.55, b = LAND.s - 0.55;
+    HYDS = [];
+    for(let i=0; i<CH.level; i++) HYDS.push(a + (i+0.5)*(b-a)/CH.level);
+    this.band = this.solveBand();
+    /* pull the camera back as the gap grows so the whole arc stays on
+       screen — a jump you cannot see is not a jump you can judge */
+    this.K = Phaser.Math.Clamp(2.0 - (CH.level-1)*0.13, 1.05, 2.0);
+  }
+  /* charge -> the two physics values it is allowed to touch */
+  speedFor(c){ return CH.sp0 + c*(CH.sp1 - CH.sp0); }
+  powFor(c){   return CH.pw0 + c*(CH.pw1 - CH.pw0); }
+
+  /* ---------- THE TARGET BAND ----------
+     Forward-simulate the arc across the whole charge range and keep
+     the charges that clear every hydrant AND touch down on the catch
+     ramp. Numeric, not algebraic, so it stays correct no matter how
+     the dials are retuned — and it is what the player actually sees
+     on the meter. Without this the challenge is invisible: nobody can
+     feel "I am tapping 4 times a second". */
+  solveBand(){
+    const dt = SIM_STEP, lip = KICK.s + 0.5;
+    let lo = null, hi = null;
+    for(let c = 0; c <= 1.0005; c += 0.004){
+      const speed = this.speedFor(c), pow = this.powFor(c);
+      let vz = speed*pow*(KICK.lift/12);
+      let z = 2 + this.wedgeTop(KICK, KICK.dirSign*TILE), sPos = lip, t = 0, idx = 0, ok = true;
+      while(true){
+        const prev = sPos;
+        vz -= JUMP.grav*dt; z += vz*dt; sPos += (speed/T2)*dt; t += dt;
+        while(idx < HYDS.length && prev < HYDS[idx] && sPos >= HYDS[idx]){
+          if((z - 2) < HYD.height + JUMP.clear) ok = false;
+          idx++;
+        }
+        if(vz < 0 && z <= 2) break;
+        if(t > 20000){ ok = false; break; }
+      }
+      if(idx < HYDS.length) ok = false;
+      /* The band must mean "this CLEARS THE LEVEL", not merely "this
+         touches the ramp" — otherwise the meter promises progress it
+         cannot deliver. So mirror land() exactly: the onLand window
+         (|dL| < TILE -> |s - LAND.s| < 0.5) AND the centredness-based
+         absorb landing under the clean tilt threshold. */
+      const dL = (sPos - LAND.s)*T2;
+      const onLand = Math.abs(dL) < TILE;
+      const centre = 1 - Math.min(1, Math.abs(dL)/TILE);
+      const absorb = CH.absMin + CH.absGrad*(1 - centre);
+      const tilt = Math.abs(vz) * JUMP.slam * absorb;
+      if(ok && onLand && tilt < 0.6){ if(lo === null) lo = c; hi = c; }
+    }
+    return { lo, hi };
+  }
+
+  vecs(){ return { dv: DIRV[RUN.f], rv: DIRV[(RUN.f+1)&3] }; }
+  AC(a, c){
+    const {dv, rv} = this.vecs();
+    return { x: a*dv.x + c*rv.x, y: a*dv.y + c*rv.y };
+  }
+  worldOf(s, row){ return this.AC(s*T2, row*T2); }
+
+  Wg(x, y, z, ox, oy){
+    const xr = x - this.camX, yr = y - this.camY;
+    return { x:(xr - yr)*this.K + ox, y:((xr + yr)*0.5 - (z - this.camZ))*this.K + oy };
+  }
+  /* prop-local (along,cross,z) about a world center */
+  Wp(wx, wy, a, c, z, ox, oy){
+    const o = this.AC(a, c);
+    return this.Wg(wx + o.x, wy + o.y, z, ox, oy);
+  }
+  quadg(pts, color, alpha=1){
+    this.g.fillStyle(color, alpha);
+    this.g.fillPoints(pts.map(p => new Phaser.Geom.Point(p.x, p.y)), true);
+  }
+  edgeg(pts, color, w=2){
+    this.g.lineStyle(w, color, 1);
+    this.g.strokePoints(pts.map(p => new Phaser.Geom.Point(p.x, p.y)), true);
+  }
+
+  /* ---------- verbatim from game/index.html: robot transform +
+     projection pipeline ---------- */
+  T(x, y, z){
+    if(this.yaw !== 0){
+      const c = Math.cos(this.yaw), s = Math.sin(this.yaw);
+      const x2 = x*c - y*s; y = x*s + y*c; x = x2;
+    }
+    if(this.pitch !== 0){
+      const c = Math.cos(this.pitch), s = Math.sin(this.pitch);
+      const x2 = x*c - z*s; z = x*s + z*c; x = x2;
+    }
+    if(this.roll !== 0){
+      const PIV = this.roll >= 0 ? 22 : -22;
+      const y0 = y + PIV, c = Math.cos(this.roll), s = Math.sin(this.roll);
+      y = -PIV + y0*c - z*s; z = y0*s + z*c;
+    }
+    let rx = x, ry = y;
+    for(let i=0; i<this.f; i++){ const t = rx; rx = -ry; ry = t; }
+    return { x:rx, y:ry, z };
+  }
+  R(nx, ny, nz){
+    if(this.yaw !== 0){
+      const cy = Math.cos(this.yaw), sy = Math.sin(this.yaw);
+      const nx2 = nx*cy - ny*sy; ny = nx*sy + ny*cy; nx = nx2;
+    }
+    if(this.pitch !== 0){
+      const c = Math.cos(this.pitch), s = Math.sin(this.pitch);
+      const x2 = nx*c - nz*s; nz = nx*s + nz*c; nx = x2;
+    }
+    const c = Math.cos(this.roll), s = Math.sin(this.roll);
+    const ny2 = ny*c - nz*s, nz2 = ny*s + nz*c;
+    let rx = nx, ry = ny2;
+    for(let i=0; i<this.f; i++){ const t = rx; rx = -ry; ry = t; }
+    return { x:rx, y:ry, z:nz2 };
+  }
+  W(x, y, z){
+    const xr = x - this.camX, yr = y - this.camY;
+    return { x:(xr - yr)*this.K + this.cx,
+             y:((xr + yr)*0.5 - (z - this.camZ))*this.K + this.cy };
+  }
+  P(x, y, z){
+    const q = this.T(x, y, z);
+    return this.W(q.x + this.botX, q.y + this.botY, q.z + this.botZ);
+  }
+  depth(x, y, z){
+    const q = this.T(x, y, z);
+    return q.x + q.y + q.z*0.4;
+  }
+  quadOn(g, pts, color, alpha=1){
+    g.fillStyle(color, alpha);
+    g.fillPoints(pts.map(p => new Phaser.Geom.Point(p.x, p.y)), true);
+  }
+  edgeOn(g, pts, color, w=2){
+    g.lineStyle(w, color === undefined ? this.sk.outline : color, 1);
+    g.strokePoints(pts.map(p => new Phaser.Geom.Point(p.x, p.y)), true);
+  }
+  quad(pts, color, alpha=1){ this.quadOn(this.g, pts, color, alpha); }
+  edge(pts, color, w=2){ this.edgeOn(this.g, pts, color, w); }
+
+  lidNear(b){
+    const hs = (this.tipDir || 1) >= 0 ? 1 : -1;
+    const A = this.lidAng * hs, c = Math.cos(A), s = Math.sin(A);
+    const yh = -b.hy * hs, zh = b.z0;
+    const dy = -yh, dz = (b.z1 - b.z0)/2;
+    return this.depth(0, yh + dy*c - dz*s, zh + dy*s + dz*c) > this.depth(0, 0, 34);
+  }
+
+  drawLid(b){
+    const {hx, hy, z0, z1} = b;
+    const hs = (this.tipDir || 1) >= 0 ? 1 : -1;
+    const A = this.lidAng * hs, cA = Math.cos(A), sA = Math.sin(A);
+    const yh = -hy * hs, zh = z0;
+    const H = (x, y, z) => {
+      const dy = y - yh, dz = z - zh;
+      return this.P(x, yh + dy*cA - dz*sA, zh + dy*sA + dz*cA);
+    };
+    const HN = (nx, ny, nz) => {
+      const ny2 = ny*cA - nz*sA, nz2 = ny*sA + nz*cA;
+      return this.R(nx, ny2, nz2);
+    };
+    const C = (sx, sy, sz) => H(sx*hx, sy*hy, sz === 1 ? z1 : z0);
+    const faces = [
+      { n:{x:0,y:0,z: 1}, pts:[C( 1,-1,1), C( 1, 1,1), C(-1, 1,1), C(-1,-1,1)] },
+      { n:{x:0,y:0,z:-1}, pts:[C( 1,-1,0), C( 1, 1,0), C(-1, 1,0), C(-1,-1,0)] },
+      { n:{x: 1,y:0,z:0}, pts:[C( 1,-1,0), C( 1, 1,0), C( 1, 1,1), C( 1,-1,1)] },
+      { n:{x:-1,y:0,z:0}, pts:[C(-1,-1,0), C(-1, 1,0), C(-1, 1,1), C(-1,-1,1)] },
+      { n:{x:0,y: 1,z:0}, pts:[C( 1, 1,0), C(-1, 1,0), C(-1, 1,1), C( 1, 1,1)] },
+      { n:{x:0,y:-1,z:0}, pts:[C( 1,-1,0), C(-1,-1,0), C(-1,-1,1), C( 1,-1,1)] }
+    ];
+    for(const fc of faces){
+      const w = HN(fc.n.x, fc.n.y, fc.n.z);
+      if((w.x + w.y + w.z) <= 0) continue;
+      const col = w.z > 0.5 ? this.sk.bodyTop
+                : w.z < -0.5 ? this.sk.lidInner
+                : (w.x >= w.y) ? this.sk.bodyRight : this.sk.bodyLeft;
+      this.quad(fc.pts, col);
+      this.edge(fc.pts);
+    }
+  }
+
+  disc(center, r, color, outlineC){
+    const pts = [];
+    for(let i=0; i<14; i++){
+      const a = (i/14)*Math.PI*2;
+      pts.push(this.P(center.x + Math.cos(a)*r, center.y, center.z + Math.sin(a)*r));
+    }
+    this.quadOn(this.g, pts, color);
+    if(outlineC !== undefined) this.edgeOn(this.g, pts, outlineC, 2);
+  }
+
+  drawBox(b, cTop, cRight, cLeft, outline=true, decal=false, cBottom){
+    if(cBottom === undefined) cBottom = this.sk.belly;
+    const {hx, hy, z0, z1} = b, ox = b.ox || 0, oy = b.oy || 0;
+    const C = (sx, sy, sz) => this.P(ox + sx*hx, oy + sy*hy, sz === 1 ? z1 : z0);
+    const faces = [
+      { n:{x:0,y:0,z: 1}, pts:[C( 1,-1,1), C( 1, 1,1), C(-1, 1,1), C(-1,-1,1)] },
+      { n:{x:0,y:0,z:-1}, pts:[C( 1,-1,0), C( 1, 1,0), C(-1, 1,0), C(-1,-1,0)] },
+      { n:{x: 1,y:0,z:0}, pts:[C( 1,-1,0), C( 1, 1,0), C( 1, 1,1), C( 1,-1,1)] },
+      { n:{x:-1,y:0,z:0}, pts:[C(-1,-1,0), C(-1, 1,0), C(-1, 1,1), C(-1,-1,1)] },
+      { n:{x:0,y: 1,z:0}, pts:[C( 1, 1,0), C(-1, 1,0), C(-1, 1,1), C( 1, 1,1)] },
+      { n:{x:0,y:-1,z:0}, pts:[C( 1,-1,0), C(-1,-1,0), C(-1,-1,1), C( 1,-1,1)] }
+    ];
+    for(const fc of faces){
+      if(decal && fc.n.z !== 0) continue;
+      const w = this.R(fc.n.x, fc.n.y, fc.n.z);
+      if((w.x + w.y + w.z) <= 0) continue;
+      let col;
+      if(w.z > 0.5)       col = decal ? cRight : cTop;
+      else if(w.z < -0.5) col = decal ? null : cBottom;
+      else                col = (w.x >= w.y) ? cRight : cLeft;
+      if(col == null) continue;
+      this.quadOn(this.g, fc.pts, col);
+      if(outline) this.edgeOn(this.g, fc.pts);
+    }
+  }
+
+  drawWheel(c, sideSign){
+    const W2 = 7.5, steps = 5;
+    const slices = [];
+    for(let i=0; i<=steps; i++){
+      const oy = c.y + sideSign*(-W2/2 + W2*i/steps);
+      slices.push({ y:oy, depth: this.depth(c.x, oy, c.z) });
+    }
+    slices.sort((a,b) => a.depth - b.depth);
+    for(let i=0; i<slices.length; i++){
+      const isFace = i === slices.length-1;
+      this.disc({x:c.x, y:slices[i].y, z:c.z}, WHEEL.r,
+                isFace ? this.sk.wheel : this.sk.wheelDark,
+                isFace ? this.sk.outline : undefined);
+    }
+    const face = slices[slices.length-1].y;
+    this.disc({x:c.x, y:face, z:c.z}, WHEEL.r*0.55, this.sk.wheelHubFace);
+    const a = this.wheelPhase + c.x*0.2;
+    this.disc({ x:c.x + Math.cos(a)*WHEEL.r*0.34, y:face,
+                z:c.z + Math.sin(a)*WHEEL.r*0.34 }, 2.4, this.sk.wheelHub);
+  }
+
+  /* ---------- the airborne ground shadow (spec §2) ----------
+     Drawn in WORLD space, not through P()/T(): the shadow must stay
+     flat on the ground and must NOT inherit the robot's pitch/roll,
+     which is large mid-jump. Pinned to the true (x,y), shrinking and
+     fading with height above the ground directly beneath. */
+  drawGroundShadow(wx, wy, gz, airH, ox, oy){
+    if(!JUMP.shadow) return;
+    const k = 1/(1 + airH*0.020);
+    const alpha = 0.16 * Math.max(0.18, 1 - airH*0.011);
+    const pts = [];
+    for(let i=0;i<14;i++){
+      const a = (i/14)*Math.PI*2;
+      pts.push(this.Wg(wx + Math.cos(a)*34*k, wy + Math.sin(a)*30*k, gz + 0.4, ox, oy));
+    }
+    this.quadg(pts, SKIN.shadow, alpha);
+  }
+
+  drawRobotReal(wx, wy, wz){
+    const g = this.g;
+    this.f = RUN.f;
+    this.botX = wx; this.botY = wy; this.botZ = wz;
+
+    const wheels = [];
+    for(const side of [-1, 1]){
+      for(const wxi of WHEEL.xs){
+        const c = {x:wxi, y:side*WHEEL.side, z:WHEEL.z};
+        wheels.push({ c, side, near: this.depth(c.x, c.y, c.z) > this.depth(c.x, -c.y, c.z) });
+      }
+    }
+    for(const w of wheels) if(!w.near) this.drawWheel(w.c, w.side);
+
+    const lidBox = {...LID};
+    const lidIsNear = this.lidNear(lidBox);
+    if(!lidIsNear) this.drawLid(lidBox);
+
+    this.drawBox({hx:24, hy:17, z0:6, z1:BODY.z0+1}, 0x3f434c, 0x3a3d45, 0x2e3138, false);
+    this.drawBox({...BODY}, this.sk.bodyTop, this.sk.bodyRight, this.sk.bodyLeft);
+    this.drawBox({hx:BODY.hx+0.6, hy:BODY.hy+0.6, z0:STRIPE.z0, z1:STRIPE.z1},
+                 null, this.sk.stripe, this.sk.stripeDk, false, true);
+
+    if(lidIsNear) this.drawLid(lidBox);
+
+    const fn = this.R(1, 0, 0);
+    if(fn.x + fn.y + fn.z > 0.3){
+      const F = (y, z) => this.P(BODY.hx + 0.8, y, z);
+      this.quadOn(g, [F(-13,40), F(13,40), F(13,50), F(-13,50)], this.sk.visor);
+      this.edgeOn(g, [F(-13,40), F(13,40), F(13,50), F(-13,50)], this.sk.outline, 1.5);
+      for(const ey of [-7, 7]){
+        const c = F(ey, 45);
+        g.fillStyle(this.air ? this.sk.eyeAlert : this.sk.eye, 1);
+        g.fillEllipse(c.x, c.y, 7, 7);
+      }
+      this.quadOn(g, [F(-16,18), F(16,18), F(16,22), F(-16,22)], 0xfff3b0);
+    }
+    for(const w of wheels) if(w.near) this.drawWheel(w.c, w.side);
+  }
+
+  /* ---------- tiles, ported from drawWorld, run-space aware ----------
+     No sidewalk end: the whole stunt is a MID-run set piece, so it's
+     flat sidewalk + road the whole way, minus the two slab tiles. */
+  drawTiles(ox, oy){
+    for(let a = -1; a <= 11; a++){
+      for(let c = -1; c <= 4; c++){
+        const road = c >= 2;
+        const isSlabTile = c === 0 &&
+          (Math.abs(a - KICK.s) < 0.5 || Math.abs(a - LAND.s) < 0.5);
+        const ca = a*T2, cc = c*T2;
+        const pts = [
+          this.Wp(0,0, ca+TILE, cc-TILE, 0, ox, oy), this.Wp(0,0, ca+TILE, cc+TILE, 0, ox, oy),
+          this.Wp(0,0, ca-TILE, cc+TILE, 0, ox, oy), this.Wp(0,0, ca-TILE, cc-TILE, 0, ox, oy)
+        ];
+        if(!isSlabTile){
+          this.quadg(pts, road ? PAL.road : (((a+c)%2===0) ? PAL.pave : PAL.paveB));
+          if(!road) this.edgeg(pts, PAL.paveEdge, 1.5);
+        }
+        if(c === 3 && a % 2 === 0 && a >= 0 && a < 11){
+          this.quadg([
+            this.Wp(0,0, ca-14, cc-4, 0, ox, oy), this.Wp(0,0, ca+14, cc-4, 0, ox, oy),
+            this.Wp(0,0, ca+14, cc+4, 0, ox, oy), this.Wp(0,0, ca-14, cc+4, 0, ox, oy)
+          ], PAL.roadLine);
+        }
+      }
+      /* curb lip along the road edge */
+      const kc = TILE*3;
+      this.quadg([
+        this.Wp(0,0, a*T2-TILE, kc,  3, ox, oy), this.Wp(0,0, a*T2+TILE, kc,  3, ox, oy),
+        this.Wp(0,0, a*T2+TILE, kc, -2, ox, oy), this.Wp(0,0, a*T2-TILE, kc, -2, ox, oy)
+      ], PAL.paveEdge);
+    }
+  }
+
+  /* ---------- wedge geometry, shared by kicker and landing slab ----------
+     Heave runs along the TRAVEL axis (ramp-lab's wedge rotated 90°):
+     flush (tile plane) at the -dirSign*TILE end, lifted `lift` at the
+     +dirSign*TILE end. dirSign +1 = kicker (uphill down-lane),
+     -1 = landing slab (downhill down-lane).
+     zTop(da) is the TOP surface height at along offset da. */
+  wedgeTop(sl, da){
+    const v = (sl.dirSign*da + TILE) / (2*TILE);   // 0 flush, 1 raised
+    return sl.lift * Phaser.Math.Clamp(v, 0, 1);
+  }
+  onSlab(sl, s, row){
+    return row === sl.row && Math.abs(s*T2 - sl.s*T2) < TILE;
+  }
+
+  /* ---------- groundHeightAt stub (spec §1): the ONLY place the
+     landing plane comes from. Flat 2 everywhere except the two
+     slabs. A real heightmap later changes this function only. ---------- */
+  groundZAt(s, row){
+    if(this.onSlab(KICK, s, row)) return 2 + this.wedgeTop(KICK, s*T2 - KICK.s*T2);
+    if(this.onSlab(LAND, s, row)) return 2 + this.wedgeTop(LAND, s*T2 - LAND.s*T2);
+    return 2;
+  }
+  /* nose pitch from the surface under the wheels — uphill on the
+     kicker, downhill off the landing slab */
+  surfacePitchAt(s, row){
+    for(const sl of [KICK, LAND]){
+      if(this.onSlab(sl, s, row)) return RUN.pitchSign * sl.dirSign * Math.atan(sl.lift/(2*TILE));
+    }
+    return 0;
+  }
+
+  /* ---------- the heaved slab, one sidewalk tile ----------
+     Art vocabulary lifted from ramp-lab drawSlabNew, re-authored in
+     (along, cross) space so it rotates with RUN.f:
+       1. soil gap decal under the raised end
+       2. exposed concrete: raised END wall (full height) + the two
+          side joints (triangles, flush corner up to raised corner)
+       3. root bulge in the opened joint (kicker only — the culprit)
+       4. top wedge + seeded hairline cracks + chipped lip
+     Walls are drawn before the top, and every wall's upper edge IS a
+     top-quad edge, so no wall can ever poke through the surface —
+     that's what keeps this correct without backface tests. */
+  drawWedgeSlab(sl, ox, oy, seed){
+    const g = this.g;
+    const rng = mulberry32(seed);
+    const w0 = this.worldOf(sl.s, sl.row);
+    const W = (a, c, z) => this.Wp(w0.x, w0.y, a, c, z, ox, oy);
+    const L = sl.lift, d = sl.dirSign;
+    const aUp = d*TILE, aFl = -d*TILE;          // raised end vs flush end
+    const Z = a => this.wedgeTop(sl, a);
+
+    /* 1 — soil in the opened joint, hugging the raised end */
+    this.quadg([
+      W(aUp - d*10, -TILE, 0), W(aUp - d*10, TILE, 0),
+      W(aUp + d*4,  TILE + 4, 0), W(aUp + d*4, -TILE - 4, 0)
+    ], SLABC.gap, 0.55);
+
+    /* 2 — exposed concrete */
+    for(const jc of [-TILE, TILE]){          // side joints: triangles
+      this.quadg([ W(aFl, jc, 0), W(aUp, jc, Z(aUp)), W(aUp, jc, 0) ], SLABC.topDk, 0.9);
+    }
+    const endWall = [ W(aUp, -TILE, Z(aUp)), W(aUp, TILE, Z(aUp)),
+                      W(aUp,  TILE, 0),      W(aUp, -TILE, 0) ];
+    this.quadg(endWall, SLABC.topDk);
+    this.edgeg(endWall, SLABC.gap, 1.2);
+
+    /* 3 — the culprit: a palm root shouldering the end up */
+    if(sl.root){
+      const segs = 6;
+      for(let i=0; i<segs; i++){
+        const t0 = i/segs, t1 = (i+1)/segs;
+        const c0 = -TILE + 2*TILE*t0, c1 = -TILE + 2*TILE*t1;
+        const bump = 2.2 + Math.sin(t0*Math.PI)*2.2 + (rng()-0.5)*1.2;
+        const pts = [
+          W(aUp + d*2, c0, 0), W(aUp + d*2, c1, 0),
+          W(aUp + d*7, c1, bump), W(aUp + d*7, c0, bump)
+        ];
+        this.quadg(pts, i%2 ? SLABC.rootA : SLABC.rootB);
+        this.edgeg(pts, SLABC.rootB, 1);
+      }
+    }
+
+    /* 4 — top wedge */
+    const top = [ W(aFl, -TILE, Z(aFl)), W(aFl, TILE, Z(aFl)),
+                  W(aUp,  TILE, Z(aUp)), W(aUp, -TILE, Z(aUp)) ];
+    this.quadg(top, SLABC.top);
+    this.edgeg(top, SLABC.topDk, 1.5);
+
+    /* hairline cracks radiating from the raised end (stress side) */
+    g.lineStyle(1.2, SLABC.topDk, 0.8);
+    for(let i=0; i<sl.cracks; i++){
+      let pc = -TILE*0.7 + rng()*TILE*1.4;
+      let pa = aUp - d*(4 + rng()*8);
+      let p = W(pa, pc, Z(pa) + 0.1);
+      g.beginPath(); g.moveTo(p.x, p.y);
+      for(let k=0; k<4; k++){
+        pc += (rng()-0.5)*22;
+        pa -= d*(8 + rng()*14);
+        pa = Phaser.Math.Clamp(pa, -TILE+3, TILE-3);
+        const q = W(pa, pc, Z(pa) + 0.1);
+        g.lineTo(q.x, q.y);
+      }
+      g.strokePath();
+    }
+    /* chipped lip along the raised end — the takeoff/landing edge */
+    for(let i=0; i<4; i++){
+      const cp = -TILE + 8 + rng()*(2*TILE - 16);
+      const p = W(aUp - d*1.5, cp, Z(aUp) + 0.1);
+      g.fillStyle(SLABC.gap, 0.5);
+      g.fillEllipse(p.x, p.y, (3 + rng()*4)*this.K*0.6, (1.5 + rng()*2)*this.K*0.6);
+    }
+  }
+
+  /* ---------- the GAME's hydrant branch, verbatim (intact only —
+     bursting isn't part of this stunt; the whole point is not to
+     touch it) ---------- */
+  drawHydrantGame(wx, wy, ox, oy){
+    const g = this.g;
+    const HH = HYD;
+    const GG = (a, b, h) => this.Wp(wx, wy, a, b, h, ox, oy);
+    const dAt = (a, b, h) => a + b + h*0.4;
+    const height = HH.height;
+
+    const rOf = h => {
+      const u = h / height;
+      if(u < 0.08) return HH.baseR;
+      if(u < 0.75) return HH.baseR*0.62 - (HH.baseR*0.62 - HH.baseR*0.5)*((u-0.08)/0.67);
+      return HH.baseR*0.5 + (HH.baseR*0.78 - HH.baseR*0.5) * ((u-0.75)/0.25);
+    };
+    const place = (h, r, n=14) => {
+      const pts = [];
+      for(let i=0; i<n; i++){
+        const phi = (i/n)*Math.PI*2;
+        pts.push(GG(Math.cos(phi)*r, Math.sin(phi)*r, h));
+      }
+      return pts;
+    };
+
+    const hsh = GG(0, 0, 0);
+    g.fillStyle(HH.shadow, 0.14);
+    g.fillEllipse(hsh.x, hsh.y + 2, HH.baseR*2.1*this.K*0.42, HH.baseR*0.95*this.K*0.42);
+
+    const hbarrel = () => {
+      const n = 6, all = [];
+      for(let i=0; i<=n; i++) all.push(...place(i/n*height*0.9, rOf(i/n*height*0.9)));
+      this.quadOn(g, convexHull(all), HH.cap);
+    };
+    const hshoulder = () => {
+      const h0 = height*0.75, h1 = height*0.9;
+      this.quadOn(g, convexHull(place(h0, rOf(h0)).concat(place(h1, rOf(h1)))), HH.cap);
+    };
+    const hdome = () => {
+      const domeBase = height*0.9, domeR = HH.domeR;
+      const n = 8, rings = [];
+      for(let i=0; i<=n; i++){
+        const u = i/n, r2 = domeR * Math.cos(u*Math.PI*0.5);
+        rings.push(place(domeBase + u*domeR*0.9, r2));
+      }
+      const all = []; for(const r2 of rings) all.push(...r2);
+      this.quadOn(g, convexHull(all), HH.cap);
+      const capTop = GG(0, 0, domeBase + domeR*0.9 + 1);
+      g.fillStyle(HH.capDk, 1);
+      g.fillCircle(capTop.x, capTop.y, 1.8*this.K*0.45);
+    };
+    const hnozzle = (ang, r) => () => {
+      const nc = Math.cos(ang), ns = Math.sin(ang);
+      const baseA = nc*(HH.baseR*0.55), baseB = ns*(HH.baseR*0.55);
+      const tipA = nc*(HH.baseR*0.55 + r*2.2), tipB = ns*(HH.baseR*0.55 + r*2.2);
+      const hgt = height*0.42;
+      const ring = (a0,b0,rad) => {
+        const pts = [];
+        for(let i=0;i<10;i++){
+          const phi=(i/10)*Math.PI*2;
+          pts.push(GG(a0 + Math.cos(phi)*rad*(-ns), b0 + Math.cos(phi)*rad*nc, hgt + Math.sin(phi)*rad));
+        }
+        return pts;
+      };
+      this.quadOn(g, convexHull(ring(baseA,baseB,r).concat(ring(tipA,tipB,r))), HH.cap);
+      if(nc + ns > 0) this.quadOn(g, ring(tipA,tipB,r*0.8), HH.capDk);
+    };
+
+    const domeBase = height*0.9, domeR = HH.domeR;
+    const hparts = [
+      { d: dAt(0,0,height*0.3), fn: hbarrel },
+      { d: dAt(0,0,height*0.82), fn: hshoulder },
+      { d: dAt(HH.baseR*0.55, 0, height*0.42), fn: hnozzle(0, HH.nozR) },
+      { d: dAt(-HH.baseR*0.55, 0, height*0.42), fn: hnozzle(Math.PI, HH.nozR) },
+      { d: dAt(0,0, domeBase+domeR*0.9), fn: hdome }
+    ];
+    hparts.sort((p1, p2) => p1.d - p2.d);
+    for(const pt of hparts) pt.fn();
+  }
+
+  /* ============================================================
+     the jump itself
+     ============================================================ */
+  launch(time){
+    /* the charge is snapshotted (smoothed) at the lip and frozen for
+       the whole flight — no air control, per ramp-jump-spec §1 */
+    const c = this.lockedCharge = Phaser.Math.Clamp(this.chargeSm, 0, 1);
+    this.speed   = this.speedFor(c);
+    this.launchPow = this.powFor(c);
+    const vz0 = this.speed * this.launchPow * (KICK.lift/12);
+    /* Start at the TOP OF THE LIP, not groundZAt(). The launch fires at
+       s = KICK.s+0.5, and onSlab() is `< TILE` exclusive, so at exactly
+       that s the robot already reads as OFF the slab and groundZAt()
+       returns the flat 2 — meaning Tipsy was launching from 12 units
+       BELOW the ramp he had just ridden up. That lost height is why the
+       solved band said pass and the live run clipped at levels 5-6. */
+    this.air = {
+      t0: time,
+      z: 2 + this.wedgeTop(KICK, KICK.dirSign*TILE),
+      vz: vz0,
+      vz0,
+      cleared: false,
+      hydIdx: 0,
+      passed: 0
+    };
+    this.result = "AIRBORNE";
+  }
+
+  clipHydrant(){
+    /* undershoot: the arc came in under the dome. Cast-iron does what
+       cast iron does — the nose stops, the top-heavy body keeps going. */
+    this.air.vz = -Math.abs(this.air.vz) - 0.01;
+    this.air.clipped = true;
+    this.speed *= 0.35;
+    this.tilt += 0.85 * (Math.random() < 0.5 ? 1 : -1);
+    this.result = "CLIP";
+  }
+
+  land(gz){
+    const impact = Math.abs(this.air.vz);
+    const dL = this.botS*T2 - LAND.s*T2;
+    const onLand = this.botRow === LAND.row && Math.abs(dL) < TILE;
+    const over  = dL >= TILE;
+    /* absorb: the landing slab's down-slope takes most of it; flat
+       concrete takes all of it; past the slab is worse than flat
+       because the far joint catches a wheel. */
+    /* TWO-SIDED FAILURE — the whole point of the delicate balance.
+       On the catch ramp the down-slope eats the impact. Miss it either
+       way and the top-heavy body goes over: overshooting past the far
+       joint is worse than coming up short on flat concrete. Both fail
+       as a TIP, so no new fail-state vocabulary is introduced. */
+    /* ---- ABSORPTION BY CENTREDNESS ----
+       A flat absorb value cannot work across the charge range: at high
+       charge the descent velocity alone pushed a PERFECT landing over
+       the clean threshold, so levels 5-6 could never be cleared.
+       Instead the catch ramp absorbs best where its down-slope actually
+       matches the descent — the middle. Landing on the lip or the far
+       joint absorbs far less. This turns the landing from a binary into
+       a precision gradient: the band gets you down, CENTRING the band
+       gets you a clean. */
+    const centre = 1 - Math.min(1, Math.abs(dL)/TILE);   // 1 mid-slab, 0 at an edge
+    const absorb = this.air.clipped ? 1.6
+                 : onLand ? (CH.absMin + CH.absGrad*(1 - centre))
+                 : over   ? 1.9
+                          : 1.5;
+    this.tilt += impact * JUMP.slam * absorb * (Math.random() < 0.5 ? 1 : -1);
+    if(!onLand && !this.air.clipped){
+      /* guarantee the tip: a near-miss that merely wobbled would make
+         the landing window feel arbitrary */
+      this.tilt = Math.sign(this.tilt || 1) * Math.max(Math.abs(this.tilt), 1.05);
+    }
+
+    const clean = this.air.cleared && onLand && !this.air.clipped && Math.abs(this.tilt) < 0.6;
+    this.result = this.air.clipped ? "CLIPPED A HYDRANT"
+                : clean            ? "CLEAN · LEVEL "+CH.level+" CLEARED"
+                : onLand           ? "SLOPPY"
+                : over             ? "OVERSHOT THE RAMP"
+                                   : "CAME UP SHORT";
+    if(clean){
+      this.best = Math.max(this.best, CH.level);
+      this.advance = true;              // consumed by the auto-loop
+    }
+    if(clean && CH.level >= CH.chiefAt && grantSkin(FIRE_CHIEF)){
+      /* achievement satisfied -> entitlement granted -> auto-equip,
+         so the reward is worn immediately instead of buried in a menu */
+      ENTITLEMENTS.equippedSkin = FIRE_CHIEF.skinId;
+      this.chief = true;
+      const cb = document.getElementById("chiefBtn");
+      if(cb) cb.classList.add("on");
+      const el = document.getElementById("unlock");
+      el.classList.add("show");
+      setTimeout(() => el.classList.remove("show"), 2600);
+    }
+    this.unlocked = ownsSkin(FIRE_CHIEF);
+    this.air = null;
+    this.pitch = 0;
+    this.resultT = 0;
+  }
+
+  /* ---------- FIXED-TIMESTEP SIM ----------
+     Everything below used to run on the raw frame delta (clamped to
+     50ms). That made the ARC FRAME-RATE DEPENDENT: Euler integration
+     at dt=50 traces a measurably different parabola than at dt=16.7,
+     and the hydrant-crossing check samples at coarser intervals. On a
+     precision challenge that is a fairness bug — the same tap rate
+     would clear a hydrant on a fast phone and clip it on a slow one —
+     and it is why the solved pass band disagreed with the live run at
+     levels 5 and 6.
+
+     Now update() accumulates real time and calls this in fixed STEP
+     slices, so the trajectory is identical everywhere and solveBand()
+     is exact rather than approximate. STEP must stay equal to the dt
+     used inside solveBand(). */
+  step(dt, time){
+    /* ---- TAP CHARGE ----
+       Taps are added in tap() (input handler). Here we only bleed.
+       Proportional decay means the meter SETTLES at a level set by
+       tap RATE:  charge ~= add * tapsPerSec / (decay*1000).
+       Sustained rate is the skill; total taps are irrelevant. */
+    /* SIM CLOCK. dt is clamped to 50ms so a frame hitch cannot blow up
+       the physics — but that means wall-clock time and simulated time
+       diverge during a hitch. Charge decay runs on dt, so anything
+       that ADDS charge has to run on the same clock or the meter
+       inflates whenever frames are slow. (This is not academic: it is
+       exactly what made the headless run read 56% where the maths
+       says 29%.) simT is that shared clock. */
+    this.simT = (this.simT || 0) + dt;
+    if(CH.autoTap > 0){                       // headless testing only
+      if(this.nextAuto === 0) this.nextAuto = this.simT;
+      while(this.simT >= this.nextAuto){ this.tap(this.simT); this.nextAuto += 1000/CH.autoTap; }
+    }
+    if(this.lockedCharge === null){
+      this.charge = Math.max(0, this.charge - CH.decay*this.charge*dt);
+      /* smoothed shadow value: what actually gets snapshotted, so the
+         launch is not a lottery on tap phase */
+      this.chargeSm += (this.charge - this.chargeSm) * Math.min(1, CH.smooth*dt);
+    }
+    const alongPrev = this.prevAlong;
+    this.botS += (this.speed / T2) * dt;
+    const along = this.botS*T2;
+    if(!this.air) this.wheelPhase += this.speed * dt * 0.28;
+
+    /* ---- LAUNCH: crossing the kicker's raised lip, at speed ---- */
+    const lipA = KICK.s*T2 + KICK.dirSign*TILE;
+    if(!this.air && this.botRow === KICK.row &&
+       alongPrev < lipA && along >= lipA){
+      if(this.speed >= JUMP.minSpeed) this.launch(time);
+      else this.tilt += 0.18 * (Math.random() < 0.5 ? 1 : -1);   // below threshold: a bump, not a launch
+    }
+
+    /* ---- AIR: integrate the arc, no horizontal change ---- */
+    if(this.air){
+      this.air.vz -= JUMP.grav * dt;
+      this.air.z  += this.air.vz * dt;
+      this.pitch = RUN.pitchSign * Math.atan2(this.air.vz, Math.max(this.speed, 1e-4)) * 0.6;
+
+      /* ---- clearance, EVERY hydrant, checked exactly as we cross
+         each one's along position. With N hydrants the binding check
+         is the LAST one, because the arc is already descending by
+         then — that is what turns levels 3+ from a landing problem
+         into a clearance problem. ---- */
+      if(this.botRow === HYDJ.row){
+        while(this.air.hydIdx < HYDS.length){
+          const hydA = HYDS[this.air.hydIdx]*T2;
+          if(!(alongPrev < hydA && along >= hydA)) break;
+          const h = this.air.z - 2;
+          this.air.hydIdx++;
+          if(h < HYD.height + JUMP.clear){ this.clipHydrant(); break; }
+          this.air.passed++;
+        }
+        this.air.cleared = this.air.passed >= HYDS.length;
+      }
+
+      const gz = this.groundZAt(this.botS, this.botRow);
+      if(this.air.vz < 0 && this.air.z <= gz){
+        this.botS = this.botS;                    // touchdown at the current along
+        this.land(gz);
+      }
+    } else {
+      /* ---- GROUND: surface pitch + the hydrant as a hard wall ---- */
+      this.pitch += (this.surfacePitchAt(this.botS, this.botRow) - this.pitch) * Math.min(1, 0.012*dt);
+      /* every hydrant is a hard wall on the ground — rolling into the
+         first one is the punishment for not charging at all */
+      let blockedNow = false;
+      if(this.botRow === HYDJ.row){
+        for(const hs of HYDS){
+          const hydA = hs*T2;
+          if(along > hydA - 26 && along < hydA){
+            this.botS = (hydA - 26)/T2;
+            blockedNow = true;
+            if(this.speed > 0.035 && !this.bonked){
+              this.bonked = true;
+              this.tilt += this.speed * 10 * (Math.random() < 0.5 ? 1 : -1);
+              this.result = "BONK";
+            }
+            this.speed = 0;
+            break;
+          }
+        }
+      }
+      this.blockedT = blockedNow ? this.blockedT + dt : 0;
+      /* approach speed IS the live charge — this is the feedback loop:
+         charging up shortens the runway you are charging in */
+      if(!blockedNow) this.speed = this.speedFor(this.chargeSm);
+    }
+
+    this.prevAlong = along;
+
+    this.tilt -= this.tilt * 0.0021 * dt;             // stability spring
+    this.roll = Phaser.Math.Clamp(this.tilt, -1, 1) * 0.5;
+    if(Math.abs(this.tilt) >= 1){
+      this.state = "tipped";
+      this.tipDir = Math.sign(this.tilt);
+      this.tipT = 0;
+    }
+
+    /* auto-loop the bench: off the end, pinned at the hydrant, or a
+       beat after the result reads */
+    if(this.result && !this.air && this.result !== "AIRBORNE") this.resultT += dt;
+    if(this.botS > LAND.s + 3 || this.blockedT > 1200 || this.resultT > 1700){
+      const wasUnlocked = this.unlocked;
+      if(this.advance){ this.advance = false; this.buildLevel(CH.level + 1); }
+      this.resetRun(false);
+      this.unlocked = wasUnlocked;
+      this.updateVals();
+    }
+  }
+
+  update(time, delta){
+    const g = this.g; g.clear();
+    g.fillStyle(PAL.sky, 1);
+    g.fillRect(0, 0, this.scale.gameSize.width, this.scale.gameSize.height);
+
+    const dt = Math.min(delta || 16.7, 50);
+    this.sk = this.chief ? {...SKIN, ...CHIEF} : SKIN;
+
+    /* fixed-step accumulator. maxSteps stops a long stall from
+       spiralling — better to run slightly slow than to freeze. */
+    if(this.driving && this.state !== "tipped"){
+      this.acc = (this.acc || 0) + dt;
+      let steps = 0;
+      while(this.acc >= SIM_STEP && steps < 6){
+        this.step(SIM_STEP, time);
+        this.acc -= SIM_STEP;
+        steps++;
+        if(this.state === "tipped") break;
+      }
+      if(steps === 6) this.acc = 0;
+    }
+
+    /* tipped-state rollover: the game's formula, auto-reset */
+    if(this.state === "tipped"){
+      this.tipT = Math.min(1, this.tipT + dt/900);
+      this.roll = this.tipDir * (Math.PI*0.5) * this.tipT;
+      if(this.tipT >= 1){
+        this.tipResetT = (this.tipResetT || 0) + dt;
+        if(this.tipResetT > 1200){
+          const wasUnlocked = this.unlocked;
+          this.advance = false;          // a tip never advances
+          this.resetRun(false);
+          this.unlocked = wasUnlocked;
+        }
+      }
+    }
+
+    /* camera: forward lead in run space. camZ stays 0 on purpose —
+       if the camera followed the jump, the jump would read as nothing. */
+    const bwp = this.worldOf(this.botS, this.botRow);
+    const lead = this.AC(60, 0);
+    this.camX = bwp.x + lead.x;
+    this.camY = bwp.y + lead.y;
+    this.camZ = 0;
+
+    this.drawTiles(this.cx, this.cy);
+
+    const gz = this.groundZAt(this.botS, this.botRow);
+    const botZ = this.air ? this.air.z : gz;
+    const airH = Math.max(0, botZ - gz);
+
+    /* shadow first: it belongs to the ground layer, under everything */
+    this.drawGroundShadow(bwp.x, bwp.y, gz, airH, this.cx, this.cy);
+
+    /* ---- DEPTH (spec §2, option 1) ----
+       Screen depth in this projection is x+y. Airborne, the robot must
+       draw in FRONT of anything it is passing over, so height is added
+       as a bias. Bias 0 reproduces the ground-plane-only sort — set it
+       to 0 to see the artifact this is fixing. THIS IS THE PASS/FAIL
+       GATE: verify at f0/f1/f2/f3 before porting. */
+    const items = [
+      { d: -1e9, fn: () => this.drawWedgeSlab(KICK, this.cx, this.cy, this.seed) },
+      { d: -1e9 + 1, fn: () => this.drawWedgeSlab(LAND, this.cx, this.cy, this.seed + 97) },
+      { d: bwp.x + bwp.y + airH*JUMP.bias, fn: () => this.drawRobotReal(bwp.x, bwp.y, botZ) }
+    ];
+    /* every hydrant joins the same sort, so the airborne robot is
+       correctly in front of the ones it has passed and behind the ones
+       still ahead — the four-heading gate now has N props to satisfy,
+       not one */
+    for(const hs of HYDS){
+      const hp = this.worldOf(hs, HYDJ.row);
+      items.push({ d: hp.x + hp.y, fn: () => this.drawHydrantGame(hp.x, hp.y, this.cx, this.cy) });
+    }
+    items.sort((a,b) => a.d - b.d);
+    for(const it of items) it.fn();
+
+    if(this.driving || this.state === "tipped") this.updateVals();
+  }
+}
+
+const game = new Phaser.Game({
+  type: Phaser.AUTO, parent: "game",
+  scale: { mode: Phaser.Scale.RESIZE, width: "100%", height: "100%" },
+  scene: [HydrantChallengeLab]
+});
+const scn = () => game.scene.getScene("chlab");
+
+document.getElementById("driveBtn").addEventListener("click", e => {
+  const s = scn(); s.driving = !s.driving;
+  e.target.classList.toggle("on", s.driving);
+});
+document.getElementById("resetBtn").addEventListener("click", () => {
+  const s = scn(); const d = s.driving;
+  s.resetRun(false); s.driving = d; s.unlocked = false; s.updateVals();
+});
+document.getElementById("chiefBtn").addEventListener("click", e => {
+  const s = scn(); s.chief = !s.chief;
+  e.target.classList.toggle("on", s.chief);
+});
+document.getElementById("shadowBtn").addEventListener("click", e => {
+  JUMP.shadow = !JUMP.shadow;
+  e.target.classList.toggle("on", JUMP.shadow);
+});
+document.getElementById("faceBtn").addEventListener("click", e => {
+  RUN.f = (RUN.f + 1) & 3;
+  e.target.textContent = "f" + RUN.f;
+  const s = scn(); s.resetRun(false); s.driving = true; s.updateVals();
+});
+document.getElementById("pitchBtn").addEventListener("click", e => {
+  RUN.pitchSign = -RUN.pitchSign;
+  e.target.textContent = RUN.pitchSign > 0 ? "P+" : "P−";
+});
+document.getElementById("zoomIn").addEventListener("click", () => { scn().K = Math.min(scn().K + 0.3, 5); });
+document.getElementById("zoomOut").addEventListener("click", () => { scn().K = Math.max(scn().K - 0.3, 1.0); });
+
+document.querySelectorAll("[data-p]").forEach(btn => {
+  btn.addEventListener("click", () => {
+    const p = btn.dataset.p, d = +btn.dataset.d, sc = scn();
+    if(p === "lvl")     { sc.buildLevel(CH.level + d); sc.resetRun(false); }
+    if(p === "chiefat") CH.chiefAt = Phaser.Math.Clamp(CH.chiefAt + d, 1, CH.maxLevel);
+    if(p === "add")     CH.add   = Phaser.Math.Clamp(+(CH.add   + d*0.02 ).toFixed(3), 0.05, 0.90);
+    if(p === "decay")   CH.decay = Phaser.Math.Clamp(+(CH.decay + d*0.0002).toFixed(5), 0.0004, 0.0080);
+    if(p === "sp0")     CH.sp0   = Phaser.Math.Clamp(+(CH.sp0   + d*0.005).toFixed(3), 0.030, 0.120);
+    if(p === "sp1")     CH.sp1   = Phaser.Math.Clamp(+(CH.sp1   + d*0.005).toFixed(3), 0.080, 0.260);
+    if(p === "pw0")     CH.pw0   = Phaser.Math.Clamp(+(CH.pw0   + d*0.05 ).toFixed(2), 0.40, 2.00);
+    if(p === "pw1")     CH.pw1   = Phaser.Math.Clamp(+(CH.pw1   + d*0.05 ).toFixed(2), 0.30, 2.00);
+    if(p === "absmin")  CH.absMin  = Phaser.Math.Clamp(+(CH.absMin  + d*0.02).toFixed(2), 0.04, 0.60);
+    if(p === "absgrad") CH.absGrad = Phaser.Math.Clamp(+(CH.absGrad + d*0.02).toFixed(2), 0.00, 0.60);
+    if(p === "gap")     { CH.gap = Phaser.Math.Clamp(+(CH.gap   + d*0.05 ).toFixed(2), 0.20, 1.20);
+                          sc.buildLevel(CH.level); sc.resetRun(false); }
+    /* any dial that moves the physics invalidates the pass band */
+    if(["add","decay","sp0","sp1","pw0","pw1","absmin","absgrad"].includes(p)) sc.band = sc.solveBand();
+    sc.updateVals();
+  });
+});
+
+/* ---------- THE TAP BUTTON ----------
+   pointerdown, not click: click waits for release and would cap the
+   achievable tap rate. touchAction none + preventDefault stops iOS
+   double-tap-zoom from eating fast taps. */
+const tapBtn = document.getElementById("tapBtn");
+tapBtn.style.touchAction = "none";
+const doTap = e => { e.preventDefault(); scn().tap(performance.now()); scn().updateVals(); };
+tapBtn.addEventListener("pointerdown", doTap);
+tapBtn.addEventListener("touchstart", doTap, {passive:false});
+/* space bar for desktop testing */
+window.addEventListener("keydown", e => {
+  if(e.code === "Space"){ e.preventDefault(); scn().tap(performance.now()); scn().updateVals(); }
+});
+
+document.getElementById("autoBtn").addEventListener("click", e => {
+  const rates = [0, 2, 3, 4, 5, 6, 8, 10];
+  CH.autoTap = rates[(rates.indexOf(CH.autoTap) + 1) % rates.length];
+  e.target.textContent = CH.autoTap ? "AUTO " + CH.autoTap + "/s" : "AUTO-TAP OFF";
+  e.target.classList.toggle("on", CH.autoTap > 0);
+});
+
+/* ---------- headless test hook ----------
+   The census run needs the scene and the live config; `game`/`HYDS`
+   are script-scoped consts/lets so they are not reachable from
+   page.evaluate without this. Read-only, test-only. */
+window.__lab = {
+  scn, CH, JUMP, KICK, LAND, HYD, HYDJ, RUN, SIM_STEP, FIRE_CHIEF, ENTITLEMENTS,
+  get hyds(){ return HYDS.slice(); },
+  bands(maxN){
+    const sc = scn(), keep = CH.level, out = [];
+    for(let n=1; n<=(maxN||9); n++){
+      sc.buildLevel(n); const b = sc.solveBand();
+      out.push({ n, hyd: HYDS.length, land: +LAND.s.toFixed(2),
+        lo: b.lo===null?null:+(b.lo*100).toFixed(0),
+        hi: b.lo===null?null:+(b.hi*100).toFixed(0) });
+    }
+    sc.buildLevel(keep); sc.resetRun(false); return out;
+  }
+};
+</script>
+</body>
+</html>
