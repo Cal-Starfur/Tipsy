@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Tipsy — Streetlamp Lab</title>
+<style>
+  html,body{margin:0;padding:0;background:#14161a;color:#e8eaef;font-family:-apple-system,system-ui,sans-serif;}
+  #bar{display:flex;flex-wrap:wrap;gap:6px;padding:8px;}
+  #bar button{background:#2a2e38;color:#e8eaef;border:1px solid #3a3f4b;border-radius:8px;
+    padding:8px 12px;font-size:13px;font-weight:700;}
+  #bar button.on{background:#3f6b8f;border-color:#5a8ab0;}
+  #vals{padding:0 10px 8px;font-size:11px;color:#8f95a1;white-space:pre-wrap;}
+  #game{width:100vw;}
+</style>
+</head>
+<body>
+<div id="bar">
+  <button id="nightBtn" class="on">NIGHT</button>
+  <button id="spinBtn">SPIN</button>
+  <button id="styleBtn">STYLE</button>
+  <button id="spDown">SPACING −</button>
+  <button id="spUp">SPACING +</button>
+  <button id="poolDown">POOL −</button>
+  <button id="poolUp">POOL +</button>
+  <button id="malBtn">MAL 10%</button>
+  <button id="seedBtn">RESEED</button>
+</div>
+<div id="vals"></div>
+<div id="game"></div>
+<script src="https://cdn.jsdelivr.net/npm/phaser@3.85.2/dist/phaser.min.js"></script>
+<script>
+"use strict";
+/* ============================================================
+   STREETLAMP LAB — the new prop that sells the night.
+   Same iso projection as the game (W: (x-y)*K, ((x+y)/2 - z)*K,
+   K=1.5), hull-volume construction per the prop standard (one
+   geometry, per-part depth sort, orientation via the shared
+   frame — no per-heading branches). SPIN proves all 4 headings.
+
+   NIGHT here is the APPROVED verdict from night-lab v1:
+   NAVY multiply, depth 0.65 — locked, not dialable, because
+   the lamp art has to be judged under the tint that ships.
+   Day mode shows the same lamp unlit (lamps exist every day;
+   only the light is nocturnal).
+   ============================================================ */
+const K = 1.5, T2 = 92;
+const PAL = { sky:0x9fd4e8, pave:0xc9c3b4, paveB:0xbfb9aa, paveEdge:0xa8a294, road:0x4a4d55, roadLine:0xd8d2c2 };
+const NIGHT_MULT = (() => {   // NAVY 0x5a6aa8 at depth 0.65 (approved)
+  const c = 0x5a6aa8, d = 0.65;
+  const ch = v => Math.round(255 + (v-255)*d);
+  return (ch((c>>16)&255)<<16) | (ch((c>>8)&255)<<8) | ch(c&255);
+})();
+
+/* ---------- the lamp ---------- */
+const LAMP = {
+  height: 96,          // pole top — taller than the palm's dwarf tier,
+                       // short of the big palm (165): reads "street
+                       // furniture", not "tree line"
+  poleW: 3.2,          // slender square post
+  baseW: 7, baseH: 6,  // cast base at the foot
+  armLen: 26,          // reach toward the road
+  armDrop: 5,          // arm dips as it reaches (gooseneck feel)
+  headW: 13, headH: 5, // fixture box
+  pole: 0x3a3d43, poleDk: 0x2e3138,    // BENCH_ART.leg family — the
+                                        // street-furniture metal we
+                                        // already ship
+  base: 0x33363d, baseDk: 0x282b31,
+  head: 0x2e3138, headDk: 0x24262c,
+  glassDay: 0xb5bac4,                   // unlit lens by day
+  glassNight: 0xffe9c0,                 // lit lens
+  glow: 0xffe0a0,                       // pool + halo (ADD)
+  shadow: 0x000000
+};
+const STYLES = ["arm", "twin", "post"];  // arm=single gooseneck toward road,
+                                          // twin=two arms both sides,
+                                          // post=armless top lantern
+
+/* per-instance variety + the malfunction pool — position-seeded
+   mulberry32, the same convention as every other prop, so a given
+   lamp is the same lamp (and the same broken lamp) for everyone */
+function mulberry32(a){ return function(){ a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+const LAMP_VARY = {
+  hMin: 0.92, hMax: 1.10,     // pole height spread
+  armMin: 0.85, armMax: 1.18, // arm reach spread
+  poolMin: 0.88, poolMax: 1.12,
+  malTilt: 0.05               // broken lamps lean, up to this * height
+};
+/* deterministic flicker: 90ms slices hashed from (seed, slice) —
+   no state, identical on every client at the same t. Mostly on,
+   dropouts + dim stutters. Returns light level 0..1. */
+function flickerAt(seed, t){
+  const slice = Math.floor(t / 90);
+  let h = (seed ^ Math.imul(slice, 2654435761)) >>> 0;
+  h = Math.imul(h ^ (h >>> 13), 0x5bd1e995) >>> 0;
+  const r = ((h ^ (h >>> 15)) >>> 0) / 4294967296;
+  if(r < 0.14) return 0;          // dropout
+  if(r < 0.26) return 0.35;       // sick dim
+  return 1;
+}
+
+let night = true, f = 0, styleIdx = 0, spacing = 6, poolR = 46;
+let malRate = 0.10, reseed = 7;
+
+class LampLab extends Phaser.Scene {
+  constructor(){ super("lamplab"); }
+  create(){
+    this.cx = this.scale.width/2; this.cy = 300;
+    this.camX = 0; this.camY = 0; this.camZ = 0; this.K = K;
+    this.board = this.add.graphics();
+    this.tint = this.add.graphics(); this.tint.setBlendMode(Phaser.BlendModes.MULTIPLY);
+    this.glowG = this.add.graphics(); this.glowG.setBlendMode(Phaser.BlendModes.ADD);
+    this.redraw();
+    this.updateVals();
+  }
+  W(x, y, z){
+    const xr = x - this.camX, yr = y - this.camY;
+    return { x:(xr - yr)*this.K + this.cx,
+             y:((xr + yr)*0.5 - (z - this.camZ))*this.K + this.cy };
+  }
+  quad(g, pts, c, a=1){ g.fillStyle(c, a); g.fillPoints(pts.map(p=>new Phaser.Geom.Point(p.x,p.y)), true); }
+
+  redraw(){
+    const g = this.board; g.clear();
+    const t = this.tint; t.clear();
+    g.fillStyle(0x14161a, 1); g.fillRect(0, 0, this.scale.width, this.scale.height);
+
+    /* ground: sidewalk band + road, in route coords rotated by f so
+       SPIN really exercises the shared frame (DIRV equivalent) */
+    const DIRV = [{x:1,y:0},{x:0,y:1},{x:-1,y:0},{x:0,y:-1}];
+    const dv = DIRV[f], rv = DIRV[(f+1)%4];
+    const P = (a, b, z) => this.W(dv.x*a + rv.x*b, dv.y*a + rv.y*b, z);
+    const span = 5*T2;
+    // sidewalk rows -1..1 (pave), road beyond +1
+    for(let i=-5; i<5; i++){
+      const a0 = i*T2, a1 = (i+1)*T2;
+      this.quad(g, [P(a0,-T2,0), P(a1,-T2,0), P(a1,T2,0), P(a0,T2,0)], (i%2===0)?PAL.pave:PAL.paveB);
+      this.quad(g, [P(a0,T2,0), P(a1,T2,0), P(a1,T2+8,0), P(a0,T2+8,0)], PAL.paveEdge);
+      this.quad(g, [P(a0,T2+8,0), P(a1,T2+8,0), P(a1,T2+150,0), P(a0,T2+150,0)], PAL.road);
+      this.quad(g, [P(a0+18,T2+78,0), P(a0+58,T2+78,0), P(a0+58,T2+84,0), P(a0+18,T2+84,0)], PAL.roadLine);
+    }
+
+    /* lamp row: lamps at `spacing` tiles apart along the walk, on the
+       curb row (b = T2*0.8 — near the road edge like real streets),
+       arm reaching the road side. Depth order: draw far->near by
+       (x+y); with the P frame that's just ascending a for f=0/1 and
+       descending for f=2/3 — sort explicit to stay heading-safe. */
+    const lampAs = [];
+    for(let a = -2*T2*spacing; a <= 2*T2*spacing; a += spacing*T2) lampAs.push(a);
+    this.heads = [];   // glow anchors, redrawn per-frame in update()
+    const withDepth = lampAs.map(a => {
+      const wx = dv.x*a + rv.x*(T2*0.8), wy = dv.y*a + rv.y*(T2*0.8);
+      /* position-seeded, house convention: same lamp = same look
+         (and same malfunction) every time */
+      const seed = ((a * 2654435761) ^ (reseed * 0x9e3779b9)) >>> 0;
+      return { a, d: wx + wy, seed };
+    }).sort((p, q) => p.d - q.d);
+    for(const L of withDepth) this.drawLamp(g, P, L.a, T2*0.8, dv, rv, L.seed);
+
+    /* the approved night verdict — one multiply rect */
+    if(night){
+      t.fillStyle(NIGHT_MULT, 1);
+      t.fillRect(0, 0, this.scale.width, this.scale.height);
+    }
+  }
+
+  /* ---------- the lamp itself: hull boxes, shared frame ---------- */
+  drawLamp(g, P, a0, b0, dv, rv, seed){
+    const L = LAMP;
+    const r = mulberry32(seed);
+    const hVar = LAMP_VARY.hMin + r()*(LAMP_VARY.hMax - LAMP_VARY.hMin);
+    const armVar = LAMP_VARY.armMin + r()*(LAMP_VARY.armMax - LAMP_VARY.armMin);
+    const pVar = LAMP_VARY.poolMin + r()*(LAMP_VARY.poolMax - LAMP_VARY.poolMin);
+    const mal = r() < malRate;
+    /* broken lamps LEAN — a progressive a-shear up the pole, so you
+       can pick the sick one out of the row by silhouette before it
+       even flickers */
+    const tilt = mal ? (r() - 0.5) * 2 * LAMP_VARY.malTilt : 0;
+    const H = L.height * hVar;
+    const lean = z => tilt * z;   // a-offset at height z
+    const box = (aC, bC, ha, hb, z0, z1, cTop, cA, cB) => {
+      const c = (sa, sb, z) => P(aC + sa*ha, bC + sb*hb, z);
+      this.quad(g, [c(-1,-1,z1), c(1,-1,z1), c(1,1,z1), c(-1,1,z1)], cTop);
+      this.quad(g, [c(1,-1,z1), c(1,1,z1), c(1,1,z0), c(1,-1,z0)], cA);
+      this.quad(g, [c(-1,1,z1), c(1,1,z1), c(1,1,z0), c(-1,1,z0)], cB);
+    };
+    // ground shadow + cast base + pole (3 segments so a lean reads
+    // as a progressive shear, not a parallelogram)
+    const sh = P(a0, b0, 0);
+    g.fillStyle(L.shadow, 0.18); g.fillEllipse(sh.x, sh.y+1, 16*K, 7*K);
+    box(a0, b0, L.baseW/2, L.baseW/2, 0, L.baseH, L.base, L.baseDk, L.base);
+    const segN = 3;
+    for(let i = 0; i < segN; i++){
+      const z0 = L.baseH + (H - L.baseH)*i/segN, z1 = L.baseH + (H - L.baseH)*(i+1)/segN;
+      box(a0 + lean((z0+z1)/2), b0, L.poleW/2, L.poleW/2, z0, z1, L.pole, L.poleDk, L.pole);
+    }
+    const topA = a0 + lean(H);
+
+    const style = STYLES[styleIdx];
+    const heads = [];
+    if(style === "post"){
+      // lantern on top, no arm
+      box(topA, b0, L.headW/2*0.7, L.headW/2*0.7, H, H + L.headH + 3, L.head, L.headDk, L.head);
+      heads.push({ a: topA, b: b0, z: H + 1.5 });
+    } else {
+      const arms = style === "twin" ? [1, -1] : [1];   // +b = road side
+      const armL = L.armLen * armVar;
+      for(const s of arms){
+        // arm: slender box reaching s*b, dropping armDrop
+        const seg = 3;
+        for(let i = 0; i < seg; i++){
+          const u0 = i/seg, u1 = (i+1)/seg;
+          const bA = b0 + s*armL*u0, bB = b0 + s*armL*u1;
+          const zA = H - L.armDrop*u0*u0, zB = H - L.armDrop*u1*u1;
+          this.quad(g, [P(topA-1.4,bA,zA), P(topA+1.4,bA,zA), P(topA+1.4,bB,zB), P(topA-1.4,bB,zB)], L.pole);
+          this.quad(g, [P(topA+1.4,bA,zA), P(topA+1.4,bB,zB), P(topA+1.4,bB,zB-2), P(topA+1.4,bA,zA-2)], L.poleDk);
+        }
+        const hb = b0 + s*armL;
+        const hz = H - L.armDrop;
+        box(topA, hb, L.headW/2, L.headW/2*0.6, hz - L.headH, hz, L.head, L.headDk, L.head);
+        heads.push({ a: topA, b: hb, z: hz - L.headH });
+      }
+    }
+    /* lens base (dark housing tone) in the static board; the LIT lens
+       + pool are per-frame glow work so malfunctions can flicker */
+    for(const h of heads){
+      const lp = P(h.a, h.b, h.z);
+      g.fillStyle(L.glassDay, 1); g.fillEllipse(lp.x, lp.y, 8*K*0.8, 3.5*K*0.8);
+      this.heads.push({ lp, gp: P(h.a, h.b, 0), mal, seed, pR: poolR * pVar });
+    }
+  }
+
+  /* ---------- per-frame: lit lenses + pools (flicker-aware) ---------- */
+  update(time){
+    const gl = this.glowG; gl.clear();
+    if(!night || !this.heads) return;
+    const L = LAMP;
+    for(const h of this.heads){
+      const lit = h.mal ? flickerAt(h.seed, time) : 1;
+      if(lit <= 0) continue;
+      /* layered pool: hot core -> mid -> soft skirt. At ADD blend
+         over the NAVY 0.65 tint, a single faint wash doesn't even
+         cancel the blue — the core has to overpower the tint. */
+      gl.fillStyle(L.glow, 0.34*lit); gl.fillEllipse(h.gp.x, h.gp.y, h.pR*K*0.55, h.pR*K*0.26);
+      gl.fillStyle(L.glow, 0.20*lit); gl.fillEllipse(h.gp.x, h.gp.y, h.pR*K, h.pR*K*0.48);
+      gl.fillStyle(L.glow, 0.10*lit); gl.fillEllipse(h.gp.x, h.gp.y, h.pR*K*1.5, h.pR*K*0.72);
+      gl.fillStyle(L.glow, 0.5*lit);  gl.fillEllipse(h.lp.x, h.lp.y, 12*K, 6*K);
+      gl.fillStyle(0xffe9c0, 0.9*lit); gl.fillEllipse(h.lp.x, h.lp.y, 8*K*0.8, 3.5*K*0.8);
+      // faint light column connecting head to pool
+      this.quad(gl, [h.lp, {x:h.gp.x - h.pR*K*0.7, y:h.gp.y}, {x:h.gp.x + h.pR*K*0.7, y:h.gp.y}], L.glow, 0.07*lit);
+    }
+  }
+
+  updateVals(){
+    const malN = (this.heads || []).filter(h => h.mal).length;
+    document.getElementById("vals").textContent =
+      `heading f=${f} · style ${STYLES[styleIdx].toUpperCase()} · spacing ${spacing} tiles · pool ${poolR}\n` +
+      `vary: height/arm/pool seeded per lamp · mal ${Math.round(malRate*100)}% (${malN} in row, leaning + flickering) · seed ${reseed}\n` +
+      `night NAVY 0.65 (locked) · port: prop type "lamp" · curb row · palm-style thin wall stop on the pole`;
+  }
+}
+
+const game = new Phaser.Game({
+  type: Phaser.AUTO, parent: "game", width: 940, height: 620,
+  backgroundColor: "#14161a",
+  scale: { mode: Phaser.Scale.WIDTH_CONTROLS_HEIGHT },
+  scene: [LampLab]
+});
+const scn = () => game.scene.getScene("lamplab");
+const btn = (id, fn) => document.getElementById(id).addEventListener("click", () => { fn(); const s = scn(); s.redraw(); s.updateVals(); });
+btn("nightBtn", () => { night = !night; document.getElementById("nightBtn").classList.toggle("on", night); });
+btn("spinBtn",  () => { f = (f + 1) % 4; });
+btn("styleBtn", () => { styleIdx = (styleIdx + 1) % STYLES.length; });
+btn("spDown",   () => { spacing = Math.max(3, spacing - 1); });
+btn("spUp",     () => { spacing = Math.min(12, spacing + 1); });
+btn("poolDown", () => { poolR = Math.max(24, poolR - 6); });
+btn("poolUp",   () => { poolR = Math.min(90, poolR + 6); });
+btn("malBtn",   () => { malRate = malRate >= 0.5 ? 0 : (malRate === 0 ? 0.10 : malRate === 0.10 ? 0.25 : 0.5);
+                        document.getElementById("malBtn").textContent = "MAL " + Math.round(malRate*100) + "%"; });
+btn("seedBtn",  () => { reseed = (reseed * 1103515245 + 12345) & 0x7fffffff; });
+</script>
+</body>
+</html>
