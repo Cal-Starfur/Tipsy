@@ -8,23 +8,34 @@ import type {
 } from '@devvit/web/shared'
 import {
   type AccountDeleteEvent,
+  type ClaimTrophyRewardReq,
+  type ClaimTrophyRewardRsp,
   Endpoint,
   EndpointMethod,
+  type EquipSkinReq,
+  type EquipSkinRsp,
   type ErrorRsp,
   type GetDailyBestRsp,
   type GetHistoryRsp,
+  type PurchaseSkinReq,
+  type PurchaseSkinRsp,
   type SubmitDailyBestReq,
   type SubmitDailyBestRsp,
   type SubmitReplayReq,
   type SubmitReplayRsp,
+  type TpProfileRsp,
 } from '../shared/api.ts'
 import {
+  dbClaimTrophyReward,
+  dbEquipSkin,
   dbGetAllTimeBest,
   dbGetAllTimeTop,
   dbGetDailyBest,
   dbGetDailyPostId,
   dbGetHistory,
   dbGetTop,
+  dbGetTpProfile,
+  dbPurchaseSkin,
   dbRemoveUser,
   dbSetDailyPostId,
   dbShouldPostDaily,
@@ -40,6 +51,10 @@ type AnyRsp =
   | SubmitDailyBestRsp
   | GetHistoryRsp
   | SubmitReplayRsp
+  | TpProfileRsp
+  | PurchaseSkinRsp
+  | EquipSkinRsp
+  | ClaimTrophyRewardRsp
   | UiResponse
   | TriggerResponse
   | ErrorRsp
@@ -80,6 +95,18 @@ async function route(
         break
       case Endpoint.SubmitReplay:
         rsp = await routeSubmitReplay(reqMsg)
+        break
+      case Endpoint.GetTpProfile:
+        rsp = await routeGetTpProfile()
+        break
+      case Endpoint.PurchaseSkin:
+        rsp = await routePurchaseSkin(reqMsg)
+        break
+      case Endpoint.EquipSkin:
+        rsp = await routeEquipSkin(reqMsg)
+        break
+      case Endpoint.ClaimTrophyReward:
+        rsp = await routeClaimTrophyReward(reqMsg)
         break
       case Endpoint.OnMenuNewPost:
         rsp = await routeMenuNewPost()
@@ -194,6 +221,54 @@ async function routeSubmitReplay(
     console.error(`routeSubmitReplay: ${msg}`)
     return {error: msg, status: 400}
   }
+}
+
+async function routeGetTpProfile(): Promise<TpProfileRsp> {
+  const user = await getCurrentUserRetrying()
+  const username = user?.username ?? 'anonymous'
+  return dbGetTpProfile(username)
+}
+
+async function routePurchaseSkin(
+  reqMsg: IncomingMessage,
+): Promise<PurchaseSkinRsp | ErrorRsp> {
+  const req = await readJson<PurchaseSkinReq>(reqMsg)
+  const user = await getCurrentUserRetrying()
+  const username = user?.username ?? 'anonymous'
+  const result = await dbPurchaseSkin(username, req.skinId)
+  if (!result.ok) {
+    console.error(`routePurchaseSkin: ${username} -> ${req.skinId}: ${result.error}`)
+    return {error: result.error, status: 400}
+  }
+  return result.profile
+}
+
+async function routeEquipSkin(
+  reqMsg: IncomingMessage,
+): Promise<EquipSkinRsp | ErrorRsp> {
+  const req = await readJson<EquipSkinReq>(reqMsg)
+  const user = await getCurrentUserRetrying()
+  const username = user?.username ?? 'anonymous'
+  const result = await dbEquipSkin(username, req.skinId)
+  if (!result.ok) {
+    console.error(`routeEquipSkin: ${username} -> ${req.skinId}: ${result.error}`)
+    return {error: result.error, status: 400}
+  }
+  return {equipped: result.equipped}
+}
+
+async function routeClaimTrophyReward(
+  reqMsg: IncomingMessage,
+): Promise<ClaimTrophyRewardRsp | ErrorRsp> {
+  const req = await readJson<ClaimTrophyRewardReq>(reqMsg)
+  const user = await getCurrentUserRetrying()
+  const username = user?.username ?? 'anonymous'
+  const result = await dbClaimTrophyReward(username, req.trophyId)
+  if (!result.ok) {
+    console.error(`routeClaimTrophyReward: ${username} -> ${req.trophyId}: ${result.error}`)
+    return {error: result.error, status: 400}
+  }
+  return {owned: result.profile.owned, skinId: result.skinId}
 }
 
 async function routeMenuNewPost(): Promise<UiResponse> {
