@@ -25,6 +25,15 @@
     font-size:19px;font-weight:800;letter-spacing:2px;color:#ffd15c;text-shadow:0 2px 0 #7a3a00,0 0 18px rgba(255,140,0,.7);
     opacity:0;transform:scale(.8);transition:opacity .25s,transform .25s;}
   #unlock.show{opacity:1;transform:scale(1);}
+  /* ---- The dial bank is BENCH FURNITURE and is hidden by default.
+     It was 356px of permanent chrome on top of a 42px meter and a 66px
+     tap button — 464px total, which left 106px of canvas on an iPhone
+     15 Pro and ZERO on an SE. The headless harness ran at 430x900 and
+     so never saw it. Collapsed, and the layout is now asserted at real
+     device viewports in the test run. ---- */
+  #dials{display:none;max-height:46vh;overflow-y:auto;}
+  #dials.open{display:block;}
+  #dialsBtn.on{background:#ff7a1a;border-color:#ff7a1a;color:#fff;}
   /* ---- charge meter: the band is what makes tap-rate readable ---- */
   #meterWrap{padding:6px 12px 0;background:#1c1f26;}
   #meter{position:relative;height:20px;border-radius:10px;background:#0f1116;
@@ -38,7 +47,7 @@
     padding:4px 0 0;text-align:center;}
   #meterLbl.locked{color:#4fd167;}
   #tapWrap{padding:6px 12px 0;background:#1c1f26;}
-  #tapBtn{width:100%;padding:20px 0;font-size:17px;font-weight:800;letter-spacing:3px;
+  #tapBtn{width:100%;padding:15px 0;font-size:17px;font-weight:800;letter-spacing:3px;
     background:#ff7a1a;border:none;border-color:#ff7a1a;color:#fff;border-radius:14px;
     box-shadow:0 4px 0 #a84a08;}
   #tapBtn:active{transform:translateY(3px);box-shadow:0 1px 0 #a84a08;}
@@ -52,7 +61,6 @@
 <body>
 <div id="wrap">
   <div id="hdr"><b>TIPSY</b> · hydrant challenge · tap to charge · clear them all, land the catch ramp</div>
-  <div id="vals">…</div>
   <div id="game"></div>
   <div id="hudBig"></div>
   <div id="unlock">🚒 FIRE CHIEF UNLOCKED<small>STORE ENTITLEMENT GRANTED</small></div>
@@ -69,7 +77,17 @@
     <div class="row">
       <button class="on" id="driveBtn">RUN</button>
       <button id="resetBtn">RETRY</button>
+      <button id="dialsBtn">DIALS</button>
+    </div>
+    <div id="dials">
+    <div id="vals">…</div>
+    <div class="row">
       <button id="chiefBtn">CHIEF SKIN</button>
+      <button id="shadowBtn" class="on">SHADOW</button>
+      <button class="sm" id="faceBtn">f0</button>
+      <button class="sm" id="pitchBtn">P+</button>
+      <button class="sm" id="zoomOut">−</button>
+      <button class="sm" id="zoomIn">＋</button>
     </div>
     <div class="row">
       <span class="lbl">Level</span>
@@ -115,13 +133,6 @@
       <span class="lbl">Auto</span>
       <button id="autoBtn">AUTO-TAP OFF</button>
     </div>
-    <div class="row">
-      <span class="lbl">View</span>
-      <button class="sm" id="faceBtn">f0</button>
-      <button class="sm" id="pitchBtn">P+</button>
-      <button id="shadowBtn" class="on">SHADOW</button>
-      <button class="sm" id="zoomOut">−</button>
-      <button class="sm" id="zoomIn">＋</button>
     </div>
   </div>
 </div>
@@ -390,8 +401,27 @@ class HydrantChallengeLab extends Phaser.Scene {
     this.updateVals();
   }
   layout(){
+    const H = this.scale.gameSize.height;
     this.cx = this.scale.gameSize.width/2;
-    this.cy = this.scale.gameSize.height*0.46;
+    /* Horizon sits LOW, because camZ is pinned at 0 on purpose (a camera
+       that followed the jump would make the jump read as nothing), so the
+       whole arc has to fit in the space ABOVE the ground line. */
+    this.cy = H*0.74;
+    this.recomputeK();
+  }
+  /* ---------- FIT-TO-VIEW ZOOM ----------
+     A hardcoded K=2 flew Tipsy off the TOP of the canvas mid-jump on
+     short screens: 65 of 176 airborne frames were offscreen on an
+     iPhone SE, screenY reaching -27. The arc needs ARC_HEADROOM world
+     units of clearance above the ground line, so K has to be derived
+     from the height actually available, then capped by the per-level
+     zoom-out. Effective K is the tighter of the two. */
+  recomputeK(){
+    const H = this.scale.gameSize.height || 600;
+    const ARC_HEADROOM = 100 + LID.z1;      // worst-case peak + robot height
+    const fitK = (H*0.66) / ARC_HEADROOM;
+    const levelK = 2.0 - (CH.level-1)*0.13;
+    this.K = Phaser.Math.Clamp(Math.min(fitK, levelK), 0.85, 2.0);
   }
 
   /* one attempt, back to the top of the run. `unlocked` survives. */
@@ -522,8 +552,9 @@ class HydrantChallengeLab extends Phaser.Scene {
     this.applyLevelGeometry(n);
     this.band = this.solveBand();
     /* pull the camera back as the gap grows so the whole arc stays on
-       screen — a jump you cannot see is not a jump you can judge */
-    this.K = Phaser.Math.Clamp(2.0 - (CH.level-1)*0.13, 1.05, 2.0);
+       screen — a jump you cannot see is not a jump you can judge.
+       recomputeK() also enforces the fit-to-view ceiling. */
+    this.recomputeK();
   }
   /* charge -> the two physics values it is allowed to touch */
   speedFor(c){ return CH.sp0 + c*(CH.sp1 - CH.sp0); }
@@ -1419,6 +1450,12 @@ window.addEventListener("keydown", e => {
   if(e.code === "Space"){ e.preventDefault(); scn().tap(performance.now()); scn().updateVals(); }
 });
 
+document.getElementById("dialsBtn").addEventListener("click", e => {
+  const d = document.getElementById("dials");
+  d.classList.toggle("open");
+  e.target.classList.toggle("on", d.classList.contains("open"));
+  scn().layout();
+});
 document.getElementById("autoBtn").addEventListener("click", e => {
   const rates = [0, 2, 3, 4, 5, 6, 8, 10];
   CH.autoTap = rates[(rates.indexOf(CH.autoTap) + 1) % rates.length];
