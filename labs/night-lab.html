@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Tipsy — Night Lab</title>
+<style>
+  html,body{margin:0;padding:0;background:#14161a;color:#e8eaef;font-family:-apple-system,system-ui,sans-serif;}
+  #bar{display:flex;flex-wrap:wrap;gap:6px;padding:8px;}
+  #bar button{background:#2a2e38;color:#e8eaef;border:1px solid #3a3f4b;border-radius:8px;
+    padding:8px 12px;font-size:13px;font-weight:700;}
+  #bar button.on{background:#3f6b8f;border-color:#5a8ab0;}
+  #vals{padding:0 10px 8px;font-size:11px;color:#8f95a1;white-space:pre-wrap;}
+  #game{width:100vw;}
+</style>
+</head>
+<body>
+<div id="bar">
+  <button id="nightBtn" class="on">NIGHT</button>
+  <button id="splitBtn">SPLIT</button>
+  <button id="hueBtn">HUE</button>
+  <button id="dDown">DEPTH −</button>
+  <button id="dUp">DEPTH +</button>
+  <button id="glowBtn" class="on">GLOW</button>
+  <button id="palBtn">PAL</button>
+</div>
+<div id="vals"></div>
+<div id="game"></div>
+<script src="https://cdn.jsdelivr.net/npm/phaser@3.85.2/dist/phaser.min.js"></script>
+<script>
+"use strict";
+/* ============================================================
+   NIGHT LAB — the entire shipped palette under a dial-able
+   night tint, exactly the way the game will do it: ONE
+   full-screen MULTIPLY rect over the world, warm accent glows
+   (ADD blend) drawn ABOVE the tint. Dial depth + hue here,
+   read the verdict off the real colors.
+
+   All palette consts below are COPIED VERBATIM from
+   game/index.html — if a color ships, it's on this board.
+   ============================================================ */
+
+/* ---------- route palettes (the pal ternary, verbatim) ---------- */
+const ROUTE_PALS = [
+  { n:"hills",   sky:0xf2c48d, pave:0xbdb6a8, paveB:0xb3ac9e, paveEdge:0x9c9588, road:0x45484f, roadLine:0xcfc9b9 },
+  { n:"oldtown", sky:0xc9b49b, pave:0xa19a8e, paveB:0x958e82, paveEdge:0x7d7669, road:0x3d4046, roadLine:0x8f897b },
+  { n:"coastal", sky:0x9fd4e8, pave:0xc9c3b4, paveB:0xbfb9aa, paveEdge:0xa8a294, road:0x4a4d55, roadLine:0xd8d2c2 }
+];
+
+/* ---------- Tipsy ---------- */
+const SKIN = {
+  bodyTop:0xf7f8fa, bodyRight:0xe3e6ea, bodyLeft:0xc9cdd4, outline:0x30343d,
+  stripe:0xc2452e, stripeDk:0xa03824,
+  wheel:0x24262c, wheelDark:0x1a1c21, wheelHubFace:0x3d424c, wheelHub:0x8a919c,
+  visor:0x22242b, eye:0x7fe3ff, eyeAlert:0xffb04d,
+  lidInner:0xb2b7bf, cavityWall:0x9ba1a9, cavityFloor:0x7b818a,
+  belly:0x494e58, flagPole:0x2e3138, flag:0xff5722, shadow:0x000000
+};
+const ROBOT_NPC = { stripe:0x2e6fd1, stripeDk:0x24569f, flag:0x2e6fd1 };
+
+/* ---------- block-wrap buildings + ground ---------- */
+const HOUSE_WRAP_PALETTES = [
+  { wall:0x4e7a52, wallDk:0x3e6244, wallLt:0x5c8a60, trim:0x2f4a32, roof:0x2f4a32 },
+  { wall:0x2e4d68, wallDk:0x22394e, wallLt:0x3a5f7e, trim:0x1a2a3a, roof:0x1a2a3a },
+  { wall:0xc9a56e, wallDk:0xa8875a, wallLt:0xd8b884, trim:0x7a6040, roof:0x7a6040 },
+  { wall:0xc46a4a, wallDk:0x9e5138, wallLt:0xd88264, trim:0x6e3624, roof:0x6e3624 },
+  { wall:0xe8ddc0, wallDk:0xc9bc9a, wallLt:0xf2ead6, trim:0x9a8c68, roof:0x9a8c68 },
+  { wall:0xd98a9e, wallDk:0xb56a7e, wallLt:0xe6a4b6, trim:0x7a4252, roof:0x7a4252 }
+];
+const STORE_PALETTES = [
+  { wall:0x8a3f36, wallDk:0x6e2f28, wallLt:0x9e4c42, trim:0x3a2018, sign:0xe8ddc0 },
+  { wall:0x2a5c5c, wallDk:0x1e4646, wallLt:0x357070, trim:0x16302f, sign:0xf0e6cc },
+  { wall:0x3a3a3e, wallDk:0x28282b, wallLt:0x4a4a4f, trim:0x18181a, sign:0xd8b23a },
+  { wall:0xc4a23a, wallDk:0x9e802c, wallLt:0xd8b854, trim:0x5c4a1a, sign:0x2a2a2a },
+  { wall:0x3f6b4a, wallDk:0x2f5238, wallLt:0x4e8058, trim:0x1e3524, sign:0xe8ddc0 }
+];
+const GRASS = { a:0x5a9c52, b:0x519246, edge:0x3f7a3a };
+const PLAZA = { a:0xd9c9a8, b:0xceba95, edge:0xb09b74 };
+const BENCH_ART = { wood:0x9d7a4e, woodDk:0x7c5f3c, woodLt:0xb8935e, leg:0x3a3d43 };
+const MAT_ART = { red:0xc2452e, redDk:0x8f331f, border:0x6e2718, fiber:0xa8391f };
+const SLAB_ART = { top:0xc4bdae, topDk:0x9d9687, gap:0x4a4238 };
+
+/* ---------- people + kicker + dogs ---------- */
+const PEOPLE_SKIN  = [{c:0xd9a774,dk:0xb98456},{c:0xf0c8a0,dk:0xc9a583},{c:0xc98a5a,dk:0xa8724a},{c:0x8a5a3a,dk:0x6e4830},{c:0x5c3d28,dk:0x4a3120}];
+const PEOPLE_SHIRT = [{c:0x3f8f8a,dk:0x2f6b67},{c:0xc2452e,dk:0x963522},{c:0xb15a7a,dk:0x8a475f},{c:0x4a6c9c,dk:0x3a557a},{c:0xe8b04b,dk:0xb98a3a},{c:0x6b6b6b,dk:0x525252},{c:0x5c8a4e,dk:0x486d3d}];
+const PEOPLE_PANTS = [{c:0x3a4658,dk:0x2c3543},{c:0x2e2e2e,dk:0x1e1e1e},{c:0x6b4a34,dk:0x543a29},{c:0x8a8a8a,dk:0x6d6d6d},{c:0x4a3a5c,dk:0x3a2d47}];
+const PEOPLE_HAIR  = [0x3a2b20, 0x1a1a1a, 0x8a6a3a, 0xd4c088, 0xb03a2e, 0x6b6b6b];
+const PEOPLE_SHOE  = [{c:0x1c1c1c,dk:0x121212},{c:0x5c4530,dk:0x483623},{c:0xf2f0e8,dk:0xc4c2ba}];
+const KICKER_FITS = [
+  { n:"coral", c:0xe0604a, dk:0xb54936, p1:0xf5e9d0, p2:0x3f8f8a, hat:{ c:0x6fa8d8, dk:0x4f83b0, p:0x3f6a94 } },
+  { n:"teal",  c:0x2f8f86, dk:0x246b64, p1:0xf2c14e, p2:0xf5f0e4, hat:{ c:0xd88a3f, dk:0xb06a2c, p:0x8f5522 } },
+  { n:"grape", c:0x7a5aa8, dk:0x5e4485, p1:0xf2c14e, p2:0xe8e2f2, hat:{ c:0xa8c24e, dk:0x84993b, p:0x66782c } }
+];
+const KICKER_SKIN = { c:0xf0c8a0, dk:0xc9a583 };
+const KICKER_BEARD = 0x4a382a, KICKER_CHAIN = 0xe8c15a, KICKER_SHADE = 0x1c1e24;
+const DOG_COATS = [
+  { n:"fawn",    body:0xc98d4b, dk:0xa06e38, chest:0xe8d9b8, ear:0xd99a8c },
+  { n:"cream",   body:0xe3d3b3, dk:0xbfa987, chest:0xf3ece0, ear:0xdca493 },
+  { n:"blk&tan", body:0x33363e, dk:0x22242b, chest:0xc98d4b, ear:0xb0837b }
+];
+const DOG_COLLAR = { collar:0xd94f3d, collarDk:0xa83b2d };
+
+/* ---------- props ---------- */
+const PALM = { trunk:0x8a6a48, trunkDk:0x6f5439, ring:0x7a5c40, frondA:0x4e8f4a, frondB:0x3f7a3e, coco:0x6b4f33, cocoHi:0x7d5e40 };
+const CONE = { body:0xff7a1a, bodyDk:0xd85f0a, band_c:0xf4f5f7 };
+const HYD  = { cap:0xb5342b, capDk:0x8a2822, nut:0x3a3d43, water:0xbfe6f2, waterDk:0x8fc8dc };
+const BIN  = { body:0x3f5147, bodyDk:0x2e3d35, band_c:0xd8dade, lid:0x4a5d52, lidDk:0x384539, pedal:0x8a919c, pedalDk:0x5f656e, liner:0x1f2822 };
+const PLANTER = { box:0x8f8577, boxDk:0x7a7164, boxDk2:0x6b6357, soil:0x4a3f34, stalk:0x5c6b3f };
+const SCOOT = { deck:0x2e3138, grip:0x3d424c, wheel:0x24262c, wheelDk:0x17191d, hub:0x8a919c, metal:0x9aa3ad, metalDk:0x707a85 };
+const BRANDS = [
+  { n:"teal",  c:0x2ec4b6, cDk:0x1f857c },
+  { n:"lime",  c:0x8bc34a, cDk:0x649238 },
+  { n:"coral", c:0xff6b6b, cDk:0xc94f4f }
+];
+const TRASH_ART = {
+  bagC:0xe9eaec, bagHi:0xf7f8fa, bagShade:0xc3c7cc, bagDeep:0xa8adb4,
+  botBody:0xd8eef4, botHi:0xf4fbfd, botCap:0x2d7dd2, botLabel:0xf4f5f7, botShade:0xaacdd6,
+  paper:0xf1efe6, paperShade:0xd0ccbd,
+  canA:0xc2452e, canB:0x9aa7b5, canHi:0xc9d3dd,
+  wrap:[0xf2c94c, 0x7fae4e, 0xff7a1a], outline:0x30343d
+};
+const CAR_COLORS = [
+  { n:"silver", body:0x9aa7b5, bodyDk:0x76839a, roof:0x8695a5 },
+  { n:"red",    body:0xc45a4e, bodyDk:0x9c473d, roof:0xaf4f44 },
+  { n:"blue",   body:0x5678a8, bodyDk:0x435e87, roof:0x4c6c99 },
+  { n:"white",  body:0xe4e6ea, bodyDk:0xc0c3c9, roof:0xd6d9dd }
+];
+
+/* ============================================================
+   The board: every group above laid out as split swatches
+   (top = c, bottom = dk where a dark twin exists).
+   ============================================================ */
+function pair(n, c, dk){ return { n, c, dk }; }
+const GROUPS = [
+  { name:"ROUTE PAL — hills / oldtown / coastal",
+    items: ROUTE_PALS.flatMap(p => [
+      pair(p.n+" sky", p.sky), pair("pave", p.pave, p.paveB), pair("edge", p.paveEdge),
+      pair("road", p.road), pair("line", p.roadLine) ]) },
+  { name:"TIPSY",
+    items: [ pair("bodyT", SKIN.bodyTop), pair("bodyR", SKIN.bodyRight), pair("bodyL", SKIN.bodyLeft),
+      pair("stripe", SKIN.stripe, SKIN.stripeDk), pair("visor", SKIN.visor), pair("eye", SKIN.eye),
+      pair("alert", SKIN.eyeAlert), pair("wheel", SKIN.wheel, SKIN.wheelDark), pair("hub", SKIN.wheelHub),
+      pair("belly", SKIN.belly), pair("flag", SKIN.flag), pair("npc", ROBOT_NPC.stripe, ROBOT_NPC.stripeDk) ] },
+  { name:"HOUSES ×6",
+    items: HOUSE_WRAP_PALETTES.flatMap((h,i) => [ pair("wall"+i, h.wall, h.wallDk), pair("lt", h.wallLt), pair("trim", h.trim) ]) },
+  { name:"STORES ×5",
+    items: STORE_PALETTES.flatMap((s,i) => [ pair("wall"+i, s.wall, s.wallDk), pair("trim", s.trim), pair("sign", s.sign) ]) },
+  { name:"GROUND / STREET FURNITURE",
+    items: [ pair("grass", GRASS.a, GRASS.b), pair("gEdge", GRASS.edge), pair("plaza", PLAZA.a, PLAZA.b),
+      pair("pEdge", PLAZA.edge), pair("bench", BENCH_ART.wood, BENCH_ART.woodDk), pair("bLt", BENCH_ART.woodLt),
+      pair("mat", MAT_ART.red, MAT_ART.redDk), pair("slab", SLAB_ART.top, SLAB_ART.topDk), pair("gap", SLAB_ART.gap) ] },
+  { name:"PEOPLE — skin / shirt / pants / hair / shoe",
+    items: [ ...PEOPLE_SKIN.map((p,i)=>pair("sk"+i, p.c, p.dk)),
+             ...PEOPLE_SHIRT.map((p,i)=>pair("sh"+i, p.c, p.dk)),
+             ...PEOPLE_PANTS.map((p,i)=>pair("pa"+i, p.c, p.dk)),
+             ...PEOPLE_HAIR.map((c,i)=>pair("hr"+i, c)),
+             ...PEOPLE_SHOE.map((p,i)=>pair("shoe"+i, p.c, p.dk)) ] },
+  { name:"KICKER — fits / hats / trims",
+    items: KICKER_FITS.flatMap(f => [ pair(f.n, f.c, f.dk), pair("p1", f.p1), pair("p2", f.p2),
+      pair("hat", f.hat.c, f.hat.dk), pair("hp", f.hat.p) ]).concat([
+      pair("skin", KICKER_SKIN.c, KICKER_SKIN.dk), pair("beard", KICKER_BEARD),
+      pair("chain", KICKER_CHAIN), pair("shade", KICKER_SHADE) ]) },
+  { name:"DOGS",
+    items: DOG_COATS.flatMap(d => [ pair(d.n, d.body, d.dk), pair("chest", d.chest), pair("ear", d.ear) ])
+      .concat([ pair("collar", DOG_COLLAR.collar, DOG_COLLAR.collarDk) ]) },
+  { name:"PROPS — palm / cone / hydrant / bin / planter",
+    items: [ pair("trunk", PALM.trunk, PALM.trunkDk), pair("ring", PALM.ring),
+      pair("frond", PALM.frondA, PALM.frondB), pair("coco", PALM.coco, PALM.cocoHi),
+      pair("cone", CONE.body, CONE.bodyDk), pair("band", CONE.band_c),
+      pair("hyd", HYD.cap, HYD.capDk), pair("nut", HYD.nut), pair("water", HYD.water, HYD.waterDk),
+      pair("bin", BIN.body, BIN.bodyDk), pair("lid", BIN.lid, BIN.lidDk), pair("bband", BIN.band_c),
+      pair("pedal", BIN.pedal, BIN.pedalDk), pair("liner", BIN.liner),
+      pair("box", PLANTER.box, PLANTER.boxDk), pair("soil", PLANTER.soil), pair("stalk", PLANTER.stalk) ] },
+  { name:"SCOOTER / TRASH / CARS",
+    items: [ pair("deck", SCOOT.deck, SCOOT.grip), pair("swheel", SCOOT.wheel, SCOOT.wheelDk),
+      pair("metal", SCOOT.metal, SCOOT.metalDk), pair("hub", SCOOT.hub),
+      ...BRANDS.map(b => pair(b.n, b.c, b.cDk)),
+      pair("bag", TRASH_ART.bagC, TRASH_ART.bagShade), pair("bagHi", TRASH_ART.bagHi),
+      pair("deep", TRASH_ART.bagDeep), pair("bot", TRASH_ART.botBody, TRASH_ART.botShade),
+      pair("cap", TRASH_ART.botCap), pair("paper", TRASH_ART.paper, TRASH_ART.paperShade),
+      pair("canA", TRASH_ART.canA), pair("canB", TRASH_ART.canB, TRASH_ART.canHi),
+      ...TRASH_ART.wrap.map((c,i) => pair("wrap"+i, c)),
+      ...CAR_COLORS.map(c => pair(c.n, c.body, c.bodyDk)) ] }
+];
+
+/* ---------- night hues to audition ---------- */
+const HUES = [
+  { n:"NAVY",   c:0x5a6aa8 },
+  { n:"INDIGO", c:0x6a5aa8 },
+  { n:"TEAL",   c:0x54808f },
+  { n:"MOON",   c:0x76839a },
+  { n:"DUSK",   c:0xc78a66 }   // sunset mode, free bonus
+];
+
+const W = 940, H = 1210, SCENE_H = 190;
+let night = true, split = false, glow = true, hueIdx = 0, depth = 0.55, palIdx = 2;
+
+function lerpToWhite(c, d){
+  /* the MULTIPLY color: white = day, full hue = deepest night */
+  const r = (c>>16)&255, g2 = (c>>8)&255, b = c&255;
+  const R = Math.round(255 + (r-255)*d), G = Math.round(255 + (g2-255)*d), B = Math.round(255 + (b-255)*d);
+  return (R<<16)|(G<<8)|B;
+}
+
+class NightLab extends Phaser.Scene {
+  constructor(){ super("nightlab"); }
+  create(){
+    this.board = this.add.graphics();     // day-lit content
+    this.tint = this.add.graphics();      // MULTIPLY night rect
+    this.tint.setBlendMode(Phaser.BlendModes.MULTIPLY);
+    this.glowG = this.add.graphics();     // ADD accents ABOVE the tint
+    this.glowG.setBlendMode(Phaser.BlendModes.ADD);
+    this.labels = [];
+    this.redraw();
+    this.updateVals();
+  }
+
+  clearLabels(){ for(const l of this.labels) l.destroy(); this.labels = []; }
+  label(x, y, txt, size=10, color="#8f95a1"){
+    this.labels.push(this.add.text(x, y, txt, { fontSize: size+"px", color, fontFamily:"monospace" }));
+  }
+
+  redraw(){
+    const g = this.board; g.clear(); this.clearLabels();
+    g.fillStyle(0x14161a, 1); g.fillRect(0, 0, W, H);
+    this.drawScene(g);
+    this.drawBoard(g);
+    this.drawTint();
+    this.drawGlow();
+  }
+
+  /* ---------- mini scene strip: pal ground + house + props ---------- */
+  drawScene(g){
+    const pal = ROUTE_PALS[palIdx];
+    const y0 = 26;
+    this.label(8, 6, "SCENE — route pal: " + pal.n + "  (PAL button cycles)", 12, "#e8eaef");
+    // sky
+    g.fillStyle(pal.sky, 1); g.fillRect(0, y0, W, 52);
+    // house block
+    const hp = HOUSE_WRAP_PALETTES[3], sp = STORE_PALETTES[1];
+    g.fillStyle(hp.roof, 1); g.fillRect(60, y0+18, 190, 12);
+    g.fillStyle(hp.wall, 1); g.fillRect(66, y0+30, 178, 58);
+    g.fillStyle(hp.wallDk, 1); g.fillRect(66, y0+30, 178, 6);
+    this.sceneWindows = [];
+    for(let i=0;i<4;i++){
+      const wx = 80 + i*42;
+      this.sceneWindows.push({x:wx, y:y0+46, w:22, h:26});
+      g.fillStyle(0x262b33, 1); g.fillRect(wx, y0+46, 22, 26);
+      g.fillStyle(hp.trim, 1); g.fillRect(wx-2, y0+44, 26, 2);
+    }
+    // store
+    g.fillStyle(sp.wall, 1); g.fillRect(300, y0+26, 170, 62);
+    g.fillStyle(sp.trim, 1); g.fillRect(300, y0+26, 170, 8);
+    g.fillStyle(sp.sign, 1); g.fillRect(330, y0+32, 110, 12);
+    this.sceneWindows.push({x:316, y:y0+52, w:60, h:30});
+    this.sceneWindows.push({x:396, y:y0+52, w:60, h:30});
+    g.fillStyle(0x262b33, 1); g.fillRect(316, y0+52, 60, 30); g.fillRect(396, y0+52, 60, 30);
+    // palm
+    g.fillStyle(PALM.trunk, 1); g.fillRect(510, y0+34, 8, 54);
+    g.fillStyle(PALM.frondA, 1); g.fillCircle(514, y0+30, 20);
+    g.fillStyle(PALM.frondB, 1); g.fillCircle(506, y0+36, 12);
+    // streetlight pole (glow pool comes from glow pass)
+    this.lampX = 590; this.lampY = y0+88;
+    g.fillStyle(0x3a3d43, 1); g.fillRect(this.lampX-2, y0+30, 4, 58);
+    g.fillRect(this.lampX-2, y0+30, 18, 3);
+    // sidewalk
+    g.fillStyle(pal.pave, 1); g.fillRect(0, y0+88, W, 34);
+    g.fillStyle(pal.paveB, 1);
+    for(let x=0; x<W; x+=44) g.fillRect(x, y0+88, 22, 34);
+    g.fillStyle(pal.paveEdge, 1); g.fillRect(0, y0+120, W, 3);
+    // props on the walk: cone, hydrant, bin, Tipsy, kicker blob
+    g.fillStyle(CONE.body, 1); g.fillTriangle(650, y0+116, 662, y0+116, 656, y0+92);
+    g.fillStyle(HYD.cap, 1); g.fillRect(690, y0+98, 10, 18); g.fillCircle(695, y0+98, 6);
+    g.fillStyle(BIN.body, 1); g.fillRect(724, y0+92, 16, 24);
+    g.fillStyle(BIN.lid, 1); g.fillRect(722, y0+88, 20, 6);
+    // Tipsy
+    g.fillStyle(SKIN.bodyRight, 1); g.fillRect(780, y0+88, 30, 26);
+    g.fillStyle(SKIN.stripe, 1); g.fillRect(780, y0+104, 30, 5);
+    g.fillStyle(SKIN.visor, 1); g.fillRect(784, y0+92, 22, 7);
+    g.fillStyle(SKIN.eye, 1); g.fillRect(787, y0+94, 4, 3); g.fillRect(799, y0+94, 4, 3);
+    this.tipsyEyes = [{x:787,y:y0+94},{x:799,y:y0+94}];
+    // kicker
+    const kf = KICKER_FITS[0];
+    g.fillStyle(KICKER_SKIN.c, 1); g.fillRect(846, y0+86, 10, 10);
+    g.fillStyle(kf.hat.c, 1); g.fillRect(842, y0+84, 18, 4);
+    g.fillStyle(kf.c, 1); g.fillRect(844, y0+96, 14, 12);
+    g.fillStyle(KICKER_SKIN.c, 1); g.fillRect(846, y0+108, 3, 8); g.fillRect(853, y0+108, 3, 8);
+    // road + car
+    g.fillStyle(pal.road, 1); g.fillRect(0, y0+123, W, 42);
+    g.fillStyle(pal.roadLine, 1);
+    for(let x=8; x<W; x+=64) g.fillRect(x, y0+142, 30, 3);
+    const cc = CAR_COLORS[1];
+    g.fillStyle(cc.body, 1); g.fillRect(120, y0+130, 64, 20);
+    g.fillStyle(cc.roof, 1); g.fillRect(134, y0+126, 34, 8);
+    g.fillStyle(SCOOT.wheel, 1); g.fillCircle(132, y0+150, 6); g.fillCircle(172, y0+150, 6);
+    this.carFront = {x:184, y:y0+140};
+  }
+
+  /* ---------- swatch board ---------- */
+  drawBoard(g){
+    const SW = 30, SH = 26, GAP = 3, X0 = 8;
+    let y = SCENE_H + 38;
+    for(const grp of GROUPS){
+      this.label(X0, y - 14, grp.name, 11, "#b5bac4");
+      let x = X0;
+      for(const it of grp.items){
+        if(x + SW > W - 8){ x = X0; y += SH + GAP + 12; }
+        if(it.dk !== undefined){
+          g.fillStyle(it.c, 1);  g.fillRect(x, y, SW, SH*0.62);
+          g.fillStyle(it.dk, 1); g.fillRect(x, y + SH*0.62, SW, SH*0.38);
+        } else {
+          g.fillStyle(it.c, 1);  g.fillRect(x, y, SW, SH);
+        }
+        this.label(x, y + SH + 1, it.n, 8, "#6b7078");
+        x += SW + GAP;
+      }
+      y += SH + GAP + 26;
+    }
+    this.boardBottom = y;
+  }
+
+  /* ---------- THE NIGHT: one MULTIPLY rect ---------- */
+  drawTint(){
+    const g = this.tint; g.clear();
+    if(!night) return;
+    const mc = lerpToWhite(HUES[hueIdx].c, depth);
+    const x0 = split ? W*0.42 : 0;
+    g.fillStyle(mc, 1);
+    g.fillRect(x0, 0, W - x0, H);
+    if(split){
+      g.setBlendMode(Phaser.BlendModes.NORMAL);
+      /* thin divider so the eye knows where day ends — drawn in the
+         same graphics but normal blend, then restore */
+      g.lineStyle(2, 0xffffff, 0.5); g.lineBetween(x0, 0, x0, H);
+      g.setBlendMode(Phaser.BlendModes.MULTIPLY);
+    }
+  }
+
+  /* ---------- warm accents ABOVE the tint (ADD) ---------- */
+  drawGlow(){
+    const g = this.glowG; g.clear();
+    if(!night || !glow) return;
+    const inNight = x => !split || x > W*0.42;
+    // lit windows
+    for(const w of (this.sceneWindows || [])){
+      if(!inNight(w.x)) continue;
+      g.fillStyle(0xffc46a, 0.55); g.fillRect(w.x, w.y, w.w, w.h);
+      g.fillStyle(0xffc46a, 0.10); g.fillRect(w.x-5, w.y-5, w.w+10, w.h+10);
+    }
+    // streetlight pool
+    if(inNight(this.lampX)){
+      g.fillStyle(0xffe0a0, 0.20); g.fillTriangle(this.lampX+14, SCENE_H-158+30, this.lampX-22, this.lampY+34, this.lampX+50, this.lampY+34);
+      g.fillStyle(0xffe0a0, 0.16); g.fillEllipse(this.lampX+14, this.lampY+32, 84, 20);
+      g.fillStyle(0xffe0a0, 0.9); g.fillRect(this.lampX+10, 52, 8, 4);
+    }
+    // headlights
+    if(this.carFront && inNight(this.carFront.x)){
+      g.fillStyle(0xfff3b0, 0.85); g.fillRect(this.carFront.x-3, this.carFront.y-6, 3, 4);
+      g.fillStyle(0xfff3b0, 0.16); g.fillTriangle(this.carFront.x, this.carFront.y-4, this.carFront.x+52, this.carFront.y-12, this.carFront.x+52, this.carFront.y+6);
+    }
+    // Tipsy's eyes stay lit
+    for(const e of (this.tipsyEyes || [])){
+      if(!inNight(e.x)) continue;
+      g.fillStyle(0x7fe3ff, 0.8); g.fillRect(e.x, e.y, 4, 3);
+      g.fillStyle(0x7fe3ff, 0.14); g.fillRect(e.x-3, e.y-3, 10, 9);
+    }
+  }
+
+  updateVals(){
+    const mc = lerpToWhite(HUES[hueIdx].c, depth);
+    document.getElementById("vals").textContent =
+      `night ${night ? "ON" : "off"} · hue ${HUES[hueIdx].n} · depth ${depth.toFixed(2)} · multiply #${mc.toString(16).padStart(6,"0")}\n` +
+      `glow ${glow ? "ON" : "off"} · split ${split ? "ON" : "off"} · scene pal ${ROUTE_PALS[palIdx].n}\n` +
+      `port plan: ONE multiply rect over the world canvases · glows ADD-blended above it`;
+  }
+}
+
+const game = new Phaser.Game({
+  type: Phaser.AUTO, parent: "game", width: W, height: H,
+  backgroundColor: "#14161a",
+  scale: { mode: Phaser.Scale.WIDTH_CONTROLS_HEIGHT },
+  scene: [NightLab]
+});
+const scn = () => game.scene.getScene("nightlab");
+const btn = (id, fn) => document.getElementById(id).addEventListener("click", () => { fn(); const s = scn(); s.redraw(); s.updateVals(); });
+btn("nightBtn", () => { night = !night; document.getElementById("nightBtn").classList.toggle("on", night); });
+btn("splitBtn", () => { split = !split; document.getElementById("splitBtn").classList.toggle("on", split); });
+btn("hueBtn",   () => { hueIdx = (hueIdx + 1) % HUES.length; });
+btn("dDown",    () => { depth = Math.max(0.15, +(depth - 0.05).toFixed(2)); });
+btn("dUp",      () => { depth = Math.min(0.9,  +(depth + 0.05).toFixed(2)); });
+btn("glowBtn",  () => { glow = !glow; document.getElementById("glowBtn").classList.toggle("on", glow); });
+btn("palBtn",   () => { palIdx = (palIdx + 1) % ROUTE_PALS.length; });
+</script>
+</body>
+</html>
