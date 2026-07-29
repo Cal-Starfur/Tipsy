@@ -64,12 +64,39 @@ export type SubmitReplayRsp = {
   ms: number
   allTime: {best: DailyBest; top: LeaderboardEntry[]}
 }
+/** Wallet + owned skins + equipped skin, server-authoritative (Phase B --
+ *  see db.ts tpProfileKey/tpOwnedKey). 'classic' is always present in
+ *  `owned` even though it's never persisted as a Redis field -- it's
+ *  free and implicitly owned by everyone (see dbGetTpProfile). */
+export type TpProfileRsp = {
+  walletCents: number
+  owned: string[]
+  equipped: string
+}
+/** skinId must be a 'purchase'-type skin in the server's own TS_SKINS
+ *  catalog (tpcatalog.ts) -- price is never taken from the client. */
+export type PurchaseSkinReq = {skinId: string}
+export type PurchaseSkinRsp = TpProfileRsp
+/** skinId must already be owned (dbEquipSkin checks tpOwnedKey; 'classic'
+ *  is always a valid target). */
+export type EquipSkinReq = {skinId: string}
+export type EquipSkinRsp = {equipped: string}
+/** trophyId must be one of the trophies in TS_CLAIMABLE_TROPHIES
+ *  (tpcatalog.ts) -- eligibility is re-derived server-side from this
+ *  player's own dbGetHistory, never trusted from the client. See
+ *  tpcatalog.ts for why hydrant-hop/slalom-master aren't claimable yet. */
+export type ClaimTrophyRewardReq = {trophyId: string}
+export type ClaimTrophyRewardRsp = {owned: string[]; skinId: string}
 export type Endpoint = (typeof Endpoint)[keyof typeof Endpoint]
 export const Endpoint = {
   GetDailyBest: 'api/tipsy/best',
   SubmitDailyBest: 'api/tipsy/best/submit',
   GetHistory: 'api/tipsy/history',
   SubmitReplay: 'api/tipsy/history/submit',
+  GetTpProfile: 'api/tipsy/profile',
+  PurchaseSkin: 'api/tipsy/profile/purchase',
+  EquipSkin: 'api/tipsy/profile/equip',
+  ClaimTrophyReward: 'api/tipsy/profile/claim',
   OnAppInstall: 'internal/on/app/install',
   OnMenuNewPost: 'internal/on/menu/new-post',
   OnAccountDelete: 'internal/on/account/delete',
@@ -81,6 +108,10 @@ export const EndpointMethod = {
   [Endpoint.SubmitDailyBest]: 'POST',
   [Endpoint.GetHistory]: 'GET',
   [Endpoint.SubmitReplay]: 'POST',
+  [Endpoint.GetTpProfile]: 'GET',
+  [Endpoint.PurchaseSkin]: 'POST',
+  [Endpoint.EquipSkin]: 'POST',
+  [Endpoint.ClaimTrophyReward]: 'POST',
   [Endpoint.OnAppInstall]: 'POST',
   [Endpoint.OnMenuNewPost]: 'POST',
   [Endpoint.OnAccountDelete]: 'POST',
