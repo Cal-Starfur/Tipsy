@@ -37,10 +37,14 @@
   #failOverlay{background:rgba(18,20,26,0);}
   #failOverlay h2,#failOverlay p{text-shadow:0 2px 3px #b5540e;transform:translateY(-135px);}
   #failOverlay p{color:#fff;}
-  #failOverlay .btn{position:absolute;left:50%;bottom:59px;transform:translateX(-50%);
-    flex:none;width:88px;height:88px;border-radius:50%;padding:0;
-    display:flex;align-items:center;justify-content:center;}
-  #failOverlay .btn:active{transform:translateX(-50%) translateY(3px);}
+  /* matched to the challenge's TAP button: same size, radius, shadow and
+     press travel, so Retry sits exactly where TAP was and reads as the
+     same control */
+  #failOverlay .btn{position:absolute;left:50%;bottom:56px;transform:translateX(-50%);
+    flex:none;width:88px;height:88px;border-radius:50%;padding:0;margin-top:0;
+    display:flex;align-items:center;justify-content:center;
+    font-size:19px;font-weight:700;letter-spacing:1px;box-shadow:0 4px 0 #b5540e;}
+  #failOverlay .btn:active{transform:translateX(-50%) translateY(3px);box-shadow:0 1px 0 #b5540e;}
   #winOverlay{background:rgba(18,20,26,0);}
   #winOverlay h2,#winOverlay p{text-shadow:0 2px 3px #b5540e;transform:translateY(-165px);}
   #winOverlay p{color:#fff;}
@@ -150,10 +154,16 @@
      well clear of the bottom card/button geometry that showWin()
      measures dynamically (see the ORDER MATTERS note there) — this
      never has to know the card's height. ---------- */
-  .menuBtn{position:absolute;top:calc(16px + env(safe-area-inset-top));left:16px;z-index:2;
-    flex:none;width:auto;background:rgba(255,122,26,.14);color:#fff;border:none;border-radius:20px;
-    padding:7px 14px;font-size:12px;font-weight:800;letter-spacing:0.4px;text-transform:uppercase;}
-  .menuBtn:active{transform:scale(0.94);background:rgba(255,122,26,.24);}
+  /* the fail screen's button is now the same magnifying glass the map
+     uses, in the same place and with the same job: open Side Missions.
+     .iconBtn supplies the circle; this only positions it. */
+  .menuBtn{position:absolute;top:calc(12px + env(safe-area-inset-top));left:14px;z-index:2;
+    flex:none;padding:0;border:none;}
+  .menuBtn:active{transform:scale(0.94);}
+  /* the same pair the map screen carries: magnifier left, robot right */
+  .failAvatar{position:absolute;top:calc(12px + env(safe-area-inset-top));right:14px;
+    z-index:2;background:#ff7a1a;cursor:pointer;}
+  .failAvatar:active{transform:scale(0.94);}
   /* in-game GPS readout — DOM, not canvas text: the Phaser framebuffer
      renders at CSS resolution (Scale.RESIZE, no DPR handling; K is a
      fixed constant so retina-scaling the buffer would rescale the whole
@@ -285,16 +295,17 @@
   #tpToast.show{opacity:1;transform:translateX(-50%) translateY(0);}
 
   /* ---------- HYDRANT CHALLENGE overlay ---------- */
+  .hjHidden{display:none !important;}
   #hjUI{position:absolute;left:0;right:0;bottom:0;top:0;pointer-events:none;z-index:6;}
   #hjUI.hidden{display:none;}
-  #hjTitle{position:absolute;left:0;right:0;top:10px;text-align:center;font-size:13px;
+  #hjTitle{display:none;position:absolute;left:0;right:0;top:10px;text-align:center;font-size:13px;
     font-weight:700;letter-spacing:2px;color:#ffd15c;text-shadow:0 1px 3px rgba(0,0,0,.8);}
   #hjUnlock{position:absolute;left:0;right:0;top:38%;text-align:center;font-size:20px;
     font-weight:800;letter-spacing:2px;color:#ffd15c;text-shadow:0 2px 6px rgba(0,0,0,.9);
     opacity:0;transform:scale(.8);transition:opacity .25s,transform .25s;}
   #hjUnlock small{display:block;font-size:10px;letter-spacing:1.5px;color:#fff;margin-top:6px;}
   #hjUnlock.show{opacity:1;transform:scale(1);}
-  #hjMeterWrap{position:absolute;left:12px;right:12px;bottom:96px;}
+  #hjMeterWrap{position:absolute;left:12px;right:12px;bottom:158px;}
   #hjMeter{position:relative;height:20px;border-radius:10px;background:#0f1116;
     border:1px solid #363b46;overflow:hidden;}
   #hjBand{position:absolute;top:0;bottom:0;background:rgba(96,222,120,.28);
@@ -305,14 +316,34 @@
   #hjLbl{font-size:9px;letter-spacing:1.4px;color:#8f95a1;text-transform:uppercase;
     padding:4px 0 0;text-align:center;}
   #hjLbl.locked{color:#4fd167;}
-  #hjTap{position:absolute;left:12px;right:12px;bottom:26px;padding:15px 0;font-size:17px;
-    font-weight:800;letter-spacing:3px;background:#ff7a1a;border:none;color:#fff;
-    border-radius:14px;box-shadow:0 4px 0 #a84a08;pointer-events:auto;touch-action:none;}
-  #hjTap:active{transform:translateY(3px);box-shadow:0 1px 0 #a84a08;}
+  /* one word, circular — same shape language as GO and Retry */
+  /* IDENTICAL to the GO button: 88px, 56px off the bottom, 19px text and
+     the same #b5540e shadow. TAP, RETRY and GO are one control in three
+     places, so they must not drift apart. */
+  #hjTap{position:absolute;left:50%;bottom:56px;transform:translateX(-50%);
+    width:88px;height:88px;border-radius:50%;padding:0;
+    display:flex;align-items:center;justify-content:center;
+    font-size:19px;font-weight:700;letter-spacing:1px;
+    background:#ff7a1a;border:none;color:#fff;
+    box-shadow:0 4px 0 #b5540e;pointer-events:auto;touch-action:none;}
+  #hjTap:active{transform:translateX(-50%) translateY(3px);box-shadow:0 1px 0 #b5540e;}
+  /* the running commentary under the meter is gone — the band itself
+     already says everything it was saying */
+  #hjLbl{display:none;}
   #hjTap.dead{background:#3a3f4a;box-shadow:0 4px 0 #23262d;color:#6d7380;}
-  #hjQuit{position:absolute;right:12px;top:8px;padding:6px 12px;font-size:10px;
-    letter-spacing:1.5px;background:#2a2e38;border:1px solid #454b58;color:#c8ccd4;
-    border-radius:8px;pointer-events:auto;}
+  /* the same orange robot button the map screen uses, in the same place —
+     one control for "back to the menu" wherever you are */
+  #hjQuit{right:14px;background:#ff7a1a;pointer-events:auto;cursor:pointer;}
+  /* ONE robot button, always on screen. It used to exist three times —
+     on the map, on the fail overlay and in the challenge — each appearing
+     and disappearing with its own layer, so it kept vanishing exactly
+     when you wanted it. This one lives outside every overlay and is
+     never hidden. */
+  #globalAvatar{position:fixed;top:calc(12px + env(safe-area-inset-top));right:14px;
+    z-index:60;background:#ff7a1a;cursor:pointer;}
+  #globalAvatar:active{transform:scale(0.94);}
+  /* the per-screen copies are retired in favour of it */
+  #avatarIcon,#failAvatarBtn{display:none !important;}
 </style>
 </head>
 <body>
@@ -333,8 +364,19 @@
       <div id="hjMeter"><div id="hjBand"></div><div id="hjFill"></div><div id="hjNeedle"></div></div>
       <div id="hjLbl">TAP TO CHARGE</div>
     </div>
-    <button id="hjTap">TAP  TAP  TAP</button>
-    <button id="hjQuit">EXIT</button>
+    <button id="hjTap">TAP</button>
+    <div class="iconBtn" id="hjQuit"><svg viewBox="0 0 40 46" width="23" height="27">
+          <line x1="13" y1="5" x2="13" y2="11" stroke="#2e3138" stroke-width="1.5"/>
+          <circle cx="13" cy="5" r="2" fill="#ff5722"/>
+          <rect x="9" y="11" width="22" height="7" fill="#f7f8fa" stroke="#30343d" stroke-width="1.2"/>
+          <rect x="5" y="18" width="30" height="21" fill="#f7f8fa" stroke="#30343d" stroke-width="1.2"/>
+          <rect x="9" y="22" width="22" height="8" fill="#22242b"/>
+          <circle cx="16" cy="26" r="1.9" fill="#7fe3ff"/>
+          <circle cx="24" cy="26" r="1.9" fill="#7fe3ff"/>
+          <rect x="5" y="32" width="30" height="4" fill="#c2452e"/>
+          <rect x="5" y="34" width="30" height="3" fill="#ffcc33" stroke="#c9a020" stroke-width="0.5"/>
+          <rect x="5" y="36" width="30" height="3" fill="#494e58"/>
+        </svg></div>
   </div>
   <div id="panelToggle">︿</div>
 </div>
@@ -432,8 +474,33 @@
   </div>
 </div>
 
+<div class="iconBtn" id="globalAvatar"><svg viewBox="0 0 40 46" width="23" height="27">
+      <line x1="13" y1="5" x2="13" y2="11" stroke="#2e3138" stroke-width="1.5"/>
+      <circle cx="13" cy="5" r="2" fill="#ff5722"/>
+      <rect x="9" y="11" width="22" height="7" fill="#f7f8fa" stroke="#30343d" stroke-width="1.2"/>
+      <rect x="5" y="18" width="30" height="21" fill="#f7f8fa" stroke="#30343d" stroke-width="1.2"/>
+      <rect x="9" y="22" width="22" height="8" fill="#22242b"/>
+      <circle cx="16" cy="26" r="1.9" fill="#7fe3ff"/>
+      <circle cx="24" cy="26" r="1.9" fill="#7fe3ff"/>
+      <rect x="5" y="32" width="30" height="4" fill="#c2452e"/>
+      <rect x="5" y="34" width="30" height="3" fill="#ffcc33" stroke="#c9a020" stroke-width="0.5"/>
+      <rect x="5" y="36" width="30" height="3" fill="#494e58"/>
+    </svg></div>
+
 <div id="failOverlay" class="overlay hidden">
-  <button class="menuBtn hidden" id="failMenuBtn">↩ Menu</button>
+  <button class="iconBtn menuBtn" id="failMenuBtn"></button>
+  <div class="iconBtn failAvatar" id="failAvatarBtn"><svg viewBox="0 0 40 46" width="23" height="27">
+      <line x1="13" y1="5" x2="13" y2="11" stroke="#2e3138" stroke-width="1.5"/>
+      <circle cx="13" cy="5" r="2" fill="#ff5722"/>
+      <rect x="9" y="11" width="22" height="7" fill="#f7f8fa" stroke="#30343d" stroke-width="1.2"/>
+      <rect x="5" y="18" width="30" height="21" fill="#f7f8fa" stroke="#30343d" stroke-width="1.2"/>
+      <rect x="9" y="22" width="22" height="8" fill="#22242b"/>
+      <circle cx="16" cy="26" r="1.9" fill="#7fe3ff"/>
+      <circle cx="24" cy="26" r="1.9" fill="#7fe3ff"/>
+      <rect x="5" y="32" width="30" height="4" fill="#c2452e"/>
+      <rect x="5" y="34" width="30" height="3" fill="#ffcc33" stroke="#c9a020" stroke-width="0.5"/>
+      <rect x="5" y="36" width="30" height="3" fill="#494e58"/>
+    </svg></div>
   <h2 id="failMsg">The pavement won.</h2>
   <p id="failSub">Delivery status: horizontal.</p>
   <button class="btn" id="retryBtn">Retry</button>
@@ -457,7 +524,10 @@
    Standalone GitHub Pages / itch.io builds never carry this param, so
    they're unaffected. */
 const IS_DEVVIT_BUILD = new URLSearchParams(location.search).get("platform") === "devvit";
-if(IS_DEVVIT_BUILD){ hide("panel"); hide("panelToggle"); show("winMenuBtn"); show("failMenuBtn"); }
+if(IS_DEVVIT_BUILD){ hide("panel"); hide("panelToggle"); show("winMenuBtn"); }
+/* the fail screen's magnifier + robot are for EVERY build, not just
+   Devvit — the web daily had no way out of a crash except Retry. */
+show("failMenuBtn");
 if(!IS_DEVVIT_BUILD){ hide("listIcon"); }
 /* Local "today" used only for display (which pill to show, whether a
    loaded route counts as a replay) — never for anything the server
@@ -554,6 +624,7 @@ function requestTpProfile(){
       tpProfile.walletCents = data.walletCents;
       tpProfile.owned = new Set(data.owned);
       tpProfile.equipped = data.equipped;
+      tpApplySkin(data.equipped);
       tpSaveProfile();
       tpRender();
     })
@@ -1359,6 +1430,12 @@ const CAR_COLORS = [
    // facing 0..3
 const TILE = 46;             // half-tile, model units — was previously declared only
 const T2 = TILE*2;           // locally inside drawWorld(); now needed globally for the grid.
+/* Straight run-up before the kicker — four sidewalk tile-pairs, matching
+   the lab (start at s=0, lip at 4.5). Declared HERE, right after T2:
+   putting it up with HJ_ADDRESS referenced T2 ~100 lines before its own
+   const, which is a temporal-dead-zone throw at load and killed the
+   whole script. */
+const HJ_RUNUP = 4 * T2;
 const BLOCK = 34 * T2;       // SCALED UP for block-wrap (was 22*T2) — the interior
                               // (beyond the sidewalk's inside line) needs room for
                               // 3-4 door-scaled houses/storefronts with real yards,
@@ -2339,7 +2416,8 @@ function generateRoute(dateStr, opts){
      s=0 to LAND.s+1 = 12.7 tile-pairs, so the leg must be at least that
      plus the run-up. */
   const findCourseLeg = (segs) => {
-    const NEED = 13.5 * 92;                 // tile-pairs -> world units
+    /* run-up + kicker tile + the level-10 course + the catch ramp tile */
+    const NEED = HJ_RUNUP + TILE + (2.25 + 9*0.55)*T2 + 2*TILE;
     let best = null;
     for(const sg of segs){
       if(sg.type !== "line" || !GOOD_LEG_HEADING[sg.f]) continue;
@@ -3628,7 +3706,11 @@ function generateRoute(dateStr, opts){
      WorldScene.hjBuildCourse(). generateRoute only reserves the leg. */
   const challenge = courseLeg ? {
     lane: 1,
-    kickerS: Math.round(courseLeg.s0 + 60),
+    /* The kicker sits a full RUN-UP past the start of the straight leg.
+       It used to be legS0 + 60, and the robot spawned at kicker - 420 —
+       which is legS0 - 360, i.e. BEFORE the leg even starts, out in the
+       corner arc. That is why he began mid-turn. */
+    kickerS: Math.round(courseLeg.s0 + HJ_RUNUP + TILE),
     hydS: [], catchS: 0,
     f: courseLeg.f,
     /* start the course a short way into the leg so the run-up has room
@@ -3645,6 +3727,11 @@ function generateRoute(dateStr, opts){
 }
 
 /* ---------- robot palette (approved in sprite lab) ---------- */
+/* SKIN is read directly by every robot draw call, so a skin is EQUIPPED
+   by overwriting its fields in place — SKIN_BASE keeps the stock palette
+   so equipping is reversible. Before this there was no equip system at
+   all: TP_SKINS entries carried only a CSS `filter` for the store
+   swatch, and equippedSkin was never read anywhere in the file. */
 const SKIN = {
   bodyTop:0xf7f8fa, bodyRight:0xe3e6ea, bodyLeft:0xc9cdd4, outline:0x30343d,
   stripe:0xc2452e, stripeDk:0xa03824,
@@ -3814,6 +3901,32 @@ class WorldScene extends Phaser.Scene {
       this.hjCharge = Math.max(0, this.hjCharge - HJ_CH.decay*this.hjCharge*dt);
       this.hjChargeSm += (this.hjCharge - this.hjChargeSm) * Math.min(1, HJ_CH.smooth*dt);
     }
+    /* ---- END OF THE COURSE ----
+       Without this the attempt never ends: creep over the kicker below
+       minSpeed and no launch fires, so Tipsy just drives on down
+       Palmline Ave and out of the mission entirely. Rolling past the
+       catch ramp on the ground ends the run the same way a crash does —
+       progress banked, crash screen, no free wandering. */
+    if(!this.hjAir && !this.hjRolling && !this.hjEnded &&
+       this.botS > ch.catchS + 2*T2){
+      this.hjEnded = true;
+      this.hjResult = "NEVER LEFT THE GROUND";
+      this.hjSaveProgress();
+      this.state = "tipped"; this.tipDir = 1; this.hjFace = false;
+      setTimeout(() => { if(this.mode === "challenge") hjShowCrash(this); }, 900);
+      return;
+    }
+    /* and once he has landed, the roll-out is not a licence to keep
+       driving — end it a little past the ramp */
+    if(this.hjRolling && !this.hjEnded && this.botS > ch.catchS + 4*T2){
+      this.hjEnded = true;
+      this.hjSaveProgress();
+      /* a CLEAN run already queued its own advance; only a botched
+         landing that rolled out needs the crash screen here */
+      if(!(this.hjResult || "").startsWith("CLEAN"))
+        setTimeout(() => { if(this.mode === "challenge") hjShowCrash(this); }, 400);
+      return;
+    }
     const prev = this.hjPrevS === undefined ? this.botS : this.hjPrevS;
     /* LAUNCH at the kicker lip */
     const lip = ch.kickerS + TILE;
@@ -3821,7 +3934,16 @@ class WorldScene extends Phaser.Scene {
       const c = this.hjLocked = Phaser.Math.Clamp(this.hjChargeSm, 0, HJ_CH.chargeMax);
       const pow = HJ_CH.pw0 + Math.min(c,1)*(HJ_CH.pw1 - HJ_CH.pw0);
       this.hjFlightSpeed = this.speed;
-      this.hjAir = { vz: this.speed*pow, z: 0, idx: 0 };
+      /* Start at the TOP OF THE LIP. hjAir.z is absolute height above
+         flat ground, so it must inherit the ramp height — starting at 0
+         while hjSlabZ stops contributing dropped him 12 units the
+         instant he left the lip. Same bug the lab had and fixed. */
+      /* the LIP height explicitly. hjSlabZ(botS) reads 0 or a partial
+         value here because the slab test is |da| < TILE exclusive and
+         the launch fires exactly at da = TILE — the same off-by-one the
+         lab hit. Take the kicker's lift directly. */
+      const kick = this.route.hazards.find(h => h.hjRole === "kicker");
+      this.hjAir = { vz: this.speed*pow, z: kick ? kick.lift : 0, idx: 0 };
       this.hjPassed = 0; this.hjResult = "";
     }
     if(this.hjAir){
@@ -3841,21 +3963,85 @@ class WorldScene extends Phaser.Scene {
         } else this.hjPassed++;
       }
       /* touchdown */
-      if(this.hjAir.vz < 0 && this.hjAir.z <= 0){
+      /* PITCH: nose follows the velocity vector, eased so leaving the lip
+         does not snap the attitude. Straight from the lab. */
+      const pT = Math.atan2(this.hjAir.vz, Math.max(this.speed, 1e-4)) * 0.6;
+      this.pitch += (pT - this.pitch) * Math.min(1, 0.030*dt);
+      /* Land on the CATCH ramp's plane — deliberately NOT hjSlabZ(),
+         which also reports the kicker he is still standing over at
+         launch and made him touch down instantly. */
+      const cz = this.route.hazards.find(h => h.hjRole === "catch");
+      const gz = (cz && Math.abs(this.botS - cz.s) < TILE)
+        ? this.hjWedgeTop(cz, this.botS - cz.s) : 0;
+      if(this.hjAir.vz < 0 && this.hjAir.z <= gz){
         const dL = this.botS - ch.catchS;
         const onRamp = Math.abs(dL) < TILE;
-        const clean = this.hjPassed >= ch.hydS.length && onRamp && !this.hjAir.clipped;
+        /* absorption by CENTREDNESS — the catch ramp's down-slope takes
+           the impact best where it matches the descent, in the middle.
+           A flat value cannot work across the charge range: at high
+           charge even a perfect landing exceeds the clean threshold. */
+        const centre = 1 - Math.min(1, Math.abs(dL)/TILE);
+        const absorb = HJ_CH.absMin + HJ_CH.absGrad*(1 - centre);
+        const impact = Math.abs(this.hjAir.vz);
+        const clean = this.hjPassed >= ch.hydS.length && onRamp
+                   && !this.hjAir.clipped && impact*HJ_JUMP.slam*absorb < 0.6;
         this.hjResult = this.hjAir.clipped ? "BURST A HYDRANT"
                       : clean   ? "CLEAN"
                       : dL >= TILE ? "OVERSHOT THE RAMP"
                       : onRamp  ? "ROUGH LANDING" : "CAME UP SHORT";
-        if(clean) this.hjClear();
-        else this.tilt = Math.sign(this.tilt || 1) * 1.2;   // any miss goes over
-        this.hjAir = null; this.hjLocked = null;
-        this.hjCharge = 0; this.hjChargeSm = 0;
-        /* whichever way it went, line up the next attempt — a clean run
-           has already advanced hjLevel, a miss retries the same one */
-        this.hjPendingReset = 1500;
+        if(clean){
+          /* a clean landing barely registers — the kick only ever existed
+             to discriminate clean from not, and `clean` already does */
+          this.tilt += impact*HJ_JUMP.slam*absorb*HJ_CH.cleanDamp
+                     * (Math.random() < 0.5 ? 1 : -1);
+          this.hjClear();
+        } else {
+          /* POSE is direction: anything that is not an overshoot puts him
+             down nose-first — short, botched on the ramp, or clipping the
+             last hydrant. Only sailing past goes over the side. */
+          this.hjFace = !(dL >= TILE);
+          if(this.hjFace){
+            this.hjTipT = 0; this.hjTipPitch0 = this.pitch;
+            this.state = "tipped";
+          } else {
+            const dir = Math.abs(this.tilt) > 0.02 ? Math.sign(this.tilt)
+                                                   : (Math.random() < 0.5 ? 1 : -1);
+            this.tilt += dir * 1.6;      // over the side
+            this.hjTipT = 0;
+          }
+          /* SKID: decided by what is UNDER him, not by which failure it
+             was. Ramp under him (or past it) and he slides; short on the
+             flat, or into cast iron, and he stops. */
+          /* SKID ON A NEAR MISS. The rule was "is there ramp under him",
+             which never fired in practice: the clean window and the ramp
+             are the same size, so you either land clean or miss the ramp
+             entirely — ROUGH measured 0% of the charge range.
+             The real near miss is coming up SHORT after clearing every
+             hydrant: you made the jump, you just did not carry to the
+             ramp. That slides. A short that clipped a hydrant, or never
+             got past them, has already hit something and stops dead. */
+          const clearedAll = this.hjPassed >= ch.hydS.length && !this.hjAir.clipped;
+          this.hjSkidV = (onRamp || dL >= TILE || clearedAll) ? this.speed : 0;
+        }
+        this.hjAir = null;
+        /* KEEP the locked charge. Zeroing it here made speed fall to
+           speedFor(0) = 0.030 on the very frame he touched down — a
+           0.14 -> 0.03 snap that read as hitting a wall. The lab holds
+           the charge through the roll-out and only clears it on reset,
+           so he lands carrying his speed and coasts. */
+        this.hjRolling = true;
+        if(clean){
+          /* a clean run rolls straight on to the next jump */
+          this.hjPendingReset = 1500;
+        } else {
+          /* A CRASH ENDS THE ATTEMPT. It used to auto-restart at the same
+             jump, which meant a bad run just looped forever with no
+             consequence and no way to stop and take stock. The level is
+             banked, and the player chooses: go again, or leave. */
+          this.hjSaveProgress();
+          this.hjPendingReset = 0;
+          setTimeout(() => { if(this.mode === "challenge") hjShowCrash(this); }, 1400);
+        }
       }
     }
     this.hjPrevS = this.botS;
@@ -3865,18 +4051,88 @@ class WorldScene extends Phaser.Scene {
      n hydrants, catch ramp moved out to match — the lab's geometry, in
      route units. Lab: launch at 4.5 tile-pairs, landing at
      6.75 + (n-1)*gap, so reach_n = (2.25 + (n-1)*gap) tile-pairs. */
+  /* ---------- THE LAB'S KICKER, IN THE GAME ----------
+     The game's "slab" hazard is a CROSS-SLOPE trip heave: lifted along
+     one SIDE edge, meant to catch a wheel. The lab's kicker is a
+     TRAVEL-AXIS wedge: flush at the near edge, lifted at the far edge,
+     so you ride UP it and launch off the lip. Using the game's slab for
+     the ramp was wrong — it is a completely different shape. This is the
+     lab's geometry and art, re-expressed in route/world space. */
+  hjWedgeTop(hz, da){
+    const v = (hz.hjDir*da + TILE) / (2*TILE);        // 0 flush, 1 raised
+    return hz.lift * Phaser.Math.Clamp(v, 0, 1);
+  }
+  /* extra ground height from the course wedges — this is what makes the
+     robot actually climb the ramp instead of clipping through it */
+  hjSlabZ(s){
+    if(this.mode !== "challenge" || !this.route) return 0;
+    for(const hz of this.route.hazards){
+      if(hz.hjRole !== "kicker" && hz.hjRole !== "catch") continue;
+      const da = s - hz.s;
+      if(Math.abs(da) < TILE) return this.hjWedgeTop(hz, da);
+    }
+    return 0;
+  }
+  hjDrawWedge(hz){
+    const g = this.gWorld || this.g;
+    const rng = mulberry32(Math.round(hz.s)*7919);
+    const c = this.posAt(hz.s), hdg = this.headingAt(hz.s);
+    const ax = Math.cos(hdg), ay = Math.sin(hdg);          // along
+    const rx = -Math.sin(hdg), ry = Math.cos(hdg);         // cross
+    const off = laneOffset(hz.row);          // the game's own lane geometry
+    const W = (a, cc, z) => this.W(c.x + ax*a + rx*(cc+off),
+                                   c.y + ay*a + ry*(cc+off), z);
+    const d = hz.hjDir, L = hz.lift;
+    const aUp = d*TILE, aFl = -d*TILE;
+    const Z = a => this.hjWedgeTop(hz, a);
+    /* soil in the opened joint at the raised end */
+    this.quadOn(g, [ W(aUp-d*10,-TILE,0), W(aUp-d*10,TILE,0),
+                     W(aUp+d*4,TILE+4,0), W(aUp+d*4,-TILE-4,0) ], HJ_SLABC.gap, 0.55);
+    /* exposed concrete at the side joints and the end wall */
+    for(const jc of [-TILE, TILE])
+      this.quadOn(g, [ W(aFl,jc,0), W(aUp,jc,Z(aUp)), W(aUp,jc,0) ], HJ_SLABC.topDk, 0.9);
+    const endWall = [ W(aUp,-TILE,Z(aUp)), W(aUp,TILE,Z(aUp)), W(aUp,TILE,0), W(aUp,-TILE,0) ];
+    this.quadOn(g, endWall, HJ_SLABC.topDk);
+    this.edgeOn(g, endWall, HJ_SLABC.gap, 1.2);
+    /* the culprit: a palm root shouldering the end up */
+    if(hz.root){
+      for(let i=0;i<6;i++){
+        const t0=i/6, t1=(i+1)/6;
+        const c0=-TILE+2*TILE*t0, c1=-TILE+2*TILE*t1;
+        const bump=2.2+Math.sin(t0*Math.PI)*2.2+(rng()-0.5)*1.2;
+        const pts=[ W(aUp+d*2,c0,0), W(aUp+d*2,c1,0), W(aUp+d*7,c1,bump), W(aUp+d*7,c0,bump) ];
+        this.quadOn(g, pts, i%2?HJ_SLABC.rootA:HJ_SLABC.rootB);
+        this.edgeOn(g, pts, HJ_SLABC.rootB, 1);
+      }
+    }
+    /* the top wedge — the face you actually ride */
+    const top=[ W(aFl,-TILE,Z(aFl)), W(aFl,TILE,Z(aFl)), W(aUp,TILE,Z(aUp)), W(aUp,-TILE,Z(aUp)) ];
+    this.quadOn(g, top, HJ_SLABC.top);
+    this.edgeOn(g, top, HJ_SLABC.topDk, 1.5);
+  }
+
   hjBuildCourse(level){
     const ch = this.route && this.route.challenge; if(!ch) return;
     const T = T2;
     ch.hydS = [];
-    /* drop the previous level's pieces */
-    this.route.hazards = this.route.hazards.filter(h => !h.hjRole);
+    /* Drop the previous level's pieces AND clear the whole course leg of
+       ordinary street furniture. Cones, cracks, bins, dogs and slabs
+       spawned along this stretch by the normal route generator were
+       sitting in the landing zone — you would clear ten hydrants and
+       then touch down on a traffic cone. The run-up is cleared too, so
+       nothing can knock him off line before the ramp. */
+    const clearFrom = ch.kickerS - HJ_RUNUP - T2, clearTo = ch.catchS + 2*T2;
+    this.route.hazards = this.route.hazards.filter(h =>
+      !h.hjRole && !(h.s >= clearFrom && h.s <= clearTo && h.row === ch.lane));
+    this.route.props = (this.route.props || []).filter(pr =>
+      !(pr.s >= clearFrom && pr.s <= clearTo && (pr.row === ch.lane || pr.row === undefined)));
     const facing = f => f;
     const lipS = ch.kickerS + TILE;
     ch.catchS = Math.round(lipS + (2.25 + (level-1)*HJ_CH.gap) * T);
 
     this.route.hazards.push({ type:"slab", s: ch.kickerS, row: ch.lane, lift: 12,
-      side: 1, root: true, f: ch.f, hit:false, lipHit:false, hjRole:"kicker" });
+      side: 1, root: true, f: ch.f, hit:false, lipHit:false,
+      hjRole:"kicker", hjDir: 1 });     // hjDir +1 = rises along travel
     /* hydrants inset at BOTH ends — butting the first against the lip
        makes the level unwinnable, the arc is still climbing there */
     const a = lipS + T*0.55, bnd = ch.catchS - T*0.55;
@@ -3888,18 +4144,27 @@ class WorldScene extends Phaser.Scene {
         hjRole:"hydrant", hjIndex:i });
     }
     this.route.hazards.push({ type:"slab", s: ch.catchS, row: ch.lane, lift: 10,
-      side: -1, root: false, f: ch.f, hit:false, lipHit:false, hjRole:"catch" });
+      side: -1, root: false, f: ch.f, hit:false, lipHit:false,
+      hjRole:"catch", hjDir: -1 });     // hjDir -1 = falls along travel
     this._hjBandLvl = -1;                    // force the meter to re-solve
   }
 
   /* back to the top of the run-up for another attempt */
+  /* the challenge's own crash handling — the delivery fail overlay
+     ("The pavement won") belongs to a delivery that went wrong, not to
+     a missed jump, and its Retry reloaded the daily route. */
+  hjOwnsTip(){ return this.mode === "challenge"; }
+
   hjResetRun(){
     const ch = this.route && this.route.challenge; if(!ch) return;
     this.hjBuildCourse(this.hjLevel);
-    this.botS = Math.max(0, ch.kickerS - 420);
+    this.botS = Math.max(0, ch.kickerS - HJ_RUNUP);
     this.hjPrevS = this.botS;
     this.hjAir = null; this.hjLocked = null;
     this.hjCharge = 0; this.hjChargeSm = 0; this.hjPassed = 0;
+    this.hjRolling = false; this.hjEnded = false;
+    this.hjFace = false; this.hjTipT = 0; this.hjSkidV = 0;
+    this.pitch = 0; this.pitchPivot = 0;
     this.speed = HJ_CH.sp0;
     this.tilt = 0; this.roll = 0; this.state = "play";
     this.tipT = 0; this.damage = 0;
@@ -3911,15 +4176,73 @@ class WorldScene extends Phaser.Scene {
     this.drawAngle = hdg;
   }
 
+  /* big centred banner over the challenge. This lived on the old
+     ChallengeScene and was lost when that class was deleted — hjClear()
+     called it, so the game THREW at the exact moment a skin unlocked. */
+  /* ---------- WHITE STARS ON THE BLUE BAND ----------
+     Drawn in each side face's own (u, z) space and projected through
+     P(), so they lie flat on the band and rotate with the robot rather
+     than sliding across him. Uses the same backface test as drawBox, so
+     a star never appears on a face the camera cannot see. */
+  drawStripeStars(bobZ){
+    const g = this.g;
+    const hx = BODY.hx + 0.7, hy = BODY.hy + 0.7;
+    const zc = (STRIPE.z0 + STRIPE.z1)/2 + (bobZ||0), rz = (STRIPE.z1 - STRIPE.z0)*0.40;
+    const faces = [
+      { n:{x: 1,y:0,z:0}, at:(u,z)=>[ hx,  u*hy, z], span:hy },
+      { n:{x:-1,y:0,z:0}, at:(u,z)=>[-hx,  u*hy, z], span:hy },
+      { n:{x:0,y: 1,z:0}, at:(u,z)=>[ u*hx,  hy, z], span:hx },
+      { n:{x:0,y:-1,z:0}, at:(u,z)=>[ u*hx, -hy, z], span:hx }
+    ];
+    for(const fc of faces){
+      const w = this.R(fc.n.x, fc.n.y, fc.n.z);
+      if((w.x + w.y + w.z) <= 0) continue;          // backface, same rule as drawBox
+      for(let i = 0; i < 3; i++){
+        const u = -0.58 + (i/2)*1.16;
+        const pts = [];
+        for(let k = 0; k < 10; k++){
+          const a = -Math.PI/2 + k*Math.PI/5;
+          const rr = (k % 2 === 0) ? 1 : 0.42;      // outer / inner point
+          const q = fc.at(u + Math.cos(a)*rr*(rz/fc.span), zc + Math.sin(a)*rr*rz);
+          pts.push(this.P(q[0], q[1], q[2]));
+        }
+        this.quadOn(g, pts, SKIN.stars);
+      }
+    }
+  }
+
+  announce(title, sub){
+    const el = document.getElementById("hjUnlock");
+    if(!el) return;
+    el.innerHTML = title + "<small>" + sub + "</small>";
+    el.classList.add("show");
+    clearTimeout(this._annT);
+    this._annT = setTimeout(() => el.classList.remove("show"), 2600);
+  }
+
+  hjSaveProgress(){
+    tpProfile.hjLevel = this.hjLevel;
+    tpProfile.hjBest  = Math.max(tpProfile.hjBest || 0, this.hjBest || 0);
+    tpSaveProfile();
+  }
+
   hjClear(){
     this.hjBest = Math.max(this.hjBest, this.hjLevel);
-    if(this.hjLevel >= HJ_CHIEF_AT && !tpProfile.missionsCompleted.has("jump-hydrant")){
-      tpCompleteMission("jump-hydrant");
+    /* The Chief is a milestone, NOT the end of the mission — the mission
+       is all ten jumps, so completing it at 8 made the card read
+       "completed" while two jumps were still ahead. */
+    if(this.hjLevel >= HJ_CHIEF_AT && !tpProfile.owned.has("fire-chief")){
+      tpEquipSkin("fire-chief");        // wear it the moment it is earned
+      this.announce("\u{1F692} FIRE CHIEF UNLOCKED", "EQUIPPED \u00b7 TWO JUMPS TO GO");
     }
-    if(this.hjLevel >= HJ_DARE_AT && !tpProfile.missionsCompleted.has("jump-hydrant-master")){
-      tpCompleteMission("jump-hydrant-master");
+    /* all ten cleared: the mission itself is done */
+    if(this.hjLevel >= HJ_DARE_AT && !tpProfile.owned.has("daredevil")){
+      tpCompleteMission("jump-hydrant");
+      tpEquipSkin("daredevil");
+      this.announce("\u{1F3C1} DAREDEVIL UNLOCKED", "EQUIPPED \u00b7 ALL TEN CLEARED");
     }
     this.hjLevel = Math.min(HJ_CH.maxLevel, this.hjLevel + 1);
+    this.hjSaveProgress();          // bank every cleared jump
   }
 
   loadChallenge(){
@@ -3929,15 +4252,21 @@ class WorldScene extends Phaser.Scene {
     this.hjLocked = null; this.hjLevel = 1; this.hjBest = 0;
     this.hjSrcLast = {}; this.hjResult = ""; this.hjPassed = 0;
     this.loadRoute(clientTodayUTC(), { hoodIndex: HJ_ADDRESS.hoodIndex, challenge: true });
+    /* same card slot the daily uses, so the map screen reads identically */
     document.getElementById("orderCard").innerHTML =
-      `<b>${HJ_ADDRESS.hood}</b> — hydrant challenge on <b>${HJ_ADDRESS.street}</b>`;
-    document.getElementById("sheetStatus").textContent =
-      `Drive to ${hjPlaceName()} — ten jumps.`;
+      `<div class="tag" style="margin-bottom:4px">SIDE MISSION</div>`
+      + `<b>${HJ_ADDRESS.hood}</b> — hydrant challenge at <b>${HJ_ADDRESS.number} ${HJ_ADDRESS.street}</b>`;
+    document.getElementById("sheetStatus").textContent = `Ten jumps · clear all ten for the Daredevil`;
+    resizeRouteMap();
+    drawRouteMap(this.route);
     /* the delivery game waits on a GO press to leave "idle"; the
        challenge is already rolling when you arrive on the street. */
-    this.hjLevel = 1; this.hjBest = 0; this.hjResult = "";
-    this.hjBuildCourse(1);
-    this.hjResetRun();
+    /* resume where they left off, not from jump 1 */
+    this.hjLevel = Phaser.Math.Clamp(tpProfile.hjLevel || 1, 1, HJ_CH.maxLevel);
+    this.hjBest  = tpProfile.hjBest || 0;
+    this.hjResult = "";
+    this.hjBuildCourse(this.hjLevel);
+    this.state = "idle";        // wait on GO, like the daily
   }
 
   loadRoute(dateStr, opts){
@@ -3956,7 +4285,7 @@ class WorldScene extends Phaser.Scene {
        drive up to it on the real street, rather than materialising on
        the ramp */
     this.botS = (opts && opts.challenge && this.route.challenge)
-      ? Math.max(0, this.route.challenge.s0 - 420)
+      ? Math.max(0, this.route.challenge.kickerS - HJ_RUNUP)
       : this.route.pickupS;
     this.botZ = this.groundZ(this.botS);
     this.botRow = 1; this.laneOff = laneOffset(this.botRow);
@@ -4069,8 +4398,13 @@ class WorldScene extends Phaser.Scene {
       const x2 = x*c - y*s; y = x*s + y*c; x = x2;
     }
     if(this.pitch !== 0){
+      /* pitchPivot is 0 for every normal pitch, reproducing the original
+         origin rotation exactly. The face plant sets it to the body's
+         front face so he goes over his NOSE and lands on it. */
+      const PX = this.pitchPivot || 0;
       const c = Math.cos(this.pitch), s = Math.sin(this.pitch);
-      const x2 = x*c - z*s; z = x*s + z*c; x = x2;
+      const x0 = x - PX;
+      const x2 = x0*c - z*s; z = x0*s + z*c; x = PX + x2;
     }
     if(this.roll !== 0){
       const PIV = this.roll >= 0 ? 22 : -22;               // pivot on the grounded edge
@@ -8130,6 +8464,12 @@ class WorldScene extends Phaser.Scene {
           }
         }
       }
+    } else if(kind === "slab" && data && data.hjRole){
+      /* COURSE WEDGE, not a trip heave. The art below is the cross-slope
+         slab (lifted along a SIDE edge to catch a wheel); the challenge
+         needs the lab's travel-axis wedge you ride up and launch off.
+         Completely different shape, so it gets its own renderer. */
+      this.hjDrawWedge(data);
     } else if(kind === "slab"){
       /* approved in ramp lab v2: heaved slab — the ramp concept redesigned
          into ONE sidewalk tile (92×92), lifted along one side edge by a
@@ -8863,8 +9203,8 @@ class WorldScene extends Phaser.Scene {
          BEFORE botS advances a few lines below. Speed is frozen for the
          whole flight (no air control). */
       if(this.mode === "challenge" && this.route && this.route.challenge){
-        this.speed = this.hjAir
-          ? this.hjFlightSpeed
+        this.speed = (this.hjAir || this.hjRolling)
+          ? this.hjFlightSpeed              // frozen through flight AND roll-out
           : HJ_CH.sp0 + this.hjChargeSm*(HJ_CH.sp1 - HJ_CH.sp0);
       }
       /* ground-speed correction (ported from the corner+robot lab): botS
@@ -9971,7 +10311,9 @@ class WorldScene extends Phaser.Scene {
            yaw/pitch concept at all, which is why it never showed this -
            zeroing both the instant we tip matches that. */
         this.yaw = 0;
-        this.pitch = 0;
+        /* ...but the challenge's FACE PLANT is a deliberate pitch-over,
+           so zeroing here would flatten it back out every frame. */
+        if(!this.hjFace) this.pitch = 0;
         /* same family as the yaw/pitch zeroing above: mid-turn tips
            freeze whatever non-quarter drawAngle the facing ease was
            blending through, and every tipped-pose face-visibility test
@@ -9983,7 +10325,10 @@ class WorldScene extends Phaser.Scene {
            gated off while tipped so this holds. The 45-degree-max pop
            reads as impact chaos. */
         this.drawAngle = Math.round(this.drawAngle / (Math.PI/2)) * (Math.PI/2);
-        setTimeout(() => showFail(), 1500);
+        /* the challenge resets the run itself (hjPendingReset); the
+           delivery fail overlay would take over the screen and its
+           Retry reloads the daily route. */
+        if(!this.hjOwnsTip()) setTimeout(() => showFail(), 1500);
       }
       /* CANCELLATION: par + grace expired -> the order dies. A fail
          with the robot upright: the state gate stops the sim, input
@@ -10074,7 +10419,8 @@ class WorldScene extends Phaser.Scene {
     if(this.state !== "play") this.yaw = Phaser.Math.Linear(this.yaw, 0, 0.15);
     if(this.state === "tipped"){
       this.tipT = Phaser.Math.Linear(this.tipT, 1, 0.09);
-      if(this.tipT > 0.55 && !this.spilled) this.spillCargo();
+      /* no cargo in the challenge, so nothing to spill */
+      if(this.tipT > 0.55 && !this.spilled && !this.hjOwnsTip()) this.spillCargo();
       /* lid behavior genuinely differs by tip direction now that the
          hinge is a fixed edge (not mirrored) — gravity swings it back
          shut on one side, holds it open on the other. This is NOT the
@@ -10092,7 +10438,10 @@ class WorldScene extends Phaser.Scene {
       } else {
         this.lidAng = Phaser.Math.Linear(this.lidAng, Math.max(this.lidAng, this.tipT > 0.5 ? 1.78 : 0), 0.05);
       }
-      this.roll = Phaser.Math.Linear(this.tipStartRoll, this.tipDir * (Math.PI*0.5), this.tipT);
+      /* the face plant is a PITCH-over and owns the pose itself; letting
+         the sideways roll run as well is why it never showed. */
+      if(!this.hjFace)
+        this.roll = Phaser.Math.Linear(this.tipStartRoll, this.tipDir * (Math.PI*0.5), this.tipT);
     } else {
       this.roll = Phaser.Math.Clamp(this.tilt, -1, 1) * 0.5 + this.cornerLean + (this.slabRoll || 0) + (this.crossJitter || 0);
     }
@@ -10131,13 +10480,18 @@ class WorldScene extends Phaser.Scene {
        a parallel simulation — so slopes, slabs and cross-slope all still
        apply underneath the arc. */
     this.botZ = this.groundZ(this.botS) + (this.slabZ || 0) + (this.crossZ || 0)
-              + (this.hjAir ? this.hjAir.z : 0);
+              + (this.hjAir ? this.hjAir.z : 0)
+              + (this.hjAir ? 0 : this.hjSlabZ(this.botS));   // hjAir.z already carries it
     /* MAX_GRADE: hard ceiling at a real 5% grade (atan(0.05) ≈ 2.86°),
        on top of the HILL_AMP retune above — the retune sets the typical
        feel per neighborhood, this guarantees no unlucky noise seed ever
        exceeds the stated max regardless. */
     const MAX_GRADE = 0.05;
-    if(this.state !== "tipped") this.pitch = -Math.atan(Phaser.Math.Clamp(this.groundSlope(this.botS) + (this.crossSlope || 0), -MAX_GRADE, MAX_GRADE));
+    /* Ground-slope pitch, every frame — but NOT while airborne in the
+       challenge, where the nose follows the velocity vector instead.
+       This line was silently flattening the whole arc attitude. */
+    if(this.state !== "tipped" && !this.hjAir)
+      this.pitch = -Math.atan(Phaser.Math.Clamp(this.groundSlope(this.botS) + (this.crossSlope || 0), -MAX_GRADE, MAX_GRADE));
 
     /* camera reframe: at f=3 the worker/customer's walk-out direction
        pushes them far enough sideways on screen that tracking only the
@@ -10161,7 +10515,11 @@ class WorldScene extends Phaser.Scene {
        back at the door) -- so a HIGHER threshold releases EARLIER,
        not later. 0.75 means the camera lets go once the walk is only
        25% along, well ahead of the halfway point. */
-    const pickupWorkerVisible = this.pickupWalk > 0.75;
+    /* In challenge mode there IS no worker — but pickupWalk was left at
+       1 to keep the pickup timeline quiet, and this branch fires on
+       pickupWalk > 0.75, which parked the camera on the shop doorway
+       instead of following Tipsy. That was the "opening" camera. */
+    const pickupWorkerVisible = this.mode !== "challenge" && this.pickupWalk > 0.75;
     if(this.state === "play" && this.pickupDoorDV && pickupWorkerVisible){
       const dv3 = this.pickupDoorDV, rv3 = this.pickupDoorRV;
       const doorX3 = this.pickupDoorUX + dv3.x*this.pickupDoorCenterX, doorY3 = this.pickupDoorUY + dv3.y*this.pickupDoorCenterX;
@@ -10278,6 +10636,18 @@ class WorldScene extends Phaser.Scene {
     this.drawBox({...BODY, z0:BODY.z0+bobZ, z1:BODY.z1+bobZ}, SKIN.bodyTop, SKIN.bodyRight, SKIN.bodyLeft);
     this.drawBox({hx:BODY.hx+0.6, hy:BODY.hy+0.6, z0:STRIPE.z0+bobZ, z1:STRIPE.z1+bobZ},
                  null, SKIN.stripe, SKIN.stripeDk, false, true);
+    /* ---- SKIN EXTRAS ----
+       The Daredevil is white leather with a BLUE band carrying WHITE
+       STARS and a RED band beneath it. The palette ported across but
+       these two extra passes did not, so it was arriving as a plain blue
+       stripe. Both are gated on the palette, so no other skin grows
+       them. */
+    if(SKIN.stars) this.drawStripeStars(bobZ);
+    if(SKIN.stripe2){
+      this.drawBox({hx:BODY.hx+0.6, hy:BODY.hy+0.6,
+                    z0:HJ_STRIPE2.z0+bobZ, z1:HJ_STRIPE2.z1+bobZ},
+                   null, SKIN.stripe2, SKIN.stripe2Dk, false, true);
+    }
     /* cavity + hinged lid */
     if(this.lidAng > 0.12){
       const wn = this.R(0, 0, 1);
@@ -10954,6 +11324,36 @@ class WorldScene extends Phaser.Scene {
       else if(this.keys.left.isDown || this.keys.a.isDown) this.throttle = -1;
       else if(!this.input.activePointer.isDown) this.throttle = 0;
     }
+    if(this.mode === "challenge" && this.hjFace && this.state === "tipped"){
+      /* FACE PLANT — short and ease-OUT (fast off the impact,
+         decelerating in) with a slight overshoot past vertical, so it
+         reads as a hit rather than a topple. Pivoted at the body's front
+         face: rotating 90deg about the origin drives the body through
+         the floor. */
+      this.hjTipT = Math.min(1, (this.hjTipT || 0) + dt/HJ_CRASH.faceMs);
+      const t = this.hjTipT;
+      const e = (1 - Math.pow(1-t,3)) * (1 + (HJ_CRASH.faceKick-1)*Math.sin(Math.PI*t));
+      this.pitch = this.hjTipPitch0 + (-(Math.PI*0.5) - this.hjTipPitch0)*e;
+      this.pitchPivot = BODY.hx * e;
+      this.roll = 0;
+      /* carry the momentum: friction rises as he goes flat */
+    }
+    /* SKID — runs for BOTH crash poses, and outside the hjFace branch,
+       because the game stops advancing botS the moment it goes tipped
+       and that is what killed the slide entirely. */
+    if(this.mode === "challenge" && this.state === "tipped"){
+      if(!this.hjFace) this.hjTipT = Math.min(1, (this.hjTipT||0) + dt/HJ_CRASH.sideMs);
+    }
+    if(this.mode === "challenge" && this.state === "tipped" && this.hjSkidV > 0){
+      const tt = Math.min(1, (this.hjTipT || 0));
+      const grip = HJ_SKID.base + HJ_SKID.bite*tt;
+      this.hjSkidV = Math.max(0, this.hjSkidV - grip*this.hjSkidV*dt);
+      if(this.hjSkidV < 0.0008) this.hjSkidV = 0;
+      this.botS += this.hjSkidV*dt;
+      const sp = this.posAt(this.botS), hdg = this.headingAt(this.botS);
+      this.botX = sp.x + (-Math.sin(hdg))*this.laneOff;
+      this.botY = sp.y + Math.cos(hdg)*this.laneOff;
+    }
     if(this.mode === "challenge"){
       if(this.hjPendingReset > 0){
         this.hjPendingReset -= dt;
@@ -10982,6 +11382,16 @@ class WorldScene extends Phaser.Scene {
   }
   drawHUD(){
     const g = this.hud; g.clear();
+    /* The tilt gauge, the cargo-condition bar and the GPS turn strip are
+       all DELIVERY instruments — they are drawn onto the HUD canvas, not
+       into DOM, which is why hiding the panels never got rid of them.
+       There is no cargo and no tip in the Hydrant Challenge, so none of
+       it applies. */
+    if(this.mode === "challenge"){
+      const gpsEl0 = document.getElementById("gpsHud");
+      if(gpsEl0) gpsEl0.classList.add("hidden");
+      return;
+    }
     const w = this.scale.gameSize.width, h = this.scale.gameSize.height;
 
     /* delivery-app style HUD: distance/ETA/turn-by-turn, replacing the
@@ -11162,6 +11572,33 @@ const HJ_CHIEF = {
 };
 const HJ_STRIPE2 = { z0:15.5, z1:19.5 };   // the red band under the blue one
 
+/* ---------- SKIN EQUIP ---------- */
+const SKIN_BASE = {...SKIN};
+const SKIN_PALETTES = { "fire-chief": HJ_CHIEF, "daredevil": HJ_DARE };
+/* Paint the equipped skin onto the robot. The store already had a full
+   own/equip flow — it just set tpProfile.equipped to a string that
+   NOTHING read, so equipping changed a badge and nothing else. */
+function tpApplySkin(id){
+  Object.assign(SKIN, SKIN_BASE, SKIN_PALETTES[id] || {});
+}
+/* earn + wear in one step, used when a mission grants a skin */
+function tpEquipSkin(id){
+  tpProfile.owned.add(id);
+  tpProfile.equipped = id;
+  tpApplySkin(id);
+  tpSaveProfile();
+  if(typeof tpRender === "function") tpRender();
+}
+/* the swatch should show the ACTUAL palette, not a CSS filter guess —
+   hue-rotating a near-white robot is why the Fire Chief never read red */
+function tpSkinSwatchColors(id){
+  const pal = SKIN_PALETTES[id];
+  if(!pal) return null;
+  const hex = v => "#" + v.toString(16).padStart(6,"0");
+  return { body: hex(pal.bodyTop), side: hex(pal.bodyRight),
+           dark: hex(pal.bodyLeft), stripe: hex(pal.stripe) };
+}
+
 
 /* ---------- the dials (ported into the game once approved) ---------- */
 const HJ_RUN = {
@@ -11240,7 +11677,7 @@ const HJ_LAND = { s: 6.75, row: 0, lift: 10, dirSign: -1, root: false, cracks: 2
        6   6   9.50   91%-100%    last-hydrant clearance
        7   7  10.05   IMPOSSIBLE  the wall
    ============================================================ */
-const HJ_CHIEF_AT = 7;    // clear this level for the Fire Chief
+const HJ_CHIEF_AT = 8;    // clear this level for the Fire Chief
 const HJ_DARE_AT  = 10;   // clear this level for the Daredevil
 const HJ_CH = {
   level: 1,
@@ -11284,7 +11721,12 @@ const HJ_CH = {
   chargeMax: 1.35,
   burstV: 0.030,    // minimum impact speed to shear a hydrant
   cleanDamp: 0.12,  // fraction of the landing kick a CLEAN landing feels
-  sp0: 0.030, sp1: 0.165,   // speed at charge 0 / 1 — TUNED ON DEVICE
+  /* sp0 is 0 so NOTHING moves until you tap. It used to be 0.030, which
+     meant Tipsy free-rolled to the ramp on his own and the charge only
+     decided how much faster than the floor he went. Now the tap IS the
+     throttle: stop tapping and the decay bleeds the charge, he slows and
+     stops. All ten levels re-solved below and still clear. */
+  sp0: 0.0, sp1: 0.165,     // speed at charge 0 / 1
   pw0: 1.30,  pw1: 0.68,    // pow  at charge 0 / 1  (DOWN as charge rises)
   /* landing absorption on the catch ramp: absMin at dead centre,
      absMin+absGrad at the very edge. Deliberately shallow — at LOW
@@ -11355,22 +11797,86 @@ const game = new Phaser.Game({
 const scn = () => game.scene.getScene("world");
 
 /* ---------- HYDRANT CHALLENGE: entry, exit, input ---------- */
+/* The delivery HUD is not the challenge's HUD. Route/day switcher, GPS
+   turn strip, order card, cargo + tilt gauges, par timer: none of it
+   applies to jumping hydrants, and it was overlapping the challenge's
+   own title and meter. */
+function hjChrome(on){
+  const ids = ["gpsHud","panel","panelToggle","mapCard","orderCard","bottomSheet"];
+  for(const id of ids){
+    const el = document.getElementById(id);
+    if(el) el.classList.toggle("hjHidden", on);
+  }
+  document.body.classList.toggle("hjMode", on);
+}
+
+/* Selecting the mission goes to the ROUTE MAP, exactly like the daily:
+   same overlay, same canvas, same GO button — only the card text and the
+   route differ. Dropping the player straight onto the street skipped the
+   one screen that tells them where they are going. */
 function hjStart(){
-  /* NOT a scene switch any more — the challenge runs inside WorldScene so
-     it gets the real Costa Palma world and the full flagged robot. */
-  document.getElementById("hjUI").classList.remove("hidden");
+  /* Close the profile chrome FIRST. tpCloseDetail() only dismisses the
+     little detail sheet — the Side Missions panel and the profile panel
+     behind it stay open and sit on top of the route map, so the map was
+     loading correctly and simply could not be seen. */
+  tpCloseDetail(); tpCloseMissions(); tpCloseProfile();
+  hide("failOverlay"); hide("winOverlay");
+  scn().loadChallenge();                 // builds the Flats route + course
+  show("titleOverlay");                  // the map, with GO
+}
+/* GO on the challenge map: now the delivery chrome goes away and the
+   tap meter comes up. */
+function hjBegin(){
+  /* hide the map here rather than relying on the caller — the GO handler
+     did it, so anything else calling hjBegin() left the title overlay up
+     swallowing every tap on the play area. */
   hide("titleOverlay");
-  scn().loadChallenge();
+  document.getElementById("hjUI").classList.remove("hidden");
+  hjChrome(true);
+  const s = scn();
+  s.hjResetRun();
+  s.state = "play";
 }
 function hjQuit(){
+  const sc = scn();
+  if(sc.mode === "challenge" && sc.hjSaveProgress) sc.hjSaveProgress();
+  hide("failOverlay");
+  document.getElementById("retryBtn").textContent = "Retry";
   document.getElementById("hjUI").classList.add("hidden");
+  hjChrome(false);
   const s = scn();
   s.mode = "delivery";
-  s.loadRoute(clientTodayUTC());
+  /* SHOW THE OVERLAY FIRST. The route-map canvas lives inside
+     #titleOverlay, and loadRoute() ends by calling resizeRouteMap(),
+     which measures the canvas's client rect. Drawing while the overlay
+     was still hidden measured ZERO and left the map blank — you exited
+     the challenge and saw the game world through an empty map panel. */
   show("titleOverlay");
+  s.loadRoute(clientTodayUTC());
+  /* and one more pass after layout has settled, so a late reflow cannot
+     leave it stale */
+  requestAnimationFrame(() => { resizeRouteMap(); drawRouteMap(s.route); });
   tpRender();
 }
 const hjScn = () => scn();
+
+/* The crash screen. Reuses the game's own fail overlay so it looks like
+   the rest of the game, but the copy and both buttons are the
+   challenge's: Retry goes back to the SAME jump you were on, Menu banks
+   your progress and leaves. Nothing auto-restarts. */
+function hjShowCrash(s){
+  const lvl = s.hjLevel;
+  document.getElementById("failMsg").textContent =
+    (s.hjResult || "MISSED IT").replace(/^BURST A HYDRANT$/, "You burst a hydrant.");
+  /* no subtitle — the meter and the mission card already carry the jump
+     number and your best, and progress saving is not something the
+     player needs told every time they miss */
+  document.getElementById("failSub").textContent = "";
+  document.getElementById("retryBtn").textContent = "RETRY";   // one word, it is a circle now
+  const mb = document.getElementById("failMenuBtn");
+  if(mb) mb.classList.remove("hidden");
+  show("failOverlay");
+}
 
 /* the meter, driven from WorldScene state. The pass band is solved
    numerically for the CURRENT level against the real course spacing —
@@ -11417,8 +11923,11 @@ function hjUpdateMeter(s){
                   : inBand  ? "IN THE BAND — STOP TAPPING"
                             : "TAP TO CHARGE — STOP INSIDE THE BAND";
   lbl.classList.toggle("locked", inBand || !!s.hjAir);
-  ttl.textContent = "JUMP " + s.hjLevel + " OF " + HJ_CH.maxLevel +
-                    " · BEST " + s.hjBest + (s.hjResult ? " · " + s.hjResult : "");
+  /* The "JUMP n OF 10 · BEST n · CLEAN" strip is gone — the meter and
+     the crash screen already carry that information, and it was sitting
+     across the top of the play area. Element kept so the unlock banner
+     and any future title still have somewhere to live. */
+  ttl.textContent = "";
   const tb = document.getElementById("hjTap"); if(tb) tb.classList.toggle("dead", !!s.hjAir);
 }
 (function hjBindInput(){
@@ -11524,7 +12033,13 @@ function drawRouteMap(route){
   const W = canvas.clientWidth, H = canvas.clientHeight;
   ctx.clearRect(0, 0, W, H);
 
-  const startS = route.pickupS, endS = route.doorS;
+  /* The challenge has no pickup or door — it is a run down one street.
+     Framing the map on pickupS..doorS drew the daily delivery route
+     instead of the event, so the challenge frames on its own course:
+     the run-up start through the catch ramp. */
+  const ch = route.challenge;
+  const startS = ch ? Math.max(0, ch.kickerS - HJ_RUNUP - T2) : route.pickupS;
+  const endS   = ch ? ch.catchS + T2 : route.doorS;
   const n = 60;
   const samples = [];
   for(let i=0; i<=n; i++){
@@ -11837,9 +12352,11 @@ const TP_TROPHIES = [
   { id:"highroller", name:"High Roller", desc:"Earn $500 in lifetime tips.", tier:"gold", reward:"gold-rush",
     progress:(h,total)=>({current:Math.min(total,500), target:500, isMoney:true}) },
   { id:"hydrant-hop", name:"Hydrant Hopper", desc:"Complete the \"Jump the Fire Hydrant\" side mission.", tier:"silver", reward:"fire-chief",
-    progress:(h,total,missions)=>({current: missions && missions.has("jump-hydrant") ? 1 : 0, target:1}) },
+    progress:()=>({current: Math.min(8, tpProfile.hjBest || 0), target:8}) },
   { id:"hydrant-master", name:"Hydrant Master", desc:"Clear all ten jumps in the Hydrant Challenge.", tier:"gold", reward:"daredevil",
-    progress:(h,total,missions)=>({current: missions && missions.has("jump-hydrant-master") ? 1 : 0, target:1}) },
+    /* driven by actual jumps landed, so the card can never claim a
+       trophy the player has not reached */
+    progress:()=>({current: Math.min(10, tpProfile.hjBest || 0), target:10}) },
   { id:"slalom-master", name:"Slalom Master", desc:"Complete the \"Cone Slalom Challenge\" side mission.", tier:"silver", reward:"cone-dodger",
     progress:(h,total,missions)=>({current: missions && missions.has("cone-slalom") ? 1 : 0, target:1}) },
 ];
@@ -11848,13 +12365,14 @@ const TP_TROPHIES = [
    the file header comment. New Sweater City is a named, locked "coming
    soon" map entry, not a generic placeholder. */
 const TP_SIDE_MISSIONS = [
-  { id:"jump-hydrant", name:"Jump the Fire Hydrant",
-    desc:"Launch off a ramp and clear a fire hydrant without touching it.",
+  /* ONE entry. This was listed twice — "Jump the Fire Hydrant" and
+     "Hydrant Challenge - All Ten" were the same course, which read as a
+     duplicate and completed together. It is one mission carrying two
+     trophies: the Chief at jump 8, the Daredevil at jump 10. */
+  { id:"jump-hydrant", name:"Hydrant Challenge",
+    desc:"Ten jumps down Palmline Ave. Tap to charge, clear the hydrants, land the catch ramp.",
     status:"playable", trophyId:"hydrant-hop", icon:"hydrant", place:"1200 Palmline Ave, The Flats",
-    note:"Needs the Phase 2 jump/ramp system — not shipped yet." },
-  { id:"jump-hydrant-master", name:"Hydrant Challenge - All Ten", desc:"Clear all ten jumps, one after another.",
-    status:"playable", trophyId:"hydrant-master", icon:"hydrant", place:"1200 Palmline Ave, The Flats",
-    note:"Same challenge, run to the end." },
+    note:"Ten jumps on Palmline Ave. Tap to charge, land the catch ramp." },
   { id:"cone-slalom", name:"Cone Slalom Challenge",
     desc:"Weave through a full slalom course of cones without knocking one down.",
     status:"available", trophyId:"slalom-master", icon:"cone",
@@ -11896,6 +12414,11 @@ function tpLoadProfile(){
     missionsCompleted: new Set((raw && raw.missionsCompleted) || []),
     history: (raw && raw.history) || [],       // [{dateStr, tip, ms}]
     allTimeTotal: (raw && raw.allTimeTotal) || 0,
+    /* Hydrant Challenge progress survives a crash, an exit and a reload:
+       a crash costs you the attempt, not the eight jumps you already
+       landed. */
+    hjLevel: (raw && raw.hjLevel) || 1,
+    hjBest:  (raw && raw.hjBest)  || 0,
   };
 }
 function tpSaveProfile(){
@@ -11907,10 +12430,15 @@ function tpSaveProfile(){
       missionsCompleted: [...tpProfile.missionsCompleted],
       history: tpProfile.history,
       allTimeTotal: tpProfile.allTimeTotal,
+      hjLevel: tpProfile.hjLevel,        // hydrant challenge progress
+      hjBest: tpProfile.hjBest,
     }));
   } catch(e){}
 }
 let tpProfile = tpLoadProfile();
+/* wear the saved skin from the very first frame — otherwise an equipped
+   Fire Chief only appeared after you next opened the Store */
+tpApplySkin(tpProfile.equipped);
 
 /* Called from showWin() once payout/ms are final. TODAY credits the
    wallet unconditionally (mirrors dbSubmitScore's zIncrBy — every
@@ -12143,7 +12671,7 @@ function tpOpenDetail(kind, id){
       btn.className = "tpEquipped"; btn.textContent = "Equipped"; btn.disabled = true;
     } else if(owned){
       btn.className = "tpEquip"; btn.textContent = "Equip"; btn.disabled = false;
-      btn.onclick = ()=>{ tpProfile.equipped = id; tpSaveProfile(); tpRenderStore(); tpCloseDetail(); tpToast(`${skin.displayName} equipped`); tpSubmitEquip(id); };
+      btn.onclick = ()=>{ tpProfile.equipped = id; tpApplySkin(id); tpSaveProfile(); tpRenderStore(); tpCloseDetail(); tpToast(`${skin.displayName} equipped`); tpSubmitEquip(id); };
     } else if(isAchievement){
       const tr = tpTrophyForSkin(id);
       btn.className = "tpLink"; btn.textContent = `View trophy — ${tr.name}`; btn.disabled = false;
@@ -12158,6 +12686,7 @@ function tpOpenDetail(kind, id){
         tpProfile.walletCents -= skin.priceCents;
         tpProfile.owned.add(id);
         tpProfile.equipped = id;
+        tpApplySkin(id);
         tpSaveProfile(); tpRender(); tpCloseDetail();
         tpToast(`${skin.displayName} purchased & equipped`);
         tpSubmitPurchase(id);
@@ -12176,15 +12705,40 @@ function tpOpenDetail(kind, id){
     document.getElementById("tpDetailDesc").style.display = m.desc ? "" : "none";
     if(m.place) document.getElementById("tpDetailDesc").textContent = m.desc + "  \u00b7  " + m.place;
 
+    const playableNow = (m.id === "jump-hydrant");
     if(comingSoon){
       btn.className = "tpLockedBtn"; btn.textContent = "Coming soon"; btn.disabled = true;
+    } else if(playableNow){
+      /* A BUILT MISSION IS ALWAYS REPLAYABLE. Completing it used to
+         disable the button outright, so finishing once locked you out of
+         ever playing it again. It also resumes: the label says which
+         jump you are on, and there is a way back to jump 1. */
+      const lvl = Phaser.Math.Clamp(tpProfile.hjLevel || 1, 1, HJ_CH.maxLevel);
+      const best = tpProfile.hjBest || 0;
+      btn.className = "tpClaim"; btn.disabled = false;
+      btn.textContent = lvl > 1 ? `Continue — jump ${lvl} of ${HJ_CH.maxLevel}` : "Play mission";
+      btn.onclick = ()=>{ tpCloseDetail(); hjStart(); };
+      const bits = [];
+      if(best) bits.push(`Best: jump ${best}`);
+      if(completed && m.trophyId) bits.push(`Trophy earned: ${tpTrophyById(m.trophyId).name}`);
+      note.innerHTML = (bits.join("  \u00b7  ") || m.note || "")
+        + (lvl > 1 ? ` <a href="#" id="hjRestart" style="color:#c2452e;text-decoration:underline">Start over</a>` : "");
+      const rs = document.getElementById("hjRestart");
+      if(rs) rs.onclick = (e)=>{ e.preventDefault();
+        tpProfile.hjLevel = 1; tpSaveProfile();
+        tpOpenDetail("mission", m.id);           // redraw with the new state
+        tpToast("Hydrant Challenge reset to jump 1"); };
+      /* NO early return here. tpOpenDetail() opens the sheet at the very
+         END of the function, so returning from inside this branch set up
+         the card perfectly and then never showed it — the row looked
+         dead when tapped. */
     } else if(completed){
       btn.className = "tpDone"; btn.textContent = "Completed"; btn.disabled = true;
       if(m.trophyId) note.textContent = `Trophy earned: ${tpTrophyById(m.trophyId).name}`;
     } else {
       btn.className = "tpBuy"; btn.textContent = "Play mission"; btn.disabled = false;
       /* the hydrant missions are BUILT now — everything else still toasts */
-      const playable = (m.id === "jump-hydrant" || m.id === "jump-hydrant-master");
+      const playable = (m.id === "jump-hydrant");
       btn.onclick = playable
         ? ()=>{ tpCloseDetail(); hjStart(); }
         : ()=>{ tpCloseDetail(); tpToast("Coming soon — gameplay not built yet."); };
@@ -12234,6 +12788,7 @@ function tpSubmitPurchase(skinId){
       tpProfile.walletCents = data.walletCents;
       tpProfile.owned = new Set(data.owned);
       tpProfile.equipped = data.equipped;
+      tpApplySkin(data.equipped);
       tpSaveProfile();
       tpRender();
     })
@@ -12286,12 +12841,27 @@ function tpCloseMissions(){ document.getElementById("tpMissionsPanel").classList
 
 function tpInitStaticIcons(){
   document.getElementById("searchIcon").innerHTML = tpSearchSvg("#2e3138", 18);
+  const fmb = document.getElementById("failMenuBtn");
+  if(fmb) fmb.innerHTML = tpSearchSvg("#2e3138", 18);
   document.getElementById("tpProfBack").innerHTML = tpChevronSvg("#e8eaef", 16);
   document.getElementById("tpMissionsBack").innerHTML = tpChevronSvg("#e8eaef", 16);
   document.getElementById("tpDetailClose").innerHTML = tpCloseSvg("#fff", 13);
 }
 
 document.getElementById("avatarIcon").addEventListener("click", tpOpenProfile);
+/* the always-on robot: wherever you are, it takes you to the profile.
+   From the challenge it banks progress and leaves first. */
+document.getElementById("globalAvatar").addEventListener("click", () => {
+  const s = scn();
+  hide("failOverlay");
+  if(s && s.mode === "challenge") hjQuit();
+  tpOpenProfile();
+});
+document.getElementById("failAvatarBtn").addEventListener("click", () => {
+  hide("failOverlay");
+  if(scn().mode === "challenge") hjQuit();     // banks progress on the way out
+  tpOpenProfile();
+});
 document.getElementById("tpProfBack").addEventListener("click", tpCloseProfile);
 document.getElementById("tpDetailScrim").addEventListener("click", e=>{ if(e.target.id==="tpDetailScrim") tpCloseDetail(); });
 document.getElementById("tpDetailClose").addEventListener("click", tpCloseDetail);
@@ -12441,11 +13011,17 @@ window.addEventListener("resize", () => {
 });
 document.getElementById("startBtn").addEventListener("click", () => {
   hide("titleOverlay");
+  if(scn().mode === "challenge"){ hjBegin(); return; }
   scn().state = "play";
 });
 document.getElementById("retryBtn").addEventListener("click", () => {
   hide("failOverlay");
-  const s = scn(); s.loadRoute(s.route.dateStr); s.state = "play";
+  const s = scn();
+  /* In the challenge, Retry means RETRY THE JUMP. Loading the daily
+     route dumped the player out of the mission entirely. */
+  if(s.mode === "challenge"){ s.hjResetRun(); return; }
+  document.getElementById("retryBtn").textContent = "Retry";
+  s.loadRoute(s.route.dateStr); s.state = "play";
 });
 document.getElementById("againBtn").addEventListener("click", () => {
   hide("winOverlay");
@@ -12543,8 +13119,14 @@ document.getElementById("winMenuBtn").addEventListener("click", () => {
 });
 document.getElementById("failMenuBtn").addEventListener("click", () => {
   hide("failOverlay");
+  if(scn().mode === "challenge"){
+    hjQuit();               // banks progress on the way out
+    tpOpenMissions();       // straight back to the mission list
+    return;
+  }
   collapseSheet();
   show("titleOverlay");
+  tpOpenMissions();
 });
 document.addEventListener("keydown", e => {
   if(IS_DEVVIT_BUILD) return;
