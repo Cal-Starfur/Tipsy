@@ -13,7 +13,7 @@
     font-family:-apple-system,'Helvetica Neue',Arial,sans-serif;-webkit-user-select:none;user-select:none;color:#e8eaef;}
   #wrap{display:flex;flex-direction:column;height:100%;}
   #game{flex:1;min-height:0;}
-  #panel{padding:calc(10px + env(safe-area-inset-top)) 12px 8px;background:#1c1f26;border-bottom:1px solid #2b2f38;}
+  #panel{padding:calc(10px + env(safe-area-inset-top)) 62px 8px 12px;background:#1c1f26;border-bottom:1px solid #2b2f38;}
   #panelToggle{position:fixed;left:50%;top:56px;transform:translateX(-50%);
     color:#8f95a1;font-size:13px;letter-spacing:1px;padding:4px 12px;z-index:5;}
   #panelToggle:active{opacity:0.6;}
@@ -354,7 +354,7 @@
      the engine happened to favour, which is why this button "did
      nothing" on device and worked in headless. Sitting under the strip
      means it can never fight it. */
-  #globalAvatar{position:fixed;top:calc(134px + env(safe-area-inset-top));right:14px;
+  #globalAvatar{position:fixed;top:calc(12px + env(safe-area-inset-top));right:14px;
     z-index:60;background:#ff7a1a;cursor:pointer;
     box-shadow:0 2px 6px rgba(0,0,0,.35);}
   #globalAvatar:active{transform:scale(0.94);}
