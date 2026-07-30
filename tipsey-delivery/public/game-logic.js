@@ -11388,8 +11388,8 @@ function hjUpdateMeter(s){
     const s = hjScn(); if(!s || s.mode !== "challenge") return;
     e.preventDefault(); s.hjTap(performance.now(), e.code);
   });
-  const q = document.getElementById("hjQuit");
-  if(q) q.addEventListener("click", hjQuit);
+  /* no #hjQuit button any more — the always-on robot exits the
+     challenge on its way to the profile */
 })();
 
 
