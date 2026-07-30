@@ -12047,6 +12047,12 @@ function tpSetTab(tab){
   document.getElementById("tpTrList").style.display = tab==="trophy" ? "" : "none";
   document.getElementById("tpStoreGrid").style.display = tab==="store" ? "grid" : "none";
   document.getElementById("tpProfTitle").textContent = tab==="trophy" ? "TROPHY CASE" : "STORE";
+  /* The wallet is only meaningful where you can SPEND it. On the Trophy
+     Case it was just noise, and in the header it sat directly under the
+     always-on robot button. Shown on the Store tab only, and moved into
+     the tab bar so nothing overlaps it. */
+  const wp = document.getElementById("tpWalletPill");
+  if(wp) wp.style.display = tab==="store" ? "flex" : "none";
 }
 
 /* ---------- detail sheet: branches on kind ---------- */
