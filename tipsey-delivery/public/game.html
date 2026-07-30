@@ -171,7 +171,7 @@
   /* ================= TIPSY PROFILE — Trophy Case + Store + Side Missions
      (Phase A). Ported from profile-bench.html. All new selectors prefixed
      tp* to guarantee no collision with the rest of this file. ================= */
-  #tpProfilePanel, #tpMissionsPanel{position:absolute;inset:0;background:#f0ece0;z-index:8;
+  #tpProfilePanel, #tpMissionsPanel{position:absolute;inset:0;background:#f0ece0;z-index:40;
     display:flex;flex-direction:column;transform:translateY(100%);
     transition:transform .24s ease-out;}
   #tpProfilePanel.open, #tpMissionsPanel.open{transform:translateY(0);}
@@ -254,7 +254,7 @@
     box-shadow:0 0 0 3px rgba(255,122,26,.25);}
 
   /* ---- shared detail sheet ---- */
-  #tpDetailScrim{position:absolute;inset:0;background:rgba(20,22,27,.5);z-index:9;
+  #tpDetailScrim{position:absolute;inset:0;background:rgba(20,22,27,.5);z-index:40;
     display:flex;align-items:flex-end;opacity:0;pointer-events:none;transition:opacity .18s;}
   #tpDetailScrim.open{opacity:1;pointer-events:auto;}
   #tpDetailSheet{width:100%;background:#f0ece0;border-radius:20px 20px 0 0;
@@ -332,6 +332,12 @@
      and disappearing with its own layer, so it kept vanishing exactly
      when you wanted it. This one lives outside every overlay and is
      never hidden. */
+  /* The profile / missions / detail panels were z-index 8, BELOW the
+     title and fail overlays at 10. Chromium happened to paint them on
+     top through DOM order, but that is luck, not layering — on another
+     engine the panel opens and you simply never see it, which reads as
+     the button doing nothing. Lifted above the overlays, still below the
+     always-on robot. */
   #globalAvatar{position:fixed;top:calc(12px + env(safe-area-inset-top));right:14px;
     z-index:60;background:#ff7a1a;cursor:pointer;}
   #globalAvatar:active{transform:scale(0.94);}
