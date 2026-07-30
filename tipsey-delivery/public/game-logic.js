@@ -11666,18 +11666,30 @@ function showFail(pool){
    ========================================================================= */
 
 /* ---------- icon helpers: flat SVG, no emoji ---------- */
-function tpRobotSvg(filter, size){
+/* skinId is optional: when the skin has a real palette (Fire Chief,
+   Daredevil) the swatch is painted from it, so the Chief actually looks
+   RED. The old path only ever applied a CSS filter, and hue-rotating a
+   near-white robot barely moves it — which is why it never matched the
+   skin you get in game. Skins without a palette keep the filter. */
+function tpRobotSvg(filter, size, skinId){
   size = size || 34;
-  return `<svg viewBox="0 0 40 46" width="${size}" height="${size*46/40}" style="filter:${filter}">
+  const pal = (typeof SKIN_PALETTES !== "undefined") ? SKIN_PALETTES[skinId] : null;
+  const hex = v => "#" + v.toString(16).padStart(6,"0");
+  const body   = pal ? hex(pal.bodyTop)   : "#f7f8fa";
+  const bodyDk = pal ? hex(pal.bodyRight) : "#f7f8fa";
+  const stripe = pal ? hex(pal.stripe)    : "#c2452e";
+  const trim   = pal && pal.stripe2 ? hex(pal.stripe2) : "#ffcc33";
+  const style  = pal ? "" : `filter:${filter}`;
+  return `<svg viewBox="0 0 40 46" width="${size}" height="${size*46/40}" style="${style}">
     <line x1="13" y1="5" x2="13" y2="11" stroke="#2e3138" stroke-width="1.5"/>
     <circle cx="13" cy="5" r="2" fill="#ff5722"/>
-    <rect x="9" y="11" width="22" height="7" fill="#f7f8fa" stroke="#30343d" stroke-width="1.2"/>
-    <rect x="5" y="18" width="30" height="21" fill="#f7f8fa" stroke="#30343d" stroke-width="1.2"/>
+    <rect x="9" y="11" width="22" height="7" fill="${bodyDk}" stroke="#30343d" stroke-width="1.2"/>
+    <rect x="5" y="18" width="30" height="21" fill="${body}" stroke="#30343d" stroke-width="1.2"/>
     <rect x="9" y="22" width="22" height="8" fill="#22242b"/>
     <circle cx="16" cy="26" r="1.9" fill="#7fe3ff"/>
     <circle cx="24" cy="26" r="1.9" fill="#7fe3ff"/>
-    <rect x="5" y="32" width="30" height="4" fill="#c2452e"/>
-    <rect x="5" y="34" width="30" height="3" fill="#ffcc33" stroke="#c9a020" stroke-width="0.5"/>
+    <rect x="5" y="32" width="30" height="4" fill="${stripe}"/>
+    <rect x="5" y="34" width="30" height="3" fill="${trim}" stroke="#c9a020" stroke-width="0.5"/>
     <rect x="5" y="36" width="30" height="3" fill="#494e58"/>
   </svg>`;
 }
@@ -11942,7 +11954,7 @@ function tpRenderTrophies(){
     const pct = Math.min(100, Math.round((p.current/p.target)*100));
     const rewardSkin = tr.reward ? tpSkinById(tr.reward) : null;
     const rewardHtml = rewardSkin
-      ? `<div class="tpTrReward">${tpRobotSvg(rewardSkin.filter,16)} ${rewardOwned ? "Claimed: " : "Unlocks: "}${rewardSkin.displayName}</div>`
+      ? `<div class="tpTrReward">${tpRobotSvg(rewardSkin.filter,16,rewardSkin.skinId)} ${rewardOwned ? "Claimed: " : "Unlocks: "}${rewardSkin.displayName}</div>`
       : "";
 
     row.innerHTML = `
@@ -11986,7 +11998,7 @@ function tpRenderStore(){
     }
 
     card.innerHTML = `
-      <div class="tpSwatch">${tpRobotSvg(skin.filter,34)}</div>
+      <div class="tpSwatch">${tpRobotSvg(skin.filter,34,skin.skinId)}</div>
       <div class="tpSkinName">${skin.displayName}</div>
       <div class="tpStateRow">${stateHtml}</div>
     `;
@@ -12109,7 +12121,7 @@ function tpOpenDetail(kind, id){
     const equipped = tpProfile.equipped === id;
     const isAchievement = skin.unlockType === "achievement";
 
-    document.getElementById("tpDetailSwatch").innerHTML = tpRobotSvg(skin.filter,52);
+    document.getElementById("tpDetailSwatch").innerHTML = tpRobotSvg(skin.filter,52,skin.skinId);
     document.getElementById("tpDetailName").textContent = skin.displayName;
     document.getElementById("tpDetailDesc").textContent = skin.desc;
 
