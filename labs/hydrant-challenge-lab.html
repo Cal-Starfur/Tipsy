@@ -43,6 +43,10 @@
   #fill{position:absolute;left:0;top:0;bottom:0;width:0;background:#ff7a1a;opacity:.9;}
   #fill.in{background:#4fd167;}
   #needle{position:absolute;top:-2px;bottom:-2px;width:3px;background:#fff;box-shadow:0 0 6px #fff;}
+  /* OVERDRIVE: everything right of the redline is over-committed. The
+     player has to be able to SEE that over-tapping is a way to fail. */
+  #redline{position:absolute;top:0;bottom:0;width:2px;background:#ff4d4d;opacity:.85;}
+  #fill.over{background:#ff4d4d;}
   #meterLbl{font-size:9px;letter-spacing:1.4px;color:#8f95a1;text-transform:uppercase;
     padding:4px 0 0;text-align:center;}
   #meterLbl.locked{color:#4fd167;}
@@ -68,6 +72,7 @@
     <div id="meter">
       <div id="band"></div>
       <div id="fill"></div>
+      <div id="redline"></div>
       <div id="needle"></div>
     </div>
     <div id="meterLbl">CHARGE — hold the fill inside the band</div>
@@ -325,20 +330,41 @@ const LAND = { s: 6.75, row: 0, lift: 10, dirSign: -1, root: false, cracks: 2 };
    ============================================================ */
 const CH = {
   level: 1,
-  maxLevel: 9,      // let it run past the wall on purpose
+  /* maxLevel must sit PAST the physics wall, or 'beat every possible
+     jump' would end on an arbitrary cap instead of a real limit. With
+     the overdrive region the wall is L11 (no pass band), so L10 is the
+     genuine last jump — a 2% band, which is the intended brutal finish. */
+  maxLevel: 12,
   gap: 0.55,        // extra tile-pairs of catch-ramp distance per level
-  /* CALIBRATED against the level bands. Discrete steady state for a
-     sustained rate f is  add / (1 - exp(-decay*1000/f)) — NOT the
-     continuous  add*f/(decay*1000)  approximation, which is what got
-     this wrong first time round and made level 1 unwinnable (2 taps/s
-     produced 51% charge against a 12-36% band).
-     These values put 8 taps/sec at 100% and spread the ladder:
-       1/s 18% · 2/s 29% · 3/s 41% · 4/s 53% · 5/s 64% · 6/s 76% · 8/s 100%
-     which lines up on the level bands as:
-       L1 1.0-2.5/s · L2 2.0-3.8/s · L3 2.9-5.0/s
-       L4 4.0-6.2/s · L5 5.4-8.0/s · L6 7.2-8.0/s  */
-  add: 0.100,       // charge per tap
-  decay: 0.00084,   // proportional bleed per ms  (time constant ~1.2s)
+  /* ---- ACCUMULATING, not settling ----
+     The first version used a strong proportional decay, so charge hit an
+     equilibrium about 1.5s into the runway and then went FLAT. Speed is
+     driven by charge, so Tipsy stopped visibly accelerating half way to
+     the lip and tapping harder did nothing you could see. Measured speed
+     (x1000) every 0.5s at 4 taps/sec:
+        settling:      70 75 85 92 96 99 101 102 103   <- flat by halfway
+        accumulating:  66 71 81 91 100 109 117 125 132 <- climbs throughout
+     Decay is now ~7x weaker, so charge ACCUMULATES across the whole
+     runway and Tipsy accelerates the entire way.
+
+     This also fixes the difficulty, which was the other complaint. With
+     an equilibrium the player got ~2.9 time constants of free
+     self-correction: overshoot sagged back, undershoot got pushed up, and
+     you simply coasted into the band. Accumulating charge has no
+     equilibrium to settle into, so the skill becomes judging WHEN you
+     have enough and stopping — with the bar as your instrument rather
+     than as the answer. Over-tapping is now genuinely punished: 6+
+     taps/sec saturates the meter before the lip and overshoots. */
+  add: 0.055,       // charge per tap
+  decay: 0.00012,   // proportional bleed per ms — weak on purpose
+  /* ---- charge is NOT clamped at 100% ----
+     While it was, over-tapping could never fail: everything from 5.5 to
+     9+ taps/sec saturated into level 6's 92-100% band, so the hardest
+     level degenerated into 'mash as hard as you can' (a 3.5 taps/sec
+     window, wider than level 1's). Letting charge run past 1.0 into an
+     OVERDRIVE region means there is always a way to over-commit and
+     sail past the catch ramp, at every level including the last. */
+  chargeMax: 1.35,
   sp0: 0.060, sp1: 0.165,   // speed at charge 0 / 1
   pw0: 1.30,  pw1: 0.68,    // pow  at charge 0 / 1  (DOWN as charge rises)
   /* landing absorption on the catch ramp: absMin at dead centre,
@@ -467,17 +493,26 @@ class HydrantChallengeLab extends Phaser.Scene {
     const mn = document.getElementById("needle");
     const ml = document.getElementById("meterLbl");
     if(mf){
-      mf.style.width = (c*100).toFixed(1) + "%";
+      /* the meter spans 0..chargeMax, not 0..1, so the overdrive region
+         past the redline is visible rather than a hidden cliff */
+      const X = v => (Math.max(0, Math.min(CH.chargeMax, v)) / CH.chargeMax * 100).toFixed(1) + "%";
       const inBand = b.lo !== null && c >= b.lo && c <= b.hi;
+      const over = c > 1;
+      mf.style.width = X(c);
       mf.classList.toggle("in", inBand);
+      mf.classList.toggle("over", over && !inBand);
+      const rl = document.getElementById("redline");
+      if(rl) rl.style.left = X(1);
       if(b.lo === null){ mb.style.left = "0%"; mb.style.width = "0%"; }
-      else { mb.style.left = (b.lo*100).toFixed(1) + "%";
-             mb.style.width = ((b.hi-b.lo)*100).toFixed(1) + "%"; }
-      mn.style.left = (c*100).toFixed(1) + "%";
+      else { mb.style.left = X(b.lo);
+             mb.style.width = ((b.hi-b.lo)/CH.chargeMax*100).toFixed(1) + "%"; }
+      mn.style.left = X(c);
       ml.textContent = this.lockedCharge !== null
         ? "LOCKED AT " + (c*100).toFixed(0) + "% — NO AIR CONTROL"
         : b.lo === null ? "NO PASS BAND — THIS LEVEL IS THE WALL"
-        : (inBand ? "IN THE BAND — HOLD IT" : "CHARGE — HOLD THE FILL INSIDE THE BAND");
+        : inBand ? "IN THE BAND — STOP TAPPING"
+        : over   ? "OVERDRIVE — YOU WILL SAIL PAST THE RAMP"
+                 : "TAP TO CHARGE — STOP INSIDE THE BAND";
       ml.classList.toggle("locked", this.lockedCharge !== null || (b.lo!==null && inBand));
     }
     const tb = document.getElementById("tapBtn");
@@ -511,7 +546,7 @@ class HydrantChallengeLab extends Phaser.Scene {
   tap(now){
     if(!this.driving || this.state === "tipped") return;
     if(this.lockedCharge !== null) return;      // airborne: no air control
-    this.charge = Math.min(1, this.charge + CH.add);
+    this.charge = Math.min(CH.chargeMax, this.charge + CH.add);
     const t = now === undefined ? performance.now() : now;
     if(this.lastTap) this.tapRate = 1000/Math.max(60, t - this.lastTap);
     this.lastTap = t;
@@ -558,7 +593,13 @@ class HydrantChallengeLab extends Phaser.Scene {
   }
   /* charge -> the two physics values it is allowed to touch */
   speedFor(c){ return CH.sp0 + c*(CH.sp1 - CH.sp0); }
-  powFor(c){   return CH.pw0 + c*(CH.pw1 - CH.pw0); }
+  /* pow falls with charge to FLATTEN the arc (that is what buys 4x reach
+     without a 4x peak). But it must stop falling at 100%: past there,
+     speed rising and pow still dropping cancel out, so reach went 436 ->
+     444 across the whole overdrive region and over-tapping did nothing.
+     Holding pow at pw1 in overdrive makes reach grow with speed again
+     (436 -> 653), so over-committing genuinely sails past the ramp. */
+  powFor(c){   return CH.pw0 + Math.min(c, 1) * (CH.pw1 - CH.pw0); }
 
   /* ---------- THE TARGET BAND ----------
      Forward-simulate the arc across the whole charge range and keep
@@ -570,7 +611,7 @@ class HydrantChallengeLab extends Phaser.Scene {
   solveBand(){
     const dt = SIM_STEP, lip = KICK.s + 0.5;
     let lo = null, hi = null;
-    for(let c = 0; c <= 1.0005; c += 0.004){
+    for(let c = 0; c <= CH.chargeMax + 0.0005; c += 0.004){
       const speed = this.speedFor(c), pow = this.powFor(c);
       let vz = speed*pow*(KICK.lift/12);
       let z = 2 + this.wedgeTop(KICK, KICK.dirSign*TILE), sPos = lip, t = 0, idx = 0, ok = true;
@@ -1072,7 +1113,7 @@ class HydrantChallengeLab extends Phaser.Scene {
   launch(time){
     /* the charge is snapshotted (smoothed) at the lip and frozen for
        the whole flight — no air control, per ramp-jump-spec §1 */
-    const c = this.lockedCharge = Phaser.Math.Clamp(this.chargeSm, 0, 1);
+    const c = this.lockedCharge = Phaser.Math.Clamp(this.chargeSm, 0, CH.chargeMax);
     this.speed   = this.speedFor(c);
     this.launchPow = this.powFor(c);
     const vz0 = this.speed * this.launchPow * (KICK.lift/12);
