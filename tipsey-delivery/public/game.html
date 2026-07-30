@@ -326,7 +326,10 @@
   #hjTap.dead{background:#3a3f4a;box-shadow:0 4px 0 #23262d;color:#6d7380;}
   /* the same orange robot button the map screen uses, in the same place —
      one control for "back to the menu" wherever you are */
-  #hjQuit{right:14px;background:#ff7a1a;pointer-events:auto;cursor:pointer;}
+  /* #hjQuit is gone. It was a SECOND orange robot at the top of the
+     challenge screen while the always-on one sat lower down — two
+     identical buttons doing different things. The global one exits the
+     challenge as part of opening the profile, so this was redundant. */
   /* ONE robot button, always on screen. It used to exist three times —
      on the map, on the fail overlay and in the challenge — each appearing
      and disappearing with its own layer, so it kept vanishing exactly
@@ -371,18 +374,6 @@
       <div id="hjLbl">TAP TO CHARGE</div>
     </div>
     <button id="hjTap">TAP</button>
-    <div class="iconBtn" id="hjQuit"><svg viewBox="0 0 40 46" width="23" height="27">
-          <line x1="13" y1="5" x2="13" y2="11" stroke="#2e3138" stroke-width="1.5"/>
-          <circle cx="13" cy="5" r="2" fill="#ff5722"/>
-          <rect x="9" y="11" width="22" height="7" fill="#f7f8fa" stroke="#30343d" stroke-width="1.2"/>
-          <rect x="5" y="18" width="30" height="21" fill="#f7f8fa" stroke="#30343d" stroke-width="1.2"/>
-          <rect x="9" y="22" width="22" height="8" fill="#22242b"/>
-          <circle cx="16" cy="26" r="1.9" fill="#7fe3ff"/>
-          <circle cx="24" cy="26" r="1.9" fill="#7fe3ff"/>
-          <rect x="5" y="32" width="30" height="4" fill="#c2452e"/>
-          <rect x="5" y="34" width="30" height="3" fill="#ffcc33" stroke="#c9a020" stroke-width="0.5"/>
-          <rect x="5" y="36" width="30" height="3" fill="#494e58"/>
-        </svg></div>
   </div>
   <div id="panelToggle">︿</div>
 </div>
