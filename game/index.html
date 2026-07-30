@@ -345,8 +345,15 @@
      engine the panel opens and you simply never see it, which reads as
      the button doing nothing. Lifted above the overlays, still below the
      always-on robot. */
-  #globalAvatar{position:fixed;top:calc(12px + env(safe-area-inset-top));right:14px;
-    z-index:60;background:#ff7a1a;cursor:pointer;}
+  /* BELOW the day-selector strip. #panel is a full-width 56px bar
+     (ROUTE / TODAY / RANDOM DAY), so anything at top-right lands on top
+     of RANDOM DAY — they overlapped by 41px and the tap went to whichever
+     the engine happened to favour, which is why this button "did
+     nothing" on device and worked in headless. Sitting under the strip
+     means it can never fight it. */
+  #globalAvatar{position:fixed;top:calc(134px + env(safe-area-inset-top));right:14px;
+    z-index:60;background:#ff7a1a;cursor:pointer;
+    box-shadow:0 2px 6px rgba(0,0,0,.35);}
   #globalAvatar:active{transform:scale(0.94);}
   /* the per-screen copies are retired in favour of it */
   #avatarIcon,#failAvatarBtn{display:none !important;}
