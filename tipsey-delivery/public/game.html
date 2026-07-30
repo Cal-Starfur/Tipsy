@@ -276,6 +276,36 @@
     opacity:0;transition:all .2s;pointer-events:none;z-index:20;max-width:88%;
     text-align:center;white-space:normal;}
   #tpToast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+
+  /* ---------- HYDRANT CHALLENGE overlay ---------- */
+  #hjUI{position:absolute;left:0;right:0;bottom:0;top:0;pointer-events:none;z-index:6;}
+  #hjUI.hidden{display:none;}
+  #hjTitle{position:absolute;left:0;right:0;top:10px;text-align:center;font-size:13px;
+    font-weight:700;letter-spacing:2px;color:#ffd15c;text-shadow:0 1px 3px rgba(0,0,0,.8);}
+  #hjUnlock{position:absolute;left:0;right:0;top:38%;text-align:center;font-size:20px;
+    font-weight:800;letter-spacing:2px;color:#ffd15c;text-shadow:0 2px 6px rgba(0,0,0,.9);
+    opacity:0;transform:scale(.8);transition:opacity .25s,transform .25s;}
+  #hjUnlock small{display:block;font-size:10px;letter-spacing:1.5px;color:#fff;margin-top:6px;}
+  #hjUnlock.show{opacity:1;transform:scale(1);}
+  #hjMeterWrap{position:absolute;left:12px;right:12px;bottom:96px;}
+  #hjMeter{position:relative;height:20px;border-radius:10px;background:#0f1116;
+    border:1px solid #363b46;overflow:hidden;}
+  #hjBand{position:absolute;top:0;bottom:0;background:rgba(96,222,120,.28);
+    border-left:2px solid #4fd167;border-right:2px solid #4fd167;}
+  #hjFill{position:absolute;left:0;top:0;bottom:0;width:0;background:#ff7a1a;opacity:.9;}
+  #hjFill.in{background:#4fd167;}
+  #hjNeedle{position:absolute;top:-2px;bottom:-2px;width:3px;background:#fff;box-shadow:0 0 6px #fff;}
+  #hjLbl{font-size:9px;letter-spacing:1.4px;color:#8f95a1;text-transform:uppercase;
+    padding:4px 0 0;text-align:center;}
+  #hjLbl.locked{color:#4fd167;}
+  #hjTap{position:absolute;left:12px;right:12px;bottom:26px;padding:15px 0;font-size:17px;
+    font-weight:800;letter-spacing:3px;background:#ff7a1a;border:none;color:#fff;
+    border-radius:14px;box-shadow:0 4px 0 #a84a08;pointer-events:auto;touch-action:none;}
+  #hjTap:active{transform:translateY(3px);box-shadow:0 1px 0 #a84a08;}
+  #hjTap.dead{background:#3a3f4a;box-shadow:0 4px 0 #23262d;color:#6d7380;}
+  #hjQuit{position:absolute;right:12px;top:8px;padding:6px 12px;font-size:10px;
+    letter-spacing:1.5px;background:#2a2e38;border:1px solid #454b58;color:#c8ccd4;
+    border-radius:8px;pointer-events:auto;}
 </style>
 </head>
 <body>
@@ -289,6 +319,16 @@
   </div>
   <div id="game"></div>
   <div id="gpsHud" class="hidden"></div>
+  <div id="hjUI" class="hidden">
+    <div id="hjTitle"></div>
+    <div id="hjUnlock"></div>
+    <div id="hjMeterWrap">
+      <div id="hjMeter"><div id="hjBand"></div><div id="hjFill"></div><div id="hjNeedle"></div></div>
+      <div id="hjLbl">TAP TO CHARGE</div>
+    </div>
+    <button id="hjTap">TAP  TAP  TAP</button>
+    <button id="hjQuit">QUIT</button>
+  </div>
   <div id="panelToggle">︿</div>
 </div>
 
