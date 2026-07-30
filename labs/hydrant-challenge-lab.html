@@ -43,14 +43,11 @@
   #fill{position:absolute;left:0;top:0;bottom:0;width:0;background:#ff7a1a;opacity:.9;}
   #fill.in{background:#4fd167;}
   #needle{position:absolute;top:-2px;bottom:-2px;width:3px;background:#fff;box-shadow:0 0 6px #fff;}
-  /* OVERDRIVE: everything right of the redline is over-committed. The
-     player has to be able to SEE that over-tapping is a way to fail. */
-  #redline{position:absolute;top:0;bottom:0;width:2px;background:#ff4d4d;opacity:.85;}
-  #fill.over{background:#ff4d4d;}
   #meterLbl{font-size:9px;letter-spacing:1.4px;color:#8f95a1;text-transform:uppercase;
     padding:4px 0 0;text-align:center;}
   #meterLbl.locked{color:#4fd167;}
   #tapWrap{padding:6px 12px 0;background:#1c1f26;}
+  #tapHint{font-size:9px;letter-spacing:1.4px;color:#6d7380;text-transform:uppercase;text-align:center;padding:3px 0 0;}
   #tapBtn{width:100%;padding:15px 0;font-size:17px;font-weight:800;letter-spacing:3px;
     background:#ff7a1a;border:none;border-color:#ff7a1a;color:#fff;border-radius:14px;
     box-shadow:0 4px 0 #a84a08;}
@@ -72,12 +69,11 @@
     <div id="meter">
       <div id="band"></div>
       <div id="fill"></div>
-      <div id="redline"></div>
       <div id="needle"></div>
     </div>
     <div id="meterLbl">CHARGE — hold the fill inside the band</div>
   </div>
-  <div id="tapWrap"><button id="tapBtn">TAP  TAP  TAP</button></div>
+  <div id="tapWrap"><button id="tapBtn">TAP  TAP  TAP</button><div id="tapHint">keyboard: roll A · S · D</div></div>
   <div id="panel">
     <div class="row">
       <button class="on" id="driveBtn">RUN</button>
@@ -87,7 +83,8 @@
     <div id="dials">
     <div id="vals">…</div>
     <div class="row">
-      <button id="chiefBtn">CHIEF SKIN</button>
+      <button id="chiefBtn">CHIEF</button>
+      <button id="dareBtn">DAREDEVIL</button>
       <button id="shadowBtn" class="on">SHADOW</button>
       <button class="sm" id="faceBtn">f0</button>
       <button class="sm" id="pitchBtn">P+</button>
@@ -132,6 +129,15 @@
       <button class="sm" data-p="absgrad" data-d="1">＋</button>
     </div>
     <div class="row">
+      <span class="lbl">Smooth</span>
+      <button class="sm" data-p="cleandamp" data-d="-1">−</button>
+      <button class="sm" data-p="cleandamp" data-d="1">＋</button>
+      <span class="lbl">BurstV</span>
+      <button class="sm" data-p="burstv" data-d="-1">−</button>
+      <button class="sm" data-p="burstv" data-d="1">＋</button>
+      <span class="lbl">Skid</span>
+      <button class="sm" data-p="skid" data-d="-1">−</button>
+      <button class="sm" data-p="skid" data-d="1">＋</button>
       <span class="lbl">Gap</span>
       <button class="sm" data-p="gap" data-d="-1">−</button>
       <button class="sm" data-p="gap" data-d="1">＋</button>
@@ -216,7 +222,19 @@ const FIRE_CHIEF = {
   skinId: "fire-chief",
   displayName: "Fire Chief",
   unlockType: "achievement",
-  achievement: "hydrant-jump-clean"
+  achievement: "hydrant-jump-clean",
+  atLevel: 7
+};
+/* The level-10 reward. NAME IS A PLACEHOLDER ON PURPOSE — see the note
+   in the header comment; the palette is the stunt-rider look (white
+   leather, red/blue stripes, gold trim) without using a real person's
+   name as a shipped identifier. */
+const DAREDEVIL = {
+  skinId: "daredevil",
+  displayName: "Daredevil",
+  unlockType: "achievement",
+  achievement: "hydrant-jump-master",
+  atLevel: 10
 };
 
 /* THE ENTITLEMENT STUB — the ONLY place ownership is written, same
@@ -231,6 +249,17 @@ function grantSkin(skin){
 }
 function ownsSkin(skin){ return ENTITLEMENTS.ownedSkins.includes(skin.skinId); }
 
+/* DAREDEVIL — the stunt-cycle livery: white leather, a BLUE band carrying
+   WHITE STARS, a red band under it, gold trim. Stars are drawn by
+   drawStripeStars(), gated on sk.stars, so no other skin grows them. */
+const DARE = {
+  bodyTop:0xf7f5f0, bodyRight:0xe6e2d9, bodyLeft:0xcbc6ba, outline:0x24242c,
+  stripe:0x1f3a93, stripeDk:0x14276a,        // the blue band
+  stars:0xffffff,                            // white stars ON the blue
+  stripe2:0xc8102e, stripe2Dk:0x8f0b20,      // red band beneath it
+  lidInner:0xf7f5f0, belly:0xb00d22,
+  wheelHubFace:0xc8102e, wheelHub:0xe3bd4a   // red hub, gold rim
+};
 const CHIEF = {
   bodyTop:0xe04b32, bodyRight:0xc23d27, bodyLeft:0x9c301e, outline:0x2a1410,
   stripe:0xf2c14e, stripeDk:0xc79a2f,
@@ -240,6 +269,7 @@ const CHIEF = {
 const BODY = { hx:26, hy:20, z0:14, z1:54 };
 const LID  = { hx:22, hy:16, z0:54, z1:61 };
 const STRIPE = { z0:20, z1:27 };
+const STRIPE2 = { z0:15.5, z1:19.5 };   // the red band under the blue one
 const WHEEL = { r:10, z:10, xs:[-16, 0, 16], side:22 };
 
 /* approved in hydrant lab: height 20 · base 8 · dome 6.5 · nozzle 2.6 */
@@ -330,11 +360,7 @@ const LAND = { s: 6.75, row: 0, lift: 10, dirSign: -1, root: false, cracks: 2 };
    ============================================================ */
 const CH = {
   level: 1,
-  /* maxLevel must sit PAST the physics wall, or 'beat every possible
-     jump' would end on an arbitrary cap instead of a real limit. With
-     the overdrive region the wall is L11 (no pass band), so L10 is the
-     genuine last jump — a 2% band, which is the intended brutal finish. */
-  maxLevel: 12,
+  maxLevel: 10,     // TUNED ON DEVICE — ten jumps, level 10 is the finish
   gap: 0.55,        // extra tile-pairs of catch-ramp distance per level
   /* ---- ACCUMULATING, not settling ----
      The first version used a strong proportional decay, so charge hit an
@@ -355,8 +381,15 @@ const CH = {
      have enough and stopping — with the bar as your instrument rather
      than as the answer. Over-tapping is now genuinely punished: 6+
      taps/sec saturates the meter before the lip and overshoots. */
-  add: 0.055,       // charge per tap
-  decay: 0.00012,   // proportional bleed per ms — weak on purpose
+  /* add and decay are a MATCHED PAIR. Reachable charge at a sustained
+     rate f is add/(1-exp(-decay*1000/f)), so raising decay without
+     raising add shortens the whole range. At decay 1.0/s the old add of
+     0.055 capped charge at 69% even at 12 taps/sec, which made levels
+     4-10 unreachable and the level-7 and level-10 rewards unearnable.
+     0.128 restores the full span against 1.0/s:
+       2/s 33%  3/s 45%  4/s 58%  5/s 71%  6/s 83%  8/s 109%  10/s 135% */
+  add: 0.128,       // charge per tap — TUNED WITH decay 1.0/s
+  decay: 0.001,     // proportional bleed per ms (1.0/s) — TUNED ON DEVICE
   /* ---- charge is NOT clamped at 100% ----
      While it was, over-tapping could never fail: everything from 5.5 to
      9+ taps/sec saturated into level 6's 92-100% band, so the hardest
@@ -365,7 +398,9 @@ const CH = {
      OVERDRIVE region means there is always a way to over-commit and
      sail past the catch ramp, at every level including the last. */
   chargeMax: 1.35,
-  sp0: 0.060, sp1: 0.165,   // speed at charge 0 / 1
+  burstV: 0.030,    // minimum impact speed to shear a hydrant
+  cleanDamp: 0.12,  // fraction of the landing kick a CLEAN landing feels
+  sp0: 0.030, sp1: 0.165,   // speed at charge 0 / 1 — TUNED ON DEVICE
   pw0: 1.30,  pw1: 0.68,    // pow  at charge 0 / 1  (DOWN as charge rises)
   /* landing absorption on the catch ramp: absMin at dead centre,
      absMin+absGrad at the very edge. Deliberately shallow — at LOW
@@ -380,13 +415,32 @@ const CH = {
      with no pass band cannot be cleared. lastPossibleLevel() derives it,
      so retuning any dial moves the target automatically instead of
      leaving a stale hardcoded number behind. */
-  smooth: 0.010,    // snapshot smoothing so the value at the lip is not
-                    // a function of where you happen to be in the tap cycle
+  /* SNAPSHOT SMOOTHING. Charge sawtooths by a full `add` between taps —
+     at add 0.128 that is +/-6% of jitter depending purely on where in
+     the tap cycle you cross the lip, which is wider than the level 7-9
+     bands (5%, 4%, 3%) and turned the top of the ladder into a lottery
+     on tap phase. Filtering the snapshot fixes it:
+        100ms  3 monotonicity breaks, worst dip 1.2%
+        250ms  1 break, worst dip 0.3%   <- shipped
+        500ms  0 breaks, but the meter lags the tapping badly
+     0.3% is far inside every band, so 250ms buys a monotonic ladder
+     without the speed visibly trailing the bar. */
+  smooth: 0.004,
   autoTap: 0        // >0 = taps/sec, headless testing only
 };
 /* live hydrant list, rebuilt by buildLevel() */
 let HYDS = [];
 const HYDJ = { row: 0 };
+/* crash skid: how fast forward motion scrubs off while tipping over.
+   base = friction while still up on the wheels, bite = extra friction
+   as he goes flat and the body digs in. */
+const SKID = { base: 0.0002, bite: 0.0010 };   // TUNED ON DEVICE — long slide
+/* Tuned for a readable skid that finishes as the tip animation does:
+     base/bite      overshoot slide (v0 0.139)      time
+     0.0016/0.0060   41u = 0.8 body lengths         1.00s   too abrupt
+     0.0007/0.0030   70u = 1.3 body lengths         1.72s   <- shipped
+     0.0004/0.0016  107u = 2.0 body lengths         2.91s   still sliding
+                                                            at auto-reset */
 const SLABC = { top: 0xc4bdae, topDk: 0x9d9687, gap: 0x4a4238,
                 rootA: 0x8a6a48, rootB: 0x6f5439 };
 
@@ -416,6 +470,7 @@ class HydrantChallengeLab extends Phaser.Scene {
     this.K = 2.0;
     this.seed = 11;
     this.chief = false;
+    this.dare = false;
     this.sk = SKIN;
     this.unlocked = false;
     this.best = 0;
@@ -463,7 +518,9 @@ class HydrantChallengeLab extends Phaser.Scene {
     this.botZ = 2;
     this.result = "";
     this.resultT = 0;
-    this.tipT = 0; this.tipResetT = 0;
+    this.tipT = 0; this.tipResetT = 0; this.skidV = undefined; this.canSkid = false; this.tipMode = "side";
+    this.pitchPivot = 0; this.tipPitch0 = 0; this.tipRoll0 = 0; this.tiltImpulse = 0;
+    this.burst = {};                 // hydrant index -> ms timestamp of its burst
     this.blockedT = 0;
     this.bonked = false;
     this.prevAlong = -1e9;
@@ -493,16 +550,12 @@ class HydrantChallengeLab extends Phaser.Scene {
     const mn = document.getElementById("needle");
     const ml = document.getElementById("meterLbl");
     if(mf){
-      /* the meter spans 0..chargeMax, not 0..1, so the overdrive region
-         past the redline is visible rather than a hidden cliff */
+      /* the meter spans 0..chargeMax, not 0..1, so charge past 100% still
+         moves the fill instead of pinning it at the end of the bar */
       const X = v => (Math.max(0, Math.min(CH.chargeMax, v)) / CH.chargeMax * 100).toFixed(1) + "%";
       const inBand = b.lo !== null && c >= b.lo && c <= b.hi;
-      const over = c > 1;
       mf.style.width = X(c);
       mf.classList.toggle("in", inBand);
-      mf.classList.toggle("over", over && !inBand);
-      const rl = document.getElementById("redline");
-      if(rl) rl.style.left = X(1);
       if(b.lo === null){ mb.style.left = "0%"; mb.style.width = "0%"; }
       else { mb.style.left = X(b.lo);
              mb.style.width = ((b.hi-b.lo)/CH.chargeMax*100).toFixed(1) + "%"; }
@@ -511,7 +564,6 @@ class HydrantChallengeLab extends Phaser.Scene {
         ? "LOCKED AT " + (c*100).toFixed(0) + "% — NO AIR CONTROL"
         : b.lo === null ? "NO PASS BAND — THIS LEVEL IS THE WALL"
         : inBand ? "IN THE BAND — STOP TAPPING"
-        : over   ? "OVERDRIVE — YOU WILL SAIL PAST THE RAMP"
                  : "TAP TO CHARGE — STOP INSIDE THE BAND";
       ml.classList.toggle("locked", this.lockedCharge !== null || (b.lo!==null && inBand));
     }
@@ -522,16 +574,16 @@ class HydrantChallengeLab extends Phaser.Scene {
       const fin = this.lastPossibleLevel();
       hb.textContent = "JUMP " + CH.level + " OF " + fin + " · " + HYDS.length +
         " HYDRANT" + (HYDS.length>1?"S":"") + " · BEST " + this.best +
-        (this.unlocked ? " · CHIEF EARNED" : "");
+        (this.unlockedDare ? " · DAREDEVIL" : this.unlocked ? " · CHIEF" : "");
     }
 
     const bandTxt = b.lo === null ? "IMPOSSIBLE"
       : (b.lo*100).toFixed(0)+"%-"+(b.hi*100).toFixed(0)+"%";
     document.getElementById("vals").textContent =
       `f${RUN.f} · lvl ${CH.level} (${HYDS.length} hyd) · land s${LAND.s.toFixed(2)} · band ${bandTxt} · final L${this.lastPossibleLevel()}
-`+`add ${CH.add.toFixed(2)} · decay ${(CH.decay*1000).toFixed(1)}/s · spd ${CH.sp0.toFixed(3)}-${CH.sp1.toFixed(3)} · pow ${CH.pw0.toFixed(2)}-${CH.pw1.toFixed(2)} · gap ${CH.gap.toFixed(2)}
+`+`skid ${SKID.base.toFixed(4)}/${SKID.bite.toFixed(4)} · add ${CH.add.toFixed(2)} · decay ${(CH.decay*1000).toFixed(1)}/s · spd ${CH.sp0.toFixed(3)}-${CH.sp1.toFixed(3)} · pow ${CH.pw0.toFixed(2)}-${CH.pw1.toFixed(2)} · gap ${CH.gap.toFixed(2)}
 `+`charge ${(c*100).toFixed(0)}% · taps ${this.tapCount} · ~${this.tapRate.toFixed(1)}/s · spd ${this.speed.toFixed(3)}
-`+`s ${this.botS.toFixed(2)} · ${air ? "AIR h"+(air.z-2).toFixed(0)+" ("+air.passed+"/"+HYDS.length+")" : "ground"} · tilt ${this.tilt.toFixed(2)} · ${this.state==="tipped"?"TIPPED":"ok"} · ${this.result||"—"} · chief ${this.unlocked?"UNLOCKED":"locked"}`;
+`+`s ${this.botS.toFixed(2)} · ${air ? "AIR h"+(air.z-2).toFixed(0)+" ("+air.passed+"/"+HYDS.length+")" : "ground"} · tilt ${this.tilt.toFixed(2)} · ${this.state==="tipped"?"TIPPED":"ok"} · ${this.result||"—"} · chief@${FIRE_CHIEF.atLevel} ${this.unlocked?"YES":"no"} · dare@${DAREDEVIL.atLevel} ${this.unlockedDare?"YES":"no"}`;
   }
 
   /* ---------- run space: (along, cross) -> world ----------
@@ -543,15 +595,21 @@ class HydrantChallengeLab extends Phaser.Scene {
      ramp, catch ramp pushed `gap` further out per level. Level 1
      reproduces the exact jump approved on device (LAND.s 6.75). */
   /* one press of the on-screen button */
-  tap(now){
+  tap(now, src){
     if(!this.driving || this.state === "tipped") return;
     if(this.lockedCharge !== null) return;      // airborne: no air control
-    /* DEDUPE. 20ms is ~50 taps/sec, far past anything a human can do, so
-       this never eats a real tap — but it means a duplicate event from
-       any source can no longer silently double the charge, which is the
-       bug that made touch twice as strong as the keyboard. */
+    /* DEDUPE, PER SOURCE. This exists to stop ONE physical input firing
+       twice (the pointerdown+touchstart bug that made touch double
+       strength) — NOT to stop two different inputs landing close
+       together. With A/S/D the whole point is rolling fingers, so 'a'
+       then 's' 10ms apart are two real taps and must both count. Keying
+       the guard by source means each key, and each individual finger on
+       the button, gets its own 20ms window. */
     const tNow = now === undefined ? performance.now() : now;
-    if(this.lastTap && tNow - this.lastTap < 20) return;
+    const key = src === undefined ? "x" : src;
+    this._srcLast = this._srcLast || {};
+    if(this._srcLast[key] && tNow - this._srcLast[key] < 20) return;
+    this._srcLast[key] = tNow;
     this.charge = Math.min(CH.chargeMax, this.charge + CH.add);
     if(this.lastTap) this.tapRate = 1000/Math.max(60, tNow - this.lastTap);
     this.lastTap = tNow;
@@ -616,7 +674,7 @@ class HydrantChallengeLab extends Phaser.Scene {
   solveBand(){
     const dt = SIM_STEP, lip = KICK.s + 0.5;
     let lo = null, hi = null;
-    for(let c = 0; c <= CH.chargeMax + 0.0005; c += 0.004){
+    for(let c = 0; c <= CH.chargeMax + 0.0005; c += 0.002){   /* 0.2% steps: band edges must be accurate enough that "just outside the green" really is a fail */
       const speed = this.speedFor(c), pow = this.powFor(c);
       let vz = speed*pow*(KICK.lift/12);
       let z = 2 + this.wedgeTop(KICK, KICK.dirSign*TILE), sPos = lip, t = 0, idx = 0, ok = true;
@@ -627,7 +685,13 @@ class HydrantChallengeLab extends Phaser.Scene {
           if((z - 2) < HYD.height + JUMP.clear) ok = false;
           idx++;
         }
-        if(vz < 0 && z <= 2) break;
+        /* land on the SAME plane land() does. This used to break at
+           z <= 2 (the flat ground) while the game fires land() at
+           z <= groundZAt(), which on the catch ramp is the SLAB TOP.
+           The solver was therefore landing lower and later than the
+           game, and the band came out ~2% off: charges inside the green
+           still landed SLOPPY, and charges just outside it cleaned. */
+        if(vz < 0 && z <= this.groundZAt(sPos, LAND.row)) break;
         if(t > 20000){ ok = false; break; }
       }
       if(idx < HYDS.length) ok = false;
@@ -679,8 +743,18 @@ class HydrantChallengeLab extends Phaser.Scene {
       const x2 = x*c - y*s; y = x*s + y*c; x = x2;
     }
     if(this.pitch !== 0){
+      /* pitchPivot is 0 for every normal pitch, which reproduces the
+         game's origin rotation exactly. The FACE PLANT sets it to the
+         body's front face so he goes over his nose and lands ON it:
+         rotating 90 deg about the origin puts the lowest point at -26,
+         i.e. the whole body through the floor. Same idea as the roll's
+         PIV. NOTE this pivot belongs in T() only — R() transforms
+         DIRECTION vectors, and a pivot is a translation, so applying it
+         there would corrupt the facing tests. */
+      const PX = this.pitchPivot || 0;
+      const x0 = x - PX;
       const c = Math.cos(this.pitch), s = Math.sin(this.pitch);
-      const x2 = x*c - z*s; z = x*s + z*c; x = x2;
+      const x2 = x0*c - z*s; z = x0*s + z*c; x = PX + x2;
     }
     if(this.roll !== 0){
       const PIV = this.roll >= 0 ? 22 : -22;
@@ -807,6 +881,40 @@ class HydrantChallengeLab extends Phaser.Scene {
     }
   }
 
+  /* ---------- WHITE STARS ON THE BLUE BAND ----------
+     Drawn in each side face's own (u, z) space and projected through
+     P(), so they lie flat on the band and rotate with the robot. Uses
+     the same backface test as drawBox so a star never appears on a face
+     the camera cannot see. */
+  drawStripeStars(){
+    const hx = BODY.hx + 0.7, hy = BODY.hy + 0.7;
+    const zc = (STRIPE.z0 + STRIPE.z1)/2, rz = (STRIPE.z1 - STRIPE.z0)*0.40;
+    const faces = [
+      { n:{x: 1,y:0,z:0}, at:(u,z)=>[ hx,  u*hy, z], span:hy },
+      { n:{x:-1,y:0,z:0}, at:(u,z)=>[-hx,  u*hy, z], span:hy },
+      { n:{x:0,y: 1,z:0}, at:(u,z)=>[ u*hx,  hy, z], span:hx },
+      { n:{x:0,y:-1,z:0}, at:(u,z)=>[ u*hx, -hy, z], span:hx }
+    ];
+    for(const fc of faces){
+      const w = this.R(fc.n.x, fc.n.y, fc.n.z);
+      if((w.x + w.y + w.z) <= 0) continue;          // backface, same rule as drawBox
+      const n = 3;
+      for(let i = 0; i < n; i++){
+        const u = -0.58 + (i/(n-1))*1.16;           // evenly along the band
+        const pts = [];
+        for(let k = 0; k < 10; k++){
+          const a = -Math.PI/2 + k*Math.PI/5;
+          const rr = (k % 2 === 0) ? 1 : 0.42;      // outer / inner point
+          const du = Math.cos(a)*rr*(rz/fc.span);
+          const dz = Math.sin(a)*rr*rz;
+          const q = fc.at(u + du, zc + dz);
+          pts.push(this.P(q[0], q[1], q[2]));
+        }
+        this.quadOn(this.g, pts, this.sk.stars);
+      }
+    }
+  }
+
   drawWheel(c, sideSign){
     const W2 = 7.5, steps = 5;
     const slices = [];
@@ -867,6 +975,11 @@ class HydrantChallengeLab extends Phaser.Scene {
     this.drawBox({...BODY}, this.sk.bodyTop, this.sk.bodyRight, this.sk.bodyLeft);
     this.drawBox({hx:BODY.hx+0.6, hy:BODY.hy+0.6, z0:STRIPE.z0, z1:STRIPE.z1},
                  null, this.sk.stripe, this.sk.stripeDk, false, true);
+    if(this.sk.stars) this.drawStripeStars();
+    if(this.sk.stripe2){
+      this.drawBox({hx:BODY.hx+0.6, hy:BODY.hy+0.6, z0:STRIPE2.z0, z1:STRIPE2.z1},
+                   null, this.sk.stripe2, this.sk.stripe2Dk, false, true);
+    }
 
     if(lidIsNear) this.drawLid(lidBox);
 
@@ -1032,10 +1145,17 @@ class HydrantChallengeLab extends Phaser.Scene {
     }
   }
 
-  /* ---------- the GAME's hydrant branch, verbatim (intact only —
-     bursting isn't part of this stunt; the whole point is not to
-     touch it) ---------- */
-  drawHydrantGame(wx, wy, ox, oy){
+  /* ---------- the GAME's hydrant branch. Intact by default; land ON one
+     and it BURSTS — sheared nozzle, animated spray arc, growing puddle.
+     Same vocabulary as the game's hydrantBurst kind, re-authored in the
+     lab's run-space (Wp) instead of the game's random per-hydrant
+     rotation, so the spray always points down-lane and is always
+     visible. (The game hit exactly this: a random facing meant roughly
+     half of all live bursts showed no water at all, fixed there with
+     forceVisible. Building it in run-space avoids the problem instead of
+     patching it.)
+     `burstT` is the ms timestamp of the burst, or null for intact. ----- */
+  drawHydrantGame(wx, wy, ox, oy, burstT, now){
     const g = this.g;
     const HH = HYD;
     const GG = (a, b, h) => this.Wp(wx, wy, a, b, h, ox, oy);
@@ -1101,12 +1221,43 @@ class HydrantChallengeLab extends Phaser.Scene {
     };
 
     const domeBase = height*0.9, domeR = HH.domeR;
+    /* ---- PUDDLE: ground decal, painted BEFORE the body parts so the
+       barrel and dome naturally draw over it ---- */
+    const bursting = burstT !== null && burstT !== undefined;
+    const grow = bursting ? Math.min(1, ((now||0) - burstT)/1800) : 0;
+    if(bursting){
+      const ring = (rad, nn=18) => {
+        const pts = [];
+        for(let i=0; i<nn; i++){
+          const phi = (i/nn)*Math.PI*2;
+          pts.push(GG(Math.cos(phi)*rad*1.15, Math.sin(phi)*rad, 0.3));
+        }
+        return pts;
+      };
+      this.quadOn(g, ring(TILE*0.85*grow), HH.water, 0.28);
+      this.quadOn(g, ring(TILE*0.55*grow), HH.water, 0.22);
+    }
+
     const hparts = [
       { d: dAt(0,0,height*0.3), fn: hbarrel },
       { d: dAt(0,0,height*0.82), fn: hshoulder },
       { d: dAt(HH.baseR*0.55, 0, height*0.42), fn: hnozzle(0, HH.nozR) },
       { d: dAt(-HH.baseR*0.55, 0, height*0.42), fn: hnozzle(Math.PI, HH.nozR) },
-      { d: dAt(0,0, domeBase+domeR*0.9), fn: hdome }
+      { d: dAt(0,0, domeBase+domeR*0.9), fn: hdome },
+      { d: dAt(HH.baseR*0.55, 0, height*0.55), fn: () => {
+          if(!bursting) return;
+          /* animated arc off the sheared front nozzle */
+          const tipA = HH.baseR*0.55 + HH.nozR*2.2;
+          const n = 9, hgt = height*0.42;
+          for(let i=0; i<n; i++){
+            const u = (((now||0)*0.0026 + i/n) % 1);
+            const dist = u * 26 * (0.4 + 0.6*grow);
+            const arcH = hgt + 14*u - 26*u*u;
+            const pt = GG(tipA + dist, 0, Math.max(arcH, 0.5));
+            g.fillStyle(u > 0.82 ? HH.waterDk : HH.water, 0.9*(1 - u*0.55));
+            g.fillCircle(pt.x, pt.y, Math.max(0.6, 1.6 - u)*this.K*0.4);
+          }
+        } }
     ];
     hparts.sort((p1, p2) => p1.d - p2.d);
     for(const pt of hparts) pt.fn();
@@ -1140,14 +1291,46 @@ class HydrantChallengeLab extends Phaser.Scene {
     this.result = "AIRBORNE";
   }
 
-  clipHydrant(){
+  /* ---------- CONTACT: any hydrant Tipsy touches bursts ----------
+     Not just the one he clipped out of the air. Once he is down he
+     tumbles and skids forward through the rest of the row, and every one
+     he reaches should shear too. Runs every step, so it covers all three
+     ways to hit one: clipped mid-arc, ploughed through while tipping, or
+     rolled into on the ground. */
+  hydrantContact(time){
+    if(this.botRow !== HYDJ.row) return;
+    const along = this.botS*T2;
+    const z = this.air ? this.air.z : this.groundZAt(this.botS, this.botRow);
+    if(z - 2 > HYD.height) return;            // sailing clear over the top
+    /* needs real impact — creeping up to one should nudge it, not shear
+       a cast-iron nozzle off */
+    const v = this.state === "tipped" ? (this.skidV || 0) : this.speed;
+    if(v < CH.burstV && !this.air) return;
+    for(let i = 0; i < HYDS.length; i++){
+      if(this.burst[i] !== undefined) continue;
+      if(Math.abs(along - HYDS[i]*T2) < HYD.baseR + 20) this.burst[i] = time;
+    }
+  }
+
+  clipHydrant(idx, time){
+    /* landing ON one shears the nozzle open — that hydrant now bursts */
+    if(idx !== undefined) this.burst[idx] = (time !== undefined ? time : 0);
     /* undershoot: the arc came in under the dome. Cast-iron does what
        cast iron does — the nose stops, the top-heavy body keeps going. */
     this.air.vz = -Math.abs(this.air.vz) - 0.01;
     this.air.clipped = true;
     this.speed *= 0.35;
-    this.tilt += 0.85 * (Math.random() < 0.5 ? 1 : -1);
-    this.result = "CLIP";
+/* same rule on a clip: continue the existing lean rather than
+       risking a sign flip */
+    /* ---- IMPULSE, NOT A STEP CHANGE ----
+       This added the whole 0.85 of tilt in ONE frame, moving roll
+       0 -> 23deg instantly: a 29.8-unit pop, the last big seam in the
+       crash. Hitting cast iron IS violent, but rotating still takes a
+       few frames. The impulse bleeds into tilt over ~150ms, so it reads
+       as a hard shove rather than a teleport. */
+    this.tiltImpulse += 0.85 * (Math.abs(this.tilt) > 0.02 ? Math.sign(this.tilt)
+                                                          : (Math.random() < 0.5 ? 1 : -1));
+    this.result = "BURST A HYDRANT";
   }
 
   land(gz){
@@ -1173,30 +1356,116 @@ class HydrantChallengeLab extends Phaser.Scene {
        a precision gradient: the band gets you down, CENTRING the band
        gets you a clean. */
     const centre = 1 - Math.min(1, Math.abs(dL)/TILE);   // 1 mid-slab, 0 at an edge
+    const cleanPredict = this.air.cleared && onLand && !this.air.clipped
+                       && Math.abs(this.air.vz)*JUMP.slam
+                          *(CH.absMin + CH.absGrad*(1-centre)) < 0.6;
     const absorb = this.air.clipped ? 1.6
                  : onLand ? (CH.absMin + CH.absGrad*(1 - centre))
                  : over   ? 1.9
                           : 1.5;
-    this.tilt += impact * JUMP.slam * absorb * (Math.random() < 0.5 ? 1 : -1);
-    if(!onLand && !this.air.clipped){
-      /* guarantee the tip: a near-miss that merely wobbled would make
-         the landing window feel arbitrary */
-      this.tilt = Math.sign(this.tilt || 1) * Math.max(Math.abs(this.tilt), 1.05);
+    /* ---- SMOOTH CLEAN LANDINGS ----
+       The tilt kick used to fire at full strength on EVERY landing, so
+       even a perfect one arrived with a wobble worth up to 0.6 tilt that
+       then had to spring back out — the jolt. Now that cleanPredict
+       decides the outcome deterministically, the kick no longer has to
+       act as the clean/not-clean discriminator, so a clean landing takes
+       only a token amount (cleanDamp) and rides the slab's down-slope
+       out. A miss still takes the full hit and goes over. */
+    const faceFail = !cleanPredict && !this.air.clipped && this.tipMode === "face";
+    /* A face plant must not pick up ANY sideways lean. The tilt kick and
+       the forced tip below both drive roll (roll = clamp(tilt)*0.5), and
+       forcing tilt to 1.05+ snapped roll to 29 degrees in a single frame
+       at touchdown — a 36-unit lurch sideways that then had to be eased
+       back out before he could go over the nose. That was the seam.
+       He goes straight over the front instead, so tilt is left alone and
+       the tipped state is entered directly. */
+    if(!faceFail){
+      const kick = impact * JUMP.slam * absorb * (cleanPredict ? CH.cleanDamp : 1);
+      /* KEEP THE LEAN DIRECTION. A random sign here could reverse the way
+         he was already leaning, and roll = clamp(tilt)*0.5 then whipped
+         across zero in a single frame — the worst seam in the whole
+         crash (55.9 units, roll +22deg -> -29deg). He now keeps falling
+         the way he was already going; the coin flip only decides it when
+         he is genuinely level. */
+      const dir = Math.abs(this.tilt) > 0.02 ? Math.sign(this.tilt)
+                                             : (Math.random() < 0.5 ? 1 : -1);
+      this.tiltImpulse += kick * dir;      // bleeds in, never a step change
+    }
+    if(faceFail){
+      /* straight into the pitch-over, carrying the exact pose he landed
+         in — no tilt, no roll, nothing to unwind */
+      this.state = "tipped";
+      this.tipT = 0; this.tipDir = 1; this.skidV = 0;
+      this.tipPitch0 = this.pitch;
+      this.tipRoll0  = this.roll;
+    } else if(!cleanPredict && !this.air.clipped){
+      /* Guarantee the sideways tip — but as an IMPULSE, not by writing
+         tilt straight to 1.05+. Writing it moved roll 16deg -> 29deg in a
+         single frame (roll saturates at clamp(tilt)*0.5). Pushing the
+         impulse instead carries tilt past the threshold over ~3 frames,
+         so roll ramps into the tip continuously and the rollover picks
+         up exactly where the lean left off. */
+      const dir = Math.abs(this.tilt) > 0.02 ? Math.sign(this.tilt)
+                                             : (Math.random() < 0.5 ? 1 : -1);
+      this.tiltImpulse += dir * 1.6;
     }
 
-    const clean = this.air.cleared && onLand && !this.air.clipped && Math.abs(this.tilt) < 0.6;
-    this.result = this.air.clipped ? "CLIPPED A HYDRANT"
+    /* SKID ONLY ON AN OVERSHOOT. Sailing past the catch ramp means Tipsy
+       is still carrying full speed when he touches down, so he slides.
+       Coming up short or clipping a hydrant means he has already hit
+       something — cast iron, or the far joint — so he stops and goes
+       over on the spot. */
+    /* SKID IF THERE IS A RAMP UNDER HIM. Overshooting is not the only
+       case: landing ON the catch ramp but off-centre still puts him on
+       the down-slope carrying speed, so he slides too — that near-miss
+       is the most common failure of all, and stopping dead on a slope
+       looked wrong. Only a genuine short (touching down on the flat
+       BEFORE the ramp) or cast iron kills the momentum. */
+    this.canSkid = !this.air.clipped && (over || onLand);
+    /* ---- CRASH POSE ----
+       Coming up SHORT means he lands nose-first on the flat before the
+       ramp: he pitches straight over onto his face and stays there.
+       Every other failure keeps the sideways roll — overshooting carries
+       him past on his side, and cast iron throws him over. */
+    this.tipMode = (!onLand && !over && !this.air.clipped) ? "face" : "side";
+
+    /* NO SURVIVABLE MIDDLE. A landing is either clean or it is a crash.
+       SLOPPY used to be a third outcome that neither cleared the level
+       nor tipped you, which made the green band feel advisory: 53-59%
+       and 74-77% all 'survived' without cleaning. Miss the band by any
+       margin now and you go over. */
+    /* Use cleanPredict, NOT a reading of this.tilt. Tilt used to be
+       written instantly by the landing kick, so testing it here worked
+       by accident; now that impacts arrive as a rate-limited impulse,
+       tilt is still ~0 at this moment and every failed landing reported
+       CLEAN. cleanPredict is derived from the arc itself and is exactly
+       what solveBand() mirrors, so the outcome and the green band now
+       agree by construction rather than by coincidence. */
+    const clean = cleanPredict;
+    this.result = this.air.clipped ? "BURST A HYDRANT"
                 : clean            ? "CLEAN · LEVEL "+CH.level+" CLEARED"
-                : onLand           ? "SLOPPY"
                 : over             ? "OVERSHOT THE RAMP"
+                /* on the ramp but off-centre — its own label, because
+                   calling this "came up short" while he is standing on
+                   the catch ramp reads as a bug */
+                : onLand           ? "ROUGH LANDING"
                                    : "CAME UP SHORT";
     if(clean){
       this.best = Math.max(this.best, CH.level);
       this.advance = true;              // consumed by the auto-loop
     }
-    /* THE REWARD: only for beating every jump that CAN be beaten. */
-    const finalLevel = this.lastPossibleLevel();
-    if(clean && CH.level >= finalLevel && grantSkin(FIRE_CHIEF)){
+    /* ---- REWARDS ----
+       Two now, at fixed levels rather than derived from the wall:
+         level 7  -> Fire Chief
+         level 10 -> Daredevil (the finish)
+       Fixed levels are the right call here BECAUSE maxLevel is now 10:
+       there is no level past the last one, so a derived "beat everything
+       possible" target would collapse onto level 10 and the level-7
+       reward would have nowhere to live. */
+    /* Chief is awarded FIRST so that clearing level 10 leaves the
+       DAREDEVIL equipped — both blocks set equippedSkin, and whichever
+       runs last wins. The bigger prize should be the one he is wearing. */
+    if(clean && CH.level >= FIRE_CHIEF.atLevel && grantSkin(FIRE_CHIEF)){
       /* achievement satisfied -> entitlement granted -> auto-equip,
          so the reward is worn immediately instead of buried in a menu */
       ENTITLEMENTS.equippedSkin = FIRE_CHIEF.skinId;
@@ -1207,9 +1476,24 @@ class HydrantChallengeLab extends Phaser.Scene {
       el.classList.add("show");
       setTimeout(() => el.classList.remove("show"), 2600);
     }
+    if(clean && CH.level >= DAREDEVIL.atLevel && grantSkin(DAREDEVIL)){
+      ENTITLEMENTS.equippedSkin = DAREDEVIL.skinId;
+      this.dare = true;
+      const db = document.getElementById("dareBtn");
+      if(db) db.classList.add("on");
+      const el = document.getElementById("unlock");
+      if(el){ el.innerHTML = "\u{1F3C1} DAREDEVIL UNLOCKED<small>ALL TEN JUMPS CLEARED</small>";
+              el.classList.add("show");
+              setTimeout(() => el.classList.remove("show"), 2600); }
+    }
     this.unlocked = ownsSkin(FIRE_CHIEF);
+    this.unlockedDare = ownsSkin(DAREDEVIL);
     this.air = null;
-    this.pitch = 0;
+    /* Do NOT snap pitch to 0 here. Touchdown pitch is nose-down (he is
+       descending), and slamming it flat in one frame was the other half
+       of the jolt. The ground branch already eases pitch onto
+       surfacePitchAt() — which on the catch ramp is the down-slope — so
+       just leave it and let that run. */
     this.resultT = 0;
   }
 
@@ -1272,7 +1556,15 @@ class HydrantChallengeLab extends Phaser.Scene {
     if(this.air){
       this.air.vz -= JUMP.grav * dt;
       this.air.z  += this.air.vz * dt;
-      this.pitch = RUN.pitchSign * Math.atan2(this.air.vz, Math.max(this.speed, 1e-4)) * 0.6;
+      /* Ease into the airborne attitude. Writing it absolutely made
+         pitch snap 5deg -> 29deg the instant he left the lip (24 units in
+         one frame), and snap again when a clip reverses vz. The time
+         constant is short enough that the attitude itself is unchanged —
+         this only removes the pop. */
+      {
+        const pTarget = RUN.pitchSign * Math.atan2(this.air.vz, Math.max(this.speed, 1e-4)) * 0.6;
+        this.pitch += (pTarget - this.pitch) * Math.min(1, 0.030*dt);
+      }
 
       /* ---- clearance, EVERY hydrant, checked exactly as we cross
          each one's along position. With N hydrants the binding check
@@ -1285,7 +1577,7 @@ class HydrantChallengeLab extends Phaser.Scene {
           if(!(alongPrev < hydA && along >= hydA)) break;
           const h = this.air.z - 2;
           this.air.hydIdx++;
-          if(h < HYD.height + JUMP.clear){ this.clipHydrant(); break; }
+          if(h < HYD.height + JUMP.clear){ this.clipHydrant(this.air.hydIdx - 1, time); break; }
           this.air.passed++;
         }
         this.air.cleared = this.air.passed >= HYDS.length;
@@ -1324,14 +1616,34 @@ class HydrantChallengeLab extends Phaser.Scene {
       if(!blockedNow) this.speed = this.speedFor(this.chargeSm);
     }
 
+    this.hydrantContact(time);
     this.prevAlong = along;
 
+    if(this.tiltImpulse){                            // bleed the impact in
+      /* RATE-LIMITED. A percentage bleed alone still crossed the
+         roll-saturation point (|tilt| = 1, where roll pins at 0.5) in a
+         single frame when the impulse was large, which is what kept the
+         tip popping. Capping the per-frame change holds roll to about
+         3 degrees a frame, so the lean ramps in visibly. */
+      let bite = this.tiltImpulse * Math.min(1, 0.010*dt);
+      if(Math.abs(bite) > 0.10) bite = Math.sign(bite) * 0.10;
+      this.tilt += bite; this.tiltImpulse -= bite;
+      if(Math.abs(this.tiltImpulse) < 1e-4) this.tiltImpulse = 0;
+    }
     this.tilt -= this.tilt * 0.0021 * dt;             // stability spring
     this.roll = Phaser.Math.Clamp(this.tilt, -1, 1) * 0.5;
     if(Math.abs(this.tilt) >= 1){
       this.state = "tipped";
+      /* carry the momentum into the crash, but only on an overshoot */
+      this.skidV = this.canSkid ? this.speed : 0;
       this.tipDir = Math.sign(this.tilt);
       this.tipT = 0;
+      /* snapshot the pose at the instant of the tip. The rollover used
+         to write ABSOLUTE values from zero, which threw away the pitch
+         and roll he was already in and made the crash look like it reset
+         first and then fell over. Everything below now eases FROM here. */
+      this.tipPitch0 = this.pitch;
+      this.tipRoll0  = this.roll;
     }
 
     /* auto-loop the bench: off the end, pinned at the hydrant, or a
@@ -1352,7 +1664,8 @@ class HydrantChallengeLab extends Phaser.Scene {
     g.fillRect(0, 0, this.scale.gameSize.width, this.scale.gameSize.height);
 
     const dt = Math.min(delta || 16.7, 50);
-    this.sk = this.chief ? {...SKIN, ...CHIEF} : SKIN;
+    this.nowT = time;
+    this.sk = this.dare ? {...SKIN, ...DARE} : this.chief ? {...SKIN, ...CHIEF} : SKIN;
 
     /* fixed-step accumulator. maxSteps stops a long stall from
        spiralling — better to run slightly slow than to freeze. */
@@ -1371,7 +1684,39 @@ class HydrantChallengeLab extends Phaser.Scene {
     /* tipped-state rollover: the game's formula, auto-reset */
     if(this.state === "tipped"){
       this.tipT = Math.min(1, this.tipT + dt/900);
-      this.roll = this.tipDir * (Math.PI*0.5) * this.tipT;
+      const e = this.tipT*this.tipT*(3 - 2*this.tipT);   // smoothstep
+      if(this.tipMode === "face"){
+        /* FACE PLANT — continue over the nose from wherever he already
+           is, and hold it. Three things have to be continuous at tipT=0
+           or the crash reads as a reset followed by a fall:
+             pitch  eases FROM the touchdown pitch, not from 0
+             roll   eases OUT from whatever lean he had, not snapped to 0
+             pivot  ramps 0 -> nose, because switching it while pitch is
+                    non-zero teleports the whole body sideways */
+        const target = -RUN.pitchSign * (Math.PI*0.5);
+        this.pitch = this.tipPitch0 + (target - this.tipPitch0) * e;
+        this.roll  = this.tipRoll0 * (1 - e);
+        this.pitchPivot = BODY.hx * e;
+      } else {
+        const target = this.tipDir * (Math.PI*0.5);
+        this.roll = this.tipRoll0 + (target - this.tipRoll0) * e;
+      }
+      /* ---- SKID ----
+         The tipped branch sits OUTSIDE the driving block, so entering it
+         used to stop botS dead: all forward motion vanished the instant
+         the tilt threshold was crossed, which read as the robot hitting
+         an invisible wall rather than crashing. A top-heavy robot going
+         over at speed should keep sliding and scrub it off on friction.
+         Friction rises as he goes over — up on the wheels still rolls,
+         flat on his side digs in — so the decay is scaled by tipT. */
+      if(this.skidV === undefined) this.skidV = this.canSkid ? this.speed : 0;
+      const grip = SKID.base + SKID.bite * this.tipT;
+      this.skidV = Math.max(0, this.skidV - grip * this.skidV * dt);
+      if(this.skidV < 0.0008) this.skidV = 0;
+      this.botS += (this.skidV / T2) * dt;
+      this.hydrantContact(time);          // plough through the row
+      /* wheels spin down with the slide instead of stopping instantly */
+      this.wheelPhase += this.skidV * dt * 0.28;
       if(this.tipT >= 1){
         this.tipResetT = (this.tipResetT || 0) + dt;
         if(this.tipResetT > 1200){
@@ -1417,7 +1762,10 @@ class HydrantChallengeLab extends Phaser.Scene {
        not one */
     for(const hs of HYDS){
       const hp = this.worldOf(hs, HYDJ.row);
-      items.push({ d: hp.x + hp.y, fn: () => this.drawHydrantGame(hp.x, hp.y, this.cx, this.cy) });
+      const bi = HYDS.indexOf(hs);
+      const bt = (this.burst && this.burst[bi] !== undefined) ? this.burst[bi] : null;
+      items.push({ d: hp.x + hp.y,
+                   fn: () => this.drawHydrantGame(hp.x, hp.y, this.cx, this.cy, bt, this.nowT) });
     }
     items.sort((a,b) => a.d - b.d);
     for(const it of items) it.fn();
@@ -1440,6 +1788,11 @@ document.getElementById("driveBtn").addEventListener("click", e => {
 document.getElementById("resetBtn").addEventListener("click", () => {
   const s = scn(); const d = s.driving;
   s.resetRun(false); s.driving = d; s.unlocked = false; s.updateVals();
+});
+document.getElementById("dareBtn").addEventListener("click", e => {
+  const s = scn(); s.dare = !s.dare; if(s.dare) s.chief = false;
+  e.target.classList.toggle("on", s.dare);
+  document.getElementById("chiefBtn").classList.toggle("on", s.chief);
 });
 document.getElementById("chiefBtn").addEventListener("click", e => {
   const s = scn(); s.chief = !s.chief;
@@ -1473,6 +1826,13 @@ document.querySelectorAll("[data-p]").forEach(btn => {
     if(p === "pw1")     CH.pw1   = Phaser.Math.Clamp(+(CH.pw1   + d*0.05 ).toFixed(2), 0.30, 2.00);
     if(p === "absmin")  CH.absMin  = Phaser.Math.Clamp(+(CH.absMin  + d*0.02).toFixed(2), 0.04, 0.60);
     if(p === "absgrad") CH.absGrad = Phaser.Math.Clamp(+(CH.absGrad + d*0.02).toFixed(2), 0.00, 0.60);
+    if(p === "cleandamp") CH.cleanDamp = Phaser.Math.Clamp(+(CH.cleanDamp + d*0.04).toFixed(2), 0, 1);
+    if(p === "burstv") CH.burstV = Phaser.Math.Clamp(+(CH.burstV + d*0.005).toFixed(3), 0, 0.120);
+    if(p === "skid"){        // lower = longer slide
+      const f = d > 0 ? 0.8 : 1.25;
+      SKID.base = +(Phaser.Math.Clamp(SKID.base*f, 0.0002, 0.0040)).toFixed(5);
+      SKID.bite = +(Phaser.Math.Clamp(SKID.bite*f, 0.0008, 0.0150)).toFixed(5);
+    }
     if(p === "gap")     { CH.gap = Phaser.Math.Clamp(+(CH.gap   + d*0.05 ).toFixed(2), 0.20, 1.20);
                           sc.buildLevel(CH.level); sc.resetRun(false); }
     /* any dial that moves the physics invalidates the pass band */
@@ -1488,7 +1848,8 @@ document.querySelectorAll("[data-p]").forEach(btn => {
    double-tap-zoom from eating fast taps. */
 const tapBtn = document.getElementById("tapBtn");
 tapBtn.style.touchAction = "none";
-const doTap = e => { e.preventDefault(); scn().tap(performance.now()); scn().updateVals(); };
+/* keyed by pointerId so two fingers on the button are two taps, not one */
+const doTap = e => { e.preventDefault(); scn().tap(performance.now(), "p"+(e.pointerId||0)); scn().updateVals(); };
 /* POINTERDOWN ONLY. This previously also listened for touchstart, and on
    a touchscreen BOTH fire for a single touch — so every touch tap added
    charge TWICE while the space bar added it once. Touch was effectively
@@ -1498,10 +1859,20 @@ const doTap = e => { e.preventDefault(); scn().tap(performance.now()); scn().upd
    and pen, and iOS Safari has supported them since iOS 13, so the
    touchstart fallback bought nothing and cost double-counting. */
 tapBtn.addEventListener("pointerdown", doTap);
-/* space bar for desktop testing. e.repeat guards auto-repeat, which would
-   otherwise turn a held key into a machine gun. */
+/* ---- KEYBOARD: A / S / D, not the space bar ----
+   One key caps you at whatever a single finger can do. Three keys let
+   you ROLL fingers, which is how you actually reach the tap rates the
+   late levels need (L10 wants ~9.4/sec). Each key carries its own
+   dedupe window, so a fast a-s-d roll counts as three taps.
+   e.repeat guards auto-repeat, which would otherwise turn a held key
+   into a machine gun. */
+const TAP_KEYS = ["KeyA", "KeyS", "KeyD"];
 window.addEventListener("keydown", e => {
-  if(e.code === "Space" && !e.repeat){ e.preventDefault(); scn().tap(performance.now()); scn().updateVals(); }
+  if(TAP_KEYS.includes(e.code) && !e.repeat){
+    e.preventDefault();
+    scn().tap(performance.now(), e.code);
+    scn().updateVals();
+  }
 });
 
 document.getElementById("dialsBtn").addEventListener("click", e => {
@@ -1522,7 +1893,7 @@ document.getElementById("autoBtn").addEventListener("click", e => {
    are script-scoped consts/lets so they are not reachable from
    page.evaluate without this. Read-only, test-only. */
 window.__lab = {
-  scn, CH, JUMP, KICK, LAND, HYD, HYDJ, RUN, SIM_STEP, FIRE_CHIEF, ENTITLEMENTS,
+  scn, CH, JUMP, KICK, LAND, HYD, HYDJ, RUN, SIM_STEP, SKID, FIRE_CHIEF, ENTITLEMENTS,
   get hyds(){ return HYDS.slice(); },
   bands(maxN){
     const sc = scn(), keep = CH.level, out = [];
