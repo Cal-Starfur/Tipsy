@@ -12291,12 +12291,26 @@ function tpInitStaticIcons(){
 document.getElementById("avatarIcon").addEventListener("click", tpOpenProfile);
 /* the always-on robot: wherever you are, it takes you to the profile.
    From the challenge it banks progress and leaves first. */
-document.getElementById("globalAvatar").addEventListener("click", () => {
-  const s = scn();
-  hide("failOverlay");
-  if(s && s.mode === "challenge") hjQuit();
-  tpOpenProfile();
-});
+/* POINTERDOWN, not click. The TAP button uses pointerdown and works on
+   device; this used "click" on a <div>, which is precisely the case an
+   iOS webview treats as non-interactive and may never fire. Bound on
+   both, guarded so one press cannot run it twice. */
+(function bindGlobalAvatar(){
+  const el = document.getElementById("globalAvatar");
+  let last = 0;
+  const go = (e) => {
+    if(e){ e.preventDefault(); e.stopPropagation(); }
+    const now = performance.now();
+    if(now - last < 700) return;          // pointerdown + click both fired
+    last = now;
+    const s = scn();
+    hide("failOverlay");
+    if(s && s.mode === "challenge") hjQuit();
+    tpOpenProfile();
+  };
+  el.addEventListener("pointerdown", go);
+  el.addEventListener("click", go);
+})();
 document.getElementById("failAvatarBtn").addEventListener("click", () => {
   hide("failOverlay");
   if(scn().mode === "challenge") hjQuit();     // banks progress on the way out
