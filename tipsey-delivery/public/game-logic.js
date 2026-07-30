@@ -243,6 +243,12 @@ const NORTH_WALL_CUT_EDGE = [null, 3, 0, null];
    findGoodS. */
 const GOOD_LEG_HEADING = [true, false, false, true];
 
+/* The Hydrant Challenge lives at ONE address in Costa Palma. The Flats
+   (HOODS index 0) is the only hood whose terrain does not fight a
+   precision jump: zero grade, best pavement, widest streets. */
+const HJ_ADDRESS = { hoodIndex:0, hood:"The Flats", street:"Palmline Ave", number:"1200" };
+const hjPlaceName = () => `${HJ_ADDRESS.number} ${HJ_ADDRESS.street}, ${HJ_ADDRESS.hood}`;
+
 /* approved palm (palm lab, 2026-07-07): the Costa Palma house style */
 const PALM = {
   height: 165, fronds: 8, droop: 1.0, wind: 1.0, trunkLean: 0.16,
@@ -1849,10 +1855,14 @@ function closestUnitIndex(units, targetAlong){
   return best;
 }
 
-function generateRoute(dateStr){
+function generateRoute(dateStr, opts){
   const seed = hashStr(dateStr);
   const rng = mulberry32(seed);
-  const hood = HOODS[seed % HOODS.length];
+  /* opts.hoodIndex forces a neighbourhood. The Hydrant Challenge always
+     runs in The Flats (index 0): flat grade, best pavement, widest
+     streets — the one hood whose terrain does not fight a precision
+     jump. Everything else still rolls the daily hood from the seed. */
+  const hood = HOODS[(opts && opts.hoodIndex != null ? opts.hoodIndex : seed) % HOODS.length];
 
   /* real street grid, generated independently of the walked route —
      this is what makes actual intersections possible. */
@@ -1870,6 +1880,25 @@ function generateRoute(dateStr){
      astronomically safe, and the door search below keeps its own
      fallback chain as the final net regardless. Route length is
      untouched — every accepted walk satisfies the full mile floor. */
+  /* HYDRANT CHALLENGE COURSE. Needs one straight leg long enough to hold
+     the run-up, the kicker, ten hydrants and the catch ramp, on a heading
+     the block-wrap cutaway never touches (same GOOD_LEG_HEADING rule the
+     address uses, for the same reason: an f===1/f===2 leg can have a wall
+     cut away out from under it). Measured in the lab, level 10 spans
+     s=0 to LAND.s+1 = 12.7 tile-pairs, so the leg must be at least that
+     plus the run-up. */
+  const findCourseLeg = (segs) => {
+    const NEED = 13.5 * 92;                 // tile-pairs -> world units
+    let best = null;
+    for(const sg of segs){
+      if(sg.type !== "line" || !GOOD_LEG_HEADING[sg.f]) continue;
+      const len = sg.s1 - sg.s0;
+      if(len < NEED) continue;
+      if(best === null || sg.s0 < best.s0) best = sg;
+    }
+    return best;
+  };
+
   const hasGoodDoorLeg = w => w.segs.some(sg => {
     if(sg.type !== "line" || !GOOD_LEG_HEADING[sg.f]) return false;
     const inset = Math.min(90, (sg.s1 - sg.s0)*0.3);
@@ -3140,7 +3169,27 @@ function generateRoute(dateStr){
      untouched: existing daily layouts don't shift under this
      feature. ~1 day in 4 is a night route, same for everyone. */
   const night = rng() < NIGHT_RATE;
-  return { hood, grid, segs, totalLen: loop ? loop.sEnd : totalLen, loop, tiles, hazards, props, pal, night, traffic, crossings, cutEdges, cutExt,
+  /* the reserved course leg, if this route was generated for the
+     challenge. null on every normal delivery route. */
+  const courseLeg = (opts && opts.challenge) ? findCourseLeg(segs) : null;
+  /* The course itself is NOT built here. Level n means n hydrants with
+     the catch ramp moved out to match, so it is rebuilt every level by
+     WorldScene.hjBuildCourse(). generateRoute only reserves the leg. */
+  const challenge = courseLeg ? {
+    lane: 1,
+    kickerS: Math.round(courseLeg.s0 + 60),
+    hydS: [], catchS: 0,
+    f: courseLeg.f,
+    /* start the course a short way into the leg so the run-up has room
+       and the robot is clear of the corner fillet */
+    s0: courseLeg.s0 + 60,
+    legS0: courseLeg.s0, legS1: courseLeg.s1,
+    /* always the same address, so it is a real findable place rather
+       than a different corner every run */
+    street: HJ_ADDRESS.street
+  } : null;
+
+  return { hood, grid, segs, totalLen: loop ? loop.sEnd : totalLen, loop, tiles, hazards, props, pal, night, traffic, crossings, cutEdges, cutExt, challenge,
            address:`${number} ${street}`, doorS, pickupS, pickupSpot, pickupShopName, addressBlock, pickupBlock, addressEdgeIdx, pickupEdgeIdx, addressUnitIdx, pickupUnitIdx, addressUsesGate, order, parMs, dateStr };
 }
 
@@ -3185,6 +3234,7 @@ class WorldScene extends Phaser.Scene {
     this.camX = 0;
 
     /* game state */
+    this.mode = "delivery";     // delivery | challenge  (see loadChallenge)
     this.state = "idle";        // idle | play | tipped | won
     this.speed = 0;
     this.tilt = 0;              // stability: fail beyond ±1
@@ -3285,12 +3335,178 @@ class WorldScene extends Phaser.Scene {
     this.hopKick += dir * (0.16 + this.speed * 4.5);
   }
 
-  loadRoute(dateStr){
+  /* ---------- HYDRANT CHALLENGE ----------
+     Runs INSIDE WorldScene, on a real Costa Palma route, rather than in
+     a scene of its own. That is the whole point: the city draws itself,
+     drawRobot() brings the flag and the full robot with it, and the
+     course is a place you drive to instead of a void you get warped
+     into. The route is a normal Flats route with one straight leg
+     reserved for the course (see generateRoute's findCourseLeg). */
+  /* one press of the tap button (or A/S/D), per-source deduped */
+  hjTap(now, src){
+    if(this.mode !== "challenge" || this.hjAir || this.state === "tipped") return;
+    const t = now === undefined ? performance.now() : now;
+    const k = src === undefined ? "x" : src;
+    this.hjSrcLast = this.hjSrcLast || {};
+    if(this.hjSrcLast[k] && t - this.hjSrcLast[k] < 20) return;   // one input, two events
+    this.hjSrcLast[k] = t;
+    this.hjCharge = Math.min(HJ_CH.chargeMax, this.hjCharge + HJ_CH.add);
+  }
+
+  /* the jump, in ROUTE space. botS is already a 1-D along-axis, so the
+     lab's run-space maths port straight onto it — no second coordinate
+     system, and the arc rides the real street's grade. */
+  hjSim(dt, ch){
+    if(!ch) return;
+    /* charge only bleeds while grounded; locked for the whole flight */
+    if(!this.hjAir){
+      this.hjCharge = Math.max(0, this.hjCharge - HJ_CH.decay*this.hjCharge*dt);
+      this.hjChargeSm += (this.hjCharge - this.hjChargeSm) * Math.min(1, HJ_CH.smooth*dt);
+    }
+    const prev = this.hjPrevS === undefined ? this.botS : this.hjPrevS;
+    /* LAUNCH at the kicker lip */
+    const lip = ch.kickerS + TILE;
+    if(!this.hjAir && prev < lip && this.botS >= lip && this.speed >= HJ_JUMP.minSpeed){
+      const c = this.hjLocked = Phaser.Math.Clamp(this.hjChargeSm, 0, HJ_CH.chargeMax);
+      const pow = HJ_CH.pw0 + Math.min(c,1)*(HJ_CH.pw1 - HJ_CH.pw0);
+      this.hjFlightSpeed = this.speed;
+      this.hjAir = { vz: this.speed*pow, z: 0, idx: 0 };
+      this.hjPassed = 0; this.hjResult = "";
+    }
+    if(this.hjAir){
+      this.hjAir.vz -= HJ_JUMP.grav*dt;
+      this.hjAir.z  += this.hjAir.vz*dt;
+      /* clearance, every hydrant, checked as we cross it */
+      while(this.hjAir && this.hjAir.idx < ch.hydS.length){
+        const hs = ch.hydS[this.hjAir.idx];
+        if(!(prev < hs && this.botS >= hs)) break;
+        this.hjAir.idx++;
+        const hz = this.route.hazards.find(h => h.hjRole==="hydrant" && h.s===hs);
+        if(this.hjAir.z < HYD.height + HJ_JUMP.clear){
+          if(hz && !hz.burst){ hz.burst = true; hz.burstT = this.runT; }
+          this.hjAir.vz = -Math.abs(this.hjAir.vz) - 0.01;
+          this.hjAir.clipped = true;
+          this.hjResult = "BURST A HYDRANT";
+        } else this.hjPassed++;
+      }
+      /* touchdown */
+      if(this.hjAir.vz < 0 && this.hjAir.z <= 0){
+        const dL = this.botS - ch.catchS;
+        const onRamp = Math.abs(dL) < TILE;
+        const clean = this.hjPassed >= ch.hydS.length && onRamp && !this.hjAir.clipped;
+        this.hjResult = this.hjAir.clipped ? "BURST A HYDRANT"
+                      : clean   ? "CLEAN"
+                      : dL >= TILE ? "OVERSHOT THE RAMP"
+                      : onRamp  ? "ROUGH LANDING" : "CAME UP SHORT";
+        if(clean) this.hjClear();
+        else this.tilt = Math.sign(this.tilt || 1) * 1.2;   // any miss goes over
+        this.hjAir = null; this.hjLocked = null;
+        this.hjCharge = 0; this.hjChargeSm = 0;
+        /* whichever way it went, line up the next attempt — a clean run
+           has already advanced hjLevel, a miss retries the same one */
+        this.hjPendingReset = 1500;
+      }
+    }
+    this.hjPrevS = this.botS;
+  }
+
+  /* ---------- BUILD LEVEL n ----------
+     n hydrants, catch ramp moved out to match — the lab's geometry, in
+     route units. Lab: launch at 4.5 tile-pairs, landing at
+     6.75 + (n-1)*gap, so reach_n = (2.25 + (n-1)*gap) tile-pairs. */
+  hjBuildCourse(level){
+    const ch = this.route && this.route.challenge; if(!ch) return;
+    const T = T2;
+    ch.hydS = [];
+    /* drop the previous level's pieces */
+    this.route.hazards = this.route.hazards.filter(h => !h.hjRole);
+    const facing = f => f;
+    const lipS = ch.kickerS + TILE;
+    ch.catchS = Math.round(lipS + (2.25 + (level-1)*HJ_CH.gap) * T);
+
+    this.route.hazards.push({ type:"slab", s: ch.kickerS, row: ch.lane, lift: 12,
+      side: 1, root: true, f: ch.f, hit:false, lipHit:false, hjRole:"kicker" });
+    /* hydrants inset at BOTH ends — butting the first against the lip
+       makes the level unwinnable, the arc is still climbing there */
+    const a = lipS + T*0.55, bnd = ch.catchS - T*0.55;
+    for(let i = 0; i < level; i++){
+      const hs = Math.round(a + (i + 0.5)*(bnd - a)/level);
+      ch.hydS.push(hs);
+      this.route.hazards.push({ type:"hydrant", s: hs, row: ch.lane, f: ch.f,
+        hit:false, burst:false, burstT: undefined, pudDir: 0,
+        hjRole:"hydrant", hjIndex:i });
+    }
+    this.route.hazards.push({ type:"slab", s: ch.catchS, row: ch.lane, lift: 10,
+      side: -1, root: false, f: ch.f, hit:false, lipHit:false, hjRole:"catch" });
+    this._hjBandLvl = -1;                    // force the meter to re-solve
+  }
+
+  /* back to the top of the run-up for another attempt */
+  hjResetRun(){
+    const ch = this.route && this.route.challenge; if(!ch) return;
+    this.hjBuildCourse(this.hjLevel);
+    this.botS = Math.max(0, ch.kickerS - 420);
+    this.hjPrevS = this.botS;
+    this.hjAir = null; this.hjLocked = null;
+    this.hjCharge = 0; this.hjChargeSm = 0; this.hjPassed = 0;
+    this.speed = HJ_CH.sp0;
+    this.tilt = 0; this.roll = 0; this.state = "play";
+    this.tipT = 0; this.damage = 0;
+    const sp = this.posAt(this.botS);
+    const hdg = this.headingAt(this.botS);
+    this.botX = sp.x + (-Math.sin(hdg))*this.laneOff;
+    this.botY = sp.y + Math.cos(hdg)*this.laneOff;
+    this.camX = this.botX; this.camY = this.botY;
+    this.drawAngle = hdg;
+  }
+
+  hjClear(){
+    this.hjBest = Math.max(this.hjBest, this.hjLevel);
+    if(this.hjLevel >= HJ_CHIEF_AT && !tpProfile.missionsCompleted.has("jump-hydrant")){
+      tpCompleteMission("jump-hydrant");
+    }
+    if(this.hjLevel >= HJ_DARE_AT && !tpProfile.missionsCompleted.has("jump-hydrant-master")){
+      tpCompleteMission("jump-hydrant-master");
+    }
+    this.hjLevel = Math.min(HJ_CH.maxLevel, this.hjLevel + 1);
+  }
+
+  loadChallenge(){
+    this.mode = "challenge";
+    this.hjArmed = false;              // true once the robot reaches the course
+    this.hjCharge = 0; this.hjChargeSm = 0; this.hjAir = null;
+    this.hjLocked = null; this.hjLevel = 1; this.hjBest = 0;
+    this.hjSrcLast = {}; this.hjResult = ""; this.hjPassed = 0;
+    this.loadRoute(clientTodayUTC(), { hoodIndex: HJ_ADDRESS.hoodIndex, challenge: true });
+    document.getElementById("orderCard").innerHTML =
+      `<b>${HJ_ADDRESS.hood}</b> — hydrant challenge on <b>${HJ_ADDRESS.street}</b>`;
+    document.getElementById("sheetStatus").textContent =
+      `Drive to ${hjPlaceName()} — ten jumps.`;
+    /* the delivery game waits on a GO press to leave "idle"; the
+       challenge is already rolling when you arrive on the street. */
+    this.hjLevel = 1; this.hjBest = 0; this.hjResult = "";
+    this.hjBuildCourse(1);
+    this.hjResetRun();
+  }
+
+  loadRoute(dateStr, opts){
     requestDailyBest(dateStr);   // Devvit bridge — no-op if not embedded (see shim near top of file)
-    this.route = generateRoute(dateStr);
+    this.route = generateRoute(dateStr, opts);
     for(const hz of this.route.hazards) hz.hit = false;
     this.d = this.route.pal;
-    this.botS = this.route.pickupS;
+    /* no pickup shop in the challenge — clearing these stops the shop
+       door, the worker and the bag from being drawn or simulated */
+    if(opts && opts.challenge){
+      this.route.pickupSpot = null;
+      this.route.pickupShopName = null;
+      this.route.pickupBlock = null;
+    }
+    /* the challenge starts you a little way BEFORE the course so you
+       drive up to it on the real street, rather than materialising on
+       the ramp */
+    this.botS = (opts && opts.challenge && this.route.challenge)
+      ? Math.max(0, this.route.challenge.s0 - 420)
+      : this.route.pickupS;
     this.botZ = this.groundZ(this.botS);
     this.botRow = 1; this.laneOff = laneOffset(this.botRow);
     const hdg0 = this.headingAt(this.botS);
@@ -7939,7 +8155,16 @@ class WorldScene extends Phaser.Scene {
        elapsed ms only while state==="play"), same frame-rate-
        independent approach as PICKUP_ART.walkMs already used. */
     let loadFrac = 0;
-    if(this.state === "play"){
+    /* CHALLENGE: there is no delivery here. No pickup shop, no worker
+       walking out, no bag, no loading beat — you are on Palmline Ave to
+       jump hydrants. Skipping the whole pickup timeline rather than
+       trying to fast-forward it, because every downstream effect
+       (lid hinge, shop door, worker walk-back, cargo spill) keys off
+       these same flags. */
+    if(this.mode === "challenge"){
+      this.loadDone = false; this.walkAt = null; this.pickupWalk = 1;
+      this.bagOnBoard = false; this.doorSwing = 0; this.pickupLidClosing = false;
+    } else if(this.state === "play"){
       const loadT = this.runT;
       loadFrac = Phaser.Math.Clamp(loadT / LOAD_ART.ms, 0, 1);
       this.loadDone = loadT >= LOAD_ART.ms;
@@ -8139,6 +8364,16 @@ class WorldScene extends Phaser.Scene {
       this.speed -= slope * 0.00030 * dt;                 // gravity
       this.speed -= this.speed * 0.0009 * dt;             // rolling friction
       this.speed = Phaser.Math.Clamp(this.speed, 0, 0.225);
+      /* CHALLENGE: the tap meter IS the throttle. Overriding here rather
+         than in hjSim because this block runs afterwards and would
+         otherwise stomp it — the charge has to win, and it has to win
+         BEFORE botS advances a few lines below. Speed is frozen for the
+         whole flight (no air control). */
+      if(this.mode === "challenge" && this.route && this.route.challenge){
+        this.speed = this.hjAir
+          ? this.hjFlightSpeed
+          : HJ_CH.sp0 + this.hjChargeSm*(HJ_CH.sp1 - HJ_CH.sp0);
+      }
       /* ground-speed correction (ported from the corner+robot lab): botS
          parameterizes the CENTERLINE arc length, but the robot draws
          offset sideways by laneOff. On an arc, the robot's actual traced
@@ -8486,7 +8721,11 @@ class WorldScene extends Phaser.Scene {
              riding the wedge, continuous cross-slope tilt scaled by lift.
              Positive roll leans −dy, so side=+1 (road edge up) feeds
              tilt POSITIVE — falls toward the buildings. */
-          if(onLane(hz.row)){
+          /* COURSE PIECES ARE NOT HAZARDS. The kicker is a lift-12 slab and
+             the normal slab physics (tilt += side*speed*lift*0.9) tip the
+             robot over the instant he touches it — he never reaches the
+             lip to launch. hjSim owns these; the world just draws them. */
+          if(onLane(hz.row) && !hz.hjRole){
             if(!hz.lipHit && dx > -TILE && dx < -TILE + 14){
               hz.lipHit = true;
               const kick = hz.side * this.speed * hz.lift * 0.9;
@@ -8499,6 +8738,10 @@ class WorldScene extends Phaser.Scene {
               slabUnder = hz;
             }
           }
+        } else if(hz.type === "hydrant" && hz.hjRole){
+          /* course hydrant: hjSim owns the clearance test and the burst.
+             Leaving the normal hydrant collision on would stop the robot
+             dead at the first one instead of letting him fly over it. */
         } else if(hz.type === "hydrant"){
           /* cast iron: a wall, same contract as the palm — you stop.
              Arriving fast adds the bonk; past the burst threshold the
@@ -9391,7 +9634,11 @@ class WorldScene extends Phaser.Scene {
       this.botY += (Math.random()-0.5) * 1.4 * this.stuckAmt;
     }
 
-    this.botZ = this.groundZ(this.botS) + (this.slabZ || 0) + (this.crossZ || 0);
+    /* the jump is an ADDITIONAL term on the game's own ground stack, not
+       a parallel simulation — so slopes, slabs and cross-slope all still
+       apply underneath the arc. */
+    this.botZ = this.groundZ(this.botS) + (this.slabZ || 0) + (this.crossZ || 0)
+              + (this.hjAir ? this.hjAir.z : 0);
     /* MAX_GRADE: hard ceiling at a real 5% grade (atan(0.05) ≈ 2.86°),
        on top of the HILL_AMP retune above — the retune sets the typical
        feel per neighborhood, this guarantees no unlucky noise seed ever
@@ -10214,9 +10461,17 @@ class WorldScene extends Phaser.Scene {
       else if(this.keys.left.isDown || this.keys.a.isDown) this.throttle = -1;
       else if(!this.input.activePointer.isDown) this.throttle = 0;
     }
+    if(this.mode === "challenge"){
+      if(this.hjPendingReset > 0){
+        this.hjPendingReset -= dt;
+        if(this.hjPendingReset <= 0){ this.hjPendingReset = 0; this.hjResetRun(); }
+      }
+      this.hjSim(dt, this.route && this.route.challenge);
+    }
     this.drawWorld(t);
     this.drawRobot(t, dt);
     this.drawHUD();
+    if(this.mode === "challenge") hjUpdateMeter(this);
   }
 
   /* next upcoming turn ahead of the robot's current position, for the
@@ -10340,8 +10595,12 @@ class WorldScene extends Phaser.Scene {
 
 /* ============================================================
    HYDRANT CHALLENGE — side mission, ported verbatim from
-   labs/hydrant-challenge-lab.html. Kept byte-identical to the
-   copy in game/index.html.
+   labs/hydrant-challenge-lab.html.
+   Everything is HJ_-prefixed; it reuses the game's TILE, T2,
+   DIRV, SKIN, BODY, LID, STRIPE, WHEEL, HYD, mulberry32 and
+   convexHull, which are byte-identical to the lab's copies.
+   NOTE: 'KICKER' in this file is the hostile pedestrian, so the
+   lab's kicker RAMP was renamed HJ_RAMP on the way in.
    ============================================================ */
 "use strict";
 
@@ -10593,1397 +10852,82 @@ const HJ_SLABC = { top: 0xc4bdae, topDk: 0x9d9687, gap: 0x4a4238,
 
 
 
-class ChallengeScene extends Phaser.Scene {
-  constructor(){ super("challenge"); }
-
-  create(){
-    this.K = 2.0;
-    this.seed = 11;
-    this.chief = false;
-    this.dare = false;
-    this.sk = SKIN;
-    this.unlocked = false;
-    this.best = 0;
-    this.buildLevel(HJ_CH.level);
-    this.resetRun(true);
-    this.g = this.add.graphics();
-    this.scale.on("resize", () => this.layout());
-    this.layout();
-    this.updateVals();
-  }
-  layout(){
-    const H = this.scale.gameSize.height;
-    this.cx = this.scale.gameSize.width/2;
-    /* Horizon sits LOW, because camZ is pinned at 0 on purpose (a camera
-       that followed the jump would make the jump read as nothing), so the
-       whole arc has to fit in the space ABOVE the ground line. */
-    this.cy = H*0.74;
-    this.recomputeK();
-  }
-  /* ---------- FIT-TO-VIEW ZOOM ----------
-     A hardcoded K=2 flew Tipsy off the TOP of the canvas mid-jump on
-     short screens: 65 of 176 airborne frames were offscreen on an
-     iPhone SE, screenY reaching -27. The arc needs ARC_HEADROOM world
-     units of clearance above the ground line, so K has to be derived
-     from the height actually available, then capped by the per-level
-     zoom-out. Effective K is the tighter of the two. */
-  recomputeK(){
-    const H = this.scale.gameSize.height || 600;
-    const ARC_HEADROOM = 100 + LID.z1;      // worst-case peak + robot height
-    const fitK = (H*0.66) / ARC_HEADROOM;
-    const levelK = 2.0 - (HJ_CH.level-1)*0.13;
-    this.K = Phaser.Math.Clamp(Math.min(fitK, levelK), 0.85, 2.0);
-  }
-
-  /* one attempt, back to the top of the run. `unlocked` survives. */
-  resetRun(hard){
-    this.botS = 0;
-    this.botRow = 0;
-    this.pitch = 0; this.roll = 0; this.yaw = 0;
-    this.tilt = 0; this.lidAng = 0; this.tipDir = 1;
-    this.state = "idle";
-    this.wheelPhase = 0;
-    this.camX = 0; this.camY = 0; this.camZ = 0;
-    this.air = null;                 // null = grounded
-    this.botZ = 2;
-    this.result = "";
-    this.resultT = 0;
-    this.tipT = 0; this.tipResetT = 0; this.tipHoldT = 0; this.camHold = undefined; this.skidV = undefined; this.skidSpeed = 0; this.canSkid = false; this.tipMode = "side";
-    this.pitchPivot = 0; this.tipPitch0 = 0; this.tipRoll0 = 0; this.tiltImpulse = 0;
-    this.burst = {};                 // hydrant index -> ms timestamp of its burst
-    this.blockedT = 0;
-    this.bonked = false;
-    this.prevAlong = -1e9;
-    this.charge = 0;
-    this.chargeSm = 0;
-    this.lockedCharge = null;   // snapshot taken at the lip
-    this.tapCount = 0;
-    this.lastTap = 0;
-    this.tapRate = 0;
-    this.nextAuto = 0;
-    this.simT = 0;
-    this.acc = 0;
-    this.speed = HJ_CH.sp0;
-    if(hard) this.driving = true;
-  }
-
-  /* big centred banner, reusing the lab's unlock element */
-  announce(title, sub){
-    const el = document.getElementById("hjUnlock");
-    if(!el) return;
-    el.innerHTML = title + "<small>" + sub + "</small>";
-    el.classList.add("show");
-    clearTimeout(this._annT);
-    this._annT = setTimeout(() => el.classList.remove("show"), 2600);
-  }
-
-  updateVals(){
-    const air = this.air;
-    const c = this.lockedCharge !== null ? this.lockedCharge : this.chargeSm;
-    const b = this.band || {lo:null, hi:null};
-
-    /* ---- the meter: fill = live charge, band = the pass window ----
-       This is what makes tap-rate playable. The player cannot feel
-       "4 taps per second"; they can absolutely hold a bar in a box. */
-    const mf = document.getElementById("hjFill");
-    const mb = document.getElementById("hjBand");
-    const mn = document.getElementById("hjNeedle");
-    const ml = document.getElementById("hjLbl");
-    if(mf){
-      /* the meter spans 0..chargeMax, not 0..1, so charge past 100% still
-         moves the fill instead of pinning it at the end of the bar */
-      const X = v => (Math.max(0, Math.min(HJ_CH.chargeMax, v)) / HJ_CH.chargeMax * 100).toFixed(1) + "%";
-      const inBand = b.lo !== null && c >= b.lo && c <= b.hi;
-      mf.style.width = X(c);
-      mf.classList.toggle("in", inBand);
-      if(b.lo === null){ mb.style.left = "0%"; mb.style.width = "0%"; }
-      else { mb.style.left = X(b.lo);
-             mb.style.width = ((b.hi-b.lo)/HJ_CH.chargeMax*100).toFixed(1) + "%"; }
-      mn.style.left = X(c);
-      ml.textContent = this.lockedCharge !== null
-        ? "LOCKED AT " + (c*100).toFixed(0) + "% — NO AIR CONTROL"
-        : b.lo === null ? "NO PASS BAND — THIS LEVEL IS THE WALL"
-        : inBand ? "IN THE BAND — STOP TAPPING"
-                 : "TAP TO CHARGE — STOP INSIDE THE BAND";
-      ml.classList.toggle("locked", this.lockedCharge !== null || (b.lo!==null && inBand));
-    }
-    const tb = document.getElementById("hjTap");
-    if(tb) tb.classList.toggle("dead", this.lockedCharge !== null || this.state === "tipped");
-    const hb = document.getElementById("hjTitle");
-    if(hb){
-      const fin = this.lastPossibleLevel();
-      hb.textContent = "JUMP " + HJ_CH.level + " OF " + fin + " · " + HJ_HYDS.length +
-        " HYDRANT" + (HJ_HYDS.length>1?"S":"") + " · BEST " + this.best +
-        (this.unlockedDare ? " · DAREDEVIL" : this.unlocked ? " · CHIEF" : "");
-    }
-
-    const bandTxt = b.lo === null ? "IMPOSSIBLE"
-      : (b.lo*100).toFixed(0)+"%-"+(b.hi*100).toFixed(0)+"%";
-    const dbg = document.getElementById("hjVals");
-    if(dbg) dbg.textContent =
-      `f${HJ_RUN.f} · lvl ${HJ_CH.level} (${HJ_HYDS.length} hyd) · land s${HJ_LAND.s.toFixed(2)} · band ${bandTxt} · clear ${HJ_JUMP.clear} · final L${this.lastPossibleLevel()}
-`+`skid ${HJ_SKID.base.toFixed(4)}/${HJ_SKID.bite.toFixed(4)} · add ${HJ_CH.add.toFixed(2)} · decay ${(HJ_CH.decay*1000).toFixed(1)}/s · spd ${HJ_CH.sp0.toFixed(3)}-${HJ_CH.sp1.toFixed(3)} · pow ${HJ_CH.pw0.toFixed(2)}-${HJ_CH.pw1.toFixed(2)} · gap ${HJ_CH.gap.toFixed(2)}
-`+`charge ${(c*100).toFixed(0)}% · taps ${this.tapCount} · ~${this.tapRate.toFixed(1)}/s · spd ${this.speed.toFixed(3)}
-`+`s ${this.botS.toFixed(2)} · ${air ? "AIR h"+(air.z-2).toFixed(0)+" ("+air.passed+"/"+HJ_HYDS.length+")" : "ground"} · tilt ${this.tilt.toFixed(2)} · ${this.state==="tipped"?"TIPPED":"ok"} · ${this.result||"—"} · chief@${HJ_CHIEF_AT} ${this.unlocked?"YES":"no"} · dare@${HJ_DARE_AT} ${this.unlockedDare?"YES":"no"}`;
-  }
-
-  /* ---------- run space: (along, cross) -> world ----------
-     along = down-lane, cross = lateral (+ = road side).
-     Everything placed through here rotates with HJ_RUN.f, which is what
-     makes the four-heading gate a single button. */
-  /* ---------- THE LEVEL MODEL ----------
-     N hydrants spread evenly between the kicker lip and the catch
-     ramp, catch ramp pushed `gap` further out per level. Level 1
-     reproduces the exact jump approved on device (HJ_LAND.s 6.75). */
-  /* one press of the on-screen button */
-  tap(now, src){
-    if(!this.driving || this.state === "tipped") return;
-    if(this.lockedCharge !== null) return;      // airborne: no air control
-    /* DEDUPE, PER SOURCE. This exists to stop ONE physical input firing
-       twice (the pointerdown+touchstart bug that made touch double
-       strength) — NOT to stop two different inputs landing close
-       together. With A/S/D the whole point is rolling fingers, so 'a'
-       then 's' 10ms apart are two real taps and must both count. Keying
-       the guard by source means each key, and each individual finger on
-       the button, gets its own 20ms window. */
-    const tNow = now === undefined ? performance.now() : now;
-    const key = src === undefined ? "x" : src;
-    this._srcLast = this._srcLast || {};
-    if(this._srcLast[key] && tNow - this._srcLast[key] < 20) return;
-    this._srcLast[key] = tNow;
-    this.charge = Math.min(HJ_CH.chargeMax, this.charge + HJ_CH.add);
-    if(this.lastTap) this.tapRate = 1000/Math.max(60, tNow - this.lastTap);
-    this.lastTap = tNow;
-    this.tapCount++;
-  }
-
-  /* highest level that has a pass band at the CURRENT dial settings.
-     Cached because solveBand() is a full forward-sim per candidate. */
-  lastPossibleLevel(){
-    if(this._lpl && this._lplKey === this.dialKey()) return this._lpl;
-    const keepLvl = HJ_CH.level, keepLand = HJ_LAND.s, keepHyds = HJ_HYDS.slice(), keepBand = this.band;
-    let last = 1;
-    for(let n = 1; n <= HJ_CH.maxLevel; n++){
-      this.applyLevelGeometry(n);
-      if(this.solveBand().lo !== null) last = n; else break;
-    }
-    this.applyLevelGeometry(keepLvl);
-    HJ_CH.level = keepLvl; HJ_LAND.s = keepLand; HJ_HYDS = keepHyds; this.band = keepBand;
-    this._lpl = last; this._lplKey = this.dialKey();
-    return last;
-  }
-  dialKey(){
-    return [HJ_CH.gap,HJ_CH.sp0,HJ_CH.sp1,HJ_CH.pw0,HJ_CH.pw1,HJ_CH.absMin,HJ_CH.absGrad,
-            HJ_JUMP.grav,HJ_JUMP.clear,HJ_RAMP.lift].join("|");
-  }
-  /* geometry only — split out of buildLevel() so lastPossibleLevel()
-     can probe candidate levels without touching camera or run state */
-  applyLevelGeometry(n){
-    HJ_CH.level = Phaser.Math.Clamp(n, 1, HJ_CH.maxLevel);
-    HJ_LAND.s = 6.75 + (HJ_CH.level-1)*HJ_CH.gap;
-    const lip = HJ_RAMP.s + 0.5;
-    const a = lip + 0.55, b = HJ_LAND.s - 0.55;
-    HJ_HYDS = [];
-    for(let i=0; i<HJ_CH.level; i++) HJ_HYDS.push(a + (i+0.5)*(b-a)/HJ_CH.level);
-  }
-
-  buildLevel(n){
-    this.applyLevelGeometry(n);
-    this.band = this.solveBand();
-    /* pull the camera back as the gap grows so the whole arc stays on
-       screen — a jump you cannot see is not a jump you can judge.
-       recomputeK() also enforces the fit-to-view ceiling. */
-    this.recomputeK();
-  }
-  /* charge -> the two physics values it is allowed to touch */
-  speedFor(c){ return HJ_CH.sp0 + c*(HJ_CH.sp1 - HJ_CH.sp0); }
-  /* pow falls with charge to FLATTEN the arc (that is what buys 4x reach
-     without a 4x peak). But it must stop falling at 100%: past there,
-     speed rising and pow still dropping cancel out, so reach went 436 ->
-     444 across the whole overdrive region and over-tapping did nothing.
-     Holding pow at pw1 in overdrive makes reach grow with speed again
-     (436 -> 653), so over-committing genuinely sails past the ramp. */
-  powFor(c){   return HJ_CH.pw0 + Math.min(c, 1) * (HJ_CH.pw1 - HJ_CH.pw0); }
-
-  /* ---------- THE TARGET BAND ----------
-     Forward-simulate the arc across the whole charge range and keep
-     the charges that clear every hydrant AND touch down on the catch
-     ramp. Numeric, not algebraic, so it stays correct no matter how
-     the dials are retuned — and it is what the player actually sees
-     on the meter. Without this the challenge is invisible: nobody can
-     feel "I am tapping 4 times a second". */
-  solveBand(){
-    const dt = HJ_STEP, lip = HJ_RAMP.s + 0.5;
-    let lo = null, hi = null;
-    for(let c = 0; c <= HJ_CH.chargeMax + 0.0005; c += 0.002){   /* 0.2% steps: band edges must be accurate enough that "just outside the green" really is a fail */
-      const speed = this.speedFor(c), pow = this.powFor(c);
-      let vz = speed*pow*(HJ_RAMP.lift/12);
-      let z = 2 + this.wedgeTop(HJ_RAMP, HJ_RAMP.dirSign*TILE), sPos = lip, t = 0, idx = 0, ok = true;
-      while(true){
-        const prev = sPos;
-        vz -= HJ_JUMP.grav*dt; z += vz*dt; sPos += (speed/T2)*dt; t += dt;
-        while(idx < HJ_HYDS.length && prev < HJ_HYDS[idx] && sPos >= HJ_HYDS[idx]){
-          if((z - 2) < HYD.height + HJ_JUMP.clear) ok = false;
-          idx++;
-        }
-        /* land on the SAME plane land() does. This used to break at
-           z <= 2 (the flat ground) while the game fires land() at
-           z <= groundZAt(), which on the catch ramp is the SLAB TOP.
-           The solver was therefore landing lower and later than the
-           game, and the band came out ~2% off: charges inside the green
-           still landed SLOPPY, and charges just outside it cleaned. */
-        if(vz < 0 && z <= this.groundZAt(sPos, HJ_LAND.row)) break;
-        if(t > 20000){ ok = false; break; }
-      }
-      if(idx < HJ_HYDS.length) ok = false;
-      /* The band must mean "this CLEARS THE LEVEL", not merely "this
-         touches the ramp" — otherwise the meter promises progress it
-         cannot deliver. So mirror land() exactly: the onLand window
-         (|dL| < TILE -> |s - HJ_LAND.s| < 0.5) AND the centredness-based
-         absorb landing under the clean tilt threshold. */
-      const dL = (sPos - HJ_LAND.s)*T2;
-      const onLand = Math.abs(dL) < TILE;
-      const centre = 1 - Math.min(1, Math.abs(dL)/TILE);
-      const absorb = HJ_CH.absMin + HJ_CH.absGrad*(1 - centre);
-      const tilt = Math.abs(vz) * HJ_JUMP.slam * absorb;
-      if(ok && onLand && tilt < 0.6){ if(lo === null) lo = c; hi = c; }
-    }
-    return { lo, hi };
-  }
-
-  vecs(){ return { dv: DIRV[HJ_RUN.f], rv: DIRV[(HJ_RUN.f+1)&3] }; }
-  AC(a, c){
-    const {dv, rv} = this.vecs();
-    return { x: a*dv.x + c*rv.x, y: a*dv.y + c*rv.y };
-  }
-  worldOf(s, row){ return this.AC(s*T2, row*T2); }
-
-  Wg(x, y, z, ox, oy){
-    const xr = x - this.camX, yr = y - this.camY;
-    return { x:(xr - yr)*this.K + ox, y:((xr + yr)*0.5 - (z - this.camZ))*this.K + oy };
-  }
-  /* prop-local (along,cross,z) about a world center */
-  Wp(wx, wy, a, c, z, ox, oy){
-    const o = this.AC(a, c);
-    return this.Wg(wx + o.x, wy + o.y, z, ox, oy);
-  }
-  quadg(pts, color, alpha=1){
-    this.g.fillStyle(color, alpha);
-    this.g.fillPoints(pts.map(p => new Phaser.Geom.Point(p.x, p.y)), true);
-  }
-  edgeg(pts, color, w=2){
-    this.g.lineStyle(w, color, 1);
-    this.g.strokePoints(pts.map(p => new Phaser.Geom.Point(p.x, p.y)), true);
-  }
-
-  /* ---------- verbatim from game/index.html: robot transform +
-     projection pipeline ---------- */
-  T(x, y, z){
-    if(this.yaw !== 0){
-      const c = Math.cos(this.yaw), s = Math.sin(this.yaw);
-      const x2 = x*c - y*s; y = x*s + y*c; x = x2;
-    }
-    if(this.pitch !== 0){
-      /* pitchPivot is 0 for every normal pitch, which reproduces the
-         game's origin rotation exactly. The FACE PLANT sets it to the
-         body's front face so he goes over his nose and lands ON it:
-         rotating 90 deg about the origin puts the lowest point at -26,
-         i.e. the whole body through the floor. Same idea as the roll's
-         PIV. NOTE this pivot belongs in T() only — R() transforms
-         DIRECTION vectors, and a pivot is a translation, so applying it
-         there would corrupt the facing tests. */
-      const PX = this.pitchPivot || 0;
-      const x0 = x - PX;
-      const c = Math.cos(this.pitch), s = Math.sin(this.pitch);
-      const x2 = x0*c - z*s; z = x0*s + z*c; x = PX + x2;
-    }
-    if(this.roll !== 0){
-      const PIV = this.roll >= 0 ? 22 : -22;
-      const y0 = y + PIV, c = Math.cos(this.roll), s = Math.sin(this.roll);
-      y = -PIV + y0*c - z*s; z = y0*s + z*c;
-    }
-    let rx = x, ry = y;
-    for(let i=0; i<this.f; i++){ const t = rx; rx = -ry; ry = t; }
-    return { x:rx, y:ry, z };
-  }
-  R(nx, ny, nz){
-    if(this.yaw !== 0){
-      const cy = Math.cos(this.yaw), sy = Math.sin(this.yaw);
-      const nx2 = nx*cy - ny*sy; ny = nx*sy + ny*cy; nx = nx2;
-    }
-    if(this.pitch !== 0){
-      const c = Math.cos(this.pitch), s = Math.sin(this.pitch);
-      const x2 = nx*c - nz*s; nz = nx*s + nz*c; nx = x2;
-    }
-    const c = Math.cos(this.roll), s = Math.sin(this.roll);
-    const ny2 = ny*c - nz*s, nz2 = ny*s + nz*c;
-    let rx = nx, ry = ny2;
-    for(let i=0; i<this.f; i++){ const t = rx; rx = -ry; ry = t; }
-    return { x:rx, y:ry, z:nz2 };
-  }
-  W(x, y, z){
-    const xr = x - this.camX, yr = y - this.camY;
-    return { x:(xr - yr)*this.K + this.cx,
-             y:((xr + yr)*0.5 - (z - this.camZ))*this.K + this.cy };
-  }
-  P(x, y, z){
-    const q = this.T(x, y, z);
-    return this.W(q.x + this.botX, q.y + this.botY, q.z + this.botZ);
-  }
-  depth(x, y, z){
-    const q = this.T(x, y, z);
-    return q.x + q.y + q.z*0.4;
-  }
-  quadOn(g, pts, color, alpha=1){
-    g.fillStyle(color, alpha);
-    g.fillPoints(pts.map(p => new Phaser.Geom.Point(p.x, p.y)), true);
-  }
-  edgeOn(g, pts, color, w=2){
-    g.lineStyle(w, color === undefined ? this.sk.outline : color, 1);
-    g.strokePoints(pts.map(p => new Phaser.Geom.Point(p.x, p.y)), true);
-  }
-  quad(pts, color, alpha=1){ this.quadOn(this.g, pts, color, alpha); }
-  edge(pts, color, w=2){ this.edgeOn(this.g, pts, color, w); }
-
-  lidNear(b){
-    const hs = (this.tipDir || 1) >= 0 ? 1 : -1;
-    const A = this.lidAng * hs, c = Math.cos(A), s = Math.sin(A);
-    const yh = -b.hy * hs, zh = b.z0;
-    const dy = -yh, dz = (b.z1 - b.z0)/2;
-    return this.depth(0, yh + dy*c - dz*s, zh + dy*s + dz*c) > this.depth(0, 0, 34);
-  }
-
-  drawLid(b){
-    const {hx, hy, z0, z1} = b;
-    const hs = (this.tipDir || 1) >= 0 ? 1 : -1;
-    const A = this.lidAng * hs, cA = Math.cos(A), sA = Math.sin(A);
-    const yh = -hy * hs, zh = z0;
-    const H = (x, y, z) => {
-      const dy = y - yh, dz = z - zh;
-      return this.P(x, yh + dy*cA - dz*sA, zh + dy*sA + dz*cA);
-    };
-    const HN = (nx, ny, nz) => {
-      const ny2 = ny*cA - nz*sA, nz2 = ny*sA + nz*cA;
-      return this.R(nx, ny2, nz2);
-    };
-    const C = (sx, sy, sz) => H(sx*hx, sy*hy, sz === 1 ? z1 : z0);
-    const faces = [
-      { n:{x:0,y:0,z: 1}, pts:[C( 1,-1,1), C( 1, 1,1), C(-1, 1,1), C(-1,-1,1)] },
-      { n:{x:0,y:0,z:-1}, pts:[C( 1,-1,0), C( 1, 1,0), C(-1, 1,0), C(-1,-1,0)] },
-      { n:{x: 1,y:0,z:0}, pts:[C( 1,-1,0), C( 1, 1,0), C( 1, 1,1), C( 1,-1,1)] },
-      { n:{x:-1,y:0,z:0}, pts:[C(-1,-1,0), C(-1, 1,0), C(-1, 1,1), C(-1,-1,1)] },
-      { n:{x:0,y: 1,z:0}, pts:[C( 1, 1,0), C(-1, 1,0), C(-1, 1,1), C( 1, 1,1)] },
-      { n:{x:0,y:-1,z:0}, pts:[C( 1,-1,0), C(-1,-1,0), C(-1,-1,1), C( 1,-1,1)] }
-    ];
-    for(const fc of faces){
-      const w = HN(fc.n.x, fc.n.y, fc.n.z);
-      if((w.x + w.y + w.z) <= 0) continue;
-      const col = w.z > 0.5 ? this.sk.bodyTop
-                : w.z < -0.5 ? this.sk.lidInner
-                : (w.x >= w.y) ? this.sk.bodyRight : this.sk.bodyLeft;
-      this.quad(fc.pts, col);
-      this.edge(fc.pts);
-    }
-  }
-
-  disc(center, r, color, outlineC){
-    const pts = [];
-    for(let i=0; i<14; i++){
-      const a = (i/14)*Math.PI*2;
-      pts.push(this.P(center.x + Math.cos(a)*r, center.y, center.z + Math.sin(a)*r));
-    }
-    this.quadOn(this.g, pts, color);
-    if(outlineC !== undefined) this.edgeOn(this.g, pts, outlineC, 2);
-  }
-
-  drawBox(b, cTop, cRight, cLeft, outline=true, decal=false, cBottom){
-    if(cBottom === undefined) cBottom = this.sk.belly;
-    const {hx, hy, z0, z1} = b, ox = b.ox || 0, oy = b.oy || 0;
-    const C = (sx, sy, sz) => this.P(ox + sx*hx, oy + sy*hy, sz === 1 ? z1 : z0);
-    const faces = [
-      { n:{x:0,y:0,z: 1}, pts:[C( 1,-1,1), C( 1, 1,1), C(-1, 1,1), C(-1,-1,1)] },
-      { n:{x:0,y:0,z:-1}, pts:[C( 1,-1,0), C( 1, 1,0), C(-1, 1,0), C(-1,-1,0)] },
-      { n:{x: 1,y:0,z:0}, pts:[C( 1,-1,0), C( 1, 1,0), C( 1, 1,1), C( 1,-1,1)] },
-      { n:{x:-1,y:0,z:0}, pts:[C(-1,-1,0), C(-1, 1,0), C(-1, 1,1), C(-1,-1,1)] },
-      { n:{x:0,y: 1,z:0}, pts:[C( 1, 1,0), C(-1, 1,0), C(-1, 1,1), C( 1, 1,1)] },
-      { n:{x:0,y:-1,z:0}, pts:[C( 1,-1,0), C(-1,-1,0), C(-1,-1,1), C( 1,-1,1)] }
-    ];
-    for(const fc of faces){
-      if(decal && fc.n.z !== 0) continue;
-      const w = this.R(fc.n.x, fc.n.y, fc.n.z);
-      if((w.x + w.y + w.z) <= 0) continue;
-      let col;
-      if(w.z > 0.5)       col = decal ? cRight : cTop;
-      else if(w.z < -0.5) col = decal ? null : cBottom;
-      else                col = (w.x >= w.y) ? cRight : cLeft;
-      if(col == null) continue;
-      this.quadOn(this.g, fc.pts, col);
-      if(outline) this.edgeOn(this.g, fc.pts);
-    }
-  }
-
-  /* ---------- WHITE STARS ON THE BLUE BAND ----------
-     Drawn in each side face's own (u, z) space and projected through
-     P(), so they lie flat on the band and rotate with the robot. Uses
-     the same backface test as drawBox so a star never appears on a face
-     the camera cannot see. */
-  drawStripeStars(){
-    const hx = BODY.hx + 0.7, hy = BODY.hy + 0.7;
-    const zc = (STRIPE.z0 + STRIPE.z1)/2, rz = (STRIPE.z1 - STRIPE.z0)*0.40;
-    const faces = [
-      { n:{x: 1,y:0,z:0}, at:(u,z)=>[ hx,  u*hy, z], span:hy },
-      { n:{x:-1,y:0,z:0}, at:(u,z)=>[-hx,  u*hy, z], span:hy },
-      { n:{x:0,y: 1,z:0}, at:(u,z)=>[ u*hx,  hy, z], span:hx },
-      { n:{x:0,y:-1,z:0}, at:(u,z)=>[ u*hx, -hy, z], span:hx }
-    ];
-    for(const fc of faces){
-      const w = this.R(fc.n.x, fc.n.y, fc.n.z);
-      if((w.x + w.y + w.z) <= 0) continue;          // backface, same rule as drawBox
-      const n = 3;
-      for(let i = 0; i < n; i++){
-        const u = -0.58 + (i/(n-1))*1.16;           // evenly along the band
-        const pts = [];
-        for(let k = 0; k < 10; k++){
-          const a = -Math.PI/2 + k*Math.PI/5;
-          const rr = (k % 2 === 0) ? 1 : 0.42;      // outer / inner point
-          const du = Math.cos(a)*rr*(rz/fc.span);
-          const dz = Math.sin(a)*rr*rz;
-          const q = fc.at(u + du, zc + dz);
-          pts.push(this.P(q[0], q[1], q[2]));
-        }
-        this.quadOn(this.g, pts, this.sk.stars);
-      }
-    }
-  }
-
-  drawWheel(c, sideSign){
-    const W2 = 7.5, steps = 5;
-    const slices = [];
-    for(let i=0; i<=steps; i++){
-      const oy = c.y + sideSign*(-W2/2 + W2*i/steps);
-      slices.push({ y:oy, depth: this.depth(c.x, oy, c.z) });
-    }
-    slices.sort((a,b) => a.depth - b.depth);
-    for(let i=0; i<slices.length; i++){
-      const isFace = i === slices.length-1;
-      this.disc({x:c.x, y:slices[i].y, z:c.z}, WHEEL.r,
-                isFace ? this.sk.wheel : this.sk.wheelDark,
-                isFace ? this.sk.outline : undefined);
-    }
-    const face = slices[slices.length-1].y;
-    this.disc({x:c.x, y:face, z:c.z}, WHEEL.r*0.55, this.sk.wheelHubFace);
-    const a = this.wheelPhase + c.x*0.2;
-    this.disc({ x:c.x + Math.cos(a)*WHEEL.r*0.34, y:face,
-                z:c.z + Math.sin(a)*WHEEL.r*0.34 }, 2.4, this.sk.wheelHub);
-  }
-
-  /* ---------- the airborne ground shadow (spec §2) ----------
-     Drawn in WORLD space, not through P()/T(): the shadow must stay
-     flat on the ground and must NOT inherit the robot's pitch/roll,
-     which is large mid-jump. Pinned to the true (x,y), shrinking and
-     fading with height above the ground directly beneath. */
-  drawGroundShadow(wx, wy, gz, airH, ox, oy){
-    if(!HJ_JUMP.shadow) return;
-    const k = 1/(1 + airH*0.020);
-    const alpha = 0.16 * Math.max(0.18, 1 - airH*0.011);
-    const pts = [];
-    for(let i=0;i<14;i++){
-      const a = (i/14)*Math.PI*2;
-      pts.push(this.Wg(wx + Math.cos(a)*34*k, wy + Math.sin(a)*30*k, gz + 0.4, ox, oy));
-    }
-    this.quadg(pts, SKIN.shadow, alpha);
-  }
-
-  drawRobotReal(wx, wy, wz){
-    const g = this.g;
-    this.f = HJ_RUN.f;
-    this.botX = wx; this.botY = wy; this.botZ = wz;
-
-    const wheels = [];
-    for(const side of [-1, 1]){
-      for(const wxi of WHEEL.xs){
-        const c = {x:wxi, y:side*WHEEL.side, z:WHEEL.z};
-        wheels.push({ c, side, near: this.depth(c.x, c.y, c.z) > this.depth(c.x, -c.y, c.z) });
-      }
-    }
-    for(const w of wheels) if(!w.near) this.drawWheel(w.c, w.side);
-
-    const lidBox = {...LID};
-    const lidIsNear = this.lidNear(lidBox);
-    if(!lidIsNear) this.drawLid(lidBox);
-
-    this.drawBox({hx:24, hy:17, z0:6, z1:BODY.z0+1}, 0x3f434c, 0x3a3d45, 0x2e3138, false);
-    this.drawBox({...BODY}, this.sk.bodyTop, this.sk.bodyRight, this.sk.bodyLeft);
-    this.drawBox({hx:BODY.hx+0.6, hy:BODY.hy+0.6, z0:STRIPE.z0, z1:STRIPE.z1},
-                 null, this.sk.stripe, this.sk.stripeDk, false, true);
-    if(this.sk.stars) this.drawStripeStars();
-    if(this.sk.stripe2){
-      this.drawBox({hx:BODY.hx+0.6, hy:BODY.hy+0.6, z0:HJ_STRIPE2.z0, z1:HJ_STRIPE2.z1},
-                   null, this.sk.stripe2, this.sk.stripe2Dk, false, true);
-    }
-
-    if(lidIsNear) this.drawLid(lidBox);
-
-    const fn = this.R(1, 0, 0);
-    if(fn.x + fn.y + fn.z > 0.3){
-      const F = (y, z) => this.P(BODY.hx + 0.8, y, z);
-      this.quadOn(g, [F(-13,40), F(13,40), F(13,50), F(-13,50)], this.sk.visor);
-      this.edgeOn(g, [F(-13,40), F(13,40), F(13,50), F(-13,50)], this.sk.outline, 1.5);
-      for(const ey of [-7, 7]){
-        const c = F(ey, 45);
-        g.fillStyle(this.air ? this.sk.eyeAlert : this.sk.eye, 1);
-        g.fillEllipse(c.x, c.y, 7, 7);
-      }
-      this.quadOn(g, [F(-16,18), F(16,18), F(16,22), F(-16,22)], 0xfff3b0);
-    }
-    for(const w of wheels) if(w.near) this.drawWheel(w.c, w.side);
-  }
-
-  /* ---------- tiles, ported from drawWorld, run-space aware ----------
-     No sidewalk end: the whole stunt is a MID-run set piece, so it's
-     flat sidewalk + road the whole way, minus the two slab tiles. */
-  drawTiles(ox, oy){
-    for(let a = -1; a <= 11; a++){
-      for(let c = -1; c <= 4; c++){
-        const road = c >= 2;
-        const isSlabTile = c === 0 &&
-          (Math.abs(a - HJ_RAMP.s) < 0.5 || Math.abs(a - HJ_LAND.s) < 0.5);
-        const ca = a*T2, cc = c*T2;
-        const pts = [
-          this.Wp(0,0, ca+TILE, cc-TILE, 0, ox, oy), this.Wp(0,0, ca+TILE, cc+TILE, 0, ox, oy),
-          this.Wp(0,0, ca-TILE, cc+TILE, 0, ox, oy), this.Wp(0,0, ca-TILE, cc-TILE, 0, ox, oy)
-        ];
-        if(!isSlabTile){
-          this.quadg(pts, road ? HJ_PAL.road : (((a+c)%2===0) ? HJ_PAL.pave : HJ_PAL.paveB));
-          if(!road) this.edgeg(pts, HJ_PAL.paveEdge, 1.5);
-        }
-        if(c === 3 && a % 2 === 0 && a >= 0 && a < 11){
-          this.quadg([
-            this.Wp(0,0, ca-14, cc-4, 0, ox, oy), this.Wp(0,0, ca+14, cc-4, 0, ox, oy),
-            this.Wp(0,0, ca+14, cc+4, 0, ox, oy), this.Wp(0,0, ca-14, cc+4, 0, ox, oy)
-          ], HJ_PAL.roadLine);
-        }
-      }
-      /* curb lip along the road edge */
-      const kc = TILE*3;
-      this.quadg([
-        this.Wp(0,0, a*T2-TILE, kc,  3, ox, oy), this.Wp(0,0, a*T2+TILE, kc,  3, ox, oy),
-        this.Wp(0,0, a*T2+TILE, kc, -2, ox, oy), this.Wp(0,0, a*T2-TILE, kc, -2, ox, oy)
-      ], HJ_PAL.paveEdge);
-    }
-  }
-
-  /* ---------- wedge geometry, shared by kicker and landing slab ----------
-     Heave runs along the TRAVEL axis (ramp-lab's wedge rotated 90°):
-     flush (tile plane) at the -dirSign*TILE end, lifted `lift` at the
-     +dirSign*TILE end. dirSign +1 = kicker (uphill down-lane),
-     -1 = landing slab (downhill down-lane).
-     zTop(da) is the TOP surface height at along offset da. */
-  wedgeTop(sl, da){
-    const v = (sl.dirSign*da + TILE) / (2*TILE);   // 0 flush, 1 raised
-    return sl.lift * Phaser.Math.Clamp(v, 0, 1);
-  }
-  onSlab(sl, s, row){
-    return row === sl.row && Math.abs(s*T2 - sl.s*T2) < TILE;
-  }
-
-  /* ---------- groundHeightAt stub (spec §1): the ONLY place the
-     landing plane comes from. Flat 2 everywhere except the two
-     slabs. A real heightmap later changes this function only. ---------- */
-  groundZAt(s, row){
-    if(this.onSlab(HJ_RAMP, s, row)) return 2 + this.wedgeTop(HJ_RAMP, s*T2 - HJ_RAMP.s*T2);
-    if(this.onSlab(HJ_LAND, s, row)) return 2 + this.wedgeTop(HJ_LAND, s*T2 - HJ_LAND.s*T2);
-    return 2;
-  }
-  /* nose pitch from the surface under the wheels — uphill on the
-     kicker, downhill off the landing slab */
-  surfacePitchAt(s, row){
-    for(const sl of [HJ_RAMP, HJ_LAND]){
-      if(this.onSlab(sl, s, row)) return HJ_RUN.pitchSign * sl.dirSign * Math.atan(sl.lift/(2*TILE));
-    }
-    return 0;
-  }
-
-  /* ---------- the heaved slab, one sidewalk tile ----------
-     Art vocabulary lifted from ramp-lab drawSlabNew, re-authored in
-     (along, cross) space so it rotates with HJ_RUN.f:
-       1. soil gap decal under the raised end
-       2. exposed concrete: raised END wall (full height) + the two
-          side joints (triangles, flush corner up to raised corner)
-       3. root bulge in the opened joint (kicker only — the culprit)
-       4. top wedge + seeded hairline cracks + chipped lip
-     Walls are drawn before the top, and every wall's upper edge IS a
-     top-quad edge, so no wall can ever poke through the surface —
-     that's what keeps this correct without backface tests. */
-  drawWedgeSlab(sl, ox, oy, seed){
-    const g = this.g;
-    const rng = mulberry32(seed);
-    const w0 = this.worldOf(sl.s, sl.row);
-    const W = (a, c, z) => this.Wp(w0.x, w0.y, a, c, z, ox, oy);
-    const L = sl.lift, d = sl.dirSign;
-    const aUp = d*TILE, aFl = -d*TILE;          // raised end vs flush end
-    const Z = a => this.wedgeTop(sl, a);
-
-    /* 1 — soil in the opened joint, hugging the raised end */
-    this.quadg([
-      W(aUp - d*10, -TILE, 0), W(aUp - d*10, TILE, 0),
-      W(aUp + d*4,  TILE + 4, 0), W(aUp + d*4, -TILE - 4, 0)
-    ], HJ_SLABC.gap, 0.55);
-
-    /* 2 — exposed concrete */
-    for(const jc of [-TILE, TILE]){          // side joints: triangles
-      this.quadg([ W(aFl, jc, 0), W(aUp, jc, Z(aUp)), W(aUp, jc, 0) ], HJ_SLABC.topDk, 0.9);
-    }
-    const endWall = [ W(aUp, -TILE, Z(aUp)), W(aUp, TILE, Z(aUp)),
-                      W(aUp,  TILE, 0),      W(aUp, -TILE, 0) ];
-    this.quadg(endWall, HJ_SLABC.topDk);
-    this.edgeg(endWall, HJ_SLABC.gap, 1.2);
-
-    /* 3 — the culprit: a palm root shouldering the end up */
-    if(sl.root){
-      const segs = 6;
-      for(let i=0; i<segs; i++){
-        const t0 = i/segs, t1 = (i+1)/segs;
-        const c0 = -TILE + 2*TILE*t0, c1 = -TILE + 2*TILE*t1;
-        const bump = 2.2 + Math.sin(t0*Math.PI)*2.2 + (rng()-0.5)*1.2;
-        const pts = [
-          W(aUp + d*2, c0, 0), W(aUp + d*2, c1, 0),
-          W(aUp + d*7, c1, bump), W(aUp + d*7, c0, bump)
-        ];
-        this.quadg(pts, i%2 ? HJ_SLABC.rootA : HJ_SLABC.rootB);
-        this.edgeg(pts, HJ_SLABC.rootB, 1);
-      }
-    }
-
-    /* 4 — top wedge */
-    const top = [ W(aFl, -TILE, Z(aFl)), W(aFl, TILE, Z(aFl)),
-                  W(aUp,  TILE, Z(aUp)), W(aUp, -TILE, Z(aUp)) ];
-    this.quadg(top, HJ_SLABC.top);
-    this.edgeg(top, HJ_SLABC.topDk, 1.5);
-
-    /* hairline cracks radiating from the raised end (stress side) */
-    g.lineStyle(1.2, HJ_SLABC.topDk, 0.8);
-    for(let i=0; i<sl.cracks; i++){
-      let pc = -TILE*0.7 + rng()*TILE*1.4;
-      let pa = aUp - d*(4 + rng()*8);
-      let p = W(pa, pc, Z(pa) + 0.1);
-      g.beginPath(); g.moveTo(p.x, p.y);
-      for(let k=0; k<4; k++){
-        pc += (rng()-0.5)*22;
-        pa -= d*(8 + rng()*14);
-        pa = Phaser.Math.Clamp(pa, -TILE+3, TILE-3);
-        const q = W(pa, pc, Z(pa) + 0.1);
-        g.lineTo(q.x, q.y);
-      }
-      g.strokePath();
-    }
-    /* chipped lip along the raised end — the takeoff/landing edge */
-    for(let i=0; i<4; i++){
-      const cp = -TILE + 8 + rng()*(2*TILE - 16);
-      const p = W(aUp - d*1.5, cp, Z(aUp) + 0.1);
-      g.fillStyle(HJ_SLABC.gap, 0.5);
-      g.fillEllipse(p.x, p.y, (3 + rng()*4)*this.K*0.6, (1.5 + rng()*2)*this.K*0.6);
-    }
-  }
-
-  /* ---------- the GAME's hydrant branch. Intact by default; land ON one
-     and it BURSTS — sheared nozzle, animated spray arc, growing puddle.
-     Same vocabulary as the game's hydrantBurst kind, re-authored in the
-     lab's run-space (Wp) instead of the game's random per-hydrant
-     rotation, so the spray always points down-lane and is always
-     visible. (The game hit exactly this: a random facing meant roughly
-     half of all live bursts showed no water at all, fixed there with
-     forceVisible. Building it in run-space avoids the problem instead of
-     patching it.)
-     `burstT` is the ms timestamp of the burst, or null for intact. ----- */
-  drawHydrantGame(wx, wy, ox, oy, burstT, now){
-    const g = this.g;
-    const HH = HYD;
-    const GG = (a, b, h) => this.Wp(wx, wy, a, b, h, ox, oy);
-    const dAt = (a, b, h) => a + b + h*0.4;
-    const height = HH.height;
-
-    const rOf = h => {
-      const u = h / height;
-      if(u < 0.08) return HH.baseR;
-      if(u < 0.75) return HH.baseR*0.62 - (HH.baseR*0.62 - HH.baseR*0.5)*((u-0.08)/0.67);
-      return HH.baseR*0.5 + (HH.baseR*0.78 - HH.baseR*0.5) * ((u-0.75)/0.25);
-    };
-    const place = (h, r, n=14) => {
-      const pts = [];
-      for(let i=0; i<n; i++){
-        const phi = (i/n)*Math.PI*2;
-        pts.push(GG(Math.cos(phi)*r, Math.sin(phi)*r, h));
-      }
-      return pts;
-    };
-
-    const hsh = GG(0, 0, 0);
-    g.fillStyle(HH.shadow, 0.14);
-    g.fillEllipse(hsh.x, hsh.y + 2, HH.baseR*2.1*this.K*0.42, HH.baseR*0.95*this.K*0.42);
-
-    const hbarrel = () => {
-      const n = 6, all = [];
-      for(let i=0; i<=n; i++) all.push(...place(i/n*height*0.9, rOf(i/n*height*0.9)));
-      this.quadOn(g, convexHull(all), HH.cap);
-    };
-    const hshoulder = () => {
-      const h0 = height*0.75, h1 = height*0.9;
-      this.quadOn(g, convexHull(place(h0, rOf(h0)).concat(place(h1, rOf(h1)))), HH.cap);
-    };
-    const hdome = () => {
-      const domeBase = height*0.9, domeR = HH.domeR;
-      const n = 8, rings = [];
-      for(let i=0; i<=n; i++){
-        const u = i/n, r2 = domeR * Math.cos(u*Math.PI*0.5);
-        rings.push(place(domeBase + u*domeR*0.9, r2));
-      }
-      const all = []; for(const r2 of rings) all.push(...r2);
-      this.quadOn(g, convexHull(all), HH.cap);
-      const capTop = GG(0, 0, domeBase + domeR*0.9 + 1);
-      g.fillStyle(HH.capDk, 1);
-      g.fillCircle(capTop.x, capTop.y, 1.8*this.K*0.45);
-    };
-    const hnozzle = (ang, r) => () => {
-      const nc = Math.cos(ang), ns = Math.sin(ang);
-      const baseA = nc*(HH.baseR*0.55), baseB = ns*(HH.baseR*0.55);
-      const tipA = nc*(HH.baseR*0.55 + r*2.2), tipB = ns*(HH.baseR*0.55 + r*2.2);
-      const hgt = height*0.42;
-      const ring = (a0,b0,rad) => {
-        const pts = [];
-        for(let i=0;i<10;i++){
-          const phi=(i/10)*Math.PI*2;
-          pts.push(GG(a0 + Math.cos(phi)*rad*(-ns), b0 + Math.cos(phi)*rad*nc, hgt + Math.sin(phi)*rad));
-        }
-        return pts;
-      };
-      this.quadOn(g, convexHull(ring(baseA,baseB,r).concat(ring(tipA,tipB,r))), HH.cap);
-      if(nc + ns > 0) this.quadOn(g, ring(tipA,tipB,r*0.8), HH.capDk);
-    };
-
-    const domeBase = height*0.9, domeR = HH.domeR;
-    /* ---- PUDDLE: ground decal, painted BEFORE the body parts so the
-       barrel and dome naturally draw over it ---- */
-    const bursting = burstT !== null && burstT !== undefined;
-    const grow = bursting ? Math.min(1, ((now||0) - burstT)/1800) : 0;
-    if(bursting){
-      const ring = (rad, nn=18) => {
-        const pts = [];
-        for(let i=0; i<nn; i++){
-          const phi = (i/nn)*Math.PI*2;
-          pts.push(GG(Math.cos(phi)*rad*1.15, Math.sin(phi)*rad, 0.3));
-        }
-        return pts;
-      };
-      this.quadOn(g, ring(TILE*0.85*grow), HH.water, 0.28);
-      this.quadOn(g, ring(TILE*0.55*grow), HH.water, 0.22);
-    }
-
-    const hparts = [
-      { d: dAt(0,0,height*0.3), fn: hbarrel },
-      { d: dAt(0,0,height*0.82), fn: hshoulder },
-      { d: dAt(HH.baseR*0.55, 0, height*0.42), fn: hnozzle(0, HH.nozR) },
-      { d: dAt(-HH.baseR*0.55, 0, height*0.42), fn: hnozzle(Math.PI, HH.nozR) },
-      { d: dAt(0,0, domeBase+domeR*0.9), fn: hdome },
-      { d: dAt(HH.baseR*0.55, 0, height*0.55), fn: () => {
-          if(!bursting) return;
-          /* animated arc off the sheared front nozzle */
-          const tipA = HH.baseR*0.55 + HH.nozR*2.2;
-          const n = 9, hgt = height*0.42;
-          for(let i=0; i<n; i++){
-            const u = (((now||0)*0.0026 + i/n) % 1);
-            const dist = u * 26 * (0.4 + 0.6*grow);
-            const arcH = hgt + 14*u - 26*u*u;
-            const pt = GG(tipA + dist, 0, Math.max(arcH, 0.5));
-            g.fillStyle(u > 0.82 ? HH.waterDk : HH.water, 0.9*(1 - u*0.55));
-            g.fillCircle(pt.x, pt.y, Math.max(0.6, 1.6 - u)*this.K*0.4);
-          }
-        } }
-    ];
-    hparts.sort((p1, p2) => p1.d - p2.d);
-    for(const pt of hparts) pt.fn();
-  }
-
-  /* ============================================================
-     the jump itself
-     ============================================================ */
-  launch(time){
-    /* the charge is snapshotted (smoothed) at the lip and frozen for
-       the whole flight — no air control, per ramp-jump-spec §1 */
-    const c = this.lockedCharge = Phaser.Math.Clamp(this.chargeSm, 0, HJ_CH.chargeMax);
-    this.speed   = this.speedFor(c);
-    this.launchPow = this.powFor(c);
-    const vz0 = this.speed * this.launchPow * (HJ_RAMP.lift/12);
-    /* Start at the TOP OF THE LIP, not groundZAt(). The launch fires at
-       s = HJ_RAMP.s+0.5, and onSlab() is `< TILE` exclusive, so at exactly
-       that s the robot already reads as OFF the slab and groundZAt()
-       returns the flat 2 — meaning Tipsy was launching from 12 units
-       BELOW the ramp he had just ridden up. That lost height is why the
-       solved band said pass and the live run clipped at levels 5-6. */
-    this.air = {
-      t0: time,
-      z: 2 + this.wedgeTop(HJ_RAMP, HJ_RAMP.dirSign*TILE),
-      vz: vz0,
-      vz0,
-      cleared: false,
-      hydIdx: 0,
-      passed: 0
-    };
-    this.result = "AIRBORNE";
-  }
-
-  /* ---------- CONTACT: any hydrant Tipsy touches bursts ----------
-     Not just the one he clipped out of the air. Once he is down he
-     tumbles and skids forward through the rest of the row, and every one
-     he reaches should shear too. Runs every step, so it covers all three
-     ways to hit one: clipped mid-arc, ploughed through while tipping, or
-     rolled into on the ground. */
-  hydrantContact(time){
-    if(this.botRow !== HJ_ROW.row) return;
-    const along = this.botS*T2;
-    const z = this.air ? this.air.z : this.groundZAt(this.botS, this.botRow);
-    if(z - 2 > HYD.height) return;            // sailing clear over the top
-    /* needs real impact — creeping up to one should nudge it, not shear
-       a cast-iron nozzle off */
-    const v = this.state === "tipped" ? (this.skidV || 0) : this.speed;
-    if(v < HJ_CH.burstV && !this.air) return;
-    for(let i = 0; i < HJ_HYDS.length; i++){
-      if(this.burst[i] !== undefined) continue;
-      if(Math.abs(along - HJ_HYDS[i]*T2) < HYD.baseR + 20) this.burst[i] = time;
-    }
-  }
-
-  clipHydrant(idx, time){
-    /* landing ON one shears the nozzle open — that hydrant now bursts */
-    if(idx !== undefined) this.burst[idx] = (time !== undefined ? time : 0);
-    /* undershoot: the arc came in under the dome. Cast-iron does what
-       cast iron does — the nose stops, the top-heavy body keeps going. */
-    this.air.vz = -Math.abs(this.air.vz) - 0.01;
-    this.air.clipped = true;
-    this.speed *= 0.35;
-/* same rule on a clip: continue the existing lean rather than
-       risking a sign flip */
-    /* ---- IMPULSE, NOT A STEP CHANGE ----
-       This added the whole 0.85 of tilt in ONE frame, moving roll
-       0 -> 23deg instantly: a 29.8-unit pop, the last big seam in the
-       crash. Hitting cast iron IS violent, but rotating still takes a
-       few frames. The impulse bleeds into tilt over ~150ms, so it reads
-       as a hard shove rather than a teleport. */
-    this.tiltImpulse += 0.85 * (Math.abs(this.tilt) > 0.02 ? Math.sign(this.tilt)
-                                                          : (Math.random() < 0.5 ? 1 : -1));
-    this.result = "BURST A HYDRANT";
-  }
-
-  land(gz){
-    const impact = Math.abs(this.air.vz);
-    const dL = this.botS*T2 - HJ_LAND.s*T2;
-    const onLand = this.botRow === HJ_LAND.row && Math.abs(dL) < TILE;
-    const over  = dL >= TILE;
-    /* These two MUST be set here, before cleanPredict/faceFail read
-       them. They were assigned ~50 lines further down, so faceFail was
-       testing the PREVIOUS run's tipMode (always "side" after a reset)
-       and the face plant never engaged at all — every short landing
-       fell through to the sideways tip. */
-    /* ---- HJ_CRASH POSE ----
-       Coming up SHORT means he lands nose-first on the flat before the
-       ramp: he pitches straight over onto his face and stays there.
-       Every other failure keeps the sideways roll — overshooting carries
-       him past on his side, and cast iron throws him over. */
-    /* POSE is about DIRECTION, not about which failure it was. Anything
-       that is not an overshoot puts him down nose-first — coming up
-       short, botching the landing on the catch ramp, or clipping the
-       last hydrant on the way in. All of those go over the FRONT. Only
-       sailing past the ramp sends him over on his side. */
-    this.tipMode = over ? "side" : "face";
-    /* HJ_SKID IF THERE IS A RAMP UNDER HIM. Overshooting is not the only
-       case: landing ON the catch ramp but off-centre still puts him on
-       the down-slope carrying speed, so he slides too — that near-miss
-       is the most common failure of all, and stopping dead on a slope
-       looked wrong. Only a genuine short (touching down on the flat
-       BEFORE the ramp) or cast iron kills the momentum. */
-    /* HJ_SKID is decided purely by WHERE HE ENDS UP, which makes the clip
-       case fall out correctly on its own: clip an early hydrant and he
-       lands among them with nothing under him, so he stops; clip the
-       LAST one and he comes down on the catch ramp, so he slides. No
-       need to special-case clipped at all. Combined with the pose above,
-       a botched landing on the ramp now SKIDS ON HIS FACE. */
-    this.canSkid = over || onLand;
-    /* CAPTURE THE HJ_SKID SPEED NOW. The tip fires several frames after the
-       landing (the impulse has to bleed tilt past the threshold), and
-       reading speed/canSkid at that later moment was giving skidV = 0 —
-       the slide was frozen even on a ROUGH landing that should carry
-       down the ramp. Landing speed is the physically right value anyway:
-       it is the momentum he arrives with, not whatever the ground branch
-       has recomputed by the time he goes over. */
-    this.skidSpeed = this.canSkid ? Math.max(this.speed, Math.abs(impact)) : 0;
-    /* absorb: the landing slab's down-slope takes most of it; flat
-       concrete takes all of it; past the slab is worse than flat
-       because the far joint catches a wheel. */
-    /* TWO-SIDED FAILURE — the whole point of the delicate balance.
-       On the catch ramp the down-slope eats the impact. Miss it either
-       way and the top-heavy body goes over: overshooting past the far
-       joint is worse than coming up short on flat concrete. Both fail
-       as a TIP, so no new fail-state vocabulary is introduced. */
-    /* ---- ABSORPTION BY CENTREDNESS ----
-       A flat absorb value cannot work across the charge range: at high
-       charge the descent velocity alone pushed a PERFECT landing over
-       the clean threshold, so levels 5-6 could never be cleared.
-       Instead the catch ramp absorbs best where its down-slope actually
-       matches the descent — the middle. Landing on the lip or the far
-       joint absorbs far less. This turns the landing from a binary into
-       a precision gradient: the band gets you down, CENTRING the band
-       gets you a clean. */
-    const centre = 1 - Math.min(1, Math.abs(dL)/TILE);   // 1 mid-slab, 0 at an edge
-    const cleanPredict = this.air.cleared && onLand && !this.air.clipped
-                       && Math.abs(this.air.vz)*HJ_JUMP.slam
-                          *(HJ_CH.absMin + HJ_CH.absGrad*(1-centre)) < 0.6;
-    const absorb = this.air.clipped ? 1.6
-                 : onLand ? (HJ_CH.absMin + HJ_CH.absGrad*(1 - centre))
-                 : over   ? 1.9
-                          : 1.5;
-    /* ---- SMOOTH CLEAN LANDINGS ----
-       The tilt kick used to fire at full strength on EVERY landing, so
-       even a perfect one arrived with a wobble worth up to 0.6 tilt that
-       then had to spring back out — the jolt. Now that cleanPredict
-       decides the outcome deterministically, the kick no longer has to
-       act as the clean/not-clean discriminator, so a clean landing takes
-       only a token amount (cleanDamp) and rides the slab's down-slope
-       out. A miss still takes the full hit and goes over. */
-    const faceFail = !cleanPredict && !this.air.clipped && this.tipMode === "face";
-    /* A face plant must not pick up ANY sideways lean. The tilt kick and
-       the forced tip below both drive roll (roll = clamp(tilt)*0.5), and
-       forcing tilt to 1.05+ snapped roll to 29 degrees in a single frame
-       at touchdown — a 36-unit lurch sideways that then had to be eased
-       back out before he could go over the nose. That was the seam.
-       He goes straight over the front instead, so tilt is left alone and
-       the tipped state is entered directly. */
-    if(!faceFail){
-      const kick = impact * HJ_JUMP.slam * absorb * (cleanPredict ? HJ_CH.cleanDamp : 1);
-      /* KEEP THE LEAN DIRECTION. A random sign here could reverse the way
-         he was already leaning, and roll = clamp(tilt)*0.5 then whipped
-         across zero in a single frame — the worst seam in the whole
-         crash (55.9 units, roll +22deg -> -29deg). He now keeps falling
-         the way he was already going; the coin flip only decides it when
-         he is genuinely level. */
-      const dir = Math.abs(this.tilt) > 0.02 ? Math.sign(this.tilt)
-                                             : (Math.random() < 0.5 ? 1 : -1);
-      this.tiltImpulse += kick * dir;      // bleeds in, never a step change
-    }
-    if(faceFail){
-      /* straight into the pitch-over, carrying the exact pose he landed
-         in — no tilt, no roll, nothing to unwind */
-      this.state = "tipped";
-      this.tipT = 0; this.tipDir = 1;
-      this.skidV = this.skidSpeed || 0;      // face-first AND sliding, if there is ramp under him
-      this.tipPitch0 = this.pitch;
-      this.tipRoll0  = this.roll;
-    } else if(!cleanPredict && !this.air.clipped){
-      /* Guarantee the sideways tip — but as an IMPULSE, not by writing
-         tilt straight to 1.05+. Writing it moved roll 16deg -> 29deg in a
-         single frame (roll saturates at clamp(tilt)*0.5). Pushing the
-         impulse instead carries tilt past the threshold over ~3 frames,
-         so roll ramps into the tip continuously and the rollover picks
-         up exactly where the lean left off. */
-      const dir = Math.abs(this.tilt) > 0.02 ? Math.sign(this.tilt)
-                                             : (Math.random() < 0.5 ? 1 : -1);
-      this.tiltImpulse += dir * 1.6;
-    }
-
-    /* HJ_SKID ONLY ON AN OVERSHOOT. Sailing past the catch ramp means Tipsy
-       is still carrying full speed when he touches down, so he slides.
-       Coming up short or clipping a hydrant means he has already hit
-       something — cast iron, or the far joint — so he stops and goes
-       over on the spot. */
-
-    /* NO SURVIVABLE MIDDLE. A landing is either clean or it is a crash.
-       SLOPPY used to be a third outcome that neither cleared the level
-       nor tipped you, which made the green band feel advisory: 53-59%
-       and 74-77% all 'survived' without cleaning. Miss the band by any
-       margin now and you go over. */
-    /* Use cleanPredict, NOT a reading of this.tilt. Tilt used to be
-       written instantly by the landing kick, so testing it here worked
-       by accident; now that impacts arrive as a rate-limited impulse,
-       tilt is still ~0 at this moment and every failed landing reported
-       CLEAN. cleanPredict is derived from the arc itself and is exactly
-       what solveBand() mirrors, so the outcome and the green band now
-       agree by construction rather than by coincidence. */
-    const clean = cleanPredict;
-    this.result = this.air.clipped ? "BURST A HYDRANT"
-                : clean            ? "CLEAN · LEVEL "+HJ_CH.level+" CLEARED"
-                : over             ? "OVERSHOT THE RAMP"
-                /* on the ramp but off-centre — its own label, because
-                   calling this "came up short" while he is standing on
-                   the catch ramp reads as a bug */
-                : onLand           ? "ROUGH LANDING"
-                                   : "CAME UP SHORT";
-    if(clean){
-      this.best = Math.max(this.best, HJ_CH.level);
-      this.advance = true;              // consumed by the auto-loop
-    }
-    /* ---- REWARDS ----
-       Two now, at fixed levels rather than derived from the wall:
-         level 7  -> Fire Chief
-         level 10 -> Daredevil (the finish)
-       Fixed levels are the right call here BECAUSE maxLevel is now 10:
-       there is no level past the last one, so a derived "beat everything
-       possible" target would collapse onto level 10 and the level-7
-       reward would have nowhere to live. */
-    /* ---- REWARDS, through the game's real trophy system ----
-       The lab carried its own grantSkin()/ENTITLEMENTS stub; the game
-       already has the whole chain built and waiting:
-         mission "jump-hydrant"        -> trophy "hydrant-hop"    -> skin fire-chief
-         mission "jump-hydrant-master" -> trophy "hydrant-master"  -> skin daredevil
-       tpCompleteMission() was written for exactly this and has never had
-       a caller ("Not called from anywhere yet"). NOTE the game's design
-       is CLAIM-FROM-TROPHY-CASE, so we deliberately do NOT auto-equip
-       the way the lab did. */
-    if(clean && HJ_CH.level >= HJ_CHIEF_AT && !tpProfile.missionsCompleted.has("jump-hydrant")){
-      tpCompleteMission("jump-hydrant");
-      this.announce("\u{1F692} FIRE CHIEF EARNED", "CLAIM IT IN THE TROPHY CASE");
-    }
-    if(clean && HJ_CH.level >= HJ_DARE_AT && !tpProfile.missionsCompleted.has("jump-hydrant-master")){
-      tpCompleteMission("jump-hydrant-master");
-      this.announce("\u{1F3C1} DAREDEVIL EARNED", "ALL TEN JUMPS CLEARED");
-    }
-    this.unlocked     = tpProfile.missionsCompleted.has("jump-hydrant");
-    this.unlockedDare = tpProfile.missionsCompleted.has("jump-hydrant-master");
-    this.air = null;
-    /* Do NOT snap pitch to 0 here. Touchdown pitch is nose-down (he is
-       descending), and slamming it flat in one frame was the other half
-       of the jolt. The ground branch already eases pitch onto
-       surfacePitchAt() — which on the catch ramp is the down-slope — so
-       just leave it and let that run. */
-    this.resultT = 0;
-  }
-
-  /* ---------- FIXED-TIMESTEP SIM ----------
-     Everything below used to run on the raw frame delta (clamped to
-     50ms). That made the ARC FRAME-RATE DEPENDENT: Euler integration
-     at dt=50 traces a measurably different parabola than at dt=16.7,
-     and the hydrant-crossing check samples at coarser intervals. On a
-     precision challenge that is a fairness bug — the same tap rate
-     would clear a hydrant on a fast phone and clip it on a slow one —
-     and it is why the solved pass band disagreed with the live run at
-     levels 5 and 6.
-
-     Now update() accumulates real time and calls this in fixed STEP
-     slices, so the trajectory is identical everywhere and solveBand()
-     is exact rather than approximate. STEP must stay equal to the dt
-     used inside solveBand(). */
-  step(dt, time){
-    /* ---- TAP CHARGE ----
-       Taps are added in tap() (input handler). Here we only bleed.
-       Proportional decay means the meter SETTLES at a level set by
-       tap RATE:  charge ~= add * tapsPerSec / (decay*1000).
-       Sustained rate is the skill; total taps are irrelevant. */
-    /* SIM CLOCK. dt is clamped to 50ms so a frame hitch cannot blow up
-       the physics — but that means wall-clock time and simulated time
-       diverge during a hitch. Charge decay runs on dt, so anything
-       that ADDS charge has to run on the same clock or the meter
-       inflates whenever frames are slow. (This is not academic: it is
-       exactly what made the headless run read 56% where the maths
-       says 29%.) simT is that shared clock. */
-    this.simT = (this.simT || 0) + dt;
-    if(HJ_CH.autoTap > 0){                       // headless testing only
-      if(this.nextAuto === 0) this.nextAuto = this.simT;
-      while(this.simT >= this.nextAuto){ this.tap(this.simT); this.nextAuto += 1000/HJ_CH.autoTap; }
-    }
-    if(this.lockedCharge === null){
-      this.charge = Math.max(0, this.charge - HJ_CH.decay*this.charge*dt);
-      /* smoothed shadow value: what actually gets snapshotted, so the
-         launch is not a lottery on tap phase */
-      this.chargeSm += (this.charge - this.chargeSm) * Math.min(1, HJ_CH.smooth*dt);
-    }
-    const alongPrev = this.prevAlong;
-    this.botS += (this.speed / T2) * dt;
-    const along = this.botS*T2;
-    /* wheels FREEWHEEL in the air — nothing is driving or braking them,
-       so they keep turning at the speed they left the lip at. `speed`
-       is already frozen for the whole flight (no air control), so this
-       needs no separate air term. */
-    this.wheelPhase += this.speed * dt * 0.28;
-
-    /* ---- LAUNCH: crossing the kicker's raised lip, at speed ---- */
-    const lipA = HJ_RAMP.s*T2 + HJ_RAMP.dirSign*TILE;
-    if(!this.air && this.botRow === HJ_RAMP.row &&
-       alongPrev < lipA && along >= lipA){
-      if(this.speed >= HJ_JUMP.minSpeed) this.launch(time);
-      else this.tilt += 0.18 * (Math.random() < 0.5 ? 1 : -1);   // below threshold: a bump, not a launch
-    }
-
-    /* ---- AIR: integrate the arc, no horizontal change ---- */
-    if(this.air){
-      this.air.vz -= HJ_JUMP.grav * dt;
-      this.air.z  += this.air.vz * dt;
-      /* Ease into the airborne attitude. Writing it absolutely made
-         pitch snap 5deg -> 29deg the instant he left the lip (24 units in
-         one frame), and snap again when a clip reverses vz. The time
-         constant is short enough that the attitude itself is unchanged —
-         this only removes the pop. */
-      {
-        const pTarget = HJ_RUN.pitchSign * Math.atan2(this.air.vz, Math.max(this.speed, 1e-4)) * 0.6;
-        this.pitch += (pTarget - this.pitch) * Math.min(1, 0.030*dt);
-      }
-
-      /* ---- clearance, EVERY hydrant, checked exactly as we cross
-         each one's along position. With N hydrants the binding check
-         is the LAST one, because the arc is already descending by
-         then — that is what turns levels 3+ from a landing problem
-         into a clearance problem. ---- */
-      if(this.botRow === HJ_ROW.row){
-        while(this.air.hydIdx < HJ_HYDS.length){
-          const hydA = HJ_HYDS[this.air.hydIdx]*T2;
-          if(!(alongPrev < hydA && along >= hydA)) break;
-          const h = this.air.z - 2;
-          this.air.hydIdx++;
-          if(h < HYD.height + HJ_JUMP.clear){ this.clipHydrant(this.air.hydIdx - 1, time); break; }
-          this.air.passed++;
-        }
-        this.air.cleared = this.air.passed >= HJ_HYDS.length;
-      }
-
-      const gz = this.groundZAt(this.botS, this.botRow);
-      if(this.air.vz < 0 && this.air.z <= gz){
-        this.botS = this.botS;                    // touchdown at the current along
-        this.land(gz);
-      }
-    } else {
-      /* ---- GROUND: surface pitch + the hydrant as a hard wall ---- */
-      this.pitch += (this.surfacePitchAt(this.botS, this.botRow) - this.pitch) * Math.min(1, 0.012*dt);
-      /* every hydrant is a hard wall on the ground — rolling into the
-         first one is the punishment for not charging at all */
-      let blockedNow = false;
-      if(this.botRow === HJ_ROW.row){
-        for(const hs of HJ_HYDS){
-          const hydA = hs*T2;
-          if(along > hydA - 26 && along < hydA){
-            this.botS = (hydA - 26)/T2;
-            blockedNow = true;
-            if(this.speed > 0.035 && !this.bonked){
-              this.bonked = true;
-              this.tilt += this.speed * 10 * (Math.random() < 0.5 ? 1 : -1);
-              this.result = "BONK";
-            }
-            this.speed = 0;
-            break;
-          }
-        }
-      }
-      this.blockedT = blockedNow ? this.blockedT + dt : 0;
-      /* approach speed IS the live charge — this is the feedback loop:
-         charging up shortens the runway you are charging in */
-      if(!blockedNow) this.speed = this.speedFor(this.chargeSm);
-    }
-
-    this.hydrantContact(time);
-    this.prevAlong = along;
-
-    if(this.tiltImpulse){                            // bleed the impact in
-      /* RATE-LIMITED. A percentage bleed alone still crossed the
-         roll-saturation point (|tilt| = 1, where roll pins at 0.5) in a
-         single frame when the impulse was large, which is what kept the
-         tip popping. Capping the per-frame change holds roll to about
-         3 degrees a frame, so the lean ramps in visibly. */
-      let bite = this.tiltImpulse * Math.min(1, 0.010*dt);
-      if(Math.abs(bite) > 0.10) bite = Math.sign(bite) * 0.10;
-      this.tilt += bite; this.tiltImpulse -= bite;
-      if(Math.abs(this.tiltImpulse) < 1e-4) this.tiltImpulse = 0;
-    }
-    this.tilt -= this.tilt * 0.0021 * dt;             // stability spring
-    this.roll = Phaser.Math.Clamp(this.tilt, -1, 1) * 0.5;
-    if(Math.abs(this.tilt) >= 1){
-      this.state = "tipped";
-      /* carry the momentum into the crash, but only on an overshoot */
-      this.skidV = this.skidSpeed || 0;
-      this.tipDir = Math.sign(this.tilt);
-      this.tipT = 0;
-      /* snapshot the pose at the instant of the tip. The rollover used
-         to write ABSOLUTE values from zero, which threw away the pitch
-         and roll he was already in and made the crash look like it reset
-         first and then fell over. Everything below now eases FROM here. */
-      this.tipPitch0 = this.pitch;
-      this.tipRoll0  = this.roll;
-    }
-
-    /* auto-loop the bench: off the end, pinned at the hydrant, or a
-       beat after the result reads */
-    if(this.result && !this.air && this.result !== "AIRBORNE") this.resultT += dt;
-    if(this.botS > HJ_LAND.s + 3 || this.blockedT > 1200 || this.resultT > 1700){
-      const wasUnlocked = this.unlocked;
-      if(this.advance){ this.advance = false; this.buildLevel(HJ_CH.level + 1); }
-      this.resetRun(false);
-      this.unlocked = wasUnlocked;
-      this.updateVals();
-    }
-  }
-
-  update(time, delta){
-    const g = this.g; g.clear();
-    g.fillStyle(HJ_PAL.sky, 1);
-    g.fillRect(0, 0, this.scale.gameSize.width, this.scale.gameSize.height);
-
-    const dt = Math.min(delta || 16.7, 50);
-    this.nowT = time;
-    this.sk = this.dare ? {...SKIN, ...HJ_DARE} : this.chief ? {...SKIN, ...HJ_CHIEF} : SKIN;
-
-    /* fixed-step accumulator. maxSteps stops a long stall from
-       spiralling — better to run slightly slow than to freeze. */
-    if(this.driving && this.state !== "tipped"){
-      this.acc = (this.acc || 0) + dt;
-      let steps = 0;
-      while(this.acc >= HJ_STEP && steps < 6){
-        this.step(HJ_STEP, time);
-        this.acc -= HJ_STEP;
-        steps++;
-        if(this.state === "tipped") break;
-      }
-      if(steps === 6) this.acc = 0;
-    }
-
-    /* tipped-state rollover: the game's formula, auto-reset */
-    if(this.state === "tipped"){
-      this.tipT = Math.min(1, this.tipT + dt/(this.tipMode === "face" ? HJ_CRASH.faceMs : HJ_CRASH.sideMs));
-      /* face = ease-OUT (fast off the impact, decelerating in), with a
-         slight overshoot past 90 that settles back, so it arrives with a
-         thump instead of gliding to a halt.  side = smoothstep. */
-      const t = this.tipT;
-      const e = this.tipMode === "face"
-        ? (1 - Math.pow(1 - t, 3)) * (1 + (HJ_CRASH.faceKick - 1) * Math.sin(Math.PI * t))
-        : t*t*(3 - 2*t);
-      if(this.tipMode === "face"){
-        /* FACE PLANT — continue over the nose from wherever he already
-           is, and hold it. Three things have to be continuous at tipT=0
-           or the crash reads as a reset followed by a fall:
-             pitch  eases FROM the touchdown pitch, not from 0
-             roll   eases OUT from whatever lean he had, not snapped to 0
-             pivot  ramps 0 -> nose, because switching it while pitch is
-                    non-zero teleports the whole body sideways */
-        const target = -HJ_RUN.pitchSign * (Math.PI*0.5);
-        this.pitch = this.tipPitch0 + (target - this.tipPitch0) * e;
-        this.roll  = this.tipRoll0 * (1 - e);
-        this.pitchPivot = BODY.hx * e;
-      } else {
-        const target = this.tipDir * (Math.PI*0.5);
-        this.roll = this.tipRoll0 + (target - this.tipRoll0) * e;
-      }
-      /* ---- HJ_SKID ----
-         The tipped branch sits OUTSIDE the driving block, so entering it
-         used to stop botS dead: all forward motion vanished the instant
-         the tilt threshold was crossed, which read as the robot hitting
-         an invisible wall rather than crashing. A top-heavy robot going
-         over at speed should keep sliding and scrub it off on friction.
-         Friction rises as he goes over — up on the wheels still rolls,
-         flat on his side digs in — so the decay is scaled by tipT. */
-      if(this.skidV === undefined) this.skidV = this.skidSpeed || 0;
-      const grip = HJ_SKID.base + HJ_SKID.bite * this.tipT;
-      this.skidV = Math.max(0, this.skidV - grip * this.skidV * dt);
-      if(this.skidV < 0.0008) this.skidV = 0;
-      this.botS += (this.skidV / T2) * dt;
-      this.hydrantContact(time);          // plough through the row
-      /* wheels spin down with the slide instead of stopping instantly */
-      this.wheelPhase += this.skidV * dt * 0.28;
-      /* LET THE SLIDE FINISH. The reset clock used to start the moment
-         the rollover animation ended, which cut a long skid off
-         mid-slide — he would still be moving when the run restarted.
-         Now it waits until he has actually come to rest (or a hard
-         ceiling, so a stuck slide cannot hang the bench). */
-      const stillSliding = (this.skidV || 0) > 0.004 && (this.tipHoldT || 0) < 2600;
-      if(stillSliding) this.tipHoldT = (this.tipHoldT || 0) + dt;
-      if(this.tipT >= 1 && !stillSliding){
-        this.tipResetT = (this.tipResetT || 0) + dt;
-        if(this.tipResetT > 1200){
-          const wasUnlocked = this.unlocked;
-          this.advance = false;          // a tip never advances
-          this.resetRun(false);
-          this.unlocked = wasUnlocked;
-        }
-      }
-    }
-
-    /* camera: forward lead in run space. camZ stays 0 on purpose —
-       if the camera followed the jump, the jump would read as nothing. */
-    const bwp = this.worldOf(this.botS, this.botRow);
-    const lead = this.AC(60, 0);
-    /* ---- THE CAMERA LETS GO WHEN HE CRASHES ----
-       It used to track botS exactly, so a 113-unit skid moved him ZERO
-       pixels on screen: he was pinned in frame while the world scrolled
-       under him, which on a repeating sidewalk grid reads as not sliding
-       at all. That is why the skid was invisible even though the physics
-       were running. On a crash the camera holds where it is and lets him
-       slide ACROSS the frame, which is both readable and the way a stunt
-       camera would cover it. It eases back only once he has settled. */
-    if(this.state === "tipped"){
-      if(this.camHold === undefined){ this.camHold = {x:this.camX, y:this.camY}; }
-      const drift = Math.min(1, 0.0012*dt);          // a touch of drift, not a lock
-      this.camX += (bwp.x + lead.x - this.camX) * drift;
-      this.camY += (bwp.y + lead.y - this.camY) * drift;
-    } else {
-      this.camHold = undefined;
-      this.camX = bwp.x + lead.x;
-      this.camY = bwp.y + lead.y;
-    }
-    this.camZ = 0;
-
-    this.drawTiles(this.cx, this.cy);
-
-    const gz = this.groundZAt(this.botS, this.botRow);
-    const botZ = this.air ? this.air.z : gz;
-    const airH = Math.max(0, botZ - gz);
-
-    /* shadow first: it belongs to the ground layer, under everything */
-    this.drawGroundShadow(bwp.x, bwp.y, gz, airH, this.cx, this.cy);
-
-    /* ---- DEPTH (spec §2, option 1) ----
-       Screen depth in this projection is x+y. Airborne, the robot must
-       draw in FRONT of anything it is passing over, so height is added
-       as a bias. Bias 0 reproduces the ground-plane-only sort — set it
-       to 0 to see the artifact this is fixing. THIS IS THE PASS/FAIL
-       GATE: verify at f0/f1/f2/f3 before porting. */
-    const items = [
-      { d: -1e9, fn: () => this.drawWedgeSlab(HJ_RAMP, this.cx, this.cy, this.seed) },
-      { d: -1e9 + 1, fn: () => this.drawWedgeSlab(HJ_LAND, this.cx, this.cy, this.seed + 97) },
-      { d: bwp.x + bwp.y + airH*HJ_JUMP.bias, fn: () => this.drawRobotReal(bwp.x, bwp.y, botZ) }
-    ];
-    /* every hydrant joins the same sort, so the airborne robot is
-       correctly in front of the ones it has passed and behind the ones
-       still ahead — the four-heading gate now has N props to satisfy,
-       not one */
-    for(const hs of HJ_HYDS){
-      const hp = this.worldOf(hs, HJ_ROW.row);
-      const bi = HJ_HYDS.indexOf(hs);
-      const bt = (this.burst && this.burst[bi] !== undefined) ? this.burst[bi] : null;
-      items.push({ d: hp.x + hp.y,
-                   fn: () => this.drawHydrantGame(hp.x, hp.y, this.cx, this.cy, bt, this.nowT) });
-    }
-    items.sort((a,b) => a.d - b.d);
-    for(const it of items) it.fn();
-
-    if(this.driving || this.state === "tipped") this.updateVals();
-  }
-}
 
 
 const game = new Phaser.Game({
   type: Phaser.AUTO, parent: "game",
   scale: { mode: Phaser.Scale.RESIZE, width: "100%", height: "100%" },
-  scene: [WorldScene, ChallengeScene]
+  scene: [WorldScene]
 });
 const scn = () => game.scene.getScene("world");
+
 /* ---------- HYDRANT CHALLENGE: entry, exit, input ---------- */
 function hjStart(){
+  /* NOT a scene switch any more — the challenge runs inside WorldScene so
+     it gets the real Costa Palma world and the full flagged robot. */
   document.getElementById("hjUI").classList.remove("hidden");
   hide("titleOverlay");
-  game.scene.stop("world");
-  game.scene.start("challenge");
+  scn().loadChallenge();
 }
 function hjQuit(){
   document.getElementById("hjUI").classList.add("hidden");
-  game.scene.stop("challenge");
-  game.scene.start("world");
+  const s = scn();
+  s.mode = "delivery";
+  s.loadRoute(clientTodayUTC());
   show("titleOverlay");
   tpRender();
 }
-const hjScn = () => game.scene.getScene("challenge");
+const hjScn = () => scn();
+
+/* the meter, driven from WorldScene state. The pass band is solved
+   numerically for the CURRENT level against the real course spacing —
+   same approach as the lab, but the geometry now comes from the route. */
+function hjSolveBand(s, ch){
+  if(!ch) return {lo:null, hi:null};
+  const dt = HJ_STEP, lip = ch.kickerS + TILE;
+  let lo = null, hi = null;
+  const n = Math.min(s.hjLevel, ch.hydS.length);
+  for(let c = 0; c <= HJ_CH.chargeMax + 0.0005; c += 0.004){
+    const speed = HJ_CH.sp0 + c*(HJ_CH.sp1 - HJ_CH.sp0);
+    const pow = HJ_CH.pw0 + Math.min(c,1)*(HJ_CH.pw1 - HJ_CH.pw0);
+    let vz = speed*pow, z = 0, pos = lip, idx = 0, ok = true, t = 0;
+    while(true){
+      const p0 = pos;
+      vz -= HJ_JUMP.grav*dt; z += vz*dt; pos += speed*dt; t += dt;
+      while(idx < n && p0 < ch.hydS[idx] && pos >= ch.hydS[idx]){
+        if(z < HYD.height + HJ_JUMP.clear) ok = false;
+        idx++;
+      }
+      if(vz < 0 && z <= 0) break;
+      if(t > 20000){ ok = false; break; }
+    }
+    if(idx < n) ok = false;
+    if(ok && Math.abs(pos - ch.catchS) < TILE){ if(lo === null) lo = c; hi = c; }
+  }
+  return {lo, hi};
+}
+function hjUpdateMeter(s){
+  const ch = s.route && s.route.challenge; if(!ch) return;
+  if(s._hjBandLvl !== s.hjLevel){ s._hjBand = hjSolveBand(s, ch); s._hjBandLvl = s.hjLevel; }
+  const b = s._hjBand || {lo:null,hi:null};
+  const c = s.hjLocked !== null && s.hjLocked !== undefined ? s.hjLocked : s.hjChargeSm;
+  const X = v => (Math.max(0, Math.min(HJ_CH.chargeMax, v)) / HJ_CH.chargeMax * 100).toFixed(1) + "%";
+  const fill = document.getElementById("hjFill"); if(!fill) return;
+  const band = document.getElementById("hjBand"), nd = document.getElementById("hjNeedle"),
+        lbl = document.getElementById("hjLbl"), ttl = document.getElementById("hjTitle");
+  const inBand = b.lo !== null && c >= b.lo && c <= b.hi;
+  fill.style.width = X(c); fill.classList.toggle("in", inBand);
+  if(b.lo === null){ band.style.left="0%"; band.style.width="0%"; }
+  else { band.style.left = X(b.lo); band.style.width = ((b.hi-b.lo)/HJ_CH.chargeMax*100).toFixed(1)+"%"; }
+  nd.style.left = X(c);
+  lbl.textContent = s.hjAir ? "LOCKED AT " + (c*100).toFixed(0) + "% — NO AIR CONTROL"
+                  : inBand  ? "IN THE BAND — STOP TAPPING"
+                            : "TAP TO CHARGE — STOP INSIDE THE BAND";
+  lbl.classList.toggle("locked", inBand || !!s.hjAir);
+  ttl.textContent = "JUMP " + s.hjLevel + " OF " + HJ_CH.maxLevel +
+                    " · BEST " + s.hjBest + (s.hjResult ? " · " + s.hjResult : "");
+  const tb = document.getElementById("hjTap"); if(tb) tb.classList.toggle("dead", !!s.hjAir);
+}
 (function hjBindInput(){
   const btn = document.getElementById("hjTap");
   if(!btn) return;
@@ -11991,7 +10935,7 @@ const hjScn = () => game.scene.getScene("challenge");
      makes a single touch count TWICE (both fire), which is exactly the bug
      that made touch double-strength in the lab. */
   const tap = e => { e.preventDefault(); const s = hjScn();
-                     if(s){ s.tap(performance.now(), "p"+(e.pointerId||0)); s.updateVals(); } };
+                     if(s && s.mode === "challenge") s.hjTap(performance.now(), "p"+(e.pointerId||0)); };
   btn.addEventListener("pointerdown", tap);
   /* A/S/D so fingers can be ROLLED — one key caps you at what a single
      finger can do, and level 10 needs ~11 taps/sec. Each key carries its
@@ -11999,12 +10943,13 @@ const hjScn = () => game.scene.getScene("challenge");
   const KEYS = ["KeyA","KeyS","KeyD"];
   window.addEventListener("keydown", e => {
     if(!KEYS.includes(e.code) || e.repeat) return;
-    const s = hjScn(); if(!s || !s.scene.isActive()) return;
-    e.preventDefault(); s.tap(performance.now(), e.code); s.updateVals();
+    const s = hjScn(); if(!s || s.mode !== "challenge") return;
+    e.preventDefault(); s.hjTap(performance.now(), e.code);
   });
   const q = document.getElementById("hjQuit");
   if(q) q.addEventListener("click", hjQuit);
 })();
+
 
 /* one-liners under DELIVERED — the fail screen's deadpan voice, but
    winning. Single strings, not pairs: the headline is always DELIVERED. */
@@ -12412,10 +11357,10 @@ const TP_TROPHIES = [
 const TP_SIDE_MISSIONS = [
   { id:"jump-hydrant", name:"Jump the Fire Hydrant",
     desc:"Launch off a ramp and clear a fire hydrant without touching it.",
-    status:"playable", trophyId:"hydrant-hop", icon:"hydrant",
+    status:"playable", trophyId:"hydrant-hop", icon:"hydrant", place:"1200 Palmline Ave, The Flats",
     note:"Needs the Phase 2 jump/ramp system — not shipped yet." },
   { id:"jump-hydrant-master", name:"Hydrant Challenge - All Ten", desc:"Clear all ten jumps, one after another.",
-    status:"playable", trophyId:"hydrant-master", icon:"hydrant",
+    status:"playable", trophyId:"hydrant-master", icon:"hydrant", place:"1200 Palmline Ave, The Flats",
     note:"Same challenge, run to the end." },
   { id:"cone-slalom", name:"Cone Slalom Challenge",
     desc:"Weave through a full slalom course of cones without knocking one down.",
@@ -12593,8 +11538,12 @@ function tpRenderMissions(){
   const list = document.getElementById("tpMissionsList");
   const q = (document.getElementById("tpMissionsSearch").value || "").trim().toLowerCase();
   list.innerHTML = "";
+  /* the search box says "Search the map", so it searches the PLACE as
+     well as the mission text — "palmline", "flats" or "1200" all find
+     the hydrant course. */
   const filtered = TP_SIDE_MISSIONS.filter(m =>
     !q || m.name.toLowerCase().includes(q) || (m.desc && m.desc.toLowerCase().includes(q))
+       || (m.place && m.place.toLowerCase().includes(q))
   );
   if(filtered.length === 0){
     list.innerHTML = `<div id="tpMissionsEmpty">No missions found for "${q}".</div>`;
@@ -12732,6 +11681,7 @@ function tpOpenDetail(kind, id){
     document.getElementById("tpDetailName").textContent = m.name;
     document.getElementById("tpDetailDesc").textContent = m.desc;
     document.getElementById("tpDetailDesc").style.display = m.desc ? "" : "none";
+    if(m.place) document.getElementById("tpDetailDesc").textContent = m.desc + "  \u00b7  " + m.place;
 
     if(comingSoon){
       btn.className = "tpLockedBtn"; btn.textContent = "Coming soon"; btn.disabled = true;
