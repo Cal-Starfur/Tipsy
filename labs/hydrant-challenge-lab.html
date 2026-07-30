@@ -135,6 +135,12 @@
       <span class="lbl">BurstV</span>
       <button class="sm" data-p="burstv" data-d="-1">−</button>
       <button class="sm" data-p="burstv" data-d="1">＋</button>
+      <span class="lbl">Clear</span>
+      <button class="sm" data-p="clear" data-d="-1">−</button>
+      <button class="sm" data-p="clear" data-d="1">＋</button>
+      <span class="lbl">FaceMs</span>
+      <button class="sm" data-p="facems" data-d="-1">−</button>
+      <button class="sm" data-p="facems" data-d="1">＋</button>
       <span class="lbl">Skid</span>
       <button class="sm" data-p="skid" data-d="-1">−</button>
       <button class="sm" data-p="skid" data-d="1">＋</button>
@@ -409,7 +415,16 @@ const CH = {
      only the centre stays under the clean threshold. The landing
      window therefore TIGHTENS with level for free, without escalating
      two difficulty axes at once. */
-  absMin: 0.16, absGrad: 0.12,
+  /* OPENED UP. Landing tolerance is what actually gates every level -
+     hydrant clearance stopped binding once the arc flattened, and
+     JUMP.clear now makes NO difference to any band from 16 down to 0.
+     Band width by setting:
+       0.16/0.12  L1 18%  L3 13%  L5 13%  L7 5%  L10 3%   <- was
+       0.12/0.07  L1 19%  L3 19%  L5 20%  L7 9%  L10 7%   <- shipped
+       0.10/0.05  identical - the curve saturates here
+     Roughly doubles the margin at the hard end without softening the
+     early levels. */
+  absMin: 0.12, absGrad: 0.07,
   /* NO chiefAt dial. The reward is earned by beating EVERY jump that is
      POSSIBLE, and which levels are possible is already known — a level
      with no pass band cannot be cleared. lastPossibleLevel() derives it,
@@ -434,6 +449,12 @@ const HYDJ = { row: 0 };
 /* crash skid: how fast forward motion scrubs off while tipping over.
    base = friction while still up on the wheels, bite = extra friction
    as he goes flat and the body digs in. */
+/* crash timing. The face plant is an IMPACT, so it is short and
+   EASE-OUT: it starts at full rate and decelerates into the stop.
+   Smoothstep over 900ms (the sideways roll's curve) starts slow, which
+   read as toppling gently rather than being hit. The sideways roll keeps
+   smoothstep — going over on your side IS a slower topple. */
+const CRASH = { faceMs: 320, sideMs: 900, faceKick: 1.06 };
 const SKID = { base: 0.0002, bite: 0.0010 };   // TUNED ON DEVICE — long slide
 /* Tuned for a readable skid that finishes as the tip animation does:
      base/bite      overshoot slide (v0 0.139)      time
@@ -518,7 +539,7 @@ class HydrantChallengeLab extends Phaser.Scene {
     this.botZ = 2;
     this.result = "";
     this.resultT = 0;
-    this.tipT = 0; this.tipResetT = 0; this.skidV = undefined; this.canSkid = false; this.tipMode = "side";
+    this.tipT = 0; this.tipResetT = 0; this.tipHoldT = 0; this.camHold = undefined; this.skidV = undefined; this.skidSpeed = 0; this.canSkid = false; this.tipMode = "side";
     this.pitchPivot = 0; this.tipPitch0 = 0; this.tipRoll0 = 0; this.tiltImpulse = 0;
     this.burst = {};                 // hydrant index -> ms timestamp of its burst
     this.blockedT = 0;
@@ -580,7 +601,7 @@ class HydrantChallengeLab extends Phaser.Scene {
     const bandTxt = b.lo === null ? "IMPOSSIBLE"
       : (b.lo*100).toFixed(0)+"%-"+(b.hi*100).toFixed(0)+"%";
     document.getElementById("vals").textContent =
-      `f${RUN.f} · lvl ${CH.level} (${HYDS.length} hyd) · land s${LAND.s.toFixed(2)} · band ${bandTxt} · final L${this.lastPossibleLevel()}
+      `f${RUN.f} · lvl ${CH.level} (${HYDS.length} hyd) · land s${LAND.s.toFixed(2)} · band ${bandTxt} · clear ${JUMP.clear} · final L${this.lastPossibleLevel()}
 `+`skid ${SKID.base.toFixed(4)}/${SKID.bite.toFixed(4)} · add ${CH.add.toFixed(2)} · decay ${(CH.decay*1000).toFixed(1)}/s · spd ${CH.sp0.toFixed(3)}-${CH.sp1.toFixed(3)} · pow ${CH.pw0.toFixed(2)}-${CH.pw1.toFixed(2)} · gap ${CH.gap.toFixed(2)}
 `+`charge ${(c*100).toFixed(0)}% · taps ${this.tapCount} · ~${this.tapRate.toFixed(1)}/s · spd ${this.speed.toFixed(3)}
 `+`s ${this.botS.toFixed(2)} · ${air ? "AIR h"+(air.z-2).toFixed(0)+" ("+air.passed+"/"+HYDS.length+")" : "ground"} · tilt ${this.tilt.toFixed(2)} · ${this.state==="tipped"?"TIPPED":"ok"} · ${this.result||"—"} · chief@${FIRE_CHIEF.atLevel} ${this.unlocked?"YES":"no"} · dare@${DAREDEVIL.atLevel} ${this.unlockedDare?"YES":"no"}`;
@@ -1338,6 +1359,43 @@ class HydrantChallengeLab extends Phaser.Scene {
     const dL = this.botS*T2 - LAND.s*T2;
     const onLand = this.botRow === LAND.row && Math.abs(dL) < TILE;
     const over  = dL >= TILE;
+    /* These two MUST be set here, before cleanPredict/faceFail read
+       them. They were assigned ~50 lines further down, so faceFail was
+       testing the PREVIOUS run's tipMode (always "side" after a reset)
+       and the face plant never engaged at all — every short landing
+       fell through to the sideways tip. */
+    /* ---- CRASH POSE ----
+       Coming up SHORT means he lands nose-first on the flat before the
+       ramp: he pitches straight over onto his face and stays there.
+       Every other failure keeps the sideways roll — overshooting carries
+       him past on his side, and cast iron throws him over. */
+    /* POSE is about DIRECTION, not about which failure it was. Anything
+       that is not an overshoot puts him down nose-first — coming up
+       short, botching the landing on the catch ramp, or clipping the
+       last hydrant on the way in. All of those go over the FRONT. Only
+       sailing past the ramp sends him over on his side. */
+    this.tipMode = over ? "side" : "face";
+    /* SKID IF THERE IS A RAMP UNDER HIM. Overshooting is not the only
+       case: landing ON the catch ramp but off-centre still puts him on
+       the down-slope carrying speed, so he slides too — that near-miss
+       is the most common failure of all, and stopping dead on a slope
+       looked wrong. Only a genuine short (touching down on the flat
+       BEFORE the ramp) or cast iron kills the momentum. */
+    /* SKID is decided purely by WHERE HE ENDS UP, which makes the clip
+       case fall out correctly on its own: clip an early hydrant and he
+       lands among them with nothing under him, so he stops; clip the
+       LAST one and he comes down on the catch ramp, so he slides. No
+       need to special-case clipped at all. Combined with the pose above,
+       a botched landing on the ramp now SKIDS ON HIS FACE. */
+    this.canSkid = over || onLand;
+    /* CAPTURE THE SKID SPEED NOW. The tip fires several frames after the
+       landing (the impulse has to bleed tilt past the threshold), and
+       reading speed/canSkid at that later moment was giving skidV = 0 —
+       the slide was frozen even on a ROUGH landing that should carry
+       down the ramp. Landing speed is the physically right value anyway:
+       it is the momentum he arrives with, not whatever the ground branch
+       has recomputed by the time he goes over. */
+    this.skidSpeed = this.canSkid ? Math.max(this.speed, Math.abs(impact)) : 0;
     /* absorb: the landing slab's down-slope takes most of it; flat
        concrete takes all of it; past the slab is worse than flat
        because the far joint catches a wheel. */
@@ -1395,7 +1453,8 @@ class HydrantChallengeLab extends Phaser.Scene {
       /* straight into the pitch-over, carrying the exact pose he landed
          in — no tilt, no roll, nothing to unwind */
       this.state = "tipped";
-      this.tipT = 0; this.tipDir = 1; this.skidV = 0;
+      this.tipT = 0; this.tipDir = 1;
+      this.skidV = this.skidSpeed || 0;      // face-first AND sliding, if there is ramp under him
       this.tipPitch0 = this.pitch;
       this.tipRoll0  = this.roll;
     } else if(!cleanPredict && !this.air.clipped){
@@ -1415,19 +1474,6 @@ class HydrantChallengeLab extends Phaser.Scene {
        Coming up short or clipping a hydrant means he has already hit
        something — cast iron, or the far joint — so he stops and goes
        over on the spot. */
-    /* SKID IF THERE IS A RAMP UNDER HIM. Overshooting is not the only
-       case: landing ON the catch ramp but off-centre still puts him on
-       the down-slope carrying speed, so he slides too — that near-miss
-       is the most common failure of all, and stopping dead on a slope
-       looked wrong. Only a genuine short (touching down on the flat
-       BEFORE the ramp) or cast iron kills the momentum. */
-    this.canSkid = !this.air.clipped && (over || onLand);
-    /* ---- CRASH POSE ----
-       Coming up SHORT means he lands nose-first on the flat before the
-       ramp: he pitches straight over onto his face and stays there.
-       Every other failure keeps the sideways roll — overshooting carries
-       him past on his side, and cast iron throws him over. */
-    this.tipMode = (!onLand && !over && !this.air.clipped) ? "face" : "side";
 
     /* NO SURVIVABLE MIDDLE. A landing is either clean or it is a crash.
        SLOPPY used to be a third outcome that neither cleared the level
@@ -1635,7 +1681,7 @@ class HydrantChallengeLab extends Phaser.Scene {
     if(Math.abs(this.tilt) >= 1){
       this.state = "tipped";
       /* carry the momentum into the crash, but only on an overshoot */
-      this.skidV = this.canSkid ? this.speed : 0;
+      this.skidV = this.skidSpeed || 0;
       this.tipDir = Math.sign(this.tilt);
       this.tipT = 0;
       /* snapshot the pose at the instant of the tip. The rollover used
@@ -1683,8 +1729,14 @@ class HydrantChallengeLab extends Phaser.Scene {
 
     /* tipped-state rollover: the game's formula, auto-reset */
     if(this.state === "tipped"){
-      this.tipT = Math.min(1, this.tipT + dt/900);
-      const e = this.tipT*this.tipT*(3 - 2*this.tipT);   // smoothstep
+      this.tipT = Math.min(1, this.tipT + dt/(this.tipMode === "face" ? CRASH.faceMs : CRASH.sideMs));
+      /* face = ease-OUT (fast off the impact, decelerating in), with a
+         slight overshoot past 90 that settles back, so it arrives with a
+         thump instead of gliding to a halt.  side = smoothstep. */
+      const t = this.tipT;
+      const e = this.tipMode === "face"
+        ? (1 - Math.pow(1 - t, 3)) * (1 + (CRASH.faceKick - 1) * Math.sin(Math.PI * t))
+        : t*t*(3 - 2*t);
       if(this.tipMode === "face"){
         /* FACE PLANT — continue over the nose from wherever he already
            is, and hold it. Three things have to be continuous at tipT=0
@@ -1709,7 +1761,7 @@ class HydrantChallengeLab extends Phaser.Scene {
          over at speed should keep sliding and scrub it off on friction.
          Friction rises as he goes over — up on the wheels still rolls,
          flat on his side digs in — so the decay is scaled by tipT. */
-      if(this.skidV === undefined) this.skidV = this.canSkid ? this.speed : 0;
+      if(this.skidV === undefined) this.skidV = this.skidSpeed || 0;
       const grip = SKID.base + SKID.bite * this.tipT;
       this.skidV = Math.max(0, this.skidV - grip * this.skidV * dt);
       if(this.skidV < 0.0008) this.skidV = 0;
@@ -1717,7 +1769,14 @@ class HydrantChallengeLab extends Phaser.Scene {
       this.hydrantContact(time);          // plough through the row
       /* wheels spin down with the slide instead of stopping instantly */
       this.wheelPhase += this.skidV * dt * 0.28;
-      if(this.tipT >= 1){
+      /* LET THE SLIDE FINISH. The reset clock used to start the moment
+         the rollover animation ended, which cut a long skid off
+         mid-slide — he would still be moving when the run restarted.
+         Now it waits until he has actually come to rest (or a hard
+         ceiling, so a stuck slide cannot hang the bench). */
+      const stillSliding = (this.skidV || 0) > 0.004 && (this.tipHoldT || 0) < 2600;
+      if(stillSliding) this.tipHoldT = (this.tipHoldT || 0) + dt;
+      if(this.tipT >= 1 && !stillSliding){
         this.tipResetT = (this.tipResetT || 0) + dt;
         if(this.tipResetT > 1200){
           const wasUnlocked = this.unlocked;
@@ -1732,8 +1791,24 @@ class HydrantChallengeLab extends Phaser.Scene {
        if the camera followed the jump, the jump would read as nothing. */
     const bwp = this.worldOf(this.botS, this.botRow);
     const lead = this.AC(60, 0);
-    this.camX = bwp.x + lead.x;
-    this.camY = bwp.y + lead.y;
+    /* ---- THE CAMERA LETS GO WHEN HE CRASHES ----
+       It used to track botS exactly, so a 113-unit skid moved him ZERO
+       pixels on screen: he was pinned in frame while the world scrolled
+       under him, which on a repeating sidewalk grid reads as not sliding
+       at all. That is why the skid was invisible even though the physics
+       were running. On a crash the camera holds where it is and lets him
+       slide ACROSS the frame, which is both readable and the way a stunt
+       camera would cover it. It eases back only once he has settled. */
+    if(this.state === "tipped"){
+      if(this.camHold === undefined){ this.camHold = {x:this.camX, y:this.camY}; }
+      const drift = Math.min(1, 0.0012*dt);          // a touch of drift, not a lock
+      this.camX += (bwp.x + lead.x - this.camX) * drift;
+      this.camY += (bwp.y + lead.y - this.camY) * drift;
+    } else {
+      this.camHold = undefined;
+      this.camX = bwp.x + lead.x;
+      this.camY = bwp.y + lead.y;
+    }
     this.camZ = 0;
 
     this.drawTiles(this.cx, this.cy);
@@ -1828,16 +1903,18 @@ document.querySelectorAll("[data-p]").forEach(btn => {
     if(p === "absgrad") CH.absGrad = Phaser.Math.Clamp(+(CH.absGrad + d*0.02).toFixed(2), 0.00, 0.60);
     if(p === "cleandamp") CH.cleanDamp = Phaser.Math.Clamp(+(CH.cleanDamp + d*0.04).toFixed(2), 0, 1);
     if(p === "burstv") CH.burstV = Phaser.Math.Clamp(+(CH.burstV + d*0.005).toFixed(3), 0, 0.120);
+    if(p === "clear")  JUMP.clear = Phaser.Math.Clamp(JUMP.clear + d*2, 0, 30);
+    if(p === "facems") CRASH.faceMs = Phaser.Math.Clamp(CRASH.faceMs + d*40, 120, 1200);
     if(p === "skid"){        // lower = longer slide
       const f = d > 0 ? 0.8 : 1.25;
-      SKID.base = +(Phaser.Math.Clamp(SKID.base*f, 0.0002, 0.0040)).toFixed(5);
-      SKID.bite = +(Phaser.Math.Clamp(SKID.bite*f, 0.0008, 0.0150)).toFixed(5);
+      SKID.base = +(Phaser.Math.Clamp(SKID.base*f, 0.00004, 0.0040)).toFixed(5);
+      SKID.bite = +(Phaser.Math.Clamp(SKID.bite*f, 0.00020, 0.0150)).toFixed(5);
     }
     if(p === "gap")     { CH.gap = Phaser.Math.Clamp(+(CH.gap   + d*0.05 ).toFixed(2), 0.20, 1.20);
                           sc.buildLevel(CH.level); sc.resetRun(false); }
     /* any dial that moves the physics invalidates the pass band */
     sc._lpl = null;   // dials can change WHICH levels are possible
-    if(["add","decay","sp0","sp1","pw0","pw1","absmin","absgrad"].includes(p)) sc.band = sc.solveBand();
+    if(["add","decay","sp0","sp1","pw0","pw1","absmin","absgrad","clear"].includes(p)) sc.band = sc.solveBand();
     sc.updateVals();
   });
 });
@@ -1893,7 +1970,7 @@ document.getElementById("autoBtn").addEventListener("click", e => {
    are script-scoped consts/lets so they are not reachable from
    page.evaluate without this. Read-only, test-only. */
 window.__lab = {
-  scn, CH, JUMP, KICK, LAND, HYD, HYDJ, RUN, SIM_STEP, SKID, FIRE_CHIEF, ENTITLEMENTS,
+  scn, CH, JUMP, KICK, LAND, HYD, HYDJ, RUN, SIM_STEP, SKID, CRASH, BODY, FIRE_CHIEF, DAREDEVIL, ENTITLEMENTS,
   get hyds(){ return HYDS.slice(); },
   bands(maxN){
     const sc = scn(), keep = CH.level, out = [];
