@@ -12308,8 +12308,15 @@ document.getElementById("avatarIcon").addEventListener("click", tpOpenProfile);
     if(s && s.mode === "challenge") hjQuit();
     tpOpenProfile();
   };
-  el.addEventListener("pointerdown", go);
-  el.addEventListener("click", go);
+  /* Three bindings, guarded. During play Phaser's input manager is live
+     and captures pointer/touch events at the window; depending on the
+     engine it can consume the press before a button ever sees it, which
+     is why this worked on the map but not once the daily was running.
+     touchstart is the one iOS always delivers, and capture:true runs us
+     BEFORE anything listening at the window. */
+  el.addEventListener("touchstart", go, {passive:false, capture:true});
+  el.addEventListener("pointerdown", go, {capture:true});
+  el.addEventListener("click", go, {capture:true});
 })();
 document.getElementById("failAvatarBtn").addEventListener("click", () => {
   hide("failOverlay");
