@@ -478,7 +478,7 @@
   </div>
 </div>
 
-<div class="iconBtn" id="globalAvatar"><svg viewBox="0 0 40 46" width="23" height="27">
+<button class="iconBtn" id="globalAvatar" aria-label="Profile"><svg viewBox="0 0 40 46" width="23" height="27">
       <line x1="13" y1="5" x2="13" y2="11" stroke="#2e3138" stroke-width="1.5"/>
       <circle cx="13" cy="5" r="2" fill="#ff5722"/>
       <rect x="9" y="11" width="22" height="7" fill="#f7f8fa" stroke="#30343d" stroke-width="1.2"/>
@@ -489,7 +489,7 @@
       <rect x="5" y="32" width="30" height="4" fill="#c2452e"/>
       <rect x="5" y="34" width="30" height="3" fill="#ffcc33" stroke="#c9a020" stroke-width="0.5"/>
       <rect x="5" y="36" width="30" height="3" fill="#494e58"/>
-    </svg></div>
+    </svg></button>
 
 <div id="failOverlay" class="overlay hidden">
   <button class="iconBtn menuBtn" id="failMenuBtn"></button>
@@ -12855,12 +12855,26 @@ function tpInitStaticIcons(){
 document.getElementById("avatarIcon").addEventListener("click", tpOpenProfile);
 /* the always-on robot: wherever you are, it takes you to the profile.
    From the challenge it banks progress and leaves first. */
-document.getElementById("globalAvatar").addEventListener("click", () => {
-  const s = scn();
-  hide("failOverlay");
-  if(s && s.mode === "challenge") hjQuit();
-  tpOpenProfile();
-});
+/* POINTERDOWN, not click. The TAP button uses pointerdown and works on
+   device; this used "click" on a <div>, which is precisely the case an
+   iOS webview treats as non-interactive and may never fire. Bound on
+   both, guarded so one press cannot run it twice. */
+(function bindGlobalAvatar(){
+  const el = document.getElementById("globalAvatar");
+  let last = 0;
+  const go = (e) => {
+    if(e){ e.preventDefault(); e.stopPropagation(); }
+    const now = performance.now();
+    if(now - last < 700) return;          // pointerdown + click both fired
+    last = now;
+    const s = scn();
+    hide("failOverlay");
+    if(s && s.mode === "challenge") hjQuit();
+    tpOpenProfile();
+  };
+  el.addEventListener("pointerdown", go);
+  el.addEventListener("click", go);
+})();
 document.getElementById("failAvatarBtn").addEventListener("click", () => {
   hide("failOverlay");
   if(scn().mode === "challenge") hjQuit();     // banks progress on the way out
