@@ -546,10 +546,15 @@ class HydrantChallengeLab extends Phaser.Scene {
   tap(now){
     if(!this.driving || this.state === "tipped") return;
     if(this.lockedCharge !== null) return;      // airborne: no air control
+    /* DEDUPE. 20ms is ~50 taps/sec, far past anything a human can do, so
+       this never eats a real tap — but it means a duplicate event from
+       any source can no longer silently double the charge, which is the
+       bug that made touch twice as strong as the keyboard. */
+    const tNow = now === undefined ? performance.now() : now;
+    if(this.lastTap && tNow - this.lastTap < 20) return;
     this.charge = Math.min(CH.chargeMax, this.charge + CH.add);
-    const t = now === undefined ? performance.now() : now;
-    if(this.lastTap) this.tapRate = 1000/Math.max(60, t - this.lastTap);
-    this.lastTap = t;
+    if(this.lastTap) this.tapRate = 1000/Math.max(60, tNow - this.lastTap);
+    this.lastTap = tNow;
     this.tapCount++;
   }
 
@@ -1484,11 +1489,19 @@ document.querySelectorAll("[data-p]").forEach(btn => {
 const tapBtn = document.getElementById("tapBtn");
 tapBtn.style.touchAction = "none";
 const doTap = e => { e.preventDefault(); scn().tap(performance.now()); scn().updateVals(); };
+/* POINTERDOWN ONLY. This previously also listened for touchstart, and on
+   a touchscreen BOTH fire for a single touch — so every touch tap added
+   charge TWICE while the space bar added it once. Touch was effectively
+   running at add 0.11 against the keyboard's 0.055, which is why the two
+   felt like different strengths (and made the whole thing easier on
+   device than any measurement showed). Pointer events cover mouse, touch
+   and pen, and iOS Safari has supported them since iOS 13, so the
+   touchstart fallback bought nothing and cost double-counting. */
 tapBtn.addEventListener("pointerdown", doTap);
-tapBtn.addEventListener("touchstart", doTap, {passive:false});
-/* space bar for desktop testing */
+/* space bar for desktop testing. e.repeat guards auto-repeat, which would
+   otherwise turn a held key into a machine gun. */
 window.addEventListener("keydown", e => {
-  if(e.code === "Space"){ e.preventDefault(); scn().tap(performance.now()); scn().updateVals(); }
+  if(e.code === "Space" && !e.repeat){ e.preventDefault(); scn().tap(performance.now()); scn().updateVals(); }
 });
 
 document.getElementById("dialsBtn").addEventListener("click", e => {
