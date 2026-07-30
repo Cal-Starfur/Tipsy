@@ -37,10 +37,14 @@
   #failOverlay{background:rgba(18,20,26,0);}
   #failOverlay h2,#failOverlay p{text-shadow:0 2px 3px #b5540e;transform:translateY(-135px);}
   #failOverlay p{color:#fff;}
-  #failOverlay .btn{position:absolute;left:50%;bottom:59px;transform:translateX(-50%);
-    flex:none;width:88px;height:88px;border-radius:50%;padding:0;
-    display:flex;align-items:center;justify-content:center;}
-  #failOverlay .btn:active{transform:translateX(-50%) translateY(3px);}
+  /* matched to the challenge's TAP button: same size, radius, shadow and
+     press travel, so Retry sits exactly where TAP was and reads as the
+     same control */
+  #failOverlay .btn{position:absolute;left:50%;bottom:56px;transform:translateX(-50%);
+    flex:none;width:88px;height:88px;border-radius:50%;padding:0;margin-top:0;
+    display:flex;align-items:center;justify-content:center;
+    font-size:19px;font-weight:700;letter-spacing:1px;box-shadow:0 4px 0 #b5540e;}
+  #failOverlay .btn:active{transform:translateX(-50%) translateY(3px);box-shadow:0 1px 0 #b5540e;}
   #winOverlay{background:rgba(18,20,26,0);}
   #winOverlay h2,#winOverlay p{text-shadow:0 2px 3px #b5540e;transform:translateY(-165px);}
   #winOverlay p{color:#fff;}
@@ -143,10 +147,16 @@
 
   /* ---------- win/fail: a way back to the route picker. Placed at the
      top, well clear of the bottom card/button geometry. ---------- */
-  .menuBtn{position:absolute;top:calc(16px + env(safe-area-inset-top));left:16px;z-index:2;
-    flex:none;width:auto;background:rgba(255,122,26,.14);color:#fff;border:none;border-radius:20px;
-    padding:7px 14px;font-size:12px;font-weight:800;letter-spacing:0.4px;text-transform:uppercase;}
-  .menuBtn:active{transform:scale(0.94);background:rgba(255,122,26,.24);}
+  /* the fail screen's button is now the same magnifying glass the map
+     uses, in the same place and with the same job: open Side Missions.
+     .iconBtn supplies the circle; this only positions it. */
+  .menuBtn{position:absolute;top:calc(12px + env(safe-area-inset-top));left:14px;z-index:2;
+    flex:none;padding:0;border:none;}
+  .menuBtn:active{transform:scale(0.94);}
+  /* the same pair the map screen carries: magnifier left, robot right */
+  .failAvatar{position:absolute;top:calc(12px + env(safe-area-inset-top));right:14px;
+    z-index:2;background:#ff7a1a;cursor:pointer;}
+  .failAvatar:active{transform:scale(0.94);}
   /* in-game GPS readout — DOM, not canvas text: the Phaser framebuffer
      renders at CSS resolution (Scale.RESIZE, no DPR handling; K is a
      fixed constant so retina-scaling the buffer would rescale the whole
@@ -278,16 +288,17 @@
   #tpToast.show{opacity:1;transform:translateX(-50%) translateY(0);}
 
   /* ---------- HYDRANT CHALLENGE overlay ---------- */
+  .hjHidden{display:none !important;}
   #hjUI{position:absolute;left:0;right:0;bottom:0;top:0;pointer-events:none;z-index:6;}
   #hjUI.hidden{display:none;}
-  #hjTitle{position:absolute;left:0;right:0;top:10px;text-align:center;font-size:13px;
+  #hjTitle{display:none;position:absolute;left:0;right:0;top:10px;text-align:center;font-size:13px;
     font-weight:700;letter-spacing:2px;color:#ffd15c;text-shadow:0 1px 3px rgba(0,0,0,.8);}
   #hjUnlock{position:absolute;left:0;right:0;top:38%;text-align:center;font-size:20px;
     font-weight:800;letter-spacing:2px;color:#ffd15c;text-shadow:0 2px 6px rgba(0,0,0,.9);
     opacity:0;transform:scale(.8);transition:opacity .25s,transform .25s;}
   #hjUnlock small{display:block;font-size:10px;letter-spacing:1.5px;color:#fff;margin-top:6px;}
   #hjUnlock.show{opacity:1;transform:scale(1);}
-  #hjMeterWrap{position:absolute;left:12px;right:12px;bottom:96px;}
+  #hjMeterWrap{position:absolute;left:12px;right:12px;bottom:158px;}
   #hjMeter{position:relative;height:20px;border-radius:10px;background:#0f1116;
     border:1px solid #363b46;overflow:hidden;}
   #hjBand{position:absolute;top:0;bottom:0;background:rgba(96,222,120,.28);
@@ -298,14 +309,34 @@
   #hjLbl{font-size:9px;letter-spacing:1.4px;color:#8f95a1;text-transform:uppercase;
     padding:4px 0 0;text-align:center;}
   #hjLbl.locked{color:#4fd167;}
-  #hjTap{position:absolute;left:12px;right:12px;bottom:26px;padding:15px 0;font-size:17px;
-    font-weight:800;letter-spacing:3px;background:#ff7a1a;border:none;color:#fff;
-    border-radius:14px;box-shadow:0 4px 0 #a84a08;pointer-events:auto;touch-action:none;}
-  #hjTap:active{transform:translateY(3px);box-shadow:0 1px 0 #a84a08;}
+  /* one word, circular — same shape language as GO and Retry */
+  /* IDENTICAL to the GO button: 88px, 56px off the bottom, 19px text and
+     the same #b5540e shadow. TAP, RETRY and GO are one control in three
+     places, so they must not drift apart. */
+  #hjTap{position:absolute;left:50%;bottom:56px;transform:translateX(-50%);
+    width:88px;height:88px;border-radius:50%;padding:0;
+    display:flex;align-items:center;justify-content:center;
+    font-size:19px;font-weight:700;letter-spacing:1px;
+    background:#ff7a1a;border:none;color:#fff;
+    box-shadow:0 4px 0 #b5540e;pointer-events:auto;touch-action:none;}
+  #hjTap:active{transform:translateX(-50%) translateY(3px);box-shadow:0 1px 0 #b5540e;}
+  /* the running commentary under the meter is gone — the band itself
+     already says everything it was saying */
+  #hjLbl{display:none;}
   #hjTap.dead{background:#3a3f4a;box-shadow:0 4px 0 #23262d;color:#6d7380;}
-  #hjQuit{position:absolute;right:12px;top:8px;padding:6px 12px;font-size:10px;
-    letter-spacing:1.5px;background:#2a2e38;border:1px solid #454b58;color:#c8ccd4;
-    border-radius:8px;pointer-events:auto;}
+  /* the same orange robot button the map screen uses, in the same place —
+     one control for "back to the menu" wherever you are */
+  #hjQuit{right:14px;background:#ff7a1a;pointer-events:auto;cursor:pointer;}
+  /* ONE robot button, always on screen. It used to exist three times —
+     on the map, on the fail overlay and in the challenge — each appearing
+     and disappearing with its own layer, so it kept vanishing exactly
+     when you wanted it. This one lives outside every overlay and is
+     never hidden. */
+  #globalAvatar{position:fixed;top:calc(12px + env(safe-area-inset-top));right:14px;
+    z-index:60;background:#ff7a1a;cursor:pointer;}
+  #globalAvatar:active{transform:scale(0.94);}
+  /* the per-screen copies are retired in favour of it */
+  #avatarIcon,#failAvatarBtn{display:none !important;}
 </style>
 </head>
 <body>
@@ -326,8 +357,19 @@
       <div id="hjMeter"><div id="hjBand"></div><div id="hjFill"></div><div id="hjNeedle"></div></div>
       <div id="hjLbl">TAP TO CHARGE</div>
     </div>
-    <button id="hjTap">TAP  TAP  TAP</button>
-    <button id="hjQuit">EXIT</button>
+    <button id="hjTap">TAP</button>
+    <div class="iconBtn" id="hjQuit"><svg viewBox="0 0 40 46" width="23" height="27">
+          <line x1="13" y1="5" x2="13" y2="11" stroke="#2e3138" stroke-width="1.5"/>
+          <circle cx="13" cy="5" r="2" fill="#ff5722"/>
+          <rect x="9" y="11" width="22" height="7" fill="#f7f8fa" stroke="#30343d" stroke-width="1.2"/>
+          <rect x="5" y="18" width="30" height="21" fill="#f7f8fa" stroke="#30343d" stroke-width="1.2"/>
+          <rect x="9" y="22" width="22" height="8" fill="#22242b"/>
+          <circle cx="16" cy="26" r="1.9" fill="#7fe3ff"/>
+          <circle cx="24" cy="26" r="1.9" fill="#7fe3ff"/>
+          <rect x="5" y="32" width="30" height="4" fill="#c2452e"/>
+          <rect x="5" y="34" width="30" height="3" fill="#ffcc33" stroke="#c9a020" stroke-width="0.5"/>
+          <rect x="5" y="36" width="30" height="3" fill="#494e58"/>
+        </svg></div>
   </div>
   <div id="panelToggle">︿</div>
 </div>
@@ -425,8 +467,33 @@
   </div>
 </div>
 
+<div class="iconBtn" id="globalAvatar"><svg viewBox="0 0 40 46" width="23" height="27">
+      <line x1="13" y1="5" x2="13" y2="11" stroke="#2e3138" stroke-width="1.5"/>
+      <circle cx="13" cy="5" r="2" fill="#ff5722"/>
+      <rect x="9" y="11" width="22" height="7" fill="#f7f8fa" stroke="#30343d" stroke-width="1.2"/>
+      <rect x="5" y="18" width="30" height="21" fill="#f7f8fa" stroke="#30343d" stroke-width="1.2"/>
+      <rect x="9" y="22" width="22" height="8" fill="#22242b"/>
+      <circle cx="16" cy="26" r="1.9" fill="#7fe3ff"/>
+      <circle cx="24" cy="26" r="1.9" fill="#7fe3ff"/>
+      <rect x="5" y="32" width="30" height="4" fill="#c2452e"/>
+      <rect x="5" y="34" width="30" height="3" fill="#ffcc33" stroke="#c9a020" stroke-width="0.5"/>
+      <rect x="5" y="36" width="30" height="3" fill="#494e58"/>
+    </svg></div>
+
 <div id="failOverlay" class="overlay hidden">
-  <button class="menuBtn hidden" id="failMenuBtn">↩ Menu</button>
+  <button class="iconBtn menuBtn" id="failMenuBtn"></button>
+  <div class="iconBtn failAvatar" id="failAvatarBtn"><svg viewBox="0 0 40 46" width="23" height="27">
+      <line x1="13" y1="5" x2="13" y2="11" stroke="#2e3138" stroke-width="1.5"/>
+      <circle cx="13" cy="5" r="2" fill="#ff5722"/>
+      <rect x="9" y="11" width="22" height="7" fill="#f7f8fa" stroke="#30343d" stroke-width="1.2"/>
+      <rect x="5" y="18" width="30" height="21" fill="#f7f8fa" stroke="#30343d" stroke-width="1.2"/>
+      <rect x="9" y="22" width="22" height="8" fill="#22242b"/>
+      <circle cx="16" cy="26" r="1.9" fill="#7fe3ff"/>
+      <circle cx="24" cy="26" r="1.9" fill="#7fe3ff"/>
+      <rect x="5" y="32" width="30" height="4" fill="#c2452e"/>
+      <rect x="5" y="34" width="30" height="3" fill="#ffcc33" stroke="#c9a020" stroke-width="0.5"/>
+      <rect x="5" y="36" width="30" height="3" fill="#494e58"/>
+    </svg></div>
   <h2 id="failMsg">The pavement won.</h2>
   <p id="failSub">Delivery status: horizontal.</p>
   <button class="btn" id="retryBtn">Retry</button>
