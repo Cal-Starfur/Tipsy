@@ -228,12 +228,6 @@ function pathAt(pts, tms, phase, speed, pause, loop){
   return { x:L.x + L.dx*L.L, y:L.y + L.dy*L.L, ux:L.dx*k, uy:L.dy*k, walking };
 }
 
-/* Full road closure. Both lanes stop and queue behind the cruiser.
-   Traffic position is closed-form (s = sBase + t*speed*dir) so there is no
-   per-car velocity to zero. Each car carries a time LAG and is evaluated at
-   (t - lag): advancing lag at exactly the rate t advances holds it still. */
-const STOP = { line: 300, gap: 260 };
-
 /* ROADBLOCK CRUISER — on the traffic walk, in a real lane.
    Traffic does not run on the robot's route; each car carries its own walk and
    sits at +/-CAR_LANE on it. Placing this from the sidewalk route put it on the
@@ -527,48 +521,79 @@ function alongOf(e, st){
   return (st.x - e.ox)*e.dv.x + (st.y - e.oy)*e.dv.y;
 }
 
-/* Stop and queue. Runs every frame for every car on the closed walk. */
+/* ============================================================================
+   ROAD CLOSURE — stop and queue
+
+   TWO EARLIER MISTAKES, both worth recording because they made the feature look
+   like it worked when it did not:
+
+   1. WRONG SET OF CARS. It filtered by walk identity — cars whose .walk matched
+      the cruiser's. But there are 36 cars on 12 different walks, several of
+      which run down the SAME physical street. Only 3 cars were ever considered;
+      the other 33 drove straight through. Closure is a property of a place, not
+      of a walk, so it is now decided in world space: is the cruiser ahead of
+      this car, on this car's road, within stopping distance.
+
+   2. THE HOLD WAS INVISIBLE. Cars were held by a private __lag and their
+      positions recomputed at (t - lag) for my own checks. But the game renders
+      and collides via trafficWorldAt(tr, t) with the REAL t, so it never saw
+      the lag — the cars on screen never slowed at all, and my verification was
+      measuring my own arithmetic rather than the world. A held car now has its
+      sBase wound back by exactly the distance it would have travelled, so
+      trafficWorldAt returns the held position for the renderer AND the
+      collision test, which is the only way art and hitbox stay together.
+   ============================================================================ */
+const STOP = {
+  line: 300,    // how far back from the cruiser the first car halts
+  gap:  260,    // queue spacing (a car is 225 long)
+  lane: 300     // lateral tolerance: covers BOTH lanes (road half-width is 368)
+                // but nowhere near the next street over (blocks are ~3128)
+};
+
 function updateStop(sc, t){
   const site = sc.__crime, rb = site && site.roadblock;
   if(!rb) return;
-  const dt = Math.max(0, t - (sc.__lastT === undefined ? t : sc.__lastT));
-  sc.__lastT = t;
+  const dt = Math.max(0, Math.min(200, t - (sc.__stopT === undefined ? t : sc.__stopT)));
+  sc.__stopT = t;
+  if(dt <= 0) return;
 
-  const total = rb.walk.totalLen;
-  const posOf = tr => {
-    const te = t - tr.__lag;
-    return ((tr.sBase + te*tr.speed*tr.dir) % total + total) % total;
+  /* live world state for EVERY car in the city, not just one walk */
+  const st = sc.route.traffic.map(tr => {
+    const w = trafficWorldAt(tr, t);
+    return { tr, x: w.wp.x, y: w.wp.y, d: DIRV[w.f], held: false };
+  });
+
+  /* is (tx,ty) ahead of this car, on its road, within `dist`? */
+  const ahead = (c, tx, ty, dist) => {
+    const dx = tx - c.x, dy = ty - c.y;
+    const along = dx*c.d.x + dy*c.d.y;
+    if(along <= 0 || along > dist) return false;
+    return Math.abs(-dx*c.d.y + dy*c.d.x) < STOP.lane;
   };
-  /* distance still to travel before reaching the cruiser, along this car's
-     own direction of travel. A car that has just passed reads as nearly a
-     full lap away, so it drives off instead of being held. */
-  const aheadOf = tr => {
-    const d = tr.dir > 0 ? (rb.s - posOf(tr)) : (posOf(tr) - rb.s);
-    return ((d % total) + total) % total;
-  };
 
-  const cars = sc.route.traffic.filter(tr => tr.walk === rb.walk);
-  for(const tr of cars) if(tr.__lag === undefined) tr.__lag = 0;
-
-  /* queue per lane: nearest car halts at STOP.line, the next one a gap behind
-     it, and so on — so they stack up rather than piling into one spot. */
-  const lanes = {};
-  for(const tr of cars){
-    const key = Math.sign(tr.laneOffset) || 1;
-    (lanes[key] = lanes[key] || []).push(tr);
+  /* the cruiser stops the front car; a stopped car stops the one behind it.
+     Two propagation passes is enough for the queue depths we ever see. */
+  for(const c of st) c.held = ahead(c, rb.x, rb.y, STOP.line);
+  for(let pass = 0; pass < 3; pass++){
+    for(const c of st){
+      if(c.held) continue;
+      for(const o of st){
+        if(o === c || !o.held) continue;
+        if(ahead(c, o.x, o.y, STOP.gap)){ c.held = true; break; }
+      }
+    }
   }
-  for(const key of Object.keys(lanes)){
-    const q = lanes[key].slice().sort((a, b) => aheadOf(a) - aheadOf(b));
-    q.forEach((tr, i) => {
-      const target = STOP.line + i*STOP.gap;
-      /* hold once it has arrived at its slot; advancing lag by exactly dt
-         cancels the motion the closed form would otherwise produce */
-      if(aheadOf(tr) <= target) tr.__lag += dt;
-    });
+
+  /* Apply by winding sBase back exactly the distance this car would have
+     covered. trafficWorldAt reads sBase, so this is what actually stops the
+     car the player sees — and the one the collision test uses. */
+  for(const c of st){
+    if(!c.held) continue;
+    const total = c.tr.walk.totalLen;
+    c.tr.sBase = ((c.tr.sBase - c.tr.speed*c.tr.dir*dt) % total + total) % total;
   }
 }
 
-/* ---- find a site: a CUT edge on a COMMERCIAL block with room for stalls ---- */
 function findCrimeSite(sc){
   const r = sc.route;
   if(!r || !r.cutEdges || !r.grid) return null;
