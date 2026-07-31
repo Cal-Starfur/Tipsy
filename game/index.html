@@ -90,32 +90,22 @@
     display:flex;align-items:center;justify-content:center;font-size:16px;box-shadow:0 2px 6px rgba(0,0,0,.25);}
   #searchIcon{left:14px;}
   #avatarIcon{right:14px;background:#ff7a1a;}
-  /* #bottomSheet is now the ONLY place Past Routes lives — no second
-     full-screen layer. Expanding it just grows its flex share within
-     #screenWrap (mapCard is flex:1 too, so it yields space automatically);
-     #pastRoutesPanel is a normal child, never a stacked/competing overlay.
-     This replaces an earlier version built as a separate .overlay div,
-     which had a same-z-index tie against #titleOverlay as its only thing
-     keeping it on top — fine on paper, but nothing actually pinned it
-     there, and it lost that tie on-device. One element, no tie to lose. */
-  #bottomSheet{width:100%;background:#f0ece0;color:#2e3138;
+  /* Just the order status now. The Past Routes pill and its ︿ chevron
+     are gone — Past Routes moved into its own fixed panel and is reached
+     from the magnifying glass, which is on screen everywhere the sheet
+     is and plenty of places it isn't. Two doors into the same room, one
+     of them only openable from the map, was the worse half. The sheet no
+     longer expands either; nothing lives under it. */
+  /* box-sizing: width:100% + 16px of side padding made this 32px wider
+     than #screenWrap. The overflow was invisible because #screenWrap
+     clips it, but it pushed the row's content box 16px right — fine
+     when three items shared the row, obvious now that the centred
+     status line is the only thing in it. */
+  #bottomSheet{width:100%;box-sizing:border-box;background:#f0ece0;color:#2e3138;
     display:flex;flex-direction:column;min-height:0;
     padding:12px 16px calc(10px + env(safe-area-inset-bottom));}
-  #bottomSheet.expanded{flex:2;}
   #bottomSheet .sheetRow{flex:none;display:flex;align-items:center;gap:8px;}
-  #bottomSheet .chev{flex:none;font-size:13px;color:#8f95a1;transition:transform .15s;}
-  #bottomSheet .chev.flipped{transform:rotate(180deg);}
   #bottomSheet .status{flex:1;min-width:0;font-weight:700;font-size:15px;color:#b5540e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center;}
-  /* Past Routes entry point (Devvit only — see IS_DEVVIT_BUILD near
-     top of script). Was a bare ☰ glyph; on-device feedback was that
-     nobody could tell what it did, so it's now a labeled pill in the
-     same tint as the rest of the brand accent. Doubles as the
-     expand/collapse toggle for #pastRoutesPanel below. */
-  #bottomSheet .listIcon{flex:none;display:flex;align-items:center;gap:5px;font-size:12px;font-weight:800;
-    letter-spacing:0.4px;text-transform:uppercase;color:#b5540e;background:rgba(255,122,26,.14);
-    border:none;border-radius:20px;padding:7px 12px 7px 10px;}
-  #bottomSheet .listIcon .licon{font-size:14px;}
-  #bottomSheet .listIcon:active{transform:scale(0.94);background:rgba(255,122,26,.22);}
 
   /* ---------- Past Routes (Devvit only): browse + replay any day
      you've already completed, in place on the map/GO screen — see the
@@ -451,9 +441,7 @@
     </div>
     <div id="bottomSheet">
       <div class="sheetRow">
-        <button class="listIcon" id="listIcon"><span class="licon">☰</span>Past Routes</button>
         <span class="status" id="sheetStatus">Ready for pickup</span>
-        <span class="chev" id="sheetChev">︿</span>
       </div>
     </div>
   </div>
@@ -576,7 +564,6 @@ if(IS_DEVVIT_BUILD){ hide("panel"); hide("panelToggle"); show("winMenuBtn"); }
 /* the fail screen's magnifier + robot are for EVERY build, not just
    Devvit — the web daily had no way out of a crash except Retry. */
 show("failMenuBtn");
-if(!IS_DEVVIT_BUILD){ hide("listIcon"); }
 /* Local "today" used only for display (which pill to show, whether a
    loaded route counts as a replay) — never for anything the server
    trusts. Kept as its own function rather than reusing one of the
@@ -13240,16 +13227,15 @@ function expandSheet(){
   document.getElementById("pastRoutesPanel").classList.add("open");
   tpPauseWorld();
   tpSyncGlobalBtns();
-  document.getElementById("sheetChev").classList.add("flipped");
 }
 function collapseSheet(){
   document.getElementById("pastRoutesPanel").classList.remove("open");
   tpResumeWorld();
   tpSyncGlobalBtns();
-  document.getElementById("sheetChev").classList.remove("flipped");
 }
-/* One entry point, shared by the #bottomSheet pill and the Past Routes
-   row in Side Missions. */
+/* Reached from the Past Routes row in Side Missions. Kept as its own
+   function rather than inlined at the call site — the win/fail "menu"
+   paths still call collapseSheet(), so open and close stay a pair. */
 function openPastRoutes(){
   document.getElementById("prList").innerHTML = `<div id="prEmpty">Loading…</div>`;
   document.getElementById("prAllTimeVal").textContent =
@@ -13301,11 +13287,6 @@ function renderPastRoutes(history){
     });
   });
 }
-document.getElementById("listIcon").addEventListener("click", () => {
-  const open = document.getElementById("pastRoutesPanel").classList.contains("open");
-  if(open){ collapseSheet(); return; }
-  openPastRoutes();
-});
 document.getElementById("prClose").addEventListener("click", () => collapseSheet());
 document.getElementById("prPlayToday").addEventListener("click", () => {
   prGoToRoute(clientTodayUTC());
