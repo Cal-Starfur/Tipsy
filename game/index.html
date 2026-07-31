@@ -1477,6 +1477,21 @@ const CAR_COLORS = [
   { n:"blue",   body:0x5678a8, bodyDk:0x435e87, roof:0x4c6c99 },
   { n:"white",  body:0xe4e6ea, bodyDk:0xc0c3c9, roof:0xd6d9dd }
 ];
+
+/* POLICE CRUISER — kind "policecar". Not a separate vehicle: it is the
+   car above with a FIXED livery instead of a seeded colour, plus a roof
+   light bar and a door decal. Sharing the car's one rigid geometry is
+   exactly what makes it heading-safe, so this must never fork into its
+   own body. */
+const POLICE_LIVERY = { n:"police", body:0xeceef2, bodyDk:0x23262e, roof:0xdfe2e7 };
+const POLC = {
+  barH:  13, barA: 12, barBF: 0.60,
+  housing: 0x1b1e25, housingDk: 0x0f1116,
+  red: 0xe03a2f, redHot: 0xff8a7a,
+  blue: 0x3358d8, blueHot: 0x8fa8ff,
+  lensDim: 0x5a616e, flashHz: 2.4,
+  decal: 0x22304a
+};
    // facing 0..3
 const TILE = 46;             // half-tile, model units — was previously declared only
 const T2 = TILE*2;           // locally inside drawWorld(); now needed globally for the grid.
@@ -8189,7 +8204,7 @@ class WorldScene extends Phaser.Scene {
         g.fillRect(khp.x - 1.6, khp.y - 10, 3.2, 7);
         g.fillCircle(khp.x, khp.y - 0.5, 1.8);
       }
-    } else if(kind === "car" || kind === "truck"){
+    } else if(kind === "car" || kind === "truck" || kind === "policecar"){
       /* rebuilt (2026-07-12) on the SAME rigid-rotation pattern the
          robot's own body already uses (T()/P()/depth()): the car's
          entire shape -- chassis, cabin, wheels, everything -- is
@@ -8208,12 +8223,16 @@ class WorldScene extends Phaser.Scene {
          know which side is camera-facing (side glass), it uses
          carDepth to pick dynamically -- the same technique the
          robot's own drawWheel already uses to pick its visible face. */
-      const CR = CARC, isTruck = kind === "truck";
+      const CR = CARC, isTruck = kind === "truck", isPolice = kind === "policecar";
       const seed = colorSeed !== null
         ? (colorSeed ^ 0x9c31) >>> 0
         : ((Math.round(x)*7919) ^ (Math.round(y)*104729) ^ 0x9c31) >>> 0;
       const rng = mulberry32(seed);
-      const col = CAR_COLORS[Math.floor(rng()*CAR_COLORS.length)];
+      /* the rng draw happens either way, so a cruiser and a civilian car
+         at the same spot consume the same stream — the colour is simply
+         overridden afterwards rather than the draw being skipped. */
+      const rolled = CAR_COLORS[Math.floor(rng()*CAR_COLORS.length)];
+      const col = isPolice ? POLICE_LIVERY : rolled;
       const hl = CR.len/2, hw = CR.wid/2, cz = CR.wheelR;
       const chassisTop = cz + CR.chassisH, cabinTop = chassisTop + CR.cabinH;
       const cl = isTruck ? hl*0.24 : hl*0.62;
@@ -8412,6 +8431,65 @@ class WorldScene extends Phaser.Scene {
       if(nearRearWheelDepth > cabinRefDepth) wheel(-hl*0.55, CR.wheelR, rearNearSide)();
       if(nearFrontWheelDepth > cabinRefDepth) wheel(hl*0.55, CR.wheelR*0.95, frontNearSide)();
       mirror(1)();
+
+      /* ---- POLICE HARDWARE ----
+         Drawn last, in the car's OWN local frame via carP/carDepth, so it
+         rotates with the body as one piece and cannot drift from it. It
+         sits entirely above the tyre tops and below the glass line, so
+         nothing already painted can legitimately occlude it. */
+      if(isPolice){
+        const ts = t/1000 + ((data && data.strobe) || 0);
+        const ph = (ts*POLC.flashHz) % 2;
+        const redOn  = ph < 0.82;
+        const blueOn = ph >= 1.0 && ph < 1.82;
+
+        const bB = hw*POLC.barBF;
+        const h0 = cabinTop, h1 = cabinTop + POLC.barH;
+        const aF = POLC.barA, aR = -POLC.barA;
+
+        const barCorners = [];
+        for(const a of [aR, aF]) for(const b of [-bB, bB]) for(const h of [h0, h1])
+          barCorners.push(carP(a, b, h));
+        this.quadOn(g, convexHull(barCorners), POLC.housing);
+
+        const lensTop = (b0, b1, c) => this.quadOn(g,
+          [carP(aR,b0,h1), carP(aF,b0,h1), carP(aF,b1,h1), carP(aR,b1,h1)], c);
+
+        /* housing -> camera-facing side -> top LAST. The top of a bar can
+           never be occluded by that same bar's own side at any heading, so
+           this order is correct by construction rather than by luck at
+           three headings of four. */
+        const sideB = carDepth(0, bB, (h0+h1)/2) > carDepth(0, -bB, (h0+h1)/2) ? bB : -bB;
+        const sideLit = sideB > 0 ? blueOn : redOn;
+        const sideCol = sideB > 0 ? (blueOn ? POLC.blueHot : POLC.blue)
+                                  : (redOn  ? POLC.redHot  : POLC.red);
+        const sideQuad = [carP(aR,sideB,h0), carP(aF,sideB,h0), carP(aF,sideB,h1), carP(aR,sideB,h1)];
+        this.quadOn(g, sideQuad, sideCol);
+        this.edgeOn(g, sideQuad, POLC.housingDk, 1);
+
+        lensTop(-bB, 0, redOn  ? POLC.redHot  : POLC.lensDim);
+        lensTop(0,  bB, blueOn ? POLC.blueHot : POLC.lensDim);
+
+        if(sideLit){
+          const gl = carP(0, sideB, (h0+h1)/2);
+          g.fillStyle(sideB > 0 ? POLC.blueHot : POLC.redHot, 0.26);
+          g.fillCircle(gl.x, gl.y, POLC.barH*this.K*0.9);
+        }
+
+        /* door decal: sized off the REAL wheel geometry, not the cabin.
+           The wheels sit at a=+-hl*0.55 and reach z = wheelR*0.72 + wheelR,
+           so a decal spanning the cabin's own length started below the tyre
+           tops and painted straight over both wheels. This one sits BETWEEN
+           the arches and ABOVE the tyres, in the door band under the glass. */
+        const wheelTop = CR.wheelR*0.72 + CR.wheelR;
+        const dB  = carDepth(0, hw, chassisTop) > carDepth(0, -hw, chassisTop) ? hw : -hw;
+        const dB1 = dB * 1.015;                 // a hair proud of the skin
+        const dh0 = wheelTop + 5;               // clear of the tyre
+        const dh1 = chassisTop - 5;             // under the glass line
+        const da  = 26;                         // inside both wheel arches
+        this.quadOn(g, [carP(-da,dB1,dh0), carP(da,dB1,dh0),
+                        carP(da,dB1,dh1), carP(-da,dB1,dh1)], POLC.decal);
+      }
     } else if(kind === "bin"){
       /* approved in bin hit lab (2026-07-09): ONE rigid geometry
          driven by a continuous tip angle phi about the base rim —
