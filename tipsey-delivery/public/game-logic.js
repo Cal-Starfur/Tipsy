@@ -575,6 +575,19 @@ const PEOPLE_SHIRT = [{c:0x3f8f8a,dk:0x2f6b67},{c:0xc2452e,dk:0x963522},{c:0xb15
 const PEOPLE_PANTS = [{c:0x3a4658,dk:0x2c3543},{c:0x2e2e2e,dk:0x1e1e1e},{c:0x6b4a34,dk:0x543a29},{c:0x8a8a8a,dk:0x6d6d6d},{c:0x4a3a5c,dk:0x3a2d47}];
 const PEOPLE_HAIR  = [0x3a2b20, 0x1a1a1a, 0x8a6a3a, 0xd4c088, 0xb03a2e, 0x6b6b6b];
 const PEOPLE_SHOE  = [{c:0x1c1c1c,dk:0x121212},{c:0x5c4530,dk:0x483623},{c:0xf2f0e8,dk:0xc4c2ba}];
+/* POLICE UNIFORM — passed to drawPersonHull as its optional `uniform`
+   argument. The cap and vest are drawn INSIDE the hull, by the hull's
+   own box()/G(), because the hull builds its own head volume: a cap
+   painted over it from outside would z-fight the head at grazing
+   headings instead of being welded to it. Same reason the light bar
+   lives inside the car branch. */
+const POLICE_UNIFORM = {
+  shirt: { c:0x27334f, dk:0x1a2437 },
+  pants: { c:0x1f2530, dk:0x151a22 },
+  shoe:  { c:0x14161a, dk:0x0d0e11 },
+  vest:  { c:0x2b3a55, dk:0x1d2635 },
+  cap:   { c:0x1e2840, dk:0x141c2d, top:0x243052, badge:0xe8c96a }
+};
 
 /* ================= THE WILLIAM — wrap-around-lap hostile pedestrian.
    Original homage to the robot-kicking midlife-crisis-brewer sitcom
@@ -5919,7 +5932,7 @@ class WorldScene extends Phaser.Scene {
     }
   }
 
-  drawPersonHull(g, ax, ay, z, thW, build, pSkin, pShirt, pPants, pHair, pShoe, walkPhase, moving, startleAlpha=0, liftT=0, onBeforeCarryArm=null){
+  drawPersonHull(g, ax, ay, z, thW, build, pSkin, pShirt, pPants, pHair, pShoe, walkPhase, moving, startleAlpha=0, liftT=0, onBeforeCarryArm=null, uniform=null){
     const cs = Math.cos(thW), sn = Math.sin(thW);
     const G = (a,b,h) => this.W(ax + a*cs - b*sn, ay + a*sn + b*cs, z + h);
     /* face visibility: drawPersonHull's points (G() above) are real
@@ -6004,6 +6017,36 @@ class WorldScene extends Phaser.Scene {
       box(0, 0, build.headR, build.headR, z0, z1, pSkin.c, pSkin.dk, pSkin.c);
       const hairZ0 = z0 + (z1-z0)*0.55;
       box(0, 0, build.headR*1.06, build.headR*1.06, hairZ0, z1+1.5, pHair, pHair, pHair);
+
+      /* PEAKED CAP — crown box sitting on the same head, plus a peak on
+         the body's FORWARD axis. Forward is b, not a: bDir is (-sn,cs)
+         and aDir is (cs,sn), and a peak built on a points out of the
+         person's shoulder instead of their face.
+
+         The peak is drawn against DEPTH, not in a fixed order. When the
+         person faces away from the camera the peak is behind the crown
+         and must be painted first, or it floats detached in front of
+         the head at exactly those headings. */
+      if(uniform && uniform.cap){
+        const cap = uniform.cap;
+        const cz0 = z0 + (z1-z0)*0.52, cz1 = z1 + 2.5;
+        const cR = build.headR*1.12;
+        const peakB = cR + build.headR*0.55;
+        const drawCrown = () => {
+          box(0, 0, cR, cR, cz0, cz1, cap.top, cap.dk, cap.c);
+          /* badge on the forward face of the crown */
+          const bq = [ G(-cR*0.30, cR*1.005, cz1-2.0), G(cR*0.30, cR*1.005, cz1-2.0),
+                       G(cR*0.30, cR*1.005, cz1-6.5), G(-cR*0.30, cR*1.005, cz1-6.5) ];
+          this.quadOn(g, bq, cap.badge);
+        };
+        const drawPeak = () => box(0, peakB*0.62, cR*0.92, build.headR*0.42,
+                                   cz0 - 0.5, cz0 + 2.0, cap.top, cap.dk, cap.c);
+        /* depth of the peak's centre vs the crown's, in the same world
+           metric drawWorld sorts on */
+        const pw = { x: ax - peakB*0.62*sn, y: ay + peakB*0.62*cs };
+        const peakNearer = (pw.x + pw.y) > (ax + ay);
+        if(peakNearer){ drawCrown(); drawPeak(); } else { drawPeak(); drawCrown(); }
+      }
     };
     /* long hair hangs down the BACK — has to draw before the torso/
        shoulders so the body occludes the part that's actually behind
@@ -6020,6 +6063,14 @@ class WorldScene extends Phaser.Scene {
     hairBack();
     arm(-nearSide, false);
     torso();
+    /* stab vest: over the torso, under the arms — so it reads as worn
+       rather than painted on. Uses the hull's own box() so it inherits
+       the same face-selection as everything else. */
+    if(uniform && uniform.vest){
+      box(0, 0, build.torsoW/2*1.07, build.torsoD/2*1.14,
+          hipH + build.torsoH*0.16, shoulderH - 1.5,
+          uniform.vest.c, uniform.vest.dk, uniform.vest.c);
+    }
     if(onBeforeCarryArm) onBeforeCarryArm(); // torso/legs already drawn, carrying arm not yet —
     // anything drawn here sits on top of the body but UNDER the carrying arm specifically
     arm(nearSide, true);
@@ -6052,6 +6103,31 @@ class WorldScene extends Phaser.Scene {
     const theta = liftT * LIFT_MAX_ANGLE;
     const handB = armLen * Math.sin(theta), handZ = shoulderZ - armLen * Math.cos(theta);
     return { x: ax + shoulderAx*cs - handB*sn, y: ay + shoulderAx*sn + handB*cs, z: handZ };
+  }
+
+  /* ---------- POLICE OFFICER ----------
+     Deliberately NOT a new body: it is drawPersonHull with the police
+     uniform, so officers inherit the walk, limb and face-selection
+     conventions rather than growing their own copy of them.
+
+     walkPhase here is a limb DISPLACEMENT, not a phase angle — the hull
+     multiplies it straight into a stride offset. Feeding it t*rate
+     throws limbs hundreds of units off the body. Officers are posted,
+     so it stays 0 and `moving` stays false.
+
+     role only chooses an arm lift and a build/skin salt. The traffic
+     officer's lift is driven by the signal phase, so it comes in
+     through opts.liftT rather than being decided here. */
+  drawOfficer(g, x, y, z, thW, role, seed, t, opts = null){
+    const rng = mulberry32(((seed|0) ^ 0x9e37) >>> 0);
+    const build = PEOPLE_BUILD[Math.floor(rng()*PEOPLE_BUILD.length)];
+    const skin  = PEOPLE_SKIN[Math.floor(rng()*PEOPLE_SKIN.length)];
+    const hair  = PEOPLE_HAIR[Math.floor(rng()*PEOPLE_HAIR.length)];
+    const ROLE_LIFT = { tape: 0.86, search: 0.34, post: 0.0, traffic: 0.92 };
+    const liftT = (opts && opts.liftT !== undefined) ? opts.liftT : (ROLE_LIFT[role] ?? 0);
+    this.drawPersonHull(g, x, y, z, thW, build, skin,
+      POLICE_UNIFORM.shirt, POLICE_UNIFORM.pants, hair, POLICE_UNIFORM.shoe,
+      0, false, 0, liftT, null, POLICE_UNIFORM);
   }
 
   drawProp(g, kind, x, y, t, fdir = 0, z = 0, wheelPhase = null, colorSeed = null, data = null){
