@@ -207,6 +207,9 @@ BENCH.hook(function(sc, t){
     <div class="sec">
       <h2>Scene</h2>
       <div id="hud">—</div>
+      <div class="row" style="margin-top:8px">
+        <button class="wide" id="portCheck">port check</button>
+      </div>
     </div>
 
     <div class="sec">
@@ -274,15 +277,41 @@ const BR = {
            the next frame is drawn — which is why every attempt to steer the
            camera from a post-hook silently did nothing. Writing the projection
            inputs in a pre-hook lands them in the very draw that follows. */
+        /* flush lab-queued items into blockVQ on the first queueBlockContent
+           call of each frame — that is the only place the local array is
+           reachable from outside drawWorld */
+        if(!sc.__benchQWrapped){
+          const origQ = sc.queueBlockContent.bind(sc);
+          sc.queueBlockContent = function(vq, blk, excludeEdges){
+            const r = origQ(vq, blk, excludeEdges);
+            if(!sc.__benchQFlushed && sc.__benchVQ && sc.__benchVQ.length){
+              for(const it of sc.__benchVQ) vq.push(it);
+              sc.__benchQFlushed = true;
+            }
+            return r;
+          };
+          sc.__benchQWrapped = true;
+        }
+
         sc.drawWorld = function(t){
+          sc.__benchVQ = [];
+          sc.__benchQFlushed = false;
+          sc.__benchT = t;
+          sc.__benchDT = (sc.__benchPrevT === undefined) ? 0 : t - sc.__benchPrevT;
+          sc.__benchPrevT = t;
+          sc.__benchFrames = (sc.__benchFrames || 0) + 1;
           if(sc.__benchPre){
+            sc.__inLab = true;
             try{ sc.__benchPre(sc, t); }
             catch(e){ sc.__benchPreErr = String(e); sc.__benchPre = null; }
+            finally{ sc.__inLab = false; }
           }
           orig(t);
           if(sc.__benchHook){
+            sc.__inLab = true;
             try{ sc.__benchHook(sc, t); }
             catch(e){ sc.__benchHookErr = String(e); sc.__benchHook = null; }
+            finally{ sc.__inLab = false; }
           }
         };
         sc.__benchWrapped = true;
@@ -290,6 +319,26 @@ const BR = {
       window.BENCH = {
         scene(){ return game.scene.scenes[0]; },
         pre(fn){ game.scene.scenes[0].__benchPre = fn; },
+
+        /* ---------------- QUEUE INTO THE GAME'S OWN DEPTH SORT ----------------
+           Labs used to draw straight into gFront and, if they had several
+           objects, run a private depth sort over just those. That sorts them
+           against EACH OTHER but never against the houses, so the bench showed
+           a scene that could not be wrong in a way the real game can — the
+           crime scene port turned up exactly that.
+
+           blockVQ is a local inside drawWorld, but queueBlockContent RECEIVES
+           it, so wrapping that method gets us a handle. Items queued here land
+           in the same sort as every building, prop and hazard, which is also
+           the shape the code has to take once it ports. */
+        queue(depth, fn){ (game.scene.scenes[0].__benchVQ ||= []).push({ depth, fn }); },
+
+        /* the same near/far layer test drawWorld uses, so a lab picks its
+           layer the way the game does rather than always taking gFront */
+        layerFor(x, y){
+          const sc = game.scene.scenes[0];
+          return (x + y > (sc.botX + sc.botY) + 14) ? sc.gFront : sc.g;
+        },
         hook(fn){ const s = game.scene.scenes[0]; s.__benchHookErr = null; s.__benchHook = fn; },
         clear(){ game.scene.scenes[0].__benchHook = null; },
 
@@ -319,6 +368,22 @@ const BR = {
         camRelease(){ this.cam.on = false; },
         camPan(dx, dy){ this.cam.follow = false; this.cam.x += dx; this.cam.y += dy; },
         camZoom(k){ this.cam.on = true; this.cam.k = k; },
+
+        /* Fingerprint of the world a lab is NOT supposed to own. Taken before
+           the lab runs and compared after: a lab that consumes from a game rng
+           stream, or mutates traffic, changes the city for everyone, and that
+           has to be a deliberate decision rather than a surprise at port time. */
+        census(){
+          const sc = game.scene.scenes[0], r = sc.route;
+          if(!r) return null;
+          const props = (r.props || []).map(p =>
+            [p.kind, Math.round(p.s), Math.round(p.roadOffset||0), p.f].join(':')).join('|');
+          const traf = (r.traffic || []).map(t =>
+            [Math.round(t.sBase), Math.round(t.laneOffset), t.kind].join(':')).join('|');
+          return { props: (r.props||[]).length, traffic: (r.traffic||[]).length,
+                   pHash: props.length + ':' + props.slice(0, 4000),
+                   tHash: traf.length + ':' + traf.slice(0, 4000) };
+        },
         /* applied every frame BEFORE the world draws */
         applyCam(sc){
           const c = this.cam;
@@ -351,6 +416,49 @@ const BR = {
         }
       };
       game.scene.scenes[0].__benchPre = function(sc){ window.BENCH.applyCam(sc); };
+
+      /* PORT SURFACE TRACKING.
+         Two things a lab does that have no port path, and that the bench used
+         to hide completely:
+           - calling scene METHODS (spawn code in generateRoute is a free
+             function and cannot reach them)
+           - MONKEYPATCHING scene methods (a lab-only expedient)
+         Both are recorded so the porting work is visible while prototyping
+         instead of being discovered at port time. */
+      (function(){
+        const sc = game.scene.scenes[0];
+        if(sc.__benchTracked) return;
+        sc.__benchTracked = true;
+        sc.__benchCalls = {};
+        sc.__benchPatched = [];
+        sc.__benchTrackers = {};
+        const proto = Object.getPrototypeOf(sc);
+        for(const k of Object.getOwnPropertyNames(proto)){
+          if(k === 'constructor' || typeof proto[k] !== 'function') continue;
+          /* Take the CURRENT value, not proto[k]. The bench has already
+             wrapped drawWorld and queueBlockContent by this point, and reading
+             from the prototype silently threw those wrappers away — the frame
+             clock stopped and blockVQ never flushed. */
+          const orig = sc[k];
+          const tracker = function(...a){
+            /* count only calls made FROM THE LAB. Counting everything gave
+               W x1563440, which is the engine, not the lab, and told us
+               nothing about the port surface. */
+            if(sc.__inLab) sc.__benchCalls[k] = (sc.__benchCalls[k]||0)+1;
+            return orig.apply(this, a);
+          };
+          sc.__benchTrackers[k] = tracker;
+          Object.defineProperty(sc, k, { configurable:true, writable:true, value: tracker });
+        }
+        /* A method the lab has assigned over no longer === our tracker, which
+           is how monkeypatches are detected without needing a setter trap. */
+        sc.__benchPatchedNow = function(){
+          const out = [];
+          for(const k of Object.keys(sc.__benchTrackers))
+            if(sc[k] !== sc.__benchTrackers[k]) out.push(k);
+          return out;
+        };
+      })();
     })()`);
   }
 };
@@ -381,6 +489,7 @@ function refresh(){
         drawAngle: sc.drawAngle,
         paused: !sc.scene.isActive(),
         hookErr: sc.__benchHookErr || null,
+        t: sc.__benchT, dt: sc.__benchDT, frames: sc.__benchFrames,
         routeKeys: sc.route ? Object.keys(sc.route).join(",") : ""
       };
     })()`);
@@ -393,7 +502,12 @@ function refresh(){
   $("hud").innerHTML =
       "f <b>" + s.f + "</b>   botS <b>" + (s.botS != null ? (+s.botS).toFixed(1) : "—") + "</b>\n"
     + "drawAngle <b>" + (s.drawAngle != null ? (+s.drawAngle).toFixed(3) : "—") + "</b>\n"
-    + "route <b>" + (s.hasRoute ? "yes" : "no") + "</b>";
+    + "route <b>" + (s.hasRoute ? "yes" : "no") + "</b>\n"
+    /* The bench owns the clock. A lab that publishes its own gets renamed and
+       read as 0, and then a diagnostic quietly measures nothing — which is
+       exactly how a traffic closure was 'verified' while doing nothing. */
+    + "t <b>" + Math.round(s.t || 0) + "</b>  dt <b>" + Math.round(s.dt || 0)
+    + "</b>  frames <b>" + (s.frames || 0) + "</b>";
 
   if(s.hookErr){ log("hook threw, cleared: " + s.hookErr, "err"); }
 }
@@ -635,6 +749,35 @@ async function autoBoot(){
     if(!frozen) $("freeze").click();
   }
 }
+
+/* Everything about this lab that will not survive the port, in one place. */
+$("portCheck").onclick = () => {
+  if(!BR.live) return log("bridge not up", "err");
+  try{
+    const out = BR.ev(`(function(){
+      const sc = game.scene.scenes[0];
+      const calls = Object.entries(sc.__benchCalls || {})
+        .sort((a,b) => b[1]-a[1]).slice(0, 14)
+        .map(([k,v]) => "  " + k + " x" + v).join("\\n");
+      const patched = sc.__benchPatchedNow ? sc.__benchPatchedNow() : [];
+      const queued  = (sc.__benchVQ || []).length;
+      const drawsFront = !!sc.__benchHook;
+      const lines = [];
+      lines.push("SCENE METHODS THE LAB TOUCHED — spawn code in generateRoute");
+      lines.push("is a free function and cannot call these:");
+      lines.push(calls || "  (none)");
+      lines.push("");
+      lines.push("MONKEYPATCHED METHODS — no port path, must become a call-site");
+      lines.push("change: " + (patched.length ? patched.join(", ") : "(none)"));
+      lines.push("");
+      lines.push("DEPTH: " + (queued
+        ? queued + " item(s) queued into the game's blockVQ — sorts against the world"
+        : "nothing queued; if this lab draws to gFront directly it is NOT sorted against houses"));
+      return lines.join("\\n");
+    })()`);
+    log(out);
+  }catch(e){ log("port check failed: " + e.message, "err"); }
+};
 
 $("clearHook").onclick = () => {
   if(!BR.live) return;
