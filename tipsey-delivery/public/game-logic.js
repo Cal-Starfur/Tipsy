@@ -12014,12 +12014,42 @@ function tpRenderMissions(){
   /* the search box says "Search the map", so it searches the PLACE as
      well as the mission text — "palmline", "flats" or "1200" all find
      the hydrant course. */
+  /* Past Routes sits at the head of this list as well as on the map's
+     bottom sheet. The magnifying glass is reachable mid-route now, and
+     browsing your history is the other thing you'd reach for from it.
+     DEVVIT ONLY: the history array and the all-time total both come
+     from the Reddit server (requestHistory / tipsyBridge, which
+     no-op when !IS_DEVVIT_BUILD), so on itch.io / GitHub Pages there is
+     nothing behind this row and it would open an empty panel. */
+  const showPR = IS_DEVVIT_BUILD && (!q || "past routes history all-time replay".includes(q));
+  if(showPR){
+    const pr = document.createElement("div");
+    pr.id = "tpPastRoutesRow";
+    pr.className = "tpTrRow";
+    pr.innerHTML = `
+      <div class="tpMedal tpMission" style="font-size:18px;">&#9776;</div>
+      <div class="tpTrInfo">
+        <div class="tpTrName">Past Routes</div>
+        <div class="tpTrDesc">Replay any day you've already delivered.</div>
+        <div class="tpTrReward">Beat a day's best — the difference adds to your all-time total.</div>
+      </div>
+      <div class="tpTrRight"></div>`;
+    /* Drop the .open class directly instead of calling tpCloseMissions():
+       that would resume the world for one frame before Past Routes
+       paused it again. */
+    pr.addEventListener("click", ()=>{
+      document.getElementById("tpMissionsPanel").classList.remove("open");
+      openPastRoutes();   // calls tpSyncGlobalBtns via expandSheet
+    });
+    list.appendChild(pr);
+  }
+
   const filtered = TP_SIDE_MISSIONS.filter(m =>
     !q || m.name.toLowerCase().includes(q) || (m.desc && m.desc.toLowerCase().includes(q))
        || (m.place && m.place.toLowerCase().includes(q))
   );
   if(filtered.length === 0){
-    list.innerHTML = `<div id="tpMissionsEmpty">No missions found for "${q}".</div>`;
+    if(!showPR) list.innerHTML = `<div id="tpMissionsEmpty">No missions found for "${q}".</div>`;
     return;
   }
   filtered.forEach(m=>{
@@ -12300,29 +12330,41 @@ function tpResumeWorld(){
   tpPausedWorld = false;
   try{ game.scene.resume("world"); }catch(e){}
 }
+/* One place that decides whether the global buttons are showing, driven
+   off the panels' own state rather than each call site remembering. */
+function tpSyncGlobalBtns(){
+  const anyOpen = ["tpProfilePanel","tpMissionsPanel","pastRoutesPanel"]
+    .some(id => { const el = document.getElementById(id); return el && el.classList.contains("open"); });
+  document.body.classList.toggle("tpPanelOpen", anyOpen);
+}
 function tpOpenProfile(){
   tpPauseWorld();
   requestTpProfile();
   tpRender();
   tpSetTab("trophy");
   document.getElementById("tpProfilePanel").classList.add("open");
+  tpSyncGlobalBtns();
 }
 function tpCloseProfile(){
   document.getElementById("tpProfilePanel").classList.remove("open");
   tpResumeWorld();
+  tpSyncGlobalBtns();
 }
 function tpOpenMissions(){
   tpPauseWorld();
   tpRender();
   document.getElementById("tpMissionsPanel").classList.add("open");
+  tpSyncGlobalBtns();
 }
 function tpCloseMissions(){
   document.getElementById("tpMissionsPanel").classList.remove("open");
   tpResumeWorld();
+  tpSyncGlobalBtns();
 }
 
 function tpInitStaticIcons(){
   document.getElementById("searchIcon").innerHTML = tpSearchSvg("#2e3138", 18);
+  document.getElementById("globalSearch").innerHTML = tpSearchSvg("#2e3138", 18);
   const fmb = document.getElementById("failMenuBtn");
   if(fmb) fmb.innerHTML = tpSearchSvg("#2e3138", 18);
   document.getElementById("tpProfBack").innerHTML = tpChevronSvg("#e8eaef", 16);
@@ -12356,6 +12398,31 @@ document.getElementById("avatarIcon").addEventListener("click", tpOpenProfile);
      is why this worked on the map but not once the daily was running.
      touchstart is the one iOS always delivers, and capture:true runs us
      BEFORE anything listening at the window. */
+  el.addEventListener("touchstart", go, {passive:false, capture:true});
+  el.addEventListener("pointerdown", go, {capture:true});
+  el.addEventListener("click", go, {capture:true});
+})();
+/* the always-on magnifying glass: Side Missions from anywhere. Same
+   three-binding guarded pattern as the robot — see the note above. */
+(function bindGlobalSearch(){
+  const el = document.getElementById("globalSearch");
+  let last = 0;
+  const go = (e) => {
+    if(e){ e.preventDefault(); e.stopPropagation(); }
+    const now = performance.now();
+    if(now - last < 700) return;
+    last = now;
+    const failed = !document.getElementById("failOverlay").classList.contains("hidden");
+    const s = scn();
+    /* From the challenge: bank progress and land back on the mission
+       list — this is what #failMenuBtn used to do, kept verbatim. */
+    if(s && s.mode === "challenge"){ hide("failOverlay"); hjQuit(); tpOpenMissions(); return; }
+    /* From a crash: the run is already over, so go back to the map on
+       the way out. Mid-route or on the map, just open over what's
+       there — tpOpenMissions() pauses a live run by itself. */
+    if(failed){ hide("failOverlay"); collapseSheet(); show("titleOverlay"); }
+    tpOpenMissions();
+  };
   el.addEventListener("touchstart", go, {passive:false, capture:true});
   el.addEventListener("pointerdown", go, {capture:true});
   el.addEventListener("click", go, {capture:true});
@@ -12557,14 +12624,35 @@ document.getElementById("panelToggle").addEventListener("click", () => {
    toggle two classes; the flex reflow (mapCard vs bottomSheet, both
    siblings in #screenWrap) does the actual layout work. */
 function expandSheet(){
-  document.getElementById("bottomSheet").classList.add("expanded");
-  document.getElementById("pastRoutesPanel").classList.remove("hidden");
+  document.getElementById("pastRoutesPanel").classList.add("open");
+  tpPauseWorld();
+  tpSyncGlobalBtns();
   document.getElementById("sheetChev").classList.add("flipped");
 }
 function collapseSheet(){
-  document.getElementById("bottomSheet").classList.remove("expanded");
-  document.getElementById("pastRoutesPanel").classList.add("hidden");
+  document.getElementById("pastRoutesPanel").classList.remove("open");
+  tpResumeWorld();
+  tpSyncGlobalBtns();
   document.getElementById("sheetChev").classList.remove("flipped");
+}
+/* One entry point, shared by the #bottomSheet pill and the Past Routes
+   row in Side Missions. */
+function openPastRoutes(){
+  document.getElementById("prList").innerHTML = `<div id="prEmpty">Loading…</div>`;
+  document.getElementById("prAllTimeVal").textContent =
+    tipsyBridge.allTimeTotal != null ? `$${tipsyBridge.allTimeTotal.toFixed(2)}` : "—";
+  expandSheet();
+  requestHistory(renderPastRoutes);
+}
+/* Picking a day can now happen mid-route, so the overlay has to come
+   back before loadRoute() runs — resizeRouteMap() measures the map
+   canvas's client rect and reads ZERO while #titleOverlay is hidden,
+   which is the blank-map bug hjQuit() documents. */
+function prGoToRoute(dateStr){
+  collapseSheet();
+  show("titleOverlay");
+  scn().loadRoute(dateStr);
+  requestAnimationFrame(() => { resizeRouteMap(); drawRouteMap(scn().route); });
 }
 function renderPastRoutes(history){
   document.getElementById("prAllTimeVal").textContent =
@@ -12596,24 +12684,18 @@ function renderPastRoutes(history){
   }).join("");
   list.querySelectorAll(".prRow").forEach(row => {
     row.addEventListener("click", () => {
-      collapseSheet();
-      scn().loadRoute(row.dataset.date);
+      prGoToRoute(row.dataset.date);
     });
   });
 }
 document.getElementById("listIcon").addEventListener("click", () => {
-  const expanding = document.getElementById("pastRoutesPanel").classList.contains("hidden");
-  if(!expanding){ collapseSheet(); return; }
-  document.getElementById("prList").innerHTML = `<div id="prEmpty">Loading…</div>`;
-  document.getElementById("prAllTimeVal").textContent =
-    tipsyBridge.allTimeTotal != null ? `$${tipsyBridge.allTimeTotal.toFixed(2)}` : "—";
-  expandSheet();
-  requestHistory(renderPastRoutes);
+  const open = document.getElementById("pastRoutesPanel").classList.contains("open");
+  if(open){ collapseSheet(); return; }
+  openPastRoutes();
 });
 document.getElementById("prClose").addEventListener("click", () => collapseSheet());
 document.getElementById("prPlayToday").addEventListener("click", () => {
-  collapseSheet();
-  scn().loadRoute(clientTodayUTC());
+  prGoToRoute(clientTodayUTC());
 });
 document.getElementById("winMenuBtn").addEventListener("click", () => {
   hide("winOverlay");
