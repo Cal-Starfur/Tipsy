@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Tipsy — Bench</title>
+<!--
+  ============================================================================
+  labs/_bench.html — THE BENCH
+  ============================================================================
+
+  WHY THIS EXISTS
+  Every previous lab re-created the world by hand: its own constants, its own
+  iso projection, its own gWorld/g/gFront, its own camera. That made each lab a
+  slightly different world, so porting a finished prototype into
+  game/index.html was a *translation*, not a copy — and translation is where
+  the heading bugs got in.
+
+  This bench does not imitate the world. It LOADS it. game/index.html runs
+  unmodified inside the iframe below. The bench is only an overlay.
+
+  HOW IT REACHES INSIDE
+  game/index.html is a classic script under "use strict". Its top-level
+  `const`/`let`/`class` declarations (including `const game = new Phaser.Game`)
+  live in the global LEXICAL environment, which is NOT the same as `window`.
+  So `iframe.contentWindow.game` is undefined and always will be.
+
+  `iframe.contentWindow.eval("game")` DOES resolve it — an indirect eval runs
+  in the target realm's global scope, and global-scope eval can see global
+  lexical bindings. Verified empirically, not assumed. That one fact is what
+  makes this bench possible with ZERO changes to game/index.html.
+
+  It also means a function compiled via that eval closes over the game's own
+  lexical scope. A prop-draw function prototyped in the Lab console below has
+  the same access to game constants that it will have once pasted into
+  index.html — which is the whole point. Prototype here, then copy the
+  function body into game/index.html VERBATIM. No translation step.
+
+  THE FOUR-HEADING RULE
+  gWorld/g/gFront manual depth sorting is the root cause of a recurring class
+  of heading-dependent rendering bugs. Nothing rendering-related ships until
+  it has been seen at f=0,1,2,3. The heading row exists to make that cheap —
+  it drives the robot to real positions on a real route where the heading
+  lands on each quarter, so what you are checking is the real camera, not a
+  bench approximation of it.
+
+  SERVING
+  Needs same-origin. file:// gives the iframe an opaque origin and the bridge
+  dies. Serve the repo root over http and open /labs/_bench.html.
+  ============================================================================
+-->
+<style>
+  :root{
+    --ink:#e8e6e1;  --dim:#8b8780;  --line:#2a2925;
+    --bg:#121110;   --panel:#191817; --accent:#e0b050; --live:#6fcf7f; --warn:#e07a5a;
+  }
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; height:100%; background:var(--bg); color:var(--ink);
+    font:12px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace; -webkit-text-size-adjust:100%; }
+  #wrap{ display:flex; height:100%; align-items:stretch; }
+
+  #stageCol{ flex:1 1 auto; min-width:0; display:flex; flex-direction:column; }
+  #stageBar{ display:flex; align-items:center; gap:10px; padding:6px 10px;
+    border-bottom:1px solid var(--line); color:var(--dim); }
+  #stage{ flex:1 1 auto; position:relative; background:#000; }
+  #frame{ position:absolute; inset:0; width:100%; height:100%; border:0; display:block; }
+
+  #rail{ flex:0 0 320px; background:var(--panel); border-left:1px solid var(--line);
+    overflow-y:auto; -webkit-overflow-scrolling:touch; }
+  #rail.collapsed{ flex-basis:0; overflow:hidden; border-left:0; }
+
+  .sec{ border-bottom:1px solid var(--line); padding:10px 12px; }
+  .sec h2{ margin:0 0 8px; font-size:10px; letter-spacing:.14em; text-transform:uppercase;
+    color:var(--dim); font-weight:600; }
+  .row{ display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+  .row + .row{ margin-top:6px; }
+
+  button{ font:inherit; color:var(--ink); background:#232220; border:1px solid var(--line);
+    border-radius:5px; padding:7px 10px; cursor:pointer; min-height:34px; }
+  button:hover{ border-color:#413f3a; }
+  button:active{ background:#2c2a27; }
+  button.on{ border-color:var(--accent); color:var(--accent); }
+  button.wide{ flex:1 1 auto; }
+  button:disabled{ opacity:.35; cursor:default; }
+
+  input[type=text],input[type=number],textarea{
+    font:inherit; color:var(--ink); background:#0e0d0c; border:1px solid var(--line);
+    border-radius:5px; padding:7px 8px; width:100%; }
+  input[type=range]{ width:100%; accent-color:var(--accent); }
+  textarea{ min-height:150px; resize:vertical; line-height:1.5; white-space:pre; }
+  label{ color:var(--dim); display:block; margin-bottom:3px; }
+
+  #status{ display:flex; align-items:center; gap:7px; }
+  .dot{ width:8px; height:8px; border-radius:50%; background:var(--warn); flex:0 0 auto; }
+  .dot.live{ background:var(--live); }
+
+  #hud{ color:var(--dim); white-space:pre-wrap; word-break:break-word; }
+  #hud b{ color:var(--ink); font-weight:400; }
+
+  #log{ max-height:150px; overflow-y:auto; background:#0e0d0c; border:1px solid var(--line);
+    border-radius:5px; padding:7px 8px; white-space:pre-wrap; word-break:break-word; color:var(--dim); }
+  #log .err{ color:var(--warn); }
+  #log .ok{ color:var(--live); }
+
+  @media (max-width:820px){
+    #wrap{ flex-direction:column; }
+    #rail{ flex:0 0 46%; border-left:0; border-top:1px solid var(--line); }
+    #rail.collapsed{ flex-basis:0; border-top:0; }
+  }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="stageCol">
+    <div id="stageBar">
+      <button id="railBtn" style="min-height:26px;padding:3px 8px">rail</button>
+      <span id="stageLabel">game/index.html — unmodified</span>
+    </div>
+    <div id="stage"><iframe id="frame" title="Tipsy"
+      allow="autoplay; fullscreen" src="../game/index.html"></iframe></div>
+  </div>
+
+  <div id="rail">
+
+    <div class="sec">
+      <h2>Bridge</h2>
+      <div id="status"><span class="dot" id="dot"></span><span id="statusText">booting…</span></div>
+      <div class="row"><button class="wide" id="reboot">reload game</button>
+                       <button class="wide" id="inspect">inspect scene</button></div>
+    </div>
+
+    <div class="sec">
+      <h2>Route</h2>
+      <div class="row"><label style="width:100%">pinned date — the seed</label></div>
+      <div class="row"><input type="text" id="dateStr" value="2026-01-01" spellcheck="false"></div>
+      <div class="row"><button class="wide" id="startRun">start run</button></div>
+      <div class="row" style="color:var(--dim)">A fixed date means a fixed route. Same world every
+        reload, so a change you see is a change you made.</div>
+    </div>
+
+    <div class="sec">
+      <h2>Time</h2>
+      <div class="row">
+        <button class="wide" id="freeze">freeze</button>
+        <button class="wide" id="step">step 1</button>
+      </div>
+    </div>
+
+    <div class="sec">
+      <h2>Heading — all four, every time</h2>
+      <div class="row">
+        <button class="wide" data-f="0">f0</button>
+        <button class="wide" data-f="1">f1</button>
+        <button class="wide" data-f="2">f2</button>
+        <button class="wide" data-f="3">f3</button>
+      </div>
+      <div class="row"><button class="wide" id="cycle">cycle all 4 ↻</button></div>
+      <div class="row"><label style="width:100%">scrub botS</label></div>
+      <div class="row"><input type="range" id="scrub" min="0" max="1000" value="0"></div>
+    </div>
+
+    <div class="sec">
+      <h2>Lab</h2>
+      <div class="row" style="color:var(--dim);margin-bottom:6px">
+        Runs inside the game's realm. Game constants are in scope. Whatever works here
+        pastes into index.html unchanged.</div>
+      <div class="row"><textarea id="code" spellcheck="false">/* Draws every frame, after drawWorld. sc is the live scene.
+   Write the real function here — then copy it into index.html. */
+BENCH.hook(function(sc, t){
+  const g = sc.gFront;
+  g.lineStyle(2, 0xe0b050, 1);
+  g.strokeCircle(sc.iso(sc.botX, sc.botY).x, sc.iso(sc.botX, sc.botY).y, 40);
+});</textarea></div>
+      <div class="row">
+        <button class="wide" id="run">run</button>
+        <button class="wide" id="clearHook">clear hook</button>
+      </div>
+    </div>
+
+    <div class="sec">
+      <h2>Scene</h2>
+      <div id="hud">—</div>
+    </div>
+
+    <div class="sec">
+      <h2>Log</h2>
+      <div id="log"></div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+"use strict";
+
+const $ = id => document.getElementById(id);
+const frame = $("frame");
+
+/* ---------------- log ---------------- */
+function log(msg, cls){
+  const el = document.createElement("div");
+  if(cls) el.className = cls;
+  el.textContent = msg;
+  $("log").appendChild(el);
+  $("log").scrollTop = $("log").scrollHeight;
+}
+
+/* ---------------- the bridge ----------------
+   Everything crosses here. `ev` is the only door: an indirect eval into the
+   game's realm, which is the one way to see its global lexical bindings. */
+const BR = {
+  win:null, game:null, scene:null, live:false,
+
+  ev(expr){
+    if(!this.win) throw new Error("bridge not up");
+    return this.win.eval(expr);
+  },
+
+  /* Try to attach. Returns true once the Phaser game object exists. The scene
+     may exist well before a route does (title screen), so those are separate
+     states — see refresh(). */
+  attach(){
+    try{
+      const w = frame.contentWindow;
+      if(!w || !w.document || w.document.readyState !== "complete") return false;
+      const g = w.eval("typeof game !== 'undefined' ? game : null");
+      if(!g || !g.scene) return false;
+      const sc = g.scene.scenes && g.scene.scenes[0];
+      if(!sc) return false;
+      this.win = w; this.game = g; this.scene = sc;
+      return true;
+    }catch(e){ return false; }
+  },
+
+  /* Installed once per game load. Wraps drawWorld so the bench can draw after
+     the world does, and plants BENCH.* helpers inside the game's realm so lab
+     code has both the helpers and the game's lexical scope at once. */
+  installHooks(){
+    this.ev(`(function(){
+      const sc = game.scene.scenes[0];
+      if(!sc.__benchWrapped){
+        const orig = sc.drawWorld.bind(sc);
+        sc.drawWorld = function(t){
+          orig(t);
+          if(sc.__benchHook){
+            try{ sc.__benchHook(sc, t); }
+            catch(e){ sc.__benchHookErr = String(e); sc.__benchHook = null; }
+          }
+        };
+        sc.__benchWrapped = true;
+      }
+      window.BENCH = {
+        scene(){ return game.scene.scenes[0]; },
+        hook(fn){ const s = game.scene.scenes[0]; s.__benchHookErr = null; s.__benchHook = fn; },
+        clear(){ game.scene.scenes[0].__benchHook = null; }
+      };
+    })()`);
+  }
+};
+
+/* ---------------- boot poll ---------------- */
+let bootTimer = setInterval(() => {
+  if(BR.live) return;
+  if(!BR.attach()) return;
+  try{ BR.installHooks(); }
+  catch(e){ log("hook install failed: " + e.message, "err"); return; }
+  BR.live = true;
+  $("dot").classList.add("live");
+  log("bridge up — scene attached", "ok");
+}, 120);
+
+/* ---------------- scene readout ---------------- */
+function refresh(){
+  if(!BR.live){ $("statusText").textContent = "booting…"; return; }
+  let s;
+  try{
+    s = BR.ev(`(function(){
+      const sc = game.scene.scenes[0];
+      return {
+        hasRoute: !!sc.route,
+        f: sc.f,
+        botS: sc.botS,
+        drawAngle: sc.drawAngle,
+        paused: !sc.scene.isActive(),
+        hookErr: sc.__benchHookErr || null,
+        routeKeys: sc.route ? Object.keys(sc.route).join(",") : ""
+      };
+    })()`);
+  }catch(e){ return; }
+
+  $("statusText").textContent = s.hasRoute
+    ? (s.paused ? "live — frozen" : "live — running")
+    : "live — no route yet (start a run)";
+
+  $("hud").innerHTML =
+      "f <b>" + s.f + "</b>   botS <b>" + (s.botS != null ? (+s.botS).toFixed(1) : "—") + "</b>\n"
+    + "drawAngle <b>" + (s.drawAngle != null ? (+s.drawAngle).toFixed(3) : "—") + "</b>\n"
+    + "route <b>" + (s.hasRoute ? "yes" : "no") + "</b>";
+
+  if(s.hookErr){ log("hook threw, cleared: " + s.hookErr, "err"); }
+}
+setInterval(refresh, 250);
+
+/* ---------------- controls ---------------- */
+
+$("railBtn").onclick = () => $("rail").classList.toggle("collapsed");
+
+$("reboot").onclick = () => {
+  BR.live = false; BR.win = null; BR.scene = null;
+  $("dot").classList.remove("live");
+  frame.src = frame.src;
+  log("reloading game…");
+};
+
+$("inspect").onclick = () => {
+  if(!BR.live) return log("bridge not up", "err");
+  try{
+    const out = BR.ev(`(function(){
+      const sc = game.scene.scenes[0];
+      const own = Object.keys(sc).sort();
+      return "scene keys (" + own.length + "):\\n" + own.join(" ")
+           + (sc.route ? "\\n\\nroute keys:\\n" + Object.keys(sc.route).sort().join(" ") : "");
+    })()`);
+    log(out);
+  }catch(e){ log("inspect failed: " + e.message, "err"); }
+};
+
+/* Start a run on the pinned date. The game owns route construction — the bench
+   only supplies the seed, so the route here is the route players get. */
+$("startRun").onclick = () => {
+  if(!BR.live) return log("bridge not up", "err");
+  const d = $("dateStr").value.trim();
+  try{
+    const r = BR.ev(`(function(){
+      const sc = game.scene.scenes[0];
+      sc.loadRoute(${JSON.stringify(d)}, {});
+      sc.botS = 0;
+      return sc.route ? sc.route.dateStr : null;
+    })()`);
+    if(r) log("route loaded — " + r, "ok");
+    else log("loadRoute ran but no route came back", "err");
+  }catch(e){ log("start failed: " + e.message, "err"); }
+};
+
+/* Freeze / step. Phaser's scene pause halts update but keeps the last frame
+   rendered, which is what you want when reading a prop's geometry. */
+let frozen = false;
+$("freeze").onclick = () => {
+  if(!BR.live) return;
+  frozen = !frozen;
+  try{
+    BR.ev(`game.scene.scenes[0].scene.${frozen ? "pause" : "resume"}()`);
+    $("freeze").classList.toggle("on", frozen);
+    $("freeze").textContent = frozen ? "thaw" : "freeze";
+  }catch(e){ log("freeze failed: " + e.message, "err"); }
+};
+
+$("step").onclick = () => {
+  if(!BR.live) return;
+  try{
+    BR.ev(`(function(){
+      const sc = game.scene.scenes[0];
+      sc.scene.resume();
+      requestAnimationFrame(() => requestAnimationFrame(() => sc.scene.pause()));
+    })()`);
+    frozen = true;
+    $("freeze").classList.add("on"); $("freeze").textContent = "thaw";
+  }catch(e){ log("step failed: " + e.message, "err"); }
+};
+
+/* Heading snap. Walks the real route looking for an s whose heading lands in
+   the requested quadrant, then puts the robot there. Real geometry, real
+   camera — the bench never fabricates a facing. */
+function snapHeading(f){
+  if(!BR.live) return log("bridge not up", "err");
+  try{
+    const got = BR.ev(`(function(target){
+      const sc = game.scene.scenes[0];
+      if(!sc.route || typeof sc.headingAt !== "function") return -1;
+      const max = sc.route.totalLen || 20000;
+      const start = sc.botS || 0;
+      for(let i = 0; i < 4000; i++){
+        const s = (start + i * (max / 4000)) % max;
+        const h = sc.headingAt(s);
+        if(!isFinite(h)) continue;
+        const q = ((Math.round(h / (Math.PI / 2)) % 4) + 4) % 4;
+        if(q === target){ sc.botS = s; sc.drawAngle = h; return s; }
+      }
+      return -1;
+    })(${f})`);
+    if(got < 0) log("no s found with heading f" + f, "err");
+    else log("f" + f + " @ botS " + (+got).toFixed(1), "ok");
+  }catch(e){ log("snap failed: " + e.message, "err"); }
+}
+document.querySelectorAll("[data-f]").forEach(b => {
+  b.onclick = () => snapHeading(+b.dataset.f);
+});
+
+/* Cycle holds each heading long enough to actually look at it on a phone. */
+$("cycle").onclick = async () => {
+  for(let f = 0; f < 4; f++){
+    snapHeading(f);
+    await new Promise(r => setTimeout(r, 1400));
+  }
+  log("cycled all four", "ok");
+};
+
+$("scrub").oninput = e => {
+  if(!BR.live) return;
+  try{
+    BR.ev(`(function(frac){
+      const sc = game.scene.scenes[0];
+      if(!sc.route) return;
+      const max = sc.route.totalLen || 20000;
+      sc.botS = frac * max;
+    })(${(+e.target.value) / 1000})`);
+  }catch(err){}
+};
+
+/* The lab. Compiled inside the game's realm, so it sees the game's lexical
+   scope exactly as index.html will. That equivalence is the point of all this. */
+$("run").onclick = () => {
+  if(!BR.live) return log("bridge not up", "err");
+  try{
+    BR.ev($("code").value);
+    log("lab code ran", "ok");
+  }catch(e){ log("lab error: " + e.message, "err"); }
+};
+
+$("clearHook").onclick = () => {
+  if(!BR.live) return;
+  try{ BR.ev("BENCH.clear()"); log("hook cleared"); }
+  catch(e){ log(e.message, "err"); }
+};
+</script>
+</body>
+</html>
