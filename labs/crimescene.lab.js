@@ -306,6 +306,136 @@ function drawPoliceCap(sc, g, ax, ay, z, thW, build){
   if(frontNear){ crown(); front(); } else { front(); crown(); }
 }
 
+
+/* ============================================================================
+   CRIME SCENE TAPE
+   Spans the pavement across the robot's path. Purely cosmetic: he goes
+   straight through, no jostle and no speed scrub. The halves snap back and
+   dangle from their stakes.
+
+   TWO DELIBERATE DEPARTURES FROM THE PROP RULES, both worth naming:
+
+   1. IT CARRIES MUTABLE STATE. Every other prop is position-seeded and
+      stateless — draw it from its coordinates and time, get the same thing
+      every frame. A broken tape has to STAY broken for the rest of the route,
+      which no pure function of (position, t) can express. So this one keeps a
+      broken flag and a break timestamp. Deliberate exception, not drift.
+
+   2. BREAK DETECTION IS SEGMENT-CROSSING, NOT A BOX TEST. The tape is a thin
+      line. At the robot's top speed a box test around it would be stepped
+      clean over between frames — classic tunnelling. Testing the robot's
+      previous-to-current travel segment against the span cannot miss,
+      whatever the frame rate.
+   ============================================================================ */
+const TAPE = {
+  z: 60,            // ribbon centre height
+  half: 6,          // ribbon half-height
+  sag: 9,           // droop at mid-span while taut
+  segs: 14,         // subdivisions, for the sag curve and the dangle
+  inset: 10,        // pull the stakes in from the kerb and the wall
+  snapMs: 520,      // how long the halves take to fall
+  yellow: 0xf0c53a, yellowDk: 0xc39d22,
+  band: 0x23252b,
+  stake: 0x585d66, stakeDk: 0x3c414a, stakeH: 74, stakeR: 3.5
+};
+
+/* Pure: where the tape is strung, from the route alone. Shared by the drawing
+   and by the break test, so the line you see is the line you break. */
+function tapeSpanAt(sc, site){
+  const s = site.s;
+  const p = sc.posAt(s), h = sc.headingAt(s);
+  const rvx = -Math.sin(h), rvy = Math.cos(h);
+  const o0 = ROBOT_SIDE*(ROAD_HALF + TAPE.inset);
+  const o1 = ROBOT_SIDE*(ROAD_HALF + SIDEWALK_W - TAPE.inset);
+  return { s,
+           a: { x: p.x + rvx*o0, y: p.y + rvy*o0 },
+           b: { x: p.x + rvx*o1, y: p.y + rvy*o1 } };
+}
+
+/* Do segments p1p2 and p3p4 cross? */
+function segCross(p1, p2, p3, p4){
+  const d = (p2.x-p1.x)*(p4.y-p3.y) - (p2.y-p1.y)*(p4.x-p3.x);
+  if(Math.abs(d) < 1e-9) return false;
+  const u = ((p3.x-p1.x)*(p4.y-p3.y) - (p3.y-p1.y)*(p4.x-p3.x)) / d;
+  const v = ((p3.x-p1.x)*(p2.y-p1.y) - (p3.y-p1.y)*(p2.x-p1.x)) / d;
+  return u >= 0 && u <= 1 && v >= 0 && v <= 1;
+}
+
+function updateTape(sc, site, t){
+  const span = site.tape || (site.tape = tapeSpanAt(sc, site));
+  const cur = { x: sc.botX, y: sc.botY };
+  const prev = sc.__tapePrev || cur;
+  sc.__tapePrev = cur;
+  if(site.tapeBroken) return;
+  if(segCross(prev, cur, span.a, span.b)){
+    site.tapeBroken = true;
+    site.tapeBrokeAt = t;
+  }
+}
+
+function drawTape(sc, g, site, t){
+  const span = site.tape;
+  if(!span) return;
+  const A = span.a, B = span.b;
+  const mx = (A.x+B.x)/2, my = (A.y+B.y)/2;
+
+  const post = (P) => {
+    const c = [];
+    for(const dx of [-TAPE.stakeR, TAPE.stakeR])
+      for(const dy of [-TAPE.stakeR, TAPE.stakeR])
+        for(const h of [0, TAPE.stakeH])
+          c.push(sc.W(P.x+dx, P.y+dy, h));
+    sc.quadOn(g, convexHull(c), TAPE.stake);
+    sc.edgeOn(g, convexHull(c), TAPE.stakeDk, 1);
+  };
+  post(A); post(B);
+
+  /* one ribbon run: pts is a list of {x,y,z} along the line */
+  const ribbon = (pts) => {
+    for(let i = 0; i < pts.length-1; i++){
+      const p = pts[i], q = pts[i+1];
+      const quad = [ sc.W(p.x, p.y, p.z - TAPE.half), sc.W(q.x, q.y, q.z - TAPE.half),
+                     sc.W(q.x, q.y, q.z + TAPE.half), sc.W(p.x, p.y, p.z + TAPE.half) ];
+      /* alternating bands read as hazard tape without needing real lettering,
+         which turns to mud at this scale */
+      sc.quadOn(g, quad, (i % 3 === 2) ? TAPE.band : TAPE.yellow);
+    }
+  };
+
+  if(!site.tapeBroken){
+    const pts = [];
+    for(let i = 0; i <= TAPE.segs; i++){
+      const u = i/TAPE.segs;
+      pts.push({ x: A.x + (B.x-A.x)*u, y: A.y + (B.y-A.y)*u,
+                 z: TAPE.z - TAPE.sag*Math.sin(Math.PI*u) });   // catenary enough
+    }
+    ribbon(pts);
+    return;
+  }
+
+  /* BROKEN: each half snaps back to its own stake and hangs. The free end
+     swings in and drops; the anchored end never moves, which is what sells it
+     as tape that tore rather than tape that vanished. */
+  const k = Math.min(1, (t - (site.tapeBrokeAt || t)) / TAPE.snapMs);
+  const e = 1 - Math.pow(1-k, 3);                    // ease out, like a fall
+  const halves = [ { S: A, M: { x: mx, y: my } }, { S: B, M: { x: mx, y: my } } ];
+  for(const hf of halves){
+    const pts = [];
+    for(let i = 0; i <= TAPE.segs; i++){
+      const u = i/TAPE.segs;
+      /* taut position along its half */
+      const tx = hf.S.x + (hf.M.x-hf.S.x)*u, ty = hf.S.y + (hf.M.y-hf.S.y)*u;
+      const tz = TAPE.z - TAPE.sag*Math.sin(Math.PI*(u*0.5));
+      /* hung position: pulled in toward the stake and dropped */
+      const hx = hf.S.x + (hf.M.x-hf.S.x)*u*0.30;
+      const hy = hf.S.y + (hf.M.y-hf.S.y)*u*0.30;
+      const hz = TAPE.z - (TAPE.z - 5)*(u*u);
+      pts.push({ x: tx + (hx-tx)*e, y: ty + (hy-ty)*e, z: tz + (hz-tz)*e });
+    }
+    ribbon(pts);
+  }
+}
+
 function drawOfficer(sc, g, x, y, thW, seed, walkPhase, moving){
   const r = mulberry32(seed >>> 0);
   const build = PEOPLE_BUILD[r() < 0.5 ? 0 : 1];
@@ -557,6 +687,13 @@ BENCH.hook(function(sc, t){
     const wp = moving ? Math.sin(t*PEOPLE_ART.walkSpeed) : 0;
     items.push({ d: x + y, draw: () => drawOfficer(sc, g, x, y, th, o.__seed, wp, moving) });
   });
+
+  updateTape(sc, site, t);
+  if(site.tape){
+    const tp = site.tape;
+    items.push({ d: (tp.a.x + tp.a.y + tp.b.x + tp.b.y)/2,
+                 draw: () => drawTape(sc, g, site, t) });
+  }
 
   items.sort((a, b) => a.d - b.d);
   items.forEach(it => it.draw());
