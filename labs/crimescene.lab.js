@@ -143,21 +143,90 @@ function stallsForEdge(sc, e, want){
   return out;
 }
 
-/* Where the roadblock cruiser stands. Derived, not guessed: the lot sits on one
-   lateral side of the route, so the road is the other. Take the sign of the lot
-   offset and flip it, rather than hard-coding a sign that would silently be
-   wrong on half the headings. */
+/* ---------------------------------------------------------------------------
+   ROADBLOCK CRUISER — on the traffic walk, in a real lane
+
+   The first attempt offset it laterally from the ROBOT'S route and turned it a
+   quadrant across. Both were wrong, for the same underlying reason: traffic
+   does not run on the robot's route at all. Each traffic car carries its own
+   `walk` and sits at laneOffset = +/-CAR_LANE on it. Offsetting from the
+   sidewalk path put the cruiser on the wrong side of the road, and turning it
+   across the route heading left it 90 degrees off the actual traffic direction.
+
+   So it is placed the way a traffic car is placed: pick the walk that passes
+   nearest the scene, take the s on that walk closest to it, and sit in one
+   lane facing ALONG the road. Same geometry the cars themselves use, so it
+   cannot land in the wrong lane or the wrong facing.
+   --------------------------------------------------------------------------- */
+const AVOID = {
+  window:  1300,  // start easing out this far before the blockage
+  clear:   1200,  // an oncoming car this close means the lane is NOT clear
+  ease:    0.22   // how quickly a car commits to the swerve
+};
+
 function roadblockSpot(sc, site){
-  const s = site.s + ROADBLOCK.along;
-  const p = sc.posAt(s);
-  const h = sc.headingAt(s);
-  const rvx = -Math.sin(h), rvy = Math.cos(h);
-  const lotSide = Math.sign((site.gx - p.x)*rvx + (site.gy - p.y)*rvy) || 1;
-  const roadSide = -lotSide;
-  const off = ROAD_HALF * ROADBLOCK.lane * roadSide;
-  /* turned across the road: one quadrant off the route heading */
-  const fdir = (((Math.round(h/(Math.PI/2)) + 1) % 4) + 4) % 4;
-  return { x: p.x + rvx*off, y: p.y + rvy*off, fdir };
+  const r = sc.route;
+  if(!r.traffic || !r.traffic.length) return null;
+
+  /* unique walks, and the closest point on each to the scene */
+  const seen = new Set(); let best = null;
+  for(const tr of r.traffic){
+    if(seen.has(tr.walk)) continue;
+    seen.add(tr.walk);
+    const total = tr.walk.totalLen;
+    const step = Math.max(30, total/1200);
+    for(let s = 0; s < total; s += step){
+      const w = segsWorldOf(tr.walk.segs, s, 0);
+      const d = (w.x-site.gx)**2 + (w.y-site.gy)**2;
+      if(!best || d < best.d) best = { d, walk: tr.walk, s };
+    }
+  }
+  if(!best) return null;
+
+  /* sit in whichever lane is nearer the scene, facing along the road */
+  const a = segsWorldOf(best.walk.segs, best.s,  CAR_LANE);
+  const b = segsWorldOf(best.walk.segs, best.s, -CAR_LANE);
+  const da = (a.x-site.gx)**2 + (a.y-site.gy)**2;
+  const db = (b.x-site.gx)**2 + (b.y-site.gy)**2;
+  const lane = da < db ? CAR_LANE : -CAR_LANE;
+  const wp = da < db ? a : b;
+
+  const hdg = segsHeadingAt(best.walk.segs, best.s);
+  const fdir = (((Math.round(hdg/(Math.PI/2))) % 4) + 4) % 4;
+
+  return { x: wp.x, y: wp.y, fdir, walk: best.walk, s: best.s, lane };
+}
+
+/* Traffic goes AROUND him — when the other lane is clear.
+   Written by easing tr.laneOffset, which trafficWorldAt reads for both the
+   render and the collision test, so the hitbox swerves with the art instead of
+   drifting away from it. */
+function updateAvoidance(sc, t){
+  sc.__lastT = t;   // so the bench can inspect timing-dependent state
+  const site = sc.__crime, rb = site && site.roadblock;
+  if(!rb) return;
+  const total = rb.walk.totalLen;
+  const posOf = tr => ((tr.sBase + t*tr.speed*tr.dir) % total + total) % total;
+  const gapTo = s => { const d = Math.abs(s - rb.s) % total; return Math.min(d, total - d); };
+
+  const onWalk = sc.route.traffic.filter(tr => tr.walk === rb.walk);
+  /* is the opposite lane free to borrow? */
+  const oncoming = onWalk.some(tr =>
+    Math.sign(tr.laneOffset) === -Math.sign(rb.lane) && gapTo(posOf(tr)) < AVOID.clear);
+
+  for(const tr of onWalk){
+    if(tr.__lane0 === undefined) tr.__lane0 = tr.laneOffset;
+    if(Math.sign(tr.__lane0) !== Math.sign(rb.lane)) continue;   // other lane, unaffected
+    const gap = gapTo(posOf(tr));
+    /* 0 far away, 1 right at the blockage — smoothed so the swerve eases */
+    let want = 0;
+    if(gap < AVOID.window && !oncoming){
+      const u = 1 - gap/AVOID.window;
+      want = u*u*(3 - 2*u);
+    }
+    const target = tr.__lane0 * (1 - 2*want);      // full swerve = the other lane
+    tr.laneOffset += (target - tr.laneOffset) * AVOID.ease;
+  }
 }
 
 /* ---- find a site: a CUT edge on a COMMERCIAL block with room for stalls ---- */
@@ -256,7 +325,9 @@ BENCH.hook(function(sc, t){
     /* offset the strobe phase per car so the bars are not in lockstep */
     if(st) drawPoliceHardware(sc, g, st.x, st.y, 0, st.fdir, t, i*0.37);
   });
-  if(site.roadblock)
+  if(site.roadblock){
     drawPoliceHardware(sc, g, site.roadblock.x, site.roadblock.y, 0,
                        site.roadblock.fdir, t, 0.74);
+    updateAvoidance(sc, t);
+  }
 });
