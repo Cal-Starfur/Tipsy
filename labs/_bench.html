@@ -117,7 +117,9 @@
       <span id="stageLabel">game/index.html — unmodified</span>
     </div>
     <div id="stage"><iframe id="frame" title="Tipsy"
-      allow="autoplay; fullscreen" src="../game/index.html"></iframe></div>
+      allow="autoplay; fullscreen" src="../game/index.html"></iframe>
+      <div id="panLayer" style="position:absolute;inset:0;display:none;
+        cursor:grab;touch-action:none;background:transparent"></div></div>
   </div>
 
   <div id="rail">
@@ -160,11 +162,26 @@
     </div>
 
     <div class="sec">
+      <h2>Camera</h2>
+      <div class="row">
+        <button class="wide" id="camFollow">follow robot</button>
+        <button class="wide" id="camPanBtn">pan</button>
+      </div>
+      <div class="row"><button class="wide" id="camFrame">frame the lab</button>
+                       <button class="wide" id="camRelease">game cam</button></div>
+      <div class="row"><label style="width:100%">zoom</label></div>
+      <div class="row"><input type="range" id="zoom" min="15" max="400" value="150"></div>
+      <div class="row" style="color:var(--dim)">Zoom drives the game's own K, so the
+        world culls correctly as you pull out instead of fading to empty.</div>
+    </div>
+
+    <div class="sec">
       <h2>Lab</h2>
       <div class="row">
         <select id="labPick" style="flex:1 1 auto;font:inherit;color:var(--ink);
           background:#0e0d0c;border:1px solid var(--line);border-radius:5px;padding:7px 8px">
           <option value="">— pick a lab —</option>
+          <option value="crimescene">crimescene</option>
           <option value="policecar">policecar</option>
         </select>
         <button id="labLoad">load</button>
@@ -172,8 +189,6 @@
       <div class="row" style="color:var(--dim);margin:6px 0">
         Or open <code>?lab=policecar</code> to load and run it automatically.
       </div>
-      <div class="row"><label style="width:100%">zoom</label></div>
-      <div class="row"><input type="range" id="zoom" min="60" max="420" value="150"></div>
       <div class="row" style="color:var(--dim);margin-bottom:6px">
         Code below runs inside the game's realm. Game constants are in scope.</div>
       <div class="row"><textarea id="code" spellcheck="false">/* Draws every frame, after drawWorld. sc is the live scene.
@@ -252,7 +267,18 @@ const BR = {
       const sc = game.scene.scenes[0];
       if(!sc.__benchWrapped){
         const orig = sc.drawWorld.bind(sc);
+        /* PRE hook, then the world, then POST.
+           The pre hook is what makes a bench camera possible at all. update()
+           eases camX/camY/camZ toward its own target and THEN calls drawWorld,
+           so anything a post-hook writes to the camera is overwritten before
+           the next frame is drawn — which is why every attempt to steer the
+           camera from a post-hook silently did nothing. Writing the projection
+           inputs in a pre-hook lands them in the very draw that follows. */
         sc.drawWorld = function(t){
+          if(sc.__benchPre){
+            try{ sc.__benchPre(sc, t); }
+            catch(e){ sc.__benchPreErr = String(e); sc.__benchPre = null; }
+          }
           orig(t);
           if(sc.__benchHook){
             try{ sc.__benchHook(sc, t); }
@@ -263,8 +289,43 @@ const BR = {
       }
       window.BENCH = {
         scene(){ return game.scene.scenes[0]; },
+        pre(fn){ game.scene.scenes[0].__benchPre = fn; },
         hook(fn){ const s = game.scene.scenes[0]; s.__benchHookErr = null; s.__benchHook = fn; },
         clear(){ game.scene.scenes[0].__benchHook = null; },
+
+        /* ---------------- BENCH CAMERA ----------------
+           Owns the game's OWN projection inputs (camX/camY/camZ/K) rather than
+           layering a Phaser camera on top. That matters: the world is culled
+           with cullSpan = (width/K)*0.9 + ..., computed from these same values,
+           so driving them keeps culling correct and zooming out reveals more
+           world. A Phaser camera would scale the rendered display list while
+           the game kept culling for the old zoom, and you would zoom out into
+           empty space where blocks used to be. */
+        cam: { on:false, follow:true, x:0, y:0, z:0, k:1.5 },
+
+        /* point the bench camera at a world spot — what a lab calls once it
+           has placed something and wants you looking at it */
+        lookAt(x, y, k){
+          const c = this.cam;
+          c.on = true; c.follow = false; c.x = x; c.y = y; c.z = 0;
+          if(k) c.k = k;
+          return c;
+        },
+        camFollow(on){
+          const sc = game.scene.scenes[0];
+          this.cam.on = true; this.cam.follow = (on !== false);
+          if(this.cam.follow){ this.cam.x = sc.botX; this.cam.y = sc.botY; }
+        },
+        camRelease(){ this.cam.on = false; },
+        camPan(dx, dy){ this.cam.follow = false; this.cam.x += dx; this.cam.y += dy; },
+        camZoom(k){ this.cam.on = true; this.cam.k = k; },
+        /* applied every frame BEFORE the world draws */
+        applyCam(sc){
+          const c = this.cam;
+          if(!c.on) return;
+          if(c.follow){ c.x = sc.botX; c.y = sc.botY; c.z = sc.botZ || 0; }
+          sc.camX = c.x; sc.camY = c.y; sc.camZ = c.z; sc.K = c.k;
+        },
 
         /* Put the robot at route-s and BRING THE CAMERA WITH IT.
            W() is camera-relative, and the camera only eases toward the robot
@@ -289,6 +350,7 @@ const BR = {
           return { s, f: sc.f, h };
         }
       };
+      game.scene.scenes[0].__benchPre = function(sc){ window.BENCH.applyCam(sc); };
     })()`);
   }
 };
@@ -490,8 +552,64 @@ $("labPick").onchange = () => { if($("labPick").value) loadLab($("labPick").valu
    heading checks stay honest. */
 $("zoom").oninput = e => {
   if(!BR.live) return;
-  try{ BR.ev("game.scene.scenes[0].K = " + ((+e.target.value)/100)); }catch(err){}
+  try{ BR.ev("BENCH.camZoom(" + ((+e.target.value)/100) + ")"); }catch(err){}
 };
+
+$("camFollow").onclick = () => {
+  if(!BR.live) return;
+  try{ BR.ev("BENCH.camFollow(true)"); log("camera follows the robot", "ok"); }
+  catch(e){ log(e.message, "err"); }
+};
+$("camRelease").onclick = () => {
+  if(!BR.live) return;
+  try{ BR.ev("BENCH.camRelease()"); log("game camera restored"); }
+  catch(e){ log(e.message, "err"); }
+};
+/* frame whatever the lab last asked to be looked at */
+$("camFrame").onclick = () => {
+  if(!BR.live) return;
+  try{
+    const r = BR.ev(`(function(){
+      const sc = game.scene.scenes[0];
+      const f = sc.__benchFocus;
+      if(!f) return null;
+      BENCH.lookAt(f.x, f.y, f.k);
+      return [Math.round(f.x), Math.round(f.y)];
+    })()`);
+    log(r ? "framed lab focus at " + r.join(", ") : "the loaded lab set no focus point",
+        r ? "ok" : "err");
+  }catch(e){ log(e.message, "err"); }
+};
+
+/* drag to pan. Screen delta -> world delta is the inverse of W() at z=0:
+     sx = (xr - yr)*K            xr = (sx + 2*sy) / (2K)
+     sy = (xr + yr)*0.5*K        yr = (2*sy - sx) / (2K)
+   The overlay only exists while pan is armed, so it never eats game input. */
+let panning = false, panLast = null;
+$("camPanBtn").onclick = () => {
+  panning = !panning;
+  $("panLayer").style.display = panning ? "block" : "none";
+  $("camPanBtn").classList.toggle("on", panning);
+  log(panning ? "pan armed — drag the view" : "pan off");
+};
+const panL = $("panLayer");
+panL.addEventListener("pointerdown", e => {
+  panLast = { x:e.clientX, y:e.clientY }; panL.setPointerCapture(e.pointerId);
+  panL.style.cursor = "grabbing";
+});
+panL.addEventListener("pointermove", e => {
+  if(!panLast || !BR.live) return;
+  const dsx = e.clientX - panLast.x, dsy = e.clientY - panLast.y;
+  panLast = { x:e.clientX, y:e.clientY };
+  try{
+    const K = BR.ev("BENCH.cam.k") || 1.5;
+    const dxw = (dsx + 2*dsy) / (2*K), dyw = (2*dsy - dsx) / (2*K);
+    BR.ev("BENCH.camPan(" + (-dxw) + "," + (-dyw) + ")");
+  }catch(err){}
+});
+const panEnd = e => { panLast = null; panL.style.cursor = "grab"; };
+panL.addEventListener("pointerup", panEnd);
+panL.addEventListener("pointercancel", panEnd);
 
 /* ?lab=NAME[&date=YYYY-MM-DD][&f=0..3][&zoom=150]
    One URL that lands on the thing you wanted to look at. */
@@ -508,6 +626,14 @@ async function autoBoot(){
   await loadLab(lab, true);
   const f = q.get("f");
   if(f !== null){ await new Promise(r => setTimeout(r, 300)); snapHeading(+f); }
+
+  /* &freeze=1 — stop the sim once everything is placed. Without it the robot
+     drives on from wherever the lab put it, and a scene anchored to a fixed
+     world position is off screen within a couple of seconds. */
+  if(q.get("freeze")){
+    await new Promise(r => setTimeout(r, 500));
+    if(!frozen) $("freeze").click();
+  }
 }
 
 $("clearHook").onclick = () => {
