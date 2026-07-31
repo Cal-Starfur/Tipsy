@@ -804,6 +804,15 @@ const GOOD_LEG_HEADING = [true, false, false, true];
    (HOODS index 0) is the only hood whose terrain does not fight a
    precision jump: zero grade, best pavement, widest streets. */
 const HJ_ADDRESS = { hoodIndex:0, hood:"The Flats", street:"Palmline Ave", number:"1200" };
+/* 1200 Palmline Ave is supposed to be a PLACE — the same corner of Costa
+   Palma every time you go there, the way a real course would be. It was
+   seeded from clientTodayUTC(), so hoodIndex pinned the neighbourhood
+   but the street grid itself re-rolled at every UTC midnight and the
+   course landed somewhere new each day. This is the seed the course was
+   built and dialled in on (2026-07-30); frozen here so the address and
+   the ground under it finally agree. Never change it without accepting
+   that every player's memory of the run moves with it. */
+const HJ_SEED_DATE = "2026-07-30";
 const hjPlaceName = () => `${HJ_ADDRESS.number} ${HJ_ADDRESS.street}, ${HJ_ADDRESS.hood}`;
 
 /* approved palm (palm lab, 2026-07-07): the Costa Palma house style */
@@ -4286,7 +4295,7 @@ class WorldScene extends Phaser.Scene {
     this.hjCharge = 0; this.hjChargeSm = 0; this.hjAir = null;
     this.hjLocked = null; this.hjLevel = 1; this.hjBest = 0;
     this.hjSrcLast = {}; this.hjResult = ""; this.hjPassed = 0;
-    this.loadRoute(clientTodayUTC(), { hoodIndex: HJ_ADDRESS.hoodIndex, challenge: true });
+    this.loadRoute(HJ_SEED_DATE, { hoodIndex: HJ_ADDRESS.hoodIndex, challenge: true });
     /* same card slot the daily uses, so the map screen reads identically */
     document.getElementById("orderCard").innerHTML =
       `<div class="tag" style="margin-bottom:4px">SIDE MISSION</div>`
@@ -4305,7 +4314,11 @@ class WorldScene extends Phaser.Scene {
   }
 
   loadRoute(dateStr, opts){
-    requestDailyBest(dateStr);   // Devvit bridge — no-op if not embedded (see shim near top of file)
+    /* Devvit bridge — no-op if not embedded (see shim near top of file).
+       Skipped for the challenge: it loads a FIXED date (HJ_SEED_DATE), so
+       asking the server for that day's best would cache a stale entry
+       under a date the player may later play for real. */
+    if(!(opts && opts.challenge)) requestDailyBest(dateStr);
     this.route = generateRoute(dateStr, opts);
     for(const hz of this.route.hazards) hz.hit = false;
     this.d = this.route.pal;
