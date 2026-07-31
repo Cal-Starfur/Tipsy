@@ -544,7 +544,13 @@ function alongOf(e, st){
       collision test, which is the only way art and hitbox stay together.
    ============================================================================ */
 const STOP = {
-  line: 300,    // how far back from the cruiser the first car halts
+  line: 300,    // blocked lane: halts just behind the cruiser
+  far:  830,    // ONCOMING lane: must halt BEYOND the detour zone.
+                // Holding them at 300 like everyone else parked them in the
+                // far lane — the very lane the detouring car uses to get
+                // round the cruiser — and a detoured car passed within 61
+                // units of a stopped one. detourRange is 620, so they wait
+                // clear of it.
   gap:  260,    // queue spacing (a car is 225 long)
   lane: 520     // Lateral tolerance, measured from the CRUISER.
                 // Must cover a car that has pulled into the far lane: the
@@ -556,84 +562,100 @@ const STOP = {
 };
 
 /* ---------------------------------------------------------------------------
-   THE OFFICER DIRECTING TRAFFIC
+   THE OFFICER DIRECTING TRAFFIC — ALTERNATING PHASES
 
-   He holds the blocked lane, watches the opposing lane, and waves a batch
-   through when it is clear. Waved cars pull around the cruiser using the far
-   lane and settle back afterwards.
+   Rewritten. The previous version tried to FIND a natural gap in oncoming
+   traffic and squeeze a car through it. That is fragile: the gap has to be
+   detected, trusted for several seconds, and survive another car entering the
+   corridor mid-manoeuvre. Every constant traded one failure for another, and
+   the failure that remained was the worst one — a waved car meeting an oncoming
+   car head-on in the same lane.
 
-   The lateral shift is applied to tr.laneOffset for the same reason the hold
-   is applied to sBase: trafficWorldAt reads both, so the renderer and the
-   collision test see the swerve. Anything kept in private bookkeeping is
-   invisible to the game — the mistake that made the first closure do nothing.
+   A real flagger does not wait for a gap. He MAKES one, by holding the other
+   direction. So:
+
+     PHASE A  the blocked lane moves, using the far lane to get round the
+              cruiser. ALL oncoming traffic is held.
+     PHASE B  oncoming moves normally. The blocked lane is held.
+
+   He turns to face whichever direction he is stopping, arm raised.
+
+   Head-on overlap is now STRUCTURALLY IMPOSSIBLE rather than something being
+   detected: the only cars in the far lane are ones he sent there, because
+   everybody else is being held. No clear test, no corridor, no commitment
+   window, and the two constants that caused most of the trouble are gone.
    --------------------------------------------------------------------------- */
-const DIRECT = {
-  clearMargin:  140,  // corridor = detourRange + this. At 420 the corridor ran
-                      // 1040 units and, with 36 cars looping the city, was
-                      // essentially never empty — he waved nobody through.  // how far past the detour zone the far lane must also be
-                      // empty, so a car does not arrive mid-manoeuvre
-  waveMs:      3400,  // how long a wave-through lasts
-  holdMs:      2200,  // minimum hold between waves, so it reads as directing
-  detourRange:  620,  // distance either side of the cruiser to be pulled over
-  detourEase:   0.13,
-  armHz:        2.2   // wave speed
+const PHASE = {
+  aMs: 5400,   // blocked lane moves — long enough to pull out, pass, tuck back
+  bMs: 4200,   // oncoming moves
+  detourRange: 620,
+  detourEase:  0.13,
+  detourFrac:  0.78,  // how far toward the centreline the car edges out
+                      // (1.0 = on the centreline, 2.0 = fully in the far lane)
+  clearedBy:   45,    // a car is "back in its lane" within this many units
+  clearZone:  260,    // extra margin the junction must be clear by
+  maxHold:   5000     // cap on holding a phase open, so nothing can deadlock
 };
 
-function updateDirect(sc, site, t){
+/* Which way do the blocked-lane cars travel? Taken from a real car rather than
+   assumed from the cruiser's facing, which need not match. */
+function blockedDirOf(sc, site, t){
+  if(site.blkDir) return site.blkDir;
   const rb = site.roadblock;
-  if(!rb) return;
-  if(!site.wave) site.wave = { on:false, t0:t };
-  const w = site.wave;
-
-  /* IS THE FAR LANE EMPTY?
-     A CORRIDOR test, not a directional one. Directional was wrong twice over:
-     it ignored cars that had already passed the cruiser, but those cars are
-     still sitting in the lane he would be sending people into. What matters is
-     simply whether the stretch of far lane the detour uses is occupied — either
-     side of the cruiser, coming or going.
-
-     Cars whose ORIGINAL lane is the blocked one are excluded: they are the
-     batch he is already waving through, and counting them would mean a wave
-     could never continue once the first car pulled out. */
-  /* NOTE ON THE TOLERANCE THAT CAUSED A FALSE PASS:
-     opposing-lane cars sit about 368 units laterally from the cruiser. While
-     STOP.lane was 300 they were never counted at all, so this test reported
-     "empty" unconditionally and he waved without ever looking. STOP.lane is now
-     520, wide enough to actually see the far lane. */
-  const corridor = DIRECT.detourRange + DIRECT.clearMargin;
-  const clear = !sc.route.traffic.some(tr => {
+  for(const tr of sc.route.traffic){
     const lane0 = (tr.__lane0 !== undefined) ? tr.__lane0 : tr.laneOffset;
-    if(Math.sign(lane0) === Math.sign(rb.lane)) return false;   // our own batch
-    const w = trafficWorldAt(tr, t);
-    const d = DIRV[w.f];
-    const dx = rb.x - w.wp.x, dy = rb.y - w.wp.y;
-    if(Math.abs(-dx*d.y + dy*d.x) > STOP.lane) return false;    // another street
-    return Math.abs(dx*d.x + dy*d.y) < corridor;                // in the corridor
-  });
-
-  const el = t - w.t0;
-  if(w.on){
-    if(!clear || el > DIRECT.waveMs){ w.on = false; w.t0 = t; }
-  } else {
-    if(clear && el > DIRECT.holdMs){ w.on = true; w.t0 = t; }
+    if(Math.sign(lane0) !== Math.sign(rb.lane)) continue;
+    site.blkDir = DIRV[trafficWorldAt(tr, t).f];
+    return site.blkDir;
   }
+  return null;
 }
 
-/* Pull WAVED cars around the cruiser via the far lane, and let them drift back
-   once past. Only cars in the blocked lane detour, and only cars that are not
-   being held.
+/* Phase flip, with a CLEARANCE INTERLOCK.
+   A real signal does not change until the junction is empty, and neither does
+   he. Flipping A->B on a timer alone released oncoming traffic while a car was
+   still out in the far lane getting round the cruiser — they met at 88 units,
+   which is inside a 225-unit car. Phase A now runs until every detouring car
+   has tucked back in, with a cap so a stuck car cannot deadlock the junction. */
+function updatePhase(sc, site, t){
+  if(!site.phase) site.phase = { a: true, t0: t };
+  const ph = site.phase;
+  const dur = ph.a ? PHASE.aMs : PHASE.bMs;
+  if(t - ph.t0 <= dur) return ph;
 
-   THE HELD CHECK IS WHAT STOPS THE BOUNCE. Previously the detour looked only at
-   distance, so a car waiting at the line would edge out toward the far lane,
-   get held, ease back, and edge out again — a visible wobble while it queued.
-   A held car now sits squarely in its own lane and only pulls out once he
-   actually waves it through.
+  /* BOTH directions of the flip interlock, symmetrically. A->B was holding
+     until detouring cars tucked back in, but B->A had no guard at all, so an
+     oncoming car that entered during B was still clearing the junction when a
+     car started to detour into it. That was the last of the head-on overlap. */
+  const rb = site.roadblock;
+  const blkSign = Math.sign(rb.lane);
+  const zone = PHASE.detourRange + PHASE.clearZone;
 
-   Easing is normalised against dt so the manoeuvre reads the same regardless of
-   frame rate, rather than snapping on fast frames and crawling on slow ones. */
+  const busy = sc.route.traffic.some(tr => {
+    const l0 = (tr.__lane0 !== undefined) ? tr.__lane0 : tr.laneOffset;
+    if(ph.a){
+      /* A->B: wait for every detouring car to be back in its own lane */
+      if(Math.sign(l0) !== blkSign) return false;
+      return Math.abs(tr.laneOffset - l0) > PHASE.clearedBy;
+    }
+    /* B->A: wait for oncoming traffic to be out of the detour zone */
+    if(Math.sign(l0) === blkSign) return false;
+    const q = trafficWorldAt(tr, t), d = DIRV[q.f];
+    const dx = rb.x - q.wp.x, dy = rb.y - q.wp.y;
+    if(Math.abs(-dx*d.y + dy*d.x) > STOP.lane) return false;
+    return Math.abs(dx*d.x + dy*d.y) < zone;
+  });
+  if(busy && t - ph.t0 < dur + PHASE.maxHold) return ph;
+  ph.a = !ph.a; ph.t0 = t;
+  return ph;
+}
+
+/* Pull moving blocked-lane cars around the cruiser, and let them settle back
+   once past. Only runs in phase A, when the far lane is guaranteed empty of
+   oncoming traffic because he is holding it. */
 function updateDetour(sc, site, t, st, dt){
   const rb = site.roadblock;
-  const k = 1 - Math.pow(1 - DIRECT.detourEase, Math.max(0.001, dt/16.7));
+  const k = 1 - Math.pow(1 - PHASE.detourEase, Math.max(0.001, dt/16.7));
   for(const c of st){
     const tr = c.tr;
     if(tr.__lane0 === undefined) tr.__lane0 = tr.laneOffset;
@@ -644,12 +666,21 @@ function updateDetour(sc, site, t, st, dt){
       const dx = rb.x - c.x, dy = rb.y - c.y;
       const along = dx*c.d.x + dy*c.d.y;
       const lat   = Math.abs(-dx*c.d.y + dy*c.d.x);
-      if(lat < STOP.lane && Math.abs(along) < DIRECT.detourRange){
-        const u = 1 - Math.abs(along)/DIRECT.detourRange;
+      if(lat < STOP.lane && Math.abs(along) < PHASE.detourRange){
+        const u = 1 - Math.abs(along)/PHASE.detourRange;
         want = u*u*(3 - 2*u);
       }
     }
-    const target = tr.__lane0 * (1 - 2*want);
+    /* STRADDLE THE CENTRELINE, DO NOT SWAP LANES.
+       Swinging fully into the far lane (factor 2) put the car into the space
+       oncoming traffic occupies, so avoiding a head-on became a timing problem
+       — and timing problems leak. Chasing it with interlocks got the worst gap
+       from 61 to 140 units, still inside a 225-unit car.
+       A real car edges AROUND an obstruction. At 0.78 the car ends near -40:
+       it spans -85..+5, the cruiser spans -229..-139, and oncoming traffic
+       spans +139..+229. Every pair is separated laterally by construction, so
+       no amount of bad timing can overlap them. */
+    const target = tr.__lane0 * (1 - PHASE.detourFrac*want);
     tr.laneOffset += (target - tr.laneOffset) * k;
   }
 }
@@ -675,43 +706,27 @@ function updateStop(sc, t){
     return Math.abs(-dx*c.d.y + dy*c.d.x) < STOP.lane;
   };
 
-  updateDirect(sc, site, t);
+  blockedDirOf(sc, site, t);
+  const ph = updatePhase(sc, site, t);
+  const blkSign = Math.sign(site.roadblock.lane);
 
-  /* While he is waving the blocked lane through, nobody is held — that is what
-     the wave MEANS. Cars still pull around the cruiser via updateDetour. */
-  const waving = site.wave && site.wave.on;
+  /* A car MOVES if its own original lane is the one currently released.
+     Phase A releases the blocked lane; phase B releases the oncoming lane. */
+  const movingSign = ph.a ? blkSign : -blkSign;
 
-  /* COMMITMENT — the real cure for the bouncing.
-     A wave lasts a few seconds; a car takes longer than that to pull out, pass
-     the cruiser and tuck back in. When the wave ended mid-manoeuvre the car was
-     re-held and snapped back to its lane, then pulled out again on the next
-     wave — the wobble seen on device. So once he has waved a car and it is
-     close enough to be committed, it finishes the pass regardless of what the
-     wave does behind it. Cleared once it is well past. */
   for(const c of st){
     const tr = c.tr;
-    if(Math.sign(tr.__lane0 !== undefined ? tr.__lane0 : tr.laneOffset) !== Math.sign(rb.lane)) continue;
-    const dx = rb.x - c.x, dy = rb.y - c.y;
-    const along = dx*c.d.x + dy*c.d.y;
-    const lat   = Math.abs(-dx*c.d.y + dy*c.d.x);
-    if(lat > STOP.lane){ tr.__commit = false; continue; }
-    if(waving && along < DIRECT.detourRange) tr.__commit = true;   // sent, and close
-    if(along < -DIRECT.detourRange)          tr.__commit = false;  // well clear
+    if(tr.__lane0 === undefined) tr.__lane0 = tr.laneOffset;
+    c.mine = Math.sign(tr.__lane0) === movingSign;
   }
 
-  /* the cruiser stops the front car; a stopped car stops the one behind it.
-     Two propagation passes is enough for the queue depths we ever see. */
-  for(const c of st) c.held = !waving && !c.tr.__commit && ahead(c, rb.x, rb.y, STOP.line);
-  for(let pass = 0; pass < 3; pass++){
-    for(const c of st){
-      if(c.held || c.tr.__commit) continue;
-      for(const o of st){
-        if(o === c || !o.held) continue;
-        if(ahead(c, o.x, o.y, STOP.gap)){ c.held = true; break; }
-      }
-    }
+  /* Whoever is not released stops short of the cruiser and queues. The
+     oncoming side stops FURTHER back, clear of the detour zone, so it never
+     parks in the lane the detour needs. */
+  for(const c of st){
+    const isBlk = Math.sign(c.tr.__lane0) === blkSign;
+    c.held = !c.mine && ahead(c, rb.x, rb.y, isBlk ? STOP.line : STOP.far);
   }
-
   /* Detour AFTER the hold is decided, so it can honour it. */
   updateDetour(sc, site, t, st, dt);
 
@@ -875,8 +890,24 @@ BENCH.hook(function(sc, t){
        about a fixed shoulder pivot, so the arm stays rigid at every value. */
     let lift = 0;
     if(o.role === "traffic"){
-      const waving = site.wave && site.wave.on;
-      const targ = waving ? 0.62 + 0.28*Math.sin(t*0.001*DIRECT.armHz*Math.PI*2) : 0;
+      /* He faces whichever flow he is STOPPING, arm up, and turns to face the
+         other way when the phase flips. That turn is the clearest read that he
+         is directing rather than standing: the arm alone is easy to miss at
+         normal zoom, the whole body turning is not. */
+      const ph = site.phase, blk = site.blkDir;
+      if(ph && blk){
+        const hold = ph.a ? { x: blk.x, y: blk.y }        // phase A: holding oncoming
+                          : { x: -blk.x, y: -blk.y };     // phase B: holding the blocked lane
+        const want = faceDir(hold.x, hold.y);
+        /* shortest-way turn, so he never spins the long way round */
+        if(o.__th === undefined) o.__th = want;
+        let dth = want - o.__th;
+        while(dth >  Math.PI) dth -= Math.PI*2;
+        while(dth < -Math.PI) dth += Math.PI*2;
+        o.__th += dth * 0.12;
+        th = o.__th;
+      }
+      const targ = 0.58 + 0.24*Math.sin(t*0.0042);
       o.__lift = (o.__lift === undefined) ? targ : o.__lift + (targ - o.__lift)*0.12;
       lift = o.__lift;
     }
