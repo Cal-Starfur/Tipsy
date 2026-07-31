@@ -484,6 +484,24 @@ BENCH.hook(function(sc, t){
   const site = sc.__crime;
   if(!site) return;
 
+  /* THE SCENE OWNS THIS LOT.
+     drawParkingRow spawns its own civilian cars into some stalls, and one was
+     parked in the middle of the scene — the perimeter officer walked straight
+     through it. The method RETURNS its cars for the caller to queue rather than
+     drawing them itself, so returning an empty list for this one edge removes
+     them while leaving the painted bays untouched. Every other lot in the city
+     is unaffected. */
+  if(!sc.__crimeRowPatched && site.e){
+    const orig = sc.drawParkingRow.bind(sc);
+    sc.drawParkingRow = function(g, ox, oy, dv, rv, w, seed, tt){
+      const cars = orig(g, ox, oy, dv, rv, w, seed, tt);
+      const cr = sc.__crime;
+      if(cr && cr.e && Math.abs(ox - cr.e.ox) < 1 && Math.abs(oy - cr.e.oy) < 1) return [];
+      return cars;
+    };
+    sc.__crimeRowPatched = true;
+  }
+
   /* Hold the robot still so it does not wander out of the scene while you
      look at it. The CAMERA is no longer the reason for this — the bench camera
      owns the projection now — so releasing it just lets you drive past.
