@@ -24,6 +24,42 @@
 
 /* four stalls: cruiser, gap, gap, cruiser — the two middle bays are where the
    officers and the taped-off area go. */
+/* ============================================================================
+   WHEN DOES THIS HAPPEN AT ALL
+
+   Roughly one day in seven, and DETERMINISTIC per date: everybody playing the
+   same day must get the same city, or the daily leaderboard is not comparing
+   like with like.
+
+   The roll uses its own derivation from the date, salted, rather than drawing
+   from the route's rng stream. Drawing from that stream would consume a value
+   and shift every prop generated afterwards, so the city would change shape on
+   days the scene did not appear — a scene that alters the world by NOT being
+   there. Independent salt keeps it inert.
+
+   window.__crimeForce = true/false, or ?crime=1 / ?crime=0 in the bench, to
+   override while working on it.
+   ============================================================================ */
+const CRIME_SCENE = { salt: 0x5ce7e };
+
+/* ONE DAY PER WEEK, not a 1-in-7 roll each day.
+   An independent daily roll gives the right average and a bad distribution:
+   over 730 days it produced scenes on consecutive days and also a 43-day
+   drought. Bucketing the calendar into 7-day blocks and choosing one day inside
+   each block gives exactly one per week — the player learns there is always one
+   that week without being able to guess which day. Gaps stay between 1 and 13
+   days instead of running to six weeks. */
+function crimeSceneOnDate(dateStr){
+  if(window.__crimeForce !== undefined) return !!window.__crimeForce;
+  if(!dateStr) return false;
+  const ms = Date.parse(dateStr + "T00:00:00Z");
+  if(!isFinite(ms)) return false;
+  const day  = Math.floor(ms / 86400000);
+  const week = Math.floor(day / 7);
+  const pick = Math.floor(mulberry32((week ^ CRIME_SCENE.salt) >>> 0)() * 7);
+  return ((day % 7) + 7) % 7 === pick;
+}
+
 const CRIME_STALLS = 4;
 const CRIME_CAR_STALLS = [0, 3];
 
@@ -743,6 +779,7 @@ function updateStop(sc, t){
 function findCrimeSite(sc){
   const r = sc.route;
   if(!r || !r.cutEdges || !r.grid) return null;
+  if(!crimeSceneOnDate(r.dateStr)) return null;    // not today
   const byKey = {};
   for(const b of r.grid.blocks) byKey[b.i + "," + b.j] = b;
 
@@ -784,6 +821,14 @@ function findCrimeSite(sc){
 }
 
 /* ============================ bench driver ============================ */
+/* ?crime=1 forces the scene on, ?crime=0 forces it off. Without it the date
+   decides, so the bench shows what a player would actually get that day. */
+(function(){
+  const q = new URLSearchParams(location.search).get("crime");
+  if(q === "1") window.__crimeForce = true;
+  else if(q === "0") window.__crimeForce = false;
+})();
+
 BENCH.hook(function(sc, t){
   if(sc.__crimeRoute !== sc.route){          // recompute only on route change
     sc.__crimeRoute = sc.route;
