@@ -166,6 +166,15 @@ function stallsForEdge(sc, e, want){
    evaluated at (t - lag). Advancing lag at exactly the rate t advances holds
    the car still; leaving lag alone lets it roll again. No change to the traffic
    model's shape, and it resumes cleanly rather than teleporting. */
+/* Uniform is fixed — that is what makes them read as police rather than
+   pedestrians. Build, skin and hair are still position-seeded per officer, so
+   four of them are not four copies of one man. */
+const OFFICER = {
+  shirt: { c:0x2b3a55, dk:0x1f2b40 },
+  pants: { c:0x222a3a, dk:0x18202c },
+  shoe:  { c:0x1c1c1c, dk:0x121212 }
+};
+
 const STOP = {
   line: 300,   // how far back from the cruiser the first car halts
   gap:  260    // spacing of the queue behind it (car is 225 long)
@@ -202,6 +211,55 @@ function roadblockSpot(sc, site){
   const fdir = (((Math.round(hdg/(Math.PI/2))) % 4) + 4) % 4;
 
   return { x: wp.x, y: wp.y, fdir, walk: best.walk, s: best.s, lane };
+}
+
+function drawOfficer(sc, g, x, y, thW, seed){
+  const r = mulberry32(seed >>> 0);
+  const build = PEOPLE_BUILD[r() < 0.5 ? 0 : 1];
+  const skin  = PEOPLE_SKIN[Math.floor(r()*PEOPLE_SKIN.length)];
+  const hair  = PEOPLE_HAIR[Math.floor(r()*PEOPLE_HAIR.length)];
+  sc.drawPersonHull(g, x, y, 0, thW, build, skin,
+                    OFFICER.shirt, OFFICER.pants, hair, OFFICER.shoe,
+                    0, false, 0, 0, null);
+}
+
+/* Where the four of them stand. Derived from the lot edge frame and the
+   traffic walk, so they land with the scene rather than at baked coordinates.
+   rv points OUT of the lot toward the road (stalls sit at -rv, which is why
+   the cars nose in that way), so facing +rv is facing the street. */
+function officerSpots(sc, site){
+  const e = site.e, rb = site.roadblock;
+  const outTh = Math.atan2(e.rv.y, e.rv.x);          // looking out at the road
+  const inTh  = outTh + Math.PI;                      // looking into the lot
+  const at = (a, d) => ({ x: e.ox + e.dv.x*a + e.rv.x*d,
+                          y: e.oy + e.dv.y*a + e.rv.y*d });
+
+  /* the two clear bays between the cruisers */
+  const s1 = site.stalls[1], s2 = site.stalls[2];
+  const spots = [];
+
+  /* one working the scene deep in the lot, facing in */
+  spots.push({ ...at(alongOf(e, s1), -170), th: inTh, role: "scene" });
+  /* one at the front of the lot by the tape line, facing out */
+  spots.push({ ...at(alongOf(e, s2), -40), th: outTh, role: "tape" });
+  /* one standing off the second cruiser */
+  spots.push({ ...at(alongOf(e, site.stalls[3]) - 30, -210), th: outTh, role: "car" });
+
+  /* and the one directing traffic — out in the road on the centreline, ahead
+     of the cruiser toward the queue, turned to face the stopped cars */
+  if(rb){
+    const hdg = segsHeadingAt(rb.walk.segs, rb.s);
+    const dirSign = Math.sign(rb.lane) || 1;
+    const p = segsWorldOf(rb.walk.segs,
+                (rb.s - 200*dirSign + rb.walk.totalLen) % rb.walk.totalLen, rb.lane*0.35);
+    spots.push({ x:p.x, y:p.y, th: hdg + Math.PI, role: "traffic" });
+  }
+  return spots;
+}
+
+/* distance along the edge of a stall centre — inverse of the placement above */
+function alongOf(e, st){
+  return (st.x - e.ox)*e.dv.x + (st.y - e.oy)*e.dv.y;
 }
 
 /* Stop and queue. Runs every frame for every car on the closed walk. */
@@ -346,4 +404,9 @@ BENCH.hook(function(sc, t){
                        site.roadblock.fdir, t, 0.74);
     updateStop(sc, t);
   }
+
+  if(!site.officers) site.officers = officerSpots(sc, site);
+  site.officers.forEach((o, i) =>
+    drawOfficer(sc, g, o.x, o.y, o.th,
+                (Math.round(o.x)*73856093) ^ (Math.round(o.y)*19349663) ^ i));
 });
