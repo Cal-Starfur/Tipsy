@@ -27,6 +27,16 @@
 const CRIME_STALLS = 4;
 const CRIME_CAR_STALLS = [0, 3];
 
+/* Third cruiser: out in the road, turned across the lane so traffic can't get
+   past the scene. Kept on the quadrant grid (fdir is an integer, and the car
+   renderer snaps yaw to 90 degrees anyway) — a 90-degree turn already reads as
+   blocking without needing a fractional heading. */
+const ROADBLOCK = {
+  lane: 0.55,   // share of ROAD_HALF out from the centreline — middle of the
+                // near traffic lane, not the crown of the road
+  along: 0      // nudge fore/aft along the route if it wants to sit further up
+};
+
 const POLICE_LIVERY = { n:"police", body:0xeceef2, bodyDk:0x23262e, roof:0xdfe2e7 };
 
 const POLC = {
@@ -133,6 +143,23 @@ function stallsForEdge(sc, e, want){
   return out;
 }
 
+/* Where the roadblock cruiser stands. Derived, not guessed: the lot sits on one
+   lateral side of the route, so the road is the other. Take the sign of the lot
+   offset and flip it, rather than hard-coding a sign that would silently be
+   wrong on half the headings. */
+function roadblockSpot(sc, site){
+  const s = site.s + ROADBLOCK.along;
+  const p = sc.posAt(s);
+  const h = sc.headingAt(s);
+  const rvx = -Math.sin(h), rvy = Math.cos(h);
+  const lotSide = Math.sign((site.gx - p.x)*rvx + (site.gy - p.y)*rvy) || 1;
+  const roadSide = -lotSide;
+  const off = ROAD_HALF * ROADBLOCK.lane * roadSide;
+  /* turned across the road: one quadrant off the route heading */
+  const fdir = (((Math.round(h/(Math.PI/2)) + 1) % 4) + 4) % 4;
+  return { x: p.x + rvx*off, y: p.y + rvy*off, fdir };
+}
+
 /* ---- find a site: a CUT edge on a COMMERCIAL block with room for stalls ---- */
 function findCrimeSite(sc){
   const r = sc.route;
@@ -182,6 +209,7 @@ BENCH.hook(function(sc, t){
   if(sc.__crimeRoute !== sc.route){          // recompute only on route change
     sc.__crimeRoute = sc.route;
     sc.__crime = findCrimeSite(sc);
+    if(sc.__crime) sc.__crime.roadblock = roadblockSpot(sc, sc.__crime);
     window.__crime = sc.__crime
       ? { s: Math.round(sc.__crime.s), block: sc.__crime.blk.i + "," + sc.__crime.blk.j,
           edge: sc.__crime.idx, stalls: sc.__crime.stalls.length }
@@ -218,12 +246,17 @@ BENCH.hook(function(sc, t){
       const st = site.stalls[si];
       if(st) sc.drawProp(g, "car", st.x, st.y, t, st.fdir, 0, null, 0);
     }
+    const rb = site.roadblock;
+    if(rb) sc.drawProp(g, "car", rb.x, rb.y, t, rb.fdir, 0, null, 0);
   } finally {
     for(let i = 0; i < CAR_COLORS.length; i++) CAR_COLORS[i] = saved[i];
   }
   CRIME_CAR_STALLS.forEach((si, i) => {
     const st = site.stalls[si];
-    /* offset the strobe phase per car so the two bars are not in lockstep */
+    /* offset the strobe phase per car so the bars are not in lockstep */
     if(st) drawPoliceHardware(sc, g, st.x, st.y, 0, st.fdir, t, i*0.37);
   });
+  if(site.roadblock)
+    drawPoliceHardware(sc, g, site.roadblock.x, site.roadblock.y, 0,
+                       site.roadblock.fdir, t, 0.74);
 });
