@@ -12284,18 +12284,42 @@ function tpSubmitClaim(trophyId){
 }
 
 /* ---------- navigation ---------- */
+/* this.runT accumulates from the Phaser delta, so a live daily run kept
+   billing you for time spent in the Trophy Case. Pause on open, resume
+   on close -- only when a route is actually RUNNING (#titleOverlay
+   hidden). See game/index.html for the full note. */
+let tpPausedWorld = false;
+function tpPauseWorld(){
+  if(tpPausedWorld) return;
+  const title = document.getElementById("titleOverlay");
+  if(!title || !title.classList.contains("hidden")) return;   // not mid-route
+  try{ game.scene.pause("world"); tpPausedWorld = true; }catch(e){}
+}
+function tpResumeWorld(){
+  if(!tpPausedWorld) return;
+  tpPausedWorld = false;
+  try{ game.scene.resume("world"); }catch(e){}
+}
 function tpOpenProfile(){
+  tpPauseWorld();
   requestTpProfile();
   tpRender();
   tpSetTab("trophy");
   document.getElementById("tpProfilePanel").classList.add("open");
 }
-function tpCloseProfile(){ document.getElementById("tpProfilePanel").classList.remove("open"); }
+function tpCloseProfile(){
+  document.getElementById("tpProfilePanel").classList.remove("open");
+  tpResumeWorld();
+}
 function tpOpenMissions(){
+  tpPauseWorld();
   tpRender();
   document.getElementById("tpMissionsPanel").classList.add("open");
 }
-function tpCloseMissions(){ document.getElementById("tpMissionsPanel").classList.remove("open"); }
+function tpCloseMissions(){
+  document.getElementById("tpMissionsPanel").classList.remove("open");
+  tpResumeWorld();
+}
 
 function tpInitStaticIcons(){
   document.getElementById("searchIcon").innerHTML = tpSearchSvg("#2e3138", 18);
