@@ -152,14 +152,21 @@ BENCH.hook(function(sc, t){
      the robot can sit hundreds of pixels off-frame while still being
      perfectly correct. The bench only needs the car framed so the art can be
      judged; real placement is lab 4's job, not this one's. */
-  /* Keep the offset SMALL. At 130 the car sat near the top edge at f2 and the
-     light bar — which rides high, z=128 — projected clean off the canvas, which
-     read in the census as a heading-dependent rendering bug when it was only
-     framing. Iso puts the same world offset at a different screen spot per
-     heading, so the offset has to be small enough to stay framed at all four. */
-  const lat = -ROBOT_SIDE * 70;
-  const px = sc.camX + ax*20 + rx*lat;
-  const py = sc.camY + ay*20 + ry*lat;
+  /* PLACEMENT — anchored to the CAMERA, offset measured in SCREEN pixels.
+     Two things were wrong before. A fixed WORLD offset shrinks on screen as K
+     rises, so at high zoom the car climbed on top of the robot. And anchoring
+     to the robot assumes the camera is centred on the robot, which it often
+     is not — the camera runs its own easing and can sit a long way off.
+     Anchoring to the camera and dividing by K fixes both: the car lands at the
+     same screen spot, a constant distance from centre, at every zoom level. */
+  const cvW = sc.scale.gameSize.width, cvH = sc.scale.gameSize.height;
+  const sepPx = Math.min(cvW, cvH) * 0.22;   // a share of the canvas, not an
+                                             // absolute — 230px was wider than
+                                             // the half-width of a phone canvas
+                                             // and pinned the car to the edge
+  const sep   = sepPx / sc.K;
+  const px = sc.camX + ax*(30/sc.K) + rx*(-ROBOT_SIDE*sep);
+  const py = sc.camY + ay*(30/sc.K) + ry*(-ROBOT_SIDE*sep);
 
   /* borrow the game's own car renderer, with CAR_COLORS temporarily forced to
      the police two-tone — that is exactly what the "policecar" kind will do
@@ -173,4 +180,11 @@ BENCH.hook(function(sc, t){
   }
 
   drawPoliceHardware(sc, g, px, py, 0, f, t);
+
+  /* NO CAMERA OVERRIDE HERE, DELIBERATELY.
+     Parking the camera on the car was tried and removed: update() eases camX
+     toward its own target every frame BEFORE drawWorld, so a hook that writes
+     camX afterwards just fights it, and the tug-of-war threw both the car and
+     the robot clean off canvas. The game's camera already centres the robot
+     correctly — a constant SCREEN separation from it is all this needs. */
 });
