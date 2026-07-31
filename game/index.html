@@ -1863,6 +1863,58 @@ const EXT_YARD_DEPTH = 220, EXT_PARK_DEPTH = 380; // exterior (world-perimeter) 
 
 const CAR_LANE = ROAD_HALF / 2;          // each traffic direction's lane, inside ROAD_HALF
 const SPAWN_S = 60;
+
+/* ---------- block edge frame, as a free function ----------
+   edges[0] is always the block's NORTH edge (dv=DIRV[0], outward
+   rv=DIRV[3]). Lifted out of the scene class because route generation
+   needs it too and generateRoute is not a method — Scene.blockEdges now
+   delegates here so there is still exactly one construction of this. */
+function blockEdgesOf(blk){
+  return [
+    { ox: blk.x0, oy: blk.y0, dv: DIRV[0], rv: DIRV[3], len: blk.x1-blk.x0 },
+    { ox: blk.x1, oy: blk.y0, dv: DIRV[1], rv: DIRV[0], len: blk.y1-blk.y0 },
+    { ox: blk.x1, oy: blk.y1, dv: DIRV[2], rv: DIRV[1], len: blk.x1-blk.x0 },
+    { ox: blk.x0, oy: blk.y1, dv: DIRV[3], rv: DIRV[2], len: blk.y1-blk.y0 }
+  ];
+}
+
+/* ---------- parking stall geometry: ONE function, two callers ----------
+   drawParkingRow paints these bays and parks civilian cars in them.
+   Anything else that needs to know where a bay actually IS — parking a
+   vehicle in one, standing a person beside one — reads the same function
+   rather than re-deriving it, exactly like dogSpotAt and trafficWorldAt.
+   Two copies of stall arithmetic is precisely how art and placement drift
+   apart.
+
+   Takes the rng OBJECT, not a seed, and consumes exactly the one draw
+   drawParkingRow used to make for nStalls — so its stream is unchanged
+   from here on and every lot in the city stays byte-identical. Pass wantN
+   to fix the count and skip that draw entirely, for callers laying their
+   own row on a fresh rng.
+
+   Sign convention (unchanged, and load-bearing): NEGATIVE b is "into the
+   block", the same direction a house's back wall lies. Positive b would
+   push the whole lot outward onto the sidewalk the robot walks. */
+function parkingStallsAt(e, rng, wantN){
+  const stallW = CARC.wid + 40;
+  const stallDepth = CARC.len + 50;
+  const nStalls = wantN || (2 + Math.floor(rng()*2));   // 2-3
+  const clusterW = nStalls * stallW;
+  if(e.len < clusterW + T2) return null;
+  const startAlong = (e.len - clusterW) / 2;   // centred ON the edge, not spanning it
+  const depthNear = -6;                        // rear bumper at the block boundary line —
+  const depthFar  = depthNear - stallDepth;    // same depth a house's front wall sits at
+  const cDepth    = (depthNear + depthFar) / 2;
+  /* nose pointing deeper into the block */
+  const fdirIn = DIRV.findIndex(d => d.x === -e.rv.x && d.y === -e.rv.y);
+  const stalls = [];
+  for(let i = 0; i < nStalls; i++){
+    const a = startAlong + (i+0.5)*stallW;
+    stalls.push({ x: e.ox + e.dv.x*a + e.rv.x*cDepth,
+                  y: e.oy + e.dv.y*a + e.rv.y*cDepth, fdir: fdirIn, a });
+  }
+  return { nStalls, stallW, stallDepth, startAlong, depthNear, depthFar, cDepth, fdirIn, stalls };
+}
 /* minimum drivable route length: ONE displayed mile. The HUD's flavor
    conversion is FT_PER_UNIT = 0.6 and 5280 ft/mi, so 1 mi = 8800 route
    units — plus the spawn offset so the readout starts at >= 1.0 mi. */
@@ -5695,31 +5747,26 @@ class WorldScene extends Phaser.Scene {
           instead of packing however many fit across the whole block
           face, which read as a parking garage rather than a few
           customer spots for one small business. */
+    /* 4. Geometry — stall count, placement and nose-in facing now come
+          from parkingStallsAt (see there). It consumes the SAME single
+          rng draw this function used to make for nStalls, in the same
+          place, so the occupancy rolls below still read the identical
+          stream and every existing lot is unchanged. */
     const rng = mulberry32(seed);
-    const stallW = CARC.wid + 40;
-    const stallDepth = CARC.len + 50;
-    const nStalls = 2 + Math.floor(rng()*2); // 2-3
-    const clusterW = nStalls * stallW;
-    if(w < clusterW + T2) return [];
-    const startAlong = (w - clusterW) / 2; // centered along the edge, not spanning it
-    const depthNear = -6;  // rear bumper right at the block boundary line — same depth a house's front wall sits at, so it's back in the camera's normal framing (300-800 deep was outside typical view around the robot)
-    const depthFar = depthNear - stallDepth;
+    const row = parkingStallsAt({ ox, oy, dv, rv, len: w }, rng);
+    if(!row) return [];
     const G = (a,b,h) => this.W(ox + dv.x*a + rv.x*b, oy + dv.y*a + rv.y*b, h);
     g.lineStyle(2, 0xf0ece0, 0.75);
-    for(let i=0; i<=nStalls; i++){
-      const x = startAlong + i*stallW;
-      const a = G(x, depthNear, 1), b = G(x, depthFar, 1);
+    for(let i=0; i<=row.nStalls; i++){
+      const x = row.startAlong + i*row.stallW;
+      const a = G(x, row.depthNear, 1), b = G(x, row.depthFar, 1);
       g.lineBetween(a.x, a.y, b.x, b.y);
     }
-    const fdirIn = DIRV.findIndex(d => d.x===-rv.x && d.y===-rv.y); // nose pointing deeper into the block
     const cars = [];
-    for(let i=0; i<nStalls; i++){
-      const cx = startAlong + (i+0.5)*stallW;
-      const cDepth = (depthNear + depthFar) / 2;
-      const cWorldX = ox + dv.x*cx + rv.x*cDepth, cWorldY = oy + dv.y*cx + rv.y*cDepth;
+    for(const st of row.stalls){
       if(rng() < 0.85){
         const kind = rng() < 0.75 ? "car" : "truck";
-        cars.push({ x: cWorldX, y: cWorldY, fdir: fdirIn, kind });
+        cars.push({ x: st.x, y: st.y, fdir: st.fdir, kind });
       }
     }
     return cars;
@@ -5762,14 +5809,7 @@ class WorldScene extends Phaser.Scene {
      edge (dv=DIRV[0], outward rv=DIRV[3]). Used by queueing AND by the
      wall-fade system, which needs to single out just edges[0] without
      duplicating this construction a third time. */
-  blockEdges(blk){
-    return [
-      { ox: blk.x0, oy: blk.y0, dv: DIRV[0], rv: DIRV[3], len: blk.x1-blk.x0 },
-      { ox: blk.x1, oy: blk.y0, dv: DIRV[1], rv: DIRV[0], len: blk.y1-blk.y0 },
-      { ox: blk.x1, oy: blk.y1, dv: DIRV[2], rv: DIRV[1], len: blk.x1-blk.x0 },
-      { ox: blk.x0, oy: blk.y1, dv: DIRV[3], rv: DIRV[2], len: blk.y1-blk.y0 }
-    ];
-  }
+  blockEdges(blk){ return blockEdgesOf(blk); }
 
   /* ---------- strip slicing (depth-sort rearchitecture, stage 1) ----------
      THE STRIP INVARIANT: no queue entry may span more world distance
