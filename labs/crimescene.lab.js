@@ -175,6 +175,20 @@ const OFFICER = {
   shoe:  { c:0x1c1c1c, dk:0x121212 }
 };
 
+/* Cap: a lighter blue than the shirt on purpose. Matched to the uniform it
+   just read as a dark blob on top of a dark body at normal zoom. */
+const CAP = { top:0x4064a0, c:0x33507f, dk:0x24395c, brim:0x1b2740, badge:0xe8c96a };
+
+/* The three in the lot pace their patch instead of standing like statues.
+   Deliberately slow — a scene read at speed from the pavement wants motion you
+   notice, not motion that pulls the eye off the road. */
+const PATROL = { len: 95, w: 0.00042 };
+/* NOTE: walkPhase is NOT a phase angle. drawPersonHull uses it as a direct
+   limb DISPLACEMENT — legs get walkPhase*side*walkStride*0.35, arms get
+   -walkPhase*side*3 — so it must be a small oscillator around +/-1, not a
+   climbing counter. Passing t*rate flung the limbs hundreds of units off the
+   body and the officers came apart. Use the game's own form and constant. */
+
 const STOP = {
   line: 300,   // how far back from the cruiser the first car halts
   gap:  260    // spacing of the queue behind it (car is 225 long)
@@ -213,14 +227,51 @@ function roadblockSpot(sc, site){
   return { x: wp.x, y: wp.y, fdir, walk: best.walk, s: best.s, lane };
 }
 
-function drawOfficer(sc, g, x, y, thW, seed){
+/* Cap, drawn in the same local frame drawPersonHull builds its own boxes in
+   (same G/faceA/faceB construction), so it rotates with the head instead of
+   being pinned to a screen direction. */
+function drawPoliceCap(sc, g, ax, ay, z, thW, build){
+  const cs = Math.cos(thW), sn = Math.sin(thW);
+  const G = (a,b,h) => sc.W(ax + a*cs - b*sn, ay + a*sn + b*cs, z + h);
+  const faceA = Math.sign(cs + sn) || 1, faceB = Math.sign(-sn + cs) || 1;
+  const box = (aC,bC,ha,hb,z0,z1,cTop,cA,cB) => {
+    const corner = (sa,sb,zz) => G(aC+sa*ha, bC+sb*hb, zz);
+    sc.quadOn(g, [corner(-1,-1,z1), corner(1,-1,z1), corner(1,1,z1), corner(-1,1,z1)], cTop);
+    sc.quadOn(g, [corner(faceA,-1,z1), corner(faceA,1,z1), corner(faceA,1,z0), corner(faceA,-1,z0)], cA);
+    sc.quadOn(g, [corner(-1,faceB,z1), corner(1,faceB,z1), corner(1,faceB,z0), corner(-1,faceB,z0)], cB);
+  };
+  const hipH = build.legH, shoulderH = hipH + build.torsoH;
+  const headH = shoulderH + build.headR*2, r = build.headR;
+
+  const crown = () =>
+    box(0, 0, r*1.14, r*1.14, headH - r*0.50, headH + r*0.34, CAP.top, CAP.dk, CAP.c);
+  const front = () => {
+    /* peak — the thing that makes it a police cap and not a beanie */
+    box(r*1.05, 0, r*0.52, r*1.02, headH - r*0.54, headH - r*0.40, CAP.brim, CAP.brim, CAP.brim);
+    box(r*1.10, 0, r*0.10, r*0.26, headH - r*0.30, headH + r*0.10, CAP.badge, CAP.badge, CAP.badge);
+  };
+
+  /* ORDER BY DEPTH, NOT BY HABIT.
+     Peak and badge sit forward of the crown at +a. Drawn unconditionally after
+     it, they painted straight over the head whenever the officer turned away
+     from the camera — the cap visibly came apart on those facings. Compare
+     depths and put the far part down first, so the peak is correctly hidden
+     behind the head when he faces away and correctly in front when he does not.
+     Same rule as the light bar: correct by construction, not by luck. */
+  const dep = (a, b, h) => (a*cs - b*sn) + (a*sn + b*cs) + h*0.4;
+  const frontNear = dep(r*1.05, 0, headH - r*0.47) > dep(0, 0, headH - r*0.08);
+  if(frontNear){ crown(); front(); } else { front(); crown(); }
+}
+
+function drawOfficer(sc, g, x, y, thW, seed, walkPhase, moving){
   const r = mulberry32(seed >>> 0);
   const build = PEOPLE_BUILD[r() < 0.5 ? 0 : 1];
   const skin  = PEOPLE_SKIN[Math.floor(r()*PEOPLE_SKIN.length)];
   const hair  = PEOPLE_HAIR[Math.floor(r()*PEOPLE_HAIR.length)];
   sc.drawPersonHull(g, x, y, 0, thW, build, skin,
                     OFFICER.shirt, OFFICER.pants, hair, OFFICER.shoe,
-                    0, false, 0, 0, null);
+                    walkPhase || 0, !!moving, 0, 0, null);
+  drawPoliceCap(sc, g, x, y, 0, thW, build);
 }
 
 /* Where the four of them stand. Derived from the lot edge frame and the
@@ -254,6 +305,14 @@ function officerSpots(sc, site){
                 (rb.s - 200*dirSign + rb.walk.totalLen) % rb.walk.totalLen, rb.lane*0.35);
     spots.push({ x:p.x, y:p.y, th: hdg + Math.PI, role: "traffic" });
   }
+  /* pacing axis for the three in the lot: along the row, so they move across
+     the scene rather than in and out of the parked cars */
+  const dvx = e.dv.x, dvy = e.dv.y;
+  spots.forEach((o, i) => {
+    if(o.role === "traffic") return;         // he holds the road
+    o.patrol = { dx: dvx, dy: dvy, ph: i*2.1, len: PATROL.len };
+  });
+
   return spots;
 }
 
@@ -406,7 +465,28 @@ BENCH.hook(function(sc, t){
   }
 
   if(!site.officers) site.officers = officerSpots(sc, site);
-  site.officers.forEach((o, i) =>
-    drawOfficer(sc, g, o.x, o.y, o.th,
-                (Math.round(o.x)*73856093) ^ (Math.round(o.y)*19349663) ^ i));
+  site.officers.forEach((o, i) => {
+    /* seed off the HOME point, not the live one — seeding off a moving
+       position would reroll build/skin/hair every frame and the man would
+       flicker between four different people. */
+    const seed = (Math.round(o.x)*73856093) ^ (Math.round(o.y)*19349663) ^ i;
+    let x = o.x, y = o.y, th = o.th, wp = 0, moving = false;
+    if(o.patrol){
+      const a  = t*PATROL.w + o.patrol.ph;
+      const u  = Math.sin(a), du = Math.cos(a);
+      x = o.x + o.patrol.dx*u*o.patrol.len;
+      y = o.y + o.patrol.dy*u*o.patrol.len;
+      /* turn to face the way he is actually walking, and stand still at the
+         ends of the pace rather than moonwalking through the turn */
+      moving = Math.abs(du) > 0.16;
+      if(moving){
+        const sgn = Math.sign(du);
+        th = Math.atan2(o.patrol.dy*sgn, o.patrol.dx*sgn);
+        wp = Math.sin(t*PEOPLE_ART.walkSpeed);
+      } else {
+        th = o.th;
+      }
+    }
+    drawOfficer(sc, g, x, y, th, seed, wp, moving);
+  });
 });
