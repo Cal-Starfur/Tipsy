@@ -22,6 +22,11 @@
    out, orbit — they stay where they were put, because they are IN the world.
    ============================================================================ */
 
+/* four stalls: cruiser, gap, gap, cruiser — the two middle bays are where the
+   officers and the taped-off area go. */
+const CRIME_STALLS = 4;
+const CRIME_CAR_STALLS = [0, 3];
+
 const POLICE_LIVERY = { n:"police", body:0xeceef2, bodyDk:0x23262e, roof:0xdfe2e7 };
 
 const POLC = {
@@ -30,7 +35,7 @@ const POLC = {
   red: 0xe03a2f, redHot: 0xff8a7a,
   blue: 0x3358d8, blueHot: 0x8fa8ff,
   lensDim: 0x5a616e, flashHz: 2.4,
-  doorDk: 0x1b2130, doorLt: 0xdfe3ea
+  decal: 0x22304a
 };
 
 /* ---- roof light bar + door decal, in the car's own local frame ---- */
@@ -82,25 +87,37 @@ function drawPoliceHardware(sc, g, x, y, z, fdir, t, phaseOff){
     g.fillCircle(c.x, c.y, POLC.barH*sc.K*0.9);
   }
 
-  /* door decal on the camera-facing flank */
+  /* ---- door decal ----
+     Sized off the REAL wheel geometry rather than the cabin length. The wheels
+     sit at a=+38.8 and a=-41.6 (16 + wheelR*0.95 / -20 - wheelR*0.9) and span
+     z=-6.7 to 41.3 (centre wheelR*0.72, radius wheelR). The first version ran
+     a=-59..+59 at z=31.6..64 — wider than the wheelbase and starting below the
+     tyre tops, so it painted straight over both wheels.
+     Now it sits BETWEEN the arches and ABOVE the tyres, in the door band under
+     the glass. One dark shape on the light body: a dark block with a lighter
+     shield inside it read as a hole punched in the door at this scale. */
+  const wheelTop = CR.wheelR*0.72 + CR.wheelR;      // 41.3
   const dB = D(0, hw, chassisTop) > D(0, -hw, chassisTop) ? hw : -hw;
-  const dB1 = dB * 1.02;
-  const dh0 = cz + CR.chassisH*0.18, dh1 = chassisTop - 2;
-  sc.quadOn(g, [P(-cl*0.85,dB1,dh0), P(cl*0.85,dB1,dh0),
-                P(cl*0.85,dB1,dh1), P(-cl*0.85,dB1,dh1)], POLC.doorDk);
-  const sh0 = dh0 + (dh1-dh0)*0.22, sh1 = dh0 + (dh1-dh0)*0.80;
-  sc.quadOn(g, [P(-cl*0.22,dB1*1.01,sh0), P(cl*0.22,dB1*1.01,sh0),
-                P(cl*0.22,dB1*1.01,sh1), P(-cl*0.22,dB1*1.01,sh1)], POLC.doorLt);
+  const dB1 = dB * 1.015;                            // a hair proud of the skin
+  const dh0 = wheelTop + 5;                          // clear of the tyre
+  const dh1 = chassisTop - 5;                        // under the glass line
+  const da  = 26;                                    // inside both wheel arches
+  sc.quadOn(g, [P(-da,dB1,dh0), P(da,dB1,dh0), P(da,dB1,dh1), P(-da,dB1,dh1)],
+            POLC.decal);
 }
 
 /* ---- stall geometry: MUST match drawParkingRow exactly ---- */
-function stallsForEdge(sc, e){
+function stallsForEdge(sc, e, want){
   const eseed = ((Math.round(e.ox*3+e.dv.x)*7919) ^
                  (Math.round(e.oy*3+e.dv.y)*104729) ^ 0x6f2a) >>> 0;
   const rng = mulberry32(eseed);
   const stallW = CARC.wid + 40;
   const stallDepth = CARC.len + 50;
-  const nStalls = 2 + Math.floor(rng()*2);
+  /* drawParkingRow only lays 2-3 stalls, which leaves nowhere to stand the
+     officers. The crime scene lays its OWN wider row on the same geometry, so
+     the cruisers can sit at either end with clear stalls between them.
+     On port this row replaces the normal one on the scene's edge. */
+  const nStalls = want || (2 + Math.floor(rng()*2));
   const clusterW = nStalls * stallW;
   if(e.len < clusterW + T2) return null;
   const startAlong = (e.len - clusterW) / 2;
@@ -129,8 +146,8 @@ function findCrimeSite(sc){
     if(!blk || blk.type !== "commercial") continue;
     for(const idx of r.cutEdges[key]){
       const e = sc.blockEdges(blk)[idx];
-      const stalls = stallsForEdge(sc, e);
-      if(stalls && stalls.length >= 2) cands.push({ blk, idx, e, stalls });
+      const stalls = stallsForEdge(sc, e, CRIME_STALLS);
+      if(stalls && stalls.length >= CRIME_STALLS) cands.push({ blk, idx, e, stalls });
     }
   }
   if(!cands.length) return null;
@@ -197,16 +214,16 @@ BENCH.hook(function(sc, t){
   for(let i = 0; i < CAR_COLORS.length; i++) CAR_COLORS[i] = POLICE_LIVERY;
   try {
     /* two cruisers, in the first two real stalls */
-    for(let i = 0; i < 2 && i < site.stalls.length; i++){
-      const st = site.stalls[i];
-      sc.drawProp(g, "car", st.x, st.y, t, st.fdir, 0, null, 0);
+    for(const si of CRIME_CAR_STALLS){
+      const st = site.stalls[si];
+      if(st) sc.drawProp(g, "car", st.x, st.y, t, st.fdir, 0, null, 0);
     }
   } finally {
     for(let i = 0; i < CAR_COLORS.length; i++) CAR_COLORS[i] = saved[i];
   }
-  for(let i = 0; i < 2 && i < site.stalls.length; i++){
-    const st = site.stalls[i];
+  CRIME_CAR_STALLS.forEach((si, i) => {
+    const st = site.stalls[si];
     /* offset the strobe phase per car so the two bars are not in lockstep */
-    drawPoliceHardware(sc, g, st.x, st.y, 0, st.fdir, t, i*0.37);
-  }
+    if(st) drawPoliceHardware(sc, g, st.x, st.y, 0, st.fdir, t, i*0.37);
+  });
 });
