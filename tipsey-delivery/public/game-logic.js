@@ -788,7 +788,7 @@ const HYD = {
    speed capped at 0.15), so this needs to stay well under "one hit
    per second" or it'd dominate the damage stat outright. Starting
    value, not yet tuned on-device. */
-const DAMAGE_REDZONE_DPS = 8;   // cargo damage/sec while |tilt| stays past the 0.75 danger line
+const DAMAGE_REDZONE_DPS = 4;   // cargo damage/sec while |tilt| stays past the 0.75 danger line (2026-07-30: halved from 8 -- cargo 2x stronger)
 
 /* difficulty pass (requested 2026-07-24: more people finishing runs).
    Both apply only to GRADUAL/routine sources -- hazard-contact kicks,
@@ -797,7 +797,7 @@ const DAMAGE_REDZONE_DPS = 8;   // cargo damage/sec while |tilt| stays past the 
    this.tilt directly to a fixed value rather than accumulating, so
    they're untouched by either constant -- those stay exactly as
    punishing as before. Starting values, not yet tuned on-device. */
-const CARGO_DAMAGE_SENS = 0.4;  // multiplier on cargo damage from routine contacts (lower = cargo survives bumps better)
+const CARGO_DAMAGE_SENS = 0.2;  // multiplier on cargo damage from routine contacts (lower = cargo survives bumps better) (2026-07-30: halved from 0.4 -- cargo 2x stronger)
 const TILT_SENS = 0.5;          // multiplier on tilt buildup from routine contacts/cornering/jitter (lower = harder to tip)
 /* cornering-specific fix (requested 2026-07-24 as a follow-up to the
    TILT_SENS pass above): cornering tilt scales with speed SQUARED
