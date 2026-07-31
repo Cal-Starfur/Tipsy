@@ -171,7 +171,11 @@
   /* ================= TIPSY PROFILE — Trophy Case + Store + Side Missions
      (Phase A). Ported from profile-bench.html. All new selectors prefixed
      tp* to guarantee no collision with the rest of this file. ================= */
-  #tpProfilePanel, #tpMissionsPanel{position:absolute;inset:0;background:#f0ece0;z-index:40;
+  /* FIXED, not absolute, and OUTSIDE #titleOverlay. See game/index.html
+     for the full note: nested inside #screenWrap these panels inherited
+     the map screen's display:none once a route started, so the always-on
+     robot button opened a panel nobody could see. */
+  #tpProfilePanel, #tpMissionsPanel{position:fixed;inset:0;background:#f0ece0;z-index:50;
     display:flex;flex-direction:column;transform:translateY(100%);
     transition:transform .24s ease-out;}
   #tpProfilePanel.open, #tpMissionsPanel.open{transform:translateY(0);}
@@ -254,7 +258,7 @@
     box-shadow:0 0 0 3px rgba(255,122,26,.25);}
 
   /* ---- shared detail sheet ---- */
-  #tpDetailScrim{position:absolute;inset:0;background:rgba(20,22,27,.5);z-index:40;
+  #tpDetailScrim{position:fixed;inset:0;background:rgba(20,22,27,.5);z-index:55;
     display:flex;align-items:flex-end;opacity:0;pointer-events:none;transition:opacity .18s;}
   #tpDetailScrim.open{opacity:1;pointer-events:auto;}
   #tpDetailSheet{width:100%;background:#f0ece0;border-radius:20px 20px 0 0;
@@ -281,9 +285,9 @@
   #tpDetailAction.tpLink:active{transform:scale(0.98);}
   #tpDetailNote{text-align:center;font-size:11px;color:#a99f8a;margin-top:10px;}
 
-  #tpToast{position:absolute;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);
+  #tpToast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);
     background:#2e3138;color:#fff;padding:10px 18px;border-radius:20px;font-size:13px;font-weight:700;
-    opacity:0;transition:all .2s;pointer-events:none;z-index:20;max-width:88%;
+    opacity:0;transition:all .2s;pointer-events:none;z-index:58;max-width:88%;
     text-align:center;white-space:normal;}
   #tpToast.show{opacity:1;transform:translateX(-50%) translateY(0);}
 
@@ -421,55 +425,55 @@
         <div id="prList"></div>
       </div>
     </div>
-
-    <!-- ===== Tipsy Profile: Trophy Case + Store (Phase A) ===== -->
-    <div id="tpProfilePanel">
-      <div id="tpProfHeader">
-        <button id="tpProfBack"></button>
-        <div id="tpProfTitle">TROPHY CASE</div>
-      </div>
-      <div id="tpTabBar">
-        <button class="tpTabBtn" id="tpTabTrophy">Trophy Case</button>
-        <button class="tpTabBtn" id="tpTabStore">Store</button>
-        <div id="tpWalletPill"><span class="tpWVal" id="tpWalletVal">$0.00</span></div>
-      </div>
-      <div id="tpProfBody">
-        <div id="tpTrList"></div>
-        <div id="tpStoreGrid" style="display:none;"></div>
-      </div>
-    </div>
-
-    <!-- ===== Tipsy Profile: Side Missions (search, Phase A) ===== -->
-    <div id="tpMissionsPanel">
-      <div id="tpMissionsHeader">
-        <button id="tpMissionsBack"></button>
-        <div id="tpMissionsTitle">SIDE MISSIONS</div>
-      </div>
-      <div id="tpMissionsSearchWrap">
-        <input id="tpMissionsSearch" type="text" placeholder="Search the map…">
-      </div>
-      <div id="tpMissionsBody">
-        <div id="tpMissionsList"></div>
-      </div>
-    </div>
-
-    <!-- ===== Tipsy Profile: shared detail sheet ===== -->
-    <div id="tpDetailScrim">
-      <div id="tpDetailSheet">
-        <button id="tpDetailClose"></button>
-        <div class="tpDetailSwatch" id="tpDetailSwatch"></div>
-        <div id="tpDetailName">—</div>
-        <div id="tpDetailDesc">—</div>
-        <div id="tpDetailProgWrap" style="display:none;"><div id="tpDetailProgFill"></div></div>
-        <div id="tpDetailProgLabel"></div>
-        <button id="tpDetailAction">—</button>
-        <div id="tpDetailNote"></div>
-      </div>
-    </div>
-
-    <div id="tpToast"></div>
   </div>
 </div>
+
+  <!-- ===== Tipsy Profile: Trophy Case + Store (Phase A) ===== -->
+  <div id="tpProfilePanel">
+    <div id="tpProfHeader">
+      <button id="tpProfBack"></button>
+      <div id="tpProfTitle">TROPHY CASE</div>
+    </div>
+    <div id="tpTabBar">
+      <button class="tpTabBtn" id="tpTabTrophy">Trophy Case</button>
+      <button class="tpTabBtn" id="tpTabStore">Store</button>
+      <div id="tpWalletPill"><span class="tpWVal" id="tpWalletVal">$0.00</span></div>
+    </div>
+    <div id="tpProfBody">
+      <div id="tpTrList"></div>
+      <div id="tpStoreGrid" style="display:none;"></div>
+    </div>
+  </div>
+
+  <!-- ===== Tipsy Profile: Side Missions (search, Phase A) ===== -->
+  <div id="tpMissionsPanel">
+    <div id="tpMissionsHeader">
+      <button id="tpMissionsBack"></button>
+      <div id="tpMissionsTitle">SIDE MISSIONS</div>
+    </div>
+    <div id="tpMissionsSearchWrap">
+      <input id="tpMissionsSearch" type="text" placeholder="Search the map…">
+    </div>
+    <div id="tpMissionsBody">
+      <div id="tpMissionsList"></div>
+    </div>
+  </div>
+
+  <!-- ===== Tipsy Profile: shared detail sheet ===== -->
+  <div id="tpDetailScrim">
+    <div id="tpDetailSheet">
+      <button id="tpDetailClose"></button>
+      <div class="tpDetailSwatch" id="tpDetailSwatch"></div>
+      <div id="tpDetailName">—</div>
+      <div id="tpDetailDesc">—</div>
+      <div id="tpDetailProgWrap" style="display:none;"><div id="tpDetailProgFill"></div></div>
+      <div id="tpDetailProgLabel"></div>
+      <button id="tpDetailAction">—</button>
+      <div id="tpDetailNote"></div>
+    </div>
+  </div>
+
+  <div id="tpToast"></div>
 
 <button class="iconBtn" id="globalAvatar" aria-label="Profile"><svg viewBox="0 0 40 46" width="23" height="27">
       <line x1="13" y1="5" x2="13" y2="11" stroke="#2e3138" stroke-width="1.5"/>
