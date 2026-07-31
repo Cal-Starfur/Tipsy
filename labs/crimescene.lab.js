@@ -158,10 +158,17 @@ function stallsForEdge(sc, e, want){
    lane facing ALONG the road. Same geometry the cars themselves use, so it
    cannot land in the wrong lane or the wrong facing.
    --------------------------------------------------------------------------- */
-const AVOID = {
-  window:  1300,  // start easing out this far before the blockage
-  clear:   1200,  // an oncoming car this close means the lane is NOT clear
-  ease:    0.22   // how quickly a car commits to the swerve
+/* Full road closure. Both lanes stop and queue behind the cruiser.
+
+   HOW A CAR IS STOPPED AT ALL
+   Traffic position is closed-form: s = sBase + t*speed*dir. There is no
+   per-car velocity to zero. So each car carries a time LAG, and its position is
+   evaluated at (t - lag). Advancing lag at exactly the rate t advances holds
+   the car still; leaving lag alone lets it roll again. No change to the traffic
+   model's shape, and it resumes cleanly rather than teleporting. */
+const STOP = {
+  line: 300,   // how far back from the cruiser the first car halts
+  gap:  260    // spacing of the queue behind it (car is 225 long)
 };
 
 function roadblockSpot(sc, site){
@@ -197,35 +204,44 @@ function roadblockSpot(sc, site){
   return { x: wp.x, y: wp.y, fdir, walk: best.walk, s: best.s, lane };
 }
 
-/* Traffic goes AROUND him — when the other lane is clear.
-   Written by easing tr.laneOffset, which trafficWorldAt reads for both the
-   render and the collision test, so the hitbox swerves with the art instead of
-   drifting away from it. */
-function updateAvoidance(sc, t){
-  sc.__lastT = t;   // so the bench can inspect timing-dependent state
+/* Stop and queue. Runs every frame for every car on the closed walk. */
+function updateStop(sc, t){
   const site = sc.__crime, rb = site && site.roadblock;
   if(!rb) return;
+  const dt = Math.max(0, t - (sc.__lastT === undefined ? t : sc.__lastT));
+  sc.__lastT = t;
+
   const total = rb.walk.totalLen;
-  const posOf = tr => ((tr.sBase + t*tr.speed*tr.dir) % total + total) % total;
-  const gapTo = s => { const d = Math.abs(s - rb.s) % total; return Math.min(d, total - d); };
+  const posOf = tr => {
+    const te = t - tr.__lag;
+    return ((tr.sBase + te*tr.speed*tr.dir) % total + total) % total;
+  };
+  /* distance still to travel before reaching the cruiser, along this car's
+     own direction of travel. A car that has just passed reads as nearly a
+     full lap away, so it drives off instead of being held. */
+  const aheadOf = tr => {
+    const d = tr.dir > 0 ? (rb.s - posOf(tr)) : (posOf(tr) - rb.s);
+    return ((d % total) + total) % total;
+  };
 
-  const onWalk = sc.route.traffic.filter(tr => tr.walk === rb.walk);
-  /* is the opposite lane free to borrow? */
-  const oncoming = onWalk.some(tr =>
-    Math.sign(tr.laneOffset) === -Math.sign(rb.lane) && gapTo(posOf(tr)) < AVOID.clear);
+  const cars = sc.route.traffic.filter(tr => tr.walk === rb.walk);
+  for(const tr of cars) if(tr.__lag === undefined) tr.__lag = 0;
 
-  for(const tr of onWalk){
-    if(tr.__lane0 === undefined) tr.__lane0 = tr.laneOffset;
-    if(Math.sign(tr.__lane0) !== Math.sign(rb.lane)) continue;   // other lane, unaffected
-    const gap = gapTo(posOf(tr));
-    /* 0 far away, 1 right at the blockage — smoothed so the swerve eases */
-    let want = 0;
-    if(gap < AVOID.window && !oncoming){
-      const u = 1 - gap/AVOID.window;
-      want = u*u*(3 - 2*u);
-    }
-    const target = tr.__lane0 * (1 - 2*want);      // full swerve = the other lane
-    tr.laneOffset += (target - tr.laneOffset) * AVOID.ease;
+  /* queue per lane: nearest car halts at STOP.line, the next one a gap behind
+     it, and so on — so they stack up rather than piling into one spot. */
+  const lanes = {};
+  for(const tr of cars){
+    const key = Math.sign(tr.laneOffset) || 1;
+    (lanes[key] = lanes[key] || []).push(tr);
+  }
+  for(const key of Object.keys(lanes)){
+    const q = lanes[key].slice().sort((a, b) => aheadOf(a) - aheadOf(b));
+    q.forEach((tr, i) => {
+      const target = STOP.line + i*STOP.gap;
+      /* hold once it has arrived at its slot; advancing lag by exactly dt
+         cancels the motion the closed form would otherwise produce */
+      if(aheadOf(tr) <= target) tr.__lag += dt;
+    });
   }
 }
 
@@ -328,6 +344,6 @@ BENCH.hook(function(sc, t){
   if(site.roadblock){
     drawPoliceHardware(sc, g, site.roadblock.x, site.roadblock.y, 0,
                        site.roadblock.fdir, t, 0.74);
-    updateAvoidance(sc, t);
+    updateStop(sc, t);
   }
 });
