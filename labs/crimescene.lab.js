@@ -179,26 +179,70 @@ const OFFICER = {
    just read as a dark blob on top of a dark body at normal zoom. */
 const CAP = { top:0x4064a0, c:0x33507f, dk:0x24395c, brim:0x1b2740, badge:0xe8c96a };
 
-/* The three in the lot pace their patch instead of standing like statues.
-   Deliberately slow — a scene read at speed from the pavement wants motion you
-   notice, not motion that pulls the eye off the road. */
-const PATROL = { len: 95, w: 0.00042 };
-/* NOTE: walkPhase is NOT a phase angle. drawPersonHull uses it as a direct
-   limb DISPLACEMENT — legs get walkPhase*side*walkStride*0.35, arms get
-   -walkPhase*side*3 — so it must be a small oscillator around +/-1, not a
-   climbing counter. Passing t*rate flung the limbs hundreds of units off the
-   body and the officers came apart. Use the game's own form and constant. */
+/* FACING CONVENTION.
+   A person at thW=0 faces world +y, because forward is the b axis (see the cap
+   note above). So to face world direction (ux,uy) the angle is atan2(-ux, uy),
+   NOT atan2(uy, ux). Cross-checked against peopleSpotAt: walking along +a there
+   uses th = -PI/2, and atan2(-1, 0) = -PI/2. */
+const faceDir = (ux, uy) => Math.atan2(-ux, uy);
 
-const STOP = {
-  line: 300,   // how far back from the cruiser the first car halts
-  gap:  260    // spacing of the queue behind it (car is 225 long)
-};
+/* Matches the game's own pedestrians: peopleSpotAt walks at 0.02 units/ms and
+   pauses 900ms at each end of its range. Officers use the same numbers so they
+   read as the same species of person. */
+const WALK = { speed: 0.02, pause: 900 };
 
+/* Follow a polyline. Ping-pong with a pause at each end, or loop it. */
+function pathAt(pts, tms, phase, speed, pause, loop){
+  const segs = []; let total = 0;
+  const push = (A, B) => {
+    const dx = B.x-A.x, dy = B.y-A.y, L = Math.hypot(dx, dy);
+    if(L < 1e-6) return;
+    segs.push({ x:A.x, y:A.y, dx:dx/L, dy:dy/L, L }); total += L;
+  };
+  for(let i = 0; i < pts.length-1; i++) push(pts[i], pts[i+1]);
+  if(loop) push(pts[pts.length-1], pts[0]);
+  if(!segs.length) return { x:pts[0].x, y:pts[0].y, ux:0, uy:1, walking:false };
+
+  let d, walking = true, rev = false;
+  if(loop){
+    d = (((tms + phase)*speed) % total + total) % total;
+  } else {
+    const legMs = total/speed, cyc = legMs*2 + pause*2;
+    const u = ((tms + phase) % cyc + cyc) % cyc;
+    if(u < legMs){                      d = u*speed;                       walking = true;  }
+    else if(u < legMs + pause){         d = total;                         walking = false; }
+    else if(u < legMs*2 + pause){       d = total - (u-legMs-pause)*speed; walking = true; rev = true; }
+    else {                              d = 0;                             walking = false; rev = true; }
+  }
+
+  let rem = Math.max(0, Math.min(total, d));
+  for(const sg of segs){
+    if(rem <= sg.L){
+      const k = rev ? -1 : 1;
+      return { x: sg.x + sg.dx*rem, y: sg.y + sg.dy*rem,
+               ux: sg.dx*k, uy: sg.dy*k, walking };
+    }
+    rem -= sg.L;
+  }
+  const L = segs[segs.length-1], k = rev ? -1 : 1;
+  return { x:L.x + L.dx*L.L, y:L.y + L.dy*L.L, ux:L.dx*k, uy:L.dy*k, walking };
+}
+
+/* Full road closure. Both lanes stop and queue behind the cruiser.
+   Traffic position is closed-form (s = sBase + t*speed*dir) so there is no
+   per-car velocity to zero. Each car carries a time LAG and is evaluated at
+   (t - lag): advancing lag at exactly the rate t advances holds it still. */
+const STOP = { line: 300, gap: 260 };
+
+/* ROADBLOCK CRUISER — on the traffic walk, in a real lane.
+   Traffic does not run on the robot's route; each car carries its own walk and
+   sits at +/-CAR_LANE on it. Placing this from the sidewalk route put it on the
+   wrong side of the road and ninety degrees off the traffic direction, so it is
+   placed the way a traffic car is placed instead. */
 function roadblockSpot(sc, site){
   const r = sc.route;
   if(!r.traffic || !r.traffic.length) return null;
 
-  /* unique walks, and the closest point on each to the scene */
   const seen = new Set(); let best = null;
   for(const tr of r.traffic){
     if(seen.has(tr.walk)) continue;
@@ -213,23 +257,18 @@ function roadblockSpot(sc, site){
   }
   if(!best) return null;
 
-  /* sit in whichever lane is nearer the scene, facing along the road */
   const a = segsWorldOf(best.walk.segs, best.s,  CAR_LANE);
   const b = segsWorldOf(best.walk.segs, best.s, -CAR_LANE);
   const da = (a.x-site.gx)**2 + (a.y-site.gy)**2;
   const db = (b.x-site.gx)**2 + (b.y-site.gy)**2;
   const lane = da < db ? CAR_LANE : -CAR_LANE;
-  const wp = da < db ? a : b;
+  const wp   = da < db ? a : b;
 
-  const hdg = segsHeadingAt(best.walk.segs, best.s);
+  const hdg  = segsHeadingAt(best.walk.segs, best.s);
   const fdir = (((Math.round(hdg/(Math.PI/2))) % 4) + 4) % 4;
-
   return { x: wp.x, y: wp.y, fdir, walk: best.walk, s: best.s, lane };
 }
 
-/* Cap, drawn in the same local frame drawPersonHull builds its own boxes in
-   (same G/faceA/faceB construction), so it rotates with the head instead of
-   being pinned to a screen direction. */
 function drawPoliceCap(sc, g, ax, ay, z, thW, build){
   const cs = Math.cos(thW), sn = Math.sin(thW);
   const G = (a,b,h) => sc.W(ax + a*cs - b*sn, ay + a*sn + b*cs, z + h);
@@ -246,9 +285,13 @@ function drawPoliceCap(sc, g, ax, ay, z, thW, build){
   const crown = () =>
     box(0, 0, r*1.14, r*1.14, headH - r*0.50, headH + r*0.34, CAP.top, CAP.dk, CAP.c);
   const front = () => {
-    /* peak — the thing that makes it a police cap and not a beanie */
-    box(r*1.05, 0, r*0.52, r*1.02, headH - r*0.54, headH - r*0.40, CAP.brim, CAP.brim, CAP.brim);
-    box(r*1.10, 0, r*0.10, r*0.26, headH - r*0.30, headH + r*0.10, CAP.badge, CAP.badge, CAP.badge);
+    /* PEAK GOES ON +b, NOT +a.
+       drawPersonHull separates the legs along a (side*hipW*0.3) and STRIDES
+       along b (walkPhase*side*walkStride). b is the body's forward axis. The
+       peak was on +a, i.e. ninety degrees round the head from the direction
+       the man is facing — which is what read as the head being on wrong. */
+    box(0, r*1.05, r*1.02, r*0.52, headH - r*0.54, headH - r*0.40, CAP.brim, CAP.brim, CAP.brim);
+    box(0, r*1.10, r*0.26, r*0.10, headH - r*0.30, headH + r*0.10, CAP.badge, CAP.badge, CAP.badge);
   };
 
   /* ORDER BY DEPTH, NOT BY HABIT.
@@ -259,7 +302,7 @@ function drawPoliceCap(sc, g, ax, ay, z, thW, build){
      behind the head when he faces away and correctly in front when he does not.
      Same rule as the light bar: correct by construction, not by luck. */
   const dep = (a, b, h) => (a*cs - b*sn) + (a*sn + b*cs) + h*0.4;
-  const frontNear = dep(r*1.05, 0, headH - r*0.47) > dep(0, 0, headH - r*0.08);
+  const frontNear = dep(0, r*1.05, headH - r*0.47) > dep(0, 0, headH - r*0.08);
   if(frontNear){ crown(); front(); } else { front(); crown(); }
 }
 
@@ -280,39 +323,47 @@ function drawOfficer(sc, g, x, y, thW, seed, walkPhase, moving){
    the cars nose in that way), so facing +rv is facing the street. */
 function officerSpots(sc, site){
   const e = site.e, rb = site.roadblock;
-  const outTh = Math.atan2(e.rv.y, e.rv.x);          // looking out at the road
-  const inTh  = outTh + Math.PI;                      // looking into the lot
   const at = (a, d) => ({ x: e.ox + e.dv.x*a + e.rv.x*d,
                           y: e.oy + e.dv.y*a + e.rv.y*d });
-
-  /* the two clear bays between the cruisers */
-  const s1 = site.stalls[1], s2 = site.stalls[2];
+  const a0 = alongOf(e, site.stalls[0]), a3 = alongOf(e, site.stalls[3]);
+  const lo = Math.min(a0, a3) - 80, hi = Math.max(a0, a3) + 80;
   const spots = [];
 
-  /* one working the scene deep in the lot, facing in */
-  spots.push({ ...at(alongOf(e, s1), -170), th: inTh, role: "scene" });
-  /* one at the front of the lot by the tape line, facing out */
-  spots.push({ ...at(alongOf(e, s2), -40), th: outTh, role: "tape" });
-  /* one standing off the second cruiser */
-  spots.push({ ...at(alongOf(e, site.stalls[3]) - 30, -210), th: outTh, role: "car" });
+  /* 1 — TAPING OFF. Walks the perimeter of the scene, a closed loop round the
+     whole stall cluster, which is the path you would actually take running
+     tape from post to post. */
+  spots.push({
+    role: "tape", loop: true, speed: WALK.speed*0.8,
+    path: [ at(lo, -20), at(hi, -20), at(hi, -260), at(lo, -260) ]
+  });
 
-  /* and the one directing traffic — out in the road on the centreline, ahead
-     of the cruiser toward the queue, turned to face the stopped cars */
+  /* 2 — SEARCHING. Works the pavement corner to corner across the whole block
+     frontage, head down, back and forth. rv is out toward the road, so a
+     positive depth puts him on the pavement rather than in the lot. */
+  spots.push({
+    role: "evidence", loop: false, speed: WALK.speed,
+    path: [ at(e.len*0.08, 78), at(e.len*0.92, 78) ]
+  });
+
+  /* 3 — POSTED. Stands off the far cruiser and shifts his weight about, rather
+     than pacing anywhere. Short leash, slow. */
+  spots.push({
+    role: "posted", loop: false, speed: WALK.speed*0.35,
+    path: [ at(a3 + 95, -95), at(a3 + 95, -170) ]
+  });
+
+  /* 4 — DIRECTING TRAFFIC. Holds the road. */
   if(rb){
     const hdg = segsHeadingAt(rb.walk.segs, rb.s);
     const dirSign = Math.sign(rb.lane) || 1;
     const p = segsWorldOf(rb.walk.segs,
                 (rb.s - 200*dirSign + rb.walk.totalLen) % rb.walk.totalLen, rb.lane*0.35);
-    spots.push({ x:p.x, y:p.y, th: hdg + Math.PI, role: "traffic" });
+    /* face back down the road at the queue */
+    spots.push({ role:"traffic", fixed:true, x:p.x, y:p.y,
+                 th: faceDir(-Math.cos(hdg)*dirSign, -Math.sin(hdg)*dirSign) });
   }
-  /* pacing axis for the three in the lot: along the row, so they move across
-     the scene rather than in and out of the parked cars */
-  const dvx = e.dv.x, dvy = e.dv.y;
-  spots.forEach((o, i) => {
-    if(o.role === "traffic") return;         // he holds the road
-    o.patrol = { dx: dvx, dy: dvy, ph: i*2.1, len: PATROL.len };
-  });
 
+  spots.forEach((o, i) => { o.phase = i*3100; });
   return spots;
 }
 
@@ -440,53 +491,55 @@ BENCH.hook(function(sc, t){
   if(!window.__labDrive){ sc.speed = 0; sc.throttle = 0; }
 
   const g = sc.gFront;
-  const saved = CAR_COLORS.slice();
-  for(let i = 0; i < CAR_COLORS.length; i++) CAR_COLORS[i] = POLICE_LIVERY;
-  try {
-    /* two cruisers, in the first two real stalls */
-    for(const si of CRIME_CAR_STALLS){
-      const st = site.stalls[si];
-      if(st) sc.drawProp(g, "car", st.x, st.y, t, st.fdir, 0, null, 0);
-    }
-    const rb = site.roadblock;
-    if(rb) sc.drawProp(g, "car", rb.x, rb.y, t, rb.fdir, 0, null, 0);
-  } finally {
-    for(let i = 0; i < CAR_COLORS.length; i++) CAR_COLORS[i] = saved[i];
-  }
-  CRIME_CAR_STALLS.forEach((si, i) => {
-    const st = site.stalls[si];
-    /* offset the strobe phase per car so the bars are not in lockstep */
-    if(st) drawPoliceHardware(sc, g, st.x, st.y, 0, st.fdir, t, i*0.37);
-  });
-  if(site.roadblock){
-    drawPoliceHardware(sc, g, site.roadblock.x, site.roadblock.y, 0,
-                       site.roadblock.fdir, t, 0.74);
-    updateStop(sc, t);
-  }
 
   if(!site.officers) site.officers = officerSpots(sc, site);
-  site.officers.forEach((o, i) => {
-    /* seed off the HOME point, not the live one — seeding off a moving
-       position would reroll build/skin/hair every frame and the man would
-       flicker between four different people. */
-    const seed = (Math.round(o.x)*73856093) ^ (Math.round(o.y)*19349663) ^ i;
-    let x = o.x, y = o.y, th = o.th, wp = 0, moving = false;
-    if(o.patrol){
-      const a  = t*PATROL.w + o.patrol.ph;
-      const u  = Math.sin(a), du = Math.cos(a);
-      x = o.x + o.patrol.dx*u*o.patrol.len;
-      y = o.y + o.patrol.dy*u*o.patrol.len;
-      /* turn to face the way he is actually walking, and stand still at the
-         ends of the pace rather than moonwalking through the turn */
-      moving = Math.abs(du) > 0.16;
-      if(moving){
-        const sgn = Math.sign(du);
-        th = Math.atan2(o.patrol.dy*sgn, o.patrol.dx*sgn);
-        wp = Math.sin(t*PEOPLE_ART.walkSpeed);
-      } else {
-        th = o.th;
-      }
-    }
-    drawOfficer(sc, g, x, y, th, seed, wp, moving);
+  updateStop(sc, t);
+
+  /* ---------------------------------------------------------------------
+     ONE DEPTH-SORTED PASS over cars AND officers.
+     Drawing every car and then every officer meant a man standing behind a
+     cruiser still painted over its roof. Both are ground objects in the same
+     space, so they go in one list keyed by iso depth (x + y) and are drawn
+     back to front. Same reason the car's own panels sort by depth rather than
+     by a fixed order.
+     --------------------------------------------------------------------- */
+  const items = [];
+
+  const car = (x, y, fdir, phase) => items.push({ d: x + y, draw: () => {
+    const saved = CAR_COLORS.slice();
+    for(let i = 0; i < CAR_COLORS.length; i++) CAR_COLORS[i] = POLICE_LIVERY;
+    try { sc.drawProp(g, "car", x, y, t, fdir, 0, null, 0); }
+    finally { for(let i = 0; i < CAR_COLORS.length; i++) CAR_COLORS[i] = saved[i]; }
+    drawPoliceHardware(sc, g, x, y, 0, fdir, t, phase);
+  }});
+
+  CRIME_CAR_STALLS.forEach((si, i) => {
+    const st = site.stalls[si];
+    if(st) car(st.x, st.y, st.fdir, i*0.37);      // strobes offset per car
   });
+  if(site.roadblock) car(site.roadblock.x, site.roadblock.y, site.roadblock.fdir, 0.74);
+
+  site.officers.forEach((o, i) => {
+    let x, y, th, moving;
+    if(o.fixed){
+      x = o.x; y = o.y; th = o.th; moving = false;
+    } else {
+      const w = pathAt(o.path, t, o.phase, o.speed, WALK.pause, o.loop);
+      x = w.x; y = w.y; moving = w.walking;
+      th = moving ? faceDir(w.ux, w.uy) : (o.__lastTh !== undefined ? o.__lastTh : faceDir(w.ux, w.uy));
+      if(moving) o.__lastTh = th;                 // hold the last heading through a pause
+    }
+    /* seed off the ROUTE, not the live position — seeding off a moving point
+       rerolled build/skin/hair every frame and the man flickered between
+       four different people. */
+    if(o.__seed === undefined){
+      const h = o.fixed ? o : o.path[0];
+      o.__seed = ((Math.round(h.x)*73856093) ^ (Math.round(h.y)*19349663) ^ i) >>> 0;
+    }
+    const wp = moving ? Math.sin(t*PEOPLE_ART.walkSpeed) : 0;
+    items.push({ d: x + y, draw: () => drawOfficer(sc, g, x, y, th, o.__seed, wp, moving) });
+  });
+
+  items.sort((a, b) => a.d - b.d);
+  items.forEach(it => it.draw());
 });
