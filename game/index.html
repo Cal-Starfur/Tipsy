@@ -13,7 +13,12 @@
     font-family:-apple-system,'Helvetica Neue',Arial,sans-serif;-webkit-user-select:none;user-select:none;color:#e8eaef;}
   #wrap{display:flex;flex-direction:column;height:100%;}
   #game{flex:1;min-height:0;}
-  #panel{padding:calc(10px + env(safe-area-inset-top)) 62px 8px 12px;background:#1c1f26;border-bottom:1px solid #2b2f38;}
+  /* 62px BOTH sides. The right gutter already existed so #globalAvatar
+     could sit at top-right without fighting RANDOM DAY. #globalSearch is
+     now the same deal at top-left, and 12px of padding put the ROUTE
+     label straight under it — the exact overlap that made the robot
+     "do nothing" on device before its gutter was added. */
+  #panel{padding:calc(10px + env(safe-area-inset-top)) 62px 8px 62px;background:#1c1f26;border-bottom:1px solid #2b2f38;}
   #panelToggle{position:fixed;left:50%;top:56px;transform:translateX(-50%);
     color:#8f95a1;font-size:13px;letter-spacing:1px;padding:4px 12px;z-index:5;}
   #panelToggle:active{opacity:0.6;}
@@ -118,7 +123,17 @@
      GitHub Pages / itch.io builds never see this — they keep the old
      Today/Random Day panel instead (see IS_DEVVIT_BUILD near top of
      script). ---------- */
-  #pastRoutesPanel{flex:1;min-height:0;display:flex;flex-direction:column;margin-top:10px;}
+  /* Lifted OUT of #bottomSheet into its own fixed panel, same as the
+     tp* panels. As a flex child of the sheet it was inside
+     #titleOverlay, so it could only ever be opened from the map screen
+     — which made a Past Routes link in Side Missions impossible to
+     honour mid-route. z-index 50 matches the tp* panels; the two global
+     buttons stay above at 60. Inner structure is untouched. */
+  #pastRoutesPanel{position:fixed;inset:0;z-index:50;background:#f0ece0;color:#2e3138;
+    display:flex;flex-direction:column;min-height:0;
+    padding:calc(16px + env(safe-area-inset-top)) 16px calc(12px + env(safe-area-inset-bottom));
+    transform:translateY(100%);transition:transform .24s ease-out;}
+  #pastRoutesPanel.open{transform:translateY(0);}
   #pastRoutesPanel .prHeader{flex:none;text-align:center;position:relative;padding-bottom:8px;}
   #pastRoutesPanel .prHeader h2{margin:0;font-size:15px;letter-spacing:1px;}
   #pastRoutesPanel .prHeader .sub{font-size:11px;color:#8f8571;margin-top:2px;line-height:1.3;}
@@ -368,8 +383,24 @@
     z-index:60;background:#ff7a1a;cursor:pointer;
     box-shadow:0 2px 6px rgba(0,0,0,.35);}
   #globalAvatar:active{transform:scale(0.94);}
-  /* the per-screen copies are retired in favour of it */
-  #avatarIcon,#failAvatarBtn{display:none !important;}
+  /* Same treatment for the magnifying glass. It used to live inside
+     #mapCard -> #screenWrap -> #titleOverlay, so it disappeared the
+     instant a route started — the fail screen carried its own copy
+     (#failMenuBtn) purely to paper over that. One button, outside every
+     overlay, never hidden. */
+  #globalSearch{position:fixed;top:calc(12px + env(safe-area-inset-top));left:14px;
+    z-index:60;background:rgba(255,255,255,.92);cursor:pointer;
+    box-shadow:0 2px 6px rgba(0,0,0,.35);}
+  #globalSearch:active{transform:scale(0.94);}
+  /* the per-screen copies are retired in favour of the two global ones */
+  #avatarIcon,#failAvatarBtn,#searchIcon,#failMenuBtn{display:none !important;}
+  /* ...but the two global ones step aside once a panel is up. Both sit
+     at z-index 60 in the exact corners the panel headers use for their
+     own back/close buttons — #globalSearch landed squarely on top of
+     #tpMissionsBack and swallowed every tap on it, so the only way out
+     of Side Missions was gone. Each panel carries its own way back, so
+     there is nothing to lose by hiding these while one is open. */
+  body.tpPanelOpen #globalAvatar, body.tpPanelOpen #globalSearch{display:none !important;}
 </style>
 </head>
 <body>
@@ -423,19 +454,6 @@
         <button class="listIcon" id="listIcon"><span class="licon">☰</span>Past Routes</button>
         <span class="status" id="sheetStatus">Ready for pickup</span>
         <span class="chev" id="sheetChev">︿</span>
-      </div>
-      <div id="pastRoutesPanel" class="hidden">
-        <div class="prHeader">
-          <h2>PAST ROUTES</h2>
-          <div class="sub">Beat a day's best — the difference adds to your all-time total.</div>
-          <button id="prClose">✕</button>
-        </div>
-        <div id="prAllTime">
-          <span class="lbl">All-time total</span>
-          <span class="val" id="prAllTimeVal">—</span>
-        </div>
-        <button id="prPlayToday">▶ PLAY TODAY'S ROUTE</button>
-        <div id="prList"></div>
       </div>
     </div>
   </div>
@@ -500,6 +518,22 @@
       <rect x="5" y="34" width="30" height="3" fill="#ffcc33" stroke="#c9a020" stroke-width="0.5"/>
       <rect x="5" y="36" width="30" height="3" fill="#494e58"/>
     </svg></button>
+<button class="iconBtn" id="globalSearch" aria-label="Side missions"></button>
+
+<!-- ===== Past Routes (Devvit only) — own fixed panel, see CSS ===== -->
+  <div id="pastRoutesPanel">
+    <div class="prHeader">
+      <h2>PAST ROUTES</h2>
+      <div class="sub">Beat a day's best — the difference adds to your all-time total.</div>
+      <button id="prClose">✕</button>
+    </div>
+    <div id="prAllTime">
+      <span class="lbl">All-time total</span>
+      <span class="val" id="prAllTimeVal">—</span>
+    </div>
+    <button id="prPlayToday">▶ PLAY TODAY'S ROUTE</button>
+    <div id="prList"></div>
+  </div>
 
 <div id="failOverlay" class="overlay hidden">
   <button class="iconBtn menuBtn" id="failMenuBtn"></button>
@@ -12588,12 +12622,42 @@ function tpRenderMissions(){
   /* the search box says "Search the map", so it searches the PLACE as
      well as the mission text — "palmline", "flats" or "1200" all find
      the hydrant course. */
+  /* Past Routes sits at the head of this list as well as on the map's
+     bottom sheet. The magnifying glass is reachable mid-route now, and
+     browsing your history is the other thing you'd reach for from it.
+     DEVVIT ONLY: the history array and the all-time total both come
+     from the Reddit server (requestHistory / tipsyBridge, which
+     no-op when !IS_DEVVIT_BUILD), so on itch.io / GitHub Pages there is
+     nothing behind this row and it would open an empty panel. */
+  const showPR = IS_DEVVIT_BUILD && (!q || "past routes history all-time replay".includes(q));
+  if(showPR){
+    const pr = document.createElement("div");
+    pr.id = "tpPastRoutesRow";
+    pr.className = "tpTrRow";
+    pr.innerHTML = `
+      <div class="tpMedal tpMission" style="font-size:18px;">&#9776;</div>
+      <div class="tpTrInfo">
+        <div class="tpTrName">Past Routes</div>
+        <div class="tpTrDesc">Replay any day you've already delivered.</div>
+        <div class="tpTrReward">Beat a day's best — the difference adds to your all-time total.</div>
+      </div>
+      <div class="tpTrRight"></div>`;
+    /* Drop the .open class directly instead of calling tpCloseMissions():
+       that would resume the world for one frame before Past Routes
+       paused it again. */
+    pr.addEventListener("click", ()=>{
+      document.getElementById("tpMissionsPanel").classList.remove("open");
+      openPastRoutes();   // calls tpSyncGlobalBtns via expandSheet
+    });
+    list.appendChild(pr);
+  }
+
   const filtered = TP_SIDE_MISSIONS.filter(m =>
     !q || m.name.toLowerCase().includes(q) || (m.desc && m.desc.toLowerCase().includes(q))
        || (m.place && m.place.toLowerCase().includes(q))
   );
   if(filtered.length === 0){
-    list.innerHTML = `<div id="tpMissionsEmpty">No missions found for "${q}".</div>`;
+    if(!showPR) list.innerHTML = `<div id="tpMissionsEmpty">No missions found for "${q}".</div>`;
     return;
   }
   filtered.forEach(m=>{
@@ -12879,29 +12943,41 @@ function tpResumeWorld(){
   tpPausedWorld = false;
   try{ game.scene.resume("world"); }catch(e){}
 }
+/* One place that decides whether the global buttons are showing, driven
+   off the panels' own state rather than each call site remembering. */
+function tpSyncGlobalBtns(){
+  const anyOpen = ["tpProfilePanel","tpMissionsPanel","pastRoutesPanel"]
+    .some(id => { const el = document.getElementById(id); return el && el.classList.contains("open"); });
+  document.body.classList.toggle("tpPanelOpen", anyOpen);
+}
 function tpOpenProfile(){
   tpPauseWorld();
   requestTpProfile();
   tpRender();
   tpSetTab("trophy");
   document.getElementById("tpProfilePanel").classList.add("open");
+  tpSyncGlobalBtns();
 }
 function tpCloseProfile(){
   document.getElementById("tpProfilePanel").classList.remove("open");
   tpResumeWorld();
+  tpSyncGlobalBtns();
 }
 function tpOpenMissions(){
   tpPauseWorld();
   tpRender();
   document.getElementById("tpMissionsPanel").classList.add("open");
+  tpSyncGlobalBtns();
 }
 function tpCloseMissions(){
   document.getElementById("tpMissionsPanel").classList.remove("open");
   tpResumeWorld();
+  tpSyncGlobalBtns();
 }
 
 function tpInitStaticIcons(){
   document.getElementById("searchIcon").innerHTML = tpSearchSvg("#2e3138", 18);
+  document.getElementById("globalSearch").innerHTML = tpSearchSvg("#2e3138", 18);
   const fmb = document.getElementById("failMenuBtn");
   if(fmb) fmb.innerHTML = tpSearchSvg("#2e3138", 18);
   document.getElementById("tpProfBack").innerHTML = tpChevronSvg("#e8eaef", 16);
@@ -12935,6 +13011,31 @@ document.getElementById("avatarIcon").addEventListener("click", tpOpenProfile);
      is why this worked on the map but not once the daily was running.
      touchstart is the one iOS always delivers, and capture:true runs us
      BEFORE anything listening at the window. */
+  el.addEventListener("touchstart", go, {passive:false, capture:true});
+  el.addEventListener("pointerdown", go, {capture:true});
+  el.addEventListener("click", go, {capture:true});
+})();
+/* the always-on magnifying glass: Side Missions from anywhere. Same
+   three-binding guarded pattern as the robot — see the note above. */
+(function bindGlobalSearch(){
+  const el = document.getElementById("globalSearch");
+  let last = 0;
+  const go = (e) => {
+    if(e){ e.preventDefault(); e.stopPropagation(); }
+    const now = performance.now();
+    if(now - last < 700) return;
+    last = now;
+    const failed = !document.getElementById("failOverlay").classList.contains("hidden");
+    const s = scn();
+    /* From the challenge: bank progress and land back on the mission
+       list — this is what #failMenuBtn used to do, kept verbatim. */
+    if(s && s.mode === "challenge"){ hide("failOverlay"); hjQuit(); tpOpenMissions(); return; }
+    /* From a crash: the run is already over, so go back to the map on
+       the way out. Mid-route or on the map, just open over what's
+       there — tpOpenMissions() pauses a live run by itself. */
+    if(failed){ hide("failOverlay"); collapseSheet(); show("titleOverlay"); }
+    tpOpenMissions();
+  };
   el.addEventListener("touchstart", go, {passive:false, capture:true});
   el.addEventListener("pointerdown", go, {capture:true});
   el.addEventListener("click", go, {capture:true});
@@ -13136,14 +13237,35 @@ document.getElementById("panelToggle").addEventListener("click", () => {
    toggle two classes; the flex reflow (mapCard vs bottomSheet, both
    siblings in #screenWrap) does the actual layout work. */
 function expandSheet(){
-  document.getElementById("bottomSheet").classList.add("expanded");
-  document.getElementById("pastRoutesPanel").classList.remove("hidden");
+  document.getElementById("pastRoutesPanel").classList.add("open");
+  tpPauseWorld();
+  tpSyncGlobalBtns();
   document.getElementById("sheetChev").classList.add("flipped");
 }
 function collapseSheet(){
-  document.getElementById("bottomSheet").classList.remove("expanded");
-  document.getElementById("pastRoutesPanel").classList.add("hidden");
+  document.getElementById("pastRoutesPanel").classList.remove("open");
+  tpResumeWorld();
+  tpSyncGlobalBtns();
   document.getElementById("sheetChev").classList.remove("flipped");
+}
+/* One entry point, shared by the #bottomSheet pill and the Past Routes
+   row in Side Missions. */
+function openPastRoutes(){
+  document.getElementById("prList").innerHTML = `<div id="prEmpty">Loading…</div>`;
+  document.getElementById("prAllTimeVal").textContent =
+    tipsyBridge.allTimeTotal != null ? `$${tipsyBridge.allTimeTotal.toFixed(2)}` : "—";
+  expandSheet();
+  requestHistory(renderPastRoutes);
+}
+/* Picking a day can now happen mid-route, so the overlay has to come
+   back before loadRoute() runs — resizeRouteMap() measures the map
+   canvas's client rect and reads ZERO while #titleOverlay is hidden,
+   which is the blank-map bug hjQuit() documents. */
+function prGoToRoute(dateStr){
+  collapseSheet();
+  show("titleOverlay");
+  scn().loadRoute(dateStr);
+  requestAnimationFrame(() => { resizeRouteMap(); drawRouteMap(scn().route); });
 }
 function renderPastRoutes(history){
   document.getElementById("prAllTimeVal").textContent =
@@ -13175,24 +13297,18 @@ function renderPastRoutes(history){
   }).join("");
   list.querySelectorAll(".prRow").forEach(row => {
     row.addEventListener("click", () => {
-      collapseSheet();
-      scn().loadRoute(row.dataset.date);
+      prGoToRoute(row.dataset.date);
     });
   });
 }
 document.getElementById("listIcon").addEventListener("click", () => {
-  const expanding = document.getElementById("pastRoutesPanel").classList.contains("hidden");
-  if(!expanding){ collapseSheet(); return; }
-  document.getElementById("prList").innerHTML = `<div id="prEmpty">Loading…</div>`;
-  document.getElementById("prAllTimeVal").textContent =
-    tipsyBridge.allTimeTotal != null ? `$${tipsyBridge.allTimeTotal.toFixed(2)}` : "—";
-  expandSheet();
-  requestHistory(renderPastRoutes);
+  const open = document.getElementById("pastRoutesPanel").classList.contains("open");
+  if(open){ collapseSheet(); return; }
+  openPastRoutes();
 });
 document.getElementById("prClose").addEventListener("click", () => collapseSheet());
 document.getElementById("prPlayToday").addEventListener("click", () => {
-  collapseSheet();
-  scn().loadRoute(clientTodayUTC());
+  prGoToRoute(clientTodayUTC());
 });
 document.getElementById("winMenuBtn").addEventListener("click", () => {
   hide("winOverlay");
