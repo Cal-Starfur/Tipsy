@@ -10,7 +10,6 @@ if(IS_DEVVIT_BUILD){ hide("panel"); hide("panelToggle"); show("winMenuBtn"); }
 /* the fail screen's magnifier + robot are for EVERY build, not just
    Devvit — the web daily had no way out of a crash except Retry. */
 show("failMenuBtn");
-if(!IS_DEVVIT_BUILD){ hide("listIcon"); }
 /* Local "today" used only for display (which pill to show, whether a
    loaded route counts as a replay) — never for anything the server
    trusts. Kept as its own function rather than reusing one of the
@@ -12627,16 +12626,15 @@ function expandSheet(){
   document.getElementById("pastRoutesPanel").classList.add("open");
   tpPauseWorld();
   tpSyncGlobalBtns();
-  document.getElementById("sheetChev").classList.add("flipped");
 }
 function collapseSheet(){
   document.getElementById("pastRoutesPanel").classList.remove("open");
   tpResumeWorld();
   tpSyncGlobalBtns();
-  document.getElementById("sheetChev").classList.remove("flipped");
 }
-/* One entry point, shared by the #bottomSheet pill and the Past Routes
-   row in Side Missions. */
+/* Reached from the Past Routes row in Side Missions. Kept as its own
+   function rather than inlined at the call site — the win/fail "menu"
+   paths still call collapseSheet(), so open and close stay a pair. */
 function openPastRoutes(){
   document.getElementById("prList").innerHTML = `<div id="prEmpty">Loading…</div>`;
   document.getElementById("prAllTimeVal").textContent =
@@ -12688,11 +12686,6 @@ function renderPastRoutes(history){
     });
   });
 }
-document.getElementById("listIcon").addEventListener("click", () => {
-  const open = document.getElementById("pastRoutesPanel").classList.contains("open");
-  if(open){ collapseSheet(); return; }
-  openPastRoutes();
-});
 document.getElementById("prClose").addEventListener("click", () => collapseSheet());
 document.getElementById("prPlayToday").addEventListener("click", () => {
   prGoToRoute(clientTodayUTC());
