@@ -178,7 +178,17 @@
   /* ================= TIPSY PROFILE — Trophy Case + Store + Side Missions
      (Phase A). Ported from profile-bench.html. All new selectors prefixed
      tp* to guarantee no collision with the rest of this file. ================= */
-  #tpProfilePanel, #tpMissionsPanel{position:absolute;inset:0;background:#f0ece0;z-index:40;
+  /* FIXED, not absolute, and OUTSIDE #titleOverlay. These panels used to
+     live inside #screenWrap (inside #titleOverlay) so inset:0 had a
+     positioning context. That coupled them to the map screen's
+     visibility: starting a route calls hide("titleOverlay") ->
+     display:none !important, so the always-on robot button fired,
+     tpOpenProfile() ran, .open was added -- to an element whose ancestor
+     was hard-hidden. The button "did nothing" during the daily route.
+     Top-level + position:fixed means they answer to nothing but
+     themselves. z-index 50 clears .overlay (10) and #hjUI (6); the robot
+     stays above at 60. */
+  #tpProfilePanel, #tpMissionsPanel{position:fixed;inset:0;background:#f0ece0;z-index:50;
     display:flex;flex-direction:column;transform:translateY(100%);
     transition:transform .24s ease-out;}
   #tpProfilePanel.open, #tpMissionsPanel.open{transform:translateY(0);}
@@ -261,7 +271,7 @@
     box-shadow:0 0 0 3px rgba(255,122,26,.25);}
 
   /* ---- shared detail sheet ---- */
-  #tpDetailScrim{position:absolute;inset:0;background:rgba(20,22,27,.5);z-index:40;
+  #tpDetailScrim{position:fixed;inset:0;background:rgba(20,22,27,.5);z-index:55;
     display:flex;align-items:flex-end;opacity:0;pointer-events:none;transition:opacity .18s;}
   #tpDetailScrim.open{opacity:1;pointer-events:auto;}
   #tpDetailSheet{width:100%;background:#f0ece0;border-radius:20px 20px 0 0;
@@ -288,9 +298,9 @@
   #tpDetailAction.tpLink:active{transform:scale(0.98);}
   #tpDetailNote{text-align:center;font-size:11px;color:#a99f8a;margin-top:10px;}
 
-  #tpToast{position:absolute;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);
+  #tpToast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);
     background:#2e3138;color:#fff;padding:10px 18px;border-radius:20px;font-size:13px;font-weight:700;
-    opacity:0;transition:all .2s;pointer-events:none;z-index:20;max-width:88%;
+    opacity:0;transition:all .2s;pointer-events:none;z-index:58;max-width:88%;
     text-align:center;white-space:normal;}
   #tpToast.show{opacity:1;transform:translateX(-50%) translateY(0);}
 
@@ -428,55 +438,55 @@
         <div id="prList"></div>
       </div>
     </div>
-
-    <!-- ===== Tipsy Profile: Trophy Case + Store (Phase A) ===== -->
-    <div id="tpProfilePanel">
-      <div id="tpProfHeader">
-        <button id="tpProfBack"></button>
-        <div id="tpProfTitle">TROPHY CASE</div>
-      </div>
-      <div id="tpTabBar">
-        <button class="tpTabBtn" id="tpTabTrophy">Trophy Case</button>
-        <button class="tpTabBtn" id="tpTabStore">Store</button>
-        <div id="tpWalletPill"><span class="tpWVal" id="tpWalletVal">$0.00</span></div>
-      </div>
-      <div id="tpProfBody">
-        <div id="tpTrList"></div>
-        <div id="tpStoreGrid" style="display:none;"></div>
-      </div>
-    </div>
-
-    <!-- ===== Tipsy Profile: Side Missions (search, Phase A) ===== -->
-    <div id="tpMissionsPanel">
-      <div id="tpMissionsHeader">
-        <button id="tpMissionsBack"></button>
-        <div id="tpMissionsTitle">SIDE MISSIONS</div>
-      </div>
-      <div id="tpMissionsSearchWrap">
-        <input id="tpMissionsSearch" type="text" placeholder="Search the map…">
-      </div>
-      <div id="tpMissionsBody">
-        <div id="tpMissionsList"></div>
-      </div>
-    </div>
-
-    <!-- ===== Tipsy Profile: shared detail sheet ===== -->
-    <div id="tpDetailScrim">
-      <div id="tpDetailSheet">
-        <button id="tpDetailClose"></button>
-        <div class="tpDetailSwatch" id="tpDetailSwatch"></div>
-        <div id="tpDetailName">—</div>
-        <div id="tpDetailDesc">—</div>
-        <div id="tpDetailProgWrap" style="display:none;"><div id="tpDetailProgFill"></div></div>
-        <div id="tpDetailProgLabel"></div>
-        <button id="tpDetailAction">—</button>
-        <div id="tpDetailNote"></div>
-      </div>
-    </div>
-
-    <div id="tpToast"></div>
   </div>
 </div>
+
+  <!-- ===== Tipsy Profile: Trophy Case + Store (Phase A) ===== -->
+  <div id="tpProfilePanel">
+    <div id="tpProfHeader">
+      <button id="tpProfBack"></button>
+      <div id="tpProfTitle">TROPHY CASE</div>
+    </div>
+    <div id="tpTabBar">
+      <button class="tpTabBtn" id="tpTabTrophy">Trophy Case</button>
+      <button class="tpTabBtn" id="tpTabStore">Store</button>
+      <div id="tpWalletPill"><span class="tpWVal" id="tpWalletVal">$0.00</span></div>
+    </div>
+    <div id="tpProfBody">
+      <div id="tpTrList"></div>
+      <div id="tpStoreGrid" style="display:none;"></div>
+    </div>
+  </div>
+
+  <!-- ===== Tipsy Profile: Side Missions (search, Phase A) ===== -->
+  <div id="tpMissionsPanel">
+    <div id="tpMissionsHeader">
+      <button id="tpMissionsBack"></button>
+      <div id="tpMissionsTitle">SIDE MISSIONS</div>
+    </div>
+    <div id="tpMissionsSearchWrap">
+      <input id="tpMissionsSearch" type="text" placeholder="Search the map…">
+    </div>
+    <div id="tpMissionsBody">
+      <div id="tpMissionsList"></div>
+    </div>
+  </div>
+
+  <!-- ===== Tipsy Profile: shared detail sheet ===== -->
+  <div id="tpDetailScrim">
+    <div id="tpDetailSheet">
+      <button id="tpDetailClose"></button>
+      <div class="tpDetailSwatch" id="tpDetailSwatch"></div>
+      <div id="tpDetailName">—</div>
+      <div id="tpDetailDesc">—</div>
+      <div id="tpDetailProgWrap" style="display:none;"><div id="tpDetailProgFill"></div></div>
+      <div id="tpDetailProgLabel"></div>
+      <button id="tpDetailAction">—</button>
+      <div id="tpDetailNote"></div>
+    </div>
+  </div>
+
+  <div id="tpToast"></div>
 
 <button class="iconBtn" id="globalAvatar" aria-label="Profile"><svg viewBox="0 0 40 46" width="23" height="27">
       <line x1="13" y1="5" x2="13" y2="11" stroke="#2e3138" stroke-width="1.5"/>
@@ -12848,18 +12858,47 @@ function tpSubmitClaim(trophyId){
 }
 
 /* ---------- navigation ---------- */
+/* The panels are full-screen, so whatever is behind them is unreadable
+   anyway -- but this.runT accumulates from the Phaser delta, so a live
+   daily run kept billing you for the time you spent in the Trophy Case.
+   Pause the scene on open, resume on close.
+   Only when a route is actually RUNNING: #titleOverlay hidden is the
+   test. On the map screen there is no clock to stop, and pausing there
+   would freeze the world behind the map for no reason. hjQuit() shows
+   the title overlay before tpOpenProfile() runs, so leaving the
+   challenge takes the no-pause path too. */
+let tpPausedWorld = false;
+function tpPauseWorld(){
+  if(tpPausedWorld) return;
+  const title = document.getElementById("titleOverlay");
+  if(!title || !title.classList.contains("hidden")) return;   // not mid-route
+  try{ game.scene.pause("world"); tpPausedWorld = true; }catch(e){}
+}
+function tpResumeWorld(){
+  if(!tpPausedWorld) return;
+  tpPausedWorld = false;
+  try{ game.scene.resume("world"); }catch(e){}
+}
 function tpOpenProfile(){
+  tpPauseWorld();
   requestTpProfile();
   tpRender();
   tpSetTab("trophy");
   document.getElementById("tpProfilePanel").classList.add("open");
 }
-function tpCloseProfile(){ document.getElementById("tpProfilePanel").classList.remove("open"); }
+function tpCloseProfile(){
+  document.getElementById("tpProfilePanel").classList.remove("open");
+  tpResumeWorld();
+}
 function tpOpenMissions(){
+  tpPauseWorld();
   tpRender();
   document.getElementById("tpMissionsPanel").classList.add("open");
 }
-function tpCloseMissions(){ document.getElementById("tpMissionsPanel").classList.remove("open"); }
+function tpCloseMissions(){
+  document.getElementById("tpMissionsPanel").classList.remove("open");
+  tpResumeWorld();
+}
 
 function tpInitStaticIcons(){
   document.getElementById("searchIcon").innerHTML = tpSearchSvg("#2e3138", 18);
