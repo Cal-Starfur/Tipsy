@@ -576,20 +576,20 @@ const PEOPLE_PANTS = [{c:0x3a4658,dk:0x2c3543},{c:0x2e2e2e,dk:0x1e1e1e},{c:0x6b4
 const PEOPLE_HAIR  = [0x3a2b20, 0x1a1a1a, 0x8a6a3a, 0xd4c088, 0xb03a2e, 0x6b6b6b];
 const PEOPLE_SHOE  = [{c:0x1c1c1c,dk:0x121212},{c:0x5c4530,dk:0x483623},{c:0xf2f0e8,dk:0xc4c2ba}];
 
-/* ================= THE KICKER — wrap-around-lap hostile pedestrian.
+/* ================= THE WILLIAM — wrap-around-lap hostile pedestrian.
    Original homage to the robot-kicking midlife-crisis-brewer sitcom
    archetype: bucket hat + LOUD matching vacation shirt/bermuda set
    (hat deliberately CLASHES, never matches) + bare shins into white
    sneakers + beard/shades/gold chain. Outfit + print picked per spawn
-   from kickerSeed, so he varies day to day. Behavior + art approved in
+   from williamSeed, so he varies day to day. Behavior + art approved in
    labs/kicker-lab.html v6. ONE per day: he spawns exclusively on the
    GPS reroute lap, so the only way to ever meet him is missing the
    dropoff. */
-const KICKER_BUILD = { legH:50, legW:11, hipW:18, torsoW:38, torsoD:22, torsoH:42, headR:15, armW:8, armLen:38 };
-const KICKER_SKIN  = { c:0xf0c8a0, dk:0xc9a583 };
-const KICKER_BEARD = 0x4a382a, KICKER_CHAIN = 0xe8c15a, KICKER_SHADE = 0x1c1e24;
-const KICKER_SHOE  = { c:0xf2f0e8, dk:0xc4c2ba };
-const KICKER_FITS = [
+const WILLIAM_BUILD = { legH:50, legW:11, hipW:18, torsoW:38, torsoD:22, torsoH:42, headR:15, armW:8, armLen:38 };
+const WILLIAM_SKIN  = { c:0xf0c8a0, dk:0xc9a583 };
+const WILLIAM_BEARD = 0x4a382a, WILLIAM_CHAIN = 0xe8c15a, WILLIAM_SHADE = 0x1c1e24;
+const WILLIAM_SHOE  = { c:0xf2f0e8, dk:0xc4c2ba };
+const WILLIAM_FITS = [
   { n:"coral", c:0xe0604a, dk:0xb54936, p1:0xf5e9d0, p2:0x3f8f8a,
     hat:{ c:0x6fa8d8, dk:0x4f83b0, p:0x3f6a94 } },
   { n:"teal",  c:0x2f8f86, dk:0x246b64, p1:0xf2c14e, p2:0xf5f0e4,
@@ -597,7 +597,7 @@ const KICKER_FITS = [
   { n:"grape", c:0x7a5aa8, dk:0x5e4485, p1:0xf2c14e, p2:0xe8e2f2,
     hat:{ c:0xa8c24e, dk:0x84993b, p:0x66782c } }
 ];
-const KICKER_ACT = {
+const WILLIAM_ACT = {
   blockTrig: 180,   // he sees you coming: steps out into your lane
   standoff: 34,     // wall clearance while blocking (palm contract)
   hitAlong: 34,     // contact: |along| within the bot body
@@ -3034,7 +3034,7 @@ function generateRoute(dateStr, opts){
     for(let pass = 0; pass < 2; pass++)
       for(let i = 1; i < nTL-1; i++) tiles[i] = (tiles[i-1] + 2*tiles[i] + tiles[i+1]) / 4;
 
-    /* THE KICKER — one per day, waiting on the wrap-around lap. Line
+    /* THE WILLIAM — one per day, waiting on the wrap-around lap. Line
        legs only (s past sCut), clear of crossings and every other
        spawn (the no-stacking RULE), with a prop.people-style walk
        range so he paces his block until you show up. */
@@ -3050,8 +3050,8 @@ function generateRoute(dateStr, opts){
         for(const list of [hazards, props])
           for(const o of list) if(Math.abs(o.s - ks) < 2*T2){ kClear = false; break; }
         if(!kClear) continue;
-        const kObj = { type:"kicker", s: ks, row: 0, f: facingAt(ks), hit:true,
-                       kickerSeed: (rng()*4294967296) >>> 0,
+        const kObj = { type:"william", s: ks, row: 0, f: facingAt(ks), hit:true,
+                       williamSeed: (rng()*4294967296) >>> 0,
                        peopleSeed: (rng()*4294967296) >>> 0 };
         /* SHORT beat, not the whole (34-block-scaled) leg: his wall
            plants at hz.s + ka, so the spawn point's crossing/stacking
@@ -4370,12 +4370,12 @@ class WorldScene extends Phaser.Scene {
          layerFor's own slack. */
       const isWalker = (hz.type === "dog" || hz.type === "people")
                        && hz.walkS0 !== undefined && hz.walkS1 !== undefined;
-      if(hz.type === "robot" || isWalker || hz.type === "kicker"){
+      if(hz.type === "robot" || isWalker || hz.type === "william"){
         /* .b too, not just .a: a detouring walker is a full lane off
            its home row while sidestepping a prop (detourBAt), and a
            knocked rover freezes wherever the sidestep had it
            (knockA/knockB) -- the test point follows both axes. */
-        const effSpot = hz.type === "kicker" ? ((hz.kst && hz.kst !== "patrol") ? { a: hz.ka || 0, b: hz.kb || 0 } : peopleSpotAt(t, hz))
+        const effSpot = hz.type === "william" ? ((hz.kst && hz.kst !== "patrol") ? { a: hz.ka || 0, b: hz.kb || 0 } : peopleSpotAt(t, hz))
                       : hz.type === "people" ? peopleSpotAt(t, hz)
                       : hz.type === "dog"    ? dogSpotAt(t, hz)
                       : (!hz.knocked && hz.roving) ? robotSpotAt(t, hz) : null;
@@ -5598,7 +5598,7 @@ class WorldScene extends Phaser.Scene {
     }
   }
 
-  /* THE KICKER's body — drawPersonHull's box construction (same
+  /* THE WILLIAM's body — drawPersonHull's box construction (same
      hull-box + faceA/faceB near-face convention, same walk swing,
      same SL-hinge rotation for the kick leg and posed arms), extended
      with his signature pieces: bucket hat (clashing, camo-patched),
@@ -5606,9 +5606,9 @@ class WorldScene extends Phaser.Scene {
      into white sneakers, beard + shades (front-facing headings ONLY —
      from behind he shows the back of his head, all four headings
      verified in the lab via SPIN), gold chain. Ported verbatim from
-     labs/kicker-lab.html v6. */
-  drawKickerHull(g, ax, ay, z, thW, walkPhase, moving, kickAng, armLift, armAngle, fit, patternSeed){
-    const build = KICKER_BUILD, pSkin = KICKER_SKIN, pShoe = KICKER_SHOE, hat = fit.hat;
+     labs/william-lab.html v6. */
+  drawWilliamHull(g, ax, ay, z, thW, walkPhase, moving, kickAng, armLift, armAngle, fit, patternSeed){
+    const build = WILLIAM_BUILD, pSkin = WILLIAM_SKIN, pShoe = WILLIAM_SHOE, hat = fit.hat;
     const cs = Math.cos(thW), sn = Math.sin(thW);
     const G = (a,b,h) => this.W(ax + a*cs - b*sn, ay + a*sn + b*cs, z + h);
     const aDir = { x: cs, y: sn }, bDir = { x: -sn, y: cs };
@@ -5692,7 +5692,7 @@ class WorldScene extends Phaser.Scene {
       box(0, 0, build.torsoW/2, build.torsoD/2, hipH-2, shoulderH, fit.c, fit.dk, fit.c);
       patches("a", 0, 0, build.torsoW/2, build.torsoD/2, hipH+2, shoulderH-2, 5, 0x11);
       patches("b", 0, 0, build.torsoW/2, build.torsoD/2, hipH+2, shoulderH-2, 5, 0x22);
-      box(0, 0, build.torsoW/2*0.55, build.torsoD/2*0.8, shoulderH-5, shoulderH-2.5, KICKER_CHAIN, KICKER_CHAIN, KICKER_CHAIN, true);
+      box(0, 0, build.torsoW/2*0.55, build.torsoD/2*0.8, shoulderH-5, shoulderH-2.5, WILLIAM_CHAIN, WILLIAM_CHAIN, WILLIAM_CHAIN, true);
     };
 
     const shoulderZ = shoulderH - 1;
@@ -5734,13 +5734,13 @@ class WorldScene extends Phaser.Scene {
         const bz0 = z0, bz1 = z0 + build.headR*0.85;
         const bf = build.headR + 0.6;
         this.quadOn(g, [G(-build.headR*0.92, bf, bz0), G(build.headR*0.92, bf, bz0),
-                        G(build.headR*0.92, bf, bz1), G(-build.headR*0.92, bf, bz1)], KICKER_BEARD);
+                        G(build.headR*0.92, bf, bz1), G(-build.headR*0.92, bf, bz1)], WILLIAM_BEARD);
         const af = faceA*(build.headR + 0.6);
         this.quadOn(g, [G(af, -build.headR*0.2, bz0), G(af, build.headR*0.95, bz0),
-                        G(af, build.headR*0.95, bz1), G(af, -build.headR*0.2, bz1)], KICKER_BEARD);
+                        G(af, build.headR*0.95, bz1), G(af, -build.headR*0.2, bz1)], WILLIAM_BEARD);
         const sz0 = z0 + build.headR*1.05, sz1 = sz0 + build.headR*0.42;
         this.quadOn(g, [G(-build.headR*0.85, bf, sz0), G(build.headR*0.85, bf, sz0),
-                        G(build.headR*0.85, bf, sz1), G(-build.headR*0.85, bf, sz1)], KICKER_SHADE);
+                        G(build.headR*0.85, bf, sz1), G(-build.headR*0.85, bf, sz1)], WILLIAM_SHADE);
       }
       /* BUCKET HAT — wide thin brim + camo-patched crown */
       const brimZ = z1 - build.headR*0.45;
@@ -7504,13 +7504,13 @@ class WorldScene extends Phaser.Scene {
       const startleAlpha = (flee && flee.u < 0.4) ? 1 - flee.u/0.4 : 0;
 
       this.drawPersonHull(g, ax, ay, z, thW, build, pSkin, pShirt, pPants, pHair, pShoe, walkPhase, moving, startleAlpha);
-    } else if(kind === "kicker"){
-      /* the wrap-lap robot-hater — labs/kicker-lab.html v6 (approved).
+    } else if(kind === "william"){
+      /* the wrap-lap robot-hater — labs/william-lab.html v6 (approved).
          Pose derives from the SAME hz fields the sim writes (cone
          pattern) + this t, so art always matches the state machine. */
       const kz = data || {};
-      const kseed = (kz.kickerSeed !== undefined) ? kz.kickerSeed : 7;
-      const kfit = KICKER_FITS[kseed % KICKER_FITS.length];
+      const kseed = (kz.williamSeed !== undefined) ? kz.williamSeed : 7;
+      const kfit = WILLIAM_FITS[kseed % WILLIAM_FITS.length];
       const kst = kz.kst || "patrol";
       const kel = t - (kz.kt0 || 0);
       let ka = kz.ka || 0, kb = kz.kb || 0, klth = kz.kth || 0, kWalkAmt = 0;
@@ -7526,29 +7526,29 @@ class WorldScene extends Phaser.Scene {
         }
       } else if(kst === "intercept" || kst === "return"){ kWalkAmt = 1; }
       let kickAng = 0, kArmLift = 0, kArmAngle = LIFT_MAX_ANGLE;
-      if(kst === "block"){ kArmLift = KICKER_ACT.armBlock + Math.sin(t*0.004)*0.03; }
+      if(kst === "block"){ kArmLift = WILLIAM_ACT.armBlock + Math.sin(t*0.004)*0.03; }
       else if(kst === "windup"){
-        const ku = Math.min(1, kel/KICKER_ACT.windup), ke = ku*ku*(3-2*ku);
-        kickAng = KICKER_ACT.cock * ke; kArmLift = KICKER_ACT.armEngage * ke;
+        const ku = Math.min(1, kel/WILLIAM_ACT.windup), ke = ku*ku*(3-2*ku);
+        kickAng = WILLIAM_ACT.cock * ke; kArmLift = WILLIAM_ACT.armEngage * ke;
       } else if(kst === "kick"){
-        const ku = Math.min(1, kel/KICKER_ACT.swing);
+        const ku = Math.min(1, kel/WILLIAM_ACT.swing);
         const ke = ku < 0.5 ? 2*ku*ku : 1 - Math.pow(-2*ku+2, 2)/2;
-        kickAng = KICKER_ACT.cock + (KICKER_ACT.extend - KICKER_ACT.cock)*ke;
-        kArmLift = KICKER_ACT.armEngage;
+        kickAng = WILLIAM_ACT.cock + (WILLIAM_ACT.extend - WILLIAM_ACT.cock)*ke;
+        kArmLift = WILLIAM_ACT.armEngage;
       } else if(kst === "gloat"){
-        kArmLift = KICKER_ACT.armGloat * Math.min(1, kel/280);
-        kArmAngle = KICKER_ACT.gloatAngle;
+        kArmLift = WILLIAM_ACT.armGloat * Math.min(1, kel/280);
+        kArmAngle = WILLIAM_ACT.gloatAngle;
       } else if(kst === "whiff"){
-        kickAng = KICKER_ACT.extend * Math.max(0, 1 - kel/300);
+        kickAng = WILLIAM_ACT.extend * Math.max(0, 1 - kel/300);
       }
       const thWk = fdir*Math.PI/2 + klth;
       const kax = x + dv.x*ka + rv.x*kb, kay = y + dv.y*ka + rv.y*kb;
       const kMoving = kWalkAmt > 0.05;
       const kWalkPhase = kMoving ? Math.sin(t*PEOPLE_ART.walkSpeed) : 0;
-      this.drawKickerHull(g, kax, kay, z, thWk, kWalkPhase, kMoving, kickAng, kArmLift, kArmAngle, kfit, kseed);
+      this.drawWilliamHull(g, kax, kay, z, thWk, kWalkPhase, kMoving, kickAng, kArmLift, kArmAngle, kfit, kseed);
       if(kst === "intercept" || kst === "block" || kst === "windup"){
         /* the tell — "!" over the hat */
-        const khp = this.W(kax, kay, z + KICKER_BUILD.legH + KICKER_BUILD.torsoH + KICKER_BUILD.headR*2 + 14);
+        const khp = this.W(kax, kay, z + WILLIAM_BUILD.legH + WILLIAM_BUILD.torsoH + WILLIAM_BUILD.headR*2 + 14);
         g.fillStyle(0xc2452e, 1);
         g.fillRect(khp.x - 1.6, khp.y - 10, 3.2, 7);
         g.fillCircle(khp.x, khp.y - 0.5, 1.8);
@@ -8872,9 +8872,9 @@ class WorldScene extends Phaser.Scene {
             dx -= psp.a; hzB = psp.b || 0;
           }
         }
-        if(hz.type === "kicker"){
-          /* THE KICKER — the lap's resident robot-hater, ported from
-             labs/kicker-lab.html v6 (approved). Integrated state lives
+        if(hz.type === "william"){
+          /* THE WILLIAM — the lap's resident robot-hater, ported from
+             labs/william-lab.html v6 (approved). Integrated state lives
              on hz (cone pattern: sim writes ka/kb/kst, renderer reads
              the same fields, so hitbox == art by construction); patrol
              position is the shared pure peopleSpotAt, same contract as
@@ -8887,7 +8887,7 @@ class WorldScene extends Phaser.Scene {
              Counterplay: commit the swerve early and pass fast — he
              leads the target, so accelerating AFTER his windup starts
              breaks the prediction and he boots air. */
-          const KA = KICKER_ACT;
+          const KA = WILLIAM_ACT;
           if(hz.kst === undefined){ hz.kst = "patrol"; hz.kt0 = t; hz.ka = 0; hz.kb = 0; hz.kth = 0; hz.spent = false; }
           const kel = t - hz.kt0;
           const kLat = () => this.laneOff - (laneOffset(hz.row) + hz.kb);
@@ -10982,8 +10982,9 @@ class WorldScene extends Phaser.Scene {
    Everything is HJ_-prefixed; it reuses the game's TILE, T2,
    DIRV, SKIN, BODY, LID, STRIPE, WHEEL, HYD, mulberry32 and
    convexHull, which are byte-identical to the lab's copies.
-   NOTE: 'KICKER' in this file is the hostile pedestrian, so the
-   lab's kicker RAMP was renamed HJ_RAMP on the way in.
+   NOTE: the hostile pedestrian is WILLIAM (formerly 'kicker');
+   in THIS course feature 'kicker' always means the RAMP (hjRole,
+   kickerS, the lab's kicker ramp -> HJ_RAMP on the way in).
    ============================================================ */
 "use strict";
 
