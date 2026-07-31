@@ -1,0 +1,1015 @@
+<!DOCTYPE html>
+<!--
+  ============================================================================
+  ARCHIVED PROTOTYPE — superseded by labs/_bench.html
+  ============================================================================
+  This lab predates the bench. It re-creates the game world by hand: its own
+  constants, its own iso projection, its own gWorld/g/gFront, its own camera.
+  Those hand copies have drifted from game/index.html and will keep drifting,
+  because nothing keeps them in step.
+
+  That drift is why porting out of these labs was a translation rather than a
+  copy, and translation is where the heading bugs got in.
+
+  This file is kept for the PROTOTYPE INSIDE IT — the geometry, the tuning, the
+  math are all still good, and still worth reading and lifting from.
+
+  Do not build new features here. labs/_bench.html loads the real
+  game/index.html unmodified, so work done there ports verbatim.
+  ============================================================================
+-->
+
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>TIPSY — William Lab</title>
+<style>
+  html,body{margin:0;padding:0;background:#14161b;height:100%;overflow:hidden;touch-action:manipulation;
+    font-family:-apple-system,'Helvetica Neue',Arial,sans-serif;-webkit-user-select:none;user-select:none;color:#e8eaef;}
+  #wrap{display:flex;flex-direction:column;height:100%;}
+  #game{flex:1;min-height:0;}
+  #panel{padding:10px 12px calc(14px + env(safe-area-inset-bottom));background:#1c1f26;border-top:1px solid #2b2f38;}
+  .row{display:flex;gap:8px;margin-bottom:8px;align-items:center;}
+  .row:last-child{margin-bottom:0;}
+  .lbl{font-size:11px;letter-spacing:1.5px;color:#8f95a1;width:56px;text-transform:uppercase;}
+  button{flex:1;background:#262a33;color:#e8eaef;border:1px solid #363b46;border-radius:10px;
+    padding:10px 4px;font-size:13px;font-weight:600;}
+  button.on{background:#ff7a1a;border-color:#ff7a1a;color:#fff;}
+  button:active{transform:scale(0.96);}
+  button.sm{flex:0 0 44px;}
+  #hdr{padding:10px 14px 2px;font-size:12px;letter-spacing:2px;color:#8f95a1;text-transform:uppercase;}
+  #hdr b{color:#ff9c4d;}
+  #vals{padding:0 14px 6px;font-size:11px;color:#8f95a1;font-variant-numeric:tabular-nums;white-space:pre-line;}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="hdr"><b>TIPSY</b> · william lab · the robot-kicking guy</div>
+  <div id="vals">…</div>
+  <div id="game"></div>
+  <div id="panel">
+    <div class="row">
+      <button class="on" id="driveBtn2">DRIVE</button>
+      <button id="fitBtn">FIT: CORAL / SKY</button>
+      <button id="reseed">RESEED PRINT</button>
+    </div>
+    <div class="row">
+      <button id="poseBtn">POSE: LIVE</button>
+      <button id="spinBtn">SPIN 90°</button>
+      <button id="shadesBtn" class="on">SHADES</button>
+      <button id="kickNow">KICK NOW</button>
+    </div>
+    <div class="row">
+      <span class="lbl">Power</span>
+      <button class="sm" id="powDown">−</button>
+      <button class="sm" id="powUp">＋</button>
+      <span class="lbl">Windup</span>
+      <button class="sm" id="wuDown">−</button>
+      <button class="sm" id="wuUp">＋</button>
+      <span class="lbl">Trig</span>
+      <button class="sm" id="trDown">−</button>
+      <button class="sm" id="trUp">＋</button>
+    </div>
+    <div class="row">
+      <span class="lbl">Zoom</span>
+      <button class="sm" id="zoomOut">−</button>
+      <button class="sm" id="zoomIn">＋</button>
+      <span class="lbl">Bot</span>
+      <button class="sm" id="botBack">◀</button>
+      <button class="sm" id="botFwd">▶</button>
+      <span class="lbl">Row</span>
+      <button class="sm" id="rowDown">−</button>
+      <button class="sm" id="rowUp">＋</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/phaser@3.85.2/dist/phaser.min.js"></script>
+<script>
+"use strict";
+
+/* ============================================================
+   TIPSY — William Lab v1
+   Art + interaction bench for a NEW hostile pedestrian: the
+   William — an original homage to the sitcom archetype of the
+   midlife-crisis brewer who kicks delivery robots on sight.
+   Signature fit (the recognizable bits, all original art):
+     · bucket hat (camo-patched crown + wide brim)
+     · LOUD matching vacation set — patterned shirt + bermuda
+       shorts in the same print (seeded patch quads)
+     · bare shins into white sneakers
+     · full beard + shades + gold chain
+   Body uses the game's drawPersonHull box construction (same
+   hull-box + faceA/faceB near-face convention, same walk swing,
+   same SL-hinge rotation technique for the kick leg and the
+   arm poses). Robot, tiles, camera, tilt/tip physics are the
+   dog-hit-lab chassis verbatim.
+
+   BEHAVIOR (v2 — block + side kick):
+     PATROL    — seeded wander on his tile
+     INTERCEPT — bot approaches on his lane: he strides to the
+                 lane center ahead of the bot and squares up
+     BLOCK     — he IS a wall (palm/hydrant stop contract): the
+                 bot halts at standoff. The only way through is
+                 AROUND — swerve to an adjacent row
+     WINDUP    — bot passing alongside on an adjacent row: he
+                 pivots, leg cocks, sidesteps toward your lane
+     KICK      — the side boot; if still alongside at contact:
+                 big one-shot tilt impulse pushing the bot AWAY
+                 from him (outward, sign of your swerve side).
+                 DELIBERATE attack — the port must NOT scale
+                 this by TILT_SENS (the established
+                 "deliberate, not routine" carve-out).
+     GLOAT     — landed: arms up. Whiffed: beat, then walks off.
+     Return-to-post lerp, then re-armed once the bot is clear.
+   Counterplay: commit to the swerve EARLY and pass at speed —
+   the windup + lunge can't reach a fast wide pass. Creeping
+   through the gap is how you get got. Crawling past him is how you get got.
+
+   PORT NOTE: this bench integrates the chase per-frame. For the
+   game port, engage/windup/kick transitions must be stamped
+   (engageT/kickT + captured positions) so williamAt(t, hz) stays
+   a pure function of (t, hz) — same contract as dogFleeAt. */
+
+/* bench placement */
+const KB = { s: 4, row: 0 };
+
+/* ---------- ported verbatim from game/index.html ---------- */
+const TILE = 46;
+const T2 = TILE*2;
+const DIRV = [{x:1,y:0},{x:0,y:1},{x:-1,y:0},{x:0,y:-1}];
+const PAL = { sky:0x9fd4e8, pave:0xc9c3b4, paveB:0xbfb9aa, paveEdge:0xa8a294, road:0x4a4d55, roadLine:0xd8d2c2 };
+const SKIN = {
+  bodyTop:0xf7f8fa, bodyRight:0xe3e6ea, bodyLeft:0xc9cdd4, outline:0x30343d,
+  stripe:0xc2452e, stripeDk:0xa03824,
+  wheel:0x24262c, wheelDark:0x1a1c21, wheelHubFace:0x3d424c, wheelHub:0x8a919c,
+  visor:0x22242b, eye:0x7fe3ff, eyeAlert:0xffb04d,
+  lidInner:0xb2b7bf, cavityWall:0x9ba1a9, cavityFloor:0x7b818a,
+  belly:0x494e58, flagPole:0x2e3138, flag:0xff5722, shadow:0x000000
+};
+const BODY = { hx:26, hy:20, z0:14, z1:54 };
+const LID  = { hx:22, hy:16, z0:54, z1:61 };
+const STRIPE = { z0:20, z1:27 };
+const WHEEL = { r:10, z:10, xs:[-16, 0, 16], side:22 };
+
+function mulberry32(a){ return function(){ a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+
+/* seeded wander — same waypoint construction the dog and
+   prop.people use (dogSpotAt with sit=false) */
+function wanderAt(tms, seed){
+  const wp = i => {
+    const r = mulberry32((seed ^ Math.imul(i|0, 2654435761)) >>> 0);
+    return { a: -30 + r()*60, b: -26 + r()*52 };
+  };
+  const SEG = 3000;
+  const i = Math.floor(tms/SEG), u = (tms % SEG)/SEG;
+  const p0 = wp(i), p1 = wp(i+1);
+  const w = Math.min(u/0.62, 1), e = w*w*(3 - 2*w);
+  return {
+    a: p0.a + (p1.a - p0.a)*e,
+    b: p0.b + (p1.b - p0.b)*e,
+    th: Math.atan2(-(p1.a - p0.a), (p1.b - p0.b)),  // forward axis is (-sin,cos)
+    walk: u < 0.62 ? Math.sin(Math.PI*w) : 0
+  };
+}
+
+/* ---------- THE WILLIAM — fixed identity, not a seeded rando ---------- */
+const WILLIAM_BUILD = { legH:50, legW:11, hipW:18, torsoW:38, torsoD:22, torsoH:42, headR:15, armW:8, armLen:38 };
+const WILLIAM_SKIN  = { c:0xf0c8a0, dk:0xc9a583 };
+const WILLIAM_BEARD = 0x4a382a;
+const WILLIAM_CHAIN = 0xe8c15a;
+const WILLIAM_SHOE  = { c:0xf2f0e8, dk:0xc4c2ba };
+const WILLIAM_SHADE = 0x1c1e24;
+/* matching vacation SETS — shirt + shorts share the print; the
+   bucket hat is baked into each fit and deliberately CLASHES
+   (never matches — that's the joke) */
+const WILLIAM_FITS = [
+  { n:"CORAL",  c:0xe0604a, dk:0xb54936, p1:0xf5e9d0, p2:0x3f8f8a,
+    hat:{ n:"SKY",   c:0x6fa8d8, dk:0x4f83b0, p:0x3f6a94 } },
+  { n:"TEAL",   c:0x2f8f86, dk:0x246b64, p1:0xf2c14e, p2:0xf5f0e4,
+    hat:{ n:"RUST",  c:0xd88a3f, dk:0xb06a2c, p:0x8f5522 } },
+  { n:"GRAPE",  c:0x7a5aa8, dk:0x5e4485, p1:0xf2c14e, p2:0xe8e2f2,
+    hat:{ n:"LIME",  c:0xa8c24e, dk:0x84993b, p:0x66782c } }
+];
+const KICK = {
+  blockTrig: 180,   // he sees you coming: steps out into your lane (world units)
+  standoff: 34,     // wall clearance while blocking (palm-style stop)
+  sideTrig: 64,     // alongside on an ADJACENT row: the side kick arms
+  chase: 0.085,     // stride speed stepping out to block
+  windup: 120,      // pivot + leg cock telegraph (shipped value)
+  swing: 190,       // leg swing duration
+  contactU: 0.5,    // fraction of swing where the boot lands
+  hitAlong: 34,     // contact: |dx| within the bot's body length
+  reach: 72,        // contact: lateral center-to-center ≤ boot tip
+                    // (leg segs ≈54 × sin(extend) ≈53) + bot hull
+                    // half-width (20) — no touch, no land
+  lunge: 0.14,      // step-in toward your lane, windup through contact (u/ms)
+  lungeMax: 0.42,   // ...capped at this fraction of a lane width —
+                    // at cap, boot tip reaches the bot hull (see reach)
+  gloat: 1000, whiffBeat: 550, retMs: 900,
+  power: 1.4,       // > balance threshold: a clean boot = knockover (shipped)
+  cock: -0.52, extend: 1.5,      // leg angles (rad): ~30° cock-back, full extension
+  armBlock: 0.32,   // arms-out "you shall not pass" stance
+  armEngage: 0.45, armGloat: 1.0 // arm liftT per state
+};
+const LIFT_MAX_ANGLE = 1.25;     // arm hinge full-forward
+const GLOAT_ANGLE = 2.35;        // arms overhead
+
+class WilliamLab extends Phaser.Scene {
+  constructor(){ super("williamlab"); }
+
+  create(){
+    this.K = 2.2;
+    this.botS = 1.0;
+    this.botRow = 0;
+    this.pitch = 0; this.roll = 0; this.yaw = 0; this.f = 0;
+    this.tilt = 0; this.lidAng = 0; this.tipDir = 1; this.state = "idle";
+    this.wheelPhase = 0;
+    this.camX = 0; this.camY = 0; this.camZ = 0;
+    this.driving = false;
+    this.tipT = 0; this.tipResetT = 0;
+    this.speed = 0.05;
+    this.botZ = 2;
+
+    this.fitIdx = 0; this.shades = true;
+    this.patternSeed = 7;
+    this.poseLock = null;          // null=live | "idle"|"block"|"windup"|"kick"|"gloat"
+    this.poseSpin = 0;             // SPIN 90° art-check rotation (added to th when pose-locked)
+
+    /* william state machine (lab-integrated; see PORT NOTE) */
+    this.simT = 0;   // accumulated sim clock — state durations AND
+                     // movement both run on dt, so a slow frame can
+                     // never expire a windup the body hasn't stepped
+                     // through (wall-clock vs dt skew, low-fps devices)
+    this.kz = { st:"patrol", t0:0, a:0, b:0, th:0, kicked:false, landed:false,
+                retA:0, retB:0, walk:0, seed:(Math.random()*4294967296)>>>0 };
+
+    this.g = this.add.graphics();
+    this.scale.on("resize", () => this.layout());
+    this.layout();
+    this.updateVals();
+  }
+  layout(){
+    this.cx = this.scale.gameSize.width/2;
+    this.cy = this.scale.gameSize.height*0.42;
+  }
+  updateVals(){
+    const fit = WILLIAM_FITS[this.fitIdx], hat = fit.hat;
+    document.getElementById("vals").textContent =
+      `william · ${this.kz.st.toUpperCase()}${this.kz.landed ? " (LANDED)" : ""}${this.blocked ? " · BOT BLOCKED — go around!" : ""} · fit ${fit.n} · hat ${hat.n} · print #${this.patternSeed}\n` +
+      `power ${KICK.power.toFixed(2)} (port: NOT ×TILT_SENS) · windup ${KICK.windup}ms · blockTrig ${KICK.blockTrig} · chase ${KICK.chase}\n` +
+      `tilt ${this.tilt.toFixed(2)} · ${this.state === "tipped" ? "TIPPED" : "ok"} · pose ${this.poseLock || "live"}`;
+  }
+
+  /* ---------- ground-plane helpers (dog-hit-lab verbatim) ---------- */
+  Wg(x, y, z, ox, oy){
+    const xr = x - this.camX, yr = y - this.camY;
+    return { x:(xr - yr)*this.K + ox, y:((xr + yr)*0.5 - (z - this.camZ))*this.K + oy };
+  }
+  quadg(pts, color, alpha=1){
+    this.g.fillStyle(color, alpha);
+    this.g.fillPoints(pts.map(p => new Phaser.Geom.Point(p.x, p.y)), true);
+  }
+  edgeg(pts, color, w=2){
+    this.g.lineStyle(w, color, 1);
+    this.g.strokePoints(pts.map(p => new Phaser.Geom.Point(p.x, p.y)), true);
+  }
+
+  /* ---------- robot transform + projection (verbatim) ---------- */
+  T(x, y, z){
+    if(this.yaw !== 0){
+      const c = Math.cos(this.yaw), s = Math.sin(this.yaw);
+      const x2 = x*c - y*s; y = x*s + y*c; x = x2;
+    }
+    if(this.pitch !== 0){
+      const c = Math.cos(this.pitch), s = Math.sin(this.pitch);
+      const x2 = x*c - z*s; z = x*s + z*c; x = x2;
+    }
+    if(this.roll !== 0){
+      const PIV = this.roll >= 0 ? 22 : -22;
+      const y0 = y + PIV, c = Math.cos(this.roll), s = Math.sin(this.roll);
+      y = -PIV + y0*c - z*s; z = y0*s + z*c;
+    }
+    let rx = x, ry = y;
+    for(let i=0; i<this.f; i++){ const t = rx; rx = -ry; ry = t; }
+    return { x:rx, y:ry, z };
+  }
+  R(nx, ny, nz){
+    if(this.yaw !== 0){
+      const cy = Math.cos(this.yaw), sy = Math.sin(this.yaw);
+      const nx2 = nx*cy - ny*sy; ny = nx*sy + ny*cy; nx = nx2;
+    }
+    if(this.pitch !== 0){
+      const c = Math.cos(this.pitch), s = Math.sin(this.pitch);
+      const x2 = nx*c - nz*s; nz = nx*s + nz*c; nx = x2;
+    }
+    const c = Math.cos(this.roll), s = Math.sin(this.roll);
+    const ny2 = ny*c - nz*s, nz2 = ny*s + nz*c;
+    let rx = nx, ry = ny2;
+    for(let i=0; i<this.f; i++){ const t = rx; rx = -ry; ry = t; }
+    return { x:rx, y:ry, z:nz2 };
+  }
+  W(x, y, z){
+    const xr = x - this.camX, yr = y - this.camY;
+    return { x:(xr - yr)*this.K + this.cx,
+             y:((xr + yr)*0.5 - (z - this.camZ))*this.K + this.cy };
+  }
+  P(x, y, z){
+    const q = this.T(x, y, z);
+    return this.W(q.x + this.botX, q.y + this.botY, q.z + this.botZ);
+  }
+  depth(x, y, z){
+    const q = this.T(x, y, z);
+    return q.x + q.y + q.z*0.4;
+  }
+  quadOn(g, pts, color, alpha=1){
+    g.fillStyle(color, alpha);
+    g.fillPoints(pts.map(p => new Phaser.Geom.Point(p.x, p.y)), true);
+  }
+  edgeOn(g, pts, color=SKIN.outline, w=2){
+    g.lineStyle(w, color, 1);
+    g.strokePoints(pts.map(p => new Phaser.Geom.Point(p.x, p.y)), true);
+  }
+  quad(pts, color, alpha=1){ this.quadOn(this.g, pts, color, alpha); }
+  edge(pts, color=SKIN.outline, w=2){ this.edgeOn(this.g, pts, color, w); }
+
+  lidNear(b){
+    const hs = (this.tipDir || 1) >= 0 ? 1 : -1;
+    const A = this.lidAng * hs, c = Math.cos(A), s = Math.sin(A);
+    const yh = -b.hy * hs, zh = b.z0;
+    const dy = -yh, dz = (b.z1 - b.z0)/2;
+    return this.depth(0, yh + dy*c - dz*s, zh + dy*s + dz*c) > this.depth(0, 0, 34);
+  }
+  drawLid(b){
+    const {hx, hy, z0, z1} = b;
+    const hs = (this.tipDir || 1) >= 0 ? 1 : -1;
+    const A = this.lidAng * hs, cA = Math.cos(A), sA = Math.sin(A);
+    const yh = -hy * hs, zh = z0;
+    const H = (x, y, z) => {
+      const dy = y - yh, dz = z - zh;
+      return this.P(x, yh + dy*cA - dz*sA, zh + dy*sA + dz*cA);
+    };
+    const HN = (nx, ny, nz) => {
+      const ny2 = ny*cA - nz*sA, nz2 = ny*sA + nz*cA;
+      return this.R(nx, ny2, nz2);
+    };
+    const C = (sx, sy, sz) => H(sx*hx, sy*hy, sz === 1 ? z1 : z0);
+    const faces = [
+      { n:{x:0,y:0,z: 1}, pts:[C( 1,-1,1), C( 1, 1,1), C(-1, 1,1), C(-1,-1,1)] },
+      { n:{x:0,y:0,z:-1}, pts:[C( 1,-1,0), C( 1, 1,0), C(-1, 1,0), C(-1,-1,0)] },
+      { n:{x: 1,y:0,z:0}, pts:[C( 1,-1,0), C( 1, 1,0), C( 1, 1,1), C( 1,-1,1)] },
+      { n:{x:-1,y:0,z:0}, pts:[C(-1,-1,0), C(-1, 1,0), C(-1, 1,1), C(-1,-1,1)] },
+      { n:{x:0,y: 1,z:0}, pts:[C( 1, 1,0), C(-1, 1,0), C(-1, 1,1), C( 1, 1,1)] },
+      { n:{x:0,y:-1,z:0}, pts:[C( 1,-1,0), C(-1,-1,0), C(-1,-1,1), C( 1,-1,1)] }
+    ];
+    for(const fc of faces){
+      const w = HN(fc.n.x, fc.n.y, fc.n.z);
+      if((w.x + w.y + w.z) <= 0) continue;
+      const col = w.z > 0.5 ? SKIN.bodyTop
+                : w.z < -0.5 ? SKIN.lidInner
+                : (w.x >= w.y) ? SKIN.bodyRight : SKIN.bodyLeft;
+      this.quad(fc.pts, col);
+      this.edge(fc.pts);
+    }
+  }
+  disc(center, r, color, outlineC){
+    const pts = [];
+    for(let i=0; i<14; i++){
+      const a = (i/14)*Math.PI*2;
+      pts.push(this.P(center.x + Math.cos(a)*r, center.y, center.z + Math.sin(a)*r));
+    }
+    this.quadOn(this.g, pts, color);
+    if(outlineC !== undefined) this.edgeOn(this.g, pts, outlineC, 2);
+  }
+  drawBox(b, cTop, cRight, cLeft, outline=true, decal=false, cBottom=SKIN.belly){
+    const {hx, hy, z0, z1} = b, ox = b.ox || 0, oy = b.oy || 0;
+    const C = (sx, sy, sz) => this.P(ox + sx*hx, oy + sy*hy, sz === 1 ? z1 : z0);
+    const faces = [
+      { n:{x:0,y:0,z: 1}, pts:[C( 1,-1,1), C( 1, 1,1), C(-1, 1,1), C(-1,-1,1)] },
+      { n:{x:0,y:0,z:-1}, pts:[C( 1,-1,0), C( 1, 1,0), C(-1, 1,0), C(-1,-1,0)] },
+      { n:{x: 1,y:0,z:0}, pts:[C( 1,-1,0), C( 1, 1,0), C( 1, 1,1), C( 1,-1,1)] },
+      { n:{x:-1,y:0,z:0}, pts:[C(-1,-1,0), C(-1, 1,0), C(-1, 1,1), C(-1,-1,1)] },
+      { n:{x:0,y: 1,z:0}, pts:[C( 1, 1,0), C(-1, 1,0), C(-1, 1,1), C( 1, 1,1)] },
+      { n:{x:0,y:-1,z:0}, pts:[C( 1,-1,0), C(-1,-1,0), C(-1,-1,1), C( 1,-1,1)] }
+    ];
+    for(const fc of faces){
+      if(decal && fc.n.z !== 0) continue;
+      const w = this.R(fc.n.x, fc.n.y, fc.n.z);
+      if((w.x + w.y + w.z) <= 0) continue;
+      let col;
+      if(w.z > 0.5)       col = decal ? cRight : cTop;
+      else if(w.z < -0.5) col = decal ? null : cBottom;
+      else                col = (w.x >= w.y) ? cRight : cLeft;
+      if(col == null) continue;
+      this.quadOn(this.g, fc.pts, col);
+      if(outline) this.edgeOn(this.g, fc.pts);
+    }
+  }
+  drawWheel(c, sideSign){
+    const W2 = 7.5, steps = 5;
+    const slices = [];
+    for(let i=0; i<=steps; i++){
+      const oy = c.y + sideSign*(-W2/2 + W2*i/steps);
+      slices.push({ y:oy, depth: this.depth(c.x, oy, c.z) });
+    }
+    slices.sort((a,b) => a.depth - b.depth);
+    for(let i=0; i<slices.length; i++){
+      const isFace = i === slices.length-1;
+      this.disc({x:c.x, y:slices[i].y, z:c.z}, WHEEL.r,
+                isFace ? SKIN.wheel : SKIN.wheelDark,
+                isFace ? SKIN.outline : undefined);
+    }
+    const face = slices[slices.length-1].y;
+    this.disc({x:c.x, y:face, z:c.z}, WHEEL.r*0.55, SKIN.wheelHubFace);
+    const a = this.wheelPhase + c.x*0.2;
+    this.disc({ x:c.x + Math.cos(a)*WHEEL.r*0.34, y:face,
+                z:c.z + Math.sin(a)*WHEEL.r*0.34 }, 2.4, SKIN.wheelHub);
+  }
+  drawRobotReal(wx, wy, wz){
+    const g = this.g;
+    this.botX = wx; this.botY = wy; this.botZ = wz;
+    const sh = [];
+    for(let i=0;i<14;i++){
+      const a=(i/14)*Math.PI*2;
+      sh.push(this.P(Math.cos(a)*34, Math.sin(a)*30, 0.5));
+    }
+    this.quadOn(g, sh, SKIN.shadow, 0.16);
+    const wheels = [];
+    for(const side of [-1, 1]){
+      for(const wxi of WHEEL.xs){
+        const c = {x:wxi, y:side*WHEEL.side, z:WHEEL.z};
+        wheels.push({ c, side, near: this.depth(c.x, c.y, c.z) > this.depth(c.x, -c.y, c.z) });
+      }
+    }
+    for(const w of wheels) if(!w.near) this.drawWheel(w.c, w.side);
+    const lidBox = {...LID};
+    const lidIsNear = this.lidNear(lidBox);
+    if(!lidIsNear) this.drawLid(lidBox);
+    this.drawBox({hx:24, hy:17, z0:6, z1:BODY.z0+1}, 0x3f434c, 0x3a3d45, 0x2e3138, false);
+    this.drawBox({...BODY}, SKIN.bodyTop, SKIN.bodyRight, SKIN.bodyLeft);
+    this.drawBox({hx:BODY.hx+0.6, hy:BODY.hy+0.6, z0:STRIPE.z0, z1:STRIPE.z1},
+                 null, SKIN.stripe, SKIN.stripeDk, false, true);
+    if(lidIsNear) this.drawLid(lidBox);
+    const fn = this.R(1, 0, 0);
+    if(fn.x + fn.y + fn.z > 0.3){
+      const F = (y, z) => this.P(BODY.hx + 0.8, y, z);
+      this.quadOn(g, [F(-13,40), F(13,40), F(13,50), F(-13,50)], SKIN.visor);
+      this.edgeOn(g, [F(-13,40), F(13,40), F(13,50), F(-13,50)], SKIN.outline, 1.5);
+      for(const ey of [-7, 7]){
+        const c = F(ey, 45);
+        g.fillStyle(SKIN.eye, 1);
+        g.fillEllipse(c.x, c.y, 7, 7);
+      }
+      this.quadOn(g, [F(-16,18), F(16,18), F(16,22), F(-16,22)], 0xfff3b0);
+    }
+    for(const w of wheels) if(w.near) this.drawWheel(w.c, w.side);
+  }
+
+  /* ---------- tiles (dog-hit-lab verbatim) ---------- */
+  drawTiles(ox, oy){
+    const dv = DIRV[0], rv = DIRV[1];
+    for(let a = -1; a <= 10; a++){
+      const rowX = a*T2, rowY = 0;
+      for(let c = -1; c <= 4; c++){
+        const road = c >= 2;
+        const cx = rowX + rv.x*c*T2, cy = rowY + rv.y*c*T2;
+        const Ax = dv.x*TILE, Ay = dv.y*TILE, Bx = rv.x*TILE, By = rv.y*TILE;
+        const pts = [
+          this.Wg(cx+Ax-Bx, cy+Ay-By, 0, ox, oy), this.Wg(cx+Ax+Bx, cy+Ay+By, 0, ox, oy),
+          this.Wg(cx-Ax+Bx, cy-Ay+By, 0, ox, oy), this.Wg(cx-Ax-Bx, cy-Ay-By, 0, ox, oy)
+        ];
+        this.quadg(pts, road ? PAL.road : (((a+c)%2===0) ? PAL.pave : PAL.paveB));
+        if(!road) this.edgeg(pts, PAL.paveEdge, 1.5);
+        if(c === 3 && a % 2 === 0 && a >= 0 && a < 10){
+          this.quadg([
+            this.Wg(cx - dv.x*14 - rv.x*4, cy - dv.y*14 - rv.y*4, 0, ox, oy),
+            this.Wg(cx + dv.x*14 - rv.x*4, cy + dv.y*14 - rv.y*4, 0, ox, oy),
+            this.Wg(cx + dv.x*14 + rv.x*4, cy + dv.y*14 + rv.y*4, 0, ox, oy),
+            this.Wg(cx - dv.x*14 + rv.x*4, cy - dv.y*14 + rv.y*4, 0, ox, oy)
+          ], PAL.roadLine);
+        }
+      }
+      const kx = rowX + rv.x*TILE*3, ky = rowY + rv.y*TILE*3;
+      this.quadg([
+        this.Wg(kx - dv.x*TILE, ky - dv.y*TILE, 3, ox, oy), this.Wg(kx + dv.x*TILE, ky + dv.y*TILE, 3, ox, oy),
+        this.Wg(kx + dv.x*TILE, ky + dv.y*TILE, -2, ox, oy), this.Wg(kx - dv.x*TILE, ky - dv.y*TILE, -2, ox, oy)
+      ], PAL.paveEdge);
+    }
+  }
+  worldOf(s, row){
+    const dv = DIRV[0], rv = DIRV[1];
+    return { x: s*T2*dv.x + rv.x*row*T2, y: s*T2*dv.y + rv.y*row*T2 };
+  }
+  groundZAt(s, row){ return 2; }
+
+  /* ============================================================
+     THE WILLIAM — drawPersonHull box construction (game V25),
+     extended: bucket hat, beard, shades, chain, matching print
+     set, shorts + bare shins, and the SL-hinge kick leg.
+     ax/ay world, thW facing (forward axis = (-sin th, cos th)),
+     kickAng: hinge angle of the kick leg (0 = normal walk leg),
+     armLift: 0..1 both-arms pose, armAngle: hinge max for it. */
+  drawWilliam(ax, ay, thW, walkPhase, moving, kickAng, armLift, armAngle){
+    const g = this.g, z = 0;
+    const build = WILLIAM_BUILD, fit = WILLIAM_FITS[this.fitIdx], hat = fit.hat;
+    const pSkin = WILLIAM_SKIN, pShoe = WILLIAM_SHOE;
+    const cs = Math.cos(thW), sn = Math.sin(thW);
+    const G = (a,b,h) => this.W(ax + a*cs - b*sn, ay + a*sn + b*cs, z + h);
+    const aDir = { x: cs, y: sn }, bDir = { x: -sn, y: cs };
+    const faceA = Math.sign(aDir.x + aDir.y) || 1, faceB = Math.sign(bDir.x + bDir.y) || 1;
+
+    const box = (aC,bC,ha,hb,z0,z1,cTop,cA,cB,noTop=false) => {
+      const corner = (sa,sb,zz) => G(aC+sa*ha, bC+sb*hb, zz);
+      if(!noTop){
+        const top = [corner(-1,-1,z1), corner(1,-1,z1), corner(1,1,z1), corner(-1,1,z1)];
+        this.quadOn(g, top, cTop);
+        this.edgeOn(g, top, cA, 1);
+      }
+      const aFace = [corner(faceA,-1,z1), corner(faceA,1,z1), corner(faceA,1,z0), corner(faceA,-1,z0)];
+      this.quadOn(g, aFace, cA);
+      const bFace = [corner(-1,faceB,z1), corner(1,faceB,z1), corner(1,faceB,z0), corner(-1,faceB,z0)];
+      this.quadOn(g, bFace, cB);
+    };
+
+    const hipH = build.legH, shoulderH = hipH+build.torsoH, headH = shoulderH+build.headR*2;
+    const kneeH = build.legH*0.52;
+    const shortsC = fit, shirtC = fit;
+
+    const sh = G(0,0,0);
+    g.fillStyle(0x000000, 0.18);
+    g.fillEllipse(sh.x, sh.y+1, 22*this.K*0.42, 10*this.K*0.42);
+
+    /* seeded print patches painted ONTO a face plane — plane is
+       either "a" (fixed a = faceA*ha) or "b" (fixed b = faceB*hb) */
+    const patches = (plane, aC, bC, ha, hb, z0, z1, n, seedSalt) => {
+      const r = mulberry32((this.patternSeed ^ seedSalt) >>> 0);
+      for(let i=0; i<n; i++){
+        const col = (i % 2 === 0) ? fit.p1 : fit.p2;
+        const u = -0.72 + r()*1.44;                    // across the face
+        const zc = z0 + 3 + r()*Math.max(1, (z1-z0-6));
+        const s2 = 2.2 + r()*2.6;
+        let pts;
+        if(plane === "a"){
+          pts = [G(aC+faceA*ha, bC+u*hb - s2, zc - s2*0.7), G(aC+faceA*ha, bC+u*hb + s2, zc - s2*0.7),
+                 G(aC+faceA*ha, bC+u*hb + s2, zc + s2*0.7), G(aC+faceA*ha, bC+u*hb - s2, zc + s2*0.7)];
+        } else {
+          pts = [G(aC+u*ha - s2, bC+faceB*hb, zc - s2*0.7), G(aC+u*ha + s2, bC+faceB*hb, zc - s2*0.7),
+                 G(aC+u*ha + s2, bC+faceB*hb, zc + s2*0.7), G(aC+u*ha - s2, bC+faceB*hb, zc + s2*0.7)];
+        }
+        this.quadOn(g, pts, col);
+      }
+    };
+
+    /* normal (planted / walking) leg: white sneaker, bare shin,
+       baggy shorts leg from the knee up */
+    const leg = side => {
+      const bC = walkPhase*side*8*0.35;
+      const legW = build.legW*0.55, legD = build.legW*0.6;
+      const shoeH = Math.max(5, build.legH*0.14);
+      box(side*build.hipW*0.3, bC+legD*0.3, legW*1.25, legD*1.55, 0, shoeH, pShoe.c, pShoe.dk, pShoe.c);
+      box(side*build.hipW*0.3, bC, legW*0.92, legD*0.92, shoeH, kneeH, pSkin.c, pSkin.dk, pSkin.c);
+      box(side*build.hipW*0.3, bC, legW*1.3, legD*1.3, kneeH, hipH, shortsC.c, shortsC.dk, shortsC.c);
+      patches("b", side*build.hipW*0.3, bC, legW*1.3, legD*1.3, kneeH, hipH, 2, 0x51 + side);
+    };
+
+    /* KICK LEG — SL-hinge rotation around the hip pivot, same
+       technique as the game's arm lift / door hinge: a point at
+       distance p down the leg, rotated by theta into the forward
+       (+b) plane. theta<0 = cocked back, theta>0 = extended. */
+    const kickLeg = (side, theta) => {
+      const cT = Math.cos(theta), sT = Math.sin(theta);
+      const hipAx = side*build.hipW*0.3;
+      const LC = (aOff, p, perp) => G(hipAx + aOff, p*sT + perp*cT, hipH - p*cT + perp*sT);
+      const seg = (p0, p1, ha, hb, cSide, cFront, cCap) => {
+        const sideFace = [LC(ha*faceA,p0,-hb), LC(ha*faceA,p1,-hb), LC(ha*faceA,p1,hb), LC(ha*faceA,p0,hb)];
+        this.quadOn(g, sideFace, cSide);
+        const frontFace = [LC(-ha,p0,hb*faceB), LC(ha,p0,hb*faceB), LC(ha,p1,hb*faceB), LC(-ha,p1,hb*faceB)];
+        this.quadOn(g, frontFace, cFront);
+        const capFar = [LC(-ha,p1,-hb), LC(ha,p1,-hb), LC(ha,p1,hb), LC(-ha,p1,hb)];
+        this.quadOn(g, capFar, cCap);
+        const capNear = [LC(-ha,p0,-hb), LC(ha,p0,-hb), LC(ha,p0,hb), LC(-ha,p0,hb)];
+        this.quadOn(g, capNear, cCap);
+      };
+      const legW = build.legW*0.55;
+      const thighLen = hipH - kneeH, shinLen = kneeH - 5, shoeLen = 9;
+      seg(0, thighLen, legW*1.3, legW*1.3, shortsC.dk, shortsC.c, shortsC.c);           // shorts leg
+      seg(thighLen, thighLen + shinLen, legW*0.92, legW*0.92, pSkin.dk, pSkin.c, pSkin.c); // bare shin
+      seg(thighLen + shinLen, thighLen + shinLen + shoeLen, legW*1.2, legW*1.2, pShoe.dk, pShoe.c, pShoe.c); // the boot
+    };
+
+    const torso = () => {
+      box(0, 0, build.torsoW/2, build.torsoD/2, hipH-2, shoulderH, shirtC.c, shirtC.dk, shirtC.c);
+      patches("a", 0, 0, build.torsoW/2, build.torsoD/2, hipH+2, shoulderH-2, 5, 0x11);
+      patches("b", 0, 0, build.torsoW/2, build.torsoD/2, hipH+2, shoulderH-2, 5, 0x22);
+      /* gold chain resting on the chest */
+      box(0, 0, build.torsoW/2*0.55, build.torsoD/2*0.8, shoulderH-5, shoulderH-2.5, WILLIAM_CHAIN, WILLIAM_CHAIN, WILLIAM_CHAIN, true);
+    };
+
+    const shoulderZ = shoulderH - 1;
+    const sleeveLen = build.armLen*0.48, foreLen = build.armLen*0.52;
+    const elbowZ = shoulderZ - sleeveLen;
+    const arm = side => {
+      const shoulderAx = side*(build.torsoW/2 - 1);
+      if(armLift <= 0.001){
+        const armSwing = moving ? -walkPhase*side*3 : 0;
+        const armB = armSwing*0.4;
+        box(shoulderAx, armB, build.armW*0.58, build.armW*0.58, elbowZ, shoulderZ, shirtC.c, shirtC.dk, shirtC.c);
+        box(shoulderAx, armB, build.armW*0.46, build.armW*0.46, elbowZ-foreLen, elbowZ+1, pSkin.c, pSkin.dk, pSkin.c, true);
+        return;
+      }
+      /* posed arm — the game's exact hinge (arm lift) */
+      const theta = armLift * armAngle;
+      const cT = Math.cos(theta), sT = Math.sin(theta);
+      const armCorner = (aOff, p, perp) => G(shoulderAx + aOff, p*sT + perp*cT, shoulderZ - p*cT + perp*sT);
+      const seg = (p0, p1, ha, hb, cSide, cFront, cCap) => {
+        const sideFace = [armCorner(ha*faceA,p0,-hb), armCorner(ha*faceA,p1,-hb), armCorner(ha*faceA,p1,hb), armCorner(ha*faceA,p0,hb)];
+        this.quadOn(g, sideFace, cSide);
+        const frontFace = [armCorner(-ha,p0,hb*faceB), armCorner(ha,p0,hb*faceB), armCorner(ha,p1,hb*faceB), armCorner(-ha,p1,hb*faceB)];
+        this.quadOn(g, frontFace, cFront);
+        const capFar = [armCorner(-ha,p1,-hb), armCorner(ha,p1,-hb), armCorner(ha,p1,hb), armCorner(-ha,p1,hb)];
+        this.quadOn(g, capFar, cCap);
+        const capNear = [armCorner(-ha,p0,-hb), armCorner(ha,p0,-hb), armCorner(ha,p0,hb), armCorner(-ha,p0,hb)];
+        this.quadOn(g, capNear, cCap);
+      };
+      seg(0, sleeveLen, build.armW*0.58, build.armW*0.58, shirtC.dk, shirtC.c, shirtC.c);
+      seg(sleeveLen, sleeveLen+foreLen, build.armW*0.46, build.armW*0.46, pSkin.dk, pSkin.c, pSkin.dk);
+    };
+
+    const head = () => {
+      const z0 = shoulderH, z1 = headH;
+      box(0, 0, build.headR, build.headR, z0, z1, pSkin.c, pSkin.dk, pSkin.c);
+      /* BEARD — front (+b) is the face; only paint it when the
+         front is actually camera-facing, so from behind he shows
+         the back of his head, not beard-through-skull. All four
+         headings must be checked (SPIN button). */
+      if(faceB === 1 && bDir.x + bDir.y > 0){
+        const bz0 = z0, bz1 = z0 + build.headR*0.85;
+        const bf = build.headR + 0.6;
+        this.quadOn(g, [G(-build.headR*0.92, bf, bz0), G(build.headR*0.92, bf, bz0),
+                        G(build.headR*0.92, bf, bz1), G(-build.headR*0.92, bf, bz1)], WILLIAM_BEARD);
+        /* beard wraps the visible a-side cheek too */
+        const af = faceA*(build.headR + 0.6);
+        this.quadOn(g, [G(af, -build.headR*0.2, bz0), G(af, build.headR*0.95, bz0),
+                        G(af, build.headR*0.95, bz1), G(af, -build.headR*0.2, bz1)], WILLIAM_BEARD);
+        if(this.shades){
+          const sz0 = z0 + build.headR*1.05, sz1 = sz0 + build.headR*0.42;
+          this.quadOn(g, [G(-build.headR*0.85, bf, sz0), G(build.headR*0.85, bf, sz0),
+                          G(build.headR*0.85, bf, sz1), G(-build.headR*0.85, bf, sz1)], WILLIAM_SHADE);
+        }
+      }
+      /* BUCKET HAT — brim (wide thin box) + camo crown */
+      const brimZ = z1 - build.headR*0.45;
+      /* sized DOWN from 1.55/1.12 (playtest: hat read too big) —
+         crown stays a hair over the head's 1.0 so the skull never
+         pokes through the hat walls */
+      box(0, 0, build.headR*1.30, build.headR*1.30, brimZ, brimZ + 2.2, hat.dk, hat.dk, hat.dk);
+      box(0, 0, build.headR*1.04, build.headR*1.04, brimZ + 2.2, z1 + 2, hat.c, hat.c, hat.dk);
+      /* camo patches on the crown's two visible faces */
+      const cr = mulberry32((this.patternSeed ^ 0x99) >>> 0);
+      for(let i=0; i<3; i++){
+        const u = -0.6 + cr()*1.2, zc = brimZ + 4 + cr()*(z1 - brimZ - 3), s2 = 2 + cr()*2;
+        this.quadOn(g, [G(faceA*build.headR*1.04, u*build.headR - s2, zc - s2*0.6), G(faceA*build.headR*1.04, u*build.headR + s2, zc - s2*0.6),
+                        G(faceA*build.headR*1.04, u*build.headR + s2, zc + s2*0.6), G(faceA*build.headR*1.04, u*build.headR - s2, zc + s2*0.6)], hat.p);
+        const u2 = -0.6 + cr()*1.2, zc2 = brimZ + 4 + cr()*(z1 - brimZ - 3), s3 = 2 + cr()*2;
+        this.quadOn(g, [G(u2*build.headR - s3, faceB*build.headR*1.04, zc2 - s3*0.6), G(u2*build.headR + s3, faceB*build.headR*1.04, zc2 - s3*0.6),
+                        G(u2*build.headR + s3, faceB*build.headR*1.04, zc2 + s3*0.6), G(u2*build.headR - s3, faceB*build.headR*1.04, zc2 + s3*0.6)], hat.p);
+      }
+    };
+
+    const nearSide = faceA;
+    if(Math.abs(kickAng) > 0.02){
+      /* kicking: near-side leg is the boot (always visible for the
+         read), far leg stays planted with no walk swing */
+      const planted = side => {
+        const legW = build.legW*0.55, legD = build.legW*0.6;
+        const shoeH = Math.max(5, build.legH*0.14);
+        box(side*build.hipW*0.3, legD*0.3, legW*1.25, legD*1.55, 0, shoeH, pShoe.c, pShoe.dk, pShoe.c);
+        box(side*build.hipW*0.3, 0, legW*0.92, legD*0.92, shoeH, kneeH, pSkin.c, pSkin.dk, pSkin.c);
+        box(side*build.hipW*0.3, 0, legW*1.3, legD*1.3, kneeH, hipH, shortsC.c, shortsC.dk, shortsC.c);
+      };
+      planted(-nearSide);
+      arm(-nearSide);
+      torso();
+      kickLeg(nearSide, kickAng);
+      arm(nearSide);
+      head();
+    } else {
+      leg(-nearSide); leg(nearSide);
+      arm(-nearSide);
+      torso();
+      arm(nearSide);
+      head();
+    }
+  }
+
+  /* ---------- william state machine (lab-integrated) ----------
+     ONE state step per frame (else-if chain): a cheap frame with a
+     big dt must never cascade multiple transitions in one tick.
+     botDb = bot's lateral offset from HIS lane center (world units,
+     signed) — 0 when the bot is on his row, ±T2 one row over. */
+  simWilliam(time, dt, botA, botDb, botRowAdj, botRowOn){
+    const kz = this.kz;
+    const el = time - kz.t0;
+    const dx = botA - kz.a;
+
+    if(kz.st === "patrol"){
+      const wander = wanderAt(time, kz.seed);
+      kz.a = wander.a; kz.b = wander.b; kz.th = wander.th; kz.walk = wander.walk;
+      /* re-arm: one kick attempt per pass — spent clears only once
+         the bot is well clear (same hz.hit convention as every
+         other hazard) or on loop reset */
+      if(kz.spent && Math.abs(dx) > KICK.blockTrig + 40) kz.spent = false;
+      if(this.driving && !kz.spent && this.state !== "tipped"){
+        if(botRowOn && dx > -KICK.blockTrig && dx < -KICK.standoff - 6){
+          kz.st = "intercept"; kz.t0 = time;   // step out and shut the lane
+        } else if(botRowAdj && Math.abs(dx + this.speed*(KICK.windup + KICK.swing*KICK.contactU)) < KICK.hitAlong*0.9){
+          /* bot is already sneaking past one row over — skip the
+             block, go straight for the side boot. He LEADS the
+             target: windup starts when the bot is predicted to be
+             alongside at the moment the boot arrives. */
+          kz.st = "windup"; kz.t0 = time; kz.kicked = false; kz.landed = false; kz.b0 = kz.b;
+          kz.kickDir = Math.sign(botDb) || 1;
+          kz.th = Math.atan2(-dx, botDb || kz.kickDir);   // COMMIT: facing frozen
+        }
+      }
+    } else if(kz.st === "intercept"){
+      /* stride to the lane center, square up facing the bot */
+      const db = 0 - kz.b;
+      kz.th = Math.atan2(-dx, db || -1);
+      const step = KICK.chase * dt;
+      kz.b += Math.sign(db) * Math.min(Math.abs(db), step);
+      kz.walk = 1;
+      if(Math.abs(kz.b) < 2){ kz.b = 0; kz.st = "block"; kz.t0 = time; kz.walk = 0; }
+    } else if(kz.st === "block"){
+      /* the wall — the actual stop clamp lives in update() (palm
+         contract). He just stands square, tracking the bot. */
+      kz.th = Math.atan2(-dx, botDb || -1);
+      if(botRowAdj && Math.abs(dx + this.speed*(KICK.windup + KICK.swing*KICK.contactU)) < KICK.hitAlong*0.9){
+        /* you took the bait — pivot for the side kick, timed to
+           meet you: he leads the moving target */
+        kz.st = "windup"; kz.t0 = time; kz.kicked = false; kz.landed = false; kz.b0 = kz.b;
+        kz.kickDir = Math.sign(botDb) || 1;
+        kz.th = Math.atan2(-dx, botDb || kz.kickDir);     // COMMIT: facing frozen
+      } else if(dx < -(KICK.blockTrig + 60) || (!botRowOn && !botRowAdj)){
+        kz.st = "return"; kz.t0 = time; kz.retA = kz.a; kz.retB = kz.b;
+      }
+    } else if(kz.st === "windup"){
+      /* Facing frozen at entry — tracking the moving bot here
+         rotated the whole body and made the cocked leg sweep
+         sideways in world space (reported on-device). He DOES
+         step toward your lane while cocking: a straight-line
+         committed step in his frozen facing, closing the gap the
+         contact check demands. */
+      /* PHASE-driven, not dt-integrated (parity with the game port):
+         position and the state timers share ONE clock, so at contact
+         he has ALWAYS fully stepped in regardless of framerate — the
+         dt version whiffed under dropped frames because the windup
+         expired before the body moved */
+      const ph = Math.min(1, el / (KICK.windup + KICK.swing*KICK.contactU));
+      kz.b = (kz.b0 || 0) + kz.kickDir * T2 * KICK.lungeMax * ph;
+      if(el >= KICK.windup){ kz.st = "kick"; kz.t0 = time; }
+    } else if(kz.st === "kick"){
+      /* step INTO the kick — the sidestep toward your lane happens
+         with the swing, not during the windup */
+      if(el < KICK.swing*KICK.contactU){
+        const ph = Math.min(1, (KICK.windup + el) / (KICK.windup + KICK.swing*KICK.contactU));
+        kz.b = (kz.b0 || 0) + kz.kickDir * T2 * KICK.lungeMax * ph;
+      }
+      if(!kz.kicked && el >= KICK.swing*KICK.contactU){
+        kz.kicked = true;
+        /* CONTACT, not proximity: the boot tip has to actually
+           reach the bot's hull. Lateral gap is center-to-center;
+           the sidestep during the swing is what closes it — no
+           step-in, no contact (reported: kicks "landing" with
+           daylight between the boot and the bot). */
+        const latGap = Math.abs(botDb - kz.b);
+        if(botRowAdj && Math.abs(dx) < KICK.hitAlong && latGap < KICK.reach && this.state !== "tipped"){
+          kz.landed = true;
+          /* THE BOOT — deliberate attack: port must NOT × TILT_SENS.
+             SIGN: the game's roll convention (see the slab hazard
+             note) is positive tilt = leans toward the BUILDINGS
+             (−row). The kick pushes the bot AWAY from him — outward
+             on your swerve side — so the impulse is NEGATED kickDir:
+             swerve to +row (road side) → negative tilt → falls
+             +row, away from the boot. */
+          this.tilt += KICK.power * -(kz.kickDir || 1);
+          this.updateVals();
+        }
+      }
+      if(el >= KICK.swing){
+        kz.spent = true;
+        kz.st = kz.landed ? "gloat" : "whiff"; kz.t0 = time;
+      }
+    } else if(kz.st === "gloat"){
+      if(el >= KICK.gloat){ kz.st = "return"; kz.t0 = time; kz.retA = kz.a; kz.retB = kz.b; }
+    } else if(kz.st === "whiff"){
+      if(el >= KICK.whiffBeat){ kz.st = "return"; kz.t0 = time; kz.retA = kz.a; kz.retB = kz.b; }
+    } else if(kz.st === "return"){
+      const u = Math.min(1, el/KICK.retMs), e = u*u*(3-2*u);
+      const w2 = wanderAt(time, kz.seed);
+      kz.a = kz.retA + (w2.a - kz.retA)*e;
+      kz.b = kz.retB + (w2.b - kz.retB)*e;
+      kz.th = Math.atan2(-(w2.a - kz.retA), (w2.b - kz.retB));
+      kz.walk = 1 - Math.abs(u-0.5)*0.4;
+      if(u >= 1){ kz.st = "patrol"; kz.t0 = time; }
+    }
+  }
+
+  /* pose parameters for the current state (or pose lock) */
+  williamPose(time){
+    const kz = this.kz;
+    const st = this.poseLock || kz.st;
+    const el = time - kz.t0;
+    let kickAng = 0, armLift = 0, armAngle = LIFT_MAX_ANGLE, walkPhase = 0, moving = false;
+    const wobble = Math.sin(time*0.008);
+    if(this.poseLock){
+      /* frozen art-review poses */
+      if(st === "windup")      { kickAng = KICK.cock; armLift = KICK.armEngage; }
+      else if(st === "kick")   { kickAng = KICK.extend; armLift = KICK.armEngage; }
+      else if(st === "gloat")  { armLift = KICK.armGloat; armAngle = GLOAT_ANGLE; }
+      else if(st === "block")  { armLift = KICK.armBlock + wobble*0.03; }
+      return { kickAng, armLift, armAngle, walkPhase, moving };
+    }
+    if(st === "patrol" || st === "return"){
+      walkPhase = Math.sin(time*0.006*Math.PI*2/2) * (kz.walk||0);
+      moving = (kz.walk||0) > 0.05;
+    } else if(st === "intercept"){
+      walkPhase = Math.sin(time*0.012); moving = true;
+    } else if(st === "block"){
+      armLift = KICK.armBlock + Math.sin(time*0.004)*0.03;   // arms out, slight bob
+    } else if(st === "windup"){
+      const u = Math.min(1, el/KICK.windup), e = u*u*(3-2*u);
+      kickAng = KICK.cock * e;
+      armLift = KICK.armEngage * e;
+    } else if(st === "kick"){
+      const u = Math.min(1, el/KICK.swing);
+      const e = u < 0.5 ? 2*u*u : 1 - Math.pow(-2*u+2, 2)/2;
+      kickAng = KICK.cock + (KICK.extend - KICK.cock)*e;
+      armLift = KICK.armEngage;
+    } else if(st === "gloat"){
+      const u = Math.min(1, el/280);
+      armLift = KICK.armGloat * u; armAngle = GLOAT_ANGLE;
+      kickAng = 0;
+    } else if(st === "whiff"){
+      kickAng = KICK.extend * Math.max(0, 1 - el/300);
+    }
+    return { kickAng, armLift, armAngle, walkPhase, moving };
+  }
+
+  update(time, delta){
+    const g = this.g; g.clear();
+    g.fillStyle(PAL.sky, 1);
+    g.fillRect(0, 0, this.scale.gameSize.width, this.scale.gameSize.height);
+    const dt = Math.min(delta || 16.7, 50);
+    this.simT += dt;
+
+    const kwp = this.worldOf(KB.s, KB.row);
+    const bwp0 = this.worldOf(this.botS, this.botRow);
+    const botA = (bwp0.x - kwp.x);                 // bot offset along the run, william-tile frame
+    const botDb = (this.botRow - KB.row) * T2;     // bot lateral offset from HIS lane (signed)
+    const botRowOn = this.botRow === KB.row;
+    const botRowAdj = Math.abs(this.botRow - KB.row) === 1;
+
+    this.blocked = false;
+    if(this.driving && this.state !== "tipped"){
+      this.botS += (this.speed / T2) * dt;
+      /* THE WALL — palm/hydrant stop contract: while he's stepping
+         out or planted in your lane, you halt at standoff. The only
+         way through is around him (Row buttons). */
+      const kz = this.kz;
+      if((kz.st === "intercept" || kz.st === "block") && botRowOn){
+        const stopS = KB.s + (kz.a - KICK.standoff)/T2;
+        if(this.botS > stopS && this.botS < KB.s + (kz.a + 30)/T2){
+          this.botS = stopS;
+          this.blocked = true;
+        }
+      }
+      if(!this.blocked) this.wheelPhase += this.speed * dt * 0.28;
+      this.tilt -= this.tilt * 0.0021 * dt;
+      this.roll = Phaser.Math.Clamp(this.tilt, -1, 1) * 0.5;
+      if(Math.abs(this.tilt) >= 1){
+        this.state = "tipped"; this.tipDir = Math.sign(this.tilt); this.tipT = 0;
+      }
+      if(this.botS > 8){
+        this.botS = 0; this.tilt = 0; this.roll = 0; this.pitch = 0;
+        this.kz.st = "patrol"; this.kz.kicked = false; this.kz.landed = false; this.kz.spent = false;
+        this.updateVals();
+      }
+    }
+    if(this.state === "tipped"){
+      this.tipT = Math.min(1, this.tipT + dt/900);
+      this.roll = this.tipDir * (Math.PI*0.5) * this.tipT;
+      if(this.tipT >= 1){
+        this.tipResetT = (this.tipResetT || 0) + dt;
+        if(this.tipResetT > 1400){
+          this.state = "idle"; this.tipT = 0; this.tipResetT = 0;
+          this.botS = 0; this.tilt = 0; this.roll = 0; this.pitch = 0;
+          this.botZ = 2; this.kz.st = "patrol"; this.kz.kicked = false; this.kz.landed = false; this.kz.spent = false;
+          this.updateVals();
+        }
+      }
+    }
+
+    this.simWilliam(this.simT, dt, botA, botDb, botRowAdj, botRowOn);
+
+    const bwp = this.worldOf(this.botS, this.botRow);
+    const dv = DIRV[0];
+    this.camX = bwp.x + dv.x*60;
+    this.camY = bwp.y + dv.y*60;
+    this.camZ = 0;
+
+    this.drawTiles(this.cx, this.cy);
+
+    const pose = this.williamPose(this.simT);
+    const kx = kwp.x + this.kz.a, ky = kwp.y + this.kz.b;
+    const kth = this.kz.th + (this.poseLock ? this.poseSpin : 0);
+    const kBehind = (kx + ky) <= (bwp.x + bwp.y) + 14;
+    const drawK = () => this.drawWilliam(kx, ky, kth, pose.walkPhase, pose.moving,
+                                        pose.kickAng, pose.armLift, pose.armAngle);
+    if(kBehind) drawK();
+    this.drawRobotReal(bwp.x, bwp.y, this.botZ);
+    if(!kBehind) drawK();
+
+    /* engage "!" tell over his hat */
+    if(this.kz.st === "intercept" || this.kz.st === "block" || this.kz.st === "windup"){
+      const hp = this.W(kx, ky, WILLIAM_BUILD.legH + WILLIAM_BUILD.torsoH + WILLIAM_BUILD.headR*2 + 14);
+      g.fillStyle(0xc2452e, 1);
+      g.fillRect(hp.x - 1.6, hp.y - 10, 3.2, 7);
+      g.fillCircle(hp.x, hp.y - 0.5, 1.8);
+    }
+
+    if(this.driving || this.state === "tipped") this.updateVals();
+  }
+}
+
+const game = new Phaser.Game({
+  type: Phaser.AUTO, parent: "game",
+  scale: { mode: Phaser.Scale.RESIZE, width: "100%", height: "100%" },
+  scene: [WilliamLab]
+});
+const scn = () => game.scene.getScene("williamlab");
+
+document.getElementById("driveBtn2").addEventListener("click", e => {
+  const s = scn(); s.driving = !s.driving;
+  e.target.classList.toggle("on", s.driving);
+});
+document.getElementById("fitBtn").addEventListener("click", e => {
+  const s = scn(); s.fitIdx = (s.fitIdx + 1) % WILLIAM_FITS.length;
+  const f = WILLIAM_FITS[s.fitIdx];
+  e.target.textContent = "FIT: " + f.n + " / " + f.hat.n;
+  s.updateVals();
+});
+document.getElementById("reseed").addEventListener("click", () => {
+  const s = scn(); s.patternSeed = (Math.random()*9999)|0; s.updateVals();
+});
+document.getElementById("poseBtn").addEventListener("click", e => {
+  const s = scn();
+  const order = [null, "idle", "block", "windup", "kick", "gloat"];
+  s.poseLock = order[(order.indexOf(s.poseLock) + 1) % order.length];
+  e.target.textContent = "POSE: " + (s.poseLock ? s.poseLock.toUpperCase() : "LIVE");
+  s.updateVals();
+});
+document.getElementById("spinBtn").addEventListener("click", () => {
+  const s = scn(); s.poseSpin += Math.PI/2;
+});
+document.getElementById("shadesBtn").addEventListener("click", e => {
+  const s = scn(); s.shades = !s.shades;
+  e.target.classList.toggle("on", s.shades);
+});
+document.getElementById("kickNow").addEventListener("click", () => {
+  const s = scn(); s.kz.st = "windup"; s.kz.t0 = s.simT;
+  s.kz.kicked = false; s.kz.landed = false; s.updateVals();
+});
+document.getElementById("powDown").addEventListener("click", () => { KICK.power = Math.max(0.15, +(KICK.power - 0.1).toFixed(2)); scn().updateVals(); });
+document.getElementById("powUp").addEventListener("click",   () => { KICK.power = Math.min(1.4, +(KICK.power + 0.1).toFixed(2)); scn().updateVals(); });
+document.getElementById("wuDown").addEventListener("click",  () => { KICK.windup = Math.max(120, KICK.windup - 60); scn().updateVals(); });
+document.getElementById("wuUp").addEventListener("click",    () => { KICK.windup = Math.min(900, KICK.windup + 60); scn().updateVals(); });
+document.getElementById("trDown").addEventListener("click",  () => { KICK.blockTrig = Math.max(60, KICK.blockTrig - 20); scn().updateVals(); });
+document.getElementById("trUp").addEventListener("click",    () => { KICK.blockTrig = Math.min(260, KICK.blockTrig + 20); scn().updateVals(); });
+document.getElementById("zoomIn").addEventListener("click",  () => { scn().K = Math.min(scn().K + 0.4, 6); });
+document.getElementById("zoomOut").addEventListener("click", () => { scn().K = Math.max(scn().K - 0.4, 1.2); });
+document.getElementById("botBack").addEventListener("click", () => { const s=scn(); s.botS = Math.max(0, s.botS - 0.5); s.botZ = s.groundZAt(s.botS, s.botRow); s.updateVals(); });
+document.getElementById("botFwd").addEventListener("click",  () => { const s=scn(); s.botS = Math.min(8, s.botS + 0.5); s.botZ = s.groundZAt(s.botS, s.botRow); s.updateVals(); });
+document.getElementById("rowDown").addEventListener("click", () => { const s=scn(); s.botRow = Math.max(-1, s.botRow - 1); s.botZ = s.groundZAt(s.botS, s.botRow); s.updateVals(); });
+document.getElementById("rowUp").addEventListener("click",   () => { const s=scn(); s.botRow = Math.min(1, s.botRow + 1); s.botZ = s.groundZAt(s.botS, s.botRow); s.updateVals(); });
+
+</script>
+
+<!-- injected archive flag — fixed position, no layout impact on the lab below -->
+<div id="labArchivedFlag" style="position:fixed;top:0;left:0;right:0;z-index:2147483647;
+  background:#3a2a12;color:#e0b050;border-bottom:1px solid #6b4f20;
+  font:12px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;
+  padding:7px 12px;display:flex;gap:10px;align-items:center;
+  box-shadow:0 2px 10px rgba(0,0,0,.45)">
+  <span style="flex:1 1 auto">
+    <b style="color:#f0c674">ARCHIVED PROTOTYPE</b> — this lab hand-copies the world and has
+    drifted from <code>game/index.html</code>. Kept for the prototype inside it.
+    Build new work in <code>labs/_bench.html</code>, which loads the real game.
+  </span>
+  <button onclick="document.getElementById('labArchivedFlag').remove()"
+    style="flex:0 0 auto;background:#4a361a;color:#e0b050;border:1px solid #6b4f20;
+    border-radius:4px;padding:3px 9px;cursor:pointer;font:inherit">dismiss</button>
+</div>
+</body>
+</html>
