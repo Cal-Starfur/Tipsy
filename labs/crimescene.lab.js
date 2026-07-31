@@ -333,23 +333,38 @@ const TAPE = {
   sag: 9,           // droop at mid-span while taut
   segs: 14,         // subdivisions, for the sag curve and the dangle
   inset: 10,        // pull the stakes in from the kerb and the wall
+  halfLen: 330,     // how far up and down the walk the cordon reaches
   snapMs: 520,      // how long the halves take to fall
+  hang: 0.46,       // how much of its length a torn half keeps when hanging
+                    // (0.30 read stubby on device)
   yellow: 0xf0c53a, yellowDk: 0xc39d22,
   band: 0x23252b,
   stake: 0x585d66, stakeDk: 0x3c414a, stakeH: 74, stakeR: 3.5
 };
 
-/* Pure: where the tape is strung, from the route alone. Shared by the drawing
-   and by the break test, so the line you see is the line you break. */
-function tapeSpanAt(sc, site){
-  const s = site.s;
-  const p = sc.posAt(s), h = sc.headingAt(s);
-  const rvx = -Math.sin(h), rvy = Math.cos(h);
-  const o0 = ROBOT_SIDE*(ROAD_HALF + TAPE.inset);
-  const o1 = ROBOT_SIDE*(ROAD_HALF + SIDEWALK_W - TAPE.inset);
-  return { s,
-           a: { x: p.x + rvx*o0, y: p.y + rvy*o0 },
-           b: { x: p.x + rvx*o1, y: p.y + rvy*o1 } };
+/* Pure: the CORDON. Three spans, not one line — two crossing the pavement and
+   one long run along the kerb, closing off a section of walk that only the
+   police are inside. Derived from the route alone so it travels with the scene.
+
+   Lateral convention: laneOffset() is ROBOT_SIDE*(ROAD_HALF + ...), so a larger
+   magnitude is further from the road. Kerb side is the small offset, building
+   side the large one. The cordon is open on the building side, which is where
+   the lot and the officers are. */
+function tapeSpansAt(sc, site){
+  const kerb  = ROBOT_SIDE*(ROAD_HALF + TAPE.inset);
+  const bldg  = ROBOT_SIDE*(ROAD_HALF + SIDEWALK_W - TAPE.inset);
+  const at = (s, off) => {
+    const p = sc.posAt(s), h = sc.headingAt(s);
+    return { x: p.x - Math.sin(h)*off, y: p.y + Math.cos(h)*off };
+  };
+  const s0 = site.s - TAPE.halfLen, s1 = site.s + TAPE.halfLen;
+  const P0 = at(s0, bldg), P1 = at(s0, kerb);
+  const P2 = at(s1, kerb), P3 = at(s1, bldg);
+  return [
+    { a: P0, b: P1, post: [true, true] },    // across the walk, upstream
+    { a: P1, b: P2, post: [false, true] },   // the long run along the kerb
+    { a: P2, b: P3, post: [false, true] }    // across the walk, downstream
+  ];
 }
 
 /* Do segments p1p2 and p3p4 cross? */
@@ -362,22 +377,32 @@ function segCross(p1, p2, p3, p4){
 }
 
 function updateTape(sc, site, t){
-  const span = site.tape || (site.tape = tapeSpanAt(sc, site));
+  const spans = site.tape || (site.tape = tapeSpansAt(sc, site));
+  if(!site.tapeBroken) site.tapeBroken = spans.map(() => false);
+  if(!site.tapeBrokeAt) site.tapeBrokeAt = spans.map(() => 0);
+
   const cur = { x: sc.botX, y: sc.botY };
   const prev = sc.__tapePrev || cur;
   sc.__tapePrev = cur;
-  if(site.tapeBroken) return;
-  if(segCross(prev, cur, span.a, span.b)){
-    site.tapeBroken = true;
-    site.tapeBrokeAt = t;
-  }
+
+  /* every span tested independently — walking in through one and out through
+     another should leave two torn spans, not one */
+  spans.forEach((sp, i) => {
+    if(site.tapeBroken[i]) return;
+    if(segCross(prev, cur, sp.a, sp.b)){
+      site.tapeBroken[i] = true;
+      site.tapeBrokeAt[i] = t;
+    }
+  });
 }
 
-function drawTape(sc, g, site, t){
-  const span = site.tape;
-  if(!span) return;
-  const A = span.a, B = span.b;
-  const mx = (A.x+B.x)/2, my = (A.y+B.y)/2;
+/* Draw ONE span of the cordon. Split per span so each can be queued at its own
+   depth — the long kerb run and the two cross-walk spans need to sort against
+   the cars and officers individually, not all at one averaged depth. */
+function drawTapeSpan(sc, g, site, i, t){
+  const spans = site.tape;
+  if(!spans || !spans[i]) return;
+  const sp = spans[i], A = sp.a, B = sp.b;
 
   const post = (P) => {
     const c = [];
@@ -385,50 +410,50 @@ function drawTape(sc, g, site, t){
       for(const dy of [-TAPE.stakeR, TAPE.stakeR])
         for(const h of [0, TAPE.stakeH])
           c.push(sc.W(P.x+dx, P.y+dy, h));
-    sc.quadOn(g, convexHull(c), TAPE.stake);
-    sc.edgeOn(g, convexHull(c), TAPE.stakeDk, 1);
+    const hull = convexHull(c);
+    sc.quadOn(g, hull, TAPE.stake);
+    sc.edgeOn(g, hull, TAPE.stakeDk, 1);
   };
-  post(A); post(B);
+  if(sp.post[0]) post(A);
+  if(sp.post[1]) post(B);
 
-  /* one ribbon run: pts is a list of {x,y,z} along the line */
   const ribbon = (pts) => {
-    for(let i = 0; i < pts.length-1; i++){
-      const p = pts[i], q = pts[i+1];
-      const quad = [ sc.W(p.x, p.y, p.z - TAPE.half), sc.W(q.x, q.y, q.z - TAPE.half),
-                     sc.W(q.x, q.y, q.z + TAPE.half), sc.W(p.x, p.y, p.z + TAPE.half) ];
-      /* alternating bands read as hazard tape without needing real lettering,
-         which turns to mud at this scale */
-      sc.quadOn(g, quad, (i % 3 === 2) ? TAPE.band : TAPE.yellow);
+    for(let k = 0; k < pts.length-1; k++){
+      const p = pts[k], q = pts[k+1];
+      sc.quadOn(g, [ sc.W(p.x, p.y, p.z - TAPE.half), sc.W(q.x, q.y, q.z - TAPE.half),
+                     sc.W(q.x, q.y, q.z + TAPE.half), sc.W(p.x, p.y, p.z + TAPE.half) ],
+                (k % 3 === 2) ? TAPE.band : TAPE.yellow);
     }
   };
 
-  if(!site.tapeBroken){
+  const len = Math.hypot(B.x-A.x, B.y-A.y);
+  const segs = Math.max(6, Math.round(TAPE.segs * Math.min(2.4, len/260)));
+
+  if(!site.tapeBroken || !site.tapeBroken[i]){
     const pts = [];
-    for(let i = 0; i <= TAPE.segs; i++){
-      const u = i/TAPE.segs;
+    for(let k = 0; k <= segs; k++){
+      const u = k/segs;
       pts.push({ x: A.x + (B.x-A.x)*u, y: A.y + (B.y-A.y)*u,
-                 z: TAPE.z - TAPE.sag*Math.sin(Math.PI*u) });   // catenary enough
+                 z: TAPE.z - TAPE.sag*Math.sin(Math.PI*u) });
     }
     ribbon(pts);
     return;
   }
 
-  /* BROKEN: each half snaps back to its own stake and hangs. The free end
-     swings in and drops; the anchored end never moves, which is what sells it
-     as tape that tore rather than tape that vanished. */
-  const k = Math.min(1, (t - (site.tapeBrokeAt || t)) / TAPE.snapMs);
-  const e = 1 - Math.pow(1-k, 3);                    // ease out, like a fall
-  const halves = [ { S: A, M: { x: mx, y: my } }, { S: B, M: { x: mx, y: my } } ];
-  for(const hf of halves){
+  /* BROKEN: each half snaps back to its own end post and hangs. The anchored
+     end never moves, which is what sells it as tape that tore rather than
+     tape that vanished. */
+  const k0 = Math.min(1, (t - (site.tapeBrokeAt[i] || t)) / TAPE.snapMs);
+  const e = 1 - Math.pow(1-k0, 3);
+  const mid = { x: (A.x+B.x)/2, y: (A.y+B.y)/2 };
+  for(const S of [A, B]){
     const pts = [];
-    for(let i = 0; i <= TAPE.segs; i++){
-      const u = i/TAPE.segs;
-      /* taut position along its half */
-      const tx = hf.S.x + (hf.M.x-hf.S.x)*u, ty = hf.S.y + (hf.M.y-hf.S.y)*u;
+    for(let k = 0; k <= segs; k++){
+      const u = k/segs;
+      const tx = S.x + (mid.x-S.x)*u, ty = S.y + (mid.y-S.y)*u;
       const tz = TAPE.z - TAPE.sag*Math.sin(Math.PI*(u*0.5));
-      /* hung position: pulled in toward the stake and dropped */
-      const hx = hf.S.x + (hf.M.x-hf.S.x)*u*0.30;
-      const hy = hf.S.y + (hf.M.y-hf.S.y)*u*0.30;
+      const hx = S.x + (mid.x-S.x)*u*TAPE.hang;
+      const hy = S.y + (mid.y-S.y)*u*TAPE.hang;
       const hz = TAPE.z - (TAPE.z - 5)*(u*u);
       pts.push({ x: tx + (hx-tx)*e, y: ty + (hy-ty)*e, z: tz + (hz-tz)*e });
     }
@@ -690,9 +715,13 @@ BENCH.hook(function(sc, t){
 
   updateTape(sc, site, t);
   if(site.tape){
-    const tp = site.tape;
-    items.push({ d: (tp.a.x + tp.a.y + tp.b.x + tp.b.y)/2,
-                 draw: () => drawTape(sc, g, site, t) });
+    /* one queue entry per span, each at its own depth, so the kerb run and the
+       two cross-walk spans sort against the cars and officers individually
+       rather than all at one averaged depth */
+    site.tape.forEach((sp, i) => {
+      items.push({ d: (sp.a.x + sp.a.y + sp.b.x + sp.b.y)/2,
+                   draw: () => drawTapeSpan(sc, g, site, i, t) });
+    });
   }
 
   items.sort((a, b) => a.d - b.d);
