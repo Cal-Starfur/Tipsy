@@ -161,9 +161,21 @@
 
     <div class="sec">
       <h2>Lab</h2>
+      <div class="row">
+        <select id="labPick" style="flex:1 1 auto;font:inherit;color:var(--ink);
+          background:#0e0d0c;border:1px solid var(--line);border-radius:5px;padding:7px 8px">
+          <option value="">— pick a lab —</option>
+          <option value="policecar">policecar</option>
+        </select>
+        <button id="labLoad">load</button>
+      </div>
+      <div class="row" style="color:var(--dim);margin:6px 0">
+        Or open <code>?lab=policecar</code> to load and run it automatically.
+      </div>
+      <div class="row"><label style="width:100%">zoom</label></div>
+      <div class="row"><input type="range" id="zoom" min="60" max="420" value="150"></div>
       <div class="row" style="color:var(--dim);margin-bottom:6px">
-        Runs inside the game's realm. Game constants are in scope. Whatever works here
-        pastes into index.html unchanged.</div>
+        Code below runs inside the game's realm. Game constants are in scope.</div>
       <div class="row"><textarea id="code" spellcheck="false">/* Draws every frame, after drawWorld. sc is the live scene.
    Write the real function here — then copy it into index.html. */
 BENCH.hook(function(sc, t){
@@ -290,6 +302,7 @@ let bootTimer = setInterval(() => {
   BR.live = true;
   $("dot").classList.add("live");
   log("bridge up — scene attached", "ok");
+  autoBoot();
 }, 120);
 
 /* ---------------- scene readout ---------------- */
@@ -448,13 +461,54 @@ $("scrub").oninput = e => {
 
 /* The lab. Compiled inside the game's realm, so it sees the game's lexical
    scope exactly as index.html will. That equivalence is the point of all this. */
-$("run").onclick = () => {
+$("run").onclick = () => runLabCode();
+
+function runLabCode(){
   if(!BR.live) return log("bridge not up", "err");
+  try{ BR.ev($("code").value); log("lab code ran", "ok"); return true; }
+  catch(e){ log("lab error: " + e.message, "err"); return false; }
+}
+
+/* Fetch a lab off disk and run it. Pasting a few hundred lines into a textarea
+   on a phone is not a workflow, so labs live as files and load by name. */
+async function loadLab(name, andRun){
+  if(!name) return;
   try{
-    BR.ev($("code").value);
-    log("lab code ran", "ok");
-  }catch(e){ log("lab error: " + e.message, "err"); }
+    const r = await fetch("./" + name + ".lab.js", { cache: "no-store" });
+    if(!r.ok) throw new Error("HTTP " + r.status);
+    $("code").value = await r.text();
+    log("loaded " + name + ".lab.js", "ok");
+    if(andRun) runLabCode();
+  }catch(e){ log("could not load " + name + ": " + e.message, "err"); }
+}
+
+$("labLoad").onclick = () => loadLab($("labPick").value, true);
+$("labPick").onchange = () => { if($("labPick").value) loadLab($("labPick").value, true); };
+
+/* Zoom. K is the world->screen scale W() multiplies by, so this is a true
+   camera zoom rather than a CSS scale — geometry stays crisp and the four
+   heading checks stay honest. */
+$("zoom").oninput = e => {
+  if(!BR.live) return;
+  try{ BR.ev("game.scene.scenes[0].K = " + ((+e.target.value)/100)); }catch(err){}
 };
+
+/* ?lab=NAME[&date=YYYY-MM-DD][&f=0..3][&zoom=150]
+   One URL that lands on the thing you wanted to look at. */
+async function autoBoot(){
+  const q = new URLSearchParams(location.search);
+  const lab = q.get("lab");
+  if(!lab) return;
+  const date = q.get("date") || $("dateStr").value;
+  $("dateStr").value = date;
+  $("startRun").click();
+  await new Promise(r => setTimeout(r, 900));
+  const z = q.get("zoom");
+  if(z){ $("zoom").value = z; $("zoom").dispatchEvent(new Event("input")); }
+  await loadLab(lab, true);
+  const f = q.get("f");
+  if(f !== null){ await new Promise(r => setTimeout(r, 300)); snapHeading(+f); }
+}
 
 $("clearHook").onclick = () => {
   if(!BR.live) return;
