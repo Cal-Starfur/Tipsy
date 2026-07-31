@@ -252,7 +252,30 @@ const BR = {
       window.BENCH = {
         scene(){ return game.scene.scenes[0]; },
         hook(fn){ const s = game.scene.scenes[0]; s.__benchHookErr = null; s.__benchHook = fn; },
-        clear(){ game.scene.scenes[0].__benchHook = null; }
+        clear(){ game.scene.scenes[0].__benchHook = null; },
+
+        /* Put the robot at route-s and BRING THE CAMERA WITH IT.
+           W() is camera-relative, and the camera only eases toward the robot
+           inside update()'s running branch — so moving botS on a route that
+           isn't being played leaves the camera parked at the origin and every
+           world-space draw lands thousands of pixels off canvas. Mirrors what
+           update() does at the pose step, then hard-snaps the camera the way
+           a fresh run does rather than easing. */
+        place(s){
+          const sc = game.scene.scenes[0];
+          if(!sc.route) return null;
+          const h  = sc.headingAt(s);
+          const pp = sc.posAt(s);
+          const rvx = -Math.sin(h), rvy = Math.cos(h);
+          sc.botS = s;
+          sc.botX = pp.x + rvx*(sc.laneOff || 0);
+          sc.botY = pp.y + rvy*(sc.laneOff || 0);
+          sc.drawAngle = h;
+          sc.camX = sc.botX; sc.camY = sc.botY; sc.camZ = sc.botZ || 0;
+          const fi = Math.round(h / (Math.PI/2));
+          sc.f = ((fi % 4) + 4) % 4;
+          return { s, f: sc.f, h };
+        }
       };
     })()`);
   }
@@ -334,6 +357,12 @@ $("startRun").onclick = () => {
     const r = BR.ev(`(function(){
       const sc = game.scene.scenes[0];
       sc.loadRoute(${JSON.stringify(d)}, {});
+      /* loadRoute only BUILDS the route — the title overlay is still up and
+         state is still not "play", so drawWorld renders behind a DOM overlay
+         and runT never advances. Starting a run is exactly what the game's own
+         startBtn handler does, so do that and nothing more. */
+      hide("titleOverlay");
+      sc.state = "play";
       sc.botS = 0;
       return sc.route ? sc.route.dateStr : null;
     })()`);
@@ -384,7 +413,7 @@ function snapHeading(f){
         const h = sc.headingAt(s);
         if(!isFinite(h)) continue;
         const q = ((Math.round(h / (Math.PI / 2)) % 4) + 4) % 4;
-        if(q === target){ sc.botS = s; sc.drawAngle = h; return s; }
+        if(q === target){ BENCH.place(s); return s; }
       }
       return -1;
     })(${f})`);
@@ -412,7 +441,7 @@ $("scrub").oninput = e => {
       const sc = game.scene.scenes[0];
       if(!sc.route) return;
       const max = sc.route.totalLen || 20000;
-      sc.botS = frac * max;
+      BENCH.place(frac * max);
     })(${(+e.target.value) / 1000})`);
   }catch(err){}
 };
