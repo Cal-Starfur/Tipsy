@@ -847,8 +847,14 @@ const NIGHT_MULT = (() => {   // NAVY 0x5a6aa8 at depth 0.65, precomputed
 
 /* STREETLAMP — the night's anchor prop (lamp lab v2, style ARM) */
 const LAMP = {
-  height: 96, poleW: 3.2, baseW: 7, baseH: 6,
-  armLen: 26, armDrop: 5, headW: 13, headH: 5,
+  /* 2026-07-30: scaled up ~3x to stand with the tall palm specimens
+     (PALM.height 165 * the rare 1.6-2.1 tallRoll = 264-346). Pole/base/
+     arm/head widths only doubled, so the post reads taller AND slender
+     rather than merely zoomed. Draw code below derives its formerly
+     hardcoded arm width, base shadow and lens sizes from these, so the
+     whole fixture scales together. */
+  height: 290, poleW: 6.4, baseW: 14, baseH: 12,
+  armLen: 52, armDrop: 10, headW: 24, headH: 9,
   pole: 0x3a3d43, poleDk: 0x2e3138,   // BENCH_ART.leg street-metal family
   base: 0x33363d, baseDk: 0x282b31,
   head: 0x2e3138, headDk: 0x24262c,
@@ -861,7 +867,7 @@ const LAMP_VARY = {
   poolMin: 0.88, poolMax: 1.12,
   malTilt: 0.05                // broken lamps lean, up to this * height
 };
-const LAMP_ACT = { spacing: 6, poolR: 46, malRate: 0.10, standoff: 14 };
+const LAMP_ACT = { spacing: 6, poolR: 70, malRate: 0.10, standoff: 14 };  // poolR 46->70: the lamp head sits ~3x higher, so the pool it throws spreads wider
 /* deterministic flicker for the broken ~10%: 90ms slices hashed from
    (seed, slice) — stateless, identical on every client at the same t.
    Mostly on, dropouts + a sick 35% dim. Returns light level 0..1. */
@@ -3706,8 +3712,14 @@ function generateRoute(dateStr, opts){
      prop. Spawned LAST — after the loop weld and the pickup/door
      stage sweep — so no later pass can prune them and the rhythm
      covers the wrap-around lap too (a night lap deserves its lights).
-     Fixed beat down the robot's curb row (row 3, the palm strip);
-     each beat retries one tile either way before gapping, and uses
+     Beats ALTERNATE between the two edges of the sidewalk band --
+     row 3 (building side) and row 0 (curb side) -- so both sides are
+     lit rather than one, staggered rather than paired so the lamp
+     count and the blocking density stay where they were. Each lamp
+     carries an armSign so its head always hangs INWARD over the
+     walking band: +1 (toward the road) from row 3, -1 (away from the
+     road) from row 0. No lamp ever throws its light over the road.
+     Each beat retries one tile either way before gapping, and uses
      pole-scale clearance (a lamp post stands closer to things than a
      palm cluster ever could — spawnBlocked's palm-sized gap starved
      the row to 2 lamps in testing). ~10% are broken: they lean, and
@@ -3715,23 +3727,26 @@ function generateRoute(dateStr, opts){
      lamp is the same broken lamp for everyone, all day. */
   {
     const effLen = loop ? loop.sEnd : totalLen;
-    const lampClear = (s) => {
+    const lampClear = (s, row) => {
       if(inCrossing(s)) return false;
       if(Math.abs(s - pickupS) < 260 || Math.abs(s - doorS) < 260) return false;  // the stage rule
-      const off = laneOffset(3);
+      const off = laneOffset(row);
       for(const list of [hazards, props])
         for(const it of list)
           if(Math.abs(it.s - s) < 40 && Math.abs((it.row !== undefined ? laneOffset(it.row) : (it.roadOffset || 0)) - off) < T2*0.55) return false;
       return true;
     };
+    let beat = 0;
     for(let ls = SPAWN_S + 120; ls < effLen - 160; ls += LAMP_ACT.spacing * T2){
+      const lampRow = (beat++ % 2) ? 0 : 3;              // alternate building side / curb side
+      const armSign = lampRow === 0 ? -1 : 1;            // always reach INWARD, over the sidewalk
       for(const nudge of [0, T2, -T2]){
         const lsR = Math.round(ls + nudge);
         if(lsR < SPAWN_S + 80 || lsR > effLen - 120) continue;
         if(inCorner(lsR)) continue;
-        if(!onSidewalk(lsR, laneOffset(3))) continue;
-        if(!lampClear(lsR)) continue;
-        hazards.push({ type:"lamp", s: lsR, row: 3, f: facingAt(lsR), hit: false,
+        if(!onSidewalk(lsR, laneOffset(lampRow))) continue;
+        if(!lampClear(lsR, lampRow)) continue;
+        hazards.push({ type:"lamp", s: lsR, row: lampRow, armSign, f: facingAt(lsR), hit: false,
                        lampSeed: (rng()*4294967296) >>> 0,
                        mal: rng() < LAMP_ACT.malRate });
         break;
@@ -6388,7 +6403,7 @@ class WorldScene extends Phaser.Scene {
 
     const sh = W(0, 0, 0);
     g.fillStyle(L.shadow, 0.18);
-    g.fillEllipse(sh.x, sh.y + 1, 16*K*0.8, 7*K*0.8);
+    g.fillEllipse(sh.x, sh.y + 1, L.baseW*2.286*K*0.8, L.baseW*K*0.8);
     box(0, 0, L.baseW/2, L.baseW/2, 0, L.baseH, L.base, L.baseDk, L.base);
     const segN = 3;
     for(let i = 0; i < segN; i++){
@@ -6397,22 +6412,32 @@ class WorldScene extends Phaser.Scene {
     }
     const topA = lean(H);
 
-    /* gooseneck arm toward the road (+b), fixture at its end */
-    const armL = L.armLen * armVar, seg = 3;
+    /* gooseneck arm + fixture. +b is toward the ROAD (b increases with
+       offsetUnits, and laneOffset gets more negative as the lane index
+       rises -- lane 0 is curb side, lane 3 building side). So the arm
+       must swing +b from the building row and -b from the curb row for
+       the head to hang over the WALKING band either way; the light
+       never reaches out over the road. hz.armSign carries that verdict
+       from the spawner (see the STREETLAMPS block), defaulting to the
+       old building-row behaviour for any lamp without one. */
+    const aSign = (hz.armSign === -1) ? -1 : 1;
+    const armL = L.armLen * armVar * aSign, seg = 3;
     for(let i = 0; i < seg; i++){
       const u0 = i/seg, u1 = (i+1)/seg;
       const bA = armL*u0, bB = armL*u1;
       const zA = H - L.armDrop*u0*u0, zB = H - L.armDrop*u1*u1;
-      this.quadOn(g, [W(topA-1.4,bA,zA), W(topA+1.4,bA,zA), W(topA+1.4,bB,zB), W(topA-1.4,bB,zB)], L.pole);
-      this.quadOn(g, [W(topA+1.4,bA,zA), W(topA+1.4,bB,zB), W(topA+1.4,bB,zB-2), W(topA+1.4,bA,zA-2)], L.poleDk);
+      const aw = L.poleW*0.4375, ad = L.poleW*0.625;   // arm half-width / underside depth, kept in proportion to the pole
+      this.quadOn(g, [W(topA-aw,bA,zA), W(topA+aw,bA,zA), W(topA+aw,bB,zB), W(topA-aw,bB,zB)], L.pole);
+      this.quadOn(g, [W(topA+aw,bA,zA), W(topA+aw,bB,zB), W(topA+aw,bB,zB-ad), W(topA+aw,bA,zA-ad)], L.poleDk);
     }
     const hz2 = H - L.armDrop;
     box(topA, armL, L.headW/2, L.headW/2*0.6, hz2 - L.headH, hz2, L.head, L.headDk, L.head);
 
     /* lens housing (always) + the light itself (night, into gGlow) */
     const lp = W(topA, armL, hz2 - L.headH);
+    const lensW = L.headW*0.615, lensH = L.headW*0.269;   // lens tracks the fixture box
     g.fillStyle(L.glassDay, 1);
-    g.fillEllipse(lp.x, lp.y, 8*K*0.55, 3.5*K*0.55);
+    g.fillEllipse(lp.x, lp.y, lensW*K*0.55, lensH*K*0.55);
     if(this.route && this.route.night){
       const lit = hz.mal ? flickerAt(hz.lampSeed, t) : 1;
       if(lit > 0){
@@ -6423,8 +6448,8 @@ class WorldScene extends Phaser.Scene {
         gl.fillStyle(L.glow, 0.34*lit); gl.fillEllipse(gp.x, gp.y, pR*0.55, pR*0.26);
         gl.fillStyle(L.glow, 0.20*lit); gl.fillEllipse(gp.x, gp.y, pR, pR*0.48);
         gl.fillStyle(L.glow, 0.10*lit); gl.fillEllipse(gp.x, gp.y, pR*1.5, pR*0.72);
-        gl.fillStyle(L.glow, 0.5*lit);  gl.fillEllipse(lp.x, lp.y, 12*K*0.8, 6*K*0.8);
-        gl.fillStyle(0xffe9c0, 0.9*lit); gl.fillEllipse(lp.x, lp.y, 8*K*0.55, 3.5*K*0.55);
+        gl.fillStyle(L.glow, 0.5*lit);  gl.fillEllipse(lp.x, lp.y, L.headW*0.923*K*0.8, L.headW*0.462*K*0.8);
+        gl.fillStyle(0xffe9c0, 0.9*lit); gl.fillEllipse(lp.x, lp.y, lensW*K*0.55, lensH*K*0.55);
         gl.fillStyle(L.glow, 0.07*lit);
         gl.fillPoints([new Phaser.Geom.Point(lp.x, lp.y),
                        new Phaser.Geom.Point(gp.x - pR*0.7, gp.y),
