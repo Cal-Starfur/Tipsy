@@ -455,14 +455,14 @@ function drawTapeSpan(sc, g, site, i, t){
   }
 }
 
-function drawOfficer(sc, g, x, y, thW, seed, walkPhase, moving){
+function drawOfficer(sc, g, x, y, thW, seed, walkPhase, moving, liftT){
   const r = mulberry32(seed >>> 0);
   const build = PEOPLE_BUILD[r() < 0.5 ? 0 : 1];
   const skin  = PEOPLE_SKIN[Math.floor(r()*PEOPLE_SKIN.length)];
   const hair  = PEOPLE_HAIR[Math.floor(r()*PEOPLE_HAIR.length)];
   sc.drawPersonHull(g, x, y, 0, thW, build, skin,
                     OFFICER.shirt, OFFICER.pants, hair, OFFICER.shoe,
-                    walkPhase || 0, !!moving, 0, 0, null);
+                    walkPhase || 0, !!moving, 0, liftT || 0, null);
   drawPoliceCap(sc, g, x, y, 0, thW, build);
 }
 
@@ -550,6 +550,84 @@ const STOP = {
                 // but nowhere near the next street over (blocks are ~3128)
 };
 
+/* ---------------------------------------------------------------------------
+   THE OFFICER DIRECTING TRAFFIC
+
+   He holds the blocked lane, watches the opposing lane, and waves a batch
+   through when it is clear. Waved cars pull around the cruiser using the far
+   lane and settle back afterwards.
+
+   The lateral shift is applied to tr.laneOffset for the same reason the hold
+   is applied to sBase: trafficWorldAt reads both, so the renderer and the
+   collision test see the swerve. Anything kept in private bookkeeping is
+   invisible to the game — the mistake that made the first closure do nothing.
+   --------------------------------------------------------------------------- */
+const DIRECT = {
+  clearGap:    1000,  // opposing lane must be empty this far around the cruiser
+  waveMs:      3400,  // how long a wave-through lasts
+  holdMs:      2200,  // minimum hold between waves, so it reads as directing
+  detourRange:  620,  // distance either side of the cruiser to be pulled over
+  detourEase:   0.13,
+  armHz:        2.2   // wave speed
+};
+
+function updateDirect(sc, site, t){
+  const rb = site.roadblock;
+  if(!rb) return;
+  if(!site.wave) site.wave = { on:false, t0:t };
+  const w = site.wave;
+
+  /* IS THE FAR LANE CLEAR?
+     Directional, deliberately. The first version counted any opposing-lane car
+     within range including ones that had already gone past, and with 36 cars in
+     the city that is essentially never true — he held forever and waved nobody
+     through. What actually matters is whether an oncoming car is still COMING:
+     the cruiser ahead of it within clearGap, or it sitting in the detour zone
+     right now. Anything already past is irrelevant. */
+  const clear = !sc.route.traffic.some(tr => {
+    const lane0 = (tr.__lane0 !== undefined) ? tr.__lane0 : tr.laneOffset;
+    if(Math.sign(lane0) === Math.sign(rb.lane)) return false;      // same lane
+    const w = trafficWorldAt(tr, t);
+    const d = DIRV[w.f];
+    const dx = rb.x - w.wp.x, dy = rb.y - w.wp.y;
+    const along = dx*d.x + dy*d.y;
+    const lat   = Math.abs(-dx*d.y + dy*d.x);
+    if(lat > STOP.lane) return false;                               // another street
+    if(Math.hypot(dx, dy) < DIRECT.detourRange) return true;        // in the way now
+    return along > 0 && along < DIRECT.clearGap;                    // still coming
+  });
+
+  const el = t - w.t0;
+  if(w.on){
+    if(!clear || el > DIRECT.waveMs){ w.on = false; w.t0 = t; }
+  } else {
+    if(clear && el > DIRECT.holdMs){ w.on = true; w.t0 = t; }
+  }
+}
+
+/* Pull waved cars around the cruiser via the far lane, and let them drift back
+   once past. Only cars in the blocked lane detour. */
+function updateDetour(sc, site, t, st){
+  const rb = site.roadblock;
+  for(const c of st){
+    const tr = c.tr;
+    if(tr.__lane0 === undefined) tr.__lane0 = tr.laneOffset;
+    if(Math.sign(tr.__lane0) !== Math.sign(rb.lane)) continue;
+
+    const dx = rb.x - c.x, dy = rb.y - c.y;
+    const along = dx*c.d.x + dy*c.d.y;
+    const lat   = Math.abs(-dx*c.d.y + dy*c.d.x);
+
+    let want = 0;
+    if(lat < STOP.lane && Math.abs(along) < DIRECT.detourRange){
+      const u = 1 - Math.abs(along)/DIRECT.detourRange;
+      want = u*u*(3 - 2*u);
+    }
+    const target = tr.__lane0 * (1 - 2*want);
+    tr.laneOffset += (target - tr.laneOffset) * DIRECT.detourEase;
+  }
+}
+
 function updateStop(sc, t){
   const site = sc.__crime, rb = site && site.roadblock;
   if(!rb) return;
@@ -571,9 +649,16 @@ function updateStop(sc, t){
     return Math.abs(-dx*c.d.y + dy*c.d.x) < STOP.lane;
   };
 
+  updateDirect(sc, site, t);
+  updateDetour(sc, site, t, st);
+
+  /* While he is waving the blocked lane through, nobody is held — that is what
+     the wave MEANS. Cars still pull around the cruiser via updateDetour. */
+  const waving = site.wave && site.wave.on;
+
   /* the cruiser stops the front car; a stopped car stops the one behind it.
      Two propagation passes is enough for the queue depths we ever see. */
-  for(const c of st) c.held = ahead(c, rb.x, rb.y, STOP.line);
+  for(const c of st) c.held = !waving && ahead(c, rb.x, rb.y, STOP.line);
   for(let pass = 0; pass < 3; pass++){
     for(const c of st){
       if(c.held) continue;
@@ -663,6 +748,10 @@ BENCH.hook(function(sc, t){
   }
   const site = sc.__crime;
   if(!site) return;
+  /* Publish the frame time. The bench and any diagnostic need a REAL t: an
+     earlier probe read a field that no longer existed, silently got 0, and
+     reported cars as stationary when they were moving. */
+  sc.__labT = t;
 
   /* THE SCENE OWNS THIS LOT.
      drawParkingRow spawns its own civilian cars into some stalls, and one was
@@ -735,7 +824,18 @@ BENCH.hook(function(sc, t){
       o.__seed = ((Math.round(h.x)*73856093) ^ (Math.round(h.y)*19349663) ^ i) >>> 0;
     }
     const wp = moving ? Math.sin(t*PEOPLE_ART.walkSpeed) : 0;
-    items.push({ d: x + y, draw: () => drawOfficer(sc, g, x, y, th, o.__seed, wp, moving) });
+    /* the man on the road raises an arm and waves it while he is sending cars
+       through, and drops it while he is holding them. liftT rotates the arm
+       about a fixed shoulder pivot, so the arm stays rigid at every value. */
+    let lift = 0;
+    if(o.role === "traffic"){
+      const waving = site.wave && site.wave.on;
+      const targ = waving ? 0.62 + 0.28*Math.sin(t*0.001*DIRECT.armHz*Math.PI*2) : 0;
+      o.__lift = (o.__lift === undefined) ? targ : o.__lift + (targ - o.__lift)*0.12;
+      lift = o.__lift;
+    }
+    items.push({ d: x + y,
+                 draw: () => drawOfficer(sc, g, x, y, th, o.__seed, wp, moving, lift) });
   });
 
   updateTape(sc, site, t);
