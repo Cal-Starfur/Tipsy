@@ -6340,16 +6340,19 @@ class WorldScene extends Phaser.Scene {
       }
       /* BUCKET HAT — wide thin brim + camo-patched crown */
       const brimZ = z1 - build.headR*0.45;
-      box(0, 0, build.headR*1.55, build.headR*1.55, brimZ, brimZ + 2.2, hat.dk, hat.dk, hat.dk);
-      box(0, 0, build.headR*1.12, build.headR*1.12, brimZ + 2.2, z1 + 3, hat.c, hat.c, hat.dk);
+      /* sized DOWN from 1.55/1.12 (playtest: hat read too big) —
+         crown stays a hair over the head's 1.0 so the skull never
+         pokes through the hat walls */
+      box(0, 0, build.headR*1.30, build.headR*1.30, brimZ, brimZ + 2.2, hat.dk, hat.dk, hat.dk);
+      box(0, 0, build.headR*1.04, build.headR*1.04, brimZ + 2.2, z1 + 2, hat.c, hat.c, hat.dk);
       const cr = mulberry32((patternSeed ^ 0x99) >>> 0);
       for(let i=0; i<3; i++){
         const u = -0.6 + cr()*1.2, zc = brimZ + 4 + cr()*(z1 - brimZ - 3), s2 = 2 + cr()*2;
-        this.quadOn(g, [G(faceA*build.headR*1.12, u*build.headR - s2, zc - s2*0.6), G(faceA*build.headR*1.12, u*build.headR + s2, zc - s2*0.6),
-                        G(faceA*build.headR*1.12, u*build.headR + s2, zc + s2*0.6), G(faceA*build.headR*1.12, u*build.headR - s2, zc + s2*0.6)], hat.p);
+        this.quadOn(g, [G(faceA*build.headR*1.04, u*build.headR - s2, zc - s2*0.6), G(faceA*build.headR*1.04, u*build.headR + s2, zc - s2*0.6),
+                        G(faceA*build.headR*1.04, u*build.headR + s2, zc + s2*0.6), G(faceA*build.headR*1.04, u*build.headR - s2, zc + s2*0.6)], hat.p);
         const u2 = -0.6 + cr()*1.2, zc2 = brimZ + 4 + cr()*(z1 - brimZ - 3), s3 = 2 + cr()*2;
-        this.quadOn(g, [G(u2*build.headR - s3, faceB*build.headR*1.12, zc2 - s3*0.6), G(u2*build.headR + s3, faceB*build.headR*1.12, zc2 - s3*0.6),
-                        G(u2*build.headR + s3, faceB*build.headR*1.12, zc2 + s3*0.6), G(u2*build.headR - s3, faceB*build.headR*1.12, zc2 + s3*0.6)], hat.p);
+        this.quadOn(g, [G(u2*build.headR - s3, faceB*build.headR*1.04, zc2 - s3*0.6), G(u2*build.headR + s3, faceB*build.headR*1.04, zc2 - s3*0.6),
+                        G(u2*build.headR + s3, faceB*build.headR*1.04, zc2 + s3*0.6), G(u2*build.headR - s3, faceB*build.headR*1.04, zc2 + s3*0.6)], hat.p);
       }
     };
 
