@@ -1,4 +1,24 @@
 <!DOCTYPE html>
+<!--
+  ============================================================================
+  ARCHIVED PROTOTYPE — superseded by labs/_bench.html
+  ============================================================================
+  This lab predates the bench. It re-creates the game world by hand: its own
+  constants, its own iso projection, its own gWorld/g/gFront, its own camera.
+  Those hand copies have drifted from game/index.html and will keep drifting,
+  because nothing keeps them in step.
+
+  That drift is why porting out of these labs was a translation rather than a
+  copy, and translation is where the heading bugs got in.
+
+  This file is kept for the PROTOTYPE INSIDE IT — the geometry, the tuning, the
+  math are all still good, and still worth reading and lifting from.
+
+  Do not build new features here. labs/_bench.html loads the real
+  game/index.html unmodified, so work done there ports verbatim.
+  ============================================================================
+-->
+
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -910,5 +930,21 @@ const game = new Phaser.Game({
   scene: [LabScene]
 });
 </script>
+
+<!-- injected archive flag — fixed position, no layout impact on the lab below -->
+<div id="labArchivedFlag" style="position:fixed;top:0;left:0;right:0;z-index:2147483647;
+  background:#3a2a12;color:#e0b050;border-bottom:1px solid #6b4f20;
+  font:12px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;
+  padding:7px 12px;display:flex;gap:10px;align-items:center;
+  box-shadow:0 2px 10px rgba(0,0,0,.45)">
+  <span style="flex:1 1 auto">
+    <b style="color:#f0c674">ARCHIVED PROTOTYPE</b> — this lab hand-copies the world and has
+    drifted from <code>game/index.html</code>. Kept for the prototype inside it.
+    Build new work in <code>labs/_bench.html</code>, which loads the real game.
+  </span>
+  <button onclick="document.getElementById('labArchivedFlag').remove()"
+    style="flex:0 0 auto;background:#4a361a;color:#e0b050;border:1px solid #6b4f20;
+    border-radius:4px;padding:3px 9px;cursor:pointer;font:inherit">dismiss</button>
+</div>
 </body>
 </html>
