@@ -13406,6 +13406,36 @@ window.addEventListener("resize", () => {
   const s = scn();
   if(s && s.route) { resizeRouteMap(); drawRouteMap(s.route); }
 });
+
+/* ---------- RESUME RE-SYNC (iPad, 2026-07-31) ----------
+   Phaser.Scale.RESIZE only reacts to window `resize`. Backgrounding the
+   app on iPadOS and coming back frequently fires NO resize event, and
+   Phaser's own scale poll is halted while the page is hidden, so a size
+   change that happened while we were away is dropped on the floor: the
+   canvas keeps its stale width and you get a black band down the side
+   with the HUD laid out to the old dimensions.
+
+   scale.refresh() re-measures the parent and re-emits RESIZE, which the
+   scene's own listener (this.scale.on("resize", ...) => layout()) picks
+   up. Called twice: iPadOS reports stale innerWidth/innerHeight on the
+   first frame after resume, so the rAF pass is the one that usually
+   lands. Cheap enough to do both. */
+function tpResyncViewport(){
+  if(!game || !game.scale) return;
+  game.scale.refresh();
+  const s = scn();
+  if(s && s.route) { resizeRouteMap(); drawRouteMap(s.route); }
+}
+function tpResumeResync(){
+  tpResyncViewport();
+  requestAnimationFrame(tpResyncViewport);
+}
+document.addEventListener("visibilitychange", () => {
+  if(!document.hidden) tpResumeResync();
+});
+window.addEventListener("pageshow", tpResumeResync);
+window.addEventListener("focus", tpResumeResync);
+window.addEventListener("orientationchange", tpResumeResync);
 document.getElementById("startBtn").addEventListener("click", () => {
   hide("titleOverlay");
   if(scn().mode === "challenge"){ hjBegin(); return; }
