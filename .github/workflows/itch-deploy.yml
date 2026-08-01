@@ -16,8 +16,46 @@ jobs:
           cp game/index.html build/
           cp game/icon-180.png build/
 
+      # Was remarkablegames/setup-butler@v3, which fetches only from
+      # broth.itch.zone. On 2026-08-01 that host returned HTTP 500 and took two
+      # consecutive deploys down -- the build itself was fine, the game was
+      # packaged, and the run died purely because the tool could not be
+      # downloaded. A deploy pipeline should not have a single point of failure
+      # on someone else's CDN, so this tries broth first (still the canonical
+      # source) and falls back to the official itchio/butler GitHub releases,
+      # which carry the same binaries.
+      #
+      # The two archives are laid out differently -- broth puts butler at the
+      # root, the GitHub zip nests it under linux-amd64/ -- so the binary is
+      # located rather than assumed. It also ships 7z.so and libc7zip.so which
+      # must stay in the same directory, which is why the whole dir goes on
+      # PATH instead of copying the binary out.
       - name: Setup butler
-        uses: remarkablegames/setup-butler@v3
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/butler"
+          if curl -sfL --max-time 60 -o /tmp/butler.zip \
+              "https://broth.itch.zone/butler/linux-amd64/LATEST/archive/default"; then
+            echo "butler: fetched from broth.itch.zone"
+          else
+            echo "::warning::broth.itch.zone unavailable, falling back to itchio/butler releases"
+            TAG=$(curl -sfL https://api.github.com/repos/itchio/butler/releases/latest \
+                  | jq -r .tag_name)
+            echo "butler: falling back to itchio/butler $TAG"
+            curl -sfL --max-time 180 -o /tmp/butler.zip \
+              "https://github.com/itchio/butler/releases/download/${TAG}/butler-linux-amd64.zip"
+          fi
+          unzip -o -q /tmp/butler.zip -d "$HOME/butler"
+          BUTLER_BIN=$(find "$HOME/butler" -name butler -type f | head -n 1)
+          if [ -z "$BUTLER_BIN" ]; then
+            echo "::error::butler binary not found in archive"
+            exit 1
+          fi
+          chmod +x "$BUTLER_BIN"
+          dirname "$BUTLER_BIN" >> "$GITHUB_PATH"
+
+      - name: Verify butler
+        run: butler -V
 
       - name: Push to itch.io
         run: butler push build cal-starfur/tipsey:html5
