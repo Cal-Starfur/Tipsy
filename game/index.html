@@ -4949,18 +4949,20 @@ class WorldScene extends Phaser.Scene {
 
   hjClear(){
     this.hjBest = Math.max(this.hjBest, this.hjLevel);
-    /* The Chief is a milestone, NOT the end of the mission — the mission
-       is all ten jumps, so completing it at 8 made the card read
-       "completed" while two jumps were still ahead. */
-    if(this.hjLevel >= HJ_CHIEF_AT && !tpProfile.owned.has("fire-chief")){
-      tpEquipSkin("fire-chief");        // wear it the moment it is earned
-      this.announce("\u{1F692} FIRE CHIEF UNLOCKED", "EQUIPPED \u00b7 TWO JUMPS TO GO");
-    }
-    /* all ten cleared: the mission itself is done */
-    if(this.hjLevel >= HJ_DARE_AT && !tpProfile.owned.has("daredevil")){
+    /* ONE reward, at the END. The Chief used to land at jump 8 with the
+       Daredevil at 10, which meant the mission handed out a skin while
+       two jumps were still ahead and then handed out a second one for
+       finishing. The Chief is now the prize for the whole thing --
+       clear all ten or wear nothing -- and the Daredevil is reserved
+       for a separate jump challenge (see the stunt-jump trophy).
+       Anyone who already owns either skin keeps it; the `owned` guard
+       makes this purely additive for existing profiles. */
+    if(this.hjLevel >= HJ_CHIEF_AT){
       tpCompleteMission("jump-hydrant");
-      tpEquipSkin("daredevil");
-      this.announce("\u{1F3C1} DAREDEVIL UNLOCKED", "EQUIPPED \u00b7 ALL TEN CLEARED");
+      if(!tpProfile.owned.has("fire-chief")){
+        tpEquipSkin("fire-chief");      // wear it the moment it is earned
+        this.announce("\u{1F692} FIRE CHIEF UNLOCKED", "EQUIPPED \u00b7 ALL TEN CLEARED");
+      }
     }
     this.hjLevel = Math.min(HJ_CH.maxLevel, this.hjLevel + 1);
     this.hjSaveProgress();          // bank every cleared jump
@@ -4977,7 +4979,7 @@ class WorldScene extends Phaser.Scene {
     document.getElementById("orderCard").innerHTML =
       `<div class="tag" style="margin-bottom:4px">SIDE MISSION</div>`
       + `<b>${HJ_ADDRESS.hood}</b> — hydrant challenge at <b>${HJ_ADDRESS.number} ${HJ_ADDRESS.street}</b>`;
-    document.getElementById("sheetStatus").textContent = `Ten jumps · clear all ten for the Daredevil`;
+    document.getElementById("sheetStatus").textContent = `Ten jumps · clear all ten for the Fire Chief`;
     resizeRouteMap();
     drawRouteMap(this.route);
     /* the delivery game waits on a GO press to leave "idle"; the
@@ -13152,8 +13154,13 @@ const HJ_LAND = { s: 6.75, row: 0, lift: 10, dirSign: -1, root: false, cracks: 2
        6   6   9.50   91%-100%    last-hydrant clearance
        7   7  10.05   IMPOSSIBLE  the wall
    ============================================================ */
-const HJ_CHIEF_AT = 8;    // clear this level for the Fire Chief
-const HJ_DARE_AT  = 10;   // clear this level for the Daredevil
+/* The Fire Chief is the reward for the WHOLE mission now -- all ten
+   jumps, not a milestone at eight. The Daredevil is held back for a
+   jump challenge of its own rather than being handed out on the same
+   course, so HJ_DARE_AT retires with it. Keep this equal to
+   HJ_CH.maxLevel (declared just below; it cannot be referenced here
+   because HJ_CH does not exist yet at this point). */
+const HJ_CHIEF_AT = 10;   // clear ALL TEN jumps for the Fire Chief
 const HJ_CH = {
   level: 1,
   maxLevel: 10,     // TUNED ON DEVICE — ten jumps, level 10 is the finish
@@ -13818,9 +13825,9 @@ const TP_SKINS = [
   { skinId:"gold-rush",      displayName:"Gold Rush",       unlockType:"achievement",  trophyId:"highroller",
     filter:"hue-rotate(30deg) saturate(2) brightness(1.15)", desc:"For players who never miss a pickup." },
   { skinId:"fire-chief",     displayName:"Fire Chief",      unlockType:"achievement",  trophyId:"hydrant-hop",
-    filter:"hue-rotate(-15deg) saturate(1.8) brightness(0.95)", desc:"Cleared the hydrant without a scratch. Wears the color to prove it." },
-  { skinId:"daredevil",      displayName:"Daredevil",       unlockType:"achievement",  trophyId:"hydrant-master",
-    filter:"saturate(0.4) brightness(1.25) contrast(1.1)", desc:"Cleared all ten hydrant jumps. White leather, blue stars, no fear." },
+    filter:"hue-rotate(-15deg) saturate(1.8) brightness(0.95)", desc:"Cleared all ten hydrants without a scratch. Wears the color to prove it." },
+  { skinId:"daredevil",      displayName:"Daredevil",       unlockType:"achievement",  trophyId:"stunt-jump",
+    filter:"saturate(0.4) brightness(1.25) contrast(1.1)", desc:"White leather, blue stars, no fear. Earned on the stunt jump, not the hydrants." },
   { skinId:"cone-dodger",    displayName:"Cone Dodger",     unlockType:"achievement",  trophyId:"slalom-master",
     filter:"saturate(1.7) contrast(1.15) brightness(1.05)", desc:"Weaves through cones like they're standing still. High-viz paint to match." },
   { skinId:"porch-pirate",   displayName:"Porch Pirate",   unlockType:"purchase",     priceCents:2000,
@@ -13840,12 +13847,21 @@ const TP_TROPHIES = [
     progress:(h)=>({current: h.some(d=>d.ms<90000) ? 1 : 0, target:1}) },
   { id:"highroller", name:"High Roller", desc:"Earn $500 in lifetime tips.", tier:"gold", reward:"gold-rush",
     progress:(h,total)=>({current:Math.min(total,500), target:500, isMoney:true}) },
-  { id:"hydrant-hop", name:"Hydrant Hopper", desc:"Complete the \"Jump the Fire Hydrant\" side mission.", tier:"silver", reward:"fire-chief",
-    progress:()=>({current: Math.min(8, tpProfile.hjBest || 0), target:8}) },
-  { id:"hydrant-master", name:"Hydrant Master", desc:"Clear all ten jumps in the Hydrant Challenge.", tier:"gold", reward:"daredevil",
-    /* driven by actual jumps landed, so the card can never claim a
-       trophy the player has not reached */
+  /* ONE trophy for the Hydrant Challenge, at the full ten jumps. It was
+     two (Hopper at 8 for the Chief, Master at 10 for the Daredevil),
+     which split one mission's reward across two cards and gave the
+     Chief away with two jumps still to go. Driven by actual jumps
+     landed, so the card can never claim a trophy the player has not
+     reached. */
+  { id:"hydrant-hop", name:"Hydrant Hopper", desc:"Clear all ten jumps in the Hydrant Challenge.", tier:"gold", reward:"fire-chief",
     progress:()=>({current: Math.min(10, tpProfile.hjBest || 0), target:10}) },
+  /* Reserved: the Daredevil's own challenge, not built yet -- same
+     shape as slalom-master, which has sat here un-earnable since its
+     course was specced. Progress is pinned at 0 rather than removed so
+     the skin keeps a valid trophyId (tpTrophyForSkin would throw
+     otherwise) and the store can still deep-link to its card. */
+  { id:"stunt-jump", name:"Stunt Jump Master", desc:"Clear the Stunt Jump Challenge.", tier:"gold", reward:"daredevil",
+    progress:()=>({current: 0, target:1}) },
   { id:"slalom-master", name:"Slalom Master", desc:"Complete the \"Cone Slalom Challenge\" side mission.", tier:"silver", reward:"cone-dodger",
     progress:(h,total,missions)=>({current: missions && missions.has("cone-slalom") ? 1 : 0, target:1}) },
 ];
@@ -13867,6 +13883,7 @@ const TP_SIDE_MISSIONS = [
     status:"available", trophyId:"slalom-master", icon:"cone",
     note:"Needs a dedicated slalom course layout — not built yet." },
   { id:"new-sweater-city", name:"New Sweater City", desc:"", status:"comingSoon" },
+  { id:"stunt-jump", name:"Stunt Jump Challenge", desc:"", status:"comingSoon" },
   { id:"challenge-1", name:"???", desc:"Challenge routes are on the way.", status:"comingSoon" },
 ];
 
