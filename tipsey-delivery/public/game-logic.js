@@ -7348,7 +7348,7 @@ class WorldScene extends Phaser.Scene {
           if(wx + wy + nh2 <= 0) continue;
           const pts = f.pts.map(([a,b,h]) => localRW(a, b, h));
           this.quadOn(g, pts, f.col);
-          this.edgeOn(g, pts, SKIN_BASE.outline, 1);
+          this.edgeOn(g, pts, SKIN_BASE.outline, this.kw(1));
         }
       };
 
@@ -7403,12 +7403,12 @@ class WorldScene extends Phaser.Scene {
                                    .concat(wheelRingAt(wx, bB, WHEEL.r))), SKIN_BASE.wheelDark);
         const faceRing = wheelRingAt(wx, bOut, WHEEL.r);
         this.quadOn(g, faceRing, SKIN_BASE.wheel);
-        this.edgeOn(g, faceRing, SKIN_BASE.outline, 2);
+        this.edgeOn(g, faceRing, SKIN_BASE.outline, this.kw(2));
         this.quadOn(g, wheelRingAt(wx, bOut, WHEEL.r*0.55), SKIN_BASE.wheelHubFace);
         const spinA = wheelSpinPhase + wx*0.2;
         const boltPt = RW(wx + Math.cos(spinA)*WHEEL.r*0.34, bOut, WHEEL.z + Math.sin(spinA)*WHEEL.r*0.34);
         g.fillStyle(SKIN_BASE.wheelHub, 1);
-        g.fillCircle(boltPt.x, boltPt.y, 2.4);
+        g.fillCircle(boltPt.x, boltPt.y, 2.4*this.kScale());
       };
       const drawWheelRows = (near) => {
         const row = [];
@@ -7478,10 +7478,16 @@ class WorldScene extends Phaser.Scene {
         const flagA = -25, flagB = 17;
         const poleBase = RW(flagA, flagB, FLAG.z0);
         const poleTip = RW(flagA, flagB, FLAG.z1);
-        g.lineStyle(3, SKIN_BASE.flagPole, 1);
+        /* pole width and pennant are SCREEN pixels, same as Tipsy's
+           own drawFlag -- scale or the pennant swamps the robot at
+           depth 3 */
+        const fks = this.kScale();
+        g.lineStyle(this.kw(3), SKIN_BASE.flagPole, 1);
         g.lineBetween(poleBase.x, poleBase.y, poleTip.x, poleTip.y);
         g.fillStyle(col.flag, 1);
-        g.fillTriangle(poleTip.x, poleTip.y, poleTip.x + 11, poleTip.y, poleTip.x, poleTip.y - 16);
+        g.fillTriangle(poleTip.x, poleTip.y,
+                       poleTip.x + 11*fks, poleTip.y,
+                       poleTip.x, poleTip.y - 16*fks);
       }
 
       /* face: visor + eyes pinned to the TRUE FRONT (+A in the RA
@@ -7501,20 +7507,21 @@ class WorldScene extends Phaser.Scene {
       if(fwdV.x*RA + fwdV.y*RA > 0){
         const fa = hx+0.8;
         const visor = [RW(fa,-13,50), RW(fa,13,50), RW(fa,13,40), RW(fa,-13,40)];
+        const eks = this.kScale();
         this.quadOn(g, visor, SKIN_BASE.visor);
-        this.edgeOn(g, visor, SKIN_BASE.outline, 1.5);
+        this.edgeOn(g, visor, SKIN_BASE.outline, this.kw(1.5));
         if(knocked){
-          g.lineStyle(2, SKIN_BASE.eyeAlert, 1);
+          g.lineStyle(this.kw(2), SKIN_BASE.eyeAlert, 1);
           for(const ey of [-7, 7]){
-            const c = RW(fa, ey, 45);
-            g.lineBetween(c.x-4, c.y-4, c.x+4, c.y+4);
-            g.lineBetween(c.x-4, c.y+4, c.x+4, c.y-4);
+            const c = RW(fa, ey, 45), x = 4*eks;
+            g.lineBetween(c.x-x, c.y-x, c.x+x, c.y+x);
+            g.lineBetween(c.x-x, c.y+x, c.x+x, c.y-x);
           }
         } else {
           for(const ey of [-7, 7]){
             const c = RW(fa, ey, 45);
             g.fillStyle(SKIN_BASE.eye, 1);
-            g.fillEllipse(c.x, c.y, 7, 7);
+            g.fillEllipse(c.x, c.y, 7*eks, 7*eks);
           }
         }
       }
@@ -10736,13 +10743,20 @@ class WorldScene extends Phaser.Scene {
     if(fn.x + fn.y + fn.z > 0){
       const F = (y, z) => this.P(BODY.hx + 0.8, y, z + bobZ);
       this.quadOn(g, [F(-13,40), F(13,40), F(13,50), F(-13,50)], SKIN.visor);
-      this.edgeOn(g, [F(-13,40), F(13,40), F(13,50), F(-13,50)], SKIN.outline, 1.5);
+      this.edgeOn(g, [F(-13,40), F(13,40), F(13,50), F(-13,50)], SKIN.outline, this.kw(1.5));
+      /* Everything below is drawn in SCREEN pixels, after this.P() has
+         already applied the camera scale -- so these constants have to
+         be scaled by hand or the eyes stay full size while the robot
+         shrinks (very visible at depth 3, K=0.30). ks() is normalised
+         against ZOOM_K[0], so depth 1 is byte-identical to before.
+         Stroke widths get a 1px floor so they don't vanish. */
+      const ks = this.kScale();
       if(this.state === "tipped"){
-        g.lineStyle(2.5, SKIN.eyeAlert, 1);
+        g.lineStyle(Math.max(1, 2.5*ks), SKIN.eyeAlert, 1);
         for(const ey of [-7, 7]){
-          const c = F(ey, 45);
-          g.lineBetween(c.x-4, c.y-4, c.x+4, c.y+4);
-          g.lineBetween(c.x-4, c.y+4, c.x+4, c.y-4);
+          const c = F(ey, 45), x = 4*ks;
+          g.lineBetween(c.x-x, c.y-x, c.x+x, c.y+x);
+          g.lineBetween(c.x-x, c.y+x, c.x+x, c.y-x);
         }
       } else {
         this.blinkT -= dt;
@@ -10752,7 +10766,7 @@ class WorldScene extends Phaser.Scene {
         for(const ey of [-7, 7]){
           const c = F(ey, 45);
           g.fillStyle(ec, 1);
-          g.fillEllipse(c.x, c.y, 7, 7*open);
+          g.fillEllipse(c.x, c.y, 7*ks, 7*ks*open);
         }
       }
       if(this.route && this.route.night){
@@ -10760,7 +10774,7 @@ class WorldScene extends Phaser.Scene {
         for(const ey of [-7, 7]){
           const c = F(ey, 45);
           this.gGlow.fillStyle(SKIN.eye, 0.32);
-          this.gGlow.fillEllipse(c.x, c.y, 13, 11);
+          this.gGlow.fillEllipse(c.x, c.y, 13*ks, 11*ks);
         }
       }
       this.quadOn(g, [F(-16,18), F(16,18), F(16,22), F(-16,22)], 0xfff3b0);
@@ -10768,6 +10782,15 @@ class WorldScene extends Phaser.Scene {
     for(const w of wheels) if(w.near) this.drawWheel(w.c, w.side);
     if(this.flagNear()) this.drawFlag(bobZ);
   }
+
+  /* Screen-pixel scale factor, normalised so depth 1 (K = ZOOM_K[0] =
+     1.5) returns exactly 1 and nothing about the shipped look changes.
+     Use for anything drawn in raw pixels AFTER this.P() -- stroke
+     widths, fillCircle/fillEllipse radii, hand-rolled offsets. */
+  kScale(){ return this.K / ZOOM_K[0]; }
+  /* stroke widths: same normalisation, with a 1px floor so outlines
+     don't disappear entirely at depth 3 */
+  kw(w){ return Math.max(1, w * this.kScale()); }
 
   flagNear(){
     /* roll excluded here, same fix lidNear() already needed for the
@@ -10871,7 +10894,7 @@ class WorldScene extends Phaser.Scene {
     this.g.fillPoints(pts.map(p => new Phaser.Geom.Point(p.x, p.y)), true, true);
   }
   edge(pts, color=SKIN.outline, w=2){
-    this.g.lineStyle(w, color, 1);
+    this.g.lineStyle(this.kw(w), color, 1);
     this.g.strokePoints(pts.map(p => new Phaser.Geom.Point(p.x, p.y)), true);
   }
 
@@ -11316,7 +11339,7 @@ class WorldScene extends Phaser.Scene {
       else                col = (w.x >= w.y) ? cRight : cLeft;
       if(col == null) continue;
       this.quadOn(this.g, fc.pts, col);
-      if(outline) this.edgeOn(this.g, fc.pts);
+      if(outline) this.edgeOn(this.g, fc.pts, SKIN.outline, this.kw(2));
     }
   }
 
@@ -11327,7 +11350,7 @@ class WorldScene extends Phaser.Scene {
       pts.push(this.P(center.x + Math.cos(a)*r, center.y, center.z + Math.sin(a)*r));
     }
     this.quadOn(this.g, pts, color);
-    if(outlineC !== undefined) this.edgeOn(this.g, pts, outlineC, 2);
+    if(outlineC !== undefined) this.edgeOn(this.g, pts, outlineC, this.kw(2));
   }
 
   drawWheel(c, sideSign){
@@ -11356,7 +11379,7 @@ class WorldScene extends Phaser.Scene {
     const face = this.depth(c.x, b1, c.z) > this.depth(c.x, b0, c.z) ? b1 : b0;
     const faceRing = ring(face, WHEEL.r);
     this.quadOn(this.g, faceRing, SKIN.wheel);
-    this.edgeOn(this.g, faceRing, SKIN.outline, 2);
+    this.edgeOn(this.g, faceRing, SKIN.outline, this.kw(2));
     this.disc({x:c.x, y:face, z:c.z}, WHEEL.r*0.55, SKIN.wheelHubFace);
     const a = this.wheelPhase + c.x*0.2;
     this.disc({ x:c.x + Math.cos(a)*WHEEL.r*0.34, y:face,
@@ -11375,7 +11398,11 @@ class WorldScene extends Phaser.Scene {
                       FLAG.base.y - Math.sin(a)*L*s,
                       FLAG.z0 + Math.cos(a)*L*s + bobZ));
     }
-    g.lineStyle(3, SKIN.flagPole, 1);
+    /* pole width and pennant size are SCREEN pixels -- this.P() has
+       already scaled the point positions, so without kScale() the
+       pennant keeps its full size on a robot a fifth as big. */
+    const ks = this.kScale();
+    g.lineStyle(Math.max(1, 3*ks), SKIN.flagPole, 1);
     g.beginPath();
     g.moveTo(pts[0].x, pts[0].y);
     for(let i=1; i<=seg; i++) g.lineTo(pts[i].x, pts[i].y);
@@ -11384,7 +11411,9 @@ class WorldScene extends Phaser.Scene {
     let dx = p.x - q.x, dy = p.y - q.y;
     const dl = Math.hypot(dx, dy) || 1; dx /= dl; dy /= dl;
     g.fillStyle(SKIN.flag, 1);
-    g.fillTriangle(p.x, p.y, p.x - dy*11, p.y + dx*11, p.x + dx*20, p.y + dy*20 + 4);
+    g.fillTriangle(p.x, p.y,
+                   p.x - dy*11*ks, p.y + dx*11*ks,
+                   p.x + dx*20*ks, p.y + dy*20*ks + 4*ks);
   }
 
   /* ---------- PHASED TRAFFIC CONTROL ----------
