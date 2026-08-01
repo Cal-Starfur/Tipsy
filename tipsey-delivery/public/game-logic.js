@@ -953,6 +953,69 @@ const POLC = {
    // facing 0..3
 const TILE = 46;             // half-tile, model units — was previously declared only
 const T2 = TILE*2;           // locally inside drawWorld(); now needed globally for the grid.
+
+/* ================= CAMERA DEPTH =================
+   Three fixed camera distances, ported from the zoom slider in
+   labs/_bench.html.
+
+   K is the world->screen scale W() multiplies by, AND the divisor in
+   drawWorld's cullSpan = (width/K)*0.9 + TILE*6 + 4000, which is
+   recomputed every frame. Driving K is therefore a TRUE camera zoom:
+   pulling out reveals more city because the cull widens with it. A
+   Phaser camera zoom would scale the rendered display list while the
+   game kept culling for the old K, and you would zoom out into empty
+   space where blocks used to be. That is the whole reason this is one
+   number and not a camera object.
+
+   Applies to BOTH modes. Delivery and challenge are the same
+   WorldScene with the same K — this.mode only gates HUD and scoring,
+   never the projection — so the side missions zoom for free and the
+   button is deliberately kept out of hjChrome()'s hide list.
+
+   Depth 1 is the historical gameplay value. Do not change it: every
+   hand-tuned art constant that reads K (lamp glow radii, shadow
+   ellipses, the px() sphere helper) was dialled at 1.5.
+
+   Cost note: cullSpan's +4000 floor means depth 3 is ~1.8x the span,
+   not 5x — but span is Manhattan, so drawn area is ~3x. That is the
+   frame budget to watch, and it is why these are three fixed stops
+   rather than a free slider. */
+const ZOOM_K   = [1.5, 0.70, 0.30];        // index = depth-1
+const ZOOM_KEY = "tipsy.zoomDepth";
+let zoomDepth  = 1;                         // 1..3
+
+function zoomLoad(){
+  let n = 1;
+  try { n = parseInt(localStorage.getItem(ZOOM_KEY) || "1", 10); } catch(e){}
+  zoomDepth = (n >= 1 && n <= 3) ? n : 1;
+  return zoomDepth;
+}
+function zoomK(){ return ZOOM_K[zoomDepth - 1]; }
+function zoomApply(){
+  const s = (typeof game !== "undefined" && game.scene) ? game.scene.getScene("world") : null;
+  if(s){
+    s.K = zoomK();
+    /* layout() CACHES cy from K (h/2 - TILE*0.5*K + 10) — the one and
+       only K-derived value in the scene that is not recomputed per
+       frame. _bench.html never recalls it, which is why its horizon
+       rides high as you pull out; in-game the lane band has to stay
+       centred at every depth. */
+    if(s.layout) s.layout();
+  }
+  const el = document.getElementById("zoomBtn");
+  if(el){
+    const lvl = el.querySelector(".zLvl");
+    if(lvl) lvl.textContent = zoomDepth;
+  }
+}
+function zoomSet(n){
+  zoomDepth = (n >= 1 && n <= 3) ? n : 1;
+  try { localStorage.setItem(ZOOM_KEY, String(zoomDepth)); } catch(e){}
+  zoomApply();
+}
+/* 1 -> 2 -> 3 -> 1. Persisted, so it survives loadChallenge()/hjQuit()
+   rebuilding the route and re-entering create(). */
+function zoomCycle(){ zoomSet(zoomDepth === 3 ? 1 : zoomDepth + 1); }
 /* Straight run-up before the kicker — four sidewalk tile-pairs, matching
    the lab (start at s=0, lip at 4.5). Declared HERE, right after T2:
    putting it up with HJ_ADDRESS referenced T2 ~100 lines before its own
@@ -3630,7 +3693,11 @@ class WorldScene extends Phaser.Scene {
   constructor(){ super("world"); }
 
   create(){
-    this.K = 1.5;
+    /* was a hard-coded 1.5. Seeded from the persisted camera depth so a
+       player who set depth 3 keeps it across route rebuilds, mode
+       switches and reloads. ZOOM_K[0] IS 1.5 — depth 1 is byte-identical
+       to the old behaviour. */
+    this.K = ZOOM_K[zoomLoad() - 1];
     this.f = 0;
     this.roll = 0;
     this.pitch = 0;
@@ -11536,6 +11603,12 @@ class WorldScene extends Phaser.Scene {
   }
   drawHUD(){
     const g = this.hud; g.clear();
+    /* Camera depth is the ONE instrument both modes share, so its
+       visibility is settled here BEFORE the challenge early-return
+       below — and #zoomBtn is deliberately absent from hjChrome()'s
+       hide list for the same reason. Visible whenever driving. */
+    const zb = document.getElementById("zoomBtn");
+    if(zb) zb.classList.toggle("hidden", this.state !== "play");
     /* The tilt gauge, the cargo-condition bar and the GPS turn strip are
        all DELIVERY instruments — they are drawn onto the HUD canvas, not
        into DOM, which is why hiding the panels never got rid of them.
@@ -13141,6 +13214,34 @@ document.getElementById("avatarIcon").addEventListener("click", tpOpenProfile);
   el.addEventListener("touchstart", go, {passive:false, capture:true});
   el.addEventListener("pointerdown", go, {capture:true});
   el.addEventListener("click", go, {capture:true});
+})();
+/* camera depth: cycles 1 -> 2 -> 3 -> 1. Same three-binding guarded
+   pattern as the robot and the magnifying glass, and for the same
+   reason plus one more: this button lives OVER the play area, and
+   bindInput() reads raw pointerdown for throttle (p.x > width/2 ? gas :
+   brake). Without stopPropagation a tap to zoom would also gun the
+   motor or slam the brakes mid-route. */
+(function bindZoomBtn(){
+  const el = document.getElementById("zoomBtn");
+  if(!el) return;
+  let last = 0;
+  const go = (e) => {
+    if(e){ e.preventDefault(); e.stopPropagation(); }
+    const now = performance.now();
+    if(now - last < 700) return;          // pointerdown + click both fired
+    last = now;
+    zoomCycle();
+  };
+  el.addEventListener("touchstart", go, {passive:false, capture:true});
+  el.addEventListener("pointerdown", go, {capture:true});
+  el.addEventListener("click", go, {capture:true});
+  /* zoomLoad() FIRST. This binder runs at parse time, but create() —
+     the other zoomLoad() caller — does not run until Phaser boots a
+     frame later. Painting the button without loading first stamped a
+     stale "1" on it, then create() quietly set K to the saved depth:
+     the label and the actual camera disagreed on every reload. */
+  zoomLoad();
+  zoomApply();
 })();
 document.getElementById("failAvatarBtn").addEventListener("click", () => {
   hide("failOverlay");
