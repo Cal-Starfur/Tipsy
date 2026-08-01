@@ -11775,9 +11775,29 @@ class WorldScene extends Phaser.Scene {
      screen, so sign>0 = Left, sign<0 = Right. Small back-tolerance (20
      units) so the indicator doesn't blink away right as the robot
      enters the arc. */
+  /* The GPS's LIVE target, which is not always route.doorS. doorS is
+     retargeted (+= loop.len) when the first pass is missed, but between
+     sailing past the door and that retarget the door sits BEHIND the
+     robot and the next pass is a whole lap away. The distance readout
+     and the turn strip have to agree on which door they mean, or they
+     contradict each other on the same line. */
+  targetDoorS(){
+    const r = this.route;
+    if(r.loop && r.loop.missed && r.doorS - this.botS < -60) return r.doorS + r.loop.len;
+    return r.doorS;
+  }
   findNextTurn(){
+    /* Turns BEYOND the drop-off are not the driver's problem -- they
+       arrive first. Without this cutoff the strip advertised a corner
+       the player never reaches, and worse, the checkered final-approach
+       cue almost never fired: the route does not end at the door, and
+       the reroute lap welds four more arcs on behind it, so there was
+       essentially ALWAYS an arc somewhere ahead and the "no turns left"
+       branch was close to dead code. */
+    const doorS = this.targetDoorS();
     for(const sg of this.route.segs){
-      if(sg.type === "arc" && sg.s0 > this.botS - 20) return sg;
+      if(sg.type === "arc" && sg.s0 > this.botS - 20)
+        return sg.s0 >= doorS ? null : sg;
     }
     return null;
   }
@@ -11805,11 +11825,11 @@ class WorldScene extends Phaser.Scene {
        old progress bar + live timer/cargo%. Quality (cargo%) and
        elapsed time are reported once, at the end, in showWin — not
        shown live during the trip anymore. */
-    let remainDist = Math.max(0, this.route.doorS - this.botS);
-    /* mid-lap on the reroute loop (door already passed this lap):
-       show distance to the NEXT pass, GPS-style, instead of 0 ft */
-    if(this.route.loop && this.route.loop.missed && this.route.doorS - this.botS < -60)
-      remainDist = Math.max(0, this.route.doorS - this.botS + this.route.loop.len);
+    /* mid-lap on the reroute loop (door already passed this lap) this
+       counts to the NEXT pass, GPS-style, instead of 0 ft -- see
+       targetDoorS(), which findNextTurn() shares so the distance and the
+       turn strip can never disagree about which door is being counted. */
+    const remainDist = Math.max(0, this.targetDoorS() - this.botS);
     const FT_PER_UNIT = 0.6; // flavor conversion, not a real-world claim
     const distFt = remainDist * FT_PER_UNIT;
     const distText = distFt > 1000 ? (distFt/5280).toFixed(1)+" mi" : Math.round(distFt/10)*10 + " ft";
@@ -11851,7 +11871,13 @@ class WorldScene extends Phaser.Scene {
           ? `${arrow} Turn ${dir}`
           : `${arrow} Turn ${dir} in ${Math.round(distToTurn*FT_PER_UNIT/10)*10} ft`;
       } else {
-        turnText = "🏁 Straight ahead to drop-off";
+        /* Final approach: name the ADDRESS. "Straight ahead to drop-off"
+           told the driver nothing they could act on, and this is the one
+           moment the destination itself is the useful thing to read.
+           Also SHORTER than the old string, which matters -- #gpsHud is
+           white-space:nowrap and centre-anchored, so a longer readout
+           overflows both edges on a narrow phone. */
+        turnText = `🏁 ${this.route.address}`;
       }
     }
 
