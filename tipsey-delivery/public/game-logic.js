@@ -86,12 +86,12 @@ function submitReplay(dateStr, tip, ms){
     body: JSON.stringify({ dateStr, tip, ms })
   }).catch(()=>{});
 }
-/** Server-authoritative Tipsy Profile sync (Phase B, Devvit only).
+/** Server-authoritative Tipsey Profile sync (Phase B, Devvit only).
  *  Called once whenever the profile panel opens (tpOpenProfile) so
  *  walletCents/owned/equipped self-heal from whatever Redis actually
  *  holds — same "local optimistic update, server wins on next load"
  *  pattern tipsyBridge.best/historyBest already use above. tpProfile,
- *  tpSaveProfile, and tpRender are defined later in this file (Tipsy
+ *  tpSaveProfile, and tpRender are defined later in this file (Tipsey
  *  Profile section) but this function is only ever invoked from a user
  *  action after the whole script has run, so they're already assigned
  *  by call time. history/allTimeTotal are untouched here — those stay
@@ -220,7 +220,7 @@ function mulberry32(a){ return function(){ a |= 0; a = (a + 0x6D2B79F5) | 0; let
 
 /* ---------- the daily generator ---------- */
 /* ---------- routes now TURN: legs in 4 compass directions ----------
-   The player never steers; Tipsy follows the route line and auto-turns
+   The player never steers; Tipsey follows the route line and auto-turns
    through fillet arcs at corners. Corners are a tilt source. */
 const DIRV = [{x:1,y:0},{x:0,y:1},{x:-1,y:0},{x:0,y:-1}];
 
@@ -456,8 +456,8 @@ function robotSpotAt(tms, hz){
     return { a: 0, dir: 1, walking: false };
   const seed = hz.robotSeed || 0;
   const lo = hz.walkS0 - hz.s, hi = hz.walkS1 - hz.s;
-  const SPEED = 0.06;   // units/ms -- ~27% of Tipsy's 0.225 top speed, "slower than Tipsy" but a
-                         // real cruise, not a pedestrian pace; Tipsy can catch up at higher speed
+  const SPEED = 0.06;   // units/ms -- ~27% of Tipsey's 0.225 top speed, "slower than Tipsey" but a
+                         // real cruise, not a pedestrian pace; Tipsey can catch up at higher speed
   const PAUSE = 500;    // ms idle at each end before turning back
   const legMs = (hi - lo) / SPEED;
   const cyc = legMs*2 + PAUSE*2;
@@ -622,7 +622,7 @@ const WILLIAM_ACT = {
   lunge: 0.14, lungeMax: 0.42,
   gloat: 1000, whiffBeat: 550, retMs: 900,
   power: 1.4,       // > the balance threshold: a clean boot knocks
-                    // Tipsy OVER. Deliberate attack — NOT x TILT_SENS.
+                    // Tipsey OVER. Deliberate attack — NOT x TILT_SENS.
   cock: -0.52, extend: 1.5,
   armBlock: 0.32, armEngage: 0.45, armGloat: 1.0, gloatAngle: 2.35
 };
@@ -845,11 +845,11 @@ const CORNER_TILT_COEF = 0.07;
    is 0.225 -- ROBOT_TIP_THRESH sits at ~84% of that, meant to read as
    "you were really moving." Below it: the OTHER robot goes down
    (routine-hazard treatment, same TILT_SENS/CARGO_DAMAGE_SENS scaling
-   as every other bump). At/above it: Tipsy goes down instead, via the
+   as every other bump). At/above it: Tipsey goes down instead, via the
    same this.tilt=1.1*sign instant-fail already used for traffic --
    not a routine bump, so deliberately NOT scaled by TILT_SENS. */
 const ROBOT_HIT_MIN = 0.08;      // below this, no reaction at all (matches every other wall hazard's floor)
-const ROBOT_TIP_THRESH = 0.19;   // at/above this speed, Tipsy tips instead of the other robot
+const ROBOT_TIP_THRESH = 0.19;   // at/above this speed, Tipsey tips instead of the other robot
 
 /* curb-drop stumble cap (requested 2026-07-24): stepping off an
    unramped sidewalk edge while already leaning used to hard-set
@@ -2892,7 +2892,7 @@ function generateRoute(dateStr, opts){
      lane index moves further from the road), same lane palms already
      use. Facing is rotated 90 degrees from the normal sidewalk-forward
      convention in the render code (see drawProp) so the face looks
-     OUT across the lane band toward the road -- toward Tipsy as he
+     OUT across the lane band toward the road -- toward Tipsey as he
      drives past -- rather than along the sidewalk like every other
      prop. Moderate spacing: these read as a much bigger visual event
      than a cone or hydrant, shouldn't crowd the route. */
@@ -3797,7 +3797,7 @@ const FLAG = { base:{x:-25, y:17}, z0:54, z1:97 };  // anchored to the body's to
                                                       // LID.z1 exactly, base x/y sat inside the
                                                       // lid's own footprint)
 
-/* other robots (requested 2026-07-24): Tipsy's exact look, one swap --
+/* other robots (requested 2026-07-24): Tipsey's exact look, one swap --
    blue stripe/flag instead of red (confirmed on-device, dropped the
    earlier multi-color variety in favor of just this). */
 const ROBOT_NPC = { stripe:0x2e6fd1, stripeDk:0x24569f, flag:0x2e6fd1 };
@@ -3952,7 +3952,7 @@ class WorldScene extends Phaser.Scene {
     }
     /* ---- END OF THE COURSE ----
        Without this the attempt never ends: creep over the kicker below
-       minSpeed and no launch fires, so Tipsy just drives on down
+       minSpeed and no launch fires, so Tipsey just drives on down
        Palmline Ave and out of the mission entirely. Rolling past the
        catch ramp on the ground ends the run the same way a crash does —
        progress banked, crash screen, no free wandering. */
@@ -5020,7 +5020,7 @@ class WorldScene extends Phaser.Scene {
          The collision sim already tests the walked position
          (robotOff); near()/layerFor() here still sampled the anchor,
          so a roving robot got culled and front/back-classified by a
-         point it isn't standing on -- Tipsy between anchor and body
+         point it isn't standing on -- Tipsey between anchor and body
          overlapped it in the wrong layer (reported on-device
          2026-07-26). Test at the effective point; the drawProp x,y
          deliberately stays the anchor, because the robot draw branch
@@ -5028,7 +5028,7 @@ class WorldScene extends Phaser.Scene {
          Knocked robots additionally get the tipped planter/bin
          nearest-silhouette shift: the fallen shell pivots ~a body
          height off the wheelbase, so nudge the test point toward
-         Tipsy by up to the fallen radius -- far apart either answer
+         Tipsey by up to the fallen radius -- far apart either answer
          is fine, pressed close this is the point that decides. */
       let htx = wp.x, hty = wp.y;
       /* dogs and people with a walk range (walkS0/walkS1) have the
@@ -7430,7 +7430,7 @@ class WorldScene extends Phaser.Scene {
          NOT a call into the player's own 1300-line drawRobot -- too
          tightly coupled to the pickup/dropoff timeline and live tilt/
          roll/pitch state to safely reuse. Same BODY/LID/WHEEL/STRIPE/
-         FLAG dimensions and SKIN-family colors as Tipsy though, so the
+         FLAG dimensions and SKIN-family colors as Tipsey though, so the
          silhouette reads as unmistakably "one of these" even with all
          new code.
 
@@ -7482,7 +7482,7 @@ class WorldScene extends Phaser.Scene {
       const hx = BODY.hx, hy = BODY.hy;
 
       /* tipped-over pose (requested 2026-07-25; physics rework
-         2026-07-27 to match Tipsy's own tip): a 90-degree pivot
+         2026-07-27 to match Tipsey's own tip): a 90-degree pivot
          rotation in the (b,h) plane, wrapping RW itself so every part
          (body, wheels, lid, face) rotates together automatically.
 
@@ -7495,18 +7495,18 @@ class WorldScene extends Phaser.Scene {
             inverted way, so face selection kept picking back faces as
             it sank -- that's most of the "draw wrong". tps now
             carries the sign (-knockDir), the same pivot-side/rotation
-            pairing Tipsy's own roll transform in T() uses (pivot on
+            pairing Tipsey's own roll transform in T() uses (pivot on
             the edge it falls TOWARD, body sweeps up and over it,
             everything stays at h>=0).
          2. DIRECTION. Was hardcoded to the camera-facing edge; now
             hz.knockDir (captured by the collision code at impact,
-            Tipsy's own tipDir = sign(tilt) idea): side hits tip away
-            from Tipsy across the lane axis, head-on tips pick the
+            Tipsey's own tipDir = sign(tilt) idea): side hits tip away
+            from Tipsey across the lane axis, head-on tips pick the
             axis the impact actually pushed along (random side where
-            the impact axis can't map to b, matching Tipsy's own
+            the impact axis can't map to b, matching Tipsey's own
             random-sign convention for its robot collisions).
          3. EASING. Was a constant-velocity 450ms ramp (read robotic);
-            now the closed-form equivalent of Tipsy's own per-frame
+            now the closed-form equivalent of Tipsey's own per-frame
             tipT = Linear(tipT, 1, 0.09) @60fps -- exponential
             ease-out, tau ~185ms: fast initial fall settling into
             rest. Closed form because this draw is stateless in t. */
@@ -7526,14 +7526,14 @@ class WorldScene extends Phaser.Scene {
         return this.W(ex + fwdV.x*a*RA + sideV.x*b2, ey + fwdV.y*a*RA + sideV.y*b2, h2);
       };
 
-      /* shadow: Tipsy's own tipped shadow ring, ported verbatim (his
+      /* shadow: Tipsey's own tipped shadow ring, ported verbatim (his
          ring is P(cos*34, -tipT*26*tipDir + sin*(30+tipT*26), 0.5)) --
          a ground-plane ring that slides 26 toward the fall side and
          stretches +26 along b as the body goes down. Same constants,
          so NPC shadows match the player exactly, upright and fallen.
          (Replaced the screen-space fillEllipse 2026-07-27: an ellipse
          can't align with sideV, and its slide/stretch constants were
-         ad-hoc rather than Tipsy's. Earlier bug in the same spot: the
+         ad-hoc rather than Tipsey's. Earlier bug in the same spot: the
          shadow went through RW(0,0,0), which the tip rotation lifts 17
          units into the air -- a shadow is cast geometry, it never
          rotates.) NPC fall side is +knockDir along b, so his
@@ -7568,7 +7568,7 @@ class WorldScene extends Phaser.Scene {
         /* lid hinge (requested 2026-07-25, follow-up to the tip fix):
            an independent swing-open rotation, composed with the whole-
            body tip rather than replacing it -- same relationship
-           Tipsy's own lidAng has to his body roll. Position: rotate
+           Tipsey's own lidAng has to his body roll. Position: rotate
            around the hinge's own pivot (one edge of THIS box, matching
            drawLid's -hy,z0 convention) first, then let the outer RW
            apply the body-tip rotation on top -- two rotations applied
@@ -7616,8 +7616,8 @@ class WorldScene extends Phaser.Scene {
         }
       };
 
-      /* undercarriage: same dark base box Tipsy's own body sits on */
-      /* wheels: Tipsy's own two-sided mounting-face system, ported
+      /* undercarriage: same dark base box Tipsey's own body sits on */
+      /* wheels: Tipsey's own two-sided mounting-face system, ported
          (rework 2026-07-27; replaces both the static camera-side
          faceB pick AND the short-lived wheelsUnder ordering hack).
          BOTH wheel rows exist; each row draws iff the body face it's
@@ -7625,13 +7625,13 @@ class WorldScene extends Phaser.Scene {
          rotation -- the same projection-exact normal test box() uses
          for every hull face. Far row draws BEFORE the body (occluded
          by the shell, only slivers peek below the undercarriage, same
-         as Tipsy upright), near row AFTER. Tipped, the test hands the
+         as Tipsey upright), near row AFTER. Tipped, the test hands the
          sky-facing row to the near pass in BOTH fall directions --
-         exactly Tipsy's fallen pose -- and the ground row to the far
+         exactly Tipsey's fallen pose -- and the ground row to the far
          pass where the shell hides it. Each ring is TWO rings offset
          along the tread width combined via convexHull, drawWheel's
          own degenerate-outline fix. The trio is depth-sorted per
-         Tipsy's wheels.sort (his depth(): x+y+z*0.4), not fixed array
+         Tipsey's wheels.sort (his depth(): x+y+z*0.4), not fixed array
          order. Hub face picks whichever tread face's outward normal
          faces the camera (his b0/b1 depth pick, normal-test form). */
       const W2 = 7.5;
@@ -7699,15 +7699,15 @@ class WorldScene extends Phaser.Scene {
       box(hx+0.6, hy+0.6, STRIPE.z0, STRIPE.z1, null, col.stripe, col.stripeDk);
 
       /* lid: swings open on its own hinge as it falls, same relationship
-         Tipsy's own lidAng has to his body roll. Reworked 2026-07-27 to
-         mirror Tipsy's TWO physical outcomes (his tipped-state lid code,
+         Tipsey's own lidAng has to his body roll. Reworked 2026-07-27 to
+         mirror Tipsey's TWO physical outcomes (his tipped-state lid code,
          "confirmed in-game 2026-07-10 -- first guess had this
          backwards"): the hinge is a fixed edge (-bhy), so which way the
          body fell decides what gravity does to the lid afterward.
          Hinge edge lands DOWN (knockDir<0 here): lid falls open to 1.78
          and stays. Hinge edge lands UP (knockDir>=0): lid pops to ~0.9
          to spill, then gravity flops it back shut. Timing is the
-         closed-form of Tipsy's own per-frame lerps: gate at tip
+         closed-form of Tipsey's own per-frame lerps: gate at tip
          half-way (~130ms, his tipT>0.5), approach at tau~333ms (his
          0.05/frame @60fps), close starting ~420ms after the gate (his
          postSpillMs>400). Closed form because this draw is stateless
@@ -7725,7 +7725,7 @@ class WorldScene extends Phaser.Scene {
       }
       box(LID.hx, LID.hy, LID.z0, LID.z1, SKIN_BASE.bodyTop, SKIN_BASE.bodyRight, SKIN_BASE.bodyLeft, lidHingeAng);
 
-      /* near wheel row after the body, Tipsy's own sequence -- see the
+      /* near wheel row after the body, Tipsey's own sequence -- see the
          mounting-face rationale above the undercarriage. */
       drawWheelRows(true);
 
@@ -7742,7 +7742,7 @@ class WorldScene extends Phaser.Scene {
         const flagA = -25, flagB = 17;
         const poleBase = RW(flagA, flagB, FLAG.z0);
         const poleTip = RW(flagA, flagB, FLAG.z1);
-        /* pole width and pennant are SCREEN pixels, same as Tipsy's
+        /* pole width and pennant are SCREEN pixels, same as Tipsey's
            own drawFlag -- scale or the pennant swamps the robot at
            depth 3 */
         const fks = this.kScale();
@@ -7766,7 +7766,7 @@ class WorldScene extends Phaser.Scene {
          robot read as driving in reverse (reported on-device
          2026-07-26). Accepted tradeoff, confirmed: when a robot
          drives/faces away, you simply don't see its face -- exactly
-         like a real vehicle. Position/size from Tipsy's own drawRobot
+         like a real vehicle. Position/size from Tipsey's own drawRobot
          (x=hx+0.8, visor z in [40,50], eyes at z=45). */
       if(fwdV.x*RA + fwdV.y*RA > 0){
         const fa = hx+0.8;
@@ -9567,7 +9567,7 @@ class WorldScene extends Phaser.Scene {
       this.botS += (this.speed/_stretch) * dt;
       this.wheelPhase -= this.speed * dt * 0.28;
 
-      /* corners: Tipsy turns himself — centrifugal lean (∝ v²) is YOUR problem */
+      /* corners: Tipsey turns himself — centrifugal lean (∝ v²) is YOUR problem */
       const seg = this.segAt(this.botS);
       /* cornering lean reacts to this SMOOTHED speed, not raw this.speed —
          reapplying throttle after coasting/braking mid-corner used to spike
@@ -9819,7 +9819,7 @@ class WorldScene extends Phaser.Scene {
                    convention); the kick pushes the bot AWAY from him,
                    so the impulse is NEGATED kickDir (lab-verified v6).
                    power 1.4 > the balance threshold: a clean boot
-                   knocks Tipsy over. */
+                   knocks Tipsey over. */
                 this.tilt += KA.power * -(hz.kickDir || 1);
                 this.damage = Math.min(95, this.damage + KA.power*14*CARGO_DAMAGE_SENS);
                 this.speed *= 0.8;
@@ -10103,13 +10103,13 @@ class WorldScene extends Phaser.Scene {
                - REAR/HEAD-ON (approaching along the route, from
                  either direction -- both read the same to the player,
                  "I drove straight into it"): full speed -> BOTH tip
-                 (same instant-fail as traffic for Tipsy; the other
+                 (same instant-fail as traffic for Tipsey; the other
                  robot goes down too and spills its cargo). Below full
-                 speed -> Tipsy is just stuck against it, wall-blocked
+                 speed -> Tipsey is just stuck against it, wall-blocked
                  like a bin/planter -- nobody tips, nothing spills.
-               - SIDE (a lane-change/hop brings Tipsy alongside it):
+               - SIDE (a lane-change/hop brings Tipsey alongside it):
                  the OTHER robot always tips, regardless of speed --
-                 Tipsy never tips from a side hit and doesn't hard-
+                 Tipsey never tips from a side hit and doesn't hard-
                  stop, just bumps through (you slid into it, you keep
                  going). Detected via this.hopAnim (mid lane-change)
                  while roughly alongside the robot's current position.
@@ -10128,11 +10128,11 @@ class WorldScene extends Phaser.Scene {
           const effS = hz.s + robotOff;
           /* contact at EXTERIOR FACES, not the midpoint (fixed
              2026-07-27): the old 28/30-unit windows measured to the
-             robot's CENTER -- Tipsy's nose (his own half-length, 26)
+             robot's CENTER -- Tipsey's nose (his own half-length, 26)
              ended up 2 units from the robot's midpoint before a
              head-on registered, visually buried half-way inside it.
              Face-to-face gap = the robot's along-route half-extent +
-             Tipsy's, using the same BODY dims the renderer draws:
+             Tipsey's, using the same BODY dims the renderer draws:
              rovers lie long-axis along the route (hx=26), parked ones
              cross-ways (hy=20). Hitbox follows art, the house rule. */
           const robotHalfS = hz.roving ? BODY.hx : BODY.hy;
@@ -10147,18 +10147,18 @@ class WorldScene extends Phaser.Scene {
               hz.knockB = robotB;
               hz.knockT = t;
               hz.knockRA = robotSpot ? robotSpot.dir : 1;   // freeze travel mirror (see draw RA)
-              /* tip direction (2026-07-27, Tipsy's own tipDir=sign(tilt)
+              /* tip direction (2026-07-27, Tipsey's own tipDir=sign(tilt)
                  idea): a side hit is a shove across the LANE axis (rv),
-                 so tip away from Tipsy's lane. Rovers' draw b-axis IS
+                 so tip away from Tipsey's lane. Rovers' draw b-axis IS
                  rv, so the lane-space sign maps straight through.
                  Parked robots' b-axis is dv (they face across the
                  band) -- the rv impact can't map to their tip plane,
-                 so random side, Tipsy's own convention when the axis
+                 so random side, Tipsey's own convention when the axis
                  is ambiguous (his robot-collision tilt kick). */
               hz.knockDir = hz.roving
                 ? (Math.sign((laneOffset(hz.row) + robotB) - this.laneOff) || 1)
                 : (Math.random() < 0.5 ? 1 : -1);
-              /* spill ~150ms into the fall, Tipsy's own tipT>0.55
+              /* spill ~150ms into the fall, Tipsey's own tipT>0.55
                  moment, not at the instant of impact. One-shot timer
                  rather than a sim-loop gate: the post-play cargo
                  ticker is contractually side-effect-free, and a
@@ -10187,7 +10187,7 @@ class WorldScene extends Phaser.Scene {
                      always +s here since the stop-line clamp only
                      fires from behind, but computed anyway). Rovers'
                      b-axis is rv, perpendicular to the shove: random
-                     side, same as Tipsy's own head-on tilt above. */
+                     side, same as Tipsey's own head-on tilt above. */
                   hz.knockDir = hz.roving
                     ? (Math.random() < 0.5 ? 1 : -1)
                     : (Math.sign(effS - this.botS) || 1);
@@ -10198,7 +10198,7 @@ class WorldScene extends Phaser.Scene {
               this.speed = 0;
             }
             /* release hysteresis: must clear the face-gap stop line
-               (gap+12), or a blocked Tipsy parked AT the line would
+               (gap+12), or a blocked Tipsey parked AT the line would
                re-arm hz.hit every frame. Was 40 back when the stop
                line was 28. */
             if(Math.abs(this.botS - effS) > contactGap + 12) hz.hit = false;
@@ -10859,7 +10859,7 @@ class WorldScene extends Phaser.Scene {
     /* In challenge mode there IS no worker — but pickupWalk was left at
        1 to keep the pickup timeline quiet, and this branch fires on
        pickupWalk > 0.75, which parked the camera on the shop doorway
-       instead of following Tipsy. That was the "opening" camera. */
+       instead of following Tipsey. That was the "opening" camera. */
     const pickupWorkerVisible = this.mode !== "challenge" && this.pickupWalk > 0.75;
     if(this.state === "play" && this.pickupDoorDV && pickupWorkerVisible){
       const dv3 = this.pickupDoorDV, rv3 = this.pickupDoorRV;
@@ -12117,7 +12117,7 @@ class WorldScene extends Phaser.Scene {
 "use strict";
 
 /* ============================================================
-   TIPSY — Hydrant Jump Lab v1
+   TIPSEY — Hydrant Jump Lab v1
    First bench for the launch/arc/landing system from
    docs/ramp-jump-spec.md, built as the FIRE HJ_CHIEF unlock stunt:
 
@@ -12417,13 +12417,13 @@ const HJ_CH = {
   /* ---- ACCUMULATING, not settling ----
      The first version used a strong proportional decay, so charge hit an
      equilibrium about 1.5s into the runway and then went FLAT. Speed is
-     driven by charge, so Tipsy stopped visibly accelerating half way to
+     driven by charge, so Tipsey stopped visibly accelerating half way to
      the lip and tapping harder did nothing you could see. Measured speed
      (x1000) every 0.5s at 4 taps/sec:
         settling:      70 75 85 92 96 99 101 102 103   <- flat by halfway
         accumulating:  66 71 81 91 100 109 117 125 132 <- climbs throughout
      Decay is now ~7x weaker, so charge ACCUMULATES across the whole
-     runway and Tipsy accelerates the entire way.
+     runway and Tipsey accelerates the entire way.
 
      This also fixes the difficulty, which was the other complaint. With
      an equilibrium the player got ~2.9 time constants of free
@@ -12453,7 +12453,7 @@ const HJ_CH = {
   burstV: 0.030,    // minimum impact speed to shear a hydrant
   cleanDamp: 0.12,  // fraction of the landing kick a CLEAN landing feels
   /* sp0 is 0 so NOTHING moves until you tap. It used to be 0.030, which
-     meant Tipsy free-rolled to the ramp on his own and the charge only
+     meant Tipsey free-rolled to the ramp on his own and the charge only
      decided how much faster than the floor he went. Now the tap IS the
      throttle: stop tapping and the decay bleeds the charge, he slows and
      stops. All ten levels re-solved below and still clear. */
@@ -12935,7 +12935,7 @@ function showFail(pool){
   show("failOverlay");
 }
 /* =========================================================================
-   TIPSY PROFILE — Trophy Case + Store + Side Missions (Phase A)
+   TIPSEY PROFILE — Trophy Case + Store + Side Missions (Phase A)
    Ported from the profile-bench.html lab prototype, approved on-device.
    Client-only persistence via localStorage — no Redis/server yet (that's
    Phase B). Works identically on itch/Pages/Devvit; nothing here is
