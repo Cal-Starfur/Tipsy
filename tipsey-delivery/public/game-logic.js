@@ -4125,6 +4125,95 @@ class WorldScene extends Phaser.Scene {
      P(), so they lie flat on the band and rotate with the robot rather
      than sliding across him. Uses the same backface test as drawBox, so
      a star never appears on a face the camera cannot see. */
+  /* ---------- HULL EMBLEM ----------
+     Was drawStripeStars(), which only ever knew about the Daredevil's stars.
+     Porch Pirate needed a second mark on the same hook, so the method is now
+     a shape switch. The hook itself is the valuable part: drawRobot calls this
+     at exactly the right point in the draw order -- after the body and stripe,
+     before the lid and visor -- so an emblem needs no change to drawRobot. */
+  drawHullEmblem(bobZ){
+    if(SKIN.emblem === "skull") return this.drawSkullEmblem(bobZ);
+    return this.drawStripeStars(bobZ);
+  }
+
+  /* SKULL AND CROSSBONES on the two hull SIDE faces.
+     Same face-normal backface test drawBox uses, so it can never paint onto a
+     face pointing away from the camera at any heading.
+
+     SIDES ONLY. Front (+x) carries the visor and the headlight bar. Back (-x)
+     is dropped by choice -- a mark on every panel but one reads as wallpaper
+     rather than as a badge, and the two long sides are the faces the iso
+     camera presents at every heading anyway, so this costs nothing at f0-f3.
+
+     The tangent on each face is chosen so tangent x normal points up. That is
+     what keeps the skull from rendering MIRRORED on the face whose normal runs
+     negative -- exactly the class of bug the four-heading gate exists for. */
+  drawSkullEmblem(bobZ){
+    const g  = this.g;
+    const hy = BODY.hy + 0.8;
+    /* zc/R are set by CLEARANCE, not by taste. The body spans z 14..54 and the
+       stripe band occupies 20..27. The crossbones are the lowest thing here --
+       their tips fall to zc - R*1.9*sin(0.62) -- so at the obvious values
+       (zc 33, R 6.4) they reach 17.6 and cut straight through the stripe. On
+       this skin the stripe is bone-coloured, so the emblem would have
+       dissolved into it. These values put the tips at 29.1 and the cranium top
+       at 43.6: clear of the stripe below, clear of the lid seam above. */
+    const zc = 37 + (bobZ || 0);
+    const R  = 5.4;
+    const col  = SKIN.emblemColor || 0xe8e2d0;
+    const dark = SKIN.emblemDark  || 0x101014;
+
+    const faces = [
+      { n:{x:0,y: 1,z:0}, at:(s,z)=>[ -s,  hy, z] },
+      { n:{x:0,y:-1,z:0}, at:(s,z)=>[  s, -hy, z] }
+    ];
+
+    for(const fc of faces){
+      const w = this.R(fc.n.x, fc.n.y, fc.n.z);
+      if((w.x + w.y + w.z) <= 0) continue;          // backface, same rule as drawBox
+      const P    = (s,z) => { const q = fc.at(s,z); return this.P(q[0], q[1], q[2]); };
+      const poly = pts => pts.map(p => P(p[0], p[1]));
+      const disc = (cs, cz, r, n) => {
+        const o = [];
+        for(let k=0;k<n;k++){ const a = k/n*Math.PI*2;
+          o.push(P(cs + Math.cos(a)*r, cz + Math.sin(a)*r)); }
+        return o;
+      };
+
+      /* crossbones first -- they sit BEHIND the skull */
+      for(const sgn of [1,-1]){
+        const ang = sgn*0.62, ca = Math.cos(ang), sa = Math.sin(ang);
+        const L = R*1.9, Wd = R*0.22, bz = zc - R*0.5;
+        const bar = [[-L,-Wd],[L,-Wd],[L,Wd],[-L,Wd]]
+          .map(([a,b]) => [a*ca - b*sa, bz + a*sa + b*ca]);
+        this.quadOn(g, poly(bar), col);
+        /* the knobbed ends that make a bone read as a bone */
+        for(const e of [-1,1])
+          for(const o of [-1,1])
+            this.quadOn(g, disc((e*L - o*Wd*0.9)*ca - (o*Wd*1.5)*sa,
+                                bz + (e*L - o*Wd*0.9)*sa + (o*Wd*1.5)*ca,
+                                Wd*1.6, 7), col);
+      }
+
+      /* cranium + jaw */
+      this.quadOn(g, disc(0, zc + R*0.30, R*0.92, 14), col);
+      this.quadOn(g, poly([[-R*0.52, zc - R*0.72], [R*0.52, zc - R*0.72],
+                           [ R*0.74, zc + R*0.28], [-R*0.74, zc + R*0.28]]), col);
+
+      /* sockets + nasal cavity */
+      for(const e of [-1,1])
+        this.quadOn(g, disc(e*R*0.40, zc + R*0.40, R*0.29, 9), dark);
+      this.quadOn(g, poly([[0, zc - R*0.02], [R*0.16, zc + R*0.20],
+                           [-R*0.16, zc + R*0.20]]), dark);
+      /* teeth: two gaps cut into the jaw */
+      for(const e of [-1,1])
+        this.quadOn(g, poly([[e*R*0.20 - R*0.05, zc - R*0.70],
+                             [e*R*0.20 + R*0.05, zc - R*0.70],
+                             [e*R*0.20 + R*0.05, zc - R*0.28],
+                             [e*R*0.20 - R*0.05, zc - R*0.28]]), dark);
+    }
+  }
+
   drawStripeStars(bobZ){
     const g = this.g;
     const hx = BODY.hx + 0.7, hy = BODY.hy + 0.7;
@@ -10719,7 +10808,7 @@ class WorldScene extends Phaser.Scene {
        these two extra passes did not, so it was arriving as a plain blue
        stripe. Both are gated on the palette, so no other skin grows
        them. */
-    if(SKIN.stars) this.drawStripeStars(bobZ);
+    if(SKIN.stars || SKIN.emblem) this.drawHullEmblem(bobZ);
     if(SKIN.stripe2){
       this.drawBox({hx:BODY.hx+0.6, hy:BODY.hy+0.6,
                     z0:HJ_STRIPE2.z0+bobZ, z1:HJ_STRIPE2.z1+bobZ},
@@ -11387,7 +11476,64 @@ class WorldScene extends Phaser.Scene {
   }
 
 
+  /* JOLLY ROGER -- Porch Pirate's flag, gated on SKIN.jolly.
+     Carries a bone X, NOT a skull. The stock pennant is a ~11x20 SCREEN-pixel
+     triangle that kScale() shrinks further with depth; a skull drawn there is
+     three pixels of mush, and an X still reads. The skull lives on the hull,
+     where there is room for it.
+
+     This also changes the flag's geometry for this skin: the stock pennant
+     extends ABOVE the pole tip, which is why it reads as a streamer. A real
+     flag hangs off the pole, so this one runs outward along the perpendicular
+     and downward along the pole. Pole, bend and kScale are identical to
+     drawFlag's, so it leans and whips through a tip-over the same way. */
+  drawJollyRoger(bobZ){
+    const g = this.g;
+    const L = FLAG.z1 - FLAG.z0;
+    const bend = this.flagLean*0.5 + this.tipT*0.7*(this.tipDir || 1);
+    const seg = 6, pts = [];
+    for(let i=0;i<=seg;i++){
+      const s = i/seg, a = bend*s;
+      pts.push(this.P(FLAG.base.x,
+                      FLAG.base.y - Math.sin(a)*L*s,
+                      FLAG.z0 + Math.cos(a)*L*s + bobZ));
+    }
+    const ks = this.kScale();
+    g.lineStyle(Math.max(1, 3*ks), SKIN.flagPole, 1);
+    g.beginPath();
+    g.moveTo(pts[0].x, pts[0].y);
+    for(let i=1;i<=seg;i++) g.lineTo(pts[i].x, pts[i].y);
+    g.strokePath();
+
+    const p = pts[seg], q = pts[seg-1];
+    let dx = p.x - q.x, dy = p.y - q.y;
+    const dl = Math.hypot(dx, dy) || 1; dx /= dl; dy /= dl;   // up the pole
+    const ux = -dy, uy = dx;                                   // out from it
+    const Wf = 21*ks, Hf = 14*ks;
+    const c = (a,b) => ({ x: p.x + ux*a + dx*b, y: p.y + uy*a + dy*b });
+    const A = c(0,0), B = c(Wf,0), C = c(Wf,-Hf), D = c(0,-Hf);
+    g.fillStyle(SKIN.flag, 1);
+    g.fillTriangle(A.x,A.y,B.x,B.y,C.x,C.y);
+    g.fillTriangle(A.x,A.y,C.x,C.y,D.x,D.y);
+
+    /* the bone X, two thin quads corner to corner. Width has a 1px floor for
+       the same reason kw() does -- without it the X vanishes at depth 3. */
+    const bone = SKIN.emblemColor || 0xe8e2d0;
+    const bw = Math.max(1, 1.5*ks);
+    const bar = (P0,P1) => {
+      let vx = P1.x-P0.x, vy = P1.y-P0.y;
+      const vl = Math.hypot(vx,vy) || 1; vx/=vl; vy/=vl;
+      const nx = -vy*bw, ny = vx*bw;
+      g.fillStyle(bone, 1);
+      g.fillTriangle(P0.x+nx,P0.y+ny, P1.x+nx,P1.y+ny, P1.x-nx,P1.y-ny);
+      g.fillTriangle(P0.x+nx,P0.y+ny, P1.x-nx,P1.y-ny, P0.x-nx,P0.y-ny);
+    };
+    bar(c(2*ks,-2*ks), c(Wf-2*ks,-Hf+2*ks));
+    bar(c(2*ks,-Hf+2*ks), c(Wf-2*ks,-2*ks));
+  }
+
   drawFlag(bobZ){
+    if(SKIN.jolly) return this.drawJollyRoger(bobZ);
     const g = this.g;
     const L = FLAG.z1 - FLAG.z0;
     const bend = this.flagLean*0.5 + this.tipT*0.7*(this.tipDir||1);
@@ -11832,11 +11978,127 @@ const HJ_CHIEF = {
   lidInner:0xf3f4f6, belly:0x3a1c16,
   wheelHubFace:0x5a2a1e, wheelHub:0xf2c14e
 };
+/* ---------- STORE SKIN PALETTES ----------
+   TP_SKINS listed nine skins but only three were ever real: "classic" is
+   SKIN_BASE, and fire-chief / daredevil had HJ_CHIEF / HJ_DARE. The other six
+   carried nothing but a CSS `filter` string for the store swatch, so equipping
+   Neon Courier changed a badge and left the robot stock white.
+
+   A skin is an override object over SKIN_BASE and nothing else -- every robot
+   draw call reads SKIN.*, and there is no geometry anywhere in a skin.
+   tpApplySkin() strips any key not in SKIN_BASE before repainting, so the
+   optional extras below unset themselves when you switch away.
+
+   Dialled in labs/skins.lab.js against the live game. */
+
+/* SUNSET CRUISER -- warm palm-gold plating for evening runs. The sunset itself
+   is the three bands top to bottom: gold hull, coral stripe, deep magenta. */
+const SK_SUNSET_CRUISER = {
+  bodyTop:0xf2b45c, bodyRight:0xd98f3a, bodyLeft:0xa8642a, outline:0x3a2214,
+  stripe:0xe0554a, stripeDk:0xb03a33,
+  stripe2:0x8e3d6b, stripe2Dk:0x662a4e,
+  lidInner:0xf7e0b0, belly:0x5a3a22,
+  wheelHubFace:0x8a4a22, wheelHub:0xf2c76a,
+  eye:0xffd28a, flag:0xff9b3d, flagPole:0x8a4a22
+};
+
+/* NEON COURIER -- high-visibility violet livery, city-night ready. Deep violet
+   hull so the two neon bands have something dark to sit on. The eye is the
+   brightest thing on the model, which is the point: drawRobot re-lights
+   SKIN.eye into gGlow on night routes. */
+const SK_NEON_COURIER = {
+  bodyTop:0x5b32c4, bodyRight:0x46259c, bodyLeft:0x2f1870, outline:0x14092e,
+  stripe:0x24f0d6, stripeDk:0x14a894,
+  stripe2:0xff3ea5, stripe2Dk:0xc41f78,
+  lidInner:0x8f6cf0, belly:0x1a0d3a, visor:0x140a2e,
+  wheelHubFace:0x2f1870, wheelHub:0x24f0d6,
+  eye:0x6cffe8, eyeAlert:0xff3ea5,
+  flag:0x24f0d6, flagPole:0x2f1870
+};
+
+/* CHROME PLATE -- mirror-polish finish, premium.
+   There is no gradient available: three flat faces are all a hull gets. What
+   reads as chrome is the VALUE SPREAD between them -- near-white top against a
+   mid-slate right and a genuinely dark left. Stock's spread is small
+   (f7/e3/c9); this one is deliberately wide (f4/b9/6f), and that widening IS
+   the effect. The gold pinstripe is the "premium, and it shows" part. */
+const SK_CHROME_PLATE = {
+  bodyTop:0xf4f7fb, bodyRight:0xb9c2ce, bodyLeft:0x6f7b8a, outline:0x232830,
+  stripe:0x2b303a, stripeDk:0x161a21,
+  stripe2:0xd9c07a, stripe2Dk:0xa8913f,
+  lidInner:0xdde3ea, belly:0x2b303a,
+  wheelHubFace:0x8b95a3, wheelHub:0xe8eef5,
+  eye:0xcfefff, flag:0xdfe6ee, flagPole:0x8b95a3
+};
+
+/* PALM CAMO -- earned, not bought. Camo needs more than one green in play at
+   once; three hull faces plus two bands give five tones, which is enough to
+   read as a pattern instead of a flat olive. */
+const SK_PALM_CAMO = {
+  bodyTop:0x7d8f52, bodyRight:0x5e7040, bodyLeft:0x3f4d2b, outline:0x222a17,
+  stripe:0xa8ab6d, stripeDk:0x83864f,
+  stripe2:0x3f4d2b, stripe2Dk:0x2b3520,
+  lidInner:0xa8ab6d, belly:0x2b3520,
+  wheelHubFace:0x3f4d2b, wheelHub:0x7d8f52,
+  eye:0xc8e08a, flag:0x8fae4a, flagPole:0x3f4d2b
+};
+
+/* GOLD RUSH -- deliberately NO stars. Stars are the Daredevil's one exclusive
+   and the gold trophy skin should not borrow the flagship's signature. Gold
+   reads here through the dark band under it, not through added ornament. */
+const SK_GOLD_RUSH = {
+  bodyTop:0xf5cf4e, bodyRight:0xd8a828, bodyLeft:0xa87b16, outline:0x3a2a08,
+  stripe:0x2a2418, stripeDk:0x191408,
+  lidInner:0xfae79a, belly:0x4a3a10,
+  wheelHubFace:0x6b5210, wheelHub:0xf5cf4e,
+  eye:0xfff0a8, flag:0xf5cf4e, flagPole:0x6b5210
+};
+
+/* CONE DODGER -- traffic orange straight off the CONE constant
+   (body:0xff7a1a), so the skin and the hazard it is named for share a colour
+   family, with a white-over-black hazard band. */
+const SK_CONE_DODGER = {
+  bodyTop:0xff8a2a, bodyRight:0xe06a10, bodyLeft:0xa84a08, outline:0x3a1c05,
+  stripe:0xf4f2ec, stripeDk:0xcfccc2,
+  stripe2:0x1e1a16, stripe2Dk:0x0f0d0a,
+  lidInner:0xf4f2ec, belly:0x3a1c05,
+  wheelHubFace:0x3a1c05, wheelHub:0xff8a2a,
+  eye:0xfff0d0, eyeAlert:0xffffff,
+  flag:0xf4f2ec, flagPole:0x3a1c05
+};
+
+/* PORCH PIRATE -- the package thief, wearing it proudly. Weathered black hull,
+   bone stripe, dried-blood band, brass hardware.
+   Two gated extras beyond the palette, both explained at their draw code:
+     emblem:"skull" -- skull-and-crossbones on the two hull SIDE faces
+     jolly          -- black flag with a bone X instead of the stock pennant */
+const SK_PORCH_PIRATE = {
+  bodyTop:0x3a3a42, bodyRight:0x2b2b33, bodyLeft:0x1c1c22, outline:0x0d0d11,
+  stripe:0xd9cdb0, stripeDk:0xb0a488,
+  stripe2:0x8c1c1c, stripe2Dk:0x5e1111,
+  lidInner:0xd9cdb0, belly:0x141419, visor:0x121218,
+  cavityWall:0x2b2b33, cavityFloor:0x1c1c22,
+  wheelHubFace:0x5a4a2a, wheelHub:0xc9a349,
+  eye:0xffd24a, eyeAlert:0xff5a3c,
+  flag:0x14141a, flagPole:0xc9a349,
+  emblem:"skull", emblemColor:0xe8e2d0, emblemDark:0x101014, jolly:true
+};
+
 const HJ_STRIPE2 = { z0:15.5, z1:19.5 };   // the red band under the blue one
 
 /* ---------- SKIN EQUIP ---------- */
 const SKIN_BASE = {...SKIN};
-const SKIN_PALETTES = { "fire-chief": HJ_CHIEF, "daredevil": HJ_DARE };
+const SKIN_PALETTES = {
+  "sunset-cruiser": SK_SUNSET_CRUISER,
+  "neon-courier":   SK_NEON_COURIER,
+  "chrome-plate":   SK_CHROME_PLATE,
+  "palm-camo":      SK_PALM_CAMO,
+  "gold-rush":      SK_GOLD_RUSH,
+  "fire-chief":     HJ_CHIEF,
+  "daredevil":      HJ_DARE,
+  "cone-dodger":    SK_CONE_DODGER,
+  "porch-pirate":   SK_PORCH_PIRATE
+};
 /* Paint the equipped skin onto the robot. The store already had a full
    own/equip flow — it just set tpProfile.equipped to a string that
    NOTHING read, so equipping changed a badge and nothing else. */
@@ -12616,6 +12878,8 @@ const TP_SKINS = [
     filter:"saturate(0.4) brightness(1.25) contrast(1.1)", desc:"Cleared all ten hydrant jumps. White leather, blue stars, no fear." },
   { skinId:"cone-dodger",    displayName:"Cone Dodger",     unlockType:"achievement",  trophyId:"slalom-master",
     filter:"saturate(1.7) contrast(1.15) brightness(1.05)", desc:"Weaves through cones like they're standing still. High-viz paint to match." },
+  { skinId:"porch-pirate",   displayName:"Porch Pirate",   unlockType:"purchase",     priceCents:2000,
+    filter:"none", desc:"Flies the black flag. The package was already on the porch." },
 ];
 
 const TP_TROPHIES = [
