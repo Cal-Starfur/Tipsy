@@ -5490,6 +5490,7 @@ class WorldScene extends Phaser.Scene {
        ramp near a parked car painted over it regardless of depth. Same
        fix: push into blockVQ so it's depth-sorted against everything
        else instead of drawn unconditionally on top afterward. */
+    const groundVQ = [];
     for(const hz of r.hazards){
       if(!GROUND_KINDS[hz.type]) continue;
       /* world-anchored ramps (turn crossings) carry their own wx/wy —
@@ -5548,8 +5549,29 @@ class WorldScene extends Phaser.Scene {
       }
       const slabLayer = (hzt === "slab" || hzt === "sidewalkend" || hzt === "sidewalkbegin" || hzt === "grade" || hzt === "crack")
         ? g : layerFor(ltx, lty);
-      blockVQ.push({ depth: hwx+hwy, fn:(g,t)=>this.drawProp(slabLayer, hzt, hwx, hwy, t, hf, hwz, null, null, hzObj) });
+      groundVQ.push({ depth: hwx+hwy, fn:(g,t)=>this.drawProp(slabLayer, hzt, hwx, hwy, t, hf, hwz, null, null, hzObj) });
     }
+
+    /* GROUND FIRST -- its own pass, ahead of every body.
+
+       These used to ride in blockVQ sorted on their own depth. That is
+       the right answer against cars and houses, and wrong against the
+       PICKUP unit: that entry is queued WHOLE at the store wall's depth
+       (the worker is entangled in drawPickupUnit -- see
+       queueCommercialEdgeAt), while the worker himself stands out by
+       the kerb. Any crack or slab between the wall and the kerb sorts
+       after the store entry and paints straight across him (on-device
+       report). Nudging one depth key would only move the seam to the
+       next thing queued whole, so: nothing that stands ON the ground
+       is ever behind the ground.
+
+       This keeps the fix that pulled this list out of the old
+       draw-late pass in the first place -- a car or prop near a curb
+       ramp still paints over it, now by construction rather than by
+       winning a sort. Only the reverse case changes, and the reverse
+       case was never correct. */
+    groundVQ.sort((a,b) => a.depth - b.depth);
+    for(const item of groundVQ) item.fn(g, t);
 
     /* roofs-last pass, RETIRED for generic units (stage 1): it existed
        because the coarse single-key-per-unit sort could let a nearby
