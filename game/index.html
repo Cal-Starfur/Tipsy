@@ -3245,134 +3245,160 @@ function generateRoute(dateStr, opts){
      spawning. Re-enable by restoring the loop body below if wanted back. */
 
   const density = 0.45 + hood.litter*0.35 + (1 - hood.pave)*0.3;
-  let hs = SPAWN_S + 120;
-  while(hs < totalLen - 220){
-    /* halved step = DOUBLED obstacle count (requested). spawnBlocked's
-       60-unit floor still guarantees breathing room between props, and
-       crossing/corner exclusions are unchanged — the course just gets
-       twice as busy. Cracks and slabs keep their own dedicated passes
-       and levers. */
-    hs += ((330 - density*176) + rng()*198) * 0.25;
-    const hsR = Math.round(hs);
-    if(inCorner(hsR)) continue;
-    const lane = Math.floor(rng()*4);
-    if(!onSidewalk(hsR, laneOffset(lane))) continue;
-    if(spawnBlocked(hsR, laneOffset(lane))) continue;
-    const r2 = rng();
-    let type;
-    /* crack used to be a branch here (r2 < (1-hood.pave)*0.45), but
-       moved to its own dedicated spawn pass below -- same reason
-       slabs already have their own loop instead of sharing this
-       roll: a 3x density target needs a spacing lever, and cracks
-       can't get one while sharing a single probability budget with
-       scooter/trash/cone/dog/people/bin/planter. Removing the branch
-       here doesn't rebalance the rest -- litter/cone/dog+ranges are
-       unchanged, cone's effective share just widens to cover what
-       used to be crack's slice of r2. */
-    if(r2 < hood.litter*0.35)          type = rng() < 0.6 ? "scooter" : "trash";
-    else if(r2 < 0.75)                 type = "cone";
-    else { const r3 = rng(); type = r3 < 0.25 ? "dog" : r3 < 0.48 ? "people" : r3 < 0.73 ? "bin" : "planter"; }
-    const hzObj = { type, s: hsR, row: lane, f: facingAt(hsR), hit:false };
-    if(type === "dog"){
-      hzObj.dogSeed = (rng()*4294967296) >>> 0;  // coat + scar + waypoints
-      /* 50/50 free-roaming vs the original pace/sit behavior (requested
-         2026-07-24, same sidewalk-block system as prop.people above).
-         The free-roaming half never sits -- walking and sitting are
-         mutually exclusive, so sit only gets rolled for the half that
-         ISN'T getting a walk range, leaving their ~40% sitter rate
-         exactly as it always was. */
-      if(rng() < 0.5){
-        const dSeg = segs.find(g => hsR >= g.s0 && hsR <= g.s1 && g.type === "line");
-        if(dSeg){
-          const w0 = dSeg.s0 + CROSSING_CLEAR, w1 = dSeg.s1 - CROSSING_CLEAR;
+  /* ---------- hazard spawning, as a RANGE ----------
+     Was a bare while-loop over the whole walk. It is a function now for
+     one reason: the GPS reroute lap is welded on AFTER every spawn pass
+     has already run, so the lap was never offered to any of them. The
+     weld deletes the old tail's placements (they were anchored to
+     geometry that no longer exists) and nothing ever repopulated it --
+     measured at 0 props and ~1 hazard per 1000 units against 12-14 on
+     the main route, i.e. a bare corridor you could drive the whole way
+     round without touching anything.
+
+     Taking a range and an rng makes the lap a second call instead of a
+     rewrite. It MUST take the rng as a parameter rather than closing
+     over the builder's: spending extra draws from that stream would
+     reshuffle everything generated after the weld (William, the crime
+     site, the challenge), moving them on dates that are otherwise
+     unchanged. The lap gets its own stream, so the rest of the world
+     stays byte-identical.
+
+     Every helper this uses -- inCorner, onSidewalk, spawnBlocked,
+     facingAt -- closes over `segs`, and the weld mutates `segs` IN
+     PLACE (segs.length = n, then push). So called after the weld they
+     read the final geometry with no changes of their own. That is what
+     makes this cheap rather than a reordering of the whole builder. */
+  const spawnHazardRange = (from, to, R) => {
+    let hs = from;
+    while(hs < to){
+      /* halved step = DOUBLED obstacle count (requested). spawnBlocked's
+         60-unit floor still guarantees breathing room between props, and
+         crossing/corner exclusions are unchanged — the course just gets
+         twice as busy. Cracks and slabs keep their own dedicated passes
+         and levers. */
+      hs += ((330 - density*176) + R()*198) * 0.25;
+      const hsR = Math.round(hs);
+      if(inCorner(hsR)) continue;
+      const lane = Math.floor(R()*4);
+      if(!onSidewalk(hsR, laneOffset(lane))) continue;
+      if(spawnBlocked(hsR, laneOffset(lane))) continue;
+      const r2 = R();
+      let type;
+      /* crack used to be a branch here (r2 < (1-hood.pave)*0.45), but
+         moved to its own dedicated spawn pass below -- same reason
+         slabs already have their own loop instead of sharing this
+         roll: a 3x density target needs a spacing lever, and cracks
+         can't get one while sharing a single probability budget with
+         scooter/trash/cone/dog/people/bin/planter. Removing the branch
+         here doesn't rebalance the rest -- litter/cone/dog+ranges are
+         unchanged, cone's effective share just widens to cover what
+         used to be crack's slice of r2. */
+      if(r2 < hood.litter*0.35)          type = R() < 0.6 ? "scooter" : "trash";
+      else if(r2 < 0.75)                 type = "cone";
+      else { const r3 = R(); type = r3 < 0.25 ? "dog" : r3 < 0.48 ? "people" : r3 < 0.73 ? "bin" : "planter"; }
+      const hzObj = { type, s: hsR, row: lane, f: facingAt(hsR), hit:false };
+      if(type === "dog"){
+        hzObj.dogSeed = (R()*4294967296) >>> 0;  // coat + scar + waypoints
+        /* 50/50 free-roaming vs the original pace/sit behavior (requested
+           2026-07-24, same sidewalk-block system as prop.people above).
+           The free-roaming half never sits -- walking and sitting are
+           mutually exclusive, so sit only gets rolled for the half that
+           ISN'T getting a walk range, leaving their ~40% sitter rate
+           exactly as it always was. */
+        if(R() < 0.5){
+          const dSeg = segs.find(g => hsR >= g.s0 && hsR <= g.s1 && g.type === "line");
+          if(dSeg){
+            const w0 = dSeg.s0 + CROSSING_CLEAR, w1 = dSeg.s1 - CROSSING_CLEAR;
+            if(w1 - w0 >= T2){ hzObj.walkS0 = w0; hzObj.walkS1 = w1; }
+          }
+          hzObj.sit = false;
+        } else {
+          hzObj.sit = R() < 0.4;                 // ~40% sitters, same as always
+        }
+      }
+      if(type === "people"){
+        hzObj.peopleSeed = (R()*4294967296) >>> 0;  // body/skin/shirt/pants/hair/shoe
+        /* sidewalk-walking range (requested 2026-07-24): confined to the
+           straight run they spawned on -- same "line"-segment-only
+           restriction the pigeon flocks already use above, so nobody
+           gets routed through a corner's arc geometry. Margin (same
+           CROSSING_CLEAR the route generator already uses) keeps the
+           walk off the curb cut at each end. If the block's too short
+           after margins, walkS0/walkS1 collapse to a point and
+           peopleSpotAt's own fallback leaves them on the old idle
+           wander -- nobody regresses, they just don't get a route. */
+        const pSeg = segs.find(g => hsR >= g.s0 && hsR <= g.s1 && g.type === "line");
+        if(pSeg){
+          const w0 = pSeg.s0 + CROSSING_CLEAR, w1 = pSeg.s1 - CROSSING_CLEAR;
           if(w1 - w0 >= T2){ hzObj.walkS0 = w0; hzObj.walkS1 = w1; }
         }
-        hzObj.sit = false;
-      } else {
-        hzObj.sit = rng() < 0.4;                 // ~40% sitters, same as always
       }
-    }
-    if(type === "people"){
-      hzObj.peopleSeed = (rng()*4294967296) >>> 0;  // body/skin/shirt/pants/hair/shoe
-      /* sidewalk-walking range (requested 2026-07-24): confined to the
-         straight run they spawned on -- same "line"-segment-only
-         restriction the pigeon flocks already use above, so nobody
-         gets routed through a corner's arc geometry. Margin (same
-         CROSSING_CLEAR the route generator already uses) keeps the
-         walk off the curb cut at each end. If the block's too short
-         after margins, walkS0/walkS1 collapse to a point and
-         peopleSpotAt's own fallback leaves them on the old idle
-         wander -- nobody regresses, they just don't get a route. */
-      const pSeg = segs.find(g => hsR >= g.s0 && hsR <= g.s1 && g.type === "line");
-      if(pSeg){
-        const w0 = pSeg.s0 + CROSSING_CLEAR, w1 = pSeg.s1 - CROSSING_CLEAR;
-        if(w1 - w0 >= T2){ hzObj.walkS0 = w0; hzObj.walkS1 = w1; }
+      if(type === "cone"){
+        const preKnocked = R() < 0.4;
+        hzObj.phi = preKnocked ? CONE_HIT.phiRest : 0;
+        hzObj.phase = preKnocked ? 2 : 1;
+        hzObj.angVel = 0; hzObj.moving = false;
+        hzObj.pose = preKnocked ? "knocked" : "standing";
+        hzObj.slide = 0; hzObj.slideVel = 0;
+        if(preKnocked) hzObj.fallPsi = R()*Math.PI*2;
       }
+      if(type === "bin"){
+        const preKnocked = R() < 0.4;
+        hzObj.phi = preKnocked ? BIN_HIT.phiRest : 0;
+        hzObj.angVel = 0; hzObj.moving = false;
+        hzObj.pose = preKnocked ? "knocked" : "standing";
+        hzObj.slide = 0; hzObj.slideVel = 0;
+        hzObj.bonked = false;
+        hzObj.items = []; hzObj.spilled = false;
+        hzObj.thetaF = 0;
+        if(preKnocked) hzObj.fallPsi = R()*Math.PI*2;
+      }
+      if(type === "planter"){
+        hzObj.scale = 1.0 + R()*1.2;                 // 1.0-2.2x, straddles PLANTER_HIT.thresh (1.4) and largeMin (1.8)
+        hzObj.variantIdx = Math.floor(R()*PLANTER_VARIANTS.length);
+        /* large planters are immovable street furniture (2026-07-26) --
+           they never fall, so they can't spawn already-fallen either;
+           a pre-knocked LARGE would contradict the contract on sight. */
+        const preKnocked = R() < 0.25 && hzObj.scale < PLANTER_HIT.largeMin;   // rarer than bin's 0.4 — a bigger visual event
+        hzObj.phi = preKnocked ? PLANTER_HIT.phiRest : 0;
+        hzObj.angVel = 0; hzObj.moving = false;
+        hzObj.pose = preKnocked ? "knocked" : "standing";
+        hzObj.bonked = false;
+        hzObj.items = []; hzObj.spilled = false;
+        if(preKnocked) hzObj.fallPsi = (R()*2 - 1) * 0.4;   // small fall-direction jitter, same idea as bin's
+      }
+      if(type === "scooter"){
+        /* 0.8 -> 0.5: at 80% dumped, routes with a few scooters routinely
+           showed EVERY one down (reported once fallen/standing both read
+           correctly). Half and half keeps the dockless-litter flavor with
+           standing ones actually visible. Same single draw — layout
+           stream unchanged; only the 0.5-0.8 band flips to standing. */
+        const preKnocked = R() < 0.5;
+        /* ALONG the walk, nose either way, slop — the spawn's thetaF is
+           what the draw actually uses (it overrides the draw branch's own
+           seed, which is why the v32 constraint there was dead code for
+           spawned scooters). The old free ±162° roll aimed dumped stems
+           up-screen in iso, where a flat squashed scooter masquerades as
+           standing with pancake wheels (on-device report). Parked AND
+           fallen both read right lying on the street's own axis. */
+        const uTh = R();   // ONE draw for direction AND slop — keeps the
+                             // spawn stream length identical, so the same
+                             // date keeps the same world layout it had
+                             // before this fix (two draws reshuffled every
+                             // downstream roll: standing scooters re-rolled
+                             // fallen, reported on-device)
+        hzObj.thetaF = (uTh < 0.5 ? 0 : Math.PI) + (((uTh * 977) % 1) - 0.5) * 0.3;
+        hzObj.brand = BRANDS[Math.floor(R()*BRANDS.length)];
+        hzObj.phi = preKnocked ? SCOOT_HIT.phiRest : 0;
+        hzObj.angVel = 0; hzObj.moving = false;
+        hzObj.pose = preKnocked ? "knocked" : "standing";
+        hzObj.slide = 0; hzObj.slideVel = 0;
+        if(preKnocked) hzObj.fallPsi = hzObj.thetaF;
+      }
+      hazards.push(hzObj);
     }
-    if(type === "cone"){
-      const preKnocked = rng() < 0.4;
-      hzObj.phi = preKnocked ? CONE_HIT.phiRest : 0;
-      hzObj.phase = preKnocked ? 2 : 1;
-      hzObj.angVel = 0; hzObj.moving = false;
-      hzObj.pose = preKnocked ? "knocked" : "standing";
-      hzObj.slide = 0; hzObj.slideVel = 0;
-      if(preKnocked) hzObj.fallPsi = rng()*Math.PI*2;
-    }
-    if(type === "bin"){
-      const preKnocked = rng() < 0.4;
-      hzObj.phi = preKnocked ? BIN_HIT.phiRest : 0;
-      hzObj.angVel = 0; hzObj.moving = false;
-      hzObj.pose = preKnocked ? "knocked" : "standing";
-      hzObj.slide = 0; hzObj.slideVel = 0;
-      hzObj.bonked = false;
-      hzObj.items = []; hzObj.spilled = false;
-      hzObj.thetaF = 0;
-      if(preKnocked) hzObj.fallPsi = rng()*Math.PI*2;
-    }
-    if(type === "planter"){
-      hzObj.scale = 1.0 + rng()*1.2;                 // 1.0-2.2x, straddles PLANTER_HIT.thresh (1.4) and largeMin (1.8)
-      hzObj.variantIdx = Math.floor(rng()*PLANTER_VARIANTS.length);
-      /* large planters are immovable street furniture (2026-07-26) --
-         they never fall, so they can't spawn already-fallen either;
-         a pre-knocked LARGE would contradict the contract on sight. */
-      const preKnocked = rng() < 0.25 && hzObj.scale < PLANTER_HIT.largeMin;   // rarer than bin's 0.4 — a bigger visual event
-      hzObj.phi = preKnocked ? PLANTER_HIT.phiRest : 0;
-      hzObj.angVel = 0; hzObj.moving = false;
-      hzObj.pose = preKnocked ? "knocked" : "standing";
-      hzObj.bonked = false;
-      hzObj.items = []; hzObj.spilled = false;
-      if(preKnocked) hzObj.fallPsi = (rng()*2 - 1) * 0.4;   // small fall-direction jitter, same idea as bin's
-    }
-    if(type === "scooter"){
-      /* 0.8 -> 0.5: at 80% dumped, routes with a few scooters routinely
-         showed EVERY one down (reported once fallen/standing both read
-         correctly). Half and half keeps the dockless-litter flavor with
-         standing ones actually visible. Same single draw — layout
-         stream unchanged; only the 0.5-0.8 band flips to standing. */
-      const preKnocked = rng() < 0.5;
-      /* ALONG the walk, nose either way, slop — the spawn's thetaF is
-         what the draw actually uses (it overrides the draw branch's own
-         seed, which is why the v32 constraint there was dead code for
-         spawned scooters). The old free ±162° roll aimed dumped stems
-         up-screen in iso, where a flat squashed scooter masquerades as
-         standing with pancake wheels (on-device report). Parked AND
-         fallen both read right lying on the street's own axis. */
-      const uTh = rng();   // ONE draw for direction AND slop — keeps the
-                           // spawn stream length identical, so the same
-                           // date keeps the same world layout it had
-                           // before this fix (two draws reshuffled every
-                           // downstream roll: standing scooters re-rolled
-                           // fallen, reported on-device)
-      hzObj.thetaF = (uTh < 0.5 ? 0 : Math.PI) + (((uTh * 977) % 1) - 0.5) * 0.3;
-      hzObj.brand = BRANDS[Math.floor(rng()*BRANDS.length)];
-      hzObj.phi = preKnocked ? SCOOT_HIT.phiRest : 0;
-      hzObj.angVel = 0; hzObj.moving = false;
-      hzObj.pose = preKnocked ? "knocked" : "standing";
-      hzObj.slide = 0; hzObj.slideVel = 0;
-      if(preKnocked) hzObj.fallPsi = hzObj.thetaF;
-    }
-    hazards.push(hzObj);
-  }
+  };
+  spawnHazardRange(SPAWN_S + 120, totalLen - 220, rng);
 
   /* palms: lane 3, farthest from the road — nearest the buildings, same
      "building-side" flavor the game already used. Real palms grow in
@@ -3384,27 +3410,31 @@ function generateRoute(dateStr, opts){
      for gameplay). Different offset = different position = drawProp's
      own position-seeded rng naturally varies lean/height/sway per
      companion without any extra seeding work needed. */
-  for(let ps = SPAWN_S + 140; ps < totalLen - 220; ps += (286 + rng()*264) * 0.25){
-    const psR = Math.round(ps);
-    if(inCorner(psR)) continue;
-    if(!onSidewalk(psR, laneOffset(3))) continue;
-    if(spawnBlocked(psR, laneOffset(3))) continue;
-    if(rng() < hood.palms){
-      const sizeRoll = rng();
-      const clusterSize = sizeRoll < 0.6 ? 1 : sizeRoll < 0.85 ? 2 : 3;
-      const clusterExtras = [];
-      for(let c=1; c<clusterSize; c++){
-        clusterExtras.push({
-          ds: (rng()-0.5)*70,
-          dOff: (rng()-0.5)*T2*0.9,
-          kind: rng() < 0.25 ? "palmDwarf" : "palm"
-        });
+  /* palms: same range treatment, same reason -- see spawnHazardRange. */
+  const spawnPalmRange = (from, to, R) => {
+    for(let ps = from; ps < to; ps += (286 + R()*264) * 0.25){
+      const psR = Math.round(ps);
+      if(inCorner(psR)) continue;
+      if(!onSidewalk(psR, laneOffset(3))) continue;
+      if(spawnBlocked(psR, laneOffset(3))) continue;
+      if(R() < hood.palms){
+        const sizeRoll = R();
+        const clusterSize = sizeRoll < 0.6 ? 1 : sizeRoll < 0.85 ? 2 : 3;
+        const clusterExtras = [];
+        for(let c=1; c<clusterSize; c++){
+          clusterExtras.push({
+            ds: (R()-0.5)*70,
+            dOff: (R()-0.5)*T2*0.9,
+            kind: R() < 0.25 ? "palmDwarf" : "palm"
+          });
+        }
+        hazards.push({
+          type: R() < 0.25 ? "palmDwarf" : "palm",
+          s: psR, row:3, f: facingAt(psR), hit:false, clusterExtras });
       }
-      hazards.push({
-        type: rng() < 0.25 ? "palmDwarf" : "palm",
-        s: psR, row:3, f: facingAt(psR), hit:false, clusterExtras });
     }
-  }
+  };
+  spawnPalmRange(SPAWN_S + 140, totalLen - 220, rng);
   /* storefront dressing (prop.planter / prop.bin): the FAR sidewalk —
      the opposite side of the street from the robot's own lane. Pure
      decoration, never a hazard, never reachable (the robot's walk
@@ -4081,6 +4111,32 @@ function generateRoute(dateStr, opts){
       }
     }
   }
+
+    /* ---------- FURNISH THE LAP ----------
+       Everything s-anchored past the cut was deleted above, and until now
+       nothing put anything back, so the lap ran bare: 0 props and ~1
+       hazard per 1000 units against 12-14 on the main route. You could
+       drive the entire way round the block without touching a thing.
+
+       Placed HERE for two ordering reasons, both found by measurement.
+       AFTER newCx: spawnBlocked() consults inCrossing(), so run any
+       earlier and props spawn inside the lap's own intersections and on
+       its curb ramps. AFTER the William block: he only gets 24 placement
+       attempts and rejects any spot within 2*T2 of an existing item, so
+       furnishing the lap first starved him out -- he failed to spawn on
+       every single day tested. He picks his spot on the empty lap exactly
+       as before, and these props then avoid HIM via spawnBlocked.
+
+       Its own rng, seeded off the date and the cut, so the builder's
+       stream is untouched and every other feature on a given date keeps
+       the exact position it had before this existed. Margins match the
+       main walk's (+120 / -220 from each end). */
+    {
+      const lapRng = mulberry32(((dateStr.length*2654435761) ^ (Math.round(loop.sCut)*40503)
+                                 ^ (Math.round(loop.sEnd)*97) ^ 0x1a9d) >>> 0);
+      spawnHazardRange(loop.sCut + 120, loop.sEnd - 220, lapRng);
+      spawnPalmRange(loop.sCut + 140, loop.sEnd - 220, lapRng);
+    }
 
   /* ---------- clear stage for the choreography ----------
      Volumetric hazards are swept out of a window around BOTH scene
