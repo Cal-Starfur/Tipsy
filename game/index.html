@@ -2653,17 +2653,65 @@ function crimeFacing(D){ return Math.atan2(-D.x, D.y); }
    generation, from the same parkingStallsAt the renderer uses — so the
    cruisers sit in the bays that actually get painted rather than in a
    second, drifting copy of the stall maths. */
-function findCrimeSite(grid, cutEdges, dateStr, segs, totalLen){
+function findCrimeSite(grid, cutEdges, dateStr, segs, totalLen, avoid){
   const rng = mulberry32((hashStr("crimesite|" + dateStr) ^ 0xa71c) >>> 0);
-  const cands = [];
-  for(const blk of grid.blocks){
-    if(blk.type !== "commercial") continue;
-    const cuts = cutEdges[blk.i + "," + blk.j];
-    if(!cuts) continue;
-    for(const idx of cuts){
-      const e = blockEdgesOf(blk)[idx];
-      const row = parkingStallsAt(e, null, CRIME_STALLS);
-      if(row) cands.push({ blk, idx, e, row });
+  const blocked = (blk) => (avoid || []).some(b => b && b.i === blk.i && b.j === blk.j);
+  const fits = (blk, idx) => parkingStallsAt(blockEdgesOf(blk)[idx], null, CRIME_STALLS);
+  const collect = () => {
+    const out = [];
+    for(const blk of grid.blocks){
+      if(blk.type !== "commercial") continue;
+      const cuts = cutEdges[blk.i + "," + blk.j];
+      if(!cuts) continue;
+      for(const idx of cuts){
+        const row = fits(blk, idx);
+        if(row) out.push({ blk, idx, e: blockEdgesOf(blk)[idx], row });
+      }
+    }
+    return out;
+  };
+
+  let cands = collect();
+  /* FALLBACK. Cut edges only exist where an f=1/f=2 leg runs — about
+     five blocks a route — and only a third of blocks are commercial, so
+     roughly a quarter of scene days had no qualifying lot anywhere and
+     the scene silently no-showed on its own day. Rather than shrink the
+     row (stall width was never the constraint: edges are 1656 and a
+     4-bay row needs 612), retype one cut block commercial, exactly as
+     the route already does for the pickup shop. Only ever runs on a
+     scene day that would otherwise produce nothing, so non-scene days
+     are untouched. The address and pickup blocks are excluded — their
+     types are forced on purpose and the door must stay housing. */
+  if(!cands.length){
+    const swaps = [];
+    for(const blk of grid.blocks){
+      if(blk.type === "commercial" || blocked(blk)) continue;
+      const cuts = cutEdges[blk.i + "," + blk.j];
+      if(!cuts) continue;
+      for(const idx of cuts) if(fits(blk, idx)){ swaps.push(blk); break; }
+    }
+    if(swaps.length){
+      swaps[Math.floor(rng()*swaps.length)].type = "commercial";
+      cands = collect();
+    }
+  }
+
+  /* LAST RESORT — and the reason the delivery sometimes lands on the
+     crime scene's own block. Some routes have exactly one cut block and
+     it IS the address block, which must never be retyped: the customer's
+     house would turn into a storefront under the door. But addCut
+     already excludes the address's OWN edge from cutEdges, so any cut
+     edge on that block is a DIFFERENT side of it — safe to use, and the
+     lot goes there without the block changing type at all. The renderer
+     lays the crime row on a cut edge whatever the block is zoned. */
+  if(!cands.length){
+    for(const blk of grid.blocks){
+      const cuts = cutEdges[blk.i + "," + blk.j];
+      if(!cuts) continue;
+      for(const idx of cuts){
+        const row = fits(blk, idx);
+        if(row) cands.push({ blk, idx, e: blockEdgesOf(blk)[idx], row });
+      }
     }
   }
   if(!cands.length) return null;
@@ -4080,7 +4128,8 @@ function generateRoute(dateStr, opts){
   /* weekly crime scene — rolled from its own salted date hashes, never
      from `rng`, so non-scene days generate a byte-identical city */
   const crime = crimeSceneOnDate(dateStr)
-    ? findCrimeSite(grid, cutEdges, dateStr, segs, loop ? loop.sEnd : totalLen) : null;
+    ? findCrimeSite(grid, cutEdges, dateStr, segs, loop ? loop.sEnd : totalLen,
+                    [addressBlock, pickupBlock]) : null;
   /* every car reads the same pinch — trafficWorldAt is pure, so the
      scene data has to reach it through the car it is called with */
   if(crime) for(const tr of traffic) tr.pinch = crime.pinch;
@@ -5007,9 +5056,13 @@ class WorldScene extends Phaser.Scene {
         const e = this.blockEdges(blk)[cutEdgeIdx];
         const eseed = ((Math.round(e.ox*3+e.dv.x)*7919) ^ (Math.round(e.oy*3+e.dv.y)*104729) ^ 0x6f2a) >>> 0;
         const ecx = e.ox + e.dv.x*e.len/2, ecy = e.oy + e.dv.y*e.len/2;
-        if(blk.type === "commercial"){
-          const isCrime = !!(r.crime && r.crime.blockKey === (blk.i + "," + blk.j)
-                             && r.crime.edgeIdx === cutEdgeIdx);
+        const isCrime = !!(r.crime && r.crime.blockKey === (blk.i + "," + blk.j)
+                           && r.crime.edgeIdx === cutEdgeIdx);
+        /* the crime lot overrides the zoning: on a housing or park block
+           its cut edge would otherwise get a fence row, and the scene
+           has to be able to land on the address block (the only cut
+           block on some routes) without that block being retyped */
+        if(blk.type === "commercial" || isCrime){
           blockVQ.push({ depth: ecx+ecy, fn:(g,t)=>{
             const cars = this.drawParkingRow(g, e.ox, e.oy, e.dv, e.rv, e.len, eseed, t,
                                              isCrime ? CRIME_STALLS : 0);
