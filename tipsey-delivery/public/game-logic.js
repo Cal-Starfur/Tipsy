@@ -981,6 +981,28 @@ const T2 = TILE*2;           // locally inside drawWorld(); now needed globally 
    frame budget to watch, and it is why these are three fixed stops
    rather than a free slider. */
 const ZOOM_K   = [1.5, 0.70, 0.30];        // index = depth-1
+
+/* ---------- TOWN STREET FURNITURE ----------
+   Before this, street furniture existed ONLY along the walked route: a
+   town of 192-256 blocks had props on the 16-29 the route touched, so
+   roughly 90% of it was bare, and housing blocks -- about a third of every
+   map -- had nothing but houses and fences. Harmless at depth 1, where you
+   see a block or two; obvious the moment the camera pulls out.
+
+   FURNISH_CELL / FURNISH_CLEAR size the exclusion hash that keeps this
+   decoration off the robot's own sidewalk (see routeCells). CLEAR is a
+   little over one lane pair, so furniture stops well short of anywhere the
+   robot can actually reach. */
+const FURNISH_CELL  = 150;
+const FURNISH_CLEAR = 340;
+/* Density, in one place, because this is the knob most likely to need
+   turning after seeing it on device. SPACING is world units of frontage
+   per candidate slot; GAP is the chance a slot stays empty. Raising
+   SPACING or GAP thins the town out and cuts the zoomed-out draw cost
+   proportionally -- at depth 3 the camera sees ~15 blocks and ~244
+   pieces, which is where any frame-rate cost will show up first. */
+const FURNISH_SPACING = 250;
+const FURNISH_GAP     = 0.34;
 const ZOOM_KEY = "tipsy.zoomDepth";
 let zoomDepth  = 1;                         // 1..3
 
@@ -3654,7 +3676,37 @@ function generateRoute(dateStr, opts){
      scene data has to reach it through the car it is called with */
   if(crime) for(const tr of traffic) tr.pinch = crime.pinch;
 
-  return { hood, grid, segs, totalLen: loop ? loop.sEnd : totalLen, loop, tiles, hazards, props, pal, night, traffic, crossings, cutEdges, cutExt, challenge, crime,
+  /* ---------- routeCells: where the town must NOT be furnished ----------
+     Street furniture is DECORATION -- it is drawn per visible block and
+     never enters hazards[], so the sim cannot see it and the robot drives
+     straight through it. That is fine for a bench across the street and
+     actively bad for one on the robot's own sidewalk, where it would sit
+     inches from a real, collidable bin and behave differently. Worse, it
+     would double up on the route's own spawns, which are placed by their
+     own no-stacking rule that this pass knows nothing about.
+
+     So the fix is exclusion, not collision: bake a coarse spatial hash of
+     everything within FURNISH_CLEAR of the walked path, and let the
+     scatter reject any candidate that lands in it. Built AFTER the loop
+     weld so the reroute lap is covered too. O(1) lookup per candidate,
+     which is what makes it affordable inside a draw call. */
+  const routeCells = new Set();
+  {
+    const end = loop ? loop.sEnd : totalLen;
+    const R = Math.ceil(FURNISH_CLEAR / FURNISH_CELL);
+    for(let s = 0; s <= end; s += TILE){
+      /* both sidewalk rows, so the exclusion covers the full walkable
+         width rather than just the centre line */
+      for(const off of [laneOffset(0), laneOffset(3)]){
+        const wp = segsWorldOf(segs, Math.min(s, end), off);
+        const ci = Math.round(wp.x/FURNISH_CELL), cj = Math.round(wp.y/FURNISH_CELL);
+        for(let a = -R; a <= R; a++)
+          for(let b = -R; b <= R; b++) routeCells.add((ci+a) + "," + (cj+b));
+      }
+    }
+  }
+
+  return { hood, grid, segs, totalLen: loop ? loop.sEnd : totalLen, loop, tiles, hazards, props, pal, night, traffic, crossings, cutEdges, cutExt, challenge, crime, routeCells,
            address:`${number} ${street}`, doorS, pickupS, pickupSpot, pickupShopName, addressBlock, pickupBlock, addressEdgeIdx, pickupEdgeIdx, addressUnitIdx, pickupUnitIdx, addressUsesGate, order, parMs, dateStr };
 }
 
@@ -5950,6 +6002,7 @@ class WorldScene extends Phaser.Scene {
       if(excludeEdges && excludeEdges.includes(idx)) return;
       this.queueHousingEdgeAt(vq, e, isAddressBlock && idx === this.route.addressEdgeIdx, cornerSkip);
     });
+    this.queueStreetFurniture(vq, blk, excludeEdges);
   }
 
   queueCommercialEdgeAt(vq, e, isPickupEdge=false, cornerSkip=null){
@@ -5998,6 +6051,7 @@ class WorldScene extends Phaser.Scene {
       const x = blk.x0 + rng()*(blk.x1-blk.x0), y = blk.y0 + rng()*(blk.y1-blk.y0);
       vq.push({ depth:x+y, fn:(g,t)=>this.scatterBlockProp(g, x, y, "bench", t) });
     }
+    this.queueStreetFurniture(vq, blk, excludeEdges);
   }
 
   queueParkBlock(vq, blk){
@@ -6037,6 +6091,7 @@ class WorldScene extends Phaser.Scene {
       else { x = blk.x0+14; y = blk.y0+(blk.y1-blk.y0)*tt; dv = DIRV[1]; }
       vq.push({ depth:x+y, fn:(g,t)=>this.scatterBlockProp(g, x, y, "bench", t, dv) });
     }
+    this.queueStreetFurniture(vq, blk);
   }
 
   fillBlockGround(g, blk){
@@ -6066,6 +6121,70 @@ class WorldScene extends Phaser.Scene {
     }
     if(blk.type === "commercial") return this.queueCommercialBlock(vq, blk, excludeEdges, cornerSkip);
     this.queueHousingBlock(vq, blk, excludeEdges, cornerSkip);
+  }
+
+  /* ---------- STREET FURNITURE, every block, every frontage ----------
+     Runs for housing/commercial/park alike (park calls it too, from
+     queueParkBlock). Placement is world-seeded off the block corner via
+     mulberry32, the same discipline every other prop uses, so a block
+     furnishes identically every frame and every session with no stored
+     state -- and neighbouring blocks differ because their seeds do.
+
+     Furniture sits on the VERGE: just inside the block boundary, on the
+     grass/plaza strip between the sidewalk and the fence line, which is
+     where this stuff lives in a real street and, more usefully, where it
+     cannot be confused for something the robot is meant to dodge.
+
+     Two hard exclusions, both load-bearing:
+       - routeCells, so nothing decorative lands within reach of the robot
+         (it has no collision -- see the routeCells comment)
+       - cut edges, whose units are already suppressed so the walk isn't
+         loomed over; putting a lamp back on that verge would re-create
+         the occlusion the cut exists to remove
+
+     Depth keys are the item's own x+y, so each piece sorts individually
+     against houses, fences and the robot -- not batched. */
+  queueStreetFurniture(vq, blk, excludeEdges = null){
+    const cells = this.route && this.route.routeCells;
+    const rng = mulberry32(((Math.round(blk.x0)*2654435761) ^ (Math.round(blk.y0)*40503) ^ 0x9e37) >>> 0);
+    /* per-type character: what a block's frontage is actually made of */
+    const MENU = {
+      housing:    [["lamp",0.20],["palmDwarf",0.30],["bin",0.16],["planter",0.14],["hydrant",0.10],["trash",0.10]],
+      commercial: [["lamp",0.26],["planter",0.24],["bench",0.16],["bin",0.14],["hydrant",0.10],["cone",0.10]],
+      park:       [["palmDwarf",0.34],["palm",0.20],["bench",0.18],["planter",0.16],["lamp",0.12]]
+    };
+    const menu = MENU[blk.type] || MENU.housing;
+    const pick = () => {
+      let r = rng();
+      for(const [k, w] of menu){ if(r < w) return k; r -= w; }
+      return menu[0][0];
+    };
+    const VERGE = 46;          // inset from the block line, on the grass strip
+    blockEdgesOf(blk).forEach((e, idx) => {
+      if(excludeEdges && excludeEdges.includes(idx)) return;
+      /* one piece per ~250 units of frontage, jittered, so a long edge
+         reads as furnished rather than as a repeating pattern */
+      const n = Math.max(1, Math.round(e.len/FURNISH_SPACING));
+      for(let i = 0; i < n; i++){
+        if(rng() < FURNISH_GAP) continue;               // gaps: not every slot fills
+        const a = e.len*(i + 0.15 + rng()*0.7)/n;
+        const d = VERGE + rng()*34;
+        const x = e.ox + e.dv.x*a - e.rv.x*d;
+        const y = e.oy + e.dv.y*a - e.rv.y*d;
+        if(cells && cells.has(Math.round(x/FURNISH_CELL) + "," + Math.round(y/FURNISH_CELL))) continue;
+        const kind = pick();
+        /* benches need an orientation or their long axis punches through
+           the fence -- same reasoning queueParkBlock already documents.
+           Everything else is radially symmetric enough not to care. */
+        if(kind === "bench"){
+          const bdv = e.dv;
+          vq.push({ depth:x+y, fn:(g,t)=>this.scatterBlockProp(g, x, y, "bench", t, bdv) });
+        } else {
+          const f = idx;   // face the street the piece stands on
+          vq.push({ depth:x+y, fn:(g,t)=>this.drawProp(g, kind, x, y, t, f) });
+        }
+      }
+    });
   }
 
   fillExteriorLot(g, lot){
