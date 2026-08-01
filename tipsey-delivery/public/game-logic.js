@@ -1940,7 +1940,13 @@ function trafficWorldAt(tr, t){
   /* straddle is returned, not recomputed by the caller: the phase
      interlock has to ask "is this car still out of its lane" of the
      same call that decides where the car IS. */
-  return { wp, f: trF, trS, straddle };
+  /* f is the QUANTIZED facing (0-3) -- the phase machine's DIRV lookups
+     and anything else that needs an axis still use it. fc is the SAME
+     heading unquantized, in quarter-turn units, for the renderer and
+     the hitbox: through a corner arc the quantized value is up to 45
+     degrees off the direction the car is actually travelling, which is
+     what made every turn read as a sideways slide. */
+  return { wp, f: trF, fc: hdg / (Math.PI/2), trS, straddle };
 }
 
 /* the address (and, later, the pickup) needs to sit on a straight leg
@@ -4854,18 +4860,28 @@ class WorldScene extends Phaser.Scene {
     for(const pr of r.props){
       if(pr.kind !== "car" && pr.kind !== "truck") continue;
       const wp = worldOf(pr.s, pr.roadOffset);
-      trafficPts.push({ kind: pr.kind, wp, f: pr.f, wheelPhase: null, colorSeed: null });
+      trafficPts.push({ kind: pr.kind, wp, f: pr.f, wheelPhase: null, colorSeed: null, parked: true });
     }
     for(const tr of r.traffic){
-      const { wp, f: trF, trS } = trafficWorldAt(tr, t);
-      trafficPts.push({ kind: tr.kind, wp, f: trF, wheelPhase: trS*0.28, colorSeed: tr.colorSeed });
+      const { wp, fc, trS } = trafficWorldAt(tr, t);
+      trafficPts.push({ kind: tr.kind, wp, f: fc, wheelPhase: trS*0.28, colorSeed: tr.colorSeed, parked: false });
     }
+    /* The proximity cull applies to PARKED roadside props ONLY. Two of
+       those generated on top of each other is a generation artifact and
+       dropping one is correct. Applying the same rule to MOVING traffic
+       was the reported "cars cut in and out" bug: whichever car was
+       queued second simply vanished for however many frames the two
+       overlapped, then popped back in. Moving cars are kept apart in
+       the SIM instead (updateTrafficSpacing), where a car can actually
+       slow down -- never by deleting one at draw time. */
     const MIN_TRAFFIC_GAP = CARC.len * 0.9;
     const drawnTrafficPts = [];
     for(const p of trafficPts){
       if(!near(p.wp.x, p.wp.y)) continue;
-      if(drawnTrafficPts.some(q => Math.hypot(q.x-p.wp.x, q.y-p.wp.y) < MIN_TRAFFIC_GAP)) continue;
-      drawnTrafficPts.push(p.wp);
+      if(p.parked){
+        if(drawnTrafficPts.some(q => Math.hypot(q.x-p.wp.x, q.y-p.wp.y) < MIN_TRAFFIC_GAP)) continue;
+        drawnTrafficPts.push(p.wp);
+      }
       const pk = p.kind, pwx = p.wp.x, pwy = p.wp.y, pwz = p.wp.z, pf = p.f, pwp2 = p.wheelPhase, pcs = p.colorSeed;
       blockVQ.push({ depth: pwx+pwy, fn:(g,t)=>this.drawProp(layerFor(pwx,pwy), pk, pwx, pwy, t, pf, pwz, pwp2, pcs) });
     }
@@ -6792,7 +6808,16 @@ class WorldScene extends Phaser.Scene {
   }
 
   drawProp(g, kind, x, y, t, fdir = 0, z = 0, wheelPhase = null, colorSeed = null, data = null){
-    const dv = DIRV[fdir], rv = DIRV[(fdir+1)%4];
+    /* fdir may now be CONTINUOUS (a float, in quarter-turn units) --
+       moving traffic passes its real heading so a car rotates smoothly
+       through a corner instead of popping 90 degrees at the arc
+       midpoint. Every kind except the car branch still wants a
+       quantized axis pair, so the DIRV lookup rounds HERE rather than
+       at the call site; that is what lets one parameter serve both.
+       The car branch reads the raw float via carTheta and rotates
+       rigidly, which its geometry was already built for. */
+    const fq = ((Math.round(fdir) % 4) + 4) % 4;
+    const dv = DIRV[fq], rv = DIRV[(fq+1)%4];
     const W = (dx, dy, dz) => this.W(x + dv.x*dx + rv.x*dy, y + dv.y*dx + rv.y*dy, z + dz);
     if(kind === "lamp"){
       this.drawLampHull(g, W, t, data || {});
@@ -10613,9 +10638,13 @@ class WorldScene extends Phaser.Scene {
          still pushes away from the car's CENTER. */
       const CAR_HIT_CENTER_R = 60, CAR_HIT_NOSE_R = 50;
       for(const tr of this.route.traffic){
-        const { wp, f: trF } = trafficWorldAt(tr, t);
-        const nd = DIRV[trF];
-        const nx = wp.x + nd.x*CARC.len*0.45, ny = wp.y + nd.y*CARC.len*0.45;
+        const { wp, fc } = trafficWorldAt(tr, t);
+        /* continuous heading, matching the renderer exactly. With the
+           quantized facing the nose point jumped to the wrong corner of
+           the car mid-turn, so the hitbox left the art precisely where
+           a car is most likely to clip the robot. */
+        const nth = fc * (Math.PI/2);
+        const nx = wp.x + Math.cos(nth)*CARC.len*0.45, ny = wp.y + Math.sin(nth)*CARC.len*0.45;
         const ddx = this.botX - wp.x, ddy = this.botY - wp.y;
         const cSq = ddx*ddx + ddy*ddy;
         const nnx = this.botX - nx, nny = this.botY - ny;
@@ -11737,6 +11766,94 @@ class WorldScene extends Phaser.Scene {
                    p.x + dx*20*ks, p.y + dy*20*ks + 4*ks);
   }
 
+  /* ---------- CAR FOLLOWING / SPACING ----------
+     Independent traffic loops share streets with zero mutual awareness,
+     and the three cars on any one loop run at different speeds, so they
+     genuinely converge -- the old draw-time cull was hiding that rather
+     than solving it. This yields instead: a car whose forward cone
+     contains another car within GAP accumulates `hold`, and
+     trafficWorldAt subtracts hold from its own clock, so the car really
+     stops. Because the freeze happens inside the one pure function both
+     the renderer and the hitbox call, a stopped car's art and its
+     collision box stay together -- the same invariant the phase
+     machine's hold already depends on.
+
+     Cone, not radius: a car yields to what is IN FRONT of it and never
+     to what it has already passed. A plain radius check makes two cars
+     that meet freeze each other permanently.
+
+     Opposing lanes are 4*T2 = 368 apart and GAP is ~259, so normal
+     two-way traffic can never trigger this at all; only same-lane
+     convergence does. MAX_YIELD is the escape hatch for the rare
+     cross-route case where two loops put opposing cars in one lane --
+     the car waits, then goes, instead of parking forever. */
+  /* hold is subtracted from `t` inside trafficWorldAt, so a frame's
+     worth of hold must equal a frame's worth of t -- NOT dt. Phaser
+     smooths and clamps delta (~50ms ceiling) while time.now is real
+     wall clock, so on any dropped frame dt is far smaller than the t
+     the car's position is computed from, and a "stopped" car quietly
+     keeps rolling by the difference. Measured in the headless bench at
+     2fps: cars held every frame still closed on each other. Deriving
+     the step from t itself makes a held car exactly stationary at any
+     frame rate. Capped so a tab-resume jump parks nobody for minutes. */
+  _trafHoldStep(t){
+    const prev = this._trafHoldPrev;
+    this._trafHoldPrev = t;
+    this._trafHoldDt = prev === undefined ? 0 : Math.max(0, Math.min(250, t - prev));
+    return this._trafHoldDt;
+  }
+
+  updateTrafficSpacing(t, dt){
+    const hDt = this._trafHoldStep(t);
+    const traffic = this.route && this.route.traffic;
+    if(!traffic || traffic.length < 2) return;
+    const GAP = CARC.len * 1.15, GAP_SQ = GAP*GAP, MAX_YIELD = 6000;
+    const pos = [];
+    for(const tr of traffic){
+      const { wp, fc } = trafficWorldAt(tr, t);
+      const th = fc * (Math.PI/2);
+      pos.push({ tr, x: wp.x, y: wp.y, dx: Math.cos(th), dy: Math.sin(th) });
+    }
+    for(let i = 0; i < pos.length; i++){
+      const a = pos[i];
+      let blocked = false;
+      for(let j = 0; j < pos.length && !blocked; j++){
+        if(j === i) continue;
+        const b = pos[j];
+        const rx = b.x - a.x, ry = b.y - a.y, dSq = rx*rx + ry*ry;
+        if(dSq > GAP_SQ || dSq < 1e-6) continue;
+        const d = Math.sqrt(dSq);
+        const ahead = (rx*a.dx + ry*a.dy) / d;        // -1 behind .. +1 dead ahead
+        if(ahead < -0.5) continue;                     // safely behind me: not my problem
+        /* Two distinct conflicts, one rule each.
+
+           FOLLOWING (ahead >= 0.7 -- the other car is in my lane, in
+           front): I always yield. No tie-break needed, because the car
+           in front is by definition not yielding to me.
+
+           EVERYTHING ELSE inside GAP -- crossing at an intersection
+           (~90 deg, so neither car is in the other's following cone),
+           or two routes merging onto the same lane side by side (same
+           heading, purely LATERAL closing, which is what the bench
+           actually caught) -- needs a right-of-way rule or both cars
+           sail straight through each other. Priority goes to the lower
+           array index: arbitrary, but stable and deterministic, which
+           is all a right-of-way rule has to be. Deterministic also
+           means no deadlock: exactly one car of any pair ever waits. */
+        if(ahead >= 0.7 || j < i) blocked = true;
+      }
+      if(blocked && (a.tr.yieldMs || 0) < MAX_YIELD){
+        a.tr.yieldMs = (a.tr.yieldMs || 0) + hDt;
+        /* holdFrame guards against the phase machine adding a step to
+           the same car in the same frame: two increments in one frame
+           makes hold outrun t and the car drives BACKWARD. */
+        if(a.tr.holdFrame !== t){ a.tr.hold = (a.tr.hold || 0) + hDt; a.tr.holdFrame = t; }
+      } else if(!blocked){
+        a.tr.yieldMs = 0;
+      }
+    }
+  }
+
   /* ---------- PHASED TRAFFIC CONTROL ----------
      Lives in the SIM, driven by dt from update() — not in a draw hook.
      A phase advanced during rendering runs at frame rate and freezes
@@ -11777,7 +11894,14 @@ class WorldScene extends Phaser.Scene {
          swap itself only ever happens while allStop is true. */
       if(!stopped && group === ph.green && straddle > CRIME_CLEARED_BY) straddling = true;
     }
-    for(const tr of holding) tr.hold = (tr.hold || 0) + dt;
+    /* see updateTrafficSpacing: whichever of the two passes gets to a
+       car first owns its hold for this frame. Both adding dt would push
+       hold past t and reverse the car. */
+    const hDt = this._trafHoldDt !== undefined ? this._trafHoldDt : dt;
+    for(const tr of holding){
+      if(tr.holdFrame === t) continue;
+      tr.hold = (tr.hold || 0) + hDt; tr.holdFrame = t;
+    }
 
     ph.tLeft -= dt;
     if(ph.tLeft <= 0){
@@ -11935,6 +12059,7 @@ class WorldScene extends Phaser.Scene {
       }
       this.hjSim(dt, this.route && this.route.challenge);
     }
+    this.updateTrafficSpacing(t, dt);
     this.updateCrimeTraffic(t, dt);
     this.updateCrimeTape(t);
     this.drawWorld(t);
