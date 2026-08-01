@@ -119,6 +119,30 @@ const PAL = {
     wheelHubFace:0x3a1c05, wheelHub:0xff8a2a,
     eye:0xfff0d0, eyeAlert:0xffffff,
     flag:0xf4f2ec, flagPole:0x3a1c05
+  },
+
+  /* PORCH PIRATE — the package thief, wearing it proudly.
+     Weathered black hull, bone stripe, dried-blood band, brass hardware.
+
+     Two gated extras beyond the palette, both explained at their draw code:
+       jolly       -- swaps the pennant for a black flag with a bone X
+       emblem:"skull" -- puts a skull-and-crossbones on the hull side faces
+
+     `stars` is set too, and it is NOT decoration: it is the GATE. drawRobot
+     calls drawStripeStars(bobZ) only `if(SKIN.stars)`, and that call sits at
+     exactly the right point in the draw order — after the body and stripe,
+     before the lid and visor. Riding that existing hook is why the skull
+     needs no change to drawRobot at all. */
+  "porch-pirate": {
+    bodyTop:0x3a3a42, bodyRight:0x2b2b33, bodyLeft:0x1c1c22, outline:0x0d0d11,
+    stripe:0xd9cdb0, stripeDk:0xb0a488,
+    stripe2:0x8c1c1c, stripe2Dk:0x5e1111,
+    lidInner:0xd9cdb0, belly:0x141419, visor:0x121218,
+    cavityWall:0x2b2b33, cavityFloor:0x1c1c22,
+    wheelHubFace:0x5a4a2a, wheelHub:0xc9a349,
+    eye:0xffd24a, eyeAlert:0xff5a3c,
+    flag:0x14141a, flagPole:0xc9a349,
+    stars:0xe8e2d0, emblem:"skull", emblemDark:0x101014, jolly:true
   }
 };
 
@@ -130,11 +154,180 @@ Object.assign(SKIN_PALETTES, PAL);
 
 /* Order the picker walks. "classic" maps to null => stock SKIN_BASE. */
 const ORDER = ["classic","sunset-cruiser","neon-courier","chrome-plate",
-               "palm-camo","gold-rush","fire-chief","daredevil","cone-dodger"];
+               "palm-camo","gold-rush","fire-chief","daredevil","cone-dodger",
+               "porch-pirate"];
+
+/* Porch Pirate has no TP_SKINS row yet — the store is defined in
+   game/index.html and this lab does not touch it. Push a session-only entry so
+   the picker can name it and the store swatch can be reviewed alongside the
+   rest. OPEN: unlock type. Listed as a purchase here purely as a placeholder;
+   a thief skin arguably wants a cheeky achievement instead, and that is a
+   design call, not a technical one. */
+if(typeof TP_SKINS !== "undefined" && !TP_SKINS.some(s=>s.skinId==="porch-pirate")){
+  TP_SKINS.push({ skinId:"porch-pirate", displayName:"Porch Pirate",
+    unlockType:"purchase", priceCents:2000, filter:"none",
+    desc:"Flies the black flag. The package was already on the porch." });
+}
 
 function nameOf(id){
   const s = (typeof TP_SKINS !== "undefined") && TP_SKINS.find(x=>x.skinId===id);
   return s ? s.displayName : id;
+}
+
+/* ============================================================================
+   GATED EXTRAS — skull emblem + jolly roger
+   Both are installed by REPLACING an existing method and delegating to the
+   original whenever the gate is off, so every other skin is byte-identical to
+   before. Idempotent: the original is captured once and stashed on the scene.
+   ============================================================================ */
+
+/* SKULL AND CROSSBONES on the hull side faces.
+   Same face-normal backface test drawBox uses, so it can never paint onto a
+   face pointing away from the camera at any heading.
+
+   The FRONT face (+x) is deliberately excluded: it already carries the visor
+   at z 40-50 and the headlight bar at 18-22, and a skull would collide with
+   both. The three remaining faces are what iso actually shows anyway.
+
+   Each face gets its own tangent chosen so tangent x normal points up — that
+   is what stops the skull rendering MIRRORED on the faces whose normal runs
+   negative, which is exactly the class of bug the heading gate exists for. */
+function drawSkullEmblem(sc, bobZ){
+  const g  = sc.g;
+  const hx = BODY.hx + 0.8, hy = BODY.hy + 0.8;
+  /* zc/R are set by the CLEARANCE, not by taste. The body spans z 14..54 and
+     the stripe band occupies 20..27. The crossbones are the lowest thing here
+     — their tips fall to zc - R*1.9*sin(0.62) — so at the obvious values
+     (zc 33, R 6.4) they reach 17.6 and run straight through the stripe. On
+     this skin the stripe is bone-coloured, so the emblem would have dissolved
+     into it. These values put the tips at 28.3 and the cranium top at 43.6:
+     clear of the stripe below, clear of the lid seam above. */
+  const zc = 37 + (bobZ || 0);
+  const col  = SKIN.stars || 0xe8e2d0;
+  const dark = SKIN.emblemDark || 0x101014;
+  const R = 5.4;
+
+  const faces = [
+    { n:{x:-1,y:0,z:0}, at:(s,z)=>[-hx, -s,  z] },
+    { n:{x:0,y: 1,z:0}, at:(s,z)=>[ -s,  hy, z] },
+    { n:{x:0,y:-1,z:0}, at:(s,z)=>[  s, -hy, z] }
+  ];
+
+  for(const fc of faces){
+    const w = sc.R(fc.n.x, fc.n.y, fc.n.z);
+    if((w.x + w.y + w.z) <= 0) continue;
+    const P    = (s,z) => { const q = fc.at(s,z); return sc.P(q[0], q[1], q[2]); };
+    const poly = pts => pts.map(p => P(p[0], p[1]));
+    const disc = (cs, cz, r, n) => {
+      const o = [];
+      for(let k=0;k<n;k++){ const a = k/n*Math.PI*2;
+        o.push(P(cs + Math.cos(a)*r, cz + Math.sin(a)*r)); }
+      return o;
+    };
+
+    /* crossbones first — they sit BEHIND the skull */
+    for(const sgn of [1,-1]){
+      const ang = sgn*0.62, ca = Math.cos(ang), sa = Math.sin(ang);
+      const L = R*1.9, Wd = R*0.22, bz = zc - R*0.5;
+      const bar = [[-L,-Wd],[L,-Wd],[L,Wd],[-L,Wd]]
+        .map(([a,b]) => [a*ca - b*sa, bz + a*sa + b*ca]);
+      sc.quadOn(g, poly(bar), col);
+      /* the knobbed ends that make a bone read as a bone */
+      for(const e of [-1,1])
+        for(const o of [-1,1])
+          sc.quadOn(g, disc((e*L - o*Wd*0.9)*ca - (o*Wd*1.5)*sa,
+                            bz + (e*L - o*Wd*0.9)*sa + (o*Wd*1.5)*ca,
+                            Wd*1.6, 7), col);
+    }
+
+    /* cranium + jaw */
+    sc.quadOn(g, disc(0, zc + R*0.30, R*0.92, 14), col);
+    sc.quadOn(g, poly([[-R*0.52, zc - R*0.72], [R*0.52, zc - R*0.72],
+                       [ R*0.74, zc + R*0.28], [-R*0.74, zc + R*0.28]]), col);
+
+    /* sockets + nasal cavity */
+    for(const e of [-1,1]) sc.quadOn(g, disc(e*R*0.40, zc + R*0.40, R*0.29, 9), dark);
+    sc.quadOn(g, poly([[0, zc - R*0.02], [R*0.16, zc + R*0.20],
+                       [-R*0.16, zc + R*0.20]]), dark);
+    /* teeth: two gaps cut into the jaw */
+    for(const e of [-1,1])
+      sc.quadOn(g, poly([[e*R*0.20 - R*0.05, zc - R*0.70],
+                         [e*R*0.20 + R*0.05, zc - R*0.70],
+                         [e*R*0.20 + R*0.05, zc - R*0.28],
+                         [e*R*0.20 - R*0.05, zc - R*0.28]]), dark);
+  }
+}
+
+/* JOLLY ROGER.
+   The stock pennant is a ~11x20 SCREEN-pixel triangle that kScale() shrinks
+   further with depth. A skull drawn there is three pixels of mush, so the flag
+   carries a bone X instead — an X still reads at that size and a skull does
+   not. The skull lives on the hull, where there is room for it.
+
+   This also changes the flag's geometry for this skin: the stock pennant
+   extends ABOVE the pole tip, which is why it reads as a streamer. A real flag
+   hangs off the pole, so this one runs outward along the perpendicular and
+   downward along the pole. */
+function drawJollyRoger(sc, bobZ){
+  const g = sc.g;
+  const L = FLAG.z1 - FLAG.z0;
+  const bend = sc.flagLean*0.5 + sc.tipT*0.7*(sc.tipDir || 1);
+  const seg = 6, pts = [];
+  for(let i=0;i<=seg;i++){
+    const s = i/seg, a = bend*s;
+    pts.push(sc.P(FLAG.base.x,
+                  FLAG.base.y - Math.sin(a)*L*s,
+                  FLAG.z0 + Math.cos(a)*L*s + bobZ));
+  }
+  const ks = sc.kScale();
+  g.lineStyle(Math.max(1, 3*ks), SKIN.flagPole, 1);
+  g.beginPath();
+  g.moveTo(pts[0].x, pts[0].y);
+  for(let i=1;i<=seg;i++) g.lineTo(pts[i].x, pts[i].y);
+  g.strokePath();
+
+  const p = pts[seg], q = pts[seg-1];
+  let dx = p.x - q.x, dy = p.y - q.y;
+  const dl = Math.hypot(dx, dy) || 1; dx /= dl; dy /= dl;   // up the pole
+  const ux = -dy, uy = dx;                                   // out from it
+  const Wf = 21*ks, Hf = 14*ks;
+  const c = (a,b) => ({ x: p.x + ux*a + dx*b, y: p.y + uy*a + dy*b });
+  const A = c(0,0), B = c(Wf,0), C = c(Wf,-Hf), D = c(0,-Hf);
+  g.fillStyle(SKIN.flag, 1);
+  g.fillTriangle(A.x,A.y,B.x,B.y,C.x,C.y);
+  g.fillTriangle(A.x,A.y,C.x,C.y,D.x,D.y);
+
+  /* the bone X, drawn as two thin quads corner to corner */
+  const bone = SKIN.stars || 0xe8e2d0;
+  const bar = (P0,P1) => {
+    let vx = P1.x-P0.x, vy = P1.y-P0.y;
+    const vl = Math.hypot(vx,vy) || 1; vx/=vl; vy/=vl;
+    const nx = -vy*1.5*ks, ny = vx*1.5*ks;
+    g.fillStyle(bone, 1);
+    g.fillTriangle(P0.x+nx,P0.y+ny, P1.x+nx,P1.y+ny, P1.x-nx,P1.y-ny);
+    g.fillTriangle(P0.x+nx,P0.y+ny, P1.x-nx,P1.y-ny, P0.x-nx,P0.y-ny);
+  };
+  bar(c(2*ks,-2*ks), c(Wf-2*ks,-Hf+2*ks));
+  bar(c(2*ks,-Hf+2*ks), c(Wf-2*ks,-2*ks));
+}
+
+function installExtras(){
+  const sc = game.scene.scenes[0];
+  if(!sc.__skinlabPatched){
+    sc.__skinlabStars = sc.drawStripeStars.bind(sc);
+    sc.__skinlabFlag  = sc.drawFlag.bind(sc);
+    sc.__skinlabPatched = true;
+  }
+  /* PORT NOTE: at port time this becomes a shape switch inside
+     drawStripeStars itself (renamed drawHullEmblem), not a wrapper. */
+  sc.drawStripeStars = function(bobZ){
+    if(SKIN.emblem === "skull") return drawSkullEmblem(sc, bobZ);
+    return sc.__skinlabStars(bobZ);
+  };
+  sc.drawFlag = function(bobZ){
+    if(SKIN.jolly) return drawJollyRoger(sc, bobZ);
+    return sc.__skinlabFlag(bobZ);
+  };
 }
 
 /* ---------- preview, not equip ----------
@@ -157,7 +350,12 @@ function next(d){
    Emits PAL as a paste-ready block for game/index.html. The whole reason to
    dial colors in the bench is to walk out with the literal, not a screenshot. */
 function dump(){
-  const hex = v => "0x" + v.toString(16).padStart(6,"0");
+  /* Porch Pirate carries non-numeric keys (emblem:"skull", jolly:true), so a
+     blind toString(16) would emit garbage for exactly the skin most likely to
+     be re-tuned. */
+  const hex = v => typeof v === "number"
+    ? "0x" + v.toString(16).padStart(6,"0")
+    : JSON.stringify(v);
   let out = "";
   for(const id of Object.keys(PAL)){
     out += "/* " + nameOf(id) + " */\nconst SK_" +
@@ -219,9 +417,11 @@ function mount(){
 }
 
 window.SKINLAB = { PAL, ORDER, current:"classic", set, next, dump, mount,
+                   installExtras,
                    hide(){ const b=document.getElementById("__skinlab"); if(b) b.remove(); } };
+installExtras();
 mount();
-console.log("SKINLAB up — " + Object.keys(PAL).length + " new palettes registered, " +
+console.log("SKINLAB up — " + Object.keys(PAL).length + " palettes registered, " +
             ORDER.length + " total. SKINLAB.dump() for the port block.");
 
 })();
