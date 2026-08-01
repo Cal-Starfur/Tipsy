@@ -2385,7 +2385,7 @@ function trafficWorldAt(tr, t){
      half a body, while the oncoming lane centre is a further 184 away.
      Opposing traffic therefore cannot overlap no matter how the phase
      timings drift — separation by geometry, not by tuning. */
-  let lane = tr.laneOffset;
+  let lane = tr.laneOffset, straddle = 0;
   const P = tr.pinch;
   if(P){
     const base = segsWorldOf(tr.walk.segs, trS, tr.laneOffset);
@@ -2400,12 +2400,18 @@ function trafficWorldAt(tr, t){
          the call being corrected, or the correction is backwards. */
       const h0 = segsHeadingAt(tr.walk.segs, trS);
       const proj = P.lx*(-Math.sin(h0)) + P.ly*Math.cos(h0);
-      if(Math.abs(proj) > 1e-6) lane += Math.sign(proj) * CRIME_STRADDLE * ease;
+      if(Math.abs(proj) > 1e-6){
+        straddle = CRIME_STRADDLE * ease;
+        lane += Math.sign(proj) * straddle;
+      }
     }
   }
   const wp = segsWorldOf(tr.walk.segs, trS, lane);
   wp.z = 0;
-  return { wp, f: trF, trS };
+  /* straddle is returned, not recomputed by the caller: the phase
+     interlock has to ask "is this car still out of its lane" of the
+     same call that decides where the car IS. */
+  return { wp, f: trF, trS, straddle };
 }
 
 /* the address (and, later, the pickup) needs to sit on a straight leg
@@ -2580,6 +2586,13 @@ const CRIME_STOP_R      = 620;   // how far back a held car starts waiting
 const CRIME_STOP_LINE   = 210;   // where it actually stops, short of the cruiser
 const CRIME_PINCH_R     = 460;   // straddle ramp radius
 const CRIME_STRADDLE    = 168;   // lateral shift onto the centreline
+/* Clearance interlock, ported back from the bench, which was stricter
+   than the first in-game version. Waiting only for the pinch to empty
+   released the other direction while a car was still out of its lane
+   getting round the cruiser. maxHold stops one stuck car deadlocking
+   the junction forever. */
+const CRIME_CLEARED_BY  = 45;    // "back in its own lane" threshold
+const CRIME_MAX_HOLD    = 5000;  // cap on holding a phase open
 
 /* ---- cordon ----
    PURELY COSMETIC. The robot walks through it: no jostle, no speed
@@ -11913,10 +11926,10 @@ class WorldScene extends Phaser.Scene {
 
     /* classify every car against the pinch, and answer the two
        questions with their own tolerances */
-    let occupied = false;
+    let occupied = false, straddling = false;
     const holding = [];
     for(const tr of this.route.traffic){
-      const { wp, f } = trafficWorldAt(tr, t);
+      const { wp, f, straddle } = trafficWorldAt(tr, t);
       const dx = wp.x - P.x, dy = wp.y - P.y;
       const along = dx*P.ax + dy*P.ay;
       const lat   = dx*P.lx + dy*P.ly;
@@ -11930,15 +11943,34 @@ class WorldScene extends Phaser.Scene {
       const stopped = (ph.allStop || group !== ph.green)
                    && progress > -CRIME_STOP_R && progress < -CRIME_STOP_LINE;
       if(stopped) holding.push(tr);
+      /* Straddling is asked only of cars that are MOVING and belong to
+         the outgoing green group — the bench's `if(!c.held)`, restated.
+         A held car is frozen wherever it stopped and the stop line (210)
+         sits inside the straddle radius (460), so counting held cars
+         deadlocks the junction: 9 phase flips a minute became 1. And it
+         has to be evaluated during allStop too, not just before it —
+         gating it on !allStop made the interlock dead code, because the
+         swap itself only ever happens while allStop is true. */
+      if(!stopped && group === ph.green && straddle > CRIME_CLEARED_BY) straddling = true;
     }
     for(const tr of holding) tr.hold = (tr.hold || 0) + dt;
 
     ph.tLeft -= dt;
     if(ph.tLeft <= 0){
-      if(!ph.allStop){ ph.allStop = true; ph.tLeft = CRIME_ALLSTOP_MS; }
-      else if(!occupied){                       // only swap once the pinch is genuinely empty
-        ph.green ^= 1; ph.allStop = false; ph.tLeft = CRIME_PHASE_MS;
-      } else ph.tLeft = 120;                    // still someone in it — wait and re-ask
+      if(!ph.allStop){ ph.allStop = true; ph.tLeft = CRIME_ALLSTOP_MS; ph.heldMs = 0; }
+      else {
+        /* Swap only when the junction is genuinely empty AND nobody is
+           still straddling. A timer-only flip let oncoming traffic go
+           while a car was mid-detour — the head-on the bench chased for
+           four rounds. maxHold breaks the tie if someone is stuck. */
+        const clear = !occupied && !straddling;
+        if(clear || (ph.heldMs || 0) >= CRIME_MAX_HOLD){
+          ph.green ^= 1; ph.allStop = false; ph.tLeft = CRIME_PHASE_MS; ph.heldMs = 0;
+        } else {
+          ph.heldMs = (ph.heldMs || 0) + dt;
+          ph.tLeft = 120;                    // re-ask shortly
+        }
+      }
     }
 
     /* the officer faces whichever direction is currently HELD, palm out,
