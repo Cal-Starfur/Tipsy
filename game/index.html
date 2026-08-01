@@ -2514,6 +2514,93 @@ function closestUnitIndex(units, targetAlong){
   return best;
 }
 
+/* ================= WEEKLY POLICE CRIME SCENE =================
+   An occasional set-piece: on ONE day per week, a commercial block's
+   parking lot is a taped-off crime scene with three cruisers and four
+   officers.
+
+   THE ROLL IS DELIBERATELY OFF THE ROUTE'S RNG STREAM. generateRoute's
+   `rng` is consumed in a fixed order by the grid, the walk and every
+   prop after it. Drawing even one value from it to decide the scene
+   would shift everything downstream, so the entire city would come out
+   a different shape on the days the scene does NOT appear. These roll
+   from their own salted hashes of the date and touch nothing else. */
+const CRIME_STALLS = 4;          // 2 occupied + 2 clear bays between them
+const CRIME_LANE_OFFSET = 118;   // 2nd officer's step down the road from the lane car
+
+/* days since epoch; 1970-01-01 was a Thursday, so +3 makes 0 = Monday */
+function crimeDayIndex(dateStr){
+  const d = Date.parse(dateStr + "T00:00:00Z");
+  return Math.floor(d / 86400000);
+}
+/* exactly one day per Mon-Sun week, by construction: the week key picks
+   a weekday, and the date matches iff it IS that weekday. No per-day
+   probability that could give a week two scenes or none. */
+function crimeSceneOnDate(dateStr){
+  const day = crimeDayIndex(dateStr);
+  if(!isFinite(day)) return false;
+  const week = Math.floor((day + 3) / 7);
+  const chosen = Math.floor(mulberry32((hashStr("crime|" + week) ^ 0x5eed) >>> 0)() * 7);
+  return (((day + 3) % 7) + 7) % 7 === chosen;
+}
+
+/* drawPersonHull's forward axis is bDir = (-sin th, cos th) — NOT aDir.
+   Facing a direction D therefore means th = atan2(-Dx, Dy). */
+function crimeFacing(D){ return Math.atan2(-D.x, D.y); }
+
+/* Picks the lot and lays out every vehicle and officer ONCE, at route
+   generation, from the same parkingStallsAt the renderer uses — so the
+   cruisers sit in the bays that actually get painted rather than in a
+   second, drifting copy of the stall maths. */
+function findCrimeSite(grid, cutEdges, dateStr){
+  const rng = mulberry32((hashStr("crimesite|" + dateStr) ^ 0xa71c) >>> 0);
+  const cands = [];
+  for(const blk of grid.blocks){
+    if(blk.type !== "commercial") continue;
+    const cuts = cutEdges[blk.i + "," + blk.j];
+    if(!cuts) continue;
+    for(const idx of cuts){
+      const e = blockEdgesOf(blk)[idx];
+      const row = parkingStallsAt(e, null, CRIME_STALLS);
+      if(row) cands.push({ blk, idx, e, row });
+    }
+  }
+  if(!cands.length) return null;
+  const pick = cands[Math.floor(rng() * cands.length)];
+  const { blk, idx, e, row } = pick;
+  const at = (a, b) => ({ x: e.ox + e.dv.x*a + e.rv.x*b, y: e.oy + e.dv.y*a + e.rv.y*b });
+
+  /* rv points OUT of the block: sidewalk first, then the road, with the
+     centreline exactly inset away (blocks are inset by ROAD_HALF +
+     SIDEWALK_W from the grid line). */
+  const laneB = SIDEWALK_W + ROAD_HALF;
+  const gapA  = row.startAlong + row.stallW*2;      // middle of the two clear bays
+  const fAlong = DIRV.findIndex(d => d.x === e.dv.x && d.y === e.dv.y);
+
+  const s0 = row.stalls[0], s3 = row.stalls[CRIME_STALLS-1];
+  const laneCar = at(gapA, laneB);
+  const cars = [
+    { x: s0.x, y: s0.y, fdir: s0.fdir, seed: (hashStr(dateStr+"|c0")>>>0), strobe: 0.0 },
+    { x: s3.x, y: s3.y, fdir: s3.fdir, seed: (hashStr(dateStr+"|c1")>>>0), strobe: 0.37 },
+    { x: laneCar.x, y: laneCar.y, fdir: fAlong, seed: (hashStr(dateStr+"|c2")>>>0), strobe: 0.71 }
+  ];
+
+  const into = { x:-e.rv.x, y:-e.rv.y }, out = e.rv, along = e.dv;
+  const offP = [
+    { a: row.startAlong + row.stallW*1.05, b: 26,  role:"tape",    D: along },
+    { a: row.startAlong + row.stallW*2.0,  b: -70, role:"search",  D: into  },
+    { a: row.startAlong + row.stallW*3.5,  b: 14,  role:"post",    D: out   },
+    { a: gapA + CRIME_LANE_OFFSET,         b: SIDEWALK_W + ROAD_HALF*0.55, role:"traffic", D: along }
+  ];
+  const officers = offP.map((o, k) => {
+    const p = at(o.a, o.b);
+    return { x:p.x, y:p.y, thW: crimeFacing(o.D), role:o.role, seed:(hashStr(dateStr+"|o"+k)>>>0) };
+  });
+
+  return { blockKey: blk.i + "," + blk.j, edgeIdx: idx, cars, officers,
+           laneB, gapA, fAlong, edge: { ox:e.ox, oy:e.oy, dv:e.dv, rv:e.rv, len:e.len } };
+}
+
 function generateRoute(dateStr, opts){
   const seed = hashStr(dateStr);
   const rng = mulberry32(seed);
@@ -3862,7 +3949,11 @@ function generateRoute(dateStr, opts){
     street: HJ_ADDRESS.street
   } : null;
 
-  return { hood, grid, segs, totalLen: loop ? loop.sEnd : totalLen, loop, tiles, hazards, props, pal, night, traffic, crossings, cutEdges, cutExt, challenge,
+  /* weekly crime scene — rolled from its own salted date hashes, never
+     from `rng`, so non-scene days generate a byte-identical city */
+  const crime = crimeSceneOnDate(dateStr) ? findCrimeSite(grid, cutEdges, dateStr) : null;
+
+  return { hood, grid, segs, totalLen: loop ? loop.sEnd : totalLen, loop, tiles, hazards, props, pal, night, traffic, crossings, cutEdges, cutExt, challenge, crime,
            address:`${number} ${street}`, doorS, pickupS, pickupSpot, pickupShopName, addressBlock, pickupBlock, addressEdgeIdx, pickupEdgeIdx, addressUnitIdx, pickupUnitIdx, addressUsesGate, order, parMs, dateStr };
 }
 
@@ -4785,8 +4876,11 @@ class WorldScene extends Phaser.Scene {
         const eseed = ((Math.round(e.ox*3+e.dv.x)*7919) ^ (Math.round(e.oy*3+e.dv.y)*104729) ^ 0x6f2a) >>> 0;
         const ecx = e.ox + e.dv.x*e.len/2, ecy = e.oy + e.dv.y*e.len/2;
         if(blk.type === "commercial"){
+          const isCrime = !!(r.crime && r.crime.blockKey === (blk.i + "," + blk.j)
+                             && r.crime.edgeIdx === cutEdgeIdx);
           blockVQ.push({ depth: ecx+ecy, fn:(g,t)=>{
-            const cars = this.drawParkingRow(g, e.ox, e.oy, e.dv, e.rv, e.len, eseed, t);
+            const cars = this.drawParkingRow(g, e.ox, e.oy, e.dv, e.rv, e.len, eseed, t,
+                                             isCrime ? CRIME_STALLS : 0);
             for(const c of cars) topLayer.push(c);
           }});
         } else {
@@ -4804,6 +4898,26 @@ class WorldScene extends Phaser.Scene {
       }
     }
     for(const lot of visLots) this.queueExteriorLot(blockVQ, lot);
+
+    /* CRIME SCENE bodies. Each cruiser and each officer is queued into
+       blockVQ SEPARATELY, with its own depth and its own layerFor — so
+       they sort against houses, fences and props like anything else.
+       The lab drew them in a private sorted pass, which could only ever
+       order them among themselves and would have put a cruiser through
+       a storefront the moment one stood between the robot and the shop. */
+    if(r.crime){
+      for(const c of r.crime.cars){
+        if(!near(c.x, c.y)) continue;
+        blockVQ.push({ depth: c.x + c.y, fn:(g,t)=>this.drawProp(
+          layerFor(c.x, c.y), "policecar", c.x, c.y, t, c.fdir, 0, null, c.seed,
+          { strobe: c.strobe }) });
+      }
+      for(const o of r.crime.officers){
+        if(!near(o.x, o.y)) continue;
+        blockVQ.push({ depth: o.x + o.y, fn:(g,t)=>this.drawOfficer(
+          layerFor(o.x, o.y), o.x, o.y, 0, o.thW, o.role, o.seed, t) });
+      }
+    }
 
     /* moving traffic + roadside parked car/truck props: computed here,
        BEFORE the body depth-sort below, and pushed into blockVQ exactly
@@ -5760,7 +5874,7 @@ class WorldScene extends Phaser.Scene {
      along the curb, some occupied — reads as "customer parking for
      the shop you can't currently see the front of" rather than a
      dead gap in the street. */
-  drawParkingRow(g, ox, oy, dv, rv, w, seed, t=0){
+  drawParkingRow(g, ox, oy, dv, rv, w, seed, t=0, forceN=0){
     /* nose-in, sized to the REAL car (CARC: 450 long x 180 wide).
        Two things fixed here after the first pass:
        1. Sign — every other block-wrap element treats NEGATIVE b as
@@ -5782,7 +5896,7 @@ class WorldScene extends Phaser.Scene {
           place, so the occupancy rolls below still read the identical
           stream and every existing lot is unchanged. */
     const rng = mulberry32(seed);
-    const row = parkingStallsAt({ ox, oy, dv, rv, len: w }, rng);
+    const row = parkingStallsAt({ ox, oy, dv, rv, len: w }, rng, forceN || undefined);
     if(!row) return [];
     const G = (a,b,h) => this.W(ox + dv.x*a + rv.x*b, oy + dv.y*a + rv.y*b, h);
     g.lineStyle(2, 0xf0ece0, 0.75);
@@ -5792,6 +5906,9 @@ class WorldScene extends Phaser.Scene {
       g.lineBetween(a.x, a.y, b.x, b.y);
     }
     const cars = [];
+    /* the crime scene supplies its own vehicles — no civilian occupancy
+       roll here, so nothing parks on top of a cruiser */
+    if(forceN) return cars;
     for(const st of row.stalls){
       if(rng() < 0.85){
         const kind = rng() < 0.75 ? "car" : "truck";
