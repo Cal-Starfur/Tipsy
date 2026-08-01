@@ -3663,7 +3663,12 @@ function generateRoute(dateStr, opts){
    by overwriting its fields in place — SKIN_BASE keeps the stock palette
    so equipping is reversible. Before this there was no equip system at
    all: TP_SKINS entries carried only a CSS `filter` for the store
-   swatch, and equippedSkin was never read anywhere in the file. */
+   swatch, and equippedSkin was never read anywhere in the file.
+
+   INVARIANT: only the PLAYER's drawRobot may read SKIN. The sidewalk
+   NPC robots (kind === "robot") read SKIN_BASE instead — they shared
+   SKIN before, so equipping Fire Chief repainted every robot in the
+   city to match. NPC-specific accents live in ROBOT_NPC. */
 const SKIN = {
   bodyTop:0xf7f8fa, bodyRight:0xe3e6ea, bodyLeft:0xc9cdd4, outline:0x30343d,
   stripe:0xc2452e, stripeDk:0xa03824,
@@ -7276,7 +7281,7 @@ class WorldScene extends Phaser.Scene {
         const sa = Math.cos(a)*34;
         shPts.push(this.W(ex + fwdV.x*sa + sideV.x*sb, ey + fwdV.y*sa + sideV.y*sb, 0.5));
       }
-      this.quadOn(g, shPts, SKIN.shadow, 0.15);
+      this.quadOn(g, shPts, SKIN_BASE.shadow, 0.15);
 
       /* Every box face tested individually against its OWN rotated
          normal, same technique drawLid already uses (6 face normals,
@@ -7343,7 +7348,7 @@ class WorldScene extends Phaser.Scene {
           if(wx + wy + nh2 <= 0) continue;
           const pts = f.pts.map(([a,b,h]) => localRW(a, b, h));
           this.quadOn(g, pts, f.col);
-          this.edgeOn(g, pts, SKIN.outline, 1);
+          this.edgeOn(g, pts, SKIN_BASE.outline, 1);
         }
       };
 
@@ -7395,14 +7400,14 @@ class WorldScene extends Phaser.Scene {
         const bA = wb - W2/2, bB = wb + W2/2;
         const bOut = wNormFaces(1) >= wNormFaces(-1) ? bB : bA;   // camera-facing tread face
         this.quadOn(g, convexHull(wheelRingAt(wx, bA, WHEEL.r)
-                                   .concat(wheelRingAt(wx, bB, WHEEL.r))), SKIN.wheelDark);
+                                   .concat(wheelRingAt(wx, bB, WHEEL.r))), SKIN_BASE.wheelDark);
         const faceRing = wheelRingAt(wx, bOut, WHEEL.r);
-        this.quadOn(g, faceRing, SKIN.wheel);
-        this.edgeOn(g, faceRing, SKIN.outline, 2);
-        this.quadOn(g, wheelRingAt(wx, bOut, WHEEL.r*0.55), SKIN.wheelHubFace);
+        this.quadOn(g, faceRing, SKIN_BASE.wheel);
+        this.edgeOn(g, faceRing, SKIN_BASE.outline, 2);
+        this.quadOn(g, wheelRingAt(wx, bOut, WHEEL.r*0.55), SKIN_BASE.wheelHubFace);
         const spinA = wheelSpinPhase + wx*0.2;
         const boltPt = RW(wx + Math.cos(spinA)*WHEEL.r*0.34, bOut, WHEEL.z + Math.sin(spinA)*WHEEL.r*0.34);
-        g.fillStyle(SKIN.wheelHub, 1);
+        g.fillStyle(SKIN_BASE.wheelHub, 1);
         g.fillCircle(boltPt.x, boltPt.y, 2.4);
       };
       const drawWheelRows = (near) => {
@@ -7424,7 +7429,7 @@ class WorldScene extends Phaser.Scene {
       box(24, 17, 6, BODY.z0+1, 0x3f434c, 0x3a3d45, 0x2e3138);
 
       /* body */
-      box(hx, hy, BODY.z0, BODY.z1, SKIN.bodyTop, SKIN.bodyRight, SKIN.bodyLeft);
+      box(hx, hy, BODY.z0, BODY.z1, SKIN_BASE.bodyTop, SKIN_BASE.bodyRight, SKIN_BASE.bodyLeft);
 
       /* stripe band, blue accent -- no top, just the two side faces */
       box(hx+0.6, hy+0.6, STRIPE.z0, STRIPE.z1, null, col.stripe, col.stripeDk);
@@ -7454,7 +7459,7 @@ class WorldScene extends Phaser.Scene {
           lidHingeAng = 0.9 * (1 - Math.exp(-420/333)) * Math.exp(-(lidT - 420)/333);
         }
       }
-      box(LID.hx, LID.hy, LID.z0, LID.z1, SKIN.bodyTop, SKIN.bodyRight, SKIN.bodyLeft, lidHingeAng);
+      box(LID.hx, LID.hy, LID.z0, LID.z1, SKIN_BASE.bodyTop, SKIN_BASE.bodyRight, SKIN_BASE.bodyLeft, lidHingeAng);
 
       /* near wheel row after the body, Tipsy's own sequence -- see the
          mounting-face rationale above the undercarriage. */
@@ -7473,7 +7478,7 @@ class WorldScene extends Phaser.Scene {
         const flagA = -25, flagB = 17;
         const poleBase = RW(flagA, flagB, FLAG.z0);
         const poleTip = RW(flagA, flagB, FLAG.z1);
-        g.lineStyle(3, SKIN.flagPole, 1);
+        g.lineStyle(3, SKIN_BASE.flagPole, 1);
         g.lineBetween(poleBase.x, poleBase.y, poleTip.x, poleTip.y);
         g.fillStyle(col.flag, 1);
         g.fillTriangle(poleTip.x, poleTip.y, poleTip.x + 11, poleTip.y, poleTip.x, poleTip.y - 16);
@@ -7496,10 +7501,10 @@ class WorldScene extends Phaser.Scene {
       if(fwdV.x*RA + fwdV.y*RA > 0){
         const fa = hx+0.8;
         const visor = [RW(fa,-13,50), RW(fa,13,50), RW(fa,13,40), RW(fa,-13,40)];
-        this.quadOn(g, visor, SKIN.visor);
-        this.edgeOn(g, visor, SKIN.outline, 1.5);
+        this.quadOn(g, visor, SKIN_BASE.visor);
+        this.edgeOn(g, visor, SKIN_BASE.outline, 1.5);
         if(knocked){
-          g.lineStyle(2, SKIN.eyeAlert, 1);
+          g.lineStyle(2, SKIN_BASE.eyeAlert, 1);
           for(const ey of [-7, 7]){
             const c = RW(fa, ey, 45);
             g.lineBetween(c.x-4, c.y-4, c.x+4, c.y+4);
@@ -7508,7 +7513,7 @@ class WorldScene extends Phaser.Scene {
         } else {
           for(const ey of [-7, 7]){
             const c = RW(fa, ey, 45);
-            g.fillStyle(SKIN.eye, 1);
+            g.fillStyle(SKIN_BASE.eye, 1);
             g.fillEllipse(c.x, c.y, 7, 7);
           }
         }
@@ -11807,6 +11812,12 @@ const SKIN_PALETTES = { "fire-chief": HJ_CHIEF, "daredevil": HJ_DARE };
    own/equip flow — it just set tpProfile.equipped to a string that
    NOTHING read, so equipping changed a badge and nothing else. */
 function tpApplySkin(id){
+  /* Object.assign alone can't UNSET a key. Fire Chief adds `stars`,
+     Daredevil adds `stripe2`/`stripe2Dk` — none of which exist on
+     SKIN_BASE, so switching back to stock (or to the other skin) left
+     the extras painted on. Strip anything not in the stock palette
+     first, then repaint. */
+  for(const k of Object.keys(SKIN)) if(!(k in SKIN_BASE)) delete SKIN[k];
   Object.assign(SKIN, SKIN_BASE, SKIN_PALETTES[id] || {});
 }
 /* earn + wear in one step, used when a mission grants a skin */
