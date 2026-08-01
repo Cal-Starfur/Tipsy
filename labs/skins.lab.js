@@ -181,20 +181,12 @@ function nameOf(id){
    before. Idempotent: the original is captured once and stashed on the scene.
    ============================================================================ */
 
-/* SKULL AND CROSSBONES on the hull side faces.
+/* SKULL AND CROSSBONES on the two hull SIDE faces.
    Same face-normal backface test drawBox uses, so it can never paint onto a
-   face pointing away from the camera at any heading.
-
-   The FRONT face (+x) is deliberately excluded: it already carries the visor
-   at z 40-50 and the headlight bar at 18-22, and a skull would collide with
-   both. The three remaining faces are what iso actually shows anyway.
-
-   Each face gets its own tangent chosen so tangent x normal points up — that
-   is what stops the skull rendering MIRRORED on the faces whose normal runs
-   negative, which is exactly the class of bug the heading gate exists for. */
+   face pointing away from the camera at any heading. */
 function drawSkullEmblem(sc, bobZ){
   const g  = sc.g;
-  const hx = BODY.hx + 0.8, hy = BODY.hy + 0.8;
+  const hy = BODY.hy + 0.8;
   /* zc/R are set by the CLEARANCE, not by taste. The body spans z 14..54 and
      the stripe band occupies 20..27. The crossbones are the lowest thing here
      — their tips fall to zc - R*1.9*sin(0.62) — so at the obvious values
@@ -207,8 +199,16 @@ function drawSkullEmblem(sc, bobZ){
   const dark = SKIN.emblemDark || 0x101014;
   const R = 5.4;
 
+  /* SIDES ONLY. Front (+x) carries the visor and headlight bar; back (-x) is
+     dropped by choice — the skull is a livery mark, and a mark on every panel
+     but one reads as wallpaper rather than as a badge. The two long sides are
+     also the faces the iso camera actually presents at every heading, so this
+     costs nothing at any of f0-f3.
+
+     The tangent on each face is chosen so tangent x normal points up. That is
+     what keeps the skull from rendering MIRRORED on the face whose normal runs
+     negative — exactly the class of bug the four-heading gate exists for. */
   const faces = [
-    { n:{x:-1,y:0,z:0}, at:(s,z)=>[-hx, -s,  z] },
     { n:{x:0,y: 1,z:0}, at:(s,z)=>[ -s,  hy, z] },
     { n:{x:0,y:-1,z:0}, at:(s,z)=>[  s, -hy, z] }
   ];
