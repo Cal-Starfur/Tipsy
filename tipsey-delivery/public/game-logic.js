@@ -2025,6 +2025,54 @@ const CRIME_STOP_LINE   = 210;   // where it actually stops, short of the cruise
 const CRIME_PINCH_R     = 460;   // straddle ramp radius
 const CRIME_STRADDLE    = 168;   // lateral shift onto the centreline
 
+/* ---- cordon ----
+   PURELY COSMETIC. The robot walks through it: no jostle, no speed
+   scrub, and it is never registered as a hazard. It is also the one
+   prop in this file that carries MUTABLE STATE — a broken span has to
+   stay broken for the rest of the route, which no pure function of
+   (position, t) can express. Deliberate exception, not drift; the
+   geometry itself stays pure and shared. */
+const TAPE = {
+  z: 60, half: 6, sag: 9, segs: 14,
+  inset: 10,        // pull the stakes in off the kerb and the wall
+  halfLen: 330,     // how far up and down the walk the cordon reaches
+  snapMs: 520, hang: 0.46,
+  yellow: 0xf0c53a, band: 0x23252b,
+  stake: 0x585d66, stakeDk: 0x3c414a, stakeH: 74, stakeR: 3.5
+};
+
+/* The cordon, derived from the ROUTE — not from the block edge. The
+   spans cross the sidewalk band, whose lateral frame is laneOffset()'s
+   ROBOT_SIDE*(ROAD_HALF + ...): larger magnitude is further from the
+   road, so the kerb is the small offset and the building the large one.
+   Anchoring these off the block edge instead would put them in a
+   different frame from the walk they are supposed to close off. */
+function crimeTapeSpans(segs, s){
+  const kerb = ROBOT_SIDE*(ROAD_HALF + TAPE.inset);
+  const bldg = ROBOT_SIDE*(ROAD_HALF + SIDEWALK_W - TAPE.inset);
+  const at = (ss, off) => segsWorldOf(segs, ss, off);
+  const s0 = s - TAPE.halfLen, s1 = s + TAPE.halfLen;
+  const P0 = at(s0, bldg), P1 = at(s0, kerb);
+  const P2 = at(s1, kerb),  P3 = at(s1, bldg);
+  return [
+    { a:P0, b:P1, post:[true,true] },    // across the walk, upstream
+    { a:P1, b:P2, post:[false,true] },   // the long run along the kerb
+    { a:P2, b:P3, post:[false,true] }    // across the walk, downstream
+  ];
+}
+
+/* Segment-vs-segment, NOT a box around the tape. The ribbon is a thin
+   line and the robot is fast enough to step clean over a box between
+   frames; testing the robot's previous-to-current travel segment
+   against the span cannot tunnel at any frame rate. */
+function segCross(p1, p2, p3, p4){
+  const d = (p2.x-p1.x)*(p4.y-p3.y) - (p2.y-p1.y)*(p4.x-p3.x);
+  if(Math.abs(d) < 1e-9) return false;
+  const u = ((p3.x-p1.x)*(p4.y-p3.y) - (p3.y-p1.y)*(p4.x-p3.x)) / d;
+  const v = ((p3.x-p1.x)*(p2.y-p1.y) - (p3.y-p1.y)*(p2.x-p1.x)) / d;
+  return u >= 0 && u <= 1 && v >= 0 && v <= 1;
+}
+
 /* days since epoch; 1970-01-01 was a Thursday, so +3 makes 0 = Monday */
 function crimeDayIndex(dateStr){
   const d = Date.parse(dateStr + "T00:00:00Z");
@@ -2049,7 +2097,7 @@ function crimeFacing(D){ return Math.atan2(-D.x, D.y); }
    generation, from the same parkingStallsAt the renderer uses — so the
    cruisers sit in the bays that actually get painted rather than in a
    second, drifting copy of the stall maths. */
-function findCrimeSite(grid, cutEdges, dateStr){
+function findCrimeSite(grid, cutEdges, dateStr, segs, totalLen){
   const rng = mulberry32((hashStr("crimesite|" + dateStr) ^ 0xa71c) >>> 0);
   const cands = [];
   for(const blk of grid.blocks){
@@ -2098,8 +2146,27 @@ function findCrimeSite(grid, cutEdges, dateStr){
     return { x:p.x, y:p.y, thW: crimeFacing(o.D), role:o.role, seed:(hashStr(dateStr+"|o"+k)>>>0) };
   });
 
+  /* the cordon closes off a stretch of the WALK, so it needs the route
+     arclength beside the lot — found by sampling the robot's own lane
+     line, the same line the tape spans will be measured from */
+  let siteS = null;
+  if(segs && totalLen){
+    let best = Infinity;
+    const lotX = (s0.x + s3.x)/2, lotY = (s0.y + s3.y)/2;
+    for(let ss = 0; ss < totalLen; ss += TILE){
+      const wp = segsWorldOf(segs, ss, laneOffset(1));
+      const d = (wp.x-lotX)*(wp.x-lotX) + (wp.y-lotY)*(wp.y-lotY);
+      if(d < best){ best = d; siteS = ss; }
+    }
+  }
+  const tape = (siteS != null) ? crimeTapeSpans(segs, siteS) : null;
+
   return { blockKey: blk.i + "," + blk.j, edgeIdx: idx, cars, officers,
            laneB, gapA, fAlong, edge: { ox:e.ox, oy:e.oy, dv:e.dv, rv:e.rv, len:e.len },
+           siteS, tape,
+           /* mutable per-run break state — see TAPE's note */
+           tapeBroken: tape ? tape.map(() => false) : null,
+           tapeBrokeAt: tape ? tape.map(() => 0) : null,
            /* the pinch: where the road narrows past the blocking cruiser.
               ax/ay is along the road, lx/ly across it. */
            pinch: { x: laneCar.x, y: laneCar.y,
@@ -3456,7 +3523,8 @@ function generateRoute(dateStr, opts){
 
   /* weekly crime scene — rolled from its own salted date hashes, never
      from `rng`, so non-scene days generate a byte-identical city */
-  const crime = crimeSceneOnDate(dateStr) ? findCrimeSite(grid, cutEdges, dateStr) : null;
+  const crime = crimeSceneOnDate(dateStr)
+    ? findCrimeSite(grid, cutEdges, dateStr, segs, loop ? loop.sEnd : totalLen) : null;
   /* every car reads the same pinch — trafficWorldAt is pure, so the
      scene data has to reach it through the car it is called with */
   if(crime) for(const tr of traffic) tr.pinch = crime.pinch;
@@ -4430,6 +4498,11 @@ class WorldScene extends Phaser.Scene {
           layerFor(o.x, o.y), o.x, o.y, 0, oth, o.role, o.seed, t,
           arm ? { liftT: arm.liftT } : null) });
       }
+      if(r.crime.tape) r.crime.tape.forEach((sp, i) => {
+        const mx = (sp.a.x + sp.b.x)/2, my = (sp.a.y + sp.b.y)/2;
+        if(!near(mx, my)) return;
+        blockVQ.push({ depth: mx + my, fn:(g,t)=>this.drawTapeSpan(layerFor(mx, my), i, t) });
+      });
     }
 
     /* moving traffic + roadside parked car/truck props: computed here,
@@ -11226,6 +11299,91 @@ class WorldScene extends Phaser.Scene {
     };
   }
 
+  /* ---------- CORDON BREAK ----------
+     In the SIM, like the phase machine. Purely cosmetic: this sets a
+     flag and nothing else — it never touches velocity, tilt, cargo or
+     the hazard list, and the tape is not in hazVQ at all. Each span is
+     tested INDEPENDENTLY, so walking in through one and out through
+     another leaves two torn spans rather than one. */
+  updateCrimeTape(t){
+    const cr = this.route && this.route.crime;
+    if(!cr || !cr.tape) return;
+    const cur = { x: this.botX, y: this.botY };
+    const prev = this.__tapePrev || cur;
+    this.__tapePrev = cur;
+    for(let i = 0; i < cr.tape.length; i++){
+      if(cr.tapeBroken[i]) continue;                 // stays broken for the run
+      if(segCross(prev, cur, cr.tape[i].a, cr.tape[i].b)){
+        cr.tapeBroken[i] = true;
+        cr.tapeBrokeAt[i] = t;
+      }
+    }
+  }
+
+  /* One span. Drawn per-span so each queues at its own depth — the long
+     kerb run and the two cross-walk spans have to sort against the cars
+     and officers individually, not all at one averaged depth. */
+  drawTapeSpan(g, i, t){
+    const cr = this.route.crime;
+    const sp = cr.tape && cr.tape[i];
+    if(!sp) return;
+    const A = sp.a, B = sp.b;
+
+    const post = (P) => {
+      const c = [];
+      for(const dx of [-TAPE.stakeR, TAPE.stakeR])
+        for(const dy of [-TAPE.stakeR, TAPE.stakeR])
+          for(const h of [0, TAPE.stakeH]) c.push(this.W(P.x+dx, P.y+dy, h));
+      const hull = convexHull(c);
+      this.quadOn(g, hull, TAPE.stake);
+      this.edgeOn(g, hull, TAPE.stakeDk, 1);
+    };
+    if(sp.post[0]) post(A);
+    if(sp.post[1]) post(B);
+
+    const ribbon = (pts) => {
+      for(let k = 0; k < pts.length-1; k++){
+        const p = pts[k], q = pts[k+1];
+        this.quadOn(g, [ this.W(p.x,p.y,p.z-TAPE.half), this.W(q.x,q.y,q.z-TAPE.half),
+                         this.W(q.x,q.y,q.z+TAPE.half), this.W(p.x,p.y,p.z+TAPE.half) ],
+                    (k % 3 === 2) ? TAPE.band : TAPE.yellow);
+      }
+    };
+
+    const len = Math.hypot(B.x-A.x, B.y-A.y);
+    const nSeg = Math.max(6, Math.round(TAPE.segs * Math.min(2.4, len/260)));
+
+    if(!cr.tapeBroken[i]){
+      const pts = [];
+      for(let k = 0; k <= nSeg; k++){
+        const u = k/nSeg;
+        pts.push({ x: A.x + (B.x-A.x)*u, y: A.y + (B.y-A.y)*u,
+                   z: TAPE.z - TAPE.sag*Math.sin(Math.PI*u) });
+      }
+      ribbon(pts);
+      return;
+    }
+    /* BROKEN: each half snaps back to its OWN end post and dangles. The
+       anchored end never moves — that is what reads as tape that tore
+       rather than tape that vanished. */
+    const k0 = Math.min(1, (t - cr.tapeBrokeAt[i]) / TAPE.snapMs);
+    const e = 1 - Math.pow(1-k0, 3);
+    const mid = { x:(A.x+B.x)/2, y:(A.y+B.y)/2 };
+    for(const S of [A, B]){
+      const pts = [];
+      for(let k = 0; k <= nSeg; k++){
+        const u = k/nSeg;
+        const tx = S.x + (mid.x-S.x)*u, ty = S.y + (mid.y-S.y)*u;
+        const tz = TAPE.z - TAPE.sag*Math.sin(Math.PI*(u*0.5));
+        const hx = S.x + (mid.x-S.x)*u*TAPE.hang;
+        const hy = S.y + (mid.y-S.y)*u*TAPE.hang;
+        const hz = TAPE.z - (TAPE.z - 5)*(u*u);
+        pts.push({ x: tx+(hx-tx)*e, y: ty+(hy-ty)*e, z: tz+(hz-tz)*e });
+      }
+      ribbon(pts);
+    }
+  }
+
   update(t, dt){
     /* desktop throttle */
     if(this.keys){
@@ -11271,6 +11429,7 @@ class WorldScene extends Phaser.Scene {
       this.hjSim(dt, this.route && this.route.challenge);
     }
     this.updateCrimeTraffic(t, dt);
+    this.updateCrimeTape(t);
     this.drawWorld(t);
     this.drawRobot(t, dt);
     this.drawHUD();
