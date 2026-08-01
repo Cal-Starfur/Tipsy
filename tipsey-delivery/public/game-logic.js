@@ -1548,6 +1548,86 @@ function buildSidewalkGeometry(grid){
   return { runs, cornerCells };
 }
 
+/* ---------- world curb ramps ----------
+   The route's own ramps are PHYSICS: they hang off crossings[], which is
+   derived from segs[], and they feed crossingGroundAt so the robot
+   actually rides them. That is why they only ever existed on the route --
+   six of them in a whole city. From a wide view every other intersection
+   read as sidewalk running into the street with no transition at all.
+
+   This is the decorative twin, built from grid.edges (the full lattice)
+   instead of the route, and it is VISUAL ONLY: no hazard entry, no
+   collision, no ground height. Nothing off-route needs physics because
+   the robot is never off-route, and giving these a hazard entry would put
+   1,200 no-op objects through the collision loop every frame for nothing.
+
+   Geometry mirrors the route's straight crossings exactly, so the two
+   sets are indistinguishable where they meet: centred (ROAD_HALF + T2)
+   out from the node -- the ramp's 2-tile depth then spans ROAD_HALF to
+   ROAD_HALF + 2*T2, abutting the crossing roadway -- and cross-centred at
+   ROAD_HALF + 1.5*T2, the same rows 0-2 of the 4-row band that
+   laneOffset(1) gives the route ramps.
+
+   All 'sidewalkend': f points TOWARD the node, and the art descends along
+   +f (sidewalk high behind, street-level pad ahead). Every ramp at an
+   intersection descends into it, whichever way you approach -- 'begin' is
+   the same ramp seen from the other side, not a different object.
+
+   PERIMETER TRIM: a boundary street's outward band sits in the off-grid
+   void, so a ramp there faces nothing. Rejected by block index rather
+   than by special-casing i/j, which is orientation-independent and lands
+   on the same answer findGoodS's facesInterior probe already uses. */
+/* BOTH STREETS PER CORNER, or one.
+
+   true  -- 8 ramps per interior node, one for each street at each of the
+            four corners. What a modern intersection actually has. The
+            two ramps sharing a corner DO overlap: each is 184 deep by
+            276 wide and both hug the same curb point, so their
+            footprints cross in a 184x184 square and their ADA pads in a
+            92x92 one. Coplanar and identically coloured, so it may well
+            read as one continuous corner treatment -- but a slope
+            crossing a flat pad is drawn, not blended, and whichever
+            sorts later wins that square.
+   false -- 4 ramps per node, one per corner, alternating which street
+            they serve by node parity so the city does not read as
+            uniformly oriented. Older intersections look like this.
+            Zero overlap by construction.
+
+   No way to have eight and no overlap without reshaping the ramp art
+   itself, which is lab-approved and shared with the route's own ramps. */
+const WORLD_RAMPS_BOTH_STREETS = true;
+
+function buildWorldCurbRamps(grid){
+  const ramps = [];
+  const along = ROAD_HALF + T2;
+  const perpMag = ROAD_HALF + 1.5*T2;
+  const interior = (x, y) => {
+    const bi = Math.floor(x / BLOCK), bj = Math.floor(y / BLOCK);
+    return bi >= 0 && bi <= grid.cols-2 && bj >= 0 && bj <= grid.rows-2;
+  };
+  /* each corner belongs to exactly ONE node -- the one its ramp points
+     at -- so parity on that node picks a single street per corner with
+     no double-counting across the shared edge. */
+  const serves = (n, f) => WORLD_RAMPS_BOTH_STREETS || (f % 2) === ((n.i + n.j) & 1);
+  for(const e of grid.edges){
+    const dv = DIRV[e.f], rv = DIRV[(e.f+1)%4];
+    for(const side of [-1, 1]){
+      const perp = side * perpMag;
+      /* the a-end ramp faces BACK down the edge (f+2), the b-end ramp
+         faces forward (f) -- both pointing at their own node. */
+      if(serves(e.a, e.f)){
+        const ax = e.a.x + dv.x*along + rv.x*perp, ay = e.a.y + dv.y*along + rv.y*perp;
+        if(interior(ax, ay)) ramps.push({ x: ax, y: ay, f: (e.f + 2) % 4 });
+      }
+      if(serves(e.b, e.f)){
+        const bx = e.b.x - dv.x*along + rv.x*perp, by = e.b.y - dv.y*along + rv.y*perp;
+        if(interior(bx, by)) ramps.push({ x: bx, y: by, f: e.f });
+      }
+    }
+  }
+  return ramps;
+}
+
 /* ---------- the street grid: a real planar graph ---------- */
 function nodeShape(n){
   const c = n.conn, count = c.filter(Boolean).length;
@@ -1694,6 +1774,7 @@ function buildGrid(cols, rows, seed=0){
   const sw = buildSidewalkGeometry(grid);
   grid.sidewalkRuns = sw.runs;
   grid.sidewalkCornerCells = sw.cornerCells;
+  grid.curbRamps = buildWorldCurbRamps(grid);
   grid.blocks = buildBlockLayout(grid, seed);
   grid.extLots = buildExteriorLots(grid, seed);
   return grid;
@@ -3768,7 +3849,22 @@ function generateRoute(dateStr, opts){
     }
   }
 
-  return { hood, grid, segs, totalLen: loop ? loop.sEnd : totalLen, loop, tiles, hazards, props, pal, night, traffic, crossings, cutEdges, cutExt, challenge, crime, routeCells,
+  /* The decorative world set minus anything that would land on top of a
+     route ramp -- those carry the physics and must stay the only ramp at
+     their spot. Route ramps are route-s anchored (straight crossings) or
+     world anchored (turn crossings), so both forms get resolved to world
+     coordinates before comparing. The tolerance is loose on purpose: the
+     nearest legitimately-different ramp is the one across the street,
+     2*506 units away, so there is nothing to accidentally delete. */
+  const routeRampPts = hazards
+    .filter(h => h.type === "sidewalkend" || h.type === "sidewalkbegin")
+    .map(h => h.wx !== undefined ? { x: h.wx, y: h.wy }
+                                 : segsWorldOf(segs, h.s, laneOffset(h.row)));
+  const RAMP_DEDUP = 150;
+  const curbRamps = grid.curbRamps.filter(cr => !routeRampPts.some(
+    p => Math.abs(p.x - cr.x) < RAMP_DEDUP && Math.abs(p.y - cr.y) < RAMP_DEDUP));
+
+  return { hood, grid, segs, totalLen: loop ? loop.sEnd : totalLen, loop, tiles, hazards, props, pal, night, traffic, crossings, cutEdges, cutExt, challenge, crime, routeCells, curbRamps,
            address:`${number} ${street}`, doorS, pickupS, pickupSpot, pickupShopName, addressBlock, pickupBlock, addressEdgeIdx, pickupEdgeIdx, addressUnitIdx, pickupUnitIdx, addressUsesGate, order, parMs, dateStr };
 }
 
@@ -4973,6 +5069,16 @@ class WorldScene extends Phaser.Scene {
       const slabLayer = (hzt === "slab" || hzt === "sidewalkend" || hzt === "sidewalkbegin" || hzt === "grade" || hzt === "crack")
         ? g : layerFor(ltx, lty);
       groundVQ.push({ depth: hwx+hwy, fn:(g,t)=>this.drawProp(slabLayer, hzt, hwx, hwy, t, hf, hwz, null, null, hzObj) });
+    }
+
+    /* the world's own curb ramps -- decorative, world-anchored, no
+       hazard entry (see buildWorldCurbRamps). Same ground pass and the
+       same pinned layer as the route's ramps, so the two sets sort
+       identically and a route ramp beside a world ramp is seamless. */
+    for(const cr of (r.curbRamps || [])){
+      if(!near(cr.x, cr.y)) continue;
+      const crx = cr.x, cry = cr.y, crf = cr.f;
+      groundVQ.push({ depth: crx+cry, fn:(g,t)=>this.drawProp(g, "sidewalkend", crx, cry, t, crf, 0) });
     }
 
     /* GROUND FIRST -- its own pass, ahead of every body.
