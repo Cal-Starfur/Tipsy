@@ -5036,6 +5036,7 @@ class WorldScene extends Phaser.Scene {
     this.slide = null; this.slipYaw = 0;
     this.camX = this.botX; this.camY = this.botY; this.camZ = this.botZ;
     this.speed = 0; this.tilt = 0; this.damage = 0; this.runT = 0;
+    this.tipCause = null;
     this.roll = 0; this.tipT = 0; this.tipStartRoll = 0; this.postSpillMs = 0; this.lidAng = 0; this.items = []; this.spilled = false;
     this.wonT = 0; this.wonFrac = 0; this.wonLiftT = 0; this.wonLidClosing = false; this.wonWalkAt = null; this.wonWalk = 0; this.wonOutT = 0; this.wonOutFrac = 0; this.wonMeet = null;
     this.bagOnBoard = false;
@@ -10469,23 +10470,24 @@ class WorldScene extends Phaser.Scene {
                 this.tilt += KA.power * -(hz.kickDir || 1);
                 this.damage = Math.min(95, this.damage + KA.power*14*CARGO_DAMAGE_SENS);
                 this.speed *= 0.8;
+                /* who knocked us over, for the fail copy. Cleared again
+                   below the moment the robot is back near upright, so a
+                   survived boot followed by an ordinary cone tip still
+                   reads as an ordinary cone tip. */
+                this.tipCause = "william";
               }
             }
             if(kel >= KA.swing){
               hz.spent = true;
               hz.kst = hz.klanded ? "gloat" : "whiff"; hz.kt0 = t;
             }
-          } else if(hz.kst === "gloat"){
-            if(kel >= KA.gloat){ hz.kst = "return"; hz.kt0 = t; hz.retA = hz.ka; hz.retB = hz.kb; }
-          } else if(hz.kst === "whiff"){
-            if(kel >= KA.whiffBeat){ hz.kst = "return"; hz.kt0 = t; hz.retA = hz.ka; hz.retB = hz.kb; }
-          } else if(hz.kst === "return"){
-            const ku = Math.min(1, kel/KA.retMs), ke = ku*ku*(3-2*ku);
-            const ksp = peopleSpotAt(t, hz);
-            hz.ka = hz.retA + (ksp.a - hz.retA)*ke;
-            hz.kb = hz.retB + ((ksp.b || 0) - hz.retB)*ke;
-            hz.kth = Math.atan2(-(ksp.a - hz.retA), ((ksp.b || 0) - hz.retB) || 1);
-            if(ku >= 1){ hz.kst = "patrol"; hz.kt0 = t; }
+          } else {
+            /* gloat / whiff / return -- the tail of the timeline, which
+               has no dependency on the robot at all. It lives in
+               williamSettleStep so the post-tip pass can run the exact
+               same code: duplicating a state machine across two call
+               sites is how the two quietly drift apart. */
+            this.williamSettleStep(hz, t);
           }
           /* THE WALL — palm contract while he's stepping out or
              planted in your lane: you stop at standoff. The only way
@@ -11278,6 +11280,10 @@ class WorldScene extends Phaser.Scene {
         if(cSq > (CAR_HIT_CENTER_R*4)*(CAR_HIT_CENTER_R*4)) tr.hit = false;
       }
 
+      /* back near upright: whatever knocked us sideways did not finish
+         the job, so it no longer owns the fail copy. */
+      if(Math.abs(this.tilt) < 0.15) this.tipCause = null;
+
       /* fail: we are horizontal */
       if(Math.abs(this.tilt) >= 1){
         this.state = "tipped";
@@ -11319,7 +11325,8 @@ class WorldScene extends Phaser.Scene {
         /* the challenge resets the run itself (hjPendingReset); the
            delivery fail overlay would take over the screen and its
            Retry reloads the daily route. */
-        if(!this.hjOwnsTip()) setTimeout(() => showFail(), 1500);
+        const failPool = this.tipCause === "william" ? WILLIAM_FAIL_LINES : null;
+        if(!this.hjOwnsTip()) setTimeout(() => showFail(failPool), 1500);
       }
       /* CANCELLATION: par + grace expired -> the order dies. A fail
          with the robot upright: the state gate stops the sim, input
@@ -12387,6 +12394,66 @@ class WorldScene extends Phaser.Scene {
                    p.x + dx*20*ks, p.y + dy*20*ks + 4*ks);
   }
 
+  /* ---------- THE WILLIAM: TAIL OF THE TIMELINE ----------
+     gloat -> return -> patrol. None of it reads the robot, which is the
+     point: the in-play hazard pass and the post-tip pass below both
+     call this rather than each keeping their own copy. */
+  williamSettleStep(hz, t){
+    const KA = WILLIAM_ACT, kel = t - hz.kt0;
+    if(hz.kst === "gloat"){
+      if(kel >= KA.gloat){ hz.kst = "return"; hz.kt0 = t; hz.retA = hz.ka; hz.retB = hz.kb; }
+    } else if(hz.kst === "whiff"){
+      if(kel >= KA.whiffBeat){ hz.kst = "return"; hz.kt0 = t; hz.retA = hz.ka; hz.retB = hz.kb; }
+    } else if(hz.kst === "return"){
+      const ku = Math.min(1, kel/KA.retMs), ke = ku*ku*(3-2*ku);
+      const ksp = peopleSpotAt(t, hz);
+      hz.ka = hz.retA + (ksp.a - hz.retA)*ke;
+      hz.kb = hz.retB + ((ksp.b || 0) - hz.retB)*ke;
+      hz.kth = Math.atan2(-(ksp.a - hz.retA), ((ksp.b || 0) - hz.retB) || 1);
+      if(ku >= 1){ hz.kst = "patrol"; hz.kt0 = t; }
+    }
+  }
+
+  /* ---------- THE WILLIAM AFTER THE RUN ENDS ----------
+     His whole state machine lives inside the hazard loop, which lives
+     inside `if(this.state === "play")`. So the instant his own boot
+     tipped the robot, the sim that owns him stopped running and he
+     stood there frozen mid-kick, leg still extended, until the fail
+     overlay took the screen. He finishes the swing, gloats, walks back
+     to his patrol and keeps strolling -- the point of the character is
+     that he does not care, and standing petrified in a kick pose reads
+     as a bug rather than contempt.
+
+     Only the states that do not need the robot run here. Anything he
+     was mid-approach on (intercept/block/windup) is abandoned straight
+     into return: there is nothing left to chase. */
+  updateWilliamIdle(t){
+    if(this.state === "play") return;      // the hazard pass owns him while playing
+    const hazards = this.route && this.route.hazards;
+    if(!hazards) return;
+    const KA = WILLIAM_ACT;
+    for(const hz of hazards){
+      if(hz.type !== "william" || hz.kst === undefined) continue;
+      const kel = t - hz.kt0;
+      if(hz.kst === "patrol"){
+        const ksp = peopleSpotAt(t, hz);
+        hz.ka = ksp.a; hz.kb = ksp.b || 0;
+      } else if(hz.kst === "kick"){
+        /* let the swing play out to its natural end, then branch on
+           whether it connected -- the same exit the in-play pass uses,
+           minus the contact test, which already ran. */
+        if(kel >= KA.swing){
+          hz.spent = true;
+          hz.kst = hz.klanded ? "gloat" : "whiff"; hz.kt0 = t;
+        }
+      } else if(hz.kst === "intercept" || hz.kst === "block" || hz.kst === "windup"){
+        hz.kst = "return"; hz.kt0 = t; hz.retA = hz.ka; hz.retB = hz.kb;
+      } else {
+        this.williamSettleStep(hz, t);
+      }
+    }
+  }
+
   /* ---------- CAR FOLLOWING / SPACING ----------
      Independent traffic loops share streets with zero mutual awareness,
      and the three cars on any one loop run at different speeds, so they
@@ -12681,6 +12748,7 @@ class WorldScene extends Phaser.Scene {
       this.hjSim(dt, this.route && this.route.challenge);
     }
     this.updateTrafficSpacing(t, dt);
+    this.updateWilliamIdle(t);
     this.updateCrimeTraffic(t, dt);
     this.updateCrimeTape(t);
     this.drawWorld(t);
@@ -13455,6 +13523,16 @@ const CANCEL_LINES = [
   ["Refund issued.", "Dignity not included."],
   ["The app has unmatched you.", "It's not you. It's your ETA."],
   ["Canceled.", "The burrito grew cold waiting. So did the customer."],
+];
+
+/* Cause-specific pool: an assault reads nothing like losing to gravity,
+   and "the pavement won" is actively wrong when a man in white sneakers
+   put you there on purpose. */
+const WILLIAM_FAIL_LINES = [
+  ["Some guy just kicked you over.", "He did not break stride."],
+  ["Booted.", "He waited on this block all day for that."],
+  ["Assault by pedestrian.", "The burrito was a bystander."],
+  ["That was not an accident.", "He is still standing there. Gloating."],
 ];
 
 const FAIL_LINES = [
