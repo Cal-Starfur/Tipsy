@@ -2363,11 +2363,47 @@ function segsWorldOf(segs, s, offsetUnits){
    principle as dogSpotAt/dogFleeAt already use for the dog. */
 function trafficWorldAt(tr, t){
   const trTotal = tr.walk.totalLen;
-  const trS = ((tr.sBase + t*tr.speed*tr.dir) % trTotal + trTotal) % trTotal;
+  /* tr.hold is ACCUMULATED STOPPED TIME, and it is subtracted here —
+     inside the one function the renderer and the collision check both
+     call. A stop implemented anywhere else (a flag consulted only by
+     the draw pass, a shadow position kept in the sim's own bookkeeping)
+     leaves this function returning the car's unstopped position, so the
+     car keeps driving and its hitbox keeps moving while the test that
+     "proved" it stopped passes happily. Measure the thing the game
+     actually reads. */
+  const te = t - (tr.hold || 0);
+  const trS = ((tr.sBase + te*tr.speed*tr.dir) % trTotal + trTotal) % trTotal;
   const hdg = segsHeadingAt(tr.walk.segs, trS) + (tr.dir < 0 ? Math.PI : 0);
   const fi = Math.round(hdg / (Math.PI/2));
   const trF = ((fi % 4) + 4) % 4;
-  const wp = segsWorldOf(tr.walk.segs, trS, tr.laneOffset);
+
+  /* Straddle past the blocking cruiser. The cruiser sits in the near
+     lane, so the only way past is on the CENTRELINE side — pushing
+     "away from the cruiser" instead sends the car over the kerb onto
+     the sidewalk. Cars shift out to sit against the centreline and stop
+     there: at CRIME_STRADDLE they end 16 short of it, overlapping it by
+     half a body, while the oncoming lane centre is a further 184 away.
+     Opposing traffic therefore cannot overlap no matter how the phase
+     timings drift — separation by geometry, not by tuning. */
+  let lane = tr.laneOffset;
+  const P = tr.pinch;
+  if(P){
+    const base = segsWorldOf(tr.walk.segs, trS, tr.laneOffset);
+    const d = Math.hypot(base.x - P.x, base.y - P.y);
+    const lat = (base.x - P.x)*P.lx + (base.y - P.y)*P.ly;
+    if(d < CRIME_PINCH_R && lat < CAR_LANE){      // only the blocked lane
+      const u = 1 - d/CRIME_PINCH_R, ease = u*u*(3-2*u);
+      /* segsWorldOf applies laneOffset in the UNDIRECTED segment frame —
+         it never sees tr.dir. Deriving this from `hdg` (which carries
+         the dir flip) inverts the shift for every reversed car, sending
+         it over the kerb instead of onto the centreline. Same frame as
+         the call being corrected, or the correction is backwards. */
+      const h0 = segsHeadingAt(tr.walk.segs, trS);
+      const proj = P.lx*(-Math.sin(h0)) + P.ly*Math.cos(h0);
+      if(Math.abs(proj) > 1e-6) lane += Math.sign(proj) * CRIME_STRADDLE * ease;
+    }
+  }
+  const wp = segsWorldOf(tr.walk.segs, trS, lane);
   wp.z = 0;
   return { wp, f: trF, trS };
 }
@@ -2528,6 +2564,23 @@ function closestUnitIndex(units, targetAlong){
 const CRIME_STALLS = 4;          // 2 occupied + 2 clear bays between them
 const CRIME_LANE_OFFSET = 118;   // 2nd officer's step down the road from the lane car
 
+/* ---- phased traffic control ----
+   TWO tolerances, deliberately separate, because they answer two
+   different questions. Collapsing them into one is what made the lab's
+   officer wave cars through without ever looking: at a shared value of
+   300 the "has the pinch cleared" test was true unconditionally, since
+   any car within 300 of the cruiser also counted as *outside* it.
+     ONROAD  — "is this car on the crime scene's road at all?"  Wide.
+     CLEAR   — "is the pinch itself empty right now?"           Tight. */
+const CRIME_ONROAD_TOL = 300;
+const CRIME_CLEAR_TOL  = 90;
+const CRIME_PHASE_MS    = 5200;  // one direction's green
+const CRIME_ALLSTOP_MS  = 900;   // both held while the pinch drains
+const CRIME_STOP_R      = 620;   // how far back a held car starts waiting
+const CRIME_STOP_LINE   = 210;   // where it actually stops, short of the cruiser
+const CRIME_PINCH_R     = 460;   // straddle ramp radius
+const CRIME_STRADDLE    = 168;   // lateral shift onto the centreline
+
 /* days since epoch; 1970-01-01 was a Thursday, so +3 makes 0 = Monday */
 function crimeDayIndex(dateStr){
   const d = Date.parse(dateStr + "T00:00:00Z");
@@ -2572,8 +2625,12 @@ function findCrimeSite(grid, cutEdges, dateStr){
 
   /* rv points OUT of the block: sidewalk first, then the road, with the
      centreline exactly inset away (blocks are inset by ROAD_HALF +
-     SIDEWALK_W from the grid line). */
-  const laneB = SIDEWALK_W + ROAD_HALF;
+     SIDEWALK_W from the grid line). The blocking cruiser sits IN the
+     near traffic lane, not on the centreline — on the centreline its
+     90-wide body spans only +-45 and the lanes at +-CAR_LANE (184)
+     drive past untouched, so it would not have blocked anything. */
+  const centreB = SIDEWALK_W + ROAD_HALF;
+  const laneB = centreB - CAR_LANE;
   const gapA  = row.startAlong + row.stallW*2;      // middle of the two clear bays
   const fAlong = DIRV.findIndex(d => d.x === e.dv.x && d.y === e.dv.y);
 
@@ -2598,7 +2655,11 @@ function findCrimeSite(grid, cutEdges, dateStr){
   });
 
   return { blockKey: blk.i + "," + blk.j, edgeIdx: idx, cars, officers,
-           laneB, gapA, fAlong, edge: { ox:e.ox, oy:e.oy, dv:e.dv, rv:e.rv, len:e.len } };
+           laneB, gapA, fAlong, edge: { ox:e.ox, oy:e.oy, dv:e.dv, rv:e.rv, len:e.len },
+           /* the pinch: where the road narrows past the blocking cruiser.
+              ax/ay is along the road, lx/ly across it. */
+           pinch: { x: laneCar.x, y: laneCar.y,
+                    ax: e.dv.x, ay: e.dv.y, lx: e.rv.x, ly: e.rv.y } };
 }
 
 function generateRoute(dateStr, opts){
@@ -3952,6 +4013,9 @@ function generateRoute(dateStr, opts){
   /* weekly crime scene — rolled from its own salted date hashes, never
      from `rng`, so non-scene days generate a byte-identical city */
   const crime = crimeSceneOnDate(dateStr) ? findCrimeSite(grid, cutEdges, dateStr) : null;
+  /* every car reads the same pinch — trafficWorldAt is pure, so the
+     scene data has to reach it through the car it is called with */
+  if(crime) for(const tr of traffic) tr.pinch = crime.pinch;
 
   return { hood, grid, segs, totalLen: loop ? loop.sEnd : totalLen, loop, tiles, hazards, props, pal, night, traffic, crossings, cutEdges, cutExt, challenge, crime,
            address:`${number} ${street}`, doorS, pickupS, pickupSpot, pickupShopName, addressBlock, pickupBlock, addressEdgeIdx, pickupEdgeIdx, addressUnitIdx, pickupUnitIdx, addressUsesGate, order, parMs, dateStr };
@@ -4914,8 +4978,13 @@ class WorldScene extends Phaser.Scene {
       }
       for(const o of r.crime.officers){
         if(!near(o.x, o.y)) continue;
+        /* the traffic officer's arm and facing are phase state, so they
+           come from the sim rather than from the static layout */
+        const arm = (o.role === "traffic" && this.crimeArm) ? this.crimeArm : null;
+        const oth = arm ? arm.thW : o.thW;
         blockVQ.push({ depth: o.x + o.y, fn:(g,t)=>this.drawOfficer(
-          layerFor(o.x, o.y), o.x, o.y, 0, o.thW, o.role, o.seed, t) });
+          layerFor(o.x, o.y), o.x, o.y, 0, oth, o.role, o.seed, t,
+          arm ? { liftT: arm.liftT } : null) });
       }
     }
 
@@ -11705,6 +11774,56 @@ class WorldScene extends Phaser.Scene {
     g.fillTriangle(p.x, p.y, p.x - dy*11, p.y + dx*11, p.x + dx*20, p.y + dy*20 + 4);
   }
 
+  /* ---------- PHASED TRAFFIC CONTROL ----------
+     Lives in the SIM, driven by dt from update() — not in a draw hook.
+     A phase advanced during rendering runs at frame rate and freezes
+     whenever the world is not being drawn. */
+  updateCrimeTraffic(t, dt){
+    const cr = this.route && this.route.crime;
+    if(!cr) return;
+    const P = cr.pinch;
+    const ph = this.crimePhase || (this.crimePhase =
+      { green: 0, allStop: false, tLeft: CRIME_PHASE_MS });
+
+    /* classify every car against the pinch, and answer the two
+       questions with their own tolerances */
+    let occupied = false;
+    const holding = [];
+    for(const tr of this.route.traffic){
+      const { wp, f } = trafficWorldAt(tr, t);
+      const dx = wp.x - P.x, dy = wp.y - P.y;
+      const along = dx*P.ax + dy*P.ay;
+      const lat   = dx*P.lx + dy*P.ly;
+      if(Math.abs(lat) > CRIME_ONROAD_TOL) continue;      // not on this road
+      const dv = DIRV[f];
+      const face = dv.x*P.ax + dv.y*P.ay;                 // +1 / -1 along the road
+      if(Math.abs(face) < 0.5) continue;                  // crossing, not travelling it
+      if(Math.abs(along) < CRIME_CLEAR_TOL) occupied = true;   // still inside the pinch
+      const group = face > 0 ? 0 : 1;
+      const progress = along * face;   // negative = approaching the cruiser
+      const stopped = (ph.allStop || group !== ph.green)
+                   && progress > -CRIME_STOP_R && progress < -CRIME_STOP_LINE;
+      if(stopped) holding.push(tr);
+    }
+    for(const tr of holding) tr.hold = (tr.hold || 0) + dt;
+
+    ph.tLeft -= dt;
+    if(ph.tLeft <= 0){
+      if(!ph.allStop){ ph.allStop = true; ph.tLeft = CRIME_ALLSTOP_MS; }
+      else if(!occupied){                       // only swap once the pinch is genuinely empty
+        ph.green ^= 1; ph.allStop = false; ph.tLeft = CRIME_PHASE_MS;
+      } else ph.tLeft = 120;                    // still someone in it — wait and re-ask
+    }
+
+    /* the officer faces whichever direction is currently HELD, palm out,
+       with a small wave. liftT rides in through drawOfficer's opts. */
+    const heldDir = ph.green === 0 ? -1 : 1;
+    this.crimeArm = {
+      liftT: 0.78 + 0.14*Math.sin(t*0.004),
+      thW: crimeFacing({ x: P.ax*heldDir, y: P.ay*heldDir })
+    };
+  }
+
   update(t, dt){
     /* desktop throttle */
     if(this.keys){
@@ -11749,6 +11868,7 @@ class WorldScene extends Phaser.Scene {
       }
       this.hjSim(dt, this.route && this.route.challenge);
     }
+    this.updateCrimeTraffic(t, dt);
     this.drawWorld(t);
     this.drawRobot(t, dt);
     this.drawHUD();
