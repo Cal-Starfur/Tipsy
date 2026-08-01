@@ -376,13 +376,107 @@ const BR = {
         census(){
           const sc = game.scene.scenes[0], r = sc.route;
           if(!r) return null;
-          const props = (r.props || []).map(p =>
-            [p.kind, Math.round(p.s), Math.round(p.roadOffset||0), p.f].join(':')).join('|');
-          const traf = (r.traffic || []).map(t =>
-            [Math.round(t.sBase), Math.round(t.laneOffset), t.kind].join(':')).join('|');
-          return { props: (r.props||[]).length, traffic: (r.traffic||[]).length,
-                   pHash: props.length + ':' + props.slice(0, 4000),
-                   tHash: traf.length + ':' + traf.slice(0, 4000) };
+          /* THREE fingerprints, not one, because they answer different
+             questions and only the first is allowed to be stable.
+
+             structural — what generateRoute PRODUCED. A lab must never
+               change this. Drift here means the lab reached into world
+               generation.
+             mutable — fields a lab is entitled to move at runtime (a
+               detour writes traffic laneOffset). Reported, never failed.
+             Deliberately NOT fingerprinted: anything that advances with
+               time. A naive before/after hash of live state produces
+               false diffs on any lab with animated or accumulated state
+               — measured on the crime scene port, where tr.hold,
+               tapeBroken and crimePhase made two runs of the SAME build
+               disagree. Counts stayed stable where hashes did not, so
+               counts and generated values are the comparison key. */
+          const structural = (r.props || []).map(p =>
+            [p.kind, Math.round(p.s), Math.round(p.roadOffset||0), p.f].join(':')).join('|')
+            + '#' + (r.traffic || []).map(t =>
+            [Math.round(t.sBase), t.kind, Math.round(t.speed*1e4)].join(':')).join('|')
+            + '#' + (r.grid && r.grid.blocks || []).map(b => b.type[0]).join('');
+          const mutable = (r.traffic || []).map(t =>
+            Math.round(t.laneOffset)).join(',');
+          return {
+            date: r.dateStr,
+            props: (r.props||[]).length,
+            traffic: (r.traffic||[]).length,
+            blocks: (r.grid && r.grid.blocks || []).length,
+            sHash: BENCH.__h(structural),
+            mHash: BENCH.__h(mutable)
+          };
+        },
+        /* small stable string hash — Math.random-free and order sensitive */
+        __h(s){
+          let a = 0x9e3779b9, b = 0x85ebca6b;
+          for(let i = 0; i < s.length; i++){
+            a = Math.imul(a ^ s.charCodeAt(i), 2654435761);
+            b = Math.imul(b ^ a, 1597334677) >>> 0;
+          }
+          return ((a>>>0).toString(16) + (b>>>0).toString(16)) + ':' + s.length;
+        },
+        /* Baseline, taken BEFORE the lab code is evaluated. */
+        censusSnap(){
+          this.__censusBase = this.census();
+          return this.__censusBase;
+        },
+        /* The divergence check.
+           Three separate verdicts, because "did the world change" and
+           "did the lab move something it owns" are different questions,
+           and conflating them is what makes a check people ignore. */
+        censusDiff(){
+          const base = this.__censusBase;
+          if(!base) return "CENSUS: no baseline — run the lab from the bench so one is taken first";
+          const now = this.census();
+          if(!now) return "CENSUS: no route loaded";
+          const out = [];
+          if(base.date !== now.date){
+            return "CENSUS: route changed date (" + base.date + " -> " + now.date +
+                   "); reload the lab to re-baseline";
+          }
+          const cnt = (base.props !== now.props) || (base.traffic !== now.traffic)
+                   || (base.blocks !== now.blocks);
+          if(cnt){
+            out.push("STRUCTURE: COUNTS CHANGED — props " + base.props + "->" + now.props +
+                     ", traffic " + base.traffic + "->" + now.traffic +
+                     ", blocks " + base.blocks + "->" + now.blocks);
+            out.push("  the lab added or removed generated world content.");
+          } else if(base.sHash !== now.sHash){
+            out.push("STRUCTURE: DRIFTED — same counts, different values.");
+            out.push("  the lab is writing to fields generateRoute produced.");
+            out.push("  Usually runtime mutation of a generated field (winding");
+            out.push("  traffic sBase back to stop a car is the common one) —");
+            out.push("  workable, but the port needs its own state instead of");
+            out.push("  editing the world. If REGEN below also diverged, it is");
+            out.push("  the worse case: a leak into generation itself.");
+          } else {
+            out.push("STRUCTURE: clean — generated world identical.");
+          }
+          out.push(base.mHash === now.mHash
+            ? "MUTABLE: traffic lanes untouched."
+            : "MUTABLE: traffic laneOffset written by the lab — legitimate for a" +
+              "\\n  detour, but it is per-run state the port has to carry deliberately.");
+
+          /* REGENERATION CHECK — the one that catches an rng-stream leak.
+             Rebuild the route from the same date and compare against the
+             pre-lab baseline. If the lab patched anything generation
+             reads, the rebuild diverges even though the live route did
+             not. */
+          try{
+            const fresh = generateRoute(now.date, null);
+            const fs = (fresh.props || []).map(p =>
+              [p.kind, Math.round(p.s), Math.round(p.roadOffset||0), p.f].join(':')).join('|')
+              + '#' + (fresh.traffic || []).map(t =>
+              [Math.round(t.sBase), t.kind, Math.round(t.speed*1e4)].join(':')).join('|')
+              + '#' + (fresh.grid && fresh.grid.blocks || []).map(b => b.type[0]).join('');
+            out.push(BENCH.__h(fs) === base.sHash
+              ? "REGEN: clean — regenerating this date still gives the pre-lab city."
+              : "REGEN: DIVERGED — regenerating this date no longer matches the" +
+                "\\n  pre-lab city. The lab patched something world generation reads;" +
+                "\\n  every date is affected, including days the lab's feature is off.");
+          }catch(e){ out.push("REGEN: could not rebuild (" + e.message + ")"); }
+          return "CENSUS DIVERGENCE\\n" + out.join("\\n");
         },
         /* applied every frame BEFORE the world draws */
         applyCam(sc){
@@ -641,6 +735,10 @@ $("run").onclick = () => runLabCode();
 
 function runLabCode(){
   if(!BR.live) return log("bridge not up", "err");
+  /* Baseline BEFORE the lab is evaluated — the census compares against
+     the world as generateRoute left it, so this is the only moment it
+     can be taken. */
+  try{ BR.ev("BENCH.censusSnap()"); }catch(e){}
   try{ BR.ev($("code").value); log("lab code ran", "ok"); return true; }
   catch(e){ log("lab error: " + e.message, "err"); return false; }
 }
@@ -773,6 +871,8 @@ $("portCheck").onclick = () => {
       lines.push("DEPTH: " + (queued
         ? queued + " item(s) queued into the game's blockVQ — sorts against the world"
         : "nothing queued; if this lab draws to gFront directly it is NOT sorted against houses"));
+      lines.push("");
+      lines.push(BENCH.censusDiff());
       return lines.join("\\n");
     })()`);
     log(out);
