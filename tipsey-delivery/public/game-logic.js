@@ -6,7 +6,11 @@
    Standalone GitHub Pages / itch.io builds never carry this param, so
    they're unaffected. */
 const IS_DEVVIT_BUILD = true; // hardcoded — this file is only ever served by Devvit
-if(IS_DEVVIT_BUILD){ hide("panel"); hide("panelToggle"); show("winMenuBtn"); }
+/* #winMenuBtn is gone — see bindGlobalSearch. It was shown only on
+   Devvit and only on the win overlay, at left:14px, which is where
+   #globalSearch already lives, so it spent its whole life hidden
+   underneath the magnifying glass. */
+if(IS_DEVVIT_BUILD){ hide("panel"); hide("panelToggle"); }
 /* the fail screen's magnifier + robot are for EVERY build, not just
    Devvit — the web daily had no way out of a crash except Retry. */
 show("failMenuBtn");
@@ -14583,14 +14587,23 @@ document.getElementById("avatarIcon").addEventListener("click", tpOpenProfile);
     if(now - last < 700) return;
     last = now;
     const failed = !document.getElementById("failOverlay").classList.contains("hidden");
+    /* DELIVERED counts as "the run is over" exactly like a crash does.
+       This used to be #winMenuBtn's job — a second button that sat at
+       left:14px, the same coordinates as this one, so on Devvit it was
+       literally underneath the magnifying glass. Retiring it without
+       moving its behaviour here would have removed the only route from
+       the win screen back to the map, since neither global button
+       looked at #winOverlay at all. */
+    const won = !document.getElementById("winOverlay").classList.contains("hidden");
     const s = scn();
     /* From the challenge: bank progress and land back on the mission
        list — this is what #failMenuBtn used to do, kept verbatim. */
     if(s && s.mode === "challenge"){ hide("failOverlay"); hjQuit(); tpOpenMissions(); return; }
-    /* From a crash: the run is already over, so go back to the map on
-       the way out. Mid-route or on the map, just open over what's
-       there — tpOpenMissions() pauses a live run by itself. */
-    if(failed){ hide("failOverlay"); collapseSheet(); show("titleOverlay"); }
+    /* From a finished run either way — crash or delivery — the run is
+       already over, so go back to the map on the way out. Mid-route or
+       on the map, just open over what's there — tpOpenMissions() pauses
+       a live run by itself. */
+    if(failed || won){ hide("failOverlay"); hide("winOverlay"); collapseSheet(); show("titleOverlay"); }
     tpOpenMissions();
   };
   el.addEventListener("touchstart", go, {passive:false, capture:true});
@@ -14918,11 +14931,6 @@ function renderPastRoutes(history){
 document.getElementById("prClose").addEventListener("click", () => collapseSheet());
 document.getElementById("prPlayToday").addEventListener("click", () => {
   prGoToRoute(clientTodayUTC());
-});
-document.getElementById("winMenuBtn").addEventListener("click", () => {
-  hide("winOverlay");
-  collapseSheet();
-  show("titleOverlay");
 });
 document.getElementById("failMenuBtn").addEventListener("click", () => {
   hide("failOverlay");

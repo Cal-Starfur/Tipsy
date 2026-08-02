@@ -381,7 +381,11 @@
     z-index:60;background:rgba(255,255,255,.92);cursor:pointer;
     box-shadow:0 2px 6px rgba(0,0,0,.35);}
   #globalSearch:active{transform:scale(0.94);}
-  /* the per-screen copies are retired in favour of the two global ones */
+  /* the per-screen copies are retired in favour of the two global ones.
+     #winMenuBtn was part of this set and got missed — it was still being
+     shown on Devvit, at left:14px, directly under #globalSearch. It is
+     deleted outright rather than listed here, since unlike the others it
+     had no non-Devvit caller keeping it alive. */
   #avatarIcon,#failAvatarBtn,#searchIcon,#failMenuBtn{display:none !important;}
   /* ...and the global pair steps aside while a panel is up: both sit at
      z-index 60 in the corners the panel headers use for back/close, so
@@ -541,7 +545,6 @@
 </div>
 
 <div id="winOverlay" class="overlay hidden">
-  <button class="menuBtn hidden" id="winMenuBtn">↩ Menu</button>
   <h2>DELIVERED</h2>
   <p id="winSub">…</p>
   <div class="card" id="winCard">…</div>
