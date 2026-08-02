@@ -8628,22 +8628,11 @@ class WorldScene extends Phaser.Scene {
             g.fillStyle(C_HOOD, 1);   g.fillCircle(p.x, p.y, R*1.16*this.K);
             g.fillStyle(lit ? lamps[i][1] : C_OFF, 1); g.fillCircle(p.x, p.y, R*this.K);
             if(lit){ g.fillStyle(0xffffff, 0.22); g.fillCircle(p.x, p.y, R*0.5*this.K); }
-            /* VISOR LAST.
-               It was drawn first, before the recess ring and the lens. The
-               ring is a screen circle of radius R*1.16 about the lens centre
-               and the visor sat only R*0.78 above that centre -- so it was
-               inside the circle and got painted over immediately. It was
-               never going to show wherever it was put, which is why it
-               "wasn't drawing correctly": it drew, then was covered.
-               Drawn after, it overlaps the top of the lens, which is what a
-               hood does. Deeper too -- R*0.5 of protrusion is four units at
-               headR 8, invisible at any sensible zoom. */
-            const vz = z + R*0.5, vOut = R*1.0;
-            this.quadOn(g, [W(face, -R*1.3, vz), W(face + vOut, -R*1.3, vz + R*0.42),
-                            W(face + vOut,  R*1.3, vz + R*0.42), W(face,  R*1.3, vz)], C_HOOD);
-            this.quadOn(g, [W(face + vOut, -R*1.3, vz + R*0.42), W(face + vOut, R*1.3, vz + R*0.42),
-                            W(face + vOut,  R*1.3, vz + R*0.22), W(face + vOut, -R*1.3, vz + R*0.22)],
-                        C_HOUSE_Y);
+            /* No visors. At headR 8 a hood is a couple of units of
+               protrusion on a lens a few pixels across -- it only ever
+               added clutter around the lamp it was meant to frame. The
+               recess ring below already does the job of setting the lens
+               into the case. */
           }
         }
       }
