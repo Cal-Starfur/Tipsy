@@ -1658,6 +1658,48 @@ const CELL = TILE;           // sidewalk classification/render resolution
    Bucket edge is in u/v units, which are sqrt(2) larger than world
    units; 2048 puts ~30 tiles in a bucket and ~50 buckets in a depth-3
    query. */
+/* ================= GROUND CULL SPAN =================
+   cullSpan is left exactly as it is. It exists to keep TALL bodies --
+   which are culled on their centre point -- from popping in at the
+   screen edge, so its margin has to clear half a block plus building
+   height. Fine for buildings. Wrong for paint.
+
+   Sidewalk tiles and road stripes lie flat on z=0 with no vertical
+   extent whatsoever, so they need no building-height allowance at all;
+   they only need to reach the screen corner. They were riding the
+   buildings' margin anyway, and at depth 3 that means drawing ground
+   out to 6,976 world units when the far screen corner is 4,459 away.
+   Since span is a RADIUS and cull area goes as its square, that is more
+   than twice the ground paint the frame can possibly show. Ground paint
+   is the single biggest draw-op bucket in the frame, which is why this
+   is the fix for zoom-out lag and cullSpan is not.
+
+   flatSpanOf() derives the reach instead of fitting a constant to it.
+   W() applies NO rotation -- the iso camera is fixed -- so for a point
+   on the ground plane it inverts directly:
+
+       sx = (xr - yr) * K              ->  a = xr - yr = sx/K
+       sy = ((xr + yr)*0.5 + camZ) * K ->  b = xr + yr = 2*(sy/K - camZ)
+
+   and by the same max() identity the hash below is built on, that
+   point's Manhattan radius is max(|a|, |b|). Evaluate at the four
+   screen corners and take the largest.
+
+   Two things the old width-only expression quietly ignored and this
+   does not: the camera point sits at (cx, cy) and cy is NOT h/2, and
+   camZ climbs during a hydrant jump. Both push the reach further than
+   width alone ever suggested -- on a portrait phone the binding
+   constraint is HEIGHT, by roughly 3x. */
+const FLAT_CULL_PAD = T2 * 2;   /* a tile's own Manhattan corner is T2
+                                   (half-width on each axis); doubled so
+                                   the tile at the boundary is drawn
+                                   whole rather than clipped */
+function flatSpanOf(cx, cy, w, h, K, camZ){
+  const ax = Math.max(cx, w - cx) / K;
+  const by = 2 * Math.max(Math.abs(cy / K + camZ), Math.abs((h - cy) / K - camZ));
+  return Math.max(ax, by) + FLAT_CULL_PAD;
+}
+
 const MHASH_B = 2048;
 function buildManhattanHash(items){
   const m = new Map();
@@ -5463,6 +5505,9 @@ class WorldScene extends Phaser.Scene {
 
         const cullSpan = (this.scale.gameSize.width / this.K) * 0.9 + TILE*6 + 4000;
     const near = (wx, wy) => (Math.abs(wx - this.camX) + Math.abs(wy - this.camY)) < cullSpan;
+    /* flat ground only -- see FLAT_CULL_PAD above */
+    const flatSpan = flatSpanOf(this.cx, this.cy, this.scale.gameSize.width,
+                                this.scale.gameSize.height, this.K, this.camZ);
     /* An edge is a WHOLE STREET, not a point. near() on its two endpoints
        is the wrong test for one: a street the camera is standing in the
        middle of has BOTH ends further away than either end of a street
@@ -5504,7 +5549,7 @@ class WorldScene extends Phaser.Scene {
     /* same tiles as the old full-array scan, same cullSpan, same order
        within a bucket -- only the search changed */
     for(const rn of manhattanQuery(paveHash(r.grid, "sidewalkRuns", "swRunHash"),
-                                   this.camX, this.camY, cullSpan, this._qRuns)){
+                                   this.camX, this.camY, flatSpan, this._qRuns)){
       const half = T2/2;
       const pts = [
         this.W(rn.x-half, rn.y-half, 0), this.W(rn.x+half, rn.y-half, 0),
@@ -5514,7 +5559,7 @@ class WorldScene extends Phaser.Scene {
       this.edgeOn(g, pts, d.paveEdge, 1);
     }
     for(const cell of manhattanQuery(paveHash(r.grid, "sidewalkCornerCells", "swCornerHash"),
-                                     this.camX, this.camY, cullSpan, this._qCorner)){
+                                     this.camX, this.camY, flatSpan, this._qCorner)){
       const half = CELL/2;
       const pts = [
         this.W(cell.x-half, cell.y-half, 0), this.W(cell.x+half, cell.y-half, 0),
