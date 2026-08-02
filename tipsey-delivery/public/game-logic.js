@@ -1622,6 +1622,74 @@ const WORLD_RAMP = {
   baseOutline: 1                      // 1 -- dialled on device; 2 read as crossed rectangles at a corner
 };
 
+/* ---------- TRAFFIC SIGNALS ----------
+   Mast-arm signals on the apex tile the curb ramps leave free. With
+   WORLD_RAMP.cross at 598 the two ramps at a corner occupy u,v in
+   [368,552] on their own axis but start at 460 on the other, so
+   u,v in [368,460] is empty -- one 92x92 tile, centre 414/414.
+
+   Checked against the robot's whole route (4,666 samples): its path never
+   enters that tile and comes no closer than 91 to the centre. So these are
+   scenery plus traffic logic, with no collision, exactly like the ramps.
+
+   Mutable object for the same reason WORLD_RAMP is one -- labs/_bench.html
+   compiles inside this realm, where a const binding cannot be reassigned but
+   an object's properties can. */
+const SIGNAL = {
+  cycle:    14000,  // full both-axes cycle, ms
+  amber:     2200,  // amber at the tail of each green
+  allRed:     700,  // both red between phases
+  poleH:      250,
+  armLen:     300,  // arm reach from pole toward the node
+  headR:       15,
+  stopBand:    70,  // how far back from the line a car will hold
+  arm:       true,  // false = pole-mounted head, no mast
+  aware:     true,  // false = lights cycle but traffic ignores them
+  readable:  true   // see the facing note on drawProp's signalhead branch
+};
+
+/* Pure and node-seeded off world time, so the lamp and the car read the
+   same light with no shared state to drift. */
+function signalPhaseAt(node, t){
+  const off = (((node.i*73856093) ^ (node.j*19349663)) >>> 0) % SIGNAL.cycle;
+  const half = SIGNAL.cycle/2;
+  const u = (t + off) % SIGNAL.cycle;
+  const axis = u < half ? 0 : 1;              // the axis holding green
+  const inHalf = u % half;
+  const g = half - SIGNAL.amber - SIGNAL.allRed;
+  return { axis, state: inHalf < g ? "green" : (inHalf < g + SIGNAL.amber ? "amber" : "red") };
+}
+const signalAxisGo    = (node, t, axis) => { const p = signalPhaseAt(node, t);
+                                             return p.axis === axis && p.state !== "red"; };
+const signalAxisState = (node, t, axis) => { const p = signalPhaseAt(node, t);
+                                             return p.axis === axis ? p.state : "red"; };
+
+/* One signal per corner, arm reaching ACROSS the road it serves. A pole at
+   414/414 is outside the roadway (ROAD_HALF 368), so an arm parallel to a
+   street would hang over pavement rather than tarmac -- it has to point at
+   the node. Corners are assigned diagonally, (-,-) and (+,+) to the x
+   street, (-,+) and (+,-) to the y street, which covers all four
+   approaches. The head aims back down the served street at the cars it is
+   stopping, derived from the corner's own outward direction, so no lane-side
+   arithmetic is involved and it holds however the route laid that street out.
+   Perimeter trimmed by block index, same probe the ramps use. */
+const SIGNAL_APEX = 414;
+function buildWorldSignals(grid){
+  const out = [];
+  for(const n of grid.nodes){
+    for(const su of [-1, 1]) for(const sv of [-1, 1]){
+      const x = n.x + su*SIGNAL_APEX, y = n.y + sv*SIGNAL_APEX;
+      const bi = Math.floor(x/BLOCK), bj = Math.floor(y/BLOCK);
+      if(bi < 0 || bi > grid.cols-2 || bj < 0 || bj > grid.rows-2) continue;
+      const axis = (su === sv) ? 0 : 1;
+      const armF  = axis === 0 ? (sv < 0 ? 1 : 3) : (su < 0 ? 0 : 2);
+      const headF = axis === 0 ? (su < 0 ? 2 : 0) : (sv < 0 ? 3 : 1);
+      out.push({ x, y, node:{ i:n.i, j:n.j }, axis, armF, headF });
+    }
+  }
+  return out;
+}
+
 function buildWorldCurbRamps(grid){
   const ramps = [];
   const along = WORLD_RAMP.along;
@@ -1800,6 +1868,7 @@ function buildGrid(cols, rows, seed=0){
   grid.sidewalkRuns = sw.runs;
   grid.sidewalkCornerCells = sw.cornerCells;
   grid.curbRamps = buildWorldCurbRamps(grid);
+  grid.signals   = buildWorldSignals(grid);
   grid.blocks = buildBlockLayout(grid, seed);
   grid.extLots = buildExteriorLots(grid, seed);
   return grid;
@@ -3889,7 +3958,7 @@ function generateRoute(dateStr, opts){
   const curbRamps = grid.curbRamps.filter(cr => !routeRampPts.some(
     p => Math.abs(p.x - cr.x) < RAMP_DEDUP && Math.abs(p.y - cr.y) < RAMP_DEDUP));
 
-  return { hood, grid, segs, totalLen: loop ? loop.sEnd : totalLen, loop, tiles, hazards, props, pal, night, traffic, crossings, cutEdges, cutExt, challenge, crime, routeCells, curbRamps,
+  return { hood, grid, segs, totalLen: loop ? loop.sEnd : totalLen, loop, tiles, hazards, props, pal, night, traffic, crossings, cutEdges, cutExt, challenge, crime, routeCells, curbRamps, signals: grid.signals,
            address:`${number} ${street}`, doorS, pickupS, pickupSpot, pickupShopName, addressBlock, pickupBlock, addressEdgeIdx, pickupEdgeIdx, addressUnitIdx, pickupUnitIdx, addressUsesGate, order, parMs, dateStr };
 }
 
@@ -5242,6 +5311,26 @@ class WorldScene extends Phaser.Scene {
           if(near(exWp.x, exWp.y)) this.drawProp(layerFor(exWp.x, exWp.y), ex.kind, exWp.x, exWp.y, t, hz.f, exWp.z);
         }
       }
+    }
+
+    /* SIGNALS -- drawn immediately here, NOT queued.
+
+       game/index.html sorts its hazards through hazVQ and pushes the two
+       signal pieces into it so they interleave with pedestrians by true
+       depth. THIS FILE HAS NO hazVQ: it still draws hazards in spawn-array
+       order, which is the code the depth-sorted pass replaced upstream, so
+       there is nothing here to queue into. Drawing after the loop means a
+       signal always paints over every hazard rather than sorting against
+       them -- the same ordering weakness this file already has between its
+       own hazards, not a new one, and it keeps the two builds feature-equal
+       until the hazVQ pass is resynced across. */
+    for(const sg of (r.signals || [])){
+      if(!near(sg.x, sg.y)) continue;
+      this.drawProp(layerFor(sg.x, sg.y), "signalpost", sg.x, sg.y, t, sg.armF, 0, null, null, sg);
+      const ad = DIRV[sg.armF], reach = SIGNAL.arm ? SIGNAL.armLen : 0;
+      const hx = sg.x + ad.x*reach, hy = sg.y + ad.y*reach;
+      const hf = SIGNAL.readable ? (sg.axis === 0 ? 0 : 1) : sg.headF;
+      this.drawProp(layerFor(hx, hy), "signalhead", hx, hy, t, hf, 0, null, null, sg);
     }
 
     /* addrDoorPos/addrDoorDV/etc. are still set below as a side effect
@@ -8452,6 +8541,56 @@ class WorldScene extends Phaser.Scene {
                       hp.x + Math.sin(aoff)*r2, hp.y - Math.cos(aoff)*r2);
       }
     }
+    } else if(kind === "signalpost" || kind === "signalhead"){
+      /* Box faces are picked by WORLD normal, never by fdir, which is what
+         keeps these identical at f0..f3: under this fixed iso only a face
+         whose outward normal has a positive x or y component is turned
+         toward the camera, and that test does not care how the prop is
+         rotated. dv/rv already carry the world directions. */
+      const S = data || SIGNAL;
+      const C_POLE = 0x3c4048, C_TOP = 0x4a4f58, C_HOUSE = 0x24272d, C_HOOD = 0x181a1e;
+      const C_OFF = 0x1b1d22, C_RED = 0xd8392b, C_AMB = 0xe8a021, C_GRN = 0x3fbf62;
+      const box = (a0, a1, b0, b1, z0, z1, cSide, cTop) => {
+        const P = (a, b, z) => W(a, b, z);
+        const faces = [
+          [ dv,                        [P(a1,b0,z1), P(a1,b1,z1), P(a1,b1,z0), P(a1,b0,z0)]],
+          [ { x:-dv.x, y:-dv.y },      [P(a0,b0,z1), P(a0,b1,z1), P(a0,b1,z0), P(a0,b0,z0)]],
+          [ rv,                        [P(a0,b1,z1), P(a1,b1,z1), P(a1,b1,z0), P(a0,b1,z0)]],
+          [ { x:-rv.x, y:-rv.y },      [P(a0,b0,z1), P(a1,b0,z1), P(a1,b0,z0), P(a0,b0,z0)]]
+        ];
+        for(const [n, pts] of faces) if(n.x > 0 || n.y > 0) this.quadOn(g, pts, cSide);
+        this.quadOn(g, [P(a0,b0,z1), P(a1,b0,z1), P(a1,b1,z1), P(a0,b1,z1)], cTop);
+      };
+      const armZ = SIGNAL.poleH - 18;
+      if(kind === "signalpost"){
+        box(-11, 11, -11, 11, 0, SIGNAL.poleH, C_POLE, C_TOP);
+        /* the arm rides with the post, pointing along fdir = armF */
+        if(SIGNAL.arm) box(0, SIGNAL.armLen, -7, 7, armZ-9, armZ+9, C_POLE, C_TOP);
+      } else {
+        const R = SIGNAL.headR, gap = R*2.3;
+        const topZ = armZ - 12, botZ = topZ - gap*3.1;
+        box(-R*1.4, R*1.4, -R*1.4, R*1.4, botZ, topZ, C_HOUSE, C_HOOD);
+        /* FACING. headF aims at the cars this signal stops, which is right
+           and is not the whole story: the camera never rotates, so exactly
+           two of the four heads at an intersection show it their BACK.
+           Drawing the lamps regardless painted them through the rear of the
+           housing -- reported on device as lights facing the wrong way.
+           Lamps are drawn only on a camera-visible face; SIGNAL.readable
+           decides whether the head is turned to guarantee that (legible
+           everywhere, and nothing on screen can reveal the head is not aimed
+           at its own queue, because the camera cannot orbit) or left on true
+           aim (two blank housings per intersection, which is what a real
+           one looks like from a single fixed viewpoint). */
+        if(dv.x > 0 || dv.y > 0){
+          const st = signalAxisState(S.node, t, S.axis);
+          const lamps = [["red", C_RED], ["amber", C_AMB], ["green", C_GRN]];
+          for(let i = 0; i < 3; i++){
+            const p = W(R*1.5, 0, topZ - gap*(0.75 + i));
+            g.fillStyle(st === lamps[i][0] ? lamps[i][1] : C_OFF, 1);
+            g.fillCircle(p.x, p.y, R*this.K);
+          }
+        }
+      }
     } else if(kind === "people"){
       /* ported from the customer lab (dial bench approved), now drawn
          via the shared drawPersonHull() so prop.people and
@@ -11997,6 +12136,38 @@ class WorldScene extends Phaser.Scene {
     }
   }
 
+  /* ---------- TRAFFIC OBEYS THE LIGHT ----------
+     Same `hold` field trafficWorldAt already subtracts -- the mechanism curb
+     queues and the crime scene share -- stepped by real elapsed t via
+     _trafHoldStep and holdFrame-guarded, so no car takes two steps in one
+     frame and drives backward.
+
+     A car only holds inside a short band just before the stop line, so it
+     rolls up to the line instead of freezing wherever it happened to be when
+     the light changed. Past the line it is committed and clears the box
+     rather than parking in the middle of the intersection. Cars mid-corner
+     are skipped: they are not approaching any line. */
+  updateSignalHolds(t){
+    if(!SIGNAL.aware) return;
+    const traffic = this.route && this.route.traffic;
+    if(!traffic) return;
+    const hDt = this._trafHoldDt !== undefined ? this._trafHoldDt : 0;
+    for(const tr of traffic){
+      const { wp, fc } = trafficWorldAt(tr, t);
+      if(Math.abs(fc - Math.round(fc)) > 0.1) continue;
+      const f = ((Math.round(fc) % 4) + 4) % 4, d = DIRV[f];
+      const onX = d.x !== 0;
+      const pos = onX ? wp.x : wp.y, dir = onX ? d.x : d.y;
+      const nodeCoord = dir > 0 ? Math.ceil(pos/BLOCK)*BLOCK : Math.floor(pos/BLOCK)*BLOCK;
+      const dist = Math.abs(nodeCoord - pos);
+      if(dist < ROAD_HALF || dist > ROAD_HALF + SIGNAL.stopBand) continue;
+      const node = onX ? { i: Math.round(nodeCoord/BLOCK), j: Math.round(wp.y/BLOCK) }
+                       : { i: Math.round(wp.x/BLOCK),      j: Math.round(nodeCoord/BLOCK) };
+      if(signalAxisGo(node, t, onX ? 0 : 1)) continue;
+      if(tr.holdFrame !== t){ tr.hold = (tr.hold || 0) + hDt; tr.holdFrame = t; }
+    }
+  }
+
   /* ---------- CAR FOLLOWING / SPACING ----------
      Independent traffic loops share streets with zero mutual awareness,
      and the three cars on any one loop run at different speeds, so they
@@ -12290,7 +12461,8 @@ class WorldScene extends Phaser.Scene {
       }
       this.hjSim(dt, this.route && this.route.challenge);
     }
-    this.updateTrafficSpacing(t, dt);
+    this.updateTrafficSpacing(t, dt);   // sets _trafHoldDt, which the signals reuse
+    this.updateSignalHolds(t);
     this.updateWilliamIdle(t);
     this.updateCrimeTraffic(t, dt);
     this.updateCrimeTape(t);
