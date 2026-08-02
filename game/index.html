@@ -5508,6 +5508,34 @@ class WorldScene extends Phaser.Scene {
     /* flat ground only -- see FLAT_CULL_PAD above */
     const flatSpan = flatSpanOf(this.cx, this.cy, this.scale.gameSize.width,
                                 this.scale.gameSize.height, this.K, this.camZ);
+    /* NARROW PHASE for ground paint.
+       The hash broad phase answers a MANHATTAN RADIUS question. That is
+       the right shape for the hash and the wrong shape for a screen: a
+       diamond that circumscribes a tall portrait rect necessarily
+       swallows a lot of area the rect does not cover. flatSpan cannot be
+       shrunk to fix it -- it is already down to ~140 units of slack over
+       the furthest visible tile -- because the waste is geometric, not
+       slack. At depth 3 that left ~1,808 tiles queried for ~640 with any
+       pixel on screen.
+
+       So reject on the tile's projected screen AABB instead. This is
+       provably invisible rather than visually acceptable: a quad whose
+       bounding box misses the viewport contains no pixels inside it, so
+       nothing skipped here could have been seen at any zoom or heading.
+
+       The four W() calls are not extra work -- the draw needs those exact
+       points anyway. A rejected tile costs one projection plus four
+       compares and saves a fillPoints AND a strokePoints. */
+    const gw = this.scale.gameSize.width, gh = this.scale.gameSize.height;
+    const onScreen = (pts) => {
+      let lo = pts[0].x, hi = lo, top = pts[0].y, bot = top;
+      for(let i = 1; i < pts.length; i++){
+        const p = pts[i];
+        if(p.x < lo) lo = p.x; else if(p.x > hi) hi = p.x;
+        if(p.y < top) top = p.y; else if(p.y > bot) bot = p.y;
+      }
+      return hi >= 0 && lo <= gw && bot >= 0 && top <= gh;
+    };
     /* An edge is a WHOLE STREET, not a point. near() on its two endpoints
        is the wrong test for one: a street the camera is standing in the
        middle of has BOTH ends further away than either end of a street
@@ -5546,8 +5574,7 @@ class WorldScene extends Phaser.Scene {
        panel seams, provably conflict-free by construction — no classify()
        check needed), fine classify()-verified cells only near actual
        intersections — the one place a cheap tile could be wrong. */
-    /* same tiles as the old full-array scan, same cullSpan, same order
-       within a bucket -- only the search changed */
+    /* broad phase: Manhattan hash on flatSpan. narrow phase: screen AABB. */
     for(const rn of manhattanQuery(paveHash(r.grid, "sidewalkRuns", "swRunHash"),
                                    this.camX, this.camY, flatSpan, this._qRuns)){
       const half = T2/2;
@@ -5555,6 +5582,7 @@ class WorldScene extends Phaser.Scene {
         this.W(rn.x-half, rn.y-half, 0), this.W(rn.x+half, rn.y-half, 0),
         this.W(rn.x+half, rn.y+half, 0), this.W(rn.x-half, rn.y+half, 0)
       ];
+      if(!onScreen(pts)) continue;
       this.quadOn(g, pts, rn.parity === 0 ? d.pave : d.paveB);
       this.edgeOn(g, pts, d.paveEdge, 1);
     }
@@ -5565,6 +5593,7 @@ class WorldScene extends Phaser.Scene {
         this.W(cell.x-half, cell.y-half, 0), this.W(cell.x+half, cell.y-half, 0),
         this.W(cell.x+half, cell.y+half, 0), this.W(cell.x-half, cell.y+half, 0)
       ];
+      if(!onScreen(pts)) continue;
       this.quadOn(g, pts, cell.parity === 0 ? d.pave : d.paveB);
       this.edgeOn(g, pts, d.paveEdge, 1);
     }
