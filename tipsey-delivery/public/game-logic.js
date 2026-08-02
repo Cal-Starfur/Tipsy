@@ -1123,6 +1123,67 @@ function flatSpanOf(cx, cy, w, h, K, camZ){
   return Math.max(ax, by) + FLAT_CULL_PAD;
 }
 
+/* ================= REDUNDANT STYLE ELISION =================
+   Measured, per frame, 900x1344:
+
+     depth 1   fillStyle 12,366  50% redundant | lineStyle 3,734  68%
+     depth 2   fillStyle 14,783  48% redundant | lineStyle 4,685  68%
+     depth 3   fillStyle 19,562  45% redundant | lineStyle 6,694  69%
+
+   That is 8,716 / 10,305 / 13,357 commands a frame setting the graphics
+   state to the value it already holds. fillStyle is the single largest
+   command type in the frame at every depth -- larger than any geometry
+   call -- and roughly half of it is a no-op.
+
+   The cost is not the command, it is what the command does to batching.
+   Phaser's Graphics renderer walks the command buffer each frame and a
+   FILL_STYLE entry closes the current batch and opens a new one, so a
+   redundant style change fragments a batch that could have stayed open
+   across many shapes. ~19,600 style changes against ~21,500 fill ops
+   means the tessellator was flushing on very nearly every shape.
+
+   Why this is safe in a way the cull work never was: skipping a state
+   set whose value is already current cannot change a pixel. There is no
+   geometry decision here -- nothing is drawn or not drawn -- so none of
+   the pop-in risk that has kept cullSpan untouched applies. The output
+   is identical by construction, not by visual judgement.
+
+   THE ONE PLACE THIS CAN GO WRONG is the memo going stale against the
+   real state. Graphics.clear() empties the command buffer, so after a
+   clear NO style is set and a memo that still remembers one would let
+   the next shape inherit whatever colour happened to be current. That
+   is why clear() is intercepted and the memo reset with it. Phaser's
+   clear() also re-applies defaultFillColor/defaultStrokeColor if they
+   were ever set; those calls route back through the memo below and
+   re-seed it correctly, which is why the reset happens BEFORE the
+   underlying clear runs, not after.
+
+   Per instance rather than on the prototype: each Graphics carries its
+   own state, gFade and gNight and gGlow have their own alpha and blend
+   modes, and a shared memo across objects would be exactly the stale
+   read described above. */
+function memoGraphicsStyles(g){
+  if(g.__styleMemo) return g;
+  g.__styleMemo = true;
+  const forget = () => { g.__mfc = g.__mfa = g.__msw = g.__msc = g.__msa = null; };
+  forget();
+  const rawFill = g.fillStyle.bind(g), rawLine = g.lineStyle.bind(g), rawClear = g.clear.bind(g);
+  g.fillStyle = function(color, alpha){
+    if(alpha === undefined) alpha = 1;              // Phaser's own default
+    if(color === g.__mfc && alpha === g.__mfa) return g;
+    g.__mfc = color; g.__mfa = alpha;
+    return rawFill(color, alpha);
+  };
+  g.lineStyle = function(width, color, alpha){
+    if(alpha === undefined) alpha = 1;
+    if(width === g.__msw && color === g.__msc && alpha === g.__msa) return g;
+    g.__msw = width; g.__msc = color; g.__msa = alpha;
+    return rawLine(width, color, alpha);
+  };
+  g.clear = function(){ forget(); return rawClear(); };
+  return g;
+}
+
 const MHASH_B = 2048;
 function buildManhattanHash(items){
   const m = new Map();
@@ -4155,6 +4216,12 @@ class WorldScene extends Phaser.Scene {
     this.gGlow = this.add.graphics();      // warm accents ABOVE the tint (lamps, eyes)
     this.gGlow.setBlendMode(Phaser.BlendModes.ADD);
     this.hud = this.add.graphics().setDepth(5);
+    /* see memoGraphicsStyles: drops the ~13k redundant style changes a
+       frame that were fragmenting Phaser's batches. Applied to every
+       Graphics this scene draws into, including the ones with their own
+       alpha and blend mode, since the memo is per instance. */
+    [this.gSky, this.gWorld, this.gFade, this.g, this.gFront,
+     this.gNight, this.gGlow, this.hud].forEach(memoGraphicsStyles);
     this.qtext = this.add.text(0, 0, "?!", { fontSize:"30px", fontStyle:"bold", color:"#ffb04d" })
       .setOrigin(0.5).setDepth(4).setVisible(false);
 
