@@ -8557,7 +8557,10 @@ class WorldScene extends Phaser.Scene {
       const C_SIDE_X = 0x33523d, C_SIDE_Y = 0x27412f, C_TOP = 0x3e6149;
       const C_DARK_X = 0x24382b, C_DARK_Y = 0x1c2d22, C_DARK_T = 0x2c4634;
       const C_HOUSE_X = 0x22392a, C_HOUSE_Y = 0x192a1f, C_HOOD = 0x122019;
-      const C_OFF = 0x14201a, C_RED = 0xd8392b, C_AMB = 0xe8a021, C_GRN = 0x3fbf62;
+      /* an unlit lens at 0x14201a sat within a few points of the housing it
+         is set into, so a dark head read as one blank slab with a single
+         floating dot on it. Near-black separates the lenses from the case. */
+      const C_OFF = 0x0b120e, C_RED = 0xd8392b, C_AMB = 0xe8a021, C_GRN = 0x3fbf62;
       const box = (a0, a1, b0, b1, z0, z1, cx, cy, cTop) => {
         const P = (a, b, z) => W(a, b, z);
         const faces = [
@@ -8571,27 +8574,29 @@ class WorldScene extends Phaser.Scene {
         this.quadOn(g, [P(a0,b0,z1), P(a1,b0,z1), P(a1,b1,z1), P(a0,b1,z1)], cTop);
       };
       const armZ = SIGNAL.poleH - 18;
-      const HANG = 13;                       // arm underside down to housing top
-      const headTopZ = armZ - 9 - HANG;
+      const HANG = 10;                       // arm underside down to housing top
+      const headTopZ = armZ - 7 - HANG;      // 7 = arm half-thickness, kept in step above
       if(kind === "signalpost"){
         /* base collar, shaft, arm collar, arm, cap. The collars are the
            polish: an arm butting straight into a bare shaft, and a shaft
            meeting the pavement with no foot, is what read as disjointed. */
-        box(-16, 16, -16, 16, 0, 24, C_DARK_X, C_DARK_Y, C_DARK_T);
-        box(-11, 11, -11, 11, 0, SIGNAL.poleH, C_SIDE_X, C_SIDE_Y, C_TOP);
+        /* slimmer than the first pass: a 22-wide shaft carrying an 18-deep
+           arm was heavier than the cones and palms beside it. */
+        box(-14, 14, -14, 14, 0, 18, C_DARK_X, C_DARK_Y, C_DARK_T);
+        box(-10, 10, -10, 10, 0, SIGNAL.poleH, C_SIDE_X, C_SIDE_Y, C_TOP);
         if(SIGNAL.arm){
-          box(-14, 14, -14, 14, armZ-15, armZ+15, C_DARK_X, C_DARK_Y, C_DARK_T);
+          box(-13, 13, -13, 13, armZ-13, armZ+13, C_DARK_X, C_DARK_Y, C_DARK_T);
           /* the arm rides with the post, pointing along fdir = armF */
-          box(0, SIGNAL.armLen, -7, 7, armZ-9, armZ+9, C_SIDE_X, C_SIDE_Y, C_TOP);
+          box(0, SIGNAL.armLen, -6, 6, armZ-7, armZ+7, C_SIDE_X, C_SIDE_Y, C_TOP);
         }
-        box(-13, 13, -13, 13, SIGNAL.poleH, SIGNAL.poleH+9, C_DARK_X, C_DARK_Y, C_TOP);
+        box(-12, 12, -12, 12, SIGNAL.poleH, SIGNAL.poleH+7, C_DARK_X, C_DARK_Y, C_TOP);
       } else {
         const R = SIGNAL.headR, gap = R*2.3;
-        const botZ = headTopZ - gap*3.1;
+        const botZ = headTopZ - gap*3.05;
         /* hanger bracket. The housing used to start 3 units BELOW the arm's
            underside and hang there unattached -- a floating box, which is
            the other half of the disjointed read. */
-        if(SIGNAL.arm) box(-6, 6, -6, 6, headTopZ, armZ-9, C_DARK_X, C_DARK_Y, C_DARK_T);
+        if(SIGNAL.arm) box(-5, 5, -5, 5, headTopZ, armZ-7, C_DARK_X, C_DARK_Y, C_DARK_T);
         box(-R*1.4, R*1.4, -R*1.4, R*1.4, botZ, headTopZ, C_HOUSE_X, C_HOUSE_Y, C_HOOD);
         /* FACING. headF aims at the cars this signal stops, which is right
            and is not the whole story: the camera never rotates, so exactly
@@ -8614,8 +8619,11 @@ class WorldScene extends Phaser.Scene {
             /* visor over each lens, then a recessed ring, then the lens --
                three flat circles on a flat face is what made the head look
                like a sticker rather than a fitting */
-            this.quadOn(g, [W(face, -R*1.05, z + R*0.72), W(face + R*0.75, -R*1.05, z + R*0.95),
-                            W(face + R*0.75,  R*1.05, z + R*0.95), W(face,  R*1.05, z + R*0.72)],
+            /* full-width shallow visor. The first pass was a narrow deep fin
+               that stuck out past the housing like a tab rather than reading
+               as a hood over the lens. */
+            this.quadOn(g, [W(face, -R*1.35, z + R*0.78), W(face + R*0.5, -R*1.35, z + R*0.92),
+                            W(face + R*0.5,  R*1.35, z + R*0.92), W(face,  R*1.35, z + R*0.78)],
                         C_HOOD);
             const p = W(face, 0, z);
             g.fillStyle(C_HOOD, 1);   g.fillCircle(p.x, p.y, R*1.16*this.K);
