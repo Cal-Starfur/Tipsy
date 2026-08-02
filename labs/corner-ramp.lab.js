@@ -25,8 +25,10 @@
    Move `along` out and a strip of plain sidewalk opens between ramp and
    street, which is why `cross` is the more promising axis.
 
-   TO PORT: read the numbers off the panel and write them into WORLD_RAMP in
-   game/index.html, then sync game-logic.js.
+   TO PORT: tap `copy` for a one-line summary of the current values, hand it
+   back, and it gets written into WORLD_RAMP in game/index.html and synced to
+   game-logic.js. The same line is always visible above the button, so a
+   screenshot works just as well.
    =========================================================================== */
 
 (() => {
@@ -70,7 +72,13 @@
        <button id="crtClear" style="flex:2">auto-fix cross</button>
        <button id="crtReset" style="flex:1">reset</button>
      </div>
-     <div id="crtStat" style="margin-top:8px;color:#8f95a1"></div>`;
+     <div id="crtStat" style="margin-top:8px;color:#8f95a1"></div>
+     <div style="display:flex;gap:8px;align-items:center;margin-top:8px">
+       <code id="crtPort" style="flex:1;background:#0e0d0c;border:1px solid #2b2f38;
+             border-radius:7px;padding:7px 8px;color:#ff9c4d;overflow-x:auto;
+             white-space:nowrap;-webkit-user-select:text;user-select:text"></code>
+       <button id="crtCopy" style="flex:0 0 62px">copy</button>
+     </div>`;
 
   for (const b of panel.querySelectorAll('button')) {
     b.style.cssText = 'background:#262a33;color:#e8eaef;border:1px solid #363b46;' +
@@ -102,6 +110,17 @@
     document.getElementById('crtStat').textContent =
       `${grid.curbRamps.length} ramps · slope gap ${gap >= 0 ? '+' : ''}${gap} · ` +
       `pad ${kerb === 0 ? 'on kerb' : (kerb > 0 ? kerb + ' short of kerb' : -kerb + ' into road')}`;
+
+    /* The line to hand back. Kept selectable rather than copy-only because
+       an iframe without a user gesture cannot always reach the clipboard --
+       worst case it can be read off the screen or screenshotted. */
+    document.getElementById('crtPort').textContent = portLine();
+  };
+
+  const portLine = () => {
+    const w = WORLD_RAMP;
+    return `WORLD_RAMP along:${w.along} cross:${w.cross} both:${w.bothStreets} ` +
+           `patch:${w.baseCross} outline:${w.baseOutline}`;
   };
 
   const sync = () => {
@@ -130,6 +149,22 @@
   document.getElementById('crtClear').onclick = () => {
     WORLD_RAMP.cross = WORLD_RAMP.along + 3 * TILE; sync();
   };
+  document.getElementById('crtCopy').onclick = async () => {
+    const btn = document.getElementById('crtCopy');
+    try{
+      await navigator.clipboard.writeText(portLine());
+      btn.textContent = 'copied';
+    }catch(e){
+      /* no clipboard permission in this frame -- select it instead so one
+         long-press gives the iOS copy menu. */
+      const r = document.createRange();
+      r.selectNodeContents(document.getElementById('crtPort'));
+      const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r);
+      btn.textContent = 'selected';
+    }
+    setTimeout(() => { btn.textContent = 'copy'; }, 1400);
+  };
+
   document.getElementById('crtReset').onclick = () => {
     Object.assign(WORLD_RAMP, {
       along: ROAD_HALF + 2 * TILE, cross: ROAD_HALF + 3 * TILE,
