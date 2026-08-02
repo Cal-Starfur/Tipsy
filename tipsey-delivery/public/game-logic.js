@@ -5887,7 +5887,7 @@ class WorldScene extends Phaser.Scene {
     }
   }
 
-  drawStoreUnit(g, ox, oy, dv, rv, w, seed, isFirst, isLast, part='all', a0=0, a1=w){
+  drawStoreUnit(g, ox, oy, dv, rv, w, seed, isFirst, isLast, part='all', a0=0, a1=w, opts=null){
     const rng = mulberry32(seed);
     const G = (a,b,h) => this.W(ox + dv.x*a + rv.x*b, oy + dv.y*a + rv.y*b, h);
     /* slice window [a0,a1): same contract as drawHouseUnit — clip
@@ -5942,10 +5942,33 @@ class WorldScene extends Phaser.Scene {
 
     const doorW = Math.min(DOOR_W*0.72, w*0.3);
     const doorX = doorLeft ? 6 : w - doorW - 6;
-    const glassX0 = doorLeft ? doorX+doorW+4 : 6;
-    const glassX1 = doorLeft ? w-6 : doorX-4;
+    /* PICKUP UNIT: the painted door is suppressed and the glass runs the
+       full frontage.
 
-    if(inS(doorX + doorW/2)){
+       That unit gets a second, REAL door from drawShopDoor, centred on
+       u.w/2 — and centre is the anchor everything else already uses:
+       route.pickupSpot is built at pu.w/2, drawPickupUnit is handed
+       doorCenterX = u.w/2, and the worker walks out from
+       pickupDoorCenterX. Robot, door and worker agree by construction;
+       see drawShopDoor's note on why centring is what makes them agree.
+
+       The decorative door here is the one thing that does not agree. It
+       sits hard against whichever end doorLeft picked, so the pickup
+       unit rendered with TWO doors and the worker emerged from the one
+       that was not "the" door. Chasing doorX with the spot, the swinging
+       door and the worker would mean three consumers tracking a random
+       number; deleting the door nothing references is the smaller and
+       safer change.
+
+       doorLeft is still drawn from rng ABOVE this branch, unconditional,
+       because the slice contract requires the rng sequence to be
+       identical regardless of what any one slice decides to skip. Every
+       other unit on the strip must keep the frontage it had. */
+    const noDoor = !!(opts && opts.noDoor);
+    const glassX0 = noDoor ? 6 : (doorLeft ? doorX+doorW+4 : 6);
+    const glassX1 = noDoor ? w-6 : (doorLeft ? w-6 : doorX-4);
+
+    if(!noDoor && inS(doorX + doorW/2)){
       this.quadOn(g, [G(doorX,0.5,dZ1),G(doorX+doorW,0.5,dZ1),G(doorX+doorW,0.5,0),G(doorX,0.5,0)], C.wallDk);
       this.quadOn(g, [G(doorX+3,0.53,dZ1-4),G(doorX+doorW-3,0.53,dZ1-4),G(doorX+doorW-3,0.53,4),G(doorX+3,0.53,4)], 0x6b93a8, 0.85);
     }
@@ -6623,7 +6646,8 @@ class WorldScene extends Phaser.Scene {
            worker to his own strip-keyed entry is stage 2. The CLEAR
            sweep keeps hazards away from it meanwhile. */
         vq.push({ depth:hx+hy, fn:(g,t)=>{
-          this.drawStoreUnit(g, ux, uy, e.dv, e.rv, u.w, hseed, isFirst, isLast, 'body');
+          this.drawStoreUnit(g, ux, uy, e.dv, e.rv, u.w, hseed, isFirst, isLast, 'body',
+                             0, u.w, { noDoor:true });
           this.drawPickupUnit(g, ux, uy, e.dv, e.rv, u.w/2, hseed, t);
         }});
         vq.push({ depth:hx+hy, isRoof:true, fn:(g)=>this.drawStoreUnit(g, ux, uy, e.dv, e.rv, u.w, hseed, isFirst, isLast, 'roof') });
