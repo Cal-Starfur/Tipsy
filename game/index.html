@@ -5670,17 +5670,55 @@ class WorldScene extends Phaser.Scene {
        zoom depth. Found by counting Graphics ops per frame and noticing
        the road-surface loop directly above drew 12 quads off r.grid.edges
        while this one drew 356 off the same array. */
+    /* Two changes here, both about the same thing: an edge runs NODE TO
+       NODE, and the intersection sits at each node. The cross street is
+       the same 8 rows wide, so the junction occupies
+       [node - ROAD_HALF, node + ROAD_HALF] along this edge, and the
+       mid-block run that should actually carry paint is
+
+           a0 + dv*ROAD_HALF  ..  b0 - dv*ROAD_HALF
+
+       Both loops below used the full a0..b0 span, which painted the
+       centre stripe straight across the mouth of the cross street and
+       ran the curb riser through the junction as an unbroken seam. That
+       is the line visible cutting across the intersection on device.
+
+       MID() is shared by both so the stripe and the curb can never
+       disagree about where the junction starts -- same class of bug as
+       targetDoorS() for the GPS readout. */
+    const midRun = (a0, b0, dv) => ({
+      sx: a0.x + dv.x*ROAD_HALF, sy: a0.y + dv.y*ROAD_HALF,
+      len: Math.hypot(b0.x - a0.x, b0.y - a0.y) - 2*ROAD_HALF
+    });
+
+    /* centre line: flat road paint, no depth. Dashed, because it divides
+       two lanes of OPPOSING travel -- a solid line means no crossing,
+       which is not what this road is.
+
+       The dash count is chosen so a whole number of periods fits the
+       mid-block run exactly, and the phase is offset by a quarter period
+       so the run opens and closes with an identical half gap. Picking a
+       fixed dash length instead would clip an arbitrary partial dash
+       against one intersection and not the other, which reads as a
+       mistake at view 1 even though it is only a phase artefact. */
+    const LINE_HALF   = 4;          // stripe half-width, unchanged
+    const DASH_TARGET = T2 * 2.5;   // desired period, snapped to fit below
     for(const edge of r.grid.edges){
       if(!nearSeg(edge.a, edge.b, cullSpan)) continue;
       const dv = DIRV[edge.f], rv = DIRV[(edge.f+1)%4];
-      const a0 = edge.a, b0 = edge.b;
-      const pts = [
-        this.W(a0.x - rv.x*4, a0.y - rv.y*4, 3),
-        this.W(b0.x - rv.x*4, b0.y - rv.y*4, 3),
-        this.W(b0.x + rv.x*4, b0.y + rv.y*4, 3),
-        this.W(a0.x + rv.x*4, a0.y + rv.y*4, 3)
-      ];
-      this.quadOn(g, pts, d.roadLine);
+      const { sx, sy, len } = midRun(edge.a, edge.b, dv);
+      if(len <= 0) continue;
+      const n = Math.max(1, Math.round(len / DASH_TARGET));
+      const per = len / n, dash = per*0.5, phase = per*0.25;
+      for(let i = 0; i < n; i++){
+        const s0 = phase + i*per, s1 = s0 + dash;
+        this.quadOn(g, [
+          this.W(sx + dv.x*s0 - rv.x*LINE_HALF, sy + dv.y*s0 - rv.y*LINE_HALF, 3),
+          this.W(sx + dv.x*s1 - rv.x*LINE_HALF, sy + dv.y*s1 - rv.y*LINE_HALF, 3),
+          this.W(sx + dv.x*s1 + rv.x*LINE_HALF, sy + dv.y*s1 + rv.y*LINE_HALF, 3),
+          this.W(sx + dv.x*s0 + rv.x*LINE_HALF, sy + dv.y*s0 + rv.y*LINE_HALF, 3)
+        ], d.roadLine);
+      }
     }
     /* curb: a genuine vertical riser face, not a wide sloped strip —
        zero width ACROSS the curb line, just a height difference from
@@ -5688,17 +5726,26 @@ class WorldScene extends Phaser.Scene {
        a 92-unit-wide strip made an 8-unit rise basically unreadable;
        a true vertical face (same lateral spot, different height) is
        what actually looks like a curb, matching how the original
-       single-path game drew it (a small wall, not a ramp). */
+       single-path game drew it (a small wall, not a ramp).
+
+       Now trimmed to the mid-block run: a curb does not cross the mouth
+       of a side street, there is a crossing there. This loop also had no
+       cull at all -- 356 edges x 2 faces = 712 quads a frame regardless
+       of where the camera was -- so it gets the same nearSeg the road
+       surface and the stripe use. */
     for(const edge of r.grid.edges){
+      if(!nearSeg(edge.a, edge.b, cullSpan)) continue;
       const dv = DIRV[edge.f], rv = DIRV[(edge.f+1)%4];
-      const a0 = edge.a, b0 = edge.b;
+      const { sx, sy, len } = midRun(edge.a, edge.b, dv);
+      if(len <= 0) continue;
+      const ex = sx + dv.x*len, ey = sy + dv.y*len;
       const curbFace = offUnits => {
         const ox = rv.x*offUnits, oy = rv.y*offUnits;
         this.quadOn(g, [
-          this.W(a0.x+ox, a0.y+oy, 3),
-          this.W(b0.x+ox, b0.y+oy, 3),
-          this.W(b0.x+ox, b0.y+oy, -2),
-          this.W(a0.x+ox, a0.y+oy, -2)
+          this.W(sx+ox, sy+oy, 3),
+          this.W(ex+ox, ey+oy, 3),
+          this.W(ex+ox, ey+oy, -2),
+          this.W(sx+ox, sy+oy, -2)
         ], d.paveEdge);
       };
       curbFace(-ROAD_HALF);
