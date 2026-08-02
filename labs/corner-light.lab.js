@@ -55,7 +55,27 @@
     stopBand: 70,   // how far back from the stop line a car will hold
     arm: true,      // false = pole-mounted head, no mast
     aware: true,    // false = lights cycle but traffic ignores them
+    readable: true, // see FACING below
   };
+
+  /* ---------- FACING ----------
+     headF points at the cars the signal is stopping, which is correct and
+     is not the whole story: the camera never rotates, and in this iso only
+     the +x and +y faces of anything are turned toward it. So exactly two of
+     the four heads at every intersection show the camera their BACK. Drawing
+     the lamps unconditionally then painted them over that back -- a light
+     glowing through the rear of the housing, which is the "facing the wrong
+     direction" on the bench shots.
+
+     readable:true  -- every head is turned to the camera-facing direction of
+       the axis it serves. Always legible, and since the camera cannot orbit,
+       nothing on screen reveals that the head is not aimed at its own queue.
+     readable:false -- true aim. Two heads per intersection show a blank
+       housing, which is exactly what a real intersection looks like from one
+       fixed viewpoint, and costs half the lamps their visibility.
+
+     Either way the lamps are only drawn on a face the camera can see. */
+  const camFacing = (d) => d.x > 0 || d.y > 0;
 
   const APEX = 414;                 // corner tile centre, out from the node on both axes
   const POLE_R = 11;
@@ -140,11 +160,13 @@
     }
     /* head hangs at the arm's far end, lamps stacked down its face */
     const hx = s.x + d.x * reach, hy = s.y + d.y * reach;
-    const hd = DIRV[s.headF];
+    const hd = DIRV[SIGNAL.readable ? (s.axis === 0 ? 0 : 1) : s.headF];
     const R = SIGNAL.headR, gap = R * 2.3;
     const topZ = armZ - 12, botZ = topZ - gap * 3.1;
     paint(g, boxOn(g, hx, hy, botZ, topZ, R * 1.5, R * 1.5), C.hood, C.housing);
 
+    /* nothing is drawn on a face turned away from the camera */
+    if (!camFacing(hd)) return;
     const st = axisState(s.node, t, s.axis);
     const lamps = [['red', C.red], ['amber', C.amber], ['green', C.green]];
     for (let i = 0; i < 3; i++) {
@@ -246,6 +268,7 @@
     `<div style="display:flex;gap:8px;margin-top:8px">
        <button id="cltArm" style="flex:1">mast</button>
        <button id="cltAware" style="flex:1">traffic aware</button>
+       <button id="cltFace" style="flex:1">readable</button>
        <button id="cltLook" style="flex:1">look at one</button>
      </div>
      <div style="display:flex;gap:8px;align-items:center;margin-top:8px">
@@ -262,14 +285,15 @@
   const portLine = () =>
     `SIGNAL cycle:${SIGNAL.cycle} amber:${SIGNAL.amber} poleH:${SIGNAL.poleH} ` +
     `armLen:${SIGNAL.armLen} headR:${SIGNAL.headR} stopBand:${SIGNAL.stopBand} ` +
-    `arm:${SIGNAL.arm} aware:${SIGNAL.aware}`;
+    `arm:${SIGNAL.arm} aware:${SIGNAL.aware} readable:${SIGNAL.readable}`;
 
   const sync = () => {
     for (const f of F) {
       document.getElementById('clt-' + f.k).value = SIGNAL[f.k];
       document.getElementById('cltv-' + f.k).textContent = SIGNAL[f.k];
     }
-    for (const [id, on] of [['cltArm', SIGNAL.arm], ['cltAware', SIGNAL.aware]])
+    for (const [id, on] of [['cltArm', SIGNAL.arm], ['cltAware', SIGNAL.aware],
+                            ['cltFace', SIGNAL.readable]])
       document.getElementById(id).style.background = on ? '#ff7a1a' : '#262a33';
     document.getElementById('cltPort').textContent = portLine();
   };
@@ -279,6 +303,7 @@
     });
   document.getElementById('cltArm').onclick = () => { SIGNAL.arm = !SIGNAL.arm; sync(); };
   document.getElementById('cltAware').onclick = () => { SIGNAL.aware = !SIGNAL.aware; sync(); };
+  document.getElementById('cltFace').onclick = () => { SIGNAL.readable = !SIGNAL.readable; sync(); };
   document.getElementById('cltLook').onclick = () => {
     const n = sc.route.grid.nodes.find(nd => nd.i === 3 && nd.j === 3) || sc.route.grid.nodes[0];
     BENCH.lookAt(n.x, n.y, 0.9);
