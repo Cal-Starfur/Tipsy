@@ -5328,7 +5328,9 @@ class WorldScene extends Phaser.Scene {
     for(const sg of (r.signals || [])){
       if(!near(sg.x, sg.y)) continue;
       this.drawProp(layerFor(sg.x, sg.y), "signalpost", sg.x, sg.y, t, sg.armF, 0, null, null, sg);
-      const ad = DIRV[sg.armF], reach = SIGNAL.arm ? SIGNAL.armLen : 0;
+      const ad = DIRV[sg.armF];
+      /* see game/index.html: pulled back so the case straddles the mast */
+      const reach = SIGNAL.arm ? Math.max(0, SIGNAL.armLen - SIGNAL.headR*0.9) : 0;
       const hx = sg.x + ad.x*reach, hy = sg.y + ad.y*reach;
       const hf = SIGNAL.readable ? (sg.axis === 0 ? 0 : 1) : sg.headF;
       this.drawProp(layerFor(hx, hy), "signalhead", hx, hy, t, hf, 0, null, null, sg);
@@ -8575,8 +8577,14 @@ class WorldScene extends Phaser.Scene {
         this.quadOn(g, [P(a0,b0,z1), P(a1,b0,z1), P(a1,b1,z1), P(a0,b1,z1)], cTop);
       };
       const armZ = SIGNAL.poleH - 18;
-      const HANG = 10;                       // arm underside down to housing top
-      const headTopZ = armZ - 7 - HANG;      // 7 = arm half-thickness, kept in step above
+      /* The housing top sits ABOVE the arm's centreline, not below its
+         underside. It hung off a thin neck before, which read as two parts
+         near each other rather than one fitting: the arm ended, a gap, then
+         a box. Now the arm's lower half runs INTO the housing and only its
+         top shows above -- and because the head is drawn after the post in
+         the same queue entry, the housing reliably paints over the arm it
+         swallows, at every heading. */
+      const headTopZ = armZ + 2;             // arm spans armZ-7 .. armZ+7
       if(kind === "signalpost"){
         /* base collar, shaft, arm collar, arm, cap. The collars are the
            polish: an arm butting straight into a bare shaft, and a shaft
@@ -8594,10 +8602,6 @@ class WorldScene extends Phaser.Scene {
       } else {
         const R = SIGNAL.headR, gap = R*2.3;
         const botZ = headTopZ - gap*3.05;
-        /* hanger bracket. The housing used to start 3 units BELOW the arm's
-           underside and hang there unattached -- a floating box, which is
-           the other half of the disjointed read. */
-        if(SIGNAL.arm) box(-5, 5, -5, 5, headTopZ, armZ-7, C_DARK_X, C_DARK_Y, C_DARK_T);
         box(-R*1.4, R*1.4, -R*1.4, R*1.4, botZ, headTopZ, C_HOUSE_X, C_HOUSE_Y, C_HOOD);
         /* FACING. headF aims at the cars this signal stops, which is right
            and is not the whole story: the camera never rotates, so exactly
@@ -8620,16 +8624,26 @@ class WorldScene extends Phaser.Scene {
             /* visor over each lens, then a recessed ring, then the lens --
                three flat circles on a flat face is what made the head look
                like a sticker rather than a fitting */
-            /* full-width shallow visor. The first pass was a narrow deep fin
-               that stuck out past the housing like a tab rather than reading
-               as a hood over the lens. */
-            this.quadOn(g, [W(face, -R*1.35, z + R*0.78), W(face + R*0.5, -R*1.35, z + R*0.92),
-                            W(face + R*0.5,  R*1.35, z + R*0.92), W(face,  R*1.35, z + R*0.78)],
-                        C_HOOD);
             const p = W(face, 0, z);
             g.fillStyle(C_HOOD, 1);   g.fillCircle(p.x, p.y, R*1.16*this.K);
             g.fillStyle(lit ? lamps[i][1] : C_OFF, 1); g.fillCircle(p.x, p.y, R*this.K);
             if(lit){ g.fillStyle(0xffffff, 0.22); g.fillCircle(p.x, p.y, R*0.5*this.K); }
+            /* VISOR LAST.
+               It was drawn first, before the recess ring and the lens. The
+               ring is a screen circle of radius R*1.16 about the lens centre
+               and the visor sat only R*0.78 above that centre -- so it was
+               inside the circle and got painted over immediately. It was
+               never going to show wherever it was put, which is why it
+               "wasn't drawing correctly": it drew, then was covered.
+               Drawn after, it overlaps the top of the lens, which is what a
+               hood does. Deeper too -- R*0.5 of protrusion is four units at
+               headR 8, invisible at any sensible zoom. */
+            const vz = z + R*0.5, vOut = R*1.0;
+            this.quadOn(g, [W(face, -R*1.3, vz), W(face + vOut, -R*1.3, vz + R*0.42),
+                            W(face + vOut,  R*1.3, vz + R*0.42), W(face,  R*1.3, vz)], C_HOOD);
+            this.quadOn(g, [W(face + vOut, -R*1.3, vz + R*0.42), W(face + vOut, R*1.3, vz + R*0.42),
+                            W(face + vOut,  R*1.3, vz + R*0.22), W(face + vOut, -R*1.3, vz + R*0.22)],
+                        C_HOUSE_Y);
           }
         }
       }
