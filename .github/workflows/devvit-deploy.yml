@@ -12,6 +12,13 @@ on:
           - upload
           - publish
         default: upload
+      visibility:
+        description: "publish only — unlisted (default) or public (extra App Review)"
+        type: choice
+        options:
+          - unlisted
+          - public
+        default: unlisted
       bump:
         description: "Version bump"
         type: choice
@@ -68,7 +75,16 @@ jobs:
 
       - name: Publish (submit for review)
         if: inputs.action == 'publish'
-        run: devvit publish --bump ${{ inputs.bump }} --verbose
+        # --public asks for a listing in the public Apps directory and goes
+        # through App Review again. Without it, publish lands UNLISTED: live,
+        # installable, reachable by direct link, just absent from the
+        # directory -- which is how tipsey-delivery sits on r/tipsey today.
+        run: |
+          if [ "${{ inputs.visibility }}" = "public" ]; then
+            devvit publish --public --bump ${{ inputs.bump }} --verbose
+          else
+            devvit publish --bump ${{ inputs.bump }} --verbose
+          fi
 
       - name: Result
         run: echo "devvit ${{ inputs.action }} (${{ inputs.bump }}) completed."
