@@ -4821,13 +4821,30 @@ class WorldScene extends Phaser.Scene {
 
         const cullSpan = (this.scale.gameSize.width / this.K) * 0.9 + TILE*6 + 4000;
     const near = (wx, wy) => (Math.abs(wx - this.camX) + Math.abs(wy - this.camY)) < cullSpan;
+    /* An edge is a WHOLE STREET, not a point. near() on its two endpoints
+       is the wrong test for one: a street the camera is standing in the
+       middle of has BOTH ends further away than either end of a street
+       the camera is merely looking down. It survives today only because
+       cullSpan is loose enough to swallow the error, which makes it a
+       trap for anyone who later tightens the span.
+
+       Test the nearest point ON the segment instead. Every grid edge is
+       axis-aligned, so the Euclidean nearest point IS the Manhattan
+       nearest point -- this projection is exact here, not an
+       approximation that happens to be close. */
+    const nearSeg = (a, b, span) => {
+      const dx = b.x - a.x, dy = b.y - a.y, L2 = dx*dx + dy*dy;
+      let s = L2 ? ((this.camX - a.x)*dx + (this.camY - a.y)*dy) / L2 : 0;
+      s = s < 0 ? 0 : (s > 1 ? 1 : s);
+      return (Math.abs(a.x + dx*s - this.camX) + Math.abs(a.y + dy*s - this.camY)) < span;
+    };
 
     /* roads: ONE quad per street, full length — no internal tile seams
        (a uniformly-colored surface built from many small quads shows
        every seam as a hairline at low zoom; a single quad has none). */
     for(const edge of r.grid.edges){
       const dv = DIRV[edge.f], rv = DIRV[(edge.f+1)%4];
-      if(!near(edge.a.x, edge.a.y) && !near(edge.b.x, edge.b.y)) continue;
+      if(!nearSeg(edge.a, edge.b, cullSpan)) continue;
       const ax = edge.a.x - dv.x*OVERSHOOT, ay = edge.a.y - dv.y*OVERSHOOT;
       const bx = edge.b.x + dv.x*OVERSHOOT, by = edge.b.y + dv.y*OVERSHOOT;
       this.quadOn(g, [
@@ -4863,7 +4880,13 @@ class WorldScene extends Phaser.Scene {
       this.edgeOn(g, pts, d.paveEdge, 1);
     }
     /* center line: flat road paint, no depth. */
+    /* This loop had NO cull whatsoever -- it painted the stripe on every
+       street in the whole city, all 356 edges, every frame, at every
+       zoom depth. Found by counting Graphics ops per frame and noticing
+       the road-surface loop directly above drew 12 quads off r.grid.edges
+       while this one drew 356 off the same array. */
     for(const edge of r.grid.edges){
+      if(!nearSeg(edge.a, edge.b, cullSpan)) continue;
       const dv = DIRV[edge.f], rv = DIRV[(edge.f+1)%4];
       const a0 = edge.a, b0 = edge.b;
       const pts = [
