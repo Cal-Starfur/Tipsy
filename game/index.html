@@ -2172,12 +2172,35 @@ function buildSidewalkGeometry(grid){
 
    No way to have eight and no overlap without reshaping the ramp art
    itself, which is lab-approved and shared with the route's own ramps. */
-const WORLD_RAMPS_BOTH_STREETS = true;
+/* Tunables live on a MUTABLE object, not as separate `const`s, so
+   labs/_bench.html can drive them live: the bench compiles inside the
+   game's realm, where a const BINDING cannot be reassigned but an
+   object's properties can. Paste labs/corner-ramp-tune.js into the
+   bench console to get sliders on all of these; porting the result is
+   then literally writing the approved numbers in here.
+
+   SLOPE OVERLAP, the thing being tuned: each ramp's slope runs from
+   `along` to `along + 2*TILE` and is 2*TILE wide, centred on `cross`.
+   The neighbouring street's ramp at the same corner is the same shape
+   with the axes swapped, so the two slopes intersect exactly when
+       along < cross + TILE   AND   cross < along + 3*TILE
+   Both hold at the shipped 460/506, which is why every corner has two
+   slopes drawn through the same 92x92 square. cross >= along + 3*TILE
+   makes them abut instead (at 460 that is cross 598, which lands the
+   patch exactly on the band's outer three rows, 460..736). The pads never overlapped -- that part of my
+   first reading was wrong; only the slopes and the base patches do. */
+const WORLD_RAMP = {
+  along:       ROAD_HALF + T2,        // centre, out from the node along its own street
+  cross:       ROAD_HALF + 1.5*T2,    // centre, across the 4-row band
+  bothStreets: true,                  // false = one ramp per corner, alternating by node parity
+  baseCross:   1.5*(TILE*2),          // half-width of the repainted sidewalk patch under the ramp
+  baseOutline: 2                      // patch outline weight; 0 = none (two patches crossing = crossed rectangles)
+};
 
 function buildWorldCurbRamps(grid){
   const ramps = [];
-  const along = ROAD_HALF + T2;
-  const perpMag = ROAD_HALF + 1.5*T2;
+  const along = WORLD_RAMP.along;
+  const perpMag = WORLD_RAMP.cross;
   const interior = (x, y) => {
     const bi = Math.floor(x / BLOCK), bj = Math.floor(y / BLOCK);
     return bi >= 0 && bi <= grid.cols-2 && bj >= 0 && bj <= grid.rows-2;
@@ -2185,7 +2208,7 @@ function buildWorldCurbRamps(grid){
   /* each corner belongs to exactly ONE node -- the one its ramp points
      at -- so parity on that node picks a single street per corner with
      no double-counting across the shared edge. */
-  const serves = (n, f) => WORLD_RAMPS_BOTH_STREETS || (f % 2) === ((n.i + n.j) & 1);
+  const serves = (n, f) => WORLD_RAMP.bothStreets || (f % 2) === ((n.i + n.j) & 1);
   for(const e of grid.edges){
     const dv = DIRV[e.f], rv = DIRV[(e.f+1)%4];
     for(const side of [-1, 1]){
@@ -5655,7 +5678,7 @@ class WorldScene extends Phaser.Scene {
     for(const cr of (r.curbRamps || [])){
       if(!near(cr.x, cr.y)) continue;
       const crx = cr.x, cry = cr.y, crf = cr.f;
-      groundVQ.push({ depth: crx+cry, fn:(g,t)=>this.drawProp(g, "sidewalkend", crx, cry, t, crf, 0) });
+      groundVQ.push({ depth: crx+cry, fn:(g,t)=>this.drawProp(g, "sidewalkend", crx, cry, t, crf, 0, null, null, WORLD_RAMP) });
     }
 
     /* GROUND FIRST -- its own pass, ahead of every body.
@@ -9678,12 +9701,21 @@ class WorldScene extends Phaser.Scene {
          spec and the open placement question. This is the DOWN variant
          (sidewalk -> street); tile 1 slopes, tile 2 (pad) is the flat
          landing with the ADA dome texture. */
-      const T2s = TILE*2, wHalf = 92, crossHalf = 1.5*T2s;
+      const T2s = TILE*2, wHalf = 92;
+      /* the base PATCH is 3 tiles across while the ramp itself is only
+         one -- at a corner the two streets' patches cross, and each
+         carries its own outline, which is half of what reads as a mess
+         there. Both are overridable per instance (world ramps pass
+         WORLD_RAMP; the route's own ramps pass their hazard object,
+         which carries neither key, so they keep the approved look). */
+      const crossHalf = (data && data.baseCross !== undefined) ? data.baseCross : 1.5*T2s;
+      const baseOutline = (data && data.baseOutline !== undefined) ? data.baseOutline : 2;
       const sidewalkZ = 2, streetZ = -3;
       this.quadOn(g, [W(-wHalf,-crossHalf,sidewalkZ), W(wHalf,-crossHalf,sidewalkZ),
                       W(wHalf,crossHalf,sidewalkZ), W(-wHalf,crossHalf,sidewalkZ)], 0xb5afa2);
-      this.edgeOn(g, [W(-wHalf,-crossHalf,sidewalkZ), W(wHalf,-crossHalf,sidewalkZ),
-                      W(wHalf,crossHalf,sidewalkZ), W(-wHalf,crossHalf,sidewalkZ)], 0x968f81, 2);
+      if(baseOutline > 0)
+        this.edgeOn(g, [W(-wHalf,-crossHalf,sidewalkZ), W(wHalf,-crossHalf,sidewalkZ),
+                        W(wHalf,crossHalf,sidewalkZ), W(-wHalf,crossHalf,sidewalkZ)], 0x968f81, baseOutline);
       g.lineStyle(1.5, 0x968f81, 0.9);
       for(const u of [-0.62, 0, 0.62]){
         const a = W(wHalf*u,-crossHalf,sidewalkZ), b = W(wHalf*u,crossHalf,sidewalkZ);
