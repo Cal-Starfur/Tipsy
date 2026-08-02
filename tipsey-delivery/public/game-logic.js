@@ -1057,6 +1057,67 @@ const SIDEWALK_ROWS = 4;     // per side — the sidewalk width already live in-
 const SIDEWALK_W = SIDEWALK_ROWS*T2;
 const OVERSHOOT = ROAD_HALF; // sufficient by construction — see classifyAt
 const CELL = TILE;           // sidewalk classification/render resolution
+
+/* ================= MANHATTAN SPATIAL HASH =================
+   drawWorld's cull test is Manhattan: |dx| + |dy| < R. In the rotated
+   frame u = x+y, v = x-y that is EXACTLY max(|du|, |dv|) < R, because
+   max(|dx+dy|, |dx-dy|) == |dx| + |dy| for every dx, dy. So the cull
+   diamond is an axis-aligned SQUARE in (u,v), and bucketing on (u,v)
+   makes the query answer the same question the linear scan did, item
+   for item -- no overscan, no false rejects, not an approximation. That
+   exactness is the whole reason to rotate rather than bucket on (x,y)
+   and eat a 2x overscan for the same work.
+
+   Why it exists: sidewalkRuns is ~74k tiles and sidewalkCornerCells
+   ~7.6k on a full city, and BOTH were scanned end to end with near()
+   every single frame to find the 2-4k that are on screen. That is ~82k
+   rejects a frame, paid at every zoom depth. On the profiled route
+   sidewalkCornerCells returned ZERO visible members, so 7,600 of those
+   tests could not have done anything but fail.
+
+   This changes WHICH TILES GET FOUND not at all -- see the equivalence
+   assert in the test notes. It only changes how long finding them takes.
+
+   Bucket edge is in u/v units, which are sqrt(2) larger than world
+   units; 2048 puts ~30 tiles in a bucket and ~50 buckets in a depth-3
+   query. */
+const MHASH_B = 2048;
+function buildManhattanHash(items){
+  const m = new Map();
+  for(const it of items){
+    const k = Math.floor((it.x + it.y)/MHASH_B) + "," + Math.floor((it.x - it.y)/MHASH_B);
+    let a = m.get(k); if(!a){ a = []; m.set(k, a); }
+    a.push(it);
+  }
+  return m;
+}
+/* writes into `out` rather than returning a fresh array -- this runs
+   twice a frame and allocating a 4k-element result each time is exactly
+   the kind of per-frame garbage the hash is here to avoid */
+function manhattanQuery(hash, cx, cy, R, out){
+  out.length = 0;
+  if(!hash) return out;
+  const u = cx + cy, v = cx - cy;
+  const u0 = Math.floor((u - R)/MHASH_B), u1 = Math.floor((u + R)/MHASH_B);
+  const v0 = Math.floor((v - R)/MHASH_B), v1 = Math.floor((v + R)/MHASH_B);
+  for(let bu = u0; bu <= u1; bu++) for(let bv = v0; bv <= v1; bv++){
+    const a = hash.get(bu + "," + bv); if(!a) continue;
+    for(const it of a){
+      if(Math.abs(it.x + it.y - u) < R && Math.abs(it.x - it.y - v) < R) out.push(it);
+    }
+  }
+  return out;
+}
+/* Built lazily and cached ON THE GRID rather than in buildGrid(), so a
+   route that arrives from anywhere -- rebuild, mode switch, replay, a
+   future deserialised Past Route -- cannot end up holding sidewalk
+   arrays with no index and silently render bare ground. */
+function paveHash(grid, listKey, hashKey){
+  const list = grid[listKey];
+  if(!list || !list.length) return null;
+  if(!grid[hashKey]) grid[hashKey] = buildManhattanHash(list);
+  return grid[hashKey];
+}
 const CORNER_R = ROAD_HALF + SIDEWALK_W;       // the robot's (and traffic's) turning radius through an
                               // intersection. MUST exceed the widest sidewalk lane offset
                               // (up to ROAD_HALF + 3.5*T2) or the offset math folds through
@@ -4008,6 +4069,10 @@ class WorldScene extends Phaser.Scene {
        switches and reloads. ZOOM_K[0] IS 1.5 — depth 1 is byte-identical
        to the old behaviour. */
     this.K = ZOOM_K[zoomLoad() - 1];
+    /* reused every frame by the sidewalk hash queries so the lookup does
+       not allocate a fresh result array sixty times a second */
+    this._qRuns = [];
+    this._qCorner = [];
     this.f = 0;
     this.roll = 0;
     this.pitch = 0;
@@ -4859,8 +4924,10 @@ class WorldScene extends Phaser.Scene {
        panel seams, provably conflict-free by construction — no classify()
        check needed), fine classify()-verified cells only near actual
        intersections — the one place a cheap tile could be wrong. */
-    for(const rn of r.grid.sidewalkRuns){
-      if(!near(rn.x, rn.y)) continue;
+    /* same tiles as the old full-array scan, same cullSpan, same order
+       within a bucket -- only the search changed */
+    for(const rn of manhattanQuery(paveHash(r.grid, "sidewalkRuns", "swRunHash"),
+                                   this.camX, this.camY, cullSpan, this._qRuns)){
       const half = T2/2;
       const pts = [
         this.W(rn.x-half, rn.y-half, 0), this.W(rn.x+half, rn.y-half, 0),
@@ -4869,8 +4936,8 @@ class WorldScene extends Phaser.Scene {
       this.quadOn(g, pts, rn.parity === 0 ? d.pave : d.paveB);
       this.edgeOn(g, pts, d.paveEdge, 1);
     }
-    for(const cell of r.grid.sidewalkCornerCells){
-      if(!near(cell.x, cell.y)) continue;
+    for(const cell of manhattanQuery(paveHash(r.grid, "sidewalkCornerCells", "swCornerHash"),
+                                     this.camX, this.camY, cullSpan, this._qCorner)){
       const half = CELL/2;
       const pts = [
         this.W(cell.x-half, cell.y-half, 0), this.W(cell.x+half, cell.y-half, 0),
