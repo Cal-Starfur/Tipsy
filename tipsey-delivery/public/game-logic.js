@@ -8546,30 +8546,53 @@ class WorldScene extends Phaser.Scene {
          keeps these identical at f0..f3: under this fixed iso only a face
          whose outward normal has a positive x or y component is turned
          toward the camera, and that test does not care how the prop is
-         rotated. dv/rv already carry the world directions. */
+         rotated. dv/rv already carry the world directions.
+
+         Two side colours rather than one, chosen by which world axis the
+         face's normal leans along -- flat single-colour boxes are most of
+         what made these read as parts rather than an object. */
       const S = data || SIGNAL;
-      const C_POLE = 0x3c4048, C_TOP = 0x4a4f58, C_HOUSE = 0x24272d, C_HOOD = 0x181a1e;
-      const C_OFF = 0x1b1d22, C_RED = 0xd8392b, C_AMB = 0xe8a021, C_GRN = 0x3fbf62;
-      const box = (a0, a1, b0, b1, z0, z1, cSide, cTop) => {
+      /* the dark green every DOT signal pole and mast arm in the world is
+         painted, not the neutral grey these shipped with */
+      const C_SIDE_X = 0x33523d, C_SIDE_Y = 0x27412f, C_TOP = 0x3e6149;
+      const C_DARK_X = 0x24382b, C_DARK_Y = 0x1c2d22, C_DARK_T = 0x2c4634;
+      const C_HOUSE_X = 0x22392a, C_HOUSE_Y = 0x192a1f, C_HOOD = 0x122019;
+      const C_OFF = 0x14201a, C_RED = 0xd8392b, C_AMB = 0xe8a021, C_GRN = 0x3fbf62;
+      const box = (a0, a1, b0, b1, z0, z1, cx, cy, cTop) => {
         const P = (a, b, z) => W(a, b, z);
         const faces = [
-          [ dv,                        [P(a1,b0,z1), P(a1,b1,z1), P(a1,b1,z0), P(a1,b0,z0)]],
-          [ { x:-dv.x, y:-dv.y },      [P(a0,b0,z1), P(a0,b1,z1), P(a0,b1,z0), P(a0,b0,z0)]],
-          [ rv,                        [P(a0,b1,z1), P(a1,b1,z1), P(a1,b1,z0), P(a0,b1,z0)]],
-          [ { x:-rv.x, y:-rv.y },      [P(a0,b0,z1), P(a1,b0,z1), P(a1,b0,z0), P(a0,b0,z0)]]
+          [ dv,                   [P(a1,b0,z1), P(a1,b1,z1), P(a1,b1,z0), P(a1,b0,z0)]],
+          [ { x:-dv.x, y:-dv.y }, [P(a0,b0,z1), P(a0,b1,z1), P(a0,b1,z0), P(a0,b0,z0)]],
+          [ rv,                   [P(a0,b1,z1), P(a1,b1,z1), P(a1,b1,z0), P(a0,b1,z0)]],
+          [ { x:-rv.x, y:-rv.y }, [P(a0,b0,z1), P(a1,b0,z1), P(a1,b0,z0), P(a0,b0,z0)]]
         ];
-        for(const [n, pts] of faces) if(n.x > 0 || n.y > 0) this.quadOn(g, pts, cSide);
+        for(const [n, pts] of faces)
+          if(n.x > 0 || n.y > 0) this.quadOn(g, pts, Math.abs(n.x) > Math.abs(n.y) ? cx : cy);
         this.quadOn(g, [P(a0,b0,z1), P(a1,b0,z1), P(a1,b1,z1), P(a0,b1,z1)], cTop);
       };
       const armZ = SIGNAL.poleH - 18;
+      const HANG = 13;                       // arm underside down to housing top
+      const headTopZ = armZ - 9 - HANG;
       if(kind === "signalpost"){
-        box(-11, 11, -11, 11, 0, SIGNAL.poleH, C_POLE, C_TOP);
-        /* the arm rides with the post, pointing along fdir = armF */
-        if(SIGNAL.arm) box(0, SIGNAL.armLen, -7, 7, armZ-9, armZ+9, C_POLE, C_TOP);
+        /* base collar, shaft, arm collar, arm, cap. The collars are the
+           polish: an arm butting straight into a bare shaft, and a shaft
+           meeting the pavement with no foot, is what read as disjointed. */
+        box(-16, 16, -16, 16, 0, 24, C_DARK_X, C_DARK_Y, C_DARK_T);
+        box(-11, 11, -11, 11, 0, SIGNAL.poleH, C_SIDE_X, C_SIDE_Y, C_TOP);
+        if(SIGNAL.arm){
+          box(-14, 14, -14, 14, armZ-15, armZ+15, C_DARK_X, C_DARK_Y, C_DARK_T);
+          /* the arm rides with the post, pointing along fdir = armF */
+          box(0, SIGNAL.armLen, -7, 7, armZ-9, armZ+9, C_SIDE_X, C_SIDE_Y, C_TOP);
+        }
+        box(-13, 13, -13, 13, SIGNAL.poleH, SIGNAL.poleH+9, C_DARK_X, C_DARK_Y, C_TOP);
       } else {
         const R = SIGNAL.headR, gap = R*2.3;
-        const topZ = armZ - 12, botZ = topZ - gap*3.1;
-        box(-R*1.4, R*1.4, -R*1.4, R*1.4, botZ, topZ, C_HOUSE, C_HOOD);
+        const botZ = headTopZ - gap*3.1;
+        /* hanger bracket. The housing used to start 3 units BELOW the arm's
+           underside and hang there unattached -- a floating box, which is
+           the other half of the disjointed read. */
+        if(SIGNAL.arm) box(-6, 6, -6, 6, headTopZ, armZ-9, C_DARK_X, C_DARK_Y, C_DARK_T);
+        box(-R*1.4, R*1.4, -R*1.4, R*1.4, botZ, headTopZ, C_HOUSE_X, C_HOUSE_Y, C_HOOD);
         /* FACING. headF aims at the cars this signal stops, which is right
            and is not the whole story: the camera never rotates, so exactly
            two of the four heads at an intersection show it their BACK.
@@ -8584,10 +8607,20 @@ class WorldScene extends Phaser.Scene {
         if(dv.x > 0 || dv.y > 0){
           const st = signalAxisState(S.node, t, S.axis);
           const lamps = [["red", C_RED], ["amber", C_AMB], ["green", C_GRN]];
+          const face = R*1.42;
           for(let i = 0; i < 3; i++){
-            const p = W(R*1.5, 0, topZ - gap*(0.75 + i));
-            g.fillStyle(st === lamps[i][0] ? lamps[i][1] : C_OFF, 1);
-            g.fillCircle(p.x, p.y, R*this.K);
+            const z = headTopZ - gap*(0.75 + i);
+            const lit = st === lamps[i][0];
+            /* visor over each lens, then a recessed ring, then the lens --
+               three flat circles on a flat face is what made the head look
+               like a sticker rather than a fitting */
+            this.quadOn(g, [W(face, -R*1.05, z + R*0.72), W(face + R*0.75, -R*1.05, z + R*0.95),
+                            W(face + R*0.75,  R*1.05, z + R*0.95), W(face,  R*1.05, z + R*0.72)],
+                        C_HOOD);
+            const p = W(face, 0, z);
+            g.fillStyle(C_HOOD, 1);   g.fillCircle(p.x, p.y, R*1.16*this.K);
+            g.fillStyle(lit ? lamps[i][1] : C_OFF, 1); g.fillCircle(p.x, p.y, R*this.K);
+            if(lit){ g.fillStyle(0xffffff, 0.22); g.fillCircle(p.x, p.y, R*0.5*this.K); }
           }
         }
       }
