@@ -2213,13 +2213,14 @@ const WORLD_RAMP = {
    compiles inside this realm, where a const binding cannot be reassigned but
    an object's properties can. */
 const SIGNAL = {
-  cycle:    14000,  // full both-axes cycle, ms
-  amber:     2200,  // amber at the tail of each green
-  allRed:     700,  // both red between phases
-  poleH:      250,
-  armLen:     300,  // arm reach from pole toward the node
-  headR:       15,
-  stopBand:    70,  // how far back from the line a car will hold
+  /* dialled on device 2026-08-02 via labs/_bench.html?lab=corner-light */
+  cycle:    20000,  // full both-axes cycle, ms
+  amber:     2600,  // amber at the tail of each green
+  allRed:     700,  // both red between phases (not exposed in the tuner)
+  poleH:      330,
+  armLen:     120,  // arm reach from pole toward the node
+  headR:        8,
+  stopBand:   180,  // how far back from the line a car will hold
   arm:       true,  // false = pole-mounted head, no mast
   aware:     true,  // false = lights cycle but traffic ignores them
   readable:  true   // see the facing note on drawProp's signalhead branch
