@@ -117,7 +117,7 @@
       <span id="stageLabel">game/index.html — unmodified</span>
     </div>
     <div id="stage"><iframe id="frame" title="Tipsy"
-      allow="autoplay; fullscreen" src="../game/index.html"></iframe>
+      allow="autoplay; fullscreen"></iframe>
       <div id="panLayer" style="position:absolute;inset:0;display:none;
         cursor:grab;touch-action:none;background:transparent"></div></div>
   </div>
@@ -228,6 +228,23 @@ BENCH.hook(function(sc, t){
 
 const $ = id => document.getElementById(id);
 const frame = $("frame");
+
+/* The src is set HERE, not in the markup, and always carries a fresh
+   cache-buster.
+
+   Pages serves game/index.html with cache-control max-age=600 and Safari
+   holds it a good deal longer than that, so a bench opened after a push
+   would quietly keep running the previous build -- reported on device as
+   "the changes have not landed" when they were already live at the origin.
+   `frame.src = frame.src` in the reload handler made it worse: reassigning
+   an identical URL is exactly the case a browser answers from cache without
+   asking, so the one button meant to fix it could not.
+
+   The lab fetch below already passes cache:"no-store" for the same reason;
+   this closes the other half. */
+const GAME_SRC = "../game/index.html";
+const bustGame = () => GAME_SRC + "?cb=" + Date.now();
+frame.src = bustGame();
 
 /* ---------------- log ---------------- */
 function log(msg, cls){
@@ -617,7 +634,7 @@ $("railBtn").onclick = () => $("rail").classList.toggle("collapsed");
 $("reboot").onclick = () => {
   BR.live = false; BR.win = null; BR.scene = null;
   $("dot").classList.remove("live");
-  frame.src = frame.src;
+  frame.src = bustGame();
   log("reloading game…");
 };
 
