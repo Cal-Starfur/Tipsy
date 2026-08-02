@@ -397,6 +397,38 @@
      instant a route started — the fail screen carried its own copy
      (#failMenuBtn) purely to paper over that. One button, outside every
      overlay, never hidden. */
+  /* ---------- boot loader ----------
+     The title screen used to paint before the route existed: brand, GO
+     button, "Ready for pickup", and an empty map card carrying a literal
+     "…" placeholder — for as long as the route build took, plus a Redis
+     round trip on Devvit. That is the flash of "the game without the
+     map". This covers the gap.
+
+     It is markup, not JS-injected, and it is visible by DEFAULT with no
+     .hidden class, so the very first paint the browser does is already
+     the spinner. Anything created in script runs a frame too late and
+     the flash survives — which is the whole bug.
+
+     z-index 200 puts it over #globalAvatar and #globalSearch at 60, so
+     the two always-on buttons do not sit on top of the loader. */
+  #bootLoader{position:fixed;inset:0;z-index:200;display:flex;
+    flex-direction:column;align-items:center;justify-content:center;gap:10px;
+    background:#14161a;transition:opacity .28s ease;}
+  #bootLoader.done{opacity:0;pointer-events:none;}
+  /* rotateY on the flat SVG reads as the robot turning on the spot —
+     cheaper and steadier than animating the isometric art, and it is the
+     one axis where a 2D sprite can fake a 3D turn convincingly. */
+  #blRobot{animation:blSpin 1.35s cubic-bezier(.45,.05,.55,.95) infinite;}
+  @keyframes blSpin{from{transform:perspective(340px) rotateY(0deg);}
+                      to{transform:perspective(340px) rotateY(360deg);}}
+  /* the shadow is widest face-on and narrowest edge-on, i.e. twice per
+     turn, which is what sells the rotation as depth rather than a flip */
+  #blShadow{width:52px;height:9px;border-radius:50%;background:#000;
+    animation:blShad 1.35s cubic-bezier(.45,.05,.55,.95) infinite;}
+  @keyframes blShad{0%,50%,100%{transform:scaleX(1);opacity:.42;}
+                     25%,75%{transform:scaleX(.46);opacity:.22;}}
+  #blText{margin-top:6px;font:700 12px/1 system-ui,-apple-system,sans-serif;
+    letter-spacing:2.5px;text-transform:uppercase;color:#ff7a1a;opacity:.85;}
   #globalSearch{position:fixed;top:calc(12px + env(safe-area-inset-top));left:14px;
     z-index:60;background:rgba(255,255,255,.92);cursor:pointer;
     box-shadow:0 2px 6px rgba(0,0,0,.35);}
@@ -532,6 +564,22 @@
       <rect x="5" y="36" width="30" height="3" fill="#494e58"/>
     </svg></button>
 <button class="iconBtn" id="globalSearch" aria-label="Side missions"></button>
+<div id="bootLoader">
+  <svg id="blRobot" viewBox="0 0 40 46" width="88" height="101" aria-hidden="true">
+      <line x1="13" y1="5" x2="13" y2="11" stroke="#2e3138" stroke-width="1.5"/>
+      <circle cx="13" cy="5" r="2" fill="#ff5722"/>
+      <rect x="9" y="11" width="22" height="7" fill="#f7f8fa" stroke="#30343d" stroke-width="1.2"/>
+      <rect x="5" y="18" width="30" height="21" fill="#f7f8fa" stroke="#30343d" stroke-width="1.2"/>
+      <rect x="9" y="22" width="22" height="8" fill="#22242b"/>
+      <circle cx="16" cy="26" r="1.9" fill="#7fe3ff"/>
+      <circle cx="24" cy="26" r="1.9" fill="#7fe3ff"/>
+      <rect x="5" y="32" width="30" height="4" fill="#c2452e"/>
+      <rect x="5" y="34" width="30" height="3" fill="#ffcc33" stroke="#c9a020" stroke-width="0.5"/>
+      <rect x="5" y="36" width="30" height="3" fill="#494e58"/>
+  </svg>
+  <div id="blShadow"></div>
+  <div id="blText">Plotting route</div>
+</div>
 
 <!-- ===== Past Routes (Devvit only) — own fixed panel, see CSS ===== -->
   <div id="pastRoutesPanel">
@@ -14269,6 +14317,39 @@ function drawRobotMarker(ctx, x, y){
   ctx.fillRect(-7, 3, 14, 3);
   ctx.restore();
 }
+/* Dismissed by the FIRST successful drawRouteMap, because that is the
+   moment the map card stops being empty — not when loadRoute returns,
+   not on DOMContentLoaded. Tying it to the actual pixels means it cannot
+   uncover a half-drawn screen. */
+let blDismissed = false;
+const BL_SHOWN_AT = Date.now();
+const BL_MIN_MS   = 420;   /* see below */
+function bootLoaderDone(){
+  if(blDismissed) return;
+  /* Minimum on-screen time. Locally the route builds in well under
+     150ms, so without this the spinner appears and vanishes inside two
+     or three frames — which does not read as "loading", it reads as a
+     flicker, i.e. the same class of visual glitch this was added to
+     remove. On Devvit the Redis round trip covers the minimum by itself
+     and this branch never fires. Deliberately holding the UI back a
+     fraction of a second, which is only worth it because the thing it
+     replaces is a wrong-looking screen rather than a slower one. */
+  const waited = Date.now() - BL_SHOWN_AT;
+  if(waited < BL_MIN_MS){ setTimeout(bootLoaderDone, BL_MIN_MS - waited); return; }
+  blDismissed = true;
+  const el = document.getElementById("bootLoader");
+  if(!el) return;
+  el.classList.add("done");
+  setTimeout(() => el.remove(), 400);
+}
+/* Safety net. If the route never draws — a throw inside loadRoute, a
+   Redis timeout on Devvit, a canvas that never gets a size — the player
+   must not be left watching a spinner forever. A broken map you can see
+   beats an infinite loader you cannot leave, so this fires regardless.
+   8s is well past any normal boot; if it ever trips, something else is
+   already wrong and the spinner was hiding it. */
+setTimeout(bootLoaderDone, 8000);
+
 function drawRouteMap(route){
   const canvas = document.getElementById("routeMap");
   if(!canvas) return;
@@ -14437,6 +14518,7 @@ function drawRouteMap(route){
   ctx.fillStyle = "#c2452e";
   ctx.beginPath(); ctx.arc(endPt.x, endPt.y, 7, 0, Math.PI*2); ctx.fill();
   ctx.strokeStyle = "#fff"; ctx.lineWidth = 2; ctx.stroke();
+  bootLoaderDone();
 }
 
 function showFail(pool){

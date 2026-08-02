@@ -13628,6 +13628,39 @@ function drawRobotMarker(ctx, x, y){
   ctx.fillRect(-7, 3, 14, 3);
   ctx.restore();
 }
+/* Dismissed by the FIRST successful drawRouteMap, because that is the
+   moment the map card stops being empty — not when loadRoute returns,
+   not on DOMContentLoaded. Tying it to the actual pixels means it cannot
+   uncover a half-drawn screen. */
+let blDismissed = false;
+const BL_SHOWN_AT = Date.now();
+const BL_MIN_MS   = 420;   /* see below */
+function bootLoaderDone(){
+  if(blDismissed) return;
+  /* Minimum on-screen time. Locally the route builds in well under
+     150ms, so without this the spinner appears and vanishes inside two
+     or three frames — which does not read as "loading", it reads as a
+     flicker, i.e. the same class of visual glitch this was added to
+     remove. On Devvit the Redis round trip covers the minimum by itself
+     and this branch never fires. Deliberately holding the UI back a
+     fraction of a second, which is only worth it because the thing it
+     replaces is a wrong-looking screen rather than a slower one. */
+  const waited = Date.now() - BL_SHOWN_AT;
+  if(waited < BL_MIN_MS){ setTimeout(bootLoaderDone, BL_MIN_MS - waited); return; }
+  blDismissed = true;
+  const el = document.getElementById("bootLoader");
+  if(!el) return;
+  el.classList.add("done");
+  setTimeout(() => el.remove(), 400);
+}
+/* Safety net. If the route never draws — a throw inside loadRoute, a
+   Redis timeout on Devvit, a canvas that never gets a size — the player
+   must not be left watching a spinner forever. A broken map you can see
+   beats an infinite loader you cannot leave, so this fires regardless.
+   8s is well past any normal boot; if it ever trips, something else is
+   already wrong and the spinner was hiding it. */
+setTimeout(bootLoaderDone, 8000);
+
 function drawRouteMap(route){
   const canvas = document.getElementById("routeMap");
   if(!canvas) return;
@@ -13796,6 +13829,7 @@ function drawRouteMap(route){
   ctx.fillStyle = "#c2452e";
   ctx.beginPath(); ctx.arc(endPt.x, endPt.y, 7, 0, Math.PI*2); ctx.fill();
   ctx.strokeStyle = "#fff"; ctx.lineWidth = 2; ctx.stroke();
+  bootLoaderDone();
 }
 
 function showFail(pool){
