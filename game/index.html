@@ -2184,17 +2184,19 @@ function buildSidewalkGeometry(grid){
    The neighbouring street's ramp at the same corner is the same shape
    with the axes swapped, so the two slopes intersect exactly when
        along < cross + TILE   AND   cross < along + 3*TILE
-   Both hold at the shipped 460/506, which is why every corner has two
-   slopes drawn through the same 92x92 square. cross >= along + 3*TILE
-   makes them abut instead (at 460 that is cross 598, which lands the
-   patch exactly on the band's outer three rows, 460..736). The pads never overlapped -- that part of my
+   Both held at the first-shipped 460/506, which is why every corner had
+   two slopes drawn through the same 92x92 square. cross >= along + 3*TILE
+   makes them abut instead, and 598 is that boundary exactly -- slope gap
+   0, patch on the band's outer three rows (460..736), pad still on the
+   kerb. Approved on device 2026-08-01 together with outline 1; at 2 the
+   two patches crossing at a corner read as crossed rectangles. The pads never overlapped -- that part of my
    first reading was wrong; only the slopes and the base patches do. */
 const WORLD_RAMP = {
-  along:       ROAD_HALF + T2,        // centre, out from the node along its own street
-  cross:       ROAD_HALF + 1.5*T2,    // centre, across the 4-row band
+  along:       ROAD_HALF + T2,        // 460 -- centre out from the node; puts the pad on the kerb
+  cross:       ROAD_HALF + 2.5*T2,    // 598 -- dialled on device 2026-08-01; see below
   bothStreets: true,                  // false = one ramp per corner, alternating by node parity
-  baseCross:   1.5*(TILE*2),          // half-width of the repainted sidewalk patch under the ramp
-  baseOutline: 2                      // patch outline weight; 0 = none (two patches crossing = crossed rectangles)
+  baseCross:   1.5*(TILE*2),          // 138 -- half-width of the repainted patch under the ramp
+  baseOutline: 1                      // 1 -- dialled on device; 2 read as crossed rectangles at a corner
 };
 
 function buildWorldCurbRamps(grid){
