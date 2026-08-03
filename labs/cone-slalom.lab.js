@@ -290,56 +290,87 @@
   window.addEventListener('keyup', onKey);
 
   /* =========================================================================
-     PANEL
+     PANEL — phone first
+
+     The first cut was a desktop layout wearing a phone's clothes: eight
+     simultaneous sliders docked to the BOTTOM of the screen, over the exact
+     region a drag-to-steer game needs. On-device it covered the canvas and ate
+     the steering touches, which is the one interaction this lab exists to test.
+
+     Three rules now:
+       DOCK TOP     — never under the steering thumb.
+       COLLAPSE     — during a run it is a single strip: clock, cones, message.
+       ONE CONTROL  — a chip row picks WHICH value the single big slider edits,
+                      so there is exactly one thumb-sized target at a time.
      ========================================================================= */
   const FIELDS = [
-    { key:'n',     label:'cones',  min:4,   max:20,  step:1 },
-    { key:'gap',   label:'gap',    min:1.2, max:4.0, step:0.05, build:1 },
-    { key:'amp',   label:'amp',    min:0,   max:1.2, step:0.05, build:1 },
-    { key:'steer', label:'steer',  min:0.5, max:8,   step:0.1 },
+    { key:'n',     label:'cones',  min:4,     max:20,   step:1,    build:1 },
+    { key:'gap',   label:'gap',    min:1.2,   max:4.0,  step:0.05, build:1 },
+    { key:'amp',   label:'amp',    min:0,     max:1.2,  step:0.05, build:1 },
+    { key:'steer', label:'steer',  min:0.5,   max:8,    step:0.1  },
     { key:'lag',   label:'lag',    min:0.002, max:0.05, step:0.002 },
-    { key:'lean',  label:'lean',   min:0,   max:0.40, step:0.01 },
-    { key:'pen',   label:'penalty',min:0.5, max:5,   step:0.5 },
-    { key:'par',   label:'par',    min:8,   max:60,  step:0.5 },
+    { key:'lean',  label:'lean',   min:0,     max:0.40, step:0.01 },
+    { key:'pen',   label:'pen',    min:0.5,   max:5,    step:0.5  },
+    { key:'par',   label:'par',    min:8,     max:60,   step:0.5  },
   ];
+  const fieldOf = k => FIELDS.find(f => f.key === k);
+  const fmt = f => f.step >= 1 ? String(SL[f.key])
+                 : (+SL[f.key]).toFixed(f.step < 0.01 ? 3 : 2);
+
+  let sel = 'steer', open = false;
+
+  /* the drag-steer surface must not compete with Safari's scroll/zoom */
+  canvas.style.touchAction = 'none';
 
   const panel = document.createElement('div');
   panel.id = 'slPanel';
   panel.style.cssText = [
-    'position:fixed','left:8px','right:8px','bottom:8px','z-index:99999',
-    'background:#12141a','border:1px solid #2b2f38','border-radius:12px',
-    'padding:10px 12px calc(10px + env(safe-area-inset-bottom))',
+    'position:fixed','left:0','right:0','top:0','z-index:99999',
+    'background:rgba(14,16,21,0.94)','border-bottom:1px solid #2b2f38',
+    'padding:calc(6px + env(safe-area-inset-top)) 10px 8px',
     'font:12px/1.35 ui-monospace,SFMono-Regular,Menlo,monospace','color:#e8eaef',
-    '-webkit-user-select:none','user-select:none',
+    '-webkit-user-select:none','user-select:none','touch-action:manipulation',
   ].join(';');
 
+  const BTN = 'font:inherit;color:#e8eaef;background:#232220;border:1px solid #2b2f38;' +
+              'border-radius:7px;min-height:38px;padding:0 10px;';
+
   panel.innerHTML =
-    `<div style="display:flex;align-items:baseline;gap:8px;margin-bottom:8px">
-       <b style="color:#ff7a1a;letter-spacing:2px">CONE SLALOM</b>
-       <span id="slClock" style="margin-left:auto;font-weight:700;font-variant-numeric:tabular-nums"></span>
+    `<div id="slBar" style="display:flex;align-items:center;gap:10px">
+       <b style="color:#ff7a1a;letter-spacing:2px;flex:0 0 auto">SLALOM</b>
+       <span id="slClock" style="flex:1 1 auto;font-weight:700;
+             font-variant-numeric:tabular-nums;text-align:right"></span>
+       <button id="slTog" style="${BTN}flex:0 0 44px">▾</button>
      </div>
-     <div id="slMsg" style="min-height:16px;margin-bottom:8px;color:#ffb04d"></div>` +
-    FIELDS.map(f =>
-      `<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px">
-         <span style="width:52px;color:#8f95a1">${f.label}</span>
-         <input type="range" id="sl-${f.key}" min="${f.min}" max="${f.max}"
-                step="${f.step}" style="flex:1;accent-color:#ff7a1a">
-         <span id="slv-${f.key}" style="width:42px;text-align:right;
-               font-variant-numeric:tabular-nums">0</span>
-       </div>`).join('') +
-    `<div style="display:flex;gap:8px;margin-top:8px">
-       <button id="slRun"   style="flex:2">restart run</button>
-       <button id="slBuild" style="flex:2">rebuild course</button>
-       <button id="slReset" style="flex:1">reset</button>
-       <button id="slOff"   style="flex:1">off</button>
-     </div>
-     <div style="display:flex;gap:8px;align-items:center;margin-top:8px">
-       <code id="slPort" style="flex:1;background:#0e0d0c;border:1px solid #2b2f38;
-             border-radius:7px;padding:7px 8px;color:#ff9c4d;overflow-x:auto;
-             white-space:nowrap;-webkit-user-select:text;user-select:text"></code>
-       <button id="slCopy" style="flex:0 0 62px">copy</button>
+     <div id="slMsg" style="min-height:15px;margin-top:4px;color:#ffb04d;
+          text-align:center"></div>
+     <div id="slBody" style="display:none;margin-top:8px">
+       <div id="slChips" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+       <div style="display:flex;align-items:center;gap:8px;margin-top:10px">
+         <button id="slDn" style="${BTN}flex:0 0 44px">−</button>
+         <input type="range" id="slSlider" style="flex:1 1 auto;accent-color:#ff7a1a;
+                height:38px">
+         <button id="slUp" style="${BTN}flex:0 0 44px">+</button>
+       </div>
+       <div id="slNow" style="text-align:center;margin-top:2px;color:#ff9c4d;
+            font-variant-numeric:tabular-nums"></div>
+       <div style="display:flex;gap:6px;margin-top:10px">
+         <button id="slRun"   style="${BTN}flex:2">restart</button>
+         <button id="slBuild" style="${BTN}flex:2">rebuild</button>
+         <button id="slReset" style="${BTN}flex:1">reset</button>
+         <button id="slOff"   style="${BTN}flex:1">off</button>
+       </div>
+       <div style="display:flex;gap:6px;align-items:center;margin-top:8px">
+         <code id="slPort" style="flex:1 1 auto;background:#0e0d0c;
+               border:1px solid #2b2f38;border-radius:7px;padding:8px;
+               color:#ff9c4d;overflow-x:auto;white-space:nowrap;
+               -webkit-user-select:text;user-select:text"></code>
+         <button id="slCopy" style="${BTN}flex:0 0 62px">copy</button>
+       </div>
      </div>`;
   document.body.appendChild(panel);
+
+  const $ = id => document.getElementById(id);
 
   const portLine = () =>
     `const SL = { n:${SL.n}, gap:${(+SL.gap).toFixed(2)}, amp:${(+SL.amp).toFixed(2)}, ` +
@@ -347,51 +378,75 @@
     `lag:${(+SL.lag).toFixed(3)}, lean:${(+SL.lean).toFixed(2)}, ` +
     `pen:${(+SL.pen).toFixed(1)}, par:${(+SL.par).toFixed(1)} };`;
 
-  function syncUI(){
-    for (const f of FIELDS){
-      document.getElementById(`sl-${f.key}`).value = SL[f.key];
-      document.getElementById(`slv-${f.key}`).textContent =
-        (f.step < 1 ? (+SL[f.key]).toFixed(f.step < 0.01 ? 3 : 2) : SL[f.key]);
-    }
-    document.getElementById('slPort').textContent = portLine();
-  }
-  for (const f of FIELDS){
-    document.getElementById(`sl-${f.key}`).addEventListener('input', e => {
-      SL[f.key] = parseFloat(e.target.value);
-      syncUI();
-      if (f.build || f.key === 'n') slResetRun();
+  function drawChips(){
+    $('slChips').innerHTML = FIELDS.map(f =>
+      `<button data-k="${f.key}" style="${BTN}flex:1 1 22%;min-width:74px;
+        padding:0 6px;${f.key === sel ? 'border-color:#ff7a1a;color:#ff9c4d;' : ''}">
+        <span style="color:#8f95a1">${f.label}</span> ${fmt(f)}
+       </button>`).join('');
+    $('slChips').querySelectorAll('button').forEach(b => {
+      b.onclick = () => { sel = b.dataset.k; syncUI(); };
     });
   }
-  document.getElementById('slRun').onclick   = () => slResetRun();
-  document.getElementById('slBuild').onclick = () => slResetRun();
-  document.getElementById('slReset').onclick = () => { Object.assign(SL, SL0); syncUI(); slResetRun(); };
-  document.getElementById('slOff').onclick   = () => {
+
+  function syncUI(){
+    const f = fieldOf(sel), sl = $('slSlider');
+    sl.min = f.min; sl.max = f.max; sl.step = f.step; sl.value = SL[f.key];
+    $('slNow').textContent = `${f.label}  ${fmt(f)}`;
+    $('slPort').textContent = portLine();
+    drawChips();
+  }
+
+  function setVal(v, rebuild){
+    const f = fieldOf(sel);
+    SL[f.key] = Phaser.Math.Clamp(
+      Math.round(v / f.step) * f.step, f.min, f.max);
+    syncUI();
+    if (rebuild && f.build) slResetRun();
+  }
+
+  $('slTog').onclick = () => {
+    open = !open;
+    $('slBody').style.display = open ? 'block' : 'none';
+    $('slTog').textContent = open ? '▴' : '▾';
+    if (open) syncUI();
+  };
+  $('slSlider').addEventListener('input', e => setVal(parseFloat(e.target.value), 0));
+  $('slSlider').addEventListener('change', e => setVal(parseFloat(e.target.value), 1));
+  $('slDn').onclick = () => setVal(SL[sel] - fieldOf(sel).step, 1);
+  $('slUp').onclick = () => setVal(SL[sel] + fieldOf(sel).step, 1);
+
+  $('slRun').onclick   = () => slResetRun();
+  $('slBuild').onclick = () => slResetRun();
+  $('slReset').onclick = () => { Object.assign(SL, SL0); syncUI(); slResetRun(); };
+  $('slCopy').onclick  = () => {
+    navigator.clipboard?.writeText(portLine());
+    $('slCopy').textContent = 'ok';
+    setTimeout(() => $('slCopy').textContent = 'copy', 900);
+  };
+  $('slOff').onclick = () => {
     scene._slRestore && scene._slRestore();
     canvas.removeEventListener('pointerdown', onDown);
     canvas.removeEventListener('pointermove', onMove);
     window.removeEventListener('pointerup', onUp);
     window.removeEventListener('keydown', onKey);
     window.removeEventListener('keyup', onKey);
+    canvas.style.touchAction = '';
+    clearInterval(tick);
     panel.remove();
   };
-  document.getElementById('slCopy').onclick  = () => {
-    navigator.clipboard?.writeText(portLine());
-    document.getElementById('slCopy').textContent = 'ok';
-    setTimeout(() => document.getElementById('slCopy').textContent = 'copy', 900);
-  };
 
-  /* live readout */
-  setInterval(() => {
+  /* live readout — the strip is the whole HUD while collapsed */
+  const tick = setInterval(() => {
     const total = run.elapsed + run.pen;
-    const col = run.done ? (total <= SL.par ? '#7fe08a' : '#ff6b6b') : '#e8eaef';
-    const clk = document.getElementById('slClock');
+    const clk = $('slClock');
     if (clk){
-      clk.style.color = col;
+      clk.style.color = run.done ? (total <= SL.par ? '#7fe08a' : '#ff6b6b') : '#e8eaef';
       clk.textContent = `${total.toFixed(2)}s  ${run.cleared}/${SL.n}` +
                         (run.pen ? `  +${run.pen.toFixed(1)}` : '') +
-                        `  par ${SL.par.toFixed(1)}`;
+                        `  par ${SL.par.toFixed(0)}`;
     }
-    const m = document.getElementById('slMsg');
+    const m = $('slMsg');
     if (m) m.textContent = (performance.now() - run.msgT < 2200) ? run.msg : '';
   }, 100);
 
