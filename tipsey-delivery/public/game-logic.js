@@ -1047,7 +1047,13 @@ function zoomCycle(){ zoomSet(zoomDepth === 3 ? 1 : zoomDepth + 1); }
    putting it up with HJ_ADDRESS referenced T2 ~100 lines before its own
    const, which is a temporal-dead-zone throw at load and killed the
    whole script. */
-const HJ_RUNUP = 4 * T2;
+/* MUTABLE OBJECT, not a bare const. This used to be a plain number,
+   which meant the run-up length was the one dial in the whole jump that
+   the bench could not touch — same trap WORLD_RAMP was pulled out of.
+   Note for anyone changing runup at runtime: findCourseLeg's NEED test
+   reads it at ROUTE GENERATION time, so a longer run-up needs a route
+   reload (loadChallenge) and not just a rebuild of the level. */
+const HJ_GEOM = { runup: 4 * T2 };
 const BLOCK = 34 * T2;       // SCALED UP for block-wrap (was 22*T2) — the interior
                               // (beyond the sidewalk's inside line) needs room for
                               // 3-4 door-scaled houses/storefronts with real yards,
@@ -2703,7 +2709,7 @@ function generateRoute(dateStr, opts){
      plus the run-up. */
   const findCourseLeg = (segs) => {
     /* run-up + kicker tile + the level-10 course + the catch ramp tile */
-    const NEED = HJ_RUNUP + TILE + (2.25 + 9*0.55)*T2 + 2*TILE;
+    const NEED = HJ_GEOM.runup + TILE + (2.25 + 9*0.55)*T2 + 2*TILE;
     let best = null;
     for(const sg of segs){
       if(sg.type !== "line" || !GOOD_LEG_HEADING[sg.f]) continue;
@@ -4061,7 +4067,7 @@ function generateRoute(dateStr, opts){
        It used to be legS0 + 60, and the robot spawned at kicker - 420 —
        which is legS0 - 360, i.e. BEFORE the leg even starts, out in the
        corner arc. That is why he began mid-turn. */
-    kickerS: Math.round(courseLeg.s0 + HJ_RUNUP + TILE),
+    kickerS: Math.round(courseLeg.s0 + HJ_GEOM.runup + TILE),
     hydS: [], catchS: 0,
     f: courseLeg.f,
     /* start the course a short way into the leg so the run-up has room
@@ -4312,6 +4318,14 @@ class WorldScene extends Phaser.Scene {
     this.hjSrcLast = this.hjSrcLast || {};
     if(this.hjSrcLast[k] && t - this.hjSrcLast[k] < 20) return;   // one input, two events
     this.hjSrcLast[k] = t;
+    this.hjAddCharge();
+  }
+
+  /* ONE place a tap becomes charge. Factored out so the autoTap driver
+     below cannot drift from what a real thumb does — they were two
+     copies of the same line for about five minutes and that is exactly
+     how a bench ends up measuring something the game does not do. */
+  hjAddCharge(){
     this.hjCharge = Math.min(HJ_CH.chargeMax, this.hjCharge + HJ_CH.add);
   }
 
@@ -4320,6 +4334,23 @@ class WorldScene extends Phaser.Scene {
      system, and the arc rides the real street's grade. */
   hjSim(dt, ch){
     if(!ch) return;
+    /* ---- AUTO TAP ----
+       HJ_CH.autoTap was declared with a "headless testing only" comment
+       and then never read by anything, so the dial did nothing at all.
+       It is wired here because a tap RATE is the unit the whole jump is
+       tuned in — every band in the table above is quoted against
+       taps/sec — and comparing two tunings by thumb is not a
+       measurement. 0 (the default) leaves live play untouched.
+
+       The accumulator carries its remainder rather than resetting, so a
+       rate that does not divide the frame time stays honest over a whole
+       run-up instead of quietly rounding down to the frame rate. */
+    if(HJ_CH.autoTap > 0 && this.state === "play"
+       && !this.hjAir && !this.hjRolling && !this.hjEnded){
+      const iv = 1000 / HJ_CH.autoTap;
+      this.hjAutoAcc = (this.hjAutoAcc || 0) + dt;
+      while(this.hjAutoAcc >= iv){ this.hjAutoAcc -= iv; this.hjAddCharge(); }
+    }
     /* charge only bleeds while grounded; locked for the whole flight */
     if(!this.hjAir){
       this.hjCharge = Math.max(0, this.hjCharge - HJ_CH.decay*this.hjCharge*dt);
@@ -4545,7 +4576,7 @@ class WorldScene extends Phaser.Scene {
        sitting in the landing zone — you would clear ten hydrants and
        then touch down on a traffic cone. The run-up is cleared too, so
        nothing can knock him off line before the ramp. */
-    const clearFrom = ch.kickerS - HJ_RUNUP - T2, clearTo = ch.catchS + 2*T2;
+    const clearFrom = ch.kickerS - HJ_GEOM.runup - T2, clearTo = ch.catchS + 2*T2;
     this.route.hazards = this.route.hazards.filter(h =>
       !h.hjRole && !(h.s >= clearFrom && h.s <= clearTo && h.row === ch.lane));
     this.route.props = (this.route.props || []).filter(pr =>
@@ -4582,10 +4613,11 @@ class WorldScene extends Phaser.Scene {
   hjResetRun(){
     const ch = this.route && this.route.challenge; if(!ch) return;
     this.hjBuildCourse(this.hjLevel);
-    this.botS = Math.max(0, ch.kickerS - HJ_RUNUP);
+    this.botS = Math.max(0, ch.kickerS - HJ_GEOM.runup);
     this.hjPrevS = this.botS;
     this.hjAir = null; this.hjLocked = null;
     this.hjCharge = 0; this.hjChargeSm = 0; this.hjPassed = 0;
+    this.hjAutoAcc = 0;
     this.hjRolling = false; this.hjEnded = false;
     this.hjFace = false; this.hjTipT = 0; this.hjSkidV = 0;
     this.pitch = 0; this.pitchPivot = 0;
@@ -4762,7 +4794,6 @@ class WorldScene extends Phaser.Scene {
 
   loadChallenge(){
     this.mode = "challenge";
-    this.hjArmed = false;              // true once the robot reaches the course
     this.hjCharge = 0; this.hjChargeSm = 0; this.hjAir = null;
     this.hjLocked = null; this.hjLevel = 1; this.hjBest = 0;
     this.hjSrcLast = {}; this.hjResult = ""; this.hjPassed = 0;
@@ -4804,7 +4835,7 @@ class WorldScene extends Phaser.Scene {
        drive up to it on the real street, rather than materialising on
        the ramp */
     this.botS = (opts && opts.challenge && this.route.challenge)
-      ? Math.max(0, this.route.challenge.kickerS - HJ_RUNUP)
+      ? Math.max(0, this.route.challenge.kickerS - HJ_GEOM.runup)
       : this.route.pickupS;
     this.botZ = this.groundZ(this.botS);
     this.botRow = 1; this.laneOff = laneOffset(this.botRow);
@@ -13377,7 +13408,11 @@ const HJ_CH = {
      0.3% is far inside every band, so 250ms buys a monotonic ladder
      without the speed visibly trailing the bar. */
   smooth: 0.004,
-  autoTap: 0        // >0 = taps/sec, headless testing only
+  /* >0 = taps/sec, driven by hjSim. 0 in normal play. This was declared
+     and read by NOTHING for its whole life; it is wired now because the
+     whole jump is tuned in taps/sec and comparing two tunings by thumb is
+     not a measurement. */
+  autoTap: 0
 };
 /* live hydrant list, rebuilt by buildLevel() */
 let HJ_HYDS = [];
@@ -13697,7 +13732,7 @@ function drawRouteMap(route){
      instead of the event, so the challenge frames on its own course:
      the run-up start through the catch ramp. */
   const ch = route.challenge;
-  const startS = ch ? Math.max(0, ch.kickerS - HJ_RUNUP - T2) : route.pickupS;
+  const startS = ch ? Math.max(0, ch.kickerS - HJ_GEOM.runup - T2) : route.pickupS;
   const endS   = ch ? ch.catchS + T2 : route.doorS;
   const n = 60;
   const samples = [];
