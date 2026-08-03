@@ -1042,8 +1042,18 @@ function zoomSet(n){
 /* 1 -> 2 -> 3 -> 1. Persisted, so it survives loadChallenge()/hjQuit()
    rebuilding the route and re-entering create(). */
 function zoomCycle(){ zoomSet(zoomDepth === 3 ? 1 : zoomDepth + 1); }
-/* Straight run-up before the kicker — four sidewalk tile-pairs, matching
-   the lab (start at s=0, lip at 4.5). Declared HERE, right after T2:
+/* Straight run-up before the kicker. Was four sidewalk tile-pairs; 5.75
+   now, because the run-up is where charge is built and doubling the speed
+   halves the time available to build it. It is still QUICKER than it was in
+   absolute terms - 5.8s to 4.5s at 4 taps/sec - since 2x speed beats +44%
+   distance.
+   CEILING: 12*T2. findCourseLeg takes the earliest line long enough for
+   NEED = runup + kicker + the level-10 course + the catch ramp, and at
+   12*T2 that is 1904 against a 1932-unit leg. One notch further and the
+   whole side mission silently relocates to a different street. Measured by
+   sweeping runup through generateRoute on the real seed, not derived from
+   reading the rule. At 5.75 NEED is 1329, so there is real room.
+   Declared HERE, right after T2:
    putting it up with HJ_ADDRESS referenced T2 ~100 lines before its own
    const, which is a temporal-dead-zone throw at load and killed the
    whole script. */
@@ -1053,7 +1063,7 @@ function zoomCycle(){ zoomSet(zoomDepth === 3 ? 1 : zoomDepth + 1); }
    Note for anyone changing runup at runtime: findCourseLeg's NEED test
    reads it at ROUTE GENERATION time, so a longer run-up needs a route
    reload (loadChallenge) and not just a rebuild of the level. */
-const HJ_GEOM = { runup: 4 * T2 };
+const HJ_GEOM = { runup: 5.75 * T2 };
 const BLOCK = 34 * T2;       // SCALED UP for block-wrap (was 22*T2) — the interior
                               // (beyond the sidewalk's inside line) needs room for
                               // 3-4 door-scaled houses/storefronts with real yards,
@@ -13253,7 +13263,19 @@ const HJ_JUMP = {
   /* speed and pow now come from the CHARGE (see HJ_CH below) — they are
      no longer fixed. grav, clear, bias, slam stay world constants. */
   minSpeed: 0.045,  // below this the lip is a bump, not a launch (spec §1)
-  grav: 0.000085,   // world units/ms² — TUNED ON DEVICE (hang ~2200ms)
+  /* grav, sp1 and slam are a LOCKED TRIPLE, not three independent dials.
+     Reach is 2*v^2*pow/grav and peak is v^2*pow^2/(2*grav), so scaling
+     speed by k and grav by k^2 leaves both algebraically invariant -
+     the jump gets faster and lands in exactly the same place. Touchdown
+     |vz| scales with k, though, which is the one thing that is NOT
+     invariant, so slam divides by k to keep the landing-cleanliness
+     test honest. Change one of the three and you must change all three,
+     or every solved pass band below moves.
+     Shipped at k = 2.00 off the original 0.165 / 0.000085 / 22.
+     Solved across all ten levels first: every band held to within 0.5%
+     of charge. Hang is now ~1040ms at level 1 rising to ~1620ms at
+     level 10, down from ~2200ms. */
+  grav: 0.000340,   // = 0.000085 * k^2 — TUNED ON DEVICE
   clear: 16,        // arc must beat HYD.height + clear — TUNED ON DEVICE
   /* airborne depth bias (spec §2 option 1) — TUNED ON DEVICE, and the
      tune was load-bearing, not cosmetic. Measured min depth margin over
@@ -13266,7 +13288,7 @@ const HJ_JUMP = {
      f2 is the binding heading: it fails last and by the least. Check f2
      FIRST on any future change to the depth sort. */
   bias: 2.0,
-  slam: 22,         // landing tilt kick per unit of descent velocity
+  slam: 11,         // = 22 / k — landing tilt kick per unit of descent velocity
   shadow: true
 };
 /* both slabs share one wedge: lift + dirSign (+1 kicks, -1 lands) */
@@ -13300,7 +13322,7 @@ const HJ_LAND = { s: 6.75, row: 0, lift: 10, dirSign: -1, root: false, cracks: 2
    THE FEEDBACK LOOP (this one is free, and it is the good part):
    charge drives speed, and speed is also how fast you reach the lip.
    So building charge shortens the very runway you need to build it
-   in — measured 4.3s of runway at 2 taps/sec down to 2.5s at 10.
+   in — measured 7.8s of runway at 2 taps/sec down to 2.4s at 10.
    Present enough to create tension, not enough to be self-defeating.
 
    ESCALATION: level N = N hydrants and a catch ramp 0.55 tile-pairs
@@ -13355,7 +13377,18 @@ const HJ_CH = {
      0.055 capped charge at 69% even at 12 taps/sec, which made levels
      4-10 unreachable and the level-7 and level-10 rewards unearnable.
      0.128 restores the full span against 1.0/s:
-       2/s 33%  3/s 45%  4/s 58%  5/s 71%  6/s 83%  8/s 109%  10/s 135% */
+       2/s 33%  3/s 45%  4/s 58%  5/s 71%  6/s 83%  8/s 109%  10/s 135%
+     Those were measured at sp1 0.165 on a 4*T2 run-up and are now the
+     wrong shape, because charge is made of TIME on the runway and speed
+     decides how much of it there is. Re-measured at the shipped
+     sp1 0.330 / runup 5.75*T2:
+       2/s 25%  4/s 49%  6/s 72%  8/s 93%  10/s 112%  12/s 126%
+     Low and mid rates land within a point of where they used to, which
+     is why the ladder below still reads true. The top end is ~5 points
+     short, so level 10 now wants 11.0-12.0 taps/sec rather than
+     10.3-10.9 - the last jump is meaner than it was by about one tap a
+     second. The window is still a full 1.0/s wide, so it is harder, not
+     degenerate. */
   add: 0.128,       // charge per tap — TUNED WITH decay 1.0/s
   decay: 0.001,     // proportional bleed per ms (1.0/s) — TUNED ON DEVICE
   /* ---- charge is NOT clamped at 100% ----
@@ -13373,7 +13406,12 @@ const HJ_CH = {
      decided how much faster than the floor he went. Now the tap IS the
      throttle: stop tapping and the decay bleeds the charge, he slows and
      stops. All ten levels re-solved below and still clear. */
-  sp0: 0.0, sp1: 0.165,     // speed at charge 0 / 1
+  /* sp1 = 0.165 * k. Level 1 now needs 0.160-0.214 and level 10 needs
+     0.396-0.416, against a delivery-mode speed cap of 0.225: the ladder
+     used to run ENTIRELY below Tipsey's normal cruising speed (level 1
+     sat at 42% of it), and now crosses it around level 3 and tops out at
+     1.80x. Pushing past his own governor is the point of the mission. */
+  sp0: 0.0, sp1: 0.330,     // speed at charge 0 / 1
   pw0: 1.30,  pw1: 0.68,    // pow  at charge 0 / 1  (DOWN as charge rises)
   /* landing absorption on the catch ramp: absMin at dead centre,
      absMin+absGrad at the very edge. Deliberately shallow — at LOW
