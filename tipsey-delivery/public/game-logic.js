@@ -11570,7 +11570,17 @@ class WorldScene extends Phaser.Scene {
        challenge, where the nose follows the velocity vector instead.
        This line was silently flattening the whole arc attitude. */
     if(this.state !== "tipped" && !this.hjAir)
-      this.pitch = -Math.atan(Phaser.Math.Clamp(this.groundSlope(this.botS) + (this.crossSlope || 0), -MAX_GRADE, MAX_GRADE));
+      /* SIGN, settled 2026-08-03. Both slope sources are POSITIVE-UPHILL:
+         groundSlope() reads elevAt ahead minus behind, and the crossing ramp
+         tiles above set slope = drop/T2 with drop negative on the descending
+         side. And negative pitch is NOSE-DOWN — the face plant drives pitch
+         toward -(PI/2) pivoting on BODY.hx, the front face, and T() maps a nose
+         point to z = x*sin(pitch) + z*cos(pitch), which sinks x>0 when pitch<0.
+         So the old leading minus pitched the robot nose-UP on a descent and
+         nose-DOWN on a climb: exactly backwards, on the hill grade and on every
+         curb ramp alike. The ramp drop was small enough to pass as noise; a
+         Bluffs downhill is not, and it read as a climb on-device. */
+      this.pitch = Math.atan(Phaser.Math.Clamp(this.groundSlope(this.botS) + (this.crossSlope || 0), -MAX_GRADE, MAX_GRADE));
 
     /* camera reframe: at f=3 the worker/customer's walk-out direction
        pushes them far enough sideways on screen that tracking only the
