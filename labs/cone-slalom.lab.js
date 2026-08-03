@@ -96,7 +96,6 @@
     tail: 3.0,    // run-out after the last cone, in T2
     pen:  2.0,    // seconds added per knocked cone / missed side
     par:  52.0,   // seconds to beat
-    grade: 6.0,   // DRAWN corridor grade, percent — real geometry, not route.tiles
   };
   const HOOD_BLUFFS = 7;         // HOODS[7] — hill 1.0, the steepest in the city
 
@@ -132,82 +131,6 @@
   /* laneOff delta -> row-space delta is one sign (ROBOT_SIDE), and this is the
      ONLY place world offsets get converted back to rows. */
   const rowDir = Math.sign(offOf(1) - offOf(0));
-
-  /* =========================================================================
-     THE HILL — a real, drawn corridor slope
-     -------------------------------------------------------------------------
-     route.tiles is a VIRTUAL grade: groundZ() returns hard zero, the world is
-     drawn flat, and only the robot pitches, capped by MAX_GRADE at 2.86deg. It
-     is explicitly "FEEL, not geometry". No amount of tuning makes that read as
-     a steep hill, because there is nothing on screen that is higher than
-     anything else. Something has to actually be drawn.
-
-     THE WHOLE SYSTEM IS ONE FUNCTION, because W() is the single choke point:
-
-         W(x, y, z) -> screen,  screen y = ((x-camX + y-camY)*0.5 - (z-camZ))*K
-
-     Every world draw in the game resolves through this.W — road, both
-     sidewalks, buildings, palms, props, hazards. So a local elevation field
-     does not need every draw site touched. Lift z inside W and the entire
-     corridor rises and falls together, in agreement, by construction. That is
-     the "robot floats above his own street" failure made impossible rather
-     than merely avoided.
-
-     AND THE CAMERA SOLVES ITSELF. W already subtracts camZ, so the lift is
-     applied RELATIVE TO THE CAMERA'S OWN GROUND:
-
-         z + lift(x, y) - lift(camX, camY)
-
-     The camera tracks the robot, so his own term is ~0: he stays framed while
-     the world tilts around him. No camZ surgery, and no double-counting —
-     P() calls W(), so the robot rides his own hill for free while botZ and
-     groundZ() both stay exactly zero and every z consumer stays in agreement.
-
-     THE FIELD IS SEPARABLE, so it costs two dot products per call on a hot
-     path. Legs are axis-aligned (headings are quantized), so height is
-
-         h = -grade * ( clamp(u along leg A) + clamp(u along leg B) )
-
-     Clamped, so it descends across each leg and then PLATEAUS — which is what
-     a hill actually does, and it means the far city is a flat terrace rather
-     than a cliff edge. Continuous through the corner because the two terms
-     hand off there.
-
-     KNOWN RISK, not yet solved: depth sort is x+y, which lift does not change.
-     Real elevation can put a tall far object over a near one, and this model
-     will sort it wrong. Modest grades over a monotonic corridor should not
-     expose it. Watch the building tops near the crest.
-     ========================================================================= */
-  const HILL = { on:true, A0:null, dA:null, LA:0, B0:null, dB:null, LB:0 };
-
-  function hillAt(x, y){
-    if (!HILL.on || !HILL.A0) return 0;
-    const ua = Phaser.Math.Clamp((x - HILL.A0.x)*HILL.dA.x + (y - HILL.A0.y)*HILL.dA.y, 0, HILL.LA);
-    const ub = Phaser.Math.Clamp((x - HILL.B0.x)*HILL.dB.x + (y - HILL.B0.y)*HILL.dB.y, 0, HILL.LB);
-    return -(SL.grade / 100) * (ua + ub);
-  }
-
-  function hillFrom(cor){
-    const dirAt = s => { const h = scene.headingAt(s); return { x:Math.cos(h), y:Math.sin(h) }; };
-    HILL.A0 = scene.posAt(cor.a.s0); HILL.dA = dirAt(cor.a.s0 + 1); HILL.LA = cor.a.s1 - cor.a.s0;
-    HILL.B0 = scene.posAt(cor.b.s0); HILL.dB = dirAt(cor.b.s0 + 1); HILL.LB = cor.b.s1 - cor.b.s0;
-  }
-
-  /* One patch on W, one on groundSlope. The slope the PHYSICS reads is the
-     analytic gradient of the same field the ART is drawn from — sampled through
-     scene.posAt, the call the game itself uses, not a parallel copy of the
-     route geometry. Art and physics cannot disagree because there is only one
-     height function. */
-  const origW  = scene.W;
-  const origGS = scene.groundSlope;
-  scene.W = function(x, y, z){
-    return origW.call(this, x, y, z + hillAt(x, y) - hillAt(this.camX, this.camY));
-  };
-  scene.groundSlope = function(s){
-    if (!HILL.on || !HILL.A0) return origGS.call(this, s);
-    const d = 16, p0 = this.posAt(s - d), p1 = this.posAt(s + d);
-    return (hillAt(p1.x, p1.y) - hillAt(p0.x, p0.y)) / (2*d);
-  };
 
   const run = {
     course: null, cones: [], started: false, done: false,
@@ -309,7 +232,6 @@
     };
     plant(aStart, nA);
     plant(bStart, nB);
-    hillFrom(cor);
     return course;
   }
 
@@ -320,7 +242,7 @@
     run.started = false; run.done = false;
     run.elapsed = 0; run.pen = 0; run.cleared = 0; run.faults = [];
     if (!run.course) return;
-    run.msg = `${(+SL.grade).toFixed(1)}% drawn downhill — red: pass above, blue: pass below`;
+    run.msg = `${(run.course.grade * 100).toFixed(1)}% downhill — red: pass above, blue: pass below`;
     run.msgT = performance.now();
 
     /* Start on rowA — the row the FIRST gate does not want. Starting on the
@@ -461,7 +383,7 @@
        ${row('margin', (SL.par - total >= 0 ? '−' : '+') +
              Math.abs(SL.par - total).toFixed(2) + 's', col)}
        ${row('cones cleared', `${run.cleared} / ${run.cones.length}`)}
-       ${row('grade', HILL.on ? (+SL.grade).toFixed(1) + '% drawn' : 'flat')}
+       ${row('grade', (run.course.grade * 100).toFixed(1) + '% downhill')}
        ${row('best', best ? best.toFixed(2) + 's' : '—', isBest ? '#7fe08a' : null)}
        ${isBest ? `<div style="text-align:center;color:#7fe08a;margin-top:6px">
                      new best</div>` : ''}
@@ -486,11 +408,7 @@
 
   const onPost = () => { try { slJudge(); } catch(e){ console.log('slJudge', e); } };
   scene.events.on('postupdate', onPost);
-  scene._slRestore = () => {
-    scene.events.off('postupdate', onPost);
-    scene.W = origW; scene.groundSlope = origGS;
-    delete scene._slRestore;
-  };
+  scene._slRestore = () => { scene.events.off('postupdate', onPost); delete scene._slRestore; };
 
   /* =========================================================================
      PANEL — phone first
@@ -508,7 +426,6 @@
     { key:'tail', label:'tail',  min:1,   max:8,   step:0.5  },
     { key:'pen',  label:'pen',   min:0.5, max:5,   step:0.5  },
     { key:'par',  label:'par',   min:8,   max:60,  step:0.5  },
-    { key:'grade',label:'grade', min:0,   max:16,  step:0.5  },
   ];
   const fieldOf = k => FIELDS.find(f => f.key === k);
   const fmt = f => f.step >= 1 ? String(SL[f.key]) : (+SL[f.key]).toFixed(2);
@@ -547,7 +464,6 @@
        <div id="slNow" style="text-align:center;margin-top:2px;color:#ff9c4d;
             font-variant-numeric:tabular-nums"></div>
        <div style="display:flex;gap:6px;margin-top:10px">
-         <button id="slHill"  style="${BTN}flex:2">hill: on</button>
          <button id="slRun"   style="${BTN}flex:2">restart</button>
          <button id="slReset" style="${BTN}flex:1">reset</button>
          <button id="slOff"   style="${BTN}flex:1">off</button>
@@ -568,8 +484,7 @@
     `const SL = { n:${SL.n}, gap:${(+SL.gap).toFixed(2)}, rowA:${SL.rowA}, rowB:${SL.rowB}, ` +
     `lead:${(+SL.lead).toFixed(1)}, turn:${(+SL.turn).toFixed(1)}, ` +
     `tail:${(+SL.tail).toFixed(1)}, ` +
-    `pen:${(+SL.pen).toFixed(1)}, par:${(+SL.par).toFixed(1)}, ` +
-    `grade:${(+SL.grade).toFixed(1)} };`;
+    `pen:${(+SL.pen).toFixed(1)}, par:${(+SL.par).toFixed(1)} };`;
 
   function drawChips(){
     $('slChips').innerHTML = FIELDS.map(f =>
@@ -609,10 +524,6 @@
   $('slDn').onclick = () => setVal(SL[sel] - fieldOf(sel).step, 1);
   $('slUp').onclick = () => setVal(SL[sel] + fieldOf(sel).step, 1);
 
-  $('slHill').onclick = () => {
-    HILL.on = !HILL.on;
-    $('slHill').textContent = 'hill: ' + (HILL.on ? 'on' : 'off');
-  };
   $('slRun').onclick   = () => slResetRun();
   $('slReset').onclick = () => { Object.assign(SL, SL0); syncUI(); slResetRun(); };
   $('slCopy').onclick  = () => {
