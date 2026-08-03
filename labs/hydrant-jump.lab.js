@@ -68,6 +68,28 @@
      rebuild, because findCourseLeg's NEED test reads it at generation
      time — a longer run-up can no longer fit on a leg that was chosen
      for a shorter one. */
+  /* ---------- entering the challenge -------------------------------------
+     loadChallenge() alone is not enough, and getting this wrong is what made
+     the first version look like it was somewhere else entirely:
+
+       - it routes through loadRoute(), which puts titleOverlay back up. That
+         is the TODAY / RANDOM DAY map screen. The course was built correctly
+         underneath it the whole time; you just could not see it.
+       - the bench's own `start run` (autoBoot clicks it before the lab loads)
+         parks the BENCH camera at botS = 0 on a normal daily route. The bench
+         camera owns camX/camY/K through the pre-draw hook, so it keeps that
+         framing across the route swap and you end up looking at the old spot
+         on the new street.
+
+     The side mission has to look EXACTLY like the side mission, so the game
+     camera gets handed back and the overlay goes away. */
+  function enterChallenge() {
+    scene.loadChallenge();
+    try { hide('titleOverlay'); } catch (e) {}
+    try { window.BENCH && window.BENCH.camRelease(); } catch (e) {}
+    if (scene.hjResetRun) scene.hjResetRun();
+  }
+
   function apply(needRoute) {
     HJ_CH.sp1     = BASE.sp1  * S.k;
     HJ_JUMP.grav  = BASE.grav * S.k * S.k;
@@ -76,7 +98,7 @@
     HJ_CH.autoTap = S.rate;
     const moved = HJ_GEOM.runup !== S.runup;
     HJ_GEOM.runup = S.runup;
-    if (needRoute && moved) scene.loadChallenge();
+    if (needRoute && moved) enterChallenge();
     else if (scene.hjResetRun) scene.hjResetRun();
     scene._hjBandLvl = -1;                 // force the meter to re-solve
   }
@@ -135,19 +157,28 @@
 
   const panel = document.createElement('div');
   panel.id = 'hjtPanel';
+  /* TOP-LEFT, not bottom. The game's own challenge HUD lives down there —
+     #hjTap at bottom:56px and #hjMeterWrap at bottom:158px — and this panel
+     is appended to the GAME's body, so a bottom-docked panel sits directly
+     on top of the tap button and the charge meter. Which it did. Capped at
+     46vh and collapsible so it can never grow back down into them. */
   panel.style.cssText = [
-    'position:fixed', 'left:8px', 'right:8px', 'bottom:8px', 'z-index:99999',
-    'background:#12141a', 'border:1px solid #2b2f38', 'border-radius:12px',
-    'padding:10px 12px calc(10px + env(safe-area-inset-bottom))',
+    'position:fixed', 'left:8px', 'top:calc(8px + env(safe-area-inset-top))',
+    'width:min(420px, calc(100% - 16px))', 'max-height:46vh', 'overflow:auto',
+    'z-index:99999', 'box-sizing:border-box',
+    'background:#12141aee', 'backdrop-filter:blur(6px)',
+    'border:1px solid #2b2f38', 'border-radius:12px', 'padding:10px 12px',
     'font:12px/1.35 ui-monospace,SFMono-Regular,Menlo,monospace', 'color:#e8eaef',
     '-webkit-user-select:none', 'user-select:none',
   ].join(';');
 
   panel.innerHTML =
-    `<div style="display:flex;align-items:baseline;gap:8px;margin-bottom:8px">
+    `<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
        <b style="color:#ff9c4d;letter-spacing:2px">HYDRANT JUMP</b>
        <span id="hjtLvl" style="margin-left:auto;font-weight:700"></span>
-     </div>` +
+       <button id="hjtFold" style="flex:0 0 auto;padding:2px 8px">–</button>
+     </div>
+     <div id="hjtBody">` +
     FIELDS.map(f =>
       `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
          <span style="width:44px;color:#8f95a1">${f.label}</span>
@@ -164,7 +195,7 @@
        <button id="hjtLvlUp" style="flex:0 0 auto">lvl +</button>
        <button id="hjtReset"  style="flex:1 1 auto">reset</button>
        <button id="hjtCopy"   style="flex:1 1 auto">copy</button>
-     </div>`;
+     </div></div>`;
   document.body.appendChild(panel);
   for (const b of panel.querySelectorAll('button'))
     b.style.cssText = 'background:#1d222b;color:#e8eaef;border:1px solid #333a45;' +
@@ -239,9 +270,20 @@
       `SHIPPED at-lip target: 2/s 25.5%  4/s 49.9%  6/s 74.5%  8/s 96.6%`;
   }
 
+  /* fold away to the header bar — the panel is over the game's canvas, and
+     sometimes you just want to watch the jump */
+  el('hjtFold').onclick = () => {
+    const b = el('hjtBody'), f = el('hjtFold');
+    const shut = b.style.display === 'none';
+    b.style.display = shut ? '' : 'none';
+    f.textContent = shut ? '\u2013' : '+';
+  };
+
   syncInputs();
-  if (scene.mode !== 'challenge') scene.loadChallenge();
+  enterChallenge();
   apply(false);
   tick();
-  console.log('hydrant-jump tuner ready — k drives sp1/grav/slam as a locked triple');
+  console.log('hydrant-jump tuner ready — k drives sp1/grav/slam as a locked triple.');
+  console.log('the pinned date in the bench rail does NOT apply here: the challenge ' +
+              'is hard-seeded to HJ_SEED_DATE so the course is the same one players get.');
 })();
