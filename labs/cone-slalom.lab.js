@@ -153,30 +153,60 @@
      groups, and return the STEEPEST DESCENT among them. Scored on the two
      straights only: the arc's own grade is irrelevant because no cone sits on
      it, and including it would let a plunging turn disguise two flat weaves. */
+  /* HEADING IS NOT A PREFERENCE HERE, IT IS THE WHOLE EFFECT.
+     W() puts screen-y at (x + y)*0.5 - z, so travelling +x/+y — headings f=0
+     and f=1 — increases screen-y: you move DOWN the screen, which reads as
+     coming toward the viewer, and therefore reads as descending. f=2/f=3 move
+     you up-screen and read as a climb no matter what the grade number says.
+
+     generateRoute already knows this — GRADE_BIAS exists precisely so real
+     elevation agrees with the camera's own depth cue rather than being
+     coin-flip noise, and it subtracts a term in (x + y). The corridor picker
+     simply was not honouring it, so a legitimately steep descent could be laid
+     down a heading that reads as uphill, and no amount of grade fixed that.
+
+     Both legs must therefore be f=0 or f=1. They are perpendicular, so
+     f=0 -> turn -> f=1 is a legal corridor and the descent reads on both sides
+     of the turn.
+
+     TENSION WORTH KNOWING: GOOD_LEG_HEADING is [f0, f3], so f=1 is not a
+     "good" leg for storefront dressing and the block-wrap cutaway. Reading as
+     downhill wins — a slalom that looks like a climb is broken, a slalom with
+     plainer buildings on one leg is not. */
+  const DOWNHILL_F = [0, 1];
+
   function slFindCorridor(){
     const [nA, nB] = splitN();
     const needA = (SL.lead + (nA - 1) * SL.gap + SL.turn) * T2;
     const needB = (SL.turn + (nB - 1) * SL.gap + SL.tail) * T2;
     const segs = scene.route.segs;
-    let best = null;
+    let best = null, fitButUphill = 0;
 
     for (let i = 0; i + 2 < segs.length; i++){
       const a = segs[i], m = segs[i + 1], b = segs[i + 2];
       if (a.type !== 'line' || m.type !== 'arc' || b.type !== 'line') continue;
       if ((a.s1 - a.s0) < needA || (b.s1 - b.s0) < needB) continue;
+      if (!DOWNHILL_F.includes(a.f) || !DOWNHILL_F.includes(b.f)){ fitButUphill++; continue; }
       /* length-weighted mean of the two weave legs */
       const la = a.s1 - a.s0, lb = b.s1 - b.s0;
       const score = (gradeOver(a.s0, a.s1) * la + gradeOver(b.s0, b.s1) * lb) / (la + lb);
       if (!best || score < best.score)
         best = { a, m, b, score, gA: gradeOver(a.s0, a.s1), gB: gradeOver(b.s0, b.s1) };
     }
+    /* Report the near-misses rather than silently falling back to a corridor
+       that reads as a climb. A wrong-heading course is worse than no course:
+       it looks like the grade is broken when the grade is fine. */
+    if (!best && fitButUphill) run.fitButUphill = fitButUphill;
     return best;
   }
 
   function slBuildCourse(){
     const cor = slFindCorridor();
     if (!cor){
-      run.msg = 'no line-turn-line corridor fits — drop cones or gap';
+      run.msg = run.fitButUphill
+        ? `${run.fitButUphill} corridor(s) fit but run f=2/f=3 — those read uphill. reroute`
+        : 'no line-turn-line corridor fits — drop cones or gap';
+      run.fitButUphill = 0;
       run.msgT = performance.now();
       return null;
     }
@@ -191,6 +221,7 @@
       arcS0:   cor.m.s0, arcS1: cor.m.s1,
       finishS: Math.round(bStart + (nB - 1) * SL.gap * T2 + SL.tail * T2),
       gA: cor.gA, gB: cor.gB, grade: cor.score,
+      fA: cor.a.f, fB: cor.b.f,
     };
 
     /* Clear the WHOLE corridor, arc included, every row. Same reasoning
@@ -242,7 +273,8 @@
     run.started = false; run.done = false;
     run.elapsed = 0; run.pen = 0; run.cleared = 0; run.faults = [];
     if (!run.course) return;
-    run.msg = `${(run.course.grade * 100).toFixed(1)}% downhill — red: pass above, blue: pass below`;
+    run.msg = `f=${run.course.fA}\u2192f=${run.course.fB}  ` +
+              `${(run.course.grade * 100).toFixed(1)}% — red: pass above, blue: pass below`;
     run.msgT = performance.now();
 
     /* Start on rowA — the row the FIRST gate does not want. Starting on the
@@ -384,6 +416,7 @@
              Math.abs(SL.par - total).toFixed(2) + 's', col)}
        ${row('cones cleared', `${run.cleared} / ${run.cones.length}`)}
        ${row('grade', (run.course.grade * 100).toFixed(1) + '% downhill')}
+       ${row('headings', `f=${run.course.fA} \u2192 f=${run.course.fB}`)}
        ${row('best', best ? best.toFixed(2) + 's' : '—', isBest ? '#7fe08a' : null)}
        ${isBest ? `<div style="text-align:center;color:#7fe08a;margin-top:6px">
                      new best</div>` : ''}
