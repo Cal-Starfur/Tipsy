@@ -8469,7 +8469,14 @@ class WorldScene extends Phaser.Scene {
          corner at 90°. fallPsi (set once, at the hit that starts the
          fall) plays the same role the old per-tile rotation did: it
          orients the fall within this prop's local frame. */
-      const C = CONE, K = this.K;
+      /* PALETTE IS PER-INSTANCE when the hazard carries one. CONE remains the
+         single source of a normal cone's colours; a hazard may supply its own
+         {...CONE, band, band_c} and draw with that instead. This is what lets
+         the slalom flag its gate cones red/blue while every other cone in the
+         city is untouched — and it costs nothing, because the band ring below
+         was already written and simply never fires at the global CONE.band 0.
+         One constant, one question: which palette does THIS cone draw with. */
+      const C = (data && data.cone) || CONE, K = this.K;
       const seed = ((Math.round(x)*7919) ^ (Math.round(y)*104729)) >>> 0;
       const rng = mulberry32(seed);
       /* SQUARE-based cone: squared to the street (seeded quarter + a few
