@@ -98,6 +98,33 @@
     par:  52.0,   // seconds to beat
   };
   const HOOD_BLUFFS = 7;         // HOODS[7] — hill 1.0, the steepest in the city
+
+  /* GATE FLAGS, in the ski-slalom convention: a coloured band tells you which
+     side of the cone you owe it.
+
+     The colour has to be decided in SCREEN space, not row space. slWant lives
+     in rows, and the row axis flips its screen direction with heading — that is
+     the whole reason hop() computes rowPlusDown instead of mapping a swipe
+     straight to a row delta. The course turns a corner halfway through, so a
+     row-space colour rule would silently invert at the arc and every flag on
+     leg 2 would lie. Colour is therefore assigned per cone, through the SAME
+     flip hop() uses, at the cone's own heading.
+
+       RED  — pass ABOVE it on screen (swipe up)
+       BLUE — pass BELOW it on screen (swipe down)
+
+     Swipe direction is exactly the control the player holds, so the flag names
+     the input rather than a fact about the world they have to translate. */
+  const GATE_RED  = { ...CONE, band: 7, band_c: 0xe03131 };
+  const GATE_BLUE = { ...CONE, band: 7, band_c: 0x2f6fd0 };
+
+  /* rowPlusDown at s, lifted from hop() — screen-down is +1 row when true */
+  const rowPlusDownAt = s => {
+    const hdg = scene.headingAt(s);
+    const fq  = ((Math.round(hdg / (Math.PI/2)) % 4) + 4) % 4;
+    const rv  = DIRV[(fq + 1) % 4];
+    return (rv.x + rv.y) * (offOf(1) - offOf(0)) > 0;
+  };
   const SL0 = { ...SL };
 
   const offOf = row => laneOffset(row);
@@ -187,12 +214,18 @@
       for (let i = 0; i < count; i++, k++){
         const row   = (k % 2 === 0) ? SL.rowA : SL.rowB;
         const other = (k % 2 === 0) ? SL.rowB : SL.rowA;
+        const at   = Math.round(s0 + i * SL.gap * T2);
+        const want = Math.sign(other - row);          // row-space: the open side
+        /* row-space want -> screen-space want, via hop()'s own flip */
+        const screenWant = want * (rowPlusDownAt(at) ? 1 : -1);
         scene.route.hazards.push({
-          type:'cone', s: Math.round(s0 + i * SL.gap * T2), row, f:0, hit:false,
+          type:'cone', s: at, row, f:0, hit:false,
           phi:0, phase:1, angVel:0, moving:false, pose:'standing',
           slide:0, slideVel:0,
           slRole:'gate', slIndex:k,
-          slWant: Math.sign(other - row),    // pass on the side the other row is on
+          slWant: want,
+          slScreenWant: screenWant,
+          cone: screenWant > 0 ? GATE_BLUE : GATE_RED,
           slKnocked:false, slJudged:false,
         });
       }
@@ -209,7 +242,7 @@
     run.started = false; run.done = false;
     run.elapsed = 0; run.pen = 0; run.cleared = 0; run.faults = [];
     if (!run.course) return;
-    run.msg = `${(run.course.grade * 100).toFixed(1)}% downhill — roll to the line`;
+    run.msg = `${(run.course.grade * 100).toFixed(1)}% downhill — red: pass above, blue: pass below`;
     run.msgT = performance.now();
 
     /* Start on rowA — the row the FIRST gate does not want. Starting on the
@@ -272,8 +305,12 @@
       if (got === cone.slWant){
         run.cleared++;
       } else {
-        run.pen += SL.pen; run.faults.push(`#${cone.slIndex + 1} wrong side`);
-        run.msg = `wrong side — +${SL.pen.toFixed(1)}s`; run.msgT = performance.now();
+        const side = cone.slScreenWant > 0 ? 'below' : 'above';
+        const col  = cone.slScreenWant > 0 ? 'blue' : 'red';
+        run.pen += SL.pen;
+        run.faults.push(`#${cone.slIndex + 1} ${col} — should have passed ${side}`);
+        run.msg = `${col}: pass ${side} — +${SL.pen.toFixed(1)}s`;
+        run.msgT = performance.now();
       }
     }
 
@@ -350,6 +387,11 @@
        ${row('best', best ? best.toFixed(2) + 's' : '—', isBest ? '#7fe08a' : null)}
        ${isBest ? `<div style="text-align:center;color:#7fe08a;margin-top:6px">
                      new best</div>` : ''}
+       <div style="display:flex;gap:12px;justify-content:center;margin-top:8px;
+            font-size:11px;color:#8f95a1">
+         <span><b style="color:#e03131">red</b> pass above</span>
+         <span><b style="color:#2f6fd0">blue</b> pass below</span>
+       </div>
        ${faults}
        ${clean && won ? `<div style="text-align:center;color:#7fe08a;margin-top:10px">
              slalom-master would unlock here</div>` : ''}
