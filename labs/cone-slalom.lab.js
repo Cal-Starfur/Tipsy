@@ -39,6 +39,35 @@
    only be cleared from rows 2-3, a cone on row 2 only from rows 0-1, so parking
    on one edge of the band fails every other gate.
 
+   ---------------------------------------------------------------------------
+   v3: A TURN, A HILL, AND AN ACTUAL ENDING
+   ---------------------------------------------------------------------------
+   THE TURN IS NOT OPTIONAL GEOMETRY, IT IS FORCED BY hop().
+   hop() refuses outright while segAt(botS).type === "arc" — a hop's lateral
+   swing is up to 276 units, near the turn's own radius, and firing one mid-arc
+   hooks the robot's real path. So cones CANNOT sit on the turn: a gate you are
+   physically unable to answer is a bug wearing a difficulty costume.
+
+   That constraint is the design. The course is line -> arc -> line: a cone
+   group, then a turn you must enter already in the right lane, then a second
+   group. The turn becomes a commit-your-lane beat between two weaves, which is
+   the same rule real driving has and the same rule hop()'s comment cites.
+
+   THE HILL IS REAL PHYSICS, NOT DRESSING.
+   route.tiles is a virtual grade profile — consumed as SLOPE only, never as
+   geometry (groundZ stays hard-zero). groundSlope() feeds pitch AND the speed
+   term in update(), so a downhill genuinely runs the robot faster than he wants
+   to go. That is exactly the pressure a slalom needs: the cost of the weave is
+   paid in a lane change you have less time to make.
+
+   Costa Palma already has hills — HOODS carries a per-hood `hill` knob and The
+   Bluffs (index 7) is the 1.0, tuned to top out near a 5% grade. Nothing needed
+   building. The lab reloads the route with hoodIndex 7, the same door
+   loadRoute() already opens for the hydrant challenge, then picks the corridor
+   with the steepest net DESCENT rather than merely the first straight that fit.
+   GRADE_BIAS ties downhill to headings f=0/f=1, and GOOD_LEG_HEADING is
+   [f0, f3], so f=0 legs tend to be both well-dressed and downhill.
+
    TIMING NOTE
    A hop takes 480ms. At speed ~0.15 units/ms that is ~72 units of travel, and
    gap 2.10 is 193 units — comfortably one hop per gate with room to settle.
@@ -58,15 +87,17 @@
 
   /* ---------- tunables — every one of these is a chip ---------- */
   const SL = {
-    n:    12,     // cones in the course
+    n:    24,     // cones in the course, split across the two legs
     gap:  2.10,   // along-route spacing between cones, in T2
     rowA: 1,      // even cones sit here
     rowB: 2,      // odd cones sit here
     lead: 6.0,    // run-up before the first cone, in T2
+    turn: 3.0,    // clearance either side of the arc — no cones on the turn
     tail: 3.0,    // run-out after the last cone, in T2
     pen:  2.0,    // seconds added per knocked cone / missed side
-    par:  26.0,   // seconds to beat
+    par:  52.0,   // seconds to beat
   };
+  const HOOD_BLUFFS = 7;         // HOODS[7] — hill 1.0, the steepest in the city
   const SL0 = { ...SL };
 
   const offOf = row => laneOffset(row);
@@ -82,35 +113,62 @@
   /* =========================================================================
      COURSE
      ========================================================================= */
-  function slFindLeg(){
-    const need = (SL.lead + (SL.n - 1) * SL.gap + SL.tail) * T2;
-    const segs = scene.route.segs.filter(g => g.type === 'line' && (g.s1 - g.s0) >= need);
-    if (!segs.length) return null;
-    const ahead = segs.filter(g => g.s1 > scene.botS);
-    return ahead.length ? ahead[0]
-                        : segs.sort((a, b) => (b.s1 - b.s0) - (a.s1 - a.s0))[0];
+  const splitN = () => [Math.ceil(SL.n / 2), Math.floor(SL.n / 2)];
+
+  /* Net grade over an s-range, in rise/run. Negative is downhill.
+     elevAt() is the scene's own sampler over route.tiles, so this asks the
+     grade question through the exact call the physics asks it through — not a
+     parallel copy of the same math over the tile array. */
+  const gradeOver = (s0, s1) =>
+    (s1 - s0) > 0 ? (scene.elevAt(s1) - scene.elevAt(s0)) / (s1 - s0) : 0;
+
+  /* Find every line -> arc -> line corridor long enough to hold both cone
+     groups, and return the STEEPEST DESCENT among them. Scored on the two
+     straights only: the arc's own grade is irrelevant because no cone sits on
+     it, and including it would let a plunging turn disguise two flat weaves. */
+  function slFindCorridor(){
+    const [nA, nB] = splitN();
+    const needA = (SL.lead + (nA - 1) * SL.gap + SL.turn) * T2;
+    const needB = (SL.turn + (nB - 1) * SL.gap + SL.tail) * T2;
+    const segs = scene.route.segs;
+    let best = null;
+
+    for (let i = 0; i + 2 < segs.length; i++){
+      const a = segs[i], m = segs[i + 1], b = segs[i + 2];
+      if (a.type !== 'line' || m.type !== 'arc' || b.type !== 'line') continue;
+      if ((a.s1 - a.s0) < needA || (b.s1 - b.s0) < needB) continue;
+      /* length-weighted mean of the two weave legs */
+      const la = a.s1 - a.s0, lb = b.s1 - b.s0;
+      const score = (gradeOver(a.s0, a.s1) * la + gradeOver(b.s0, b.s1) * lb) / (la + lb);
+      if (!best || score < best.score)
+        best = { a, m, b, score, gA: gradeOver(a.s0, a.s1), gB: gradeOver(b.s0, b.s1) };
+    }
+    return best;
   }
 
   function slBuildCourse(){
-    const leg = slFindLeg();
-    if (!leg){
-      run.msg = 'no straight long enough — drop cones or gap';
+    const cor = slFindCorridor();
+    if (!cor){
+      run.msg = 'no line-turn-line corridor fits — drop cones or gap';
       run.msgT = performance.now();
       return null;
     }
 
-    const startS = Math.round(leg.s0 + SL.lead * T2);
+    const [nA, nB] = splitN();
+    const aStart = Math.round(cor.a.s0 + SL.lead * T2);
+    const bStart = Math.round(cor.b.s0 + SL.turn * T2);
     const course = {
-      leg, startS,
-      lastS:  Math.round(startS + (SL.n - 1) * SL.gap * T2),
-      lineS:  Math.round(startS - SL.gap * T2 * 0.5),
-      spawnS: Math.round(startS - SL.lead * T2),
+      cor,
+      spawnS:  Math.round(cor.a.s0),
+      lineS:   Math.round(aStart - SL.gap * T2 * 0.5),
+      arcS0:   cor.m.s0, arcS1: cor.m.s1,
+      finishS: Math.round(bStart + (nB - 1) * SL.gap * T2 + SL.tail * T2),
+      gA: cor.gA, gB: cor.gB, grade: cor.score,
     };
-    course.finishS = Math.round(course.lastS + SL.tail * T2);
 
-    /* Clear the whole leg — run-up and run-out included, every row. Same
-       reasoning hjBuildCourse gives for the hydrant lane: you would weave
-       twelve cones clean and then land on a crack. */
+    /* Clear the WHOLE corridor, arc included, every row. Same reasoning
+       hjBuildCourse gives for the hydrant lane: you would weave twenty-four
+       cones clean and then land on a crack. */
     const from = course.spawnS - T2, to = course.finishS + T2;
     scene.route.hazards = scene.route.hazards.filter(h =>
       !h.slRole && !(h.s >= from && h.s <= to));
@@ -120,29 +178,39 @@
     /* Cone hazard objects mirror the generator's own cone branch field for
        field (phi/phase/angVel/moving/pose/slide/slideVel), so the existing
        rigid pivot-fall integrator and hit code drive them with no special case.
-       Always standing — a pre-knocked cone in a slalom is a free gate. */
-    for (let i = 0; i < SL.n; i++){
-      const row   = (i % 2 === 0) ? SL.rowA : SL.rowB;
-      const other = (i % 2 === 0) ? SL.rowB : SL.rowA;
-      scene.route.hazards.push({
-        type:'cone', s: Math.round(startS + i * SL.gap * T2), row, f:0, hit:false,
-        phi:0, phase:1, angVel:0, moving:false, pose:'standing',
-        slide:0, slideVel:0,
-        slRole:'gate', slIndex:i,
-        slWant: Math.sign(other - row),      // pass on the side the other row is on
-        slKnocked:false, slJudged:false,
-      });
-    }
+       Always standing — a pre-knocked cone in a slalom is a free gate.
+
+       Numbering runs unbroken across the turn (1..n) so a fault message names
+       the cone the player just saw, not "leg B, number three". */
+    let k = 0;
+    const plant = (s0, count) => {
+      for (let i = 0; i < count; i++, k++){
+        const row   = (k % 2 === 0) ? SL.rowA : SL.rowB;
+        const other = (k % 2 === 0) ? SL.rowB : SL.rowA;
+        scene.route.hazards.push({
+          type:'cone', s: Math.round(s0 + i * SL.gap * T2), row, f:0, hit:false,
+          phi:0, phase:1, angVel:0, moving:false, pose:'standing',
+          slide:0, slideVel:0,
+          slRole:'gate', slIndex:k,
+          slWant: Math.sign(other - row),    // pass on the side the other row is on
+          slKnocked:false, slJudged:false,
+        });
+      }
+    };
+    plant(aStart, nA);
+    plant(bStart, nB);
     return course;
   }
 
   function slResetRun(){
+    document.getElementById('slCard')?.remove();
     run.course = slBuildCourse();
     run.cones  = scene.route.hazards.filter(h => h.slRole === 'gate');
     run.started = false; run.done = false;
     run.elapsed = 0; run.pen = 0; run.cleared = 0; run.faults = [];
     if (!run.course) return;
-    run.msg = 'roll to the line'; run.msgT = performance.now();
+    run.msg = `${(run.course.grade * 100).toFixed(1)}% downhill — roll to the line`;
+    run.msgT = performance.now();
 
     /* Start on rowA — the row the FIRST gate does not want. Starting on the
        clear side would make gate one free, and a slalom whose opening gate is
@@ -211,14 +279,89 @@
 
     if (!run.done && prevS < c.finishS && s >= c.finishS){
       run.done = true;
-      const total = run.elapsed + run.pen;
-      const clean = run.cleared === run.cones.length && run.pen === 0;
-      run.msg = total <= SL.par
-        ? (clean ? `CLEAN ${total.toFixed(2)}s — TROPHY` : `PASS ${total.toFixed(2)}s`)
-        : `OVER PAR ${total.toFixed(2)}s`;
-      run.msgT = performance.now();
+      slShowCard();
     }
+    /* Coast to a stop once the run is scored. This is the ONLY write this lab
+       makes to the robot during play, and it happens strictly after the last
+       gate is judged — a run that ends with the player still holding throttle
+       into traffic has no clear outcome, which was the complaint. */
+    if (run.done) scene.speed *= 0.94;
     prevS = s;
+  }
+
+  /* =========================================================================
+     THE OUTCOME
+     v2 ended a run by flashing a line of text for 2.2 seconds and then going
+     back to a debug readout, which is not an ending — you could finish and not
+     know you had. A run now stops the robot and puts up a card that states the
+     verdict, the arithmetic behind it, and every fault by name.
+     ========================================================================= */
+  const BEST_KEY = 'tipsy.lab.slalomBest';   // lab-only; NOT the protected tipsy-best-* namespace
+
+  function slShowCard(){
+    const raw   = run.elapsed;
+    const total = raw + run.pen;
+    const clean = run.cleared === run.cones.length && run.pen === 0;
+    const won   = total <= SL.par;
+
+    let best = parseFloat(localStorage.getItem(BEST_KEY) || '0') || 0;
+    const isBest = won && (!best || total < best);
+    if (isBest){ best = total; localStorage.setItem(BEST_KEY, String(total)); }
+
+    const verdict = !won ? 'OVER PAR' : (clean ? 'CLEAN RUN' : 'PASS');
+    const col     = !won ? '#ff6b6b' : (clean ? '#7fe08a' : '#ffb04d');
+
+    const row = (k, v, c) =>
+      `<div style="display:flex;justify-content:space-between;gap:16px;padding:3px 0">
+         <span style="color:#8f95a1">${k}</span>
+         <span style="color:${c || '#e8eaef'};font-variant-numeric:tabular-nums">${v}</span>
+       </div>`;
+
+    const faults = run.faults.length
+      ? `<div style="margin-top:8px;padding-top:8px;border-top:1px solid #2b2f38;
+              max-height:22vh;overflow:auto">
+           ${run.faults.map(f => `<div style="color:#ff9c4d">${f}</div>`).join('')}
+         </div>`
+      : `<div style="margin-top:8px;padding-top:8px;border-top:1px solid #2b2f38;
+              color:#7fe08a">no faults</div>`;
+
+    document.getElementById('slCard')?.remove();
+    const card = document.createElement('div');
+    card.id = 'slCard';
+    card.style.cssText = [
+      'position:fixed','left:12px','right:12px','top:50%','transform:translateY(-50%)',
+      'z-index:100000','background:rgba(14,16,21,0.97)',`border:1px solid ${col}`,
+      'border-radius:14px','padding:16px','max-width:460px','margin:0 auto',
+      'font:13px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace','color:#e8eaef',
+    ].join(';');
+    card.innerHTML =
+      `<div style="color:${col};font-size:22px;font-weight:800;letter-spacing:2px;
+            text-align:center;margin-bottom:4px">${verdict}</div>
+       <div style="text-align:center;font-size:30px;font-weight:800;
+            font-variant-numeric:tabular-nums;margin-bottom:12px">${total.toFixed(2)}s</div>
+       ${row('run time', raw.toFixed(2) + 's')}
+       ${row('penalties', (run.pen ? '+' : '') + run.pen.toFixed(1) + 's',
+             run.pen ? '#ff9c4d' : '#7fe08a')}
+       ${row('par', SL.par.toFixed(1) + 's')}
+       ${row('margin', (SL.par - total >= 0 ? '−' : '+') +
+             Math.abs(SL.par - total).toFixed(2) + 's', col)}
+       ${row('cones cleared', `${run.cleared} / ${run.cones.length}`)}
+       ${row('grade', (run.course.grade * 100).toFixed(1) + '% downhill')}
+       ${row('best', best ? best.toFixed(2) + 's' : '—', isBest ? '#7fe08a' : null)}
+       ${isBest ? `<div style="text-align:center;color:#7fe08a;margin-top:6px">
+                     new best</div>` : ''}
+       ${faults}
+       ${clean && won ? `<div style="text-align:center;color:#7fe08a;margin-top:10px">
+             slalom-master would unlock here</div>` : ''}
+       <div style="display:flex;gap:8px;margin-top:14px">
+         <button id="slAgain" style="${'font:inherit;color:#e8eaef;background:#232220;' +
+           'border:1px solid #2b2f38;border-radius:7px;min-height:44px;'}flex:2">run again</button>
+         <button id="slClose" style="${'font:inherit;color:#e8eaef;background:#232220;' +
+           'border:1px solid #2b2f38;border-radius:7px;min-height:44px;'}flex:1">close</button>
+       </div>`;
+    document.body.appendChild(card);
+    document.getElementById('slAgain').onclick = () => { card.remove(); slResetRun(); };
+    document.getElementById('slClose').onclick = () => card.remove();
   }
 
   const onPost = () => { try { slJudge(); } catch(e){ console.log('slJudge', e); } };
@@ -237,6 +380,7 @@
     { key:'rowA', label:'row A', min:0,   max:3,   step:1    },
     { key:'rowB', label:'row B', min:0,   max:3,   step:1    },
     { key:'lead', label:'lead',  min:2,   max:12,  step:0.5  },
+    { key:'turn', label:'turn',  min:1.5, max:8,   step:0.5  },
     { key:'tail', label:'tail',  min:1,   max:8,   step:0.5  },
     { key:'pen',  label:'pen',   min:0.5, max:5,   step:0.5  },
     { key:'par',  label:'par',   min:8,   max:60,  step:0.5  },
@@ -296,7 +440,8 @@
 
   const portLine = () =>
     `const SL = { n:${SL.n}, gap:${(+SL.gap).toFixed(2)}, rowA:${SL.rowA}, rowB:${SL.rowB}, ` +
-    `lead:${(+SL.lead).toFixed(1)}, tail:${(+SL.tail).toFixed(1)}, ` +
+    `lead:${(+SL.lead).toFixed(1)}, turn:${(+SL.turn).toFixed(1)}, ` +
+    `tail:${(+SL.tail).toFixed(1)}, ` +
     `pen:${(+SL.pen).toFixed(1)}, par:${(+SL.par).toFixed(1)} };`;
 
   function drawChips(){
@@ -345,6 +490,7 @@
     setTimeout(() => $('slCopy').textContent = 'copy', 900);
   };
   $('slOff').onclick = () => {
+    document.getElementById('slCard')?.remove();
     scene._slRestore && scene._slRestore();
     clearInterval(tick);
     panel.remove();
@@ -360,13 +506,31 @@
     }
     const m = $('slMsg');
     if (m){
+      const c = run.course;
+      const where = !c ? '—'
+        : scene.botS < c.arcS0 ? 'leg 1'
+        : scene.botS < c.arcS1 ? 'TURN — hold your lane'
+        : 'leg 2';
       m.textContent = (performance.now() - run.msgT < 2200) ? run.msg
-        : `row ${scene.botRow}   v ${scene.speed.toFixed(3)}` +
-          `   left ${run.cones.filter(c => !c.slJudged).length}`;
+        : `${where}   row ${scene.botRow}   v ${scene.speed.toFixed(3)}` +
+          `   left ${run.cones.filter(c2 => !c2.slJudged).length}`;
     }
   }, 100);
 
-  syncUI();
-  slResetRun();
-  console.log('cone slalom armed —', portLine());
+  /* Costa Palma's grade comes from the hood's `hill` knob, and a slalom on The
+     Flats (hill 0) is a slalom on a table. If the loaded route is not already a
+     steep hood, reload it onto The Bluffs first — loadRoute(dateStr, opts)
+     takes hoodIndex, the same door the hydrant challenge uses. The route
+     rebuild is async in effect (it re-runs generateRoute and resets the scene),
+     so the course is built on the NEXT tick, not inline. */
+  function slArm(){
+    if (scene.route.hood.hill >= 0.9){ syncUI(); slResetRun(); return; }
+    run.msg = 'relocating to The Bluffs…'; run.msgT = performance.now();
+    scene.loadRoute(scene.route.dateStr, { hoodIndex: HOOD_BLUFFS });
+    setTimeout(() => { syncUI(); slResetRun();
+      console.log('cone slalom armed —', portLine()); }, 60);
+  }
+
+  slArm();
+  console.log('cone slalom arming —', portLine());
 })();
