@@ -291,6 +291,70 @@
       font-weight: 600;
       color: var(--accent);
     }
+    .how-to-card h3 {
+      margin: 1.2rem 0 0.6rem;
+      font-size: 0.68rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--ink-dim);
+      padding-bottom: 0.4rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .btn-guide {
+      display: grid;
+      gap: 0.75rem;
+      margin-bottom: 0.9rem;
+    }
+    .btn-guide-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.7rem;
+    }
+    /* chips are deliberately painted from the same recipe as the real
+       buttons in game/index.html -- white circle for #globalSearch,
+       orange circle for #globalAvatar, dark squircle for #zoomBtn -- so
+       the modal teaches the thing the player is actually looking for. */
+    .btn-chip {
+      flex: none;
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      line-height: 1.05;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+    }
+    .btn-chip.chip-search { background: rgba(255, 255, 255, 0.92); }
+    .btn-chip.chip-robot { background: #ff7a1a; }
+    .btn-chip.chip-view {
+      border-radius: 10px;
+      background: rgba(20, 23, 29, 0.62);
+      border: 1px solid #363b46;
+    }
+    .btn-chip .vcap {
+      font-size: 7px;
+      letter-spacing: 1px;
+      color: #8f95a1;
+    }
+    .btn-chip .vlvl {
+      font-size: 15px;
+      font-weight: 700;
+      color: #e8eaef;
+    }
+    .btn-guide-row div b {
+      display: block;
+      font-size: 0.85rem;
+      color: var(--ink);
+    }
+    .btn-guide-row div span {
+      display: block;
+      font-size: 0.8rem;
+      line-height: 1.45;
+      color: var(--ink-dim);
+    }
     .how-to-close {
       position: absolute;
       top: 12px;
@@ -342,6 +406,30 @@
           <tr><td>Brake</td><td>Hold left side</td><td>← / A</td></tr>
           <tr><td>Change lane</td><td>Swipe up / down</td><td>↑W / ↓S</td></tr>
         </table>
+        <h3>On-screen buttons</h3>
+        <div class="btn-guide">
+          <div class="btn-guide-row">
+            <div class="btn-chip chip-view"><span class="vcap">VIEW</span><span class="vlvl">1</span></div>
+            <div>
+              <b>View &mdash; camera depth</b>
+              <span>Out on the route, tap to cycle three heights: <strong>1</strong> rides close for tight corner work, <strong>2</strong> and <strong>3</strong> pull back so you spot traffic, cracks and ramps earlier. Your pick is remembered between runs.</span>
+            </div>
+          </div>
+          <div class="btn-guide-row">
+            <div class="btn-chip chip-search"><svg viewBox="0 0 24 24" width="19" height="19" aria-hidden="true"><circle cx="10" cy="10" r="6.5" fill="none" stroke="#2e3138" stroke-width="2.2"/><line x1="15" y1="15" x2="21" y2="21" stroke="#2e3138" stroke-width="2.4" stroke-linecap="round"/></svg></div>
+            <div>
+              <b>Magnifying glass &mdash; side missions</b>
+              <span>Top left of the menus. Search Costa Palma for jobs off the daily route, like the <strong>Hydrant Challenge</strong>.</span>
+            </div>
+          </div>
+          <div class="btn-guide-row">
+            <div class="btn-chip chip-robot"><svg viewBox="0 0 40 46" width="19" height="22" aria-hidden="true"><line x1="13" y1="5" x2="13" y2="11" stroke="#2e3138" stroke-width="1.5"/><circle cx="13" cy="5" r="2" fill="#ff5722"/><rect x="9" y="11" width="22" height="7" fill="#f7f8fa" stroke="#30343d" stroke-width="1.2"/><rect x="5" y="18" width="30" height="21" fill="#f7f8fa" stroke="#30343d" stroke-width="1.2"/><rect x="9" y="22" width="22" height="8" fill="#22242b"/><circle cx="16" cy="26" r="1.9" fill="#7fe3ff"/><circle cx="24" cy="26" r="1.9" fill="#7fe3ff"/><rect x="5" y="32" width="30" height="4" fill="#c2452e"/><rect x="5" y="34" width="30" height="3" fill="#ffcc33" stroke="#c9a020" stroke-width="0.5"/><rect x="5" y="36" width="30" height="3" fill="#494e58"/></svg></div>
+            <div>
+              <b>Orange robot &mdash; your profile</b>
+              <span>Top right of the menus. Trophy case, tip wallet, and the store where tips buy new paint for Tipsey.</span>
+            </div>
+          </div>
+        </div>
         <p class="how-to-note">Payout = tip multiplier × cargo condition − time penalty.</p>
       </div>
     </div>
