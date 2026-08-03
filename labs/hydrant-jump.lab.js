@@ -56,12 +56,21 @@
   const BASE = window.__hjtBase || (window.__hjtBase = {
     sp1:   HJ_CH.sp1,
     sp0:   HJ_CH.sp0,
+    add:   HJ_CH.add,
+    gap:   HJ_CH.gap,
     grav:  HJ_JUMP.grav,
     slam:  HJ_JUMP.slam,
     runup: HJ_GEOM.runup,
   });
 
-  const S = { k: 1.00, sp0: BASE.sp0, runup: BASE.runup, rate: 0 };
+  const S = { k: 1.00, add: BASE.add, gap: BASE.gap,
+              sp0: BASE.sp0, runup: BASE.runup, rate: 0 };
+
+  /* Tipsey's delivery-mode speed ceiling. It is a bare literal inside the
+     Clamp in update() rather than a named constant, so this is a copy and
+     copies drift - if that clamp ever moves, this number is silently stale.
+     Worth promoting to a real const on the next pass; noted, not done. */
+  const MAXSPD = 0.225;
 
   /* ---------- apply ------------------------------------------------------
      k drives the triple. runup needs a ROUTE reload, not just a level
@@ -107,11 +116,20 @@
     HJ_JUMP.grav  = BASE.grav * S.k * S.k;
     HJ_JUMP.slam  = BASE.slam / S.k;
     HJ_CH.sp0     = S.sp0;
+    HJ_CH.add     = S.add;
     HJ_CH.autoTap = S.rate;
+    /* gap is COURSE GEOMETRY, not a live dial: hjBuildCourse reads it when
+       it lays the catch ramp out, so the course has to be rebuilt or the
+       slider does nothing visible and every band goes stale. */
+    const regap = HJ_CH.gap !== S.gap;
+    HJ_CH.gap = S.gap;
     const moved = HJ_GEOM.runup !== S.runup;
     HJ_GEOM.runup = S.runup;
     if (needRoute && moved) enterChallenge();
-    else if (scene.hjResetRun) scene.hjResetRun();
+    else {
+      if (regap) scene.hjBuildCourse(scene.hjLevel || 1);
+      if (scene.hjResetRun) scene.hjResetRun();
+    }
     scene._hjBandLvl = -1;                 // force the meter to re-solve
   }
 
@@ -161,8 +179,15 @@
 
   /* ---------- panel ------------------------------------------------------ */
   const FIELDS = [
-    { key: 'k',     label: 'k',     min: 0.80, max: 2.00, step: 0.05, dp: 2 },
-    { key: 'runup', label: 'runup', min: 2 * T2, max: 8 * T2, step: T2 / 4, dp: 0 },
+    { key: 'k',     label: 'k',     min: 0.80, max: 3.00, step: 0.02,  dp: 2 },
+    { key: 'add',   label: 'add',   min: 0.06, max: 0.30, step: 0.002, dp: 3 },
+    { key: 'gap',   label: 'gap',   min: 0.25, max: 0.70, step: 0.01,  dp: 2 },
+    /* 12*T2 is the CLIFF, not a round number. findCourseLeg picks the
+       earliest line long enough for NEED, and at 12*T2 NEED is 1904 against
+       a 1932-unit leg. One notch further and the whole side mission
+       relocates to a different street. Measured against generateRoute on
+       the real seed, not derived from the rule. */
+    { key: 'runup', label: 'runup', min: 2 * T2, max: 12 * T2, step: T2 / 4, dp: 0 },
     { key: 'sp0',   label: 'sp0',   min: 0,    max: 0.08, step: 0.005, dp: 3 },
     { key: 'rate',  label: 'auto',  min: 0,    max: 14,   step: 0.5,  dp: 1 },
   ];
@@ -239,14 +264,16 @@
   };
   el('hjtReset').onclick = () => {
     S.k = 1.00; S.sp0 = BASE.sp0; S.runup = BASE.runup; S.rate = 0;
+    S.add = BASE.add; S.gap = BASE.gap;
     syncInputs();
-    HJ_GEOM.runup = S.runup;
+    HJ_GEOM.runup = S.runup; HJ_CH.gap = S.gap;
     enterChallenge();
     apply(false);
   };
   el('hjtCopy').onclick = () => {
     const line = `HJ k=${S.k.toFixed(2)} -> sp1 ${(BASE.sp1 * S.k).toFixed(4)} · ` +
       `grav ${(BASE.grav * S.k * S.k).toExponential(4)} · slam ${(BASE.slam / S.k).toFixed(2)} · ` +
+      `add ${S.add.toFixed(3)} · gap ${S.gap.toFixed(2)} · ` +
       `sp0 ${S.sp0.toFixed(3)} · runup ${S.runup} (${(S.runup / T2).toFixed(2)}·T2)`;
     navigator.clipboard?.writeText(line);
     el('hjtRead').textContent = line;
@@ -275,10 +302,14 @@
     const rb = realBand(L), mb = hjSolveBand(scene, ch);
     const pc = v => v === null || v === undefined ? '  --  ' : (v * 100).toFixed(1).padStart(5) + '%';
     const w  = b => b.lo === null ? ' -- ' : ((b.hi - b.lo) * 100).toFixed(1).padStart(4);
+    /* the point of the whole exercise: level 1 should sit at 1.00x, and
+       every level above it beyond Tipsey's delivery ceiling. */
+    const xm = b => b.lo === null ? '' :
+      ((b.lo + b.hi) / 2 * HJ_CH.sp1 / MAXSPD).toFixed(2) + 'x max';
 
     el('hjtLvl').textContent = 'lvl ' + L + '/' + HJ_CH.maxLevel;
     el('hjtRead').textContent =
-      `real band  ${pc(rb.lo)} ${pc(rb.hi)}   w${w(rb)}\n` +
+      `real band  ${pc(rb.lo)} ${pc(rb.hi)}   w${w(rb)}   ${xm(rb)}\n` +
       `meter band ${pc(mb.lo)} ${pc(mb.hi)}   w${w(mb)}\n` +
       `charge now ${pc(scene.hjChargeSm)}    speed ${(scene.speed || 0).toFixed(4)}\n` +
       `at lip     ${pc(lipCharge)}    runway ${lipT === null ? ' --' : lipT.toFixed(2)}s\n` +
