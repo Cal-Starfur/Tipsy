@@ -69,25 +69,37 @@
      time — a longer run-up can no longer fit on a leg that was chosen
      for a shorter one. */
   /* ---------- entering the challenge -------------------------------------
-     loadChallenge() alone is not enough, and getting this wrong is what made
-     the first version look like it was somewhere else entirely:
+     CALL THE GAME'S OWN PATH. hjStart() then hjBegin() is exactly what the
+     Side Missions menu does, and nothing else here is allowed to
+     re-implement it.
 
-       - it routes through loadRoute(), which puts titleOverlay back up. That
-         is the TODAY / RANDOM DAY map screen. The course was built correctly
-         underneath it the whole time; you just could not see it.
-       - the bench's own `start run` (autoBoot clicks it before the lab loads)
-         parks the BENCH camera at botS = 0 on a normal daily route. The bench
-         camera owns camX/camY/K through the pre-draw hook, so it keeps that
-         framing across the route swap and you end up looking at the old spot
-         on the new street.
+     Two attempts before this one hand-rolled a sequence instead, and both
+     broke, for the reason you would expect:
 
-     The side mission has to look EXACTLY like the side mission, so the game
-     camera gets handed back and the overlay goes away. */
+       v1: loadChallenge() only. That routes through loadRoute(), which puts
+           titleOverlay back up - the TODAY / RANDOM DAY map screen. The
+           course was built correctly underneath it the whole time.
+       v2: loadChallenge() + hide('titleOverlay') + hjResetRun(). Looked
+           right and was still wrong: #hjTap and #hjMeterWrap live inside
+           <div id="hjUI" class="hidden">, and the ONLY thing that unhides
+           them is hjBegin(), which also runs hjChrome(true) to clear the
+           delivery HUD. So there was no tap button, which makes the whole
+           bench useless - you cannot tune a tap meter you cannot tap.
+
+     Two parallel copies of an entry sequence, two bugs, in the same session
+     that flagged hjSolveBand for being a parallel copy of hjSim. The rule
+     earns its keep: verify through the call the game actually makes.
+
+     The one thing the bench genuinely has to add is BENCH.camRelease(). The
+     bench camera owns camX/camY/K through the pre-draw hook, and autoBoot
+     clicks `start run` before the lab loads, so without releasing it you
+     keep the old framing from a normal daily route across the route swap:
+     old spot, new street. That is bench state, not a game path, so it
+     belongs here. */
   function enterChallenge() {
-    scene.loadChallenge();
-    try { hide('titleOverlay'); } catch (e) {}
     try { window.BENCH && window.BENCH.camRelease(); } catch (e) {}
-    if (scene.hjResetRun) scene.hjResetRun();
+    hjStart();     // loadChallenge + the route map, exactly as the menu does
+    hjBegin();     // hides the map, unhides #hjUI, hjChrome(true), hjResetRun
   }
 
   function apply(needRoute) {
@@ -227,7 +239,10 @@
   };
   el('hjtReset').onclick = () => {
     S.k = 1.00; S.sp0 = BASE.sp0; S.runup = BASE.runup; S.rate = 0;
-    syncInputs(); apply(true);
+    syncInputs();
+    HJ_GEOM.runup = S.runup;
+    enterChallenge();
+    apply(false);
   };
   el('hjtCopy').onclick = () => {
     const line = `HJ k=${S.k.toFixed(2)} -> sp1 ${(BASE.sp1 * S.k).toFixed(4)} · ` +
@@ -245,7 +260,7 @@
   function tick() {
     window.__hjtRAF = requestAnimationFrame(tick);
     const ch = scene.route && scene.route.challenge;
-    if (!ch) { el('hjtRead').textContent = 'not in the challenge — call loadChallenge()'; return; }
+    if (!ch) { el('hjtRead').textContent = 'not in the challenge — tap reset, or call hjStart() then hjBegin()'; return; }
 
     const lip = ch.kickerS + TILE;
     if (lastS !== null && scene.botS < lastS - 10) { runT0 = null; lipCharge = null; lipT = null; }
