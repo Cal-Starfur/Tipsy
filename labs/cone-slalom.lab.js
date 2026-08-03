@@ -178,10 +178,20 @@
      pre  : write laneOff BEFORE update()'s hazard pass reads it
      post : write hopYaw AFTER update()'s else-branch decays it to zero
      ========================================================================= */
-  let slSteerIn = 0, slSteerA = 0, prevS = scene.botS;
+  let slSteerIn = 0, slSteerA = 0, slThrottle = 0, prevS = scene.botS;
 
   function slPre(dt){
     if (scene.state !== 'play' || !run.course) return;
+
+    /* THROTTLE OWNERSHIP.
+       bindInput() reads throttle off the pointer's x half (right = go, left =
+       brake) and then ZEROES it the moment a drag passes the hop threshold.
+       Both behaviours are wrong for a one-thumb steering game: a drag left from
+       the right half became a brake, and any decisive steer killed the throttle
+       outright. Since steer distance scales with speed, that reads on-device as
+       "the steering does not work" even once the frame hook is fixed.
+       One writer, every frame, ours. */
+    scene.throttle = slThrottle;
 
     slSteerA += (slSteerIn - slSteerA) * Math.min(1, SL.lag * dt);
 
@@ -255,27 +265,47 @@
     prevS = s;
   }
 
-  const origUpdate = scene.update.bind(scene);
-  const origHop    = scene.hop.bind(scene);
-  scene.update = (time, delta) => {
-    const dt = Math.min(delta, 34);
-    try { slPre(dt); } catch(e){ console.log('slPre', e); }
-    origUpdate(time, delta);
-    try { slPost(dt); } catch(e){ console.log('slPost', e); }
-  };
+  /* ---------- HOOKING THE FRAME ----------
+     NOT by reassigning scene.update. Phaser 3's Systems.init caches the scene's
+     update method into sys.sceneUpdate at boot, and step() calls the CACHED
+     reference:
+
+         this.sceneUpdate.call(this.scene, time, delta);
+
+     so a monkeypatched scene.update is simply never called. That cost a whole
+     on-device session: the panel worked, the sliders worked, and the robot
+     would not steer, because slPre had never run once.
+
+     The scene's own event bus is the supported seam and it brackets sceneUpdate
+     exactly where this needs to sit — PRE_UPDATE writes laneOff before the
+     hazard pass reads it, POST_UPDATE writes hopYaw after update()'s else-branch
+     has decayed it to zero. */
+  const origHop = scene.hop.bind(scene);
+  const onPre  = (time, delta) => { try { slPre(Math.min(delta, 34)); }  catch(e){ console.log('slPre', e); } };
+  const onPost = (time, delta) => { try { slPost(Math.min(delta, 34)); } catch(e){ console.log('slPost', e); } };
+  scene.events.on('preupdate',  onPre);
+  scene.events.on('postupdate', onPost);
   scene.hop = () => {};                    // lane hops are off — steering replaces them
-  scene._slRestore = () => { scene.update = origUpdate; scene.hop = origHop; delete scene._slRestore; };
+  scene._slRestore = () => {
+    scene.events.off('preupdate',  onPre);
+    scene.events.off('postupdate', onPost);
+    scene.hop = origHop;
+    delete scene._slRestore;
+  };
 
   /* ---------- input: drag x = steer, hold = throttle, arrows on desktop ---------- */
   const canvas = scene.game.canvas;
   let downX = 0, dragging = false;
-  const onDown = e => { downX = (e.touches ? e.touches[0].clientX : e.clientX); dragging = true; };
+  const onDown = e => { downX = e.clientX; dragging = true; slThrottle = 1; };
   const onMove = e => {
     if (!dragging) return;
-    const x = (e.touches ? e.touches[0].clientX : e.clientX);
-    slSteerIn = Phaser.Math.Clamp((x - downX) / (canvas.clientWidth * 0.22), -1, 1);
+    /* Full-lock at ~22% of the screen width, so the thumb never has to leave
+       the pad it started on. The anchor is where you pressed, not screen
+       centre — steering that depends on absolute finger position is unusable
+       when the same finger is also holding the throttle. */
+    slSteerIn = Phaser.Math.Clamp((e.clientX - downX) / (canvas.clientWidth * 0.22), -1, 1);
   };
-  const onUp = () => { dragging = false; slSteerIn = 0; };
+  const onUp = () => { dragging = false; slSteerIn = 0; slThrottle = 0; };
   canvas.addEventListener('pointerdown', onDown);
   canvas.addEventListener('pointermove', onMove);
   window.addEventListener('pointerup', onUp);
@@ -283,8 +313,8 @@
     const d = e.type === 'keydown' ? 1 : 0;
     if (e.key === 'ArrowLeft')  slSteerIn = -d;
     if (e.key === 'ArrowRight') slSteerIn =  d;
-    if (e.key === 'ArrowUp')    scene.throttle = d ? 1 : 0;
-    if (e.key === 'ArrowDown')  scene.throttle = d ? -1 : 0;
+    if (e.key === 'ArrowUp')    slThrottle = d ? 1 : 0;
+    if (e.key === 'ArrowDown')  slThrottle = d ? -1 : 0;
   };
   window.addEventListener('keydown', onKey);
   window.addEventListener('keyup', onKey);
@@ -447,7 +477,15 @@
                         `  par ${SL.par.toFixed(0)}`;
     }
     const m = $('slMsg');
-    if (m) m.textContent = (performance.now() - run.msgT < 2200) ? run.msg : '';
+    if (m){
+      /* When the input is dead there is nothing on screen to say so. This is
+         the cheapest possible answer to "am I even reaching the steer?" —
+         raw input, smoothed input, speed, live lane offset. */
+      m.textContent = (performance.now() - run.msgT < 2200) ? run.msg
+        : `steer ${slSteerA >= 0 ? '+' : ''}${slSteerA.toFixed(2)}` +
+          `   thr ${slThrottle}   v ${scene.speed.toFixed(3)}` +
+          `   row ${(((scene.laneOff - offOf(0)) / (offOf(1) - offOf(0)))).toFixed(2)}`;
+    }
   }, 100);
 
   syncUI();
