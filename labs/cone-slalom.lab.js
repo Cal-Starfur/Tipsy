@@ -88,10 +88,10 @@
   /* ---------- tunables — every one of these is a chip ---------- */
   const SL = {
     n:    400,    // CAP on gates; the course fills every leg up to this
-    legs: 4,      // how many legs the course runs through — walk this up
+    legs: 6,      // how many legs the course runs through — walk this up
                   // with the chip and watch the cone total in the strip
-    gap:  1.50,   // TIGHTEST along-route spacing between cones, in T2
-    vary: 0.55,   // how far above gap the spacing opens up (0 = uniform)
+    gap:  1.40,   // TIGHTEST along-route spacing between cones, in T2
+    vary: 0.30,   // how far above gap the spacing opens up (0 = uniform)
     trafficWaits: 1,   // cars queue at coned junctions instead of driving through
     kickers: 1,   // kicker ramps per leg (0 = none)
     kLift: 26,    // ramp lip height
@@ -99,9 +99,9 @@
     kPeak:  40,   // apex height above the lip, in world units
     rowA: 0,      // low edge of the sidewalk band the course uses
     rowB: 3,      // high edge — 0..3 is the whole walk
-    lead: 4.0,    // run-up before the first cone, in T2
-    turn: 2.5,    // clearance either side of the arc — no cones on the turn
-    tail: 2.0,    // run-out after the last cone, in T2
+    lead: 3.0,    // run-up before the first cone, in T2
+    turn: 2.0,    // clearance either side of the arc — no cones on the turn
+    tail: 1.5,    // run-out after the last cone, in T2
     pen:  2.0,    // seconds added per knocked cone / missed side
     par:  52.0,   // seconds to beat
   };
