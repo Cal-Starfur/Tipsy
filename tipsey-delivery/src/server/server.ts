@@ -176,7 +176,7 @@ async function routeGetDailyBest(): Promise<GetDailyBestRsp> {
     dbGetAllTimeBest(),
     dbGetAllTimeTop(10),
     getCurrentUserRetrying(),
-    dbGetPlays(),
+    dbGetPlays(dateStr),
   ])
   return {
     dateStr,
@@ -286,8 +286,12 @@ async function routeClaimTrophyReward(
   return {owned: result.profile.owned, skinId: result.skinId}
 }
 
+/** The date comes from the SERVER's todayUTC(), not the client: the
+ *  counter sits next to today's board and must be keyed the same way it
+ *  is, and a client-supplied date would let any webview pad an
+ *  arbitrary day's tally. */
 async function routeCountPlay(): Promise<CountPlayRsp> {
-  return {plays: await dbIncrPlays()}
+  return {plays: await dbIncrPlays(todayUTC())}
 }
 
 /** The server owns every word of the failure copy: the client sends an
