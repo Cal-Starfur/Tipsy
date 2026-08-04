@@ -19,9 +19,8 @@ export type LeaderboardEntry = {
  *  comment). viewerUsername is the requesting Reddit user, not the record
  *  holder — null if it couldn't be resolved (e.g. logged-out preview
  *  render). top is tip-ranked, descending; empty if nobody's played yet.
- *  plays is the all-time count of deliveries STARTED across every
- *  player and every day (see db.ts PLAYS_KEY) -- not completions, and
- *  not scoped to today. */
+ *  plays is the count of deliveries STARTED on THIS dateStr across
+ *  every player (see db.ts playsKey) -- starts, not completions. */
 export type GetDailyBestRsp = {
   dateStr: string
   best: DailyBest
@@ -94,8 +93,8 @@ export type ClaimTrophyRewardRsp = {owned: string[]; skinId: string}
 /** Fired once per delivery STARTED (GO / Retry / Again in
  *  game/index.html) -- deliberately not once per completion, since the
  *  splash counter is meant to read "how many times has this been
- *  played". No body: the count is global, and the server has nothing
- *  to verify a client-supplied number against anyway. */
+ *  played". No body: the server keys the count on its own todayUTC(),
+ *  so there is nothing for the client to supply or forge. */
 export type CountPlayRsp = {plays: number}
 /** A failed run, reported so the app account can comment on the post.
  *  cause is an ID from a fixed set the SERVER owns the copy for (see
