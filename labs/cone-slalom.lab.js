@@ -180,13 +180,14 @@
     const needA = (SL.lead + (nA - 1) * SL.gap + SL.turn) * T2;
     const needB = (SL.turn + (nB - 1) * SL.gap + SL.tail) * T2;
     const segs = scene.route.segs;
-    let best = null, fitButUphill = 0;
+    let best = null, fitButUphill = 0, turnFits = 0;
 
     for (let i = 0; i + 2 < segs.length; i++){
       const a = segs[i], m = segs[i + 1], b = segs[i + 2];
       if (a.type !== 'line' || m.type !== 'arc' || b.type !== 'line') continue;
       if ((a.s1 - a.s0) < needA || (b.s1 - b.s0) < needB) continue;
       if (!DOWNHILL_F.includes(a.f) || !DOWNHILL_F.includes(b.f)){ fitButUphill++; continue; }
+      turnFits++;
       /* length-weighted mean of the two weave legs */
       const la = a.s1 - a.s0, lb = b.s1 - b.s0;
       const score = (gradeOver(a.s0, a.s1) * la + gradeOver(b.s0, b.s1) * lb) / (la + lb);
@@ -196,32 +197,58 @@
     /* Report the near-misses rather than silently falling back to a corridor
        that reads as a climb. A wrong-heading course is worse than no course:
        it looks like the grade is broken when the grade is fine. */
-    if (!best && fitButUphill) run.fitButUphill = fitButUphill;
-    return best;
+    if (best){ best.kind = 'turn'; return best; }
+
+    /* FALLBACK: one straight, no turn.
+       The turn and the downhill read compete for the same heading budget — a
+       line->arc->line where BOTH legs are f=0/f=1 is a narrow ask, and plenty
+       of routes simply do not contain one. Reading as downhill is the harder
+       requirement and the one that cannot be faked, so the turn is what gets
+       dropped. A straight course that looks right beats a turning course that
+       looks like a climb, and beats no course at all by a mile. */
+    const needStraight = (SL.lead + (SL.n - 1) * SL.gap + SL.tail) * T2;
+    let flat = null;
+    for (const g of segs){
+      if (g.type !== 'line' || !DOWNHILL_F.includes(g.f)) continue;
+      if ((g.s1 - g.s0) < needStraight) continue;
+      const score = gradeOver(g.s0, g.s1);
+      if (!flat || score < flat.score)
+        flat = { a: g, m: null, b: null, score, gA: score, gB: 0, kind: 'straight' };
+    }
+    run.diag = { turnFits, fitButUphill, straight: !!flat };
+    return flat;
   }
 
   function slBuildCourse(){
     const cor = slFindCorridor();
     if (!cor){
-      run.msg = run.fitButUphill
-        ? `${run.fitButUphill} corridor(s) fit but run f=2/f=3 — those read uphill. reroute`
-        : 'no line-turn-line corridor fits — drop cones or gap';
-      run.fitButUphill = 0;
-      run.msgT = performance.now();
+      const dg = run.diag || {};
+      run.fail = `no course: ${dg.fitButUphill || 0} corridor(s) fit but ran ` +
+                 `f=2/f=3, 0 straights long enough on f=0/f=1. ` +
+                 `drop cones or gap, or reroute`;
+      run.msg = run.fail; run.msgT = performance.now();
+      console.log('slalom corridor search', dg,
+        scene.route.segs.map(g => `${g.type} f=${g.f} len=${Math.round(g.s1-g.s0)}`));
       return null;
     }
 
-    const [nA, nB] = splitN();
+    const straight = cor.kind === 'straight';
+    const [nA, nB] = straight ? [SL.n, 0] : splitN();
     const aStart = Math.round(cor.a.s0 + SL.lead * T2);
-    const bStart = Math.round(cor.b.s0 + SL.turn * T2);
+    const bStart = straight ? 0 : Math.round(cor.b.s0 + SL.turn * T2);
     const course = {
-      cor,
+      cor, straight,
       spawnS:  Math.round(cor.a.s0),
       lineS:   Math.round(aStart - SL.gap * T2 * 0.5),
-      arcS0:   cor.m.s0, arcS1: cor.m.s1,
-      finishS: Math.round(bStart + (nB - 1) * SL.gap * T2 + SL.tail * T2),
+      /* with no arc, the turn markers sit past the finish so the "in the turn"
+         test below can never fire — one branch, not a second code path */
+      arcS0:   straight ? Infinity : cor.m.s0,
+      arcS1:   straight ? Infinity : cor.m.s1,
+      finishS: straight
+        ? Math.round(aStart + (SL.n - 1) * SL.gap * T2 + SL.tail * T2)
+        : Math.round(bStart + (nB - 1) * SL.gap * T2 + SL.tail * T2),
       gA: cor.gA, gB: cor.gB, grade: cor.score,
-      fA: cor.a.f, fB: cor.b.f,
+      fA: cor.a.f, fB: straight ? cor.a.f : cor.b.f,
     };
 
     /* Clear the WHOLE corridor, arc included, every row. Same reasoning
@@ -262,18 +289,28 @@
       }
     };
     plant(aStart, nA);
-    plant(bStart, nB);
+    if (nB) plant(bStart, nB);
     return course;
   }
 
   function slResetRun(){
     document.getElementById('slCard')?.remove();
+    /* State reset happens BEFORE the course build, unconditionally. It used to
+       sit after the early return, so a failed corridor search left the robot in
+       whatever state he was already in — frozen, with an error that flashed for
+       2.2s and vanished. A lab that fails should fail loudly and leave you able
+       to drive. */
+    scene.state = 'play'; scene.tipT = 0; scene.damage = 0;
+    scene.hopAnim = null; scene.hopYaw = 0; scene.hopKick = 0;
+    run.done = false;
     run.course = slBuildCourse();
     run.cones  = scene.route.hazards.filter(h => h.slRole === 'gate');
     run.started = false; run.done = false;
     run.elapsed = 0; run.pen = 0; run.cleared = 0; run.faults = [];
     if (!run.course) return;
-    run.msg = `f=${run.course.fA}\u2192f=${run.course.fB}  ` +
+    run.fail = '';
+    run.msg = (run.course.straight ? 'straight (no turn available)  ' : '') +
+              `f=${run.course.fA}\u2192f=${run.course.fB}  ` +
               `${(run.course.grade * 100).toFixed(1)}% — red: pass above, blue: pass below`;
     run.msgT = performance.now();
 
@@ -283,9 +320,7 @@
     scene.botRow = SL.rowA;
     scene.laneOff = offOf(scene.botRow);
     scene.botS = run.course.spawnS;
-    scene.hopAnim = null; scene.hopYaw = 0; scene.hopKick = 0;
     scene.speed = 0; scene.tilt = 0; scene.roll = 0;
-    scene.state = 'play'; scene.tipT = 0; scene.damage = 0;
     const sp = scene.posAt(scene.botS), hdg = scene.headingAt(scene.botS);
     scene.botX = sp.x + (-Math.sin(hdg)) * scene.laneOff;
     scene.botY = sp.y + Math.cos(hdg) * scene.laneOff;
@@ -586,6 +621,8 @@
         : scene.botS < c.arcS0 ? 'leg 1'
         : scene.botS < c.arcS1 ? 'TURN — hold your lane'
         : 'leg 2';
+      if (run.fail){ m.textContent = run.fail; m.style.color = '#ff6b6b'; return; }
+      m.style.color = '#ffb04d';
       m.textContent = (performance.now() - run.msgT < 2200) ? run.msg
         : `${where}   row ${scene.botRow}   v ${scene.speed.toFixed(3)}` +
           `   left ${run.cones.filter(c2 => !c2.slJudged).length}`;
