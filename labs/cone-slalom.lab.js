@@ -93,6 +93,10 @@
     gap:  1.50,   // TIGHTEST along-route spacing between cones, in T2
     vary: 0.55,   // how far above gap the spacing opens up (0 = uniform)
     trafficWaits: 1,   // cars queue at coned junctions instead of driving through
+    kickers: 1,   // kicker ramps per leg (0 = none)
+    kLift: 26,    // ramp lip height
+    kPow:  0.052, // launch: vz = speed * kPow
+    kGrav: 0.00019,
     rowA: 0,      // low edge of the sidewalk band the course uses
     rowB: 3,      // high edge — 0..3 is the whole walk
     lead: 4.0,    // run-up before the first cone, in T2
@@ -422,6 +426,34 @@
     const blocked = (scene.route.crossings || [])
       .filter(cx => cx.kind !== 'turn')          // turn crossings ARE the arcs
       .map(cx => [cx.sA - RAMP, cx.sB + RAMP]);
+    /* ============ KICKER RAMPS ============
+       Reuses the hydrant challenge's pieces rather than inventing any:
+         type "slab" + hjRole routes to hjDrawWedge — a TRAVEL-AXIS wedge you
+           ride up, not the cross-slope trip heave the plain slab draws;
+         hjSlabZ lifts the robot off any hjRole "kicker", and it is already
+           live because the slalom runs in challenge mode;
+         a hydrant carrying hjRole skips normal collision entirely — the game's
+           own comment says leaving it on "would stop the robot dead at the
+           first one instead of letting him fly over it".
+
+       THE RUN-UP IS THE POINT. Clearing at full speed is only fair if you
+       ARRIVE at full speed, and every gate costs a hop. So a kicker's approach
+       and landing join `blocked`, the same list the crossings use — no gates
+       from the run-up through the touchdown. One list, one rule. */
+    const RUNUP = 7 * T2, LANDING = 6 * T2;
+    const kickers = [];
+    ch.lines.forEach((L, i) => {
+      const room = (L.s1 - L.s0) - (RUNUP + LANDING + 4 * T2);
+      if (room <= 0) return;
+      for (let j = 0; j < SL.kickers; j++){
+        const at = Math.round(L.s0 + RUNUP + (room * (j + 0.5)) / SL.kickers);
+        if (blocked.some(([a, b]) => at > a - RUNUP && at < b + LANDING)) continue;
+        kickers.push({ s: at, leg: i });
+        blocked.push([at - RUNUP, at + LANDING]);
+      }
+    });
+    blocked.sort((x, y) => x[0] - y[0]);
+
     const isBlocked = (at) => blocked.some(([a, b]) => at >= a && at <= b);
 
     /* GATES ON EVERY LINE. First line starts after the run-up, last ends before
@@ -529,6 +561,43 @@
       addSpan(a, b);
     }
 
+    /* Ramp, its two hydrants, and chevrons. All on RAMP_ROW: the jump lane has
+       to be one the crossings also use, or the course would demand a lane
+       change inside a run-up that forbids gates. */
+    const kRow = RAMP_ROW;
+    course.kickers = [];
+    for (const kk of kickers){
+      const f = ((Math.round(scene.headingAt(kk.s) / (Math.PI/2)) % 4) + 4) % 4;
+      scene.route.hazards.push({
+        type:'slab', hjRole:'kicker', s: kk.s, row: kRow, f,
+        lift: SL.kLift, hjDir: 1, root: false, hit: true, slRole:'jump',
+      });
+      /* two hydrants under the arc, past the lip */
+      const hyd = [kk.s + 2.0 * T2, kk.s + 3.1 * T2];
+      for (const hs of hyd)
+        scene.route.hazards.push({
+          type:'hydrant', hjRole:'hydrant', s: Math.round(hs), row: kRow,
+          f: facingAt ? facingAt(hs) : 0, burst:false, hit:true, slRole:'jump',
+        });
+      /* CHEVRONS out of the chute cones. A V of white cones narrowing into the
+         lip reads as a ramp marking at speed and costs no new renderer — the
+         alternative was a bespoke draw hook for four painted triangles. */
+      for (let c = 0; c < 4; c++){
+        const at = kk.s - (3.4 - c * 0.8) * T2;
+        for (const d of [-1, 1]){
+          const r = kRow + d * (c < 3 ? (3 - c) * 0.55 : 0.4);
+          if (r < 0 || r > 3) continue;
+          scene.route.hazards.push({
+            type:'cone', s: Math.round(at), row: r, f:0, hit:false,
+            phi:0, phase:1, angVel:0, moving:false, pose:'standing',
+            slide:0, slideVel:0, slRole:'chute', cone: GATE_WALL,
+            slKnocked:false, slJudged:true,
+          });
+        }
+      }
+      course.kickers.push({ s: kk.s, lip: kk.s + TILE, hyd, row: kRow });
+    }
+
     course.startRow = RAMP_ROW;
     course.nGates = k;
     course.nChute = chuteN;
@@ -608,6 +677,7 @@
     scene.laneOff = offOf(scene.botRow);
     scene.botS = run.course.spawnS;
     scene.speed = 0; scene.tilt = 0; scene.roll = 0;
+    scene.hjAir = null; scene.pitch = 0;
     const sp = scene.posAt(scene.botS), hdg = scene.headingAt(scene.botS);
     scene.botX = sp.x + (-Math.sin(hdg)) * scene.laneOff;
     scene.botY = sp.y + Math.cos(hdg) * scene.laneOff;
@@ -791,6 +861,71 @@
     scene.camX = scene.botX + Math.cos(hdg) * 95;
     scene.camY = scene.botY + Math.sin(hdg) * 95;
   }
+  /* =========================================================================
+     THE FLIGHT — lab-owned, so the slalom keeps its throttle
+     -------------------------------------------------------------------------
+     hjSim has all of this already and it is tuned, but it returns immediately
+     unless route.challenge exists — and setting that also arms the tap-meter
+     override at 10963, which dictates this.speed every frame and takes the
+     controls away from the course. So the arc is re-derived here instead.
+
+     It writes scene.hjAir, which is the game's OWN air state: the draw path
+     reads it for height and the landing/pitch logic keys off it. Since hjSim is
+     dormant, nothing else touches it — the field is free to borrow, and
+     borrowing it means the robot leaves the ground through the same channel the
+     hydrant challenge uses rather than a second parallel one.
+
+     THE CLEARANCE TEST IS THE JUMP. Two hydrants sit under the arc, and the
+     game skips their normal collision because they carry hjRole. Height is
+     checked as each is crossed, exactly as hjSim does it: below HYD.height plus
+     clearance and you clip, which kills the arc rather than merely costing
+     time. Clean at full speed, short if you hopped late and bled speed on the
+     run-up.
+     ========================================================================= */
+  function slFlight(dt){
+    const c = run.course;
+    if (!c || !c.kickers || !c.kickers.length) return;
+    const s0 = prevS, s1 = scene.botS;
+
+    if (!scene.hjAir){
+      for (const kk of c.kickers){
+        if (s0 < kk.lip && s1 >= kk.lip && scene.speed >= 0.10){
+          scene.hjAir = { vz: scene.speed * SL.kPow, z: SL.kLift, idx: 0, kk, clipped:false };
+          run.msg = 'AIR'; run.msgT = performance.now();
+          break;
+        }
+      }
+      return;
+    }
+
+    const A = scene.hjAir;
+    A.vz -= SL.kGrav * dt;
+    A.z  += A.vz * dt;
+
+    while (A.idx < A.kk.hyd.length){
+      const hs = A.kk.hyd[A.idx];
+      if (s1 < hs) break;
+      A.idx++;
+      if (A.z < HYD.height + 6){
+        A.vz = -Math.abs(A.vz) - 0.01;
+        A.clipped = true;
+        run.pen += SL.pen;
+        run.faults.push('clipped a hydrant');
+        run.msg = `clipped — +${SL.pen.toFixed(1)}s`; run.msgT = performance.now();
+      }
+    }
+
+    scene.pitch = Math.atan2(A.vz, Math.max(scene.speed, 1e-4)) * 0.6;
+
+    if (A.vz < 0 && A.z <= 0){
+      const clean = !A.clipped;
+      scene.hjAir = null;
+      scene.pitch = 0;
+      if (clean){ run.msg = 'clean landing'; run.msgT = performance.now(); }
+      else scene.tilt += 0.25;      // a clipped landing costs stability, not the run
+    }
+  }
+
   const onPre  = () => {
     /* pickupWalk is rewritten by the timeline every frame, so it is held down
        every frame rather than once at reset — cheap, and it means a stray
@@ -879,6 +1014,7 @@
 
   const onPost = (time, delta) => {
     try { slJudge(); } catch(e){ console.log('slJudge', e); }
+    try { slFlight(Math.min(delta, 34)); } catch(e){ console.log('slFlight', e); }
     try { slHoldTraffic(time, Math.min(delta, 34)); } catch(e){ console.log('slHoldTraffic', e); }
   };
   scene.events.on('preupdate',  onPre);
@@ -899,6 +1035,9 @@
   const FIELDS = [
     { key:'n',    label:'cap',   min:8,   max:600, step:4    },
     { key:'legs', label:'legs',  min:2,   max:20,  step:1    },
+    { key:'kickers',label:'jumps',min:0,  max:3,   step:1    },
+    { key:'kLift',label:'lift',  min:10,  max:44,  step:2    },
+    { key:'kPow', label:'pow',   min:0.03,max:0.09,step:0.002 },
     { key:'gap',  label:'gap',   min:1.4, max:4.0, step:0.05 },
     { key:'vary', label:'vary',  min:0,   max:1.2, step:0.05 },
     { key:'rowA', label:'row lo',min:0,   max:3,   step:1    },
