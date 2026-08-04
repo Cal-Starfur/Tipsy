@@ -598,31 +598,12 @@
       /* CHEVRONS out of the chute cones. A V of white cones narrowing into the
          lip reads as a ramp marking at speed and costs no new renderer — the
          alternative was a bespoke draw hook for four painted triangles. */
-      /* CHEVRONS SIT BEHIND THE RAMP, NOT ON IT. The first pass ran them to
-         within 1.0*T2 of the lip at kRow +/- 0.4 — which is the ramp deck and
-         the racing line, so the run-up you are meant to hit flat out was full
-         of cones. They now stop a full 2 tiles short and never come closer
-         than one row off the lane. */
-      for (let c = 0; c < 4; c++){
-        const at = kk.s - (6.0 - c * 0.9) * T2;
-        for (const d of [-1, 1]){
-          const r = kRow + d * (1.5 - c * 0.15);
-          if (r < 0 || r > 3) continue;
-          scene.route.hazards.push({
-            type:'cone', s: Math.round(at), row: r, f:0, hit:false,
-            phi:0, phase:1, angVel:0, moving:false, pose:'standing',
-            slide:0, slideVel:0, slRole:'chute', cone: GATE_WALL,
-            slKnocked:false, slJudged:true,
-          });
-        }
-      }
-      /* CATCH RAMP. Without one the arc ends by dropping onto flat walk past
-         the second hydrant, which is a fall, not a landing — and hjSlabZ
-         already understands hjRole "catch", so the down-slope is free. hjDir is
-         negated so the wedge is raised at the near edge and flush at the far
-         one: you touch down high and ride it back to ground level, the mirror
-         of the kicker. Placed just past the last hydrant, where the arc is
-         still descending. */
+      /* NO CHEVRON CONES. They were white chute cones in a narrowing V, and
+         on a course that already carries a few hundred cones they read as more
+         slalom rather than as a marking — the ramp got lost in its own warning.
+         The wedge is a distinct silhouette with its own renderer; if it needs
+         calling out, that is a job for paint on the deck, not more cones. */
+
       /* Catch deck centred just short of touchdown (lipS + reach), so the
          landing happens ON the deck rather than at its far lip. The deck is
          2 TILE wide, so 0.96 puts touchdown comfortably inside it. */
