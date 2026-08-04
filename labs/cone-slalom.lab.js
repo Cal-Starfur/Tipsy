@@ -1032,6 +1032,41 @@
   };
   const jumpPow = () => Math.sqrt(2 * jumpGrav() * SL.kPeak) / V_DESIGN;
 
+  /* =========================================================================
+     THE LANE IS THE GATE
+     -------------------------------------------------------------------------
+     A kicker sits on ONE row and its wedge is drawn on one row — hjDrawWedge
+     lays the deck across +/-TILE cross-wise about laneOffset(hz.row), which is
+     half a row either side of the centre and therefore exactly that row and no
+     other. Crossing the lip from row 3 launched anyway, so the ramp was a
+     trigger at an s value wearing a picture of a ramp.
+
+     ONE PREDICATE, BOTH CONSUMERS. The same test decides whether you fly and
+     whether the deck holds you up, because they are the same question — am I
+     on the ramp — and answering it twice is how the two drift apart. It is
+     written against the wedge's own draw geometry rather than a row equality,
+     so a mid-hop laneOff resolves the way the picture does: clip the edge of
+     the deck and you get the deck's answer, not a rounded row's.
+
+     hjSlabZ is the second consumer and it lives on the scene, not here. It
+     loops kicker and catch hazards on `s` alone and returns hjWedgeTop for any
+     within a TILE — row-blind — so a robot in row 3 was being lifted onto a
+     deck drawn a lane and a half away. It is wrapped for the duration of the
+     lab and handed back by slOff, in preference to editing the game file for
+     something only a speciality course can currently reach. */
+  const onWedgeLane = hz => Math.abs(scene.laneOff - offOf(hz.row)) < TILE;
+
+  const slSlabZ0 = scene.hjSlabZ.bind(scene);
+  scene.hjSlabZ = function(ss){
+    if (!run.course) return slSlabZ0(ss);
+    for (const hz of this.route.hazards){
+      if (hz.hjRole !== 'kicker' && hz.hjRole !== 'catch') continue;
+      if (Math.abs(ss - hz.s) >= TILE) continue;
+      return onWedgeLane(hz) ? this.hjWedgeTop(hz, ss - hz.s) : 0;
+    }
+    return 0;
+  };
+
   function slFlight(dt){
     const c = run.course;
     if (!c || !c.kickers || !c.kickers.length){ flightPrevS = scene.botS; return; }
@@ -1040,7 +1075,16 @@
 
     if (!scene.hjAir){
       for (const kk of c.kickers){
-        if (s0 < kk.lip && s1 >= kk.lip && scene.speed >= 0.10){
+        if (!(s0 < kk.lip && s1 >= kk.lip)) continue;
+        /* Told, not silently dropped. A ramp that does nothing reads as a
+           broken ramp; a ramp that says you were in the wrong lane reads as a
+           rule, and it is the rule the chute cones were already drawing. */
+        if (!onWedgeLane(kk)){
+          run.msg = 'wrong lane — no jump';
+          run.msgT = performance.now();
+          continue;
+        }
+        if (scene.speed >= 0.10){
           /* THE ARC IS A FUNCTION OF DISTANCE, NOT OF TIME.
              Integrating vz and z against dt kept landing long. Horizontal
              travel comes from the game's own botS integration using ITS delta;
@@ -1288,6 +1332,7 @@
     scene.events.off('preupdate',  onPre);
     scene.events.off('postupdate', onPost);
     scene.mode = origMode;
+    scene.hjSlabZ = slSlabZ0;
     if (scene._slDoor !== undefined){
       scene.route.doorS = scene._slDoor; scene.route.loop = scene._slLoop;
       delete scene._slDoor; delete scene._slLoop;
