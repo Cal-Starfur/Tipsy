@@ -146,8 +146,17 @@
      elevAt() is the scene's own sampler over route.tiles, so this asks the
      grade question through the exact call the physics asks it through — not a
      parallel copy of the same math over the tile array. */
-  const gradeOver = (s0, s1) =>
-    (s1 - s0) > 0 ? (scene.elevAt(s1) - scene.elevAt(s0)) / (s1 - s0) : 0;
+  /* elevAt, but over ANY route object rather than the loaded one — the search
+     has to grade candidate routes before committing to loading them. Same
+     interpolation the scene's own elevAt does over route.tiles. */
+  const elevOf = (route, s) => {
+    const t = route.tiles, fx = s / (TILE*2), i = Math.floor(fx);
+    if (i < 0) return t[0];
+    if (i >= t.length - 1) return t[t.length - 1];
+    return Phaser.Math.Linear(t[i], t[i+1], fx - i);
+  };
+  const gradeOver = (route, s0, s1) =>
+    (s1 - s0) > 0 ? (elevOf(route, s1) - elevOf(route, s0)) / (s1 - s0) : 0;
 
   /* Find every line -> arc -> line corridor long enough to hold both cone
      groups, and return the STEEPEST DESCENT among them. Scored on the two
@@ -174,12 +183,13 @@
      downhill wins — a slalom that looks like a climb is broken, a slalom with
      plainer buildings on one leg is not. */
   const DOWNHILL_F = [0, 1];
+  let lastDiag = {};
 
-  function slFindCorridor(){
+  function slFindCorridor(route){
     const [nA, nB] = splitN();
     const needA = (SL.lead + (nA - 1) * SL.gap + SL.turn) * T2;
     const needB = (SL.turn + (nB - 1) * SL.gap + SL.tail) * T2;
-    const segs = scene.route.segs;
+    const segs = route.segs;
     let best = null, fitButUphill = 0, turnFits = 0;
 
     for (let i = 0; i + 2 < segs.length; i++){
@@ -190,9 +200,11 @@
       turnFits++;
       /* length-weighted mean of the two weave legs */
       const la = a.s1 - a.s0, lb = b.s1 - b.s0;
-      const score = (gradeOver(a.s0, a.s1) * la + gradeOver(b.s0, b.s1) * lb) / (la + lb);
+      const score = (gradeOver(route, a.s0, a.s1) * la +
+                     gradeOver(route, b.s0, b.s1) * lb) / (la + lb);
       if (!best || score < best.score)
-        best = { a, m, b, score, gA: gradeOver(a.s0, a.s1), gB: gradeOver(b.s0, b.s1) };
+        best = { a, m, b, score, gA: gradeOver(route, a.s0, a.s1),
+                 gB: gradeOver(route, b.s0, b.s1) };
     }
     /* Report the near-misses rather than silently falling back to a corridor
        that reads as a climb. A wrong-heading course is worse than no course:
@@ -211,18 +223,24 @@
     for (const g of segs){
       if (g.type !== 'line' || !DOWNHILL_F.includes(g.f)) continue;
       if ((g.s1 - g.s0) < needStraight) continue;
-      const score = gradeOver(g.s0, g.s1);
+      const score = gradeOver(route, g.s0, g.s1);
       if (!flat || score < flat.score)
         flat = { a: g, m: null, b: null, score, gA: score, gB: 0, kind: 'straight' };
     }
-    run.diag = { turnFits, fitButUphill, straight: !!flat };
+    lastDiag = { turnFits, fitButUphill, straight: !!flat };
     return flat;
   }
 
   function slBuildCourse(){
-    const cor = slFindCorridor();
+    const cor = slFindCorridor(scene.route);
     if (!cor){
-      const dg = run.diag || {};
+      /* Clear any gates left over from a previous successful build. Stale cones
+         standing on a route with no course is the single most misleading thing
+         this lab can put on screen — it looks like a course that stopped
+         working rather than a course that was never placed. */
+      scene.route.hazards = scene.route.hazards.filter(h => !h.slRole);
+      run.cones = [];
+      const dg = lastDiag || {};
       run.fail = `no course: ${dg.fitButUphill || 0} corridor(s) fit but ran ` +
                  `f=2/f=3, 0 straights long enough on f=0/f=1. ` +
                  `drop cones or gap, or reroute`;
@@ -452,6 +470,7 @@
        ${row('cones cleared', `${run.cleared} / ${run.cones.length}`)}
        ${row('grade', (run.course.grade * 100).toFixed(1) + '% downhill')}
        ${row('headings', `f=${run.course.fA} \u2192 f=${run.course.fB}`)}
+       ${row('seed', SEED || '—')}
        ${row('best', best ? best.toFixed(2) + 's' : '—', isBest ? '#7fe08a' : null)}
        ${isBest ? `<div style="text-align:center;color:#7fe08a;margin-top:6px">
                      new best</div>` : ''}
@@ -532,6 +551,7 @@
        <div id="slNow" style="text-align:center;margin-top:2px;color:#ff9c4d;
             font-variant-numeric:tabular-nums"></div>
        <div style="display:flex;gap:6px;margin-top:10px">
+         <button id="slSeek"  style="${BTN}flex:2">find course</button>
          <button id="slRun"   style="${BTN}flex:2">restart</button>
          <button id="slReset" style="${BTN}flex:1">reset</button>
          <button id="slOff"   style="${BTN}flex:1">off</button>
@@ -549,6 +569,7 @@
   const $ = id => document.getElementById(id);
 
   const portLine = () =>
+    (SEED ? `const SL_SEED_DATE = "${SEED}";  ` : '') +
     `const SL = { n:${SL.n}, gap:${(+SL.gap).toFixed(2)}, rowA:${SL.rowA}, rowB:${SL.rowB}, ` +
     `lead:${(+SL.lead).toFixed(1)}, turn:${(+SL.turn).toFixed(1)}, ` +
     `tail:${(+SL.tail).toFixed(1)}, ` +
@@ -592,6 +613,7 @@
   $('slDn').onclick = () => setVal(SL[sel] - fieldOf(sel).step, 1);
   $('slUp').onclick = () => setVal(SL[sel] + fieldOf(sel).step, 1);
 
+  $('slSeek').onclick  = () => slArm();
   $('slRun').onclick   = () => slResetRun();
   $('slReset').onclick = () => { Object.assign(SL, SL0); syncUI(); slResetRun(); };
   $('slCopy').onclick  = () => {
@@ -635,14 +657,61 @@
      takes hoodIndex, the same door the hydrant challenge uses. The route
      rebuild is async in effect (it re-runs generateRoute and resets the scene),
      so the course is built on the NEXT tick, not inline. */
-  function slArm(){
-    if (scene.route.hood.hill >= 0.9){ syncUI(); slResetRun(); return; }
-    run.msg = 'relocating to The Bluffs…'; run.msgT = performance.now();
-    scene.loadRoute(scene.route.dateStr, { hoodIndex: HOOD_BLUFFS });
-    setTimeout(() => { syncUI(); slResetRun();
-      console.log('cone slalom armed —', portLine()); }, 60);
+  /* =========================================================================
+     SEED SEEK — stop hunting for a shape inside a route that was not built
+     for one.
+     -------------------------------------------------------------------------
+     Today's route simply may not contain a line->arc->line whose BOTH legs run
+     f=0/f=1, and with 24 cones the straight fallback needs ~5300 units on a
+     single leg — more than the 3128 of a one-block leg, so it almost never
+     fits either. Searching harder inside one route cannot fix that.
+
+     The hydrant challenge already solved this: it does not search, it PINS
+     (HJ_SEED_DATE) a date whose route it knows has the shape. generateRoute is
+     a free function returning a route object, so candidate dates can be graded
+     without touching the scene, and only the winner gets loaded.
+
+     The date this finds is the thing to hardcode as SL_SEED_DATE when this
+     ships — same as HJ_SEED_DATE. It is logged and shown for exactly that. */
+  function slSeek(maxTries = 120){
+    const t0 = performance.now();
+    const base = Date.UTC(2026, 0, 1);
+    let scanned = 0, bestSoFar = null;
+    for (let i = 0; i < maxTries; i++){
+      const dateStr = new Date(base + i * 86400000).toISOString().slice(0, 10);
+      let r;
+      try { r = generateRoute(dateStr, { hoodIndex: HOOD_BLUFFS }); }
+      catch(e){ continue; }
+      scanned++;
+      const cor = slFindCorridor(r);
+      if (cor && cor.kind === 'turn'){
+        console.log(`slalom seed seek: ${dateStr} after ${scanned} routes, ` +
+                    `${Math.round(performance.now() - t0)}ms`);
+        return { dateStr, kind: 'turn' };
+      }
+      if (cor && !bestSoFar) bestSoFar = { dateStr, kind: cor.kind };
+    }
+    return bestSoFar;   // a straight, if that is all the city offered
   }
 
-  slArm();
+  function slArm(){
+    run.fail = ''; run.msg = 'searching for a downhill corridor…';
+    run.msgT = performance.now();
+    const hit = slSeek();
+    if (!hit){
+      run.fail = 'no date in 120 gave an f=0/f=1 corridor — lower cones or gap';
+      syncUI();
+      return;
+    }
+    SEED = hit.dateStr;
+    scene.loadRoute(SEED, { hoodIndex: HOOD_BLUFFS });
+    setTimeout(() => {
+      syncUI(); slResetRun();
+      console.log(`cone slalom armed — SL_SEED_DATE = "${SEED}" (${hit.kind})`, portLine());
+    }, 60);
+  }
+
+  let SEED = null;
+  setTimeout(slArm, 0);   // let the panel paint before the seek blocks the thread
   console.log('cone slalom arming —', portLine());
 })();
