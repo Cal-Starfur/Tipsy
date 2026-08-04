@@ -87,7 +87,8 @@
 
   /* ---------- tunables — every one of these is a chip ---------- */
   const SL = {
-    n:    64,     // CAP on gates; the course fills the corridor up to this
+    n:    400,    // CAP on gates; the course fills every leg up to this
+    legs: 10,     // how many legs the course runs through
     gap:  1.60,   // along-route spacing between cones, in T2
     rowA: 1,      // even cones sit here
     rowB: 2,      // odd cones sit here
@@ -189,87 +190,73 @@
   const DOWNHILL_F = [0, 1];
   let lastDiag = {};
 
-  function slFindCorridor(route){
-    /* Fit is now a MINIMUM viable weave per leg, not half of the cap — the
-       course length is whatever the corridor gives, so demanding room for the
-       cap would reject every corridor in the city. */
-    const MIN_GATES = 5;
-    const needA = (SL.lead + (MIN_GATES - 1) * SL.gap + SL.turn) * T2;
-    const needB = (SL.turn + (MIN_GATES - 1) * SL.gap + SL.tail) * T2;
+  /* =========================================================================
+     THE CHAIN — N consecutive legs, any heading
+     -------------------------------------------------------------------------
+     The f=0/f=1 rule is GONE, on purpose. It existed because W() puts screen-y
+     at (x + y)*0.5 - z, so travelling +x/+y reads as coming toward the viewer
+     and therefore as descending, while f=2/f=3 read as a climb. That is still
+     true — but it capped the course at two sides of one block, because a route
+     that keeps turning the same way runs f0 -> f1 -> f2 -> f3 and only two of
+     four qualify. Length wins over the downhill read.
+
+     Dropping it also removes the seed seek, which is what actually broke this
+     last time: with a heading filter there was a shape to hunt for, so the lab
+     generated up to 160 whole cities on the main thread looking for one. With
+     no filter there is nothing to search — every route already has ten legs.
+     No generateRoute loop, no frozen tab.
+     ========================================================================= */
+  function slFindChain(route){
     const segs = route.segs;
-    let best = null, fitButUphill = 0, turnFits = 0;
+    const firstLine = segs.findIndex(g => g.type === 'line');
+    if (firstLine < 0) return null;
 
-    for (let i = 0; i + 2 < segs.length; i++){
-      const a = segs[i], m = segs[i + 1], b = segs[i + 2];
-      if (a.type !== 'line' || m.type !== 'arc' || b.type !== 'line') continue;
-      if ((a.s1 - a.s0) < needA || (b.s1 - b.s0) < needB) continue;
-      if (!DOWNHILL_F.includes(a.f) || !DOWNHILL_F.includes(b.f)){ fitButUphill++; continue; }
-      turnFits++;
-      /* length-weighted mean of the two weave legs */
-      const la = a.s1 - a.s0, lb = b.s1 - b.s0;
-      const score = (gradeOver(route, a.s0, a.s1) * la +
-                     gradeOver(route, b.s0, b.s1) * lb) / (la + lb);
-      if (!best || score < best.score)
-        best = { a, m, b, score, gA: gradeOver(route, a.s0, a.s1),
-                 gB: gradeOver(route, b.s0, b.s1) };
+    /* Walk forward from the first line collecting segments until SL.legs lines
+       are in hand, then trim any trailing arc — a chain ending on a turn has a
+       corner leading nowhere and gates cannot live on it. */
+    const chain = [];
+    let nLines = 0;
+    for (let i = firstLine; i < segs.length && nLines < SL.legs; i++){
+      chain.push(segs[i]);
+      if (segs[i].type === 'line') nLines++;
     }
-    /* Report the near-misses rather than silently falling back to a corridor
-       that reads as a climb. A wrong-heading course is worse than no course:
-       it looks like the grade is broken when the grade is fine. */
-    if (best){ best.kind = 'turn'; return best; }
+    while (chain.length && chain[chain.length - 1].type !== 'line') chain.pop();
 
-    /* FALLBACK: one straight, no turn.
-       The turn and the downhill read compete for the same heading budget — a
-       line->arc->line where BOTH legs are f=0/f=1 is a narrow ask, and plenty
-       of routes simply do not contain one. Reading as downhill is the harder
-       requirement and the one that cannot be faked, so the turn is what gets
-       dropped. A straight course that looks right beats a turning course that
-       looks like a climb, and beats no course at all by a mile. */
-    const needStraight = (SL.lead + (MIN_GATES * 2 - 1) * SL.gap + SL.tail) * T2;
-    let flat = null;
-    for (const g of segs){
-      if (g.type !== 'line' || !DOWNHILL_F.includes(g.f)) continue;
-      if ((g.s1 - g.s0) < needStraight) continue;
-      const score = gradeOver(route, g.s0, g.s1);
-      if (!flat || score < flat.score)
-        flat = { a: g, m: null, b: null, score, gA: score, gB: 0, kind: 'straight' };
-    }
-    lastDiag = { turnFits, fitButUphill, straight: !!flat };
-    return flat;
+    const linesArr = chain.filter(g => g.type === 'line');
+    if (!linesArr.length) return null;
+
+    lastDiag = { asked: SL.legs, got: linesArr.length,
+                 arcs: chain.filter(g => g.type === 'arc').length };
+    return {
+      segs: chain,
+      lines: linesArr,
+      arcs: chain.filter(g => g.type === 'arc'),
+      nLines: linesArr.length,
+      span: linesArr.reduce((m, g) => m + (g.s1 - g.s0), 0),
+      score: gradeOver(route, chain[0].s0, chain[chain.length - 1].s1),
+      fList: linesArr.map(g => g.f),
+    };
   }
 
   function slBuildCourse(){
-    const cor = slFindCorridor(scene.route);
-    if (!cor){
-      /* Clear any gates left over from a previous successful build. Stale cones
-         standing on a route with no course is the single most misleading thing
-         this lab can put on screen — it looks like a course that stopped
-         working rather than a course that was never placed. */
+    const ch = slFindChain(scene.route);
+    if (!ch){
+      /* Clear any gates left over from a previous build. Stale cones on a route
+         with no course is the most misleading thing this lab can put on screen:
+         it looks like a course that stopped working rather than one that was
+         never placed. */
       scene.route.hazards = scene.route.hazards.filter(h => !h.slRole);
-      run.cones = [];
-      const dg = lastDiag || {};
-      run.fail = `no course: ${dg.fitButUphill || 0} corridor(s) fit but ran ` +
-                 `f=2/f=3, 0 straights long enough on f=0/f=1. ` +
-                 `drop cones or gap, or reroute`;
-      run.msg = run.fail; run.msgT = performance.now();
-      console.log('slalom corridor search', dg,
-        scene.route.segs.map(g => `${g.type} f=${g.f} len=${Math.round(g.s1-g.s0)}`));
+      run.cones = []; run.gates = [];
+      run.fail = 'no legs found on this route';
       return null;
     }
+    run.fail = '';
 
-    const straight = cor.kind === 'straight';
-
-    /* SPAWN ON ACTUAL SIDEWALK — asked, not inferred.
-       The first attempt walked route.crossings and pushed past any span the
-       spawn overlapped. It kept putting the robot in the road, because that is
-       a model of where the walk is missing rather than the answer, and a single
-       unordered pass can also step out of one span straight into the next.
-
-       grid.classify(x, y) IS the answer — classifyAt over the same grid.edges
-       the world is built from. So walk forward until the spawn point AND the
-       whole run-up behind the first cone classify as sidewalk, testing the
-       exact world point the robot will occupy at his own lane offset. Verify
-       through the call the game actually makes, not a parallel copy of it. */
+    /* SPAWN ON ACTUAL SIDEWALK — asked, not inferred. grid.classify is
+       classifyAt over the same grid.edges the world is built from, so this
+       tests the exact world point the robot will occupy at his lane offset
+       rather than modelling where the walk ought to be. */
+    const first = ch.lines[0];
     const walkAt = (at, row) => {
       const p = scene.posAt(at), h = scene.headingAt(at), off = offOf(row);
       return scene.route.grid.classify(p.x + (-Math.sin(h)) * off,
@@ -281,50 +268,23 @@
           if (!walkAt(at + u, row)) return false;
       return true;
     };
-    let spawnS = Math.round(cor.a.s0);
-    const spawnLimit = cor.a.s1 - 4 * SL.gap * T2 - SL.turn * T2;
+    let spawnS = Math.round(first.s0);
+    const spawnLimit = first.s1 - 4 * SL.gap * T2;
     while (spawnS < spawnLimit && !clearRun(spawnS)) spawnS += TILE;
     if (spawnS >= spawnLimit){
-      run.fail = 'no continuous sidewalk on the leg — reseek';
+      run.fail = 'no continuous sidewalk on the opening leg';
       return null;
     }
-    spawnS = Math.round(spawnS);
-    const aStart = Math.round(spawnS + SL.lead * T2);
+
     const course = {
-      cor, straight,
-      spawnS,
-      lineS:   Math.round(aStart - SL.gap * T2 * 0.5),
-      /* with no arc, the turn markers sit past the finish so the "in the turn"
-         test below can never fire — one branch, not a second code path */
-      arcS0:   straight ? Infinity : cor.m.s0,
-      arcS1:   straight ? Infinity : cor.m.s1,
-      finishS: 0,   // set once the gates are planted
-      gA: cor.gA, gB: cor.gB, grade: cor.score,
-      fA: cor.a.f, fB: straight ? cor.a.f : cor.b.f,
+      chain: ch, spawnS, nLines: ch.nLines,
+      grade: ch.score, fList: ch.fList,
+      arcSpans: ch.arcs.map(M => [M.s0, M.s1]),
     };
 
-    /* Corridor clearing moved BELOW the planting — it used to run here, against
-       course.finishS, which is now computed from the planted gates and was
-       still 0 at this point. The clear range was therefore [spawn, 0] and
-       nothing was ever removed. A silent no-op: the course looked cluttered and
-       the code read as though it had been cleaned. */
-
-    /* Cone hazard objects mirror the generator's own cone branch field for
-       field (phi/phase/angVel/moving/pose/slide/slideVel), so the existing
-       rigid pivot-fall integrator and hit code drive them with no special case.
-       Always standing — a pre-knocked cone in a slalom is a free gate.
-
-       Numbering runs unbroken across the turn (1..n) so a fault message names
-       the cone the player just saw, not "leg B, number three". */
-    /* ============ GATES FILL THE LEG ============
-       nA/nB used to be a fixed split of SL.n, which left dead road between the
-       last gate and the turn — the blank stretch. The gate fields now run from
-       the first cone all the way to the chute, and from the chute to the end of
-       leg 2, at SL.gap throughout. SL.n is a CAP, not a target: the course is
-       as long as the corridor allows.
-
-       Alternation runs unbroken across the turn on a single counter k, so the
-       weave never repeats a side at the handoff and the colours stay honest. */
+    /* Alternation runs on ONE counter for the whole chain, so the weave never
+       repeats a side at a handoff and the colours stay honest across every
+       turn, not just the first. */
     let k = 0;
     const plantAt = (at) => {
       const row   = (k % 2 === 0) ? SL.rowA : SL.rowB;
@@ -343,41 +303,36 @@
       k++;
     };
 
+    /* GATES ON EVERY LINE. First line starts after the run-up, last ends before
+       the run-out, everything between is bounded by the turn clearance — the
+       chute owns those. */
     const step = SL.gap * T2;
-    if (straight){
-      const endA = cor.a.s1 - SL.tail * T2;
-      for (let at = aStart; at <= endA && k < SL.n; at += step) plantAt(at);
-    } else {
-      /* the chute owns the turn plus SL.turn/2 of clearance either side —
-         unchanged, this is the shape that looked right */
-      const chuteFrom = cor.m.s0 - SL.turn * T2 * 0.5;
-      const chuteTo   = cor.m.s1 + SL.turn * T2 * 0.5;
+    ch.lines.forEach((L, i) => {
+      const isFirst = i === 0, isLast = i === ch.lines.length - 1;
+      const from = isFirst ? spawnS + SL.lead * T2 : L.s0 + SL.turn * T2;
+      const to   = isLast  ? L.s1 - SL.tail * T2   : L.s1 - SL.turn * T2;
+      for (let at = from; at <= to && k < SL.n; at += step) plantAt(at);
+    });
 
-      const endA = chuteFrom - step * 0.5;
-      for (let at = aStart; at <= endA && k < SL.n; at += step) plantAt(at);
+    /* THE CHUTE, on every arc in the chain.
+       An arc cannot hold gates — hop() refuses to fire mid-arc, so a cone you
+       must change lanes around is a gate you are physically unable to answer.
+       It gets a wall instead, lining the rows either side of the lane the last
+       gate committed you to.
 
-      const startB = chuteTo + step * 0.5;
-      const endB   = cor.b.s1 - SL.tail * T2;
-      for (let at = startB; at <= endB && k < SL.n; at += step) plantAt(at);
-
-      /* ============ THE CHUTE — restored ============
-         The arc cannot hold gates: hop() refuses to fire mid-arc, so a cone you
-         must change lanes around is a gate you are physically unable to answer.
-         It gets a wall instead, lining the rows either side of the lane the last
-         gate committed you to.
-
-         Spacing is a plain step in route-s at 0.55 of a gate gap. An earlier
-         pass "corrected" this to even world spacing, on the theory that equal s
-         is not equal world distance at different arc radii. That was true and
-         it looked worse — it stretched the wall out and lost the tight, dense
-         read that made the corner work. The bunching on the inner radius IS the
-         look. Reverted deliberately; do not re-fix it. */
-      const gatesNow = scene.route.hazards.filter(h => h.slRole === 'gate')
-                                          .sort((x, y) => x.s - y.s);
-      const lastA = gatesNow.filter(h => h.s < cor.m.s0).slice(-1)[0];
-      const lane = lastA ? Phaser.Math.Clamp(lastA.row + lastA.slWant, 0, 3) : SL.rowB;
-      const cstep = SL.gap * T2 * 0.55;
-      for (let at = chuteFrom; at <= chuteTo; at += cstep){
+       Spacing is a plain step in route-s at 0.55 of a gate gap. An earlier pass
+       "corrected" this to even world spacing, on the theory that equal s is not
+       equal world distance at different arc radii. True, and it looked worse —
+       it stretched the wall out and lost the tight read that made the corner
+       work. The bunching on the inner radius IS the look. Reverted
+       deliberately; do not re-fix it. */
+    const gatesNow = () => scene.route.hazards
+      .filter(h => h.slRole === 'gate').sort((x, y) => x.s - y.s);
+    const cstep = SL.gap * T2 * 0.55;
+    for (const M of ch.arcs){
+      const lastG = gatesNow().filter(h => h.s < M.s0).slice(-1)[0];
+      const lane = lastG ? Phaser.Math.Clamp(lastG.row + lastG.slWant, 0, 3) : SL.rowB;
+      for (let at = M.s0 - SL.turn * T2 * 0.5; at <= M.s1 + SL.turn * T2 * 0.5; at += cstep){
         for (const r of [lane - 1, lane + 1]){
           if (r < 0 || r > 3) continue;
           scene.route.hazards.push({
@@ -385,41 +340,31 @@
             phi:0, phase:1, angVel:0, moving:false, pose:'standing',
             slide:0, slideVel:0,
             slRole:'chute', cone: GATE_WALL,
-            slKnocked:false, slJudged:true,     // never side-judged
+            slKnocked:false, slJudged:true,
           });
         }
       }
-      course.chuteLane = lane;
     }
+
     course.nGates = k;
-    course.finishS0 = Math.round(
-      (scene.route.hazards.filter(h => h.slRole === 'gate')
-        .reduce((m, h) => Math.max(m, h.s), 0)) + SL.tail * T2);
-    course.finishS = course.finishS0;
+    course.finishS = Math.round(gatesNow().reduce((m, h) => Math.max(m, h.s), 0)
+                                + SL.tail * T2);
 
     /* ============ A SPECIALITY COURSE IS EMPTY ============
-       This is a speed-and-agility run, so everything that is not a cone comes
-       out of the corridor: cracks, slabs, ramps, palms, benches, racks, the lot.
-       Same reasoning hjBuildCourse gives for the hydrant lane — you would weave
-       thirty gates clean and then land on a crack you never chose to take.
+       Speed-and-agility run: everything that is not a cone comes out of the
+       corridor. Runs AFTER planting and preserves slRole, so it cannot eat its
+       own gates.
 
-       Runs AFTER planting, and preserves anything carrying slRole, so it cannot
-       eat its own gates. Traffic is left alone: the cars are on the road, the
-       course is on the walk, and an empty street would read as a dead city. */
+       STRUCTURE IS NOT CLUTTER. The curb ramps are HAZARDS, not props, so
+       clearing every hazard in range deleted the ramp ART while the ramp
+       PHYSICS carried on from route.crossings — the wheels climbed a ramp that
+       was not drawn. It also starved buildWorldCurbRamps, which filters these
+       same hazards.
+
+       Traffic is left alone: the cars are on the road, the course is on the
+       walk, and an empty street reads as a dead city. */
     const from = course.spawnS - T2 * 2, to = course.finishS + T2 * 2;
     const inRange = v => v >= from && v <= to;
-
-    /* STRUCTURE IS NOT CLUTTER.
-       The curb ramps are HAZARDS, not props — hazards.push({type:"sidewalkend"})
-       — so clearing every hazard in range deleted the ramp ART while the ramp
-       PHYSICS carried on, because that comes from route.crossings, which this
-       never touches. The wheels climbed a ramp that was not drawn.
-
-       It also broke buildWorldCurbRamps, which filters these same hazards to
-       build the world-space ramp geometry.
-
-       So the clear takes obstacles, not ground structure. Anything in this set
-       is part of how the street is BUILT and stays, wherever it falls. */
     const STRUCTURE = { sidewalkend:1, sidewalkbegin:1, sidewalkbeginTurn:1, grade:1 };
     const before = scene.route.hazards.length + (scene.route.props || []).length;
     scene.route.hazards = scene.route.hazards.filter(h =>
@@ -427,7 +372,6 @@
     scene.route.props   = (scene.route.props || []).filter(pr => !inRange(pr.s));
     if (scene.route.crime && inRange(scene.route.crime.s)) scene.route.crime = null;
     course.cleared = before - (scene.route.hazards.length + scene.route.props.length);
-
     return course;
   }
 
@@ -451,9 +395,8 @@
     run.elapsed = 0; run.pen = 0; run.cleared = 0; run.faults = [];
     if (!run.course){ run.phase = 'idle'; return; }
     run.fail = '';
-    run.msg = (run.course.straight ? 'straight (no turn available)  ' : '') +
-              `f=${run.course.fA}\u2192f=${run.course.fB}  ` +
-              `${(run.course.grade * 100).toFixed(1)}% — red: pass above, blue: pass below`;
+    run.msg = `${run.course.nLines} legs, ${run.course.nGates} gates  —  ` +
+              `red: pass above, blue: pass below`;
     run.msgT = performance.now();
 
     /* Start on rowA — the row the FIRST gate does not want. Starting on the
@@ -594,8 +537,7 @@
              Math.abs(SL.par - total).toFixed(2) + 's', col)}
        ${row('gates cleared', `${run.cleared} / ${run.gates.length}`)}
        ${row('grade', (run.course.grade * 100).toFixed(1) + '% downhill')}
-       ${row('headings', `f=${run.course.fA} \u2192 f=${run.course.fB}`)}
-       ${row('seed', SEED || '—')}
+       ${row('legs', `${run.course.nLines}  (f=${run.course.fList.join('/')})`)}
        ${row('best', best ? best.toFixed(2) + 's' : '—', isBest ? '#7fe08a' : null)}
        ${isBest ? `<div style="text-align:center;color:#7fe08a;margin-top:6px">
                      new best</div>` : ''}
@@ -693,7 +635,8 @@
        ONE CONTROL  — a chip row picks WHICH value the single big slider edits.
      ========================================================================= */
   const FIELDS = [
-    { key:'n',    label:'cap',   min:8,   max:80,  step:2    },
+    { key:'n',    label:'cap',   min:8,   max:600, step:4    },
+    { key:'legs', label:'legs',  min:2,   max:20,  step:1    },
     { key:'gap',  label:'gap',   min:1.4, max:4.0, step:0.05 },
     { key:'rowA', label:'row A', min:0,   max:3,   step:1    },
     { key:'rowB', label:'row B', min:0,   max:3,   step:1    },
@@ -740,7 +683,6 @@
        <div id="slNow" style="text-align:center;margin-top:2px;color:#ff9c4d;
             font-variant-numeric:tabular-nums"></div>
        <div style="display:flex;gap:6px;margin-top:10px">
-         <button id="slSeek"  style="${BTN}flex:2">find course</button>
          <button id="slRun"   style="${BTN}flex:2">restart</button>
          <button id="slReset" style="${BTN}flex:1">reset</button>
          <button id="slOff"   style="${BTN}flex:1">off</button>
@@ -762,7 +704,7 @@
     `const SL = { n:${SL.n}, gap:${(+SL.gap).toFixed(2)}, rowA:${SL.rowA}, rowB:${SL.rowB}, ` +
     `lead:${(+SL.lead).toFixed(1)}, turn:${(+SL.turn).toFixed(1)}, ` +
     `tail:${(+SL.tail).toFixed(1)}, ` +
-    `pen:${(+SL.pen).toFixed(1)}, par:${(+SL.par).toFixed(1)} };`;
+    `pen:${(+SL.pen).toFixed(1)}, par:${(+SL.par).toFixed(1)}, legs:${SL.legs} };`;
 
   function drawChips(){
     $('slChips').innerHTML = FIELDS.map(f =>
@@ -802,7 +744,6 @@
   $('slDn').onclick = () => setVal(SL[sel] - fieldOf(sel).step, 1);
   $('slUp').onclick = () => setVal(SL[sel] + fieldOf(sel).step, 1);
 
-  $('slSeek').onclick  = () => slArm();
   $('slRun').onclick   = () => slResetRun();
   $('slReset').onclick = () => { Object.assign(SL, SL0); syncUI(); slResetRun(); };
   $('slCopy').onclick  = () => {
@@ -852,10 +793,9 @@
     const m = $('slMsg');
     if (m){
       const c = run.course;
-      const where = !c ? '—'
-        : scene.botS < c.arcS0 ? 'leg 1'
-        : scene.botS < c.arcS1 ? 'TURN — hold your lane'
-        : 'leg 2';
+      const inArc = c && (c.arcSpans || []).some(([a, b]) => scene.botS >= a && scene.botS <= b);
+      const where = !c ? '—' : inArc ? 'TURN — hold your lane'
+        : `leg ${(c.arcSpans || []).filter(([a]) => scene.botS > a).length + 1}/${c.nLines}`;
       if (run.fail){ m.textContent = run.fail; m.style.color = '#ff6b6b'; return; }
       m.style.color = '#ffb04d';
       if (run.phase === 'count'){ m.textContent = 'hold — starting'; return; }
@@ -871,86 +811,22 @@
      takes hoodIndex, the same door the hydrant challenge uses. The route
      rebuild is async in effect (it re-runs generateRoute and resets the scene),
      so the course is built on the NEXT tick, not inline. */
-  /* =========================================================================
-     SEED SEEK — stop hunting for a shape inside a route that was not built
-     for one.
-     -------------------------------------------------------------------------
-     Today's route simply may not contain a line->arc->line whose BOTH legs run
-     f=0/f=1, and with 24 cones the straight fallback needs ~5300 units on a
-     single leg — more than the 3128 of a one-block leg, so it almost never
-     fits either. Searching harder inside one route cannot fix that.
+  /* No seed seek. With the heading filter gone there is no shape to hunt for —
+     every route already has ten legs — so the lab uses the route the bench
+     loaded. The 160-city search that froze the tab last time existed only to
+     satisfy the f=0/f=1 constraint that is now dropped.
 
-     The hydrant challenge already solved this: it does not search, it PINS
-     (HJ_SEED_DATE) a date whose route it knows has the shape. generateRoute is
-     a free function returning a route object, so candidate dates can be graded
-     without touching the scene, and only the winner gets loaded.
-
-     The date this finds is the thing to hardcode as SL_SEED_DATE when this
-     ships — same as HJ_SEED_DATE. It is logged and shown for exactly that. */
-  function slSeek(maxTries = 120){
-    const t0 = performance.now();
-    const base = Date.UTC(2026, 0, 1);
-    let scanned = 0, bestSoFar = null;
-    for (let i = 0; i < maxTries; i++){
-      const dateStr = new Date(base + i * 86400000).toISOString().slice(0, 10);
-      let r;
-      try { r = generateRoute(dateStr, { hoodIndex: HOOD_BLUFFS }); }
-      catch(e){ continue; }
-      scanned++;
-      const cor = slFindCorridor(r);
-      if (cor && cor.kind === 'turn'){
-        console.log(`slalom seed seek: ${dateStr} after ${scanned} routes, ` +
-                    `${Math.round(performance.now() - t0)}ms`);
-        return { dateStr, kind: 'turn' };
-      }
-      if (cor && !bestSoFar) bestSoFar = { dateStr, kind: cor.kind };
-    }
-    return bestSoFar;   // a straight, if that is all the city offered
-  }
-
-  /* =========================================================================
-     NO DELIVERY OPENING
-     -------------------------------------------------------------------------
-     The camera was not confused, it was obeying orders. In delivery mode the
-     pickup timeline pins this.pickupWalk to 1 for the whole loading beat, and
-     the camera branch fires on pickupWalk > 0.75 — so it blends its target
-     across door + bot + worker + the worker's raised hand and sits on the shop
-     doorway while the slalom countdown plays out somewhere else entirely.
-
-     loadRoute's challenge branch already solves this by nulling the three route
-     pickup fields, and the timeline comment is explicit that challenge mode
-     SKIPS the pickup rather than fast-forwarding it, "because every downstream
-     effect keys off these same flags".
-
-     Deliberately NOT setting mode = "challenge" to get it. That flag also arms
-     hjUpdateMeter, hjSlabZ, hjOwnsTip and the hydrant draw paths, none of which
-     have a route.challenge behind them here. Take the three fields, not the
-     mode: with pickupSpot/pickupBlock null the shop door never draws, so
-     pickupDoorDV (assigned inside that draw, every frame) stays null, and the
-     camera branch requires it. The worker has nothing to stand on either. */
-  function slQuietOpening(){
-    const r = scene.route;
-    r.pickupSpot = null; r.pickupShopName = null; r.pickupBlock = null;
-    scene.pickupDoorDV = null; scene.pickupDoorRV = null;
-    scene.pickupWalk = 0; scene.walkAt = null;
-    scene.loadDone = true; scene.bagOnBoard = true; scene.doorSwing = 0;
-  }
-
+     The Bluffs reload stays: it is ONE generateRoute, and the hood still gives
+     the steepest virtual grade. */
   function slArm(){
-    run.fail = ''; run.msg = 'searching for a downhill corridor…';
-    run.msgT = performance.now();
-    const hit = slSeek();
-    if (!hit){
-      run.fail = 'no date in 120 gave an f=0/f=1 corridor — lower cones or gap';
-      syncUI();
-      return;
-    }
-    SEED = hit.dateStr;
+    if (scene.route.hood.hill >= 0.9){ slQuietOpening(); syncUI(); slResetRun(); return; }
+    run.msg = 'relocating to The Bluffs…'; run.msgT = performance.now();
+    SEED = scene.route.dateStr;
     scene.loadRoute(SEED, { hoodIndex: HOOD_BLUFFS });
     slQuietOpening();
     setTimeout(() => {
       syncUI(); slResetRun();
-      console.log(`cone slalom armed — SL_SEED_DATE = "${SEED}" (${hit.kind})`, portLine());
+      console.log('cone slalom armed —', lastDiag, portLine());
     }, 60);
   }
 
