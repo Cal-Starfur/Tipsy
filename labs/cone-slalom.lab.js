@@ -87,7 +87,7 @@
 
   /* ---------- tunables — every one of these is a chip ---------- */
   const SL = {
-    n:    24,     // cones in the course, split across the two legs
+    n:    64,     // CAP on gates; the course fills the corridor up to this
     gap:  2.10,   // along-route spacing between cones, in T2
     rowA: 1,      // even cones sit here
     rowB: 2,      // odd cones sit here
@@ -143,7 +143,6 @@
   /* =========================================================================
      COURSE
      ========================================================================= */
-  const splitN = () => [Math.ceil(SL.n / 2), Math.floor(SL.n / 2)];
 
   /* Net grade over an s-range, in rise/run. Negative is downhill.
      elevAt() is the scene's own sampler over route.tiles, so this asks the
@@ -189,9 +188,12 @@
   let lastDiag = {};
 
   function slFindCorridor(route){
-    const [nA, nB] = splitN();
-    const needA = (SL.lead + (nA - 1) * SL.gap + SL.turn) * T2;
-    const needB = (SL.turn + (nB - 1) * SL.gap + SL.tail) * T2;
+    /* Fit is now a MINIMUM viable weave per leg, not half of the cap — the
+       course length is whatever the corridor gives, so demanding room for the
+       cap would reject every corridor in the city. */
+    const MIN_GATES = 5;
+    const needA = (SL.lead + (MIN_GATES - 1) * SL.gap + SL.turn) * T2;
+    const needB = (SL.turn + (MIN_GATES - 1) * SL.gap + SL.tail) * T2;
     const segs = route.segs;
     let best = null, fitButUphill = 0, turnFits = 0;
 
@@ -221,7 +223,7 @@
        requirement and the one that cannot be faked, so the turn is what gets
        dropped. A straight course that looks right beats a turning course that
        looks like a climb, and beats no course at all by a mile. */
-    const needStraight = (SL.lead + (SL.n - 1) * SL.gap + SL.tail) * T2;
+    const needStraight = (SL.lead + (MIN_GATES * 2 - 1) * SL.gap + SL.tail) * T2;
     let flat = null;
     for (const g of segs){
       if (g.type !== 'line' || !DOWNHILL_F.includes(g.f)) continue;
@@ -254,7 +256,6 @@
     }
 
     const straight = cor.kind === 'straight';
-    const [nA, nB] = straight ? [SL.n, 0] : splitN();
 
     /* SPAWN ON ACTUAL SIDEWALK — asked, not inferred.
        The first attempt walked route.crossings and pushed past any span the
@@ -279,7 +280,7 @@
       return true;
     };
     let spawnS = Math.round(cor.a.s0);
-    const spawnLimit = cor.a.s1 - (nA - 1) * SL.gap * T2 - SL.turn * T2;
+    const spawnLimit = cor.a.s1 - 4 * SL.gap * T2 - SL.turn * T2;
     while (spawnS < spawnLimit && !clearRun(spawnS)) spawnS += TILE;
     if (spawnS >= spawnLimit){
       run.fail = 'no continuous sidewalk on the leg — reseek';
@@ -287,7 +288,6 @@
     }
     spawnS = Math.round(spawnS);
     const aStart = Math.round(spawnS + SL.lead * T2);
-    const bStart = straight ? 0 : Math.round(cor.b.s0 + SL.turn * T2);
     const course = {
       cor, straight,
       spawnS,
@@ -296,9 +296,7 @@
          test below can never fire — one branch, not a second code path */
       arcS0:   straight ? Infinity : cor.m.s0,
       arcS1:   straight ? Infinity : cor.m.s1,
-      finishS: straight
-        ? Math.round(aStart + (SL.n - 1) * SL.gap * T2 + SL.tail * T2)
-        : Math.round(bStart + (nB - 1) * SL.gap * T2 + SL.tail * T2),
+      finishS: 0,   // set once the gates are planted
       gA: cor.gA, gB: cor.gB, grade: cor.score,
       fA: cor.a.f, fB: straight ? cor.a.f : cor.b.f,
     };
@@ -319,83 +317,70 @@
 
        Numbering runs unbroken across the turn (1..n) so a fault message names
        the cone the player just saw, not "leg B, number three". */
+    /* ============ GATES FILL THE LEG ============
+       nA/nB used to be a fixed split of SL.n, which left dead road between the
+       last gate and the turn — the blank stretch. The gate fields now run from
+       the first cone all the way to the chute, and from the chute to the end of
+       leg 2, at SL.gap throughout. SL.n is a CAP, not a target: the course is
+       as long as the corridor allows.
+
+       Alternation runs unbroken across the turn on a single counter k, so the
+       weave never repeats a side at the handoff and the colours stay honest. */
     let k = 0;
-    const plant = (s0, count) => {
-      for (let i = 0; i < count; i++, k++){
-        const row   = (k % 2 === 0) ? SL.rowA : SL.rowB;
-        const other = (k % 2 === 0) ? SL.rowB : SL.rowA;
-        const at   = Math.round(s0 + i * SL.gap * T2);
-        const want = Math.sign(other - row);          // row-space: the open side
-        /* row-space want -> screen-space want, via hop()'s own flip */
-        const screenWant = want * (rowPlusDownAt(at) ? 1 : -1);
-        scene.route.hazards.push({
-          type:'cone', s: at, row, f:0, hit:false,
-          phi:0, phase:1, angVel:0, moving:false, pose:'standing',
-          slide:0, slideVel:0,
-          slRole:'gate', slIndex:k,
-          slWant: want,
-          slScreenWant: screenWant,
-          cone: screenWant > 0 ? GATE_BLUE : GATE_RED,
-          slKnocked:false, slJudged:false,
-        });
-      }
+    const plantAt = (at) => {
+      const row   = (k % 2 === 0) ? SL.rowA : SL.rowB;
+      const other = (k % 2 === 0) ? SL.rowB : SL.rowA;
+      const want  = Math.sign(other - row);
+      const screenWant = want * (rowPlusDownAt(at) ? 1 : -1);
+      scene.route.hazards.push({
+        type:'cone', s: Math.round(at), row, f:0, hit:false,
+        phi:0, phase:1, angVel:0, moving:false, pose:'standing',
+        slide:0, slideVel:0,
+        slRole:'gate', slIndex:k,
+        slWant: want, slScreenWant: screenWant,
+        cone: screenWant > 0 ? GATE_BLUE : GATE_RED,
+        slKnocked:false, slJudged:false,
+      });
+      k++;
     };
-    plant(aStart, nA);
-    if (nB) plant(bStart, nB);
 
-    /* ============ THE TURN IS NO LONGER A DEAD GAP ============
-       The arc used to be empty road between two cone fields, which read as the
-       course having stopped. It cannot hold GATES — hop() refuses to fire
-       mid-arc, so a cone you must change lanes around is a gate you are
-       physically unable to answer.
+    const step = SL.gap * T2;
+    if (straight){
+      const endA = cor.a.s1 - SL.tail * T2;
+      for (let at = aStart; at <= endA && k < SL.n; at += step) plantAt(at);
+    } else {
+      /* the chute owns the turn plus SL.turn/2 of clearance either side —
+         unchanged, this is the shape that looked right */
+      const chuteFrom = cor.m.s0 - SL.turn * T2 * 0.5;
+      const chuteTo   = cor.m.s1 + SL.turn * T2 * 0.5;
 
-       So the arc gets a CHUTE instead: cones lining the rows either side of the
-       lane the last gate committed you to. They are not gates and are never
-       side-judged. They make the turn's actual rule visible — you are in this
-       lane until the arc is behind you — and they punish drifting, which is
-       exactly what hop()'s refusal already meant but never showed. Tighter
-       spacing than the gates so it reads as a wall, not as more gates. */
-    if (!straight && nA > 0){
-      const gates = scene.route.hazards.filter(h => h.slRole === 'gate')
-                                       .sort((x, y) => x.s - y.s);
-      const lastA  = gates.filter(h => h.s < cor.m.s0).slice(-1)[0];
-      const firstB = gates.filter(h => h.s > cor.m.s1)[0];
+      const endA = chuteFrom - step * 0.5;
+      for (let at = aStart; at <= endA && k < SL.n; at += step) plantAt(at);
+
+      const startB = chuteTo + step * 0.5;
+      const endB   = cor.b.s1 - SL.tail * T2;
+      for (let at = startB; at <= endB && k < SL.n; at += step) plantAt(at);
+
+      /* ============ THE CHUTE — restored ============
+         The arc cannot hold gates: hop() refuses to fire mid-arc, so a cone you
+         must change lanes around is a gate you are physically unable to answer.
+         It gets a wall instead, lining the rows either side of the lane the last
+         gate committed you to.
+
+         Spacing is a plain step in route-s at 0.55 of a gate gap. An earlier
+         pass "corrected" this to even world spacing, on the theory that equal s
+         is not equal world distance at different arc radii. That was true and
+         it looked worse — it stretched the wall out and lost the tight, dense
+         read that made the corner work. The bunching on the inner radius IS the
+         look. Reverted deliberately; do not re-fix it. */
+      const gatesNow = scene.route.hazards.filter(h => h.slRole === 'gate')
+                                          .sort((x, y) => x.s - y.s);
+      const lastA = gatesNow.filter(h => h.s < cor.m.s0).slice(-1)[0];
       const lane = lastA ? Phaser.Math.Clamp(lastA.row + lastA.slWant, 0, 3) : SL.rowB;
-
-      /* CONTINUITY, TWO SEPARATE FIXES.
-
-         1. SPAN. The chute used to run from the ARC's own extent outward, so
-            whatever was left between the last gate and the start of the arc
-            stayed empty. It now runs gate-to-gate: from half a gap after the
-            last leg-1 gate to half a gap before the first leg-2 gate. There is
-            nowhere left for a hole to be, by construction.
-
-         2. SPACING IS MEASURED IN WORLD DISTANCE, NOT IN s. On an arc the two
-            walls sit at different radii, so a constant step in route-s bunches
-            the inner wall and stretches the outer one — which is exactly the
-            unevenness on screen, because the eye reads world distance. Each
-            wall is therefore walked independently in small increments and drops
-            a cone whenever the accumulated WORLD distance for THAT row crosses
-            the target. Radius-agnostic, heading-agnostic, and it needs no arc
-            geometry: it asks posAt/headingAt where the cone would actually be. */
-      const want = SL.gap * T2 * 0.55;          // target world spacing
-      const from = (lastA  ? lastA.s  : cor.m.s0) + SL.gap * T2 * 0.5;
-      const to   = (firstB ? firstB.s : cor.m.s1) - SL.gap * T2 * 0.5;
-      const posOf = (at, row) => {
-        const p = scene.posAt(at), h = scene.headingAt(at), off = offOf(row);
-        return { x: p.x + (-Math.sin(h)) * off, y: p.y + Math.cos(h) * off };
-      };
-
-      let placed = 0;
-      for (const r of [lane - 1, lane + 1]){
-        if (r < 0 || r > 3) continue;
-        let acc = want, prev = posOf(from, r);      // acc primed so one lands at `from`
-        for (let at = from; at <= to; at += TILE * 0.25){
-          const q = posOf(at, r);
-          acc += Math.hypot(q.x - prev.x, q.y - prev.y);
-          prev = q;
-          if (acc < want) continue;
-          acc = 0;
+      const cstep = SL.gap * T2 * 0.55;
+      for (let at = chuteFrom; at <= chuteTo; at += cstep){
+        for (const r of [lane - 1, lane + 1]){
+          if (r < 0 || r > 3) continue;
           scene.route.hazards.push({
             type:'cone', s: Math.round(at), row: r, f:0, hit:false,
             phi:0, phase:1, angVel:0, moving:false, pose:'standing',
@@ -403,12 +388,15 @@
             slRole:'chute', cone: GATE_WALL,
             slKnocked:false, slJudged:true,     // never side-judged
           });
-          placed++;
         }
       }
       course.chuteLane = lane;
-      course.chuteN = placed;
     }
+    course.nGates = k;
+    course.finishS = Math.round(
+      (scene.route.hazards.filter(h => h.slRole === 'gate')
+        .reduce((m, h) => Math.max(m, h.s), 0)) + SL.tail * T2);
+
     return course;
   }
 
@@ -655,7 +643,7 @@
        ONE CONTROL  — a chip row picks WHICH value the single big slider edits.
      ========================================================================= */
   const FIELDS = [
-    { key:'n',    label:'cones', min:4,   max:20,  step:1    },
+    { key:'n',    label:'cap',   min:8,   max:80,  step:2    },
     { key:'gap',  label:'gap',   min:1.4, max:4.0, step:0.05 },
     { key:'rowA', label:'row A', min:0,   max:3,   step:1    },
     { key:'rowB', label:'row B', min:0,   max:3,   step:1    },
@@ -807,7 +795,7 @@
     const total = run.elapsed + run.pen, clk = $('slClock');
     if (clk){
       clk.style.color = run.done ? (total <= SL.par ? '#7fe08a' : '#ff6b6b') : '#e8eaef';
-      clk.textContent = `${total.toFixed(2)}s  ${run.cleared}/${SL.n}` +
+      clk.textContent = `${total.toFixed(2)}s  ${run.cleared}/${run.gates.length}` +
                         (run.pen ? `  +${run.pen.toFixed(1)}` : '') +
                         `  par ${SL.par.toFixed(0)}`;
     }
