@@ -133,6 +133,23 @@
   };
   const SL0 = { ...SL };
 
+  /* THE RAMP ROW IS A FACT ABOUT THE WORLD, so it lives with the other world
+     facts rather than inside the chute code that first needed it. Declared down
+     there it was read by the gate loop above it and threw "Cannot access
+     'RAMP_ROW' before initialization" — const is hoisted but not initialised,
+     and the gate loop runs first.
+
+     generateRoute plants BOTH ramp props at row 1, straight crossings and turn
+     crossings alike, and says why: the prop is 3 tiles wide against a 4-row
+     walk, so laneOffset(1) centres it on rows 0-2 exactly on tile seams,
+     "leaving row 3 (building side) as plain flat walk".
+
+     So the lane a crossing must be taken in is row 1, always, and row 3 is the
+     one row NOT on the ramp. Chute walls at rows 0 and 2 mark the ramp centre
+     and put a wall between the robot and row 3 — the lane that would drop him
+     off the side of the ramp entirely. */
+  const RAMP_ROW = 1;
+
   const offOf = row => laneOffset(row);
   /* laneOff delta -> row-space delta is one sign (ROBOT_SIDE), and this is the
      ONLY place world offsets get converted back to rows. */
@@ -459,20 +476,6 @@
        marking rather than two near-copies that can drift apart. The lane is
        whichever one the last gate before the span committed you to, so the
        walls always open where the player already is. */
-    /* THE CHUTE LANE COMES FROM THE RAMP, NOT FROM THE GATES.
-       Deriving it from whichever row the last gate committed to was wrong on
-       every leg — leg 1 only looked right by coincidence.
-
-       generateRoute plants BOTH ramp props at row 1, straight crossings and
-       turn crossings alike, and says why: the prop is 3 tiles wide against a
-       4-row walk, so laneOffset(1) centres it on rows 0-2 exactly on tile
-       seams, "leaving row 3 (building side) as plain flat walk".
-
-       So the lane a crossing must be taken in is row 1, always, and row 3 is
-       the one row that is NOT on the ramp. Walls at rows 0 and 2 mark the ramp
-       centre and, more importantly, put a wall between the robot and row 3 —
-       the lane that would drop him off the side of the ramp entirely. */
-    const RAMP_ROW = 1;
     const plantChute = (from, to) => {
       const lane = RAMP_ROW;
       for (let at = from; at <= to; at += cstep){
