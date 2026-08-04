@@ -741,6 +741,51 @@ function requestTpProfile(){
     })
     .catch(()=>{});
 }
+
+/* ---------- Devvit-only: play counter + fail report ----------
+   countPlay() fires once per delivery STARTED (GO / Retry / Again),
+   not per completion — the splash counter reads "how many times has
+   this been played", and gating it on a win would badly undercount a
+   game whose whole premise is falling over. The challenge doesn't
+   call it: it isn't a delivery.
+
+   reportFail() hands the server enough to leave a comment on the post
+   in the app account's voice. It sends a CAUSE ID, never prose — the
+   wording lives in server.ts's FAIL_CAUSE_COPY, because anything the
+   webview could type would land verbatim in a public comment. Replays
+   of past dates deliberately don't report: the post is today's route,
+   and a comment about a three-week-old street reads as noise there.
+   Fire-and-forget, same as every other bridge call — a failed report
+   must never delay or block the fail overlay. */
+function countPlay(){
+  if(!IS_DEVVIT_BUILD) return;
+  fetch("api/tipsy/play", { method: "POST", headers: { Accept: "application/json" } }).catch(()=>{});
+}
+function reportFail(s, cause){
+  if(!IS_DEVVIT_BUILD) return;
+  if(!s || !s.route) return;
+  if(s.mode === "challenge") return;
+  if(s.route.dateStr !== clientTodayUTC()) return;
+  /* progress is measured pickup -> door, not 0 -> door: the robot
+     starts AT the shop, so anchoring at 0 would report free distance
+     nobody drove. */
+  const from = s.route.pickupS, to = s.route.doorS;
+  const span = (to - from) || 1;
+  const pct = Math.max(0, Math.min(100, ((s.botS - from) / span) * 100));
+  fetch("api/tipsy/fail", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({
+      cause: cause || "",
+      address: s.route.address || "",
+      hood: (s.route.hood && s.route.hood.n) || "",
+      pct,
+      tip: (s.route.order && s.route.order.value) || 0,
+      ms: s.runT,
+      damage: s.damage
+    })
+  }).catch(()=>{});
+}
 /* ============================================================
    TIP — Route Lab
    One address a day. A real-LA-neighborhood roster drives a
@@ -11279,7 +11324,7 @@ class WorldScene extends Phaser.Scene {
             this.botS = safeStop(hz.s - LAMP_ACT.standoff);
             this.isBlocked = true;
             if(this.speed > 0.08 && !hz.hit){
-              hz.hit = true;
+              hz.hit = true; this.tipCause = hz.type;
               const kick = this.speed * 5 * (Math.random() < 0.5 ? 1 : -1);
               this.tilt += kick * TILT_SENS;
               this.damage = Math.min(95, this.damage + Math.abs(kick)*30*CARGO_DAMAGE_SENS);
@@ -11295,7 +11340,7 @@ class WorldScene extends Phaser.Scene {
             this.botS = safeStop(hz.s - 30);
             this.isBlocked = true;
             if(this.speed > 0.08 && !hz.hit){
-              hz.hit = true;                               // the bonk (once per approach)
+              hz.hit = true; this.tipCause = hz.type;                               // the bonk (once per approach)
               const kick = this.speed * 7 * (Math.random() < 0.5 ? 1 : -1);
               this.tilt += kick * TILT_SENS;
               this.damage = Math.min(95, this.damage + Math.abs(kick)*40*CARGO_DAMAGE_SENS);
@@ -11343,7 +11388,7 @@ class WorldScene extends Phaser.Scene {
             this.botS = safeStop(hz.s - 26);
             this.isBlocked = true;
             if(this.speed > 0.08 && !hz.hit){
-              hz.hit = true;
+              hz.hit = true; this.tipCause = hz.type;
               const kick = this.speed * HYD_SLIP.bonk * (Math.random() < 0.5 ? 1 : -1);
               this.tilt += kick * TILT_SENS;
               this.damage = Math.min(95, this.damage + Math.abs(kick)*40*CARGO_DAMAGE_SENS);
@@ -11427,7 +11472,7 @@ class WorldScene extends Phaser.Scene {
              redundant tilt/damage on the robot for what should read
              as a single clean bonk. */
           if(!hz.hit && Math.abs(dx) < 26 && onLane(hz.row) && this.speed > 0.08){
-            hz.hit = true;
+            hz.hit = true; this.tipCause = hz.type;
             if(hz.fallPsi === undefined) hz.fallPsi = (Math.random() - 0.5) * 0.5;
             const sp = this.speed;
             if(hz.pose !== "knocked"){
@@ -11559,7 +11604,7 @@ class WorldScene extends Phaser.Scene {
             const alongside = onRobotLane && Math.abs(this.botS - effS) < contactGap;
             const sideHit = this.hopAnim && alongside;
             if(sideHit && !hz.hit){
-              hz.hit = true;
+              hz.hit = true; this.tipCause = hz.type;
               hz.knocked = true;
               hz.knockA = robotOff;
               hz.knockB = robotB;
@@ -11591,7 +11636,7 @@ class WorldScene extends Phaser.Scene {
               this.botS = safeStop(effS - contactGap);
               this.isBlocked = true;
               if(this.speed > ROBOT_HIT_MIN && !hz.hit){
-                hz.hit = true;
+                hz.hit = true; this.tipCause = hz.type;
                 if(this.speed >= ROBOT_TIP_THRESH){
                   this.tilt = 1.1 * (Math.random() < 0.5 ? 1 : -1);
                   hz.knocked = true;
@@ -11662,7 +11707,7 @@ class WorldScene extends Phaser.Scene {
               this.isBlocked = true;
               this.speed = 0;
               if(hz.pose !== "knocked" && !hz.hit){
-                hz.hit = true;
+                hz.hit = true; this.tipCause = hz.type;
                 /* bump feedback for the robot on any first contact,
                    scaled to how hard he actually hit (floor keeps a
                    creep-in touch from being completely free). */
@@ -11704,7 +11749,7 @@ class WorldScene extends Phaser.Scene {
               }
             }
           } else if(!hz.hit && Math.abs(dx) < BODY.hx + halfW && onLane(hz.row) && this.speed > 0.08 && hz.pose !== "knocked"){
-            hz.hit = true;
+            hz.hit = true; this.tipCause = hz.type;
             /* contact distance scaled to the actual geometry (robot
                half-length + this planter's half-width) instead of the
                old fixed 26 -- the nose was half a robot deep before
@@ -11778,7 +11823,7 @@ class WorldScene extends Phaser.Scene {
              cone needed, since gating re-arm on the slide feeds the
              punt back into re-triggering itself. */
           if(!hz.hit && Math.abs(dx) < 26 && onLane(hz.row)){
-            hz.hit = true;
+            hz.hit = true; this.tipCause = hz.type;
             if(hz.fallPsi === undefined) hz.fallPsi = (Math.random() - 0.5) * 0.6;
             const sp = this.speed;
             if(hz.pose !== "knocked"){
@@ -11822,7 +11867,7 @@ class WorldScene extends Phaser.Scene {
           } else hz.slideVel = 0;
         } else if(!hz.hit && Math.abs(dx) < 26 &&
                   Math.abs(this.laneOff - (laneOffset(hz.row) + hzB)) < T2*0.5){
-          hz.hit = true;
+          hz.hit = true; this.tipCause = hz.type;
           const sev = hz.type === "crack"
             ? Math.min(8, Math.max(2, 4 * (hz.len || 46) / 46))   // bigger spall, bigger jolt (crack lab v3)
             : ({ trash:7, dog:5, palmDwarf:6, people:8 }[hz.type] ?? 5);   // hitting a person costs more than a dog bump — same mechanism that tips you on a hard palm/hydrant hit applies here too
@@ -12043,7 +12088,7 @@ class WorldScene extends Phaser.Scene {
         const nnx = this.botX - nx, nny = this.botY - ny;
         const nSq = nnx*nnx + nny*nny;
         if(!tr.hit && (cSq < CAR_HIT_CENTER_R*CAR_HIT_CENTER_R || nSq < CAR_HIT_NOSE_R*CAR_HIT_NOSE_R)){
-          tr.hit = true;
+          tr.hit = true; this.tipCause = "car";
           this.tilt = 1.1 * (Math.sign(ddx || ddy) || 1);
           this.damage = Math.min(95, this.damage + 45);
         }
@@ -12096,7 +12141,7 @@ class WorldScene extends Phaser.Scene {
            delivery fail overlay would take over the screen and its
            Retry reloads the daily route. */
         const failPool = this.tipCause === "william" ? WILLIAM_FAIL_LINES : null;
-        if(!this.hjOwnsTip()) setTimeout(() => showFail(failPool), 1500);
+        if(!this.hjOwnsTip()){ reportFail(this, this.tipCause); setTimeout(() => showFail(failPool), 1500); }
       }
       /* CANCELLATION: par + grace expired -> the order dies. A fail
          with the robot upright: the state gate stops the sim, input
@@ -12105,6 +12150,7 @@ class WorldScene extends Phaser.Scene {
       if(this.runT > this.route.parMs + CANCEL_GRACE_MS){
         this.state = "canceled";
         this.speed = 0; this.throttle = 0;
+        reportFail(this, "canceled");
         setTimeout(() => showFail(CANCEL_LINES), 900);
         return;
       }
@@ -15665,6 +15711,7 @@ window.addEventListener("orientationchange", tpResumeResync);
 document.getElementById("startBtn").addEventListener("click", () => {
   hide("titleOverlay");
   if(scn().mode === "challenge"){ hjBegin(); return; }
+  countPlay();
   scn().state = "play";
 });
 document.getElementById("retryBtn").addEventListener("click", () => {
@@ -15674,11 +15721,12 @@ document.getElementById("retryBtn").addEventListener("click", () => {
      route dumped the player out of the mission entirely. */
   if(s.mode === "challenge"){ s.hjResetRun(); return; }
   document.getElementById("retryBtn").textContent = "Retry";
+  countPlay();
   s.loadRoute(s.route.dateStr); s.state = "play";
 });
 document.getElementById("againBtn").addEventListener("click", () => {
   hide("winOverlay");
-  const s = scn(); s.loadRoute(s.route.dateStr); s.state = "play";
+  const s = scn(); countPlay(); s.loadRoute(s.route.dateStr); s.state = "play";
 });
 document.getElementById("todayBtn").addEventListener("click", e => {
   document.getElementById("rerollBtn").classList.remove("on");
