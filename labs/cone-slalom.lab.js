@@ -256,17 +256,36 @@
     const straight = cor.kind === 'straight';
     const [nA, nB] = straight ? [SL.n, 0] : splitN();
 
-    /* SPAWN OFF THE CROSSING.
-       cor.a.s0 is the first s of the line segment, which is immediately after
-       the previous corner — and route.crossings puts a walk-gone span there,
-       so spawning at s0 dropped the robot into the middle of the street. The
-       crossings array already knows exactly where the walk is missing; push
-       the spawn clear of any span it overlaps rather than guessing a margin. */
-    let spawnS = Math.round(cor.a.s0 + T2);
-    for (const cx of scene.route.crossings){
-      if (spawnS > cx.sA - 2*T2 && spawnS < cx.sB + 2*T2)
-        spawnS = Math.round(cx.sB + 3*T2);
+    /* SPAWN ON ACTUAL SIDEWALK — asked, not inferred.
+       The first attempt walked route.crossings and pushed past any span the
+       spawn overlapped. It kept putting the robot in the road, because that is
+       a model of where the walk is missing rather than the answer, and a single
+       unordered pass can also step out of one span straight into the next.
+
+       grid.classify(x, y) IS the answer — classifyAt over the same grid.edges
+       the world is built from. So walk forward until the spawn point AND the
+       whole run-up behind the first cone classify as sidewalk, testing the
+       exact world point the robot will occupy at his own lane offset. Verify
+       through the call the game actually makes, not a parallel copy of it. */
+    const walkAt = (at, row) => {
+      const p = scene.posAt(at), h = scene.headingAt(at), off = offOf(row);
+      return scene.route.grid.classify(p.x + (-Math.sin(h)) * off,
+                                       p.y + Math.cos(h) * off) === 'sidewalk';
+    };
+    const clearRun = (at) => {
+      for (let u = 0; u <= SL.lead * T2; u += TILE)
+        for (const row of [SL.rowA, SL.rowB])
+          if (!walkAt(at + u, row)) return false;
+      return true;
+    };
+    let spawnS = Math.round(cor.a.s0);
+    const spawnLimit = cor.a.s1 - (nA - 1) * SL.gap * T2 - SL.turn * T2;
+    while (spawnS < spawnLimit && !clearRun(spawnS)) spawnS += TILE;
+    if (spawnS >= spawnLimit){
+      run.fail = 'no continuous sidewalk on the leg — reseek';
+      return null;
     }
+    spawnS = Math.round(spawnS);
     const aStart = Math.round(spawnS + SL.lead * T2);
     const bStart = straight ? 0 : Math.round(cor.b.s0 + SL.turn * T2);
     const course = {
@@ -397,8 +416,8 @@
     const sp = scene.posAt(scene.botS), hdg = scene.headingAt(scene.botS);
     scene.botX = sp.x + (-Math.sin(hdg)) * scene.laneOff;
     scene.botY = sp.y + Math.cos(hdg) * scene.laneOff;
-    scene.camX = scene.botX; scene.camY = scene.botY;
     scene.drawAngle = hdg;
+    slPinCam();
     prevS = scene.botS;
   }
 
@@ -570,7 +589,21 @@
     return Math.ceil(left / 1000);
   }
 
-  const onPre  = () => { if (run.phase === 'count'){ scene.throttle = 0; scene.speed = 0; } };
+  /* The camera eases at Linear(camX, target, 0.08) per frame, which over
+     block-scale distance is seconds of drift — so after a reseek the countdown
+     played out over whatever the camera happened to be looking at, and Tipsey
+     slid into frame well after GO. Snapping camX once in slResetRun was not
+     enough: the ease starts from wherever the scene puts it next.
+     During the count the camera is simply PINNED, using the game's own target
+     formula (botX + cos(hdg)*95) so there is no jump at GO. */
+  function slPinCam(){
+    const hdg = scene.headingAt(scene.botS);
+    scene.camX = scene.botX + Math.cos(hdg) * 95;
+    scene.camY = scene.botY + Math.sin(hdg) * 95;
+  }
+  const onPre  = () => {
+    if (run.phase === 'count'){ scene.throttle = 0; scene.speed = 0; slPinCam(); }
+  };
   const onPost = () => { try { slJudge(); } catch(e){ console.log('slJudge', e); } };
   scene.events.on('preupdate',  onPre);
   scene.events.on('postupdate', onPost);
