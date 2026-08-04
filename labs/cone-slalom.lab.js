@@ -88,7 +88,8 @@
   /* ---------- tunables — every one of these is a chip ---------- */
   const SL = {
     n:    400,    // CAP on gates; the course fills every leg up to this
-    legs: 10,     // how many legs the course runs through
+    legs: 4,      // how many legs the course runs through — walk this up
+                  // with the chip and watch the cone total in the strip
     gap:  1.60,   // along-route spacing between cones, in T2
     rowA: 1,      // even cones sit here
     rowB: 2,      // odd cones sit here
@@ -214,9 +215,16 @@
     /* Walk forward from the first line collecting segments until SL.legs lines
        are in hand, then trim any trailing arc — a chain ending on a turn has a
        corner leading nowhere and gates cannot live on it. */
+    /* Stop at the route's own end as well as at the leg target. A looping route
+       wraps, and a chain that runs past totalLen asks posAt for an s it has no
+       geometry for — which does not throw, it returns nonsense, and nonsense
+       coordinates are far worse than an error because they look like a bug in
+       the cones. */
+    const endS = route.totalLen;
     const chain = [];
     let nLines = 0;
     for (let i = firstLine; i < segs.length && nLines < SL.legs; i++){
+      if (segs[i].s1 > endS) break;
       chain.push(segs[i]);
       if (segs[i].type === 'line') nLines++;
     }
@@ -329,12 +337,18 @@
     const gatesNow = () => scene.route.hazards
       .filter(h => h.slRole === 'gate').sort((x, y) => x.s - y.s);
     const cstep = SL.gap * T2 * 0.55;
+    /* SL.n caps GATES; the chute was uncapped, and at ten legs it adds ~110
+       cones of its own. Every cone is a physics body and a depth-sorted draw
+       every frame, so the total is what costs, not the gate count. */
+    let chuteN = 0;
+    const CHUTE_MAX = Math.round(SL.n * 0.75);
     for (const M of ch.arcs){
       const lastG = gatesNow().filter(h => h.s < M.s0).slice(-1)[0];
       const lane = lastG ? Phaser.Math.Clamp(lastG.row + lastG.slWant, 0, 3) : SL.rowB;
       for (let at = M.s0 - SL.turn * T2 * 0.5; at <= M.s1 + SL.turn * T2 * 0.5; at += cstep){
         for (const r of [lane - 1, lane + 1]){
-          if (r < 0 || r > 3) continue;
+          if (r < 0 || r > 3 || chuteN >= CHUTE_MAX) continue;
+          chuteN++;
           scene.route.hazards.push({
             type:'cone', s: Math.round(at), row: r, f:0, hit:false,
             phi:0, phase:1, angVel:0, moving:false, pose:'standing',
@@ -347,6 +361,7 @@
     }
 
     course.nGates = k;
+    course.nChute = chuteN;
     course.finishS = Math.round(gatesNow().reduce((m, h) => Math.max(m, h.s), 0)
                                 + SL.tail * T2);
 
@@ -375,6 +390,21 @@
     return course;
   }
 
+  /* A throw in the build used to take the whole lab with it: no panel update,
+     no message, nothing on screen to say what happened — which reads exactly
+     like the page failing to load. Whatever goes wrong now ends up in the red
+     strip with its message intact. */
+  function slBuild(){
+    try { return slBuildCourse(); }
+    catch(e){
+      console.log('slalom build failed', e);
+      run.fail = 'build failed: ' + (e && e.message ? e.message : e);
+      scene.route.hazards = (scene.route.hazards || []).filter(h => !h.slRole);
+      run.cones = []; run.gates = [];
+      return null;
+    }
+  }
+
   function slResetRun(){
     document.getElementById('slCard')?.remove();
     /* State reset happens BEFORE the course build, unconditionally. It used to
@@ -386,7 +416,7 @@
     scene.hopAnim = null; scene.hopYaw = 0; scene.hopKick = 0;
     slQuietOpening();
     run.done = false;
-    run.course = slBuildCourse();
+    run.course = slBuild();
     /* knock-watch covers chute cones too; gate-only counts read slRole */
     run.cones  = scene.route.hazards.filter(h => h.slRole);
     run.gates  = scene.route.hazards.filter(h => h.slRole === 'gate');
@@ -395,8 +425,8 @@
     run.elapsed = 0; run.pen = 0; run.cleared = 0; run.faults = [];
     if (!run.course){ run.phase = 'idle'; return; }
     run.fail = '';
-    run.msg = `${run.course.nLines} legs, ${run.course.nGates} gates  —  ` +
-              `red: pass above, blue: pass below`;
+    run.msg = `${run.course.nLines} legs · ${run.course.nGates} gates · ` +
+              `${run.course.nChute} chute · ${run.course.nGates + run.course.nChute} cones`;
     run.msgT = performance.now();
 
     /* Start on rowA — the row the FIRST gate does not want. Starting on the
