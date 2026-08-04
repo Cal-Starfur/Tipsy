@@ -504,15 +504,29 @@
       plantChute(a, b);
     }
 
-    /* World position of every coned junction, for the traffic hold. Taken from
-       posAt at the span midpoint — the route's own sampler — rather than from
-       the crossing's stored node, so it is right for turn crossings too. */
+    /* WHERE THE CONES ARE, NOT WHERE THE ROAD CROSSES.
+       This used to be posAt(midpoint) — a point on our own road's CENTRELINE.
+       The cones are not there: they sit out on the walk band at
+       laneOffset(RAMP_ROW), roughly ROAD_HALF + 1.5*T2 to the side. So cars
+       were stopping 1.3*T2 short of the junction centre, which is well past the
+       cone line — they drove over the cones and then halted on top of them.
+
+       The node is now built with the SAME expression the cones were placed
+       with, so the stop line cannot drift away from the thing it is protecting.
+       Sampled at both ends of the span as well as the middle: a car crossing at
+       an angle can slip between two widely spaced points. */
+    const conePos = (at) => {
+      const p = scene.posAt(at), h = scene.headingAt(at), off = offOf(RAMP_ROW);
+      return { x: p.x + (-Math.sin(h)) * off, y: p.y + Math.cos(h) * off };
+    };
     course.coneNodes = [];
-    for (const M of ch.arcs)
-      course.coneNodes.push(scene.posAt((M.s0 + M.s1) * 0.5));
+    const addSpan = (a, b) => {
+      for (const u of [0, 0.5, 1]) course.coneNodes.push(conePos(a + (b - a) * u));
+    };
+    for (const M of ch.arcs) addSpan(M.s0, M.s1);
     for (const [a, b] of blocked){
       if (b < course.spawnS) continue;
-      course.coneNodes.push(scene.posAt((a + b) * 0.5));
+      addSpan(a, b);
     }
 
     course.startRow = RAMP_ROW;
@@ -851,6 +865,10 @@
       for (const nd of nodes){
         const dx = nd.x - wp.x, dy = nd.y - wp.y;
         const along = dx * dv.x + dy * dv.y;         // + means the node is ahead
+        /* Only cars still SHORT of the cone line are held. A car already on or
+           past it is let go — holding it would park it on top of the cones
+           forever, which is worse than the thing being fixed and is how a
+           blocked junction turns into a permanent roadblock. */
         if (along < STOP_LINE || along > STOP_R) continue;
         if (Math.abs(dx * rv.x + dy * rv.y) > STOP_LAT) continue;
         tr.hold = (tr.hold || 0) + hDt; tr.holdFrame = t;
