@@ -408,8 +408,22 @@
        course is on the walk, and an empty street would read as a dead city. */
     const from = course.spawnS - T2 * 2, to = course.finishS + T2 * 2;
     const inRange = v => v >= from && v <= to;
+
+    /* STRUCTURE IS NOT CLUTTER.
+       The curb ramps are HAZARDS, not props — hazards.push({type:"sidewalkend"})
+       — so clearing every hazard in range deleted the ramp ART while the ramp
+       PHYSICS carried on, because that comes from route.crossings, which this
+       never touches. The wheels climbed a ramp that was not drawn.
+
+       It also broke buildWorldCurbRamps, which filters these same hazards to
+       build the world-space ramp geometry.
+
+       So the clear takes obstacles, not ground structure. Anything in this set
+       is part of how the street is BUILT and stays, wherever it falls. */
+    const STRUCTURE = { sidewalkend:1, sidewalkbegin:1, sidewalkbeginTurn:1, grade:1 };
     const before = scene.route.hazards.length + (scene.route.props || []).length;
-    scene.route.hazards = scene.route.hazards.filter(h => h.slRole || !inRange(h.s));
+    scene.route.hazards = scene.route.hazards.filter(h =>
+      h.slRole || STRUCTURE[h.type] || !inRange(h.s));
     scene.route.props   = (scene.route.props || []).filter(pr => !inRange(pr.s));
     if (scene.route.crime && inRange(scene.route.crime.s)) scene.route.crime = null;
     course.cleared = before - (scene.route.hazards.length + scene.route.props.length);
