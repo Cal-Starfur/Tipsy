@@ -391,6 +391,7 @@
        to drive. */
     scene.state = 'play'; scene.tipT = 0; scene.damage = 0;
     scene.hopAnim = null; scene.hopYaw = 0; scene.hopKick = 0;
+    slQuietOpening();
     run.done = false;
     run.course = slBuildCourse();
     /* knock-watch covers chute cones too; gate-only counts read slRole */
@@ -602,6 +603,10 @@
     scene.camY = scene.botY + Math.sin(hdg) * 95;
   }
   const onPre  = () => {
+    /* pickupWalk is rewritten by the timeline every frame, so it is held down
+       every frame rather than once at reset — cheap, and it means a stray
+       re-entry into the loading beat can never drag the camera off again. */
+    scene.pickupWalk = 0;
     if (run.phase === 'count'){ scene.throttle = 0; scene.speed = 0; slPinCam(); }
   };
   const onPost = () => { try { slJudge(); } catch(e){ console.log('slJudge', e); } };
@@ -835,6 +840,34 @@
     return bestSoFar;   // a straight, if that is all the city offered
   }
 
+  /* =========================================================================
+     NO DELIVERY OPENING
+     -------------------------------------------------------------------------
+     The camera was not confused, it was obeying orders. In delivery mode the
+     pickup timeline pins this.pickupWalk to 1 for the whole loading beat, and
+     the camera branch fires on pickupWalk > 0.75 — so it blends its target
+     across door + bot + worker + the worker's raised hand and sits on the shop
+     doorway while the slalom countdown plays out somewhere else entirely.
+
+     loadRoute's challenge branch already solves this by nulling the three route
+     pickup fields, and the timeline comment is explicit that challenge mode
+     SKIPS the pickup rather than fast-forwarding it, "because every downstream
+     effect keys off these same flags".
+
+     Deliberately NOT setting mode = "challenge" to get it. That flag also arms
+     hjUpdateMeter, hjSlabZ, hjOwnsTip and the hydrant draw paths, none of which
+     have a route.challenge behind them here. Take the three fields, not the
+     mode: with pickupSpot/pickupBlock null the shop door never draws, so
+     pickupDoorDV (assigned inside that draw, every frame) stays null, and the
+     camera branch requires it. The worker has nothing to stand on either. */
+  function slQuietOpening(){
+    const r = scene.route;
+    r.pickupSpot = null; r.pickupShopName = null; r.pickupBlock = null;
+    scene.pickupDoorDV = null; scene.pickupDoorRV = null;
+    scene.pickupWalk = 0; scene.walkAt = null;
+    scene.loadDone = true; scene.bagOnBoard = true; scene.doorSwing = 0;
+  }
+
   function slArm(){
     run.fail = ''; run.msg = 'searching for a downhill corridor…';
     run.msgT = performance.now();
@@ -846,6 +879,7 @@
     }
     SEED = hit.dateStr;
     scene.loadRoute(SEED, { hoodIndex: HOOD_BLUFFS });
+    slQuietOpening();
     setTimeout(() => {
       syncUI(); slResetRun();
       console.log(`cone slalom armed — SL_SEED_DATE = "${SEED}" (${hit.kind})`, portLine());
