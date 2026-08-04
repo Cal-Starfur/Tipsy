@@ -137,6 +137,7 @@
   const run = {
     course: null, cones: [], started: false, done: false,
     t0: 0, elapsed: 0, pen: 0, cleared: 0, faults: [], msg: '', msgT: 0,
+    phase: 'idle', countT0: 0, gates: [],
   };
 
   /* =========================================================================
@@ -377,8 +378,9 @@
     run.cones  = scene.route.hazards.filter(h => h.slRole);
     run.gates  = scene.route.hazards.filter(h => h.slRole === 'gate');
     run.started = false; run.done = false;
+    run.phase = 'count'; run.countT0 = performance.now();
     run.elapsed = 0; run.pen = 0; run.cleared = 0; run.faults = [];
-    if (!run.course) return;
+    if (!run.course){ run.phase = 'idle'; return; }
     run.fail = '';
     run.msg = (run.course.straight ? 'straight (no turn available)  ' : '') +
               `f=${run.course.fA}\u2192f=${run.course.fB}  ` +
@@ -417,10 +419,8 @@
     const s = scene.botS;
     if (scene.state !== 'play'){ prevS = s; return; }
 
-    if (!run.started && prevS < c.lineS && s >= c.lineS){
-      run.started = true; run.t0 = performance.now();
-      run.msg = 'GO'; run.msgT = performance.now();
-    }
+    /* clock is owned by the countdown now, not by crossing an invisible line */
+    if (run.phase === 'count'){ prevS = s; return; }
     if (run.started && !run.done) run.elapsed = (performance.now() - run.t0) / 1000;
 
     /* Knocks. The cone's own integrator owns pose/phi/moving; this only reads
@@ -549,9 +549,36 @@
     document.getElementById('slClose').onclick = () => card.remove();
   }
 
+  /* ============ 3 - 2 - 1 - GO ============
+     "Roll to the line" was not a start, it was the absence of one: the clock
+     began at an invisible s value while you were already moving, so a run had
+     no moment of beginning any more than it had a moment of ending.
+
+     The robot is HELD at the spawn during the count, and holding him needs a
+     PRE-update hook. Throttle and speed are integrated inside update(), so
+     zeroing them afterwards would still let him creep one frame's worth every
+     frame. Zero the input before the sim reads it and he does not move at all. */
+  const COUNT_MS = 3000;
+
+  function slCountdown(){
+    if (run.phase !== 'count') return null;
+    const left = COUNT_MS - (performance.now() - run.countT0);
+    if (left <= 0){
+      run.phase = 'live'; run.started = true; run.t0 = performance.now();
+      return null;
+    }
+    return Math.ceil(left / 1000);
+  }
+
+  const onPre  = () => { if (run.phase === 'count'){ scene.throttle = 0; scene.speed = 0; } };
   const onPost = () => { try { slJudge(); } catch(e){ console.log('slJudge', e); } };
+  scene.events.on('preupdate',  onPre);
   scene.events.on('postupdate', onPost);
-  scene._slRestore = () => { scene.events.off('postupdate', onPost); delete scene._slRestore; };
+  scene._slRestore = () => {
+    scene.events.off('preupdate',  onPre);
+    scene.events.off('postupdate', onPost);
+    delete scene._slRestore;
+  };
 
   /* =========================================================================
      PANEL — phone first
@@ -679,12 +706,36 @@
   };
   $('slOff').onclick = () => {
     document.getElementById('slCard')?.remove();
+    count.remove();
     scene._slRestore && scene._slRestore();
     clearInterval(tick);
     panel.remove();
   };
 
+  const count = document.createElement('div');
+  count.id = 'slCount';
+  count.style.cssText = [
+    'position:fixed','left:0','right:0','top:38%','z-index:99998',
+    'text-align:center','pointer-events:none',
+    'font:800 84px/1 ui-monospace,SFMono-Regular,Menlo,monospace',
+    'color:#ff7a1a','text-shadow:0 3px 18px rgba(0,0,0,0.75)','display:none',
+  ].join(';');
+  document.body.appendChild(count);
+
+  let goShownAt = 0;
   const tick = setInterval(() => {
+    const n = slCountdown();
+    if (n !== null){
+      count.style.display = 'block'; count.style.color = '#ff7a1a';
+      count.textContent = String(n); goShownAt = 0;
+    } else if (run.phase === 'live' && !goShownAt){
+      goShownAt = performance.now();
+      count.style.display = 'block'; count.style.color = '#7fe08a';
+      count.textContent = 'GO';
+    } else if (run.phase !== 'live' || performance.now() - goShownAt > 700){
+      count.style.display = 'none';
+    }
+
     const total = run.elapsed + run.pen, clk = $('slClock');
     if (clk){
       clk.style.color = run.done ? (total <= SL.par ? '#7fe08a' : '#ff6b6b') : '#e8eaef';
@@ -701,6 +752,7 @@
         : 'leg 2';
       if (run.fail){ m.textContent = run.fail; m.style.color = '#ff6b6b'; return; }
       m.style.color = '#ffb04d';
+      if (run.phase === 'count'){ m.textContent = 'hold — starting'; return; }
       m.textContent = (performance.now() - run.msgT < 2200) ? run.msg
         : `${where}   row ${scene.botRow}   v ${scene.speed.toFixed(3)}` +
           `   left ${run.cones.filter(c2 => !c2.slJudged).length}`;
