@@ -611,6 +611,25 @@
     if (performance.now() - run.countT0 >= COUNT_MS){
       run.phase = 'live'; run.started = true; run.t0 = performance.now();
       prevS = scene.botS;
+
+      /* LAUNCH ON A HELD THUMB, WHEREVER IT IS.
+         bindInput reads the pointer's screen half: right is gas, LEFT IS BRAKE.
+         During a countdown the thumb rests wherever it rests, so a player
+         holding the left half got throttle -1 at GO and sat there braking until
+         they moved it — a few seconds of "he won't go" with no signal as to
+         why. Same shape as the earlier bug where zeroing throttle each frame
+         threw the held press away: the input model assumes an event will
+         arrive, and during a hold none does.
+
+         A held press through a countdown means GO. On this course there is
+         nothing to brake for on the start line. */
+      if (scene.input.activePointer.isDown) scene.throttle = 1;
+
+      /* runT is the delivery clock, and at runT > parMs + CANCEL_GRACE_MS the
+         order cancels: state goes "canceled", input dies. A lab session sitting
+         on one route for a few minutes would trip it mid-run for no visible
+         reason. Reset it with the run. */
+      scene.runT = 0;
     }
   };
   const onPost = () => { try { slJudge(); } catch(e){ console.log('slJudge', e); } };
@@ -796,9 +815,13 @@
       if (run.fail){ m.textContent = run.fail; m.style.color = '#ff6b6b'; return; }
       m.style.color = '#ffb04d';
       if (run.phase === 'count'){ m.textContent = 'hold — starting'; return; }
+      /* thr and state are here because "he won't go" has had three different
+         causes now, and each time the screen showed nothing that distinguished
+         them. thr -1 is braking, thr 0 is no input reaching the sim. */
       m.textContent = (performance.now() - run.msgT < 2200) ? run.msg
-        : `${where}   row ${scene.botRow}   v ${scene.speed.toFixed(3)}` +
-          `   left ${run.cones.filter(c2 => !c2.slJudged).length}`;
+        : `${where}  row ${scene.botRow}  v ${scene.speed.toFixed(3)}` +
+          `  thr ${scene.throttle}  ${scene.state}` +
+          `  left ${run.gates.filter(c2 => !c2.slJudged).length}`;
     }
   }, 100);
 
