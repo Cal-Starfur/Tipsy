@@ -301,14 +301,11 @@
       fA: cor.a.f, fB: straight ? cor.a.f : cor.b.f,
     };
 
-    /* Clear the WHOLE corridor, arc included, every row. Same reasoning
-       hjBuildCourse gives for the hydrant lane: you would weave twenty-four
-       cones clean and then land on a crack. */
-    const from = course.spawnS - T2, to = course.finishS + T2;
-    scene.route.hazards = scene.route.hazards.filter(h =>
-      !h.slRole && !(h.s >= from && h.s <= to));
-    scene.route.props = (scene.route.props || []).filter(pr =>
-      !(pr.s >= from && pr.s <= to));
+    /* Corridor clearing moved BELOW the planting — it used to run here, against
+       course.finishS, which is now computed from the planted gates and was
+       still 0 at this point. The clear range was therefore [spawn, 0] and
+       nothing was ever removed. A silent no-op: the course looked cluttered and
+       the code read as though it had been cleaned. */
 
     /* Cone hazard objects mirror the generator's own cone branch field for
        field (phi/phase/angVel/moving/pose/slide/slideVel), so the existing
@@ -393,9 +390,27 @@
       course.chuteLane = lane;
     }
     course.nGates = k;
-    course.finishS = Math.round(
+    course.finishS0 = Math.round(
       (scene.route.hazards.filter(h => h.slRole === 'gate')
         .reduce((m, h) => Math.max(m, h.s), 0)) + SL.tail * T2);
+    course.finishS = course.finishS0;
+
+    /* ============ A SPECIALITY COURSE IS EMPTY ============
+       This is a speed-and-agility run, so everything that is not a cone comes
+       out of the corridor: cracks, slabs, ramps, palms, benches, racks, the lot.
+       Same reasoning hjBuildCourse gives for the hydrant lane — you would weave
+       thirty gates clean and then land on a crack you never chose to take.
+
+       Runs AFTER planting, and preserves anything carrying slRole, so it cannot
+       eat its own gates. Traffic is left alone: the cars are on the road, the
+       course is on the walk, and an empty street would read as a dead city. */
+    const from = course.spawnS - T2 * 2, to = course.finishS + T2 * 2;
+    const inRange = v => v >= from && v <= to;
+    const before = scene.route.hazards.length + (scene.route.props || []).length;
+    scene.route.hazards = scene.route.hazards.filter(h => h.slRole || !inRange(h.s));
+    scene.route.props   = (scene.route.props || []).filter(pr => !inRange(pr.s));
+    if (scene.route.crime && inRange(scene.route.crime.s)) scene.route.crime = null;
+    course.cleared = before - (scene.route.hazards.length + scene.route.props.length);
 
     return course;
   }
@@ -598,14 +613,10 @@
      frame. Zero the input before the sim reads it and he does not move at all. */
   const COUNT_MS = 3000;
 
+  /* read-only now — the phase flip lives in onPre, on the frame clock */
   function slCountdown(){
     if (run.phase !== 'count') return null;
-    const left = COUNT_MS - (performance.now() - run.countT0);
-    if (left <= 0){
-      run.phase = 'live'; run.started = true; run.t0 = performance.now();
-      return null;
-    }
-    return Math.ceil(left / 1000);
+    return Math.max(1, Math.ceil((COUNT_MS - (performance.now() - run.countT0)) / 1000));
   }
 
   /* The camera eases at Linear(camX, target, 0.08) per frame, which over
@@ -625,7 +636,29 @@
        every frame rather than once at reset — cheap, and it means a stray
        re-entry into the loading beat can never drag the camera off again. */
     scene.pickupWalk = 0;
-    if (run.phase === 'count'){ scene.throttle = 0; scene.speed = 0; slPinCam(); }
+    /* runT drives the 1400ms lid-and-bag loading beat. Jump past it so the
+       course never opens with a delivery animation it has no delivery for. */
+    if (scene.runT < LOAD_ART.ms + 1) scene.runT = LOAD_ART.ms + 1;
+
+    if (run.phase !== 'count') return;
+
+    /* THE HOLD IS BY POSITION, NOT BY ZEROING THROTTLE.
+       bindInput sets this.throttle on pointer EVENTS only. Holding the screen
+       through the countdown fires no pointerdown at GO, so zeroing throttle
+       each frame threw the held input away and the robot sat there until you
+       lifted and pressed again — read on-device as "he can't get to full speed
+       right away". Pinning botS and speed instead holds him just as still while
+       leaving his finger's input intact, so he launches on the GO frame. */
+    scene.speed = 0;
+    if (run.course) scene.botS = run.course.spawnS;
+    slPinCam();
+
+    /* Flip the phase HERE rather than from the 100ms panel tick, so the release
+       is frame-accurate instead of up to a tenth of a second late. */
+    if (performance.now() - run.countT0 >= COUNT_MS){
+      run.phase = 'live'; run.started = true; run.t0 = performance.now();
+      prevS = scene.botS;
+    }
   };
   const onPost = () => { try { slJudge(); } catch(e){ console.log('slJudge', e); } };
   scene.events.on('preupdate',  onPre);
