@@ -93,8 +93,8 @@
     gap:  1.50,   // TIGHTEST along-route spacing between cones, in T2
     vary: 0.55,   // how far above gap the spacing opens up (0 = uniform)
     trafficWaits: 1,   // cars queue at coned junctions instead of driving through
-    rowA: 1,      // even cones sit here
-    rowB: 2,      // odd cones sit here
+    rowA: 0,      // low edge of the sidewalk band the course uses
+    rowB: 3,      // high edge — 0..3 is the whole walk
     lead: 4.0,    // run-up before the first cone, in T2
     turn: 2.5,    // clearance either side of the arc — no cones on the turn
     tail: 2.0,    // run-out after the last cone, in T2
@@ -295,11 +295,43 @@
     /* Alternation runs on ONE counter for the whole chain, so the weave never
        repeats a side at a handoff and the colours stay honest across every
        turn, not just the first. */
+    /* ============ THE WHOLE BAND, NOT TWO LANES ============
+       With two rows, "pass on the side the OTHER row is on" is well defined
+       because there is only one other row. With four it is not, so the rule
+       generalises: each cone must be passed on the side of the NEXT gate. The
+       row sequence becomes a path, and every cone is an obstacle sitting on the
+       line you are leaving — which is what a slalom actually is.
+
+       Row choice is a seeded random walk across [rowLo, rowHi], weighted 1/|d|
+       so single-row moves stay common and a three-row lunge is rare. Same row
+       twice running is excluded: a gate you can take without moving is not a
+       gate.
+
+       SPACING IS COUPLED TO THE MOVE. A hop crosses one row in 480ms, so a
+       two-row change needs two hops and about twice the road. Uncoupled, wide
+       moves at tight spacing would be unanswerable in exactly the way the
+       mid-arc gates were — physically impossible rather than hard. Each gate's
+       interval is therefore scaled by its own row delta. */
+    const rowLo = Math.min(SL.rowA, SL.rowB), rowHi = Math.max(SL.rowA, SL.rowB);
+    const pickRow = (tag, cur) => {
+      const opts = [];
+      for (let x = rowLo; x <= rowHi; x++) if (x !== cur) opts.push(x);
+      if (!opts.length) return cur;
+      const w = opts.map(x => 1 / Math.abs(x - cur));
+      const total = w.reduce((a, b) => a + b, 0);
+      let r = hash01(seedStr + ':row:' + tag) * total;
+      for (let i = 0; i < opts.length; i++){ r -= w[i]; if (r <= 0) return opts[i]; }
+      return opts[opts.length - 1];
+    };
+
     let k = 0;
-    const plantAt = (at) => {
-      const row   = (k % 2 === 0) ? SL.rowA : SL.rowB;
-      const other = (k % 2 === 0) ? SL.rowB : SL.rowA;
-      const want  = Math.sign(other - row);
+    let curRow = RAMP_ROW;          // start on the ramp row, where the spawn sits
+    let lastDelta = 1;
+    const plantAt = (at, nextRow) => {
+      const row  = curRow;
+      const want = Math.sign(nextRow - row) || 1;
+      lastDelta  = Math.max(1, Math.abs(nextRow - row));
+      curRow = nextRow;
       const screenWant = want * (rowPlusDownAt(at) ? 1 : -1);
       scene.route.hazards.push({
         type:'cone', s: Math.round(at), row, f:0, hit:false,
@@ -393,17 +425,16 @@
            gets the same breathing room a turn does, on both sides. */
         const span = blocked.find(([a, b]) => at >= a - SL.turn * T2 && at <= b);
         if (span){
-          /* Leave the crossing approach on the ramp row. plantAt alternates
-             rows 1 and 2 and sends the player to the far side of each, so the
-             gate before a span decides which lane he arrives in. Setting the
-             counter even means the last gate is on rowA and pushes him toward
-             the ramp side rather than out to row 3, which is the one row the
-             ramp does not cover. */
-          if (k % 2 !== 0) k++;
+          /* Hand the player to the ramp row before the crossing and resume from
+             it after. The ramp spans rows 0-2 only, so arriving on row 3 puts
+             him off the side of it — and the chute walls at 0 and 2 would then
+             sit somewhere he is not. */
+          curRow = RAMP_ROW;
           at = span[1] + SL.turn * T2; n = 0; continue;
         }
-        plantAt(at);
-        at += stepFor(i, n);
+        const nextRow = pickRow(i + ':' + n, curRow);
+        plantAt(at, nextRow);
+        at += stepFor(i, n) * (1 + (lastDelta - 1) * 0.75);
       }
     });
 
@@ -481,6 +512,7 @@
       course.coneNodes.push(scene.posAt((a + b) * 0.5));
     }
 
+    course.startRow = RAMP_ROW;
     course.nGates = k;
     course.nChute = chuteN;
     course.finishS = Math.round(gatesNow().reduce((m, h) => Math.max(m, h.s), 0)
@@ -550,10 +582,12 @@
               `${run.course.nChute} chute · ${run.course.nGates + run.course.nChute} cones`;
     run.msgT = performance.now();
 
-    /* Start on rowA — the row the FIRST gate does not want. Starting on the
-       clear side would make gate one free, and a slalom whose opening gate is
-       free teaches the wrong first move. */
-    scene.botRow = SL.rowA;
+    /* Start on the row the course was BUILT from. The first gate's required
+       side is computed against this row, so spawning anywhere else makes gate
+       one either free or impossible. It is the ramp row for the same reason the
+       chute is: rowA is now the low edge of the band, not a lane. */
+    scene.botRow = (run.course && run.course.startRow !== undefined)
+      ? run.course.startRow : 1;
     scene.laneOff = offOf(scene.botRow);
     scene.botS = run.course.spawnS;
     scene.speed = 0; scene.tilt = 0; scene.roll = 0;
@@ -846,8 +880,8 @@
     { key:'legs', label:'legs',  min:2,   max:20,  step:1    },
     { key:'gap',  label:'gap',   min:1.4, max:4.0, step:0.05 },
     { key:'vary', label:'vary',  min:0,   max:1.2, step:0.05 },
-    { key:'rowA', label:'row A', min:0,   max:3,   step:1    },
-    { key:'rowB', label:'row B', min:0,   max:3,   step:1    },
+    { key:'rowA', label:'row lo',min:0,   max:3,   step:1    },
+    { key:'rowB', label:'row hi',min:0,   max:3,   step:1    },
     { key:'lead', label:'lead',  min:2,   max:12,  step:0.5  },
     { key:'turn', label:'turn',  min:1.5, max:8,   step:0.5  },
     { key:'tail', label:'tail',  min:1,   max:8,   step:0.5  },
