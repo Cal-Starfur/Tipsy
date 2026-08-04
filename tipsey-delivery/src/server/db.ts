@@ -41,21 +41,30 @@ function decodeScore(score: number): {tipCents: number; ms: number} {
   return {tipCents, ms}
 }
 
-/** All-time count of deliveries started, across every player and every
- *  day. A plain counter, not a per-user or per-day key: the splash
- *  shows one number and nothing else reads this. Deliberately never
- *  expires (unlike the daily boards) -- it's a lifetime total. */
-const PLAYS_KEY = 'tipsy:global:plays'
-
-/** Increments and returns the new total. INCRBY is atomic, so parallel
- *  starts can't lose a count to a read-modify-write race. */
-export async function dbIncrPlays(): Promise<number> {
-  return redis.incrBy(PLAYS_KEY, 1)
+/** Count of deliveries started on ONE date, across every player. Per-day
+ *  rather than lifetime: the splash sits beside today's route and
+ *  today's leaderboard, so a lifetime number would be the only thing on
+ *  the card not talking about today. Carries the same TTL as the daily
+ *  boards, so an old day's tally ages out with the board it belongs to. */
+function playsKey(dateStr: string): string {
+  return `tipsy:global:plays:${dateStr}`
 }
 
-/** 0 before anyone has ever pressed GO (key absent). */
-export async function dbGetPlays(): Promise<number> {
-  const raw = await redis.get(PLAYS_KEY)
+/** Increments and returns the new count for that date. INCRBY is atomic,
+ *  so parallel starts can't lose a count to a read-modify-write race.
+ *  The TTL is refreshed on every increment, matching how dbSubmitScore
+ *  keeps the daily board alive -- cheap, and it means a date's counter
+ *  can never outlive or predecease its leaderboard. */
+export async function dbIncrPlays(dateStr: string): Promise<number> {
+  const key = playsKey(dateStr)
+  const n = await redis.incrBy(key, 1)
+  await redis.expire(key, DAILY_TTL_SECONDS)
+  return n
+}
+
+/** 0 before anyone has pressed GO on that date (key absent). */
+export async function dbGetPlays(dateStr: string): Promise<number> {
+  const raw = await redis.get(playsKey(dateStr))
   const n = raw ? Number(raw) : 0
   return Number.isFinite(n) ? n : 0
 }
