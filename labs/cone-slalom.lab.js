@@ -841,6 +841,23 @@
      takes hoodIndex, the same door the hydrant challenge uses. The route
      rebuild is async in effect (it re-runs generateRoute and resets the scene),
      so the course is built on the NEXT tick, not inline. */
+  /* NO DELIVERY OPENING.
+     mode = "challenge" is the switch the game itself uses: its pickup timeline
+     skips wholesale in that mode rather than fast-forwarding, "because every
+     downstream effect (lid hinge, shop door, worker walk-back, cargo spill)
+     keys off these same flags", and the camera's pickup branch is gated on
+     `mode !== "challenge"` — not on pickupWalk, which challenge mode sets to 1
+     itself. Safe without a hydrant course behind it: every hj path either tests
+     route.challenge (null here) or finds no kicker hazards. It also hides the
+     GPS HUD, which is delivery chrome a lab has no use for. */
+  function slQuietOpening(){
+    scene.mode = 'challenge';
+    const r = scene.route;
+    r.pickupSpot = null; r.pickupShopName = null; r.pickupBlock = null;
+    scene.pickupDoorDV = null; scene.pickupDoorRV = null;
+    scene.walkAt = null; scene.doorSwing = 0;
+  }
+
   /* No seed seek. With the heading filter gone there is no shape to hunt for —
      every route already has ten legs — so the lab uses the route the bench
      loaded. The 160-city search that froze the tab last time existed only to
@@ -861,6 +878,16 @@
   }
 
   let SEED = null;
-  setTimeout(slArm, 0);   // let the panel paint before the seek blocks the thread
+  /* A throw inside a bare setTimeout callback goes nowhere the panel can show
+     it: the lab looks armed, the strip shows an empty course, and there is no
+     message anywhere. That is exactly how a deleted function definition hid
+     itself. Arm failures now land in the red strip. */
+  setTimeout(() => {
+    try { slArm(); }
+    catch(e){
+      console.log('slalom arm failed', e);
+      run.fail = 'arm failed: ' + (e && e.message ? e.message : e);
+    }
+  }, 0);
   console.log('cone slalom arming —', portLine());
 })();
