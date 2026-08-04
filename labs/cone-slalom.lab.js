@@ -576,8 +576,13 @@
       const hyd = [kk.s + 2.0 * T2, kk.s + 3.1 * T2];
       for (const hs of hyd)
         scene.route.hazards.push({
+          /* facingAt is a LOCAL inside generateRoute, not a global — and a
+             `facingAt ? ... : 0` guard does not save you, because referencing
+             an undeclared identifier throws before the ternary is evaluated.
+             The facing is just the quantized heading, computed above for the
+             ramp; the hydrant shares it. */
           type:'hydrant', hjRole:'hydrant', s: Math.round(hs), row: kRow,
-          f: facingAt ? facingAt(hs) : 0, burst:false, hit:true, slRole:'jump',
+          f, burst:false, hit:true, slRole:'jump',
         });
       /* CHEVRONS out of the chute cones. A V of white cones narrowing into the
          lip reads as a ramp marking at speed and costs no new renderer — the
