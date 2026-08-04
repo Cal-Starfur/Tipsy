@@ -18,13 +18,17 @@ export type LeaderboardEntry = {
  *  UTC date, not a client-supplied one (see game/index.html's tipsyBridge
  *  comment). viewerUsername is the requesting Reddit user, not the record
  *  holder — null if it couldn't be resolved (e.g. logged-out preview
- *  render). top is tip-ranked, descending; empty if nobody's played yet. */
+ *  render). top is tip-ranked, descending; empty if nobody's played yet.
+ *  plays is the all-time count of deliveries STARTED across every
+ *  player and every day (see db.ts PLAYS_KEY) -- not completions, and
+ *  not scoped to today. */
 export type GetDailyBestRsp = {
   dateStr: string
   best: DailyBest
   viewerUsername: string | null
   top: LeaderboardEntry[]
   allTime: {best: DailyBest; top: LeaderboardEntry[]}
+  plays: number
 }
 /** A completed run's tip/time, to be checked against the current best. */
 export type SubmitDailyBestReq = {tip: number; ms: number}
@@ -87,6 +91,31 @@ export type EquipSkinRsp = {equipped: string}
  *  tpcatalog.ts for why hydrant-hop/slalom-master aren't claimable yet. */
 export type ClaimTrophyRewardReq = {trophyId: string}
 export type ClaimTrophyRewardRsp = {owned: string[]; skinId: string}
+/** Fired once per delivery STARTED (GO / Retry / Again in
+ *  game/index.html) -- deliberately not once per completion, since the
+ *  splash counter is meant to read "how many times has this been
+ *  played". No body: the count is global, and the server has nothing
+ *  to verify a client-supplied number against anyway. */
+export type CountPlayRsp = {plays: number}
+/** A failed run, reported so the app account can comment on the post.
+ *  cause is an ID from a fixed set the SERVER owns the copy for (see
+ *  server.ts FAIL_CAUSE_COPY) -- the client never supplies prose for
+ *  it. address/hood ARE client strings (only the client knows the
+ *  generated route) and are sanitized + truncated server-side before
+ *  they reach a comment body. pct is 0-100 progress from pickup to
+ *  door; tip is the order's dollar value that was on the line. */
+export type SubmitFailReq = {
+  cause: string
+  address: string
+  hood: string
+  pct: number
+  tip: number
+  ms: number
+  damage: number
+}
+/** posted:false is the normal, uninteresting outcome for a logged-out
+ *  viewer or a run outside a post context -- not an error. */
+export type SubmitFailRsp = {posted: boolean}
 export type Endpoint = (typeof Endpoint)[keyof typeof Endpoint]
 export const Endpoint = {
   GetDailyBest: 'api/tipsy/best',
@@ -97,6 +126,8 @@ export const Endpoint = {
   PurchaseSkin: 'api/tipsy/profile/purchase',
   EquipSkin: 'api/tipsy/profile/equip',
   ClaimTrophyReward: 'api/tipsy/profile/claim',
+  CountPlay: 'api/tipsy/play',
+  SubmitFail: 'api/tipsy/fail',
   OnAppInstall: 'internal/on/app/install',
   OnMenuNewPost: 'internal/on/menu/new-post',
   OnAccountDelete: 'internal/on/account/delete',
@@ -112,6 +143,8 @@ export const EndpointMethod = {
   [Endpoint.PurchaseSkin]: 'POST',
   [Endpoint.EquipSkin]: 'POST',
   [Endpoint.ClaimTrophyReward]: 'POST',
+  [Endpoint.CountPlay]: 'POST',
+  [Endpoint.SubmitFail]: 'POST',
   [Endpoint.OnAppInstall]: 'POST',
   [Endpoint.OnMenuNewPost]: 'POST',
   [Endpoint.OnAccountDelete]: 'POST',
