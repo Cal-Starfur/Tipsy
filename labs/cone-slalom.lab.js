@@ -88,12 +88,12 @@
   /* ---------- tunables — every one of these is a chip ---------- */
   const SL = {
     n:    64,     // CAP on gates; the course fills the corridor up to this
-    gap:  2.10,   // along-route spacing between cones, in T2
+    gap:  1.60,   // along-route spacing between cones, in T2
     rowA: 1,      // even cones sit here
     rowB: 2,      // odd cones sit here
-    lead: 6.0,    // run-up before the first cone, in T2
-    turn: 3.0,    // clearance either side of the arc — no cones on the turn
-    tail: 3.0,    // run-out after the last cone, in T2
+    lead: 4.0,    // run-up before the first cone, in T2
+    turn: 2.5,    // clearance either side of the arc — no cones on the turn
+    tail: 2.0,    // run-out after the last cone, in T2
     pen:  2.0,    // seconds added per knocked cone / missed side
     par:  52.0,   // seconds to beat
   };
