@@ -615,6 +615,7 @@
       course.kickers.push({ s: kk.s, lip: lipS, hyd, row: kRow, catchS });
     }
 
+    slBuildFinish(course);
     course.startRow = RAMP_ROW;
     course.nGates = k;
     course.nChute = chuteN;
@@ -756,10 +757,22 @@
       }
     }
 
-    if (!run.done && prevS < c.finishS && s >= c.finishS){
-      run.done = true;
-      slShowCard();
+    /* Break the tape rather than pass an s value. segCross tests the robot's
+       actual travel segment this frame against the ribbon, so a fast finish
+       cannot tunnel through it between frames — which is the whole reason the
+       crime scene does it this way. */
+    if (!run.done && c.finishTape){
+      const p0 = { x: run.lastX !== undefined ? run.lastX : scene.botX,
+                   y: run.lastY !== undefined ? run.lastY : scene.botY };
+      const p1 = { x: scene.botX, y: scene.botY };
+      if (segCross(p0, p1, c.finishTape.a, c.finishTape.b)){
+        c.finishTape.broken = true;
+        c.finishTape.brokeAt = performance.now();
+        run.done = true;
+        slShowCard();
+      }
     }
+    run.lastX = scene.botX; run.lastY = scene.botY;
     /* Coast to a stop once the run is scored. This is the ONLY write this lab
        makes to the robot during play, and it happens strictly after the last
        gate is judged — a run that ends with the player still holding throttle
@@ -1021,6 +1034,75 @@
     }
   }
 
+  /* =========================================================================
+     FINISH LINE — the crime tape, restated
+     -------------------------------------------------------------------------
+     WHAT IS REUSED: segCross, verbatim. Its comment gives the reason it exists
+     and it is the same reason a finish line needs it — "the ribbon is a thin
+     line and the robot is fast enough to step clean over a box between frames;
+     testing the robot's previous-to-current travel segment against the span
+     cannot tunnel at any frame rate." A finish tested by s-position alone is a
+     box test wearing different clothes; this one cannot be skipped past.
+
+     WHAT IS NOT: drawTapeSpan indexes route.crime.tape[i] and reads the crime
+     scene's own break timers, so it cannot draw a ribbon that is not part of a
+     crime scene. The ribbon is drawn here instead, through BENCH.queue so it
+     depth-sorts against the world like anything else.
+
+     ONE span, not three. The crime cordon is a U — across the walk, along the
+     kerb, back across — because it seals an area. A finish line seals nothing;
+     it marks a moment, so it is the single cross-walk span and no more.
+
+     It hangs at TAPE.z and snaps on contact using TAPE.snapMs, so it reads as
+     the same object the city already uses.
+     ========================================================================= */
+  function slBuildFinish(course){
+    const at = (ss, off) => {
+      const p = scene.posAt(ss), h = scene.headingAt(ss);
+      return { x: p.x + (-Math.sin(h)) * off, y: p.y + Math.cos(h) * off };
+    };
+    const kerb = ROBOT_SIDE * (ROAD_HALF + TAPE.inset);
+    const bldg = ROBOT_SIDE * (ROAD_HALF + SIDEWALK_W - TAPE.inset);
+    course.finishTape = { a: at(course.finishS, bldg), b: at(course.finishS, kerb),
+                          broken: false, brokeAt: 0 };
+  }
+
+  function slDrawFinish(){
+    const c = run.course;
+    if (!c || !c.finishTape || typeof BENCH === 'undefined' || !BENCH.queue) return;
+    const T = c.finishTape;
+    const mx = (T.a.x + T.b.x) / 2, my = (T.a.y + T.b.y) / 2;
+    BENCH.queue(mx + my, (g) => {
+      /* snap: the ribbon drops and swings aside once broken, on TAPE.snapMs */
+      const k = T.broken
+        ? Phaser.Math.Clamp((performance.now() - T.brokeAt) / TAPE.snapMs, 0, 1) : 0;
+      const drop = k * TAPE.z * TAPE.hang;
+      const N = TAPE.segs;
+      for (let i = 0; i < N; i++){
+        const t0 = i / N, t1 = (i + 1) / N;
+        const px = (t) => T.a.x + (T.b.x - T.a.x) * t;
+        const py = (t) => T.a.y + (T.b.y - T.a.y) * t;
+        /* sag is a parabola across the span, plus the drop once it is cut */
+        const zf = (t) => TAPE.z - TAPE.sag * 4 * t * (1 - t) - drop * (T.broken ? (1 - Math.abs(0.5 - t) * 2) : 0);
+        const quad = [
+          scene.W(px(t0), py(t0), zf(t0) + TAPE.half),
+          scene.W(px(t1), py(t1), zf(t1) + TAPE.half),
+          scene.W(px(t1), py(t1), zf(t1) - TAPE.half),
+          scene.W(px(t0), py(t0), zf(t0) - TAPE.half),
+        ];
+        scene.quadOn(g, quad, i % 2 ? TAPE.band : TAPE.yellow, T.broken ? 0.75 : 1);
+      }
+      /* two stakes */
+      for (const P of [T.a, T.b]){
+        const post = [
+          scene.W(P.x - 2, P.y - 2, TAPE.z + 6), scene.W(P.x + 2, P.y + 2, TAPE.z + 6),
+          scene.W(P.x + 2, P.y + 2, 0),          scene.W(P.x - 2, P.y - 2, 0),
+        ];
+        scene.quadOn(g, post, TAPE.band);
+      }
+    });
+  }
+
   const onPre  = () => {
     /* pickupWalk is rewritten by the timeline every frame, so it is held down
        every frame rather than once at reset — cheap, and it means a stray
@@ -1116,6 +1198,7 @@
   const onPost = (time, delta) => {
     try { slJudge(); } catch(e){ console.log('slJudge', e); }
     try { slFlight(Math.min(delta, 34)); } catch(e){ console.log('slFlight', e); }
+    try { slDrawFinish(); } catch(e){ console.log('slDrawFinish', e); }
     try { slHoldTraffic(time, Math.min(delta, 34)); } catch(e){ console.log('slHoldTraffic', e); }
   };
   scene.events.on('preupdate',  onPre);
