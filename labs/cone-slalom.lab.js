@@ -620,12 +620,16 @@
       course.kickers.push({ s: kk.s, lip: lipS, hyd, row: kRow, catchS });
     }
 
-    slBuildFinish(course);
     course.startRow = RAMP_ROW;
     course.nGates = k;
     course.nChute = chuteN;
     course.finishS = Math.round(gatesNow().reduce((m, h) => Math.max(m, h.s), 0)
                                 + SL.tail * T2);
+    /* Built HERE, not earlier: the tape is placed at course.finishS, and
+       finishS is only known once the last gate is planted. Called before this
+       line it read undefined, posAt(undefined) returned NaN, and the ribbon was
+       built at nowhere — present in the data, invisible on screen. */
+    slBuildFinish(course);
 
     /* ============ A SPECIALITY COURSE IS EMPTY ============
        Speed-and-agility run: everything that is not a cone comes out of the
@@ -1072,9 +1076,14 @@
                           broken: false, brokeAt: 0 };
   }
 
+  /* Drawn from BENCH.hook, which fires DURING the frame, rather than from
+     postupdate. BENCH.queue pushes into scene.__benchVQ, and drawWorld drains
+     that list while it runs — so anything queued from postupdate has already
+     missed the pass that consumes it. */
   function slDrawFinish(){
     const c = run.course;
     if (!c || !c.finishTape || typeof BENCH === 'undefined' || !BENCH.queue) return;
+    if (!isFinite(c.finishTape.a.x)) return;
     const T = c.finishTape;
     const mx = (T.a.x + T.b.x) / 2, my = (T.a.y + T.b.y) / 2;
     BENCH.queue(mx + my, (g) => {
@@ -1203,7 +1212,7 @@
   const onPost = (time, delta) => {
     try { slJudge(); } catch(e){ console.log('slJudge', e); }
     try { slFlight(Math.min(delta, 34)); } catch(e){ console.log('slFlight', e); }
-    try { slDrawFinish(); } catch(e){ console.log('slDrawFinish', e); }
+
     try { slHoldTraffic(time, Math.min(delta, 34)); } catch(e){ console.log('slHoldTraffic', e); }
   };
   scene.events.on('preupdate',  onPre);
@@ -1450,6 +1459,9 @@
      it: the lab looks armed, the strip shows an empty course, and there is no
      message anywhere. That is exactly how a deleted function definition hid
      itself. Arm failures now land in the red strip. */
+  if (typeof BENCH !== 'undefined' && BENCH.hook)
+    BENCH.hook(() => { try { slDrawFinish(); } catch(e){} });
+
   setTimeout(() => {
     try { slArm(); }
     catch(e){
