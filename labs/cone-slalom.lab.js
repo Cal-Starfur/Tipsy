@@ -92,6 +92,7 @@
                   // with the chip and watch the cone total in the strip
     gap:  1.50,   // TIGHTEST along-route spacing between cones, in T2
     vary: 0.55,   // how far above gap the spacing opens up (0 = uniform)
+    trafficWaits: 1,   // cars queue at coned junctions instead of driving through
     rowA: 1,      // even cones sit here
     rowB: 2,      // odd cones sit here
     lead: 4.0,    // run-up before the first cone, in T2
@@ -469,6 +470,17 @@
       plantChute(a, b);
     }
 
+    /* World position of every coned junction, for the traffic hold. Taken from
+       posAt at the span midpoint — the route's own sampler — rather than from
+       the crossing's stored node, so it is right for turn crossings too. */
+    course.coneNodes = [];
+    for (const M of ch.arcs)
+      course.coneNodes.push(scene.posAt((M.s0 + M.s1) * 0.5));
+    for (const [a, b] of blocked){
+      if (b < course.spawnS) continue;
+      course.coneNodes.push(scene.posAt((a + b) * 0.5));
+    }
+
     course.nGates = k;
     course.nChute = chuteN;
     course.finishS = Math.round(gatesNow().reduce((m, h) => Math.max(m, h.s), 0)
@@ -757,7 +769,63 @@
       prevS = scene.botS;
     }
   };
-  const onPost = () => { try { slJudge(); } catch(e){ console.log('slJudge', e); } };
+  /* =========================================================================
+     TRAFFIC RESPECTS THE CONES
+     -------------------------------------------------------------------------
+     The chute at a crossing lies across the side street's roadway, so cars were
+     driving straight through a coned-off junction.
+
+     tr.hold is the entire mechanism, and it is the RIGHT one: trafficWorldAt
+     subtracts it inside the single function the renderer and the collision
+     check both call, so a held car is stopped everywhere at once. Its own
+     comment warns that a stop implemented anywhere else — a flag the draw pass
+     consults, a shadow position in the sim's bookkeeping — leaves that function
+     returning the car's unstopped position.
+
+     Two details lifted from updateCrimeTraffic, which solved this same problem
+     for the cruiser:
+       - holdFrame guards double-increment. Whichever pass reaches a car first
+         owns its hold for that frame; two passes both adding dt push hold past
+         t and the car drives BACKWARDS.
+       - _trafHoldDt is the real elapsed time updateTrafficSpacing computed, not
+         Phaser's clamped dt. Using dt here would drift against the spacing pass.
+
+     This runs in postupdate, after the game's own traffic passes, so it only
+     ever holds cars nothing else has already claimed this frame.
+
+     No phase, unlike the crime scene: the cones do not clear, so the cars
+     simply queue. That is the ask — they wait.
+     ========================================================================= */
+  const STOP_R    = 5 * T2;    // start looking this far back
+  const STOP_LINE = 1.3 * T2;  // stop this far short of the junction
+  const STOP_LAT  = 1.6 * T2;  // ignore cars not actually aimed at it
+
+  function slHoldTraffic(t, dt){
+    const c = run.course;
+    if (!c || !SL.trafficWaits || !scene.route.traffic) return;
+    const nodes = c.coneNodes || [];
+    if (!nodes.length) return;
+
+    const hDt = scene._trafHoldDt !== undefined ? scene._trafHoldDt : dt;
+    for (const tr of scene.route.traffic){
+      if (tr.holdFrame === t) continue;              // someone else owns it
+      const { wp, f } = trafficWorldAt(tr, t);
+      const dv = DIRV[f], rv = DIRV[(f + 1) % 4];
+      for (const nd of nodes){
+        const dx = nd.x - wp.x, dy = nd.y - wp.y;
+        const along = dx * dv.x + dy * dv.y;         // + means the node is ahead
+        if (along < STOP_LINE || along > STOP_R) continue;
+        if (Math.abs(dx * rv.x + dy * rv.y) > STOP_LAT) continue;
+        tr.hold = (tr.hold || 0) + hDt; tr.holdFrame = t;
+        break;
+      }
+    }
+  }
+
+  const onPost = (time, delta) => {
+    try { slJudge(); } catch(e){ console.log('slJudge', e); }
+    try { slHoldTraffic(time, Math.min(delta, 34)); } catch(e){ console.log('slHoldTraffic', e); }
+  };
   scene.events.on('preupdate',  onPre);
   scene.events.on('postupdate', onPost);
   scene._slRestore = () => {
@@ -823,6 +891,7 @@
        <div id="slNow" style="text-align:center;margin-top:2px;color:#ff9c4d;
             font-variant-numeric:tabular-nums"></div>
        <div style="display:flex;gap:6px;margin-top:10px">
+         <button id="slTraf"  style="${BTN}flex:2">cars: wait</button>
          <button id="slRun"   style="${BTN}flex:2">restart</button>
          <button id="slReset" style="${BTN}flex:1">reset</button>
          <button id="slOff"   style="${BTN}flex:1">off</button>
@@ -885,6 +954,10 @@
   $('slDn').onclick = () => setVal(SL[sel] - fieldOf(sel).step, 1);
   $('slUp').onclick = () => setVal(SL[sel] + fieldOf(sel).step, 1);
 
+  $('slTraf').onclick = () => {
+    SL.trafficWaits = SL.trafficWaits ? 0 : 1;
+    $('slTraf').textContent = 'cars: ' + (SL.trafficWaits ? 'wait' : 'go');
+  };
   $('slRun').onclick   = () => slResetRun();
   $('slReset').onclick = () => { Object.assign(SL, SL0); syncUI(); slResetRun(); };
   $('slCopy').onclick  = () => {
