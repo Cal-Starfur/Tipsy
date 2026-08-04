@@ -616,7 +616,9 @@
          one: you touch down high and ride it back to ground level, the mirror
          of the kicker. Placed just past the last hydrant, where the arc is
          still descending. */
-      const catchS = Math.round(kk.s + reach * 0.94);
+      /* Catch deck centred just SHORT of the computed touchdown, so the
+         landing happens on the ramp rather than on its far lip. */
+      const catchS = Math.round(kk.s + reach * 0.88);
       scene.route.hazards.push({
         type:'slab', hjRole:'catch', s: catchS, row: kRow, f,
         lift: SL.kLift, hjDir: -1, root: false, hit: true, slRole:'jump',
@@ -931,8 +933,26 @@
      and you land short, which is the mechanic: the run-up has no gates so
      there is no excuse for arriving slow. */
   const V_DESIGN = 0.225;
-  const jumpPow  = () => 4 * SL.kPeak / (SL.kReach * T2);
-  const jumpGrav = () => 8 * V_DESIGN * V_DESIGN * SL.kPeak / Math.pow(SL.kReach * T2, 2);
+
+  /* THE LAUNCH HEIGHT IS PART OF THE TRAJECTORY.
+     reach = 2*v^2*pow/grav is the symmetric case — launch and landing at the
+     same height. He leaves the LIP, at z = kLift, and lands at ground, so there
+     is an extra kLift to fall and the flight runs long: 525 units against a
+     designed 460, and the catch ramp sat at 0.94 of 460. He flew past it.
+
+     Solving the real thing instead. With apex P above the lip and launch height
+     z0, flight time is sqrt(2/g)*(sqrt(P) + sqrt(P+z0)), so
+
+         grav = 2 * ( v*(sqrt(P) + sqrt(P+z0)) / reach )^2
+         pow  = sqrt(2*grav*P) / v
+
+     Now `reach` means the distance he actually travels, which is what the word
+     was supposed to mean all along and what the catch ramp is placed against. */
+  const jumpGrav = () => {
+    const P = SL.kPeak, z0 = SL.kLift, R = SL.kReach * T2;
+    return 2 * Math.pow(V_DESIGN * (Math.sqrt(P) + Math.sqrt(P + z0)) / R, 2);
+  };
+  const jumpPow = () => Math.sqrt(2 * jumpGrav() * SL.kPeak) / V_DESIGN;
 
   function slFlight(dt){
     const c = run.course;
