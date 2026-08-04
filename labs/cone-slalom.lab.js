@@ -248,7 +248,13 @@
        geometry for — which does not throw, it returns nonsense, and nonsense
        coordinates are far worse than an error because they look like a bug in
        the cones. */
-    const endS = route.totalLen;
+    /* NOT totalLen. totalLen is loop.sEnd on any route with a reroute lap
+       welded in, and everything past loop.sCut is the ring — geometry that
+       physically retraces blocks the course has already used. A chain that
+       runs into it lays a second set of cones over the first and puts the
+       finish tape back beside the start line. _slEndS is set in
+       slQuietOpening and is the last s of original road. */
+    const endS = route._slEndS !== undefined ? route._slEndS : route.totalLen;
     const chain = [];
     let nLines = 0;
     for (let i = firstLine; i < segs.length && nLines < SL.legs; i++){
@@ -758,7 +764,12 @@
     run.elapsed = 0; run.pen = 0; run.cleared = 0; run.faults = [];
     if (!run.course){ run.phase = 'idle'; return; }
     run.fail = '';
-    run.msg = `${run.course.nLines} legs · ${run.course.nGates} gates · ` +
+    /* Asked-vs-got, in the strip. `legs 12` on the chip with a seven-leg
+       course looks like the chip is broken; it is the road running out at the
+       lap cut, and that is worth saying out loud rather than leaving the
+       number to be discovered by counting corners. */
+    const short = lastDiag.got < lastDiag.asked ? ` (asked ${lastDiag.asked})` : '';
+    run.msg = `${run.course.nLines} legs${short} · ${run.course.nGates} gates · ` +
               `${run.course.nChute} chute · ${run.course.nGates + run.course.nChute} cones`;
     run.msgT = performance.now();
 
@@ -1333,9 +1344,10 @@
     scene.events.off('postupdate', onPost);
     scene.mode = origMode;
     scene.hjSlabZ = slSlabZ0;
-    if (scene._slDoor !== undefined){
-      scene.route.doorS = scene._slDoor; scene.route.loop = scene._slLoop;
-      delete scene._slDoor; delete scene._slLoop;
+    const r = scene.route;
+    if (r && r._slDoor !== undefined){
+      r.doorS = r._slDoor; r.loop = r._slLoop;
+      delete r._slDoor; delete r._slLoop; delete r._slEndS;
     }
     delete scene._slRestore;
   };
@@ -1609,7 +1621,26 @@
        no second chance, so the loop comes out entirely.
 
        Both are restored by slOff along with scene.mode. */
-    if (scene._slDoor === undefined){ scene._slDoor = r.doorS; scene._slLoop = r.loop; }
+    /* ============ THE LAP IS GEOMETRY, NOT JUST A FLAG ============
+       Nulling route.loop stopped update() wrapping botS, and the course still
+       came back over its own opening leg — because the lap is not a flag with
+       some geometry attached, it IS geometry. generateRoute truncates the door
+       leg at loop.sCut and then welds four corners and four legs into
+       route.segs that ring the block back to where they started, and it
+       returns `totalLen: loop ? loop.sEnd : totalLen`. So walking segments up
+       to totalLen walks the ring. The flag was never the thing to remove.
+
+       route._slEndS is the last s that is ORIGINAL road, and the chain stops
+       there. Stashed on the ROUTE rather than the scene, because loadRoute
+       hands back a whole new route object: a scene-scoped stash taken once
+       would describe the previous city, and restoring it would write a stale
+       doorS onto a route that never had it. Route-scoped, a new route simply
+       has no stash yet and takes a fresh one. */
+    if (r._slDoor === undefined){
+      r._slDoor = r.doorS;
+      r._slLoop = r.loop;
+      r._slEndS = r.loop ? r.loop.sCut : r.totalLen;
+    }
     r.loop  = null;
     /* Just past the end of the road, not absurdly past it: doorS is also read
        by queueHousingEdgeAt as groundZ(doorS) for the address door's height,
