@@ -90,7 +90,8 @@
     n:    400,    // CAP on gates; the course fills every leg up to this
     legs: 4,      // how many legs the course runs through — walk this up
                   // with the chip and watch the cone total in the strip
-    gap:  1.60,   // along-route spacing between cones, in T2
+    gap:  1.50,   // TIGHTEST along-route spacing between cones, in T2
+    vary: 0.55,   // how far above gap the spacing opens up (0 = uniform)
     rowA: 1,      // even cones sit here
     rowB: 2,      // odd cones sit here
     lead: 4.0,    // run-up before the first cone, in T2
@@ -311,15 +312,64 @@
       k++;
     };
 
+    /* ============ SPACING VARIES, IN PHRASES ============
+       SL.gap is the MEAN now, not the interval. SL.vary is how far either side
+       of it the course is allowed to breathe.
+
+       WHY A WAVE AND NOT JITTER. Per-gate randomness reads as sloppy placement
+       rather than as design — the eye cannot tell an intentional tight section
+       from a mistake if every gate differs from its neighbour. A slow sine over
+       gate index gives RUNS of tight gates and runs of open ones, so the course
+       has phrases: wind up, breathe, wind up again. The period is deliberately
+       not a whole number of gates, so the pattern does not line up with the
+       red/blue alternation and produce a visual moire.
+
+       WHY IT IS SEEDED AND NOT RANDOM. Each leg's phase comes from a hash of
+       the route date and the leg index, so one route always builds the same
+       course. A slalom whose spacing changes between attempts cannot be raced
+       against a par time or a previous best.
+
+       WHY THE FLOOR IS HARD. A hop is 480ms; at ~0.15 units/ms that is 72 units
+       of travel, and gap 1.40 is 129 units — about two hop-durations. Below
+       that a gate stops being difficult and becomes unanswerable, because
+       hop() physically cannot fire twice in the distance available. The clamp
+       is at the same 1.40 the slider floors at, for the same reason. */
+    const GAP_MIN = 1.40;
+    const hash01 = (str) => {
+      let h = 2166136261;
+      for (let i = 0; i < str.length; i++){
+        h ^= str.charCodeAt(i); h = Math.imul(h, 16777619);
+      }
+      return ((h >>> 0) % 10000) / 10000;
+    };
+    const seedStr = (scene.route.dateStr || 'x');
+    /* The wave only ever OPENS the spacing: mult runs 1 .. 1+vary, so gap is
+       the TIGHTEST interval on the course rather than the average.
+
+       A symmetric swing around the mean sounded right and clipped badly. At
+       gap 1.60 with vary 0.35 the low half wants 1.04, which the floor rejects,
+       so a third of the gates flat-lined at exactly 1.40 — the phrasing turned
+       into stretches of identical minimum spacing, which is worse than uniform
+       because it looks like the wave broke. Keeping the swing one-sided means
+       the floor is a design decision instead of a clamp that fires. */
+    const stepFor = (legIdx, n) => {
+      const phase = hash01(seedStr + ':' + legIdx) * Math.PI * 2;
+      const mult  = 1 + SL.vary * (0.5 + 0.5 * Math.sin(phase + n / 3.7));
+      return Math.max(GAP_MIN, SL.gap * mult) * T2;
+    };
+
     /* GATES ON EVERY LINE. First line starts after the run-up, last ends before
        the run-out, everything between is bounded by the turn clearance — the
        chute owns those. */
-    const step = SL.gap * T2;
     ch.lines.forEach((L, i) => {
       const isFirst = i === 0, isLast = i === ch.lines.length - 1;
       const from = isFirst ? spawnS + SL.lead * T2 : L.s0 + SL.turn * T2;
       const to   = isLast  ? L.s1 - SL.tail * T2   : L.s1 - SL.turn * T2;
-      for (let at = from; at <= to && k < SL.n; at += step) plantAt(at);
+      let n = 0;
+      for (let at = from; at <= to && k < SL.n; n++){
+        plantAt(at);
+        at += stepFor(i, n);
+      }
     });
 
     /* THE CHUTE, on every arc in the chain.
@@ -668,6 +718,7 @@
     { key:'n',    label:'cap',   min:8,   max:600, step:4    },
     { key:'legs', label:'legs',  min:2,   max:20,  step:1    },
     { key:'gap',  label:'gap',   min:1.4, max:4.0, step:0.05 },
+    { key:'vary', label:'vary',  min:0,   max:1.2, step:0.05 },
     { key:'rowA', label:'row A', min:0,   max:3,   step:1    },
     { key:'rowB', label:'row B', min:0,   max:3,   step:1    },
     { key:'lead', label:'lead',  min:2,   max:12,  step:0.5  },
@@ -732,7 +783,8 @@
   const portLine = () =>
     (SEED ? `const SL_SEED_DATE = "${SEED}";  ` : '') +
     `const SL = { n:${SL.n}, gap:${(+SL.gap).toFixed(2)}, rowA:${SL.rowA}, rowB:${SL.rowB}, ` +
-    `lead:${(+SL.lead).toFixed(1)}, turn:${(+SL.turn).toFixed(1)}, ` +
+    `vary:${(+SL.vary).toFixed(2)}, lead:${(+SL.lead).toFixed(1)}, ` +
+    `turn:${(+SL.turn).toFixed(1)}, ` +
     `tail:${(+SL.tail).toFixed(1)}, ` +
     `pen:${(+SL.pen).toFixed(1)}, par:${(+SL.par).toFixed(1)}, legs:${SL.legs} };`;
 
