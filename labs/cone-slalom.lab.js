@@ -92,6 +92,11 @@
                   // with the chip and watch the cone total in the strip
     gap:  1.40,   // TIGHTEST along-route spacing between cones, in T2
     vary: 0.30,   // how far above gap the spacing opens up (0 = uniform)
+    wide: 0.35,   // extra road a 2-3 row lane change buys itself. Was a hard
+                  // 0.75 in the spacing line, and at 0.75 a three-row lunge
+                  // ate nearly two gates' worth of straight — which is where
+                  // the red/blue count was going. It is a dial now because it
+                  // trades gate COUNT against gate FAIRNESS directly.
     trafficWaits: 1,   // cars queue at coned junctions instead of driving through
     kickers: 1,   // kicker ramps per leg (0 = none)
     kLift: 26,    // ramp lip height
@@ -425,7 +430,7 @@
     const RAMP = 2 * T2;
     const blocked = (scene.route.crossings || [])
       .filter(cx => cx.kind !== 'turn')          // turn crossings ARE the arcs
-      .map(cx => [cx.sA - RAMP, cx.sB + RAMP]);
+      .map(cx => [cx.sA - RAMP, cx.sB + RAMP, 'crossing']);
     /* ============ KICKER RAMPS ============
        Reuses the hydrant challenge's pieces rather than inventing any:
          type "slab" + hjRole routes to hjDrawWedge — a TRAVEL-AXIS wedge you
@@ -450,11 +455,28 @@
     ch.lines.forEach((L, i) => {
       const room = (L.s1 - L.s0) - (RUNUP + LANDING + 4 * T2);
       if (room <= 0) return;
+      /* ============ JUMPS BELONG EARLY IN THE LEG ============
+         `room * (j + 0.5) / kickers` put a single kicker at the MIDDLE of its
+         leg, and the landing reserve then ran on from there — on a short leg
+         the touchdown and the corner's turn chute arrived at the same place,
+         which is what "jumps at the end block" was. Two changes, and they are
+         separate facts rather than one fudge:
+
+         WHERE it goes — the divisor is tripled, so the spread is over the
+         first THIRD of the leg. The jump is an opening beat now: run up, fly,
+         then weave the rest of the block.
+
+         WHERE it may NOT go — `latest` is a hard ceiling derived from what has
+         to fit after it: the landing, the corner clearance, and the run-out.
+         Anything past that is not a late jump, it is a jump landing on the
+         turn, so it is dropped rather than nudged. */
+      const latest = L.s1 - (LANDING + (SL.turn + SL.tail) * T2);
       for (let j = 0; j < SL.kickers; j++){
-        const at = Math.round(L.s0 + RUNUP + (room * (j + 0.5)) / SL.kickers);
+        const at = Math.round(L.s0 + RUNUP + (room * (j + 0.5)) / (SL.kickers * 3));
+        if (at > latest) continue;
         if (blocked.some(([a, b]) => at > a - RUNUP && at < b + LANDING)) continue;
         kickers.push({ s: at, leg: i });
-        blocked.push([at - RUNUP, at + LANDING]);
+        blocked.push([at - RUNUP, at + LANDING, 'jump']);
       }
     });
     blocked.sort((x, y) => x[0] - y[0]);
@@ -484,11 +506,17 @@
              him off the side of it — and the chute walls at 0 and 2 would then
              sit somewhere he is not. */
           curRow = RAMP_ROW;
-          at = span[1] + SL.turn * T2; n = 0; continue;
+          /* Resume ONE tile past the span, not a full turn clearance past it.
+             SL.turn was being spent on both sides of every crossing and every
+             jump — and with a crossing on most legs that is two corner-widths
+             of empty walk per block, taken straight out of the gate count. The
+             far side of a crossing is a plain straight; the reason gates were
+             excluded was the RAMP, and the ramp is already inside the span. */
+          at = span[1] + T2; n = 0; continue;
         }
         const nextRow = pickRow(i + ':' + n, curRow);
         plantAt(at, nextRow);
-        at += stepFor(i, n) * (1 + (lastDelta - 1) * 0.75);
+        at += stepFor(i, n) * (1 + (lastDelta - 1) * SL.wide);
       }
     });
 
@@ -513,11 +541,25 @@
        marking rather than two near-copies that can drift apart. The lane is
        whichever one the last gate before the span committed you to, so the
        walls always open where the player already is. */
-    const plantChute = (from, to) => {
+    /* CROSSINGS GET A LONGER STRIDE THAN CORNERS, and that is a statement
+       about the two shapes rather than a budget dodge.
+
+       A corner's bunching on the inner radius IS the look — the note above says
+       so and says not to re-fix it. A crossing is a straight run and it is
+       LONG: sA/sB span the full road width, plus two tiles of ramp either side,
+       which is twelve tiles. At the corner's own step that is 32 cones for one
+       junction, and twelve legs of it is 384 — more than the whole cone budget,
+       so with crossings planted first the corners would now starve instead.
+       Neither is worth 32 cones: the wall only has to READ as a wall, and a
+       dashed one does that at speed while a solid one just costs frames.
+
+       Budgets are split rather than shared for the same reason the order was
+       changed — whichever ran second was getting nothing. */
+    const plantChute = (from, to, step, cap) => {
       const lane = RAMP_ROW;
-      for (let at = from; at <= to; at += cstep){
+      for (let at = from; at <= to; at += step){
         for (const r of [lane - 1, lane + 1]){
-          if (r < 0 || r > 3 || chuteN >= CHUTE_MAX) continue;
+          if (r < 0 || r > 3 || chuteN >= cap) continue;
           chuteN++;
           scene.route.hazards.push({
             type:'cone', s: Math.round(at), row: r, f:0, hit:false,
@@ -533,13 +575,37 @@
        cones of its own. Every cone is a physics body and a depth-sorted draw
        every frame, so the total is what costs, not the gate count. */
     let chuteN = 0;
-    const CHUTE_MAX = Math.round(SL.n * 0.75);
-    for (const M of ch.arcs) plantChute(M.s0 - SL.turn * T2 * 0.5,
-                                       M.s1 + SL.turn * T2 * 0.5);
-    for (const [a, b] of blocked){
-      if (b < course.spawnS || a > (ch.lines[ch.lines.length-1].s1)) continue;
-      plantChute(a, b);
+    const CHUTE_MAX  = Math.round(SL.n * 0.90);
+    const CROSS_STEP = cstep * 1.9;                       // dashed, not solid
+    const CROSS_MAX  = Math.round(CHUTE_MAX * 0.55);      // junctions get first call
+    /* ============ ORDER IS THE FIX, AND SO IS THE FILTER ============
+       The crossing chutes were missing on-device, and neither cause was in the
+       crossing code.
+
+       CAUSE ONE — `blocked` is not a list of crossings. The kicker loop pushes
+       its run-up and landing into the same array, so this loop was walling both
+       sides of every jump approach: RUNUP + LANDING is ~11 T2, which at a
+       0.55-gap step is about 28 cones PER KICKER. Twelve legs of that is ~336
+       cones against a CHUTE_MAX of 300 — the budget was gone before the loop
+       ever reached a real junction. A jump does not need walls either: the
+       run-up is already gate-free by the same `blocked` list, and the wedge has
+       its own silhouette. Jump spans are skipped outright.
+
+       CAUSE TWO — the arcs ran first and they are uncapped in their own right.
+       Even with the jumps gone, a long chain's corners can spend the budget.
+       Crossings are planted FIRST now, because a coned junction is what stops
+       the cars (course.coneNodes is built from the same spans) and a corner
+       that runs a little short of cones is cosmetic where a junction that does
+       is a car driving through the course. */
+    const chainEndS = ch.lines[ch.lines.length - 1].s1;
+    for (const [a, b, kind] of blocked){
+      if (kind !== 'crossing') continue;
+      if (b < course.spawnS || a > chainEndS) continue;
+      plantChute(a, b, CROSS_STEP, CROSS_MAX);
     }
+    for (const M of ch.arcs) plantChute(M.s0 - SL.turn * T2 * 0.5,
+                                       M.s1 + SL.turn * T2 * 0.5,
+                                       cstep, CHUTE_MAX);
 
     /* WHERE THE CONES ARE, NOT WHERE THE ROAD CROSSES.
        This used to be posAt(midpoint) — a point on our own road's CENTRELINE.
@@ -561,7 +627,8 @@
       for (const u of [0, 0.5, 1]) course.coneNodes.push(conePos(a + (b - a) * u));
     };
     for (const M of ch.arcs) addSpan(M.s0, M.s1);
-    for (const [a, b] of blocked){
+    for (const [a, b, kind] of blocked){
+      if (kind !== 'crossing') continue;   // a jump run-up is not a junction
       if (b < course.spawnS) continue;
       addSpan(a, b);
     }
@@ -1221,6 +1288,10 @@
     scene.events.off('preupdate',  onPre);
     scene.events.off('postupdate', onPost);
     scene.mode = origMode;
+    if (scene._slDoor !== undefined){
+      scene.route.doorS = scene._slDoor; scene.route.loop = scene._slLoop;
+      delete scene._slDoor; delete scene._slLoop;
+    }
     delete scene._slRestore;
   };
 
@@ -1230,25 +1301,57 @@
        COLLAPSE     — during a run it is a single strip: clock, cones, message.
        ONE CONTROL  — a chip row picks WHICH value the single big slider edits.
      ========================================================================= */
+  /* ============ THE CHIPS SAY WHAT THEY DO ============
+     `gap` / `vary` / `lead` / `turn` / `tail` / `pen` / `par` are the names the
+     constants have in code, and a chip row of seven four-letter words is not a
+     control panel, it is a reminder that you already know the code. On-device
+     the report was blunt: the dials never make sense.
+
+     So every chip carries the plain word for the THING, and every chip carries
+     a `help` line stating what moving it does — in the direction you move it,
+     because "spacing" does not tell you whether bigger is harder. The `key` is
+     untouched: portLine still emits the code names, so the port is still a copy
+     and not a translation.
+
+     `unit` is spelled out too. T2 is two tiles and means nothing off-screen;
+     "tiles" is a distance you can see out the window. */
   const FIELDS = [
-    { key:'n',    label:'cap',   min:8,   max:600, step:4    },
-    { key:'legs', label:'legs',  min:2,   max:20,  step:1    },
-    { key:'kickers',label:'jumps',min:0,  max:3,   step:1    },
-    { key:'kLift',label:'lift',  min:10,  max:44,  step:2    },
-    { key:'kReach',label:'reach',min:3,   max:9,   step:0.25 },
-    { key:'kPeak', label:'peak', min:20,  max:70,  step:2    },
-    { key:'gap',  label:'gap',   min:1.4, max:4.0, step:0.05 },
-    { key:'vary', label:'vary',  min:0,   max:1.2, step:0.05 },
-    { key:'rowA', label:'row lo',min:0,   max:3,   step:1    },
-    { key:'rowB', label:'row hi',min:0,   max:3,   step:1    },
-    { key:'lead', label:'lead',  min:2,   max:12,  step:0.5  },
-    { key:'turn', label:'turn',  min:1.5, max:8,   step:0.5  },
-    { key:'tail', label:'tail',  min:1,   max:8,   step:0.5  },
-    { key:'pen',  label:'pen',   min:0.5, max:5,   step:0.5  },
-    { key:'par',  label:'par',   min:8,   max:60,  step:0.5  },
+    { key:'gap',    label:'cone spacing',  unit:'tiles', min:1.4, max:4.0, step:0.05,
+      help:'tightest gap between gates. 1.4 is one hop — lower is unclearable, not harder.' },
+    { key:'vary',   label:'spacing swing', unit:'',      min:0,   max:1.2, step:0.05,
+      help:'how far the spacing opens up between phrases. 0 is a metronome.' },
+    { key:'wide',   label:'big-move room', unit:'',      min:0,   max:1.0, step:0.05,
+      help:'extra road a 2-3 lane change buys. Higher is fairer and means fewer gates.' },
+    { key:'legs',   label:'blocks long',   unit:'legs',  min:2,   max:20,  step:1,
+      help:'how many streets the course runs through before the finish tape.' },
+    { key:'n',      label:'max cones',     unit:'',      min:8,   max:600, step:4,
+      help:'hard cap on gates. Every cone costs a body and a sorted draw each frame.' },
+    { key:'rowA',   label:'kerb lane',     unit:'row',   min:0,   max:3,   step:1,
+      help:'lane nearest the road the weave is allowed to use. 0 is the kerb.' },
+    { key:'rowB',   label:'wall lane',     unit:'row',   min:0,   max:3,   step:1,
+      help:'lane nearest the buildings the weave may use. 3 is the whole walk.' },
+    { key:'kickers',label:'jumps per block',unit:'',     min:0,   max:3,   step:1,
+      help:'ramps per street. They sit in the first third, never near a corner.' },
+    { key:'kReach', label:'jump distance', unit:'tiles', min:3,   max:9,   step:0.25,
+      help:'how far the ramp carries at full speed. Sets where the catch deck goes.' },
+    { key:'kPeak',  label:'jump height',   unit:'',      min:20,  max:70,  step:2,
+      help:'apex above the lip. Taller looks bigger and lands no further away.' },
+    { key:'kLift',  label:'ramp height',   unit:'',      min:10,  max:44,  step:2,
+      help:'height of the ramp lip itself — the wedge you ride up.' },
+    { key:'lead',   label:'start run-up',  unit:'tiles', min:2,   max:12,  step:0.5,
+      help:'clear road between the start line and the first gate.' },
+    { key:'turn',   label:'corner room',   unit:'tiles', min:1.5, max:8,   step:0.5,
+      help:'gate-free road either side of a turn. Hops are refused mid-corner.' },
+    { key:'tail',   label:'run-out',       unit:'tiles', min:1,   max:8,   step:0.5,
+      help:'road between the last gate and the finish tape.' },
+    { key:'pen',    label:'cone penalty',  unit:'sec',   min:0.5, max:5,   step:0.5,
+      help:'seconds added for each cone knocked or gate taken on the wrong side.' },
+    { key:'par',    label:'time to beat',  unit:'sec',   min:8,   max:60,  step:0.5,
+      help:'the par. Under it is a pass; under it with no faults is a clean run.' },
   ];
   const fieldOf = k => FIELDS.find(f => f.key === k);
   const fmt = f => f.step >= 1 ? String(SL[f.key]) : (+SL[f.key]).toFixed(2);
+  const fmtU = f => fmt(f) + (f.unit ? ' ' + f.unit : '');
 
   let sel = 'gap', open = false;
 
@@ -1283,6 +1386,8 @@
        </div>
        <div id="slNow" style="text-align:center;margin-top:2px;color:#ff9c4d;
             font-variant-numeric:tabular-nums"></div>
+       <div id="slHelp" style="text-align:center;margin-top:3px;color:#8f95a1;
+            font-size:11px;line-height:1.4;min-height:30px"></div>
        <div style="display:flex;gap:6px;margin-top:10px">
          <button id="slTraf"  style="${BTN}flex:2">cars: wait</button>
          <button id="slRun"   style="${BTN}flex:2">restart</button>
@@ -1305,15 +1410,18 @@
     (SEED ? `const SL_SEED_DATE = "${SEED}";  ` : '') +
     `const SL = { n:${SL.n}, gap:${(+SL.gap).toFixed(2)}, rowA:${SL.rowA}, rowB:${SL.rowB}, ` +
     `vary:${(+SL.vary).toFixed(2)}, lead:${(+SL.lead).toFixed(1)}, ` +
-    `turn:${(+SL.turn).toFixed(1)}, ` +
+    `turn:${(+SL.turn).toFixed(1)}, wide:${(+SL.wide).toFixed(2)}, ` +
+    `kickers:${SL.kickers}, kReach:${(+SL.kReach).toFixed(2)}, ` +
+    `kPeak:${SL.kPeak}, kLift:${SL.kLift}, ` +
     `tail:${(+SL.tail).toFixed(1)}, ` +
     `pen:${(+SL.pen).toFixed(1)}, par:${(+SL.par).toFixed(1)}, legs:${SL.legs} };`;
 
   function drawChips(){
     $('slChips').innerHTML = FIELDS.map(f =>
-      `<button data-k="${f.key}" style="${BTN}flex:1 1 22%;min-width:76px;padding:0 6px;` +
+      `<button data-k="${f.key}" style="${BTN}flex:1 1 30%;min-width:96px;padding:4px 6px;` +
+      `line-height:1.25;min-height:44px;font-size:11px;` +
       `${f.key === sel ? 'border-color:#ff7a1a;color:#ff9c4d;' : ''}">` +
-      `<span style="color:#8f95a1">${f.label}</span> ${fmt(f)}</button>`).join('');
+      `<span style="color:#8f95a1">${f.label}</span><br>${fmt(f)}</button>`).join('');
     $('slChips').querySelectorAll('button').forEach(b => {
       b.onclick = () => { sel = b.dataset.k; syncUI(); };
     });
@@ -1322,7 +1430,8 @@
   function syncUI(){
     const f = fieldOf(sel), sl = $('slSlider');
     sl.min = f.min; sl.max = f.max; sl.step = f.step; sl.value = SL[f.key];
-    $('slNow').textContent = `${f.label}  ${fmt(f)}`;
+    $('slNow').textContent = `${f.label}  ${fmtU(f)}`;
+    $('slHelp').textContent = f.help || '';
     $('slPort').textContent = portLine();
     drawChips();
   }
@@ -1433,6 +1542,37 @@
     r.pickupSpot = null; r.pickupShopName = null; r.pickupBlock = null;
     scene.pickupDoorDV = null; scene.pickupDoorRV = null;
     scene.walkAt = null; scene.doorSwing = 0;
+
+    /* ============ THE DELIVERY IS NOT THE ENDING ============
+       Two live pieces of delivery logic were still running underneath the
+       course, and between them they owned the end of the run:
+
+       THE DOOR. update()'s win test is `remain = route.doorS - botS` inside a
+       34/-60 window with speed under 0.02. The tape sets run.done and then
+       coasts the robot at 0.94/frame — which is exactly "slow" — so finishing
+       anywhere near doorS handed the ending to showWin() instead. That is the
+       "customer door is the finish line" report: the tape WAS breaking, the
+       delivery just got there first. doorS is pushed past the far end of the
+       road so the window can never be entered.
+
+       THE REROUTE LAP. route.loop welds the street into a ring and update()
+       wraps botS back a period at lp.sEnd. A course laid across ten legs runs
+       straight into that weld, so the robot re-entered geometry he had already
+       driven — the block-end wrap-around, with the turn chute and a kicker
+       arriving together because both were simply being visited twice. A lap is
+       a delivery's second chance at a missed door; a timed run has no door and
+       no second chance, so the loop comes out entirely.
+
+       Both are restored by slOff along with scene.mode. */
+    if (scene._slDoor === undefined){ scene._slDoor = r.doorS; scene._slLoop = r.loop; }
+    r.loop  = null;
+    /* Just past the end of the road, not absurdly past it: doorS is also read
+       by queueHousingEdgeAt as groundZ(doorS) for the address door's height,
+       and a wild value there clamps to the last tile and lifts a door the
+       course never visits. totalLen + 4 tiles puts the win window ~334 units
+       beyond the furthest s any leg can reach, which is unreachable, while
+       keeping the elevation sample honest. */
+    r.doorS = r.totalLen + 4 * T2;
   }
 
   /* No seed seek. With the heading filter gone there is no shape to hunt for —
@@ -1460,7 +1600,20 @@
      message anywhere. That is exactly how a deleted function definition hid
      itself. Arm failures now land in the red strip. */
   if (typeof BENCH !== 'undefined' && BENCH.hook)
-    BENCH.hook(() => { try { slDrawFinish(); } catch(e){} });
+    /* A bare `catch(e){}` here cost a session: if the ribbon threw, the tape
+       simply was not on screen and there was nothing anywhere to say so — it
+       looked like a finish line that had never been built. Reported once, then
+       muted, so a per-frame throw cannot flood the strip. */
+    BENCH.hook(() => {
+      try { slDrawFinish(); }
+      catch(e){
+        if (!slDrawFinish._told){
+          slDrawFinish._told = 1;
+          console.log('finish tape draw failed', e);
+          run.fail = 'tape draw: ' + (e && e.message ? e.message : e);
+        }
+      }
+    });
 
   setTimeout(() => {
     try { slArm(); }
