@@ -26,13 +26,21 @@ function render(data: GetDailyBestRsp): void {
   const {best, viewerUsername} = data
   const handle = viewerUsername ?? 'there'
 
+  /* The challenge is now a PERSON, not a number: naming today's leader
+   *  is what makes it feel answerable. The amount hasn't gone anywhere —
+   *  it's one line down in statEl, which already showed it. The
+   *  nobody's-played-yet branch is deliberately untouched. */
   if (best) {
-    greetEl.textContent = `Hey, ${handle} — can you beat ${formatTip(best.tip)}?`
+    greetEl.textContent = `Hey, ${handle} — can you beat u/${best.username}?`
     statEl.textContent = `today's best: ${formatTip(best.tip)} · ${formatTime(best.ms)}`
   } else {
     greetEl.textContent = `Hey, ${handle} — nobody's delivered today yet.`
     statEl.textContent = 'be the first on the board'
   }
+
+  playsEl.textContent = data.plays
+    ? `${data.plays.toLocaleString()} deliveries attempted all-time`
+    : ''
 
   renderActiveTab()
 }
@@ -1084,6 +1092,7 @@ function renderRobotIcon(canvas: HTMLCanvasElement): void {
 const startBtn = document.getElementById('start-btn') as HTMLButtonElement
 const greetEl = document.getElementById('greet') as HTMLParagraphElement
 const statEl = document.getElementById('stat') as HTMLParagraphElement
+const playsEl = document.getElementById('plays') as HTMLParagraphElement
 const robotCanvas = document.getElementById('robot-canvas') as HTMLCanvasElement
 const cityCanvas = document.getElementById('city-bg') as HTMLCanvasElement
 const pageBgCanvas = document.getElementById('page-bg') as HTMLCanvasElement
