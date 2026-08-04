@@ -358,16 +358,33 @@
       return Math.max(GAP_MIN, SL.gap * mult) * T2;
     };
 
+    /* ============ NO GATES ON A CURB RAMP ============
+       sidewalkend / sidewalkbegin are not decoration: crossingGroundAt drives
+       botZ off them, and the ramp only works if the robot enters and leaves it
+       in ONE lane. A gate demands a lane change, so a gate on a ramp asks for
+       the one thing the geometry forbids — the same contradiction hop()'s
+       mid-arc refusal already settles for turns.
+
+       So an intersection is the SAME case as a turn, not a second rule: both
+       are stretches where your lane is decided before you arrive. Blocked spans
+       cover the crossing plus the two tiles of ramp either side of it. */
+    const RAMP = 2 * T2;
+    const blocked = (scene.route.crossings || [])
+      .filter(cx => cx.kind !== 'turn')          // turn crossings ARE the arcs
+      .map(cx => [cx.sA - RAMP, cx.sB + RAMP]);
+    const isBlocked = (at) => blocked.some(([a, b]) => at >= a && at <= b);
+
     /* GATES ON EVERY LINE. First line starts after the run-up, last ends before
        the run-out, everything between is bounded by the turn clearance — the
-       chute owns those. */
+       chute owns those. Blocked spans are stepped over, not stopped at, so the
+       weave picks straight back up on the far side of the crossing. */
     ch.lines.forEach((L, i) => {
       const isFirst = i === 0, isLast = i === ch.lines.length - 1;
       const from = isFirst ? spawnS + SL.lead * T2 : L.s0 + SL.turn * T2;
       const to   = isLast  ? L.s1 - SL.tail * T2   : L.s1 - SL.turn * T2;
       let n = 0;
       for (let at = from; at <= to && k < SL.n; n++){
-        plantAt(at);
+        if (!isBlocked(at)) plantAt(at);
         at += stepFor(i, n);
       }
     });
@@ -387,15 +404,16 @@
     const gatesNow = () => scene.route.hazards
       .filter(h => h.slRole === 'gate').sort((x, y) => x.s - y.s);
     const cstep = SL.gap * T2 * 0.55;
-    /* SL.n caps GATES; the chute was uncapped, and at ten legs it adds ~110
-       cones of its own. Every cone is a physics body and a depth-sorted draw
-       every frame, so the total is what costs, not the gate count. */
-    let chuteN = 0;
-    const CHUTE_MAX = Math.round(SL.n * 0.75);
-    for (const M of ch.arcs){
-      const lastG = gatesNow().filter(h => h.s < M.s0).slice(-1)[0];
+
+    /* ONE chute routine for both cases. An intersection and a turn pose the
+       identical problem — hold the lane you arrived in — so they get identical
+       marking rather than two near-copies that can drift apart. The lane is
+       whichever one the last gate before the span committed you to, so the
+       walls always open where the player already is. */
+    const plantChute = (from, to) => {
+      const lastG = gatesNow().filter(h => h.s < from).slice(-1)[0];
       const lane = lastG ? Phaser.Math.Clamp(lastG.row + lastG.slWant, 0, 3) : SL.rowB;
-      for (let at = M.s0 - SL.turn * T2 * 0.5; at <= M.s1 + SL.turn * T2 * 0.5; at += cstep){
+      for (let at = from; at <= to; at += cstep){
         for (const r of [lane - 1, lane + 1]){
           if (r < 0 || r > 3 || chuteN >= CHUTE_MAX) continue;
           chuteN++;
@@ -408,6 +426,17 @@
           });
         }
       }
+    };
+    /* SL.n caps GATES; the chute was uncapped, and at ten legs it adds ~110
+       cones of its own. Every cone is a physics body and a depth-sorted draw
+       every frame, so the total is what costs, not the gate count. */
+    let chuteN = 0;
+    const CHUTE_MAX = Math.round(SL.n * 0.75);
+    for (const M of ch.arcs) plantChute(M.s0 - SL.turn * T2 * 0.5,
+                                       M.s1 + SL.turn * T2 * 0.5);
+    for (const [a, b] of blocked){
+      if (b < course.spawnS || a > (ch.lines[ch.lines.length-1].s1)) continue;
+      plantChute(a, b);
     }
 
     course.nGates = k;
