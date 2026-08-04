@@ -148,8 +148,11 @@
       <div class="row"><label style="width:100%">pinned date — the seed</label></div>
       <div class="row"><input type="text" id="dateStr" value="2026-01-01" spellcheck="false"></div>
       <div class="row"><button class="wide" id="startRun">start run</button></div>
+      <div class="row"><button class="wide" id="quietBtn">no delivery opening</button></div>
       <div class="row" style="color:var(--dim)">A fixed date means a fixed route. Same world every
         reload, so a change you see is a change you made.</div>
+      <div class="row" style="color:var(--dim)">Labs auto-boot without the pickup. Add
+        <code>&amp;quiet=0</code> to keep the delivery opening.</div>
     </div>
 
     <div class="sec">
@@ -861,7 +864,47 @@ const panEnd = e => { panLast = null; panL.style.cursor = "grab"; };
 panL.addEventListener("pointerup", panEnd);
 panL.addEventListener("pointercancel", panEnd);
 
-/* ?lab=NAME[&date=YYYY-MM-DD][&f=0..3][&zoom=150]
+/* ---------------------------------------------------------------------------
+   NO DELIVERY OPENING
+   The bench boots a real daily route, which means a real pickup: the shop door,
+   the worker walking out with a bag, the 1400ms loading beat, and a camera that
+   blends its target onto the doorway for the duration. For a lab that is pure
+   noise — you are looking at geometry somewhere else entirely, and the first
+   couple of seconds are spent watching a delivery you did not ask for.
+
+   mode = "challenge" is the switch the game itself uses. Its pickup timeline
+   skips wholesale in that mode rather than fast-forwarding, "because every
+   downstream effect (lid hinge, shop door, worker walk-back, cargo spill) keys
+   off these same flags" — and the camera's pickup branch is gated on
+   `mode !== "challenge"`, not on any of the flags underneath it.
+
+   Safe without a hydrant course behind it: every hj path either tests
+   route.challenge (null here) or finds no kicker hazards. It also hides the GPS
+   HUD, which is delivery chrome a lab has no use for.
+--------------------------------------------------------------------------- */
+function quietDelivery(){
+  if(!BR.live) return false;
+  try{
+    const r = BR.ev(`(function(){
+      const s = game.scene.scenes.find(x => x.route);
+      if(!s) return "no scene";
+      s.mode = "challenge";
+      s.route.pickupSpot = null;
+      s.route.pickupShopName = null;
+      s.route.pickupBlock = null;
+      s.pickupDoorDV = null; s.pickupDoorRV = null;
+      s.walkAt = null; s.doorSwing = 0;
+      return "quiet";
+    })()`);
+    return r === "quiet";
+  }catch(e){ return false; }
+}
+$("quietBtn").onclick = () => {
+  const ok = quietDelivery();          // once — calling it twice re-ran the eval
+  log(ok ? "delivery opening off" : "bridge not up", ok ? "ok" : "err");
+};
+
+/* ?lab=NAME[&date=YYYY-MM-DD][&f=0..3][&zoom=150][&quiet=0]
    One URL that lands on the thing you wanted to look at. */
 async function autoBoot(){
   const q = new URLSearchParams(location.search);
@@ -870,6 +913,12 @@ async function autoBoot(){
   const date = q.get("date") || $("dateStr").value;
   $("dateStr").value = date;
   $("startRun").click();
+  /* Kill the pickup as early as the bridge allows — before the 900ms settle,
+     so the opening never gets a chance to play rather than being cut short. */
+  if(q.get("quiet") !== "0"){
+    for(let i = 0; i < 12 && !quietDelivery(); i++)
+      await new Promise(r => setTimeout(r, 60));
+  }
   await new Promise(r => setTimeout(r, 900));
   const z = q.get("zoom");
   if(z){ $("zoom").value = z; $("zoom").dispatchEvent(new Event("input")); }
