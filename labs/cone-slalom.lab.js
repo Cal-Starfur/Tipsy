@@ -384,7 +384,15 @@
       const to   = isLast  ? L.s1 - SL.tail * T2   : L.s1 - SL.turn * T2;
       let n = 0;
       for (let at = from; at <= to && k < SL.n; n++){
-        if (!isBlocked(at)) plantAt(at);
+        /* Jump the whole span plus turn clearance rather than stepping across
+           it. Merely skipping blocked positions kept the alternation running,
+           so the first gate past a crossing could land a few units off the exit
+           ramp and demand a lane change while the robot was still on it — the
+           exact thing excluding ramp gates was meant to prevent. A crossing now
+           gets the same breathing room a turn does, on both sides. */
+        const span = blocked.find(([a, b]) => at >= a - SL.turn * T2 && at <= b);
+        if (span){ at = span[1] + SL.turn * T2; n = 0; continue; }
+        plantAt(at);
         at += stepFor(i, n);
       }
     });
@@ -411,8 +419,16 @@
        whichever one the last gate before the span committed you to, so the
        walls always open where the player already is. */
     const plantChute = (from, to) => {
+      /* THE LANE MUST HAVE A ROW ON EITHER SIDE OF IT.
+         lastGate.row + slWant lands on 0 or 3 whenever the gate rows are 1 and
+         2, and then one wall falls outside rows 0..3 and is silently dropped —
+         leaving a single line of cones pushed to one side instead of a
+         corridor. Clamping to 1..2 is not cosmetic: a chute with one wall does
+         not say "hold this lane", it says "the cones are in the wrong place",
+         which is exactly how it read on device. */
       const lastG = gatesNow().filter(h => h.s < from).slice(-1)[0];
-      const lane = lastG ? Phaser.Math.Clamp(lastG.row + lastG.slWant, 0, 3) : SL.rowB;
+      const lane = Phaser.Math.Clamp(
+        lastG ? lastG.row + lastG.slWant : SL.rowB, 1, 2);
       for (let at = from; at <= to; at += cstep){
         for (const r of [lane - 1, lane + 1]){
           if (r < 0 || r > 3 || chuteN >= CHUTE_MAX) continue;
