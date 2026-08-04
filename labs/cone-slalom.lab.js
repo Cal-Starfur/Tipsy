@@ -134,6 +134,8 @@
      ONLY place world offsets get converted back to rows. */
   const rowDir = Math.sign(offOf(1) - offOf(0));
 
+  const origMode = scene.mode;   // restored by slOff
+
   const run = {
     course: null, cones: [], started: false, done: false,
     t0: 0, elapsed: 0, pen: 0, cleared: 0, faults: [], msg: '', msgT: 0,
@@ -666,6 +668,7 @@
   scene._slRestore = () => {
     scene.events.off('preupdate',  onPre);
     scene.events.off('postupdate', onPost);
+    scene.mode = origMode;
     delete scene._slRestore;
   };
 
