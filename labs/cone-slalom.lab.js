@@ -573,11 +573,18 @@
         lift: SL.kLift, hjDir: 1, root: false, hit: true, slRole:'jump',
       });
       /* two hydrants under the arc, past the lip */
-      /* Hydrants and the catch ramp are placed as FRACTIONS OF THE REACH, so
-         changing the jump moves them with it. Fixed tile offsets meant dialling
-         reach silently turned a clean jump into a clipped one. */
+      /* EVERYTHING DOWNRANGE IS MEASURED FROM THE LIP.
+         The arc measures its reach from lipS = kk.s + TILE, but these were laid
+         out from kk.s — one TILE adrift — and the catch ramp then took a 0.88
+         factor on top. Touchdown at kk.s+506 against a deck spanning 359..451:
+         he cleared the catch ramp by 55 units every single jump. Not physics, a
+         coordinate mismatch between the code that builds the course and the
+         code that flies it.
+
+         Same origin for both now, so the arc and the furniture cannot disagree. */
       const reach = SL.kReach * T2;
-      const hyd = [kk.s + reach * 0.34, kk.s + reach * 0.56];
+      const lipS  = kk.s + TILE;
+      const hyd = [lipS + reach * 0.34, lipS + reach * 0.56];
       for (const hs of hyd)
         scene.route.hazards.push({
           /* facingAt is a LOCAL inside generateRoute, not a global — and a
@@ -616,14 +623,15 @@
          one: you touch down high and ride it back to ground level, the mirror
          of the kicker. Placed just past the last hydrant, where the arc is
          still descending. */
-      /* Catch deck centred just SHORT of the computed touchdown, so the
-         landing happens on the ramp rather than on its far lip. */
-      const catchS = Math.round(kk.s + reach * 0.88);
+      /* Catch deck centred just short of touchdown (lipS + reach), so the
+         landing happens ON the deck rather than at its far lip. The deck is
+         2 TILE wide, so 0.96 puts touchdown comfortably inside it. */
+      const catchS = Math.round(lipS + reach * 0.96);
       scene.route.hazards.push({
         type:'slab', hjRole:'catch', s: catchS, row: kRow, f,
         lift: SL.kLift, hjDir: -1, root: false, hit: true, slRole:'jump',
       });
-      course.kickers.push({ s: kk.s, lip: kk.s + TILE, hyd, row: kRow, catchS });
+      course.kickers.push({ s: kk.s, lip: lipS, hyd, row: kRow, catchS });
     }
 
     course.startRow = RAMP_ROW;
