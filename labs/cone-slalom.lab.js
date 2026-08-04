@@ -356,18 +356,46 @@
        exactly what hop()'s refusal already meant but never showed. Tighter
        spacing than the gates so it reads as a wall, not as more gates. */
     if (!straight && nA > 0){
-      const lastGate = scene.route.hazards
-        .filter(h => h.slRole === 'gate' && h.s < cor.m.s0)
-        .sort((x, y) => x.s - y.s).slice(-1)[0];
-      const lane = lastGate
-        ? Phaser.Math.Clamp(lastGate.row + lastGate.slWant, 0, 3)
-        : SL.rowB;
-      const step = SL.gap * T2 * 0.55;
-      const from = cor.m.s0 - SL.turn * T2 * 0.5;
-      const to   = cor.m.s1 + SL.turn * T2 * 0.5;
-      for (let at = from; at <= to; at += step){
-        for (const r of [lane - 1, lane + 1]){
-          if (r < 0 || r > 3) continue;
+      const gates = scene.route.hazards.filter(h => h.slRole === 'gate')
+                                       .sort((x, y) => x.s - y.s);
+      const lastA  = gates.filter(h => h.s < cor.m.s0).slice(-1)[0];
+      const firstB = gates.filter(h => h.s > cor.m.s1)[0];
+      const lane = lastA ? Phaser.Math.Clamp(lastA.row + lastA.slWant, 0, 3) : SL.rowB;
+
+      /* CONTINUITY, TWO SEPARATE FIXES.
+
+         1. SPAN. The chute used to run from the ARC's own extent outward, so
+            whatever was left between the last gate and the start of the arc
+            stayed empty. It now runs gate-to-gate: from half a gap after the
+            last leg-1 gate to half a gap before the first leg-2 gate. There is
+            nowhere left for a hole to be, by construction.
+
+         2. SPACING IS MEASURED IN WORLD DISTANCE, NOT IN s. On an arc the two
+            walls sit at different radii, so a constant step in route-s bunches
+            the inner wall and stretches the outer one — which is exactly the
+            unevenness on screen, because the eye reads world distance. Each
+            wall is therefore walked independently in small increments and drops
+            a cone whenever the accumulated WORLD distance for THAT row crosses
+            the target. Radius-agnostic, heading-agnostic, and it needs no arc
+            geometry: it asks posAt/headingAt where the cone would actually be. */
+      const want = SL.gap * T2 * 0.55;          // target world spacing
+      const from = (lastA  ? lastA.s  : cor.m.s0) + SL.gap * T2 * 0.5;
+      const to   = (firstB ? firstB.s : cor.m.s1) - SL.gap * T2 * 0.5;
+      const posOf = (at, row) => {
+        const p = scene.posAt(at), h = scene.headingAt(at), off = offOf(row);
+        return { x: p.x + (-Math.sin(h)) * off, y: p.y + Math.cos(h) * off };
+      };
+
+      let placed = 0;
+      for (const r of [lane - 1, lane + 1]){
+        if (r < 0 || r > 3) continue;
+        let acc = want, prev = posOf(from, r);      // acc primed so one lands at `from`
+        for (let at = from; at <= to; at += TILE * 0.25){
+          const q = posOf(at, r);
+          acc += Math.hypot(q.x - prev.x, q.y - prev.y);
+          prev = q;
+          if (acc < want) continue;
+          acc = 0;
           scene.route.hazards.push({
             type:'cone', s: Math.round(at), row: r, f:0, hit:false,
             phi:0, phase:1, angVel:0, moving:false, pose:'standing',
@@ -375,9 +403,11 @@
             slRole:'chute', cone: GATE_WALL,
             slKnocked:false, slJudged:true,     // never side-judged
           });
+          placed++;
         }
       }
       course.chuteLane = lane;
+      course.chuteN = placed;
     }
     return course;
   }
