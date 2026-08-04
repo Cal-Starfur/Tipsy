@@ -88,7 +88,7 @@
   /* ---------- tunables — every one of these is a chip ---------- */
   const SL = {
     n:    400,    // CAP on gates; the course fills every leg up to this
-    legs: 6,      // how many legs the course runs through — walk this up
+    legs: 12,     // how many legs the course runs through — walk this up
                   // with the chip and watch the cone total in the strip
     gap:  1.40,   // TIGHTEST along-route spacing between cones, in T2
     vary: 0.30,   // how far above gap the spacing opens up (0 = uniform)
@@ -440,7 +440,12 @@
        ARRIVE at full speed, and every gate costs a hop. So a kicker's approach
        and landing join `blocked`, the same list the crossings use — no gates
        from the run-up through the touchdown. One list, one rule. */
-    const RUNUP = 7 * T2, LANDING = 6 * T2;
+    /* LANDING follows the jump instead of being a flat 6 T2. A fixed reserve
+       meant a short jump still blanked six tiles of road that could hold gates,
+       and a long one could land past the end of its own exclusion. The run-up
+       is trimmed too: 5.5 T2 is ~2.2s of clear road at full speed, ample to be
+       back at the cap after the previous gate. */
+    const RUNUP = 5.5 * T2, LANDING = SL.kReach * T2 * 1.15;
     const kickers = [];
     ch.lines.forEach((L, i) => {
       const room = (L.s1 - L.s0) - (RUNUP + LANDING + 4 * T2);
