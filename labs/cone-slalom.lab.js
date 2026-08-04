@@ -824,32 +824,57 @@
 
      The date this finds is the thing to hardcode as SL_SEED_DATE when this
      ships — same as HJ_SEED_DATE. It is logged and shown for exactly that. */
-  function slSeek(maxTries = 160){
+  /* ASYNC, TIME-BUDGETED, AND IT YIELDS.
+     The first version of this ran up to 160 generateRoute calls in one
+     synchronous loop. Each builds a whole city, and the early-out only fired
+     when a route hit the leg target — which it usually does not. On device that
+     is a frozen tab, which reads as "it's not loading" rather than as a slow
+     search, because nothing gets a frame to paint a message in.
+
+     So: a wall-clock budget rather than a trial count, a yield every few
+     candidates so the page keeps breathing and the progress line updates, and
+     it keeps the best chain found so far no matter when the budget runs out. */
+  const SEEK_MS = 2500;
+
+  async function slSeek(){
     const t0 = performance.now();
     const base = Date.UTC(2026, 0, 1);
     let scanned = 0, best = null;
-    for (let i = 0; i < maxTries; i++){
+
+    for (let i = 0; i < 400; i++){
+      if (performance.now() - t0 > SEEK_MS) break;
+
       const dateStr = new Date(base + i * 86400000).toISOString().slice(0, 10);
       let r;
       try { r = generateRoute(dateStr, { hoodIndex: HOOD_BLUFFS }); }
       catch(e){ continue; }
       scanned++;
+
       const ch = slFindChain(r);
-      if (!ch) continue;
-      if (!best || ch.nLines > best.nLines || (ch.nLines === best.nLines && ch.span > best.span))
+      if (ch && (!best || ch.nLines > best.nLines ||
+                 (ch.nLines === best.nLines && ch.span > best.span)))
         best = { dateStr, nLines: ch.nLines, span: ch.span };
-      if (best.nLines >= SL.legs) break;      // long enough, stop paying for more
+
+      if (best && best.nLines >= SL.legs) break;
+
+      if (scanned % 4 === 0){
+        run.msg = `searching… ${scanned} routes, best ${best ? best.nLines : 0} legs`;
+        run.msgT = performance.now();
+        await new Promise(r2 => setTimeout(r2, 0));   // let the page breathe
+      }
     }
+
     if (best) console.log(`slalom seed seek: ${best.dateStr} — ${best.nLines} legs, ` +
       `${Math.round(best.span / T2)} tiles, from ${scanned} routes in ` +
       `${Math.round(performance.now() - t0)}ms`);
+    else console.log(`slalom seed seek: nothing in ${scanned} routes`);
     return best;
   }
 
-  function slArm(){
+  async function slArm(){
     run.fail = ''; run.msg = 'searching for a downhill corridor…';
     run.msgT = performance.now();
-    const hit = slSeek();
+    const hit = await slSeek();
     if (!hit){
       run.fail = 'no date gave an f=0/f=1 chain — lower gap or cap';
       syncUI();
