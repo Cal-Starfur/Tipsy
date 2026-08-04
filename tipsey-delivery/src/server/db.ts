@@ -41,6 +41,25 @@ function decodeScore(score: number): {tipCents: number; ms: number} {
   return {tipCents, ms}
 }
 
+/** All-time count of deliveries started, across every player and every
+ *  day. A plain counter, not a per-user or per-day key: the splash
+ *  shows one number and nothing else reads this. Deliberately never
+ *  expires (unlike the daily boards) -- it's a lifetime total. */
+const PLAYS_KEY = 'tipsy:global:plays'
+
+/** Increments and returns the new total. INCRBY is atomic, so parallel
+ *  starts can't lose a count to a read-modify-write race. */
+export async function dbIncrPlays(): Promise<number> {
+  return redis.incrBy(PLAYS_KEY, 1)
+}
+
+/** 0 before anyone has ever pressed GO (key absent). */
+export async function dbGetPlays(): Promise<number> {
+  const raw = await redis.get(PLAYS_KEY)
+  const n = raw ? Number(raw) : 0
+  return Number.isFinite(n) ? n : 0
+}
+
 function leaderboardKey(dateStr: string): string {
   return `tipsy:global:board:${dateStr}`
 }
