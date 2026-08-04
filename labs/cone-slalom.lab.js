@@ -391,7 +391,16 @@
            exact thing excluding ramp gates was meant to prevent. A crossing now
            gets the same breathing room a turn does, on both sides. */
         const span = blocked.find(([a, b]) => at >= a - SL.turn * T2 && at <= b);
-        if (span){ at = span[1] + SL.turn * T2; n = 0; continue; }
+        if (span){
+          /* Leave the crossing approach on the ramp row. plantAt alternates
+             rows 1 and 2 and sends the player to the far side of each, so the
+             gate before a span decides which lane he arrives in. Setting the
+             counter even means the last gate is on rowA and pushes him toward
+             the ramp side rather than out to row 3, which is the one row the
+             ramp does not cover. */
+          if (k % 2 !== 0) k++;
+          at = span[1] + SL.turn * T2; n = 0; continue;
+        }
         plantAt(at);
         at += stepFor(i, n);
       }
@@ -418,17 +427,22 @@
        marking rather than two near-copies that can drift apart. The lane is
        whichever one the last gate before the span committed you to, so the
        walls always open where the player already is. */
+    /* THE CHUTE LANE COMES FROM THE RAMP, NOT FROM THE GATES.
+       Deriving it from whichever row the last gate committed to was wrong on
+       every leg — leg 1 only looked right by coincidence.
+
+       generateRoute plants BOTH ramp props at row 1, straight crossings and
+       turn crossings alike, and says why: the prop is 3 tiles wide against a
+       4-row walk, so laneOffset(1) centres it on rows 0-2 exactly on tile
+       seams, "leaving row 3 (building side) as plain flat walk".
+
+       So the lane a crossing must be taken in is row 1, always, and row 3 is
+       the one row that is NOT on the ramp. Walls at rows 0 and 2 mark the ramp
+       centre and, more importantly, put a wall between the robot and row 3 —
+       the lane that would drop him off the side of the ramp entirely. */
+    const RAMP_ROW = 1;
     const plantChute = (from, to) => {
-      /* THE LANE MUST HAVE A ROW ON EITHER SIDE OF IT.
-         lastGate.row + slWant lands on 0 or 3 whenever the gate rows are 1 and
-         2, and then one wall falls outside rows 0..3 and is silently dropped —
-         leaving a single line of cones pushed to one side instead of a
-         corridor. Clamping to 1..2 is not cosmetic: a chute with one wall does
-         not say "hold this lane", it says "the cones are in the wrong place",
-         which is exactly how it read on device. */
-      const lastG = gatesNow().filter(h => h.s < from).slice(-1)[0];
-      const lane = Phaser.Math.Clamp(
-        lastG ? lastG.row + lastG.slWant : SL.rowB, 1, 2);
+      const lane = RAMP_ROW;
       for (let at = from; at <= to; at += cstep){
         for (const r of [lane - 1, lane + 1]){
           if (r < 0 || r > 3 || chuteN >= CHUTE_MAX) continue;
