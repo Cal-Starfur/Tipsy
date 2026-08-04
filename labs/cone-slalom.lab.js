@@ -95,8 +95,8 @@
     trafficWaits: 1,   // cars queue at coned junctions instead of driving through
     kickers: 1,   // kicker ramps per leg (0 = none)
     kLift: 26,    // ramp lip height
-    kPow:  0.052, // launch: vz = speed * kPow
-    kGrav: 0.00019,
+    kReach: 5.0,  // how far the jump carries at full speed, in T2
+    kPeak:  40,   // apex height above the lip, in world units
     rowA: 0,      // low edge of the sidewalk band the course uses
     rowB: 3,      // high edge — 0..3 is the whole walk
     lead: 4.0,    // run-up before the first cone, in T2
@@ -573,7 +573,11 @@
         lift: SL.kLift, hjDir: 1, root: false, hit: true, slRole:'jump',
       });
       /* two hydrants under the arc, past the lip */
-      const hyd = [kk.s + 2.0 * T2, kk.s + 3.1 * T2];
+      /* Hydrants and the catch ramp are placed as FRACTIONS OF THE REACH, so
+         changing the jump moves them with it. Fixed tile offsets meant dialling
+         reach silently turned a clean jump into a clipped one. */
+      const reach = SL.kReach * T2;
+      const hyd = [kk.s + reach * 0.34, kk.s + reach * 0.56];
       for (const hs of hyd)
         scene.route.hazards.push({
           /* facingAt is a LOCAL inside generateRoute, not a global — and a
@@ -612,7 +616,7 @@
          one: you touch down high and ride it back to ground level, the mirror
          of the kicker. Placed just past the last hydrant, where the arc is
          still descending. */
-      const catchS = Math.round(hyd[hyd.length - 1] + 1.4 * T2);
+      const catchS = Math.round(kk.s + reach * 0.94);
       scene.route.hazards.push({
         type:'slab', hjRole:'catch', s: catchS, row: kRow, f,
         lift: SL.kLift, hjDir: -1, root: false, hit: true, slRole:'jump',
@@ -910,6 +914,26 @@
      (s0 < lip && s1 >= lip) could never be true. The launch never fired once.
      Two consumers, two cursors: sharing one was the bug. */
   let flightPrevS = 0;
+  /* REACH AND PEAK ARE THE DIALS; pow and grav are DERIVED.
+     The first pass exposed pow and grav directly and I picked 0.052 and
+     0.00019 by eye. HJ_JUMP states the actual relationships —
+     reach = 2*v^2*pow/grav and peak = v^2*pow^2/(2*grav) — and those numbers
+     work out to an apex of 0.36 world units. A hydrant is 20 tall. He never
+     left the ground; the wedge lift was doing all the visible work, which is
+     exactly what "not clearing cleanly" looks like.
+
+     Inverting the pair gives pow = 4*peak/reach and grav = 8*v^2*peak/reach^2,
+     so the two things actually worth choosing are the two things exposed. It
+     also makes the constants answer one question each instead of two people
+     arguing about the same trajectory.
+
+     V_DESIGN is the speed the jump is BUILT for — full throttle. Arrive slower
+     and you land short, which is the mechanic: the run-up has no gates so
+     there is no excuse for arriving slow. */
+  const V_DESIGN = 0.225;
+  const jumpPow  = () => 4 * SL.kPeak / (SL.kReach * T2);
+  const jumpGrav = () => 8 * V_DESIGN * V_DESIGN * SL.kPeak / Math.pow(SL.kReach * T2, 2);
+
   function slFlight(dt){
     const c = run.course;
     if (!c || !c.kickers || !c.kickers.length){ flightPrevS = scene.botS; return; }
@@ -919,7 +943,7 @@
     if (!scene.hjAir){
       for (const kk of c.kickers){
         if (s0 < kk.lip && s1 >= kk.lip && scene.speed >= 0.10){
-          scene.hjAir = { vz: scene.speed * SL.kPow, z: SL.kLift, idx: 0, kk, clipped:false };
+          scene.hjAir = { vz: scene.speed * jumpPow(), z: SL.kLift, idx: 0, kk, clipped:false };
           run.msg = 'AIR'; run.msgT = performance.now();
           break;
         }
@@ -928,7 +952,7 @@
     }
 
     const A = scene.hjAir;
-    A.vz -= SL.kGrav * dt;
+    A.vz -= jumpGrav() * dt;
     A.z  += A.vz * dt;
 
     while (A.idx < A.kk.hyd.length){
@@ -1077,7 +1101,8 @@
     { key:'legs', label:'legs',  min:2,   max:20,  step:1    },
     { key:'kickers',label:'jumps',min:0,  max:3,   step:1    },
     { key:'kLift',label:'lift',  min:10,  max:44,  step:2    },
-    { key:'kPow', label:'pow',   min:0.03,max:0.09,step:0.002 },
+    { key:'kReach',label:'reach',min:3,   max:9,   step:0.25 },
+    { key:'kPeak', label:'peak', min:20,  max:70,  step:2    },
     { key:'gap',  label:'gap',   min:1.4, max:4.0, step:0.05 },
     { key:'vary', label:'vary',  min:0,   max:1.2, step:0.05 },
     { key:'rowA', label:'row lo',min:0,   max:3,   step:1    },
