@@ -963,7 +963,29 @@
     if (!scene.hjAir){
       for (const kk of c.kickers){
         if (s0 < kk.lip && s1 >= kk.lip && scene.speed >= 0.10){
-          scene.hjAir = { vz: scene.speed * jumpPow(), z: SL.kLift, idx: 0, kk, clipped:false };
+          /* THE ARC IS A FUNCTION OF DISTANCE, NOT OF TIME.
+             Integrating vz and z against dt kept landing long. Horizontal
+             travel comes from the game's own botS integration using ITS delta;
+             the fall was using mine, clamped at 34ms. On any frame the two
+             disagree he travels further than he falls, and the error only ever
+             accumulates one way.
+
+             So the height is evaluated from how far he has gone. Same parabola
+             — z0 + vz*T*u - g*(T*u)^2/2 with T = R/v and u the fraction of the
+             reach covered — but with dt algebraically gone, touchdown lands at
+             exactly R however the frame rate behaves.
+
+             R scales with the SQUARE of launch speed, which is the real
+             relationship for projectile range. Arrive under V_DESIGN and you
+             land short; that is still the mechanic, and now it is exact rather
+             than emergent from an integrator. */
+          const v = scene.speed;
+          const R = SL.kReach * T2 * Math.pow(v / V_DESIGN, 2);
+          const g = jumpGrav(), vz = v * jumpPow(), T = R / Math.max(v, 1e-6);
+          scene.hjAir = {
+            lipS: kk.lip, R, T, vz, g, z: SL.kLift, z0: SL.kLift,
+            idx: 0, kk, clipped: false,
+          };
           run.msg = 'AIR'; run.msgT = performance.now();
           break;
         }
@@ -972,8 +994,10 @@
     }
 
     const A = scene.hjAir;
-    A.vz -= jumpGrav() * dt;
-    A.z  += A.vz * dt;
+    const u  = Phaser.Math.Clamp((s1 - A.lipS) / A.R, 0, 1.4);
+    const tt = A.T * u;
+    A.z  = A.z0 + A.vz * tt - 0.5 * A.g * tt * tt;
+    A.vz_now = A.vz - A.g * tt;          // sign only, for the pitch and the landing test
 
     while (A.idx < A.kk.hyd.length){
       const hs = A.kk.hyd[A.idx];
@@ -988,18 +1012,22 @@
       }
     }
 
-    scene.pitch = Math.atan2(A.vz, Math.max(scene.speed, 1e-4)) * 0.6;
+    scene.pitch = Math.atan2(A.vz_now, Math.max(scene.speed, 1e-4)) * 0.6;
 
     /* Ground height under the robot is whatever hjSlabZ says — which is the
        catch ramp's deck while he is over it. Landing against 0 instead would
        sink him through the ramp he is supposed to touch down on. */
     const gz = scene.hjSlabZ ? scene.hjSlabZ(s1) : 0;
-    if (A.vz < 0 && A.z <= gz){
+    if (A.vz_now < 0 && A.z <= gz){
       const clean = !A.clipped;
       scene.hjAir = null;
       scene.pitch = 0;
       A.z = gz;
-      if (clean){ run.msg = 'clean landing'; run.msgT = performance.now(); }
+      const flew = (s1 - A.lipS) / T2;
+      if (clean){
+        run.msg = `clean landing — ${flew.toFixed(2)} T2 flown (target ${(A.R/T2).toFixed(2)})`;
+        run.msgT = performance.now();
+      }
       else scene.tilt += 0.25;      // a clipped landing costs stability, not the run
     }
   }
