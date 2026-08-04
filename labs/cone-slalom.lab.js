@@ -117,6 +117,8 @@
      the input rather than a fact about the world they have to translate. */
   const GATE_RED  = { ...CONE, band: 7, band_c: 0xe03131 };
   const GATE_BLUE = { ...CONE, band: 7, band_c: 0x2f6fd0 };
+  /* chute cones are walls, not gates — white band, no side to choose */
+  const GATE_WALL = { ...CONE, band: 5, band_c: 0xf4f5f7 };
 
   /* rowPlusDown at s, lifted from hop() — screen-down is +1 row when true */
   const rowPlusDownAt = s => {
@@ -252,11 +254,23 @@
 
     const straight = cor.kind === 'straight';
     const [nA, nB] = straight ? [SL.n, 0] : splitN();
-    const aStart = Math.round(cor.a.s0 + SL.lead * T2);
+
+    /* SPAWN OFF THE CROSSING.
+       cor.a.s0 is the first s of the line segment, which is immediately after
+       the previous corner — and route.crossings puts a walk-gone span there,
+       so spawning at s0 dropped the robot into the middle of the street. The
+       crossings array already knows exactly where the walk is missing; push
+       the spawn clear of any span it overlaps rather than guessing a margin. */
+    let spawnS = Math.round(cor.a.s0 + T2);
+    for (const cx of scene.route.crossings){
+      if (spawnS > cx.sA - 2*T2 && spawnS < cx.sB + 2*T2)
+        spawnS = Math.round(cx.sB + 3*T2);
+    }
+    const aStart = Math.round(spawnS + SL.lead * T2);
     const bStart = straight ? 0 : Math.round(cor.b.s0 + SL.turn * T2);
     const course = {
       cor, straight,
-      spawnS:  Math.round(cor.a.s0),
+      spawnS,
       lineS:   Math.round(aStart - SL.gap * T2 * 0.5),
       /* with no arc, the turn markers sit past the finish so the "in the turn"
          test below can never fire — one branch, not a second code path */
@@ -308,6 +322,43 @@
     };
     plant(aStart, nA);
     if (nB) plant(bStart, nB);
+
+    /* ============ THE TURN IS NO LONGER A DEAD GAP ============
+       The arc used to be empty road between two cone fields, which read as the
+       course having stopped. It cannot hold GATES — hop() refuses to fire
+       mid-arc, so a cone you must change lanes around is a gate you are
+       physically unable to answer.
+
+       So the arc gets a CHUTE instead: cones lining the rows either side of the
+       lane the last gate committed you to. They are not gates and are never
+       side-judged. They make the turn's actual rule visible — you are in this
+       lane until the arc is behind you — and they punish drifting, which is
+       exactly what hop()'s refusal already meant but never showed. Tighter
+       spacing than the gates so it reads as a wall, not as more gates. */
+    if (!straight && nA > 0){
+      const lastGate = scene.route.hazards
+        .filter(h => h.slRole === 'gate' && h.s < cor.m.s0)
+        .sort((x, y) => x.s - y.s).slice(-1)[0];
+      const lane = lastGate
+        ? Phaser.Math.Clamp(lastGate.row + lastGate.slWant, 0, 3)
+        : SL.rowB;
+      const step = SL.gap * T2 * 0.55;
+      const from = cor.m.s0 - SL.turn * T2 * 0.5;
+      const to   = cor.m.s1 + SL.turn * T2 * 0.5;
+      for (let at = from; at <= to; at += step){
+        for (const r of [lane - 1, lane + 1]){
+          if (r < 0 || r > 3) continue;
+          scene.route.hazards.push({
+            type:'cone', s: Math.round(at), row: r, f:0, hit:false,
+            phi:0, phase:1, angVel:0, moving:false, pose:'standing',
+            slide:0, slideVel:0,
+            slRole:'chute', cone: GATE_WALL,
+            slKnocked:false, slJudged:true,     // never side-judged
+          });
+        }
+      }
+      course.chuteLane = lane;
+    }
     return course;
   }
 
@@ -322,7 +373,9 @@
     scene.hopAnim = null; scene.hopYaw = 0; scene.hopKick = 0;
     run.done = false;
     run.course = slBuildCourse();
-    run.cones  = scene.route.hazards.filter(h => h.slRole === 'gate');
+    /* knock-watch covers chute cones too; gate-only counts read slRole */
+    run.cones  = scene.route.hazards.filter(h => h.slRole);
+    run.gates  = scene.route.hazards.filter(h => h.slRole === 'gate');
     run.started = false; run.done = false;
     run.elapsed = 0; run.pen = 0; run.cleared = 0; run.faults = [];
     if (!run.course) return;
@@ -375,8 +428,11 @@
     for (const cone of run.cones){
       if (!cone.slKnocked && (cone.moving || cone.pose !== 'standing' || cone.phi > 0.02)){
         cone.slKnocked = true;
-        run.pen += SL.pen; run.faults.push(`#${cone.slIndex + 1} knocked`);
-        run.msg = `cone ${cone.slIndex + 1} — +${SL.pen.toFixed(1)}s`;
+        run.pen += SL.pen;
+        const name = cone.slRole === 'chute'
+          ? 'turn chute' : `cone ${cone.slIndex + 1}`;
+        run.faults.push(`${name} knocked`);
+        run.msg = `${name} — +${SL.pen.toFixed(1)}s`;
         run.msgT = performance.now();
       }
     }
@@ -467,7 +523,7 @@
        ${row('par', SL.par.toFixed(1) + 's')}
        ${row('margin', (SL.par - total >= 0 ? '−' : '+') +
              Math.abs(SL.par - total).toFixed(2) + 's', col)}
-       ${row('cones cleared', `${run.cleared} / ${run.cones.length}`)}
+       ${row('gates cleared', `${run.cleared} / ${run.gates.length}`)}
        ${row('grade', (run.course.grade * 100).toFixed(1) + '% downhill')}
        ${row('headings', `f=${run.course.fA} \u2192 f=${run.course.fB}`)}
        ${row('seed', SEED || '—')}
