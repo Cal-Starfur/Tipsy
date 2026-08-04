@@ -10,6 +10,7 @@ import {
   type AccountDeleteEvent,
   type ClaimTrophyRewardReq,
   type ClaimTrophyRewardRsp,
+  type CountPlayRsp,
   Endpoint,
   EndpointMethod,
   type EquipSkinReq,
@@ -21,6 +22,8 @@ import {
   type PurchaseSkinRsp,
   type SubmitDailyBestReq,
   type SubmitDailyBestRsp,
+  type SubmitFailReq,
+  type SubmitFailRsp,
   type SubmitReplayReq,
   type SubmitReplayRsp,
   type TpProfileRsp,
@@ -33,8 +36,10 @@ import {
   dbGetDailyBest,
   dbGetDailyPostId,
   dbGetHistory,
+  dbGetPlays,
   dbGetTop,
   dbGetTpProfile,
+  dbIncrPlays,
   dbPurchaseSkin,
   dbRemoveUser,
   dbSetDailyPostId,
@@ -55,6 +60,8 @@ type AnyRsp =
   | PurchaseSkinRsp
   | EquipSkinRsp
   | ClaimTrophyRewardRsp
+  | CountPlayRsp
+  | SubmitFailRsp
   | UiResponse
   | TriggerResponse
   | ErrorRsp
@@ -108,6 +115,12 @@ async function route(
       case Endpoint.ClaimTrophyReward:
         rsp = await routeClaimTrophyReward(reqMsg)
         break
+      case Endpoint.CountPlay:
+        rsp = await routeCountPlay()
+        break
+      case Endpoint.SubmitFail:
+        rsp = await routeSubmitFail(reqMsg)
+        break
       case Endpoint.OnMenuNewPost:
         rsp = await routeMenuNewPost()
         break
@@ -157,12 +170,13 @@ async function getCurrentUserRetrying() {
 
 async function routeGetDailyBest(): Promise<GetDailyBestRsp> {
   const dateStr = todayUTC()
-  const [best, top, allTimeBest, allTimeTop, user] = await Promise.all([
+  const [best, top, allTimeBest, allTimeTop, user, plays] = await Promise.all([
     dbGetDailyBest(dateStr),
     dbGetTop(dateStr, 10),
     dbGetAllTimeBest(),
     dbGetAllTimeTop(10),
     getCurrentUserRetrying(),
+    dbGetPlays(),
   ])
   return {
     dateStr,
@@ -170,6 +184,7 @@ async function routeGetDailyBest(): Promise<GetDailyBestRsp> {
     viewerUsername: user?.username ?? null,
     top,
     allTime: {best: allTimeBest, top: allTimeTop},
+    plays,
   }
 }
 
@@ -269,6 +284,99 @@ async function routeClaimTrophyReward(
     return {error: result.error, status: 400}
   }
   return {owned: result.profile.owned, skinId: result.skinId}
+}
+
+async function routeCountPlay(): Promise<CountPlayRsp> {
+  return {plays: await dbIncrPlays()}
+}
+
+/** The server owns every word of the failure copy: the client sends an
+ *  ID, not prose. A client-supplied sentence would end up verbatim in
+ *  a public comment under the app account's name, which is exactly the
+ *  kind of thing that shouldn't be typeable from a webview. Unknown
+ *  IDs fall back to the generic line rather than being echoed. */
+const FAIL_CAUSE_COPY: {[cause: string]: string} = {
+  william: 'kicked over by William',
+  car: 'clipped by a car',
+  palm: 'wrapped around a palm trunk',
+  lamp: 'met a streetlamp',
+  hydrant: 'bounced off a fire hydrant',
+  slab: 'launched by a heaved slab',
+  crack: 'swallowed by a sidewalk crack',
+  cone: 'took out a cone',
+  bin: 'hit a trash bin',
+  trash: 'hit a pile of trash',
+  scooter: 'tripped on a dumped scooter',
+  planter: 'clipped a planter',
+  dog: 'ambushed by a dog',
+  pigeons: 'mobbed by pigeons',
+  people: 'walked into a pedestrian',
+  robot: 'sideswiped by another robot',
+  grade: 'beaten by the grade',
+  canceled: 'ran out the clock -- order canceled',
+}
+const FAIL_CAUSE_FALLBACK = 'lost balance'
+
+/** Route text is generated client-side (the server never builds a
+ *  route), so address/hood have to come from the client -- but they go
+ *  straight into a public comment, so they're clamped to a sane length
+ *  and stripped of anything that could turn into markdown, a newline,
+ *  or a u//r/ mention that would ping a real account. */
+function sanitizeLabel(raw: unknown, max: number): string {
+  if (typeof raw !== 'string') return ''
+  return raw
+    .replace(/[\r\n]+/g, ' ')
+    .replace(/[*_`~[\]()<>|#]/g, '')
+    .replace(/\b(u|r)\/(?=\w)/gi, '')
+    .trim()
+    .slice(0, max)
+}
+
+function clampNum(raw: unknown, lo: number, hi: number): number {
+  const n = typeof raw === 'number' ? raw : Number.NaN
+  if (!Number.isFinite(n)) return lo
+  return Math.min(hi, Math.max(lo, n))
+}
+
+/** Comments on the post the run was played in, as the app account.
+ *  context.postId is absent outside a post context (and the username
+ *  is absent for a logged-out viewer) -- both are ordinary conditions,
+ *  not errors, so they just return posted:false. A failed comment is
+ *  logged but never surfaced: the player is staring at a crash
+ *  overlay, and a toast about Reddit's rate limiter helps nobody. */
+async function routeSubmitFail(
+  reqMsg: IncomingMessage,
+): Promise<SubmitFailRsp> {
+  const req = await readJson<SubmitFailReq>(reqMsg)
+  const postId = context.postId
+  if (!postId) return {posted: false}
+
+  const user = await getCurrentUserRetrying()
+  if (!user?.username) return {posted: false}
+
+  const cause = FAIL_CAUSE_COPY[req.cause] ?? FAIL_CAUSE_FALLBACK
+  const address = sanitizeLabel(req.address, 48)
+  const hood = sanitizeLabel(req.hood, 32)
+  const pct = Math.round(clampNum(req.pct, 0, 100))
+  const tip = clampNum(req.tip, 0, 9999)
+  const secs = clampNum(req.ms, 0, 3_600_000) / 1000
+  const damage = Math.round(clampNum(req.damage, 0, 100))
+
+  const where = address
+    ? `${pct}% of the way to ${address}${hood ? ` (${hood})` : ''}`
+    : `${pct}% of the way to the door`
+
+  const text =
+    `**u/${user.username}** went down ${where} -- ${cause}.\n\n` +
+    `$${tip.toFixed(2)} order · ${secs.toFixed(1)}s on the clock · cargo ${damage}% ruined.`
+
+  try {
+    await reddit.submitComment({id: postId as `t3_${string}`, text})
+    return {posted: true}
+  } catch (err) {
+    console.error('routeSubmitFail: submitComment failed', err)
+    return {posted: false}
+  }
 }
 
 async function routeMenuNewPost(): Promise<UiResponse> {
