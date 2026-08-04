@@ -1016,8 +1016,7 @@
      No phase, unlike the crime scene: the cones do not clear, so the cars
      simply queue. That is the ask — they wait.
      ========================================================================= */
-  const STOP_R    = 5 * T2;    // start looking this far back
-  const STOP_LINE = 1.3 * T2;  // stop this far short of the junction
+  const STOP_R    = 6 * T2;    // start looking this far back
   const STOP_LAT  = 1.6 * T2;  // ignore cars not actually aimed at it
 
   function slHoldTraffic(t, dt){
@@ -1034,11 +1033,18 @@
       for (const nd of nodes){
         const dx = nd.x - wp.x, dy = nd.y - wp.y;
         const along = dx * dv.x + dy * dv.y;         // + means the node is ahead
-        /* Only cars still SHORT of the cone line are held. A car already on or
-           past it is let go — holding it would park it on top of the cones
-           forever, which is worse than the thing being fixed and is how a
-           blocked junction turns into a permanent roadblock. */
-        if (along < STOP_LINE || along > STOP_R) continue;
+        /* HOLD WHILE THE CONES ARE AHEAD AT ALL — no lower bound.
+           The first version held only cars between STOP_LINE and STOP_R. A car
+           creeps to a stop right AT STOP_LINE, and from there the least drift
+           puts `along` under it, which released the car permanently: it eased
+           over the line and drove on. That is a slow leak, not a missing hold,
+           and it is why cars kept ending up parked on the cones.
+
+           The bound is now simply "is the cone line still in front of me". A
+           car past it (along <= 0) is released, so nothing is ever frozen ON
+           the cones; a car short of it waits, indefinitely. The cones do not
+           clear, so indefinitely is the correct answer. */
+        if (along <= 0 || along > STOP_R) continue;
         if (Math.abs(dx * rv.x + dy * rv.y) > STOP_LAT) continue;
         tr.hold = (tr.hold || 0) + hDt; tr.holdFrame = t;
         break;
