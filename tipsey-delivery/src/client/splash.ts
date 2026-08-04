@@ -39,7 +39,7 @@ function render(data: GetDailyBestRsp): void {
   }
 
   playsEl.textContent = data.plays
-    ? `${data.plays.toLocaleString()} deliveries attempted all-time`
+    ? `${data.plays.toLocaleString()} ${data.plays === 1 ? 'delivery' : 'deliveries'} attempted today`
     : ''
 
   renderActiveTab()
