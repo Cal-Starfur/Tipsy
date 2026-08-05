@@ -100,6 +100,8 @@
     trafficWaits: 1,   // cars queue at coned junctions instead of driving through
     kickers: 1,   // kicker ramps per leg (0 = none)
     kLift: 26,    // ramp lip height
+    kRunup: 2.5,  // clear road before the lip, in T2. Was a hardcoded 5.5, and
+                  // 5.5 tiles is ~500 units of nothing in front of every ramp.
     kReach: 5.0,  // how far the jump carries at full speed, in T2
     kPeak:  40,   // apex height above the lip, in world units
     rowA: 0,      // low edge of the sidewalk band the course uses
@@ -456,7 +458,7 @@
        and a long one could land past the end of its own exclusion. The run-up
        is trimmed too: 5.5 T2 is ~2.2s of clear road at full speed, ample to be
        back at the cap after the previous gate. */
-    const RUNUP = 5.5 * T2, LANDING = SL.kReach * T2 * 1.15;
+    const RUNUP = SL.kRunup * T2, LANDING = SL.kReach * T2 * 1.15;
     const kickers = [];
     ch.lines.forEach((L, i) => {
       const room = (L.s1 - L.s0) - (RUNUP + LANDING + 4 * T2);
@@ -489,6 +491,46 @@
 
     const isBlocked = (at) => blocked.some(([a, b]) => at >= a && at <= b);
 
+    /* ============ THE GATES AIM YOU AT THE RAMP ============
+       A jump used to arrive at the end of a corridor of nothing, and the row
+       you took it in was decided by `curRow = RAMP_ROW` on the skip branch —
+       which moves the bookkeeping row without planting a gate that ASKS for
+       the move. The player got no cue that a lane mattered and no requirement
+       to be in it; the lane was simply asserted behind his back.
+
+       So the last two gates before a kicker are chosen rather than rolled. The
+       one before last puts you on a row ADJACENT to the ramp lane; the last
+       one puts you IN it. Read forwards that is a ladder that funnels into the
+       lip, and because a gate's required side is derived from the next gate's
+       row, the correct line through those two gates IS the line over the ramp.
+       Taking the jump is now what happens when you play the gates properly,
+       instead of a thing that happens to you in a gap.
+
+       DISTANCE, NOT COUNT. The ladder is measured against the nominal step, so
+       it stays two gates wide whatever the spacing dial says — at gap 1.4 it
+       is a tight double-hop, at gap 3.0 it is a long committed setup, and
+       neither needs its own number. */
+    const jumpGapAt = (a) => {
+      let best = Infinity;
+      for (const sp of blocked)
+        if (sp[2] === 'jump' && sp[0] >= a) best = Math.min(best, sp[0] - a);
+      return best;
+    };
+    /* A row one off the ramp lane, preferring one inside the band the course
+       is using and never the row we are already on — a gate you can take
+       without moving is not a gate. */
+    const setupRowFor = (cur, tag) => {
+      const opts = [RAMP_ROW - 1, RAMP_ROW + 1]
+        .filter(r => r >= rowLo && r <= rowHi && r !== cur);
+      if (!opts.length) return null;
+      /* Seeded, not opts[0]. Always taking the low side made every ramp on the
+         course approach from the same lane, so the ladder read as one scripted
+         move repeated rather than as a setup — and a course whose spacing is
+         seeded for repeatability should not have a hand-picked constant in the
+         middle of it. */
+      return opts[Math.floor(hash01(seedStr + ":setup:" + tag) * opts.length) % opts.length];
+    };
+
     /* GATES ON EVERY LINE. First line starts after the run-up, last ends before
        the run-out, everything between is bounded by the turn clearance — the
        chute owns those. Blocked spans are stepped over, not stopped at, so the
@@ -520,7 +562,19 @@
              excluded was the RAMP, and the ramp is already inside the span. */
           at = span[1] + T2; n = 0; continue;
         }
-        const nextRow = pickRow(i + ':' + n, curRow);
+        /* nominal step, before the multi-row stretch — the ladder asks "how
+           many gates from here", and the stretch is a consequence of the row
+           choice this line is about to make, so using it here would be
+           circular. */
+        const step = stepFor(i, n);
+        const dJump = jumpGapAt(at);
+        let nextRow = null;
+        if (dJump <= step * 1.35)      nextRow = RAMP_ROW;            // last gate
+        else if (dJump <= step * 2.70) nextRow = setupRowFor(curRow, i + ":" + n); // the one before
+        /* Fall through to the random walk whenever the ladder has nothing to
+           say, INCLUDING when it names the row we are already standing in. */
+        if (nextRow === null || nextRow === curRow)
+          nextRow = pickRow(i + ':' + n, curRow);
         plantAt(at, nextRow);
         at += stepFor(i, n) * (1 + (lastDelta - 1) * SL.wide);
       }
@@ -1389,6 +1443,8 @@
       help:'lane nearest the buildings the weave may use. 3 is the whole walk.' },
     { key:'kickers',label:'jumps per block',unit:'',     min:0,   max:3,   step:1,
       help:'ramps per street. They sit in the first third, never near a corner.' },
+    { key:'kRunup', label:'ramp run-up',   unit:'tiles', min:1.5, max:8,   step:0.5,
+      help:'clear road before the lip. The last two gates aim you into the ramp lane.' },
     { key:'kReach', label:'jump distance', unit:'tiles', min:3,   max:9,   step:0.25,
       help:'how far the ramp carries at full speed. Sets where the catch deck goes.' },
     { key:'kPeak',  label:'jump height',   unit:'',      min:20,  max:70,  step:2,
@@ -1468,7 +1524,8 @@
     `const SL = { n:${SL.n}, gap:${(+SL.gap).toFixed(2)}, rowA:${SL.rowA}, rowB:${SL.rowB}, ` +
     `vary:${(+SL.vary).toFixed(2)}, lead:${(+SL.lead).toFixed(1)}, ` +
     `turn:${(+SL.turn).toFixed(1)}, wide:${(+SL.wide).toFixed(2)}, ` +
-    `kickers:${SL.kickers}, kReach:${(+SL.kReach).toFixed(2)}, ` +
+    `kickers:${SL.kickers}, kRunup:${(+SL.kRunup).toFixed(1)}, ` +
+    `kReach:${(+SL.kReach).toFixed(2)}, ` +
     `kPeak:${SL.kPeak}, kLift:${SL.kLift}, ` +
     `tail:${(+SL.tail).toFixed(1)}, ` +
     `pen:${(+SL.pen).toFixed(1)}, par:${(+SL.par).toFixed(1)}, legs:${SL.legs} };`;
