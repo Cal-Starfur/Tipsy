@@ -94,6 +94,18 @@
        markup, so this is not a second copy of game.html's UI to keep in
        sync -- just the set of names it looks up. */
     #attract-stubs { display: none; }
+    /* TEMPORARY DIAGNOSTIC -- remove once the splash is confirmed live.
+       Two deploys have now failed silently and I cannot read Devvit's
+       console from here, so the page reports its own progress on the
+       card instead of into a log nobody can see. A screenshot then says
+       exactly which step died. */
+    #attract-probe {
+      position: fixed; left: 0; right: 0; bottom: 0; z-index: 9;
+      font: 10px/1.5 ui-monospace, Menlo, monospace;
+      color: #9be08a; background: rgba(0,0,0,0.72);
+      padding: 2px 6px; text-align: left; pointer-events: none;
+      white-space: nowrap; overflow: hidden;
+    }
     body.attract-live #attract-stage { opacity: 1; }
     /* The static layers cross-fade rather than switching off, so a frame
        where the engine has signalled but not yet painted shows the old
@@ -434,6 +446,7 @@
     </style>
   </head>
   <body>
+    <div id="attract-probe">attract: boot</div>
     <div id="attract-stage" aria-hidden="true">
       <div id="game"></div>
       <div id="attract-stubs"></div>
@@ -519,8 +532,22 @@
     (function () {
       var stage = document.getElementById('attract-stage');
       var stubs = document.getElementById('attract-stubs');
-      if (!stage || !stubs) return;
-      if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+      /* TEMPORARY: see #attract-probe. Records each step so a screenshot
+         of the card shows how far the boot got. */
+      var probeEl = document.getElementById('attract-probe');
+      var steps = [];
+      function probe(msg) {
+        steps.push(msg);
+        if (probeEl) probeEl.textContent = 'attract: ' + steps.join(' > ');
+      }
+      window.addEventListener('error', function (e) {
+        probe('ERR ' + ((e && e.message) || 'unknown').slice(0, 60));
+      });
+      if (!stage || !stubs) { probe('no stage'); return; }
+      if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        probe('reduced-motion'); return;
+      }
+      probe('script ran');
 
       /* Every id game-logic.js looks up. Two need to be more than a bare
          div: routeMap is drawn through getContext('2d'), and winOverlay
@@ -573,36 +600,70 @@
       var started = false;
       window.addEventListener('message', function (e) {
         var d = e && e.data;
-        if (d && d.tipsey === 'attract-ready') document.body.classList.add('attract-live');
+        if (d && d.tipsey === 'attract-ready') {
+          probe('READY'); document.body.classList.add('attract-live');
+        }
       });
 
       function start() {
         if (started) return;
         started = true;
-        try { buildStubs(); } catch (err) { return; }
+        probe('start');
+        try { buildStubs(); probe('stubs ' + stubs.children.length); }
+        catch (err) { probe('stub fail'); return; }
         /* tells game-logic.js to suppress its own chrome AND to treat
            itself as a non-Devvit build, so the feed card makes no
            server calls */
         window.TIPSEY_ATTRACT_BARE = true;
         loadScript('phaser.min.js')
-          .then(function () { return loadScript('game-logic.js'); })
-          .catch(function () { stage.remove(); });
+          .then(function () {
+            probe('phaser ok');
+            return loadScript('game-logic.js');
+          })
+          .then(function () { probe('logic ok'); })
+          .catch(function (err) {
+            probe('LOAD FAIL ' + (err && err.message ? err.message : ''));
+            stage.remove();
+          });
         /* If the engine never reports in, take the stage away rather
            than leave a game loop running behind a card nobody can see
            it through. The static splash is already underneath. */
         setTimeout(function () {
-          if (!document.body.classList.contains('attract-live')) stage.remove();
+          if (!document.body.classList.contains('attract-live')) {
+            probe('no handshake'); stage.remove();
+          }
         }, 9000);
       }
 
+      /* threshold 0 -- ANY visible pixel counts -- not a fraction.
+         A fraction is the wrong question here and it is what kept this
+         from ever running on Reddit. IntersectionObserver reports the
+         ratio of the OBSERVED ELEMENT that is visible, and in the feed
+         the Devvit webview is a short card while #card's content is
+         taller than it. The ratio therefore caps at roughly
+         (viewport height / card height), which can sit permanently
+         below any fraction worth naming: the observer never fires,
+         start() never runs, and the reader gets the static splash
+         forever. It passed every local test because a 420x820 window
+         fits the whole card, so the ratio reached 1.0 immediately.
+         "Is any of this on screen" is the actual question, and 0
+         answers exactly that. */
       var card = document.getElementById('card') || document.body;
       if (!('IntersectionObserver' in window)) { start(); return; }
       var io = new IntersectionObserver(function (entries) {
         for (var i = 0; i < entries.length; i++) {
           if (entries[i].isIntersecting) { io.disconnect(); start(); return; }
         }
-      }, {threshold: 0.35});
+      }, {threshold: 0});
       io.observe(card);
+      probe('observing');
+      /* Belt and braces. The observer is the RIGHT gate -- it is what
+         keeps a scroll-past from costing 828KB -- but it is also the
+         single point of failure that just cost two deploys. If it has
+         not fired by now, the post is almost certainly on screen and
+         being looked at; a webview that gets created and then never
+         observed is not a case worth protecting against. */
+      setTimeout(function () { if (!started) start(); }, 2500);
     })();
     </script>
     <script src="splash.js" type="module"></script>
