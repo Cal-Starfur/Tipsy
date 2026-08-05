@@ -140,6 +140,18 @@
     text-transform:uppercase; color:var(--grass); display:block; margin-bottom:.4rem;
   }
 
+  /* proof-of-delivery clip */
+  figure.proof{margin:2.2rem auto 0; max-width:420px}
+  figure.proof video{
+    display:block; width:100%; height:auto; border-radius:14px;
+    border:1px solid var(--lane); box-shadow:0 0 0 3px var(--asphalt), 0 18px 40px rgba(0,0,0,.45);
+    background:#000;
+  }
+  figure.proof figcaption{
+    font-family:"IBM Plex Mono", monospace; font-size:.7rem; color:var(--dim);
+    margin-top:.7rem; letter-spacing:.05em; text-align:center;
+  }
+
   /* delivered stamp */
   .delivered{
     margin:4rem 0 1rem; position:relative;
@@ -264,6 +276,10 @@
       </figure>
       <p>Everything alive — with only the handshake missing. The last link was <code>window.postMessage</code> to the page's <em>own</em> window. Native apps inject JS bridges into their webviews, and wrapping <code>window.postMessage</code> is the standard way those bridges are built — a wrapped postMessage swallows the message with <strong>no error</strong>. A headless control with postMessage neutered reproduced the device strip character-for-character.</p>
       <p>The fix is realizing you don't need a messaging API at all: since the iframe died at stop 1, poster and listener share one document. The engine now calls a plain global — <code>window.TIPSEY_ON_ATTRACT_READY()</code> — which nothing can intercept at either end. postMessage stays only as a fallback for genuine framed embedders. Live everywhere.</p>
+      <figure class="proof">
+        <video src="media/live-splash-feed.mp4" poster="media/live-splash-feed.jpg" autoplay muted loop playsinline controls preload="metadata" width="1362" height="1486" aria-label="Screen recording of the Tipsey post in the Reddit app feed: the live game engine plays an attract demo behind the splash screen"></video>
+        <figcaption>proof of delivery — the live engine running behind the splash, in the Reddit app feed, votes and all</figcaption>
+      </figure>
     </section>
 
     <div class="delivered">
