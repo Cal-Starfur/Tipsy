@@ -46,6 +46,39 @@ function decodeScore(score: number): {tipCents: number; ms: number} {
  *  today's leaderboard, so a lifetime number would be the only thing on
  *  the card not talking about today. Carries the same TTL as the daily
  *  boards, so an old day's tally ages out with the board it belongs to. */
+/** Which milestone comments we've already posted for a user. Needed
+ *  because dbClaimTrophyReward is deliberately idempotent (see its
+ *  note: granting an owned skin twice is a no-op, so there's no claimed
+ *  ledger) -- which means a replayed claim would otherwise post a fresh
+ *  "unlocked!" comment every time it was called. Purchases don't need
+ *  this (dbPurchaseSkin rejects an already-owned skin), but they're
+ *  routed through it anyway so one guard covers every milestone and the
+ *  next one added can't forget.
+ *
+ *  No TTL: this tracks a permanent fact about a permanent unlock, the
+ *  same lifetime as tpOwnedKey, and is cleared with the rest of a
+ *  user's data by dbRemoveUser. */
+function announcedKey(username: string): string {
+  return `tipsy:announced:${username}`
+}
+
+/** True the FIRST time a given event is seen for a user, false after.
+ *  Read-then-write rather than an atomic set-if-absent: two truly
+ *  simultaneous claims could both read empty and both announce, and a
+ *  duplicate comment in that hairline race is a cosmetically worse
+ *  outcome than nothing, not a correctness problem -- no reward hangs
+ *  off this, only copy. */
+export async function dbMarkAnnounced(
+  username: string,
+  event: string,
+): Promise<boolean> {
+  const key = announcedKey(username)
+  const seen = await redis.hGet(key, event)
+  if (seen) return false
+  await redis.hSet(key, {[event]: '1'})
+  return true
+}
+
 function playsKey(dateStr: string): string {
   return `tipsy:global:plays:${dateStr}`
 }
@@ -523,6 +556,10 @@ export async function dbRemoveUser(username: string): Promise<void> {
     redis.del(historyKey(username)),
     redis.del(tpProfileKey(username)),
     redis.del(tpOwnedKey(username)),
+    /* milestone-announce ledger: same user-scoped lifetime as the two
+       keys above, so it has to be dropped here or a deleted account
+       would leave a record of what it once unlocked. */
+    redis.del(announcedKey(username)),
   ])
 }
 
