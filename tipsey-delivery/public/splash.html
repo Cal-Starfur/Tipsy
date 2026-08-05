@@ -58,6 +58,47 @@
       height: 100%;
       display: block;
     }
+    /* ---------- LIVE ATTRACT EMBED ----------
+       game.html running in attract mode, behind the card. This reverses
+       the original "no Phaser in the splash" decision (see the robot
+       renderer comment in splash.ts), so it is built to keep that
+       decision's actual GUARANTEE intact: the splash still paints
+       instantly on every feed impression, because nothing here loads
+       until the post is genuinely on screen, and the static city and
+       robot stay up until the game reports it is really running.
+
+       pointer-events:none throughout -- every tap belongs to the splash
+       card. The iframe is decorative and must never eat a Start
+       Delivery press. */
+    #attract-frame {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      border: 0;
+      z-index: 0;
+      opacity: 0;
+      transition: opacity 600ms ease;
+      pointer-events: none;
+    }
+    body.attract-live #attract-frame { opacity: 1; }
+    /* The static layers do not get display:none -- they cross-fade out
+       under the live world, so a frame where the iframe has signalled
+       but not yet painted shows the old art rather than a black hole. */
+    body.attract-live #page-bg,
+    body.attract-live #city-bg,
+    body.attract-live #robot-canvas {
+      opacity: 0;
+      transition: opacity 600ms ease;
+    }
+    /* Motion is the whole feature, so honour the OS switch rather than
+       animating a city under someone who asked for stillness. */
+    @media (prefers-reduced-motion: reduce) {
+      #attract-frame { display: none; }
+      body.attract-live #page-bg,
+      body.attract-live #city-bg,
+      body.attract-live #robot-canvas { opacity: 1; }
+    }
     .party {
       position: absolute;
       inset: 0;
@@ -380,6 +421,8 @@
     </style>
   </head>
   <body>
+    <iframe id="attract-frame" title="" aria-hidden="true" tabindex="-1"
+            scrolling="no" referrerpolicy="no-referrer"></iframe>
     <canvas id="page-bg"></canvas>
     <main id="card">
       <canvas id="city-bg"></canvas>
@@ -442,6 +485,59 @@
         <p class="how-to-note">Payout = tip multiplier × cargo condition − time penalty.</p>
       </div>
     </div>
+    <script>
+    /* ---------- live attract embed: load, handshake, fall back ----------
+       Three rules, in order of how much they matter:
+
+       1. NEVER delay the splash. The card paints from static canvases
+          exactly as before; this only ever ADDS a layer behind it.
+       2. NEVER load on an impression that is not looked at. A feed scroll
+          past this post must not pull in Phaser plus an 828KB bundle, which
+          is precisely the cost the original no-Phaser decision was
+          protecting. IntersectionObserver arms the load; nothing before.
+       3. NEVER leave a hole. The static layers stay lit until game.html
+          posts attract-ready, and if that never comes -- blocked frame,
+          slow device, thrown error, reduced motion -- the reader keeps the
+          splash that shipped before this existed.
+
+       No platform=devvit on the src: IS_DEVVIT_BUILD stays false inside
+       the frame so the attract loop makes no server calls. A decorative
+       background must not put a Redis round trip on every feed view. */
+    (function () {
+      var frame = document.getElementById('attract-frame');
+      if (!frame) return;
+      if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+      var started = false;
+      var FALLBACK_MS = 6000;
+
+      window.addEventListener('message', function (e) {
+        var d = e && e.data;
+        if (d && d.tipsey === 'attract-ready') document.body.classList.add('attract-live');
+      });
+
+      function start() {
+        if (started) return;
+        started = true;
+        frame.src = 'game.html?attract=1';
+        /* If the handshake never lands, drop the frame entirely rather
+           than leaving an invisible iframe burning a game loop behind a
+           card nobody can see it through. */
+        setTimeout(function () {
+          if (!document.body.classList.contains('attract-live')) frame.removeAttribute('src');
+        }, FALLBACK_MS);
+      }
+
+      var card = document.getElementById('card') || document.body;
+      if (!('IntersectionObserver' in window)) { start(); return; }
+      var io = new IntersectionObserver(function (entries) {
+        for (var i = 0; i < entries.length; i++) {
+          if (entries[i].isIntersecting) { io.disconnect(); start(); return; }
+        }
+      }, {threshold: 0.35});
+      io.observe(card);
+    })();
+    </script>
     <script src="splash.js" type="module"></script>
   </body>
 </html>
