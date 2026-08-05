@@ -58,33 +58,46 @@
       height: 100%;
       display: block;
     }
-    /* ---------- LIVE ATTRACT EMBED ----------
-       game.html running in attract mode, behind the card. This reverses
-       the original "no Phaser in the splash" decision (see the robot
-       renderer comment in splash.ts), so it is built to keep that
-       decision's actual GUARANTEE intact: the splash still paints
-       instantly on every feed impression, because nothing here loads
-       until the post is genuinely on screen, and the static city and
-       robot stay up until the game reports it is really running.
 
-       pointer-events:none throughout -- every tap belongs to the splash
-       card. The iframe is decorative and must never eat a Start
-       Delivery press. */
-    #attract-frame {
+    /* ---------- LIVE ATTRACT STAGE ----------
+       The game engine runs in THIS document, not a nested frame. The
+       first attempt used an iframe pointing at game.html and it never
+       came up on Reddit: entrypoints are addressed by NAME through the
+       Devvit API (splash.ts calls requestExpandedMode(ev,'game')), not
+       as framable URLs, and a Devvit webview is itself sandboxed. What
+       demonstrably DOES work from public/ is a relative script src --
+       game.html loads phaser.min.js and game-logic.js that way and runs
+       fine. So the engine is loaded the way that is known to work, and
+       nothing is nested.
+
+       This reverses the original "no Phaser in the splash" decision
+       (see the robot renderer comment in splash.ts) while keeping the
+       guarantee behind it intact: nothing loads until the post is
+       actually on screen, and the static city and robot stay lit until
+       the engine reports it is really running.
+
+       pointer-events:none throughout -- every tap belongs to the card.
+       The stage is decorative and must never eat a Start Delivery. */
+    #attract-stage {
       position: fixed;
       inset: 0;
-      width: 100%;
-      height: 100%;
-      border: 0;
       z-index: 0;
       opacity: 0;
       transition: opacity 600ms ease;
       pointer-events: none;
     }
-    body.attract-live #attract-frame { opacity: 1; }
-    /* The static layers do not get display:none -- they cross-fade out
-       under the live world, so a frame where the iframe has signalled
-       but not yet painted shows the old art rather than a black hole. */
+    #attract-stage #game { position: absolute; inset: 0; }
+    /* game-logic.js wires ~65 elements by id at load and throws on the
+       first one missing. In bare attract every one of them is chrome
+       the splash card replaces, so they exist only to be found, never
+       to be seen. Generated from a list in script rather than pasted as
+       markup, so this is not a second copy of game.html's UI to keep in
+       sync -- just the set of names it looks up. */
+    #attract-stubs { display: none; }
+    body.attract-live #attract-stage { opacity: 1; }
+    /* The static layers cross-fade rather than switching off, so a frame
+       where the engine has signalled but not yet painted shows the old
+       art instead of a hole. */
     body.attract-live #page-bg,
     body.attract-live #city-bg,
     body.attract-live #robot-canvas {
@@ -92,9 +105,9 @@
       transition: opacity 600ms ease;
     }
     /* Motion is the whole feature, so honour the OS switch rather than
-       animating a city under someone who asked for stillness. */
+       running a city under someone who asked for stillness. */
     @media (prefers-reduced-motion: reduce) {
-      #attract-frame { display: none; }
+      #attract-stage { display: none; }
       body.attract-live #page-bg,
       body.attract-live #city-bg,
       body.attract-live #robot-canvas { opacity: 1; }
@@ -421,8 +434,10 @@
     </style>
   </head>
   <body>
-    <iframe id="attract-frame" title="" aria-hidden="true" tabindex="-1"
-            scrolling="no" referrerpolicy="no-referrer"></iframe>
+    <div id="attract-stage" aria-hidden="true">
+      <div id="game"></div>
+      <div id="attract-stubs"></div>
+    </div>
     <canvas id="page-bg"></canvas>
     <main id="card">
       <canvas id="city-bg"></canvas>
@@ -486,31 +501,76 @@
       </div>
     </div>
     <script>
-    /* ---------- live attract embed: load, handshake, fall back ----------
-       Three rules, in order of how much they matter:
+    /* ---------- live attract: mount, handshake, fall back ----------
+       Three rules, in the order they matter:
 
-       1. NEVER delay the splash. The card paints from static canvases
-          exactly as before; this only ever ADDS a layer behind it.
-       2. NEVER load on an impression that is not looked at. A feed scroll
-          past this post must not pull in Phaser plus an 828KB bundle, which
-          is precisely the cost the original no-Phaser decision was
-          protecting. IntersectionObserver arms the load; nothing before.
-       3. NEVER leave a hole. The static layers stay lit until game.html
-          posts attract-ready, and if that never comes -- blocked frame,
-          slow device, thrown error, reduced motion -- the reader keeps the
-          splash that shipped before this existed.
-
-       No platform=devvit on the src: IS_DEVVIT_BUILD stays false inside
-       the frame so the attract loop makes no server calls. A decorative
-       background must not put a Redis round trip on every feed view. */
+       1. NEVER delay the splash. The card paints from its static
+          canvases exactly as before; this only ever adds a layer behind.
+       2. NEVER load for an impression nobody looks at. A feed scroll-past
+          must not pull Phaser plus an 828KB bundle -- precisely the cost
+          the original no-Phaser decision was protecting. The observer
+          arms the load and nothing happens before it.
+       3. NEVER leave a hole. The static city and robot stay lit until
+          game-logic.js reports attract-ready from its FIRST attract
+          frame -- not on script load, because "the file arrived" and
+          "the game is running" are different claims. No signal, for any
+          reason, and the reader keeps the splash that shipped before
+          this existed. */
     (function () {
-      var frame = document.getElementById('attract-frame');
-      if (!frame) return;
+      var stage = document.getElementById('attract-stage');
+      var stubs = document.getElementById('attract-stubs');
+      if (!stage || !stubs) return;
       if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
 
-      var started = false;
-      var FALLBACK_MS = 6000;
+      /* Every id game-logic.js looks up. Two need to be more than a bare
+         div: routeMap is drawn through getContext('2d'), and winOverlay
+         and zoomBtn are reached by descendant selector rather than by
+         id. Everything else only ever needs to exist. */
+      var IDS = ('againBtn avatarIcon bootLoader failAvatarBtn failMenuBtn failMsg failOverlay '
+        + 'failSub globalAvatar globalSearch gpsHud hjBand hjFill hjLbl hjNeedle hjRestart hjTap '
+        + 'hjTitle hjUI hjUnlock mapCard orderCard panel panelToggle pastRoutesPanel prAllTimeVal '
+        + 'prClose prList prPlayToday rerollBtn retryBtn searchIcon sheetStatus startBtn '
+        + 'titleOverlay todayBtn tpDetailAction tpDetailClose tpDetailDesc tpDetailName '
+        + 'tpDetailNote tpDetailProgFill tpDetailProgLabel tpDetailProgWrap tpDetailScrim '
+        + 'tpDetailSwatch tpMissionsBack tpMissionsList tpMissionsPanel tpMissionsSearch '
+        + 'tpProfBack tpProfTitle tpProfilePanel tpStoreGrid tpTabStore tpTabTrophy tpToast '
+        + 'tpTrList tpWalletPill tpWalletVal winCard winSub').split(' ');
 
+      function buildStubs() {
+        for (var i = 0; i < IDS.length; i++) {
+          if (document.getElementById(IDS[i])) continue;
+          var d = document.createElement('div');
+          d.id = IDS[i];
+          stubs.appendChild(d);
+        }
+        if (!document.getElementById('routeMap')) {
+          var c = document.createElement('canvas');
+          c.id = 'routeMap'; c.width = 8; c.height = 8;
+          stubs.appendChild(c);
+        }
+        if (!document.getElementById('winOverlay')) {
+          var w = document.createElement('div'); w.id = 'winOverlay';
+          var wb = document.createElement('button'); wb.className = 'btn';
+          w.appendChild(wb); stubs.appendChild(w);          // querySelector('#winOverlay .btn')
+        }
+        if (!document.getElementById('zoomBtn')) {
+          var z = document.createElement('div'); z.id = 'zoomBtn';
+          var zl = document.createElement('span'); zl.className = 'zLvl';
+          z.appendChild(zl); stubs.appendChild(z);          // querySelector('.zLvl')
+        }
+      }
+
+      function loadScript(src) {
+        return new Promise(function (res, rej) {
+          var el = document.createElement('script');
+          el.src = src; el.async = false;
+          el.onload = res;
+          el.onerror = function () { rej(new Error(src)); };
+          document.body.appendChild(el);
+        });
+      }
+
+      var started = false;
       window.addEventListener('message', function (e) {
         var d = e && e.data;
         if (d && d.tipsey === 'attract-ready') document.body.classList.add('attract-live');
@@ -519,13 +579,20 @@
       function start() {
         if (started) return;
         started = true;
-        frame.src = 'game.html?attract=1';
-        /* If the handshake never lands, drop the frame entirely rather
-           than leaving an invisible iframe burning a game loop behind a
-           card nobody can see it through. */
+        try { buildStubs(); } catch (err) { return; }
+        /* tells game-logic.js to suppress its own chrome AND to treat
+           itself as a non-Devvit build, so the feed card makes no
+           server calls */
+        window.TIPSEY_ATTRACT_BARE = true;
+        loadScript('phaser.min.js')
+          .then(function () { return loadScript('game-logic.js'); })
+          .catch(function () { stage.remove(); });
+        /* If the engine never reports in, take the stage away rather
+           than leave a game loop running behind a card nobody can see
+           it through. The static splash is already underneath. */
         setTimeout(function () {
-          if (!document.body.classList.contains('attract-live')) frame.removeAttribute('src');
-        }, FALLBACK_MS);
+          if (!document.body.classList.contains('attract-live')) stage.remove();
+        }, 9000);
       }
 
       var card = document.getElementById('card') || document.body;
