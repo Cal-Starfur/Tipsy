@@ -168,6 +168,30 @@
     color:var(--night); font-size:1.4rem;
   }
 
+  /* skill download */
+  .skillbox{
+    background:var(--panel); border:1px solid var(--lane); border-radius:10px;
+    padding:1.6rem 1.7rem; margin:2.2rem 0 1rem;
+  }
+  .skillbox .tag{
+    font-family:"IBM Plex Mono", monospace; font-size:.68rem; letter-spacing:.18em;
+    text-transform:uppercase; color:var(--diag); display:block; margin-bottom:.6rem;
+  }
+  .skillbox p{font-size:.98rem}
+  .skillbox p:last-of-type{margin-bottom:1.3rem}
+  .dl-btn{
+    display:inline-block; font-family:"Bricolage Grotesque", sans-serif; font-weight:800;
+    font-size:1.05rem; color:#2b1a08; text-decoration:none;
+    background:linear-gradient(180deg, #f49d52 0%, var(--route) 100%);
+    border:1px solid #b5601f; border-bottom-width:4px; border-radius:999px;
+    padding:.65rem 1.7rem;
+  }
+  .dl-btn:hover{filter:brightness(1.06)}
+  .dl-btn:active{border-bottom-width:1px; transform:translateY(3px)}
+  .skillbox .how{
+    font-family:"IBM Plex Mono", monospace; font-size:.73rem; color:var(--dim);
+    margin:1rem 0 0; line-height:1.7;
+  }
   footer{
     border-top:1px solid var(--lane); margin-top:4rem;
     font-family:"IBM Plex Mono", monospace; font-size:.75rem; color:var(--dim);
@@ -300,6 +324,14 @@
     </ul>
 
     <p>The meta-lesson: five of the six failures shared one shape — <strong>code that worked locally and died silently on the platform</strong>. Local parity (real CSP) plus on-device observability (the strip) is the whole game. Once we had both, the last two bugs — the ones that had survived everything — each took a single session to kill.</p>
+
+    <div class="skillbox">
+      <span class="tag">One-shot it with a Claude skill</span>
+      <p>We packaged this whole workflow — the six platform rules, the boot-script and CSP-test-server templates, the self-hiding diagnostic strip, and a symptom&rarr;cause&rarr;fix table — into a <strong>Claude skill</strong>: a reusable instruction file Claude loads automatically when your task matches. With it installed, "my Devvit splash works locally but not on Reddit" gets the right diagnosis on the first try instead of after six deploys.</p>
+      <p>It's engine-agnostic (the templates use <code>MYGAME_*</code> names) and triggers on the failure phrasings you'd actually type mid-struggle.</p>
+      <a class="dl-btn" href="skills/devvit-live-splash/SKILL.md" download="SKILL.md">Download SKILL.md</a>
+      <p class="how">to install: claude.ai &rarr; Settings &rarr; Capabilities &rarr; Skills &rarr; upload · or drop it in <code>~/.claude/skills/devvit-live-splash/</code> for Claude Code</p>
+    </div>
 
     <p>Questions welcome on <a href="https://www.reddit.com/r/aigamedevs/">r/aigamedevs</a> — and the splash itself is running right now on <a href="https://www.reddit.com/r/tipsey/">r/tipsey</a>. The robot thanks you for your tips.</p>
 
