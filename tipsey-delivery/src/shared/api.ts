@@ -75,6 +75,11 @@ export type TpProfileRsp = {
   walletCents: number
   owned: string[]
   equipped: string
+  /** missionId -> best count recorded server-side (see db.ts
+   *  dbRecordMission). The client merges this into its local
+   *  missionsCompleted/hjBest so progress follows a player across
+   *  devices instead of living only in that browser's localStorage. */
+  missions: Record<string, number>
 }
 /** skinId must be a 'purchase'-type skin in the server's own TS_SKINS
  *  catalog (tpcatalog.ts) -- price is never taken from the client. */
@@ -87,7 +92,9 @@ export type EquipSkinRsp = {equipped: string}
 /** trophyId must be one of the trophies in TS_CLAIMABLE_TROPHIES
  *  (tpcatalog.ts) -- eligibility is re-derived server-side from this
  *  player's own dbGetHistory, never trusted from the client. See
- *  tpcatalog.ts for why hydrant-hop/slalom-master aren't claimable yet. */
+ *  tpcatalog.ts for the evidence each claimable trophy rests on --
+ *  hydrant-hop and slalom-master are now claimable, off the recorded
+ *  mission count rather than off score history. */
 export type ClaimTrophyRewardReq = {trophyId: string}
 export type ClaimTrophyRewardRsp = {owned: string[]; skinId: string}
 /** Fired once per delivery STARTED (GO / Retry / Again in
@@ -115,6 +122,23 @@ export type SubmitFailReq = {
 /** posted:false is the normal, uninteresting outcome for a logged-out
  *  viewer or a run outside a post context -- not an error. */
 export type SubmitFailRsp = {posted: boolean}
+/** Reports progress on a side mission. missionId must exist in the
+ *  server's own TS_MISSIONS (tpcatalog.ts); best is a high-water count
+ *  (cleared jumps for jump-hydrant, 1 for a pass/fail mission) and is
+ *  clamped server-side to what a real clear could have earned. The
+ *  server keeps the maximum, so reporting a worse run never erases a
+ *  better one. */
+export type CompleteMissionReq = {missionId: string; best: number}
+/** best is the value AFTER the server's max/clamp, so the client can
+ *  correct itself if its local number was ahead. firstCompletion marks
+ *  the single call that crossed the finish line -- it drives the
+ *  announce comment and is false on every later report. */
+export type CompleteMissionRsp = {
+  missionId: string
+  best: number
+  completed: boolean
+  firstCompletion: boolean
+}
 export type Endpoint = (typeof Endpoint)[keyof typeof Endpoint]
 export const Endpoint = {
   GetDailyBest: 'api/tipsy/best',
@@ -125,6 +149,7 @@ export const Endpoint = {
   PurchaseSkin: 'api/tipsy/profile/purchase',
   EquipSkin: 'api/tipsy/profile/equip',
   ClaimTrophyReward: 'api/tipsy/profile/claim',
+  CompleteMission: 'api/tipsy/mission/complete',
   CountPlay: 'api/tipsy/play',
   SubmitFail: 'api/tipsy/fail',
   OnAppInstall: 'internal/on/app/install',
@@ -142,6 +167,7 @@ export const EndpointMethod = {
   [Endpoint.PurchaseSkin]: 'POST',
   [Endpoint.EquipSkin]: 'POST',
   [Endpoint.ClaimTrophyReward]: 'POST',
+  [Endpoint.CompleteMission]: 'POST',
   [Endpoint.CountPlay]: 'POST',
   [Endpoint.SubmitFail]: 'POST',
   [Endpoint.OnAppInstall]: 'POST',
