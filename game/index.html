@@ -680,7 +680,24 @@
    the title screen ever paints, and drives the leaderboard swap below.
    Standalone GitHub Pages / itch.io builds never carry this param, so
    they're unaffected. */
-const IS_DEVVIT_BUILD = new URLSearchParams(location.search).get("platform") === "devvit";
+/* BARE attract: the page embedding this supplies its own chrome (title,
+   leaderboard, Start Delivery), so the game's own overlay and HUD must
+   not draw at all -- two competing UIs on one card is worse than either
+   alone. TWO ways to ask for it, because there are two embedders: a
+   query param for a standalone URL, and a window flag for a host page
+   that loads this script into its OWN document. The Reddit splash
+   entrypoint is the latter -- Devvit owns that page's URL, so a query
+   param is not something it can set.
+   Declared here, above IS_DEVVIT_BUILD, because it feeds it. */
+const ATTRACT_BARE = new URLSearchParams(location.search).get("attract") === "1"
+                  || window.TIPSEY_ATTRACT_BARE === true;
+/* A decorative background must not put a Redis round trip on every feed
+   impression, so bare attract is never treated as a Devvit build no
+   matter how it was launched: no profile load, no past-routes fetch, no
+   score reporting. attractOwnsTip already blocks the run-ENDING writes;
+   this blocks the load-time reads too. */
+const IS_DEVVIT_BUILD = new URLSearchParams(location.search).get("platform") === "devvit"
+                     && !ATTRACT_BARE;
 /* #winMenuBtn is gone — see bindGlobalSearch. It was shown only on
    Devvit and only on the win overlay, at left:14px, which is where
    #globalSearch already lives, so it spent its whole life hidden
@@ -1754,14 +1771,6 @@ function zoomK(){ return ZOOM_K[zoomDepth - 1]; }
    One switch, so a bad splash is a one-line revert rather than an
    unpick. */
 const ATTRACT_ON = true;
-/* BARE attract: the splash entrypoint embeds this page in an iframe and
-   supplies its own chrome (title, leaderboard, Start Delivery), so the
-   game's own title overlay and HUD must not draw at all -- the player
-   would be looking at two competing UIs stacked on one card.
-   Deliberately keyed off a query param rather than the referrer or
-   frame-depth: an explicit opt-in from the embedder cannot be triggered
-   by accident. */
-const ATTRACT_BARE = new URLSearchParams(location.search).get("attract") === "1";
 /* Beat between an attract run ending and the next one starting. Long
    enough that a topple reads as a topple -- the tip animation itself
    runs ~1.2s -- and short enough that the splash never sits on a dead
@@ -5477,6 +5486,9 @@ class WorldScene extends Phaser.Scene {
          rather than an empty hole. Signal on the first attract frame,
          not on iframe load, because "the document loaded" and "the game
          is running" are not the same claim. */
+      /* postMessage to `parent` works for BOTH embedding shapes: in the
+         same-document case parent IS window, so the host's listener
+         fires either way. One signal, no branch. */
       try { parent.postMessage({ tipsey: "attract-ready" }, "*"); } catch(e){}
     }
     this.state = "play";
