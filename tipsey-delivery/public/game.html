@@ -72,6 +72,41 @@
   .tag{color:#ff9c4d;font-weight:700;letter-spacing:1px;font-size:12px;text-transform:uppercase;}
   .brand{font-size:18px;font-weight:800;letter-spacing:1px;color:#ff7a1a;margin-bottom:8px;}
   #routeMap{display:block;}
+  /* ---------- ATTRACT MODE (splash) ----------
+     The Phaser world has ALWAYS been live behind #titleOverlay. new
+     Phaser.Game runs at page load and WorldScene builds and renders the
+     city immediately -- the overlay's own background plus the opaque
+     #routeMap canvas were the only things hiding it. So attract mode
+     does not start a second renderer or a preview loop. It uncovers the
+     one that was already running. Everything below is subtractive.
+
+     #routeMap is hidden rather than skipped, and drawRouteMap() keeps
+     running against it on purpose: the challenge flow (hjStart/hjQuit)
+     reads that map, and leaving it drawn-but-invisible means toggling
+     attract off is a class change rather than a redraw -- which is what
+     kept hjQuit's "SHOW THE OVERLAY FIRST" ordering bug from having a
+     second front to fight on. */
+  body.attract #titleOverlay{background:transparent;}
+  body.attract #mapCard{background:transparent;}
+  body.attract #routeMap{visibility:hidden;}
+  /* Giving up the scrim means the title chrome is now light-on-light
+     against a bright daytime street, so it has to carry its own
+     contrast. Top and bottom only -- the middle band stays fully clear
+     so the robot is never veiled by the thing making the logo legible. */
+  body.attract #mapCard::before{content:"";position:absolute;inset:0;pointer-events:none;
+    background:linear-gradient(180deg,
+      rgba(18,20,26,.74) 0%, rgba(18,20,26,.30) 20%,
+      rgba(18,20,26,0) 44%, rgba(18,20,26,0) 60%,
+      rgba(18,20,26,.58) 100%);}
+  /* ::before paints in front of non-positioned content, so the chrome
+     has to be lifted above it explicitly or the gradient covers the GO
+     button. z-index only -- .brand/.card/.btn/.iconBtn are already
+     absolutely positioned by the #mapCard rules above and restating
+     position here would drop them back into flow. */
+  body.attract #mapCard .brand,
+  body.attract #mapCard .card,
+  body.attract #mapCard .btn,
+  body.attract #mapCard .iconBtn{z-index:2;}
   #titleOverlay{padding:0;justify-content:flex-start;}
   #screenWrap{width:100vw;height:100vh;height:100dvh;display:flex;flex-direction:column;
     border-radius:20px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,.35);
