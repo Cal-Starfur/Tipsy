@@ -40,6 +40,7 @@ import {
   dbGetTop,
   dbGetTpProfile,
   dbIncrPlays,
+  dbMarkAnnounced,
   dbPurchaseSkin,
   dbRemoveUser,
   dbSetDailyPostId,
@@ -50,6 +51,7 @@ import {
   dbSweepDeletedUsers,
   todayUTC,
 } from './db.ts'
+import {TS_SKINS} from './tpcatalog.ts'
 
 type AnyRsp =
   | GetDailyBestRsp
@@ -255,6 +257,13 @@ async function routePurchaseSkin(
     console.error(`routePurchaseSkin: ${username} -> ${req.skinId}: ${result.error}`)
     return {error: result.error, status: 400}
   }
+  const price = TS_SKINS[req.skinId]?.priceCents ?? 0
+  await announceMilestone(
+    username,
+    `skin:${req.skinId}`,
+    `🛻 **u/${username}** kitted out — bought the **${skinLabel(req.skinId)}** paint job` +
+      `${price ? ` for $${(price / 100).toFixed(2)}` : ''}.`,
+  )
   return result.profile
 }
 
@@ -283,6 +292,13 @@ async function routeClaimTrophyReward(
     console.error(`routeClaimTrophyReward: ${username} -> ${req.trophyId}: ${result.error}`)
     return {error: result.error, status: 400}
   }
+  const feat = TROPHY_FEAT[req.trophyId]
+  await announceMilestone(
+    username,
+    `trophy:${req.trophyId}`,
+    `🏆 **u/${username}** unlocked the **${skinLabel(result.skinId)}** skin` +
+      `${feat ? ` — ${feat}` : ''}.`,
+  )
   return {owned: result.profile.owned, skinId: result.skinId}
 }
 
@@ -374,13 +390,69 @@ async function routeSubmitFail(
     `**u/${user.username}** went down ${where} -- ${cause}.\n\n` +
     `$${tip.toFixed(2)} order · ${secs.toFixed(1)}s on the clock · cargo ${damage}% ruined.`
 
+  return {posted: await postAppComment(text)}
+}
+
+/** Every comment the app account leaves goes through here. postId is
+ *  absent outside a post context, which is an ordinary condition rather
+ *  than an error. A throw is logged and swallowed on purpose: the
+ *  caller is always mid-gameplay (crashing, buying, claiming), and a
+ *  toast about Reddit's rate limiter would interrupt something the
+ *  player cares about to report something they don't. */
+async function postAppComment(text: string): Promise<boolean> {
+  const postId = context.postId
+  if (!postId) return false
   try {
     await reddit.submitComment({id: postId as `t3_${string}`, text})
-    return {posted: true}
+    return true
   } catch (err) {
-    console.error('routeSubmitFail: submitComment failed', err)
-    return {posted: false}
+    console.error('postAppComment: submitComment failed', err)
+    return false
   }
+}
+
+/** Display names for the milestone comments. The server owns every word
+ *  it posts (same rule as FAIL_CAUSE_COPY), so it needs its own copy of
+ *  these strings -- tpcatalog.ts deliberately mirrors only what the
+ *  server must VALIDATE, not display text. Same drift cost its header
+ *  already flags: rename a skin client-side and this table has to move
+ *  in the same commit. */
+const SKIN_LABELS: {[skinId: string]: string} = {
+  'sunset-cruiser': 'Sunset Cruiser',
+  'neon-courier': 'Neon Courier',
+  'chrome-plate': 'Chrome Plate',
+  'palm-camo': 'Palm Camo',
+  'gold-rush': 'Gold Rush',
+  'fire-chief': 'Fire Chief',
+  'cone-dodger': 'Cone Dodger',
+  'porch-pirate': 'Porch Pirate',
+}
+
+/** What the player actually DID to earn each trophy, in words. Keyed by
+ *  trophyId and kept alongside TS_CLAIMABLE_TROPHIES's own list -- a
+ *  trophy with no line here still grants its skin, it just announces
+ *  itself plainly rather than with a wrong description. */
+const TROPHY_FEAT: {[trophyId: string]: string} = {
+  streak5: 'five days delivered in a row',
+  highroller: '$500 banked all-time',
+}
+
+function skinLabel(skinId: string): string {
+  return SKIN_LABELS[skinId] ?? skinId
+}
+
+/** Posts once per user per milestone, ever. dbMarkAnnounced is the
+ *  guard, and it's checked BEFORE the comment goes out so a Reddit-side
+ *  failure doesn't leave the event unmarked and re-announceable on the
+ *  next call -- one missed comment beats a loop of duplicates. */
+async function announceMilestone(
+  username: string,
+  event: string,
+  text: string,
+): Promise<void> {
+  if (username === 'anonymous') return
+  if (!(await dbMarkAnnounced(username, event))) return
+  await postAppComment(text)
 }
 
 async function routeMenuNewPost(): Promise<UiResponse> {
