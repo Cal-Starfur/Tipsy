@@ -735,6 +735,16 @@ function requestTpProfile(){
       tpProfile.walletCents = data.walletCents;
       tpProfile.owned = new Set(data.owned);
       tpProfile.equipped = data.equipped;
+      /* mission progress follows the player across devices. MERGED, not
+         replaced: a run finished in this browser a moment ago must not
+         be dropped by a profile fetch that predates its report. */
+      if(data.missions){
+        for(const mid in data.missions){
+          const best = data.missions[mid] || 0;
+          if(mid === "jump-hydrant") tpProfile.hjBest = Math.max(tpProfile.hjBest || 0, best);
+          if(best >= (mid === "jump-hydrant" ? HJ_CHIEF_AT : 1)) tpProfile.missionsCompleted.add(mid);
+        }
+      }
       tpApplySkin(data.equipped);
       tpSaveProfile();
       tpRender();
@@ -5452,6 +5462,8 @@ class WorldScene extends Phaser.Scene {
     tpProfile.hjLevel = this.hjLevel;
     tpProfile.hjBest  = Math.max(tpProfile.hjBest || 0, this.hjBest || 0);
     tpSaveProfile();
+    /* the one reporter for jump-hydrant -- see tpSubmitMission */
+    if(tpProfile.hjBest > 0) tpSubmitMission("jump-hydrant", tpProfile.hjBest);
   }
 
   hjClear(){
@@ -5466,9 +5478,14 @@ class WorldScene extends Phaser.Scene {
        makes this purely additive for existing profiles. */
     if(this.hjLevel >= HJ_CHIEF_AT){
       tpCompleteMission("jump-hydrant");
+      /* EARNED, not worn. The skin used to equip itself here the instant
+         the tenth jump landed, which spent the reward before the player
+         ever saw it: the Trophy Case then read the skin as already owned
+         and hid its Claim button, so the moment of collecting the prize
+         never happened. The celebration stays; going and taking it is
+         now the player's move. */
       if(!tpProfile.owned.has("fire-chief")){
-        tpEquipSkin("fire-chief");      // wear it the moment it is earned
-        this.announce("\u{1F692} FIRE CHIEF UNLOCKED", "EQUIPPED \u00b7 ALL TEN CLEARED");
+        this.announce("\u{1F692} FIRE CHIEF UNLOCKED", "ALL TEN CLEARED \u00b7 CLAIM IT IN YOUR TROPHY CASE");
       }
     }
     this.hjLevel = Math.min(HJ_CH.maxLevel, this.hjLevel + 1);
@@ -14976,13 +14993,21 @@ function tipsyProfileOnDelivery(dateStr, payout, ms, isReplay){
   tpSaveProfile();
 }
 
-/* Future hook for real mission completion (Phase C) — Phase 2 jump
-   physics for jump-hydrant, a built course for cone-slalom. Not called
-   from anywhere yet; nothing in the shipped UI can trigger it. */
-function tpCompleteMission(id){
+/* Marks a mission complete LOCALLY. The stale note this replaces said
+   nothing in the shipped UI could call it -- untrue since hjClear
+   started calling it on the tenth jump.
+
+   `best` is optional and is what decides whether the server hears about
+   it: pass a count and it's reported, omit it and this stays local.
+   hjClear omits it on purpose, because hjSaveProgress reports the real
+   banked number a moment later and two reporters would race (see
+   tpSubmitMission). A future pass/fail mission like cone-slalom passes
+   1 and reports through here. */
+function tpCompleteMission(id, best){
   tpProfile.missionsCompleted.add(id);
   tpSaveProfile();
   tpRender();
+  if(typeof best === "number") tpSubmitMission(id, best);
 }
 
 let tpActiveTab = "trophy";
@@ -15339,6 +15364,44 @@ function tpSubmitPurchase(skinId){
     })
     .catch(()=>{});
 }
+/* Reports side-mission progress to the server (Devvit only). The count
+   is a HIGH-WATER mark and the server keeps the maximum, so a later
+   worse run can't erase a better one -- and so this is safe to fire
+   after every cleared jump rather than only at the end.
+
+   ONE reporter per mission, deliberately. jump-hydrant is reported here
+   from hjSaveProgress and nowhere else: if tpCompleteMission also
+   posted for it, the two requests would race, and the one carrying
+   best=1 could read prev=0 and land AFTER the one carrying 10, writing
+   the record back down to 1.
+
+   The response is authoritative -- it comes back clamped -- so the
+   local best is corrected from it rather than assumed. */
+function tpSubmitMission(missionId, best){
+  if(!IS_DEVVIT_BUILD) return;
+  fetch("api/tipsy/mission/complete", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ missionId, best })
+  })
+    .then(rsp => rsp.ok ? rsp.json() : null)
+    .then(data => {
+      if(!data || !data.missionId) return;
+      if(data.missionId === "jump-hydrant"){
+        tpProfile.hjBest = Math.max(tpProfile.hjBest || 0, data.best || 0);
+      }
+      if(data.completed) tpProfile.missionsCompleted.add(data.missionId);
+      tpSaveProfile();
+      tpRender();
+      /* Deliberately does NOT claim the trophy. Completing the mission
+         and collecting its reward are two separate acts now that the
+         Fire Chief no longer equips itself: the Trophy Case's Claim
+         button is the only thing that grants the skin, and the record
+         written above is exactly what makes that claim pass the
+         server's eligibility check when the player gets there. */
+    })
+    .catch(()=>{});
+}
 function tpSubmitEquip(skinId){
   if(!IS_DEVVIT_BUILD) return;
   fetch("api/tipsy/profile/equip", {
@@ -15347,12 +15410,10 @@ function tpSubmitEquip(skinId){
     body: JSON.stringify({ skinId })
   }).catch(()=>{});
 }
-/** Trophies the server can't yet verify (hydrant-hop, slalom-master —
- *  see tpcatalog.ts) never reach this call in the shipped UI, since
- *  their missionsCompleted flag can't be set yet either (see the file
- *  header comment on tpCompleteMission). If that changes, a rejected
- *  claim here just leaves tpProfile.owned as the optimistic local add
- *  until the next requestTpProfile() self-heals it. */
+/** Reached only from the Trophy Case's Claim button -- every reward in
+ *  the game is collected by the player, never granted behind their
+ *  back. A rejected claim just leaves tpProfile.owned as the optimistic
+ *  local add until the next requestTpProfile() self-heals it. */
 function tpSubmitClaim(trophyId){
   if(!IS_DEVVIT_BUILD) return;
   fetch("api/tipsy/profile/claim", {
