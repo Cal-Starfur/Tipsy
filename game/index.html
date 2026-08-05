@@ -14159,8 +14159,14 @@ class WorldScene extends Phaser.Scene {
        body.attractBare's display:none never reached them -- the tilt arc
        and cargo bar were still drawing across the top of the splash. A
        decorative background has no cargo to spill and nobody steering
-       it, so there is nothing for a gauge to report. */
-    if(ATTRACT_BARE) return;
+       it, so there is nothing for a gauge to report.
+
+       Gated on this.attract rather than ATTRACT_BARE: the question is
+       "is anyone driving", not "which embedder launched us". Keyed to
+       the launch flag it still drew the tilt arc across the standalone
+       title screen, which is a gauge reporting on a robot the player is
+       not controlling. */
+    if(this.attract) return;
     const g = this.hud; g.clear();
     /* Camera depth is the ONE instrument both modes share, so its
        visibility is settled here BEFORE the challenge early-return
@@ -15017,9 +15023,18 @@ function bootLoaderDone(){
   /* Attract begins exactly here -- the moment the loader leaves -- because
      this is the first instant the world behind the overlay has real
      pixels. Starting it at scene-create would have run the sim, and burned
-     a chunk of the run, underneath a spinner. */
+     a chunk of the run, underneath a spinner.
+
+     ONLY when an embedder asked for it. Attract exists to give the Reddit
+     splash a live background behind its leaderboard; it was never meant
+     to take over the standalone title screen, where the route map is the
+     whole point -- it is how you see where you are going before pressing
+     GO. Auto-starting it here hid that map behind a city nobody had asked
+     to watch. The splash sets window.TIPSEY_ATTRACT_BARE before loading
+     this script, so bare is exactly the right gate: attract runs where it
+     was invited and nowhere else. */
   const s0 = (typeof scn === "function") ? scn() : null;
-  if(s0 && s0.attractStart) s0.attractStart();
+  if(s0 && s0.attractStart && ATTRACT_BARE) s0.attractStart();
   const el = document.getElementById("bootLoader");
   if(!el) return;
   el.classList.add("done");
