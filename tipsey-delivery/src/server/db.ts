@@ -645,52 +645,55 @@ export async function dbRemoveUser(username: string): Promise<void> {
   ])
 }
 
-/** "YYYY-MM-DD" in America/New_York, not UTC — deliberately separate
- *  from todayUTC() (which the route/leaderboard day boundary still
- *  uses, untouched). Intl's timeZone handling resolves real IANA
- *  daylight-saving transitions automatically, so this doesn't drift
- *  across the DST switch the way a fixed UTC-offset cron would. */
-function todayET(): string {
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'America/New_York',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(new Date())
-}
-
-/** Current hour in America/New_York, 0-23, DST-correct for the same
- *  reason as todayET(). */
-function currentHourET(): number {
-  const hourStr = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'America/New_York',
-    hour: 'numeric',
-    hour12: false,
-  }).format(new Date())
-  // "24" shows up at midnight with hour12:false in some environments;
-  // normalize it to 0 rather than trust the raw string.
-  const h = parseInt(hourStr, 10)
-  return h === 24 ? 0 : h
-}
-
 const DAILY_POST_CLAIM_PREFIX = 'tipsy:global:dailypost:claim:'
 const DAILY_POST_ID_KEY = 'tipsy:global:dailypost:id'
 
-/** Should the scheduled 6am-ET check actually post right now? Checks
- *  the real ET wall-clock hour (not just "did the cron fire" — the
- *  cron runs every 15 minutes all day so the server itself decides
- *  the actual moment), then atomically claims today's ET date so the
- *  four checks that land inside the 6am hour only ever result in one
- *  post, however many times this endpoint gets hit. */
-export async function dbShouldPostDaily(): Promise<boolean> {
-  if (currentHourET() !== 6) return false
-  const dateStr = todayET()
+/** Atomically claim today's post slot, or report that it's already
+ *  taken. Keyed off todayUTC() — the same date string the route seed
+ *  and the leaderboard use — so the post, the map and the board all
+ *  turn over on one edge instead of three. (This replaces an ET-based
+ *  key that put the post ~10 hours behind the map it was announcing.)
+ *
+ *  Every path that can create a daily post claims through here, which
+ *  is what makes duplicates impossible: the cron fires four times
+ *  inside the hour, an install trigger can fire at any moment, and a
+ *  redeploy can fire several in a row. Only the first to claim posts.
+ *
+ *  Private on purpose — callers go through the two named wrappers
+ *  below so each call site states which path it is. */
+async function claimDailyPost(): Promise<boolean> {
   const tomorrow = new Date(Date.now() + 26 * 60 * 60 * 1000) // generous — this key only needs to outlive today
-  const claimed = await redis.set(DAILY_POST_CLAIM_PREFIX + dateStr, '1', {
+  const claimed = await redis.set(DAILY_POST_CLAIM_PREFIX + todayUTC(), '1', {
     nx: true,
     expiration: tomorrow,
   })
   return claimed !== null
+}
+
+/** Should the scheduled check actually post right now? The cron runs
+ *  every 15 minutes all day, so the server decides the moment: hour 0
+ *  UTC, which is exactly when clientTodayUTC() rolls the route seed
+ *  over to the new map. */
+export async function dbShouldPostDaily(): Promise<boolean> {
+  if (new Date().getUTCHours() !== 0) return false
+  return claimDailyPost()
+}
+
+/** Should an app-install trigger post? Only if nothing has claimed
+ *  today yet. A first-ever install needs a post to exist immediately
+ *  rather than waiting for 00:00 UTC; a reinstall on a day that has
+ *  already posted must not add a second one. Both fall out of the
+ *  same claim. */
+export async function dbShouldPostOnInstall(): Promise<boolean> {
+  return claimDailyPost()
+}
+
+/** Hand the claim back when the submit that follows it fails, so a
+ *  later cron tick inside the same hour can retry instead of the day
+ *  silently going postless. Claiming before submitting is still the
+ *  right order — the reverse races. */
+export async function dbReleaseDailyPostClaim(): Promise<void> {
+  await redis.del(DAILY_POST_CLAIM_PREFIX + todayUTC())
 }
 
 export async function dbGetDailyPostId(): Promise<string | null> {
