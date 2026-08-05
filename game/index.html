@@ -5504,6 +5504,17 @@ class WorldScene extends Phaser.Scene {
          Both targets are posted: window is the real one, parent is kept
          for a genuine iframe embedder and is a harmless no-op when it
          is the same object. */
+      /* Direct same-document call FIRST: on the native Reddit app the
+         engine boots clean (diag strip: phaser up, gl yes, raf ticking,
+         no errors) yet the postMessage below never reaches the listener
+         in this same window -- native webviews inject JS bridges and
+         wrapping window.postMessage is the standard way those bridges
+         are built, which swallows the message with no error. Poster and
+         listener have shared one document since the iframe design was
+         removed, so no messaging API is needed at all: a plain function
+         call cannot be intercepted by anything. postMessage stays below
+         as a fallback for a genuine framed embedder. */
+      try { if (typeof window.TIPSEY_ON_ATTRACT_READY === "function") window.TIPSEY_ON_ATTRACT_READY(); } catch(e){}
       try { window.postMessage({ tipsey: "attract-ready" }, "*"); } catch(e){}
       try {
         if (parent && parent !== window) parent.postMessage({ tipsey: "attract-ready" }, "*");
