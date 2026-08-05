@@ -1077,6 +1077,14 @@ function zoomK(){ return ZOOM_K[zoomDepth - 1]; }
    One switch, so a bad splash is a one-line revert rather than an
    unpick. */
 const ATTRACT_ON = true;
+/* BARE attract: the splash entrypoint embeds this page in an iframe and
+   supplies its own chrome (title, leaderboard, Start Delivery), so the
+   game's own title overlay and HUD must not draw at all -- the player
+   would be looking at two competing UIs stacked on one card.
+   Deliberately keyed off a query param rather than the referrer or
+   frame-depth: an explicit opt-in from the embedder cannot be triggered
+   by accident. */
+const ATTRACT_BARE = new URLSearchParams(location.search).get("attract") === "1";
 /* Beat between an attract run ending and the next one starting. Long
    enough that a topple reads as a topple -- the tip animation itself
    runs ~1.2s -- and short enough that the splash never sits on a dead
@@ -4783,6 +4791,17 @@ class WorldScene extends Phaser.Scene {
     this.K = ZOOM_K[ZOOM_K.length - 1];
     this.attractWantRow = null;
     this.attractStuckMs = 0;
+    if(ATTRACT_BARE){
+      document.body.classList.add("attractBare");
+      /* Tell the embedder the world is actually moving. The splash keeps
+         its own static city and robot painted until this lands, so a
+         blocked iframe, a slow feed, or a thrown error leaves the reader
+         looking at exactly the splash that shipped before this feature
+         rather than an empty hole. Signal on the first attract frame,
+         not on iframe load, because "the document loaded" and "the game
+         is running" are not the same claim. */
+      try { parent.postMessage({ tipsey: "attract-ready" }, "*"); } catch(e){}
+    }
     this.state = "play";
     this.throttle = 1;
   }
