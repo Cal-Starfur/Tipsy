@@ -2,4 +2,5 @@
 /dist/
 /public/*.js*
 !/public/game-logic.js
+!/public/phaser.min.js
 /.env
