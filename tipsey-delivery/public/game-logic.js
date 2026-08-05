@@ -4808,10 +4808,28 @@ class WorldScene extends Phaser.Scene {
          rather than an empty hole. Signal on the first attract frame,
          not on iframe load, because "the document loaded" and "the game
          is running" are not the same claim. */
-      /* postMessage to `parent` works for BOTH embedding shapes: in the
-         same-document case parent IS window, so the host's listener
-         fires either way. One signal, no branch. */
-      try { parent.postMessage({ tipsey: "attract-ready" }, "*"); } catch(e){}
+      /* Post to WINDOW, not parent.
+
+         `parent` was written for the abandoned iframe design, where the
+         host really was the parent frame. In the same-document design
+         the listener lives in THIS window, and parent only equals window
+         when the page is top-level. It is not: Devvit frames
+         splash.html, so `parent` is Devvit's host frame and the signal
+         was being delivered to the platform instead of to the code
+         waiting for it. The handshake could never have landed on Reddit.
+
+         This is also why it passed every local test -- a file opened
+         directly IS top-level, so parent === window and the bug is
+         invisible. It only showed up once the page was viewed inside
+         another frame.
+
+         Both targets are posted: window is the real one, parent is kept
+         for a genuine iframe embedder and is a harmless no-op when it
+         is the same object. */
+      try { window.postMessage({ tipsey: "attract-ready" }, "*"); } catch(e){}
+      try {
+        if (parent && parent !== window) parent.postMessage({ tipsey: "attract-ready" }, "*");
+      } catch(e){}
     }
     this.state = "play";
     this.throttle = 1;
@@ -13398,6 +13416,12 @@ class WorldScene extends Phaser.Scene {
     return null;
   }
   drawHUD(){
+    /* The gauges are painted on the Phaser canvas, not in the DOM, so
+       body.attractBare's display:none never reached them -- the tilt arc
+       and cargo bar were still drawing across the top of the splash. A
+       decorative background has no cargo to spill and nobody steering
+       it, so there is nothing for a gauge to report. */
+    if(ATTRACT_BARE) return;
     const g = this.hud; g.clear();
     /* Camera depth is the ONE instrument both modes share, so its
        visibility is settled here BEFORE the challenge early-return
