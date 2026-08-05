@@ -1765,6 +1765,8 @@ const AD = {
   hopSpeed: 0.095,   // slow to this BEFORE changing lanes -- see the note in attractDrive
   hopTilt:   0.34,   // and be steadier than this before spending a hop's stability cost
   hopCool:   640,    // ms between lane changes; hopKick bleeds in over ~300ms
+  crossLook: 460,    // how far ahead a street crossing starts dictating the lane
+  crossSpeed:0.12,   // pace to take the ramp at -- the pads rumble and the slope pitches
   arcScan:   200,    // a corner starts mattering this far out
   arcSpeed: 0.105,   // corner entry speed -- cornerLean maxes out at 0.15, so stay under it
   tiltBrake: 0.45,   // shed speed above this lean
@@ -2060,6 +2062,15 @@ function farLaneOffset(lane){ return -ROBOT_SIDE * (ROAD_HALF + (lane+0.5)*T2); 
    - row 3: not on the prop at all — plain flat walk (z 0), same
      drop/wall treatment as 0 and 2, but no cross-slope lean. */
 const CROSSING_SIDEWALK_Z = 2, CROSSING_STREET_Z = -3;
+/* The ramp lane. Row 1 is the ONLY row a crossing can be entered on:
+   every other row gets a curb drop and a wallS at the far kerb (see the
+   lane model above and the return below). This was an unnamed literal 1
+   in crossingGroundAt and in the sidewalkend/sidewalkbegin spawn
+   anchors; naming it lets the attract driver ask the question in the
+   same words the geometry answers it in, rather than hard-coding a
+   second copy of the number. The spawn anchors still write row:1
+   directly -- they are the art placement, this is the rule. */
+const CROSSING_RAMP_ROW = 1;
 function crossingGroundAt(crossings, s, row){
   const drop = CROSSING_STREET_Z - CROSSING_SIDEWALK_Z;   // -5, the lab's real curb height
   for(const cx of crossings){
@@ -2074,7 +2085,7 @@ function crossingGroundAt(crossings, s, row){
        sweep low, climb after. */
     if(s < cx.sA - 2*T2 || s > cx.sB + 2*T2) continue;
     const onRoad = s > cx.sA && s < cx.sB;
-    if(row === 1){
+    if(row === CROSSING_RAMP_ROW){
       let z, slope = 0, onPad = false;
       if(s <= cx.sA - T2){                      // descending slope tile
         const u = (s - (cx.sA - 2*T2)) / T2;    // 0 at rear edge -> 1 at pad
@@ -5518,14 +5529,35 @@ class WorldScene extends Phaser.Scene {
 
     /* --- 3. lanes --- */
     const here = this.attractLaneClear(this.botRow, s);
-    let want = this.attractWantRow;
+
+    /* A street crossing is not a hazard to route around. It is a
+       MANDATORY LANE. crossingGroundAt gives CROSSING_RAMP_ROW a real
+       ramp -- slope down, flat crossing, slope back up -- and gives
+       every other row a curb drop plus wallS, a hard wall at the far
+       kerb. Approach a crossing in any other row and the robot drives
+       into that wall and stops dead.
+
+       That is exactly the jam this driver shipped with: sidewalkbegin
+       51 ahead in row 1, robot sitting in rows 2/3, all four lanes
+       reporting clear, rocking between rows forever. Every lane WAS
+       clear -- of hazards. The thing stopping him was the kerb, and the
+       driver had crossings on its ignore list. Avoiding them was
+       precisely backwards; they are the one place he is not free to
+       choose a lane at all. */
+    const cross = this.attractCrossingAhead(s);
+    let want = cross ? CROSSING_RAMP_ROW : this.attractWantRow;
     /* Commit to a destination lane rather than re-deciding every frame.
        laneCost is measured from the CURRENT row, so the instant he
        arrives anywhere, the lane he just left looks cheap again and he
        hops straight back. Measured on the 2026-08-05 route: 780 hops in
        400 seconds, tilt riding at -0.68 the whole way. Hold the target
        until it is reached, or until it stops being clear. */
-    if(want === null || want === undefined || want === this.botRow ||
+    if(cross){
+      /* the crossing outranks the scorer: hold the ramp lane and take
+         it at a measured pace */
+      this.attractWantRow = want;
+      target = Math.min(target, AD.crossSpeed);
+    } else if(want === null || want === undefined || want === this.botRow ||
        this.attractLaneClear(want, s) < AD.recommit){
       want = this.botRow;
       let bestScore = here;
@@ -5611,6 +5643,28 @@ class WorldScene extends Phaser.Scene {
     else                                  this.throttle = 0;
   }
 
+  /* The straight street crossing that currently owns the lane, or null.
+
+     Turn crossings are excluded on purpose: they coincide with arc
+     segments, hop() refuses lane changes mid-arc by design, and
+     crossingGroundAt hands them off to turnCrossingGroundAt's
+     world-space model instead of the route-s ramp geometry. Nothing the
+     driver can usefully do about those.
+
+     The window opens AD.crossLook before the rear edge of the
+     descending ramp tile and closes at the rear edge of the ascending
+     one, so the lane is claimed early enough to reach it and held until
+     the robot is fully back up on the walk. */
+  attractCrossingAhead(s){
+    for(const cx of this.route.crossings){
+      if(cx.kind === "turn") continue;
+      const enter = cx.sA - 2*T2;
+      const exit  = cx.sB + 2*T2;
+      if(s >= enter - AD.crossLook && s <= exit) return { cx, enter, exit };
+    }
+    return null;
+  }
+
   /* FORWARD clearance: how far this lane runs before the next thing
      worth avoiding. Answers exactly one question -- "how good is this
      lane to be in" -- and nothing else.
@@ -5651,7 +5705,11 @@ class WorldScene extends Phaser.Scene {
   attractAvoids(hz){
     if(hz.row === undefined) return false;   // road cracks carry roadOffset, not a lane
     switch(hz.type){
-      /* no collision at all -- the hazard loop skips these outright */
+      /* No collision at all -- the hazard loop skips these outright, so
+         they are not obstacles. They are not IGNORED either: the ramp
+         they mark is handled as a mandatory lane by
+         attractCrossingAhead, which reads route.crossings directly
+         rather than inferring the span from these markers. */
       case "sidewalkend": case "sidewalkbegin": case "grade": return false;
       /* the scatter IS the reward. Driving through the flock is the
          nicest thing that happens on a route; steering around it would
