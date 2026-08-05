@@ -79,7 +79,21 @@
        pointer-events:none throughout -- every tap belongs to the card.
        The stage is decorative and must never eat a Start Delivery. */
     #attract-stage {
-      position: fixed;
+      /* ABSOLUTE, and INSIDE <main>, not fixed at document level.
+         This was the bug. main is z-index 1 with an OPAQUE background
+         (#14161b), so a fixed stage at z-index 0 sits in the same layer
+         as #page-bg -- BEHIND the card -- and the card's own background
+         covers it completely. On Reddit the card fills the webview, so
+         the engine was rendering perfectly and was 100% invisible;
+         nothing about the loader was ever wrong. On a desktop page
+         where the card does not fill the viewport it leaked out around
+         the edges instead, which is how this got spotted.
+
+         Living inside main also means it inherits the card's
+         border-radius and overflow:hidden, so the city is clipped to
+         the card's rounded corners for free, and sits correctly under
+         .scrim (z-index auto, painted after) and .content (z-index 2). */
+      position: absolute;
       inset: 0;
       z-index: 0;
       opacity: 0;
@@ -110,7 +124,11 @@
     /* The static layers cross-fade rather than switching off, so a frame
        where the engine has signalled but not yet painted shows the old
        art instead of a hole. */
-    body.attract-live #page-bg,
+    /* #page-bg deliberately NOT faded any more. The live city now fills
+       the card itself, so the dimmed grid around it is doing the job its
+       own comment describes -- keeping the taller Reddit frame from
+       reading as dead space beside the card. Only the card's own map and
+       the static robot give way to the real thing. */
     body.attract-live #city-bg,
     body.attract-live #robot-canvas {
       opacity: 0;
@@ -120,7 +138,6 @@
        running a city under someone who asked for stillness. */
     @media (prefers-reduced-motion: reduce) {
       #attract-stage { display: none; }
-      body.attract-live #page-bg,
       body.attract-live #city-bg,
       body.attract-live #robot-canvas { opacity: 1; }
     }
@@ -447,13 +464,13 @@
   </head>
   <body>
     <div id="attract-probe">attract: boot</div>
-    <div id="attract-stage" aria-hidden="true">
-      <div id="game"></div>
-      <div id="attract-stubs"></div>
-    </div>
     <canvas id="page-bg"></canvas>
     <main id="card">
       <canvas id="city-bg"></canvas>
+      <div id="attract-stage" aria-hidden="true">
+        <div id="game"></div>
+        <div id="attract-stubs"></div>
+      </div>
       <button id="how-to-btn" type="button">How to Play</button>
       <button id="notify-btn" type="button">Notify Me</button>
       <div class="party" id="party"></div>
