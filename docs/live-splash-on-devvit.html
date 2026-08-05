@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Getting a Live Gameplay Splash into the Reddit Feed — Tipsey Devlog</title>
+<meta name="description" content="How we got a real Phaser 3 engine running as a self-playing attract demo inline in the Reddit feed on Devvit — six silent failures, two root causes, and the full reproducible workflow.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&family=Source+Serif+4:opsz,ital,wght@8..60,0,400;8..60,0,600;8..60,1,400&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --night:#0d1420;        /* Costa Palma at 0.65 navy multiply */
+    --asphalt:#161e2c;
+    --panel:#1b2434;
+    --lane:#39455a;         /* dashed lane-line gray */
+    --chalk:#e9e4d8;        /* sidewalk chalk */
+    --chalk-dim:#aab3c2;
+    --dim:#9aa3b2;
+    --route:#e8863a;        /* the orange route line */
+    --diag:#ffb454;         /* the strip color, exactly */
+    --grass:#4a7c59;
+    --maxch:66ch;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  @media (prefers-reduced-motion: reduce){ html{scroll-behavior:auto} *{animation:none!important;transition:none!important} }
+  body{
+    margin:0; background:var(--night); color:var(--chalk);
+    font-family:"Source Serif 4", Georgia, serif;
+    font-size:18px; line-height:1.72;
+  }
+  a{color:var(--route); text-decoration-color:color-mix(in srgb, var(--route) 45%, transparent); text-underline-offset:3px}
+  a:hover{text-decoration-color:var(--route)}
+  a:focus-visible, summary:focus-visible{outline:2px solid var(--diag); outline-offset:3px; border-radius:2px}
+
+  /* ---------- hero: the city grid at night ---------- */
+  header{
+    position:relative; overflow:hidden;
+    background:
+      repeating-linear-gradient(0deg, transparent 0 86px, var(--lane) 86px 88px),
+      repeating-linear-gradient(90deg, transparent 0 128px, var(--lane) 128px 130px),
+      linear-gradient(180deg, #121a28 0%, var(--night) 100%);
+    border-bottom:1px solid var(--lane);
+  }
+  header::after{ /* one orange route wandering the grid */
+    content:""; position:absolute; inset:0; pointer-events:none;
+    background:
+      linear-gradient(90deg, transparent 0 10%, var(--route) 10% calc(10% + 3px), transparent 0),
+      linear-gradient(0deg, transparent 0 30%, transparent 0);
+    opacity:.0;
+  }
+  .hero-inner{max-width:calc(var(--maxch) + 12rem); margin:0 auto; padding:5.5rem 1.5rem 4rem}
+  .eyebrow{
+    font-family:"IBM Plex Mono", monospace; font-size:.72rem; letter-spacing:.22em;
+    text-transform:uppercase; color:var(--diag); margin:0 0 1.2rem;
+  }
+  .eyebrow .sep{color:var(--lane); padding:0 .5em}
+  h1{
+    font-family:"Bricolage Grotesque", sans-serif; font-weight:800;
+    font-size:clamp(2rem, 5.5vw, 3.6rem); line-height:1.04; letter-spacing:-.015em;
+    margin:0 0 1.2rem; max-width:20ch; text-wrap:balance;
+  }
+  h1 em{font-style:normal; color:var(--route)}
+  .standfirst{font-size:1.12rem; color:var(--dim); max-width:56ch; margin:0}
+  .standfirst strong{color:var(--chalk); font-weight:600}
+  .credits{
+    margin-top:2.2rem; font-family:"IBM Plex Mono", monospace; font-size:.78rem; color:var(--dim);
+  }
+  .credits b{color:var(--chalk); font-weight:600}
+
+  /* ---------- article + the route line ---------- */
+  main{max-width:calc(var(--maxch) + 12rem); margin:0 auto; padding:3rem 1.5rem 2rem; position:relative}
+  .article{max-width:var(--maxch); margin-left:8rem; position:relative}
+  .article::before{ /* the delivery route running down the story */
+    content:""; position:absolute; left:-4.5rem; top:0; bottom:0;
+    border-left:3px dashed var(--route); opacity:.55;
+  }
+  h2{
+    font-family:"Bricolage Grotesque", sans-serif; font-weight:600;
+    font-size:1.55rem; line-height:1.2; letter-spacing:-.01em;
+    margin:3.2rem 0 1rem; color:var(--chalk);
+  }
+  p{margin:0 0 1.15rem}
+  .lede{font-size:1.06rem}
+  strong{color:var(--chalk)}
+  em{color:var(--chalk)}
+  ol.pieces{padding-left:1.2rem; margin:0 0 1.15rem}
+  ol.pieces li{margin-bottom:.7rem}
+  ul.plain{padding-left:1.2rem; margin:0 0 1.15rem}
+  ul.plain li{margin-bottom:.55rem}
+
+  /* stops on the route */
+  .stop{position:relative; margin-top:3.4rem}
+  .stop-pin{
+    position:absolute; left:-6.05rem; top:.15rem; width:3.1rem; height:3.1rem;
+    background:var(--panel); border:2px solid var(--route); border-radius:8px;
+    display:flex; align-items:center; justify-content:center;
+    font-family:"IBM Plex Mono", monospace; font-weight:600; font-size:1.05rem; color:var(--diag);
+  }
+  .stop-pin::after{ /* pin points at the route line */
+    content:""; position:absolute; left:-9px; top:50%; transform:translateY(-50%) rotate(45deg);
+    width:12px; height:12px; background:var(--panel); border-left:2px solid var(--route); border-bottom:2px solid var(--route);
+  }
+  .stop h2{margin-top:0}
+  .stop .kicker{
+    font-family:"IBM Plex Mono", monospace; font-size:.7rem; letter-spacing:.18em;
+    text-transform:uppercase; color:var(--dim); display:block; margin-bottom:.35rem;
+  }
+
+  /* evidence blocks */
+  pre, code{font-family:"IBM Plex Mono", monospace}
+  code{font-size:.86em; background:var(--panel); padding:.1em .38em; border-radius:4px; color:var(--diag)}
+  pre{
+    background:var(--asphalt); border:1px solid var(--lane); border-left:3px solid var(--route);
+    border-radius:6px; padding:1rem 1.15rem; overflow-x:auto;
+    font-size:.8rem; line-height:1.6; margin:1.3rem 0; color:#c9d2e0;
+  }
+  pre code{background:none; padding:0; color:inherit; font-size:1em}
+  pre .c{color:#6b7688}
+
+  /* the diag strip, reproduced exactly */
+  figure.strip{margin:1.6rem 0}
+  .diagstrip{
+    background:rgba(0,0,0,.82); border:1px solid #000; color:var(--diag);
+    font-family:"IBM Plex Mono", monospace; font-size:.72rem; padding:.35rem .6rem;
+    word-break:break-all; line-height:1.5;
+  }
+  figure.strip figcaption{
+    font-family:"IBM Plex Mono", monospace; font-size:.7rem; color:var(--dim);
+    margin-top:.5rem; letter-spacing:.05em;
+  }
+
+  .aside{
+    background:var(--panel); border:1px solid var(--lane); border-radius:8px;
+    padding:1.1rem 1.3rem; margin:1.5rem 0; font-size:.95rem;
+  }
+  .aside .tag{
+    font-family:"IBM Plex Mono", monospace; font-size:.68rem; letter-spacing:.18em;
+    text-transform:uppercase; color:var(--grass); display:block; margin-bottom:.4rem;
+  }
+
+  /* delivered stamp */
+  .delivered{
+    margin:4rem 0 1rem; position:relative;
+  }
+  .delivered .stamp{
+    display:inline-block; font-family:"Bricolage Grotesque", sans-serif; font-weight:800;
+    font-size:1.5rem; letter-spacing:.12em; text-transform:uppercase; color:var(--grass);
+    border:3px solid var(--grass); border-radius:6px; padding:.3rem 1.1rem;
+    transform:rotate(-2.5deg);
+  }
+  .delivered .stamp-pin{
+    position:absolute; left:-6.05rem; top:.1rem; width:3.1rem; height:3.1rem;
+    background:var(--grass); border-radius:8px; display:flex; align-items:center; justify-content:center;
+    color:var(--night); font-size:1.4rem;
+  }
+
+  footer{
+    border-top:1px solid var(--lane); margin-top:4rem;
+    font-family:"IBM Plex Mono", monospace; font-size:.75rem; color:var(--dim);
+  }
+  .foot-inner{max-width:calc(var(--maxch) + 12rem); margin:0 auto; padding:2rem 1.5rem 3rem}
+  .foot-inner .article{max-width:var(--maxch); margin-left:8rem}
+  .foot-inner .article::before{display:none}
+
+  @media (max-width: 900px){
+    .article, .foot-inner .article{margin-left:2.6rem}
+    .article::before{left:-1.7rem}
+    .stop-pin{left:-3.35rem; width:2.4rem; height:2.4rem; font-size:.9rem; border-radius:6px}
+    .stop-pin::after{left:-8px; width:10px; height:10px}
+    .delivered .stamp-pin{left:-3.35rem; width:2.4rem; height:2.4rem}
+  }
+  @media (max-width: 560px){
+    body{font-size:16.5px}
+    .article, .foot-inner .article{margin-left:1.9rem}
+    .article::before{left:-1.15rem; border-left-width:2px}
+    .stop-pin{position:static; margin-bottom:.6rem}
+    .stop-pin::after{display:none}
+    .delivered .stamp-pin{position:static; margin-bottom:.6rem}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="hero-inner">
+    <p class="eyebrow">Rocket Launcher Games<span class="sep">//</span>Devlog<span class="sep">//</span>Costa Palma, after dark</p>
+    <h1>Getting a <em>live</em> gameplay splash into the Reddit feed</h1>
+    <p class="standfirst">The post card for <strong>Tipsey</strong> (r/tipsey) runs the actual Phaser&nbsp;3 engine — a self-playing delivery demo behind the Start button. Not a screenshot, not a video. It took <strong>six silent failures</strong> to get there, and every one of them looked exactly like a working splash. This is the whole route.</p>
+    <p class="credits">built with <b>Claude Opus 5</b> (architecture, failures 1–4) + <b>Claude Fable 5</b> (root causes 5–6) · solo dev: <b>Cal-Starfur</b></p>
+  </div>
+</header>
+
+<main>
+  <div class="article">
+
+    <p class="lede">Devvit Web gives your post two surfaces: a <strong>default entrypoint</strong> (<code>splash.html</code>) rendered inline in the feed, and an expanded entrypoint (<code>game.html</code>) that opens when the player taps in. The trick is making <code>splash.html</code> boot your real engine in a stripped-down attract mode — and surviving a platform where almost every failure is invisible.</p>
+
+    <h2>The architecture</h2>
+    <ol class="pieces">
+      <li><strong>A bare-attract flag in your engine.</strong> A global (ours is <code>TIPSEY_ATTRACT_BARE</code>) checked at load. When set: no network calls, no HUD chrome, and an attract driver plays the game by itself — ours steers the robot through a real procedurally generated route.</li>
+      <li><strong>Stub elements.</strong> Your engine wires up dozens of DOM ids at load. Instead of forking it, the splash builds a hidden <code>#attract-stubs</code> container with every element the engine expects (ours needs 64). The engine boots believing its chrome exists.</li>
+      <li><strong>A boot script that runs before the engine.</strong> It builds the stubs, sets the flag, and defines the ready callback. Load order is load-bearing:</li>
+    </ol>
+<pre><code>&lt;script src="splash-boot.js"&gt;&lt;/script&gt;   <span class="c">&lt;!-- stubs + flag + callback --&gt;</span>
+&lt;script src="phaser.min.js"&gt;&lt;/script&gt;
+&lt;script src="game-logic.js"&gt;&lt;/script&gt;
+&lt;script src="splash.js" type="module"&gt;&lt;/script&gt;  <span class="c">&lt;!-- splash chrome --&gt;</span></code></pre>
+    <ol class="pieces" start="4">
+      <li><strong>A handshake, then a cross-fade.</strong> The engine's first attract frame calls a global callback; the splash adds an <code>attract-live</code> class to <code>&lt;body&gt;</code>; CSS cross-fades the static art into the live canvas.</li>
+      <li><strong>The static splash IS the fallback.</strong> The page paints a full static splash first — city map, robot, leaderboard, button — with plain canvas drawing. If the engine never comes up, players see a perfectly normal splash. This principle saved us from ever shipping a visibly broken card. It is also, fair warning, why every failure below was silent.</li>
+    </ol>
+
+    <section class="stop" id="stop-1">
+      <div class="stop-pin">1</div>
+      <span class="kicker">First failure</span>
+      <h2>The iframe that could never work</h2>
+      <p>First version: <code>splash.html</code> contained <code>&lt;iframe src="game.html"&gt;</code>. Never came up. Devvit entrypoints are addressed <strong>by name through the Devvit API</strong> — a raw iframe to a sibling file doesn't resolve on the platform. There is no fix; the design is wrong. That forced the same-document architecture above, which turned out better anyway.</p>
+    </section>
+
+    <section class="stop" id="stop-2">
+      <div class="stop-pin">2</div>
+      <span class="kicker">Second failure</span>
+      <h2>The engine file that wasn't in the repo</h2>
+      <p><code>phaser.min.js</code> looked present locally but was being deleted by our <code>clean</code> npm script and — worse — swallowed by a <code>.gitignore</code> line (<code>/public/*.js*</code>) meant for build products. Deploys shipped without the engine. <strong>Audit your gitignore and clean scripts against every runtime asset</strong>, and re-audit every time you add a file to <code>public/</code>. This exact line bit us <em>again</em> later with the boot script. Same trap, same line.</p>
+    </section>
+
+    <section class="stop" id="stop-3">
+      <div class="stop-pin">3</div>
+      <span class="kicker">Third failure</span>
+      <h2>postMessage aimed at the wrong window</h2>
+      <p>The engine announced attract-ready with <code>parent.postMessage(...)</code>. Locally, a file opened directly is top-level, so <code>parent === window</code> and it worked. On Reddit, <strong>Devvit frames your entrypoint</strong> — <code>parent</code> is Devvit's host frame, so the signal was delivered to the platform instead of to our own listener. Fixed by posting to <code>window</code>. (Foreshadowing: this handshake wasn't done hurting us.)</p>
+    </section>
+
+    <section class="stop" id="stop-4">
+      <div class="stop-pin">4</div>
+      <span class="kicker">Fourth failure</span>
+      <h2>The attract stage hidden behind the card</h2>
+      <p>The live canvas mounted outside <code>&lt;main&gt;</code> and sat behind the card's opaque background. Painted every frame, visible never. Moved inside <code>&lt;main&gt;</code>. A boring bug that cost a full on-device round trip, because headless WebGL screenshots weren't an option for us.</p>
+      <p>After fixing 2–4: still static on Reddit, still perfect locally. Which brings us to the one that explains everything.</p>
+    </section>
+
+    <section class="stop" id="stop-5">
+      <div class="stop-pin">5</div>
+      <span class="kicker">Fifth failure · the big one</span>
+      <h2>Devvit's CSP refuses ALL inline scripts</h2>
+      <p>Fable&nbsp;5 pulled the actual response headers from <code>webview.devvit.net</code>:</p>
+<pre><code>script-src 'self' webview.devvit.net webview-dev.devvit.net 'wasm-unsafe-eval'</code></pre>
+      <p>No <code>'unsafe-inline'</code>. <strong>Every inline <code>&lt;script&gt;</code> block in every Devvit entrypoint is refused. Silently, on device.</strong> Our boot logic — stubs, flag, callback — lived in an inline block. It never ran on Reddit, not once. The stubs never existed, the engine threw on its first <code>getElementById</code>, and the designed fallback showed… a normal static splash. Reddit's own template docs do say "use a script tag and separate js/ts file" — we found that line only after finding the header.</p>
+      <p>Why every local test lied: <code>python -m http.server</code> sends <strong>no CSP</strong>. The fix for the bug was moving the inline block verbatim into <code>splash-boot.js</code>. The fix for the <em>process</em> was a test server that sends Reddit's exact captured CSP header, plus headless Playwright. Under that server, the broken splash reproduces the on-device failure verbatim — <code>Refused to execute inline script</code> — and the fixed one goes live.</p>
+      <div class="aside"><span class="tag">Do this today</span>If you build for Devvit, put that CSP header in your local dev server now. Ours also revealed a viewport-fix inline block in expanded-mode <code>game.html</code> that had never executed on Reddit either. Silent, remember?</div>
+    </section>
+
+    <section class="stop" id="stop-6">
+      <div class="stop-pin">6</div>
+      <span class="kicker">Sixth failure · the last one</span>
+      <h2>The native app swallows window.postMessage</h2>
+      <p>After the CSP fix: live on web reddit, still static in the Reddit app. Same post, same deployed bundle. And the app's webview takes no inspector.</p>
+      <p>So we made the splash diagnose itself: a one-line strip that renders <strong>only if attract isn't live six seconds after load</strong>. Web goes live in ~2s and never shows it; a broken client prints exactly which link died — engine version, flag, canvas count, a WebGL probe, a <code>requestAnimationFrame</code> tick counter, visibility state, first two captured errors. On device it read:</p>
+      <figure class="strip">
+        <div class="diagstrip">diag t+6.0s phaser:3.85.2 logic:flag-set canvases:2 gl:yes raf:120 vis:visible | no-errors</div>
+        <figcaption>the actual strip, photographed off the Reddit app — a completely healthy engine</figcaption>
+      </figure>
+      <p>Everything alive — with only the handshake missing. The last link was <code>window.postMessage</code> to the page's <em>own</em> window. Native apps inject JS bridges into their webviews, and wrapping <code>window.postMessage</code> is the standard way those bridges are built — a wrapped postMessage swallows the message with <strong>no error</strong>. A headless control with postMessage neutered reproduced the device strip character-for-character.</p>
+      <p>The fix is realizing you don't need a messaging API at all: since the iframe died at stop 1, poster and listener share one document. The engine now calls a plain global — <code>window.TIPSEY_ON_ATTRACT_READY()</code> — which nothing can intercept at either end. postMessage stays only as a fallback for genuine framed embedders. Live everywhere.</p>
+    </section>
+
+    <div class="delivered">
+      <div class="stamp-pin">✓</div>
+      <span class="stamp">Delivered</span>
+    </div>
+
+    <h2>The workflow, distilled</h2>
+    <ul class="plain">
+      <li><strong>Same document, not an iframe.</strong> Boot the real engine inside <code>splash.html</code> behind a bare-attract flag, with stub elements for every DOM id it touches.</li>
+      <li><strong>Zero inline <code>&lt;script&gt;</code> blocks.</strong> Everything external via <code>&lt;script src&gt;</code> — <code>'self'</code> is allowed, inline is not, and the refusal is silent.</li>
+      <li><strong>Signal readiness with a direct global callback</strong>, not postMessage — native app bridges eat postMessage without a trace.</li>
+      <li><strong>Static splash as the fallback layer</strong>, cross-fade on the callback. Your failure mode should be indistinguishable from a design choice.</li>
+      <li><strong>Test under a local server that sends Devvit's real CSP header</strong> + headless Playwright. A plain dev server will pass code that is dead on Reddit.</li>
+      <li><strong>Ship a self-hiding diagnostic strip</strong> (render only if not live after N seconds) while bringing up any uninspectable webview. Pull it once stable.</li>
+      <li><strong>Check <code>.gitignore</code> and clean scripts</strong> against every runtime asset in <code>public/</code>, every time you add one.</li>
+      <li><strong>Keep the inline bundle fast</strong> — paint the static layer immediately and let the engine catch up behind it.</li>
+    </ul>
+
+    <p>The meta-lesson: five of the six failures shared one shape — <strong>code that worked locally and died silently on the platform</strong>. Local parity (real CSP) plus on-device observability (the strip) is the whole game. Once we had both, the last two bugs — the ones that had survived everything — each took a single session to kill.</p>
+
+    <p>Questions welcome on <a href="https://www.reddit.com/r/aigamedevs/">r/aigamedevs</a> — and the splash itself is running right now on <a href="https://www.reddit.com/r/tipsey/">r/tipsey</a>. The robot thanks you for your tips.</p>
+
+  </div>
+</main>
+
+<footer>
+  <div class="foot-inner"><div class="article">
+    TIPSEY · a clumsy delivery · <a href="https://cal-starfur.itch.io/tipsey">play on itch.io</a> · <a href="https://www.reddit.com/r/tipsey/">r/tipsey</a><br>
+    written with Claude Opus 5 &amp; Claude Fable 5 · no JavaScript was used on this page, which GitHub Pages would have allowed
+  </div></div>
+</footer>
+
+</body>
+</html>
