@@ -1082,6 +1082,36 @@ const ATTRACT_ON = true;
    runs ~1.2s -- and short enough that the splash never sits on a dead
    frame. */
 const ATTRACT_RECYCLE_MS = 1600;
+/* A completed route earns a longer beat than a topple: the win sequence
+   is the door opening, the customer walking out, the handoff and the
+   walk back. Cutting that at 1600ms would show the arrival and none of
+   the payoff. */
+const ATTRACT_WIN_MS = 5600;
+
+/* ---------- ATTRACT DRIVER ----------
+   The game gives a player a deliberately narrow set of moves: throttle
+   is only -1/0/1, and hop steps one row inside 0..3. There is no
+   steering. So a "good driver" is not a pathfinder, it is a policy over
+   those two knobs, and the whole thing fits in one pass per frame. */
+const AD = {
+  scan:      300,    // how far ahead a lane is checked for obstructions
+  behind:     46,    // a hazard within this range is level with the robot RIGHT NOW
+  gain:       24,    // a rival lane must beat the current one by this much to be worth the hop
+  laneCost:   30,    // per row of travel, so a marginally better far lane is not worth crossing for
+  recommit:   90,    // a committed target lane is abandoned if its clearance falls under this
+  hopSpeed: 0.095,   // slow to this BEFORE changing lanes -- see the note in attractDrive
+  hopTilt:   0.34,   // and be steadier than this before spending a hop's stability cost
+  hopCool:   640,    // ms between lane changes; hopKick bleeds in over ~300ms
+  arcScan:   200,    // a corner starts mattering this far out
+  arcSpeed: 0.105,   // corner entry speed -- cornerLean maxes out at 0.15, so stay under it
+  tiltBrake: 0.45,   // shed speed above this lean
+  penned:   0.055,   // speed to crawl at when there is nowhere better to be
+  pinGrace:  600,    // ms pinned before the occupancy veto may be overridden
+  stuckBail:3200,    // ms pinned with no way out before the run is cut and recycled
+  doorStop:   16,    // aim to halt this far short of the door (window is 34)
+  cruise:   0.225,   // engine max
+  eps:      0.012,   // throttle deadband, so it does not chatter -1/1 every frame
+};
 function zoomApply(){
   const s = (typeof game !== "undefined" && game.scene) ? game.scene.getScene("world") : null;
   if(s){
@@ -4281,6 +4311,9 @@ class WorldScene extends Phaser.Scene {
        along unchanged and the flag only has to own the endings. */
     this.attract = false;
     this.attractTimer = null;
+    this.attractHopAt = 0;
+    this.attractStuckMs = 0;
+    this.attractWantRow = null;
     this.speed = 0;
     this.tilt = 0;              // stability: fail beyond ±1
     this.botRow = 1;            // lane 0 (building side) .. lane 3 (curb side), 4 lanes total
@@ -4360,8 +4393,16 @@ class WorldScene extends Phaser.Scene {
      sign test on the lane axis's screen-y projection, using the same
      quantized heading the renderer uses. Muscle memory follows the
      SCREEN, the map follows along. */
-  hop(screenDir){
-    if(this.state !== "play") return;
+  /* The screen<->row direction flip, in ONE place. A swipe arrives in
+     screen space, lanes live in row space, and which way a +1 row step
+     moves on screen depends on the current heading. The mapping is its
+     own inverse (it is a sign flip), so hop() uses it to turn a swipe
+     into a row step and the attract driver uses the same call to turn a
+     wanted row step back into the swipe that produces it. Extracted
+     rather than copied: two copies of this could disagree about which
+     way is up on exactly one heading, and the symptom would be an
+     attract robot that calmly steers INTO hazards while heading north. */
+  rowScreenFlip(d){
     const hdg = this.headingAt(this.botS);
     const fq = ((Math.round(hdg / (Math.PI/2)) % 4) + 4) % 4;
     const rv = DIRV[(fq + 1) % 4];
@@ -4369,7 +4410,12 @@ class WorldScene extends Phaser.Scene {
        laneOffset(r)) along rv; screen y grows with (x + y). Sign is all
        we need — spacing is uniform, so sample rows 0->1. */
     const rowPlusDown = (rv.x + rv.y) * (laneOffset(1) - laneOffset(0)) > 0;
-    const dir = rowPlusDown ? screenDir : -screenDir;
+    return rowPlusDown ? d : -d;
+  }
+
+  hop(screenDir){
+    if(this.state !== "play") return;
+    const dir = this.rowScreenFlip(screenDir);
     /* no lane changes mid-turn: a hop's lateral swing (up to 276 units,
        nearly the turn's own radius) happening over the short arc-length
        distance covered during a turn was overwhelming the actual
@@ -4724,6 +4770,8 @@ class WorldScene extends Phaser.Scene {
        write tipsy.zoomDepth and silently overwrite the player's own
        saved camera preference with a value they never chose. */
     this.K = ZOOM_K[ZOOM_K.length - 1];
+    this.attractWantRow = null;
+    this.attractStuckMs = 0;
     this.state = "play";
     this.throttle = 1;
   }
@@ -4744,7 +4792,7 @@ class WorldScene extends Phaser.Scene {
      #orderCard and #sheetStatus as it goes, so looping a random day
      would leave the splash advertising a neighborhood, a shop and a
      payout that GO does not then deliver. */
-  attractRecycle(){
+  attractRecycle(ms){
     if(!this.attract || this.attractTimer) return;
     this.attractTimer = setTimeout(() => {
       this.attractTimer = null;
@@ -4752,7 +4800,202 @@ class WorldScene extends Phaser.Scene {
       this.loadRoute(this.route ? this.route.dateStr : clientTodayUTC());
       this.state = "play";
       this.throttle = 1;
-    }, ATTRACT_RECYCLE_MS);
+    }, ms || ATTRACT_RECYCLE_MS);
+  }
+
+  /* ---------- the driver ----------
+     Runs once per frame in place of the old "throttle = 1 forever".
+     Four jobs, checked in an order chosen so a later one can never talk
+     an earlier one out of its decision:
+
+       1. the door   -- once close, nothing else matters
+       2. corners    -- a speed ceiling, set before lanes can raise it
+       3. lanes      -- do not be somewhere with something in it
+       4. commit     -- turn the resulting speed target into a throttle
+
+     The door comes first and returns, because the approach is the one
+     stretch where a hop is actively harmful: a lane change costs
+     stability, and |tilt| < 0.5 is half the win gate. Dodging something
+     20 units from the door is how a finished route becomes a topple on
+     the doorstep. */
+  attractDrive(){
+    if(!this.attract || this.state !== "play" || !this.route) return;
+    const s = this.botS;
+
+    /* Stuck accounting first: the lane decision needs to know how long
+       we have been pinned before it can decide whether to override its
+       own safety veto. Accounted here, acted on below. */
+    if(this.isBlocked || (this.stuckAmt || 0) > 0.5) this.attractStuckMs += 16;
+    else this.attractStuckMs = 0;
+    const pinned = this.attractStuckMs > AD.pinGrace;
+
+    /* --- 1. the door --- */
+    const remain = this.route.doorS - s;
+    /* v^2/2a with the brake's own 0.00075/ms. Friction only ever helps,
+       so this over-reserves slightly, which is the safe direction. */
+    const brakeDist = (this.speed * this.speed) / 0.0015;
+    if(remain < 42 || remain - AD.doorStop <= brakeDist + 6){
+      this.throttle = -1;
+      return;
+    }
+
+    const onArc   = this.segAt(s).type === "arc";
+    /* No lane changes into or during a turn. hop() refuses mid-arc, and
+       the maneuver block resolves an in-flight hop the instant an arc
+       starts by snapping laneOff to its target -- so a hop begun just
+       before a corner does not glide, it teleports. */
+    const arcSoon = onArc || this.segAt(s + 120).type === "arc";
+    let target = AD.cruise;
+
+    /* --- 2. corners --- */
+    let cornerAhead = onArc;
+    for(let d = 40; d <= AD.arcScan && !cornerAhead; d += 40)
+      if(this.segAt(s + d).type === "arc") cornerAhead = true;
+    if(cornerAhead) target = Math.min(target, AD.arcSpeed);
+
+    /* --- 3. lanes --- */
+    const here = this.attractLaneClear(this.botRow, s);
+    let want = this.attractWantRow;
+    /* Commit to a destination lane rather than re-deciding every frame.
+       laneCost is measured from the CURRENT row, so the instant he
+       arrives anywhere, the lane he just left looks cheap again and he
+       hops straight back. Measured on the 2026-08-05 route: 780 hops in
+       400 seconds, tilt riding at -0.68 the whole way. Hold the target
+       until it is reached, or until it stops being clear. */
+    if(want === null || want === undefined || want === this.botRow ||
+       this.attractLaneClear(want, s) < AD.recommit){
+      want = this.botRow;
+      let bestScore = here;
+      /* Score ALL FOUR lanes. Adjacent-only comparison deadlocks, and
+         the 2026-08-05 route found the exact shape: pinned in row 0
+         behind a hydrant 26 ahead, row 1 blocked, rows 2 and 3 clear at
+         35 and 103. "Is my neighbour better than me" is structurally
+         incapable of seeing past row 1. */
+      for(let r = 0; r < 4; r++){
+        if(r === this.botRow) continue;
+        const score = this.attractLaneClear(r, s) - Math.abs(r - this.botRow) * AD.laneCost;
+        if(score > bestScore + AD.gain){ bestScore = score; want = r; }
+      }
+      this.attractWantRow = want;
+    }
+
+    let step = want === this.botRow ? 0 : Math.sign(want - this.botRow);
+    /* Pinned with nowhere the scorer likes: take any neighbour at all.
+       Leaning on an obstruction is the one thing a player never does. */
+    if(pinned && step === 0){
+      for(const cand of [this.botRow + 1, this.botRow - 1]){
+        if(cand < 0 || cand > 3) continue;
+        step = Math.sign(cand - this.botRow);
+        break;
+      }
+    }
+    /* Never step INTO something already level with us -- unless pinned,
+       in which case this veto is the thing doing the pinning. AD.behind
+       is an honest guess at the robot's footprint, not a figure derived
+       from the per-type contact windows (those are a world-space near()
+       test, not one along-track number), so it is conservative and does
+       veto hops that would have been clean. Once pinned, a certain
+       failure beats a risk, so it yields. */
+    if(step !== 0 && !pinned && this.attractLaneOccupied(this.botRow + step, s)) step = 0;
+
+    if(step !== 0){
+      /* THE skill this game is actually about. hopKick is
+         0.16 + speed*4.5, and TILT_SENS halves it into tilt, so a lane
+         change at full pace costs 0.586 tilt and two in a row put you
+         over the 1.0 tip line. A good driver slows down BEFORE changing
+         lanes; a bad one changes lanes and then finds out why that was
+         expensive. So a wanted hop becomes a SPEED TARGET first, and
+         only becomes an actual hop once the robot is calm enough to
+         afford it. */
+      target = Math.min(target, AD.hopSpeed);
+      const ready = this.speed <= AD.hopSpeed + AD.eps &&
+                    Math.abs(this.tilt) < AD.hopTilt &&
+                    !this.hopAnim && !arcSoon &&
+                    (this.time.now - this.attractHopAt) > AD.hopCool;
+      /* Pinned overrides the patience: speed is already zero, the tilt
+         cost of a hop from a standstill is the 0.16 floor, and waiting
+         for a cooldown while stuck achieves nothing. */
+      if(ready || (pinned && !this.hopAnim && !arcSoon)){
+        /* through hop(), not by assigning botRow: hop owns the arc
+           refusal, the 0..3 clamp, the glide animation and the stability
+           cost. Setting botRow directly would skip all four and give the
+           attract robot physics the player does not have. */
+        this.hop(this.rowScreenFlip(step));
+        this.attractHopAt = this.time.now;
+      }
+    } else if(here < 120){
+      /* nowhere better to be: meet it slowly rather than at pace */
+      target = Math.min(target, AD.penned);
+    }
+
+    if(Math.abs(this.tilt) > AD.tiltBrake) target = Math.min(target, 0.08);
+
+    /* Last resort. If even the override cannot free him there is no move
+       left, and a splash sitting on a motionless robot is worse than a
+       cut. Recycling is honest: the run is over, it just did not end in
+       a way the sim has a state for. */
+    if(this.attractStuckMs > AD.stuckBail){
+      this.attractStuckMs = 0; this.attractWantRow = null;
+      this.attractRecycle();
+      return;
+    }
+
+    /* --- 4. commit --- */
+    /* deadband, or he chatters between -1 and 1 every frame at the
+       target and the ride reads as a stutter. */
+    if(this.speed > target + AD.eps)      this.throttle = -1;
+    else if(this.speed < target - AD.eps) this.throttle = 1;
+    else                                  this.throttle = 0;
+  }
+
+  /* FORWARD clearance: how far this lane runs before the next thing
+     worth avoiding. Answers exactly one question -- "how good is this
+     lane to be in" -- and nothing else.
+
+     It used to also fold in hazards BEHIND the robot, clamped to 0, so
+     one number could double as a hop-safety check. That is the
+     one-constant-one-question rule broken, and it cost a whole route: a
+     walker 25 units behind reported row 1 as having ZERO clearance
+     ahead, so the driver read a wide-open escape lane as a wall and sat
+     pinned for 400 seconds. Two questions, two functions. */
+  attractLaneClear(row, from){
+    let nearest = AD.scan;
+    for(const hz of this.route.hazards){
+      if(hz.row !== row || !this.attractAvoids(hz)) continue;
+      const d = hz.s - from;
+      if(d < 0 || d > AD.scan) continue;
+      nearest = Math.min(nearest, d);
+    }
+    return nearest;
+  }
+
+  /* OCCUPANCY: is something level with the robot right now in this lane.
+     The robot has length, so hopping into a hazard beside the back
+     wheels is a collision even though it is technically behind. This is
+     a hop-legality test, never a lane-quality score. */
+  attractLaneOccupied(row, from){
+    for(const hz of this.route.hazards){
+      if(hz.row !== row || !this.attractAvoids(hz)) continue;
+      const d = hz.s - from;
+      if(d > -AD.behind && d < AD.behind) return true;
+    }
+    return false;
+  }
+
+  /* What counts as worth avoiding. Deliberately a denylist over an
+     allowlist: new hazard types get added to this game regularly, and
+     the safe default for an unknown one is "drive around it". */
+  attractAvoids(hz){
+    if(hz.row === undefined) return false;   // road cracks carry roadOffset, not a lane
+    switch(hz.type){
+      /* no collision at all -- the hazard loop skips these outright */
+      case "sidewalkend": case "sidewalkbegin": case "grade": return false;
+      /* the scatter IS the reward. Driving through the flock is the
+         nicest thing that happens on a route; steering around it would
+         be a worse splash, not a safer one. */
+      case "pigeons": return false;
+      default: return true;
+    }
   }
 
   hjResetRun(){
@@ -11568,7 +11811,7 @@ class WorldScene extends Phaser.Scene {
       const remain = this.route.doorS - this.botS;
       if(remain < 34 && remain > -60 && this.speed < 0.02 && Math.abs(this.tilt) < 0.5){
         this.state = "won";
-        if(this.attractOwnsTip()) this.attractRecycle();
+        if(this.attractOwnsTip()) this.attractRecycle(ATTRACT_WIN_MS);
         else showWin(this);
       }
       /* overshot the door: clamp to whichever is closer — the edge of the
@@ -12979,7 +13222,7 @@ class WorldScene extends Phaser.Scene {
        whenever no key and no pointer is down, which is every frame of
        an attract run -- the robot would accelerate for one frame and
        coast to a stop forever after. */
-    if(this.attract){ this.throttle = 1; }
+    if(this.attract){ this.attractDrive(); }
     else if(this.keys){
       if(this.keys.right.isDown || this.keys.d.isDown) this.throttle = 1;
       else if(this.keys.left.isDown || this.keys.a.isDown) this.throttle = -1;
