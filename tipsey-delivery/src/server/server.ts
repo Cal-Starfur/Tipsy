@@ -10,6 +10,8 @@ import {
   type AccountDeleteEvent,
   type ClaimTrophyRewardReq,
   type ClaimTrophyRewardRsp,
+  type CompleteMissionReq,
+  type CompleteMissionRsp,
   type CountPlayRsp,
   Endpoint,
   EndpointMethod,
@@ -41,6 +43,7 @@ import {
   dbGetTpProfile,
   dbIncrPlays,
   dbMarkAnnounced,
+  dbRecordMission,
   dbPurchaseSkin,
   dbRemoveUser,
   dbSetDailyPostId,
@@ -63,6 +66,7 @@ type AnyRsp =
   | EquipSkinRsp
   | ClaimTrophyRewardRsp
   | CountPlayRsp
+  | CompleteMissionRsp
   | SubmitFailRsp
   | UiResponse
   | TriggerResponse
@@ -116,6 +120,9 @@ async function route(
         break
       case Endpoint.ClaimTrophyReward:
         rsp = await routeClaimTrophyReward(reqMsg)
+        break
+      case Endpoint.CompleteMission:
+        rsp = await routeCompleteMission(reqMsg)
         break
       case Endpoint.CountPlay:
         rsp = await routeCountPlay()
@@ -302,6 +309,40 @@ async function routeClaimTrophyReward(
   return {owned: result.profile.owned, skinId: result.skinId}
 }
 
+/** Records side-mission progress. Fires the announce comment only on
+ *  firstCompletion, so the Hydrant Challenge -- which reports after
+ *  every one of its ten jumps -- comments once, on the run that clears
+ *  the last one, rather than ten times on the way down the street.
+ *  A rejected id or count is a 400 with the reason: unlike the fail
+ *  report, the client acts on this response (it corrects its local
+ *  best from it), so failing silently would leave the two disagreeing. */
+async function routeCompleteMission(
+  reqMsg: IncomingMessage,
+): Promise<CompleteMissionRsp | ErrorRsp> {
+  const req = await readJson<CompleteMissionReq>(reqMsg)
+  const user = await getCurrentUserRetrying()
+  const username = user?.username ?? 'anonymous'
+  const result = await dbRecordMission(username, req.missionId, req.best)
+  if (!result.ok) {
+    console.error(`routeCompleteMission: ${username} -> ${req.missionId}: ${result.error}`)
+    return {error: result.error, status: 400}
+  }
+  if (result.firstCompletion) {
+    const label = MISSION_LABELS[req.missionId] ?? req.missionId
+    await announceMilestone(
+      username,
+      `mission:${req.missionId}`,
+      `🧨 **u/${username}** cleared the **${label}**.`,
+    )
+  }
+  return {
+    missionId: req.missionId,
+    best: result.best,
+    completed: result.completed,
+    firstCompletion: result.firstCompletion,
+  }
+}
+
 /** The date comes from the SERVER's todayUTC(), not the client: the
  *  counter sits next to today's board and must be keyed the same way it
  *  is, and a client-supplied date would let any webview pad an
@@ -432,6 +473,11 @@ const SKIN_LABELS: {[skinId: string]: string} = {
  *  trophyId and kept alongside TS_CLAIMABLE_TROPHIES's own list -- a
  *  trophy with no line here still grants its skin, it just announces
  *  itself plainly rather than with a wrong description. */
+const MISSION_LABELS: {[missionId: string]: string} = {
+  'jump-hydrant': 'Hydrant Challenge',
+  'cone-slalom': 'Cone Slalom Challenge',
+}
+
 const TROPHY_FEAT: {[trophyId: string]: string} = {
   streak5: 'five days delivered in a row',
   highroller: '$500 banked all-time',
