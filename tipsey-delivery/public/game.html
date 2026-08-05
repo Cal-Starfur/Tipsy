@@ -86,6 +86,20 @@
      attract off is a class change rather than a redraw -- which is what
      kept hjQuit's "SHOW THE OVERLAY FIRST" ordering bug from having a
      second front to fight on. */
+  /* BARE attract (splash embed): the game's own UI is suppressed
+     entirely -- the splash card supplies title, leaderboard and the
+     Start Delivery button, and two stacked UIs on one feed card is
+     worse than either alone. display:none rather than opacity so none
+     of it can take a tap that belongs to the splash. */
+  body.attractBare #titleOverlay,
+  body.attractBare #panel,
+  body.attractBare #panelToggle,
+  body.attractBare #gpsHud,
+  body.attractBare #zoomBtn,
+  body.attractBare #bottomSheet,
+  body.attractBare #globalAvatar,
+  body.attractBare #globalSearch,
+  body.attractBare #bootLoader { display: none !important; }
   body.attract #titleOverlay{background:transparent;}
   body.attract #mapCard{background:transparent;}
   body.attract #routeMap{visibility:hidden;}
