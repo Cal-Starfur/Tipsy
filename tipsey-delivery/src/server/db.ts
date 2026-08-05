@@ -1,6 +1,11 @@
 import {reddit, redis} from '@devvit/web/server'
 import type {DailyBest, LeaderboardEntry, TpProfileRsp} from '../shared/api.ts'
-import {TS_CLAIMABLE_TROPHIES, TS_SKINS} from './tpcatalog.ts'
+import {
+  TS_CLAIMABLE_TROPHIES,
+  TS_MISSIONS,
+  TS_SKINS,
+  type TsMissionState,
+} from './tpcatalog.ts'
 
 /** Today's date, UTC, "YYYY-MM-DD" — matches the client's own
  *  `new Date().toISOString().slice(0,10)` exactly (see requestDailyBest()
@@ -151,6 +156,69 @@ function tpOwnedKey(username: string): string {
   return `tipsy:global:tpowned:${username}`
 }
 
+/** One hash field per side mission, value = the best count recorded.
+ *  Sibling of tpProfileKey/tpOwnedKey and shares their lifetime: a
+ *  cleared mission is a permanent fact about a player, not a daily
+ *  one, so no TTL. */
+function tpMissionsKey(username: string): string {
+  return `tipsy:global:tpmissions:${username}`
+}
+
+export async function dbGetMissions(username: string): Promise<TsMissionState> {
+  const raw = await redis.hGetAll(tpMissionsKey(username))
+  const out: TsMissionState = {}
+  for (const [id, v] of Object.entries(raw ?? {})) {
+    const n = parseInt(String(v), 10)
+    if (Number.isFinite(n) && n > 0) out[id] = n
+  }
+  return out
+}
+
+/** Records a side-mission result, keeping the HIGH-WATER mark: reports
+ *  arrive after every cleared jump, and a later run that ends at jump 3
+ *  must not erase a previous ten.
+ *
+ *  What this is and isn't: the count is self-reported. The server never
+ *  simulated the jumps and has no way to re-derive them, so this is a
+ *  durable RECORD, not a proof. Two things bound the damage -- the id
+ *  must exist in TS_MISSIONS (so progress can't be banked on a course
+ *  that isn't built), and the count is clamped to bestMax (so a forged
+ *  report can claim at most what a real clear could have earned). The
+ *  only thing riding on it is a cosmetic skin.
+ *
+ *  firstCompletion is true on the single call that crosses completeAt,
+ *  which is what the announce comment hangs off; every later report of
+ *  an already-complete mission returns false. */
+export async function dbRecordMission(
+  username: string,
+  missionId: string,
+  best: number,
+): Promise<
+  | {ok: true; best: number; completed: boolean; firstCompletion: boolean}
+  | {ok: false; error: string}
+> {
+  const def = TS_MISSIONS[missionId]
+  if (!def) return {ok: false, error: `${missionId} is not a recordable mission`}
+  const raw = typeof best === 'number' ? Math.floor(best) : Number.NaN
+  if (!Number.isFinite(raw) || raw < 1) {
+    return {ok: false, error: 'best must be a positive whole number'}
+  }
+  const capped = Math.min(def.bestMax, raw)
+
+  const key = tpMissionsKey(username)
+  const prev = parseInt((await redis.hGet(key, missionId)) ?? '0', 10) || 0
+  const next = Math.max(prev, capped)
+  if (next !== prev) await redis.hSet(key, {[missionId]: String(next)})
+
+  const completed = next >= def.completeAt
+  return {
+    ok: true,
+    best: next,
+    completed,
+    firstCompletion: completed && prev < def.completeAt,
+  }
+}
+
 async function dbGetTopFromKey(
   key: string,
   avatarsKey: string,
@@ -249,13 +317,23 @@ export async function dbGetHistory(
  *  tpProfileKey (scalar fields) and tpOwnedKey (one field per skin) are
  *  different shapes for different reasons -- see each key fn's comment. */
 export async function dbGetTpProfile(username: string): Promise<TpProfileRsp> {
-  const [profile, ownedRaw] = await Promise.all([
+  const [profile, ownedRaw, missions] = await Promise.all([
     redis.hGetAll(tpProfileKey(username)),
     redis.hGetAll(tpOwnedKey(username)),
+    dbGetMissions(username),
   ])
   const walletCents = parseInt(profile.walletCents ?? '0', 10) || 0
   const equipped = profile.equipped || 'classic'
-  return {walletCents, owned: ['classic', ...Object.keys(ownedRaw)], equipped}
+  /* missions ships on the profile rather than its own endpoint so a
+     player who cleared the course on their phone sees the trophy card
+     filled in on desktop -- the client merges this into its local
+     missionsCompleted/hjBest on every requestTpProfile. */
+  return {
+    walletCents,
+    owned: ['classic', ...Object.keys(ownedRaw)],
+    equipped,
+    missions,
+  }
 }
 
 /** Server-authoritative skin purchase. Price/unlockType come from this
@@ -339,8 +417,11 @@ export async function dbClaimTrophyReward(
 > {
   const trophy = TS_CLAIMABLE_TROPHIES[trophyId]
   if (!trophy) return {ok: false, error: `${trophyId} is not server-claimable yet`}
-  const {history, allTimeTotal} = await dbGetHistory(username)
-  if (!trophy.check(history, allTimeTotal)) {
+  const [{history, allTimeTotal}, missions] = await Promise.all([
+    dbGetHistory(username),
+    dbGetMissions(username),
+  ])
+  if (!trophy.check(history, allTimeTotal, missions)) {
     return {ok: false, error: `${trophyId} not yet earned`}
   }
   await redis.hSet(tpOwnedKey(username), {[trophy.rewardSkinId]: '1'})
@@ -560,6 +641,7 @@ export async function dbRemoveUser(username: string): Promise<void> {
        keys above, so it has to be dropped here or a deleted account
        would leave a record of what it once unlocked. */
     redis.del(announcedKey(username)),
+    redis.del(tpMissionsKey(username)),
   ])
 }
 
