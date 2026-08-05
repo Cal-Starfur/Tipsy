@@ -96,3 +96,58 @@
         if (d && d.tipsey === 'attract-ready') document.body.classList.add('attract-live');
       });
     })();
+
+/* ---------- self-hiding boot diagnostic ----------
+   The native Reddit app shows the static splash while the same post runs
+   attract on web, and the app's webview takes no inspector. Every
+   plausible cause (WebGL refused, RAF suspended in the feed webview,
+   script load killed, runtime throw) is invisible from outside, so the
+   splash reports its own boot state: a one-line strip that renders ONLY
+   if attract has not gone live 6s after load. Web goes live in ~1-2s and
+   never shows it; the broken app shows exactly which link died. Remove
+   once the app-side cause is fixed. */
+(function () {
+  var t0 = Date.now();
+  var rafCount = 0;
+  var errs = [];
+
+  function rafProbe() { rafCount++; requestAnimationFrame(rafProbe); }
+  requestAnimationFrame(rafProbe);
+
+  window.addEventListener('error', function (e) {
+    if (errs.length >= 2) return;
+    var f = (e.filename || '').split('/').pop();
+    errs.push((f ? f + ':' + e.lineno + ' ' : '') + String(e.message).slice(0, 80));
+  });
+  window.addEventListener('unhandledrejection', function (e) {
+    if (errs.length < 2) errs.push('promise: ' + String(e.reason).slice(0, 80));
+  });
+
+  function glProbe() {
+    try {
+      var c = document.createElement('canvas');
+      return (c.getContext('webgl') || c.getContext('experimental-webgl')) ? 'yes' : 'NO';
+    } catch (_) { return 'THROW'; }
+  }
+
+  setTimeout(function () {
+    if (document.body.classList.contains('attract-live')) return; // healthy: stay invisible
+    var d = document.createElement('div');
+    d.id = 'attract-diag';
+    var st = d.style;
+    st.position = 'fixed'; st.left = '0'; st.right = '0'; st.bottom = '0';
+    st.zIndex = '99'; st.font = '9px monospace'; st.color = '#ffb454';
+    st.background = 'rgba(0,0,0,0.75)'; st.padding = '2px 4px';
+    st.pointerEvents = 'none'; st.whiteSpace = 'normal'; st.wordBreak = 'break-all';
+    var stage = document.getElementById('attract-stage');
+    d.textContent = 'diag t+' + ((Date.now() - t0) / 1000).toFixed(1) + 's'
+      + ' phaser:' + (typeof window.Phaser !== 'undefined' ? window.Phaser.VERSION : 'ABSENT')
+      + ' logic:' + (window.TIPSEY_ATTRACT_BARE === true ? 'flag-set' : 'flag-LOST')
+      + ' canvases:' + (stage ? stage.querySelectorAll('canvas').length : '?')
+      + ' gl:' + glProbe()
+      + ' raf:' + rafCount
+      + ' vis:' + document.visibilityState
+      + (errs.length ? ' | ' + errs.join(' | ') : ' | no-errors');
+    document.body.appendChild(d);
+  }, 6000);
+})();
