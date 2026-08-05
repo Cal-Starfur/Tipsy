@@ -3,4 +3,6 @@
 /public/*.js*
 !/public/game-logic.js
 !/public/phaser.min.js
+!/public/splash-boot.js
+!/public/viewport-fix.js
 /.env
