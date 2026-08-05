@@ -1072,6 +1072,16 @@ function zoomLoad(){
   return zoomDepth;
 }
 function zoomK(){ return ZOOM_K[zoomDepth - 1]; }
+
+/* ---------- ATTRACT MODE ----------
+   One switch, so a bad splash is a one-line revert rather than an
+   unpick. */
+const ATTRACT_ON = true;
+/* Beat between an attract run ending and the next one starting. Long
+   enough that a topple reads as a topple -- the tip animation itself
+   runs ~1.2s -- and short enough that the splash never sits on a dead
+   frame. */
+const ATTRACT_RECYCLE_MS = 1600;
 function zoomApply(){
   const s = (typeof game !== "undefined" && game.scene) ? game.scene.getScene("world") : null;
   if(s){
@@ -4263,6 +4273,14 @@ class WorldScene extends Phaser.Scene {
     /* game state */
     this.mode = "delivery";     // delivery | challenge  (see loadChallenge)
     this.state = "idle";        // idle | play | tipped | won
+    /* Attract is deliberately NOT a fifth state. Roughly twenty sim
+       branches gate on state === "play" (traffic, William, hazards,
+       cargo, the drive integrator); a new state would switch every one
+       of them off and the splash would show a frozen city. Attract runs
+       AS "play" and carries a flag alongside it, so the whole sim comes
+       along unchanged and the flag only has to own the endings. */
+    this.attract = false;
+    this.attractTimer = null;
     this.speed = 0;
     this.tilt = 0;              // stability: fail beyond ±1
     this.botRow = 1;            // lane 0 (building side) .. lane 3 (curb side), 4 lanes total
@@ -4309,18 +4327,19 @@ class WorldScene extends Phaser.Scene {
   bindInput(){
     let downY = 0, downT = 0, hopped = false;
     this.input.on("pointerdown", p => {
+      if(this.attract) return;   // the splash drives itself; see attractStart
       downY = p.y; downT = this.time.now; hopped = false;
       this.throttle = p.x > this.scale.gameSize.width/2 ? 1 : -1;
     });
     this.input.on("pointermove", p => {
-      if(!p.isDown || hopped) return;
+      if(this.attract || !p.isDown || hopped) return;
       const dy = p.y - downY;
       if(Math.abs(dy) > 34 && this.time.now - downT < 320){
         hopped = true; this.throttle = 0;
         this.hop(dy < 0 ? -1 : 1);
       }
     });
-    this.input.on("pointerup", () => { this.throttle = 0; hopped = false; });
+    this.input.on("pointerup", () => { if(this.attract) return; this.throttle = 0; hopped = false; });
     /* WASD mirrors the arrows exactly: W/S hop (screen-relative, same
        translation as swipes), A/D throttle. */
     this.keys = this.input.keyboard.addKeys({ up:"UP", down:"DOWN", left:"LEFT", right:"RIGHT",
@@ -4674,6 +4693,67 @@ class WorldScene extends Phaser.Scene {
      ("The pavement won") belongs to a delivery that went wrong, not to
      a missed jump, and its Retry reloaded the daily route. */
   hjOwnsTip(){ return this.mode === "challenge"; }
+
+  /* ---------- ATTRACT MODE ----------
+     Same shape as hjOwnsTip above: a mode flag that takes ownership of
+     the run's ENDINGS so the sim underneath can stay exactly as it is.
+
+     There is no attract "driver". The player never steers -- see the
+     note above DIRV -- so Tipsey already follows the route line and
+     auto-turns through the fillet arcs on his own. Holding the throttle
+     down is the entire input. Writing a steering AI here would be
+     re-implementing the thing that already moves the robot.
+
+     What attract DOES have to own is what happens when a run ends,
+     because every ending path writes: the tip path POSTs api/tipsy/fail
+     through reportFail, and the win path pays out through showWin.
+     Neither may fire for a robot nobody is driving, so all three exits
+     (tipped / canceled / won) are gated and routed to attractRecycle
+     instead. Missing one would quietly corrupt the leaderboard with
+     runs the player never made. */
+  attractOwnsTip(){ return this.attract === true; }
+
+  attractStart(){
+    if(!ATTRACT_ON) return;
+    if(this.mode === "challenge") return;   // the challenge owns its own map screen
+    if(this.attract) return;
+    this.attract = true;
+    document.body.classList.add("attract");
+    /* Widest of the three stops, so the city reads at splash size --
+       but assigned directly rather than through zoomSet(), which would
+       write tipsy.zoomDepth and silently overwrite the player's own
+       saved camera preference with a value they never chose. */
+    this.K = ZOOM_K[ZOOM_K.length - 1];
+    this.state = "play";
+    this.throttle = 1;
+  }
+
+  attractStop(){
+    if(!this.attract) return;
+    this.attract = false;
+    /* Clear the pending recycle FIRST. A timer that survives into a
+       real run reloads the route out from under a live player. */
+    if(this.attractTimer){ clearTimeout(this.attractTimer); this.attractTimer = null; }
+    document.body.classList.remove("attract");
+    this.K = zoomK();                       // back to the player's own stop
+    this.throttle = 0;
+  }
+
+  /* An attract run that ends is not a loss, it is a cut: reload and
+     drive it again. The SAME day, specifically. loadRoute() rewrites
+     #orderCard and #sheetStatus as it goes, so looping a random day
+     would leave the splash advertising a neighborhood, a shop and a
+     payout that GO does not then deliver. */
+  attractRecycle(){
+    if(!this.attract || this.attractTimer) return;
+    this.attractTimer = setTimeout(() => {
+      this.attractTimer = null;
+      if(!this.attract) return;             // GO landed during the beat
+      this.loadRoute(this.route ? this.route.dateStr : clientTodayUTC());
+      this.state = "play";
+      this.throttle = 1;
+    }, ATTRACT_RECYCLE_MS);
+  }
 
   hjResetRun(){
     const ch = this.route && this.route.challenge; if(!ch) return;
@@ -11469,7 +11549,8 @@ class WorldScene extends Phaser.Scene {
            delivery fail overlay would take over the screen and its
            Retry reloads the daily route. */
         const failPool = this.tipCause === "william" ? WILLIAM_FAIL_LINES : null;
-        if(!this.hjOwnsTip()){ reportFail(this, this.tipCause); setTimeout(() => showFail(failPool), 1500); }
+        if(this.attractOwnsTip()){ this.attractRecycle(); }
+        else if(!this.hjOwnsTip()){ reportFail(this, this.tipCause); setTimeout(() => showFail(failPool), 1500); }
       }
       /* CANCELLATION: par + grace expired -> the order dies. A fail
          with the robot upright: the state gate stops the sim, input
@@ -11478,6 +11559,7 @@ class WorldScene extends Phaser.Scene {
       if(this.runT > this.route.parMs + CANCEL_GRACE_MS){
         this.state = "canceled";
         this.speed = 0; this.throttle = 0;
+        if(this.attractOwnsTip()){ this.attractRecycle(); return; }
         reportFail(this, "canceled");
         setTimeout(() => showFail(CANCEL_LINES), 900);
         return;
@@ -11486,7 +11568,8 @@ class WorldScene extends Phaser.Scene {
       const remain = this.route.doorS - this.botS;
       if(remain < 34 && remain > -60 && this.speed < 0.02 && Math.abs(this.tilt) < 0.5){
         this.state = "won";
-        showWin(this);
+        if(this.attractOwnsTip()) this.attractRecycle();
+        else showWin(this);
       }
       /* overshot the door: clamp to whichever is closer — the edge of the
          win window itself (doorS+60, matching the "remain > -60" bound
@@ -12891,7 +12974,13 @@ class WorldScene extends Phaser.Scene {
 
   update(t, dt){
     /* desktop throttle */
-    if(this.keys){
+    /* Attract holds its own gas. This has to come BEFORE the desktop
+       keys block, not after: that block's final branch zeroes throttle
+       whenever no key and no pointer is down, which is every frame of
+       an attract run -- the robot would accelerate for one frame and
+       coast to a stop forever after. */
+    if(this.attract){ this.throttle = 1; }
+    else if(this.keys){
       if(this.keys.right.isDown || this.keys.d.isDown) this.throttle = 1;
       else if(this.keys.left.isDown || this.keys.a.isDown) this.throttle = -1;
       else if(!this.input.activePointer.isDown) this.throttle = 0;
@@ -13589,6 +13678,12 @@ function hjStart(){
      behind it stay open and sit on top of the route map, so the map was
      loading correctly and simply could not be seen. */
   tpCloseDetail(); tpCloseMissions(); tpCloseProfile();
+  /* Attract must end before the challenge takes the map screen. Missions
+     are reachable from the title, so attract can still be running here --
+     and body.attract hides #routeMap, which would have handed the
+     challenge a blank map card for exactly the reason hjQuit's comment
+     below describes. */
+  { const sA = scn(); if(sA && sA.attractStop) sA.attractStop(); }
   hide("failOverlay"); hide("winOverlay");
   scn().loadChallenge();                 // builds the Flats route + course
   show("titleOverlay");                  // the map, with GO
@@ -13825,6 +13920,12 @@ function bootLoaderDone(){
   const waited = Date.now() - BL_SHOWN_AT;
   if(waited < BL_MIN_MS){ setTimeout(bootLoaderDone, BL_MIN_MS - waited); return; }
   blDismissed = true;
+  /* Attract begins exactly here -- the moment the loader leaves -- because
+     this is the first instant the world behind the overlay has real
+     pixels. Starting it at scene-create would have run the sim, and burned
+     a chunk of the run, underneath a spinner. */
+  const s0 = (typeof scn === "function") ? scn() : null;
+  if(s0 && s0.attractStart) s0.attractStart();
   const el = document.getElementById("bootLoader");
   if(!el) return;
   el.classList.add("done");
@@ -15077,9 +15178,21 @@ window.addEventListener("focus", tpResumeResync);
 window.addEventListener("orientationchange", tpResumeResync);
 document.getElementById("startBtn").addEventListener("click", () => {
   hide("titleOverlay");
-  if(scn().mode === "challenge"){ hjBegin(); return; }
+  const s = scn();
+  if(s.mode === "challenge"){ hjBegin(); return; }
+  /* Leave attract BEFORE anything else -- attractStop clears the pending
+     recycle timer, and a recycle that fires after GO reloads the route
+     out from under a live run. */
+  const wasAttract = s.attract;
+  s.attractStop();
   countPlay();
-  scn().state = "play";
+  /* The attract robot has been driving for a while: he is somewhere down
+     the block, part-damaged, maybe mid-topple. The player starts at the
+     shop with a clean load, so the route is rebuilt rather than
+     inherited. Same day -- attract only ever loops today's route, so
+     this is the route the order card has been advertising. */
+  if(wasAttract) s.loadRoute(s.route ? s.route.dateStr : clientTodayUTC());
+  s.state = "play";
 });
 document.getElementById("retryBtn").addEventListener("click", () => {
   hide("failOverlay");
