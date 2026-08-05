@@ -91,6 +91,13 @@
          instead of here. Until it lands, the static city and robot stay
          lit -- a failure leaves the splash that shipped before this
          existed, never a hole. */
+      /* Primary path: game-logic calls this directly in the same
+         document. The message listener below stays as the fallback --
+         on the native app the postMessage never arrives (bridge-wrapped
+         window.postMessage, see game-logic attractStart). */
+      window.TIPSEY_ON_ATTRACT_READY = function () {
+        document.body.classList.add('attract-live');
+      };
       window.addEventListener('message', function (e) {
         var d = e && e.data;
         if (d && d.tipsey === 'attract-ready') document.body.classList.add('attract-live');
