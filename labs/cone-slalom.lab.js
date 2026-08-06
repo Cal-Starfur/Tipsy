@@ -117,31 +117,41 @@
   /* GATE FLAGS, in the ski-slalom convention: a coloured band tells you which
      side of the cone you owe it.
 
-     The colour has to be decided in SCREEN space, not row space. slWant lives
-     in rows, and the row axis flips its screen direction with heading — that is
-     the whole reason hop() computes rowPlusDown instead of mapping a swipe
-     straight to a row delta. The course turns a corner halfway through, so a
-     row-space colour rule would silently invert at the arc and every flag on
-     leg 2 would lie. Colour is therefore assigned per cone, through the SAME
-     flip hop() uses, at the cone's own heading.
+       RED  — pass on the ROAD side (row 0 side, the kerb)
+       BLUE — pass on the BUILDING side (row 3 side, the shopfronts)
 
-       RED  — pass ABOVE it on screen (swipe up)
-       BLUE — pass BELOW it on screen (swipe down)
+     THIS WAS SCREEN SPACE AND IS NOW ROW SPACE, and the reasoning that put it
+     in screen space was half right, which is the dangerous kind.
 
-     Swipe direction is exactly the control the player holds, so the flag names
-     the input rather than a fact about the world they have to translate. */
+     The true half: the row axis rotates under a camera that does not, so screen
+     and world disagree by 180 degrees on half the legs. Any rule of the form
+     "colour means side" has to pick one of them to break. There is no third
+     sign to hide it in, and flipping the rule does not remove the flip — it
+     only moves it.
+
+     The half that was wrong: it assumed the two costs were equivalent, so it
+     picked the one nearer the controller. They are not equivalent. A row-space
+     flag flips against the SIDEWALK, and the sidewalk is on screen — road on
+     one side, shopfronts on the other, both visible in every frame. Read "red
+     means road side", look at the picture, swipe toward the road; hop() lands
+     that swipe correctly whichever way the row axis happens to be facing,
+     because translating the swipe is exactly what hop() is for. A screen-space
+     flag flips against nothing you can see. "Red means swipe up" is a fact you
+     can only hold in your head, with no reference in the frame to check it
+     against, and on-device that read as the flags changing their minds.
+
+     So the flag names a place in the world, and the existing screen-space
+     translation in hop() carries it to the thumb — one flip, in the one piece
+     of code whose job is flipping, instead of a second copy of it here. */
   const GATE_RED  = { ...CONE, band: 7, band_c: 0xe03131 };
   const GATE_BLUE = { ...CONE, band: 7, band_c: 0x2f6fd0 };
   /* chute cones are walls, not gates — white band, no side to choose */
   const GATE_WALL = { ...CONE, band: 5, band_c: 0xf4f5f7 };
 
-  /* rowPlusDown at s, lifted from hop() — screen-down is +1 row when true */
-  const rowPlusDownAt = s => {
-    const hdg = scene.headingAt(s);
-    const fq  = ((Math.round(hdg / (Math.PI/2)) % 4) + 4) % 4;
-    const rv  = DIRV[(fq + 1) % 4];
-    return (rv.x + rv.y) * (offOf(1) - offOf(0)) > 0;
-  };
+  /* rowPlusDownAt is gone with the screen-space colour rule. It was a second
+     copy of hop()'s flip living outside hop(), and a lifted copy of a rule is
+     a rule that can drift from the original without anything failing loudly.
+     The one place that flip belongs is hop(), which still has it. */
   const SL0 = { ...SL };
 
   /* THE RAMP ROW IS A FACT ABOUT THE WORLD, so it lives with the other world
@@ -366,14 +376,17 @@
       const want = Math.sign(nextRow - row) || 1;
       lastDelta  = Math.max(1, Math.abs(nextRow - row));
       curRow = nextRow;
-      const screenWant = want * (rowPlusDownAt(at) ? 1 : -1);
       scene.route.hazards.push({
         type:'cone', s: Math.round(at), row, f:0, hit:false,
         phi:0, phase:1, angVel:0, moving:false, pose:'standing',
         slide:0, slideVel:0,
         slRole:'gate', slIndex:k,
-        slWant: want, slScreenWant: screenWant,
-        cone: screenWant > 0 ? GATE_BLUE : GATE_RED,
+        slWant: want,
+        /* want is a row delta: +1 heads toward row 3 (buildings), -1 toward
+           row 0 (kerb). The colour is that fact and nothing else — no stored
+           screen-space twin, because a second field saying almost the same
+           thing is what let the two answers drift apart in the first place. */
+        cone: want > 0 ? GATE_BLUE : GATE_RED,
         slKnocked:false, slJudged:false,
       });
       k++;
@@ -889,11 +902,11 @@
       if (got === cone.slWant){
         run.cleared++;
       } else {
-        const side = cone.slScreenWant > 0 ? 'below' : 'above';
-        const col  = cone.slScreenWant > 0 ? 'blue' : 'red';
+        const side = cone.slWant > 0 ? 'the building side' : 'the road side';
+        const col  = cone.slWant > 0 ? 'blue' : 'red';
         run.pen += SL.pen;
-        run.faults.push(`#${cone.slIndex + 1} ${col} — should have passed ${side}`);
-        run.msg = `${col}: pass ${side} — +${SL.pen.toFixed(1)}s`;
+        run.faults.push(`#${cone.slIndex + 1} ${col} — should have passed on ${side}`);
+        run.msg = `${col}: pass on ${side} — +${SL.pen.toFixed(1)}s`;
         run.msgT = performance.now();
       }
     }
