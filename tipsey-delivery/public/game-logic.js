@@ -5694,6 +5694,22 @@ class WorldScene extends Phaser.Scene {
          south run owns the corner, same as its beach on the survey. */
       band(X0 - BOARD, Y0, X0, Y1, 0xb98a5e);                                      // west boardwalk
       band(X0 - BOARD, Y1, X1, Y1 + BOARD, 0xb98a5e);                              // south boardwalk
+      /* the pier: off the center of Sunset Shore, Manhattan Beach style —
+         a long deck from the boardwalk, across the sand, out over the
+         water, ending in a round deck that wraps the aquarium. Round
+         shapes go through quadOn, which takes any point count, so the
+         pier uses the exact fill pipeline everything else does. */
+      const PIER_W = BLOCK*0.22, PIER_LEN = BLOCK*2.2, pierY = (Y0 + Y1)/2;
+      const pierX1 = X0 - BOARD, pierX0 = X0 - BOARD - SANDW - PIER_LEN;
+      band(pierX0, pierY - PIER_W/2, pierX1, pierY + PIER_W/2, 0xb98a5e);          // deck
+      const ring = (cx, cy, rad, col) => this.quadOn(g,
+        Array.from({length: 20}, (_, k) => {
+          const a = k/20 * Math.PI*2;
+          return this.W(cx + Math.cos(a)*rad, cy + Math.sin(a)*rad, 0);
+        }), col);
+      ring(pierX0, pierY, BLOCK*0.36, 0xb98a5e);                                   // round deck
+      ring(pierX0, pierY, BLOCK*0.17, 0x3f7d95);                                   // aquarium roof
+      ring(pierX0, pierY, BLOCK*0.045, 0x2d5a6d);                                  // cupola
       {
         const PLANK = 52, NEAR = BLOCK*2, SPAN = BLOCK*2;
         g.lineStyle(3, 0x8a6644, 0.55);
@@ -5708,6 +5724,13 @@ class WorldScene extends Phaser.Scene {
           const xa = Math.max(X0 - BOARD, this.camX - SPAN), xb = Math.min(X1, this.camX + SPAN);
           for(let x = Math.ceil(xa/PLANK)*PLANK; x <= xb; x += PLANK){
             const a = this.W(x, Y1, 0), b2 = this.W(x, Y1 + BOARD, 0);
+            g.lineBetween(a.x, a.y, b2.x, b2.y);
+          }
+        }
+        if(Math.abs(this.camY - pierY) < PIER_W/2 + SPAN && this.camX < X0 + NEAR){
+          const xa = Math.max(pierX0, this.camX - SPAN), xb = Math.min(pierX1, this.camX + SPAN);
+          for(let x = Math.ceil(xa/PLANK)*PLANK; x <= xb; x += PLANK){
+            const a = this.W(x, pierY - PIER_W/2, 0), b2 = this.W(x, pierY + PIER_W/2, 0);
             g.lineBetween(a.x, a.y, b2.x, b2.y);
           }
         }
