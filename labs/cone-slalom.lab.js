@@ -315,6 +315,56 @@
     };
   }
 
+  /* ============ THE FURNITURE IS NOT IN ANY ARRAY ============
+     The corridor sweep below empties hazards[] and props[], and the last
+     leg still grew lamps, palms and planters — because block furniture is
+     DECORATION: queueStreetFurniture draws it per visible block, per
+     frame, from a seeded rng, and it never enters an array a filter could
+     reach. Deleting it is meaningless; it is back next frame.
+
+     The game already has the right mechanism: routeCells, the exclusion
+     hash the scatter consults before planting anything. The walk rows
+     stamp FURNISH_CLEAR (340) around themselves and the verge begins just
+     past that — which is the point of the verge, and exactly why the
+     course still read cluttered: every surviving piece was legal, thirty
+     units outside a boundary drawn for delivery, in frame the whole way.
+
+     So the lab stamps MORE cells into the SAME Set the draw pass reads —
+     no second gate to drift against — along the sweep's own [from, to]
+     corridor, both frontages of the street, pushed past the verge. Only
+     cells not already present are recorded, and unstamping removes
+     exactly those, so the delivery town outside the lab keeps every
+     piece of furniture it arrived with. Re-stamping starts by unstamping:
+     a rebuild with a shorter corridor must not leave the old one bald. */
+  let stampedCells = [];
+  function slUnstampFurnish(){
+    const cells = scene.route && scene.route.routeCells;
+    if (cells) for (const c of stampedCells) cells.delete(c);
+    stampedCells = [];
+  }
+  function slStampFurnish(from, to){
+    slUnstampFurnish();
+    const cells = scene.route && scene.route.routeCells;
+    if (!cells) return;
+    /* offOf carries ROBOT_SIDE's sign, so negating it crosses the road:
+       four anchors span both walk bands, near frontage and far. */
+    const offs = [offOf(0), offOf(3), -offOf(0), -offOf(3)];
+    /* +150 reaches past the verge (46 + up to 34 of jitter) with margin,
+       measured from anchors already sitting at the band edges. */
+    const R = Math.ceil((FURNISH_CLEAR + 150) / FURNISH_CELL);
+    for (let s = from; s <= to; s += TILE){
+      const p = scene.posAt(s), h = scene.headingAt(s);
+      for (const off of offs){
+        const ci = Math.round((p.x + (-Math.sin(h)) * off) / FURNISH_CELL);
+        const cj = Math.round((p.y + Math.cos(h) * off) / FURNISH_CELL);
+        for (let a = -R; a <= R; a++) for (let b = -R; b <= R; b++){
+          const key = (ci + a) + "," + (cj + b);
+          if (!cells.has(key)){ cells.add(key); stampedCells.push(key); }
+        }
+      }
+    }
+  }
+
   function slBuildCourse(){
     const ch = slFindChain(scene.route);
     if (!ch){
@@ -836,6 +886,7 @@
       h.slRole || STRUCTURE[h.type] || !inRange(h.s));
     scene.route.props   = (scene.route.props || []).filter(pr => !inRange(pr.s));
     if (scene.route.crime && inRange(scene.route.crime.s)) scene.route.crime = null;
+    slStampFurnish(from, to);
     course.cleared = before - (scene.route.hazards.length + scene.route.props.length);
     return course;
   }
@@ -1515,6 +1566,7 @@
   scene._slRestore = () => {
     scene.events.off('preupdate',  onPre);
     scene.events.off('postupdate', onPost);
+    slUnstampFurnish();
     scene.mode = origMode;
     scene.hjSlabZ = slSlabZ0;
     if (scene._slCap !== undefined){
