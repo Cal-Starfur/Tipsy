@@ -10767,7 +10767,23 @@ class WorldScene extends Phaser.Scene {
       if(this.throttle === -1) this.speed -= 0.00075*dt;
       this.speed -= slope * 0.00030 * dt;                 // gravity
       this.speed -= this.speed * 0.0009 * dt;             // rolling friction
-      this.speed = Phaser.Math.Clamp(this.speed, 0, 0.225);
+      /* THE CEILING IS A FIELD, NOT A LITERAL. 0.225 is delivery's top
+         speed and stays the default for every mode that does not say
+         otherwise. A speciality event that wants a different roof sets
+         speedCap and gets ordinary throttle physics underneath it —
+         accelerate, brake, gravity, friction, all unchanged, just a
+         different lid.
+
+         DELIBERATELY NOT THE CHALLENGE BRANCH BELOW. That one ASSIGNS
+         speed outright because the tap meter IS its throttle, which is
+         right for the hydrant course and wrong for anything that still
+         wants to be driven. Reusing it would have handed the throttle
+         to the tap meter. This is a separate, simpler thing: a lid.
+
+         Left as a plain field rather than a mode test so the two cannot
+         drift — there is one ceiling, whoever set it, and a mode that
+         forgets to clear it will be obvious rather than subtle. */
+      this.speed = Phaser.Math.Clamp(this.speed, 0, this.speedCap || 0.225);
       /* CHALLENGE: the tap meter IS the throttle. Overriding here rather
          than in hjSim because this block runs afterwards and would
          otherwise stomp it — the charge has to win, and it has to win
