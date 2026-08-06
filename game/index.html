@@ -6356,17 +6356,44 @@ class WorldScene extends Phaser.Scene {
     if(WORLDGEN_COAST){
       const gEnd = { x:(r.grid.cols-1)*BLOCK, y:(r.grid.rows-1)*BLOCK };
       const EXT = BLOCK*0.55, SANDW = BLOCK*1.4, FOOTW = BLOCK*1.1, FAR = BLOCK*40;
+      const BOARD = BLOCK*0.35;
       const X0 = -EXT, X1 = gEnd.x + EXT, Y0 = -EXT, Y1 = gEnd.y + EXT;
       const band = (x0,y0,x1,y1,col) => this.quadOn(g, [
         this.W(x0,y0,0), this.W(x1,y0,0), this.W(x1,y1,0), this.W(x0,y1,0)], col);
-      band(X0 - SANDW - FAR, Y0 - FAR, X0 - SANDW, Y1 + SANDW + FAR, 0x6fa8c4);   // ocean west
-      band(X0 - SANDW, Y1 + SANDW, X1 + FAR, Y1 + SANDW + FAR, 0x6fa8c4);         // ocean south
-      band(X0 - SANDW, Y0, X0, Y1 + SANDW, 0xf0e2ae);                              // west beach
-      band(X0 - SANDW, Y1, X1, Y1 + SANDW, 0xf0e2ae);                              // south beach
+      band(X0 - BOARD - SANDW - FAR, Y0 - FAR, X0 - BOARD - SANDW, Y1 + BOARD + SANDW + FAR, 0x6fa8c4); // ocean west
+      band(X0 - BOARD - SANDW, Y1 + BOARD + SANDW, X1 + FAR, Y1 + BOARD + SANDW + FAR, 0x6fa8c4);       // ocean south
+      band(X0 - BOARD - SANDW, Y0, X0 - BOARD, Y1 + BOARD, 0xf0e2ae);              // west beach
+      band(X0 - BOARD - SANDW, Y1 + BOARD, X1, Y1 + BOARD + SANDW, 0xf0e2ae);      // south beach
+      /* the boardwalk: a different kind of sidewalk between the town and
+         the sand. Base bands always; plank seams only when the camera is
+         actually near a boardwalk, clamped to a window around it, so the
+         coastline costs two quads on an ordinary downtown frame and a
+         hundred-odd cheap lines only when Tipsey goes to the beach. The
+         south run owns the corner, same as its beach on the survey. */
+      band(X0 - BOARD, Y0, X0, Y1, 0xb98a5e);                                      // west boardwalk
+      band(X0 - BOARD, Y1, X1, Y1 + BOARD, 0xb98a5e);                              // south boardwalk
+      {
+        const PLANK = 52, NEAR = BLOCK*2, SPAN = BLOCK*2;
+        g.lineStyle(3, 0x8a6644, 0.55);
+        if(this.camX < X0 + NEAR){
+          const ya = Math.max(Y0, this.camY - SPAN), yb = Math.min(Y1, this.camY + SPAN);
+          for(let y = Math.ceil(ya/PLANK)*PLANK; y <= yb; y += PLANK){
+            const a = this.W(X0 - BOARD, y, 0), b2 = this.W(X0, y, 0);
+            g.lineBetween(a.x, a.y, b2.x, b2.y);
+          }
+        }
+        if(this.camY > Y1 - NEAR){
+          const xa = Math.max(X0 - BOARD, this.camX - SPAN), xb = Math.min(X1, this.camX + SPAN);
+          for(let x = Math.ceil(xa/PLANK)*PLANK; x <= xb; x += PLANK){
+            const a = this.W(x, Y1, 0), b2 = this.W(x, Y1 + BOARD, 0);
+            g.lineBetween(a.x, a.y, b2.x, b2.y);
+          }
+        }
+      }
       band(X0, Y0 - FOOTW, X1 + FOOTW, Y0, 0xcfc69b);                              // north foothills
-      band(X1, Y0, X1 + FOOTW, Y1 + SANDW, 0xcfc69b);                              // east foothills
+      band(X1, Y0, X1 + FOOTW, Y1 + BOARD + SANDW, 0xcfc69b);                      // east foothills
       band(X0, Y0 - FOOTW - FAR, X1 + FOOTW + FAR, Y0 - FOOTW, 0xa89b82);          // north range
-      band(X1 + FOOTW, Y0 - FOOTW, X1 + FOOTW + FAR, Y1 + SANDW, 0xa89b82);        // east range
+      band(X1 + FOOTW, Y0 - FOOTW, X1 + FOOTW + FAR, Y1 + BOARD + SANDW, 0xa89b82); // east range
     }
     /* roads: ONE quad per street, full length — no internal tile seams
        (a uniformly-colored surface built from many small quads shows
