@@ -150,8 +150,26 @@
      of code whose job is flipping, instead of a second copy of it here. */
   const GATE_RED  = { ...CONE, band: 7, band_c: 0xe03131 };
   const GATE_BLUE = { ...CONE, band: 7, band_c: 0x2f6fd0 };
-  /* chute cones are walls, not gates — white band, no side to choose */
-  const GATE_WALL = { ...CONE, band: 5, band_c: 0xf4f5f7 };
+  /* CHUTE WALLS WEAR THE SAME TWO COLOURS, and they obey the same sentence.
+
+     They were white on the grounds that a wall has no side to choose. True, and
+     it skipped the more useful fact: a wall has a side you must pass it ON, and
+     that side is knowable. The rule is "the colour names the side you take it
+     on", so a wall at row 0 — which can only ever be passed on its building
+     side — is BLUE, and a wall at row 2 is RED. Every cone in the corridor then
+     states something true, where painting the road-side line red would have had
+     every cone in it asserting a pass that is off the walk entirely.
+
+     Reading it back: the road-side line goes blue, the building-side line goes
+     red, and the gap runs between them. That is the paired-gate idiom — drive
+     through the hole between the colours — which was costed out earlier at
+     roughly double the cones and is free here, because the cones already exist.
+
+     Kept as a narrow band (5 against a gate's 7) so a wall still reads as a
+     wall at a glance. Colour says which side; band width says whether it is
+     asking you to choose one. */
+  const CHUTE_BLUE = { ...CONE, band: 5, band_c: 0x2f6fd0 };
+  const CHUTE_RED  = { ...CONE, band: 5, band_c: 0xe03131 };
 
   /* rowPlusDownAt is gone with the screen-space colour rule. It was a second
      copy of hop()'s flip living outside hop(), and a lifted copy of a rule is
@@ -644,7 +662,11 @@
             type:'cone', s: Math.round(at), row: r, f:0, hit:false,
             phi:0, phase:1, angVel:0, moving:false, pose:'standing',
             slide:0, slideVel:0,
-            slRole:'chute', cone: GATE_WALL,
+            /* r < lane sits between the robot and the road, so it is taken on
+               its building side; r > lane is taken on its road side. Derived
+               from the wall's own row rather than stored, so it cannot fall out
+               of step with where the wall actually is. */
+            slRole:'chute', cone: r < lane ? CHUTE_BLUE : CHUTE_RED,
             slKnocked:false, slJudged:true,
           });
         }
