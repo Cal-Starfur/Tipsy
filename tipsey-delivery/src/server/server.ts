@@ -39,6 +39,7 @@ import {
   dbGetDailyPostId,
   dbGetHistory,
   dbGetPlays,
+  dbGetStickyCommentId,
   dbGetTop,
   dbGetTpProfile,
   dbIncrPlays,
@@ -48,6 +49,7 @@ import {
   dbRemoveUser,
   dbReleaseDailyPostClaim,
   dbSetDailyPostId,
+  dbSetStickyCommentId,
   dbShouldPostDaily,
   dbShouldPostOnInstall,
   dbShouldRunWeeklySweep,
@@ -433,23 +435,69 @@ async function routeSubmitFail(
     `**u/${user.username}** went down ${where} -- ${cause}.\n\n` +
     `$${tip.toFixed(2)} order · ${secs.toFixed(1)}s on the clock · cargo ${damage}% ruined.`
 
-  return {posted: await postAppComment(text)}
+  return {posted: await postScoreComment(text)}
 }
 
-/** Every comment the app account leaves goes through here. postId is
- *  absent outside a post context, which is an ordinary condition rather
- *  than an error. A throw is logged and swallowed on purpose: the
- *  caller is always mid-gameplay (crashing, buying, claiming), and a
- *  toast about Reddit's rate limiter would interrupt something the
- *  player cares about to report something they don't. */
-async function postAppComment(text: string): Promise<boolean> {
+/** The one top-level comment the app account still leaves: the anchor
+ *  every automated score/milestone reply threads under. Server-owned
+ *  text, same rule as FAIL_CAUSE_COPY. */
+const SCORE_ANCHOR_TEXT =
+  '📬 **Tipsey delivery log** -- crash reports, trophies and ' +
+  'milestones from the game land as replies here.'
+
+/** Posts the anchor comment as the app account, stickies it
+ *  (best-effort -- distinguish needs the app account's mod bit, and a
+ *  failure there still leaves a perfectly good thread parent), and
+ *  records its id so replies can find it. Returns null only when the
+ *  comment itself couldn't be created. */
+async function createScoreAnchor(
+  postId: `t3_${string}`,
+): Promise<string | null> {
+  try {
+    const comment = await reddit.submitComment({
+      id: postId,
+      text: SCORE_ANCHOR_TEXT,
+    })
+    try {
+      await comment.distinguish(true)
+    } catch (err) {
+      console.error('createScoreAnchor: distinguish/sticky failed', err)
+    }
+    await dbSetStickyCommentId(postId, comment.id)
+    return comment.id
+  } catch (err) {
+    console.error('createScoreAnchor: submitComment failed', err)
+    return null
+  }
+}
+
+/** Every automated score/milestone comment goes through here. Per
+ *  r/Devvit's app-review requirement, these post as the PLAYER
+ *  (runAs USER -- declared in devvit.json's asUser permission) in reply
+ *  to the post's pinned anchor, never as top-level app-account
+ *  comments. The anchor is created lazily so posts that predate this
+ *  change (or whose creation-time anchor failed) still get one on the
+ *  first reply. postId is absent outside a post context, which is an
+ *  ordinary condition rather than an error. A throw is logged and
+ *  swallowed on purpose: the caller is always mid-gameplay (crashing,
+ *  buying, claiming), and a toast about Reddit's rate limiter would
+ *  interrupt something the player cares about to report something
+ *  they don't. */
+async function postScoreComment(text: string): Promise<boolean> {
   const postId = context.postId
   if (!postId) return false
   try {
-    await reddit.submitComment({id: postId as `t3_${string}`, text})
+    let anchorId = await dbGetStickyCommentId(postId)
+    if (!anchorId) anchorId = await createScoreAnchor(postId as `t3_${string}`)
+    if (!anchorId) return false
+    await reddit.submitComment({
+      id: anchorId as `t1_${string}`,
+      text,
+      runAs: 'USER',
+    })
     return true
   } catch (err) {
-    console.error('postAppComment: submitComment failed', err)
+    console.error('postScoreComment: submitComment failed', err)
     return false
   }
 }
@@ -500,11 +548,12 @@ async function announceMilestone(
 ): Promise<void> {
   if (username === 'anonymous') return
   if (!(await dbMarkAnnounced(username, event))) return
-  await postAppComment(text)
+  await postScoreComment(text)
 }
 
 async function routeMenuNewPost(): Promise<UiResponse> {
   const post = await reddit.submitCustomPost({title: context.appSlug})
+  await createScoreAnchor(post.id)
   return {
     showToast: {text: `Post ${post.id} created.`, appearance: 'success'},
     navigateTo: post.url,
@@ -541,6 +590,7 @@ async function submitDailyPost(): Promise<void> {
   } catch (err) {
     console.error('submitDailyPost: failed to sticky new post', err)
   }
+  await createScoreAnchor(post.id)
 }
 
 async function routeAccountDelete(
