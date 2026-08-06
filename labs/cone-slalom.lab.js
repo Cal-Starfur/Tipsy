@@ -1472,9 +1472,41 @@
     }
   }
 
+  /* ============ THE THROTTLE FOLLOWS THE CEILING ============
+     The lid moved but the engine did not. Delivery's integration is
+     +0.00042/ms of throttle against v*0.0009/ms of friction — a terminal
+     velocity of 0.4667. Delivery's 0.225 cap sits far under that, so it
+     pins in ~730ms of full throttle. At vmul 2.0 the cap is 0.45 and the
+     terminal is still 0.4667: 3.6% headroom, 0.000015/ms of net accel at
+     the cap, ~3.7 seconds of flat uninterrupted throttle to touch it —
+     road the course does not have — and any grade over ~0.05 drops the
+     terminal BELOW the cap, making the double unreachable rather than
+     slow. Arriving at 0.42 instead also prices every kicker at
+     (0.42/0.45)^2 = 87% of designed reach, which is the "lands short"
+     half of the same report.
+
+     The supplement scales throttle by the same factor as the lid: an
+     extra 0.00042*(vmul-1)/ms, so the effective terminal is 0.4667*vmul
+     and the sprint to the cap is the same ~730ms whatever the ceiling.
+     Applied in postupdate ON TOP of the game's own integration — the
+     game's constants stay delivery's alone, exactly as the speedCap
+     comment there promises. Skipped while airborne (the flight has no
+     air control and reach was priced at launch) and during the count
+     (onPre pins speed anyway). Braking untouched: shedding 0.45 to a
+     corner-survivable 0.25 still costs roughly one tile, which is the
+     demand the un-compensated corner tilt is built on. */
+  function slThrottleBoost(dt){
+    if (run.phase !== 'live' || scene.state !== 'play') return;
+    if (scene.throttle !== 1 || scene.hjAir) return;
+    const extra = 0.00042 * Math.max(0, SL.vmul - 1);
+    if (!extra) return;
+    scene.speed = Math.min(scene.speed + extra * dt, scene.speedCap || 0.225);
+  }
+
   const onPost = (time, delta) => {
     try { slJudge(); } catch(e){ console.log('slJudge', e); }
     try { slFlight(Math.min(delta, 34)); } catch(e){ console.log('slFlight', e); }
+    try { slThrottleBoost(Math.min(delta, 34)); } catch(e){ console.log('slThrottleBoost', e); }
 
     try { slHoldTraffic(time, Math.min(delta, 34)); } catch(e){ console.log('slHoldTraffic', e); }
   };
