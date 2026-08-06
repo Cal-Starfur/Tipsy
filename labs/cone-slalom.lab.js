@@ -109,6 +109,9 @@
     lead: 3.0,    // run-up before the first cone, in T2
     turn: 2.0,    // clearance either side of the arc — no cones on the turn
     tail: 1.5,    // run-out after the last cone, in T2
+    clean:10.0,   // how far PAST the finish the street stays swept, in T2. The
+                  // corridor used to end 2 T2 after the last gate, which is the
+                  // size of the COURSE — the frame is the size of the CAMERA.
     pen:  2.0,    // seconds added per knocked cone / missed side
     par:  52.0,   // seconds to beat
   };
@@ -784,7 +787,23 @@
 
        Traffic is left alone: the cars are on the road, the course is on the
        walk, and an empty street reads as a dead city. */
-    const from = course.spawnS - T2 * 2, to = course.finishS + T2 * 2;
+    /* ============ THE CORRIDOR IS SIZED TO THE FRAME, NOT THE COURSE ============
+       This window ended at finishS + 2 T2 — two tiles past the last gate. Two
+       tiles is the right margin for the COURSE, and it is nowhere near the
+       right margin for the PICTURE: on the final leg the camera is pointed
+       down the street you are about to stop in, and everything it shows past
+       the finish was never in the corridor. On-device that read as the last
+       leg being cluttered, and the props were not misbehaving — they were
+       outside a boundary drawn for a different purpose.
+
+       So the end is whichever is further, the finish tape or the end of the
+       last leg, plus SL.clean tiles of sightline. The chain end matters
+       independently: the tape can sit well short of the leg's own s1, and the
+       rest of that leg is still in shot.
+
+       The start keeps its two tiles. You are facing away from it. */
+    const from = course.spawnS - T2 * 2;
+    const to   = Math.max(course.finishS, chainEndS) + SL.clean * T2;
     const inRange = v => v >= from && v <= to;
     const STRUCTURE = { sidewalkend:1, sidewalkbegin:1, sidewalkbeginTurn:1, grade:1 };
     const before = scene.route.hazards.length + (scene.route.props || []).length;
@@ -1470,6 +1489,8 @@
       help:'gate-free road either side of a turn. Hops are refused mid-corner.' },
     { key:'tail',   label:'run-out',       unit:'tiles', min:1,   max:8,   step:0.5,
       help:'road between the last gate and the finish tape.' },
+    { key:'clean',  label:'swept ahead',   unit:'tiles', min:0,   max:24,  step:1,
+      help:'how far past the finish the street is emptied. Sized to what the camera shows, not to the course.' },
     { key:'pen',    label:'cone penalty',  unit:'sec',   min:0.5, max:5,   step:0.5,
       help:'seconds added for each cone knocked or gate taken on the wrong side.' },
     { key:'par',    label:'time to beat',  unit:'sec',   min:8,   max:60,  step:0.5,
@@ -1540,7 +1561,7 @@
     `kickers:${SL.kickers}, kRunup:${(+SL.kRunup).toFixed(1)}, ` +
     `kReach:${(+SL.kReach).toFixed(2)}, ` +
     `kPeak:${SL.kPeak}, kLift:${SL.kLift}, ` +
-    `tail:${(+SL.tail).toFixed(1)}, ` +
+    `tail:${(+SL.tail).toFixed(1)}, clean:${(+SL.clean).toFixed(0)}, ` +
     `pen:${(+SL.pen).toFixed(1)}, par:${(+SL.par).toFixed(1)}, legs:${SL.legs} };`;
 
   function drawChips(){
