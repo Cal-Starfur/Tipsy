@@ -109,6 +109,8 @@
     lead: 3.0,    // run-up before the first cone, in T2
     turn: 2.0,    // clearance either side of the arc — no cones on the turn
     tail: 1.5,    // run-out after the last cone, in T2
+    vmul: 2.00,   // top speed as a multiple of delivery's 0.225. Carries the
+                  // jump ballistics and the spacing floor with it — see V_BASE.
     clean:10.0,   // how far PAST the finish the street stays swept, in T2. The
                   // corridor used to end 2 T2 after the last gate, which is the
                   // size of the COURSE — the frame is the size of the CAMERA.
@@ -417,7 +419,8 @@
        that a gate stops being difficult and becomes unanswerable, because
        hop() physically cannot fire twice in the distance available. The clamp
        is at the same 1.40 the slider floors at, for the same reason. */
-    const GAP_MIN = 1.40;
+    /* One hop's road, at whatever the ceiling currently is. See V_BASE. */
+    const GAP_MIN = 1.40 * SL.vmul;
     const hash01 = (str) => {
       let h = 2166136261;
       for (let i = 0; i < str.length; i++){
@@ -1104,10 +1107,40 @@
      also makes the constants answer one question each instead of two people
      arguing about the same trajectory.
 
-     V_DESIGN is the speed the jump is BUILT for — full throttle. Arrive slower
+     vTop() is the speed the jump is BUILT for — full throttle. Arrive slower
      and you land short, which is the mechanic: the run-up has no gates so
      there is no excuse for arriving slow. */
-  const V_DESIGN = 0.225;
+  /* ============ ONE SPEED, THREE THINGS THAT DEPEND ON IT ============
+     V_BASE is delivery's ceiling and the number every other constant in this
+     file was quietly calibrated against. SL.vmul raises the ceiling, and three
+     things have to follow it up or the course stops being a course:
+
+       THE JUMP. Reach goes as (v / vTop())^2. Leave that at 0.225 and
+       arrive at 0.45 and you fly FOUR times the designed distance, straight
+       past the catch deck. So vTop() IS the raised ceiling, and jumpGrav
+       re-solves against it — the ramp is rebuilt for the new speed rather than
+       being overshot at it.
+
+       THE SPACING FLOOR. GAP_MIN is not a taste value, it is one hop's worth
+       of road: a hop takes 480ms, which at 0.225 covers 1.17 T2, hence 1.40
+       with margin. Double the speed and a hop covers 2.35, so a gate on the
+       old floor is unanswerable — unclearable rather than hard, which is the
+       exact failure this file already warns about at the gap dial. The floor
+       scales with the ceiling.
+
+       CORNERING TILT, which deliberately does NOT get compensated. It scales
+       with speed squared against a fixed 1.0 fail line, so the equilibrium is
+       0.85 at 0.225 and about 3.4 at 0.45 — a corner taken flat out tips you
+       in ~166ms. That is the point: the fail line sits just above delivery's
+       top speed, so the event's skill is sprint the straights and brake into
+       the corners. Braking sheds 0.45 to a survivable 0.25 in ~270ms, roughly
+       one tile, so it is a demand rather than a wall.
+
+     PAR IS NOT SCALED. It is a dial you set, and silently rewriting a number
+     the player chose is how a panel starts lying. Faster runs will beat 52 by
+     a mile until you retune it. */
+  const V_BASE = 0.225;
+  const vTop = () => V_BASE * SL.vmul;
 
   /* THE LAUNCH HEIGHT IS PART OF THE TRAJECTORY.
      reach = 2*v^2*pow/grav is the symmetric case — launch and landing at the
@@ -1125,9 +1158,9 @@
      was supposed to mean all along and what the catch ramp is placed against. */
   const jumpGrav = () => {
     const P = SL.kPeak, z0 = SL.kLift, R = SL.kReach * T2;
-    return 2 * Math.pow(V_DESIGN * (Math.sqrt(P) + Math.sqrt(P + z0)) / R, 2);
+    return 2 * Math.pow(vTop() * (Math.sqrt(P) + Math.sqrt(P + z0)) / R, 2);
   };
-  const jumpPow = () => Math.sqrt(2 * jumpGrav() * SL.kPeak) / V_DESIGN;
+  const jumpPow = () => Math.sqrt(2 * jumpGrav() * SL.kPeak) / vTop();
 
   /* =========================================================================
      THE LANE IS THE GATE
@@ -1195,11 +1228,11 @@
              exactly R however the frame rate behaves.
 
              R scales with the SQUARE of launch speed, which is the real
-             relationship for projectile range. Arrive under V_DESIGN and you
+             relationship for projectile range. Arrive under vTop() and you
              land short; that is still the mechanic, and now it is exact rather
              than emergent from an integrator. */
           const v = scene.speed;
-          const R = SL.kReach * T2 * Math.pow(v / V_DESIGN, 2);
+          const R = SL.kReach * T2 * Math.pow(v / vTop(), 2);
           const g = jumpGrav(), vz = v * jumpPow(), T = R / Math.max(v, 1e-6);
           scene.hjAir = {
             lipS: kk.lip, R, T, vz, g, z: SL.kLift, z0: SL.kLift,
@@ -1430,6 +1463,10 @@
     scene.events.off('postupdate', onPost);
     scene.mode = origMode;
     scene.hjSlabZ = slSlabZ0;
+    if (scene._slCap !== undefined){
+      scene.speedCap = scene._slCap || undefined;
+      delete scene._slCap;
+    }
     const r = scene.route;
     if (r && r._slDoor !== undefined){
       r.doorS = r._slDoor; r.loop = r._slLoop;
@@ -1489,6 +1526,8 @@
       help:'gate-free road either side of a turn. Hops are refused mid-corner.' },
     { key:'tail',   label:'run-out',       unit:'tiles', min:1,   max:8,   step:0.5,
       help:'road between the last gate and the finish tape.' },
+    { key:'vmul',   label:'top speed',     unit:'x normal', min:1, max:2.5, step:0.05,
+      help:'raises the speed ceiling. Jump ballistics and the gate spacing floor follow it; corner tilt does not, so corners need braking.' },
     { key:'clean',  label:'swept ahead',   unit:'tiles', min:0,   max:24,  step:1,
       help:'how far past the finish the street is emptied. Sized to what the camera shows, not to the course.' },
     { key:'pen',    label:'cone penalty',  unit:'sec',   min:0.5, max:5,   step:0.5,
@@ -1562,6 +1601,7 @@
     `kReach:${(+SL.kReach).toFixed(2)}, ` +
     `kPeak:${SL.kPeak}, kLift:${SL.kLift}, ` +
     `tail:${(+SL.tail).toFixed(1)}, clean:${(+SL.clean).toFixed(0)}, ` +
+    `vmul:${(+SL.vmul).toFixed(2)}, ` +
     `pen:${(+SL.pen).toFixed(1)}, par:${(+SL.par).toFixed(1)}, legs:${SL.legs} };`;
 
   function drawChips(){
@@ -1732,6 +1772,8 @@
       r._slLoop = r.loop;
       r._slEndS = r.loop ? r.loop.sCut : r.totalLen;
     }
+    if (scene._slCap === undefined) scene._slCap = scene.speedCap || 0;
+    scene.speedCap = vTop();
     r.loop  = null;
     /* Just past the end of the road, not absurdly past it: doorS is also read
        by queueHousingEdgeAt as groundZ(doorS) for the address door's height,
