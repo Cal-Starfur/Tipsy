@@ -705,6 +705,28 @@ export async function dbSetDailyPostId(id: string): Promise<void> {
   await redis.set(DAILY_POST_ID_KEY, id)
 }
 
+const STICKY_COMMENT_PREFIX = 'tipsy:global:stickycomment:'
+
+/** The pinned anchor comment automated score replies nest under
+ *  (r/Devvit app-review requirement), keyed PER POST rather than as a
+ *  single current-post pointer: yesterday's post stays reachable from
+ *  a player's history, and a fail reported there must thread under
+ *  that post's own anchor, not today's. No expiry — a comment id is
+ *  tiny and the post it belongs to never stops existing. */
+export async function dbGetStickyCommentId(
+  postId: string,
+): Promise<string | null> {
+  const id = await redis.get(STICKY_COMMENT_PREFIX + postId)
+  return id ?? null
+}
+
+export async function dbSetStickyCommentId(
+  postId: string,
+  commentId: string,
+): Promise<void> {
+  await redis.set(STICKY_COMMENT_PREFIX + postId, commentId)
+}
+
 const SWEEP_CLAIM_PREFIX = 'tipsy:global:sweep:claim:'
 
 /** One claim slot per week (Unix-epoch-week number, not calendar-week —
