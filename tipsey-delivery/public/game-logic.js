@@ -35,6 +35,13 @@ show("failMenuBtn");
    trusts. Kept as its own function rather than reusing one of the
    inline `new Date().toISOString().slice(0,10)` call sites already in
    this file, so nothing about the existing today/reroll flow changes. */
+/* ---------- worldgen: the city survey, in the world ----------
+   ?worldgen=coast turns on the survey-plate geography: merged parks
+   swallow the streets between them, and the city gets a coastline
+   southwest and mountains northeast. Off by default — the daily game
+   is untouched until this earns its way in on-device. */
+const WORLDGEN_COAST = new URLSearchParams(location.search).get("worldgen") === "coast";
+
 function clientTodayUTC(){ return new Date().toISOString().slice(0,10); }
 function fmtReplayDate(dateStr){
   return new Date(dateStr + "T00:00:00Z")
@@ -2170,13 +2177,47 @@ function buildGrid(cols, rows, seed=0){
   }
   for(const n of nodes) n.shape = nodeShape(n);
   const grid = { cols, rows, nodes, edges, nodeAt };
+  /* zoning before pavement (2026-08-06, city survey): block types must
+     exist before the swallow pass decides which streets survive, and
+     everything pavement-shaped derives AFTER, so the whole city reacts
+     to the final street set through the one lattice it already reads.
+     buildBlockLayout only consumes cols/rows/seed, so hoisting it above
+     the geometry builders changes nothing else. */
+  grid.blocks = buildBlockLayout(grid, seed);
+  grid.blockByIJ = new Map(grid.blocks.map(b => [b.i + "," + b.j, b]));
+  if(WORLDGEN_COAST){
+    /* MERGED PARKS SWALLOW THEIR STREETS. A street edge separates two
+       block cells; when both are parks they are one park by adjacency,
+       and the street between them stops existing — here, in the
+       lattice, before anything derives from it. Roads, sidewalks, curb
+       ramps, signals, classify, the walk, traffic and the GPS map all
+       read grid.edges or conn, so removing the edge removes the street
+       everywhere at once through the real call path. conn is cleared
+       on both nodes so buildWalk and buildTraffic can never route
+       through the grass; node shapes are rebuilt because a swallowed
+       edge changes what kind of intersection its endpoints are. */
+    const isPark = (i, j) => { const b = grid.blockByIJ.get(i + "," + j); return !!b && b.type === "park"; };
+    const keep = [];
+    for(const e of edges){
+      const gone = e.f === 0 ? (isPark(e.a.i, e.a.j - 1) && isPark(e.a.i, e.a.j))
+                             : (isPark(e.a.i - 1, e.a.j) && isPark(e.a.i, e.a.j));
+      if(gone){
+        if(e.f === 0){ e.a.conn[0] = false; e.b.conn[2] = false; }
+        else         { e.a.conn[1] = false; e.b.conn[3] = false; }
+      } else keep.push(e);
+    }
+    grid._allEdges = edges;
+    if(keep.length !== edges.length){
+      grid.edges = keep;
+      for(const n of nodes) n.shape = nodeShape(n);
+    }
+  }
   grid.classify = (x, y) => classifyAt(grid.edges, x, y);
   const sw = buildSidewalkGeometry(grid);
   grid.sidewalkRuns = sw.runs;
   grid.sidewalkCornerCells = sw.cornerCells;
   grid.curbRamps = buildWorldCurbRamps(grid);
   grid.signals   = buildWorldSignals(grid);
-  grid.blocks = buildBlockLayout(grid, seed);
   grid.extLots = buildExteriorLots(grid, seed);
   return grid;
 }
@@ -2805,6 +2846,42 @@ function findCrimeSite(grid, cutEdges, dateStr, segs, totalLen, avoid){
               ax/ay is along the road, lx/ly across it. */
            pinch: { x: laneCar.x, y: laneCar.y,
                     ax: e.dv.x, ay: e.dv.y, lx: e.rv.x, ly: e.rv.y } };
+}
+
+
+/* ---------- worldgen reconcile (coast) ----------
+   The swallow pass runs inside buildGrid, before the walk, because conn
+   is what steers buildWalk away from the grass. But generateRoute
+   retypes blocks AFTER that — address to housing, pickup to commercial,
+   the crime swap — and a retyped ex-park can leave its streets
+   swallowed with no park left to justify it (found as three missing
+   streets around a commercial pickup block: rule said 59, world had
+   62). So the lattice gets one reconcile against FINAL zoning: any
+   removed edge the retypes un-justified is restored, conn is rebuilt
+   from scratch off the final edge set, and the pavement (sidewalks,
+   curb ramps, signals) is re-derived through the same builders
+   buildGrid used. Retypes never create parks, so reconcile only ever
+   restores — the walk simply never needed the streets it gives back. */
+function worldgenReconcile(grid){
+  if(!WORLDGEN_COAST || !grid._allEdges) return;
+  const isPark = (i, j) => { const b = grid.blockByIJ.get(i + "," + j); return !!b && b.type === "park"; };
+  const keep = grid._allEdges.filter(e =>
+    !(e.f === 0 ? (isPark(e.a.i, e.a.j - 1) && isPark(e.a.i, e.a.j))
+                : (isPark(e.a.i - 1, e.a.j) && isPark(e.a.i, e.a.j))));
+  if(keep.length === grid.edges.length) return;
+  grid.edges = keep;
+  for(const n of grid.nodes) n.conn = [false, false, false, false];
+  for(const e of keep){
+    if(e.f === 0){ e.a.conn[0] = true; e.b.conn[2] = true; }
+    else         { e.a.conn[1] = true; e.b.conn[3] = true; }
+  }
+  for(const n of grid.nodes) n.shape = nodeShape(n);
+  const sw = buildSidewalkGeometry(grid);
+  grid.sidewalkRuns = sw.runs;
+  grid.sidewalkCornerCells = sw.cornerCells;
+  grid.curbRamps = buildWorldCurbRamps(grid);
+  grid.signals   = buildWorldSignals(grid);
+  delete grid.swRunHash; delete grid.swCornerHash; delete grid.curbRampHash;
 }
 
 function generateRoute(dateStr, opts){
@@ -4265,6 +4342,7 @@ function generateRoute(dateStr, opts){
   const curbRamps = grid.curbRamps.filter(cr => !routeRampPts.some(
     p => Math.abs(p.x - cr.x) < RAMP_DEDUP && Math.abs(p.y - cr.y) < RAMP_DEDUP));
 
+  worldgenReconcile(grid);
   return { hood, grid, segs, totalLen: loop ? loop.sEnd : totalLen, loop, tiles, hazards, props, pal, night, traffic, crossings, cutEdges, cutExt, challenge, crime, routeCells, curbRamps, signals: grid.signals,
            address:`${number} ${street}`, doorS, pickupS, pickupSpot, pickupShopName, addressBlock, pickupBlock, addressEdgeIdx, pickupEdgeIdx, addressUnitIdx, pickupUnitIdx, addressUsesGate, order, parMs, dateStr };
 }
@@ -5591,6 +5669,27 @@ class WorldScene extends Phaser.Scene {
       return (Math.abs(a.x + dx*s - this.camX) + Math.abs(a.y + dy*s - this.camY)) < span;
     };
 
+    /* ---------- the edge of town (worldgen=coast) ----------
+       Sea to the southwest, high ground to the northeast — the survey
+       plate, in the world. Flat ground quads at z=0, drawn before the
+       road pass so everything real paints over them, oversized so the
+       camera can never find their far edge. Colours are the survey's
+       own. */
+    if(WORLDGEN_COAST){
+      const gEnd = { x:(r.grid.cols-1)*BLOCK, y:(r.grid.rows-1)*BLOCK };
+      const EXT = BLOCK*0.55, SANDW = BLOCK*1.4, FOOTW = BLOCK*1.1, FAR = BLOCK*40;
+      const X0 = -EXT, X1 = gEnd.x + EXT, Y0 = -EXT, Y1 = gEnd.y + EXT;
+      const band = (x0,y0,x1,y1,col) => this.quadOn(g, [
+        this.W(x0,y0,0), this.W(x1,y0,0), this.W(x1,y1,0), this.W(x0,y1,0)], col);
+      band(X0 - SANDW - FAR, Y0 - FAR, X0 - SANDW, Y1 + SANDW + FAR, 0x6fa8c4);   // ocean west
+      band(X0 - SANDW, Y1 + SANDW, X1 + FAR, Y1 + SANDW + FAR, 0x6fa8c4);         // ocean south
+      band(X0 - SANDW, Y0, X0, Y1 + SANDW, 0xf0e2ae);                              // west beach
+      band(X0 - SANDW, Y1, X1, Y1 + SANDW, 0xf0e2ae);                              // south beach
+      band(X0, Y0 - FOOTW, X1 + FOOTW, Y0, 0xcfc69b);                              // north foothills
+      band(X1, Y0, X1 + FOOTW, Y1 + SANDW, 0xcfc69b);                              // east foothills
+      band(X0, Y0 - FOOTW - FAR, X1 + FOOTW + FAR, Y0 - FOOTW, 0xa89b82);          // north range
+      band(X1 + FOOTW, Y0 - FOOTW, X1 + FOOTW + FAR, Y1 + SANDW, 0xa89b82);        // east range
+    }
     /* roads: ONE quad per street, full length — no internal tile seams
        (a uniformly-colored surface built from many small quads shows
        every seam as a hairline at low zoom; a single quad has none). */
@@ -7264,7 +7363,29 @@ class WorldScene extends Phaser.Scene {
   }
 
   fillBlockGround(g, blk){
-    if(blk.type === "park") return this.fillBlockInterior(g, blk, GRASS);
+    if(blk.type === "park"){
+      this.fillBlockInterior(g, blk, GRASS);
+      if(WORLDGEN_COAST && blk.i !== undefined){
+        /* merged parks: the grass owns the street it swallowed. Each
+           park block extends only toward its +x/+y park neighbours —
+           one owner per strip, drawn once — and takes the intersection
+           square only when the diagonal is park too, i.e. only when all
+           the roads around that corner are actually gone. This runs
+           AFTER the road pass, so painting anywhere a street survived
+           would paint over asphalt; the conditions make that impossible
+           rather than unlikely. */
+        const M = this.route.grid.blockByIJ;
+        const pk = b => b && b.type === "park";
+        const nx = M && M.get((blk.i+1) + "," + blk.j);
+        const ny = M && M.get(blk.i + "," + (blk.j+1));
+        const nd = M && M.get((blk.i+1) + "," + (blk.j+1));
+        if(pk(nx)) this.fillBlockInterior(g, { ...blk, x0:blk.x1, x1:nx.x0 }, GRASS);
+        if(pk(ny)) this.fillBlockInterior(g, { ...blk, y0:blk.y1, y1:ny.y0 }, GRASS);
+        if(pk(nx) && pk(ny) && pk(nd))
+          this.fillBlockInterior(g, { ...blk, x0:blk.x1, x1:nx.x0, y0:blk.y1, y1:ny.y0 }, GRASS);
+      }
+      return;
+    }
     if(blk.type === "commercial") return this.fillBlockInterior(g, blk, PLAZA);
     this.fillBlockInterior(g, blk, GRASS); // housing yard
   }
