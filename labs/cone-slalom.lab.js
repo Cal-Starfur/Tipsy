@@ -111,10 +111,14 @@
     tail: 1.5,    // run-out after the last cone, in T2
     vmul: 2.00,   // top speed as a multiple of delivery's 0.225. Carries the
                   // jump ballistics and the spacing floor with it — see V_BASE.
-    grip: 1.00,   // cancels the speed multiplier's share of corner tilt.
-                  // Cornering tilt goes with v², so 2x speed is 4x tilt —
-                  // at 1.0 this removes exactly the excess and corners feel
-                  // like delivery-speed corners; at 0 it's raw physics.
+    grip: 1.60,   // corner-tilt compensation, in two regimes. Up to 1.0 it
+                  // cancels the speed multiplier's share (tilt goes with v²,
+                  // so 2x speed is 4x tilt; 1.0 nets exactly delivery-speed
+                  // corners). But delivery corners TIP at full throttle by
+                  // design — corners need braking there — and the slalom is
+                  // a weave, not a braking test. So above 1.0 the dial keeps
+                  // going: 2.0 removes corner lean entirely. 1.6 default
+                  // keeps some lean in the picture without the funeral.
     clean:10.0,   // how far PAST the finish the street stays swept, in T2. The
                   // corridor used to end 2 T2 after the last gate, which is the
                   // size of the COURSE — the frame is the size of the CAMERA.
@@ -1598,7 +1602,15 @@
     if (run.phase !== 'live' || scene.state !== 'play') return;
     const seg = scene.segAt(scene.botS);
     if (!seg || seg.type !== 'arc') return;
-    const g2 = SL.grip * (1 - 1/(SL.vmul*SL.vmul));
+    /* two regimes: up to 1.0 the dial cancels the multiplier's share
+       (fraction 1 − 1/vmul² of the game's contribution — nets delivery-
+       baseline corners at cap speed). Above 1.0 it walks the REST of the
+       way: at 2.0 the whole contribution is removed and corners are
+       lean-free, because baseline delivery corners tip at full throttle
+       by design and the slalom is a weave, not a braking test. */
+    const base = 1 - 1/(SL.vmul*SL.vmul);
+    const g2 = SL.grip <= 1 ? SL.grip * base
+                            : Math.min(1, base + (SL.grip - 1) * (1 - base));
     if (g2 <= 0) return;
     const prog = Phaser.Math.Clamp((scene.botS - seg.s0)/(seg.s1 - seg.s0), 0, 1);
     const taper = prog < 0.4 ? 1 : Phaser.Math.Linear(1, 0.35, (prog - 0.4)/0.6);
@@ -1696,8 +1708,8 @@
       help:'road between the last gate and the finish tape.' },
     { key:'vmul',   label:'top speed',     unit:'x normal', min:1, max:2.5, step:0.05,
       help:'raises the speed ceiling. Jump ballistics and the gate spacing floor follow it; corner tilt follows only as far as cornering grip allows.' },
-    { key:'grip',   label:'cornering grip', unit:'',     min:0,   max:1,   step:0.05,
-      help:'cancels the extra corner tilt that comes with top speed. 1 corners like normal speed; 0 is raw physics — tip city.' },
+    { key:'grip',   label:'cornering grip', unit:'',     min:0,   max:2,   step:0.05,
+      help:'corner-tilt help. 1 corners like normal speed (which still tips at full throttle), 2 removes corner lean entirely. 0 is raw physics.' },
     { key:'clean',  label:'swept ahead',   unit:'tiles', min:0,   max:24,  step:1,
       help:'how far past the finish the street is emptied. Sized to what the camera shows, not to the course.' },
     { key:'pen',    label:'cone penalty',  unit:'sec',   min:0.5, max:5,   step:0.5,
