@@ -808,6 +808,7 @@ function requestTpProfile(){
       tpProfile.walletCents = data.walletCents;
       tpProfile.owned = new Set(data.owned);
       tpProfile.equipped = data.equipped;
+      tdFx.followClaimed = !!data.followBonusClaimed;
       /* mission progress follows the player across devices. MERGED, not
          replaced: a run finished in this browser a moment ago must not
          be dropped by a profile fetch that predates its report. */
@@ -832,20 +833,26 @@ function requestTpProfile(){
    game whose whole premise is falling over. The challenge doesn't
    call it: it isn't a delivery.
 
-   reportFail() hands the server enough to leave a comment on the post
-   in the app account's voice. It sends a CAUSE ID, never prose — the
-   wording lives in server.ts's FAIL_CAUSE_COPY, because anything the
-   webview could type would land verbatim in a public comment. Replays
-   of past dates deliberately don't report: the post is today's route,
-   and a comment about a three-week-old street reads as noise there.
-   Fire-and-forget, same as every other bridge call — a failed report
-   must never delay or block the fail overlay. */
+   reportFail() no longer posts anything. It hands the server the run's
+   facts and gets back a DRAFT comment (server.ts still owns the
+   wording via FAIL_CAUSE_COPY + sanitized labels); the draft feeds the
+   fail overlay's COMMENT button, where the player can edit it and
+   explicitly POST it as themselves -- see TD FAIL EXTRAS below.
+   Replays of past dates deliberately don't report: the post is today's
+   route, and a comment about a three-week-old street reads as noise
+   there. The fetch stays non-blocking -- a slow or failed draft must
+   never delay the fail overlay; the button just doesn't appear. */
 function countPlay(){
   if(!IS_DEVVIT_BUILD) return;
   fetch("api/tipsy/play", { method: "POST", headers: { Accept: "application/json" } }).catch(()=>{});
 }
 function reportFail(s, cause){
   if(!IS_DEVVIT_BUILD) return;
+  /* clear FIRST, before any guard: a replay/challenge fail that bails
+     below must not leave a previous run's draft on the button */
+  tdFx.draft = "";
+  tdFx.posted = false;
+  tdFxHideCommentBtn();
   if(!s || !s.route) return;
   if(s.mode === "challenge") return;
   if(s.route.dateStr !== clientTodayUTC()) return;
@@ -867,7 +874,242 @@ function reportFail(s, cause){
       ms: s.runT,
       damage: s.damage
     })
-  }).catch(()=>{});
+  })
+    .then(r => r.ok ? r.json() : null)
+    .then(d => { tdFx.draft = (d && d.text) || ""; tdFxSyncCommentBtn(); })
+    .catch(()=>{});
+}
+
+/* ============================================================
+   TD FAIL EXTRAS -- Comment button + Follow prompt (Devvit only).
+
+   COMMENT: the fail comment no longer auto-posts. reportFail() now
+   only fetches a server-composed DRAFT (api/tipsy/fail returns {text}
+   and posts nothing -- see routeSubmitFail in server.ts). A COMMENT
+   button on the fail overlay opens that draft in an editable box, and
+   only an explicit POST press sends it (api/tipsy/fail/comment, runAs
+   USER, threaded under the pinned anchor). This is what Devvit's
+   user-actions rules ask for: no automated actions, a distinct
+   manual choice.
+
+   FOLLOW: on the 3rd delivery fail of a session, a prompt offers a
+   one-time $25.00 tip bonus for subscribing to the sub
+   (api/tipsy/follow -> subscribeToCurrentSubreddit, enabled by
+   SUBSCRIBE_TO_SUBREDDIT in devvit.json). MAYBE LATER opts out for
+   the rest of the day (localStorage date stamp); a successful follow
+   never reprompts. The server's hSetNX claim flag is the REAL gate --
+   clearing localStorage re-shows the prompt but cannot double-pay.
+   Challenge crashes (hjShowCrash) are not delivery fails: they hide
+   the COMMENT button and never count toward the prompt. No emoji
+   anywhere in this UI by design. */
+const tdFx = { fails: 0, draft: "", posted: false, busy: false,
+               followShown: false, followClaimed: false };
+const TDFX_LATER_KEY = "tdFollowLater", TDFX_DONE_KEY = "tdFollowDone";
+const TDFX_CARD = "background:rgba(18,20,26,0.94);border:1px solid #3a3f4a;" +
+  "border-radius:14px;padding:22px 26px;width:min(340px,86vw);text-align:center;" +
+  "color:#fff;font-family:inherit;box-shadow:0 8px 24px rgba(0,0,0,0.45);";
+const TDFX_BTN = "display:block;width:100%;border:0;border-radius:10px;" +
+  "padding:12px 0;font:inherit;font-weight:700;letter-spacing:1px;cursor:pointer;";
+
+function tdFxPanel(id){
+  let el = document.getElementById(id);
+  if(el) return el;
+  el = document.createElement("div");
+  el.id = id;
+  el.style.cssText = "position:fixed;inset:0;z-index:60;display:flex;" +
+    "align-items:center;justify-content:center;background:rgba(10,12,16,0.55);";
+  document.body.appendChild(el);
+  return el;
+}
+/* Injected lazily into #failOverlay the first time a fail screen with a
+   draft opens -- game.html carries no markup for it, which is what lets
+   this whole feature live in the shared logic file with zero HTML
+   divergence between the two canonical builds. */
+function tdFxCommentBtn(){
+  let b = document.getElementById("tdFxCommentBtn");
+  if(b) return b;
+  b = document.createElement("button");
+  b.id = "tdFxCommentBtn";
+  b.textContent = "COMMENT";
+  b.style.cssText = "position:absolute;left:50%;bottom:112px;transform:translateX(-50%);" +
+    TDFX_BTN + "width:auto;padding:10px 26px;background:#2c313c;color:#fff;" +
+    "border:1px solid #4a5060;";
+  b.addEventListener("click", tdFxOpenComposer);
+  document.getElementById("failOverlay").appendChild(b);
+  return b;
+}
+function tdFxHideCommentBtn(){
+  const b = document.getElementById("tdFxCommentBtn");
+  if(b) b.style.display = "none";
+}
+/* Called from showFail() AND from reportFail's response callback: the
+   fail overlay opens on a 900-1500ms setTimeout while the draft fetch
+   races it, so whichever lands second makes the button appear. */
+function tdFxSyncCommentBtn(){
+  if(!IS_DEVVIT_BUILD) return;
+  const overlay = document.getElementById("failOverlay");
+  if(!overlay || overlay.classList.contains("hidden")) return;
+  const b = tdFxCommentBtn();
+  b.style.display = (tdFx.draft && !tdFx.posted) ? "block" : "none";
+  b.disabled = false;
+  b.textContent = "COMMENT";
+}
+function tdFxOnFailScreen(){
+  if(!IS_DEVVIT_BUILD) return;
+  tdFx.fails++;
+  tdFxSyncCommentBtn();
+  tdFxMaybeFollow();
+}
+function tdFxMaybeFollow(){
+  if(tdFx.fails < 3 || tdFx.followShown || tdFx.followClaimed) return;
+  let later = null, done = null;
+  try {
+    later = localStorage.getItem(TDFX_LATER_KEY);
+    done = localStorage.getItem(TDFX_DONE_KEY);
+  } catch(e){ /* storage blocked: still safe, server flag is the gate */ }
+  if(done) return;
+  if(later === clientTodayUTC()) return;
+  tdFx.followShown = true;   // once per session, however it's answered
+  tdFxShowFollow();
+}
+function tdFxShowFollow(){
+  const wrap = tdFxPanel("tdFxFollow");
+  wrap.innerHTML = "";
+  const card = document.createElement("div");
+  card.style.cssText = TDFX_CARD;
+  card.innerHTML =
+    '<div style="font-weight:700;letter-spacing:1px;margin-bottom:14px;">FOLLOW R/TIPSEY</div>' +
+    '<div style="display:inline-block;background:#2c313c;border-radius:20px;padding:4px 16px;' +
+      'font-size:12px;letter-spacing:2px;margin-bottom:14px;">FREE</div>' +
+    '<div style="font-size:34px;font-weight:700;margin-bottom:2px;">+$25.00</div>' +
+    '<div style="font-size:12px;letter-spacing:2px;color:#9aa3b2;margin-bottom:18px;">BONUS TIPS</div>' +
+    '<div id="tdFxFollowErr" style="color:#ff8a65;font-size:12px;margin-bottom:8px;display:none;"></div>';
+  const go = document.createElement("button");
+  go.textContent = "FOLLOW";
+  go.style.cssText = TDFX_BTN + "background:#43a047;color:#fff;margin-bottom:12px;";
+  go.addEventListener("click", () => tdFxDoFollow(go));
+  const later = document.createElement("button");
+  later.textContent = "MAYBE LATER";
+  later.style.cssText = TDFX_BTN +
+    "background:none;color:#9aa3b2;font-size:12px;letter-spacing:2px;padding:6px 0;";
+  later.addEventListener("click", () => {
+    try { localStorage.setItem(TDFX_LATER_KEY, clientTodayUTC()); } catch(e){}
+    wrap.remove();
+  });
+  card.appendChild(go);
+  card.appendChild(later);
+  wrap.appendChild(card);
+}
+function tdFxDoFollow(btn){
+  if(tdFx.busy) return;
+  tdFx.busy = true;
+  btn.disabled = true;
+  btn.textContent = "FOLLOWING...";
+  const fail = () => {
+    tdFx.busy = false;
+    btn.disabled = false;
+    btn.textContent = "FOLLOW";
+    const e = document.getElementById("tdFxFollowErr");
+    if(e){ e.textContent = "Couldn't follow. Try again."; e.style.display = "block"; }
+  };
+  fetch("api/tipsy/follow", { method: "POST", headers: { Accept: "application/json" } })
+    .then(r => r.ok ? r.json() : null)
+    .then(d => {
+      if(!d || !d.joined){ fail(); return; }
+      tdFx.busy = false;
+      tdFx.followClaimed = true;
+      try { localStorage.setItem(TDFX_DONE_KEY, "1"); } catch(err){}
+      /* wallet lands straight from the response -- no second profile
+         round trip. Guarded typeofs: tpProfile/tpSaveProfile/tpRender
+         are declared later in this file but assigned long before any
+         button can be pressed (same note requestTpProfile carries). */
+      if(typeof tpProfile === "object" && tpProfile && typeof d.walletCents === "number"){
+        tpProfile.walletCents = d.walletCents;
+        if(typeof tpSaveProfile === "function") tpSaveProfile();
+        if(typeof tpRender === "function") tpRender();
+      }
+      tdFxFollowDone(!!d.granted);
+    })
+    .catch(fail);
+}
+function tdFxFollowDone(granted){
+  const wrap = tdFxPanel("tdFxFollow");
+  wrap.innerHTML = "";
+  const card = document.createElement("div");
+  card.style.cssText = TDFX_CARD;
+  card.innerHTML =
+    '<div style="font-weight:700;letter-spacing:1px;margin-bottom:10px;">FOLLOWED</div>' +
+    '<div style="font-size:14px;color:#c9d1de;margin-bottom:18px;">' +
+    (granted ? "$25.00 in bonus tips added to your wallet."
+             : "Bonus already claimed on this account.") +
+    "</div>";
+  const ok = document.createElement("button");
+  ok.textContent = "NICE";
+  ok.style.cssText = TDFX_BTN + "background:#43a047;color:#fff;";
+  ok.addEventListener("click", () => wrap.remove());
+  card.appendChild(ok);
+  wrap.appendChild(card);
+}
+function tdFxOpenComposer(){
+  if(!tdFx.draft || tdFx.posted) return;
+  const wrap = tdFxPanel("tdFxComposer");
+  wrap.innerHTML = "";
+  const card = document.createElement("div");
+  card.style.cssText = TDFX_CARD + "text-align:left;";
+  card.innerHTML =
+    '<div style="font-weight:700;letter-spacing:1px;margin-bottom:12px;text-align:center;">' +
+      'LEAVE A COMMENT</div>' +
+    '<div id="tdFxComposeErr" style="color:#ff8a65;font-size:12px;margin-bottom:8px;display:none;"></div>';
+  const ta = document.createElement("textarea");
+  ta.id = "tdFxComposeText";
+  ta.value = tdFx.draft;
+  ta.maxLength = 480;   // mirrors the server's clamp so nothing is silently cut
+  ta.style.cssText = "width:100%;box-sizing:border-box;height:110px;resize:none;" +
+    "background:#12141a;color:#fff;border:1px solid #3a3f4a;border-radius:8px;" +
+    "padding:10px;font:inherit;font-size:13px;margin-bottom:14px;";
+  const post = document.createElement("button");
+  post.textContent = "POST";
+  post.style.cssText = TDFX_BTN + "background:#43a047;color:#fff;margin-bottom:10px;";
+  post.addEventListener("click", () => tdFxPostComment(ta, post));
+  const cancel = document.createElement("button");
+  cancel.textContent = "CANCEL";
+  cancel.style.cssText = TDFX_BTN +
+    "background:none;color:#9aa3b2;font-size:12px;letter-spacing:2px;padding:6px 0;";
+  cancel.addEventListener("click", () => wrap.remove());
+  card.appendChild(ta);
+  card.appendChild(post);
+  card.appendChild(cancel);
+  wrap.appendChild(card);
+}
+function tdFxPostComment(ta, btn){
+  if(tdFx.busy) return;
+  const text = (ta.value || "").trim();
+  if(!text) return;
+  tdFx.busy = true;
+  btn.disabled = true;
+  btn.textContent = "POSTING...";
+  const fail = () => {
+    tdFx.busy = false;
+    btn.disabled = false;
+    btn.textContent = "POST";
+    const e = document.getElementById("tdFxComposeErr");
+    if(e){ e.textContent = "Couldn't post. Try again."; e.style.display = "block"; }
+  };
+  fetch("api/tipsy/fail/comment", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ text })
+  })
+    .then(r => r.ok ? r.json() : null)
+    .then(d => {
+      if(!d || !d.posted){ fail(); return; }
+      tdFx.busy = false;
+      tdFx.posted = true;   // one comment per fail; button hides itself
+      const wrap = document.getElementById("tdFxComposer");
+      if(wrap) wrap.remove();
+      tdFxSyncCommentBtn();
+    })
+    .catch(fail);
 }
 /* ============================================================
    TIP — Route Lab
@@ -15413,6 +15655,7 @@ function hjShowCrash(s){
   document.getElementById("retryBtn").textContent = "RETRY";   // one word, it is a circle now
   const mb = document.getElementById("failMenuBtn");
   if(mb) mb.classList.remove("hidden");
+  tdFxHideCommentBtn();   // a challenge crash is not a delivery fail
   show("failOverlay");
 }
 
@@ -15799,6 +16042,7 @@ function showFail(pool){
   document.getElementById("failMsg").textContent = m;
   document.getElementById("failSub").textContent = s;
   show("failOverlay");
+  tdFxOnFailScreen();   // Devvit only: COMMENT button + 3rd-fail follow prompt
 }
 /* =========================================================================
    TIPSEY PROFILE — Trophy Case + Store + Side Missions (Phase A)
