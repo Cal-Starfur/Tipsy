@@ -2752,7 +2752,7 @@ const DOOR_ART = {
   shadow: 0x000000
 };
 const MAT_ART = { red: 0xc2452e, redDk: 0x8f331f, border: 0x6e2718, fiber: 0xa8391f };
-const PICKUP_ART = { walkMs: 2000 }; // real elapsed ms for the worker to walk back in after "go" — frame-rate independent, driven by runT
+const PICKUP_ART = { walkMs: 1000 }; // real elapsed ms for the worker to walk back in after "go" — frame-rate independent, driven by runT. Halved with the intro cut; also the fallback for the won walk-back when wonMeet is missing, where 1000ms is still a sane floor
 const LIFT_MAX_ANGLE = Math.PI/2; // full lift = carrying arm swung forward to horizontal, pivoting at the shoulder
 
 /* pickup loading phase: robot's cargo lid opens, worker places a
@@ -2762,7 +2762,7 @@ const LIFT_MAX_ANGLE = Math.PI/2; // full lift = carrying arm swung forward to h
    separate open target — same hinge geometry, no new geometry needed
    for the lid itself. Dial-bench approved in labs/pickup-lab.html. */
 const LOAD_ART = {
-  ms: 1400,             // total loading phase duration before the walk timer starts
+  ms: 700,              // total loading phase duration before the walk timer starts -- halved from 1400: the run-start ceremony was ~3.5s and drives nothing
   dropFrac: 0.70,        // bag arrives / drops into the bin at this fraction of ms
   arcH: 26,              // extra z-height at the midpoint of the bag's travel arc
   lidOpenAngle: 1.1,     // radians — plain symmetric open, unlike the tip/spill's asymmetric targets
@@ -12284,7 +12284,9 @@ class WorldScene extends Phaser.Scene {
       if(this.loadDone){
         if(this.walkAt === null) this.walkAt = this.runT;
         /* duration from the REAL walk distance (meet point -> past the
-           door plane) at the standard 0.11 u/ms pace — the fixed
+           door plane) at 0.18 u/ms — a hustle, ~60% quicker than the
+           customer's 0.11 stroll, because this walk happens BEHIND a
+           player who already has the bag and the camera. The fixed
            walkMs was tuned for the old short dy and would sprint the
            longer meet-to-door return. */
         let backMs = PICKUP_ART.walkMs;
@@ -12295,7 +12297,7 @@ class WorldScene extends Phaser.Scene {
           const bd = Math.hypot(bvx, bvy) || 1;
           const mx = this.route.pickupSpot.x - bvx/bd*12, my = this.route.pickupSpot.y - bvy/bd*12;
           const bx2 = dpx - this.pickupDoorRV.x*30, by2 = dpy - this.pickupDoorRV.y*30;
-          backMs = Math.max(400, Math.hypot(mx - bx2, my - by2) / 0.11);
+          backMs = Math.max(400, Math.hypot(mx - bx2, my - by2) / 0.18);
         }
         this.pickupWalk = Phaser.Math.Clamp(1 - (this.runT - this.walkAt)/backMs, 0, 1);
       } else {
@@ -13825,15 +13827,15 @@ class WorldScene extends Phaser.Scene {
        which is what held the camera on an empty doorway. The door
        still closes exactly the same as before; the camera just stops
        waiting on it. */
-    /* pickupWalk counts DOWN from 1 (walk just started) to 0 (worker
-       back at the door) -- so a HIGHER threshold releases EARLIER,
-       not later. 0.75 means the camera lets go once the walk is only
-       25% along, well ahead of the halfway point. */
-    /* In challenge mode there IS no worker — but pickupWalk was left at
-       1 to keep the pickup timeline quiet, and this branch fires on
-       pickupWalk > 0.75, which parked the camera on the shop doorway
-       instead of following Tipsey. That was the "opening" camera. */
-    const pickupWorkerVisible = this.mode !== "challenge" && this.pickupWalk > 0.75;
+    /* The camera lets go the moment the bag DROPS into the bay
+       (pickupLoadFrac reaching dropFrac -- ~490ms in), not a quarter
+       into the walk-back like before: the player can gun it the
+       instant the order is aboard, and the worker's whole walk plays
+       out behind them as scenery. pickupLoadFrac is assigned earlier
+       in this same update pass, so it is always this frame's value.
+       Challenge mode has no worker and never holds. */
+    const pickupWorkerVisible = this.mode !== "challenge" &&
+      (this.pickupLoadFrac || 0) < LOAD_ART.dropFrac;
     if(this.state === "play" && this.pickupDoorDV && pickupWorkerVisible){
       const dv3 = this.pickupDoorDV, rv3 = this.pickupDoorRV;
       const doorX3 = this.pickupDoorUX + dv3.x*this.pickupDoorCenterX, doorY3 = this.pickupDoorUY + dv3.y*this.pickupDoorCenterX;
