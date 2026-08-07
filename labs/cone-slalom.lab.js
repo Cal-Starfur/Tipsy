@@ -183,16 +183,22 @@
      'RAMP_ROW' before initialization" — const is hoisted but not initialised,
      and the gate loop runs first.
 
-     generateRoute plants BOTH ramp props at row 1, straight crossings and turn
-     crossings alike, and says why: the prop is 3 tiles wide against a 4-row
-     walk, so laneOffset(1) centres it on rows 0-2 exactly on tile seams,
-     "leaving row 3 (building side) as plain flat walk".
+     generateRoute plants BOTH ramp props on CROSSING_RAMP_ROW, straight
+     crossings and turn crossings alike — and the game NAMES that constant
+     precisely so callers can ask "which lane takes a crossing" in the same
+     words the geometry answers it in. This lab used to carry its own copy
+     of the number (1, with the old rows-0-2 rationale quoted here), which
+     is exactly the second-copy problem the constant exists to kill: when
+     the strip moved a lane off the kerb (row 1 -> 2, f4dfe15, on-device
+     call 2026-08-07), the course kept threading crossings on the old row —
+     now a flank lane with a curb drop and a wall — so the robot tipped at
+     every crossing and ploughed the gate cones into the street. One
+     constant answers one question; the lab now reads the game's.
 
-     So the lane a crossing must be taken in is row 1, always, and row 3 is the
-     one row NOT on the ramp. Chute walls at rows 0 and 2 mark the ramp centre
-     and put a wall between the robot and row 3 — the lane that would drop him
-     off the side of the ramp entirely. */
-  const RAMP_ROW = 1;
+     Chute walls at RAMP_ROW±1 bracket whatever lane the strip occupies,
+     so the walls, the handoff, the kicker lane and the parked-car checks
+     all follow the constant wherever the game dials it next. */
+  const RAMP_ROW = CROSSING_RAMP_ROW;
 
   const offOf = row => laneOffset(row);
   /* laneOff delta -> row-space delta is one sign (ROBOT_SIDE), and this is the
