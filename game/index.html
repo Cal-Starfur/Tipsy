@@ -4868,10 +4868,31 @@ function generateRoute(dateStr, opts){
        ramps are structural to crossings and stay. */
     const GROUNDY = { crack:1, grade:1, sidewalkend:1, sidewalkbegin:1 };
     const CLEAR = 240;
+    /* WORLD-space test added (2026-08-06, "props drawing over the
+       delivery carpet", on-device): the s-window above is blind to two
+       lap holes. (1) The lap's closing leg runs the door's OWN street
+       back to the weld, so lap-spawned props stand in front of the door
+       with lap-s nowhere near doorS -- measured on a live route: a
+       scooter 49 world-units from the mat centre with an s-gap of
+       11266. (2) Main-pass hazards spawned past the cut (their range
+       ends at a totalLen the weld then truncates) remap onto lap
+       geometry the same way. Both resolve through the SAME segsWorldOf
+       the renderer draws them with, so this sweep and the art cannot
+       disagree. Anchors sit mid-sidewalk (lane 1.5): a 240 radius spans
+       all four lanes at both scene anchors, mat included. */
+    const pkPt = segsWorldOf(segs, pickupS, laneOffset(1.5));
+    const drPt = segsWorldOf(segs, doorS, laneOffset(1.5));
+    const nearAnchorWorld = hz => {
+      if(hz.row === undefined) return false;   // road-anchored pieces keep their own lane
+      const wp = segsWorldOf(segs, hz.s, laneOffset(hz.row));
+      return (wp.x-pkPt.x)**2 + (wp.y-pkPt.y)**2 < CLEAR*CLEAR
+          || (wp.x-drPt.x)**2 + (wp.y-drPt.y)**2 < CLEAR*CLEAR;
+    };
     for(let i = hazards.length - 1; i >= 0; i--){
       const hz = hazards[i];
       if(GROUNDY[hz.type]) continue;
-      if(Math.abs(hz.s - pickupS) < CLEAR || Math.abs(hz.s - doorS) < CLEAR)
+      if(Math.abs(hz.s - pickupS) < CLEAR || Math.abs(hz.s - doorS) < CLEAR
+         || nearAnchorWorld(hz))
         hazards.splice(i, 1);
     }
   }
@@ -4957,10 +4978,20 @@ function generateRoute(dateStr, opts){
      lamp is the same broken lamp for everyone, all day. */
   {
     const effLen = loop ? loop.sEnd : totalLen;
+    /* stage anchors in WORLD form for lampClear -- the same lap
+       blindness the clear stage above just fixed: the lap's closing leg
+       passes the door with lap-s values the s-window can't see. The
+       live-route probe that found the clear-stage hole also caught one
+       lamp surviving it, 193 world-units from the mat. */
+    const stagePts = [segsWorldOf(segs, pickupS, laneOffset(1.5)),
+                      segsWorldOf(segs, doorS, laneOffset(1.5))];
     const lampClear = (s, row) => {
       if(inCrossing(s)) return false;
       if(Math.abs(s - pickupS) < 260 || Math.abs(s - doorS) < 260) return false;  // the stage rule
       const off = laneOffset(row);
+      const wp0 = segsWorldOf(segs, s, off);
+      for(const ap of stagePts)
+        if((wp0.x-ap.x)**2 + (wp0.y-ap.y)**2 < 260*260) return false;   // stage rule, world form
       for(const list of [hazards, props])
         for(const it of list)
           if(Math.abs(it.s - s) < 40 && Math.abs((it.row !== undefined ? laneOffset(it.row) : (it.roadOffset || 0)) - off) < T2*0.55) return false;
