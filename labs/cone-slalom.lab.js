@@ -924,6 +924,7 @@
        2.2s and vanished. A lab that fails should fail loudly and leave you able
        to drive. */
     scene.state = 'play'; scene.tipT = 0; scene.damage = 0;
+    scene.hjSkidV = 0; scene.hjTipT = 0; scene.hjFace = false; slPrevState = 'play'; slPrevSpeed = 0;
     scene.hopAnim = null; scene.hopYaw = 0; scene.hopKick = 0;
     slQuietOpening();
     run.done = false;
@@ -1446,6 +1447,9 @@
        every frame rather than once at reset — cheap, and it means a stray
        re-entry into the loading beat can never drag the camera off again. */
     scene.pickupWalk = 0;
+    /* the speed the crash will inherit — stashed BEFORE update() runs,
+       because the tilt-fail zeroes this.speed on the very frame it tips */
+    if (scene.state === 'play') slPrevSpeed = scene.speed;
     /* runT drives the 1400ms lid-and-bag loading beat. Jump past it so the
        course never opens with a delivery animation it has no delivery for. */
     if (scene.runT < LOAD_ART.ms + 1) scene.runT = LOAD_ART.ms + 1;
@@ -1569,6 +1573,27 @@
      pattern and the same 34ms dt clamp as the boost; a one-frame dt
      disagreement with the game's own integrator shades a feel dial, not
      a geometry invariant. */
+  /* ============ THE CRASH KEEPS ITS MOMENTUM ============
+     Delivery's tilt-fail throws the speed away on the spot (state =
+     "tipped"; speed = 0) — a hard stop mid-corner. The hydrant jump
+     crashes better: it banks the speed into hjSkidV and the game's own
+     update loop slides him out with friction that rises as he goes flat
+     (HJ_SKID.base + bite·tipT). That loop is gated on mode ===
+     "challenge" — which this lab already sets — so the whole port is a
+     HANDOFF, not a copy: onPre stashes the live speed while state is
+     still play, and the frame the game flips play -> tipped, the stash
+     goes into hjSkidV with a fresh grip ramp. The real HJ skid does all
+     the sliding; if its tuning ever changes, this follows for free. */
+  let slPrevSpeed = 0, slPrevState = 'play';
+  function slSkidHandoff(){
+    if (scene.state === 'tipped' && slPrevState !== 'tipped' && run.phase === 'live'){
+      scene.hjSkidV = slPrevSpeed;
+      scene.hjFace = false;
+      scene.hjTipT = 0;
+    }
+    slPrevState = scene.state;
+  }
+
   function slGripComp(dt){
     if (run.phase !== 'live' || scene.state !== 'play') return;
     const seg = scene.segAt(scene.botS);
@@ -1594,6 +1619,7 @@
     try { slFlight(Math.min(delta, 34)); } catch(e){ console.log('slFlight', e); }
     try { slThrottleBoost(Math.min(delta, 34)); } catch(e){ console.log('slThrottleBoost', e); }
     try { slGripComp(Math.min(delta, 34)); } catch(e){ console.log('slGripComp', e); }
+    try { slSkidHandoff(); } catch(e){ console.log('slSkidHandoff', e); }
 
     try { slHoldTraffic(time, Math.min(delta, 34)); } catch(e){ console.log('slHoldTraffic', e); }
   };
