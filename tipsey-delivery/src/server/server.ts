@@ -18,8 +18,11 @@ import {
   type EquipSkinReq,
   type EquipSkinRsp,
   type ErrorRsp,
+  type FollowRsp,
   type GetDailyBestRsp,
   type GetHistoryRsp,
+  type PostFailCommentReq,
+  type PostFailCommentRsp,
   type PurchaseSkinReq,
   type PurchaseSkinRsp,
   type SubmitDailyBestReq,
@@ -31,6 +34,7 @@ import {
   type TpProfileRsp,
 } from '../shared/api.ts'
 import {
+  dbClaimFollowBonus,
   dbClaimTrophyReward,
   dbEquipSkin,
   dbGetAllTimeBest,
@@ -44,10 +48,10 @@ import {
   dbGetTpProfile,
   dbIncrPlays,
   dbMarkAnnounced,
-  dbRecordMission,
   dbPurchaseSkin,
-  dbRemoveUser,
+  dbRecordMission,
   dbReleaseDailyPostClaim,
+  dbRemoveUser,
   dbSetDailyPostId,
   dbSetStickyCommentId,
   dbShouldPostDaily,
@@ -72,6 +76,8 @@ type AnyRsp =
   | CountPlayRsp
   | CompleteMissionRsp
   | SubmitFailRsp
+  | PostFailCommentRsp
+  | FollowRsp
   | UiResponse
   | TriggerResponse
   | ErrorRsp
@@ -134,6 +140,12 @@ async function route(
       case Endpoint.SubmitFail:
         rsp = await routeSubmitFail(reqMsg)
         break
+      case Endpoint.PostFailComment:
+        rsp = await routePostFailComment(reqMsg)
+        break
+      case Endpoint.Follow:
+        rsp = await routeFollow()
+        break
       case Endpoint.OnMenuNewPost:
         rsp = await routeMenuNewPost()
         break
@@ -177,7 +189,9 @@ async function getCurrentUserRetrying() {
     }
     if (attempt < 3) await new Promise(r => setTimeout(r, 150 * attempt))
   }
-  console.error('getCurrentUser() failed after 3 attempts -- falling back to anonymous')
+  console.error(
+    'getCurrentUser() failed after 3 attempts -- falling back to anonymous',
+  )
   return null
 }
 
@@ -242,7 +256,12 @@ async function routeSubmitReplay(
   const user = await getCurrentUserRetrying()
   const username = user?.username ?? 'anonymous'
   try {
-    const result = await dbSubmitReplayScore(req.dateStr, req.tip, req.ms, username)
+    const result = await dbSubmitReplayScore(
+      req.dateStr,
+      req.tip,
+      req.ms,
+      username,
+    )
     return {dateStr: req.dateStr, ...result}
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
@@ -265,7 +284,9 @@ async function routePurchaseSkin(
   const username = user?.username ?? 'anonymous'
   const result = await dbPurchaseSkin(username, req.skinId)
   if (!result.ok) {
-    console.error(`routePurchaseSkin: ${username} -> ${req.skinId}: ${result.error}`)
+    console.error(
+      `routePurchaseSkin: ${username} -> ${req.skinId}: ${result.error}`,
+    )
     return {error: result.error, status: 400}
   }
   const price = TS_SKINS[req.skinId]?.priceCents ?? 0
@@ -286,7 +307,9 @@ async function routeEquipSkin(
   const username = user?.username ?? 'anonymous'
   const result = await dbEquipSkin(username, req.skinId)
   if (!result.ok) {
-    console.error(`routeEquipSkin: ${username} -> ${req.skinId}: ${result.error}`)
+    console.error(
+      `routeEquipSkin: ${username} -> ${req.skinId}: ${result.error}`,
+    )
     return {error: result.error, status: 400}
   }
   return {equipped: result.equipped}
@@ -300,7 +323,9 @@ async function routeClaimTrophyReward(
   const username = user?.username ?? 'anonymous'
   const result = await dbClaimTrophyReward(username, req.trophyId)
   if (!result.ok) {
-    console.error(`routeClaimTrophyReward: ${username} -> ${req.trophyId}: ${result.error}`)
+    console.error(
+      `routeClaimTrophyReward: ${username} -> ${req.trophyId}: ${result.error}`,
+    )
     return {error: result.error, status: 400}
   }
   const feat = TROPHY_FEAT[req.trophyId]
@@ -328,7 +353,9 @@ async function routeCompleteMission(
   const username = user?.username ?? 'anonymous'
   const result = await dbRecordMission(username, req.missionId, req.best)
   if (!result.ok) {
-    console.error(`routeCompleteMission: ${username} -> ${req.missionId}: ${result.error}`)
+    console.error(
+      `routeCompleteMission: ${username} -> ${req.missionId}: ${result.error}`,
+    )
     return {error: result.error, status: 400}
   }
   if (result.firstCompletion) {
@@ -403,21 +430,23 @@ function clampNum(raw: unknown, lo: number, hi: number): number {
   return Math.min(hi, Math.max(lo, n))
 }
 
-/** Comments on the post the run was played in, as the app account.
+/** Composes the fail-comment DRAFT and posts NOTHING -- the player
+ *  edits and posts it themselves via PostFailComment, from an explicit
+ *  button, per Devvit's user-actions rules (no automated actions).
+ *  The server still owns every templated word (FAIL_CAUSE_COPY +
+ *  sanitizeLabel) so the pre-filled text is always sane.
  *  context.postId is absent outside a post context (and the username
  *  is absent for a logged-out viewer) -- both are ordinary conditions,
- *  not errors, so they just return posted:false. A failed comment is
- *  logged but never surfaced: the player is staring at a crash
- *  overlay, and a toast about Reddit's rate limiter helps nobody. */
+ *  not errors, so they just return an empty draft. */
 async function routeSubmitFail(
   reqMsg: IncomingMessage,
 ): Promise<SubmitFailRsp> {
   const req = await readJson<SubmitFailReq>(reqMsg)
   const postId = context.postId
-  if (!postId) return {posted: false}
+  if (!postId) return {text: ''}
 
   const user = await getCurrentUserRetrying()
-  if (!user?.username) return {posted: false}
+  if (!user?.username) return {text: ''}
 
   const cause = FAIL_CAUSE_COPY[req.cause] ?? FAIL_CAUSE_FALLBACK
   const address = sanitizeLabel(req.address, 48)
@@ -435,7 +464,58 @@ async function routeSubmitFail(
     `**u/${user.username}** went down ${where} -- ${cause}.\n\n` +
     `$${tip.toFixed(2)} order · ${secs.toFixed(1)}s on the clock · cargo ${damage}% ruined.`
 
+  return {text}
+}
+
+/** Posts the player's (possibly edited) fail comment as the USER, in
+ *  reply to the pinned anchor. Only ever reached by an explicit
+ *  COMMENT -> POST press in the fail overlay -- the manual choice
+ *  Devvit's user-actions rules require. The draft came from
+ *  routeSubmitFail, but the player may have rewritten it entirely:
+ *  that's fine, it lands under THEIR name via runAs USER, so it is
+ *  their comment, not the app speaking. Clamped to 480 chars and
+ *  stripped of control characters; markdown and mentions are left
+ *  alone the same way Reddit's own composer would leave them. */
+async function routePostFailComment(
+  reqMsg: IncomingMessage,
+): Promise<PostFailCommentRsp> {
+  const req = await readJson<PostFailCommentReq>(reqMsg)
+  const user = await getCurrentUserRetrying()
+  if (!user?.username) return {posted: false}
+  const raw = typeof req.text === 'string' ? req.text : ''
+  const text = Array.from(raw)
+    .filter(ch => {
+      const c = ch.codePointAt(0) ?? 0
+      // keep tab + newline + printable; drop other control chars incl. DEL
+      return c === 9 || c === 10 || (c >= 32 && c !== 127)
+    })
+    .join('')
+    .trim()
+    .slice(0, 480)
+  if (!text) return {posted: false}
   return {posted: await postScoreComment(text)}
+}
+
+/** Subscribes the pressing user to the current subreddit and grants
+ *  the one-time $25.00 follow bonus. subscribeToCurrentSubreddit acts
+ *  on the USER because SUBSCRIBE_TO_SUBREDDIT is declared in
+ *  devvit.json's asUser (same pattern as Reddit's own HotAndCold app).
+ *  Only reachable from the FOLLOW button, with MAYBE LATER as the
+ *  opt-out -- explicit manual action, never automated. The bonus grant
+ *  sits BEHIND the subscribe call on purpose: no follow, no pay; and
+ *  dbClaimFollowBonus's hSetNX means a re-follow (or a cleared-storage
+ *  re-prompt) can't double-pay. */
+async function routeFollow(): Promise<FollowRsp> {
+  const user = await getCurrentUserRetrying()
+  if (!user?.username) return {joined: false, granted: false, walletCents: 0}
+  try {
+    await reddit.subscribeToCurrentSubreddit()
+  } catch (err) {
+    console.error('routeFollow: subscribe failed', err)
+    return {joined: false, granted: false, walletCents: 0}
+  }
+  const {granted, walletCents} = await dbClaimFollowBonus(user.username)
+  return {joined: true, granted, walletCents}
 }
 
 /** The one top-level comment the app account still leaves: the anchor
@@ -681,7 +761,3 @@ function writeJson<T extends PartialJsonValue>(
   })
   rsp.end(body)
 }
-
-
-
-
