@@ -1719,6 +1719,15 @@ const STORE_PALETTES = [
 const AWNING_STRIPES = [0xffffff, 0xc4c4c4];
 const STORE_DEPTH = T2 * 3; // matches houses
 
+/* corner stores get their own, richer palette set -- the block's anchor
+   tenant, not another storefront in the run. accent = knob/sign border. */
+const CORNER_CHAMFER = T2;   // chamfer leg: one tile off each street face
+const CORNER_STORE_PALETTES = [
+  { wall:0x1f5240, wallDk:0x153a2d, wallLt:0x2a6a52, trim:0x0e2b20, sign:0xf0e6cc, awn:0xb08a3e, accent:0xd8b23a },  // green & gold
+  { wall:0x74303a, wallDk:0x59242c, wallLt:0x8a3d48, trim:0x3a171d, sign:0xefe6d0, awn:0xd8c9a8, accent:0xe0c48a },  // oxblood & cream
+  { wall:0x2a4062, wallDk:0x1e2f4a, wallLt:0x35507a, trim:0x141f30, sign:0xead9b0, awn:0x9a7b3a, accent:0xc9a25a }   // navy & brass
+];
+
 const BENCH_ART = {
   w: PERSON_H*1.3, seatH: PERSON_H*0.35, backH: PERSON_H*0.3,
   wood: 0x9d7a4e, woodDk: 0x7c5f3c, woodLt: 0xb8935e,
@@ -2099,6 +2108,42 @@ function gapsFromUnits(units, edgeLen){
   }
   if(edgeLen > cursor + 2) gaps.push({ start:cursor, w:edgeLen-cursor });
   return gaps;
+}
+
+/* ---------- corner lots (2026-08-06, "corner lots in commercial and
+   housing districts not drawing") ----------
+   packEdge/packEdgeNoGap clear cornerMargin (= unit depth + T2*0.3) from
+   every edge end so perpendicular edges' depth-boxes can't overlap in the
+   shared corner square -- correct, but it left a ~3.3-tile square at all
+   four corners of every housing/commercial block that nothing ever drew
+   in. One dedicated unit per corner fills exactly that square: its width
+   runs the cornerMargin along a seeded pick of the corner's two streets,
+   its depth is the standard unit depth -- so by the same containment
+   argument that created the margin, it cannot overlap either edge's
+   packed units (their spans begin exactly where this one ends).
+   CORNER_LOT_INSET nudges the unit off the perpendicular block line so a
+   housing side fence (which stays: a yard fence along the side street is
+   what a real corner lot has) is never coplanar with the flank wall.
+   Corner c is the START of edge c and the END of edge (c+3)%4 -- read
+   straight off blockEdgesOf's construction order. Position-seeded off the
+   corner's own world point, the same discipline as every packed unit. */
+const CORNER_LOT_INSET = 8;
+function cornerUnitsOf(blk){
+  const edges = blockEdgesOf(blk);
+  const M = HOUSE_DEPTH + T2*0.3;   // === packEdge/packEdgeNoGap cornerMargin (HOUSE_DEPTH === STORE_DEPTH)
+  const out = [];
+  for(let c = 0; c < 4; c++){
+    const eS = edges[c], eE = edges[(c+3)%4];
+    const rng = mulberry32(((Math.round(eS.ox)*7919) ^ (Math.round(eS.oy)*104729) ^ 0x3c17) >>> 0);
+    const atStart = rng() < 0.5;               // which of the corner's two streets it faces
+    const e = atStart ? eS : eE;
+    const start = atStart ? CORNER_LOT_INSET : e.len - M;
+    const w = M - CORNER_LOT_INSET;
+    const ux = e.ox + e.dv.x*start, uy = e.oy + e.dv.y*start;
+    out.push({ edgeIdx: atStart ? c : (c+3)%4, adjEdges: [c, (c+3)%4], e, ux, uy, w, atStart, kind: "cornerStore",
+               hx: ux + e.dv.x*w/2, hy: uy + e.dv.y*w/2 });
+  }
+  return out;
 }
 
 function buildBlockLayout(grid, seed){
@@ -6693,6 +6738,182 @@ class WorldScene extends Phaser.Scene {
     }
   }
 
+  /* ---------- SPECIAL CORNER STORE (2026-08-06, "flag them for special
+     stores ... corner facing door") ----------
+     Every corner lot renders as a dedicated corner store: the street
+     corner of the footprint is chamfered 45 degrees and the door sits
+     ON the chamfer, facing the intersection -- with its own richer
+     palette set, a taller parapet than the neighbouring frontage, a
+     marquee sign board over the corner door, and display windows
+     wrapped onto the side-street flank.
+     Geometry runs in u: the mirrored along-edge coordinate with u=0
+     ALWAYS the corner end (u = a when the corner is at the unit start,
+     w - a when at the end), so one code path serves both mirror cases;
+     slice windows map into u the same way. Draw order matches
+     drawStoreUnit exactly (back, flanks, facade detail per body pass;
+     roof last per slice) because that order is what makes the fixed
+     iso camera resolve which wall wins. Under that camera a block's SE
+     corner shows the chamfer door head-on, NE/SW are edge-on, NW is
+     roof-side -- the same reality every facade in the city lives with. */
+  drawCornerStoreUnit(g, ox, oy, dv, rv, w, seed, cornerAtStart, part='all', a0=0, a1=w){
+    const rng = mulberry32(seed);
+    const G = (a,b,h) => this.W(ox + dv.x*a + rv.x*b, oy + dv.y*a + rv.y*b, h);
+    const cs = !!cornerAtStart;
+    const Gu = (u,b,h) => G(cs ? u : w - u, b, h);
+    const u0 = cs ? a0 : w - a1, u1 = cs ? a1 : w - a0;
+    const inU = c => c >= u0 && (c < u1 || u1 >= w);
+    const clipQU = (lo, hi, bOff, z0, z1, color, alpha) => {
+      const q0 = Math.max(lo, u0), q1 = Math.min(hi, u1);
+      if(q1 - q0 < 0.5) return;
+      this.quadOn(g, [Gu(q0,bOff,z1),Gu(q1,bOff,z1),Gu(q1,bOff,z0),Gu(q0,bOff,z0)], color, alpha);
+    };
+    const C = CORNER_STORE_PALETTES[Math.floor(rng()*CORNER_STORE_PALETTES.length)];
+    const D = STORE_DEPTH, CH = CORNER_CHAMFER;
+    /* same bottom-up height stack as drawStoreUnit, then a taller
+       parapet -- the corner store reads as the block's anchor. rng
+       calls stay unconditional per the slice contract. */
+    const kickH = 18;
+    const dZ1 = DOOR_H*0.88;
+    const winZ0 = kickH+2, winZ1 = dZ1 + 14 + rng()*16;
+    const awnZ0 = winZ1+4, awnZ1 = awnZ0+18;
+    const signZ0 = awnZ1+8, signZ1 = signZ0+16;
+    const H = signZ1 + 30 + rng()*10;
+    const sideWinN = 1 + Math.floor(rng()*2);
+    /* chamfer face parameterization: s in [0,L] runs the face from
+       (CH,0) to (0,-CH); `out` steps along the face's outward normal
+       (-1,+1)/sqrt(2) in (u,b) -- toward the intersection -- giving the
+       same layering offsets the flat facade gets from its b nudges. */
+    const L = CH*Math.SQRT2;
+    const FP = (s, out, h) => {
+      const t = s/L;
+      return Gu(CH*(1-t) - out*0.7071, -CH*t + out*0.7071, h);
+    };
+    const chamQ = (s0, s1, out, z0, z1, color, alpha) =>
+      this.quadOn(g, [FP(s0,out,z1),FP(s1,out,z1),FP(s1,out,z0),FP(s0,out,z0)], color, alpha);
+    /* static backface handling, lidNear-style normal test (the iso
+       camera never rotates; the view direction is +x+y): chamSum > 0
+       means the chamfer faces the camera -> full detail; == 0 means
+       edge-on -> keep the notched silhouette but skip the protruding
+       door/awning/marquee, which would otherwise float as slivers past
+       an edge-on plane; < 0 means the whole front is camera-hidden
+       (the facade is too, for both away corners -- checked per
+       edge/mirror pair), so draw the plain un-notched box the camera
+       actually sees, or the notch leaks lower walls through the roof. */
+    const chamSum = ((cs ? -dv.x : dv.x) + rv.x) + ((cs ? -dv.y : dv.y) + rv.y);
+    const chamAway = chamSum < -0.01, chamFront = chamSum > 0.01;
+    const fTop = chamAway ? 0 : -CH;   // corner flank's street-side extent
+
+    if(part !== 'roof'){
+      /* back wall */
+      clipQU(0, w, -D, 0, H, C.wallDk);
+      /* far flank: plain cap against the neighbouring frontage */
+      if(u1 >= w - 0.01){
+        const r = [Gu(w,0,H),Gu(w,-D,H),Gu(w,-D,0),Gu(w,0,0)];
+        this.quadOn(g, r, C.wallDk); this.edgeOn(g, r, C.trim, 1);
+      }
+      /* corner-side flank faces the perpendicular STREET: a display
+         wall, not a cap -- lit tone, kick strip, its own windows run
+         down the b axis */
+      if(u0 <= 0.01){
+        /* the display treatment only when this flank actually faces the
+           camera: away-facing flank windows sit deeper than the roof's
+           projected cover (a window pixel at depth |b| is roofed only
+           for z >= H + |b| - D) and leak over the back wall otherwise.
+           Same normal test as the chamfer; an away flank is a plain cap. */
+        const flankVis = ((cs ? -dv.x : dv.x) + (cs ? -dv.y : dv.y)) > 0.01;
+        const f = [Gu(0,fTop,H),Gu(0,-D,H),Gu(0,-D,0),Gu(0,fTop,0)];
+        if(!flankVis){
+          this.quadOn(g, f, C.wallDk); this.edgeOn(g, f, C.trim, 1);
+        } else {
+        this.quadOn(g, f, C.wallLt); this.edgeOn(g, f, C.trim, 1);
+        this.quadOn(g, [Gu(-0.4,fTop-2,kickH),Gu(-0.4,-D+2,kickH),Gu(-0.4,-D+2,0),Gu(-0.4,fTop-2,0)], C.wallDk);
+        const b0 = fTop-10, b1 = -D+10, span = b1-b0;
+        for(let i=0;i<sideWinN;i++){
+          const bc = b0 + span*(i+0.5)/sideWinN;
+          const wHW = Math.min(26, Math.abs(span)/(sideWinN*2)-6);
+          this.quadOn(g, [Gu(-0.4,bc-wHW-2,winZ1+2),Gu(-0.4,bc+wHW+2,winZ1+2),Gu(-0.4,bc+wHW+2,winZ0),Gu(-0.4,bc-wHW-2,winZ0)], C.trim);
+          this.quadOn(g, [Gu(-0.5,bc-wHW,winZ1),Gu(-0.5,bc+wHW,winZ1),Gu(-0.5,bc+wHW,winZ0+2),Gu(-0.5,bc-wHW,winZ0+2)], 0x6b93a8);
+          this.quadOn(g, [Gu(-0.55,bc-wHW+2,winZ1-3),Gu(-0.55,bc-2,winZ1-3),Gu(-0.55,bc-2,winZ0+5),Gu(-0.55,bc-wHW+2,winZ0+5)], 0x86adc0, 0.55);
+        }
+        }
+      }
+    }
+
+    if(part !== 'body'){
+      /* roof: the chamfer cuts the street corner off the slab. Street
+         boundary bs(u) = min(0, u - CH); a slice straddling the kink
+         splits into two exact quads instead of approximating it. */
+      const bs = u => chamAway ? 0 : Math.min(0, u - CH);
+      const roofQ = (q0, q1) => {
+        if(q1 - q0 < 0.5) return;
+        const R = [Gu(q0,bs(q0),H), Gu(q1,bs(q1),H), Gu(q1,-D,H), Gu(q0,-D,H)];
+        this.quadOn(g, R, C.trim);
+        g.lineStyle(1, C.wallDk, 1);
+        g.lineBetween(R[0].x,R[0].y,R[1].x,R[1].y);
+        g.lineBetween(R[3].x,R[3].y,R[2].x,R[2].y);
+        if(q0 <= 0.01) g.lineBetween(R[0].x,R[0].y,R[3].x,R[3].y);
+        if(q1 >= w - 0.01) g.lineBetween(R[1].x,R[1].y,R[2].x,R[2].y);
+      };
+      if(!chamAway && u0 < CH && u1 > CH){ roofQ(u0, CH); roofQ(CH, u1); }
+      else roofQ(u0, u1);
+    }
+    if(part === 'roof') return;
+
+    /* facade proper: from the chamfer edge to the far flank */
+    clipQU(CH, w, 0.4, 0, H, C.wall);
+    clipQU(CH, w, 0.42, H-8, H, C.trim);                 // parapet band
+    clipQU(CH+1, w-2, 0.42, 0, kickH, C.wallDk);
+    /* full display-glass run -- the corner store is all window */
+    const gX0 = CH+8, gX1 = w-8;
+    clipQU(gX0, gX1, 0.5, winZ0-3, winZ1+3, 0xd8d0bd);
+    clipQU(gX0+2, gX1-2, 0.54, winZ0, winZ1, 0x6b93a8);
+    clipQU(gX0+3, gX0+(gX1-gX0)*0.4, 0.55, winZ0+3, winZ1-3, 0x86adc0, 0.55);
+    /* facade awning: solid palette canvas (stripes are the ordinary
+       store's) with a trim bar over it */
+    const aw0 = Math.max(CH-1, u0), aw1 = Math.min(w, u1);
+    if(aw1 - aw0 > 0.5){
+      this.quadOn(g, [Gu(aw0,0.5,awnZ1),Gu(aw1,0.5,awnZ1),Gu(aw1,0.7,awnZ0),Gu(aw0,0.7,awnZ0)], C.awn);
+    }
+    clipQU(CH-1, w, 0.42, awnZ1, awnZ1+3, C.trim);
+    /* sign band along the facade */
+    const sB0 = Math.max(CH+4, u0), sB1 = Math.min(w-4, u1);
+    if(sB1 - sB0 > 0.5){
+      const sq2 = [Gu(sB0,0.44,signZ1),Gu(sB1,0.44,signZ1),Gu(sB1,0.44,signZ0),Gu(sB0,0.44,signZ0)];
+      this.quadOn(g, sq2, C.sign);
+      g.lineStyle(1, C.trim, 1);
+      g.lineBetween(sq2[0].x,sq2[0].y,sq2[1].x,sq2[1].y);
+      g.lineBetween(sq2[3].x,sq2[3].y,sq2[2].x,sq2[2].y);
+    }
+
+    /* ---------- the chamfer: wall, corner door, marquee ----------
+       discrete elements, assigned whole to the slice holding the face
+       centre (u = CH/2), the same assignment rule doors already use */
+    if(!chamAway && inU(CH*0.5)){
+      chamQ(0, L, 0, 0, H, C.wall);
+      chamQ(0, L, 0.3, H-8, H, C.trim);                  // parapet wraps the corner
+      chamQ(0, 7, 0.3, 0, H-8, C.trim);                  // pilasters at both chamfer edges
+      chamQ(L-7, L, 0.3, 0, H-8, C.trim);
+      chamQ(7, L-7, 0.3, 0, kickH, C.wallDk);
+      /* the corner door: glass double door + transom, centred on the face */
+      const dW = Math.min(DOOR_W*0.78, L*0.56), s0 = (L-dW)/2, s1 = (L+dW)/2;
+      if(chamFront){
+      chamQ(s0-5, s1+5, 0.35, 0, 6, 0x9d9687);           // step
+      chamQ(s0-3, s1+3, 0.4, 0, dZ1+14, C.trim);         // frame incl transom
+      chamQ(s0, s1, 0.5, dZ1+2, dZ1+11, 0x86adc0, 0.9);  // transom light
+      chamQ(s0, s1, 0.5, 0, dZ1, 0x6b93a8, 0.95);        // glass doors
+      chamQ((s0+s1)/2 - 1, (s0+s1)/2 + 1, 0.55, 6, dZ1-4, C.trim); // meeting stile
+      const kn = FP(s1-8, 0.6, dZ1*0.45);
+      g.fillStyle(C.accent, 1); g.fillCircle(kn.x, kn.y, 2.6*this.K*0.42);
+      /* awning over the door, matching the facade run */
+      this.quadOn(g, [FP(-4,0.5,awnZ1),FP(L+4,0.5,awnZ1),FP(L+4,14,awnZ0),FP(-4,14,awnZ0)], C.awn);
+      this.quadOn(g, [FP(-4,0.45,awnZ1+3),FP(L+4,0.45,awnZ1+3),FP(L+4,0.45,awnZ1),FP(-4,0.45,awnZ1)], C.trim);
+      /* marquee sign board over the corner door */
+      const sq = [FP(-6,0.6,signZ1+8),FP(L+6,0.6,signZ1+8),FP(L+6,0.6,signZ0),FP(-6,0.6,signZ0)];
+      this.quadOn(g, sq, C.sign); this.edgeOn(g, sq, C.accent, 1);
+      }
+    }
+  }
+
   drawWoodFence(g, ox, oy, dv, rv, w, a0=0, a1=w){
     const G = (a,b,h) => this.W(ox + dv.x*a + rv.x*b, oy + dv.y*a + rv.y*b, h);
     const inS = c => c >= a0 && (c < a1 || a1 >= w);
@@ -7124,7 +7345,7 @@ class WorldScene extends Phaser.Scene {
     }
   }
 
-  queueHousingEdgeAt(vq, e, isAddressEdge=false, cornerSkip=null){
+  queueHousingEdgeAt(vq, e, isAddressEdge=false, cornerSkip=null, trim=null){
     const eseed = ((Math.round(e.ox*3+e.dv.x)*7919) ^ (Math.round(e.oy*3+e.dv.y)*104729) ^ 0x9e3779b9) >>> 0;
     const units = packEdge(e.len, mulberry32(eseed));
     units.forEach((u, idx) => {
@@ -7307,18 +7528,57 @@ class WorldScene extends Phaser.Scene {
       }
     });
     for(const gp of gapsFromUnits(units, e.len)){
-      const gx = e.ox + e.dv.x*(gp.start+gp.w/2), gy = e.oy + e.dv.y*(gp.start+gp.w/2);
+      /* corner-lot trim: a corner unit now sits on this edge's own line
+         inside the head/tail cornerMargin these gaps otherwise cover --
+         clip the fence span so it never draws across that facade */
+      let g0 = gp.start, g1 = gp.start + gp.w;
+      if(trim){ g0 = Math.max(g0, trim[0]); g1 = Math.min(g1, e.len - trim[1]); }
+      if(g1 - g0 < 2) continue;
+      const gw = g1 - g0;
+      const gx = e.ox + e.dv.x*(g0+gw/2), gy = e.oy + e.dv.y*(g0+gw/2);
       const gseed = ((Math.round(gx)*7919) ^ (Math.round(gy)*104729) ^ 0x2f6c) >>> 0;
-      const fx = e.ox + e.dv.x*gp.start, fy = e.oy + e.dv.y*gp.start;
-      this.queueUnitStrips(vq, fx, fy, e.dv, e.rv, gp.w, 0, TILE, (g,t,a0,a1)=>this.drawFenceGap(g, fx, fy, e.dv, e.rv, gp.w, gseed, a0, a1));
+      const fx = e.ox + e.dv.x*g0, fy = e.oy + e.dv.y*g0;
+      this.queueUnitStrips(vq, fx, fy, e.dv, e.rv, gw, 0, TILE, (g,t,a0,a1)=>this.drawFenceGap(g, fx, fy, e.dv, e.rv, gw, gseed, a0, a1));
     }
+  }
+  /* which of a block's four corner units actually draw. A corner unit
+     hugs BOTH of its streets by construction, so a cut on EITHER
+     adjoining edge suppresses it -- tested against excludeEdges
+     directly, NOT via cornerSkip: CORNER_TRIM (420) is measured from
+     the grid lines while block content starts inset (736) from them,
+     so that closure's thresholds are unreachable for any unit center
+     and it cannot be relied on here (reported separately, not fixed
+     in this change). */
+  liveCornerUnits(blk, excludeEdges){
+    const out = [];
+    for(const cu of cornerUnitsOf(blk)){
+      if(excludeEdges && cu.adjEdges.some(a => excludeEdges.includes(a))) continue;
+      out.push(cu);
+    }
+    return out;
+  }
+  queueCornerUnit(vq, blk, cu){
+    const hseed = ((Math.round(cu.hx)*7919) ^ (Math.round(cu.hy)*104729)) >>> 0;
+    /* every corner lot is a SPECIAL corner store, both districts -- the
+       classic neighbourhood corner store -- with its chamfered door
+       facing the intersection (drawCornerStoreUnit). cu.kind carries
+       the "cornerStore" flag for future systems (names, unlocks). */
+    this.queueUnitStrips(vq, cu.ux, cu.uy, cu.e.dv, cu.e.rv, cu.w, STORE_DEPTH, T2, (g,t,a0,a1)=>{
+      this.drawCornerStoreUnit(g, cu.ux, cu.uy, cu.e.dv, cu.e.rv, cu.w, hseed, cu.atStart, 'body', a0, a1);
+      this.drawCornerStoreUnit(g, cu.ux, cu.uy, cu.e.dv, cu.e.rv, cu.w, hseed, cu.atStart, 'roof', a0, a1);
+    });
   }
   queueHousingBlock(vq, blk, excludeEdges=null, cornerSkip=null){
     const isAddressBlock = (blk === this.route.addressBlock);
+    const corners = this.liveCornerUnits(blk, excludeEdges);
+    /* per-edge [head, tail] fence-gap clip for the surviving corners */
+    const trims = [[0,0],[0,0],[0,0],[0,0]];
+    for(const cu of corners) trims[cu.edgeIdx][cu.atStart ? 0 : 1] = CORNER_LOT_INSET + cu.w;
     this.blockEdges(blk).forEach((e, idx) => {
       if(excludeEdges && excludeEdges.includes(idx)) return;
-      this.queueHousingEdgeAt(vq, e, isAddressBlock && idx === this.route.addressEdgeIdx, cornerSkip);
+      this.queueHousingEdgeAt(vq, e, isAddressBlock && idx === this.route.addressEdgeIdx, cornerSkip, trims[idx]);
     });
+    for(const cu of corners) this.queueCornerUnit(vq, blk, cu);
     this.queueStreetFurniture(vq, blk, excludeEdges);
   }
 
@@ -7351,23 +7611,96 @@ class WorldScene extends Phaser.Scene {
       }
     });
   }
+  /* ---------- commercial interior fill (2026-08-06, "commercial
+     buildings should fill in the center of the block") ----------
+     1-2 bigger standalone stores in the block's middle. The perimeter
+     ring (edge + corner units) reaches cornerMargin in from the block
+     line on every side; INTERIOR ring insets one further tile so a
+     plaza walkway always separates ring and interior. Facing is a
+     seeded cardinal pick using blockEdgesOf's own dv/rv pairing
+     (rv = DIRV[(f+3)%4]), rendered through queueUnitStrips like every
+     other store so depth sorting stays strip-exact on all four
+     headings. Two-building days split the interior in halves along a
+     seeded axis, one building per half, so they cannot overlap by
+     construction. The crime block skips interior fill entirely: the
+     scene owns that block's open ground (cordon, officer patrols) and
+     nothing new should land inside it. Returns the placed footprint
+     rects so the planter/bench scatter can dodge them. */
+  queueCommercialInterior(vq, blk){
+    const r = this.route;
+    if(r.crime && r.crime.blockKey === (blk.i + "," + blk.j)) return [];
+    const RING = HOUSE_DEPTH + T2*0.3 + T2;      // perimeter units' reach + one-tile walkway
+    const ix0 = blk.x0 + RING, ix1 = blk.x1 - RING;
+    const iy0 = blk.y0 + RING, iy1 = blk.y1 - RING;
+    if(ix1 - ix0 < T2*4 || iy1 - iy0 < T2*4) return [];
+    const rng = mulberry32(((Math.round((blk.x0+blk.x1)/2)*7919) ^ (Math.round((blk.y0+blk.y1)/2)*104729) ^ 0x1c7b) >>> 0);
+    const n = rng() < 0.45 ? 1 : 2;
+    const splitX = rng() < 0.5;                   // two-building days: halve along x or y
+    const rects = [];
+    for(let k = 0; k < n; k++){
+      const D = STORE_DEPTH;
+      const f = Math.floor(rng()*4);
+      const dv = DIRV[f], rv = DIRV[(f+3)%4];
+      /* placement window: whole interior for one building, its own half
+         (split at the interior midline) when there are two */
+      let wx0 = ix0, wx1 = ix1, wy0 = iy0, wy1 = iy1;
+      if(n === 2){
+        if(splitX){ if(k === 0) wx1 = (ix0+ix1)/2; else wx0 = (ix0+ix1)/2; }
+        else      { if(k === 0) wy1 = (iy0+iy1)/2; else wy0 = (iy0+iy1)/2; }
+      }
+      const along = dv.x !== 0 ? wx1-wx0 : wy1-wy0;   // window extent on the facade axis
+      const cross = dv.x !== 0 ? wy1-wy0 : wx1-wx0;
+      if(along < T2*2 || cross < D) continue;         // degenerate window only
+      /* wider than a street storefront -- it anchors the plaza. Clamped
+         to its own window: the first cut DROPPED oversized rolls here,
+         and the measured fill came out 1.30 buildings/block against the
+         1.55 the n-roll implies (two-building halves are ~432 wide vs a
+         506 max roll) -- including possible zero-building two-days.
+         Clamping places every rolled building at the size that fits. */
+      const w = Math.min(T2*(3.5 + rng()*2), along);
+      const hx2 = (dv.x !== 0 ? w : D)/2, hy2 = (dv.y !== 0 ? w : D)/2;  // axis-aligned half-extents
+      const bcx = wx0 + hx2 + rng()*((wx1-wx0) - hx2*2);
+      const bcy = wy0 + hy2 + rng()*((wy1-wy0) - hy2*2);
+      const ux = bcx + rv.x*(D/2) - dv.x*(w/2), uy = bcy + rv.y*(D/2) - dv.y*(w/2);
+      const hseed = ((Math.round(bcx)*7919) ^ (Math.round(bcy)*104729) ^ 0x5e21) >>> 0;
+      this.queueUnitStrips(vq, ux, uy, dv, rv, w, D, T2, (g,t,a0,a1)=>{
+        this.drawStoreUnit(g, ux, uy, dv, rv, w, hseed, true, true, 'body', a0, a1);
+        this.drawStoreUnit(g, ux, uy, dv, rv, w, hseed, true, true, 'roof', a0, a1);
+      });
+      rects.push({ x0: bcx-hx2, x1: bcx+hx2, y0: bcy-hy2, y1: bcy+hy2 });
+    }
+    return rects;
+  }
   queueCommercialBlock(vq, blk, excludeEdges=null, cornerSkip=null){
     const isPickupBlock = (blk === this.route.pickupBlock);
     this.blockEdges(blk).forEach((e, idx) => {
       if(excludeEdges && excludeEdges.includes(idx)) return;
       this.queueCommercialEdgeAt(vq, e, isPickupBlock && idx === this.route.pickupEdgeIdx, cornerSkip);
     });
+    for(const cu of this.liveCornerUnits(blk, excludeEdges)) this.queueCornerUnit(vq, blk, cu);
+    const interior = this.queueCommercialInterior(vq, blk);
     const cx = (blk.x0+blk.x1)/2, cy = (blk.y0+blk.y1)/2;
     const rng = mulberry32(((Math.round(cx)*7919) ^ (Math.round(cy)*104729) ^ 0x71c4) >>> 0);
+    /* scatter now dodges the interior footprints: same seed and call
+       order as before, each piece just re-rolls (bounded) until it
+       lands clear -- deterministic per block, retries included */
+    const clear = (x,y) => !interior.some(rc => x > rc.x0-30 && x < rc.x1+30 && y > rc.y0-30 && y < rc.y1+30);
+    const roll = () => {
+      for(let tr = 0; tr < 6; tr++){
+        const x = blk.x0 + rng()*(blk.x1-blk.x0), y = blk.y0 + rng()*(blk.y1-blk.y0);
+        if(clear(x, y)) return { x, y };
+      }
+      return null;
+    };
     const nPlanter = 2 + Math.floor(rng()*2);
     for(let k=0;k<nPlanter;k++){
-      const x = blk.x0 + rng()*(blk.x1-blk.x0), y = blk.y0 + rng()*(blk.y1-blk.y0);
-      vq.push({ depth:x+y, fn:(g,t)=>this.scatterBlockProp(g, x, y, "planter", t) });
+      const sp = roll(); if(!sp) continue;
+      vq.push({ depth:sp.x+sp.y, fn:(g,t)=>this.scatterBlockProp(g, sp.x, sp.y, "planter", t) });
     }
     const nBench = 1 + Math.floor(rng()*2);
     for(let k=0;k<nBench;k++){
-      const x = blk.x0 + rng()*(blk.x1-blk.x0), y = blk.y0 + rng()*(blk.y1-blk.y0);
-      vq.push({ depth:x+y, fn:(g,t)=>this.scatterBlockProp(g, x, y, "bench", t) });
+      const sp = roll(); if(!sp) continue;
+      vq.push({ depth:sp.x+sp.y, fn:(g,t)=>this.scatterBlockProp(g, sp.x, sp.y, "bench", t) });
     }
     this.queueStreetFurniture(vq, blk, excludeEdges);
   }
