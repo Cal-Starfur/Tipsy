@@ -111,6 +111,10 @@
     tail: 1.5,    // run-out after the last cone, in T2
     vmul: 2.00,   // top speed as a multiple of delivery's 0.225. Carries the
                   // jump ballistics and the spacing floor with it — see V_BASE.
+    grip: 1.00,   // cancels the speed multiplier's share of corner tilt.
+                  // Cornering tilt goes with v², so 2x speed is 4x tilt —
+                  // at 1.0 this removes exactly the excess and corners feel
+                  // like delivery-speed corners; at 0 it's raw physics.
     clean:10.0,   // how far PAST the finish the street stays swept, in T2. The
                   // corridor used to end 2 T2 after the last gate, which is the
                   // size of the COURSE — the frame is the size of the CAMERA.
@@ -1552,6 +1556,31 @@
      (onPre pins speed anyway). Braking untouched: shedding 0.45 to a
      corner-survivable 0.25 still costs roughly one tile, which is the
      demand the un-compensated corner tilt is built on. */
+  /* ============ THE GRIP FOLLOWS THE CEILING TOO ============
+     slThrottleBoost above made the cap reachable; reaching it made every
+     corner a crash. The game's cornering tilt is v² · CORNER_TILT_COEF ·
+     taper · dt · TILT_SENS — quadratic in speed, so vmul 2.0 is 4x the
+     tilt of delivery and the spring never had a chance. The dial removes
+     the multiplier's share: subtracting the fraction (1 − 1/vmul²) of
+     the game's own contribution, recomputed here term for term, leaves
+     exactly the baseline tilt at cap speed — corners at 2x feel like
+     corners at 1x. SL.grip blends it: 1 is full compensation, 0 is raw
+     physics for anyone who wants the original dare. Same postupdate
+     pattern and the same 34ms dt clamp as the boost; a one-frame dt
+     disagreement with the game's own integrator shades a feel dial, not
+     a geometry invariant. */
+  function slGripComp(dt){
+    if (run.phase !== 'live' || scene.state !== 'play') return;
+    const seg = scene.segAt(scene.botS);
+    if (!seg || seg.type !== 'arc') return;
+    const g2 = SL.grip * (1 - 1/(SL.vmul*SL.vmul));
+    if (g2 <= 0) return;
+    const prog = Phaser.Math.Clamp((scene.botS - seg.s0)/(seg.s1 - seg.s0), 0, 1);
+    const taper = prog < 0.4 ? 1 : Phaser.Math.Linear(1, 0.35, (prog - 0.4)/0.6);
+    const v = scene.corneringSpeedSmooth;
+    scene.tilt -= seg.sign * v*v * CORNER_TILT_COEF * taper * dt * TILT_SENS * g2;
+  }
+
   function slThrottleBoost(dt){
     if (run.phase !== 'live' || scene.state !== 'play') return;
     if (scene.throttle !== 1 || scene.hjAir) return;
@@ -1564,6 +1593,7 @@
     try { slJudge(); } catch(e){ console.log('slJudge', e); }
     try { slFlight(Math.min(delta, 34)); } catch(e){ console.log('slFlight', e); }
     try { slThrottleBoost(Math.min(delta, 34)); } catch(e){ console.log('slThrottleBoost', e); }
+    try { slGripComp(Math.min(delta, 34)); } catch(e){ console.log('slGripComp', e); }
 
     try { slHoldTraffic(time, Math.min(delta, 34)); } catch(e){ console.log('slHoldTraffic', e); }
   };
@@ -1639,7 +1669,9 @@
     { key:'tail',   label:'run-out',       unit:'tiles', min:1,   max:8,   step:0.5,
       help:'road between the last gate and the finish tape.' },
     { key:'vmul',   label:'top speed',     unit:'x normal', min:1, max:2.5, step:0.05,
-      help:'raises the speed ceiling. Jump ballistics and the gate spacing floor follow it; corner tilt does not, so corners need braking.' },
+      help:'raises the speed ceiling. Jump ballistics and the gate spacing floor follow it; corner tilt follows only as far as cornering grip allows.' },
+    { key:'grip',   label:'cornering grip', unit:'',     min:0,   max:1,   step:0.05,
+      help:'cancels the extra corner tilt that comes with top speed. 1 corners like normal speed; 0 is raw physics — tip city.' },
     { key:'clean',  label:'swept ahead',   unit:'tiles', min:0,   max:24,  step:1,
       help:'how far past the finish the street is emptied. Sized to what the camera shows, not to the course.' },
     { key:'pen',    label:'cone penalty',  unit:'sec',   min:0.5, max:5,   step:0.5,
