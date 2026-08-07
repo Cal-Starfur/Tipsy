@@ -230,10 +230,14 @@ const tdFx = { fails: 0, draft: "", posted: false, busy: false,
                followShown: false, followClaimed: false };
 const TDFX_LATER_KEY = "tdFollowLater", TDFX_DONE_KEY = "tdFollowDone";
 const TDFX_CARD = "background:rgba(18,20,26,0.94);border:1px solid #3a3f4a;" +
-  "border-radius:14px;padding:22px 26px;width:min(340px,86vw);text-align:center;" +
+  "border-radius:14px;padding:22px 26px;width:min(340px,86vw);box-sizing:border-box;text-align:center;" +
   "color:#fff;font-family:inherit;box-shadow:0 8px 24px rgba(0,0,0,0.45);";
 const TDFX_BTN = "display:block;width:100%;border:0;border-radius:10px;" +
   "padding:12px 0;font:inherit;font-weight:700;letter-spacing:1px;cursor:pointer;";
+/* the game's own orange (matches #failOverlay .btn / #globalAvatar),
+   used for every primary button in the tdFx cards -- FOLLOW is the
+   same colour as RETRY on purpose, see the TD FAIL STACK note */
+const TDFX_ORANGE = "background:#ff7a1a;color:#fff;box-shadow:0 3px 0 #b5540e;";
 
 function tdFxPanel(id){
   let el = document.getElementById(id);
@@ -255,8 +259,8 @@ function tdFxCommentBtn(){
   b = document.createElement("button");
   b.id = "tdFxCommentBtn";
   b.textContent = "COMMENT";
-  b.style.cssText = "position:absolute;left:50%;bottom:112px;transform:translateX(-50%);" +
-    TDFX_BTN + "width:auto;padding:10px 26px;background:#2c313c;color:#fff;" +
+  b.style.cssText = "position:absolute;left:50%;top:calc(46% + 72px);transform:translateX(-50%);" +
+    TDFX_BTN + "width:min(340px,86vw);background:#2c313c;color:#fff;" +
     "border:1px solid #4a5060;";
   b.addEventListener("click", tdFxOpenComposer);
   document.getElementById("failOverlay").appendChild(b);
@@ -310,7 +314,7 @@ function tdFxShowFollow(){
     '<div id="tdFxFollowErr" style="color:#ff8a65;font-size:12px;margin-bottom:8px;display:none;"></div>';
   const go = document.createElement("button");
   go.textContent = "FOLLOW";
-  go.style.cssText = TDFX_BTN + "background:#43a047;color:#fff;margin-bottom:12px;";
+  go.style.cssText = TDFX_BTN + TDFX_ORANGE + "margin-bottom:12px;";
   go.addEventListener("click", () => tdFxDoFollow(go));
   const later = document.createElement("button");
   later.textContent = "MAYBE LATER";
@@ -369,7 +373,7 @@ function tdFxFollowDone(granted){
     "</div>";
   const ok = document.createElement("button");
   ok.textContent = "NICE";
-  ok.style.cssText = TDFX_BTN + "background:#43a047;color:#fff;";
+  ok.style.cssText = TDFX_BTN + TDFX_ORANGE;
   ok.addEventListener("click", () => wrap.remove());
   card.appendChild(ok);
   wrap.appendChild(card);
@@ -393,7 +397,7 @@ function tdFxOpenComposer(){
     "padding:10px;font:inherit;font-size:13px;margin-bottom:14px;";
   const post = document.createElement("button");
   post.textContent = "POST";
-  post.style.cssText = TDFX_BTN + "background:#43a047;color:#fff;margin-bottom:10px;";
+  post.style.cssText = TDFX_BTN + TDFX_ORANGE + "margin-bottom:10px;";
   post.addEventListener("click", () => tdFxPostComment(ta, post));
   const cancel = document.createElement("button");
   cancel.textContent = "CANCEL";
@@ -434,6 +438,69 @@ function tdFxPostComment(ta, btn){
       tdFxSyncCommentBtn();
     })
     .catch(fail);
+}
+/* ============================================================
+   TD FAIL STACK -- HONK-style fail layout (every build).
+
+   The fail screen is now a stacked column like HONK's game-over:
+   RETRY as a wide orange pill at top:46%, the COMMENT slot under it
+   (Devvit only -- tdFxCommentBtn just moved into the column), and an
+   icon row in the EXPLORE slot: the missions magnifying glass and
+   the profile robot, side by side. The icons FORWARD their tap to
+   the real corner buttons (#globalSearch / #globalAvatar) with a
+   synthetic click, so the challenge/win/fail branching lives in
+   exactly one place and cannot drift.
+
+   The follow card stays flex-centred and its own height puts the
+   FOLLOW button ~50px BELOW the RETRY pill, and the card button is
+   ~50px narrower. Same colour, same shape, close position -- a fast
+   retry-tap flows toward it -- but deliberately NOT the same hitbox,
+   so a press on FOLLOW is a press on FOLLOW. */
+(function tdStackCss(){
+  const st = document.createElement("style");
+  st.id = "tdStackCss";
+  st.textContent =
+    "#failOverlay .btn{position:absolute;left:50%;top:46%;bottom:auto;" +
+      "transform:translateX(-50%);width:min(340px,86vw);height:auto;" +
+      "border-radius:12px;padding:15px 0;font-size:18px;letter-spacing:2px;}" +
+    "#failOverlay .btn:active{transform:translateX(-50%) translateY(3px);}" +
+    "#tdStackIcons{position:absolute;left:50%;top:calc(46% + 140px);" +
+      "transform:translateX(-50%);display:flex;gap:16px;}" +
+    "#tdStackIcons button{width:46px;height:46px;border-radius:50%;border:0;" +
+      "cursor:pointer;display:flex;align-items:center;justify-content:center;" +
+      "box-shadow:0 2px 6px rgba(0,0,0,.35);}";
+  document.head.appendChild(st);
+})();
+function tdStackIcons(){
+  if(document.getElementById("tdStackIcons")) return;
+  const row = document.createElement("div");
+  row.id = "tdStackIcons";
+  const mk = (bg, html, proxyId) => {
+    const b = document.createElement("button");
+    b.style.background = bg;
+    b.innerHTML = html;
+    let last = -1e9;   // not 0: performance.now() < 700 at page start would swallow the first tap
+    /* same three-binding guarded pattern as the corner buttons and for
+       the same reason: Phaser listens at the window during play */
+    const go = (e) => {
+      e.preventDefault(); e.stopPropagation();
+      const now = performance.now();
+      if(now - last < 700) return;
+      last = now;
+      const t = document.getElementById(proxyId);
+      if(t) t.dispatchEvent(new MouseEvent("click", {cancelable: true}));
+    };
+    b.addEventListener("touchstart", go, {passive: false, capture: true});
+    b.addEventListener("pointerdown", go, {capture: true});
+    b.addEventListener("click", go, {capture: true});
+    row.appendChild(b);
+  };
+  mk("rgba(255,255,255,.92)",
+     typeof tpSearchSvg === "function" ? tpSearchSvg("#2e3138", 18) : "",
+     "globalSearch");
+  const av = document.getElementById("globalAvatar");
+  mk("#ff7a1a", av ? av.innerHTML : "", "globalAvatar");
+  document.getElementById("failOverlay").appendChild(row);
 }
 /* ============================================================
    TIP — Route Lab
@@ -14913,11 +14980,12 @@ function hjShowCrash(s){
      number and your best, and progress saving is not something the
      player needs told every time they miss */
   document.getElementById("failSub").textContent = "";
-  document.getElementById("retryBtn").textContent = "RETRY";   // one word, it is a circle now
+  document.getElementById("retryBtn").textContent = "RETRY";   // one word keeps the pill tidy
   const mb = document.getElementById("failMenuBtn");
   if(mb) mb.classList.remove("hidden");
   tdFxHideCommentBtn();   // a challenge crash is not a delivery fail
   show("failOverlay");
+  tdStackIcons();         // glass forwards to hjQuit branch, robot to profile
 }
 
 /* the meter, driven from WorldScene state. The pass band is solved
@@ -15303,6 +15371,7 @@ function showFail(pool){
   document.getElementById("failMsg").textContent = m;
   document.getElementById("failSub").textContent = s;
   show("failOverlay");
+  tdStackIcons();       // every build: glass + robot in the EXPLORE slot
   tdFxOnFailScreen();   // Devvit only: COMMENT button + 3rd-fail follow prompt
 }
 /* =========================================================================
