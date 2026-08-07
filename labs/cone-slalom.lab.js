@@ -1325,6 +1325,10 @@
           scene.hjAir = {
             lipS: kk.lip, R, T, vz, g, z: SL.kLift, z0: SL.kLift,
             idx: 0, kk, clipped: false,
+            /* the launch speed, frozen for the whole flight — see the
+               onPre pin. Only lab flights carry v0, so the guard there
+               can never touch the hydrant jump's own air state. */
+            v0: v,
           };
           run.msg = 'AIR'; run.msgT = performance.now();
           break;
@@ -1454,6 +1458,20 @@
     /* the speed the crash will inherit — stashed BEFORE update() runs,
        because the tilt-fail zeroes this.speed on the very frame it tips */
     if (scene.state === 'play') slPrevSpeed = scene.speed;
+    /* ============ AIRBORNE MEANS COMMITTED ============
+       The game's throttle integration kept running mid-flight: release
+       and the speed decayed, so he floated through the same arc in slow
+       motion; hold and he rushed it. The landing spot never moved — R is
+       priced at the lip, which is real projectile behaviour — but the
+       hang time warping with the throttle is what read as strange
+       physics. Real ballistics freeze horizontal speed at launch, so
+       that is what happens: pinned every frame before update() can
+       integrate, restored to normal physics at touchdown by the pin
+       simply no longer firing. The jump is decided ENTIRELY by the
+       speed you bring to the lip — lift early on the run-up and
+       friction bleeds it and you land short; once the wheels leave the
+       wedge, the throttle is scenery. */
+    if (scene.hjAir && scene.hjAir.v0 !== undefined) scene.speed = scene.hjAir.v0;
     /* runT drives the 1400ms lid-and-bag loading beat. Jump past it so the
        course never opens with a delivery animation it has no delivery for. */
     if (scene.runT < LOAD_ART.ms + 1) scene.runT = LOAD_ART.ms + 1;
