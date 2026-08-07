@@ -639,7 +639,11 @@
     ch.lines.forEach((L, i) => {
       const isFirst = i === 0, isLast = i === ch.lines.length - 1;
       const from = isFirst ? spawnS + SL.lead * T2 : L.s0 + SL.turn * T2;
-      const to   = isLast  ? L.s1 - SL.tail * T2   : L.s1 - SL.turn * T2;
+      /* the last leg ends at the CARPET now, and stopping there from cap
+         speed needs road: full braking from vmul 2.0 measures ~3.3
+         tiles, so the last gate stands 5 clear of the door. */
+      const to   = isLast  ? Math.min(L.s1 - SL.tail * T2, scene.route.doorS - 5 * T2)
+                           : L.s1 - SL.turn * T2;
       let n = 0;
       for (let at = from; at <= to && k < SL.n; n++){
         /* Jump the whole span plus turn clearance rather than stepping across
@@ -926,15 +930,23 @@
     };
     const worldOf = (s, off) => segsWorldOf(scene.route.segs, s, off);
     const before = scene.route.hazards.length + (scene.route.props || []).length;
+    /* the lap is exempt from both sweeps: everything past loop.sCut is
+       the go-around's dressing — the same hazards generateRoute placed
+       there, William included — and clearing the penalty lap would turn
+       the second chance into a victory parade. -100 matches the
+       boundary generateRoute's own lap-clear uses. */
+    const lapKeep = s => scene.route.loop && s > scene.route.loop.sCut - 100;
     scene.route.hazards = scene.route.hazards.filter(h => {
-      if (h.slRole || STRUCTURE[h.type]) return true;
+      if (h.slRole || STRUCTURE[h.type] || h.type === 'william') return true;
       if (h.s === undefined) return true;
+      if (lapKeep(h.s)) return true;
       if (inRange(h.s)) return false;
       const wp = worldOf(h.s, laneOffset(h.row ?? 1));
       return !nearCorridor(wp.x, wp.y);
     });
     scene.route.props = (scene.route.props || []).filter(pr => {
       if (pr.s === undefined) return true;
+      if (lapKeep(pr.s)) return true;
       if (inRange(pr.s)) return false;
       const wp = worldOf(pr.s, pr.roadOffset ?? 0);
       return !nearCorridor(wp.x, wp.y);
@@ -969,6 +981,7 @@
        to drive. */
     scene.state = 'play'; scene.tipT = 0; scene.damage = 0;
     scene.hjSkidV = 0; scene.hjTipT = 0; scene.hjFace = false; slPrevState = 'play'; slPrevSpeed = 0;
+    run.missedOnce = false;
     scene.hopAnim = null; scene.hopYaw = 0; scene.hopKick = 0;
     slQuietOpening();
     run.done = false;
@@ -1061,18 +1074,29 @@
       }
     }
 
-    /* Break the tape rather than pass an s value. segCross tests the robot's
-       actual travel segment this frame against the ribbon, so a fast finish
-       cannot tunnel through it between frames — which is the whole reason the
-       crime scene does it this way. */
-    if (!run.done && c.finishTape){
-      const p0 = { x: run.lastX !== undefined ? run.lastX : scene.botX,
-                   y: run.lastY !== undefined ? run.lastY : scene.botY };
-      const p1 = { x: scene.botX, y: scene.botY };
-      if (segCross(p0, p1, c.finishTape.a, c.finishTape.b)){
-        c.finishTape.broken = true;
-        c.finishTape.brokeAt = performance.now();
+    /* ============ THE FINISH IS A DELIVERY ============
+       No tape. The run ends the way every route ends: stopped on the red
+       carpet, in the game's own win window, tested by the game's own win
+       check — the lab just watches state flip to 'won'. Miss the stop and
+       the game's own loop machinery takes over: loop.missed retargets the
+       door one lap ahead and the street carries him around the block,
+       William and all. The lab's only additions are the words and the
+       limit: ONE lap. The retargeted door is the last chance — sail past
+       it by the width of the win window and the run fails right there. */
+    if (!run.done && scene.state === 'won'){
+      run.done = true;
+      slShowCard();
+    }
+    const lp2 = scene.route.loop;
+    if (!run.done && lp2){
+      if (lp2.missed && !run.missedOnce){
+        run.missedOnce = true;
+        run.msg = 'missed the stop — once around the block';
+        run.msgT = performance.now();
+      }
+      if (run.missedOnce && scene.state === 'play' && scene.botS > scene.route.doorS + 60){
         run.done = true;
+        run.fail = 'missed the delivery twice';
         slShowCard();
       }
     }
@@ -1663,6 +1687,13 @@
      copying zero constants out of hop(): the alternative needed 0.16 or
      4.5 written here a second time, which is how the crossing bug
      happened. Restored to the original method in slOff. */
+  /* the stock win/fail overlays belong to the delivery; the lab has its
+     own card. Muzzled here, restored in slOff. The win STATE still fires
+     — that is the signal the finish watches — only the overlay is
+     silenced. */
+  const slOrigShowWin = window.showWin, slOrigShowFail = window.showFail;
+  window.showWin = () => {}; window.showFail = () => {};
+
   const slOrigHop = scene.hop.bind(scene);
   scene.hop = (dir) => {
     const before = scene.hopKick;
@@ -1729,6 +1760,7 @@
     scene.events.off('postupdate', onPost);
     slUnstampFurnish();
     scene.hop = slOrigHop;
+    window.showWin = slOrigShowWin; window.showFail = slOrigShowFail;
     scene.mode = origMode;
     scene.hjSlabZ = slSlabZ0;
     if (scene._slCap !== undefined){
@@ -1738,6 +1770,7 @@
     const r = scene.route;
     if (r && r._slDoor !== undefined){
       r.doorS = r._slDoor; r.loop = r._slLoop;
+      if (r._slPar !== undefined){ r.parMs = r._slPar; delete r._slPar; }
       delete r._slDoor; delete r._slLoop; delete r._slEndS;
     }
     delete scene._slRestore;
@@ -2044,14 +2077,27 @@
     }
     if (scene._slCap === undefined) scene._slCap = scene.speedCap || 0;
     scene.speedCap = vTop();
-    r.loop  = null;
-    /* Just past the end of the road, not absurdly past it: doorS is also read
-       by queueHousingEdgeAt as groundZ(doorS) for the address door's height,
-       and a wild value there clamps to the last tile and lifts a door the
-       course never visits. totalLen + 4 tiles puts the win window ~334 units
-       beyond the furthest s any leg can reach, which is unreachable, while
-       keeping the elevation sample honest. */
-    r.doorS = r.totalLen + 4 * T2;
+    /* ============ THE DOOR IS THE FINISH NOW ============
+       This block used to null the loop and push doorS off the end of the
+       road, and its comment said why: 'a timed run has no door and no
+       second chance.' The design inverted (2026-08-07, Sir's call): the
+       run ends like a delivery — stop on the red carpet — and missing it
+       buys exactly one trip around the block, William included. Both of
+       those are the game's OWN machinery: update()'s win test (34/-60
+       window, speed under 0.02, upright) IS the stop-on-the-carpet rule;
+       route.loop IS the go-around, welded by generateRoute around this
+       very block, with William spawned on it. So the door and the loop
+       stay live, reset per run so a previous miss can't leak its
+       retarget into a fresh attempt. The lab constrains to one lap and
+       owns the endings; showWin/showFail are muzzled below so the
+       delivery overlays can't take the screen. parMs is parked out of
+       reach for the same reason — the delivery cancel timer has no
+       business ending a lab run. */
+    r.doorS = r._slDoor;
+    r.loop = r._slLoop;
+    if (r.loop){ r.loop.missed = false; }
+    if (r._slPar === undefined) r._slPar = r.parMs;
+    r.parMs = 1e9;
   }
 
   /* No seed seek. With the heading filter gone there is no shape to hunt for —
