@@ -119,7 +119,7 @@
                   // a weave, not a braking test. So above 1.0 the dial keeps
                   // going: 2.0 removes corner lean entirely. 1.6 default
                   // keeps some lean in the picture without the funeral.
-    clean:10.0,   // how far PAST the finish the street stays swept, in T2. The
+    clean:16.0,   // how far PAST the finish the street stays swept, in T2. The
                   // corridor used to end 2 T2 after the last gate, which is the
                   // size of the COURSE — the frame is the size of the CAMERA.
     pen:  2.0,    // seconds added per knocked cone / missed side
@@ -895,10 +895,50 @@
     const to   = Math.max(course.finishS, chainEndS) + SL.clean * T2;
     const inRange = v => v >= from && v <= to;
     const STRUCTURE = { sidewalkend:1, sidewalkbegin:1, sidewalkbeginTurn:1, grade:1 };
+    /* ============ THE WORLD SWEEP — THE S-WINDOW'S BLIND SPOTS ============
+       The s-window has exactly two, and the finish tape found both on
+       device (bench audit, 2026-01-01): the corridor's own street keeps
+       going past `clean` with its clutter intact (survivors at s 24.7k
+       against a window ending ~24k), and the route's CLOSING stretch
+       folds spatially back beside the finish block (a trash bag 196
+       units from the tape carrying s=34.3k of a 34.5k route). Both are
+       route-s far and pixels near — the exact fold geometry the file's
+       own history already documents s-windows being blind to.
+
+       So the arrays get the same treatment the furniture already has: a
+       world-distance test against the swept corridor itself. One set of
+       sample points, computed here from the same [from, to] the window
+       uses and through the real posAt, serves the test; anything
+       non-structure whose own world position (its s and row through
+       segsWorldOf — the real lane frame, not an approximation) lands
+       within a street's width of any sample is gone, whatever its s
+       says. 820 is ROAD_HALF + the walk band + margin: both frontages
+       of the corridor street, and never the parallel street a full
+       block away. */
+    const sweepPts = [];
+    for (let ss = from; ss <= to; ss += T2) sweepPts.push(scene.posAt(ss));
+    const nearCorridor = (wx, wy) => {
+      for (const q of sweepPts){
+        const dx = wx - q.x, dy = wy - q.y;
+        if (dx*dx + dy*dy < 820*820) return true;
+      }
+      return false;
+    };
+    const worldOf = (s, off) => segsWorldOf(scene.route.segs, s, off);
     const before = scene.route.hazards.length + (scene.route.props || []).length;
-    scene.route.hazards = scene.route.hazards.filter(h =>
-      h.slRole || STRUCTURE[h.type] || !inRange(h.s));
-    scene.route.props   = (scene.route.props || []).filter(pr => !inRange(pr.s));
+    scene.route.hazards = scene.route.hazards.filter(h => {
+      if (h.slRole || STRUCTURE[h.type]) return true;
+      if (h.s === undefined) return true;
+      if (inRange(h.s)) return false;
+      const wp = worldOf(h.s, laneOffset(h.row ?? 1));
+      return !nearCorridor(wp.x, wp.y);
+    });
+    scene.route.props = (scene.route.props || []).filter(pr => {
+      if (pr.s === undefined) return true;
+      if (inRange(pr.s)) return false;
+      const wp = worldOf(pr.s, pr.roadOffset ?? 0);
+      return !nearCorridor(wp.x, wp.y);
+    });
     if (scene.route.crime && inRange(scene.route.crime.s)) scene.route.crime = null;
     slStampFurnish(from, to);
     course.cleared = before - (scene.route.hazards.length + scene.route.props.length);
