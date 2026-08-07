@@ -80,6 +80,9 @@ export type TpProfileRsp = {
    *  missionsCompleted/hjBest so progress follows a player across
    *  devices instead of living only in that browser's localStorage. */
   missions: Record<string, number>
+  /** Whether this account already claimed the one-time follow bonus --
+   *  lets the client skip the 3rd-fail follow prompt entirely. */
+  followBonusClaimed: boolean
 }
 /** skinId must be a 'purchase'-type skin in the server's own TS_SKINS
  *  catalog (tpcatalog.ts) -- price is never taken from the client. */
@@ -103,7 +106,8 @@ export type ClaimTrophyRewardRsp = {owned: string[]; skinId: string}
  *  played". No body: the server keys the count on its own todayUTC(),
  *  so there is nothing for the client to supply or forge. */
 export type CountPlayRsp = {plays: number}
-/** A failed run, reported so the app account can comment on the post.
+/** A failed run, reported so the server can compose a DRAFT comment
+ *  the player may then edit and post themselves (see PostFailComment).
  *  cause is an ID from a fixed set the SERVER owns the copy for (see
  *  server.ts FAIL_CAUSE_COPY) -- the client never supplies prose for
  *  it. address/hood ARE client strings (only the client knows the
@@ -119,9 +123,25 @@ export type SubmitFailReq = {
   ms: number
   damage: number
 }
-/** posted:false is the normal, uninteresting outcome for a logged-out
- *  viewer or a run outside a post context -- not an error. */
-export type SubmitFailRsp = {posted: boolean}
+/** text is the composed draft; NOTHING is posted by this endpoint any
+ *  more (Devvit user-actions rules: no automated actions). An empty
+ *  text is the normal, uninteresting outcome for a logged-out viewer
+ *  or a run outside a post context -- not an error. */
+export type SubmitFailRsp = {text: string}
+/** The player's (possibly edited) fail comment, posted as the USER in
+ *  reply to the pinned anchor -- only ever sent by an explicit
+ *  COMMENT -> POST press in the fail overlay. text is clamped and
+ *  control-char-stripped server-side; posted:false is the normal
+ *  outcome for a logged-out viewer or a run outside a post context. */
+export type PostFailCommentReq = {text: string}
+export type PostFailCommentRsp = {posted: boolean}
+/** Subscribes the pressing user to the current subreddit (enabled by
+ *  SUBSCRIBE_TO_SUBREDDIT in devvit.json's asUser) and grants the
+ *  one-time follow bonus. joined:true + granted:false means the bonus
+ *  was already claimed (db.ts dbClaimFollowBonus's hSetNX is the real
+ *  gate). walletCents is the post-call balance so the client can
+ *  update its wallet without a second profile fetch. */
+export type FollowRsp = {joined: boolean; granted: boolean; walletCents: number}
 /** Reports progress on a side mission. missionId must exist in the
  *  server's own TS_MISSIONS (tpcatalog.ts); best is a high-water count
  *  (cleared jumps for jump-hydrant, 1 for a pass/fail mission) and is
@@ -152,6 +172,8 @@ export const Endpoint = {
   CompleteMission: 'api/tipsy/mission/complete',
   CountPlay: 'api/tipsy/play',
   SubmitFail: 'api/tipsy/fail',
+  PostFailComment: 'api/tipsy/fail/comment',
+  Follow: 'api/tipsy/follow',
   OnAppInstall: 'internal/on/app/install',
   OnMenuNewPost: 'internal/on/menu/new-post',
   OnAccountDelete: 'internal/on/account/delete',
@@ -170,12 +192,11 @@ export const EndpointMethod = {
   [Endpoint.CompleteMission]: 'POST',
   [Endpoint.CountPlay]: 'POST',
   [Endpoint.SubmitFail]: 'POST',
+  [Endpoint.PostFailComment]: 'POST',
+  [Endpoint.Follow]: 'POST',
   [Endpoint.OnAppInstall]: 'POST',
   [Endpoint.OnMenuNewPost]: 'POST',
   [Endpoint.OnAccountDelete]: 'POST',
   [Endpoint.OnSchedulerDailyPost]: 'POST',
   [Endpoint.OnSchedulerDeletedUserSweep]: 'POST',
 } as const satisfies {[endpoint: string]: 'GET' | 'POST'}
-
-
-
