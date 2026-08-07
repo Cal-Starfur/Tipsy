@@ -852,10 +852,14 @@ function reportFail(s, cause){
      below must not leave a previous run's draft on the button */
   tdFx.draft = "";
   tdFx.posted = false;
+  tdFx.draftWhy = "pending";   // every exit below names itself: 5-tap debug reads this
   tdFxHideCommentBtn();
-  if(!s || !s.route) return;
-  if(s.mode === "challenge") return;
-  if(s.route.dateStr !== clientTodayUTC()) return;
+  if(!s || !s.route){ tdFx.draftWhy = "skipped: no route"; return; }
+  if(s.mode === "challenge"){ tdFx.draftWhy = "skipped: challenge"; return; }
+  if(s.route.dateStr !== clientTodayUTC()){
+    tdFx.draftWhy = "skipped: replay (" + s.route.dateStr + " != " + clientTodayUTC() + ")";
+    return;
+  }
   /* progress is measured pickup -> door, not 0 -> door: the robot
      starts AT the shop, so anchoring at 0 would report free distance
      nobody drove. */
@@ -875,9 +879,18 @@ function reportFail(s, cause){
       damage: s.damage
     })
   })
-    .then(r => r.ok ? r.json() : null)
-    .then(d => { tdFx.draft = (d && d.text) || ""; tdFxSyncCommentBtn(); })
-    .catch(()=>{});
+    .then(r => {
+      tdFx.draftWhy = "http " + r.status;
+      return r.ok ? r.json() : null;
+    })
+    .then(d => {
+      tdFx.draft = (d && d.text) || "";
+      if(tdFx.draft) tdFx.draftWhy = "ok (" + tdFx.draft.length + " chars)";
+      else if(d) tdFx.draftWhy = "empty text (server: no post id or not signed in)";
+      tdFxSyncCommentBtn();
+      tdFxDbgSync();
+    })
+    .catch(() => { tdFx.draftWhy = "network error"; tdFxDbgSync(); });
 }
 
 /* ============================================================
@@ -903,7 +916,8 @@ function reportFail(s, cause){
    the COMMENT button and never count toward the prompt. No emoji
    anywhere in this UI by design. */
 const tdFx = { fails: 0, draft: "", posted: false, busy: false,
-               followShown: false, followClaimed: false };
+               followShown: false, followClaimed: false,
+               draftWhy: "no fail yet", debug: false };
 const TDFX_LATER_KEY = "tdFollowLater", TDFX_DONE_KEY = "tdFollowDone";
 const TDFX_CARD = "background:rgba(18,20,26,0.94);border:1px solid #3a3f4a;" +
   "border-radius:14px;padding:22px 26px;width:min(340px,86vw);box-sizing:border-box;text-align:center;" +
@@ -953,6 +967,10 @@ function tdFxSyncCommentBtn(){
   if(!IS_DEVVIT_BUILD) return;
   const overlay = document.getElementById("failOverlay");
   if(!overlay || overlay.classList.contains("hidden")) return;
+  /* the draft fetch can resolve AFTER the follow screen opened; its
+     sync callback must not drop the COMMENT button into the slot
+     MAYBE LATER is using */
+  if(document.getElementById("tdFxFollowGo")){ tdFxHideCommentBtn(); return; }
   const b = tdFxCommentBtn();
   b.style.display = (tdFx.draft && !tdFx.posted) ? "block" : "none";
   b.disabled = false;
@@ -961,7 +979,10 @@ function tdFxSyncCommentBtn(){
 function tdFxOnFailScreen(){
   if(!IS_DEVVIT_BUILD) return;
   tdFx.fails++;
+  tdFxFollowRestore();   // a fail while the offer was up starts clean
   tdFxSyncCommentBtn();
+  tdFxDbgSync();
+  if(tdFx.debug){ tdFxShowFollow(); return; }   // debug: preview on every fail
   tdFxMaybeFollow();
 }
 function tdFxMaybeFollow(){
@@ -976,33 +997,61 @@ function tdFxMaybeFollow(){
   tdFx.followShown = true;   // once per session, however it's answered
   tdFxShowFollow();
 }
+/* The follow screen is the FAIL SCREEN wearing different words -- no
+   panel, no dim, no card, per design: it should read exactly like the
+   rest of the game over. The headline and sub swap to the offer, the
+   retry pill hides (visibility, so nothing reflows) and an
+   identically-styled orange FOLLOW pill takes the SAME slot; MAYBE
+   LATER takes the COMMENT slot; the glass + robot row stays put.
+   Placement note, on the record: FOLLOW in the exact retry slot was
+   an explicit ask (earlier stance was offset hitboxes) -- the opt-out
+   stays one tap away and the headline visibly changes, which is the
+   deniability that remains. */
+function tdFxSwapText(msg, sub){
+  const m = document.getElementById("failMsg"), s = document.getElementById("failSub");
+  if(tdFx.savedMsg === undefined){ tdFx.savedMsg = m.textContent; tdFx.savedSub = s.textContent; }
+  m.textContent = msg; s.textContent = sub;
+}
+function tdFxFollowRestore(){
+  const m = document.getElementById("failMsg"), s = document.getElementById("failSub");
+  if(tdFx.savedMsg !== undefined){ m.textContent = tdFx.savedMsg; s.textContent = tdFx.savedSub; }
+  tdFx.savedMsg = undefined; tdFx.savedSub = undefined;
+  const r = document.getElementById("retryBtn");
+  if(r) r.style.visibility = "";
+  const go = document.getElementById("tdFxFollowGo"); if(go) go.remove();
+  const later = document.getElementById("tdFxLater"); if(later) later.remove();
+  const err = document.getElementById("tdFxFollowErr"); if(err) err.remove();
+  tdFxSyncCommentBtn();
+}
 function tdFxShowFollow(){
-  const wrap = tdFxPanel("tdFxFollow");
-  wrap.innerHTML = "";
-  const card = document.createElement("div");
-  card.style.cssText = TDFX_CARD;
-  card.innerHTML =
-    '<div style="font-weight:700;letter-spacing:1px;margin-bottom:14px;">FOLLOW R/TIPSEY</div>' +
-    '<div style="display:inline-block;background:#2c313c;border-radius:20px;padding:4px 16px;' +
-      'font-size:12px;letter-spacing:2px;margin-bottom:14px;">FREE</div>' +
-    '<div style="font-size:34px;font-weight:700;margin-bottom:2px;">+$25.00</div>' +
-    '<div style="font-size:12px;letter-spacing:2px;color:#9aa3b2;margin-bottom:18px;">BONUS TIPS</div>' +
-    '<div id="tdFxFollowErr" style="color:#ff8a65;font-size:12px;margin-bottom:8px;display:none;"></div>';
+  tdFxSwapText("Follow r/tipsey.", "FREE  +$25.00 BONUS TIPS");
+  document.getElementById("retryBtn").style.visibility = "hidden";
+  tdFxHideCommentBtn();
+  const overlay = document.getElementById("failOverlay");
+  const err = document.createElement("div");
+  err.id = "tdFxFollowErr";
+  err.style.cssText = "position:absolute;left:50%;top:calc(46% - 26px);" +
+    "transform:translateX(-50%);color:#ff8a65;font-size:12px;display:none;";
   const go = document.createElement("button");
+  go.id = "tdFxFollowGo";
   go.textContent = "FOLLOW";
-  go.style.cssText = TDFX_BTN + TDFX_ORANGE + "margin-bottom:12px;";
+  /* the retry slot, the retry pill's own geometry: #failOverlay .btn
+     rules from tdStackCss apply to anything with class btn in here */
+  go.className = "btn";
   go.addEventListener("click", () => tdFxDoFollow(go));
   const later = document.createElement("button");
+  later.id = "tdFxLater";
   later.textContent = "MAYBE LATER";
-  later.style.cssText = TDFX_BTN +
-    "background:none;color:#9aa3b2;font-size:12px;letter-spacing:2px;padding:6px 0;";
+  later.style.cssText = "position:absolute;left:50%;top:calc(46% + 72px);" +
+    "transform:translateX(-50%);" + TDFX_BTN + "width:min(340px,86vw);" +
+    "background:none;border:0;color:#c9d1de;font-size:12px;letter-spacing:2px;";
   later.addEventListener("click", () => {
     try { localStorage.setItem(TDFX_LATER_KEY, clientTodayUTC()); } catch(e){}
-    wrap.remove();
+    tdFxFollowRestore();
   });
-  card.appendChild(go);
-  card.appendChild(later);
-  wrap.appendChild(card);
+  overlay.appendChild(err);
+  overlay.appendChild(go);
+  overlay.appendChild(later);
 }
 function tdFxDoFollow(btn){
   if(tdFx.busy) return;
@@ -1037,22 +1086,22 @@ function tdFxDoFollow(btn){
     .catch(fail);
 }
 function tdFxFollowDone(granted){
-  const wrap = tdFxPanel("tdFxFollow");
-  wrap.innerHTML = "";
-  const card = document.createElement("div");
-  card.style.cssText = TDFX_CARD;
-  card.innerHTML =
-    '<div style="font-weight:700;letter-spacing:1px;margin-bottom:10px;">FOLLOWED</div>' +
-    '<div style="font-size:14px;color:#c9d1de;margin-bottom:18px;">' +
-    (granted ? "$25.00 in bonus tips added to your wallet."
-             : "Bonus already claimed on this account.") +
-    "</div>";
-  const ok = document.createElement("button");
-  ok.textContent = "NICE";
-  ok.style.cssText = TDFX_BTN + TDFX_ORANGE;
-  ok.addEventListener("click", () => wrap.remove());
-  card.appendChild(ok);
-  wrap.appendChild(card);
+  tdFxSwapText("Followed.",
+    granted ? "$25.00 IN BONUS TIPS ADDED TO YOUR WALLET"
+            : "BONUS ALREADY CLAIMED ON THIS ACCOUNT");
+  const go = document.getElementById("tdFxFollowGo");
+  const later = document.getElementById("tdFxLater");
+  const err = document.getElementById("tdFxFollowErr");
+  if(err) err.remove();
+  if(later) later.remove();
+  if(go){
+    const nice = go.cloneNode(false);   // drops the follow listener
+    nice.id = "tdFxFollowGo";
+    nice.disabled = false;   // the clone copied disabled from FOLLOWING... state
+    nice.textContent = "NICE";
+    nice.addEventListener("click", tdFxFollowRestore);
+    go.replaceWith(nice);
+  }
 }
 function tdFxOpenComposer(){
   if(!tdFx.draft || tdFx.posted) return;
@@ -1144,14 +1193,59 @@ function tdFxPostComment(ta, btn){
       "transform:translateX(-50%);display:flex;gap:16px;}" +
     "#tdStackIcons button{width:46px;height:46px;border-radius:50%;border:0;" +
       "cursor:pointer;display:flex;align-items:center;justify-content:center;" +
-      "box-shadow:0 2px 6px rgba(0,0,0,.35);}";
+      "box-shadow:0 2px 6px rgba(0,0,0,.35);}" +
+    /* the corner pair leaves when the fail screen is up -- the stack
+       carries its own copies -- same disappearing act #zoomBtn does */
+    "body.tdFailUp #globalSearch,body.tdFailUp #globalAvatar{display:none !important;}";
   document.head.appendChild(st);
+  /* failOverlay is shown/hidden from 16+ call sites; watching the class
+     is the one place that sees them all */
+  const fo = document.getElementById("failOverlay");
+  const syncFail = () => document.body.classList.toggle("tdFailUp", !fo.classList.contains("hidden"));
+  new MutationObserver(syncFail).observe(fo, {attributes: true, attributeFilter: ["class"]});
+  syncFail();
 })();
+/* 5 taps on the fail headline inside 3s toggles a debug readout under
+   the icon row (draft status + gate states) and, while on, forces the
+   follow screen on every fail -- display only, no storage is cleared
+   and the server claim flag still rules the money. iPad has no
+   console; this is the console. */
+function tdFxDbgSync(){
+  const el = document.getElementById("tdFxDbg");
+  if(!el) return;
+  if(!tdFx.debug){ el.style.display = "none"; return; }
+  let later = "-", done = "-";
+  try {
+    later = localStorage.getItem(TDFX_LATER_KEY) || "-";
+    done = localStorage.getItem(TDFX_DONE_KEY) || "-";
+  } catch(e){ later = done = "storage blocked"; }
+  el.style.display = "block";
+  el.textContent = "draft: " + tdFx.draftWhy +
+    " | fails: " + tdFx.fails +
+    " | later: " + later + " | done: " + done +
+    " | claimed: " + tdFx.followClaimed;
+}
+function tdFxDbgBind(){
+  if(tdFx.dbgBound) return;
+  tdFx.dbgBound = true;
+  const m = document.getElementById("failMsg");
+  let taps = [], on = false;
+  m.addEventListener("click", () => {
+    const now = performance.now();
+    taps = taps.filter(t => now - t < 3000);
+    taps.push(now);
+    if(taps.length >= 5){
+      taps = [];
+      tdFx.debug = !tdFx.debug;
+      tdFxDbgSync();
+    }
+  });
+}
 function tdStackIcons(){
   if(document.getElementById("tdStackIcons")) return;
   const row = document.createElement("div");
   row.id = "tdStackIcons";
-  const mk = (bg, html, proxyId) => {
+  const mk = (bg, html, proxyId, openOver) => {
     const b = document.createElement("button");
     b.style.background = bg;
     b.innerHTML = html;
@@ -1163,6 +1257,12 @@ function tdStackIcons(){
       const now = performance.now();
       if(now - last < 700) return;
       last = now;
+      /* delivery fail: open the panel OVER the fail screen, so closing
+         it lands back on RETRY. Challenge crash: keep forwarding to the
+         corner button -- there the glass's job is hjQuit (bank progress
+         and leave) and that must stay in one place. */
+      const s = typeof scn === "function" ? scn() : null;
+      if(openOver && !(s && s.mode === "challenge")){ openOver(); return; }
       const t = document.getElementById(proxyId);
       if(t) t.dispatchEvent(new MouseEvent("click", {cancelable: true}));
     };
@@ -1173,10 +1273,18 @@ function tdStackIcons(){
   };
   mk("rgba(255,255,255,.92)",
      typeof tpSearchSvg === "function" ? tpSearchSvg("#2e3138", 18) : "",
-     "globalSearch");
+     "globalSearch", () => tpOpenMissions());
   const av = document.getElementById("globalAvatar");
-  mk("#ff7a1a", av ? av.innerHTML : "", "globalAvatar");
+  mk("#ff7a1a", av ? av.innerHTML : "", "globalAvatar", () => tpOpenProfile());
   document.getElementById("failOverlay").appendChild(row);
+  const dbg = document.createElement("div");
+  dbg.id = "tdFxDbg";
+  dbg.style.cssText = "position:absolute;left:50%;top:calc(46% + 200px);" +
+    "transform:translateX(-50%);width:min(480px,92vw);text-align:center;" +
+    "color:#ffd9a8;font-size:11px;line-height:1.5;display:none;" +
+    "text-shadow:0 1px 2px rgba(0,0,0,0.7);";
+  document.getElementById("failOverlay").appendChild(dbg);
+  tdFxDbgBind();
 }
 /* ============================================================
    TIP — Route Lab
@@ -15713,6 +15821,9 @@ const hjScn = () => scn();
    your progress and leaves. Nothing auto-restarts. */
 function hjShowCrash(s){
   const lvl = s.hjLevel;
+  tdFxFollowRestore();   // BEFORE the crash copy: restore writes the saved
+                         // delivery text back, so run it first or it would
+                         // overwrite the crash line we set below
   document.getElementById("failMsg").textContent =
     (s.hjResult || "MISSED IT").replace(/^BURST A HYDRANT$/, "You burst a hydrant.");
   /* no subtitle — the meter and the mission card already carry the jump
