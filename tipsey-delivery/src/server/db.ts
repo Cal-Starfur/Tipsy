@@ -198,7 +198,8 @@ export async function dbRecordMission(
   | {ok: false; error: string}
 > {
   const def = TS_MISSIONS[missionId]
-  if (!def) return {ok: false, error: `${missionId} is not a recordable mission`}
+  if (!def)
+    return {ok: false, error: `${missionId} is not a recordable mission`}
   const raw = typeof best === 'number' ? Math.floor(best) : Number.NaN
   if (!Number.isFinite(raw) || raw < 1) {
     return {ok: false, error: 'best must be a positive whole number'}
@@ -289,9 +290,10 @@ export async function dbGetAllTimeBest(): Promise<DailyBest> {
  *  it without a second round trip). Corrupt/unparseable entries are
  *  skipped rather than thrown on — defensive only, nothing in this
  *  file is expected to write a bad value here. */
-export async function dbGetHistory(
-  username: string,
-): Promise<{history: {dateStr: string; tip: number; ms: number}[]; allTimeTotal: number}> {
+export async function dbGetHistory(username: string): Promise<{
+  history: {dateStr: string; tip: number; ms: number}[]
+  allTimeTotal: number
+}> {
   const [raw, allTimeScore] = await Promise.all([
     redis.hGetAll(historyKey(username)),
     redis.zScore(ALLTIME_KEY, username),
@@ -299,7 +301,10 @@ export async function dbGetHistory(
   const history = Object.entries(raw)
     .map(([dateStr, json]) => {
       try {
-        const {tipCents, ms} = JSON.parse(json) as {tipCents: number; ms: number}
+        const {tipCents, ms} = JSON.parse(json) as {
+          tipCents: number
+          ms: number
+        }
         return {dateStr, tip: tipCents / 100, ms}
       } catch {
         return null
@@ -333,7 +338,33 @@ export async function dbGetTpProfile(username: string): Promise<TpProfileRsp> {
     owned: ['classic', ...Object.keys(ownedRaw)],
     equipped,
     missions,
+    followBonusClaimed: profile.followBonus === '1',
   }
+}
+
+/** One-time follow bonus, $25.00 in tip-money cents. The claim flag
+ *  lands via hSetNX FIRST, so a double-press (or a cleared-storage
+ *  client re-prompting) can't double-pay: only the call that actually
+ *  created the flag credits the wallet -- exactly the "own claimed set
+ *  before landing here" rule dbClaimTrophyReward's comment flags for
+ *  non-idempotent rewards. Returns the post-call balance either way so
+ *  the caller never needs a second read. */
+export const FOLLOW_BONUS_CENTS = 2500
+export async function dbClaimFollowBonus(
+  username: string,
+): Promise<{granted: boolean; walletCents: number}> {
+  const key = tpProfileKey(username)
+  const created = await redis.hSetNX(key, 'followBonus', '1')
+  if (created) {
+    const walletCents = await redis.hIncrBy(
+      key,
+      'walletCents',
+      FOLLOW_BONUS_CENTS,
+    )
+    return {granted: true, walletCents}
+  }
+  const raw = await redis.hGet(key, 'walletCents')
+  return {granted: false, walletCents: parseInt(raw ?? '0', 10) || 0}
 }
 
 /** Server-authoritative skin purchase. Price/unlockType come from this
@@ -416,7 +447,8 @@ export async function dbClaimTrophyReward(
   {ok: true; profile: TpProfileRsp; skinId: string} | {ok: false; error: string}
 > {
   const trophy = TS_CLAIMABLE_TROPHIES[trophyId]
-  if (!trophy) return {ok: false, error: `${trophyId} is not server-claimable yet`}
+  if (!trophy)
+    return {ok: false, error: `${trophyId} is not server-claimable yet`}
   const [{history, allTimeTotal}, missions] = await Promise.all([
     dbGetHistory(username),
     dbGetMissions(username),
@@ -450,7 +482,10 @@ async function dbWriteHistoryIfBetter(
   if (existingRaw !== undefined) {
     try {
       const existing = JSON.parse(existingRaw) as {tipCents: number; ms: number}
-      if (encodeScore(tipCents, ms) <= encodeScore(existing.tipCents, existing.ms)) return false
+      if (
+        encodeScore(tipCents, ms) <= encodeScore(existing.tipCents, existing.ms)
+      )
+        return false
     } catch {
       // corrupt existing entry — fall through and overwrite it
     }
@@ -573,11 +608,14 @@ export async function dbSubmitReplayScore(
   const key = historyKey(username)
   const existingRaw = await redis.hGet(key, dateStr)
   if (existingRaw === undefined) {
-    throw new Error(`dbSubmitReplayScore: no history for ${username} on ${dateStr}`)
+    throw new Error(
+      `dbSubmitReplayScore: no history for ${username} on ${dateStr}`,
+    )
   }
   const existing = JSON.parse(existingRaw) as {tipCents: number; ms: number}
   const tipCents = Math.round(tip * 100)
-  const improved = encodeScore(tipCents, ms) > encodeScore(existing.tipCents, existing.ms)
+  const improved =
+    encodeScore(tipCents, ms) > encodeScore(existing.tipCents, existing.ms)
 
   if (improved) {
     const delta = Math.max(0, tipCents - existing.tipCents)
