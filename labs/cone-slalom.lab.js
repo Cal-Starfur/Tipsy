@@ -1606,6 +1606,35 @@
      still play, and the frame the game flips play -> tipped, the stash
      goes into hjSkidV with a fresh grip ramp. The real HJ skid does all
      the sliding; if its tuning ever changes, this follows for free. */
+  /* ============ THE GRIP COVERS LANE CHANGES TOO ============
+     A hop costs stability: hopKick += dir·(0.16 + speed·4.5), linear in
+     speed. At delivery's 0.225 that is ~0.59 tilt per hop; at vmul 2.0
+     it is ~1.09 — ONE hop clears the ±1 tip threshold, and the double
+     lane change the weave is built on is two of them stacked. Same
+     disease as the corners, first power instead of second.
+
+     The wrap scales the kick the game just charged, right after its own
+     hop() runs — the early returns (mid-arc, row clamp) fall through
+     untouched because they add nothing to scale. The factor mirrors the
+     corner dial's two regimes on a LINEAR base (1 − 1/vmul, since the
+     kick goes with v not v²): grip 1 nets a delivery-speed hop, 2 nets
+     nearly free. Scaling the whole added kick — flat move cost included
+     — slightly over-helps the 0.16 base, and that is the price of
+     copying zero constants out of hop(): the alternative needed 0.16 or
+     4.5 written here a second time, which is how the crossing bug
+     happened. Restored to the original method in slOff. */
+  const slOrigHop = scene.hop.bind(scene);
+  scene.hop = (dir) => {
+    const before = scene.hopKick;
+    slOrigHop(dir);
+    const added = scene.hopKick - before;
+    if (!added) return;
+    const base = 1 - 1/SL.vmul;
+    const g = SL.grip <= 1 ? SL.grip * base
+                           : Math.min(1, base + (SL.grip - 1) * (1 - base));
+    scene.hopKick = before + added * (1 - g);
+  };
+
   let slPrevSpeed = 0, slPrevState = 'play';
   function slSkidHandoff(){
     if (scene.state === 'tipped' && slPrevState !== 'tipped' && run.phase === 'live'){
@@ -1659,6 +1688,7 @@
     scene.events.off('preupdate',  onPre);
     scene.events.off('postupdate', onPost);
     slUnstampFurnish();
+    scene.hop = slOrigHop;
     scene.mode = origMode;
     scene.hjSlabZ = slSlabZ0;
     if (scene._slCap !== undefined){
@@ -1727,7 +1757,7 @@
     { key:'vmul',   label:'top speed',     unit:'x normal', min:1, max:2.5, step:0.05,
       help:'raises the speed ceiling. Jump ballistics and the gate spacing floor follow it; corner tilt follows only as far as cornering grip allows.' },
     { key:'grip',   label:'cornering grip', unit:'',     min:0,   max:2,   step:0.05,
-      help:'corner-tilt help. 1 corners like normal speed (which still tips at full throttle), 2 removes corner lean entirely. 0 is raw physics.' },
+      help:'covers corners AND lane changes. 1 feels like normal speed, 2 makes both nearly free. 0 is raw physics — tip city.' },
     { key:'clean',  label:'swept ahead',   unit:'tiles', min:0,   max:24,  step:1,
       help:'how far past the finish the street is emptied. Sized to what the camera shows, not to the course.' },
     { key:'pen',    label:'cone penalty',  unit:'sec',   min:0.5, max:5,   step:0.5,
