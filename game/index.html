@@ -18273,6 +18273,47 @@ function drawRouteMap(route){
     cband(cX0 - BOARD - SANDW, cY1 + BOARD, cX1, cY1 + BOARD + SANDW, "#f0e2ae");     // south beach — Driftwood Beach
     cband(cX0 - BOARD, cY0, cX0, cY1, "#b98a5e");                                     // west boardwalk
     cband(cX0 - BOARD, cY1, cX1, cY1 + BOARD, "#b98a5e");                             // south boardwalk
+    /* the pier: off the center of Sunset Shore, a deck across the sand
+       ending in a round platform wrapping the aquarium — same three
+       concentric circles the real world draws, ported through cband's
+       corner-to-corner rect since a canvas 2D arc does the round part
+       more cheaply than the real world's quadOn ring. */
+    const FOOTW = BLOCK*WG_COAST.FOOTW;
+    const PIER_W = BLOCK*WG_COAST.PIER_W, PIER_LEN = BLOCK*WG_COAST.PIER_LEN, pierY = (cY0 + cY1)/2;
+    const pierX1 = cX0 - BOARD, pierX0 = cX0 - BOARD - SANDW - PIER_LEN;
+    cband(pierX0, pierY - PIER_W/2, pierX1, pierY + PIER_W/2, "#b98a5e");             // deck
+    const cring = (cx, cy, rad, fill) => {
+      const p = toScreen({x:cx, y:cy});
+      const edge = toScreen({x:cx+rad, y:cy});
+      ctx.fillStyle = fill;
+      ctx.beginPath(); ctx.arc(p.x, p.y, Math.abs(edge.x-p.x), 0, Math.PI*2); ctx.fill();
+    };
+    cring(pierX0, pierY, BLOCK*0.36, "#b98a5e");                                      // round deck
+    cring(pierX0, pierY, BLOCK*0.17, "#3f7d95");                                      // aquarium roof
+    cring(pierX0, pierY, BLOCK*0.045, "#2d5a6d");                                     // cupola
+    /* the marina: tucked into the headland notch north of the pier —
+       basin, breakwater arms, a quay tying into the boardwalk, finger
+       docks with boats seeded off the route date so the same day always
+       moors the same fleet, same as the real world. */
+    const MX0 = cX0 - BOARD - SANDW, MX1 = cX0, MY0 = cY0 - FOOTW - BLOCK*WG_COAST.MTN_BASIN, MY1 = cY0;
+    cband(MX0, MY0, MX1, MY1, "#7fb2c9");                                             // basin
+    cband(MX0 - BLOCK*0.10, MY0 - BLOCK*0.10, MX1, MY0 + BLOCK*0.06, "#9a938a");       // north breakwater
+    cband(MX0 - BLOCK*0.10, MY0 - BLOCK*0.10, MX0 + BLOCK*0.06, MY0 + (MY1 - MY0)*0.62, "#9a938a"); // west arm
+    cband(MX1 - BLOCK*0.16, MY0, MX1, MY1, "#b98a5e");                                // quay
+    {
+      const rr = mulberry32(hashStr(route.dateStr) ^ 0xb0a7);
+      const fingers = 5, fy0 = MY0 + BLOCK*0.35, fy1 = MY1 - BLOCK*0.35;
+      for(let k = 0; k < fingers; k++){
+        const fy = fy0 + (fy1 - fy0) * k/(fingers - 1);
+        cband(MX1 - BLOCK*0.16 - BLOCK*0.72, fy - BLOCK*0.05, MX1 - BLOCK*0.16, fy + BLOCK*0.05, "#b98a5e");
+        for(const side of [-1, 1]){
+          if(rr() < 0.35) continue;
+          const bx = MX1 - BLOCK*0.16 - BLOCK*0.10 - rr()*BLOCK*0.5;
+          const by = fy + side*(BLOCK*0.05 + BLOCK*0.075);
+          cband(bx - BLOCK*0.11, by - BLOCK*0.05, bx + BLOCK*0.11, by + BLOCK*0.05, "#f6f3ea");
+        }
+      }
+    }
   }
 
   /* real blocks from the same grid the game itself renders — housing,
