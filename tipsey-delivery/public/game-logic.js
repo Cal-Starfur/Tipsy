@@ -2700,6 +2700,50 @@ function buildGrid(cols, rows, seed=0){
    fillet-arc construction the game already used, now fed by the graph
    walk instead of arbitrary legs. The street grid stays perfectly
    rectilinear; only the walked line curves through it. */
+/* ---------- the seg builder, shared ----------
+   A route is a list of legs — direction + length from a start node —
+   turned into tangent line+arc segments. buildWalk has always done this
+   inline at its tail; hoisted here UNCHANGED so free-drive can build a
+   rolling chain through the SAME function instead of a parallel copy of
+   the corner math. One builder, every rail. */
+function buildSegsFromLegs(startNode, legDescs, turnR){
+  const cornerSign = [];
+  for(let c = 0; c < legDescs.length - 1; c++){
+    const f0 = legDescs[c].f, f1 = legDescs[c+1].f;
+    cornerSign.push(((f1 - f0 + 4) % 4 === 1) ? 1 : -1);
+  }
+  const cornerRadius = cornerSign.map(sg => sg === -ROBOT_SIDE ? turnR : CORNER_R);
+
+  const segs = [];
+  let s = 0, p = { x:startNode.x, y:startNode.y };
+  for(let i = 0; i < legDescs.length; i++){
+    const f = legDescs[i].f, d = DIRV[f], rv = DIRV[(f+1)%4];
+    const legLen = legDescs[i].blocks * BLOCK;
+    const trimS = i > 0 ? cornerRadius[i-1] : 0;
+    const trimE = i < legDescs.length-1 ? cornerRadius[i] : 0;
+    const lineLen = legLen - trimS - trimE;
+    segs.push({ type:"line", s0:s, s1:s+lineLen, f, hA:f*Math.PI/2,
+                start:{ x:p.x + d.x*trimS, y:p.y + d.y*trimS } });
+    s += lineLen;
+    const cornerP = { x:p.x + d.x*legLen, y:p.y + d.y*legLen };
+    if(i < legDescs.length-1){
+      const sign = cornerSign[i];
+      const R = cornerRadius[i];
+      const center = {
+        x: cornerP.x - d.x*R + sign*rv.x*R,
+        y: cornerP.y - d.y*R + sign*rv.y*R };
+      const startPt = { x:cornerP.x - d.x*R, y:cornerP.y - d.y*R };
+      const a0 = Math.atan2(startPt.y - center.y, startPt.x - center.x);
+      const arcLen = Math.PI/2 * R;
+      segs.push({ type:"arc", s0:s, s1:s+arcLen, center, a0, sign,
+                  R, hA:f*Math.PI/2, f });
+      s += arcLen;
+    }
+    p = cornerP;
+  }
+  return { segs, totalLen: s, endP: p };
+}
+
 function buildWalk(grid, rng, startOverride, turnsRange, turnR = CORNER_R){
   const { cols, rows, nodeAt } = grid;
   let ci = startOverride ? startOverride.i : 1 + Math.floor(rng()*(cols-2 || 1));
@@ -2778,41 +2822,8 @@ function buildWalk(grid, rng, startOverride, turnsRange, turnR = CORNER_R){
      in the loop) because trimS on leg i+1 has to match the SAME radius
      used for trimE on leg i — both sides of one corner must agree or
      the fillet stops being tangent. */
-  const cornerSign = [];
-  for(let c = 0; c < legDescs.length - 1; c++){
-    const f0 = legDescs[c].f, f1 = legDescs[c+1].f;
-    cornerSign.push(((f1 - f0 + 4) % 4 === 1) ? 1 : -1);
-  }
-  const cornerRadius = cornerSign.map(sg => sg === -ROBOT_SIDE ? turnR : CORNER_R);
-
-  const segs = [];
-  let s = 0, p = { x:startNode.x, y:startNode.y };
-  for(let i = 0; i < legDescs.length; i++){
-    const f = legDescs[i].f, d = DIRV[f], rv = DIRV[(f+1)%4];
-    const legLen = legDescs[i].blocks * BLOCK;
-    const trimS = i > 0 ? cornerRadius[i-1] : 0;
-    const trimE = i < legDescs.length-1 ? cornerRadius[i] : 0;
-    const lineLen = legLen - trimS - trimE;
-    segs.push({ type:"line", s0:s, s1:s+lineLen, f, hA:f*Math.PI/2,
-                start:{ x:p.x + d.x*trimS, y:p.y + d.y*trimS } });
-    s += lineLen;
-    const cornerP = { x:p.x + d.x*legLen, y:p.y + d.y*legLen };
-    if(i < legDescs.length-1){
-      const sign = cornerSign[i];
-      const R = cornerRadius[i];
-      const center = {
-        x: cornerP.x - d.x*R + sign*rv.x*R,
-        y: cornerP.y - d.y*R + sign*rv.y*R };
-      const startPt = { x:cornerP.x - d.x*R, y:cornerP.y - d.y*R };
-      const a0 = Math.atan2(startPt.y - center.y, startPt.x - center.x);
-      const arcLen = Math.PI/2 * R;
-      segs.push({ type:"arc", s0:s, s1:s+arcLen, center, a0, sign,
-                  R, hA:f*Math.PI/2, f });
-      s += arcLen;
-    }
-    p = cornerP;
-  }
-  return { segs, totalLen: s || 1, nodes: visited };
+  const built = buildSegsFromLegs(startNode, legDescs, turnR);
+  return { segs: built.segs, totalLen: built.totalLen || 1, nodes: visited };
 }
 
 /* ---------- traffic: reuses buildWalk verbatim for each route, two
