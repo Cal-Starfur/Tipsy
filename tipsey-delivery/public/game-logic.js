@@ -35,12 +35,16 @@ show("failMenuBtn");
    trusts. Kept as its own function rather than reusing one of the
    inline `new Date().toISOString().slice(0,10)` call sites already in
    this file, so nothing about the existing today/reroll flow changes. */
-/* ---------- worldgen: the city survey, in the world ----------
-   ?worldgen=coast turns on the survey-plate geography: merged parks
-   swallow the streets between them, and the city gets a coastline
-   southwest and mountains northeast. Off by default — the daily game
-   is untouched until this earns its way in on-device. */
-const WORLDGEN_COAST = new URLSearchParams(location.search).get("worldgen") === "coast";
+/* ---------- worldgen: the city survey IS the world ----------
+   The survey-plate geography is the default now (Sir's call,
+   2026-08-08): merged parks swallow the streets between them, and the
+   city gets its coastline southwest and mountains northeast — with the
+   marina, the pier, the boardwalk and the hillside estates on them.
+   ?worldgen=classic is the kill-switch back to the flat grid if
+   anything misbehaves on-device; the Devvit webview can't pass URL
+   flags, which is exactly why the coast had to become the default to
+   ever reach Reddit. */
+const WORLDGEN_COAST = new URLSearchParams(location.search).get("worldgen") !== "classic";
 
 function clientTodayUTC(){ return new Date().toISOString().slice(0,10); }
 function fmtReplayDate(dateStr){
