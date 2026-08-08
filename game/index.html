@@ -18249,6 +18249,32 @@ function drawRouteMap(route){
   ctx.fillStyle = hex(pal.pave);
   ctx.fillRect(0, 0, W, H);
 
+  /* the coast: same bands the real world draws at z=0, before anything
+     real paints over them — ocean beyond the sand, sand behind the
+     boardwalk. Same WG_COAST fractions and anchor (X0/X1/Y0/Y1 off the
+     grid's own cols/rows) the real world and worldgenLandmarks both
+     read, so this can't drift from the ground it's standing on. Only
+     actually visible when the route or a search jump is near an edge —
+     but the search box already promises Sunset Shore and Driftwood
+     Beach are out there, so the minimap needs to draw them or a jump
+     lands on empty pavement. */
+  if(WORLDGEN_COAST){
+    const gEnd = { x:(route.grid.cols-1)*BLOCK, y:(route.grid.rows-1)*BLOCK };
+    const EXT = BLOCK*WG_COAST.EXT, SANDW = BLOCK*WG_COAST.SANDW, BOARD = BLOCK*WG_COAST.BOARD, FAR = BLOCK*40;
+    const cX0 = -EXT, cX1 = gEnd.x + EXT, cY0 = -EXT, cY1 = gEnd.y + EXT;
+    const cband = (x0,y0,x1,y1,fill) => {
+      const a = toScreen({x:x0,y:y0}), b = toScreen({x:x1,y:y1});
+      ctx.fillStyle = fill;
+      ctx.fillRect(Math.min(a.x,b.x), Math.min(a.y,b.y), Math.abs(b.x-a.x), Math.abs(b.y-a.y));
+    };
+    cband(cX0 - BOARD - SANDW - FAR, cY0 - FAR, cX0 - BOARD - SANDW, cY1 + BOARD + SANDW + FAR, "#6fa8c4"); // ocean west
+    cband(cX0 - BOARD - SANDW, cY1 + BOARD + SANDW, cX1 + FAR, cY1 + BOARD + SANDW + FAR, "#6fa8c4");       // ocean south
+    cband(cX0 - BOARD - SANDW, cY0, cX0 - BOARD, cY1 + BOARD, "#f0e2ae");             // west beach — Sunset Shore
+    cband(cX0 - BOARD - SANDW, cY1 + BOARD, cX1, cY1 + BOARD + SANDW, "#f0e2ae");     // south beach — Driftwood Beach
+    cband(cX0 - BOARD, cY0, cX0, cY1, "#b98a5e");                                     // west boardwalk
+    cband(cX0 - BOARD, cY1, cX1, cY1 + BOARD, "#b98a5e");                             // south boardwalk
+  }
+
   /* real blocks from the same grid the game itself renders — housing,
      park, and commercial each get a distinct flat tone. Only blocks
      near the route are drawn, keeping it a legible neighborhood view
