@@ -6860,8 +6860,8 @@ class WorldScene extends Phaser.Scene {
        own. */
     if(WORLDGEN_COAST){
       const gEnd = { x:(r.grid.cols-1)*BLOCK, y:(r.grid.rows-1)*BLOCK };
-      const EXT = BLOCK*0.55, SANDW = BLOCK*1.4, FOOTW = BLOCK*1.1, FAR = BLOCK*40;
-      const BOARD = BLOCK*0.35;
+      const EXT = BLOCK*WG_COAST.EXT, SANDW = BLOCK*WG_COAST.SANDW, FOOTW = BLOCK*WG_COAST.FOOTW, FAR = BLOCK*40;
+      const BOARD = BLOCK*WG_COAST.BOARD;
       const X0 = -EXT, X1 = gEnd.x + EXT, Y0 = -EXT, Y1 = gEnd.y + EXT;
       const band = (x0,y0,x1,y1,col) => this.quadOn(g, [
         this.W(x0,y0,0), this.W(x1,y0,0), this.W(x1,y1,0), this.W(x0,y1,0)], col);
@@ -6882,7 +6882,7 @@ class WorldScene extends Phaser.Scene {
          water, ending in a round deck that wraps the aquarium. Round
          shapes go through quadOn, which takes any point count, so the
          pier uses the exact fill pipeline everything else does. */
-      const PIER_W = BLOCK*0.22, PIER_LEN = BLOCK*2.2, pierY = (Y0 + Y1)/2;
+      const PIER_W = BLOCK*WG_COAST.PIER_W, PIER_LEN = BLOCK*WG_COAST.PIER_LEN, pierY = (Y0 + Y1)/2;
       const pierX1 = X0 - BOARD, pierX0 = X0 - BOARD - SANDW - PIER_LEN;
       band(pierX0, pierY - PIER_W/2, pierX1, pierY + PIER_W/2, 0xb98a5e);          // deck
       const ring = (cx, cy, rad, col) => this.quadOn(g,
@@ -6900,7 +6900,7 @@ class WorldScene extends Phaser.Scene {
          static flat quads (~20 fills), no gating needed. Boat placement
          is seeded off the route date so the same day always moors the
          same fleet. */
-      const MX0 = X0 - BOARD - SANDW, MX1 = X0, MY0 = Y0 - FOOTW - BLOCK*2.2, MY1 = Y0;
+      const MX0 = X0 - BOARD - SANDW, MX1 = X0, MY0 = Y0 - FOOTW - BLOCK*WG_COAST.MTN_BASIN, MY1 = Y0;
       band(MX0, MY0, MX1, MY1, 0x7fb2c9);                                          // basin
       band(MX0 - BLOCK*0.10, MY0 - BLOCK*0.10, MX1, MY0 + BLOCK*0.06, 0x9a938a);   // north breakwater
       band(MX0 - BLOCK*0.10, MY0 - BLOCK*0.10, MX0 + BLOCK*0.06, MY0 + (MY1 - MY0)*0.62, 0x9a938a); // west arm
@@ -17991,6 +17991,172 @@ function bootLoaderDone(){
    already wrong and the spinner was hiding it. */
 setTimeout(bootLoaderDone, 8000);
 
+/* ---------- EXPLORABLE MAP: names, landmarks, free camera ---------- */
+/* one source for the map's park naming — the draw pass and the search
+   index both ask this, so they can never disagree */
+function mapParkName(cx, cy, route){
+  const seed = ((Math.round(cx)*7919) ^ (Math.round(cy)*104729)) >>> 0;
+  return route.hood.parks[Math.floor(mulberry32(seed)() * route.hood.parks.length)];
+}
+/* the coast geometry's shared fractions — drawWorld's terrain pass and
+   the landmark index both read THIS table, so a landmark can never
+   drift from the ground it names. Values are fractions of BLOCK. */
+const WG_COAST = { EXT:0.55, SANDW:1.4, FOOTW:1.1, BOARD:0.35, MTN_BASIN:2.2,
+                   PIER_W:0.22, PIER_LEN:2.2 };
+function worldgenLandmarks(grid){
+  if(!WORLDGEN_COAST) return [];
+  const B = BLOCK, W2 = WG_COAST;
+  const X0 = -W2.EXT*B, X1 = (grid.cols-1)*B + W2.EXT*B;
+  const Y0 = -W2.EXT*B, Y1 = (grid.rows-1)*B + W2.EXT*B;
+  const pierY = (Y0+Y1)/2, pierX0 = X0 - W2.BOARD*B - W2.SANDW*B - W2.PIER_LEN*B;
+  return [
+    { name:"Sunset Shore",         x: X0 - W2.BOARD*B - W2.SANDW*B/2, y:(Y0+Y1)/2, kind:"beach" },
+    { name:"Driftwood Beach",      x:(X0+X1)/2, y: Y1 + W2.BOARD*B + W2.SANDW*B/2, kind:"beach" },
+    { name:"The Boardwalk",        x: X0 - W2.BOARD*B/2, y:(Y0+Y1)/2, kind:"walk" },
+    { name:"Sunset Pier",          x: pierX0 + W2.PIER_LEN*B/2, y: pierY, kind:"pier" },
+    { name:"Roundhouse Aquarium",  x: pierX0, y: pierY, kind:"landmark" },
+    { name:"Pelican Marina",       x: X0 - W2.BOARD*B/2 - W2.SANDW*B/2, y: Y0 - W2.FOOTW*B - W2.MTN_BASIN*B/2, kind:"marina" },
+    { name:"Sierra Palma",         x:(X0+X1)/2, y: Y0 - W2.FOOTW*B - B*1.4, kind:"range" },
+    { name:"Mirador Hills",        x: X1 + W2.FOOTW*B + B*1.2, y:(Y0+Y1)/2, kind:"range" },
+    { name:"Sierra Vista Estates", x: X0 + B*1.7, y: Y0 - W2.FOOTW*B*0.7, kind:"estates" },
+    { name:"Mirador Heights",      x: X1 + W2.FOOTW*B*0.6, y: Y0 + (Y1-Y0)*0.68, kind:"estates" },
+  ];
+}
+/* free camera + search state. tpMapView null = the map frames itself
+   exactly as it always has; a gesture seeds it from tpMapLast (the last
+   auto framing drawRouteMap actually used — one source, no re-derived
+   framing math). */
+let tpMapView = null, tpMapMark = null, tpMapLast = null;
+function tpMapIndex(route){
+  const out = [];
+  const g2 = route.grid;
+  for(let j = 0; j < g2.rows; j++)
+    out.push({ name: route.hood.streets[j % route.hood.streets.length], kind:"street",
+               x: (g2.cols-1)*BLOCK/2, y: j*BLOCK });
+  const ord = n2 => n2 + ((n2%10===1&&n2!==11)?"st":(n2%10===2&&n2!==12)?"nd":(n2%10===3&&n2!==13)?"rd":"th");
+  for(let i = 0; i < g2.cols; i++)
+    out.push({ name: ord(i+1) + " St", kind:"street", x: i*BLOCK, y: (g2.rows-1)*BLOCK/2 });
+  for(const b2 of g2.blocks)
+    if(b2.type === "park")
+      out.push({ name: mapParkName(b2.cx, b2.cy, route), kind:"park", x: b2.cx, y: b2.cy });
+  for(const lm of worldgenLandmarks(g2)) out.push(lm);
+  return out;
+}
+function tpMapJumpTo(hit){
+  const s = scn(); if(!s || !s.route) return;
+  const canvas = document.getElementById("routeMap");
+  const availMin = Math.min(canvas.clientWidth, canvas.clientHeight) - 44;
+  tpMapView = { cx: hit.x, cy: hit.y, scale: availMin/(BLOCK*3.2), stamp: s.route.dateStr };
+  tpMapMark = { x: hit.x, y: hit.y, t: performance.now() };
+  const pulse = () => {
+    if(!tpMapMark) return;
+    drawRouteMap(s.route);
+    /* drawRouteMap retires the mark itself at expiry — re-check before
+       reading it, or the last frame dereferences null */
+    if(tpMapMark && performance.now() - tpMapMark.t < 4000) requestAnimationFrame(pulse);
+  };
+  pulse();
+}
+function tpMapExplore(){
+  if(window.__tpMapX) return; window.__tpMapX = true;
+  const canvas = document.getElementById("routeMap");
+  const card = document.getElementById("mapCard");
+  if(!canvas || !card) return;
+  const redraw = () => { const s = scn(); if(s && s.route) drawRouteMap(s.route); };
+  const clampView = () => {
+    const s = scn(); if(!s || !s.route || !tpMapView) return;
+    const g2 = s.route.grid, span = (g2.cols + 9)*BLOCK;
+    const fit = Math.min(canvas.clientWidth, canvas.clientHeight)/span;
+    const street = Math.min(canvas.clientWidth, canvas.clientHeight)/(BLOCK*1.6);
+    tpMapView.scale = Math.min(street, Math.max(fit, tpMapView.scale));
+    const M = BLOCK*6;
+    tpMapView.cx = Math.max(-M, Math.min((g2.cols-1)*BLOCK + M, tpMapView.cx));
+    tpMapView.cy = Math.max(-M, Math.min((g2.rows-1)*BLOCK + M, tpMapView.cy));
+  };
+  const seed = () => {
+    const s = scn();
+    if(!tpMapView && tpMapLast && s && s.route)
+      tpMapView = { cx: tpMapLast.cx, cy: tpMapLast.cy, scale: tpMapLast.scale, stamp: s.route.dateStr };
+  };
+  const zoomAt = (f, px, py) => {
+    seed(); if(!tpMapView) return;
+    const W = canvas.clientWidth, H = canvas.clientHeight;
+    const wx = tpMapView.cx + (px - W/2)/tpMapView.scale;
+    const wy = tpMapView.cy + (py - H/2)/tpMapView.scale;
+    tpMapView.scale *= f;
+    clampView();
+    tpMapView.cx = wx - (px - W/2)/tpMapView.scale;
+    tpMapView.cy = wy - (py - H/2)/tpMapView.scale;
+    clampView(); redraw();
+  };
+  const ptrs = new Map(); let pinch0 = null;
+  canvas.style.touchAction = "none";
+  canvas.addEventListener("pointerdown", e => {
+    ptrs.set(e.pointerId, { x: e.offsetX, y: e.offsetY });
+    if(ptrs.size === 2){
+      const [a2, b2] = [...ptrs.values()];
+      seed();
+      pinch0 = tpMapView && { d: Math.hypot(a2.x-b2.x, a2.y-b2.y), scale: tpMapView.scale,
+                              mx:(a2.x+b2.x)/2, my:(a2.y+b2.y)/2 };
+    }
+  });
+  canvas.addEventListener("pointermove", e => {
+    if(!ptrs.has(e.pointerId)) return;
+    const prev = ptrs.get(e.pointerId);
+    ptrs.set(e.pointerId, { x: e.offsetX, y: e.offsetY });
+    if(ptrs.size === 1){
+      seed(); if(!tpMapView) return;
+      tpMapView.cx -= (e.offsetX - prev.x)/tpMapView.scale;
+      tpMapView.cy -= (e.offsetY - prev.y)/tpMapView.scale;
+      clampView(); redraw();
+    } else if(ptrs.size === 2 && pinch0){
+      const [a2, b2] = [...ptrs.values()];
+      const d = Math.hypot(a2.x-b2.x, a2.y-b2.y) || 1;
+      const target = pinch0.scale * (d/pinch0.d);
+      zoomAt(target/tpMapView.scale, pinch0.mx, pinch0.my);
+    }
+  });
+  const drop = e => { ptrs.delete(e.pointerId); if(ptrs.size < 2) pinch0 = null; };
+  canvas.addEventListener("pointerup", drop);
+  canvas.addEventListener("pointercancel", drop);
+  canvas.addEventListener("wheel", e => {
+    e.preventDefault();
+    zoomAt(e.deltaY > 0 ? 1/1.18 : 1.18, e.offsetX, e.offsetY);
+  }, { passive:false });
+  /* +/- for pointers without a pinch, and a search box for everyone */
+  const ui = document.createElement("div");
+  ui.id = "tpMapUI";
+  ui.innerHTML = '<div id="tpMapZoom" style="position:absolute;right:10px;bottom:64px;display:flex;flex-direction:column;gap:6px;z-index:6">'
+    + '<button id="tpMapPlus"  style="width:34px;height:34px;border-radius:8px;border:1px solid #4a4a52;background:rgba(20,21,26,0.85);color:#eee;font:700 18px/1 ui-monospace,monospace">+</button>'
+    + '<button id="tpMapMinus" style="width:34px;height:34px;border-radius:8px;border:1px solid #4a4a52;background:rgba(20,21,26,0.85);color:#eee;font:700 18px/1 ui-monospace,monospace">\u2212</button></div>'
+    + '<div id="tpMapSearchWrap" style="position:absolute;left:10px;right:56px;top:10px;z-index:6">'
+    + '<input id="tpMapSearch" type="text" placeholder="Find a place\u2026" autocomplete="off" '
+    + 'style="width:100%;box-sizing:border-box;padding:8px 12px;border-radius:10px;border:1px solid #4a4a52;background:rgba(20,21,26,0.88);color:#eee;font:500 13px/1.2 -apple-system,sans-serif">'
+    + '<div id="tpMapResults" style="display:none;margin-top:4px;max-height:180px;overflow:auto;border-radius:10px;border:1px solid #4a4a52;background:rgba(20,21,26,0.94)"></div></div>';
+  card.appendChild(ui);
+  document.getElementById("tpMapPlus").onclick  = () => zoomAt(1.35, canvas.clientWidth/2, canvas.clientHeight/2);
+  document.getElementById("tpMapMinus").onclick = () => zoomAt(1/1.35, canvas.clientWidth/2, canvas.clientHeight/2);
+  const box = document.getElementById("tpMapSearch");
+  const res = document.getElementById("tpMapResults");
+  box.oninput = () => {
+    const s = scn(); res.innerHTML = ""; res.style.display = "none";
+    if(!s || !s.route) return;
+    const q2 = box.value.trim().toLowerCase();
+    if(q2.length < 2) return;
+    const hits = tpMapIndex(s.route).filter(h => h.name.toLowerCase().includes(q2)).slice(0, 8);
+    if(!hits.length) return;
+    res.style.display = "block";
+    for(const h of hits){
+      const row = document.createElement("div");
+      row.style.cssText = "padding:8px 12px;color:#eee;font:500 13px/1.2 -apple-system,sans-serif;display:flex;justify-content:space-between;cursor:pointer";
+      row.innerHTML = "<span>" + h.name + "</span><span style='color:#8a8a92;font-size:11px'>" + h.kind + "</span>";
+      row.onclick = () => { res.style.display = "none"; box.blur(); tpMapJumpTo(h); };
+      res.appendChild(row);
+    }
+  };
+}
+tpMapExplore();
+
 function drawRouteMap(route){
   const canvas = document.getElementById("routeMap");
   if(!canvas) return;
@@ -18048,6 +18214,16 @@ function drawRouteMap(route){
     spanX = availW / scale; spanY = availH / scale;
     cx0 = samples[0].x; cy0 = samples[0].y;
   }
+  /* free camera: once the player touches the map, their view wins;
+     a new route resets to the auto framing. tpMapLast records whatever
+     framing this draw actually used, so the first gesture starts from
+     the truth instead of re-deriving it. */
+  if(tpMapView && tpMapView.stamp !== route.dateStr) tpMapView = null;
+  if(tpMapView){
+    cx0 = tpMapView.cx; cy0 = tpMapView.cy; scale = tpMapView.scale;
+    spanX = availW/scale; spanY = availH/scale;
+  }
+  tpMapLast = { cx: cx0, cy: cy0, scale };
   const toScreen = p => ({ x: W/2 + (p.x-cx0)*scale, y: H/2 + (p.y-cy0)*scale });
   const viewMinX = cx0 - spanX/2, viewMaxX = cx0 + spanX/2;
   const viewMinY = cy0 - spanY/2, viewMaxY = cy0 + spanY/2;
@@ -18135,12 +18311,23 @@ function drawRouteMap(route){
     ctx.beginPath(); ctx.arc(p.x, p.y-8, 7, 0, Math.PI*2); ctx.fill();
     ctx.font = "9px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
     ctx.fillText("🌳", p.x, p.y-8);
-    const pnameSeed = ((Math.round(blk.cx)*7919) ^ (Math.round(blk.cy)*104729)) >>> 0;
-    const pname = route.hood.parks[Math.floor(mulberry32(pnameSeed)() * route.hood.parks.length)];
+    const pname = mapParkName(blk.cx, blk.cy, route);
     ctx.fillStyle = "#2e3138"; ctx.font = "10px sans-serif";
     ctx.fillText(pname, p.x, p.y+8);
   }
 
+  if(tpMapMark){
+    const age = performance.now() - tpMapMark.t;
+    if(age > 4000) tpMapMark = null;
+    else {
+      const mp = toScreen(tpMapMark);
+      const pulse = 10 + 6*Math.sin(age/220);
+      ctx.strokeStyle = "#d8452e"; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(mp.x, mp.y, pulse, 0, Math.PI*2); ctx.stroke();
+      ctx.fillStyle = "#d8452e";
+      ctx.beginPath(); ctx.arc(mp.x, mp.y, 4, 0, Math.PI*2); ctx.fill();
+    }
+  }
   ctx.strokeStyle = "#ff7a1a";
   ctx.lineWidth = 4;
   ctx.lineCap = "round";
