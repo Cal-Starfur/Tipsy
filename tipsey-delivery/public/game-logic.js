@@ -17316,6 +17316,14 @@ function tpMapIndex(route){
     if(b2.type === "park")
       out.push({ name: mapParkName(b2.cx, b2.cy, route), kind:"park", x: b2.cx, y: b2.cy });
   for(const lm of worldgenLandmarks(g2)) out.push(lm);
+  /* side missions, searchable the same box now covers places with —
+     no x/y to jump to (jump-hydrant lives in a different neighbourhood
+     entirely from whatever route is loaded today), so these carry an id
+     instead and the click handler opens the mission detail sheet
+     directly rather than panning the map. "???" is the one genuinely
+     unannounced slot; nothing useful to match against, so it's left out. */
+  for(const m of TP_SIDE_MISSIONS)
+    if(m.name !== "???") out.push({ name: m.name, kind:"mission", id: m.id });
   return out;
 }
 function tpMapJumpTo(hit){
@@ -17406,12 +17414,16 @@ function tpMapExplore(){
     + '<button id="tpMapPlus"  style="width:34px;height:34px;border-radius:8px;border:1px solid #4a4a52;background:rgba(20,21,26,0.85);color:#eee;font:700 18px/1 ui-monospace,monospace">+</button>'
     + '<button id="tpMapMinus" style="width:34px;height:34px;border-radius:8px;border:1px solid #4a4a52;background:rgba(20,21,26,0.85);color:#eee;font:700 18px/1 ui-monospace,monospace">\u2212</button></div>'
     + '<div id="tpMapSearchWrap" style="position:absolute;left:10px;right:56px;top:10px;z-index:6">'
-    + '<input id="tpMapSearch" type="text" placeholder="Find a place\u2026" autocomplete="off" '
-    + 'style="width:100%;box-sizing:border-box;padding:8px 12px;border-radius:10px;border:1px solid #4a4a52;background:rgba(20,21,26,0.88);color:#eee;font:500 13px/1.2 -apple-system,sans-serif">'
+    + '<button id="tpMapSearchIcon" aria-label="Side missions" style="position:absolute;left:9px;top:50%;'
+    + 'transform:translateY(-50%);width:22px;height:22px;padding:0;border:0;background:none;display:flex;'
+    + 'align-items:center;justify-content:center;z-index:7">' + tpSearchSvg("#9aa0ab", 16) + '</button>'
+    + '<input id="tpMapSearch" type="text" placeholder="Find a place or mission\u2026" autocomplete="off" '
+    + 'style="width:100%;box-sizing:border-box;padding:8px 12px 8px 34px;border-radius:10px;border:1px solid #4a4a52;background:rgba(20,21,26,0.88);color:#eee;font:500 13px/1.2 -apple-system,sans-serif">'
     + '<div id="tpMapResults" style="display:none;margin-top:4px;max-height:180px;overflow:auto;border-radius:10px;border:1px solid #4a4a52;background:rgba(20,21,26,0.94)"></div></div>';
   card.appendChild(ui);
   document.getElementById("tpMapPlus").onclick  = () => zoomAt(1.35, canvas.clientWidth/2, canvas.clientHeight/2);
   document.getElementById("tpMapMinus").onclick = () => zoomAt(1/1.35, canvas.clientWidth/2, canvas.clientHeight/2);
+  document.getElementById("tpMapSearchIcon").onclick = () => tpOpenMissions();
   const box = document.getElementById("tpMapSearch");
   const res = document.getElementById("tpMapResults");
   box.oninput = () => {
@@ -17426,7 +17438,11 @@ function tpMapExplore(){
       const row = document.createElement("div");
       row.style.cssText = "padding:8px 12px;color:#eee;font:500 13px/1.2 -apple-system,sans-serif;display:flex;justify-content:space-between;cursor:pointer";
       row.innerHTML = "<span>" + h.name + "</span><span style='color:#8a8a92;font-size:11px'>" + h.kind + "</span>";
-      row.onclick = () => { res.style.display = "none"; box.blur(); tpMapJumpTo(h); };
+      row.onclick = () => {
+        res.style.display = "none"; box.blur();
+        if(h.kind === "mission"){ tpOpenMissions(); tpOpenDetail("mission", h.id); }
+        else tpMapJumpTo(h);
+      };
       res.appendChild(row);
     }
   };
