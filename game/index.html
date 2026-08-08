@@ -18272,11 +18272,40 @@ function drawRouteMap(route){
   });
   const allBlocks = route.grid.blocks.concat(extRects);
   const blockColor = { housing: "#e3d4b8", park: "#8fbf7a", commercial: "#c4c8cc" };
+  const byIJ = route.grid.blockByIJ;
   for(const blk of allBlocks){
     if(!inView(blk.cx, blk.cy)) continue;
     const a = toScreen({x:blk.x0, y:blk.y0}), b = toScreen({x:blk.x1, y:blk.y1});
     ctx.fillStyle = blockColor[blk.type] || "#d8d2c2";
     ctx.fillRect(Math.min(a.x,b.x), Math.min(a.y,b.y), Math.abs(b.x-a.x), Math.abs(b.y-a.y));
+  }
+  /* merged parks: bridge the gap the swallowed street left behind. This
+     minimap draws blocks independently rather than sharing the real
+     world's renderer, so it never picked up fillBlockGround's +x/+y
+     neighbour rule — ported verbatim here, worldgenReconcile already
+     removed the actual street edges, this just fills the grass over
+     where they were. Interior blocks only; one owner per strip. */
+  if(byIJ){
+    for(const blk of route.grid.blocks){
+      if(blk.type !== "park" || blk.i === undefined) continue;
+      const nx = byIJ.get((blk.i+1)+","+blk.j), ny = byIJ.get(blk.i+","+(blk.j+1));
+      const nxOK = nx && nx.type === "park", nyOK = ny && ny.type === "park";
+      const nd = nxOK && nyOK ? byIJ.get((blk.i+1)+","+(blk.j+1)) : null;
+      const ndOK = nd && nd.type === "park";
+      ctx.fillStyle = "#8fbf7a";
+      if(nxOK){
+        const a = toScreen({x:blk.x1, y:blk.y0}), b = toScreen({x:nx.x0, y:blk.y1});
+        ctx.fillRect(Math.min(a.x,b.x), Math.min(a.y,b.y), Math.abs(b.x-a.x), Math.abs(b.y-a.y));
+      }
+      if(nyOK){
+        const a = toScreen({x:blk.x0, y:blk.y1}), b = toScreen({x:blk.x1, y:ny.y0});
+        ctx.fillRect(Math.min(a.x,b.x), Math.min(a.y,b.y), Math.abs(b.x-a.x), Math.abs(b.y-a.y));
+      }
+      if(ndOK){
+        const a = toScreen({x:blk.x1, y:blk.y1}), b = toScreen({x:nx.x0, y:ny.y0});
+        ctx.fillRect(Math.min(a.x,b.x), Math.min(a.y,b.y), Math.abs(b.x-a.x), Math.abs(b.y-a.y));
+      }
+    }
   }
 
   /* real streets from route.grid.edges */
@@ -18316,10 +18345,40 @@ function drawRouteMap(route){
     }
   }
 
-  /* park landmarks — small icon + name on visible park blocks, pulled
-     from the hood's own named park pool (same spirit as real street
-     names) instead of a generic fixed list. */
-  for(const blk of allBlocks){
+  /* park landmarks — one icon + name per merged park component (interior
+     parks that fused share one label, sized up with the group), pulled
+     from the hood's own named park pool. Perimeter park lots have no
+     i/j to fuse through, so each keeps standing alone same as always. */
+  const labeledInterior = new Set();
+  for(const blk of route.grid.blocks){
+    if(blk.type !== "park" || blk.i === undefined) continue;
+    const k0 = blk.i+","+blk.j;
+    if(labeledInterior.has(k0)) continue;
+    const comp = [], q = [blk]; labeledInterior.add(k0);
+    while(q.length){
+      const b = q.pop(); comp.push(b);
+      for(const [di,dj] of [[1,0],[-1,0],[0,1],[0,-1]]){
+        const nk = (b.i+di)+","+(b.j+dj);
+        if(labeledInterior.has(nk)) continue;
+        const n = byIJ && byIJ.get(nk);
+        if(n && n.type === "park"){ labeledInterior.add(nk); q.push(n); }
+      }
+    }
+    const cx = comp.reduce((s,b)=>s+b.cx,0)/comp.length;
+    const cy = comp.reduce((s,b)=>s+b.cy,0)/comp.length;
+    if(!inView(cx, cy)) continue;
+    const anchor = comp.reduce((a,b) => (b.j < a.j || (b.j === a.j && b.i < a.i)) ? b : a);
+    const p = toScreen({x:cx, y:cy});
+    const r = comp.length > 1 ? Math.min(11, 7 + comp.length) : 7;
+    ctx.fillStyle = "#3f7a4a";
+    ctx.beginPath(); ctx.arc(p.x, p.y-8, r, 0, Math.PI*2); ctx.fill();
+    ctx.font = Math.round(r+2)+"px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText("🌳", p.x, p.y-8);
+    const pname = mapParkName(anchor.cx, anchor.cy, route);
+    ctx.fillStyle = "#2e3138"; ctx.font = "10px sans-serif";
+    ctx.fillText(pname, p.x, p.y+8);
+  }
+  for(const blk of extRects){
     if(blk.type !== "park" || !inView(blk.cx, blk.cy)) continue;
     const p = toScreen({x:blk.cx, y:blk.cy});
     ctx.fillStyle = "#3f7a4a";
