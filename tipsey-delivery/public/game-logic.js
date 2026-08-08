@@ -17575,6 +17575,80 @@ function drawRouteMap(route){
         }
       }
     }
+    /* mountains: foothill shoulder band, then the range proper, same
+       north/east placement as the real world. */
+    cband(cX0, cY0 - FOOTW, cX1 + FOOTW, cY0, "#cfc69b");                               // north foothills
+    cband(cX1, cY0, cX1 + FOOTW, cY1 + BOARD + SANDW, "#cfc69b");                       // east foothills
+    cband(cX0, cY0 - FOOTW - FAR, cX1 + FOOTW + FAR, cY0 - FOOTW, "#a89b82");           // north range — Sierra Palma
+    cband(cX1 + FOOTW, cY0 - FOOTW, cX1 + FOOTW + FAR, cY1 + BOARD + SANDW, "#a89b82"); // east range — Mirador Hills
+    /* upscale housing in the hills: Sierra Vista Estates on the shoulder
+       east of the marina, Mirador Heights terraced into the eastern
+       slope. Same construction the real world uses — one quadratic
+       drive per district off its access stub, lots on both sides
+       rotated to the local tangent and pushed out by a setback, seeded
+       skips so it reads as a neighbourhood. cquad fills the rotated lot
+       the same way quadOn does in the real world, just through a canvas
+       path instead of a mesh. Fixed seeds — same houses, same day. */
+    {
+      const RW = ROAD_HALF;
+      const q = (a, c2, b3, t) => { const s2 = 1 - t; return s2*s2*a + 2*s2*t*c2 + t*t*b3; };
+      const cdrive = (ex, ey, fx2, fy2, cx2, cy2) => {
+        let px = ex, py = ey;
+        for(let k = 1; k <= 12; k++){
+          const t = k/12, hw = RW*0.45;
+          const qx = q(ex, cx2, fx2, t), qy = q(ey, cy2, fy2, t);
+          cband(Math.min(px,qx) - hw, Math.min(py,qy) - hw,
+                Math.max(px,qx) + hw, Math.max(py,qy) + hw, hex(pal.road));
+          px = qx; py = qy;
+        }
+      };
+      const cquad = (pts, fill) => {
+        ctx.fillStyle = fill;
+        ctx.beginPath();
+        pts.forEach((p, idx) => {
+          const s = toScreen(p);
+          if(idx === 0) ctx.moveTo(s.x, s.y); else ctx.lineTo(s.x, s.y);
+        });
+        ctx.closePath(); ctx.fill();
+      };
+      const lotsAlong = (ex, ey, fx2, fy2, cx2, cy2, seed, bx0, by0, bx1, by1) => {
+        const r3 = mulberry32(seed);
+        for(let t = 0.16; t <= 0.94; t += 0.11){
+          const qx = q(ex, cx2, fx2, t), qy = q(ey, cy2, fy2, t);
+          const tx = q(ex, cx2, fx2, t + 0.01) - qx, ty = q(ey, cy2, fy2, t + 0.01) - qy;
+          const tl = Math.hypot(tx, ty) || 1, ux = tx/tl, uy = ty/tl;
+          const nx = -uy, ny = ux;
+          for(const side of [-1, 1]){
+            if(r3() < 0.22) continue;
+            const setback = RW*0.45 + BLOCK*0.07 + BLOCK*0.12 + r3()*BLOCK*0.05;
+            const cxL = qx + nx*side*setback, cyL = qy + ny*side*setback;
+            if(cxL < bx0 || cxL > bx1 || cyL < by0 || cyL > by1) continue;
+            const hw2 = BLOCK*(0.16 + r3()*0.05), hd = BLOCK*0.12;
+            cquad([
+              {x:cxL - ux*hw2 - nx*side*hd, y:cyL - uy*hw2 - ny*side*hd},
+              {x:cxL + ux*hw2 - nx*side*hd, y:cyL + uy*hw2 - ny*side*hd},
+              {x:cxL + ux*hw2 + nx*side*hd, y:cyL + uy*hw2 + ny*side*hd},
+              {x:cxL - ux*hw2 + nx*side*hd, y:cyL - uy*hw2 + ny*side*hd}], "#f2ece0");
+          }
+        }
+      };
+      /* Sierra Vista: stub up 2nd St, drive east along the shoulder */
+      const svEx = BLOCK, svEy = cY0 - BLOCK*0.08;
+      const svFx = cX0 + BLOCK*3.3, svFy = cY0 - FOOTW/2 - BLOCK*0.5;
+      const svCx = cX0 + BLOCK*1.7, svCy = cY0 - FOOTW - BLOCK*0.6;
+      cband(BLOCK - RW, cY0 - BLOCK*0.08, BLOCK + RW, 0, hex(pal.road));
+      cdrive(svEx, svEy, svFx, svFy, svCx, svCy);
+      lotsAlong(svEx, svEy, svFx, svFy, svCx, svCy, 0xe57a7e5,
+                cX0 + BLOCK*0.15, cY0 - FOOTW - BLOCK*0.95, cX0 + BLOCK*3.3, cY0 - BLOCK*0.08);
+      /* Mirador Heights: stub east on the j=10 row, drive down the slope */
+      const mhEx = cX1 + BLOCK*0.08, mhEy = 10*BLOCK;
+      const mhFx = (cX1 + cX1 + FOOTW + BLOCK*0.75)/2, mhFy = cY0 + (cY1 - cY0)*0.92;
+      const mhCx = cX1 + FOOTW*0.9, mhCy = cY0 + (cY1 - cY0)*0.7;
+      cband((route.grid.cols - 1)*BLOCK, 10*BLOCK - RW, cX1 + BLOCK*0.08, 10*BLOCK + RW, hex(pal.road));
+      cdrive(mhEx, mhEy, mhFx, mhFy, mhCx, mhCy);
+      lotsAlong(mhEx, mhEy, mhFx, mhFy, mhCx, mhCy, 0xe57a7e6,
+                cX1 + BLOCK*0.08, cY0 + (cY1 - cY0)*0.45, cX1 + FOOTW + BLOCK*0.75, cY0 + (cY1 - cY0)*0.92);
+    }
   }
 
   /* real blocks from the same grid the game itself renders — housing,
