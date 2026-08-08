@@ -6215,6 +6215,32 @@ class WorldScene extends Phaser.Scene {
       ring(pierX0, pierY, BLOCK*0.36, 0xb98a5e);                                   // round deck
       ring(pierX0, pierY, BLOCK*0.17, 0x3f7d95);                                   // aquarium roof
       ring(pierX0, pierY, BLOCK*0.045, 0x2d5a6d);                                  // cupola
+      /* the marina: tucked into the headland notch where the ocean meets
+         the Sierra — basin of calmer water, breakwater arms north and
+         west with the mouth opening south-west, a quay tying into the
+         top of the boardwalk, finger docks, boats in the slips. All
+         static flat quads (~20 fills), no gating needed. Boat placement
+         is seeded off the route date so the same day always moors the
+         same fleet. */
+      const MX0 = X0 - BOARD - SANDW, MX1 = X0, MY0 = Y0 - FOOTW - BLOCK*2.2, MY1 = Y0;
+      band(MX0, MY0, MX1, MY1, 0x7fb2c9);                                          // basin
+      band(MX0 - BLOCK*0.10, MY0 - BLOCK*0.10, MX1, MY0 + BLOCK*0.06, 0x9a938a);   // north breakwater
+      band(MX0 - BLOCK*0.10, MY0 - BLOCK*0.10, MX0 + BLOCK*0.06, MY0 + (MY1 - MY0)*0.62, 0x9a938a); // west arm
+      band(MX1 - BLOCK*0.16, MY0, MX1, MY1, 0xb98a5e);                             // quay
+      {
+        const rr = mulberry32(hashStr(r.dateStr) ^ 0xb0a7);
+        const fingers = 5, fy0 = MY0 + BLOCK*0.35, fy1 = MY1 - BLOCK*0.35;
+        for(let k = 0; k < fingers; k++){
+          const fy = fy0 + (fy1 - fy0) * k/(fingers - 1);
+          band(MX1 - BLOCK*0.16 - BLOCK*0.72, fy - BLOCK*0.05, MX1 - BLOCK*0.16, fy + BLOCK*0.05, 0xb98a5e);
+          for(const side of [-1, 1]){
+            if(rr() < 0.35) continue;
+            const bx = MX1 - BLOCK*0.16 - BLOCK*0.10 - rr()*BLOCK*0.5;
+            const by = fy + side*(BLOCK*0.05 + BLOCK*0.075);
+            band(bx - BLOCK*0.11, by - BLOCK*0.05, bx + BLOCK*0.11, by + BLOCK*0.05, 0xf6f3ea);
+          }
+        }
+      }
       {
         const PLANK = 52, NEAR = BLOCK*2, SPAN = BLOCK*2;
         g.lineStyle(3, 0x8a6644, 0.55);
@@ -6244,6 +6270,70 @@ class WorldScene extends Phaser.Scene {
       band(X1, Y0, X1 + FOOTW, Y1 + BOARD + SANDW, 0xcfc69b);                      // east foothills
       band(X0, Y0 - FOOTW - FAR, X1 + FOOTW + FAR, Y0 - FOOTW, 0xa89b82);          // north range
       band(X1 + FOOTW, Y0 - FOOTW, X1 + FOOTW + FAR, Y1 + BOARD + SANDW, 0xa89b82); // east range
+      /* upscale housing in the hills: Sierra Vista Estates on the shoulder
+         east of the marina, Mirador Heights terraced into the eastern
+         slope — and the houses LINE the drive. Each district is one
+         quadratic drive from its access-stub entry; lots sit on both
+         sides of it, rotated to the local tangent, pushed out by half
+         the road plus a setback so no house ever stands on the asphalt.
+         Seeded skips and jitter keep it a neighbourhood instead of a
+         barracks; fixed seed, houses don't move house. Access stubs in
+         the city's own pal.road extend real streets past the ring road
+         (2nd St north, the j=10 row east), aligned to street positions
+         so they thread the perimeter-lot gaps. Visual connections only:
+         routable estate addresses mean lattice extension, next phase. */
+      {
+        const LOT = 0xf2ece0;
+        const RW = ROAD_HALF;
+        const q = (a, c2, b3, t) => { const s2 = 1 - t; return s2*s2*a + 2*s2*t*c2 + t*t*b3; };
+        const drive = (ex, ey, fx2, fy2, cx2, cy2) => {
+          let px = ex, py = ey;
+          for(let k = 1; k <= 12; k++){
+            const t = k/12, hw = RW*0.45;
+            const qx = q(ex, cx2, fx2, t), qy = q(ey, cy2, fy2, t);
+            band(Math.min(px,qx) - hw, Math.min(py,qy) - hw,
+                 Math.max(px,qx) + hw, Math.max(py,qy) + hw, r.pal.road);
+            px = qx; py = qy;
+          }
+        };
+        const lotsAlong = (ex, ey, fx2, fy2, cx2, cy2, seed, bx0, by0, bx1, by1) => {
+          const r3 = mulberry32(seed);
+          for(let t = 0.16; t <= 0.94; t += 0.11){
+            const qx = q(ex, cx2, fx2, t), qy = q(ey, cy2, fy2, t);
+            const tx = q(ex, cx2, fx2, t + 0.01) - qx, ty = q(ey, cy2, fy2, t + 0.01) - qy;
+            const tl = Math.hypot(tx, ty) || 1, ux = tx/tl, uy = ty/tl;
+            const nx = -uy, ny = ux;
+            for(const side of [-1, 1]){
+              if(r3() < 0.22) continue;
+              const setback = RW*0.45 + BLOCK*0.07 + BLOCK*0.12 + r3()*BLOCK*0.05;
+              const cxL = qx + nx*side*setback, cyL = qy + ny*side*setback;
+              if(cxL < bx0 || cxL > bx1 || cyL < by0 || cyL > by1) continue;
+              const hw2 = BLOCK*(0.16 + r3()*0.05), hd = BLOCK*0.12;
+              this.quadOn(g, [
+                this.W(cxL - ux*hw2 - nx*side*hd, cyL - uy*hw2 - ny*side*hd, 0),
+                this.W(cxL + ux*hw2 - nx*side*hd, cyL + uy*hw2 - ny*side*hd, 0),
+                this.W(cxL + ux*hw2 + nx*side*hd, cyL + uy*hw2 + ny*side*hd, 0),
+                this.W(cxL - ux*hw2 + nx*side*hd, cyL - uy*hw2 + ny*side*hd, 0)], LOT);
+            }
+          }
+        };
+        /* Sierra Vista: stub up 2nd St, drive east along the shoulder */
+        const svEx = BLOCK, svEy = Y0 - BLOCK*0.08;
+        const svFx = X0 + BLOCK*3.3, svFy = Y0 - FOOTW/2 - BLOCK*0.5;
+        const svCx = X0 + BLOCK*1.7, svCy = Y0 - FOOTW - BLOCK*0.6;
+        band(BLOCK - RW, Y0 - BLOCK*0.08, BLOCK + RW, 0, r.pal.road);
+        drive(svEx, svEy, svFx, svFy, svCx, svCy);
+        lotsAlong(svEx, svEy, svFx, svFy, svCx, svCy, 0xe57a7e5,
+                  X0 + BLOCK*0.15, Y0 - FOOTW - BLOCK*0.95, X0 + BLOCK*3.3, Y0 - BLOCK*0.08);
+        /* Mirador Heights: stub east on the j=10 row, drive down the slope */
+        const mhEx = X1 + BLOCK*0.08, mhEy = 10*BLOCK;
+        const mhFx = (X1 + X1 + FOOTW + BLOCK*0.75)/2, mhFy = Y0 + (Y1 - Y0)*0.92;
+        const mhCx = X1 + FOOTW*0.9, mhCy = Y0 + (Y1 - Y0)*0.7;
+        band((r.grid.cols - 1)*BLOCK, 10*BLOCK - RW, X1 + BLOCK*0.08, 10*BLOCK + RW, r.pal.road);
+        drive(mhEx, mhEy, mhFx, mhFy, mhCx, mhCy);
+        lotsAlong(mhEx, mhEy, mhFx, mhFy, mhCx, mhCy, 0xe57a7e6,
+                  X1 + BLOCK*0.08, Y0 + (Y1 - Y0)*0.45, X1 + FOOTW + BLOCK*0.75, Y0 + (Y1 - Y0)*0.92);
+      }
     }
     /* roads: ONE quad per street, full length — no internal tile seams
        (a uniformly-colored surface built from many small quads shows
