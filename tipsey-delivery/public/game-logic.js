@@ -17912,7 +17912,11 @@ function tpOpenDetail(kind, id){
     document.getElementById("tpDetailDesc").style.display = m.desc ? "" : "none";
     if(m.place) document.getElementById("tpDetailDesc").textContent = m.desc + "  \u00b7  " + m.place;
 
-    const playableNow = (m.id === "jump-hydrant");
+    /* the playable set, in ONE place per gate at least — this line and the
+       fallback below both said jump-hydrant only, so the slalom shipped
+       with a working engine behind a door that toasted 'not built yet'.
+       status:"playable" was never consulted; the id list is the gate. */
+    const playableNow = (m.id === "jump-hydrant" || m.id === "cone-slalom");
     if(comingSoon){
       btn.className = "tpLockedBtn"; btn.textContent = "Coming soon"; btn.disabled = true;
     } else if(playableNow){
@@ -17956,9 +17960,9 @@ function tpOpenDetail(kind, id){
     } else {
       btn.className = "tpBuy"; btn.textContent = "Play mission"; btn.disabled = false;
       /* the hydrant missions are BUILT now — everything else still toasts */
-      const playable = (m.id === "jump-hydrant");
+      const playable = (m.id === "jump-hydrant" || m.id === "cone-slalom");
       btn.onclick = playable
-        ? ()=>{ tpCloseDetail(); hjStart(); }
+        ? ()=>{ tpCloseDetail(); (m.id === "cone-slalom" ? tpSlalomStart : hjStart)(); }
         : ()=>{ tpCloseDetail(); tpToast("Coming soon — gameplay not built yet."); };
       if(m.note) note.textContent = m.note;
     }
