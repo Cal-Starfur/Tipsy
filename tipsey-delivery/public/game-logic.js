@@ -13416,29 +13416,31 @@ class WorldScene extends Phaser.Scene {
          under it. Same layered-pool recipe, plus the lamp's own
          fillPoints flare triangle, one per eye, both fanning down to
          the same ground anchors so they read as a beam connecting eye
-         to sidewalk instead of two disconnected glows. */
+         to sidewalk instead of two disconnected glows. No separate dot
+         at the apex — that read as a second pair of eyes next to the
+         real ones. The triangle already tapers to a point there; the
+         actual eye halo above is the only thing that should mark the
+         source. */
       const pulse = 0.5 + 0.5*Math.sin(this.time.now / 650);
       const ks2 = this.kScale();
       const hx2 = Math.cos(this.drawAngle), hy2 = Math.sin(this.drawAngle);
       const lx = -Math.sin(this.drawAngle), ly = Math.cos(this.drawAngle);
       const eyeFwd = BODY.hx + 0.8;
-      const gp = this.W(this.botX + hx2*34, this.botY + hy2*34, 0);
+      const gp = this.W(this.botX + hx2*70, this.botY + hy2*70, 0);
       const poolK = 0.6 + 0.4*pulse;
       this.gGlow.fillStyle(SKIN.eye, 0.10*poolK);
-      this.gGlow.fillEllipse(gp.x, gp.y, 26*ks2, 15*ks2);
+      this.gGlow.fillEllipse(gp.x, gp.y, 36*ks2, 20*ks2);
       this.gGlow.fillStyle(SKIN.eye, 0.20*poolK);
-      this.gGlow.fillEllipse(gp.x, gp.y, 16*ks2, 9*ks2);
+      this.gGlow.fillEllipse(gp.x, gp.y, 22*ks2, 12*ks2);
       this.gGlow.fillStyle(0xffffff, 0.28*poolK);
-      this.gGlow.fillEllipse(gp.x, gp.y, 8*ks2, 5*ks2);
+      this.gGlow.fillEllipse(gp.x, gp.y, 11*ks2, 7*ks2);
       for(const ey of [-7, 7]){
         const lp2 = this.W(this.botX + eyeFwd*hx2 + ey*lx, this.botY + eyeFwd*hy2 + ey*ly, this.botZ + 45);
-        this.gGlow.fillStyle(0xffffff, 0.45 + 0.3*pulse);
-        this.gGlow.fillEllipse(lp2.x, lp2.y, 4*ks2, 4*ks2);
         this.gGlow.fillStyle(SKIN.eye, (0.09 + 0.06*pulse)*poolK);
         this.gGlow.fillPoints([
           new Phaser.Geom.Point(lp2.x, lp2.y),
-          new Phaser.Geom.Point(gp.x - 10*ks2, gp.y),
-          new Phaser.Geom.Point(gp.x + 10*ks2, gp.y)
+          new Phaser.Geom.Point(gp.x - 14*ks2, gp.y),
+          new Phaser.Geom.Point(gp.x + 14*ks2, gp.y)
         ], true);
       }
     }
