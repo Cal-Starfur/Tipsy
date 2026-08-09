@@ -8,6 +8,8 @@ import type {
 } from '@devvit/web/shared'
 import {
   type AccountDeleteEvent,
+  type ClaimSlalomTipReq,
+  type ClaimSlalomTipRsp,
   type ClaimTrophyRewardReq,
   type ClaimTrophyRewardRsp,
   type CompleteMissionReq,
@@ -35,6 +37,7 @@ import {
 } from '../shared/api.ts'
 import {
   dbClaimFollowBonus,
+  dbClaimSlalomTip,
   dbClaimTrophyReward,
   dbEquipSkin,
   dbGetAllTimeBest,
@@ -75,6 +78,7 @@ type AnyRsp =
   | ClaimTrophyRewardRsp
   | CountPlayRsp
   | CompleteMissionRsp
+  | ClaimSlalomTipRsp
   | SubmitFailRsp
   | PostFailCommentRsp
   | FollowRsp
@@ -133,6 +137,9 @@ async function route(
         break
       case Endpoint.CompleteMission:
         rsp = await routeCompleteMission(reqMsg)
+        break
+      case Endpoint.ClaimSlalomTip:
+        rsp = await routeClaimSlalomTip(reqMsg)
         break
       case Endpoint.CountPlay:
         rsp = await routeCountPlay()
@@ -372,6 +379,23 @@ async function routeCompleteMission(
     completed: result.completed,
     firstCompletion: result.firstCompletion,
   }
+}
+
+/** Pays the slalom tip into the wallet. The date is the SERVER's
+ *  todayUTC(), same rule routeSubmitDailyBest states: a client-supplied
+ *  date would let any webview pad an arbitrary day's high-water.
+ *  Amount validation, the daily cap and the improvement-only delta all
+ *  live in dbClaimSlalomTip; a repeat run that didn't beat the day's
+ *  payout comes back credited: 0 with the unchanged balance, which is a
+ *  success, not an error -- the client renders it as "already paid". */
+async function routeClaimSlalomTip(
+  reqMsg: IncomingMessage,
+): Promise<ClaimSlalomTipRsp | ErrorRsp> {
+  const req = await readJson<ClaimSlalomTipReq>(reqMsg)
+  const user = await getCurrentUserRetrying()
+  const username = user?.username ?? 'anonymous'
+  const cents = typeof req.cents === 'number' ? req.cents : 0
+  return await dbClaimSlalomTip(username, todayUTC(), cents)
 }
 
 /** The date comes from the SERVER's todayUTC(), not the client: the
