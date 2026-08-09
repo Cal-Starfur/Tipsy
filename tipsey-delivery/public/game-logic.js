@@ -313,15 +313,26 @@ function tdFxOnFailScreen(){
   if(tdFx.debug){ tdFxShowFollow(); return; }   // debug: preview on every fail
   tdFxMaybeFollow();
 }
-function tdFxMaybeFollow(){
-  if(tdFx.fails < 3 || tdFx.followShown || tdFx.followClaimed) return;
+/* The GATE, split from the PRESENTER: the daily route's fail overlay and
+   the slalom's result card both ask the same question -- "is this the
+   moment for the follow offer?" -- but paint the answer on different
+   DOM. One eligibility function keeps the two from drifting apart on the
+   rules (3 fails, not shown this session, not claimed, not done, not
+   deferred today); each caller owns setting followShown, because setting
+   it here would let a caller check eligibility without showing. */
+function tdFxFollowEligible(){
+  if(tdFx.fails < 3 || tdFx.followShown || tdFx.followClaimed) return false;
   let later = null, done = null;
   try {
     later = localStorage.getItem(TDFX_LATER_KEY);
     done = localStorage.getItem(TDFX_DONE_KEY);
   } catch(e){ /* storage blocked: still safe, server flag is the gate */ }
-  if(done) return;
-  if(later === clientTodayUTC()) return;
+  if(done) return false;
+  if(later === clientTodayUTC()) return false;
+  return true;
+}
+function tdFxMaybeFollow(){
+  if(!tdFxFollowEligible()) return;
   tdFx.followShown = true;   // once per session, however it's answered
   tdFxShowFollow();
 }
@@ -393,11 +404,17 @@ function tdFxDoFollow(btn){
     const e = document.getElementById("tdFxFollowErr");
     if(e){ e.textContent = "Couldn't follow. Try again."; e.style.display = "block"; }
   };
+  tdFxFollowRequest(granted => { tdFx.busy = false; tdFxFollowDone(granted); }, fail);
+}
+/* The NETWORK half of the follow flow, shared by the fail overlay and
+   the slalom card so the endpoint, the done-flag write and the wallet
+   handling can never disagree between the two askers. onOk(granted)
+   fires only on a confirmed join; onErr on anything else. */
+function tdFxFollowRequest(onOk, onErr){
   fetch("api/tipsy/follow", { method: "POST", headers: { Accept: "application/json" } })
     .then(r => r.ok ? r.json() : null)
     .then(d => {
-      if(!d || !d.joined){ fail(); return; }
-      tdFx.busy = false;
+      if(!d || !d.joined){ onErr(); return; }
       tdFx.followClaimed = true;
       try { localStorage.setItem(TDFX_DONE_KEY, "1"); } catch(err){}
       /* wallet lands straight from the response -- no second profile
@@ -409,9 +426,9 @@ function tdFxDoFollow(btn){
         if(typeof tpSaveProfile === "function") tpSaveProfile();
         if(typeof tpRender === "function") tpRender();
       }
-      tdFxFollowDone(!!d.granted);
+      onOk(!!d.granted);
     })
-    .catch(fail);
+    .catch(onErr);
 }
 function tdFxFollowDone(granted){
   tdFxSwapText("Followed.",
@@ -16394,9 +16411,9 @@ function tpSlalomOn(){
       'font:13px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace','color:#e8eaef',
     ].join(';');
     card.innerHTML =
-      `<div style="color:${col};font-size:22px;font-weight:800;letter-spacing:2px;
+      `<div id="slVerdict" style="color:${col};font-size:22px;font-weight:800;letter-spacing:2px;
             text-align:center;margin-bottom:4px">${verdict}</div>
-       <div style="text-align:center;font-size:30px;font-weight:800;
+       <div id="slTotal" style="text-align:center;font-size:30px;font-weight:800;
             font-variant-numeric:tabular-nums;margin-bottom:12px">${total.toFixed(2)}s</div>
        ${row('run time', raw.toFixed(2) + 's')}
        ${row('penalties', (run.pen ? '+' : '') + run.pen.toFixed(1) + 's',
@@ -16430,6 +16447,86 @@ function tpSlalomOn(){
     document.body.appendChild(card);
     document.getElementById('slAgain').onclick = () => { card.remove(); slResetRun(); };
     document.getElementById('slClose').onclick = () => card.remove();
+
+    /* THE FAIL STREAK FEEDS THE SAME COUNTER AS THE DAILY ROUTE. The
+       slalom muzzles showFail (it owns its endings), which had the side
+       effect of hiding every slalom fail from tdFx.fails -- so a player
+       who bounced off the course three times never got the follow offer
+       a player who tipped over three times on the route did. A FAIL card
+       counts (over par or the double-miss both print FAIL); a quit does
+       not, matching the daily route where abandoning never reaches
+       showFail. Gate and network are the daily route's own functions;
+       only the painting differs, because the offer lands on this card
+       instead of the fail overlay -- same contract though: FOLLOW in the
+       retry slot, MAYBE LATER one tap away, the headline visibly
+       changes, and a NICE/LATER answer restores the card with run again
+       exactly where it was. */
+    if (IS_DEVVIT_BUILD && !won){
+      tdFx.fails++;
+      if (tdFxFollowEligible()){
+        tdFx.followShown = true;
+        slShowFollow(card);
+      }
+    }
+  }
+
+  /* The follow offer, painted on the slalom card in the fail overlay's
+     manner: tdFxShowFollow's design note verbatim -- the FOLLOW pill
+     takes the retry button's exact slot, the opt-out stays one tap
+     away, and the headline swap is the visible tell. Everything that
+     must not fork (eligibility, endpoint, done flag, wallet) lives in
+     the shared tdFx functions; this only moves pixels. */
+  function slShowFollow(card){
+    const v = document.getElementById('slVerdict');
+    const t = document.getElementById('slTotal');
+    const again = document.getElementById('slAgain');
+    const close = document.getElementById('slClose');
+    if (!v || !t || !again || !close) return;
+    const saved = { v: v.textContent, vCol: v.style.color, t: t.innerHTML,
+                    again: again.textContent, close: close.textContent };
+    const err = document.createElement('div');
+    err.id = 'slFollowErr';
+    err.style.cssText = 'text-align:center;color:#ff8a65;font-size:12px;margin-top:6px;display:none';
+    again.parentElement.before(err);
+    const offer = () => {
+      v.textContent = 'Follow r/tipsey.'; v.style.color = '#ff9c4d';
+      t.innerHTML = '<span style="font-size:15px;letter-spacing:1px">FREE&nbsp;&nbsp;+$25.00 BONUS TIPS</span>';
+      again.textContent = 'FOLLOW'; again.style.background = '#c2452e';
+      close.textContent = 'MAYBE LATER';
+    };
+    const restore = () => {
+      v.textContent = saved.v; v.style.color = saved.vCol; t.innerHTML = saved.t;
+      again.textContent = saved.again; again.style.background = '#232220';
+      again.disabled = false;
+      close.textContent = saved.close; close.style.display = '';
+      err.remove();
+      again.onclick = () => { card.remove(); slResetRun(); };
+      close.onclick = () => card.remove();
+    };
+    offer();
+    close.onclick = () => {
+      try { localStorage.setItem(TDFX_LATER_KEY, clientTodayUTC()); } catch(e){}
+      restore();
+    };
+    again.onclick = () => {
+      if (tdFx.busy) return;
+      tdFx.busy = true; again.disabled = true; again.textContent = 'FOLLOWING...';
+      err.style.display = 'none';
+      tdFxFollowRequest(granted => {
+        tdFx.busy = false; again.disabled = false;
+        v.textContent = 'Followed.';
+        t.innerHTML = '<span style="font-size:13px;letter-spacing:1px">' +
+          (granted ? '$25.00 IN BONUS TIPS ADDED TO YOUR WALLET'
+                   : 'BONUS ALREADY CLAIMED ON THIS ACCOUNT') + '</span>';
+        close.style.display = 'none';
+        again.textContent = 'NICE';
+        again.onclick = restore;
+      }, () => {
+        tdFx.busy = false; again.disabled = false; again.textContent = 'FOLLOW';
+        err.textContent = "Couldn't follow. Try again.";
+        err.style.display = 'block';
+      });
+    };
   }
 
   /* ============ 3 - 2 - 1 - GO ============
