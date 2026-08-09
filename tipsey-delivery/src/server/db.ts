@@ -367,6 +367,52 @@ export async function dbClaimFollowBonus(
   return {granted: false, walletCents: parseInt(raw ?? '0', 10) || 0}
 }
 
+/** Per-day slalom payout high-water, one hash field per dateStr.
+ *  Sibling of tpMissionsKey and shares its lifetime reasoning: no TTL,
+ *  because a year of daily fields is ~365 tiny entries -- not worth a
+ *  dated-key TTL scheme like the daily boards use. */
+function tpSlalomTipKey(username: string): string {
+  return `tipsy:global:tpsltip:${username}`
+}
+
+/** Slalom tip claim: pays the improvement over the day's payout
+ *  high-water into the spendable wallet. The claim is self-reported --
+ *  the server never ran the course and cannot re-derive the time -- so
+ *  it is bounded the same way dbRecordMission bounds a forged count:
+ *  capped to SLALOM_TIP_DAILY_MAX_CENTS, and only the DELTA over the
+ *  day's previous payout is credited, which is the replay replace/delta
+ *  rule applied to a mission ("run again" grinding pays nothing unless
+ *  the run beat the day's best). The high-water is read-modify-write
+ *  like dbRecordMission's; the credit itself is a single hIncrBy, so a
+ *  concurrent double-claim costs at most one delta, never two. dateStr
+ *  MUST come from the route's todayUTC(), never the client -- see
+ *  routeClaimSlalomTip. Only cosmetic skins ride on the wallet, which
+ *  is what makes the $20/day forgery ceiling an acceptable bound. */
+export const SLALOM_TIP_DAILY_MAX_CENTS = 2000
+export async function dbClaimSlalomTip(
+  username: string,
+  dateStr: string,
+  claimCents: number,
+): Promise<{credited: number; walletCents: number}> {
+  const raw =
+    typeof claimCents === 'number' ? Math.floor(claimCents) : Number.NaN
+  const claim = Number.isFinite(raw)
+    ? Math.min(SLALOM_TIP_DAILY_MAX_CENTS, Math.max(0, raw))
+    : 0
+  const key = tpSlalomTipKey(username)
+  const prev = parseInt((await redis.hGet(key, dateStr)) ?? '0', 10) || 0
+  const credited = Math.max(0, claim - prev)
+  if (credited > 0) await redis.hSet(key, {[dateStr]: String(claim)})
+  const walletCents =
+    credited > 0
+      ? await redis.hIncrBy(tpProfileKey(username), 'walletCents', credited)
+      : parseInt(
+          (await redis.hGet(tpProfileKey(username), 'walletCents')) ?? '0',
+          10,
+        ) || 0
+  return {credited, walletCents}
+}
+
 /** Server-authoritative skin purchase. Price/unlockType come from this
  *  file's own TS_SKINS catalog (tpcatalog.ts), never from the client.
  *
