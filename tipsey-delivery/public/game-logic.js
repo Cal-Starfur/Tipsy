@@ -13414,40 +13414,72 @@ class WorldScene extends Phaser.Scene {
         this.gGlow.fillStyle(0xffffff, (0.5 + 0.35*pulse)*faceK);
         this.gGlow.fillEllipse(c.x, c.y, (3.5 + 1*pulse)*ks, (3 + 1*pulse)*ks);
       }
-      /* headlights: same layered-pool + fillPoints flare recipe as the
-         streetlamp, world position off botX/botY + drawAngle alone (not
-         a full R() through yaw/pitch/roll) so a hop or tip doesn't swing
-         the beam. faceK fades it the same way and for the same reason
-         as the eye halo just above.
-         beamFwd used to start the flare triangle right at the eye
-         (BODY.hx+0.8, ~27 units) — which meant the near end of the beam
-         was always touching the body's own screen silhouette no matter
-         which way he faced, since it has to originate somewhere and
-         that "somewhere" was ON him. gGlow has no real depth test
-         against sprites, so that touching point always painted through
-         him. Starting the visible beam further out instead (past his
-         own footprint entirely) means nothing in this block ever
-         overlaps his silhouette, gated angle or not. Pool + throw
-         distance also both scaled up — was reading too small and too
-         dim to land as "headlights" even where it was fully visible. */
+      /* headlights: pool + beams, ALL geometry generated in world space
+         off botX/botY + drawAngle alone (not a full R() through
+         yaw/pitch/roll, so a hop or tip doesn't swing the beam) and
+         only then projected through this.W. The previous version mixed
+         frames: the two beam triangles shared one far base drawn as a
+         horizontal SCREEN segment (gp.x +/- 32px) — perpendicular to
+         travel only at the headings where forward projects vertically.
+         At the other two headings that base ran parallel to the beam
+         and the triangles sheared into slivers; and since both eyes
+         fanned to the same base, the pair merged into one blob instead
+         of two headlights. Same screen-vs-world frame mistake class as
+         the old slalom gate-color bug — the fix is the same: pick one
+         frame (world), do all geometry there, project last. A bonus of
+         world-space pools: a flat world ellipse projects through the
+         iso transform to the correctly foreshortened screen ellipse at
+         every heading for free, no hand-rotated canvas needed.
+         beamFwd pulled back from 50 to 34 — 50 left ~24 units of dark
+         air between the face and the start of the beam (footprint ends
+         at 24, eyes at ~26) and the light read as detached from him.
+         34 keeps 10 units of clearance past his own silhouette (the
+         through-body paint problem started when the beam ORIGIN sat on
+         the body at ~27) while the eye halo bridges the remaining gap.
+         Sizes chosen to project to the already-approved screen scale:
+         at depth 1 W() maps ~1.6px per world unit, so pool half-width
+         21 =~ the old 70px ellipse and far beam span +/-21 =~ the old
+         +/-32px base. Each eye now owns its own trapezoid (near edge
+         under its eye, far edge diverging outward) so two distinct
+         beams read at every heading. */
       const hx2 = Math.cos(this.drawAngle), hy2 = Math.sin(this.drawAngle);
       const lx = -Math.sin(this.drawAngle), ly = Math.cos(this.drawAngle);
-      const beamFwd = 50;
-      const gp = this.W(this.botX + hx2*100, this.botY + hy2*100, 0);
+      const poolDist = 100, beamFwd = 34;
+      const WB = (fwd, side, z) => this.W(this.botX + fwd*hx2 + side*lx,
+                                          this.botY + fwd*hy2 + side*ly, z);
       const poolK = (0.6 + 0.4*pulse)*faceK;
-      this.gGlow.fillStyle(SKIN.eye, 0.30*poolK);
-      this.gGlow.fillEllipse(gp.x, gp.y, 70*ks, 38*ks);
-      this.gGlow.fillStyle(SKIN.eye, 0.52*poolK);
-      this.gGlow.fillEllipse(gp.x, gp.y, 46*ks, 25*ks);
-      this.gGlow.fillStyle(0xffffff, 0.70*poolK);
-      this.gGlow.fillEllipse(gp.x, gp.y, 24*ks, 13*ks);
+      /* ground pool: three stacked world-space ellipses, long axis along
+         travel, sampled and projected point-by-point */
+      const poolLayers = [
+        [27, 21, SKIN.eye, 0.30],
+        [18, 14, SKIN.eye, 0.52],
+        [9.5, 7, 0xffffff, 0.70]
+      ];
+      for(const L of poolLayers){
+        const pp = [];
+        for(let i = 0; i < 20; i++){
+          const t = i/20 * Math.PI * 2;
+          const q = WB(poolDist + Math.cos(t)*L[0], Math.sin(t)*L[1], 0);
+          pp.push(new Phaser.Geom.Point(q.x, q.y));
+        }
+        this.gGlow.fillStyle(L[2], L[3]*poolK);
+        this.gGlow.fillPoints(pp, true);
+      }
+      /* beams: one trapezoid per eye. Near edge sits just under eye
+         height 10 units past the footprint; far edge lands inside the
+         pool's cross-travel half-width (21) so beam and pool meet. */
+      this.gGlow.fillStyle(SKIN.eye, (0.20 + 0.12*pulse)*poolK);
       for(const ey of [-7, 7]){
-        const lp2 = this.W(this.botX + beamFwd*hx2 + ey*lx, this.botY + beamFwd*hy2 + ey*ly, this.botZ + 45);
-        this.gGlow.fillStyle(SKIN.eye, (0.22 + 0.14*pulse)*poolK);
+        const dv = ey > 0 ? 1 : -1;
+        const n0 = WB(beamFwd, ey - dv*2.8, this.botZ + 36);
+        const n1 = WB(beamFwd, ey + dv*2.8, this.botZ + 36);
+        const f0 = WB(poolDist, ey*1.85 - dv*8, 0);
+        const f1 = WB(poolDist, ey*1.85 + dv*8, 0);
         this.gGlow.fillPoints([
-          new Phaser.Geom.Point(lp2.x, lp2.y),
-          new Phaser.Geom.Point(gp.x - 32*ks, gp.y),
-          new Phaser.Geom.Point(gp.x + 32*ks, gp.y)
+          new Phaser.Geom.Point(n0.x, n0.y),
+          new Phaser.Geom.Point(n1.x, n1.y),
+          new Phaser.Geom.Point(f1.x, f1.y),
+          new Phaser.Geom.Point(f0.x, f0.y)
         ], true);
       }
     }
