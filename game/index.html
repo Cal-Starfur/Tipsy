@@ -16022,7 +16022,23 @@ function tpSlalomOn(){
                   // corridor used to end 2 T2 after the last gate, which is the
                   // size of the COURSE — the frame is the size of the CAMERA.
     pen:  2.0,    // seconds added per knocked cone / missed side
-    par:  52.0,   // seconds to beat
+    /* PAR IS DERIVED, NOT DIALED. par used to be a constant (52.0) tuned
+       against the short lab course, but the shipped course is built from
+       the daily route's own legs and its length changes with the seed —
+       measured 2026-08-09: 16,952 units over 5 legs / 25 gates, where a
+       physically perfect flat-out run is already 37.7s; a full 12-leg
+       day is roughly double that, putting 52s below the physical floor.
+       One constant cannot answer a question the seed re-asks every day
+       (same rule as the spacing fix), so par is computed per-course in
+       slBuildCourse from what actually got built:
+         par = dist/vTop * parPace + nGates*parGate + nCorners*parCorner
+       and THESE three are the dials now — they tune feel, and correct
+       scaling with course length comes from the formula itself. A side
+       effect of the old unwinnable par: `won` never went true, so the
+       slalom-master flag (and now the tip payout) never fired. */
+    parPace:   1.12,  // cushion multiplier on the flat-out pace time
+    parGate:   0.45,  // seconds granted per gate (one row-hop's cost)
+    parCorner: 1.8,   // seconds granted per corner arc
   };
   const HOOD_BLUFFS = 7;         // HOODS[7] — hill 1.0, the steepest in the city
 
@@ -16760,6 +16776,13 @@ function tpSlalomOn(){
     course.nChute = chuteN;
     course.finishS = Math.round(gatesNow().reduce((m, h) => Math.max(m, h.s), 0)
                                 + SL.tail * T2);
+    /* par, from the course that was just built — see the SL comment. vTop
+       is a const declared further down the closure, which is safe here
+       because slBuildCourse only ever RUNS via slResetRun after the whole
+       closure body has executed (scene._slAPI wiring at the tail). */
+    course.par = (course.finishS - course.spawnS) / (vTop() * 1000) * SL.parPace
+               + course.nGates * SL.parGate
+               + course.arcSpans.length * SL.parCorner;
     /* Built HERE, not earlier: the tape is placed at course.finishS, and
        finishS is only known once the last gate is planted. Called before this
        line it read undefined, posAt(undefined) returned NaN, and the ribbon was
@@ -17021,15 +17044,51 @@ function tpSlalomOn(){
     const raw   = run.elapsed;
     const total = raw + run.pen;
     const clean = run.cleared === run.cones.length && run.pen === 0;
-    const won   = total <= SL.par;
+    const par   = (run.course && run.course.par) || 0;
+    const won   = par > 0 && total <= par;
     /* mission wiring: a canonical run reports like every mission does —
        completion flips the slalom-master trophy (its progress fn reads
-       missions.has), best time rides the profile for the mission card. */
+       missions.has), best time rides the profile for the mission card.
+       The 1 passed to tpCompleteMission is what makes tpSubmitMission
+       fire on Devvit — the old bare call kept the completion local-only,
+       so the server never learned it and the trophy claim would have
+       failed its eligibility check on Reddit. 1 and not the time: the
+       server keeps the MAX as a high-water mark, and a time is a
+       lower-is-better number, so reporting ms would preserve the WORST
+       run. Pass/fail missions report 1. */
     if (won){
       try {
         tpProfile.slBestMs = Math.min(tpProfile.slBestMs || 1e12, Math.round(total*1000));
-        tpCompleteMission('cone-slalom');
+        tpCompleteMission('cone-slalom', 1);
         tpSaveProfile();
+      } catch(_){}
+    }
+
+    /* THE TIP — the finish line is a real delivery stop, so a winning run
+       pays like one: $3.00 base + $0.75 per second under par + $1.50 for
+       a clean run. Wallet ONLY — never history/allTimeTotal, which belong
+       to the daily route and the leaderboard; mission money is spending
+       money. Anti-farming mirrors the replay delta rule: slPaid keeps a
+       per-day high-water of what this course has already paid out, and a
+       repeat run credits only the improvement — "run again" grinding pays
+       nothing unless you beat yourself. Keyed on the ROUTE's dateStr (not
+       the clock) so a replayed past route can't reset today's tracker.
+       NOTE (Devvit): the wallet there is server-authoritative and Redis
+       will heal this credit away until mission/complete pays server-side
+       — Phase A (web/itch) is fully live, Devvit needs the server pass. */
+    let tipCents = 0, bonusCents = 0, paidCents = 0;
+    if (won){
+      tipCents   = 300 + Math.round(Math.max(0, par - total) * 75);
+      bonusCents = clean ? 150 : 0;
+      try {
+        const day = (scene.route && scene.route.dateStr) || clientTodayUTC();
+        if (!tpProfile.slPaid || typeof tpProfile.slPaid !== 'object') tpProfile.slPaid = {};
+        const already = tpProfile.slPaid[day] || 0;
+        paidCents = Math.max(0, tipCents + bonusCents - already);
+        tpProfile.slPaid[day] = Math.max(already, tipCents + bonusCents);
+        tpProfile.walletCents += paidCents;
+        tpSaveProfile();
+        tpRender();
       } catch(_){}
     }
 
@@ -17071,23 +17130,26 @@ function tpSlalomOn(){
        ${row('run time', raw.toFixed(2) + 's')}
        ${row('penalties', (run.pen ? '+' : '') + run.pen.toFixed(1) + 's',
              run.pen ? '#ff9c4d' : '#7fe08a')}
-       ${row('par', SL.par.toFixed(1) + 's')}
-       ${row('margin', (SL.par - total >= 0 ? '−' : '+') +
-             Math.abs(SL.par - total).toFixed(2) + 's', col)}
-       ${row('gates cleared', `${run.cleared} / ${run.gates.length}`)}
+       ${row('par', par.toFixed(1) + 's')}
+       ${row('margin', (par - total >= 0 ? '−' : '+') +
+             Math.abs(par - total).toFixed(2) + 's', col)}
+       ${row('cones cleared', `${run.cleared} / ${run.cones.length}`)}
        ${row('grade', (run.course.grade * 100).toFixed(1) + '% downhill')}
        ${row('legs', `${run.course.nLines}  (f=${run.course.fList.join('/')})`)}
        ${row('best', best ? best.toFixed(2) + 's' : '—', isBest ? '#7fe08a' : null)}
        ${isBest ? `<div style="text-align:center;color:#7fe08a;margin-top:6px">
                      new best</div>` : ''}
+       ${won ? row('tip', tpMoney(tipCents)) : ''}
+       ${bonusCents ? row('clean bonus', '+' + tpMoney(bonusCents), '#7fe08a') : ''}
+       ${won ? row('credited to wallet', tpMoney(paidCents), paidCents ? '#7fe08a' : null) : ''}
+       ${won && !paidCents ? `<div style="text-align:center;color:#8f95a1;margin-top:4px">
+             beat today's best payout to earn more</div>` : ''}
        <div style="display:flex;gap:12px;justify-content:center;margin-top:8px;
             font-size:11px;color:#8f95a1">
          <span><b style="color:#e03131">red</b> pass above</span>
          <span><b style="color:#2f6fd0">blue</b> pass below</span>
        </div>
        ${faults}
-       ${clean && won ? `<div style="text-align:center;color:#7fe08a;margin-top:10px">
-             slalom-master would unlock here</div>` : ''}
        <div style="display:flex;gap:8px;margin-top:14px">
          <button id="slAgain" style="${'font:inherit;color:#e8eaef;background:#232220;' +
            'border:1px solid #2b2f38;border-radius:7px;min-height:44px;'}flex:2">run again</button>
@@ -18938,6 +19000,12 @@ function tpLoadProfile(){
        landed. */
     hjLevel: (raw && raw.hjLevel) || 1,
     hjBest:  (raw && raw.hjBest)  || 0,
+    /* slalom: best time was being WRITTEN by slShowCard but never
+       serialized here or in tpSaveProfile, so it silently dropped on
+       every reload. slPaid is the per-day payout high-water map
+       ({dateStr: cents}) behind the slalom tip's anti-farming rule. */
+    slBestMs: (raw && raw.slBestMs) || 0,
+    slPaid:   (raw && raw.slPaid)   || {},
   };
 }
 function tpSaveProfile(){
@@ -18951,6 +19019,8 @@ function tpSaveProfile(){
       allTimeTotal: tpProfile.allTimeTotal,
       hjLevel: tpProfile.hjLevel,        // hydrant challenge progress
       hjBest: tpProfile.hjBest,
+      slBestMs: tpProfile.slBestMs,      // slalom best — see tpLoadProfile note
+      slPaid: tpProfile.slPaid,          // slalom daily payout high-water
     }));
   } catch(e){}
 }
