@@ -17073,9 +17073,12 @@ function tpSlalomOn(){
        repeat run credits only the improvement — "run again" grinding pays
        nothing unless you beat yourself. Keyed on the ROUTE's dateStr (not
        the clock) so a replayed past route can't reset today's tracker.
-       NOTE (Devvit): the wallet there is server-authoritative and Redis
-       will heal this credit away until mission/complete pays server-side
-       — Phase A (web/itch) is fully live, Devvit needs the server pass. */
+       On Devvit the wallet is server-authoritative (Redis heals it on
+       every profile sync), so the local credit below only sticks once
+       the server has paid it too — the fetch after tpRender() claims it
+       through api/tipsy/slalom/tip, the server applies its OWN per-day
+       delta rule, cap and date, and the walletCents it returns is the
+       truth: take it verbatim, do not add to it. */
     let tipCents = 0, bonusCents = 0, paidCents = 0;
     if (won){
       tipCents   = 300 + Math.round(Math.max(0, par - total) * 75);
@@ -17089,6 +17092,23 @@ function tpSlalomOn(){
         tpProfile.walletCents += paidCents;
         tpSaveProfile();
         tpRender();
+        if (IS_DEVVIT_BUILD){
+          fetch("api/tipsy/slalom/tip", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Accept: "application/json" },
+            body: JSON.stringify({ cents: tipCents + bonusCents })
+          })
+            .then(rsp => rsp.ok ? rsp.json() : null)
+            .then(data => {
+              if(!data || typeof data.walletCents !== "number") return;
+              /* authoritative balance replaces, never adds — the local
+                 credit above is already inside this number */
+              tpProfile.walletCents = data.walletCents;
+              tpSaveProfile();
+              tpRender();
+            })
+            .catch(()=>{});
+        }
       } catch(_){}
     }
 
