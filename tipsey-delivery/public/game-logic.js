@@ -13418,30 +13418,36 @@ class WorldScene extends Phaser.Scene {
          streetlamp, world position off botX/botY + drawAngle alone (not
          a full R() through yaw/pitch/roll) so a hop or tip doesn't swing
          the beam. faceK fades it the same way and for the same reason
-         as the eye halo just above. Alphas bumped well up from the
-         first couple passes — verified with a forced-heading render
-         that the recipe itself was actually working and painting a
-         real beam+pool, it was just too subtle a cyan wash at these
-         alpha levels to read as "headlights" during normal play rather
-         than something you have to already know to look for. */
+         as the eye halo just above.
+         beamFwd used to start the flare triangle right at the eye
+         (BODY.hx+0.8, ~27 units) — which meant the near end of the beam
+         was always touching the body's own screen silhouette no matter
+         which way he faced, since it has to originate somewhere and
+         that "somewhere" was ON him. gGlow has no real depth test
+         against sprites, so that touching point always painted through
+         him. Starting the visible beam further out instead (past his
+         own footprint entirely) means nothing in this block ever
+         overlaps his silhouette, gated angle or not. Pool + throw
+         distance also both scaled up — was reading too small and too
+         dim to land as "headlights" even where it was fully visible. */
       const hx2 = Math.cos(this.drawAngle), hy2 = Math.sin(this.drawAngle);
       const lx = -Math.sin(this.drawAngle), ly = Math.cos(this.drawAngle);
-      const eyeFwd = BODY.hx + 0.8;
-      const gp = this.W(this.botX + hx2*70, this.botY + hy2*70, 0);
+      const beamFwd = 50;
+      const gp = this.W(this.botX + hx2*100, this.botY + hy2*100, 0);
       const poolK = (0.6 + 0.4*pulse)*faceK;
-      this.gGlow.fillStyle(SKIN.eye, 0.18*poolK);
-      this.gGlow.fillEllipse(gp.x, gp.y, 50*ks, 28*ks);
-      this.gGlow.fillStyle(SKIN.eye, 0.34*poolK);
-      this.gGlow.fillEllipse(gp.x, gp.y, 32*ks, 18*ks);
-      this.gGlow.fillStyle(0xffffff, 0.48*poolK);
-      this.gGlow.fillEllipse(gp.x, gp.y, 16*ks, 9*ks);
+      this.gGlow.fillStyle(SKIN.eye, 0.30*poolK);
+      this.gGlow.fillEllipse(gp.x, gp.y, 70*ks, 38*ks);
+      this.gGlow.fillStyle(SKIN.eye, 0.52*poolK);
+      this.gGlow.fillEllipse(gp.x, gp.y, 46*ks, 25*ks);
+      this.gGlow.fillStyle(0xffffff, 0.70*poolK);
+      this.gGlow.fillEllipse(gp.x, gp.y, 24*ks, 13*ks);
       for(const ey of [-7, 7]){
-        const lp2 = this.W(this.botX + eyeFwd*hx2 + ey*lx, this.botY + eyeFwd*hy2 + ey*ly, this.botZ + 45);
-        this.gGlow.fillStyle(SKIN.eye, (0.16 + 0.10*pulse)*poolK);
+        const lp2 = this.W(this.botX + beamFwd*hx2 + ey*lx, this.botY + beamFwd*hy2 + ey*ly, this.botZ + 45);
+        this.gGlow.fillStyle(SKIN.eye, (0.22 + 0.14*pulse)*poolK);
         this.gGlow.fillPoints([
           new Phaser.Geom.Point(lp2.x, lp2.y),
-          new Phaser.Geom.Point(gp.x - 22*ks, gp.y),
-          new Phaser.Geom.Point(gp.x + 22*ks, gp.y)
+          new Phaser.Geom.Point(gp.x - 32*ks, gp.y),
+          new Phaser.Geom.Point(gp.x + 32*ks, gp.y)
         ], true);
       }
     }
