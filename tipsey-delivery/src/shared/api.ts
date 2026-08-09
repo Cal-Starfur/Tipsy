@@ -159,6 +159,20 @@ export type CompleteMissionRsp = {
   completed: boolean
   firstCompletion: boolean
 }
+/** Claims the slalom tip payout. cents is the CLIENT's computed payout
+ *  (base + margin bonus + clean bonus) and is self-reported, like a
+ *  mission count -- the server never ran the course. Two things bound
+ *  the damage, same doctrine as CompleteMissionReq's clamp: the claim
+ *  is capped to db.ts SLALOM_TIP_DAILY_MAX_CENTS, and only the
+ *  improvement over the day's previous payout is ever credited, keyed
+ *  on the SERVER's todayUTC() so a webview can't pad an arbitrary
+ *  day's tally. */
+export type ClaimSlalomTipReq = {cents: number}
+/** credited is the delta actually paid this call (0 on a repeat run
+ *  that didn't beat the day's payout high-water); walletCents is the
+ *  post-call balance so the client can update its wallet without a
+ *  second profile fetch -- same contract as FollowRsp. */
+export type ClaimSlalomTipRsp = {credited: number; walletCents: number}
 export type Endpoint = (typeof Endpoint)[keyof typeof Endpoint]
 export const Endpoint = {
   GetDailyBest: 'api/tipsy/best',
@@ -170,6 +184,7 @@ export const Endpoint = {
   EquipSkin: 'api/tipsy/profile/equip',
   ClaimTrophyReward: 'api/tipsy/profile/claim',
   CompleteMission: 'api/tipsy/mission/complete',
+  ClaimSlalomTip: 'api/tipsy/slalom/tip',
   CountPlay: 'api/tipsy/play',
   SubmitFail: 'api/tipsy/fail',
   PostFailComment: 'api/tipsy/fail/comment',
@@ -190,6 +205,7 @@ export const EndpointMethod = {
   [Endpoint.EquipSkin]: 'POST',
   [Endpoint.ClaimTrophyReward]: 'POST',
   [Endpoint.CompleteMission]: 'POST',
+  [Endpoint.ClaimSlalomTip]: 'POST',
   [Endpoint.CountPlay]: 'POST',
   [Endpoint.SubmitFail]: 'POST',
   [Endpoint.PostFailComment]: 'POST',
