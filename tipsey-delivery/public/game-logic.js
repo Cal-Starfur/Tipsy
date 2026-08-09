@@ -13384,10 +13384,7 @@ class WorldScene extends Phaser.Scene {
            one flat fill. Sine breathing pulse drives the whole stack
            together rather than a hard strobe — flashing/strobing is a
            real photosensitivity concern, a smooth ~4s cycle reads as
-           "these are lights" with no flicker. Both eyes in phase. This
-           halo is the face detail, reasonably tied to actually seeing
-           the face — the beam and ground pool are a separate, always-
-           visible block below, outside this fn-facing gate entirely. */
+           "these are lights" with no flicker. Both eyes in phase. */
         const pulse = 0.5 + 0.5*Math.sin(this.time.now / 650);
         for(const ey of [-7, 7]){
           const c = F(ey, 45);
@@ -13398,51 +13395,41 @@ class WorldScene extends Phaser.Scene {
           this.gGlow.fillStyle(0xffffff, 0.5 + 0.35*pulse);
           this.gGlow.fillEllipse(c.x, c.y, (3.5 + 1*pulse)*ks, (3 + 1*pulse)*ks);
         }
+        /* headlights: back inside the same fn-facing gate as the eye
+           halo above, on purpose — this is a ground pool the camera is
+           looking at from roughly the same side the bot itself is
+           facing, so pulling it outside the gate meant "ahead" could
+           land on the far side of the bot from camera and the additive
+           glow drew right through the body sprite with no occlusion to
+           stop it. Gating it with the face is what keeps it in front of
+           him instead. World position off botX/botY + drawAngle alone
+           (not a full R() through yaw/pitch/roll) so a hop or a tip
+           doesn't swing the beam. Same layered-pool recipe as the
+           streetlamp, plus its fillPoints flare triangle per eye,
+           fanning down to shared ground anchors — widened out from the
+           first pass, both the pool and the base spread. */
+        const hx2 = Math.cos(this.drawAngle), hy2 = Math.sin(this.drawAngle);
+        const lx = -Math.sin(this.drawAngle), ly = Math.cos(this.drawAngle);
+        const eyeFwd = BODY.hx + 0.8;
+        const gp = this.W(this.botX + hx2*70, this.botY + hy2*70, 0);
+        const poolK = 0.6 + 0.4*pulse;
+        this.gGlow.fillStyle(SKIN.eye, 0.10*poolK);
+        this.gGlow.fillEllipse(gp.x, gp.y, 50*ks, 28*ks);
+        this.gGlow.fillStyle(SKIN.eye, 0.20*poolK);
+        this.gGlow.fillEllipse(gp.x, gp.y, 32*ks, 18*ks);
+        this.gGlow.fillStyle(0xffffff, 0.28*poolK);
+        this.gGlow.fillEllipse(gp.x, gp.y, 16*ks, 9*ks);
+        for(const ey of [-7, 7]){
+          const lp2 = this.W(this.botX + eyeFwd*hx2 + ey*lx, this.botY + eyeFwd*hy2 + ey*ly, this.botZ + 45);
+          this.gGlow.fillStyle(SKIN.eye, (0.09 + 0.06*pulse)*poolK);
+          this.gGlow.fillPoints([
+            new Phaser.Geom.Point(lp2.x, lp2.y),
+            new Phaser.Geom.Point(gp.x - 22*ks, gp.y),
+            new Phaser.Geom.Point(gp.x + 22*ks, gp.y)
+          ], true);
+        }
       }
       this.quadOn(g, [F(-16,18), F(16,18), F(16,22), F(-16,22)], 0xfff3b0);
-    }
-    if(this.route && this.route.night){
-      /* headlights: needs to read like the streetlamp's ground pool —
-         visible from any angle, not just face-on. A real headlight's
-         lit patch of pavement reads fine from the side or behind;
-         you're looking at the ground, not the bulb. So unlike the eye
-         halo above (a face detail, fairly tied to actually seeing the
-         face), this whole block sits outside the fn-facing gate:
-         world position off botX/botY + drawAngle alone, not a full
-         R() through yaw/pitch/roll, so a hop or a tip doesn't swing
-         the beam, and it draws every night frame regardless of which
-         way the bot is turned — same as the lamp never checking
-         whether you can see its fixture before lighting the sidewalk
-         under it. Same layered-pool recipe, plus the lamp's own
-         fillPoints flare triangle, one per eye, both fanning down to
-         the same ground anchors so they read as a beam connecting eye
-         to sidewalk instead of two disconnected glows. No separate dot
-         at the apex — that read as a second pair of eyes next to the
-         real ones. The triangle already tapers to a point there; the
-         actual eye halo above is the only thing that should mark the
-         source. */
-      const pulse = 0.5 + 0.5*Math.sin(this.time.now / 650);
-      const ks2 = this.kScale();
-      const hx2 = Math.cos(this.drawAngle), hy2 = Math.sin(this.drawAngle);
-      const lx = -Math.sin(this.drawAngle), ly = Math.cos(this.drawAngle);
-      const eyeFwd = BODY.hx + 0.8;
-      const gp = this.W(this.botX + hx2*70, this.botY + hy2*70, 0);
-      const poolK = 0.6 + 0.4*pulse;
-      this.gGlow.fillStyle(SKIN.eye, 0.10*poolK);
-      this.gGlow.fillEllipse(gp.x, gp.y, 36*ks2, 20*ks2);
-      this.gGlow.fillStyle(SKIN.eye, 0.20*poolK);
-      this.gGlow.fillEllipse(gp.x, gp.y, 22*ks2, 12*ks2);
-      this.gGlow.fillStyle(0xffffff, 0.28*poolK);
-      this.gGlow.fillEllipse(gp.x, gp.y, 11*ks2, 7*ks2);
-      for(const ey of [-7, 7]){
-        const lp2 = this.W(this.botX + eyeFwd*hx2 + ey*lx, this.botY + eyeFwd*hy2 + ey*ly, this.botZ + 45);
-        this.gGlow.fillStyle(SKIN.eye, (0.09 + 0.06*pulse)*poolK);
-        this.gGlow.fillPoints([
-          new Phaser.Geom.Point(lp2.x, lp2.y),
-          new Phaser.Geom.Point(gp.x - 14*ks2, gp.y),
-          new Phaser.Geom.Point(gp.x + 14*ks2, gp.y)
-        ], true);
-      }
     }
     for(const w of wheels) if(w.near) this.drawWheel(w.c, w.side);
     if(this.flagNear()) this.drawFlag(bobZ);
