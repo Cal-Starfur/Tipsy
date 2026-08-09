@@ -13375,11 +13375,20 @@ class WorldScene extends Phaser.Scene {
         }
       }
       if(this.route && this.route.night){
-        /* the eyes stay lit after dark */
+        /* the eyes stay lit after dark, and now actually read as lights
+           rather than a fixed glow — a slow sine breathing pulse, not a
+           hard strobe (flashing/strobing is a real photosensitivity
+           concern; a smooth ~4s breathing cycle gets the "these are
+           lights" read without any flicker). Both eyes in phase — kept
+           it a calm breathing pulse rather than alternating like a
+           pursuit light, on brand for a delivery bot rather than
+           something that reads as an alert. */
+        const pulse = 0.5 + 0.5*Math.sin(this.time.now / 650);
+        const glowA = 0.20 + 0.28*pulse;
         for(const ey of [-7, 7]){
           const c = F(ey, 45);
-          this.gGlow.fillStyle(SKIN.eye, 0.32);
-          this.gGlow.fillEllipse(c.x, c.y, 13*ks, 11*ks);
+          this.gGlow.fillStyle(SKIN.eye, glowA);
+          this.gGlow.fillEllipse(c.x, c.y, (11 + 4*pulse)*ks, (9 + 4*pulse)*ks);
         }
       }
       this.quadOn(g, [F(-16,18), F(16,18), F(16,22), F(-16,22)], 0xfff3b0);
