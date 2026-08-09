@@ -13375,21 +13375,44 @@ class WorldScene extends Phaser.Scene {
         }
       }
       if(this.route && this.route.night){
-        /* the eyes stay lit after dark, and now actually read as lights
-           rather than a fixed glow — a slow sine breathing pulse, not a
-           hard strobe (flashing/strobing is a real photosensitivity
-           concern; a smooth ~4s breathing cycle gets the "these are
-           lights" read without any flicker). Both eyes in phase — kept
-           it a calm breathing pulse rather than alternating like a
-           pursuit light, on brand for a delivery bot rather than
-           something that reads as an alert. */
+        /* the eyes stay lit after dark. A single flat wash doesn't read
+           against the navy night multiply — same finding the lamp lab
+           already hit (see the streetlamp's own layered gl.fillStyle
+           chain a few hundred lines up: "a single faint wash can't even
+           cancel the navy"). Same fix here: soft outer wash, then a
+           tighter mid layer, then a small hot white core, instead of
+           one flat fill. Sine breathing pulse drives the whole stack
+           together rather than a hard strobe — flashing/strobing is a
+           real photosensitivity concern, a smooth ~4s cycle reads as
+           "these are lights" with no flicker. Both eyes in phase. */
         const pulse = 0.5 + 0.5*Math.sin(this.time.now / 650);
-        const glowA = 0.20 + 0.28*pulse;
         for(const ey of [-7, 7]){
           const c = F(ey, 45);
-          this.gGlow.fillStyle(SKIN.eye, glowA);
-          this.gGlow.fillEllipse(c.x, c.y, (11 + 4*pulse)*ks, (9 + 4*pulse)*ks);
+          this.gGlow.fillStyle(SKIN.eye, 0.14 + 0.12*pulse);
+          this.gGlow.fillEllipse(c.x, c.y, (15 + 4*pulse)*ks, (13 + 4*pulse)*ks);
+          this.gGlow.fillStyle(SKIN.eye, 0.40 + 0.28*pulse);
+          this.gGlow.fillEllipse(c.x, c.y, (8 + 2.5*pulse)*ks, (7 + 2.5*pulse)*ks);
+          this.gGlow.fillStyle(0xffffff, 0.5 + 0.35*pulse);
+          this.gGlow.fillEllipse(c.x, c.y, (3.5 + 1*pulse)*ks, (3 + 1*pulse)*ks);
         }
+        /* headlights: the eye glow alone reads as lit-up eyes, not
+           headlights — a real headlight projects onto the ground ahead,
+           so this drops the same layered pool the streetlamp casts onto
+           the sidewalk below it, just smaller and travelling with the
+           bot instead of fixed to a pole. Ground-plane projection
+           (W at z=0), positioned with drawAngle alone rather than a
+           full R() through yaw/pitch/roll, so a hop or a tip doesn't
+           swing the beam — it tracks where the bot is actually heading,
+           not its momentary pose. */
+        const hx2 = Math.cos(this.drawAngle), hy2 = Math.sin(this.drawAngle);
+        const gp = this.W(this.botX + hx2*34, this.botY + hy2*34, 0);
+        const poolK = 0.6 + 0.4*pulse;
+        this.gGlow.fillStyle(SKIN.eye, 0.10*poolK);
+        this.gGlow.fillEllipse(gp.x, gp.y, 26*ks, 15*ks);
+        this.gGlow.fillStyle(SKIN.eye, 0.20*poolK);
+        this.gGlow.fillEllipse(gp.x, gp.y, 16*ks, 9*ks);
+        this.gGlow.fillStyle(0xffffff, 0.28*poolK);
+        this.gGlow.fillEllipse(gp.x, gp.y, 8*ks, 5*ks);
       }
       this.quadOn(g, [F(-16,18), F(16,18), F(16,22), F(-16,22)], 0xfff3b0);
     }
