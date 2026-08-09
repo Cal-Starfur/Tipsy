@@ -13345,8 +13345,9 @@ class WorldScene extends Phaser.Scene {
     if(lidIsNear) this.drawLid(lidBox);
 
     const fn = this.R(1, 0, 0);
+    const F = (y, z) => this.P(BODY.hx + 0.8, y, z + bobZ);
+    const ks = this.kScale();
     if(fn.x + fn.y + fn.z > 0){
-      const F = (y, z) => this.P(BODY.hx + 0.8, y, z + bobZ);
       this.quadOn(g, [F(-13,40), F(13,40), F(13,50), F(-13,50)], SKIN.visor);
       this.edgeOn(g, [F(-13,40), F(13,40), F(13,50), F(-13,50)], SKIN.outline, this.kw(1.5));
       /* Everything below is drawn in SCREEN pixels, after this.P() has
@@ -13355,7 +13356,6 @@ class WorldScene extends Phaser.Scene {
          shrinks (very visible at depth 3, K=0.30). ks() is normalised
          against ZOOM_K[0], so depth 1 is byte-identical to before.
          Stroke widths get a 1px floor so they don't vanish. */
-      const ks = this.kScale();
       if(this.state === "tipped"){
         g.lineStyle(Math.max(1, 2.5*ks), SKIN.eyeAlert, 1);
         for(const ey of [-7, 7]){
@@ -13374,62 +13374,71 @@ class WorldScene extends Phaser.Scene {
           g.fillEllipse(c.x, c.y, 7*ks, 7*ks*open);
         }
       }
-      if(this.route && this.route.night){
-        /* the eyes stay lit after dark. A single flat wash doesn't read
-           against the navy night multiply — same finding the lamp lab
-           already hit (see the streetlamp's own layered gl.fillStyle
-           chain a few hundred lines up: "a single faint wash can't even
-           cancel the navy"). Same fix here: soft outer wash, then a
-           tighter mid layer, then a small hot white core, instead of
-           one flat fill. Sine breathing pulse drives the whole stack
-           together rather than a hard strobe — flashing/strobing is a
-           real photosensitivity concern, a smooth ~4s cycle reads as
-           "these are lights" with no flicker. Both eyes in phase. */
-        const pulse = 0.5 + 0.5*Math.sin(this.time.now / 650);
-        for(const ey of [-7, 7]){
-          const c = F(ey, 45);
-          this.gGlow.fillStyle(SKIN.eye, 0.14 + 0.12*pulse);
-          this.gGlow.fillEllipse(c.x, c.y, (15 + 4*pulse)*ks, (13 + 4*pulse)*ks);
-          this.gGlow.fillStyle(SKIN.eye, 0.40 + 0.28*pulse);
-          this.gGlow.fillEllipse(c.x, c.y, (8 + 2.5*pulse)*ks, (7 + 2.5*pulse)*ks);
-          this.gGlow.fillStyle(0xffffff, 0.5 + 0.35*pulse);
-          this.gGlow.fillEllipse(c.x, c.y, (3.5 + 1*pulse)*ks, (3 + 1*pulse)*ks);
-        }
-        /* headlights: back inside the same fn-facing gate as the eye
-           halo above, on purpose — this is a ground pool the camera is
-           looking at from roughly the same side the bot itself is
-           facing, so pulling it outside the gate meant "ahead" could
-           land on the far side of the bot from camera and the additive
-           glow drew right through the body sprite with no occlusion to
-           stop it. Gating it with the face is what keeps it in front of
-           him instead. World position off botX/botY + drawAngle alone
-           (not a full R() through yaw/pitch/roll) so a hop or a tip
-           doesn't swing the beam. Same layered-pool recipe as the
-           streetlamp, plus its fillPoints flare triangle per eye,
-           fanning down to shared ground anchors — widened out from the
-           first pass, both the pool and the base spread. */
-        const hx2 = Math.cos(this.drawAngle), hy2 = Math.sin(this.drawAngle);
-        const lx = -Math.sin(this.drawAngle), ly = Math.cos(this.drawAngle);
-        const eyeFwd = BODY.hx + 0.8;
-        const gp = this.W(this.botX + hx2*70, this.botY + hy2*70, 0);
-        const poolK = 0.6 + 0.4*pulse;
-        this.gGlow.fillStyle(SKIN.eye, 0.10*poolK);
-        this.gGlow.fillEllipse(gp.x, gp.y, 50*ks, 28*ks);
-        this.gGlow.fillStyle(SKIN.eye, 0.20*poolK);
-        this.gGlow.fillEllipse(gp.x, gp.y, 32*ks, 18*ks);
-        this.gGlow.fillStyle(0xffffff, 0.28*poolK);
-        this.gGlow.fillEllipse(gp.x, gp.y, 16*ks, 9*ks);
-        for(const ey of [-7, 7]){
-          const lp2 = this.W(this.botX + eyeFwd*hx2 + ey*lx, this.botY + eyeFwd*hy2 + ey*ly, this.botZ + 45);
-          this.gGlow.fillStyle(SKIN.eye, (0.09 + 0.06*pulse)*poolK);
-          this.gGlow.fillPoints([
-            new Phaser.Geom.Point(lp2.x, lp2.y),
-            new Phaser.Geom.Point(gp.x - 22*ks, gp.y),
-            new Phaser.Geom.Point(gp.x + 22*ks, gp.y)
-          ], true);
-        }
-      }
       this.quadOn(g, [F(-16,18), F(16,18), F(16,22), F(-16,22)], 0xfff3b0);
+    }
+    if(this.route && this.route.night){
+      /* the eyes stay lit after dark. A single flat wash doesn't read
+         against the navy night multiply — same finding the lamp lab
+         already hit (see the streetlamp's own layered gl.fillStyle
+         chain a few hundred lines up: "a single faint wash can't even
+         cancel the navy"). Same fix here: soft outer wash, then a
+         tighter mid layer, then a small hot white core, instead of one
+         flat fill. Sine breathing pulse drives the whole stack together
+         rather than a hard strobe — flashing/strobing is a real
+         photosensitivity concern, a smooth ~4s cycle reads as "these
+         are lights" with no flicker. Both eyes in phase.
+         This whole block sits outside the fn-facing gate above on
+         purpose now — that hard cutoff is right for the solid visor
+         geometry (you can't see a robot's face from directly behind),
+         but it's a binary on/off across a full 180° of headings, and
+         this is a grid-based map: whole cardinal legs landed on the
+         wrong side of that line and went completely dark, eyes and
+         headlights both, not dim — actually invisible. faceK below is
+         a smooth version of the same fn value instead of a hard cutoff:
+         full brightness facing the camera, fading toward the back
+         rather than vanishing outright at the halfway point. It
+         doesn't solve true occlusion — gGlow still composites as one
+         layer above every sprite, no real depth test against the body
+         — but it keeps the worst of the through-body look confined to
+         the dim end instead of showing at full strength from any angle,
+         which was the actual problem with the previous "always
+         visible" version. */
+      const pulse = 0.5 + 0.5*Math.sin(this.time.now / 650);
+      const faceK = Phaser.Math.Clamp((fn.x + fn.y + fn.z + 1.4) / 2.2, 0.15, 1);
+      for(const ey of [-7, 7]){
+        const c = F(ey, 45);
+        this.gGlow.fillStyle(SKIN.eye, (0.14 + 0.12*pulse)*faceK);
+        this.gGlow.fillEllipse(c.x, c.y, (15 + 4*pulse)*ks, (13 + 4*pulse)*ks);
+        this.gGlow.fillStyle(SKIN.eye, (0.40 + 0.28*pulse)*faceK);
+        this.gGlow.fillEllipse(c.x, c.y, (8 + 2.5*pulse)*ks, (7 + 2.5*pulse)*ks);
+        this.gGlow.fillStyle(0xffffff, (0.5 + 0.35*pulse)*faceK);
+        this.gGlow.fillEllipse(c.x, c.y, (3.5 + 1*pulse)*ks, (3 + 1*pulse)*ks);
+      }
+      /* headlights: same layered-pool + fillPoints flare recipe as the
+         streetlamp, world position off botX/botY + drawAngle alone (not
+         a full R() through yaw/pitch/roll) so a hop or tip doesn't swing
+         the beam. faceK fades it the same way and for the same reason
+         as the eye halo just above. */
+      const hx2 = Math.cos(this.drawAngle), hy2 = Math.sin(this.drawAngle);
+      const lx = -Math.sin(this.drawAngle), ly = Math.cos(this.drawAngle);
+      const eyeFwd = BODY.hx + 0.8;
+      const gp = this.W(this.botX + hx2*70, this.botY + hy2*70, 0);
+      const poolK = (0.6 + 0.4*pulse)*faceK;
+      this.gGlow.fillStyle(SKIN.eye, 0.10*poolK);
+      this.gGlow.fillEllipse(gp.x, gp.y, 50*ks, 28*ks);
+      this.gGlow.fillStyle(SKIN.eye, 0.20*poolK);
+      this.gGlow.fillEllipse(gp.x, gp.y, 32*ks, 18*ks);
+      this.gGlow.fillStyle(0xffffff, 0.28*poolK);
+      this.gGlow.fillEllipse(gp.x, gp.y, 16*ks, 9*ks);
+      for(const ey of [-7, 7]){
+        const lp2 = this.W(this.botX + eyeFwd*hx2 + ey*lx, this.botY + eyeFwd*hy2 + ey*ly, this.botZ + 45);
+        this.gGlow.fillStyle(SKIN.eye, (0.09 + 0.06*pulse)*poolK);
+        this.gGlow.fillPoints([
+          new Phaser.Geom.Point(lp2.x, lp2.y),
+          new Phaser.Geom.Point(gp.x - 22*ks, gp.y),
+          new Phaser.Geom.Point(gp.x + 22*ks, gp.y)
+        ], true);
+      }
     }
     for(const w of wheels) if(w.near) this.drawWheel(w.c, w.side);
     if(this.flagNear()) this.drawFlag(bobZ);
