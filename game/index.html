@@ -2020,6 +2020,34 @@ const HOODS = [
   { n:"Palm Gardens",    hill:0.2, pave:0.8, litter:0.3, palms:1.0, streets:["Frond Ave","Coconut Ct","Shade St"], parks:["Frond","Coconut Grove","Shade","Palmetto","Oasis","Tropic","Banyan","Hibiscus","Canopy","Sunfern"], shops:["Frond Cafe","Coconut Grove Deli","Shade Market"] },
 ];
 
+/* ---------- THE PERMANENT MAP: all 12 hoods, one city (2026-08-10) ----------
+   One shared definition of "which district owns this block" -- generateRoute,
+   mapParkName, and the map's own street-label drawing all ask THIS, so a
+   park or street can never get named by one hood while its neighbour asks
+   a different one. Global rather than rebuilt per generateRoute call: the
+   layout never changes, so there is exactly one of these for the game's
+   whole lifetime. References BLOCK, which is declared further down this
+   file -- safe, since nothing here runs until a later call site actually
+   invokes hoodAt/hoodAtWorld, by which point every top-level const in the
+   file has already executed once at load. */
+const DISTRICT_COLS = 4, DISTRICT_ROWS = 3;   // 4*3 = 12, one cell per hood
+const DISTRICT_W = 9, DISTRICT_H = 9;          // blocks per district, each side
+function hoodAt(i, j){
+  const dc = Math.max(0, Math.min(DISTRICT_COLS-1, Math.floor(i/DISTRICT_W)));
+  const dr = Math.max(0, Math.min(DISTRICT_ROWS-1, Math.floor(j/DISTRICT_H)));
+  return HOODS[dr*DISTRICT_COLS + dc];
+}
+function hoodAtWorld(x, y){ return hoodAt(Math.round(x/BLOCK), Math.round(y/BLOCK)); }
+/* whole-map average of each hood knob -- terrain (HILL_AMP), the world
+   colour palette, route difficulty, and par time all still read ONE value
+   for the whole map rather than varying by district (see generateRoute's
+   own comment on why that's a deliberate, later, follow-up pass, not a
+   gap). BLEND is that one value: not any single hood's, an honest average
+   of all twelve. */
+const BLEND = ["hill","pave","litter","palms"].reduce((o,k) => {
+  o[k] = HOODS.reduce((s,h) => s+h[k], 0) / HOODS.length; return o;
+}, {});
+
 /* ---------- deterministic rng ---------- */
 function hashStr(s){ let h = 1779033703; for(let i=0;i<s.length;i++){ h = Math.imul(h ^ s.charCodeAt(i), 3432918353); h = (h << 13) | (h >>> 19); } return h >>> 0; }
 function convexHull(pts){
@@ -4728,17 +4756,62 @@ function worldgenReconcile(grid){
 function generateRoute(dateStr, opts){
   const seed = hashStr(dateStr);
   const rng = mulberry32(seed);
-  /* opts.hoodIndex forces a neighbourhood. The Hydrant Challenge always
-     runs in The Flats (index 0): flat grade, best pavement, widest
-     streets — the one hood whose terrain does not fight a precision
-     jump. Everything else still rolls the daily hood from the seed. */
-  const hood = HOODS[(opts && opts.hoodIndex != null ? opts.hoodIndex : seed) % HOODS.length];
+  /* THE CITY IS PERMANENT NOW (2026-08-10, Sir's call). cols/rows/grid
+     used to come off the SAME daily `seed` as everything else in this
+     function, which is exactly why the street layout used to be a new
+     city every day. That's the one thing this freezes: cols, rows, and
+     buildGrid all read off CITY_SEED -- a fixed structural seed derived
+     from SL_SEED_DATE, the same frozen date the slalom course already
+     builds its own city from -- so the daily route, Cone Slalom, and
+     Hydrant Challenge are all standing on the literal same streets and
+     blocks, forever. `classic:true` is forced unconditionally too --
+     the whole reason that flag exists is "a frozen seed always rebuilds
+     the exact block layout it was tuned against, immune to worldgen
+     features that ship after the freeze" (see buildGrid's own comment),
+     which is precisely the guarantee a permanent city needs.
+
+     ALL 12 HOODS, ONE MAP (2026-08-10, Sir's call, same day): the city
+     used to be one hood's grid, picked by seed. It's now ALL twelve,
+     tiled into a fixed 4x3 grid of districts -- HOODS[0] ("The Flats")
+     at district (0,0) through HOODS[11] ("Palm Gardens") at (3,2),
+     row-major. The street MESH itself (buildGrid's nodes/edges/blocks)
+     is one uniform algorithm regardless of hood -- it never took a hood
+     parameter before this and still doesn't -- so districts connect
+     seamlessly at their borders for free; nothing about intersections,
+     turns, or block placement needed to change. hoodAt(i,j) is the one
+     new piece: given a block position, which district's hood owns it.
+     Every place below that used to read the single `hood` for something
+     tied to a SPECIFIC position (a street name, a park name, a shop
+     name) now looks it up through hoodAt at that position instead, so
+     a Warehouse Dist. block still gets a Warehouse Dist. street name
+     even though it's one corner of a much bigger map.
+
+     NOT regionalized this pass, deliberately: elevation (HILL_AMP) and
+     the world's colour palette are each a single value for the WHOLE
+     map still, sourced from BLEND (the average of all 12 hoods' knobs)
+     rather than any one hood's. Making terrain and palette vary by
+     district too means blending across district borders so a Flats/
+     Bluffs seam doesn't read as a cliff -- a real change, just not
+     THIS one. BLEND is a principled placeholder for that, not a bug:
+     the whole map reads as one moderate, consistent city today, and
+     region-specific terrain/palette is the natural next pass. */
+  const CITY_SEED = hashStr(SL_SEED_DATE);
+  const cols = DISTRICT_COLS * DISTRICT_W;
+  const rows = DISTRICT_ROWS * DISTRICT_H;
+  /* hoodAt/hoodAtWorld/BLEND are global now -- one definition, shared with
+     mapParkName and the map's own street-label drawing. See their own
+     comment where they're declared, right after HOODS. */
+  /* opts.hoodIndex still forces which DISTRICT the Hydrant Challenge's
+     own course search happens in (The Flats, index 0) -- terrain isn't
+     regionalized this pass (see above), so the flat-grade reasoning
+     doesn't bind yet, but the address text ("The Flats") and the
+     course's own visible surroundings (street/park names) should still
+     agree with each other, so the search stays scoped to that district. */
+  const hood = HOODS[(opts && opts.hoodIndex != null ? opts.hoodIndex : CITY_SEED) % HOODS.length];
 
   /* real street grid, generated independently of the walked route —
      this is what makes actual intersections possible. */
-  const cols = 12 + Math.floor(rng()*6);
-  const rows = 12 + Math.floor(rng()*6);
-  const grid = buildGrid(cols, rows, seed, { classic: opts && opts.classic });
+  const grid = buildGrid(cols, rows, CITY_SEED, { classic: true });
   /* good-heading guarantee (2026-07-27, "that is unacceptable"): the
      door needs an f===0/f===3 straight leg past the 1-mile mark with
      room for findGoodS's standard 90-unit inset. buildWalk's turnSign
@@ -4760,11 +4833,27 @@ function generateRoute(dateStr, opts){
   const findCourseLeg = (segs) => {
     /* run-up + kicker tile + the level-10 course + the catch ramp tile */
     const NEED = HJ_GEOM.runup + TILE + (2.25 + 9*0.55)*T2 + 2*TILE;
+    /* DISTRICT-SCOPED NOW (2026-08-10): before the merge, "the whole grid"
+       and "The Flats" were the same thing -- HJ built its own small,
+       single-hood city, so any long-enough leg anywhere in it WAS in The
+       Flats by construction. Now every route shares one 12-district map,
+       and this search has to say so explicitly or the hydrant course can
+       land in any of the twelve, unrelated to its own "1200 Palmline Ave,
+       The Flats" address. Only filters when the caller actually asked for
+       a hood (opts.hoodIndex != null) -- the daily route's own door-leg
+       search reuses this same file's GOOD_LEG_HEADING rule elsewhere and
+       was never hood-scoped, so it stays exactly as unconstrained as it
+       always was. */
+    const wantHood = (opts && opts.hoodIndex != null) ? HOODS[opts.hoodIndex] : null;
     let best = null;
     for(const sg of segs){
       if(sg.type !== "line" || !GOOD_LEG_HEADING[sg.f]) continue;
       const len = sg.s1 - sg.s0;
       if(len < NEED) continue;
+      if(wantHood){
+        const mid = segsPosAt(segs, (sg.s0+sg.s1)/2);
+        if(hoodAtWorld(mid.x, mid.y) !== wantHood) continue;
+      }
       if(best === null || sg.s0 < best.s0) best = sg;
     }
     return best;
@@ -4775,9 +4864,17 @@ function generateRoute(dateStr, opts){
     const inset = Math.min(90, (sg.s1 - sg.s0)*0.3);
     return sg.s1 - inset >= Math.max(sg.s0 + inset, MIN_ROUTE_UNITS);
   });
-  let walk = buildWalk(grid, rng, undefined, undefined, TURN_R);
+  /* walk starts inside the requested district now, not wherever the rng
+     happens to land in a map twelve times the size it used to be. Only
+     matters when opts.hoodIndex is set (Hydrant Challenge); the daily
+     route's own start stays exactly as unconstrained/random as before. */
+  const districtStart = (opts && opts.hoodIndex != null)
+    ? { i: (opts.hoodIndex % DISTRICT_COLS)*DISTRICT_W + Math.floor(DISTRICT_W/2),
+        j: Math.floor(opts.hoodIndex/DISTRICT_COLS)*DISTRICT_H + Math.floor(DISTRICT_H/2) }
+    : undefined;
+  let walk = buildWalk(grid, rng, districtStart, undefined, TURN_R);
   for(let att = 0; att < 8 && !hasGoodDoorLeg(walk); att++)
-    walk = buildWalk(grid, rng, undefined, undefined, TURN_R);
+    walk = buildWalk(grid, rng, districtStart, undefined, TURN_R);
   const segs = walk.segs, totalLen = walk.totalLen;
 
   const inCorner = sv => segs.some(sg => sg.type === "arc" && sv > sg.s0 - CORNER_HAZARD_CLEAR && sv < sg.s1 + CORNER_HAZARD_CLEAR);
@@ -4957,7 +5054,7 @@ function generateRoute(dateStr, opts){
      twice by the route gets one answer, The Flats (hill 0) stays
      perfectly flat, and The Bluffs (hill 1) becomes a leg-burner. */
   const lerp = (a, b, t) => a + (b - a)*t;
-  const HILL_AMP = 73 * hood.hill;   // retuned so hill:1 (The Bluffs) tops out
+  const HILL_AMP = 73 * BLEND.hill;   // retuned so hill:1 (The Bluffs) tops out
                                       // around a 5% grade — see MAX_GRADE clamp
                                       // on the pitch calc below for the hard cap
   /* directional bias: real slope should agree with the isometric
@@ -5053,7 +5150,7 @@ function generateRoute(dateStr, opts){
      hz.fledAt starts null — the sim stamps it when the robot drives in
      and the whole flock bursts skyward (see the pigeons sim branch). */
   {
-    const nFlocks = 2 + Math.floor(rng() * (2 + hood.litter * 3));
+    const nFlocks = 2 + Math.floor(rng() * (2 + BLEND.litter * 3));
     let placedF = 0;
     for(let i = 0; i < nFlocks*8 && placedF < nFlocks; i++){
       const s = snapToSidewalkTile(SPAWN_S + 400 + rng()*(totalLen - 800), 1);
@@ -5075,7 +5172,7 @@ function generateRoute(dateStr, opts){
      markers) are completely untouched; this only stops the paint from
      spawning. Re-enable by restoring the loop body below if wanted back. */
 
-  const density = 0.45 + hood.litter*0.35 + (1 - hood.pave)*0.3;
+  const density = 0.45 + BLEND.litter*0.35 + (1 - BLEND.pave)*0.3;
   /* ---------- hazard spawning, as a RANGE ----------
      Was a bare while-loop over the whole walk. It is a function now for
      one reason: the GPS reroute lap is welded on AFTER every spawn pass
@@ -5124,7 +5221,7 @@ function generateRoute(dateStr, opts){
          here doesn't rebalance the rest -- litter/cone/dog+ranges are
          unchanged, cone's effective share just widens to cover what
          used to be crack's slice of r2. */
-      if(r2 < hood.litter*0.35)          type = R() < 0.6 ? "scooter" : "trash";
+      if(r2 < BLEND.litter*0.35)          type = R() < 0.6 ? "scooter" : "trash";
       else if(r2 < 0.75){
         /* cone-density fix (2026-08-10, requested: route felt too cone-
            cluttered). Cone's slice widened when the crack branch moved to
@@ -5260,7 +5357,7 @@ function generateRoute(dateStr, opts){
       if(inCorner(psR)) continue;
       if(!onSidewalk(psR, laneOffset(3))) continue;
       if(spawnBlocked(psR, laneOffset(3))) continue;
-      if(R() < hood.palms){
+      if(R() < BLEND.palms){
         const sizeRoll = R();
         const clusterSize = sizeRoll < 0.6 ? 1 : sizeRoll < 0.85 ? 2 : 3;
         const clusterExtras = [];
@@ -5299,7 +5396,7 @@ function generateRoute(dateStr, opts){
   for(let rs = SPAWN_S + 200; rs < totalLen - 260; rs += 380 + rng()*400){
     const rsR = Math.round(rs);
     if(inCorner(rsR)) continue;
-    if(rng() > (1 - hood.pave)*0.8 + 0.1) continue;
+    if(rng() > (1 - BLEND.pave)*0.8 + 0.1) continue;
     const off = (rng()<0.5?-1:1) * (T2 + rng()*T2*1.5);
     if(!onRoad(rsR, off)) continue;
     if(spawnBlocked(rsR, off)) continue;
@@ -5395,7 +5492,7 @@ function generateRoute(dateStr, opts){
   while(ss < totalLen - 320){
     ss += (200 + rng()*277) * 0.5;
     if(inCorner(ss)) continue;
-    if(rng() > 0.18 + (1 - hood.pave)*0.75) continue;
+    if(rng() > 0.18 + (1 - BLEND.pave)*0.75) continue;
     const runN = 1 + Math.floor(rng()*3);
     let srow = Math.floor(rng()*4);
     for(let k=0; k<runN; k++){
@@ -5423,7 +5520,7 @@ function generateRoute(dateStr, opts){
   while(cs < totalLen - 240){
     cs += (22 + rng()*110) * 0.5;
     if(inCorner(cs)) continue;
-    if(rng() > (1 - hood.pave)*0.45) continue;
+    if(rng() > (1 - BLEND.pave)*0.45) continue;
     const crow = Math.floor(rng()*4);
     if(!onSidewalk(cs, laneOffset(crow))) continue;
     const csR = snapToSidewalkTile(cs, crow);
@@ -5537,7 +5634,6 @@ function generateRoute(dateStr, opts){
 
   /* the address */
   const number = 100 + Math.floor(rng()*3800);
-  const street = hood.streets[Math.floor(rng()*hood.streets.length)];
   let doorS = findGoodS(segs, totalLen, totalLen - 90, true, grid, null, MIN_ROUTE_UNITS);
   /* graceful degradation: if no interior good leg exists past the mile
      mark (short-walk day), take the best route the map offers rather
@@ -5597,6 +5693,14 @@ function generateRoute(dateStr, opts){
       addressSpot = { x: aux + ae.dv.x*(au.w/2), y: auy + ae.dv.y*(au.w/2) };
     }
   }
+  /* street name comes from the address's own DISTRICT now, not a single
+     city-wide hood -- moved here (was picked blind, before doorS even
+     existed) specifically so it can read addressSpot's real position.
+     addressSpot can be null on the rare block with no packed units;
+     doorS's own position is the fallback, still real ground either way. */
+  const addressHood = addressSpot ? hoodAtWorld(addressSpot.x, addressSpot.y)
+                                   : hoodAtWorld(segsPosAt(segs, doorS).x, segsPosAt(segs, doorS).y);
+  const street = addressHood.streets[Math.floor(rng()*addressHood.streets.length)];
   /* refine doorS to the address unit's actual on-route position. UNLIKE
      pickupS's refinement (which searches every good leg for the nearest
      match), this doesn't need to search at all: addressEdgeIdx was
@@ -5656,7 +5760,8 @@ function generateRoute(dateStr, opts){
         x: pux + pe.dv.x*pDoorCenterX + pe.rv.x*pRobotDy,
         y: puy + pe.dv.y*pDoorCenterX + pe.rv.y*pRobotDy
       };
-      pickupShopName = hood.shops[Math.abs(Math.round(pux)+Math.round(puy)) % hood.shops.length];
+      const pickupHood = hoodAtWorld(pux, puy);
+      pickupShopName = pickupHood.shops[Math.abs(Math.round(pux)+Math.round(puy)) % pickupHood.shops.length];
     }
   }
   /* refine pickupS to the pickup unit's actual on-route position.
@@ -5710,9 +5815,9 @@ function generateRoute(dateStr, opts){
   forceFacedLot(doorS, "housing");
   forceFacedLot(pickupS, "commercial");
 
-  const pal = hood.hill > 0.55
+  const pal = BLEND.hill > 0.55
     ? { sky:0xf2c48d, pave:0xbdb6a8, paveB:0xb3ac9e, paveEdge:0x9c9588, road:0x45484f, roadLine:0xcfc9b9 }
-    : hood.pave < 0.5
+    : BLEND.pave < 0.5
     ? { sky:0xc9b49b, pave:0xa19a8e, paveB:0x958e82, paveEdge:0x7d7669, road:0x3d4046, roadLine:0x8f897b }
     : { sky:0x9fd4e8, pave:0xc9c3b4, paveB:0xbfb9aa, paveEdge:0xa8a294, road:0x4a4d55, roadLine:0xd8d2c2 };
 
@@ -5725,7 +5830,7 @@ function generateRoute(dateStr, opts){
      PERCENTAGE of this value: 20% baseline, deductions for damage /
      lateness / walk distance, small bonuses to a 22% ceiling (engine
      in showWin). */
-  const difficulty = 1 + hood.hill*1.2 + (1-hood.pave)*1.0 + hood.litter*0.8 + (walk.segs.filter(s=>s.type==="arc").length-2)*0.15;
+  const difficulty = 1 + BLEND.hill*1.2 + (1-BLEND.pave)*1.0 + BLEND.litter*0.8 + (walk.segs.filter(s=>s.type==="arc").length-2)*0.15;
   const MENU = SHOP_MENUS[shopTypeOf(pickupShopName)] || SHOP_MENUS.tacos;
   const orderLines = [];
   let orderValue = 0;
@@ -5749,7 +5854,7 @@ function generateRoute(dateStr, opts){
      The HUD counts it down; the tip decays 1%/5s past it; the ORDER
      CANCELS at par + 60s (see the cancel check in the sim). */
   const nTurns = walk.segs.filter(s => s.type === "arc").length;
-  const parMs = Math.round((doorS - SPAWN_S)/0.088 + nTurns*2000 + hood.hill*15000 + 8000);
+  const parMs = Math.round((doorS - SPAWN_S)/0.088 + nTurns*2000 + BLEND.hill*15000 + 8000);
 
   /* traffic: real road-aware two-way loops through the same grid,
      instead of a fixed row that never knew where the road was.
@@ -6229,7 +6334,7 @@ function generateRoute(dateStr, opts){
     p => Math.abs(p.x - cr.x) < RAMP_DEDUP && Math.abs(p.y - cr.y) < RAMP_DEDUP));
 
   worldgenReconcile(grid);
-  return { hood, grid, segs, totalLen: loop ? loop.sEnd : totalLen, loop, tiles, hazards, props, pal, night, traffic, crossings, cutEdges, cutExt, challenge, crime, routeCells, curbRamps, signals: grid.signals,
+  return { hood: addressHood, grid, segs, totalLen: loop ? loop.sEnd : totalLen, loop, tiles, hazards, props, pal, night, traffic, crossings, cutEdges, cutExt, challenge, crime, routeCells, curbRamps, signals: grid.signals,
            address:`${number} ${street}`, doorS, pickupS, pickupSpot, pickupShopName, addressBlock, pickupBlock, addressEdgeIdx, pickupEdgeIdx, addressUnitIdx, pickupUnitIdx, addressUsesGate, order, parMs, dateStr };
 }
 
@@ -16706,8 +16811,18 @@ const scn = () => game.scene.getScene("world");
    position for a pin, and building one has never required play state. */
 const SL = {
   n:    400,    // CAP on gates; the course fills every leg up to this
-  legs: 12,     // how many legs the course runs through — walk this up
-                // with the chip and watch the cone total in the strip
+  legs: 5,      // how many legs the course runs through — held at 5
+                // (2026-08-10, restored after the 12-district map merge):
+                // this was already 12 before the merge, but the smaller
+                // single-hood grid physically couldn't supply that many
+                // lines, so the course naturally settled at 5 legs / 22
+                // gates -- the exact course the flat 60s par (see par's
+                // own comment) was tuned against. The merged map is big
+                // enough to actually reach legs:12 now (37 gates, nearly
+                // double), which would make 60s wrong for the course
+                // that number was set against. Capped back to what the
+                // course actually was, not a new number -- walk this up
+                // again only alongside a real par re-tune.
   gap:  1.40,   // TIGHTEST along-route spacing between cones, in T2
   vary: 0.30,   // how far above gap the spacing opens up (0 = uniform)
   wide: 0.35,   // extra road a 2-3 row lane change buys itself. Was a hard
@@ -16845,10 +16960,22 @@ function slFindChain(route){
      finish tape back beside the start line. _slEndS is set in
      slQuietOpening and is the last s of original road. */
   const endS = route._slEndS !== undefined ? route._slEndS : route.totalLen;
+  /* MAX_CHAIN_LEN (2026-08-10, added alongside the 12-district map merge):
+     SL.legs alone capped course length by counting LINES, which quietly
+     stopped working once the merged map let individual legs run much
+     longer than the old single-hood grid ever allowed -- same leg COUNT,
+     longer course anyway (measured: legs:5 still produced a ~26k-unit
+     chain against the ~16.7k the flat 60s par was tuned for). This is
+     the actual bound: stop adding segments once the chain's own total
+     length passes roughly what that course was, regardless of how few
+     lines it took to get there. 17000 rounds the original ~16744 up
+     slightly for margin, not a new target. */
+  const MAX_CHAIN_LEN = 17000;
   const chain = [];
   let nLines = 0;
   for (let i = firstLine; i < segs.length && nLines < SL.legs; i++){
     if (segs[i].s1 > endS) break;
+    if (segs[i].s0 - segs[firstLine].s0 > MAX_CHAIN_LEN) break;
     chain.push(segs[i]);
     if (segs[i].type === 'line') nLines++;
   }
@@ -19237,7 +19364,8 @@ setTimeout(bootLoaderDone, 8000);
    index both ask this, so they can never disagree */
 function mapParkName(cx, cy, route){
   const seed = ((Math.round(cx)*7919) ^ (Math.round(cy)*104729)) >>> 0;
-  return route.hood.parks[Math.floor(mulberry32(seed)() * route.hood.parks.length)];
+  const h = hoodAtWorld(cx, cy);
+  return h.parks[Math.floor(mulberry32(seed)() * h.parks.length)];
 }
 /* the coast geometry's shared fractions — drawWorld's terrain pass and
    the landmark index both read THIS table, so a landmark can never
@@ -19326,9 +19454,19 @@ function tpSlalomPin(){
 function tpMapIndex(route){
   const out = [];
   const g2 = route.grid;
-  for(let j = 0; j < g2.rows; j++)
-    out.push({ name: route.hood.streets[j % route.hood.streets.length], kind:"street",
-               x: (g2.cols-1)*BLOCK/2, y: j*BLOCK });
+  /* one named-street entry per DISTRICT now, not per grid row -- the old
+     loop walked every row of the whole map naming it off a single
+     city-wide hood.streets list, which made no sense once the map holds
+     12 different hoods' worth of streets. Placed at each district's own
+     center, named from that district's own list. */
+  for(let dr = 0; dr < DISTRICT_ROWS; dr++){
+    for(let dc = 0; dc < DISTRICT_COLS; dc++){
+      const h = HOODS[dr*DISTRICT_COLS + dc];
+      const cj = dr*DISTRICT_H + DISTRICT_H/2, ci = dc*DISTRICT_W + DISTRICT_W/2;
+      out.push({ name: h.streets[(dr*DISTRICT_COLS+dc) % h.streets.length], kind:"street",
+                 x: ci*BLOCK, y: cj*BLOCK });
+    }
+  }
   const ord = n2 => n2 + ((n2%10===1&&n2!==11)?"st":(n2%10===2&&n2!==12)?"nd":(n2%10===3&&n2!==13)?"rd":"th");
   for(let i = 0; i < g2.cols; i++)
     out.push({ name: ord(i+1) + " St", kind:"street", x: i*BLOCK, y: (g2.rows-1)*BLOCK/2 });
@@ -19805,7 +19943,8 @@ function drawRouteMap(route){
     if(e.f === 0){
       if(labeledRows.has(e.a.j)) continue;
       labeledRows.add(e.a.j);
-      const name = bgRoute.hood.streets[e.a.j % bgRoute.hood.streets.length];
+      const segHood = hoodAt(e.a.i, e.a.j);
+      const name = segHood.streets[e.a.j % segHood.streets.length];
       ctx.save(); ctx.translate(p.x, p.y-7); ctx.fillText(name, 0, 0); ctx.restore();
     } else {
       if(labeledCols.has(e.a.i)) continue;
