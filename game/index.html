@@ -10949,20 +10949,43 @@ class WorldScene extends Phaser.Scene {
              semi-axes, so wherever the robot can slip, there is
              visible water. Gallery/decorative rings keep the
              original circles (radB === radA). */
-          const puddleRing = (radA, radB, nn=16) => {
+          /* puddleRing takes separate B radii for the two lateral sides
+             (radBPos for local +b, radBNeg for local -b) instead of one
+             symmetric radius. */
+          const puddleRing = (radA, radBPos, radBNeg, nn=16) => {
             const pts = [];
             for(let i=0; i<nn; i++){
               const phi = (i/nn)*Math.PI*2;
+              const radB = Math.sin(phi) >= 0 ? radBPos : radBNeg;
               pts.push(place2D(landA + Math.cos(phi)*radA, landB + Math.sin(phi)*radB, 0.3));
             }
             return pts;
           };
           const outerA = ((data && data.burst) ? HYD_SLIP.pud : TILE*0.85) * grow;
-          const outerB = isLiveBurst ? T2*1.5 * grow : outerA;
+          /* cone/hydrant clutter pass (2026-08-10, "overflowing into the
+             street... too oval"): live bursts used to draw a SYMMETRIC
+             ellipse using the sim's full +-1.5*T2 lateral reach on both
+             sides. But hydrants only ever spawn at row 0, closest to the
+             curb (see the hazard spawn note above), and local +b here is
+             the curb/road-ward side -- confirmed against ROBOT_SIDE (a
+             fixed constant, so this holds for all 4 headings, not just
+             the one tested): increasing row (away from the curb) is -b,
+             so +b is the road. The sim's inFlood test can only ever fire
+             for the robot, which never leaves the sidewalk lanes, so the
+             +b reach was pure visual overflow with zero gameplay
+             function. outerBPos now clamps to the same TILE*0.85 radius
+             the static gallery puddle already uses (comfortably inside
+             the curb, row 0's center sits T2*0.5=46 units from it) while
+             outerBNeg keeps the full sim-matching reach toward row 1, so
+             the truth-telling for the one lane that's actually reachable
+             stays intact. */
+          const outerBNeg = isLiveBurst ? T2*1.5 * grow : outerA;
+          const outerBPos = isLiveBurst ? TILE*0.85 * grow : outerA;
           const innerA = ((data && data.burst) ? HYD_SLIP.pud*0.62 : TILE*0.55) * grow;
-          const innerB = isLiveBurst ? outerB*0.62 : innerA;
-          this.quadOn(g, puddleRing(outerA, outerB), HH.water, 0.28);
-          this.quadOn(g, puddleRing(innerA, innerB), HH.water, 0.22);
+          const innerBNeg = isLiveBurst ? outerBNeg*0.62 : innerA;
+          const innerBPos = isLiveBurst ? outerBPos*0.62 : innerA;
+          this.quadOn(g, puddleRing(outerA, outerBPos, outerBNeg), HH.water, 0.28);
+          this.quadOn(g, puddleRing(innerA, innerBPos, innerBNeg), HH.water, 0.22);
         }
       }
 
