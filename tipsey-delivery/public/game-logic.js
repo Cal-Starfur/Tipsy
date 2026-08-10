@@ -4437,7 +4437,19 @@ function generateRoute(dateStr, opts){
          unchanged, cone's effective share just widens to cover what
          used to be crack's slice of r2. */
       if(r2 < hood.litter*0.35)          type = R() < 0.6 ? "scooter" : "trash";
-      else if(r2 < 0.75)                 type = "cone";
+      else if(r2 < 0.75){
+        /* cone-density fix (2026-08-10, requested: route felt too cone-
+           cluttered). Cone's slice widened when the crack branch moved to
+           its own dedicated pass above -- crack's old share of r2 just
+           fell open to cone instead of coming back to it. A coin-flip
+           miss here roughly halves cone's actual placement rate without
+           touching scooter/trash/dog/people/bin/planter's shares or the
+           overall roll frequency (that doubling was separately requested
+           and stays). A miss just leaves the spot empty, same as any
+           other rejected roll. */
+        if(R() < 0.5) continue;
+        type = "cone";
+      }
       else { const r3 = R(); type = r3 < 0.25 ? "dog" : r3 < 0.48 ? "people" : r3 < 0.73 ? "bin" : "planter"; }
       const hzObj = { type, s: hsR, row: lane, f: facingAt(hsR), hit:false };
       if(type === "dog"){
