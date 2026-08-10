@@ -25,6 +25,8 @@ import {
   type GetHistoryRsp,
   type PostFailCommentReq,
   type PostFailCommentRsp,
+  type PostSlalomWinCommentReq,
+  type PostSlalomWinCommentRsp,
   type PostWinCommentReq,
   type PostWinCommentRsp,
   type PurchaseSkinReq,
@@ -35,6 +37,8 @@ import {
   type SubmitFailRsp,
   type SubmitReplayReq,
   type SubmitReplayRsp,
+  type SubmitSlalomWinReq,
+  type SubmitSlalomWinRsp,
   type SubmitWinReq,
   type SubmitWinRsp,
   type TpProfileRsp,
@@ -43,7 +47,7 @@ import {
   dbClaimFollowBonus,
   dbClaimSlalomTip,
   dbClaimTrophyReward,
-  dbClaimWinCommentBonus,
+  dbClaimCommentBonus,
   dbEquipSkin,
   dbGetAllTimeBest,
   dbGetAllTimeTop,
@@ -89,6 +93,8 @@ type AnyRsp =
   | FollowRsp
   | SubmitWinRsp
   | PostWinCommentRsp
+  | SubmitSlalomWinRsp
+  | PostSlalomWinCommentRsp
   | UiResponse
   | TriggerResponse
   | ErrorRsp
@@ -165,6 +171,12 @@ async function route(
         break
       case Endpoint.PostWinComment:
         rsp = await routePostWinComment(reqMsg)
+        break
+      case Endpoint.SubmitSlalomWin:
+        rsp = await routeSubmitSlalomWin(reqMsg)
+        break
+      case Endpoint.PostSlalomWinComment:
+        rsp = await routePostSlalomWinComment(reqMsg)
         break
       case Endpoint.OnMenuNewPost:
         rsp = await routeMenuNewPost()
@@ -591,9 +603,79 @@ async function routePostWinComment(
   const posted = await postScoreComment(text)
   if (!posted) return {posted: false, bonusGranted: false, walletCents: 0}
 
-  const {granted, walletCents} = await dbClaimWinCommentBonus(
+  const {granted, walletCents} = await dbClaimCommentBonus(
     user.username,
     todayUTC(),
+    'win',
+  )
+  return {posted: true, bonusGranted: granted, walletCents}
+}
+
+/** Composes the cone-slalom win-comment DRAFT and posts NOTHING -- same
+ *  no-automated-actions rule as routeSubmitWin/routeSubmitFail. Unlike
+ *  the delivery win, there's no address/hood to reference (the slalom
+ *  course isn't tied to a street), so the draft leans on the run's own
+ *  numbers instead: total time, margin against par, and whether it was
+ *  a clean run (no faults). context.postId absent or no resolvable
+ *  username are both ordinary conditions -- just an empty draft, which
+ *  hides the COMMENT button client-side. */
+async function routeSubmitSlalomWin(
+  reqMsg: IncomingMessage,
+): Promise<SubmitSlalomWinRsp> {
+  const req = await readJson<SubmitSlalomWinReq>(reqMsg)
+  const postId = context.postId
+  if (!postId) return {text: ''}
+
+  const user = await getCurrentUserRetrying()
+  if (!user?.username) return {text: ''}
+
+  const total = clampNum(req.totalSecs, 0, 3600)
+  const par = clampNum(req.parSecs, 0, 3600)
+  const clean = req.clean === true
+  const margin = par - total
+  const marginTxt =
+    margin >= 0
+      ? `${margin.toFixed(2)}s under par`
+      : `${Math.abs(margin).toFixed(2)}s over par`
+
+  const text =
+    `**u/${user.username}** cleared the Cone Slalom${clean ? ' -- CLEAN RUN' : ''} -- ` +
+    `${total.toFixed(2)}s (${marginTxt}).`
+
+  return {text}
+}
+
+/** Posts the player's (possibly edited) slalom win comment as the USER,
+ *  in reply to the pinned anchor -- same manual-POST-press contract as
+ *  routePostWinComment. The $5/day bonus is claimed with source:'slalom'
+ *  -- a SEPARATE pool from the delivery win's source:'win' (Sir's call:
+ *  finishing both in one day pays both), same hSetNX atomicity either
+ *  way. Strictly gated behind postScoreComment resolving true, same
+ *  no-comment-no-pay doctrine as every other bonus here. */
+async function routePostSlalomWinComment(
+  reqMsg: IncomingMessage,
+): Promise<PostSlalomWinCommentRsp> {
+  const req = await readJson<PostSlalomWinCommentReq>(reqMsg)
+  const user = await getCurrentUserRetrying()
+  if (!user?.username) return {posted: false, bonusGranted: false, walletCents: 0}
+  const raw = typeof req.text === 'string' ? req.text : ''
+  const text = Array.from(raw)
+    .filter(ch => {
+      const c = ch.codePointAt(0) ?? 0
+      return c === 9 || c === 10 || (c >= 32 && c !== 127)
+    })
+    .join('')
+    .trim()
+    .slice(0, 480)
+  if (!text) return {posted: false, bonusGranted: false, walletCents: 0}
+
+  const posted = await postScoreComment(text)
+  if (!posted) return {posted: false, bonusGranted: false, walletCents: 0}
+
+  const {granted, walletCents} = await dbClaimCommentBonus(
+    user.username,
+    todayUTC(),
+    'slalom',
   )
   return {posted: true, bonusGranted: granted, walletCents}
 }
