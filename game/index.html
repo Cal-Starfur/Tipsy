@@ -6089,6 +6089,16 @@ class WorldScene extends Phaser.Scene {
      runs the player never made. */
   attractOwnsTip(){ return this.attract === true; }
 
+  /* Same shape a third time: the slalom takes ownership of the ENDINGS
+     while it is attached. Without this a mid-run tip fell through to
+     the delivery branch, where showFail was muzzled by tpSlalomOn — so
+     the crash had NO ending at all (a dead robot, no card, no retry,
+     just the Quit pill) while reportFail still FIRED: every slalom
+     crash was quietly POSTing api/tipsy/fail into the daily route's
+     fail feed and comment-draft machinery for a run that was never a
+     delivery. */
+  slOwnsTip(){ return !!this._slAPI; }
+
   attractStart(){
     if(!ATTRACT_ON) return;
     if(this.mode === "challenge") return;   // the challenge owns its own map screen
@@ -13763,6 +13773,7 @@ class WorldScene extends Phaser.Scene {
            Retry reloads the daily route. */
         const failPool = this.tipCause === "william" ? WILLIAM_FAIL_LINES : null;
         if(this.attractOwnsTip()){ this.attractRecycle(); }
+        else if(this.slOwnsTip()){ this._slAPI.crash(this.tipCause); }
         else if(!this.hjOwnsTip()){ reportFail(this, this.tipCause); setTimeout(() => showFail(failPool), 1500); }
       }
       /* CANCELLATION: par + grace expired -> the order dies. A fail
@@ -16952,6 +16963,15 @@ function tpSlalomOn(){
     scene.botS = run.course.spawnS;
     scene.speed = 0; scene.tilt = 0; scene.roll = 0;
     scene.hjAir = null; scene.pitch = 0; flightPrevS = scene.botS;
+    /* the full upright recipe, the scene's own reset-field family:
+       state/tipT/spilled/items were never touched here because a retry
+       only ever happened from a FINISHED run's card. After a crash they
+       stay wrecked — the sim gates on state !== 'play', so "run again"
+       reset everything except the crash itself and looked broken. */
+    scene.state = 'play'; scene.yaw = 0; scene.tipDir = 0;
+    scene.tipT = 0; scene.tipStartRoll = 0; scene.postSpillMs = 0;
+    scene.lidAng = 0; scene.items = []; scene.spilled = false;
+    scene.damage = 0; scene.tipCause = null;
     const sp = scene.posAt(scene.botS), hdg = scene.headingAt(scene.botS);
     scene.botX = sp.x + (-Math.sin(hdg)) * scene.laneOff;
     scene.botY = sp.y + Math.cos(hdg) * scene.laneOff;
@@ -17062,7 +17082,11 @@ function tpSlalomOn(){
     const total = raw + run.pen;
     const clean = run.cleared === run.cones.length && run.pen === 0;
     const par   = (run.course && run.course.par) || 0;
-    const won   = par > 0 && total <= par;
+    /* a crash is never a win, whatever the clock says: without the
+       run.fail term a tip-over BEFORE par elapsed computed won=true and
+       paid a tip for a wrecked run (caught in headless verification —
+       elapsed 20s beat par 60s while the robot lay in the road). */
+    const won   = !run.fail && par > 0 && total <= par;
     /* mission wiring: a canonical run reports like every mission does —
        completion flips the slalom-master trophy (its progress fn reads
        missions.has), best time rides the profile for the mission card.
@@ -17133,7 +17157,10 @@ function tpSlalomOn(){
     const isBest = won && (!best || total < best);
     if (isBest){ best = total; localStorage.setItem(BEST_KEY, String(total)); }
 
-    const verdict = !won ? 'OVER PAR' : (clean ? 'CLEAN RUN' : 'PASS');
+    /* run.fail outranks the par comparison: the double-miss and the
+       crash both used to print OVER PAR, which is a timing verdict for
+       a run that ended for a completely different reason. */
+    const verdict = run.fail ? 'FAIL' : (!won ? 'OVER PAR' : (clean ? 'CLEAN RUN' : 'PASS'));
     const col     = !won ? '#ff6b6b' : (clean ? '#7fe08a' : '#ffb04d');
 
     const row = (k, v, c) =>
@@ -17164,6 +17191,7 @@ function tpSlalomOn(){
             text-align:center;margin-bottom:4px">${verdict}</div>
        <div id="slTotal" style="text-align:center;font-size:30px;font-weight:800;
             font-variant-numeric:tabular-nums;margin-bottom:12px">${total.toFixed(2)}s</div>
+       ${run.fail ? `<div style="text-align:center;color:#ff6b6b;margin:-8px 0 10px">${run.fail}</div>` : ''}
        ${row('run time', raw.toFixed(2) + 's')}
        ${row('penalties', (run.pen ? '+' : '') + run.pen.toFixed(1) + 's',
              run.pen ? '#ff9c4d' : '#7fe08a')}
@@ -17843,7 +17871,20 @@ function tpSlalomOn(){
   };
   scene.events.on('preupdate',  onPre);
   scene.events.on('postupdate', onPost);
-  scene._slAPI = { run, reset: slResetRun, countdown: slCountdown, SL };
+  /* THE CRASH ENDING. The tip animation IS the impact — hjShowCrash
+     waits 1400ms for the same reason, so the card doesn't ride in on
+     top of the fall. The card that follows is the ordinary fail card:
+     run again (now able to right a wrecked robot, see slResetRun),
+     the follow-streak counting, all of it. If the player Quits during
+     the delay, _slAPI is gone and the card stays away. */
+  function slCrash(cause){
+    if (run.phase === 'idle' || run.done) return;
+    run.done = true;
+    run.fail = cause === 'william' ? 'William got you' : 'tipped over';
+    setTimeout(() => { if (scene._slAPI && run.done) slShowCard(); }, 1400);
+  }
+
+  scene._slAPI = { run, reset: slResetRun, countdown: slCountdown, SL, crash: slCrash };
   scene._slRestore = () => {
     scene.events.off('preupdate',  onPre);
     scene.events.off('postupdate', onPost);
