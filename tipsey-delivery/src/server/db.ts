@@ -369,33 +369,40 @@ export async function dbClaimFollowBonus(
 
 /** One hash field per dateStr, sibling of tpSlalomTipKey -- same no-TTL
  *  reasoning (a year of daily fields is ~365 tiny entries, not worth a
- *  dated-key TTL scheme). */
-function tpWinCommentKey(username: string): string {
-  return `tipsy:global:wincbonus:${username}`
+ *  dated-key TTL scheme). Keyed per SOURCE ('win', 'slalom', ...) as
+ *  well as per-day and per-user: a delivery-win comment and a
+ *  cone-slalom-win comment are deliberately separate $5/day pools, not
+ *  one shared pool between two very different accomplishments (Sir's
+ *  call, 2026-08). A new mission's comment bonus is just a new source
+ *  string here -- no schema change, same key shape. */
+function tpCommentBonusKey(username: string, source: string): string {
+  return `tipsy:global:cbonus:${source}:${username}`
 }
 
-/** Win-comment bonus: $5.00, repeatable once per calendar day (unlike
- *  the one-time follow bonus). The claim flag lands via hSetNX on
- *  TODAY's field FIRST, so a double-press (or a retry after a dropped
- *  response) can't double-pay within the same day -- identical
- *  atomicity to dbClaimFollowBonus, just keyed per-day instead of
- *  once-ever. Only ever reached from routePostWinComment, and only
- *  after that call's own reddit.submitComment has actually landed --
- *  no comment, no pay, same doctrine as the follow bonus. dateStr MUST
- *  be the server's todayUTC(), never client-supplied (see
- *  routeSubmitWin/routePostWinComment). */
-export const WIN_COMMENT_BONUS_CENTS = 500
-export async function dbClaimWinCommentBonus(
+/** Comment bonus: $5.00, repeatable once per calendar day PER SOURCE
+ *  (unlike the one-time follow bonus). The claim flag lands via hSetNX
+ *  on TODAY's field FIRST, so a double-press (or a retry after a
+ *  dropped response) can't double-pay within the same day -- identical
+ *  atomicity to dbClaimFollowBonus, just keyed per-day-per-source
+ *  instead of once-ever. Only ever reached from a routePost*Comment
+ *  handler, and only after that call's own reddit.submitComment has
+ *  actually landed -- no comment, no pay, same doctrine as the follow
+ *  bonus. dateStr MUST be the server's todayUTC(), never
+ *  client-supplied (see routeSubmitWin/routePostWinComment and their
+ *  slalom siblings). */
+export const COMMENT_BONUS_CENTS = 500
+export async function dbClaimCommentBonus(
   username: string,
   dateStr: string,
+  source: string,
 ): Promise<{granted: boolean; walletCents: number}> {
-  const key = tpWinCommentKey(username)
+  const key = tpCommentBonusKey(username, source)
   const created = await redis.hSetNX(key, dateStr, '1')
   if (created) {
     const walletCents = await redis.hIncrBy(
       tpProfileKey(username),
       'walletCents',
-      WIN_COMMENT_BONUS_CENTS,
+      COMMENT_BONUS_CENTS,
     )
     return {granted: true, walletCents}
   }
