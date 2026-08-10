@@ -18252,23 +18252,36 @@ function slalomMapSelect(){
   hide("failOverlay"); hide("winOverlay");
   const s = scn();
   s.mode = "slalom-pending";
-  /* SAME CONVENTION AS EVERYTHING ELSE (2026-08-10, Sir's call): this
-     used to lead with the mission's own NAME ("Cone Slalom Challenge —
-     weave the gates..."), which reads differently from both the daily
-     route's card ("The Flats — pickup at...") and Hydrant Challenge's
-     own ("The Flats — hydrant challenge at...") -- both of those lead
-     with a PLACE, not the activity's name. Now that the course has a
-     real, fixed position on the permanent map (tpSlalomPin), it has a
-     real hood/street to lead with too, the same way hydrant's hardcoded
-     HJ_ADDRESS does -- just derived from the actual pin instead of a
-     constant, since the slalom course was never given its own fixed
-     address the way hydrant was. */
+  /* LOAD THE COURSE'S OWN ROUTE NOW (2026-08-10, Sir's call): selecting
+     Hydrant Challenge visibly moves the map to it because loadChallenge
+     swaps s.route to HJ_SEED_DATE, and drawRouteMap draws its route
+     line/robot marker off WHATEVER route is currently loaded -- that's
+     not special hydrant logic, it's just what loadRoute always does.
+     This never did that: s.route stayed on today's daily route, so the
+     map kept showing wherever THAT route's robot/pickup was, nothing
+     visibly changed. Loading SL_SEED_DATE here matches hydrant's own
+     pattern exactly. tpSlalomStart() (below) still reloads it again on
+     GO -- harmless (same date, idempotent) -- kept as a safety net for
+     the mission-list "Play mission" button, which calls tpSlalomStart
+     directly and never goes through this function at all. */
+  s.loadRoute(SL_SEED_DATE);
   const slHood = hoodAtWorld(tpSlalomPin().x, tpSlalomPin().y);
   document.getElementById("orderCard").innerHTML =
     `<div class="tag" style="margin-bottom:4px">SIDE MISSION</div>`
     + `<b>${slHood.n}</b> — cone slalom challenge on <b>${slHood.streets[0]}</b>`;
   document.getElementById("sheetStatus").textContent = `60s par · earns Slalom Master`;
   show("titleOverlay");
+  /* TIGHT ZOOM + PULSE, SAME AS A SEARCH JUMP (2026-08-10): the daily
+     route's own pickupS/doorS span (what loadRoute above just framed
+     the map on) is a normal delivery-length stretch, not the actual
+     gate-to-finish span of the slalom course itself -- that's still
+     tpSlalomPin()'s job, same as it already is for the passive map pin
+     and for tpMapJumpTo's own search-result handling. Reusing
+     tpMapJumpTo here rather than writing a second positioning path
+     means this gets the exact same tight zoom-to-one-spot and pulse
+     ring every search jump already gets, not a slightly different
+     one. */
+  tpMapJumpTo({ x: tpSlalomPin().x, y: tpSlalomPin().y, atlas: false });
 }
 function tpSlalomStart(){
   tpCloseDetail(); tpCloseMissions(); tpCloseProfile();
