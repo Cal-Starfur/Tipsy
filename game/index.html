@@ -2081,6 +2081,18 @@ const HJ_ADDRESS = { hoodIndex:0, hood:"The Flats", street:"Palmline Ave", numbe
    the ground under it finally agree. Never change it without accepting
    that every player's memory of the run moves with it. */
 const HJ_SEED_DATE = "2026-07-30";
+/* HYDRANT DRIFT (reported 2026-08-10): freezing the date wasn't enough.
+   The coast-era worldgen pass (swallow pass + terrain, shipped
+   2026-08-06..08 and made the default) still runs against ANY replay of
+   this date, including this one — so the course kept loading the right
+   DAY but not the same ground, since the code building the grid from
+   that day changed out from under it. loadRoute(HJ_SEED_DATE,...) now
+   also passes classic:true, which skips the swallow pass for this grid
+   specifically (see buildGrid's `classic` param) — the course rebuilds
+   on the exact pre-coast lattice it was actually tuned on, regardless
+   of what WORLDGEN_COAST defaults to elsewhere. Cone Slalom doesn't
+   need this: SL_SEED_DATE is frozen to a date already AFTER that
+   worldgen shipped, so replaying it has always used the same code. */
 /* Cone Slalom had the identical bug HJ_SEED_DATE was created to fix,
    just never got the same treatment: tpSlalomStart loaded
    clientTodayUTC(), so the street grid the course was carved from
@@ -3971,7 +3983,13 @@ function buildExteriorLots(grid, seed){
   return lots;
 }
 
-function buildGrid(cols, rows, seed=0){
+function buildGrid(cols, rows, seed=0, opts){
+  /* classic: skip the coast-era swallow pass entirely for this grid,
+     regardless of the global WORLDGEN_COAST default. Exists so a FROZEN
+     seed (HJ_SEED_DATE, the atlas) always rebuilds the exact block
+     layout it was tuned/tagged against, immune to worldgen features
+     that ship after the freeze — see HJ drift note, 2026-08-10. */
+  const classic = !!(opts && opts.classic);
   const nodes = [];
   for(let j=0; j<rows; j++) for(let i=0; i<cols; i++)
     nodes.push({ i, j, x:i*BLOCK, y:j*BLOCK, conn:[false,false,false,false] });
@@ -3988,7 +4006,7 @@ function buildGrid(cols, rows, seed=0){
     edges.push({ a, b, f:1 });
   }
   for(const n of nodes) n.shape = nodeShape(n);
-  const grid = { cols, rows, nodes, edges, nodeAt };
+  const grid = { cols, rows, nodes, edges, nodeAt, classic };
   /* zoning before pavement (2026-08-06, city survey): block types must
      exist before the swallow pass decides which streets survive, and
      everything pavement-shaped derives AFTER, so the whole city reacts
@@ -3997,7 +4015,7 @@ function buildGrid(cols, rows, seed=0){
      the geometry builders changes nothing else. */
   grid.blocks = buildBlockLayout(grid, seed);
   grid.blockByIJ = new Map(grid.blocks.map(b => [b.i + "," + b.j, b]));
-  if(WORLDGEN_COAST){
+  if(WORLDGEN_COAST && !classic){
     /* MERGED PARKS SWALLOW THEIR STREETS. A street edge separates two
        block cells; when both are parks they are one park by adjacency,
        and the street between them stops existing — here, in the
@@ -4686,7 +4704,7 @@ function findCrimeSite(grid, cutEdges, dateStr, segs, totalLen, avoid){
    buildGrid used. Retypes never create parks, so reconcile only ever
    restores — the walk simply never needed the streets it gives back. */
 function worldgenReconcile(grid){
-  if(!WORLDGEN_COAST || !grid._allEdges) return;
+  if(!WORLDGEN_COAST || grid.classic || !grid._allEdges) return;
   const isPark = (i, j) => { const b = grid.blockByIJ.get(i + "," + j); return !!b && b.type === "park"; };
   const keep = grid._allEdges.filter(e =>
     !(e.f === 0 ? (isPark(e.a.i, e.a.j - 1) && isPark(e.a.i, e.a.j))
@@ -4720,7 +4738,7 @@ function generateRoute(dateStr, opts){
      this is what makes actual intersections possible. */
   const cols = 12 + Math.floor(rng()*6);
   const rows = 12 + Math.floor(rng()*6);
-  const grid = buildGrid(cols, rows, seed);
+  const grid = buildGrid(cols, rows, seed, { classic: opts && opts.classic });
   /* good-heading guarantee (2026-07-27, "that is unacceptable"): the
      door needs an f===0/f===3 straight leg past the 1-mile mark with
      room for findGoodS's standard 90-unit inset. buildWalk's turnSign
@@ -7253,7 +7271,12 @@ class WorldScene extends Phaser.Scene {
     this.hjCharge = 0; this.hjChargeSm = 0; this.hjAir = null;
     this.hjLocked = null; this.hjLevel = 1; this.hjBest = 0;
     this.hjSrcLast = {}; this.hjResult = ""; this.hjPassed = 0;
-    this.loadRoute(HJ_SEED_DATE, { hoodIndex: HJ_ADDRESS.hoodIndex, challenge: true });
+    /* classic:true — rebuild against the pre-coast-worldgen lattice the
+       course was actually tuned on (2026-07-30), immune to the swallow
+       pass/terrain that shipped 2026-08-06..08. Without this the course
+       still loads the right DATE but not the same ground; see the
+       hydrant-drift note by HJ_SEED_DATE above. */
+    this.loadRoute(HJ_SEED_DATE, { hoodIndex: HJ_ADDRESS.hoodIndex, challenge: true, classic: true });
     /* same card slot the daily uses, so the map screen reads identically */
     document.getElementById("orderCard").innerHTML =
       `<div class="tag" style="margin-bottom:4px">SIDE MISSION</div>`
@@ -9720,7 +9743,7 @@ class WorldScene extends Phaser.Scene {
   fillBlockGround(g, blk){
     if(blk.type === "park"){
       this.fillBlockInterior(g, blk, GRASS);
-      if(WORLDGEN_COAST && blk.i !== undefined){
+      if(WORLDGEN_COAST && !this.route.grid.classic && blk.i !== undefined){
         /* merged parks: the grass owns the street it swallowed. Each
            park block extends only toward its +x/+y park neighbours —
            one owner per strip, drawn once — and takes the intersection
@@ -19542,8 +19565,11 @@ function drawRouteMap(route){
      world's renderer, so it never picked up fillBlockGround's +x/+y
      neighbour rule — ported verbatim here, worldgenReconcile already
      removed the actual street edges, this just fills the grass over
-     where they were. Interior blocks only; one owner per strip. */
-  if(byIJ){
+     where they were. Interior blocks only; one owner per strip.
+     Skipped for a classic grid — no swallow pass ran, so the street
+     between two park blocks is still real pavement, not a gap to
+     bridge. */
+  if(byIJ && !route.grid.classic){
     for(const blk of route.grid.blocks){
       if(blk.type !== "park" || blk.i === undefined) continue;
       const nx = byIJ.get((blk.i+1)+","+blk.j), ny = byIJ.get(blk.i+","+(blk.j+1));
