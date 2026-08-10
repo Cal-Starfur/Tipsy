@@ -1906,6 +1906,21 @@ const HJ_ADDRESS = { hoodIndex:0, hood:"The Flats", street:"Palmline Ave", numbe
    the ground under it finally agree. Never change it without accepting
    that every player's memory of the run moves with it. */
 const HJ_SEED_DATE = "2026-07-30";
+/* Cone Slalom had the identical bug HJ_SEED_DATE was created to fix,
+   just never got the same treatment: tpSlalomStart loaded
+   clientTodayUTC(), so the street grid the course was carved from
+   re-rolled at every UTC midnight and the course (and the daylight —
+   everything date-seeded moves together) landed somewhere new every
+   day (reported 2026-08-10). Frozen here the same way, on a date with
+   real evidence behind it rather than picked blind: 2026-08-09 is the
+   route the SL.par formula was measured and calibrated against (see
+   SL's own par comment -- 16,952 units over 5 legs / 25 gates). The
+   course-build side no longer needs a SPECIAL seed the way HJ_SEED_DATE
+   once implied (slFindChain dropped the f=0/f=1 corridor requirement
+   and the seed-search that went with it -- any date's route builds a
+   course now), so this is just about the course being the same place
+   twice, not about finding a lucky date. */
+const SL_SEED_DATE = "2026-08-09";
 const hjPlaceName = () => `${HJ_ADDRESS.number} ${HJ_ADDRESS.street}, ${HJ_ADDRESS.hood}`;
 
 /* approved palm (palm lab, 2026-07-07): the Costa Palma house style */
@@ -17561,20 +17576,29 @@ function tpSlalomOn(){
        money. Anti-farming mirrors the replay delta rule: slPaid keeps a
        per-day high-water of what this course has already paid out, and a
        repeat run credits only the improvement — "run again" grinding pays
-       nothing unless you beat yourself. Keyed on the ROUTE's dateStr (not
-       the clock) so a replayed past route can't reset today's tracker.
-       On Devvit the wallet is server-authoritative (Redis heals it on
-       every profile sync), so the local credit below only sticks once
-       the server has paid it too — the fetch after tpRender() claims it
-       through api/tipsy/slalom/tip, the server applies its OWN per-day
-       delta rule, cap and date, and the walletCents it returns is the
+       nothing unless you beat yourself. Keyed on clientTodayUTC() -- the
+       REAL calendar day, not scene.route.dateStr. It used to be the
+       route's own dateStr (reasoning: "a replayed past route can't reset
+       today's tracker"), which was fine back when the slalom route WAS
+       always today's route. Now that tpSlalomStart loads the frozen
+       SL_SEED_DATE instead (see that constant's own comment), the route's
+       dateStr never changes at all -- keying off it would freeze this
+       high-water mark forever after the first run instead of resetting
+       daily. The real calendar day is what "per day" was always supposed
+       to mean here; which course geometry got used is a separate
+       question. On Devvit the wallet is server-authoritative (Redis heals
+       it on every profile sync), so the local credit below only sticks
+       once the server has paid it too — the fetch after tpRender() claims
+       it through api/tipsy/slalom/tip, the server applies its OWN
+       per-day delta rule against ITS OWN todayUTC() (never trusted from
+       the client either way), and the walletCents it returns is the
        truth: take it verbatim, do not add to it. */
     let tipCents = 0, bonusCents = 0, paidCents = 0;
     if (won){
       tipCents   = 300 + Math.round(Math.max(0, par - total) * 75);
       bonusCents = clean ? 150 : 0;
       try {
-        const day = (scene.route && scene.route.dateStr) || clientTodayUTC();
+        const day = clientTodayUTC();
         if (!tpProfile.slPaid || typeof tpProfile.slPaid !== 'object') tpProfile.slPaid = {};
         const already = tpProfile.slPaid[day] || 0;
         paidCents = Math.max(0, tipCents + bonusCents - already);
@@ -18446,7 +18470,7 @@ function tpSlalomStart(){
   { const sA = scn(); if(sA && sA.attractStop) sA.attractStop(); }
   hide("failOverlay"); hide("winOverlay"); hide("titleOverlay");
   const s = scn();
-  s.loadRoute(clientTodayUTC());            // a fresh daily route to carve the course from
+  s.loadRoute(SL_SEED_DATE);                 // frozen course, not the rolling daily -- see SL_SEED_DATE
   hjChrome(true);                            // same quiet screen the hydrant jump earns
   tpSlalomOn();                              // attach the engine to the live scene
   if(!s._slAPI){ hjChrome(false); tpToast("Slalom course unavailable — try again."); return; }
