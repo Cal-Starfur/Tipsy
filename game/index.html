@@ -20520,7 +20520,19 @@ document.getElementById("avatarIcon").addEventListener("click", tpOpenProfile);
     last = now;
     const s = scn();
     hide("failOverlay");
-    if(s && s.mode === "challenge") hjQuit();
+    /* !s._slAPI excludes Cone Slalom (2026-08-10, reported on-device):
+       slalom ALSO sets mode:"challenge" (it reuses hjChrome's quiet
+       screen), so this branch was catching it too and calling the
+       HYDRANT challenge's own hjQuit() -- banking nothing useful,
+       resetting mode back to "delivery," and loading today's REAL
+       route out from under an in-progress slalom session. The icon row
+       exists specifically so a slalom result screen can be browsed
+       away from and back to without quitting; auto-quitting on the way
+       IN defeated that before the back arrow ever got a chance to
+       return anyone anywhere. s._slAPI is the one flag only a live
+       slalom session carries -- real Hydrant Challenge never sets it,
+       so this stays exactly as before for that mission. */
+    if(s && s.mode === "challenge" && !s._slAPI) hjQuit();
     tpOpenProfile();
   };
   /* Three bindings, guarded. During play Phaser's input manager is live
@@ -20554,8 +20566,10 @@ document.getElementById("avatarIcon").addEventListener("click", tpOpenProfile);
     const won = !document.getElementById("winOverlay").classList.contains("hidden");
     const s = scn();
     /* From the challenge: bank progress and land back on the mission
-       list — this is what #failMenuBtn used to do, kept verbatim. */
-    if(s && s.mode === "challenge"){ hide("failOverlay"); hjQuit(); tpOpenMissions(); return; }
+       list — this is what #failMenuBtn used to do, kept verbatim.
+       !s._slAPI excludes Cone Slalom -- same reasoning as
+       bindGlobalAvatar's own copy of this fix, see that comment. */
+    if(s && s.mode === "challenge" && !s._slAPI){ hide("failOverlay"); hjQuit(); tpOpenMissions(); return; }
     /* From a finished run either way — crash or delivery — the run is
        already over, so go back to the map on the way out. Mid-route or
        on the map, just open over what's there — tpOpenMissions() pauses
