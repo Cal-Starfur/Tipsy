@@ -538,6 +538,18 @@ function tdFxPostComment(ta, btn){
       "transform:translateX(-50%);width:min(340px,86vw);height:auto;" +
       "border-radius:12px;padding:15px 0;font-size:18px;letter-spacing:2px;}" +
     "#failOverlay .btn:active{transform:translateX(-50%) translateY(3px);}" +
+    /* Cone Slalom's fail card (2026-08-10 redesign) borrows this exact
+       shape for its own Retry button -- same slot, same press feel,
+       just not literally inside #failOverlay (a plain div, #slCard,
+       gets torn down and rebuilt every run the same way winOverlay's
+       buttons aren't, so an id-scoped selector doesn't fit here the
+       way it does above; a standalone class does). */
+    ".slRetryBtn{position:absolute;left:50%;top:46%;transform:translateX(-50%);" +
+      "width:min(340px,86vw);background:#ff7a1a;color:#fff;border:none;" +
+      "border-radius:12px;padding:15px 0;font-size:18px;font-weight:700;" +
+      "letter-spacing:2px;box-shadow:0 4px 0 #b5540e;}" +
+    ".slRetryBtn:active{transform:translateX(-50%) translateY(3px);" +
+      "box-shadow:0 1px 0 #b5540e;}" +
     /* class, not id -- tdStackIcons() now builds one row per overlay
        (fail AND win), so the selector has to match both instances.
        Each instance still overrides top/bottom with its own inline
@@ -1100,9 +1112,19 @@ const TSFFX_DONE_KEY = "tdSlalomFailCBonusDate";
 function tsfFxCommentBtn(card, total, faultCount, cause){
   const btn = document.createElement("button");
   btn.id = "tsfFxCommentBtn";
-  btn.style.cssText = "font:inherit;color:#fff;background:#2c313c;" +
+  /* Absolute, not flow -- updated 2026-08-10 alongside the fail-card
+     redesign. #slCard is a full-screen flex column now (like
+     failOverlay), and #slRetry already escapes that flow via its own
+     position:absolute (see .slRetryBtn); leaving this one as a normal
+     flex child would have pulled it into the h2/p centering group
+     instead of sitting in its own slot below Retry. Same top:46%+72px
+     rhythm MAYBE LATER uses in the follow offer, since COMMENT and
+     MAYBE LATER occupy that exact same slot at different times. */
+  btn.style.cssText = "position:absolute;left:50%;top:calc(46% + 72px);" +
+    "transform:translateX(-50%);width:min(340px,86vw);" +
+    "font:inherit;color:#fff;background:#2c313c;" +
     "border:1px solid #4a5060;border-radius:7px;min-height:44px;" +
-    "width:100%;margin-top:8px;display:none;";
+    "padding:12px 0;display:none;";
   let claimedToday = false;
   try { claimedToday = localStorage.getItem(TSFFX_DONE_KEY) === clientTodayUTC(); } catch(e){}
   btn.textContent = claimedToday ? "COMMENT" : "COMMENT  \u00b7  +$5.00";
@@ -17064,153 +17086,203 @@ function tpSlalomOn(){
     document.getElementById('slCard')?.remove();
     const card = document.createElement('div');
     card.id = 'slCard';
-    card.style.cssText = [
-      'position:fixed','left:12px','right:12px','top:50%','transform:translateY(-50%)',
-      'z-index:100000','background:rgba(14,16,21,0.97)',`border:1px solid ${col}`,
-      'border-radius:14px','padding:16px','max-width:460px','margin:0 auto',
-      'font:13px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace','color:#e8eaef',
-    ].join(';');
-    card.innerHTML =
-      `<div id="slVerdict" style="color:${col};font-size:22px;font-weight:800;letter-spacing:2px;
-            text-align:center;margin-bottom:4px">${verdict}</div>
-       <div id="slTotal" style="text-align:center;font-size:30px;font-weight:800;
-            font-variant-numeric:tabular-nums;margin-bottom:12px">${total.toFixed(2)}s</div>
-       ${run.fail ? `<div style="text-align:center;color:#ff6b6b;margin:-8px 0 10px">${run.fail}</div>` : ''}
-       ${row('run time', raw.toFixed(2) + 's')}
-       ${row('penalties', (run.pen ? '+' : '') + run.pen.toFixed(1) + 's',
-             run.pen ? '#ff9c4d' : '#7fe08a')}
-       ${row('par', par.toFixed(1) + 's')}
-       ${row('margin', (par - total >= 0 ? '−' : '+') +
-             Math.abs(par - total).toFixed(2) + 's', col)}
-       ${row('cones cleared', `${run.cleared} / ${run.gates.length}`)}
-       ${row('grade', (run.course.grade * 100).toFixed(1) + '% downhill')}
-       ${row('legs', `${run.course.nLines}  (f=${run.course.fList.join('/')})`)}
-       ${row('best', best ? best.toFixed(2) + 's' : '—', isBest ? '#7fe08a' : null)}
-       ${isBest ? `<div style="text-align:center;color:#7fe08a;margin-top:6px">
-                     new best</div>` : ''}
-       ${won ? row('tip', tpMoney(tipCents)) : ''}
-       ${bonusCents ? row('clean bonus', '+' + tpMoney(bonusCents), '#7fe08a') : ''}
-       ${won ? row('credited to wallet', tpMoney(paidCents), paidCents ? '#7fe08a' : null) : ''}
-       ${won && !paidCents ? `<div style="text-align:center;color:#8f95a1;margin-top:4px">
-             beat today's best payout to earn more</div>` : ''}
-       <div style="display:flex;gap:12px;justify-content:center;margin-top:8px;
-            font-size:11px;color:#8f95a1">
-         <span><b style="color:#e03131">red</b> pass above</span>
-         <span><b style="color:#2f6fd0">blue</b> pass below</span>
-       </div>
-       ${faults}
-       <div style="display:flex;gap:8px;margin-top:14px">
-         <button id="slAgain" style="${'font:inherit;color:#e8eaef;background:#232220;' +
-           'border:1px solid #2b2f38;border-radius:7px;min-height:44px;'}flex:2">run again</button>
-         <button id="slClose" style="${'font:inherit;color:#e8eaef;background:#232220;' +
-           'border:1px solid #2b2f38;border-radius:7px;min-height:44px;'}flex:1">close</button>
-       </div>`;
-    document.body.appendChild(card);
-    document.getElementById('slAgain').onclick = () => { card.remove(); slResetRun(); };
-    /* slClose is the mission's sole exit now that live Quit is gone --
-       see tpSlalomQuit's own comment for why a bare card.remove() here
-       would have stranded the player permanently. */
-    document.getElementById('slClose').onclick = () => tpSlalomQuit();
 
-    /* WIN-side bonus row: COMMENT (+$5/day, its own pool -- see
-       db.ts dbClaimCommentBonus's source:'slalom') and FOLLOW
-       (+$25 one-time, the same account-wide flag/flow every other
-       follow button on the site already shares). Devvit-only, same as
-       every other bonus feature; a fail never reaches this branch --
-       that path is the separate follow-only offer below, gated on
-       tdFx.fails instead. */
-    if (IS_DEVVIT_BUILD && won) tsFxBonusRow(card, total, par, clean);
+    if (won){
+      /* WIN keeps the existing stats-card treatment entirely -- this
+         redesign (2026-08-10) only touches the FAIL presentation. */
+      card.style.cssText = [
+        'position:fixed','left:12px','right:12px','top:50%','transform:translateY(-50%)',
+        'z-index:100000','background:rgba(14,16,21,0.97)',`border:1px solid ${col}`,
+        'border-radius:14px','padding:16px','max-width:460px','margin:0 auto',
+        'font:13px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace','color:#e8eaef',
+      ].join(';');
+      card.innerHTML =
+        `<div id="slVerdict" style="color:${col};font-size:22px;font-weight:800;letter-spacing:2px;
+              text-align:center;margin-bottom:4px">${verdict}</div>
+         <div id="slTotal" style="text-align:center;font-size:30px;font-weight:800;
+              font-variant-numeric:tabular-nums;margin-bottom:12px">${total.toFixed(2)}s</div>
+         ${row('run time', raw.toFixed(2) + 's')}
+         ${row('penalties', (run.pen ? '+' : '') + run.pen.toFixed(1) + 's',
+               run.pen ? '#ff9c4d' : '#7fe08a')}
+         ${row('par', par.toFixed(1) + 's')}
+         ${row('margin', (par - total >= 0 ? '\u2212' : '+') +
+               Math.abs(par - total).toFixed(2) + 's', col)}
+         ${row('cones cleared', `${run.cleared} / ${run.gates.length}`)}
+         ${row('grade', (run.course.grade * 100).toFixed(1) + '% downhill')}
+         ${row('legs', `${run.course.nLines}  (f=${run.course.fList.join('/')})`)}
+         ${row('best', best ? best.toFixed(2) + 's' : '\u2014', isBest ? '#7fe08a' : null)}
+         ${isBest ? `<div style="text-align:center;color:#7fe08a;margin-top:6px">
+                       new best</div>` : ''}
+         ${row('tip', tpMoney(tipCents))}
+         ${bonusCents ? row('clean bonus', '+' + tpMoney(bonusCents), '#7fe08a') : ''}
+         ${row('credited to wallet', tpMoney(paidCents), paidCents ? '#7fe08a' : null)}
+         ${!paidCents ? `<div style="text-align:center;color:#8f95a1;margin-top:4px">
+               beat today's best payout to earn more</div>` : ''}
+         <div style="display:flex;gap:12px;justify-content:center;margin-top:8px;
+              font-size:11px;color:#8f95a1">
+           <span><b style="color:#e03131">red</b> pass above</span>
+           <span><b style="color:#2f6fd0">blue</b> pass below</span>
+         </div>
+         ${faults}
+         <div style="display:flex;gap:8px;margin-top:14px">
+           <button id="slAgain" style="${'font:inherit;color:#e8eaef;background:#232220;' +
+             'border:1px solid #2b2f38;border-radius:7px;min-height:44px;'}flex:2">run again</button>
+           <button id="slClose" style="${'font:inherit;color:#e8eaef;background:#232220;' +
+             'border:1px solid #2b2f38;border-radius:7px;min-height:44px;'}flex:1">close</button>
+         </div>`;
+      document.body.appendChild(card);
+      document.getElementById('slAgain').onclick = () => { card.remove(); slResetRun(); };
+      document.getElementById('slClose').onclick = () => tpSlalomQuit();
 
-    /* COMMENT bonus, always offered on a fail (unlike FOLLOW just
-       below, which keeps its existing 3-strike gate untouched -- Sir's
-       call, 2026-08-10: these are two separate decisions, not one). */
-    if (IS_DEVVIT_BUILD && !won) tsfFxCommentBtn(card, total, run.faults.length, run.fail);
+      /* WIN-side bonus row: COMMENT (+$5/day, its own pool -- see
+         db.ts dbClaimCommentBonus's source:'slalom') and FOLLOW
+         (+$25 one-time, the same account-wide flag/flow every other
+         follow button on the site already shares). */
+      if (IS_DEVVIT_BUILD) tsFxBonusRow(card, total, par, clean);
 
-    /* THE FAIL STREAK FEEDS THE SAME COUNTER AS THE DAILY ROUTE. The
-       slalom muzzles showFail (it owns its endings), which had the side
-       effect of hiding every slalom fail from tdFx.fails -- so a player
-       who bounced off the course three times never got the follow offer
-       a player who tipped over three times on the route did. A FAIL card
-       counts (over par or the double-miss both print FAIL); a quit does
-       not, matching the daily route where abandoning never reaches
-       showFail. Gate and network are the daily route's own functions;
-       only the painting differs, because the offer lands on this card
-       instead of the fail overlay -- same contract though: FOLLOW in the
-       retry slot, MAYBE LATER one tap away, the headline visibly
-       changes, and a NICE/LATER answer restores the card with run again
-       exactly where it was. */
-    if (IS_DEVVIT_BUILD && !won){
-      tdFx.fails++;
-      if (tdFxFollowEligible()){
-        tdFx.followShown = true;
-        slShowFollow(card);
+    } else {
+      /* FAIL is a full redesign (2026-08-10, Sir's call): "look like
+         the daily" -- the delivery route's own failOverlay is a
+         transparent overlay with just a headline, a subtext, and one
+         big Retry pill, no stats, no fault list, exit via the corner
+         icons instead of a close button. #slCard borrows that exact
+         layout and even the SAME copy pools (FAIL_LINES/
+         WILLIAM_FAIL_LINES) -- a slalom tip-over and a delivery
+         tip-over are the same underlying event, so sharing the joke
+         pool is coherent, not just convenient. Retry restarts the
+         COURSE (slResetRun), not the daily route -- that's the one
+         thing that can't be literally shared with the real
+         failOverlay, whose retryBtn is wired to the delivery. */
+      const pool = run.fail === 'William got you' ? WILLIAM_FAIL_LINES : FAIL_LINES;
+      const [failMsg, failSub] = pool[Math.floor(Math.random() * pool.length)];
+      card.style.cssText = [
+        'position:fixed','inset:0','z-index:100000',
+        'display:flex','flex-direction:column','align-items:center','justify-content:center',
+        'background:rgba(18,20,26,0)','color:#fff','text-align:center','padding:24px',
+      ].join(';');
+      card.innerHTML =
+        `<h2 id="slFailMsg" style="font-size:28px;margin:0 0 8px;text-shadow:0 2px 3px #b5540e;
+              transform:translateY(-135px)">${failMsg}</h2>
+         <p id="slFailSub" style="font-size:16px;line-height:1.5;color:#fff;max-width:330px;
+              margin:5px 0;text-shadow:0 2px 3px #b5540e;transform:translateY(-135px)">${failSub}</p>
+         <button id="slRetry" class="slRetryBtn">Retry</button>`;
+      document.body.appendChild(card);
+      document.getElementById('slRetry').onclick = () => { card.remove(); slResetRun(); };
+
+      /* Exit is the corner icons now, same as failOverlay -- no close
+         button on a fail at all (matches the no-quit-mid-run stance
+         already applied to live play; finishing, crashing, or looking
+         at something else via the icons are the only moves). */
+      tdStackIcons('slCard');
+
+      /* COMMENT bonus (+$5/day, its own pool -- source:'slalom-fail'),
+         always offered on a fail. Positioned in the same vertical
+         rhythm the real fail overlay already uses for its own COMMENT
+         slot (46% + 72px) -- see tsfFxCommentBtn's own styling. */
+      if (IS_DEVVIT_BUILD) tsfFxCommentBtn(card, total, run.faults.length, run.fail);
+
+      /* THE FAIL STREAK FEEDS THE SAME COUNTER AS THE DAILY ROUTE. The
+         slalom muzzles showFail (it owns its endings), which had the
+         side effect of hiding every slalom fail from tdFx.fails -- so
+         a player who bounced off the course three times never got the
+         follow offer a player who tipped over three times on the
+         route did. A FAIL card counts (over par or the double-miss
+         both print FAIL); a quit does not, matching the daily route
+         where abandoning never reaches showFail. Gate and network are
+         the daily route's own functions; only the painting differs. */
+      if (IS_DEVVIT_BUILD){
+        tdFx.fails++;
+        if (tdFxFollowEligible()){
+          tdFx.followShown = true;
+          slShowFollow(card);
+        }
       }
     }
   }
 
-  /* The follow offer, painted on the slalom card in the fail overlay's
-     manner: tdFxShowFollow's design note verbatim -- the FOLLOW pill
-     takes the retry button's exact slot, the opt-out stays one tap
-     away, and the headline swap is the visible tell. Everything that
-     must not fork (eligibility, endpoint, done flag, wallet) lives in
-     the shared tdFx functions; this only moves pixels. */
+  /* The follow offer, rebuilt (2026-08-10) to match tdFxShowFollow's
+     own INJECT pattern verbatim now that the fail card shares its
+     layout: FOLLOW takes the retry slot (hidden via visibility, not
+     removed, so nothing reflows), MAYBE LATER takes the COMMENT slot
+     (hiding the real comment button while the offer is up, exactly
+     like tdFxHideCommentBtn does on the real overlay), and the
+     headline/sub swap to the offer copy. slSavedMsg/slSavedSub are
+     local to this closure -- NOT tdFx.savedMsg/savedSub, which belong
+     to the real failOverlay's own instance of this same pattern; two
+     independent saves for two independent screens, same reasoning as
+     tsFx/tsfFx never sharing state with tdFx beyond the parts that are
+     GENUINELY one account-wide fact (followClaimed, busy). */
+  let slSavedMsg, slSavedSub;
   function slShowFollow(card){
-    const v = document.getElementById('slVerdict');
-    const t = document.getElementById('slTotal');
-    const again = document.getElementById('slAgain');
-    const close = document.getElementById('slClose');
-    if (!v || !t || !again || !close) return;
-    const saved = { v: v.textContent, vCol: v.style.color, t: t.innerHTML,
-                    again: again.textContent, close: close.textContent };
+    const m = document.getElementById('slFailMsg');
+    const s = document.getElementById('slFailSub');
+    const retry = document.getElementById('slRetry');
+    if (!m || !s || !retry) return;
+    slSavedMsg = m.textContent; slSavedSub = s.textContent;
+    retry.style.visibility = 'hidden';
+    const commentBtn = document.getElementById('tsfFxCommentBtn');
+    if (commentBtn) commentBtn.style.display = 'none';
+    m.textContent = 'Follow r/tipsey.';
+    s.textContent = 'FREE  +$25.00 BONUS TIPS';
     const err = document.createElement('div');
     err.id = 'slFollowErr';
-    err.style.cssText = 'text-align:center;color:#ff8a65;font-size:12px;margin-top:6px;display:none';
-    again.parentElement.before(err);
-    const offer = () => {
-      v.textContent = 'Follow r/tipsey.'; v.style.color = '#ff9c4d';
-      t.innerHTML = '<span style="font-size:15px;letter-spacing:1px">FREE&nbsp;&nbsp;+$25.00 BONUS TIPS</span>';
-      again.textContent = 'FOLLOW'; again.style.background = '#c2452e';
-      close.textContent = 'MAYBE LATER';
-    };
-    const restore = () => {
-      v.textContent = saved.v; v.style.color = saved.vCol; t.innerHTML = saved.t;
-      again.textContent = saved.again; again.style.background = '#232220';
-      again.disabled = false;
-      close.textContent = saved.close; close.style.display = '';
-      err.remove();
-      again.onclick = () => { card.remove(); slResetRun(); };
-      /* Same fix as the initial wiring below -- this restore() path is
-         the ONE place that had its own hardcoded copy of the old bare
-         card.remove(), which would have silently un-fixed slClose the
-         moment a player declined a follow offer (MAYBE LATER). Caught
-         on review, not on first pass -- worth the second look. */
-      close.onclick = () => tpSlalomQuit();
-    };
-    offer();
-    close.onclick = () => {
-      try { localStorage.setItem(TDFX_LATER_KEY, clientTodayUTC()); } catch(e){}
-      restore();
-    };
-    again.onclick = () => {
+    err.style.cssText = 'position:absolute;left:50%;top:calc(46% - 26px);' +
+      'transform:translateX(-50%);color:#ff8a65;font-size:12px;display:none;';
+    const go = document.createElement('button');
+    go.id = 'slFollowGo';
+    go.textContent = 'FOLLOW';
+    go.className = 'slRetryBtn';
+    go.addEventListener('click', () => {
       if (tdFx.busy) return;
-      tdFx.busy = true; again.disabled = true; again.textContent = 'FOLLOWING...';
+      tdFx.busy = true; go.disabled = true; go.textContent = 'FOLLOWING...';
       err.style.display = 'none';
       tdFxFollowRequest(granted => {
-        tdFx.busy = false; again.disabled = false;
-        v.textContent = 'Followed.';
-        t.innerHTML = '<span style="font-size:13px;letter-spacing:1px">' +
-          (granted ? '$25.00 IN BONUS TIPS ADDED TO YOUR WALLET'
-                   : 'BONUS ALREADY CLAIMED ON THIS ACCOUNT') + '</span>';
-        close.style.display = 'none';
-        again.textContent = 'NICE';
-        again.onclick = restore;
+        tdFx.busy = false;
+        m.textContent = 'Followed.';
+        s.textContent = granted ? '$25.00 IN BONUS TIPS ADDED TO YOUR WALLET'
+                                 : 'BONUS ALREADY CLAIMED ON THIS ACCOUNT';
+        const later = document.getElementById('slFollowLater'); if (later) later.remove();
+        err.remove();
+        const nice = go.cloneNode(false);   // drops the follow listener
+        nice.id = 'slFollowGo'; nice.className = 'slRetryBtn';
+        nice.disabled = false; nice.textContent = 'NICE';
+        nice.addEventListener('click', () => slFollowRestore(card));
+        go.replaceWith(nice);
       }, () => {
-        tdFx.busy = false; again.disabled = false; again.textContent = 'FOLLOW';
+        tdFx.busy = false; go.disabled = false; go.textContent = 'FOLLOW';
         err.textContent = "Couldn't follow. Try again.";
         err.style.display = 'block';
       });
-    };
+    });
+    const later = document.createElement('button');
+    later.id = 'slFollowLater';
+    later.textContent = 'MAYBE LATER';
+    later.style.cssText = 'position:absolute;left:50%;top:calc(46% + 72px);' +
+      'transform:translateX(-50%);width:min(340px,86vw);background:none;border:0;' +
+      'color:#c9d1de;font-size:12px;letter-spacing:2px;padding:12px 0;';
+    later.addEventListener('click', () => {
+      try { localStorage.setItem(TDFX_LATER_KEY, clientTodayUTC()); } catch(e){}
+      slFollowRestore(card);
+    });
+    card.appendChild(err);
+    card.appendChild(go);
+    card.appendChild(later);
   }
+  function slFollowRestore(card){
+    const m = document.getElementById('slFailMsg');
+    const s = document.getElementById('slFailSub');
+    const retry = document.getElementById('slRetry');
+    if (m && slSavedMsg !== undefined) m.textContent = slSavedMsg;
+    if (s && slSavedSub !== undefined) s.textContent = slSavedSub;
+    slSavedMsg = undefined; slSavedSub = undefined;
+    if (retry) retry.style.visibility = '';
+    document.getElementById('slFollowGo')?.remove();
+    document.getElementById('slFollowLater')?.remove();
+    document.getElementById('slFollowErr')?.remove();
+    const commentBtn = document.getElementById('tsfFxCommentBtn');
+    if (commentBtn && tsfFx.draft && !tsfFx.posted) commentBtn.style.display = 'block';
+  }
+
 
   /* ============ 3 - 2 - 1 - GO ============
      "Roll to the line" was not a start, it was the absence of one: the clock
