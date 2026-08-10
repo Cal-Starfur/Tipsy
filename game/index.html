@@ -19559,7 +19559,12 @@ function worldgenLandmarks(grid){
   const Y0 = -W2.EXT*B, Y1 = (grid.rows-1)*B + W2.EXT*B;
   const pierY = (Y0+Y1)/2, pierX0 = X0 - W2.BOARD*B - W2.SANDW*B - W2.PIER_LEN*B;
   return [
-    { name:"Sunset Shore",         x: X0 - W2.BOARD*B - W2.SANDW*B/2, y:(Y0+Y1)/2, kind:"beach" },
+    /* y offset a quarter of the way up the shore, deliberately NOT
+       pierY (2026-08-10, fixed the same day this shipped: "Sunset
+       Shore" and "Sunset Pier" both used pierY, the coast's vertical
+       center, so the beach's own name rendered directly on top of the
+       pier structure instead of on open sand — reported on-device). */
+    { name:"Sunset Shore",         x: X0 - W2.BOARD*B - W2.SANDW*B/2, y: Y0 + (Y1-Y0)*0.25, kind:"beach" },
     { name:"Driftwood Beach",      x:(X0+X1)/2, y: Y1 + W2.BOARD*B + W2.SANDW*B/2, kind:"beach" },
     { name:"The Boardwalk",        x: X0 - W2.BOARD*B/2, y:(Y0+Y1)/2, kind:"walk" },
     { name:"Sunset Pier",          x: pierX0 + W2.PIER_LEN*B/2, y: pierY, kind:"pier" },
