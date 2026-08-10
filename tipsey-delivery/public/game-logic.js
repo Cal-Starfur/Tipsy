@@ -563,9 +563,20 @@ function tdFxPostComment(ta, btn){
     /* the corner pair leaves when the fail OR win screen is up -- each
        stack carries its own copies -- same disappearing act #zoomBtn
        does. Win never had a "tdWinUp" state before the Again button
-       was retired in favour of this same explore-via-icons pattern. */
+       was retired in favour of this same explore-via-icons pattern.
+       slFailUp is the slalom fail card's own version, added 2026-08-10
+       -- #slCard isn't failOverlay or winOverlay, so the MutationObserver
+       pair below (which only watches those two) never saw it, and the
+       corner icons sat there uncovered right next to the card's own
+       injected copies -- two magnifying glasses, two robots, reported
+       on-device. Kept as its own class rather than reusing tdFailUp:
+       #slCard and the real #failOverlay can't ever be up at once in
+       practice, but toggling the SAME class from two independent
+       MutationObserver-free code paths is exactly the kind of thing
+       that goes stale first. */
     "body.tdFailUp #globalSearch,body.tdFailUp #globalAvatar," +
-    "body.tdWinUp #globalSearch,body.tdWinUp #globalAvatar{display:none !important;}";
+    "body.tdWinUp #globalSearch,body.tdWinUp #globalAvatar," +
+    "body.slFailUp #globalSearch,body.slFailUp #globalAvatar{display:none !important;}";
   document.head.appendChild(st);
   /* failOverlay/winOverlay are shown/hidden from many call sites;
      watching the class is the one place that sees them all */
@@ -17167,7 +17178,15 @@ function tpSlalomOn(){
               margin:5px 0;text-shadow:0 2px 3px #b5540e;transform:translateY(-135px)">${failSub}</p>
          <button id="slRetry" class="slRetryBtn">Retry</button>`;
       document.body.appendChild(card);
-      document.getElementById('slRetry').onclick = () => { card.remove(); slResetRun(); };
+      /* Hides the real corner icons for as long as this card is up --
+         see slFailUp's own comment in tdStackCss for why this needs
+         its own class instead of piggybacking tdFailUp/tdWinUp. */
+      document.body.classList.add('slFailUp');
+      document.getElementById('slRetry').onclick = () => {
+        card.remove();
+        document.body.classList.remove('slFailUp');
+        slResetRun();
+      };
 
       /* Exit is the corner icons now, same as failOverlay -- no close
          button on a fail at all (matches the no-quit-mid-run stance
@@ -18026,6 +18045,7 @@ function tpSlalomQuit(){
   clearInterval(tpSlTick);
   document.getElementById("tpSlCount")?.remove();
   document.getElementById("slCard")?.remove();
+  document.body.classList.remove("slFailUp");   // belt-and-braces: any exit path clears it
   if(s && s._slRestore) s._slRestore();
   hjChrome(false);
   if(s) s.loadRoute(clientTodayUTC());       // hand the daily back, clean
