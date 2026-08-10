@@ -201,6 +201,35 @@ export type PostSlalomWinCommentRsp = {
   bonusGranted: boolean
   walletCents: number
 }
+/** A FAILED Cone Slalom run (tipped over, William, double-miss -- any
+ *  cause a FAIL card prints), reported so the server can compose a
+ *  draft describing the wipeout. Same draft/post split as every other
+ *  Submit* type here. faultCount is run.faults.length; cause is
+ *  run.fail's own string ("tipped over", "William got you", ...) --
+ *  passed through as-is rather than re-deriving it server-side, since
+ *  the client is the only place that knows which of the several fail
+ *  conditions actually fired. */
+export type SubmitSlalomFailReq = {
+  totalSecs: number
+  faultCount: number
+  cause: string
+}
+export type SubmitSlalomFailRsp = {text: string}
+/** The player's (possibly edited) slalom FAIL comment, posted as the
+ *  USER in reply to the pinned anchor. The $5/day bonus claims from its
+ *  OWN pool -- dbClaimCommentBonus's source:'slalom-fail', independent
+ *  of both source:'win' (delivery) and source:'slalom' (a winning
+ *  slalom run). Sir's call, 2026-08-10: all three are separate, so a
+ *  player who fails a slalom run, then later wins one, then also wins a
+ *  delivery, could earn all three in the same day. Same no-comment-no-
+ *  pay gate as everywhere else -- bonus only claims after
+ *  postScoreComment actually lands. */
+export type PostSlalomFailCommentReq = {text: string}
+export type PostSlalomFailCommentRsp = {
+  posted: boolean
+  bonusGranted: boolean
+  walletCents: number
+}
 /** Reports progress on a side mission. missionId must exist in the
  *  server's own TS_MISSIONS (tpcatalog.ts); best is a high-water count
  *  (cleared jumps for jump-hydrant, 1 for a pass/fail mission) and is
@@ -252,6 +281,8 @@ export const Endpoint = {
   PostWinComment: 'api/tipsy/win/comment',
   SubmitSlalomWin: 'api/tipsy/slalom/win',
   PostSlalomWinComment: 'api/tipsy/slalom/win/comment',
+  SubmitSlalomFail: 'api/tipsy/slalom/fail',
+  PostSlalomFailComment: 'api/tipsy/slalom/fail/comment',
   OnAppInstall: 'internal/on/app/install',
   OnMenuNewPost: 'internal/on/menu/new-post',
   OnAccountDelete: 'internal/on/account/delete',
@@ -277,6 +308,8 @@ export const EndpointMethod = {
   [Endpoint.PostWinComment]: 'POST',
   [Endpoint.SubmitSlalomWin]: 'POST',
   [Endpoint.PostSlalomWinComment]: 'POST',
+  [Endpoint.SubmitSlalomFail]: 'POST',
+  [Endpoint.PostSlalomFailComment]: 'POST',
   [Endpoint.OnAppInstall]: 'POST',
   [Endpoint.OnMenuNewPost]: 'POST',
   [Endpoint.OnAccountDelete]: 'POST',
