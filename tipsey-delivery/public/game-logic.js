@@ -6725,9 +6725,17 @@ class WorldScene extends Phaser.Scene {
        hydrant-drift note by HJ_SEED_DATE above. */
     this.loadRoute(HJ_SEED_DATE, { hoodIndex: HJ_ADDRESS.hoodIndex, challenge: true, classic: true });
     /* same card slot the daily uses, so the map screen reads identically */
+    /* HEADLINE IS THE MISSION NAME (2026-08-10, Sir's call, reverted the
+       same day it was changed): this led with HJ_ADDRESS.hood ("The
+       Flats — hydrant challenge at..."), which was made to match the
+       daily route's own "place leads" convention. Backwards -- side
+       missions lead with their own NAME, the way Cone Slalom's card
+       always did ("Cone Slalom Challenge — ..."); the daily route is
+       the one case that's place-first, since it doesn't have a name of
+       its own the way a mission does. */
     document.getElementById("orderCard").innerHTML =
       `<div class="tag" style="margin-bottom:4px">SIDE MISSION</div>`
-      + `<b>${HJ_ADDRESS.hood}</b> — hydrant challenge at <b>${HJ_ADDRESS.number} ${HJ_ADDRESS.street}</b>`;
+      + `<b>Hydrant Challenge</b> — ten jumps down ${HJ_ADDRESS.street}, tap to charge and clear them all`;
     document.getElementById("sheetStatus").textContent = `Ten jumps · clear all ten for the Fire Chief`;
     resizeRouteMap();
     drawRouteMap(this.route);
@@ -18265,10 +18273,17 @@ function slalomMapSelect(){
      the mission-list "Play mission" button, which calls tpSlalomStart
      directly and never goes through this function at all. */
   s.loadRoute(SL_SEED_DATE);
-  const slHood = hoodAtWorld(tpSlalomPin().x, tpSlalomPin().y);
+  /* HEADLINE IS THE MISSION NAME (2026-08-10, Sir's call, reverted the
+     same day it was changed): this originally led with the mission's
+     own name and got changed to lead with a hood/street instead, to
+     match the daily route's "place leads" convention -- backwards. Side
+     missions lead with their own name; the daily route is the one case
+     that's place-first, since a delivery doesn't have a name of its
+     own the way a mission does. Hydrant Challenge's own card follows
+     the same reverted convention now (see loadChallenge). */
   document.getElementById("orderCard").innerHTML =
     `<div class="tag" style="margin-bottom:4px">SIDE MISSION</div>`
-    + `<b>${slHood.n}</b> — cone slalom challenge on <b>${slHood.streets[0]}</b>`;
+    + `<b>Cone Slalom Challenge</b> — weave the gates at double speed, then stop on the mat`;
   document.getElementById("sheetStatus").textContent = `60s par · earns Slalom Master`;
   show("titleOverlay");
   /* TIGHT ZOOM + PULSE, SAME AS A SEARCH JUMP (2026-08-10): the daily
