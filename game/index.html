@@ -18883,19 +18883,42 @@ function tpSlalomStart(){
    back into the game at all. */
 function tpSlalomUI(s){
   document.getElementById("tpSlCount")?.remove();
+  document.getElementById("tpSlTimer")?.remove();
   const count = document.createElement("div");
   count.id = "tpSlCount";
   count.style.cssText = "position:fixed;left:0;right:0;top:38%;z-index:9991;text-align:center;pointer-events:none;font:800 84px/1 ui-monospace,Menlo,monospace;color:#ff7a1a;text-shadow:0 3px 18px rgba(0,0,0,0.75);display:none";
   document.body.appendChild(count);
+  /* THE 60s COUNTDOWN (2026-08-10, Sir's call): par is a flat 60s now and
+     a timeout is a hard FAIL (see SL.par / slJudge's timeout check), so
+     the player needs to see that clock live, not just find out about it
+     on the fail card. Deliberately smaller and out of the way of the
+     course itself -- the full always-on strip was removed earlier today
+     for exactly that reason (see the comment above this function), and
+     this isn't that strip back: no gates, no faults, no message, no
+     Quit -- just the one number the timeout actually keys off. Counts
+     the same total (elapsed + pen) slJudge and slShowCard both use, so
+     it hits 0 on the exact same frame the timeout fires, never a frame
+     off from what actually ends the run. */
+  const timer = document.createElement("div");
+  timer.id = "tpSlTimer";
+  timer.style.cssText = "position:fixed;left:0;right:0;top:14px;z-index:9991;text-align:center;pointer-events:none;font:800 30px/1 ui-monospace,Menlo,monospace;color:#ff7a1a;text-shadow:0 2px 8px rgba(0,0,0,0.75);display:none";
+  document.body.appendChild(timer);
   let goAt = 0;
   clearInterval(tpSlTick);
   tpSlTick = setInterval(() => {
     const api = s._slAPI;
     if(!api){ clearInterval(tpSlTick); return; }
     const n = api.countdown();
-    if(n !== null){ count.style.display = "block"; count.style.color = "#ff7a1a"; count.textContent = String(n); goAt = 0; }
+    if(n !== null){ count.style.display = "block"; count.style.color = "#ff7a1a"; count.textContent = String(n); goAt = 0; timer.style.display = "none"; }
     else if(api.run.phase === "live" && !goAt){ goAt = performance.now(); count.textContent = "GO"; count.style.color = "#7fe37f"; }
     if(goAt && performance.now() - goAt > 700) count.style.display = "none";
+    if(api.run.done){ timer.style.display = "none"; }
+    else if(goAt && performance.now() - goAt > 700){
+      const remain = Math.max(0, Math.ceil(api.SL.par - (api.run.elapsed + api.run.pen)));
+      timer.style.display = "block";
+      timer.style.color = remain <= 10 ? "#ff5b5b" : "#ff7a1a";
+      timer.textContent = String(remain);
+    }
   }, 100);
 }
 /* The full mission exit -- was Quit's onclick, now slClose's (see the
@@ -18906,6 +18929,7 @@ function tpSlalomQuit(){
   const s = scn();
   clearInterval(tpSlTick);
   document.getElementById("tpSlCount")?.remove();
+  document.getElementById("tpSlTimer")?.remove();
   document.getElementById("slCard")?.remove();
   document.body.classList.remove("slFailUp");   // belt-and-braces: any exit path clears it
   if(s && s._slRestore) s._slRestore();
