@@ -4123,7 +4123,25 @@ function generateRoute(dateStr, opts){
 
   /* real street grid, generated independently of the walked route —
      this is what makes actual intersections possible. */
-  const grid = buildGrid(cols, rows, CITY_SEED, { classic: true });
+  /* classic:false NOW (2026-08-10, reverted the same day it was added):
+     forcing classic:true here was meant to protect the permanent city
+     from future worldgen drift, the same reasoning HJ_SEED_DATE always
+     used it for. It had a side effect nobody wanted: classic SKIPS the
+     park-merge swallow pass entirely (see buildGrid's own "MERGED PARKS
+     SWALLOW THEIR STREETS" comment) -- adjacent park blocks stopped
+     fusing into one contiguous green space and started rendering as
+     separate lots with a street still cutting through them, which is
+     NOT how the daily route ever looked before tonight. Both the daily
+     route and Cone Slalom's own original generateRoute(SL_SEED_DATE)
+     call were ALWAYS non-classic (only Hydrant Challenge's call ever
+     passed classic:true, for its own precision-jump-course reasons) --
+     forcing it everywhere overcorrected. Reverted to match what the two
+     more common cases actually want; Hydrant Challenge's course search
+     (district-scoped, see findCourseLeg) gets re-verified against the
+     swallow pass being active rather than being carved out as a special
+     case, since every caller sharing one real grid is the whole point
+     of the permanent map. */
+  const grid = buildGrid(cols, rows, CITY_SEED, { classic: false });
   /* good-heading guarantee (2026-07-27, "that is unacceptable"): the
      door needs an f===0/f===3 straight leg past the 1-mile mark with
      room for findGoodS's standard 90-unit inset. buildWalk's turnSign
