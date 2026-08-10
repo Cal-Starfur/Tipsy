@@ -894,6 +894,185 @@ function reportWin(s, payout, pctShow){
     .catch(() => { twFx.draftWhy = "network error"; });
 }
 /* ============================================================
+   TS SLALOM WIN EXTRAS -- Comment bonus + Follow button, painted on
+   the Cone Slalom result card (#slCard) for a WINNING run only.
+
+   Structurally different from TD WIN EXTRAS above: winOverlay is a
+   static, always-present div that twFx's buttons attach to once and
+   then show/hide. #slCard is torn down and rebuilt from scratch on
+   every slShowCard() call (see that function's own
+   document.getElementById('slCard')?.remove()), so there is no
+   persistent node to cache a button on -- tsFxBonusRow builds a fresh
+   COMMENT+FOLLOW row into the card it's handed, every time, and
+   reportSlalomWin double-checks the card it was called for is still
+   the live one before touching any button on it (the draft fetch can
+   resolve after the player has already closed the card).
+
+   FOLLOW still shares tdFx.followClaimed and tdFxFollowRequest -- one
+   account-wide flag/network call, three askers now (fail, delivery
+   win, slalom win). COMMENT draws from its OWN $5/day pool
+   (dbClaimCommentBonus with source:'slalom', separate from the
+   delivery win's source:'win' -- Sir's call, 2026-08: clearing both a
+   delivery and a slalom course in one day pays both, not one shared
+   pool between two very different accomplishments).
+
+   Only wired for Cone Slalom for now -- the Hydrant Challenge's Fire
+   Chief moment is a 2.6s auto-dismissing toast (see ChallengeScene's
+   announce()), not a card, and pasting an actionable button onto
+   something that vanishes on its own timer is the wrong move; that one
+   needs a real completion card built first. */
+const tsFx = { draft: "", posted: false, busy: false,
+               draftWhy: "no slalom win yet" };
+const TSFX_DONE_KEY = "tdSlalomCBonusDate";
+
+/* Builds the COMMENT+FOLLOW row fresh into `card` (the just-created
+   #slCard) and kicks off the draft fetch. Called once, synchronously,
+   from slShowCard's own won branch -- see the call site there. */
+function tsFxBonusRow(card, total, par, clean){
+  const row = document.createElement("div");
+  row.id = "tsFxBonusRow";
+  row.style.cssText = "display:flex;gap:8px;margin-top:8px;";
+
+  const commentBtn = document.createElement("button");
+  commentBtn.id = "tsFxCommentBtn";
+  commentBtn.style.cssText = "font:inherit;color:#fff;background:#2c313c;" +
+    "border:1px solid #4a5060;border-radius:7px;min-height:44px;flex:1;display:none;";
+  let claimedToday = false;
+  try { claimedToday = localStorage.getItem(TSFX_DONE_KEY) === clientTodayUTC(); } catch(e){}
+  commentBtn.textContent = claimedToday ? "COMMENT" : "COMMENT  \u00b7  +$5.00";
+  commentBtn.addEventListener("click", tsFxOpenComposer);
+
+  const followBtn = document.createElement("button");
+  followBtn.id = "tsFxFollowBtn";
+  followBtn.style.cssText = "font:inherit;color:#fff;background:#ff7a1a;" +
+    "border:1px solid #b5540e;border-radius:7px;min-height:44px;flex:1;";
+  followBtn.textContent = "FOLLOW  \u00b7  +$25.00";
+  followBtn.addEventListener("click", () => tsFxDoFollow(followBtn));
+  if(tdFx.followClaimed) followBtn.style.display = "none";
+
+  row.appendChild(commentBtn);
+  row.appendChild(followBtn);
+  card.appendChild(row);
+
+  reportSlalomWin(card, total, par, clean);
+}
+function tsFxDoFollow(btn){
+  if(tdFx.busy) return;
+  tdFx.busy = true;
+  btn.disabled = true;
+  btn.textContent = "FOLLOWING...";
+  const fail = () => {
+    tdFx.busy = false;
+    btn.disabled = false;
+    btn.textContent = "FOLLOW  \u00b7  +$25.00";
+  };
+  tdFxFollowRequest(granted => {
+    tdFx.busy = false;
+    btn.textContent = granted ? "FOLLOWED" : "ALREADY FOLLOWING";
+    btn.disabled = true;
+  }, fail);
+}
+function tsFxOpenComposer(){
+  if(!tsFx.draft || tsFx.posted) return;
+  const wrap = tdFxPanel("tsFxComposer");
+  wrap.innerHTML = "";
+  const card = document.createElement("div");
+  card.style.cssText = TDFX_CARD + "text-align:left;";
+  card.innerHTML =
+    '<div style="font-weight:700;letter-spacing:1px;margin-bottom:12px;text-align:center;">' +
+      'LEAVE A COMMENT</div>' +
+    '<div id="tsFxComposeErr" style="color:#ff8a65;font-size:12px;margin-bottom:8px;display:none;"></div>';
+  const ta = document.createElement("textarea");
+  ta.id = "tsFxComposeText";
+  ta.value = tsFx.draft;
+  ta.maxLength = 480;   // mirrors the server's clamp so nothing is silently cut
+  ta.style.cssText = "width:100%;box-sizing:border-box;height:110px;resize:none;" +
+    "background:#12141a;color:#fff;border:1px solid #3a3f4a;border-radius:8px;" +
+    "padding:10px;font:inherit;font-size:13px;margin-bottom:14px;";
+  const post = document.createElement("button");
+  post.textContent = "POST";
+  post.style.cssText = TDFX_BTN + TDFX_ORANGE + "margin-bottom:10px;";
+  post.addEventListener("click", () => tsFxPostComment(ta, post));
+  const cancel = document.createElement("button");
+  cancel.textContent = "CANCEL";
+  cancel.style.cssText = TDFX_BTN +
+    "background:none;color:#9aa3b2;font-size:12px;letter-spacing:2px;padding:6px 0;";
+  cancel.addEventListener("click", () => wrap.remove());
+  card.appendChild(ta);
+  card.appendChild(post);
+  card.appendChild(cancel);
+  wrap.appendChild(card);
+}
+function tsFxPostComment(ta, btn){
+  if(tsFx.busy) return;
+  const text = (ta.value || "").trim();
+  if(!text) return;
+  tsFx.busy = true;
+  btn.disabled = true;
+  btn.textContent = "POSTING...";
+  const fail = () => {
+    tsFx.busy = false;
+    btn.disabled = false;
+    btn.textContent = "POST";
+    const e = document.getElementById("tsFxComposeErr");
+    if(e){ e.textContent = "Couldn't post. Try again."; e.style.display = "block"; }
+  };
+  fetch("api/tipsy/slalom/win/comment", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ text })
+  })
+    .then(r => r.ok ? r.json() : null)
+    .then(d => {
+      if(!d || !d.posted){ fail(); return; }
+      tsFx.busy = false;
+      tsFx.posted = true;   // one comment per slalom win screen; button hides itself
+      if(d.bonusGranted){
+        try { localStorage.setItem(TSFX_DONE_KEY, clientTodayUTC()); } catch(e){}
+      }
+      if(typeof tpProfile === "object" && tpProfile && typeof d.walletCents === "number"){
+        tpProfile.walletCents = d.walletCents;
+        if(typeof tpSaveProfile === "function") tpSaveProfile();
+        if(typeof tpRender === "function") tpRender();
+      }
+      const wrap = document.getElementById("tsFxComposer");
+      if(wrap) wrap.remove();
+      const b = document.getElementById("tsFxCommentBtn");
+      if(b) b.style.display = "none";
+    })
+    .catch(fail);
+}
+/* Fetches the server-composed slalom-win-comment draft, same shape as
+   reportWin/reportFail. `card` is the #slCard instance this call was
+   made for -- checked again when the fetch resolves, since the player
+   may have already pressed run-again/close (which tears the card down)
+   before the network round trip finishes; a late draft for a card
+   that's gone just updates tsFx.draft silently and touches no DOM. */
+function reportSlalomWin(card, total, par, clean){
+  tsFx.draft = "";
+  tsFx.posted = false;
+  tsFx.draftWhy = "pending";
+  if(!IS_DEVVIT_BUILD) return;
+  fetch("api/tipsy/slalom/win", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ totalSecs: total, parSecs: par, clean: !!clean })
+  })
+    .then(r => {
+      tsFx.draftWhy = "http " + r.status;
+      return r.ok ? r.json() : null;
+    })
+    .then(d => {
+      tsFx.draft = (d && d.text) || "";
+      if(tsFx.draft) tsFx.draftWhy = "ok (" + tsFx.draft.length + " chars)";
+      else if(d) tsFx.draftWhy = "empty text (server: no post id or not signed in)";
+      if(document.getElementById("slCard") !== card) return;
+      const b = document.getElementById("tsFxCommentBtn");
+      if(b) b.style.display = (tsFx.draft && !tsFx.posted) ? "block" : "none";
+    })
+    .catch(() => { tsFx.draftWhy = "network error"; });
+}
+/* ============================================================
    TIP — Route Lab
    One address a day. A real-LA-neighborhood roster drives a
    seeded procedural street: hilliness, pavement quality, and
@@ -16737,6 +16916,15 @@ function tpSlalomOn(){
     document.body.appendChild(card);
     document.getElementById('slAgain').onclick = () => { card.remove(); slResetRun(); };
     document.getElementById('slClose').onclick = () => card.remove();
+
+    /* WIN-side bonus row: COMMENT (+$5/day, its own pool -- see
+       db.ts dbClaimCommentBonus's source:'slalom') and FOLLOW
+       (+$25 one-time, the same account-wide flag/flow every other
+       follow button on the site already shares). Devvit-only, same as
+       every other bonus feature; a fail never reaches this branch --
+       that path is the separate follow-only offer below, gated on
+       tdFx.fails instead. */
+    if (IS_DEVVIT_BUILD && won) tsFxBonusRow(card, total, par, clean);
 
     /* THE FAIL STREAK FEEDS THE SAME COUNTER AS THE DAILY ROUTE. The
        slalom muzzles showFail (it owns its endings), which had the side
