@@ -25,6 +25,8 @@ import {
   type GetHistoryRsp,
   type PostFailCommentReq,
   type PostFailCommentRsp,
+  type PostSlalomFailCommentReq,
+  type PostSlalomFailCommentRsp,
   type PostSlalomWinCommentReq,
   type PostSlalomWinCommentRsp,
   type PostWinCommentReq,
@@ -37,6 +39,8 @@ import {
   type SubmitFailRsp,
   type SubmitReplayReq,
   type SubmitReplayRsp,
+  type SubmitSlalomFailReq,
+  type SubmitSlalomFailRsp,
   type SubmitSlalomWinReq,
   type SubmitSlalomWinRsp,
   type SubmitWinReq,
@@ -95,6 +99,8 @@ type AnyRsp =
   | PostWinCommentRsp
   | SubmitSlalomWinRsp
   | PostSlalomWinCommentRsp
+  | SubmitSlalomFailRsp
+  | PostSlalomFailCommentRsp
   | UiResponse
   | TriggerResponse
   | ErrorRsp
@@ -177,6 +183,12 @@ async function route(
         break
       case Endpoint.PostSlalomWinComment:
         rsp = await routePostSlalomWinComment(reqMsg)
+        break
+      case Endpoint.SubmitSlalomFail:
+        rsp = await routeSubmitSlalomFail(reqMsg)
+        break
+      case Endpoint.PostSlalomFailComment:
+        rsp = await routePostSlalomFailComment(reqMsg)
         break
       case Endpoint.OnMenuNewPost:
         rsp = await routeMenuNewPost()
@@ -676,6 +688,70 @@ async function routePostSlalomWinComment(
     user.username,
     todayUTC(),
     'slalom',
+  )
+  return {posted: true, bonusGranted: granted, walletCents}
+}
+
+/** Composes the cone-slalom FAIL-comment DRAFT and posts NOTHING -- same
+ *  no-automated-actions rule as every Submit* route here. cause is
+ *  passed through from the client as-is (run.fail's own string --
+ *  "tipped over", "William got you", the double-miss message) rather
+ *  than re-derived, since the client is the only place that knows which
+ *  of the several fail conditions actually fired; sanitizeLabel still
+ *  clamps it so a malformed value can't blow up the comment body. */
+async function routeSubmitSlalomFail(
+  reqMsg: IncomingMessage,
+): Promise<SubmitSlalomFailRsp> {
+  const req = await readJson<SubmitSlalomFailReq>(reqMsg)
+  const postId = context.postId
+  if (!postId) return {text: ''}
+
+  const user = await getCurrentUserRetrying()
+  if (!user?.username) return {text: ''}
+
+  const total = clampNum(req.totalSecs, 0, 3600)
+  const faults = Math.round(clampNum(req.faultCount, 0, 999))
+  const cause = sanitizeLabel(req.cause, 48) || 'wiped out'
+
+  const text =
+    `**u/${user.username}** ${cause} on the Cone Slalom -- ` +
+    `${faults} fault${faults === 1 ? '' : 's'}, ${total.toFixed(2)}s on the clock.`
+
+  return {text}
+}
+
+/** Posts the player's (possibly edited) slalom FAIL comment as the
+ *  USER, in reply to the pinned anchor -- same manual-POST-press
+ *  contract as every PostComment route here. The $5/day bonus claims
+ *  from source:'slalom-fail', a pool independent of both 'win' and
+ *  'slalom' (Sir's call, 2026-08-10) -- failing, then winning the same
+ *  course, then also winning a delivery, can pay all three in one day.
+ *  Same no-comment-no-pay gate: bonus only claims after
+ *  postScoreComment actually lands. */
+async function routePostSlalomFailComment(
+  reqMsg: IncomingMessage,
+): Promise<PostSlalomFailCommentRsp> {
+  const req = await readJson<PostSlalomFailCommentReq>(reqMsg)
+  const user = await getCurrentUserRetrying()
+  if (!user?.username) return {posted: false, bonusGranted: false, walletCents: 0}
+  const raw = typeof req.text === 'string' ? req.text : ''
+  const text = Array.from(raw)
+    .filter(ch => {
+      const c = ch.codePointAt(0) ?? 0
+      return c === 9 || c === 10 || (c >= 32 && c !== 127)
+    })
+    .join('')
+    .trim()
+    .slice(0, 480)
+  if (!text) return {posted: false, bonusGranted: false, walletCents: 0}
+
+  const posted = await postScoreComment(text)
+  if (!posted) return {posted: false, bonusGranted: false, walletCents: 0}
+
+  const {granted, walletCents} = await dbClaimCommentBonus(
+    user.username,
+    todayUTC(),
+    'slalom-fail',
   )
   return {posted: true, bonusGranted: granted, walletCents}
 }
