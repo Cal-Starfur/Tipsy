@@ -142,6 +142,40 @@ export type PostFailCommentRsp = {posted: boolean}
  *  gate). walletCents is the post-call balance so the client can
  *  update its wallet without a second profile fetch. */
 export type FollowRsp = {joined: boolean; granted: boolean; walletCents: number}
+/** A completed (winning) run, reported so the server can compose a DRAFT
+ *  comment the player may edit and post themselves (see PostWinComment) --
+ *  same contract as SubmitFailReq. address/hood are client strings,
+ *  sanitized + truncated server-side before they reach a comment body.
+ *  pct is the tip percentage earned (0-22, see game/index.html's tip
+ *  engine); tip is the dollar payout, not the order's face value. */
+export type SubmitWinReq = {
+  address: string
+  hood: string
+  pct: number
+  tip: number
+  ms: number
+}
+/** text is the composed draft; nothing is posted by this endpoint (same
+ *  no-automated-actions rule as SubmitFailRsp). Empty text is the normal
+ *  outcome for a logged-out viewer or a run outside a post context, or a
+ *  replay of a past date (see game/index.html reportWin -- a comment
+ *  about a stale replay route reads as noise on today's post). */
+export type SubmitWinRsp = {text: string}
+/** The player's (possibly edited) win comment, posted as the USER in
+ *  reply to the pinned anchor -- only ever sent by an explicit
+ *  COMMENT -> POST press on the win screen. The $5/day bonus is paid
+ *  atomically in the same call, gated BEHIND a confirmed post landing
+ *  (server.ts routePostWinComment) -- no comment, no pay, same doctrine
+ *  as Follow. bonusGranted:false with posted:true means the comment went
+ *  up fine but today's bonus was already claimed (db.ts
+ *  dbClaimWinCommentBonus's hSetNX is the real gate, keyed per calendar
+ *  day so it resets tomorrow). walletCents is the post-call balance. */
+export type PostWinCommentReq = {text: string}
+export type PostWinCommentRsp = {
+  posted: boolean
+  bonusGranted: boolean
+  walletCents: number
+}
 /** Reports progress on a side mission. missionId must exist in the
  *  server's own TS_MISSIONS (tpcatalog.ts); best is a high-water count
  *  (cleared jumps for jump-hydrant, 1 for a pass/fail mission) and is
@@ -189,6 +223,8 @@ export const Endpoint = {
   SubmitFail: 'api/tipsy/fail',
   PostFailComment: 'api/tipsy/fail/comment',
   Follow: 'api/tipsy/follow',
+  SubmitWin: 'api/tipsy/win',
+  PostWinComment: 'api/tipsy/win/comment',
   OnAppInstall: 'internal/on/app/install',
   OnMenuNewPost: 'internal/on/menu/new-post',
   OnAccountDelete: 'internal/on/account/delete',
@@ -210,6 +246,8 @@ export const EndpointMethod = {
   [Endpoint.SubmitFail]: 'POST',
   [Endpoint.PostFailComment]: 'POST',
   [Endpoint.Follow]: 'POST',
+  [Endpoint.SubmitWin]: 'POST',
+  [Endpoint.PostWinComment]: 'POST',
   [Endpoint.OnAppInstall]: 'POST',
   [Endpoint.OnMenuNewPost]: 'POST',
   [Endpoint.OnAccountDelete]: 'POST',
