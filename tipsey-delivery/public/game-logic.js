@@ -17166,8 +17166,20 @@ function tpSlalomOn(){
          failOverlay, whose retryBtn is wired to the delivery. */
       const pool = run.fail === 'William got you' ? WILLIAM_FAIL_LINES : FAIL_LINES;
       const [failMsg, failSub] = pool[Math.floor(Math.random() * pool.length)];
+      /* z-index:10, matching .overlay's own value (the SAME tier
+         failOverlay/winOverlay already sit at) -- not the WIN branch's
+         100000 above, which this card also used to carry. That value
+         never caused a problem for WIN (no icon row there, nothing to
+         open), but this FAIL branch's own tdStackIcons('slCard') can
+         open the profile/missions panel (z-index:50) right from this
+         screen, and 100000 sat right on top of it -- Retry and the
+         headline visibly overlaying the panel's own content, reported
+         on-device. 10 is the tier a full-screen result screen is
+         SUPPOSED to be at; 100000 was never really "above everything
+         on purpose," just never tested against anything that outranked
+         it before this redesign added the one thing that does. */
       card.style.cssText = [
-        'position:fixed','inset:0','z-index:100000',
+        'position:fixed','inset:0','z-index:10',
         'display:flex','flex-direction:column','align-items:center','justify-content:center',
         'background:rgba(18,20,26,0)','color:#fff','text-align:center','padding:24px',
       ].join(';');
