@@ -16967,21 +16967,18 @@ function tpSlalomOn(){
     if (run.started && !run.done) run.elapsed = (performance.now() - run.t0) / 1000;
 
     /* Knocks. The cone's own integrator owns pose/phi/moving; this only reads
-       them, and only scores the transition once. JUMP_LABEL covers the
-       three hjRole values a slRole:'jump' hazard can carry (kicker slab,
-       hydrant, catch pad) -- these ride in run.cones alongside real gates
-       (see run.cones = hazards.filter(h => h.slRole), every slRole is
-       truthy) but never get slIndex, so the old fallback of
-       `cone ${cone.slIndex + 1}` read as "cone NaN knocked" for every one
-       of them. Fixed 2026-08-10, reported on-device. */
-    const JUMP_LABEL = { kicker: 'the ramp', hydrant: 'a hydrant', catch: 'the catch pad' };
+       them, and only scores the transition once. slRole:'jump' hazards
+       (kicker slab, hydrant, catch pad) are skipped outright now -- Sir's
+       call, 2026-08-10: the jump obstacles shouldn't cost time the same
+       way a missed gate does. They still ride in run.cones and still fall
+       over on contact (that's the cone's own physics, untouched here), they
+       just no longer add a fault or a penalty when they do. */
     for (const cone of run.cones){
+      if (cone.slRole === 'jump') continue;
       if (!cone.slKnocked && (cone.moving || cone.pose !== 'standing' || cone.phi > 0.02)){
         cone.slKnocked = true;
         run.pen += SL.pen;
-        const name = cone.slRole === 'chute' ? 'turn chute'
-          : cone.slRole === 'jump' ? (JUMP_LABEL[cone.hjRole] || 'a jump hazard')
-          : `cone ${cone.slIndex + 1}`;
+        const name = cone.slRole === 'chute' ? 'turn chute' : `cone ${cone.slIndex + 1}`;
         run.faults.push(`${name} knocked`);
         run.msg = `${name} — +${SL.pen.toFixed(1)}s`;
         run.msgT = performance.now();
@@ -17613,10 +17610,11 @@ function tpSlalomOn(){
       A.idx++;
       if (A.z < HYD.height + 6){
         A.vz = -Math.abs(A.vz) - 0.01;
+        /* A.clipped stays -- it still costs landing stability (tilt below)
+           and blocks the "clean landing" message -- but it no longer costs
+           time. Sir's call, 2026-08-10: clipping shouldn't add a penalty
+           the way a missed gate does. */
         A.clipped = true;
-        run.pen += SL.pen;
-        run.faults.push('clipped a hydrant');
-        run.msg = `clipped — +${SL.pen.toFixed(1)}s`; run.msgT = performance.now();
       }
     }
 
