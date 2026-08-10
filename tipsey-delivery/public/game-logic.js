@@ -1073,6 +1073,148 @@ function reportSlalomWin(card, total, par, clean){
     .catch(() => { tsFx.draftWhy = "network error"; });
 }
 /* ============================================================
+   TSF SLALOM FAIL EXTRAS -- Comment bonus on a FAILED Cone Slalom run.
+
+   Deliberately NOT paired with a FOLLOW button here (Sir's call,
+   2026-08-10): FOLLOW on a slalom fail stays exactly as it already was
+   -- the 3-strike tdFx.fails-gated offer painted by slShowFollow, wired
+   separately below this block, untouched by this addition. This block
+   is the single, always-present COMMENT button and nothing else.
+
+   Its own $5/day pool (dbClaimCommentBonus source:'slalom-fail'),
+   independent of both the delivery win's source:'win' and the slalom
+   win's source:'slalom' -- failing, then winning the same course, then
+   also winning a delivery, can pay all three bonuses in the same day.
+
+   Otherwise a straight copy of tsFx's shape and reasoning: draft/posted/
+   busy state, a fresh button built into whatever #slCard instance is
+   live right now (the card is torn down and rebuilt every slShowCard()
+   call, same as the win side), and reportSlalomFail double-checks the
+   card it was called for is still the live one before touching any DOM,
+   since the draft fetch can resolve after the player has already closed
+   the card. */
+const tsfFx = { draft: "", posted: false, busy: false,
+                 draftWhy: "no slalom fail yet" };
+const TSFFX_DONE_KEY = "tdSlalomFailCBonusDate";
+
+function tsfFxCommentBtn(card, total, faultCount, cause){
+  const btn = document.createElement("button");
+  btn.id = "tsfFxCommentBtn";
+  btn.style.cssText = "font:inherit;color:#fff;background:#2c313c;" +
+    "border:1px solid #4a5060;border-radius:7px;min-height:44px;" +
+    "width:100%;margin-top:8px;display:none;";
+  let claimedToday = false;
+  try { claimedToday = localStorage.getItem(TSFFX_DONE_KEY) === clientTodayUTC(); } catch(e){}
+  btn.textContent = claimedToday ? "COMMENT" : "COMMENT  \u00b7  +$5.00";
+  btn.addEventListener("click", tsfFxOpenComposer);
+  card.appendChild(btn);
+
+  reportSlalomFail(card, total, faultCount, cause);
+}
+function tsfFxOpenComposer(){
+  if(!tsfFx.draft || tsfFx.posted) return;
+  const wrap = tdFxPanel("tsfFxComposer");
+  wrap.innerHTML = "";
+  const card = document.createElement("div");
+  card.style.cssText = TDFX_CARD + "text-align:left;";
+  card.innerHTML =
+    '<div style="font-weight:700;letter-spacing:1px;margin-bottom:12px;text-align:center;">' +
+      'LEAVE A COMMENT</div>' +
+    '<div id="tsfFxComposeErr" style="color:#ff8a65;font-size:12px;margin-bottom:8px;display:none;"></div>';
+  const ta = document.createElement("textarea");
+  ta.id = "tsfFxComposeText";
+  ta.value = tsfFx.draft;
+  ta.maxLength = 480;   // mirrors the server's clamp so nothing is silently cut
+  ta.style.cssText = "width:100%;box-sizing:border-box;height:110px;resize:none;" +
+    "background:#12141a;color:#fff;border:1px solid #3a3f4a;border-radius:8px;" +
+    "padding:10px;font:inherit;font-size:13px;margin-bottom:14px;";
+  const post = document.createElement("button");
+  post.textContent = "POST";
+  post.style.cssText = TDFX_BTN + TDFX_ORANGE + "margin-bottom:10px;";
+  post.addEventListener("click", () => tsfFxPostComment(ta, post));
+  const cancel = document.createElement("button");
+  cancel.textContent = "CANCEL";
+  cancel.style.cssText = TDFX_BTN +
+    "background:none;color:#9aa3b2;font-size:12px;letter-spacing:2px;padding:6px 0;";
+  cancel.addEventListener("click", () => wrap.remove());
+  card.appendChild(ta);
+  card.appendChild(post);
+  card.appendChild(cancel);
+  wrap.appendChild(card);
+}
+function tsfFxPostComment(ta, btn){
+  if(tsfFx.busy) return;
+  const text = (ta.value || "").trim();
+  if(!text) return;
+  tsfFx.busy = true;
+  btn.disabled = true;
+  btn.textContent = "POSTING...";
+  const fail = () => {
+    tsfFx.busy = false;
+    btn.disabled = false;
+    btn.textContent = "POST";
+    const e = document.getElementById("tsfFxComposeErr");
+    if(e){ e.textContent = "Couldn't post. Try again."; e.style.display = "block"; }
+  };
+  fetch("api/tipsy/slalom/fail/comment", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ text })
+  })
+    .then(r => r.ok ? r.json() : null)
+    .then(d => {
+      if(!d || !d.posted){ fail(); return; }
+      tsfFx.busy = false;
+      tsfFx.posted = true;   // one comment per slalom fail screen; button hides itself
+      if(d.bonusGranted){
+        try { localStorage.setItem(TSFFX_DONE_KEY, clientTodayUTC()); } catch(e){}
+      }
+      if(typeof tpProfile === "object" && tpProfile && typeof d.walletCents === "number"){
+        tpProfile.walletCents = d.walletCents;
+        if(typeof tpSaveProfile === "function") tpSaveProfile();
+        if(typeof tpRender === "function") tpRender();
+      }
+      const wrap = document.getElementById("tsfFxComposer");
+      if(wrap) wrap.remove();
+      const b = document.getElementById("tsfFxCommentBtn");
+      if(b) b.style.display = "none";
+    })
+    .catch(fail);
+}
+/* Fetches the server-composed slalom-FAIL-comment draft, same shape as
+   reportSlalomWin/reportWin/reportFail. `card` is the #slCard instance
+   this call was made for -- checked again when the fetch resolves,
+   since the player may have already pressed run-again/close before the
+   network round trip finishes; a late draft for a card that's gone just
+   updates tsfFx.draft silently and touches no DOM. Unlike the win/fail
+   delivery reports, there's no replay-date skip here -- Cone Slalom's
+   route is frozen to SL_SEED_DATE now regardless of which real day it
+   is, so "is this today's route" doesn't apply the same way. */
+function reportSlalomFail(card, total, faultCount, cause){
+  tsfFx.draft = "";
+  tsfFx.posted = false;
+  tsfFx.draftWhy = "pending";
+  if(!IS_DEVVIT_BUILD) return;
+  fetch("api/tipsy/slalom/fail", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ totalSecs: total, faultCount: faultCount, cause: cause || "" })
+  })
+    .then(r => {
+      tsfFx.draftWhy = "http " + r.status;
+      return r.ok ? r.json() : null;
+    })
+    .then(d => {
+      tsfFx.draft = (d && d.text) || "";
+      if(tsfFx.draft) tsfFx.draftWhy = "ok (" + tsfFx.draft.length + " chars)";
+      else if(d) tsfFx.draftWhy = "empty text (server: no post id or not signed in)";
+      if(document.getElementById("slCard") !== card) return;
+      const b = document.getElementById("tsfFxCommentBtn");
+      if(b) b.style.display = (tsfFx.draft && !tsfFx.posted) ? "block" : "none";
+    })
+    .catch(() => { tsfFx.draftWhy = "network error"; });
+}
+/* ============================================================
    TIP — Route Lab
    One address a day. A real-LA-neighborhood roster drives a
    seeded procedural street: hilliness, pavement quality, and
@@ -16717,13 +16859,21 @@ function tpSlalomOn(){
     if (run.started && !run.done) run.elapsed = (performance.now() - run.t0) / 1000;
 
     /* Knocks. The cone's own integrator owns pose/phi/moving; this only reads
-       them, and only scores the transition once. */
+       them, and only scores the transition once. JUMP_LABEL covers the
+       three hjRole values a slRole:'jump' hazard can carry (kicker slab,
+       hydrant, catch pad) -- these ride in run.cones alongside real gates
+       (see run.cones = hazards.filter(h => h.slRole), every slRole is
+       truthy) but never get slIndex, so the old fallback of
+       `cone ${cone.slIndex + 1}` read as "cone NaN knocked" for every one
+       of them. Fixed 2026-08-10, reported on-device. */
+    const JUMP_LABEL = { kicker: 'the ramp', hydrant: 'a hydrant', catch: 'the catch pad' };
     for (const cone of run.cones){
       if (!cone.slKnocked && (cone.moving || cone.pose !== 'standing' || cone.phi > 0.02)){
         cone.slKnocked = true;
         run.pen += SL.pen;
-        const name = cone.slRole === 'chute'
-          ? 'turn chute' : `cone ${cone.slIndex + 1}`;
+        const name = cone.slRole === 'chute' ? 'turn chute'
+          : cone.slRole === 'jump' ? (JUMP_LABEL[cone.hjRole] || 'a jump hazard')
+          : `cone ${cone.slIndex + 1}`;
         run.faults.push(`${name} knocked`);
         run.msg = `${name} — +${SL.pen.toFixed(1)}s`;
         run.msgT = performance.now();
@@ -16731,8 +16881,18 @@ function tpSlalomOn(){
     }
 
     /* Side, judged at the frame botS crosses the cone. laneOff is mid-hop for
-       part of every gate, which is correct: commit early or clip the gate. */
+       part of every gate, which is correct: commit early or clip the gate.
+       GATE ONLY. slWant (the required pass side) is assigned only to real
+       slRole:'gate' cones -- chute cones and jump hazards never get one, so
+       `got === cone.slWant` was comparing a real -1/0/1 against undefined,
+       which is never true. Every chute crossing and every kicker/hydrant/
+       catch-pad crossing was silently failing this check and pushing a fake
+       "should have passed on X side" fault (also NaN-labelled, same root
+       cause as the knock fix above) -- on every leg, every run, whether the
+       player did anything wrong or not. Fixed alongside the knock labels;
+       same on-device report. */
     for (const cone of run.cones){
+      if (cone.slRole !== 'gate') continue;
       if (cone.slJudged || !(prevS < cone.s && s >= cone.s)) continue;
       cone.slJudged = true;
       const got = Math.sign(scene.laneOff - offOf(cone.row)) * rowDir;
@@ -16922,7 +17082,7 @@ function tpSlalomOn(){
        ${row('par', par.toFixed(1) + 's')}
        ${row('margin', (par - total >= 0 ? '−' : '+') +
              Math.abs(par - total).toFixed(2) + 's', col)}
-       ${row('cones cleared', `${run.cleared} / ${run.cones.length}`)}
+       ${row('cones cleared', `${run.cleared} / ${run.gates.length}`)}
        ${row('grade', (run.course.grade * 100).toFixed(1) + '% downhill')}
        ${row('legs', `${run.course.nLines}  (f=${run.course.fList.join('/')})`)}
        ${row('best', best ? best.toFixed(2) + 's' : '—', isBest ? '#7fe08a' : null)}
@@ -16957,6 +17117,11 @@ function tpSlalomOn(){
        that path is the separate follow-only offer below, gated on
        tdFx.fails instead. */
     if (IS_DEVVIT_BUILD && won) tsFxBonusRow(card, total, par, clean);
+
+    /* COMMENT bonus, always offered on a fail (unlike FOLLOW just
+       below, which keeps its existing 3-strike gate untouched -- Sir's
+       call, 2026-08-10: these are two separate decisions, not one). */
+    if (IS_DEVVIT_BUILD && !won) tsfFxCommentBtn(card, total, run.faults.length, run.fail);
 
     /* THE FAIL STREAK FEEDS THE SAME COUNTER AS THE DAILY ROUTE. The
        slalom muzzles showFail (it owns its endings), which had the side
@@ -17757,7 +17922,7 @@ function tpSlalomUI(s){
     const clock = document.getElementById("tpSlClock");
     if(clock) clock.textContent = ((r2.elapsed || 0) + (r2.pen || 0)).toFixed(2) + "s";
     const g2 = document.getElementById("tpSlGates");
-    if(g2) g2.textContent = r2.cones ? (r2.cones.length + " gates" + (r2.faults && r2.faults.length ? " \u00b7 " + r2.faults.length + " faults" : "")) : "";
+    if(g2) g2.textContent = r2.gates ? (r2.gates.length + " gates" + (r2.faults && r2.faults.length ? " \u00b7 " + r2.faults.length + " faults" : "")) : "";
     const mg = document.getElementById("tpSlMsg");
     if(mg) mg.textContent = (r2.msgT && performance.now() - r2.msgT < 2600) ? r2.msg : "";
   }, 100);
