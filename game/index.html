@@ -16659,6 +16659,188 @@ const scn = () => game.scene.getScene("world");
    scene._slRestore. First cut of this port sliced at the panel header
    and lost slQuietOpening, which the lab file keeps BELOW its UI —
    caught by the smoke test's very first reset call. */
+/* SL (Cone Slalom tunables), lastDiag, and slFindChain hoisted to module
+   scope (2026-08-10) -- moved verbatim out of tpSlalomOn, not rewritten.
+   Nothing here ever touched `scene`; slFindChain always took a plain
+   `route` object as its own param. The only reason it lived inside the
+   closure was proximity to the rest of the slalom engine, which DOES need
+   a live scene. Hoisting it lets anything build a course from any route
+   object (a frozen SL_SEED_DATE route, say) without a scene existing at
+   all -- see tpAtlas()/tpSlalomCoursePos() further down, which is the
+   whole reason for this move: the map needs Cone Slalom's course
+   position for a pin, and building one has never required play state. */
+const SL = {
+  n:    400,    // CAP on gates; the course fills every leg up to this
+  legs: 12,     // how many legs the course runs through — walk this up
+                // with the chip and watch the cone total in the strip
+  gap:  1.40,   // TIGHTEST along-route spacing between cones, in T2
+  vary: 0.30,   // how far above gap the spacing opens up (0 = uniform)
+  wide: 0.35,   // extra road a 2-3 row lane change buys itself. Was a hard
+                // 0.75 in the spacing line, and at 0.75 a three-row lunge
+                // ate nearly two gates' worth of straight — which is where
+                // the red/blue count was going. It is a dial now because it
+                // trades gate COUNT against gate FAIRNESS directly.
+  trafficWaits: 1,   // cars queue at coned junctions instead of driving through
+  kickers: 1,   // kicker ramps per leg (0 = none)
+  kLift: 26,    // ramp lip height
+  kRunup: 5.5,  // clear road before the lip, in T2. Reverted from 2.5
+                // (2026-08-10, Sir's on-device call) -- the 5.5 sizing was
+                // reasoned as "ample to be back at the cap after the
+                // previous gate," which holds for every kicker except the
+                // FIRST: leg 0's jump sits right after spawn, where there
+                // is no previous gate, only the 3-2-1-GO standing start.
+                // At 2.5 that leg-0 jump had almost no room to build speed
+                // from a dead stop before the lip and played dead short.
+                // 500 units of clear road in front of every ramp is the
+                // tradeoff for that one jump actually working.
+  kReach: 5.0,  // how far the jump carries at full speed, in T2
+  kPeak:  40,   // apex height above the lip, in world units
+  rowA: 0,      // low edge of the sidewalk band the course uses
+  rowB: 3,      // high edge — 0..3 is the whole walk
+  lead: 3.0,    // run-up before the first cone, in T2
+  turn: 2.0,    // clearance either side of the arc — no cones on the turn
+  tail: 1.5,    // run-out after the last cone, in T2
+  vmul: 2.00,   // top speed as a multiple of delivery's 0.225. Carries the
+                // jump ballistics and the spacing floor with it — see V_BASE.
+  grip: 1.60,   // corner-tilt compensation, in two regimes. Up to 1.0 it
+                // cancels the speed multiplier's share (tilt goes with v²,
+                // so 2x speed is 4x tilt; 1.0 nets exactly delivery-speed
+                // corners). But delivery corners TIP at full throttle by
+                // design — corners need braking there — and the slalom is
+                // a weave, not a braking test. So above 1.0 the dial keeps
+                // going: 2.0 removes corner lean entirely. 1.6 default
+                // keeps some lean in the picture without the funeral.
+  clean:16.0,   // how far PAST the finish the street stays swept, in T2. The
+                // corridor used to end 2 T2 after the last gate, which is the
+                // size of the COURSE — the frame is the size of the CAMERA.
+  pen:  2.0,    // seconds added per knocked cone / missed side
+  /* PAR IS DERIVED, NOT DIALED. par used to be a constant (52.0) tuned
+     against the short lab course, but the shipped course is built from
+     the daily route's own legs and its length changes with the seed —
+     measured 2026-08-09: 16,952 units over 5 legs / 25 gates, where a
+     physically perfect flat-out run is already 37.7s; a full 12-leg
+     day is roughly double that, putting 52s below the physical floor.
+     One constant cannot answer a question the seed re-asks every day
+     (same rule as the spacing fix), so par is computed per-course in
+     slBuildCourse from what actually got built:
+       par = dist/vTop * parPace + nGates*parGate + nCorners*parCorner
+     and THESE three are the dials now — they tune feel, and correct
+     scaling with course length comes from the formula itself. A side
+     effect of the old unwinnable par: `won` never went true, so the
+     slalom-master flag (and now the tip payout) never fired. */
+  parPace:   1.12,  // cushion multiplier on the flat-out pace time
+  parGate:   0.45,  // seconds granted per gate (one row-hop's cost)
+  parCorner: 1.8,   // seconds granted per corner arc
+};
+
+/* =========================================================================
+   COURSE
+   ========================================================================= */
+
+/* Net grade over an s-range, in rise/run. Negative is downhill.
+   elevAt() is the scene's own sampler over route.tiles, so this asks the
+   grade question through the exact call the physics asks it through — not a
+   parallel copy of the same math over the tile array. */
+/* elevAt, but over ANY route object rather than the loaded one — the search
+   has to grade candidate routes before committing to loading them. Same
+   interpolation the scene's own elevAt does over route.tiles. */
+const elevOf = (route, s) => {
+  const t = route.tiles, fx = s / (TILE*2), i = Math.floor(fx);
+  if (i < 0) return t[0];
+  if (i >= t.length - 1) return t[t.length - 1];
+  return Phaser.Math.Linear(t[i], t[i+1], fx - i);
+};
+const gradeOver = (route, s0, s1) =>
+  (s1 - s0) > 0 ? (elevOf(route, s1) - elevOf(route, s0)) / (s1 - s0) : 0;
+
+/* Find every line -> arc -> line corridor long enough to hold both cone
+   groups, and return the STEEPEST DESCENT among them. Scored on the two
+   straights only: the arc's own grade is irrelevant because no cone sits on
+   it, and including it would let a plunging turn disguise two flat weaves. */
+/* HEADING IS NOT A PREFERENCE HERE, IT IS THE WHOLE EFFECT.
+   W() puts screen-y at (x + y)*0.5 - z, so travelling +x/+y — headings f=0
+   and f=1 — increases screen-y: you move DOWN the screen, which reads as
+   coming toward the viewer, and therefore reads as descending. f=2/f=3 move
+   you up-screen and read as a climb no matter what the grade number says.
+
+   generateRoute already knows this — GRADE_BIAS exists precisely so real
+   elevation agrees with the camera's own depth cue rather than being
+   coin-flip noise, and it subtracts a term in (x + y). The corridor picker
+   simply was not honouring it, so a legitimately steep descent could be laid
+   down a heading that reads as uphill, and no amount of grade fixed that.
+
+   Both legs must therefore be f=0 or f=1. They are perpendicular, so
+   f=0 -> turn -> f=1 is a legal corridor and the descent reads on both sides
+   of the turn.
+
+   TENSION WORTH KNOWING: GOOD_LEG_HEADING is [f0, f3], so f=1 is not a
+   "good" leg for storefront dressing and the block-wrap cutaway. Reading as
+   downhill wins — a slalom that looks like a climb is broken, a slalom with
+   plainer buildings on one leg is not. */
+const DOWNHILL_F = [0, 1];
+let lastDiag = {};
+
+/* =========================================================================
+   THE CHAIN — N consecutive legs, any heading
+   -------------------------------------------------------------------------
+   The f=0/f=1 rule is GONE, on purpose. It existed because W() puts screen-y
+   at (x + y)*0.5 - z, so travelling +x/+y reads as coming toward the viewer
+   and therefore as descending, while f=2/f=3 read as a climb. That is still
+   true — but it capped the course at two sides of one block, because a route
+   that keeps turning the same way runs f0 -> f1 -> f2 -> f3 and only two of
+   four qualify. Length wins over the downhill read.
+
+   Dropping it also removes the seed seek, which is what actually broke this
+   last time: with a heading filter there was a shape to hunt for, so the lab
+   generated up to 160 whole cities on the main thread looking for one. With
+   no filter there is nothing to search — every route already has ten legs.
+   No generateRoute loop, no frozen tab.
+   ========================================================================= */
+function slFindChain(route){
+  const segs = route.segs;
+  const firstLine = segs.findIndex(g => g.type === 'line');
+  if (firstLine < 0) return null;
+
+  /* Walk forward from the first line collecting segments until SL.legs lines
+     are in hand, then trim any trailing arc — a chain ending on a turn has a
+     corner leading nowhere and gates cannot live on it. */
+  /* Stop at the route's own end as well as at the leg target. A looping route
+     wraps, and a chain that runs past totalLen asks posAt for an s it has no
+     geometry for — which does not throw, it returns nonsense, and nonsense
+     coordinates are far worse than an error because they look like a bug in
+     the cones. */
+  /* NOT totalLen. totalLen is loop.sEnd on any route with a reroute lap
+     welded in, and everything past loop.sCut is the ring — geometry that
+     physically retraces blocks the course has already used. A chain that
+     runs into it lays a second set of cones over the first and puts the
+     finish tape back beside the start line. _slEndS is set in
+     slQuietOpening and is the last s of original road. */
+  const endS = route._slEndS !== undefined ? route._slEndS : route.totalLen;
+  const chain = [];
+  let nLines = 0;
+  for (let i = firstLine; i < segs.length && nLines < SL.legs; i++){
+    if (segs[i].s1 > endS) break;
+    chain.push(segs[i]);
+    if (segs[i].type === 'line') nLines++;
+  }
+  while (chain.length && chain[chain.length - 1].type !== 'line') chain.pop();
+
+  const linesArr = chain.filter(g => g.type === 'line');
+  if (!linesArr.length) return null;
+
+  lastDiag = { asked: SL.legs, got: linesArr.length,
+               arcs: chain.filter(g => g.type === 'arc').length };
+  return {
+    segs: chain,
+    lines: linesArr,
+    arcs: chain.filter(g => g.type === 'arc'),
+    nLines: linesArr.length,
+    span: linesArr.reduce((m, g) => m + (g.s1 - g.s0), 0),
+    score: gradeOver(route, chain[0].s0, chain[chain.length - 1].s1),
+    fList: linesArr.map(g => g.f),
+  };
+}
+
 function tpSlalomOn(){
   const scene = game.scene.scenes.find(s => s.route);
   if (!scene) { console.log('no scene with a route yet'); return; }
@@ -16666,70 +16848,8 @@ function tpSlalomOn(){
   document.getElementById('slCard')?.remove();
   if (scene._slRestore) scene._slRestore();
 
-  /* ---------- tunables — every one of these is a chip ---------- */
-  const SL = {
-    n:    400,    // CAP on gates; the course fills every leg up to this
-    legs: 12,     // how many legs the course runs through — walk this up
-                  // with the chip and watch the cone total in the strip
-    gap:  1.40,   // TIGHTEST along-route spacing between cones, in T2
-    vary: 0.30,   // how far above gap the spacing opens up (0 = uniform)
-    wide: 0.35,   // extra road a 2-3 row lane change buys itself. Was a hard
-                  // 0.75 in the spacing line, and at 0.75 a three-row lunge
-                  // ate nearly two gates' worth of straight — which is where
-                  // the red/blue count was going. It is a dial now because it
-                  // trades gate COUNT against gate FAIRNESS directly.
-    trafficWaits: 1,   // cars queue at coned junctions instead of driving through
-    kickers: 1,   // kicker ramps per leg (0 = none)
-    kLift: 26,    // ramp lip height
-    kRunup: 5.5,  // clear road before the lip, in T2. Reverted from 2.5
-                  // (2026-08-10, Sir's on-device call) -- the 5.5 sizing was
-                  // reasoned as "ample to be back at the cap after the
-                  // previous gate," which holds for every kicker except the
-                  // FIRST: leg 0's jump sits right after spawn, where there
-                  // is no previous gate, only the 3-2-1-GO standing start.
-                  // At 2.5 that leg-0 jump had almost no room to build speed
-                  // from a dead stop before the lip and played dead short.
-                  // 500 units of clear road in front of every ramp is the
-                  // tradeoff for that one jump actually working.
-    kReach: 5.0,  // how far the jump carries at full speed, in T2
-    kPeak:  40,   // apex height above the lip, in world units
-    rowA: 0,      // low edge of the sidewalk band the course uses
-    rowB: 3,      // high edge — 0..3 is the whole walk
-    lead: 3.0,    // run-up before the first cone, in T2
-    turn: 2.0,    // clearance either side of the arc — no cones on the turn
-    tail: 1.5,    // run-out after the last cone, in T2
-    vmul: 2.00,   // top speed as a multiple of delivery's 0.225. Carries the
-                  // jump ballistics and the spacing floor with it — see V_BASE.
-    grip: 1.60,   // corner-tilt compensation, in two regimes. Up to 1.0 it
-                  // cancels the speed multiplier's share (tilt goes with v²,
-                  // so 2x speed is 4x tilt; 1.0 nets exactly delivery-speed
-                  // corners). But delivery corners TIP at full throttle by
-                  // design — corners need braking there — and the slalom is
-                  // a weave, not a braking test. So above 1.0 the dial keeps
-                  // going: 2.0 removes corner lean entirely. 1.6 default
-                  // keeps some lean in the picture without the funeral.
-    clean:16.0,   // how far PAST the finish the street stays swept, in T2. The
-                  // corridor used to end 2 T2 after the last gate, which is the
-                  // size of the COURSE — the frame is the size of the CAMERA.
-    pen:  2.0,    // seconds added per knocked cone / missed side
-    /* PAR IS DERIVED, NOT DIALED. par used to be a constant (52.0) tuned
-       against the short lab course, but the shipped course is built from
-       the daily route's own legs and its length changes with the seed —
-       measured 2026-08-09: 16,952 units over 5 legs / 25 gates, where a
-       physically perfect flat-out run is already 37.7s; a full 12-leg
-       day is roughly double that, putting 52s below the physical floor.
-       One constant cannot answer a question the seed re-asks every day
-       (same rule as the spacing fix), so par is computed per-course in
-       slBuildCourse from what actually got built:
-         par = dist/vTop * parPace + nGates*parGate + nCorners*parCorner
-       and THESE three are the dials now — they tune feel, and correct
-       scaling with course length comes from the formula itself. A side
-       effect of the old unwinnable par: `won` never went true, so the
-       slalom-master flag (and now the tip payout) never fired. */
-    parPace:   1.12,  // cushion multiplier on the flat-out pace time
-    parGate:   0.45,  // seconds granted per gate (one row-hop's cost)
-    parCorner: 1.8,   // seconds granted per corner arc
-  };
+  /* SL is hoisted to module scope now, alongside slFindChain — see the
+     comment there. Everything below still reads it the same way. */
   const HOOD_BLUFFS = 7;         // HOODS[7] — hill 1.0, the steepest in the city
 
   /* GATE FLAGS, in the ski-slalom convention: a coloured band tells you which
@@ -16826,113 +16946,6 @@ function tpSlalomOn(){
     phase: 'idle', countT0: 0, gates: [],
   };
 
-  /* =========================================================================
-     COURSE
-     ========================================================================= */
-
-  /* Net grade over an s-range, in rise/run. Negative is downhill.
-     elevAt() is the scene's own sampler over route.tiles, so this asks the
-     grade question through the exact call the physics asks it through — not a
-     parallel copy of the same math over the tile array. */
-  /* elevAt, but over ANY route object rather than the loaded one — the search
-     has to grade candidate routes before committing to loading them. Same
-     interpolation the scene's own elevAt does over route.tiles. */
-  const elevOf = (route, s) => {
-    const t = route.tiles, fx = s / (TILE*2), i = Math.floor(fx);
-    if (i < 0) return t[0];
-    if (i >= t.length - 1) return t[t.length - 1];
-    return Phaser.Math.Linear(t[i], t[i+1], fx - i);
-  };
-  const gradeOver = (route, s0, s1) =>
-    (s1 - s0) > 0 ? (elevOf(route, s1) - elevOf(route, s0)) / (s1 - s0) : 0;
-
-  /* Find every line -> arc -> line corridor long enough to hold both cone
-     groups, and return the STEEPEST DESCENT among them. Scored on the two
-     straights only: the arc's own grade is irrelevant because no cone sits on
-     it, and including it would let a plunging turn disguise two flat weaves. */
-  /* HEADING IS NOT A PREFERENCE HERE, IT IS THE WHOLE EFFECT.
-     W() puts screen-y at (x + y)*0.5 - z, so travelling +x/+y — headings f=0
-     and f=1 — increases screen-y: you move DOWN the screen, which reads as
-     coming toward the viewer, and therefore reads as descending. f=2/f=3 move
-     you up-screen and read as a climb no matter what the grade number says.
-
-     generateRoute already knows this — GRADE_BIAS exists precisely so real
-     elevation agrees with the camera's own depth cue rather than being
-     coin-flip noise, and it subtracts a term in (x + y). The corridor picker
-     simply was not honouring it, so a legitimately steep descent could be laid
-     down a heading that reads as uphill, and no amount of grade fixed that.
-
-     Both legs must therefore be f=0 or f=1. They are perpendicular, so
-     f=0 -> turn -> f=1 is a legal corridor and the descent reads on both sides
-     of the turn.
-
-     TENSION WORTH KNOWING: GOOD_LEG_HEADING is [f0, f3], so f=1 is not a
-     "good" leg for storefront dressing and the block-wrap cutaway. Reading as
-     downhill wins — a slalom that looks like a climb is broken, a slalom with
-     plainer buildings on one leg is not. */
-  const DOWNHILL_F = [0, 1];
-  let lastDiag = {};
-
-  /* =========================================================================
-     THE CHAIN — N consecutive legs, any heading
-     -------------------------------------------------------------------------
-     The f=0/f=1 rule is GONE, on purpose. It existed because W() puts screen-y
-     at (x + y)*0.5 - z, so travelling +x/+y reads as coming toward the viewer
-     and therefore as descending, while f=2/f=3 read as a climb. That is still
-     true — but it capped the course at two sides of one block, because a route
-     that keeps turning the same way runs f0 -> f1 -> f2 -> f3 and only two of
-     four qualify. Length wins over the downhill read.
-
-     Dropping it also removes the seed seek, which is what actually broke this
-     last time: with a heading filter there was a shape to hunt for, so the lab
-     generated up to 160 whole cities on the main thread looking for one. With
-     no filter there is nothing to search — every route already has ten legs.
-     No generateRoute loop, no frozen tab.
-     ========================================================================= */
-  function slFindChain(route){
-    const segs = route.segs;
-    const firstLine = segs.findIndex(g => g.type === 'line');
-    if (firstLine < 0) return null;
-
-    /* Walk forward from the first line collecting segments until SL.legs lines
-       are in hand, then trim any trailing arc — a chain ending on a turn has a
-       corner leading nowhere and gates cannot live on it. */
-    /* Stop at the route's own end as well as at the leg target. A looping route
-       wraps, and a chain that runs past totalLen asks posAt for an s it has no
-       geometry for — which does not throw, it returns nonsense, and nonsense
-       coordinates are far worse than an error because they look like a bug in
-       the cones. */
-    /* NOT totalLen. totalLen is loop.sEnd on any route with a reroute lap
-       welded in, and everything past loop.sCut is the ring — geometry that
-       physically retraces blocks the course has already used. A chain that
-       runs into it lays a second set of cones over the first and puts the
-       finish tape back beside the start line. _slEndS is set in
-       slQuietOpening and is the last s of original road. */
-    const endS = route._slEndS !== undefined ? route._slEndS : route.totalLen;
-    const chain = [];
-    let nLines = 0;
-    for (let i = firstLine; i < segs.length && nLines < SL.legs; i++){
-      if (segs[i].s1 > endS) break;
-      chain.push(segs[i]);
-      if (segs[i].type === 'line') nLines++;
-    }
-    while (chain.length && chain[chain.length - 1].type !== 'line') chain.pop();
-
-    const linesArr = chain.filter(g => g.type === 'line');
-    if (!linesArr.length) return null;
-
-    lastDiag = { asked: SL.legs, got: linesArr.length,
-                 arcs: chain.filter(g => g.type === 'arc').length };
-    return {
-      segs: chain,
-      lines: linesArr,
-      arcs: chain.filter(g => g.type === 'arc'),
-      nLines: linesArr.length,
-      span: linesArr.reduce((m, g) => m + (g.s1 - g.s0), 0),
-      score: gradeOver(route, chain[0].s0, chain[chain.length - 1].s1),
-      fList: linesArr.map(g => g.f),
-    };
-  }
 
   /* ============ THE FURNITURE IS NOT IN ANY ARRAY ============
      The corridor sweep below empties hazards[] and props[], and the last
@@ -19166,6 +19179,61 @@ function worldgenLandmarks(grid){
    auto framing drawRouteMap actually used — one source, no re-derived
    framing math). */
 let tpMapView = null, tpMapMark = null, tpMapLast = null;
+
+/* THE ATLAS: a fixed, persistent Costa Palma the map explorer draws
+   whenever it's showing a mission rather than today's own route.
+   Reuses the Hydrant Challenge's own frozen/classic grid (HJ_SEED_DATE)
+   since that's already guaranteed stable and immune to worldgen drift
+   — see the hydrant-drift note by HJ_SEED_DATE's own declaration. Built
+   once and cached: nothing about it depends on the day, so there is
+   nothing to rebuild.
+
+   Missions each live on their own frozen seed (a DIFFERENT grid EXTENT
+   than the atlas or each other — cols/rows are seed-rolled, 12-17 — but
+   the same physical BLOCK-unit coordinate space, since BLOCK is a fixed
+   constant and every grid places block (i,j) at exactly (i*BLOCK,
+   j*BLOCK)). So a mission's real x/y plots at the physically correct
+   spot on the atlas backdrop; the one honest cosmetic gap is that the
+   atlas's own block TYPE at that spot (park/house/shop) may not be
+   whatever that mission's own grid put there — a labelling mismatch,
+   never a wrong position. */
+let _tpAtlasRoute = null;
+function tpAtlas(){
+  if(!_tpAtlasRoute)
+    _tpAtlasRoute = generateRoute(HJ_SEED_DATE, { hoodIndex: HJ_ADDRESS.hoodIndex, challenge: true, classic: true });
+  return _tpAtlasRoute;
+}
+
+/* Mission pin positions, each computed once and cached. Hydrant's course
+   lives on the SAME frozen grid as the atlas itself (literally
+   tpAtlas()'s own .challenge), so there is zero translation involved —
+   as authoritative as a pin can be. Cone Slalom's course lives on its
+   own frozen grid (SL_SEED_DATE); slFindChain is a pure function of a
+   route object (hoisted to module scope 2026-08-10 for exactly this
+   reason — see the comment where it's declared), so building one
+   throwaway SL_SEED_DATE route once is enough to read its course's real
+   position without a live scene ever existing. */
+let _tpHydrantPin = null;
+function tpHydrantPin(){
+  if(_tpHydrantPin) return _tpHydrantPin;
+  const atlas = tpAtlas();
+  const p = segsPosAt(atlas.segs, atlas.challenge.kickerS);
+  _tpHydrantPin = { x: p.x, y: p.y };
+  return _tpHydrantPin;
+}
+let _tpSlalomPin = null;
+function tpSlalomPin(){
+  if(_tpSlalomPin) return _tpSlalomPin;
+  const route = generateRoute(SL_SEED_DATE);
+  const chain = slFindChain(route);
+  /* shouldn't happen — SL_SEED_DATE is the exact frozen course the game
+     ships — but the map should never throw over a missing pin. */
+  if(!chain) return null;
+  const p = segsPosAt(route.segs, chain.segs[0].s0);
+  _tpSlalomPin = { x: p.x, y: p.y };
+  return _tpSlalomPin;
+}
+
 function tpMapIndex(route){
   const out = [];
   const g2 = route.grid;
@@ -19179,21 +19247,33 @@ function tpMapIndex(route){
     if(b2.type === "park")
       out.push({ name: mapParkName(b2.cx, b2.cy, route), kind:"park", x: b2.cx, y: b2.cy });
   for(const lm of worldgenLandmarks(g2)) out.push(lm);
-  /* side missions, searchable the same box now covers places with —
-     no x/y to jump to (jump-hydrant lives in a different neighbourhood
-     entirely from whatever route is loaded today), so these carry an id
-     instead and the click handler opens the mission detail sheet
-     directly rather than panning the map. "???" is the one genuinely
-     unannounced slot; nothing useful to match against, so it's left out. */
-  for(const m of TP_SIDE_MISSIONS)
-    if(m.name !== "???") out.push({ name: m.name, kind:"mission", id: m.id });
+  /* side missions: real x/y now, via the atlas. Each mission lives on
+     its own frozen seed — a different neighbourhood entirely from
+     whatever route is loaded today — so there used to be nothing to
+     jump to here; tpAtlas()/tpHydrantPin()/tpSlalomPin() give every
+     playable mission a position in one shared, persistent city instead
+     of trying to reconcile two different daily grids. atlas:true tells
+     tpMapJumpTo to swap the map's backdrop to that city. Missions
+     without a computed pin (not yet playable) fall back to the old
+     id-only behaviour, which still opens the detail sheet. "???" is the
+     one genuinely unannounced slot; nothing useful to match against, so
+     it's left out entirely. */
+  for(const m of TP_SIDE_MISSIONS){
+    if(m.name === "???") continue;
+    const pin = m.id === "jump-hydrant" ? tpHydrantPin()
+              : m.id === "cone-slalom"  ? tpSlalomPin()
+              : null;
+    out.push(pin
+      ? { name: m.name, kind:"mission", id: m.id, x: pin.x, y: pin.y, atlas: true }
+      : { name: m.name, kind:"mission", id: m.id });
+  }
   return out;
 }
 function tpMapJumpTo(hit){
   const s = scn(); if(!s || !s.route) return;
   const canvas = document.getElementById("routeMap");
   const availMin = Math.min(canvas.clientWidth, canvas.clientHeight) - 44;
-  tpMapView = { cx: hit.x, cy: hit.y, scale: availMin/(BLOCK*3.2), stamp: s.route.dateStr };
+  tpMapView = { cx: hit.x, cy: hit.y, scale: availMin/(BLOCK*3.2), stamp: s.route.dateStr, atlas: !!hit.atlas };
   tpMapMark = { x: hit.x, y: hit.y, t: performance.now() };
   const pulse = () => {
     if(!tpMapMark) return;
@@ -19212,7 +19292,9 @@ function tpMapExplore(){
   const redraw = () => { const s = scn(); if(s && s.route) drawRouteMap(s.route); };
   const clampView = () => {
     const s = scn(); if(!s || !s.route || !tpMapView) return;
-    const g2 = s.route.grid, span = (g2.cols + 9)*BLOCK;
+    /* same swap drawRouteMap makes: clamp against whichever city is
+       actually on screen, not always today's real route. */
+    const g2 = tpMapView.atlas ? tpAtlas().grid : s.route.grid, span = (g2.cols + 9)*BLOCK;
     const fit = Math.min(canvas.clientWidth, canvas.clientHeight)/span;
     const street = Math.min(canvas.clientWidth, canvas.clientHeight)/(BLOCK*1.6);
     tpMapView.scale = Math.min(street, Math.max(fit, tpMapView.scale));
@@ -19303,7 +19385,11 @@ function tpMapExplore(){
       row.innerHTML = "<span>" + h.name + "</span><span style='color:#8a8a92;font-size:11px'>" + h.kind + "</span>";
       row.onclick = () => {
         res.style.display = "none"; box.blur();
-        if(h.kind === "mission"){ tpOpenMissions(); tpOpenDetail("mission", h.id); }
+        /* a mission with a real pin (x !== undefined -- see tpMapIndex)
+           jumps on the map like any place would; only a mission with
+           nowhere to jump to yet (not playable, no pin function) falls
+           back to opening the list/detail sheet. */
+        if(h.kind === "mission" && h.x === undefined){ tpOpenMissions(); tpOpenDetail("mission", h.id); }
         else tpMapJumpTo(h);
       };
       res.appendChild(row);
@@ -19379,12 +19465,23 @@ function drawRouteMap(route){
     spanX = availW/scale; spanY = availH/scale;
   }
   tpMapLast = { cx: cx0, cy: cy0, scale };
+  /* ATLAS MODE: a mission jump (tpMapJumpTo with hit.atlas) sets
+     tpMapView.atlas, which swaps the CITY the map draws (grid/pal/hood)
+     for the persistent atlas — tpAtlas() -- while cx0/cy0/scale above
+     already point at the mission's real position (same physical
+     coordinate space; only the grid EXTENT differs day to day, not the
+     per-block size). The auto-framed route/challenge samples above stay
+     on the REAL route regardless -- they only matter when tpMapView is
+     null, which atlas mode never is, and the polyline that would
+     otherwise draw them is skipped below. */
+  const usingAtlas = !!(tpMapView && tpMapView.atlas);
+  const bgRoute = usingAtlas ? tpAtlas() : route;
   const toScreen = p => ({ x: W/2 + (p.x-cx0)*scale, y: H/2 + (p.y-cy0)*scale });
   const viewMinX = cx0 - spanX/2, viewMaxX = cx0 + spanX/2;
   const viewMinY = cy0 - spanY/2, viewMaxY = cy0 + spanY/2;
   const inView = (x, y) => x >= viewMinX-BLOCK && x <= viewMaxX+BLOCK && y >= viewMinY-BLOCK && y <= viewMaxY+BLOCK;
 
-  const pal = route.pal;
+  const pal = bgRoute.pal;
   const hex = n => "#" + n.toString(16).padStart(6,"0");
   ctx.fillStyle = hex(pal.pave);
   ctx.fillRect(0, 0, W, H);
@@ -19399,7 +19496,7 @@ function drawRouteMap(route){
      Beach are out there, so the minimap needs to draw them or a jump
      lands on empty pavement. */
   if(WORLDGEN_COAST){
-    const gEnd = { x:(route.grid.cols-1)*BLOCK, y:(route.grid.rows-1)*BLOCK };
+    const gEnd = { x:(bgRoute.grid.cols-1)*BLOCK, y:(bgRoute.grid.rows-1)*BLOCK };
     const EXT = BLOCK*WG_COAST.EXT, SANDW = BLOCK*WG_COAST.SANDW, BOARD = BLOCK*WG_COAST.BOARD, FAR = BLOCK*40;
     const cX0 = -EXT, cX1 = gEnd.x + EXT, cY0 = -EXT, cY1 = gEnd.y + EXT;
     const cband = (x0,y0,x1,y1,fill) => {
@@ -19441,7 +19538,7 @@ function drawRouteMap(route){
     cband(MX0 - BLOCK*0.10, MY0 - BLOCK*0.10, MX0 + BLOCK*0.06, MY0 + (MY1 - MY0)*0.62, "#9a938a"); // west arm
     cband(MX1 - BLOCK*0.16, MY0, MX1, MY1, "#b98a5e");                                // quay
     {
-      const rr = mulberry32(hashStr(route.dateStr) ^ 0xb0a7);
+      const rr = mulberry32(hashStr(bgRoute.dateStr) ^ 0xb0a7);
       const fingers = 5, fy0 = MY0 + BLOCK*0.35, fy1 = MY1 - BLOCK*0.35;
       for(let k = 0; k < fingers; k++){
         const fy = fy0 + (fy1 - fy0) * k/(fingers - 1);
@@ -19523,7 +19620,7 @@ function drawRouteMap(route){
       const mhEx = cX1 + BLOCK*0.08, mhEy = 10*BLOCK;
       const mhFx = (cX1 + cX1 + FOOTW + BLOCK*0.75)/2, mhFy = cY0 + (cY1 - cY0)*0.92;
       const mhCx = cX1 + FOOTW*0.9, mhCy = cY0 + (cY1 - cY0)*0.7;
-      cband((route.grid.cols - 1)*BLOCK, 10*BLOCK - RW, cX1 + BLOCK*0.08, 10*BLOCK + RW, hex(pal.road));
+      cband((bgRoute.grid.cols - 1)*BLOCK, 10*BLOCK - RW, cX1 + BLOCK*0.08, 10*BLOCK + RW, hex(pal.road));
       cdrive(mhEx, mhEy, mhFx, mhFy, mhCx, mhCy);
       lotsAlong(mhEx, mhEy, mhFx, mhFy, mhCx, mhCy, 0xe57a7e6,
                 cX1 + BLOCK*0.08, cY0 + (cY1 - cY0)*0.45, cX1 + FOOTW + BLOCK*0.75, cY0 + (cY1 - cY0)*0.92);
@@ -19540,7 +19637,7 @@ function drawRouteMap(route){
      shape as interior blocks so both draw through the same code below
      instead of needing a separate pass. */
   const lotDepth = BLOCK*0.4;
-  const extRects = route.grid.extLots.map(lot => {
+  const extRects = bgRoute.grid.extLots.map(lot => {
     const p2x = lot.ox + lot.dv.x*lot.len, p2y = lot.oy + lot.dv.y*lot.len;
     const p3x = p2x + lot.rv.x*lotDepth, p3y = p2y + lot.rv.y*lotDepth;
     const p4x = lot.ox + lot.rv.x*lotDepth, p4y = lot.oy + lot.rv.y*lotDepth;
@@ -19551,9 +19648,9 @@ function drawRouteMap(route){
       type: lot.type
     };
   });
-  const allBlocks = route.grid.blocks.concat(extRects);
+  const allBlocks = bgRoute.grid.blocks.concat(extRects);
   const blockColor = { housing: "#e3d4b8", park: "#8fbf7a", commercial: "#c4c8cc" };
-  const byIJ = route.grid.blockByIJ;
+  const byIJ = bgRoute.grid.blockByIJ;
   for(const blk of allBlocks){
     if(!inView(blk.cx, blk.cy)) continue;
     const a = toScreen({x:blk.x0, y:blk.y0}), b = toScreen({x:blk.x1, y:blk.y1});
@@ -19569,8 +19666,8 @@ function drawRouteMap(route){
      Skipped for a classic grid — no swallow pass ran, so the street
      between two park blocks is still real pavement, not a gap to
      bridge. */
-  if(byIJ && !route.grid.classic){
-    for(const blk of route.grid.blocks){
+  if(byIJ && !bgRoute.grid.classic){
+    for(const blk of bgRoute.grid.blocks){
       if(blk.type !== "park" || blk.i === undefined) continue;
       const nx = byIJ.get((blk.i+1)+","+blk.j), ny = byIJ.get(blk.i+","+(blk.j+1));
       const nxOK = nx && nx.type === "park", nyOK = ny && ny.type === "park";
@@ -19596,7 +19693,7 @@ function drawRouteMap(route){
   ctx.strokeStyle = hex(pal.road);
   ctx.lineWidth = 3;
   ctx.lineCap = "round";
-  for(const e of route.grid.edges){
+  for(const e of bgRoute.grid.edges){
     if(!inView(e.a.x, e.a.y) && !inView(e.b.x, e.b.y)) continue;
     const pa = toScreen(e.a), pb = toScreen(e.b);
     ctx.beginPath(); ctx.moveTo(pa.x, pa.y); ctx.lineTo(pb.x, pb.y); ctx.stroke();
@@ -19612,14 +19709,14 @@ function drawRouteMap(route){
   ctx.textBaseline = "middle";
   ctx.fillStyle = "#5a5448";
   const labeledRows = new Set(), labeledCols = new Set();
-  for(const e of route.grid.edges){
+  for(const e of bgRoute.grid.edges){
     const midX = (e.a.x+e.b.x)/2, midY = (e.a.y+e.b.y)/2;
     if(!inView(midX, midY)) continue;
     const p = toScreen({x:midX, y:midY});
     if(e.f === 0){
       if(labeledRows.has(e.a.j)) continue;
       labeledRows.add(e.a.j);
-      const name = route.hood.streets[e.a.j % route.hood.streets.length];
+      const name = bgRoute.hood.streets[e.a.j % bgRoute.hood.streets.length];
       ctx.save(); ctx.translate(p.x, p.y-7); ctx.fillText(name, 0, 0); ctx.restore();
     } else {
       if(labeledCols.has(e.a.i)) continue;
@@ -19634,7 +19731,7 @@ function drawRouteMap(route){
      from the hood's own named park pool. Perimeter park lots have no
      i/j to fuse through, so each keeps standing alone same as always. */
   const labeledInterior = new Set();
-  for(const blk of route.grid.blocks){
+  for(const blk of bgRoute.grid.blocks){
     if(blk.type !== "park" || blk.i === undefined) continue;
     const k0 = blk.i+","+blk.j;
     if(labeledInterior.has(k0)) continue;
@@ -19658,7 +19755,7 @@ function drawRouteMap(route){
     ctx.beginPath(); ctx.arc(p.x, p.y-8, r, 0, Math.PI*2); ctx.fill();
     ctx.font = Math.round(r+2)+"px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
     ctx.fillText("🌳", p.x, p.y-8);
-    const pname = mapParkName(anchor.cx, anchor.cy, route);
+    const pname = mapParkName(anchor.cx, anchor.cy, bgRoute);
     ctx.fillStyle = "#2e3138"; ctx.font = "10px sans-serif";
     ctx.fillText(pname, p.x, p.y+8);
   }
@@ -19669,7 +19766,7 @@ function drawRouteMap(route){
     ctx.beginPath(); ctx.arc(p.x, p.y-8, 7, 0, Math.PI*2); ctx.fill();
     ctx.font = "9px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
     ctx.fillText("🌳", p.x, p.y-8);
-    const pname = mapParkName(blk.cx, blk.cy, route);
+    const pname = mapParkName(blk.cx, blk.cy, bgRoute);
     ctx.fillStyle = "#2e3138"; ctx.font = "10px sans-serif";
     ctx.fillText(pname, p.x, p.y+8);
   }
@@ -19686,24 +19783,32 @@ function drawRouteMap(route){
       ctx.beginPath(); ctx.arc(mp.x, mp.y, 4, 0, Math.PI*2); ctx.fill();
     }
   }
-  ctx.strokeStyle = "#ff7a1a";
-  ctx.lineWidth = 4;
-  ctx.lineCap = "round";
-  ctx.lineJoin = "round";
-  ctx.beginPath();
-  samples.forEach((p, i) => {
-    const sp = toScreen(p);
-    if(i === 0) ctx.moveTo(sp.x, sp.y); else ctx.lineTo(sp.x, sp.y);
-  });
-  ctx.stroke();
+  /* the "you are here" route line + start/end pins only mean anything on
+     the REAL route's own ground -- in atlas mode the backdrop is a
+     different city, so samples[] (built from the real route's segs)
+     would cut through blocks that don't correspond to real streets
+     here. The mission/place pin above (tpMapMark) is what atlas mode
+     shows instead. */
+  if(!usingAtlas){
+    ctx.strokeStyle = "#ff7a1a";
+    ctx.lineWidth = 4;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.beginPath();
+    samples.forEach((p, i) => {
+      const sp = toScreen(p);
+      if(i === 0) ctx.moveTo(sp.x, sp.y); else ctx.lineTo(sp.x, sp.y);
+    });
+    ctx.stroke();
 
-  const startPt = toScreen(samples[0]);
-  drawRobotMarker(ctx, startPt.x, startPt.y);
+    const startPt = toScreen(samples[0]);
+    drawRobotMarker(ctx, startPt.x, startPt.y);
 
-  const endPt = toScreen(samples[samples.length-1]);
-  ctx.fillStyle = "#c2452e";
-  ctx.beginPath(); ctx.arc(endPt.x, endPt.y, 7, 0, Math.PI*2); ctx.fill();
-  ctx.strokeStyle = "#fff"; ctx.lineWidth = 2; ctx.stroke();
+    const endPt = toScreen(samples[samples.length-1]);
+    ctx.fillStyle = "#c2452e";
+    ctx.beginPath(); ctx.arc(endPt.x, endPt.y, 7, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle = "#fff"; ctx.lineWidth = 2; ctx.stroke();
+  }
   bootLoaderDone();
 }
 
