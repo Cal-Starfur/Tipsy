@@ -53,13 +53,14 @@
   #winOverlay{background:rgba(18,20,26,0);}
   #winOverlay h2,#winOverlay p{text-shadow:0 2px 3px #b5540e;transform:translateY(-165px);}
   #winOverlay p{color:#fff;}
-  /* 16px above the panel top (panel = 12 + two 15px rows + 3 gap + 10 +
-     safe inset), same clearance GO keeps over the map's bottom sheet —
-     no more landing on the delivery info. */
-  #winOverlay .btn{position:absolute;left:50%;bottom:calc(74px + env(safe-area-inset-bottom));transform:translateX(-50%);
-    flex:none;width:88px;height:88px;border-radius:50%;padding:0;
-    display:flex;align-items:center;justify-content:center;}
-  #winOverlay .btn:active{transform:translateX(-50%) translateY(3px);}
+  /* Again's old #winOverlay .btn rule (88px circle, bottom-anchored to
+     clear the receipt card) is gone along with the button -- FOLLOW,
+     COMMENT and the explore icon row that replaced it are all styled
+     and positioned inline from game-logic.js (twFxFollowBtn,
+     twFxCommentBtn, showWin's stackBase math), the same
+     zero-HTML-divergence approach the fail screen's tdFx buttons
+     already used, so there is nothing left here for a CSS class to
+     style. */
   /* matches #bottomSheet's recipe exactly (same cream, same padding, same
      safe-area fold) plus the 20px bottom curve it can't inherit: the map
      screen gets its corners from #screenWrap's border-radius+overflow
@@ -678,7 +679,6 @@
   <h2>DELIVERED</h2>
   <p id="winSub">…</p>
   <div class="card" id="winCard">…</div>
-  <button class="btn" id="againBtn">Again</button>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/phaser@3.85.2/dist/phaser.min.js"></script>
@@ -841,11 +841,14 @@ function requestTpProfile(){
 }
 
 /* ---------- Devvit-only: play counter + fail report ----------
-   countPlay() fires once per delivery STARTED (GO / Retry / Again),
-   not per completion — the splash counter reads "how many times has
-   this been played", and gating it on a win would badly undercount a
-   game whose whole premise is falling over. The challenge doesn't
-   call it: it isn't a delivery.
+   countPlay() fires once per delivery STARTED (GO / Retry -- Again
+   used to be a third site here, before it was retired in favour of the
+   win screen's COMMENT/FOLLOW bonus stack; PLAY TODAY'S ROUTE from Past
+   Routes only returns to the title screen, so GO still owns the actual
+   count from there), not per completion — the splash counter reads
+   "how many times has this been played", and gating it on a win would
+   badly undercount a game whose whole premise is falling over. The
+   challenge doesn't call it: it isn't a delivery.
 
    reportFail() no longer posts anything. It hands the server the run's
    facts and gets back a DRAFT comment (server.ts still owns the
@@ -1092,10 +1095,11 @@ function tdFxDoFollow(btn){
   };
   tdFxFollowRequest(granted => { tdFx.busy = false; tdFxFollowDone(granted); }, fail);
 }
-/* The NETWORK half of the follow flow, shared by the fail overlay and
-   the slalom card so the endpoint, the done-flag write and the wallet
-   handling can never disagree between the two askers. onOk(granted)
-   fires only on a confirmed join; onErr on anything else. */
+/* The NETWORK half of the follow flow, shared by the fail overlay, the
+   slalom card, and now the win screen's standing FOLLOW button, so the
+   endpoint, the done-flag write and the wallet handling can never
+   disagree between the three askers. onOk(granted) fires only on a
+   confirmed join; onErr on anything else. */
 function tdFxFollowRequest(onOk, onErr){
   fetch("api/tipsy/follow", { method: "POST", headers: { Accept: "application/json" } })
     .then(r => r.ok ? r.json() : null)
@@ -1220,21 +1224,33 @@ function tdFxPostComment(ta, btn){
       "transform:translateX(-50%);width:min(340px,86vw);height:auto;" +
       "border-radius:12px;padding:15px 0;font-size:18px;letter-spacing:2px;}" +
     "#failOverlay .btn:active{transform:translateX(-50%) translateY(3px);}" +
-    "#tdStackIcons{position:absolute;left:50%;top:calc(46% + 140px);" +
+    /* class, not id -- tdStackIcons() now builds one row per overlay
+       (fail AND win), so the selector has to match both instances.
+       Each instance still overrides top/bottom with its own inline
+       style (see tdStackIcons and showWin) -- this just supplies the
+       shared shape. */
+    ".tdStackIconsRow{position:absolute;left:50%;top:calc(46% + 140px);" +
       "transform:translateX(-50%);display:flex;gap:16px;}" +
-    "#tdStackIcons button{width:46px;height:46px;border-radius:50%;border:0;" +
+    ".tdStackIconsRow button{width:46px;height:46px;border-radius:50%;border:0;" +
       "cursor:pointer;display:flex;align-items:center;justify-content:center;" +
       "box-shadow:0 2px 6px rgba(0,0,0,.35);}" +
-    /* the corner pair leaves when the fail screen is up -- the stack
-       carries its own copies -- same disappearing act #zoomBtn does */
-    "body.tdFailUp #globalSearch,body.tdFailUp #globalAvatar{display:none !important;}";
+    /* the corner pair leaves when the fail OR win screen is up -- each
+       stack carries its own copies -- same disappearing act #zoomBtn
+       does. Win never had a "tdWinUp" state before the Again button
+       was retired in favour of this same explore-via-icons pattern. */
+    "body.tdFailUp #globalSearch,body.tdFailUp #globalAvatar," +
+    "body.tdWinUp #globalSearch,body.tdWinUp #globalAvatar{display:none !important;}";
   document.head.appendChild(st);
-  /* failOverlay is shown/hidden from 16+ call sites; watching the class
-     is the one place that sees them all */
+  /* failOverlay/winOverlay are shown/hidden from many call sites;
+     watching the class is the one place that sees them all */
   const fo = document.getElementById("failOverlay");
   const syncFail = () => document.body.classList.toggle("tdFailUp", !fo.classList.contains("hidden"));
   new MutationObserver(syncFail).observe(fo, {attributes: true, attributeFilter: ["class"]});
   syncFail();
+  const wo = document.getElementById("winOverlay");
+  const syncWin = () => document.body.classList.toggle("tdWinUp", !wo.classList.contains("hidden"));
+  new MutationObserver(syncWin).observe(wo, {attributes: true, attributeFilter: ["class"]});
+  syncWin();
 })();
 /* 5 taps on the fail headline inside 3s toggles a debug readout under
    the icon row (draft status + gate states) and, while on, forces the
@@ -1272,10 +1288,22 @@ function tdFxDbgBind(){
     }
   });
 }
-function tdStackIcons(){
-  if(document.getElementById("tdStackIcons")) return;
+/* overlayId defaults to failOverlay (every existing call site is a
+   fail/crash screen and passes nothing) -- showWin passes "winOverlay"
+   now that Again is gone and the win screen leans on the same
+   glass-forwards-to-missions / robot-forwards-to-profile pattern to get
+   back into anything. Row id is per-overlay (tdStackIcons_winOverlay
+   etc.) since two can legitimately exist in the DOM at once -- fail and
+   win never SHOW together, but neither overlay ever tears its row back
+   down, so the ids can't collide the way a single shared "tdStackIcons"
+   id would the first time both screens had been visited once each. */
+function tdStackIcons(overlayId){
+  overlayId = overlayId || "failOverlay";
+  const rowId = "tdStackIcons_" + overlayId;
+  if(document.getElementById(rowId)) return;
   const row = document.createElement("div");
-  row.id = "tdStackIcons";
+  row.id = rowId;
+  row.className = "tdStackIconsRow";
   const mk = (bg, html, proxyId, openOver) => {
     const b = document.createElement("button");
     b.style.background = bg;
@@ -1291,7 +1319,9 @@ function tdStackIcons(){
       /* delivery fail: open the panel OVER the fail screen, so closing
          it lands back on RETRY. Challenge crash: keep forwarding to the
          corner button -- there the glass's job is hjQuit (bank progress
-         and leave) and that must stay in one place. */
+         and leave) and that must stay in one place. Win: open the panel
+         OVER the win screen too, same reasoning -- closing it lands
+         back on DELIVERED, not on a stale corner button underneath. */
       const s = typeof scn === "function" ? scn() : null;
       if(openOver && !(s && s.mode === "challenge")){ openOver(); return; }
       const t = document.getElementById(proxyId);
@@ -1307,7 +1337,13 @@ function tdStackIcons(){
      "globalSearch", () => tpOpenMissions());
   const av = document.getElementById("globalAvatar");
   mk("#ff7a1a", av ? av.innerHTML : "", "globalAvatar", () => tpOpenProfile());
-  document.getElementById("failOverlay").appendChild(row);
+  document.getElementById(overlayId).appendChild(row);
+  /* debug readout is fail-only -- it reads tdFx's fail-draft gate state
+     (fails/later/done/claimed), none of which means anything on a win
+     screen, so a win-side call to tdStackIcons() skips building it
+     rather than parking a second #tdFxDbg no getElementById call would
+     ever reach. */
+  if(overlayId !== "failOverlay") return;
   const dbg = document.createElement("div");
   dbg.id = "tdFxDbg";
   dbg.style.cssText = "position:absolute;left:50%;top:calc(46% + 200px);" +
@@ -1316,6 +1352,232 @@ function tdStackIcons(){
     "text-shadow:0 1px 2px rgba(0,0,0,0.7);";
   document.getElementById("failOverlay").appendChild(dbg);
   tdFxDbgBind();
+}
+/* ============================================================
+   TD WIN EXTRAS -- Comment bonus + Follow button (Devvit only).
+
+   Mirrors TD FAIL EXTRAS above (same drafted-comment / manual-POST
+   contract, same tdFxFollowRequest network call) but for the DELIVERED
+   screen, which used to be a single Again button and nothing else.
+   Again is gone (2026-08 -- Sir's call): the win screen now offers
+   COMMENT (+$5.00, once per calendar day, paid atomically server-side
+   the instant the comment actually posts -- see routePostWinComment)
+   and FOLLOW (+$25.00 one-time, identical wallet/claim path the fail
+   screen's follow prompt already used), with the glass+robot icon row
+   (tdStackIcons("winOverlay")) as the way back into another delivery --
+   the same explore-via-icons pattern the fail screen already
+   established, not a new one invented for win.
+
+   FOLLOW reuses tdFx.followClaimed and tdFxFollowRequest wholesale --
+   the claim is genuinely one account-wide flag (dbClaimFollowBonus's
+   hSetNX doesn't care which screen asked), so a second parallel flag
+   here would just be a second source of truth to keep in sync. Only
+   the DONE-state UI (which button, which screen) is win-specific.
+
+   COMMENT cannot reuse tdFx.draft/posted -- those track the FAIL
+   draft specifically, and a win on the very next life would stomp
+   them. twFx is a same-shaped, independent state object for exactly
+   that reason. TWFX_DONE_KEY is a pure UI hint, same as fail's
+   TDFX_LATER_KEY -- the server's per-day hSetNX in
+   dbClaimWinCommentBonus is the actual gate, so a cleared or blocked
+   localStorage can't double-pay, it can only make one screen's button
+   copy stale until the next successful post corrects it. */
+const twFx = { draft: "", posted: false, busy: false,
+               draftWhy: "no win yet" };
+const TWFX_DONE_KEY = "tdWinCBonusDate";
+const TWFX_WINBTN = "position:absolute;left:50%;transform:translateX(-50%);" +
+  TDFX_BTN + "width:min(340px,86vw);";
+
+function twFxCommentBtn(){
+  let b = document.getElementById("twFxCommentBtn");
+  if(b) return b;
+  b = document.createElement("button");
+  b.id = "twFxCommentBtn";
+  b.style.cssText = TWFX_WINBTN + "background:#2c313c;color:#fff;border:1px solid #4a5060;";
+  b.addEventListener("click", twFxOpenComposer);
+  document.getElementById("winOverlay").appendChild(b);
+  return b;
+}
+function twFxHideCommentBtn(){
+  const b = document.getElementById("twFxCommentBtn");
+  if(b) b.style.display = "none";
+}
+/* Called from showWin() AND from reportWin's response callback, same
+   two-callers-race reason tdFxSyncCommentBtn documents: the win
+   overlay opens immediately while the draft fetch is still in flight,
+   so whichever lands second is the one that actually shows the
+   button. */
+function twFxSyncCommentBtn(){
+  if(!IS_DEVVIT_BUILD) return;
+  const overlay = document.getElementById("winOverlay");
+  if(!overlay || overlay.classList.contains("hidden")) return;
+  const b = twFxCommentBtn();
+  b.style.display = (twFx.draft && !twFx.posted) ? "block" : "none";
+  b.disabled = false;
+  let claimedToday = false;
+  try { claimedToday = localStorage.getItem(TWFX_DONE_KEY) === clientTodayUTC(); } catch(e){}
+  b.textContent = claimedToday ? "COMMENT" : "COMMENT  \u00b7  +$5.00 BONUS";
+}
+function twFxFollowBtn(){
+  let b = document.getElementById("twFxFollowBtn");
+  if(b) return b;
+  b = document.createElement("button");
+  b.id = "twFxFollowBtn";
+  b.style.cssText = TWFX_WINBTN + TDFX_ORANGE;
+  b.addEventListener("click", () => twFxDoFollow(b));
+  document.getElementById("winOverlay").appendChild(b);
+  return b;
+}
+/* No "shown once" / "maybe later" gate here on purpose -- the fail
+   screen's version is an interruption (earns its opt-out); this is a
+   standing offer on a screen the player is already choosing to look
+   at. Only real gate is tdFx.followClaimed, the same account-wide flag
+   the fail prompt uses, so a bonus claimed via one screen correctly
+   hides the button on the other without any extra state. */
+function twFxSyncFollowBtn(){
+  if(!IS_DEVVIT_BUILD) return;
+  const overlay = document.getElementById("winOverlay");
+  if(!overlay || overlay.classList.contains("hidden")) return;
+  const b = twFxFollowBtn();
+  if(tdFx.followClaimed){ b.style.display = "none"; return; }
+  b.style.display = "block";
+  b.disabled = false;
+  b.textContent = "FOLLOW r/tipsey  \u00b7  +$25.00 BONUS";
+}
+function twFxDoFollow(btn){
+  if(tdFx.busy) return;
+  tdFx.busy = true;
+  btn.disabled = true;
+  btn.textContent = "FOLLOWING...";
+  const fail = () => {
+    tdFx.busy = false;
+    btn.disabled = false;
+    btn.textContent = "FOLLOW r/tipsey  \u00b7  +$25.00 BONUS";
+  };
+  tdFxFollowRequest(granted => { tdFx.busy = false; twFxFollowDone(btn, granted); }, fail);
+}
+function twFxFollowDone(btn, granted){
+  btn.textContent = granted ? "FOLLOWED  \u00b7  +$25.00 ADDED" : "ALREADY FOLLOWING";
+  btn.disabled = true;
+}
+function twFxOpenComposer(){
+  if(!twFx.draft || twFx.posted) return;
+  const wrap = tdFxPanel("twFxComposer");
+  wrap.innerHTML = "";
+  const card = document.createElement("div");
+  card.style.cssText = TDFX_CARD + "text-align:left;";
+  card.innerHTML =
+    '<div style="font-weight:700;letter-spacing:1px;margin-bottom:12px;text-align:center;">' +
+      'LEAVE A COMMENT</div>' +
+    '<div id="twFxComposeErr" style="color:#ff8a65;font-size:12px;margin-bottom:8px;display:none;"></div>';
+  const ta = document.createElement("textarea");
+  ta.id = "twFxComposeText";
+  ta.value = twFx.draft;
+  ta.maxLength = 480;   // mirrors the server's clamp so nothing is silently cut
+  ta.style.cssText = "width:100%;box-sizing:border-box;height:110px;resize:none;" +
+    "background:#12141a;color:#fff;border:1px solid #3a3f4a;border-radius:8px;" +
+    "padding:10px;font:inherit;font-size:13px;margin-bottom:14px;";
+  const post = document.createElement("button");
+  post.textContent = "POST";
+  post.style.cssText = TDFX_BTN + TDFX_ORANGE + "margin-bottom:10px;";
+  post.addEventListener("click", () => twFxPostComment(ta, post));
+  const cancel = document.createElement("button");
+  cancel.textContent = "CANCEL";
+  cancel.style.cssText = TDFX_BTN +
+    "background:none;color:#9aa3b2;font-size:12px;letter-spacing:2px;padding:6px 0;";
+  cancel.addEventListener("click", () => wrap.remove());
+  card.appendChild(ta);
+  card.appendChild(post);
+  card.appendChild(cancel);
+  wrap.appendChild(card);
+}
+function twFxPostComment(ta, btn){
+  if(twFx.busy) return;
+  const text = (ta.value || "").trim();
+  if(!text) return;
+  twFx.busy = true;
+  btn.disabled = true;
+  btn.textContent = "POSTING...";
+  const fail = () => {
+    twFx.busy = false;
+    btn.disabled = false;
+    btn.textContent = "POST";
+    const e = document.getElementById("twFxComposeErr");
+    if(e){ e.textContent = "Couldn't post. Try again."; e.style.display = "block"; }
+  };
+  fetch("api/tipsy/win/comment", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ text })
+  })
+    .then(r => r.ok ? r.json() : null)
+    .then(d => {
+      if(!d || !d.posted){ fail(); return; }
+      twFx.busy = false;
+      twFx.posted = true;   // one comment per win screen; button hides itself
+      if(d.bonusGranted){
+        try { localStorage.setItem(TWFX_DONE_KEY, clientTodayUTC()); } catch(e){}
+      }
+      /* wallet lands straight from the response, same no-second-round-trip
+         pattern tdFxFollowRequest already uses -- guarded typeofs because
+         tpProfile/tpSaveProfile/tpRender are declared later in this file
+         but assigned long before any button here can be pressed. */
+      if(typeof tpProfile === "object" && tpProfile && typeof d.walletCents === "number"){
+        tpProfile.walletCents = d.walletCents;
+        if(typeof tpSaveProfile === "function") tpSaveProfile();
+        if(typeof tpRender === "function") tpRender();
+      }
+      const wrap = document.getElementById("twFxComposer");
+      if(wrap) wrap.remove();
+      twFxSyncCommentBtn();
+    })
+    .catch(fail);
+}
+/* Fetches the server-composed win-comment draft, same shape as
+   reportFail. payout/pctShow are passed in rather than recomputed here
+   -- showWin already runs the whole tip-engine formula (damage/lateness/
+   walk penalties, the 22% ceiling) to build the receipt card, and this
+   would either have to duplicate that math or trust a second source for
+   numbers the receipt already trusts once. Skipped for challenge runs,
+   replays of a past date (a comment about a stale route reads as noise
+   on TODAY's post -- same reasoning reportFail already documents for
+   fails) and anything outside a real route. The fetch is non-blocking:
+   a slow or failed draft just means the COMMENT button never appears,
+   same as fail's version. */
+function reportWin(s, payout, pctShow){
+  twFx.draft = "";
+  twFx.posted = false;
+  twFx.draftWhy = "pending";
+  twFxHideCommentBtn();
+  if(!IS_DEVVIT_BUILD) return;
+  if(!s || !s.route){ twFx.draftWhy = "skipped: no route"; return; }
+  if(s.mode === "challenge"){ twFx.draftWhy = "skipped: challenge"; return; }
+  if(s.route.dateStr !== clientTodayUTC()){
+    twFx.draftWhy = "skipped: replay (" + s.route.dateStr + " != " + clientTodayUTC() + ")";
+    return;
+  }
+  fetch("api/tipsy/win", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({
+      address: s.route.address || "",
+      hood: (s.route.hood && s.route.hood.n) || "",
+      pct: pctShow || 0,
+      tip: payout || 0,
+      ms: s.runT
+    })
+  })
+    .then(r => {
+      twFx.draftWhy = "http " + r.status;
+      return r.ok ? r.json() : null;
+    })
+    .then(d => {
+      twFx.draft = (d && d.text) || "";
+      if(twFx.draft) twFx.draftWhy = "ok (" + twFx.draft.length + " chars)";
+      else if(d) twFx.draftWhy = "empty text (server: no post id or not signed in)";
+      twFxSyncCommentBtn();
+    })
+    .catch(() => { twFx.draftWhy = "network error"; });
 }
 /* ============================================================
    TIP — Route Lab
@@ -19954,21 +20216,33 @@ function showWin(s){
     `<div class="sheetRow">time <b>${secs.toFixed(1)}s</b>&nbsp;·&nbsp;cargo <b>${cargo}%</b>&nbsp;·&nbsp;tip <b>${pctShow}% · $${payout.toFixed(2)}</b>${cuts.length ? `&nbsp;<span style="color:#8f95a1">(${cuts.join(", ")})</span>` : ""}</div>` +
     bestRow + allTimeRow;
   tipsyProfileOnDelivery(s.route.dateStr, payout, s.runT, isReplay);
-  /* Again anchors to the MEASURED panel, not a CSS constant: the
-     receipt's height varies (order length, deduction notes, the
-     daily-best row), and the old fixed bottom was budgeted for the
-     original two-row card — every growth spurt parked the button on
-     the text again (on-device, twice now). 16px above the real top,
-     the same clearance GO keeps over the map sheet. */
-  /* ORDER MATTERS: show() first. Measuring while the overlay is still
+  reportWin(s, payout, pctShow);
+  /* The whole win-screen stack anchors to the MEASURED panel, not a CSS
+     constant: the receipt's height varies (order length, deduction
+     notes, the daily-best row), and a fixed bottom was budgeted for the
+     original two-row card — every growth spurt parked Again on top of
+     the text (on-device, twice now, back when Again was the only thing
+     here). Same fix, now applied to three stacked elements instead of
+     one: FOLLOW sits in the old Again slot (cardH+16), COMMENT stacks
+     above it, and the explore icon row (glass+robot, tdStackIcons) sits
+     above that — the row's own top:calc(46%+140px) class rule is
+     cleared to "auto" here since bottom is what actually places it now.
+     ORDER MATTERS: show() first. Measuring while the overlay is still
      display:none reads offsetHeight = 0, which parked Again at
      bottom:16px — on top of the stats (on-device, the bug's third
-     costume). Once display flips, layout is synchronous and the
-     measurement is real. */
+     costume) — same trap for any of these three if measured too early. */
   show("winOverlay");
   const cardEl = document.getElementById("winCard");
-  const againBtn = document.querySelector("#winOverlay .btn");
-  if(againBtn) againBtn.style.bottom = (cardEl.offsetHeight + 16) + "px";
+  const stackBase = cardEl.offsetHeight + 16;
+  twFxSyncFollowBtn();
+  twFxSyncCommentBtn();
+  tdStackIcons("winOverlay");
+  const followBtn = document.getElementById("twFxFollowBtn");
+  if(followBtn) followBtn.style.bottom = stackBase + "px";
+  const commentBtn = document.getElementById("twFxCommentBtn");
+  if(commentBtn) commentBtn.style.bottom = (stackBase + 60) + "px";
+  const iconRow = document.getElementById("tdStackIcons_winOverlay");
+  if(iconRow){ iconRow.style.top = "auto"; iconRow.style.bottom = (stackBase + 120) + "px"; }
 }
 
 window.addEventListener("resize", () => {
@@ -20032,10 +20306,6 @@ document.getElementById("retryBtn").addEventListener("click", () => {
   document.getElementById("retryBtn").textContent = "Retry";
   countPlay();
   s.loadRoute(s.route.dateStr); s.state = "play";
-});
-document.getElementById("againBtn").addEventListener("click", () => {
-  hide("winOverlay");
-  const s = scn(); countPlay(); s.loadRoute(s.route.dateStr); s.state = "play";
 });
 document.getElementById("todayBtn").addEventListener("click", e => {
   document.getElementById("rerollBtn").classList.remove("on");
