@@ -18642,22 +18642,36 @@ function tpSlalomStart(){
   tpSlalomUI(s);
   s._slAPI.reset();                          // build the course; the engine runs 3-2-1-GO
 }
+/* The full-width SLALOM strip (clock/gates/faults/message + Quit) is
+   gone (2026-08-10, Sir's call) -- it sat at top:0 with z-index 9990,
+   over the whole width of the play area, for the ENTIRE slalom session
+   (live play AND every result card after it, since neither slAgain nor
+   slClose ever removed it -- only Quit did). Replaced with a single
+   floating Quit pill and nothing else: no persistent live readout
+   anywhere. The run's real numbers were never lost -- run time,
+   penalties, cones cleared, faults, everything already lands on the
+   FAIL/WIN card the moment a run ends; the strip was duplicating that
+   information over top of the one thing there's no duplicate of, the
+   view of the course itself. Bottom-right, clear of the corner icons
+   (#globalSearch top-left, #globalAvatar + #zoomBtn top-right) and
+   clear of the bottom sheet / map / order card, which hjChrome(true)
+   already hides for the whole mode. */
 function tpSlalomUI(s){
-  document.getElementById("tpSlStrip")?.remove();
+  document.getElementById("tpSlQuitBtn")?.remove();
   document.getElementById("tpSlCount")?.remove();
-  const strip = document.createElement("div");
-  strip.id = "tpSlStrip";
-  strip.style.cssText = "position:fixed;left:0;right:0;top:0;z-index:9990;display:flex;gap:14px;align-items:center;padding:8px 12px;background:rgba(12,13,16,0.82);color:#f4f2ec;font:600 14px/1.2 ui-monospace,Menlo,monospace;";
-  strip.innerHTML = '<span style="color:#ff7a1a;font-weight:800">SLALOM</span>'
-    + '<span id="tpSlClock">0.00s</span><span id="tpSlGates"></span>'
-    + '<span id="tpSlMsg" style="flex:1;color:#ffb04d;overflow:hidden;white-space:nowrap"></span>'
-    + '<button id="tpSlQuit" style="background:none;border:1px solid #666;color:#ddd;font:inherit;padding:4px 10px;border-radius:6px">Quit</button>';
-  document.body.appendChild(strip);
+  const quitBtn = document.createElement("button");
+  quitBtn.id = "tpSlQuitBtn";
+  quitBtn.textContent = "Quit";
+  quitBtn.style.cssText = "position:fixed;right:14px;" +
+    "bottom:calc(14px + env(safe-area-inset-bottom));z-index:9990;" +
+    "background:rgba(12,13,16,0.82);color:#ddd;border:1px solid #666;" +
+    "font:600 13px ui-monospace,Menlo,monospace;padding:8px 16px;border-radius:20px;";
+  quitBtn.onclick = tpSlalomQuit;
+  document.body.appendChild(quitBtn);
   const count = document.createElement("div");
   count.id = "tpSlCount";
   count.style.cssText = "position:fixed;left:0;right:0;top:38%;z-index:9991;text-align:center;pointer-events:none;font:800 84px/1 ui-monospace,Menlo,monospace;color:#ff7a1a;text-shadow:0 3px 18px rgba(0,0,0,0.75);display:none";
   document.body.appendChild(count);
-  document.getElementById("tpSlQuit").onclick = tpSlalomQuit;
   let goAt = 0;
   clearInterval(tpSlTick);
   tpSlTick = setInterval(() => {
@@ -18667,19 +18681,12 @@ function tpSlalomUI(s){
     if(n !== null){ count.style.display = "block"; count.style.color = "#ff7a1a"; count.textContent = String(n); goAt = 0; }
     else if(api.run.phase === "live" && !goAt){ goAt = performance.now(); count.textContent = "GO"; count.style.color = "#7fe37f"; }
     if(goAt && performance.now() - goAt > 700) count.style.display = "none";
-    const r2 = api.run;
-    const clock = document.getElementById("tpSlClock");
-    if(clock) clock.textContent = ((r2.elapsed || 0) + (r2.pen || 0)).toFixed(2) + "s";
-    const g2 = document.getElementById("tpSlGates");
-    if(g2) g2.textContent = r2.gates ? (r2.gates.length + " gates" + (r2.faults && r2.faults.length ? " \u00b7 " + r2.faults.length + " faults" : "")) : "";
-    const mg = document.getElementById("tpSlMsg");
-    if(mg) mg.textContent = (r2.msgT && performance.now() - r2.msgT < 2600) ? r2.msg : "";
   }, 100);
 }
 function tpSlalomQuit(){
   const s = scn();
   clearInterval(tpSlTick);
-  document.getElementById("tpSlStrip")?.remove();
+  document.getElementById("tpSlQuitBtn")?.remove();
   document.getElementById("tpSlCount")?.remove();
   document.getElementById("slCard")?.remove();
   if(s && s._slRestore) s._slRestore();
