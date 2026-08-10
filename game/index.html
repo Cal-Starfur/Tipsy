@@ -19749,7 +19749,16 @@ function tpMapExplore(){
     const s = scn(); if(!s || !s.route || !tpMapView) return;
     /* same swap drawRouteMap makes: clamp against whichever city is
        actually on screen, not always today's real route. */
-    const g2 = tpMapView.atlas ? tpAtlas().grid : s.route.grid, span = (g2.cols + 9)*BLOCK;
+    /* MAX ZOOM-OUT TIGHTENED (2026-08-10, Sir's call): +9*BLOCK margin
+       fit the whole 36-col merged city plus a wide ocean/mountain
+       border in frame at once (36+9=45 blocks across) -- too far out,
+       reading as a tiny town in a mostly-empty tan/blue frame. -3*BLOCK
+       (33 blocks across) raises the floor ~1.36x so the farthest zoom
+       still reads as a real neighborhood, at the cost of the outermost
+       ring needing a small pan to reach -- panning is already free via
+       this function's own M margin below, so nothing is unreachable,
+       just no longer the default. */
+    const g2 = tpMapView.atlas ? tpAtlas().grid : s.route.grid, span = (g2.cols - 3)*BLOCK;
     const fit = Math.min(canvas.clientWidth, canvas.clientHeight)/span;
     const street = Math.min(canvas.clientWidth, canvas.clientHeight)/(BLOCK*1.6);
     tpMapView.scale = Math.min(street, Math.max(fit, tpMapView.scale));
