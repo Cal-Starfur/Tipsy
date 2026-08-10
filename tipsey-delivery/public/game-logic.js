@@ -16000,23 +16000,17 @@ const SL = {
                 // corridor used to end 2 T2 after the last gate, which is the
                 // size of the COURSE — the frame is the size of the CAMERA.
   pen:  2.0,    // seconds added per knocked cone / missed side
-  /* PAR IS DERIVED, NOT DIALED. par used to be a constant (52.0) tuned
-     against the short lab course, but the shipped course is built from
-     the daily route's own legs and its length changes with the seed —
-     measured 2026-08-09: 16,952 units over 5 legs / 25 gates, where a
-     physically perfect flat-out run is already 37.7s; a full 12-leg
-     day is roughly double that, putting 52s below the physical floor.
-     One constant cannot answer a question the seed re-asks every day
-     (same rule as the spacing fix), so par is computed per-course in
-     slBuildCourse from what actually got built:
-       par = dist/vTop * parPace + nGates*parGate + nCorners*parCorner
-     and THESE three are the dials now — they tune feel, and correct
-     scaling with course length comes from the formula itself. A side
-     effect of the old unwinnable par: `won` never went true, so the
-     slalom-master flag (and now the tip payout) never fired. */
-  parPace:   1.12,  // cushion multiplier on the flat-out pace time
-  parGate:   0.45,  // seconds granted per gate (one row-hop's cost)
-  parCorner: 1.8,   // seconds granted per corner arc
+  /* PAR IS A FIXED 60s NOW, NOT DERIVED. It used to be computed per-course
+     (dist/vTop*parPace + gates*parGate + corners*parCorner) because the
+     course itself changed with the daily seed -- a formula was the only
+     way to keep par honest against a course that kept changing shape.
+     That reason is gone: the course is SL_SEED_DATE, permanently, and
+     Sir's call (2026-08-10) is a flat, dialed number rather than a
+     recomputed one. Measured against the shipped SL_SEED_DATE course the
+     old formula gave 58.77s (37.21s flat-out * 1.12 + 22 gates*0.45s +
+     4 corners*1.8s) -- 60s keeps that same shape, just rounded to a
+     number a player can actually hold in their head. */
+  par: 60.0,
 };
 
 /* =========================================================================
@@ -16769,13 +16763,8 @@ function tpSlalomOn(){
     course.nChute = chuteN;
     course.finishS = Math.round(gatesNow().reduce((m, h) => Math.max(m, h.s), 0)
                                 + SL.tail * T2);
-    /* par, from the course that was just built — see the SL comment. vTop
-       is a const declared further down the closure, which is safe here
-       because slBuildCourse only ever RUNS via slResetRun after the whole
-       closure body has executed (scene._slAPI wiring at the tail). */
-    course.par = (course.finishS - course.spawnS) / (vTop() * 1000) * SL.parPace
-               + course.nGates * SL.parGate
-               + course.arcSpans.length * SL.parCorner;
+    /* par is a fixed 60s now -- see SL.par's own comment. */
+    course.par = SL.par;
     /* Built HERE, not earlier: the tape is placed at course.finishS, and
        finishS is only known once the last gate is planted. Called before this
        line it read undefined, posAt(undefined) returned NaN, and the ribbon was
@@ -17038,6 +17027,20 @@ function tpSlalomOn(){
         run.fail = 'missed the delivery twice';
         slShowCard();
       }
+    }
+    /* TIMEOUT IS A FAIL, NOT A SLOW LOSS. par is a flat 60s now (see SL.par),
+       and "didn't make it in 60 seconds" is Sir's own phrasing for this
+       (2026-08-10) -- a hard cutoff, not a courtesy of letting a slow run
+       wander to the delivery stop and read OVER PAR once it finally gets
+       there. Checked against total (elapsed + pen), same number slShowCard
+       will report, so the instant that reads 60.0 here is the same instant
+       it would have read 60.0 on the card. A run that legitimately crosses
+       the finish line a hair under this can still land OVER PAR the normal
+       way below -- this only catches the ones that never got there. */
+    if (!run.done && run.started && (run.elapsed + run.pen) >= SL.par){
+      run.done = true;
+      run.fail = 'ran out of time';
+      slShowCard();
     }
     run.lastX = scene.botX; run.lastY = scene.botY;
     /* Coast to a stop once the run is scored. This is the ONLY write this lab
