@@ -18252,9 +18252,21 @@ function slalomMapSelect(){
   hide("failOverlay"); hide("winOverlay");
   const s = scn();
   s.mode = "slalom-pending";
+  /* SAME CONVENTION AS EVERYTHING ELSE (2026-08-10, Sir's call): this
+     used to lead with the mission's own NAME ("Cone Slalom Challenge —
+     weave the gates..."), which reads differently from both the daily
+     route's card ("The Flats — pickup at...") and Hydrant Challenge's
+     own ("The Flats — hydrant challenge at...") -- both of those lead
+     with a PLACE, not the activity's name. Now that the course has a
+     real, fixed position on the permanent map (tpSlalomPin), it has a
+     real hood/street to lead with too, the same way hydrant's hardcoded
+     HJ_ADDRESS does -- just derived from the actual pin instead of a
+     constant, since the slalom course was never given its own fixed
+     address the way hydrant was. */
+  const slHood = hoodAtWorld(tpSlalomPin().x, tpSlalomPin().y);
   document.getElementById("orderCard").innerHTML =
     `<div class="tag" style="margin-bottom:4px">SIDE MISSION</div>`
-    + `<b>Cone Slalom Challenge</b> — weave the gates at double speed, then stop on the mat`;
+    + `<b>${slHood.n}</b> — cone slalom challenge on <b>${slHood.streets[0]}</b>`;
   document.getElementById("sheetStatus").textContent = `60s par · earns Slalom Master`;
   show("titleOverlay");
 }
@@ -18744,6 +18756,31 @@ function tpSlalomPin(){
   _tpSlalomPin = { x: p.x, y: p.y };
   return _tpSlalomPin;
 }
+/* TODAY'S DELIVERY PIN (2026-08-10): cached by date, not forever like
+   the two above -- HJ_SEED_DATE/SL_SEED_DATE never change, but "today"
+   does, once a day, and a session left open across midnight shouldn't
+   keep pointing at yesterday's door. Built independently of s.route on
+   purpose -- see the comment where this gets called in drawRouteMap. */
+let _tpDailyPinCache = null;
+function tpDailyDeliveryPin(){
+  const today = clientTodayUTC();
+  if(_tpDailyPinCache && _tpDailyPinCache.dateStr === today) return _tpDailyPinCache;
+  const r = generateRoute(today);
+  const p = segsPosAt(r.segs, r.doorS);
+  _tpDailyPinCache = { dateStr: today, x: p.x, y: p.y };
+  return _tpDailyPinCache;
+}
+/* Tapping the delivery pin -- restores the daily route's own info in
+   the top bar and clears whatever mission-preview mode (challenge or
+   slalom-pending) was active. Reuses loadRoute's own orderCard-setting
+   code rather than duplicating it, same reasoning hjQuit already
+   follows for its own "hand the daily route back" step. */
+function tpBackToDailyRoute(){
+  const s = scn();
+  s.mode = "delivery";
+  s.loadRoute(clientTodayUTC());
+  show("titleOverlay");
+}
 
 function tpMapIndex(route){
   const out = [];
@@ -18892,6 +18929,7 @@ function tpMapExplore(){
       if(hit){
         if(hit.id === "jump-hydrant") hjStart();
         else if(hit.id === "cone-slalom") slalomMapSelect();
+        else if(hit.id === "daily-delivery") tpBackToDailyRoute();
       }
     }
     ptrs.delete(e.pointerId); if(ptrs.size < 2) pinch0 = null;
@@ -19363,12 +19401,11 @@ function drawRouteMap(route){
       ctx.beginPath(); ctx.arc(mp.x, mp.y, 4, 0, Math.PI*2); ctx.fill();
     }
   }
-  /* the "you are here" route line + start/end pins only mean anything on
-     the REAL route's own ground -- in atlas mode the backdrop is a
-     different city, so samples[] (built from the real route's segs)
-     would cut through blocks that don't correspond to real streets
-     here. The mission/place pin above (tpMapMark) is what atlas mode
-     shows instead. */
+  /* the "you are here" route line + robot start marker only mean
+     anything on the REAL route's own ground -- in atlas mode the
+     backdrop is a different city's geometry-in-context, so samples[]
+     (built from the real route's segs) would cut through blocks that
+     don't correspond to real streets here. */
   if(!usingAtlas){
     ctx.strokeStyle = "#ff7a1a";
     ctx.lineWidth = 4;
@@ -19383,11 +19420,32 @@ function drawRouteMap(route){
 
     const startPt = toScreen(samples[0]);
     drawRobotMarker(ctx, startPt.x, startPt.y);
-
-    const endPt = toScreen(samples[samples.length-1]);
-    ctx.fillStyle = "#c2452e";
-    ctx.beginPath(); ctx.arc(endPt.x, endPt.y, 7, 0, Math.PI*2); ctx.fill();
-    ctx.strokeStyle = "#fff"; ctx.lineWidth = 2; ctx.stroke();
+  }
+  /* THE DELIVERY PIN (2026-08-10, Sir's call): today's destination is
+     tappable now, the same way a mission pin is -- not a dedicated
+     "back" button, just another pin on the map you can tap to see (and
+     return to) the daily route, exactly the interaction a mission pin
+     already gets. Pulled out of the !usingAtlas block on purpose and
+     built from a fresh generateRoute(today) rather than samples[] --
+     samples comes from whatever s.route CURRENTLY is, which a mission
+     preview (Hydrant Challenge specifically) swaps away from today's
+     route entirely, and the one pin that's supposed to always get you
+     home can't depend on home still being loaded. tpDailyDeliveryPin
+     caches by date, so this doesn't regenerate a full route every
+     frame during a drag. */
+  {
+    const dp = tpDailyDeliveryPin();
+    if(inView(dp.x, dp.y)){
+      const p = toScreen(dp);
+      ctx.fillStyle = "#c2452e";
+      ctx.beginPath(); ctx.arc(p.x, p.y, 9, 0, Math.PI*2); ctx.fill();
+      ctx.strokeStyle = "#fff"; ctx.lineWidth = 2; ctx.stroke();
+      ctx.font = "11px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText("📦", p.x, p.y);
+      ctx.fillStyle = "#2e3138"; ctx.font = "700 10px sans-serif";
+      ctx.fillText("Today's delivery", p.x, p.y+17);
+      tpMapMissionPins.push({ id: "daily-delivery", x: p.x, y: p.y, r: 16 });
+    }
   }
   bootLoaderDone();
 }
