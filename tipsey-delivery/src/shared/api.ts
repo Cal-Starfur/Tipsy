@@ -176,6 +176,31 @@ export type PostWinCommentRsp = {
   bonusGranted: boolean
   walletCents: number
 }
+/** A winning Cone Slalom run, reported so the server can compose a
+ *  DRAFT comment (see PostSlalomWinComment) -- same draft/post split as
+ *  SubmitWinReq, just with slalom's own numbers instead of an
+ *  address/hood (the course isn't tied to a street). totalSecs is raw
+ *  run time plus penalties (what the result card calls "total");
+ *  parSecs is that course's par; clean is true only when every cone
+ *  was cleared with zero penalty seconds. */
+export type SubmitSlalomWinReq = {
+  totalSecs: number
+  parSecs: number
+  clean: boolean
+}
+export type SubmitSlalomWinRsp = {text: string}
+/** The player's (possibly edited) slalom win comment, posted as the
+ *  USER in reply to the pinned anchor -- only ever sent by an explicit
+ *  COMMENT -> POST press on the slalom result card. The $5/day bonus
+ *  claims from a SEPARATE pool than PostWinCommentRsp's (db.ts
+ *  dbClaimCommentBonus's source:'slalom' vs source:'win') -- clearing
+ *  both a delivery and a slalom course in the same day pays both. */
+export type PostSlalomWinCommentReq = {text: string}
+export type PostSlalomWinCommentRsp = {
+  posted: boolean
+  bonusGranted: boolean
+  walletCents: number
+}
 /** Reports progress on a side mission. missionId must exist in the
  *  server's own TS_MISSIONS (tpcatalog.ts); best is a high-water count
  *  (cleared jumps for jump-hydrant, 1 for a pass/fail mission) and is
@@ -225,6 +250,8 @@ export const Endpoint = {
   Follow: 'api/tipsy/follow',
   SubmitWin: 'api/tipsy/win',
   PostWinComment: 'api/tipsy/win/comment',
+  SubmitSlalomWin: 'api/tipsy/slalom/win',
+  PostSlalomWinComment: 'api/tipsy/slalom/win/comment',
   OnAppInstall: 'internal/on/app/install',
   OnMenuNewPost: 'internal/on/menu/new-post',
   OnAccountDelete: 'internal/on/account/delete',
@@ -248,6 +275,8 @@ export const EndpointMethod = {
   [Endpoint.Follow]: 'POST',
   [Endpoint.SubmitWin]: 'POST',
   [Endpoint.PostWinComment]: 'POST',
+  [Endpoint.SubmitSlalomWin]: 'POST',
+  [Endpoint.PostSlalomWinComment]: 'POST',
   [Endpoint.OnAppInstall]: 'POST',
   [Endpoint.OnMenuNewPost]: 'POST',
   [Endpoint.OnAccountDelete]: 'POST',
