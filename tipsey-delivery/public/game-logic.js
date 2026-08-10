@@ -16284,13 +16284,17 @@ function tpSlalomOn(){
   }
 
   function slBuildCourse(){
+    /* Clear any gates/chute cones left over from a previous build, on EVERY
+       build -- not just a failed one. slResetRun calls slBuild() on every
+       retry and every fresh start of the SAME seeded course (seedStr is
+       scene.route.dateStr), so plantAt/plantChute plant at the identical
+       s/row coordinates each time. Without an unconditional clear here, a
+       second build stacks a new cone directly on top of the old one instead
+       of replacing it -- so one hit knocks down a whole coincident stack
+       instead of a single cone. */
+    scene.route.hazards = scene.route.hazards.filter(h => !h.slRole);
     const ch = slFindChain(scene.route);
     if (!ch){
-      /* Clear any gates left over from a previous build. Stale cones on a route
-         with no course is the most misleading thing this lab can put on screen:
-         it looks like a course that stopped working rather than one that was
-         never placed. */
-      scene.route.hazards = scene.route.hazards.filter(h => !h.slRole);
       run.cones = []; run.gates = [];
       run.fail = 'no legs found on this route';
       return null;
