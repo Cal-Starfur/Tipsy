@@ -16468,8 +16468,16 @@ function tpSlalomOn(){
     trafficWaits: 1,   // cars queue at coned junctions instead of driving through
     kickers: 1,   // kicker ramps per leg (0 = none)
     kLift: 26,    // ramp lip height
-    kRunup: 2.5,  // clear road before the lip, in T2. Was a hardcoded 5.5, and
-                  // 5.5 tiles is ~500 units of nothing in front of every ramp.
+    kRunup: 5.5,  // clear road before the lip, in T2. Reverted from 2.5
+                  // (2026-08-10, Sir's on-device call) -- the 5.5 sizing was
+                  // reasoned as "ample to be back at the cap after the
+                  // previous gate," which holds for every kicker except the
+                  // FIRST: leg 0's jump sits right after spawn, where there
+                  // is no previous gate, only the 3-2-1-GO standing start.
+                  // At 2.5 that leg-0 jump had almost no room to build speed
+                  // from a dead stop before the lip and played dead short.
+                  // 500 units of clear road in front of every ramp is the
+                  // tradeoff for that one jump actually working.
     kReach: 5.0,  // how far the jump carries at full speed, in T2
     kPeak:  40,   // apex height above the lip, in world units
     rowA: 0,      // low edge of the sidewalk band the course uses
