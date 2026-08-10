@@ -3649,11 +3649,52 @@ function buildSidewalkGeometry(grid){
         }
     }
   }
+  /* SPATIAL INDEX FOR THE CORNER-CELL SCAN (2026-08-10, perf fix, found
+     while chasing "why isn't Tipsey spinning" -- the honest answer was
+     "the calculation is a multi-second synchronous block, so nothing
+     can paint a spinner during it regardless"). The loop below used to
+     call classifyAt(grid.edges, x, y) for every sample point, and
+     classifyAt itself scans EVERY edge to answer one point -- correct
+     on a single-hood grid (a few hundred edges) but effectively
+     O(edges^2) once the 12-district merge pushed the map to ~1650
+     edges: measured 3.3s of buildGrid's 3.34s total, entirely inside
+     this one function. A sample point near edge e can only ever be
+     classified by an edge sharing a node with e (or one node further
+     out, for the far end of e) -- OVERSHOOT+SIDEWALK_W is 736 units,
+     well inside one BLOCK (3128 units) either direction -- so
+     nodeEdges buckets every edge by the nodes it touches ONCE
+     (O(edges)), and nearbyEdgesForEdge hands back only the small,
+     bounded set of edges actually near e's own two corners instead of
+     the whole city. Verified byte-identical cornerCells/runs output
+     against the original algorithm before this replaced it; 3.3s ->
+     0.45s on the real merged-map grid size. */
+  const nodeEdges = new Map();
+  const addNodeEdge = (node, e) => {
+    const k = node.i + "," + node.j;
+    let arr = nodeEdges.get(k);
+    if(!arr){ arr = []; nodeEdges.set(k, arr); }
+    arr.push(e);
+  };
+  for(const e of grid.edges){ addNodeEdge(e.a, e); addNodeEdge(e.b, e); }
+  const nearbyEdgesForEdge = (e) => {
+    const seen0 = new Set(), out = [];
+    const scan = (node) => {
+      for(let di = -1; di <= 1; di++) for(let dj = -1; dj <= 1; dj++){
+        const arr = nodeEdges.get((node.i+di) + "," + (node.j+dj));
+        if(!arr) continue;
+        for(const ee of arr) if(!seen0.has(ee)){ seen0.add(ee); out.push(ee); }
+      }
+    };
+    scan(e.a); scan(e.b);
+    return out;
+  };
+
   const cornerCells = [], seen = new Set();
   const perpSteps = Math.round(SIDEWALK_W / CELL);
   const alongSteps = Math.round((2*OVERSHOOT) / CELL);
   for(const e of grid.edges){
     const dv = DIRV[e.f], rv = DIRV[(e.f+1)%4];
+    const localEdges = nearbyEdgesForEdge(e);
     for(const end of [0, 1]){
       for(let ai = 0; ai <= alongSteps; ai++){
         const along = end === 0 ? (-OVERSHOOT + ai*CELL) : (BLOCK - OVERSHOOT + ai*CELL);
@@ -3665,7 +3706,7 @@ function buildSidewalkGeometry(grid){
           const key = Math.round(x/CELL) + "," + Math.round(y/CELL);
           if(seen.has(key)) continue;
           seen.add(key);
-          if(classifyAt(grid.edges, x, y) === "sidewalk"){
+          if(classifyAt(localEdges, x, y) === "sidewalk"){
             cornerCells.push({ x, y, parity: (Math.round(x/CELL) + Math.round(y/CELL)) % 2 });
           }
         }
@@ -19020,32 +19061,47 @@ function slalomMapSelect(){
      pattern exactly. tpSlalomStart() (below) still reloads it again on
      GO -- harmless (same date, idempotent) -- kept as a safety net for
      the mission-list "Play mission" button, which calls tpSlalomStart
-     directly and never goes through this function at all. */
-  s.loadRoute(SL_SEED_DATE);
-  /* HEADLINE IS THE MISSION NAME (2026-08-10, Sir's call, reverted the
-     same day it was changed): this originally led with the mission's
-     own name and got changed to lead with a hood/street instead, to
-     match the daily route's "place leads" convention -- backwards. Side
-     missions lead with their own name; the daily route is the one case
-     that's place-first, since a delivery doesn't have a name of its
-     own the way a mission does. Hydrant Challenge's own card follows
-     the same reverted convention now (see loadChallenge). */
-  document.getElementById("orderCard").innerHTML =
-    `<div class="tag" style="margin-bottom:4px">SIDE MISSION</div>`
-    + `<b>Cone Slalom Challenge</b> — weave the gates at double speed, then stop on the mat`;
-  document.getElementById("sheetStatus").textContent = `60s par · earns Slalom Master`;
-  show("titleOverlay");
-  /* TIGHT ZOOM + PULSE, SAME AS A SEARCH JUMP (2026-08-10): the daily
-     route's own pickupS/doorS span (what loadRoute above just framed
-     the map on) is a normal delivery-length stretch, not the actual
-     gate-to-finish span of the slalom course itself -- that's still
-     tpSlalomPin()'s job, same as it already is for the passive map pin
-     and for tpMapJumpTo's own search-result handling. Reusing
-     tpMapJumpTo here rather than writing a second positioning path
-     means this gets the exact same tight zoom-to-one-spot and pulse
-     ring every search jump already gets, not a slightly different
-     one. */
-  tpMapJumpTo({ x: tpSlalomPin().x, y: tpSlalomPin().y, atlas: false });
+     directly and never goes through this function at all. Wrapped in
+     tpWithRouteLoading now too, same as hjStart/tpBackToDailyRoute --
+     this is exactly the kind of route swap that got slow on the merged
+     map. */
+  tpWithRouteLoading("Plotting route", () => {
+    s.loadRoute(SL_SEED_DATE);
+    /* HEADLINE IS THE MISSION NAME (2026-08-10, Sir's call, reverted the
+       same day it was changed): this originally led with the mission's
+       own name and got changed to lead with a hood/street instead, to
+       match the daily route's "place leads" convention -- backwards. Side
+       missions lead with their own name; the daily route is the one case
+       that's place-first, since a delivery doesn't have a name of its
+       own the way a mission does. Hydrant Challenge's own card follows
+       the same reverted convention (see loadChallenge).
+
+       MUST run AFTER loadRoute above, not before (2026-08-10, found
+       while wiring the spinner): loadRoute sets orderCard's HTML to its
+       own generic hood/pickup/address text as part of its own normal
+       execution -- setting this custom text BEFORE loadRoute meant
+       loadRoute silently overwrote it a moment later, and the card
+       quietly went back to reading like a delivery instead of a
+       mission. Same reason hydrant's own custom text already lives
+       inside loadChallenge, after its own loadRoute call, not beside
+       this function's setup code. */
+    document.getElementById("orderCard").innerHTML =
+      `<div class="tag" style="margin-bottom:4px">SIDE MISSION</div>`
+      + `<b>Cone Slalom Challenge</b> — weave the gates at double speed, then stop on the mat`;
+    document.getElementById("sheetStatus").textContent = `60s par · earns Slalom Master`;
+    show("titleOverlay");
+    /* TIGHT ZOOM + PULSE, SAME AS A SEARCH JUMP (2026-08-10): the daily
+       route's own pickupS/doorS span (what loadRoute above just framed
+       the map on) is a normal delivery-length stretch, not the actual
+       gate-to-finish span of the slalom course itself -- that's still
+       tpSlalomPin()'s job, same as it already is for the passive map pin
+       and for tpMapJumpTo's own search-result handling. Reusing
+       tpMapJumpTo here rather than writing a second positioning path
+       means this gets the exact same tight zoom-to-one-spot and pulse
+       ring every search jump already gets, not a slightly different
+       one. */
+    tpMapJumpTo({ x: tpSlalomPin().x, y: tpSlalomPin().y, atlas: false });
+  });
 }
 function tpSlalomStart(){
   tpCloseDetail(); tpCloseMissions(); tpCloseProfile();
@@ -19170,8 +19226,10 @@ function hjStart(){
      below describes. */
   { const sA = scn(); if(sA && sA.attractStop) sA.attractStop(); }
   hide("failOverlay"); hide("winOverlay");
-  scn().loadChallenge();                 // builds the Flats route + course
-  show("titleOverlay");                  // the map, with GO
+  tpWithRouteLoading("Plotting route", () => {
+    scn().loadChallenge();                 // builds the Flats route + course
+    show("titleOverlay");                  // the map, with GO
+  });
 }
 /* GO on the challenge map: now the delivery chrome goes away and the
    tap meter comes up. */
@@ -19428,7 +19486,15 @@ function bootLoaderDone(){
   const el = document.getElementById("bootLoader");
   if(!el) return;
   el.classList.add("done");
-  setTimeout(() => el.remove(), 400);
+  /* NOT el.remove() anymore (2026-08-10): this used to destroy the
+     element 400ms after the first dismissal, which was fine when
+     nothing else ever needed a "Tipsey is thinking" indicator again.
+     Now something does -- see tpShowRouteLoading/tpHideRouteLoading
+     below -- and they reuse this exact element rather than duplicating
+     the robot SVG + spin animation. .done already drives opacity to 0
+     and disables pointer-events, so leaving it in the DOM costs
+     nothing visible; it just means there's still something here to
+     show again later. */
 }
 /* Safety net. If the route never draws — a throw inside loadRoute, a
    Redis timeout on Devvit, a canvas that never gets a size — the player
@@ -19437,6 +19503,41 @@ function bootLoaderDone(){
    8s is well past any normal boot; if it ever trips, something else is
    already wrong and the spinner was hiding it. */
 setTimeout(bootLoaderDone, 8000);
+/* REUSABLE ROUTE-LOADING SPINNER (2026-08-10): same #bootLoader element
+   the initial boot uses, same robot SVG, same CSS spin -- just without
+   the one-time blDismissed/attract-start machinery, which is boot-only
+   and must never re-fire on a later mission preview or map tap. Only
+   transform/opacity are animated (see #blRobot's CSS), which a modern
+   browser can keep compositing smoothly even while the main thread is
+   busy -- exactly the case here, since generateRoute is a genuinely
+   synchronous, blocking call and nothing JS-driven could animate DURING
+   it regardless. The double-rAF in tpWithRouteLoading below exists
+   because "call show(), then immediately run the blocking work" never
+   gives the browser a frame to actually PAINT the now-visible spinner
+   first -- one rAF fires before the next paint, a second one guarantees
+   that paint has actually happened before the heavy call runs. */
+function tpShowRouteLoading(text){
+  const el = document.getElementById("bootLoader");
+  if(!el) return;
+  const t = document.getElementById("blText");
+  if(t && text) t.textContent = text;
+  el.classList.remove("done");
+}
+function tpHideRouteLoading(){
+  const el = document.getElementById("bootLoader");
+  if(el) el.classList.add("done");
+}
+/* Shows the spinner, waits for it to actually paint, runs `work`
+   (whatever synchronous, possibly-slow route work needs to happen),
+   then hides it again. Every call site that swaps the active route
+   outside the very first boot should go through this rather than
+   calling loadRoute/loadChallenge directly. */
+function tpWithRouteLoading(text, work){
+  tpShowRouteLoading(text);
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    try { work(); } finally { tpHideRouteLoading(); }
+  }));
+}
 
 /* ---------- EXPLORABLE MAP: names, landmarks, free camera ---------- */
 /* one source for the map's park naming — the draw pass and the search
@@ -19553,10 +19654,12 @@ function tpDailyDeliveryPin(){
    code rather than duplicating it, same reasoning hjQuit already
    follows for its own "hand the daily route back" step. */
 function tpBackToDailyRoute(){
-  const s = scn();
-  s.mode = "delivery";
-  s.loadRoute(clientTodayUTC());
-  show("titleOverlay");
+  tpWithRouteLoading("Plotting route", () => {
+    const s = scn();
+    s.mode = "delivery";
+    s.loadRoute(clientTodayUTC());
+    show("titleOverlay");
+  });
 }
 
 function tpMapIndex(route){
