@@ -16834,24 +16834,36 @@ function tpSlalomOn(){
     };
     const worldOf = (s, off) => segsWorldOf(scene.route.segs, s, off);
     const before = scene.route.hazards.length + (scene.route.props || []).length;
-    /* the lap is exempt from both sweeps: everything past loop.sCut is
-       the go-around's dressing — the same hazards generateRoute placed
-       there, William included — and clearing the penalty lap would turn
-       the second chance into a victory parade. -100 matches the
-       boundary generateRoute's own lap-clear uses. */
+    /* the lap is exempt from the S-RANGE check, not from the whole sweep.
+       Everything past loop.sCut is the go-around's OWN dressing — the same
+       hazards generateRoute placed there, William included — and clearing
+       the penalty lap would turn the second chance into a victory parade.
+       -100 matches the boundary generateRoute's own lap-clear uses.
+
+       But a lap physically RETRACES blocks the course already used — that's
+       what a loop is — so a lap item's world position can land right back
+       on top of the corridor even though its own `s` reads nowhere near it
+       (reported on-device, 2026-08-10: a scooter sitting at the delivery
+       door with s in the 30k's, door itself at s~19.6k -- inRange's s-based
+       math never had a chance of catching that, lapKeep was never supposed
+       to be asked). So lap items skip inRange (which is genuinely wrong for
+       a wrapped s) but still have to clear nearCorridor, the same real-world
+       test everything else does. A lap item that's actually off on its own
+       untouched block still survives; one standing on the course's own
+       street does not, regardless of which lap gave it that `s`. */
     const lapKeep = s => scene.route.loop && s > scene.route.loop.sCut - 100;
     scene.route.hazards = scene.route.hazards.filter(h => {
       if (h.slRole || STRUCTURE[h.type] || h.type === 'william') return true;
       if (h.s === undefined) return true;
-      if (lapKeep(h.s)) return true;
-      if (inRange(h.s)) return false;
+      const lap = lapKeep(h.s);
+      if (!lap && inRange(h.s)) return false;
       const wp = worldOf(h.s, laneOffset(h.row ?? 1));
       return !nearCorridor(wp.x, wp.y);
     });
     scene.route.props = (scene.route.props || []).filter(pr => {
       if (pr.s === undefined) return true;
-      if (lapKeep(pr.s)) return true;
-      if (inRange(pr.s)) return false;
+      const lap = lapKeep(pr.s);
+      if (!lap && inRange(pr.s)) return false;
       const wp = worldOf(pr.s, pr.roadOffset ?? 0);
       return !nearCorridor(wp.x, wp.y);
     });
