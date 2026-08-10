@@ -4182,7 +4182,19 @@ function generateRoute(dateStr, opts){
      swallow pass being active rather than being carved out as a special
      case, since every caller sharing one real grid is the whole point
      of the permanent map. */
-  const grid = buildGrid(cols, rows, CITY_SEED, { classic: false });
+  /* HJ DRIFT REDUX (reported 2026-08-10, same day as the revert above):
+     the revert fixed park-merging for the daily route and Cone Slalom,
+     but it hardcoded classic:false for EVERY caller instead of reading
+     opts.classic -- silently dropping the Hydrant Challenge's own
+     classic:true request (still passed by loadRoute, see HJ_SEED_DATE's
+     own note above). The course's curb ramps and hazard rows are placed
+     against the classic lattice they were tuned on; building the grid
+     itself on the swallow-pass lattice instead reintroduced exactly the
+     misalignment (curb ramps off by a row) and prop-density drift
+     (extra people) HJ_SEED_DATE existed to prevent. Reading opts.classic
+     restores the original per-caller intent: HJ opts in, the daily
+     route and Cone Slalom (which never pass classic) are untouched. */
+  const grid = buildGrid(cols, rows, CITY_SEED, { classic: !!(opts && opts.classic) });
   /* good-heading guarantee (2026-07-27, "that is unacceptable"): the
      door needs an f===0/f===3 straight leg past the 1-mile mark with
      room for findGoodS's standard 90-unit inset. buildWalk's turnSign
