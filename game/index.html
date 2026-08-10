@@ -17856,7 +17856,10 @@ function tpSlalomOn(){
        </div>`;
     document.body.appendChild(card);
     document.getElementById('slAgain').onclick = () => { card.remove(); slResetRun(); };
-    document.getElementById('slClose').onclick = () => card.remove();
+    /* slClose is the mission's sole exit now that live Quit is gone --
+       see tpSlalomQuit's own comment for why a bare card.remove() here
+       would have stranded the player permanently. */
+    document.getElementById('slClose').onclick = () => tpSlalomQuit();
 
     /* WIN-side bonus row: COMMENT (+$5/day, its own pool -- see
        db.ts dbClaimCommentBonus's source:'slalom') and FOLLOW
@@ -17925,7 +17928,12 @@ function tpSlalomOn(){
       close.textContent = saved.close; close.style.display = '';
       err.remove();
       again.onclick = () => { card.remove(); slResetRun(); };
-      close.onclick = () => card.remove();
+      /* Same fix as the initial wiring below -- this restore() path is
+         the ONE place that had its own hardcoded copy of the old bare
+         card.remove(), which would have silently un-fixed slClose the
+         moment a player declined a follow offer (MAYBE LATER). Caught
+         on review, not on first pass -- worth the second look. */
+      close.onclick = () => tpSlalomQuit();
     };
     offer();
     close.onclick = () => {
@@ -18656,18 +18664,21 @@ function tpSlalomStart(){
    (#globalSearch top-left, #globalAvatar + #zoomBtn top-right) and
    clear of the bottom sheet / map / order card, which hjChrome(true)
    already hides for the whole mode. */
+/* No quit control during an active run at all now (2026-08-10, Sir's
+   call, superseding the floating Quit pill from the same day) -- finish
+   or crash is the only way out of a run in progress. tpSlalomUI is down
+   to just the 3-2-1-GO countdown; nothing else lives on screen during
+   play. tpSlalomQuit (the full restore: stop the tick, drop the card,
+   s._slRestore(), hjChrome(false), hand the daily route back, show the
+   title) didn't go away with the button -- it's still the ONLY place
+   that knows how to fully exit the mission, so slClose below now calls
+   it directly instead of the old bare card.remove(). Skipping that
+   rewire would have turned the very first "close" press into a
+   permanent trap: nothing else ever restored hjChrome or the daily
+   route, so the player would be stuck in slalom chrome with no way
+   back into the game at all. */
 function tpSlalomUI(s){
-  document.getElementById("tpSlQuitBtn")?.remove();
   document.getElementById("tpSlCount")?.remove();
-  const quitBtn = document.createElement("button");
-  quitBtn.id = "tpSlQuitBtn";
-  quitBtn.textContent = "Quit";
-  quitBtn.style.cssText = "position:fixed;right:14px;" +
-    "bottom:calc(14px + env(safe-area-inset-bottom));z-index:9990;" +
-    "background:rgba(12,13,16,0.82);color:#ddd;border:1px solid #666;" +
-    "font:600 13px ui-monospace,Menlo,monospace;padding:8px 16px;border-radius:20px;";
-  quitBtn.onclick = tpSlalomQuit;
-  document.body.appendChild(quitBtn);
   const count = document.createElement("div");
   count.id = "tpSlCount";
   count.style.cssText = "position:fixed;left:0;right:0;top:38%;z-index:9991;text-align:center;pointer-events:none;font:800 84px/1 ui-monospace,Menlo,monospace;color:#ff7a1a;text-shadow:0 3px 18px rgba(0,0,0,0.75);display:none";
@@ -18683,10 +18694,13 @@ function tpSlalomUI(s){
     if(goAt && performance.now() - goAt > 700) count.style.display = "none";
   }, 100);
 }
+/* The full mission exit -- was Quit's onclick, now slClose's (see the
+   slClose wiring in slShowCard). Kept the name: it's still "quit the
+   slalom mission and hand the game back," just triggered from the
+   result card instead of a live button. */
 function tpSlalomQuit(){
   const s = scn();
   clearInterval(tpSlTick);
-  document.getElementById("tpSlQuitBtn")?.remove();
   document.getElementById("tpSlCount")?.remove();
   document.getElementById("slCard")?.remove();
   if(s && s._slRestore) s._slRestore();
