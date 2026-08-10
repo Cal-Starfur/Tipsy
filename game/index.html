@@ -19970,7 +19970,18 @@ function drawRouteMap(route){
      lands on empty pavement. */
   if(WORLDGEN_COAST){
     const gEnd = { x:(bgRoute.grid.cols-1)*BLOCK, y:(bgRoute.grid.rows-1)*BLOCK };
-    const EXT = BLOCK*WG_COAST.EXT, SANDW = BLOCK*WG_COAST.SANDW, BOARD = BLOCK*WG_COAST.BOARD, FAR = BLOCK*40;
+    /* FAR trimmed from 40*BLOCK (2026-08-10, Sir's call): that value
+       was sized against the old single-hood map, where a city maybe
+       12-17 blocks per side needed the ocean/mountains to reach FAR
+       past the edge so zooming out never revealed a hard stop. On the
+       12-district merged map (36x27 blocks) the same 40*BLOCK reach is
+       now comparable to the city's OWN size, so any zoomed-out view of
+       the whole city reads as mostly ocean and mountain with a small
+       town pasted in the middle. 10*BLOCK still reads as "the ocean
+       goes on past what you can see" at any zoom level someone would
+       actually use to look at one neighborhood, without swallowing the
+       whole-city view the way 40 did. */
+    const EXT = BLOCK*WG_COAST.EXT, SANDW = BLOCK*WG_COAST.SANDW, BOARD = BLOCK*WG_COAST.BOARD, FAR = BLOCK*10;
     const cX0 = -EXT, cX1 = gEnd.x + EXT, cY0 = -EXT, cY1 = gEnd.y + EXT;
     const cband = (x0,y0,x1,y1,fill) => {
       const a = toScreen({x:x0,y:y0}), b = toScreen({x:x1,y:y1});
