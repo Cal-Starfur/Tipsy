@@ -19990,6 +19990,34 @@ function drawRouteMap(route){
       lotsAlong(mhEx, mhEy, mhFx, mhFy, mhCx, mhCy, 0xe57a7e6,
                 cX1 + BLOCK*0.08, cY0 + (cY1 - cY0)*0.45, cX1 + FOOTW + BLOCK*0.75, cY0 + (cY1 - cY0)*0.92);
     }
+    /* MOUNTAIN + BEACH LABELS (2026-08-10, Sir's call): worldgenLandmarks
+       already carries these four names and real positions — Sunset
+       Shore, Driftwood Beach, Sierra Palma, Mirador Hills — but the only
+       thing that ever asked for them was tpMapIndex, for search. The
+       terrain bands above have been drawing the actual mountains and
+       beaches in colour this whole time with nothing on them saying
+       what they are. Drawn last, on top of every band, same inView
+       culling and toScreen everything else on this map already uses. */
+    for(const lm of worldgenLandmarks(bgRoute.grid)){
+      if(lm.kind !== "beach" && lm.kind !== "range") continue;
+      if(!inView(lm.x, lm.y)) continue;
+      const lp = toScreen(lm);
+      ctx.save();
+      ctx.font = "700 13px sans-serif";
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillStyle = lm.kind === "range" ? "#5c5445" : "#7a6a3f";
+      /* range labels run along the ridge (vertical text for the east
+         range, horizontal for the north one) — beach labels stay
+         horizontal, they run along a shoreline edge either way. */
+      if(lm.kind === "range" && lm.name === "Mirador Hills"){
+        ctx.save(); ctx.translate(lp.x, lp.y); ctx.rotate(-Math.PI/2);
+        ctx.fillText(lm.name.toUpperCase(), 0, 0);
+        ctx.restore();
+      } else {
+        ctx.fillText(lm.name.toUpperCase(), lp.x, lp.y);
+      }
+      ctx.restore();
+    }
   }
 
   /* real blocks from the same grid the game itself renders — housing,
