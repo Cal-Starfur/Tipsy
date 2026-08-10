@@ -18220,11 +18220,32 @@ function tpSlalomOn(){
 
 /* ---------- CONE SLALOM: mission chrome ---------- */
 let tpSlTick = 0;
+/* MAP-PIN ENTRY (2026-08-10, Sir's call): tpSlalomStart (below) goes
+   straight into the run -- fine for the mission-list "Play mission"
+   button, wrong for a map pin, which should behave like tapping a
+   delivery address does: show it, let GO start it. This is that
+   lighter first half. No route reload needed -- the pin's own position
+   (tpSlalomPin) already comes from SL_SEED_DATE independently, and
+   since the merge that's the SAME physical city s.route is already
+   showing, so there's nothing to swap out from under the map. */
+function slalomMapSelect(){
+  tpCloseDetail(); tpCloseMissions(); tpCloseProfile();
+  { const sA = scn(); if(sA && sA.attractStop) sA.attractStop(); }
+  hide("failOverlay"); hide("winOverlay");
+  const s = scn();
+  s.mode = "slalom-pending";
+  document.getElementById("orderCard").innerHTML =
+    `<div class="tag" style="margin-bottom:4px">SIDE MISSION</div>`
+    + `<b>Cone Slalom Challenge</b> — weave the gates at double speed, then stop on the mat`;
+  document.getElementById("sheetStatus").textContent = `60s par · earns Slalom Master`;
+  show("titleOverlay");
+}
 function tpSlalomStart(){
   tpCloseDetail(); tpCloseMissions(); tpCloseProfile();
   { const sA = scn(); if(sA && sA.attractStop) sA.attractStop(); }
   hide("failOverlay"); hide("winOverlay"); hide("titleOverlay");
   const s = scn();
+  s.mode = "delivery";                       // clear slalom-pending if GO got here that way
   s.loadRoute(SL_SEED_DATE);                 // frozen course, not the rolling daily -- see SL_SEED_DATE
   hjChrome(true);                            // same quiet screen the hydrant jump earns
   tpSlalomOn();                              // attach the engine to the live scene
@@ -18647,6 +18668,10 @@ function worldgenLandmarks(grid){
    auto framing drawRouteMap actually used — one source, no re-derived
    framing math). */
 let tpMapView = null, tpMapMark = null, tpMapLast = null;
+/* screen hitboxes for the mission pins drawn this frame -- populated in
+   drawRouteMap, read by the tap handler in tpMapExplore. Rebuilt every
+   draw, so a stale entry can never survive a pan/zoom that moved it. */
+let tpMapMissionPins = [];
 
 /* THE ATLAS: a fixed, persistent Costa Palma the map explorer draws
    whenever it's showing a mission rather than today's own route.
@@ -18797,14 +18822,24 @@ function tpMapExplore(){
     clampView(); redraw();
   };
   const ptrs = new Map(); let pinch0 = null;
+  /* tap vs. drag: a pin tap has to not be a pan that happened to start
+     near one. downPos is the pointerdown position; dragged flips true
+     the moment a single-pointer move crosses a small threshold, same
+     idea a native tap-vs-scroll gesture uses. Only ever meaningful for
+     the FIRST pointer of an interaction -- a pinch (second pointer
+     joining) can't become a tap regardless of how little either finger
+     moved, so pinch0 becoming non-null also cancels it. */
+  let downPos = null, dragged = false;
   canvas.style.touchAction = "none";
   canvas.addEventListener("pointerdown", e => {
     ptrs.set(e.pointerId, { x: e.offsetX, y: e.offsetY });
+    if(ptrs.size === 1){ downPos = { x: e.offsetX, y: e.offsetY }; dragged = false; }
     if(ptrs.size === 2){
       const [a2, b2] = [...ptrs.values()];
       seed();
       pinch0 = tpMapView && { d: Math.hypot(a2.x-b2.x, a2.y-b2.y), scale: tpMapView.scale,
                               mx:(a2.x+b2.x)/2, my:(a2.y+b2.y)/2 };
+      dragged = true;   // two fingers down is never a tap
     }
   });
   canvas.addEventListener("pointermove", e => {
@@ -18813,6 +18848,7 @@ function tpMapExplore(){
     ptrs.set(e.pointerId, { x: e.offsetX, y: e.offsetY });
     if(ptrs.size === 1){
       seed(); if(!tpMapView) return;
+      if(downPos && Math.hypot(e.offsetX-downPos.x, e.offsetY-downPos.y) > 6) dragged = true;
       tpMapView.cx -= (e.offsetX - prev.x)/tpMapView.scale;
       tpMapView.cy -= (e.offsetY - prev.y)/tpMapView.scale;
       clampView(); redraw();
@@ -18823,9 +18859,27 @@ function tpMapExplore(){
       zoomAt(target/tpMapView.scale, pinch0.mx, pinch0.my);
     }
   });
-  const drop = e => { ptrs.delete(e.pointerId); if(ptrs.size < 2) pinch0 = null; };
-  canvas.addEventListener("pointerup", drop);
-  canvas.addEventListener("pointercancel", drop);
+  /* MISSION PIN TAP (2026-08-10, Sir's call): a clean tap (not a pan,
+     not a pinch) within a pin's hitbox selects that mission -- same
+     entry point as tapping it any other way. Hydrant already had a
+     working "show it on the map with GO" entry (hjStart), so the
+     hydrant pin just calls that directly. Slalom never had one --
+     tpSlalomStart() goes straight into the run -- so slalomMapSelect()
+     below is the new lighter equivalent: stage the mission, show the
+     map, let GO do what tpSlalomStart already does. */
+  const tapUp = e => {
+    if(ptrs.size === 1 && !dragged && downPos){
+      const hit = tpMapMissionPins.find(pin =>
+        Math.hypot(e.offsetX-pin.x, e.offsetY-pin.y) <= pin.r);
+      if(hit){
+        if(hit.id === "jump-hydrant") hjStart();
+        else if(hit.id === "cone-slalom") slalomMapSelect();
+      }
+    }
+    ptrs.delete(e.pointerId); if(ptrs.size < 2) pinch0 = null;
+  };
+  canvas.addEventListener("pointerup", tapUp);
+  canvas.addEventListener("pointercancel", e => { ptrs.delete(e.pointerId); if(ptrs.size < 2) pinch0 = null; });
   canvas.addEventListener("wheel", e => {
     e.preventDefault();
     zoomAt(e.deltaY > 0 ? 1/1.18 : 1.18, e.offsetX, e.offsetY);
@@ -19248,6 +19302,35 @@ function drawRouteMap(route){
     const pname = mapParkName(blk.cx, blk.cy, bgRoute);
     ctx.fillStyle = "#2e3138"; ctx.font = "10px sans-serif";
     ctx.fillText(pname, p.x, p.y+8);
+  }
+
+  /* MISSION PINS — passive, always on the map, no search required
+     (2026-08-10, Sir's call). Same treatment as the park icons just
+     above: one icon + label per playable mission, drawn every frame
+     the pin is in view, at its own real position (tpHydrantPin() /
+     tpSlalomPin() -- unchanged, still the single source of truth for
+     where a mission actually is, now that the map they're drawn on and
+     the map missions live on are the same permanent city). Screen
+     hitboxes are recorded in tpMapMissionPins as we go, so the tap
+     handler in tpMapExplore can hit-test against exactly what got
+     drawn this frame rather than recomputing positions itself. */
+  tpMapMissionPins.length = 0;
+  const MISSION_ICON = { hydrant: "🧯", cone: "🚧" };
+  for(const m of TP_SIDE_MISSIONS){
+    if(m.status !== "playable") continue;
+    const pin = m.id === "jump-hydrant" ? tpHydrantPin()
+              : m.id === "cone-slalom"  ? tpSlalomPin()
+              : null;
+    if(!pin || !inView(pin.x, pin.y)) continue;
+    const p = toScreen(pin);
+    ctx.fillStyle = "#c2452e";
+    ctx.beginPath(); ctx.arc(p.x, p.y-8, 9, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle = "#fff"; ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.font = "11px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText(MISSION_ICON[m.icon] || "★", p.x, p.y-8);
+    ctx.fillStyle = "#2e3138"; ctx.font = "700 10px sans-serif";
+    ctx.fillText(m.name, p.x, p.y+9);
+    tpMapMissionPins.push({ id: m.id, x: p.x, y: p.y-8, r: 16 });
   }
 
   if(tpMapMark){
@@ -20412,6 +20495,7 @@ document.getElementById("startBtn").addEventListener("click", () => {
   hide("titleOverlay");
   const s = scn();
   if(s.mode === "challenge"){ hjBegin(); return; }
+  if(s.mode === "slalom-pending"){ tpSlalomStart(); return; }
   /* Leave attract BEFORE anything else -- attractStop clears the pending
      recycle timer, and a recycle that fires after GO reloads the route
      out from under a live run. */
