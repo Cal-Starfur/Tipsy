@@ -17710,6 +17710,22 @@ function tpSlalomOn(){
   function slJudge(){
     const c = run.course; if (!c) return;
     const s = scene.botS;
+    /* WON is caught here, before the state-gate below, not after it.
+       state flips to 'won' inside the SAME frame's main update, before
+       postupdate fires this function -- so by the time slJudge runs,
+       state is already 'won', not 'play', and the old gate below ("if
+       state !== play, bail") returned before ever reaching the win-check
+       it was supposed to lead into. The symptom was silent: the robot
+       would stop clean on the door, state would flip to 'won', and the
+       slalom just never ended (reported on-device, 2026-08-10). See
+       "THE FINISH IS A DELIVERY" further down for why this reuses the
+       game's own win check instead of a tape line. */
+    if (!run.done && scene.state === 'won'){
+      run.done = true;
+      slShowCard();
+      prevS = s;
+      return;
+    }
     if (scene.state !== 'play'){ prevS = s; return; }
 
     /* clock is owned by the countdown now, not by crossing an invisible line */
@@ -17766,16 +17782,13 @@ function tpSlalomOn(){
     /* ============ THE FINISH IS A DELIVERY ============
        No tape. The run ends the way every route ends: stopped on the red
        carpet, in the game's own win window, tested by the game's own win
-       check — the lab just watches state flip to 'won'. Miss the stop and
-       the game's own loop machinery takes over: loop.missed retargets the
-       door one lap ahead and the street carries him around the block,
-       William and all. The lab's only additions are the words and the
-       limit: ONE lap. The retargeted door is the last chance — sail past
-       it by the width of the win window and the run fails right there. */
-    if (!run.done && scene.state === 'won'){
-      run.done = true;
-      slShowCard();
-    }
+       check — caught at the TOP of this function now, before the
+       state-gate (see that comment). Miss the stop and the game's own
+       loop machinery takes over: loop.missed retargets the door one lap
+       ahead and the street carries him around the block, William and
+       all. The lab's only additions are the words and the limit: ONE
+       lap. The retargeted door is the last chance — sail past it by the
+       width of the win window and the run fails right there. */
     const lp2 = scene.route.loop;
     if (!run.done && lp2){
       if (lp2.missed && !run.missedOnce){
