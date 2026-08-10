@@ -25,6 +25,8 @@ import {
   type GetHistoryRsp,
   type PostFailCommentReq,
   type PostFailCommentRsp,
+  type PostWinCommentReq,
+  type PostWinCommentRsp,
   type PurchaseSkinReq,
   type PurchaseSkinRsp,
   type SubmitDailyBestReq,
@@ -33,12 +35,15 @@ import {
   type SubmitFailRsp,
   type SubmitReplayReq,
   type SubmitReplayRsp,
+  type SubmitWinReq,
+  type SubmitWinRsp,
   type TpProfileRsp,
 } from '../shared/api.ts'
 import {
   dbClaimFollowBonus,
   dbClaimSlalomTip,
   dbClaimTrophyReward,
+  dbClaimWinCommentBonus,
   dbEquipSkin,
   dbGetAllTimeBest,
   dbGetAllTimeTop,
@@ -82,6 +87,8 @@ type AnyRsp =
   | SubmitFailRsp
   | PostFailCommentRsp
   | FollowRsp
+  | SubmitWinRsp
+  | PostWinCommentRsp
   | UiResponse
   | TriggerResponse
   | ErrorRsp
@@ -152,6 +159,12 @@ async function route(
         break
       case Endpoint.Follow:
         rsp = await routeFollow()
+        break
+      case Endpoint.SubmitWin:
+        rsp = await routeSubmitWin(reqMsg)
+        break
+      case Endpoint.PostWinComment:
+        rsp = await routePostWinComment(reqMsg)
         break
       case Endpoint.OnMenuNewPost:
         rsp = await routeMenuNewPost()
@@ -518,6 +531,71 @@ async function routePostFailComment(
     .slice(0, 480)
   if (!text) return {posted: false}
   return {posted: await postScoreComment(text)}
+}
+
+/** Composes the win-comment DRAFT and posts NOTHING -- same
+ *  no-automated-actions rule as routeSubmitFail. context.postId absent
+ *  (outside a post context) or no resolvable username are both ordinary
+ *  conditions, not errors -- just an empty draft, which hides the
+ *  COMMENT button client-side. */
+async function routeSubmitWin(reqMsg: IncomingMessage): Promise<SubmitWinRsp> {
+  const req = await readJson<SubmitWinReq>(reqMsg)
+  const postId = context.postId
+  if (!postId) return {text: ''}
+
+  const user = await getCurrentUserRetrying()
+  if (!user?.username) return {text: ''}
+
+  const address = sanitizeLabel(req.address, 48)
+  const hood = sanitizeLabel(req.hood, 32)
+  const pct = Math.round(clampNum(req.pct, 0, 22))
+  const tip = clampNum(req.tip, 0, 9999)
+  const secs = clampNum(req.ms, 0, 3_600_000) / 1000
+
+  const where = address
+    ? `to ${address}${hood ? ` (${hood})` : ''}`
+    : 'to the door'
+
+  const text =
+    `**u/${user.username}** delivered ${where} -- ${pct}% tip, $${tip.toFixed(2)}.\n\n` +
+    `${secs.toFixed(1)}s on the clock.`
+
+  return {text}
+}
+
+/** Posts the player's (possibly edited) win comment as the USER, in
+ *  reply to the pinned anchor -- same manual-POST-press contract as
+ *  routePostFailComment. The $5/day bonus is claimed in THIS call,
+ *  strictly after postScoreComment resolves true: no comment, no pay,
+ *  same doctrine routeFollow uses for the subscribe-then-pay order.
+ *  dbClaimWinCommentBonus's own hSetNX is still the real double-pay
+ *  guard underneath this -- the ordering here just means a failed
+ *  Reddit post can never draw a bonus in the first place. */
+async function routePostWinComment(
+  reqMsg: IncomingMessage,
+): Promise<PostWinCommentRsp> {
+  const req = await readJson<PostWinCommentReq>(reqMsg)
+  const user = await getCurrentUserRetrying()
+  if (!user?.username) return {posted: false, bonusGranted: false, walletCents: 0}
+  const raw = typeof req.text === 'string' ? req.text : ''
+  const text = Array.from(raw)
+    .filter(ch => {
+      const c = ch.codePointAt(0) ?? 0
+      return c === 9 || c === 10 || (c >= 32 && c !== 127)
+    })
+    .join('')
+    .trim()
+    .slice(0, 480)
+  if (!text) return {posted: false, bonusGranted: false, walletCents: 0}
+
+  const posted = await postScoreComment(text)
+  if (!posted) return {posted: false, bonusGranted: false, walletCents: 0}
+
+  const {granted, walletCents} = await dbClaimWinCommentBonus(
+    user.username,
+    todayUTC(),
+  )
+  return {posted: true, bonusGranted: granted, walletCents}
 }
 
 /** Subscribes the pressing user to the current subreddit and grants
