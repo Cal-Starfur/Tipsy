@@ -51,13 +51,14 @@
   #winOverlay{background:rgba(18,20,26,0);}
   #winOverlay h2,#winOverlay p{text-shadow:0 2px 3px #b5540e;transform:translateY(-165px);}
   #winOverlay p{color:#fff;}
-  /* 16px above the panel top (panel = 12 + two 15px rows + 3 gap + 10 +
-     safe inset), same clearance GO keeps over the map's bottom sheet —
-     no more landing on the delivery info. */
-  #winOverlay .btn{position:absolute;left:50%;bottom:calc(74px + env(safe-area-inset-bottom));transform:translateX(-50%);
-    flex:none;width:88px;height:88px;border-radius:50%;padding:0;
-    display:flex;align-items:center;justify-content:center;}
-  #winOverlay .btn:active{transform:translateX(-50%) translateY(3px);}
+  /* Again's old #winOverlay .btn rule (88px circle, bottom-anchored to
+     clear the receipt card) is gone along with the button -- FOLLOW,
+     COMMENT and the explore icon row that replaced it are all styled
+     and positioned inline from game-logic.js (twFxFollowBtn,
+     twFxCommentBtn, showWin's stackBase math), the same
+     zero-HTML-divergence approach the fail screen's tdFx buttons
+     already used, so there is nothing left here for a CSS class to
+     style. */
   /* matches #bottomSheet's recipe exactly (same cream, same padding, same
      safe-area fold) plus the 20px bottom curve it can't inherit: the map
      screen gets its corners from #screenWrap's border-radius+overflow
@@ -645,7 +646,6 @@
   <h2>DELIVERED</h2>
   <p id="winSub">…</p>
   <div class="card" id="winCard">…</div>
-  <button class="btn" id="againBtn">Again</button>
 </div>
 
 <script src="viewport-fix.js"></script>
