@@ -20810,6 +20810,7 @@ document.getElementById("tpDetailScrim").addEventListener("click", e=>{ if(e.tar
 document.getElementById("tpDetailClose").addEventListener("click", tpCloseDetail);
 document.getElementById("searchIcon").addEventListener("click", tpOpenMissions);
 document.getElementById("tpMissionsBack").addEventListener("click", tpCloseMissions);
+document.getElementById("tpMissionsPanel").addEventListener("click", e=>{ if(e.target.id==="tpMissionsPanel") tpCloseMissions(); });
 document.getElementById("tpMissionsSearch").addEventListener("input", tpRenderMissions);
 tpKeyboardCaptureGuard(document.getElementById("tpMissionsSearch"));
 document.getElementById("tpTabTrophy").addEventListener("click", ()=>tpSetTab("trophy"));
