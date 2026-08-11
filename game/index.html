@@ -10442,9 +10442,19 @@ class WorldScene extends Phaser.Scene {
     const H = L.height * hVar;
     const lean = zz => tilt * zz;
 
-    const box = (aC, bC, ha, hb, z0, z1, cTop, cA, cB) => {
+    const box = (aC, bC, ha, hb, z0, z1, cTop, cA, cB, noTop=false) => {
       const c = (sa, sb, zz) => W(aC + sa*ha, bC + sb*hb, zz);
-      this.quadOn(g, [c(-1,-1,z1), c(1,-1,z1), c(1,1,z1), c(-1,1,z1)], cTop);
+      /* noTop: when another segment of the SAME footprint sits flush
+         on top (pole segment -> pole segment), this segment's top cap
+         is never actually visible -- the segment above only draws its
+         2 NEAR walls (the far 2 are assumed hidden, standard for a
+         standalone box), which leaves the FAR corner of this segment's
+         top cap uncovered. On a broken/leaning lamp (mal), that lean
+         staggers each segment sideways just enough to expose the
+         sliver. Skipping the cap on every segment but the last removes
+         it. The base doesn't use this -- it's wider than the pole, so
+         its top is a genuinely visible ledge, not a stacking artifact. */
+      if(!noTop) this.quadOn(g, [c(-1,-1,z1), c(1,-1,z1), c(1,1,z1), c(-1,1,z1)], cTop);
       this.quadOn(g, [c(1,-1,z1), c(1,1,z1), c(1,1,z0), c(1,-1,z0)], cA);
       this.quadOn(g, [c(-1,1,z1), c(1,1,z1), c(1,1,z0), c(-1,1,z0)], cB);
     };
@@ -10456,7 +10466,7 @@ class WorldScene extends Phaser.Scene {
     const segN = 3;
     for(let i = 0; i < segN; i++){
       const z0 = L.baseH + (H - L.baseH)*i/segN, z1 = L.baseH + (H - L.baseH)*(i+1)/segN;
-      box(lean((z0+z1)/2), 0, L.poleW/2, L.poleW/2, z0, z1, L.pole, L.poleDk, L.pole);
+      box(lean((z0+z1)/2), 0, L.poleW/2, L.poleW/2, z0, z1, L.pole, L.poleDk, L.pole, i < segN-1);
     }
     const topA = lean(H);
 
