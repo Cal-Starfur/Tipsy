@@ -16213,7 +16213,8 @@ const scn = () => game.scene.getScene("world");
    capturing (or emitting on) those keys for as long as the field is
    focused, and costs nothing since gameplay is paused/backgrounded
    behind a text field anyway. Wire this to every text <input> that
-   sits over the canvas — currently tpMapSearch and tpMissionsSearch. */
+   sits over the canvas — currently tpMapSearch (the missions panel's
+   own search box was removed 2026-08-11, see tpRenderMissions). */
 function tpKeyboardCaptureGuard(el){
   if(!el) return;
   el.addEventListener("focus", () => {
@@ -19275,7 +19276,9 @@ function tpMapExplore(){
   card.appendChild(ui);
   document.getElementById("tpMapPlus").onclick  = () => zoomAt(1.35, canvas.clientWidth/2, canvas.clientHeight/2);
   document.getElementById("tpMapMinus").onclick = () => zoomAt(1/1.35, canvas.clientWidth/2, canvas.clientHeight/2);
-  document.getElementById("tpMapSearchIcon").onclick = () => tpOpenMissions();
+  document.getElementById("tpMapSearchIcon").onclick = () => {
+    document.getElementById("tpMissionsPanel").classList.contains("open") ? tpCloseMissions() : tpOpenMissions();
+  };
   const box = document.getElementById("tpMapSearch");
   const res = document.getElementById("tpMapResults");
   tpKeyboardCaptureGuard(box);
@@ -20270,11 +20273,7 @@ function tpRenderStore(){
 
 function tpRenderMissions(){
   const list = document.getElementById("tpMissionsList");
-  const q = (document.getElementById("tpMissionsSearch").value || "").trim().toLowerCase();
   list.innerHTML = "";
-  /* the search box says "Search the map", so it searches the PLACE as
-     well as the mission text — "palmline", "flats" or "1200" all find
-     the hydrant course. */
   /* TODAY'S DELIVERY row: getting back to the actual daily route from
      inside a side mission used to mean opening Past Routes and picking
      today off the history list — the one entry there that isn't a
@@ -20282,24 +20281,21 @@ function tpRenderMissions(){
      delivery pin uses, so behaviour matches whichever way you get
      there. Not server-gated (unlike Past Routes below): it's just a
      local loadRoute(), so it works on itch.io / GitHub Pages too. */
-  const showToday = !q || "today daily delivery route home".includes(q);
-  if(showToday){
-    const td = document.createElement("div");
-    td.id = "tpTodayDeliveryRow";
-    td.className = "tpTrRow";
-    td.innerHTML = `
-      <div class="tpMedal tpMission" style="font-size:18px;">&#128230;</div>
-      <div class="tpTrInfo">
-        <div class="tpTrName">Today's Delivery</div>
-        <div class="tpTrDesc">Head back to today's actual delivery run.</div>
-      </div>
-      <div class="tpTrRight"></div>`;
-    td.addEventListener("click", ()=>{
-      document.getElementById("tpMissionsPanel").classList.remove("open");
-      tpBackToDailyRoute();
-    });
-    list.appendChild(td);
-  }
+  const td = document.createElement("div");
+  td.id = "tpTodayDeliveryRow";
+  td.className = "tpTrRow";
+  td.innerHTML = `
+    <div class="tpMedal tpMission" style="font-size:18px;">&#128230;</div>
+    <div class="tpTrInfo">
+      <div class="tpTrName">Today's Delivery</div>
+      <div class="tpTrDesc">Head back to today's actual delivery run.</div>
+    </div>
+    <div class="tpTrRight"></div>`;
+  td.addEventListener("click", ()=>{
+    document.getElementById("tpMissionsPanel").classList.remove("open");
+    tpBackToDailyRoute();
+  });
+  list.appendChild(td);
 
   /* Past Routes sits at the head of this list as well as on the map's
      bottom sheet. The magnifying glass is reachable mid-route now, and
@@ -20308,8 +20304,7 @@ function tpRenderMissions(){
      from the Reddit server (requestHistory / tipsyBridge, which
      no-op when !IS_DEVVIT_BUILD), so on itch.io / GitHub Pages there is
      nothing behind this row and it would open an empty panel. */
-  const showPR = IS_DEVVIT_BUILD && (!q || "past routes history all-time replay".includes(q));
-  if(showPR){
+  if(IS_DEVVIT_BUILD){
     const pr = document.createElement("div");
     pr.id = "tpPastRoutesRow";
     pr.className = "tpTrRow";
@@ -20331,15 +20326,7 @@ function tpRenderMissions(){
     list.appendChild(pr);
   }
 
-  const filtered = TP_SIDE_MISSIONS.filter(m =>
-    !q || m.name.toLowerCase().includes(q) || (m.desc && m.desc.toLowerCase().includes(q))
-       || (m.place && m.place.toLowerCase().includes(q))
-  );
-  if(filtered.length === 0){
-    if(!showPR && !showToday) list.innerHTML = `<div id="tpMissionsEmpty">No missions found for "${q}".</div>`;
-    return;
-  }
-  filtered.forEach(m=>{
+  TP_SIDE_MISSIONS.forEach(m=>{
     const completed = tpProfile.missionsCompleted.has(m.id);
     const comingSoon = m.status === "comingSoon";
 
@@ -20718,7 +20705,6 @@ function tpInitStaticIcons(){
   const fmb = document.getElementById("failMenuBtn");
   if(fmb) fmb.innerHTML = tpSearchSvg("#2e3138", 18);
   document.getElementById("tpProfBack").innerHTML = tpChevronSvg("#e8eaef", 16);
-  document.getElementById("tpMissionsBack").innerHTML = tpChevronSvg("#e8eaef", 16);
   document.getElementById("tpDetailClose").innerHTML = tpCloseSvg("#fff", 13);
 }
 
@@ -20849,10 +20835,16 @@ document.getElementById("tpProfBack").addEventListener("click", tpCloseProfile);
 document.getElementById("tpDetailScrim").addEventListener("click", e=>{ if(e.target.id==="tpDetailScrim") tpCloseDetail(); });
 document.getElementById("tpDetailClose").addEventListener("click", tpCloseDetail);
 document.getElementById("searchIcon").addEventListener("click", tpOpenMissions);
-document.getElementById("tpMissionsBack").addEventListener("click", tpCloseMissions);
-document.getElementById("tpMissionsPanel").addEventListener("click", e=>{ if(e.target.id==="tpMissionsPanel") tpCloseMissions(); });
-document.getElementById("tpMissionsSearch").addEventListener("input", tpRenderMissions);
-tpKeyboardCaptureGuard(document.getElementById("tpMissionsSearch"));
+/* Any of these three IDs means the tap landed on background, not a
+   card: #tpMissionsPanel itself (its own thin margins, if any),
+   #tpMissionsBody (the flex:1 scroll area — fills the panel below the
+   map's search bar, so most "outside" taps land here now that there's
+   no sheet wrapper bounding it), or #tpMissionsList (the 10px
+   margin-bottom gaps between cards belong to the parent, not either
+   card, for hit-testing purposes). */
+document.getElementById("tpMissionsPanel").addEventListener("click", e=>{
+  if(["tpMissionsPanel","tpMissionsBody","tpMissionsList"].includes(e.target.id)) tpCloseMissions();
+});
 document.getElementById("tpTabTrophy").addEventListener("click", ()=>tpSetTab("trophy"));
 document.getElementById("tpTabStore").addEventListener("click", ()=>tpSetTab("store"));
 tpInitStaticIcons();
