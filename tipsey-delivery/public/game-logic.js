@@ -20212,6 +20212,32 @@ function tpRenderMissions(){
   /* the search box says "Search the map", so it searches the PLACE as
      well as the mission text — "palmline", "flats" or "1200" all find
      the hydrant course. */
+  /* TODAY'S DELIVERY row: getting back to the actual daily route from
+     inside a side mission used to mean opening Past Routes and picking
+     today off the history list — the one entry there that isn't a
+     "past" route at all. Same tpBackToDailyRoute() the map's own
+     delivery pin uses, so behaviour matches whichever way you get
+     there. Not server-gated (unlike Past Routes below): it's just a
+     local loadRoute(), so it works on itch.io / GitHub Pages too. */
+  const showToday = !q || "today daily delivery route home".includes(q);
+  if(showToday){
+    const td = document.createElement("div");
+    td.id = "tpTodayDeliveryRow";
+    td.className = "tpTrRow";
+    td.innerHTML = `
+      <div class="tpMedal tpMission" style="font-size:18px;">&#128230;</div>
+      <div class="tpTrInfo">
+        <div class="tpTrName">Today's Delivery</div>
+        <div class="tpTrDesc">Head back to today's actual delivery run.</div>
+      </div>
+      <div class="tpTrRight"></div>`;
+    td.addEventListener("click", ()=>{
+      document.getElementById("tpMissionsPanel").classList.remove("open");
+      tpBackToDailyRoute();
+    });
+    list.appendChild(td);
+  }
+
   /* Past Routes sits at the head of this list as well as on the map's
      bottom sheet. The magnifying glass is reachable mid-route now, and
      browsing your history is the other thing you'd reach for from it.
@@ -20247,7 +20273,7 @@ function tpRenderMissions(){
        || (m.place && m.place.toLowerCase().includes(q))
   );
   if(filtered.length === 0){
-    if(!showPR) list.innerHTML = `<div id="tpMissionsEmpty">No missions found for "${q}".</div>`;
+    if(!showPR && !showToday) list.innerHTML = `<div id="tpMissionsEmpty">No missions found for "${q}".</div>`;
     return;
   }
   filtered.forEach(m=>{
