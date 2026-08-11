@@ -15169,7 +15169,20 @@ class WorldScene extends Phaser.Scene {
          which was the actual problem with the previous "always
          visible" version. */
       const pulse = 0.5 + 0.5*Math.sin(this.time.now / 650);
-      const faceK = Phaser.Math.Clamp((fn.x + fn.y + fn.z + 1.4) / 2.2, 0.4, 1);
+      /* crashed: the beam geometry below stays off drawAngle/botX/botY
+         alone on purpose (see the note under "headlights:" a few lines
+         down — that's what keeps a tip from swinging the beam), so a
+         fall can't read as "tipped over" through beam motion. Instead,
+         once he's down the lights fail the same way a malfunctioning
+         streetlamp does: same flickerAt(seed, t), same deterministic
+         no-strobe contract already approved for the lamp. Seed comes
+         from the resting spot so the pattern holds steady for the
+         whole time he's down instead of re-rolling every frame, and
+         differs fall to fall since he lands somewhere new each time. */
+      const tipFlicker = this.state === "tipped"
+        ? flickerAt(((this.botX*131 + this.botY*197) | 0) >>> 0, t)
+        : 1;
+      const faceK = Phaser.Math.Clamp((fn.x + fn.y + fn.z + 1.4) / 2.2, 0.4, 1) * tipFlicker;
       for(const ey of [-7, 7]){
         const c = F(ey, 45);
         this.gGlow.fillStyle(SKIN.eye, (0.14 + 0.12*pulse)*faceK);
