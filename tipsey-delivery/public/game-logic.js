@@ -16384,17 +16384,24 @@ const SL = {
                 // corridor used to end 2 T2 after the last gate, which is the
                 // size of the COURSE — the frame is the size of the CAMERA.
   pen:  2.0,    // seconds added per knocked cone / missed side
-  /* PAR IS A FIXED 60s NOW, NOT DERIVED. It used to be computed per-course
-     (dist/vTop*parPace + gates*parGate + corners*parCorner) because the
-     course itself changed with the daily seed -- a formula was the only
-     way to keep par honest against a course that kept changing shape.
-     That reason is gone: the course is SL_SEED_DATE, permanently, and
-     Sir's call (2026-08-10) is a flat, dialed number rather than a
-     recomputed one. Measured against the shipped SL_SEED_DATE course the
-     old formula gave 58.77s (37.21s flat-out * 1.12 + 22 gates*0.45s +
-     4 corners*1.8s) -- 60s keeps that same shape, just rounded to a
-     number a player can actually hold in their head. */
-  par: 60.0,
+  /* PAR IS A FIXED NUMBER, NOT DERIVED -- still true, still Sir's call
+     (2026-08-10). It used to be computed per-course (dist/vTop*parPace +
+     gates*parGate + corners*parCorner) before the course was frozen to
+     SL_SEED_DATE; the formula itself is gone (parPace/parGate/parCorner
+     no longer exist as constants), just the shape survives in this
+     comment.
+     RE-ESTIMATED (2026-08-11, alongside the MAX_CHAIN_LEN removal above):
+     that removal is what fixed the missing final legs, and it changed the
+     course this number has to fit -- 60s was fit to the OLD, truncated
+     ~16.7k/22-gate/4-corner course; the real one is ~22.4k/30 gates/3
+     corners. Same shape, same constants (37.21s flat-out at ~16744 units
+     implies vTop ~450 units/s; parPace 1.12; parGate 0.45s; parCorner
+     1.8s), run against the new numbers: 22406/450*1.12 + 30*0.45 +
+     3*1.8 = 55.77 + 13.5 + 5.4 = ~74.7s, rounded to 75 the same way
+     58.77 rounded to 60. This is a computed ESTIMATE, not a measured
+     clean run -- worth confirming on-device and adjusting by feel same
+     as the original 60 was. */
+  par: 75.0,
 };
 
 /* =========================================================================
@@ -16480,17 +16487,21 @@ function slFindChain(route){
      finish tape back beside the start line. _slEndS is set in
      slQuietOpening and is the last s of original road. */
   const endS = route._slEndS !== undefined ? route._slEndS : route.totalLen;
-  /* MAX_CHAIN_LEN (2026-08-10, added alongside the 12-district map merge):
-     SL.legs alone capped course length by counting LINES, which quietly
-     stopped working once the merged map let individual legs run much
-     longer than the old single-hood grid ever allowed -- same leg COUNT,
-     longer course anyway (measured: legs:5 still produced a ~26k-unit
-     chain against the ~16.7k the flat 60s par was tuned for). This is
-     the actual bound: stop adding segments once the chain's own total
-     length passes roughly what that course was, regardless of how few
-     lines it took to get there. 17000 rounds the original ~16744 up
-     slightly for margin, not a new target. */
-  const MAX_CHAIN_LEN = 17000;
+  /* MAX_CHAIN_LEN is GONE (fix, 2026-08-11: "last 3 legs have no cones,
+     leading up to the door -- we don't have a full course"). It capped
+     the chain at 17000 units to keep the course near the ~16.7k the flat
+     60s par was tuned for -- but on the shipped SL_SEED_DATE course that
+     cut the chain off at s~17378 while route.doorS, the ACTUAL required
+     stop, sits at s~22967: a ~5589-unit dead stretch with no gates, no
+     chutes, nothing, because the cap fired well before the course reached
+     its own finish line. Confirmed on-device: every run cleared all its
+     gates early, coasted the empty stretch, and timed out at par before
+     ever reaching the door.
+     endS (route._slEndS, just above) is already the correct, principled
+     boundary here -- the last s of ORIGINAL road, before the reroute-lap
+     weld -- so it alone governs the chain now. SL.legs is still the
+     nominal target; whichever binds first (legs or endS) still decides,
+     same as before, just without a second, shorter cap fighting it. */
   /* MIN_LEG_LEN (fix, 2026-08-11: "cones/gates missing across parts of the
      course"): a leg shorter than this can never hold a single gate once
      slBuildCourse subtracts its margins -- SL.lead/SL.turn/SL.tail are eaten
@@ -16511,7 +16522,6 @@ function slFindChain(route){
   let nLines = 0;
   for (let i = firstLine; i < segs.length && nLines < SL.legs; i++){
     if (segs[i].s1 > endS) break;
-    if (segs[i].s0 - segs[firstLine].s0 > MAX_CHAIN_LEN) break;
     chain.push(segs[i]);
     if (segs[i].type === 'line' && (segs[i].s1 - segs[i].s0) >= MIN_LEG_LEN) nLines++;
   }
