@@ -3025,6 +3025,44 @@ function buildSidewalkGeometry(grid){
       }
     }
   }
+  /* OUTER CORNER WRAP (2026-08-11, blue-square bug): the per-edge scan
+     above can only reach ROAD_HALF into the intersection along ITS OWN
+     axis -- along caps at ROAD_HALF, and separately perp caps at
+     ROAD_HALF+SIDEWALK_W on the edge's OWN perpendicular. Neither edge
+     ever samples a point where BOTH offsets from the node exceed
+     ROAD_HALF at once -- that's exactly the diagonal wrap square at
+     each corner, past the curb ramp, where the sidewalk turns 90°.
+     That square was never classified by anything, so nothing drew
+     there and the ocean/backdrop band showed through. Sampled here
+     per NODE instead of per edge -- all 4 diagonal quadrants, tested
+     directly against classifyAt with the same local-edge set edges
+     already use. Nodes with no nearby edges (deep in a park, etc.)
+     bail immediately on an empty localEdges scan. */
+  const nearbyEdgesForNode = (node) => {
+    const seen0 = new Set(), out = [];
+    for(let di = -1; di <= 1; di++) for(let dj = -1; dj <= 1; dj++){
+      const arr = nodeEdges.get((node.i+di) + "," + (node.j+dj));
+      if(!arr) continue;
+      for(const ee of arr) if(!seen0.has(ee)){ seen0.add(ee); out.push(ee); }
+    }
+    return out;
+  };
+  for(const node of grid.nodes){
+    const localEdges = nearbyEdgesForNode(node);
+    if(!localEdges.length) continue;
+    for(const sx of [-1, 1]) for(const sy of [-1, 1]){
+      for(let pi = 0; pi < perpSteps; pi++) for(let pj = 0; pj < perpSteps; pj++){
+        const x = node.x + sx*(ROAD_HALF + (pi+0.5)*CELL);
+        const y = node.y + sy*(ROAD_HALF + (pj+0.5)*CELL);
+        const key = Math.round(x/CELL) + "," + Math.round(y/CELL);
+        if(seen.has(key)) continue;
+        seen.add(key);
+        if(classifyAt(localEdges, x, y) === "sidewalk"){
+          cornerCells.push({ x, y, parity: (Math.round(x/CELL) + Math.round(y/CELL)) % 2 });
+        }
+      }
+    }
+  }
   return { runs, cornerCells };
 }
 
