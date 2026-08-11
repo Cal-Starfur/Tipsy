@@ -21138,6 +21138,11 @@ function tpRenderMissions(){
     <div class="tpTrRight"></div>`;
   td.addEventListener("click", ()=>{
     document.getElementById("tpMissionsPanel").classList.remove("open");
+    tpSyncGlobalBtns();   // this row dropped .open directly instead of
+                           // calling tpCloseMissions(), so nothing re-ran
+                           // the anyOpen check -- body.tpPanelOpen stayed
+                           // true and VIEW/profile/search stayed hidden
+                           // (!important) back on the daily route.
     tpBackToDailyRoute();
   });
   list.appendChild(td);
