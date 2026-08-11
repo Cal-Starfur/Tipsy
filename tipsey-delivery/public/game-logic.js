@@ -6022,6 +6022,7 @@ class WorldScene extends Phaser.Scene {
       this.hjEnded = true;
       this.hjResult = "NEVER LEFT THE GROUND";
       this.hjSaveProgress();
+      this._hjNativeTip = true;   // this crash already owns its own hjShowCrash below
       this.state = "tipped"; this.tipDir = 1; this.hjFace = false;
       setTimeout(() => { if(this.mode === "challenge") hjShowCrash(this); }, 900);
       return;
@@ -6106,6 +6107,7 @@ class WorldScene extends Phaser.Scene {
                      * (Math.random() < 0.5 ? 1 : -1);
           this.hjClear();
         } else {
+          this._hjNativeTip = true;   // this crash already owns its own hjShowCrash below
           /* POSE is direction: anything that is not an overshoot puts him
              down nose-first — short, botched on the ramp, or clipping the
              last hydrant. Only sailing past goes over the side. */
@@ -6232,10 +6234,20 @@ class WorldScene extends Phaser.Scene {
        then touch down on a traffic cone. The run-up is cleared too, so
        nothing can knock him off line before the ramp. */
     const clearFrom = ch.kickerS - HJ_GEOM.runup - T2, clearTo = ch.catchS + 2*T2;
+    /* ALL ROWS (2026-08-11, "get rid of the people at the hydrant
+       challenge"): row === ch.lane only cleared the exact lane he runs
+       in, leaving pedestrians and other hazards live on the sidewalk's
+       OTHER rows within the same s-range — reachable during the
+       run-up/charge phase even though he never leaves ch.lane himself.
+       A "people" hit is the single hardest tilt kick in the hazard
+       table (sev 8, higher than dog/trash/planter), enough on its own
+       to cross the |tilt|>=1 tip line outside the jump/landing physics
+       entirely. Nothing street-legal belongs anywhere in the course's
+       footprint, not just his own lane. */
     this.route.hazards = this.route.hazards.filter(h =>
-      !h.hjRole && !(h.s >= clearFrom && h.s <= clearTo && h.row === ch.lane));
+      !h.hjRole && !(h.s >= clearFrom && h.s <= clearTo));
     this.route.props = (this.route.props || []).filter(pr =>
-      !(pr.s >= clearFrom && pr.s <= clearTo && (pr.row === ch.lane || pr.row === undefined)));
+      !(pr.s >= clearFrom && pr.s <= clearTo));
     const facing = f => f;
     const lipS = ch.kickerS + TILE;
     ch.catchS = Math.round(lipS + (2.25 + (level-1)*HJ_CH.gap) * T);
@@ -6633,6 +6645,7 @@ class WorldScene extends Phaser.Scene {
     this.hjAutoAcc = 0;
     this.hjRolling = false; this.hjEnded = false;
     this.hjFace = false; this.hjTipT = 0; this.hjSkidV = 0;
+    this._hjNativeTip = false;
     this.pitch = 0; this.pitchPivot = 0;
     this.speed = HJ_CH.sp0;
     this.tilt = 0; this.roll = 0; this.state = "play";
@@ -13956,6 +13969,22 @@ class WorldScene extends Phaser.Scene {
         if(this.attractOwnsTip()){ this.attractRecycle(); }
         else if(this.slOwnsTip()){ this._slAPI.crash(this.tipCause); }
         else if(!this.hjOwnsTip()){ reportFail(this, this.tipCause); setTimeout(() => showFail(failPool), 1500); }
+        /* SAFETY NET (2026-08-11): hjOwnsTip() only checks mode, not
+           cause — it correctly muzzles the delivery fail overlay for
+           EVERY tip during a challenge, but only hjSim's own jump/
+           landing branches (which set _hjNativeTip) ever actually show
+           a crash card afterwards. A tip that reaches here through any
+           OTHER route while in challenge mode — a hazard the course
+           clearing above didn't catch, a future hazard type, anything
+           — used to just sit here forever: state locked "tipped", no
+           card, no way back. This whole enclosing block only runs
+           while state==="play", so this fires exactly once per tip,
+           same as the branch above. */
+        else if(!this._hjNativeTip){
+          this.hjResult = "KNOCKED OVER";
+          this.hjSaveProgress();
+          setTimeout(() => { if(this.mode === "challenge") hjShowCrash(this); }, 1400);
+        }
       }
       /* CANCELLATION: par + grace expired -> the order dies. A fail
          with the robot upright: the state gate stops the sim, input
