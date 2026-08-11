@@ -267,30 +267,29 @@
     transition:transform .24s ease-out;}
   #tpProfilePanel.open{transform:translateY(0);}
 
-  /* Side missions: a dimmed scrim over the map (same pattern as
-     #tpDetailScrim/#tpDetailSheet) instead of a solid full-screen
-     panel — the map stays visible, dimmed, above and around the
-     sheet. #tpMissionsPanel keeps its existing id/open-class contract
+  /* Side missions: no chrome at all (2026-08-11, Sir's call) — just the
+     mission cards floating directly over the live map. No scrim, no
+     sheet, no dedicated search box: the map already has its own search
+     bar right above this panel, and a second one was a bug, not a
+     feature. #tpMissionsPanel keeps its existing id/open-class contract
      (tpOpenMissions/tpCloseMissions/tpSyncGlobalBtns all just toggle
-     .open on it, unchanged) but is now the scrim; the actual white
-     sheet is the new #tpMissionsSheet wrapping the header/search/list
-     that used to sit directly inside #tpMissionsPanel. */
-  #tpMissionsPanel{position:fixed;inset:0;z-index:50;background:rgba(20,22,27,.5);
-    display:flex;flex-direction:column;justify-content:flex-end;
+     .open on it, unchanged) but is fully transparent and starts below
+     the map's own search bar so it's never covered. Tapping anywhere
+     that isn't a card — including the visible map — closes it, and the
+     map's own search icon is now a toggle (see tpMapSearchIcon.onclick)
+     since there's no back button left to do it explicitly. */
+  #tpMissionsPanel{position:fixed;left:0;right:0;top:64px;bottom:0;z-index:50;
+    background:transparent;display:flex;flex-direction:column;
     opacity:0;pointer-events:none;transition:opacity .18s;}
   #tpMissionsPanel.open{opacity:1;pointer-events:auto;}
-  #tpMissionsSheet{width:100%;max-height:85vh;background:#f0ece0;border-radius:20px 20px 0 0;
-    display:flex;flex-direction:column;overflow:hidden;
-    transform:translateY(100%);transition:transform .24s ease-out;}
-  #tpMissionsPanel.open #tpMissionsSheet{transform:translateY(0);}
 
-  #tpProfHeader, #tpMissionsHeader{flex:none;padding:calc(14px + env(safe-area-inset-top)) 14px 10px;
+  #tpProfHeader{flex:none;padding:calc(14px + env(safe-area-inset-top)) 14px 10px;
     background:#14161b;display:flex;align-items:center;gap:10px;}
-  #tpProfBack, #tpMissionsBack{flex:none;width:34px;height:34px;border-radius:50%;background:#20242d;
+  #tpProfBack{flex:none;width:34px;height:34px;border-radius:50%;background:#20242d;
     border:1px solid #363b46;color:#e8eaef;display:flex;align-items:center;
     justify-content:center;font-size:15px;}
-  #tpProfBack:active, #tpMissionsBack:active{transform:scale(0.92);}
-  #tpProfTitle, #tpMissionsTitle{flex:1;font-size:16px;font-weight:800;letter-spacing:1px;color:#ff7a1a;}
+  #tpProfBack:active{transform:scale(0.92);}
+  #tpProfTitle{flex:1;font-size:16px;font-weight:800;letter-spacing:1px;color:#ff7a1a;}
   #tpWalletPill{flex:none;background:#20242d;border:1px solid #363b46;border-radius:20px;
     padding:6px 12px;display:flex;align-items:center;gap:6px;margin-left:auto;}
   #tpWalletPill .tpWVal{font-size:14px;font-weight:800;color:#ff9c4d;}
@@ -304,13 +303,8 @@
   #tpProfBody{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;
     padding:14px 14px calc(14px + env(safe-area-inset-bottom));}
 
-  #tpMissionsSearchWrap{flex:none;background:#14161b;padding:0 14px 14px;}
-  #tpMissionsSearch{width:100%;background:#20242d;border:1px solid #363b46;border-radius:10px;
-    color:#e8eaef;padding:10px 12px;font-size:13px;font-family:inherit;}
-  #tpMissionsSearch::placeholder{color:#6b7280;}
   #tpMissionsBody{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;
-    padding:14px 14px calc(14px + env(safe-area-inset-bottom));}
-  #tpMissionsEmpty{color:#8f8571;font-size:13px;text-align:center;padding:30px 10px;}
+    padding:0 14px calc(14px + env(safe-area-inset-bottom));}
   .tpMedal.tpMission{background:#cfe0f5;}
   .tpMedal.tpComingSoon{background:#e4dfd0;}
   .tpMedal.tpCompleted{background:#d7f0dc;}
@@ -560,11 +554,13 @@
      had no non-Devvit caller keeping it alive. */
   #avatarIcon,#failAvatarBtn,#searchIcon,#failMenuBtn{display:none !important;}
   /* ...but the two global ones step aside once a panel is up. Both sit
-     at z-index 60 in the exact corners the panel headers use for their
-     own back/close buttons — #globalSearch landed squarely on top of
-     #tpMissionsBack and swallowed every tap on it, so the only way out
-     of Side Missions was gone. Each panel carries its own way back, so
-     there is nothing to lose by hiding these while one is open. */
+     at z-index 60 in the exact corner Profile's own header uses for its
+     back button — #globalSearch landed squarely on top of #tpProfBack
+     and swallowed every tap on it. Side Missions no longer has a back
+     button of its own to protect (removed 2026-08-11, cards float
+     directly over the map now), but hiding these while it's open too
+     is still harmless — there's nothing on that screen for them to sit
+     on top of. */
   body.tpPanelOpen #globalAvatar, body.tpPanelOpen #globalSearch,
   body.tpPanelOpen #zoomBtn{display:none !important;}
 </style>
@@ -641,18 +637,10 @@
     </div>
   </div>
 
-  <!-- ===== Tipsey Profile: Side Missions (search, Phase A) ===== -->
+  <!-- ===== Tipsey Profile: Side Missions (cards floating over the map) ===== -->
   <div id="tpMissionsPanel">
-    <div id="tpMissionsSheet">
-      <div id="tpMissionsHeader">
-        <button id="tpMissionsBack"></button>
-      </div>
-      <div id="tpMissionsSearchWrap">
-        <input id="tpMissionsSearch" type="text" placeholder="Search the map…">
-      </div>
-      <div id="tpMissionsBody">
-        <div id="tpMissionsList"></div>
-      </div>
+    <div id="tpMissionsBody">
+      <div id="tpMissionsList"></div>
     </div>
   </div>
 
@@ -17039,7 +17027,8 @@ const scn = () => game.scene.getScene("world");
    capturing (or emitting on) those keys for as long as the field is
    focused, and costs nothing since gameplay is paused/backgrounded
    behind a text field anyway. Wire this to every text <input> that
-   sits over the canvas — currently tpMapSearch and tpMissionsSearch. */
+   sits over the canvas — currently tpMapSearch (the missions panel's
+   own search box was removed 2026-08-11, see tpRenderMissions). */
 function tpKeyboardCaptureGuard(el){
   if(!el) return;
   el.addEventListener("focus", () => {
@@ -20101,7 +20090,9 @@ function tpMapExplore(){
   card.appendChild(ui);
   document.getElementById("tpMapPlus").onclick  = () => zoomAt(1.35, canvas.clientWidth/2, canvas.clientHeight/2);
   document.getElementById("tpMapMinus").onclick = () => zoomAt(1/1.35, canvas.clientWidth/2, canvas.clientHeight/2);
-  document.getElementById("tpMapSearchIcon").onclick = () => tpOpenMissions();
+  document.getElementById("tpMapSearchIcon").onclick = () => {
+    document.getElementById("tpMissionsPanel").classList.contains("open") ? tpCloseMissions() : tpOpenMissions();
+  };
   const box = document.getElementById("tpMapSearch");
   const res = document.getElementById("tpMapResults");
   tpKeyboardCaptureGuard(box);
@@ -21096,11 +21087,7 @@ function tpRenderStore(){
 
 function tpRenderMissions(){
   const list = document.getElementById("tpMissionsList");
-  const q = (document.getElementById("tpMissionsSearch").value || "").trim().toLowerCase();
   list.innerHTML = "";
-  /* the search box says "Search the map", so it searches the PLACE as
-     well as the mission text — "palmline", "flats" or "1200" all find
-     the hydrant course. */
   /* TODAY'S DELIVERY row: getting back to the actual daily route from
      inside a side mission used to mean opening Past Routes and picking
      today off the history list — the one entry there that isn't a
@@ -21108,24 +21095,21 @@ function tpRenderMissions(){
      delivery pin uses, so behaviour matches whichever way you get
      there. Not server-gated (unlike Past Routes below): it's just a
      local loadRoute(), so it works on itch.io / GitHub Pages too. */
-  const showToday = !q || "today daily delivery route home".includes(q);
-  if(showToday){
-    const td = document.createElement("div");
-    td.id = "tpTodayDeliveryRow";
-    td.className = "tpTrRow";
-    td.innerHTML = `
-      <div class="tpMedal tpMission" style="font-size:18px;">&#128230;</div>
-      <div class="tpTrInfo">
-        <div class="tpTrName">Today's Delivery</div>
-        <div class="tpTrDesc">Head back to today's actual delivery run.</div>
-      </div>
-      <div class="tpTrRight"></div>`;
-    td.addEventListener("click", ()=>{
-      document.getElementById("tpMissionsPanel").classList.remove("open");
-      tpBackToDailyRoute();
-    });
-    list.appendChild(td);
-  }
+  const td = document.createElement("div");
+  td.id = "tpTodayDeliveryRow";
+  td.className = "tpTrRow";
+  td.innerHTML = `
+    <div class="tpMedal tpMission" style="font-size:18px;">&#128230;</div>
+    <div class="tpTrInfo">
+      <div class="tpTrName">Today's Delivery</div>
+      <div class="tpTrDesc">Head back to today's actual delivery run.</div>
+    </div>
+    <div class="tpTrRight"></div>`;
+  td.addEventListener("click", ()=>{
+    document.getElementById("tpMissionsPanel").classList.remove("open");
+    tpBackToDailyRoute();
+  });
+  list.appendChild(td);
 
   /* Past Routes sits at the head of this list as well as on the map's
      bottom sheet. The magnifying glass is reachable mid-route now, and
@@ -21134,8 +21118,7 @@ function tpRenderMissions(){
      from the Reddit server (requestHistory / tipsyBridge, which
      no-op when !IS_DEVVIT_BUILD), so on itch.io / GitHub Pages there is
      nothing behind this row and it would open an empty panel. */
-  const showPR = IS_DEVVIT_BUILD && (!q || "past routes history all-time replay".includes(q));
-  if(showPR){
+  if(IS_DEVVIT_BUILD){
     const pr = document.createElement("div");
     pr.id = "tpPastRoutesRow";
     pr.className = "tpTrRow";
@@ -21157,15 +21140,7 @@ function tpRenderMissions(){
     list.appendChild(pr);
   }
 
-  const filtered = TP_SIDE_MISSIONS.filter(m =>
-    !q || m.name.toLowerCase().includes(q) || (m.desc && m.desc.toLowerCase().includes(q))
-       || (m.place && m.place.toLowerCase().includes(q))
-  );
-  if(filtered.length === 0){
-    if(!showPR && !showToday) list.innerHTML = `<div id="tpMissionsEmpty">No missions found for "${q}".</div>`;
-    return;
-  }
-  filtered.forEach(m=>{
+  TP_SIDE_MISSIONS.forEach(m=>{
     const completed = tpProfile.missionsCompleted.has(m.id);
     const comingSoon = m.status === "comingSoon";
 
@@ -21549,7 +21524,6 @@ function tpInitStaticIcons(){
   const fmb = document.getElementById("failMenuBtn");
   if(fmb) fmb.innerHTML = tpSearchSvg("#2e3138", 18);
   document.getElementById("tpProfBack").innerHTML = tpChevronSvg("#e8eaef", 16);
-  document.getElementById("tpMissionsBack").innerHTML = tpChevronSvg("#e8eaef", 16);
   document.getElementById("tpDetailClose").innerHTML = tpCloseSvg("#fff", 13);
 }
 
@@ -21680,10 +21654,16 @@ document.getElementById("tpProfBack").addEventListener("click", tpCloseProfile);
 document.getElementById("tpDetailScrim").addEventListener("click", e=>{ if(e.target.id==="tpDetailScrim") tpCloseDetail(); });
 document.getElementById("tpDetailClose").addEventListener("click", tpCloseDetail);
 document.getElementById("searchIcon").addEventListener("click", tpOpenMissions);
-document.getElementById("tpMissionsBack").addEventListener("click", tpCloseMissions);
-document.getElementById("tpMissionsPanel").addEventListener("click", e=>{ if(e.target.id==="tpMissionsPanel") tpCloseMissions(); });
-document.getElementById("tpMissionsSearch").addEventListener("input", tpRenderMissions);
-tpKeyboardCaptureGuard(document.getElementById("tpMissionsSearch"));
+/* Any of these three IDs means the tap landed on background, not a
+   card: #tpMissionsPanel itself (its own thin margins, if any),
+   #tpMissionsBody (the flex:1 scroll area — fills the panel below the
+   map's search bar, so most "outside" taps land here now that there's
+   no sheet wrapper bounding it), or #tpMissionsList (the 10px
+   margin-bottom gaps between cards belong to the parent, not either
+   card, for hit-testing purposes). */
+document.getElementById("tpMissionsPanel").addEventListener("click", e=>{
+  if(["tpMissionsPanel","tpMissionsBody","tpMissionsList"].includes(e.target.id)) tpCloseMissions();
+});
 document.getElementById("tpTabTrophy").addEventListener("click", ()=>tpSetTab("trophy"));
 document.getElementById("tpTabStore").addEventListener("click", ()=>tpSetTab("store"));
 tpInitStaticIcons();
