@@ -18439,46 +18439,46 @@ function slalomMapSelect(){
      GO -- harmless (same date, idempotent) -- kept as a safety net for
      the mission-list "Play mission" button, which calls tpSlalomStart
      directly and never goes through this function at all. Wrapped in
-     tpWithRouteLoading now too, same as hjStart/tpBackToDailyRoute --
-     this is exactly the kind of route swap that got slow on the merged
-     map. */
-  tpWithRouteLoading("Plotting route", () => {
-    s.loadRoute(SL_SEED_DATE);
-    /* HEADLINE IS THE MISSION NAME (2026-08-10, Sir's call, reverted the
-       same day it was changed): this originally led with the mission's
-       own name and got changed to lead with a hood/street instead, to
-       match the daily route's "place leads" convention -- backwards. Side
-       missions lead with their own name; the daily route is the one case
-       that's place-first, since a delivery doesn't have a name of its
-       own the way a mission does. Hydrant Challenge's own card follows
-       the same reverted convention (see loadChallenge).
+     ROBOT SPINNER REMOVED (2026-08-11, Sir's call): mission selection
+     from the Side Missions search doesn't need the "Plotting route"
+     robot card -- it read as an extra step in a flow that should feel
+     immediate. Runs the same work synchronously now, same pattern
+     tpSlalomStart already used for its own "Play mission" entry point. */
+  s.loadRoute(SL_SEED_DATE);
+  /* HEADLINE IS THE MISSION NAME (2026-08-10, Sir's call, reverted the
+     same day it was changed): this originally led with the mission's
+     own name and got changed to lead with a hood/street instead, to
+     match the daily route's "place leads" convention -- backwards. Side
+     missions lead with their own name; the daily route is the one case
+     that's place-first, since a delivery doesn't have a name of its
+     own the way a mission does. Hydrant Challenge's own card follows
+     the same reverted convention (see loadChallenge).
 
-       MUST run AFTER loadRoute above, not before (2026-08-10, found
-       while wiring the spinner): loadRoute sets orderCard's HTML to its
-       own generic hood/pickup/address text as part of its own normal
-       execution -- setting this custom text BEFORE loadRoute meant
-       loadRoute silently overwrote it a moment later, and the card
-       quietly went back to reading like a delivery instead of a
-       mission. Same reason hydrant's own custom text already lives
-       inside loadChallenge, after its own loadRoute call, not beside
-       this function's setup code. */
-    document.getElementById("orderCard").innerHTML =
-      `<div class="tag" style="margin-bottom:4px">SIDE MISSION</div>`
-      + `<b>Cone Slalom Challenge</b> — weave the gates at double speed, then stop on the mat`;
-    document.getElementById("sheetStatus").textContent = `60s par · earns Slalom Master`;
-    show("titleOverlay");
-    /* TIGHT ZOOM + PULSE, SAME AS A SEARCH JUMP (2026-08-10): the daily
-       route's own pickupS/doorS span (what loadRoute above just framed
-       the map on) is a normal delivery-length stretch, not the actual
-       gate-to-finish span of the slalom course itself -- that's still
-       tpSlalomPin()'s job, same as it already is for the passive map pin
-       and for tpMapJumpTo's own search-result handling. Reusing
-       tpMapJumpTo here rather than writing a second positioning path
-       means this gets the exact same tight zoom-to-one-spot and pulse
-       ring every search jump already gets, not a slightly different
-       one. */
-    tpMapJumpTo({ x: tpSlalomPin().x, y: tpSlalomPin().y, atlas: false });
-  });
+     MUST run AFTER loadRoute above, not before (2026-08-10, found
+     while wiring the spinner): loadRoute sets orderCard's HTML to its
+     own generic hood/pickup/address text as part of its own normal
+     execution -- setting this custom text BEFORE loadRoute meant
+     loadRoute silently overwrote it a moment later, and the card
+     quietly went back to reading like a delivery instead of a
+     mission. Same reason hydrant's own custom text already lives
+     inside loadChallenge, after its own loadRoute call, not beside
+     this function's setup code. */
+  document.getElementById("orderCard").innerHTML =
+    `<div class="tag" style="margin-bottom:4px">SIDE MISSION</div>`
+    + `<b>Cone Slalom Challenge</b> — weave the gates at double speed, then stop on the mat`;
+  document.getElementById("sheetStatus").textContent = `60s par · earns Slalom Master`;
+  show("titleOverlay");
+  /* TIGHT ZOOM + PULSE, SAME AS A SEARCH JUMP (2026-08-10): the daily
+     route's own pickupS/doorS span (what loadRoute above just framed
+     the map on) is a normal delivery-length stretch, not the actual
+     gate-to-finish span of the slalom course itself -- that's still
+     tpSlalomPin()'s job, same as it already is for the passive map pin
+     and for tpMapJumpTo's own search-result handling. Reusing
+     tpMapJumpTo here rather than writing a second positioning path
+     means this gets the exact same tight zoom-to-one-spot and pulse
+     ring every search jump already gets, not a slightly different
+     one. */
+  tpMapJumpTo({ x: tpSlalomPin().x, y: tpSlalomPin().y, atlas: false });
 }
 function tpSlalomStart(){
   tpCloseDetail(); tpCloseMissions(); tpCloseProfile();
@@ -18603,10 +18603,11 @@ function hjStart(){
      below describes. */
   { const sA = scn(); if(sA && sA.attractStop) sA.attractStop(); }
   hide("failOverlay"); hide("winOverlay");
-  tpWithRouteLoading("Plotting route", () => {
-    scn().loadChallenge();                 // builds the Flats route + course
-    show("titleOverlay");                  // the map, with GO
-  });
+  /* ROBOT SPINNER REMOVED (2026-08-11, Sir's call): same reasoning as
+     slalomMapSelect above -- mission selection from the Side Missions
+     search shouldn't pause on the "Plotting route" robot card. */
+  scn().loadChallenge();                 // builds the Flats route + course
+  show("titleOverlay");                  // the map, with GO
 }
 /* GO on the challenge map: now the delivery chrome goes away and the
    tap meter comes up. */
