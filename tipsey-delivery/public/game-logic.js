@@ -16679,10 +16679,29 @@ function tpSlalomOn(){
       return scene.route.grid.classify(p.x + (-Math.sin(h)) * off,
                                        p.y + Math.cos(h) * off) === 'sidewalk';
     };
+    /* RAMP hoisted up here (was declared down by the gate-blocking span,
+       "NO GATES ON A CURB RAMP") so the spawn search below can use the same
+       margin. */
+    const RAMP = 2 * T2;
+    /* SPAWN CLEAR OF EVERY RAMP TOO (fix, 2026-08-11: blue gate cone and a
+       curb ramp sitting right at the slalom's start). classify() only knows
+       the grid's own street/sidewalk/park categories -- a curb ramp is a
+       decorative hazard laid ON TOP of a 'sidewalk' tile, so clearRun below
+       happily accepted a spawn sitting right on one. ch.lines[0].s0 is
+       exactly where a turn just before the chain leaves its up-ramp
+       (sidewalkbegin, at cx.sB) -- the frozen SL_SEED_DATE course's first
+       leg starts right there, so the run began on the ramp every time, not
+       by chance. Every crossing counts here, turn included -- unlike the
+       gate-blocking span below, which skips turns because gates never sit
+       on an arc anyway, the spawn point has no such built-in protection. */
+    const crossingAt = (at) => (scene.route.crossings || [])
+      .some(cx => at > cx.sA - RAMP && at < cx.sB + RAMP);
     const clearRun = (at) => {
-      for (let u = 0; u <= SL.lead * T2; u += TILE)
+      for (let u = 0; u <= SL.lead * T2; u += TILE){
+        if (crossingAt(at + u)) return false;
         for (const row of [SL.rowA, SL.rowB])
           if (!walkAt(at + u, row)) return false;
+      }
       return true;
     };
     let spawnS = Math.round(first.s0);
@@ -16812,7 +16831,7 @@ function tpSlalomOn(){
        So an intersection is the SAME case as a turn, not a second rule: both
        are stretches where your lane is decided before you arrive. Blocked spans
        cover the crossing plus the two tiles of ramp either side of it. */
-    const RAMP = 2 * T2;
+    // RAMP is declared earlier now, next to the spawn search that reuses it.
     const blocked = (scene.route.crossings || [])
       .filter(cx => cx.kind !== 'turn')          // turn crossings ARE the arcs
       .map(cx => [cx.sA - RAMP, cx.sB + RAMP, 'crossing']);
