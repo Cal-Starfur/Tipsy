@@ -18506,16 +18506,16 @@ function slalomMapSelect(){
     + `<b>Cone Slalom Challenge</b> — weave the gates at double speed, then stop on the mat`;
   document.getElementById("sheetStatus").textContent = `60s par · earns Slalom Master`;
   show("titleOverlay");
-  /* TIGHT ZOOM + PULSE, SAME AS A SEARCH JUMP (2026-08-10): the daily
-     route's own pickupS/doorS span (what loadRoute above just framed
+  /* TIGHT ZOOM, NO PULSE (2026-08-10, updated 2026-08-11, Sir's call): the
+     daily route's own pickupS/doorS span (what loadRoute above just framed
      the map on) is a normal delivery-length stretch, not the actual
      gate-to-finish span of the slalom course itself -- that's still
      tpSlalomPin()'s job, same as it already is for the passive map pin
      and for tpMapJumpTo's own search-result handling. Reusing
      tpMapJumpTo here rather than writing a second positioning path
-     means this gets the exact same tight zoom-to-one-spot and pulse
-     ring every search jump already gets, not a slightly different
-     one. */
+     means this still gets the exact same tight zoom-to-one-spot every
+     search jump gets. The pulse ring tpMapJumpTo used to draw is gone
+     entirely now (see tpMapJumpTo) -- no per-caller flag needed. */
   tpMapJumpTo({ x: tpSlalomPin().x, y: tpSlalomPin().y, atlas: false });
 }
 function tpSlalomStart(){
@@ -19024,7 +19024,7 @@ function worldgenLandmarks(grid){
    exactly as it always has; a gesture seeds it from tpMapLast (the last
    auto framing drawRouteMap actually used — one source, no re-derived
    framing math). */
-let tpMapView = null, tpMapMark = null, tpMapLast = null;
+let tpMapView = null, tpMapLast = null;
 /* screen hitboxes for the mission pins drawn this frame -- populated in
    drawRouteMap, read by the tap handler in tpMapExplore. Rebuilt every
    draw, so a stale entry can never survive a pan/zoom that moved it. */
@@ -19162,19 +19162,16 @@ function tpMapIndex(route){
   return out;
 }
 function tpMapJumpTo(hit){
+  /* PULSE MARKER REMOVED (2026-08-11, Sir's call, "kill all the pulse"):
+     this used to set tpMapMark and run a rAF loop for up to 4s purely to
+     animate a red ring at the jump target. No ring left to animate, so
+     no loop left to run -- one redraw after the view change is all this
+     ever needed to actually reposition the map. */
   const s = scn(); if(!s || !s.route) return;
   const canvas = document.getElementById("routeMap");
   const availMin = Math.min(canvas.clientWidth, canvas.clientHeight) - 44;
   tpMapView = { cx: hit.x, cy: hit.y, scale: availMin/(BLOCK*3.2), stamp: s.route.dateStr, atlas: !!hit.atlas };
-  tpMapMark = { x: hit.x, y: hit.y, t: performance.now() };
-  const pulse = () => {
-    if(!tpMapMark) return;
-    drawRouteMap(s.route);
-    /* drawRouteMap retires the mark itself at expiry — re-check before
-       reading it, or the last frame dereferences null */
-    if(tpMapMark && performance.now() - tpMapMark.t < 4000) requestAnimationFrame(pulse);
-  };
-  pulse();
+  drawRouteMap(s.route);
 }
 function tpMapExplore(){
   if(window.__tpMapX) return; window.__tpMapX = true;
@@ -19853,18 +19850,10 @@ function drawRouteMap(route){
     tpMapMissionPins.push({ id: m.id, x: p.x, y: p.y-8, r: 16 });
   }
 
-  if(tpMapMark){
-    const age = performance.now() - tpMapMark.t;
-    if(age > 4000) tpMapMark = null;
-    else {
-      const mp = toScreen(tpMapMark);
-      const pulse = 10 + 6*Math.sin(age/220);
-      ctx.strokeStyle = "#d8452e"; ctx.lineWidth = 3;
-      ctx.beginPath(); ctx.arc(mp.x, mp.y, pulse, 0, Math.PI*2); ctx.stroke();
-      ctx.fillStyle = "#d8452e";
-      ctx.beginPath(); ctx.arc(mp.x, mp.y, 4, 0, Math.PI*2); ctx.fill();
-    }
-  }
+  /* MAP JUMP PULSE MARKER REMOVED (2026-08-11, Sir's call). Used to draw
+     a red ring/dot here whenever tpMapMark was set by tpMapJumpTo; that
+     mechanism is gone (see tpMapJumpTo above), so there's nothing left
+     to check or draw here. */
   /* the "you are here" route line + robot start marker only mean
      anything on the REAL route's own ground -- in atlas mode the
      backdrop is a different city's geometry-in-context, so samples[]
@@ -20584,11 +20573,13 @@ function tpOpenDetail(kind, id){
 function tpCloseDetail(){ document.getElementById("tpDetailScrim").classList.remove("open"); }
 
 function tpPulseEl(elId){
+  /* PULSE REMOVED (2026-08-11, Sir's call, "kill all the pulse"): this
+     used to add/remove a .tpPulse class for a 1.4s orange box-shadow
+     glow. Scroll-to-reveal is the part that actually matters for a
+     reward-skin or trophy deep link -- kept that, dropped the glow. */
   const el = document.getElementById(elId);
   if(!el) return;
   el.scrollIntoView({behavior:"smooth", block:"center"});
-  el.classList.add("tpPulse");
-  setTimeout(()=>el.classList.remove("tpPulse"), 1400);
 }
 
 function tpToast(msg){
