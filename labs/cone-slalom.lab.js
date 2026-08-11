@@ -33,7 +33,47 @@
    engine already keeps, just not usually shown. Nothing here touches the
    production UI or the production teardown path; restart/quit both go
    through tpSlalomStart()/tpSlalomQuit() the same way the real buttons do.
-   =========================================================================== */
+
+   THE FINISH MARKER (added after on-device report, 2026-08-11: "the end of
+   the run has no cones and is covered in props"). Root cause isn't the
+   corridor sweep -- that already covers out to
+   max(finishS, chainEndS) + SL.clean*T2, same as everywhere else in this
+   engine. It's that there is no visible finish line at all: "THE FINISH IS
+   A DELIVERY" (slJudge's own comment, game/index.html) -- the run ends by
+   stopping in the game's normal win window, same as any delivery, and
+   game/index.html DOES build a rope-tape prop for it (slBuildFinish) with a
+   matching draw function (slDrawFinish, explicitly "Drawn from BENCH.hook")
+   -- but nothing in game/index.html ever calls BENCH.hook to fire it, and
+   slDrawFinish is a function local to tpSlalomOn's closure, unreachable
+   from here by name. So in the shipped game that's fine (no BENCH, nobody
+   ever needed the tape), and in the bench it's silent: no stop marker, so
+   a run that isn't braked exactly right sails past the real win window,
+   the game's own loop.missed sends it on the go-around lap same as a
+   missed delivery, and that lap is ordinary unswept street -- which reads
+   exactly like "ran out of cones, hit the regular city."
+   Fixed here, not in game/index.html: everything the marker needs
+   (course.finishS, TAPE, ROBOT_SIDE, ROAD_HALF, SIDEWALK_W, scene.posAt/
+   headingAt/W/quadOn) is already public module scope, so this rebuilds the
+   same tape slBuildFinish/slDrawFinish already describe rather than
+   reaching into tpSlalomOn's closure or changing what ships. Stop when the
+   robot is on it, same as any other delivery door.
+
+   WHY BENCH.pre, NOT BENCH.hook -- checked empirically, not assumed:
+   _bench.html's wrapped drawWorld resets __benchVQ, then calls the real
+   drawWorld (which drains __benchVQ into the world's own depth-sorted list
+   on queueBlockContent's FIRST call that frame), and only THEN calls
+   __benchHook. So anything queued from BENCH.hook's callback lands in
+   __benchVQ one call too late -- that frame's drain already happened, and
+   next frame's reset wipes it before it's ever read. slDrawFinish's own
+   comment ("drawWorld drains that list while it runs") describes what
+   BENCH.pre does, not BENCH.hook -- confirmed on-device: hook fired with no
+   error and __benchVQ had the item, nothing ever drew. BENCH.pre runs
+   BEFORE the drain, which is the one that actually works. BENCH.pre is
+   also how the bench's own camera-follow is wired (__benchPre defaults to
+   applyCam), so this chains through whatever was already installed there
+   instead of overwriting it -- calling BENCH.pre a second time replaces
+   the single slot, and dropping camera-follow to draw a rope would trade
+   one bug for a worse one. */
 (() => {
   const scene = game.scene.scenes.find(s => s.route);
   if (!scene) { console.log('no scene with a route yet'); return; }
@@ -74,6 +114,44 @@
     tpSlalomQuit();
     panel.remove();
   };
+
+  /* Rebuilds the same rope-tape geometry slBuildFinish computes, from the
+     public course.finishS -- see the header comment for why this can't
+     just call the real slDrawFinish. Reads course fresh every frame
+     (finishS doesn't move once built, but re-deriving is cheap and this
+     stays correct across restart without any extra wiring). */
+  function drawFinishMarker(){
+    const api = scene._slAPI;
+    const course = api && api.run.course;
+    if (!course || !isFinite(course.finishS)) return;
+    const at = (ss, off) => {
+      const p = scene.posAt(ss), h = scene.headingAt(ss);
+      return { x: p.x + (-Math.sin(h)) * off, y: p.y + Math.cos(h) * off };
+    };
+    const kerb = ROBOT_SIDE * (ROAD_HALF + TAPE.inset);
+    const bldg = ROBOT_SIDE * (ROAD_HALF + SIDEWALK_W - TAPE.inset);
+    const a = at(course.finishS, bldg), b = at(course.finishS, kerb);
+    BENCH.queue(a.x + a.y, (g) => {
+      for (let i = 0; i < TAPE.segs; i++){
+        const t0 = i / TAPE.segs, t1 = (i + 1) / TAPE.segs;
+        const px = t => a.x + (b.x - a.x) * t, py = t => a.y + (b.y - a.y) * t;
+        const zf = t => TAPE.z - TAPE.sag * 4 * t * (1 - t);
+        const quad = [
+          scene.W(px(t0), py(t0), zf(t0) + TAPE.half),
+          scene.W(px(t1), py(t1), zf(t1) + TAPE.half),
+          scene.W(px(t1), py(t1), zf(t1) - TAPE.half),
+          scene.W(px(t0), py(t0), zf(t0) - TAPE.half),
+        ];
+        scene.quadOn(g, quad, i % 2 ? TAPE.band : TAPE.yellow, 1);
+      }
+    });
+  }
+  const priorPre = scene.__benchPre;   // chain, don't clobber camera-follow
+  BENCH.pre((sc, t) => {
+    if (priorPre) priorPre(sc, t);
+    try { drawFinishMarker(); }
+    catch(e){ if (!drawFinishMarker._told){ drawFinishMarker._told = 1; console.log('finish marker draw failed', e); } }
+  });
 
   const readTick = setInterval(() => {
     const el = document.getElementById('slBenchRead');
