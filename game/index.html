@@ -20494,27 +20494,67 @@ function drawRouteMap(route){
      which would repeat the same street's name many times). Horizontal
      streets use the hood's own real street-name pool; vertical streets
      are numbered — the common named-one-way/numbered-other-way grid
-     convention most American cities actually use. */
-  ctx.font = "11px sans-serif";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.fillStyle = "#5a5448";
-  const labeledRows = new Set(), labeledCols = new Set();
-  for(const e of bgRoute.grid.edges){
-    const midX = (e.a.x+e.b.x)/2, midY = (e.a.y+e.b.y)/2;
-    if(!inView(midX, midY)) continue;
-    const p = toScreen({x:midX, y:midY});
-    if(e.f === 0){
-      if(labeledRows.has(e.a.j)) continue;
-      labeledRows.add(e.a.j);
-      const segHood = hoodAt(e.a.i, e.a.j);
-      const name = segHood.streets[e.a.j % segHood.streets.length];
-      ctx.save(); ctx.translate(p.x, p.y-7); ctx.fillText(name, 0, 0); ctx.restore();
-    } else {
-      if(labeledCols.has(e.a.i)) continue;
-      labeledCols.add(e.a.i);
-      const n = e.a.i+1, suffix = (n%10===1&&n!==11) ? "st" : (n%10===2&&n!==12) ? "nd" : (n%10===3&&n!==13) ? "rd" : "th";
-      ctx.save(); ctx.translate(p.x-7, p.y); ctx.rotate(-Math.PI/2); ctx.fillText(n+suffix+" St", 0, 0); ctx.restore();
+     convention most American cities actually use.
+     ZOOM-GATED (2026-08-11, Sir's call): every street label drew
+     regardless of zoom, so zooming out to see the whole city dumped
+     dozens of overlapping names on screen — Google Maps swaps street
+     labels for neighborhood names once you're zoomed out past a
+     single district, and this does the same. spanX/BLOCK is "how many
+     blocks fit across the canvas right now", already zoom- and
+     pan-aware since spanX was recomputed against tpMapView's scale
+     above; DISTRICT_W (a district's own width in blocks) is the
+     natural yardstick rather than a made-up pixel threshold. */
+  const blocksVisible = spanX / BLOCK;
+  const SHOW_STREETS_MAX_BLOCKS = DISTRICT_W + 2;   // ~one district + a little slack
+  if(blocksVisible <= SHOW_STREETS_MAX_BLOCKS){
+    ctx.font = "11px sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = "#5a5448";
+    const labeledRows = new Set(), labeledCols = new Set();
+    for(const e of bgRoute.grid.edges){
+      const midX = (e.a.x+e.b.x)/2, midY = (e.a.y+e.b.y)/2;
+      if(!inView(midX, midY)) continue;
+      const p = toScreen({x:midX, y:midY});
+      if(e.f === 0){
+        if(labeledRows.has(e.a.j)) continue;
+        labeledRows.add(e.a.j);
+        const segHood = hoodAt(e.a.i, e.a.j);
+        const name = segHood.streets[e.a.j % segHood.streets.length];
+        ctx.save(); ctx.translate(p.x, p.y-7); ctx.fillText(name, 0, 0); ctx.restore();
+      } else {
+        if(labeledCols.has(e.a.i)) continue;
+        labeledCols.add(e.a.i);
+        const n = e.a.i+1, suffix = (n%10===1&&n!==11) ? "st" : (n%10===2&&n!==12) ? "nd" : (n%10===3&&n!==13) ? "rd" : "th";
+        ctx.save(); ctx.translate(p.x-7, p.y); ctx.rotate(-Math.PI/2); ctx.fillText(n+suffix+" St", 0, 0); ctx.restore();
+      }
+    }
+  } else {
+    /* neighborhood names instead — one per district, centered on that
+       district's own block. hoodAt/HOODS/DISTRICT_* are the permanent,
+       route-independent city layout (see the comment at their
+       definition), so this doesn't need bgRoute/atlas at all — the
+       twelve neighborhoods sit at the same physical spot regardless of
+       which route or atlas view is currently drawn. A light halo keeps
+       the name legible over whatever's under it (park green, road
+       gray, pavement tan) at a zoom level where that varies a lot
+       across one label's footprint. */
+    ctx.font = "700 14px sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = "rgba(255,255,255,0.8)";
+    ctx.fillStyle = "#4a4438";
+    for(let dr = 0; dr < DISTRICT_ROWS; dr++){
+      for(let dc = 0; dc < DISTRICT_COLS; dc++){
+        const wx = (dc*DISTRICT_W + DISTRICT_W/2) * BLOCK;
+        const wy = (dr*DISTRICT_H + DISTRICT_H/2) * BLOCK;
+        if(!inView(wx, wy)) continue;
+        const p = toScreen({x:wx, y:wy});
+        const name = HOODS[dr*DISTRICT_COLS + dc].n;
+        ctx.strokeText(name, p.x, p.y);
+        ctx.fillText(name, p.x, p.y);
+      }
     }
   }
 
