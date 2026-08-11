@@ -16453,13 +16453,29 @@ function slFindChain(route){
      lines it took to get there. 17000 rounds the original ~16744 up
      slightly for margin, not a new target. */
   const MAX_CHAIN_LEN = 17000;
+  /* MIN_LEG_LEN (fix, 2026-08-11: "cones/gates missing across parts of the
+     course"): a leg shorter than this can never hold a single gate once
+     slBuildCourse subtracts its margins -- SL.lead/SL.turn/SL.tail are eaten
+     from the ends before any gate window opens, and 1.40*SL.vmul (T2) is the
+     smallest step a gate needs after that (same floor as slBuildCourse's own
+     GAP_MIN, just inlined -- that const lives inside tpSlalomOn's closure,
+     out of reach here). The merged 12-district grid has plenty of blocks
+     shorter than that, and until now they were still counted toward
+     SL.legs -- silently producing a real "leg" with zero gates on it, which
+     reads as a hole in the course. Worst case (a leg landing FIRST, which
+     pays the pricier SL.lead instead of SL.turn) sets the floor. A leg that
+     fails it is skipped for LEG-COUNTING only, not dropped from the chain --
+     it still gets walked below so corridor clearing (which covers the whole
+     chain, not just its gated legs) still reaches it; it just contributes no
+     cones of its own. */
+  const MIN_LEG_LEN = (Math.max(SL.lead, SL.tail) + SL.turn + 1.40 * SL.vmul) * T2;
   const chain = [];
   let nLines = 0;
   for (let i = firstLine; i < segs.length && nLines < SL.legs; i++){
     if (segs[i].s1 > endS) break;
     if (segs[i].s0 - segs[firstLine].s0 > MAX_CHAIN_LEN) break;
     chain.push(segs[i]);
-    if (segs[i].type === 'line') nLines++;
+    if (segs[i].type === 'line' && (segs[i].s1 - segs[i].s0) >= MIN_LEG_LEN) nLines++;
   }
   while (chain.length && chain[chain.length - 1].type !== 'line') chain.pop();
 
@@ -17210,20 +17226,34 @@ function tpSlalomOn(){
        untouched block still survives; one standing on the course's own
        street does not, regardless of which lap gave it that `s`. */
     const lapKeep = s => scene.route.loop && s > scene.route.loop.sCut - 100;
+    /* WALK RANGE ALSO HAS TO CLEAR (fix, 2026-08-11: "people and props on
+       the course"): dogs, walking people and roving robots don't stay where
+       they spawn -- they patrol walkS0..walkS1, a straight-line range within
+       one block (see the roving-robot spawn comment in generateRoute). Only
+       h.s/pr.s, the SPAWN point, was ever tested against inRange/
+       nearCorridor below -- a walker spawned just outside the corridor
+       still drifts onto it once either end of its patrol lands inside.
+       clearsPoint is exactly the old inline check (lap included), pulled
+       out so it can be asked at both ends of the walk too, not only at
+       spawn; clearsWalk is a no-op for anything without a walk range. */
+    const clearsPoint = (s, off) => {
+      if (!lapKeep(s) && inRange(s)) return false;
+      const wp = worldOf(s, off);
+      return !nearCorridor(wp.x, wp.y);
+    };
+    const clearsWalk = (h, off) =>
+      h.walkS0 === undefined || h.walkS1 === undefined
+        || (clearsPoint(h.walkS0, off) && clearsPoint(h.walkS1, off));
     scene.route.hazards = scene.route.hazards.filter(h => {
       if (h.slRole || STRUCTURE[h.type] || h.type === 'william') return true;
       if (h.s === undefined) return true;
-      const lap = lapKeep(h.s);
-      if (!lap && inRange(h.s)) return false;
-      const wp = worldOf(h.s, laneOffset(h.row ?? 1));
-      return !nearCorridor(wp.x, wp.y);
+      const off = laneOffset(h.row ?? 1);
+      return clearsPoint(h.s, off) && clearsWalk(h, off);
     });
     scene.route.props = (scene.route.props || []).filter(pr => {
       if (pr.s === undefined) return true;
-      const lap = lapKeep(pr.s);
-      if (!lap && inRange(pr.s)) return false;
-      const wp = worldOf(pr.s, pr.roadOffset ?? 0);
-      return !nearCorridor(wp.x, wp.y);
+      const off = pr.roadOffset ?? 0;
+      return clearsPoint(pr.s, off) && clearsWalk(pr, off);
     });
     if (scene.route.crime && inRange(scene.route.crime.s)) scene.route.crime = null;
     slStampFurnish(from, to);
