@@ -19810,9 +19810,30 @@ function tpMapExplore(){
     const fit = Math.min(canvas.clientWidth, canvas.clientHeight)/span;
     const street = Math.min(canvas.clientWidth, canvas.clientHeight)/(BLOCK*1.6);
     tpMapView.scale = Math.min(street, Math.max(fit, tpMapView.scale));
-    const M = BLOCK*6;
-    tpMapView.cx = Math.max(-M, Math.min((g2.cols-1)*BLOCK + M, tpMapView.cx));
-    tpMapView.cy = Math.max(-M, Math.min((g2.rows-1)*BLOCK + M, tpMapView.cy));
+    /* PAN WAS CLAMPING THE CENTER, NOT THE EDGE (2026-08-10, "still
+       allowing me to see the grey"): M=6*BLOCK bounded how far cx/cy
+       itself could go, which was plenty back when the only way to reach
+       it was near the old, much wider max zoom-out (span 45*BLOCK, half
+       ~22.5*BLOCK) -- the coast's own paint (EXT+SANDW+BOARD+FAR, ~12.3
+       blocks past the grid edge, see drawRouteMap's coast band) still
+       covered the visible edge at that half-span even after the 6-block
+       overshoot. Tightening the zoom floor above shrank the half-span
+       but left M untouched, and M alone was never edge-aware anyway --
+       zoomed in further still, the same fixed M can put the ENTIRE
+       viewport past the coast paint into flat, undrawn canvas (the
+       "grey"). Clamp the ACTUAL EDGE instead: cx±halfW must stay inside
+       [-coastPad, gridEdge+coastPad], where coastPad matches how far
+       the coast graphic really paints, so panning can reach the ocean/
+       mountains but never past them into blank space, at any zoom. */
+    const coastPad = WORLDGEN_COAST
+      ? BLOCK*(WG_COAST.EXT + WG_COAST.SANDW + WG_COAST.BOARD + 10)
+      : BLOCK*6;
+    const halfW = (canvas.clientWidth/2)/tpMapView.scale;
+    const halfH = (canvas.clientHeight/2)/tpMapView.scale;
+    const minCx = -coastPad + halfW, maxCx = (g2.cols-1)*BLOCK + coastPad - halfW;
+    const minCy = -coastPad + halfH, maxCy = (g2.rows-1)*BLOCK + coastPad - halfH;
+    tpMapView.cx = minCx <= maxCx ? Math.max(minCx, Math.min(maxCx, tpMapView.cx)) : (minCx+maxCx)/2;
+    tpMapView.cy = minCy <= maxCy ? Math.max(minCy, Math.min(maxCy, tpMapView.cy)) : (minCy+maxCy)/2;
   };
   const seed = () => {
     const s = scn();
