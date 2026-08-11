@@ -7126,6 +7126,15 @@ class WorldScene extends Phaser.Scene {
        real run reloads the route out from under a live player. */
     if(this.attractTimer){ clearTimeout(this.attractTimer); this.attractTimer = null; }
     document.body.classList.remove("attract");
+    document.body.classList.remove("attractBare");   // attractStart() adds this
+                                                       // separately (line ~7076) but
+                                                       // nothing ever removed it, so
+                                                       // #zoomBtn/#globalAvatar/
+                                                       // #globalSearch stayed force-
+                                                       // hidden (!important) for the
+                                                       // rest of the session, daily
+                                                       // route included, once attract
+                                                       // had fired once.
     this.K = zoomK();                       // back to the player's own stop
     this.throttle = 0;
   }
