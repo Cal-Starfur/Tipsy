@@ -17012,6 +17012,28 @@ const game = new Phaser.Game({
 });
 const scn = () => game.scene.getScene("world");
 
+/* Phaser's addKeys() (see WorldScene's W/A/S/D/arrow bindings) captures
+   those keys at the document level and preventDefault()s them — it has
+   no idea whether an <input> currently has focus, so typing "w", "a",
+   "s", or "d" into any text field on top of the canvas gets swallowed
+   as a movement command instead of landing in the field. Toggling
+   input.keyboard.enabled off/on across focus/blur stops Phaser from
+   capturing (or emitting on) those keys for as long as the field is
+   focused, and costs nothing since gameplay is paused/backgrounded
+   behind a text field anyway. Wire this to every text <input> that
+   sits over the canvas — currently tpMapSearch and tpMissionsSearch. */
+function tpKeyboardCaptureGuard(el){
+  if(!el) return;
+  el.addEventListener("focus", () => {
+    const s = scn();
+    if(s && s.input && s.input.keyboard) s.input.keyboard.enabled = false;
+  });
+  el.addEventListener("blur", () => {
+    const s = scn();
+    if(s && s.input && s.input.keyboard) s.input.keyboard.enabled = true;
+  });
+}
+
 /* ---------- HYDRANT CHALLENGE: entry, exit, input ---------- */
 /* The delivery HUD is not the challenge's HUD. Route/day switcher, GPS
    turn strip, order card, cargo + tilt gauges, par timer: none of it
@@ -20064,6 +20086,7 @@ function tpMapExplore(){
   document.getElementById("tpMapSearchIcon").onclick = () => tpOpenMissions();
   const box = document.getElementById("tpMapSearch");
   const res = document.getElementById("tpMapResults");
+  tpKeyboardCaptureGuard(box);
   box.oninput = () => {
     const s = scn(); res.innerHTML = ""; res.style.display = "none";
     if(!s || !s.route) return;
@@ -21601,6 +21624,7 @@ document.getElementById("tpDetailClose").addEventListener("click", tpCloseDetail
 document.getElementById("searchIcon").addEventListener("click", tpOpenMissions);
 document.getElementById("tpMissionsBack").addEventListener("click", tpCloseMissions);
 document.getElementById("tpMissionsSearch").addEventListener("input", tpRenderMissions);
+tpKeyboardCaptureGuard(document.getElementById("tpMissionsSearch"));
 document.getElementById("tpTabTrophy").addEventListener("click", ()=>tpSetTab("trophy"));
 document.getElementById("tpTabStore").addEventListener("click", ()=>tpSetTab("store"));
 tpInitStaticIcons();
