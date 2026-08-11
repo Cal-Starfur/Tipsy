@@ -18514,6 +18514,15 @@ function slalomMapSelect(){
   hide("failOverlay"); hide("winOverlay");
   const s = scn();
   s.mode = "slalom-pending";
+  /* SHOW THE OVERLAY FIRST (2026-08-11 fix -- same blank-map bug hjQuit's
+     comment documents, hitting mission SELECT instead of mission quit):
+     loadRoute() below ends by calling resizeRouteMap(), which measures
+     #routeMap's client rect. Selecting a mission mid-route means
+     #titleOverlay is still hidden at that moment, so the measurement read
+     ZERO and the map came up blank -- you picked a mission and kept
+     looking at the live game world (dimmed by the overlay's own scrim)
+     instead of the route map. */
+  show("titleOverlay");
   /* LOAD THE COURSE'S OWN ROUTE NOW (2026-08-10, Sir's call): selecting
      Hydrant Challenge visibly moves the map to it because loadChallenge
      swaps s.route to HJ_SEED_DATE, and drawRouteMap draws its route
@@ -18532,6 +18541,9 @@ function slalomMapSelect(){
      immediate. Runs the same work synchronously now, same pattern
      tpSlalomStart already used for its own "Play mission" entry point. */
   s.loadRoute(SL_SEED_DATE);
+  /* and one more pass after layout has settled, so a late reflow cannot
+     leave it stale -- same safety net hjQuit() already carries */
+  requestAnimationFrame(() => { resizeRouteMap(); drawRouteMap(s.route); });
   /* HEADLINE IS THE MISSION NAME (2026-08-10, Sir's call, reverted the
      same day it was changed): this originally led with the mission's
      own name and got changed to lead with a hood/street instead, to
@@ -18554,7 +18566,6 @@ function slalomMapSelect(){
     `<div class="tag" style="margin-bottom:4px">SIDE MISSION</div>`
     + `<b>Cone Slalom Challenge</b> — weave the gates at double speed, then stop on the mat`;
   document.getElementById("sheetStatus").textContent = `60s par · earns Slalom Master`;
-  show("titleOverlay");
   /* TIGHT ZOOM, NO PULSE (2026-08-10, updated 2026-08-11, Sir's call): the
      daily route's own pickupS/doorS span (what loadRoute above just framed
      the map on) is a normal delivery-length stretch, not the actual
@@ -18690,11 +18701,22 @@ function hjStart(){
      below describes. */
   { const sA = scn(); if(sA && sA.attractStop) sA.attractStop(); }
   hide("failOverlay"); hide("winOverlay");
+  /* SHOW THE OVERLAY FIRST (2026-08-11 fix -- same blank-map bug hjQuit's
+     comment below documents, hitting mission SELECT instead of mission
+     quit): loadChallenge() ends by calling resizeRouteMap(), which
+     measures #routeMap's client rect. Selecting a mission mid-route means
+     #titleOverlay is still hidden at that moment, so the measurement read
+     ZERO and the map came up blank -- you picked a mission and kept
+     looking at the live game world (dimmed by the overlay's own scrim)
+     instead of the route map. */
+  show("titleOverlay");                  // the map, with GO
   /* ROBOT SPINNER REMOVED (2026-08-11, Sir's call): same reasoning as
      slalomMapSelect above -- mission selection from the Side Missions
      search shouldn't pause on the "Plotting route" robot card. */
   scn().loadChallenge();                 // builds the Flats route + course
-  show("titleOverlay");                  // the map, with GO
+  /* and one more pass after layout has settled, so a late reflow cannot
+     leave it stale -- same safety net hjQuit() already carries */
+  requestAnimationFrame(() => { const s = scn(); resizeRouteMap(); drawRouteMap(s.route); });
 }
 /* GO on the challenge map: now the delivery chrome goes away and the
    tap meter comes up. */
