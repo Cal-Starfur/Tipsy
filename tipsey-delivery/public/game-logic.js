@@ -17231,7 +17231,24 @@ function tpSlalomOn(){
 
        The start keeps its two tiles. You are facing away from it. */
     const from = course.spawnS - T2 * 2;
-    const to   = Math.max(course.finishS, chainEndS) + SL.clean * T2;
+    /* THE SWEEP NOW REACHES THE REAL DOOR (fix, 2026-08-11: "that finish
+       line didn't do anything -- the finish is delivery now at the door").
+       This window used to end at the finish TAPE (course.finishS), which is
+       where the last gate sits, not where the run actually ends -- "THE
+       FINISH IS A DELIVERY" (slJudge's own comment): the win check is
+       against route.doorS, which measured on the shipped course sits
+       ~5450 units past finishS, well outside the old window. Everything
+       between the last gate and the real stop was never swept. doorS folds
+       into the same max() the tape/chain-end already use -- the end is
+       whichever is furthest, same reasoning as the comment above this one
+       -- clamped to route._slEndS (the last s of ORIGINAL road, same
+       boundary slFindChain already respects) so the extra reach can't cross
+       into the go-around loop's own dressing, which stays exactly as
+       untouched as it was before this fix. */
+    const to   = Math.min(
+      Math.max(course.finishS, chainEndS, scene.route.doorS) + SL.clean * T2,
+      scene.route._slEndS
+    );
     const inRange = v => v >= from && v <= to;
     const STRUCTURE = { sidewalkend:1, sidewalkbegin:1, sidewalkbeginTurn:1, grade:1 };
     /* ============ THE WORLD SWEEP — THE S-WINDOW'S BLIND SPOTS ============
