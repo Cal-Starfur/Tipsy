@@ -14415,8 +14415,29 @@ class WorldScene extends Phaser.Scene {
       const hx2 = Math.cos(this.drawAngle), hy2 = Math.sin(this.drawAngle);
       const lx = -Math.sin(this.drawAngle), ly = Math.cos(this.drawAngle);
       const poolDist = 100, beamFwd = 34;
-      const WB = (fwd, side, z) => this.W(this.botX + fwd*hx2 + side*lx,
-                                          this.botY + fwd*hy2 + side*ly, z);
+      /* tipped: route through this.T() -- the same pitch/roll/heading
+         pipeline this.P() already uses for the eyes -- instead of the
+         heading-only shortcut, so the beam swings and lands with him
+         rather than staying grounded as if he's still standing. zAbs
+         keeps the original absolute-world convention (0 for the pool,
+         botZ+36 for the beam); subtracting botZ before T() and adding
+         it back after keeps that convention intact since T()'s output
+         gets botZ added same as P() does. At roll=0 this reduces to
+         the exact same x/y as the heading-only version (T()'s own
+         final step IS that heading rotation), so normal driving/hop
+         wobble -- the swing the heading-only shortcut exists to avoid
+         -- is untouched; only the crashed state opts into the fuller
+         transform. Still one frame (world), all geometry there,
+         project last -- same contract as before, richer transform
+         feeding it only when he's down. */
+      const tipped = this.state === "tipped";
+      const WB = tipped
+        ? (fwd, side, zAbs) => {
+            const q = this.T(fwd, side, zAbs - this.botZ);
+            return this.W(q.x + this.botX, q.y + this.botY, q.z + this.botZ);
+          }
+        : (fwd, side, z) => this.W(this.botX + fwd*hx2 + side*lx,
+                                    this.botY + fwd*hy2 + side*ly, z);
       const poolK = (0.6 + 0.4*pulse)*faceK;
       /* ground pool: three stacked world-space ellipses, long axis along
          travel, sampled and projected point-by-point */
