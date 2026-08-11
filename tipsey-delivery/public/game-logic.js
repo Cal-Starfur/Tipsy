@@ -20581,7 +20581,17 @@ function tpOpenDetail(kind, id){
       if(m.id === "cone-slalom"){
         btn.className = "tpClaim"; btn.disabled = false;
         btn.textContent = "Play mission";
-        btn.onclick = ()=>{ tpCloseDetail(); tpSlalomStart(); };
+        /* MAP FIRST (fix, 2026-08-11: "should be going back to the map for
+           the selected mission"): this called tpSlalomStart() directly,
+           dropping straight into the run -- the one entry point that
+           skipped the map. Hydrant's own "Play mission" button (the else
+           branch right below) calls hjStart(), which shows the map first;
+           slalomMapSelect() is Cone Slalom's equivalent of that, already
+           used by the Side Missions row and the map pin. GO on that map
+           screen still lands on tpSlalomStart() itself (see startBtn's own
+           slalom-pending branch) -- this just adds the same map screen
+           every other entry point already gets first. */
+        btn.onclick = ()=>{ tpCloseDetail(); slalomMapSelect(); };
         const slBits = [];
         if(tpProfile.slBestMs) slBits.push(`Best: ${(tpProfile.slBestMs/1000).toFixed(2)}s`);
         if(completed && m.trophyId) slBits.push(`Trophy earned: ${tpTrophyById(m.trophyId).name}`);
@@ -20615,8 +20625,11 @@ function tpOpenDetail(kind, id){
       btn.className = "tpBuy"; btn.textContent = "Play mission"; btn.disabled = false;
       /* the hydrant missions are BUILT now — everything else still toasts */
       const playable = (m.id === "jump-hydrant" || m.id === "cone-slalom");
+      // MAP FIRST for cone-slalom here too -- same fix as the playableNow
+      // branch above, kept consistent even though playableNow already
+      // catches jump-hydrant/cone-slalom before this branch is reached.
       btn.onclick = playable
-        ? ()=>{ tpCloseDetail(); (m.id === "cone-slalom" ? tpSlalomStart : hjStart)(); }
+        ? ()=>{ tpCloseDetail(); (m.id === "cone-slalom" ? slalomMapSelect : hjStart)(); }
         : ()=>{ tpCloseDetail(); tpToast("Coming soon — gameplay not built yet."); };
       if(m.note) note.textContent = m.note;
     }
