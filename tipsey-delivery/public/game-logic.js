@@ -9310,11 +9310,50 @@ class WorldScene extends Phaser.Scene {
         const pk = b => b && b.type === "park";
         const nx = M && M.get((blk.i+1) + "," + blk.j);
         const ny = M && M.get(blk.i + "," + (blk.j+1));
-        const nd = M && M.get((blk.i+1) + "," + (blk.j+1));
         if(pk(nx)) this.fillBlockInterior(g, { ...blk, x0:blk.x1, x1:nx.x0 }, GRASS);
         if(pk(ny)) this.fillBlockInterior(g, { ...blk, y0:blk.y1, y1:ny.y0 }, GRASS);
-        if(pk(nx) && pk(ny) && pk(nd))
-          this.fillBlockInterior(g, { ...blk, x0:blk.x1, x1:nx.x0, y0:blk.y1, y1:ny.y0 }, GRASS);
+        /* CORNERS -- root-caused (2026-08-11, "the sea layer is showing
+           through the sidewalk's corner... make sure it can't happen
+           anywhere"). The old test inferred "this corner is clear" from
+           neighbour block TYPES (nx, ny and the diagonal all park), and
+           that inference is wrong two ways, both confirmed on this map:
+           (a) nx and ny are park but the diagonal isn't -- nobody fills
+           it, since the diagonal check blocks the one attempt that
+           would; (b) THIS block isn't park while its +x, +y and diagonal
+           neighbours all are -- nobody even CHECKS it, since this whole
+           branch only runs under blk.type === "park" and a non-park
+           block never reaches it. Either way the gap is real ground with
+           nothing drawn over it, so whatever sits at z=0 underneath
+           everything -- the coast band, in this case -- shows through.
+           Fixed by asking buildGrid's own swallow pass directly instead
+           of inferring from neighbour types: grid.nodeAt(i,j).conn[] is
+           the ground truth for whether any real street edge still
+           reaches a given corner vertex, cleared exactly where the
+           swallow pass removed that edge (see buildGrid's own "MERGED
+           PARKS SWALLOW THEIR STREETS"). A corner with all four conn
+           flags false has no real pavement approaching it from ANY
+           direction, so grass is unconditionally correct there --
+           regardless of which of the four blocks around it happens to
+           be park. That "regardless of which" is why every park block
+           now checks all FOUR of its own corners, not just +x+y:
+           coverage stops depending on which corner of a 2x2 happens to
+           be the park one. Redundant fills from neighbouring park
+           blocks checking the same corner are harmless -- same grass,
+           same square, just drawn more than once. */
+        const clear = (ci, cj) => {
+          const n = this.route.grid.nodeAt(ci, cj);
+          return !!n && !n.conn[0] && !n.conn[1] && !n.conn[2] && !n.conn[3];
+        };
+        for(const [di, dj] of [[1,1],[-1,1],[1,-1],[-1,-1]]){
+          const nbrX = M && M.get((blk.i+di) + "," + blk.j);
+          const nbrY = M && M.get(blk.i + "," + (blk.j+dj));
+          if(!nbrX || !nbrY) continue;
+          const cni = blk.i + (di > 0 ? 1 : 0), cnj = blk.j + (dj > 0 ? 1 : 0);
+          if(!clear(cni, cnj)) continue;
+          const x0 = di > 0 ? blk.x1 : nbrX.x1, x1 = di > 0 ? nbrX.x0 : blk.x0;
+          const y0 = dj > 0 ? blk.y1 : nbrY.y1, y1 = dj > 0 ? nbrY.y0 : blk.y0;
+          this.fillBlockInterior(g, { ...blk, x0, x1, y0, y1 }, GRASS);
+        }
       }
       return;
     }
