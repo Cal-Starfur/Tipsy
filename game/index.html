@@ -19952,8 +19952,26 @@ function drawRouteMap(route){
      instead of the event, so the challenge frames on its own course:
      the run-up start through the catch ramp. */
   const ch = route.challenge;
-  const startS = ch ? Math.max(0, ch.kickerS - HJ_GEOM.runup - T2) : route.pickupS;
-  const endS   = ch ? ch.catchS + T2 : route.doorS;
+  /* Cone Slalom had the identical problem and never got the identical
+     fix (reported 2026-08-10, "route doesn't line up with the pin"):
+     its route object carries no route.challenge marker at select time
+     (that only exists once a run is actually live), so this fell
+     through to pickupS..doorS too -- the map drew the ordinary daily
+     commute baked into every generateRoute() call, while tpSlalomPin()
+     (below, and the mission-list/search pin) correctly used slFindChain
+     to find the real course. Two different positions on the same
+     screen. route.dateStr === SL_SEED_DATE is the same unique-route
+     signal tpMapView.stamp already trusts elsewhere -- true only for
+     the slalom's own frozen course, never the daily route or an atlas
+     jump -- so it's a safe, cheap way to detect "this is the slalom
+     preview" without threading a new flag through loadRoute. */
+  const slChain = (!ch && route.dateStr === SL_SEED_DATE) ? slFindChain(route) : null;
+  const startS = ch ? Math.max(0, ch.kickerS - HJ_GEOM.runup - T2)
+               : slChain ? Math.max(0, slChain.segs[0].s0 - T2)
+               : route.pickupS;
+  const endS   = ch ? ch.catchS + T2
+               : slChain ? slChain.segs[slChain.segs.length-1].s1 + T2
+               : route.doorS;
   const n = 60;
   const samples = [];
   for(let i=0; i<=n; i++){
