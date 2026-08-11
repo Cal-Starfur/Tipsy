@@ -21512,6 +21512,18 @@ document.getElementById("avatarIcon").addEventListener("click", tpOpenProfile);
        !s._slAPI excludes Cone Slalom -- same reasoning as
        bindGlobalAvatar's own copy of this fix, see that comment. */
     if(s && s.mode === "challenge" && !s._slAPI){ hide("failOverlay"); hjQuit(); tpOpenMissions(); return; }
+    /* Cone Slalom: same job, different exit door. Slalom's crash card
+       (#slCard) forwards its own glass icon here via tdStackIcons('slCard')
+       -- same as Hydrant does -- but this function only knew how to close
+       out Hydrant (hjQuit) or the shared failOverlay/winOverlay. Neither
+       matched #slCard, so this fell through to a bare tpOpenMissions()
+       with the crash card, its timers, and slFailUp all left live
+       underneath -- closing the missions panel landed right back on the
+       same retry screen. s._slAPI is the one flag only a live/just-ended
+       slalom session carries (see bindGlobalAvatar's own copy of this
+       check), and tpSlalomQuit() is the function that actually knows how
+       to tear all of that down and hand the map back. */
+    if(s && s._slAPI){ tpSlalomQuit(); tpOpenMissions(); return; }
     /* From a finished run either way — crash or delivery — the run is
        already over, so go back to the map on the way out. Mid-route or
        on the map, just open over what's there — tpOpenMissions() pauses
