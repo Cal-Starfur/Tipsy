@@ -34,29 +34,29 @@
    production UI or the production teardown path; restart/quit both go
    through tpSlalomStart()/tpSlalomQuit() the same way the real buttons do.
 
-   THE FINISH MARKER (added after on-device report, 2026-08-11: "the end of
-   the run has no cones and is covered in props"). Root cause isn't the
-   corridor sweep -- that already covers out to
-   max(finishS, chainEndS) + SL.clean*T2, same as everywhere else in this
-   engine. It's that there is no visible finish line at all: "THE FINISH IS
-   A DELIVERY" (slJudge's own comment, game/index.html) -- the run ends by
-   stopping in the game's normal win window, same as any delivery, and
-   game/index.html DOES build a rope-tape prop for it (slBuildFinish) with a
-   matching draw function (slDrawFinish, explicitly "Drawn from BENCH.hook")
-   -- but nothing in game/index.html ever calls BENCH.hook to fire it, and
-   slDrawFinish is a function local to tpSlalomOn's closure, unreachable
-   from here by name. So in the shipped game that's fine (no BENCH, nobody
-   ever needed the tape), and in the bench it's silent: no stop marker, so
-   a run that isn't braked exactly right sails past the real win window,
-   the game's own loop.missed sends it on the go-around lap same as a
-   missed delivery, and that lap is ordinary unswept street -- which reads
-   exactly like "ran out of cones, hit the regular city."
-   Fixed here, not in game/index.html: everything the marker needs
-   (course.finishS, TAPE, ROBOT_SIDE, ROAD_HALF, SIDEWALK_W, scene.posAt/
-   headingAt/W/quadOn) is already public module scope, so this rebuilds the
-   same tape slBuildFinish/slDrawFinish already describe rather than
-   reaching into tpSlalomOn's closure or changing what ships. Stop when the
-   robot is on it, same as any other delivery door.
+   THE START MARKER (was a finish marker, repurposed after on-device report,
+   2026-08-11: "that finish line didn't do anything -- the finish is
+   delivery now at the door"). Correct call, and it points at a real gap:
+   course.finishS (the last gate's own position) and route.doorS (where the
+   win actually checks -- "THE FINISH IS A DELIVERY", slJudge's own comment)
+   are NOT the same s. Measured on the shipped course: finishS 17516,
+   doorS 22967 -- the real stop sits ~5450 units past the last gate, and the
+   corridor sweep only reaches max(finishS, chainEndS) + SL.clean*T2, well
+   short of doorS. So a tape at finishS was never going to do anything: nothing
+   checks for the robot AT finishS, and standing on it doesn't win. That gap is
+   in game/index.html (slStampFurnish's own sweep window and the corridor's
+   assumption that finishS is where a run ends), not something this file can
+   close -- slStampFurnish is private to tpSlalomOn's closure, same reason
+   slDrawFinish was unreachable before. Flagging it here rather than
+   quietly working around it: the last stretch into the real door is
+   unswept every run, tape or no tape, until that's addressed in the shipped
+   file.
+   What IS worth marking from the bench, and what this now draws instead:
+   course.spawnS, the course's own start line -- useful on-device (lines up
+   the 3-2-1-GO hold with where the gates actually begin) and actually
+   correct, unlike the finishS tape it replaces. Same rope-tape geometry,
+   same reasons for rebuilding it locally rather than reaching into
+   tpSlalomOn (see below) -- just anchored at spawnS instead of finishS.
 
    WHY BENCH.pre, NOT BENCH.hook -- checked empirically, not assumed:
    _bench.html's wrapped drawWorld resets __benchVQ, then calls the real
@@ -115,22 +115,24 @@
     panel.remove();
   };
 
-  /* Rebuilds the same rope-tape geometry slBuildFinish computes, from the
-     public course.finishS -- see the header comment for why this can't
-     just call the real slDrawFinish. Reads course fresh every frame
-     (finishS doesn't move once built, but re-deriving is cheap and this
-     stays correct across restart without any extra wiring). */
-  function drawFinishMarker(){
+  /* Rebuilds the same rope-tape geometry slBuildFinish computes, anchored at
+     course.spawnS instead of finishS -- see the header comment for why
+     (finishS isn't where the run actually ends, spawnS is a real, useful
+     line) and for why this can't just call the real slDrawFinish. Reads
+     course fresh every frame (spawnS doesn't move once built, but
+     re-deriving is cheap and this stays correct across restart without any
+     extra wiring). */
+  function drawStartMarker(){
     const api = scene._slAPI;
     const course = api && api.run.course;
-    if (!course || !isFinite(course.finishS)) return;
+    if (!course || !isFinite(course.spawnS)) return;
     const at = (ss, off) => {
       const p = scene.posAt(ss), h = scene.headingAt(ss);
       return { x: p.x + (-Math.sin(h)) * off, y: p.y + Math.cos(h) * off };
     };
     const kerb = ROBOT_SIDE * (ROAD_HALF + TAPE.inset);
     const bldg = ROBOT_SIDE * (ROAD_HALF + SIDEWALK_W - TAPE.inset);
-    const a = at(course.finishS, bldg), b = at(course.finishS, kerb);
+    const a = at(course.spawnS, bldg), b = at(course.spawnS, kerb);
     BENCH.queue(a.x + a.y, (g) => {
       for (let i = 0; i < TAPE.segs; i++){
         const t0 = i / TAPE.segs, t1 = (i + 1) / TAPE.segs;
@@ -149,8 +151,8 @@
   const priorPre = scene.__benchPre;   // chain, don't clobber camera-follow
   BENCH.pre((sc, t) => {
     if (priorPre) priorPre(sc, t);
-    try { drawFinishMarker(); }
-    catch(e){ if (!drawFinishMarker._told){ drawFinishMarker._told = 1; console.log('finish marker draw failed', e); } }
+    try { drawStartMarker(); }
+    catch(e){ if (!drawStartMarker._told){ drawStartMarker._told = 1; console.log('start marker draw failed', e); } }
   });
 
   const readTick = setInterval(() => {
