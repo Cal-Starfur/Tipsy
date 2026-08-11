@@ -19559,10 +19559,11 @@ function drawRobotMarker(ctx, x, y){
    not on DOMContentLoaded. Tying it to the actual pixels means it cannot
    uncover a half-drawn screen. */
 let blDismissed = false;
+let blDismissScheduled = false;
 const BL_SHOWN_AT = Date.now();
 const BL_MIN_MS   = 420;   /* see below */
 function bootLoaderDone(){
-  if(blDismissed) return;
+  if(blDismissed || blDismissScheduled) return;
   /* Minimum on-screen time. Locally the route builds in well under
      150ms, so without this the spinner appears and vanishes inside two
      or three frames — which does not read as "loading", it reads as a
@@ -19573,6 +19574,24 @@ function bootLoaderDone(){
      replaces is a wrong-looking screen rather than a slower one. */
   const waited = Date.now() - BL_SHOWN_AT;
   if(waited < BL_MIN_MS){ setTimeout(bootLoaderDone, BL_MIN_MS - waited); return; }
+  /* IDLE HOLD BEFORE DISMISS (2026-08-10, "not loading fast enough, we
+     don't get the spinning we used to get before the map went big and
+     permanent"): this used to set blDismissed and hide the loader in the
+     same synchronous tick drawRouteMap calls it from -- but drawRouteMap
+     only runs AFTER loadRoute's generateRoute() call returns, and on the
+     merged map that call alone blocks the main thread for 1.6-3.9s on a
+     cold cache (see _routeGenCache above). The CSS spin does not advance
+     at all during that block (same on-device finding that drove
+     ROUTE_LOADING_MIN_IDLE_MS below), and immediate dismiss right after
+     the block meant the boot spinner was visible for the whole thing with
+     zero idle frames to actually turn in -- frozen, then gone. Reusing
+     ROUTE_LOADING_MIN_IDLE_MS rather than a new constant: same question
+     (how long, genuinely idle, does the browser need to paint the turn),
+     same answer either way. */
+  blDismissScheduled = true;
+  setTimeout(_bootLoaderDismiss, ROUTE_LOADING_MIN_IDLE_MS);
+}
+function _bootLoaderDismiss(){
   blDismissed = true;
   /* Attract begins exactly here -- the moment the loader leaves -- because
      this is the first instant the world behind the overlay has real
