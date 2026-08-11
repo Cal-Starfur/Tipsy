@@ -17329,7 +17329,15 @@ function tpSlalomOn(){
       h.walkS0 === undefined || h.walkS1 === undefined
         || (clearsPoint(h.walkS0, off) && clearsPoint(h.walkS1, off));
     scene.route.hazards = scene.route.hazards.filter(h => {
-      if (h.slRole || STRUCTURE[h.type] || h.type === 'william') return true;
+      /* lamp exempted alongside william (fix, 2026-08-11: "we still want
+         the street lamps just not all the other props"): streetlamps
+         don't get a slRole and aren't STRUCTURE (that set is sidewalk
+         geometry -- sweeping them for real would leave a gap in the
+         walk itself, which a lamp isn't), so they were falling through
+         to the same clearsPoint/clearsWalk test as ordinary decoration
+         and getting swept with everything else in range. One named
+         exception, same shape as william's. */
+      if (h.slRole || STRUCTURE[h.type] || h.type === 'william' || h.type === 'lamp') return true;
       if (h.s === undefined) return true;
       const off = laneOffset(h.row ?? 1);
       return clearsPoint(h.s, off) && clearsWalk(h, off);
