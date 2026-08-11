@@ -19103,12 +19103,17 @@ function tpDailyDeliveryPin(){
    code rather than duplicating it, same reasoning hjQuit already
    follows for its own "hand the daily route back" step. */
 function tpBackToDailyRoute(){
-  tpWithRouteLoading("Plotting route", () => {
-    const s = scn();
-    s.mode = "delivery";
-    s.loadRoute(clientTodayUTC());
-    show("titleOverlay");
-  });
+  /* NO SPINNER (2026-08-11, Sir's call): matches every other selection
+     path now -- slalomMapSelect, hjStart, hjQuit, tpSlalomQuit, retry,
+     today/reroll, prGoToRoute all call loadRoute/loadChallenge directly
+     with no "Plotting route" pause. This was the one holdout still
+     wrapped in tpWithRouteLoading; removed so tapping the delivery pin
+     behaves the same as every other map selection instead of being the
+     single case that pauses first. */
+  const s = scn();
+  s.mode = "delivery";
+  s.loadRoute(clientTodayUTC());
+  show("titleOverlay");
 }
 
 function tpMapIndex(route){
