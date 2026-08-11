@@ -19566,16 +19566,23 @@ setTimeout(bootLoaderDone, 8000);
 /* REUSABLE ROUTE-LOADING SPINNER (2026-08-10): same #bootLoader element
    the initial boot uses, same robot SVG, same CSS spin -- just without
    the one-time blDismissed/attract-start machinery, which is boot-only
-   and must never re-fire on a later mission preview or map tap. Only
-   transform/opacity are animated (see #blRobot's CSS), which a modern
-   browser can keep compositing smoothly even while the main thread is
-   busy -- exactly the case here, since generateRoute is a genuinely
-   synchronous, blocking call and nothing JS-driven could animate DURING
-   it regardless. The double-rAF in tpWithRouteLoading below exists
-   because "call show(), then immediately run the blocking work" never
-   gives the browser a frame to actually PAINT the now-visible spinner
-   first -- one rAF fires before the next paint, a second one guarantees
-   that paint has actually happened before the heavy call runs. */
+   and must never re-fire on a later mission preview or map tap. */
+/* CORRECTION (2026-08-10, "it's simply not spinning" on real device):
+   the paragraph above used to claim a modern browser keeps compositing
+   transform/opacity smoothly even while the main thread is busy, so
+   nothing more was needed once the spinner was visible. Measured
+   instead: a real generateRoute() call on the merged map blocks the
+   main thread for ~1.9s on its own, and neither Chromium nor (per the
+   device report) Safari advances the animation AT ALL during that
+   block -- confirmed by screenshotting mid-block and immediately after:
+   frozen at the same pose both times. The old code then hid the
+   spinner the INSTANT work() returned, so the visible window was show
+   -> two rAFs (~1 frame) -> the entire block -> hide, with no idle time
+   anywhere in it for the browser to ever paint real motion. tpHideRouteLoading
+   below is now held off for ROUTE_LOADING_MIN_IDLE_MS of genuine idle
+   time after the block ends, confirmed by sampling frames across that
+   window: the card visibly turns the moment the main thread is free. */
+const ROUTE_LOADING_MIN_IDLE_MS = 500;
 function tpShowRouteLoading(text){
   const el = document.getElementById("bootLoader");
   if(!el) return;
@@ -19589,13 +19596,15 @@ function tpHideRouteLoading(){
 }
 /* Shows the spinner, waits for it to actually paint, runs `work`
    (whatever synchronous, possibly-slow route work needs to happen),
-   then hides it again. Every call site that swaps the active route
-   outside the very first boot should go through this rather than
-   calling loadRoute/loadChallenge directly. */
+   then hides it again -- after a minimum stretch of real idle time so
+   the spin is actually visible before it disappears (see the note
+   above). Every call site that swaps the active route outside the very
+   first boot should go through this rather than calling loadRoute/
+   loadChallenge directly. */
 function tpWithRouteLoading(text, work){
   tpShowRouteLoading(text);
   requestAnimationFrame(() => requestAnimationFrame(() => {
-    try { work(); } finally { tpHideRouteLoading(); }
+    try { work(); } finally { setTimeout(tpHideRouteLoading, ROUTE_LOADING_MIN_IDLE_MS); }
   }));
 }
 
