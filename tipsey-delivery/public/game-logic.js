@@ -5691,7 +5691,7 @@ function _generateRouteFresh(dateStr, opts){
      the catch ramp moved out to match, so it is rebuilt every level by
      WorldScene.hjBuildCourse(). generateRoute only reserves the leg. */
   const challenge = courseLeg ? {
-    lane: 1,
+    lane: 2,
     /* The kicker sits a full RUN-UP past the start of the straight leg.
        It used to be legS0 + 60, and the robot spawned at kicker - 420 —
        which is legS0 - 360, i.e. BEFORE the leg even starts, out in the
@@ -6871,7 +6871,8 @@ class WorldScene extends Phaser.Scene {
       ? Math.max(0, this.route.challenge.kickerS - HJ_GEOM.runup)
       : this.route.pickupS;
     this.botZ = this.groundZ(this.botS);
-    this.botRow = 1; this.laneOff = laneOffset(this.botRow);
+    this.botRow = (opts && opts.challenge && this.route.challenge) ? this.route.challenge.lane : 1;
+    this.laneOff = laneOffset(this.botRow);
     const hdg0 = this.headingAt(this.botS);
     if(this.route.pickupSpot){
       /* spawn exactly at the real shop-relative point, not wherever
