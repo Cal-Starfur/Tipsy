@@ -21081,7 +21081,19 @@ function tpRenderMissions(){
       </div>
       <div class="tpTrRight">${completed ? `<div class="tpCheckBadge">${tpCheckSvg("#2f8f4e", 13)}</div>` : ""}</div>
     `;
-    row.addEventListener("click", ()=>tpOpenDetail("mission", m.id));
+    /* STRAIGHT TO THE MAP (2026-08-10, Sir's call): this used to open
+       tpOpenDetail's confirmation sheet for every row. That sheet did
+       no resume work of its own -- hjStart()/loadChallenge() already
+       reads tpProfile.hjLevel and resumes on its own, same as
+       slalomMapSelect() needs no saved index at all -- so the sheet
+       was a pure extra tap. Locked (comingSoon) rows are inert now
+       instead of opening a "Coming soon" card; they're already dimmed
+       via .tpLocked and there's nothing to confirm on a mission that
+       doesn't exist yet. */
+    row.addEventListener("click", ()=>{
+      if(comingSoon) return;
+      (m.id === "cone-slalom" ? slalomMapSelect : hjStart)();
+    });
     list.appendChild(row);
   });
 }
