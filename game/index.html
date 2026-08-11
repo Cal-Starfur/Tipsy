@@ -4842,7 +4842,53 @@ function worldgenReconcile(grid){
   delete grid.swRunHash; delete grid.swCornerHash; delete grid.curbRampHash;
 }
 
+/* ROUTE GENERATION CACHE (2026-08-10, "it needs to cache"): generateRoute
+   is a genuinely expensive, PURE function of (dateStr, hoodIndex, classic,
+   challenge) -- confirmed by direct measurement, ~1.6-3.5s on the merged
+   12-district map, and confirmed byte-deterministic (same inputs, same
+   output, every time -- see the earlier Cone Slalom pin-vs-route fix,
+   which relied on exactly that property). Every frozen course
+   (HJ_SEED_DATE, SL_SEED_DATE) was getting rebuilt from scratch on EVERY
+   visit -- selecting Cone Slalom from the map, then pressing GO, was two
+   full rebuilds of the identical street grid and gate corridor seconds
+   apart, and that block is long enough that nothing can visibly animate
+   through it regardless of what the loading spinner does (see
+   ROUTE_LOADING_MIN_IDLE_MS above) -- the only real fix is not paying for
+   the rebuild twice.
+
+   The risk is everything gameplay bolts onto the result afterward and
+   mutates in place: hz.hit/burst/kst/phi/angVel/... extensively (see the
+   collision/physics code), route.hazards/props get PUSHED onto directly at
+   runtime (course hydrants/ramps added when a challenge starts) as well as
+   reassigned (stale-hazard cleanup filters), and route.pickupSpot/doorS/
+   crime get reassigned live during a session. Sharing the cached object
+   directly would leak one session's mutations into the next replay of the
+   identical course -- exactly the class of bug "Fix slalom cone stacking"
+   already had to patch once for stale hazards specifically.
+
+   So the cache stores the PRISTINE result from _generateRouteFresh, and
+   every retrieval -- hit or miss -- hands back a fresh top-level clone
+   with hazards individually shallow-cloned too (the only field with deep
+   in-place field mutation; a reassignment or .push() on a caller's own
+   .map()-derived array can never touch the cached original either way).
+   grid/segs/tiles/props/pal/etc. are never mutated after generation
+   (checked: no assignment to any of their fields anywhere outside
+   construction) and stay shared by reference -- that's where the actual
+   saving comes from. The clone itself costs microseconds; the expensive
+   part (buildGrid/buildWalk/course search) never reruns for inputs it's
+   already built. */
+const _routeGenCache = new Map();
 function generateRoute(dateStr, opts){
+  const key = dateStr + "|" + (opts && opts.hoodIndex != null ? opts.hoodIndex : "")
+            + "|" + !!(opts && opts.classic) + "|" + !!(opts && opts.challenge);
+  let cached = _routeGenCache.get(key);
+  if(!cached){
+    cached = _generateRouteFresh(dateStr, opts);
+    _routeGenCache.set(key, cached);
+  }
+  return { ...cached, hazards: cached.hazards.map(h => ({...h})) };
+}
+function _generateRouteFresh(dateStr, opts){
   const seed = hashStr(dateStr);
   const rng = mulberry32(seed);
   /* THE CITY IS PERMANENT NOW (2026-08-10, Sir's call). cols/rows/grid
