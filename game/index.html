@@ -262,10 +262,27 @@
      Top-level + position:fixed means they answer to nothing but
      themselves. z-index 50 clears .overlay (10) and #hjUI (6); the robot
      stays above at 60. */
-  #tpProfilePanel, #tpMissionsPanel{position:fixed;inset:0;background:#f0ece0;z-index:50;
+  #tpProfilePanel{position:fixed;inset:0;background:#f0ece0;z-index:50;
     display:flex;flex-direction:column;transform:translateY(100%);
     transition:transform .24s ease-out;}
-  #tpProfilePanel.open, #tpMissionsPanel.open{transform:translateY(0);}
+  #tpProfilePanel.open{transform:translateY(0);}
+
+  /* Side missions: a dimmed scrim over the map (same pattern as
+     #tpDetailScrim/#tpDetailSheet) instead of a solid full-screen
+     panel — the map stays visible, dimmed, above and around the
+     sheet. #tpMissionsPanel keeps its existing id/open-class contract
+     (tpOpenMissions/tpCloseMissions/tpSyncGlobalBtns all just toggle
+     .open on it, unchanged) but is now the scrim; the actual white
+     sheet is the new #tpMissionsSheet wrapping the header/search/list
+     that used to sit directly inside #tpMissionsPanel. */
+  #tpMissionsPanel{position:fixed;inset:0;z-index:50;background:rgba(20,22,27,.5);
+    display:flex;flex-direction:column;justify-content:flex-end;
+    opacity:0;pointer-events:none;transition:opacity .18s;}
+  #tpMissionsPanel.open{opacity:1;pointer-events:auto;}
+  #tpMissionsSheet{width:100%;max-height:85vh;background:#f0ece0;border-radius:20px 20px 0 0;
+    display:flex;flex-direction:column;overflow:hidden;
+    transform:translateY(100%);transition:transform .24s ease-out;}
+  #tpMissionsPanel.open #tpMissionsSheet{transform:translateY(0);}
 
   #tpProfHeader, #tpMissionsHeader{flex:none;padding:calc(14px + env(safe-area-inset-top)) 14px 10px;
     background:#14161b;display:flex;align-items:center;gap:10px;}
@@ -626,14 +643,16 @@
 
   <!-- ===== Tipsey Profile: Side Missions (search, Phase A) ===== -->
   <div id="tpMissionsPanel">
-    <div id="tpMissionsHeader">
-      <button id="tpMissionsBack"></button>
-    </div>
-    <div id="tpMissionsSearchWrap">
-      <input id="tpMissionsSearch" type="text" placeholder="Search the map…">
-    </div>
-    <div id="tpMissionsBody">
-      <div id="tpMissionsList"></div>
+    <div id="tpMissionsSheet">
+      <div id="tpMissionsHeader">
+        <button id="tpMissionsBack"></button>
+      </div>
+      <div id="tpMissionsSearchWrap">
+        <input id="tpMissionsSearch" type="text" placeholder="Search the map…">
+      </div>
+      <div id="tpMissionsBody">
+        <div id="tpMissionsList"></div>
+      </div>
     </div>
   </div>
 
@@ -21622,6 +21641,7 @@ document.getElementById("tpDetailScrim").addEventListener("click", e=>{ if(e.tar
 document.getElementById("tpDetailClose").addEventListener("click", tpCloseDetail);
 document.getElementById("searchIcon").addEventListener("click", tpOpenMissions);
 document.getElementById("tpMissionsBack").addEventListener("click", tpCloseMissions);
+document.getElementById("tpMissionsPanel").addEventListener("click", e=>{ if(e.target.id==="tpMissionsPanel") tpCloseMissions(); });
 document.getElementById("tpMissionsSearch").addEventListener("input", tpRenderMissions);
 tpKeyboardCaptureGuard(document.getElementById("tpMissionsSearch"));
 document.getElementById("tpTabTrophy").addEventListener("click", ()=>tpSetTab("trophy"));
