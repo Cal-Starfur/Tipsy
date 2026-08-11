@@ -18276,7 +18276,22 @@ function tpSlalomOn(){
      simply queue. That is the ask — they wait.
      ========================================================================= */
   const STOP_R    = 6 * T2;    // start looking this far back
-  const STOP_LAT  = 1.6 * T2;  // ignore cars not actually aimed at it
+  /* STOP_LAT was 1.6*T2 (147 units) and, measured on-device against the
+     shipped course, that number never once matched a real car: every
+     coneNode is built along the SLALOM's own s-axis (conePos walks `at`
+     through posAt, offset onto the walk band) -- for a CROSSING car,
+     travelling perpendicular to that axis, the coneNode's spread along
+     the slalom street IS the crossing car's own lateral axis, and the
+     three sample points per span (u=0/0.5/1) land several hundred units
+     apart in it. Logged every car within STOP_R of any node for ~15s
+     across this course: the closest miss never once cleared 147, but
+     real approaches clustered from roughly 250 up past 500 as they
+     closed in -- so cars were never geometrically reachable, at any
+     speed, from any lane. Reusing ROAD_HALF (a real half-road-width,
+     not a new tuning knob) comfortably covers that whole observed
+     spread -- confirmed on the same course: zero catches at 1.6*T2,
+     dozens over the same window at ROAD_HALF. */
+  const STOP_LAT  = ROAD_HALF;
 
   function slHoldTraffic(t, dt){
     const c = run.course;
