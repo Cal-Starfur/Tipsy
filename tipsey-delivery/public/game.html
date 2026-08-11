@@ -445,12 +445,43 @@
     flex-direction:column;align-items:center;justify-content:center;gap:10px;
     background:#14161a;transition:opacity .28s ease;}
   #bootLoader.done{opacity:0;pointer-events:none;}
-  /* rotateY on the flat SVG reads as the robot turning on the spot —
-     cheaper and steadier than animating the isometric art, and it is the
-     one axis where a 2D sprite can fake a 3D turn convincingly. */
-  #blRobot{animation:blSpin 1.35s cubic-bezier(.45,.05,.55,.95) infinite;}
-  @keyframes blSpin{from{transform:perspective(340px) rotateY(0deg);}
-                      to{transform:perspective(340px) rotateY(360deg);}}
+  /* REAL VOLUME, NOT A FLAT CARD (2026-08-10, "it used to spin -- give
+     it some depth"): the old rig put perspective() INSIDE the animated
+     transform on the flat SVG itself. That's the newer perspective()
+     TRANSFORM FUNCTION, not the long-supported `perspective` PROPERTY --
+     support for animating it that way is patchy enough that the robot
+     just sat there while #blShadow (plain scaleX/opacity, no
+     perspective() at all) kept animating right next to it -- exactly
+     the "shadow moves, face doesn't" split reported. Rebuilt as a real
+     two-faced card: #blRobotStage carries `perspective` as a plain
+     property (the well-supported form), #blRobotCard is the thing that
+     actually spins (transform-style:preserve-3d so its two children
+     keep their own 3D position instead of flattening), and the two
+     faces are backface-visibility:hidden so only one is ever showing.
+     .blBack sits at a fixed rotateY(180deg) INSIDE the spinning card,
+     so turning the card 180° swings the actual back panel into view
+     instead of a mirrored front -- a solid object turning, not a
+     flipping decal. */
+  #blRobotStage{position:relative;width:88px;height:101px;perspective:340px;}
+  #blRobotCard{position:absolute;inset:0;transform-style:preserve-3d;
+    animation:blSpin 1.35s cubic-bezier(.45,.05,.55,.95) infinite;}
+  .blFace{position:absolute;inset:0;backface-visibility:hidden;}
+  .blBack{transform:rotateY(180deg);}
+  /* the actual edge of the box: front/back alone go to true zero width
+     at 90°/270° (two flat faces, no thickness between them) and the
+     card vanishes for an instant right as it's supposed to read as
+     "turning," which looks like a glitch rather than a solid object.
+     A third panel, rotated 90° off the front/back pair and pushed out
+     by half the implied thickness, is edge-on (hidden behind the wide
+     face) whenever front/back are wide, and widest exactly when they're
+     thin -- filling the gap. No backface-visibility:hidden here on
+     purpose: unlike the front/back pair it has no "wrong side" to hide,
+     it just needs to be seen from both directions. */
+  #blRobotSide{position:absolute;top:0;left:36px;width:16px;height:101px;
+    background:linear-gradient(180deg,#9199a3,#6d747e);
+    transform:rotateY(90deg) translateZ(8px);}
+  @keyframes blSpin{from{transform:rotateY(0deg);}
+                      to{transform:rotateY(360deg);}}
   /* the shadow is widest face-on and narrowest edge-on, i.e. twice per
      turn, which is what sells the rotation as depth rather than a flip */
   #blShadow{width:52px;height:9px;border-radius:50%;background:#000;
@@ -592,7 +623,9 @@
     </svg></button>
 <button class="iconBtn" id="globalSearch" aria-label="Side missions"></button>
 <div id="bootLoader">
-  <svg id="blRobot" viewBox="0 0 40 46" width="88" height="101" aria-hidden="true">
+  <div id="blRobotStage">
+   <div id="blRobotCard">
+    <svg id="blRobot" class="blFace" viewBox="0 0 40 46" width="88" height="101" aria-hidden="true">
       <line x1="13" y1="5" x2="13" y2="11" stroke="#2e3138" stroke-width="1.5"/>
       <circle cx="13" cy="5" r="2" fill="#ff5722"/>
       <rect x="9" y="11" width="22" height="7" fill="#f7f8fa" stroke="#30343d" stroke-width="1.2"/>
@@ -603,7 +636,22 @@
       <rect x="5" y="32" width="30" height="4" fill="#c2452e"/>
       <rect x="5" y="34" width="30" height="3" fill="#ffcc33" stroke="#c9a020" stroke-width="0.5"/>
       <rect x="5" y="36" width="30" height="3" fill="#494e58"/>
-  </svg>
+    </svg>
+    <svg id="blRobotBack" class="blFace blBack" viewBox="0 0 40 46" width="88" height="101" aria-hidden="true">
+      <line x1="13" y1="5" x2="13" y2="11" stroke="#2e3138" stroke-width="1.5"/>
+      <circle cx="13" cy="5" r="2" fill="#7a2e1a"/>
+      <rect x="9" y="11" width="22" height="7" fill="#dcdde1" stroke="#30343d" stroke-width="1.2"/>
+      <rect x="5" y="18" width="30" height="21" fill="#dcdde1" stroke="#30343d" stroke-width="1.2"/>
+      <rect x="9" y="22" width="22" height="8" fill="#3a3e46"/>
+      <rect x="13" y="24" width="2" height="4" fill="#22242b"/>
+      <rect x="21" y="24" width="2" height="4" fill="#22242b"/>
+      <rect x="5" y="32" width="30" height="4" fill="#c2452e"/>
+      <rect x="5" y="34" width="30" height="3" fill="#ffcc33" stroke="#c9a020" stroke-width="0.5"/>
+      <rect x="5" y="36" width="30" height="3" fill="#494e58"/>
+    </svg>
+    <div id="blRobotSide"></div>
+   </div>
+  </div>
   <div id="blShadow"></div>
   <div id="blText">Plotting route</div>
 </div>
