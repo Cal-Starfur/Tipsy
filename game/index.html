@@ -17413,16 +17413,23 @@ const SL = {
      laggy"): revving through the count was cosmetic-only -- speed
      stayed pinned at 0 the whole time, same as any standing start, so
      GO still had to climb the ordinary 0.00042/ms ramp from a dead
-     stop. vTop() here is V_BASE(0.225)*SL.vmul(2.0) = 0.45; reaching
-     even HALF that from 0 takes over half a second of continuous full
-     throttle. That's the game's normal launch and was never the
-     problem on its own -- it just reads as broken once the smoke and
-     spin have been selling a launch for three seconds first. A held
-     burnout now banks straight into this speed at GO instead of
-     starting from zero, same "dump the clutch" moment real tires give
-     you once they finally bite. ~1/3 of vTop -- a real head start,
-     not the whole run handed to you for holding a button. */
-  burnoutLaunch: 0.15,
+     stop. First fix banked a PARTIAL burst (0.15, ~1/3 of vTop) into
+     GO instead of zero -- an improvement, but still just a head start
+     on the SAME climb, so it still read as a hold once the smoke and
+     spin had been selling an actual launch for three seconds.
+
+     UNTANGLED (2026-08-12, same day, Sir's follow-up: "it's a bug of
+     the lab on top of the daily -- the daily always has a lag on
+     launch, let's untangle these"): headless side-by-side confirmed
+     it -- the plain daily route, held at full throttle from a real
+     start, only reaches ~0.166 speed after a full 3 REAL SECONDS
+     (0.00042/ms, unboosted, no vmul). That climb is the daily's own
+     accepted baseline, not a bug in it. The partial burst above just
+     rode ON TOP of that same curve instead of replacing it, so a held
+     burnout was still entangled with the exact slowness Sir's asking
+     to be decoupled from. A real burnout goes straight to vTop() --
+     full stop, not a head start on someone else's ramp. */
+  burnoutLaunch: 1.0,   // fraction of vTop() a held burnout launches at
 };
 
 /* =========================================================================
@@ -19377,13 +19384,14 @@ function tpSlalomOn(){
       run.phase = 'live'; run.started = true; run.t0 = performance.now();
       prevS = scene.botS;
       /* the payoff: a streak exactly where he sat and spun, PLUS a real
-         speed burst (SL.burnoutLaunch — see its own comment for the
-         "why" and the math), only if he actually held gas for it — a
-         normal standing start (no throttle through the count) launches
-         clean from zero, no mark, no burst. */
+         launch — straight to vTop()*SL.burnoutLaunch (see its own
+         comment for the "untangled" history), only if he actually
+         held gas for it — a normal standing start (no throttle
+         through the count) launches clean from zero, no mark, no
+         burst, same slow climb the daily route has always had. */
       if (run.burnoutHeld){
         slLayBurnoutMark();
-        scene.speed = SL.burnoutLaunch;
+        scene.speed = vTop() * SL.burnoutLaunch;
       }
     }
   };
