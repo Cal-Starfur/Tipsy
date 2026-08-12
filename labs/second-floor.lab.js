@@ -25,6 +25,16 @@
    ground floor already uses (0x6b93a8 / 0x86adc0) for palette consistency
    rather than inventing a new color language.
 
+   THIRD STORY (Sir's correction, second pass): the plaza-fill removal
+   left bare open ground visible in commercial block interiors once the
+   1-2 standalone plaza buildings stopped being drawn. Not fixed with a
+   ground-tone change -- fixed architecturally. A recessed, deeper third
+   story sits on top of the second floor's roofline, set back from the
+   facade and reaching further into the block than the lower floors do,
+   so ITS roof covers open interior ground instead of leaving it bare.
+   Conservative reach (see f3depth's own comment) to avoid buildings on
+   opposite sides of the same block colliding mid-interior.
+
    PORT NOTE: this will show as a monkeypatched method in "port check" --
    expected. Porting means replacing drawStoreUnit's body in game/index.html
    (and game-logic.js) with this one, not adding a call site.
@@ -68,6 +78,25 @@
       if(isLast && a1 >= w){  const r=[G(w,0,H),G(w,-D,H),G(w,-D,0),G(w,0,0)]; this.quadOn(g,r,C.wallLt); this.edgeOn(g,r,C.trim,1); }
     }
 
+    /* ---------- THIRD STORY: recessed, deeper reach ----------
+       Sir's correction: not a ground-tone fix, an architectural one.
+       This block doesn't just add height -- it's set back (b starts
+       at -f3setback, not 0) AND reaches further into the block than
+       the ground/second floor's own D, so ITS roof covers open
+       interior ground that would otherwise read as a bare gap between
+       buildings on opposite sides of the block.
+
+       f3depth is deliberately conservative (~420 extra units beyond
+       D=276, total reach ~700 into the block) rather than trying to
+       close the interior gap completely -- a typical block's interior
+       gap runs ~1100 units, and buildings on OPPOSITE sides reaching
+       toward the middle would collide if each closed half of it. First
+       pass; revisit the exact reach once seen live at all 4 headings
+       against real block sizes -- flagged, not hidden. */
+    const f3setback = 60, f3depth = 420, f3wallH = 90;
+    const f3b0 = -f3setback, f3b1 = -(D + f3depth);
+    const f3z0 = H, f3z1 = f3z0 + f3wallH;
+
     if(part !== 'body'){
       const ov = isFirst||isLast ? 5 : 0;
       const rL = a0 === 0 ? (isFirst?-ov:0) : a0, rR = a1 >= w ? (isLast?w+ov:w) : a1;
@@ -78,6 +107,26 @@
       g.lineBetween(roof[3].x,roof[3].y,roof[2].x,roof[2].y);
       if(a0 === 0) g.lineBetween(roof[0].x,roof[0].y,roof[3].x,roof[3].y);
       if(a1 >= w) g.lineBetween(roof[1].x,roof[1].y,roof[2].x,roof[2].y);
+
+      // the deep roof -- THIS is what covers the plaza ground
+      const f3roof = [G(0,f3b0+8,f3z1), G(w,f3b0+8,f3z1), G(w,f3b1,f3z1), G(0,f3b1,f3z1)];
+      this.quadOn(g, f3roof, C.trim);
+      this.edgeOn(g, f3roof, C.wallDk, 1);
+    }
+
+    if(part !== 'roof'){
+      // recessed front wall -- reads as a real step-back, not a taller floor in place
+      const f3front = [G(6,f3b0,f3z1), G(w-6,f3b0,f3z1), G(w-6,f3b0,f3z0), G(6,f3b0,f3z0)];
+      this.quadOn(g, f3front, C.wallLt);
+      this.edgeOn(g, f3front, C.trim, 1);
+      if(isFirst && a0 === 0){ const l=[G(6,f3b0,f3z1),G(6,f3b1,f3z1),G(6,f3b1,f3z0),G(6,f3b0,f3z0)]; this.quadOn(g,l,C.wallDk); }
+      if(isLast && a1 >= w){  const r=[G(w-6,f3b0,f3z1),G(w-6,f3b1,f3z1),G(w-6,f3b1,f3z0),G(w-6,f3b0,f3z0)]; this.quadOn(g,r,C.wallDk); }
+      // a couple of plain windows -- upper massing, not another shopfront
+      const f3winN = 2;
+      for(let i=0;i<f3winN;i++){
+        const cx = w*(i+0.5)/f3winN, ww2 = 24;
+        this.quadOn(g, [G(cx-ww2/2,f3b0-0.5,f3z0+60), G(cx+ww2/2,f3b0-0.5,f3z0+60), G(cx+ww2/2,f3b0-0.5,f3z0+18), G(cx-ww2/2,f3b0-0.5,f3z0+18)], 0x6b93a8);
+      }
     }
 
     if(part === 'roof') return;
