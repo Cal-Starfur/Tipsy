@@ -19264,16 +19264,17 @@ function hjUpdateMeter(s){
   const btnL = document.getElementById("hjTapL");
   const btnR = document.getElementById("hjTapR");
   if(!btn) return;
-  /* pointerdown ONLY, keyed by pointerId. Listening for touchstart as well
-     makes a single touch count TWICE (both fire), which is exactly the bug
-     that made touch double-strength in the lab. Each finger gets its own
-     browser pointerId regardless of which of the 3 buttons it lands on,
-     so rolling across L/R/center dedupes per-finger exactly like A/S/D. */
-  const tap = e => { e.preventDefault(); const s = hjScn();
-                     if(s && s.mode === "challenge") s.hjTap(performance.now(), "p"+(e.pointerId||0)); };
-  btn.addEventListener("pointerdown", tap);
-  if(btnL) btnL.addEventListener("pointerdown", tap);
-  if(btnR) btnR.addEventListener("pointerdown", tap);
+  /* Each on-screen button is its own dedupe CHANNEL, mirroring the
+     keyboard exactly: KeyA/KeyS/KeyD are keyed by e.code (deterministic,
+     per physical key), so the buttons are keyed by which BUTTON, not by
+     the browser's pointerId (which is assigned per touch contact and
+     isn't a reliable stand-in for "which control"). btnL/btnC/btnR are
+     3 independent 20ms-cooldown channels, same shape as the 3 keys. */
+  const mkTap = key => e => { e.preventDefault(); const s = hjScn();
+                     if(s && s.mode === "challenge") s.hjTap(performance.now(), key); };
+  btn.addEventListener("pointerdown", mkTap("btnC"));
+  if(btnL) btnL.addEventListener("pointerdown", mkTap("btnL"));
+  if(btnR) btnR.addEventListener("pointerdown", mkTap("btnR"));
   /* A/S/D so fingers can be ROLLED — one key caps you at what a single
      finger can do, and level 10 needs ~11 taps/sec. Each key carries its
      own dedupe window inside tap(). */
