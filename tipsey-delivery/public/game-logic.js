@@ -3224,28 +3224,31 @@ function buildWorldCurbRamps(grid){
      no double-counting across the shared edge. */
   const serves = (n, f) => WORLD_RAMP.bothStreets || (f % 2) === ((n.i + n.j) & 1);
   /* A ramp only makes sense where there is an actual cross street to
-     curb-cut for. The straight-through-crossings code (generateRoute)
-     already gates on exactly this -- n.conn[(f+3)%4] -- before
-     registering a route crossing; this is the same check, generalized
-     to both perpendicular directions since a world ramp isn't tied to
-     one robot-side convention. Without it, the swallow pass reducing a
-     corner/T node down to a straight-through or dead-end (its cross
-     street absorbed into a merged park) leaves this function still
-     planting a ramp at that node for the surviving street -- a curb
-     cut with nothing across it (Sir's report, 2026-08-12, leftover
-     ramps where parks merged and took an intersection with them). */
-  const hasCrossStreet = (n, f) => n.conn[(f+1)%4] || n.conn[(f+3)%4];
+     curb-cut for, ON THE SIDE the ramp is being placed on. The
+     straight-through-crossings code (generateRoute) already gates on
+     exactly this -- n.conn[(f+3)%4] -- before registering a route
+     crossing; this is the same check, but SIDE-SPECIFIC rather than
+     "any perpendicular direction at all". A T-junction that kept its
+     through-street and lost its cross-street on only one side (the
+     other still real, further down the block) has hasCrossStreet true
+     either way under an "any" test -- and this function would then
+     happily plant ramps on BOTH sides, including the one pointing at
+     nothing. side=+1 is the +rv direction, i.e. (f+1)%4; side=-1 is
+     -rv, i.e. (f+3)%4 -- same sign convention buildWorldCurbRamps
+     already uses for perp below. (Sir's report, 2026-08-12: still
+     there after the first pass, at exactly this T-junction shape.) */
+  const hasCrossStreet = (n, f, side) => n.conn[side === 1 ? (f+1)%4 : (f+3)%4];
   for(const e of grid.edges){
     const dv = DIRV[e.f], rv = DIRV[(e.f+1)%4];
     for(const side of [-1, 1]){
       const perp = side * perpMag;
       /* the a-end ramp faces BACK down the edge (f+2), the b-end ramp
          faces forward (f) -- both pointing at their own node. */
-      if(serves(e.a, e.f) && hasCrossStreet(e.a, e.f)){
+      if(serves(e.a, e.f) && hasCrossStreet(e.a, e.f, side)){
         const ax = e.a.x + dv.x*along + rv.x*perp, ay = e.a.y + dv.y*along + rv.y*perp;
         if(interior(ax, ay)) ramps.push({ x: ax, y: ay, f: (e.f + 2) % 4 });
       }
-      if(serves(e.b, e.f) && hasCrossStreet(e.b, e.f)){
+      if(serves(e.b, e.f) && hasCrossStreet(e.b, e.f, side)){
         const bx = e.b.x - dv.x*along + rv.x*perp, by = e.b.y - dv.y*along + rv.y*perp;
         if(interior(bx, by)) ramps.push({ x: bx, y: by, f: e.f });
       }
