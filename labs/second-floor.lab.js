@@ -28,12 +28,24 @@
    THIRD STORY (Sir's correction, second pass): the plaza-fill removal
    left bare open ground visible in commercial block interiors once the
    1-2 standalone plaza buildings stopped being drawn. Not fixed with a
-   ground-tone change -- fixed architecturally. A recessed, deeper third
-   story sits on top of the second floor's roofline, set back from the
-   facade and reaching further into the block than the lower floors do,
-   so ITS roof covers open interior ground instead of leaving it bare.
-   Conservative reach (see f3depth's own comment) to avoid buildings on
-   opposite sides of the same block colliding mid-interior.
+   ground-tone change -- fixed architecturally. A recessed third story
+   sits on top of the second floor's roofline, set back from the
+   facade, walls/windows drawn per unit same as every other floor.
+
+   UNIFIED ROOF (third pass): each unit used to draw its OWN roof quad
+   reaching deep into the block to cover the gap -- that's what caused
+   buildings to visibly draw over one another. queueCommercialEdgeAt
+   gives every unit exactly one depth key from its own shallow position
+   (depth: hx+hy); stretching a unit's roof geometry ~700+ units past
+   that position breaks the sort for the stretched part, and several
+   units doing it at once compounds it. Fixed by not letting units cover
+   the gap at all: ONE roof quad per BLOCK now (see the
+   queueCommercialBlock patch below), queued with isRoof:true so it
+   lands in the same global-last roof pass every other roof already
+   uses (blockVQ filters bodies vs roofs; roofs always draw after every
+   body, confirmed in source). Colored to match the building work
+   (seeded STORE_PALETTES pick, not a flat generic tone) rather than
+   reading as a separate slab dropped on top.
 
    PORT NOTE: this will show as a monkeypatched method in "port check" --
    expected. Porting means replacing drawStoreUnit's body in game/index.html
@@ -110,10 +122,11 @@
       if(a0 === 0) g.lineBetween(roof[0].x,roof[0].y,roof[3].x,roof[3].y);
       if(a1 >= w) g.lineBetween(roof[1].x,roof[1].y,roof[2].x,roof[2].y);
 
-      // the deep roof -- THIS is what covers the plaza ground
-      const f3roof = [G(0,f3b0+8,f3z1), G(w,f3b0+8,f3z1), G(w,f3b1,f3z1), G(0,f3b1,f3z1)];
-      this.quadOn(g, f3roof, C.trim);
-      this.edgeOn(g, f3roof, C.wallDk, 1);
+      // third story's own roof is UNIFIED at the block level now (see
+      // the queueCommercialBlock patch below) -- this is what fixes the
+      // z-fight: one quad per block instead of one competing quad per
+      // unit, each of which only ever had ONE shallow depth key to work
+      // with (queueCommercialEdgeAt's depth:hx+hy).
     }
 
     if(part !== 'roof'){
@@ -197,4 +210,96 @@
   };
 
   console.log('drawStoreUnit patched -- second floor active on ordinary commercial units. drawCornerStoreUnit untouched.');
+})();
+
+/* ===========================================================================
+   UNIFIED THIRD-STORY ROOF -- one object per block, not one per unit
+   ===========================================================================
+   This is the actual fix for the z-fight, not the flat-grey-canopy attempt
+   from earlier (Sir: "no it looked better before, go back" -- that version
+   is gone, this is a fresh pass). Same underlying mechanism (isRoof:true,
+   the global-last roof pass every roof already uses) but styled to read as
+   the third story's own roof, not a separate slab dropped on top:
+   - Colored from STORE_PALETTES, seeded per block, same as every
+     individual unit already does -- not a flat generic tone.
+   - Height set to comfortably clear every unit's own H + f3wallH (drawn in
+     the section above), which varies per unit via rng(), rather than
+     trying to match any one unit's exact roofline.
+   - Extent is the block's own interior rect (queueCommercialInterior's own
+     RING inset math -- that function is disabled, not deleted, see its
+     doc comment), which comfortably covers what the old per-unit reach
+     was trying to close anyway.
+   =========================================================================== */
+(() => {
+  const sc = game.scene.scenes[0];
+  if(!sc){ console.log('bridge not up'); return; }
+
+  if(!sc.__origQueueCommercialBlock2) sc.__origQueueCommercialBlock2 = sc.queueCommercialBlock;
+
+  sc.queueCommercialBlock = function(vq, blk, excludeEdges=null, cornerSkip=null){
+    this.__origQueueCommercialBlock2(vq, blk, excludeEdges, cornerSkip);
+
+    const RING = HOUSE_DEPTH + T2*0.3 + T2;
+    const ix0 = blk.x0 + RING, ix1 = blk.x1 - RING;
+    const iy0 = blk.y0 + RING, iy1 = blk.y1 - RING;
+    if(ix1 - ix0 < T2*2 || iy1 - iy0 < T2*2) return;   // degenerate block, skip
+
+    const ROOF_Z = 460;   // clears every unit's own H + f3wallH (~422-448) with margin
+    const cx = (ix0+ix1)/2, cy = (iy0+iy1)/2;
+
+    const rng = mulberry32(((Math.round(cx)*7919) ^ (Math.round(cy)*104729) ^ 0x9a7c) >>> 0);
+    const RC = STORE_PALETTES[Math.floor(rng()*STORE_PALETTES.length)];
+
+    const roof = [
+      this.W(ix0, iy0, ROOF_Z), this.W(ix1, iy0, ROOF_Z),
+      this.W(ix1, iy1, ROOF_Z), this.W(ix0, iy1, ROOF_Z)
+    ];
+    vq.push({ depth: cx+cy, isRoof: true, fn: (g) => {
+      this.quadOn(g, roof, RC.trim);
+      this.edgeOn(g, roof, RC.wallDk, 1);
+    }});
+
+    // rooftop clutter -- same rng stream as the palette pick, still
+    // seeded per block so it's stable
+    const nProps = 3 + Math.floor(rng()*5);
+    for(let i=0;i<nProps;i++){
+      const px = ix0 + 40 + rng()*Math.max(1,(ix1-ix0-80));
+      const py = iy0 + 40 + rng()*Math.max(1,(iy1-iy0-80));
+      const kind = rng();
+      const pdepth = px+py+0.1;
+      if(kind < 0.4){
+        const s = 26 + rng()*14;
+        vq.push({ depth: pdepth, fn: (g) => {
+          const top = [this.W(px-s/2,py-s/2,ROOF_Z+s*0.6), this.W(px+s/2,py-s/2,ROOF_Z+s*0.6),
+                       this.W(px+s/2,py+s/2,ROOF_Z+s*0.6), this.W(px-s/2,py+s/2,ROOF_Z+s*0.6)];
+          const front = [this.W(px-s/2,py+s/2,ROOF_Z+s*0.6), this.W(px+s/2,py+s/2,ROOF_Z+s*0.6),
+                         this.W(px+s/2,py+s/2,ROOF_Z), this.W(px-s/2,py+s/2,ROOF_Z)];
+          const side = [this.W(px+s/2,py-s/2,ROOF_Z+s*0.6), this.W(px+s/2,py+s/2,ROOF_Z+s*0.6),
+                       this.W(px+s/2,py+s/2,ROOF_Z), this.W(px+s/2,py-s/2,ROOF_Z)];
+          this.quadOn(g, top, 0xc4c4bc);
+          this.quadOn(g, front, 0x9a9a92);
+          this.quadOn(g, side, 0x8a8a82);
+        }});
+      } else if(kind < 0.7){
+        const r = 12 + rng()*6;
+        vq.push({ depth: pdepth, fn: (g) => {
+          const base = this.W(px, py, ROOF_Z);
+          const tip = this.W(px, py, ROOF_Z+24);
+          g.lineStyle(3, 0x444444, 1);
+          g.lineBetween(base.x, base.y, tip.x, tip.y);
+          g.fillStyle(0x666666, 1);
+          g.fillEllipse(tip.x, tip.y, r*1.6, r);
+        }});
+      } else {
+        const s = 14 + rng()*8;
+        vq.push({ depth: pdepth, fn: (g) => {
+          const top = [this.W(px-s/2,py-s/2,ROOF_Z+s), this.W(px+s/2,py-s/2,ROOF_Z+s),
+                       this.W(px+s/2,py+s/2,ROOF_Z+s), this.W(px-s/2,py+s/2,ROOF_Z+s)];
+          this.quadOn(g, top, 0x333333);
+        }});
+      }
+    }
+  };
+
+  console.log('queueCommercialBlock patched -- unified third-story roof (matched palette) + rooftop clutter active.');
 })();
