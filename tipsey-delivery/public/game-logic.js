@@ -5978,6 +5978,7 @@ class WorldScene extends Phaser.Scene {
 
   hop(screenDir){
     if(this.state !== "play") return;
+    if(this._slAPI && this._slAPI.run.done) return;   // see throttle guard's own comment
     const dir = this.rowScreenFlip(screenDir);
     /* no lane changes mid-turn: a hop's lateral swing (up to 276 units,
        nearly the turn's own radius) happening over the short arc-length
@@ -12955,8 +12956,17 @@ class WorldScene extends Phaser.Scene {
 
       /* throttle / brake / hill gravity / friction */
       const slope = this.groundSlope(this.botS);          // + uphill
-      if(this.throttle === 1) this.speed += 0.00042*dt;
-      if(this.throttle === -1) this.speed -= 0.00075*dt;
+      /* a slalom run that's over (timeout, tip-over pending its card, the
+         delivery-style double-miss) is not driveable -- state stays "play"
+         through all of that (it's not a crash), so this is the one thing
+         actually gating thrust. Throttle itself is left alone; several
+         input paths set it every frame and none of them are worth
+         chasing. slJudge's own coast-to-a-stop decay is what's left to
+         touch speed once this is true. (Sir's report, 2026-08-12: ran out
+         of time but Tipsey kept driving.) */
+      const slDone = this._slAPI && this._slAPI.run.done;
+      if(this.throttle === 1 && !slDone) this.speed += 0.00042*dt;
+      if(this.throttle === -1 && !slDone) this.speed -= 0.00075*dt;
       this.speed -= slope * 0.00030 * dt;                 // gravity
       this.speed -= this.speed * 0.0009 * dt;             // rolling friction
       /* THE CEILING IS A FIELD, NOT A LITERAL. 0.225 is delivery's top
@@ -18565,7 +18575,7 @@ function tpSlalomOn(){
   }
 
   function slThrottleBoost(dt){
-    if (run.phase !== 'live' || scene.state !== 'play') return;
+    if (run.phase !== 'live' || scene.state !== 'play' || run.done) return;
     if (scene.throttle !== 1 || scene.hjAir) return;
     const extra = 0.00042 * Math.max(0, SL.vmul - 1);
     if (!extra) return;
