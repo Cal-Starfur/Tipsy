@@ -34,8 +34,16 @@
    production UI or the production teardown path; restart/quit both go
    through tpSlalomStart()/tpSlalomQuit() the same way the real buttons do. */
 (() => {
-  const scene = game.scene.scenes.find(s => s.route);
-  if (!scene) { console.log('no scene with a route yet'); return; }
+  /* Was `.find(s => s.route)` -- required a route to already exist before
+     this would arm, which meant the bench had to build one (start run) just
+     to pass the check, and tpSlalomStart() below immediately discards it and
+     builds its own via SL_SEED_DATE. loadRoute() has no caching, so that was
+     two full generateRoute() passes back to back for nothing. The bridge
+     itself never needed a route to find the scene -- BR.attach() says as
+     much ("scene may exist well before a route does") -- so scenes[0] is
+     enough here too, and this now arms straight off a cold boot. */
+  const scene = game.scene.scenes[0];
+  if (!scene) { console.log('no scene yet -- game still booting'); return; }
 
   document.getElementById('slBenchPanel')?.remove();
   if (scene._slAPI) tpSlalomQuit();
