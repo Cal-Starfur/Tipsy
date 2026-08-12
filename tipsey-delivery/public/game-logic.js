@@ -950,11 +950,17 @@ const TSFX_DONE_KEY = "tdSlalomCBonusDate";
 
 /* Builds the COMMENT+FOLLOW row fresh into `card` (the just-created
    #slCard) and kicks off the draft fetch. Called once, synchronously,
-   from slShowCard's own won branch -- see the call site there. */
-function tsFxBonusRow(card, total, par, clean){
+   from slShowCard's own won branch -- see the call site there.
+   stackBase (added with the WIN redesign) is the receipt sheet's own
+   measured height + 16, same number showWin() computes for the real
+   FOLLOW/COMMENT buttons -- this row anchors the same way, absolute
+   and bottom-up off the sheet instead of sitting in normal flow inside
+   the old bordered box. */
+function tsFxBonusRow(card, total, par, clean, stackBase){
   const row = document.createElement("div");
   row.id = "tsFxBonusRow";
-  row.style.cssText = "display:flex;gap:8px;margin-top:8px;";
+  row.style.cssText = "position:absolute;left:50%;transform:translateX(-50%);" +
+    "width:min(340px,86vw);display:flex;gap:8px;bottom:" + stackBase + "px;";
 
   const commentBtn = document.createElement("button");
   commentBtn.id = "tsFxCommentBtn";
@@ -17883,79 +17889,88 @@ function tpSlalomOn(){
     /* run.fail outranks the par comparison: the double-miss and the
        crash both used to print OVER PAR, which is a timing verdict for
        a run that ended for a completely different reason. */
-    const verdict = run.fail ? 'FAIL' : (!won ? 'OVER PAR' : (clean ? 'CLEAN RUN' : 'PASS'));
-    const col     = !won ? '#ff6b6b' : (clean ? '#7fe08a' : '#ffb04d');
-
-    const row = (k, v, c) =>
-      `<div style="display:flex;justify-content:space-between;gap:16px;padding:3px 0">
-         <span style="color:#8f95a1">${k}</span>
-         <span style="color:${c || '#e8eaef'};font-variant-numeric:tabular-nums">${v}</span>
-       </div>`;
-
-    const faults = run.faults.length
-      ? `<div style="margin-top:8px;padding-top:8px;border-top:1px solid #2b2f38;
-              max-height:22vh;overflow:auto">
-           ${run.faults.map(f => `<div style="color:#ff9c4d">${f}</div>`).join('')}
-         </div>`
-      : `<div style="margin-top:8px;padding-top:8px;border-top:1px solid #2b2f38;
-              color:#7fe08a">no faults</div>`;
+    const col = !won ? '#ff6b6b' : (clean ? '#7fe08a' : '#ffb04d');
 
     document.getElementById('slCard')?.remove();
     const card = document.createElement('div');
     card.id = 'slCard';
 
     if (won){
-      /* WIN keeps the existing stats-card treatment entirely -- this
-         redesign (2026-08-10) only touches the FAIL presentation. */
+      /* WIN REDESIGN (Sir's call): the stats-card treatment above is
+         gone -- match FAIL's own 2026-08-10 move and borrow the real
+         DELIVERED screen's language instead of inventing a third look.
+         showWin()'s own #winCard is a cream receipt sheet pinned to the
+         bottom of a transparent full-screen overlay, headline+sub up
+         top with the text-shadow treatment, FOLLOW/COMMENT stacked
+         above the sheet at a height MEASURED off the sheet (never a
+         fixed constant -- see showWin's own comment on why: the sheet's
+         height varies with content, and a fixed anchor parks the
+         buttons on top of the text the moment it grows). Same z-index
+         tier as FAIL for the same reason FAIL's own comment gives:
+         tdStackIcons's row can open the missions/profile panel
+         (z-index:50), and 100000 sat above that uncontested until FAIL
+         was the first to actually test it. */
+      const pool = clean ? SLALOM_WIN_CLEAN_LINES : SLALOM_WIN_LINES;
+      const [winMsg, winSub] = pool[Math.floor(Math.random() * pool.length)];
+
+      const noteBits = [];
+      if (run.pen) noteBits.push(`+${run.pen.toFixed(1)}s pen`);
+      if (bonusCents) noteBits.push('clean bonus');
+      const note = noteBits.length
+        ? ` <span style="color:#8a7a63">(${noteBits.join(', ')})</span>` : '';
+
+      const sheetRow = (html) =>
+        `<div style="display:flex;align-items:center;justify-content:center;
+              font-weight:700;font-size:15px;line-height:1.1;margin-top:3px">${html}</div>`;
+
+      const bestRow = isBest
+        ? sheetRow('<span style="color:#3f7d43">\u2605 new best</span>')
+        : (best ? sheetRow(`<span style="color:#6b6558;font-weight:600">best ${best.toFixed(2)}s</span>`) : '');
+      const cappedNote = !paidCents
+        ? sheetRow('<span style="color:#6b6558;font-weight:600;font-size:12px">beat today\'s best payout to earn more</span>')
+        : '';
+
       card.style.cssText = [
-        'position:fixed','left:12px','right:12px','top:50%','transform:translateY(-50%)',
-        'z-index:100000','background:rgba(14,16,21,0.97)',`border:1px solid ${col}`,
-        'border-radius:14px','padding:16px','max-width:460px','margin:0 auto',
-        'font:13px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace','color:#e8eaef',
+        'position:fixed','inset:0','z-index:10',
+        'display:flex','flex-direction:column','align-items:center','justify-content:center',
+        'background:rgba(18,20,26,0)','color:#fff','text-align:center','padding:24px',
       ].join(';');
       card.innerHTML =
-        `<div id="slVerdict" style="color:${col};font-size:22px;font-weight:800;letter-spacing:2px;
-              text-align:center;margin-bottom:4px">${verdict}</div>
-         <div id="slTotal" style="text-align:center;font-size:30px;font-weight:800;
-              font-variant-numeric:tabular-nums;margin-bottom:12px">${total.toFixed(2)}s</div>
-         ${row('run time', raw.toFixed(2) + 's')}
-         ${row('penalties', (run.pen ? '+' : '') + run.pen.toFixed(1) + 's',
-               run.pen ? '#ff9c4d' : '#7fe08a')}
-         ${row('par', par.toFixed(1) + 's')}
-         ${row('margin', (par - total >= 0 ? '\u2212' : '+') +
-               Math.abs(par - total).toFixed(2) + 's', col)}
-         ${row('cones cleared', `${run.cleared} / ${run.gates.length}`)}
-         ${row('grade', (run.course.grade * 100).toFixed(1) + '% downhill')}
-         ${row('legs', `${run.course.nLines}  (f=${run.course.fList.join('/')})`)}
-         ${row('best', best ? best.toFixed(2) + 's' : '\u2014', isBest ? '#7fe08a' : null)}
-         ${isBest ? `<div style="text-align:center;color:#7fe08a;margin-top:6px">
-                       new best</div>` : ''}
-         ${row('tip', tpMoney(tipCents))}
-         ${bonusCents ? row('clean bonus', '+' + tpMoney(bonusCents), '#7fe08a') : ''}
-         ${row('credited to wallet', tpMoney(paidCents), paidCents ? '#7fe08a' : null)}
-         ${!paidCents ? `<div style="text-align:center;color:#8f95a1;margin-top:4px">
-               beat today's best payout to earn more</div>` : ''}
-         <div style="display:flex;gap:12px;justify-content:center;margin-top:8px;
-              font-size:11px;color:#8f95a1">
-           <span><b style="color:#e03131">red</b> pass above</span>
-           <span><b style="color:#2f6fd0">blue</b> pass below</span>
-         </div>
-         ${faults}
-         <div style="display:flex;gap:8px;margin-top:14px">
-           <button id="slAgain" style="${'font:inherit;color:#e8eaef;background:#232220;' +
-             'border:1px solid #2b2f38;border-radius:7px;min-height:44px;'}flex:2">run again</button>
-           <button id="slClose" style="${'font:inherit;color:#e8eaef;background:#232220;' +
-             'border:1px solid #2b2f38;border-radius:7px;min-height:44px;'}flex:1">close</button>
+        `<h2 id="slWinMsg" style="font-size:28px;margin:0 0 8px;text-shadow:0 2px 3px #b5540e;
+              transform:translateY(-165px);color:${col}">${winMsg}</h2>
+         <p id="slWinSub" style="font-size:16px;line-height:1.5;color:#fff;max-width:330px;
+              margin:5px 0;text-shadow:0 2px 3px #b5540e;transform:translateY(-165px)">${winSub}</p>
+         <button id="slAgain" class="slRetryBtn">Run again</button>
+         <div id="slWinCard" style="position:absolute;left:0;right:0;bottom:0;margin:0;
+              background:#f0ece0;color:#2e3138;border:none;border-radius:0 0 20px 20px;
+              padding:12px 16px calc(10px + env(safe-area-inset-bottom))">
+           ${sheetRow(`${scene.route.hood.n} &middot; Cone Slalom`)}
+           ${sheetRow(`time&nbsp;<b style="color:#b5540e">${total.toFixed(2)}s</b>` +
+              `&nbsp;&middot;&nbsp;cones&nbsp;<b style="color:#b5540e">${run.cleared}/${run.gates.length}</b>` +
+              `&nbsp;&middot;&nbsp;tip&nbsp;<b style="color:#b5540e">${tpMoney(paidCents)}</b>${note}`)}
+           ${bestRow}
+           ${cappedNote}
          </div>`;
       document.body.appendChild(card);
       document.getElementById('slAgain').onclick = () => { card.remove(); slResetRun(); };
-      document.getElementById('slClose').onclick = () => tpSlalomQuit();
 
-      /* WIN-side bonus row: COMMENT (+$5/day, its own pool -- see
-         db.ts dbClaimCommentBonus's source:'slalom') and FOLLOW
-         (+$25 one-time, the same account-wide flag/flow every other
-         follow button on the site already shares). */
-      if (IS_DEVVIT_BUILD) tsFxBonusRow(card, total, par, clean);
+      /* Everything below is measured off the sheet, same order showWin()
+         itself uses (show/append first, THEN measure -- offsetHeight
+         reads 0 on a display:none node, which is exactly the bug
+         showWin's own comment warns about). tdStackIcons('slCard') is
+         unconditional (every build gets an exit), tsFxBonusRow is
+         Devvit-only (matches FAIL's tsfFxCommentBtn gating) -- so the
+         icon row's own offset only adds the FOLLOW/COMMENT row's height
+         when that row actually exists. */
+      const winCardEl = document.getElementById('slWinCard');
+      const stackBase = winCardEl.offsetHeight + 16;
+      if (IS_DEVVIT_BUILD) tsFxBonusRow(card, total, par, clean, stackBase);
+      tdStackIcons('slCard');
+      const iconRow = document.getElementById('tdStackIcons_slCard');
+      if (iconRow){
+        iconRow.style.top = 'auto';
+        iconRow.style.bottom = (stackBase + (IS_DEVVIT_BUILD ? 120 : 0)) + 'px';
+      }
 
     } else {
       /* FAIL is a full redesign (2026-08-10, Sir's call): "look like
@@ -19343,6 +19358,23 @@ const SLALOM_FAIL_LINES = [
   ["Wiped out.", "That cone did nothing wrong."],
   ["Face-plant.", "Style points: zero."],
   ["Tipped.", "Gravity found the one thing on this course taller than a gate."],
+];
+
+/* WIN's own cause-specific split, same reasoning as the fail pools above
+   -- a flawless run and a scraped-through pass don't read the same, so
+   they don't joke the same. Themed on the course itself, same as
+   SLALOM_FAIL_LINES, not on a delivery -- there's no burrito out here. */
+const SLALOM_WIN_CLEAN_LINES = [
+  ["Clean line.", "Every gate, every cone, no excuses."],
+  ["Textbook run.", "Not one cone even blinked."],
+  ["Flawless.", "Costa Palma's slalom crew is taking notes."],
+  ["Nailed it.", "The course never stood a chance."],
+];
+const SLALOM_WIN_LINES = [
+  ["Course cleared.", "Not pretty. Still counts."],
+  ["Made it through.", "A cone or two has notes."],
+  ["Finish line.", "The clock stopped. That's the whole job."],
+  ["Cleared.", "Somewhere, a cone is still wobbling."],
 ];
 
 const TIMEOUT_FAIL_LINES = [
