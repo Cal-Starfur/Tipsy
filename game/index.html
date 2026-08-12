@@ -8085,6 +8085,38 @@ class WorldScene extends Phaser.Scene {
                   X1 + BLOCK*0.08, Y0 + (Y1 - Y0)*0.45, X1 + FOOTW + BLOCK*0.75, Y0 + (Y1 - Y0)*0.92);
       }
     }
+    /* UNIVERSAL GROUND BACKSTOP (2026-08-11, "make sure it can't happen
+       anywhere") -- third on-device report of the same symptom (ocean
+       showing through a gap in the ground), two different root causes
+       already fixed in two different systems: the merged-park corner
+       fill in fillBlockGround (nx/ny/diagonal type inference missing a
+       real gap), and buildSidewalkGeometry's own outer-corner wrap
+       (added earlier the same day for a different specific gap). Both
+       were "teach this one system to cover this one shape of gap" fixes,
+       and a THIRD variant turned up anyway: the swallow pass removing an
+       edge can starve buildSidewalkGeometry's corner classification of
+       the very edge it needed, in a way neither earlier fix touches,
+       living in yet another function.
+       Rather than keep chasing individual variants, this closes the
+       whole CLASS at once: one grass quad under the entire city,
+       oversized past the grid bounds, drawn BEFORE roads/sidewalks/
+       block fills -- every one of them still paints over it exactly as
+       it always has, so nothing currently correct changes anywhere.
+       What disappears is the FLOOR under all of it: whatever a future
+       swallow-pass interaction misses, in fillBlockGround, in
+       buildSidewalkGeometry, or in some system that doesn't exist yet,
+       there is now grass under it instead of whatever sits at z=0
+       beneath that -- the coast band, oceans and all. Flat single-tone
+       fill (GRASS.a, not the two-tone parity pattern fillBlockInterior
+       uses) because this layer is a backstop meant to almost never be
+       the visible surface, not a textured one. */
+    {
+      const gEndBase = { x:(r.grid.cols-1)*BLOCK, y:(r.grid.rows-1)*BLOCK };
+      this.quadOn(g, [
+        this.W(-T2, -T2, 0), this.W(gEndBase.x+T2, -T2, 0),
+        this.W(gEndBase.x+T2, gEndBase.y+T2, 0), this.W(-T2, gEndBase.y+T2, 0)
+      ], GRASS.a);
+    }
     /* roads: ONE quad per street, full length — no internal tile seams
        (a uniformly-colored surface built from many small quads shows
        every seam as a hairline at low zoom; a single quad has none). */
