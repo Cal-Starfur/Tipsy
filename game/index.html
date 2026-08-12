@@ -8098,33 +8098,57 @@ class WorldScene extends Phaser.Scene {
        the very edge it needed, in a way neither earlier fix touches,
        living in yet another function.
        Rather than keep chasing individual variants, this closes the
-       whole CLASS at once: one grass quad under the entire city,
-       oversized past the grid bounds, drawn BEFORE roads/sidewalks/
-       block fills -- every one of them still paints over it exactly as
-       it always has, so nothing currently correct changes anywhere.
-       What disappears is the FLOOR under all of it: whatever a future
-       swallow-pass interaction misses, in fillBlockGround, in
-       buildSidewalkGeometry, or in some system that doesn't exist yet,
-       there is now grass under it instead of whatever sits at z=0
-       beneath that -- the coast band, oceans and all. Flat single tone,
-       no edge outline, because this layer is a backstop meant to almost
-       never be the visible surface, not a textured one.
-       COLOUR (fix, 2026-08-11, on-device: "you made them green but I
-       want them to be sidewalk"): every confirmed instance of this bug
-       so far has been a corner where PAVEMENT belongs -- a sidewalk
-       corner near an intersection, per Sir's own read of the first
-       report -- never deep park interior, so GRASS was the wrong
-       default despite park being the more common block type overall.
-       d.pave is the same tone the real sidewalk pass just below already
-       paints with, and it's already time-of-day correct (this.d swaps
-       the whole palette for day/dusk/night), so the backstop now reads
-       as pavement under pavement instead of grass under pavement. */
+       whole CLASS at once: pavement tiles under the entire visible
+       ground, drawn BEFORE roads/sidewalks/block fills -- every one of
+       them still paints over it exactly as it always has, so nothing
+       currently correct changes anywhere. What disappears is the FLOOR
+       under all of it: whatever a future swallow-pass interaction
+       misses, in fillBlockGround, in buildSidewalkGeometry, or in some
+       system that doesn't exist yet, there is now pavement under it
+       instead of whatever sits at z=0 beneath that -- the coast band,
+       oceans and all.
+       TILED, NOT FLAT (fix, 2026-08-11, on-device: "make it look like
+       it's the sidewalk, not a regular grey square"): a single oversized
+       quad closed the hole but read as an obviously fake flat panel next
+       to the real sidewalk's tile seams. This now draws the exact same
+       T2 tiles, parity coloring, and edge outline the real sidewalkRuns
+       pass a few lines down uses, so a gap and its surroundings are
+       indistinguishable. COLOUR (earlier fix, same day, "you made them
+       green but I want them to be sidewalk"): d.pave/d.paveB, not GRASS
+       -- every confirmed instance of this bug has been a sidewalk
+       corner, never deep park interior.
+       BOUNDED TO SCREEN, NOT THE WHOLE CITY (perf): the original flat
+       quad could afford to cover the entire grid in one draw call: one
+       quad is one quad regardless of size. Tiling the same way costs
+       one quad PER TILE, so covering the whole city every frame would
+       be thousands of draws for a layer that's almost always fully
+       covered by real content. Bounded to a tight radius around the
+       camera instead -- deliberately smaller than cullSpan (which
+       carries a +4000 safety margin for systems that need to know about
+       content just off-screen; this backstop only needs to cover what's
+       actually rendered THIS frame) -- and onScreen() still rejects any
+       tile the projection puts outside the viewport regardless. */
     {
+      const bsRadius = (this.scale.gameSize.width / this.K) * 0.55 + T2*3;
       const gEndBase = { x:(r.grid.cols-1)*BLOCK, y:(r.grid.rows-1)*BLOCK };
-      this.quadOn(g, [
-        this.W(-T2, -T2, 0), this.W(gEndBase.x+T2, -T2, 0),
-        this.W(gEndBase.x+T2, gEndBase.y+T2, 0), this.W(-T2, gEndBase.y+T2, 0)
-      ], d.pave);
+      const bx0 = Math.max(-T2, this.camX - bsRadius), bx1 = Math.min(gEndBase.x+T2, this.camX + bsRadius);
+      const by0 = Math.max(-T2, this.camY - bsRadius), by1 = Math.min(gEndBase.y+T2, this.camY + bsRadius);
+      const half = T2/2;
+      const i0 = Math.floor(bx0/T2), i1 = Math.ceil(bx1/T2);
+      const j0 = Math.floor(by0/T2), j1 = Math.ceil(by1/T2);
+      for(let bi = i0; bi <= i1; bi++){
+        const bx = bi*T2;
+        for(let bj = j0; bj <= j1; bj++){
+          const by = bj*T2;
+          const pts = [
+            this.W(bx-half, by-half, 0), this.W(bx+half, by-half, 0),
+            this.W(bx+half, by+half, 0), this.W(bx-half, by+half, 0)
+          ];
+          if(!onScreen(pts)) continue;
+          this.quadOn(g, pts, (bi+bj) % 2 === 0 ? d.pave : d.paveB);
+          this.edgeOn(g, pts, d.paveEdge, 1);
+        }
+      }
     }
     /* roads: ONE quad per street, full length — no internal tile seams
        (a uniformly-colored surface built from many small quads shows
