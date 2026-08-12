@@ -7568,7 +7568,7 @@ class WorldScene extends Phaser.Scene {
        only genuinely flat one here. The rest can visually overlap a
        car or house the same way any other volumetric thing can, so
        they need the same depth-sort treatment, not an exemption. */
-    const GROUND_KINDS = { crack:1, sidewalkend:1, sidewalkbegin:1, sidewalkbeginTurn:1, slab:1, grade:1 };
+    const GROUND_KINDS = { crack:1, sidewalkend:1, sidewalkbegin:1, sidewalkbeginTurn:1, slab:1, grade:1, burnoutMark:1 };
 
     /* ---------- block-wrap: housing/park/commercial beyond the
        sidewalk's inside line, all around the grid (interior blocks
@@ -7810,7 +7810,7 @@ class WorldScene extends Phaser.Scene {
         const kR = Math.min(kd, hzt === "scooter" ? 30 : 28);
         ltx += kx/kd*kR; lty += ky/kd*kR;
       }
-      const slabLayer = (hzt === "slab" || hzt === "sidewalkend" || hzt === "sidewalkbegin" || hzt === "grade" || hzt === "crack")
+      const slabLayer = (hzt === "slab" || hzt === "sidewalkend" || hzt === "sidewalkbegin" || hzt === "grade" || hzt === "crack" || hzt === "burnoutMark")
         ? g : layerFor(ltx, lty);
       groundVQ.push({ depth: hwx+hwy, fn:(g,t)=>this.drawProp(slabLayer, hzt, hwx, hwy, t, hf, hwz, null, null, hzObj) });
     }
@@ -12541,6 +12541,27 @@ class WorldScene extends Phaser.Scene {
         }).sort((a2, b2) => a2.d - b2.d);
         for(const p of placedB) drawPigeon(0, 0, p.b);
       }
+    } else if(kind === "burnoutMark"){
+      /* PEEL-OUT STREAK (Sir's ask, 2026-08-12) — laid down once, at GO,
+         only if the player held gas through the count (see
+         slLayBurnoutMark). Same "flat road paint" family as prop.grade
+         right below: z=0, no volume, no physics (see the collision
+         skip-list and GROUND_KINDS/slabLayer, all three updated
+         alongside this). Two streaks, one per wheel track, each a soft
+         outer scuff plus a darker core — same two-layer trick the
+         hydrant puddle ring uses for outerA/innerA, just dry instead
+         of wet. Not yet on-device -- first pass, sizes are a guess. */
+      const rubber = 0x1c1a19, scuff = 0x3a3532;
+      const half = 20, trackY = 22;
+      for(const side of [-1, 1]){
+        const cy = side*trackY;
+        const outer = [W(-half*1.15, cy-6, 0), W(half*1.15, cy-6, 0),
+                        W(half*1.15, cy+6, 0), W(-half*1.15, cy+6, 0)];
+        const inner = [W(-half, cy-3.4, 0), W(half, cy-3.4, 0),
+                        W(half, cy+3.4, 0), W(-half, cy+3.4, 0)];
+        this.quadOn(g, outer, scuff, 0.35);
+        this.quadOn(g, inner, rubber, 0.6);
+      }
     } else if(kind === "grade"){
       /* grade chevrons — flat road-paint on the walk marking a steep
          stretch of the virtual grade profile. Three nested V's pointing
@@ -13141,7 +13162,7 @@ class WorldScene extends Phaser.Scene {
            bump else-branch at the bottom of this chain and kick/damage
            the robot on every street crossing. hit:true at spawn is the
            belt to this suspender. */
-        if(hz.type === "sidewalkend" || hz.type === "sidewalkbegin" || hz.type === "grade") continue;   // ramps + grade paint: no collision
+        if(hz.type === "sidewalkend" || hz.type === "sidewalkbegin" || hz.type === "grade" || hz.type === "burnoutMark") continue;   // ramps + grade paint: no collision
         let dx = this.botS - hz.s;
         /* lateral offset of a MOVING hazard's hitbox: a walker mid-
            detour (detourBAt) is a full lane off its home row, and a
@@ -14681,6 +14702,7 @@ class WorldScene extends Phaser.Scene {
       }
     }
     for(const w of wheels) if(w.near) this.drawWheel(w.c, w.side);
+    if(this._slAPI && this._slAPI.run.smoke.length) this.drawBurnoutSmoke();
     if(this.flagNear()) this.drawFlag(bobZ);
   }
 
@@ -15285,6 +15307,36 @@ class WorldScene extends Phaser.Scene {
     const a = this.wheelPhase + c.x*0.2;
     this.disc({ x:c.x + Math.cos(a)*WHEEL.r*0.34, y:face,
                 z:c.z + Math.sin(a)*WHEEL.r*0.34 }, 2.4, SKIN.wheelHub);
+  }
+
+  /* PEEL-OUT SMOKE (Sir's ask, 2026-08-12) -- run.smoke is owned and
+     simmed by the slalom lab (slSpawnSmoke/slSimSmoke); this only
+     paints it, through this.P so every puff inherits the body's own
+     tilt/roll/yaw for free, same as the wheel hub dot just above.
+     Slalom-only: gated on _slAPI existing at the call site.
+     Two-layer halo + core, same trick as the hydrant puddle ring
+     (outerA/innerA) and the burnout mark's own scuff/rubber pair —
+     a single flat pale-gray circle at low alpha (the first pass)
+     read as basically invisible against the sidewalk's own similar
+     gray, confirmed on a synced headless capture with draw calls and
+     particle data both present but nothing showing on screen.
+     Swapping in a magenta placeholder at the same position DID show
+     up clearly, which is what isolated this as a contrast problem,
+     not a projection/layer bug -- the core here is deliberately
+     darker+higher-alpha than the sidewalk it sits on for exactly that
+     reason. Still not on-device -- may still want a pass by eye. */
+  drawBurnoutSmoke(){
+    const g = this.g;
+    for(const p of this._slAPI.run.smoke){
+      const life = Math.max(0, Math.min(1, p.life));
+      if(life <= 0) continue;
+      const s = this.P(p.x, p.y, p.z);
+      const r = p.size * this.K;
+      g.fillStyle(0xd8d5d2, 0.30*life);
+      g.fillCircle(s.x, s.y, r*1.6);
+      g.fillStyle(0x908c88, 0.48*life);
+      g.fillCircle(s.x, s.y, r);
+    }
   }
 
 
@@ -16531,6 +16583,15 @@ const SL = {
      clean run -- worth confirming on-device and adjusting by feel same
      as the original 60 was. */
   par: 75.0,
+  /* PEEL OUT (Sir's ask, 2026-08-12): holding gas through the 3-2-1
+     count spins the wheels and smokes the tires instead of doing
+     nothing. Starting points, not measured -- same "confirm on-device
+     and adjust by feel" caveat as par above; nobody has watched this
+     one run yet. */
+  burnoutSpin: 0.35,   // wheelPhase rate while held, in units/ms -- for scale,
+                       // top-speed driving spin is speed(<=0.45)*0.28 (<=0.126/ms)
+  smokeEvery: 90,      // ms between puff spawns while held
+  smokeFade:  0.018,   // life lost per 16.7ms-normalized step -- ~1s per puff
 };
 
 /* =========================================================================
@@ -16775,6 +16836,10 @@ function tpSlalomOn(){
     course: null, cones: [], started: false, done: false,
     t0: 0, elapsed: 0, pen: 0, cleared: 0, faults: [], msg: '', msgT: 0,
     phase: 'idle', countT0: 0, gates: [],
+    /* peel-out state, initialized here too (not just slResetRun) so
+       drawBurnoutSmoke's run.smoke.length read is never undefined —
+       _slAPI gets assigned before the first reset() call ever runs. */
+    smoke: [], burnoutHeld: false,
   };
 
 
@@ -17510,6 +17575,12 @@ function tpSlalomOn(){
     scene.hopAnim = null; scene.hopYaw = 0; scene.hopKick = 0;
     slQuietOpening();
     run.done = false;
+    /* PEEL OUT reset: a fresh run gets a fresh chance at a burnout,
+       whether or not the last one had one. run.smoke is intentionally
+       NOT cleared to an empty array's old contents by reference here —
+       a brand new array so any puffs from a prior run's late fade-out
+       can't leak into this one's draw pass. */
+    run.smoke = []; run.burnoutHeld = false;
     run.course = slBuild();
     /* knock-watch covers chute cones too; gate-only counts read slRole */
     run.cones  = scene.route.hazards.filter(h => h.slRole);
@@ -18056,6 +18127,68 @@ function tpSlalomOn(){
     scene.camX = scene.botX + Math.cos(hdg) * 95;
     scene.camY = scene.botY + Math.sin(hdg) * 95;
   }
+
+  /* ============ PEEL OUT (Sir's ask, 2026-08-12) ============
+     Hold gas through the 3-2-1 count and the wheels spin/smoke in
+     place, then a burnout streak gets laid down at GO. Three pieces:
+     wheel spin is driven directly in onPre (no state of its own,
+     just wheelPhase advanced at SL.burnoutSpin instead of speed*0.28
+     while held — see onPre's own comment); tire smoke is the particle
+     set below, spawned while held and simmed every frame regardless
+     of phase so it doesn't just vanish the instant the wheels grip;
+     the mark itself is a one-shot hazard push at the GO transition.
+
+     TIRE SMOKE — local to the robot's own body space (this.P/this.T
+     already carry heading, tilt, roll — reusing them via drawBurnoutSmoke
+     keeps every puff glued to the wheel for free, same as the wheel hub
+     dot). Spawned at the two outer wheel x-positions (WHEEL.xs[0]/[2],
+     both sides) rather than all three per side — four puffs already
+     reads as "smoking", a sixth pair at the middle wheel would just be
+     denser without being clearer. */
+  let slSmokeT = 0;
+  function slSpawnSmoke(dt){
+    slSmokeT += dt;
+    if (slSmokeT < SL.smokeEvery) return;
+    slSmokeT = 0;
+    for (const wx of [-16, 16]) for (const side of [-1, 1]){
+      run.smoke.push({
+        x: wx + (Math.random()-0.5)*4, y: side*22 + (Math.random()-0.5)*3, z: 4,
+        vx: (Math.random()-0.5)*0.02, vy: side*0.01 + (Math.random()-0.5)*0.01,
+        vz: 0.012 + Math.random()*0.008,
+        size: 5 + Math.random()*3, life: 1
+      });
+    }
+  }
+  /* dt here matches every other particle sim in this file (simHydrantWater
+     etc.): k = dt/16.7, so velocities are already tuned per 60fps frame
+     regardless of the real delta. Runs unconditionally from onPost (not
+     gated on phase/throttle) so puffs already in flight keep drifting
+     and fading after GO instead of freezing or vanishing outright. */
+  function slSimSmoke(dt){
+    if (!run.smoke.length) return;
+    const k = dt/16.7;
+    for (const p of run.smoke){
+      p.x += p.vx*k; p.y += p.vy*k; p.z += p.vz*k;
+      p.size += 0.03*k;
+      p.life -= SL.smokeFade*k;
+    }
+    run.smoke = run.smoke.filter(p => p.life > 0);
+  }
+  /* THE MARK — a flat paint decal, same "ground, no physics" family as
+     prop.grade (see the collision skip-list and GROUND_KINDS/slabLayer,
+     all updated alongside the new drawProp case). Pushed once, at GO,
+     only if he actually held gas through the count — a normal standing
+     start gets no mark. Not baked into the course at build time since
+     whether it exists at all depends on what the player did; correctly
+     swept on the next slBuildCourse's own corridor-clear pass since
+     it's deliberately NOT in STRUCTURE — a retry should get a clean
+     street, not yesterday's rubber. */
+  function slLayBurnoutMark(){
+    scene.route.hazards.push({
+      type: 'burnoutMark', s: run.course.spawnS, row: scene.botRow,
+      f: scene.segAt(run.course.spawnS).f, hit: true
+    });
+  }
   /* =========================================================================
      THE FLIGHT — lab-owned, so the slalom keeps its throttle
      -------------------------------------------------------------------------
@@ -18352,7 +18485,7 @@ function tpSlalomOn(){
     });
   }
 
-  const onPre  = () => {
+  const onPre  = (time, delta) => {
     /* pickupWalk is rewritten by the timeline every frame, so it is held down
        every frame rather than once at reset — cheap, and it means a stray
        re-entry into the loading beat can never drag the camera off again. */
@@ -18391,11 +18524,31 @@ function tpSlalomOn(){
     if (run.course) scene.botS = run.course.spawnS;
     slPinCam();
 
+    /* PEEL OUT (Sir's ask, 2026-08-12): the position/speed hold above is
+       exactly what makes this free to add — throttle itself is left
+       genuinely untouched (see the comment on it), so it's already a
+       clean read of "is gas held right now". wheelPhase is driven
+       directly here instead of through its usual speed*0.28 term (which
+       is 0 the whole count, since speed is pinned above) — spinning in
+       place is the entire point. run.burnoutHeld just remembers that
+       this happened at least once, for the mark at GO below; holding
+       and releasing and holding again still counts. */
+    if (scene.throttle === 1){
+      const bdt = Math.min(delta || 16.7, 34);
+      scene.wheelPhase -= SL.burnoutSpin * bdt;
+      run.burnoutHeld = true;
+      slSpawnSmoke(bdt);
+    }
+
     /* Flip the phase HERE rather than from the 100ms panel tick, so the release
        is frame-accurate instead of up to a tenth of a second late. */
     if (performance.now() - run.countT0 >= COUNT_MS){
       run.phase = 'live'; run.started = true; run.t0 = performance.now();
       prevS = scene.botS;
+      /* the payoff: a streak exactly where he sat and spun, only if he
+         actually held gas for it — a normal standing start (no throttle
+         through the count) launches clean, no mark. */
+      if (run.burnoutHeld) slLayBurnoutMark();
     }
   };
   /* =========================================================================
@@ -18603,6 +18756,10 @@ function tpSlalomOn(){
     try { slThrottleBoost(Math.min(delta, 34)); } catch(e){ console.log('slThrottleBoost', e); }
     try { slGripComp(Math.min(delta, 34)); } catch(e){ console.log('slGripComp', e); }
     try { slSkidHandoff(); } catch(e){ console.log('slSkidHandoff', e); }
+    /* unconditional, not phase-gated -- puffs already in flight at GO
+       need to keep drifting/fading afterward, same reasoning
+       simHydrantWater's own post-play pass uses. */
+    try { slSimSmoke(Math.min(delta, 34)); } catch(e){ console.log('slSimSmoke', e); }
 
     try { slHoldTraffic(time, Math.min(delta, 34)); } catch(e){ console.log('slHoldTraffic', e); }
   };
