@@ -18236,7 +18236,18 @@ function tpSlalomOn(){
     for (const [a, b, kind] of blocked){
       if (kind !== 'crossing') continue;
       if (b < course.spawnS || a > chainEndS) continue;
-      plantChute(a, b, CROSS_STEP, CROSS_MAX);
+      /* 2026-08-13, Sir's call: no chute cone within 2 T2 of where the
+         sidewalk actually resumes (cx.sB) on the far side of a crossing.
+         The wall used to run all the way out to the RAMP margin this
+         span carries (b = cx.sB + RAMP, the same margin the gate-
+         exclusion span uses to keep GATES off the ramp) -- but
+         CROSS_STEP's own cadence doesn't know where sB sits inside that
+         margin, and could (measured 0.24 T2 on the live course) land a
+         chute cone almost immediately past it. b - RAMP recovers the
+         raw cx.sB (blocked only stores the padded span); stopping the
+         wall there instead of at b leaves the same 2 T2 clear for
+         chute cones that the gate exclusion already leaves for gates. */
+      plantChute(a, b - RAMP, CROSS_STEP, CROSS_MAX);
     }
     for (const M of ch.arcs) plantChute(M.s0 - SL.turn * T2 * 0.5,
                                        M.s1 + SL.turn * T2 * 0.5,
