@@ -18959,11 +18959,30 @@ function tpSlalomOn(){
      slid into frame well after GO. Snapping camX once in slResetRun was not
      enough: the ease starts from wherever the scene puts it next.
      During the count the camera is simply PINNED, using the game's own target
-     formula (botX + cos(hdg)*95) so there is no jump at GO. */
+     formula (botX + cos(hdg)*95) so there is no jump at GO.
+
+     EXCEPT for a held burnout (2026-08-12, Sir's report: "he's still
+     not taking off"). Headless traced every frame after GO -- speed
+     was already locking to vTop() instantly, botS climbing smoothly,
+     zero collisions, camera correctly tracking. Two screenshots ~1.8s
+     apart confirmed real distance covered (a roadside cone went from
+     a sliver at frame edge to fully visible and close) -- but Tipsy's
+     OWN screen position barely moved between them. The 95-unit
+     look-ahead bias is why: pinned there the whole count, GO has him
+     driving TOWARD a point the camera already called, not blasting
+     away from one it has to catch up to -- so the zero-jump design
+     that's exactly right for an ordinary standing start was quietly
+     cancelling out the burst's own motion for a held one. Dropping
+     the bias to 0 (centered directly on him) only while
+     run.burnoutHeld is true opens that gap back up -- the existing
+     ease then has something to visibly chase at GO, which is the
+     "whoosh" an instant full-speed launch needs to actually read as
+     one. An ordinary start (bias stays 95) is untouched. */
   function slPinCam(){
     const hdg = scene.headingAt(scene.botS);
-    scene.camX = scene.botX + Math.cos(hdg) * 95;
-    scene.camY = scene.botY + Math.sin(hdg) * 95;
+    const lead = run.burnoutHeld ? 0 : 95;
+    scene.camX = scene.botX + Math.cos(hdg) * lead;
+    scene.camY = scene.botY + Math.sin(hdg) * lead;
   }
 
   /* ============ PEEL OUT (Sir's ask, 2026-08-12) ============
