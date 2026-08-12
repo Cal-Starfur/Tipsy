@@ -79,16 +79,33 @@ BENCH.hook(function(sc, t){
   sc.quadOn(g, [G(0,0.4,H), G(w,0.4,H), G(w,0.4,0), G(0,0.4,0)], C.wall);
   sc.quadOn(g, [G(2,0.42,0), G(w-2,0.42,0), G(w-2,0.42,kickH), G(2,0.42,kickH)], C.wallDk);
 
-  // open-air produce shelving — three column tiers, TWO stacked crate
-  // rows each, filling the full shelfZ0..shelfZ1 band (the same band
-  // the real window occupies) instead of one short shelf floating in a
-  // tall gap of bare wall
-  const shelves = 3, rows = 2;
+  /* THE DOOR — not recreated, CALLED. doorCenterX=w/2 and doorW are the
+     exact expressions drawPickupUnit computes (unitW=doorCenterX*2=w,
+     doorW=min(DOOR_W*0.72, unitW*0.3)), and drawShopDoor is a real scene
+     method — same one the animated pickup door calls every frame it's
+     active. Calling it here with theta=0 (closed, idle) means this is
+     not a lookalike drawn at approximately the right spot; it is
+     pixel-identical to where the real door sits and swings, because
+     it's the same code drawing both. groundZ() is always 0 (flat world,
+     confirmed in source) so dz=0 needs no lookup. */
+  const doorCenterX = w/2;
+  const doorW = Math.min(DOOR_W*0.72, w*0.3);
+  const doorHalfW = doorW/2;
+  sc.drawShopDoor(g, ox, oy, dv, rv, doorCenterX, doorW, dZ1, 0, 0);
+
+  // open-air produce shelving — one column either side of the door
+  // (never under it), two stacked crate rows each, filling the full
+  // shelfZ0..shelfZ1 band the same way the real window zone would
+  const margin = 10 + w*0.06, doorGap = 8;
+  const zones = [
+    { x0: margin, x1: doorCenterX - doorHalfW - doorGap },
+    { x0: doorCenterX + doorHalfW + doorGap, x1: w - margin }
+  ];
+  const rows = 2;
   const rowH = (shelfZ1 - shelfZ0 - 8) / rows;   // 8 = gap between rows
-  for(let s = 0; s < shelves; s++){
-    const sx0 = 10 + w*0.06, sx1 = w - 10 - w*0.06;
-    const tierW = (sx1 - sx0) / shelves;
-    const cx0 = sx0 + s*tierW + 3, cx1 = sx0 + (s+1)*tierW - 3;
+  zones.forEach((z, s) => {
+    const cx0 = z.x0 + 3, cx1 = z.x1 - 3;
+    if(cx1 - cx0 < 10) return;   // zone too narrow (should not happen at this unit width)
     const bOff = 0.5 + s*0.015;
     for(let r = 0; r < rows; r++){
       const rz0 = shelfZ0 + r*(rowH+8), rz1 = rz0 + rowH;
@@ -102,7 +119,7 @@ BENCH.hook(function(sc, t){
         G(midX+spread*0.6, bOff+0.02, rz1+2), G(midX-spread*0.6, bOff+0.02, rz1+2)
       ], pcol);
     }
-  }
+  });
 
   // awning — rust/cream stripes, warmer than the generic grey pair
   const stripeN = 6;
