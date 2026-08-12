@@ -10119,6 +10119,10 @@ class WorldScene extends Phaser.Scene {
   }
   /* ---------- commercial interior fill (2026-08-06, "commercial
      buildings should fill in the center of the block") ----------
+     DISABLED CITYWIDE as of 2026-08-12 (Sir's call, didn't read well
+     on-device) -- the one caller (queueCommercialBlock) now hardcodes
+     interior = [] instead of calling this. Left defined, not deleted,
+     in case the call gets restored later.
      1-2 bigger standalone stores in the block's middle. The perimeter
      ring (edge + corner units) reaches cornerMargin in from the block
      line on every side; INTERIOR ring insets one further tile so a
@@ -10184,7 +10188,16 @@ class WorldScene extends Phaser.Scene {
       this.queueCommercialEdgeAt(vq, e, isPickupBlock && idx === this.route.pickupEdgeIdx, cornerSkip);
     });
     for(const cu of this.liveCornerUnits(blk, excludeEdges)) this.queueCornerUnit(vq, blk, cu);
-    const interior = this.queueCommercialInterior(vq, blk);
+    /* 2026-08-12, Sir's call: commercial interior fill (the 1-2 plaza
+       buildings queueCommercialInterior used to drop in every block's
+       middle) is OFF citywide -- didn't read well on-device. Left as an
+       empty array rather than deleting the call: queueCommercialInterior
+       is self-contained (owns its own mulberry32 seed, never touches
+       the `rng` declared two lines down), so this is a pure subtraction
+       -- no other seeded randomness in this function shifts. The scatter
+       dodge below (`clear`) degrades safely too: an empty interior[]
+       just means nothing to dodge, same code path either way. */
+    const interior = [];
     const cx = (blk.x0+blk.x1)/2, cy = (blk.y0+blk.y1)/2;
     const rng = mulberry32(((Math.round(cx)*7919) ^ (Math.round(cy)*104729) ^ 0x71c4) >>> 0);
     /* scatter now dodges the interior footprints: same seed and call
