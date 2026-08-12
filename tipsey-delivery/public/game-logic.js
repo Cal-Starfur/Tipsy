@@ -19256,16 +19256,24 @@ function hjUpdateMeter(s){
      and any future title still have somewhere to live. */
   ttl.textContent = "";
   const tb = document.getElementById("hjTap"); if(tb) tb.classList.toggle("dead", !!s.hjAir);
+  const tbL = document.getElementById("hjTapL"); if(tbL) tbL.classList.toggle("dead", !!s.hjAir);
+  const tbR = document.getElementById("hjTapR"); if(tbR) tbR.classList.toggle("dead", !!s.hjAir);
 }
 (function hjBindInput(){
   const btn = document.getElementById("hjTap");
+  const btnL = document.getElementById("hjTapL");
+  const btnR = document.getElementById("hjTapR");
   if(!btn) return;
   /* pointerdown ONLY, keyed by pointerId. Listening for touchstart as well
      makes a single touch count TWICE (both fire), which is exactly the bug
-     that made touch double-strength in the lab. */
+     that made touch double-strength in the lab. Each finger gets its own
+     browser pointerId regardless of which of the 3 buttons it lands on,
+     so rolling across L/R/center dedupes per-finger exactly like A/S/D. */
   const tap = e => { e.preventDefault(); const s = hjScn();
                      if(s && s.mode === "challenge") s.hjTap(performance.now(), "p"+(e.pointerId||0)); };
   btn.addEventListener("pointerdown", tap);
+  if(btnL) btnL.addEventListener("pointerdown", tap);
+  if(btnR) btnR.addEventListener("pointerdown", tap);
   /* A/S/D so fingers can be ROLLED — one key caps you at what a single
      finger can do, and level 10 needs ~11 taps/sec. Each key carries its
      own dedupe window inside tap(). */
