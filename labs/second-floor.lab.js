@@ -78,25 +78,21 @@
       if(isLast && a1 >= w){  const r=[G(w,0,H),G(w,-D,H),G(w,-D,0),G(w,0,0)]; this.quadOn(g,r,C.wallLt); this.edgeOn(g,r,C.trim,1); }
     }
 
-    /* ---------- THIRD STORY: recessed, deeper reach ----------
-       Sir's correction: not a ground-tone fix, an architectural one.
-       This block doesn't just add height -- it's set back (b starts
-       at -f3setback, not 0) AND reaches further into the block than
-       the ground/second floor's own D, so ITS roof covers open
-       interior ground that would otherwise read as a bare gap between
-       buildings on opposite sides of the block.
-
-       f3depth WAS 420 (reach 696) -- on-device that left a ~264-unit
-       gap dead center, because 696 is short of HALF a typical block's
-       interior width (1656/2 = 828): two opposite sides' roofs need to
-       each clear the midline to actually meet, not just get close to
-       it. Fixed by targeting reach = half the block width + a 130-unit
-       overlap margin (958 total, f3depth=682) so opposite sides
-       positively overlap past center rather than approaching it --
-       covers the corners of a non-square block too, not just the
-       exact middle of a perfectly square one. */
-    const f3setback = 60, f3depth = 682, f3wallH = 90;
-    const f3b0 = -f3setback, f3b1 = -(D + f3depth);
+    /* ---------- THIRD STORY: recessed, shallow ----------
+       Sir's call: stop trying to make each unit's own roof reach deep
+       enough to tile with its neighbors' -- that's what caused the
+       building-over-building z-fighting mess (queueCommercialEdgeAt
+       gives each unit ONE depth key based on its own shallow position;
+       stretching geometry far past that position breaks the sort for
+       exactly the stretched part, and multiple units' stretched roofs
+       overlapping compounds it). Not worth chasing a per-unit sort fix
+       for this. Third story goes back to a normal shallow box -- set
+       back from the facade for the step-back read, but no deeper than
+       the ground floor's own D. The block-level canopy added below
+       (queueCommercialBlock) covers the actual interior gap instead,
+       as ONE quad per block instead of N competing ones. */
+    const f3setback = 60, f3wallH = 90;
+    const f3b0 = -f3setback, f3b1 = -D;
     const f3z0 = H, f3z1 = f3z0 + f3wallH;
 
     if(part !== 'body'){
@@ -110,7 +106,9 @@
       if(a0 === 0) g.lineBetween(roof[0].x,roof[0].y,roof[3].x,roof[3].y);
       if(a1 >= w) g.lineBetween(roof[1].x,roof[1].y,roof[2].x,roof[2].y);
 
-      // the deep roof -- THIS is what covers the plaza ground
+      // third story's own roof cap -- shallow now, matches its own
+      // recessed-but-not-deep footprint. Covering the gap is the new
+      // block-level canopy's job, not this.
       const f3roof = [G(0,f3b0+8,f3z1), G(w,f3b0+8,f3z1), G(w,f3b1,f3z1), G(0,f3b1,f3z1)];
       this.quadOn(g, f3roof, C.trim);
       this.edgeOn(g, f3roof, C.wallDk, 1);
@@ -197,4 +195,102 @@
   };
 
   console.log('drawStoreUnit patched -- second floor active on ordinary commercial units. drawCornerStoreUnit untouched.');
+})();
+
+/* ===========================================================================
+   ROOFTOP CANOPY -- covers the block interior gap, no per-unit sorting
+   ===========================================================================
+   Sir's call after seeing the per-unit deep-roof approach z-fight: stop
+   trying to make N units' roofs tile together (each gets ONE depth key
+   from its own shallow position -- queueCommercialEdgeAt's vq.push(depth:
+   hx+hy, ...) -- and stretching geometry far past that position breaks the
+   sort for exactly the stretched part). One quad per BLOCK instead, queued
+   with isRoof:true so it lands in the same global-last roof pass every
+   other roof already uses (confirmed at blockVQ's own filter: bodies vs
+   roofs, roofs drawn after all bodies regardless of individual depth) --
+   piggybacking on an existing correct mechanism instead of inventing a
+   new one.
+
+   Interior rect reuses queueCommercialInterior's own RING inset math (that
+   function is disabled, not deleted -- see its doc comment) so the canopy
+   lines up with the same "one tile of walkway past the perimeter ring"
+   logic the game already established.
+
+   CANOPY_Z=460 is picked to clear every building's own roofline
+   (H + f3wallH, ~422-448 across drawStoreUnit's rng() range) with margin,
+   not tied to any one building's actual height.
+
+   Rooftop clutter (AC units, satellite dishes, vents) is genuinely rough
+   -- flat-shaded boxes and a stick-and-ellipse dish, not anything close to
+   the polish of the building work above. Sir asked for it to break up the
+   canopy visually, not for finished art; treat it as a placeholder pass.
+   =========================================================================== */
+(() => {
+  const sc = game.scene.scenes[0];
+  if(!sc){ console.log('bridge not up'); return; }
+
+  if(!sc.__origQueueCommercialBlock) sc.__origQueueCommercialBlock = sc.queueCommercialBlock;
+
+  sc.queueCommercialBlock = function(vq, blk, excludeEdges=null, cornerSkip=null){
+    this.__origQueueCommercialBlock(vq, blk, excludeEdges, cornerSkip);
+
+    const RING = HOUSE_DEPTH + T2*0.3 + T2;
+    const ix0 = blk.x0 + RING, ix1 = blk.x1 - RING;
+    const iy0 = blk.y0 + RING, iy1 = blk.y1 - RING;
+    if(ix1 - ix0 < T2*2 || iy1 - iy0 < T2*2) return;   // degenerate block, skip
+
+    const CANOPY_Z = 460;
+    const cx = (ix0+ix1)/2, cy = (iy0+iy1)/2;
+    const canopy = [
+      this.W(ix0, iy0, CANOPY_Z), this.W(ix1, iy0, CANOPY_Z),
+      this.W(ix1, iy1, CANOPY_Z), this.W(ix0, iy1, CANOPY_Z)
+    ];
+    vq.push({ depth: cx+cy, isRoof: true, fn: (g) => {
+      this.quadOn(g, canopy, 0x4a4a4a);
+      this.edgeOn(g, canopy, 0x333333, 1);
+    }});
+
+    // rooftop clutter -- seeded off block center so it's stable per block
+    const rng = mulberry32(((Math.round(cx)*7919) ^ (Math.round(cy)*104729) ^ 0x9a7c) >>> 0);
+    const nProps = 3 + Math.floor(rng()*5);
+    for(let i=0;i<nProps;i++){
+      const px = ix0 + 40 + rng()*Math.max(1,(ix1-ix0-80));
+      const py = iy0 + 40 + rng()*Math.max(1,(iy1-iy0-80));
+      const kind = rng();
+      const pdepth = px+py+0.1;   // just above the canopy's own depth
+      if(kind < 0.4){
+        const s = 26 + rng()*14;
+        vq.push({ depth: pdepth, fn: (g) => {
+          const top = [this.W(px-s/2,py-s/2,CANOPY_Z+s*0.6), this.W(px+s/2,py-s/2,CANOPY_Z+s*0.6),
+                       this.W(px+s/2,py+s/2,CANOPY_Z+s*0.6), this.W(px-s/2,py+s/2,CANOPY_Z+s*0.6)];
+          const front = [this.W(px-s/2,py+s/2,CANOPY_Z+s*0.6), this.W(px+s/2,py+s/2,CANOPY_Z+s*0.6),
+                         this.W(px+s/2,py+s/2,CANOPY_Z), this.W(px-s/2,py+s/2,CANOPY_Z)];
+          const side = [this.W(px+s/2,py-s/2,CANOPY_Z+s*0.6), this.W(px+s/2,py+s/2,CANOPY_Z+s*0.6),
+                       this.W(px+s/2,py+s/2,CANOPY_Z), this.W(px+s/2,py-s/2,CANOPY_Z)];
+          this.quadOn(g, top, 0xc4c4bc);
+          this.quadOn(g, front, 0x9a9a92);
+          this.quadOn(g, side, 0x8a8a82);
+        }});
+      } else if(kind < 0.7){
+        const r = 12 + rng()*6;
+        vq.push({ depth: pdepth, fn: (g) => {
+          const base = this.W(px, py, CANOPY_Z);
+          const tip = this.W(px, py, CANOPY_Z+24);
+          g.lineStyle(3, 0x444444, 1);
+          g.lineBetween(base.x, base.y, tip.x, tip.y);
+          g.fillStyle(0x666666, 1);
+          g.fillEllipse(tip.x, tip.y, r*1.6, r);
+        }});
+      } else {
+        const s = 14 + rng()*8;
+        vq.push({ depth: pdepth, fn: (g) => {
+          const top = [this.W(px-s/2,py-s/2,CANOPY_Z+s), this.W(px+s/2,py-s/2,CANOPY_Z+s),
+                       this.W(px+s/2,py+s/2,CANOPY_Z+s), this.W(px-s/2,py+s/2,CANOPY_Z+s)];
+          this.quadOn(g, top, 0x333333);
+        }});
+      }
+    }
+  };
+
+  console.log('queueCommercialBlock patched -- rooftop canopy + AC/satellite/vent clutter active.');
 })();
