@@ -8106,16 +8106,25 @@ class WorldScene extends Phaser.Scene {
        swallow-pass interaction misses, in fillBlockGround, in
        buildSidewalkGeometry, or in some system that doesn't exist yet,
        there is now grass under it instead of whatever sits at z=0
-       beneath that -- the coast band, oceans and all. Flat single-tone
-       fill (GRASS.a, not the two-tone parity pattern fillBlockInterior
-       uses) because this layer is a backstop meant to almost never be
-       the visible surface, not a textured one. */
+       beneath that -- the coast band, oceans and all. Flat single tone,
+       no edge outline, because this layer is a backstop meant to almost
+       never be the visible surface, not a textured one.
+       COLOUR (fix, 2026-08-11, on-device: "you made them green but I
+       want them to be sidewalk"): every confirmed instance of this bug
+       so far has been a corner where PAVEMENT belongs -- a sidewalk
+       corner near an intersection, per Sir's own read of the first
+       report -- never deep park interior, so GRASS was the wrong
+       default despite park being the more common block type overall.
+       d.pave is the same tone the real sidewalk pass just below already
+       paints with, and it's already time-of-day correct (this.d swaps
+       the whole palette for day/dusk/night), so the backstop now reads
+       as pavement under pavement instead of grass under pavement. */
     {
       const gEndBase = { x:(r.grid.cols-1)*BLOCK, y:(r.grid.rows-1)*BLOCK };
       this.quadOn(g, [
         this.W(-T2, -T2, 0), this.W(gEndBase.x+T2, -T2, 0),
         this.W(gEndBase.x+T2, gEndBase.y+T2, 0), this.W(-T2, gEndBase.y+T2, 0)
-      ], GRASS.a);
+      ], d.pave);
     }
     /* roads: ONE quad per street, full length — no internal tile seams
        (a uniformly-colored surface built from many small quads shows
