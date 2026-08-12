@@ -19096,7 +19096,7 @@ function slalomMapSelect(){
   document.getElementById("orderCard").innerHTML =
     `<div class="tag" style="margin-bottom:4px">SIDE MISSION</div>`
     + `<b>Cone Slalom Challenge</b> — weave the gates at double speed, then stop on the mat`;
-  document.getElementById("sheetStatus").textContent = `60s par · earns Slalom Master`;
+  document.getElementById("sheetStatus").textContent = `75s par · sub-60s earns Slalom Master`;
   /* TIGHT ZOOM, NO PULSE (2026-08-10, updated 2026-08-11, Sir's call): the
      daily route's own pickupS/doorS span (what loadRoute above just framed
      the map on) is a normal delivery-length stretch, not the actual
@@ -20741,8 +20741,23 @@ const TP_TROPHIES = [
      otherwise) and the store can still deep-link to its card. */
   { id:"stunt-jump", name:"Stunt Jump Master", desc:"Clear the Stunt Jump Challenge.", tier:"gold", reward:"daredevil",
     progress:()=>({current: 0, target:1}) },
-  { id:"slalom-master", name:"Slalom Master", desc:"Complete the \"Cone Slalom Challenge\" side mission.", tier:"silver", reward:"cone-dodger",
-    progress:(h,total,missions)=>({current: missions && missions.has("cone-slalom") ? 1 : 0, target:1}) },
+  /* 2026-08-13, Sir's call: earning the skin is a tighter bar than just
+     finishing the mission. Completing Cone Slalom at all (beating
+     SL.par, 75s -- see its own comment on why it moved off the
+     original 60) already pays out and flips missionsCompleted; the
+     trophy used to piggyback on that same completion (missions.has),
+     so any pass under 75s earned Cone Dodger. Now it reads
+     tpProfile.slBestMs directly instead -- the same best-time-in-ms
+     field slShowCard's own won branch already maintains as a running
+     minimum across every win, never touched on a loss -- and only
+     counts a sub-60s best. > 0 and not != null: tpLoadProfile's own
+     default is 0, not null/undefined (see its comment), for a player
+     who has never won a run -- a bare truthy/null check would have
+     handed out the trophy to everyone who never even played. missions/
+     h/total params dropped: nothing here reads them anymore, same as
+     hydrant-hop's own reward above, which reads tpProfile directly too. */
+  { id:"slalom-master", name:"Slalom Master", desc:"Finish the \"Cone Slalom Challenge\" side mission in under 60 seconds.", tier:"silver", reward:"cone-dodger",
+    progress:()=>({current: (tpProfile.slBestMs > 0 && tpProfile.slBestMs <= 60000) ? 1 : 0, target:1}) },
 ];
 
 /* Side missions: listed and searchable, but not completable yet — see
