@@ -17850,6 +17850,7 @@ function tpSlalomOn(){
          failOverlay, whose retryBtn is wired to the delivery. */
       const pool = run.fail === 'William got you' ? WILLIAM_FAIL_LINES
         : run.fail === 'ran out of time' ? TIMEOUT_FAIL_LINES
+        : run.fail === 'tipped over' ? SLALOM_FAIL_LINES
         : FAIL_LINES;
       const [failMsg, failSub] = pool[Math.floor(Math.random() * pool.length)];
       /* z-index:10, matching .overlay's own value (the SAME tier
@@ -19090,6 +19091,18 @@ const FAIL_LINES = [
    would be wrong for WILLIAM_FAIL_LINES. Mirrors CANCEL_LINES' role
    (the daily route's own non-crash timeout) but themed for the slalom's
    clock, not a canceled order. */
+/* Cause-specific pool: a plain tip-over on the slalom is not a botched
+   delivery -- FAIL_LINES' "you had one address" / "the burrito never
+   stood a chance" jokes assume a route with a customer on it. The
+   slalom has neither; this pool stays on the course itself (cones,
+   gates, gravity) instead. */
+const SLALOM_FAIL_LINES = [
+  ["Down you go.", "The course wins this one."],
+  ["Wiped out.", "That cone did nothing wrong."],
+  ["Face-plant.", "Style points: zero."],
+  ["Tipped.", "Gravity found the one thing on this course taller than a gate."],
+];
+
 const TIMEOUT_FAIL_LINES = [
   ["Time's up.", "The clock doesn't care how close you were."],
   ["60 seconds. Every time.", "The course didn't move. You just ran out."],
