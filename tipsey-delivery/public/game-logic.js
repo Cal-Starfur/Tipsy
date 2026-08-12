@@ -17848,7 +17848,9 @@ function tpSlalomOn(){
          COURSE (slResetRun), not the daily route -- that's the one
          thing that can't be literally shared with the real
          failOverlay, whose retryBtn is wired to the delivery. */
-      const pool = run.fail === 'William got you' ? WILLIAM_FAIL_LINES : FAIL_LINES;
+      const pool = run.fail === 'William got you' ? WILLIAM_FAIL_LINES
+        : run.fail === 'ran out of time' ? TIMEOUT_FAIL_LINES
+        : FAIL_LINES;
       const [failMsg, failSub] = pool[Math.floor(Math.random() * pool.length)];
       /* z-index:10, matching .overlay's own value (the SAME tier
          failOverlay/winOverlay already sit at) -- not the WIN branch's
@@ -19081,6 +19083,18 @@ const FAIL_LINES = [
   ["Robot down. Robot down.", "The burrito never stood a chance."],
   ["Routing error: gravity.", "A passerby is filming you. Great."],
   ["You had ONE address.", "Costa Palma claims another."],
+];
+
+/* Cause-specific pool: timing out on the slalom clock is not a crash --
+   the robot never falls, so "the pavement won" is wrong the same way it
+   would be wrong for WILLIAM_FAIL_LINES. Mirrors CANCEL_LINES' role
+   (the daily route's own non-crash timeout) but themed for the slalom's
+   clock, not a canceled order. */
+const TIMEOUT_FAIL_LINES = [
+  ["Time's up.", "The clock doesn't care how close you were."],
+  ["60 seconds. Every time.", "The course didn't move. You just ran out."],
+  ["Buzzer.", "Somewhere, a stopwatch is very pleased with itself."],
+  ["Ran out of road.", "No \u2014 you ran out of clock."],
 ];
 
 function show(id){ document.getElementById(id).classList.remove("hidden"); }
