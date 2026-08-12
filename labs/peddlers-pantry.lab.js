@@ -54,12 +54,19 @@ BENCH.hook(function(sc, t){
     produce:[0xc8523a, 0xd8a13a, 0x6a9a4a, 0xd6d048]  // tomato/orange/leafy/lemon
   };
 
+  /* height stack anchored to DOOR_H, same as drawStoreUnit's real one --
+     the previous version of this file made up a short shelfZ0/shelfZ1
+     disconnected from door scale and came out ~54% of real building
+     height (136 vs ~252). Fixed values here instead of drawStoreUnit's
+     rng() ranges, since this building's height should be fixed once
+     designed, not re-rolled -- but anchored to the SAME points so total
+     H lands in the same range as every neighboring building. */
   const kickH = 18;
   const dZ1 = DOOR_H*0.88;
-  const shelfZ0 = kickH+4, shelfZ1 = shelfZ0 + 46;
-  const awnZ0 = shelfZ1+6, awnZ1 = awnZ0+20;
-  const signZ0 = awnZ1+8, signZ1 = signZ0+18;
-  const H = signZ1 + 16;
+  const shelfZ0 = kickH+2, shelfZ1 = dZ1 + 14 + 8;
+  const awnZ0 = shelfZ1+4, awnZ1 = awnZ0+18;
+  const signZ0 = awnZ1+8, signZ1 = signZ0+16;
+  const H = signZ1 + 16 + 6;
 
   // back + roof (same shell logic as drawStoreUnit, unsliced — this
   // unit is drawn whole, same as the real pickup unit is)
@@ -72,23 +79,29 @@ BENCH.hook(function(sc, t){
   sc.quadOn(g, [G(0,0.4,H), G(w,0.4,H), G(w,0.4,0), G(0,0.4,0)], C.wall);
   sc.quadOn(g, [G(2,0.42,0), G(w-2,0.42,0), G(w-2,0.42,kickH), G(2,0.42,kickH)], C.wallDk);
 
-  // open-air produce shelving — three tiers of crates instead of glass,
-  // each tier a slightly different depth so it reads as stacked, not flat
-  const shelves = 3;
+  // open-air produce shelving — three column tiers, TWO stacked crate
+  // rows each, filling the full shelfZ0..shelfZ1 band (the same band
+  // the real window occupies) instead of one short shelf floating in a
+  // tall gap of bare wall
+  const shelves = 3, rows = 2;
+  const rowH = (shelfZ1 - shelfZ0 - 8) / rows;   // 8 = gap between rows
   for(let s = 0; s < shelves; s++){
     const sx0 = 10 + w*0.06, sx1 = w - 10 - w*0.06;
     const tierW = (sx1 - sx0) / shelves;
     const cx0 = sx0 + s*tierW + 3, cx1 = sx0 + (s+1)*tierW - 3;
     const bOff = 0.5 + s*0.015;
-    sc.quadOn(g, [G(cx0,bOff,shelfZ1),G(cx1,bOff,shelfZ1),G(cx1,bOff,shelfZ0),G(cx0,bOff,shelfZ0)], C.crate);
-    sc.quadOn(g, [G(cx0,bOff+0.01,shelfZ0+6),G(cx1,bOff+0.01,shelfZ0+6),G(cx1,bOff+0.01,shelfZ0),G(cx0,bOff+0.01,shelfZ0)], C.crateDk);
-    // produce mound on top of each crate tier
-    const pcol = C.produce[s % C.produce.length];
-    const midX = (cx0+cx1)/2, spread = (cx1-cx0)*0.32;
-    sc.quadOn(g, [
-      G(midX-spread, bOff+0.02, shelfZ1+16), G(midX+spread, bOff+0.02, shelfZ1+16),
-      G(midX+spread*0.6, bOff+0.02, shelfZ1+2), G(midX-spread*0.6, bOff+0.02, shelfZ1+2)
-    ], pcol);
+    for(let r = 0; r < rows; r++){
+      const rz0 = shelfZ0 + r*(rowH+8), rz1 = rz0 + rowH;
+      sc.quadOn(g, [G(cx0,bOff,rz1),G(cx1,bOff,rz1),G(cx1,bOff,rz0),G(cx0,bOff,rz0)], C.crate);
+      sc.quadOn(g, [G(cx0,bOff+0.01,rz0+6),G(cx1,bOff+0.01,rz0+6),G(cx1,bOff+0.01,rz0),G(cx0,bOff+0.01,rz0)], C.crateDk);
+      // produce mound spilling over the top of each crate row
+      const pcol = C.produce[(s+r) % C.produce.length];
+      const midX = (cx0+cx1)/2, spread = (cx1-cx0)*0.32;
+      sc.quadOn(g, [
+        G(midX-spread, bOff+0.02, rz1+18), G(midX+spread, bOff+0.02, rz1+18),
+        G(midX+spread*0.6, bOff+0.02, rz1+2), G(midX-spread*0.6, bOff+0.02, rz1+2)
+      ], pcol);
+    }
   }
 
   // awning — rust/cream stripes, warmer than the generic grey pair
