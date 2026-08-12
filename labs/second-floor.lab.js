@@ -86,14 +86,16 @@
        interior ground that would otherwise read as a bare gap between
        buildings on opposite sides of the block.
 
-       f3depth is deliberately conservative (~420 extra units beyond
-       D=276, total reach ~700 into the block) rather than trying to
-       close the interior gap completely -- a typical block's interior
-       gap runs ~1100 units, and buildings on OPPOSITE sides reaching
-       toward the middle would collide if each closed half of it. First
-       pass; revisit the exact reach once seen live at all 4 headings
-       against real block sizes -- flagged, not hidden. */
-    const f3setback = 60, f3depth = 420, f3wallH = 90;
+       f3depth WAS 420 (reach 696) -- on-device that left a ~264-unit
+       gap dead center, because 696 is short of HALF a typical block's
+       interior width (1656/2 = 828): two opposite sides' roofs need to
+       each clear the midline to actually meet, not just get close to
+       it. Fixed by targeting reach = half the block width + a 130-unit
+       overlap margin (958 total, f3depth=682) so opposite sides
+       positively overlap past center rather than approaching it --
+       covers the corners of a non-square block too, not just the
+       exact middle of a perfectly square one. */
+    const f3setback = 60, f3depth = 682, f3wallH = 90;
     const f3b0 = -f3setback, f3b1 = -(D + f3depth);
     const f3z0 = H, f3z1 = f3z0 + f3wallH;
 
