@@ -904,12 +904,28 @@ $("quietBtn").onclick = () => {
   log(ok ? "delivery opening off" : "bridge not up", ok ? "ok" : "err");
 };
 
+/* Labs whose own arm() calls a real production entry point that builds its
+   OWN route (tpSlalomStart -> loadRoute(SL_SEED_DATE)). loadRoute() has no
+   caching, so pre-booting a route here first just means two full
+   generateRoute() passes instead of one -- skip straight to the lab. */
+const SELF_ROUTING_LABS = new Set(["cone-slalom"]);
+
 /* ?lab=NAME[&date=YYYY-MM-DD][&f=0..3][&zoom=150][&quiet=0]
    One URL that lands on the thing you wanted to look at. */
 async function autoBoot(){
   const q = new URLSearchParams(location.search);
   const lab = q.get("lab");
   if(!lab) return;
+  if(SELF_ROUTING_LABS.has(lab)){
+    await loadLab(lab, true);
+    const f0 = q.get("f");
+    if(f0 !== null){ await new Promise(r => setTimeout(r, 300)); snapHeading(+f0); }
+    if(q.get("freeze")){
+      await new Promise(r => setTimeout(r, 500));
+      if(!frozen) $("freeze").click();
+    }
+    return;
+  }
   const date = q.get("date") || $("dateStr").value;
   $("dateStr").value = date;
   $("startRun").click();
