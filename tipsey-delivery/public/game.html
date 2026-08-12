@@ -395,17 +395,23 @@
   /* IDENTICAL to the GO button: 88px, 56px off the bottom, 19px text and
      the same #b5540e shadow. TAP, RETRY and GO are one control in three
      places, so they must not drift apart. */
-  #hjTap{position:absolute;left:50%;bottom:56px;transform:translateX(-50%);
+  #hjTap,#hjTapL,#hjTapR{position:absolute;bottom:56px;
     width:88px;height:88px;border-radius:50%;padding:0;
     display:flex;align-items:center;justify-content:center;
     font-size:19px;font-weight:700;letter-spacing:1px;
     background:#ff7a1a;border:none;color:#fff;
     box-shadow:0 4px 0 #b5540e;pointer-events:auto;touch-action:none;}
-  #hjTap:active{transform:translateX(-50%) translateY(3px);box-shadow:0 1px 0 #b5540e;}
+  /* three fingers rolling side by side, same shape language as the
+     original single TAP — center one unchanged, two more flank it so
+     mobile can roll taps the way A/S/D lets a keyboard roll them */
+  #hjTap{left:50%;transform:translateX(-50%);}
+  #hjTapL{left:calc(50% - 100px);transform:translateX(-50%);}
+  #hjTapR{left:calc(50% + 100px);transform:translateX(-50%);}
+  #hjTap:active,#hjTapL:active,#hjTapR:active{transform:translateX(-50%) translateY(3px);box-shadow:0 1px 0 #b5540e;}
   /* the running commentary under the meter is gone — the band itself
      already says everything it was saying */
   #hjLbl{display:none;}
-  #hjTap.dead{background:#3a3f4a;box-shadow:0 4px 0 #23262d;color:#6d7380;}
+  #hjTap.dead,#hjTapL.dead,#hjTapR.dead{background:#3a3f4a;box-shadow:0 4px 0 #23262d;color:#6d7380;}
   /* the same orange robot button the map screen uses, in the same place —
      one control for "back to the menu" wherever you are */
   /* #hjQuit is gone. It was a SECOND orange robot at the top of the
@@ -538,7 +544,9 @@
       <div id="hjMeter"><div id="hjBand"></div><div id="hjFill"></div><div id="hjNeedle"></div></div>
       <div id="hjLbl">TAP TO CHARGE</div>
     </div>
+    <button id="hjTapL">TAP</button>
     <button id="hjTap">TAP</button>
+    <button id="hjTapR">TAP</button>
   </div>
   <div id="panelToggle">︿</div>
 </div>
