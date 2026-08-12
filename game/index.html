@@ -5004,7 +5004,13 @@ function worldgenReconcile(grid){
 
 /* ROUTE GENERATION CACHE (2026-08-10, "it needs to cache"): generateRoute
    is a genuinely expensive, PURE function of (dateStr, hoodIndex, classic,
-   challenge) -- confirmed by direct measurement, ~1.6-3.5s on the merged
+   challenge, unanchoredStart) -- unanchoredStart added 2026-08-12 alongside
+   the flag itself (see its own comment at the walk-anchor block below):
+   it genuinely changes the output (which start node/heading buildWalk
+   gets), so it has to be part of the key or two different callers asking
+   for the same dateStr with different unanchoredStart values would
+   silently hand each other the wrong cached course. Confirmed by direct
+   measurement, ~1.6-3.5s on the merged
    12-district map, and confirmed byte-deterministic (same inputs, same
    output, every time -- see the earlier Cone Slalom pin-vs-route fix,
    which relied on exactly that property). Every frozen course
@@ -5040,7 +5046,8 @@ function worldgenReconcile(grid){
 const _routeGenCache = new Map();
 function generateRoute(dateStr, opts){
   const key = dateStr + "|" + (opts && opts.hoodIndex != null ? opts.hoodIndex : "")
-            + "|" + !!(opts && opts.classic) + "|" + !!(opts && opts.challenge);
+            + "|" + !!(opts && opts.classic) + "|" + !!(opts && opts.challenge)
+            + "|" + !!(opts && opts.unanchoredStart);
   let cached = _routeGenCache.get(key);
   if(!cached){
     cached = _generateRouteFresh(dateStr, opts);
@@ -5196,21 +5203,28 @@ function _generateRouteFresh(dateStr, opts){
     ? { i: (opts.hoodIndex % DISTRICT_COLS)*DISTRICT_W + Math.floor(DISTRICT_W/2),
         j: Math.floor(opts.hoodIndex/DISTRICT_COLS)*DISTRICT_H + Math.floor(DISTRICT_H/2) }
     : undefined;
-  /* the daily route's start is NO LONGER unconstrained/random (2026-08-12,
-     Sir's call): it's anchored to today's fixed pickup shop (see
-     buildPickupShops) so the walk's very first leg always traces that
-     shop's own block edge -- the whole reason the pickup section further
-     down needs no search at all anymore. Cone Slalom shares this same
-     opts.hoodIndex-less path (it calls generateRoute(SL_SEED_DATE) without
-     opts), so its course is now anchored too -- expected, re-verify on
-     device after this ships (same drift category HJ_SEED_DATE guards
-     against elsewhere in this function). HJ itself is untouched: its
-     opts.hoodIndex request keeps the district-center start it always had. */
-  const isHJDistrictSearch = !!(opts && opts.hoodIndex != null);
+  /* the daily route's start is anchored to today's fixed pickup shop
+     (2026-08-12, Sir's call -- see buildPickupShops) so the walk's very
+     first leg always traces that shop's own block edge. Cone Slalom
+     used to share this same opts.hoodIndex-less path and drifted with
+     it the day this shipped -- SL_SEED_DATE never changed, but
+     generateRoute's own internals did, which is all it takes when nothing
+     else pins the walk down. Fixed same day: opts.unanchoredStart is
+     slalom's own explicit opt-out (see its loadRoute(SL_SEED_DATE, ...)
+     call), independent of hoodIndex so it never touches which HOOD the
+     route lands in, only where the walk starts -- undefined start/heading
+     here is exactly the old unconstrained-random path buildWalk already
+     had (a random node, a random dir), byte-identical to what SL_SEED_DATE
+     produced before the pickup anchor existed. This is a real decoupling.
+     not a one-time patch: any future change to buildPickupShops or the
+     anchor logic can no longer move Cone Slalom's course, because slalom
+     no longer asks for that branch at all. HJ itself was already immune
+     via its own hoodIndex request. */
+  const useOldStart = !!(opts && (opts.hoodIndex != null || opts.unanchoredStart));
   const PICKUP_SHOPS = getPickupShops(grid);
   const todaysShop = PICKUP_SHOPS[seed % PICKUP_SHOPS.length];
-  const startAnchor = isHJDistrictSearch ? districtStart : todaysShop.startNode;
-  const startHeading = isHJDistrictSearch ? undefined : todaysShop.f;
+  const startAnchor = useOldStart ? districtStart : todaysShop.startNode;
+  const startHeading = useOldStart ? undefined : todaysShop.f;
   let walk = buildWalk(grid, rng, startAnchor, undefined, TURN_R, startHeading);
   for(let att = 0; att < 8 && !hasGoodDoorLeg(walk); att++)
     walk = buildWalk(grid, rng, startAnchor, undefined, TURN_R, startHeading);
@@ -19866,7 +19880,7 @@ function slalomMapSelect(){
      robot card -- it read as an extra step in a flow that should feel
      immediate. Runs the same work synchronously now, same pattern
      tpSlalomStart already used for its own "Play mission" entry point. */
-  s.loadRoute(SL_SEED_DATE);
+  s.loadRoute(SL_SEED_DATE, { unanchoredStart: true });
   /* and one more pass after layout has settled, so a late reflow cannot
      leave it stale -- same safety net hjQuit() already carries */
   requestAnimationFrame(() => { resizeRouteMap(); drawRouteMap(s.route); });
@@ -19910,7 +19924,7 @@ function tpSlalomStart(){
   hide("failOverlay"); hide("winOverlay"); hide("titleOverlay");
   const s = scn();
   s.mode = "delivery";                       // clear slalom-pending if GO got here that way
-  s.loadRoute(SL_SEED_DATE);                 // frozen course, not the rolling daily -- see SL_SEED_DATE
+  s.loadRoute(SL_SEED_DATE, { unanchoredStart: true }); // frozen course, not the rolling daily -- see SL_SEED_DATE
   hjChrome(true);                            // same quiet screen the hydrant jump earns
   tpSlalomOn();                              // attach the engine to the live scene
   if(!s._slAPI){ hjChrome(false); tpToast("Slalom course unavailable — try again."); return; }
@@ -20521,7 +20535,7 @@ function tpHydrantPin(){
 let _tpSlalomPin = null;
 function tpSlalomPin(){
   if(_tpSlalomPin) return _tpSlalomPin;
-  const route = generateRoute(SL_SEED_DATE);
+  const route = generateRoute(SL_SEED_DATE, { unanchoredStart: true });
   const chain = slFindChain(route);
   /* shouldn't happen — SL_SEED_DATE is the exact frozen course the game
      ships — but the map should never throw over a missing pin. */
