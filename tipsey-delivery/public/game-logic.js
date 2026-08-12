@@ -16554,14 +16554,18 @@ const SL = {
   tail: 1.5,    // run-out after the last cone, in T2
   vmul: 2.00,   // top speed as a multiple of delivery's 0.225. Carries the
                 // jump ballistics and the spacing floor with it — see V_BASE.
-  grip: 1.60,   // corner-tilt compensation, in two regimes. Up to 1.0 it
+  grip: 2.00,   // corner-tilt compensation, in two regimes. Up to 1.0 it
                 // cancels the speed multiplier's share (tilt goes with v²,
                 // so 2x speed is 4x tilt; 1.0 nets exactly delivery-speed
                 // corners). But delivery corners TIP at full throttle by
                 // design — corners need braking there — and the slalom is
                 // a weave, not a braking test. So above 1.0 the dial keeps
-                // going: 2.0 removes corner lean entirely. 1.6 default
-                // keeps some lean in the picture without the funeral.
+                // going: 2.0 removes corner lean entirely (2026-08-12,
+                // Sir's report: tipping on the final turn, wants to be
+                // able to go as fast as possible — that turn has no
+                // special-case geometry, it's just the corner he's
+                // usually fastest at by then, so full elimination is the
+                // actual fix, not a spot patch on one leg). Was 1.6.
   clean:16.0,   // how far PAST the finish the street stays swept, in T2. The
                 // corridor used to end 2 T2 after the last gate, which is the
                 // size of the COURSE — the frame is the size of the CAMERA.
