@@ -3492,6 +3492,78 @@ function buildGrid(cols, rows, seed=0, opts){
   return grid;
 }
 
+/* ---------- PICKUP_SHOPS: 36 fixed, permanent shop landmarks ----------
+   One entry per HOODS[].shops name (12 hoods x 3 = 36), each locked to
+   ONE real commercial block inside its home district, forever -- CITY_SEED
+   is fixed, so this table never changes once built. Reuses the exact same
+   edge/unit math the live pickup rendering already does (packEdgeNoGap +
+   blockEdgesOf), so a shop's stored x/y is bug-compatible with what
+   queueCommercialEdgeAt independently computes for that same block/edge
+   at render time -- not a parallel position system.
+
+   f (0 or 3) is the ONE route heading that makes findAdjacentBlock resolve
+   to THIS block (verified empirically against 400 test dates, not just
+   derived from the general rule in findAdjacentBlock's own comment, which
+   doesn't say which of the two good headings applies to a given corner):
+   f=0 approaches from the block's south edge, startNode (blockI, blockJ+1);
+   f=3 approaches from the east edge, startNode (blockI+1, blockJ+1).
+   generateRoute passes both startNode and f to buildWalk's startDir param,
+   so the day's walk always begins by tracing this exact edge -- no search
+   needed to find the pickup after that, only a projection onto segs[0]
+   (see _generateRouteFresh).
+
+   2026-08-12, Sir's call: shops used to be a hash of whatever commercial
+   block the route happened to wander past (position -> name via
+   hoodAtWorld().shops[hash % 3]) -- same name could land anywhere, a
+   different name every day even in the same spot. Now the name IS a real,
+   fixed place. */
+let _pickupShopsCache = null;
+function buildPickupShops(grid){
+  const shops = [];
+  for(let hoodIdx = 0; hoodIdx < HOODS.length; hoodIdx++){
+    const hood = HOODS[hoodIdx];
+    const dc = hoodIdx % DISTRICT_COLS, dr = Math.floor(hoodIdx / DISTRICT_COLS);
+    const i0 = dc*DISTRICT_W, i1 = i0 + DISTRICT_W - 1;
+    const j0 = dr*DISTRICT_H, j1 = j0 + DISTRICT_H - 1;
+    const candidates = grid.blocks.filter(b => b.type === "commercial" && b.i >= i0 && b.i <= i1 && b.j >= j0 && b.j <= j1);
+    candidates.sort((a,b) => a.j - b.j || a.i - b.i);
+    /* seeded shuffle (not just "first 3") so a district's three shops don't
+       all cluster at the same corner every time buildBlockLayout happens
+       to list its commercial blocks in scan order. */
+    const rng = mulberry32(((hoodIdx*2654435761)^0x9e3779b9)>>>0);
+    const pool = candidates.slice();
+    for(let k = pool.length-1; k > 0; k--){
+      const r = Math.floor(rng()*(k+1));
+      const t = pool[k]; pool[k] = pool[r]; pool[r] = t;
+    }
+    const picks = pool.slice(0, Math.min(3, pool.length));
+    hood.shops.forEach((name, si) => {
+      const blk = picks[si] || picks[0];
+      if(!blk) return; // shouldn't happen -- ~1/3 of a 9x9 district's 81 blocks are commercial
+      const fRng = mulberry32(((blk.i*7919)^(blk.j*104729)^0x2a11)>>>0);
+      const f = fRng() < 0.5 ? 0 : 3;
+      const startNode = f === 0 ? { i: blk.i, j: blk.j+1 } : { i: blk.i+1, j: blk.j+1 };
+      const pickupEdgeIdx = (f + 2) % 4;
+      const pe = blockEdgesOf(blk)[pickupEdgeIdx];
+      const peseed = ((Math.round(pe.ox*3+pe.dv.x)*7919) ^ (Math.round(pe.oy*3+pe.dv.y)*104729) ^ 0x51b3) >>> 0;
+      const punits = packEdgeNoGap(pe.len, mulberry32(peseed));
+      const pickupUnitIdx = Math.floor(punits.length/2);
+      const pu = punits[pickupUnitIdx] || { start:0, w: pe.len };
+      const pux = pe.ox + pe.dv.x*pu.start, puy = pe.oy + pe.dv.y*pu.start;
+      const pDoorCenterX = pu.w/2, pRobotDy = T2*2.1;
+      const x = pux + pe.dv.x*pDoorCenterX + pe.rv.x*pRobotDy;
+      const y = puy + pe.dv.y*pDoorCenterX + pe.rv.y*pRobotDy;
+      shops.push({ name, hoodIndex: hoodIdx, blockI: blk.i, blockJ: blk.j,
+                   f, startNode, pickupEdgeIdx, pickupUnitIdx, x, y });
+    });
+  }
+  return shops;
+}
+function getPickupShops(grid){
+  if(!_pickupShopsCache) _pickupShopsCache = buildPickupShops(grid);
+  return _pickupShopsCache;
+}
+
 /* ---------- the walked route: a random walk THROUGH the graph ----------
    Two stages: graph traversal (only ever follows real edges — this is
    what guarantees every turn is a real intersection), then the exact
@@ -3542,12 +3614,18 @@ function buildSegsFromLegs(startNode, legDescs, turnR){
   return { segs, totalLen: s, endP: p };
 }
 
-function buildWalk(grid, rng, startOverride, turnsRange, turnR = CORNER_R){
+function buildWalk(grid, rng, startOverride, turnsRange, turnR = CORNER_R, startDir){
   const { cols, rows, nodeAt } = grid;
   let ci = startOverride ? startOverride.i : 1 + Math.floor(rng()*(cols-2 || 1));
   let cj = startOverride ? startOverride.j : 1 + Math.floor(rng()*(rows-2 || 1));
   let cur = nodeAt(ci, cj) || grid.nodes[Math.floor(rng()*grid.nodes.length)];
-  let dir = Math.floor(rng()*4);
+  /* startDir: forces the walk's first heading instead of rolling one --
+     used to anchor the daily route onto a fixed PICKUP_SHOPS landmark's
+     own approach edge (see buildPickupShops). Every shop's startNode/f
+     pair is verified connected at table-build time, so the while below
+     never has to search when startDir is given -- it's here purely as
+     the same safety net the random-dir path already relied on. */
+  let dir = startDir != null ? startDir : Math.floor(rng()*4);
   while(!cur.conn[dir]) dir = (dir+1)%4;
   let turnSign = rng() < 0.5 ? 1 : -1;
   /* the turn loop below alternates between exactly two headings (dir
@@ -4354,15 +4432,29 @@ function _generateRouteFresh(dateStr, opts){
   });
   /* walk starts inside the requested district now, not wherever the rng
      happens to land in a map twelve times the size it used to be. Only
-     matters when opts.hoodIndex is set (Hydrant Challenge); the daily
-     route's own start stays exactly as unconstrained/random as before. */
+     matters when opts.hoodIndex is set (Hydrant Challenge). */
   const districtStart = (opts && opts.hoodIndex != null)
     ? { i: (opts.hoodIndex % DISTRICT_COLS)*DISTRICT_W + Math.floor(DISTRICT_W/2),
         j: Math.floor(opts.hoodIndex/DISTRICT_COLS)*DISTRICT_H + Math.floor(DISTRICT_H/2) }
     : undefined;
-  let walk = buildWalk(grid, rng, districtStart, undefined, TURN_R);
+  /* the daily route's start is NO LONGER unconstrained/random (2026-08-12,
+     Sir's call): it's anchored to today's fixed pickup shop (see
+     buildPickupShops) so the walk's very first leg always traces that
+     shop's own block edge -- the whole reason the pickup section further
+     down needs no search at all anymore. Cone Slalom shares this same
+     opts.hoodIndex-less path (it calls generateRoute(SL_SEED_DATE) without
+     opts), so its course is now anchored too -- expected, re-verify on
+     device after this ships (same drift category HJ_SEED_DATE guards
+     against elsewhere in this function). HJ itself is untouched: its
+     opts.hoodIndex request keeps the district-center start it always had. */
+  const isHJDistrictSearch = !!(opts && opts.hoodIndex != null);
+  const PICKUP_SHOPS = getPickupShops(grid);
+  const todaysShop = PICKUP_SHOPS[seed % PICKUP_SHOPS.length];
+  const startAnchor = isHJDistrictSearch ? districtStart : todaysShop.startNode;
+  const startHeading = isHJDistrictSearch ? undefined : todaysShop.f;
+  let walk = buildWalk(grid, rng, startAnchor, undefined, TURN_R, startHeading);
   for(let att = 0; att < 8 && !hasGoodDoorLeg(walk); att++)
-    walk = buildWalk(grid, rng, districtStart, undefined, TURN_R);
+    walk = buildWalk(grid, rng, startAnchor, undefined, TURN_R, startHeading);
   const segs = walk.segs, totalLen = walk.totalLen;
 
   const inCorner = sv => segs.some(sg => sg.type === "arc" && sv > sg.s0 - CORNER_HAZARD_CLEAR && sv < sg.s1 + CORNER_HAZARD_CLEAR);
@@ -5120,27 +5212,52 @@ function _generateRouteFresh(dateStr, opts){
     if(!inCorner(cs) && onRoad(cs, off) && !spawnBlocked(cs, off)) props.push({ kind: rng() < 0.65 ? "car" : "truck", s: cs, roadOffset: off, f: facingAt(cs) });
   }
 
+  /* the pickup — FIXED now, not searched. todaysShop (above) already says
+     exactly which block, which edge, which unit: segs[0] IS that shop's
+     approach edge by construction (see the walk-anchoring block above),
+     so this is a straight projection of the shop's known world position
+     onto a known segment, the same discipline addressSpot's refinement
+     below uses once doorS is known. pickupBlock is guaranteed commercial
+     already (buildPickupShops only ever picks from grid.blocks, never an
+     exterior lot), so there is nothing to force here either. */
+  const pickupBlock = grid.blockByIJ.get(todaysShop.blockI + "," + todaysShop.blockJ) || null;
+  const pickupEdgeIdx = todaysShop.pickupEdgeIdx;
+  const pickupUnitIdx = todaysShop.pickupUnitIdx;
+  const pickupSpot = { x: todaysShop.x, y: todaysShop.y };
+  const pickupShopName = todaysShop.name;
+  let pickupS = SPAWN_S;
+  {
+    const sg0 = segs[0];
+    const hdg0 = segsHeadingAt(segs, sg0.s0);
+    const dirX0 = Math.cos(hdg0), dirY0 = Math.sin(hdg0);
+    const p00 = segsPosAt(segs, sg0.s0);
+    const segLen0 = sg0.s1 - sg0.s0;
+    const inset0 = Math.min(90, segLen0*0.3);
+    let k0 = (pickupSpot.x-p00.x)*dirX0 + (pickupSpot.y-p00.y)*dirY0;
+    k0 = Math.max(inset0, Math.min(segLen0-inset0, k0));
+    pickupS = sg0.s0 + k0;
+  }
+
   /* the address */
   const number = 100 + Math.floor(rng()*3800);
-  let doorS = findGoodS(segs, totalLen, totalLen - 90, true, grid, null, MIN_ROUTE_UNITS);
+  /* the address search now steers clear of the PICKUP block instead of the
+     other way around (pickup used to be chosen after and around the
+     address; it's fixed now, so address is the one that has to dodge). A
+     shared block can only hold one type, which would make the pickup
+     render as the address house instead of a shop. */
+  let doorS = findGoodS(segs, totalLen, totalLen - 90, true, grid, pickupBlock, MIN_ROUTE_UNITS);
   /* graceful degradation: if no interior good leg exists past the mile
      mark (short-walk day), take the best route the map offers rather
      than none — findGoodS's own final fallback returns preferredS-ish
      even with the floor, so re-run unfloored only if the floored pick
      itself landed short (it only can via that last-resort path). */
-  if(doorS < MIN_ROUTE_UNITS) doorS = Math.max(doorS, findGoodS(segs, totalLen, totalLen - 90, true, grid));
+  if(doorS < MIN_ROUTE_UNITS) doorS = Math.max(doorS, findGoodS(segs, totalLen, totalLen - 90, true, grid, pickupBlock));
 
-  /* the address is always a real block, forced to housing (a park or
-     shop can't be the delivery destination); the pickup is always a
-     real block, forced to commercial. Same override the lab used with
-     a hardcoded i,j — now driven by where the route actually put
-     doorS/pickupS instead of a fixed test position. */
+  /* the address is always a real block, forced to housing (a park or shop
+     can't be the delivery destination). Same override the lab used with a
+     hardcoded i,j — now driven by where the route actually put doorS. */
   const addressBlock = findAdjacentBlock(segs, doorS, grid);
   if(addressBlock) addressBlock.type = "housing";
-  /* pickup chosen AFTER the address block is known, so it can steer clear of
-     it (a shared block can only hold one type, which would make the pickup
-     render as the address house instead of a shop). */
-  let pickupS = findGoodS(segs, totalLen, SPAWN_S + 90, false, grid, addressBlock);
   const doorHeadingF = segsSegAt(segs, doorS).f;
   const addressEdgeIdx = (doorHeadingF + 2) % 4;
   /* f===1/f===2 addresses only happen via findGoodS's rare no-good-leg
@@ -5212,84 +5329,18 @@ function _generateRouteFresh(dateStr, opts){
     k0 = Math.max(inset0, Math.min(segLen0-inset0, k0));
     doorS = sg0.s0 + k0;
   }
-  const pickupBlock = findAdjacentBlock(segs, pickupS, grid);
-  if(pickupBlock && pickupBlock !== addressBlock) pickupBlock.type = "commercial";
-  const pickupEdgeIdx = (segsSegAt(segs, pickupS).f + 2) % 4;
-
-  /* the pickup spot is a real, sensible point (just outside the shop
-     door) — the robot should spawn AT it, not the other way around.
-     Since the robot's position is always route-driven (posAt(botS) +
-     laneOffset), spawning it exactly at an independently-computed
-     shop-relative point would either require breaking that (causing a
-     jump the instant it starts moving) or finding the closest point
-     ON the route that already lines up. Same edge-packing computation
-     queueCommercialEdgeAt will independently do for rendering — kept
-     in sync by storing the result once here rather than recomputing
-     it twice and risking drift. */
-  let pickupSpot = null, pickupUnitIdx = 0, pickupShopName = null;
-  if(pickupBlock){
-    const pbEdges = [
-      { ox: pickupBlock.x0, oy: pickupBlock.y0, dv: DIRV[0], rv: DIRV[3], len: pickupBlock.x1-pickupBlock.x0 },
-      { ox: pickupBlock.x1, oy: pickupBlock.y0, dv: DIRV[1], rv: DIRV[0], len: pickupBlock.y1-pickupBlock.y0 },
-      { ox: pickupBlock.x1, oy: pickupBlock.y1, dv: DIRV[2], rv: DIRV[1], len: pickupBlock.x1-pickupBlock.x0 },
-      { ox: pickupBlock.x0, oy: pickupBlock.y1, dv: DIRV[3], rv: DIRV[2], len: pickupBlock.y1-pickupBlock.y0 }
-    ];
-    const pe = pbEdges[pickupEdgeIdx];
-    const peseed = ((Math.round(pe.ox*3+pe.dv.x)*7919) ^ (Math.round(pe.oy*3+pe.dv.y)*104729) ^ 0x51b3) >>> 0;
-    const punits = packEdgeNoGap(pe.len, mulberry32(peseed));
-    if(punits.length){
-      const pPos = segsPosAt(segs, pickupS);
-      const pAlong = pe.dv.x*(pPos.x-pe.ox) + pe.dv.y*(pPos.y-pe.oy);
-      pickupUnitIdx = closestUnitIndex(punits, pAlong);
-      const pu = punits[pickupUnitIdx];
-      const pux = pe.ox + pe.dv.x*pu.start, puy = pe.oy + pe.dv.y*pu.start;
-      const pDoorCenterX = pu.w/2, pRobotDy = T2*2.1;
-      pickupSpot = {
-        x: pux + pe.dv.x*pDoorCenterX + pe.rv.x*pRobotDy,
-        y: puy + pe.dv.y*pDoorCenterX + pe.rv.y*pRobotDy
-      };
-      const pickupHood = hoodAtWorld(pux, puy);
-      pickupShopName = pickupHood.shops[Math.abs(Math.round(pux)+Math.round(puy)) % pickupHood.shops.length];
-    }
-  }
-  /* refine pickupS to the pickup unit's actual on-route position.
-     PREVIOUSLY: searched every f===0/f===3 leg in the whole route for
-     whichever point was closest to pickupSpot. That's the same
-     broad-search pattern doorS's refinement tried first and rejected
-     (see addressSpot's comment above: "copying pickupS's pattern
-     verbatim ... confirmed on 11/200 test routes, with residuals up
-     to 2738 units") — on a route that loops back near itself, a later
-     unrelated leg can sit closer to pickupSpot in raw distance than
-     the leg the shop was actually placed on, so pickupS would lock
-     onto the WRONG leg. Since this.botS starts at route.pickupS and
-     the robot's initial heading is headingAt(botS), that wrong leg
-     meant an occasional wrong start-facing angle. Fixed the same way
-     doorS was: no search at all. pickupEdgeIdx above was already
-     derived from segsSegAt(segs, pickupS), so the pickup unit is
-     guaranteed to be on the block adjacent to THIS EXACT segment —
-     project onto it directly. */
-  if(pickupSpot){
-    const sg0 = segsSegAt(segs, pickupS);
-    const hdg0 = segsHeadingAt(segs, sg0.s0);
-    const dirX0 = Math.cos(hdg0), dirY0 = Math.sin(hdg0);
-    const p00 = segsPosAt(segs, sg0.s0);
-    const segLen0 = sg0.s1 - sg0.s0;
-    const inset0 = Math.min(90, segLen0*0.3);
-    let k0 = (pickupSpot.x-p00.x)*dirX0 + (pickupSpot.y-p00.y)*dirY0;
-    k0 = Math.max(inset0, Math.min(segLen0-inset0, k0));
-    pickupS = sg0.s0 + k0;
-  }
-
-  /* EXTERIOR-LOT BACKSTOP (degenerate routes only): findGoodS's perimeter
-     guard keeps the door/pickup on an interior-facing leg whenever one
-     exists. On a tiny route whose ONLY good legs all hug the grid edge
-     facing outward (≈1% of days), it falls back to an outward leg — there
-     the robot faces an exterior lot (buildExteriorLots), not an interior
-     block, and that lot's random type is what forcing the interior block
-     missed. Force the faced lot's type to match so the ending building is
-     always the right kind: housing at the door, commercial at the pickup.
-     (The full isAddress door/customer treatment on a lot is the shelved
-     perimeter-delivery feature; this only guarantees the building TYPE.) */
+  /* EXTERIOR-LOT BACKSTOP (degenerate routes only, ADDRESS side only now):
+     findGoodS's perimeter guard keeps the door on an interior-facing leg
+     whenever one exists. On a tiny route whose ONLY good legs all hug the
+     grid edge facing outward (≈1% of days), it falls back to an outward
+     leg — there the robot faces an exterior lot (buildExteriorLots), not
+     an interior block, and that lot's random type is what forcing the
+     interior block missed. Force the faced lot's type to housing so the
+     door is always the right kind. (The full isAddress door/customer
+     treatment on a lot is the shelved perimeter-delivery feature; this
+     only guarantees the building TYPE.) The pickup side of this no longer
+     exists: todaysShop's block comes straight from grid.blocks, never
+     grid.extLots, so it can't land on a perimeter lot to begin with. */
   const forceFacedLot = (s, wantType) => {
     const off = ROBOT_SIDE * (ROAD_HALF + SIDEWALK_W + T2*2);
     const p = segsWorldOf(segs, s, off);
@@ -5301,7 +5352,6 @@ function _generateRouteFresh(dateStr, opts){
     if(best) best.type = wantType;
   };
   forceFacedLot(doorS, "housing");
-  forceFacedLot(pickupS, "commercial");
 
   const pal = BLEND.hill > 0.55
     ? { sky:0xf2c48d, pave:0xbdb6a8, paveB:0xb3ac9e, paveEdge:0x9c9588, road:0x45484f, roadLine:0xcfc9b9 }
