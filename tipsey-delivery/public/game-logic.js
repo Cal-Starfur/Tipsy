@@ -1024,10 +1024,41 @@ function tdFxDbgSync(){
     done = localStorage.getItem(TDFX_DONE_KEY) || "-";
   } catch(e){ later = done = "storage blocked"; }
   el.style.display = "block";
+  /* snap/pose tell the two failure modes apart at a glance: whether the
+     crash SNAPSHOT came back at all (localStorage) vs whether the gate
+     itself is live. "later/done: storage blocked" already reports a
+     throwing localStorage; these report a silently EMPTY one, which
+     looks identical from the outside and is the state that leaves a
+     restored card posed as a fresh load. */
+  const snap = (tdFx.failSnapshot ? "d" : "-") + (tdFx.hydrantSnapshot ? "h" : "-");
   el.textContent = "draft: " + tdFx.draftWhy +
     " | fails: " + tdFx.fails +
+    " | snap: " + snap +
     " | later: " + later + " | done: " + done +
     " | claimed: " + tdFx.followClaimed;
+  tdFxPositionDbgBelow();
+}
+/* The readout is pinned at "46% + 200px", an offset calibrated for the
+   short RETRY pill it used to sit under. The gate composer replaced that
+   pill with something several times taller, so the line ended up BEHIND
+   it -- visible only as a few characters poking out either side, which
+   makes the one diagnostic that names why a gate fell back unreadable
+   exactly when it's needed. Mirror of tdFxPositionIconsAbove: measure
+   the composer and sit clear of it, static offset whenever it isn't
+   showing. z-index as well, so nothing added to the overlay later can
+   bury it again. */
+function tdFxPositionDbgBelow(){
+  const el = document.getElementById("tdFxDbg");
+  if(!el) return;
+  el.style.zIndex = "60";
+  const g = document.getElementById("tdFxGate");
+  if(!g || g.style.display === "none"){ el.style.top = "calc(46% + 200px)"; return; }
+  requestAnimationFrame(() => {
+    const gRect = g.getBoundingClientRect();
+    const oRect = document.getElementById("failOverlay").getBoundingClientRect();
+    if(!gRect.height) return;
+    el.style.top = (gRect.bottom - oRect.top + 12) + "px";
+  });
 }
 function tdFxDbgBind(){
   if(tdFx.dbgBound) return;
