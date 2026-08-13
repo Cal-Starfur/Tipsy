@@ -17929,26 +17929,6 @@ function tpSlalomOn(){
      ========================================================================= */
   const BEST_KEY = 'tipsy.slalom.best';
 
-  /* Slalom's own version of HJChallenge.prototype.announce -- same copy
-     shape (title + small caps subtitle), same 2.6s show/hide, same
-     scale+opacity transition (see #slUnlock's CSS, a deliberate twin of
-     #hjUnlock's). The one real difference: #hjUnlock is a static node that
-     has existed since page load, so toggling .show later always animates.
-     #slUnlock is built fresh inside #slCard's innerHTML on every win (see
-     slShowCard), so adding .show in the SAME tick that innerHTML is set
-     risks the browser coalescing both style changes into one paint and
-     skipping the transition entirely -- the rAF defers the class add to
-     the next frame, after the opacity:0/scale(.8) resting state from the
-     CSS has actually been committed once. */
-  function slAnnounce(title, sub){
-    const el = document.getElementById('slUnlock');
-    if (!el) return;
-    el.innerHTML = title + '<small>' + sub + '</small>';
-    requestAnimationFrame(() => el.classList.add('show'));
-    clearTimeout(slAnnounce._t);
-    slAnnounce._t = setTimeout(() => el.classList.remove('show'), 2600);
-  }
-
   function slShowCard(){
     const raw   = run.elapsed;
     const total = raw + run.pen;
@@ -18062,8 +18042,33 @@ function tpSlalomOn(){
          tdStackIcons's row can open the missions/profile panel
          (z-index:50), and 100000 sat above that uncontested until FAIL
          was the first to actually test it. */
+      /* Slalom Master had no equivalent of hjClear's announce() -- a winning
+         run banked slBestMs and completed the mission silently. Same gate
+         as the trophy's own progress fn (tpProfile.slBestMs <= 60000) and
+         same "nag until claimed" behaviour as fire-chief: checks THIS run's
+         own total, not the profile's all-time best, so it only fires on a
+         run that itself qualifies -- an old sub-60 best doesn't re-announce
+         on a slower rerun.
+         FIRST PASS (2026-08-13) tried this as a separate #hjUnlock-style
+         toast stacked below the headline -- reported on-device the same
+         day as overlapping the regular flavor line, since both were on
+         screen at once. Replaced with this instead: the unlock message
+         REPLACES winMsg/winSub outright rather than layering on top of
+         them, so there's only ever one message up there (Sir's call). No
+         equip animation exists for any skin in this file (equip is a
+         straight palette overwrite) -- this is a claim notice, not a
+         costume-change effect. */
+      const rewardSkin = tpSkinById('cone-dodger');
+      const justEarnedReward = won && total <= 60 && rewardSkin && !tpProfile.owned.has('cone-dodger');
+
       const pool = clean ? SLALOM_WIN_CLEAN_LINES : SLALOM_WIN_LINES;
-      const [winMsg, winSub] = pool[Math.floor(Math.random() * pool.length)];
+      let [winMsg, winSub] = pool[Math.floor(Math.random() * pool.length)];
+      let headlineCol = col;
+      if (justEarnedReward){
+        winMsg = `\u{1F3C6} ${rewardSkin.displayName.toUpperCase()} UNLOCKED`;
+        winSub = `Under 60 seconds \u2014 claim it in your Trophy Case.`;
+        headlineCol = '#ffd15c';
+      }
 
       const noteBits = [];
       if (run.pen) noteBits.push(`+${run.pen.toFixed(1)}s pen`);
@@ -18081,19 +18086,6 @@ function tpSlalomOn(){
       const cappedNote = !paidCents
         ? sheetRow('<span style="color:#6b6558;font-weight:600;font-size:12px">beat today\'s best payout to earn more</span>')
         : '';
-      /* Slalom Master had no equivalent of hjClear's announce() -- a winning
-         run banked slBestMs and completed the mission silently. Same gate as
-         the trophy's own progress fn (tpProfile.slBestMs <= 60000) and same
-         "nag until claimed" behaviour as fire-chief: checks THIS run's own
-         total, not the profile's all-time best, so it only fires on a run
-         that itself qualifies -- an old sub-60 best doesn't re-announce on a
-         slower rerun. SAME TREATMENT AS THE HYDRANT JUMP (Sir's call,
-         2026-08-13): the toast, not a sheet row -- see slAnnounce() and its
-         call further down, after the card is in the DOM. No equip animation
-         exists for any skin in this file (equip is a straight palette
-         overwrite) -- this is a claim notice, not a costume-change effect. */
-      const rewardSkin = tpSkinById('cone-dodger');
-      const justEarnedReward = won && total <= 60 && rewardSkin && !tpProfile.owned.has('cone-dodger');
 
       card.style.cssText = [
         'position:fixed','inset:0','z-index:10',
@@ -18102,10 +18094,9 @@ function tpSlalomOn(){
       ].join(';');
       card.innerHTML =
         `<h2 id="slWinMsg" style="font-size:28px;margin:0 0 8px;text-shadow:0 2px 3px #b5540e;
-              transform:translateY(-165px);color:${col}">${winMsg}</h2>
+              transform:translateY(-165px);color:${headlineCol}">${winMsg}</h2>
          <p id="slWinSub" style="font-size:16px;line-height:1.5;color:#fff;max-width:330px;
               margin:5px 0;text-shadow:0 2px 3px #b5540e;transform:translateY(-165px)">${winSub}</p>
-         <div id="slUnlock"></div>
          <!-- top:36% overrides .slRetryBtn's shared 46% for THIS button only (Fail's
               #slRetry keeps the shared value) -- 46% sat right where Tipsey stands at
               the carpet stop on some routes (reported on-device, 2026-08-12). Still a
@@ -18125,10 +18116,6 @@ function tpSlalomOn(){
          </div>`;
       document.body.appendChild(card);
       document.getElementById('slAgain').onclick = () => { card.remove(); slResetRun(); };
-      if (justEarnedReward){
-        slAnnounce(`\u{1F3C6} ${rewardSkin.displayName.toUpperCase()} UNLOCKED`,
-                   `UNDER 60 SECONDS \u00b7 CLAIM IT IN YOUR TROPHY CASE`);
-      }
 
       /* Everything below is measured off the sheet, same order showWin()
          itself uses (show/append first, THEN measure -- offsetHeight
