@@ -174,6 +174,73 @@ export async function dbGetMissions(username: string): Promise<TsMissionState> {
   return out
 }
 
+/** Whether a mission's most recent FAIL still has an unposted Delivery
+ *  Log comment -- the server-side truth behind the client's retry gate
+ *  (Sir's call, 2026-08: "they should still be locked out until the
+ *  next days route" -- client-only state (tdFx.deliveryUnposted etc. in
+ *  game/index.html) doesn't survive an app restart, so THIS is what
+ *  actually enforces it; the client just mirrors whatever this says on
+ *  every boot, see dbGetTpProfile below).
+ *
+ *  One hash per user, one field per mission. 'slalom'/'hydrant' are
+ *  simple '1'-if-pending flags -- neither mission's course rotates by
+ *  date (SL_SEED_DATE/HJ_SEED_DATE are both frozen), so there's nothing
+ *  to compare against and they just stay pending until posted. 'delivery'
+ *  stores the PENDING FAIL'S OWN dateStr instead of '1', because the
+ *  daily route DOES rotate: dbGetFailPending compares that stored date
+ *  against today's on every read, which is what lets an old, unposted
+ *  fail from a past day stop blocking on its own the instant a new
+ *  day's route exists -- "locked out until they post, OR until the next
+ *  day's route" -- with no explicit rollover/cleanup step required
+ *  anywhere. */
+function failPendingKey(username: string): string {
+  return `tipsy:global:failpending:${username}`
+}
+
+/** Marks a fail as pending, called from the matching routeSubmit*Fail
+ *  the moment it composes a REAL draft (postId + username both
+ *  resolved) -- the same condition under which the client would
+ *  otherwise show the gate composer, kept in lockstep on purpose. */
+export async function dbSetFailPending(
+  username: string,
+  source: 'delivery' | 'slalom' | 'hydrant',
+  dateStr?: string,
+): Promise<void> {
+  const key = failPendingKey(username)
+  await redis.hSet(key, {
+    [source]: source === 'delivery' ? (dateStr ?? todayUTC()) : '1',
+  })
+}
+
+/** Clears a fail's pending flag -- called the instant its matching
+ *  comment actually posts (see routePostFailComment and its two
+ *  siblings), same no-comment-no-clear doctrine every bonus claim here
+ *  already follows for payment: a failed submitComment must leave the
+ *  gate exactly as locked as before. */
+export async function dbClearFailPending(
+  username: string,
+  source: 'delivery' | 'slalom' | 'hydrant',
+): Promise<void> {
+  await redis.hDel(failPendingKey(username), [source])
+}
+
+/** Reads all three flags at once for dbGetTpProfile's own boot-time
+ *  read, so a fresh page load restores the client's gate to server
+ *  truth instead of trusting whatever was left in memory (or nothing,
+ *  after a restart). delivery's own field only counts as "pending" if
+ *  its stored date matches TODAY -- see failPendingKey's own comment
+ *  for why a stale date silently stops blocking on its own. */
+export async function dbGetFailPending(
+  username: string,
+): Promise<{delivery: boolean; slalom: boolean; hydrant: boolean}> {
+  const raw = await redis.hGetAll(failPendingKey(username))
+  return {
+    delivery: !!raw.delivery && raw.delivery === todayUTC(),
+    slalom: raw.slalom === '1',
+    hydrant: raw.hydrant === '1',
+  }
+}
+
 /** Records a side-mission result, keeping the HIGH-WATER mark: reports
  *  arrive after every cleared jump, and a later run that ends at jump 3
  *  must not erase a previous ten.
@@ -318,14 +385,21 @@ export async function dbGetHistory(username: string): Promise<{
 /** Wallet + owned skins + equipped skin for the Tipsy Profile trophy
  *  case / store (Phase B). 'classic' is added back into `owned` on
  *  every read since it's never persisted (see tpOwnedKey) -- it's free
- *  and everyone has it. Two parallel reads, not a shared key, since
- *  tpProfileKey (scalar fields) and tpOwnedKey (one field per skin) are
- *  different shapes for different reasons -- see each key fn's comment. */
+ *  and everyone has it. Four parallel reads, not one shared key, since
+ *  tpProfileKey (scalar fields), tpOwnedKey (one field per skin), and
+ *  failPendingKey (one field per mission's gate) are different shapes
+ *  for different reasons -- see each key fn's own comment. failPending
+ *  rides on the profile response rather than its own endpoint for the
+ *  same reason missions does: requestTpProfile() already fires on every
+ *  boot, so the client's retry gate re-establishes itself from server
+ *  truth the instant the page loads, before anything could slip through
+ *  a fresh app restart's blank tdFx/tsfFx state. */
 export async function dbGetTpProfile(username: string): Promise<TpProfileRsp> {
-  const [profile, ownedRaw, missions] = await Promise.all([
+  const [profile, ownedRaw, missions, failPending] = await Promise.all([
     redis.hGetAll(tpProfileKey(username)),
     redis.hGetAll(tpOwnedKey(username)),
     dbGetMissions(username),
+    dbGetFailPending(username),
   ])
   const walletCents = parseInt(profile.walletCents ?? '0', 10) || 0
   const equipped = profile.equipped || 'classic'
@@ -339,6 +413,7 @@ export async function dbGetTpProfile(username: string): Promise<TpProfileRsp> {
     equipped,
     missions,
     followBonusClaimed: profile.followBonus === '1',
+    failPending,
   }
 }
 
@@ -769,6 +844,9 @@ export async function dbRemoveUser(username: string): Promise<void> {
        would leave a record of what it once unlocked. */
     redis.del(announcedKey(username)),
     redis.del(tpMissionsKey(username)),
+    /* same reasoning -- a deleted account shouldn't leave a stray
+       retry-gate flag behind either. */
+    redis.del(failPendingKey(username)),
   ])
 }
 
