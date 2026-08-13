@@ -18061,6 +18061,19 @@ function tpSlalomOn(){
       const cappedNote = !paidCents
         ? sheetRow('<span style="color:#6b6558;font-weight:600;font-size:12px">beat today\'s best payout to earn more</span>')
         : '';
+      /* Slalom Master had no equivalent of hjClear's announce() -- a winning
+         run banked slBestMs and completed the mission silently. Same gate as
+         the trophy's own progress fn (tpProfile.slBestMs <= 60000) and same
+         "nag until claimed" behaviour as fire-chief: checks THIS run's own
+         total, not the profile's all-time best, so it only fires on a run
+         that itself qualifies -- an old sub-60 best doesn't re-announce on a
+         slower rerun. No equip animation exists for any skin in this file
+         (equip is a straight palette overwrite) -- this is a claim notice,
+         not a costume-change effect. */
+      const rewardSkin = tpSkinById('cone-dodger');
+      const rewardRow = (won && total <= 60 && rewardSkin && !tpProfile.owned.has('cone-dodger'))
+        ? sheetRow(`<span style="color:#b5540e">\u{1F3C6} ${rewardSkin.displayName} unlocked \u2014 claim it in your Trophy Case</span>`)
+        : '';
 
       card.style.cssText = [
         'position:fixed','inset:0','z-index:10',
@@ -18072,7 +18085,13 @@ function tpSlalomOn(){
               transform:translateY(-165px);color:${col}">${winMsg}</h2>
          <p id="slWinSub" style="font-size:16px;line-height:1.5;color:#fff;max-width:330px;
               margin:5px 0;text-shadow:0 2px 3px #b5540e;transform:translateY(-165px)">${winSub}</p>
-         <button id="slAgain" class="slRetryBtn">Run again</button>
+         <!-- top:36% overrides .slRetryBtn's shared 46% for THIS button only (Fail's
+              #slRetry keeps the shared value) -- 46% sat right where Tipsey stands at
+              the carpet stop on some routes (reported on-device, 2026-08-12). Still a
+              fixed percent, since the button isn't measured off the sheet the way the
+              icon row/FOLLOW row below it are -- first-pass guess, needs an on-device
+              check across a few different finish routes. -->
+         <button id="slAgain" class="slRetryBtn" style="top:36%">Run again</button>
          <div id="slWinCard" style="position:absolute;left:0;right:0;bottom:0;margin:0;
               background:#f0ece0;color:#2e3138;border:none;border-radius:0 0 20px 20px;
               padding:12px 16px calc(10px + env(safe-area-inset-bottom))">
@@ -18081,6 +18100,7 @@ function tpSlalomOn(){
               `&nbsp;&middot;&nbsp;cones&nbsp;<b style="color:#b5540e">${run.cleared}/${run.gates.length}</b>` +
               `&nbsp;&middot;&nbsp;tip&nbsp;<b style="color:#b5540e">${tpMoney(paidCents)}</b>${note}`)}
            ${bestRow}
+           ${rewardRow}
            ${cappedNote}
          </div>`;
       document.body.appendChild(card);
