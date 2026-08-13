@@ -2771,7 +2771,8 @@ const DOOR_ART = {
   step: 0x9d9687, stepDk: 0x847d70,
   shadow: 0x000000
 };
-const MAT_ART = { red: 0xc2452e, redDk: 0x8f331f, border: 0x6e2718, fiber: 0xa8391f };
+const MAT_ART = { red: 0xc2452e, redDk: 0x8f331f, border: 0x6e2718, fiber: 0xa8391f,
+  ckWhite: 0xf5f5f2, ckBlack: 0x1a1a1c, ckFrame: 0x2a2a2a, ckBorder: 0x0d0d0d };
 const PICKUP_ART = { walkMs: 1000 }; // real elapsed ms for the worker to walk back in after "go" — frame-rate independent, driven by runT. Halved with the intro cut; also the fallback for the won walk-back when wonMeet is missing, where 1000ms is still a sane floor
 const LIFT_MAX_ANGLE = Math.PI/2; // full lift = carrying arm swung forward to horizontal, pivoting at the shoulder
 
@@ -8178,14 +8179,46 @@ class WorldScene extends Phaser.Scene {
   /* ---------- delivery mat (door lab, dial bench approved) ----------
      Exactly one sidewalk square, sitting flush on lane 3's tile,
      flush against the door at its near edge. Border rim + fiber
-     texture instead of a flat quad. */
+     texture instead of a flat quad. SLALOM-ONLY CHECKER (Sir's call,
+     2026-08-13): checker flag replaces the rug only while the slalom
+     engine is attached (this._slAPI, set by tpSlalomOn / cleared by
+     scene._slRestore on Quit or Run Again's slResetRun path stays
+     attached -- see that function's own comment), so a regular
+     delivery keeps the red rug exactly as before. First pass tried
+     this as a straight palette swap on drawMatQuad with no branch at
+     all -- caught before it shipped that drawMatQuad is the SAME call
+     used at every customer's door, not a slalom-specific one, so an
+     unconditional swap would have recolored every delivery in the
+     game. this._slAPI is what tpSlalomStart/tpSlalomOn actually set on
+     the scene for exactly this kind of "are we in a slalom run right
+     now" check -- reused here rather than threading a new parameter
+     through drawHouseUnit's two call sites for the same answer. */
   drawMatQuad(g, ox, oy, dv, rv, doorCenterX, dz){
     const M = (dx, dy, dzz) => this.W(ox + dv.x*(doorCenterX+dx) + rv.x*dy, oy + dv.y*(doorCenterX+dx) + rv.y*dy, dz+dzz);
     const half = T2/2;
     const matNear = T2*0.5 - half, matFar = T2*0.5 + half;
     const outer = [M(-half,matNear,0.6), M(half,matNear,0.6), M(half,matFar,0.6), M(-half,matFar,0.6)];
-    this.quadOn(g, outer, MAT_ART.redDk);
     const bw = 3.5;
+    if (this._slAPI){
+      /* checker flag -- slalom finish only. Same footprint/frame/edge
+         technique as the rug below, N=5 grid is a first-pass density
+         guess, same as everything else tuned on-device this session. */
+      this.quadOn(g, outer, MAT_ART.ckFrame);
+      const innerNear = matNear+bw, innerFar = matFar-bw, innerLeft = -half+bw, innerRight = half-bw;
+      const N = 5;
+      const cellU = (innerFar-innerNear)/N, cellV = (innerRight-innerLeft)/N;
+      for(let i=0; i<N; i++){
+        for(let j=0; j<N; j++){
+          const u0 = innerNear+i*cellU, u1 = u0+cellU;
+          const v0 = innerLeft+j*cellV, v1 = v0+cellV;
+          const cell = [M(v0,u0,0.65), M(v1,u0,0.65), M(v1,u1,0.65), M(v0,u1,0.65)];
+          this.quadOn(g, cell, (i+j)%2===0 ? MAT_ART.ckWhite : MAT_ART.ckBlack);
+        }
+      }
+      this.edgeOn(g, outer, MAT_ART.ckBorder, 1.4);
+      return;
+    }
+    this.quadOn(g, outer, MAT_ART.redDk);
     const inner = [M(-half+bw,matNear+bw,0.65), M(half-bw,matNear+bw,0.65), M(half-bw,matFar-bw,0.65), M(-half+bw,matFar-bw,0.65)];
     this.quadOn(g, inner, MAT_ART.red);
     this.edgeOn(g, outer, MAT_ART.border, 1.4);
