@@ -83,6 +83,13 @@ export type TpProfileRsp = {
   /** Whether this account already claimed the one-time follow bonus --
    *  lets the client skip the 3rd-fail follow prompt entirely. */
   followBonusClaimed: boolean
+  /** Server-side truth behind the client's retry gate (Sir's call,
+   *  2026-08 -- see db.ts dbGetFailPending/failPendingKey for the full
+   *  rationale). The client's own tdFx.deliveryUnposted/hydrantUnposted
+   *  and tsfFx.unposted are restored from these three booleans on every
+   *  requestTpProfile() -- i.e. on every fresh boot -- since plain
+   *  in-memory state doesn't survive an app restart on its own. */
+  failPending: {delivery: boolean; slalom: boolean; hydrant: boolean}
 }
 /** skinId must be a 'purchase'-type skin in the server's own TS_SKINS
  *  catalog (tpcatalog.ts) -- price is never taken from the client. */
