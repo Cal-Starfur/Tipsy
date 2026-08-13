@@ -216,21 +216,40 @@ export type SubmitSlalomFailReq = {
 }
 export type SubmitSlalomFailRsp = {text: string}
 /** The player's (possibly edited) slalom FAIL comment, posted as the
- *  USER in reply to the pinned anchor. The $5/day bonus claims from its
- *  OWN pool -- dbClaimCommentBonus's source:'slalom-fail', independent
- *  of both source:'win' (delivery) and source:'slalom' (a winning
- *  slalom run). Sir's call, 2026-08-10: all three are separate, so a
- *  player who fails a slalom run, then later wins one, then also wins a
- *  delivery, could earn all three in the same day. Same no-comment-no-
- *  pay gate as everywhere else -- bonus only claims after
- *  postScoreComment actually lands. */
+ *  USER in reply to the pinned anchor. No bonus (Sir's call, 2026-08):
+ *  a slalom fail is now a GATED retry (game/index.html tsfFx) -- the
+ *  post is the price of Retry, not an optional paid extra, same policy
+ *  as PostFailCommentRsp and the new PostHydrantFailCommentRsp below.
+ *  The old $5/day source:'slalom-fail' pool (dbClaimCommentBonus) is
+ *  retired; db.ts still recognizes the source for any stale rows, it's
+ *  just never claimed from here anymore. */
 export type PostSlalomFailCommentReq = {text: string}
-export type PostSlalomFailCommentRsp = {
-  posted: boolean
-  bonusGranted: boolean
-  walletCents: number
+export type PostSlalomFailCommentRsp = {posted: boolean}
+/** A FAILED Hydrant Challenge jump (missed the gap, burst a hydrant,
+ *  never left the ground, knocked over -- any cause the crash screen
+ *  prints), reported so the server can compose a draft describing the
+ *  wipeout. Same draft/post split as SubmitSlalomFailReq. level is the
+ *  jump the player was ON when they crashed (WorldScene.hjLevel); best
+ *  is this run's high-water level (WorldScene.hjBest) for context in
+ *  the comment; cause is the crash screen's own result string
+ *  ("BURST A HYDRANT", "MISSED IT", ...) -- passed through as-is, same
+ *  reasoning as SubmitSlalomFailReq.cause: the client is the only place
+ *  that knows which crash condition actually fired. */
+export type SubmitHydrantFailReq = {
+  level: number
+  best: number
+  cause: string
 }
+export type SubmitHydrantFailRsp = {text: string}
+/** The player's (possibly edited) hydrant FAIL comment, posted as the
+ *  USER in reply to the pinned anchor -- only ever sent by an explicit
+ *  Retry press on a gate-eligible crash (game/index.html hjFx). No
+ *  bonus, same policy as PostFailCommentRsp/PostSlalomFailCommentRsp:
+ *  posting is the price of Retry here, not a paid extra. */
+export type PostHydrantFailCommentReq = {text: string}
+export type PostHydrantFailCommentRsp = {posted: boolean}
 /** Reports progress on a side mission. missionId must exist in the
+
  *  server's own TS_MISSIONS (tpcatalog.ts); best is a high-water count
  *  (cleared jumps for jump-hydrant, 1 for a pass/fail mission) and is
  *  clamped server-side to what a real clear could have earned. The
@@ -283,6 +302,8 @@ export const Endpoint = {
   PostSlalomWinComment: 'api/tipsy/slalom/win/comment',
   SubmitSlalomFail: 'api/tipsy/slalom/fail',
   PostSlalomFailComment: 'api/tipsy/slalom/fail/comment',
+  SubmitHydrantFail: 'api/tipsy/hydrant/fail',
+  PostHydrantFailComment: 'api/tipsy/hydrant/fail/comment',
   OnAppInstall: 'internal/on/app/install',
   OnMenuNewPost: 'internal/on/menu/new-post',
   OnAccountDelete: 'internal/on/account/delete',
@@ -310,6 +331,8 @@ export const EndpointMethod = {
   [Endpoint.PostSlalomWinComment]: 'POST',
   [Endpoint.SubmitSlalomFail]: 'POST',
   [Endpoint.PostSlalomFailComment]: 'POST',
+  [Endpoint.SubmitHydrantFail]: 'POST',
+  [Endpoint.PostHydrantFailComment]: 'POST',
   [Endpoint.OnAppInstall]: 'POST',
   [Endpoint.OnMenuNewPost]: 'POST',
   [Endpoint.OnAccountDelete]: 'POST',
