@@ -56,6 +56,7 @@ import {
   dbClaimSlalomTip,
   dbClaimTrophyReward,
   dbClaimCommentBonus,
+  dbClearFailPending,
   dbEquipSkin,
   dbGetAllTimeBest,
   dbGetAllTimeTop,
@@ -73,6 +74,7 @@ import {
   dbReleaseDailyPostClaim,
   dbRemoveUser,
   dbSetDailyPostId,
+  dbSetFailPending,
   dbSetStickyCommentId,
   dbShouldPostDaily,
   dbShouldPostOnInstall,
@@ -537,6 +539,19 @@ async function routeSubmitFail(
     `**u/${user.username}** went down ${where} -- ${cause}.\n\n` +
     `$${tip.toFixed(2)} order · ${secs.toFixed(1)}s on the clock · cargo ${damage}% ruined.`
 
+  /* PERSISTENT gate (Sir's call, 2026-08: client-only state doesn't
+     survive a restart, so this is what actually enforces "locked out
+     until they post, or until the next day's route"). SubmitFailReq
+     carries no dateStr -- the client already only calls this endpoint
+     for a genuine TODAY fail (a replay bails out before the fetch, see
+     reportFail's own dateStr check in game/index.html), so todayUTC()
+     here is trustworthy without a client-supplied date to verify
+     against. dbGetFailPending compares this stored date against
+     todayUTC() on every read -- a stale unposted flag from a past day
+     stops blocking on its own once a new day's route exists; nothing
+     here has to notice or clear it. */
+  await dbSetFailPending(user.username, 'delivery', todayUTC())
+
   return {text}
 }
 
@@ -566,7 +581,12 @@ async function routePostFailComment(
     .trim()
     .slice(0, 480)
   if (!text) return {posted: false}
-  return {posted: await postScoreComment(text)}
+  const posted = await postScoreComment(text)
+  /* clear ONLY on a confirmed post -- same no-comment-no-clear doctrine
+     every bonus claim in db.ts already follows for payment; a failed
+     submitComment must leave the gate exactly as locked as before. */
+  if (posted) await dbClearFailPending(user.username, 'delivery')
+  return {posted}
 }
 
 /** Composes the win-comment DRAFT and posts NOTHING -- same
@@ -729,6 +749,12 @@ async function routeSubmitSlalomFail(
     `**u/${user.username}** ${cause} on the Cone Slalom -- ` +
     `${faults} fault${faults === 1 ? '' : 's'}, ${total.toFixed(2)}s on the clock.`
 
+  /* PERSISTENT gate -- see routeSubmitFail's own comment for the full
+     rationale. No dateStr here: the slalom course doesn't rotate by
+     day (SL_SEED_DATE is frozen), so unlike delivery this just stays
+     pending until posted, with no day-rollover to age it out. */
+  await dbSetFailPending(user.username, 'slalom')
+
   return {text}
 }
 
@@ -755,7 +781,9 @@ async function routePostSlalomFailComment(
     .trim()
     .slice(0, 480)
   if (!text) return {posted: false}
-  return {posted: await postScoreComment(text)}
+  const posted = await postScoreComment(text)
+  if (posted) await dbClearFailPending(user.username, 'slalom')
+  return {posted}
 }
 
 /** Composes the hydrant-FAIL-comment DRAFT and posts NOTHING -- same
@@ -783,6 +811,11 @@ async function routeSubmitHydrantFail(
     `**u/${user.username}** ${cause.toLowerCase()} on jump ${level} of the Hydrant Challenge` +
     (best > level ? ` (best this run: ${best}).` : '.')
 
+  /* PERSISTENT gate -- see routeSubmitFail's own comment for the full
+     rationale. No dateStr, same reasoning as routeSubmitSlalomFail:
+     HJ_SEED_DATE is frozen too, so this stays pending until posted. */
+  await dbSetFailPending(user.username, 'hydrant')
+
   return {text}
 }
 
@@ -807,7 +840,9 @@ async function routePostHydrantFailComment(
     .trim()
     .slice(0, 480)
   if (!text) return {posted: false}
-  return {posted: await postScoreComment(text)}
+  const posted = await postScoreComment(text)
+  if (posted) await dbClearFailPending(user.username, 'hydrant')
+  return {posted}
 }
 
 /** Subscribes the pressing user to the current subreddit and grants
