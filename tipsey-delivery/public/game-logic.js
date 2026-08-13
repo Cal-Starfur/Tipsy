@@ -17929,6 +17929,26 @@ function tpSlalomOn(){
      ========================================================================= */
   const BEST_KEY = 'tipsy.slalom.best';
 
+  /* Slalom's own version of HJChallenge.prototype.announce -- same copy
+     shape (title + small caps subtitle), same 2.6s show/hide, same
+     scale+opacity transition (see #slUnlock's CSS, a deliberate twin of
+     #hjUnlock's). The one real difference: #hjUnlock is a static node that
+     has existed since page load, so toggling .show later always animates.
+     #slUnlock is built fresh inside #slCard's innerHTML on every win (see
+     slShowCard), so adding .show in the SAME tick that innerHTML is set
+     risks the browser coalescing both style changes into one paint and
+     skipping the transition entirely -- the rAF defers the class add to
+     the next frame, after the opacity:0/scale(.8) resting state from the
+     CSS has actually been committed once. */
+  function slAnnounce(title, sub){
+    const el = document.getElementById('slUnlock');
+    if (!el) return;
+    el.innerHTML = title + '<small>' + sub + '</small>';
+    requestAnimationFrame(() => el.classList.add('show'));
+    clearTimeout(slAnnounce._t);
+    slAnnounce._t = setTimeout(() => el.classList.remove('show'), 2600);
+  }
+
   function slShowCard(){
     const raw   = run.elapsed;
     const total = raw + run.pen;
@@ -18067,13 +18087,13 @@ function tpSlalomOn(){
          "nag until claimed" behaviour as fire-chief: checks THIS run's own
          total, not the profile's all-time best, so it only fires on a run
          that itself qualifies -- an old sub-60 best doesn't re-announce on a
-         slower rerun. No equip animation exists for any skin in this file
-         (equip is a straight palette overwrite) -- this is a claim notice,
-         not a costume-change effect. */
+         slower rerun. SAME TREATMENT AS THE HYDRANT JUMP (Sir's call,
+         2026-08-13): the toast, not a sheet row -- see slAnnounce() and its
+         call further down, after the card is in the DOM. No equip animation
+         exists for any skin in this file (equip is a straight palette
+         overwrite) -- this is a claim notice, not a costume-change effect. */
       const rewardSkin = tpSkinById('cone-dodger');
-      const rewardRow = (won && total <= 60 && rewardSkin && !tpProfile.owned.has('cone-dodger'))
-        ? sheetRow(`<span style="color:#b5540e">\u{1F3C6} ${rewardSkin.displayName} unlocked \u2014 claim it in your Trophy Case</span>`)
-        : '';
+      const justEarnedReward = won && total <= 60 && rewardSkin && !tpProfile.owned.has('cone-dodger');
 
       card.style.cssText = [
         'position:fixed','inset:0','z-index:10',
@@ -18085,6 +18105,7 @@ function tpSlalomOn(){
               transform:translateY(-165px);color:${col}">${winMsg}</h2>
          <p id="slWinSub" style="font-size:16px;line-height:1.5;color:#fff;max-width:330px;
               margin:5px 0;text-shadow:0 2px 3px #b5540e;transform:translateY(-165px)">${winSub}</p>
+         <div id="slUnlock"></div>
          <!-- top:36% overrides .slRetryBtn's shared 46% for THIS button only (Fail's
               #slRetry keeps the shared value) -- 46% sat right where Tipsey stands at
               the carpet stop on some routes (reported on-device, 2026-08-12). Still a
@@ -18100,11 +18121,14 @@ function tpSlalomOn(){
               `&nbsp;&middot;&nbsp;cones&nbsp;<b style="color:#b5540e">${run.cleared}/${run.gates.length}</b>` +
               `&nbsp;&middot;&nbsp;tip&nbsp;<b style="color:#b5540e">${tpMoney(paidCents)}</b>${note}`)}
            ${bestRow}
-           ${rewardRow}
            ${cappedNote}
          </div>`;
       document.body.appendChild(card);
       document.getElementById('slAgain').onclick = () => { card.remove(); slResetRun(); };
+      if (justEarnedReward){
+        slAnnounce(`\u{1F3C6} ${rewardSkin.displayName.toUpperCase()} UNLOCKED`,
+                   `UNDER 60 SECONDS \u00b7 CLAIM IT IN YOUR TROPHY CASE`);
+      }
 
       /* Everything below is measured off the sheet, same order showWin()
          itself uses (show/append first, THEN measure -- offsetHeight
