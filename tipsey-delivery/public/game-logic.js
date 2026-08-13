@@ -223,6 +223,24 @@ function reportFail(s, cause){
      the two fallbacks just below (draft never arrived). */
   tdFx.gateEligible = true;
   tdFx.deliveryUnposted = true;
+  /* Snapshot of the robot's exact crash state -- pose, position, damage
+     -- captured the instant a gate-eligible fail is confirmed (Sir's
+     call, 2026-08: "i want it to be the fail not a clean reload").
+     Restored by tpRestoreFailScene() on any blocked re-entry (GO,
+     Today's Delivery, hjQuit, tpSlalomQuit) so backing out through a
+     side mission and returning lands you back at the SAME crash, not
+     a fresh start. NOT a freeze frame: the world keeps simulating
+     around these values once restored (traffic, pedestrians, camera)
+     -- only the robot's own properties are pinned back to this
+     moment, the same way they'd sit untouched if you'd never left. */
+  tdFx.failSnapshot = {
+    state: s.state, tipDir: s.tipDir, tipCause: s.tipCause, damage: s.damage,
+    speed: s.speed, tipStartRoll: s.tipStartRoll, yaw: s.yaw, pitch: s.pitch,
+    drawAngle: s.drawAngle, roll: s.roll, tilt: s.tilt, throttle: s.throttle,
+    botS: s.botS, botX: s.botX, botY: s.botY, botZ: s.botZ,
+    camX: s.camX, camY: s.camY, camZ: s.camZ,
+    botRow: s.botRow, laneOff: s.laneOff, runT: s.runT
+  };
   tdFxSyncGate();
   /* progress is measured pickup -> door, not 0 -> door: the robot
      starts AT the shop, so anchoring at 0 would report free distance
@@ -387,6 +405,22 @@ function tdFxHydrantBlocked(){
 function tsfFxBlocked(){
   return IS_DEVVIT_BUILD && tsfFx.unposted;
 }
+/* Shared by every blocked delivery re-entry path (GO, Today's Delivery,
+   hjQuit, tpSlalomQuit): rebuilds today's route fresh -- deterministic,
+   same seed every time, so this is a no-op content-wise, just a clean
+   object to stamp on -- then reapplies the crash snapshot reportFail()
+   captured on top of it. Net effect: the player lands exactly back at
+   their own failure, not a fresh start and not whatever a side-mission
+   detour left rendered (Sir's call, 2026-08: "i want it to be the fail
+   not a clean reload"). Safe to call with no snapshot (falls back to
+   the clean route silently) -- shouldn't happen if tdFxDeliveryBlocked()
+   is true, since a snapshot is set in the same breath as the flag that
+   gates entry here, but this stays defensive rather than assume. */
+function tpRestoreFailScene(s){
+  s.mode = "delivery";
+  s.loadRoute(clientTodayUTC());
+  if(tdFx.failSnapshot) Object.assign(s, tdFx.failSnapshot);
+}
 /* Called from showFail() (via tdFxOnFailScreen) AND from reportFail's
    response callback -- the fail overlay opens on a 900-1500ms
    setTimeout while the draft fetch races it, so whichever lands
@@ -530,6 +564,23 @@ function reportHydrantFail(s){
   tdFx.draftWhy = "pending";
   tdFx.gateEligible = true;
   tdFx.hydrantUnposted = true;   // persistent half -- see UNIFIED RETRY GATE
+  /* Snapshot of the crash on the hydrant course -- same rationale as
+     reportFail's own snapshot (see tpRestoreFailScene's comment) plus
+     the hydrant-specific progress fields (level/result/charge state)
+     that have no delivery equivalent. Restored by tpRestoreHydrantCrash
+     on a blocked hjStart() re-entry (Sir's call, 2026-08: "not only
+     for the daily but also for the hydrant jump"). */
+  tdFx.hydrantSnapshot = {
+    state: s.state, tipDir: s.tipDir, tipCause: s.tipCause, damage: s.damage,
+    speed: s.speed, tipStartRoll: s.tipStartRoll, yaw: s.yaw, pitch: s.pitch,
+    drawAngle: s.drawAngle, roll: s.roll, tilt: s.tilt, throttle: s.throttle,
+    botS: s.botS, botX: s.botX, botY: s.botY, botZ: s.botZ,
+    camX: s.camX, camY: s.camY, camZ: s.camZ,
+    botRow: s.botRow, laneOff: s.laneOff, runT: s.runT,
+    hjLevel: s.hjLevel, hjResult: s.hjResult, hjBest: s.hjBest,
+    hjPassed: s.hjPassed, hjLocked: s.hjLocked, hjCharge: s.hjCharge,
+    hjChargeSm: s.hjChargeSm, hjAir: s.hjAir
+  };
   tdFxSyncGate();
   const level = s.hjLevel, best = s.hjBest || 0;
   const cause = s.hjResult || "MISSED IT";
@@ -19596,8 +19647,11 @@ function tpSlalomQuit(){
      GATE, see tdFxDeliveryBlocked): an unposted delivery fail from
      BEFORE this slalom run started must still be there when the
      player quits back out -- refusing only the free reload, same as
-     tpBackToDailyRoute/GO/hjQuit, not the ability to leave. */
+     tpBackToDailyRoute/GO/hjQuit, not the ability to leave. Restores
+     the actual crash (tpRestoreFailScene), not a clean route -- see
+     that function's own comment. */
   if(tdFxDeliveryBlocked()){
+    if(s) tpRestoreFailScene(s);
     show("failOverlay");
     tdFxSyncGate();
     return;
@@ -19620,12 +19674,13 @@ function hjChrome(on){
    route differ. Dropping the player straight onto the street skipped the
    one screen that tells them where they are going. */
 function hjStart(){
-  /* Refuse before touching anything -- an unposted crash from last time
-     blocks even getting to the challenge map, which also blocks every
-     path to hjBegin() downstream (only reachable via GO after this).
-     Toast rather than a screen redirect: unlike hjQuit/tpBackToDailyRoute,
-     there's no single persistent screen to reliably bounce back to here. */
-  if(tdFxHydrantBlocked()){ tpToast("Post about your last hydrant crash before trying again."); return; }
+  /* Restores the exact crash instead of refusing entry (Sir's call,
+     2026-08: "not only for the daily but also for the hydrant jump" --
+     same UNIFIED RETRY GATE treatment as delivery's own blocked paths,
+     see tpRestoreFailScene/tpRestoreHydrantCrash). Used to be a toast
+     with no screen redirect at all -- there IS a reliable screen to
+     land on now: the crash card itself, repainted from the snapshot. */
+  if(tdFxHydrantBlocked()){ tpRestoreHydrantCrash(scn()); return; }
   /* Close the profile chrome FIRST. tpCloseDetail() only dismisses the
      little detail sheet — the Side Missions panel and the profile panel
      behind it stay open and sit on top of the route map, so the map was
@@ -19682,8 +19737,10 @@ function hjQuit(){
      them inside hydrant mode with no exit. What's blocked is only the
      convenience of this exit ALSO reloading today's route for free;
      an unposted delivery fail lands them on its own gate instead of
-     the title screen, same as tpBackToDailyRoute/GO. */
+     the title screen, same as tpBackToDailyRoute/GO. Restores the
+     actual crash (tpRestoreFailScene), not a clean route. */
   if(tdFxDeliveryBlocked()){
+    tpRestoreFailScene(s);
     show("failOverlay");
     tdFxSyncGate();
     return;
@@ -19709,8 +19766,14 @@ const hjScn = () => scn();
    as a delivery fail (Sir's call, 2026-08: "it should be included") --
    see reportHydrantFail's own comment for how it shares TD FAIL's gate
    machinery instead of being a second system. */
-function hjShowCrash(s){
-  const lvl = s.hjLevel;
+/* UI paint only -- no server report, no side effects beyond the DOM.
+   Split out of hjShowCrash so a blocked hjStart() re-entry can repaint
+   the SAME crash card (tpRestoreHydrantCrash) without re-firing
+   reportHydrantFail -- that would hit the network and compose a fresh
+   draft every single time someone backs out and tries to get back in,
+   which is wasteful and not what "restore the crash" means. hjShowCrash
+   below is the only caller that also reports; this is the shared paint. */
+function hjPaintCrash(s){
   tdFxFollowRestore();   // BEFORE the crash copy: restore writes the saved
                          // delivery text back, so run it first or it would
                          // overwrite the crash line we set below
@@ -19723,9 +19786,33 @@ function hjShowCrash(s){
   document.getElementById("retryBtn").textContent = "RETRY";   // one word keeps the pill tidy
   const mb = document.getElementById("failMenuBtn");
   if(mb) mb.classList.remove("hidden");
+}
+function hjShowCrash(s){
+  hjPaintCrash(s);
   reportHydrantFail(s);   // Devvit only: Delivery Log gate, same shape as reportFail
   show("failOverlay");
   tdStackIcons();         // glass forwards to hjQuit branch, robot to profile
+}
+/* Shared by hjStart()'s blocked re-entry path: rebuilds the Hydrant
+   Challenge course fresh (loadChallenge -- deterministic, frozen
+   HJ_SEED_DATE, same course every time, so this is a no-op content-wise)
+   then reapplies the crash snapshot reportHydrantFail() captured on top,
+   restoring the hydrant chrome/meter and repainting the SAME crash card
+   -- hjPaintCrash, not hjShowCrash, so this never re-reports to the
+   server. Mirrors tpRestoreFailScene's delivery-side rationale exactly
+   (Sir's call, 2026-08: "not only for the daily but also for the
+   hydrant jump"). */
+function tpRestoreHydrantCrash(s){
+  hide("titleOverlay");
+  s.loadChallenge();
+  document.getElementById("hjUI").classList.remove("hidden");
+  hjChrome(true);
+  if(tdFx.hydrantSnapshot) Object.assign(s, tdFx.hydrantSnapshot);
+  hjUpdateMeter(s);
+  hjPaintCrash(s);
+  show("failOverlay");
+  tdFxSyncGate();
+  tdStackIcons();
 }
 
 /* the meter, driven from WorldScene state. The pass band is solved
@@ -20177,8 +20264,10 @@ function tpDailyDeliveryPin(){
 function tpBackToDailyRoute(){
   /* Same gate startBtn's own listener checks -- this is the OTHER path
      back into today's route (also used by the map's delivery pin), and
-     it reloaded the route unconditionally before this, gate or no gate. */
+     it reloaded the route unconditionally before this, gate or no gate.
+     Restores the actual crash (tpRestoreFailScene), not a clean route. */
   if(tdFxDeliveryBlocked()){
+    tpRestoreFailScene(scn());
     hide("titleOverlay");
     show("failOverlay");
     tdFxSyncGate();
@@ -22207,8 +22296,10 @@ document.getElementById("startBtn").addEventListener("click", () => {
   /* Same loophole tpBackToDailyRoute closes below -- GO reloads today's
      route directly too, with no gate check of its own. Challenge/slalom
      starts are a different activity entirely and never blocked by an
-     unposted DELIVERY fail. */
+     unposted DELIVERY fail. Restores the actual crash (tpRestoreFailScene),
+     not a clean route. */
   if(tdFxDeliveryBlocked() && s.mode !== "challenge" && s.mode !== "slalom-pending"){
+    tpRestoreFailScene(s);
     hide("titleOverlay");
     show("failOverlay");
     tdFxSyncGate();
