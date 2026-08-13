@@ -21193,6 +21193,15 @@ function tpDailyDeliveryPin(){
    code rather than duplicating it, same reasoning hjQuit already
    follows for its own "hand the daily route back" step. */
 function tpBackToDailyRoute(){
+  /* Close the profile chrome FIRST, same opening line hjStart and
+     slalomMapSelect both carry (2026-08-13). This is the third entry
+     into a route and it was the only one relying entirely on its
+     CALLER to have closed the panels -- fine from the map's delivery
+     pin, wrong from the Side Missions row, where the panel stayed open
+     on top of the route map it had just loaded. Runs before the gate
+     check below for exactly the reason hjStart's does: the blocked
+     branch returns early, so anything after it is skipped. */
+  tpCloseDetail(); tpCloseMissions(); tpCloseProfile();
   /* Same gate startBtn's own listener checks -- this is the OTHER path
      back into today's route (also used by the map's delivery pin), and
      it reloaded the route unconditionally before this, gate or no gate.
@@ -22441,12 +22450,25 @@ function tpRenderMissions(){
     </div>
     <div class="tpTrRight"></div>`;
   td.addEventListener("click", ()=>{
-    document.getElementById("tpMissionsPanel").classList.remove("open");
-    tpSyncGlobalBtns();   // this row dropped .open directly instead of
-                           // calling tpCloseMissions(), so nothing re-ran
-                           // the anyOpen check -- body.tpPanelOpen stayed
-                           // true and VIEW/profile/search stayed hidden
-                           // (!important) back on the daily route.
+    /* tpCloseMissions(), not a hand-rolled classList.remove (2026-08-13).
+       This row used to drop .open itself and then call tpSyncGlobalBtns
+       to patch up the one consequence that had been noticed -- but the
+       real close does THREE things, and the hand-rolled version only
+       ever caught the third:
+         - tpResumeWorld(), which is the one that actually bit: opening
+           this panel over a daily fail runs tpPauseWorld(), and nothing
+           here resumed it. You landed on the route map with the world
+           scene still paused -- map visible, everything frozen, GO dead.
+           (The hydrant path dodged it only by accident: hjQuit shows
+           #titleOverlay first, so tpPauseWorld's "not mid-route" guard
+           bails and there's no pause left to undo.)
+         - the UNIFIED RETRY GATE tail, which re-shows a blocked
+           delivery's own fail overlay instead of the plain map under it
+         - tpSyncGlobalBtns's anyOpen check, the part already patched
+       tpBackToDailyRoute closes the panels itself now as well, so this
+       is belt-and-braces rather than the only thing standing between a
+       panel and the map -- see its own comment. */
+    tpCloseMissions();
     tpBackToDailyRoute();
   });
   list.appendChild(td);
