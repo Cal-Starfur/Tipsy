@@ -248,18 +248,22 @@ function reportFail(s, cause){
   const from = s.route.pickupS, to = s.route.doorS;
   const span = (to - from) || 1;
   const pct = Math.max(0, Math.min(100, ((s.botS - from) / span) * 100));
+  /* hoisted out of the fetch call so the SAME body can be stored and
+     replayed verbatim by tdFxRehydrateGate after a reload */
+  tdFx.failReq = {
+    cause: cause || "",
+    address: s.route.address || "",
+    hood: (s.route.hood && s.route.hood.n) || "",
+    pct,
+    tip: (s.route.order && s.route.order.value) || 0,
+    ms: s.runT,
+    damage: s.damage
+  };
+  tdFxSaveSnap(TDFX_SNAP_KEY, { dateStr: s.route.dateStr, snap: tdFx.failSnapshot, req: tdFx.failReq });
   fetch("api/tipsy/fail", {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
-    body: JSON.stringify({
-      cause: cause || "",
-      address: s.route.address || "",
-      hood: (s.route.hood && s.route.hood.n) || "",
-      pct,
-      tip: (s.route.order && s.route.order.value) || 0,
-      ms: s.runT,
-      damage: s.damage
-    })
+    body: JSON.stringify(tdFx.failReq)
   })
     .then(r => {
       tdFx.draftWhy = "http " + r.status;
@@ -267,6 +271,7 @@ function reportFail(s, cause){
     })
     .then(d => {
       tdFx.draft = (d && d.text) || "";
+      tdFx.draftMode = "delivery";   // whose draft this is -- see tdFxRehydrateGate
       if(tdFx.draft) tdFx.draftWhy = "ok (" + tdFx.draft.length + " chars)";
       else if(d){ tdFx.draftWhy = "empty text (server: no post id or not signed in)"; tdFx.deliveryUnposted = false; }
       tdFxSyncGate();
@@ -327,6 +332,89 @@ const tdFx = { fails: 0, draft: "", posted: false, busy: false,
                   below for the full rationale (Sir's call, 2026-08). */
                deliveryUnposted: false, hydrantUnposted: false };
 const TDFX_LATER_KEY = "tdFollowLater", TDFX_DONE_KEY = "tdFollowDone";
+/* SNAPSHOT PERSISTENCE (2026-08-13). The server's failPending is a
+   BOOLEAN -- it restores WHETHER you're blocked and nothing else. Every
+   other thing the crash card needs (the pose snapshot, the draft text,
+   tdFx.mode) lived only in memory and died with the page, so a boot
+   rehydrate produced a fresh load wearing a crash title, with whatever
+   draft the last live fail had left behind (reported on-device: hydrant
+   card showing the DELIVERY draft). These two keys carry the pose plus
+   the exact request body that composed the draft, so a cold boot can
+   put the robot back AND re-derive the right comment.
+
+   The draft text itself is deliberately NOT stored -- it's server-
+   composed, contains the player's username, and re-POSTing the stored
+   run regenerates it verbatim. dbSetFailPending is idempotent, so the
+   redraft round trip cannot double-block anyone.
+
+   Delivery carries its dateStr and is dropped when it no longer matches
+   today, mirroring dbGetFailPending's own rule server-side (delivery
+   releases on the next day's route; hydrant/slalom don't rotate, so
+   theirs has no date and no expiry). */
+const TDFX_SNAP_KEY = "tdFailSnapV1", TDFX_HSNAP_KEY = "tdHydrantSnapV1";
+function tdFxSaveSnap(key, payload){
+  try{ localStorage.setItem(key, JSON.stringify(payload)); }catch(e){ /* storage blocked: gate still works, pose just won't survive */ }
+}
+function tdFxLoadSnap(key){
+  try{ const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : null; }catch(e){ return null; }
+}
+function tdFxClearSnap(key){
+  try{ localStorage.removeItem(key); }catch(e){}
+}
+/* Reads both snapshots back into tdFx. Called once at boot, SYNCHRONOUSLY
+   and before requestTpProfile()'s async flag restore, so the pose is
+   already sitting there whenever the flags land. */
+function tdFxLoadSnaps(){
+  if(!IS_DEVVIT_BUILD) return;
+  const d = tdFxLoadSnap(TDFX_SNAP_KEY);
+  if(d && d.dateStr === clientTodayUTC()){ tdFx.failSnapshot = d.snap; tdFx.failReq = d.req; }
+  else if(d) tdFxClearSnap(TDFX_SNAP_KEY);   // stale day: the route rotated, the block is gone
+  const h = tdFxLoadSnap(TDFX_HSNAP_KEY);
+  if(h){ tdFx.hydrantSnapshot = h.snap; tdFx.hydrantReq = h.req; }
+}
+/* Puts the COMPOSER back into the right mode on a blocked re-entry.
+   Both restore paths call this, because neither tpRestoreFailScene nor
+   tpRestoreHydrantCrash used to touch tdFx.mode at all -- mode was only
+   ever set by reportFail/reportHydrantFail, i.e. by a LIVE fail. After a
+   reload that left it at whatever ran last, which is how a hydrant crash
+   card ended up posting to api/tipsy/fail/comment and clearing the
+   DELIVERY flag -- leaving the hydrant gate locked with nothing able to
+   clear it. gateEligible matters just as much: it starts false on a
+   fresh page, and tdFxSyncGate falls straight through to the plain
+   ungated Retry button without it.
+
+   draftMode is what stops a draft belonging to the OTHER mission from
+   being reused here -- tdFx.draft alone can be non-empty and wrong. */
+function tdFxRehydrateGate(mode){
+  if(!IS_DEVVIT_BUILD) return;
+  tdFx.mode = mode;
+  tdFx.posted = false;
+  tdFx.gateEligible = true;
+  if(tdFx.draft && tdFx.draftMode === mode) return;   // this session's own draft, still valid
+  tdFx.draft = "";
+  const req = mode === "hydrant" ? tdFx.hydrantReq : tdFx.failReq;
+  if(!req){ tdFx.draftWhy = "no stored run to redraft"; tdFxSyncGate(); return; }
+  tdFx.draftWhy = "pending";
+  tdFxSyncGate();   // "loading your comment..." rather than a free Retry
+  const clearBlock = () => { if(mode === "hydrant") tdFx.hydrantUnposted = false; else tdFx.deliveryUnposted = false; };
+  fetch(mode === "hydrant" ? "api/tipsy/hydrant/fail" : "api/tipsy/fail", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify(req)
+  })
+    .then(r => r.ok ? r.json() : null)
+    .then(d => {
+      tdFx.draft = (d && d.text) || "";
+      tdFx.draftMode = mode;
+      if(tdFx.draft) tdFx.draftWhy = "ok (redraft, " + tdFx.draft.length + " chars)";
+      /* same no-draft-no-block fallback every live report already runs:
+         never strand the player behind a composer that has no text */
+      else { tdFx.draftWhy = "redraft empty"; clearBlock(); }
+      tdFxSyncGate();
+      tdFxDbgSync();
+    })
+    .catch(() => { tdFx.draftWhy = "redraft network error"; clearBlock(); tdFxSyncGate(); tdFxDbgSync(); });
+}
 const TDFX_CARD = "background:rgba(18,20,26,0.94);border:1px solid #3a3f4a;" +
   "border-radius:14px;padding:22px 26px;width:min(340px,86vw);box-sizing:border-box;text-align:center;" +
   "color:#fff;font-family:inherit;box-shadow:0 8px 24px rgba(0,0,0,0.45);";
@@ -420,6 +508,7 @@ function tpRestoreFailScene(s){
   s.mode = "delivery";
   s.loadRoute(clientTodayUTC());
   if(tdFx.failSnapshot) Object.assign(s, tdFx.failSnapshot);
+  tdFxRehydrateGate("delivery");   // composer mode + draft, see its own comment
 }
 /* Called from showFail() (via tdFxOnFailScreen) AND from reportFail's
    response callback -- the fail overlay opens on a 900-1500ms
@@ -509,8 +598,10 @@ function tdFxPostAndRetry(ta, btn){
       if(!d || !d.posted){ fail(); return; }
       tdFx.busy = false;
       tdFx.posted = true;   // one comment per fail
-      if(tdFx.mode === "hydrant"){ tdFx.hydrantUnposted = false; tdFxFireHydrantRetry(); }
-      else { tdFx.deliveryUnposted = false; tdFxFireRetry(); }
+      /* the stored snapshot dies with the block it belonged to -- same
+         instant, same condition, so the two can never disagree */
+      if(tdFx.mode === "hydrant"){ tdFx.hydrantUnposted = false; tdFxClearSnap(TDFX_HSNAP_KEY); tdFxFireHydrantRetry(); }
+      else { tdFx.deliveryUnposted = false; tdFxClearSnap(TDFX_SNAP_KEY); tdFxFireRetry(); }
     })
     .catch(fail);
 }
@@ -584,10 +675,15 @@ function reportHydrantFail(s){
   tdFxSyncGate();
   const level = s.hjLevel, best = s.hjBest || 0;
   const cause = s.hjResult || "MISSED IT";
+  /* stored so a cold boot can replay it and get the same draft back --
+     no dateStr here, matching dbGetFailPending: the hydrant course
+     doesn't rotate, so its block has no next-day release */
+  tdFx.hydrantReq = { level, best, cause };
+  tdFxSaveSnap(TDFX_HSNAP_KEY, { snap: tdFx.hydrantSnapshot, req: tdFx.hydrantReq });
   fetch("api/tipsy/hydrant/fail", {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
-    body: JSON.stringify({ level, best, cause })
+    body: JSON.stringify(tdFx.hydrantReq)
   })
     .then(r => {
       if(r.ok){ tdFx.draftWhy = "http " + r.status; return r.json(); }
@@ -606,6 +702,7 @@ function reportHydrantFail(s){
     })
     .then(d => {
       tdFx.draft = (d && d.text) || "";
+      tdFx.draftMode = "hydrant";   // whose draft this is -- see tdFxRehydrateGate
       if(tdFx.draft) tdFx.draftWhy = "ok (" + tdFx.draft.length + " chars)";
       else if(d){ tdFx.draftWhy = "empty text (server: no post id or not signed in)"; tdFx.hydrantUnposted = false; }
       tdFxSyncGate();
@@ -19824,6 +19921,7 @@ function tpRestoreHydrantCrash(s){
   hjUpdateMeter(s);
   hjPaintCrash(s);
   show("failOverlay");
+  tdFxRehydrateGate("hydrant");   // composer mode + draft, see its own comment
   tdFxSyncGate();
   tdStackIcons();
 }
@@ -22477,6 +22575,7 @@ document.getElementById("failMenuBtn").addEventListener("click", () => {
    Left open rather than putting a network wait in front of GO -- the
    boot loader is still up for most of it, and the flags are OR'd, so a
    fail that happens locally inside the window still wins. */
+tdFxLoadSnaps();
 requestTpProfile();
 document.addEventListener("keydown", e => {
   if(IS_DEVVIT_BUILD) return;
