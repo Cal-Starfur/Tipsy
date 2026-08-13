@@ -16632,7 +16632,13 @@ const SL = {
   kPeak:  40,   // apex height above the lip, in world units
   rowA: 0,      // low edge of the sidewalk band the course uses
   rowB: 3,      // high edge — 0..3 is the whole walk
-  lead: 3.0,    // run-up before the first cone, in T2
+  lead: 5.0,    // run-up before the first cone, in T2 (2026-08-13, Sir's
+                // call: was 3.0. Same 5-tile "sidewalk begin" buffer as
+                // the crossing-exit fix above, applied to the very
+                // start of the course too — this is also the spawn's
+                // own clearRun lookahead, so a bigger lead also checks
+                // more sidewalk before allowing a spawn there, not just
+                // a longer first-gate offset.
   turn: 2.0,    // clearance either side of the arc — no cones on the turn
   tail: 1.5,    // run-out after the last cone, in T2
   vmul: 2.00,   // top speed as a multiple of delivery's 0.225. Carries the
@@ -17305,13 +17311,20 @@ function tpSlalomOn(){
              him off the side of it — and the chute walls at 0 and 2 would then
              sit somewhere he is not. */
           curRow = RAMP_ROW;
-          /* Resume ONE tile past the span, not a full turn clearance past it.
-             SL.turn was being spent on both sides of every crossing and every
-             jump — and with a crossing on most legs that is two corner-widths
-             of empty walk per block, taken straight out of the gate count. The
-             far side of a crossing is a plain straight; the reason gates were
-             excluded was the RAMP, and the ramp is already inside the span. */
-          at = span[1] + T2; n = 0; continue;
+          /* Resume 5 T2 past the TRUE sidewalk-begin point for a
+             CROSSING (2026-08-13, Sir's call, same standard the
+             crossing chute-wall fix above already holds itself to) --
+             not "one tile past span[1]": span[1] is the PADDED bound
+             (cx.sB + RAMP), so the old "+T2" only ever gave 3 T2 of
+             real clearance off the crossing's own sB, not 5. span[1] -
+             RAMP recovers that raw sB, the same recovery the chute fix
+             above already uses. A JUMP span carries no such padding to
+             recover (span[1] there is kk.s + LANDING, a different
+             quantity entirely, already sized off the jump's own reach)
+             and was never part of this ask -- its resume keeps the
+             original one-tile-past-span behavior. */
+          at = span[2] === 'crossing' ? (span[1] - RAMP) + 5 * T2 : span[1] + T2;
+          n = 0; continue;
         }
         /* nominal step, before the multi-row stretch — the ladder asks "how
            many gates from here", and the stretch is a consequence of the row
@@ -17411,7 +17424,17 @@ function tpSlalomOn(){
        Crossings are planted FIRST now, because a coned junction is what stops
        the cars (course.coneNodes is built from the same spans) and a corner
        that runs a little short of cones is cosmetic where a junction that does
-       is a car driving through the course. */
+       is a car driving through the course.
+
+       JUMPS ARE NO LONGER SKIPPED (2026-08-13, Sir's call, below): "the wedge
+       has its own silhouette" was true and is still true, but a silhouette
+       doesn't stop a player steering AROUND the ramp instead of over it --
+       gate-free road either side of the run-up that used to just be open
+       walk. The ladder gates (see "THE GATES AIM YOU AT THE RAMP" above)
+       already funnel you toward the lane; walling it the same way a crossing
+       gets walled is what makes the jump mandatory instead of merely
+       encouraged. Its own budget, gated separately from CROSS_MAX below, so
+       it can't eat the junction budget the fix above was written to protect. */
     const chainEndS = ch.lines[ch.lines.length - 1].s1;
     for (const [a, b, kind] of blocked){
       if (kind !== 'crossing') continue;
@@ -17428,6 +17451,32 @@ function tpSlalomOn(){
          wall there instead of at b leaves the same 2 T2 clear for
          chute cones that the gate exclusion already leaves for gates. */
       plantChute(a, b - RAMP, CROSS_STEP, CROSS_MAX);
+    }
+    /* RED/BLUE CONES LINING EVERY JUMP'S APPROACH (2026-08-13, Sir's
+       call): only the RUN-UP gets walled, not the landing -- "lining
+       the approach" is the run-up, and the landing already has the
+       catch deck's own silhouette plus room it doesn't need a wall for.
+       a + RUNUP recovers the kicker's own s (blocked stores the padded
+       run-up span [kk.s - RUNUP, kk.s + LANDING], the same recovery-
+       from-the-padded-span trick the crossing fix above uses for cx.sB).
+       chuteN + JUMP_BUDGET, not a flat cap: chuteN is ONE cumulative
+       counter across every plantChute call (same design CROSS_MAX and
+       CHUTE_MAX already share), so a flat cap here isn't a budget
+       reserved FOR jumps, it's a ceiling crossings (which run first)
+       already eat into -- measured on the live course: a flat 72 gave
+       two kickers their full wall and starved the other two down to
+       zero, entirely from crossing order, nothing to do with the
+       course itself. chuteN + JUMP_BUDGET reserves the same fresh
+       amount for every kicker regardless of how many crossings ran
+       first, the same way giving arcs an ADDITIVE allowance instead of
+       reusing CROSS_MAX would have avoided the original crossing-vs-arc
+       version of this exact bug (see the comment above). */
+    const JUMP_BUDGET = Math.round(CHUTE_MAX * 0.20);
+    const jumpCap = chuteN + JUMP_BUDGET;
+    for (const [a, b, kind] of blocked){
+      if (kind !== 'jump') continue;
+      if (b < course.spawnS || a > chainEndS) continue;
+      plantChute(a, a + RUNUP, CROSS_STEP, jumpCap);
     }
     for (const M of ch.arcs) plantChute(M.s0 - SL.turn * T2 * 0.5,
                                        M.s1 + SL.turn * T2 * 0.5,
