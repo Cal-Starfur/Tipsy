@@ -1296,8 +1296,19 @@ function reportHydrantFail(s){
     body: JSON.stringify({ level, best, cause })
   })
     .then(r => {
-      tdFx.draftWhy = "http " + r.status;
-      return r.ok ? r.json() : null;
+      if(r.ok){ tdFx.draftWhy = "http " + r.status; return r.json(); }
+      /* Body snippet, not just the status -- {"error":"not found","status":404}
+         from OUR OWN dispatcher (route() in server.ts) looks nothing like
+         whatever Reddit's platform layer would send back if the request
+         never reached our code at all (HTML error page, empty body, or a
+         totally different shape). The debug readout only ever captured the
+         status code before this -- this is the one piece of evidence that
+         actually tells "our dispatcher said not-found" apart from "this
+         request never made it to our dispatcher." */
+      return r.text().then(body => {
+        tdFx.draftWhy = "http " + r.status + ": " + (body ? body.slice(0, 100) : "(empty body)");
+        return null;
+      });
     })
     .then(d => {
       tdFx.draft = (d && d.text) || "";
