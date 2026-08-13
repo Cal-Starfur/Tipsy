@@ -9012,23 +9012,43 @@ class WorldScene extends Phaser.Scene {
      game. this._slAPI is what tpSlalomStart/tpSlalomOn actually set on
      the scene for exactly this kind of "are we in a slalom run right
      now" check -- reused here rather than threading a new parameter
-     through drawHouseUnit's two call sites for the same answer. */
+     through drawHouseUnit's two call sites for the same answer.
+     CHECKER SPANS ALL LANES (Sir's call, same day): the rug's footprint
+     was one tile deep -- SIDEWALK_ROWS/SIDEWALK_W further down are the
+     real lane count/total depth already live in-game, so the checker's
+     matFar reads SIDEWALK_W instead of one T2, reaching from the door
+     all the way to the curb like a finish-line banner laid across the
+     whole sidewalk rather than a mat. Width (dx, along the building
+     face) is untouched -- lanes are the depth-wise rows toward the
+     road, not this axis. Both branches now compute their own matFar
+     instead of sharing one value computed up front, since the rug's
+     footprint didn't change and shouldn't inherit the checker's.
+     Flagging a real risk rather than one I checked and ruled out: a
+     mat this much deeper can now reach back into lanes where OTHER
+     props (parked robots, palms, streetlamps) get seeded independently
+     of which door is nearby -- hasn't been checked against every route,
+     worth an eye on-device for a mat cutting through something. */
   drawMatQuad(g, ox, oy, dv, rv, doorCenterX, dz){
     const M = (dx, dy, dzz) => this.W(ox + dv.x*(doorCenterX+dx) + rv.x*dy, oy + dv.y*(doorCenterX+dx) + rv.y*dy, dz+dzz);
     const half = T2/2;
-    const matNear = T2*0.5 - half, matFar = T2*0.5 + half;
-    const outer = [M(-half,matNear,0.6), M(half,matNear,0.6), M(half,matFar,0.6), M(-half,matFar,0.6)];
+    const matNear = T2*0.5 - half;
     const bw = 3.5;
     if (this._slAPI){
-      /* checker flag -- slalom finish only. Same footprint/frame/edge
-         technique as the rug below, N=5 grid is a first-pass density
-         guess, same as everything else tuned on-device this session. */
+      /* checker flag -- slalom finish only, all sidewalk lanes deep.
+         cellSize keeps squares actually square in world units: cols is
+         fixed at the old N=5 lateral density, rows is derived from the
+         same unit so a much deeper area doesn't stretch each cell into
+         a tall rectangle. */
+      const matFar = SIDEWALK_W;
+      const outer = [M(-half,matNear,0.6), M(half,matNear,0.6), M(half,matFar,0.6), M(-half,matFar,0.6)];
       this.quadOn(g, outer, MAT_ART.ckFrame);
       const innerNear = matNear+bw, innerFar = matFar-bw, innerLeft = -half+bw, innerRight = half-bw;
-      const N = 5;
-      const cellU = (innerFar-innerNear)/N, cellV = (innerRight-innerLeft)/N;
-      for(let i=0; i<N; i++){
-        for(let j=0; j<N; j++){
+      const cols = 5;
+      const cellSize = (innerRight-innerLeft)/cols;
+      const rows = Math.max(1, Math.round((innerFar-innerNear)/cellSize));
+      const cellU = (innerFar-innerNear)/rows, cellV = (innerRight-innerLeft)/cols;
+      for(let i=0; i<rows; i++){
+        for(let j=0; j<cols; j++){
           const u0 = innerNear+i*cellU, u1 = u0+cellU;
           const v0 = innerLeft+j*cellV, v1 = v0+cellV;
           const cell = [M(v0,u0,0.65), M(v1,u0,0.65), M(v1,u1,0.65), M(v0,u1,0.65)];
@@ -9038,6 +9058,8 @@ class WorldScene extends Phaser.Scene {
       this.edgeOn(g, outer, MAT_ART.ckBorder, 1.4);
       return;
     }
+    const matFar = matNear + T2;
+    const outer = [M(-half,matNear,0.6), M(half,matNear,0.6), M(half,matFar,0.6), M(-half,matFar,0.6)];
     this.quadOn(g, outer, MAT_ART.redDk);
     const inner = [M(-half+bw,matNear+bw,0.65), M(half-bw,matNear+bw,0.65), M(half-bw,matFar-bw,0.65), M(-half+bw,matFar-bw,0.65)];
     this.quadOn(g, inner, MAT_ART.red);
