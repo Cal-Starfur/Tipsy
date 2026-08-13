@@ -20494,6 +20494,24 @@ function hjChrome(on){
    route differ. Dropping the player straight onto the street skipped the
    one screen that tells them where they are going. */
 function hjStart(){
+  /* Close the profile chrome FIRST. tpCloseDetail() only dismisses the
+     little detail sheet — the Side Missions panel and the profile panel
+     behind it stay open and sit on top of the route map, so the map was
+     loading correctly and simply could not be seen.
+
+     These run BEFORE the gate check below, not after (2026-08-13 fix):
+     the blocked branch now REDIRECTS TO A SCREEN rather than toasting,
+     so an early return above these three left #tpMissionsPanel still
+     .open, sitting on top of the crash card tpRestoreHydrantCrash had
+     just repainted -- you came back to the Hydrant Challenge after a
+     fail and the mission list never went away. A toast over an open
+     panel was fine; a screen redirect under one is not. Same early-
+     return-skips-cleanup class as the tpSlalomQuit corner-icon ticket.
+     Safe in this order: if the DAILY is also blocked, tpCloseMissions'
+     own tail shows #failOverlay and syncs the gate, then the restore
+     below re-hides #titleOverlay and re-syncs with tdFx.mode ===
+     "hydrant" in the same tick -- hydrant wins, no flicker. */
+  tpCloseDetail(); tpCloseMissions(); tpCloseProfile();
   /* Restores the exact crash instead of refusing entry (Sir's call,
      2026-08: "not only for the daily but also for the hydrant jump" --
      same UNIFIED RETRY GATE treatment as delivery's own blocked paths,
@@ -20501,11 +20519,6 @@ function hjStart(){
      with no screen redirect at all -- there IS a reliable screen to
      land on now: the crash card itself, repainted from the snapshot. */
   if(tdFxHydrantBlocked()){ tpRestoreHydrantCrash(scn()); return; }
-  /* Close the profile chrome FIRST. tpCloseDetail() only dismisses the
-     little detail sheet — the Side Missions panel and the profile panel
-     behind it stay open and sit on top of the route map, so the map was
-     loading correctly and simply could not be seen. */
-  tpCloseDetail(); tpCloseMissions(); tpCloseProfile();
   /* Attract must end before the challenge takes the map screen. Missions
      are reachable from the title, so attract can still be running here --
      and body.attract hides #routeMap, which would have handed the
