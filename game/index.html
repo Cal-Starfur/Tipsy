@@ -15640,9 +15640,18 @@ class WorldScene extends Phaser.Scene {
       camTargetY = this.botY;
     }
 
-    this.camX = Phaser.Math.Linear(this.camX, camTargetX, 0.08);
-    this.camY = Phaser.Math.Linear(this.camY, camTargetY, 0.06);
-    this.camZ = Phaser.Math.Linear(this.camZ, camTargetZ, 0.08);
+    /* Ease is calibrated at delivery's V_BASE: lag between camX and its
+       target scales as speed/rate, so Cone Slalom's SL.vmul (2x speed)
+       doubles the lag without a compensating rate -- a fourth thing that
+       needed to follow the ceiling up, alongside jump reach and GAP_MIN
+       (see "ONE SPEED, THREE THINGS THAT DEPEND ON IT" in tpSlalomOn).
+       Most visible at zoom depth 1, where world-unit lag reads as the
+       most screen pixels (Sir's report, 2026-08-13). Gated on _slAPI so
+       delivery and the hydrant jump keep the original feel untouched. */
+    const camVmul = (this._slAPI && this._slAPI.SL && this._slAPI.SL.vmul) || 1;
+    this.camX = Phaser.Math.Linear(this.camX, camTargetX, 0.08 * camVmul);
+    this.camY = Phaser.Math.Linear(this.camY, camTargetY, 0.06 * camVmul);
+    this.camZ = Phaser.Math.Linear(this.camZ, camTargetZ, 0.08 * camVmul);
 
     /* the "?!" of a machine confronting a tree */
     if(this.stuckAmt > 0.5 && this.state === "play"){
