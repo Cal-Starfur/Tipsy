@@ -34,13 +34,27 @@
    production UI or the production teardown path; restart/quit both go
    through tpSlalomStart()/tpSlalomQuit() the same way the real buttons do.
 
-   ALT STEERING TEST (2026-08-12, Sir's on-device report)
+   ALT STEERING TEST (2026-08-12, Sir's on-device report; revised same day
+   after first pass overshot)
    The stock touch scheme (bindInput, game/index.html) zeros this.throttle
    the instant a swipe crosses the hop threshold, and zeros it again on
    pointerup -- so on a phone, every lane change costs the run's speed and
    demands a re-press to resume gas. That is the reported bug: not that
    steering is hard, but that steering and holding the throttle are
    mutually exclusive on a single touch.
+
+   FIRST PASS (wrong): also re-armed the swipe baseline after every hop,
+   so one continuous drag could chain into two or three lane changes
+   instead of one -- Sir's call, correctly: "I need to be able to change
+   single lanes better while holding the throttle down." Overshoot is
+   worse than the original bug, not better.
+
+   THIS PASS: matches bindInput's own "hopped" latch exactly -- one hop
+   per press, nothing fires again until pointerup -- and changes exactly
+   one thing from stock: the hop branch no longer sets this.throttle = 0.
+   That is the whole diff. Hold the same touch through a single lane
+   change and gas never drops; lift and re-press for the next one, same
+   as any other press in the stock scheme.
 
    This does NOT edit bindInput() in game/index.html. EventEmitter3 (what
    Phaser.Events.EventEmitter wraps, and what scene.input is) exposes
@@ -49,16 +63,7 @@
    re-attached -- same references, not new copies -- when toggled off or
    when the bench unloads. Stock delivery/free-drive input is never
    touched; only what's live in THIS bench tab, only while the toggle
-   reads "hold-thru".
-
-   The alt scheme is one change from stock: hop() no longer zeros
-   throttle, and firing a hop re-arms the swipe baseline (downY/downT)
-   instead of latching until pointerup -- so one held touch can wiggle
-   through several lane changes without ever letting go of gas. Throttle
-   still only comes from which half of the screen pointerdown landed on,
-   same as stock; this does not add a second touch zone or any new input
-   surface, on purpose, so it's a clean A/B against the exact thing being
-   reported. */
+   reads "hold-thru". */
 (() => {
   /* Was `.find(s => s.route)` -- required a route to already exist before
      this would arm, which meant the bench had to build one (start run) just
@@ -85,26 +90,27 @@
   const origUp   = scene.input.listeners('pointerup').slice();
 
   let altOn = false;
-  let downY = 0, downT = 0;
+  let downY = 0, downT = 0, hopped = false;
 
   function altPointerDown(p){
     if (scene.attract) return;
-    downY = p.y; downT = scene.time.now;
+    downY = p.y; downT = scene.time.now; hopped = false;
     scene.throttle = p.x > scene.scale.gameSize.width / 2 ? 1 : -1;
   }
   function altPointerMove(p){
-    if (scene.attract || !p.isDown) return;
+    if (scene.attract || !p.isDown || hopped) return;
     const dy = p.y - downY;
     if (Math.abs(dy) > 34 && scene.time.now - downT < 320){
+      hopped = true;
       scene.hop(dy < 0 ? -1 : 1);
-      /* re-arm from here instead of latching "hopped" until pointerup --
-         throttle is left exactly as it was, which is the whole test */
-      downY = p.y; downT = scene.time.now;
+      /* the ONE line removed from stock: no `scene.throttle = 0` here.
+         Everything else -- the latch, the threshold, the window -- is
+         identical to bindInput's own pointermove. */
     }
   }
   function altPointerUp(){
     if (scene.attract) return;
-    scene.throttle = 0;
+    scene.throttle = 0; hopped = false;
   }
 
   function setAlt(on){
