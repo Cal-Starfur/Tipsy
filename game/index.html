@@ -19684,10 +19684,27 @@ function tpSlalomOn(){
      the game's own contribution, recomputed here term for term, leaves
      exactly the baseline tilt at cap speed — corners at 2x feel like
      corners at 1x. SL.grip blends it: 1 is full compensation, 0 is raw
-     physics for anyone who wants the original dare. Same postupdate
-     pattern and the same 34ms dt clamp as the boost; a one-frame dt
-     disagreement with the game's own integrator shades a feel dial, not
-     a geometry invariant. */
+     physics for anyone who wants the original dare.
+
+     UNCLAMPED DT, UNLIKE EVERY OTHER POSTUPDATE HOOK HERE (2026-08-13,
+     Sir's report: tilting too far specifically in the wide turns) --
+     this function's own call site is the one exception to the shared
+     Math.min(delta, 34) pattern every other hook in onPost uses. Those
+     other hooks (slThrottleBoost included) apply INDEPENDENT physics of
+     their own, so capping a single stutter frame's correction is the
+     right call for them. This one is different in kind: its entire job
+     is to cancel a term the game's OWN update(t, dt) just added, using
+     the SAME dt -- and that add is never clamped. The original comment
+     here called a one-frame dt disagreement with the game's integrator
+     a "feel dial, not a geometry invariant," which is true for a SINGLE
+     frame -- what it missed is that the disagreement doesn't average
+     out, it accumulates, and a wide (CORNER_R) arc's own longer transit
+     time gives it far more frames to accumulate over than a tight
+     (TURN_R) one ever gets, which is exactly the asymmetry that shipped
+     as a real bug. Matching the exact unclamped dt is the fix: it
+     doesn't just close the slow-accumulation gap, it also closes the
+     much larger one-frame gap a genuine stutter would otherwise leave
+     fully uncompensated, on an arc of any length. */
   /* ============ THE CRASH KEEPS ITS MOMENTUM ============
      Delivery's tilt-fail throws the speed away on the spot (state =
      "tipped"; speed = 0) — a hard stop mid-corner. The hydrant jump
@@ -19777,7 +19794,12 @@ function tpSlalomOn(){
     try { slJudge(); } catch(e){ console.log('slJudge', e); }
     try { slFlight(Math.min(delta, 34)); } catch(e){ console.log('slFlight', e); }
     try { slThrottleBoost(Math.min(delta, 34)); } catch(e){ console.log('slThrottleBoost', e); }
-    try { slGripComp(Math.min(delta, 34)); } catch(e){ console.log('slGripComp', e); }
+    /* Unclamped, unlike its siblings above -- see slGripComp's own
+       comment for why: it cancels a term the game's own update(t, dt)
+       just added with this exact dt, and that add is never clamped
+       either. Capping only this call would reintroduce the mismatch
+       the fix exists to close. */
+    try { slGripComp(delta); } catch(e){ console.log('slGripComp', e); }
     try { slSkidHandoff(); } catch(e){ console.log('slSkidHandoff', e); }
     /* unconditional, not phase-gated -- puffs already in flight at GO
        need to keep drifting/fading afterward, same reasoning
