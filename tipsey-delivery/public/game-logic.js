@@ -164,33 +164,45 @@ function requestTpProfile(){
    badly undercount a game whose whole premise is falling over. The
    challenge doesn't call it: it isn't a delivery.
 
-   reportFail() no longer posts anything. It hands the server the run's
-   facts and gets back a DRAFT comment (server.ts still owns the
-   wording via FAIL_CAUSE_COPY + sanitized labels); the draft feeds the
-   fail overlay's COMMENT button, where the player can edit it and
-   explicitly POST it as themselves -- see TD FAIL EXTRAS below.
-   Replays of past dates deliberately don't report: the post is today's
-   route, and a comment about a three-week-old street reads as noise
-   there. The fetch stays non-blocking -- a slow or failed draft must
-   never delay the fail overlay; the button just doesn't appear. */
+   reportFail() no longer posts anything by itself. It hands the server
+   the run's facts and gets back a DRAFT comment (server.ts still owns
+   the wording via FAIL_CAUSE_COPY + sanitized labels); the draft feeds
+   the fail overlay's gate panel below, which opens ALREADY showing the
+   draft, editable -- there's no COMMENT button to tap first -- and its
+   own button IS Retry: post it, and the post fires the actual retry,
+   same tap, no second button to hunt for (Sir's call, 2026-08: retry
+   is no longer free on a real delivery fail). Replays of past dates
+   deliberately don't report: the post is today's route, and a comment
+   about a three-week-old street reads as noise there. The fetch stays
+   non-blocking -- a slow or failed draft must never strand the fail
+   overlay, so a failed/empty draft falls back to a free, UNGATED
+   #retryBtn instead of locking the player out over a network blip. */
 function countPlay(){
   if(!IS_DEVVIT_BUILD) return;
   fetch("api/tipsy/play", { method: "POST", headers: { Accept: "application/json" } }).catch(()=>{});
 }
 function reportFail(s, cause){
-  if(!IS_DEVVIT_BUILD) return;
   /* clear FIRST, before any guard: a replay/challenge fail that bails
-     below must not leave a previous run's draft on the button */
+     below must not leave a previous run's gate state on the overlay */
+  tdFx.gateEligible = false;
+  if(!IS_DEVVIT_BUILD) return;
   tdFx.draft = "";
   tdFx.posted = false;
   tdFx.draftWhy = "pending";   // every exit below names itself: 5-tap debug reads this
-  tdFxHideCommentBtn();
+  tdFxShowPlainRetry();
   if(!s || !s.route){ tdFx.draftWhy = "skipped: no route"; return; }
   if(s.mode === "challenge"){ tdFx.draftWhy = "skipped: challenge"; return; }
   if(s.route.dateStr !== clientTodayUTC()){
     tdFx.draftWhy = "skipped: replay (" + s.route.dateStr + " != " + clientTodayUTC() + ")";
     return;
   }
+  /* THIS is a gate-eligible fail -- lock retry behind the post from
+     here, even before the draft itself has landed. tdFxSyncGate below
+     shows a "loading your comment…" state in the gate slot the instant
+     this flips true, so #retryBtn never has a free window to tap
+     during the draft round trip. */
+  tdFx.gateEligible = true;
+  tdFxSyncGate();
   /* progress is measured pickup -> door, not 0 -> door: the robot
      starts AT the shop, so anchoring at 0 would report free distance
      nobody drove. */
@@ -218,23 +230,31 @@ function reportFail(s, cause){
       tdFx.draft = (d && d.text) || "";
       if(tdFx.draft) tdFx.draftWhy = "ok (" + tdFx.draft.length + " chars)";
       else if(d) tdFx.draftWhy = "empty text (server: no post id or not signed in)";
-      tdFxSyncCommentBtn();
+      tdFxSyncGate();
       tdFxDbgSync();
     })
-    .catch(() => { tdFx.draftWhy = "network error"; tdFxDbgSync(); });
+    .catch(() => { tdFx.draftWhy = "network error"; tdFxSyncGate(); tdFxDbgSync(); });
 }
 
 /* ============================================================
-   TD FAIL EXTRAS -- Comment button + Follow prompt (Devvit only).
+   TD FAIL EXTRAS -- Delivery Log gate + Follow prompt (Devvit only).
 
-   COMMENT: the fail comment no longer auto-posts. reportFail() now
-   only fetches a server-composed DRAFT (api/tipsy/fail returns {text}
-   and posts nothing -- see routeSubmitFail in server.ts). A COMMENT
-   button on the fail overlay opens that draft in an editable box, and
-   only an explicit POST press sends it (api/tipsy/fail/comment, runAs
-   USER, threaded under the pinned anchor). This is what Devvit's
-   user-actions rules ask for: no automated actions, a distinct
-   manual choice.
+   GATE (Sir's call, 2026-08): a real delivery fail (today's route, not
+   a challenge, not a replay) no longer offers a free Retry. The gate
+   panel takes over #retryBtn's exact slot (top:46%, same shape
+   tdStackCss gives #failOverlay .btn) the moment the fail is confirmed
+   gate-eligible, showing a loading state until the draft lands, then
+   the composer -- draft pre-filled, editable, ONE button labeled
+   "Retry". Tap it and it posts (api/tipsy/fail/comment, runAs USER,
+   threaded under the pinned anchor); the instant that succeeds, the
+   SAME action fires the real retry (tdFxFireRetry) -- no bonus on this
+   post, no second button, it's required not paid.
+
+   Anything that isn't gate-eligible (non-Devvit build, a Hydrant
+   Challenge crash, a replay) OR whose draft never showed up (network
+   error, not signed in, empty text) keeps the plain #retryBtn, fully
+   free -- there's nothing to gate against, and locking it anyway would
+   just strand the player over something outside their control.
 
    FOLLOW: on the 3rd delivery fail of a session, a prompt offers a
    one-time $25.00 tip bonus for subscribing to the sub
@@ -243,11 +263,11 @@ function reportFail(s, cause){
    the rest of the day (localStorage date stamp); a successful follow
    never reprompts. The server's hSetNX claim flag is the REAL gate --
    clearing localStorage re-shows the prompt but cannot double-pay.
-   Challenge crashes (hjShowCrash) are not delivery fails: they hide
-   the COMMENT button and never count toward the prompt. No emoji
+   Challenge crashes (hjShowCrash) are not delivery fails: they force
+   the plain retry and never count toward the prompt. No emoji
    anywhere in this UI by design. */
 const tdFx = { fails: 0, draft: "", posted: false, busy: false,
-               followShown: false, followClaimed: false,
+               followShown: false, followClaimed: false, gateEligible: false,
                draftWhy: "no fail yet", debug: false };
 const TDFX_LATER_KEY = "tdFollowLater", TDFX_DONE_KEY = "tdFollowDone";
 const TDFX_CARD = "background:rgba(18,20,26,0.94);border:1px solid #3a3f4a;" +
@@ -260,58 +280,136 @@ const TDFX_BTN = "display:block;width:100%;border:0;border-radius:10px;" +
    same colour as RETRY on purpose, see the TD FAIL STACK note */
 const TDFX_ORANGE = "background:#ff7a1a;color:#fff;box-shadow:0 3px 0 #b5540e;";
 
-function tdFxPanel(id){
-  let el = document.getElementById(id);
+/* Injected lazily into #failOverlay the first time a gate-eligible
+   fail opens -- game.html carries no markup for it, same
+   zero-HTML-divergence trick the old COMMENT button used. Sits in
+   #retryBtn's OWN slot (top:46%, matches #failOverlay .btn from
+   tdStackCss) -- this REPLACES the pill, it doesn't stack under it,
+   so exactly one of the two is ever visible. */
+function tdFxGatePanel(){
+  let el = document.getElementById("tdFxGate");
   if(el) return el;
   el = document.createElement("div");
-  el.id = id;
-  el.style.cssText = "position:fixed;inset:0;z-index:60;display:flex;" +
-    "align-items:center;justify-content:center;background:rgba(10,12,16,0.55);";
-  document.body.appendChild(el);
+  el.id = "tdFxGate";
+  el.style.cssText = "position:absolute;left:50%;top:46%;transform:translateX(-50%);" +
+    "text-align:left;" + TDFX_CARD;
+  document.getElementById("failOverlay").appendChild(el);
   return el;
 }
-/* Injected lazily into #failOverlay the first time a fail screen with a
-   draft opens -- game.html carries no markup for it, which is what lets
-   this whole feature live in the shared logic file with zero HTML
-   divergence between the two canonical builds. */
-function tdFxCommentBtn(){
-  let b = document.getElementById("tdFxCommentBtn");
-  if(b) return b;
-  b = document.createElement("button");
-  b.id = "tdFxCommentBtn";
-  b.textContent = "COMMENT";
-  b.style.cssText = "position:absolute;left:50%;top:calc(46% + 72px);transform:translateX(-50%);" +
-    TDFX_BTN + "width:min(340px,86vw);background:#2c313c;color:#fff;" +
-    "border:1px solid #4a5060;";
-  b.addEventListener("click", tdFxOpenComposer);
-  document.getElementById("failOverlay").appendChild(b);
-  return b;
+function tdFxHideGatePanel(){
+  const g = document.getElementById("tdFxGate");
+  if(g) g.style.display = "none";
 }
-function tdFxHideCommentBtn(){
-  const b = document.getElementById("tdFxCommentBtn");
-  if(b) b.style.display = "none";
+function tdFxShowPlainRetry(){
+  tdFxHideGatePanel();
+  const r = document.getElementById("retryBtn");
+  if(r) r.style.display = "";
 }
-/* Called from showFail() AND from reportFail's response callback: the
-   fail overlay opens on a 900-1500ms setTimeout while the draft fetch
-   races it, so whichever lands second makes the button appear. */
-function tdFxSyncCommentBtn(){
-  if(!IS_DEVVIT_BUILD) return;
+/* Called from showFail() (via tdFxOnFailScreen) AND from reportFail's
+   response callback -- the fail overlay opens on a 900-1500ms
+   setTimeout while the draft fetch races it, so whichever lands
+   second is the one that decides what's actually on screen. */
+function tdFxSyncGate(){
+  if(!IS_DEVVIT_BUILD){ tdFxShowPlainRetry(); return; }
   const overlay = document.getElementById("failOverlay");
   if(!overlay || overlay.classList.contains("hidden")) return;
   /* the draft fetch can resolve AFTER the follow screen opened; its
-     sync callback must not drop the COMMENT button into the slot
-     MAYBE LATER is using */
-  if(document.getElementById("tdFxFollowGo")){ tdFxHideCommentBtn(); return; }
-  const b = tdFxCommentBtn();
-  b.style.display = (tdFx.draft && !tdFx.posted) ? "block" : "none";
-  b.disabled = false;
-  b.textContent = "COMMENT";
+     sync callback must not drop the gate panel into the slot MAYBE
+     LATER is using */
+  if(document.getElementById("tdFxFollowGo")) return;
+  if(!tdFx.gateEligible){ tdFxShowPlainRetry(); return; }
+  if(tdFx.posted) return;   // tdFxFireRetry is already tearing the overlay down
+  if(!tdFx.draft){
+    if(tdFx.draftWhy === "pending"){
+      const r = document.getElementById("retryBtn");
+      if(r) r.style.display = "none";
+      const g = tdFxGatePanel();
+      g.style.display = "block";
+      g.innerHTML = '<div style="color:#9aa3b2;font-size:13px;">loading your comment&hellip;</div>';
+      return;
+    }
+    tdFxShowPlainRetry();   // draft never showed up -- don't strand the player over it
+    return;
+  }
+  const r = document.getElementById("retryBtn");
+  if(r) r.style.display = "none";
+  tdFxRenderComposer(tdFxGatePanel());
+}
+/* Draft pre-filled, editable, ONE button. No bonus tag -- posting is
+   the price of Retry now, not an optional paid extra. */
+function tdFxRenderComposer(g){
+  g.style.display = "block";
+  g.innerHTML =
+    '<div style="font-weight:700;font-size:11px;letter-spacing:0.8px;line-height:1.4;' +
+      'margin-bottom:12px;">POST TO DELIVERY LOG TO RETRY TODAY\'S ROUTE</div>' +
+    '<div id="tdFxComposeErr" style="color:#ff8a65;font-size:12px;margin-bottom:8px;display:none;"></div>';
+  const ta = document.createElement("textarea");
+  ta.id = "tdFxComposeText";
+  ta.value = tdFx.draft;
+  ta.maxLength = 480;   // mirrors the server's clamp so nothing is silently cut
+  ta.style.cssText = "width:100%;box-sizing:border-box;height:100px;resize:none;" +
+    "background:#12141a;color:#fff;border:1px solid #3a3f4a;border-radius:8px;" +
+    "padding:10px;font:inherit;font-size:13px;line-height:1.4;margin-bottom:4px;";
+  const count = document.createElement("div");
+  count.style.cssText = "font-size:10px;color:#5c6270;text-align:right;margin-bottom:12px;";
+  count.textContent = ta.value.length + " / 480";
+  ta.addEventListener("input", () => { count.textContent = ta.value.length + " / 480"; });
+  const btn = document.createElement("button");
+  btn.id = "tdFxGateBtn";
+  btn.textContent = "Retry";
+  btn.style.cssText = TDFX_BTN +
+    "background:transparent;color:#ff7a1a;border:1.5px solid #ff7a1a;box-shadow:none;";
+  btn.addEventListener("click", () => tdFxPostAndRetry(ta, btn));
+  g.appendChild(ta);
+  g.appendChild(count);
+  g.appendChild(btn);
+}
+function tdFxPostAndRetry(ta, btn){
+  if(tdFx.busy) return;
+  const text = (ta.value || "").trim();
+  if(!text) return;
+  tdFx.busy = true;
+  btn.disabled = true;
+  btn.textContent = "Posting…";
+  const fail = () => {
+    tdFx.busy = false;
+    btn.disabled = false;
+    btn.textContent = "Retry";
+    const e = document.getElementById("tdFxComposeErr");
+    if(e){ e.textContent = "Couldn't post. Try again."; e.style.display = "block"; }
+  };
+  fetch("api/tipsy/fail/comment", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ text })
+  })
+    .then(r => r.ok ? r.json() : null)
+    .then(d => {
+      if(!d || !d.posted){ fail(); return; }
+      tdFx.busy = false;
+      tdFx.posted = true;   // one comment per fail
+      tdFxFireRetry();
+    })
+    .catch(fail);
+}
+/* The actual retry action -- shared by the plain #retryBtn's own
+   listener (ungated path, unchanged, bottom of file) and the gate
+   composer's button (gated path) so there's exactly one place that
+   owns what "try again" does; the two can never drift on what a real
+   retry actually resets. */
+function tdFxFireRetry(){
+  hide("failOverlay");
+  const s = scn();
+  document.getElementById("retryBtn").textContent = "Retry";
+  countPlay();
+  s.loadRoute(s.route.dateStr);
+  s.state = "play";
 }
 function tdFxOnFailScreen(){
   if(!IS_DEVVIT_BUILD) return;
   tdFx.fails++;
   tdFxFollowRestore();   // a fail while the offer was up starts clean
-  tdFxSyncCommentBtn();
+  tdFxSyncGate();
   tdFxDbgSync();
   if(tdFx.debug){ tdFxShowFollow(); return; }   // debug: preview on every fail
   tdFxMaybeFollow();
@@ -344,7 +442,7 @@ function tdFxMaybeFollow(){
    rest of the game over. The headline and sub swap to the offer, the
    retry pill hides (visibility, so nothing reflows) and an
    identically-styled orange FOLLOW pill takes the SAME slot; MAYBE
-   LATER takes the COMMENT slot; the glass + robot row stays put.
+   LATER takes the gate's slot; the glass + robot row stays put.
    Placement note, on the record: FOLLOW in the exact retry slot was
    an explicit ask (earlier stance was offset hitboxes) -- the opt-out
    stays one tap away and the headline visibly changes, which is the
@@ -363,12 +461,12 @@ function tdFxFollowRestore(){
   const go = document.getElementById("tdFxFollowGo"); if(go) go.remove();
   const later = document.getElementById("tdFxLater"); if(later) later.remove();
   const err = document.getElementById("tdFxFollowErr"); if(err) err.remove();
-  tdFxSyncCommentBtn();
+  tdFxSyncGate();
 }
 function tdFxShowFollow(){
   tdFxSwapText("Follow r/tipsey.", "FREE  +$25.00 BONUS TIPS");
   document.getElementById("retryBtn").style.visibility = "hidden";
-  tdFxHideCommentBtn();
+  tdFxHideGatePanel();
   const overlay = document.getElementById("failOverlay");
   const err = document.createElement("div");
   err.id = "tdFxFollowErr";
@@ -451,67 +549,6 @@ function tdFxFollowDone(granted){
     nice.addEventListener("click", tdFxFollowRestore);
     go.replaceWith(nice);
   }
-}
-function tdFxOpenComposer(){
-  if(!tdFx.draft || tdFx.posted) return;
-  const wrap = tdFxPanel("tdFxComposer");
-  wrap.innerHTML = "";
-  const card = document.createElement("div");
-  card.style.cssText = TDFX_CARD + "text-align:left;";
-  card.innerHTML =
-    '<div style="font-weight:700;letter-spacing:1px;margin-bottom:12px;text-align:center;">' +
-      'LEAVE A COMMENT</div>' +
-    '<div id="tdFxComposeErr" style="color:#ff8a65;font-size:12px;margin-bottom:8px;display:none;"></div>';
-  const ta = document.createElement("textarea");
-  ta.id = "tdFxComposeText";
-  ta.value = tdFx.draft;
-  ta.maxLength = 480;   // mirrors the server's clamp so nothing is silently cut
-  ta.style.cssText = "width:100%;box-sizing:border-box;height:110px;resize:none;" +
-    "background:#12141a;color:#fff;border:1px solid #3a3f4a;border-radius:8px;" +
-    "padding:10px;font:inherit;font-size:13px;margin-bottom:14px;";
-  const post = document.createElement("button");
-  post.textContent = "POST";
-  post.style.cssText = TDFX_BTN + TDFX_ORANGE + "margin-bottom:10px;";
-  post.addEventListener("click", () => tdFxPostComment(ta, post));
-  const cancel = document.createElement("button");
-  cancel.textContent = "CANCEL";
-  cancel.style.cssText = TDFX_BTN +
-    "background:none;color:#9aa3b2;font-size:12px;letter-spacing:2px;padding:6px 0;";
-  cancel.addEventListener("click", () => wrap.remove());
-  card.appendChild(ta);
-  card.appendChild(post);
-  card.appendChild(cancel);
-  wrap.appendChild(card);
-}
-function tdFxPostComment(ta, btn){
-  if(tdFx.busy) return;
-  const text = (ta.value || "").trim();
-  if(!text) return;
-  tdFx.busy = true;
-  btn.disabled = true;
-  btn.textContent = "POSTING...";
-  const fail = () => {
-    tdFx.busy = false;
-    btn.disabled = false;
-    btn.textContent = "POST";
-    const e = document.getElementById("tdFxComposeErr");
-    if(e){ e.textContent = "Couldn't post. Try again."; e.style.display = "block"; }
-  };
-  fetch("api/tipsy/fail/comment", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Accept: "application/json" },
-    body: JSON.stringify({ text })
-  })
-    .then(r => r.ok ? r.json() : null)
-    .then(d => {
-      if(!d || !d.posted){ fail(); return; }
-      tdFx.busy = false;
-      tdFx.posted = true;   // one comment per fail; button hides itself
-      const wrap = document.getElementById("tdFxComposer");
-      if(wrap) wrap.remove();
-      tdFxSyncCommentBtn();
-    })
-    .catch(fail);
 }
 /* ============================================================
    TD FAIL STACK -- HONK-style fail layout (every build).
@@ -740,7 +777,7 @@ function twFxHideCommentBtn(){
   if(b) b.style.display = "none";
 }
 /* Called from showWin() AND from reportWin's response callback, same
-   two-callers-race reason tdFxSyncCommentBtn documents: the win
+   two-callers-race reason tdFxSyncGate documents: the win
    overlay opens immediately while the draft fetch is still in flight,
    so whichever lands second is the one that actually shows the
    button. */
@@ -1102,96 +1139,127 @@ function reportSlalomWin(card, total, par, clean){
     .catch(() => { tsFx.draftWhy = "network error"; });
 }
 /* ============================================================
-   TSF SLALOM FAIL EXTRAS -- Comment bonus on a FAILED Cone Slalom run.
+   TSF SLALOM FAIL EXTRAS -- Delivery Log gate on a FAILED Cone Slalom
+   run (Devvit only). Mirrors TD FAIL's gate exactly (Sir's call,
+   2026-08): Retry is no longer free on a real slalom fail. The
+   composer takes over #slRetry's own slot (.slRetryBtn, top:46%) the
+   instant IS_DEVVIT_BUILD is true, showing a loading state until the
+   draft lands, then the draft itself, pre-filled and editable, with
+   ONE button labeled "Retry". Tap it and it posts
+   (api/tipsy/slalom/fail/comment, runAs USER); the instant that
+   succeeds, the SAME action fires the real retry -- no second button.
+
+   No bonus anymore -- posting is the price of Retry now, not an
+   optional paid extra, so the old $5/day pool (TSFFX_DONE_KEY,
+   dbClaimCommentBonus source:'slalom-fail') is gone along with it.
 
    Deliberately NOT paired with a FOLLOW button here (Sir's call,
-   2026-08-10): FOLLOW on a slalom fail stays exactly as it already was
-   -- the 3-strike tdFx.fails-gated offer painted by slShowFollow, wired
-   separately below this block, untouched by this addition. This block
-   is the single, always-present COMMENT button and nothing else.
+   2026-08-10, still true): FOLLOW on a slalom fail stays exactly as
+   it already was -- the 3-strike tdFx.fails-gated offer painted by
+   slShowFollow below, which now hides/restores the gate panel the
+   same way it used to hide/restore the old COMMENT button.
 
-   Its own $5/day pool (dbClaimCommentBonus source:'slalom-fail'),
-   independent of both the delivery win's source:'win' and the slalom
-   win's source:'slalom' -- failing, then winning the same course, then
-   also winning a delivery, can pay all three bonuses in the same day.
+   A draft that never shows up (network error, not signed in, empty
+   text) falls back to the plain #slRetry button, fully free -- same
+   reasoning as TD FAIL's fallback, there's nothing to gate against
+   and locking it anyway would just strand the player.
 
-   Otherwise a straight copy of tsFx's shape and reasoning: draft/posted/
-   busy state, a fresh button built into whatever #slCard instance is
-   live right now (the card is torn down and rebuilt every slShowCard()
-   call, same as the win side), and reportSlalomFail double-checks the
-   card it was called for is still the live one before touching any DOM,
-   since the draft fetch can resolve after the player has already closed
-   the card. */
-const tsfFx = { draft: "", posted: false, busy: false,
+   Otherwise a straight copy of TD FAIL's shape: draft/posted/busy
+   state, a panel built into whatever #slCard instance is live right
+   now (the card is torn down and rebuilt every slShowCard() call),
+   and reportSlalomFail double-checks the card it was called for is
+   still the live one before touching any DOM, since the draft fetch
+   can resolve after the player has already retried or closed the
+   card. tsfFx.fireRetry holds the SAME tear-down closure #slRetry's
+   own onclick uses (card.remove / slFailUp / slResetRun) -- set once
+   per card by tsfFxGate, called by the composer's button on a
+   successful post, so there's exactly one place that owns what a
+   slalom retry actually resets. */
+const tsfFx = { draft: "", posted: false, busy: false, fireRetry: null,
                  draftWhy: "no slalom fail yet" };
-const TSFFX_DONE_KEY = "tdSlalomFailCBonusDate";
 
-function tsfFxCommentBtn(card, total, faultCount, cause){
-  const btn = document.createElement("button");
-  btn.id = "tsfFxCommentBtn";
-  /* Absolute, not flow -- updated 2026-08-10 alongside the fail-card
-     redesign. #slCard is a full-screen flex column now (like
-     failOverlay), and #slRetry already escapes that flow via its own
-     position:absolute (see .slRetryBtn); leaving this one as a normal
-     flex child would have pulled it into the h2/p centering group
-     instead of sitting in its own slot below Retry. Same top:46%+72px
-     rhythm MAYBE LATER uses in the follow offer, since COMMENT and
-     MAYBE LATER occupy that exact same slot at different times. */
-  btn.style.cssText = "position:absolute;left:50%;top:calc(46% + 72px);" +
-    "transform:translateX(-50%);width:min(340px,86vw);" +
-    "font:inherit;color:#fff;background:#2c313c;" +
-    "border:1px solid #4a5060;border-radius:7px;min-height:44px;" +
-    "padding:12px 0;display:none;";
-  let claimedToday = false;
-  try { claimedToday = localStorage.getItem(TSFFX_DONE_KEY) === clientTodayUTC(); } catch(e){}
-  btn.textContent = claimedToday ? "COMMENT" : "COMMENT  \u00b7  +$5.00";
-  btn.addEventListener("click", tsfFxOpenComposer);
-  card.appendChild(btn);
-
-  reportSlalomFail(card, total, faultCount, cause);
+function tsfFxGatePanel(card){
+  let el = document.getElementById("tsfFxGate");
+  if(el) return el;
+  el = document.createElement("div");
+  el.id = "tsfFxGate";
+  el.style.cssText = "position:absolute;left:50%;top:46%;transform:translateX(-50%);" +
+    "text-align:left;" + TDFX_CARD;
+  card.appendChild(el);
+  return el;
 }
-function tsfFxOpenComposer(){
-  if(!tsfFx.draft || tsfFx.posted) return;
-  const wrap = tdFxPanel("tsfFxComposer");
-  wrap.innerHTML = "";
-  const card = document.createElement("div");
-  card.style.cssText = TDFX_CARD + "text-align:left;";
-  card.innerHTML =
-    '<div style="font-weight:700;letter-spacing:1px;margin-bottom:12px;text-align:center;">' +
-      'LEAVE A COMMENT</div>' +
+function tsfFxHideGatePanel(){
+  const g = document.getElementById("tsfFxGate");
+  if(g) g.style.display = "none";
+}
+function tsfFxShowPlainRetry(){
+  tsfFxHideGatePanel();
+  const r = document.getElementById("slRetry");
+  if(r) r.style.display = "";
+}
+/* Called right after the card is built (via tsfFxGate) AND from
+   reportSlalomFail's response callback -- same race TD FAIL's gate
+   has to handle, just without the replay-date branch (Cone Slalom's
+   route is frozen to SL_SEED_DATE, so every fail here is "today's"). */
+function tsfFxSyncGate(card){
+  if(!IS_DEVVIT_BUILD){ tsfFxShowPlainRetry(); return; }
+  if(document.getElementById("slCard") !== card) return;   // this card isn't live anymore
+  if(document.getElementById("slFollowGo")) return;         // follow offer owns the slot
+  if(tsfFx.posted) return;   // fireRetry is already tearing the card down
+  if(!tsfFx.draft){
+    if(tsfFx.draftWhy === "pending"){
+      const r = document.getElementById("slRetry");
+      if(r) r.style.display = "none";
+      const g = tsfFxGatePanel(card);
+      g.style.display = "block";
+      g.innerHTML = '<div style="color:#9aa3b2;font-size:13px;">loading your comment&hellip;</div>';
+      return;
+    }
+    tsfFxShowPlainRetry();   // draft never showed up -- don't strand the player
+    return;
+  }
+  const r = document.getElementById("slRetry");
+  if(r) r.style.display = "none";
+  tsfFxRenderComposer(tsfFxGatePanel(card));
+}
+function tsfFxRenderComposer(g){
+  g.style.display = "block";
+  g.innerHTML =
+    '<div style="font-weight:700;font-size:11px;letter-spacing:0.8px;line-height:1.4;' +
+      'margin-bottom:12px;">POST TO DELIVERY LOG TO RETRY TODAY\'S ROUTE</div>' +
     '<div id="tsfFxComposeErr" style="color:#ff8a65;font-size:12px;margin-bottom:8px;display:none;"></div>';
   const ta = document.createElement("textarea");
   ta.id = "tsfFxComposeText";
   ta.value = tsfFx.draft;
   ta.maxLength = 480;   // mirrors the server's clamp so nothing is silently cut
-  ta.style.cssText = "width:100%;box-sizing:border-box;height:110px;resize:none;" +
+  ta.style.cssText = "width:100%;box-sizing:border-box;height:100px;resize:none;" +
     "background:#12141a;color:#fff;border:1px solid #3a3f4a;border-radius:8px;" +
-    "padding:10px;font:inherit;font-size:13px;margin-bottom:14px;";
-  const post = document.createElement("button");
-  post.textContent = "POST";
-  post.style.cssText = TDFX_BTN + TDFX_ORANGE + "margin-bottom:10px;";
-  post.addEventListener("click", () => tsfFxPostComment(ta, post));
-  const cancel = document.createElement("button");
-  cancel.textContent = "CANCEL";
-  cancel.style.cssText = TDFX_BTN +
-    "background:none;color:#9aa3b2;font-size:12px;letter-spacing:2px;padding:6px 0;";
-  cancel.addEventListener("click", () => wrap.remove());
-  card.appendChild(ta);
-  card.appendChild(post);
-  card.appendChild(cancel);
-  wrap.appendChild(card);
+    "padding:10px;font:inherit;font-size:13px;line-height:1.4;margin-bottom:4px;";
+  const count = document.createElement("div");
+  count.style.cssText = "font-size:10px;color:#5c6270;text-align:right;margin-bottom:12px;";
+  count.textContent = ta.value.length + " / 480";
+  ta.addEventListener("input", () => { count.textContent = ta.value.length + " / 480"; });
+  const btn = document.createElement("button");
+  btn.id = "tsfFxGateBtn";
+  btn.textContent = "Retry";
+  btn.style.cssText = TDFX_BTN +
+    "background:transparent;color:#ff7a1a;border:1.5px solid #ff7a1a;box-shadow:none;";
+  btn.addEventListener("click", () => tsfFxPostAndRetry(ta, btn));
+  g.appendChild(ta);
+  g.appendChild(count);
+  g.appendChild(btn);
 }
-function tsfFxPostComment(ta, btn){
+function tsfFxPostAndRetry(ta, btn){
   if(tsfFx.busy) return;
   const text = (ta.value || "").trim();
   if(!text) return;
   tsfFx.busy = true;
   btn.disabled = true;
-  btn.textContent = "POSTING...";
+  btn.textContent = "Posting…";
   const fail = () => {
     tsfFx.busy = false;
     btn.disabled = false;
-    btn.textContent = "POST";
+    btn.textContent = "Retry";
     const e = document.getElementById("tsfFxComposeErr");
     if(e){ e.textContent = "Couldn't post. Try again."; e.style.display = "block"; }
   };
@@ -1204,21 +1272,22 @@ function tsfFxPostComment(ta, btn){
     .then(d => {
       if(!d || !d.posted){ fail(); return; }
       tsfFx.busy = false;
-      tsfFx.posted = true;   // one comment per slalom fail screen; button hides itself
-      if(d.bonusGranted){
-        try { localStorage.setItem(TSFFX_DONE_KEY, clientTodayUTC()); } catch(e){}
-      }
-      if(typeof tpProfile === "object" && tpProfile && typeof d.walletCents === "number"){
-        tpProfile.walletCents = d.walletCents;
-        if(typeof tpSaveProfile === "function") tpSaveProfile();
-        if(typeof tpRender === "function") tpRender();
-      }
-      const wrap = document.getElementById("tsfFxComposer");
-      if(wrap) wrap.remove();
-      const b = document.getElementById("tsfFxCommentBtn");
-      if(b) b.style.display = "none";
+      tsfFx.posted = true;   // one comment per slalom fail screen
+      if(typeof tsfFx.fireRetry === "function") tsfFx.fireRetry();
     })
     .catch(fail);
+}
+/* Entry point called once from the fail branch of slShowCard(), right
+   after #slRetry itself is built and wired -- fireRetry is that SAME
+   onclick closure (card.remove/slFailUp/slResetRun), handed in so the
+   composer's button can fire the identical teardown on a successful
+   post. reportSlalomFail resets draft/posted/draftWhy synchronously
+   before its fetch goes out, so the sync call right after it here
+   always sees an accurate "pending" state to paint. */
+function tsfFxGate(card, total, faultCount, cause, fireRetry){
+  tsfFx.fireRetry = fireRetry;
+  reportSlalomFail(card, total, faultCount, cause);
+  tsfFxSyncGate(card);
 }
 /* Fetches the server-composed slalom-FAIL-comment draft, same shape as
    reportSlalomWin/reportWin/reportFail. `card` is the #slCard instance
@@ -1247,11 +1316,9 @@ function reportSlalomFail(card, total, faultCount, cause){
       tsfFx.draft = (d && d.text) || "";
       if(tsfFx.draft) tsfFx.draftWhy = "ok (" + tsfFx.draft.length + " chars)";
       else if(d) tsfFx.draftWhy = "empty text (server: no post id or not signed in)";
-      if(document.getElementById("slCard") !== card) return;
-      const b = document.getElementById("tsfFxCommentBtn");
-      if(b) b.style.display = (tsfFx.draft && !tsfFx.posted) ? "block" : "none";
+      tsfFxSyncGate(card);
     })
-    .catch(() => { tsfFx.draftWhy = "network error"; });
+    .catch(() => { tsfFx.draftWhy = "network error"; tsfFxSyncGate(card); });
 }
 /* ============================================================
    TIP — Route Lab
@@ -18219,7 +18286,7 @@ function tpSlalomOn(){
          reads 0 on a display:none node, which is exactly the bug
          showWin's own comment warns about). tdStackIcons('slCard') is
          unconditional (every build gets an exit), tsFxBonusRow is
-         Devvit-only (matches FAIL's tsfFxCommentBtn gating) -- so the
+         Devvit-only (matches FAIL's tsfFxGate gating) -- so the
          icon row's own offset only adds the FOLLOW/COMMENT row's height
          when that row actually exists. */
       const winCardEl = document.getElementById('slWinCard');
@@ -18278,11 +18345,14 @@ function tpSlalomOn(){
          see slFailUp's own comment in tdStackCss for why this needs
          its own class instead of piggybacking tdFailUp/tdWinUp. */
       document.body.classList.add('slFailUp');
-      document.getElementById('slRetry').onclick = () => {
+      /* named so the gate composer's Retry button can fire the exact
+         same teardown on a successful post -- see tsfFxGate below */
+      const fireRetry = () => {
         card.remove();
         document.body.classList.remove('slFailUp');
         slResetRun();
       };
+      document.getElementById('slRetry').onclick = fireRetry;
 
       /* Exit is the corner icons now, same as failOverlay -- no close
          button on a fail at all (matches the no-quit-mid-run stance
@@ -18290,11 +18360,11 @@ function tpSlalomOn(){
          at something else via the icons are the only moves). */
       tdStackIcons('slCard');
 
-      /* COMMENT bonus (+$5/day, its own pool -- source:'slalom-fail'),
-         always offered on a fail. Positioned in the same vertical
-         rhythm the real fail overlay already uses for its own COMMENT
-         slot (46% + 72px) -- see tsfFxCommentBtn's own styling. */
-      if (IS_DEVVIT_BUILD) tsfFxCommentBtn(card, total, run.faults.length, run.fail);
+      /* Delivery Log gate (Sir's call, 2026-08): #slRetry above stays
+         wired and visible until this decides otherwise -- tsfFxGate
+         takes over the same slot (.slRetryBtn, top:46%) the instant a
+         real draft is expected, see its own comment. */
+      if (IS_DEVVIT_BUILD) tsfFxGate(card, total, run.faults.length, run.fail, fireRetry);
 
       /* THE FAIL STREAK FEEDS THE SAME COUNTER AS THE DAILY ROUTE. The
          slalom muzzles showFail (it owns its endings), which had the
@@ -18318,9 +18388,9 @@ function tpSlalomOn(){
   /* The follow offer, rebuilt (2026-08-10) to match tdFxShowFollow's
      own INJECT pattern verbatim now that the fail card shares its
      layout: FOLLOW takes the retry slot (hidden via visibility, not
-     removed, so nothing reflows), MAYBE LATER takes the COMMENT slot
-     (hiding the real comment button while the offer is up, exactly
-     like tdFxHideCommentBtn does on the real overlay), and the
+     removed, so nothing reflows), MAYBE LATER takes the gate's slot
+     (hiding the gate panel while the offer is up, exactly like
+     tdFxHideGatePanel does on the real overlay), and the
      headline/sub swap to the offer copy. slSavedMsg/slSavedSub are
      local to this closure -- NOT tdFx.savedMsg/savedSub, which belong
      to the real failOverlay's own instance of this same pattern; two
@@ -18335,7 +18405,7 @@ function tpSlalomOn(){
     if (!m || !s || !retry) return;
     slSavedMsg = m.textContent; slSavedSub = s.textContent;
     retry.style.visibility = 'hidden';
-    const commentBtn = document.getElementById('tsfFxCommentBtn');
+    const commentBtn = document.getElementById('tsfFxGate');
     if (commentBtn) commentBtn.style.display = 'none';
     m.textContent = 'Follow r/tipsey.';
     s.textContent = 'FREE  +$25.00 BONUS TIPS';
@@ -18394,8 +18464,7 @@ function tpSlalomOn(){
     document.getElementById('slFollowGo')?.remove();
     document.getElementById('slFollowLater')?.remove();
     document.getElementById('slFollowErr')?.remove();
-    const commentBtn = document.getElementById('tsfFxCommentBtn');
-    if (commentBtn && tsfFx.draft && !tsfFx.posted) commentBtn.style.display = 'block';
+    tsfFxSyncGate(card);
   }
 
 
@@ -19423,7 +19492,7 @@ function hjShowCrash(s){
   document.getElementById("retryBtn").textContent = "RETRY";   // one word keeps the pill tidy
   const mb = document.getElementById("failMenuBtn");
   if(mb) mb.classList.remove("hidden");
-  tdFxHideCommentBtn();   // a challenge crash is not a delivery fail
+  tdFxShowPlainRetry();   // a challenge crash is not a delivery fail -- never gated
   show("failOverlay");
   tdStackIcons();         // glass forwards to hjQuit branch, robot to profile
 }
