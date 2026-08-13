@@ -25,6 +25,8 @@ import {
   type GetHistoryRsp,
   type PostFailCommentReq,
   type PostFailCommentRsp,
+  type PostHydrantFailCommentReq,
+  type PostHydrantFailCommentRsp,
   type PostSlalomFailCommentReq,
   type PostSlalomFailCommentRsp,
   type PostSlalomWinCommentReq,
@@ -37,6 +39,8 @@ import {
   type SubmitDailyBestRsp,
   type SubmitFailReq,
   type SubmitFailRsp,
+  type SubmitHydrantFailReq,
+  type SubmitHydrantFailRsp,
   type SubmitReplayReq,
   type SubmitReplayRsp,
   type SubmitSlalomFailReq,
@@ -101,6 +105,8 @@ type AnyRsp =
   | PostSlalomWinCommentRsp
   | SubmitSlalomFailRsp
   | PostSlalomFailCommentRsp
+  | SubmitHydrantFailRsp
+  | PostHydrantFailCommentRsp
   | UiResponse
   | TriggerResponse
   | ErrorRsp
@@ -189,6 +195,12 @@ async function route(
         break
       case Endpoint.PostSlalomFailComment:
         rsp = await routePostSlalomFailComment(reqMsg)
+        break
+      case Endpoint.SubmitHydrantFail:
+        rsp = await routeSubmitHydrantFail(reqMsg)
+        break
+      case Endpoint.PostHydrantFailComment:
+        rsp = await routePostHydrantFailComment(reqMsg)
         break
       case Endpoint.OnMenuNewPost:
         rsp = await routeMenuNewPost()
@@ -722,18 +734,17 @@ async function routeSubmitSlalomFail(
 
 /** Posts the player's (possibly edited) slalom FAIL comment as the
  *  USER, in reply to the pinned anchor -- same manual-POST-press
- *  contract as every PostComment route here. The $5/day bonus claims
- *  from source:'slalom-fail', a pool independent of both 'win' and
- *  'slalom' (Sir's call, 2026-08-10) -- failing, then winning the same
- *  course, then also winning a delivery, can pay all three in one day.
- *  Same no-comment-no-pay gate: bonus only claims after
- *  postScoreComment actually lands. */
+ *  contract as every PostComment route here. No bonus (Sir's call,
+ *  2026-08): a slalom fail is now a GATED retry client-side (see
+ *  game/index.html tsfFx) -- the post is the price of Retry, not an
+ *  optional paid extra, so the old source:'slalom-fail' dbClaimCommentBonus
+ *  call is gone. */
 async function routePostSlalomFailComment(
   reqMsg: IncomingMessage,
 ): Promise<PostSlalomFailCommentRsp> {
   const req = await readJson<PostSlalomFailCommentReq>(reqMsg)
   const user = await getCurrentUserRetrying()
-  if (!user?.username) return {posted: false, bonusGranted: false, walletCents: 0}
+  if (!user?.username) return {posted: false}
   const raw = typeof req.text === 'string' ? req.text : ''
   const text = Array.from(raw)
     .filter(ch => {
@@ -743,17 +754,60 @@ async function routePostSlalomFailComment(
     .join('')
     .trim()
     .slice(0, 480)
-  if (!text) return {posted: false, bonusGranted: false, walletCents: 0}
+  if (!text) return {posted: false}
+  return {posted: await postScoreComment(text)}
+}
 
-  const posted = await postScoreComment(text)
-  if (!posted) return {posted: false, bonusGranted: false, walletCents: 0}
+/** Composes the hydrant-FAIL-comment DRAFT and posts NOTHING -- same
+ *  no-automated-actions split as every Submit* route here. context.postId
+ *  absent or no resolvable username are both ordinary conditions (not
+ *  errors) -- just an empty draft, which the client's gate treats as
+ *  "no draft available" and falls back to a free, ungated retry rather
+ *  than stranding the player (see game/index.html tdFxSyncGate's own
+ *  comment for that same fallback). */
+async function routeSubmitHydrantFail(
+  reqMsg: IncomingMessage,
+): Promise<SubmitHydrantFailRsp> {
+  const req = await readJson<SubmitHydrantFailReq>(reqMsg)
+  const postId = context.postId
+  if (!postId) return {text: ''}
 
-  const {granted, walletCents} = await dbClaimCommentBonus(
-    user.username,
-    todayUTC(),
-    'slalom-fail',
-  )
-  return {posted: true, bonusGranted: granted, walletCents}
+  const user = await getCurrentUserRetrying()
+  if (!user?.username) return {text: ''}
+
+  const level = Math.round(clampNum(req.level, 1, 999))
+  const best = Math.round(clampNum(req.best, 0, 999))
+  const cause = sanitizeLabel(req.cause, 48) || 'wiped out'
+
+  const text =
+    `**u/${user.username}** ${cause.toLowerCase()} on jump ${level} of the Hydrant Challenge` +
+    (best > level ? ` (best this run: ${best}).` : '.')
+
+  return {text}
+}
+
+/** Posts the player's (possibly edited) hydrant FAIL comment as the
+ *  USER, in reply to the pinned anchor -- only ever sent by an explicit
+ *  Retry press on a gate-eligible crash. No bonus, same policy as
+ *  routePostFailComment/routePostSlalomFailComment: posting is the
+ *  price of Retry here, not a paid extra. */
+async function routePostHydrantFailComment(
+  reqMsg: IncomingMessage,
+): Promise<PostHydrantFailCommentRsp> {
+  const req = await readJson<PostHydrantFailCommentReq>(reqMsg)
+  const user = await getCurrentUserRetrying()
+  if (!user?.username) return {posted: false}
+  const raw = typeof req.text === 'string' ? req.text : ''
+  const text = Array.from(raw)
+    .filter(ch => {
+      const c = ch.codePointAt(0) ?? 0
+      return c === 9 || c === 10 || (c >= 32 && c !== 127)
+    })
+    .join('')
+    .trim()
+    .slice(0, 480)
+  if (!text) return {posted: false}
+  return {posted: await postScoreComment(text)}
 }
 
 /** Subscribes the pressing user to the current subreddit and grants
