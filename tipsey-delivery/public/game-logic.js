@@ -162,6 +162,14 @@ function requestTpProfile(){
          player is already typing into. Empty strings are normal (no
          live gate) and simply leave the local redraft as the
          fallback. */
+      /* the pose behind each live gate, same lifetime as the draft --
+         picked up by the restore paths, never applied from here */
+      if(data.failPoses){
+        tdFx.serverPose = {
+          delivery: data.failPoses.delivery || "",
+          hydrant: data.failPoses.hydrant || ""
+        };
+      }
       if(data.failDrafts){
         tdFx.serverDraft = {
           delivery: data.failDrafts.delivery || "",
@@ -251,14 +259,7 @@ function reportFail(s, cause){
      around these values once restored (traffic, pedestrians, camera)
      -- only the robot's own properties are pinned back to this
      moment, the same way they'd sit untouched if you'd never left. */
-  tdFx.failSnapshot = {
-    state: s.state, tipDir: s.tipDir, tipCause: s.tipCause, damage: s.damage,
-    speed: s.speed, tipStartRoll: s.tipStartRoll, yaw: s.yaw, pitch: s.pitch,
-    drawAngle: s.drawAngle, roll: s.roll, tilt: s.tilt, throttle: s.throttle,
-    botS: s.botS, botX: s.botX, botY: s.botY, botZ: s.botZ,
-    camX: s.camX, camY: s.camY, camZ: s.camZ,
-    botRow: s.botRow, laneOff: s.laneOff, runT: s.runT
-  };
+  tdFx.failSnapshot = tdFxCaptureSnap(s, TDFX_SNAP_KEYS);
   tdFxSyncGate();
   /* progress is measured pickup -> door, not 0 -> door: the robot
      starts AT the shop, so anchoring at 0 would report free distance
@@ -275,7 +276,12 @@ function reportFail(s, cause){
     pct,
     tip: (s.route.order && s.route.order.value) || 0,
     ms: s.runT,
-    damage: s.damage
+    damage: s.damage,
+    /* the pose goes UP with the report now, not just into localStorage:
+       webview storage was observed not surviving a session, so Redis is
+       the only copy that reliably comes back -- see failPoses in
+       shared/api.ts */
+    pose: JSON.stringify(tdFx.failSnapshot)
   };
   tdFxSaveSnap(TDFX_SNAP_KEY, { dateStr: s.route.dateStr, snap: tdFx.failSnapshot, req: tdFx.failReq });
   fetch("api/tipsy/fail", {
@@ -351,7 +357,8 @@ const tdFx = { fails: 0, draft: "", posted: false, busy: false,
                deliveryUnposted: false, hydrantUnposted: false,
                /* server-composed composer text per mode, filled by
                   requestTpProfile -- see tdFxRehydrateGate */
-               serverDraft: {delivery: "", hydrant: ""} };
+               serverDraft: {delivery: "", hydrant: ""},
+               serverPose: {delivery: "", hydrant: ""} };
 const TDFX_LATER_KEY = "tdFollowLater", TDFX_DONE_KEY = "tdFollowDone";
 /* SNAPSHOT PERSISTENCE (2026-08-13). The server's failPending is a
    BOOLEAN -- it restores WHETHER you're blocked and nothing else. Every
@@ -419,6 +426,37 @@ function tdFxLoadSnaps(){
    daily's own fail card (reported on-device: "its giving me the
    headline from failing the hydrant jump in the daily"). These two are
    the delivery side's missing half. */
+/* ONE list per snapshot shape, used for BOTH capture and restore, so
+   the two can never drift -- and so a pose arriving from the server
+   can only ever set keys this list names. Anything else in the blob is
+   ignored by construction rather than by a check someone has to
+   remember to write. The hydrant list is the delivery one plus the
+   jump-progress fields that have no delivery equivalent. */
+const TDFX_SNAP_KEYS = ["state","tipDir","tipCause","damage","speed","tipStartRoll",
+  "yaw","pitch","drawAngle","roll","tilt","throttle","botS","botX","botY","botZ",
+  "camX","camY","camZ","botRow","laneOff","runT"];
+const TDFX_HSNAP_KEYS = TDFX_SNAP_KEYS.concat(["hjLevel","hjResult","hjBest",
+  "hjPassed","hjLocked","hjCharge","hjChargeSm","hjAir"]);
+function tdFxCaptureSnap(s, keys){
+  const o = {};
+  for(const k of keys) o[k] = s[k];
+  return o;
+}
+/* Returns whether anything was actually applied, so a caller can fall
+   through to the server copy when the local one is missing. */
+function tdFxApplySnap(s, snap, keys){
+  if(!snap || typeof snap !== "object") return false;
+  let hit = false;
+  for(const k of keys) if(k in snap){ s[k] = snap[k]; hit = true; }
+  return hit;
+}
+/* The server's copy of the pose, parsed defensively -- a malformed blob
+   is simply no pose, same as none at all. */
+function tdFxServerPose(mode){
+  const raw = tdFx.serverPose && tdFx.serverPose[mode];
+  if(!raw) return null;
+  try { return JSON.parse(raw); } catch(e){ return null; }
+}
 function tdFxRememberFailLine(m, s){
   tdFx.failLine = {m: m, s: s};
   /* folded into the stored snapshot rather than saved under its own key:
@@ -589,7 +627,11 @@ function tsfFxBlocked(){
 function tpRestoreFailScene(s){
   s.mode = "delivery";
   s.loadRoute(clientTodayUTC());
-  if(tdFx.failSnapshot) Object.assign(s, tdFx.failSnapshot);
+  /* local snapshot first (same session, no round trip), then the
+     server's -- the only copy that survives a restart in a webview
+     whose localStorage doesn't persist */
+  if(!tdFxApplySnap(s, tdFx.failSnapshot, TDFX_SNAP_KEYS))
+    tdFxApplySnap(s, tdFxServerPose("delivery"), TDFX_SNAP_KEYS);
   tdFxPaintDeliveryFailCard();     // headline/subtitle/button, see its own comment
   tdFxRehydrateGate("delivery");   // composer mode + draft, see its own comment
 }
@@ -748,24 +790,14 @@ function reportHydrantFail(s){
      that have no delivery equivalent. Restored by tpRestoreHydrantCrash
      on a blocked hjStart() re-entry (Sir's call, 2026-08: "not only
      for the daily but also for the hydrant jump"). */
-  tdFx.hydrantSnapshot = {
-    state: s.state, tipDir: s.tipDir, tipCause: s.tipCause, damage: s.damage,
-    speed: s.speed, tipStartRoll: s.tipStartRoll, yaw: s.yaw, pitch: s.pitch,
-    drawAngle: s.drawAngle, roll: s.roll, tilt: s.tilt, throttle: s.throttle,
-    botS: s.botS, botX: s.botX, botY: s.botY, botZ: s.botZ,
-    camX: s.camX, camY: s.camY, camZ: s.camZ,
-    botRow: s.botRow, laneOff: s.laneOff, runT: s.runT,
-    hjLevel: s.hjLevel, hjResult: s.hjResult, hjBest: s.hjBest,
-    hjPassed: s.hjPassed, hjLocked: s.hjLocked, hjCharge: s.hjCharge,
-    hjChargeSm: s.hjChargeSm, hjAir: s.hjAir
-  };
+  tdFx.hydrantSnapshot = tdFxCaptureSnap(s, TDFX_HSNAP_KEYS);
   tdFxSyncGate();
   const level = s.hjLevel, best = s.hjBest || 0;
   const cause = s.hjResult || "MISSED IT";
   /* stored so a cold boot can replay it and get the same draft back --
      no dateStr here, matching dbGetFailPending: the hydrant course
      doesn't rotate, so its block has no next-day release */
-  tdFx.hydrantReq = { level, best, cause };
+  tdFx.hydrantReq = { level, best, cause, pose: JSON.stringify(tdFx.hydrantSnapshot) };
   tdFxSaveSnap(TDFX_HSNAP_KEY, { snap: tdFx.hydrantSnapshot, req: tdFx.hydrantReq });
   fetch("api/tipsy/hydrant/fail", {
     method: "POST",
@@ -1030,7 +1062,8 @@ function tdFxDbgSync(){
      throwing localStorage; these report a silently EMPTY one, which
      looks identical from the outside and is the state that leaves a
      restored card posed as a fresh load. */
-  const snap = (tdFx.failSnapshot ? "d" : "-") + (tdFx.hydrantSnapshot ? "h" : "-");
+  const snap = (tdFx.failSnapshot ? "d" : "-") + (tdFx.hydrantSnapshot ? "h" : "-") +
+    "/" + (tdFxServerPose("delivery") ? "d" : "-") + (tdFxServerPose("hydrant") ? "h" : "-");
   el.textContent = "draft: " + tdFx.draftWhy +
     " | fails: " + tdFx.fails +
     " | snap: " + snap +
@@ -20035,7 +20068,8 @@ function tpRestoreHydrantCrash(s){
   s.loadChallenge();
   document.getElementById("hjUI").classList.remove("hidden");
   hjChrome(true);
-  if(tdFx.hydrantSnapshot) Object.assign(s, tdFx.hydrantSnapshot);
+  if(!tdFxApplySnap(s, tdFx.hydrantSnapshot, TDFX_HSNAP_KEYS))
+    tdFxApplySnap(s, tdFxServerPose("hydrant"), TDFX_HSNAP_KEYS);
   hjUpdateMeter(s);
   hjPaintCrash(s);
   show("failOverlay");
