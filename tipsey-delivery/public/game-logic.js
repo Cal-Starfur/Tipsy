@@ -21900,6 +21900,18 @@ document.getElementById("avatarIcon").addEventListener("click", tpOpenProfile);
        slalom session carries -- real Hydrant Challenge never sets it,
        so this stays exactly as before for that mission. */
     if(s && s.mode === "challenge" && !s._slAPI) hjQuit();
+    /* Cone Slalom itself was still never handled here (2026-08-13,
+       matches bindGlobalSearch's own copy of this same check): the
+       comment above only explains why hjQuit() must NOT fire for
+       slalom, it never added the thing that SHOULD -- so a live or
+       just-finished slalom run fell straight through to
+       tpOpenProfile() with none of tpSlalomQuit's teardown. That skips
+       _slRestore (the one thing that un-overrides window.showWin/
+       showFail, scene.hop/mode/speedCap, and clears _slAPI itself),
+       the countdown interval/DOM nodes, and hjChrome(false) -- leaving
+       the game in a half-torn-down state closing the profile panel
+       couldn't recover from. */
+    if(s && s._slAPI) tpSlalomQuit();
     tpOpenProfile();
   };
   /* Three bindings, guarded. During play Phaser's input manager is live
