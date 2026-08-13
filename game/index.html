@@ -1198,6 +1198,15 @@ function tdFxPaintDeliveryFailCard(){
   document.getElementById("retryBtn").textContent = "Retry";   // hjPaintCrash leaves caps RETRY
   const mb = document.getElementById("failMenuBtn");
   if(mb) mb.classList.remove("hidden");
+  /* The magnifier + robot row, which showFail() builds and this path
+     never did. In a live session it goes unnoticed -- showFail already
+     ran earlier, and tdStackIcons early-returns once the row exists --
+     but on a cold boot restored straight from the server flag, showFail
+     never runs at all, so the row was never built and the fail card had
+     no way off it (reported on-device: no mag glass, no orange robot).
+     tpRestoreHydrantCrash has always called this explicitly for exactly
+     the same reason; this is the delivery side catching up. */
+  tdStackIcons();
 }
 function tdFxRehydrateGate(mode){
   if(!IS_DEVVIT_BUILD) return;
