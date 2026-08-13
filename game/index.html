@@ -23275,6 +23275,34 @@ document.getElementById("failMenuBtn").addEventListener("click", () => {
   show("titleOverlay");
   tpOpenMissions();
 });
+/* BOOT-TIME RETRY-GATE REHYDRATE (2026-08-13). requestTpProfile() is
+   the ONLY thing that reads failPending back into tdFx/tsfFx, and until
+   now its only caller was tpOpenProfile() -- so the "restore the gate to
+   SERVER truth on every boot" its own comment describes never actually
+   happened unless the player happened to open the profile panel. tdFx
+   and tsfFx are plain in-memory state that start every page load at
+   false, so leaving the game and coming back silently cleared an
+   unposted block outright (reported on-device: "if i leave and come
+   back to the game its not keeping me locked out with the reply gate").
+
+   One call restores all three gates -- delivery, hydrant AND slalom --
+   because dbGetFailPending reads all three in one hash and the client
+   block assigns all three together. The server halves were already
+   correct and complete; this was purely a missing caller.
+
+   Fires unguarded here because requestTpProfile() carries its own
+   IS_DEVVIT_BUILD check on line 1, same as requestDailyBest and
+   requestHistory. Safe at this point in the file: everything the
+   function touches beyond the fetch itself (tpProfile, tpApplySkin,
+   tpSaveProfile, tpRender) runs inside the .then, which cannot resolve
+   until after this script has finished executing.
+
+   Known, accepted window (Sir's call, 2026-08-13): the fetch is async,
+   so for one Redis round trip at boot the player is not blocked yet.
+   Left open rather than putting a network wait in front of GO -- the
+   boot loader is still up for most of it, and the flags are OR'd, so a
+   fail that happens locally inside the window still wins. */
+requestTpProfile();
 document.addEventListener("keydown", e => {
   if(IS_DEVVIT_BUILD) return;
   if(e.key.toLowerCase() !== "h") return;
