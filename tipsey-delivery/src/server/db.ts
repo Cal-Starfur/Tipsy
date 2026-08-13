@@ -205,10 +205,21 @@ export async function dbSetFailPending(
   username: string,
   source: 'delivery' | 'slalom' | 'hydrant',
   dateStr?: string,
+  text?: string,
 ): Promise<void> {
   const key = failPendingKey(username)
   await redis.hSet(key, {
     [source]: source === 'delivery' ? (dateStr ?? todayUTC()) : '1',
+    /* The DRAFT rides in the same hash as the flag it belongs to, in a
+       sibling `${source}Text` field (2026-08-13). The flag alone only
+       ever restored WHETHER a player was blocked; the composer text
+       lived in client memory and died with the page, so a fresh boot
+       had a locked gate and no comment to post -- which fell through to
+       the plain ungated Retry and let the block be walked around by a
+       cleared cache, another device, or a blocked localStorage. Stored
+       and cleared in exactly the same breath as the flag, so the two
+       can never disagree about whether a gate is live. */
+    ...(text ? {[`${source}Text`]: text.slice(0, 480)} : {}),
   })
 }
 
@@ -221,7 +232,8 @@ export async function dbClearFailPending(
   username: string,
   source: 'delivery' | 'slalom' | 'hydrant',
 ): Promise<void> {
-  await redis.hDel(failPendingKey(username), [source])
+  // the draft dies with its flag -- see dbSetFailPending
+  await redis.hDel(failPendingKey(username), [source, `${source}Text`])
 }
 
 /** Reads all three flags at once for dbGetTpProfile's own boot-time
@@ -230,14 +242,28 @@ export async function dbClearFailPending(
  *  after a restart). delivery's own field only counts as "pending" if
  *  its stored date matches TODAY -- see failPendingKey's own comment
  *  for why a stale date silently stops blocking on its own. */
-export async function dbGetFailPending(
-  username: string,
-): Promise<{delivery: boolean; slalom: boolean; hydrant: boolean}> {
+export async function dbGetFailPending(username: string): Promise<{
+  pending: {delivery: boolean; slalom: boolean; hydrant: boolean}
+  drafts: {delivery: string; slalom: string; hydrant: string}
+}> {
   const raw = await redis.hGetAll(failPendingKey(username))
-  return {
+  const pending = {
     delivery: !!raw.delivery && raw.delivery === todayUTC(),
     slalom: raw.slalom === '1',
     hydrant: raw.hydrant === '1',
+  }
+  /* A draft is only handed back alongside a LIVE flag. Gating it on
+     `pending` rather than on the stored text means a delivery draft
+     whose day has rolled over is withheld by exactly the same date
+     comparison that stops its flag blocking -- one rule, applied once,
+     so text and flag can't disagree about whether yesterday counts. */
+  return {
+    pending,
+    drafts: {
+      delivery: pending.delivery ? (raw.deliveryText ?? '') : '',
+      slalom: pending.slalom ? (raw.slalomText ?? '') : '',
+      hydrant: pending.hydrant ? (raw.hydrantText ?? '') : '',
+    },
   }
 }
 
@@ -395,7 +421,7 @@ export async function dbGetHistory(username: string): Promise<{
  *  truth the instant the page loads, before anything could slip through
  *  a fresh app restart's blank tdFx/tsfFx state. */
 export async function dbGetTpProfile(username: string): Promise<TpProfileRsp> {
-  const [profile, ownedRaw, missions, failPending] = await Promise.all([
+  const [profile, ownedRaw, missions, gate] = await Promise.all([
     redis.hGetAll(tpProfileKey(username)),
     redis.hGetAll(tpOwnedKey(username)),
     dbGetMissions(username),
@@ -413,7 +439,11 @@ export async function dbGetTpProfile(username: string): Promise<TpProfileRsp> {
     equipped,
     missions,
     followBonusClaimed: profile.followBonus === '1',
-    failPending,
+    failPending: gate.pending,
+    /* the composer text for whichever gates are live, so a fresh boot
+       can paint the real gate instead of falling back to a plain,
+       ungated Retry -- see dbSetFailPending */
+    failDrafts: gate.drafts,
   }
 }
 
