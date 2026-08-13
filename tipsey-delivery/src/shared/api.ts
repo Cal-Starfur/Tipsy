@@ -96,6 +96,13 @@ export type TpProfileRsp = {
    *  Retry. Empty string wherever the matching failPending flag is
    *  false -- see db.ts dbGetFailPending. */
   failDrafts: {delivery: string; slalom: string; hydrant: string}
+  /** The crash POSE behind each live gate, same contract and same
+   *  lifetime as failDrafts above. Client storage was observed not
+   *  surviving a session in the Devvit webview (debug readout: writes
+   *  accepted, `snap: --` on the next boot, localStorage not throwing),
+   *  which left a restored fail card posed as a clean load. Empty
+   *  string wherever the matching failPending flag is false. */
+  failPoses: {delivery: string; slalom: string; hydrant: string}
 }
 /** skinId must be a 'purchase'-type skin in the server's own TS_SKINS
  *  catalog (tpcatalog.ts) -- price is never taken from the client. */
@@ -135,6 +142,14 @@ export type SubmitFailReq = {
   tip: number
   ms: number
   damage: number
+  /** Opaque JSON blob of the robot's crash pose, captured client-side
+   *  and stored verbatim so a restore can put the player back at their
+   *  own failure. The server never reads into it -- it's the client's
+   *  own scene state coming back to the client -- and the client applies
+   *  it through a fixed key whitelist, so an unexpected shape can only
+   *  be ignored, never assigned. Optional: an older client simply
+   *  doesn't send one. */
+  pose?: string
 }
 /** text is the composed draft; NOTHING is posted by this endpoint any
  *  more (Devvit user-actions rules: no automated actions). An empty
@@ -252,6 +267,14 @@ export type SubmitHydrantFailReq = {
   level: number
   best: number
   cause: string
+  /** Opaque JSON blob of the robot's crash pose, captured client-side
+   *  and stored verbatim so a restore can put the player back at their
+   *  own failure. The server never reads into it -- it's the client's
+   *  own scene state coming back to the client -- and the client applies
+   *  it through a fixed key whitelist, so an unexpected shape can only
+   *  be ignored, never assigned. Optional: an older client simply
+   *  doesn't send one. */
+  pose?: string
 }
 export type SubmitHydrantFailRsp = {text: string}
 /** The player's (possibly edited) hydrant FAIL comment, posted as the
