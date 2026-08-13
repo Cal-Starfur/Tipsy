@@ -330,6 +330,21 @@ function tdFxShowPlainRetry(){
   if(r) r.style.display = "";
   tdFxPositionIconsAbove("tdStackIcons_failOverlay", null);
 }
+/* GO and Today's Delivery (tpBackToDailyRoute, also the map's own
+   delivery pin) both reload today's route directly -- neither one
+   used to check the gate at all, which meant #retryBtn being gated
+   didn't actually stop anything: leave via the explore icons (always
+   free, by design) and come back through GO or Today's Delivery
+   instead, and the SAME route reloaded with no post required (Sir's
+   call, 2026-08: "its still letting me play with out posting to the
+   log" -- a real gap, not a misunderstanding). This is the single
+   check both of those call sites run before doing anything else; it
+   only fires while tdFx.mode is still "delivery" -- a hydrant fail
+   afterward overwrites tdFx for its OWN gate and would silently drop
+   this block, a known gap, not yet closed. */
+function tdFxDeliveryBlocked(){
+  return IS_DEVVIT_BUILD && tdFx.mode === "delivery" && tdFx.gateEligible && !tdFx.posted;
+}
 /* Called from showFail() (via tdFxOnFailScreen) AND from reportFail's
    response callback -- the fail overlay opens on a 900-1500ms
    setTimeout while the draft fetch races it, so whichever lands
@@ -20055,6 +20070,15 @@ function tpDailyDeliveryPin(){
    code rather than duplicating it, same reasoning hjQuit already
    follows for its own "hand the daily route back" step. */
 function tpBackToDailyRoute(){
+  /* Same gate startBtn's own listener checks -- this is the OTHER path
+     back into today's route (also used by the map's delivery pin), and
+     it reloaded the route unconditionally before this, gate or no gate. */
+  if(tdFxDeliveryBlocked()){
+    hide("titleOverlay");
+    show("failOverlay");
+    tdFxSyncGate();
+    return;
+  }
   /* NO SPINNER (2026-08-11, Sir's call): matches every other selection
      path now -- slalomMapSelect, hjStart, hjQuit, tpSlalomQuit, retry,
      today/reroll, prGoToRoute all call loadRoute/loadChallenge directly
@@ -22049,8 +22073,18 @@ window.addEventListener("pageshow", tpResumeResync);
 window.addEventListener("focus", tpResumeResync);
 window.addEventListener("orientationchange", tpResumeResync);
 document.getElementById("startBtn").addEventListener("click", () => {
-  hide("titleOverlay");
   const s = scn();
+  /* Same loophole tpBackToDailyRoute closes below -- GO reloads today's
+     route directly too, with no gate check of its own. Challenge/slalom
+     starts are a different activity entirely and never blocked by an
+     unposted DELIVERY fail. */
+  if(tdFxDeliveryBlocked() && s.mode !== "challenge" && s.mode !== "slalom-pending"){
+    hide("titleOverlay");
+    show("failOverlay");
+    tdFxSyncGate();
+    return;
+  }
+  hide("titleOverlay");
   if(s.mode === "challenge"){ hjBegin(); return; }
   if(s.mode === "slalom-pending"){ tpSlalomStart(); return; }
   /* Leave attract BEFORE anything else -- attractStop clears the pending
