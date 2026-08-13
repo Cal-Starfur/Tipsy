@@ -90,6 +90,12 @@ export type TpProfileRsp = {
    *  requestTpProfile() -- i.e. on every fresh boot -- since plain
    *  in-memory state doesn't survive an app restart on its own. */
   failPending: {delivery: boolean; slalom: boolean; hydrant: boolean}
+  /** The server-composed draft behind each LIVE gate above, so a client
+   *  that has just booted (or cleared its storage, or moved device) can
+   *  paint the real composer instead of falling back to a plain ungated
+   *  Retry. Empty string wherever the matching failPending flag is
+   *  false -- see db.ts dbGetFailPending. */
+  failDrafts: {delivery: string; slalom: string; hydrant: string}
 }
 /** skinId must be a 'purchase'-type skin in the server's own TS_SKINS
  *  catalog (tpcatalog.ts) -- price is never taken from the client. */
