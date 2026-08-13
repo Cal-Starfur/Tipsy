@@ -388,7 +388,10 @@ function tdFxClearSnap(key){
 function tdFxLoadSnaps(){
   if(!IS_DEVVIT_BUILD) return;
   const d = tdFxLoadSnap(TDFX_SNAP_KEY);
-  if(d && d.dateStr === clientTodayUTC()){ tdFx.failSnapshot = d.snap; tdFx.failReq = d.req; }
+  if(d && d.dateStr === clientTodayUTC()){
+    tdFx.failSnapshot = d.snap; tdFx.failReq = d.req;
+    if(d.line) tdFx.failLine = d.line;   // the headline that crash wore
+  }
   else if(d) tdFxClearSnap(TDFX_SNAP_KEY);   // stale day: the route rotated, the block is gone
   const h = tdFxLoadSnap(TDFX_HSNAP_KEY);
   if(h){ tdFx.hydrantSnapshot = h.snap; tdFx.hydrantReq = h.req; }
@@ -406,6 +409,39 @@ function tdFxLoadSnaps(){
 
    draftMode is what stops a draft belonging to the OTHER mission from
    being reused here -- tdFx.draft alone can be non-empty and wrong. */
+/* #failMsg/#failSub are ONE pair of elements shared by every fail card
+   in the game, and each painter overwrites whatever the last one left.
+   hjPaintCrash writes the hydrant crash line (and blanks the subtitle,
+   and sets the button to caps RETRY); tpRestoreHydrantCrash calls it, so
+   the hydrant side always repaints itself. tpRestoreFailScene had no
+   equivalent -- it restored the scene and the composer and left the
+   headline alone -- so a hydrant crash title rode straight into the
+   daily's own fail card (reported on-device: "its giving me the
+   headline from failing the hydrant jump in the daily"). These two are
+   the delivery side's missing half. */
+function tdFxRememberFailLine(m, s){
+  tdFx.failLine = {m: m, s: s};
+  /* folded into the stored snapshot rather than saved under its own key:
+     the line belongs to that crash and must expire with it. showFail
+     runs on a timer AFTER reportFail already wrote the snapshot, so this
+     reads it back and re-saves rather than racing it. */
+  const stored = tdFxLoadSnap(TDFX_SNAP_KEY);
+  if(stored){ stored.line = tdFx.failLine; tdFxSaveSnap(TDFX_SNAP_KEY, stored); }
+}
+function tdFxPaintDeliveryFailCard(){
+  /* No remembered line means a crash reported by an older build, or one
+     restored from the server flag alone. Pick one and REMEMBER it, so
+     it's stable from here on instead of re-rolling on every restore. */
+  if(!tdFx.failLine){
+    const [m, s] = FAIL_LINES[Math.floor(Math.random()*FAIL_LINES.length)];
+    tdFxRememberFailLine(m, s);
+  }
+  document.getElementById("failMsg").textContent = tdFx.failLine.m;
+  document.getElementById("failSub").textContent = tdFx.failLine.s;
+  document.getElementById("retryBtn").textContent = "Retry";   // hjPaintCrash leaves caps RETRY
+  const mb = document.getElementById("failMenuBtn");
+  if(mb) mb.classList.remove("hidden");
+}
 function tdFxRehydrateGate(mode){
   if(!IS_DEVVIT_BUILD) return;
   tdFx.mode = mode;
@@ -545,6 +581,7 @@ function tpRestoreFailScene(s){
   s.mode = "delivery";
   s.loadRoute(clientTodayUTC());
   if(tdFx.failSnapshot) Object.assign(s, tdFx.failSnapshot);
+  tdFxPaintDeliveryFailCard();     // headline/subtitle/button, see its own comment
   tdFxRehydrateGate("delivery");   // composer mode + draft, see its own comment
 }
 /* Called from showFail() (via tdFxOnFailScreen) AND from reportFail's
@@ -21239,6 +21276,12 @@ function showFail(pool){
   const [m, s] = P[Math.floor(Math.random()*P.length)];
   document.getElementById("failMsg").textContent = m;
   document.getElementById("failSub").textContent = s;
+  /* The line is picked at RANDOM here, so it has to be remembered or a
+     restore has nothing to repaint from -- and re-rolling on every
+     return would mean the same crash wore a different headline each
+     time you came back to it, which is the opposite of "it should be
+     the fail not a clean reload". */
+  tdFxRememberFailLine(m, s);
   show("failOverlay");
   tdStackIcons();       // every build: glass + robot in the EXPLORE slot
   tdFxOnFailScreen();   // Devvit only: COMMENT button + 3rd-fail follow prompt
