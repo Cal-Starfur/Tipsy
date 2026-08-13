@@ -19592,6 +19592,16 @@ function tpSlalomQuit(){
   document.body.classList.remove("slFailUp");   // belt-and-braces: any exit path clears it
   if(s && s._slRestore) s._slRestore();
   hjChrome(false);
+  /* Same gate hjQuit already carries on its own exit (UNIFIED RETRY
+     GATE, see tdFxDeliveryBlocked): an unposted delivery fail from
+     BEFORE this slalom run started must still be there when the
+     player quits back out -- refusing only the free reload, same as
+     tpBackToDailyRoute/GO/hjQuit, not the ability to leave. */
+  if(tdFxDeliveryBlocked()){
+    show("failOverlay");
+    tdFxSyncGate();
+    return;
+  }
   if(s) s.loadRoute(clientTodayUTC());       // hand the daily back, clean
   show("titleOverlay");
 }
@@ -21836,6 +21846,19 @@ function tpCloseMissions(){
   document.getElementById("tpMissionsPanel").classList.remove("open");
   tpResumeWorld();
   tpSyncGlobalBtns();
+  /* UNIFIED RETRY GATE: bindGlobalSearch hides #failOverlay and shows
+     the map to open this panel over a failed daily run -- closing the
+     panel without picking anything must land back on that same fail/
+     retry gate, not the plain map underneath, same check every other
+     exit off the daily route already runs (GO, Today's Delivery,
+     hjQuit, tpSlalomQuit). Self-corrects when a mission pick
+     (slalomMapSelect/tpSlalomStart/hjStart) calls this on the way IN
+     and hides the overlay again a line later -- no flicker. */
+  if(tdFxDeliveryBlocked()){
+    hide("titleOverlay");
+    show("failOverlay");
+    tdFxSyncGate();
+  }
 }
 
 function tpInitStaticIcons(){
