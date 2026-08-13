@@ -550,7 +550,7 @@ async function routeSubmitFail(
      todayUTC() on every read -- a stale unposted flag from a past day
      stops blocking on its own once a new day's route exists; nothing
      here has to notice or clear it. */
-  await dbSetFailPending(user.username, 'delivery', todayUTC())
+  await dbSetFailPending(user.username, 'delivery', todayUTC(), text)
 
   return {text}
 }
@@ -753,7 +753,7 @@ async function routeSubmitSlalomFail(
      rationale. No dateStr here: the slalom course doesn't rotate by
      day (SL_SEED_DATE is frozen), so unlike delivery this just stays
      pending until posted, with no day-rollover to age it out. */
-  await dbSetFailPending(user.username, 'slalom')
+  await dbSetFailPending(user.username, 'slalom', undefined, text)
 
   return {text}
 }
@@ -814,7 +814,7 @@ async function routeSubmitHydrantFail(
   /* PERSISTENT gate -- see routeSubmitFail's own comment for the full
      rationale. No dateStr, same reasoning as routeSubmitSlalomFail:
      HJ_SEED_DATE is frozen too, so this stays pending until posted. */
-  await dbSetFailPending(user.username, 'hydrant')
+  await dbSetFailPending(user.username, 'hydrant', undefined, text)
 
   return {text}
 }
