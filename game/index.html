@@ -959,8 +959,13 @@ function reportFail(s, cause){
      here, even before the draft itself has landed. tdFxSyncGate below
      shows a "loading your comment…" state in the gate slot the instant
      this flips true, so #retryBtn never has a free window to tap
-     during the draft round trip. */
+     during the draft round trip. deliveryUnposted is the PERSISTENT
+     half of this (see UNIFIED RETRY GATE below) -- set the instant a
+     real fail is confirmed, independent of whichever screen is
+     showing right now, and cleared only by a successful post or by
+     the two fallbacks just below (draft never arrived). */
   tdFx.gateEligible = true;
+  tdFx.deliveryUnposted = true;
   tdFxSyncGate();
   /* progress is measured pickup -> door, not 0 -> door: the robot
      starts AT the shop, so anchoring at 0 would report free distance
@@ -988,11 +993,11 @@ function reportFail(s, cause){
     .then(d => {
       tdFx.draft = (d && d.text) || "";
       if(tdFx.draft) tdFx.draftWhy = "ok (" + tdFx.draft.length + " chars)";
-      else if(d) tdFx.draftWhy = "empty text (server: no post id or not signed in)";
+      else if(d){ tdFx.draftWhy = "empty text (server: no post id or not signed in)"; tdFx.deliveryUnposted = false; }
       tdFxSyncGate();
       tdFxDbgSync();
     })
-    .catch(() => { tdFx.draftWhy = "network error"; tdFxSyncGate(); tdFxDbgSync(); });
+    .catch(() => { tdFx.draftWhy = "network error"; tdFx.deliveryUnposted = false; tdFxSyncGate(); tdFxDbgSync(); });
 }
 
 /* ============================================================
@@ -1036,7 +1041,16 @@ function reportFail(s, cause){
    No emoji anywhere in this UI by design. */
 const tdFx = { fails: 0, draft: "", posted: false, busy: false,
                followShown: false, followClaimed: false, gateEligible: false,
-               mode: "delivery", draftWhy: "no fail yet", debug: false };
+               mode: "delivery", draftWhy: "no fail yet", debug: false,
+               /* PERSISTENT, independent of the ephemeral composer state
+                  above (draft/mode/gateEligible, which delivery and
+                  hydrant share and overwrite on every new fail) -- these
+                  two survive across a mode switch, so failing delivery
+                  then hydrant keeps BOTH blocked until each is posted
+                  about on its own. See tdFxDeliveryBlocked/
+                  tdFxHydrantBlocked and the UNIFIED RETRY GATE comment
+                  below for the full rationale (Sir's call, 2026-08). */
+               deliveryUnposted: false, hydrantUnposted: false };
 const TDFX_LATER_KEY = "tdFollowLater", TDFX_DONE_KEY = "tdFollowDone";
 const TDFX_CARD = "background:rgba(18,20,26,0.94);border:1px solid #3a3f4a;" +
   "border-radius:14px;padding:22px 26px;width:min(340px,86vw);box-sizing:border-box;text-align:center;" +
@@ -1087,20 +1101,34 @@ function tdFxShowPlainRetry(){
   if(r) r.style.display = "";
   tdFxPositionIconsAbove("tdStackIcons_failOverlay", null);
 }
-/* GO and Today's Delivery (tpBackToDailyRoute, also the map's own
-   delivery pin) both reload today's route directly -- neither one
-   used to check the gate at all, which meant #retryBtn being gated
-   didn't actually stop anything: leave via the explore icons (always
-   free, by design) and come back through GO or Today's Delivery
-   instead, and the SAME route reloaded with no post required (Sir's
-   call, 2026-08: "its still letting me play with out posting to the
-   log" -- a real gap, not a misunderstanding). This is the single
-   check both of those call sites run before doing anything else; it
-   only fires while tdFx.mode is still "delivery" -- a hydrant fail
-   afterward overwrites tdFx for its OWN gate and would silently drop
-   this block, a known gap, not yet closed. */
+/* ============================================================
+   UNIFIED RETRY GATE (Sir's call, 2026-08): "all of the side missions
+   and the daily route need to get on the same page." One consistent
+   rule now covers all three missions -- daily route, Cone Slalom,
+   Hydrant Challenge -- instead of three separately-patched systems
+   that kept drifting: each mission's own Retry button was gated, but
+   Retry was never the only door back in, and closing doors one at a
+   time kept missing the next one --
+     - GO, Today's Delivery (tpBackToDailyRoute), AND hjQuit all reload
+       today's route directly, independent of #retryBtn
+     - hjStart and slalomMapSelect/tpSlalomStart are independent
+       entries into their own missions the same way (tpSlalomStart in
+       particular has its OWN separate entry from the mission list's
+       "Play mission" button, bypassing slalomMapSelect entirely)
+   tdFxDeliveryBlocked/tdFxHydrantBlocked/tsfFxBlocked are the single
+   check every one of those call sites runs before doing anything else
+   -- see each fail-report function (reportFail, reportHydrantFail,
+   reportSlalomFail) for where the underlying flags get set, and
+   tdFxPostAndRetry/tsfFxPostAndRetry for where a successful post
+   clears them. */
 function tdFxDeliveryBlocked(){
-  return IS_DEVVIT_BUILD && tdFx.mode === "delivery" && tdFx.gateEligible && !tdFx.posted;
+  return IS_DEVVIT_BUILD && tdFx.deliveryUnposted;
+}
+function tdFxHydrantBlocked(){
+  return IS_DEVVIT_BUILD && tdFx.hydrantUnposted;
+}
+function tsfFxBlocked(){
+  return IS_DEVVIT_BUILD && tsfFx.unposted;
 }
 /* Called from showFail() (via tdFxOnFailScreen) AND from reportFail's
    response callback -- the fail overlay opens on a 900-1500ms
@@ -1190,7 +1218,8 @@ function tdFxPostAndRetry(ta, btn){
       if(!d || !d.posted){ fail(); return; }
       tdFx.busy = false;
       tdFx.posted = true;   // one comment per fail
-      if(tdFx.mode === "hydrant") tdFxFireHydrantRetry(); else tdFxFireRetry();
+      if(tdFx.mode === "hydrant"){ tdFx.hydrantUnposted = false; tdFxFireHydrantRetry(); }
+      else { tdFx.deliveryUnposted = false; tdFxFireRetry(); }
     })
     .catch(fail);
 }
@@ -1243,6 +1272,7 @@ function reportHydrantFail(s){
   if(!IS_DEVVIT_BUILD){ tdFxShowPlainRetry(); return; }
   tdFx.draftWhy = "pending";
   tdFx.gateEligible = true;
+  tdFx.hydrantUnposted = true;   // persistent half -- see UNIFIED RETRY GATE
   tdFxSyncGate();
   const level = s.hjLevel, best = s.hjBest || 0;
   const cause = s.hjResult || "MISSED IT";
@@ -1258,11 +1288,11 @@ function reportHydrantFail(s){
     .then(d => {
       tdFx.draft = (d && d.text) || "";
       if(tdFx.draft) tdFx.draftWhy = "ok (" + tdFx.draft.length + " chars)";
-      else if(d) tdFx.draftWhy = "empty text (server: no post id or not signed in)";
+      else if(d){ tdFx.draftWhy = "empty text (server: no post id or not signed in)"; tdFx.hydrantUnposted = false; }
       tdFxSyncGate();
       tdFxDbgSync();
     })
-    .catch(() => { tdFx.draftWhy = "network error"; tdFxSyncGate(); tdFxDbgSync(); });
+    .catch(() => { tdFx.draftWhy = "network error"; tdFx.hydrantUnposted = false; tdFxSyncGate(); tdFxDbgSync(); });
 }
 /* The GATE, split from the PRESENTER: the daily route's fail overlay and
    the slalom's result card both ask the same question -- "is this the
@@ -2053,7 +2083,11 @@ function reportSlalomWin(card, total, par, clean){
    successful post, so there's exactly one place that owns what a
    slalom retry actually resets. */
 const tsfFx = { draft: "", posted: false, busy: false, fireRetry: null,
-                 draftWhy: "no slalom fail yet" };
+                 draftWhy: "no slalom fail yet",
+                 /* PERSISTENT (Sir's call, 2026-08) -- see tdFx's own
+                    matching fields and the UNIFIED RETRY GATE comment
+                    near tdFxDeliveryBlocked for the full rationale. */
+                 unposted: false };
 
 function tsfFxGatePanel(card){
   let el = document.getElementById("tsfFxGate");
@@ -2153,6 +2187,7 @@ function tsfFxPostAndRetry(ta, btn){
       if(!d || !d.posted){ fail(); return; }
       tsfFx.busy = false;
       tsfFx.posted = true;   // one comment per slalom fail screen
+      tsfFx.unposted = false;
       if(typeof tsfFx.fireRetry === "function") tsfFx.fireRetry();
     })
     .catch(fail);
@@ -2183,6 +2218,7 @@ function reportSlalomFail(card, total, faultCount, cause){
   tsfFx.posted = false;
   tsfFx.draftWhy = "pending";
   if(!IS_DEVVIT_BUILD) return;
+  tsfFx.unposted = true;   // persistent half -- see UNIFIED RETRY GATE near tdFxDeliveryBlocked
   fetch("api/tipsy/slalom/fail", {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
@@ -2195,10 +2231,10 @@ function reportSlalomFail(card, total, faultCount, cause){
     .then(d => {
       tsfFx.draft = (d && d.text) || "";
       if(tsfFx.draft) tsfFx.draftWhy = "ok (" + tsfFx.draft.length + " chars)";
-      else if(d) tsfFx.draftWhy = "empty text (server: no post id or not signed in)";
+      else if(d){ tsfFx.draftWhy = "empty text (server: no post id or not signed in)"; tsfFx.unposted = false; }
       tsfFxSyncGate(card);
     })
-    .catch(() => { tsfFx.draftWhy = "network error"; tsfFxSyncGate(card); });
+    .catch(() => { tsfFx.draftWhy = "network error"; tsfFx.unposted = false; tsfFxSyncGate(card); });
 }
 /* ============================================================
    TIP — Route Lab
@@ -20172,6 +20208,9 @@ let tpSlTick = 0;
    since the merge that's the SAME physical city s.route is already
    showing, so there's nothing to swap out from under the map. */
 function slalomMapSelect(){
+  /* Same reasoning as hjStart's own guard: refuse before touching
+     anything, toast rather than a screen redirect. */
+  if(tsfFxBlocked()){ tpToast("Post about your last slalom run before trying again."); return; }
   tpCloseDetail(); tpCloseMissions(); tpCloseProfile();
   { const sA = scn(); if(sA && sA.attractStop) sA.attractStop(); }
   hide("failOverlay"); hide("winOverlay");
@@ -20242,6 +20281,11 @@ function slalomMapSelect(){
   tpMapJumpTo({ x: tpSlalomPin().x, y: tpSlalomPin().y, atlas: false });
 }
 function tpSlalomStart(){
+  /* slalomMapSelect's own guard already covers GO-after-select, but this
+     function has its OWN independent entry too -- the mission list's
+     "Play mission" button calls this directly and never goes through
+     slalomMapSelect at all (see that function's own comment). */
+  if(tsfFxBlocked()){ tpToast("Post about your last slalom run before trying again."); return; }
   tpCloseDetail(); tpCloseMissions(); tpCloseProfile();
   { const sA = scn(); if(sA && sA.attractStop) sA.attractStop(); }
   hide("failOverlay"); hide("winOverlay"); hide("titleOverlay");
@@ -20352,6 +20396,12 @@ function hjChrome(on){
    route differ. Dropping the player straight onto the street skipped the
    one screen that tells them where they are going. */
 function hjStart(){
+  /* Refuse before touching anything -- an unposted crash from last time
+     blocks even getting to the challenge map, which also blocks every
+     path to hjBegin() downstream (only reachable via GO after this).
+     Toast rather than a screen redirect: unlike hjQuit/tpBackToDailyRoute,
+     there's no single persistent screen to reliably bounce back to here. */
+  if(tdFxHydrantBlocked()){ tpToast("Post about your last hydrant crash before trying again."); return; }
   /* Close the profile chrome FIRST. tpCloseDetail() only dismisses the
      little detail sheet — the Side Missions panel and the profile panel
      behind it stay open and sit on top of the route map, so the map was
@@ -20403,6 +20453,17 @@ function hjQuit(){
   hjChrome(false);
   const s = scn();
   s.mode = "delivery";
+  /* Still lets them LEAVE the challenge either way (progress banked,
+     hydrant chrome cleared above) -- refusing that part would trap
+     them inside hydrant mode with no exit. What's blocked is only the
+     convenience of this exit ALSO reloading today's route for free;
+     an unposted delivery fail lands them on its own gate instead of
+     the title screen, same as tpBackToDailyRoute/GO. */
+  if(tdFxDeliveryBlocked()){
+    show("failOverlay");
+    tdFxSyncGate();
+    return;
+  }
   /* SHOW THE OVERLAY FIRST. The route-map canvas lives inside
      #titleOverlay, and loadRoute() ends by calling resizeRouteMap(),
      which measures the canvas's client rect. Drawing while the overlay
