@@ -894,6 +894,20 @@ function requestTpProfile(){
       tpProfile.owned = new Set(data.owned);
       tpProfile.equipped = data.equipped;
       tdFx.followClaimed = !!data.followBonusClaimed;
+      /* Restores the retry gate to SERVER truth on every boot (Sir's
+         call, 2026-08: "they should still be locked out ... until the
+         next days route") -- tdFx/tsfFx are plain in-memory state and
+         start every fresh page load at false, so without this an app
+         restart alone would silently clear an unposted block. OR'd
+         rather than assigned outright: this fetch is async and fires
+         once at boot, so it should only ever ADD a block already true
+         from something that happened locally in the brief window
+         before it resolves, never remove one. */
+      if(data.failPending){
+        tdFx.deliveryUnposted = tdFx.deliveryUnposted || !!data.failPending.delivery;
+        tdFx.hydrantUnposted = tdFx.hydrantUnposted || !!data.failPending.hydrant;
+        tsfFx.unposted = tsfFx.unposted || !!data.failPending.slalom;
+      }
       /* mission progress follows the player across devices. MERGED, not
          replaced: a run finished in this browser a moment ago must not
          be dropped by a profile fetch that predates its report. */
