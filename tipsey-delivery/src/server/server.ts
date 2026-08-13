@@ -505,6 +505,18 @@ function clampNum(raw: unknown, lo: number, hi: number): number {
   return Math.min(hi, Math.max(lo, n))
 }
 
+/** The crash pose is stored OPAQUE -- the server has no use for what's
+ *  inside it, so this only checks it's a plausible JSON string of a
+ *  sane size rather than parsing a shape it would then have to keep in
+ *  step with the client's. Anything else becomes undefined, which
+ *  dbSetFailPending simply omits, and the client falls back to a clean
+ *  reload exactly as it did before poses existed. */
+function sanitizePose(pose: unknown): string | undefined {
+  if (typeof pose !== 'string') return undefined
+  const s = pose.trim()
+  if (!s.startsWith('{') || s.length > 4000) return undefined
+  return s
+}
 /** Composes the fail-comment DRAFT and posts NOTHING -- the player
  *  edits and posts it themselves via PostFailComment, from an explicit
  *  button, per Devvit's user-actions rules (no automated actions).
@@ -550,7 +562,7 @@ async function routeSubmitFail(
      todayUTC() on every read -- a stale unposted flag from a past day
      stops blocking on its own once a new day's route exists; nothing
      here has to notice or clear it. */
-  await dbSetFailPending(user.username, 'delivery', todayUTC(), text)
+  await dbSetFailPending(user.username, 'delivery', todayUTC(), text, sanitizePose(req.pose))
 
   return {text}
 }
@@ -814,7 +826,7 @@ async function routeSubmitHydrantFail(
   /* PERSISTENT gate -- see routeSubmitFail's own comment for the full
      rationale. No dateStr, same reasoning as routeSubmitSlalomFail:
      HJ_SEED_DATE is frozen too, so this stays pending until posted. */
-  await dbSetFailPending(user.username, 'hydrant', undefined, text)
+  await dbSetFailPending(user.username, 'hydrant', undefined, text, sanitizePose(req.pose))
 
   return {text}
 }
