@@ -942,6 +942,8 @@ function reportFail(s, cause){
   /* clear FIRST, before any guard: a replay/challenge fail that bails
      below must not leave a previous run's gate state on the overlay */
   tdFx.gateEligible = false;
+  tdFx.mode = "delivery";   // explicit, not just the default -- a prior hydrant
+                            // crash this session must not leak into a real fail
   if(!IS_DEVVIT_BUILD) return;
   tdFx.draft = "";
   tdFx.posted = false;
@@ -1007,11 +1009,22 @@ function reportFail(s, cause){
    SAME action fires the real retry (tdFxFireRetry) -- no bonus on this
    post, no second button, it's required not paid.
 
-   Anything that isn't gate-eligible (non-Devvit build, a Hydrant
-   Challenge crash, a replay) OR whose draft never showed up (network
-   error, not signed in, empty text) keeps the plain #retryBtn, fully
-   free -- there's nothing to gate against, and locking it anyway would
-   just strand the player over something outside their control.
+   Hydrant Challenge crashes are gated the SAME way (Sir's call,
+   2026-08: "it should be included") -- see reportHydrantFail below and
+   hjShowCrash's own call site. It's not a second gate system: it's
+   this ONE (#tdFxGate, tdFxSyncGate, tdFxRenderComposer, all reused
+   as-is), branching only on tdFx.mode ("delivery" vs "hydrant") for
+   which endpoints to hit and what a successful post actually retries
+   (tdFxFireRetry's loadRoute vs tdFxFireHydrantRetry's hjResetRun). A
+   crash doesn't count toward the FOLLOW prompt either way (tdFx.fails
+   only increments in tdFxOnFailScreen, which hjShowCrash never calls)
+   -- that part hasn't changed.
+
+   Anything that isn't gate-eligible (non-Devvit build, a replay) OR
+   whose draft never showed up (network error, not signed in, empty
+   text) keeps the plain #retryBtn, fully free -- there's nothing to
+   gate against, and locking it anyway would just strand the player
+   over something outside their control.
 
    FOLLOW: on the 3rd delivery fail of a session, a prompt offers a
    one-time $25.00 tip bonus for subscribing to the sub
@@ -1020,12 +1033,10 @@ function reportFail(s, cause){
    the rest of the day (localStorage date stamp); a successful follow
    never reprompts. The server's hSetNX claim flag is the REAL gate --
    clearing localStorage re-shows the prompt but cannot double-pay.
-   Challenge crashes (hjShowCrash) are not delivery fails: they force
-   the plain retry and never count toward the prompt. No emoji
-   anywhere in this UI by design. */
+   No emoji anywhere in this UI by design. */
 const tdFx = { fails: 0, draft: "", posted: false, busy: false,
                followShown: false, followClaimed: false, gateEligible: false,
-               draftWhy: "no fail yet", debug: false };
+               mode: "delivery", draftWhy: "no fail yet", debug: false };
 const TDFX_LATER_KEY = "tdFollowLater", TDFX_DONE_KEY = "tdFollowDone";
 const TDFX_CARD = "background:rgba(18,20,26,0.94);border:1px solid #3a3f4a;" +
   "border-radius:14px;padding:22px 26px;width:min(340px,86vw);box-sizing:border-box;text-align:center;" +
@@ -1036,6 +1047,19 @@ const TDFX_BTN = "display:block;width:100%;border:0;border-radius:10px;" +
    used for every primary button in the tdFx cards -- FOLLOW is the
    same colour as RETRY on purpose, see the TD FAIL STACK note */
 const TDFX_ORANGE = "background:#ff7a1a;color:#fff;box-shadow:0 3px 0 #b5540e;";
+/* Cream "address card" look (Sir's call, 2026-08) -- same palette AND
+   translucency as #mapCard .card (rgba(240,236,224,.55) + backdrop
+   blur, not the opaque #f0ece0 sheet color used elsewhere), the route
+   banner on the map screen. Its own constant rather than repainting
+   TDFX_CARD itself, since TDFX_CARD is still what the WIN screens'
+   comment cards use (untouched dark scheme, not part of this ask) --
+   only the retry GATE panels (tdFxGatePanel, tsfFxGatePanel) switch
+   to this. -webkit- prefix first: Safari/iOS needs it, unprefixed is
+   ignored there rather than erroring, so order is safe either way. */
+const TDFX_GATE_CARD = "background:rgba(240,236,224,.55);border:1px solid #ddd6c4;" +
+  "-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);" +
+  "border-radius:14px;padding:22px 26px;width:min(340px,86vw);box-sizing:border-box;" +
+  "color:#2e3138;font-family:inherit;box-shadow:0 8px 24px rgba(0,0,0,0.35);";
 
 /* Injected lazily into #failOverlay the first time a gate-eligible
    fail opens -- game.html carries no markup for it, same
@@ -1049,7 +1073,7 @@ function tdFxGatePanel(){
   el = document.createElement("div");
   el.id = "tdFxGate";
   el.style.cssText = "position:absolute;left:50%;top:46%;transform:translateX(-50%);" +
-    "text-align:left;" + TDFX_CARD;
+    "text-align:left;" + TDFX_GATE_CARD;
   document.getElementById("failOverlay").appendChild(el);
   return el;
 }
@@ -1061,6 +1085,7 @@ function tdFxShowPlainRetry(){
   tdFxHideGatePanel();
   const r = document.getElementById("retryBtn");
   if(r) r.style.display = "";
+  tdFxPositionIconsAbove("tdStackIcons_failOverlay", null);
 }
 /* Called from showFail() (via tdFxOnFailScreen) AND from reportFail's
    response callback -- the fail overlay opens on a 900-1500ms
@@ -1082,7 +1107,8 @@ function tdFxSyncGate(){
       if(r) r.style.display = "none";
       const g = tdFxGatePanel();
       g.style.display = "block";
-      g.innerHTML = '<div style="color:#9aa3b2;font-size:13px;">loading your comment&hellip;</div>';
+      g.innerHTML = '<div style="color:#8f8571;font-size:13px;">loading your comment&hellip;</div>';
+      tdFxPositionIconsAbove("tdStackIcons_failOverlay", g);
       return;
     }
     tdFxShowPlainRetry();   // draft never showed up -- don't strand the player over it
@@ -1090,7 +1116,9 @@ function tdFxSyncGate(){
   }
   const r = document.getElementById("retryBtn");
   if(r) r.style.display = "none";
-  tdFxRenderComposer(tdFxGatePanel());
+  const g = tdFxGatePanel();
+  tdFxRenderComposer(g);
+  tdFxPositionIconsAbove("tdStackIcons_failOverlay", g);
 }
 /* Draft pre-filled, editable, ONE button. No bonus tag -- posting is
    the price of Retry now, not an optional paid extra. */
@@ -1099,23 +1127,22 @@ function tdFxRenderComposer(g){
   g.innerHTML =
     '<div style="font-weight:700;font-size:11px;letter-spacing:0.8px;line-height:1.4;' +
       'margin-bottom:12px;">POST TO DELIVERY LOG TO RETRY TODAY\'S ROUTE</div>' +
-    '<div id="tdFxComposeErr" style="color:#ff8a65;font-size:12px;margin-bottom:8px;display:none;"></div>';
+    '<div id="tdFxComposeErr" style="color:#b5540e;font-size:12px;margin-bottom:8px;display:none;"></div>';
   const ta = document.createElement("textarea");
   ta.id = "tdFxComposeText";
   ta.value = tdFx.draft;
   ta.maxLength = 480;   // mirrors the server's clamp so nothing is silently cut
   ta.style.cssText = "width:100%;box-sizing:border-box;height:100px;resize:none;" +
-    "background:#12141a;color:#fff;border:1px solid #3a3f4a;border-radius:8px;" +
+    "background:#fff;color:#2e3138;border:1px solid #ddd6c4;border-radius:8px;" +
     "padding:10px;font:inherit;font-size:13px;line-height:1.4;margin-bottom:4px;";
   const count = document.createElement("div");
-  count.style.cssText = "font-size:10px;color:#5c6270;text-align:right;margin-bottom:12px;";
+  count.style.cssText = "font-size:10px;color:#a99f8a;text-align:right;margin-bottom:12px;";
   count.textContent = ta.value.length + " / 480";
   ta.addEventListener("input", () => { count.textContent = ta.value.length + " / 480"; });
   const btn = document.createElement("button");
   btn.id = "tdFxGateBtn";
   btn.textContent = "Retry";
-  btn.style.cssText = TDFX_BTN +
-    "background:transparent;color:#ff7a1a;border:1.5px solid #ff7a1a;box-shadow:none;";
+  btn.style.cssText = TDFX_BTN + TDFX_ORANGE;
   btn.addEventListener("click", () => tdFxPostAndRetry(ta, btn));
   g.appendChild(ta);
   g.appendChild(count);
@@ -1135,7 +1162,10 @@ function tdFxPostAndRetry(ta, btn){
     const e = document.getElementById("tdFxComposeErr");
     if(e){ e.textContent = "Couldn't post. Try again."; e.style.display = "block"; }
   };
-  fetch("api/tipsy/fail/comment", {
+  /* branch is ONLY which endpoint gets hit and what a success retries --
+     the composer/panel/loading UI above is identical either way */
+  const endpoint = tdFx.mode === "hydrant" ? "api/tipsy/hydrant/fail/comment" : "api/tipsy/fail/comment";
+  fetch(endpoint, {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
     body: JSON.stringify({ text })
@@ -1145,7 +1175,7 @@ function tdFxPostAndRetry(ta, btn){
       if(!d || !d.posted){ fail(); return; }
       tdFx.busy = false;
       tdFx.posted = true;   // one comment per fail
-      tdFxFireRetry();
+      if(tdFx.mode === "hydrant") tdFxFireHydrantRetry(); else tdFxFireRetry();
     })
     .catch(fail);
 }
@@ -1162,6 +1192,19 @@ function tdFxFireRetry(){
   s.loadRoute(s.route.dateStr);
   s.state = "play";
 }
+/* Hydrant Challenge's own retry action -- mirrors what the plain
+   #retryBtn's listener already does for s.mode === "challenge"
+   (hide + hjResetRun, no countPlay/loadRoute -- a challenge retry
+   isn't a delivery start and doesn't touch the daily route). "RETRY"
+   stays caps here on purpose, matching hjShowCrash's own convention
+   for the plain fallback button; the composer's OWN button still just
+   says "Retry" like every other gate, per Sir's standing instruction --
+   this only affects what's left behind once the overlay is hidden. */
+function tdFxFireHydrantRetry(){
+  hide("failOverlay");
+  document.getElementById("retryBtn").textContent = "RETRY";
+  scn().hjResetRun();
+}
 function tdFxOnFailScreen(){
   if(!IS_DEVVIT_BUILD) return;
   tdFx.fails++;
@@ -1170,6 +1213,41 @@ function tdFxOnFailScreen(){
   tdFxDbgSync();
   if(tdFx.debug){ tdFxShowFollow(); return; }   // debug: preview on every fail
   tdFxMaybeFollow();
+}
+/* Hydrant Challenge's gate report -- called from hjShowCrash instead of
+   reportFail, but feeds the SAME tdFx state and the SAME #tdFxGate
+   panel (Sir's call, 2026-08: "it should be included"). No
+   challenge/replay guard needed here the way reportFail has one -- a
+   crash IS the thing being gated, there's no "wrong kind of fail" to
+   skip past like a delivery fail has to rule out. */
+function reportHydrantFail(s){
+  tdFx.draft = "";
+  tdFx.posted = false;
+  tdFx.mode = "hydrant";
+  tdFx.gateEligible = false;
+  if(!IS_DEVVIT_BUILD){ tdFxShowPlainRetry(); return; }
+  tdFx.draftWhy = "pending";
+  tdFx.gateEligible = true;
+  tdFxSyncGate();
+  const level = s.hjLevel, best = s.hjBest || 0;
+  const cause = s.hjResult || "MISSED IT";
+  fetch("api/tipsy/hydrant/fail", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ level, best, cause })
+  })
+    .then(r => {
+      tdFx.draftWhy = "http " + r.status;
+      return r.ok ? r.json() : null;
+    })
+    .then(d => {
+      tdFx.draft = (d && d.text) || "";
+      if(tdFx.draft) tdFx.draftWhy = "ok (" + tdFx.draft.length + " chars)";
+      else if(d) tdFx.draftWhy = "empty text (server: no post id or not signed in)";
+      tdFxSyncGate();
+      tdFxDbgSync();
+    })
+    .catch(() => { tdFx.draftWhy = "network error"; tdFxSyncGate(); tdFxDbgSync(); });
 }
 /* The GATE, split from the PRESENTER: the daily route's fail overlay and
    the slalom's result card both ask the same question -- "is this the
@@ -1483,6 +1561,33 @@ function tdStackIcons(overlayId){
     "text-shadow:0 1px 2px rgba(0,0,0,0.7);";
   document.getElementById("failOverlay").appendChild(dbg);
   tdFxDbgBind();
+}
+/* The icon row's default position is the static ".tdStackIconsRow"
+   CSS rule ("46% + 140px"), calibrated for the plain RETRY pill it
+   used to always sit under. The gate composer (Sir's call, 2026-08)
+   broke that assumption two ways: it's taller than the pill it
+   replaced, AND its own height changes across its lifecycle (a short
+   "loading your comment…" line vs. the full draft+button form) -- a
+   second static offset would be wrong for at least one of those
+   states. So whenever the composer is the thing actually showing,
+   this moves the icon row to sit just ABOVE it instead (Sir's call),
+   measured off its real rendered box; clearing the inline style falls
+   straight back to the static rule the instant the composer isn't
+   showing (plain retry/#slRetry fallback), so that path is untouched.
+   Shared between TD FAIL's #tdFxGate and TSF SLALOM FAIL's own
+   instance -- same geometry problem, same fix, different row/gate ids. */
+function tdFxPositionIconsAbove(rowId, gateEl){
+  const row = document.getElementById(rowId);
+  if(!row) return;
+  if(!gateEl || gateEl.style.display === "none"){
+    row.style.top = "";
+    return;
+  }
+  requestAnimationFrame(() => {
+    const gRect = gateEl.getBoundingClientRect();
+    const rRect = row.getBoundingClientRect();
+    row.style.top = Math.max(8, gRect.top - rRect.height - 14) + "px";
+  });
 }
 /* ============================================================
    TD WIN EXTRAS -- Comment bonus + Follow button (Devvit only).
@@ -1941,7 +2046,7 @@ function tsfFxGatePanel(card){
   el = document.createElement("div");
   el.id = "tsfFxGate";
   el.style.cssText = "position:absolute;left:50%;top:46%;transform:translateX(-50%);" +
-    "text-align:left;" + TDFX_CARD;
+    "text-align:left;" + TDFX_GATE_CARD;
   card.appendChild(el);
   return el;
 }
@@ -1953,6 +2058,7 @@ function tsfFxShowPlainRetry(){
   tsfFxHideGatePanel();
   const r = document.getElementById("slRetry");
   if(r) r.style.display = "";
+  tdFxPositionIconsAbove("tdStackIcons_slCard", null);
 }
 /* Called right after the card is built (via tsfFxGate) AND from
    reportSlalomFail's response callback -- same race TD FAIL's gate
@@ -1969,7 +2075,8 @@ function tsfFxSyncGate(card){
       if(r) r.style.display = "none";
       const g = tsfFxGatePanel(card);
       g.style.display = "block";
-      g.innerHTML = '<div style="color:#9aa3b2;font-size:13px;">loading your comment&hellip;</div>';
+      g.innerHTML = '<div style="color:#8f8571;font-size:13px;">loading your comment&hellip;</div>';
+      tdFxPositionIconsAbove("tdStackIcons_slCard", g);
       return;
     }
     tsfFxShowPlainRetry();   // draft never showed up -- don't strand the player
@@ -1977,30 +2084,31 @@ function tsfFxSyncGate(card){
   }
   const r = document.getElementById("slRetry");
   if(r) r.style.display = "none";
-  tsfFxRenderComposer(tsfFxGatePanel(card));
+  const g = tsfFxGatePanel(card);
+  tsfFxRenderComposer(g);
+  tdFxPositionIconsAbove("tdStackIcons_slCard", g);
 }
 function tsfFxRenderComposer(g){
   g.style.display = "block";
   g.innerHTML =
     '<div style="font-weight:700;font-size:11px;letter-spacing:0.8px;line-height:1.4;' +
       'margin-bottom:12px;">POST TO DELIVERY LOG TO RETRY TODAY\'S ROUTE</div>' +
-    '<div id="tsfFxComposeErr" style="color:#ff8a65;font-size:12px;margin-bottom:8px;display:none;"></div>';
+    '<div id="tsfFxComposeErr" style="color:#b5540e;font-size:12px;margin-bottom:8px;display:none;"></div>';
   const ta = document.createElement("textarea");
   ta.id = "tsfFxComposeText";
   ta.value = tsfFx.draft;
   ta.maxLength = 480;   // mirrors the server's clamp so nothing is silently cut
   ta.style.cssText = "width:100%;box-sizing:border-box;height:100px;resize:none;" +
-    "background:#12141a;color:#fff;border:1px solid #3a3f4a;border-radius:8px;" +
+    "background:#fff;color:#2e3138;border:1px solid #ddd6c4;border-radius:8px;" +
     "padding:10px;font:inherit;font-size:13px;line-height:1.4;margin-bottom:4px;";
   const count = document.createElement("div");
-  count.style.cssText = "font-size:10px;color:#5c6270;text-align:right;margin-bottom:12px;";
+  count.style.cssText = "font-size:10px;color:#a99f8a;text-align:right;margin-bottom:12px;";
   count.textContent = ta.value.length + " / 480";
   ta.addEventListener("input", () => { count.textContent = ta.value.length + " / 480"; });
   const btn = document.createElement("button");
   btn.id = "tsfFxGateBtn";
   btn.textContent = "Retry";
-  btn.style.cssText = TDFX_BTN +
-    "background:transparent;color:#ff7a1a;border:1.5px solid #ff7a1a;box-shadow:none;";
+  btn.style.cssText = TDFX_BTN + TDFX_ORANGE;
   btn.addEventListener("click", () => tsfFxPostAndRetry(ta, btn));
   g.appendChild(ta);
   g.appendChild(count);
@@ -20297,7 +20405,10 @@ const hjScn = () => scn();
 /* The crash screen. Reuses the game's own fail overlay so it looks like
    the rest of the game, but the copy and both buttons are the
    challenge's: Retry goes back to the SAME jump you were on, Menu banks
-   your progress and leaves. Nothing auto-restarts. */
+   your progress and leaves. Nothing auto-restarts. Now gated the same
+   as a delivery fail (Sir's call, 2026-08: "it should be included") --
+   see reportHydrantFail's own comment for how it shares TD FAIL's gate
+   machinery instead of being a second system. */
 function hjShowCrash(s){
   const lvl = s.hjLevel;
   tdFxFollowRestore();   // BEFORE the crash copy: restore writes the saved
@@ -20312,7 +20423,7 @@ function hjShowCrash(s){
   document.getElementById("retryBtn").textContent = "RETRY";   // one word keeps the pill tidy
   const mb = document.getElementById("failMenuBtn");
   if(mb) mb.classList.remove("hidden");
-  tdFxShowPlainRetry();   // a challenge crash is not a delivery fail -- never gated
+  reportHydrantFail(s);   // Devvit only: Delivery Log gate, same shape as reportFail
   show("failOverlay");
   tdStackIcons();         // glass forwards to hjQuit branch, robot to profile
 }
