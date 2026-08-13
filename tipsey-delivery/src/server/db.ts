@@ -206,6 +206,7 @@ export async function dbSetFailPending(
   source: 'delivery' | 'slalom' | 'hydrant',
   dateStr?: string,
   text?: string,
+  pose?: string,
 ): Promise<void> {
   const key = failPendingKey(username)
   await redis.hSet(key, {
@@ -220,6 +221,12 @@ export async function dbSetFailPending(
        and cleared in exactly the same breath as the flag, so the two
        can never disagree about whether a gate is live. */
     ...(text ? {[`${source}Text`]: text.slice(0, 480)} : {}),
+    /* ...and the POSE rides along too, for the same reason and with the
+       same lifetime. Stored opaque: this is the client's own scene state
+       going back to the client, never read here. Clamped so a malformed
+       or hostile blob can't grow the hash unboundedly -- a real snapshot
+       is ~600 chars. */
+    ...(pose ? {[`${source}Pose`]: pose.slice(0, 4000)} : {}),
   })
 }
 
@@ -233,7 +240,11 @@ export async function dbClearFailPending(
   source: 'delivery' | 'slalom' | 'hydrant',
 ): Promise<void> {
   // the draft dies with its flag -- see dbSetFailPending
-  await redis.hDel(failPendingKey(username), [source, `${source}Text`])
+  await redis.hDel(failPendingKey(username), [
+    source,
+    `${source}Text`,
+    `${source}Pose`,
+  ])
 }
 
 /** Reads all three flags at once for dbGetTpProfile's own boot-time
@@ -245,6 +256,7 @@ export async function dbClearFailPending(
 export async function dbGetFailPending(username: string): Promise<{
   pending: {delivery: boolean; slalom: boolean; hydrant: boolean}
   drafts: {delivery: string; slalom: string; hydrant: string}
+  poses: {delivery: string; slalom: string; hydrant: string}
 }> {
   const raw = await redis.hGetAll(failPendingKey(username))
   const pending = {
@@ -263,6 +275,12 @@ export async function dbGetFailPending(username: string): Promise<{
       delivery: pending.delivery ? (raw.deliveryText ?? '') : '',
       slalom: pending.slalom ? (raw.slalomText ?? '') : '',
       hydrant: pending.hydrant ? (raw.hydrantText ?? '') : '',
+    },
+    // gated on the same live flag as the draft, for the same reason
+    poses: {
+      delivery: pending.delivery ? (raw.deliveryPose ?? '') : '',
+      slalom: pending.slalom ? (raw.slalomPose ?? '') : '',
+      hydrant: pending.hydrant ? (raw.hydrantPose ?? '') : '',
     },
   }
 }
@@ -444,6 +462,7 @@ export async function dbGetTpProfile(username: string): Promise<TpProfileRsp> {
        can paint the real gate instead of falling back to a plain,
        ungated Retry -- see dbSetFailPending */
     failDrafts: gate.drafts,
+    failPoses: gate.poses,
   }
 }
 
