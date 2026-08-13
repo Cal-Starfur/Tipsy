@@ -14334,9 +14334,20 @@ class WorldScene extends Phaser.Scene {
         setTimeout(() => showFail(CANCEL_LINES), 900);
         return;
       }
-      /* win: at the door, slow, upright */
+      /* win: at the door, upright, and for a regular delivery also slow
+         -- SLALOM SKIPS THE STOP REQUIREMENT (Sir's call, 2026-08-13):
+         reaching the mat is the finish line now, not stopping on it.
+         Safe to relax purely on speed because the freeze isn't done by
+         this check -- it's the this.state==="play" gate wrapping botS's
+         own advance earlier in this function (see "the CENTERLINE arc
+         length" comment above): the instant state leaves "play",
+         integration stops advancing him, so arriving fast still freezes
+         exactly where he crossed the line rather than sliding through
+         it. Position window and upright check are both untouched;
+         this._slAPI only widens the speed test to "any speed". */
       const remain = this.route.doorS - this.botS;
-      if(remain < 34 && remain > -60 && this.speed < 0.02 && Math.abs(this.tilt) < 0.5){
+      const slSkipStop = !!this._slAPI;
+      if(remain < 34 && remain > -60 && (slSkipStop || this.speed < 0.02) && Math.abs(this.tilt) < 0.5){
         this.state = "won";
         if(this.attractOwnsTip()) this.attractRecycle(ATTRACT_WIN_MS);
         else showWin(this);
