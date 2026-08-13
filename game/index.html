@@ -908,6 +908,24 @@ function requestTpProfile(){
         tdFx.hydrantUnposted = tdFx.hydrantUnposted || !!data.failPending.hydrant;
         tsfFx.unposted = tsfFx.unposted || !!data.failPending.slalom;
       }
+      /* The composer TEXT behind each live gate, not just the flag
+         (2026-08-13). Without this a fresh boot had a locked gate and
+         nothing to post, and tdFxSyncGate's no-draft branch fell
+         through to the plain ungated Retry -- so the block could be
+         walked around by clearing storage, switching device, or a
+         webview that partitions localStorage. Stored, never painted
+         from here: tdFxRehydrateGate picks it up when a restore path
+         actually needs it, so this can't repaint a live composer the
+         player is already typing into. Empty strings are normal (no
+         live gate) and simply leave the local redraft as the
+         fallback. */
+      if(data.failDrafts){
+        tdFx.serverDraft = {
+          delivery: data.failDrafts.delivery || "",
+          hydrant: data.failDrafts.hydrant || ""
+        };
+        if(data.failDrafts.slalom) tsfFx.serverDraft = data.failDrafts.slalom;
+      }
       /* mission progress follows the player across devices. MERGED, not
          replaced: a run finished in this browser a moment ago must not
          be dropped by a profile fetch that predates its report. */
@@ -1087,7 +1105,10 @@ const tdFx = { fails: 0, draft: "", posted: false, busy: false,
                   about on its own. See tdFxDeliveryBlocked/
                   tdFxHydrantBlocked and the UNIFIED RETRY GATE comment
                   below for the full rationale (Sir's call, 2026-08). */
-               deliveryUnposted: false, hydrantUnposted: false };
+               deliveryUnposted: false, hydrantUnposted: false,
+               /* server-composed composer text per mode, filled by
+                  requestTpProfile -- see tdFxRehydrateGate */
+               serverDraft: {delivery: "", hydrant: ""} };
 const TDFX_LATER_KEY = "tdFollowLater", TDFX_DONE_KEY = "tdFollowDone";
 /* SNAPSHOT PERSISTENCE (2026-08-13). The server's failPending is a
    BOOLEAN -- it restores WHETHER you're blocked and nothing else. Every
@@ -1149,6 +1170,22 @@ function tdFxRehydrateGate(mode){
   tdFx.gateEligible = true;
   if(tdFx.draft && tdFx.draftMode === mode) return;   // this session's own draft, still valid
   tdFx.draft = "";
+  /* SERVER DRAFT FIRST (2026-08-13). requestTpProfile carries the text
+     the server composed when the fail was reported, so this needs no
+     local snapshot at all -- it works on a cleared cache, a different
+     device, or a webview where localStorage is blocked, none of which
+     the redraft below can cover. The redraft stays as the fallback for
+     the one case the server can't serve: a fail reported by an older
+     build, whose flag was written before drafts were stored. */
+  const fromServer = tdFx.serverDraft && tdFx.serverDraft[mode];
+  if(fromServer){
+    tdFx.draft = fromServer;
+    tdFx.draftMode = mode;
+    tdFx.draftWhy = "ok (server, " + fromServer.length + " chars)";
+    tdFxSyncGate();
+    tdFxDbgSync();
+    return;
+  }
   const req = mode === "hydrant" ? tdFx.hydrantReq : tdFx.failReq;
   if(!req){ tdFx.draftWhy = "no stored run to redraft"; tdFxSyncGate(); return; }
   tdFx.draftWhy = "pending";
@@ -1357,6 +1394,10 @@ function tdFxPostAndRetry(ta, btn){
       tdFx.posted = true;   // one comment per fail
       /* the stored snapshot dies with the block it belonged to -- same
          instant, same condition, so the two can never disagree */
+      /* the cached server draft goes with the flag as well -- the
+         server cleared its own copy in dbClearFailPending, so holding
+         a stale one here would repaint a gate that no longer exists */
+      if(tdFx.serverDraft) tdFx.serverDraft[tdFx.mode] = "";
       if(tdFx.mode === "hydrant"){ tdFx.hydrantUnposted = false; tdFxClearSnap(TDFX_HSNAP_KEY); tdFxFireHydrantRetry(); }
       else { tdFx.deliveryUnposted = false; tdFxClearSnap(TDFX_SNAP_KEY); tdFxFireRetry(); }
     })
