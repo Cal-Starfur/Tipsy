@@ -18163,23 +18163,6 @@ function tpSlalomOn(){
               transform:translateY(-165px);color:${headlineCol}">${winMsg}</h2>
          <p id="slWinSub" style="font-size:16px;line-height:1.5;color:#fff;max-width:330px;
               margin:5px 0;text-shadow:0 2px 3px #b5540e;transform:translateY(-165px)">${winSub}</p>
-         ${justEarnedReward ? `
-         <!-- Preview only (Sir's call, 2026-08-13): a look at the skin, not an
-              equip -- tpProfile.equipped/tpApplySkin are untouched here, same as
-              before. Reuses tpRobotSvg, the same icon the Store/Trophy Case
-              already render skins with, so this reads as the same character
-              rather than a one-off art asset. Part of the same translateY(-165px)
-              group as the headline/subtext above rather than its own top:%
-              anchor -- the LAST thing added its own independent absolute
-              position here (#slUnlock) and it overlapped what was already on
-              screen; riding the group that's already proven not to collide
-              sidesteps that. Size/gap still a first-pass guess -- needs an
-              on-device check like the rest of this card did. -->
-         <div id="slRewardPreview" style="margin-top:8px;display:flex;justify-content:center;
-              transform:translateY(-165px) scale(.7);opacity:0;
-              transition:opacity .35s ease-out,transform .35s ease-out">
-           ${tpRobotSvg(rewardSkin.filter, 64, rewardSkin.skinId)}
-         </div>` : ''}
          <!-- top:36% overrides .slRetryBtn's shared 46% for THIS button only (Fail's
               #slRetry keeps the shared value) -- 46% sat right where Tipsey stands at
               the carpet stop on some routes (reported on-device, 2026-08-12). Still a
@@ -18198,18 +18181,38 @@ function tpSlalomOn(){
            ${cappedNote}
          </div>`;
       document.body.appendChild(card);
-      document.getElementById('slAgain').onclick = () => { card.remove(); slResetRun(); };
+      /* PREVIEW ON THE REAL ROBOT, not a mockup icon (Sir's call,
+         2026-08-13): #slRewardPreview (a small tpRobotSvg icon floating
+         in the card) is gone -- reported on-device as reading like a
+         separate mockup rather than Tipsy himself, which is a fair
+         complaint: the card is a transparent overlay and the actual
+         robot is sitting right there on the checkered mat the whole
+         time, in full view, so a flat SVG floating above him is a worse
+         answer than just repainting him.
+         tpApplySkin(id) is the SAME function the Store's Equip button
+         calls, and SKIN is the SAME global object drawRobot reads every
+         frame, live -- calling it here recolors the actual on-screen
+         character immediately, no separate asset needed. What makes
+         this a PREVIEW rather than a silent equip: tpProfile.equipped
+         is never touched and tpSaveProfile() is never called, so
+         nothing here is persisted -- only the live paint job changes.
+         Reverted on "Run again" below, which is the one certain exit
+         from this card; there's no revert hook on the corner icons
+         (search/robot menu) if the player leaves some other way without
+         tapping Run Again -- worth having on-device, since the honest
+         answer is that path isn't covered and the preview would keep
+         showing until the page reloads (reload re-applies the real
+         tpProfile.equipped at startup regardless, so it self-heals,
+         just not instantly). */
+      let slPrevEquipped = null;
       if (justEarnedReward){
-        /* Same rAF-defer reasoning as the toast this replaced: the node is
-           built fresh in this same tick via innerHTML, so its opacity:0
-           resting state needs one committed frame before the transition to
-           1 will actually animate instead of snapping. */
-        const preview = document.getElementById('slRewardPreview');
-        if (preview) requestAnimationFrame(() => {
-          preview.style.opacity = '1';
-          preview.style.transform = 'translateY(-165px) scale(1)';
-        });
+        slPrevEquipped = tpProfile.equipped;
+        tpApplySkin(rewardSkin.skinId);
       }
+      document.getElementById('slAgain').onclick = () => {
+        if (justEarnedReward) tpApplySkin(slPrevEquipped);
+        card.remove(); slResetRun();
+      };
 
       /* Everything below is measured off the sheet, same order showWin()
          itself uses (show/append first, THEN measure -- offsetHeight
