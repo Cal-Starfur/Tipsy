@@ -211,11 +211,22 @@
     }
 
     /* ---- the AQUARIUM sign, on the face nearest the camera ----
-       FIRST PASS PUT IT ABOVE THE WALL and it was never visible: at
-       v > zTop it sits behind the roof's own oversail and the tile faces
-       paint straight over it. In the photo the sign is mounted ON the
-       wall, in the frieze between the arch heads and the teal cornice,
-       overlapping the cornice slightly. That is where it goes. */
+       TWICE WRONG BEFORE THIS. First pass put it above the wall, where
+       the roof paints over it. Second pass moved it onto the frieze --
+       correct per the photo, still invisible, because the EAVE hides the
+       top of the wall in this projection and nobody had worked out by
+       how much.
+
+       W() gives screen y = ((xr+yr)*0.5 - z)*K, so a point on the wall at
+       height z is hidden by the eave directly outboard of it when
+
+           (S*0.5 - z)  <  ((S + e)*0.5 - zTop)      =>   z > zTop - e/2
+
+       where e is the eave's own contribution to (x+y). For the face most
+       square to the camera e approaches eave*sqrt(2), so the occluded
+       band is the top eave*0.71 of the wall -- 64 units at the shipped
+       eave of 90. signCeil is that limit; the band hangs below it, and
+       archH is defaulted low enough to leave the room. */
     {
       let best = null;
       for (let i = 0; i < OCT; i++) {
@@ -225,16 +236,16 @@
       }
       const { p, q } = best;
       const P = (u, v) => W(p.x + (q.x - p.x) * u, p.y + (q.y - p.y) * u, v);
-      const archTop = d.baseH + (zTop - d.baseH) * d.archH;
+      const signCeil = zTop - d.eave * Math.SQRT1_2;
+      const bandH = (zTop - d.baseH) * 0.19;
+      const v1 = signCeil - bandH * 0.12, v0 = v1 - bandH;
       const s0 = 0.5 - d.signW / 2, s1 = 0.5 + d.signW / 2;
-      const v0 = archTop + (zTop - d.corniceH - archTop) * 0.12;
-      const v1 = zTop - d.corniceH * 0.25;
       Q([P(s0, v0), P(s1, v0), P(s1, v1), P(s0, v1)], RH.navy);
       /* the lettering reads as one light band at game zoom -- drawn as a
          band, not as glyphs, which would be illegible and cost 8 quads */
-      const lp = 0.06, lv = (v1 - v0);
-      Q([P(s0 + lp, v0 + lv * 0.26), P(s1 - lp, v0 + lv * 0.26),
-         P(s1 - lp, v0 + lv * 0.74), P(s0 + lp, v0 + lv * 0.74)], 0xf2f0e8, 0.94);
+      const lp = 0.06, lv = v1 - v0;
+      Q([P(s0 + lp, v0 + lv * 0.28), P(s1 - lp, v0 + lv * 0.28),
+         P(s1 - lp, v0 + lv * 0.72), P(s0 + lp, v0 + lv * 0.72)], 0xf2f0e8, 0.94);
     }
 
     /* ---- tiled hip roof: wall top -> eave ring -> apex ring ---- */
@@ -505,6 +516,10 @@
     b.style.cssText = 'background:#262a33;color:#e8eaef;border:1px solid #363b46;' +
                       'border-radius:9px;padding:9px 4px;font:inherit;font-weight:600;flex:1';
   }
+  /* opt in to the bench's "hide lab dials" toggle. Marked with an attribute
+     rather than relying on the element id, because the game ships its own
+     *Panel ids and an id-suffix match would hide those too. */
+  panel.dataset.labPanel = '1';
   document.body.appendChild(panel);
 
   const portLine = () => `RH ${FIELDS.map(f => f.k + ':' + D[f.k]).join(' ')}`;
@@ -535,21 +550,48 @@
       refresh();
     });
   }
-  document.getElementById('rhBar').onclick = () => {
-    const b = document.getElementById('rhBody');
-    const on = b.style.display === 'none';
-    b.style.display = on ? '' : 'none';
-    document.getElementById('rhHint').textContent = on ? 'tap to hide' : 'tap to show';
-  };
-  document.getElementById('rhGo').onclick = () => {
+  /* Re-framing on every collapse/expand is the point: the free strip
+     changes size when the panel does, so the fit has to change with it. */
+  function setCollapsed(on) {
+    document.getElementById('rhBody').style.display = on ? 'none' : '';
+    document.getElementById('rhHint').textContent = on ? 'tap to show' : 'tap to hide';
+    frameIt();
+  }
+  document.getElementById('rhBar').onclick = () =>
+    setCollapsed(document.getElementById('rhBody').style.display !== 'none');
+  /* FRAME IT, PROPERLY (2026-08-14, Sir: "same issue as before i cant see
+     it"). First pass hard-coded K=1.6, which is roughly 4x too close for a
+     building 2*(rWall+eave) across -- the thing filled the screen and what
+     little fit landed behind the panel.
+     This solves K from the geometry instead. W() projects a ground circle
+     of radius R to a screen width of 2*R*sqrt(2)*K and a depth of
+     R*sqrt(2)*K, and height adds H*K on top of that, so the fit is a
+     straight min of the two axes. The vertical budget is the canvas MINUS
+     whatever the panel is currently covering, and the camera is then
+     lifted by half that panel so the building centres in the gap rather
+     than behind the dials -- camZ enters W() as (-z + camZ), so a negative
+     camZ moves the world UP the screen. */
+  function frameIt() {
     const A = anchor();
-    BENCH.lookAt(A.cx, A.cy, 1.6);
-    /* if waterfront is loaded it owns a schematic mode that blanks the
-       world below its own K threshold -- pointless when the whole reason
-       to be here is looking at a building, so lift its zoom with ours */
+    const d = D;
+    const R = d.rWall + d.eave;
+    const Hh = d.wallH + d.roofH + d.drumH + d.drumRoofH + d.finialH;
+    const gs = scene.scale.gameSize;
+    const panel = document.getElementById('rhPanel');
+    const panelH = panel ? panel.getBoundingClientRect().height : 0;
+    const visW = gs.width, visH = Math.max(120, gs.height - panelH);
+    const k = Math.min(visW * 0.8 / (2 * R * Math.SQRT2),
+                       visH * 0.8 / (R * Math.SQRT2 + Hh));
+    const c = BENCH.lookAt(A.cx, A.cy, k);
+    /* pull the whole thing up out from behind the panel, and lift again by
+       half the building's own height so its middle -- not its base -- is
+       what ends up centred in the free strip */
+    c.z = -(panelH / 2) / k - Hh * 0.42;
     const wf = scene._wfAPI;
-    if (wf) { wf.WF.k = 1.6; }
-  };
+    if (wf) wf.WF.k = k;   // keep waterfront's schematic from re-engaging
+    refresh();
+  }
+  document.getElementById('rhGo').onclick = frameIt;
   document.getElementById('rhB').onclick = () => { RHS.showBuilding = !RHS.showBuilding; sync(); };
   document.getElementById('rhR').onclick = () => { RHS.showRail = !RHS.showRail; sync(); };
   document.getElementById('rhL').onclick = () => { RHS.showLamps = !RHS.showLamps; sync(); };
@@ -579,6 +621,9 @@
   scene._rhAPI = { RH, D, RHS, drawRoundhouse, drawPierRail, drawPierLamp, anchor };
 
   sync();
-  document.getElementById('rhGo').click();
+  /* STARTS COLLAPSED. Nine sliders is most of a phone screen, and the
+     first thing anyone wants on load is to SEE the building, not tune it.
+     Tap the bar to get the dials back. */
+  setCollapsed(true);
   console.log('roundhouse ready -- load ?lab=waterfront first to sit it on the real pier');
 })();
