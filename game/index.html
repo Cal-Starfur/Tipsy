@@ -3284,7 +3284,8 @@ const NIGHT_MULT = (() => {   // NAVY 0x5a6aa8 at depth 0.65, precomputed
    for that layer get scaled by this and clamped to 1. Green channel
    reciprocal (1/0.62) since the eye weights green heaviest; the small
    residual is a slight cool shift, which reads fine on a night street.
-   Glow that still draws into gGlow (above the tint) is untouched. */
+   Glow that still draws into gGlow (above the tint) is untouched --
+   which as of the lamp revert is everything except Tipsey's own light. */
 const GLOW_UNDER_TINT = 1.55;
 
 /* STREETLAMP — the night's anchor prop (lamp lab v2, style ARM) */
@@ -12179,8 +12180,7 @@ class WorldScene extends Phaser.Scene {
      a parallelogram) + gooseneck arm reaching the road side (+b) +
      fixture box. Per-instance variety and the malfunction verdict
      both come from lampSeed. At night the glow (layered pool + lens
-     + faint column) draws ADD into gGlow (lamp in front of the robot,
-     above the tint) or gGlowLo (lamp behind him, occludable by gFront) —
+     + faint column) draws into this.gGlow — ADD, ABOVE the tint —
      and broken lamps run it through flickerAt. */
   drawLampHull(g, W, t, hz){
     const L = LAMP, K = this.K;
@@ -12249,24 +12249,28 @@ class WorldScene extends Phaser.Scene {
     if(this.route && this.route.night){
       const lit = hz.mal ? flickerAt(hz.lampSeed, t) : 1;
       if(lit > 0){
-        /* same bracket as the lamp's own hull: drawLampHull is handed
-           the layer the depth sort already chose for this lamp, so a
-           lamp in FRONT of the robot keeps its glow above everything
-           (gGlow, untinted -- the shipped look) while a lamp BEHIND him
-           drops to gGlowLo and can be occluded by whatever gFront holds.
-           Same bug class as the robot's beam, same fix, no new sort. */
-        const front = (g === this.gFront);
-        const gl = front ? this.gGlow : this.gGlowLo, gp = W(topA, armL, 0);
-        const A = v => Math.min(1, v * lit * (front ? 1 : GLOW_UNDER_TINT));
+        /* REVERTED to unconditional gGlow (2026-08-14). The version in
+            between picked the layer from (g === this.gFront), i.e. from the
+            lamp's depth relative to the ROBOT. That test flips as you drive
+            past a lamp, and the two layers do not composite the same way --
+            gGlow sits above the night multiply, gGlowLo below it with the
+            GLOW_UNDER_TINT boost -- so every lamp visibly changed brightness
+            at the moment you crossed its depth line. Reported on-device.
+            The lesson: a runtime layer choice is only safe when the thing
+            choosing cannot cross its own test. Tipsey's beam can't (he IS
+            the reference point), a lamp can. If lamp pools ever need real
+            occlusion, split by PIECE instead -- pool always low, lens bloom
+            always high -- so no single element ever swaps layers. */
+        const gl = this.gGlow, gp = W(topA, armL, 0);
         const pR = LAMP_ACT.poolR * pVar * K * 0.8;
         /* layered pool: hot core -> mid -> soft skirt — a single
            faint wash can't even cancel the navy (lamp lab finding) */
-        gl.fillStyle(L.glow, A(0.34)); gl.fillEllipse(gp.x, gp.y, pR*0.55, pR*0.26);
-        gl.fillStyle(L.glow, A(0.20)); gl.fillEllipse(gp.x, gp.y, pR, pR*0.48);
-        gl.fillStyle(L.glow, A(0.10)); gl.fillEllipse(gp.x, gp.y, pR*1.5, pR*0.72);
-        gl.fillStyle(L.glow, A(0.5));  gl.fillEllipse(lp.x, lp.y, L.headW*0.923*K*0.8, L.headW*0.462*K*0.8);
-        gl.fillStyle(0xffe9c0, A(0.9)); gl.fillEllipse(lp.x, lp.y, lensW*K*0.55, lensH*K*0.55);
-        gl.fillStyle(L.glow, A(0.07));
+        gl.fillStyle(L.glow, 0.34*lit); gl.fillEllipse(gp.x, gp.y, pR*0.55, pR*0.26);
+        gl.fillStyle(L.glow, 0.20*lit); gl.fillEllipse(gp.x, gp.y, pR, pR*0.48);
+        gl.fillStyle(L.glow, 0.10*lit); gl.fillEllipse(gp.x, gp.y, pR*1.5, pR*0.72);
+        gl.fillStyle(L.glow, 0.5*lit);  gl.fillEllipse(lp.x, lp.y, L.headW*0.923*K*0.8, L.headW*0.462*K*0.8);
+        gl.fillStyle(0xffe9c0, 0.9*lit); gl.fillEllipse(lp.x, lp.y, lensW*K*0.55, lensH*K*0.55);
+        gl.fillStyle(L.glow, 0.07*lit);
         gl.fillPoints([new Phaser.Geom.Point(lp.x, lp.y),
                        new Phaser.Geom.Point(gp.x - pR*0.7, gp.y),
                        new Phaser.Geom.Point(gp.x + pR*0.7, gp.y)], true);
