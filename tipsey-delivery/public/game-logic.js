@@ -1693,6 +1693,9 @@ function tsFxWinShowAgain(){
    response callback -- same draft race tsfFxSyncGate handles. */
 function tsFxWinGate(card){
   if(!IS_DEVVIT_BUILD){ tsFxWinShowAgain(); return; }
+  /* Held while the victory lap shows off the skin -- see slShowCard's
+     own note. The timeout that lowers this flag calls back in. */
+  if(tsFx.winHold) return;
   if(document.getElementById("slCard") !== card) return;   // card isn't live anymore
   if(tsFx.posted) return;                                   // follow step owns the panel
   const a = document.getElementById("slAgain");
@@ -18844,6 +18847,10 @@ function tpSlalomOn(){
     scene.hopAnim = null; scene.hopYaw = 0; scene.hopKick = 0;
     slQuietOpening();
     run.done = false;
+    /* A reset mid-victory-lap must not leave 'victory' as the state (the
+       sim is play-gated, so the robot would spawn unable to drive) nor
+       leave the old lap's object alive for its own card timeout to find. */
+    run.victory = null;
     /* PEEL OUT reset: a fresh run gets a fresh chance at a burnout,
        whether or not the last one had one, and a reset mid-whoosh must
        not leave the scene holding a shortened look-ahead. peelReset also
@@ -18937,7 +18944,7 @@ function tpSlalomOn(){
        game's own win check instead of a tape line. */
     if (!run.done && scene.state === 'won'){
       run.done = true;
-      slShowCard();
+      slVictoryBegin();
       prevS = s;
       return;
     }
@@ -19036,8 +19043,90 @@ function tpSlalomOn(){
        makes to the robot during play, and it happens strictly after the last
        gate is judged — a run that ends with the player still holding throttle
        into traffic has no clear outcome, which was the complaint. */
-    if (run.done) scene.speed *= 0.94;
+    if (run.done && !(run.victory && run.victory.rolling)) scene.speed *= 0.94;
     prevS = s;
+  }
+
+  /* =========================================================================
+     THE VICTORY LAP (Sir's call, 2026-08-13)
+     A win used to end the way a crash does NOT: instantly. slCrash waits
+     1400ms so the card doesn't ride in on top of the fall; the win branch
+     above called slShowCard() in the same frame the door was reached, so
+     the card -- and on Devvit the whole post composer, which paints dead
+     centre at top:36% -- landed on a robot who was still coasting to a
+     halt. On an unlock run that is the worst possible moment: slShowCard
+     repaints the real robot in the earned skin (see its tpApplySkin note),
+     and the panel covered him while he did it. Reported on-device
+     2026-08-13, with a screenshot of CONE DODGER UNLOCKED behind a POSTED
+     card.
+
+     The ending now has beats, and they are anchored to the delivery, not
+     to a stopwatch: the handoff choreography the engine already owns
+     (customer walks out, takes the bag, walks back in -- scene.wonWalk
+     runs 0->1 across it) plays out untouched, and only when he is back
+     inside does Tipsey pull away. settleMs is a safety net, not a timer:
+     a route with no addrDoorDV never advances wonWalk at all, and without
+     it the ending would simply never arrive.
+
+     ROLLING IS FREE, and deliberately so -- nothing here integrates a
+     robot. update() derives botX/botY from botS OUTSIDE the play gate, so
+     advancing botS is the whole of the motion; route.loop is the same
+     welded ring the GPS reroute drives (world(s+len) === world(s)), so
+     the wrap at lp.sEnd is two lines and the road never ends. He rolls
+     until the player navigates away, which is the ask (Sir, 2026-08-13).
+
+     scene.state = 'victory' is the one new value, and it earns its keep
+     three times over: the camera's own target chain falls through to the
+     default botX + 95-unit lead branch, so the camera follows him for
+     free rather than staying blended onto the customer's door; the
+     play-gated sim stays off, so the drive is fully scripted with no
+     collisions, no tip, no William; and the won-branch draw work lets go
+     of a customer who has already gone inside. Every other reader in the
+     file tests state === 'play' / 'won' / 'tipped' specifically, so an
+     unknown fourth value is inert to all of them.
+
+     A day whose grid corner gave the address no ring (route.loop null --
+     the same rare case update()'s own overshoot clamp exists for) parks
+     him at the end of the road instead. Nothing to loop, so nothing to
+     pretend.
+     ========================================================================= */
+  const VIC = {
+    settleMs:  6500,     // safety net if wonWalk never advances -- not the normal path
+    accel:     0.00042,  // the game's OWN throttle accel, not a second number
+    cruise:    0.1240,   // ~55% of delivery's V_BASE 0.225: a drive-off, not a getaway
+    cardDelay: 1400,     // slCrash's beat, reused verbatim
+    gateDelay: 2200,     // and THEN the post composer, once the skin has been seen
+  };
+  function slVictoryBegin(){
+    if (run.victory) return;
+    run.victory = { t0: performance.now(), rolling: false, spd: 0, carded: false };
+  }
+  function slVictoryTick(dt){
+    const v = run.victory; if (!v) return;
+    if (!v.rolling){
+      /* wonWalk hits 1 when the customer is back through his own door */
+      const settled = (scene.wonWalk || 0) >= 1;
+      if (!settled && performance.now() - v.t0 < VIC.settleMs) return;
+      v.rolling = true;
+      scene.state = 'victory';
+      scene.speed = 0;
+      /* Guarded on the SAME victory object, not just on run.done: a
+         player who hits Run again inside the delay would otherwise get
+         the previous run's card painted over a live countdown. */
+      setTimeout(() => {
+        if (scene._slAPI && run.victory === v && !v.carded){ v.carded = true; slShowCard(); }
+      }, VIC.cardDelay);
+    }
+    v.spd = Math.min(v.spd + VIC.accel * dt, VIC.cruise);
+    scene.speed = v.spd;
+    scene.botS += v.spd * dt;
+    const lp = scene.route.loop;
+    if (lp){
+      if (scene.botS >= lp.sEnd) scene.botS -= lp.len;
+    } else {
+      const endS = Math.max(0, (scene.route.totalLen || 0) - 30);
+      if (scene.botS > endS){ scene.botS = endS; scene.speed = 0; v.spd = 0; }
+    }
   }
 
   /* =========================================================================
@@ -19288,8 +19377,21 @@ function tpSlalomOn(){
       if (IS_DEVVIT_BUILD && !justEarnedReward){
         tsFxBonusRow(card, total, par, clean, stackBase);
       } else if (IS_DEVVIT_BUILD){
+        /* THE GATE WAITS ITS TURN (2026-08-13). reportSlalomWin's own
+           response callback also calls tsFxWinGate -- that's the draft
+           race it was written for -- so a flag, not just a later call,
+           is what actually holds it: whichever of the two arrives first
+           returns early while tsFx.winHold is up. #slAgain is hidden
+           immediately rather than left to be hidden by the gate, so the
+           pill doesn't flash in and out during the wait. */
+        tsFx.winHold = true;
+        const againEl = document.getElementById('slAgain');
+        if (againEl) againEl.style.display = 'none';
         reportSlalomWin(card, total, par, clean);
-        tsFxWinGate(card);
+        setTimeout(() => {
+          tsFx.winHold = false;
+          if (document.getElementById('slCard') === card) tsFxWinGate(card);
+        }, VIC.gateDelay);
       }
       tdStackIcons('slCard');
       const iconRow = document.getElementById('tdStackIcons_slCard');
@@ -20078,6 +20180,7 @@ function tpSlalomOn(){
 
   const onPost = (time, delta) => {
     try { slJudge(); } catch(e){ console.log('slJudge', e); }
+    try { slVictoryTick(Math.min(delta, 34)); } catch(e){ console.log('slVictoryTick', e); }
     try { slFlight(Math.min(delta, 34)); } catch(e){ console.log('slFlight', e); }
     try { slThrottleBoost(Math.min(delta, 34)); } catch(e){ console.log('slThrottleBoost', e); }
     /* Unclamped, unlike its siblings above -- see slGripComp's own
@@ -20112,6 +20215,10 @@ function tpSlalomOn(){
   scene._slAPI = { run, reset: slResetRun, countdown: slCountdown, SL, crash: slCrash,
                    showCard: slShowCard };
   scene._slRestore = () => {
+    /* Quit during the victory lap: hand the daily route back a state it
+       can actually drive in. Same reasoning as slResetRun's own clear. */
+    if (scene.state === 'victory') scene.state = 'play';
+    run.victory = null;
     scene.events.off('preupdate',  onPre);
     scene.events.off('postupdate', onPost);
     slUnstampFurnish();
