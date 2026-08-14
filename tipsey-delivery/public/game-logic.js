@@ -8061,7 +8061,28 @@ class WorldScene extends Phaser.Scene {
     }
     v.spd = Math.min(v.spd + TD_VIC.accel * dt, TD_VIC.cruise);
     this.speed = v.spd;
-    this.botS += v.spd * dt;
+    /* THE SAME TWO LINES update() RUNS, not an approximation of them
+       (reported on-device 2026-08-13: "tipseys wheels arnt spinning on
+       the victory lap it looks strange"). Both live inside the play gate,
+       which the lap deliberately sits outside of, so both had to be
+       carried across:
+         wheelPhase -- unrolled wheels on a moving robot, the report.
+         _stretch   -- a lane offset from the centreline traverses a
+                       DIFFERENT arc length than the centreline does, and
+                       without the correction ground speed on a curve is
+                       wrong by up to 30x depending on which way the lane
+                       sits relative to it (see update()'s own comment).
+                       Straights are unaffected; the block lap is four
+                       corners, so a bare advance would have surged or
+                       crawled through every one of them. */
+    const _pre = this.segAt(this.botS);
+    let _str = 1;
+    if(_pre.type === "arc"){
+      const _eR = _pre.R - _pre.sign*this.laneOff;
+      _str = Phaser.Math.Clamp(_eR / _pre.R, 0.05, 20);
+    }
+    this.botS += (v.spd/_str) * dt;
+    this.wheelPhase -= v.spd * dt * 0.28;
     /* route.loop is the GPS reroute's welded ring -- world(s+len) ===
        world(s) -- so the wrap is the same two lines update() runs inside
        the play gate. lp.missed is NOT touched here: the door has already
@@ -19425,7 +19446,18 @@ function tpSlalomOn(){
     }
     v.spd = Math.min(v.spd + VIC.accel * dt, VIC.cruise);
     scene.speed = v.spd;
-    scene.botS += v.spd * dt;
+    /* Carried across from update()'s play-gated advance, same pair and
+       same reasons as the daily's own tdVictoryTick -- see its comment.
+       wheelPhase was the reported symptom; _stretch is the one next to
+       it that would have gone wrong silently on the lap's corners. */
+    const _pre = scene.segAt(scene.botS);
+    let _str = 1;
+    if(_pre.type === 'arc'){
+      const _eR = _pre.R - _pre.sign*scene.laneOff;
+      _str = Phaser.Math.Clamp(_eR / _pre.R, 0.05, 20);
+    }
+    scene.botS += (v.spd/_str) * dt;
+    scene.wheelPhase -= v.spd * dt * 0.28;
     const lp = scene.route.loop;
     if (lp){
       if (scene.botS >= lp.sEnd) scene.botS -= lp.len;
