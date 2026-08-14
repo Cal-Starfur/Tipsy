@@ -241,6 +241,13 @@ export type SubmitSlalomFailReq = {
   totalSecs: number
   faultCount: number
   cause: string
+  /** Same opaque pose contract as SubmitFailReq/SubmitHydrantFailReq.
+   *  Slalom's blob carries TWO halves -- {scene, run} -- because unlike
+   *  the other two missions its run state (elapsed/pen/cleared/faults)
+   *  lives in a closure inside tpSlalomOn rather than on the scene
+   *  object, so there is nothing on the scene to snapshot it from. The
+   *  server stores it verbatim either way and never looks inside. */
+  pose?: string
 }
 export type SubmitSlalomFailRsp = {text: string}
 /** The player's (possibly edited) slalom FAIL comment, posted as the
