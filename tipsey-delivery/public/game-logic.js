@@ -7169,7 +7169,27 @@ class WorldScene extends Phaser.Scene {
        sitting in the landing zone — you would clear ten hydrants and
        then touch down on a traffic cone. The run-up is cleared too, so
        nothing can knock him off line before the ramp. */
-    const clearFrom = ch.kickerS - HJ_GEOM.runup - T2, clearTo = ch.catchS + 2*T2;
+    /* CATCH RAMP FIRST, THEN CLEAR (2026-08-13 fix). ch.catchS used to be
+       recomputed BELOW this line, so clearTo was measured off the
+       PREVIOUS level's landing spot -- every level up moved the ramp
+       ~50 units further out while the cleared window stayed where it
+       was, and the difference was live street furniture sitting in the
+       new landing zone.
+       The window also ended too early even when it wasn't stale: 2*T2
+       is the guard for a robot who never left the ground, but a robot
+       who DID land keeps rolling to catchS + 4*T2 (see the roll-out end
+       guard in hjSim -- that's the number that actually bounds how far
+       he travels). At level 1 that put a lift-8 heaved slab at s=1150,
+       in his own lane, 138 units inside the roll-out and 322 past the
+       ramp: land the jump clean, roll onto the slab, tip over, FAIL --
+       reported on-device, reproduced in the numbers.
+       clearTo now derives from the SAME 4*T2 the guard uses, plus one
+       tile-pair of slack so the tile he's standing on when the run ends
+       is clean too. Both read from the constant rather than repeating
+       it, so retuning the roll-out can't leave this behind again. */
+    const lipS = ch.kickerS + TILE;
+    ch.catchS = Math.round(lipS + (2.25 + (level-1)*HJ_CH.gap) * T);
+    const clearFrom = ch.kickerS - HJ_GEOM.runup - T2, clearTo = ch.catchS + 5*T2;
     /* ALL ROWS (2026-08-11, "get rid of the people at the hydrant
        challenge"): row === ch.lane only cleared the exact lane he runs
        in, leaving pedestrians and other hazards live on the sidewalk's
@@ -7185,8 +7205,6 @@ class WorldScene extends Phaser.Scene {
     this.route.props = (this.route.props || []).filter(pr =>
       !(pr.s >= clearFrom && pr.s <= clearTo));
     const facing = f => f;
-    const lipS = ch.kickerS + TILE;
-    ch.catchS = Math.round(lipS + (2.25 + (level-1)*HJ_CH.gap) * T);
 
     this.route.hazards.push({ type:"slab", s: ch.kickerS, row: ch.lane, lift: 12,
       side: 1, root: true, f: ch.f, hit:false, lipHit:false,
