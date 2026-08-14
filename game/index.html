@@ -8542,8 +8542,23 @@ class WorldScene extends Phaser.Scene {
          and hid its Claim button, so the moment of collecting the prize
          never happened. The celebration stays; going and taking it is
          now the player's move. */
+      /* PUT IT ON HIM. Gated on equipped rather than owned, unlike the
+         announce below: a player who already claimed the Chief but is
+         wearing something else cleared all ten jumps and got NOTHING --
+         no toast (the owned guard swallowed it) and no costume. That
+         silence is what got reported. Anyone already wearing it needs
+         no preview, which is the one case this skips. */
+      if(tpProfile.equipped !== "fire-chief"){
+        hjSkinPreview = true;
+        tpApplySkin("fire-chief");
+      }
       if(!tpProfile.owned.has("fire-chief")){
         this.announce("\u{1F692} FIRE CHIEF UNLOCKED", "ALL TEN CLEARED \u00b7 CLAIM IT IN YOUR TROPHY CASE");
+      } else if(tpProfile.equipped !== "fire-chief"){
+        /* Owned already: there is nothing left to claim, so the claim
+           wording would send the player to a Trophy Case row with no
+           button on it. The jump still deserves saying out loud. */
+        this.announce("\u{1F692} ALL TEN CLEARED", "FIRE CHIEF \u00b7 EQUIP IT IN YOUR STORE");
       }
     }
     this.hjLevel = Math.min(HJ_CH.maxLevel, this.hjLevel + 1);
@@ -8587,6 +8602,20 @@ class WorldScene extends Phaser.Scene {
   }
 
   loadRoute(dateStr, opts){
+    /* END OF THE FIRE CHIEF PREVIEW. Leaving the Hydrant Challenge for
+       any real route is the one certain exit, and it is a single choke
+       point -- loadChallenge's own call carries challenge:true, so
+       restarting the mission keeps the costume on.
+       Reverts to tpProfile.equipped, NOT to a value captured when the
+       preview started: if the player claimed and equipped the Chief
+       from the Trophy Case while the preview was up, the profile
+       already says fire-chief and this is a no-op, where restoring a
+       stashed id would have stripped a skin they had genuinely earned
+       and put on. */
+    if(hjSkinPreview && !(opts && opts.challenge)){
+      hjSkinPreview = false;
+      tpApplySkin(tpProfile.equipped);
+    }
     /* Devvit bridge — no-op if not embedded (see shim near top of file).
        Skipped for the challenge: it loads a FIXED date (HJ_SEED_DATE), so
        asking the server for that day's best would cache a stale entry
@@ -18326,6 +18355,25 @@ const HJ_LAND = { s: 6.75, row: 0, lift: 10, dirSign: -1, root: false, cracks: 2
    HJ_CH.maxLevel (declared just below; it cannot be referenced here
    because HJ_CH does not exist yet at this point). */
 const HJ_CHIEF_AT = 10;   // clear ALL TEN jumps for the Fire Chief
+/* Fire Chief PREVIEW latch (Sir's call, 2026-08-13). Same idea as the
+   Cone Slalom's own win-card preview: clearing jump ten repaints the
+   REAL robot in the earned skin immediately, because the reward is a
+   costume and a costume that never goes on isn't a reward -- reported
+   on-device the same day ("i didnt get a fire Engine skin change when
+   i landed jump 10"). It is a PREVIEW and nothing more: tpApplySkin
+   writes the live SKIN palette drawRobot reads every frame, while
+   tpProfile.equipped is never touched and tpSaveProfile is never
+   called, so the player still has to go and equip it for it to stick.
+   That split is the whole point of the 2026-08 change that stopped the
+   skin equipping itself here -- see hjClear's own note on why spending
+   the reward before the player saw it was wrong.
+
+   A flag, not a stashed skin id: the truth about what the robot should
+   be wearing is always tpProfile.equipped, and reverting to a value
+   captured at unlock time would UNDO a real equip if the player went
+   and claimed the Chief while the preview was still up. loadRoute
+   reverts by re-reading the profile instead (see its own comment). */
+let hjSkinPreview = false;
 const HJ_CH = {
   level: 1,
   maxLevel: 10,     // TUNED ON DEVICE — ten jumps, level 10 is the finish
