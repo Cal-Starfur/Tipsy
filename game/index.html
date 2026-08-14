@@ -15929,8 +15929,14 @@ class WorldScene extends Phaser.Scene {
        screen's left edge while the robot sat centered). Widen the
        target to a blend of door + bot + their far position + raised-
        hand reach whenever they're actually visible. */
-    let camTargetX = this.botX + Math.cos(hdg)*95;
-    let camTargetY = this.botY + Math.sin(hdg)*95;
+    /* The 95-unit look-ahead is a constant everywhere except one place:
+       Cone Slalom's burnout launch borrows it for ~600ms at GO (see
+       slPinCam / the launch-cam ramp in onPre). _slCamLead is that
+       override and nothing else writes it -- null/undefined means 95,
+       the way it has always been. */
+    const camLead = (this._slCamLead === null || this._slCamLead === undefined) ? 95 : this._slCamLead;
+    let camTargetX = this.botX + Math.cos(hdg)*camLead;
+    let camTargetY = this.botY + Math.sin(hdg)*camLead;
     let camTargetZ = this.botZ;
 
     /* doorSwing used to be checked here too, but it never added
@@ -18196,6 +18202,11 @@ const SL = {
      to be decoupled from. A real burnout goes straight to vTop() --
      full stop, not a head start on someone else's ramp. */
   burnoutLaunch: 1.0,   // fraction of vTop() a held burnout launches at
+  /* how long the camera's look-ahead takes to climb back from 0 to its
+     normal 95 after a burnout launch. Short enough that the gap reads as
+     one whoosh rather than a camera that lost him; long enough that the
+     ease has real distance to chase. */
+  launchCamMs: 600,
 };
 
 /* =========================================================================
@@ -18443,7 +18454,7 @@ function tpSlalomOn(){
     /* peel-out state, initialized here too (not just slResetRun) so
        drawBurnoutSmoke's run.smoke.length read is never undefined —
        _slAPI gets assigned before the first reset() call ever runs. */
-    smoke: [], burnoutHeld: false,
+    smoke: [], burnoutHeld: false, launchCamT0: 0,
   };
 
 
@@ -19245,6 +19256,9 @@ function tpSlalomOn(){
        a brand new array so any puffs from a prior run's late fade-out
        can't leak into this one's draw pass. */
     run.smoke = []; run.burnoutHeld = false;
+    /* the launch-cam ramp is per-run too: a reset mid-whoosh must not
+       leave the scene holding a shortened look-ahead. */
+    run.launchCamT0 = 0; scene._slCamLead = null;
     run.course = slBuild();
     /* knock-watch covers chute cones too; gate-only counts read slRole */
     run.cones  = scene.route.hazards.filter(h => h.slRole);
@@ -19874,28 +19888,32 @@ function tpSlalomOn(){
      During the count the camera is simply PINNED, using the game's own target
      formula (botX + cos(hdg)*95) so there is no jump at GO.
 
-     EXCEPT for a held burnout (2026-08-12, Sir's report: "he's still
-     not taking off"). Headless traced every frame after GO -- speed
-     was already locking to vTop() instantly, botS climbing smoothly,
-     zero collisions, camera correctly tracking. Two screenshots ~1.8s
-     apart confirmed real distance covered (a roadside cone went from
-     a sliver at frame edge to fully visible and close) -- but Tipsy's
-     OWN screen position barely moved between them. The 95-unit
-     look-ahead bias is why: pinned there the whole count, GO has him
-     driving TOWARD a point the camera already called, not blasting
-     away from one it has to catch up to -- so the zero-jump design
-     that's exactly right for an ordinary standing start was quietly
-     cancelling out the burst's own motion for a held one. Dropping
-     the bias to 0 (centered directly on him) only while
-     run.burnoutHeld is true opens that gap back up -- the existing
-     ease then has something to visibly chase at GO, which is the
-     "whoosh" an instant full-speed launch needs to actually read as
-     one. An ordinary start (bias stays 95) is untouched. */
+     A held burnout needs that gap OPENED, not closed (2026-08-12, Sir's
+     report: "he's still not taking off") -- pinned 95 ahead the whole
+     count, GO has him driving TOWARD a point the camera already called
+     rather than blasting away from one it has to catch up to, so the
+     zero-jump design that's exactly right for an ordinary standing
+     start was quietly cancelling out the burst's own motion.
+
+     That was first solved by dropping the bias to 0 during the count
+     while run.burnoutHeld -- and it cost the opening gate (Sir's
+     report, 2026-08-13: "the camera is moving the opening cone off the
+     screen"). burnoutHeld flips on the first frame gas is touched and
+     slPinCam ASSIGNS camX/camY rather than easing them, so the view
+     snapped back 95 units mid-count and the first gate, which sits
+     ahead of the robot, slid off the bottom of the screen.
+
+     So the gap moved to where the motion actually is. The count pins at
+     95 unconditionally -- framing identical for every start, burnout or
+     not -- and the bias drops to 0 at the GO TRANSITION instead, then
+     ramps back to 95 over SL.launchCamMs (see onPre). Nothing snaps in
+     either direction: at GO the target falls back 95 while he rushes
+     forward, which is the whoosh, and the ramp returns the look-ahead
+     smoothly once he is up to speed. */
   function slPinCam(){
     const hdg = scene.headingAt(scene.botS);
-    const lead = run.burnoutHeld ? 0 : 95;
-    scene.camX = scene.botX + Math.cos(hdg) * lead;
-    scene.camY = scene.botY + Math.sin(hdg) * lead;
+    scene.camX = scene.botX + Math.cos(hdg) * 95;
+    scene.camY = scene.botY + Math.sin(hdg) * 95;
   }
 
   /* ============ PEEL OUT (Sir's ask, 2026-08-12) ============
@@ -20207,6 +20225,19 @@ function tpSlalomOn(){
        course never opens with a delivery animation it has no delivery for. */
     if (scene.runT < LOAD_ART.ms + 1) scene.runT = LOAD_ART.ms + 1;
 
+    /* ============ LAUNCH CAM RAMP ============
+       Lives ABOVE the count return because it runs during 'live', which
+       is the whole point -- the burnout's camera gap belongs to the
+       launch, not to the countdown that precedes it. Armed at GO below;
+       eases the look-ahead from 0 back to its normal 95 with a
+       smoothstep so neither end of the ramp is a step. Clearing to null
+       (rather than 95) hands the constant back to update() untouched. */
+    if (run.launchCamT0){
+      const e = (performance.now() - run.launchCamT0) / SL.launchCamMs;
+      if (e >= 1){ run.launchCamT0 = 0; scene._slCamLead = null; }
+      else scene._slCamLead = 95 * (e * e * (3 - 2 * e));
+    }
+
     if (run.phase !== 'count') return;
 
     /* THE HOLD IS BY POSITION, NOT BY ZEROING THROTTLE.
@@ -20250,6 +20281,12 @@ function tpSlalomOn(){
       if (run.burnoutHeld){
         slLayBurnoutMark();
         scene.speed = vTop() * SL.burnoutLaunch;
+        /* arm the launch cam: bias to 0 on this exact frame, ramp back
+           over SL.launchCamMs. The camera is sitting at bot+95 right
+           now (slPinCam held it there all count), so the target falling
+           back is what gives the ease something to chase. */
+        run.launchCamT0 = performance.now();
+        scene._slCamLead = 0;
       }
     }
   };
@@ -20526,6 +20563,10 @@ function tpSlalomOn(){
       if (r._slPar !== undefined){ r.parMs = r._slPar; delete r._slPar; }
       delete r._slDoor; delete r._slLoop; delete r._slEndS;
     }
+    /* hand the look-ahead back before the slalom's own hooks come off --
+       a quit mid-launch must not leave the daily route driving with a
+       shortened camera bias. */
+    scene._slCamLead = null;
     delete scene._slAPI;
     delete scene._slRestore;
   };
