@@ -89,6 +89,14 @@
     lampH: 430,        // lamp overall height
     lampSpacing: 1100, // spacing along the pier
     lampGlow: 1,
+    pylonDepth: 300,   // how far the piles run below the deck
+    pileW: 26,         // pile half-width
+    bentGap: 900,      // spacing between bents along the pier
+    pilesPerBent: 4,
+    ringPiles: 10,
+    braceDrop: 40,
+    wetFrac: 0.34,     // lower fraction of each pile that reads as wet
+    fascia: 44,        // deck edge beam depth
   };
 
   /* ---------------- shared: octagon in the caller's local frame ----------------
@@ -140,6 +148,137 @@
      face-local (u along the face, v up) coordinates, which stays correct
      because a plane maps through W affinely.
      ======================================================================= */
+  /* =======================================================================
+     PIER PYLONS
+     (2026-08-14, Sir: "the pier need pylons for support".)
+
+     THE HARD PART IS NOT THE PILES, IT IS DRAW ORDER. Pylons hang BELOW
+     the deck, so they have to be painted before the deck band or they
+     paint over it. The bench cannot do that: drawWorld opens with
+     g.clear() on gWorld, so anything a pre-hook draws is wiped, and the
+     lab hook only ever runs after. Ordering is not available.
+
+     It does not need to be, because the occlusion is exactly solvable.
+     W() gives screen y proportional to ((x+y)/2 - z), so at a fixed screen
+     column (x - y = const, which is what a vertical pile occupies) the
+     deck's own near edge sits below the pile's top by (u_edge - u_top)/2,
+     where u = x + y. A pile at depth d has moved down by d. So the pile
+     emerges from under the deck at exactly
+
+         d = (u_edge - u_top) / 2
+
+     and drawing it from there downward is correctly occluded with no
+     ordering at all. For the straight band that collapses to
+     pierY + half - py: a pile on the near edge shows immediately, one on
+     the far edge only appears PIER_W further down. Both the band and the
+     round deck's disc are solved below and the deeper of the two wins,
+     so a pile under the aquarium is hidden by the disc as it should be.
+
+     PORT NOTE: in game/index.html this belongs INSIDE the coast terrain
+     pass, emitted before the deck band, where ordinary painter's order
+     handles it and none of this is needed. The solve exists because the
+     bench draws last, not because the game will have to. */
+  const PYL = {
+    pile: 0xd8d2c4, pileDk: 0xb0a998,
+    wet: 0x9aa39b, wetDk: 0x74807a,
+    beam: 0xc4bcac, beamDk: 0x968d7e,
+  };
+
+  /* largest u = x+y on the disc, along the screen column x - y = c */
+  function discEdgeU(cx, cy, R, c) {
+    const p = c / 2 - cx, q = -c / 2 - cy;
+    const disc = (p + q) * (p + q) - 2 * (p * p + q * q - R * R);
+    if (disc < 0) return -Infinity;               // column misses the disc
+    return 2 * ((-(p + q) + Math.sqrt(disc)) / 2);
+  }
+
+  function drawPierPylons(scn, g, A, o) {
+    const d = Object.assign({}, D, o || {});
+    const half = A.pierHalf;
+    const x0 = A.pierX0, x1 = A.pierX1;
+    const ringR = A.sh ? A.sh.ring.rOuter : 0;
+    const K = scn.K;
+
+    /* how far a pile at (px,py) must descend before it clears the deck */
+    const emerge = (px, py) => {
+      const c = px - py, uTop = px + py;
+      let uEdge = -Infinity;
+      /* straight band, but only where the band actually exists in x */
+      const yE = A.pierY + half, xE = c + yE;
+      if (xE >= x0 - ringR && xE <= x1) uEdge = xE + yE;
+      /* the round deck's disc */
+      if (ringR > 0) uEdge = Math.max(uEdge, discEdgeU(A.cx, A.cy, ringR, c));
+      if (uEdge === -Infinity) return 0;
+      return Math.max(0, (uEdge - uTop) / 2);
+    };
+
+    const pile = (px, py, top, bottom) => {
+      const w = d.pileW;
+      const face = (sx, sy) => [
+        scn.W(px + sx * w, py + sy * w, top),
+        scn.W(px + (sx ? sx * w : w), py + (sy ? sy * w : w), top),
+        scn.W(px + (sx ? sx * w : w), py + (sy ? sy * w : w), bottom),
+        scn.W(px + sx * w, py + sy * w, bottom)];
+      /* two near faces, same standalone-box convention drawLampHull uses */
+      scn.quadOn(g, [scn.W(px + w, py - w, top), scn.W(px + w, py + w, top),
+                     scn.W(px + w, py + w, bottom), scn.W(px + w, py - w, bottom)], PYL.pileDk);
+      scn.quadOn(g, [scn.W(px - w, py + w, top), scn.W(px + w, py + w, top),
+                     scn.W(px + w, py + w, bottom), scn.W(px - w, py + w, bottom)], PYL.pile);
+      /* waterline stain toward the bottom -- the photos' piles are darker
+         and greener for the last stretch, which is what sells them as
+         standing IN water rather than resting on it */
+      const wl = bottom + (top - bottom) * d.wetFrac;
+      scn.quadOn(g, [scn.W(px + w, py - w, wl), scn.W(px + w, py + w, wl),
+                     scn.W(px + w, py + w, bottom), scn.W(px + w, py - w, bottom)], PYL.wetDk);
+      scn.quadOn(g, [scn.W(px - w, py + w, wl), scn.W(px + w, py + w, wl),
+                     scn.W(px + w, py + w, bottom), scn.W(px - w, py + w, bottom)], PYL.wet);
+    };
+
+    /* bents across the straight run */
+    const nBent = Math.max(1, Math.round((x1 - (x0 + ringR)) / d.bentGap));
+    const perBent = Math.max(2, d.pilesPerBent);
+    for (let b = 0; b <= nBent; b++) {
+      const px = (x0 + ringR) + ((x1 - (x0 + ringR)) * b) / nBent;
+      const bent = [];
+      for (let i = 0; i < perBent; i++) {
+        const py = A.pierY - half + (2 * half * i) / (perBent - 1);
+        const e = emerge(px, py);
+        bent.push({ py, e });
+        pile(px, py, -e, -d.pylonDepth);
+      }
+      /* cross bracing between adjacent piles, below whichever of the two
+         emerges later so a brace never pokes through the deck */
+      g.lineStyle(Math.max(1, 2 * K), PYL.beamDk, 0.8);
+      for (let i = 0; i < bent.length - 1; i++) {
+        const a2 = bent[i], b2 = bent[i + 1];
+        const z0 = -Math.max(a2.e, b2.e) - d.braceDrop;
+        const z1 = -d.pylonDepth + d.braceDrop;
+        if (z0 <= z1) continue;
+        const p1 = scn.W(px, a2.py, z0), p2 = scn.W(px, b2.py, z1);
+        const p3 = scn.W(px, a2.py, z1), p4 = scn.W(px, b2.py, z0);
+        g.lineBetween(p1.x, p1.y, p2.x, p2.y);
+        g.lineBetween(p3.x, p3.y, p4.x, p4.y);
+      }
+    }
+
+    /* a ring of piles under the round deck */
+    if (ringR > 0) {
+      const n = Math.max(4, d.ringPiles);
+      for (let i = 0; i < n; i++) {
+        const a2 = (i / n) * Math.PI * 2;
+        const px = A.cx + Math.cos(a2) * ringR * 0.82;
+        const py = A.cy + Math.sin(a2) * ringR * 0.82;
+        pile(px, py, -emerge(px, py), -d.pylonDepth);
+      }
+    }
+
+    /* fascia beam along the near deck edge -- the dark band under the lip
+       that gives the deck thickness instead of reading as paper */
+    const yE = A.pierY + half;
+    scn.quadOn(g, [scn.W(x0 + ringR, yE, 0), scn.W(x1, yE, 0),
+                   scn.W(x1, yE, -d.fascia), scn.W(x0 + ringR, yE, -d.fascia)], PYL.beam);
+  }
+
   function drawRoundhouse(scn, g, W, t, o) {
     const d = Object.assign({}, D, o || {});
     const wall = octPts(d.rWall, 0);
@@ -441,7 +580,7 @@
              pierX0: x, pierX1: x + BLOCK * 2.2, pierHalf: 344 };
   }
 
-  const RHS = { showRail: true, showLamps: true, showBuilding: true, rot: 0 };
+  const RHS = { showRail: true, showLamps: true, showBuilding: true, showPylons: true, rot: 0 };
 
   /* Waterfront's schematic mode blanks the world below its own K threshold,
      which is right when you are reading lattice shape and wrong when you
@@ -488,6 +627,11 @@
       Q(A.cx + A.cy, (g) =>
         drawRoundhouse(sc, g, frame(A.cx, A.cy), t, { rWall: D.rWall }));
     }
+    if (RHS.showPylons) {
+      /* one item, drawn before the rails and lamps of the same run -- the
+         piles are structurally under everything else out there */
+      Q(A.pierX1 + A.pierY - 1e6, (g) => drawPierPylons(sc, g, A, {}));
+    }
     if (RHS.showRail) {
       /* both pier edges, from the deck out to the round end */
       for (const s of [-1, 1]) {
@@ -522,6 +666,9 @@
     { k: 'railH', label: 'rail H', min: 50, max: 260, step: 4 },
     { k: 'lampH', label: 'lamp H', min: 200, max: 800, step: 10 },
     { k: 'lampSpacing', label: 'lamp gap', min: 400, max: 3000, step: 50 },
+    { k: 'pylonDepth', label: 'pile deep', min: 80, max: 900, step: 10 },
+    { k: 'bentGap', label: 'bent gap', min: 300, max: 2500, step: 50 },
+    { k: 'pilesPerBent', label: 'per bent', min: 2, max: 7, step: 1 },
   ];
 
   const panel = document.createElement('div');
@@ -552,6 +699,7 @@
        <button id="rhB">building</button>
        <button id="rhR">rails</button>
        <button id="rhL">lamps</button>
+       <button id="rhP">pylons</button>
        <button id="rhReset">reset</button>
      </div>
      <div id="rhStat" style="margin-top:8px;color:#8f95a1;white-space:pre-line"></div>
@@ -618,7 +766,8 @@
       document.getElementById('rh-' + f.k).value = D[f.k];
       document.getElementById('rhv-' + f.k).textContent = D[f.k];
     }
-    for (const [id, on] of [['rhB', RHS.showBuilding], ['rhR', RHS.showRail], ['rhL', RHS.showLamps]])
+    for (const [id, on] of [['rhB', RHS.showBuilding], ['rhR', RHS.showRail],
+                            ['rhL', RHS.showLamps], ['rhP', RHS.showPylons]])
       document.getElementById(id).style.background = on ? '#6faab0' : '#262a33';
     refresh();
   }
@@ -674,9 +823,11 @@
   document.getElementById('rhB').onclick = () => { RHS.showBuilding = !RHS.showBuilding; sync(); };
   document.getElementById('rhR').onclick = () => { RHS.showRail = !RHS.showRail; sync(); };
   document.getElementById('rhL').onclick = () => { RHS.showLamps = !RHS.showLamps; sync(); };
+  document.getElementById('rhP').onclick = () => { RHS.showPylons = !RHS.showPylons; sync(); };
   document.getElementById('rhReset').onclick = () => {
     Object.assign(D, { rWall: 520, wallH: 300, eave: 90, roofH: 165, drumR: 175,
-                       drumH: 130, railH: 118, lampH: 430, lampSpacing: 1100 });
+                       drumH: 130, railH: 118, lampH: 430, lampSpacing: 1100,
+                       pylonDepth: 300, bentGap: 900, pilesPerBent: 4 });
     sync();
   };
   document.getElementById('rhCopy').onclick = async () => {
@@ -698,7 +849,8 @@
     if (wfLab && wfSchematicWas !== null) wfLab.WF.schematic = wfSchematicWas;
     document.getElementById('rhPanel')?.remove();
   };
-  scene._rhAPI = { RH, D, RHS, drawRoundhouse, drawPierRail, drawPierLamp, anchor };
+  scene._rhAPI = { RH, D, RHS, PYL, drawRoundhouse, drawPierRail, drawPierLamp,
+                   drawPierPylons, discEdgeU, anchor };
 
   sync();
   /* STARTS COLLAPSED. Nine sliders is most of a phone screen, and the
