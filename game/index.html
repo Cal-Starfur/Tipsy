@@ -1340,6 +1340,26 @@ const TDFX_GATE_CARD = "background:rgba(240,236,224,.55);border:1px solid #ddd6c
    #retryBtn's OWN slot (top:46%, matches #failOverlay .btn from
    tdStackCss) -- this REPLACES the pill, it doesn't stack under it,
    so exactly one of the two is ever visible. */
+/* THE FUNCTION THAT WAS NEVER WRITTEN (found 2026-08-13). tdFxPanel was
+   called from twFxOpenComposer and tsFxOpenComposer and defined nowhere
+   in the file -- a straight ReferenceError the instant either COMMENT
+   button was pressed, which is exactly the reported symptom ("that
+   comment button does nothing"). It is a plain full-screen centred wrap
+   above every overlay; the caller supplies the card inside it. Kept for
+   the SLALOM win row's own COMMENT button, which still opens a modal;
+   the DAILY win no longer uses it (see twFxSyncCommentBtn -- its draft
+   is inline now, the way the fail card's always was). */
+function tdFxPanel(id){
+  let el = document.getElementById(id);
+  if(el) return el;
+  el = document.createElement("div");
+  el.id = id;
+  el.style.cssText = "position:fixed;inset:0;z-index:100001;display:flex;" +
+    "align-items:center;justify-content:center;padding:24px;box-sizing:border-box;" +
+    "background:rgba(10,12,16,0.55);";
+  document.body.appendChild(el);
+  return el;
+}
 function tdFxGatePanel(){
   let el = document.getElementById("tdFxGate");
   if(el) return el;
@@ -1655,7 +1675,7 @@ function tdFxFollowRestore(){
   tdFxSyncGate();
 }
 function tdFxShowFollow(){
-  tdFxSwapText("Follow r/tipsey.", "FREE  +$25.00 BONUS TIPS");
+  tdFxSwapText("Follow r/tipsey.", "KEEP YOUR RUNS ON THE DELIVERY LOG");
   document.getElementById("retryBtn").style.visibility = "hidden";
   tdFxHideGatePanel();
   const overlay = document.getElementById("failOverlay");
@@ -2006,25 +2026,110 @@ function tdFxPositionIconsAbove(rowId, gateEl){
    dbClaimWinCommentBonus is the actual gate, so a cleared or blocked
    localStorage can't double-pay, it can only make one screen's button
    copy stale until the next successful post corrects it. */
+/* ---- NO PRICE TAGS BEFORE THE ACT (Sir's call, 2026-08-13) ----------
+   "dont say +$5 until after they do it like a nice suprise, that should
+   be always." A standing rule across every bonus in the file, not one
+   screen's wording: nothing that pays advertises what it pays BEFORE
+   the player does it. The figure appears only in the confirmation,
+   after the money has actually landed and the server has said
+   bonusGranted -- which also means the number shown is never a promise
+   the server might not keep (an already-claimed follow, a second
+   comment on a day whose $5 is spent, a post that failed the per-day
+   hSetNX) and the confirmation stays honest without any extra state.
+   This generalises the reasoning already recorded at the slalom unlock
+   gate ("hanging +$5.00/+$25.00 off it made the moment read like a
+   paywall"); the same was true everywhere else, just less obviously.
+   Wording that pays nothing (ALREADY FOLLOWING, BONUS ALREADY CLAIMED)
+   is untouched -- there is no surprise to spoil. */
 const twFx = { draft: "", posted: false, busy: false,
                draftWhy: "no win yet" };
 const TWFX_DONE_KEY = "tdWinCBonusDate";
 const TWFX_WINBTN = "position:absolute;left:50%;transform:translateX(-50%);" +
   TDFX_BTN + "width:min(340px,86vw);";
 
-function twFxCommentBtn(){
-  let b = document.getElementById("twFxCommentBtn");
-  if(b) return b;
-  b = document.createElement("button");
-  b.id = "twFxCommentBtn";
-  b.style.cssText = TWFX_WINBTN + "background:#2c313c;color:#fff;border:1px solid #4a5060;";
-  b.addEventListener("click", twFxOpenComposer);
-  document.getElementById("winOverlay").appendChild(b);
-  return b;
+/* THE DRAFT IS ALREADY WRITTEN (Sir's call, 2026-08-13): "we need to
+   change this daily completion so that comment is already written like
+   on a fail." The win screen used to carry a COMMENT button that opened
+   a modal composer -- two taps to reach text the server had already
+   composed and was holding in twFx.draft the whole time. The fail card
+   never worked that way: tdFxGatePanel puts the draft straight on
+   screen, editable, with one button under it. The win now does the
+   same, in the button's own slot, so exactly one of the two is ever
+   there.
+
+   The old button is gone rather than hidden -- it was the only caller
+   of twFxOpenComposer, and leaving a dead control in the DOM is what
+   made this hard to see in the first place: it looked like a working
+   button (it was styled, it was positioned, it was visible) and did
+   nothing at all, because the composer it opened called tdFxPanel,
+   which did not exist. */
+function twFxGatePanel(){
+  let el = document.getElementById("twFxGate");
+  if(el) return el;
+  el = document.createElement("div");
+  el.id = "twFxGate";
+  el.style.cssText = "position:absolute;left:50%;transform:translateX(-50%);" +
+    "text-align:left;" + TDFX_GATE_CARD;
+  document.getElementById("winOverlay").appendChild(el);
+  return el;
 }
 function twFxHideCommentBtn(){
-  const b = document.getElementById("twFxCommentBtn");
-  if(b) b.style.display = "none";
+  const g = document.getElementById("twFxGate");
+  if(g) g.style.display = "none";
+}
+/* The bonus is stated in the HEADER, never on the button -- same call
+   Sir made for the slalom unlock gate: hanging a dollar figure off the
+   action makes a delivery you just earned read like a paywall. It still
+   pays, same endpoint, same $5/day pool. */
+function twFxRenderComposer(g){
+  g.style.display = "block";
+  g.innerHTML =
+    '<div style="font-weight:700;font-size:11px;letter-spacing:0.8px;line-height:1.4;' +
+      'margin-bottom:12px;">POST YOUR RUN TO THE DELIVERY LOG</div>' +
+    '<div id="twFxComposeErr" style="color:#b5540e;font-size:12px;margin-bottom:8px;display:none;"></div>';
+  const ta = document.createElement("textarea");
+  ta.id = "twFxComposeText";
+  ta.value = twFx.draft;
+  ta.maxLength = 480;   // mirrors the server's clamp so nothing is silently cut
+  ta.style.cssText = "width:100%;box-sizing:border-box;height:100px;resize:none;" +
+    "background:#fff;color:#2e3138;border:1px solid #ddd6c4;border-radius:8px;" +
+    "padding:10px;font:inherit;font-size:13px;line-height:1.4;margin-bottom:4px;";
+  const count = document.createElement("div");
+  count.style.cssText = "font-size:10px;color:#a99f8a;text-align:right;margin-bottom:12px;";
+  count.textContent = ta.value.length + " / 480";
+  ta.addEventListener("input", () => { count.textContent = ta.value.length + " / 480"; });
+  const btn = document.createElement("button");
+  btn.id = "twFxGateBtn";
+  btn.textContent = "Post";
+  btn.style.cssText = TDFX_BTN + TDFX_ORANGE;
+  btn.addEventListener("click", () => twFxPostComment(ta, btn));
+  g.appendChild(ta);
+  g.appendChild(count);
+  g.appendChild(btn);
+}
+/* Measured, not constant -- the composer panel is several times the
+   height of the button it replaced, so the icon row above it cannot use
+   the old fixed +120. Called from showWin AND from reportWin's response
+   callback (the draft usually lands after the overlay is already up),
+   which is the whole reason it's a function and not inline. */
+function twFxLayoutWinStack(){
+  const overlay = document.getElementById("winOverlay");
+  if(!overlay || overlay.classList.contains("hidden")) return;
+  const cardEl = document.getElementById("winCard");
+  if(!cardEl) return;
+  let stack = cardEl.offsetHeight + 16;
+  const followBtn = document.getElementById("twFxFollowBtn");
+  if(followBtn && followBtn.style.display !== "none"){
+    followBtn.style.bottom = stack + "px";
+    stack += (followBtn.offsetHeight || 48) + 12;
+  }
+  const g = document.getElementById("twFxGate");
+  if(g && g.style.display !== "none"){
+    g.style.bottom = stack + "px";
+    stack += (g.offsetHeight || 220) + 12;
+  }
+  const iconRow = document.getElementById("tdStackIcons_winOverlay");
+  if(iconRow){ iconRow.style.top = "auto"; iconRow.style.bottom = stack + "px"; }
 }
 /* Called from showWin() AND from reportWin's response callback, same
    two-callers-race reason tdFxSyncGate documents: the win
@@ -2035,12 +2140,10 @@ function twFxSyncCommentBtn(){
   if(!IS_DEVVIT_BUILD) return;
   const overlay = document.getElementById("winOverlay");
   if(!overlay || overlay.classList.contains("hidden")) return;
-  const b = twFxCommentBtn();
-  b.style.display = (twFx.draft && !twFx.posted) ? "block" : "none";
-  b.disabled = false;
-  let claimedToday = false;
-  try { claimedToday = localStorage.getItem(TWFX_DONE_KEY) === clientTodayUTC(); } catch(e){}
-  b.textContent = claimedToday ? "COMMENT" : "COMMENT  \u00b7  +$5.00 BONUS";
+  const g = twFxGatePanel();
+  if(twFx.draft && !twFx.posted) twFxRenderComposer(g);
+  else g.style.display = "none";
+  twFxLayoutWinStack();
 }
 function twFxFollowBtn(){
   let b = document.getElementById("twFxFollowBtn");
@@ -2066,7 +2169,7 @@ function twFxSyncFollowBtn(){
   if(tdFx.followClaimed){ b.style.display = "none"; return; }
   b.style.display = "block";
   b.disabled = false;
-  b.textContent = "FOLLOW r/tipsey  \u00b7  +$25.00 BONUS";
+  b.textContent = "FOLLOW r/tipsey";
 }
 function twFxDoFollow(btn){
   if(tdFx.busy) return;
@@ -2076,7 +2179,7 @@ function twFxDoFollow(btn){
   const fail = () => {
     tdFx.busy = false;
     btn.disabled = false;
-    btn.textContent = "FOLLOW r/tipsey  \u00b7  +$25.00 BONUS";
+    btn.textContent = "FOLLOW r/tipsey";
   };
   tdFxFollowRequest(granted => { tdFx.busy = false; twFxFollowDone(btn, granted); }, fail);
 }
@@ -2084,48 +2187,21 @@ function twFxFollowDone(btn, granted){
   btn.textContent = granted ? "FOLLOWED  \u00b7  +$25.00 ADDED" : "ALREADY FOLLOWING";
   btn.disabled = true;
 }
-function twFxOpenComposer(){
-  if(!twFx.draft || twFx.posted) return;
-  const wrap = tdFxPanel("twFxComposer");
-  wrap.innerHTML = "";
-  const card = document.createElement("div");
-  card.style.cssText = TDFX_CARD + "text-align:left;";
-  card.innerHTML =
-    '<div style="font-weight:700;letter-spacing:1px;margin-bottom:12px;text-align:center;">' +
-      'LEAVE A COMMENT</div>' +
-    '<div id="twFxComposeErr" style="color:#ff8a65;font-size:12px;margin-bottom:8px;display:none;"></div>';
-  const ta = document.createElement("textarea");
-  ta.id = "twFxComposeText";
-  ta.value = twFx.draft;
-  ta.maxLength = 480;   // mirrors the server's clamp so nothing is silently cut
-  ta.style.cssText = "width:100%;box-sizing:border-box;height:110px;resize:none;" +
-    "background:#12141a;color:#fff;border:1px solid #3a3f4a;border-radius:8px;" +
-    "padding:10px;font:inherit;font-size:13px;margin-bottom:14px;";
-  const post = document.createElement("button");
-  post.textContent = "POST";
-  post.style.cssText = TDFX_BTN + TDFX_ORANGE + "margin-bottom:10px;";
-  post.addEventListener("click", () => twFxPostComment(ta, post));
-  const cancel = document.createElement("button");
-  cancel.textContent = "CANCEL";
-  cancel.style.cssText = TDFX_BTN +
-    "background:none;color:#9aa3b2;font-size:12px;letter-spacing:2px;padding:6px 0;";
-  cancel.addEventListener("click", () => wrap.remove());
-  card.appendChild(ta);
-  card.appendChild(post);
-  card.appendChild(cancel);
-  wrap.appendChild(card);
-}
+/* twFxOpenComposer removed 2026-08-13: the modal composer it built
+   had exactly one caller (the COMMENT button) and that button is
+   gone -- the draft is inline in #twFxGate now. twFxPostComment
+   below is unchanged and is called by the panel's own Post button. */
 function twFxPostComment(ta, btn){
   if(twFx.busy) return;
   const text = (ta.value || "").trim();
   if(!text) return;
   twFx.busy = true;
   btn.disabled = true;
-  btn.textContent = "POSTING...";
+  btn.textContent = "Posting\u2026";
   const fail = () => {
     twFx.busy = false;
     btn.disabled = false;
-    btn.textContent = "POST";
+    btn.textContent = "Post";
     const e = document.getElementById("twFxComposeErr");
     if(e){ e.textContent = "Couldn't post. Try again."; e.style.display = "block"; }
   };
@@ -2151,9 +2227,27 @@ function twFxPostComment(ta, btn){
         if(typeof tpSaveProfile === "function") tpSaveProfile();
         if(typeof tpRender === "function") tpRender();
       }
-      const wrap = document.getElementById("twFxComposer");
-      if(wrap) wrap.remove();
-      twFxSyncCommentBtn();
+      /* Confirm in place before collapsing -- the panel IS the screen
+         here now, so removing it the instant the post lands leaves the
+         player with no acknowledgement that anything happened. Same
+         beat the slalom's follow step uses for the same reason. */
+      const g = document.getElementById("twFxGate");
+      if(g){
+        /* THE SURPRISE. d.bonusGranted is the server's own word for
+           "this one actually paid", so the line can never claim money
+           the wallet didn't get. */
+        g.innerHTML =
+          '<div style="font-weight:700;font-size:11px;letter-spacing:0.8px;' +
+            'margin-bottom:6px;">POSTED</div>' +
+          '<div style="font-size:13px;line-height:1.4;color:#5c5647;">' +
+            'Your run is on the Delivery Log.</div>' +
+          (d.bonusGranted
+            ? '<div style="font-weight:700;font-size:15px;color:#3f7d43;margin-top:10px;">' +
+                '+$5.00 bonus tip</div>'
+            : '');
+        twFxLayoutWinStack();
+        setTimeout(() => { twFxSyncCommentBtn(); }, 1600);
+      } else twFxSyncCommentBtn();
     })
     .catch(fail);
 }
@@ -2262,14 +2356,15 @@ function tsFxBonusRow(card, total, par, clean, stackBase){
     "border:1px solid #4a5060;border-radius:7px;min-height:44px;flex:1;display:none;";
   let claimedToday = false;
   try { claimedToday = localStorage.getItem(TSFX_DONE_KEY) === clientTodayUTC(); } catch(e){}
-  commentBtn.textContent = claimedToday ? "COMMENT" : "COMMENT  \u00b7  +$5.00";
+  void claimedToday;   // no longer changes the label -- see the NO PRICE TAGS note
+  commentBtn.textContent = "COMMENT";
   commentBtn.addEventListener("click", tsFxOpenComposer);
 
   const followBtn = document.createElement("button");
   followBtn.id = "tsFxFollowBtn";
   followBtn.style.cssText = "font:inherit;color:#fff;background:#ff7a1a;" +
     "border:1px solid #b5540e;border-radius:7px;min-height:44px;flex:1;";
-  followBtn.textContent = "FOLLOW  \u00b7  +$25.00";
+  followBtn.textContent = "FOLLOW";
   followBtn.addEventListener("click", () => tsFxDoFollow(followBtn));
   if(tdFx.followClaimed) followBtn.style.display = "none";
 
@@ -2287,7 +2382,7 @@ function tsFxDoFollow(btn){
   const fail = () => {
     tdFx.busy = false;
     btn.disabled = false;
-    btn.textContent = "FOLLOW  \u00b7  +$25.00";
+    btn.textContent = "FOLLOW";
   };
   tdFxFollowRequest(granted => {
     tdFx.busy = false;
@@ -2360,8 +2455,20 @@ function tsFxPostComment(ta, btn){
       }
       const wrap = document.getElementById("tsFxComposer");
       if(wrap) wrap.remove();
+      /* THE SURPRISE (see the NO PRICE TAGS note). The button used to
+         just vanish, which read as the post having gone nowhere. It
+         becomes the receipt instead, and only says a number when the
+         server says one was paid. */
       const b = document.getElementById("tsFxCommentBtn");
-      if(b) b.style.display = "none";
+      if(b){
+        if(d.bonusGranted){
+          b.textContent = "POSTED  \u00b7  +$5.00 BONUS TIP";
+          b.disabled = true;
+          b.style.background = "#2f5c33";
+          b.style.color = "#dff3e1";
+          setTimeout(() => { b.style.display = "none"; }, 2600);
+        } else b.style.display = "none";
+      }
     })
     .catch(fail);
 }
@@ -2532,7 +2639,7 @@ function tsFxWinPost(ta, btn, g, card){
         if(typeof tpRender === "function") tpRender();
       }
       if(document.getElementById("slCard") !== card) return;   // player already left
-      tsFxWinShowFollow(g);
+      tsFxWinShowFollow(g, !!d.bonusGranted);
     })
     .catch(fail);
 }
@@ -2540,12 +2647,18 @@ function tsFxWinPost(ta, btn, g, card){
    flag and network call every other asker uses (fail card, delivery
    win, slalom win row) -- an account that already claimed skips this
    step entirely rather than being offered a bonus it can't get. */
-function tsFxWinShowFollow(g){
+function tsFxWinShowFollow(g, paid){
   if(tdFx.followClaimed){ tsFxWinShowAgain(); return; }
   g.style.display = "block";
+  /* The unlock screen deliberately carries no dollar figures on its
+     BUTTONS (that call predates the general rule and still holds); the
+     paid line here is the confirmation, which the rule allows and in
+     fact requires -- otherwise the $5 lands silently. */
   g.innerHTML =
     '<div style="font-weight:700;font-size:11px;letter-spacing:0.8px;' +
-      'margin-bottom:6px;">POSTED</div>' +
+      'margin-bottom:6px;">POSTED' +
+      (paid ? '<span style="color:#3f7d43;">  \u00b7  +$5.00 BONUS TIP</span>' : '') +
+      '</div>' +
     '<div style="font-size:13px;line-height:1.4;color:#5c5647;margin-bottom:14px;">' +
       'Follow r/tipsey to keep your runs on the Delivery Log.</div>' +
     '<div id="tsFxWinErr" style="color:#b5540e;font-size:12px;margin-bottom:8px;display:none;"></div>';
@@ -20381,7 +20494,7 @@ function tpSlalomOn(){
     const commentBtn = document.getElementById('tsfFxGate');
     if (commentBtn) commentBtn.style.display = 'none';
     m.textContent = 'Follow r/tipsey.';
-    s.textContent = 'FREE  +$25.00 BONUS TIPS';
+    s.textContent = 'KEEP YOUR RUNS ON THE DELIVERY LOG';
     const err = document.createElement('div');
     err.id = 'slFollowErr';
     err.style.cssText = 'position:absolute;left:50%;top:calc(46% - 26px);' +
@@ -24063,14 +24176,14 @@ function showWin(s){
   const cardEl = document.getElementById("winCard");
   const stackBase = cardEl.offsetHeight + 16;
   twFxSyncFollowBtn();
-  twFxSyncCommentBtn();
   tdStackIcons("winOverlay");
-  const followBtn = document.getElementById("twFxFollowBtn");
-  if(followBtn) followBtn.style.bottom = stackBase + "px";
-  const commentBtn = document.getElementById("twFxCommentBtn");
-  if(commentBtn) commentBtn.style.bottom = (stackBase + 60) + "px";
-  const iconRow = document.getElementById("tdStackIcons_winOverlay");
-  if(iconRow){ iconRow.style.top = "auto"; iconRow.style.bottom = (stackBase + 120) + "px"; }
+  /* twFxSyncCommentBtn ends in twFxLayoutWinStack, which re-measures and
+     places FOLLOW, the composer panel and the icon row off winCard's
+     real height -- so it must run AFTER tdStackIcons has created the row
+     it positions. stackBase above is left in place as the panel-height
+     read that proves the overlay is shown (see the ORDER MATTERS note). */
+  void stackBase;
+  twFxSyncCommentBtn();
 }
 
 window.addEventListener("resize", () => {
