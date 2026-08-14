@@ -25,15 +25,8 @@
       }
     ]
   },
-  "triggers": {
-    "onAppInstall": "/internal/on/app/install"
-  },
   "scheduler": {
     "tasks": {
-      "daily-post-check": {
-        "endpoint": "/internal/scheduler/daily-post-check",
-        "cron": "*/15 * * * *"
-      },
       "deleted-user-sweep": {
         "endpoint": "/internal/scheduler/deleted-user-sweep",
         "cron": "0 8 * * 0"
