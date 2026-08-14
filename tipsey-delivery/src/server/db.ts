@@ -733,14 +733,37 @@ export async function dbSubmitScore(
   username: string,
 ): Promise<{daily: LeaderboardEntry[]; allTime: LeaderboardEntry[]}> {
   const tipCents = Math.round(tip * 100)
-  const newScore = encodeScore(tipCents, ms)
   const dailyKey = leaderboardKey(dateStr)
 
   const [dailyCurrent, allTimeCurrent] = await Promise.all([
     redis.zScore(dailyKey, username),
     redis.zScore(ALLTIME_KEY, username),
   ])
-  const dailyBetter = dailyCurrent === undefined || newScore > dailyCurrent
+
+  // TODAY'S BOARD IS A RUNNING TOTAL NOW (Sir's call, 2026-08-13: "it
+  // should keep all your tips for the whole day"). The daily used to be
+  // a race for the single best delivery -- zAdd only when newScore beat
+  // the stored one -- which made sense when there was one route a day.
+  // The ladder means a player runs as many as they like, so the day's
+  // score is the sum of what they earned on it, and every delivery
+  // counts rather than only the luckiest.
+  //
+  // TIPS SUM, TIME DOES NOT. The tiebreak stays the player's FASTEST
+  // single run, and that is a correctness requirement rather than a
+  // taste one: encodeScore packs ms into a SCORE_MULT-wide field
+  // (10_000_000, about 2.8 hours), so a summed ms would overflow that
+  // field on a long session and carry straight into the tip digits,
+  // silently inflating the score it was meant to break ties on. A
+  // best-of ms is bounded by a single delivery and cannot.
+  const prevDaily =
+    dailyCurrent === undefined ? null : decodeScore(dailyCurrent)
+  const dayTipCents = (prevDaily ? prevDaily.tipCents : 0) + tipCents
+  const dayBestMs = prevDaily ? Math.min(prevDaily.ms, ms) : ms
+  const newScore = encodeScore(dayTipCents, dayBestMs)
+  // Unconditional: a completed delivery always adds to the day. The
+  // only reason to skip is a zero-tip run, which cannot move the total
+  // and whose ms has no business improving the tiebreak either.
+  const dailyBetter = tipCents > 0 || dailyCurrent === undefined
   const isFirstAllTimeAppearance = allTimeCurrent === undefined
 
   if (dailyBetter || isFirstAllTimeAppearance) {
@@ -841,10 +864,14 @@ export async function dbSubmitReplayScore(
     }
     await redis.hSet(key, {[dateStr]: JSON.stringify({tipCents, ms})})
 
-    // Also refresh that day's own board, so a replay shows up in the
-    // historical leaderboard for that date too — same zAdd-if-better +
-    // TTL-refresh dbSubmitScore does for today, reused here against an
-    // arbitrary past date instead.
+    // Also refresh that day's own board. Still zAdd-IF-BETTER here, and
+    // deliberately NOT the running total dbSubmitScore now keeps: a
+    // replay is a second attempt at a day that is already scored, so
+    // adding its tip would let an old day's board be farmed by simply
+    // replaying it -- the exact farming the delta rule above exists to
+    // stop, and it would be strange to close that door on the all-time
+    // total while leaving it open on the day itself. A past day's board
+    // stays a best-of.
     const dailyKey = leaderboardKey(dateStr)
     const newScore = encodeScore(tipCents, ms)
     const dailyCurrent = await redis.zScore(dailyKey, username)
