@@ -421,30 +421,56 @@
 
   const RHS = { showRail: true, showLamps: true, showBuilding: true, rot: 0 };
 
-  /* CHAIN, DON'T REPLACE (2026-08-14). BENCH.hook is a single slot, so
-     taking it outright silently switches off whatever lab was already
-     drawing -- loading this on top of waterfront made its whole overlay
-     disappear. Capturing the incumbent and calling it first lets the two
-     labs compose, which is the point of sitting this building on the
-     other one's pier in the first place. */
+  /* Waterfront's schematic mode blanks the world below its own K threshold,
+     which is right when you are reading lattice shape and wrong when you
+     are looking at a building. Switched off while this lab is loaded, and
+     put back exactly as found on teardown. */
+  const wfLab = scene._wfAPI;
+  const wfSchematicWas = wfLab ? wfLab.WF.schematic : null;
+  if (wfLab) wfLab.WF.schematic = false;
+
+  /* DRAWN FROM A PRIVATE SORT, NOT BENCH.queue (2026-08-14, Sir: "i dont
+     see any buiulding or rails or lamps").
+
+     BENCH.queue is the right default -- it lands items in the game's own
+     depth sort against houses and props, which is the shape the code takes
+     once it ports into drawProp. But the bench flushes that queue from
+     inside queueBlockContent, and queueBlockContent only runs if there are
+     BLOCKS. The waterfront lab's schematic mode empties grid.blocks, so
+     with both labs loaded every item queued here was dropped on the floor
+     and nothing drew at all -- silently, with no error.
+
+     So this sorts and draws its own items. That is a genuine downside and
+     worth stating plainly: these props are not depth-sorted against the
+     city. It is honest HERE because the pier is bare deck -- there is
+     nothing out there to sort against but each other. When this ports into
+     drawProp as real route props it goes through the real vq and gets the
+     real sort, which is the only place it would matter. */
+  function flush(sc, t, items) {
+    items.sort((a, b) => a.depth - b.depth);
+    for (const it of items) {
+      try { it.fn(sc.gFront, t); }
+      catch (e) { sc.__rhDrawErr = String(e); }
+    }
+  }
+
   const prevHook = scene.__benchHook;
   BENCH.hook(function (sc, t) {
     if (prevHook) { try { prevHook(sc, t); } catch (e) { /* the incumbent's problem, not ours */ } }
     const A = anchor();
-    /* Every piece goes through BENCH.queue so it lands in the game's own
-       depth sort against houses and props, not a private one -- the
-       crime-scene port is the cautionary tale here. */
+    const items = [];
+    const Q = (depth, fn) => items.push({ depth, fn });
     const frame = (ox, oy) => (dx, dy, dz) => sc.W(ox + dx, oy + dy, dz);
 
     if (RHS.showBuilding) {
-      BENCH.queue(A.cx + A.cy, (g) =>
+      Q(A.cx + A.cy, (g) =>
         drawRoundhouse(sc, g, frame(A.cx, A.cy), t, { rWall: D.rWall }));
     }
     if (RHS.showRail) {
       /* both pier edges, from the deck out to the round end */
       for (const s of [-1, 1]) {
         const y = A.pierY + s * A.pierHalf;
-        BENCH.queue(A.pierX1 + y, (g) =>
+        Q(A.pierX1 + y, (g) =>
           drawPierRail(sc, g, (dx, dy, dz) => sc.W(dx, dy, dz),
             { x: A.pierX1, y }, { x: A.pierX0 + (A.sh ? A.sh.ring.rOuter : 0), y }, {}));
       }
@@ -456,10 +482,11 @@
         const x = x0 + (x1 - x0) * (k / n);
         for (const s of [-1, 1]) {
           const y = A.pierY + s * (A.pierHalf - 40);
-          BENCH.queue(x + y, (g) => drawPierLamp(sc, g, frame(x, y), t, {}));
+          Q(x + y, (g) => drawPierLamp(sc, g, frame(x, y), t, {}));
         }
       }
     }
+    flush(sc, t, items);
   });
 
   /* ---------------- panel ---------------- */
@@ -523,6 +550,34 @@
   document.body.appendChild(panel);
 
   const portLine = () => `RH ${FIELDS.map(f => f.k + ':' + D[f.k]).join(' ')}`;
+
+  /* "i dont see any buiulding or rails or lamps" was, the second time, just
+     zoom: at K=0.03 this whole building is about 25 screen pixels. Nothing
+     is wrong and nothing says so, which is the actual problem -- so the
+     readout now measures it and names the fix. */
+  function visibilityNote() {
+    const A = anchor();
+    /* MUST READ THE PENDING CAMERA, NOT scene.K/scene.W. The bench applies
+       BENCH.cam to the scene in its PRE hook, i.e. at the start of the next
+       draw -- so immediately after frameIt() the scene still holds the old
+       camera, and a note computed from it reported OFF SCREEN about a
+       building sitting dead centre. Measured: said OFF SCREEN at K 0.399
+       with the thing filling the frame. */
+    const cam = BENCH.cam;
+    const K = (cam && cam.on) ? cam.k : (scene.K || 1);
+    const camX = (cam && cam.on) ? cam.x : scene.camX;
+    const camY = (cam && cam.on) ? cam.y : scene.camY;
+    const camZ = (cam && cam.on) ? (cam.z || 0) : scene.camZ;
+    const px = Math.round(2 * (D.rWall + D.eave) * Math.SQRT2 * K);
+    const gs = scene.scale.gameSize;
+    const xr = A.cx - camX, yr = A.cy - camY;
+    const sx = (xr - yr) * K + gs.width / 2;
+    const sy = ((xr + yr) * 0.5 + camZ) * K + gs.height / 2;
+    const onScreen = sx > -px && sx < gs.width + px && sy > -px && sy < gs.height + px;
+    if (!onScreen) return `OFF SCREEN at K ${K.toFixed(3)} -- tap "frame it"`;
+    if (px < 60) return `only ${px}px wide at K ${K.toFixed(3)} -- tap "frame it"`;
+    return `${px}px wide at K ${K.toFixed(3)}`;
+  }
   function refresh() {
     const A = anchor();
     document.getElementById('rhStat').textContent =
@@ -531,7 +586,8 @@
       `${A.sh ? Math.round(A.sh.ring.rInner) : 'n/a'}` +
       `${A.sh && Math.abs(D.rWall - A.sh.ring.rInner) > 40 ? '   <-- MISMATCH' : '   match'}\n` +
       `overall height ${D.wallH + D.roofH + D.drumH + D.drumRoofH + D.finialH}\n` +
-      `SEE IT AT ALL FOUR HEADINGS before this ships (f0..f3)`;
+      `SEE IT AT ALL FOUR HEADINGS before this ships (f0..f3)\n` +
+      visibilityNote();
     document.getElementById('rhPort').textContent = portLine();
   }
   function sync() {
@@ -616,6 +672,7 @@
     /* hand the hook back to whoever had it, rather than clearing it and
        taking the incumbent lab down with us */
     if (prevHook) BENCH.hook(prevHook); else BENCH.clear();
+    if (wfLab && wfSchematicWas !== null) wfLab.WF.schematic = wfSchematicWas;
     document.getElementById('rhPanel')?.remove();
   };
   scene._rhAPI = { RH, D, RHS, drawRoundhouse, drawPierRail, drawPierLamp, anchor };
