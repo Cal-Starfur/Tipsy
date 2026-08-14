@@ -9645,8 +9645,28 @@ class WorldScene extends Phaser.Scene {
     {
       const bsRadius = (this.scale.gameSize.width / this.K) * 0.55 + T2*3;
       const gEndBase = { x:(r.grid.cols-1)*BLOCK, y:(r.grid.rows-1)*BLOCK };
-      const bx0 = Math.max(-T2, this.camX - bsRadius), bx1 = Math.min(gEndBase.x+T2, this.camX + bsRadius);
-      const by0 = Math.max(-T2, this.camY - bsRadius), by1 = Math.min(gEndBase.y+T2, this.camY + bsRadius);
+      /* THE EXT RING (2026-08-14, Sir on-device: "there is a blue gap
+         between the boardwalk and the old build"). The blue sampled off
+         that report is 0x9fd4e8 -- an exact match for pal.sky, not any
+         water colour, so nothing was being drawn there at all and the
+         canvas clear colour was showing through.
+         The cause is this clamp. The backstop was bounded to the LATTICE
+         (-T2 .. gEnd+T2), but the drawn world extends WG_COAST.EXT of a
+         block further out on every side before the boardwalk's own band
+         begins: the coast pass paints from X0 = -EXT*BLOCK outward, the
+         city paints from the lattice inward, and the ring between them
+         belonged to neither. Sidewalks reach -(ROAD_HALF+SIDEWALK_W), so
+         the bare strip ran roughly -1720..-736 on the west edge, and the
+         same arithmetic left one on the south.
+         Bounding to the ground the coast pass actually starts from closes
+         it, and closes the south edge by the same expression rather than
+         a second special case. Cost is unchanged in the common case: the
+         loop is still clamped to bsRadius around the camera, so this only
+         ever adds tiles when the camera is genuinely out at the city's
+         edge looking at the gap. */
+      const EXT_RING = BLOCK*WG_COAST.EXT + T2;
+      const bx0 = Math.max(-EXT_RING, this.camX - bsRadius), bx1 = Math.min(gEndBase.x+EXT_RING, this.camX + bsRadius);
+      const by0 = Math.max(-EXT_RING, this.camY - bsRadius), by1 = Math.min(gEndBase.y+EXT_RING, this.camY + bsRadius);
       const half = T2/2;
       const i0 = Math.floor(bx0/T2), i1 = Math.ceil(bx1/T2);
       const j0 = Math.floor(by0/T2), j1 = Math.ceil(by1/T2);
@@ -22681,7 +22701,7 @@ function mapParkName(cx, cy, route){
 /* the coast geometry's shared fractions — drawWorld's terrain pass and
    the landmark index both read THIS table, so a landmark can never
    drift from the ground it names. Values are fractions of BLOCK. */
-const WG_COAST = { EXT:0.55, SANDW:1.4, FOOTW:1.1, BOARD:0.35, MTN_BASIN:2.2,
+const WG_COAST = { EXT:0.55, SANDW:1.4, FOOTW:1.1, BOARD:0.15, MTN_BASIN:2.2,
                    PIER_W:0.22, PIER_LEN:2.2 };
 function worldgenLandmarks(grid){
   if(!WORLDGEN_COAST) return [];
