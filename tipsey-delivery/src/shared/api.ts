@@ -352,10 +352,8 @@ export const Endpoint = {
   PostSlalomFailComment: 'api/tipsy/slalom/fail/comment',
   SubmitHydrantFail: 'api/tipsy/hydrant/fail',
   PostHydrantFailComment: 'api/tipsy/hydrant/fail/comment',
-  OnAppInstall: 'internal/on/app/install',
   OnMenuNewPost: 'internal/on/menu/new-post',
   OnAccountDelete: 'internal/on/account/delete',
-  OnSchedulerDailyPost: 'internal/scheduler/daily-post-check',
   OnSchedulerDeletedUserSweep: 'internal/scheduler/deleted-user-sweep',
 } as const
 export const EndpointMethod = {
@@ -381,9 +379,7 @@ export const EndpointMethod = {
   [Endpoint.PostSlalomFailComment]: 'POST',
   [Endpoint.SubmitHydrantFail]: 'POST',
   [Endpoint.PostHydrantFailComment]: 'POST',
-  [Endpoint.OnAppInstall]: 'POST',
   [Endpoint.OnMenuNewPost]: 'POST',
   [Endpoint.OnAccountDelete]: 'POST',
-  [Endpoint.OnSchedulerDailyPost]: 'POST',
   [Endpoint.OnSchedulerDeletedUserSweep]: 'POST',
 } as const satisfies {[endpoint: string]: 'GET' | 'POST'}
