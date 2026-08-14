@@ -5797,20 +5797,34 @@ function segCross(p1, p2, p3, p4){
   return u >= 0 && u <= 1 && v >= 0 && v <= 1;
 }
 
-/* days since epoch; 1970-01-01 was a Thursday, so +3 makes 0 = Monday */
+/* Unused since the crime scene moved off the calendar and onto the
+   ladder (see crimeSceneOnRun). Kept because it is the only
+   days-since-epoch helper in the file and costs nothing.
+   days since epoch; 1970-01-01 was a Thursday, so +3 makes 0 = Monday */
 function crimeDayIndex(dateStr){
   const d = Date.parse(dateStr + "T00:00:00Z");
   return Math.floor(d / 86400000);
 }
-/* exactly one day per Mon-Sun week, by construction: the week key picks
-   a weekday, and the date matches iff it IS that weekday. No per-day
-   probability that could give a week two scenes or none. */
-function crimeSceneOnDate(dateStr){
-  const day = crimeDayIndex(dateStr);
-  if(!isFinite(day)) return false;
-  const week = Math.floor((day + 3) / 7);
-  const chosen = Math.floor(mulberry32((hashStr("crime|" + week) ^ 0x5eed) >>> 0)() * 7);
-  return (((day + 3) % 7) + 7) % 7 === chosen;
+/* ONE PER SEVEN RUNGS, NOT ONE PER WEEK (Sir's call, 2026-08-13: "we
+   should probably change the police algorithm from weekly to every 7
+   routes generated"). The construction is unchanged and still gives
+   exactly one scene per block of seven with no per-route probability
+   that could produce two or none -- the only thing that moved is what
+   indexes the block. It USED to be the calendar: crimeDayIndex parses
+   the date, and a ladder rung ("2026-08-13#4") is not a date, so
+   Date.parse returns NaN and the isFinite guard would have switched the
+   police off permanently the moment the ladder shipped. Indexing on the
+   rung is both the fix and what was asked for.
+
+   Keyed on the DAY as well as the block so two different days' rung 3
+   aren't the same call -- the ladder resets daily, so without the date
+   in the key every day would put its crime scene on exactly the same
+   rung forever. */
+function crimeSceneOnRun(dateStr, runIndex){
+  const n = Math.max(1, runIndex | 0) - 1;          // 0-based rung
+  const block = Math.floor(n / 7);
+  const chosen = Math.floor(mulberry32((hashStr("crime|" + dateStr + "|" + block) ^ 0x5eed) >>> 0)() * 7);
+  return (n % 7) === chosen;
 }
 
 /* drawPersonHull's forward axis is bDir = (-sin th, cos th) — NOT aDir.
@@ -6023,10 +6037,44 @@ function worldgenReconcile(grid){
    part (buildGrid/buildWalk/course search) never reruns for inputs it's
    already built. */
 const _routeGenCache = new Map();
+/* THE DAILY IS A LADDER NOW (Sir's call, 2026-08-13). One route per
+   calendar day is gone: beat a route and the engine rolls the next one,
+   and every player walks the SAME ordered sequence. The ladder resets
+   at midnight UTC, so everyone's Nth delivery of the day is everyone
+   else's Nth -- which is what keeps the daily board comparable while
+   still letting a player who likes the game run twenty of them.
+
+   THE SEED WAS NEVER A DATE. _generateRouteFresh opens with
+   hashStr(dateStr) -- a string hash -- so any string is a valid,
+   deterministic, identical-for-everyone route. That is the whole
+   mechanism; nothing about worldgen had to change. The city is already
+   frozen to CITY_SEED, so every rung stands on the same permanent
+   streets, and `night` is rng() < NIGHT_RATE off this same seed so it
+   varies per rung for free.
+
+   RUNG ONE IS THE PLAIN DATE, deliberately: `2026-08-13` and not
+   `2026-08-13#1`. Today's first delivery is byte-for-byte the route
+   today already generated, so every history record, leaderboard entry
+   and Past Routes row that predates the ladder still names a real
+   route. The asymmetry buys backward compatibility outright and costs
+   one conditional.
+
+   route.dateStr STAYS THE REAL DATE and route.runIndex is the new
+   field. Every date-keyed system in the file and on the server --
+   leaderboardKey, history, requestDailyBest, the replay submit, the
+   map's own view stamp -- goes on working untouched, because none of
+   them ever wanted the seed, they wanted the day. Feeding them a rung
+   string would have created one leaderboard per rung. */
+function routeSeedStr(dateStr, runIndex){
+  const n = Math.max(1, runIndex | 0);
+  return n > 1 ? dateStr + "#" + n : dateStr;
+}
 function generateRoute(dateStr, opts){
+  const runIndex = (opts && opts.runIndex) || 1;
   const key = dateStr + "|" + (opts && opts.hoodIndex != null ? opts.hoodIndex : "")
             + "|" + !!(opts && opts.classic) + "|" + !!(opts && opts.challenge)
-            + "|" + !!(opts && opts.unanchoredStart);
+            + "|" + !!(opts && opts.unanchoredStart)
+            + "|r" + runIndex;   // or every rung would serve rung one from cache
   let cached = _routeGenCache.get(key);
   if(!cached){
     cached = _generateRouteFresh(dateStr, opts);
@@ -6035,7 +6083,8 @@ function generateRoute(dateStr, opts){
   return { ...cached, hazards: cached.hazards.map(h => ({...h})) };
 }
 function _generateRouteFresh(dateStr, opts){
-  const seed = hashStr(dateStr);
+  const runIndex = (opts && opts.runIndex) || 1;
+  const seed = hashStr(routeSeedStr(dateStr, runIndex));
   const rng = mulberry32(seed);
   /* THE CITY IS PERMANENT NOW (2026-08-10, Sir's call). cols/rows/grid
      used to come off the SAME daily `seed` as everything else in this
@@ -7571,7 +7620,7 @@ function _generateRouteFresh(dateStr, opts){
 
   /* weekly crime scene — rolled from its own salted date hashes, never
      from `rng`, so non-scene days generate a byte-identical city */
-  const crime = crimeSceneOnDate(dateStr)
+  const crime = crimeSceneOnRun(dateStr, runIndex)
     ? findCrimeSite(grid, cutEdges, dateStr, segs, loop ? loop.sEnd : totalLen,
                     [addressBlock, pickupBlock]) : null;
   /* every car reads the same pinch — trafficWorldAt is pure, so the
@@ -7625,7 +7674,7 @@ function _generateRouteFresh(dateStr, opts){
 
   worldgenReconcile(grid);
   return { hood: addressHood, grid, segs, totalLen: loop ? loop.sEnd : totalLen, loop, tiles, hazards, props, pal, night, traffic, crossings, cutEdges, cutExt, challenge, crime, routeCells, curbRamps, signals: grid.signals,
-           address:`${number} ${street}`, doorS, pickupS, pickupSpot, pickupShopName, addressBlock, pickupBlock, addressEdgeIdx, pickupEdgeIdx, addressUnitIdx, pickupUnitIdx, addressUsesGate, order, parMs, dateStr };
+           address:`${number} ${street}`, doorS, pickupS, pickupSpot, pickupShopName, addressBlock, pickupBlock, addressEdgeIdx, pickupEdgeIdx, addressUnitIdx, pickupUnitIdx, addressUsesGate, order, parMs, dateStr, runIndex };
 }
 
 /* ---------- robot palette (approved in sprite lab) ---------- */
@@ -8857,6 +8906,18 @@ class WorldScene extends Phaser.Scene {
   }
 
   loadRoute(dateStr, opts){
+    /* THE RUNG COMES FROM THE PROFILE unless a caller names one. Only
+       for TODAY's ordinary delivery: a challenge builds its own course,
+       and a replay of a past date is a record of a route that was
+       played at some rung already, so silently re-seeding it with
+       today's rung would hand back a different route than the one in
+       the history row that linked here. Both keep rung 1, which is the
+       plain unsuffixed seed those records were written against. */
+    if(!opts || opts.runIndex == null){
+      const isToday = dateStr === clientTodayUTC();
+      const isChallenge = !!(opts && opts.challenge);
+      opts = Object.assign({}, opts, { runIndex: (isToday && !isChallenge) ? tpRunIndex() : 1 });
+    }
     /* A route load is the certain end of any lap in progress -- leaving
        'victory' behind would spawn the next delivery in a state the
        play-gated sim refuses to drive. */
@@ -23471,7 +23532,39 @@ function tpLoadProfile(){
        ({dateStr: cents}) behind the slalom tip's anti-farming rule. */
     slBestMs: (raw && raw.slBestMs) || 0,
     slPaid:   (raw && raw.slPaid)   || {},
+    /* LADDER POSITION. Stored WITH the day it belongs to rather than as
+       a bare number, because the reset is the whole point: a rung only
+       means anything paired with its date, and a lone counter would
+       carry yesterday's twentieth delivery into this morning. tpRunIndex()
+       is the only reader and it does the comparison there, so a stale
+       pair is harmless rather than something to migrate. */
+    runDay:   (raw && raw.runDay)   || "",
+    runIndex: (raw && raw.runIndex) || 1,
   };
+}
+/* ---------- THE LADDER ----------
+   Reading the rung is where the daily reset happens, not in a boot hook
+   or a timer: every caller goes through here, so a session left open
+   across midnight UTC rolls over the first time it asks rather than
+   staying on yesterday's twentieth route until reload. */
+function tpRunIndex(){
+  const today = clientTodayUTC();
+  if(tpProfile.runDay !== today){
+    tpProfile.runDay = today;
+    tpProfile.runIndex = 1;
+    tpSaveProfile();
+  }
+  return tpProfile.runIndex;
+}
+/* Called when a delivery is BANKED, not when it is won -- what counts
+   as banked is pass 2's business (Sir's call: posting to the Delivery
+   Log is the gate). Kept separate from the win itself precisely so that
+   wiring can change without touching the ladder. */
+function tpAdvanceRun(){
+  tpRunIndex();                    // rolls the day over first if needed
+  tpProfile.runIndex += 1;
+  tpSaveProfile();
+  return tpProfile.runIndex;
 }
 function tpSaveProfile(){
   try {
@@ -23486,6 +23579,8 @@ function tpSaveProfile(){
       hjBest: tpProfile.hjBest,
       slBestMs: tpProfile.slBestMs,      // slalom best — see tpLoadProfile note
       slPaid: tpProfile.slPaid,          // slalom daily payout high-water
+      runDay: tpProfile.runDay,          // ladder position — see tpLoadProfile note
+      runIndex: tpProfile.runIndex,
     }));
   } catch(e){}
 }
