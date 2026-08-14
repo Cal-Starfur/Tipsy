@@ -558,6 +558,10 @@
     b.style.cssText = 'background:#262a33;color:#e8eaef;border:1px solid #363b46;' +
                       'border-radius:9px;padding:9px 3px;font:inherit;font-weight:600';
   }
+  /* opt in to the bench's "hide lab dials" toggle. Marked with an attribute
+     rather than relying on the element id, because the game ships its own
+     *Panel ids and an id-suffix match would hide those too. */
+  panel.dataset.labPanel = '1';
   document.body.appendChild(panel);
 
   const lanes = w => (w / T2).toFixed(1);
@@ -712,5 +716,10 @@
      is the decision, but a 85,000-unit run you cannot see the ends of was
      the actual complaint. */
   document.getElementById('wfGoAll').click();
+  /* ...and boot COLLAPSED, for the same reason (2026-08-14, second report
+     of it): the panel is most of a phone screen, and the first thing
+     wanted on load is the geometry, not the dials. The verdict stays
+     visible on the bar either way. */
+  setCollapsed(true);
   console.log('waterfront ready -- tap the WATERFRONT bar to collapse the panel');
 })();
