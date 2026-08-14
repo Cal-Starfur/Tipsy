@@ -462,8 +462,19 @@
 
   const prevPre = scene.__benchPre;
   scene.__benchPre = function (sc, t) {
+    /* RESTORE FIRST, EVERY FRAME (2026-08-14, found the moment a second
+       lab was loaded on top of this one). The restore used to live only
+       in the post hook, and BENCH.hook is a SINGLE SLOT -- loading any
+       other lab replaces this one's hook while this one's PRE hook keeps
+       running, so the world got stripped every frame and never put back.
+       The city vanished and stayed vanished.
+       Restoring here instead makes the pair self-healing: whatever
+       happened last frame, the world is whole again before anything
+       decides what to do this frame. The post-hook restore is kept as
+       well, so the stripped window is still only the draw itself. */
+    restoreWorld(sc);
     if (prevPre) prevPre(sc, t);
-    if (schematicOn(sc)) stripWorld(sc); else restoreWorld(sc);
+    if (schematicOn(sc)) stripWorld(sc);
   };
 
   BENCH.hook(function (sc) {
