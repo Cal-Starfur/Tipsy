@@ -473,36 +473,63 @@
      coordinate came out NaN, and Phaser silently drew nothing: no error,
      no warning, no rails. Nothing here animates, so the honest fix is to
      not take a time parameter it never used. */
-  function drawPierRail(scn, g, W, a, b, o) {
-    const d = Object.assign({}, D, o || {});
-    /* NaN GUARD. The arity bug above produced non-finite coordinates, and
-       Phaser's response to those is to draw nothing at all -- no throw, no
-       console warning, just an empty pier that looks like a placement
-       problem rather than a maths one. It cost a round trip to find. Any
-       future miswiring now names itself in the readout instead. */
-    if (!a || !b || !isFinite(a.x) || !isFinite(a.y) || !isFinite(b.x) || !isFinite(b.y)) {
-      scn.__rhDrawErr = 'pier rail got non-finite endpoints: ' + JSON.stringify([a, b]);
-      return;
-    }
-    const dx = b.x - a.x, dy = b.y - a.y;
-    const L = Math.hypot(dx, dy) || 1;
-    const ux = dx / L, uy = dy / L;
-    const n = Math.max(1, Math.round(L / d.railPost));
-    const H = d.railH, thick = 9;
-    const at = u => ({ x: a.x + dx * u, y: a.y + dy * u });
+  /* A RAIL IS A PATH, NOT TWO ENDPOINTS (2026-08-14, Sir: "can we get the
+     rail to continue around the end of the pier?").
 
-    /* rails: thin horizontal slabs, drawn as quads so they take the same
-       depth treatment as everything else rather than being hairlines */
-    const slab = (z, h, col) => {
-      const p0 = at(0), p1 = at(1);
-      scn.quadOn(g, [W(p0.x, p0.y, z), W(p1.x, p1.y, z),
-                     W(p1.x, p1.y, z + h), W(p0.x, p0.y, z + h)], col);
+     The straight runs and the curve around the round deck are the same
+     railing -- same posts, same top and bottom rails, same diamond infill
+     -- differing only in the points they follow. Writing a second arc
+     version would have been a second copy of the railing, which is the one
+     thing labs/README.md is loudest about. So this takes a polyline and
+     walks it by ARC LENGTH, which is what keeps post spacing and lattice
+     cell size even whether the path is a line or a circle. A straight run
+     is just a two-point path. */
+  function drawRailPath(scn, g, W, pts, o) {
+    const d = Object.assign({}, D, o || {});
+    /* NaN GUARD. An earlier arity bug fed this non-finite coordinates, and
+       Phaser's response to those is to draw nothing at all -- no throw, no
+       warning, just an empty pier that looks like a placement problem
+       rather than a maths one. Any future miswiring names itself instead. */
+    if (!Array.isArray(pts) || pts.length < 2) return;
+    for (const p of pts) {
+      if (!p || !isFinite(p.x) || !isFinite(p.y)) {
+        scn.__rhDrawErr = 'rail path got a non-finite point: ' + JSON.stringify(p);
+        return;
+      }
+    }
+    const H = d.railH, thick = 9;
+
+    /* cumulative arc length, so everything below is placed in world units
+       along the path rather than in per-segment fractions */
+    const cum = [0];
+    for (let i = 0; i < pts.length - 1; i++)
+      cum.push(cum[i] + Math.hypot(pts[i + 1].x - pts[i].x, pts[i + 1].y - pts[i].y));
+    const total = cum[cum.length - 1] || 1;
+    const at = (s2) => {
+      let i = 0;
+      while (i < cum.length - 2 && cum[i + 1] < s2) i++;
+      const span = (cum[i + 1] - cum[i]) || 1;
+      const t2 = (s2 - cum[i]) / span;
+      const a2 = pts[i], b2 = pts[i + 1];
+      const ux = (b2.x - a2.x) / span, uy = (b2.y - a2.y) / span;
+      return { x: a2.x + (b2.x - a2.x) * t2, y: a2.y + (b2.y - a2.y) * t2, ux, uy };
     };
-    /* diamond lattice between the rails */
+
+    /* rails: one quad per segment, so a curve gets a faceted rail that
+       follows it instead of a chord across it */
+    const slab = (z, h, col) => {
+      for (let i = 0; i < pts.length - 1; i++) {
+        const a2 = pts[i], b2 = pts[i + 1];
+        scn.quadOn(g, [W(a2.x, a2.y, z), W(b2.x, b2.y, z),
+                       W(b2.x, b2.y, z + h), W(a2.x, a2.y, z + h)], col);
+      }
+    };
+
+    /* diamond lattice between the rails, on a fixed world-space pitch */
     g.lineStyle(Math.max(1, 1.1 * scn.K), RH.railDk, 0.75);
-    const cells = Math.max(2, Math.round(L / (d.railPost / 3)));
+    const cells = Math.max(2, Math.round(total / (d.railPost / 3)));
     for (let k = 0; k < cells; k++) {
-      const p0 = at(k / cells), p1 = at((k + 1) / cells);
+      const p0 = at(total * k / cells), p1 = at(total * (k + 1) / cells);
       const q0 = W(p0.x, p0.y, H * 0.18), q1 = W(p1.x, p1.y, H * 0.82);
       const r0 = W(p0.x, p0.y, H * 0.82), r1 = W(p1.x, p1.y, H * 0.18);
       g.lineBetween(q0.x, q0.y, q1.x, q1.y);
@@ -510,16 +537,44 @@
     }
     slab(H * 0.14, thick, RH.railDk);
     slab(H - thick, thick * 1.5, RH.rail);
-    /* posts */
+
+    /* posts, oriented to the LOCAL tangent -- on the arc that rotates each
+       post to face along the curve, which a single global tangent could
+       not do */
+    const n = Math.max(1, Math.round(total / d.railPost));
     for (let k = 0; k <= n; k++) {
-      const p = at(k / n);
-      const pw = 11;
-      scn.quadOn(g, [W(p.x - ux * pw, p.y - uy * pw, 0), W(p.x + ux * pw, p.y + uy * pw, 0),
-                     W(p.x + ux * pw, p.y + uy * pw, H), W(p.x - ux * pw, p.y - uy * pw, H)], RH.rail);
+      const p = at(total * k / n), pw = 11;
+      scn.quadOn(g, [W(p.x - p.ux * pw, p.y - p.uy * pw, 0), W(p.x + p.ux * pw, p.y + p.uy * pw, 0),
+                     W(p.x + p.ux * pw, p.y + p.uy * pw, H), W(p.x - p.ux * pw, p.y - p.uy * pw, H)], RH.rail);
       const cap = W(p.x, p.y, H + 10);
       g.fillStyle(RH.railDk, 1);
       g.fillCircle(cap.x, cap.y, Math.max(1, 3 * scn.K));
     }
+  }
+
+  /* straight run: the same path function with a two-point path */
+  function drawPierRail(scn, g, W, a, b, o) {
+    drawRailPath(scn, g, W, [a, b], o);
+  }
+
+  /* the curve around the round deck. It cannot be a full circle -- the pier
+     joins the disc on its east side, and railing across that opening would
+     wall the deck off from its own approach. The half-angle of the opening
+     is asin(half / R) exactly, so the arc runs from +that round to -that
+     the long way, and the straight runs meet it at the same two points. */
+  function deckRailArc(scn, g, W, A, o) {
+    const R = (A.sh ? A.sh.ring.rOuter : 0) * 0.97;
+    if (!(R > 0)) return null;
+    const half = A.pierHalf;
+    const gap = Math.asin(Math.min(0.999, half / R));
+    const pts = [];
+    const N = 56;
+    for (let k = 0; k <= N; k++) {
+      const a2 = gap + (Math.PI * 2 - 2 * gap) * (k / N);
+      pts.push({ x: A.cx + Math.cos(a2) * R, y: A.cy + Math.sin(a2) * R });
+    }
+    drawRailPath(scn, g, W, pts, o);
+    return { R, gap };
   }
 
   /* =======================================================================
@@ -644,13 +699,24 @@
       Q(A.pierX1 + A.pierY - 1e6, (g) => drawPierPylons(sc, g, A, {}));
     }
     if (RHS.showRail) {
-      /* both pier edges, from the deck out to the round end */
+      const Wr = (dx, dy, dz) => sc.W(dx, dy, dz);
+      const R = (A.sh ? A.sh.ring.rOuter : 0) * 0.97;
+      /* WHERE THE STRAIGHT RUN ACTUALLY MEETS THE DISC. It used to stop at
+         cx + rOuter, which is the disc's easternmost point -- but the rail
+         sits at y = pierY +/- half, not on the centreline, so at that y the
+         disc's edge is at cx + sqrt(R^2 - half^2), ~54 units short. The old
+         end overshot into the deck. Solved rather than nudged, so it stays
+         right if PIER_W or the deck radius ever move. */
+      const meetX = R > 0 ? A.cx + Math.sqrt(Math.max(0, R * R - A.pierHalf * A.pierHalf))
+                          : A.pierX0;
       for (const s of [-1, 1]) {
         const y = A.pierY + s * A.pierHalf;
         Q(A.pierX1 + y, (g) =>
-          drawPierRail(sc, g, (dx, dy, dz) => sc.W(dx, dy, dz),
-            { x: A.pierX1, y }, { x: A.pierX0 + (A.sh ? A.sh.ring.rOuter : 0), y }, {}));
+          drawPierRail(sc, g, Wr, { x: A.pierX1, y }, { x: meetX, y }, {}));
       }
+      /* ...and the curve around the deck, picking up exactly where the two
+         straight runs stop */
+      if (R > 0) Q(A.cx + A.cy + 1, (g) => deckRailArc(sc, g, Wr, A, {}));
     }
     if (RHS.showLamps) {
       const x0 = A.pierX0 + (A.sh ? A.sh.ring.rOuter : 0), x1 = A.pierX1;
@@ -860,8 +926,8 @@
     if (wfLab && wfSchematicWas !== null) wfLab.WF.schematic = wfSchematicWas;
     document.getElementById('rhPanel')?.remove();
   };
-  scene._rhAPI = { RH, D, RHS, PYL, drawRoundhouse, drawPierRail, drawPierLamp,
-                   drawPierPylons, discEdgeU, anchor };
+  scene._rhAPI = { RH, D, RHS, PYL, drawRoundhouse, drawPierRail, drawRailPath,
+                   deckRailArc, drawPierLamp, drawPierPylons, discEdgeU, anchor };
 
   sync();
   /* STARTS COLLAPSED. Nine sliders is most of a phone screen, and the
