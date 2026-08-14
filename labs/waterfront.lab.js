@@ -90,6 +90,13 @@
        a city outline instead. Nothing to cull means the cost stops
        depending on K at all, and the shore's full 85,000-unit run
        becomes something you can actually frame. */
+    /* 340 puts the fillet's start (xf = sqrt(R^2 + 2*R*rf)) almost exactly
+       on the round deck's outer edge, so the turn begins where the deck
+       begins rather than out on the open pier. Clearance is not binding --
+       every radius from 60 to 900 clears -- so this is chosen for how it
+       reads, not for fit. */
+    filletR: 340,
+    showLoop: true,
     schematic: true,
     schematicK: 0.12,
     k: 1.0,
@@ -231,6 +238,105 @@
   /* ---------------- draw ---------------- */
   const COL = { boardwalk: 0xffb45c, pier: 0xff7a1a, deck: 0x4ad07a, lane: 0x2d5a6d };
 
+  /* ---------------- THE TURNAROUND ----------------
+     (2026-08-14, Sir on-device: "the loop around the aquarium needs to be
+     driveable".) The mid-annulus circle the lab drew first is a SHAPE, not
+     a path, and it cannot be reached from the pier. The pier centreline
+     passes through the ring's centre, so where it crosses the loop circle
+     it is RADIAL -- perpendicular to the circle's own tangent. Heading is
+     90deg wrong at the join, at every radius, for any loop concentric with
+     the aquarium. No amount of widening fixes that; it is not a clearance
+     problem, it is a tangency problem.
+
+     A tangent approach would need the approach line offset a full loop
+     radius (829) from the centre, and the pier's half-width is 344, so
+     that is out too.
+
+     What works is what real piers do: a teardrop. Fillet off the straight
+     with radius rf, curving until EXTERNALLY tangent to the loop circle,
+     run the loop most of the way round, then mirror the fillet back out.
+     External tangency is the whole trick -- curvature reverses at the
+     join, which is exactly what lets a robot going straight at the
+     building end up circling it.
+
+     With the loop centred at the origin and the approach along y=0:
+        |C_fillet| = R + rf   and   C_fillet = (xf, rf)
+     so xf = sqrt(R^2 + 2*R*rf), and the tangent point is C_fillet scaled
+     back to radius R. Everything below is that, mirrored for the exit. */
+  function buildLoopPath(sh, rf) {
+    const cx = sh.ring.cx, cy = sh.ring.cy;
+    const R = (sh.ring.rInner + sh.ring.rOuter) / 2;
+    const xf = Math.sqrt(R * R + 2 * R * rf);
+    const phi = Math.atan2(rf, xf);          // loop angle of the tangent point
+    const pts = [];
+    const push = (x, y) => pts.push({ x: cx + x, y: cy + y });
+    /* approach: west along the pier centreline to the fillet's start */
+    for (let k = 0; k <= 10; k++) push(sh.pierX1 - cx - (sh.pierX1 - cx - xf) * (k / 10), 0);
+    /* entry fillet: centre (xf, rf), from theta=-90deg round to the tangent
+       point's own direction. theta DECREASES -- that is the branch where
+       the robot is travelling -x rather than +x. */
+    const th0 = -Math.PI / 2, th1 = Math.atan2(-rf, -xf);
+    const sweep = ((th1 - th0) + Math.PI * 2) % (Math.PI * 2) - Math.PI * 2;
+    for (let k = 1; k <= 16; k++) {
+      const t = th0 + sweep * (k / 16);
+      push(xf + Math.cos(t) * rf, rf + Math.sin(t) * rf);
+    }
+    /* the loop itself: counter-clockwise from +phi round to -phi */
+    const N = 64, span = Math.PI * 2 - 2 * phi;
+    for (let k = 1; k <= N; k++) {
+      const a = phi + span * (k / N);
+      push(Math.cos(a) * R, Math.sin(a) * R);
+    }
+    /* exit fillet + return leg: the entry mirrored in y */
+    const mirror = [];
+    for (let i = pts.length - 1; i >= 0; i--) mirror.push({ x: pts[i].x, y: 2 * cy - pts[i].y });
+    /* drop the first mirrored point: it duplicates the loop's last */
+    return { pts: pts.concat(mirror.slice(1)), R, rf, xf, phi };
+  }
+
+  /* Same honesty as junctionFit: sample both wheel lines against
+     classifyShore rather than trusting a formula. The path's normal is
+     taken from its own local tangent, so it is correct through the
+     fillets where curvature is changing. */
+  function loopFit(sh, rf) {
+    const path = buildLoopPath(sh, rf);
+    const half = SIDEWALK_W / 2;
+    let off = 0, total = 0, minRad = Infinity, maxRad = 0;
+    for (let i = 0; i < path.pts.length - 1; i++) {
+      const a = path.pts[i], b = path.pts[i + 1];
+      const dx = b.x - a.x, dy = b.y - a.y, L = Math.hypot(dx, dy) || 1;
+      const nx = -dy / L, ny = dx / L;
+      for (const s of [-1, 1]) {
+        const x = a.x + nx * half * s, y = a.y + ny * half * s;
+        total++;
+        if (!classifyShore(sh, x, y)) off++;
+        const rad = Math.hypot(x - sh.ring.cx, y - sh.ring.cy);
+        if (rad < minRad) minRad = rad;
+        if (rad > maxRad) maxRad = rad;
+      }
+    }
+    return { rf, off, total, ok: off === 0, path,
+             pct: total ? (off / total) * 100 : 0, minRad, maxRad };
+  }
+
+  /* widest fillet that clears -- wider is gentler to drive, so this scans
+     downward and takes the first clean one rather than the smallest */
+  function bestFilletR(sh) {
+    let best = 0;
+    for (let rf = 60; rf <= 900; rf += 20) if (loopFit(sh, rf).ok) best = rf;
+    return best;
+  }
+
+  function drawLoop(sc, g, sh, rf) {
+    const fit = loopFit(sh, rf);
+    g.lineStyle(3, fit.ok ? 0x4ad07a : 0xff5c5c, 0.95);
+    const p = fit.path.pts;
+    for (let i = 0; i < p.length - 1; i++) {
+      const a = sc.W(p[i].x, p[i].y, 0), b = sc.W(p[i + 1].x, p[i + 1].y, 0);
+      g.lineBetween(a.x, a.y, b.x, b.y);
+    }
+  }
+
   function drawRun(sc, g, r) {
     const dx = r.b.x - r.a.x, dy = r.b.y - r.a.y;
     const L = Math.hypot(dx, dy) || 1, ux = dx / L, uy = dy / L;
@@ -367,6 +473,7 @@
     for (const r of SH.runs) drawRun(sc, g, r);
     drawRing(sc, g, SH.ring);
     if (WF.showFit) drawJunction(sc, g, SH, WF.turnR);
+    if (WF.showLoop) drawLoop(sc, g, SH, WF.filletR);
   });
 
   /* ---------------- panel ---------------- */
@@ -377,7 +484,8 @@
     { key: 'SANDW',   src: 'wg', label: 'sand',   min: 0.4,  max: 3.0,  step: 0.1 },
     { key: 'aqDeck',  src: 'wf', label: 'aq deck',min: 0.20, max: 0.70, step: 0.01 },
     { key: 'aqRoof',  src: 'wf', label: 'aq roof',min: 0.06, max: 0.45, step: 0.01 },
-    { key: 'turnR',   src: 'wf', label: 'turn R', min: 200,  max: 1600, step: 23 },
+    { key: 'turnR',   src: 'wf', label: 'turn R', min: 138,  max: 1600, step: 23 },
+    { key: 'filletR', src: 'wf', label: 'fillet', min: 60,   max: 900,  step: 20 },
   ];
   const get = f => (f.src === 'wg' ? WG_COAST : WF)[f.key];
   const set = (f, v) => { (f.src === 'wg' ? WG_COAST : WF)[f.key] = v; };
@@ -446,16 +554,17 @@
   function portLine() {
     return `WG_COAST BOARD:${WG_COAST.BOARD} PIER_W:${WG_COAST.PIER_W} ` +
            `PIER_LEN:${WG_COAST.PIER_LEN} SANDW:${WG_COAST.SANDW} | ` +
-           `AQ_DECK:${WF.aqDeck} AQ_ROOF:${WF.aqRoof} turnR:${WF.turnR}`;
+           `AQ_DECK:${WF.aqDeck} AQ_ROOF:${WF.aqRoof} turnR:${WF.turnR} fillet:${WF.filletR}`;
   }
 
   function rebuild() {
     SH = buildShore(scene.route.grid);
     const jf = junctionFit(SH, WF.turnR);
+    const lf = loopFit(SH, WF.filletR);
     const rf = ringFit(SH);
     const bw = SH.BOARD, pw = SH.PIER_W;
 
-    const ok = jf.ok && rf.ok && bw >= SIDEWALK_W && pw >= SIDEWALK_W;
+    const ok = jf.ok && lf.ok && bw >= SIDEWALK_W && pw >= SIDEWALK_W;
     const v = document.getElementById('wfVerdict');
     v.textContent = ok ? 'DRIVABLE' : 'TOO TIGHT';
     v.style.color = ok ? '#4ad07a' : '#ff5c5c';
@@ -472,6 +581,10 @@
       `pier len  ${Math.round(SH.pierX1 - SH.pierX0)}  ` +
       `(${((SH.pierX1 - SH.pierX0) / BLOCK).toFixed(2)} blocks)  ` +
       `pierY ${Math.round(SH.pierY)} = ${(SH.pierY / BLOCK).toFixed(2)} BLOCK\n` +
+      `loop      fillet ${lf.rf}  off-surface ${lf.off}/${lf.total}` +
+      `  ${lf.ok ? 'DRIVABLE' : 'NOT DRIVABLE ' + lf.pct.toFixed(0) + '%'}\n` +
+      `          turn begins ${Math.round(lf.path.xf)} from centre ` +
+      `(deck edge ${Math.round(SH.ring.rOuter)})  loop R ${Math.round(lf.path.R)}\n` +
       `zoom      K ${(+WF.k).toFixed(2)}  ` +
       `${WF.schematic ? (WF.k < WF.schematicK ? 'SCHEMATIC (world off)' :
         'art (schematic below ' + WF.schematicK + ')') : 'art (schematic off)'}`;
@@ -546,13 +659,14 @@
   /* widest radius that clears, from the sampling scan */
   document.getElementById('wfFit').onclick = () => {
     WF.turnR = Math.max(138, bestTurnR(SH));
+    const bf = bestFilletR(SH); if (bf) WF.filletR = bf;
     sync();
   };
   document.getElementById('wfLanes').onclick = () => { WF.showLanes = !WF.showLanes; sync(); };
   document.getElementById('wfSchem').onclick = () => { WF.schematic = !WF.schematic; sync(); };
   document.getElementById('wfReset').onclick = () => {
     Object.assign(WG_COAST, { BOARD: 0.35, PIER_W: 0.22, PIER_LEN: 2.2, SANDW: 1.4 });
-    Object.assign(WF, { aqDeck: 0.36, aqRoof: 0.17, turnR: ROAD_HALF + SIDEWALK_W });
+    Object.assign(WF, { aqDeck: 0.36, aqRoof: 0.17, turnR: ROAD_HALF + SIDEWALK_W, filletR: 340 });
     sync();
   };
   document.getElementById('wfCopy').onclick = async () => {
@@ -579,7 +693,8 @@
   /* exposed so pier-course.lab.js (page 2) consumes THIS lattice rather than
      building a second copy of it -- the one rule labs/README.md is loudest
      about. */
-  scene._wfAPI = { WF, buildShore, classifyShore, junctionFit, ringFit, get shore() { return SH; } };
+  scene._wfAPI = { WF, buildShore, classifyShore, junctionFit, ringFit,
+                   buildLoopPath, loopFit, bestFilletR, bestTurnR, get shore() { return SH; } };
 
   sync();
   /* boot on the whole-shore framing rather than the junction: the junction
