@@ -20720,25 +20720,41 @@ function tpSlalomOn(){
       if (tr.holdFrame === t) continue;              // someone else owns it
       const { wp, f } = trafficWorldAt(tr, t);
       const dv = DIRV[f], rv = DIRV[(f + 1) % 4];
+      /* RELEASE BEATS HOLD (2026-08-13 fix, "cars stopped dead in the turn,
+         blocking me").
+
+         The rule used to be per-node and hold-wins: the first node found
+         ahead froze the car, full stop. That is correct for ONE stop line
+         and wrong for a set of them that CURVES. An arc's nodes wrap around
+         the junction, so a car that has already driven into the corner
+         still has the far end of the same arc ahead of it -- and got held
+         there, parked across the turn, indefinitely, because the cones
+         never clear. The old comment's "a car past it (along <= 0) is
+         released, so nothing is ever frozen ON the cones" was true only
+         against the single node it was testing; the node behind released
+         nothing while a node ahead was still holding.
+
+         Read the whole set before deciding, and let a node BEHIND win. If
+         any nearby node is already behind the car, the car is inside the
+         footprint and drives clear -- that is the only way out, since
+         reversing is not something traffic does. Only a car with the whole
+         cone line still in front of it waits.
+
+         Both tests are bounded by STOP_R now. Without a lower bound a node
+         left behind at the LAST junction would release a car approaching
+         the NEXT one; +/-STOP_R (6*T2) is wider than any single junction
+         footprint and far narrower than the gap between two of them. */
+      let ahead = false, inside = false;
       for (const nd of nodes){
         const dx = nd.x - wp.x, dy = nd.y - wp.y;
         const along = dx * dv.x + dy * dv.y;         // + means the node is ahead
-        /* HOLD WHILE THE CONES ARE AHEAD AT ALL — no lower bound.
-           The first version held only cars between STOP_LINE and STOP_R. A car
-           creeps to a stop right AT STOP_LINE, and from there the least drift
-           puts `along` under it, which released the car permanently: it eased
-           over the line and drove on. That is a slow leak, not a missing hold,
-           and it is why cars kept ending up parked on the cones.
-
-           The bound is now simply "is the cone line still in front of me". A
-           car past it (along <= 0) is released, so nothing is ever frozen ON
-           the cones; a car short of it waits, indefinitely. The cones do not
-           clear, so indefinitely is the correct answer. */
-        if (along <= 0 || along > STOP_R) continue;
+        if (along > STOP_R || along < -STOP_R) continue;
         if (Math.abs(dx * rv.x + dy * rv.y) > STOP_LAT) continue;
-        tr.hold = (tr.hold || 0) + hDt; tr.holdFrame = t;
-        break;
+        if (along <= 0){ inside = true; break; }     // already in it -- drive on
+        ahead = true;
       }
+      if (inside || !ahead) continue;
+      tr.hold = (tr.hold || 0) + hDt; tr.holdFrame = t;
     }
   }
 
