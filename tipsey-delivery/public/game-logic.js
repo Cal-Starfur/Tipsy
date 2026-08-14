@@ -1676,7 +1676,7 @@ const tsfFx = { draft: "", posted: false, busy: false, fireRetry: null,
                  unposted: false,
                  /* {scene, run} crash blob and the server's copy of it --
                     see tsfFxCapturePose / failPoses in shared/api.ts */
-                 pose: null, serverPose: "" };
+                 pose: null, serverPose: "", restoring: false };
 
 function tsfFxGatePanel(card){
   let el = document.getElementById("tsfFxGate");
@@ -1815,6 +1815,20 @@ function reportSlalomFail(card, total, faultCount, cause){
      rather than a restore-only branch. */
   { const sc = scn(); const api = sc && sc._slAPI;
     if(api) tsfFx.pose = tsfFxCapturePose(sc, api.run); }
+  /* A RESTORE re-enters here through the engine's own card path, but the
+     run it would report is the one we just put back -- and if there was
+     no pose to put back, its numbers are zeros. The server already holds
+     the draft composed from the REAL run, so take that and report
+     nothing. Flag clears itself: only the restore that set it skips. */
+  if(tsfFx.restoring){
+    tsfFx.restoring = false;
+    if(tsfFx.serverDraft){
+      tsfFx.draft = tsfFx.serverDraft;
+      tsfFx.draftWhy = "ok (server, " + tsfFx.serverDraft.length + " chars)";
+      tsfFxSyncGate(card);
+      return;
+    }
+  }
   fetch("api/tipsy/slalom/fail", {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
@@ -19863,9 +19877,20 @@ function slalomMapSelect(){
    to the toast rather than dropping the player onto a clean course with
    a gate they can't see the run behind. */
 function tpRestoreSlalomCrash(){
-  const pose = tsfFxPose();
-  if(!pose){ tpToast("Post about your last slalom run before trying again."); return; }
+  /* Chrome closes FIRST -- before any early return below. The same
+     early-return-skips-cleanup bug hjStart carried: a toast fired while
+     #tpMissionsPanel stayed open on top, and there was no way forward
+     from the mission list (reported on-device 2026-08-13: "im getting
+     hung up on the selection screen from the mag glass button"). */
   tpCloseDetail(); tpCloseMissions(); tpCloseProfile();
+  /* No stored pose is NOT a reason to refuse the card. The only thing
+     that can clear the slalom flag is a post from this card's own
+     composer, and slalom's flag stores a bare '1' -- no date, so unlike
+     delivery there's no next-day rollover to release it. Refusing here
+     would lock a player out of Cone Slalom permanently. The pose only
+     decides where the robot SITS; the gate has to be reachable either
+     way, so a missing one just means a clean course under a real card. */
+  const pose = tsfFxPose();
   { const sA = scn(); if(sA && sA.attractStop) sA.attractStop(); }
   hide("failOverlay"); hide("winOverlay"); hide("titleOverlay");
   const s = scn();
@@ -19875,7 +19900,15 @@ function tpRestoreSlalomCrash(){
   tpSlalomOn();
   if(!s._slAPI){ hjChrome(false); tpToast("Slalom course unavailable — try again."); return; }
   tpSlalomUI(s);
-  s._slAPI.reset({ restore: pose });
+  /* restore:{} with no scene/run half still takes slResetRun's restore
+     branch, which is what forces phase 'idle' + done/fail -- so the card
+     comes up as a FAIL rather than a fresh run, pose or no pose. */
+  s._slAPI.reset({ restore: pose || {} });
+  /* Tells reportSlalomFail (reached via slShowCard -> tsfFxGate) to take
+     the draft the server already holds instead of re-reporting this
+     restored run. Without it a poseless restore would report 0.00s and
+     0 faults and compose a comment claiming exactly that. */
+  tsfFx.restoring = true;
   s._slAPI.showCard();
 }
 function tpSlalomStart(){
