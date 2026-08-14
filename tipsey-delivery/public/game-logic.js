@@ -2520,6 +2520,16 @@ const NIGHT_MULT = (() => {   // NAVY 0x5a6aa8 at depth 0.65, precomputed
   return (ch((c>>16)&255)<<16) | (ch((c>>8)&255)<<8) | ch(c&255);
 })();
 
+/* Brightness compensation for glow that draws UNDER the night multiply.
+   gGlowLo (see create()) sits below gNight so it can be occluded by
+   gFront, which means everything painted into it comes back out
+   multiplied by NIGHT_MULT (~0.58 R / 0.62 G / 0.78 B). Alphas headed
+   for that layer get scaled by this and clamped to 1. Green channel
+   reciprocal (1/0.62) since the eye weights green heaviest; the small
+   residual is a slight cool shift, which reads fine on a night street.
+   Glow that still draws into gGlow (above the tint) is untouched. */
+const GLOW_UNDER_TINT = 1.55;
+
 /* STREETLAMP — the night's anchor prop (lamp lab v2, style ARM) */
 const LAMP = {
   /* 2026-07-30: scaled up ~3x to stand with the tall palm specimens
@@ -7140,6 +7150,21 @@ class WorldScene extends Phaser.Scene {
     this.gWorld = this.add.graphics();
     this.gFade = this.add.graphics();      // the one wall being faded out/in — separate object so it can have its own alpha
     this.g = this.add.graphics();
+    /* gGlowLo: ADD accents that belong to the SAME depth bracket as the
+       things drawn in g -- Tipsey's own eyes/pool/beams, and any lamp
+       the depth sort put behind him. Deliberately BELOW gFront so the
+       existing layerFor() split occludes them: a car or a signal post
+       that is nearer to camera than the robot already lands in gFront,
+       and now correctly paints over his headlight beam instead of the
+       beam painting over the car. Before this layer existed all glow
+       went into gGlow, which composites above every sprite with no
+       depth test at all (the old note in drawRobot called this out) --
+       so the beam won unconditionally against the whole world at every
+       heading. Nothing here does new depth math; it reuses the sort
+       that was already running. Cost: this sits under gNight, so see
+       GLOW_UNDER_TINT for the brightness compensation. */
+    this.gGlowLo = this.add.graphics();
+    this.gGlowLo.setBlendMode(Phaser.BlendModes.ADD);
     this.gFront = this.add.graphics();     // hazards nearer the camera than the robot
     this.gNight = this.add.graphics();     // NIGHT: one multiply rect over the world (night-lab v1: NAVY 0.65)
     this.gNight.setBlendMode(Phaser.BlendModes.MULTIPLY);
@@ -7150,7 +7175,7 @@ class WorldScene extends Phaser.Scene {
        frame that were fragmenting Phaser's batches. Applied to every
        Graphics this scene draws into, including the ones with their own
        alpha and blend mode, since the memo is per instance. */
-    [this.gSky, this.gWorld, this.gFade, this.g, this.gFront,
+    [this.gSky, this.gWorld, this.gFade, this.g, this.gGlowLo, this.gFront,
      this.gNight, this.gGlow, this.hud].forEach(memoGraphicsStyles);
     this.qtext = this.add.text(0, 0, "?!", { fontSize:"30px", fontStyle:"bold", color:"#ffb04d" })
       .setOrigin(0.5).setDepth(4).setVisible(false);
@@ -8596,7 +8621,7 @@ class WorldScene extends Phaser.Scene {
     this.gSky.fillRect(0, 0, this.scale.gameSize.width, this.scale.gameSize.height);
 
 /* THE NIGHT — screen-space multiply rect; glows redraw per-frame */
-    this.gNight.clear(); this.gGlow.clear();
+    this.gNight.clear(); this.gGlow.clear(); this.gGlowLo.clear();
     if(r.night){
       this.gNight.fillStyle(NIGHT_MULT, 1);
       this.gNight.fillRect(0, 0, this.scale.gameSize.width, this.scale.gameSize.height);
@@ -11334,7 +11359,8 @@ class WorldScene extends Phaser.Scene {
      a parallelogram) + gooseneck arm reaching the road side (+b) +
      fixture box. Per-instance variety and the malfunction verdict
      both come from lampSeed. At night the glow (layered pool + lens
-     + faint column) draws into this.gGlow — ADD, ABOVE the tint —
+     + faint column) draws ADD into gGlow (lamp in front of the robot,
+     above the tint) or gGlowLo (lamp behind him, occludable by gFront) —
      and broken lamps run it through flickerAt. */
   drawLampHull(g, W, t, hz){
     const L = LAMP, K = this.K;
@@ -11403,16 +11429,24 @@ class WorldScene extends Phaser.Scene {
     if(this.route && this.route.night){
       const lit = hz.mal ? flickerAt(hz.lampSeed, t) : 1;
       if(lit > 0){
-        const gl = this.gGlow, gp = W(topA, armL, 0);
+        /* same bracket as the lamp's own hull: drawLampHull is handed
+           the layer the depth sort already chose for this lamp, so a
+           lamp in FRONT of the robot keeps its glow above everything
+           (gGlow, untinted -- the shipped look) while a lamp BEHIND him
+           drops to gGlowLo and can be occluded by whatever gFront holds.
+           Same bug class as the robot's beam, same fix, no new sort. */
+        const front = (g === this.gFront);
+        const gl = front ? this.gGlow : this.gGlowLo, gp = W(topA, armL, 0);
+        const A = v => Math.min(1, v * lit * (front ? 1 : GLOW_UNDER_TINT));
         const pR = LAMP_ACT.poolR * pVar * K * 0.8;
         /* layered pool: hot core -> mid -> soft skirt — a single
            faint wash can't even cancel the navy (lamp lab finding) */
-        gl.fillStyle(L.glow, 0.34*lit); gl.fillEllipse(gp.x, gp.y, pR*0.55, pR*0.26);
-        gl.fillStyle(L.glow, 0.20*lit); gl.fillEllipse(gp.x, gp.y, pR, pR*0.48);
-        gl.fillStyle(L.glow, 0.10*lit); gl.fillEllipse(gp.x, gp.y, pR*1.5, pR*0.72);
-        gl.fillStyle(L.glow, 0.5*lit);  gl.fillEllipse(lp.x, lp.y, L.headW*0.923*K*0.8, L.headW*0.462*K*0.8);
-        gl.fillStyle(0xffe9c0, 0.9*lit); gl.fillEllipse(lp.x, lp.y, lensW*K*0.55, lensH*K*0.55);
-        gl.fillStyle(L.glow, 0.07*lit);
+        gl.fillStyle(L.glow, A(0.34)); gl.fillEllipse(gp.x, gp.y, pR*0.55, pR*0.26);
+        gl.fillStyle(L.glow, A(0.20)); gl.fillEllipse(gp.x, gp.y, pR, pR*0.48);
+        gl.fillStyle(L.glow, A(0.10)); gl.fillEllipse(gp.x, gp.y, pR*1.5, pR*0.72);
+        gl.fillStyle(L.glow, A(0.5));  gl.fillEllipse(lp.x, lp.y, L.headW*0.923*K*0.8, L.headW*0.462*K*0.8);
+        gl.fillStyle(0xffe9c0, A(0.9)); gl.fillEllipse(lp.x, lp.y, lensW*K*0.55, lensH*K*0.55);
+        gl.fillStyle(L.glow, A(0.07));
         gl.fillPoints([new Phaser.Geom.Point(lp.x, lp.y),
                        new Phaser.Geom.Point(gp.x - pR*0.7, gp.y),
                        new Phaser.Geom.Point(gp.x + pR*0.7, gp.y)], true);
@@ -16245,14 +16279,26 @@ class WorldScene extends Phaser.Scene {
         ? flickerAt(((this.botX*131 + this.botY*197) | 0) >>> 0, t)
         : 1;
       const faceK = Phaser.Math.Clamp((fn.x + fn.y + fn.z + 1.4) / 2.2, 0.4, 1) * tipFlicker;
+      /* ALL of Tipsey's night lighting -- eyes, ground pool, beams --
+         goes to gGlowLo, not gGlow. His body draws into this.g, so his
+         light belongs in the same depth bracket as his body: whatever
+         layerFor() already routed to gFront (a car in the road, a
+         signal post, a cone nearer to camera) now occludes his light
+         exactly the way it occludes him. That is the real fix for the
+         "no depth test" caveat in the faceK note above -- faceK only
+         ever softened the through-BODY case, it could do nothing about
+         the beam painting over the rest of the world. ga() carries the
+         under-tint compensation; see GLOW_UNDER_TINT. */
+      const gLo = this.gGlowLo;
+      const ga = v => Math.min(1, v * GLOW_UNDER_TINT);
       for(const ey of [-7, 7]){
         const c = F(ey, 45);
-        this.gGlow.fillStyle(SKIN.eye, (0.14 + 0.12*pulse)*faceK);
-        this.gGlow.fillEllipse(c.x, c.y, (15 + 4*pulse)*ks, (13 + 4*pulse)*ks);
-        this.gGlow.fillStyle(SKIN.eye, (0.40 + 0.28*pulse)*faceK);
-        this.gGlow.fillEllipse(c.x, c.y, (8 + 2.5*pulse)*ks, (7 + 2.5*pulse)*ks);
-        this.gGlow.fillStyle(0xffffff, (0.5 + 0.35*pulse)*faceK);
-        this.gGlow.fillEllipse(c.x, c.y, (3.5 + 1*pulse)*ks, (3 + 1*pulse)*ks);
+        gLo.fillStyle(SKIN.eye, ga((0.14 + 0.12*pulse)*faceK));
+        gLo.fillEllipse(c.x, c.y, (15 + 4*pulse)*ks, (13 + 4*pulse)*ks);
+        gLo.fillStyle(SKIN.eye, ga((0.40 + 0.28*pulse)*faceK));
+        gLo.fillEllipse(c.x, c.y, (8 + 2.5*pulse)*ks, (7 + 2.5*pulse)*ks);
+        gLo.fillStyle(0xffffff, ga((0.5 + 0.35*pulse)*faceK));
+        gLo.fillEllipse(c.x, c.y, (3.5 + 1*pulse)*ks, (3 + 1*pulse)*ks);
       }
       /* headlights: pool + beams, ALL geometry generated in world space
          off botX/botY + drawAngle alone (not a full R() through
@@ -16323,20 +16369,20 @@ class WorldScene extends Phaser.Scene {
           const q = WB(poolDist + Math.cos(t)*L[0], Math.sin(t)*L[1], 0);
           pp.push(new Phaser.Geom.Point(q.x, q.y));
         }
-        this.gGlow.fillStyle(L[2], L[3]*poolK);
-        this.gGlow.fillPoints(pp, true);
+        gLo.fillStyle(L[2], ga(L[3]*poolK));
+        gLo.fillPoints(pp, true);
       }
       /* beams: one trapezoid per eye. Near edge sits just under eye
          height 10 units past the footprint; far edge lands inside the
          pool's cross-travel half-width (21) so beam and pool meet. */
-      this.gGlow.fillStyle(SKIN.eye, (0.20 + 0.12*pulse)*poolK);
+      gLo.fillStyle(SKIN.eye, ga((0.20 + 0.12*pulse)*poolK));
       for(const ey of [-7, 7]){
         const dv = ey > 0 ? 1 : -1;
         const n0 = WB(beamFwd, ey - dv*2.8, this.botZ + 36);
         const n1 = WB(beamFwd, ey + dv*2.8, this.botZ + 36);
         const f0 = WB(poolDist, ey*1.85 - dv*8, 0);
         const f1 = WB(poolDist, ey*1.85 + dv*8, 0);
-        this.gGlow.fillPoints([
+        gLo.fillPoints([
           new Phaser.Geom.Point(n0.x, n0.y),
           new Phaser.Geom.Point(n1.x, n1.y),
           new Phaser.Geom.Point(f1.x, f1.y),
