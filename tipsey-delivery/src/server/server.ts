@@ -765,7 +765,7 @@ async function routeSubmitSlalomFail(
      rationale. No dateStr here: the slalom course doesn't rotate by
      day (SL_SEED_DATE is frozen), so unlike delivery this just stays
      pending until posted, with no day-rollover to age it out. */
-  await dbSetFailPending(user.username, 'slalom', undefined, text)
+  await dbSetFailPending(user.username, 'slalom', undefined, text, sanitizePose(req.pose))
 
   return {text}
 }
