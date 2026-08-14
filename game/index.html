@@ -8718,7 +8718,7 @@ class WorldScene extends Phaser.Scene {
          silence is what got reported. Anyone already wearing it needs
          no preview, which is the one case this skips. */
       if(tpProfile.equipped !== "fire-chief"){
-        hjSkinPreview = true;
+        tpSkinPreview = true;
         tpApplySkin("fire-chief");
       }
       if(!tpProfile.owned.has("fire-chief")){
@@ -8872,8 +8872,8 @@ class WorldScene extends Phaser.Scene {
        already says fire-chief and this is a no-op, where restoring a
        stashed id would have stripped a skin they had genuinely earned
        and put on. */
-    if(hjSkinPreview && !(opts && opts.challenge)){
-      hjSkinPreview = false;
+    if(tpSkinPreview && !(opts && opts.challenge)){
+      tpSkinPreview = false;
       tpApplySkin(tpProfile.equipped);
     }
     /* Devvit bridge — no-op if not embedded (see shim near top of file).
@@ -18634,8 +18634,10 @@ const TD_VIC = {
   cardDelay: 1400,     // slCrash's beat, reused
 };
 const HJ_CHIEF_AT = 10;   // clear ALL TEN jumps for the Fire Chief
-/* Fire Chief PREVIEW latch (Sir's call, 2026-08-13). Same idea as the
-   Cone Slalom's own win-card preview: clearing jump ten repaints the
+/* SKIN PREVIEW latch (Sir's call, 2026-08-13). ONE latch for every
+   mission that previews a reward, not one per mission: the Cone Slalom
+   now shares it (see slShowCard's own note on the leak that came from
+   having its own private revert). Clearing jump ten repaints the
    REAL robot in the earned skin immediately, because the reward is a
    costume and a costume that never goes on isn't a reward -- reported
    on-device the same day ("i didnt get a fire Engine skin change when
@@ -18652,7 +18654,7 @@ const HJ_CHIEF_AT = 10;   // clear ALL TEN jumps for the Fire Chief
    captured at unlock time would UNDO a real equip if the player went
    and claimed the Chief while the preview was still up. loadRoute
    reverts by re-reading the profile instead (see its own comment). */
-let hjSkinPreview = false;
+let tpSkinPreview = false;
 const HJ_CH = {
   level: 1,
   maxLevel: 10,     // TUNED ON DEVICE — ten jumps, level 10 is the finish
@@ -20505,13 +20507,30 @@ function tpSlalomOn(){
          showing until the page reloads (reload re-applies the real
          tpProfile.equipped at startup regardless, so it self-heals,
          just not instantly). */
-      let slPrevEquipped = null;
+      /* THE LEAK, CLOSED (reported on-device 2026-08-13: "the skin is
+         auto equipping from the slalom"). It was never equipping --
+         tpProfile.equipped was untouched the whole time and the Store
+         correctly read Classic -- but the PREVIEW's only revert lived on
+         #slAgain's onclick, and the unlock branch HIDES #slAgain and
+         sends the player through Post -> Follow -> corner icons instead.
+         So on the one run that actually earns the skin, the one exit
+         that reverts it is the one exit the player cannot take, and the
+         paint rode straight out into the daily route.
+
+         Now on the same latch the Fire Chief preview uses (tpSkinPreview,
+         reverted at loadRoute -- see there), which covers EVERY exit
+         rather than one. Reverting by re-reading tpProfile.equipped, not
+         a stashed id, is what makes claiming mid-preview safe: go and
+         equip Cone Dodger from the Trophy Case while it's still on and
+         the revert is a no-op instead of stripping a skin you just
+         earned. #slAgain keeps a revert of its own since it does not
+         reload a route. */
       if (justEarnedReward){
-        slPrevEquipped = tpProfile.equipped;
+        tpSkinPreview = true;
         tpApplySkin(rewardSkin.skinId);
       }
       document.getElementById('slAgain').onclick = () => {
-        if (justEarnedReward) tpApplySkin(slPrevEquipped);
+        if (tpSkinPreview){ tpSkinPreview = false; tpApplySkin(tpProfile.equipped); }
         card.remove(); slResetRun();
       };
 
@@ -23362,8 +23381,29 @@ const TP_TROPHIES = [
      handed out the trophy to everyone who never even played. missions/
      h/total params dropped: nothing here reads them anymore, same as
      hydrant-hop's own reward above, which reads tpProfile directly too. */
+  /* READS THE DURABLE FLAG, NOT THE TIME (Sir's call, 2026-08-13 --
+     option (a), the client-only fix; the server-side one is still open).
+     This used to gate on tpProfile.slBestMs <= 60000, and slBestMs is
+     written to localStorage and NOWHERE else: requestTpProfile's mission
+     merge restores hjBest and missionsCompleted from the server but has
+     no branch for it, and the Devvit webview's localStorage does not
+     reliably persist (the fail-snapshot comments say so themselves). So
+     on Devvit slBestMs came back 0 on every boot and the trophy could
+     never be claimed -- reported on-device with a 57.47s run showing
+     locked. missionsCompleted DOES round-trip, and slShowCard only ever
+     adds 'cone-slalom' to it on a run that already passed the same
+     sub-60 test (won requires total <= par, and par IS 60), so this is
+     the same bar read off state that actually survives.
+
+     Still imperfect and worth saying out loud: the server is told 1, not
+     the time (tpCompleteMission keeps a MAX high-water and a time is
+     lower-is-better, so ms would preserve the WORST run), which means
+     the BEST TIME itself still only lives locally. The trophy no longer
+     depends on it; the profile card's "Best: 57.47s" line still does,
+     and will read blank on a device that lost its storage. That needs
+     the server key. */
   { id:"slalom-master", name:"Slalom Master", desc:"Finish the \"Cone Slalom Challenge\" side mission in under 60 seconds.", tier:"silver", reward:"cone-dodger",
-    progress:()=>({current: (tpProfile.slBestMs > 0 && tpProfile.slBestMs <= 60000) ? 1 : 0, target:1}) },
+    progress:(h,t,missions)=>({current: (missions && missions.has("cone-slalom")) ? 1 : 0, target:1}) },
 ];
 
 /* Side missions: listed and searchable, but not completable yet — see
