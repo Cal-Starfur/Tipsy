@@ -1475,7 +1475,14 @@ function reportWin(s, payout, pctShow){
    something that vanishes on its own timer is the wrong move; that one
    needs a real completion card built first. */
 const tsFx = { draft: "", posted: false, busy: false,
-               draftWhy: "no slalom win yet" };
+               draftWhy: "no slalom win yet",
+               /* Set by slShowCard's own won branch before the report
+                  goes out: true only on the run that actually EARNS the
+                  skin, which is the run that gets the Post/Follow gate
+                  instead of the COMMENT+FOLLOW row. unlockName is the
+                  trophy's display name, passed to the server so the
+                  draft can say what was won. */
+               unlock: false, unlockName: "" };
 const TSFX_DONE_KEY = "tdSlalomCBonusDate";
 
 /* Builds the COMMENT+FOLLOW row fresh into `card` (the just-created
@@ -1615,7 +1622,8 @@ function reportSlalomWin(card, total, par, clean){
   fetch("api/tipsy/slalom/win", {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
-    body: JSON.stringify({ totalSecs: total, parSecs: par, clean: !!clean })
+    body: JSON.stringify({ totalSecs: total, parSecs: par, clean: !!clean,
+                           unlocked: tsFx.unlock ? (tsFx.unlockName || "") : "" })
   })
     .then(r => {
       tsFx.draftWhy = "http " + r.status;
@@ -1626,10 +1634,186 @@ function reportSlalomWin(card, total, par, clean){
       if(tsFx.draft) tsFx.draftWhy = "ok (" + tsFx.draft.length + " chars)";
       else if(d) tsFx.draftWhy = "empty text (server: no post id or not signed in)";
       if(document.getElementById("slCard") !== card) return;
+      /* The unlock run has no COMMENT button to sync -- its draft lands
+         in the gate panel instead (see tsFxWinGate). */
+      if(tsFx.unlock){ tsFxWinGate(card); return; }
       const b = document.getElementById("tsFxCommentBtn");
       if(b) b.style.display = (tsFx.draft && !tsFx.posted) ? "block" : "none";
     })
     .catch(() => { tsFx.draftWhy = "network error"; });
+}
+/* ---- SLALOM UNLOCK GATE (Sir's call, 2026-08-13) -------------------
+   A run that EARNS a skin gets the FAIL card's shape, not the win
+   card's: no "Run again" pill sitting under the trophy headline, a
+   pre-composed comment already written up in an editable panel, and
+   ONE button labelled "Post". A successful post swaps that same panel
+   over to FOLLOW; once follow resolves -- or if it's already claimed
+   on this account -- the panel steps aside and #slAgain comes back as
+   the exit. That last step is deliberate: #slAgain's own onclick is
+   the one place the skin PREVIEW gets reverted (see slShowCard's note
+   on tpApplySkin), so hiding it forever would strand the preview as
+   well as the player. Flagged for Sir: the button is gone during the
+   Post/Follow moment, which is the ask, but it does come back at the
+   end of the chain.
+
+   NO DOLLAR FIGURES on either button here (Sir's call): on an unlock
+   screen the trophy is the headline, and hanging "+$5.00"/"+$25.00"
+   off it made the moment read like a paywall. Both bonuses still pay
+   -- same endpoints, same pools, same $5/day and $25 one-time rules
+   as tsFxBonusRow's own buttons -- they're just not the pitch.
+
+   Non-Devvit, or a draft that never lands (network error, not signed
+   in, empty text), falls straight back to the plain Run again button
+   -- same no-stranding rule tsfFxShowPlainRetry follows on the fail
+   card. The panel reuses TDFX_GATE_CARD and the fail composer's own
+   textarea styling verbatim rather than inventing a third look. */
+function tsFxWinGatePanel(card){
+  let el = document.getElementById("tsFxWinGate");
+  if(el) return el;
+  el = document.createElement("div");
+  el.id = "tsFxWinGate";
+  /* top:36% is #slAgain's own slot (see the button's comment in
+     slShowCard for why 36% and not .slRetryBtn's shared 46%) -- the
+     panel is taller than the pill it replaces and grows DOWNWARD from
+     here, so this is a first-pass number that wants an on-device look
+     across a few finish routes, same caveat the button carries. */
+  el.style.cssText = "position:absolute;left:50%;top:36%;transform:translateX(-50%);" +
+    "text-align:left;" + TDFX_GATE_CARD;
+  card.appendChild(el);
+  return el;
+}
+/* End of the chain (and the fallback): panel out, Run again back. */
+function tsFxWinShowAgain(){
+  const g = document.getElementById("tsFxWinGate");
+  if(g) g.style.display = "none";
+  const a = document.getElementById("slAgain");
+  if(a) a.style.display = "";
+}
+/* Called right after the card is built AND from reportSlalomWin's
+   response callback -- same draft race tsfFxSyncGate handles. */
+function tsFxWinGate(card){
+  if(!IS_DEVVIT_BUILD){ tsFxWinShowAgain(); return; }
+  if(document.getElementById("slCard") !== card) return;   // card isn't live anymore
+  if(tsFx.posted) return;                                   // follow step owns the panel
+  const a = document.getElementById("slAgain");
+  if(!tsFx.draft){
+    if(tsFx.draftWhy === "pending"){
+      if(a) a.style.display = "none";
+      const g = tsFxWinGatePanel(card);
+      g.style.display = "block";
+      g.innerHTML = '<div style="color:#8f8571;font-size:13px;">loading your comment&hellip;</div>';
+      return;
+    }
+    tsFxWinShowAgain();
+    return;
+  }
+  if(a) a.style.display = "none";
+  tsFxWinRenderComposer(tsFxWinGatePanel(card), card);
+}
+function tsFxWinRenderComposer(g, card){
+  g.style.display = "block";
+  g.innerHTML =
+    '<div style="font-weight:700;font-size:11px;letter-spacing:0.8px;line-height:1.4;' +
+      'margin-bottom:12px;">POST YOUR RUN TO THE DELIVERY LOG</div>' +
+    '<div id="tsFxWinErr" style="color:#b5540e;font-size:12px;margin-bottom:8px;display:none;"></div>';
+  const ta = document.createElement("textarea");
+  ta.id = "tsFxWinText";
+  ta.value = tsFx.draft;
+  ta.maxLength = 480;   // mirrors the server's clamp so nothing is silently cut
+  ta.style.cssText = "width:100%;box-sizing:border-box;height:100px;resize:none;" +
+    "background:#fff;color:#2e3138;border:1px solid #ddd6c4;border-radius:8px;" +
+    "padding:10px;font:inherit;font-size:13px;line-height:1.4;margin-bottom:4px;";
+  const count = document.createElement("div");
+  count.style.cssText = "font-size:10px;color:#a99f8a;text-align:right;margin-bottom:12px;";
+  count.textContent = ta.value.length + " / 480";
+  ta.addEventListener("input", () => { count.textContent = ta.value.length + " / 480"; });
+  const btn = document.createElement("button");
+  btn.id = "tsFxWinBtn";
+  btn.textContent = "Post";
+  btn.style.cssText = TDFX_BTN + TDFX_ORANGE;
+  btn.addEventListener("click", () => tsFxWinPost(ta, btn, g, card));
+  g.appendChild(ta);
+  g.appendChild(count);
+  g.appendChild(btn);
+}
+/* Same endpoint and same bonus bookkeeping as tsFxPostComment (the
+   COMMENT button's own poster) -- only the success path differs: that
+   one just hides its button, this one hands the panel to FOLLOW. */
+function tsFxWinPost(ta, btn, g, card){
+  if(tsFx.busy) return;
+  const text = (ta.value || "").trim();
+  if(!text) return;
+  tsFx.busy = true;
+  btn.disabled = true;
+  btn.textContent = "Posting\u2026";
+  const fail = () => {
+    tsFx.busy = false;
+    btn.disabled = false;
+    btn.textContent = "Post";
+    const e = document.getElementById("tsFxWinErr");
+    if(e){ e.textContent = "Couldn't post. Try again."; e.style.display = "block"; }
+  };
+  fetch("api/tipsy/slalom/win/comment", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ text })
+  })
+    .then(r => r.ok ? r.json() : null)
+    .then(d => {
+      if(!d || !d.posted){ fail(); return; }
+      tsFx.busy = false;
+      tsFx.posted = true;   // one comment per slalom win screen
+      if(d.bonusGranted){
+        try { localStorage.setItem(TSFX_DONE_KEY, clientTodayUTC()); } catch(e){}
+      }
+      if(typeof tpProfile === "object" && tpProfile && typeof d.walletCents === "number"){
+        tpProfile.walletCents = d.walletCents;
+        if(typeof tpSaveProfile === "function") tpSaveProfile();
+        if(typeof tpRender === "function") tpRender();
+      }
+      if(document.getElementById("slCard") !== card) return;   // player already left
+      tsFxWinShowFollow(g);
+    })
+    .catch(fail);
+}
+/* tdFx.followClaimed / tdFxFollowRequest are the SAME account-wide
+   flag and network call every other asker uses (fail card, delivery
+   win, slalom win row) -- an account that already claimed skips this
+   step entirely rather than being offered a bonus it can't get. */
+function tsFxWinShowFollow(g){
+  if(tdFx.followClaimed){ tsFxWinShowAgain(); return; }
+  g.style.display = "block";
+  g.innerHTML =
+    '<div style="font-weight:700;font-size:11px;letter-spacing:0.8px;' +
+      'margin-bottom:6px;">POSTED</div>' +
+    '<div style="font-size:13px;line-height:1.4;color:#5c5647;margin-bottom:14px;">' +
+      'Follow r/tipsey to keep your runs on the Delivery Log.</div>' +
+    '<div id="tsFxWinErr" style="color:#b5540e;font-size:12px;margin-bottom:8px;display:none;"></div>';
+  const btn = document.createElement("button");
+  btn.id = "tsFxWinFollowBtn";
+  btn.textContent = "Follow";
+  btn.style.cssText = TDFX_BTN + TDFX_ORANGE;
+  btn.addEventListener("click", () => {
+    if(tdFx.busy) return;
+    tdFx.busy = true;
+    btn.disabled = true;
+    btn.textContent = "Following\u2026";
+    tdFxFollowRequest(granted => {
+      tdFx.busy = false;
+      btn.textContent = granted ? "Followed" : "Already following";
+      btn.disabled = true;
+      /* Beat, then hand the screen back -- the confirmation is the
+         whole payoff of the press, so it can't be replaced instantly. */
+      setTimeout(tsFxWinShowAgain, 1100);
+    }, () => {
+      tdFx.busy = false;
+      btn.disabled = false;
+      btn.textContent = "Follow";
+      const e = document.getElementById("tsFxWinErr");
+      if(e){ e.textContent = "Couldn't follow. Try again."; e.style.display = "block"; }
+    });
+  });
+  g.appendChild(btn);
 }
 /* ============================================================
    TSF SLALOM FAIL EXTRAS -- Delivery Log gate on a FAILED Cone Slalom
@@ -19076,12 +19260,28 @@ function tpSlalomOn(){
          when that row actually exists. */
       const winCardEl = document.getElementById('slWinCard');
       const stackBase = winCardEl.offsetHeight + 16;
-      if (IS_DEVVIT_BUILD) tsFxBonusRow(card, total, par, clean, stackBase);
+      /* Two different shapes off the same win, split on whether this
+         run earned the skin: the ordinary win keeps the COMMENT+FOLLOW
+         row anchored off the sheet, the unlock run gets the fail-card
+         gate over #slAgain's slot instead (Sir's call, 2026-08-13 --
+         see the SLALOM UNLOCK GATE block for the full reasoning). */
+      tsFx.unlock = !!justEarnedReward;
+      tsFx.unlockName = justEarnedReward ? rewardSkin.displayName : "";
+      if (IS_DEVVIT_BUILD && !justEarnedReward){
+        tsFxBonusRow(card, total, par, clean, stackBase);
+      } else if (IS_DEVVIT_BUILD){
+        reportSlalomWin(card, total, par, clean);
+        tsFxWinGate(card);
+      }
       tdStackIcons('slCard');
       const iconRow = document.getElementById('tdStackIcons_slCard');
       if (iconRow){
         iconRow.style.top = 'auto';
-        iconRow.style.bottom = (stackBase + (IS_DEVVIT_BUILD ? 120 : 0)) + 'px';
+        /* The 120 is the COMMENT+FOLLOW row's own height -- only add it
+           when that row actually exists, which the unlock run's gate
+           panel (top-anchored, not stacked off the sheet) does not. */
+        iconRow.style.bottom =
+          (stackBase + (IS_DEVVIT_BUILD && !justEarnedReward ? 120 : 0)) + 'px';
       }
 
     } else {
