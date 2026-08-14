@@ -89,7 +89,7 @@
     lampH: 430,        // lamp overall height
     lampSpacing: 1100, // spacing along the pier
     lampGlow: 1,
-    pylonDepth: 300,   // how far the piles run below the deck
+    pylonDepth: 460,   // how far the piles run below the deck
     pileW: 26,         // pile half-width
     bentGap: 900,      // spacing between bents along the pier
     pilesPerBent: 4,
@@ -213,12 +213,20 @@
     };
 
     const pile = (px, py, top, bottom) => {
+      /* FULLY HIDDEN PILES MUST BE SKIPPED, NOT DRAWN INVERTED
+         (2026-08-14, Sir: "pylons are looking bad they are drawing over
+         the surface of the pier").
+         emerge() can exceed the pile's own length: under the round deck it
+         runs up to R*sqrt(2) ~= 1592, against a default pylonDepth of 300.
+         When it does, top = -e sits BELOW bottom = -depth, every quad is
+         wound inside out, and an inverted quad does not vanish -- it draws,
+         in the wrong place, reading exactly like a pile standing on top of
+         the deck. That was the whole reported symptom.
+         A pile that only emerges deeper than it is long is genuinely
+         invisible from this camera -- the deck is over it -- so the honest
+         answer is to draw nothing. */
+      if (top <= bottom) return false;
       const w = d.pileW;
-      const face = (sx, sy) => [
-        scn.W(px + sx * w, py + sy * w, top),
-        scn.W(px + (sx ? sx * w : w), py + (sy ? sy * w : w), top),
-        scn.W(px + (sx ? sx * w : w), py + (sy ? sy * w : w), bottom),
-        scn.W(px + sx * w, py + sy * w, bottom)];
       /* two near faces, same standalone-box convention drawLampHull uses */
       scn.quadOn(g, [scn.W(px + w, py - w, top), scn.W(px + w, py + w, top),
                      scn.W(px + w, py + w, bottom), scn.W(px + w, py - w, bottom)], PYL.pileDk);
@@ -232,6 +240,7 @@
                      scn.W(px + w, py + w, bottom), scn.W(px + w, py - w, bottom)], PYL.wetDk);
       scn.quadOn(g, [scn.W(px - w, py + w, wl), scn.W(px + w, py + w, wl),
                      scn.W(px + w, py + w, bottom), scn.W(px - w, py + w, bottom)], PYL.wet);
+      return true;
     };
 
     /* bents across the straight run */
@@ -243,14 +252,16 @@
       for (let i = 0; i < perBent; i++) {
         const py = A.pierY - half + (2 * half * i) / (perBent - 1);
         const e = emerge(px, py);
-        bent.push({ py, e });
-        pile(px, py, -e, -d.pylonDepth);
+        bent.push({ py, e, drawn: pile(px, py, -e, -d.pylonDepth) });
       }
       /* cross bracing between adjacent piles, below whichever of the two
          emerges later so a brace never pokes through the deck */
       g.lineStyle(Math.max(1, 2 * K), PYL.beamDk, 0.8);
       for (let i = 0; i < bent.length - 1; i++) {
         const a2 = bent[i], b2 = bent[i + 1];
+        /* a brace between a drawn pile and a hidden one would hang off
+           nothing, so both ends have to be real */
+        if (!a2.drawn || !b2.drawn) continue;
         const z0 = -Math.max(a2.e, b2.e) - d.braceDrop;
         const z1 = -d.pylonDepth + d.braceDrop;
         if (z0 <= z1) continue;
@@ -666,7 +677,7 @@
     { k: 'railH', label: 'rail H', min: 50, max: 260, step: 4 },
     { k: 'lampH', label: 'lamp H', min: 200, max: 800, step: 10 },
     { k: 'lampSpacing', label: 'lamp gap', min: 400, max: 3000, step: 50 },
-    { k: 'pylonDepth', label: 'pile deep', min: 80, max: 900, step: 10 },
+    { k: 'pylonDepth', label: 'pile deep', min: 80, max: 1800, step: 20 },
     { k: 'bentGap', label: 'bent gap', min: 300, max: 2500, step: 50 },
     { k: 'pilesPerBent', label: 'per bent', min: 2, max: 7, step: 1 },
   ];
@@ -827,7 +838,7 @@
   document.getElementById('rhReset').onclick = () => {
     Object.assign(D, { rWall: 520, wallH: 300, eave: 90, roofH: 165, drumR: 175,
                        drumH: 130, railH: 118, lampH: 430, lampSpacing: 1100,
-                       pylonDepth: 300, bentGap: 900, pilesPerBent: 4 });
+                       pylonDepth: 460, bentGap: 900, pilesPerBent: 4 });
     sync();
   };
   document.getElementById('rhCopy').onclick = async () => {
