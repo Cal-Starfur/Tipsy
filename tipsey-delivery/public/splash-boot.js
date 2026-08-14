@@ -104,57 +104,20 @@
       });
     })();
 
-/* ---------- self-hiding boot diagnostic ----------
-   The native Reddit app shows the static splash while the same post runs
-   attract on web, and the app's webview takes no inspector. Every
-   plausible cause (WebGL refused, RAF suspended in the feed webview,
-   script load killed, runtime throw) is invisible from outside, so the
-   splash reports its own boot state: a one-line strip that renders ONLY
-   if attract has not gone live 6s after load. Web goes live in ~1-2s and
-   never shows it; the broken app shows exactly which link died. Remove
-   once the app-side cause is fixed. */
-(function () {
-  var t0 = Date.now();
-  var rafCount = 0;
-  var errs = [];
+/* The self-hiding boot diagnostic that used to live here is gone
+   (Sir's call, 2026-08-13). It was added because the native Reddit app
+   showed the static splash while the same post ran attract on web, and
+   the app's webview takes no inspector -- so the splash reported its
+   own boot state in a one-line strip whenever attract had not gone live
+   6s after load. It did its job and named the cause: every link read
+   healthy (phaser 3.85.2 loaded, flag set, two canvases, gl:yes, page
+   visible, no errors) except raf, which came back 7 frames in 6.1
+   seconds -- roughly 1fps. The feed webview throttles
+   requestAnimationFrame to almost nothing, so attract cannot render its
+   way to 'live' there, and the strip fired on a timeout that was
+   measuring the wrong thing. Nothing was broken; the diagnostic had
+   become the only visible symptom, on the live post.
 
-  function rafProbe() { rafCount++; requestAnimationFrame(rafProbe); }
-  requestAnimationFrame(rafProbe);
-
-  window.addEventListener('error', function (e) {
-    if (errs.length >= 2) return;
-    var f = (e.filename || '').split('/').pop();
-    errs.push((f ? f + ':' + e.lineno + ' ' : '') + String(e.message).slice(0, 80));
-  });
-  window.addEventListener('unhandledrejection', function (e) {
-    if (errs.length < 2) errs.push('promise: ' + String(e.reason).slice(0, 80));
-  });
-
-  function glProbe() {
-    try {
-      var c = document.createElement('canvas');
-      return (c.getContext('webgl') || c.getContext('experimental-webgl')) ? 'yes' : 'NO';
-    } catch (_) { return 'THROW'; }
-  }
-
-  setTimeout(function () {
-    if (document.body.classList.contains('attract-live')) return; // healthy: stay invisible
-    var d = document.createElement('div');
-    d.id = 'attract-diag';
-    var st = d.style;
-    st.position = 'fixed'; st.left = '0'; st.right = '0'; st.bottom = '0';
-    st.zIndex = '99'; st.font = '9px monospace'; st.color = '#ffb454';
-    st.background = 'rgba(0,0,0,0.75)'; st.padding = '2px 4px';
-    st.pointerEvents = 'none'; st.whiteSpace = 'normal'; st.wordBreak = 'break-all';
-    var stage = document.getElementById('attract-stage');
-    d.textContent = 'diag t+' + ((Date.now() - t0) / 1000).toFixed(1) + 's'
-      + ' phaser:' + (typeof window.Phaser !== 'undefined' ? window.Phaser.VERSION : 'ABSENT')
-      + ' logic:' + (window.TIPSEY_ATTRACT_BARE === true ? 'flag-set' : 'flag-LOST')
-      + ' canvases:' + (stage ? stage.querySelectorAll('canvas').length : '?')
-      + ' gl:' + glProbe()
-      + ' raf:' + rafCount
-      + ' vis:' + document.visibilityState
-      + (errs.length ? ' | ' + errs.join(' | ') : ' | no-errors');
-    document.body.appendChild(d);
-  }, 6000);
-})();
+   STILL OPEN, and this is the real fix rather than the strip's removal:
+   attract should reach 'live' off a frame count or a plain timer, not
+   off smooth rendering it will never get in a throttled feed. */
