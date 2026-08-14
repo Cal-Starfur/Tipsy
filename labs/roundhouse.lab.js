@@ -316,8 +316,24 @@
      rail, posts on a fixed pitch, and the diamond infill the photo shows
      between them.
      ======================================================================= */
-  function drawPierRail(scn, g, W, t, a, b, o) {
+  /* NOTE THE SIGNATURE: no `t`. It used to take one, to match
+     drawRoundhouse/drawPierLamp, and the call site passed six arguments
+     for a seven-argument function -- so `t` swallowed point a, `a`
+     swallowed point b, and `b` arrived as {}. b.x was undefined, every
+     coordinate came out NaN, and Phaser silently drew nothing: no error,
+     no warning, no rails. Nothing here animates, so the honest fix is to
+     not take a time parameter it never used. */
+  function drawPierRail(scn, g, W, a, b, o) {
     const d = Object.assign({}, D, o || {});
+    /* NaN GUARD. The arity bug above produced non-finite coordinates, and
+       Phaser's response to those is to draw nothing at all -- no throw, no
+       console warning, just an empty pier that looks like a placement
+       problem rather than a maths one. It cost a round trip to find. Any
+       future miswiring now names itself in the readout instead. */
+    if (!a || !b || !isFinite(a.x) || !isFinite(a.y) || !isFinite(b.x) || !isFinite(b.y)) {
+      scn.__rhDrawErr = 'pier rail got non-finite endpoints: ' + JSON.stringify([a, b]);
+      return;
+    }
     const dx = b.x - a.x, dy = b.y - a.y;
     const L = Math.hypot(dx, dy) || 1;
     const ux = dx / L, uy = dy / L;
@@ -381,10 +397,16 @@
       const w = 15 - 5 * (i / segs);
       col(w, z0, z1, i % 2 ? RH.lamp : RH.lampDk, RH.lampDk);
     }
-    /* collar under the globe */
+    /* collar, then a short neck the globe actually sits ON. The collar
+       used to stop at H*0.90 with the globe drawn at H*1.00, leaving a
+       tenth of the lamp's height as open air -- the globe floated above
+       the post (Sir, on-device: "the lamps arent rendering all the way").
+       The neck now runs up to globeZ and the globe is centred there. */
     col(19, H * 0.84, H * 0.90, RH.lamp, RH.lampDk);
+    const globeZ = H * 0.945;
+    col(9, H * 0.90, globeZ, RH.lamp, RH.lampDk);
     /* the globe, plus a soft halo so it reads as a light source */
-    const gp = W(0, 0, H);
+    const gp = W(0, 0, globeZ);
     if (d.lampGlow) {
       g.fillStyle(RH.globeGlow, 0.16);
       g.fillCircle(gp.x, gp.y, 44 * K);
@@ -587,7 +609,8 @@
       `${A.sh && Math.abs(D.rWall - A.sh.ring.rInner) > 40 ? '   <-- MISMATCH' : '   match'}\n` +
       `overall height ${D.wallH + D.roofH + D.drumH + D.drumRoofH + D.finialH}\n` +
       `SEE IT AT ALL FOUR HEADINGS before this ships (f0..f3)\n` +
-      visibilityNote();
+      visibilityNote() +
+      (scene.__rhDrawErr ? '\nDRAW ERROR: ' + scene.__rhDrawErr : '');
     document.getElementById('rhPort').textContent = portLine();
   }
   function sync() {
