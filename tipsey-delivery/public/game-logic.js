@@ -169,6 +169,7 @@ function requestTpProfile(){
           delivery: data.failPoses.delivery || "",
           hydrant: data.failPoses.hydrant || ""
         };
+        if(data.failPoses.slalom) tsfFx.serverPose = data.failPoses.slalom;
       }
       if(data.failDrafts){
         tdFx.serverDraft = {
@@ -437,6 +438,24 @@ const TDFX_SNAP_KEYS = ["state","tipDir","tipCause","damage","speed","tipStartRo
   "camX","camY","camZ","botRow","laneOff","runT"];
 const TDFX_HSNAP_KEYS = TDFX_SNAP_KEYS.concat(["hjLevel","hjResult","hjBest",
   "hjPassed","hjLocked","hjCharge","hjChargeSm","hjAir"]);
+/* Slalom reuses the delivery scene keys verbatim -- the robot's pose is
+   the robot's pose -- but its RUN numbers can't ride the same list,
+   because run{} lives in a closure inside tpSlalomOn rather than on the
+   scene object the way hjLevel/hjCharge do. So a slalom pose blob is
+   two halves, {scene, run}, and the run half is applied by the engine
+   itself in slResetRun where that closure is actually in scope. */
+const TSF_RUN_KEYS = ["elapsed","pen","cleared","faults","fail","missedOnce"];
+function tsfFxCapturePose(s, run){
+  const rn = {};
+  for(const k of TSF_RUN_KEYS) rn[k] = run[k];
+  return {scene: tdFxCaptureSnap(s, TDFX_SNAP_KEYS), run: rn};
+}
+function tsfFxPose(){
+  if(tsfFx.pose) return tsfFx.pose;
+  const raw = tsfFx.serverPose;
+  if(!raw) return null;
+  try { return JSON.parse(raw); } catch(e){ return null; }
+}
 function tdFxCaptureSnap(s, keys){
   const o = {};
   for(const k of keys) o[k] = s[k];
@@ -1654,7 +1673,10 @@ const tsfFx = { draft: "", posted: false, busy: false, fireRetry: null,
                  /* PERSISTENT (Sir's call, 2026-08) -- see tdFx's own
                     matching fields and the UNIFIED RETRY GATE comment
                     near tdFxDeliveryBlocked for the full rationale. */
-                 unposted: false };
+                 unposted: false,
+                 /* {scene, run} crash blob and the server's copy of it --
+                    see tsfFxCapturePose / failPoses in shared/api.ts */
+                 pose: null, serverPose: "" };
 
 function tsfFxGatePanel(card){
   let el = document.getElementById("tsfFxGate");
@@ -1786,10 +1808,18 @@ function reportSlalomFail(card, total, faultCount, cause){
   tsfFx.draftWhy = "pending";
   if(!IS_DEVVIT_BUILD) return;
   tsfFx.unposted = true;   // persistent half -- see UNIFIED RETRY GATE near tdFxDeliveryBlocked
+  /* Captured here rather than in slShowCard so the pose and the numbers
+     the draft is composed from come from the same instant. A restore
+     re-enters through this same function, so it re-captures what it just
+     restored -- same values back, harmless, and it keeps one code path
+     rather than a restore-only branch. */
+  { const sc = scn(); const api = sc && sc._slAPI;
+    if(api) tsfFx.pose = tsfFxCapturePose(sc, api.run); }
   fetch("api/tipsy/slalom/fail", {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
-    body: JSON.stringify({ totalSecs: total, faultCount: faultCount, cause: cause || "" })
+    body: JSON.stringify({ totalSecs: total, faultCount: faultCount, cause: cause || "",
+                           pose: tsfFx.pose ? JSON.stringify(tsfFx.pose) : undefined })
   })
     .then(r => {
       tsfFx.draftWhy = "http " + r.status;
@@ -18351,7 +18381,18 @@ function tpSlalomOn(){
     }
   }
 
-  function slResetRun(){
+  /* opts.restore = {scene, run}: build the course as normal, then put a
+     FINISHED, FAILED run back on top of it instead of starting a new one
+     (Sir's call, 2026-08-13: "robot should be where it tipped"). The
+     course build is the only thing that can produce run.course, so a
+     restore has to come through here -- but it must not also hand the
+     player a live countdown, which is why phase goes to 'idle' rather
+     than 'count'. Applied at the END, after the spawn placement below
+     has already run, so the stored pose overrides it and slPinCam/prevS
+     still settle against the restored position rather than the spawn.
+     Doing it inside the engine keeps course, camera and run bookkeeping
+     owned by one place -- the caller never reaches into run{}. */
+  function slResetRun(opts){
     document.getElementById('slCard')?.remove();
     /* State reset happens BEFORE the course build, unconditionally. It used to
        sit after the early return, so a failed corridor search left the robot in
@@ -18411,6 +18452,20 @@ function tpSlalomOn(){
     scene.botX = sp.x + (-Math.sin(hdg)) * scene.laneOff;
     scene.botY = sp.y + Math.cos(hdg) * scene.laneOff;
     scene.drawAngle = hdg;
+    /* RESTORE, after the spawn recipe above and before the camera pin --
+       see slResetRun's own comment for why this order. */
+    const R = opts && opts.restore;
+    if (R){
+      tdFxApplySnap(scene, R.scene, TDFX_SNAP_KEYS);
+      const rn = R.run || {};
+      for (const k of TSF_RUN_KEYS) if (k in rn) run[k] = rn[k];
+      if (!Array.isArray(run.faults)) run.faults = [];
+      if (!run.fail) run.fail = 'tipped over';
+      run.started = true;
+      run.done = true;
+      run.phase = 'idle';   // finished: no countdown, no live run
+      run.msg = '';
+    }
     slPinCam();
     prevS = scene.botS;
   }
@@ -19613,7 +19668,12 @@ function tpSlalomOn(){
     setTimeout(() => { if (scene._slAPI && run.done) slShowCard(); }, 1400);
   }
 
-  scene._slAPI = { run, reset: slResetRun, countdown: slCountdown, SL, crash: slCrash };
+  /* showCard is exposed so a blocked re-entry can repaint the SAME fail
+     card the engine paints itself -- no second copy of the card, and it
+     brings #slRetry's onclick, tdStackIcons and tsfFxGate (which owns
+     fireRetry and the composer) along with it for free. */
+  scene._slAPI = { run, reset: slResetRun, countdown: slCountdown, SL, crash: slCrash,
+                   showCard: slShowCard };
   scene._slRestore = () => {
     scene.events.off('preupdate',  onPre);
     scene.events.off('postupdate', onPost);
@@ -19723,7 +19783,7 @@ let tpSlTick = 0;
 function slalomMapSelect(){
   /* Same reasoning as hjStart's own guard: refuse before touching
      anything, toast rather than a screen redirect. */
-  if(tsfFxBlocked()){ tpToast("Post about your last slalom run before trying again."); return; }
+  if(tsfFxBlocked()){ tpRestoreSlalomCrash(); return; }
   tpCloseDetail(); tpCloseMissions(); tpCloseProfile();
   { const sA = scn(); if(sA && sA.attractStop) sA.attractStop(); }
   hide("failOverlay"); hide("winOverlay");
@@ -19793,12 +19853,37 @@ function slalomMapSelect(){
      entirely now (see tpMapJumpTo) -- no per-caller flag needed. */
   tpMapJumpTo({ x: tpSlalomPin().x, y: tpSlalomPin().y, atlas: false });
 }
+/* Blocked re-entry into Cone Slalom, the slalom counterpart of
+   tpRestoreFailScene / tpRestoreHydrantCrash. Everything up to reset()
+   is tpSlalomStart's own opening verbatim -- same course, same chrome,
+   same _slAPI guard -- and then it diverges on exactly one argument:
+   reset({restore}) puts the finished run back instead of starting a new
+   one, and showCard() repaints the card the engine would have painted.
+   No pose stored anywhere means no restore is possible, so it falls back
+   to the toast rather than dropping the player onto a clean course with
+   a gate they can't see the run behind. */
+function tpRestoreSlalomCrash(){
+  const pose = tsfFxPose();
+  if(!pose){ tpToast("Post about your last slalom run before trying again."); return; }
+  tpCloseDetail(); tpCloseMissions(); tpCloseProfile();
+  { const sA = scn(); if(sA && sA.attractStop) sA.attractStop(); }
+  hide("failOverlay"); hide("winOverlay"); hide("titleOverlay");
+  const s = scn();
+  s.mode = "delivery";
+  s.loadRoute(SL_SEED_DATE, { unanchoredStart: true });
+  hjChrome(true);
+  tpSlalomOn();
+  if(!s._slAPI){ hjChrome(false); tpToast("Slalom course unavailable — try again."); return; }
+  tpSlalomUI(s);
+  s._slAPI.reset({ restore: pose });
+  s._slAPI.showCard();
+}
 function tpSlalomStart(){
   /* slalomMapSelect's own guard already covers GO-after-select, but this
      function has its OWN independent entry too -- the mission list's
      "Play mission" button calls this directly and never goes through
      slalomMapSelect at all (see that function's own comment). */
-  if(tsfFxBlocked()){ tpToast("Post about your last slalom run before trying again."); return; }
+  if(tsfFxBlocked()){ tpRestoreSlalomCrash(); return; }
   tpCloseDetail(); tpCloseMissions(); tpCloseProfile();
   { const sA = scn(); if(sA && sA.attractStop) sA.attractStop(); }
   hide("failOverlay"); hide("winOverlay"); hide("titleOverlay");
