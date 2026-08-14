@@ -6599,7 +6599,7 @@ class WorldScene extends Phaser.Scene {
        initialized here as well as in peelReset so drawBurnoutSmoke's
        length read is never undefined on the very first frame. */
     this.peel = { smoke: [], held: false, launchT0: 0 };
-    this.openHold = false;
+    this.openHold = false; this.openAdopted = false;
     this.tipT = 0; this.tipStartRoll = 0; this.postSpillMs = 0; this.lidAng = 0; this.items = []; this.spilled = false;
     this.wonT = 0; this.wonFrac = 0; this.wonLiftT = 0; this.wonLidClosing = false; this.wonWalkAt = null; this.wonWalk = 0; this.wonOutT = 0; this.wonOutFrac = 0; this.wonMeet = null;
     this.bagOnBoard = false;
@@ -7672,7 +7672,7 @@ class WorldScene extends Phaser.Scene {
        than at the GO button because every entry into a run comes through
        loadRoute (GO, Retry, Today, the attract recycle) and only this one
        also zeroes runT, which is the clock the hold is measured against. */
-    this.openHold = true; this.peelReset();
+    this.openHold = true; this.openAdopted = false; this.peelReset();
     this.tipCause = null;
     this.roll = 0; this.tipT = 0; this.tipStartRoll = 0; this.postSpillMs = 0; this.lidAng = 0; this.items = []; this.spilled = false;
     this.wonT = 0; this.wonFrac = 0; this.wonLiftT = 0; this.wonLidClosing = false; this.wonWalkAt = null; this.wonWalk = 0; this.wonOutT = 0; this.wonOutFrac = 0; this.wonMeet = null;
@@ -13830,6 +13830,40 @@ class WorldScene extends Phaser.Scene {
          every loop. Delivery only: the slalom and the hydrant course run
          mode "challenge" and own their own openings. */
       if(this.openHold && this.mode === "delivery" && !this.attract){
+        /* ============ ADOPT A FINGER THAT IS ALREADY DOWN ============
+           (Sir's report, 2026-08-13: "there is something holding the
+           robot from getting up to speed at all when burning out".)
+
+           bindInput sets throttle on pointer EVENTS only. Tap GO and
+           keep holding and no pointerdown ever reaches the canvas — the
+           press landed on the button, and the street arrives under a
+           finger the game has no record of. Throttle stays 0, so the
+           burnout never arms; he sits out the hold and then climbs the
+           ordinary 767ms ramp from a dead stop. Hold plus ramp is ~1.8
+           seconds of nothing, which is exactly what "he never gets up to
+           speed" describes.
+
+           This is the mirror of the bug the count already fixed on its
+           own side -- see "THE HOLD IS BY POSITION, NOT BY ZEROING
+           THROTTLE", whose comment reports the identical symptom ("he
+           can't get to full speed right away") from throwing a held
+           input AWAY. Same input, same second of the run, opposite
+           direction: that one stopped discarding it, this one starts
+           adopting it.
+
+           Once, on the frame the hold begins, and never again -- it is
+           standing in for the single missing pointerdown, not
+           re-deriving throttle every frame. Doing it continuously would
+           also cancel the pointermove hop's deliberate throttle=0, and a
+           lane change during the opening is allowed. The mapping is
+           bindInput's own (right half gas, left half brake) rather than
+           a second copy of the rule; braking at a standstill is a no-op,
+           so a finger on the wrong half simply gets no burnout. */
+        if(!this.openAdopted){
+          this.openAdopted = true;
+          const ap = this.input.activePointer;
+          if(ap && ap.isDown) this.throttle = ap.x > this.scale.gameSize.width/2 ? 1 : -1;
+        }
         if(this.runT >= LOAD_ART.ms && this.lidAng < PEEL.lidShut){
           this.openHold = false;
           if(this.peel.held) this.peelLaunch(this.speedCap || 0.225);
