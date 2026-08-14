@@ -5031,6 +5031,22 @@ function buildWorldSignals(grid){
       const axis = (su === sv) ? 0 : 1;
       const armF  = axis === 0 ? (sv < 0 ? 1 : 3) : (su < 0 ? 0 : 2);
       const headF = axis === 0 ? (su < 0 ? 2 : 0) : (sv < 0 ? 3 : 1);
+      /* A pole is one APPROACH's signal, not a decoration on the node:
+         headF is by construction the direction of the street whose
+         traffic this head is stopping, so that street has to exist --
+         and something has to cross it, or there is nothing to stop for.
+         Placement never checked either, so every node got the full set
+         of four regardless of shape: corners got four poles for two
+         approaches, and a node whose streets were entirely absorbed
+         into a merged park kept all four standing in the grass. Census
+         on the frozen 36x27 city: 472 of 3640 poles served an approach
+         that no longer exists, every one of them park-caused (Sir's
+         report, 2026-08-13, lone signal masts along a merged park).
+         Gating on conn leaves a cross with four, a T with three and a
+         corner with two, and self-corrects wherever the swallow pass
+         runs -- including through worldgenReconcile. */
+      if(!n.conn[headF]) continue;
+      if(!n.conn[(headF+1)%4] && !n.conn[(headF+3)%4]) continue;
       out.push({ x, y, node:{ i:n.i, j:n.j }, axis, armF, headF });
     }
   }
@@ -5064,17 +5080,32 @@ function buildWorldCurbRamps(grid){
      already uses for perp below. (Sir's report, 2026-08-12: still
      there after the first pass, at exactly this T-junction shape.) */
   const hasCrossStreet = (n, f, side) => n.conn[side === 1 ? (f+1)%4 : (f+3)%4];
+  /* ...and a curb cut is one END of a crossing, so it also needs the
+     other end. A ramp sits `along` down its street from the node and
+     faces back at it; the pedestrian using it walks across the cross
+     street and lands on the matching ramp on the OPPOSITE side of the
+     node -- which only exists if the ramp's own street CONTINUES
+     through the node. Where the swallow pass dead-ends that street
+     into the park, the far landing is lawn: a sidewalkend with no
+     sidewalkbegin across from it, which is exactly the "ends and
+     begins that don't line up" Sir reported (2026-08-13). Census on
+     the frozen 36x27 city: 578 of 5758 placements were park-caused
+     half-crossings, plus 216 at the outer ring where the street simply
+     runs out of city -- the same rule retires both, since it reads
+     nothing but final conn. `dirFromNode` is which way the edge leaves
+     the node being served, so the landing lives at its opposite. */
+  const hasLanding = (n, dirFromNode) => n.conn[(dirFromNode + 2) % 4];
   for(const e of grid.edges){
     const dv = DIRV[e.f], rv = DIRV[(e.f+1)%4];
     for(const side of [-1, 1]){
       const perp = side * perpMag;
       /* the a-end ramp faces BACK down the edge (f+2), the b-end ramp
          faces forward (f) -- both pointing at their own node. */
-      if(serves(e.a, e.f) && hasCrossStreet(e.a, e.f, side)){
+      if(serves(e.a, e.f) && hasCrossStreet(e.a, e.f, side) && hasLanding(e.a, e.f)){
         const ax = e.a.x + dv.x*along + rv.x*perp, ay = e.a.y + dv.y*along + rv.y*perp;
         if(interior(ax, ay)) ramps.push({ x: ax, y: ay, f: (e.f + 2) % 4 });
       }
-      if(serves(e.b, e.f) && hasCrossStreet(e.b, e.f, side)){
+      if(serves(e.b, e.f) && hasCrossStreet(e.b, e.f, side) && hasLanding(e.b, (e.f + 2) % 4)){
         const bx = e.b.x - dv.x*along + rv.x*perp, by = e.b.y - dv.y*along + rv.y*perp;
         if(interior(bx, by)) ramps.push({ x: bx, y: by, f: e.f });
       }
@@ -7750,11 +7781,21 @@ function _generateRouteFresh(dateStr, opts){
     .filter(h => h.type === "sidewalkend" || h.type === "sidewalkbegin")
     .map(h => h.wx !== undefined ? { x: h.wx, y: h.wy }
                                  : segsWorldOf(segs, h.s, laneOffset(h.row)));
+  /* RECONCILE FIRST (2026-08-13). worldgenReconcile rebuilds
+     grid.curbRamps against final zoning -- the retype passes (pickup
+     shop, address, crime swap) can un-park a block and restore streets
+     the swallow pass had eaten. Capturing curbRamps before it ran meant
+     the route rendered the PRE-reconcile set: ramps at crossings the
+     reconcile had just retired, and none at crossings it had just
+     restored. Harmless while both sets happened to agree; not harmless
+     now that the ramp rule is stricter and the two sets diverge by
+     more. grid.signals was already read after the call -- this puts
+     the ramps on the same footing. */
+  worldgenReconcile(grid);
+
   const RAMP_DEDUP = 150;
   const curbRamps = grid.curbRamps.filter(cr => !routeRampPts.some(
     p => Math.abs(p.x - cr.x) < RAMP_DEDUP && Math.abs(p.y - cr.y) < RAMP_DEDUP));
-
-  worldgenReconcile(grid);
   return { hood: addressHood, grid, segs, totalLen: loop ? loop.sEnd : totalLen, loop, tiles, hazards, props, pal, night, traffic, crossings, cutEdges, cutExt, challenge, crime, routeCells, curbRamps, signals: grid.signals,
            address:`${number} ${street}`, doorS, pickupS, pickupSpot, pickupShopName, addressBlock, pickupBlock, addressEdgeIdx, pickupEdgeIdx, addressUnitIdx, pickupUnitIdx, addressUsesGate, order, parMs, dateStr, runIndex };
 }
