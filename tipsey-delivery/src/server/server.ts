@@ -694,9 +694,20 @@ async function routeSubmitSlalomWin(
       ? `${margin.toFixed(2)}s under par`
       : `${Math.abs(margin).toFixed(2)}s over par`
 
-  const text =
-    `**u/${user.username}** cleared the Cone Slalom${clean ? ' -- CLEAN RUN' : ''} -- ` +
-    `${total.toFixed(2)}s (${marginTxt}).`
+  /* An unlock run posts a different sentence entirely (Sir's call,
+   * 2026-08-13): the client swaps the whole result card over to a
+   * post-your-success gate on the run that earns a skin, so the draft
+   * it pre-fills has to be about the trophy, not just the clock.
+   * sanitizeLabel for the same reason cause is sanitized on the fail
+   * route -- the client is the only place that knows which cosmetic
+   * fired, but its string still can't be trusted into a comment body. */
+  const unlocked = sanitizeLabel(req.unlocked, 32)
+
+  const text = unlocked
+    ? `**u/${user.username}** unlocked **${unlocked}** on the Cone Slalom -- ` +
+      `${total.toFixed(2)}s${clean ? ', CLEAN RUN' : ''} (${marginTxt}).`
+    : `**u/${user.username}** cleared the Cone Slalom${clean ? ' -- CLEAN RUN' : ''} -- ` +
+      `${total.toFixed(2)}s (${marginTxt}).`
 
   return {text}
 }
