@@ -4143,6 +4143,34 @@ const LOAD_ART = {
   lidEase: 0.09,
   riseEnd: 0.22, holdEnd: 0.27, releaseEnd: 0.42  // carrying-arm rise/hold/release fractions
 };
+/* ============ PEEL OUT — THE SHARED MODULE ============
+   Every calibrated number the burnout uses lives here, once. It started
+   life inside Cone Slalom's SL block (2026-08-12) because the 3-2-1
+   count was the only place in the game that held the robot still long
+   enough to spin the wheels against a locked chassis. The daily route
+   now has its own standing start (see "THE OPENING IS A STANDING
+   START" in update), so the mechanic serves two callers and the
+   constants can't sit in either one's closure. SL still exposes its
+   old field names, pointed at these — one number, no drift, and
+   labs/cone-slalom.lab.js keeps reading SL exactly as before. */
+const PEEL = {
+  spin: 0.35,          // wheelPhase rate while held, in units/ms -- for scale,
+                       // top-speed driving spin is speed(<=0.45)*0.28 (<=0.126/ms)
+  smokeEvery: 90,      // ms between puff spawns while held
+  smokeFade:  0.018,   // life lost per 16.7ms-normalized step -- ~1s per puff
+  launch: 1.0,         // fraction of the caller's top speed a held burnout launches at
+  launchCamMs: 600,    // look-ahead ramp back to 95 after the launch
+  /* THE DAILY'S RELEASE (Sir's call, 2026-08-13): "held until his lid
+     closes then released". Deliberately a LID ANGLE and not a
+     millisecond count -- the lid starts closing at LOAD_ART.dropFrac
+     and then EASES (lidEase 0.09/frame), so the moment it's actually
+     shut is a consequence of two other dials. Reading the angle means
+     retuning either of them moves the release automatically instead of
+     silently desyncing a hardcoded duration. 0.05 rad is ~3 degrees:
+     shut to the eye, and reached ~1.03s into the run at 60fps. */
+  lidShut: 0.05
+};
+
 const BAG_ART = {
   w: 14, d: 10, h: 16,          // width, depth, height
   paper: 0xc19a6b, paperDk: 0x9c7a4f, paperLt: 0xd4b483,
@@ -7326,6 +7354,11 @@ class WorldScene extends Phaser.Scene {
     this.damage = 0;            // cargo damage %
     this.runT = 0;
     this.throttle = 0;          // -1 brake, 0 coast, 1 gas
+    /* peel-out state, owned by the scene rather than by either caller --
+       initialized here as well as in peelReset so drawBurnoutSmoke's
+       length read is never undefined on the very first frame. */
+    this.peel = { smoke: [], held: false, launchT0: 0 };
+    this.openHold = false;
     this.tipT = 0; this.tipStartRoll = 0; this.postSpillMs = 0; this.lidAng = 0; this.items = []; this.spilled = false;
     this.wonT = 0; this.wonFrac = 0; this.wonLiftT = 0; this.wonLidClosing = false; this.wonWalkAt = null; this.wonWalk = 0; this.wonOutT = 0; this.wonOutFrac = 0; this.wonMeet = null;
     this.bagOnBoard = false;
@@ -8393,6 +8426,12 @@ class WorldScene extends Phaser.Scene {
     this.slide = null; this.slipYaw = 0;
     this.camX = this.botX; this.camY = this.botY; this.camZ = this.botZ;
     this.speed = 0; this.tilt = 0; this.damage = 0; this.runT = 0;
+    /* A fresh route is a fresh standing start: re-arm the opening hold
+       and drop any smoke the last run left in the air. Armed HERE rather
+       than at the GO button because every entry into a run comes through
+       loadRoute (GO, Retry, Today, the attract recycle) and only this one
+       also zeroes runT, which is the clock the hold is measured against. */
+    this.openHold = true; this.peelReset();
     this.tipCause = null;
     this.roll = 0; this.tipT = 0; this.tipStartRoll = 0; this.postSpillMs = 0; this.lidAng = 0; this.items = []; this.spilled = false;
     this.wonT = 0; this.wonFrac = 0; this.wonLiftT = 0; this.wonLidClosing = false; this.wonWalkAt = null; this.wonWalk = 0; this.wonOutT = 0; this.wonOutFrac = 0; this.wonMeet = null;
@@ -14538,6 +14577,13 @@ class WorldScene extends Phaser.Scene {
     this.doorSwing += (shopDoorTarget - this.doorSwing) * SHOPDOOR_ART.openEase;
     if(Math.abs(shopDoorTarget - this.doorSwing) < 0.002) this.doorSwing = shopDoorTarget;
 
+    /* The peel-out's two always-on passes. Outside the state gate on
+       purpose: smoke in the air has to keep drifting through a tip-over
+       or a win, and the camera ramp has to finish even if the run ends
+       mid-whoosh. */
+    this.peelSim(Math.min(dt, 34));
+    this.peelCamTick();
+
     /* ---------- simulation ---------- */
     if(this.state === "play"){
       const _botS_frameStart = this.botS;   // debug: for the backward-motion assertion below
@@ -14575,6 +14621,43 @@ class WorldScene extends Phaser.Scene {
          drift — there is one ceiling, whoever set it, and a mode that
          forgets to clear it will be obvious rather than subtle. */
       this.speed = Phaser.Math.Clamp(this.speed, 0, this.speedCap || 0.225);
+
+      /* ============ THE OPENING IS A STANDING START ============
+         (Sir's call, 2026-08-13: "how do we get the peeling out in the
+         daily too? we dont have a count down but we do have an opening
+         sequence.")
+
+         The daily never held you. loadDone gated the lid, the bag arc,
+         the shop door and the worker's walk-back, but nothing gated
+         THRUST -- the 0.00042/ms climb ran from frame one, so you could
+         drive off with the bag still in the air. That left no window a
+         burnout could happen in: with the robot already rolling, "is gas
+         held right now" means "go", not "spin".
+
+         So the opening beat becomes a real start, the way the slalom's
+         count already is. He is pinned until the lid shuts (PEEL.lidShut
+         -- see its own note on why an angle and not a duration), hold gas
+         through it and the wheels spin and smoke, and the release lays
+         the mark and launches him at the daily's own ceiling.
+
+         Pinned AFTER the clamp above rather than before it: the throttle,
+         gravity and friction terms all still run and are simply overruled,
+         which is the same shape the challenge branch below uses. Zeroing
+         ahead of them instead would leave one frame's worth of creep.
+
+         Not in attract -- autoDrive holds throttle at 1 near enough
+         always, so the demo robot would sit at the shop and burn out
+         every loop. Delivery only: the slalom and the hydrant course run
+         mode "challenge" and own their own openings. */
+      if(this.openHold && this.mode === "delivery" && !this.attract){
+        if(this.runT >= LOAD_ART.ms && this.lidAng < PEEL.lidShut){
+          this.openHold = false;
+          if(this.peel.held) this.peelLaunch(this.speedCap || 0.225);
+        } else {
+          this.speed = 0;
+          if(this.throttle === 1) this.peelSpin(Math.min(dt, 34));
+        }
+      }
       /* CHALLENGE: the tap meter IS the throttle. Overriding here rather
          than in hjSim because this block runs afterwards and would
          otherwise stomp it — the charge has to win, and it has to win
@@ -15930,11 +16013,11 @@ class WorldScene extends Phaser.Scene {
        target to a blend of door + bot + their far position + raised-
        hand reach whenever they're actually visible. */
     /* The 95-unit look-ahead is a constant everywhere except one place:
-       Cone Slalom's burnout launch borrows it for ~600ms at GO (see
-       slPinCam / the launch-cam ramp in onPre). _slCamLead is that
+       a burnout launch borrows it for ~600ms at the release, whichever
+       caller fired it (see peelLaunch/peelCamTick). _camLead is that
        override and nothing else writes it -- null/undefined means 95,
        the way it has always been. */
-    const camLead = (this._slCamLead === null || this._slCamLead === undefined) ? 95 : this._slCamLead;
+    const camLead = (this._camLead === null || this._camLead === undefined) ? 95 : this._camLead;
     let camTargetX = this.botX + Math.cos(hdg)*camLead;
     let camTargetY = this.botY + Math.sin(hdg)*camLead;
     let camTargetZ = this.botZ;
@@ -16281,7 +16364,7 @@ class WorldScene extends Phaser.Scene {
       }
     }
     for(const w of wheels) if(w.near) this.drawWheel(w.c, w.side);
-    if(this._slAPI && this._slAPI.run.smoke.length) this.drawBurnoutSmoke();
+    if(this.peel && this.peel.smoke.length) this.drawBurnoutSmoke();
     if(this.flagNear()) this.drawFlag(bobZ);
   }
 
@@ -16888,11 +16971,112 @@ class WorldScene extends Phaser.Scene {
                 z:c.z + Math.sin(a)*WHEEL.r*0.34 }, 2.4, SKIN.wheelHub);
   }
 
-  /* PEEL-OUT SMOKE (Sir's ask, 2026-08-12) -- run.smoke is owned and
-     simmed by the slalom lab (slSpawnSmoke/slSimSmoke); this only
-     paints it, through this.P so every puff inherits the body's own
-     tilt/roll/yaw for free, same as the wheel hub dot just above.
-     Slalom-only: gated on _slAPI existing at the call site.
+  /* ============ PEEL OUT — SIM ============
+     Hoisted out of tpSlalomOn's closure (2026-08-13) when the daily
+     route got its own standing start. Both callers drive these; neither
+     owns them, and there is exactly one copy of the physics. The slalom
+     delegates every one of its old sl* helpers here.
+
+     The shape a caller needs is: hold the robot still, call peelSpin
+     each frame gas is held, then call peelLaunch at the release. */
+  peelReset(){
+    /* a brand new array rather than length=0: puffs from a prior run
+       can be mid-fade and held by a draw pass that is already running. */
+    this.peel = { smoke: [], held: false, launchT0: 0 };
+    this._peelSmokeT = 0;
+    this._camLead = null;
+  }
+
+  /* One frame of spinning in place. wheelPhase is driven directly here
+     instead of through its usual speed*0.28 term (which is 0 the whole
+     hold, since the caller has him pinned) -- spinning against a locked
+     chassis is the entire point. .held latches for the launch below;
+     holding, releasing and holding again still counts. */
+  peelSpin(dt){
+    this.wheelPhase -= PEEL.spin * dt;
+    this.peel.held = true;
+    this.peelSpawn(dt);
+  }
+
+  /* TIRE SMOKE -- local to the robot's own body space (this.P/this.T
+     already carry heading, tilt, roll, so every puff stays glued to the
+     wheel for free). Spawned at the two outer wheel x-positions, both
+     sides, rather than all three per side -- four puffs already reads as
+     "smoking", a sixth pair at the middle wheel would just be denser
+     without being clearer. */
+  peelSpawn(dt){
+    this._peelSmokeT = (this._peelSmokeT || 0) + dt;
+    if(this._peelSmokeT < PEEL.smokeEvery) return;
+    this._peelSmokeT = 0;
+    for(const wx of [-16, 16]) for(const side of [-1, 1]){
+      this.peel.smoke.push({
+        x: wx + (Math.random()-0.5)*4, y: side*22 + (Math.random()-0.5)*3, z: 4,
+        vx: (Math.random()-0.5)*0.02, vy: side*0.01 + (Math.random()-0.5)*0.01,
+        vz: 0.012 + Math.random()*0.008,
+        size: 5 + Math.random()*3, life: 1
+      });
+    }
+  }
+
+  /* dt here matches every other particle sim in this file
+     (simHydrantWater etc.): k = dt/16.7, so velocities are already tuned
+     per 60fps frame regardless of the real delta. Called unconditionally
+     from update -- not gated on the hold or on state -- so puffs already
+     in flight keep drifting and fading after the launch instead of
+     freezing or vanishing outright. */
+  peelSim(dt){
+    if(!this.peel || !this.peel.smoke.length) return;
+    const k = dt/16.7;
+    for(const p of this.peel.smoke){
+      p.x += p.vx*k; p.y += p.vy*k; p.z += p.vz*k;
+      p.size += 0.03*k;
+      p.life -= PEEL.smokeFade*k;
+    }
+    this.peel.smoke = this.peel.smoke.filter(p => p.life > 0);
+  }
+
+  /* THE MARK -- a flat paint decal, same "ground, no physics" family as
+     prop.grade (see the collision skip-list and GROUND_KINDS/slabLayer).
+     Pushed once, at the release, only if he actually held gas -- an
+     ordinary standing start gets no mark. Not baked into any route at
+     build time since whether it exists at all depends on what the player
+     did. */
+  peelMark(s){
+    const at = (s === undefined) ? this.botS : s;
+    this.route.hazards.push({
+      type: 'burnoutMark', s: at, row: this.botRow,
+      f: this.segAt(at).f, hit: true
+    });
+  }
+
+  /* THE RELEASE. Straight to the caller's own ceiling -- full stop, not
+     a head start on the ordinary 0.00042/ms climb (see SL.burnoutLaunch's
+     "UNTANGLED" note for why a partial burst was the wrong answer). The
+     camera bias drops to 0 on this exact frame and ramps back over
+     PEEL.launchCamMs: the camera is sitting a full 95 ahead of him right
+     now, so the target falling back is what gives the ease something to
+     visibly chase, which is the whoosh. */
+  peelLaunch(top, s){
+    this.peelMark(s);
+    this.speed = top * PEEL.launch;
+    this.peel.launchT0 = performance.now();
+    this._camLead = 0;
+  }
+
+  /* The look-ahead easing back to its normal 95 with a smoothstep, so
+     neither end of the ramp is a step. Clearing to null (rather than 95)
+     hands the constant back to update() untouched. */
+  peelCamTick(){
+    if(!this.peel || !this.peel.launchT0) return;
+    const e = (performance.now() - this.peel.launchT0) / PEEL.launchCamMs;
+    if(e >= 1){ this.peel.launchT0 = 0; this._camLead = null; }
+    else this._camLead = 95 * (e * e * (3 - 2 * e));
+  }
+
+  /* PEEL-OUT SMOKE (Sir's ask, 2026-08-12) -- peel.smoke is owned and
+     simmed above; this only paints it, through this.P so every puff
+     inherits the body's own tilt/roll/yaw for free, same as the wheel
+     hub dot just above.
      Two-layer halo + core, same trick as the hydrant puddle ring
      (outerA/innerA) and the burnout mark's own scuff/rubber pair —
      a single flat pale-gray circle at low alpha (the first pass)
@@ -16906,7 +17090,7 @@ class WorldScene extends Phaser.Scene {
      reason. Still not on-device -- may still want a pass by eye. */
   drawBurnoutSmoke(){
     const g = this.g;
-    for(const p of this._slAPI.run.smoke){
+    for(const p of this.peel.smoke){
       const life = Math.max(0, Math.min(1, p.life));
       if(life <= 0) continue;
       const s = this.P(p.x, p.y, p.z);
@@ -18177,10 +18361,9 @@ const SL = {
      nothing. Starting points, not measured -- same "confirm on-device
      and adjust by feel" caveat as par above; nobody has watched this
      one run yet. */
-  burnoutSpin: 0.35,   // wheelPhase rate while held, in units/ms -- for scale,
-                       // top-speed driving spin is speed(<=0.45)*0.28 (<=0.126/ms)
-  smokeEvery: 90,      // ms between puff spawns while held
-  smokeFade:  0.018,   // life lost per 16.7ms-normalized step -- ~1s per puff
+  burnoutSpin: PEEL.spin,
+  smokeEvery: PEEL.smokeEvery,
+  smokeFade:  PEEL.smokeFade,
   /* THE PAYOFF (2026-08-12, Sir's report: "why is the takeoff so
      laggy"): revving through the count was cosmetic-only -- speed
      stayed pinned at 0 the whole time, same as any standing start, so
@@ -18201,12 +18384,8 @@ const SL = {
      burnout was still entangled with the exact slowness Sir's asking
      to be decoupled from. A real burnout goes straight to vTop() --
      full stop, not a head start on someone else's ramp. */
-  burnoutLaunch: 1.0,   // fraction of vTop() a held burnout launches at
-  /* how long the camera's look-ahead takes to climb back from 0 to its
-     normal 95 after a burnout launch. Short enough that the gap reads as
-     one whoosh rather than a camera that lost him; long enough that the
-     ease has real distance to chase. */
-  launchCamMs: 600,
+  burnoutLaunch: PEEL.launch,   // fraction of vTop() a held burnout launches at
+  launchCamMs: PEEL.launchCamMs,
 };
 
 /* =========================================================================
@@ -18451,10 +18630,9 @@ function tpSlalomOn(){
     course: null, cones: [], started: false, done: false,
     t0: 0, elapsed: 0, pen: 0, cleared: 0, faults: [], msg: '', msgT: 0,
     phase: 'idle', countT0: 0, gates: [],
-    /* peel-out state, initialized here too (not just slResetRun) so
-       drawBurnoutSmoke's run.smoke.length read is never undefined —
-       _slAPI gets assigned before the first reset() call ever runs. */
-    smoke: [], burnoutHeld: false, launchCamT0: 0,
+    /* peel-out state used to live here (run.smoke/burnoutHeld/
+       launchCamT0). It is scene.peel now — see "PEEL OUT — SIM" — so the
+       daily's standing start and this count share one copy of it. */
   };
 
 
@@ -19251,14 +19429,12 @@ function tpSlalomOn(){
     slQuietOpening();
     run.done = false;
     /* PEEL OUT reset: a fresh run gets a fresh chance at a burnout,
-       whether or not the last one had one. run.smoke is intentionally
-       NOT cleared to an empty array's old contents by reference here —
-       a brand new array so any puffs from a prior run's late fade-out
-       can't leak into this one's draw pass. */
-    run.smoke = []; run.burnoutHeld = false;
-    /* the launch-cam ramp is per-run too: a reset mid-whoosh must not
-       leave the scene holding a shortened look-ahead. */
-    run.launchCamT0 = 0; scene._slCamLead = null;
+       whether or not the last one had one, and a reset mid-whoosh must
+       not leave the scene holding a shortened look-ahead. peelReset also
+       hands back a brand new smoke array rather than emptying the old
+       one, so puffs from a prior run's late fade-out can't leak into
+       this one's draw pass. */
+    scene.peelReset();
     run.course = slBuild();
     /* knock-watch covers chute cones too; gate-only counts read slRole */
     run.cones  = scene.route.hazards.filter(h => h.slRole);
@@ -19933,35 +20109,16 @@ function tpSlalomOn(){
      both sides) rather than all three per side — four puffs already
      reads as "smoking", a sixth pair at the middle wheel would just be
      denser without being clearer. */
-  let slSmokeT = 0;
-  function slSpawnSmoke(dt){
-    slSmokeT += dt;
-    if (slSmokeT < SL.smokeEvery) return;
-    slSmokeT = 0;
-    for (const wx of [-16, 16]) for (const side of [-1, 1]){
-      run.smoke.push({
-        x: wx + (Math.random()-0.5)*4, y: side*22 + (Math.random()-0.5)*3, z: 4,
-        vx: (Math.random()-0.5)*0.02, vy: side*0.01 + (Math.random()-0.5)*0.01,
-        vz: 0.012 + Math.random()*0.008,
-        size: 5 + Math.random()*3, life: 1
-      });
-    }
-  }
+  /* the three helpers that used to live here — slSpawnSmoke, slSimSmoke,
+     slLayBurnoutMark — are scene.peelSpawn/peelSim/peelMark now, shared
+     with the daily's standing start. The comment block above is kept
+     because it is the design record for all of them. */
   /* dt here matches every other particle sim in this file (simHydrantWater
      etc.): k = dt/16.7, so velocities are already tuned per 60fps frame
      regardless of the real delta. Runs unconditionally from onPost (not
      gated on phase/throttle) so puffs already in flight keep drifting
      and fading after GO instead of freezing or vanishing outright. */
-  function slSimSmoke(dt){
-    if (!run.smoke.length) return;
-    const k = dt/16.7;
-    for (const p of run.smoke){
-      p.x += p.vx*k; p.y += p.vy*k; p.z += p.vz*k;
-      p.size += 0.03*k;
-      p.life -= SL.smokeFade*k;
-    }
-    run.smoke = run.smoke.filter(p => p.life > 0);
-  }
+
   /* THE MARK — a flat paint decal, same "ground, no physics" family as
      prop.grade (see the collision skip-list and GROUND_KINDS/slabLayer,
      all updated alongside the new drawProp case). Pushed once, at GO,
@@ -19971,12 +20128,7 @@ function tpSlalomOn(){
      swept on the next slBuildCourse's own corridor-clear pass since
      it's deliberately NOT in STRUCTURE — a retry should get a clean
      street, not yesterday's rubber. */
-  function slLayBurnoutMark(){
-    scene.route.hazards.push({
-      type: 'burnoutMark', s: run.course.spawnS, row: scene.botRow,
-      f: scene.segAt(run.course.spawnS).f, hit: true
-    });
-  }
+
   /* =========================================================================
      THE FLIGHT — lab-owned, so the slalom keeps its throttle
      -------------------------------------------------------------------------
@@ -20225,19 +20377,6 @@ function tpSlalomOn(){
        course never opens with a delivery animation it has no delivery for. */
     if (scene.runT < LOAD_ART.ms + 1) scene.runT = LOAD_ART.ms + 1;
 
-    /* ============ LAUNCH CAM RAMP ============
-       Lives ABOVE the count return because it runs during 'live', which
-       is the whole point -- the burnout's camera gap belongs to the
-       launch, not to the countdown that precedes it. Armed at GO below;
-       eases the look-ahead from 0 back to its normal 95 with a
-       smoothstep so neither end of the ramp is a step. Clearing to null
-       (rather than 95) hands the constant back to update() untouched. */
-    if (run.launchCamT0){
-      const e = (performance.now() - run.launchCamT0) / SL.launchCamMs;
-      if (e >= 1){ run.launchCamT0 = 0; scene._slCamLead = null; }
-      else scene._slCamLead = 95 * (e * e * (3 - 2 * e));
-    }
-
     if (run.phase !== 'count') return;
 
     /* THE HOLD IS BY POSITION, NOT BY ZEROING THROTTLE.
@@ -20254,18 +20393,10 @@ function tpSlalomOn(){
     /* PEEL OUT (Sir's ask, 2026-08-12): the position/speed hold above is
        exactly what makes this free to add — throttle itself is left
        genuinely untouched (see the comment on it), so it's already a
-       clean read of "is gas held right now". wheelPhase is driven
-       directly here instead of through its usual speed*0.28 term (which
-       is 0 the whole count, since speed is pinned above) — spinning in
-       place is the entire point. run.burnoutHeld just remembers that
-       this happened at least once, for the mark at GO below; holding
-       and releasing and holding again still counts. */
-    if (scene.throttle === 1){
-      const bdt = Math.min(delta || 16.7, 34);
-      scene.wheelPhase -= SL.burnoutSpin * bdt;
-      run.burnoutHeld = true;
-      slSpawnSmoke(bdt);
-    }
+       clean read of "is gas held right now". Everything past that read
+       is scene.peelSpin's, shared with the daily's own standing start;
+       the latch it sets is what the launch at GO below tests. */
+    if (scene.throttle === 1) scene.peelSpin(Math.min(delta || 16.7, 34));
 
     /* Flip the phase HERE rather than from the 100ms panel tick, so the release
        is frame-accurate instead of up to a tenth of a second late. */
@@ -20278,16 +20409,7 @@ function tpSlalomOn(){
          held gas for it — a normal standing start (no throttle
          through the count) launches clean from zero, no mark, no
          burst, same slow climb the daily route has always had. */
-      if (run.burnoutHeld){
-        slLayBurnoutMark();
-        scene.speed = vTop() * SL.burnoutLaunch;
-        /* arm the launch cam: bias to 0 on this exact frame, ramp back
-           over SL.launchCamMs. The camera is sitting at bot+95 right
-           now (slPinCam held it there all count), so the target falling
-           back is what gives the ease something to chase. */
-        run.launchCamT0 = performance.now();
-        scene._slCamLead = 0;
-      }
+      if (scene.peel.held) scene.peelLaunch(vTop(), run.course.spawnS);
     }
   };
   /* =========================================================================
@@ -20517,10 +20639,6 @@ function tpSlalomOn(){
        the fix exists to close. */
     try { slGripComp(delta); } catch(e){ console.log('slGripComp', e); }
     try { slSkidHandoff(); } catch(e){ console.log('slSkidHandoff', e); }
-    /* unconditional, not phase-gated -- puffs already in flight at GO
-       need to keep drifting/fading afterward, same reasoning
-       simHydrantWater's own post-play pass uses. */
-    try { slSimSmoke(Math.min(delta, 34)); } catch(e){ console.log('slSimSmoke', e); }
 
     try { slHoldTraffic(time, Math.min(delta, 34)); } catch(e){ console.log('slHoldTraffic', e); }
   };
@@ -20566,7 +20684,7 @@ function tpSlalomOn(){
     /* hand the look-ahead back before the slalom's own hooks come off --
        a quit mid-launch must not leave the daily route driving with a
        shortened camera bias. */
-    scene._slCamLead = null;
+    scene._camLead = null;
     delete scene._slAPI;
     delete scene._slRestore;
   };
