@@ -8028,6 +8028,13 @@ class WorldScene extends Phaser.Scene {
      system, and the arc rides the real street's grade. */
   hjSim(dt, ch){
     if(!ch) return;
+    /* THE RUN IS OVER AND WON. Everything below this line exists to end
+       an attempt -- the charge decay, the end-of-course checks, the
+       launch test. The victory lap owns botS and the speed from here on
+       (tdVictoryTick, called earlier in the frame), so letting the
+       roll-out check keep running would end the win a second time and
+       re-bank progress every frame it stayed past catchS. */
+    if(this.hjWon) return;
     /* ---- AUTO TAP ----
        HJ_CH.autoTap was declared with a "headless testing only" comment
        and then never read by anything, so the dial did nothing at all.
@@ -8181,7 +8188,22 @@ class WorldScene extends Phaser.Scene {
            the charge through the roll-out and only clears it on reset,
            so he lands carrying his speed and coasts. */
         this.hjRolling = true;
-        if(clean){
+        if(clean && this.hjWon){
+          /* ALL TEN. He is already rolling out of the landing at
+             hjFlightSpeed and he does not stop -- the lap takes that
+             speed as its start AND its ceiling, so this is one
+             continuous roll from the catch ramp out into the city with
+             no pause and no re-accelerate (Sir's call, 2026-08-14).
+             state='victory' (set inside the lap) is what buys collision
+             immunity: the play gate owns hazards, traffic and William,
+             and a bin clipping him on the victory roll would drop the
+             CRASH overlay on a run he just won. */
+          this.hjPendingReset = 0;
+          this.tdVictoryBegin({ spd0: this.hjFlightSpeed,
+                                cruise: this.hjFlightSpeed,
+                                skipSettle: true,
+                                onCard: () => hjShowWin(this) });
+        } else if(clean){
           /* a clean run rolls straight on to the next jump */
           this.hjPendingReset = 1500;
         } else {
@@ -8710,6 +8732,7 @@ class WorldScene extends Phaser.Scene {
     this.hjCharge = 0; this.hjChargeSm = 0; this.hjPassed = 0;
     this.hjAutoAcc = 0;
     this.hjRolling = false; this.hjEnded = false;
+    this.hjWon = false;
     this.hjFace = false; this.hjTipT = 0; this.hjSkidV = 0;
     this._hjNativeTip = false;
     this.pitch = 0; this.pitchPivot = 0;
@@ -8902,6 +8925,27 @@ class WorldScene extends Phaser.Scene {
         this.announce("\u{1F692} ALL TEN CLEARED", "FIRE CHIEF \u00b7 EQUIP IT IN YOUR STORE");
       }
     }
+    /* THE MISSION ENDS HERE (Sir's report, 2026-08-14: "after beating
+       the hydrant challenge I'm not being steered to another challenge
+       or the daily route, it just has a retry").
+
+       There was no terminal branch at all: clearing jump ten did exactly
+       what clearing jump three does. hjLevel += 1 clamped 10 -> 10, the
+       clean-landing branch queued hjPendingReset, and 1.5s later
+       hjResetRun rebuilt jump ten and ran it AGAIN -- forever, with no
+       win state and no exit. The only card the player could ever reach
+       from there was hjShowCrash, the FAIL overlay, the next time they
+       missed. That is the "just a retry" in the report: it was never a
+       win screen, it was the crash screen doing double duty.
+
+       hjWon is read by the clean-landing branch (which skips the reset
+       and rolls on instead) and by hjSim (which stops policing the end
+       of the course once the run is won). */
+    if(this.hjLevel >= HJ_CHIEF_AT){
+      this.hjWon = true;
+      this.hjSaveProgress();
+      return;
+    }
     this.hjLevel = Math.min(HJ_CH.maxLevel, this.hjLevel + 1);
     this.hjSaveProgress();          // bank every cleared jump
   }
@@ -8911,6 +8955,10 @@ class WorldScene extends Phaser.Scene {
     this.hjCharge = 0; this.hjChargeSm = 0; this.hjAir = null;
     this.hjLocked = null; this.hjLevel = 1; this.hjBest = 0;
     this.hjSrcLast = {}; this.hjResult = ""; this.hjPassed = 0;
+    /* a fresh mission is never mid-victory -- tdVic left set would have
+       the lap still driving botS on the next run's first frame */
+    this.hjWon = false; this.tdVic = null;
+    if(this.state === "victory") this.state = "play";
     /* classic:true — rebuild against the pre-coast-worldgen lattice the
        course was actually tuned on (2026-07-30), immune to the swallow
        pass/terrain that shipped 2026-08-06..08. Without this the course
@@ -8966,13 +9014,40 @@ class WorldScene extends Phaser.Scene {
      this ending is worth; nothing observable depends on the tip landing
      1.4s sooner. The one thing that does move is the delay itself, which
      is slCrash's own 1400ms, reused a third time. */
-  tdVictoryBegin(){
+  /* THE THIRD CALLER, and the merge this was flagged for (see the block
+     comment above: "once the hydrant needs a third and the shared shape
+     is actually known"). The Hydrant Challenge's ending is the same lap
+     with three things different, so it takes three options rather than
+     becoming a third copy of the body:
+
+       spd0       start speed. The daily and the slalom both come to a
+                  STOP first and accelerate away from 0; the hydrant is
+                  already rolling out of a landing at hjFlightSpeed and
+                  must not stop (Sir's call: "he's still moving so we
+                  don't need him to stop, we just need him to continue
+                  rolling"). Seeding the lap with his live speed is what
+                  makes it a continuation instead of a restart.
+       cruise     speed ceiling. Passed equal to spd0 by the hydrant so
+                  he HOLDS his landing speed exactly -- left at the
+                  default it would clamp DOWN to TD_VIC.cruise on the
+                  first frame, which is a visible lurch, the same
+                  0.14->0.03 snap hjSim's own comment warns about.
+       skipSettle there is no customer on the hydrant course, so wonWalk
+                  never advances and the lap would sit through the whole
+                  of TD_VIC.settleMs before moving -- a 6.5s freeze at
+                  the exact moment we promised not to stop him.
+       onCard     which card to paint. showWin is the daily's. */
+  tdVictoryBegin(opts){
     /* Under the slalom, showWin is muzzled to a no-op and slJudge runs
        its OWN victory lap off the same 'won' state -- calling this too
        would start a second one writing to the same botS. */
     if(this._slAPI){ showWin(this); return; }
     if(this.tdVic) return;
-    this.tdVic = { t0: performance.now(), rolling: false, spd: 0, carded: false };
+    opts = opts || {};
+    this.tdVic = { t0: performance.now(), rolling: false,
+                   spd: opts.spd0 || 0, carded: false,
+                   cruise: opts.cruise, skipSettle: !!opts.skipSettle,
+                   onCard: opts.onCard || null };
   }
   tdVictoryTick(dt){
     const v = this.tdVic; if(!v) return;
@@ -8981,16 +9056,23 @@ class WorldScene extends Phaser.Scene {
          TD_VIC.settleMs is a safety net, not a timer: a route with no
          addrDoorDV never advances wonWalk at all, and without it the
          ending would simply never arrive. */
-      const settled = (this.wonWalk || 0) >= 1;
+      const settled = v.skipSettle || (this.wonWalk || 0) >= 1;
       if(!settled && performance.now() - v.t0 < TD_VIC.settleMs) return;
       v.rolling = true;
       this.state = "victory";
-      this.speed = 0;
+      /* A rolling start keeps whatever speed it arrived with -- zeroing
+         here is exactly the stop the hydrant ending must not have. */
+      this.speed = v.skipSettle ? v.spd : 0;
+      if(!v.skipSettle) v.spd = 0;
       setTimeout(() => {
-        if(this.tdVic === v && !v.carded){ v.carded = true; showWin(this); }
+        if(this.tdVic === v && !v.carded){
+          v.carded = true;
+          if(v.onCard) v.onCard(); else showWin(this);
+        }
       }, TD_VIC.cardDelay);
     }
-    v.spd = Math.min(v.spd + TD_VIC.accel * dt, TD_VIC.cruise);
+    const _cru = v.cruise == null ? TD_VIC.cruise : v.cruise;
+    v.spd = Math.min(v.spd + TD_VIC.accel * dt, _cru);
     this.speed = v.spd;
     /* THE SAME TWO LINES update() RUNS, not an approximation of them
        (reported on-device 2026-08-13: "tipseys wheels arnt spinning on
@@ -22069,6 +22151,115 @@ function hjShowCrash(s){
   show("failOverlay");
   tdStackIcons();         // glass forwards to hjQuit branch, robot to profile
 }
+/* ===========================================================================
+   THE HYDRANT WIN CARD
+   Built to the Cone Slalom's shape (slShowCard's won branch), not to the
+   crash overlay's: a transparent full-screen card, a headline and sub
+   over the live world, a cream bottom sheet with the run's numbers, and
+   the corner icon row for exits. The robot is still ROLLING behind all
+   of it -- the lap is what put him there and nothing here stops him.
+
+   WHAT IT DELIBERATELY DOES NOT HAVE: a Retry pill in the primary slot.
+   Finishing all ten is the end of the ladder, so "retry" is the one
+   thing the player cannot usefully do (Sir's call, 2026-08-14: "the
+   player is steered into more game play not a retry"). The primary row
+   is NEXT UP -- the Cone Slalom and today's delivery route -- and the
+   re-run is demoted to a quiet line underneath it.
+
+   NO TIP IS PAID HERE, unlike the slalom's card. That needs an
+   api/tipsy/hydrant/tip endpoint with the server's own per-day delta
+   rule, which does not exist yet; crediting the wallet client-side
+   would just be healed away by the next profile sync. Flagged for Sir
+   along with the win-side post/follow gate, which needs the same
+   server work (reportSlalomWin has no hydrant twin).
+   =========================================================================== */
+function hjShowWin(s){
+  const old = document.getElementById("hjWinCard");
+  if(old) old.remove();
+  /* the meter and the TAP buttons are live-play chrome and mean nothing
+     on a finished run; hjChrome stays TRUE so the delivery sheet/map
+     don't come back up underneath the card */
+  document.getElementById("hjUI").classList.add("hidden");
+
+  const rewardSkin = typeof tpSkinById === "function" ? tpSkinById("fire-chief") : null;
+  const justEarned = rewardSkin && !tpProfile.owned.has("fire-chief");
+
+  let [winMsg, winSub] = HYDRANT_WIN_LINES[Math.floor(Math.random()*HYDRANT_WIN_LINES.length)];
+  let headlineCol = "#fff";
+  /* Same rule the slalom uses: the unlock message REPLACES the flavour
+     line rather than stacking a second message on top of it. */
+  if(justEarned){
+    winMsg = "\u{1F692} FIRE CHIEF UNLOCKED";
+    winSub = "All ten cleared \u2014 claim it in your Trophy Case.";
+    headlineCol = "#ffd15c";
+  } else if(tpProfile.equipped !== "fire-chief"){
+    winSub = "Fire Chief \u2014 equip it in your Store.";
+  }
+
+  const sheetRow = (html) =>
+    `<div style="display:flex;align-items:center;justify-content:center;
+          font-weight:700;font-size:15px;line-height:1.1;margin-top:3px">${html}</div>`;
+
+  const hood = (s.route && s.route.hood && s.route.hood.n) || "The Flats";
+  const card = document.createElement("div");
+  card.id = "hjWinCard";
+  card.style.cssText = [
+    "position:fixed","inset:0","z-index:10",
+    "display:flex","flex-direction:column","align-items:center","justify-content:center",
+    "background:rgba(18,20,26,0)","color:#fff","text-align:center","padding:24px",
+  ].join(";");
+  card.innerHTML =
+    `<h2 style="font-size:28px;margin:0 0 8px;text-shadow:0 2px 3px #b5540e;
+          transform:translateY(-165px);color:${headlineCol}">${winMsg}</h2>
+     <p style="font-size:16px;line-height:1.5;color:#fff;max-width:330px;
+          margin:5px 0;text-shadow:0 2px 3px #b5540e;transform:translateY(-165px)">${winSub}</p>
+     <div id="hjNextUp" style="position:absolute;left:50%;top:34%;
+          transform:translateX(-50%);width:min(480px,86vw);
+          display:flex;flex-direction:column;align-items:center;gap:10px">
+       <div style="font-size:12px;font-weight:800;letter-spacing:.14em;
+            color:#ffd9a8;text-shadow:0 1px 2px rgba(0,0,0,.7)">NEXT UP</div>
+       <button id="hjGoSlalom" class="slRetryBtn"
+               style="position:static;transform:none;left:auto;top:auto">Cone Slalom</button>
+       <button id="hjGoDaily" class="slRetryBtn"
+               style="position:static;transform:none;left:auto;top:auto;
+                      background:#f0ece0;color:#2e3138;box-shadow:0 4px 0 #b9b3a3">Today's route</button>
+       <button id="hjRunAgain"
+               style="background:none;border:0;color:#fff;opacity:.85;font:inherit;
+                      font-size:13px;font-weight:700;text-decoration:underline;
+                      text-shadow:0 1px 2px rgba(0,0,0,.7);padding:4px 8px">Run it again</button>
+     </div>
+     <div id="hjWinSheet" style="position:absolute;left:0;right:0;bottom:0;margin:0;
+          background:#f0ece0;color:#2e3138;border:none;border-radius:0 0 20px 20px;
+          padding:12px 16px calc(10px + env(safe-area-inset-bottom))">
+       ${sheetRow(`${hood} &middot; Hydrant Jump`)}
+       ${sheetRow(`jumps&nbsp;<b style="color:#b5540e">${HJ_CHIEF_AT}/${HJ_CH.maxLevel}</b>` +
+          `&nbsp;&middot;&nbsp;best&nbsp;<b style="color:#b5540e">${Math.max(s.hjBest||0, HJ_CHIEF_AT)}</b>`)}
+     </div>`;
+  document.body.appendChild(card);
+
+  /* Leaving for a real route reverts the Fire Chief PREVIEW through
+     loadRoute's own latch (tpSkinPreview), which both of these paths go
+     through -- so neither needs its own revert. "Run it again" does NOT
+     reload a route, so the costume correctly stays on for the re-run,
+     the same carve-out loadRoute's own comment describes. */
+  const leave = () => { card.remove(); };
+  document.getElementById("hjGoSlalom").onclick = () => { leave(); tpSlalomStart(); };
+  document.getElementById("hjGoDaily").onclick  = () => { leave(); hjQuit(); };
+  document.getElementById("hjRunAgain").onclick = () => {
+    leave();
+    /* Replays jump ten, not the whole ladder from one. Resetting hjLevel
+       to 1 here would be written straight back to the profile by the
+       next hjSaveProgress and REGRESS a completed mission to jump 2 --
+       flagged for Sir: if a full re-run from jump one is what's wanted,
+       it needs a separate "replay" flag that doesn't bank. */
+    s.tdVic = null;
+    s.state = "play";
+    document.getElementById("hjUI").classList.remove("hidden");
+    s.hjResetRun();
+  };
+  tdStackIcons("hjWinCard");
+}
+
 /* Shared by hjStart()'s blocked re-entry path: rebuilds the Hydrant
    Challenge course fresh (loadChallenge -- deterministic, frozen
    HJ_SEED_DATE, same course every time, so this is a no-op content-wise)
@@ -22248,6 +22439,15 @@ const SLALOM_WIN_LINES = [
   ["Made it through.", "A cone or two has notes."],
   ["Finish line.", "The clock stopped. That's the whole job."],
   ["Cleared.", "Somewhere, a cone is still wobbling."],
+];
+
+/* The Hydrant Challenge's ending copy. Same two-line [msg, sub] shape
+   as every other pool in this file so the card can share the pick. */
+const HYDRANT_WIN_LINES = [
+  ["All ten cleared.", "Every hydrant in The Flats, still standing."],
+  ["Ten for ten.", "Not one drop spilled on Palmline Ave."],
+  ["Clean sweep.", "The whole ladder, start to finish."],
+  ["That's the set.", "Ten jumps, ten landings, no cast iron harmed."],
 ];
 
 const TIMEOUT_FAIL_LINES = [
