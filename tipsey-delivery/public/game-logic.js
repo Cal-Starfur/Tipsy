@@ -1384,9 +1384,76 @@ function twFxSyncCommentBtn(){
   const overlay = document.getElementById("winOverlay");
   if(!overlay || overlay.classList.contains("hidden")) return;
   const g = twFxGatePanel();
-  if(twFx.draft && !twFx.posted) twFxRenderComposer(g);
-  else g.style.display = "none";
+  if(twFx.posted){
+    /* already posted on this screen -- the panel belongs to the follow
+       step now (or to nothing, if follow is already claimed) */
+    twFxShowFollowStep(g, false);
+  } else if(twFx.draft){
+    twFxRenderComposer(g);
+    twFxHideFollowBtn();
+  } else {
+    /* NO DRAFT, NO PROGRESSION. Network error, not signed in, a replay of
+       a past date -- the same fallback tsFxWinShowAgain takes, and the
+       same no-stranding rule: there is nothing to post, so FOLLOW is
+       offered on its own rather than the screen simply losing it. */
+    g.style.display = "none";
+    twFxSyncFollowBtn();
+  }
   twFxLayoutWinStack();
+}
+/* STEP TWO, and the shape is the slalom unlock gate's verbatim (Sir's
+   call, 2026-08-13: the slalom win is the one to match to). One thing on
+   screen at a time: the composer is replaced by the POSTED confirmation
+   plus FOLLOW in the SAME panel, and when follow resolves the panel steps
+   aside entirely, leaving the icon row as the way out -- the daily's
+   equivalent of #slAgain coming back.
+
+   The standalone FOLLOW button stays hidden throughout: it is the
+   no-draft fallback only. Two follow offers on one screen was the old
+   layout's real problem, not the stacking. */
+function twFxShowFollowStep(g, paid){
+  twFxHideFollowBtn();
+  if(tdFx.followClaimed){ g.style.display = "none"; twFxLayoutWinStack(); return; }
+  g.style.display = "block";
+  g.innerHTML =
+    '<div style="font-weight:700;font-size:11px;letter-spacing:0.8px;' +
+      'margin-bottom:6px;">POSTED' +
+      (paid ? '<span style="color:#3f7d43;">  \u00b7  +$5.00 BONUS TIP</span>' : '') +
+      '</div>' +
+    '<div style="font-size:13px;line-height:1.4;color:#5c5647;margin-bottom:14px;">' +
+      'Follow r/tipsey to keep your runs on the Delivery Log.</div>' +
+    '<div id="twFxComposeErr" style="color:#b5540e;font-size:12px;margin-bottom:8px;display:none;"></div>';
+  const btn = document.createElement("button");
+  btn.id = "twFxGateFollowBtn";
+  btn.textContent = "Follow";
+  btn.style.cssText = TDFX_BTN + TDFX_ORANGE;
+  btn.addEventListener("click", () => {
+    if(tdFx.busy) return;
+    tdFx.busy = true;
+    btn.disabled = true;
+    btn.textContent = "Following\u2026";
+    tdFxFollowRequest(granted => {
+      tdFx.busy = false;
+      btn.textContent = granted ? "Followed  \u00b7  +$25.00 added" : "Already following";
+      btn.disabled = true;
+      /* Beat, then hand the screen back -- the confirmation is the whole
+         payoff of the press, so it can't be replaced instantly. Same
+         1100ms tsFxWinShowFollow uses. */
+      setTimeout(() => { g.style.display = "none"; twFxLayoutWinStack(); }, 1100);
+    }, () => {
+      tdFx.busy = false;
+      btn.disabled = false;
+      btn.textContent = "Follow";
+      const e = document.getElementById("twFxComposeErr");
+      if(e){ e.textContent = "Couldn't follow. Try again."; e.style.display = "block"; }
+    });
+  });
+  g.appendChild(btn);
+  twFxLayoutWinStack();
+}
+function twFxHideFollowBtn(){
+  const b = document.getElementById("twFxFollowBtn");
+  if(b) b.style.display = "none";
 }
 function twFxFollowBtn(){
   let b = document.getElementById("twFxFollowBtn");
@@ -1474,23 +1541,12 @@ function twFxPostComment(ta, btn){
          here now, so removing it the instant the post lands leaves the
          player with no acknowledgement that anything happened. Same
          beat the slalom's follow step uses for the same reason. */
+      /* THE SURPRISE, carried into step two. d.bonusGranted is the
+         server's own word for "this one actually paid", so the line can
+         never claim money the wallet didn't get. */
       const g = document.getElementById("twFxGate");
-      if(g){
-        /* THE SURPRISE. d.bonusGranted is the server's own word for
-           "this one actually paid", so the line can never claim money
-           the wallet didn't get. */
-        g.innerHTML =
-          '<div style="font-weight:700;font-size:11px;letter-spacing:0.8px;' +
-            'margin-bottom:6px;">POSTED</div>' +
-          '<div style="font-size:13px;line-height:1.4;color:#5c5647;">' +
-            'Your run is on the Delivery Log.</div>' +
-          (d.bonusGranted
-            ? '<div style="font-weight:700;font-size:15px;color:#3f7d43;margin-top:10px;">' +
-                '+$5.00 bonus tip</div>'
-            : '');
-        twFxLayoutWinStack();
-        setTimeout(() => { twFxSyncCommentBtn(); }, 1600);
-      } else twFxSyncCommentBtn();
+      if(g) twFxShowFollowStep(g, !!d.bonusGranted);
+      else twFxSyncCommentBtn();
     })
     .catch(fail);
 }
@@ -7955,7 +8011,77 @@ class WorldScene extends Phaser.Scene {
     this.state = "idle";        // wait on GO, like the daily
   }
 
+  /* =========================================================================
+     THE DAILY'S VICTORY LAP (Sir's call, 2026-08-13: "dailys victory lap
+     ... lets get the daily win to match the slaloms")
+     A straight port of the Cone Slalom's own ending, which is the template
+     the other two missions come to now. Same beats, same constants, same
+     reasoning -- see slVictoryBegin/slVictoryTick in tpSlalomOn for the
+     full write-up of why state='victory' earns its keep three times over
+     (camera falls through to the default lead-the-robot branch; the
+     play-gated sim stays off so the drive is fully scripted; the won-branch
+     draw work lets go of a customer already back inside).
+
+     WHY THE SCENE OWNS THIS ONE and the slalom's lives in a closure: the
+     slalom is a lab that monkeypatches an existing route, so its ending
+     had to be self-contained and removable. The daily route IS the scene.
+     Two copies is the cost of not making the slalom depend on the daily's
+     lifecycle -- flagged for Sir as the obvious later merge, once the
+     hydrant needs a third and the shared shape is actually known.
+
+     showWin is DELAYED, not split. It scores the run, writes the profile,
+     pays the tip and kicks off reportWin all in one pass, and pulling the
+     scoring out of it to fire early would be a much larger change than
+     this ending is worth; nothing observable depends on the tip landing
+     1.4s sooner. The one thing that does move is the delay itself, which
+     is slCrash's own 1400ms, reused a third time. */
+  tdVictoryBegin(){
+    /* Under the slalom, showWin is muzzled to a no-op and slJudge runs
+       its OWN victory lap off the same 'won' state -- calling this too
+       would start a second one writing to the same botS. */
+    if(this._slAPI){ showWin(this); return; }
+    if(this.tdVic) return;
+    this.tdVic = { t0: performance.now(), rolling: false, spd: 0, carded: false };
+  }
+  tdVictoryTick(dt){
+    const v = this.tdVic; if(!v) return;
+    if(!v.rolling){
+      /* wonWalk hits 1 when the customer is back through his own door.
+         TD_VIC.settleMs is a safety net, not a timer: a route with no
+         addrDoorDV never advances wonWalk at all, and without it the
+         ending would simply never arrive. */
+      const settled = (this.wonWalk || 0) >= 1;
+      if(!settled && performance.now() - v.t0 < TD_VIC.settleMs) return;
+      v.rolling = true;
+      this.state = "victory";
+      this.speed = 0;
+      setTimeout(() => {
+        if(this.tdVic === v && !v.carded){ v.carded = true; showWin(this); }
+      }, TD_VIC.cardDelay);
+    }
+    v.spd = Math.min(v.spd + TD_VIC.accel * dt, TD_VIC.cruise);
+    this.speed = v.spd;
+    this.botS += v.spd * dt;
+    /* route.loop is the GPS reroute's welded ring -- world(s+len) ===
+       world(s) -- so the wrap is the same two lines update() runs inside
+       the play gate. lp.missed is NOT touched here: the door has already
+       been reached, and retargeting it now would be a reroute for a
+       delivery that is over. */
+    const lp = this.route.loop;
+    if(lp){
+      if(this.botS >= lp.sEnd) this.botS -= lp.len;
+    } else {
+      const endS = Math.max(0, (this.route.totalLen || 0) - 30);
+      if(this.botS > endS){ this.botS = endS; this.speed = 0; v.spd = 0; }
+    }
+  }
+
   loadRoute(dateStr, opts){
+    /* A route load is the certain end of any lap in progress -- leaving
+       'victory' behind would spawn the next delivery in a state the
+       play-gated sim refuses to drive. */
+    this.tdVic = null;
+    if(this.state === "victory") this.state = "play";
     /* END OF THE FIRE CHIEF PREVIEW. Leaving the Hydrant Challenge for
        any real route is the one certain exit, and it is a single choke
        point -- loadChallenge's own call carries challenge:true, so
@@ -14110,6 +14236,13 @@ class WorldScene extends Phaser.Scene {
        mid-whoosh. */
     this.peelSim(Math.min(dt, 34));
     this.peelCamTick();
+    /* Outside the play gate for the same reason its neighbours above are:
+       the whole point is that it runs after play has ended. Placed BEFORE
+       the world-pose block further down (botX/botY are derived from botS
+       there), so a botS advanced here lands on screen the same frame
+       rather than one behind -- the slalom's own copy rides postupdate
+       and eats that one-frame lag. */
+    this.tdVictoryTick(Math.min(dt, 34));
 
     /* ---------- simulation ---------- */
     if(this.state === "play"){
@@ -15408,7 +15541,7 @@ class WorldScene extends Phaser.Scene {
       if(remain < 34 && remain > -60 && (slSkipStop || this.speed < 0.02) && Math.abs(this.tilt) < 0.5){
         this.state = "won";
         if(this.attractOwnsTip()) this.attractRecycle(ATTRACT_WIN_MS);
-        else showWin(this);
+        else this.tdVictoryBegin();
       }
       /* overshot the door: clamp to whichever is closer — the edge of the
          win window itself (doorS+60, matching the "remain > -60" bound
@@ -17647,6 +17780,18 @@ const HJ_LAND = { s: 6.75, row: 0, lift: 10, dirSign: -1, root: false, cracks: 2
    course, so HJ_DARE_AT retires with it. Keep this equal to
    HJ_CH.maxLevel (declared just below; it cannot be referenced here
    because HJ_CH does not exist yet at this point). */
+/* The daily's victory-lap constants. Deliberately the SAME numbers the
+   slalom's VIC uses rather than a second set to tune: two endings that
+   are meant to read as one ending should not drift apart by having two
+   homes for the same four values. cardDelay is slCrash's original beat.
+   gateDelay has no equivalent here -- the daily's composer is inline and
+   comes up with the card, not on its own timer. */
+const TD_VIC = {
+  settleMs:  6500,     // safety net if wonWalk never advances -- not the normal path
+  accel:     0.00042,  // the game's OWN throttle accel
+  cruise:    0.1240,   // ~55% of delivery's V_BASE 0.225
+  cardDelay: 1400,     // slCrash's beat, reused
+};
 const HJ_CHIEF_AT = 10;   // clear ALL TEN jumps for the Fire Chief
 /* Fire Chief PREVIEW latch (Sir's call, 2026-08-13). Same idea as the
    Cone Slalom's own win-card preview: clearing jump ten repaints the
@@ -23350,7 +23495,6 @@ function showWin(s){
   show("winOverlay");
   const cardEl = document.getElementById("winCard");
   const stackBase = cardEl.offsetHeight + 16;
-  twFxSyncFollowBtn();
   tdStackIcons("winOverlay");
   /* twFxSyncCommentBtn ends in twFxLayoutWinStack, which re-measures and
      places FOLLOW, the composer panel and the icon row off winCard's
