@@ -185,7 +185,12 @@
       <div class="row"><button class="wide" id="camFrame">frame the lab</button>
                        <button class="wide" id="camRelease">game cam</button></div>
       <div class="row"><label style="width:100%">zoom</label></div>
-      <div class="row"><input type="range" id="zoom" min="15" max="400" value="150"></div>
+      <div class="row"><input type="range" id="zoom" min="2" max="400" value="150"></div>
+      <div class="row" style="color:var(--dim)">Floor is K=0.02, not 0.15 — the waterfront
+        lab needed to see an 85,000-unit shore and had to add its own slider to do it, which
+        is a thing the bench should provide once rather than every lab reinventing.
+        Ground paint costs ~1/K², so below ~0.12 load a lab that thins the world
+        (waterfront's schematic mode) or expect the frame rate to go.</div>
       <div class="row" style="color:var(--dim)">Zoom drives the game's own K, so the
         world culls correctly as you pull out instead of fading to empty.</div>
     </div>
@@ -203,10 +208,15 @@
           <option value="policecar">policecar</option>
           <option value="skins">skins</option>
           <option value="roundhouse">roundhouse</option>
+          <option value="roundhouse">roundhouse</option>
           <option value="waterfront">waterfront</option>
         </select>
         <button id="labLoad">load</button>
       </div>
+      <div class="row"><button class="wide" id="labDials">hide lab dials</button></div>
+      <div class="row" style="color:var(--dim)">Labs render their own panels over the canvas and
+        they are large on a phone. This hides every one of them at once without unloading
+        anything, so the thing being tuned is actually visible.</div>
       <div class="row" style="color:var(--dim);margin:6px 0">
         Or open <code>?lab=policecar</code> to load and run it automatically.
       </div>
@@ -676,6 +686,8 @@ $("inspect").onclick = () => {
 
 /* Start a run on the pinned date. The game owns route construction — the bench
    only supplies the seed, so the route here is the route players get. */
+$("labDials").onclick = toggleLabDials;
+
 $("startRun").onclick = () => {
   if(!BR.live) return log("bridge not up", "err");
   const d = $("dateStr").value.trim();
@@ -795,6 +807,7 @@ async function loadLab(name, andRun){
     if(!r.ok) throw new Error("HTTP " + r.status);
     $("code").value = await r.text();
     log("loaded " + name + ".lab.js", "ok");
+    applyLabDials();
     if(andRun) runLabCode();
   }catch(e){ log("could not load " + name + ": " + e.message, "err"); }
 }
@@ -910,6 +923,52 @@ $("quietBtn").onclick = () => {
    OWN route (tpSlalomStart -> loadRoute(SL_SEED_DATE)). loadRoute() has no
    caching, so pre-booting a route here first just means two full
    generateRoute() passes instead of one -- skip straight to the lab. */
+/* LAB PANELS, HIDDEN AS A GROUP (2026-08-14, third report of dials covering
+   the view). Labs own their panels, so the bench cannot restyle them -- it can
+   only hide them, and only if it can tell which ones are theirs.
+
+   FIRST ATTEMPT USED [id$="Panel"] AND WAS WRONG: that also matches the GAME's
+   own tpProfilePanel, tpMissionsPanel and pastRoutesPanel, so hiding the lab
+   dials quietly hid production UI as well. A lab panel now opts in with
+   data-lab-panel, which cannot collide with anything the game ships.
+
+   New labs: set panel.dataset.labPanel = "1" when you create the element.
+   Older labs that predate the convention are simply unaffected.
+
+   Visibility only -- nothing is unloaded and no hook is touched, so toggling
+   back restores whatever state the lab was already in. Re-applied after every
+   load so a lab opened while hidden does not pop its panel back up. */
+let labDialsHidden = false;
+function applyLabDials(){
+  try{
+    /* The state lives in the GAME realm, not here, and an observer applies
+       it to panels as they appear. Re-applying only on load was not enough:
+       a lab's panel is created when its code runs, which is after the load
+       resolves, so a lab opened while dials were hidden popped its panel
+       straight back up (measured -- rhPanel came back visible every time).
+       The observer closes that window for good, including for labs that
+       build their panel asynchronously. */
+    BR.ev(`(function(){
+      window.__labDialsHidden = ${labDialsHidden};
+      const paint = () => {
+        for(const el of document.querySelectorAll('[data-lab-panel]'))
+          el.style.visibility = window.__labDialsHidden ? 'hidden' : 'visible';
+      };
+      if(!window.__labDialsObs){
+        window.__labDialsObs = new MutationObserver(paint);
+        window.__labDialsObs.observe(document.body, { childList:true, subtree:true });
+      }
+      paint();
+    })()`);
+  }catch(e){ /* bridge not up yet; the next load re-applies */ }
+}
+function toggleLabDials(){
+  labDialsHidden = !labDialsHidden;
+  applyLabDials();
+  $("labDials").textContent = labDialsHidden ? "show lab dials" : "hide lab dials";
+  log(labDialsHidden ? "lab dials hidden" : "lab dials shown", "ok");
+}
+
 const SELF_ROUTING_LABS = new Set(["cone-slalom"]);
 
 /* ?lab=NAME[&date=YYYY-MM-DD][&f=0..3][&zoom=150][&quiet=0]
