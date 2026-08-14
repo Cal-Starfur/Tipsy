@@ -585,9 +585,27 @@
   function drawPierLamp(scn, g, W, t, o) {
     const d = Object.assign({}, D, o || {});
     const H = d.lampH, K = scn.K;
-    const col = (w, z0, z1, c, cd) => {
-      scn.quadOn(g, [W(-w, -w, z0), W(w, -w, z0), W(w, -w, z1), W(-w, -w, z1)], c);
-      scn.quadOn(g, [W(w, -w, z0), W(w, w, z0), W(w, w, z1), W(w, -w, z1)], cd);
+    /* WHICH TWO FACES ARE "NEAR" IS NOT A FREE CHOICE (2026-08-14, Sir:
+       "lamps are still not drawing all the faces").
+
+       A standalone box in this engine draws only its two visible walls,
+       and with a FIXED iso camera those are always +x and +y -- that is
+       what drawLampHull's own box() does in game/index.html, and what the
+       pylons above do. This drew the -y wall and the +x wall. -y is a BACK
+       face, so the post was missing its +y side entirely and wasting a
+       quad on a face that can never be seen: a post that reads as a flat
+       sheet with a seam down it, exactly as reported.
+
+       Top caps were missing too. The base steps DOWN in width twice, so
+       each step's top is a genuinely visible ledge, not a stacking
+       artifact -- without it there is a notch where the ledge should be.
+       noTop exists for the one case that doesn't apply to: a segment with
+       another of the same footprint flush on top of it. */
+    const col = (w, z0, z1, c, cd, noTop) => {
+      if (!noTop)
+        scn.quadOn(g, [W(-w, -w, z1), W(w, -w, z1), W(w, w, z1), W(-w, w, z1)], c);
+      scn.quadOn(g, [W(w, -w, z1), W(w, w, z1), W(w, w, z0), W(w, -w, z0)], cd);
+      scn.quadOn(g, [W(-w, w, z1), W(w, w, z1), W(w, w, z0), W(-w, w, z0)], c);
     };
     const sh = W(0, 0, 0);
     g.fillStyle(RH.shadow, 0.15);
@@ -595,12 +613,15 @@
     /* stepped base */
     col(30, 0, H * 0.055, RH.lamp, RH.lampDk);
     col(22, H * 0.055, H * 0.12, RH.lamp, RH.lampDk);
-    /* tapered shaft in segments, each narrower than the last */
+    /* Tapered shaft. The per-segment colour used to ALTERNATE, meant to
+       suggest fluting; at any real zoom it just read as horizontal banding
+       and made the post look broken into pieces. Shading is per-FACE now
+       -- +y lit, +x shaded, the same treatment every other prop here uses
+       -- so the taper reads as one continuous column. */
     const segs = 5;
     for (let i = 0; i < segs; i++) {
       const z0 = H * 0.12 + (H * 0.72) * (i / segs), z1 = H * 0.12 + (H * 0.72) * ((i + 1) / segs);
-      const w = 15 - 5 * (i / segs);
-      col(w, z0, z1, i % 2 ? RH.lamp : RH.lampDk, RH.lampDk);
+      col(15 - 5 * (i / segs), z0, z1, RH.lamp, RH.lampDk);
     }
     /* collar, then a short neck the globe actually sits ON. The collar
        used to stop at H*0.90 with the globe drawn at H*1.00, leaving a
