@@ -61,7 +61,6 @@ import {
   dbGetAllTimeBest,
   dbGetAllTimeTop,
   dbGetDailyBest,
-  dbGetDailyPostId,
   dbGetHistory,
   dbGetPlays,
   dbGetStickyCommentId,
@@ -71,13 +70,9 @@ import {
   dbMarkAnnounced,
   dbPurchaseSkin,
   dbRecordMission,
-  dbReleaseDailyPostClaim,
   dbRemoveUser,
-  dbSetDailyPostId,
   dbSetFailPending,
   dbSetStickyCommentId,
-  dbShouldPostDaily,
-  dbShouldPostOnInstall,
   dbShouldRunWeeklySweep,
   dbSubmitReplayScore,
   dbSubmitScore,
@@ -207,14 +202,8 @@ async function route(
       case Endpoint.OnMenuNewPost:
         rsp = await routeMenuNewPost()
         break
-      case Endpoint.OnAppInstall:
-        rsp = await routeAppInstall()
-        break
       case Endpoint.OnAccountDelete:
         rsp = await routeAccountDelete(reqMsg)
-        break
-      case Endpoint.OnSchedulerDailyPost:
-        rsp = await routeSchedulerDailyPost()
         break
       case Endpoint.OnSchedulerDeletedUserSweep:
         rsp = await routeSchedulerDeletedUserSweep()
@@ -1012,39 +1001,6 @@ async function routeMenuNewPost(): Promise<UiResponse> {
   }
 }
 
-/** Fires on every install — including every redeploy's `devvit install`,
- *  which is why this used to be the real source of duplicate posts:
- *  it submitted unconditionally, so a day could end up with the
- *  scheduler's post plus one per reinstall. It now claims today's slot
- *  through the same key the scheduler uses, so a fresh install still
- *  gets an immediate post but a reinstall on an already-posted day is
- *  a no-op. */
-async function routeAppInstall(): Promise<TriggerResponse> {
-  if (!(await dbShouldPostOnInstall())) return {}
-  await submitDailyPost()
-  return {}
-}
-
-/** Submit the daily post and record its id so tomorrow's run can
- *  unsticky it. Releases the day's claim if the submit itself fails —
- *  otherwise one transient Reddit error would burn the whole day. */
-async function submitDailyPost(): Promise<void> {
-  let post
-  try {
-    post = await reddit.submitCustomPost({title: context.appSlug})
-  } catch (err) {
-    await dbReleaseDailyPostClaim()
-    throw err
-  }
-  await dbSetDailyPostId(post.id)
-  try {
-    await post.sticky()
-  } catch (err) {
-    console.error('submitDailyPost: failed to sticky new post', err)
-  }
-  await createScoreAnchor(post.id)
-}
-
 async function routeAccountDelete(
   reqMsg: IncomingMessage,
 ): Promise<TriggerResponse> {
@@ -1055,38 +1011,6 @@ async function routeAccountDelete(
   // than guess. (userId alone can't help here: boards are keyed by
   // username, not t2_id.)
   if (username) await dbRemoveUser(username)
-  return {}
-}
-
-/** Fires every 15 minutes (see devvit.json's cron), but only actually
- *  posts once — dbShouldPostDaily() checks the UTC wall-clock hour and
- *  atomically claims the day, so of the four checks that land inside
- *  hour 0 UTC, exactly one proceeds past this point. Hour 0 UTC is
- *  deliberate: that is the same instant clientTodayUTC() rolls the
- *  route seed, so the post announcing the new map goes up with the map
- *  rather than hours behind it.
- *
- *  Unstickying the previous day's post is best-effort: if it's already
- *  gone or the call fails for any reason, that shouldn't block today's
- *  post from going up. */
-async function routeSchedulerDailyPost(): Promise<TriggerResponse> {
-  const shouldPost = await dbShouldPostDaily()
-  if (!shouldPost) return {}
-
-  const prevId = await dbGetDailyPostId()
-  if (prevId) {
-    try {
-      const prevPost = await reddit.getPostById(prevId as `t3_${string}`)
-      await prevPost.unsticky()
-    } catch (err) {
-      console.error(
-        'routeSchedulerDailyPost: failed to unsticky previous post',
-        err,
-      )
-    }
-  }
-
-  await submitDailyPost()
   return {}
 }
 
