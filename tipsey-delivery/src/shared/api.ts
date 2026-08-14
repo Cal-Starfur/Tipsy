@@ -215,6 +215,11 @@ export type SubmitSlalomWinReq = {
   totalSecs: number
   parSecs: number
   clean: boolean
+  /** Display name of a cosmetic unlocked BY THIS RUN (currently only
+   *  "Cone Dodger", off a sub-60s finish), or '' on an ordinary win.
+   *  Optional so an older client that never sends it still composes a
+   *  valid draft -- the trophy clause is simply omitted. */
+  unlocked?: string
 }
 export type SubmitSlalomWinRsp = {text: string}
 /** The player's (possibly edited) slalom win comment, posted as the
