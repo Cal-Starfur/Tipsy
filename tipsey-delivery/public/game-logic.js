@@ -356,6 +356,20 @@ const tdFx = { fails: 0, draft: "", posted: false, busy: false,
                   tdFxHydrantBlocked and the UNIFIED RETRY GATE comment
                   below for the full rationale (Sir's call, 2026-08). */
                deliveryUnposted: false, hydrantUnposted: false,
+               /* PASS 2 OF THE LADDER (Sir's call, 2026-08-13: "you must
+                  post your delivery's to play"). The win half of the same
+                  rule the fail gate has enforced since 2026-08 -- winning
+                  a route no longer unlocks the next one on its own; the
+                  post does, and tpAdvanceRun is called from the poster
+                  rather than from the win. Set only where a post is
+                  actually possible (Devvit, today's route, a real
+                  delivery), so a replay of a past date and a challenge
+                  are never gated by a draft that was never going to
+                  exist. NO FALLBACK, by explicit instruction: a post
+                  that cannot land leaves the player on the win screen.
+                  Same shape as deliveryUnposted so the same re-entry
+                  sites can check it. */
+               winUnposted: false,
                /* server-composed composer text per mode, filled by
                   requestTpProfile -- see tdFxRehydrateGate */
                serverDraft: {delivery: "", hydrant: ""},
@@ -645,6 +659,23 @@ function tdFxShowPlainRetry(){
    clears them. */
 function tdFxDeliveryBlocked(){
   return IS_DEVVIT_BUILD && tdFx.deliveryUnposted;
+}
+/* The win-side twin. Deliberately a SEPARATE predicate rather than
+   folded into the one above: the two restore completely different
+   screens (a crash vs a receipt), so every call site has to know which
+   it is holding, and one boolean that meant "blocked somehow" would
+   have to be un-merged at each of them anyway. */
+function tdFxWinBlocked(){
+  return IS_DEVVIT_BUILD && tdFx.winUnposted;
+}
+/* The win-screen equivalent of tpRestoreFailScene, and much cheaper:
+   the overlay is never torn down while the gate is up, so nothing needs
+   rebuilding from a snapshot -- showing it again and re-syncing the
+   panel is the whole restore. */
+function tpRestoreWinScreen(){
+  hide("titleOverlay");
+  show("winOverlay");
+  twFxSyncCommentBtn();
 }
 function tdFxHydrantBlocked(){
   return IS_DEVVIT_BUILD && tdFx.hydrantUnposted;
@@ -1401,16 +1432,52 @@ function twFxSyncCommentBtn(){
   }
   twFxLayoutWinStack();
 }
-/* STEP TWO, and the shape is the slalom unlock gate's verbatim (Sir's
-   call, 2026-08-13: the slalom win is the one to match to). One thing on
-   screen at a time: the composer is replaced by the POSTED confirmation
-   plus FOLLOW in the SAME panel, and when follow resolves the panel steps
-   aside entirely, leaving the icon row as the way out -- the daily's
-   equivalent of #slAgain coming back.
+/* STEP TWO IS THE NEXT PICKUP NOW (Sir's call, 2026-08-13). It used to
+   be FOLLOW, which was a dead end dressed as an offer: the player
+   finished a delivery, posted about it, and the screen's last word was a
+   subscribe prompt with nothing to do afterwards. The complaint was
+   exactly that -- "nothing steering message came up like what does a
+   player do after that". With the ladder in, there is now a real answer,
+   and it is the next rung.
 
-   The standalone FOLLOW button stays hidden throughout: it is the
-   no-draft fallback only. Two follow offers on one screen was the old
-   layout's real problem, not the stacking. */
+   FOLLOW is not gone, it just isn't the win screen's job: the fail
+   screen's 3-strike prompt still offers it, and tdFx.followClaimed is
+   account-wide so the $25 is still claimable from there. Flagged for Sir
+   as a deliberate loss -- the win screen was the friendliest place to
+   ask, and this trades that for somewhere to go. */
+function twFxShowNextStep(g, paid, nextRung){
+  g.style.display = "block";
+  g.innerHTML =
+    '<div style="font-weight:700;font-size:11px;letter-spacing:0.8px;' +
+      'margin-bottom:6px;">POSTED' +
+      (paid ? '<span style="color:#3f7d43;">  \u00b7  +$5.00 BONUS TIP</span>' : '') +
+      '</div>' +
+    '<div style="font-size:13px;line-height:1.4;color:#5c5647;margin-bottom:14px;">' +
+      'Pickup ' + nextRung + ' is ready. Tips keep adding up all day.</div>';
+  const btn = document.createElement("button");
+  btn.id = "twFxNextBtn";
+  btn.textContent = "Next pickup \u25b8";
+  btn.style.cssText = TDFX_BTN + TDFX_ORANGE;
+  btn.addEventListener("click", tpStartNextRun);
+  g.appendChild(btn);
+  twFxLayoutWinStack();
+}
+/* Straight back to the title screen with the NEXT rung loaded and
+   waiting on GO -- the same place a player lands after picking a route
+   any other way, so nothing about starting a delivery is special-cased
+   for the ladder. loadRoute reads the rung from the profile itself (see
+   its own comment), which tpAdvanceRun has already moved, so there is no
+   index to pass around. */
+function tpStartNextRun(){
+  hide("winOverlay");
+  const s = scn(); if(!s) return;
+  s.mode = "delivery";
+  s.loadRoute(clientTodayUTC());
+  show("titleOverlay");
+  requestAnimationFrame(() => { resizeRouteMap(); drawRouteMap(s.route); });
+}
+/* Kept for the no-draft path only -- see twFxSyncCommentBtn's own
+   branch. Nothing reaches it on a normal gated win. */
 function twFxShowFollowStep(g, paid){
   twFxHideFollowBtn();
   if(tdFx.followClaimed){ g.style.display = "none"; twFxLayoutWinStack(); return; }
@@ -1541,11 +1608,19 @@ function twFxPostComment(ta, btn){
          here now, so removing it the instant the post lands leaves the
          player with no acknowledgement that anything happened. Same
          beat the slalom's follow step uses for the same reason. */
+      /* THE POST IS THE UNLOCK (Sir's call, 2026-08-13). tpAdvanceRun
+         is called HERE and nowhere else -- not on the win, not on the
+         card, not on the next GO -- so there is exactly one line in the
+         file that moves a player up the ladder, and it is inside the
+         success branch of the post. A post that fails leaves both the
+         rung and the gate exactly where they were. */
+      tdFx.winUnposted = false;
+      const nextRung = tpAdvanceRun();
       /* THE SURPRISE, carried into step two. d.bonusGranted is the
          server's own word for "this one actually paid", so the line can
          never claim money the wallet didn't get. */
       const g = document.getElementById("twFxGate");
-      if(g) twFxShowFollowStep(g, !!d.bonusGranted);
+      if(g) twFxShowNextStep(g, !!d.bonusGranted, nextRung);
       else twFxSyncCommentBtn();
     })
     .catch(fail);
@@ -1573,6 +1648,13 @@ function reportWin(s, payout, pctShow){
     twFx.draftWhy = "skipped: replay (" + s.route.dateStr + " != " + clientTodayUTC() + ")";
     return;
   }
+  /* ARMED HERE, not in showWin, and that is the point: this is the exact
+     set of conditions under which a draft is going to be asked for, so
+     gating on the same line guarantees the gate and the composer agree.
+     Arming it in showWin instead would block a challenge or a replay
+     behind a post that these three guards had already decided not to
+     fetch. */
+  tdFx.winUnposted = true;
   fetch("api/tipsy/win", {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
@@ -20968,6 +21050,7 @@ function tpSlalomQuit(){
      tpBackToDailyRoute/GO/hjQuit, not the ability to leave. Restores
      the actual crash (tpRestoreFailScene), not a clean route -- see
      that function's own comment. */
+  if(tdFxWinBlocked()){ tpRestoreWinScreen(); return; }
   if(tdFxDeliveryBlocked()){
     if(s) tpRestoreFailScene(s);
     show("failOverlay");
@@ -21070,6 +21153,7 @@ function hjQuit(){
      an unposted delivery fail lands them on its own gate instead of
      the title screen, same as tpBackToDailyRoute/GO. Restores the
      actual crash (tpRestoreFailScene), not a clean route. */
+  if(tdFxWinBlocked()){ tpRestoreWinScreen(); return; }
   if(tdFxDeliveryBlocked()){
     tpRestoreFailScene(s);
     show("failOverlay");
@@ -21608,6 +21692,7 @@ function tpBackToDailyRoute(){
      back into today's route (also used by the map's delivery pin), and
      it reloaded the route unconditionally before this, gate or no gate.
      Restores the actual crash (tpRestoreFailScene), not a clean route. */
+  if(tdFxWinBlocked()){ tpRestoreWinScreen(); return; }
   if(tdFxDeliveryBlocked()){
     tpRestoreFailScene(scn());
     hide("titleOverlay");
@@ -22720,6 +22805,15 @@ function tpLoadProfile(){
        pair is harmless rather than something to migrate. */
     runDay:   (raw && raw.runDay)   || "",
     runIndex: (raw && raw.runIndex) || 1,
+    /* The day's running tip total, in cents, and the count behind it.
+       Local mirror only -- the server's zAdd on leaderboardKey is the
+       real score (see dbSubmitScore) -- kept so the win receipt can
+       show a total the instant a delivery lands instead of waiting on
+       a board fetch. Reset by tpRunIndex alongside the rung, since
+       both belong to the same day and resetting one without the other
+       would be worse than resetting neither. */
+    dayTipCents: (raw && raw.dayTipCents) || 0,
+    dayRuns:     (raw && raw.dayRuns)     || 0,
   };
 }
 /* ---------- THE LADDER ----------
@@ -22732,9 +22826,20 @@ function tpRunIndex(){
   if(tpProfile.runDay !== today){
     tpProfile.runDay = today;
     tpProfile.runIndex = 1;
+    tpProfile.dayTipCents = 0;
+    tpProfile.dayRuns = 0;
     tpSaveProfile();
   }
   return tpProfile.runIndex;
+}
+/* Banks a completed delivery into the day's local tally. Called from
+   showWin's own today branch, right where the server submit goes out,
+   so the two can never disagree about which runs counted. */
+function tpBankDayTip(payout){
+  tpRunIndex();                                  // rolls the day over first
+  tpProfile.dayTipCents += Math.round((payout || 0) * 100);
+  tpProfile.dayRuns += 1;
+  tpSaveProfile();
 }
 /* Called when a delivery is BANKED, not when it is won -- what counts
    as banked is pass 2's business (Sir's call: posting to the Delivery
@@ -22761,6 +22866,8 @@ function tpSaveProfile(){
       slPaid: tpProfile.slPaid,          // slalom daily payout high-water
       runDay: tpProfile.runDay,          // ladder position — see tpLoadProfile note
       runIndex: tpProfile.runIndex,
+      dayTipCents: tpProfile.dayTipCents,
+      dayRuns: tpProfile.dayRuns,
     }));
   } catch(e){}
 }
@@ -23359,7 +23466,11 @@ function tpCloseMissions(){
      hjQuit, tpSlalomQuit). Self-corrects when a mission pick
      (slalomMapSelect/tpSlalomStart/hjStart) calls this on the way IN
      and hides the overlay again a line later -- no flicker. */
-  if(tdFxDeliveryBlocked()){
+  if(tdFxWinBlocked()){
+    hide("titleOverlay");
+    show("winOverlay");
+    twFxSyncCommentBtn();
+  } else if(tdFxDeliveryBlocked()){
     hide("titleOverlay");
     show("failOverlay");
     tdFxSyncGate();
@@ -23622,20 +23733,39 @@ function showWin(s){
          so every completed delivery submits unconditionally and lets
          the server decide whether it's actually an improvement — cheap
          no-op there when it isn't. */
-      const better = !prev || payout > prev.tip || (payout === prev.tip && s.runT < prev.ms);
+      /* THE DAY IS A TOTAL NOW, so the receipt stops reporting a
+         single-run verdict. "NEW DAILY BEST" was true of a game with
+         one route a day and is meaningless in a ladder -- with tips
+         summing, a player's day score only ever goes UP, so a
+         best-of banner would have fired on literally every delivery.
+         What the row says instead is the number that actually
+         changed: the running total, and how many pickups built it.
+
+         The submit itself is untouched and still unconditional -- the
+         server compares against its own stored score (see
+         dbSubmitScore, which now accumulates) and is the only source
+         of truth; `better` below is used ONLY for the top-of-board
+         banner, exactly the narrow job the old comment here warned it
+         was the only correct use for. */
+      tpBankDayTip(payout);
+      const dayTotal = tpProfile.dayTipCents / 100;
+      const better = !prev || dayTotal > prev.tip;
       if(tipsyBridge.active){
-        if(better) tipsyBridge.best[s.route.dateStr] = { tip: payout, ms: s.runT };   // optimistic — server is source of truth next load
+        if(better) tipsyBridge.best[s.route.dateStr] = { tip: dayTotal, ms: s.runT };   // optimistic — server is source of truth next load
         fetch("api/tipsy/best/submit", {
           method: "POST",
           headers: { "Content-Type": "application/json", Accept: "application/json" },
           body: JSON.stringify({ tip: payout, ms: s.runT })
         }).catch(()=>{});
       } else if(better){
-        localStorage.setItem(key, JSON.stringify({ tip: payout, ms: s.runT }));
+        localStorage.setItem(key, JSON.stringify({ tip: dayTotal, ms: s.runT }));
       }
-      bestRow = better
-        ? `<div class="sheetRow" style="color:#3f7d43;font-size:13px">★ NEW DAILY BEST</div>`
-        : `<div class="sheetRow" style="color:#8f95a1;font-size:13px">daily best $${prev.tip.toFixed(2)} · ${(prev.ms/1000).toFixed(1)}s</div>`;
+      const pickups = tpProfile.dayRuns === 1 ? "1 pickup" : `${tpProfile.dayRuns} pickups`;
+      bestRow = `<div class="sheetRow" style="color:#3f7d43;font-size:13px">`
+        + `today <b>$${dayTotal.toFixed(2)}</b> <span style="color:#8f95a1">· ${pickups}</span></div>`
+        + (better
+            ? `<div class="sheetRow" style="color:#ff9c4d;font-size:13px;font-weight:700">\u2605 TOP OF TODAY'S BOARD</div>`
+            : `<div class="sheetRow" style="color:#8f95a1;font-size:13px">day leader $${prev.tip.toFixed(2)}</div>`);
     } catch(e){}
   }
   document.getElementById("winCard").innerHTML =
@@ -23713,6 +23843,13 @@ document.getElementById("startBtn").addEventListener("click", () => {
      starts are a different activity entirely and never blocked by an
      unposted DELIVERY fail. Restores the actual crash (tpRestoreFailScene),
      not a clean route. */
+  /* Win gate first, and NOT applied to a challenge or a slalom start --
+     same carve-out the fail gate makes on the very next line, and for
+     the same reason: a side mission is a different activity, not a free
+     reload of the delivery being gated. */
+  if(tdFxWinBlocked() && s.mode !== "challenge" && s.mode !== "slalom-pending"){
+    tpRestoreWinScreen(); return;
+  }
   if(tdFxDeliveryBlocked() && s.mode !== "challenge" && s.mode !== "slalom-pending"){
     tpRestoreFailScene(s);
     hide("titleOverlay");
