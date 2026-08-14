@@ -75,6 +75,24 @@
     turnR: ROAD_HALF + SIDEWALK_W,   // = CORNER_R, the game's own corner radius
     showLanes: true,
     showFit: true,
+    collapsed: false,
+    /* SCHEMATIC (2026-08-14, Sir: "I want to zoom out 3x more").
+       The bench zoom slider floors at K=0.15 and that floor is not
+       arbitrary: drawWorld's cullSpan is (width/K)*0.9 + ... , so span
+       goes as 1/K and the culled AREA -- which is what ground paint
+       costs -- goes as its square. Pulling from 0.15 to 0.05 is 3x the
+       span and ~9x the ground paint, which is exactly the zoom-out lag
+       the FLAT_CULL_PAD note in index.html is about.
+       So the extra range does not come from just widening the slider.
+       Below schematicK the lab empties the arrays drawWorld iterates for
+       the duration of ONE frame -- stashed in the pre hook, restored as
+       the first statement of the post hook -- and draws the lattice plus
+       a city outline instead. Nothing to cull means the cost stops
+       depending on K at all, and the shore's full 85,000-unit run
+       becomes something you can actually frame. */
+    schematic: true,
+    schematicK: 0.12,
+    k: 1.0,
   };
 
   /* ---------------- the shore lattice ----------------
@@ -253,10 +271,71 @@
     }
   }
 
+  function drawCity(sc, g, sh) {
+    /* the 36x27 lattice's own footprint, so the shore has something to be
+       west OF once the world itself isn't being drawn */
+    const grid = sc.route.grid;
+    const ex = (grid.cols - 1) * BLOCK, ey = (grid.rows - 1) * BLOCK;
+    const c = [{ x: 0, y: 0 }, { x: ex, y: 0 }, { x: ex, y: ey }, { x: 0, y: ey }]
+      .map(p => sc.W(p.x, p.y, 0));
+    g.lineStyle(2, 0x8f95a1, 0.7);
+    for (let i = 0; i < 4; i++) g.lineBetween(c[i].x, c[i].y, c[(i + 1) % 4].x, c[(i + 1) % 4].y);
+    /* district seams -- 4x3, DISTRICT_W/H apart, the same lines hoodAt cuts on */
+    g.lineStyle(1, 0x8f95a1, 0.28);
+    for (let i = DISTRICT_W; i < grid.cols - 1; i += DISTRICT_W) {
+      const a = sc.W(i * BLOCK, 0, 0), b = sc.W(i * BLOCK, ey, 0);
+      g.lineBetween(a.x, a.y, b.x, b.y);
+    }
+    for (let j = DISTRICT_H; j < grid.rows - 1; j += DISTRICT_H) {
+      const a = sc.W(0, j * BLOCK, 0), b = sc.W(ex, j * BLOCK, 0);
+      g.lineBetween(a.x, a.y, b.x, b.y);
+    }
+  }
+
   let SH = buildShore(scene.route.grid);
 
+  /* ---------------- schematic strip / restore ----------------
+     Stash-and-empty in the PRE hook (which the bench runs before
+     drawWorld), restore as the FIRST statement of the post hook. The pair
+     is symmetric within a single frame, so nothing outside the draw ever
+     observes an emptied array -- BENCH.census(), which reads counts, runs
+     outside the draw and is unaffected. Restore also runs in teardown, so
+     an exception mid-frame can't leave the world stripped.
+
+     The bench installs its own __benchPre (BENCH.applyCam). Chained rather
+     than replaced -- overwriting it silently kills the bench camera, which
+     is the thing driving the zoom this feature exists to serve. */
+  const STRIP_ROUTE = ['props', 'traffic', 'hazards', 'crossings'];
+  const STRIP_GRID = ['edges', 'blocks', 'sidewalkRuns', 'sidewalkCornerCells',
+                      'curbRamps', 'signals', 'extLots'];
+  let stash = null;
+
+  function stripWorld(sc) {
+    if (stash) return;
+    const r = sc.route, g = r.grid;
+    stash = { r: {}, g: {} };
+    for (const k of STRIP_ROUTE) if (Array.isArray(r[k])) { stash.r[k] = r[k]; r[k] = []; }
+    for (const k of STRIP_GRID) if (Array.isArray(g[k])) { stash.g[k] = g[k]; g[k] = []; }
+  }
+  function restoreWorld(sc) {
+    if (!stash) return;
+    const r = sc.route, g = r.grid;
+    for (const k in stash.r) r[k] = stash.r[k];
+    for (const k in stash.g) g[k] = stash.g[k];
+    stash = null;
+  }
+  const schematicOn = sc => WF.schematic && sc.K < WF.schematicK;
+
+  const prevPre = scene.__benchPre;
+  scene.__benchPre = function (sc, t) {
+    if (prevPre) prevPre(sc, t);
+    if (schematicOn(sc)) stripWorld(sc); else restoreWorld(sc);
+  };
+
   BENCH.hook(function (sc) {
+    restoreWorld(sc);              // FIRST, before anything can throw
     const g = sc.gFront;
+    if (schematicOn(sc)) drawCity(sc, g, SH);
     for (const r of SH.runs) drawRun(sc, g, r);
     drawRing(sc, g, SH.ring);
     if (WF.showFit) drawJunction(sc, g, SH, WF.turnR);
@@ -286,10 +365,12 @@
   ].join(';');
 
   panel.innerHTML =
-    `<div style="display:flex;align-items:baseline;gap:8px;margin-bottom:8px">
+    `<div id="wfBar" style="display:flex;align-items:baseline;gap:8px">
        <b style="color:#ff9c4d;letter-spacing:2px">WATERFRONT</b>
+       <span id="wfHint" style="color:#5c626d">tap to hide</span>
        <span id="wfVerdict" style="margin-left:auto;font-weight:700"></span>
-     </div>` +
+     </div>
+     <div id="wfBody" style="margin-top:8px">` +
     FIELDS.map(f =>
       `<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px">
          <span style="width:54px;color:#8f95a1">${f.label}</span>
@@ -298,12 +379,23 @@
          <span id="wfv-${f.key}" style="width:52px;text-align:right;
                font-variant-numeric:tabular-nums">0</span>
        </div>`).join('') +
-    `<div style="display:flex;gap:6px;margin-top:8px">
+    `<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px">
+       <span style="width:54px;color:#4ad07a">zoom</span>
+       <input type="range" id="wf-k" min="0.02" max="1.60" step="0.01"
+              style="flex:1;accent-color:#4ad07a">
+       <span id="wfv-k" style="width:52px;text-align:right;
+             font-variant-numeric:tabular-nums">0</span>
+     </div>
+     <div style="display:flex;gap:6px;margin-top:8px">
        <button id="wfGoTop"  style="flex:1">top</button>
        <button id="wfGoJunc" style="flex:1">junction</button>
        <button id="wfGoAq"   style="flex:1">aquarium</button>
+       <button id="wfGoAll"  style="flex:1">whole shore</button>
+     </div>
+     <div style="display:flex;gap:6px;margin-top:6px">
        <button id="wfFit"    style="flex:1">fit turn</button>
        <button id="wfLanes"  style="flex:1">lanes</button>
+       <button id="wfSchem"  style="flex:1">schematic</button>
        <button id="wfReset"  style="flex:1">reset</button>
      </div>
      <div id="wfStat" style="margin-top:8px;color:#8f95a1;white-space:pre-line"></div>
@@ -312,6 +404,7 @@
              border-radius:7px;padding:7px 8px;color:#ff9c4d;overflow-x:auto;
              white-space:nowrap;-webkit-user-select:text;user-select:text"></code>
        <button id="wfCopy" style="flex:0 0 62px">copy</button>
+     </div>
      </div>`;
 
   for (const b of panel.querySelectorAll('button')) {
@@ -352,7 +445,10 @@
       `or PIER_W >= ${jf.minPierW.toFixed(3)}\n` +
       `pier len  ${Math.round(SH.pierX1 - SH.pierX0)}  ` +
       `(${((SH.pierX1 - SH.pierX0) / BLOCK).toFixed(2)} blocks)  ` +
-      `pierY ${Math.round(SH.pierY)} = ${(SH.pierY / BLOCK).toFixed(2)} BLOCK`;
+      `pierY ${Math.round(SH.pierY)} = ${(SH.pierY / BLOCK).toFixed(2)} BLOCK\n` +
+      `zoom      K ${(+WF.k).toFixed(2)}  ` +
+      `${WF.schematic ? (WF.k < WF.schematicK ? 'SCHEMATIC (world off)' :
+        'art (schematic below ' + WF.schematicK + ')') : 'art (schematic off)'}`;
 
     document.getElementById('wfPort').textContent = portLine();
   }
@@ -365,6 +461,9 @@
         f.src === 'wg' || f.key !== 'turnR' ? (+val).toFixed(2) : val;
     }
     document.getElementById('wfLanes').style.background = WF.showLanes ? '#ff7a1a' : '#262a33';
+    document.getElementById('wfSchem').style.background = WF.schematic ? '#ff7a1a' : '#262a33';
+    document.getElementById('wf-k').value = WF.k;
+    document.getElementById('wfv-k').textContent = (+WF.k).toFixed(2);
     rebuild();
   }
 
@@ -377,12 +476,47 @@
     });
   }
 
+  /* the panel is the whole bottom half of a phone when open, which is
+     exactly the geometry it exists to let you look at -- so the bar
+     collapses it to one line rather than the lab needing to be unloaded */
+  function setCollapsed(on) {
+    WF.collapsed = on;
+    document.getElementById('wfBody').style.display = on ? 'none' : '';
+    document.getElementById('wfHint').textContent = on ? 'tap to show' : 'tap to hide';
+  }
+  document.getElementById('wfBar').onclick = () => setCollapsed(!WF.collapsed);
+
+  /* camera K the bench and the game share. Lower is further out; the lab
+     floor is 0.02 against the bench slider's 0.15. */
+  function setK(k) {
+    WF.k = k;
+    BENCH.camZoom(k);
+    document.getElementById('wf-k').value = k;
+    document.getElementById('wfv-k').textContent = k.toFixed(2);
+    rebuild();
+  }
+  document.getElementById('wf-k').addEventListener('input', e => setK(+e.target.value));
+
+  const look = (x, y, k) => { BENCH.lookAt(x, y, k); setK(k); };
+
   document.getElementById('wfGoTop').onclick = () =>
-    BENCH.lookAt(SH.runs[0].a.x, SH.Y0 + BLOCK * 0.6, 0.55);
+    look(SH.runs[0].a.x, SH.Y0 + BLOCK * 0.6, 0.55);
   document.getElementById('wfGoJunc').onclick = () =>
-    BENCH.lookAt(SH.runs[0].a.x - BLOCK * 0.4, SH.pierY, 1.1);
+    look(SH.runs[0].a.x - BLOCK * 0.4, SH.pierY, 1.1);
   document.getElementById('wfGoAq').onclick = () =>
-    BENCH.lookAt(SH.pierX0, SH.pierY, 1.3);
+    look(SH.pierX0, SH.pierY, 1.3);
+  /* frame the entire shore: the west run is ~85,000 units tall, and W()'s
+     vertical term is (xr+yr)*0.5*K, so the span that has to fit the screen
+     height is half the run's Manhattan extent. Solved for K rather than
+     dialled in by hand so it stays right if BOARD/PIER_LEN move. */
+  document.getElementById('wfGoAll').onclick = () => {
+    const h = scene.scale.gameSize.height, w = scene.scale.gameSize.width;
+    const cx = (SH.pierX0 + SH.X0) / 2, cy = (SH.Y0 + SH.Y1) / 2;
+    const spanX = (SH.X0 - SH.pierX0);
+    const spanY = (SH.Y1 - SH.Y0);
+    const k = Math.min(w / (spanX + spanY), h / ((spanX + spanY) * 0.5)) * 0.85;
+    look(cx, cy, Math.max(0.02, k));
+  };
   /* largest radius that clears the binding band, rounded down to the T2
      grain everything else in this file is measured in */
   document.getElementById('wfFit').onclick = () => {
@@ -391,6 +525,7 @@
     sync();
   };
   document.getElementById('wfLanes').onclick = () => { WF.showLanes = !WF.showLanes; sync(); };
+  document.getElementById('wfSchem').onclick = () => { WF.schematic = !WF.schematic; sync(); };
   document.getElementById('wfReset').onclick = () => {
     Object.assign(WG_COAST, { BOARD: 0.35, PIER_W: 0.22, PIER_LEN: 2.2, SANDW: 1.4 });
     Object.assign(WF, { aqDeck: 0.36, aqRoof: 0.17, turnR: ROAD_HALF + SIDEWALK_W });
@@ -408,8 +543,14 @@
     setTimeout(() => { btn.textContent = 'copy'; }, 1400);
   };
 
-  /* teardown: reloading the lab twice must not stack hooks or panels */
-  scene.__wfOff = () => { BENCH.clear(); document.getElementById('wfPanel')?.remove(); };
+  /* teardown: reloading the lab twice must not stack hooks or panels, and
+     must never leave the world stripped or the bench camera unhooked */
+  scene.__wfOff = () => {
+    restoreWorld(scene);
+    scene.__benchPre = prevPre || null;
+    BENCH.clear();
+    document.getElementById('wfPanel')?.remove();
+  };
 
   /* exposed so pier-course.lab.js (page 2) consumes THIS lattice rather than
      building a second copy of it -- the one rule labs/README.md is loudest
@@ -417,6 +558,9 @@
   scene._wfAPI = { WF, buildShore, classifyShore, junctionFit, ringFit, get shore() { return SH; } };
 
   sync();
-  BENCH.lookAt(SH.runs[0].a.x - BLOCK * 0.4, SH.pierY, 1.0);
-  console.log('waterfront ready -- junction / aquarium buttons frame the two turns');
+  /* boot on the whole-shore framing rather than the junction: the junction
+     is the decision, but a 85,000-unit run you cannot see the ends of was
+     the actual complaint. */
+  document.getElementById('wfGoAll').click();
+  console.log('waterfront ready -- tap the WATERFRONT bar to collapse the panel');
 })();
