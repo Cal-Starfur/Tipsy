@@ -166,29 +166,57 @@
   /* ---------------- the junction fit test ----------------
      Southbound on the west boardwalk, right turn west onto the pier. The
      arc is tangent to both centrelines, so its centre sits one radius back
-     along each. Its worst excursion off the corner is at 45deg, at
-     R*(1 - 1/sqrt2) = 0.293R from each centreline -- that single number is
-     what has to fit inside both bands, plus half the robot's own lane band
-     so the OUTER wheel stays on deck too. */
+     along each.
+
+     FIRST VERSION WAS WRONG (2026-08-14, found when Sir asked for
+     BOARD 0.15). It was analytic: worst excursion at 45deg is
+     R*(1-1/sqrt2) off the corner, and that had to fit inside the
+     boardwalk half-width AND the pier half-width, each tested
+     separately. Testing them separately is the bug -- at the corner the
+     two surfaces are ADJACENT, and the pier begins exactly where the
+     boardwalk's west edge ends. An arc bulging west past the boardwalk
+     edge near pierY is not off-surface at all; it is on the pier. The
+     analytic test called that an overrun because neither band contained
+     it alone, which is how it reported OVERRUNS at CORNER_R on a
+     junction that is actually fine.
+
+     This version asks classifyShore instead, at both wheel lines rather
+     than the centreline, and counts samples that land on nothing. The
+     union of surfaces is handled for free because classifyShore already
+     answers for the whole lattice, and it stays correct if the shore ever
+     grows a piece this analytic formula never knew about. Slower, and
+     irrelevantly so -- it runs on slider input, not per frame. */
   function junctionFit(sh, R) {
-    const bulge = R * (1 - Math.SQRT1_2);
     const robotHalf = SIDEWALK_W / 2;
-    const intoBoardwalk = sh.BOARD / 2;       // room west of the boardwalk centreline
-    const intoPier = sh.PIER_W / 2;           // room north of the pier centreline
-    const need = bulge + robotHalf;
-    /* the largest R that clears BOTH bands -- invert bulge = R*(1-1/sqrt2) */
-    const room = Math.min(intoBoardwalk, intoPier) - robotHalf;
+    const bcx = sh.runs[0].a.x;
+    const cx = bcx - R, cy = sh.pierY - R;
+    const N = 48;
+    let off = 0, total = 0;
+    const worst = [];
+    for (let k = 0; k <= N; k++) {
+      const a = (k / N) * (Math.PI / 2);
+      /* the arc's own outward normal is radial, so the two wheel lines
+         are simply R +/- robotHalf at the same angle */
+      for (const rr of [R - robotHalf, R + robotHalf]) {
+        const x = cx + Math.cos(a) * rr, y = cy + Math.sin(a) * rr;
+        total++;
+        if (!classifyShore(sh, x, y)) { off++; worst.push({ x, y }); }
+      }
+    }
     return {
-      R, bulge, need,
-      needBoardwalk: need, haveBoardwalk: intoBoardwalk,
-      needPier: need, havePier: intoPier,
-      binding: intoPier < intoBoardwalk ? 'pier' : 'boardwalk',
-      maxR: Math.max(0, room / (1 - Math.SQRT1_2)),
-      /* ...or keep CORNER_R and widen the pier instead. Both ends of the
-         same trade, so both are reported rather than one being assumed. */
-      minPierW: (2 * need) / BLOCK,
-      ok: need <= intoBoardwalk && need <= intoPier,
+      R, off, total,
+      pct: total ? (off / total) * 100 : 0,
+      bulge: R * (1 - Math.SQRT1_2),
+      ok: off === 0,
     };
+  }
+
+  /* largest radius that clears, found by scanning rather than solved --
+     the surface union has no closed form once the pier corner is in play */
+  function bestTurnR(sh) {
+    let best = 0;
+    for (let R = 138; R <= 1600; R += 23) if (junctionFit(sh, R).ok) best = R;
+    return best;
   }
 
   /* ring centreline: midway through the annulus. Compared against CORNER_R
@@ -438,11 +466,9 @@
       `annulus   ${Math.round(rf.band)}  ${rf.lanes.toFixed(1)} lanes   ` +
       `mid R ${Math.round(rf.rMid)} vs CORNER_R ${CORNER_R} ` +
       `${rf.ok ? '(gentler)' : '(TIGHTER)'}\n` +
-      `junction  R ${jf.R} bulge ${Math.round(jf.bulge)} +robot ${SIDEWALK_W / 2} ` +
-      `= ${Math.round(jf.need)}  vs board ${Math.round(jf.haveBoardwalk)} / ` +
-      `pier ${Math.round(jf.havePier)}  ${jf.ok ? 'FITS' : 'OVERRUNS (' + jf.binding + ')'}\n` +
-      `          fix either way: turnR <= ${Math.round(jf.maxR)}  ` +
-      `or PIER_W >= ${jf.minPierW.toFixed(3)}\n` +
+      `junction  R ${jf.R}  wheel samples off-surface ${jf.off}/${jf.total}` +
+      `  ${jf.ok ? 'FITS' : 'OVERRUNS ' + jf.pct.toFixed(0) + '%'}\n` +
+      `          widest turn that clears: R ${bestTurnR(SH)}\n` +
       `pier len  ${Math.round(SH.pierX1 - SH.pierX0)}  ` +
       `(${((SH.pierX1 - SH.pierX0) / BLOCK).toFixed(2)} blocks)  ` +
       `pierY ${Math.round(SH.pierY)} = ${(SH.pierY / BLOCK).toFixed(2)} BLOCK\n` +
@@ -517,11 +543,9 @@
     const k = Math.min(w / (spanX + spanY), h / ((spanX + spanY) * 0.5)) * 0.85;
     look(cx, cy, Math.max(0.02, k));
   };
-  /* largest radius that clears the binding band, rounded down to the T2
-     grain everything else in this file is measured in */
+  /* widest radius that clears, from the sampling scan */
   document.getElementById('wfFit').onclick = () => {
-    const m = junctionFit(SH, WF.turnR).maxR;
-    WF.turnR = Math.max(200, Math.floor(m / 23) * 23);
+    WF.turnR = Math.max(138, bestTurnR(SH));
     sync();
   };
   document.getElementById('wfLanes').onclick = () => { WF.showLanes = !WF.showLanes; sync(); };
