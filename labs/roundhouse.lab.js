@@ -61,6 +61,10 @@
     rail: 0x5fa39f, railDk: 0x3a7370,
     lamp: 0xf6f2df, lampDk: 0xd9d3bd,
     globe: 0xfffdf0, globeGlow: 0xffe9a8,
+    /* sampled from the pier-bench reference, 2026-08-14 */
+    bench: 0x96645e, benchDk: 0x764e4c, benchLt: 0xb57a73,
+    gullBody: 0xf7f6f2, gullMantle: 0xb9c2c8, gullTip: 0x33383d,
+    gullBill: 0xe8b13c, gullLeg: 0xdba98c, gullEye: 0x22262a,
     shadow: 0x2a2a2a,
   };
 
@@ -97,6 +101,11 @@
     braceDrop: 40,
     wetFrac: 0.34,     // lower fraction of each pile that reads as wet
     fascia: 44,        // deck edge beam depth
+    benchLen: 300, benchDepth: 118, benchSeat: 74,
+    benchBack: 168, benchSlab: 26, benchEnd: 34,
+    benchGap: 2200,    // spacing along the pier
+    gullSize: 46,
+    gullEvery: 3,      // one gull per this many rail posts
   };
 
   /* ---------------- shared: octagon in the caller's local frame ----------------
@@ -288,6 +297,117 @@
     const yE = A.pierY + half;
     scn.quadOn(g, [scn.W(x0 + ringR, yE, 0), scn.W(x1, yE, 0),
                    scn.W(x1, yE, -d.fascia), scn.W(x0 + ringR, yE, -d.fascia)], PYL.beam);
+  }
+
+  /* =======================================================================
+     ONE BOX HELPER, SHARED
+     The lamp shipped with its own hand-written box that drew the -y wall
+     instead of the +y wall -- a back face, so the post was missing a side
+     and wasting a quad on one nothing can see. The cause was not the typo,
+     it was that this convention existed in three separately hand-written
+     places in this file and in drawLampHull in the game. Written once here
+     so a fourth copy cannot disagree with the other three.
+
+     With a FIXED iso camera the two visible walls of a standalone box are
+     always +x and +y. The top cap is drawn unless something of the same
+     footprint sits flush on top of it.
+     ======================================================================= */
+  function boxNear(scn, g, W, cx, cy, hx, hy, z0, z1, top, faceX, faceY, noTop) {
+    const P = (sx, sy, z) => W(cx + sx * hx, cy + sy * hy, z);
+    if (!noTop) scn.quadOn(g, [P(-1, -1, z1), P(1, -1, z1), P(1, 1, z1), P(-1, 1, z1)], top);
+    scn.quadOn(g, [P(1, -1, z1), P(1, 1, z1), P(1, 1, z0), P(1, -1, z0)], faceX);
+    scn.quadOn(g, [P(-1, 1, z1), P(1, 1, z1), P(1, 1, z0), P(-1, 1, z0)], faceY);
+  }
+
+  /* =======================================================================
+     PIER BENCH
+     Sampled from Sir's third reference (2026-08-14): a heavy precast
+     concrete bench in terracotta -- two solid end slabs, a seat spanning
+     them, and a solid back panel. Not a slatted park bench; there is no
+     timber anywhere on it.
+
+         terracotta  #b57a73 light, #96645e mean, #764e4c dark
+
+     `face` is the direction the SEAT looks. In the photo the back sits
+     toward the deck centreline and the seat faces the rail, which is the
+     only arrangement that makes sense on a pier -- you sit to look at the
+     water, not at the deck.
+     ======================================================================= */
+  function drawPierBench(scn, g, W, cx, cy, face, o) {
+    const d = Object.assign({}, D, o || {});
+    const L = d.benchLen / 2, Dp = d.benchDepth / 2;
+    /* face 0 = seat looks +y, 1 = looks +x. Only two orientations are
+       needed: benches sit along the pier's two edges. */
+    const along = face ? { x: 0, y: 1 } : { x: 1, y: 0 };
+    const out = face ? { x: 1, y: 0 } : { x: 0, y: 1 };
+    const at = (a2, o2) => ({ x: cx + along.x * a2 + out.x * o2,
+                              y: cy + along.y * a2 + out.y * o2 });
+    const hx = face ? Dp : L, hy = face ? L : Dp;
+    const B = RH.bench, BD = RH.benchDk, BL = RH.benchLt;
+    /* two end slabs */
+    for (const s of [-1, 1]) {
+      const e = at(s * (L - d.benchEnd / 2), 0);
+      boxNear(scn, g, W, e.x, e.y, face ? Dp : d.benchEnd / 2,
+              face ? d.benchEnd / 2 : Dp, 0, d.benchSeat, BL, BD, B);
+    }
+    /* the seat spanning them */
+    const c0 = at(0, 0);
+    boxNear(scn, g, W, c0.x, c0.y, hx, hy,
+            d.benchSeat - d.benchSlab, d.benchSeat, BL, BD, B);
+    /* the back panel, set at the inboard edge */
+    const bk = at(0, -(Dp - d.benchSlab / 2));
+    boxNear(scn, g, W, bk.x, bk.y,
+            face ? d.benchSlab / 2 : L, face ? L : d.benchSlab / 2,
+            d.benchSeat, d.benchBack, BL, BD, B);
+  }
+
+  /* =======================================================================
+     SEAGULL
+     Perched, which is what they do on a pier rail. Body and head white,
+     mantle grey, black wingtips, yellow bill, and the idle is a slow head
+     turn rather than a flap -- a bird that flaps forever on the spot reads
+     as broken. Seeded off position so a given gull always faces the same
+     way and they do not all bob in unison.
+     ======================================================================= */
+  function drawSeagull(scn, g, W, cx, cy, z, t, o) {
+    const d = Object.assign({}, D, o || {});
+    const K = scn.K, S = d.gullSize;
+    const seed = ((Math.round(cx) * 7919) ^ (Math.round(cy) * 104729)) >>> 0;
+    const rng = mulberry32(seed);
+    const dir = rng() < 0.5 ? -1 : 1;
+    const phase = rng() * Math.PI * 2;
+    /* slow head turn, plus the smallest body bob -- alive, not animated */
+    const turn = Math.sin(t * 0.0006 + phase) * 0.5;
+    const bob = Math.sin(t * 0.0011 + phase) * S * 0.03;
+    const o0 = W(cx, cy, z + bob);
+    /* legs */
+    g.lineStyle(Math.max(1, 1.3 * K), RH.gullLeg, 1);
+    for (const lo of [-0.18, 0.18]) {
+      const a2 = W(cx + lo * S * dir, cy + lo * S, z);
+      const b2 = W(cx + lo * S * dir, cy + lo * S, z + S * 0.22 + bob);
+      g.lineBetween(a2.x, a2.y, b2.x, b2.y);
+    }
+    /* body: an ellipse with the tail drawn as a wedge behind it */
+    g.fillStyle(RH.gullBody, 1);
+    g.fillEllipse(o0.x, o0.y - S * 0.30 * K, S * 0.92 * K, S * 0.58 * K);
+    g.fillStyle(RH.gullMantle, 1);
+    g.fillEllipse(o0.x - dir * S * 0.10 * K, o0.y - S * 0.34 * K, S * 0.62 * K, S * 0.36 * K);
+    /* black wingtip, the detail that makes it read as a gull and not a dove */
+    g.fillStyle(RH.gullTip, 1);
+    g.fillTriangle(o0.x - dir * S * 0.34 * K, o0.y - S * 0.34 * K,
+                   o0.x - dir * S * 0.62 * K, o0.y - S * 0.22 * K,
+                   o0.x - dir * S * 0.30 * K, o0.y - S * 0.20 * K);
+    /* head + bill, turning slowly */
+    const hx2 = o0.x + dir * (S * 0.34 + turn * S * 0.10) * K;
+    const hy2 = o0.y - S * 0.60 * K;
+    g.fillStyle(RH.gullBody, 1);
+    g.fillCircle(hx2, hy2, S * 0.24 * K);
+    g.fillStyle(RH.gullBill, 1);
+    g.fillTriangle(hx2 + dir * S * 0.20 * K, hy2,
+                   hx2 + dir * S * 0.46 * K, hy2 + S * 0.04 * K,
+                   hx2 + dir * S * 0.20 * K, hy2 + S * 0.10 * K);
+    g.fillStyle(RH.gullEye, 1);
+    g.fillCircle(hx2 + dir * S * 0.10 * K, hy2 - S * 0.04 * K, Math.max(0.8, S * 0.045 * K));
   }
 
   function drawRoundhouse(scn, g, W, t, o) {
@@ -667,7 +787,7 @@
              pierX0: x, pierX1: x + BLOCK * 2.2, pierHalf: 344 };
   }
 
-  const RHS = { showRail: true, showLamps: true, showBuilding: true, showPylons: true, rot: 0 };
+  const RHS = { showRail: true, showLamps: true, showBuilding: true, showPylons: true, showBench: true, showGulls: true, rot: 0 };
 
   /* Waterfront's schematic mode blanks the world below its own K threshold,
      which is right when you are reading lattice shape and wrong when you
@@ -750,6 +870,34 @@
         }
       }
     }
+    if (RHS.showBench) {
+      /* set in from the rail by half the bench depth plus a walking gap,
+         backs to the centreline so the seat looks at the water */
+      const x0 = A.pierX0 + (A.sh ? A.sh.ring.rOuter : 0), x1 = A.pierX1;
+      const n = Math.max(1, Math.floor((x1 - x0) / D.benchGap));
+      for (let k = 0; k <= n; k++) {
+        const x = x0 + (x1 - x0) * (k / n);
+        for (const s of [-1, 1]) {
+          const y = A.pierY + s * (A.pierHalf - D.benchDepth * 0.9);
+          Q(x + y, (g) => drawPierBench(sc, g, (dx, dy, dz) => sc.W(dx, dy, dz),
+                                        x, y, 0, {}));
+        }
+      }
+    }
+    if (RHS.showGulls) {
+      /* perched on the rail cap, which is where they actually sit */
+      const x0 = A.pierX0 + (A.sh ? A.sh.ring.rOuter : 0), x1 = A.pierX1;
+      const step = D.railPost * D.gullEvery;
+      for (let x = x0 + step * 0.5; x < x1; x += step) {
+        for (const s of [-1, 1]) {
+          const y = A.pierY + s * A.pierHalf;
+          /* seeded thinning so the rail is not a picket line of birds */
+          if (mulberry32(((Math.round(x) * 7919) ^ (Math.round(y) * 104729)) >>> 0)() < 0.45) continue;
+          Q(x + y + 2, (g) => drawSeagull(sc, g, (dx, dy, dz) => sc.W(dx, dy, dz),
+                                          x, y, D.railH + 10, t, {}));
+        }
+      }
+    }
     flush(sc, t, items);
   });
 
@@ -767,6 +915,9 @@
     { k: 'pylonDepth', label: 'pile deep', min: 80, max: 1800, step: 20 },
     { k: 'bentGap', label: 'bent gap', min: 300, max: 2500, step: 50 },
     { k: 'pilesPerBent', label: 'per bent', min: 2, max: 7, step: 1 },
+    { k: 'benchLen', label: 'bench L', min: 150, max: 600, step: 10 },
+    { k: 'benchGap', label: 'bench gap', min: 800, max: 6000, step: 100 },
+    { k: 'gullSize', label: 'gull', min: 20, max: 110, step: 2 },
   ];
 
   const panel = document.createElement('div');
@@ -798,6 +949,8 @@
        <button id="rhR">rails</button>
        <button id="rhL">lamps</button>
        <button id="rhP">pylons</button>
+       <button id="rhBe">bench</button>
+       <button id="rhG">gulls</button>
        <button id="rhReset">reset</button>
      </div>
      <div id="rhStat" style="margin-top:8px;color:#8f95a1;white-space:pre-line"></div>
@@ -865,7 +1018,8 @@
       document.getElementById('rhv-' + f.k).textContent = D[f.k];
     }
     for (const [id, on] of [['rhB', RHS.showBuilding], ['rhR', RHS.showRail],
-                            ['rhL', RHS.showLamps], ['rhP', RHS.showPylons]])
+                            ['rhL', RHS.showLamps], ['rhP', RHS.showPylons],
+                            ['rhBe', RHS.showBench], ['rhG', RHS.showGulls]])
       document.getElementById(id).style.background = on ? '#6faab0' : '#262a33';
     refresh();
   }
@@ -922,6 +1076,8 @@
   document.getElementById('rhR').onclick = () => { RHS.showRail = !RHS.showRail; sync(); };
   document.getElementById('rhL').onclick = () => { RHS.showLamps = !RHS.showLamps; sync(); };
   document.getElementById('rhP').onclick = () => { RHS.showPylons = !RHS.showPylons; sync(); };
+  document.getElementById('rhBe').onclick = () => { RHS.showBench = !RHS.showBench; sync(); };
+  document.getElementById('rhG').onclick = () => { RHS.showGulls = !RHS.showGulls; sync(); };
   document.getElementById('rhReset').onclick = () => {
     Object.assign(D, { rWall: 520, wallH: 300, eave: 90, roofH: 165, drumR: 175,
                        drumH: 130, railH: 118, lampH: 430, lampSpacing: 1100,
@@ -947,8 +1103,9 @@
     if (wfLab && wfSchematicWas !== null) wfLab.WF.schematic = wfSchematicWas;
     document.getElementById('rhPanel')?.remove();
   };
-  scene._rhAPI = { RH, D, RHS, PYL, drawRoundhouse, drawPierRail, drawRailPath,
-                   deckRailArc, drawPierLamp, drawPierPylons, discEdgeU, anchor };
+  scene._rhAPI = { RH, D, RHS, PYL, boxNear, drawRoundhouse, drawPierRail, drawRailPath,
+                   deckRailArc, drawPierLamp, drawPierPylons, drawPierBench,
+                   drawSeagull, discEdgeU, anchor };
 
   sync();
   /* STARTS COLLAPSED. Nine sliders is most of a phone screen, and the
