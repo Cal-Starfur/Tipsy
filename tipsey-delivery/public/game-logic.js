@@ -1422,6 +1422,25 @@ function twFxSyncCommentBtn(){
   } else if(twFx.draft){
     twFxRenderComposer(g);
     twFxHideFollowBtn();
+  } else if(twFx.draftWhy === "pending"){
+    /* STILL IN FLIGHT IS NOT THE SAME AS ABSENT (Sir's call, 2026-08-14):
+       "the fall through is hiding behind the win screen, it's showing for
+       a second then overridden by the actual screen we want". showWin
+       calls this the instant after reportWin fires its request, so the
+       draft is always empty on the first pass -- without this branch the
+       no-draft FOLLOW fallback painted itself every single win and got
+       swapped out a moment later when the response landed.
+
+       Same placeholder both sibling gates already use for the same race
+       (tdFxSyncGate, tsFxWinSyncGate): hold the panel's own space with a
+       quiet loading line so nothing jumps when the composer arrives, and
+       keep FOLLOW down -- it is the answer to "there is no post", which
+       is not yet known to be true. reportWin's .catch calls back in, so
+       a dead network still reaches the fallback rather than sitting
+       here. */
+    twFxHideFollowBtn();
+    g.style.display = "block";
+    g.innerHTML = '<div style="color:#8f8571;font-size:13px;">loading your run&hellip;</div>';
   } else {
     /* NO DRAFT, NO PROGRESSION. Network error, not signed in, a replay of
        a past date -- the same fallback tsFxWinShowAgain takes, and the
@@ -1671,7 +1690,10 @@ function reportWin(s, payout, pctShow){
       else if(d) twFx.draftWhy = "empty text (server: no post id or not signed in)";
       twFxSyncCommentBtn();
     })
-    .catch(() => { twFx.draftWhy = "network error"; });
+    /* the pending branch in twFxSyncCommentBtn is holding a loading line
+       on screen until something calls back -- on this path nothing used
+       to, which would have stranded it there for the rest of the win */
+    .catch(() => { twFx.draftWhy = "network error"; twFxSyncCommentBtn(); });
 }
 /* ============================================================
    TS SLALOM WIN EXTRAS -- Comment bonus + Follow button, painted on
