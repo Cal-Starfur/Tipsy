@@ -7127,7 +7127,7 @@ class WorldScene extends Phaser.Scene {
        initialized here as well as in peelReset so drawBurnoutSmoke's
        length read is never undefined on the very first frame. */
     this.peel = { smoke: [], held: false, launchT0: 0 };
-    this.openHold = false; this.openAdopted = false;
+    this.openHold = false; this.openAdopted = false; this.openT0 = null;
     this.tipT = 0; this.tipStartRoll = 0; this.postSpillMs = 0; this.lidAng = 0; this.items = []; this.spilled = false;
     this.wonT = 0; this.wonFrac = 0; this.wonLiftT = 0; this.wonLidClosing = false; this.wonWalkAt = null; this.wonWalk = 0; this.wonOutT = 0; this.wonOutFrac = 0; this.wonMeet = null;
     this.bagOnBoard = false;
@@ -8447,7 +8447,7 @@ class WorldScene extends Phaser.Scene {
        than at the GO button because every entry into a run comes through
        loadRoute (GO, Retry, Today, the attract recycle) and only this one
        also zeroes runT, which is the clock the hold is measured against. */
-    this.openHold = true; this.openAdopted = false; this.peelReset();
+    this.openHold = true; this.openAdopted = false; this.openT0 = null; this.peelReset();
     this.tipCause = null;
     this.roll = 0; this.tipT = 0; this.tipStartRoll = 0; this.postSpillMs = 0; this.lidAng = 0; this.items = []; this.spilled = false;
     this.wonT = 0; this.wonFrac = 0; this.wonLiftT = 0; this.wonLidClosing = false; this.wonWalkAt = null; this.wonWalk = 0; this.wonOutT = 0; this.wonOutFrac = 0; this.wonMeet = null;
@@ -14295,9 +14295,27 @@ class WorldScene extends Phaser.Scene {
        walk-back + shop door open/close]. The walk phase doesn't start
        counting until loading actually finishes — previously the walk
        timer fired the instant "go" was pressed, leaving no room for
-       a loading beat. loadT/loadFrac driven by this.runT (real
-       elapsed ms only while state==="play"), same frame-rate-
-       independent approach as PICKUP_ART.walkMs already used. */
+       a loading beat.
+
+       loadT USED TO BE this.runT, on the belief that runT was real
+       elapsed ms. It is not. runT accumulates Phaser's SMOOTHED delta
+       (game.loop.delta), and with no fps block in the game config
+       Phaser clamps that to the 60fps target: measured on 2026-08-14,
+       loop.delta sat at 16.7 while loop.rawDelta was ~530. So runT --
+       and every gate keyed off it -- counts FRAMES, not milliseconds.
+       On a device that dips during the pickup scene (worker hull,
+       swinging door, bag arc, lid, smoke, the 4-way camera average,
+       all at once) the whole opening stretched in wall-clock time, and
+       the standing start held Tipsey through it. That is Sir's report,
+       2026-08-14: "tipsey isnt taking off until after the opening is
+       over ... hes stalling."
+
+       performance.now() is not smoothed, so the loading beat is now
+       700ms on every device, and PEEL's release lands at ~1.02s the
+       way it already did at 60fps. openT0 latches lazily on the first
+       play frame (not at the reset sites -- openHold goes true while
+       state is still "idle", so starting the clock there would eat
+       part of the beat) and is cleared by both resets. */
     let loadFrac = 0;
     /* CHALLENGE: there is no delivery here. No pickup shop, no worker
        walking out, no bag, no loading beat — you are on Palmline Ave to
@@ -14309,7 +14327,8 @@ class WorldScene extends Phaser.Scene {
       this.loadDone = false; this.walkAt = null; this.pickupWalk = 1;
       this.bagOnBoard = false; this.doorSwing = 0; this.pickupLidClosing = false;
     } else if(this.state === "play"){
-      const loadT = this.runT;
+      if(this.openT0 == null) this.openT0 = performance.now();
+      const loadT = performance.now() - this.openT0;
       loadFrac = Phaser.Math.Clamp(loadT / LOAD_ART.ms, 0, 1);
       this.loadDone = loadT >= LOAD_ART.ms;
       /* persistent latch for the spill: loadDone itself is VOLATILE —
@@ -14465,12 +14484,31 @@ class WorldScene extends Phaser.Scene {
     else if(this.lidAng < 0.02) this.wonLidClosing = false;   // same invisible-swap bar as the pickup latch
     this.lidHingeFlip = (this.state === "play" && (loadingLidOpen || this.pickupLidClosing))
                      || (this.state === "won" && (wonLidOpen || this.wonLidClosing));
+    /* THE EASE IS PER-FRAME, AND THE RELEASE GATE READS IT.
+       PEEL.lidShut deliberately makes the standing start release on a
+       lid ANGLE rather than a duration (see its own note). That only
+       holds up if the angle itself moves in real time -- otherwise the
+       gate is a frame counter wearing a dial's clothes, which is
+       exactly what it was: 32 frames to ease 1.02 -> 0.05, i.e. 532ms
+       at 60fps but 1067ms at 30.
+
+       Normalizing against the passed-in dt would do NOTHING here: dt
+       IS game.loop.delta, the smoothed value Phaser has already pinned
+       to 16.7 (see the loadT note above). rawDelta is the untouched
+       frame time and is the only honest clock available. Capped at
+       50ms so one big hitch eases toward the target at most ~3 frames'
+       worth in a single step instead of snapping the lid shut.
+
+       At exactly 60fps _lidK evaluates to LOAD_ART.lidEase, so nothing
+       Sir dialled in labs/pickup-lab.html moves. */
+    const _rawDt = Math.min(this.game.loop.rawDelta || dt || 16.667, 50);
+    const _lidK  = 1 - Math.pow(1 - LOAD_ART.lidEase, _rawDt / 16.667);
     if(this.state === "play"){
-      this.lidAng += (lidLoadTarget - this.lidAng) * LOAD_ART.lidEase;
+      this.lidAng += (lidLoadTarget - this.lidAng) * _lidK;
       if(Math.abs(lidLoadTarget - this.lidAng) < 0.002) this.lidAng = lidLoadTarget;
     } else if(this.state === "won"){
       const lidWonTarget = wonLidOpen ? LOAD_ART.lidOpenAngle : 0;
-      this.lidAng += (lidWonTarget - this.lidAng) * LOAD_ART.lidEase;
+      this.lidAng += (lidWonTarget - this.lidAng) * _lidK;
       if(Math.abs(lidWonTarget - this.lidAng) < 0.002) this.lidAng = lidWonTarget;
     }
 
@@ -14627,7 +14665,16 @@ class WorldScene extends Phaser.Scene {
           const ap = this.input.activePointer;
           if(ap && ap.isDown) this.throttle = 1;
         }
-        if(this.runT >= LOAD_ART.ms && this.lidAng < PEEL.lidShut){
+        /* loadDone, NOT runT >= LOAD_ART.ms. Both used to say the same
+           thing; they stopped the moment the loading beat moved onto a
+           wall clock (see the loadT note in the pickup timeline). runT
+           is still Phaser's smoothed-delta frame counter, so leaving it
+           here left the gate half-converted -- confirmed in the 2026-08-14
+           headless run: loadFrac reached 1 in 700ms real while runT was
+           still under 300 after nine seconds, and the hold never let go
+           at all. loadDone is the same wall clock the beat itself runs
+           on, so the two can no longer disagree. */
+        if(this.loadDone && this.lidAng < PEEL.lidShut){
           this.openHold = false;
           if(this.peel.held) this.peelLaunch(this.speedCap || 0.225);
         } else {
