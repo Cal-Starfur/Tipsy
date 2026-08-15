@@ -103,6 +103,7 @@
     fascia: 44,        // deck edge beam depth
     benchLen: 300, benchDepth: 118, benchSeat: 74,
     benchBack: 168, benchSlab: 26, benchEnd: 34,
+    benchScale: 0.62,
     benchGap: 2200,    // spacing along the pier
     gullSize: 46,
     gullEvery: 3,      // one gull per this many rail posts
@@ -376,30 +377,43 @@
      ======================================================================= */
   function drawPierBench(scn, g, W, cx, cy, face, o) {
     const d = Object.assign({}, D, o || {});
-    const L = d.benchLen / 2, Dp = d.benchDepth / 2;
-    /* face 0 = seat looks +y, 1 = looks +x. Only two orientations are
-       needed: benches sit along the pier's two edges. */
+    /* SCALE. Sized against the lamp, which is the one prop out here with a
+       real-world anchor: a pier bench's back is about 0.22 of a lamp post's
+       height, not the 0.39 this shipped at. benchScale drives every bench
+       dimension together so the proportions cannot drift apart while it is
+       being tuned. */
+    const S = d.benchScale;
+    const L = d.benchLen * S / 2, Dp = d.benchDepth * S / 2;
+    const seatZ = d.benchSeat * S, backZ = d.benchBack * S;
+    const slab = d.benchSlab * S, endW = d.benchEnd * S;
+    /* FACE IS AN AXIS **AND** A SIGN (2026-08-14, Sir: "they all face the
+       same direction"). The first version took only the axis, so every
+       bench on the pier had its back on the same side -- the north row sat
+       looking inland at the deck instead of out at the water. `face` is now
+       0/1 for the axis and `d.benchFacing` (+1/-1) for which way the seat
+       looks along it, and the caller passes the side it placed the bench
+       on. On a pier the seat always faces the nearer rail. */
+    const sgn = (o && o.facing) || 1;
     const along = face ? { x: 0, y: 1 } : { x: 1, y: 0 };
-    const out = face ? { x: 1, y: 0 } : { x: 0, y: 1 };
+    const out = face ? { x: sgn, y: 0 } : { x: 0, y: sgn };
     const at = (a2, o2) => ({ x: cx + along.x * a2 + out.x * o2,
                               y: cy + along.y * a2 + out.y * o2 });
     const hx = face ? Dp : L, hy = face ? L : Dp;
     const B = RH.bench, BD = RH.benchDk, BL = RH.benchLt;
     /* two end slabs */
-    for (const s of [-1, 1]) {
-      const e = at(s * (L - d.benchEnd / 2), 0);
-      boxNear(scn, g, W, e.x, e.y, face ? Dp : d.benchEnd / 2,
-              face ? d.benchEnd / 2 : Dp, 0, d.benchSeat, BL, BD, B);
+    for (const s2 of [-1, 1]) {
+      const e = at(s2 * (L - endW / 2), 0);
+      boxNear(scn, g, W, e.x, e.y, face ? Dp : endW / 2,
+              face ? endW / 2 : Dp, 0, seatZ, BL, BD, B);
     }
     /* the seat spanning them */
     const c0 = at(0, 0);
-    boxNear(scn, g, W, c0.x, c0.y, hx, hy,
-            d.benchSeat - d.benchSlab, d.benchSeat, BL, BD, B);
-    /* the back panel, set at the inboard edge */
-    const bk = at(0, -(Dp - d.benchSlab / 2));
+    boxNear(scn, g, W, c0.x, c0.y, hx, hy, seatZ - slab, seatZ, BL, BD, B);
+    /* the back panel, at the inboard edge -- opposite the way the seat looks */
+    const bk = at(0, -(Dp - slab / 2));
     boxNear(scn, g, W, bk.x, bk.y,
-            face ? d.benchSlab / 2 : L, face ? L : d.benchSlab / 2,
-            d.benchSeat, d.benchBack, BL, BD, B);
+            face ? slab / 2 : L, face ? L : slab / 2,
+            seatZ, backZ, BL, BD, B);
   }
 
   /* =======================================================================
@@ -919,9 +933,12 @@
       for (let k = 0; k <= n; k++) {
         const x = x0 + (x1 - x0) * (k / n);
         for (const s of [-1, 1]) {
-          const y = A.pierY + s * (A.pierHalf - D.benchDepth * 0.9);
+          /* inset from the rail by the bench's own depth plus a walking gap,
+             and facing THAT rail -- s is both the side and the seat's
+             direction, which is what stops both rows facing the same way */
+          const y = A.pierY + s * (A.pierHalf - D.benchDepth * D.benchScale * 0.9);
           Q(x + y, (g) => drawPierBench(sc, g, (dx, dy, dz) => sc.W(dx, dy, dz),
-                                        x, y, 0, {}));
+                                        x, y, 0, { facing: s }));
         }
       }
     }
@@ -956,6 +973,7 @@
     { k: 'pylonDepth', label: 'pile deep', min: 80, max: 1800, step: 20 },
     { k: 'bentGap', label: 'bent gap', min: 300, max: 2500, step: 50 },
     { k: 'pilesPerBent', label: 'per bent', min: 2, max: 7, step: 1 },
+    { k: 'benchScale', label: 'bench sz', min: 0.25, max: 1.6, step: 0.02 },
     { k: 'benchLen', label: 'bench L', min: 150, max: 600, step: 10 },
     { k: 'benchGap', label: 'bench gap', min: 800, max: 6000, step: 100 },
     { k: 'gullSize', label: 'gull', min: 20, max: 110, step: 2 },
@@ -1122,7 +1140,8 @@
   document.getElementById('rhReset').onclick = () => {
     Object.assign(D, { rWall: 520, wallH: 300, eave: 90, roofH: 165, drumR: 175,
                        drumH: 130, railH: 118, lampH: 430, lampSpacing: 1100,
-                       pylonDepth: 460, bentGap: 900, pilesPerBent: 4 });
+                       pylonDepth: 460, bentGap: 900, pilesPerBent: 4,
+                       benchScale: 0.62, benchGap: 2200 });
     sync();
   };
   document.getElementById('rhCopy').onclick = async () => {
