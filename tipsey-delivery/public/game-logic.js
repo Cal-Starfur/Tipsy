@@ -2505,7 +2505,6 @@ const HJ_SEED_DATE = "2026-07-30";
    course now), so this is just about the course being the same place
    twice, not about finding a lucky date. */
 const SL_SEED_DATE = "2026-08-09";
-const hjPlaceName = () => `${HJ_ADDRESS.number} ${HJ_ADDRESS.street}, ${HJ_ADDRESS.hood}`;
 
 /* approved palm (palm lab, 2026-07-07): the Costa Palma house style */
 const PALM = {
@@ -2975,25 +2974,6 @@ function binTipPoint(u, h, phi){
   if(phi === 0) return { u, z: h };
   const cphi = Math.cos(phi), sphi = Math.sin(phi);
   return { u: pvt + (u - pvt)*cphi + h*sphi, z: -(u - pvt)*sphi + h*cphi };
-}
-/* the wall IS the bin: samples the actual barrel silhouette at the
-   current tip angle to find the nearest-to-robot point, rather than
-   using a fixed clearance number. Standing, that's the lid overhang;
-   as it topples away (always downstream, same as the punt) the near
-   side swings up and shrinks toward the pivot, where it locks once
-   knocked — the physical boundary just stops moving, which is what
-   makes a knocked bin block the lane just as permanently as a
-   standing one. */
-function binNearEdge(phi){
-  let minU = Infinity;
-  for(let hi=0; hi<=8; hi++){
-    const h = hi/8*BIN.height, r = binR(h);
-    for(const u of [-r, r]){ const t = binTipPoint(u, h, phi); if(t.u < minU) minU = t.u; }
-  }
-  for(const u of [-BIN.lidR, BIN.lidR]){
-    const t = binTipPoint(u, BIN.height, phi); if(t.u < minU) minU = t.u;
-  }
-  return minU;
 }
 /* where a knocked bin's BLOCKING footprint actually sits, relative to
    its spawn anchor, along the route (+s): the shove's slide plus the
@@ -5179,21 +5159,13 @@ function segCross(p1, p2, p3, p4){
   return u >= 0 && u <= 1 && v >= 0 && v <= 1;
 }
 
-/* Unused since the crime scene moved off the calendar and onto the
-   ladder (see crimeSceneOnRun). Kept because it is the only
-   days-since-epoch helper in the file and costs nothing.
-   days since epoch; 1970-01-01 was a Thursday, so +3 makes 0 = Monday */
-function crimeDayIndex(dateStr){
-  const d = Date.parse(dateStr + "T00:00:00Z");
-  return Math.floor(d / 86400000);
-}
 /* ONE PER SEVEN RUNGS, NOT ONE PER WEEK (Sir's call, 2026-08-13: "we
    should probably change the police algorithm from weekly to every 7
    routes generated"). The construction is unchanged and still gives
    exactly one scene per block of seven with no per-route probability
    that could produce two or none -- the only thing that moved is what
-   indexes the block. It USED to be the calendar: crimeDayIndex parses
-   the date, and a ladder rung ("2026-08-13#4") is not a date, so
+   indexes the block. It USED to be the calendar, parsed with
+   Date.parse -- and a ladder rung ("2026-08-13#4") is not a date, so
    Date.parse returns NaN and the isFinite guard would have switched the
    police off permanently the moment the ladder shipped. Indexing on the
    rung is both the fix and what was asked for.
@@ -10822,70 +10794,6 @@ class WorldScene extends Phaser.Scene {
       }
     });
   }
-  /* ---------- commercial interior fill (2026-08-06, "commercial
-     buildings should fill in the center of the block") ----------
-     DISABLED CITYWIDE as of 2026-08-12 (Sir's call, didn't read well
-     on-device) -- the one caller (queueCommercialBlock) now hardcodes
-     interior = [] instead of calling this. Left defined, not deleted,
-     in case the call gets restored later.
-     1-2 bigger standalone stores in the block's middle. The perimeter
-     ring (edge + corner units) reaches cornerMargin in from the block
-     line on every side; INTERIOR ring insets one further tile so a
-     plaza walkway always separates ring and interior. Facing is a
-     seeded cardinal pick using blockEdgesOf's own dv/rv pairing
-     (rv = DIRV[(f+3)%4]), rendered through queueUnitStrips like every
-     other store so depth sorting stays strip-exact on all four
-     headings. Two-building days split the interior in halves along a
-     seeded axis, one building per half, so they cannot overlap by
-     construction. The crime block skips interior fill entirely: the
-     scene owns that block's open ground (cordon, officer patrols) and
-     nothing new should land inside it. Returns the placed footprint
-     rects so the planter/bench scatter can dodge them. */
-  queueCommercialInterior(vq, blk){
-    const r = this.route;
-    if(r.crime && r.crime.blockKey === (blk.i + "," + blk.j)) return [];
-    const RING = HOUSE_DEPTH + T2*0.3 + T2;      // perimeter units' reach + one-tile walkway
-    const ix0 = blk.x0 + RING, ix1 = blk.x1 - RING;
-    const iy0 = blk.y0 + RING, iy1 = blk.y1 - RING;
-    if(ix1 - ix0 < T2*4 || iy1 - iy0 < T2*4) return [];
-    const rng = mulberry32(((Math.round((blk.x0+blk.x1)/2)*7919) ^ (Math.round((blk.y0+blk.y1)/2)*104729) ^ 0x1c7b) >>> 0);
-    const n = rng() < 0.45 ? 1 : 2;
-    const splitX = rng() < 0.5;                   // two-building days: halve along x or y
-    const rects = [];
-    for(let k = 0; k < n; k++){
-      const D = STORE_DEPTH;
-      const f = Math.floor(rng()*4);
-      const dv = DIRV[f], rv = DIRV[(f+3)%4];
-      /* placement window: whole interior for one building, its own half
-         (split at the interior midline) when there are two */
-      let wx0 = ix0, wx1 = ix1, wy0 = iy0, wy1 = iy1;
-      if(n === 2){
-        if(splitX){ if(k === 0) wx1 = (ix0+ix1)/2; else wx0 = (ix0+ix1)/2; }
-        else      { if(k === 0) wy1 = (iy0+iy1)/2; else wy0 = (iy0+iy1)/2; }
-      }
-      const along = dv.x !== 0 ? wx1-wx0 : wy1-wy0;   // window extent on the facade axis
-      const cross = dv.x !== 0 ? wy1-wy0 : wx1-wx0;
-      if(along < T2*2 || cross < D) continue;         // degenerate window only
-      /* wider than a street storefront -- it anchors the plaza. Clamped
-         to its own window: the first cut DROPPED oversized rolls here,
-         and the measured fill came out 1.30 buildings/block against the
-         1.55 the n-roll implies (two-building halves are ~432 wide vs a
-         506 max roll) -- including possible zero-building two-days.
-         Clamping places every rolled building at the size that fits. */
-      const w = Math.min(T2*(3.5 + rng()*2), along);
-      const hx2 = (dv.x !== 0 ? w : D)/2, hy2 = (dv.y !== 0 ? w : D)/2;  // axis-aligned half-extents
-      const bcx = wx0 + hx2 + rng()*((wx1-wx0) - hx2*2);
-      const bcy = wy0 + hy2 + rng()*((wy1-wy0) - hy2*2);
-      const ux = bcx + rv.x*(D/2) - dv.x*(w/2), uy = bcy + rv.y*(D/2) - dv.y*(w/2);
-      const hseed = ((Math.round(bcx)*7919) ^ (Math.round(bcy)*104729) ^ 0x5e21) >>> 0;
-      this.queueUnitStrips(vq, ux, uy, dv, rv, w, D, T2, (g,t,a0,a1)=>{
-        this.drawStoreUnit(g, ux, uy, dv, rv, w, hseed, true, true, 'body', a0, a1);
-        this.drawStoreUnit(g, ux, uy, dv, rv, w, hseed, true, true, 'roof', a0, a1);
-      });
-      rects.push({ x0: bcx-hx2, x1: bcx+hx2, y0: bcy-hy2, y1: bcy+hy2 });
-    }
-    return rects;
-  }
   queueCommercialBlock(vq, blk, excludeEdges=null, cornerSkip=null){
     const isPickupBlock = (blk === this.route.pickupBlock);
     this.blockEdges(blk).forEach((e, idx) => {
@@ -10893,15 +10801,13 @@ class WorldScene extends Phaser.Scene {
       this.queueCommercialEdgeAt(vq, e, isPickupBlock && idx === this.route.pickupEdgeIdx, cornerSkip);
     });
     for(const cu of this.liveCornerUnits(blk, excludeEdges)) this.queueCornerUnit(vq, blk, cu);
-    /* 2026-08-12, Sir's call: commercial interior fill (the 1-2 plaza
-       buildings queueCommercialInterior used to drop in every block's
-       middle) is OFF citywide -- didn't read well on-device. Left as an
-       empty array rather than deleting the call: queueCommercialInterior
-       is self-contained (owns its own mulberry32 seed, never touches
-       the `rng` declared two lines down), so this is a pure subtraction
-       -- no other seeded randomness in this function shifts. The scatter
-       dodge below (`clear`) degrades safely too: an empty interior[]
-       just means nothing to dodge, same code path either way. */
+    /* Commercial interior fill (1-2 free-standing "plaza" buildings in
+       the middle of every commercial block) is OFF citywide -- 2026-08-12,
+       Sir's call, it didn't read well on-device. The generator it used
+       owned its own mulberry32 seed and never touched the `rng` declared
+       below, so removing it shifted no other seeded randomness. The
+       scatter dodge below (`clear`) takes the empty array happily:
+       nothing to dodge, same code path. */
     const interior = [];
     const cx = (blk.x0+blk.x1)/2, cy = (blk.y0+blk.y1)/2;
     const rng = mulberry32(((Math.round(cx)*7919) ^ (Math.round(cy)*104729) ^ 0x71c4) >>> 0);
@@ -15204,15 +15110,12 @@ class WorldScene extends Phaser.Scene {
           /* the wall IS the bin (approved bin hit lab, 2026-07-09):
              a municipal bin is too big to plow through standing OR
              lying down — same cast-iron contract as the hydrant, but
-             permanent. Restored to the hydrant's exact fixed-clearance
-             trigger pattern: the dynamic binNearEdge-based creeping
-             stop line stopped firing collision entirely at some point
-             after the lane system was rebuilt (3-lane -> 4-lane band),
-             and a static analysis pass couldn't isolate why without
-             being able to run it live. This is simpler and uses the
-             one pattern in this file proven to still work, even
-             though it loses the stop line creeping forward as the
-             bin topples. */
+             permanent. Uses the hydrant's fixed-clearance trigger
+             pattern. An earlier dynamic version sampled the barrel
+             silhouette so the stop line crept forward as the bin
+             toppled; it stopped firing collision entirely after the
+             lane rebuild (3-lane -> 4-lane band) and was replaced
+             with this. */
           /* clearance eases from 26 (standing — the lab-calibrated
              figure) down to 16 fully knocked: a lying barrel presents
              low and the standing clearance read as daylight between
@@ -15928,9 +15831,6 @@ class WorldScene extends Phaser.Scene {
         if(this.botS > overshootLimit){
           this.botS = overshootLimit; this.speed = 0;
         }
-      }
-      if(this.botS < _botS_frameStart - 0.01){
-        console.warn(`[BACKWARD] botS ${_botS_frameStart.toFixed(1)} -> ${this.botS.toFixed(1)} (Δ${(this.botS-_botS_frameStart).toFixed(1)}) botRow=${this.botRow} isBlocked=${this.isBlocked} segType=${this.segAt(this.botS).type}`);
       }
       /* GPS reroute: past the win window and into the lap's entry
          corner means the first pass is MISSED — retarget doorS to its
@@ -17883,9 +17783,7 @@ class WorldScene extends Phaser.Scene {
    gets ported into game/index.html.
    ============================================================ */
 
-/* ---------- ported verbatim from game/index.html ---------- */
-const HJ_STEP = 16.7;   // fixed sim slice; solveBand() MUST use the same
-const HJ_PAL = { sky:0x9fd4e8, pave:0xc9c3b4, paveB:0xbfb9aa, paveEdge:0xa8a294, road:0x4a4d55, roadLine:0xd8d2c2 };
+const HJ_STEP = 16.7;   // fixed sim slice; the charge solver MUST use the same
 /* reward palette preview — the thing the stunt actually unlocks.
    Storefront-agnostic per docs/skins-spec.md: this is only the
    render side, no entitlement plumbing in the bench. */
@@ -18040,32 +17938,9 @@ function tpApplySkin(id){
   for(const k of Object.keys(SKIN)) if(!(k in SKIN_BASE)) delete SKIN[k];
   Object.assign(SKIN, SKIN_BASE, SKIN_PALETTES[id] || {});
 }
-/* earn + wear in one step, used when a mission grants a skin */
-function tpEquipSkin(id){
-  tpProfile.owned.add(id);
-  tpProfile.equipped = id;
-  tpApplySkin(id);
-  tpSaveProfile();
-  if(typeof tpRender === "function") tpRender();
-}
-/* the swatch should show the ACTUAL palette, not a CSS filter guess —
-   hue-rotating a near-white robot is why the Fire Chief never read red */
-function tpSkinSwatchColors(id){
-  const pal = SKIN_PALETTES[id];
-  if(!pal) return null;
-  const hex = v => "#" + v.toString(16).padStart(6,"0");
-  return { body: hex(pal.bodyTop), side: hex(pal.bodyRight),
-           dark: hex(pal.bodyLeft), stripe: hex(pal.stripe) };
-}
 
 
-/* ---------- the dials (ported into the game once approved) ---------- */
-const HJ_RUN = {
-  f: 0,             // run/heading index — the four-heading gate
-  pitchSign: 1      // SIGN: +1 means positive pitch = nose UP (derived
-                    // from T(): z' = x*sin(pitch), front is +x). Flip
-                    // if the nose reads inverted on device.
-};
+/* ---------- the jump dials ---------- */
 const HJ_JUMP = {
   /* speed and pow now come from the CHARGE (see HJ_CH below) — they are
      no longer fixed. grav, clear, bias, slam stay world constants. */
@@ -18098,13 +17973,6 @@ const HJ_JUMP = {
   slam: 11,         // = 22 / k — landing tilt kick per unit of descent velocity
   shadow: true
 };
-/* both slabs share one wedge: lift + dirSign (+1 kicks, -1 lands) */
-const HJ_RAMP = { s: 4, row: 0, lift: 12, dirSign:  1, root: true,  cracks: 3 };
-/* HJ_LAND.s is now DERIVED from the level — see buildLevel(). The tuned
-   6.75 from the jump lab is level 1, so level 1 is exactly the jump
-   that was already approved on device. */
-const HJ_LAND = { s: 6.75, row: 0, lift: 10, dirSign: -1, root: false, cracks: 2 };
-
 /* ============================================================
    THE CHALLENGE — tap-to-charge, escalating gap
    ============================================================
@@ -18292,9 +18160,6 @@ const HJ_CH = {
      not a measurement. */
   autoTap: 0
 };
-/* live hydrant list, rebuilt by buildLevel() */
-let HJ_HYDS = [];
-const HJ_ROW = { row: 0 };
 /* crash skid: how fast forward motion scrubs off while tipping over.
    base = friction while still up on the wheels, bite = extra friction
    as he goes flat and the body digs in. */
@@ -18533,7 +18398,6 @@ const gradeOver = (route, s0, s1) =>
    "good" leg for storefront dressing and the block-wrap cutaway. Reading as
    downhill wins — a slalom that looks like a climb is broken, a slalom with
    plainer buildings on one leg is not. */
-const DOWNHILL_F = [0, 1];
 let lastDiag = {};
 
 /* =========================================================================
@@ -18637,8 +18501,6 @@ function tpSlalomOn(){
 
   /* SL is hoisted to module scope now, alongside slFindChain — see the
      comment there. Everything below still reads it the same way. */
-  const HOOD_BLUFFS = 7;         // HOODS[7] — hill 1.0, the steepest in the city
-
   /* GATE FLAGS, in the ski-slalom convention: a coloured band tells you which
      side of the cone you owe it.
 
@@ -18695,8 +18557,6 @@ function tpSlalomOn(){
      copy of hop()'s flip living outside hop(), and a lifted copy of a rule is
      a rule that can drift from the original without anything failing loudly.
      The one place that flip belongs is hop(), which still has it. */
-  const SL0 = { ...SL };
-
   /* THE RAMP ROW IS A FACT ABOUT THE WORLD, so it lives with the other world
      facts rather than inside the chute code that first needed it. Declared down
      there it was read by the gate loop above it and threw "Cannot access
@@ -19995,9 +19855,9 @@ function tpSlalomOn(){
         'background:rgba(18,20,26,0)','color:#fff','text-align:center','padding:24px',
       ].join(';');
       card.innerHTML =
-        `<h2 id="slWinMsg" style="font-size:28px;margin:0 0 8px;text-shadow:0 2px 3px #b5540e;
+        `<h2 style="font-size:28px;margin:0 0 8px;text-shadow:0 2px 3px #b5540e;
               transform:translateY(-165px);color:${headlineCol}">${winMsg}</h2>
-         <p id="slWinSub" style="font-size:16px;line-height:1.5;color:#fff;max-width:330px;
+         <p style="font-size:16px;line-height:1.5;color:#fff;max-width:330px;
               margin:5px 0;text-shadow:0 2px 3px #b5540e;transform:translateY(-165px)">${winSub}</p>
          <!-- top:36% overrides .slRetryBtn's shared 46% for THIS button only (Fail's
               #slRetry keeps the shared value) -- 46% sat right where Tipsey stands at
@@ -21873,20 +21733,6 @@ function tpHideRouteLoading(){
   const el = document.getElementById("bootLoader");
   if(el) el.classList.add("done");
 }
-/* Shows the spinner, waits for it to actually paint, runs `work`
-   (whatever synchronous, possibly-slow route work needs to happen),
-   then hides it again -- after a minimum stretch of real idle time so
-   the spin is actually visible before it disappears (see the note
-   above). Every call site that swaps the active route outside the very
-   first boot should go through this rather than calling loadRoute/
-   loadChallenge directly. */
-function tpWithRouteLoading(text, work){
-  tpShowRouteLoading(text);
-  requestAnimationFrame(() => requestAnimationFrame(() => {
-    try { work(); } finally { setTimeout(tpHideRouteLoading, ROUTE_LOADING_MIN_IDLE_MS); }
-  }));
-}
-
 /* ---------- EXPLORABLE MAP: names, landmarks, free camera ---------- */
 /* one source for the map's park naming — the draw pass and the search
    index both ask this, so they can never disagree */
@@ -22032,7 +21878,7 @@ function tpBackToDailyRoute(){
      path now -- slalomMapSelect, hjStart, hjQuit, tpSlalomQuit, retry,
      today/reroll, prGoToRoute all call loadRoute/loadChallenge directly
      with no "Plotting route" pause. This was the one holdout still
-     wrapped in tpWithRouteLoading; removed so tapping the delivery pin
+     wrapped in the spinner helper; removed so tapping the delivery pin
      behaves the same as every other map selection instead of being the
      single case that pauses first. */
   const s = scn();
@@ -22229,7 +22075,7 @@ function tpMapExplore(){
   /* +/- for pointers without a pinch, and a search box for everyone */
   const ui = document.createElement("div");
   ui.id = "tpMapUI";
-  ui.innerHTML = '<div id="tpMapZoom" style="position:absolute;right:10px;bottom:64px;display:flex;flex-direction:column;gap:6px;z-index:6">'
+  ui.innerHTML = '<div style="position:absolute;right:10px;bottom:64px;display:flex;flex-direction:column;gap:6px;z-index:6">'
     + '<button id="tpMapPlus"  style="width:34px;height:34px;border-radius:8px;border:1px solid #4a4a52;background:rgba(20,21,26,0.85);color:#eee;font:700 18px/1 ui-monospace,monospace">+</button>'
     + '<button id="tpMapMinus" style="width:34px;height:34px;border-radius:8px;border:1px solid #4a4a52;background:rgba(20,21,26,0.85);color:#eee;font:700 18px/1 ui-monospace,monospace">\u2212</button></div>'
     + '<div id="tpMapSearchWrap" style="position:absolute;left:10px;right:56px;top:10px;z-index:6">'
