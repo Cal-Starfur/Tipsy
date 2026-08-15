@@ -1359,7 +1359,7 @@ function twFxRenderComposer(g){
   g.style.display = "block";
   g.innerHTML =
     '<div style="font-weight:700;font-size:11px;letter-spacing:0.8px;line-height:1.4;' +
-      'margin-bottom:12px;">POST YOUR RUN TO THE DELIVERY LOG</div>' +
+      'margin-bottom:12px;">POST TO THE LOG FOR YOUR NEXT DELIVERY</div>' +
     '<div id="twFxComposeErr" style="color:#b5540e;font-size:12px;margin-bottom:8px;display:none;"></div>';
   const ta = document.createElement("textarea");
   ta.id = "twFxComposeText";
@@ -1374,7 +1374,7 @@ function twFxRenderComposer(g){
   ta.addEventListener("input", () => { count.textContent = ta.value.length + " / 480"; });
   const btn = document.createElement("button");
   btn.id = "twFxGateBtn";
-  btn.textContent = "Post";
+  btn.textContent = "Play Next";
   btn.style.cssText = TDFX_BTN + TDFX_ORANGE;
   btn.addEventListener("click", () => twFxPostComment(ta, btn));
   g.appendChild(ta);
@@ -1445,23 +1445,6 @@ function twFxSyncCommentBtn(){
    account-wide so the $25 is still claimable from there. Flagged for Sir
    as a deliberate loss -- the win screen was the friendliest place to
    ask, and this trades that for somewhere to go. */
-function twFxShowNextStep(g, paid, nextRung){
-  g.style.display = "block";
-  g.innerHTML =
-    '<div style="font-weight:700;font-size:11px;letter-spacing:0.8px;' +
-      'margin-bottom:6px;">POSTED' +
-      (paid ? '<span style="color:#3f7d43;">  \u00b7  +$5.00 BONUS TIP</span>' : '') +
-      '</div>' +
-    '<div style="font-size:13px;line-height:1.4;color:#5c5647;margin-bottom:14px;">' +
-      'Pickup ' + nextRung + ' is ready. Tips keep adding up all day.</div>';
-  const btn = document.createElement("button");
-  btn.id = "twFxNextBtn";
-  btn.textContent = "Next pickup \u25b8";
-  btn.style.cssText = TDFX_BTN + TDFX_ORANGE;
-  btn.addEventListener("click", tpStartNextRun);
-  g.appendChild(btn);
-  twFxLayoutWinStack();
-}
 /* Straight back to the title screen with the NEXT rung loaded and
    waiting on GO -- the same place a player lands after picking a route
    any other way, so nothing about starting a delivery is special-cased
@@ -1578,7 +1561,7 @@ function twFxPostComment(ta, btn){
   const fail = () => {
     twFx.busy = false;
     btn.disabled = false;
-    btn.textContent = "Post";
+    btn.textContent = "Play Next";
     const e = document.getElementById("twFxComposeErr");
     if(e){ e.textContent = "Couldn't post. Try again."; e.style.display = "block"; }
   };
@@ -1615,13 +1598,25 @@ function twFxPostComment(ta, btn){
          success branch of the post. A post that fails leaves both the
          rung and the gate exactly where they were. */
       tdFx.winUnposted = false;
-      const nextRung = tpAdvanceRun();
-      /* THE SURPRISE, carried into step two. d.bonusGranted is the
-         server's own word for "this one actually paid", so the line can
-         never claim money the wallet didn't get. */
-      const g = document.getElementById("twFxGate");
-      if(g) twFxShowNextStep(g, !!d.bonusGranted, nextRung);
-      else twFxSyncCommentBtn();
+      tpAdvanceRun();
+      /* ONE TAP, NOT TWO (Sir's call, 2026-08-14): "the button just says
+         play next on this screen instead of needing a secondary button."
+         The post WAS the unlock already -- the panel that used to follow
+         it existed only to say so and offer a button for the thing the
+         post had just earned. Posting now goes straight through to the
+         next rung's title screen, so the composer's own button is the
+         last thing the player touches on this screen.
+
+         THE SURPRISE FOLLOWS THEM (Sir's call, same turn): the $5 was
+         announced on that second panel, which no longer exists, so it
+         rides tpToast instead -- #tpToast is position:fixed at z-index
+         58, outside winOverlay, so it survives the overlay swap and
+         lands over the title screen the player is already looking at.
+         d.bonusGranted is still the server's own word for "this one
+         actually paid", so the toast can never claim money the wallet
+         didn't get. */
+      tpStartNextRun();
+      if(d.bonusGranted) tpToast("+$5.00 bonus tip");
     })
     .catch(fail);
 }
