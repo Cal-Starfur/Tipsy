@@ -104,7 +104,7 @@
     benchLen: 300, benchDepth: 118, benchSeat: 74,
     benchBack: 168, benchSlab: 26, benchEnd: 34,
     benchScale: 0.62,
-    benchGap: 2200,    // spacing along the pier
+    benchEvery: 2,     // one bench per this many lamp gaps
     gullSize: 46,
     gullEvery: 3,      // one gull per this many rail posts
   };
@@ -914,11 +914,27 @@
          straight runs stop */
       if (R > 0) Q(A.cx + A.cy + 1, (g) => deckRailArc(sc, g, Wr, A, {}));
     }
+    /* ONE RUN, ONE STATION LIST (2026-08-14, Sir: "can you get the benches
+       to land centered between the lamps?").
+
+       They used to be placed on two INDEPENDENT grids -- lamps every
+       lampSpacing, benches every benchGap -- each independently rounded to
+       fit the run. Even at a tidy 2:1 nominal ratio the two roundings gave
+       different actual pitches, so the phases drifted and a bench could
+       land anywhere relative to its lamps.
+
+       Benches are now derived FROM the lamp stations: a bench sits at the
+       MIDPOINT of a lamp gap, which is centred between its two lamps by
+       construction rather than by arithmetic that has to be kept in step.
+       benchEvery says how many lamp gaps to skip between benches, so the
+       relationship survives any change to lampSpacing. */
+    const px0 = A.pierX0 + (A.sh ? A.sh.ring.rOuter : 0), px1 = A.pierX1;
+    const nLamp = Math.max(1, Math.floor((px1 - px0) / D.lampSpacing));
+    const lampAt = (k) => px0 + (px1 - px0) * (k / nLamp);
+
     if (RHS.showLamps) {
-      const x0 = A.pierX0 + (A.sh ? A.sh.ring.rOuter : 0), x1 = A.pierX1;
-      const n = Math.max(1, Math.floor((x1 - x0) / D.lampSpacing));
-      for (let k = 0; k <= n; k++) {
-        const x = x0 + (x1 - x0) * (k / n);
+      for (let k = 0; k <= nLamp; k++) {
+        const x = lampAt(k);
         for (const s of [-1, 1]) {
           const y = A.pierY + s * (A.pierHalf - 40);
           Q(x + y, (g) => drawPierLamp(sc, g, frame(x, y), t, {}));
@@ -926,12 +942,9 @@
       }
     }
     if (RHS.showBench) {
-      /* set in from the rail by half the bench depth plus a walking gap,
-         backs to the centreline so the seat looks at the water */
-      const x0 = A.pierX0 + (A.sh ? A.sh.ring.rOuter : 0), x1 = A.pierX1;
-      const n = Math.max(1, Math.floor((x1 - x0) / D.benchGap));
-      for (let k = 0; k <= n; k++) {
-        const x = x0 + (x1 - x0) * (k / n);
+      const every = Math.max(1, Math.round(D.benchEvery));
+      for (let k = 0; k + 1 <= nLamp; k += every) {
+        const x = (lampAt(k) + lampAt(k + 1)) / 2;   // dead centre of the gap
         for (const s of [-1, 1]) {
           /* inset from the rail by the bench's own depth plus a walking gap,
              and facing THAT rail -- s is both the side and the seat's
@@ -944,9 +957,8 @@
     }
     if (RHS.showGulls) {
       /* perched on the rail cap, which is where they actually sit */
-      const x0 = A.pierX0 + (A.sh ? A.sh.ring.rOuter : 0), x1 = A.pierX1;
       const step = D.railPost * D.gullEvery;
-      for (let x = x0 + step * 0.5; x < x1; x += step) {
+      for (let x = px0 + step * 0.5; x < px1; x += step) {
         for (const s of [-1, 1]) {
           const y = A.pierY + s * A.pierHalf;
           /* seeded thinning so the rail is not a picket line of birds */
@@ -975,7 +987,7 @@
     { k: 'pilesPerBent', label: 'per bent', min: 2, max: 7, step: 1 },
     { k: 'benchScale', label: 'bench sz', min: 0.25, max: 1.6, step: 0.02 },
     { k: 'benchLen', label: 'bench L', min: 150, max: 600, step: 10 },
-    { k: 'benchGap', label: 'bench gap', min: 800, max: 6000, step: 100 },
+    { k: 'benchEvery', label: 'bench/gap', min: 1, max: 5, step: 1 },
     { k: 'gullSize', label: 'gull', min: 20, max: 110, step: 2 },
   ];
 
@@ -1141,7 +1153,7 @@
     Object.assign(D, { rWall: 520, wallH: 300, eave: 90, roofH: 165, drumR: 175,
                        drumH: 130, railH: 118, lampH: 430, lampSpacing: 1100,
                        pylonDepth: 460, bentGap: 900, pilesPerBent: 4,
-                       benchScale: 0.62, benchGap: 2200 });
+                       benchScale: 0.62, benchEvery: 2, lampSpacing: 1100 });
     sync();
   };
   document.getElementById('rhCopy').onclick = async () => {
