@@ -17022,6 +17022,50 @@ class WorldScene extends Phaser.Scene {
      hold, since the caller has him pinned) -- spinning against a locked
      chassis is the entire point. .held latches for the launch below;
      holding, releasing and holding again still counts. */
+  /* ============ THE REAL FRAME TIME ============
+     (Sir's report, 2026-08-14: "tipsey isnt taking off until after the
+     opening is over ... hes stalling", still present after the opening
+     moved onto a wall clock.)
+
+     Phaser hands update() a SMOOTHED delta, and TimeStep.smoothDelta
+     caps it at the 60fps target -- 16.67 -- whenever EITHER of these is
+     true:
+
+       if (this._coolDown > 0 || !this.inFocus)
+           delta = Math.min(delta, this._target);
+
+     inFocus flips false on window.onblur and only returns on
+     window.onfocus. Every shipped build is an IFRAME (itch.io, the
+     Reddit feed webview, Pages), where blur is trivially easy to catch
+     and focus frequently never comes back on a mobile tap -- so delta
+     stays pinned at 16.67 for the rest of the session. _coolDown is
+     panicMax (120 FRAMES) after boot and after every focus regain, so
+     even a focused session opens with a capped window. Pinned delta
+     means every ms-denominated term -- speed integration, botS advance,
+     the hazard sims, traffic -- advances per FRAME, so at 30fps the
+     world scrolls at half rate while Tipsey reads "full speed". That
+     is the stall, and it is why the daily shows it (heavy pickup scene
+     dropping frames) and dev does not.
+
+     rawDelta is the untouched wall-clock frame time, set before any of
+     that. Substituting it at the scene boundary fixes the whole chain
+     at once -- update passes dt to hjSim, updateTrafficSpacing,
+     updateCrimeTraffic and drawRobot, and drawRobot passes it to every
+     sim under it -- without touching Phaser's own config.
+
+     DELIBERATELY NOT fps:{smoothStep:false} in the game config. That
+     skips the cap but also skips the sane-delta guard entirely, leaving
+     delta = rawDelta unbounded: background the tab for thirty seconds
+     and one frame arrives with delta=30000, which teleports the robot
+     across the map, steps straight past hazards and detonates the
+     physics. The 50ms ceiling here is that guard, kept deliberately:
+     below 20fps the game runs in slow motion, which is the correct way
+     to fail. */
+  realDt(dt){
+    const raw = (this.game && this.game.loop) ? this.game.loop.rawDelta : 0;
+    return Math.min(raw > 0 ? raw : (dt || 16.667), 50);
+  }
+
   peelSpin(dt){
     this.wheelPhase -= PEEL.spin * dt;
     this.peel.held = true;
@@ -17561,6 +17605,13 @@ class WorldScene extends Phaser.Scene {
   }
 
   update(t, dt){
+    /* REAL frame time, not Phaser's smoothed one -- see realDt. Done
+       here, once, rather than at each consumer: every per-frame system
+       in the game is reached through this parameter (hjSim,
+       updateTrafficSpacing, updateCrimeTraffic, drawRobot, and every
+       hazard sim drawRobot calls), so one substitution converts the
+       lot and none of them can drift apart later. */
+    dt = this.realDt(dt);
     /* desktop throttle */
     /* Attract holds its own gas. This has to come BEFORE the desktop
        keys block, not after: that block's final branch zeroes throttle
@@ -20518,6 +20569,12 @@ function tpSlalomOn(){
   }
 
   const onPre  = (time, delta) => {
+    /* bound to Phaser's 'preupdate' EVENT, so this delta comes straight
+       off the emitter and never passed through update()'s own
+       substitution -- it needs the same conversion or the burnout hold
+       and the flight pin run on a different clock from the physics they
+       sit on top of. Same helper, so there is one rule. */
+    delta = scene.realDt(delta);
     /* pickupWalk is rewritten by the timeline every frame, so it is held down
        every frame rather than once at reset — cheap, and it means a stray
        re-entry into the loading beat can never drag the camera off again. */
