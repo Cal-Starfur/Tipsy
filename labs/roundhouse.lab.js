@@ -297,6 +297,47 @@
     const yE = A.pierY + half;
     scn.quadOn(g, [scn.W(x0 + ringR, yE, 0), scn.W(x1, yE, 0),
                    scn.W(x1, yE, -d.fascia), scn.W(x0 + ringR, yE, -d.fascia)], PYL.beam);
+
+    /* ...AND THE SAME SKIRT AROUND THE ROUND END (2026-08-14, Sir: "the end
+       of the pier needs a skirt like the rest of the pier"). Without it the
+       straight run has thickness and the deck it leads to does not, which
+       reads as the pier ending in a sheet of paper.
+
+       ONLY PART OF THE RING IS VISIBLE, and drawing the rest would paint
+       over the deck, since the lab draws after drawWorld. Which part is
+       solvable rather than guessable. Screen position around the ring is
+
+           sx ~ cos0 - sin0 = sqrt2*cos(0+45)
+           sy ~ (cos0 + sin0)/2 = (sqrt2/2)*sin(0+45)
+
+       i.e. an ellipse in phi = theta + 45. The lower half of that ellipse
+       -- the edge the skirt hangs below -- is sin(phi) > 0, which is
+       exactly theta in (-45deg, +135deg). Outside it the edge is the far
+       rim and its skirt is behind the deck.
+
+       The pier's own mouth is cut out of that range too: within +/-gap of
+       theta 0 the ring's skirt sits directly under the approach deck, so
+       drawing it would paint over the very surface it hangs from. */
+    if (ringR > 0) {
+      const gap = Math.asin(Math.min(0.999, half / ringR));
+      const arcs = [[-Math.PI / 4, -gap], [gap, Math.PI * 0.75]];
+      const N = 26;
+      for (const [a0, a1] of arcs) {
+        if (a1 <= a0) continue;
+        for (let k = 0; k < N; k++) {
+          const t0 = a0 + (a1 - a0) * (k / N), t1 = a0 + (a1 - a0) * ((k + 1) / N);
+          const p0x = A.cx + Math.cos(t0) * ringR, p0y = A.cy + Math.sin(t0) * ringR;
+          const p1x = A.cx + Math.cos(t1) * ringR, p1y = A.cy + Math.sin(t1) * ringR;
+          /* shade by how square the segment faces the light, same treatment
+             the octagon's own walls get */
+          const mid = (t0 + t1) / 2;
+          const lit = Math.cos(mid) * -0.55 + Math.sin(mid) * -0.84;
+          scn.quadOn(g, [scn.W(p0x, p0y, 0), scn.W(p1x, p1y, 0),
+                         scn.W(p1x, p1y, -d.fascia), scn.W(p0x, p0y, -d.fascia)],
+                     lit > 0 ? PYL.beam : PYL.beamDk);
+        }
+      }
+    }
   }
 
   /* =======================================================================
