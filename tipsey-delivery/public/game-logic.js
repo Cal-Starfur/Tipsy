@@ -14603,14 +14603,29 @@ class WorldScene extends Phaser.Scene {
            standing in for the single missing pointerdown, not
            re-deriving throttle every frame. Doing it continuously would
            also cancel the pointermove hop's deliberate throttle=0, and a
-           lane change during the opening is allowed. The mapping is
-           bindInput's own (right half gas, left half brake) rather than
-           a second copy of the rule; braking at a standstill is a no-op,
-           so a finger on the wrong half simply gets no burnout. */
+           lane change during the opening is allowed.
+
+           NOT bindInput's right-half/left-half mapping (Sir's call,
+           2026-08-14). #startBtn is a CENTERED card button, so a thumb
+           resting a few pixels left of gameSize.width/2 latched
+           throttle=-1 for the whole hold -- and because the adopt is a
+           once-only latch it was never re-read. No peelSpin, so no
+           peel.held, so the release skipped peelLaunch and the run ate
+           the ordinary ~730ms 0.00042/ms climb on top of the ~1.03s
+           hold. That is the intermittent "lag on take off": which side
+           of centre your thumb happened to land on decided whether you
+           got a burnout or a 1.76s crawl.
+
+           So an already-down finger is read as GAS regardless of x.
+           Nothing is lost by dropping the brake half here -- the robot
+           is pinned at speed 0 for the entire hold, so throttle=-1 does
+           literally nothing except suppress the burnout. The half split
+           still governs every frame AFTER the hold, through bindInput's
+           own pointer events, untouched. */
         if(!this.openAdopted){
           this.openAdopted = true;
           const ap = this.input.activePointer;
-          if(ap && ap.isDown) this.throttle = ap.x > this.scale.gameSize.width/2 ? 1 : -1;
+          if(ap && ap.isDown) this.throttle = 1;
         }
         if(this.runT >= LOAD_ART.ms && this.lidAng < PEEL.lidShut){
           this.openHold = false;
