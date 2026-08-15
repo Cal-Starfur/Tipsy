@@ -1945,11 +1945,21 @@ function tsFxWinGatePanel(card){
   return el;
 }
 /* End of the chain (and the fallback): panel out, Run again back. */
+/* The gate hides and restores the whole NEXT UP block, not just the
+   demoted "Run again" line inside it (2026-08-15). Before the block
+   existed this was one pill and #slAgain was the slot; now the two
+   primary buttons live in the same slot the composer panel occupies
+   (top:34%/36%), so addressing the button alone left them sitting
+   underneath the panel. Falls back to #slAgain so a card built
+   without the block -- none currently -- still works. */
+function slPrimarySlot(){
+  return document.getElementById("slNextUp") || document.getElementById("slAgain");
+}
 function tsFxWinShowAgain(){
   const g = document.getElementById("tsFxWinGate");
   if(g) g.style.display = "none";
-  const a = document.getElementById("slAgain");
-  if(a) a.style.display = "";
+  const a = slPrimarySlot();
+  if(a) a.style.display = "flex";
 }
 /* Called right after the card is built AND from reportSlalomWin's
    response callback -- same draft race tsfFxSyncGate handles. */
@@ -1960,7 +1970,7 @@ function tsFxWinGate(card){
   if(tsFx.winHold) return;
   if(document.getElementById("slCard") !== card) return;   // card isn't live anymore
   if(tsFx.posted) return;                                   // follow step owns the panel
-  const a = document.getElementById("slAgain");
+  const a = slPrimarySlot();
   if(!tsFx.draft){
     if(tsFx.draftWhy === "pending"){
       if(a) a.style.display = "none";
@@ -19972,13 +19982,30 @@ function tpSlalomOn(){
               transform:translateY(-165px);color:${headlineCol}">${winMsg}</h2>
          <p style="font-size:16px;line-height:1.5;color:#fff;max-width:330px;
               margin:5px 0;text-shadow:0 2px 3px #b5540e;transform:translateY(-165px)">${winSub}</p>
-         <!-- top:36% overrides .slRetryBtn's shared 46% for THIS button only (Fail's
-              #slRetry keeps the shared value) -- 46% sat right where Tipsey stands at
-              the carpet stop on some routes (reported on-device, 2026-08-12). Still a
-              fixed percent, since the button isn't measured off the sheet the way the
-              icon row/FOLLOW row below it are -- first-pass guess, needs an on-device
-              check across a few different finish routes. -->
-         <button id="slAgain" class="slRetryBtn" style="top:36%">Run again</button>
+         <!-- NEXT UP (2026-08-15, Sir's call: "let's make them match"). The lone
+              "Run again" pill that used to sit here is now the quiet third line of
+              this block -- the same shape hjShowWin adopted on 2026-08-14, for the
+              same reason its own comment gives: finishing a run is the moment to
+              steer the player into MORE GAMEPLAY, not back into the run they just
+              finished. Positioned at top:34% (hydrant's number, not #slAgain's old
+              36%) because the block is a three-item stack rather than one pill and
+              grows downward from its anchor. #slAgain keeps its id: the skin-preview
+              revert and the unlock gate both address it by name. -->
+         <div id="slNextUp" style="position:absolute;left:50%;top:34%;
+              transform:translateX(-50%);width:min(480px,86vw);
+              display:flex;flex-direction:column;align-items:center;gap:10px">
+           <div style="font-size:12px;font-weight:800;letter-spacing:.14em;
+                color:#ffd9a8;text-shadow:0 1px 2px rgba(0,0,0,.7)">NEXT UP</div>
+           <button id="slGoHydrant" class="slRetryBtn"
+                   style="position:static;transform:none;left:auto;top:auto">Hydrant Challenge</button>
+           <button id="slGoDaily" class="slRetryBtn"
+                   style="position:static;transform:none;left:auto;top:auto;
+                          background:#f0ece0;color:#2e3138;box-shadow:0 4px 0 #b9b3a3">Today's route</button>
+           <button id="slAgain"
+                   style="background:none;border:0;color:#fff;opacity:.85;font:inherit;
+                          font-size:13px;font-weight:700;text-decoration:underline;
+                          text-shadow:0 1px 2px rgba(0,0,0,.7);padding:4px 8px">Run again</button>
+         </div>
          <div id="slWinCard" style="position:absolute;left:0;right:0;bottom:0;margin:0;
               background:#f0ece0;color:#2e3138;border:none;border-radius:0 0 20px 20px;
               padding:12px 16px calc(10px + env(safe-area-inset-bottom))">
@@ -20039,6 +20066,28 @@ function tpSlalomOn(){
         if (tpSkinPreview){ tpSkinPreview = false; tpApplySkin(tpProfile.equipped); }
         card.remove(); slResetRun();
       };
+      /* The two NEXT UP exits. Both LEAVE the slalom, so both go through
+         tpSlalomTeardown() first -- the engine detach (_slRestore), the
+         countdown/timer nodes and the hjChrome flag are all slalom-session
+         state that hjStart()/loadRoute() do not know to clean up on their
+         own (the tpSlalomQuit corner-icon ticket, same class of bug).
+         The preview revert is spelled out on both rather than left to
+         loadRoute's tpSkinPreview latch: it is a no-op when the latch
+         would have caught it anyway (revert re-reads tpProfile.equipped,
+         so claiming Cone Dodger mid-preview stays safe), and it means
+         neither exit depends on which route-loading path it lands in.
+         Today's route reuses tpSlalomQuit outright -- it already carries
+         the unified retry gate (an unposted delivery fail from before
+         this run still wins), which is exactly the behaviour wanted. */
+      const slLeavePreview = () => {
+        if (tpSkinPreview){ tpSkinPreview = false; tpApplySkin(tpProfile.equipped); }
+      };
+      document.getElementById('slGoHydrant').onclick = () => {
+        slLeavePreview(); card.remove(); tpSlalomTeardown(); hjStart();
+      };
+      document.getElementById('slGoDaily').onclick = () => {
+        slLeavePreview(); card.remove(); tpSlalomQuit();
+      };
 
       /* Everything below is measured off the sheet, same order showWin()
          itself uses (show/append first, THEN measure -- offsetHeight
@@ -20068,7 +20117,7 @@ function tpSlalomOn(){
            immediately rather than left to be hidden by the gate, so the
            pill doesn't flash in and out during the wait. */
         tsFx.winHold = true;
-        const againEl = document.getElementById('slAgain');
+        const againEl = slPrimarySlot();
         if (againEl) againEl.style.display = 'none';
         reportSlalomWin(card, total, par, clean);
         setTimeout(() => {
@@ -21223,7 +21272,13 @@ function tpSlalomUI(s){
    slClose wiring in slShowCard). Kept the name: it's still "quit the
    slalom mission and hand the game back," just triggered from the
    result card instead of a live button. */
-function tpSlalomQuit(){
+/* The teardown half of tpSlalomQuit, split out so the win card's
+   "Hydrant Challenge" NEXT UP button can drop the slalom session
+   WITHOUT also taking tpSlalomQuit's tail (which loads the daily
+   route and shows the title screen -- the wrong destination when the
+   player asked for the other challenge). No second copy: tpSlalomQuit
+   calls this, it does not repeat it. */
+function tpSlalomTeardown(){
   const s = scn();
   clearInterval(tpSlTick);
   document.getElementById("tpSlCount")?.remove();
@@ -21232,6 +21287,10 @@ function tpSlalomQuit(){
   document.body.classList.remove("slFailUp");   // belt-and-braces: any exit path clears it
   if(s && s._slRestore) s._slRestore();
   hjChrome(false);
+}
+function tpSlalomQuit(){
+  tpSlalomTeardown();
+  const s = scn();
   /* Same gate hjQuit already carries on its own exit (UNIFIED RETRY
      GATE, see tdFxDeliveryBlocked): an unposted delivery fail from
      BEFORE this slalom run started must still be there when the
