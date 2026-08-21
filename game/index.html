@@ -5202,8 +5202,16 @@ function owPaintStick(ow){
    OFF unless asked for. ?ow=1 in the URL arms it for the session;
    owToggle() flips it live from the console or a debug button, which is
    how it gets exercised on-device without a rebuild. */
-let OW_ARMED = false;
-try { OW_ARMED = new URLSearchParams(location.search).get('ow') === '1'; } catch(e){}
+/* FREE PLAY IS THE DEFAULT ACTIVITY. It used to be a ?ow=1 opt-in while
+   a tip in the open city still threw a failed-delivery screen for a
+   delivery you never accepted; the charging stations fixed that, so the
+   game can boot into the city.
+
+   ?ow=0 turns it off and gives you the old map-first launch, which is
+   what the hazard oracle drives and what any bisect wants. */
+let OW_ARMED = true;
+try { const _q = new URLSearchParams(location.search).get('ow');
+      if(_q !== null) OW_ARMED = _q === '1'; } catch(e){}
 function owToggle(scene){
   const sc = scene || (window.game && game.scene.scenes.find(s => s.route));
   if(!sc) return 'no scene';
@@ -10543,6 +10551,14 @@ class WorldScene extends Phaser.Scene {
                            // actually begins, after loading finishes
     this.lidHingeFlip = false; // true only during pickup loading — opens the cargo lid
                                 // from the opposite edge than the tip/spill crash animation uses
+    /* HANDOVER OUT OF FREE PLAY. Open world takes the route's hazard,
+       crossing and lap lists private while it runs; loading a new route
+       on top of that would hand the delivery a gutted world and leave
+       the stale listeners bound. loadRoute is the one place EVERY entry
+       into an activity passes through — GO, Today's Delivery, the
+       hydrant, the slalom, retry — so uninstalling here closes all of
+       them at once instead of six call sites each remembering. */
+    if(this.ow) owUninstall(this);
     this.pickupLidClosing = false; // latches true while the lid still owes a close-out on
                                     // that flipped hinge, even after loading itself has ended
     this.state = "idle";
@@ -20047,7 +20063,13 @@ class WorldScene extends Phaser.Scene {
        that a postupdate write lands on a frame already drawn.
        dt is capped: a backgrounded tab returning with a 400ms frame
        would otherwise teleport the robot through a building. */
-    if(OW_ARMED && !this.ow && this.route && this.state === "play") owInstall(this);
+    /* ONLY IN FREE ROAM. mode is what says which activity owns the
+       robot, and every route entry already sets it ("delivery" from GO
+       and Today's Delivery, "challenge" from the hydrant, and so on), so
+       gating on it means an activity leaves free play by construction
+       rather than by remembering to switch a flag off. */
+    if(OW_ARMED && !this.ow && this.route && this.state === "play"
+       && this.mode === "freeroam") owInstall(this);
     if(this.ow && this.ow.on){
       if(this.state === "play") owStep(this, Math.min(dt, 40));
       else { this.throttle = 0; owRespawnTick(this, t); }
@@ -24284,6 +24306,19 @@ function _bootLoaderDismiss(){
      was invited and nowhere else. */
   const s0 = (typeof scn === "function") ? scn() : null;
   if(s0 && s0.attractStart && ATTRACT_BARE) s0.attractStart();
+  /* BOOT INTO THE CITY. Not when an embedder asked for attract — the
+     Reddit splash wants a live city behind its leaderboard and its own
+     Play button is what leaves it — and not if something has already put
+     a run on screen. Otherwise the map screen steps aside and the player
+     lands in Costa Palma driving; the map is one tap away behind the
+     magnifying glass, which is where Today's Delivery already lives. */
+  if(s0 && OW_ARMED && !ATTRACT_BARE && s0.state !== "play"){
+    s0.mode = "freeroam";
+    hide("titleOverlay");
+    collapseSheet();
+    s0.state = "play";
+    if(!s0.ow) owInstall(s0);
+  }
   const el = document.getElementById("bootLoader");
   if(!el) return;
   el.classList.add("done");
@@ -25336,6 +25371,30 @@ function tpDailyDeliveryPin(){
    slalom-pending) was active. Reuses loadRoute's own orderCard-setting
    code rather than duplicating it, same reasoning hjQuit already
    follows for its own "hand the daily route back" step. */
+/* ---------- BACK TO FREE PLAY ----------
+   The counterpart to tpBackToDailyRoute: leave whatever activity is up
+   and hand the city back. Everything an activity changed is undone by
+   loadRoute + the mode flip, so this is deliberately the same shape as
+   every other route entry rather than a special path.
+
+   Today's route is still what gets loaded — it is the world, the grid
+   and the hazards, not just a delivery — but nothing targets its door,
+   because mode is "freeroam" and update()'s install gate reads mode. */
+function tpFreePlay(){
+  tpCloseDetail(); tpCloseMissions(); tpCloseProfile();
+  hide("failOverlay"); hide("winOverlay"); hide("titleOverlay");
+  collapseSheet();
+  const s = scn(); if(!s) return;
+  { if(s.attractStop) s.attractStop(); s.attract = false; }
+  s.mode = "freeroam";
+  s.loadRoute(clientTodayUTC());
+  s.state = "play";
+  /* install now rather than waiting for update()'s gate, so the first
+     frame after this already has the stick bound */
+  if(!s.ow) owInstall(s);
+}
+if(typeof window !== "undefined") window.tpFreePlay = tpFreePlay;
+
 function tpBackToDailyRoute(){
   /* Close the profile chrome FIRST, same opening line hjStart and
      slalomMapSelect both carry (2026-08-13). This is the third entry
@@ -26672,6 +26731,23 @@ function tpRenderMissions(){
      delivery pin uses, so behaviour matches whichever way you get
      there. Not server-gated (unlike Past Routes below): it's just a
      local loadRoute(), so it works on itch.io / GitHub Pages too. */
+  /* FREE PLAY row, above Today's Delivery: with the game booting into
+     the city, the mission list is the way back out of a delivery as well
+     as into one. Same row shape and same close discipline as the row
+     below it. */
+  const fp = document.createElement("div");
+  fp.id = "tpFreePlayRow";
+  fp.className = "tpTrRow";
+  fp.innerHTML = `
+    <div class="tpMedal tpMission" style="font-size:18px;">&#127950;</div>
+    <div class="tpTrInfo">
+      <div class="tpTrName">Free Play</div>
+      <div class="tpTrDesc">Drive Costa Palma. No route, no clock.</div>
+    </div>
+    <div class="tpTrRight"></div>`;
+  fp.addEventListener("click", ()=>{ tpCloseMissions(); tpFreePlay(); });
+  list.appendChild(fp);
+
   const td = document.createElement("div");
   td.id = "tpTodayDeliveryRow";
   td.className = "tpTrRow";
