@@ -66,7 +66,14 @@ async def probe(p, path, t):
         err = []
         pg.on("pageerror", lambda e: err.append(str(e)))
         await pg.add_init_script("document.hasFocus = () => true;")
-        await pg.goto(f"http://localhost:8931/{path}")
+        # FORCE THE RAIL GAME. The game boots into free play now, where
+        # botS is frozen and the hazard loop this gate exists to measure
+        # does not run on a rail at all -- without ?ow=0 every probe came
+        # back empty and the gate silently measured nothing. The opt-out
+        # is what a regression check wants by definition: it is the
+        # SHIPPING path that must not change.
+        sep = "&" if "?" in path else "?"
+        await pg.goto(f"http://localhost:8931/{path}{sep}ow=0")
         await pg.wait_for_function(
             "typeof game!=='undefined' && game.scene.scenes.some(s=>s.route)", timeout=45000)
         await pg.wait_for_timeout(2000)
