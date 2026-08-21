@@ -1,0 +1,62 @@
+{
+ "bin": {
+  "dmg": 1,
+  "tilt": 0.08,
+  "tipped": false
+ },
+ "crack": {
+  "dmg": 0,
+  "tilt": 0.05,
+  "tipped": false
+ },
+ "dog": {
+  "dmg": 0,
+  "tilt": 0.79,
+  "tipped": false
+ },
+ "hydrant": {
+  "dmg": 19,
+  "tilt": 0.89,
+  "tipped": false
+ },
+ "lamp": {
+  "dmg": 0,
+  "tilt": 0.57,
+  "tipped": false
+ },
+ "palm": {
+  "dmg": 0,
+  "tilt": 0.38,
+  "tipped": false
+ },
+ "people": {
+  "dmg": 2,
+  "tilt": 0.21,
+  "tipped": false
+ },
+ "pigeons": {
+  "dmg": 0,
+  "tilt": 0.03,
+  "tipped": false
+ },
+ "planter": {
+  "dmg": 0,
+  "tilt": 0.03,
+  "tipped": false
+ },
+ "scooter": {
+  "dmg": 95,
+  "tilt": 1.02,
+  "tipped": true
+ },
+ "slab": {
+  "dmg": 2,
+  "tilt": 0.19,
+  "tipped": false
+ },
+ "trash": {
+  "dmg": 0,
+  "tilt": 0.04,
+  "tipped": false
+ }
+}
