@@ -134,7 +134,10 @@
       <button id="zenBtn">rail</button></div>
   </div>
 
-  <div id="rail">
+  <!-- Starts COLLAPSED: this is a test bench now, not a tuning surface. The
+       stage gets the whole viewport and findings come back through chat.
+       railBtn/zenBtn still toggle it, so nothing is lost -- just not shown. -->
+  <div id="rail" class="collapsed">
 
     <div class="sec">
       <h2>Bridge</h2>
@@ -213,7 +216,7 @@
         </select>
         <button id="labLoad">load</button>
       </div>
-      <div class="row"><button class="wide" id="labDials">hide lab dials</button></div>
+      <div class="row"><button class="wide" id="labDials">show lab dials</button></div>
       <div class="row" style="color:var(--dim)">Labs render their own panels over the canvas and
         they are large on a phone. This hides every one of them at once without unloading
         anything, so the thing being tuned is actually visible.</div>
@@ -938,7 +941,11 @@ $("quietBtn").onclick = () => {
    Visibility only -- nothing is unloaded and no hook is touched, so toggling
    back restores whatever state the lab was already in. Re-applied after every
    load so a lab opened while hidden does not pop its panel back up. */
-let labDialsHidden = false;
+/* Dials default HIDDEN. They cluttered the stage without earning it -- the
+   numbers get worked out in conversation, and a dial that is read once and
+   then hardcoded was never a dial. The toggle stays for the odd case where
+   seeing a lab's own handles is genuinely faster than describing them. */
+let labDialsHidden = true;
 function applyLabDials(){
   try{
     /* The state lives in the GAME realm, not here, and an observer applies
