@@ -159,6 +159,9 @@
   let latchSign = 0;              // 0 = unlatched
   let lastSfc = 'sidewalk';
   let rightT = 0;                 // ms spent down, for the auto-right below
+  /* the lab's own camera — see the CAMERA block in onPost for why this
+     cannot be a lerp against scene.camX */
+  let ocx = scene.camX, ocy = scene.camY, ocz = scene.camZ || 0;
 
   const stick = { active: false, id: null, ox: 0, oy: 0, dx: 0, dy: 0 };
 
@@ -354,14 +357,26 @@
     scene.wheelPhase = (scene.wheelPhase || 0) - vel * dt * 0.28;
     if (scene.state !== 'tipped') scene.drawAngle = yaw;
 
-    /* the camera lerps toward a target computed from the rail pose inside
-       update(); with the pose stamped after, that target is a frame stale
-       and, worse, still leading along the rail's heading. Re-aimed here at
-       a lead along the ACTUAL heading. */
-    const lead = 95 * Math.max(0, Math.sign(vel));
+    /* ---------- CAMERA: OWNED, NOT BLENDED ----------
+       This has to hold its own state and OVERWRITE, not lerp against
+       scene.camX. update() runs first and lerps camX/camY toward a
+       target built from the RAIL pose — and botS is pinned to a
+       constant here, so that target is a fixed world point that never
+       moves for the whole session. Lerping toward the real robot
+       afterwards only recovers a fraction of each frame's pull, so the
+       camera settles near the pin and the robot drives off screen
+       (reported on-device: camera not staying on Tipsey). Keeping the
+       lab's own camera and assigning it makes update()'s work
+       irrelevant instead of something to out-pull.
+
+       Lead only applies going forward: leading by 95 units while
+       reversing points the camera at where you just came from. */
+    const lead = vel > 0 ? 95 : 0;
     const tx = px + Math.cos(yaw) * lead, ty = py + Math.sin(yaw) * lead;
-    scene.camX = Phaser.Math.Linear(scene.camX, tx, 0.08);
-    scene.camY = Phaser.Math.Linear(scene.camY, ty, 0.06);
+    ocx = Phaser.Math.Linear(ocx, tx, 0.08);
+    ocy = Phaser.Math.Linear(ocy, ty, 0.06);
+    ocz = Phaser.Math.Linear(ocz, scene.botZ || 0, 0.08);
+    scene.camX = ocx; scene.camY = ocy; scene.camZ = ocz;
 
     const tag = document.getElementById('owTag');
     if (tag) tag.textContent =
@@ -398,6 +413,7 @@
   };
   document.getElementById('owReset').onclick = () => {
     px = spawn.x; py = spawn.y; vel = 0; yaw = 0; scene.tilt = 0;
+    ocx = px; ocy = py;   // snap, don't ease across the city
     scene.state = 'play'; scene.roll = 0; scene.pitch = 0; scene.tipT = 0;
   };
 
