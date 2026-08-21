@@ -10348,10 +10348,27 @@ class WorldScene extends Phaser.Scene {
           const R = _rgP.rOuter * 0.97;
           const meetX = R > 0 ? A.cx + Math.sqrt(Math.max(0, R*R - A.pierHalf*A.pierHalf))
                               : A.pierX0;
+          /* CHUNKED, AND IT HAS TO BE. A vq entry carries ONE depth, so a
+             single call spanning the whole run sorts the entire rail at
+             whatever x is handed in -- the first version used pierX1, the
+             boardwalk end, and the rail then drew in front of every lamp
+             further out (reported: "the fence is drawing over the far
+             lamp"). The lab never showed it because it drew from its own
+             private list rather than through the real sort.
+
+             Split at post spacing so each span sorts on its own midpoint.
+             That is finer than the lamp spacing, so nothing standing on
+             the deck can fall between two chunks and sort wrongly. */
           for(const s of [-1, 1]){
             const y = A.pierY + s*A.pierHalf;
-            Q(A.pierX1 + y, (g) =>
-              drawPierRail(this, g, Wr, { x:A.pierX1, y }, { x:meetX, y }, {}));
+            const span = RH_D.railPost;
+            const n = Math.max(1, Math.ceil((A.pierX1 - meetX) / span));
+            for(let k = 0; k < n; k++){
+              const xa = A.pierX1 + (meetX - A.pierX1) * (k / n);
+              const xb = A.pierX1 + (meetX - A.pierX1) * ((k + 1) / n);
+              Q((xa + xb)/2 + y, (g) =>
+                drawPierRail(this, g, Wr, { x:xa, y }, { x:xb, y }, {}));
+            }
           }
           if(R > 0) Q(A.cx + A.cy + 1, (g) => deckRailArc(this, g, Wr, A, {}));
 
