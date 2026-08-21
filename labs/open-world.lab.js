@@ -122,6 +122,38 @@
      commercial are buildings and stop the robot; park is open ground and
      is deliberately drivable, which is the whole "cut through the park"
      ask. Nothing new to author — the city already knew this. */
+  /* ---------- WATERFRONT ----------
+     The boardwalk, pier and beach are decorative art drawn OUTSIDE the
+     36x27 lattice, so the lattice-derived classifier below has nothing
+     to say about them and returns 'void'. That is honest but useless
+     once you are standing on the deck, so the two decks are classified
+     geometrically here, from WG_COAST rather than from restated
+     literals — same constants drawWorld paints them with, so they cannot
+     drift apart.
+
+     This is a READOUT-level classification only. There is still no
+     collision out here and no fail volume: driving off the end of the
+     pier puts you on the water and keeps going. Real waterfront
+     surfaces, pathing and fail volumes are phase 2. */
+  const _B = BLOCK, _C = WG_COAST;
+  const WF = {
+    x0: -_C.EXT * _B - _C.BOARD * _B,          // back edge of the boardwalk deck
+    x1: -_C.EXT * _B,                          // street-side edge
+    y0: -_C.EXT * _B,
+    y1: (g2.rows - 1) * _B + _C.EXT * _B,
+  };
+  WF.pierY = (WF.y0 + WF.y1) / 2;
+  WF.pierHalf = _C.PIER_W * _B / 2;
+  WF.pierX0 = WF.x0 - _C.SANDW * _B - _C.PIER_LEN * _B;   // seaward tip
+  WF.pierX1 = WF.x0;                                       // meets the boardwalk
+
+  const waterfrontAt = (x, y) => {
+    if (x >= WF.x0 && x <= WF.x1 && y >= WF.y0 && y <= WF.y1) return 'boardwalk';
+    if (x >= WF.pierX0 && x <= WF.pierX1 &&
+        Math.abs(y - WF.pierY) <= WF.pierHalf) return 'pier';
+    return null;
+  };
+
   const SOLID = new Set(['housing', 'commercial']);
   const blocks = (g2.blocks || []).filter(b => SOLID.has(b.type));
   /* bucketed by grid cell so a test is a handful of rect checks rather
@@ -170,6 +202,8 @@
     const bx = liveY ? band(dx) : null;   // vertical street: distance measured in x
     const by = liveX ? band(dy) : null;
     if (bx && by) return (dx < dy ? bx : by);   // intersection: nearer axis wins
+    const wf = waterfrontAt(x, y);
+    if (wf) return wf;
     if (bx || by) return bx || by;
     /* block interior: park is open ground, the rest is a building the
        collision pass will already have stopped us short of */
@@ -303,10 +337,15 @@
     return origDrawRobot(t, dt);
   };
 
-  /* ---------- state ---------- */
-  const spawn = { x: scene.botX, y: scene.botY };
+  /* ---------- state ----------
+     SPAWN ON THE BOARDWALK, at the point where the pier meets it, facing
+     west down the pier. The daily route's pickup is around x 74,566 and
+     the deck is at x -1,955 — about 76,500 units apart, which at top
+     speed is over five minutes of driving. "Far from the pier" was
+     really "cannot get to the pier", so the lab starts there instead. */
+  const spawn = { x: (WF.x0 + WF.x1) / 2, y: WF.pierY };
   let px = spawn.x, py = spawn.y;
-  let yaw = scene.drawAngle || 0;
+  let yaw = Math.PI;              // facing west, straight down the pier
   let vel = 0;                    // signed: negative is reverse
   let reversing = false;
   let latchSign = 0;              // 0 = unlatched
@@ -322,7 +361,10 @@
   let rightT = 0;                 // ms spent down, for the auto-right below
   /* the lab's own camera — see the CAMERA block in onPost for why this
      cannot be a lerp against scene.camX */
-  let ocx = scene.camX, ocy = scene.camY, ocz = scene.camZ || 0;
+  /* start the camera ON the spawn: it is 76,500 units from wherever the
+     route left the robot, and an 8%-per-frame lerp across that gap is a
+     long slow flight over the city before the lab is usable. */
+  let ocx = spawn.x, ocy = spawn.y, ocz = scene.camZ || 0;
 
   const stick = { active: false, id: null, ox: 0, oy: 0, dx: 0, dy: 0 };
 
@@ -657,7 +699,7 @@
     nub.style.left = (stick.ox + stick.dx) + 'px'; nub.style.top = (stick.oy + stick.dy) + 'px';
   };
   document.getElementById('owReset').onclick = () => {
-    px = spawn.x; py = spawn.y; vel = 0; yaw = 0; scene.tilt = 0;
+    px = spawn.x; py = spawn.y; vel = 0; yaw = Math.PI; scene.tilt = 0;
     ocx = px; ocy = py;   // snap, don't ease across the city
     scene.state = 'play'; scene.roll = 0; scene.pitch = 0; scene.tipT = 0;
   };
