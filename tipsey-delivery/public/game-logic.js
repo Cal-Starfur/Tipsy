@@ -3979,6 +3979,9 @@ const OW_HZ_R = {
   hydrant: OW_D.hzHydrant, bin: OW_D.hzBin, planter: OW_D.hzPlanter,
   robot: OW_D.hzRobot, scooter: OW_D.hzScooter, trash: OW_D.hzTrash,
   people: OW_D.hzPeople, william: OW_D.hzRobot, dog: OW_D.hzDog,
+  /* scatter-only kinds: the route never spawns these two, so they had
+     no entry until street furniture became solid */
+  bench: 30, cone: 18,
 };
 /* driven over, not driven into: ground features and triggers */
 const OW_HZ_FLAT = new Set(['crack', 'slab', 'pigeons', 'grade', 'burnoutMark',
@@ -4208,6 +4211,36 @@ function owStep(scene, dt){
       scene.tilt += (dYaw >= 0 ? 1 : -1) * D.clipTilt * vN * (freshH ? 1 : D.grindTilt);
       ow.vel *= D.clipLoss; if(freshH) ow.clipScrapes++;
     }
+  }
+
+  /* ---------- STREET FURNITURE, SOLID ----------
+     Same disc resolution as the route hazards above and the same
+     clipThresh, so a city lamp post answers to one number with a route
+     one. Deliberately simpler in one respect: these have no state to
+     knock over or spill, so there is no fresh/grind bookkeeping and no
+     per-object flag -- push out, scrub the normal component, done.
+
+     No spatial index. The list is already only what is ON SCREEN (see
+     drawWorld), which is the same handful of blocks a bucket lookup
+     would have narrowed to. */
+  for(const fp of (scene._owFurn || [])){
+    const R = OW_HZ_R[fp.kind];
+    if(R === undefined) continue;
+    const fdx = ow.px - fp.x, fdy = ow.py - fp.y;
+    const fd = Math.hypot(fdx, fdy) || 1e-6;
+    const freach = R + D.botR * 0.72;
+    if(fd >= freach) continue;
+    const fnx = fdx / fd, fny = fdy / fd;
+    ow.px = fp.x + fnx * freach;
+    ow.py = fp.y + fny * freach;
+    const fvN = Math.abs(Math.cos(ow.yaw) * fnx + Math.sin(ow.yaw) * fny) * Math.abs(ow.vel);
+    hitNormal = hitNormal || 3;
+    if(fvN >= D.clipThresh){
+      owTip(scene, -(Math.sign(Math.cos(ow.yaw) * fnx + Math.sin(ow.yaw) * fny) || 1));
+      break;                       // tipped; the rest of the list is moot this frame
+    }
+    scene.tilt += (dYaw >= 0 ? 1 : -1) * D.clipTilt * fvN * D.grindTilt;
+    ow.vel *= D.clipLoss;
   }
 
   ow.inContact = hitNormal !== 0;
@@ -9937,6 +9970,10 @@ class WorldScene extends Phaser.Scene {
   /* ---------- world drawing ---------- */
   drawWorld(t){
     const d = this.d, g = this.gWorld, r = this.route; g.clear();
+    /* refilled by queueStreetFurniture as the visible blocks are laid
+       out, so it holds exactly the dressing on screen -- which is also
+       exactly the dressing the robot can reach. */
+    this._owFurn = [];
     this.gSky.clear();
     this.gSky.fillStyle(d.sky, 1);
     this.gSky.fillRect(0, 0, this.scale.gameSize.width, this.scale.gameSize.height);
@@ -12518,6 +12555,24 @@ class WorldScene extends Phaser.Scene {
         const y = e.oy + e.dv.y*a - e.rv.y*d;
         if(cells && cells.has(Math.round(x/FURNISH_CELL) + "," + Math.round(y/FURNISH_CELL))) continue;
         const kind = pick();
+        /* ---------- COLLISION FROM THE DRAW PASS ITSELF ----------
+           These ~16,400 city props were pure decoration: the open-world
+           contact pass only ever knew route.hazards, so every lamp and
+           hydrant outside the day's route was drive-through.
+
+           Recorded HERE rather than re-derived from the block seed,
+           and that is the whole design. The rng sequence below is not a
+           function of the block alone -- a slot skipped by routeCells
+           does NOT consume a pick(), so which kinds land where shifts
+           with the daily route. Any parallel generator would drift from
+           the art the first time a route moved, and the robot would
+           collide with lamps nobody can see. Taking the position off
+           the same line that draws it makes that impossible.
+
+           One frame stale: owStep runs at the top of update() and this
+           fills during drawWorld. At 0.225 units/ms that is at most ~4
+           units of lag against a 22-unit contact radius. */
+        if(this.ow && this.ow.on) this._owFurn.push({ kind, x, y });
         /* benches need an orientation or their long axis punches through
            the fence -- same reasoning queueParkBlock already documents.
            Everything else is radially symmetric enough not to care. */
