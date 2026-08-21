@@ -4996,6 +4996,12 @@ function owStep(scene, dt){
    writes. */
 function owTip(scene, sgn){
   const ow = scene.ow;
+  /* FREE PLAY DOES NOT FAIL YOU. A tip out on the open city is not a
+     failed delivery -- you never accepted one -- so it starts a recovery
+     clock instead. owRespawnTick below does the pickup. Once deliveries
+     work in world space this will need to ask whether one is ACTIVE; for
+     now free roam is the only thing open world does. */
+  ow.downT = 0;
   scene.tilt = 1.1 * sgn;
   scene.state = "tipped";
   scene.tipDir = sgn;
@@ -5006,6 +5012,38 @@ function owTip(scene, sgn){
 }
 
 /* ---------- install / uninstall ---------- */
+/* ---------- RECOVERY ----------
+   Hold the fallen pose long enough to read as a fall, then set the robot
+   upright on the nearest pad, facing out of it -- nose to the street,
+   not at the wall he would otherwise have to reverse away from. The
+   charge is a repair, which is the point of the stop. */
+function owRespawnTick(scene, t){
+  const ow = scene.ow;
+  if(!ow || scene.state !== "tipped") return;
+  if(!ow.downT){ ow.downT = t; return; }
+  if(t - ow.downT < CHARGE.holdMs) return;
+  ow.downT = 0;
+  const grid = scene.route && scene.route.grid;
+  if(!grid) return;
+  const near = nearestChargeStation(grid, ow.px, ow.py);
+  if(!near) return;
+  const st = near.station;
+  ow.px = st.x; ow.py = st.y; ow.yaw = st.a; ow.vel = 0;
+  ow.reversing = false; ow.latchSign = 0; ow.inContact = false;
+  ow.solidOn = new Set(); ow.flatOn = new Set();
+  scene.botX = st.x; scene.botY = st.y;
+  /* SNAP THE CAMERA, do not ease it. camX/camY lerp toward the robot at
+     8% a frame, which is right for driving and wrong for a teleport: the
+     pad can be thousands of units from where he fell, so easing reads as
+     a long slow flight over the city before the game is playable again.
+     The lab hit this too and snapped for the same reason. */
+  scene.camX = st.x; scene.camY = st.y;
+  scene.state = "play";
+  scene.tilt = 0; scene.roll = 0; scene.pitch = 0;
+  scene.tipT = 0; scene.tipStartRoll = 0; scene.speed = 0;
+  scene.damage = 0;
+}
+
 function owInstall(scene){
   if(scene.ow) return scene.ow;
   const r = scene.route;
@@ -6300,6 +6338,123 @@ function getPickupShops(grid){
   if(!_pickupShopsCache) _pickupShopsCache = buildPickupShops(grid);
   return _pickupShopsCache;
 }
+
+/* ====================== CHARGING STATIONS ==========================
+   Where Tipsey wakes up after going over in free play. Ported from
+   labs/charging-station.lab.js, which is where placement, the recovery
+   and the art were settled.
+
+   THE PROBLEM. The rail game's tip is a FAILED DELIVERY, which is right
+   when you accepted a delivery and wrong when you were only driving
+   around. Sir's call: a charging center. You go down, you wake up on a
+   pad, you carry on.
+
+   THIRTY-SIX, NOT ONE. A single city-wide station would put a respawn
+   up to two minutes of driving from where you fell. One per district
+   (12) measured at ~56s of lost ground on an average tip; three per
+   district roughly halves that, so a tip reads as a stumble rather than
+   a punishment. CHARGE_PER_DISTRICT is the dial — the whole difference
+   is this one number.
+
+   PLACEMENT IS DERIVED, NOT AUTHORED. Same districts, same seeded
+   shuffle over each district's own commercial blocks, and the same
+   blockEdgesOf/packEdgeNoGap edge math as buildPickupShops, so a
+   station's x/y is bug-compatible with where the game independently
+   thinks that frontage is. Two deliberate differences:
+
+     - it takes blocks the three shops did NOT, so a pad never lands on
+       a bakery door;
+     - it sits CHARGE.offset tiles off the building rather than the
+       shops' 2.1. That standoff is right for a pickup, where the robot
+       must stop in the open to be loaded, and it is 193 units into a
+       368-wide sidewalk — dead centre of the corridor. Reported
+       on-device as stations standing in the lanes, because they were.
+       0.55 hugs the storefronts and leaves 268 units clear.
+
+   CITY_SEED is frozen, so this table is the same forever. */
+const CHARGE_PER_DISTRICT = 3;        // 12 districts -> 36 stations
+const CHARGE = {
+  padR:      44,        // pad radius. Robot is ~30, so this is "park on it"
+  poleH:     96, poleW: 15,
+  headH:     26, headW: 21,
+  glowR:     7, pulseMs: 1700,
+  ringW:     5,
+  offset:    0.55,      // tiles off the building edge; sidewalk is 4 tiles
+  holdMs:    900,       // time on the ground before the pickup
+};
+const CHARGE_PAL = {
+  /* LIGHTER THAN THE LAB'S. At the lab's navy the pad read as a hole in
+     the pavement rather than a plate on top of it — it was darker than
+     the road. Lifted to a mid slate that sits above the sidewalk's own
+     value, so the ring reads as paint and the pad as a surface. */
+  pad: 0x6d7484, padDk: 0x565c6a,
+  ring: 0xffb454, ringDk: 0xd98f34,
+  pole: 0xe8eaef, poleDk: 0xb9bcc6,
+  head: 0x3a4150, headDk: 0x2b313d,
+  glow: 0x7fe3ff, glowHot: 0xd8f7ff,
+  shadow: 0x000000,
+};
+
+let _chargeStationsCache = null;
+function buildChargeStations(grid){
+  const out = [];
+  const shops = getPickupShops(grid);
+  for(let hoodIdx = 0; hoodIdx < HOODS.length; hoodIdx++){
+    const dc = hoodIdx % DISTRICT_COLS, dr = Math.floor(hoodIdx / DISTRICT_COLS);
+    const i0 = dc*DISTRICT_W, i1 = i0 + DISTRICT_W - 1;
+    const j0 = dr*DISTRICT_H, j1 = j0 + DISTRICT_H - 1;
+    const cand = grid.blocks
+      .filter(b => b.type === "commercial" && b.i >= i0 && b.i <= i1 && b.j >= j0 && b.j <= j1)
+      .sort((a,b) => a.j - b.j || a.i - b.i);
+    if(!cand.length) continue;
+    const taken = new Set(shops.filter(s => s.hoodIndex === hoodIdx)
+                               .map(s => s.blockI + "," + s.blockJ));
+    /* its OWN salt, so the stations are not all in the same corner of
+       their districts as the shops */
+    const rng = mulberry32(((hoodIdx*2654435761) ^ 0xc0ffee) >>> 0);
+    const pool = cand.slice();
+    for(let k = pool.length-1; k > 0; k--){
+      const r = Math.floor(rng()*(k+1));
+      const t = pool[k]; pool[k] = pool[r]; pool[r] = t;
+    }
+    const picks = pool.filter(b => !taken.has(b.i + "," + b.j)).slice(0, CHARGE_PER_DISTRICT);
+    for(const blk of picks){
+      const fRng = mulberry32(((blk.i*7919) ^ (blk.j*104729) ^ 0x5eed) >>> 0);
+      const f = fRng() < 0.5 ? 0 : 3;
+      const pe = blockEdgesOf(blk)[(f + 2) % 4];
+      const seed = ((Math.round(pe.ox*3+pe.dv.x)*7919) ^ (Math.round(pe.oy*3+pe.dv.y)*104729) ^ 0x51b3) >>> 0;
+      const units = packEdgeNoGap(pe.len, mulberry32(seed));
+      const u = units[Math.floor(units.length/2)] || { start:0, w: pe.len };
+      const ux = pe.ox + pe.dv.x*u.start, uy = pe.oy + pe.dv.y*u.start;
+      /* clamped so no dial can push a pad into the road or into a shop */
+      const off = Math.min(SIDEWALK_W - CHARGE.padR*0.5,
+                           Math.max(CHARGE.padR*0.5, T2*CHARGE.offset));
+      const x = ux + pe.dv.x*(u.w/2) + pe.rv.x*off;
+      const y = uy + pe.dv.y*(u.w/2) + pe.rv.y*off;
+      out.push({ hoodIndex: hoodIdx, name: HOODS[hoodIdx].n + " Charging",
+                 blockI: blk.i, blockJ: blk.j, x, y,
+                 a: Math.atan2(pe.rv.y, pe.rv.x) });
+    }
+  }
+  return out;
+}
+function getChargeStations(grid){
+  if(!_chargeStationsCache) _chargeStationsCache = buildChargeStations(grid);
+  return _chargeStationsCache;
+}
+/* nearest by straight line, not by road: the point is a short recovery,
+   and the pad you can SEE from where you fell should be the one that
+   catches you even if the drive back curls around a block. */
+function nearestChargeStation(grid, x, y){
+  const list = getChargeStations(grid);
+  let best = null, bd = Infinity;
+  for(const s of list){
+    const d = Math.hypot(s.x - x, s.y - y);
+    if(d < bd){ bd = d; best = s; }
+  }
+  return best ? { station: best, dist: bd } : null;
+}
+
 
 /* ---------- the walked route: a random walk THROUGH the graph ----------
    Two stages: graph traversal (only ever follows real edges — this is
@@ -11574,6 +11729,21 @@ class WorldScene extends Phaser.Scene {
       }});
     }
 
+    /* CHARGING STATIONS ride the hazard queue. That is what makes them
+       correct where the bench could not be: hazVQ is flushed after every
+       building, and layerFor picks near/far per station, so the pad is
+       never swallowed by a storefront and never painted over the robot
+       standing on it. Both halves at once, for free, because this is the
+       slot the game already built for exactly this shape of object. */
+    if(r.grid){
+      for(const st of getChargeStations(r.grid)){
+        if(!near(st.x, st.y)) continue;
+        const _cst = st;
+        hazVQ.push({ depth: _cst.x + _cst.y,
+                     fn:(gg,tt)=>this.drawChargeStation(layerFor(_cst.x, _cst.y), _cst, tt) });
+      }
+    }
+
     hazVQ.sort((a, b) => a.depth - b.depth);
     for(const item of hazVQ) item.fn(g, t);
 
@@ -13692,6 +13862,54 @@ class WorldScene extends Phaser.Scene {
       0, false, 0, liftT, null, POLICE_UNIFORM);
   }
 
+
+  /* the station's own geometry: hull idiom, orientation transform, one
+     draw. Called from the hazard queue (see drawWorld) so it lands after
+     every building and picks its layer per object the way every other
+     prop does -- which is the whole reason this could not be finished in
+     the bench, where neither reachable layer is both. */
+  drawChargeStation(g, st, t){
+    const cs = Math.cos(st.a), sn = Math.sin(st.a), K = this.K, P = CHARGE_PAL;
+    const W = (a, b, h) => this.W(st.x + a*cs - b*sn, st.y + a*sn + b*cs, h);
+    const o = W(0, 0, 0);
+
+    g.fillStyle(P.shadow, 0.16);
+    g.fillEllipse(o.x, o.y + 3, CHARGE.padR*2.1*K, CHARGE.padR*1.05*K);
+    g.fillStyle(P.padDk, 1);
+    g.fillEllipse(o.x, o.y + 1, CHARGE.padR*2*K, CHARGE.padR*1.0*K);
+    g.fillStyle(P.ring, 0.92);
+    g.fillEllipse(o.x, o.y, CHARGE.padR*2*K, CHARGE.padR*1.0*K);
+    g.fillStyle(P.pad, 1);
+    g.fillEllipse(o.x, o.y, (CHARGE.padR - CHARGE.ringW)*2*K, (CHARGE.padR - CHARGE.ringW)*1.0*K);
+
+    const bx = -CHARGE.padR*0.62;
+    const box = (x0, x1, y0, y1, z0, z1, top, side) => {
+      const pts = [[x0,y0],[x1,y0],[x1,y1],[x0,y1]].map(p => W(p[0], p[1], z1));
+      g.fillStyle(top, 1);
+      g.beginPath(); g.moveTo(pts[0].x, pts[0].y);
+      for(let i = 1; i < 4; i++) g.lineTo(pts[i].x, pts[i].y);
+      g.closePath(); g.fillPath();
+      g.fillStyle(side, 1);
+      for(const pair of [[[x1,y0],[x1,y1]], [[x0,y1],[x1,y1]]]){
+        const lo = pair.map(p => W(p[0], p[1], z0));
+        const hi = pair.map(p => W(p[0], p[1], z1));
+        g.beginPath(); g.moveTo(hi[0].x, hi[0].y); g.lineTo(hi[1].x, hi[1].y);
+        g.lineTo(lo[1].x, lo[1].y); g.lineTo(lo[0].x, lo[0].y);
+        g.closePath(); g.fillPath();
+      }
+    };
+    const hw = CHARGE.poleW/2, hh = CHARGE.headW/2;
+    box(bx-hw, bx+hw, -hw, hw, 0, CHARGE.poleH, P.pole, P.poleDk);
+    box(bx-hh, bx+hh, -hh, hh, CHARGE.poleH, CHARGE.poleH + CHARGE.headH, P.head, P.headDk);
+
+    /* the indicator breathes: a charger doing nothing still reads live */
+    const u = (Math.sin(t / CHARGE.pulseMs * Math.PI*2) + 1) / 2;
+    const gp = W(bx, -hh, CHARGE.poleH + CHARGE.headH*0.55);
+    g.fillStyle(P.glow, 0.30 + 0.25*u);
+    g.fillCircle(gp.x, gp.y, CHARGE.glowR*2.1*K);
+    g.fillStyle(P.glowHot, 0.75 + 0.25*u);
+    g.fillCircle(gp.x, gp.y, CHARGE.glowR*K);
+  }
   drawProp(g, kind, x, y, t, fdir = 0, z = 0, wheelPhase = null, colorSeed = null, data = null){
     /* fdir may now be CONTINUOUS (a float, in quarter-turn units) --
        moving traffic passes its real heading so a car rotates smoothly
@@ -19832,7 +20050,7 @@ class WorldScene extends Phaser.Scene {
     if(OW_ARMED && !this.ow && this.route && this.state === "play") owInstall(this);
     if(this.ow && this.ow.on){
       if(this.state === "play") owStep(this, Math.min(dt, 40));
-      else this.throttle = 0;
+      else { this.throttle = 0; owRespawnTick(this, t); }
     }
     else if(this.attract){ this.attractDrive(); }
     else if(this.keys){
