@@ -4332,6 +4332,85 @@ const CORNER_HAZARD_CLEAR = 3*T2;   // hazard-exclusion padding around corners, 
 const ROBOT_SIDE = -1;       // the walk stays on ONE side's sidewalk band —
                               // lane 0 is closest to the road (curb side),
                               // lane 3 is farthest (building side).
+/* ---------- path sampling as free functions (pure) ----------
+   segAt/posAt/headingAt were scene methods reading this.route.segs. They
+   are needed at ROUTE BUILD time too — before any scene owns the route —
+   so the arithmetic moves here and the scene methods below delegate.
+   One implementation, so the build-time answer and the runtime answer
+   cannot drift.
+
+   Same contract as the methods they replace: s is clamped into the
+   segment, arcs are sampled by angle, lines by the DIRV unit vector. */
+function segAtOn(segs, s){
+  for(const sg of segs) if(s <= sg.s1) return sg;
+  return segs[segs.length-1];
+}
+function posAtOn(segs, s){
+  const sg = segAtOn(segs, s);
+  if(sg.type === "line"){
+    const d = DIRV[sg.f], u = Phaser.Math.Clamp(s, sg.s0, sg.s1) - sg.s0;
+    return { x: sg.start.x + d.x*u, y: sg.start.y + d.y*u };
+  }
+  const a = sg.a0 + sg.sign * (Phaser.Math.Clamp(s, sg.s0, sg.s1) - sg.s0) / sg.R;
+  return { x: sg.center.x + Math.cos(a)*sg.R, y: sg.center.y + Math.sin(a)*sg.R };
+}
+function headingAtOn(segs, s){
+  const sg = segAtOn(segs, s);
+  if(sg.type === "line") return sg.hA;
+  return sg.hA + sg.sign * (Phaser.Math.Clamp(s, sg.s0, sg.s1) - sg.s0) / sg.R;
+}
+
+/* ---------- hazard world coordinates (open-world groundwork) ----------
+   Every hazard is placed in RAIL coordinates: an along-track s plus a
+   lateral offset, expressed either as a sidewalk lane (row) or as a raw
+   number (roadOffset). That is enough while the robot cannot leave the
+   rail, because "how far apart are we" is then just botS - hz.s.
+
+   Off the rail it is not enough: the robot can stand anywhere, so a
+   hazard needs an actual position. This resolves each one ONCE, at build
+   time, into world x/y plus the heading of the path where it sits.
+
+   NOTHING READS THESE YET. The interaction loop still runs on hz.s and
+   is unchanged; this only puts the coordinates on the record so the
+   world-space proximity test can be written against real data instead of
+   against a parallel structure that would have to be kept in sync.
+
+   MOVING HAZARDS store their HOME here, not their live position. Dogs,
+   walkers and pigeons animate off pure functions (dogSpotAt, dogFleeAt,
+   peopleWalkAt) that the renderer and the sim already share; those stay
+   the source of truth for where the thing is right now. wx/wy is the
+   spawn point those functions are anchored to.
+
+   The lateral convention is the one the robot itself uses: right-of-
+   travel is (-sin a, cos a), and botX = posAt(s).x + rvx*laneOff. Same
+   two lines, so a hazard at the robot's own row lands exactly under it.
+
+   offsetOf is deliberately re-derived here rather than shared with the
+   placement-time helper of the same name inside generateRoute: that one
+   is scoped to route building and this runs after it. Same rule, and if
+   the two ever disagree that is a bug in one of them. */
+function hazardOffsetOf(hz){
+  if(hz.row !== undefined) return laneOffset(hz.row);
+  if(hz.roadOffset !== undefined) return hz.roadOffset;
+  return 0;
+}
+function stampWorldCoords(route){
+  const segs = route && route.segs;
+  if(!segs || !segs.length) return route;
+  for(const list of [route.hazards, route.props]){
+    if(!list) continue;
+    for(const it of list){
+      if(it.s === undefined) continue;
+      const p = posAtOn(segs, it.s), a = headingAtOn(segs, it.s);
+      const off = hazardOffsetOf(it);
+      it.wA = a;
+      it.wx = p.x - Math.sin(a)*off;
+      it.wy = p.y + Math.cos(a)*off;
+    }
+  }
+  return route;
+}
+
 function laneOffset(lane){ return ROBOT_SIDE * (ROAD_HALF + (lane+0.5)*T2); }
 function farLaneOffset(lane){ return -ROBOT_SIDE * (ROAD_HALF + (lane+0.5)*T2); } // opposite sidewalk — decoration only, never robot-reachable
 
@@ -8096,8 +8175,10 @@ function _generateRouteFresh(dateStr, opts){
   const RAMP_DEDUP = 150;
   const curbRamps = grid.curbRamps.filter(cr => !routeRampPts.some(
     p => Math.abs(p.x - cr.x) < RAMP_DEDUP && Math.abs(p.y - cr.y) < RAMP_DEDUP));
-  return { hood: addressHood, grid, segs, totalLen: loop ? loop.sEnd : totalLen, loop, tiles, hazards, props, pal, night, traffic, crossings, cutEdges, cutExt, challenge, crime, routeCells, curbRamps, signals: grid.signals,
-           address:`${number} ${street}`, doorS, pickupS, pickupSpot, pickupShopName, addressBlock, pickupBlock, addressEdgeIdx, pickupEdgeIdx, addressUnitIdx, pickupUnitIdx, addressUsesGate, order, parMs, dateStr, runIndex };
+  /* resolve every hazard and prop to world x/y before the route leaves
+     the builder — see stampWorldCoords. Nothing reads wx/wy yet. */
+  return stampWorldCoords({ hood: addressHood, grid, segs, totalLen: loop ? loop.sEnd : totalLen, loop, tiles, hazards, props, pal, night, traffic, crossings, cutEdges, cutExt, challenge, crime, routeCells, curbRamps, signals: grid.signals,
+           address:`${number} ${street}`, doorS, pickupS, pickupSpot, pickupShopName, addressBlock, pickupBlock, addressEdgeIdx, pickupEdgeIdx, addressUnitIdx, pickupUnitIdx, addressUsesGate, order, parMs, dateStr, runIndex  });
 }
 
 /* ---------- robot palette (approved in sprite lab) ---------- */
@@ -9551,25 +9632,11 @@ class WorldScene extends Phaser.Scene {
   }
 
   /* ---------- path + terrain (s = distance along the route) ---------- */
-  segAt(s){
-    const segs = this.route.segs;
-    for(const sg of segs) if(s <= sg.s1) return sg;
-    return segs[segs.length-1];
-  }
-  posAt(s){
-    const sg = this.segAt(s);
-    if(sg.type === "line"){
-      const d = DIRV[sg.f], u = Phaser.Math.Clamp(s, sg.s0, sg.s1) - sg.s0;
-      return { x: sg.start.x + d.x*u, y: sg.start.y + d.y*u };
-    }
-    const a = sg.a0 + sg.sign * (Phaser.Math.Clamp(s, sg.s0, sg.s1) - sg.s0) / sg.R;
-    return { x: sg.center.x + Math.cos(a)*sg.R, y: sg.center.y + Math.sin(a)*sg.R };
-  }
-  headingAt(s){
-    const sg = this.segAt(s);
-    if(sg.type === "line") return sg.hA;
-    return sg.hA + sg.sign * (Phaser.Math.Clamp(s, sg.s0, sg.s1) - sg.s0) / sg.R;
-  }
+  /* thin delegates: the arithmetic lives in the free functions so that
+     route-build time and runtime cannot answer differently */
+  segAt(s){ return segAtOn(this.route.segs, s); }
+  posAt(s){ return posAtOn(this.route.segs, s); }
+  headingAt(s){ return headingAtOn(this.route.segs, s); }
   groundZ(s){
     /* flat, always. route.tiles is a VIRTUAL grade profile — consumed
        as slope only (elevAt/groundSlope below feed pitch and hill
