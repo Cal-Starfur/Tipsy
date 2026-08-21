@@ -56,6 +56,21 @@
     glowR:     7,         // indicator lamp radius
     pulseMs:   1700,      // indicator breathing period
     ringW:     5,         // painted ring width on the pad
+
+    /* ---------- WHERE ACROSS THE SIDEWALK ----------
+       The first version inherited PICKUP_SHOPS' T2*2.1 standoff, and
+       that was wrong for a reason worth writing down: 2.1 tiles is
+       CORRECT for a pickup, where the robot has to stop out in the open
+       to be loaded, and it is 193 units into a sidewalk only 368 wide —
+       dead centre of the walking corridor. Reported on-device as
+       stations standing in the middle of the lanes, which they were.
+
+       Street furniture belongs against an edge. 0.55 tiles hugs the
+       storefronts, where a real charger would be because that is where
+       the power is, and leaves the corridor clear. Measured from the
+       BUILDING edge outward; kerb flips it to the road side. */
+    offset:    0.55,      // tiles from the chosen edge; sidewalk is 4 tiles wide
+    kerb:      0,         // 0 = against the buildings, 1 = out at the kerb
   };
   const CSC = {
     pad:     0x2f3540, padDk: 0x232833,
@@ -114,8 +129,16 @@
       const units = packEdgeNoGap(pe.len, mulberry32(seed));
       const u = units[Math.floor(units.length/2)] || { start:0, w: pe.len };
       const ux = pe.ox + pe.dv.x*u.start, uy = pe.oy + pe.dv.y*u.start;
-      const x = ux + pe.dv.x*(u.w/2) + pe.rv.x*(T2*2.1);
-      const y = uy + pe.dv.y*(u.w/2) + pe.rv.y*(T2*2.1);
+      /* pe.rv points from the building out across the sidewalk, so a
+         small offset hugs the wall and (SIDEWALK_W - offset) hugs the
+         kerb. Clamped so a dial can never push a pad into the road or
+         inside the shop. */
+      const off = CS.kerb
+        ? SIDEWALK_W - Math.max(CS.padR*0.5, T2*CS.offset)
+        : Math.max(CS.padR*0.5, T2*CS.offset);
+      const offC = Math.min(SIDEWALK_W - CS.padR*0.5, Math.max(CS.padR*0.5, off));
+      const x = ux + pe.dv.x*(u.w/2) + pe.rv.x*offC;
+      const y = uy + pe.dv.y*(u.w/2) + pe.rv.y*offC;
       /* facing: the bollard's back is to the building, so it looks the
          way the frontage does */
       const fa = Math.atan2(pe.rv.y, pe.rv.x);
@@ -125,7 +148,7 @@
     return out;
   }
 
-  const STATIONS = buildStations();
+  let STATIONS = buildStations();
   console.log('charging-station ' + CS_BUILD + ': ' + STATIONS.length + ' stations');
   for (const s of STATIONS)
     console.log('   ' + s.name.padEnd(26) + ' (' + Math.round(s.x) + ', ' + Math.round(s.y) + ')');
@@ -258,7 +281,28 @@
       /* cull: same test the game's own draw loop uses, so the bench
          cannot show a scene the game would not */
       if (Math.hypot(st.x - s.botX, st.y - s.botY) > BLOCK * 3) continue;
-      BENCH.queue(st.x + st.y, (g, tt) => drawStation(BENCH.layerFor(st.x, st.y), st, tt));
+      /* Near edge, not centre — a volume lying against a wall should be
+         sorted by the face nearest camera.
+
+         KNOWN LIMITATION, AND THE REASON THIS LAB CANNOT FINISH THE JOB.
+         Against the storefronts the station is painted out entirely by
+         the building behind it: on screen, in cull range, drawing every
+         frame, invisible. It is NOT a placement bug and not a depth-key
+         bug — the block's own fill carries a depth key from the block
+         CENTRE, ~1500 units away, so it always sorts after a pad at the
+         wall no matter what key the pad claims. Proven by control: at
+         the old mid-sidewalk offset the same code renders correctly.
+
+         This is precisely what labs/corner-light.lab.js ran into and
+         wrote up: BENCH.queue can only reach blockVQ, and blockVQ is
+         painted before hazVQ, so anything queued from a lab loses to
+         the block pass. The signals had to move INTO game/index.html to
+         be drawn at all. Street furniture that hugs a building has the
+         same requirement, so the pad's final home is the game's hazard
+         pass — the lab can settle placement and behaviour, which it now
+         has, but not this. */
+      BENCH.queue(st.x + st.y + CS.padR,
+                  (g, tt) => drawStation(BENCH.layerFor(st.x, st.y), st, tt));
     }
     csRespawnTick(s, t);
   });
@@ -311,7 +355,12 @@
     { k:'glowR',   lo:2,  hi:18,   st:1 },
     { k:'ringW',   lo:1,  hi:20,   st:1 },
     { k:'pulseMs', lo:400,hi:4000, st:50 },
+    { k:'offset',  lo:0.3, hi:3.5, st:0.05 },
   ];
+  /* dials that change WHERE a station is, not what it looks like, have
+     to rebuild the table — the position is baked at build time so the
+     art transform cannot reach it. */
+  const PLACEMENT = new Set(['offset']);
   const p = document.createElement('div');
   p.id = 'csPanel';
   p.setAttribute('data-lab-panel', '1');
@@ -356,6 +405,7 @@
     'z-index:100000;display:flex;gap:8px;font:12px/1.3 ui-monospace,Menlo,monospace';
   bar.innerHTML =
     '<button id="csGo" style="flex:1">go to nearest ▸</button>' +
+    '<button id="csSide" style="flex:0 0 96px">wall side</button>' +
     '<button id="csTip" style="flex:1">tip me over</button>';
   for (const b of bar.querySelectorAll('button'))
     b.style.cssText += ';background:#1b1e26;color:#ffb454;border:1px solid #3a3f4b;' +
@@ -379,7 +429,11 @@
   };
   for (const f of F) {
     const el = document.getElementById('cs-' + f.k);
-    if (el) el.addEventListener('input', e => { CS[f.k] = +e.target.value; paint(); });
+    if (el) el.addEventListener('input', e => {
+      CS[f.k] = +e.target.value;
+      if (PLACEMENT.has(f.k)) STATIONS = buildStations();
+      paint();
+    });
   }
   /* CYCLE, not just nearest: twelve stations and no way to see the
      other eleven made this button feel broken even once it worked. Each
@@ -393,9 +447,15 @@
       csIdx = near ? STATIONS.indexOf(near.station) : 0;
     } else csIdx = (csIdx + 1) % STATIONS.length;
     const st = STATIONS[csIdx];
-    /* stand just off the pad looking AT it, so the station is what fills
-       the screen rather than being underneath the robot */
-    csPlace(st.x - Math.cos(st.a)*150, st.y - Math.sin(st.a)*150, st.a);
+    /* Stand just off the pad looking AT it, so the station fills the
+       screen rather than sitting under the robot.
+
+       OUT toward the road, not back along st.a. st.a points from the
+       building outward, so stepping BACK along it walks into the shop —
+       which is exactly what happened the moment the stations moved to
+       hug the wall: the readout read BUILDING ✕CLIP. Harmless while the
+       pads sat mid-sidewalk, wrong the instant they did not. */
+    csPlace(st.x + Math.cos(st.a)*150, st.y + Math.sin(st.a)*150, st.a + Math.PI);
     lastTip = { x: st.x, y: st.y, dist: 0, name: st.name };
     paint();
     /* NO BENCH.lookAt HERE. The open-world lab reclaims the camera every
@@ -403,6 +463,13 @@
        it would pin the camera for one frame and then be overridden. The
        lab's own camera follows the robot, so placing the robot IS the
        framing. */
+  };
+  document.getElementById('csSide').onclick = () => {
+    CS.kerb = CS.kerb ? 0 : 1;
+    STATIONS = buildStations();
+    csIdx = -1;                                   // renumbered table, restart the walk
+    document.getElementById('csSide').textContent = CS.kerb ? 'kerb side' : 'wall side';
+    paint();
   };
   document.getElementById('csTip').onclick = () => {
     sc.state = 'tipped'; sc.tilt = 1.1; sc.tipDir = 1;
@@ -419,5 +486,9 @@
     document.getElementById('csBar')?.remove();
     delete sc._csRestore;
   };
-  sc._csAPI = { CS, CSC, STATIONS, nearestStation, buildStations };
+  /* STATIONS is REASSIGNED whenever a placement dial moves, so exposing
+     the array itself hands out a snapshot that silently goes stale. A
+     getter always answers with the live table. */
+  sc._csAPI = { CS, CSC, nearestStation, buildStations,
+                get STATIONS(){ return STATIONS; } };
 })();
