@@ -81,6 +81,16 @@
     tiltGain:   1.0,       // tilt rate per (rad/ms of yaw rate) × (speed/vMax)²
     tiltDecay:  0.0021,    // matches the game's own tilt decay so numbers stay comparable
 
+    /* COLLISION. clipThresh is the normal-component speed at which a
+       scrape becomes a topple — speed-dependent per the call, and set
+       against the game's own ROBOT_TIP_THRESH of 0.19 for robot-on-robot
+       so a wall is a little more forgiving than another machine. */
+    botR:       30,        // collision radius: BODY.hx 26 plus a little slack for the wheels
+    clipThresh: 0.115,     // normal speed at/above which a clip tips instead of scrapes
+    clipTilt:   3.2,       // tilt impulse per unit of normal speed on a FRESH contact
+    grindTilt:  0.25,      // fraction of that applied per frame while still in contact
+    clipLoss:   0.55,      // fraction of normal-component speed kept after a scrape
+
     dead:       0.12,      // stick dead zone, fraction of maxR
     maxR:       60,        // px from touchdown for full deflection
     latchIn:    170,       // deg of heading error that latches a turn direction
@@ -106,6 +116,40 @@
   const CURB_W = T2 * 0.5;
   const SW_OUT = ROAD_HALF + SIDEWALK_W;
 
+  /* SOLID BLOCKS. grid.blocks is already exactly the right data: axis
+     aligned rects, inset by ROAD_HALF + SIDEWALK_W so they stop at the
+     back of the sidewalk, typed from the frozen city seed. housing and
+     commercial are buildings and stop the robot; park is open ground and
+     is deliberately drivable, which is the whole "cut through the park"
+     ask. Nothing new to author — the city already knew this. */
+  const SOLID = new Set(['housing', 'commercial']);
+  const blocks = (g2.blocks || []).filter(b => SOLID.has(b.type));
+  /* bucketed by grid cell so a test is a handful of rect checks rather
+     than a scan of ~900 blocks every frame */
+  const bucket = new Map();
+  for (const b of blocks) {
+    const key = Math.round(b.cx / BLOCK) + ',' + Math.round(b.cy / BLOCK);
+    if (!bucket.has(key)) bucket.set(key, []);
+    bucket.get(key).push(b);
+  }
+  /* circle-vs-rect by inflating the rect: exact on faces, marginally
+     generous at the four corners, which is the harmless direction */
+  const solidAt = (x, y, R) => {
+    const i = Math.round(x / BLOCK), j = Math.round(y / BLOCK);
+    for (let a = -1; a <= 1; a++) for (let c = -1; c <= 1; c++) {
+      const list = bucket.get((i + a) + ',' + (j + c));
+      if (!list) continue;
+      for (const b of list)
+        if (x > b.x0 - R && x < b.x1 + R && y > b.y0 - R && y < b.y1 + R) return b;
+    }
+    return null;
+  };
+
+  const blockTypeAt = (x, y) => {
+    const b = g2.blockByIJ && g2.blockByIJ.get(Math.floor(x / BLOCK) + ',' + Math.floor(y / BLOCK));
+    return b ? b.type : null;
+  };
+
   const surfaceAt = (x, y) => {
     const nx = Math.round(x / BLOCK) * BLOCK;
     const ny = Math.round(y / BLOCK) * BLOCK;
@@ -126,7 +170,11 @@
     const bx = liveY ? band(dx) : null;   // vertical street: distance measured in x
     const by = liveX ? band(dy) : null;
     if (bx && by) return (dx < dy ? bx : by);   // intersection: nearer axis wins
-    return bx || by || (nX ? 'lot' : 'void');
+    if (bx || by) return bx || by;
+    /* block interior: park is open ground, the rest is a building the
+       collision pass will already have stopped us short of */
+    const bt = blockTypeAt(x, y);
+    return bt === 'park' ? 'park' : bt ? 'building' : (nX ? 'lot' : 'void');
   };
 
   /* ---------- stash ---------- */
@@ -263,6 +311,14 @@
   let reversing = false;
   let latchSign = 0;              // 0 = unlatched
   let lastSfc = 'sidewalk';
+  let hitMs = 0;                  // ms remaining on the CLIP readout flash
+  let inContact = false;          // touching a wall last frame — see the entry-impulse note
+  /* TEST-ONLY. Held velocity for the headless collision harness: driving
+     the robot into a specific wall face at a specific speed by simulating
+     stick input is unreliable, and drag bleeds the speed off before
+     contact. null in every real session — nothing sets it but _owAPI. */
+  let testHold = null;
+  let clipTips = 0, clipScrapes = 0;   // counters, surfaced through _owAPI for the harness
   let rightT = 0;                 // ms spent down, for the auto-right below
   /* the lab's own camera — see the CAMERA block in onPost for why this
      cannot be a lerp against scene.camX */
@@ -413,8 +469,70 @@
       if (Math.sign(vel) !== s2) vel = 0;
     }
 
-    px += Math.cos(yaw) * vel * dt;
-    py += Math.sin(yaw) * vel * dt;
+    if (testHold !== null && vel !== 0) vel = testHold;
+
+    /* ---------- MOVE, THEN RESOLVE ----------
+       Axis-separated resolution against axis-aligned rects: try the full
+       step, and if it lands inside a building, try each axis alone. The
+       axis that survives is the one you slide along, and the axis that
+       failed gives the contact normal for free — no nearest-face search,
+       and a glancing hit reads as a scrape down the wall rather than a
+       dead stop. Both axes blocked is an inside corner: nothing moves.
+
+       Severity is the NORMAL component of velocity, not raw speed. That
+       is what makes a speed-dependent clip behave the way it should:
+       driving parallel to a wall and brushing it is nearly free, while
+       going straight into it at pace puts you down. */
+    const stepX = Math.cos(yaw) * vel * dt;
+    const stepY = Math.sin(yaw) * vel * dt;
+    let hitNormal = 0;                          // 0 none, 1 x-face, 2 y-face
+
+    if (!solidAt(px + stepX, py + stepY, D.botR)) {
+      px += stepX; py += stepY;
+    } else {
+      const freeX = !solidAt(px + stepX, py, D.botR);
+      const freeY = !solidAt(px, py + stepY, D.botR);
+      if (freeX) { px += stepX; hitNormal = 2; }
+      else if (freeY) { py += stepY; hitNormal = 1; }
+      else { hitNormal = Math.abs(stepX) > Math.abs(stepY) ? 1 : 2; }
+
+      /* normal-component speed at the moment of contact */
+      const vN = Math.abs(hitNormal === 1 ? Math.cos(yaw) : Math.sin(yaw)) * Math.abs(vel);
+      if (vN >= D.clipThresh) {
+        /* A REAL HIT — LATCHED, NOT NUDGED. Writing tilt = 1.1 and
+           trusting the game's own |tilt| >= 1 check does not work: that
+           check lives late in drawRobot's play gate, and tilt is decayed
+           before it is reached, so 1.1 falls under 1 within the same
+           frame and the tip silently never latches. Measured: clipTips
+           fired on every fast head-on while state stayed 'play' and peak
+           tilt read 0.9.
+
+           So the fail state is set here directly, mirroring the game's
+           own lines at index.html:16925 — same fields, same meanings, so
+           the port to production is a move rather than a rewrite. */
+        const sgn2 = Math.sign(Math.cos(yaw) * (hitNormal === 1 ? 1 : 0) +
+                               Math.sin(yaw) * (hitNormal === 2 ? 1 : 0)) || 1;
+        scene.tilt = 1.1 * sgn2;
+        scene.state = 'tipped';
+        scene.tipDir = sgn2;
+        scene.tipStartRoll = scene.roll || 0;
+        scene.tipT = 0;
+        scene.damage = 95;
+        vel = 0; clipTips++;
+      } else {
+        /* ENTRY IMPULSE, NOT A PER-FRAME ONE. Charging the full impulse
+           every frame of contact meant a long slide along a wall
+           accumulated into a topple no single moment deserved: measured,
+           a 0.225 oblique graze tipped after six frames of touching. A
+           fresh contact hits hard, continuing to grind along the wall
+           costs a fraction of that, so you can scrape past a building
+           without being put down for it — while repeated fresh impacts
+           still add up the way they should. */
+        const fresh = !inContact;
+        scene.tilt += (dYaw >= 0 ? 1 : -1) * D.clipTilt * vN * (fresh ? 1 : D.grindTilt);
+        vel *= D.clipLoss; if (fresh) clipScrapes++;                      // scrub speed into the wall, keep the slide
+      }
+    }
 
     /* ---------- tilt ----------
        Yaw rate × speed², which is the honest formula the arc-radius model
@@ -426,7 +544,10 @@
     scene.tilt = (scene.tilt || 0) * (1 - D.tiltDecay * dt) + sgn * build * dt;
 
     /* curb crossing: an impulse, not a wall. Road is not a fail. */
+    inContact = hitNormal !== 0;
+
     const sfc = surfaceAt(px, py);
+    if (hitNormal) hitMs = 700; else hitMs = Math.max(0, hitMs - dt);
     if (sfc === 'curb' && lastSfc !== 'curb' && Math.abs(vel) > 0.03) {
       scene.tilt += sgn * 0.10 * (Math.abs(vel) / D.vMax);
     }
@@ -475,7 +596,7 @@
 
     const tag = document.getElementById('owTag');
     if (tag) tag.textContent =
-      `OPEN WORLD  ${sfc.toUpperCase()}${reversing ? '  ⟲REV' : ''}  ` +
+      `OPEN WORLD  ${sfc.toUpperCase()}${reversing ? '  ⟲REV' : ''}${hitMs > 0 ? '  ✖CLIP' : ''}  ` +
       `v ${(vel * 1000).toFixed(0)}  tilt ${(scene.tilt || 0).toFixed(2)}`;
   };
 
@@ -585,6 +706,15 @@
     delete scene._owRestore;
   };
 
-  scene._owAPI = { D, surfaceAt, pose: () => ({ px, py, yaw, vel, reversing }) };
+  scene._owAPI = { D, surfaceAt, solidAt, pose: () => ({ px, py, yaw, vel, reversing }),
+    /* test hooks: place() and reset() exist so the headless collision
+       harness can put the robot at a known offset from a known wall
+       rather than trying to drive it there. */
+    place: (x, y, h, v, hold) => { px = x; py = y; yaw = h; vel = v; ocx = x; ocy = y;
+      testHold = hold ? v : null;
+      scene.tilt = 0; scene.state = 'play'; scene.roll = 0; scene.pitch = 0; scene.tipT = 0; },
+    counters: () => ({ clipTips, clipScrapes }),
+    reset: () => { clipTips = 0; clipScrapes = 0; scene.tilt = 0; scene.state = 'play'; scene.roll = 0;
+      scene.pitch = 0; scene.tipT = 0; vel = 0; testHold = null; } };
   console.log('open-world: free locomotion live — stick left half, RESET top-right');
 })();
