@@ -223,9 +223,35 @@
   scene.posAt = (sv) => (sv === S_PIN ? { x: px, y: py } : origPosAt(sv));
   scene.headingAt = (sv) => (sv === S_PIN ? yaw : origHeadingAt(sv));
 
+  /* ---------- LANE HOP: OFF ----------
+     There are no lanes here, so the hop is meaningless — but leaving it
+     bound is actively harmful for two reasons.
+
+     First, it moves the robot. hop() starts a hopAnim, which is resolved
+     into laneOff around line 15922 — INSIDE drawRobot and therefore
+     AFTER the wrapper below zeroes laneOff, but BEFORE the pose block at
+     17114 reads it. A hop would shove Tipsey up to 276 units sideways in
+     the frame it lands, with no input asking for it.
+
+     Second, the bindings collide. The game binds W/S and Up/Down to
+     hop(), and this lab's keyboard mirror uses the same four keys for
+     throttle, so every press was doing both at once.
+
+     Neutralised at hop() rather than by unbinding, because the swipe
+     handler, the four key handlers and the attract driver all funnel
+     through this one method — one override closes all of them, and
+     nothing has to be reconstructed on restore. */
+  /* no need to stash the original: hop is a prototype method and the
+     restore below simply deletes the own-property shadow. */
+  scene.hop = () => {};
+  scene.hopAnim = null; scene.hopYaw = 0; scene.hopKick = 0; scene.botRow = 1;
+
   const origDrawRobot = scene.drawRobot.bind(scene);
   scene.drawRobot = function (t, dt) {
     scene.laneOff = 0;       // with no lane offset, botX === px exactly
+    /* belt and braces: if anything else ever starts a hop, it resolves to
+       zero rather than to a lane the pose block would then apply */
+    scene.hopAnim = null; scene.hopYaw = 0;
     return origDrawRobot(t, dt);
   };
 
@@ -436,6 +462,12 @@
 
     const sfc = (scene.state === 'play') ? step(Math.min(dt, 40)) : lastSfc;
 
+    /* the game's pointer handler sets throttle from which half of the
+       screen was touched — which is exactly where the joystick lives, so
+       every steering touch was also flooring or braking. The stick is the
+       only input in this lab; throttle is held at neutral. */
+    scene.throttle = 0;
+
     scene.botX = px; scene.botY = py;
     scene.speed = Math.abs(vel);
     scene.wheelPhase = (scene.wheelPhase || 0) - vel * dt * 0.28;
@@ -525,6 +557,7 @@
        the bound original back would leave an own-property shadow on the
        scene forever. */
     delete scene.drawRobot; delete scene.posAt; delete scene.headingAt;
+    delete scene.hop;
     /* botS is an accessor now — it has to be redefined as a plain value
        before the original can be written back */
     Object.defineProperty(scene, 'botS', {
