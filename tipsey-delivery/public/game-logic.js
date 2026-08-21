@@ -4611,6 +4611,19 @@ function buildGrid(cols, rows, seed=0, opts){
   grid.curbRamps = buildWorldCurbRamps(grid);
   grid.signals   = buildWorldSignals(grid);
   grid.extLots = buildExteriorLots(grid, seed);
+  /* LAST, and after every grid.edges consumer above has already run: the
+     shore reads the finished grid's extents and nothing reads it back, so
+     it cannot perturb anything the census fingerprints. Consumes no rng. */
+  grid.shore = buildShore(grid);
+  grid.classifyShore = (x, y) => classifyShore(grid.shore, x, y);
+  /* the union both the robot and any shore route actually want: real
+     sidewalk OR real shore. Kept separate from grid.classify so every
+     existing caller of that keeps the exact answer it has always had. */
+  grid.classifyAny = (x, y) => {
+    const sh = classifyShore(grid.shore, x, y);
+    if(sh && sh !== "building") return sh;
+    return classifyAt(grid.edges, x, y);
+  };
   return grid;
 }
 
@@ -9002,9 +9015,9 @@ class WorldScene extends Phaser.Scene {
           const a = k/20 * Math.PI*2;
           return this.W(cx + Math.cos(a)*rad, cy + Math.sin(a)*rad, 0);
         }), col);
-      ring(pierX0, pierY, BLOCK*0.36, 0xb98a5e);                                   // round deck
-      ring(pierX0, pierY, BLOCK*0.17, 0x3f7d95);                                   // aquarium roof
-      ring(pierX0, pierY, BLOCK*0.045, 0x2d5a6d);                                  // cupola
+      ring(pierX0, pierY, BLOCK*WG_COAST.AQ_DECK, 0xb98a5e);                                   // round deck
+      ring(pierX0, pierY, BLOCK*WG_COAST.AQ_ROOF, 0x3f7d95);                                   // aquarium roof
+      ring(pierX0, pierY, BLOCK*WG_COAST.AQ_CUPOLA, 0x2d5a6d);                                  // cupola
       /* the marina: tucked into the headland notch where the ocean meets
          the Sierra — basin of calmer water, breakwater arms north and
          west with the mouth opening south-west, a quay tying into the
@@ -22210,6 +22223,13 @@ function mapParkName(cx, cy, route){
    drift from the ground it names. Values are fractions of BLOCK. */
 const WG_COAST = { EXT:0.55, SANDW:1.4, FOOTW:1.1, BOARD:0.15, MTN_BASIN:2.2,
                    PIER_W:0.22, PIER_LEN:2.2,
+  /* the aquarium's three rings. These were bare literals inside drawWorld's
+     terrain pass AND its minimap twin, so the shore lattice had no way to
+     read the annulus it has to classify without restating them and drifting
+     from the art. Flagged in the waterfront lab as the port-time move; this
+     is it. Values unchanged -- 0.36/0.17/0.045 are exactly what both draw
+     passes already used. */
+  AQ_DECK: 0.36, AQ_ROOF: 0.17, AQ_CUPOLA: 0.045,
   /* the pier THROAT. The robot cannot turn off the boardwalk onto a 688-wide
      pier at any radius: on this corner sign its turn radius is R + |laneOffset|,
      so the tightest lane is 414 before R is even counted, against a 344 pier
@@ -22218,6 +22238,91 @@ const WG_COAST = { EXT:0.55, SANDW:1.4, FOOTW:1.1, BOARD:0.15, MTN_BASIN:2.2,
      deck; these are built to 782 x 640 for margin. Real piers widen at the
      landward end anyway. */
   FLARE_LEN: 0.29, FLARE_HALF: 0.216 };
+/* ---------- the SHORE lattice ----------
+   Ported verbatim out of labs/waterfront.lab.js (page 1) after the
+   2026-08-14 audit found the entire waterfront decorative: the 36x27 grid
+   occupies x [0,109480] y [0,81328] and every coast quad is drawn from
+   X0 = -EXT*BLOCK = -1720 westward. There was no node, no edge, no block
+   and no surface tag anywhere in it, so grid.classify() -- which is just
+   classifyAt(grid.edges, x, y) -- returned "block" for every point on the
+   boardwalk, the sand, the marina and the pier. The same value a lawn
+   returns. The pathing grid genuinely could not address any of it, which
+   is why route legs could carry a surface:"boardwalk" tag while the
+   classifier standing on those same planks disagreed.
+
+   NOTHING IS PUSHED INTO grid.edges, and that is the whole design.
+   grid.edges is consumed by buildSidewalkGeometry, buildWorldCurbRamps,
+   buildWorldSignals, buildExteriorLots, classifyAt, buildWalk, buildTraffic
+   and route generation. Pushing one edge into it reorders rng consumption
+   and drifts BOTH frozen courses (SL_SEED_DATE, HJ_SEED_DATE). So the shore
+   is a PARALLEL lattice, built after the main one is sealed, consuming no
+   rng and mutating nothing the census fingerprints.
+
+   A run is a straight centreline with a half-width. A ring is an annulus.
+   Deliberately the same shape classifyAt works in (along/perp against a
+   directed segment), so consumers can treat both alike. */
+function buildShore(grid){
+  const B = BLOCK, W = WG_COAST;
+  const gEndX = (grid.cols - 1) * B, gEndY = (grid.rows - 1) * B;
+  const EXT = W.EXT * B, SANDW = W.SANDW * B, BOARD = W.BOARD * B;
+  const X0 = -EXT, X1 = gEndX + EXT, Y0 = -EXT, Y1 = gEndY + EXT;
+
+  /* west boardwalk: the band x in [X0-BOARD, X0], y in [Y0, Y1].
+     Centreline is vertical at its mid-x, half-width BOARD/2. */
+  const wbX = X0 - BOARD / 2, wbHalf = BOARD / 2;
+  /* south boardwalk owns the corner, same as its beach does on the survey
+     (drawWorld's own comment) -- so the west run stops at Y1 and the south
+     run starts at X0-BOARD. */
+  const sbY = Y1 + BOARD / 2, sbHalf = BOARD / 2;
+
+  /* the pier: PIER_W wide, running west off the boardwalk's west edge at
+     pierY. pierY = (Y0+Y1)/2 which lands on exactly 13*BLOCK on the
+     shipped 36x27 -- the pier centreline is already on a grid row. */
+  const PIER_W = W.PIER_W * B, PIER_LEN = W.PIER_LEN * B;
+  const pierY = (Y0 + Y1) / 2;
+  const pierX1 = X0 - BOARD, pierX0 = X0 - BOARD - SANDW - PIER_LEN;
+
+  const runs = [
+    { id:"west",  kind:"boardwalk",
+      a:{ x:wbX, y:Y0 }, b:{ x:wbX, y:Y1 }, half:wbHalf },
+    { id:"south", kind:"boardwalk",
+      a:{ x:X0 - BOARD, y:sbY }, b:{ x:X1, y:sbY }, half:sbHalf },
+    { id:"pier",  kind:"pier",
+      a:{ x:pierX1, y:pierY }, b:{ x:pierX0, y:pierY }, half:PIER_W / 2 },
+  ];
+  const ring = { id:"aquarium", kind:"deck", cx:pierX0, cy:pierY,
+                 rOuter: W.AQ_DECK * B, rInner: W.AQ_ROOF * B };
+  return { runs, ring, X0, X1, Y0, Y1, BOARD, pierY, pierX0, pierX1, PIER_W };
+}
+
+/* Same along/perp test classifyAt uses, generalised to a per-run
+   half-width. Returns the run kind, "deck" inside the aquarium annulus,
+   "building" inside its roof, or null off-surface. No OVERSHOOT term:
+   these runs butt into each other by construction rather than crossing
+   at nodes.
+
+   RING BEFORE RUNS (caught in the first bench smoke test): the pier run
+   ends AT pierX0, which is exactly the ring's centre, so the run test
+   covers the whole round deck and the aquarium building along with it --
+   the first pass reported "pier" while standing on the roof. The ring is
+   the more specific shape and owns the pier's far end, so it is asked
+   first and the run only answers what the ring didn't. */
+function classifyShore(sh, x, y){
+  if(!sh) return null;
+  const d = Math.hypot(x - sh.ring.cx, y - sh.ring.cy);
+  if(d <= sh.ring.rOuter) return d >= sh.ring.rInner ? "deck" : "building";
+  for(const r of sh.runs){
+    const dx = r.b.x - r.a.x, dy = r.b.y - r.a.y;
+    const L = Math.hypot(dx, dy) || 1;
+    const ux = dx / L, uy = dy / L;
+    const rx = x - r.a.x, ry = y - r.a.y;
+    const along = rx*ux + ry*uy;
+    const perp  = rx*-uy + ry*ux;
+    if(along >= 0 && along <= L && Math.abs(perp) <= r.half) return r.kind;
+  }
+  return null;
+}
+
 function worldgenLandmarks(grid){
   if(!WORLDGEN_COAST) return [];
   const B = BLOCK, W2 = WG_COAST;
@@ -22754,9 +22859,9 @@ function drawRouteMap(route){
       ctx.fillStyle = fill;
       ctx.beginPath(); ctx.arc(p.x, p.y, Math.abs(edge.x-p.x), 0, Math.PI*2); ctx.fill();
     };
-    cring(pierX0, pierY, BLOCK*0.36, "#b98a5e");                                      // round deck
-    cring(pierX0, pierY, BLOCK*0.17, "#3f7d95");                                      // aquarium roof
-    cring(pierX0, pierY, BLOCK*0.045, "#2d5a6d");                                     // cupola
+    cring(pierX0, pierY, BLOCK*WG_COAST.AQ_DECK, "#b98a5e");                                      // round deck
+    cring(pierX0, pierY, BLOCK*WG_COAST.AQ_ROOF, "#3f7d95");                                      // aquarium roof
+    cring(pierX0, pierY, BLOCK*WG_COAST.AQ_CUPOLA, "#2d5a6d");                                     // cupola
     /* the marina: tucked into the headland notch north of the pier —
        basin, breakwater arms, a quay tying into the boardwalk, finger
        docks with boats seeded off the route date so the same day always
