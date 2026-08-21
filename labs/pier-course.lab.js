@@ -404,7 +404,15 @@
     return FIT;
   }
 
-  BENCH.hook(function (sc) {
+  /* CHAIN, DO NOT REPLACE. BENCH.hook is a SINGLE SLOT (bench line 393:
+     `s.__benchHook = fn`), so installing ours plainly deletes waterfront's
+     and the shore lattice this course is drawn over simply vanishes. Page 1
+     documents the same trap for __benchPre and solves it the same way.
+     Captured AFTER __pcOff has run, so reloading this lab on top of itself
+     recaptures waterfront's hook rather than nesting our own. */
+  const prevHook = scene.__benchHook || null;
+  BENCH.hook(function (sc, t) {
+    if (prevHook) { try { prevHook(sc, t); } catch (e) { /* page 1's problem, not ours */ } }
     if (!SEGS) return;
     drawCourse(sc, sc.gFront, SH, sc.route.grid, SEGS, FIT);
   });
@@ -588,6 +596,9 @@
 
   scene.__pcOff = () => {
     document.getElementById('pcPanel')?.remove();
+    /* hand the slot back to whoever had it, so unloading this lab leaves the
+       shore lattice drawing rather than a blank world */
+    scene.__benchHook = prevHook;
   };
 
   sync();
