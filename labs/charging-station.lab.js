@@ -274,55 +274,51 @@
      Chained, never clobbered: __benchPre is a single slot, and a lab
      loaded alongside this one (the whole point of
      ?lab=open-world,charging-station) may own it already. */
-  const prevPre = sc.__benchPre || null;
-  BENCH.pre(function (s, t) {
-    if (prevPre) { try { prevPre(s, t); } catch (e) {} }
+  /* ---------- WHEN TO DRAW: AFTER THE BUILDINGS, BEFORE THE ROBOT ----------
+     Three attempts, and the first two are worth keeping because each
+     looked right until it was looked at.
+
+     (1) BENCH.queue from a hook. Drew nothing at all, ever: the bench
+     clears __benchVQ, runs pre, draws (which is what FLUSHES the queue),
+     then runs the hook. Queue from a hook and the next frame wipes it
+     before the flush can see it.
+
+     (2) BENCH.queue from pre, into gFront. Now it drew — over the
+     storefronts, which was the point — but gFront is above the ROBOT
+     too, so the bollard painted over Tipsey the moment he respawned
+     standing on the pad. Switching to the ordinary layer while parked
+     just swapped the fault: the shop then hid the station completely.
+     Neither of the two layers a queue can pick is right, because the
+     station needs to be over the buildings AND under the robot.
+
+     (3) Direct from the hook into sc.g — invisible again. drawRobot
+     opens with `const g = this.g; g.clear()`, so everything the hook had
+     just put there was wiped a few lines later. Into sc.gFront instead:
+     visible, and straight back to the bollard over the robot, because
+     gFront is created after the robot's own layer.
+
+     (4) What works: direct from the hook into sc.gWORLD. The graphics
+     objects render in creation order — gWorld, then g (the robot), then
+     gFront — and gWorld is cleared at the START of drawWorld while the
+     hook runs at the END of it. So a station drawn there lands after
+     every building and under the robot, which is both halves of the
+     problem at once, and it needs no access to hazVQ at all.
+
+     The lesson is that "which layer" and "when in the frame" are two
+     different questions and I kept answering only one of them.
+
+     Depth against other STATIONS still matters (two can be on screen at
+     once), so they are sorted by their own near edge before drawing. */
+  const prevHook = sc.__benchHook || null;
+  BENCH.hook(function (s, t) {
+    if (prevHook) { try { prevHook(s, t); } catch (e) {} }
+    const vis = [];
     for (const st of STATIONS) {
-      /* cull: same test the game's own draw loop uses, so the bench
-         cannot show a scene the game would not */
       if (Math.hypot(st.x - s.botX, st.y - s.botY) > BLOCK * 3) continue;
-      /* ---------- LAYER, NOT DEPTH ----------
-         Why a wall-hugging pad vanished, finally measured rather than
-         guessed at: queueUnitStrips keys a storefront strip on a point
-         pushed rv*(-STORE_DEPTH/2) — INSIDE the building, behind the
-         facade. Depth is x+y, so on the two edge orientations where rv
-         points along -x or -y that interior point outranks a pad sitting
-         in front of the glass, and the wall paints over it. On the other
-         two orientations it does not, which is exactly why the kerb
-         setting looked fine and the wall setting looked broken: same
-         code, different edges.
-
-         No depth key can fix that — the pad genuinely is on the far side
-         of the block in x+y terms while being on the near side in
-         reality. What fixes it is the LAYER. gFront is painted above the
-         whole block pass, which is where the game already puts anything
-         that must not be swallowed by a building, and it is the same
-         answer corner-light.lab.js reached from the other direction.
-
-         AND THE COST IS NOT ZERO, which the first version of this note
-         claimed. gFront is above the ROBOT too, so a station drawn there
-         unconditionally paints its bollard over Tipsey — most obviously
-         the moment he respawns standing on the pad, reported on-device.
-
-         So the layer is chosen per frame:
-           parked on it  -> the ordinary layer, and the robot correctly
-                            occludes the pole he is standing in front of.
-           anywhere else -> gFront, so the storefront cannot swallow it.
-         Measured, not hoped: while parked the storefront hides the
-         station COMPLETELY, not partially. Two wrong pictures traded for
-         each other — the robot no longer disappears under a bollard, and
-         the bollard now disappears under a shop. Neither layer is right
-         because neither layer can be.
-
-         THIS IS A LAB COMPROMISE, NOT THE ANSWER. Both cases are right
-         at once only in the game's HAZARD pass, which is painted after
-         every building AND picks g/gFront per hazard the way every other
-         prop already does. BENCH.queue cannot reach it (corner-light hit
-         the same wall). The port gets this for free; the bench cannot. */
-      const onPad = Math.hypot(st.x - s.botX, st.y - s.botY) < CS.padR + 30;
-      const layer = onPad ? BENCH.layerFor(st.x, st.y) : sc.gFront;
-      BENCH.queue(st.x + st.y + CS.padR, (g, tt) => drawStation(layer, st, tt));
+      vis.push(st);
     }
+    vis.sort((p, q) => (p.x + p.y) - (q.x + q.y));   // far to near
+    for (const st of vis) drawStation(sc.gWorld, st, t);
     csRespawnTick(s, t);
   });
 
@@ -500,7 +496,7 @@
   paint();
 
   sc._csRestore = () => {
-    BENCH.pre(prevPre || (() => {}));
+    BENCH.hook(prevHook || (() => {}));
     document.getElementById('csPanel')?.remove();
     document.getElementById('csBar')?.remove();
     delete sc._csRestore;
