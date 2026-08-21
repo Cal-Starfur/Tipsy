@@ -4692,18 +4692,39 @@ function buildSegsFromLegs(startNode, legDescs, turnR){
     const f0 = legDescs[c].f, f1 = legDescs[c+1].f;
     cornerSign.push(((f1 - f0 + 4) % 4 === 1) ? 1 : -1);
   }
-  const cornerRadius = cornerSign.map(sg => sg === -ROBOT_SIDE ? turnR : CORNER_R);
+  /* turnRAfter: a per-corner radius override, honoured ahead of BOTH the
+     sign rule and CORNER_R. The sign rule can only ever address one of
+     the two turn directions (sg === -ROBOT_SIDE), so the other direction
+     was pinned at CORNER_R with no way to ask for anything else. The
+     shore graft needs the corner it actually lands on, whichever sign
+     that happens to be: measured, the westbound-spur -> southbound-
+     boardwalk turn clears at R >= 340 and leaves only 5 units at the
+     deck's east edge at CORNER_R, so this is a fit requirement, not a
+     preference. Legs that don't set it are completely unaffected. */
+  const cornerRadius = cornerSign.map((sg, c) =>
+    legDescs[c].turnRAfter != null ? legDescs[c].turnRAfter
+                                   : (sg === -ROBOT_SIDE ? turnR : CORNER_R));
 
   const segs = [];
   let s = 0, p = { x:startNode.x, y:startNode.y };
   for(let i = 0; i < legDescs.length; i++){
     const f = legDescs[i].f, d = DIRV[f], rv = DIRV[(f+1)%4];
-    const legLen = legDescs[i].blocks * BLOCK;
+    /* units: an explicit length in world units, for legs that are not a
+       whole-block hop between lattice nodes. The shore runs parallel to
+       the grid at a fractional-BLOCK offset, so `blocks` cannot express
+       them. blocks stays the default and multiplies exactly as before. */
+    const legLen = legDescs[i].units != null ? legDescs[i].units
+                                             : legDescs[i].blocks * BLOCK;
     const trimS = i > 0 ? cornerRadius[i-1] : 0;
     const trimE = i < legDescs.length-1 ? cornerRadius[i] : 0;
     const lineLen = legLen - trimS - trimE;
+    /* surface/halfW ride along on the seg when the leg carries them.
+       Absent on every lattice leg, so `sg.surface` being undefined is
+       exactly "ordinary street", and no consumer needs a default. */
+    const sfc = legDescs[i].surface, hw = legDescs[i].halfW;
     segs.push({ type:"line", s0:s, s1:s+lineLen, f, hA:f*Math.PI/2,
-                start:{ x:p.x + d.x*trimS, y:p.y + d.y*trimS } });
+                start:{ x:p.x + d.x*trimS, y:p.y + d.y*trimS },
+                ...(sfc ? { surface:sfc, halfW:hw } : {}) });
     s += lineLen;
     const cornerP = { x:p.x + d.x*legLen, y:p.y + d.y*legLen };
     if(i < legDescs.length-1){
@@ -4715,8 +4736,14 @@ function buildSegsFromLegs(startNode, legDescs, turnR){
       const startPt = { x:cornerP.x - d.x*R, y:cornerP.y - d.y*R };
       const a0 = Math.atan2(startPt.y - center.y, startPt.x - center.x);
       const arcLen = Math.PI/2 * R;
+      /* a corner belongs to the surface it DELIVERS ONTO, not the one it
+         leaves: the spur->boardwalk arc is already deck by the time the
+         robot is halfway round it, and tagging it from the outgoing leg
+         would call that stretch street. */
+      const nsfc = legDescs[i+1].surface, nhw = legDescs[i+1].halfW;
       segs.push({ type:"arc", s0:s, s1:s+arcLen, center, a0, sign,
-                  R, hA:f*Math.PI/2, f });
+                  R, hA:f*Math.PI/2, f,
+                  ...(nsfc ? { surface:nsfc, halfW:nhw } : {}) });
       s += arcLen;
     }
     p = cornerP;
@@ -4809,7 +4836,160 @@ function buildWalk(grid, rng, startOverride, turnsRange, turnR = CORNER_R, start
      used for trimE on leg i — both sides of one corner must agree or
      the fillet stops being tangent. */
   const built = buildSegsFromLegs(startNode, legDescs, turnR);
-  return { segs: built.segs, totalLen: built.totalLen || 1, nodes: visited };
+  /* legDescs/startNode/turnR are exposed so a caller can splice extra
+     legs on and REBUILD through this same function, rather than the
+     traversal above learning about anything off-lattice. Nothing here
+     is consumed unless a caller asks; the traversal, its rng draws and
+     its return values are otherwise byte-identical to before. */
+  return { segs: built.segs, totalLen: built.totalLen || 1, nodes: visited,
+           legDescs, startNode, turnR, endNode: cur };
+}
+
+/* ---------- shore graft ----------
+   Splices the boardwalk onto a finished walk. Runs AFTER buildWalk has
+   returned, reads legDescs and rebuilds through buildSegsFromLegs, and
+   never touches the traversal, grid.edges or grid.nodes -- so the shore
+   costs the main rng stream nothing and cannot drift a frozen course.
+
+   It is also fully DETERMINISTIC: no rng of its own, not even a private
+   stream. Every choice below is a function of the walk it was handed.
+   That is the whole reason SL_SEED_DATE and HJ_SEED_DATE are safe by
+   construction here rather than by census.
+
+   Eligibility is deliberately narrow for now: the walk must END heading
+   west on the grid's own west column, so the boardwalk is a straight
+   continuation of a leg already pointed at it. A walk that arrives at
+   the coast on any other heading is left alone. That makes waterfront
+   visits incidental rather than steered -- the intended phase-one
+   behaviour, and what the eventual lattice unify replaces. */
+const SHORE_LANE = 1;          // the lane the deck centres itself on -- the robot's
+                                // default botRow, so the band sits centred by construction
+const SHORE_JUNCTION_R = 506;  // measured: the spur->deck corner clears at R >= 340 and
+                                // grazes the deck's east edge (5 units) at CORNER_R
+const SHORE_RUN = BLOCK*1.5;   // how far down the boardwalk the graft runs
+const SHORE_MIN_KEEP_LEGS = 1; // lattice legs the truncated walk must retain. One is
+                                // enough: the door's real requirement is a good-heading
+                                // leg, which is tested separately, and the mile floor is
+                                // covered by the spur+run the graft adds (measured, the
+                                // shortest grafted route still clears MIN_ROUTE_UNITS by
+                                // ~3.7k). Zero is the only genuinely impossible case --
+                                // a walk that STARTS on the column has nothing to keep.
+function graftShore(walk, grid){
+  if(!WORLDGEN_COAST || !walk || !walk.legDescs || !walk.legDescs.length) return walk;
+  const visited = walk.nodes;
+  if(!visited || !visited.length) return walk;
+
+  /* Truncate at the LAST node on the grid's west column, then always
+     approach the deck the one way that is known to work. An earlier cut
+     only grafted walks that already ENDED heading west on column 0 --
+     0.63% of walks, against 6.9% that reach the column at all. The other
+     ~90% arrived on a heading whose fillet cuts the wrong way (northbound
+     swings the lane band out to x = -943 against a deck edge of -1720,
+     and no radius fixes it -- see the run-direction note below). So
+     rather than bend the deck run to fit the arrival, bend the arrival to
+     fit the deck: drop whatever the walk did after touching the column,
+     then hand-build westbound-spur -> southbound-run, which is the pair
+     that measures clean. Any arrival heading works because the arrival
+     only ever has to turn west, which is an ordinary street corner.
+     Last node rather than first, to keep as much of the walk as possible. */
+  let vIdx = -1;
+  for(let k = visited.length - 1; k >= 0; k--) if(visited[k].i === 0){ vIdx = k; break; }
+  if(vIdx < 0) return walk;
+  const end = visited[vIdx];
+
+  /* legDescs[i].blocks is exactly how many nodes leg i pushed onto
+     visited, so a running total converts a node index into a leg cut.
+     A cut landing on a leg's first node means that leg contributes
+     nothing and is dropped whole -- which is also how an eastbound leg
+     leaving the column resolves, since its i===0 node is its start. */
+  const legDescs = [];
+  let acc = 0;
+  for(const d of walk.legDescs){
+    if(acc >= vIdx) break;
+    const take = Math.min(d.blocks, vIdx - acc);
+    if(take > 0) legDescs.push({ ...d, blocks:take });
+    acc += d.blocks;
+  }
+  /* The truncated walk still has to be able to hold a door, or findGoodS
+     drops to a fallback and the shore has cost the route its address.
+     Neither leg the graft adds can help -- the spur is f===2 and the run
+     f===1, and GOOD_LEG_HEADING wants 0 or 3. But f===3 is north, and the
+     walk is standing on the west column, so one northbound block up the
+     column usually supplies the missing good leg outright. Taking it also
+     moves the deck join a block further north, which only ever adds
+     southbound run room. Skipped when the last kept leg heads south,
+     since north would then be a 180 and buildSegsFromLegs has no fillet
+     for a reversal. */
+  let cur = end, vCut = vIdx;
+  if(!legDescs.some(d => GOOD_LEG_HEADING[d.f])){
+    /* Only f===1 and f===2 legs can be here, or one of them would have
+       been good already. Trailing southbound legs are droppable for free:
+       a f===1 leg that ENDS on the west column also began on it, so
+       rewinding one just slides the join north along the same column and
+       hands back southbound run room. Rewind until the tail is westbound,
+       which is the heading north can legally turn out of. */
+    while(legDescs.length && legDescs[legDescs.length-1].f === 1){
+      vCut -= legDescs[legDescs.length-1].blocks;
+      legDescs.pop();
+    }
+    if(vCut < 0) return walk;
+    cur = visited[vCut];
+    const up = grid.nodeAt(0, cur.j - 1);
+    if(!up || !cur.conn || !cur.conn[3]) return walk;
+    legDescs.push({ f:3, blocks:1 });
+    cur = up;
+  }
+  if(legDescs.length < SHORE_MIN_KEEP_LEGS) return walk;
+
+  /* deck geometry, derived from WG_COAST rather than restated, for the
+     same reason worldgenLandmarks reads it: the shore can then never
+     disagree with the quad that draws it. */
+  const B = BLOCK, X0 = -WG_COAST.EXT*B, BOARD = WG_COAST.BOARD*B;
+  const deckC = X0 - BOARD/2;
+
+  /* SOUTHBOUND ONLY, and not as a simplification -- northbound cannot be
+     made to work at any radius. The centring shift below puts the seg
+     centreline on the far side of the deck from the robot's lane, so its
+     sign flips with run direction: west of the deck southbound, east of
+     it northbound. The corner fillet, meanwhile, always cuts toward the
+     incoming westbound spur, which is eastward regardless. Southbound
+     those two agree and the arc lands on planks; northbound they fight
+     and the arc swings out over the extension strip (measured: lanes to
+     x = -943 against a deck edge of -1720, at every radius tried). */
+  const Y1 = (grid.rows-1)*B + WG_COAST.EXT*B;
+  const fRun = 1;
+  const rv = DIRV[(fRun+1)%4];
+
+  /* The seg centreline is NOT the deck centreline. The robot rides
+     laneOffset(SHORE_LANE) off its seg, so the seg has to be pushed the
+     opposite way by exactly that much for the lane band to land on the
+     planks. Solving c + rv*lo = deckC gives the shift below; measured,
+     it puts all four lanes inside the deck with room at both edges. */
+  const lo = laneOffset(SHORE_LANE);
+  const segC = deckC - rv.x*lo;
+  const runUnits = Math.min(SHORE_RUN, Y1 - cur.y);
+  if(runUnits <= SHORE_JUNCTION_R) return walk;
+
+  const lastF = legDescs[legDescs.length-1].f;
+  const spurUnits = cur.x - segC;          // cur.x is 0 on the west column; segC is negative
+  if(lastF === 2){
+    /* already pointed at the deck -- extend rather than append, since two
+       same-heading legs in a row would put a zero-angle corner between them */
+    const last = legDescs[legDescs.length-1];
+    legDescs[legDescs.length-1] = { ...last, blocks:undefined,
+      units: last.blocks*B + spurUnits, turnRAfter: SHORE_JUNCTION_R };
+  } else {
+    /* arrived on the column heading north or south: turn west onto a spur
+       of its own. The turn itself is an ordinary grid corner at x = 0, so
+       it needs no override -- only the spur's far end does. */
+    legDescs.push({ f:2, units: spurUnits, turnRAfter: SHORE_JUNCTION_R });
+  }
+  legDescs.push({ f:fRun, units:runUnits, surface:"boardwalk", halfW:BOARD/2 });
+
+  const built = buildSegsFromLegs(walk.startNode, legDescs, walk.turnR);
+  return { ...walk, segs:built.segs, totalLen:built.totalLen || 1, legDescs,
+           nodes: cur === end ? visited.slice(0, vIdx+1)
+                             : visited.slice(0, vCut+1).concat([cur]) };
 }
 
 /* ---------- traffic: reuses buildWalk verbatim for each route, two
@@ -4951,7 +5131,17 @@ function trafficWorldAt(tr, t){
    route length or leg count, just which existing point along the
    already-generated route gets used) for the nearest usable leg. */
 function findGoodS(segs, totalLen, preferredS, scanFromEnd, grid, avoidBlock, minS = 0, relaxed = false){
-  const isGood = sg => sg.type === "line" && GOOD_LEG_HEADING[sg.f];
+  /* SHORE LEGS ARE NEVER ADDRESSABLE. The perimeter guard below already
+     rejects them incidentally -- a boardwalk leg's near-side probe lands
+     at bi === -1 and fails facesInterior -- but only on the ideal path.
+     Both fallbacks (anyFallback, and the straight-leg snap at the very
+     bottom) ignore that guard by design, so a route whose only good legs
+     are shore would still hand back a door out on the planks, where
+     findAdjacentBlock would then clamp the probe into an arbitrary
+     interior block and render the address house somewhere the robot
+     never goes. Rejecting shore at isGood puts it out of reach of every
+     tier at once. */
+  const isGood = sg => sg.type === "line" && GOOD_LEG_HEADING[sg.f] && !sg.surface;
   /* PERIMETER GUARD: a good leg can still run along the grid's outer edge
      with the robot's lane facing OUTWARD, off the grid. There, the address
      forcing (findAdjacentBlock -> .type="housing") clamps to a far interior
@@ -5028,7 +5218,7 @@ function findGoodS(segs, totalLen, preferredS, scanFromEnd, grid, avoidBlock, mi
      is purely a crash-proof net. */
   let lineBest = null, lineBd = Infinity;
   for(const sg of segs){
-    if(sg.type !== "line") continue;
+    if(sg.type !== "line" || sg.surface) continue;   // shore is never addressable — see isGood
     const s = Math.max(sg.s0 + 12, Math.min(sg.s1 - 12, preferredS));
     if(s < sg.s0 + 12) continue;   // degenerate leg
     const d = Math.abs(s - preferredS);
@@ -5620,6 +5810,14 @@ function _generateRouteFresh(dateStr, opts){
   let walk = buildWalk(grid, rng, startAnchor, undefined, TURN_R, startHeading);
   for(let att = 0; att < 8 && !hasGoodDoorLeg(walk); att++)
     walk = buildWalk(grid, rng, startAnchor, undefined, TURN_R, startHeading);
+  /* AFTER the accept loop, never inside it: hasGoodDoorLeg must judge the
+     lattice walk on its own merits, since shore legs can't hold a door
+     anyway (findGoodS rejects them at isGood). Grafting first would let a
+     boardwalk leg satisfy a test it can never actually pay off.
+     Challenge routes opt out entirely -- a splice moves totalLen, which
+     moves parMs, the MIN_ROUTE_UNITS floor and doorS's scan-from-end, and
+     both frozen courses are dialed against today's values. */
+  if(!(opts && opts.challenge)) walk = graftShore(walk, grid);
   const segs = walk.segs, totalLen = walk.totalLen;
 
   const inCorner = sv => segs.some(sg => sg.type === "arc" && sv > sg.s0 - CORNER_HAZARD_CLEAR && sv < sg.s1 + CORNER_HAZARD_CLEAR);
