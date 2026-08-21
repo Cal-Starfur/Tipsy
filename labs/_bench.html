@@ -222,6 +222,7 @@
         anything, so the thing being tuned is actually visible.</div>
       <div class="row" style="color:var(--dim);margin:6px 0">
         Or open <code>?lab=policecar</code> to load and run it automatically.
+        Comma-separate to layer them: <code>?lab=waterfront,pier-course</code>.
       </div>
       <div class="row" style="color:var(--dim);margin-bottom:6px">
         Code below runs inside the game's realm. Game constants are in scope.</div>
@@ -982,10 +983,18 @@ const SELF_ROUTING_LABS = new Set(["cone-slalom"]);
    One URL that lands on the thing you wanted to look at. */
 async function autoBoot(){
   const q = new URLSearchParams(location.search);
-  const lab = q.get("lab");
-  if(!lab) return;
+  const labParam = q.get("lab");
+  if(!labParam) return;
+  /* ?lab=a,b — load several in order. Some labs are deliberately layered:
+     pier-course models the line driven over the ground waterfront models,
+     and reads it through scene._wfAPI rather than building a second copy.
+     A comma list is the whole feature; the labs handle their own chaining
+     (BENCH.hook is a single slot, so a second lab must capture the first's
+     hook and call it — see pier-course). Last one named wins the panel. */
+  const labs = labParam.split(",").map(s => s.trim()).filter(Boolean);
+  const lab = labs[labs.length - 1];
   if(SELF_ROUTING_LABS.has(lab)){
-    await loadLab(lab, true);
+    for(const l of labs) await loadLab(l, true);
     const f0 = q.get("f");
     if(f0 !== null){ await new Promise(r => setTimeout(r, 300)); snapHeading(+f0); }
     if(q.get("freeze")){
@@ -1006,7 +1015,7 @@ async function autoBoot(){
   await new Promise(r => setTimeout(r, 900));
   const z = q.get("zoom");
   if(z){ $("zoom").value = z; $("zoom").dispatchEvent(new Event("input")); }
-  await loadLab(lab, true);
+  for(const l of labs) await loadLab(l, true);
   const f = q.get("f");
   if(f !== null){ await new Promise(r => setTimeout(r, 300)); snapHeading(+f); }
 
