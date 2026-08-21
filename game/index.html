@@ -802,6 +802,18 @@ show("failMenuBtn");
    flags, which is exactly why the coast had to become the default to
    ever reach Reddit. */
 const WORLDGEN_COAST = new URLSearchParams(location.search).get("worldgen") !== "classic";
+/* ?shore=1 -- force the shore graft on every non-challenge route.
+   Testing flag only. The graft is reachable in normal play, but rarely: the
+   real anchor distribution is 36 fixed pickup shops that all start heading
+   EAST or NORTH (f is 0 or 3) on walks of 4-6 turns x 1-2 blocks, and only
+   2 of the 36 begin west of column 3. Measured against that distribution
+   the rate is 3.07% -- about 1 date in 33 -- so loading the game to look at
+   the pier means losing a lottery 32 times first. (An earlier 6.9% figure
+   here was measured from uniformly-sampled connected anchors, which is not
+   how routes actually start; the shop-anchored number is the real one.)
+   This only bypasses the ELIGIBILITY test, never the geometry guards -- a
+   walk that cannot physically carry the graft still declines. */
+const SHORE_FORCE = new URLSearchParams(location.search).get("shore") === "1";
 
 function clientTodayUTC(){ return new Date().toISOString().slice(0,10); }
 function fmtReplayDate(dateStr){
@@ -5680,6 +5692,17 @@ function graftShore(walk, grid){
      Last node rather than first, to keep as much of the walk as possible. */
   let vIdx = -1;
   for(let k = visited.length - 1; k >= 0; k--) if(visited[k].i === 0){ vIdx = k; break; }
+  /* Under ?shore=1, fall back to the WESTMOST node the walk reached and run
+     the spur from there instead. The spur is already an off-lattice leg
+     crossing the extension strip, so starting it a few columns east only
+     makes it longer -- every geometry guard below still applies unchanged,
+     and a walk that cannot carry the graft still declines. */
+  if(vIdx < 0 && SHORE_FORCE){
+    let best = Infinity;
+    for(let k = 0; k < visited.length; k++)
+      if(visited[k].i < best){ best = visited[k].i; vIdx = k; }
+    for(let k = visited.length - 1; k >= 0; k--) if(visited[k].i === best){ vIdx = k; break; }
+  }
   if(vIdx < 0) return walk;
   const end = visited[vIdx];
 
@@ -5720,7 +5743,11 @@ function graftShore(walk, grid){
     }
     if(vCut < 0) return walk;
     cur = visited[vCut];
-    const up = grid.nodeAt(0, cur.j - 1);
+    /* cur.i, NOT 0: under ?shore=1 the join can sit east of the west column,
+       and hardcoding 0 here made this a diagonal jump across the city
+       instead of one block north, which dragged the whole boardwalk run
+       off the deck with it. */
+    const up = grid.nodeAt(cur.i, cur.j - 1);
     if(!up || !cur.conn || !cur.conn[3]) return walk;
     legDescs.push({ f:3, blocks:1 });
     cur = up;
@@ -5757,7 +5784,8 @@ function graftShore(walk, grid){
   if(runUnits <= SHORE_JUNCTION_R) return walk;
 
   const lastF = legDescs[legDescs.length-1].f;
-  const spurUnits = cur.x - segC;          // cur.x is 0 on the west column; segC is negative
+  const spurUnits = cur.x - segC;          // cur.x is 0 on the west column, further east under
+                                            // ?shore=1; segC is negative either way
   if(lastF === 2){
     /* already pointed at the deck -- extend rather than append, since two
        same-heading legs in a row would put a zero-angle corner between them */
