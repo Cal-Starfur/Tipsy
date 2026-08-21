@@ -23050,6 +23050,18 @@ const WG_COAST = { EXT:0.55, SANDW:1.4, FOOTW:1.1, BOARD:0.15, MTN_BASIN:2.2,
      is it. Values unchanged -- 0.36/0.17/0.045 are exactly what both draw
      passes already used. */
   AQ_DECK: 0.36, AQ_ROOF: 0.17, AQ_CUPOLA: 0.045,
+  /* The round deck is genuinely round -- drawWorld paints it with ring().
+     The BUILDING on it is not: labs/roundhouse.lab.js models an octagonal
+     two-tier aquarium, matching both reference photos, and its rWall is
+     pinned to AQ_ROOF precisely so the model and the collision shape are
+     the same object rather than two that have to be kept in step. So the
+     annulus is a circle with an octagon punched out of it, and
+     classifyShore has to agree or it disagrees with what you can see at
+     the eight corners -- the same class of bug as the pier-run-over-ring
+     overlap the lab caught in its own first smoke test.
+     AQ_ROT 0 keeps the lab's (i+0.5) half-step, which is what puts a FACE
+     toward the camera instead of a corner. */
+  AQ_SIDES: 8, AQ_ROT: 0,
   /* the pier THROAT. The robot cannot turn off the boardwalk onto a 688-wide
      pier at any radius: on this corner sign its turn radius is R + |laneOffset|,
      so the tightest lane is 414 before R is even counted, against a 344 pier
@@ -23110,8 +23122,12 @@ function buildShore(grid){
     { id:"pier",  kind:"pier",
       a:{ x:pierX1, y:pierY }, b:{ x:pierX0, y:pierY }, half:PIER_W / 2 },
   ];
+  /* rInner is the octagon's CIRCUMRADIUS, not an inscribed circle: apothem
+     is what the point test actually compares against and is derived below
+     rather than stored, so the two can never drift apart. */
   const ring = { id:"aquarium", kind:"deck", cx:pierX0, cy:pierY,
-                 rOuter: W.AQ_DECK * B, rInner: W.AQ_ROOF * B };
+                 rOuter: W.AQ_DECK * B, rInner: W.AQ_ROOF * B,
+                 sides: W.AQ_SIDES, rot: W.AQ_ROT };
   return { runs, ring, X0, X1, Y0, Y1, BOARD, pierY, pierX0, pierX1, PIER_W };
 }
 
@@ -23127,10 +23143,28 @@ function buildShore(grid){
    the first pass reported "pier" while standing on the roof. The ring is
    the more specific shape and owns the pier's far end, so it is asked
    first and the run only answers what the ring didn't. */
+/* Point in a regular n-gon, by apothem. A regular polygon is the
+   intersection of n half-planes, one per face, each at distance
+   apothem = R*cos(pi/n) from the centre along that face's outward normal.
+   So the test is max(dot with each normal) <= apothem -- exact, allocation
+   free, and it degenerates to a circle as n grows, which is what makes it
+   safe to leave AQ_SIDES tunable. The +0.5 half-step matches octPts in the
+   roundhouse lab so the classifier's corners land where the drawn ones do. */
+function inRegularPoly(dx, dy, R, n, rot){
+  const ap = R * Math.cos(Math.PI / n);
+  for(let i = 0; i < n; i++){
+    const a = ((i + 0.5) / n) * Math.PI * 2 + (rot || 0) + Math.PI / n;
+    if(dx * Math.cos(a) + dy * Math.sin(a) > ap) return false;
+  }
+  return true;
+}
 function classifyShore(sh, x, y){
   if(!sh) return null;
-  const d = Math.hypot(x - sh.ring.cx, y - sh.ring.cy);
-  if(d <= sh.ring.rOuter) return d >= sh.ring.rInner ? "deck" : "building";
+  const rx = x - sh.ring.cx, ry = y - sh.ring.cy;
+  const d = Math.hypot(rx, ry);
+  if(d <= sh.ring.rOuter)
+    return inRegularPoly(rx, ry, sh.ring.rInner, sh.ring.sides, sh.ring.rot)
+           ? "building" : "deck";
   for(const r of sh.runs){
     const dx = r.b.x - r.a.x, dy = r.b.y - r.a.y;
     const L = Math.hypot(dx, dy) || 1;
