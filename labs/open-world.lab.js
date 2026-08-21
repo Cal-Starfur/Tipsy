@@ -379,6 +379,18 @@
      route left the robot, and an 8%-per-frame lerp across that gap is a
      long slow flight over the city before the lab is usable. */
   let ocx = spawn.x, ocy = spawn.y, ocz = scene.camZ || 0;
+  /* RECLAIM THE CAMERA FROM THE BENCH. The art labs are meant to be
+     layered under this one — `?lab=waterfront,roundhouse,open-world` is
+     how you see the pier furnishings while driving — but roundhouse
+     calls BENCH.lookAt to frame the aquarium, and lookAt sets
+     cam.follow = false and pins camX/camY at a fixed point every frame.
+     Layered under a driving lab that is a camera that refuses to follow
+     the robot. This lab owns the camera, so it takes it back. */
+  const benchCamOff = () => {
+    if (typeof BENCH === 'undefined' || !BENCH || !BENCH.cam) return;
+    if (BENCH.cam.on) BENCH.cam.on = false;
+  };
+  benchCamOff();
 
   const stick = { active: false, id: null, ox: 0, oy: 0, dx: 0, dy: 0 };
 
@@ -671,6 +683,7 @@
 
        Lead only applies going forward: leading by 95 units while
        reversing points the camera at where you just came from. */
+    benchCamOff();   // cheap, and a layered lab can turn it back on at any time
     const lead = vel > 0 ? 95 : 0;
     const tx = px + Math.cos(yaw) * lead, ty = py + Math.sin(yaw) * lead;
     ocx = Phaser.Math.Linear(ocx, tx, 0.08);
