@@ -95,7 +95,7 @@
        the engine reports it is really running.
 
        pointer-events:none throughout -- every tap belongs to the card.
-       The stage is decorative and must never eat a Start Delivery. */
+       The stage is decorative and must never eat a Play tap. */
     #attract-stage {
       /* ABSOLUTE, and INSIDE <main>, not fixed at document level.
          This was the bug. main is z-index 1 with an OPAQUE background
@@ -234,6 +234,90 @@
     #start-btn:active {
       transform: translateY(4px);
       box-shadow: 0 2px 0 #b8501f, 0 4px 10px rgba(0, 0, 0, 0.3);
+    }
+    /* ---------- PLAY BUTTON, ANIMATED ----------
+       Four motions on one button, and the reason they are written this
+       way rather than as four independent rules:
+
+       BREATHE AND NUDGE ARE ONE TRACK. Both drive `transform`, and an
+       element can only run one transform animation — declare them
+       separately and the second rule wins outright while the first
+       silently never plays. So the swell and the hop are authored as a
+       single 4s keyframe list: a gentle scale that breathes twice, then
+       a squash-and-hop at the end of the cycle. Every keyframe writes
+       the same three components (translateY, scaleX, scaleY) so the
+       interpolation between them stays clean instead of snapping
+       whenever the shorthand changes shape.
+
+       SHEEN NEEDS overflow:hidden. The streak is a gradient on ::after
+       that slides across; without the clip it slides out over the
+       neighbouring text.
+
+       HALO IS A BOX-SHADOW, NOT A RING ELEMENT. The obvious ::before
+       ring is clipped away by the overflow:hidden the sheen needs.
+       box-shadow is NOT clipped by overflow, so the halo rides out past
+       the button's edge from inside a clipped box. It costs a repaint
+       each frame where the other three cost none — acceptable on one
+       small element, and worth knowing before this pattern gets copied.
+
+       :active KILLS THE ANIMATION. A running animation outranks the
+       :active rule, so without this the press-down (translateY(4px) and
+       the collapsed shadow) would be overridden and the button would
+       feel dead under the thumb. Switching the animation off for the
+       duration of the press hands both properties back. */
+    #start-btn {
+      animation: ow-btn-idle 4s cubic-bezier(0.28, 0.9, 0.4, 1) infinite,
+                 ow-btn-halo 2s ease-out infinite;
+      position: relative;
+      overflow: hidden;
+      will-change: transform;
+    }
+    #start-btn::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(105deg,
+        transparent 38%, rgba(255, 255, 255, 0.55) 50%, transparent 62%);
+      transform: translateX(-120%);
+      animation: ow-btn-sheen 3.2s ease-in-out infinite;
+      pointer-events: none;
+    }
+    #start-btn:active {
+      animation: none;
+    }
+    @keyframes ow-btn-idle {
+      0%   { transform: translateY(0)     scaleX(1)     scaleY(1); }
+      12%  { transform: translateY(0)     scaleX(1.018) scaleY(1.018); }
+      25%  { transform: translateY(0)     scaleX(1.032) scaleY(1.032); }
+      38%  { transform: translateY(0)     scaleX(1.018) scaleY(1.018); }
+      50%  { transform: translateY(0)     scaleX(1)     scaleY(1); }
+      62%  { transform: translateY(0)     scaleX(1.016) scaleY(1.016); }
+      72%  { transform: translateY(0)     scaleX(1.03)  scaleY(1.03); }
+      76%  { transform: translateY(2px)   scaleX(1.08)  scaleY(0.93); }
+      82%  { transform: translateY(-8px)  scaleX(0.97)  scaleY(1.05); }
+      88%  { transform: translateY(0)     scaleX(1.04)  scaleY(0.96); }
+      93%  { transform: translateY(-2px)  scaleX(1.01)  scaleY(1.01); }
+      100% { transform: translateY(0)     scaleX(1)     scaleY(1); }
+    }
+    @keyframes ow-btn-sheen {
+      0%, 55%   { transform: translateX(-120%); }
+      80%, 100% { transform: translateX(120%); }
+    }
+    @keyframes ow-btn-halo {
+      0% {
+        box-shadow: 0 6px 0 #b8501f, 0 8px 18px rgba(0, 0, 0, 0.35),
+                    0 0 0 0 rgba(255, 180, 84, 0.55);
+      }
+      70%, 100% {
+        box-shadow: 0 6px 0 #b8501f, 0 8px 18px rgba(0, 0, 0, 0.35),
+                    0 0 0 16px rgba(255, 180, 84, 0);
+      }
+    }
+    /* Anyone who has asked their phone to stop moving things gets a
+       plain button — all four motions off, press state intact. */
+    @media (prefers-reduced-motion: reduce) {
+      #start-btn { animation: none; }
+      #start-btn::after { animation: none; opacity: 0; }
     }
     #how-to-btn,
     #notify-btn {
@@ -494,7 +578,7 @@
           <p id="greet">Hey there — ready for today's route?</p>
           <p id="stat"></p>
           <p id="plays"></p>
-          <button id="start-btn" type="button">Start Delivery</button>
+          <button id="start-btn" type="button">Play</button>
         </div>
         <div class="tabs">
           <button class="tab active" id="tab-daily" type="button">Today</button>
