@@ -13397,6 +13397,41 @@ class WorldScene extends Phaser.Scene {
         if(kind === "bench"){
           const bdv = e.dv;
           vq.push({ depth:x+y, fn:(g,t)=>this.scatterBlockProp(this.propLayer(g, x, y), x, y, "bench", t, bdv) });
+        } else if(kind === "lamp"){
+          /* ---------- ONE LAMP, NOT TWO ----------
+             drawLampHull reads exactly three fields off its record:
+             lampSeed, mal and armSign. The route's 33 lamps supply all
+             three. The city's scatter lamps supplied NONE, and the
+             default is `hz.lampSeed || 1` -- so every street lamp in
+             Costa Palma outside the day's route was seeded 1. Identical
+             pole height, identical arm reach, identical pool radius,
+             and never broken. Thousands of clones.
+
+             That did not matter while the route was the only place you
+             could drive. It is most of the game now.
+
+             Seeded off the piece's own position, the way every other
+             per-instance seed in the world is, so the variation is
+             stable for a given spot forever rather than reshuffling per
+             frame or per route.
+
+             ARM DIRECTION. +b is toward the road (see drawLampHull's own
+             note). Scatter lamps stand on the VERGE, behind the walking
+             band, so the head has to swing +b to hang over the pavement
+             rather than back over the grass -- the opposite verdict from
+             a curb-row route lamp, and the same one a building-row route
+             lamp reaches. +1 is that default, stated here rather than
+             left implicit because it is a real decision, not a fallback.
+
+             VISIBLE IN THE RAIL GAME TOO. These lamps are city dressing
+             in both modes, so the shipping build's streets gain the same
+             height and arm variety. No collision or damage changes with
+             it -- geometry only, which is why the hazard gate stays
+             flat. */
+          const lseed = ((Math.round(x)*7919) ^ (Math.round(y)*104729) ^ 0x1a3b) >>> 0;
+          const ldata = { lampSeed: lseed, armSign: 1,
+                          mal: mulberry32(lseed)() < LAMP_ACT.malRate };
+          vq.push({ depth:x+y, fn:(g,t)=>this.drawProp(this.propLayer(g, x, y), "lamp", x, y, t, idx, 0, null, null, ldata) });
         } else {
           const f = idx;   // face the street the piece stands on
           vq.push({ depth:x+y, fn:(g,t)=>this.drawProp(this.propLayer(g, x, y), kind, x, y, t, f) });
