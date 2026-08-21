@@ -134,6 +134,35 @@
      short recovery, and the pad you can SEE from where you fell is the
      one that should catch you even if the drive there curls around a
      block. */
+  /* ---------- MOVING THE ROBOT, WHOEVER OWNS HIM ----------
+     THREE DIFFERENT THINGS can hold the pose depending on what is
+     loaded, and writing to the wrong one looks exactly like "nothing
+     happened":
+
+       sc._owAPI.place  the open-world LAB. Its pose lives in a closure
+                        and it re-stamps botX/botY every preupdate, so a
+                        write to botX is erased before the next frame.
+                        THIS is why `go to nearest` did nothing when the
+                        two labs were loaded together.
+       sc.ow            the production open-world module (?ow=1). Real
+                        fields, safe to write.
+       sc.botX/botY     the plain rail game, nothing else loaded.
+
+     Order matters: the lab wins over the module, because if the lab is
+     loaded it is the thing actually driving. */
+  const csPlace = (x, y, a) => {
+    if (sc._owAPI && sc._owAPI.place) { sc._owAPI.place(x, y, a, 0, false); }
+    else if (sc.ow) { sc.ow.px = x; sc.ow.py = y; sc.ow.yaw = a; sc.ow.vel = 0;
+                      sc.ow.reversing = false; sc.ow.latchSign = 0; }
+    sc.botX = x; sc.botY = y;
+    sc.state = 'play'; sc.tilt = 0; sc.roll = 0; sc.pitch = 0; sc.tipT = 0;
+  };
+  const csPose = () => {
+    if (sc._owAPI && sc._owAPI.pose) { const p = sc._owAPI.pose(); return { x: p.px, y: p.py }; }
+    if (sc.ow) return { x: sc.ow.px, y: sc.ow.py };
+    return { x: sc.botX, y: sc.botY };
+  };
+
   const nearestStation = (x, y) => {
     let best = null, bd = Infinity;
     for (const s of STATIONS) {
@@ -257,21 +286,16 @@
     if (!downT) { downT = t; return; }
     if (t - downT < CS_HOLD) return;
     downT = 0;
-    const ow = s.ow || (s._owAPI && s._owAPI.pose && { px: s._owAPI.pose().px, py: s._owAPI.pose().py });
-    const px = ow ? ow.px : s.botX, py = ow ? ow.py : s.botY;
-    const near = nearestStation(px, py);
+    const p = csPose();
+    const near = nearestStation(p.x, p.y);
     if (!near) return;
-    lastTip = { x: px, y: py, dist: Math.round(near.dist), name: near.station.name };
+    lastTip = { x: p.x, y: p.y, dist: Math.round(near.dist), name: near.station.name };
     const st = near.station;
     /* on the pad, facing out of it — nose pointed at the street, not at
        the wall he would otherwise have to reverse away from */
-    if (s.ow) { s.ow.px = st.x; s.ow.py = st.y; s.ow.yaw = st.a; s.ow.vel = 0;
-                s.ow.reversing = false; s.ow.latchSign = 0;
-                s.ow.solidOn = new Set(); s.ow.flatOn = new Set(); }
-    if (s._owAPI && s._owAPI.place) s._owAPI.place(st.x, st.y, st.a, 0, false);
-    s.botX = st.x; s.botY = st.y;
-    s.state = 'play'; s.tilt = 0; s.roll = 0; s.pitch = 0;
-    s.tipT = 0; s.tipStartRoll = 0; s.speed = 0;
+    csPlace(st.x, st.y, st.a);
+    if (s.ow) { s.ow.solidOn = new Set(); s.ow.flatOn = new Set(); }
+    s.tipStartRoll = 0; s.speed = 0;
     s.damage = 0;                            // a charge is a repair; that is the point of the stop
     paint();
   }
@@ -304,11 +328,7 @@
         <input type="range" id="cs-${f.k}" min="${f.lo}" max="${f.hi}" step="${f.st}"
                style="flex:1;accent-color:#ff7a1a">
         <span id="csv-${f.k}" style="width:44px;text-align:right"></span></div>`).join('') +
-    `<div style="display:flex;gap:8px;margin-top:8px">
-       <button id="csGo" style="flex:1">go to nearest</button>
-       <button id="csTip" style="flex:1">tip me over</button>
-     </div>
-     <div style="display:flex;gap:8px;align-items:center;margin-top:8px">
+    `<div style="display:flex;gap:8px;align-items:center;margin-top:8px">
        <code id="csPort" style="flex:1;background:#0e0d0c;border:1px solid #2b2f38;
              border-radius:7px;padding:7px 8px;color:#ff9c4d;white-space:nowrap;
              overflow-x:auto;user-select:text"></code>
@@ -318,6 +338,31 @@
     b.style.cssText += ';background:#1b1e26;color:#e8eaef;border:1px solid #2b2f38;' +
       'border-radius:7px;padding:7px 4px;font:inherit';
   document.body.appendChild(p);
+
+  /* ---------- CONTROLS, DELIBERATELY OUTSIDE THE DIAL PANEL ----------
+     The bench hides every element carrying data-lab-panel and defaults
+     that toggle to OFF, so tagging the whole panel took the NAVIGATION
+     BUTTONS down with the sliders — reported on-device as the bench not
+     placing you by a station, when in fact the button to do it was
+     invisible. The open-world lab's own UI comment warns about exactly
+     this and it happened anyway.
+
+     So: sliders are a tuning panel and stay hideable; `go to nearest`
+     and `tip me over` are a control surface and never hide. */
+  document.getElementById('csBar')?.remove();
+  const bar = document.createElement('div');
+  bar.id = 'csBar';
+  bar.style.cssText = 'position:fixed;left:8px;right:8px;bottom:calc(8px + env(safe-area-inset-bottom));' +
+    'z-index:100000;display:flex;gap:8px;font:12px/1.3 ui-monospace,Menlo,monospace';
+  bar.innerHTML =
+    '<button id="csGo" style="flex:1">go to nearest ▸</button>' +
+    '<button id="csTip" style="flex:1">tip me over</button>';
+  for (const b of bar.querySelectorAll('button'))
+    b.style.cssText += ';background:#1b1e26;color:#ffb454;border:1px solid #3a3f4b;' +
+      'border-radius:9px;padding:11px 4px;font:inherit;font-weight:700';
+  document.body.appendChild(bar);
+  /* the dial panel sits above the bar rather than under it */
+  p.style.bottom = 'calc(58px + env(safe-area-inset-bottom))';
 
   const paint = () => {
     for (const f of F) {
@@ -336,14 +381,28 @@
     const el = document.getElementById('cs-' + f.k);
     if (el) el.addEventListener('input', e => { CS[f.k] = +e.target.value; paint(); });
   }
+  /* CYCLE, not just nearest: twelve stations and no way to see the
+     other eleven made this button feel broken even once it worked. Each
+     tap steps to the next one. */
+  let csIdx = -1;
   document.getElementById('csGo').onclick = () => {
-    const near = nearestStation(sc.ow ? sc.ow.px : sc.botX, sc.ow ? sc.ow.py : sc.botY);
-    if (!near) return;
-    const st = near.station;
-    if (sc.ow) { sc.ow.px = st.x - Math.cos(st.a)*120; sc.ow.py = st.y - Math.sin(st.a)*120;
-                 sc.ow.yaw = st.a; sc.ow.vel = 0; }
-    sc.botX = st.x - Math.cos(st.a)*120; sc.botY = st.y - Math.sin(st.a)*120;
-    BENCH.lookAt(st.x, st.y, 1.4);
+    if (!STATIONS.length) return;
+    /* first tap goes to the genuinely nearest; after that, step along */
+    if (csIdx < 0) {
+      const p = csPose(), near = nearestStation(p.x, p.y);
+      csIdx = near ? STATIONS.indexOf(near.station) : 0;
+    } else csIdx = (csIdx + 1) % STATIONS.length;
+    const st = STATIONS[csIdx];
+    /* stand just off the pad looking AT it, so the station is what fills
+       the screen rather than being underneath the robot */
+    csPlace(st.x - Math.cos(st.a)*150, st.y - Math.sin(st.a)*150, st.a);
+    lastTip = { x: st.x, y: st.y, dist: 0, name: st.name };
+    paint();
+    /* NO BENCH.lookAt HERE. The open-world lab reclaims the camera every
+       frame (benchCamOff), so a lookAt is cancelled before it renders —
+       it would pin the camera for one frame and then be overridden. The
+       lab's own camera follows the robot, so placing the robot IS the
+       framing. */
   };
   document.getElementById('csTip').onclick = () => {
     sc.state = 'tipped'; sc.tilt = 1.1; sc.tipDir = 1;
@@ -357,6 +416,7 @@
   sc._csRestore = () => {
     BENCH.pre(prevPre || (() => {}));
     document.getElementById('csPanel')?.remove();
+    document.getElementById('csBar')?.remove();
     delete sc._csRestore;
   };
   sc._csAPI = { CS, CSC, STATIONS, nearestStation, buildStations };
