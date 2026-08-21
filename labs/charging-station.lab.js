@@ -299,11 +299,29 @@
          that must not be swallowed by a building, and it is the same
          answer corner-light.lab.js reached from the other direction.
 
-         Cost: a building truly between camera and pad would now be drawn
-         under it. For a pad flat against a storefront there is nothing
-         between them, so the trade is one-sided. */
-      BENCH.queue(st.x + st.y + CS.padR,
-                  (g, tt) => drawStation(sc.gFront, st, tt));
+         AND THE COST IS NOT ZERO, which the first version of this note
+         claimed. gFront is above the ROBOT too, so a station drawn there
+         unconditionally paints its bollard over Tipsey — most obviously
+         the moment he respawns standing on the pad, reported on-device.
+
+         So the layer is chosen per frame:
+           parked on it  -> the ordinary layer, and the robot correctly
+                            occludes the pole he is standing in front of.
+           anywhere else -> gFront, so the storefront cannot swallow it.
+         Measured, not hoped: while parked the storefront hides the
+         station COMPLETELY, not partially. Two wrong pictures traded for
+         each other — the robot no longer disappears under a bollard, and
+         the bollard now disappears under a shop. Neither layer is right
+         because neither layer can be.
+
+         THIS IS A LAB COMPROMISE, NOT THE ANSWER. Both cases are right
+         at once only in the game's HAZARD pass, which is painted after
+         every building AND picks g/gFront per hazard the way every other
+         prop already does. BENCH.queue cannot reach it (corner-light hit
+         the same wall). The port gets this for free; the bench cannot. */
+      const onPad = Math.hypot(st.x - s.botX, st.y - s.botY) < CS.padR + 30;
+      const layer = onPad ? BENCH.layerFor(st.x, st.y) : sc.gFront;
+      BENCH.queue(st.x + st.y + CS.padR, (g, tt) => drawStation(layer, st, tt));
     }
     csRespawnTick(s, t);
   });
