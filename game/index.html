@@ -4515,6 +4515,630 @@ function hazWorldAt(tms, hz){
            settled: !!eff.settled, fleeing: !!eff.fleeing };
 }
 
+/* ======================= OPEN WORLD LOCOMOTION =========================
+   Ported from labs/open-world.lab.js (OW_BUILD b7-hazards), which is
+   where the driving model was designed and tuned. This is step 2 of the
+   open-world conversion: the locomotion moves into the canonical game,
+   OFF BY DEFAULT, so the shipping rail game is untouched until the flag
+   is set.
+
+   WHAT CHANGES WHEN THE FLAG IS ON. botX/botY/yaw become authoritative
+   and botS stops advancing. The robot drives anywhere the collision
+   model allows; the rail still exists underneath and is still what
+   groundZ, the door and the GPS are keyed to, which is why this is a
+   prototype flag and not a shipping mode.
+
+   WHAT THE LAB HAD TO FAKE AND THIS DOES NOT. The lab could not edit
+   the game, so it pinned botS behind an accessor, overrode posAt and
+   headingAt, and wrapped drawRobot — three lies told to a rail-based
+   update(). All three are gone here, because the four places that
+   actually needed to change are edited directly:
+     - the botS advance is gated (drawRobot's play gate),
+     - the 'world pose from the path' block branches on ow.on,
+     - drawAngle takes yaw directly instead of easing toward the rail,
+     - the input handlers hand the left half of the screen to the stick.
+   The camera needed nothing at all: it leads from botX/botY along hdg,
+   and hdg is the free yaw in this mode, so it follows for free. That
+   was the lab's single hardest fight (it had to own the camera outright
+   and overwrite it every frame) and it evaporates once the pose block
+   is honest.
+
+   STILL FAKED, DELIBERATELY, AND LISTED SO NOBODY REDISCOVERS IT:
+     - Hazards are taken PRIVATE on install and the scene's list is
+       emptied. The 756-line rail interaction loop tests dx = botS - hz.s
+       and botS is frozen here, so every hazard near the freeze point
+       would register as a permanent contact and re-fire every frame.
+       Replacing that loop is step 3; until then OW runs its own
+       world-space contact pass over the private copy.
+     - crossings / loop / challenge are emptied for the same reason.
+     - botZ still reads groundZ(frozen botS), so the ground height is
+       constant. Harmless (it is a hill sample, not a collision), wrong,
+       and fixed when the surface model lands.
+     - The door never arrives, because arrival is a botS test. Delivery
+       targeting off world coordinates is its own later step.
+   ====================================================================== */
+const OW_D = {
+  accel:      0.00042,   // units/ms² forward — matches the game's own gas curve
+  brake:      0.00075,   // stronger than accel, same asymmetry the rail model uses
+  drag:       0.00016,   // coast-down; the reason releasing the stick settles
+  vMax:       0.225,     // the game's established top speed — do not raise here
+  vRev:       0.070,     // reverse cap. Deliberately slow: an unwedging gear,
+                         // not a driving mode.
+  revEnter:   0.012,     // roll below this with the stick pulled back and reverse engages
+
+  /* TURN RATE, SPEED-SENSITIVE. Peak in the middle: a wheeled robot
+     cannot pivot standing still (that is what reverse is for) and
+     should wash out at speed rather than knife. */
+  turnMax:    0.0034,    // rad/ms at the sweet spot
+  turnVPeak:  0.085,     // speed the peak sits at
+  turnVWash:  0.55,      // fraction of turnMax still available at vMax
+  turnCreep:  0.22,      // fraction available at a standstill
+
+  /* TILT GAIN, DERIVED NOT GUESSED. tilt is an accumulator against
+     tiltDecay, so steady state = build/decay. Design target: a hard turn
+     at vMax sits just under the 1.0 tip line — yawRate there is
+     turnMax*turnVWash = 0.00187, v01² = 1, decay 0.0021, so gain 1.0
+     gives 0.89. The same gain at the mid-speed turn peak (v01² = 0.14)
+     settles at 0.23. Fast turns punish, mid turns don't. */
+  tiltGain:   1.0,
+  tiltDecay:  0.0021,    // matches the game's own tilt decay
+
+  /* COLLISION. clipThresh is the NORMAL-component speed at which a
+     scrape becomes a topple, set against the game's own
+     ROBOT_TIP_THRESH of 0.19 so a wall is a little more forgiving than
+     another machine. */
+  botR:       30,        // BODY.hx 26 plus slack for the wheels
+  clipThresh: 0.115,
+  clipTilt:   3.2,       // tilt impulse per unit of normal speed on a FRESH contact
+  grindTilt:  0.25,      // fraction of that per frame while still in contact
+  clipLoss:   0.55,      // fraction of normal-component speed kept after a scrape
+
+  /* HAZARD CONTACT RADII. The rail model got away with tiny along-track
+     gaps (lamp 14, hydrant 26) because a separate row test did the
+     lateral work; in world space distance is the ONLY test, so a bare 14
+     would let you clip through a lamp post sideways. Rail standoffs
+     widened to the thing's actual footprint. */
+  hzLamp: 22, hzPalm: 30, hzHydrant: 26, hzBin: 30, hzPlanter: 34,
+  hzRobot: 34, hzScooter: 28, hzTrash: 28, hzPeople: 22, hzDog: 20,
+  hzFlat: 34,            // drive-over trigger radius for cracks and slabs
+  /* FLAT KICK, DELIBERATELY UNABLE TO CHAIN. First value was 0.42 and
+     with 47 cracks on a route three in quick succession stacked past the
+     tip line — a full-speed run down a cracked road went over with NO
+     solid contact at all. At 0.18 a run of five still cannot tip on its
+     own, so a crack costs control rather than the run. */
+  hzFlatTilt: 0.18,
+
+  dead:       0.12,      // stick dead zone, fraction of maxR
+  maxR:       60,        // px from touchdown for full deflection
+  latchIn:    170,       // deg of heading error that latches a turn direction
+  latchOut:   150,       // ...and the error it unlatches at. Hysteresis.
+  camLead:    95,        // matches the game's own look-ahead
+};
+
+/* ---------- world model: surfaces and solids ----------
+   Derived, not authored: the frozen lattice already implies every ribbon
+   in the city. A point is measured against the nearest road centreline
+   on each axis; whichever axis it is closer to owns it. grid.blocks is
+   already exactly the right data for the solids — axis-aligned rects,
+   inset to the back of the sidewalk, typed from the frozen city seed.
+   housing and commercial stop the robot; park is open ground, which is
+   the whole "cut through the park" ask. */
+function owBuildWorld(route){
+  const g2 = route.grid;
+  const CURB_W = T2 * 0.5;
+  const SW_OUT = ROAD_HALF + SIDEWALK_W;
+
+  /* WATERFRONT. The boardwalk and pier are drawn OUTSIDE the 36x27
+     lattice, so the lattice classifier has nothing to say about them and
+     would return 'void' while you are standing on the deck. Classified
+     geometrically from WG_COAST rather than from restated literals, so
+     they cannot drift from what drawWorld paints. READOUT-LEVEL ONLY:
+     there is still no pier collision and no fail volume out here.
+     GUARDED — an unguarded read of _C.EXT would take the whole mode down
+     if WG_COAST were ever renamed. */
+  const _C = (typeof WG_COAST !== 'undefined' && WG_COAST) ? WG_COAST : null;
+  const WF = _C ? {
+    x0: -_C.EXT * BLOCK - _C.BOARD * BLOCK,
+    x1: -_C.EXT * BLOCK,
+    y0: -_C.EXT * BLOCK,
+    y1: (g2.rows - 1) * BLOCK + _C.EXT * BLOCK,
+  } : null;
+  if(WF){
+    WF.pierY = (WF.y0 + WF.y1) / 2;
+    WF.pierHalf = _C.PIER_W * BLOCK / 2;
+    WF.pierX0 = WF.x0 - _C.SANDW * BLOCK - _C.PIER_LEN * BLOCK;
+    WF.pierX1 = WF.x0;
+  }
+  const waterfrontAt = (x, y) => {
+    if(!WF) return null;
+    if(x >= WF.x0 && x <= WF.x1 && y >= WF.y0 && y <= WF.y1) return 'boardwalk';
+    if(x >= WF.pierX0 && x <= WF.pierX1 && Math.abs(y - WF.pierY) <= WF.pierHalf) return 'pier';
+    return null;
+  };
+
+  const SOLID = new Set(['housing', 'commercial']);
+  const blocks = (g2.blocks || []).filter(b => SOLID.has(b.type));
+  /* bucketed by grid cell so a test is a handful of rect checks rather
+     than a scan of ~900 blocks every frame */
+  const bucket = new Map();
+  for(const b of blocks){
+    const key = Math.round(b.cx / BLOCK) + ',' + Math.round(b.cy / BLOCK);
+    if(!bucket.has(key)) bucket.set(key, []);
+    bucket.get(key).push(b);
+  }
+  /* circle-vs-rect by inflating the rect: exact on faces, marginally
+     generous at the four corners, which is the harmless direction */
+  const solidAt = (x, y, R) => {
+    const i = Math.round(x / BLOCK), j = Math.round(y / BLOCK);
+    for(let a = -1; a <= 1; a++) for(let c = -1; c <= 1; c++){
+      const list = bucket.get((i + a) + ',' + (j + c));
+      if(!list) continue;
+      for(const b of list)
+        if(x > b.x0 - R && x < b.x1 + R && y > b.y0 - R && y < b.y1 + R) return b;
+    }
+    return null;
+  };
+
+  const blockTypeAt = (x, y) => {
+    const b = g2.blockByIJ && g2.blockByIJ.get(Math.floor(x / BLOCK) + ',' + Math.floor(y / BLOCK));
+    return b ? b.type : null;
+  };
+
+  const surfaceAt = (x, y) => {
+    const nx = Math.round(x / BLOCK) * BLOCK, ny = Math.round(y / BLOCK) * BLOCK;
+    const i = Math.round(x / BLOCK), j = Math.round(y / BLOCK);
+    const dx = Math.abs(x - nx), dy = Math.abs(y - ny);
+    /* a centreline only exists where the lattice actually has an edge,
+       otherwise the "road" through a solid block is imaginary */
+    const nX = g2.nodeAt(i, j);
+    const liveY = !!(nX && (nX.conn[1] || ((g2.nodeAt(i, j - 1) || {}).conn || [])[1]));
+    const liveX = !!(nX && (nX.conn[0] || ((g2.nodeAt(i - 1, j) || {}).conn || [])[0]));
+    const band = d => d <= ROAD_HALF ? 'road'
+                    : d <= ROAD_HALF + CURB_W ? 'curb'
+                    : d <= SW_OUT ? 'sidewalk' : null;
+    const bx = liveY ? band(dx) : null;
+    const by = liveX ? band(dy) : null;
+    if(bx && by) return (dx < dy ? bx : by);   // intersection: nearer axis wins
+    const wf = waterfrontAt(x, y);
+    if(wf) return wf;
+    if(bx || by) return bx || by;
+    const bt = blockTypeAt(x, y);
+    return bt === 'park' ? 'park' : bt ? 'building' : (nX ? 'lot' : 'void');
+  };
+
+  /* ---------- hazard index ----------
+     Same bucketing as the blocks. SOLID vs FLAT is the option-A split:
+     solid things resolve like the buildings do — pushed out along the
+     contact normal, free to slide past at an angle — rather than
+     clamping the robot to a standoff, which on a rail was fine (you
+     could only meet them head-on) and off it reads as an invisible
+     wall. */
+  const HZ = (route.hazards || []).filter(h => h.wx !== undefined);
+  const hzBucket = new Map();
+  const HZ_CELL = T2 * 8;
+  for(const h of HZ){
+    const k = Math.floor(h.wx / HZ_CELL) + ',' + Math.floor(h.wy / HZ_CELL);
+    if(!hzBucket.has(k)) hzBucket.set(k, []);
+    hzBucket.get(k).push(h);
+  }
+  const hzNear = (x, y) => {
+    const out = [];
+    const i = Math.floor(x / HZ_CELL), j = Math.floor(y / HZ_CELL);
+    for(let a = -1; a <= 1; a++) for(let c = -1; c <= 1; c++){
+      const l = hzBucket.get((i + a) + ',' + (j + c));
+      if(l) out.push(...l);
+    }
+    return out;
+  };
+  return { surfaceAt, solidAt, hzNear, HZ, waterfrontAt };
+}
+
+const OW_HZ_R = {
+  lamp: OW_D.hzLamp, palm: OW_D.hzPalm, palmDwarf: OW_D.hzPalm * 0.8,
+  hydrant: OW_D.hzHydrant, bin: OW_D.hzBin, planter: OW_D.hzPlanter,
+  robot: OW_D.hzRobot, scooter: OW_D.hzScooter, trash: OW_D.hzTrash,
+  people: OW_D.hzPeople, william: OW_D.hzRobot, dog: OW_D.hzDog,
+};
+/* driven over, not driven into: ground features and triggers */
+const OW_HZ_FLAT = new Set(['crack', 'slab', 'pigeons', 'grade', 'burnoutMark',
+                            'sidewalkend', 'sidewalkbegin']);
+
+/* ---------- iso inverse ----------
+   W() is a plain 2:1 iso: sx = (X - Y)*K, sy = (X + Y)*0.5*K. Inverting
+   for DIRECTION only (K drops out) gives the world vector a screen-space
+   push is asking for. The camera never rotates, so this is a constant
+   basis — which is exactly why absolute-heading steering is affordable
+   here and would not be under a rotating camera. */
+function owScreenToWorld(sx, sy){ return { x: sx * 0.5 + sy, y: sy - sx * 0.5 }; }
+
+function owWrapAngle(a){
+  while(a > Math.PI) a -= Math.PI*2;
+  while(a < -Math.PI) a += Math.PI*2;
+  return a;
+}
+
+/* ---------- the step ----------
+   One integration tick. Reads the stick off ow.stick / ow.keyv, writes
+   ow.px/py/yaw/vel and the scene fields the renderer consumes. Called
+   from update() BEFORE drawWorld, so the pose is fresh when the pose
+   block reads it a few thousand lines later. */
+function owStep(scene, dt){
+  const ow = scene.ow, D = OW_D, W = ow.world;
+
+  let sx = ow.stick.active ? ow.stick.dx / D.maxR : ow.keyv.x;
+  let sy = ow.stick.active ? ow.stick.dy / D.maxR : ow.keyv.y;
+  let mag = Math.hypot(sx, sy);
+  if(mag < D.dead){ mag = 0; sx = sy = 0; }
+  else { const k = (mag - D.dead) / (1 - D.dead) / mag; sx *= k; sy *= k; mag = Math.hypot(sx, sy); }
+
+  const w = owScreenToWorld(sx, sy);
+  const wantYaw = mag > 0 ? Math.atan2(w.y, w.x) : ow.yaw;
+
+  /* RAW error against the requested heading, measured nose-forward. This
+     decides whether the stick is asking for something BEHIND the robot,
+     so it must be computed before reverse is resolved. */
+  const rawErrDeg = Math.abs(owWrapAngle(wantYaw - ow.yaw)) * 180 / Math.PI;
+
+  /* REVERSE. Stick pulled behind the robot while nearly stopped means
+     back out, not "execute a standing U-turn you have no turn rate for".
+     Without this the speed-sensitive curve deadlocks you against the
+     first bench you nose into. */
+  const wantsBack = mag > 0 && rawErrDeg > 110;
+  if(!ow.reversing && wantsBack && Math.abs(ow.vel) < D.revEnter) ow.reversing = true;
+  if(ow.reversing && (!wantsBack || ow.vel > D.revEnter)) ow.reversing = false;
+
+  /* STEERING TARGET, AND WHY REVERSE INVERTS IT. Backing up, the stick
+     still names where you want to END UP, but the nose points away from
+     travel — so the thing aimed at wantYaw is the TAIL. Getting this
+     wrong is not cosmetic: a headless run caught reverse steering gated
+     off entirely, which backs you out in a dead straight line and cannot
+     clear the bench you nosed into. */
+  const aimYaw = ow.reversing ? wantYaw + Math.PI : wantYaw;
+  const err = owWrapAngle(aimYaw - ow.yaw);
+  const errDeg = Math.abs(err) * 180 / Math.PI;
+
+  /* EXACT-180 TIE-BREAK. Dead behind, shortest-arc is undefined and the
+     sign alternates frame to frame — the robot shivers instead of
+     turning. Latch a direction past latchIn, hold until under latchOut. */
+  if(mag > 0){
+    if(!ow.latchSign && errDeg > D.latchIn) ow.latchSign = err >= 0 ? 1 : -1;
+    else if(ow.latchSign && errDeg < D.latchOut) ow.latchSign = 0;
+  } else ow.latchSign = 0;
+
+  /* turn rate curve: creep at rest, peak mid-range, wash out at top */
+  const sp = Math.abs(ow.vel);
+  const t01 = Math.min(1, sp / D.turnVPeak);
+  const rise = D.turnCreep + (1 - D.turnCreep) * t01;
+  const fall = sp > D.turnVPeak
+    ? 1 - (1 - D.turnVWash) * Math.min(1, (sp - D.turnVPeak) / (D.vMax - D.turnVPeak))
+    : 1;
+  const rate = D.turnMax * rise * fall;
+
+  /* severity scales with how far off you are, so easing the stick over
+     is genuinely gentler than slamming it — the property that used to
+     live in corner radius now lives in the thumb. */
+  const sev = Math.min(1, errDeg / 90);
+  const dir = ow.latchSign || Math.sign(err);
+  const dYaw = mag > 0 ? dir * Math.min(Math.abs(err), rate * sev * dt) : 0;
+  ow.yaw = owWrapAngle(ow.yaw + dYaw);
+
+  /* throttle. Forward magnitude is the component of the stick along the
+     robot's own heading once it is roughly pointed the right way —
+     shoving sideways should turn you, not launch you. */
+  const align = mag > 0 ? Math.max(0, Math.cos(err)) : 0;   // err is aim-relative: correct in reverse too
+  if(ow.reversing){
+    ow.vel -= D.accel * 0.6 * mag * dt;
+    if(ow.vel < -D.vRev) ow.vel = -D.vRev;
+  } else if(mag > 0){
+    ow.vel += D.accel * align * mag * dt;
+    if(errDeg > 90) ow.vel -= D.brake * 0.5 * dt;   // asking for behind you also sheds speed
+    if(ow.vel > D.vMax) ow.vel = D.vMax;
+  }
+  if(mag === 0 || (!ow.reversing && align === 0)){
+    const s2 = Math.sign(ow.vel);
+    ow.vel -= s2 * D.drag * dt;
+    if(Math.sign(ow.vel) !== s2) ow.vel = 0;
+  }
+  if(ow.testHold !== null && ow.vel !== 0) ow.vel = ow.testHold;
+
+  /* ---------- MOVE, THEN RESOLVE ----------
+     Axis-separated resolution against axis-aligned rects: try the full
+     step, and if it lands inside a building, try each axis alone. The
+     axis that survives is the one you slide along, and the axis that
+     failed gives the contact normal for free — no nearest-face search,
+     and a glancing hit reads as a scrape down the wall rather than a
+     dead stop. Both blocked is an inside corner: nothing moves.
+
+     Severity is the NORMAL component of velocity, not raw speed. That is
+     what makes a speed-dependent clip behave the way it should: driving
+     parallel to a wall and brushing it is nearly free, while going
+     straight into it at pace puts you down. */
+  const stepX = Math.cos(ow.yaw) * ow.vel * dt;
+  const stepY = Math.sin(ow.yaw) * ow.vel * dt;
+  let hitNormal = 0;                       // 0 none, 1 x-face, 2 y-face, 3 hazard disc
+
+  if(!W.solidAt(ow.px + stepX, ow.py + stepY, D.botR)){
+    ow.px += stepX; ow.py += stepY;
+  } else {
+    const freeX = !W.solidAt(ow.px + stepX, ow.py, D.botR);
+    const freeY = !W.solidAt(ow.px, ow.py + stepY, D.botR);
+    if(freeX){ ow.px += stepX; hitNormal = 2; }
+    else if(freeY){ ow.py += stepY; hitNormal = 1; }
+    else hitNormal = Math.abs(stepX) > Math.abs(stepY) ? 1 : 2;
+
+    const vN = Math.abs(hitNormal === 1 ? Math.cos(ow.yaw) : Math.sin(ow.yaw)) * Math.abs(ow.vel);
+    if(vN >= D.clipThresh){
+      const sgn2 = Math.sign(Math.cos(ow.yaw) * (hitNormal === 1 ? 1 : 0) +
+                             Math.sin(ow.yaw) * (hitNormal === 2 ? 1 : 0)) || 1;
+      owTip(scene, sgn2);
+    } else {
+      /* ENTRY IMPULSE, NOT A PER-FRAME ONE. Charging the full impulse
+         every frame of contact meant a long slide along a wall
+         accumulated into a topple no single moment deserved: measured, a
+         0.225 oblique graze tipped after six frames of touching. */
+      const fresh = !ow.inContact;
+      scene.tilt += (dYaw >= 0 ? 1 : -1) * D.clipTilt * vN * (fresh ? 1 : D.grindTilt);
+      ow.vel *= D.clipLoss; if(fresh) ow.clipScrapes++;
+    }
+  }
+
+  /* ---------- tilt ----------
+     Yaw rate × speed², the honest formula the arc-radius model was
+     approximating. Slam the stick over at speed and you go down. */
+  const yawRate = dt > 0 ? Math.abs(dYaw) / dt : 0;
+  const v01 = Math.abs(ow.vel) / D.vMax;
+  const build = D.tiltGain * yawRate * v01 * v01;
+  const sgn = dYaw >= 0 ? 1 : -1;
+  scene.tilt = (scene.tilt || 0) * (1 - D.tiltDecay * dt) + sgn * build * dt;
+
+  /* ---------- HAZARD CONTACT, IN WORLD SPACE ----------
+     The rail test was dx = botS - hz.s along-track plus a row test
+     across. Both axes are still here; they are measured against the
+     world now. Separation is a real vector, so the contact normal falls
+     out of it directly instead of having to be inferred from which axis
+     blocked — the buildings need that inference because they are rects,
+     a hazard is a disc.
+
+     MOVING HAZARDS use hazWorldAt (step 1) so a dog is tested where he
+     is standing rather than where he spawned; static kinds fall back to
+     the stamped wx/wy. */
+  for(const h of W.hzNear(ow.px, ow.py)){
+    let hx = h.wx, hy = h.wy;
+    const mw = (typeof hazWorldAt === 'function') ? hazWorldAt(scene.runT || 0, h) : null;
+    if(mw){ hx = mw.x; hy = mw.y; }
+    const dx2 = ow.px - hx, dy2 = ow.py - hy;
+    const dist = Math.hypot(dx2, dy2) || 1e-6;
+
+    if(OW_HZ_FLAT.has(h.type)){
+      /* driven over: a trigger with a tilt kick, no resolution. Fires on
+         ENTRY the same way the wall scrapes do, so sitting on a crack is
+         not a per-frame beating. */
+      if(dist < D.hzFlat){
+        if(!ow.flatOn.has(h)){
+          ow.flatOn.add(h);
+          scene.tilt += (dYaw >= 0 ? 1 : -1) * D.hzFlatTilt * (Math.abs(ow.vel) / D.vMax);
+        }
+      } else ow.flatOn.delete(h);
+      continue;
+    }
+
+    const R = OW_HZ_R[h.type];
+    if(R === undefined) continue;          // unknown type: no collision, no guess
+    const reach = R + D.botR * 0.72;
+    if(dist >= reach){ ow.solidOn.delete(h); continue; }
+
+    const nx2 = dx2 / dist, ny2 = dy2 / dist;
+    ow.px = hx + nx2 * reach;
+    ow.py = hy + ny2 * reach;
+
+    const vN = Math.abs(Math.cos(ow.yaw) * nx2 + Math.sin(ow.yaw) * ny2) * Math.abs(ow.vel);
+    const freshH = !ow.solidOn.has(h);
+    ow.solidOn.add(h);
+    hitNormal = hitNormal || 3;
+
+    if(vN >= D.clipThresh){
+      owTip(scene, -(Math.sign(Math.cos(ow.yaw) * nx2 + Math.sin(ow.yaw) * ny2) || 1));
+    } else {
+      scene.tilt += (dYaw >= 0 ? 1 : -1) * D.clipTilt * vN * (freshH ? 1 : D.grindTilt);
+      ow.vel *= D.clipLoss; if(freshH) ow.clipScrapes++;
+    }
+  }
+
+  ow.inContact = hitNormal !== 0;
+
+  /* curb crossing: an impulse, not a wall. Road is not a fail. */
+  const sfc = W.surfaceAt(ow.px, ow.py);
+  if(sfc === 'curb' && ow.lastSfc !== 'curb' && Math.abs(ow.vel) > 0.03)
+    scene.tilt += sgn * 0.10 * (Math.abs(ow.vel) / D.vMax);
+  ow.lastSfc = sfc;
+  ow.surface = sfc;
+
+  /* the fields the rest of the game reads. throttle is held neutral: the
+     game's pointer handler sets it from which half of the screen was
+     touched, which is exactly where the stick lives. */
+  scene.speed = Math.abs(ow.vel);
+  scene.throttle = 0;
+  scene.wheelPhase = (scene.wheelPhase || 0) - ow.vel * dt * 0.28;
+}
+
+/* THE TIP, LATCHED, NOT NUDGED. Writing tilt = 1.1 and trusting the
+   game's own |tilt| >= 1 check does not work: that check lives late in
+   drawRobot's play gate and tilt is decayed before it is reached, so 1.1
+   falls under 1 within the same frame and the tip silently never
+   latches. Measured in the lab: clip tips fired on every fast head-on
+   while state stayed 'play' and peak tilt read 0.9. So the fail state is
+   set here directly, with the same fields the game's own tip transition
+   writes. */
+function owTip(scene, sgn){
+  const ow = scene.ow;
+  scene.tilt = 1.1 * sgn;
+  scene.state = "tipped";
+  scene.tipDir = sgn;
+  scene.tipStartRoll = scene.roll || 0;
+  scene.tipT = 0;
+  scene.damage = 95;
+  ow.vel = 0; ow.clipTips++;
+}
+
+/* ---------- install / uninstall ---------- */
+function owInstall(scene){
+  if(scene.ow) return scene.ow;
+  const r = scene.route;
+  if(!r || !r.segs) return null;
+
+  const ow = {
+    on: true,
+    px: scene.botX, py: scene.botY,
+    /* engage from wherever the robot already is, facing where it already
+       faces — no teleport, so turning the mode on mid-run is continuous
+       rather than a cut. */
+    yaw: (scene.drawAngle !== undefined ? scene.drawAngle : scene.headingAt(scene.botS)),
+    vel: 0, reversing: false, latchSign: 0,
+    inContact: false, lastSfc: 'sidewalk', surface: 'sidewalk',
+    solidOn: new Set(), flatOn: new Set(),
+    clipTips: 0, clipScrapes: 0,
+    /* TEST-ONLY. Held velocity for the headless collision harness:
+       driving into a specific wall face at a specific speed by simulating
+       stick input is unreliable, and drag bleeds the speed off before
+       contact. null in every real session. */
+    testHold: null,
+    stick: { active: false, id: null, ox: 0, oy: 0, dx: 0, dy: 0 },
+    keyv: { x: 0, y: 0 }, held: new Set(),
+    world: owBuildWorld(r),
+    /* stashed so uninstall is a restore rather than a reconstruction */
+    was: { hazards: r.hazards, crossings: r.crossings, loop: r.loop,
+           challenge: r.challenge, botS: scene.botS, laneOff: scene.laneOff,
+           mode: scene.mode },
+  };
+  /* see the header: the rail interaction loop cannot be allowed to run
+     against a frozen botS. Step 3 replaces it; until then OW owns
+     hazard contact and the scene's lists are empty. */
+  r.hazards = []; r.crossings = []; r.loop = null; r.challenge = null;
+  scene.laneOff = 0;          // lane is meaningless once x/y is authoritative
+  scene.ow = ow;
+
+  const KEYMAP = { ArrowUp: [0,-1], ArrowDown: [0,1], ArrowLeft: [-1,0], ArrowRight: [1,0],
+                   w: [0,-1], s: [0,1], a: [-1,0], d: [1,0] };
+  const recalc = () => {
+    ow.keyv.x = ow.keyv.y = 0;
+    for(const k of ow.held){ const v = KEYMAP[k]; if(v){ ow.keyv.x += v[0]; ow.keyv.y += v[1]; } }
+    const m = Math.hypot(ow.keyv.x, ow.keyv.y);
+    if(m > 1){ ow.keyv.x /= m; ow.keyv.y /= m; }
+  };
+  /* FLOATING ORIGIN. The stick spawns where the thumb lands, because on
+     a phone you are looking at the robot and not at your thumb. Left
+     half only — the right half stays free. */
+  ow.onDown = e => {
+    for(const t of (e.changedTouches || [e])){
+      if(t.clientX > window.innerWidth * 0.5) continue;
+      if(ow.stick.active) continue;
+      ow.stick.active = true; ow.stick.id = t.identifier !== undefined ? t.identifier : 'mouse';
+      ow.stick.ox = t.clientX; ow.stick.oy = t.clientY; ow.stick.dx = 0; ow.stick.dy = 0;
+      owPaintStick(ow);
+    }
+  };
+  ow.onMove = e => {
+    if(!ow.stick.active) return;
+    for(const t of (e.changedTouches || [e])){
+      if((t.identifier !== undefined ? t.identifier : 'mouse') !== ow.stick.id) continue;
+      ow.stick.dx = t.clientX - ow.stick.ox; ow.stick.dy = t.clientY - ow.stick.oy;
+      const m = Math.hypot(ow.stick.dx, ow.stick.dy);
+      if(m > OW_D.maxR){ ow.stick.dx *= OW_D.maxR/m; ow.stick.dy *= OW_D.maxR/m; }
+      owPaintStick(ow);
+    }
+  };
+  ow.onUp = e => {
+    if(!ow.stick.active) return;
+    for(const t of (e.changedTouches || [e])){
+      if((t.identifier !== undefined ? t.identifier : 'mouse') !== ow.stick.id) continue;
+      ow.stick.active = false; ow.stick.id = null; ow.stick.dx = ow.stick.dy = 0;
+      owPaintStick(ow);
+    }
+  };
+  ow.onKeyDown = e => { if(KEYMAP[e.key]){ ow.held.add(e.key); recalc(); e.preventDefault(); } };
+  ow.onKeyUp   = e => { if(KEYMAP[e.key]){ ow.held.delete(e.key); recalc(); } };
+
+  const cv = scene.game.canvas;
+  ow.canvas = cv;
+  cv.addEventListener('touchstart', ow.onDown, { passive: true });
+  cv.addEventListener('touchmove',  ow.onMove, { passive: true });
+  cv.addEventListener('touchend',   ow.onUp,   { passive: true });
+  cv.addEventListener('touchcancel',ow.onUp,   { passive: true });
+  cv.addEventListener('mousedown',  ow.onDown);
+  window.addEventListener('mousemove', ow.onMove);
+  window.addEventListener('mouseup',   ow.onUp);
+  window.addEventListener('keydown', ow.onKeyDown);
+  window.addEventListener('keyup',   ow.onKeyUp);
+
+  owMountUI();
+  return ow;
+}
+
+function owUninstall(scene){
+  const ow = scene.ow;
+  if(!ow) return;
+  const cv = ow.canvas;
+  if(cv){
+    cv.removeEventListener('touchstart', ow.onDown);
+    cv.removeEventListener('touchmove',  ow.onMove);
+    cv.removeEventListener('touchend',   ow.onUp);
+    cv.removeEventListener('touchcancel',ow.onUp);
+    cv.removeEventListener('mousedown',  ow.onDown);
+  }
+  window.removeEventListener('mousemove', ow.onMove);
+  window.removeEventListener('mouseup',   ow.onUp);
+  window.removeEventListener('keydown', ow.onKeyDown);
+  window.removeEventListener('keyup',   ow.onKeyUp);
+  const r = scene.route;
+  if(r && ow.was){
+    r.hazards = ow.was.hazards; r.crossings = ow.was.crossings;
+    r.loop = ow.was.loop; r.challenge = ow.was.challenge;
+    scene.botS = ow.was.botS; scene.laneOff = ow.was.laneOff;
+  }
+  document.getElementById('owUI')?.remove();
+  scene.ow = null;
+}
+
+/* ---------- the stick's own UI ----------
+   DELIBERATELY NOT tagged as a lab panel: a control surface is not a
+   tuning dial and must never be hidden with them. */
+function owMountUI(){
+  document.getElementById('owUI')?.remove();
+  const ui = document.createElement('div');
+  ui.id = 'owUI';
+  ui.style.cssText = 'position:fixed;inset:0;z-index:9990;pointer-events:none';
+  ui.innerHTML =
+    '<div id="owRing" style="position:absolute;width:120px;height:120px;margin:-60px 0 0 -60px;' +
+    'border:2px solid rgba(255,255,255,.28);border-radius:50%;display:none"></div>' +
+    '<div id="owNub" style="position:absolute;width:44px;height:44px;margin:-22px 0 0 -22px;' +
+    'border-radius:50%;background:rgba(255,122,26,.85);display:none"></div>';
+  document.body.appendChild(ui);
+}
+function owPaintStick(ow){
+  const ring = document.getElementById('owRing'), nub = document.getElementById('owNub');
+  if(!ring || !nub) return;
+  ring.style.display = nub.style.display = ow.stick.active ? 'block' : 'none';
+  if(!ow.stick.active) return;
+  ring.style.left = ow.stick.ox + 'px'; ring.style.top = ow.stick.oy + 'px';
+  nub.style.left = (ow.stick.ox + ow.stick.dx) + 'px';
+  nub.style.top  = (ow.stick.oy + ow.stick.dy) + 'px';
+}
+
+/* ---------- the flag ----------
+   OFF unless asked for. ?ow=1 in the URL arms it for the session;
+   owToggle() flips it live from the console or a debug button, which is
+   how it gets exercised on-device without a rebuild. */
+let OW_ARMED = false;
+try { OW_ARMED = new URLSearchParams(location.search).get('ow') === '1'; } catch(e){}
+function owToggle(scene){
+  const sc = scene || (window.game && game.scene.scenes.find(s => s.route));
+  if(!sc) return 'no scene';
+  if(sc.ow){ owUninstall(sc); OW_ARMED = false; return 'open world OFF'; }
+  OW_ARMED = true; owInstall(sc);
+  return 'open world ON';
+}
+if(typeof window !== 'undefined') window.owToggle = owToggle;
+
 function laneOffset(lane){ return ROBOT_SIDE * (ROAD_HALF + (lane+0.5)*T2); }
 function farLaneOffset(lane){ return -ROBOT_SIDE * (ROAD_HALF + (lane+0.5)*T2); } // opposite sidewalk — decoration only, never robot-reachable
 
@@ -8424,18 +9048,23 @@ class WorldScene extends Phaser.Scene {
     let downY = 0, downT = 0, hopped = false;
     this.input.on("pointerdown", p => {
       if(this.attract) return;   // the splash drives itself; see attractStart
+      /* OPEN WORLD owns the pointer: the game sets throttle from which
+         half of the screen was touched, and that is exactly where the
+         stick lives, so every steering touch was also flooring it. */
+      if(this.ow && this.ow.on) return;
       downY = p.y; downT = this.time.now; hopped = false;
       this.throttle = p.x > this.scale.gameSize.width/2 ? 1 : -1;
     });
     this.input.on("pointermove", p => {
       if(this.attract || !p.isDown || hopped) return;
+      if(this.ow && this.ow.on) return;
       const dy = p.y - downY;
       if(Math.abs(dy) > 34 && this.time.now - downT < 320){
         hopped = true; this.throttle = 0;
         this.hop(dy < 0 ? -1 : 1);
       }
     });
-    this.input.on("pointerup", () => { if(this.attract) return; this.throttle = 0; hopped = false; });
+    this.input.on("pointerup", () => { if(this.attract || (this.ow && this.ow.on)) return; this.throttle = 0; hopped = false; });
     /* WASD mirrors the arrows exactly: W/S hop (screen-relative, same
        translation as swipes), A/D throttle. */
     this.keys = this.input.keyboard.addKeys({ up:"UP", down:"DOWN", left:"LEFT", right:"RIGHT",
@@ -8478,6 +9107,15 @@ class WorldScene extends Phaser.Scene {
 
   hop(screenDir){
     if(this.state !== "play") return;
+    /* OPEN WORLD has no lanes, so the hop is meaningless — and leaving it
+       live is actively harmful: hopAnim resolves into laneOff INSIDE
+       drawRobot, after the pose block has zeroed it but before it is
+       read, which would shove the robot up to 276 units sideways with no
+       input asking for it. Neutralised at the method rather than by
+       unbinding, because the swipe handler, four key handlers and the
+       attract driver all funnel through here — one guard closes them
+       all. */
+    if(this.ow && this.ow.on) return;
     if(this._slAPI && this._slAPI.run.done) return;   // see throttle guard's own comment
     const dir = this.rowScreenFlip(screenDir);
     /* no lane changes mid-turn: a hop's lateral swing (up to 276 units,
@@ -16127,8 +16765,16 @@ class WorldScene extends Phaser.Scene {
         const _effR = _preSeg.R - _preSeg.sign*this.laneOff;
         _stretch = Phaser.Math.Clamp(_effR / _preSeg.R, 0.05, 20);
       }
-      this.botS += (this.speed/_stretch) * dt;
-      this.wheelPhase -= this.speed * dt * 0.28;
+      /* OPEN WORLD: botS stops advancing entirely — x/y/yaw are the
+         authority and owStep already moved the robot this frame. The
+         rail is still here (groundZ, the door, the GPS all read it) and
+         still needs to be a valid, boring s, so it is frozen rather
+         than removed. wheelPhase is owStep's too, off the signed
+         velocity, so reverse spins the wheels backwards. */
+      if(!(this.ow && this.ow.on)){
+        this.botS += (this.speed/_stretch) * dt;
+        this.wheelPhase -= this.speed * dt * 0.28;
+      }
 
       /* corners: Tipsey turns himself — centrifugal lean (∝ v²) is YOUR problem */
       const seg = this.segAt(this.botS);
@@ -17388,8 +18034,21 @@ class WorldScene extends Phaser.Scene {
     this.simItems(dt);
 
     /* world pose from the path: position + lane, eased continuous heading */
-    const hdg = this.headingAt(this.botS);
-    const pp = this.posAt(this.botS);
+    /* OPEN WORLD: the pose is not derived, it IS the state. Feeding the
+       free pose into the SAME two locals the rail branch fills is what
+       lets everything downstream — botX/botY, this.f, the camera's
+       look-ahead along hdg — keep working without a second branch each.
+       The lab had to own the camera outright because it could not reach
+       this block; landing it here makes the camera correct for free. */
+    let hdg, pp;
+    if(this.ow && this.ow.on){
+      hdg = this.ow.yaw;
+      pp = { x: this.ow.px, y: this.ow.py };
+      this.laneOff = 0;
+    } else {
+      hdg = this.headingAt(this.botS);
+      pp = this.posAt(this.botS);
+    }
     const rvx = -Math.sin(hdg), rvy = Math.cos(hdg);       // right of travel
     this.botX = pp.x + rvx*this.laneOff;
     this.botY = pp.y + rvy*this.laneOff;
@@ -17407,7 +18066,12 @@ class WorldScene extends Phaser.Scene {
     let _targetAngle = hdg;
     while(_targetAngle - this.drawAngle >  Math.PI) _targetAngle -= Math.PI*2;
     while(_targetAngle - this.drawAngle < -Math.PI) _targetAngle += Math.PI*2;
-    if(this.state !== "tipped") this.drawAngle = Phaser.Math.Linear(this.drawAngle, _targetAngle, 0.12);   // tipped: hold the quarter snap (see the tip transition)
+    /* OPEN WORLD takes yaw DIRECTLY. The 0.12 ease exists to smooth a
+       rail heading that steps between segments; here yaw is already the
+       rate-limited output of the steering model, so easing it a second
+       time only adds lag between the thumb and the nose. */
+    if(this.ow && this.ow.on){ if(this.state !== "tipped") this.drawAngle = hdg; }
+    else if(this.state !== "tipped") this.drawAngle = Phaser.Math.Linear(this.drawAngle, _targetAngle, 0.12);   // tipped: hold the quarter snap (see the tip transition)
     this.yaw = this.hopYaw + (this.slipYaw || 0);
 
     /* stuck jitter rattles the whole body */
@@ -19037,7 +19701,19 @@ class WorldScene extends Phaser.Scene {
        whenever no key and no pointer is down, which is every frame of
        an attract run -- the robot would accelerate for one frame and
        coast to a stop forever after. */
-    if(this.attract){ this.attractDrive(); }
+    /* OPEN WORLD. Installed lazily on the first playing frame once the
+       flag is armed, because the route has to exist first. The step runs
+       HERE, at the top of update(), so the pose is fresh before
+       drawWorld and drawRobot read it — the lab learned the hard way
+       that a postupdate write lands on a frame already drawn.
+       dt is capped: a backgrounded tab returning with a 400ms frame
+       would otherwise teleport the robot through a building. */
+    if(OW_ARMED && !this.ow && this.route && this.state === "play") owInstall(this);
+    if(this.ow && this.ow.on){
+      if(this.state === "play") owStep(this, Math.min(dt, 40));
+      else this.throttle = 0;
+    }
+    else if(this.attract){ this.attractDrive(); }
     else if(this.keys){
       if(this.keys.right.isDown || this.keys.d.isDown) this.throttle = 1;
       else if(this.keys.left.isDown || this.keys.a.isDown) this.throttle = -1;
