@@ -10225,6 +10225,19 @@ class WorldScene extends Phaser.Scene {
       }
     }
     for(const lot of visLots) this.queueExteriorLot(blockVQ, lot);
+    /* THE AQUARIUM. One item, same vq, same depth key, same body/roof
+       split below -- it is an ordinary prop that happens not to belong to
+       a block, so it is queued here rather than out of queueBlockContent
+       (there are no blocks on the pier for that to iterate).
+       Camera-guarded the same way the boardwalk's plank seams are: the
+       coast costs nothing on a downtown frame. */
+    if(WORLDGEN_COAST && r.grid.shore){
+      const _rg = r.grid.shore.ring;
+      if(Math.abs(this.camX - _rg.cx) + Math.abs(this.camY - _rg.cy) < BLOCK*9){
+        blockVQ.push({ depth: _rg.cx + _rg.cy, fn:(g,t) =>
+          drawRoundhouse(this, g, (dx,dy,dz) => this.W(_rg.cx+dx, _rg.cy+dy, dz), t, null) });
+      }
+    }
 
     /* CRIME SCENE bodies. Each cruiser and each officer is queued into
        blockVQ SEPARATELY, with its own depth and its own layerFor — so
@@ -23175,6 +23188,302 @@ function classifyShore(sh, x, y){
     if(along >= 0 && along <= L && Math.abs(perp) <= r.half) return r.kind;
   }
   return null;
+}
+
+/* ---------- the ROUNDHOUSE AQUARIUM ----------
+   Ported verbatim out of labs/roundhouse.lab.js. Palette sampled by
+   hue-masking off the two reference photos rather than eyeballed; the
+   octagonal two-tier massing, the arcaded faces, the drum and finial are
+   all straight lifts. The lab's draw functions already took (scn, g, W,
+   ...) explicitly, so they port as top-level functions with no rewrite --
+   the port is a copy, not a translation, which is the whole reason
+   labs/README.md wants new work built in the bench.
+
+   TWO RENAMES, and nothing else changed: the lab's `D` becomes `RH_D`
+   (bare `D` collides here), and rWall stops being a literal -- see its
+   own note below.
+
+   WHERE IT DRAWS. Into blockVQ, at depth cx+cy, exactly like every house
+   body, store body, cruiser, planter and bench. NOT into drawWorld's
+   coast terrain pass: that pass is flat z=0 quads drawn early, and a
+   700-unit building put there is painted over by anything sorted after
+   it. The lab said as much in its own header -- its private sort was a
+   bench workaround, and the real home was always the game's own vq. */
+
+/* ---------------- palette (sampled, see header) ---------------- */
+const RH = {
+  stucco: 0xf2f0e8, stuccoDk: 0xdcd9cf, stuccoSh: 0xc6c3ba,
+  teal: 0x6faab0, tealDk: 0x3d7d82,
+  navy: 0x2f3e5e, navyDk: 0x0d1a3b,
+  roof: 0xa8553f, roofDk: 0x7d3c2d, roofRidge: 0xc9705a,
+  glass: 0x2f6f9e, glassHi: 0x74b9dd,
+  rail: 0x5fa39f, railDk: 0x3a7370,
+  lamp: 0xf6f2df, lampDk: 0xd9d3bd,
+  globe: 0xfffdf0, globeGlow: 0xffe9a8,
+  /* sampled from the pier-bench reference, 2026-08-14 */
+  bench: 0x96645e, benchDk: 0x764e4c, benchLt: 0xb57a73,
+  gullBody: 0xf7f6f2, gullMantle: 0xb9c2c8, gullTip: 0x33383d,
+  gullBill: 0xe8b13c, gullLeg: 0xdba98c, gullEye: 0x22262a,
+  shadow: 0x2a2a2a,
+};
+
+/* ---------------- dimensions, all tunable ----------------
+   rWall is the octagon's circumradius. Defaults are pinned to the
+   shore lattice's own aquarium roof radius (WG_COAST-derived, via the
+   waterfront lab's ring.rInner) so the building fills the footprint
+   classifyShore already calls 'building' -- the model and the collision
+   shape are the same object, not two that have to be kept in step. *//* ---------------- dimensions, all tunable ----------------
+   rWall is the octagon's circumradius. Defaults are pinned to the
+   shore lattice's own aquarium roof radius (WG_COAST-derived, via the
+   waterfront lab's ring.rInner) so the building fills the footprint
+   classifyShore already calls 'building' -- the model and the collision
+   shape are the same object, not two that have to be kept in step. */
+const RH_D = {
+  /* PINNED, not a literal (was 520 in the lab, against an AQ_ROOF-derived
+     531.8 -- a near-miss its own +/-40 tolerance let through). The
+     building and the shape classifyShore calls "building" have to be the
+     same object, so this reads the table rather than restating it. */
+  rWall: WG_COAST.AQ_ROOF * BLOCK,   // octagon circumradius at the wall
+  wallH: 300,        // wall height
+  baseH: 26,         // teal skirt at the bottom
+  corniceH: 34,      // teal band at the top of the wall
+  eave: 90,          // how far the roof oversails the wall
+  roofH: 165,        // wall top -> roof apex ring
+  drumR: 175,        // cupola drum circumradius
+  drumH: 130,
+  drumRoofH: 80,
+  finialH: 95,
+  archW: 0.62,       // arch width as a fraction of each face
+  archH: 0.72,       // arch height as a fraction of wall height
+  signW: 0.86,       // sign band width as a fraction of the face
+  railH: 118,        // railing height
+  railPost: 300,     // spacing between railing posts
+  lampH: 430,        // lamp overall height
+  lampSpacing: 1100, // spacing along the pier
+  lampGlow: 1,
+  pylonDepth: 460,   // how far the piles run below the deck
+  pileW: 26,         // pile half-width
+  bentGap: 900,      // spacing between bents along the pier
+  pilesPerBent: 4,
+  ringPiles: 10,
+  braceDrop: 40,
+  wetFrac: 0.34,     // lower fraction of each pile that reads as wet
+  fascia: 44,        // deck edge beam depth
+  benchLen: 300, benchDepth: 118, benchSeat: 74,
+  benchBack: 168, benchSlab: 26, benchEnd: 34,
+  benchScale: 0.62,
+  benchEvery: 2,     // one bench per this many lamp gaps
+  gullSize: 46,
+  gullEvery: 3,      // one gull per this many rail posts
+};
+/* ---------------- shared: octagon in the caller's local frame ----------------
+   Flat-to-camera at rot=0. The +0.5 half-step is what puts a FACE toward
+   the viewer rather than a corner, which is how both photos read. */
+const OCT = 8;
+function octPts(r, rot) {
+  const p = [];
+  for (let i = 0; i < OCT; i++) {
+    const a = ((i + 0.5) / OCT) * Math.PI * 2 + (rot || 0);
+    p.push({ x: Math.cos(a) * r, y: Math.sin(a) * r });
+  }
+  return p;
+}
+
+/* Faces have to be drawn far-to-near or a near wall gets painted over by
+   a far one. The caller's W() folds dv/rv in, so local (dx,dy) is NOT
+   world (x,y) and the depth key has to be computed through W itself.
+   Projected screen y is monotonic in world (x+y) for this fixed iso
+   camera, so the projected midpoint's y IS the depth key -- no need to
+   reconstruct world coordinates or know the heading. */
+function faceOrder(pts, W, z) {
+  return pts.map((p, i) => {
+    const q = pts[(i + 1) % pts.length];
+    const m = W((p.x + q.x) / 2, (p.y + q.y) / 2, z);
+    return { i, depth: m.y };
+  }).sort((a, b) => a.depth - b.depth);
+}
+
+/* per-face shade: outward normal's screen direction decides whether a
+   face is lit, half-lit or in shadow. Same three-tone treatment the
+   block-wrap houses use, just driven by the octagon's own normal. */
+function faceShade(pts, i, W, base, dk, sh) {
+  const p = pts[i], q = pts[(i + 1) % pts.length];
+  const mx = (p.x + q.x) / 2, my = (p.y + q.y) / 2;
+  const o = W(0, 0, 0), m = W(mx, my, 0);
+  const nx = m.x - o.x, ny = m.y - o.y;
+  const L = Math.hypot(nx, ny) || 1;
+  /* light from up-screen-left, the same direction every other prop in
+     the file is lit from */
+  const d = (nx / L) * -0.55 + (ny / L) * -0.84;
+  return d > 0.35 ? base : (d > -0.25 ? dk : sh);
+}function drawRoundhouse(scn, g, W, t, o) {
+  const d = Object.assign({}, RH_D, o || {});
+  const wall = octPts(d.rWall, 0);
+  const eave = octPts(d.rWall + d.eave, 0);
+  const drum = octPts(d.drumR, 0);
+  const drumEave = octPts(d.drumR + d.eave * 0.35, 0);
+  const Q = (pts, col, alpha) => scn.quadOn(g, pts, col, alpha);
+
+  /* ground shadow */
+  const sh0 = W(0, 0, 0);
+  g.fillStyle(RH.shadow, 0.16);
+  g.fillEllipse(sh0.x, sh0.y + 6 * scn.K, (d.rWall + d.eave) * 2.1 * scn.K,
+                (d.rWall + d.eave) * 0.95 * scn.K);
+
+  /* ---- wall faces, far to near ---- */
+  const zTop = d.wallH;
+  for (const f of faceOrder(wall, W, zTop / 2)) {
+    const i = f.i, p = wall[i], q = wall[(i + 1) % OCT];
+    const col = faceShade(wall, i, W, RH.stucco, RH.stuccoDk, RH.stuccoSh);
+    /* the face itself */
+    Q([W(p.x, p.y, 0), W(q.x, q.y, 0), W(q.x, q.y, zTop), W(p.x, p.y, zTop)], col);
+
+    /* face-local helper: u across the face, v up it */
+    const P = (u, v) => W(p.x + (q.x - p.x) * u, p.y + (q.y - p.y) * u, v);
+
+    /* teal skirt along the bottom, teal cornice along the top */
+    const tealFace = (col === RH.stucco) ? RH.teal : RH.tealDk;
+    Q([P(0, 0), P(1, 0), P(1, d.baseH), P(0, d.baseH)], tealFace);
+    Q([P(0, zTop - d.corniceH), P(1, zTop - d.corniceH), P(1, zTop), P(0, zTop)], tealFace);
+
+    /* the arched opening: a rectangle capped with a semicircle, walked
+       as one polygon in face-local coords so it lands on the plane */
+    const aw = d.archW, u0 = 0.5 - aw / 2, u1 = 0.5 + aw / 2;
+    const springV = d.baseH + (zTop - d.baseH) * 0.42;
+    const topV = d.baseH + (zTop - d.baseH) * d.archH;
+    const rU = (u1 - u0) / 2, rV = topV - springV;
+    const arch = [P(u0, d.baseH), P(u0, springV)];
+    for (let k = 1; k < 12; k++) {
+      const a = Math.PI * (1 - k / 12);
+      arch.push(P(0.5 + Math.cos(a) * rU, springV + Math.sin(a) * rV));
+    }
+    arch.push(P(u1, springV), P(u1, d.baseH));
+    /* teal surround, then the glass inset a little inside it */
+    Q(arch, tealFace === RH.teal ? RH.teal : RH.tealDk);
+    const inset = 0.055, vin = (zTop - d.baseH) * 0.035;
+    const gi0 = u0 + inset, gi1 = u1 - inset;
+    const gRU = (gi1 - gi0) / 2, gRV = rV - vin;
+    const glass = [P(gi0, d.baseH + vin), P(gi0, springV)];
+    for (let k = 1; k < 12; k++) {
+      const a = Math.PI * (1 - k / 12);
+      glass.push(P(0.5 + Math.cos(a) * gRU, springV + Math.sin(a) * gRV));
+    }
+    glass.push(P(gi1, springV), P(gi1, d.baseH + vin));
+    Q(glass, col === RH.stucco ? RH.glassHi : RH.glass);
+    /* fanlight mullions: radial bars in the arch head, as the photo has */
+    g.lineStyle(Math.max(1, 1.6 * scn.K), tealFace, 0.9);
+    for (let k = 1; k < 5; k++) {
+      const a = Math.PI * (1 - k / 5);
+      const c = P(0.5, springV);
+      const e = P(0.5 + Math.cos(a) * gRU, springV + Math.sin(a) * gRV);
+      g.lineBetween(c.x, c.y, e.x, e.y);
+    }
+    /* diamond accents in the frieze between arch head and cornice */
+    const dv2 = (zTop - d.corniceH + topV) / 2, dU = 0.055, dV = (zTop - topV) * 0.22;
+    for (const du of [0.5 - aw / 2 - 0.075, 0.5 + aw / 2 + 0.075]) {
+      if (du < 0.04 || du > 0.96) continue;
+      Q([P(du, dv2 - dV), P(du + dU, dv2), P(du, dv2 + dV), P(du - dU, dv2)], tealFace);
+    }
+  }
+
+  /* ---- the AQUARIUM sign, on the face nearest the camera ----
+     TWICE WRONG BEFORE THIS. First pass put it above the wall, where
+     the roof paints over it. Second pass moved it onto the frieze --
+     correct per the photo, still invisible, because the EAVE hides the
+     top of the wall in this projection and nobody had worked out by
+     how much.
+
+     W() gives screen y = ((xr+yr)*0.5 - z)*K, so a point on the wall at
+     height z is hidden by the eave directly outboard of it when
+
+         (S*0.5 - z)  <  ((S + e)*0.5 - zTop)      =>   z > zTop - e/2
+
+     where e is the eave's own contribution to (x+y). For the face most
+     square to the camera e approaches eave*sqrt(2), so the occluded
+     band is the top eave*0.71 of the wall -- 64 units at the shipped
+     eave of 90. signCeil is that limit; the band hangs below it, and
+     archH is defaulted low enough to leave the room. */
+  {
+    let best = null;
+    for (let i = 0; i < OCT; i++) {
+      const p = wall[i], q = wall[(i + 1) % OCT];
+      const m = W((p.x + q.x) / 2, (p.y + q.y) / 2, zTop);
+      if (!best || m.y > best.m.y) best = { i, m, p, q };
+    }
+    const { p, q } = best;
+    const P = (u, v) => W(p.x + (q.x - p.x) * u, p.y + (q.y - p.y) * u, v);
+    const signCeil = zTop - d.eave * Math.SQRT1_2;
+    const bandH = (zTop - d.baseH) * 0.19;
+    const v1 = signCeil - bandH * 0.12, v0 = v1 - bandH;
+    const s0 = 0.5 - d.signW / 2, s1 = 0.5 + d.signW / 2;
+    Q([P(s0, v0), P(s1, v0), P(s1, v1), P(s0, v1)], RH.navy);
+    /* the lettering reads as one light band at game zoom -- drawn as a
+       band, not as glyphs, which would be illegible and cost 8 quads */
+    const lp = 0.06, lv = v1 - v0;
+    Q([P(s0 + lp, v0 + lv * 0.28), P(s1 - lp, v0 + lv * 0.28),
+       P(s1 - lp, v0 + lv * 0.72), P(s0 + lp, v0 + lv * 0.72)], 0xf2f0e8, 0.94);
+  }
+
+  /* ---- tiled hip roof: wall top -> eave ring -> apex ring ---- */
+  const apexR = d.drumR * 1.06, apex = octPts(apexR, 0);
+  const zEave = zTop, zApex = zTop + d.roofH;
+  for (const f of faceOrder(eave, W, zEave)) {
+    const i = f.i;
+    const e0 = eave[i], e1 = eave[(i + 1) % OCT];
+    const a0 = apex[i], a1 = apex[(i + 1) % OCT];
+    const w0 = wall[i], w1 = wall[(i + 1) % OCT];
+    const col = faceShade(eave, i, W, RH.roof, RH.roofDk, RH.roofDk);
+    /* the oversailing soffit under the eave */
+    Q([W(w0.x, w0.y, zEave), W(w1.x, w1.y, zEave),
+       W(e1.x, e1.y, zEave - 18), W(e0.x, e0.y, zEave - 18)], RH.stuccoSh);
+    /* the pitched face */
+    Q([W(e0.x, e0.y, zEave), W(e1.x, e1.y, zEave),
+       W(a1.x, a1.y, zApex), W(a0.x, a0.y, zApex)], col);
+    /* barrel-tile ribs, running up the slope */
+    g.lineStyle(Math.max(1, 1.2 * scn.K), RH.roofDk, 0.5);
+    for (let k = 1; k < 7; k++) {
+      const u = k / 7;
+      const b0 = W(e0.x + (e1.x - e0.x) * u, e0.y + (e1.y - e0.y) * u, zEave);
+      const b1 = W(a0.x + (a1.x - a0.x) * u, a0.y + (a1.y - a0.y) * u, zApex);
+      g.lineBetween(b0.x, b0.y, b1.x, b1.y);
+    }
+    /* hip ridge along the leading edge */
+    g.lineStyle(Math.max(1, 1.8 * scn.K), RH.roofRidge, 0.85);
+    const r0 = W(e0.x, e0.y, zEave), r1 = W(a0.x, a0.y, zApex);
+    g.lineBetween(r0.x, r0.y, r1.x, r1.y);
+  }
+
+  /* ---- cupola drum, its own little roof, and the finial ---- */
+  const zD0 = zApex, zD1 = zApex + d.drumH;
+  for (const f of faceOrder(drum, W, (zD0 + zD1) / 2)) {
+    const i = f.i, p = drum[i], q = drum[(i + 1) % OCT];
+    const col = faceShade(drum, i, W, RH.stucco, RH.stuccoDk, RH.stuccoSh);
+    Q([W(p.x, p.y, zD0), W(q.x, q.y, zD0), W(q.x, q.y, zD1), W(p.x, p.y, zD1)], col);
+    /* louvre slots, the dark vertical openings in the photo */
+    const P = (u, v) => W(p.x + (q.x - p.x) * u, p.y + (q.y - p.y) * u, v);
+    Q([P(0.28, zD0 + d.drumH * 0.18), P(0.72, zD0 + d.drumH * 0.18),
+       P(0.72, zD1 - d.drumH * 0.18), P(0.28, zD1 - d.drumH * 0.18)],
+      col === RH.stucco ? RH.tealDk : RH.navyDk);
+  }
+  const zC1 = zD1 + d.drumRoofH;
+  for (const f of faceOrder(drumEave, W, zD1)) {
+    const i = f.i;
+    const e0 = drumEave[i], e1 = drumEave[(i + 1) % OCT];
+    const col = faceShade(drumEave, i, W, RH.roof, RH.roofDk, RH.roofDk);
+    Q([W(e0.x, e0.y, zD1), W(e1.x, e1.y, zD1), W(0, 0, zC1)], col);
+  }
+  /* finial: a thin mast with the weathervane's crossbar */
+  {
+    const a = W(0, 0, zC1), b = W(0, 0, zC1 + d.finialH);
+    g.lineStyle(Math.max(1.5, 2.4 * scn.K), RH.tealDk, 1);
+    g.lineBetween(a.x, a.y, b.x, b.y);
+    const c0 = W(-d.drumR * 0.28, 0, zC1 + d.finialH * 0.72);
+    const c1 = W(d.drumR * 0.28, 0, zC1 + d.finialH * 0.72);
+    g.lineStyle(Math.max(1, 1.6 * scn.K), RH.tealDk, 1);
+    g.lineBetween(c0.x, c0.y, c1.x, c1.y);
+    g.fillStyle(RH.teal, 1);
+    g.fillCircle(b.x, b.y, Math.max(1.5, 3.2 * scn.K));
+  }
 }
 
 function worldgenLandmarks(grid){
