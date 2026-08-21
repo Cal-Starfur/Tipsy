@@ -138,6 +138,25 @@
     loop: r.loop, doorS: r.doorS, parMs: r.parMs, challenge: r.challenge,
   };
 
+  /* CLEAR THE SCREENS IN FRONT OF THE STAGE. Loading the lab from the
+     picker without starting a run leaves the map/mission card covering
+     the whole 3-D view — reported as "everything disappeared including
+     tipsy", which it had not: the world was never on screen. The bottom
+     sheet also sits exactly where the left-thumb joystick lives.
+     GO's own handler is just hide("titleOverlay"), so this is the same
+     dismissal the game does, not a new mechanism. Stashed and restored. */
+  const OVERLAYS = ['titleOverlay', 'bottomSheet', 'bootLoader'];
+  const overlayWas = {};
+  for (const id of OVERLAYS) {
+    const el = document.getElementById(id);
+    if (!el) continue;
+    overlayWas[id] = el.style.display;
+    el.style.display = 'none';
+  }
+  /* attract drives its own throttle and recycles the route underneath a
+     run; leaving it live would fight the stick and reload mid-session */
+  if (scene.attract) { try { attractStop(); } catch (e) {} scene.attract = false; }
+
   r.hazards = []; r.crossings = []; r.loop = null; r.challenge = null;
   r.parMs = 1e9;
   r.doorS = (r.totalLen || 0) + 40 * T2;    // forever out of reach — the slalom trick
@@ -149,6 +168,66 @@
      still runs gets a valid boring answer for the whole session. */
   const S_PIN = Math.min(BLOCK * 1.5, Math.max(0, (r.totalLen || BLOCK * 4) * 0.4));
   scene.botS = S_PIN;
+
+  /* ---------- POSE STAMP: RE-PIN INSIDE drawRobot ----------
+     FOUR ATTEMPTS, THREE WRONG, and the reasoning is worth keeping
+     because each failure looked correct until it was measured.
+
+     (1) Stamp botX/botY on postupdate. drawWorld() and drawRobot() are
+     called from inside update(), so a postupdate write lands on a frame
+     already drawn. The robot rendered at the rail position all session
+     while the camera tracked the free one — reported as "everything
+     disappeared including tipsy". Never missing, just drawn thousands of
+     units off screen.
+
+     (2) Override posAt/headingAt to answer free values at s === S_PIN.
+     Airtight in principle, false in fact: update() ADVANCES botS itself
+     in the play gate using the speed this lab sets, so botS stops
+     equalling S_PIN on frame one and the original rail answer comes
+     back. Measured 3,100 units of divergence after four seconds.
+
+     (3) Wrap drawRobot and stamp the pose before calling the original.
+     Also wrong, and this is the one worth remembering: drawRobot is not
+     a draw call. It runs lines 15423-18749 of the game, hazard sims and
+     all, and the 'world pose from the path' block that recomputes
+     botX/botY from posAt(botS) is INSIDE it. Anything stamped before the
+     call is overwritten a few thousand lines into it. Instrumented: the
+     wrapper ran 13/13 frames and botX was still the rail value on exit.
+
+     (4) What works: both together. The wrapper re-pins botS (and
+     laneOff) at entry, and the posAt/headingAt overrides answer the free
+     pose for exactly that s — so the derivation the game runs INSIDE
+     drawRobot produces px/py/yaw on its own. No stamp to be overwritten,
+     because the game computes the right answer itself.
+
+     (5) ...and even (4) failed, because drawRobot writes botS in TEN
+     places before it reaches the pose block — safeStop standoffs and
+     collision clamps — so the pin set at entry never survives to line
+     17114. Threading a value through a 2,100-line function that mutates
+     it ten times is the wrong shape.
+
+     THE FIX: botS is redefined as an accessor pinned to S_PIN. All ten
+     writes become silent no-ops, the rail can no longer be dragged by
+     the sim, and posAt is therefore guaranteed to be asked for exactly
+     S_PIN. Losing those clamps is correct here anyway — they are
+     rail-space collision responses and this lab has no rail and no
+     hazards.
+
+     Every other posAt caller — hazards, props, traffic, the door —
+     passes a different s and falls straight through to the original.
+     Verified: the pose block is the ONLY posAt call inside drawRobot. */
+  Object.defineProperty(scene, 'botS', {
+    get: () => S_PIN, set: () => {}, configurable: true });
+  const origPosAt = scene.posAt.bind(scene);
+  const origHeadingAt = scene.headingAt.bind(scene);
+  scene.posAt = (sv) => (sv === S_PIN ? { x: px, y: py } : origPosAt(sv));
+  scene.headingAt = (sv) => (sv === S_PIN ? yaw : origHeadingAt(sv));
+
+  const origDrawRobot = scene.drawRobot.bind(scene);
+  scene.drawRobot = function (t, dt) {
+    scene.laneOff = 0;       // with no lane offset, botX === px exactly
+    return origDrawRobot(t, dt);
+  };
 
   /* ---------- state ---------- */
   const spawn = { x: scene.botX, y: scene.botY };
@@ -329,12 +408,17 @@
     return sfc;
   };
 
-  /* ---------- stamp over the rail pose ---------- */
-  const onPost = () => {
+  /* ---------- the frame ----------
+     Integration runs on PREupdate so the pose is fresh before update()
+     derives and draws from it (see the pose override above). The camera
+     is the one thing that must be written AFTER, because update() lerps
+     camX/camY toward its own target partway through the frame. */
+  const onPre = () => {
     const dt = scene.realDt ? scene.realDt(scene.game.loop.delta) : scene.game.loop.delta;
     scene.pickupWalk = 0;
     if (typeof LOAD_ART !== 'undefined' && scene.runT < LOAD_ART.ms + 1) scene.runT = LOAD_ART.ms + 1;
     scene.botS = S_PIN;
+    scene.laneOff = 0;
 
     /* AUTO-RIGHT. A locomotion lab you have to hand-reset every time you
        overcook a turn is a lab you stop using. Tipping still happens and
@@ -357,6 +441,13 @@
     scene.wheelPhase = (scene.wheelPhase || 0) - vel * dt * 0.28;
     if (scene.state !== 'tipped') scene.drawAngle = yaw;
 
+    const tag = document.getElementById('owTag');
+    if (tag) tag.textContent =
+      `OPEN WORLD  ${sfc.toUpperCase()}${reversing ? '  ⟲REV' : ''}  ` +
+      `v ${(vel * 1000).toFixed(0)}  tilt ${(scene.tilt || 0).toFixed(2)}`;
+  };
+
+  const onPost = () => {
     /* ---------- CAMERA: OWNED, NOT BLENDED ----------
        This has to hold its own state and OVERWRITE, not lerp against
        scene.camX. update() runs first and lerps camX/camY toward a
@@ -378,21 +469,22 @@
     ocz = Phaser.Math.Linear(ocz, scene.botZ || 0, 0.08);
     scene.camX = ocx; scene.camY = ocy; scene.camZ = ocz;
 
-    const tag = document.getElementById('owTag');
-    if (tag) tag.textContent =
-      `OPEN WORLD  ${sfc.toUpperCase()}${reversing ? '  ⟲REV' : ''}  ` +
-      `v ${(vel * 1000).toFixed(0)}  tilt ${(scene.tilt || 0).toFixed(2)}`;
   };
+  scene.events.on('preupdate', onPre);
   scene.events.on('postupdate', onPost);
 
   /* ---------- UI ---------- */
   document.getElementById('owUI')?.remove();
   const ui = document.createElement('div');
   ui.id = 'owUI';
-  ui.dataset.labPanel = '1';
+  /* DELIBERATELY NOT data-lab-panel. The bench hides every element
+     carrying that attribute and dials default to hidden, so tagging this
+     container took the JOYSTICK down with the readout — reported as "I
+     don't see the joystick". Only a tuning panel belongs in that group;
+     a control surface never does. */
   ui.style.cssText = 'position:fixed;inset:0;z-index:9990;pointer-events:none';
   ui.innerHTML =
-    '<div id="owTag" style="position:absolute;top:10px;left:0;right:0;text-align:center;' +
+    '<div id="owTag" style="position:absolute;top:46px;left:0;right:0;text-align:center;' +
     'color:#ffb04d;font:700 13px/1 ui-monospace,monospace">OPEN WORLD</div>' +
     '<div id="owRing" style="position:absolute;width:120px;height:120px;margin:-60px 0 0 -60px;' +
     'border:2px solid rgba(255,255,255,.28);border-radius:50%;display:none"></div>' +
@@ -427,7 +519,16 @@
 
   /* ---------- restore ---------- */
   scene._owRestore = () => {
+    scene.events.off('preupdate', onPre);
     scene.events.off('postupdate', onPost);
+    /* delete, not reassign: drawRobot is a prototype method, and writing
+       the bound original back would leave an own-property shadow on the
+       scene forever. */
+    delete scene.drawRobot; delete scene.posAt; delete scene.headingAt;
+    /* botS is an accessor now — it has to be redefined as a plain value
+       before the original can be written back */
+    Object.defineProperty(scene, 'botS', {
+      value: orig.botS, writable: true, configurable: true, enumerable: true });
     el.removeEventListener('touchstart', onDown);
     el.removeEventListener('touchmove', onMove);
     el.removeEventListener('touchend', onUp);
@@ -435,6 +536,10 @@
     window.removeEventListener('keydown', onKeyDown);
     window.removeEventListener('keyup', onKeyUp);
     document.getElementById('owUI')?.remove();
+    for (const id in overlayWas) {
+      const el = document.getElementById(id);
+      if (el) el.style.display = overlayWas[id];
+    }
     Object.assign(scene, {
       botS: orig.botS, botX: orig.botX, botY: orig.botY,
       drawAngle: orig.drawAngle, laneOff: orig.laneOff,
