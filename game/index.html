@@ -5623,9 +5623,36 @@ function buildWalk(grid, rng, startOverride, turnsRange, turnR = CORNER_R, start
    behaviour, and what the eventual lattice unify replaces. */
 const SHORE_LANE = 1;          // the lane the deck centres itself on -- the robot's
                                 // default botRow, so the band sits centred by construction
-const SHORE_JUNCTION_R = 506;  // measured: the spur->deck corner clears at R >= 340 and
-                                // grazes the deck's east edge (5 units) at CORNER_R
-const SHORE_RUN = BLOCK*1.5;   // how far down the boardwalk the graft runs
+/* SHORE_JUNCTION_R must stay ABOVE the largest laneOffset (690), and this
+   is the constant that matters most in the file. The spur->deck corner has
+   cornerSign -1, where the robot's turn radius is R + laneOffset, and
+   laneOffset is NEGATIVE (-414 .. -690). At the 506 first tried here, lane
+   1 -- the robot's default botRow -- came out at radius EXACTLY ZERO: the
+   robot pivoted on the spot for the whole 795-unit arc, and lanes 2 and 3
+   went negative and ran the corner inverted. A containment scan cannot see
+   this, because a zero-radius arc still returns a perfectly valid position
+   (the arc centre) and reports as on-deck. Check the RADIUS, not just where
+   the robot ends up -- see the motion assert in the bench course.
+   CORNER_R's hardcoded use on this branch was protecting exactly this.
+   820 with the shift below measures robot radius 130 at the tightest lane,
+   against 46 for an ordinary CORNER_R inside turn, with ~32 units of deck
+   at both edges. */
+const SHORE_JUNCTION_R = 820;
+/* Nudge the lane band west off the deck's centre. Centred, the band leaves
+   143 west and 5 east, and the corner's eastward cut has nowhere to go;
+   -110 balances it at 33/31 and is what buys room for the radius above. */
+const SHORE_DECK_SHIFT = -110;
+const SHORE_RUN = BLOCK*1.5;   // how far down the boardwalk the graft runs when it
+                                // cannot reach the pier
+/* The pier turn is the SAFE corner sign. Southbound deck -> westbound pier
+   is f 1->2, cornerSign +1, where the robot rides R - laneOffset = R + 506,
+   so it gets roomier as the radius grows instead of collapsing. The pier
+   deck is 688 wide (half 344) against the boardwalk's 469, so it has room
+   for a wider turn than the junction does. Kept SMALL on purpose: a bigger
+   radius needs a bigger throat, and the flare is art that has to be drawn. */
+const PIER_TURN_R = 300;
+const PIER_STOP_BACK = BLOCK*0.55;  // hold short of the aquarium: the turnaround
+                                     // around the annulus is not built yet
 const SHORE_MIN_KEEP_LEGS = 1; // lattice legs the truncated walk must retain. One is
                                 // enough: the door's real requirement is a good-heading
                                 // leg, which is tested separately, and the mile floor is
@@ -5725,7 +5752,7 @@ function graftShore(walk, grid){
      planks. Solving c + rv*lo = deckC gives the shift below; measured,
      it puts all four lanes inside the deck with room at both edges. */
   const lo = laneOffset(SHORE_LANE);
-  const segC = deckC - rv.x*lo;
+  const segC = deckC - rv.x*lo + SHORE_DECK_SHIFT;
   const runUnits = Math.min(SHORE_RUN, Y1 - cur.y);
   if(runUnits <= SHORE_JUNCTION_R) return walk;
 
@@ -5743,7 +5770,31 @@ function graftShore(walk, grid){
        it needs no override -- only the spur's far end does. */
     legDescs.push({ f:2, units: spurUnits, turnRAfter: SHORE_JUNCTION_R });
   }
-  legDescs.push({ f:fRun, units:runUnits, surface:"boardwalk", halfW:BOARD/2 });
+  /* Reach for the pier if the join is north of it with room to turn. The
+     pier runs west off the boardwalk's west edge at pierY = (Y0+Y1)/2,
+     which lands on exactly row 13 of the shipped 36x27. Anything that
+     cannot reach it keeps the plain SHORE_RUN boardwalk stretch. */
+  const pierY = ((-WG_COAST.EXT*B) + Y1) / 2;
+  /* Same centring solve the boardwalk needs, on the other axis. The pier
+     seg is NOT the pier centreline: westbound has rv = DIRV[3], so the
+     robot rides at segY - lo and the seg has to sit at pierY + lo for the
+     lane to land on the planks. Getting this wrong drives the robot a full
+     laneOffset north of the deck for the entire pier run.
+     The leg length is measured to the CORNER POINT, which lies on both
+     centrelines -- the fillet is paid for out of the trims at either end,
+     so the turn radius must not be subtracted here as well. */
+  const pierSegY = pierY + lo;
+  const toPier = pierSegY - cur.y;
+  const pierEndX = X0 - BOARD - WG_COAST.SANDW*B - WG_COAST.PIER_LEN*B + PIER_STOP_BACK;
+  const pierRun = segC - pierEndX;
+  if(toPier > SHORE_JUNCTION_R + PIER_TURN_R && pierRun > PIER_TURN_R){
+    legDescs.push({ f:fRun, units:toPier, surface:"boardwalk", halfW:BOARD/2,
+                    turnRAfter: PIER_TURN_R });
+    legDescs.push({ f:2, units:pierRun, surface:"pier",
+                    halfW: WG_COAST.PIER_W*B/2 });
+  } else {
+    legDescs.push({ f:fRun, units:runUnits, surface:"boardwalk", halfW:BOARD/2 });
+  }
 
   const built = buildSegsFromLegs(walk.startNode, legDescs, walk.turnR);
   return { ...walk, segs:built.segs, totalLen:built.totalLen || 1, legDescs,
@@ -9668,6 +9719,15 @@ class WorldScene extends Phaser.Scene {
       const PIER_W = BLOCK*WG_COAST.PIER_W, PIER_LEN = BLOCK*WG_COAST.PIER_LEN, pierY = (Y0 + Y1)/2;
       const pierX1 = X0 - BOARD, pierX0 = X0 - BOARD - SANDW - PIER_LEN;
       band(pierX0, pierY - PIER_W/2, pierX1, pierY + PIER_W/2, 0xb98a5e);          // deck
+      /* the throat: a trapezoid widening the pier where it meets the
+         boardwalk, so the turn off the deck has somewhere to land. Drawn
+         through quadOn like everything else, so it shares the fill pipeline
+         and sorts with the deck it extends. */
+      const FL = BLOCK*WG_COAST.FLARE_LEN, FH = BLOCK*WG_COAST.FLARE_HALF;
+      this.quadOn(g, [ this.W(pierX1 - FL, pierY - PIER_W/2, 0),
+                       this.W(pierX1,      pierY - FH,       0),
+                       this.W(pierX1,      pierY + FH,       0),
+                       this.W(pierX1 - FL, pierY + PIER_W/2, 0) ], 0xb98a5e);
       const ring = (cx, cy, rad, col) => this.quadOn(g,
         Array.from({length: 20}, (_, k) => {
           const a = k/20 * Math.PI*2;
@@ -22941,7 +23001,15 @@ function mapParkName(cx, cy, route){
    the landmark index both read THIS table, so a landmark can never
    drift from the ground it names. Values are fractions of BLOCK. */
 const WG_COAST = { EXT:0.55, SANDW:1.4, FOOTW:1.1, BOARD:0.15, MTN_BASIN:2.2,
-                   PIER_W:0.22, PIER_LEN:2.2 };
+                   PIER_W:0.22, PIER_LEN:2.2,
+  /* the pier THROAT. The robot cannot turn off the boardwalk onto a 688-wide
+     pier at any radius: on this corner sign its turn radius is R + |laneOffset|,
+     so the tightest lane is 414 before R is even counted, against a 344 pier
+     half-width. Every radius sends the sweep out over open sand. Measured, a
+     PIER_TURN_R of 300 needs 681 of length and 591 of half-width to stay on
+     deck; these are built to 782 x 640 for margin. Real piers widen at the
+     landward end anyway. */
+  FLARE_LEN: 0.29, FLARE_HALF: 0.216 };
 function worldgenLandmarks(grid){
   if(!WORLDGEN_COAST) return [];
   const B = BLOCK, W2 = WG_COAST;
@@ -23467,6 +23535,11 @@ function drawRouteMap(route){
     const PIER_W = BLOCK*WG_COAST.PIER_W, PIER_LEN = BLOCK*WG_COAST.PIER_LEN, pierY = (cY0 + cY1)/2;
     const pierX1 = cX0 - BOARD, pierX0 = cX0 - BOARD - SANDW - PIER_LEN;
     cband(pierX0, pierY - PIER_W/2, pierX1, pierY + PIER_W/2, "#b98a5e");             // deck
+    /* the throat, as a plain rect at its widest -- the minimap is too small
+       for the taper to read, and under-drawing it would make the pier look
+       detached from the boardwalk. */
+    cband(pierX1 - BLOCK*WG_COAST.FLARE_LEN, pierY - BLOCK*WG_COAST.FLARE_HALF,
+          pierX1, pierY + BLOCK*WG_COAST.FLARE_HALF, "#b98a5e");
     const cring = (cx, cy, rad, fill) => {
       const p = toScreen({x:cx, y:cy});
       const edge = toScreen({x:cx+rad, y:cy});
