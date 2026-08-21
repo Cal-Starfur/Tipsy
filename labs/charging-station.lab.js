@@ -281,28 +281,29 @@
       /* cull: same test the game's own draw loop uses, so the bench
          cannot show a scene the game would not */
       if (Math.hypot(st.x - s.botX, st.y - s.botY) > BLOCK * 3) continue;
-      /* Near edge, not centre — a volume lying against a wall should be
-         sorted by the face nearest camera.
+      /* ---------- LAYER, NOT DEPTH ----------
+         Why a wall-hugging pad vanished, finally measured rather than
+         guessed at: queueUnitStrips keys a storefront strip on a point
+         pushed rv*(-STORE_DEPTH/2) — INSIDE the building, behind the
+         facade. Depth is x+y, so on the two edge orientations where rv
+         points along -x or -y that interior point outranks a pad sitting
+         in front of the glass, and the wall paints over it. On the other
+         two orientations it does not, which is exactly why the kerb
+         setting looked fine and the wall setting looked broken: same
+         code, different edges.
 
-         KNOWN LIMITATION, AND THE REASON THIS LAB CANNOT FINISH THE JOB.
-         Against the storefronts the station is painted out entirely by
-         the building behind it: on screen, in cull range, drawing every
-         frame, invisible. It is NOT a placement bug and not a depth-key
-         bug — the block's own fill carries a depth key from the block
-         CENTRE, ~1500 units away, so it always sorts after a pad at the
-         wall no matter what key the pad claims. Proven by control: at
-         the old mid-sidewalk offset the same code renders correctly.
+         No depth key can fix that — the pad genuinely is on the far side
+         of the block in x+y terms while being on the near side in
+         reality. What fixes it is the LAYER. gFront is painted above the
+         whole block pass, which is where the game already puts anything
+         that must not be swallowed by a building, and it is the same
+         answer corner-light.lab.js reached from the other direction.
 
-         This is precisely what labs/corner-light.lab.js ran into and
-         wrote up: BENCH.queue can only reach blockVQ, and blockVQ is
-         painted before hazVQ, so anything queued from a lab loses to
-         the block pass. The signals had to move INTO game/index.html to
-         be drawn at all. Street furniture that hugs a building has the
-         same requirement, so the pad's final home is the game's hazard
-         pass — the lab can settle placement and behaviour, which it now
-         has, but not this. */
+         Cost: a building truly between camera and pad would now be drawn
+         under it. For a pad flat against a storefront there is nothing
+         between them, so the trade is one-sided. */
       BENCH.queue(st.x + st.y + CS.padR,
-                  (g, tt) => drawStation(BENCH.layerFor(st.x, st.y), st, tt));
+                  (g, tt) => drawStation(sc.gFront, st, tt));
     }
     csRespawnTick(s, t);
   });
