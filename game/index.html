@@ -4411,6 +4411,110 @@ function stampWorldCoords(route){
   return route;
 }
 
+/* ---------- moving-hazard WORLD position (open-world step 1) ----------
+   dogSpotAt / peopleSpotAt / robotSpotAt and the flee/settle pair all
+   answer in RAIL terms: {a, b} — a is units ALONG the path from the
+   hazard's own s, b is units ACROSS it. That is the only language the
+   interaction loop speaks today (dx -= dsp.a), and it stays.
+
+   Off the rail the robot has no s to subtract, so it needs the same
+   answer as an x/y. This is that transform, and it is deliberately the
+   EXACT two lines drawProp uses to place the same body:
+
+       dv = DIRV[round(hz.f)], rv = DIRV[(fq+1)%4]
+       x + dv.x*a + rv.x*b ,  y + dv.y*a + rv.y*b
+
+   anchored on the stamped wx/wy (stampWorldCoords, phase 2a), which is
+   the same point drawProp is handed. So the hitbox is not "close to"
+   the art — it is computed by the art's own arithmetic. Same guarantee
+   trafficWorldAt already gives cars.
+
+   WHY THE QUANTIZED AXIS AND NOT wA. The stamp's wA is the CONTINUOUS
+   path heading; drawProp rounds hz.f to a quarter turn. On a straight
+   run those agree and nothing distinguishes them. On an arc they do
+   not, and a flee run makes the gap large: da reaches 250 units while
+   a whole corner is only arcLen = PI/2*R. The drawn body bolts in a
+   STRAIGHT line from its home; re-sampling the rail would curve it
+   around the bend instead. Art wins — the player hits what they see.
+
+   Known pre-existing divergence, left alone here: the render loop's
+   layer/cull test point (worldOf(hz.s + effA, ...)) re-samples the
+   rail and therefore disagrees with this on arcs. It only chooses a
+   graphics layer, so nothing is visibly wrong today; repointing it at
+   this function is a real behaviour change and wants its own oracle
+   run. Logged rather than smuggled in. */
+function hazSpotWorld(hz, a, b){
+  if(!hz || hz.wx === undefined) return null;
+  const fq = ((Math.round(hz.f || 0) % 4) + 4) % 4;
+  const dv = DIRV[fq], rv = DIRV[(fq+1)%4];
+  /* hz.slide is the knocked-prop skid (cone/bin/scooter only), and it
+     is along-path units, so it belongs on a. The stamp is taken at the
+     hazard's ORIGINAL s, while the renderer anchors on s + slide —
+     folding it in here is what keeps the two the same point after a
+     bin has been punted. Undefined on every walking type, so this term
+     is zero for them and the anchors are equal by construction. */
+  const A = a + (hz.slide || 0);
+  return {
+    x: hz.wx + dv.x*A + rv.x*(b || 0),
+    y: hz.wy + dv.y*A + rv.y*(b || 0)
+  };
+}
+
+/* the effective rail offset of a moving hazard RIGHT NOW, walk plus
+   flee-or-settle, for every type that moves. This composition already
+   exists twice — once in each draw branch, once in the render loop's
+   effective-position block — and both copies are reproduced here field
+   for field rather than paraphrased, because a fifth copy that drifts
+   is exactly the failure this whole exercise is trying to remove.
+
+   th is the body's LOCAL facing, the same value the draw branch feeds
+   into thW = fdir*PI/2 + spotTh; hazWorldAt adds the quarter turn. */
+function hazEffOffsetAt(tms, hz){
+  if(!hz) return null;
+  if(hz.type === "robot"){
+    const sp = (!hz.knocked && hz.roving) ? robotSpotAt(tms, hz) : null;
+    if(sp) return { a: sp.a, b: sp.b || 0, th: 0, dir: sp.dir, walk: sp.walking ? 1 : 0 };
+    return { a: hz.knocked ? (hz.knockA || 0) : 0, b: hz.knocked ? (hz.knockB || 0) : 0, th: 0, walk: 0 };
+  }
+  if(hz.type === "william"){
+    if(hz.kst && hz.kst !== "patrol")
+      return { a: hz.ka || 0, b: hz.kb || 0, th: hz.kth || 0, walk: 0 };
+    const ksp = peopleSpotAt(tms, hz);
+    return { a: ksp.a, b: ksp.b || 0, th: ksp.th, walk: ksp.walk };
+  }
+  if(hz.type !== "dog" && hz.type !== "people") return null;
+  const people = hz.type === "people";
+  const spot = people ? peopleSpotAt(tms, hz) : dogSpotAt(tms, hz);
+  const flee = people ? peopleFleeAt(tms, hz) : dogFleeAt(tms, hz);
+  if(flee && flee.gone){
+    const st = people ? peopleSettledSpot(hz) : dogSettledSpot(hz);
+    if(st) return { a: st.a, b: st.b, th: st.th, walk: 0, settled: true };
+  } else if(flee){
+    return {
+      a: spot.a + flee.da,
+      b: (spot.b || 0) + flee.db,
+      th: Math.atan2(-0.45, hz.fleeA || 1),
+      walk: 1, fleeing: true, fleeU: flee.u
+    };
+  }
+  return { a: spot.a, b: spot.b || 0, th: spot.th, walk: spot.walk };
+}
+
+/* the one call the world-space proximity test wants: where is this
+   moving hazard, in map coordinates, at time t. Returns null for the
+   static kinds (their wx/wy IS their position) and for anything not
+   yet stamped, so a caller can fall back without a type table. */
+function hazWorldAt(tms, hz){
+  const eff = hazEffOffsetAt(tms, hz);
+  if(!eff) return null;
+  const w = hazSpotWorld(hz, eff.a, eff.b);
+  if(!w) return null;
+  const fq = ((Math.round(hz.f || 0) % 4) + 4) % 4;
+  return { x: w.x, y: w.y, th: fq*Math.PI/2 + (eff.th || 0),
+           a: eff.a, b: eff.b, walk: eff.walk,
+           settled: !!eff.settled, fleeing: !!eff.fleeing };
+}
+
 function laneOffset(lane){ return ROBOT_SIDE * (ROAD_HALF + (lane+0.5)*T2); }
 function farLaneOffset(lane){ return -ROBOT_SIDE * (ROAD_HALF + (lane+0.5)*T2); } // opposite sidewalk — decoration only, never robot-reachable
 
