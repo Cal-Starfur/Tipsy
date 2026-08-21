@@ -43,6 +43,12 @@
   if (scene._fdRestore) scene._fdRestore();   // free-drive owns the same robot
   if (scene._slRestore) scene._slRestore();
 
+  /* BUILD STAMP. Shown in the readout and logged on load. There is no way
+     to tell a stale cached lab from a fresh one by looking at the game,
+     and "am I actually running the new build" cost a round trip once
+     already — bump this on any change worth identifying on-device. */
+  const OW_BUILD = 'b6-pier-spawn';
+
   const r = scene.route;
   const g2 = r.grid;
 
@@ -135,19 +141,27 @@
      collision out here and no fail volume: driving off the end of the
      pier puts you on the water and keeps going. Real waterfront
      surfaces, pathing and fail volumes are phase 2. */
-  const _B = BLOCK, _C = WG_COAST;
-  const WF = {
+  /* GUARDED. If WG_COAST is ever absent or renamed, an unguarded read of
+     _C.EXT throws and takes the WHOLE lab down with it — and a lab that
+     dies here leaves the game running normally at its usual spawn with no
+     joystick, which is indistinguishable on-device from "the new build
+     didn't load". Fall back to the lattice centre and say so loudly. */
+  const _B = BLOCK;
+  const _C = (typeof WG_COAST !== 'undefined' && WG_COAST) ? WG_COAST : null;
+  if (!_C) console.warn('open-world: WG_COAST missing — spawning mid-city, not on the boardwalk');
+  const WF = _C ? {
     x0: -_C.EXT * _B - _C.BOARD * _B,          // back edge of the boardwalk deck
     x1: -_C.EXT * _B,                          // street-side edge
     y0: -_C.EXT * _B,
     y1: (g2.rows - 1) * _B + _C.EXT * _B,
-  };
+  } : { x0: _B, x1: _B * 2, y0: _B, y1: (g2.rows - 1) * _B };
   WF.pierY = (WF.y0 + WF.y1) / 2;
-  WF.pierHalf = _C.PIER_W * _B / 2;
-  WF.pierX0 = WF.x0 - _C.SANDW * _B - _C.PIER_LEN * _B;   // seaward tip
-  WF.pierX1 = WF.x0;                                       // meets the boardwalk
+  WF.pierHalf = _C ? _C.PIER_W * _B / 2 : 0;
+  WF.pierX0 = _C ? WF.x0 - _C.SANDW * _B - _C.PIER_LEN * _B : WF.x0;   // seaward tip
+  WF.pierX1 = WF.x0;                                                    // meets the boardwalk
 
   const waterfrontAt = (x, y) => {
+    if (!_C) return null;
     if (x >= WF.x0 && x <= WF.x1 && y >= WF.y0 && y <= WF.y1) return 'boardwalk';
     if (x >= WF.pierX0 && x <= WF.pierX1 &&
         Math.abs(y - WF.pierY) <= WF.pierHalf) return 'pier';
@@ -638,7 +652,7 @@
 
     const tag = document.getElementById('owTag');
     if (tag) tag.textContent =
-      `OPEN WORLD  ${sfc.toUpperCase()}${reversing ? '  ⟲REV' : ''}${hitMs > 0 ? '  ✖CLIP' : ''}  ` +
+      `OW ${OW_BUILD}  ${sfc.toUpperCase()}${reversing ? '  ⟲REV' : ''}${hitMs > 0 ? '  ✖CLIP' : ''}  ` +
       `v ${(vel * 1000).toFixed(0)}  tilt ${(scene.tilt || 0).toFixed(2)}`;
   };
 
@@ -758,5 +772,7 @@
     counters: () => ({ clipTips, clipScrapes }),
     reset: () => { clipTips = 0; clipScrapes = 0; scene.tilt = 0; scene.state = 'play'; scene.roll = 0;
       scene.pitch = 0; scene.tipT = 0; vel = 0; testHold = null; } };
-  console.log('open-world: free locomotion live — stick left half, RESET top-right');
+  console.log('open-world ' + OW_BUILD + ': spawn (' +
+    Math.round(spawn.x) + ', ' + Math.round(spawn.y) + ') — boardwalk at the pier junction. ' +
+    'Stick left half, RESET top-right.');
 })();
