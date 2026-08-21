@@ -3984,6 +3984,26 @@ const OW_HZ_R = {
 const OW_HZ_FLAT = new Set(['crack', 'slab', 'pigeons', 'grade', 'burnoutMark',
                             'sidewalkend', 'sidewalkbegin']);
 
+/* ---------- STEP 3 ROLLOUT GATE ----------
+   Which hazard types run the game's REAL interaction loop in world space
+   rather than OW's stand-in contact pass. Deliberately a set and not a
+   boolean: the loop is 750 lines of distinct behaviours and porting all
+   twelve types in one commit means a failure points at "the loop"
+   instead of at a hazard. Types are added a batch at a time, each batch
+   gated by hazard-oracle.py.
+
+   BATCH 1 — the wall types (a pole you stop against), the bump types
+   (a jolt and some damage) and the pure trigger. These share three code
+   paths between them, so they stand or fall together anyway.
+
+   NOT YET: bin, planter, robot, scooter, cone, slab, william. Each owns
+   real integrated state (knock angles, spill items, a kick timeline)
+   whose responses write botS in ways that need their own thought, not a
+   shared helper. Anything absent here still gets OW's simple contact
+   pass, exactly as it did before this commit. */
+const OW_LOOP_TYPES = new Set(['lamp', 'palm', 'hydrant', 'pigeons',
+                               'crack', 'trash', 'palmDwarf', 'dog', 'people']);
+
 /* ---------- iso inverse ----------
    W() is a plain 2:1 iso: sx = (X - Y)*K, sy = (X + Y)*0.5*K. Inverting
    for DIRECTION only (K drops out) gives the world vector a screen-space
@@ -4144,6 +4164,11 @@ function owStep(scene, dt){
      is standing rather than where he spawned; static kinds fall back to
      the stamped wx/wy. */
   for(const h of W.hzNear(ow.px, ow.py)){
+    /* handed over to the game's real interaction loop — it now measures
+       these in world space and owns their full behaviour (the dog bolts,
+       the hydrant bursts). Running the stand-in as well would double the
+       damage and fight the loop's own stop response. */
+    if(OW_LOOP_TYPES.has(h.type)) continue;
     let hx = h.wx, hy = h.wy;
     const mw = (typeof hazWorldAt === 'function') ? hazWorldAt(scene.runT || 0, h) : null;
     if(mw){ hx = mw.x; hy = mw.y; }
@@ -4251,10 +4276,21 @@ function owInstall(scene){
            challenge: r.challenge, botS: scene.botS, laneOff: scene.laneOff,
            mode: scene.mode },
   };
-  /* see the header: the rail interaction loop cannot be allowed to run
-     against a frozen botS. Step 3 replaces it; until then OW owns
-     hazard contact and the scene's lists are empty. */
-  r.hazards = []; r.crossings = []; r.loop = null; r.challenge = null;
+  /* HAZARDS STAY ON THE ROUTE (changed in step 3). They used to be
+     emptied here, because the rail loop tests dx = botS - hz.s against a
+     frozen botS and every hazard near the freeze point would have
+     registered as a permanent contact. Now the loop can measure in world
+     space for the types listed in OW_LOOP_TYPES, so it is given the list
+     and skips the rest itself.
+
+     This also fixes something step 2 got wrong and nothing caught:
+     drawWorld renders from this same array, so emptying it made the
+     whole city's hazards INVISIBLE in free-roam. The bins and lamp posts
+     were being collided with by OW's own pass while not being drawn.
+
+     crossings/loop/challenge are still emptied — those are genuinely
+     rail-parameterised and have no world-space form yet. */
+  r.crossings = []; r.loop = null; r.challenge = null;
   scene.laneOff = 0;          // lane is meaningless once x/y is authoritative
   scene.ow = ow;
 
@@ -16077,12 +16113,72 @@ class WorldScene extends Phaser.Scene {
            on both axes, not just along-route. 0 for everything else
            keeps the gate exactly what onLane(hz.row) was. */
         let hzB = 0;
+        /* ---------- WORLD-SPACE SEPARATION (open-world step 3) ----------
+           THE WHOLE LOOP IS WRITTEN IN TWO NUMBERS, and this is the
+           finding that makes the port small instead of a rewrite:
+
+             dx  = botS - hz.s          how far apart ALONG the path
+             lat = laneOff - laneOffset(hz.row)   how far apart ACROSS it
+
+           Every standoff, every `Math.abs(dx) < 26`, every onLane()
+           threshold in the 750 lines below is expressed in those two and
+           nothing else. So they do not need new values in world space —
+           they need the SAME two numbers measured a different way.
+
+           Projecting the real separation onto the hazard's own axis pair
+           gives exactly that, so every tuned constant survives untouched.
+
+           HOW EXACTLY, MEASURED, NOT ASSUMED. On a STRAIGHT the two
+           agree to the bit: 334 of a day's 336 static hazards returned
+           an error of exactly 0 on both axes. On an ARC they cannot
+           agree and no amount of care would make them — rail dx is arc
+           LENGTH along a curve, and this is a projection onto a fixed
+           axis; the two are different quantities. The remaining 2
+           hazards, both sitting on corners, differed by up to 22 units
+           along and 0.7 across.
+
+           That is a real difference and it is the right one: off the
+           rail, what a collision should care about is how far apart two
+           things actually are, not how much track lies between them.
+           The rail path is untouched either way — it still reads the
+           original botS arithmetic, which is what the hazard oracle
+           gates.
+
+           WHAT IT BUYS. Rail-space dx is signed along ONE axis because
+           that is all the geometry allowed — you could only ever meet a
+           hazard head-on. Here dx and lat are a real vector, so a lamp
+           post can be sideswiped and a bin caught from behind. The
+           hazards finally have sides.
+
+           hazWorldAt (step 1) already folds a mover's walk and flee into
+           its position, so the rail adjustments below are skipped when
+           this is live rather than applied twice. */
+        /* NOT YET PORTED, so not run at all: under open world a type
+           outside OW_LOOP_TYPES would be testing a frozen botS against
+           hz.s and firing forever. OW's own contact pass covers it
+           instead — one owner per hazard type, never two. */
+        if(this.ow && this.ow.on && !OW_LOOP_TYPES.has(hz.type)) continue;
+        const owLoop = !!(this.ow && this.ow.on) && OW_LOOP_TYPES.has(hz.type);
+        let owSep = null;
+        if(owLoop){
+          const _mw = hazWorldAt(t, hz);
+          const _hx = _mw ? _mw.x : hz.wx, _hy = _mw ? _mw.y : hz.wy;
+          if(_hx !== undefined){
+            const _fq = ((Math.round(hz.f || 0) % 4) + 4) % 4;
+            const _dv = DIRV[_fq], _rv = DIRV[(_fq+1)%4];
+            const _sx = this.botX - _hx, _sy = this.botY - _hy;
+            owSep = { hx: _hx, hy: _hy, dv: _dv, rv: _rv,
+                      dx: _sx*_dv.x + _sy*_dv.y,
+                      lat: _sx*_rv.x + _sy*_rv.y };
+            dx = owSep.dx;
+          }
+        }
         if(hz.type === "pigeons"){
           /* pure trigger: drive into the flock and it bursts. Generous
              cross window (the flock mills ±30 around its row); no
              damage, no tilt, ever — the scatter is the whole event. */
           if(hz.fledAt == null && Math.abs(dx) < 60 &&
-             Math.abs(this.laneOff - laneOffset(hz.row)) < T2*1.3)
+             Math.abs(owSep ? owSep.lat : (this.laneOff - laneOffset(hz.row))) < T2*1.3)
             hz.fledAt = this.time.now;
           continue;
         }
@@ -16098,11 +16194,12 @@ class WorldScene extends Phaser.Scene {
             const flee = dogFleeAt(t, hz);
             if(flee && !flee.gone) continue;   // still actively fleeing - no collision check yet
             hz.hit = false;
-            const dsp = dogSettledSpot(hz);
-            dx -= dsp.a; hzB = dsp.b || 0;
+            /* owSep already carries the settle offset (hazWorldAt reads
+               the same dogSettledSpot), so applying it again here would
+               count it twice. The re-arm above still has to run. */
+            if(!owSep){ const dsp = dogSettledSpot(hz); dx -= dsp.a; hzB = dsp.b || 0; }
           } else {
-            const dsp = dogSpotAt(t, hz);
-            dx -= dsp.a; hzB = dsp.b || 0;
+            if(!owSep){ const dsp = dogSpotAt(t, hz); dx -= dsp.a; hzB = dsp.b || 0; }
           }
         }
         if(hz.type === "people"){
@@ -16115,11 +16212,9 @@ class WorldScene extends Phaser.Scene {
             const flee = peopleFleeAt(t, hz);
             if(flee && !flee.gone) continue;
             hz.hit = false;
-            const psp = peopleSettledSpot(hz);
-            dx -= psp.a; hzB = psp.b || 0;
+            if(!owSep){ const psp = peopleSettledSpot(hz); dx -= psp.a; hzB = psp.b || 0; }
           } else {
-            const psp = peopleSpotAt(t, hz);
-            dx -= psp.a; hzB = psp.b || 0;
+            if(!owSep){ const psp = peopleSpotAt(t, hz); dx -= psp.a; hzB = psp.b || 0; }
           }
         }
         if(hz.type === "william"){
@@ -16244,11 +16339,38 @@ class WorldScene extends Phaser.Scene {
           }
           continue;
         }
+        /* ONE lateral number for this hazard, and one lane gate reading
+           it, so a branch does not have to know which coordinate system
+           it is in. On the rail this is character-for-character what
+           onLane(hz.row) computed; hzB is folded in because a detouring
+           walker is a full lane off its home row. */
+        const lat = owSep ? owSep.lat : (this.laneOff - (laneOffset(hz.row) + hzB));
+        const onLaneHz = () => Math.abs(lat) < T2*0.5;
+
+        /* THE WALL STOP, BOTH WAYS. On the rail, being stopped by a
+           trunk means clamping botS. Off it, botS is frozen and
+           meaningless, so the robot is placed at the standoff along the
+           hazard's own axis — on WHICHEVER SIDE it approached from,
+           which is the head-on assumption finally coming out. Lateral
+           position is preserved, so you still slide around the pole
+           rather than being pinned in front of it. */
+        const hzWallStop = (standoff, railTarget) => {
+          if(!owSep){ this.botS = safeStop(railTarget); return; }
+          const sgn = Math.sign(owSep.dx) || 1;
+          const nx = owSep.hx + owSep.dv.x*sgn*standoff + owSep.rv.x*owSep.lat;
+          const ny = owSep.hy + owSep.dv.y*sgn*standoff + owSep.rv.y*owSep.lat;
+          this.botX = nx; this.botY = ny;
+          if(this.ow){ this.ow.px = nx; this.ow.py = ny; this.ow.vel = 0; }
+        };
+        /* the approach gate. Rail: only from behind, within the
+           standoff. World: from any side. */
+        const hzWithin = R => owSep ? (Math.abs(dx) < R) : (dx > -R && dx < 0);
+
         if(hz.type === "lamp"){
           /* the pole is a thin palm-contract wall: you stop, you do
              not pass; a fast approach bonks (softer than a trunk) */
-          if(onLane(hz.row) && this.botS > hz.s - LAMP_ACT.standoff && this.botS < hz.s){
-            this.botS = safeStop(hz.s - LAMP_ACT.standoff);
+          if(onLaneHz() && hzWithin(LAMP_ACT.standoff)){
+            hzWallStop(LAMP_ACT.standoff, hz.s - LAMP_ACT.standoff);
             this.isBlocked = true;
             if(this.speed > 0.08 && !hz.hit){
               hz.hit = true; this.tipCause = hz.type;
@@ -16263,8 +16385,8 @@ class WorldScene extends Phaser.Scene {
         }
         if(hz.type === "palm"){
           /* a trunk is a wall: you stop, you do not pass */
-          if(onLane(hz.row) && this.botS > hz.s - 30 && this.botS < hz.s){
-            this.botS = safeStop(hz.s - 30);
+          if(onLaneHz() && hzWithin(30)){
+            hzWallStop(30, hz.s - 30);
             this.isBlocked = true;
             if(this.speed > 0.08 && !hz.hit){
               hz.hit = true; this.tipCause = hz.type;                               // the bonk (once per approach)
@@ -16311,8 +16433,8 @@ class WorldScene extends Phaser.Scene {
              Arriving fast adds the bonk; past the burst threshold the
              nozzle shears: water arc + a flood that grows around the
              base and stays wet for the rest of the route. */
-          if(onLane(hz.row) && this.botS > hz.s - 26 && this.botS < hz.s){
-            this.botS = safeStop(hz.s - 26);
+          if(onLaneHz() && hzWithin(26)){
+            hzWallStop(26, hz.s - 26);
             this.isBlocked = true;
             if(this.speed > 0.08 && !hz.hit){
               hz.hit = true; this.tipCause = hz.type;
@@ -16789,8 +16911,7 @@ class WorldScene extends Phaser.Scene {
             hz.slide += hz.slideVel * dt;
             hz.slideVel *= Math.exp(-0.004 * dt);
           } else hz.slideVel = 0;
-        } else if(!hz.hit && Math.abs(dx) < 26 &&
-                  Math.abs(this.laneOff - (laneOffset(hz.row) + hzB)) < T2*0.5){
+        } else if(!hz.hit && Math.abs(dx) < 26 && onLaneHz()){
           hz.hit = true; this.tipCause = hz.type;
           const sev = hz.type === "crack"
             ? Math.min(8, Math.max(2, 4 * (hz.len || 46) / 46))   // bigger spall, bigger jolt (crack lab v3)
