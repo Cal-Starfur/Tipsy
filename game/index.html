@@ -5042,6 +5042,21 @@ function owRespawnTick(scene, t){
   scene.tilt = 0; scene.roll = 0; scene.pitch = 0;
   scene.tipT = 0; scene.tipStartRoll = 0; scene.speed = 0;
   scene.damage = 0;
+  /* CLEAR THE SPILL, and this is not cosmetic. Spilled cargo is stored
+     in ROBOT-LOCAL coordinates — P() adds botX/botY when it draws — so
+     items dropped where he fell are re-anchored to wherever he is now.
+     Teleporting to a pad without this drags the whole mess along behind
+     him for the rest of the session, reported on-device as the cargo
+     following him around while driving.
+
+     Clearing rather than converting to world coordinates because the
+     charge is already a repair — damage goes to zero on the same line,
+     so leaving the burrito on the pavement at the old site would be the
+     inconsistent answer, not the tidy one. Same field set the scene's
+     own two run-resets use, so nothing is left half-armed: `spilled`
+     ungated, the lid shut, the post-spill timer wound back. */
+  scene.items = []; scene.spilled = false;
+  scene.postSpillMs = 0; scene.lidAng = 0;
 }
 
 function owInstall(scene){
