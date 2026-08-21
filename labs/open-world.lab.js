@@ -47,7 +47,7 @@
      to tell a stale cached lab from a fresh one by looking at the game,
      and "am I actually running the new build" cost a round trip once
      already — bump this on any change worth identifying on-device. */
-  const OW_BUILD = 'b6-pier-spawn';
+  const OW_BUILD = 'b7-hazards';
 
   const r = scene.route;
   const g2 = r.grid;
@@ -96,6 +96,24 @@
     clipTilt:   3.2,       // tilt impulse per unit of normal speed on a FRESH contact
     grindTilt:  0.25,      // fraction of that applied per frame while still in contact
     clipLoss:   0.55,      // fraction of normal-component speed kept after a scrape
+
+    /* HAZARDS. Contact radii, centre-to-centre against the robot's own
+       botR. The rail model could get away with tiny along-track gaps
+       (lamp 14, hydrant 26) because a separate row test did the lateral
+       work; in world space distance is the ONLY test, so a bare 14 would
+       let you clip straight through a lamp post sideways. These are the
+       rail standoffs widened to the thing's actual footprint. Tunable. */
+    hzLamp: 22, hzPalm: 30, hzHydrant: 26, hzBin: 30, hzPlanter: 34,
+    hzRobot: 34, hzScooter: 28, hzTrash: 28, hzPeople: 22, hzDog: 20,
+    hzFlat: 34,            // drive-over trigger radius for cracks and slabs
+    /* FLAT KICK, DELIBERATELY UNABLE TO CHAIN. A crack is a bump and
+       some damage in the rail game, never an instant fail. First value
+       here was 0.42, and with 47 cracks on the route three in quick
+       succession stacked past the 1.0 tip line — measured: a full-speed
+       run down a cracked road went over with NO solid contact at all.
+       At 0.18 a run of five still cannot tip on its own, so a crack
+       costs control rather than the run. */
+    hzFlatTilt: 0.18,      // tilt kick from taking a crack or slab at speed
 
     dead:       0.12,      // stick dead zone, fraction of maxR
     maxR:       60,        // px from touchdown for full deflection
@@ -253,7 +271,64 @@
      run; leaving it live would fight the stick and reload mid-session */
   if (scene.attract) { try { attractStop(); } catch (e) {} scene.attract = false; }
 
+  /* HAZARDS: TAKEN PRIVATE, NOT DELETED.
+     The lab needs the hazard list, but the GAME's 756-line interaction
+     loop must not see it. That loop tests dx = botS - hz.s, and botS is
+     pinned to a constant here, so every hazard sitting near S_PIN would
+     register as a permanent contact and re-fire its response every
+     frame. So the scene gets an empty array and this lab iterates its
+     own copy, keyed on the wx/wy that phase 2a stamped at build time.
+
+     MOVING HAZARDS USE THEIR HOME POSITION. Dogs and walkers animate off
+     dogSpotAt/peopleWalkAt, which are still rail-parameterised; wiring
+     those to world space is its own job. For now they are static
+     obstacles sitting where they spawned, which is honest for judging
+     the contact model and wrong for judging the dog. */
+  const HZ = (r.hazards || []).filter(h => h.wx !== undefined);
   r.hazards = []; r.crossings = []; r.loop = null; r.challenge = null;
+
+  /* ---------- hazard index ----------
+     Same bucketing as the building blocks: a hazard test is then a
+     handful of distance checks against the nine cells around the robot,
+     not a scan of ~380 records every frame.
+
+     SOLID vs FLAT is the option-A split. Solid things resolve like the
+     buildings do -- you are pushed out along the contact normal and can
+     slide past at an angle -- rather than clamping the robot to a
+     standoff, which on a rail was fine (you could only ever meet them
+     head-on) and off it would read as an invisible wall.
+
+     Radii come from the game's own safeStop standoffs, widened to the
+     object's real footprint. See the dials for why the raw values do
+     not survive the move to world space. */
+  const HZ_R = {
+    lamp: D.hzLamp, palm: D.hzPalm, palmDwarf: D.hzPalm * 0.8,
+    hydrant: D.hzHydrant, bin: D.hzBin, planter: D.hzPlanter,
+    robot: D.hzRobot, scooter: D.hzScooter, trash: D.hzTrash,
+    people: D.hzPeople, william: D.hzRobot, dog: D.hzDog,
+  };
+  /* driven over, not driven into: these are ground features and triggers */
+  const HZ_FLAT = new Set(['crack', 'slab', 'pigeons', 'grade', 'burnoutMark',
+                           'sidewalkend', 'sidewalkbegin']);
+
+  const hzBucket = new Map();
+  const HZ_CELL = T2 * 8;
+  const hzKey = (x, y) => Math.floor(x / HZ_CELL) + ',' + Math.floor(y / HZ_CELL);
+  for (const h of HZ) {
+    const k = hzKey(h.wx, h.wy);
+    if (!hzBucket.has(k)) hzBucket.set(k, []);
+    hzBucket.get(k).push(h);
+  }
+  const hzNear = (x, y) => {
+    const out = [];
+    const i = Math.floor(x / HZ_CELL), j = Math.floor(y / HZ_CELL);
+    for (let a = -1; a <= 1; a++) for (let c = -1; c <= 1; c++) {
+      const l = hzBucket.get((i + a) + ',' + (j + c));
+      if (l) out.push(...l);
+    }
+    return out;
+  };
+
   r.parMs = 1e9;
   r.doorS = (r.totalLen || 0) + 40 * T2;    // forever out of reach — the slalom trick
   scene.mode = 'challenge';                  // skips the pickup timeline; gas live frame one
@@ -366,6 +441,9 @@
   let lastSfc = 'sidewalk';
   let hitMs = 0;                  // ms remaining on the CLIP readout flash
   let inContact = false;          // touching a wall last frame — see the entry-impulse note
+  const solidOn = new Set();      // hazards currently in contact — entry-impulse bookkeeping
+  const flatOn = new Set();       // flat hazards currently being driven over
+  let hzMs = 0, hzWhat = '';      // readout flash for the last hazard touched
   /* TEST-ONLY. Held velocity for the headless collision harness: driving
      the robot into a specific wall face at a specific speed by simulating
      stick input is unreliable, and drag bleeds the speed off before
@@ -612,10 +690,73 @@
     scene.tilt = (scene.tilt || 0) * (1 - D.tiltDecay * dt) + sgn * build * dt;
 
     /* curb crossing: an impulse, not a wall. Road is not a fail. */
+    /* ---------- HAZARD CONTACT, IN WORLD SPACE ----------
+       The rail test was dx = botS - hz.s along-track, plus
+       |laneOff - laneOffset(hz.row)| across. Both axes are still here;
+       they are just measured against the world now. Separation is a real
+       vector, so the contact normal falls out of it directly instead of
+       having to be inferred from which axis blocked -- the buildings need
+       that inference because they are rects, a hazard is a disc.
+
+       Severity is the normal component of velocity, exactly as for the
+       walls: clipping a bin square on at speed puts you down, brushing
+       past one at an angle costs a wobble. Same clipThresh, so a lamp
+       post and a building wall answer to one number. */
+    for (const h of hzNear(px, py)) {
+      const dx2 = px - h.wx, dy2 = py - h.wy;
+      const dist = Math.hypot(dx2, dy2) || 1e-6;
+
+      if (HZ_FLAT.has(h.type)) {
+        /* driven over: a trigger with a tilt kick, no resolution. Fires
+           on ENTRY the same way the curb and wall scrapes do, so sitting
+           on a crack is not a per-frame beating. */
+        if (dist < D.hzFlat) {
+          if (!flatOn.has(h)) {
+            flatOn.add(h);
+            scene.tilt += (dYaw >= 0 ? 1 : -1) * D.hzFlatTilt * (Math.abs(vel) / D.vMax);
+            hzMs = 700; hzWhat = h.type;
+          }
+        } else flatOn.delete(h);
+        continue;
+      }
+
+      const R = HZ_R[h.type];
+      if (R === undefined) continue;          // unknown type: no collision, no guess
+      const reach = R + D.botR * 0.72;
+      if (dist >= reach) { solidOn.delete(h); continue; }
+
+      /* push out along the separation normal, then treat the normal
+         component of travel as the impact */
+      const nx2 = dx2 / dist, ny2 = dy2 / dist;
+      px = h.wx + nx2 * reach;
+      py = h.wy + ny2 * reach;
+
+      const vN = Math.abs(Math.cos(yaw) * nx2 + Math.sin(yaw) * ny2) * Math.abs(vel);
+      const freshH = !solidOn.has(h);
+      solidOn.add(h);
+      hitNormal = hitNormal || 3;
+      hzMs = 700; hzWhat = h.type;
+
+      if (vN >= D.clipThresh) {
+        const sg3 = Math.sign(Math.cos(yaw) * nx2 + Math.sin(yaw) * ny2) || 1;
+        scene.tilt = 1.1 * -sg3;
+        scene.state = 'tipped';
+        scene.tipDir = -sg3;
+        scene.tipStartRoll = scene.roll || 0;
+        scene.tipT = 0;
+        scene.damage = 95;
+        vel = 0; clipTips++;
+      } else {
+        scene.tilt += (dYaw >= 0 ? 1 : -1) * D.clipTilt * vN * (freshH ? 1 : D.grindTilt);
+        vel *= D.clipLoss; if (freshH) clipScrapes++;
+      }
+    }
+
     inContact = hitNormal !== 0;
 
     const sfc = surfaceAt(px, py);
     if (hitNormal) hitMs = 700; else hitMs = Math.max(0, hitMs - dt);
+    hzMs = Math.max(0, hzMs - dt);
     if (sfc === 'curb' && lastSfc !== 'curb' && Math.abs(vel) > 0.03) {
       scene.tilt += sgn * 0.10 * (Math.abs(vel) / D.vMax);
     }
@@ -782,7 +923,8 @@
     place: (x, y, h, v, hold) => { px = x; py = y; yaw = h; vel = v; ocx = x; ocy = y;
       testHold = hold ? v : null;
       scene.tilt = 0; scene.state = 'play'; scene.roll = 0; scene.pitch = 0; scene.tipT = 0; },
-    counters: () => ({ clipTips, clipScrapes }),
+    counters: () => ({ clipTips, clipScrapes, hazards: HZ.length }),
+    hazards: () => HZ, hzNear,
     reset: () => { clipTips = 0; clipScrapes = 0; scene.tilt = 0; scene.state = 'play'; scene.roll = 0;
       scene.pitch = 0; scene.tipT = 0; vel = 0; testHold = null; } };
   console.log('open-world ' + OW_BUILD + ': spawn (' +
