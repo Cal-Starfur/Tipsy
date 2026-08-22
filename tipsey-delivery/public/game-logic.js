@@ -6033,6 +6033,110 @@ function chargeParkAt(st){
   return { x: st.x + CHARGE.park*Math.cos(st.a), y: st.y + CHARGE.park*Math.sin(st.a) };
 }
 
+/* ================= PERMANENT CUT LOTS =================
+   Sir's call (2026-08-21): the course cutaway is a layout he likes for
+   its own sake, so a share of the city's housing blocks now carry it
+   permanently, with nothing to do with any route.
+
+   WHAT IT IS. The cutaway swaps one frontage's houses for the fence-and-
+   parking row queueBlockContent already draws when an edge is cut. On the
+   rail that existed to stop a near wall looming over the robot; here it
+   is simply a second kind of residential block, and the city reads less
+   uniform for having both.
+
+   EDGES 0 AND 3 ONLY, and not arbitrarily: those are the two frontages
+   whose buildings sit between a robot standing on them and this fixed iso
+   camera -- the same two NORTH_WALL_CUT_EDGE names, for the same
+   projection reason. They are also the pair the fence row's art was
+   tuned against. Cutting edge 1 or 2 instead would hide the row behind
+   the block's own houses, which is a lot of work to see nothing.
+
+   ONE EDGE PER BLOCK. Two would leave an L of fencing with the houses
+   pushed into a corner, which reads as a demolition site rather than a
+   different kind of street.
+
+   FROZEN. Seeded off the block's own grid position, so a given block is
+   the same kind of block forever -- the same guarantee the 36 pickup
+   shops and 36 charging stations give, reached the same way. */
+/* BOTH ZONINGS, and the art already knows the difference: the render
+   pass sends a cut COMMERCIAL edge to drawParkingRow and a cut HOUSING
+   edge to drawSolidFenceRow. So one flag on a block produces a fenced
+   lawn in a residential street and a parking lot with cars in front of
+   a row of shops, with no new art and no branch here. */
+const CUT_LOT_SHARE = 1/3;      // fraction of housing AND commercial blocks
+let _permCutCache = null;
+function buildPermanentCuts(grid){
+  const out = {};
+  for(const blk of grid.blocks){
+    if(blk.type !== "housing" && blk.type !== "commercial") continue;
+    const rng = mulberry32(((blk.i*2654435761) ^ (blk.j*40503) ^ 0xc0741a) >>> 0);
+    if(rng() >= CUT_LOT_SHARE) continue;
+    out[blk.i + "," + blk.j] = [ rng() < 0.5 ? 0 : 3 ];
+  }
+  return out;
+}
+function getPermanentCuts(grid){
+  if(!_permCutCache) _permCutCache = buildPermanentCuts(grid);
+  return _permCutCache;
+}
+
+/* ================= PERMANENT POLICE LOTS =================
+   Sir's call (2026-08-21): twelve sites, one per district, frozen.
+
+   WHY IT HAD TO STOP BEING CHOSEN AT RANDOM. findCrimeSite picked
+   uniformly from every commercial cut edge, and that was only ever safe
+   because cut edges were ROUTE-SHAPED -- they existed exactly where an
+   f=1/f=2 leg ran, about five blocks, all of them on the drive. The
+   permanent cut lots broke that assumption: the pool went to 107 blocks
+   across the whole city and, measured, one rung put the scene 46,041
+   units from the route. 14.7 blocks. You would never have found it.
+
+   ONE PER DISTRICT, and that count is not arbitrary. It matches what the
+   city already does -- 3 pickup shops and 3 charging stations per
+   district, all frozen off CITY_SEED -- so this reads as the same city
+   rather than a special case. It makes the location LEARNABLE, which a
+   wandering scene never could be. And twelve is dense enough that a
+   route crossing two or three districts always has one close by, which
+   is what lets findCrimeSite below delete its two old fallbacks: no
+   widening search, and no retyping somebody's house commercial to
+   manufacture a lot.
+
+   Drawn from the permanent cut lots, so the site is an ordinary parking
+   lot with cars in it on every other day and nothing marks it out. All
+   107 of them fit the 4-bay row (checked), and the thinnest district
+   still offers 3 candidates, so every district is genuinely served. */
+let _crimeSitesCache = null;
+function buildCrimeSites(grid){
+  const perm = getPermanentCuts(grid);
+  const byHood = [];
+  for(const k of Object.keys(perm)){
+    const blk = grid.blockByIJ.get(k);
+    if(!blk || blk.type !== "commercial") continue;
+    const dc = Math.floor(blk.i/DISTRICT_W), dr = Math.floor(blk.j/DISTRICT_H);
+    const hi = dr*DISTRICT_COLS + dc;
+    if(hi < 0 || hi >= HOODS.length) continue;
+    for(const idx of perm[k]){
+      const e = blockEdgesOf(blk)[idx];
+      if(!parkingStallsAt(e, null, CRIME_STALLS)) continue;
+      (byHood[hi] = byHood[hi] || []).push({ blk, idx, hoodIndex: hi });
+    }
+  }
+  const out = [];
+  for(let hi = 0; hi < HOODS.length; hi++){
+    const pool = (byHood[hi] || []).sort((a,b) => a.blk.j - b.blk.j || a.blk.i - b.blk.i);
+    if(!pool.length) continue;
+    /* its OWN salt, so the police lot is not the same corner of its
+       district as that district's shops or its chargers */
+    const rng = mulberry32(((hi*2654435761) ^ 0x9011ce) >>> 0);
+    out.push(pool[Math.floor(rng()*pool.length)]);
+  }
+  return out;
+}
+function getCrimeSites(grid){
+  if(!_crimeSitesCache) _crimeSitesCache = buildCrimeSites(grid);
+  return _crimeSitesCache;
+}
+
 let _chargeStationsCache = null;
 function buildChargeStations(grid){
   const out = [];
@@ -7295,68 +7399,47 @@ function crimeFacing(D){ return Math.atan2(-D.x, D.y); }
    cruisers sit in the bays that actually get painted rather than in a
    second, drifting copy of the stall maths. */
 function findCrimeSite(grid, cutEdges, dateStr, segs, totalLen, avoid){
-  const rng = mulberry32((hashStr("crimesite|" + dateStr) ^ 0xa71c) >>> 0);
+  /* the site rng is gone with the random pick: nothing downstream of the
+     choice draws from it, and the twelve sites are frozen, so there is
+     nothing left for a per-date stream to decide here. */
   const blocked = (blk) => (avoid || []).some(b => b && b.i === blk.i && b.j === blk.j);
   const fits = (blk, idx) => parkingStallsAt(blockEdgesOf(blk)[idx], null, CRIME_STALLS);
-  const collect = () => {
-    const out = [];
-    for(const blk of grid.blocks){
-      if(blk.type !== "commercial") continue;
-      const cuts = cutEdges[blk.i + "," + blk.j];
-      if(!cuts) continue;
-      for(const idx of cuts){
-        const row = fits(blk, idx);
-        if(row) out.push({ blk, idx, e: blockEdgesOf(blk)[idx], row });
-      }
-    }
-    return out;
-  };
 
-  let cands = collect();
-  /* FALLBACK. Cut edges only exist where an f=1/f=2 leg runs — about
-     five blocks a route — and only a third of blocks are commercial, so
-     roughly a quarter of scene days had no qualifying lot anywhere and
-     the scene silently no-showed on its own day. Rather than shrink the
-     row (stall width was never the constraint: edges are 1656 and a
-     4-bay row needs 612), retype one cut block commercial, exactly as
-     the route already does for the pickup shop. Only ever runs on a
-     scene day that would otherwise produce nothing, so non-scene days
-     are untouched. The address and pickup blocks are excluded — their
-     types are forced on purpose and the door must stay housing. */
-  if(!cands.length){
-    const swaps = [];
-    for(const blk of grid.blocks){
-      if(blk.type === "commercial" || blocked(blk)) continue;
-      const cuts = cutEdges[blk.i + "," + blk.j];
-      if(!cuts) continue;
-      for(const idx of cuts) if(fits(blk, idx)){ swaps.push(blk); break; }
-    }
-    if(swaps.length){
-      swaps[Math.floor(rng()*swaps.length)].type = "commercial";
-      cands = collect();
-    }
-  }
+  /* ---------- THE NEAREST OF THE TWELVE ----------
+     The site list is frozen (buildCrimeSites), so all this has to decide
+     is WHICH of the twelve today's drive passes closest to. That keeps
+     the scene on your way -- the property the old random pick only had
+     by accident of the cut map being route-shaped -- while the location
+     itself never moves between days.
 
-  /* LAST RESORT — and the reason the delivery sometimes lands on the
-     crime scene's own block. Some routes have exactly one cut block and
-     it IS the address block, which must never be retyped: the customer's
-     house would turn into a storefront under the door. But addCut
-     already excludes the address's OWN edge from cutEdges, so any cut
-     edge on that block is a DIFFERENT side of it — safe to use, and the
-     lot goes there without the block changing type at all. The renderer
-     lays the crime row on a cut edge whatever the block is zoned. */
-  if(!cands.length){
-    for(const blk of grid.blocks){
-      const cuts = cutEdges[blk.i + "," + blk.j];
-      if(!cuts) continue;
-      for(const idx of cuts){
-        const row = fits(blk, idx);
-        if(row) cands.push({ blk, idx, e: blockEdgesOf(blk)[idx], row });
-      }
-    }
+     Both old fallbacks are gone with it. There is no widening search,
+     because twelve sites across twelve districts means a route always
+     has one within reach; and nothing retypes a housing block commercial
+     to manufacture a lot, because the lots already exist.
+
+     Two skips remain, and both are the same guard the cut map itself
+     carries: a site is passed over if its block is the address or pickup
+     block, and if its edge is not actually in cutEdges -- addCut drops a
+     permanent cut that would land on the day's door or shop frontage, and
+     a site whose lot is not cut has no parking row drawn under it. */
+  const sites = (typeof getCrimeSites === "function") ? getCrimeSites(grid) : [];
+  const routePts = [];
+  for(let s = 0; s < totalLen; s += SIDEWALK_W) routePts.push(segsPosAt(segs, s));
+  let pick = null, bestD = Infinity;
+  for(const st of sites){
+    if(blocked(st.blk)) continue;
+    const cuts = cutEdges[st.blk.i + "," + st.blk.j];
+    if(!cuts || !cuts.includes(st.idx)) continue;
+    const e = blockEdgesOf(st.blk)[st.idx];
+    const row = fits(st.blk, st.idx);
+    if(!row) continue;
+    const cx = e.ox + e.dv.x*e.len/2, cy = e.oy + e.dv.y*e.len/2;
+    let d = Infinity;
+    for(const p of routePts) d = Math.min(d, Math.abs(p.x - cx) + Math.abs(p.y - cy));
+    if(d < bestD){ bestD = d; pick = { blk: st.blk, idx: st.idx, e, row }; }
   }
-  if(!cands.length) return null;
-  const pick = cands[Math.floor(rng() * cands.length)];
+  if(!pick) return null;
+
   const { blk, idx, e, row } = pick;
   const at = (a, b) => ({ x: e.ox + e.dv.x*a + e.rv.x*b, y: e.oy + e.dv.y*a + e.rv.y*b });
 
@@ -9097,6 +9180,23 @@ function _generateRouteFresh(dateStr, opts){
     if(!cutEdges[k]) cutEdges[k] = [];
     if(!cutEdges[k].includes(edge)) cutEdges[k].push(edge);
   };
+  /* THE PERMANENT LOTS GO IN FIRST, through addCut rather than straight
+     into the map, so they inherit its two exemptions for free: a
+     permanent cut is dropped if it would land on the day's address door
+     or the day's pickup shop frontage. Without that the city could
+     legitimately have vanished the customer's house on the one block the
+     delivery is aimed at -- the exact failure the live cutaway used to
+     produce, arriving by a different road.
+
+     Merged rather than replacing: a block can be a permanent cut lot AND
+     be traversed on a cut heading, and it wants the same single edge
+     either way. addCut de-duplicates. */
+  if(typeof getPermanentCuts === "function")
+    for(const [k, edges] of Object.entries(getPermanentCuts(grid))){
+      const c = k.split(",");
+      for(const e of edges) addCut(+c[0], +c[1], e);
+    }
+
   for(const sg of segs){
     const eIn = NORTH_WALL_CUT_EDGE[sg.f];
     const eOut = sg.type === "arc" ? NORTH_WALL_CUT_EDGE[(sg.f + sg.sign + 4) % 4] : null;
