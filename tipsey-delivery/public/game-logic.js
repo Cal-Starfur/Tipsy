@@ -4321,16 +4321,23 @@ function owTip(scene, sgn){
    upright on the nearest pad, facing out of it -- nose to the street,
    not at the wall he would otherwise have to reverse away from. The
    charge is a repair, which is the point of the stop. */
-function owRespawnTick(scene, t){
+/* PARK HIM ON A PAD. Extracted from owRespawnTick (2026-08-21) because
+   the launch spawn wants exactly this and nothing else: the recovery
+   already knows how to put an upright, undamaged, un-spilled robot on a
+   charging pad facing the street with the camera snapped to him, and a
+   second copy of that would be a second thing to keep in step.
+
+   Takes the point to search FROM rather than reading ow.px, so boot can
+   ask "nearest pad to today's shop" before the robot has ever moved.
+   Returns the station (or null if the grid has none yet) so the caller
+   can tell the difference between placed and skipped. */
+function owPlaceOnPad(scene, fromX, fromY){
   const ow = scene.ow;
-  if(!ow || scene.state !== "tipped") return;
-  if(!ow.downT){ ow.downT = t; return; }
-  if(t - ow.downT < CHARGE.holdMs) return;
-  ow.downT = 0;
+  if(!ow) return null;
   const grid = scene.route && scene.route.grid;
-  if(!grid) return;
-  const near = nearestChargeStation(grid, ow.px, ow.py);
-  if(!near) return;
+  if(!grid) return null;
+  const near = nearestChargeStation(grid, fromX, fromY);
+  if(!near) return null;
   const st = near.station;
   ow.px = st.x; ow.py = st.y; ow.yaw = st.a; ow.vel = 0;
   ow.reversing = false; ow.latchSign = 0; ow.inContact = false;
@@ -4361,6 +4368,16 @@ function owRespawnTick(scene, t){
      ungated, the lid shut, the post-spill timer wound back. */
   scene.items = []; scene.spilled = false;
   scene.postSpillMs = 0; scene.lidAng = 0;
+  return st;
+}
+
+function owRespawnTick(scene, t){
+  const ow = scene.ow;
+  if(!ow || scene.state !== "tipped") return;
+  if(!ow.downT){ ow.downT = t; return; }
+  if(t - ow.downT < CHARGE.holdMs) return;
+  ow.downT = 0;
+  owPlaceOnPad(scene, ow.px, ow.py);
 }
 
 function owInstall(scene){
@@ -5783,6 +5800,356 @@ function nearestChargeStation(grid, x, y){
 }
 
 
+/* ==================== PERMANENT CITY FURNITURE ====================
+   The whole city's sidewalks, furnished once and forever, instead of a
+   strip of props rolled fresh for whichever route you happen to be on.
+
+   WHY IT IS NOT ONE BIG TABLE. At the daily route's own density the
+   city's 3,640 block frontages (6,027,840 units of sidewalk) would hold
+   ~53,000 props; generateRoute already blocks the main thread 1.6-3.9s
+   to produce 231 of them. So "permanent" here means DETERMINISTIC, not
+   pre-built: a frontage's furniture is a pure function of that
+   frontage's own coordinates, materialized the first time anything asks
+   about it and cached from then on. Same guarantee the 36 pickup shops
+   and 36 charging stations already give -- the same street always has
+   the same bin outside the same door -- reached the only way it can be
+   at this scale.
+
+   DENSITY IS A QUARTER OF THE ROUTE'S (Sir's call). Expressed as a
+   multiplier on the route's own spacing rather than a new set of
+   numbers: every spawn loop in generateRoute shrinks its step by a
+   constant (the mix and the palms by 0.25, slabs and cracks by 0.5) to
+   hit the "3x/doubled density" targets those passes were tuned to.
+   Multiplying the step by CITY_FURN.sparse and dividing by that same
+   shrink is exactly "a quarter as busy as the route", and it stays
+   exactly that if the route's own dials ever move again.
+
+   PER-HOOD, NOT BLENDED. The route reads BLEND -- the twelve-hood
+   average -- because a route crosses districts and needs one number.
+   A frontage does not: it is IN a district, so it reads that hood's own
+   litter/pave/palms. BLEND's own comment calls the per-district pass a
+   deliberate follow-up rather than a gap; this is that pass, for
+   furniture. Warehouse District gets its trash, The Flats its palms.
+
+   COORDINATES. Props are authored in world space (wx/wy) with f as the
+   frontage's quadrant, which is what drawProp and hazSpotWorld already
+   consume. `s` is EDGE-LOCAL: distance along this frontage from its
+   origin corner, which is the frame walkS0/walkS1 are expressed in too,
+   so dogSpotAt/peopleSpotAt and the flee/settle pair work on a city
+   walker unchanged -- they only ever return offsets RELATIVE to hz.s,
+   and hazSpotWorld anchors those on wx/wy. It is deliberately NOT a
+   route-s: nothing may feed a city prop to worldOf(). */
+/* the same set drawWorld's own GROUND_KINDS names, hoisted because the
+   block furniture pass runs outside that function and must agree with it
+   about which kinds are flat paint. */
+const GROUND_KINDS_CF = { crack:1, sidewalkend:1, sidewalkbegin:1, sidewalkbeginTurn:1, slab:1, grade:1, burnoutMark:1 };
+const CITY_FURN = {
+  on: false,          // Stage 1 is generation + audit only; nothing draws yet
+  sparse: 4,          // clutter: a quarter of the route's density
+  infra: 4,           // lamps and hydrants -- separate dial, see the note in
+                      // cityFurnitureForEdge: quartering INFRASTRUCTURE is a
+                      // different question from quartering litter
+  /* CALIBRATED AGAINST WHAT THE ROUTE ACTUALLY PRODUCES, not against
+     what its formulas say. Every route pass rolls a spot and then
+     rejects most of them -- corners, off-walk, spawnBlocked against an
+     already-crowded corridor, a failed tile snap -- and the rejection
+     rate is nowhere near uniform across passes: cracks roll every ~38
+     units and land 24 times in 25,323, while the mix rolls every ~72
+     and lands 99. An open block frontage rejects far less than a route
+     corridor does, so reusing the route's step verbatim does NOT
+     reproduce the route's density -- measured, cracks came out 3x too
+     thick and the mix 4x too thin.
+
+     So each pass carries a multiplier fitted to the route's OBSERVED
+     per-unit count for that type. Re-fit by regenerating a few dates,
+     counting per type per route unit, and comparing against a full
+     materialization -- the audit these were fitted with. */
+  cal: { mix: 1.35, palm: 1.77, lamp: 1.15, hydrant: 0.72, slab: 1.95, crack: 1.92 },
+  cornerClear: T2*2.5,   // keep the corners clear, same idea as inCorner()
+  gap: 60,               // spawnBlocked's own floor between props
+};
+
+/* the frontage's own seed: its origin corner and direction, quantized
+   the same way buildChargeStations quantizes its edge seed, so it can
+   never drift with a float rounding change somewhere upstream */
+function cityFurnEdgeSeed(e, salt){
+  return ((Math.round(e.ox*3 + e.dv.x)*7919) ^ (Math.round(e.oy*3 + e.dv.y)*104729) ^ salt) >>> 0;
+}
+
+/* nearest REAL sidewalk tile centre to a world point, or null. The
+   world-space form of snapToSidewalkTile: heaved slabs and cracks are
+   pavement damage and must land on a panel, not straddle a seam (the
+   414-unit misalignment fixed on the route in July). Reuses the
+   sidewalkRuns Manhattan hash the ground renderer already builds, so
+   this costs a bucket lookup rather than a scan of 343,408 tiles. */
+function snapWorldToSidewalkTile(grid, x, y){
+  const hash = paveHash(grid, "sidewalkRuns", "swRunHash");
+  if(!hash) return null;
+  const found = manhattanQuery(hash, x, y, T2*1.5, []);
+  let best = null, bd = Infinity;
+  for(const t of found){
+    const d = (t.x - x)**2 + (t.y - y)**2;
+    if(d < bd){ bd = d; best = t; }
+  }
+  return best ? { x: best.x, y: best.y } : null;
+}
+
+/* one frontage's furniture. Pure in (grid, blk, edge index). */
+function cityFurnitureForEdge(grid, blk, fi){
+  const e = blockEdgesOf(blk)[fi];
+  const out = [];
+  if(e.len < CITY_FURN.cornerClear*2 + T2) return out;
+
+  const f = DIRV.findIndex(d => d.x === e.dv.x && d.y === e.dv.y);
+  /* the CONTINUOUS heading the rail stamp would have written here.
+     Travel direction on the rail is (-sin a, cos a) -- stampWorldCoords'
+     own two lines -- so this inverts it for a frontage that runs along
+     dv. On a straight frontage wA and f agree exactly, which is the
+     whole point: a city block has no arcs for them to diverge on. */
+  const wA = Math.atan2(-e.dv.x, e.dv.y);
+  const hood = hoodAt(blk.i, blk.j);
+  /* the route's own two knobs, read per-district instead of blended */
+  const density = 0.45 + hood.litter*0.35 + (1 - hood.pave)*0.3;
+
+  /* lane 3 hugs the storefronts, lane 0 the kerb -- the same ordering
+     laneOffset() gives on the rail (lane 0 nearest the road), measured
+     here from the building edge outward along rv, which blockEdgesOf
+     guarantees is the OUTWARD normal on all four sides. */
+  const lateralOf = lane => (3 - lane + 0.5) * T2;
+  const pointAt = (a, lane) => ({
+    x: e.ox + e.dv.x*a + e.rv.x*lateralOf(lane),
+    y: e.oy + e.dv.y*a + e.rv.y*lateralOf(lane)
+  });
+  /* the frontage's own walking extent, in the edge-local frame */
+  const walkRange = ob => {
+    const w0 = CITY_FURN.cornerClear, w1 = e.len - CITY_FURN.cornerClear;
+    if(w1 - w0 >= T2){ ob.walkS0 = w0; ob.walkS1 = w1; }
+  };
+  const inClear = a => a < CITY_FURN.cornerClear || a > e.len - CITY_FURN.cornerClear;
+  const blocked = (a, lane) => {
+    for(const o of out)
+      if(Math.abs(o.s - a) < CITY_FURN.gap && Math.abs(o.row - lane) <= 1) return true;
+    return false;
+  };
+  /* the real classifier, the same one the world is BUILT from -- a
+     frontage runs the block's full side and its ends overhang the
+     intersection, where there is no walk to stand on. */
+  const onWalk = p => grid.classify(p.x, p.y) === "sidewalk";
+  const place = (type, a, lane, p, extra) => {
+    const ob = { type, s: a, row: lane, f, wA, wx: p.x, wy: p.y, hit: false, cf: 1 };
+    if(extra) Object.assign(ob, extra);
+    out.push(ob);
+    return ob;
+  };
+
+  /* ---- the mixed clutter pass: spawnHazardRange's own roll ---- */
+  {
+    const R = mulberry32(cityFurnEdgeSeed(e, 0x0c17));
+    let a = 0;
+    while(a < e.len){
+      a += ((330 - density*176) + R()*198) * 0.25 * CITY_FURN.sparse * CITY_FURN.cal.mix;
+      const aR = Math.round(a);
+      if(inClear(aR)) continue;
+      const lane = Math.floor(R()*4);
+      const p = pointAt(aR, lane);
+      if(!onWalk(p)) continue;
+      if(blocked(aR, lane)) continue;
+      const r2 = R();
+      let type;
+      if(r2 < hood.litter*0.35)           type = R() < 0.6 ? "scooter" : "trash";
+      else if(r2 < 0.75){
+        if(R() < 0.5) continue;
+        type = "cone";
+      }
+      else { const r3 = R(); type = r3 < 0.25 ? "dog" : r3 < 0.48 ? "people" : r3 < 0.73 ? "bin" : "planter"; }
+      propSpawnState(type, place(type, aR, lane, p), R, walkRange);
+    }
+  }
+
+  /* ---- palms: lane 3, building side, same as the route's own pass ---- */
+  {
+    const R = mulberry32(cityFurnEdgeSeed(e, 0x9a1b));
+    let a = 0;
+    while(a < e.len){
+      a += (286 + R()*264) * 0.25 * CITY_FURN.sparse * CITY_FURN.cal.palm;
+      const aR = Math.round(a);
+      if(inClear(aR)) continue;
+      if(R() > hood.palms) continue;
+      const lane = 3;
+      const p = pointAt(aR, lane);
+      if(!onWalk(p) || blocked(aR, lane)) continue;
+      const dwarf = R() < 0.25;
+      place(dwarf ? "palmDwarf" : "palm", aR, lane, p);
+    }
+  }
+
+  /* ---- streetlamps: alternating kerb/building side ----
+     INFRA IS ITS OWN DIAL. A lamp is not litter -- it is the reason the
+     street is lit at night and the reason the pavement has a rhythm.
+     Quartered it stands one lamp every four blocks. Left on its own
+     knob so the answer can be changed without touching the clutter. */
+  {
+    const R = mulberry32(cityFurnEdgeSeed(e, 0x51a3));
+    const step = LAMP_ACT.spacing * T2 * CITY_FURN.infra * CITY_FURN.cal.lamp;
+    /* THE STRIDE IS CITYWIDE, NOT PER-FRONTAGE. Restarting the count at
+       0 on every edge placed exactly zero lamps: the average frontage is
+       1,656 units and a quartered stride is 2,208, so the only sample
+       point was a=0 -- inside the corner clearance -- on all 3,640 of
+       them. Phasing off the frontage's own world position along its
+       axis fixes the hole AND is the better answer anyway: lamps now
+       march down a street on one rhythm, lining up across block
+       boundaries, instead of each block keeping its own private beat. */
+    const proj0 = e.ox*e.dv.x + e.oy*e.dv.y;
+    const a0 = ((-proj0 % step) + step) % step;
+    for(let a = a0; a < e.len; a += step){
+      const lane = (Math.round((proj0 + a) / step) % 2) ? 0 : 3;
+      const armSign = lane === 0 ? -1 : 1;   // always reach INWARD, over the walk
+      const aR = Math.round(a);
+      if(inClear(aR)) continue;
+      const p = pointAt(aR, lane);
+      if(!onWalk(p) || blocked(aR, lane)) continue;
+      place("lamp", aR, lane, p, { armSign,
+        lampSeed: (R()*4294967296) >>> 0, mal: R() < LAMP_ACT.malRate });
+    }
+  }
+
+  /* ---- hydrants: kerb lane, and 35% already burst, same as the route ---- */
+  {
+    const R = mulberry32(cityFurnEdgeSeed(e, 0x4d21));
+    /* PHASED LIKE THE LAMPS, and for the same reason: a quartered
+       hydrant step is longer than the average 1,656-unit frontage, so a
+       per-edge walk starting at 0 falls off the end of most blocks
+       before it ever fires (measured: it produced exactly zero). A
+       hydrant is spaced by fire code in the real world anyway, so a
+       citywide stride is the more honest model than a random walk that
+       restarts at every corner. */
+    const stride = 1628 * CITY_FURN.infra * CITY_FURN.cal.hydrant;
+    const hproj0 = e.ox*e.dv.x + e.oy*e.dv.y;
+    for(let a = ((-hproj0 % stride) + stride) % stride; a < e.len; a += stride){
+      const aR = Math.round(a);
+      if(inClear(aR)) continue;
+      const p = pointAt(aR, 0);
+      if(!onWalk(p) || blocked(aR, 0)) continue;
+      if(R() >= 0.55) continue;         // the route's own placement gate
+      const startsBurst = R() < 0.35;
+      place("hydrant", aR, 0, p, { burst: startsBurst,
+        burstT: startsBurst ? -1e9 : undefined,
+        pudDir: startsBurst ? (R() < 0.5 ? -1 : 1) : undefined });
+    }
+  }
+
+  /* ---- heaved slabs: runs of bad pavement, snapped to real panels ---- */
+  {
+    const R = mulberry32(cityFurnEdgeSeed(e, 0x5ab0));
+    let a = 0;
+    while(a < e.len){
+      a += (200 + R()*277) * 0.5 * CITY_FURN.sparse * CITY_FURN.cal.slab;
+      if(R() > 0.18 + (1 - hood.pave)*0.75) continue;
+      const runN = 1 + Math.floor(R()*3);
+      let lane = Math.floor(R()*4);
+      for(let k = 0; k < runN; k++){
+        const a0 = Math.round(a + k*T2);
+        if(inClear(a0)) break;
+        const p0 = pointAt(a0, lane);
+        if(!onWalk(p0)){ lane = Math.floor(R()*4); continue; }
+        const sn = snapWorldToSidewalkTile(grid, p0.x, p0.y);
+        if(!sn || blocked(a0, lane)){ lane = Math.floor(R()*4); continue; }
+        place("slab", a0, lane, sn, { lift: 3 + Math.floor(R()*6),
+          side: R() < 0.5 ? 1 : -1, root: R() < 0.55, lipHit: false });
+        if(R() < 0.6) lane = Math.max(0, Math.min(3, lane + (R() < 0.5 ? -1 : 1)));
+      }
+      a += runN*T2;
+    }
+  }
+
+  /* ---- cracks ---- */
+  {
+    const R = mulberry32(cityFurnEdgeSeed(e, 0xc7ac));
+    let a = 0;
+    while(a < e.len){
+      a += (22 + R()*110) * 0.5 * CITY_FURN.sparse * CITY_FURN.cal.crack;
+      if(inClear(a)) continue;
+      if(R() > (1 - hood.pave)*0.45) continue;
+      const lane = Math.floor(R()*4);
+      const p0 = pointAt(a, lane);
+      if(!onWalk(p0)) continue;
+      const sn = snapWorldToSidewalkTile(grid, p0.x, p0.y);
+      if(!sn || blocked(Math.round(a), lane)) continue;
+      place("crack", Math.round(a), lane, sn,
+            { len: 24 + Math.floor(R()*49), surface: "sidewalk" });
+    }
+  }
+
+  return out;
+}
+
+/* ---- the chunk cache and the near-camera query ----
+   Keyed on the block's grid position and edge index, held on the grid
+   so a rebuilt or replayed route cannot end up pointing at another
+   city's furniture. Built lazily: the 3,640 frontages are indexed by
+   their MIDPOINT in the same Manhattan hash the ground renderer uses,
+   which is cheap (3,640 entries, built once), and only the frontages a
+   query actually reaches ever roll their props. */
+function cityFurnEdgeIndex(grid){
+  if(grid._cfEdges) return grid._cfEdges;
+  const list = [];
+  for(const blk of grid.blocks){
+    const es = blockEdgesOf(blk);
+    for(let fi = 0; fi < 4; fi++){
+      const e = es[fi];
+      list.push({ blk, fi,
+                  x: e.ox + e.dv.x*(e.len/2) + e.rv.x*(SIDEWALK_W/2),
+                  y: e.oy + e.dv.y*(e.len/2) + e.rv.y*(SIDEWALK_W/2),
+                  half: e.len/2 });
+    }
+  }
+  grid._cfEdges = list;
+  grid._cfHash = buildManhattanHash(list);
+  grid._cfCache = new Map();
+  return list;
+}
+function cityFurnitureForEdgeCached(grid, ent){
+  const key = ent.blk.i + "," + ent.blk.j + "," + ent.fi;
+  let got = grid._cfCache.get(key);
+  if(!got){
+    got = cityFurnitureForEdge(grid, ent.blk, ent.fi);
+    grid._cfCache.set(key, got);
+  }
+  return got;
+}
+/* every permanent prop within R (Manhattan, the same metric the ground
+   cull uses) of a world point. R is padded by the half-length of a
+   frontage so an edge whose MIDPOINT is out of range but whose far end
+   is not still gets materialized. */
+function cityFurnitureNear(grid, x, y, R, out){
+  out = out || [];
+  out.length = 0;
+  if(!grid || !grid.blocks) return out;
+  cityFurnEdgeIndex(grid);
+  const ents = manhattanQuery(grid._cfHash, x, y, R + BLOCK, []);
+  for(const ent of ents){
+    for(const pr of cityFurnitureForEdgeCached(grid, ent)){
+      if(Math.abs(pr.wx - x) + Math.abs(pr.wy - y) <= R) out.push(pr);
+    }
+  }
+  return out;
+}
+/* ?cf=1 arms the render pass for a look on-device. Default OFF while the
+   daily route still rolls its OWN ambient props: both sets drawn at once
+   is a double-furnished street, which is a preview artefact and not what
+   the finished thing looks like. Stage 4 retires the route's passes and
+   this becomes the only source. */
+try {
+  const _cfq = new URLSearchParams(location.search).get('cf');
+  if(_cfq !== null) CITY_FURN.on = _cfq === '1';
+} catch(e){}
+if(typeof window !== "undefined"){
+  window.CITY_FURN = CITY_FURN;
+  window.cityFurnitureForEdge = cityFurnitureForEdge;
+  window.cityFurnitureNear = cityFurnitureNear;
+  window.cityFurnEdgeIndex = cityFurnEdgeIndex;
+}
+
 /* ---------- the walked route: a random walk THROUGH the graph ----------
    Two stages: graph traversal (only ever follows real edges — this is
    what guarantees every turn is a real intersection), then the exact
@@ -6799,6 +7166,119 @@ function routeSeedStr(dateStr, runIndex){
   const n = Math.max(1, runIndex | 0);
   return n > 1 ? dateStr + "#" + n : dateStr;
 }
+/* ---------- ONE PROP-STATE ROLL, TWO CALLERS ----------
+   Everything a freshly spawned prop needs beyond its position: the
+   pre-knocked coin, the seeds, the brand, the scooter's lie angle. It
+   was inline in the daily route's spawn loop and it is now also wanted
+   by the permanent city-furniture pass below, and two copies of a
+   pre-knocked probability is exactly how the route and the city start
+   disagreeing about what a cone is.
+
+   Extracted VERBATIM, draw for draw. The rng stream is the layout: the
+   scooter branch's own comment ("ONE draw for direction AND slop --
+   keeps the spawn stream length identical") is about this precise
+   hazard, so the extraction reorders nothing and every date keeps the
+   world it had. Verified by regenerating a fixed date before and after
+   and comparing the hazard array field for field.
+
+   walkRange is the one thing that genuinely differs between callers:
+   the route confines a walker to the straight segment it spawned on,
+   the city confines it to the block frontage it stands on. It makes NO
+   rng draws in either caller, so the stream is caller-independent. */
+function propSpawnState(type, hzObj, R, walkRange){
+  if(type === "dog"){
+    hzObj.dogSeed = (R()*4294967296) >>> 0;  // coat + scar + waypoints
+    /* 50/50 free-roaming vs the original pace/sit behavior (requested
+       2026-07-24, same sidewalk-block system as prop.people above).
+       The free-roaming half never sits -- walking and sitting are
+       mutually exclusive, so sit only gets rolled for the half that
+       ISN'T getting a walk range, leaving their ~40% sitter rate
+       exactly as it always was. */
+    if(R() < 0.5){
+      walkRange(hzObj);
+      hzObj.sit = false;
+    } else {
+      hzObj.sit = R() < 0.4;                 // ~40% sitters, same as always
+    }
+  }
+  if(type === "people"){
+    hzObj.peopleSeed = (R()*4294967296) >>> 0;  // body/skin/shirt/pants/hair/shoe
+    /* sidewalk-walking range (requested 2026-07-24): confined to the
+       straight run they spawned on -- same "line"-segment-only
+       restriction the pigeon flocks already use above, so nobody
+       gets routed through a corner's arc geometry. Margin (same
+       CROSSING_CLEAR the route generator already uses) keeps the
+       walk off the curb cut at each end. If the block's too short
+       after margins, walkS0/walkS1 collapse to a point and
+       peopleSpotAt's own fallback leaves them on the old idle
+       wander -- nobody regresses, they just don't get a route. */
+    walkRange(hzObj);
+  }
+  if(type === "cone"){
+    const preKnocked = R() < 0.4;
+    hzObj.phi = preKnocked ? CONE_HIT.phiRest : 0;
+    hzObj.phase = preKnocked ? 2 : 1;
+    hzObj.angVel = 0; hzObj.moving = false;
+    hzObj.pose = preKnocked ? "knocked" : "standing";
+    hzObj.slide = 0; hzObj.slideVel = 0;
+    if(preKnocked) hzObj.fallPsi = R()*Math.PI*2;
+  }
+  if(type === "bin"){
+    const preKnocked = R() < 0.4;
+    hzObj.phi = preKnocked ? BIN_HIT.phiRest : 0;
+    hzObj.angVel = 0; hzObj.moving = false;
+    hzObj.pose = preKnocked ? "knocked" : "standing";
+    hzObj.slide = 0; hzObj.slideVel = 0;
+    hzObj.bonked = false;
+    hzObj.items = []; hzObj.spilled = false;
+    hzObj.thetaF = 0;
+    if(preKnocked) hzObj.fallPsi = R()*Math.PI*2;
+  }
+  if(type === "planter"){
+    hzObj.scale = 1.0 + R()*1.2;                 // 1.0-2.2x, straddles PLANTER_HIT.thresh (1.4) and largeMin (1.8)
+    hzObj.variantIdx = Math.floor(R()*PLANTER_VARIANTS.length);
+    /* large planters are immovable street furniture (2026-07-26) --
+       they never fall, so they can't spawn already-fallen either;
+       a pre-knocked LARGE would contradict the contract on sight. */
+    const preKnocked = R() < 0.25 && hzObj.scale < PLANTER_HIT.largeMin;   // rarer than bin's 0.4 — a bigger visual event
+    hzObj.phi = preKnocked ? PLANTER_HIT.phiRest : 0;
+    hzObj.angVel = 0; hzObj.moving = false;
+    hzObj.pose = preKnocked ? "knocked" : "standing";
+    hzObj.bonked = false;
+    hzObj.items = []; hzObj.spilled = false;
+    if(preKnocked) hzObj.fallPsi = (R()*2 - 1) * 0.4;   // small fall-direction jitter, same idea as bin's
+  }
+  if(type === "scooter"){
+    /* 0.8 -> 0.5: at 80% dumped, routes with a few scooters routinely
+       showed EVERY one down (reported once fallen/standing both read
+       correctly). Half and half keeps the dockless-litter flavor with
+       standing ones actually visible. Same single draw — layout
+       stream unchanged; only the 0.5-0.8 band flips to standing. */
+    const preKnocked = R() < 0.5;
+    /* ALONG the walk, nose either way, slop — the spawn's thetaF is
+       what the draw actually uses (it overrides the draw branch's own
+       seed, which is why the v32 constraint there was dead code for
+       spawned scooters). The old free ±162° roll aimed dumped stems
+       up-screen in iso, where a flat squashed scooter masquerades as
+       standing with pancake wheels (on-device report). Parked AND
+       fallen both read right lying on the street's own axis. */
+    const uTh = R();   // ONE draw for direction AND slop — keeps the
+                         // spawn stream length identical, so the same
+                         // date keeps the same world layout it had
+                         // before this fix (two draws reshuffled every
+                         // downstream roll: standing scooters re-rolled
+                         // fallen, reported on-device)
+    hzObj.thetaF = (uTh < 0.5 ? 0 : Math.PI) + (((uTh * 977) % 1) - 0.5) * 0.3;
+    hzObj.brand = BRANDS[Math.floor(R()*BRANDS.length)];
+    hzObj.phi = preKnocked ? SCOOT_HIT.phiRest : 0;
+    hzObj.angVel = 0; hzObj.moving = false;
+    hzObj.pose = preKnocked ? "knocked" : "standing";
+    hzObj.slide = 0; hzObj.slideVel = 0;
+    if(preKnocked) hzObj.fallPsi = hzObj.thetaF;
+  }
+  return hzObj;
+}
+
 function generateRoute(dateStr, opts){
   const runIndex = (opts && opts.runIndex) || 1;
   const key = dateStr + "|" + (opts && opts.hoodIndex != null ? opts.hoodIndex : "")
@@ -7356,104 +7836,12 @@ function _generateRouteFresh(dateStr, opts){
       }
       else { const r3 = R(); type = r3 < 0.25 ? "dog" : r3 < 0.48 ? "people" : r3 < 0.73 ? "bin" : "planter"; }
       const hzObj = { type, s: hsR, row: lane, f: facingAt(hsR), hit:false };
-      if(type === "dog"){
-        hzObj.dogSeed = (R()*4294967296) >>> 0;  // coat + scar + waypoints
-        /* 50/50 free-roaming vs the original pace/sit behavior (requested
-           2026-07-24, same sidewalk-block system as prop.people above).
-           The free-roaming half never sits -- walking and sitting are
-           mutually exclusive, so sit only gets rolled for the half that
-           ISN'T getting a walk range, leaving their ~40% sitter rate
-           exactly as it always was. */
-        if(R() < 0.5){
-          const dSeg = segs.find(g => hsR >= g.s0 && hsR <= g.s1 && g.type === "line");
-          if(dSeg){
-            const w0 = dSeg.s0 + CROSSING_CLEAR, w1 = dSeg.s1 - CROSSING_CLEAR;
-            if(w1 - w0 >= T2){ hzObj.walkS0 = w0; hzObj.walkS1 = w1; }
-          }
-          hzObj.sit = false;
-        } else {
-          hzObj.sit = R() < 0.4;                 // ~40% sitters, same as always
-        }
-      }
-      if(type === "people"){
-        hzObj.peopleSeed = (R()*4294967296) >>> 0;  // body/skin/shirt/pants/hair/shoe
-        /* sidewalk-walking range (requested 2026-07-24): confined to the
-           straight run they spawned on -- same "line"-segment-only
-           restriction the pigeon flocks already use above, so nobody
-           gets routed through a corner's arc geometry. Margin (same
-           CROSSING_CLEAR the route generator already uses) keeps the
-           walk off the curb cut at each end. If the block's too short
-           after margins, walkS0/walkS1 collapse to a point and
-           peopleSpotAt's own fallback leaves them on the old idle
-           wander -- nobody regresses, they just don't get a route. */
-        const pSeg = segs.find(g => hsR >= g.s0 && hsR <= g.s1 && g.type === "line");
-        if(pSeg){
-          const w0 = pSeg.s0 + CROSSING_CLEAR, w1 = pSeg.s1 - CROSSING_CLEAR;
-          if(w1 - w0 >= T2){ hzObj.walkS0 = w0; hzObj.walkS1 = w1; }
-        }
-      }
-      if(type === "cone"){
-        const preKnocked = R() < 0.4;
-        hzObj.phi = preKnocked ? CONE_HIT.phiRest : 0;
-        hzObj.phase = preKnocked ? 2 : 1;
-        hzObj.angVel = 0; hzObj.moving = false;
-        hzObj.pose = preKnocked ? "knocked" : "standing";
-        hzObj.slide = 0; hzObj.slideVel = 0;
-        if(preKnocked) hzObj.fallPsi = R()*Math.PI*2;
-      }
-      if(type === "bin"){
-        const preKnocked = R() < 0.4;
-        hzObj.phi = preKnocked ? BIN_HIT.phiRest : 0;
-        hzObj.angVel = 0; hzObj.moving = false;
-        hzObj.pose = preKnocked ? "knocked" : "standing";
-        hzObj.slide = 0; hzObj.slideVel = 0;
-        hzObj.bonked = false;
-        hzObj.items = []; hzObj.spilled = false;
-        hzObj.thetaF = 0;
-        if(preKnocked) hzObj.fallPsi = R()*Math.PI*2;
-      }
-      if(type === "planter"){
-        hzObj.scale = 1.0 + R()*1.2;                 // 1.0-2.2x, straddles PLANTER_HIT.thresh (1.4) and largeMin (1.8)
-        hzObj.variantIdx = Math.floor(R()*PLANTER_VARIANTS.length);
-        /* large planters are immovable street furniture (2026-07-26) --
-           they never fall, so they can't spawn already-fallen either;
-           a pre-knocked LARGE would contradict the contract on sight. */
-        const preKnocked = R() < 0.25 && hzObj.scale < PLANTER_HIT.largeMin;   // rarer than bin's 0.4 — a bigger visual event
-        hzObj.phi = preKnocked ? PLANTER_HIT.phiRest : 0;
-        hzObj.angVel = 0; hzObj.moving = false;
-        hzObj.pose = preKnocked ? "knocked" : "standing";
-        hzObj.bonked = false;
-        hzObj.items = []; hzObj.spilled = false;
-        if(preKnocked) hzObj.fallPsi = (R()*2 - 1) * 0.4;   // small fall-direction jitter, same idea as bin's
-      }
-      if(type === "scooter"){
-        /* 0.8 -> 0.5: at 80% dumped, routes with a few scooters routinely
-           showed EVERY one down (reported once fallen/standing both read
-           correctly). Half and half keeps the dockless-litter flavor with
-           standing ones actually visible. Same single draw — layout
-           stream unchanged; only the 0.5-0.8 band flips to standing. */
-        const preKnocked = R() < 0.5;
-        /* ALONG the walk, nose either way, slop — the spawn's thetaF is
-           what the draw actually uses (it overrides the draw branch's own
-           seed, which is why the v32 constraint there was dead code for
-           spawned scooters). The old free ±162° roll aimed dumped stems
-           up-screen in iso, where a flat squashed scooter masquerades as
-           standing with pancake wheels (on-device report). Parked AND
-           fallen both read right lying on the street's own axis. */
-        const uTh = R();   // ONE draw for direction AND slop — keeps the
-                             // spawn stream length identical, so the same
-                             // date keeps the same world layout it had
-                             // before this fix (two draws reshuffled every
-                             // downstream roll: standing scooters re-rolled
-                             // fallen, reported on-device)
-        hzObj.thetaF = (uTh < 0.5 ? 0 : Math.PI) + (((uTh * 977) % 1) - 0.5) * 0.3;
-        hzObj.brand = BRANDS[Math.floor(R()*BRANDS.length)];
-        hzObj.phi = preKnocked ? SCOOT_HIT.phiRest : 0;
-        hzObj.angVel = 0; hzObj.moving = false;
-        hzObj.pose = preKnocked ? "knocked" : "standing";
-        hzObj.slide = 0; hzObj.slideVel = 0;
-        if(preKnocked) hzObj.fallPsi = hzObj.thetaF;
-      }
+      propSpawnState(type, hzObj, R, ob => {
+        const wSeg = segs.find(g => hsR >= g.s0 && hsR <= g.s1 && g.type === "line");
+        if(!wSeg) return;
+        const w0 = wSeg.s0 + CROSSING_CLEAR, w1 = wSeg.s1 - CROSSING_CLEAR;
+        if(w1 - w0 >= T2){ ob.walkS0 = w0; ob.walkS1 = w1; }
+      });
       hazards.push(hzObj);
     }
   };
@@ -10778,6 +11166,18 @@ class WorldScene extends Phaser.Scene {
        ramp near a parked car painted over it regardless of depth. Same
        fix: push into blockVQ so it's depth-sorted against everything
        else instead of drawn unconditionally on top afterward. */
+    /* ---- PERMANENT CITY FURNITURE, materialized once for this frame ----
+       One query answers both passes below: the ground kinds (cracks,
+       heaved slabs) and the bodies. Same cullSpan and the same Manhattan
+       metric near() uses, so a city prop appears and disappears on
+       exactly the same boundary a route prop does. The scratch array is
+       held on the scene rather than allocated per frame -- this runs at
+       60Hz and returns low hundreds of props. */
+    const cityFurn = (CITY_FURN.on && r.grid)
+      ? cityFurnitureNear(r.grid, this.camX, this.camY, cullSpan,
+                          (this._cfScratch = this._cfScratch || []))
+      : null;
+
     const groundVQ = [];
     for(const hz of r.hazards){
       if(!GROUND_KINDS[hz.type]) continue;
@@ -10848,6 +11248,19 @@ class WorldScene extends Phaser.Scene {
       if(!near(cr.x, cr.y)) continue;
       const crx = cr.x, cry = cr.y, crf = cr.f;
       groundVQ.push({ depth: crx+cry, fn:(g,t)=>this.drawProp(g, "sidewalkend", crx, cry, t, crf, 0, null, null, WORLD_RAMP) });
+    }
+
+    /* city pavement damage. wx/wy IS the position -- no worldOf, because
+       a permanent prop's `s` is EDGE-LOCAL and feeding it to the rail
+       mapping would place it wherever that number happens to land on
+       today's route. Pinned to g for the same reason the route's own
+       cracks and slabs are: flat paint the robot drives straight over,
+       which must never point-depth-flip to in front of him. */
+    if(cityFurn) for(const cp of cityFurn){
+      if(!GROUND_KINDS[cp.type]) continue;
+      if(!near(cp.wx, cp.wy)) continue;
+      const cgt = cp.type, cgx = cp.wx, cgy = cp.wy, cgf = cp.f, cgo = cp;
+      groundVQ.push({ depth: cgx+cgy, fn:(g,t)=>this.drawProp(g, cgt, cgx, cgy, t, cgf, 0, null, null, cgo) });
     }
 
     /* GROUND FIRST -- its own pass, ahead of every body.
@@ -12560,7 +12973,58 @@ class WorldScene extends Phaser.Scene {
     if(!(this.ow && this.ow.on)) return g;
     return (x + y > this.botX + this.botY + 14) ? this.gFront : g;
   }
+  /* ---------- PERMANENT CITY FURNITURE: DRAWN BY ITS OWN BLOCK ----------
+     This queues into the BLOCK's vq, not into hazVQ, and that placement
+     is the whole point rather than a detail.
+
+     hazVQ is flushed after every building and every roof, so anything in
+     it paints over anything in blockVQ regardless of true depth -- fine
+     for the route's hazards, which are always in the corridor the robot
+     is driving and effectively never behind a building from the camera.
+     It is wrong for furniture that exists on all 3,640 frontages at
+     once: measured in the first render pass, a cone on the far side of a
+     block drew ON TOP of the roof between it and the camera, and a
+     hydrant sat on a shopfront awning.
+
+     Queued with the block that owns the frontage, the occlusion is right
+     by construction -- the same slot, and the same reason, the swept
+     world scatter used. propLayer applies the open-world near/far test
+     so the robot can still drive behind a lamp post.
+
+     Ground kinds (cracks, heaved slabs) do NOT come through here: they
+     are flat paint and belong in the ground pass ahead of every body,
+     alongside the route's own, where they are pinned rather than
+     point-tested. */
+  queueCityFurniture(vq, blk){
+    if(!CITY_FURN.on) return;
+    const grid = this.route && this.route.grid;
+    if(!grid) return;
+    cityFurnEdgeIndex(grid);
+    const t = this.time.now;
+    for(let fi = 0; fi < 4; fi++){
+      for(const cp of cityFurnitureForEdgeCached(grid, { blk, fi })){
+        if(GROUND_KINDS_CF[cp.type]) continue;
+        /* effective body point for the depth key and the layer test:
+           a walking dog is not where its anchor is. Static kinds return
+           null and use the anchor, which IS their position. */
+        const eff = hazWorldAt(t, cp);
+        const ebx = eff ? eff.x : cp.wx, eby = eff ? eff.y : cp.wy;
+        let ltx = ebx, lty = eby;
+        const ct = cp.type;
+        if((ct === "planter" || ct === "bin" || ct === "cone" || ct === "scooter") && (cp.phi || 0) > 0.5){
+          let kx = this.botX - ebx, ky = this.botY - eby;
+          const kd = Math.hypot(kx, ky) || 1;
+          const kR = Math.min(kd, ct === "scooter" ? 30 : 28);
+          ltx += kx/kd*kR; lty += ky/kd*kR;
+        }
+        const cx = cp.wx, cy = cp.wy, cf = cp.f, cobj = cp;
+        vq.push({ depth: ebx+eby,
+                  fn:(g,tt)=>this.drawProp(this.propLayer(g, ltx, lty), ct, cx, cy, tt, cf, 0, null, null, cobj) });
+      }
+    }
+  }
   queueStreetFurniture(vq, blk, excludeEdges = null){
+    this.queueCityFurniture(vq, blk);
     if(!WORLD_SCATTER) return;                 // see WORLD SCATTER: SWEPT
     const cells = this.route && this.route.routeCells;
     const rng = mulberry32(((Math.round(blk.x0)*2654435761) ^ (Math.round(blk.y0)*40503) ^ 0x9e37) >>> 0);
@@ -16013,8 +16477,17 @@ class WorldScene extends Phaser.Scene {
        them all in their idle state. bagOnBoard false also means a tip in
        free play has no bag to throw, which is correct — he is not
        carrying one. */
+    /* CORRECTION (2026-08-21): this branch used to park pickupWalk at 1
+       for free roam as well, which is the wrong end of the ramp. 1 is
+       not "idle, nothing happening" -- it is "standing a full row out
+       from the shop wall holding the bag", the pose he holds while the
+       robot is being loaded. drawPickupUnit draws him for any walkT
+       above 0.001, so free play kept a worker permanently standing on
+       the pavement offering a parcel to nobody. 0 is the other end:
+       arrived, back inside, door shut, nothing drawn. */
     if(this.mode === "challenge" || this.mode === "freeroam"){
-      this.loadDone = false; this.walkAt = null; this.pickupWalk = 1;
+      this.loadDone = false; this.walkAt = null;
+      this.pickupWalk = (this.mode === "freeroam") ? 0 : 1;
       this.bagOnBoard = false; this.doorSwing = 0; this.pickupLidClosing = false;
     } else if(this.state === "play"){
       if(this.openT0 == null) this.openT0 = performance.now();
@@ -17856,7 +18329,15 @@ class WorldScene extends Phaser.Scene {
        out behind them as scenery. pickupLoadFrac is assigned earlier
        in this same update pass, so it is always this frame's value.
        Challenge mode has no worker and never holds. */
-    const pickupWorkerVisible = this.mode !== "challenge" &&
+    /* FREE ROAM JOINS CHALLENGE ON THE EXEMPTION (2026-08-21). The
+       release condition is pickupLoadFrac climbing past dropFrac -- and
+       in free roam the loading beat never runs, so that frac sits at 0
+       forever and the camera locked onto the pickup shop's doorway for
+       the whole session. Reported on-device as the camera stuck on the
+       worker at launch: the robot was driving, the view was not.
+       Exempting by MODE rather than raising the frac, same reasoning the
+       challenge already carries -- there is no pickup here to frame. */
+    const pickupWorkerVisible = this.mode !== "challenge" && this.mode !== "freeroam" &&
       (this.pickupLoadFrac || 0) < LOAD_ART.dropFrac;
     if(this.state === "play" && this.pickupDoorDV && pickupWorkerVisible){
       const dv3 = this.pickupDoorDV, rv3 = this.pickupDoorRV;
@@ -23693,6 +24174,21 @@ function _bootLoaderDismiss(){
     collapseSheet();
     s0.state = "play";
     if(!s0.ow) owInstall(s0);
+    /* START ON A CHARGER (2026-08-21). loadRoute puts the robot on the
+       DELIVERY's pickup spot -- it is the same route object either way --
+       so booting straight into free play used to open with him parked
+       nose-to-the-door of a shop that is expecting an order he never
+       accepted. A charging pad is the honest place for an idle delivery
+       robot to be sitting, and it is where a tip already leaves him, so
+       launch and recovery now read as the same beat.
+
+       Nearest pad to where the route put him, not a fixed one: that
+       keeps the district the daily route chose (the map, the GPS strip
+       and the shop are all still there, a block or two away) and it
+       moves day to day with the seed, for free. Must run AFTER owInstall
+       -- install seeds ow.px/py from botX/botY, so placing first would
+       be overwritten on the same line. */
+    owPlaceOnPad(s0, s0.botX, s0.botY);
   }
   const el = document.getElementById("bootLoader");
   if(!el) return;
@@ -24767,6 +25263,10 @@ function tpFreePlay(){
   /* install now rather than waiting for update()'s gate, so the first
      frame after this already has the stick bound */
   if(!s.ow) owInstall(s);
+  /* and land on a pad, same as boot does -- loadRoute above has just put
+     him back on the pickup spot, so without this every return from a
+     mission drops him at a shop door again. */
+  owPlaceOnPad(s, s.botX, s.botY);
 }
 if(typeof window !== "undefined") window.tpFreePlay = tpFreePlay;
 
