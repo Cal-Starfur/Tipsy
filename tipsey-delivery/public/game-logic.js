@@ -4469,6 +4469,10 @@ function owStep(scene, dt){
     const near = cityFurnitureNear(scene.route.grid, ow.px, ow.py,
                                    OW_CF_QUERY_R, (ow.cfNear = ow.cfNear || []));
     for(const cp of near){
+      /* harvested by the active route: it is in route.hazards, so the
+         hazard loop above has already resolved it. Running it twice
+         would double the damage on every contact. */
+      if(scene.route.cfTaken && scene.route.cfTaken.has(cp.key)) continue;
       let cx = cp.wx, cy = cp.wy;
       const cw = (typeof hazWorldAt === 'function') ? hazWorldAt(scene.runT || 0, cp) : null;
       if(cw){ cx = cw.x; cy = cw.y; }
@@ -6289,7 +6293,12 @@ function cityFurnitureForEdge(grid, blk, fi){
      prop's frame. walkS0/walkS1 need no mirror of their own -- the
      range is symmetric about the frontage's midpoint. */
   const place = (type, a, lane, p, extra) => {
-    const ob = { type, s: e.len - a, row: lane, f, wA, wx: p.x, wy: p.y, hit: false, cf: 1 };
+    /* STABLE IDENTITY. `key` is what a route's harvest list holds, so it
+       has to name the record without depending on anything that moves --
+       the block, the frontage, and the order this generator produced it
+       in, all of which are frozen for a frozen city. */
+    const ob = { type, s: e.len - a, row: lane, f, wA, wx: p.x, wy: p.y, hit: false, cf: 1,
+                 key: blk.i + "," + blk.j + "," + fi + "," + out.length };
     if(extra) Object.assign(ob, extra);
     out.push(ob);
     return ob;
@@ -7632,6 +7641,97 @@ function propSpawnState(type, hzObj, R, walkRange){
   return hzObj;
 }
 
+/* ---------- THE ROUTE READS THE CITY ----------
+   Stage 4. Until now the daily route ROLLED its own ambient props while
+   the permanent city furniture sat underneath on the same pavement, so
+   its corridor carried both -- measured at about 1.25x density on one
+   street against 6,002,000 units of frontage that were simply correct.
+
+   The route now HARVESTS instead. Every prop it would have invented is
+   already standing on the frontage it drives past, so it takes those and
+   expresses them in rail coordinates.
+
+   WHY THIS IS NOT A DOWNGRADE. A harvested prop enters route.hazards,
+   which means it runs the game's REAL interaction loop -- the hydrant
+   bursts, the dog bolts, the cone knocks over and spills. Free roam gets
+   owContact's stand-in for the same objects (see the note there). So the
+   delivery route keeps every behaviour it had; it just stops inventing
+   the props to attach them to.
+
+   PROJECTION IS EXACT, AND CHECKED. A city prop sits (3-lane+0.5)*T2 out
+   from the building line; the building line is SIDEWALK_W + ROAD_HALF =
+   736 from the street centreline the route seg runs down; and
+   laneOffset(lane) is -(ROAD_HALF + (lane+0.5)*T2). Those compose to the
+   identity 736 - (3-lane+0.5)*T2 = |laneOffset(lane)| exactly, so a
+   harvested prop's re-stamped wx/wy lands back on the pavement square it
+   was drawn on rather than near it. HARVEST_TOL is a float guard, not a
+   fudge: anything outside it is a prop that genuinely is not on a lane,
+   and it is left to the city pass.
+
+   STRAIGHT SEGMENTS ONLY. On an arc, s-plus-row and a fixed world point
+   are different places, which is the whole reason hazSpotWorld exists.
+   City furniture never lands within CITY_FURN.cornerClear of a frontage
+   end, so in practice the corners hold nothing to harvest and this
+   excludes almost nothing -- it just means the rule is stated rather
+   than assumed. */
+/* HOISTED out of _generateRouteFresh (stage 4). The harvest needs the
+   same walker margin the route's own dog and people passes use, and it
+   runs at top level -- so the constant moves up rather than being
+   restated, which is how the two would start disagreeing about where a
+   pedestrian is allowed to walk. Value unchanged. */
+const CROSSING_CLEAR = 2*T2 + 30;
+const HARVEST_TOL = 6;
+/* Returns { hazards, taken } -- the rail-space copies, and the SET of
+   city keys they came from. Deliberately not a mark on the shared record:
+   generateRoute runs more than once in a session (a map preview, a
+   mission rung, a replay), every run harvests, and a later run's marks
+   would silently unmark an earlier route's props -- which then draw and
+   collide twice. The set belongs to the route that made it. */
+function harvestCityFurniture(grid, segs){
+  if(!grid || !segs || !segs.length) return { hazards: [], taken: new Set() };
+  const out = [];
+  const taken = new Set();
+  const lanes = [0,1,2,3].map(laneOffset);
+  for(const sg of segs){
+    if(sg.type !== "line") continue;
+    const dv = DIRV[sg.f], ov = DIRV[(sg.f+1)%4];
+    const len = sg.s1 - sg.s0;
+    /* one query per segment, at its midpoint, with a radius that covers
+       the whole run plus the sidewalk band it can reach across */
+    const mx = sg.start.x + dv.x*len*0.5, my = sg.start.y + dv.y*len*0.5;
+    for(const cp of cityFurnitureNear(grid, mx, my, len*0.5 + ROAD_HALF + SIDEWALK_W, [])){
+      if(taken.has(cp.key)) continue;                  // a prior segment already took it
+      const rx = cp.wx - sg.start.x, ry = cp.wy - sg.start.y;
+      const along = rx*dv.x + ry*dv.y;
+      if(along < 0 || along > len) continue;
+      const off = rx*ov.x + ry*ov.y;
+      let row = -1;
+      for(let k = 0; k < 4; k++) if(Math.abs(off - lanes[k]) <= HARVEST_TOL){ row = k; break; }
+      if(row < 0) continue;                            // far pavement, or not on a lane
+      const s = Math.round(sg.s0 + along);
+      /* a COPY, deliberately. The cached city record is shared by every
+         route that ever drives this street and its `s` is EDGE-LOCAL;
+         writing a route-s onto it would give one object two meanings for
+         the same field. The copy also means a cone knocked over on today's
+         delivery does not stay knocked in free roam tomorrow, which
+         matches how route hazards have always behaved. */
+      const hz = { ...cp, s, row, f: sg.f, hit: false, cfRail: 1 };
+      delete hz.cf; delete hz.key; delete hz.wx; delete hz.wy; delete hz.wA;
+      /* walkers' ranges are edge-local too -- re-express them on the run
+         the walker is now standing on, same margin the route's own pass
+         gives its dogs and pedestrians */
+      if(hz.walkS0 !== undefined){
+        const w0 = sg.s0 + CROSSING_CLEAR, w1 = sg.s1 - CROSSING_CLEAR;
+        if(w1 - w0 >= T2){ hz.walkS0 = w0; hz.walkS1 = w1; }
+        else { delete hz.walkS0; delete hz.walkS1; }
+      }
+      out.push(hz);
+      taken.add(cp.key);
+    }
+  }
+  return { hazards: out, taken };
+}
+
 function generateRoute(dateStr, opts){
   const runIndex = (opts && opts.runIndex) || 1;
   const key = dateStr + "|" + (opts && opts.hoodIndex != null ? opts.hoodIndex : "")
@@ -7965,7 +8065,6 @@ function _generateRouteFresh(dateStr, opts){
      MIN_GAP_S/MIN_GAP_OFFSET alone can't protect a 2x3-tile decal
      (60 < the ramp's own 92-unit half-depth, and the row-offset gate
      only sees the anchor row, not the full 3-row span). */
-  const CROSSING_CLEAR = 2*T2 + 30;
   const inCrossing = sv => crossings.some(cx => sv > cx.sA - CROSSING_CLEAR && sv < cx.sB + CROSSING_CLEAR);
 
   /* RULE: no two props/hazards stack at the same spot. Every spawn loop
@@ -8148,6 +8247,13 @@ function _generateRouteFresh(dateStr, opts){
      PLACE (segs.length = n, then push). So called after the weld they
      read the final geometry with no changes of their own. That is what
      makes this cheap rather than a reordering of the whole builder. */
+  /* ---------- AMBIENT PASSES: OFF WHEN THE CITY OWNS THEM ----------
+     Stage 4. These six passes invent the props the permanent city
+     furniture is already standing on, so with CITY_FURN.on they would
+     double-furnish this one corridor. The harvest below replaces all six
+     at once; each keeps its full original body so ?cf=0 still produces
+     the exact route the hazard oracle was gated against. */
+  const CF_OWNS = (typeof CITY_FURN !== "undefined") && CITY_FURN.on;
   const spawnHazardRange = (from, to, R) => {
     let hs = from;
     while(hs < to){
@@ -8198,7 +8304,7 @@ function _generateRouteFresh(dateStr, opts){
       hazards.push(hzObj);
     }
   };
-  spawnHazardRange(SPAWN_S + 120, totalLen - 220, rng);
+  if(!CF_OWNS) spawnHazardRange(SPAWN_S + 120, totalLen - 220, rng);
 
   /* palms: lane 3, farthest from the road — nearest the buildings, same
      "building-side" flavor the game already used. Real palms grow in
@@ -8234,7 +8340,7 @@ function _generateRouteFresh(dateStr, opts){
       }
     }
   };
-  spawnPalmRange(SPAWN_S + 140, totalLen - 220, rng);
+  if(!CF_OWNS) spawnPalmRange(SPAWN_S + 140, totalLen - 220, rng);
   /* storefront dressing (prop.planter / prop.bin): the FAR sidewalk —
      the opposite side of the street from the robot's own lane. Pure
      decoration, never a hazard, never reachable (the robot's walk
@@ -8312,7 +8418,7 @@ function _generateRouteFresh(dateStr, opts){
   }
 
   /* hydrants: lane 0, closest to the road — the real curb side. */
-  for(let ys = SPAWN_S + 220; ys < totalLen - 280; ys += (1056 + rng()*1144) * 0.25){
+  if(!CF_OWNS) for(let ys = SPAWN_S + 220; ys < totalLen - 280; ys += (1056 + rng()*1144) * 0.25){
     const ysR = Math.round(ys);
     if(inCorner(ysR)) continue;
     if(!onSidewalk(ysR, laneOffset(0))) continue;
@@ -8349,7 +8455,7 @@ function _generateRouteFresh(dateStr, opts){
      that already reaches ~0.78 in low-pave hoods -- tripling it
      would exceed 1.0 there. Spacing has no such ceiling. */
   let ss = SPAWN_S + 260;
-  while(ss < totalLen - 320){
+  while(!CF_OWNS && ss < totalLen - 320){
     ss += (200 + rng()*277) * 0.5;
     if(inCorner(ss)) continue;
     if(rng() > 0.18 + (1 - BLEND.pave)*0.75) continue;
@@ -8377,7 +8483,7 @@ function _generateRouteFresh(dateStr, opts){
      independently tunable spacing to hit a 3x density target without
      touching scooter/trash/cone/dog/people/bin/planter's odds. */
   let cs = SPAWN_S + 180;
-  while(cs < totalLen - 240){
+  while(!CF_OWNS && cs < totalLen - 240){
     cs += (22 + rng()*110) * 0.5;
     if(inCorner(cs)) continue;
     if(rng() > (1 - BLEND.pave)*0.45) continue;
@@ -8900,8 +9006,11 @@ function _generateRouteFresh(dateStr, opts){
     {
       const lapRng = mulberry32(((dateStr.length*2654435761) ^ (Math.round(loop.sCut)*40503)
                                  ^ (Math.round(loop.sEnd)*97) ^ 0x1a9d) >>> 0);
-      spawnHazardRange(loop.sCut + 120, loop.sEnd - 220, lapRng);
-      spawnPalmRange(loop.sCut + 140, loop.sEnd - 220, lapRng);
+      /* gated with the main walk's own passes (stage 4): the lap's segs
+         are in `segs` like every other leg, so the harvest furnishes it
+         from the city along with the rest. */
+      if(!CF_OWNS) spawnHazardRange(loop.sCut + 120, loop.sEnd - 220, lapRng);
+      if(!CF_OWNS) spawnPalmRange(loop.sCut + 140, loop.sEnd - 220, lapRng);
     }
 
   /* ---------- clear stage for the choreography ----------
@@ -9031,6 +9140,10 @@ function _generateRouteFresh(dateStr, opts){
      the row to 2 lamps in testing). ~10% are broken: they lean, and
      at night they flicker. All seeded from the route rng — the same
      lamp is the same broken lamp for everyone, all day. */
+  /* AND OFF WHEN THE CITY OWNS THEM (stage 4). This pass lives in a
+     later builder than the other five and has no sight of CF_OWNS, so it
+     reads the flag itself. Same rule, same reason. */
+  const CF_LAMPS_OFF = (typeof CITY_FURN !== "undefined") && CITY_FURN.on;
   {
     const effLen = loop ? loop.sEnd : totalLen;
     /* stage anchors in WORLD form for lampClear -- the same lap
@@ -9053,7 +9166,7 @@ function _generateRouteFresh(dateStr, opts){
       return true;
     };
     let beat = 0;
-    for(let ls = SPAWN_S + 120; ls < effLen - 160; ls += LAMP_ACT.spacing * T2){
+    for(let ls = SPAWN_S + 120; !CF_LAMPS_OFF && ls < effLen - 160; ls += LAMP_ACT.spacing * T2){
       const lampRow = (beat++ % 2) ? 0 : 3;              // alternate building side / curb side
       const armSign = lampRow === 0 ? -1 : 1;            // always reach INWARD, over the sidewalk
       for(const nudge of [0, T2, -T2]){
@@ -9164,7 +9277,24 @@ function _generateRouteFresh(dateStr, opts){
     p => Math.abs(p.x - cr.x) < RAMP_DEDUP && Math.abs(p.y - cr.y) < RAMP_DEDUP));
   /* resolve every hazard and prop to world x/y before the route leaves
      the builder — see stampWorldCoords. Nothing reads wx/wy yet. */
-  return stampWorldCoords({ hood: addressHood, grid, segs, totalLen: loop ? loop.sEnd : totalLen, loop, tiles, hazards, props, pal, night, traffic, crossings, cutEdges, cutExt, challenge, crime, routeCells, curbRamps, signals: grid.signals,
+  /* ---------- THE HARVEST (stage 4) ----------
+     Runs LAST, after every other pass has had its say, so the props it
+     brings in cannot displace a crossing ramp, a challenge kicker or the
+     crime scene -- the route's own structural furniture is placed first
+     and the city fills in around it, which is the same precedence the
+     ambient passes had when they were the ones filling in.
+
+     The token is the route's own identity. A city record marked taken by
+     THIS route is skipped by the draw and the free-roam contact pass, so
+     a harvested prop is drawn and collided exactly once, by the rail
+     side that now owns it. */
+  let cfTaken = null;
+  if(typeof CITY_FURN !== "undefined" && CITY_FURN.on){
+    const got = harvestCityFurniture(grid, segs);
+    for(const hz of got.hazards) hazards.push(hz);
+    cfTaken = got.taken;
+  }
+  return stampWorldCoords({ cfTaken, hood: addressHood, grid, segs, totalLen: loop ? loop.sEnd : totalLen, loop, tiles, hazards, props, pal, night, traffic, crossings, cutEdges, cutExt, challenge, crime, routeCells, curbRamps, signals: grid.signals,
            address:`${number} ${street}`, doorS, pickupS, pickupSpot, pickupShopName, addressBlock, pickupBlock, addressEdgeIdx, pickupEdgeIdx, addressUnitIdx, pickupUnitIdx, addressUsesGate, order, parMs, dateStr, runIndex  });
 }
 
@@ -11590,6 +11720,7 @@ class WorldScene extends Phaser.Scene {
        which must never point-depth-flip to in front of him. */
     if(cityFurn) for(const cp of cityFurn){
       if(!GROUND_KINDS[cp.type]) continue;
+      if(r.cfTaken && r.cfTaken.has(cp.key)) continue;       // the route draws it
       if(!near(cp.wx, cp.wy)) continue;
       const cgt = cp.type, cgx = cp.wx, cgy = cp.wy, cgf = cp.f, cgo = cp;
       groundVQ.push({ depth: cgx+cgy, fn:(g,t)=>this.drawProp(g, cgt, cgx, cgy, t, cgf, 0, null, null, cgo) });
@@ -13336,6 +13467,11 @@ class WorldScene extends Phaser.Scene {
     for(let fi = 0; fi < 4; fi++){
       for(const cp of cityFurnitureForEdgeCached(grid, { blk, fi })){
         if(GROUND_KINDS_CF[cp.type]) continue;
+        /* taken by the daily route (stage 4): it is in route.hazards now
+           and the rail pass draws it, with the full interaction state
+           that comes with being there. Drawing it here as well would
+           paint two of everything along the corridor. */
+        if(this.route.cfTaken && this.route.cfTaken.has(cp.key)) continue;
         /* effective body point for the depth key and the layer test:
            a walking dog is not where its anchor is. Static kinds return
            null and use the anchor, which IS their position. */
