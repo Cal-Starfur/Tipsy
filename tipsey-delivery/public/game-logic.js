@@ -4001,7 +4001,29 @@ function owBuildWorld(route){
     }
     return out;
   };
-  return { surfaceAt, solidAt, hzNear, HZ, waterfrontAt };
+
+  /* ---------- traffic signal index ----------
+     Same bucketing again, because grid.signals is the WHOLE city -- one
+     per corner across a 36x27 lattice -- and a linear scan of it every
+     step to find the nearest four would be most of the frame's contact
+     budget spent on rejects. */
+  const SG = (route.signals || []).filter(s => s.x !== undefined);
+  const sgBucket = new Map();
+  for(const s of SG){
+    const k = Math.floor(s.x / HZ_CELL) + ',' + Math.floor(s.y / HZ_CELL);
+    if(!sgBucket.has(k)) sgBucket.set(k, []);
+    sgBucket.get(k).push(s);
+  }
+  const sgNear = (x, y) => {
+    const out = [];
+    const i = Math.floor(x / HZ_CELL), j = Math.floor(y / HZ_CELL);
+    for(let a = -1; a <= 1; a++) for(let c = -1; c <= 1; c++){
+      const l = sgBucket.get((i + a) + ',' + (j + c));
+      if(l) out.push(...l);
+    }
+    return out;
+  };
+  return { surfaceAt, solidAt, hzNear, sgNear, HZ, SG, waterfrontAt };
 }
 
 const OW_HZ_R = {
@@ -4012,6 +4034,17 @@ const OW_HZ_R = {
   /* scatter-only kinds: the route never spawns these two, so they had
      no entry until street furniture became solid */
   bench: 30, cone: 18,
+  /* the traffic signal's POLE. Not the head or the mast arm -- those hang
+     at armZ ~312, far over the robot. 16 is the drawn base collar's own
+     half-width (14) plus a little slack, erring generous so he stops just
+     short of the shaft rather than clipping into it. */
+  signalpost: 16,
+  /* the charging mast. poleW/2 is 7.5 and the box corner reaches 10.6, so
+     10 is the honest disc for it. Deliberately NOT generous the way the
+     signal is: this is the one obstacle the game deliberately sets the
+     robot down beside, so every unit of slack here comes straight out of
+     the parking clearance (see CHARGE.park). */
+  chargepost: 10,
 };
 /* driven over, not driven into: ground features and triggers */
 const OW_HZ_FLAT = new Set(['crack', 'slab', 'pigeons', 'grade', 'burnoutMark',
@@ -4444,6 +4477,43 @@ function owStep(scene, dt){
     }
   }
 
+  /* ---------- TRAFFIC SIGNALS ----------
+     SIGNAL's own header says these are "scenery plus traffic logic, with
+     no collision, exactly like the ramps", and backs it with a real
+     measurement: the robot's whole route, 4,666 samples, never enters the
+     signal's apex tile and comes no closer than 91 to the pole centre.
+
+     That was sound on a rail. Off it he drives wherever the collision
+     model allows, so the guarantee is simply gone -- same class as the
+     block-wrap dressing, which was pinned under the robot on exactly the
+     same "he can never be behind it" reasoning until free play expired
+     it. Reported on-device as driving through the lights.
+
+     The POLE only. The head and mast arm hang at armZ (~312) with the
+     robot 26 tall, so making those solid would stop him under an object
+     he can plainly drive beneath. */
+  if(W.sgNear) for(const sg of W.sgNear(ow.px, ow.py)){
+    if(owContact(scene, ow, D, dYaw, sg, 'signalpost', sg.x, sg.y)) hitNormal = hitNormal || 3;
+    if(scene.state === 'tipped') break;
+  }
+
+  /* ---------- CHARGING MASTS ----------
+     Same class as the signals: drawn, never solid, and you drove through
+     the mast. Only 36 in the whole city, so a Manhattan reject on each is
+     cheaper than any index would be.
+
+     The PAD is not solid and must not be -- it is a flat plate you park
+     on, and it is where owPlaceOnPad sets the robot down. Only the mast
+     answers. */
+  if(scene.route && scene.route.grid){
+    for(const st of getChargeStations(scene.route.grid)){
+      if(Math.abs(ow.px - st.x) + Math.abs(ow.py - st.y) > 300) continue;
+      const pp = chargePoleAt(st);
+      if(owContact(scene, ow, D, dYaw, st, 'chargepost', pp.x, pp.y)) hitNormal = hitNormal || 3;
+      if(scene.state === 'tipped') break;
+    }
+  }
+
   /* the pier: rails and the roundhouse. Cheap enough to run unguarded --
      two distance tests reject a downtown frame before anything else. */
   if(owShoreCollide(scene, ow, D, dYaw)) hitNormal = hitNormal || 3;
@@ -4522,16 +4592,20 @@ function owPlaceOnPad(scene, fromX, fromY){
   const near = nearestChargeStation(grid, fromX, fromY);
   if(!near) return null;
   const st = near.station;
-  ow.px = st.x; ow.py = st.y; ow.yaw = st.a; ow.vel = 0;
+  /* FORWARD OF THE MAST, not on top of it -- the mast is solid now, and
+     the pad centre is inside its contact radius. chargeParkAt owns that
+     arithmetic so the spawn and the art cannot disagree about it. */
+  const pk = chargeParkAt(st);
+  ow.px = pk.x; ow.py = pk.y; ow.yaw = st.a; ow.vel = 0;
   ow.reversing = false; ow.latchSign = 0; ow.inContact = false;
   ow.solidOn = new Set(); ow.flatOn = new Set();
-  scene.botX = st.x; scene.botY = st.y;
+  scene.botX = pk.x; scene.botY = pk.y;
   /* SNAP THE CAMERA, do not ease it. camX/camY lerp toward the robot at
      8% a frame, which is right for driving and wrong for a teleport: the
      pad can be thousands of units from where he fell, so easing reads as
      a long slow flight over the city before the game is playable again.
      The lab hit this too and snapped for the same reason. */
-  scene.camX = st.x; scene.camY = st.y;
+  scene.camX = pk.x; scene.camY = pk.y;
   scene.state = "play";
   scene.tilt = 0; scene.roll = 0; scene.pitch = 0;
   scene.tipT = 0; scene.tipStartRoll = 0; scene.speed = 0;
@@ -5908,6 +5982,19 @@ const CHARGE = {
   ringW:     5,
   offset:    0.55,      // tiles off the building edge; sidewalk is 4 tiles
   holdMs:    900,       // time on the ground before the pickup
+  /* the mast's own offset along the pad axis, as a fraction of padR.
+     Was a bare -0.62 literal inside drawChargeStation; named here so
+     chargePoleAt can read the same number the art draws. */
+  poleAt:    0.62,
+  /* WHERE HE PARKS, and it is not the pad centre. The mast stands
+     padR*poleAt = 27.3 behind centre, and a solid mast reaches
+     10 + botR*0.72 = 31.6 -- so a robot set down on the exact centre
+     spawns 4.3 units INSIDE his own charger and gets shoved off it on
+     the first step. Parking him this far forward instead puts 35.3
+     between them, clear by 3.7, and still well inside the 44 pad. It
+     also reads better: a robot on charge sits in front of the mast, not
+     on top of it. */
+  park:      8,
 };
 const CHARGE_PAL = {
   /* LIGHTER THAN THE LAB'S. At the lab's navy the pad read as a hole in
@@ -5921,6 +6008,26 @@ const CHARGE_PAL = {
   glow: 0x7fe3ff, glowHot: 0xd8f7ff,
   shadow: 0x000000,
 };
+
+/* WHERE THE POLE ACTUALLY STANDS. drawChargeStation puts it at
+   a = -padR*0.62 on the pad's own axis (b = 0), and the sim has to agree
+   with that to the unit or the robot stops short of a charger that is not
+   there. One function, both consumers -- the same rule dogSpotAt and
+   trafficWorldAt already follow.
+
+   NOTE THE SIGN: bx is NEGATIVE and st.a points from the building toward
+   the road, so the pole sits at the BACK of the pad and the robot parks
+   in front of it, nose to the street. */
+function chargePoleAt(st){
+  const bx = -CHARGE.padR * CHARGE.poleAt;
+  return { x: st.x + bx*Math.cos(st.a), y: st.y + bx*Math.sin(st.a) };
+}
+/* WHERE THE ROBOT PARKS. Not the pad centre any more -- see CHARGE.park.
+   Same axis, the other way, so he sits forward of the mast with the
+   charger behind his shoulder. */
+function chargeParkAt(st){
+  return { x: st.x + CHARGE.park*Math.cos(st.a), y: st.y + CHARGE.park*Math.sin(st.a) };
+}
 
 let _chargeStationsCache = null;
 function buildChargeStations(grid){
@@ -6059,6 +6166,7 @@ const CITY_FURN = {
   cal: { mix: 1.35, palm: 1.77, lamp: 1.15, hydrant: 0.72, slab: 1.95, crack: 1.92 },
   cornerClear: T2*2.5,   // keep the corners clear, same idea as inCorner()
   gap: 60,               // spawnBlocked's own floor between props
+  padClear: 40,          // extra standoff around a charging pad, on top of padR
 };
 
 /* the frontage's own seed: its origin corner and direction, quantized
@@ -6146,6 +6254,26 @@ function cityFurnitureForEdge(grid, blk, fi){
     if(w1 - w0 >= T2){ ob.walkS0 = w0; ob.walkS1 = w1; }
   };
   const inClear = a => a < CITY_FURN.cornerClear || a > e.len - CITY_FURN.cornerClear;
+  /* ---------- KEEP THE CHARGERS CLEAR ----------
+     buildChargeStations picks blocks the pickup shops did NOT take, so a
+     pad never lands on a bakery door -- but nothing told the furniture
+     pass about the pads. Measured after stage 1: 9 of the 36 stations had
+     city furniture inside the pad, the worst a palm tree 4.6 units from
+     the centre, i.e. growing out of the charger. On-device that reads as
+     an invisible wall in front of your own charging point, and the pad is
+     the one place in the city the game deliberately sets the robot down.
+
+     Cleared to padR plus a prop's own reach rather than to padR, so the
+     approach is open too and not just the plate. Only the stations on
+     THIS block are considered -- 36 in the city, a handful per block. */
+  const _pads = (typeof getChargeStations === "function")
+    ? getChargeStations(grid).filter(st => st.blockI === blk.i && st.blockJ === blk.j)
+    : [];
+  const onPad = p => {
+    for(const st of _pads)
+      if(Math.hypot(p.x - st.x, p.y - st.y) < CHARGE.padR + CITY_FURN.padClear) return true;
+    return false;
+  };
   const blocked = (a, lane) => {
     const sm = e.len - a;   // compare in the same mirrored frame place() stores
     for(const o of out)
@@ -6177,7 +6305,7 @@ function cityFurnitureForEdge(grid, blk, fi){
       if(inClear(aR)) continue;
       const lane = Math.floor(R()*4);
       const p = pointAt(aR, lane);
-      if(!onWalk(p)) continue;
+      if(!onWalk(p) || onPad(p)) continue;
       if(blocked(aR, lane)) continue;
       const r2 = R();
       let type;
@@ -6202,7 +6330,7 @@ function cityFurnitureForEdge(grid, blk, fi){
       if(R() > hood.palms) continue;
       const lane = 3;
       const p = pointAt(aR, lane);
-      if(!onWalk(p) || blocked(aR, lane)) continue;
+      if(!onWalk(p) || onPad(p) || blocked(aR, lane)) continue;
       const dwarf = R() < 0.25;
       place(dwarf ? "palmDwarf" : "palm", aR, lane, p);
     }
@@ -6232,7 +6360,7 @@ function cityFurnitureForEdge(grid, blk, fi){
       const aR = Math.round(a);
       if(inClear(aR)) continue;
       const p = pointAt(aR, lane);
-      if(!onWalk(p) || blocked(aR, lane)) continue;
+      if(!onWalk(p) || onPad(p) || blocked(aR, lane)) continue;
       place("lamp", aR, lane, p, { armSign,
         lampSeed: (R()*4294967296) >>> 0, mal: R() < LAMP_ACT.malRate });
     }
@@ -6254,7 +6382,7 @@ function cityFurnitureForEdge(grid, blk, fi){
       const aR = Math.round(a);
       if(inClear(aR)) continue;
       const p = pointAt(aR, 0);
-      if(!onWalk(p) || blocked(aR, 0)) continue;
+      if(!onWalk(p) || onPad(p) || blocked(aR, 0)) continue;
       if(R() >= 0.55) continue;         // the route's own placement gate
       const startsBurst = R() < 0.35;
       place("hydrant", aR, 0, p, { burst: startsBurst,
@@ -6276,7 +6404,7 @@ function cityFurnitureForEdge(grid, blk, fi){
         const a0 = Math.round(a + k*T2);
         if(inClear(a0)) break;
         const p0 = pointAt(a0, lane);
-        if(!onWalk(p0)){ lane = Math.floor(R()*4); continue; }
+        if(!onWalk(p0) || onPad(p0)){ lane = Math.floor(R()*4); continue; }
         const sn = snapWorldToSidewalkTile(grid, p0.x, p0.y);
         if(!sn || blocked(a0, lane)){ lane = Math.floor(R()*4); continue; }
         place("slab", a0, lane, sn, { lift: 3 + Math.floor(R()*6),
@@ -6297,7 +6425,7 @@ function cityFurnitureForEdge(grid, blk, fi){
       if(R() > (1 - hood.pave)*0.45) continue;
       const lane = Math.floor(R()*4);
       const p0 = pointAt(a, lane);
-      if(!onWalk(p0)) continue;
+      if(!onWalk(p0) || onPad(p0)) continue;
       const sn = snapWorldToSidewalkTile(grid, p0.x, p0.y);
       if(!sn || blocked(Math.round(a), lane)) continue;
       place("crack", Math.round(a), lane, sn,
@@ -13915,7 +14043,7 @@ class WorldScene extends Phaser.Scene {
     g.fillStyle(P.pad, 1);
     g.fillEllipse(o.x, o.y, (CHARGE.padR - CHARGE.ringW)*2*K, (CHARGE.padR - CHARGE.ringW)*1.0*K);
 
-    const bx = -CHARGE.padR*0.62;
+    const bx = -CHARGE.padR*CHARGE.poleAt;
     const box = (x0, x1, y0, y1, z0, z1, top, side) => {
       const pts = [[x0,y0],[x1,y0],[x1,y1],[x0,y1]].map(p => W(p[0], p[1], z1));
       g.fillStyle(top, 1);
