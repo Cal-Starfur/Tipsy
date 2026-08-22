@@ -16782,7 +16782,21 @@ class WorldScene extends Phaser.Scene {
        trying to fast-forward it, because every downstream effect
        (lid hinge, shop door, worker walk-back, cargo spill) keys off
        these same flags. */
-    if(this.mode === "challenge"){
+    /* FREE ROAM JOINS THE CHALLENGE ON THIS BRANCH. There is no pickup
+       in free play — no order, no shop expecting you, no bag — so the
+       loading beat has nothing to load. Left running it played the whole
+       choreography at launch: a worker walking out of a shop door with a
+       parcel for a delivery that does not exist, reported on-device as
+       the worker animation still firing on launch.
+
+       Skipping the timeline rather than fast-forwarding it, for the same
+       reason the challenge does: every downstream effect (lid hinge,
+       shop door swing, worker walk-back, cargo spill arming) keys off
+       these same flags, so the honest way to have none of it is to leave
+       them all in their idle state. bagOnBoard false also means a tip in
+       free play has no bag to throw, which is correct — he is not
+       carrying one. */
+    if(this.mode === "challenge" || this.mode === "freeroam"){
       this.loadDone = false; this.walkAt = null; this.pickupWalk = 1;
       this.bagOnBoard = false; this.doorSwing = 0; this.pickupLidClosing = false;
     } else if(this.state === "play"){
