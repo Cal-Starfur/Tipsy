@@ -4776,6 +4776,68 @@ const OW_HZ_R = {
 const OW_HZ_FLAT = new Set(['crack', 'slab', 'pigeons', 'grade', 'burnoutMark',
                             'sidewalkend', 'sidewalkbegin']);
 
+/* how far around the robot the city-furniture table is queried each
+   step. HZ_CELL (the route hazard bucket) is T2*8 and its 3x3 neighbour
+   sweep reaches the same distance, so the two sources see the same
+   neighbourhood; the query is Manhattan, which circumscribes it. */
+const OW_CF_QUERY_R = T2 * 8;
+
+/* ---------- ONE CONTACT RESOLUTION, THREE SOURCES ----------
+   Route hazards, permanent city furniture and the swept scatter's
+   capture list all resolve identically: flat kinds are a jolt on entry,
+   solid kinds are a disc you get pushed out of along the contact normal
+   and tip against above clipThresh. This was three copies of that, and
+   they had already drifted -- the furniture copy had no fresh/grind
+   bookkeeping and no per-object flag, so grinding along a city lamp post
+   paid the full first-touch tilt every frame instead of the reduced
+   grind rate a route lamp charges.
+
+   Returns true if the robot is in contact this frame, which is what the
+   caller folds into hitNormal.
+
+   `key` is whatever object the caller wants the enter/leave sets keyed
+   on. It must be stable across frames -- for city props that is the
+   cached record itself, which is why the chunk cache holding onto them
+   matters for feel and not just for cost. */
+function owContact(scene, ow, D, dYaw, key, type, hx, hy){
+  const dx = ow.px - hx, dy = ow.py - hy;
+  const dist = Math.hypot(dx, dy) || 1e-6;
+
+  if(OW_HZ_FLAT.has(type)){
+    /* driven over: a trigger with a tilt kick, no resolution. Fires on
+       ENTRY the same way the wall scrapes do, so sitting on a crack is
+       not a per-frame beating. */
+    if(dist < D.hzFlat){
+      if(!ow.flatOn.has(key)){
+        ow.flatOn.add(key);
+        scene.tilt += (dYaw >= 0 ? 1 : -1) * D.hzFlatTilt * (Math.abs(ow.vel) / D.vMax);
+      }
+    } else ow.flatOn.delete(key);
+    return false;
+  }
+
+  const R = OW_HZ_R[type];
+  if(R === undefined) return false;        // unknown type: no collision, no guess
+  const reach = R + D.botR * 0.72;
+  if(dist >= reach){ ow.solidOn.delete(key); return false; }
+
+  const nx = dx / dist, ny = dy / dist;
+  ow.px = hx + nx * reach;
+  ow.py = hy + ny * reach;
+
+  const vN = Math.abs(Math.cos(ow.yaw) * nx + Math.sin(ow.yaw) * ny) * Math.abs(ow.vel);
+  const fresh = !ow.solidOn.has(key);
+  ow.solidOn.add(key);
+
+  if(vN >= D.clipThresh){
+    owTip(scene, -(Math.sign(Math.cos(ow.yaw) * nx + Math.sin(ow.yaw) * ny) || 1));
+  } else {
+    scene.tilt += (dYaw >= 0 ? 1 : -1) * D.clipTilt * vN * (fresh ? 1 : D.grindTilt);
+    ow.vel *= D.clipLoss; if(fresh) ow.clipScrapes++;
+  }
+  return true;
+}
+
 /* ---------- STEP 3 ROLLOUT GATE ----------
    Which hazard types run the game's REAL interaction loop in world space
    rather than OW's stand-in contact pass. Deliberately a set and not a
@@ -4964,72 +5026,50 @@ function owStep(scene, dt){
     let hx = h.wx, hy = h.wy;
     const mw = (typeof hazWorldAt === 'function') ? hazWorldAt(scene.runT || 0, h) : null;
     if(mw){ hx = mw.x; hy = mw.y; }
-    const dx2 = ow.px - hx, dy2 = ow.py - hy;
-    const dist = Math.hypot(dx2, dy2) || 1e-6;
+    if(owContact(scene, ow, D, dYaw, h, h.type, hx, hy)) hitNormal = hitNormal || 3;
+  }
 
-    if(OW_HZ_FLAT.has(h.type)){
-      /* driven over: a trigger with a tilt kick, no resolution. Fires on
-         ENTRY the same way the wall scrapes do, so sitting on a crack is
-         not a per-frame beating. */
-      if(dist < D.hzFlat){
-        if(!ow.flatOn.has(h)){
-          ow.flatOn.add(h);
-          scene.tilt += (dYaw >= 0 ? 1 : -1) * D.hzFlatTilt * (Math.abs(ow.vel) / D.vMax);
-        }
-      } else ow.flatOn.delete(h);
-      continue;
-    }
+  /* ---------- PERMANENT CITY FURNITURE, SOLID ----------
+     The other 6,002,000 units of frontage. Same disc resolution and the
+     same clipThresh as the route's own hazards, so a lamp post on a
+     street you have never delivered to answers to one number with a lamp
+     post on today's route.
 
-    const R = OW_HZ_R[h.type];
-    if(R === undefined) continue;          // unknown type: no collision, no guess
-    const reach = R + D.botR * 0.72;
-    if(dist >= reach){ ow.solidOn.delete(h); continue; }
+     READ FROM THE TABLE, NOT FROM THE DRAW PASS. The swept world scatter
+     had to record its collision from the render (see the old
+     queueStreetFurniture note) because its rng consumed draws that
+     depended on the daily route, so any parallel generator would have
+     drifted from the art. This table has no such coupling -- it is a
+     pure function of the frontage -- so the sim can ask it directly.
+     That is both cheaper and, unlike the capture, not a frame stale.
 
-    const nx2 = dx2 / dist, ny2 = dy2 / dist;
-    ow.px = hx + nx2 * reach;
-    ow.py = hy + ny2 * reach;
-
-    const vN = Math.abs(Math.cos(ow.yaw) * nx2 + Math.sin(ow.yaw) * ny2) * Math.abs(ow.vel);
-    const freshH = !ow.solidOn.has(h);
-    ow.solidOn.add(h);
-    hitNormal = hitNormal || 3;
-
-    if(vN >= D.clipThresh){
-      owTip(scene, -(Math.sign(Math.cos(ow.yaw) * nx2 + Math.sin(ow.yaw) * ny2) || 1));
-    } else {
-      scene.tilt += (dYaw >= 0 ? 1 : -1) * D.clipTilt * vN * (freshH ? 1 : D.grindTilt);
-      ow.vel *= D.clipLoss; if(freshH) ow.clipScrapes++;
+     NOT THE REAL INTERACTION LOOP. Types in OW_LOOP_TYPES are skipped
+     above because the loop owns them; the loop iterates route.hazards
+     and knows nothing about city props, so skipping them here as well
+     would leave 14,700 props drive-through -- the exact bug this stage
+     exists to fix. They get the stand-in instead: a city hydrant is a
+     pole you stop against rather than one that bursts, a city crack is
+     a jolt rather than a trigger. Feeding the real loop is a later
+     stage and a much larger one, because that loop writes integrated
+     state keyed to a rail this prop is not on. */
+  if(CITY_FURN.on && scene.route && scene.route.grid){
+    const near = cityFurnitureNear(scene.route.grid, ow.px, ow.py,
+                                   OW_CF_QUERY_R, (ow.cfNear = ow.cfNear || []));
+    for(const cp of near){
+      let cx = cp.wx, cy = cp.wy;
+      const cw = (typeof hazWorldAt === 'function') ? hazWorldAt(scene.runT || 0, cp) : null;
+      if(cw){ cx = cw.x; cy = cw.y; }
+      if(owContact(scene, ow, D, dYaw, cp, cp.type, cx, cy)) hitNormal = hitNormal || 3;
+      if(scene.state === 'tipped') break;   // tipped; the rest is moot this frame
     }
   }
 
-  /* ---------- STREET FURNITURE, SOLID ----------
-     Same disc resolution as the route hazards above and the same
-     clipThresh, so a city lamp post answers to one number with a route
-     one. Deliberately simpler in one respect: these have no state to
-     knock over or spill, so there is no fresh/grind bookkeeping and no
-     per-object flag -- push out, scrub the normal component, done.
-
-     No spatial index. The list is already only what is ON SCREEN (see
-     drawWorld), which is the same handful of blocks a bucket lookup
-     would have narrowed to. */
+  /* the swept world scatter's capture list. WORLD_SCATTER is false, so
+     this is empty in every real session -- kept because flipping that
+     flag back on must not silently lose its collision. */
   for(const fp of (scene._owFurn || [])){
-    const R = OW_HZ_R[fp.kind];
-    if(R === undefined) continue;
-    const fdx = ow.px - fp.x, fdy = ow.py - fp.y;
-    const fd = Math.hypot(fdx, fdy) || 1e-6;
-    const freach = R + D.botR * 0.72;
-    if(fd >= freach) continue;
-    const fnx = fdx / fd, fny = fdy / fd;
-    ow.px = fp.x + fnx * freach;
-    ow.py = fp.y + fny * freach;
-    const fvN = Math.abs(Math.cos(ow.yaw) * fnx + Math.sin(ow.yaw) * fny) * Math.abs(ow.vel);
-    hitNormal = hitNormal || 3;
-    if(fvN >= D.clipThresh){
-      owTip(scene, -(Math.sign(Math.cos(ow.yaw) * fnx + Math.sin(ow.yaw) * fny) || 1));
-      break;                       // tipped; the rest of the list is moot this frame
-    }
-    scene.tilt += (dYaw >= 0 ? 1 : -1) * D.clipTilt * fvN * D.grindTilt;
-    ow.vel *= D.clipLoss;
+    if(owContact(scene, ow, D, dYaw, fp, fp.kind, fp.x, fp.y)) hitNormal = hitNormal || 3;
+    if(scene.state === 'tipped') break;
   }
 
   ow.inContact = hitNormal !== 0;
