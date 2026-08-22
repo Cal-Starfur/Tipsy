@@ -5844,7 +5844,16 @@ function nearestChargeStation(grid, x, y){
    about which kinds are flat paint. */
 const GROUND_KINDS_CF = { crack:1, sidewalkend:1, sidewalkbegin:1, sidewalkbeginTurn:1, slab:1, grade:1, burnoutMark:1 };
 const CITY_FURN = {
-  on: false,          // Stage 1 is generation + audit only; nothing draws yet
+  /* ON BY DEFAULT (2026-08-21, Sir's call: "I don't want to type a
+     query"). It was off while stages 1-2 were only inspectable through
+     ?cf=1, on the grounds that the daily route still rolls its OWN
+     ambient props and both sets at once double-furnishes the route's
+     own corridor. That is still true and it is still the reason stage 4
+     exists -- but it costs ~1.25x density over 25k units of one street
+     while the other 6,002,000 units of frontage are simply correct,
+     which is the wrong way round to leave the default. ?cf=0 turns it
+     off for a bisect or an oracle run. */
+  on: true,
   sparse: 4,          // clutter: a quarter of the route's density
   infra: 4,           // lamps and hydrants -- separate dial, see the note in
                       // cityFurnitureForEdge: quartering INFRASTRUCTURE is a
