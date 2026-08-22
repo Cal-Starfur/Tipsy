@@ -2465,6 +2465,36 @@ function mulberry32(a){ return function(){ a |= 0; a = (a + 0x6D2B79F5) | 0; let
    through fillet arcs at corners. Corners are a tilt source. */
 const DIRV = [{x:1,y:0},{x:0,y:1},{x:-1,y:0},{x:0,y:-1}];
 
+/* ====================== WORLD SCATTER: SWEPT ==========================
+   The city used to drop ~24,800 props at random and call it furnished:
+   16,752 on the grass verges (queueStreetFurniture) and 8,086 inside the
+   parks (queueParkBlock). Against 231 hazards on the daily route.
+
+   WHY IT IS OFF. Random is the problem, not the count. Route props obey
+   real rules -- on the sidewalk, in a lane row, spaced along the street,
+   clear of the corners, clear of each other -- and read as street
+   furniture. The scatter obeyed a gap probability and a menu of weights,
+   sat on the grass BEHIND the walking band, and read as landscaping. On
+   a rail you only ever saw the route's strip, so the difference did not
+   surface. Driving the whole city, it is most of what you look at.
+
+   Swept globally rather than in free play only, and before placing
+   anything new, so the replacement is judged against an empty street
+   rather than against a street that already has junk on it.
+
+   FLIP TO true TO GET IT BACK. The generators are left intact and
+   correct; nothing below them is deleted. What replaces them is a
+   placement pass keyed on grid.sidewalkRuns (343,408 real sidewalk
+   tiles, already bucketed for on-screen lookup) using the route's own
+   rules -- see the design notes. Until that lands the verges and parks
+   are bare, which is the intended interim state and not a bug.
+
+   Park GRASS is unaffected: it is painted by fillBlockGround, not here.
+   Building frontage, fences, signals, traffic and the route's own
+   hazards are all untouched -- none of them were ever scatter. */
+const WORLD_SCATTER = false;
+
+
 /* HEADING EXCEPTIONS — the only place a genuine per-f special case is
    allowed to live. Everything that draws a shape (props, people, the
    robot, the car) goes through one shared rotation and must never
@@ -12349,6 +12379,10 @@ class WorldScene extends Phaser.Scene {
   }
 
   queueParkBlock(vq, blk){
+    /* the entire method is scatter -- clusters of palms, then benches,
+       then the verge pass. Park GRASS is fillBlockGround's job and is
+       unaffected, so an empty park is still a park. */
+    if(!WORLD_SCATTER) return;                 // see WORLD SCATTER: SWEPT
     const rng = mulberry32(((Math.round((blk.x0+blk.x1)/2)*7919) ^ (Math.round((blk.y0+blk.y1)/2)*104729) ^ 0x50a2) >>> 0);
     /* clusters, not isolated single trees — real palms/dwarf palms
        (both already exist as approved props, height ratio ~3x) mixed
@@ -12527,6 +12561,7 @@ class WorldScene extends Phaser.Scene {
     return (x + y > this.botX + this.botY + 14) ? this.gFront : g;
   }
   queueStreetFurniture(vq, blk, excludeEdges = null){
+    if(!WORLD_SCATTER) return;                 // see WORLD SCATTER: SWEPT
     const cells = this.route && this.route.routeCells;
     const rng = mulberry32(((Math.round(blk.x0)*2654435761) ^ (Math.round(blk.y0)*40503) ^ 0x9e37) >>> 0);
     /* per-type character: what a block's frontage is actually made of */
