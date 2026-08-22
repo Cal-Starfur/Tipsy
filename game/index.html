@@ -6668,13 +6668,41 @@ function cityFurnitureForEdge(grid, blk, fi){
   const out = [];
   if(e.len < CITY_FURN.cornerClear*2 + T2) return out;
 
-  const f = DIRV.findIndex(d => d.x === e.dv.x && d.y === e.dv.y);
+  /* ---------- THE PROP'S OWN AXIS, NOT THE FRONTAGE'S ----------
+     f is not "which way does this frontage run". It is the quadrant
+     drawProp and hazSpotWorld build the prop's LOCAL frame from:
+     dv = DIRV[f] is its along-axis and rv = DIRV[(f+1)%4] its across-
+     axis. Measured against the rail's own lamps, the invariant that
+     matters is:
+
+         DIRV[(f+1)%4] points TOWARD THE ROAD.
+
+     (Confirmed by classifying 120 and 300 units along it from every
+     route lamp: +b is road from a row-0 lamp and the block is at -b
+     from a row-3 one, on every sample.) That is what makes armSign -1
+     on the kerb row and +1 on the building row both reach INWARD over
+     the pavement, and it is what every other b-axis offset in the game
+     is written against.
+
+     Taking f from e.dv gave DIRV[(f+1)%4] === -e.rv on all four
+     frontages -- the across-axis pointed into the block on every
+     street in the city. Reported on-device: lamp arms hanging out over
+     the road on the kerb row and buried in the houses on the building
+     row, which is exactly one flipped axis seen from its two sides.
+
+     So f is derived from the OUTWARD NORMAL instead: the q whose
+     DIRV[(q+1)%4] is e.rv. That makes the prop's along-axis run
+     opposite the frontage's own dv, which is why `s` below is stored
+     mirrored -- a walker's +a must still walk along the pavement, not
+     off the end of the block. */
+  const f = (DIRV.findIndex(d => d.x === e.rv.x && d.y === e.rv.y) + 3) % 4;
+  const fdv = DIRV[f];
   /* the CONTINUOUS heading the rail stamp would have written here.
      Travel direction on the rail is (-sin a, cos a) -- stampWorldCoords'
-     own two lines -- so this inverts it for a frontage that runs along
-     dv. On a straight frontage wA and f agree exactly, which is the
-     whole point: a city block has no arcs for them to diverge on. */
-  const wA = Math.atan2(-e.dv.x, e.dv.y);
+     own two lines -- so this inverts it for the prop's own along-axis.
+     On a straight frontage wA and f agree exactly, which is the whole
+     point: a city block has no arcs for them to diverge on. */
+  const wA = Math.atan2(-fdv.x, fdv.y);
   const hood = hoodAt(blk.i, blk.j);
   /* the route's own two knobs, read per-district instead of blended */
   const density = 0.45 + hood.litter*0.35 + (1 - hood.pave)*0.3;
@@ -6695,16 +6723,21 @@ function cityFurnitureForEdge(grid, blk, fi){
   };
   const inClear = a => a < CITY_FURN.cornerClear || a > e.len - CITY_FURN.cornerClear;
   const blocked = (a, lane) => {
+    const sm = e.len - a;   // compare in the same mirrored frame place() stores
     for(const o of out)
-      if(Math.abs(o.s - a) < CITY_FURN.gap && Math.abs(o.row - lane) <= 1) return true;
+      if(Math.abs(o.s - sm) < CITY_FURN.gap && Math.abs(o.row - lane) <= 1) return true;
     return false;
   };
   /* the real classifier, the same one the world is BUILT from -- a
      frontage runs the block's full side and its ends overhang the
      intersection, where there is no walk to stand on. */
   const onWalk = p => grid.classify(p.x, p.y) === "sidewalk";
+  /* `a` is measured along the frontage's own dv; the prop's along-axis
+     is the opposite (see f above), so the stored s is mirrored into the
+     prop's frame. walkS0/walkS1 need no mirror of their own -- the
+     range is symmetric about the frontage's midpoint. */
   const place = (type, a, lane, p, extra) => {
-    const ob = { type, s: a, row: lane, f, wA, wx: p.x, wy: p.y, hit: false, cf: 1 };
+    const ob = { type, s: e.len - a, row: lane, f, wA, wx: p.x, wy: p.y, hit: false, cf: 1 };
     if(extra) Object.assign(ob, extra);
     out.push(ob);
     return ob;
