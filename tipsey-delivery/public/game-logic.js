@@ -4079,6 +4079,115 @@ function owContact(scene, ow, D, dYaw, key, type, hx, hy){
   return true;
 }
 
+/* ---------- THE PIER IS SOLID: RAILS AND THE ROUNDHOUSE ----------
+   Everything out on the water drew but stopped nothing. Measured before
+   this: driving off the side of the deck ended 2,000 units out over open
+   water still in "play", and driving at the aquarium ended 274 units
+   from the ring centre -- straight through the middle of a building with
+   an outer radius of 1,126.
+
+   Neither could have worked. The pylons, rails, lamps, benches and the
+   roundhouse are queued into blockVQ straight out of drawWorld; they are
+   not hazards and not blocks, and solidAt only tests grid.blocks
+   filtered to housing/commercial. The city-furniture table cannot reach
+   them either -- it is generated per block frontage and there are no
+   blocks on a pier.
+
+   SHAPES, NOT DISCS. A railing is not a row of posts to the sim, it is
+   the edge of the walkable region, and the region is already described
+   exactly: buildShore's straight pier run (half-width PIER_W/2 about
+   pierY) unioned with the aquarium's round deck (rOuter about the ring
+   centre). Confining the robot to that union IS the rail, at both deck
+   edges and around the whole rim, with no per-post bookkeeping and
+   nothing to keep in step with the art. The roundhouse is the same move
+   one level in: inRegularPoly already answers "is this point inside the
+   octagon" for classifyShore, so the building only needs the push-out
+   that answer implies.
+
+   WHY IT IS GATED ON x <= pierX1. East of the pier mouth is the
+   boardwalk, which joins the city street grid; a blanket "must stay on a
+   shore surface" rule would trap the robot at that junction, where
+   classifyShore correctly returns null because he is on tarmac. The
+   confinement is the PIER's, so it starts at the pier's own mouth. */
+function owShoreCollide(scene, ow, D, dYaw){
+  const sh = scene.route && scene.route.grid && scene.route.grid.shore;
+  if(!sh || !sh.ring) return false;
+  const inset = D.botR * 0.72;
+  const ring = sh.ring;
+  let hit = false;
+
+  /* respond exactly as a hazard disc does, so a rail and a lamp post
+     answer to one number: scrub the normal component, and tip above
+     clipThresh. nx/ny point the way the robot was pushed. */
+  const respond = (nx, ny) => {
+    const vN = Math.abs(Math.cos(ow.yaw)*nx + Math.sin(ow.yaw)*ny) * Math.abs(ow.vel);
+    if(vN >= D.clipThresh){
+      owTip(scene, -(Math.sign(Math.cos(ow.yaw)*nx + Math.sin(ow.yaw)*ny) || 1));
+    } else {
+      scene.tilt += (dYaw >= 0 ? 1 : -1) * D.clipTilt * vN * D.grindTilt;
+      ow.vel *= D.clipLoss;
+    }
+    hit = true;
+  };
+
+  /* ---- 1. the roundhouse: a solid octagon ----
+     A regular polygon is the intersection of n half-planes. Inside, the
+     CHEAPEST way out is across the face the robot is least deep behind,
+     which is the face with the largest dot -- so the same loop that
+     tests containment also names the exit. Exact, and it degenerates
+     with AQ_SIDES the way inRegularPoly does, so the two stay agreed. */
+  {
+    const dx = ow.px - ring.cx, dy = ow.py - ring.cy;
+    const Rw = ring.rInner + inset;
+    if(dx*dx + dy*dy < Rw*Rw){
+      const n = ring.sides, ap = Rw * Math.cos(Math.PI / n);
+      let bestDot = -Infinity, bx = 0, by = 0, inside = true;
+      for(let i = 0; i < n; i++){
+        const a = ((i + 0.5) / n) * Math.PI*2 + (ring.rot || 0) + Math.PI/n;
+        const cx2 = Math.cos(a), sy2 = Math.sin(a);
+        const dot = dx*cx2 + dy*sy2;
+        if(dot > ap){ inside = false; break; }
+        if(dot > bestDot){ bestDot = dot; bx = cx2; by = sy2; }
+      }
+      if(inside){
+        const push = ap - bestDot;
+        ow.px += bx * push; ow.py += by * push;
+        respond(bx, by);
+      }
+    }
+  }
+
+  /* ---- 2. the deck rails: stay inside run-union-disc ---- */
+  if(ow.px <= sh.pierX1){
+    const half = sh.PIER_W/2 - inset;
+    const R = ring.rOuter - inset;
+    const dx = ow.px - ring.cx, dy = ow.py - ring.cy;
+    const dd = Math.hypot(dx, dy) || 1e-6;
+    const onDisc = dd <= R;
+    const onRun  = Math.abs(ow.py - sh.pierY) <= half && ow.px >= ring.cx;
+    if(!onDisc && !onRun){
+      /* Outside both. Two ways back on -- across the nearest rail of the
+         straight run, or in through the rim -- and the honest answer is
+         whichever is nearer, so the corner where the run meets the disc
+         resolves without a special case. */
+      const sgn = ow.py >= sh.pierY ? 1 : -1;
+      const runY = sh.pierY + sgn*half;
+      const runCost = (ow.px >= ring.cx && ow.px <= sh.pierX1)
+                      ? Math.abs(ow.py - runY) : Infinity;
+      const rimCost = Math.abs(dd - R);
+      if(runCost <= rimCost){
+        ow.py = runY;
+        respond(0, -sgn);
+      } else {
+        ow.px = ring.cx + dx/dd * R;
+        ow.py = ring.cy + dy/dd * R;
+        respond(-dx/dd, -dy/dd);
+      }
+    }
+  }
+  return hit;
+}
+
 /* ---------- STEP 3 ROLLOUT GATE ----------
    Which hazard types run the game's REAL interaction loop in world space
    rather than OW's stand-in contact pass. Deliberately a set and not a
@@ -4304,6 +4413,10 @@ function owStep(scene, dt){
       if(scene.state === 'tipped') break;   // tipped; the rest is moot this frame
     }
   }
+
+  /* the pier: rails and the roundhouse. Cheap enough to run unguarded --
+     two distance tests reject a downtown frame before anything else. */
+  if(owShoreCollide(scene, ow, D, dYaw)) hitNormal = hitNormal || 3;
 
   /* the swept world scatter's capture list. WORLD_SCATTER is false, so
      this is empty in every real session -- kept because flipping that
