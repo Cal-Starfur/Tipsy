@@ -20426,8 +20426,20 @@ class WorldScene extends Phaser.Scene {
        and native-DPR rendering keeps it as crisp as the overlay
        headlines it's styled after. Visible only while driving. */
     const gpsEl = document.getElementById("gpsHud");
-    gpsEl.textContent = `${timerText} · ${distText} · ${turnText}`;
-    gpsEl.classList.toggle("hidden", this.state !== "play");
+    /* NOT IN FREE ROAM. Every part of this strip is a delivery fact --
+       the run clock, the distance to the door, the next turn on the
+       route -- and in free play all three are frozen at whatever the
+       rail last said, because botS does not advance. So the city was
+       being driven under a permanent "4:37 · 2.4 mi · Turn Left in 2370
+       ft", which reads as a delivery in progress. Reported on-device as
+       the game still defaulting to a delivery; it was not, it just
+       looked exactly like one.
+
+       The tilt arc and cargo bar above stay: those report on the ROBOT,
+       which is being driven either way. */
+    const _freeRoam = this.mode === "freeroam";
+    if(!_freeRoam) gpsEl.textContent = `${timerText} · ${distText} · ${turnText}`;
+    gpsEl.classList.toggle("hidden", _freeRoam || this.state !== "play");
   }
 }
 
