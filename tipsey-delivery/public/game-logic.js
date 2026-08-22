@@ -4157,7 +4157,37 @@ function owShoreCollide(scene, ow, D, dYaw){
     }
   }
 
-  /* ---- 2. the deck rails: stay inside run-union-disc ---- */
+  /* ---- 2. lamps and benches on the deck ----
+     Read from pierFurnitureOf, the same table the draw pass iterates, so
+     what stops the robot is what he can see. Lamps are ordinary discs and
+     go through owContact unchanged.
+
+     A BENCH IS A CAPSULE, NOT A DISC. It is 300 long against 118 deep
+     before its 0.62 scale, so one circle either leaves half of it
+     drive-through or inflates into the walking gap behind it. owContact
+     takes a POINT, though -- so handing it the closest point on the
+     bench's own axis segment turns the same disc resolution into a
+     capsule for free, with no second code path. The axis runs along the
+     pier, because a bench faces the rail it is inset from. */
+  {
+    const F = pierFurnitureOf(sh);
+    if(F && Math.abs(ow.px - (sh.pierX0 + sh.pierX1)/2) < (sh.pierX1 - sh.pierX0)/2 + BLOCK
+         && Math.abs(ow.py - sh.pierY) < sh.PIER_W){
+      for(const L of F.lamps){
+        if(Math.abs(ow.px - L.x) + Math.abs(ow.py - L.y) > 400) continue;
+        if(owContact(scene, ow, D, dYaw, L, 'lamp', L.x, L.y)) hit = true;
+      }
+      const halfLen = RH_D.benchLen * RH_D.benchScale * 0.5;
+      for(const Bh of F.benches){
+        if(Math.abs(ow.px - Bh.x) + Math.abs(ow.py - Bh.y) > 400) continue;
+        const ax = Math.max(Bh.x - halfLen, Math.min(Bh.x + halfLen, ow.px));
+        if(owContact(scene, ow, D, dYaw, Bh, 'bench', ax, Bh.y)) hit = true;
+      }
+      if(scene.state === 'tipped') return hit;
+    }
+  }
+
+  /* ---- 3. the deck rails: stay inside run-union-disc ---- */
   if(ow.px <= sh.pierX1){
     const half = sh.PIER_W/2 - inset;
     const R = ring.rOuter - inset;
@@ -11200,9 +11230,8 @@ class WorldScene extends Phaser.Scene {
              pierY +/- half, not on the centreline, so at that y the disc's
              edge is at cx + sqrt(R^2 - half^2). Solved, not nudged, so it
              stays right if PIER_W or the deck radius move. */
-          const R = _rgP.rOuter * 0.97;
-          const meetX = R > 0 ? A.cx + Math.sqrt(Math.max(0, R*R - A.pierHalf*A.pierHalf))
-                              : A.pierX0;
+          const _pf = pierFurnitureOf(_sh);
+          const R = _pf.R, meetX = _pf.meetX;
           /* CHUNKED, AND IT HAS TO BE. A vq entry carries ONE depth, so a
              single call spanning the whole run sorts the entire rail at
              whatever x is handed in -- the first version used pierX1, the
@@ -11227,42 +11256,22 @@ class WorldScene extends Phaser.Scene {
           }
           if(R > 0) Q(A.cx + A.cy + 1, (g) => deckRailArc(this, g, Wr, A, {}));
 
-          /* ONE RUN, ONE STATION LIST. Benches are derived FROM the lamp
-             stations -- a bench sits at the MIDPOINT of a lamp gap, so it
-             is centred between its two lamps by construction rather than
-             by two independent grids whose roundings drift apart. */
-          const px0 = A.pierX0 + _rgP.rOuter, px1 = A.pierX1;
-          const nLamp = Math.max(1, Math.floor((px1 - px0) / RH_D.lampSpacing));
-          const lampAt = (k) => px0 + (px1 - px0) * (k / nLamp);
-
-          for(let k = 0; k <= nLamp; k++){
-            const x = lampAt(k);
-            for(const s of [-1, 1]){
-              const y = A.pierY + s*(A.pierHalf - 40);
-              Q(x + y, (g, t2) => drawPierLamp(this, g, frameAt(x, y), t2, {}));
-            }
+          /* STATIONS COME FROM pierFurnitureOf, not from a second copy of
+             the arithmetic. The sim reads that same table to make these
+             solid, and a bench the robot stops against half a metre from
+             where it is painted is exactly the failure that splitting the
+             derivation would produce. */
+          for(const L of _pf.lamps){
+            const x = L.x, y = L.y;
+            Q(x + y, (g, t2) => drawPierLamp(this, g, frameAt(x, y), t2, {}));
           }
-          const every = Math.max(1, Math.round(RH_D.benchEvery));
-          for(let k = 0; k + 1 <= nLamp; k += every){
-            const x = (lampAt(k) + lampAt(k+1)) / 2;
-            for(const s of [-1, 1]){
-              /* inset from the rail by the bench's own depth plus a walking
-                 gap, and facing THAT rail -- s is both the side and the
-                 seat's direction, which is what stops both rows facing the
-                 same way */
-              const y = A.pierY + s*(A.pierHalf - RH_D.benchDepth*RH_D.benchScale*0.9);
-              Q(x + y, (g) => drawPierBench(this, g, Wr, x, y, 0, { facing:s }));
-            }
+          for(const Bh of _pf.benches){
+            const x = Bh.x, y = Bh.y, fc = Bh.facing;
+            Q(x + y, (g) => drawPierBench(this, g, Wr, x, y, 0, { facing:fc }));
           }
-          /* perched on the rail cap, which is where they actually sit,
-             seeded-thinned so the rail is not a picket line of birds */
-          const step = RH_D.railPost * RH_D.gullEvery;
-          for(let x = px0 + step*0.5; x < px1; x += step){
-            for(const s of [-1, 1]){
-              const y = A.pierY + s*A.pierHalf;
-              if(mulberry32(((Math.round(x)*7919) ^ (Math.round(y)*104729)) >>> 0)() < 0.45) continue;
-              Q(x + y + 2, (g, t2) => drawSeagull(this, g, Wr, x, y, RH_D.railH + 10, t2, {}));
-            }
+          for(const G of _pf.gulls){
+            const x = G.x, y = G.y;
+            Q(x + y + 2, (g, t2) => drawSeagull(this, g, Wr, x, y, RH_D.railH + 10, t2, {}));
           }
         }
       }
@@ -25161,7 +25170,70 @@ function faceShade(pts, i, W, base, dk, sh) {
      the file is lit from */
   const d = (nx / L) * -0.55 + (ny / L) * -0.84;
   return d > 0.35 ? base : (d > -0.25 ? dk : sh);
-}function drawRoundhouse(scn, g, W, t, o) {
+}/* ---------- PIER FURNITURE: ONE TABLE, TWO CONSUMERS ----------
+   The lamp and bench stations used to exist only as loop variables
+   inside drawWorld's pier block, which meant the sim had no way to ask
+   where they were -- reported as benches and lamps you drive straight
+   through. Lifted out whole, so the draw and the contact pass read the
+   same list rather than two derivations of it.
+
+   Pure in the shore record and the RH_D dials, and nothing here consumes
+   a shared rng stream, so it is safe to call from anywhere and cached on
+   the shore for free. That is the difference from the swept city scatter,
+   which had to capture from the draw because its rng depended on the
+   daily route.
+
+   ONE RUN, ONE STATION LIST, kept from the original: benches are derived
+   FROM the lamp stations -- a bench sits at the MIDPOINT of a lamp gap,
+   so it is centred between its two lamps by construction rather than by
+   two independent grids whose roundings drift apart. */
+function pierFurnitureOf(sh){
+  if(!sh || !sh.ring) return null;
+  if(sh._furn) return sh._furn;
+  const ring = sh.ring;
+  const pierHalf = sh.PIER_W/2;
+  /* WHERE THE STRAIGHT RUN MEETS THE DISC: the rail sits at pierY +/-
+     half, not on the centreline, so at that y the disc's edge is at
+     cx + sqrt(R^2 - half^2). Solved, not nudged, so it stays right if
+     PIER_W or the deck radius move. */
+  const R = ring.rOuter * 0.97;
+  const meetX = R > 0 ? ring.cx + Math.sqrt(Math.max(0, R*R - pierHalf*pierHalf))
+                      : sh.pierX0;
+  const px0 = sh.pierX0 + ring.rOuter, px1 = sh.pierX1;
+  const nLamp = Math.max(1, Math.floor((px1 - px0) / RH_D.lampSpacing));
+  const lampAt = k => px0 + (px1 - px0) * (k / nLamp);
+
+  const lamps = [], benches = [], gulls = [];
+  for(let k = 0; k <= nLamp; k++){
+    const x = lampAt(k);
+    for(const s of [-1, 1]) lamps.push({ x, y: sh.pierY + s*(pierHalf - 40), s });
+  }
+  const every = Math.max(1, Math.round(RH_D.benchEvery));
+  for(let k = 0; k + 1 <= nLamp; k += every){
+    const x = (lampAt(k) + lampAt(k+1)) / 2;
+    for(const s of [-1, 1]){
+      /* inset from the rail by the bench's own depth plus a walking gap,
+         and facing THAT rail -- s is both the side and the seat's
+         direction, which is what stops both rows facing the same way */
+      benches.push({ x, y: sh.pierY + s*(pierHalf - RH_D.benchDepth*RH_D.benchScale*0.9),
+                     facing: s });
+    }
+  }
+  /* perched on the rail cap, which is where they actually sit,
+     seeded-thinned so the rail is not a picket line of birds */
+  const step = RH_D.railPost * RH_D.gullEvery;
+  for(let x = px0 + step*0.5; x < px1; x += step){
+    for(const s of [-1, 1]){
+      const y = sh.pierY + s*pierHalf;
+      if(mulberry32(((Math.round(x)*7919) ^ (Math.round(y)*104729)) >>> 0)() < 0.45) continue;
+      gulls.push({ x, y });
+    }
+  }
+  sh._furn = { lamps, benches, gulls, meetX, px0, px1, nLamp, R };
+  return sh._furn;
+}
+
+function drawRoundhouse(scn, g, W, t, o) {
   const d = Object.assign({}, RH_D, o || {});
   const wall = octPts(d.rWall, 0);
   const eave = octPts(d.rWall + d.eave, 0);
