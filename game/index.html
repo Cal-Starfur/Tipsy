@@ -4219,6 +4219,38 @@ const CELL = TILE;           // sidewalk classification/render resolution
    camZ climbs during a hydrant jump. Both push the reach further than
    width alone ever suggested -- on a portrait phone the binding
    constraint is HEIGHT, by roughly 3x. */
+/* ================= PROP SCREEN EXTENTS =================
+   How far each prop kind's own art reaches from its anchor's projected
+   point, in world units at K=1: [left, right, up, down]. MEASURED from
+   the art rather than guessed -- every graphics op each branch of
+   drawProp emits was captured over 640 samples per kind (4 headings x 4
+   animation times x 40 positions, so position-seeded variation -- the
+   1-in-8 dramatically tall palm, the fleeing dog -- is included), on a
+   NIGHT route with gGlow/gGlowLo captured as well, because a lit lamp's
+   pool reaches 56 units below its base against the post's 7. Values are
+   then padded by PROP_EXT_PAD and PROP_EXT_MIN; anything not listed
+   falls back to a default that clears the widest entry in the table.
+
+   This is what makes the per-prop cull provably invisible rather than
+   visually acceptable: a prop whose own AABB misses the viewport cannot
+   have contributed a pixel, at any heading or zoom. Regenerate with
+   labs/prop-extents if prop art changes. */
+const PROP_EXT_PAD = 1.25, PROP_EXT_MIN = 24;
+const PROP_EXT = {
+  bin:[19,19,45,7], burrito:[40,40,40,40], can:[40,40,40,40],
+  car:[158,158,153,59], cone:[18,18,43,9], crack:[88,88,45,49],
+  dog:[73,73,54,32], grade:[72,72,36,36], hydrant:[15,15,26,6],
+  hydrantBurst:[107,107,54,53], lamp:[113,113,347,56],
+  palm:[148,139,355,8], palmDwarf:[83,85,135,8], paper:[40,40,40,40],
+  people:[83,83,166,37], pigeons:[98,98,60,49], planter:[36,36,67,11],
+  policecar:[158,158,153,59], robot:[50,50,129,22], scooter:[36,36,62,17],
+  sidewalkbegin:[230,230,117,113], sidewalkbeginTurn:[414,414,209,205],
+  sidewalkend:[230,230,117,113], signalhead:[60,60,400,40],
+  signalpost:[126,126,382,14], slab:[100,100,54,50], trash:[41,41,22,20],
+  truck:[158,158,168,59], william:[79,79,160,31], bench:[82,82,122,39],
+  chargestation:[90,90,190,50], officer:[83,83,166,37],
+  _default:[420,420,420,220]
+};
 const FLAT_CULL_PAD = T2 * 2;   /* a tile's own Manhattan corner is T2
                                    (half-width on each axis); doubled so
                                    the tile at the boundary is drawn
@@ -11708,6 +11740,57 @@ class WorldScene extends Phaser.Scene {
     return { x:(xr - yr)*this.K + this.cx,
              y:((xr + yr)*0.5 - (z - this.camZ))*this.K + this.cy };
   }
+  /* ================= SCREEN-SPACE REJECTS =================
+     cullSpan is a Manhattan RADIUS sized for the worst case a tall body
+     can reach. The screen is a narrow iso diamond, and on a portrait
+     phone at K=1.5 that diamond is ~700 world units across against a
+     cullSpan of ~4,258 -- so the radius test admits roughly 25x the area
+     the frame can possibly show. Measured on a parked free-roam camera:
+     97.6% of every prop drawn was entirely off screen, and every fence
+     and house frontage was.
+
+     These three answer the SCREEN question instead. They are the same
+     argument onScreen() already makes for road paint -- a shape whose
+     own bounding box misses the viewport contains no visible pixels --
+     extended to bodies, which need their height and footprint counted.
+     Nothing here decides what a frame LOOKS like; it decides only what
+     cannot appear in one. */
+
+  /* flat quads: the four projected corners are computed by the caller
+     anyway, so a reject costs four compares and saves a fill + stroke. */
+  ptsOnScreen(pts){
+    const gw = this.scale.gameSize.width, gh = this.scale.gameSize.height;
+    let lo = pts[0].x, hi = lo, top = pts[0].y, bot = top;
+    for(let i = 1; i < pts.length; i++){
+      const p = pts[i];
+      if(p.x < lo) lo = p.x; else if(p.x > hi) hi = p.x;
+      if(p.y < top) top = p.y; else if(p.y > bot) bot = p.y;
+    }
+    return hi >= 0 && lo <= gw && bot >= 0 && top <= gh;
+  }
+
+  /* props: the kind's own MEASURED extent (see PROP_EXT) against the
+     viewport. Per-kind rather than one blanket margin because the
+     spread is 25x -- a hydrant reaches 15 units sideways and a turn
+     ramp 414 -- so any single number is either useless or unsafe. */
+  visProp(kind, wx, wy){
+    const e = PROP_EXT[kind] || PROP_EXT._default;
+    const p = this.W(wx, wy, 0), K = this.K, P = PROP_EXT_PAD, M = PROP_EXT_MIN;
+    const gw = this.scale.gameSize.width, gh = this.scale.gameSize.height;
+    return p.x + (e[1]*P + M)*K >= 0 && p.x - (e[0]*P + M)*K <= gw
+        && p.y + (e[3]*P + M)*K >= 0 && p.y - (e[2]*P + M)*K <= gh;
+  }
+
+  /* unmeasured bodies (building and fence strips): a box of world
+     radius r and height h around the anchor. W() is linear, so a
+     footprint of radius r spans at most 2rK in screen x and rK in
+     screen y, and height adds hK upward -- hence the asymmetry. */
+  visWorldPt(wx, wy, r = 90, h = 380){
+    const p = this.W(wx, wy, 0), K = this.K;
+    const gw = this.scale.gameSize.width, gh = this.scale.gameSize.height;
+    const mx = 2*r*K, mb = r*K, mt = (r + h)*K;
+    return p.x >= -mx && p.x <= gw + mx && p.y >= -mt && p.y <= gh + mb;
+  }
   /* robot-space projection: model -> robot pose -> world */
   P(x, y, z){
     const q = this.T(x, y, z);
@@ -12401,13 +12484,13 @@ class WorldScene extends Phaser.Scene {
        a storefront the moment one stood between the robot and the shop. */
     if(r.crime){
       for(const c of r.crime.cars){
-        if(!near(c.x, c.y)) continue;
+        if(!this.visProp("policecar", c.x, c.y)) continue;
         blockVQ.push({ depth: c.x + c.y, fn:(g,t)=>this.drawProp(
           layerFor(c.x, c.y), "policecar", c.x, c.y, t, c.fdir, 0, null, c.seed,
           { strobe: c.strobe }) });
       }
       for(const o of r.crime.officers){
-        if(!near(o.x, o.y)) continue;
+        if(!this.visProp("officer", o.x, o.y)) continue;
         /* the traffic officer's arm and facing are phase state, so they
            come from the sim rather than from the static layout */
         const arm = (o.role === "traffic" && this.crimeArm) ? this.crimeArm : null;
@@ -12418,7 +12501,8 @@ class WorldScene extends Phaser.Scene {
       }
       if(r.crime.tape) r.crime.tape.forEach((sp, i) => {
         const mx = (sp.a.x + sp.b.x)/2, my = (sp.a.y + sp.b.y)/2;
-        if(!near(mx, my)) return;
+        if(!this.visProp("tape", sp.a.x, sp.a.y) && !this.visProp("tape", sp.b.x, sp.b.y)
+           && !this.visProp("tape", mx, my)) return;
         blockVQ.push({ depth: mx + my, fn:(g,t)=>this.drawTapeSpan(layerFor(mx, my), i, t) });
       });
     }
@@ -12454,7 +12538,7 @@ class WorldScene extends Phaser.Scene {
     const MIN_TRAFFIC_GAP = CARC.len * 0.9;
     const drawnTrafficPts = [];
     for(const p of trafficPts){
-      if(!near(p.wp.x, p.wp.y)) continue;
+      if(!this.visProp(p.kind, p.wp.x, p.wp.y)) continue;
       if(p.parked){
         if(drawnTrafficPts.some(q => Math.hypot(q.x-p.wp.x, q.y-p.wp.y) < MIN_TRAFFIC_GAP)) continue;
         drawnTrafficPts.push(p.wp);
@@ -12474,7 +12558,7 @@ class WorldScene extends Phaser.Scene {
     for(const pr of r.props){
       if(pr.kind === "car" || pr.kind === "truck") continue;
       const wp = worldOf(pr.s, pr.roadOffset);
-      if(!near(wp.x, wp.y)) continue;
+      if(!this.visProp(pr.kind, wp.x, wp.y)) continue;
       const prk = pr.kind, pwx2 = wp.x, pwy2 = wp.y, pwz2 = wp.z, pf2 = pr.f;
       blockVQ.push({ depth: pwx2+pwy2, fn:(g,t)=>this.drawProp(layerFor(pwx2,pwy2), prk, pwx2, pwy2, t, pf2, pwz2) });
     }
@@ -12509,7 +12593,7 @@ class WorldScene extends Phaser.Scene {
       const wp = hz.wx !== undefined
         ? { x: hz.wx, y: hz.wy, z: hz.wz || 0 }
         : worldOf(hz.s + (hz.slide || 0), hazardOffset(hz));
-      if(!near(wp.x, wp.y)) continue;
+      if(!this.visProp(hz.type, wp.x, wp.y)) continue;
       const hzt = hz.type, hwx = wp.x, hwy = wp.y, hwz = wp.z, hf = hz.f, hzObj = hz;
       /* slab is a full T2 tile the robot drives directly across and
          rides elevated on top of (slabZ) -- a single depth-vs-robot
@@ -12566,7 +12650,7 @@ class WorldScene extends Phaser.Scene {
        same pinned layer as the route's ramps, so the two sets sort
        identically and a route ramp beside a world ramp is seamless. */
     for(const cr of (r.curbRamps || [])){
-      if(!near(cr.x, cr.y)) continue;
+      if(!this.visProp("sidewalkend", cr.x, cr.y)) continue;
       const crx = cr.x, cry = cr.y, crf = cr.f;
       groundVQ.push({ depth: crx+cry, fn:(g,t)=>this.drawProp(g, "sidewalkend", crx, cry, t, crf, 0, null, null, WORLD_RAMP) });
     }
@@ -12580,7 +12664,7 @@ class WorldScene extends Phaser.Scene {
     if(cityFurn) for(const cp of cityFurn){
       if(!GROUND_KINDS[cp.type]) continue;
       if(r.cfTaken && r.cfTaken.has(cp.key)) continue;       // the route draws it
-      if(!near(cp.wx, cp.wy)) continue;
+      if(!this.visProp(cp.type, cp.wx, cp.wy)) continue;
       const cgt = cp.type, cgx = cp.wx, cgy = cp.wy, cgf = cp.f, cgo = cp;
       groundVQ.push({ depth: cgx+cgy, fn:(g,t)=>this.drawProp(g, cgt, cgx, cgy, t, cgf, 0, null, null, cgo) });
     }
@@ -12749,14 +12833,14 @@ class WorldScene extends Phaser.Scene {
         htx += kx/kd*kR; hty += ky/kd*kR;
       }
       const hzLayer = (hz.type === "scooter" && hz.phi > 0) ? g : layerFor(htx, hty);
-      if(near(ebx, eby)){
+      if(this.visProp(hz.type, ebx, eby)){
         const dhz = hz, dwx = wp.x, dwy = wp.y, dwz = wp.z, dhf = hz.f, dht = hz.type;
         hazVQ.push({ depth: ebx+eby, fn:(gg,tt)=>this.drawProp(hzLayer, dht, dwx, dwy, tt, dhf, dwz, null, null, dhz) });
       }
       if(hz.clusterExtras){
         for(const ex of hz.clusterExtras){
           const exWp = worldOf(hz.s + (hz.slide || 0) + ex.ds, hazardOffset(hz) + ex.dOff);
-          if(!near(exWp.x, exWp.y)) continue;
+          if(!this.visProp(ex.kind, exWp.x, exWp.y)) continue;
           const exk = ex.kind, exx = exWp.x, exy = exWp.y, exz = exWp.z, exf = hz.f;
           hazVQ.push({ depth: exx+exy, fn:(gg,tt)=>this.drawProp(layerFor(exx, exy), exk, exx, exy, tt, exf, exz) });
         }
@@ -12771,7 +12855,7 @@ class WorldScene extends Phaser.Scene {
        sorts on the spot it actually hangs over rather than on the pole's,
        a car's width back on the pavement. */
     for(const sg of (r.signals || [])){
-      if(!near(sg.x, sg.y)) continue;
+      if(!this.visProp("signalpost", sg.x, sg.y)) continue;
       const sx = sg.x, sy = sg.y, sPost = sg.armF;
       const ad = DIRV[sg.armF];
       /* pulled back along the arm by most of the housing's own half-width,
@@ -12811,7 +12895,7 @@ class WorldScene extends Phaser.Scene {
        slot the game already built for exactly this shape of object. */
     if(r.grid){
       for(const st of getChargeStations(r.grid)){
-        if(!near(st.x, st.y)) continue;
+        if(!this.visProp("chargestation", st.x, st.y)) continue;
         const _cst = st;
         hazVQ.push({ depth: _cst.x + _cst.y,
                      fn:(gg,tt)=>this.drawChargeStation(layerFor(_cst.x, _cst.y), _cst, tt) });
@@ -13033,6 +13117,10 @@ class WorldScene extends Phaser.Scene {
       for(let x = blk.x0 + half; x < blk.x1; x += T2){
         const parity = (Math.round((x-blk.x0)/T2) + Math.round((y-blk.y0)/T2)) % 2;
         const pts = [this.W(x-half,y-half,0), this.W(x+half,y-half,0), this.W(x+half,y+half,0), this.W(x-half,y+half,0)];
+        /* the single largest command source in the frame: whole
+           blocks were painted tile by tile with no screen test at all,
+           ~63,000 graphics commands a frame from five calls. */
+        if(!this.ptsOnScreen(pts)) continue;
         this.quadOn(g, pts, parity===0 ? tone.a : tone.b);
         if(tone.edge){ g.lineStyle(1, tone.edge, 0.5); g.strokePoints(pts.map(p=>new Phaser.Geom.Point(p.x,p.y)), true, true); }
       }
@@ -13861,6 +13949,11 @@ class WorldScene extends Phaser.Scene {
     for(let i = 0; i < n; i++){
       const a0 = w*i/n, a1 = i === n-1 ? w : w*(i+1)/n, am = (a0+a1)/2;
       const cx = ux + dv.x*am + rv.x*(-D/2), cy = uy + dv.y*am + rv.y*(-D/2);
+      /* one gate for every building and fence strip in the city --
+         this is the funnel they all pass through. r covers the strip's
+         own footprint (slice width plus unit depth), h clears the
+         tallest frontage. */
+      if(!this.visWorldPt(cx, cy, sliceW + D, 420)) continue;
       vq.push({ depth: cx+cy, fn: (g,t) => drawFn(g, t, a0, a1) });
     }
   }
@@ -14404,6 +14497,14 @@ class WorldScene extends Phaser.Scene {
           ltx += kx/kd*kR; lty += ky/kd*kR;
         }
         const cx = cp.wx, cy = cp.wy, cf = cp.f, cobj = cp;
+        /* PER-PROP SCREEN GATE. The block is on screen or we would not
+           be in this method, but a block is far larger than the visible
+           diamond, so most of its frontage furniture is off screen even
+           when the block is not -- this alone was 168 drawProp calls a
+           frame where 5 were visible. Both points are tested because a
+           moving kind is drawn from its anchor while its body walks:
+           either being visible keeps it. */
+        if(!this.visProp(ct, cx, cy) && !this.visProp(ct, ebx, eby)) continue;
         vq.push({ depth: ebx+eby,
                   fn:(g,tt)=>this.drawProp(this.propLayer(g, ltx, lty), ct, cx, cy, tt, cf, 0, null, null, cobj) });
       }
