@@ -7792,6 +7792,143 @@ function graftShore(walk, grid){
                              : visited.slice(0, vCut+1).concat([cur]) };
 }
 
+/* ==================== CITY TRAFFIC ====================
+   Traffic used to be built per ROUTE: buildTraffic seeded 12-18 short
+   loops from nodes on the player's own delivery walk, so the cars lived
+   in a corridor. That was right when the route WAS the world. On the
+   36x27 permanent grid it means the 12 districts the route does not
+   touch have no cars at all, and free roam spends most of its time in
+   them -- measured: spawning into free roam, the nearest traffic loop
+   was 7,537 units away, ten screens.
+
+   So traffic belongs to the CITY, exactly like PICKUP_SHOPS and the
+   charging stations: seeded once off CITY_SEED, identical in every
+   session, every route, every day. The route no longer owns cars; it
+   drives through a city that already has them.
+
+   WHY THIS CAN AFFORD TO BE BIG. trafficWorldAt is a pure function of
+   absolute time -- position is sBase + (t - hold)*speed*dir, modulo the
+   loop. There is no per-frame state to advance, so a car nobody has
+   looked at for ten minutes is exactly where it should be the instant
+   you arrive. That is what lets the fleet be citywide while the frame
+   cost stays local: cars outside activeR are simply not evaluated, and
+   resuming one is exact. Nothing spawns, nothing recycles, nothing
+   pops -- the failure mode a streaming design would have handed us.
+
+   DENSITY, and how spacing was chosen. Block pitch is BLOCK (3,128), so
+   the city carries roughly 5.7M units of road. What you can see of the
+   street you are on is width-limited: 430/K, which is 287 units at
+   zoom depth 1 and 1,433 at depth 3. At the old density (45 cars over
+   240,732 units of loop, 1 per 5,350) the expected number of cars in
+   view at depth 3 was 0.27 -- a car about a quarter of the time, which
+   is what read as cars "spawning". At spacing 1000, roughly three car
+   lengths of gap, depth 3 shows 1.4 cars on your street: usually one,
+   sometimes two, sometimes none. Tune HERE and nowhere else.
+
+   Cars are a threat (they share trafficWorldAt as a hitbox), so this
+   number is a difficulty dial as much as a density one. */
+const CITY_TRAFFIC = {
+  loopsPerDistrict: 10,
+  turns:   { min: 6, max: 10 },  // ~38k per loop; short 2-3 loops were the corridor's local-footprint rule
+  spacing: 1000,                 // units of road per vehicle -- THE density dial
+  arcLen:  4000,                 // sim-gate bucket along a loop
+  activeR: 9000,                 // Manhattan reach that gets simulated (depth 3 sees ~3,584)
+  crimeR:  6000,                 // the cordon classifies cars around the pinch, not the camera
+};
+
+/* Coarse along-loop buckets so the sim gate can reject a car without
+   paying for its position. Each bucket owns an arc of the loop and a
+   Manhattan radius that contains it, so the test is centre-distance
+   against radius -- and a car's bucket index falls straight out of the
+   arc length we already compute. */
+function buildLoopArcs(walk){
+  const L = walk.totalLen, n = Math.max(1, Math.ceil(L / CITY_TRAFFIC.arcLen));
+  const arcs = [];
+  for(let k = 0; k < n; k++){
+    const s0 = L*k/n, s1 = L*(k+1)/n;
+    let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+    for(let u = 0; u <= 8; u++){
+      const p = segsPosAt(walk.segs, s0 + (s1-s0)*u/8);
+      if(p.x < x0) x0 = p.x; if(p.x > x1) x1 = p.x;
+      if(p.y < y0) y0 = p.y; if(p.y > y1) y1 = p.y;
+    }
+    const cx = (x0+x1)/2, cy = (y0+y1)/2;
+    arcs.push({ cx, cy, r: (x1-x0)/2 + (y1-y0)/2 + CAR_LANE });
+  }
+  /* whole-loop bound as well, so a distant loop is rejected once
+     instead of once per car it carries. */
+  let lx0 = Infinity, lx1 = -Infinity, ly0 = Infinity, ly1 = -Infinity;
+  for(const a of arcs){
+    if(a.cx - a.r < lx0) lx0 = a.cx - a.r; if(a.cx + a.r > lx1) lx1 = a.cx + a.r;
+    if(a.cy - a.r < ly0) ly0 = a.cy - a.r; if(a.cy + a.r > ly1) ly1 = a.cy + a.r;
+  }
+  walk.bbox = { x0: lx0, x1: lx1, y0: ly0, y1: ly1 };
+  return arcs;
+}
+
+let _cityTrafficCache = null;
+function buildCityTraffic(grid){
+  const rng = mulberry32((hashStr(SL_SEED_DATE) ^ 0x7c1f) >>> 0);
+  const loops = [], cars = [];
+  for(let d = 0; d < DISTRICT_COLS * DISTRICT_ROWS; d++){
+    const dc = d % DISTRICT_COLS, dr = Math.floor(d / DISTRICT_COLS);
+    for(let k = 0; k < CITY_TRAFFIC.loopsPerDistrict; k++){
+      /* seed INSIDE the district so every hood owns loops of its own.
+         The walk is free to wander out from there -- overlapping
+         coverage between neighbours is what keeps district borders from
+         reading as a traffic seam. */
+      /* buildWalk's opening `while(!cur.conn[dir])` spins forever on a
+         node with no connections at all, so the seed is VERIFIED here
+         rather than trusted: try a handful of candidates in the
+         district, and fall back to buildWalk's own random pick if the
+         district somehow offers none. */
+      let seed = null;
+      for(let a = 0; a < 12 && !seed; a++){
+        const si = dc*DISTRICT_W + 1 + Math.floor(rng()*Math.max(1, DISTRICT_W-2));
+        const sj = dr*DISTRICT_H + 1 + Math.floor(rng()*Math.max(1, DISTRICT_H-2));
+        const nd = grid.nodeAt(si, sj);
+        if(nd && nd.conn && nd.conn.some(Boolean)) seed = { i: si, j: sj };
+      }
+      const walk = buildWalk(grid, mulberry32(Math.floor(rng()*4294967296)),
+                             seed, CITY_TRAFFIC.turns);
+      if(!walk.segs.length) continue;
+      walk.arcs = buildLoopArcs(walk);
+      const L = walk.totalLen;
+      const n = Math.max(2, Math.round(L / CITY_TRAFFIC.spacing));
+      const mine = [];
+      for(let c = 0; c < n; c++){
+        /* alternate direction so both lanes are used, and phase evenly
+           by arc length so the spacing the density dial asks for is the
+           spacing you actually get rather than a clumped average. */
+        const dir = (c % 2) ? -1 : 1;
+        const tr = {
+          walk, arcs: walk.arcs,
+          sBase: L*c/n,
+          speed: 0.055 + rng()*0.03,
+          dir, laneOffset: dir > 0 ? CAR_LANE : -CAR_LANE,
+          kind: rng() < 0.6 ? "car" : "truck",
+          colorSeed: Math.floor(rng()*0xffffffff) >>> 0,
+          hold: 0,
+        };
+        mine.push(tr); cars.push(tr);
+      }
+      loops.push({ walk, cars: mine });
+    }
+  }
+  return { loops, cars };
+}
+function getCityTraffic(grid){
+  if(!_cityTrafficCache) _cityTrafficCache = buildCityTraffic(grid);
+  return _cityTrafficCache;
+}
+/* The fleet OUTLIVES a route -- it is one shared set of car objects for
+   the whole session, so anything a route writes onto a car has to be
+   unwritten when the next one loads, or a cordon from Tuesday still
+   stops cars on Wednesday. */
+function resetCityTraffic(fleet, pinch){
+  for(const tr of fleet.cars){ tr.hold = 0; tr.holdFrame = -1; tr.pinch = pinch || null; }
+}
+
 /* ---------- traffic: reuses buildWalk verbatim for each route, two
    cars per route (one each direction, opposite lane) ---------- */
 function buildTraffic(grid, rng, nRoutes, pathNodes){
@@ -9662,8 +9799,27 @@ function _generateRouteFresh(dateStr, opts){
      cullSpan of the camera via near(), so more independent routes just
      means denser coverage across the grid, not a flat per-frame cost
      increase. */
+  /* THE ROUTE NO LONGER OWNS CARS. It reads the city's fleet, the same
+     way it reads charging stations and pickup shops -- so the traffic a
+     route drives through is the traffic free roam drives through, and
+     leaving the corridor no longer leaves the cars behind.
+
+     THE DISCARDED buildTraffic CALL IS LOAD-BEARING. It draws from
+     `rng`, the route's own stream, a variable number of times -- and
+     everything generated after it (the crime scene, hazards, the
+     furnish exclusions) draws from that same stream. Delete the call
+     and every stream position downstream shifts, which silently
+     regenerates every daily route: different hazards, different
+     layout, and Past Routes replays that no longer match the run they
+     are scoring against. The hazard oracle caught exactly that. So the
+     call stays purely to consume its share of the stream, and its
+     result is thrown away. Drop this line the day changing daily route
+     generation is acceptable -- and expect every stored route to move
+     when you do. */
   const nTrafficRoutes = totalLen > 50000 ? 18 : totalLen > 30000 ? 15 : 12;
-  const traffic = buildTraffic(grid, rng, nTrafficRoutes, walk.nodes);
+  buildTraffic(grid, rng, nTrafficRoutes, walk.nodes);
+  const trafficFleet = getCityTraffic(grid);
+  const traffic = trafficFleet.cars;
 
   /* ---------- GPS reroute loop (miss-the-door fallback, built at spawn) ----------
      Sailing past the door no longer dead-ends into the clamp+tip: the
@@ -10108,7 +10264,7 @@ function _generateRouteFresh(dateStr, opts){
                     [addressBlock, pickupBlock]) : null;
   /* every car reads the same pinch — trafficWorldAt is pure, so the
      scene data has to reach it through the car it is called with */
-  if(crime) for(const tr of traffic) tr.pinch = crime.pinch;
+  resetCityTraffic(trafficFleet, crime ? crime.pinch : null);
 
   /* ---------- routeCells: where the town must NOT be furnished ----------
      Street furniture is DECORATION -- it is drawn per visible block and
@@ -10185,7 +10341,7 @@ function _generateRouteFresh(dateStr, opts){
     for(const hz of got.hazards) hazards.push(hz);
     cfTaken = got.taken;
   }
-  return stampWorldCoords({ cfTaken, hood: addressHood, grid, segs, totalLen: loop ? loop.sEnd : totalLen, loop, tiles, hazards, props, pal, night, traffic, crossings, cutEdges, cutExt, challenge, crime, routeCells, curbRamps, signals: grid.signals,
+  return stampWorldCoords({ cfTaken, hood: addressHood, grid, segs, totalLen: loop ? loop.sEnd : totalLen, loop, tiles, hazards, props, pal, night, traffic, trafficFleet, crossings, cutEdges, cutExt, challenge, crime, routeCells, curbRamps, signals: grid.signals,
            address:`${number} ${street}`, doorS, pickupS, pickupSpot, pickupShopName, addressBlock, pickupBlock, addressEdgeIdx, pickupEdgeIdx, addressUnitIdx, pickupUnitIdx, addressUsesGate, order, parMs, dateStr, runIndex  });
 }
 
@@ -12523,7 +12679,7 @@ class WorldScene extends Phaser.Scene {
       const wp = worldOf(pr.s, pr.roadOffset);
       trafficPts.push({ kind: pr.kind, wp, f: pr.f, wheelPhase: null, colorSeed: null, parked: true });
     }
-    for(const tr of r.traffic){
+    for(const tr of this.trafficActive(t)){
       const { wp, fc, trS } = trafficWorldAt(tr, t);
       trafficPts.push({ kind: tr.kind, wp, f: fc, wheelPhase: trS*0.28, colorSeed: tr.colorSeed, parked: false });
     }
@@ -12536,13 +12692,23 @@ class WorldScene extends Phaser.Scene {
        the SIM instead (updateTrafficSpacing), where a car can actually
        slow down -- never by deleting one at draw time. */
     const MIN_TRAFFIC_GAP = CARC.len * 0.9;
+    /* DEDUP FIRST, CULL SECOND, and the order is the whole point. Run
+       with the cull first and the overlap winner depends on which car
+       happens to be on screen: drive so an off-screen car comes into
+       view, it claims the slot, and the car that had been drawn all
+       along vanishes while fully visible. Deciding the winner over
+       every parked car -- seen or not -- makes the outcome a property
+       of the layout, which is what it was always meant to be. */
     const drawnTrafficPts = [];
+    const parkedKeep = new Set();
     for(const p of trafficPts){
+      if(!p.parked) continue;
+      if(drawnTrafficPts.some(q => Math.hypot(q.x-p.wp.x, q.y-p.wp.y) < MIN_TRAFFIC_GAP)) continue;
+      drawnTrafficPts.push(p.wp); parkedKeep.add(p);
+    }
+    for(const p of trafficPts){
+      if(p.parked && !parkedKeep.has(p)) continue;
       if(!this.visProp(p.kind, p.wp.x, p.wp.y)) continue;
-      if(p.parked){
-        if(drawnTrafficPts.some(q => Math.hypot(q.x-p.wp.x, q.y-p.wp.y) < MIN_TRAFFIC_GAP)) continue;
-        drawnTrafficPts.push(p.wp);
-      }
       const pk = p.kind, pwx = p.wp.x, pwy = p.wp.y, pwz = p.wp.z, pf = p.f, pwp2 = p.wheelPhase, pcs = p.colorSeed;
       blockVQ.push({ depth: pwx+pwy, fn:(g,t)=>this.drawProp(layerFor(pwx,pwy), pk, pwx, pwy, t, pf, pwz, pwp2, pcs) });
     }
@@ -19497,7 +19663,7 @@ class WorldScene extends Phaser.Scene {
          robot; the center point keeps side impacts honest. Tilt sign
          still pushes away from the car's CENTER. */
       const CAR_HIT_CENTER_R = 60, CAR_HIT_NOSE_R = 50;
-      for(const tr of this.route.traffic){
+      for(const tr of this.trafficActive(t)){
         const { wp, fc } = trafficWorldAt(tr, t);
         /* continuous heading, matching the renderer exactly. With the
            quantized facing the nose point jumped to the wrong corner of
@@ -21105,7 +21271,7 @@ class WorldScene extends Phaser.Scene {
      are skipped: they are not approaching any line. */
   updateSignalHolds(t){
     if(!SIGNAL.aware) return;
-    const traffic = this.route && this.route.traffic;
+    const traffic = this.trafficActive(t);
     if(!traffic) return;
     const hDt = this._trafHoldDt !== undefined ? this._trafHoldDt : 0;
     for(const tr of traffic){
@@ -21163,7 +21329,7 @@ class WorldScene extends Phaser.Scene {
 
   updateTrafficSpacing(t, dt){
     const hDt = this._trafHoldStep(t);
-    const traffic = this.route && this.route.traffic;
+    const traffic = this.trafficActive(t);
     if(!traffic || traffic.length < 2) return;
     const GAP = CARC.len * 1.15, GAP_SQ = GAP*GAP, MAX_YIELD = 6000;
     const pos = [];
@@ -21212,6 +21378,52 @@ class WorldScene extends Phaser.Scene {
     }
   }
 
+  /* ---------- TRAFFIC SIM GATE ----------
+     The fleet is citywide and in the thousands; everything that reads it
+     is per-frame, and updateTrafficSpacing is O(n^2). So every consumer
+     takes the ACTIVE subset instead: the cars near enough to matter.
+
+     Correctness rests on trafficWorldAt being pure in t (see
+     CITY_TRAFFIC): a car outside the radius is not paused, it is merely
+     not asked where it is. Ask later and it answers correctly, having
+     "driven" the whole time. The radius is well outside what depth 3
+     can show (~3,584 Manhattan), so a car is simulated for a good while
+     before it can be seen -- queueing and signal holds have settled by
+     the time it matters.
+
+     Rejection is by loop bucket first, then by the car's own arc, so
+     the common case costs one modulo and two compares and never
+     touches the segment walk. Cached per frame because five callers
+     want the same answer from the same t. */
+  trafficActive(t){
+    if(this._trafActT === t && this._trafActArr) return this._trafActArr;
+    const out = this.trafficNearPoint(t, this.botX, this.botY, CITY_TRAFFIC.activeR);
+    this._trafActT = t; this._trafActArr = out;
+    return out;
+  }
+  trafficNearPoint(t, px, py, R){
+    const fleet = this.route && this.route.trafficFleet;
+    const out = [];
+    if(!fleet) return this.route && this.route.traffic ? this.route.traffic : out;
+    for(const lp of fleet.loops){
+      const bb = lp.walk.bbox;
+      if(bb){
+        const dx = px < bb.x0 ? bb.x0 - px : px > bb.x1 ? px - bb.x1 : 0;
+        const dy = py < bb.y0 ? bb.y0 - py : py > bb.y1 ? py - bb.y1 : 0;
+        if(dx + dy > R) continue;           // whole loop out of reach
+      }
+      const arcs = lp.walk.arcs, L = lp.walk.totalLen;
+      for(const tr of lp.cars){
+        const te = t - (tr.hold || 0);
+        const s = ((tr.sBase + te*tr.speed*tr.dir) % L + L) % L;
+        const a = arcs[(s / CITY_TRAFFIC.arcLen) | 0] || arcs[arcs.length - 1];
+        if(Math.abs(a.cx - px) + Math.abs(a.cy - py) > R + a.r) continue;
+        out.push(tr);
+      }
+    }
+    return out;
+  }
+
   /* ---------- PHASED TRAFFIC CONTROL ----------
      Lives in the SIM, driven by dt from update() — not in a draw hook.
      A phase advanced during rendering runs at frame rate and freezes
@@ -21227,7 +21439,9 @@ class WorldScene extends Phaser.Scene {
        questions with their own tolerances */
     let occupied = false, straddling = false;
     const holding = [];
-    for(const tr of this.route.traffic){
+    /* around the PINCH, not the camera: the cordon has to keep
+       classifying its queue whether or not the player is watching it. */
+    for(const tr of this.trafficNearPoint(t, P.x, P.y, CITY_TRAFFIC.crimeR)){
       const { wp, f, straddle } = trafficWorldAt(tr, t);
       const dx = wp.x - P.x, dy = wp.y - P.y;
       const along = dx*P.ax + dy*P.ay;
@@ -24525,7 +24739,7 @@ function tpSlalomOn(){
     if (!nodes.length) return;
 
     const hDt = scene._trafHoldDt !== undefined ? scene._trafHoldDt : dt;
-    for (const tr of scene.route.traffic){
+    for (const tr of scene.trafficActive(t)){
       if (tr.holdFrame === t) continue;              // someone else owns it
       const { wp, f } = trafficWorldAt(tr, t);
       const dv = DIRV[f], rv = DIRV[(f + 1) % 4];
