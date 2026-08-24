@@ -3219,6 +3219,52 @@ const CARC = {
   bedFloor: 0x3d434a,
   shadow: 0x000000
 };
+/* ---------- A CAR IS A CAPSULE, NOT TWO DOTS ----------
+   The hit test used to be two circles: one at the centre (r=60) and one
+   at the nose (r=50), on a body that is CARC.len 225 long by CARC.wid 90
+   wide. Between and behind those two dots the car had NO hitbox at all,
+   so its own middle and its whole tail swept through the robot without
+   registering -- which is what "cars drive over Tipsey" actually was.
+   Side-swipes missed for the same reason: 60 from the centre does not
+   reach the flank of a body 45 wide plus the robot's own radius.
+
+   The honest shape is a capsule about the car's long axis, and the
+   closest point on that axis is all the resolution needed: hand it to a
+   circle test and the circle sweeps the whole body for free. That is
+   the trick the pier benches already use.
+
+   This returns that point, and it is deliberately ONE function used by
+   both the tip test and the open-world push-out, for the same reason
+   dogSpotAt and trafficWorldAt are shared: the thing that stops you and
+   the thing that flattens you must agree with each other and with the
+   art, in all four headings, forever. */
+function carAxisPoint(wp, fc, px, py){
+  const th = fc * (Math.PI/2);
+  const ax = Math.cos(th), ay = Math.sin(th);
+  const half = CARC.len * 0.42;          // axis stops short of the bumpers; the capsule radius covers the rest
+  const rel = (px - wp.x)*ax + (py - wp.y)*ay;
+  const c = Math.max(-half, Math.min(half, rel));
+  return { x: wp.x + ax*c, y: wp.y + ay*c };
+}
+
+/* Is this car actually standing still right now? Its hold clock only
+   advances while something is making it wait -- a signal, a yield, the
+   crime cordon -- so a hold that grew this frame means stopped, and one
+   that did not means rolling. Read off holdFrame rather than by
+   differencing positions, because position is a pure function of t and
+   two samples a frame apart would just re-derive what holdFrame already
+   states exactly. */
+function carIsStopped(tr, t){
+  /* a WINDOW, not equality. holdFrame is stamped with the update loop's
+     t, and the callers here run off scene.time.now a fraction of a
+     millisecond later -- exact equality on a float timestamp is false
+     almost every frame, which silently left every car non-solid. 120ms
+     is long enough to survive that skew and a dropped frame, short
+     enough that a car which just started rolling stops being a wall
+     immediately. */
+  return (t - (tr.holdFrame === undefined ? -1e9 : tr.holdFrame)) <= 120;
+}
+
 const CAR_COLORS = [
   { n:"silver", body:0x9aa7b5, bodyDk:0x76839a, roof:0x8695a5 },
   { n:"red",    body:0xc45a4e, bodyDk:0x9c473d, roof:0xaf4f44 },
@@ -4071,6 +4117,10 @@ const OW_HZ_R = {
      half-width (14) plus a little slack, erring generous so he stops just
      short of the shaft rather than clipping into it. */
   signalpost: 16,
+  /* a stopped car's body. The capsule axis from carAxisPoint already
+     covers the length, so this is the half-WIDTH only: 45 plus a little
+     slack so he stops against the panel rather than inside it. */
+  car: 50,
   /* the charging mast. poleW/2 is 7.5 and the box corner reaches 10.6, so
      10 is the honest disc for it. Deliberately NOT generous the way the
      signal is: this is the one obstacle the game deliberately sets the
@@ -4531,6 +4581,47 @@ function owStep(scene, dt){
   if(W.sgNear) for(const sg of W.sgNear(ow.px, ow.py)){
     if(owContact(scene, ow, D, dYaw, sg, 'signalpost', sg.x, sg.y)) hitNormal = hitNormal || 3;
     if(scene.state === 'tipped') break;
+  }
+
+  /* ---------- TRAFFIC IS SOLID ----------
+     Cars drew, and could flatten him, but stopped nothing: he drove
+     clean through a car standing at a red light as if it were fog.
+
+     Only STOPPED cars are solid. A moving one is handled by the tip
+     test, which is the correct answer for it -- and making a moving car
+     solid as well would be worse than useless, because owContact
+     resolves by ejecting the robot along the contact normal, so a car
+     driving past would fire him down the road at its own speed rather
+     than hit him.
+
+     The capsule comes from carAxisPoint, the same function the tip test
+     uses, so what blocks him and what flattens him are the same shape
+     as what he sees. Type 'car' is registered in OW_HZ_R with the
+     body's real half-width. */
+  if(scene.route && scene.trafficActive){
+    const tNow = scene.time.now;
+    for(const tr of scene.trafficActive(tNow)){
+      if(!carIsStopped(tr, tNow)) continue;
+      const { wp, fc } = trafficWorldAt(tr, tNow);
+      if(Math.abs(ow.px - wp.x) + Math.abs(ow.py - wp.y) > CARC.len + 200) continue;
+      const ap = carAxisPoint(wp, fc, ow.px, ow.py);
+      /* DEGENERATE CASE: standing exactly on the car's axis. owContact
+         resolves along the vector from the contact point to the robot,
+         and that vector is zero here -- it normalises to nothing and
+         leaves him sitting inside the car. It is reachable in play: a
+         car rolls to a stop over him, or he is set down on the centre
+         line. Nudge him a hair onto one flank first and the ordinary
+         push-out takes it from there. The side is picked from his own
+         facing so it is deterministic and never fights itself frame to
+         frame. */
+      const lat = (ow.px - ap.x)*(-Math.sin(fc*(Math.PI/2))) + (ow.py - ap.y)*Math.cos(fc*(Math.PI/2));
+      if(Math.abs(lat) < 0.5){
+        const side = (Math.sin(ow.yaw - fc*(Math.PI/2)) >= 0) ? 1 : -1;
+        ow.px += -Math.sin(fc*(Math.PI/2)) * side; ow.py += Math.cos(fc*(Math.PI/2)) * side;
+      }
+      if(owContact(scene, ow, D, dYaw, tr, 'car', ap.x, ap.y)) hitNormal = hitNormal || 3;
+      if(scene.state === 'tipped') break;
+    }
   }
 
   /* ---------- CHARGING MASTS ----------
@@ -18844,25 +18935,35 @@ class WorldScene extends Phaser.Scene {
          all 4 headings), with a tighter radius sized to bumper-meets-
          robot; the center point keeps side impacts honest. Tilt sign
          still pushes away from the car's CENTER. */
-      const CAR_HIT_CENTER_R = 60, CAR_HIT_NOSE_R = 50;
+      /* FULL BODY, and speed decides which kind of contact it is.
+
+         A car that is MOVING is a threat and always has been: contact
+         tips the robot outright rather than nudging his tilt, because
+         being hit by a car should never be a maybe. What changed is
+         reach -- the capsule means the flank and the tail hit just as
+         hard as the nose did, so a car can no longer pass through him
+         and count as a miss.
+
+         A car that is STOPPED -- held at a signal, yielding, queued
+         behind another car -- is not a threat, it is a parked obstacle,
+         and tipping the robot for touching a stationary bumper would be
+         absurd. In free roam those are made solid instead (see the
+         traffic pass in owStep), so he is pushed out of them and can
+         grind along them like any other city furniture. */
+      const CAR_HIT_R = CARC.wid*0.5 + 26;
       for(const tr of this.trafficActive(t)){
         const { wp, fc } = trafficWorldAt(tr, t);
-        /* continuous heading, matching the renderer exactly. With the
-           quantized facing the nose point jumped to the wrong corner of
-           the car mid-turn, so the hitbox left the art precisely where
-           a car is most likely to clip the robot. */
-        const nth = fc * (Math.PI/2);
-        const nx = wp.x + Math.cos(nth)*CARC.len*0.45, ny = wp.y + Math.sin(nth)*CARC.len*0.45;
+        const ap = carAxisPoint(wp, fc, this.botX, this.botY);
         const ddx = this.botX - wp.x, ddy = this.botY - wp.y;
-        const cSq = ddx*ddx + ddy*ddy;
-        const nnx = this.botX - nx, nny = this.botY - ny;
-        const nSq = nnx*nnx + nny*nny;
-        if(!tr.hit && (cSq < CAR_HIT_CENTER_R*CAR_HIT_CENTER_R || nSq < CAR_HIT_NOSE_R*CAR_HIT_NOSE_R)){
+        const adx = this.botX - ap.x, ady = this.botY - ap.y;
+        const aSq = adx*adx + ady*ady;
+        const moving = !carIsStopped(tr, t);
+        if(!tr.hit && moving && aSq < CAR_HIT_R*CAR_HIT_R){
           tr.hit = true; this.tipCause = "car";
           this.tilt = 1.1 * (Math.sign(ddx || ddy) || 1);
           this.damage = Math.min(95, this.damage + 45);
         }
-        if(cSq > (CAR_HIT_CENTER_R*4)*(CAR_HIT_CENTER_R*4)) tr.hit = false;
+        if(aSq > (CAR_HIT_R*4)*(CAR_HIT_R*4)) tr.hit = false;
       }
 
       /* back near upright: whatever knocked us sideways did not finish
@@ -20520,9 +20621,24 @@ class WorldScene extends Phaser.Scene {
       const th = fc * (Math.PI/2);
       pos.push({ tr, x: wp.x, y: wp.y, dx: Math.cos(th), dy: Math.sin(th) });
     }
+    /* THE ROBOT IS TRAFFIC TOO. Without this a car treats him as empty
+       road: it drives into him, tips him, and carries on through the
+       space he occupies. Cars now see him the same way they see each
+       other -- but only in the FOLLOWING cone and only close in, so a
+       car still runs him down if he darts out in front of it. Yielding
+       is what happens when he is already sitting in the lane ahead,
+       which is the case that read as a car driving straight over him. */
+    const botAhead = { x: this.botX, y: this.botY };
     for(let i = 0; i < pos.length; i++){
       const a = pos[i];
       let blocked = false;
+      {
+        const rx = botAhead.x - a.x, ry = botAhead.y - a.y, dSq = rx*rx + ry*ry;
+        if(dSq < GAP_SQ && dSq > 1e-6){
+          const d = Math.sqrt(dSq);
+          if((rx*a.dx + ry*a.dy) / d >= 0.7) blocked = true;
+        }
+      }
       for(let j = 0; j < pos.length && !blocked; j++){
         if(j === i) continue;
         const b = pos[j];
