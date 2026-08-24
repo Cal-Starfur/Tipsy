@@ -5116,7 +5116,7 @@ function owShoreCollide(scene, ow, D, dYaw){
    which is the one thing a traffic cone must never be. */
 const OW_LOOP_TYPES = new Set(['lamp', 'palm', 'hydrant', 'pigeons',
                                'crack', 'trash', 'palmDwarf', 'dog', 'people',
-                               'cone', 'scooter', 'planter', 'bin']);
+                               'cone', 'scooter', 'planter', 'bin', 'robot', 'william']);
 
 /* ---------- iso inverse ----------
    W() is a plain 2:1 iso: sx = (X - Y)*K, sy = (X + Y)*0.5*K. Inverting
@@ -7379,6 +7379,63 @@ function snapWorldToSidewalkTile(grid, x, y){
 }
 
 /* one frontage's furniture. Pure in (grid, blk, edge index). */
+/* ---- WHICH FRONTAGE IN EACH DISTRICT GETS THE WILLIAM ----
+   A first cut hashed the district index straight into an (i, j, side)
+   and let cityFurnitureForEdge test for a match. It produced 7 Williams,
+   not 12: the grid has 910 blocks across 972 cells, so a coordinate
+   picked blind lands on a park, the water or the pier a third of the
+   time, and that district simply got nobody.
+
+   So the pick is made from the district's ACTUAL block list, the same
+   way buildChargeStations picks its pads, and it is validated here --
+   the frontage has to be long enough to hold him and its kerb row has to
+   classify as sidewalk. A district only goes without if it genuinely has
+   no buildable frontage.
+
+   Memoized on the grid because cityFurnitureForEdge runs per frontage,
+   3,640 of them, and this filters 910 blocks: computed once for all 12
+   districts on first ask, then a map lookup forever after. */
+function cityWilliamPick(grid, dIdx){
+  if(!grid._wmPicks){
+    const picks = new Map();
+    for(let d = 0; d < DISTRICT_COLS*DISTRICT_ROWS; d++){
+      const dc = d % DISTRICT_COLS, dr = Math.floor(d / DISTRICT_COLS);
+      const i0 = dc*DISTRICT_W, i1 = i0 + DISTRICT_W - 1;
+      const j0 = dr*DISTRICT_H, j1 = j0 + DISTRICT_H - 1;
+      const cand = grid.blocks
+        .filter(b => b.i >= i0 && b.i <= i1 && b.j >= j0 && b.j <= j1)
+        .sort((a, b) => a.j - b.j || a.i - b.i);
+      if(!cand.length) continue;
+      const rng = mulberry32(((d*2654435761) ^ 0x77111a) >>> 0);
+      const pool = cand.slice();
+      for(let k = pool.length-1; k > 0; k--){
+        const r = Math.floor(rng()*(k+1));
+        const tmp = pool[k]; pool[k] = pool[r]; pool[r] = tmp;
+      }
+      let done = false;
+      for(const blk of pool){
+        const es = blockEdgesOf(blk);
+        const order = [0,1,2,3].sort(() => rng() - 0.5);
+        for(const fi of order){
+          const e = es[fi];
+          if(!e || e.len <= CITY_FURN.cornerClear*2 + T2) continue;
+          /* the kerb row at the frontage midpoint -- the exact point the
+             placement below will use, so a pick that passes here cannot
+             fail there for a reason this could have seen. */
+          const lat = (3 - 0 + 0.5) * T2;
+          const px = e.ox + e.dv.x*(e.len*0.5) + e.rv.x*lat;
+          const py = e.oy + e.dv.y*(e.len*0.5) + e.rv.y*lat;
+          if(grid.classify(px, py) !== "sidewalk") continue;
+          picks.set(d, { i: blk.i, j: blk.j, fi });
+          done = true; break;
+        }
+        if(done) break;
+      }
+    }
+    grid._wmPicks = picks;
+  }
+  return grid._wmPicks.get(dIdx) || null;
+}
 function cityFurnitureForEdge(grid, blk, fi){
   const e = blockEdgesOf(blk)[fi];
   const out = [];
@@ -7483,6 +7540,53 @@ function cityFurnitureForEdge(grid, blk, fi){
     out.push(ob);
     return ob;
   };
+
+  /* ---- THE WILLIAM, ONE PER DISTRICT ----
+     He used to be spawned by generateRoute, on the wrap-around lap, one
+     per day: a rail creature by construction. Measured before this, 13
+     days: 13 route Williams, 13 of them on the lap, and ZERO in the
+     city. In free play that is one William in a 109,480 x 81,328 city,
+     standing on a stretch of a delivery route you may never drive.
+
+     He lives here now, so he is a permanent resident of a fixed corner
+     of a fixed district, and the harvest carries him onto any route that
+     passes him -- the same path every other city prop already takes,
+     rather than a second spawning system to keep in step.
+
+     ONE FRONTAGE IN THE WHOLE DISTRICT WINS. This pass runs per-edge, so
+     "one per district" means every edge asking the same question and
+     exactly one answering yes. A hash of the district index picks the
+     winning block and side up front; the other 3,639 frontages return
+     after one comparison. Deterministic, and no cross-edge state.
+
+     DISTRICT_W/H is 9, so a district is 9x9 blocks -- 28,152 units
+     square, about 125 seconds to cross at top speed. That is the spacing
+     this produces. Deliberately NOT a count dial: more than one per hood
+     needs a different pick rule, not a bigger number.
+
+     HE GOES FIRST, before any other pass on this frontage. Placed last
+     he was rejected by his own `blocked` test against clutter already
+     standing there -- measured, that cost 3 of 12 districts outright.
+     Running first inverts it: he takes the midpoint, and every later
+     pass sees him in `out` and keeps its own gap from him. Precedence
+     that matches what he is -- a named antagonist, not litter. */
+  {
+    const dc = Math.floor(blk.i / DISTRICT_W), dr = Math.floor(blk.j / DISTRICT_H);
+    const dIdx = dr*DISTRICT_COLS + dc;
+    const pick = cityWilliamPick(grid, dIdx);
+    if(pick && blk.i === pick.i && blk.j === pick.j && fi === pick.fi){
+      const a = Math.round(e.len*0.5);
+      const lane = 0;                       // kerb row, where the rail spawn put him
+      const p = pointAt(a, lane);
+      if(onWalk(p) && !onPad(p) && !blocked(a, lane)){
+        const ob = place("william", a, lane, p, {
+          williamSeed: ((dIdx*7919) ^ 0x51aa) >>> 0,
+          peopleSeed:  ((dIdx*104729) ^ 0x3c11) >>> 0,
+          hit: true });
+        walkRange(ob);                      // he paces his frontage until you show up
+      }
+    }
+  }
 
   /* ---- the mixed clutter pass: spawnHazardRange's own roll ---- */
   {
@@ -10301,16 +10405,20 @@ function _generateRouteFresh(dateStr, opts){
         for(const list of [hazards, props])
           for(const o of list) if(Math.abs(o.s - ks) < 2*T2){ kClear = false; break; }
         if(!kClear) continue;
-        const kObj = { type:"william", s: ks, row: 0, f: facingAt(ks), hit:true,
-                       williamSeed: (rng()*4294967296) >>> 0,
-                       peopleSeed: (rng()*4294967296) >>> 0 };
-        /* SHORT beat, not the whole (34-block-scaled) leg: his wall
-           plants at hz.s + ka, so the spawn point's crossing/stacking
-           clearances only mean something if he stays near his anchor */
-        const kw0 = Math.max(sg.s0 + CROSSING_CLEAR, ks - 3*T2);
-        const kw1 = Math.min(sg.s1 - CROSSING_CLEAR, ks + 3*T2);
-        if(kw1 - kw0 >= T2){ kObj.walkS0 = kw0; kObj.walkS1 = kw1; }
-        hazards.push(kObj);
+        /* THE CITY OWNS HIM NOW (2026-08-24). This block used to build
+           and push a route William here; he is a permanent per-district
+           resident of cityFurnitureForEdge instead, and the harvest
+           carries him onto any route that drives past his frontage.
+           Pushing one here as well would put two Williams on a lap that
+           happens to run through his district.
+
+           THE DRAWS STAY, AND SO DOES THE SEARCH. rng is the route's one
+           sequential stream -- the lap furnishing pass right below draws
+           from it next -- so the two seed draws are still taken and
+           discarded, and the loop still runs its attempts and breaks on
+           the same attempt it always did. Deleting any of it would shift
+           every subsequent roll on every route of every day. */
+        rng(); rng();                       // was: williamSeed, peopleSeed
         break;
       }
     }
@@ -19099,128 +19207,6 @@ class WorldScene extends Phaser.Scene {
             if(!owSep){ const psp = peopleSpotAt(t, hz); dx -= psp.a; hzB = psp.b || 0; }
           }
         }
-        if(hz.type === "william"){
-          /* THE WILLIAM — the lap's resident robot-hater, ported from
-             labs/william-lab.html v6 (approved). Integrated state lives
-             on hz (cone pattern: sim writes ka/kb/kst, renderer reads
-             the same fields, so hitbox == art by construction); patrol
-             position is the shared pure peopleSpotAt, same contract as
-             prop.people. Timeline: PATROL -> INTERCEPT (steps into
-             YOUR lane) -> BLOCK (palm-contract wall) -> you swerve ->
-             WINDUP (facing FROZEN at entry: tracking here rotated the
-             body and made the cocked leg sweep sideways, lab-reported)
-             -> KICK (contact-checked boot) -> GLOAT/WHIFF -> return.
-             One attempt per pass (spent, hazard-standard re-arm).
-             Counterplay: commit the swerve early and pass fast — he
-             leads the target, so accelerating AFTER his windup starts
-             breaks the prediction and he boots air. */
-          const KA = WILLIAM_ACT;
-          if(hz.kst === undefined){ hz.kst = "patrol"; hz.kt0 = t; hz.ka = 0; hz.kb = 0; hz.kth = 0; hz.spent = false; }
-          const kel = t - hz.kt0;
-          const kLat = () => this.laneOff - (laneOffset(hz.row) + hz.kb);
-          if(hz.kst === "patrol"){
-            const ksp = peopleSpotAt(t, hz);
-            hz.ka = ksp.a; hz.kb = ksp.b || 0;
-            const kdx = dx - hz.ka;
-            if(hz.spent && Math.abs(kdx) > KA.blockTrig + 40) hz.spent = false;
-            if(!hz.spent && this.state === "play"){
-              const lead = this.speed*(KA.windup + KA.swing*KA.contactU);
-              if(Math.abs(kLat()) < 34 && kdx > -KA.blockTrig && kdx < -KA.standoff - 6){
-                hz.kst = "intercept"; hz.kt0 = t; hz.kicked = false; hz.klanded = false;
-                /* he steps into YOUR lane, wherever you are — clamped
-                   to the sidewalk band so he never plants in traffic */
-                hz.ktargetB = Phaser.Math.Clamp(this.laneOff - laneOffset(hz.row), -T2*1.5, T2*1.5);
-              } else if(Math.abs(kLat()) >= 40 && Math.abs(kdx + lead) < KA.hitAlong*0.9){
-                hz.kst = "windup"; hz.kt0 = t; hz.kicked = false; hz.klanded = false;
-                hz.kickDir = Math.sign(kLat()) || 1;
-                hz.kb0 = hz.kb;
-                hz.kth = Math.atan2(-kdx, kLat() || hz.kickDir);   // COMMIT: frozen
-              }
-            }
-          } else if(hz.kst === "intercept"){
-            const kdx = dx - hz.ka;
-            const kdb = hz.ktargetB - hz.kb;
-            hz.kth = Math.atan2(-kdx, kdb || -1);
-            hz.kb += Math.sign(kdb) * Math.min(Math.abs(kdb), KA.chase * dt);
-            if(Math.abs(hz.ktargetB - hz.kb) < 2){ hz.kb = hz.ktargetB; hz.kst = "block"; hz.kt0 = t; }
-          } else if(hz.kst === "block"){
-            const kdx = dx - hz.ka;
-            hz.kth = Math.atan2(-kdx, kLat() || -1);
-            const lead = this.speed*(KA.windup + KA.swing*KA.contactU);
-            if(Math.abs(kLat()) >= 40 && Math.abs(kdx + lead) < KA.hitAlong*0.9){
-              hz.kst = "windup"; hz.kt0 = t; hz.kicked = false; hz.klanded = false;
-              hz.kickDir = Math.sign(kLat()) || 1;
-              hz.kb0 = hz.kb;
-              hz.kth = Math.atan2(-kdx, kLat() || hz.kickDir);     // COMMIT: frozen
-            } else if(kdx < -(KA.blockTrig + 60) || kdx > 40){
-              hz.kst = "return"; hz.kt0 = t; hz.retA = hz.ka; hz.retB = hz.kb;
-            }
-          } else if(hz.kst === "windup"){
-            /* facing frozen; he steps toward your lane while cocking.
-               PHASE-driven, not dt-integrated: position and the state
-               timers share ONE clock (wall t), so at contact he has
-               ALWAYS fully stepped in regardless of framerate — the
-               dt-integrated version whiffed under dropped frames
-               because the 120ms windup expired before the body moved */
-            const kPh = Math.min(1, kel / (KA.windup + KA.swing*KA.contactU));
-            hz.kb = hz.kb0 + hz.kickDir * T2 * KA.lungeMax * kPh;
-            if(kel >= KA.windup){ hz.kst = "kick"; hz.kt0 = t; }
-          } else if(hz.kst === "kick"){
-            if(kel < KA.swing*KA.contactU){
-              const kPh = Math.min(1, (KA.windup + kel) / (KA.windup + KA.swing*KA.contactU));
-              hz.kb = hz.kb0 + hz.kickDir * T2 * KA.lungeMax * kPh;
-            }
-            if(!hz.kicked && kel >= KA.swing*KA.contactU){
-              hz.kicked = true;
-              const kdx = dx - hz.ka;
-              /* CONTACT, not proximity: the boot tip has to actually
-                 reach the hull — alongside AND within lateral reach
-                 (kicks were "landing" with daylight, lab-reported) */
-              if(this.state === "play" && Math.abs(kdx) < KA.hitAlong && Math.abs(kLat()) < KA.reach){
-                hz.klanded = true;
-                /* THE BOOT — deliberate attack, deliberately NOT
-                   scaled by TILT_SENS (the established "deliberate,
-                   not routine" carve-out). SIGN: positive tilt leans
-                   toward the BUILDINGS (the slab hazard's documented
-                   convention); the kick pushes the bot AWAY from him,
-                   so the impulse is NEGATED kickDir (lab-verified v6).
-                   power 1.4 > the balance threshold: a clean boot
-                   knocks Tipsey over. */
-                this.tilt += KA.power * -(hz.kickDir || 1);
-                this.damage = Math.min(95, this.damage + KA.power*14*CARGO_DAMAGE_SENS);
-                this.speed *= 0.8;
-                /* who knocked us over, for the fail copy. Cleared again
-                   below the moment the robot is back near upright, so a
-                   survived boot followed by an ordinary cone tip still
-                   reads as an ordinary cone tip. */
-                this.tipCause = "william";
-              }
-            }
-            if(kel >= KA.swing){
-              hz.spent = true;
-              hz.kst = hz.klanded ? "gloat" : "whiff"; hz.kt0 = t;
-            }
-          } else {
-            /* gloat / whiff / return -- the tail of the timeline, which
-               has no dependency on the robot at all. It lives in
-               williamSettleStep so the post-tip pass can run the exact
-               same code: duplicating a state machine across two call
-               sites is how the two quietly drift apart. */
-            this.williamSettleStep(hz, t);
-          }
-          /* THE WALL — palm contract while he's stepping out or
-             planted in your lane: you stop at standoff. The only way
-             through is AROUND him. */
-          if((hz.kst === "intercept" || hz.kst === "block") && Math.abs(kLat()) < 34){
-            const wallS = hz.s + hz.ka;
-            if(this.botS > wallS - KA.standoff && this.botS < wallS + 20){
-              this.botS = safeStop(wallS - KA.standoff);
-              this.isBlocked = true;
-              this.speed = 0;
-            }
-          }
-          continue;
-        }
         /* ONE lateral number for this hazard, and one lane gate reading
            it, so a branch does not have to know which coordinate system
            it is in. On the rail this is character-for-character what
@@ -19319,6 +19305,159 @@ class WorldScene extends Phaser.Scene {
         /* the approach gate. Rail: only from behind, within the
            standoff. World: from any side. */
         const hzWithin = R => owSep ? (Math.abs(dx) < R) : (dx > -R && dx < 0);
+
+        if(hz.type === "william"){
+          /* THE WILLIAM — the lap's resident robot-hater, ported from
+             labs/william-lab.html v6 (approved). Integrated state lives
+             on hz (cone pattern: sim writes ka/kb/kst, renderer reads
+             the same fields, so hitbox == art by construction); patrol
+             position is the shared pure peopleSpotAt, same contract as
+             prop.people. Timeline: PATROL -> INTERCEPT (steps into
+             YOUR lane) -> BLOCK (palm-contract wall) -> you swerve ->
+             WINDUP (facing FROZEN at entry: tracking here rotated the
+             body and made the cocked leg sweep sideways, lab-reported)
+             -> KICK (contact-checked boot) -> GLOAT/WHIFF -> return.
+             One attempt per pass (spent, hazard-standard re-arm).
+             Counterplay: commit the swerve early and pass fast — he
+             leads the target, so accelerating AFTER his windup starts
+             breaks the prediction and he boots air. */
+          const KA = WILLIAM_ACT;
+          if(hz.kst === undefined){ hz.kst = "patrol"; hz.kt0 = t; hz.ka = 0; hz.kb = 0; hz.kth = 0; hz.spent = false; }
+          const kel = t - hz.kt0;
+          /* ---- ka AND kb ARE ALREADY IN owSep ----
+             hazEffOffsetAt has a william branch: it returns (ka, kb)
+             once he leaves patrol and peopleSpotAt's own (a, b) while he
+             is still on it -- the same two numbers this block writes. So
+             hazWorldAt's anchor is William WHERE HE IS STANDING, and dx
+             and lat are already measured against it. The rail had to
+             subtract ka by hand because its anchor was the spawn spot;
+             doing that here as well would count his step-out twice, the
+             same double-count the rover's walk had.
+             kLat likewise: owSep.lat already has kb folded in. */
+          const kdxOf = () => owSep ? dx : (dx - hz.ka);
+          const kLat = () => owSep ? lat : (this.laneOff - (laneOffset(hz.row) + hz.kb));
+          if(hz.kst === "patrol"){
+            const ksp = peopleSpotAt(t, hz);
+            hz.ka = ksp.a; hz.kb = ksp.b || 0;
+            const kdx = kdxOf();
+            /* the distance re-arm is gone -- the return-to-patrol
+               transition owns it now (see williamSettleStep). Kept as a
+               comment rather than deleted silently because "he re-arms
+               when you get far enough away" was the rule for a month. */
+            if(!hz.spent && this.state === "play"){
+              const lead = this.speed*(KA.windup + KA.swing*KA.contactU);
+              if(Math.abs(kLat()) < 34 && kdx > -KA.blockTrig && kdx < -KA.standoff - 6){
+                hz.kst = "intercept"; hz.kt0 = t; hz.kicked = false; hz.klanded = false;
+                /* he steps into YOUR lane, wherever you are — clamped
+                   to the sidewalk band so he never plants in traffic */
+                /* his target is the robot's own lateral, expressed in
+                   William's home-row frame. lat is (robot - (row + kb)),
+                   so adding kb back recovers (robot - row) -- the rail's
+                   `laneOff - laneOffset(row)` measured the honest way. */
+                hz.ktargetB = Phaser.Math.Clamp(
+                  owSep ? (lat + hz.kb) : (this.laneOff - laneOffset(hz.row)),
+                  -T2*1.5, T2*1.5);
+              } else if(Math.abs(kLat()) >= 40 && Math.abs(kdx + lead) < KA.hitAlong*0.9){
+                hz.kst = "windup"; hz.kt0 = t; hz.kicked = false; hz.klanded = false;
+                hz.kickDir = Math.sign(kLat()) || 1;
+                hz.kb0 = hz.kb;
+                hz.kth = Math.atan2(-kdx, kLat() || hz.kickDir);   // COMMIT: frozen
+              }
+            }
+          } else if(hz.kst === "intercept"){
+            const kdx = kdxOf();
+            const kdb = hz.ktargetB - hz.kb;
+            hz.kth = Math.atan2(-kdx, kdb || -1);
+            hz.kb += Math.sign(kdb) * Math.min(Math.abs(kdb), KA.chase * dt);
+            if(Math.abs(hz.ktargetB - hz.kb) < 2){ hz.kb = hz.ktargetB; hz.kst = "block"; hz.kt0 = t; }
+          } else if(hz.kst === "block"){
+            const kdx = kdxOf();
+            hz.kth = Math.atan2(-kdx, kLat() || -1);
+            const lead = this.speed*(KA.windup + KA.swing*KA.contactU);
+            if(Math.abs(kLat()) >= 40 && Math.abs(kdx + lead) < KA.hitAlong*0.9){
+              hz.kst = "windup"; hz.kt0 = t; hz.kicked = false; hz.klanded = false;
+              hz.kickDir = Math.sign(kLat()) || 1;
+              hz.kb0 = hz.kb;
+              hz.kth = Math.atan2(-kdx, kLat() || hz.kickDir);     // COMMIT: frozen
+            } else if(kdx < -(KA.blockTrig + 60) || kdx > 40){
+              hz.kst = "return"; hz.kt0 = t; hz.retA = hz.ka; hz.retB = hz.kb;
+            }
+          } else if(hz.kst === "windup"){
+            /* facing frozen; he steps toward your lane while cocking.
+               PHASE-driven, not dt-integrated: position and the state
+               timers share ONE clock (wall t), so at contact he has
+               ALWAYS fully stepped in regardless of framerate — the
+               dt-integrated version whiffed under dropped frames
+               because the 120ms windup expired before the body moved */
+            const kPh = Math.min(1, kel / (KA.windup + KA.swing*KA.contactU));
+            hz.kb = hz.kb0 + hz.kickDir * T2 * KA.lungeMax * kPh;
+            if(kel >= KA.windup){ hz.kst = "kick"; hz.kt0 = t; }
+          } else if(hz.kst === "kick"){
+            if(kel < KA.swing*KA.contactU){
+              const kPh = Math.min(1, (KA.windup + kel) / (KA.windup + KA.swing*KA.contactU));
+              hz.kb = hz.kb0 + hz.kickDir * T2 * KA.lungeMax * kPh;
+            }
+            if(!hz.kicked && kel >= KA.swing*KA.contactU){
+              hz.kicked = true;
+              const kdx = kdxOf();
+              /* CONTACT, not proximity: the boot tip has to actually
+                 reach the hull — alongside AND within lateral reach
+                 (kicks were "landing" with daylight, lab-reported) */
+              if(this.state === "play" && Math.abs(kdx) < KA.hitAlong && Math.abs(kLat()) < KA.reach){
+                hz.klanded = true;
+                /* THE BOOT — deliberate attack, deliberately NOT
+                   scaled by TILT_SENS (the established "deliberate,
+                   not routine" carve-out). SIGN: positive tilt leans
+                   toward the BUILDINGS (the slab hazard's documented
+                   convention); the kick pushes the bot AWAY from him,
+                   so the impulse is NEGATED kickDir (lab-verified v6).
+                   power 1.4 > the balance threshold: a clean boot
+                   knocks Tipsey over. */
+                this.tilt += KA.power * -(hz.kickDir || 1);
+                this.damage = Math.min(95, this.damage + KA.power*14*CARGO_DAMAGE_SENS);
+                this.speed *= 0.8;
+                /* who knocked us over, for the fail copy. Cleared again
+                   below the moment the robot is back near upright, so a
+                   survived boot followed by an ordinary cone tip still
+                   reads as an ordinary cone tip. */
+                this.tipCause = "william";
+              }
+            }
+            if(kel >= KA.swing){
+              hz.spent = true;
+              hz.kst = hz.klanded ? "gloat" : "whiff"; hz.kt0 = t;
+            }
+          } else {
+            /* gloat / whiff / return -- the tail of the timeline, which
+               has no dependency on the robot at all. It lives in
+               williamSettleStep so the post-tip pass can run the exact
+               same code: duplicating a state machine across two call
+               sites is how the two quietly drift apart. */
+            this.williamSettleStep(hz, t);
+          }
+          /* THE WALL — palm contract while he's stepping out or
+             planted in your lane: you stop at standoff. The only way
+             through is AROUND him. */
+          if((hz.kst === "intercept" || hz.kst === "block") && Math.abs(kLat()) < 34){
+            const wallS = hz.s + hz.ka;
+            /* BOTH SIDES, and via the shared helper. The rail bound was
+               `> wallS - standoff && < wallS + 20`: blocked from behind,
+               with the far bound only an exit test because you could
+               never be past him. Steering lets you come at him from the
+               front, where that expression is simply open. hzWithin and
+               hzWallStop are the same two the lamp and the palm already
+               use -- William plants himself in your lane, so he is a
+               palm-contract wall and should answer to one number with
+               the rest of them. */
+            if(owSep ? hzWithin(KA.standoff)
+                     : (this.botS > wallS - KA.standoff && this.botS < wallS + 20)){
+              hzWallStop(KA.standoff, wallS - KA.standoff);
+              this.isBlocked = true;
+              this.speed = 0;
+            }
+          }
+          continue;
+        }
 
         if(hz.type === "lamp"){
           /* the pole is a thin palm-contract wall: you stop, you do
@@ -19676,9 +19815,36 @@ class WorldScene extends Phaser.Scene {
              cross-ways (hy=20). Hitbox follows art, the house rule. */
           const robotHalfS = hz.roving ? BODY.hx : BODY.hy;
           const contactGap = robotHalfS + BODY.hx;
+          /* ---- THE TWO SEPARATIONS, ONE SOURCE ----
+             owSep's anchor already IS the rover's current walked
+             position: hazEffOffsetAt returns robotSpotAt's a/b for a
+             live rover, and hazWorldAt folds both into hx/hy. So dx and
+             lat are ALREADY measured against the moved robot, and
+             subtracting robotOff/robotB again here would count the walk
+             twice. The rail path keeps its own expressions verbatim. */
+          const dxEff = owSep ? dx : (this.botS - effS);
+          const rLat  = owSep ? lat : (this.laneOff - (laneOffset(hz.row) + robotB));
+          const inContact = Math.abs(rLat) < T2*0.5 && Math.abs(dxEff) < contactGap;
           if(!hz.knocked){
             const alongside = onRobotLane && Math.abs(this.botS - effS) < contactGap;
-            const sideHit = this.hopAnim && alongside;
+            /* ---- SIDE vs HEAD-ON, FROM GEOMETRY ----
+               The rail could not tell these apart by measuring, so it
+               asked an INPUT: hopAnim, "is Tipsey mid lane-change". That
+               was sound when a lane change was the only way to arrive
+               sideways, and it is dead code off the rail -- free play has
+               no hop, so under open world every contact would have been
+               classified head-on and the entire side-hit outcome (the
+               other robot always goes down, Tipsey never tips, he bumps
+               through) would silently never fire.
+
+               Steering makes the question answerable directly: a side hit
+               is one where the separation is mostly ACROSS the other
+               robot's axis rather than along it. Same |across| > |along|
+               dominance test planterSpanS already uses to decide a
+               sideways fall, reused rather than reinvented so the two
+               cannot drift. */
+            const sideHit = owSep ? (inContact && Math.abs(rLat) > Math.abs(dxEff))
+                                  : (this.hopAnim && alongside);
             if(sideHit && !hz.hit){
               hz.hit = true; this.tipCause = hz.type;
               hz.knocked = true;
@@ -19694,8 +19860,12 @@ class WorldScene extends Phaser.Scene {
                  band) -- the rv impact can't map to their tip plane,
                  so random side, Tipsey's own convention when the axis
                  is ambiguous (his robot-collision tilt kick). */
+              /* tip away from Tipsey across the lane axis. rLat is
+                 (Tipsey - robot), so the robot goes the other way. Same
+                 number the rail computed, sourced from the separation
+                 rather than from laneOff. */
               hz.knockDir = hz.roving
-                ? (Math.sign((laneOffset(hz.row) + robotB) - this.laneOff) || 1)
+                ? (-(Math.sign(rLat)) || 1)
                 : (Math.random() < 0.5 ? 1 : -1);
               /* spill ~150ms into the fall, Tipsey's own tipT>0.55
                  moment, not at the instant of impact. One-shot timer
@@ -19708,8 +19878,16 @@ class WorldScene extends Phaser.Scene {
               this.tilt += kick * TILT_SENS;
               this.damage = Math.min(95, this.damage + Math.abs(kick)*40*CARGO_DAMAGE_SENS);
               this.speed *= 0.7;   // bump-through, not a hard stop
-            } else if(onRobotLane && this.botS > effS - contactGap && this.botS < effS){
-              this.botS = safeStop(effS - contactGap);
+            } else if(owSep ? inContact
+                             : (onRobotLane && this.botS > effS - contactGap && this.botS < effS)){
+              /* BOTH SIDES. The rail bound was `> effS - gap && < effS`
+                 -- approach from behind only, because that was the only
+                 approach that existed. Off the rail he can meet a parked
+                 robot nose to nose, and the standoff is placed on
+                 whichever side he actually came from. */
+              if(owSep) hzWallStopAt((Math.sign(dxEff) || -1) * contactGap,
+                                     effS - contactGap);
+              else this.botS = safeStop(effS - contactGap);
               this.isBlocked = true;
               if(this.speed > ROBOT_HIT_MIN && !hz.hit){
                 hz.hit = true; this.tipCause = hz.type;
@@ -19727,9 +19905,14 @@ class WorldScene extends Phaser.Scene {
                      fires from behind, but computed anyway). Rovers'
                      b-axis is rv, perpendicular to the shove: random
                      side, same as Tipsey's own head-on tilt above. */
+                  /* parked robots tip along the route axis, away from
+                     the impact: dxEff is (Tipsey - robot), so the robot
+                     departs on -sign(dxEff). Identical to the rail's
+                     sign(effS - botS), and correct from either side now
+                     that either side is reachable. */
                   hz.knockDir = hz.roving
                     ? (Math.random() < 0.5 ? 1 : -1)
-                    : (Math.sign(effS - this.botS) || 1);
+                    : (-(Math.sign(dxEff)) || 1);
                   setTimeout(() => this.spillRobotCargo(hz), 150);   // same 150ms fall-spill as the side hit
                 }
                 // below full speed: just stuck against it, no tip either way
@@ -19740,7 +19923,9 @@ class WorldScene extends Phaser.Scene {
                (gap+12), or a blocked Tipsey parked AT the line would
                re-arm hz.hit every frame. Was 40 back when the stop
                line was 28. */
-            if(Math.abs(this.botS - effS) > contactGap + 12) hz.hit = false;
+            /* release hysteresis, measured as a real distance off the
+               rail so backing away sideways re-arms too. */
+            if((owSep ? Math.hypot(dxEff, rLat) : Math.abs(this.botS - effS)) > contactGap + 12) hz.hit = false;
           } else {
             this.simRobotCargo(hz, dt);
           }
@@ -21743,7 +21928,23 @@ class WorldScene extends Phaser.Scene {
       hz.ka = hz.retA + (ksp.a - hz.retA)*ke;
       hz.kb = hz.retB + ((ksp.b || 0) - hz.retB)*ke;
       hz.kth = Math.atan2(-(ksp.a - hz.retA), ((ksp.b || 0) - hz.retB) || 1);
-      if(ku >= 1){ hz.kst = "patrol"; hz.kt0 = t; }
+      if(ku >= 1){
+        hz.kst = "patrol"; hz.kt0 = t;
+        /* ALWAYS ACTIVE (2026-08-24, Sir's call). hz.spent used to clear
+           only when the robot got 220 units clear of him -- a ONE
+           ATTEMPT PER PASS rule, which is what "pass" meant on a rail:
+           you drove by once, he got his one swing, and the distance test
+           was really just "you have gone". Free play has no passes. You
+           can circle the block and come back, and under the old rule he
+           would stand there inert because you never went far enough away
+           to reset him.
+           The cycle itself is the cooldown now: he re-arms the moment
+           the full gloat/whiff + return timeline lands him back on
+           patrol, so the gap between attempts is his own animation
+           (~1.5-1.9s) rather than a distance. He cannot chain-kick,
+           and he cannot be switched off by loitering. */
+        hz.spent = false;
+      }
     }
   }
 
