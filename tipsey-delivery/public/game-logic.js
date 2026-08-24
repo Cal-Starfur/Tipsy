@@ -4350,8 +4350,14 @@ function owShoreCollide(scene, ow, D, dYaw){
    whose responses write botS in ways that need their own thought, not a
    shared helper. Anything absent here still gets OW's simple contact
    pass, exactly as it did before this commit. */
+/* Types the game's own interaction loop owns under open world, measured
+   in world space via owSep. Everything NOT listed here is handled by
+   owStep's stand-in disc pass instead -- one owner per type, never two.
+   'cone' joined 2026-08-24: as a disc it was a bollard you bounced off,
+   which is the one thing a traffic cone must never be. */
 const OW_LOOP_TYPES = new Set(['lamp', 'palm', 'hydrant', 'pigeons',
-                               'crack', 'trash', 'palmDwarf', 'dog', 'people']);
+                               'crack', 'trash', 'palmDwarf', 'dog', 'people',
+                               'cone', 'scooter', 'planter', 'bin']);
 
 /* ---------- iso inverse ----------
    W() is a plain 2:1 iso: sx = (X - Y)*K, sy = (X + Y)*0.5*K. Inverting
@@ -4478,6 +4484,70 @@ function owRailSync(scene){
   if(!hit) return;
   ow.railS = hit.s; ow.railLat = hit.lat; ow.railD = Math.sqrt(hit.d2);
   scene.botS = hit.s;
+}
+
+/* ---------- ARRIVAL, IN WORLD SPACE (open-world step 5) ----------
+   `remain = doorS - botS` was the only thing that ever said "you are at
+   the address", and it cannot survive steering for a reason that has
+   nothing to do with botS being derived: it measures ONE axis. On a rail
+   that was complete information -- every lane the robot could occupy was
+   a lane at the door -- so the test never had to ask which side of the
+   street he was on, because he could not be on the other one. Give him a
+   steering wheel and that assumption is simply false: park on the FAR
+   pavement, directly opposite the house, and the s window is perfectly
+   satisfied.
+
+   THE SAME TWO NUMBERS AS THE HAZARD LOOP, and deliberately so. owSep
+   already established that a rail test written in (along, across) ports
+   to world space by re-measuring those two against the door's own axis
+   pair rather than by retuning anything. Same move here, so the tuned
+   window survives untouched:
+
+     along = (bot - door) . dv     ==  botS - doorS   on a straight
+     lat   = (bot - door) . rv     ==  laneOff        on the rail
+
+   which is why the along bounds below are the original 34/-60 verbatim
+   and not new numbers. On the rail the two tests agree exactly; the ONLY
+   thing world space adds is the across test the rail never needed.
+
+   THE LATERAL BAND IS DERIVED, NOT DIALLED. It is the robot's own
+   sidewalk band -- ROBOT_SIDE * [ROAD_HALF, ROAD_HALF + 4*T2], i.e. the
+   full span of lanes laneOffset() can return -- plus a body's slack at
+   each edge. So "at the door" means what it always meant (somewhere in
+   the walkable band in front of the address) and now also means the near
+   pavement rather than the far one.
+
+   DOOR FRAME FROM THE ROUTE, NOT FROM THE RENDERER. addrDoorPos and
+   friends are set as a side effect of the address house unit's draw
+   pass, which is culled when off screen -- reading them here would make
+   arrival depend on whether the house is currently visible. doorS was
+   already refined to the address unit's true on-route position at spawn,
+   so the route itself is the honest source. */
+const OW_DOOR = { ahead: 34, behind: 60, latPad: 46 };
+function owDoorFrame(r){
+  const p = segsPosAt(r.segs, r.doorS), hdg = segsHeadingAt(r.segs, r.doorS);
+  return { x: p.x, y: p.y,
+           dvx: Math.cos(hdg), dvy: Math.sin(hdg),
+           rvx: -Math.sin(hdg), rvy: Math.cos(hdg) };
+}
+function owAtDoor(scene){
+  const r = scene.route;
+  if(!r || !r.segs || !r.segs.length || r.doorS === undefined) return false;
+  const f = owDoorFrame(r);
+  const sx = scene.botX - f.x, sy = scene.botY - f.y;
+  const along = sx*f.dvx + sy*f.dvy;
+  /* STRICT, both ends. The rail window is `remain < 34 && remain > -60`
+     with remain = -along, so along == -34 and along == 60 are both
+     REJECTIONS there. A first cut wrote these as <= / >= and accepted
+     the two boundary values; the day census caught it as a steady ~4
+     mismatches per day, every one of them sitting exactly on -34. A
+     measure-zero difference in play, but exact agreement on the rail is
+     the entire claim this test makes, so it has to actually be exact. */
+  if(along <= -OW_DOOR.ahead || along >= OW_DOOR.behind) return false;
+  const lat = sx*f.rvx + sy*f.rvy;
+  const b0 = ROBOT_SIDE*ROAD_HALF, b1 = ROBOT_SIDE*(ROAD_HALF + 4*T2);
+  return lat >= Math.min(b0,b1) - OW_DOOR.latPad
+      && lat <= Math.max(b0,b1) + OW_DOOR.latPad;
 }
 
 /* ---------- the step ----------
@@ -8053,15 +8123,32 @@ function propSpawnState(type, hzObj, R, walkRange){
     if(preKnocked) hzObj.fallPsi = R()*Math.PI*2;
   }
   if(type === "bin"){
-    const preKnocked = R() < 0.4;
-    hzObj.phi = preKnocked ? BIN_HIT.phiRest : 0;
+    /* BINS ALWAYS SPAWN UPRIGHT (2026-08-24). They used to have a 40%
+       chance of already lying on their side, which read as scenery on a
+       rail but is wrong now that the barrel is a knock-once event: a
+       pre-fallen bin is a wall you can never knock, dressed up as one
+       you can.
+
+       THE DRAWS STAY. R is one sequential stream shared by the whole
+       hazard placement pass -- the very next call picks the next
+       hazard's type -- so deleting a call does not remove a bin pose, it
+       shifts every hazard after it on every route of every day. Both
+       draws are still taken and their results discarded, which keeps the
+       stream bit-for-bit identical to before this change. The second
+       draw was CONDITIONAL on the first (only a pre-knocked bin picked a
+       fall angle), so it has to stay conditional here too -- taking it
+       unconditionally would desync the stream on the 60% of bins that
+       used to spawn upright. */
+    const _wasPreKnocked = R() < 0.4;      // roll kept, outcome discarded
+    if(_wasPreKnocked) R();                // the fall-angle draw it used to take
+    hzObj.phi = 0;
     hzObj.angVel = 0; hzObj.moving = false;
-    hzObj.pose = preKnocked ? "knocked" : "standing";
+    hzObj.pose = "standing";
     hzObj.slide = 0; hzObj.slideVel = 0;
     hzObj.bonked = false;
+    hzObj.knockSpent = false;
     hzObj.items = []; hzObj.spilled = false;
     hzObj.thetaF = 0;
-    if(preKnocked) hzObj.fallPsi = R()*Math.PI*2;
   }
   if(type === "planter"){
     hzObj.scale = 1.0 + R()*1.2;                 // 1.0-2.2x, straddles PLANTER_HIT.thresh (1.4) and largeMin (1.8)
@@ -18044,6 +18131,26 @@ class WorldScene extends Phaser.Scene {
            the robot on every street crossing. hit:true at spawn is the
            belt to this suspender. */
         if(hz.type === "sidewalkend" || hz.type === "sidewalkbegin" || hz.type === "grade" || hz.type === "burnoutMark") continue;   // ramps + grade paint: no collision
+        /* ROAD CRACKS ARE TEXTURE, and this line is what makes that true
+           again. They are spawned out on the asphalt with a roadOffset
+           and DELIBERATELY no `row` field, and their own spawn comment
+           states the guarantee: "pure texture, zero physics (the impact
+           check requires row===botRow, and these never get a `row` field
+           at all, so they can never match)".
+
+           That guarantee was enforced by ARITHMETIC, not by a rule:
+           laneOffset(undefined) is NaN, every comparison against NaN is
+           false, so the lane gate rejected them. owSep measures lat in
+           world space from the crack's stamped wx/wy and never consults
+           hz.row at all -- so the NaN that was doing the work is simply
+           not in the expression any more, and all 68 road cracks per 8
+           days become live flat-triggers that jolt the robot for driving
+           over painted-on asphalt spall.
+
+           Stated as a rule now, so it survives the next re-measurement:
+           a crack with no row is not on the sidewalk and does not touch
+           anyone. No-op on the rail, where the NaN already did this. */
+        if(hz.type === "crack" && hz.row === undefined) continue;
         let dx = this.botS - hz.s;
         /* lateral offset of a MOVING hazard's hitbox: a walker mid-
            detour (detourBAt) is a full lane off its home row, and a
@@ -18102,7 +18209,24 @@ class WorldScene extends Phaser.Scene {
         let owSep = null;
         if(owLoop){
           const _mw = hazWorldAt(t, hz);
-          const _hx = _mw ? _mw.x : hz.wx, _hy = _mw ? _mw.y : hz.wy;
+          /* SLIDE-AWARE FALLBACK. hazWorldAt only answers for types that
+             WALK (robot/william/dog/people); everything else returned
+             null and this fell back to the raw stamp hz.wx/hz.wy. That
+             stamp is taken at the hazard's ORIGINAL s and is therefore
+             wrong the moment a prop is punted -- hz.slide is the skid,
+             and hazSpotWorld already folds it onto the hazard's own dv
+             for exactly this reason. Asking hazSpotWorld instead of
+             reading the stamp raw makes hitbox follow art for every
+             sliding prop (cone, bin, scooter) at once.
+             NO CHANGE for the types already ported: slide is undefined
+             on all of them, so the term is zero and this returns the
+             stamp it used to read. */
+          let _hx, _hy;
+          if(_mw){ _hx = _mw.x; _hy = _mw.y; }
+          else {
+            const _sw = hazSpotWorld(hz, 0, 0);
+            if(_sw){ _hx = _sw.x; _hy = _sw.y; }
+          }
           if(_hx !== undefined){
             const _fq = ((Math.round(hz.f || 0) % 4) + 4) % 4;
             const _dv = DIRV[_fq], _rv = DIRV[(_fq+1)%4];
@@ -18302,6 +18426,78 @@ class WorldScene extends Phaser.Scene {
           this.botX = nx; this.botY = ny;
           if(this.ow){ this.ow.px = nx; this.ow.py = ny; this.ow.vel = 0; }
         };
+        /* ASYMMETRIC-SPAN SIBLING. hzWallStop places the robot at
+           ±standoff, which is exactly right for a lamp post: a pole is
+           the same size whichever way you meet it. It is wrong for
+           anything whose footprint is not centred on its own anchor.
+           planterSpanS is the case in point -- a pot fallen forward
+           occupies [+16.5, +67.5] at scale 1.5, entirely on ONE side of
+           the anchor it pivoted off -- so "stop at the near edge" and
+           "stop at the far edge" are different numbers, and picking the
+           wrong one drags the robot the whole width of the prop THROUGH
+           it. Takes a SIGNED along-axis offset instead of a magnitude,
+           so the caller names the edge it wants. offB is the lateral
+           landing spot and defaults to holding the robot's current one
+           (which is what an along-axis wall should do); a prop whose
+           footprint moves ACROSS the path as well -- a barrel toppling
+           sideways -- passes its own. */
+        const hzWallStopAt = (offA, railTarget, offB) => {
+          if(!owSep){ this.botS = safeStop(railTarget); return; }
+          const B = offB === undefined ? owSep.lat : offB;
+          const nx = owSep.hx + owSep.dv.x*offA + owSep.rv.x*B;
+          const ny = owSep.hy + owSep.dv.y*offA + owSep.rv.y*B;
+          this.botX = nx; this.botY = ny;
+          if(this.ow){ this.ow.px = nx; this.ow.py = ny; this.ow.vel = 0; }
+        };
+        /* THE ROBOT'S OWN LANE, off the rail. botRow is a rail input and
+           laneOff is pinned to 0 under open world, so every row test
+           collapses to row 0 there. lat is the robot's lateral relative
+           to THIS hazard's row, so adding the hazard's own lane offset
+           recovers an absolute lateral and the nearest lane to it -- all
+           from the two numbers the loop already has, with nothing global
+           to keep in step. */
+        const botRowNow = () => {
+          if(!owSep) return this.botRow;
+          const abs = laneOffset(hz.row) + lat;
+          return [0,1,2,3].reduce((b, r) =>
+            Math.abs(abs - laneOffset(r)) < Math.abs(abs - laneOffset(b)) ? r : b, 0);
+        };
+        /* WHICH WAY A KNOCKED PLANTER GOES OVER, in two dimensions.
+           The rail could only answer this in one: approach was always
+           head-on, so the fall was fore or aft (botS vs hz.s) and the
+           ONLY way to get a sideways fall was to be caught mid-lane-hop,
+           which is why hopAnim appears in a physics decision at all.
+           Steering hands over a real impact vector, so the honest answer
+           is simply "away from where the robot actually is": the robot
+           sits at (dx, lat) in the pot's own axis pair, so the pot
+           departs along (-dx, -lat).
+
+           REDUCES TO THE RAIL EXACTLY. With lat = 0 this is atan2(0,
+           -dx) -- 0 when the robot is behind (dx < 0), PI when ahead --
+           character for character the old fore/aft pick. What it adds is
+           every angle in between: clip a pot at 45 degrees and it goes
+           over at 45 degrees instead of snapping square.
+
+           spillRow follows from the same vector rather than from a hop
+           input that does not exist off the rail. laneOffset steps
+           ROBOT_SIDE*T2 per row, so a fall of +b lands ROBOT_SIDE rows
+           away; only a genuinely SIDEWAYS fall claims a lane at all
+           (|sin| > |cos| is planterSpanS's own sideFall test, reused so
+           the two cannot disagree), and a pot that leaves the band
+           entirely reports null exactly as before. */
+        const planterPickFall = (h) => {
+          const jitter = (Math.random() - 0.5) * 0.4;
+          if(!owSep){
+            h.fallPsi = (this.botS <= h.s ? 0 : Math.PI) + jitter;
+            return;
+          }
+          const psi = Math.atan2(-lat, -dx) + jitter;
+          h.fallPsi = psi;
+          if(Math.abs(Math.sin(psi)) > Math.abs(Math.cos(psi))){
+            const sr = h.row + Math.sign(Math.sin(psi)) * ROBOT_SIDE;
+            h.spillRow = (sr >= 0 && sr <= 3) ? sr : null;
+          }
+        };
         /* the approach gate. Rail: only from behind, within the
            standoff. World: from any side. */
         const hzWithin = R => owSep ? (Math.abs(dx) < R) : (dx > -R && dx < 0);
@@ -18448,7 +18644,11 @@ class WorldScene extends Phaser.Scene {
               }
             }
           }
-          if(hz.slideVel > 0.0001){
+          /* ABS, because the punt is signed now (see the punt-direction
+             note below). A one-sided `> 0.0001` test silently zeroed
+             every backwards skid the instant it was applied -- a cone
+             met head-on would take the hit, tip over, and not move. */
+          if(Math.abs(hz.slideVel) > 0.0001){
             hz.slide += hz.slideVel * dt;
             hz.slideVel *= Math.exp(-0.004 * dt);
           } else hz.slideVel = 0;
@@ -18460,7 +18660,7 @@ class WorldScene extends Phaser.Scene {
              feed the punt back into re-triggering itself, stacking
              redundant tilt/damage on the robot for what should read
              as a single clean bonk. */
-          if(!hz.hit && Math.abs(dx) < 26 && onLane(hz.row) && this.speed > 0.08){
+          if(!hz.hit && Math.abs(dx) < 26 && onLaneHz() && this.speed > 0.08){
             hz.hit = true; this.tipCause = hz.type;
             if(hz.fallPsi === undefined) hz.fallPsi = (Math.random() - 0.5) * 0.5;
             const sp = this.speed;
@@ -18468,7 +18668,19 @@ class WorldScene extends Phaser.Scene {
               hz.moving = true;
               hz.angVel += sp * 0.06 * CONE_HIT.kick;
             }
-            hz.slideVel += sp * 1.2 * CONE_HIT.punt;
+            /* PUNT DIRECTION, and this is the one number free steering
+               genuinely breaks rather than merely re-measures. On the
+               rail the punt was unsigned because it did not have to be:
+               approach was always from behind, so "away" was always +a.
+               Steering lets you meet a cone nose-to-nose driving the
+               other way, or back into one, and an unsigned punt then
+               fires it THROUGH the robot. dx is the along-axis
+               separation (robot minus cone), so the cone leaves along
+               -sign(dx): away from where the robot is. Identical to the
+               old behaviour on the rail, where dx is negative on
+               approach and this evaluates to +1. */
+            const away = -(Math.sign(dx) || -1);
+            hz.slideVel += away * sp * 1.2 * CONE_HIT.punt;
             const kick = sp * 2.2 * (Math.random() < 0.5 ? 1 : -1);
             this.tilt += kick * TILT_SENS;
             this.damage = Math.min(95, this.damage + Math.abs(kick)*20*CARGO_DAMAGE_SENS);
@@ -18496,23 +18708,81 @@ class WorldScene extends Phaser.Scene {
              topple reach), so after a shove the robot stops at the
              lying barrel instead of at the empty spot it left. */
           const binS = hz.s + binShiftAt(hz);
-          if(onLane(hz.row) && this.botS > binS - BOT_CLEAR && this.botS < binS){
-            this.botS = safeStop(binS - BOT_CLEAR);
+          /* ---- THE BARREL AS A DISC THAT MOVES WITH THE FALL ----
+             binShiftAt is the rail's whole answer to "where is the bin
+             now": (slide + topple reach) projected onto the ONE axis it
+             could be hit along. Off the rail the same two terms are a
+             VECTOR -- the barrel goes over in the direction it was
+             knocked, and a bin toppled sideways sits beside its anchor,
+             not in front of it.
+
+             hazSpotWorld already folded hz.slide into owSep's anchor, so
+             the only term left to add here is the topple reach along the
+             fall direction. That puts the barrel's collision centre at
+             reach*(cos psi, sin psi) from the anchor, and BOT_CLEAR --
+             which is already a fall-aware radius, easing 26 -> 16 as it
+             lies down -- is the disc about it.
+
+             THIS IS THE RAIL'S OWN SHAPE, not a new one. Head-on with
+             psi = 0 the disc's near face sits at reach - BOT_CLEAR,
+             character for character the old `binS - BOT_CLEAR` stop
+             line. What it adds is the other three sides. */
+          const _lay = Math.min(1, (hz.phi || 0)/(Math.PI/2));
+          const _reach = _lay * BIN.height * 0.5;
+          const _psi = hz.fallPsi || 0;
+          const _bA = _reach * Math.cos(_psi), _bB = _reach * Math.sin(_psi);
+          const _cx = dx - _bA, _cy = (owSep ? lat : 0) - _bB;
+          const _cd = Math.hypot(_cx, _cy) || 1e-6;
+          const binHit = owSep
+            ? (_cd < BOT_CLEAR)
+            : (this.botS > binS - BOT_CLEAR && this.botS < binS);
+          if(onLaneHz() && binHit){
+            if(owSep) hzWallStopAt(_bA + (_cx/_cd)*BOT_CLEAR, binS - BOT_CLEAR,
+                                   _bB + (_cy/_cd)*BOT_CLEAR);
+            else this.botS = safeStop(binS - BOT_CLEAR);
             this.isBlocked = true;
-            if(this.speed > 0.08 && !hz.bonked && hz.pose !== "knocked"){
+            if(this.speed > 0.08 && !hz.knockSpent){
+              /* ONE KNOCK, EVER. hz.bonked was a per-APPROACH latch: it
+                 re-armed the moment you got 40 units clear, which on a
+                 rail was as good as permanent (you had already driven
+                 past and could not come back). Steering makes backing
+                 off and re-hitting trivial, so the same barrel could be
+                 knocked over and over, each pass charging fresh tilt and
+                 damage for an event that has already happened.
+
+                 `hz.pose !== "knocked"` did not cover it either: pose
+                 only flips once the topple integrator SETTLES, so every
+                 hit landed during the fall itself -- the most likely
+                 moment to circle back for another -- got through.
+
+                 knockSpent is set on the first knock and never cleared.
+                 A fallen bin still blocks exactly as before; it just
+                 stops being a scoring event. */
+              hz.knockSpent = true;
               hz.bonked = true;
-              if(hz.fallPsi === undefined) hz.fallPsi = (Math.random() - 0.5) * 0.5;
+              /* WHICH WAY IT GOES OVER. The rail gave this a small random
+                 wobble and nothing else, because approach was always from
+                 behind so "forward" was the only answer available. The
+                 impact vector supplies a real one now: away from the
+                 robot, same rule the planter uses. */
+              if(hz.fallPsi === undefined)
+                hz.fallPsi = owSep
+                  ? Math.atan2(-lat, -dx) + (Math.random() - 0.5) * 0.5
+                  : (Math.random() - 0.5) * 0.5;
               const sp = this.speed;
               hz.moving = true;
               hz.angVel += sp * 0.06 * BIN_HIT.kick;
-              hz.slideVel += sp * 0.6 * BIN_HIT.punt;   // a shove as it goes over, not a full punt
+              /* SIGNED, like every other shoved prop. */
+              hz.slideVel += -(Math.sign(dx) || -1) * sp * 0.6 * BIN_HIT.punt;   // a shove as it goes over, not a full punt
               const kick = sp * 2.6 * (Math.random() < 0.5 ? 1 : -1);
               this.tilt += kick * TILT_SENS;
               this.damage = Math.min(95, this.damage + Math.abs(kick)*40*CARGO_DAMAGE_SENS);
             }
             this.speed = 0;
           }
-          if(Math.abs(this.botS - (hz.s + binShiftAt(hz))) > 40) hz.bonked = false;   // re-arm after backing off, measured from the MOVED footprint
+          /* NO RE-ARM. The knock is spent for good (see knockSpent
+             above), so there is nothing left to re-arm -- the old
+             distance test only existed to allow a second bonk. */
 
           /* single-phase gravity pivot about the base rim — no slab
              handoff needed, a barrel just lies flat on its side */
@@ -18540,7 +18810,9 @@ class WorldScene extends Phaser.Scene {
               }
             }
           }
-          if(hz.slideVel > 0.0001){
+          /* ABS: the shove is signed now, and a one-sided test would
+             zero every backwards skid on the frame it was applied. */
+          if(Math.abs(hz.slideVel) > 0.0001){
             hz.slide += hz.slideVel * dt;
             hz.slideVel *= Math.exp(-0.0045 * dt);
           } else hz.slideVel = 0;
@@ -18686,10 +18958,30 @@ class WorldScene extends Phaser.Scene {
             const span = planterSpanS(hz);
             const wallLo = hz.s + span.lo, wallHi = hz.s + span.hi;
             const spillBlocks = hz.spillRow !== undefined && hz.spillRow !== null
-                                && this.botRow === hz.spillRow && hz.phi > PLANTER_HIT.phiBal;
-            if((onLane(hz.row) || spillBlocks) && this.botS > wallLo - BODY.hx && this.botS < wallHi + 20){
+                                && botRowNow() === hz.spillRow && hz.phi > PLANTER_HIT.phiBal;
+            /* THE SPAN, MEASURED FROM THE ANCHOR. span.lo/hi are already
+               anchor-relative, and dx is the robot's along-axis distance
+               from that same anchor, so the block test is the span
+               grown by a body half-length at each end -- the rail's
+               `botS > wallLo - BODY.hx` and `botS < wallHi + 20` in the
+               one coordinate that survives off the rail. The +20 becomes
+               a symmetric BODY.hx: on the rail the far bound was only an
+               exit test (you could never be past it), off the rail it is
+               a real face the robot can hit. */
+            const blocked = owSep
+              ? (dx > span.lo - BODY.hx && dx < span.hi + BODY.hx)
+              : (this.botS > wallLo - BODY.hx && this.botS < wallHi + 20);
+            if((onLaneHz() || spillBlocks) && blocked){
               const impactSp = this.speed;   // BEFORE the wall zeroes it — this is the hit energy
-              this.botS = safeStop(wallLo - BODY.hx);
+              /* OUT THE NEAR SIDE. Which edge the robot leaves by is his
+                 own position within the span, not a constant: a pot that
+                 has fallen forward sits wholly ahead of its anchor, so
+                 the rail's unconditional "stop at lo" would haul someone
+                 who met it from the far side backwards through the whole
+                 prop. */
+              const mid = (span.lo + span.hi) / 2;
+              hzWallStopAt(dx < mid ? span.lo - BODY.hx : span.hi + BODY.hx,
+                           wallLo - BODY.hx);
               this.isBlocked = true;
               this.speed = 0;
               if(hz.pose !== "knocked" && !hz.hit){
@@ -18720,21 +19012,13 @@ class WorldScene extends Phaser.Scene {
                      sign); spillRow is the lane the fallen box lands
                      in, null when it fell off the band (road/building
                      side). Driving hits keep the fore/aft pick. */
-                  if(hz.fallPsi === undefined){
-                    if(this.hopAnim){
-                      hz.fallPsi = this.hopAnim.dir * ROBOT_SIDE * (Math.PI/2) + (Math.random()-0.5)*0.4;
-                      const sr = hz.row + this.hopAnim.dir;
-                      hz.spillRow = (sr >= 0 && sr <= 3) ? sr : null;
-                    } else {
-                      hz.fallPsi = (this.botS <= hz.s ? 0 : Math.PI) + (Math.random()-0.5)*0.4;
-                    }
-                  }
+                  if(hz.fallPsi === undefined) planterPickFall(hz);
                   hz.moving = true;
                   hz.angVel += impactSp * 0.06 * PLANTER_HIT.kick / Math.pow(hz.scale, PLANTER_HIT.potPower);
                 }
               }
             }
-          } else if(!hz.hit && Math.abs(dx) < BODY.hx + halfW && onLane(hz.row) && this.speed > 0.08 && hz.pose !== "knocked"){
+          } else if(!hz.hit && Math.abs(dx) < BODY.hx + halfW && onLaneHz() && this.speed > 0.08 && hz.pose !== "knocked"){
             hz.hit = true; this.tipCause = hz.type;
             /* contact distance scaled to the actual geometry (robot
                half-length + this planter's half-width) instead of the
@@ -18743,15 +19027,7 @@ class WorldScene extends Phaser.Scene {
                oversized wall above). Fall pick: same cross-axis rule
                as the oversized case -- side impact mid-hop falls
                across the lane band, driving hit falls fore/aft. */
-            if(hz.fallPsi === undefined){
-              if(this.hopAnim){
-                hz.fallPsi = this.hopAnim.dir * ROBOT_SIDE * (Math.PI/2) + (Math.random()-0.5)*0.4;
-                const sr = hz.row + this.hopAnim.dir;
-                hz.spillRow = (sr >= 0 && sr <= 3) ? sr : null;
-              } else {
-                hz.fallPsi = (this.botS <= hz.s ? 0 : Math.PI) + (Math.random()-0.5)*0.4;   // away from the robot, like before
-              }
-            }
+            if(hz.fallPsi === undefined) planterPickFall(hz);
             const sp = this.speed;
             hz.moving = true;
             hz.angVel += sp * 0.09 * PLANTER_HIT.kick / Math.pow(hz.scale, PLANTER_HIT.potPower);
@@ -18759,7 +19035,12 @@ class WorldScene extends Phaser.Scene {
                knock feel: a light planter skids away from the impact
                as it topples (oversized stays planted: too heavy to
                shove, which is the point of oversized). */
-            hz.slideVel = (hz.slideVel || 0) + sp * 0.45 / Math.pow(hz.scale, PLANTER_HIT.potPower);
+            /* SIGNED, like the cone's and the scooter's: the skid runs
+               along the same axis the pot fell along, away from the
+               robot. Unsigned it would shove a head-on hit straight
+               through him. */
+            hz.slideVel = (hz.slideVel || 0)
+                        + -(Math.sign(dx) || -1) * sp * 0.45 / Math.pow(hz.scale, PLANTER_HIT.potPower);
             const kick = sp * 1.6 * (Math.random() < 0.5 ? 1 : -1);
             this.tilt += kick * TILT_SENS;
             this.damage = Math.min(95, this.damage + Math.abs(kick)*40*CARGO_DAMAGE_SENS);
@@ -18794,7 +19075,9 @@ class WorldScene extends Phaser.Scene {
               }
             }
           }
-          if(hz.slideVel > 0.0001){
+          /* ABS: the shove is signed now, and a one-sided test would
+             zero every backwards skid on the frame it was applied. */
+          if(Math.abs(hz.slideVel) > 0.0001){
             hz.slide = (hz.slide || 0) + hz.slideVel * dt;
             hz.slideVel *= Math.exp(-0.0045 * dt);   // bin's exact skid decay
           } else hz.slideVel = 0;
@@ -18808,7 +19091,7 @@ class WorldScene extends Phaser.Scene {
              using the UNADJUSTED route distance — the same fix the
              cone needed, since gating re-arm on the slide feeds the
              punt back into re-triggering itself. */
-          if(!hz.hit && Math.abs(dx) < 26 && onLane(hz.row)){
+          if(!hz.hit && Math.abs(dx) < 26 && onLaneHz()){
             hz.hit = true; this.tipCause = hz.type;
             if(hz.fallPsi === undefined) hz.fallPsi = (Math.random() - 0.5) * 0.6;
             const sp = this.speed;
@@ -18816,7 +19099,10 @@ class WorldScene extends Phaser.Scene {
               hz.moving = true;
               hz.angVel += sp * 0.06 * SCOOT_HIT.kick;
             }
-            hz.slideVel += sp * 1.2 * SCOOT_HIT.punt;
+            /* SIGNED, for the cone's reason exactly: the rail could only
+               ever meet this from behind, so the punt never needed a
+               direction. Steering supplies one. */
+            hz.slideVel += -(Math.sign(dx) || -1) * sp * 1.2 * SCOOT_HIT.punt;
             const kick = sp * 9 * (Math.random() < 0.5 ? 1 : -1);
             this.tilt += kick * TILT_SENS;
             this.damage = Math.min(95, this.damage + Math.abs(kick)*46*CARGO_DAMAGE_SENS);
@@ -18847,7 +19133,9 @@ class WorldScene extends Phaser.Scene {
               }
             }
           }
-          if(hz.slideVel > 0.0001){
+          /* ABS: the punt is signed now, and a one-sided test would
+             zero every backwards skid on the frame it was applied. */
+          if(Math.abs(hz.slideVel) > 0.0001){
             hz.slide += hz.slideVel * dt;
             hz.slideVel *= Math.exp(-0.004 * dt);
           } else hz.slideVel = 0;
@@ -19179,17 +19467,19 @@ class WorldScene extends Phaser.Scene {
          exactly where he crossed the line rather than sliding through
          it. Position window and upright check are both untouched;
          this._slAPI only widens the speed test to "any speed". */
-      /* NOT WHILE OPEN WORLD DRIVES. botS is a MEASUREMENT now, not an
-         integration (see owRailSync), so free play genuinely does reach
-         doorS -- drive past the address block and this test would hand
-         you a delivery you never accepted. The s window is also the
-         wrong shape once you can steer: it says nothing about which side
-         of the street you are on. Arrival becomes a world-space test
-         against the mat in the delivery step; until then, off. */
+      /* ARRIVAL. Under open world the s window is replaced by owAtDoor's
+         world-space test, not merely disabled -- see its own note. The
+         rail expression is left verbatim on the rail path so the
+         shipping game and the hazard oracle are byte-for-byte unmoved.
+         GATED ON A DELIVERY ACTUALLY BEING ACTIVE: free play drives the
+         same city and passes the same address, and winning a delivery
+         you never accepted is exactly the bug the old freeze was hiding. */
       const remain = this.route.doorS - this.botS;
       const slSkipStop = !!this._slAPI;
-      if(!(this.ow && this.ow.on) &&
-         remain < 34 && remain > -60 && (slSkipStop || this.speed < 0.02) && Math.abs(this.tilt) < 0.5){
+      const atDoor = (this.ow && this.ow.on)
+        ? (this.mode === "delivery" && owAtDoor(this))
+        : (remain < 34 && remain > -60);
+      if(atDoor && (slSkipStop || this.speed < 0.02) && Math.abs(this.tilt) < 0.5){
         this.state = "won";
         if(this.attractOwnsTip()) this.attractRecycle(ATTRACT_WIN_MS);
         else this.tdVictoryBegin();
