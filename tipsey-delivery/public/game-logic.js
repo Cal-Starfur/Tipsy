@@ -4367,6 +4367,119 @@ function owWrapAngle(a){
   return a;
 }
 
+/* ---------- DERIVED s (open-world step 4) ----------
+   botS USED TO BE FROZEN under open world, and that freeze is what kept
+   free steering out of the daily route. Everything the delivery layer
+   does is keyed to s -- the door test, the GPS distance and turn arrow,
+   the par clock, groundZ, the curb-ramp crossings -- so a frozen s does
+   not mean "the rail is idle", it means all of that reads one stale
+   number forever.
+
+   The fix is not to convert those consumers. It is to stop INTEGRATING s
+   and start MEASURING it: project the free pose back onto the route and
+   report where along it the robot actually is. Same number, sourced from
+   the position instead of driving it. Every s-keyed system then works
+   untouched, and none of them can tell the difference on the rail --
+   projecting a point that is exactly on the centerline returns exactly
+   its own s.
+
+   WINDOWED, NOT GLOBAL, and this is the part that matters. A route folds
+   back on itself (the reroute lap is periodic BY CONSTRUCTION: world(s +
+   len) === world(s)), so a global nearest-point search is ambiguous at
+   every self-crossing and would snap a lap forward or back mid-drive.
+   Searching only the segments within OW_PROJ_WIN of last frame's answer
+   makes the result continuous: at 0.225 u/ms top speed a frame moves ~9
+   units, so a 1200-unit window is two orders of magnitude of slack and
+   still far narrower than any lap.
+
+   REACQUIRE is the fallback, not the rule. Drive far enough off the
+   corridor -- which free play exists to let you do -- and the window can
+   come up empty; then and only then the search widens to the whole route
+   and re-anchors. */
+const OW_PROJ_WIN = 1200;
+/* Past this far off the centerline the windowed answer stops being
+   trusted on its own -- see owRailSync. DERIVED FROM THE LANE MODEL, not
+   picked: laneOffset(3) = ROBOT_SIDE*(ROAD_HALF + 3.5*T2) = 690, so the
+   outermost lane the robot can legally stand in is already 690 units off
+   the centerline. A first guess of 400 would have fired the global
+   rescan every frame the player hugged the outside of his own sidewalk.
+   900 clears the whole band with slack and still means what it is
+   supposed to mean: not on this stretch of route at all. */
+const OW_PROJ_FAR = 900;
+function owRailProject(segs, x, y, sHint, win){
+  let best = null;
+  for(const sg of segs){
+    if(win !== Infinity && (sg.s1 < sHint - win || sg.s0 > sHint + win)) continue;
+    const len = sg.s1 - sg.s0;
+    let s, px, py, hdg;
+    if(sg.type === "line"){
+      const d = DIRV[sg.f];
+      let u = (x - sg.start.x)*d.x + (y - sg.start.y)*d.y;
+      u = Math.max(0, Math.min(len, u));
+      s = sg.s0 + u;
+      px = sg.start.x + d.x*u; py = sg.start.y + d.y*u;
+      hdg = sg.hA;
+    } else {
+      /* the arc's own parameterisation, run backwards. prog is the swept
+         angle in the seg's travel direction; unwrapping it into (-PI,PI]
+         before the clamp is what stops a point just BEHIND the arc start
+         from reading as nearly a full sweep past its end. */
+      let a = Math.atan2(y - sg.center.y, x - sg.center.x);
+      let prog = sg.sign * (a - sg.a0);
+      while(prog >  Math.PI) prog -= Math.PI*2;
+      while(prog < -Math.PI) prog += Math.PI*2;
+      let u = Math.max(0, Math.min(len, prog * sg.R));
+      s = sg.s0 + u;
+      const aa = sg.a0 + sg.sign * u / sg.R;
+      px = sg.center.x + Math.cos(aa)*sg.R;
+      py = sg.center.y + Math.sin(aa)*sg.R;
+      hdg = sg.hA + sg.sign * u / sg.R;
+    }
+    const ex = x - px, ey = y - py;
+    const d2 = ex*ex + ey*ey;
+    if(!best || d2 < best.d2){
+      /* lat in the SAME convention laneOff uses -- the pose block writes
+         botX = pp.x + (-sin hdg)*laneOff -- so this number can be fed
+         straight to anything that was reading laneOff. */
+      best = { s, d2, lat: ex*(-Math.sin(hdg)) + ey*Math.cos(hdg) };
+    }
+  }
+  return best;
+}
+/* Writes the measurement onto BOTH the ow record and scene.botS. botS is
+   the one the rest of the game reads; ow.railLat/railD are kept because
+   "how far off the route am I" is a question only this projection can
+   answer, and the delivery work above it will need it. laneOff is
+   deliberately NOT written: the pose block sets it to 0 under open world
+   and must keep doing so, or botX would be offset off ow.px twice. */
+function owRailSync(scene){
+  const ow = scene.ow, r = scene.route;
+  if(!ow || !r || !r.segs || !r.segs.length) return;
+  if(ow.railS === undefined || ow.railS === null) ow.railS = scene.botS || 0;
+  let hit = owRailProject(r.segs, ow.px, ow.py, ow.railS, OW_PROJ_WIN);
+  /* REACQUIRE ON DISTANCE, not just on an empty window -- found by
+     driving it. A window on s always returns SOMETHING (the nearest
+     clamped point of whatever segments are in range), so an empty result
+     is nearly unreachable and is the wrong trigger. The real failure is
+     silent: park the robot 7,000 units off the corridor -- the launch pad
+     alone can do that -- drive a few blocks, and s crawls along the foot
+     of a perpendicular dropped from far away, still "valid", still
+     anchored to a stretch of route you left long ago.
+     So: once the measurement is further off the route than OW_PROJ_FAR,
+     ask globally as well and take that answer if it is decisively
+     closer. Near the route the window still wins and lap continuity is
+     preserved, which is the only place that continuity was ever load-
+     bearing; far from it there is no lap to confuse and being anchored
+     to the right street matters more. */
+  if(!hit || hit.d2 > OW_PROJ_FAR*OW_PROJ_FAR){
+    const g = owRailProject(r.segs, ow.px, ow.py, 0, Infinity);
+    if(g && (!hit || g.d2 < hit.d2*0.25)){ hit = g; ow.railReacq = (ow.railReacq || 0) + 1; }
+  }
+  if(!hit) return;
+  ow.railS = hit.s; ow.railLat = hit.lat; ow.railD = Math.sqrt(hit.d2);
+  scene.botS = hit.s;
+}
+
 /* ---------- the step ----------
    One integration tick. Reads the stick off ow.stick / ow.keyv, writes
    ow.px/py/yaw/vel and the scene fields the renderer consumes. Called
@@ -4668,6 +4781,13 @@ function owStep(scene, dt){
   scene.speed = Math.abs(ow.vel);
   scene.throttle = 0;
   scene.wheelPhase = (scene.wheelPhase || 0) - ow.vel * dt * 0.28;
+
+  /* botS, MEASURED. Last thing in the step, because it reads the pose
+     this step just resolved. The hazard loop in drawRobot can still
+     shove ow.px afterwards on a separation, so a shoved frame's s is one
+     frame behind -- a few units against a 1200-unit window, and it
+     self-corrects next frame. */
+  owRailSync(scene);
 }
 
 /* THE TIP, LATCHED, NOT NUDGED. Writing tilt = 1.1 and trusting the
@@ -4777,6 +4897,10 @@ function owInstall(scene){
        rather than a cut. */
     yaw: (scene.drawAngle !== undefined ? scene.drawAngle : scene.headingAt(scene.botS)),
     vel: 0, reversing: false, latchSign: 0,
+    /* the derived-s anchor. Seeded from wherever the rail already had
+       him so the first projection is a continuation rather than a
+       search — install is continuous in s the same way it is in pose. */
+    railS: scene.botS, railLat: 0, railD: 0, railReacq: 0,
     inContact: false, lastSfc: 'sidewalk', surface: 'sidewalk',
     solidOn: new Set(), flatOn: new Set(),
     clipTips: 0, clipScrapes: 0,
@@ -19055,9 +19179,17 @@ class WorldScene extends Phaser.Scene {
          exactly where he crossed the line rather than sliding through
          it. Position window and upright check are both untouched;
          this._slAPI only widens the speed test to "any speed". */
+      /* NOT WHILE OPEN WORLD DRIVES. botS is a MEASUREMENT now, not an
+         integration (see owRailSync), so free play genuinely does reach
+         doorS -- drive past the address block and this test would hand
+         you a delivery you never accepted. The s window is also the
+         wrong shape once you can steer: it says nothing about which side
+         of the street you are on. Arrival becomes a world-space test
+         against the mat in the delivery step; until then, off. */
       const remain = this.route.doorS - this.botS;
       const slSkipStop = !!this._slAPI;
-      if(remain < 34 && remain > -60 && (slSkipStop || this.speed < 0.02) && Math.abs(this.tilt) < 0.5){
+      if(!(this.ow && this.ow.on) &&
+         remain < 34 && remain > -60 && (slSkipStop || this.speed < 0.02) && Math.abs(this.tilt) < 0.5){
         this.state = "won";
         if(this.attractOwnsTip()) this.attractRecycle(ATTRACT_WIN_MS);
         else this.tdVictoryBegin();
@@ -19080,7 +19212,13 @@ class WorldScene extends Phaser.Scene {
          days with no road ring around the address), and its old
          tilt+=0.5 shove is gone: touching the end of the road stops the
          robot, it doesn't knock him over. */
-      if(!this.route.loop){
+      /* AND NOT WHILE OPEN WORLD DRIVES, for a harder reason than the
+         win test: this WRITES botS. A derived s is an output, so
+         clamping it clamps nothing -- the robot keeps driving and the
+         next projection overwrites the clamp -- while `speed = 0`
+         fights owStep's own velocity every frame. The end of the rail
+         is not a wall in a city you can steer around. */
+      if(!this.route.loop && !(this.ow && this.ow.on)){
         const overshootLimit = Math.min(this.route.doorS + 60, this.route.totalLen - 30);
         if(this.botS > overshootLimit){
           this.botS = overshootLimit; this.speed = 0;
