@@ -22397,13 +22397,36 @@ class WorldScene extends Phaser.Scene {
        that a postupdate write lands on a frame already drawn.
        dt is capped: a backgrounded tab returning with a 400ms frame
        would otherwise teleport the robot through a building. */
-    /* ONLY IN FREE ROAM. mode is what says which activity owns the
+    /* WHICH ACTIVITIES STEER. mode is what says which activity owns the
        robot, and every route entry already sets it ("delivery" from GO
        and Today's Delivery, "challenge" from the hydrant, and so on), so
-       gating on it means an activity leaves free play by construction
-       rather than by remembering to switch a flag off. */
+       gating on it means an activity opts in by construction rather than
+       by remembering to switch a flag off.
+
+       DELIVERY JOINED FREE ROAM (2026-08-24). It was held out while
+       every system the delivery layer needs was still rail-only, and
+       each of those was a real blocker, not caution:
+         - botS was FROZEN under open world, so the door test, the GPS
+           distance and turn arrow, the par clock and groundZ all read
+           one stale number forever. It is measured now (owRailSync).
+         - arrival was `doorS - botS`, one axis, which says nothing
+           about which side of the street you are on. owAtDoor measures
+           the door's own (along, across).
+         - six hazard types were stand-in discs with no behaviour: a
+           cone you bounced off, a bin that could not spill, a William
+           who could not kick. All six now run their real branches in
+           world space.
+         - the route drew curb ramps with a tuned ground model the rest
+           of the city did not have, so steering off-corridor stepped
+           off a cliff drawn as a ramp. Ramps are decoration everywhere.
+
+       CHALLENGE IS DELIBERATELY STILL OUT. The hydrant and the slalom
+       are courses -- their whole design is a fixed line with a fixed
+       par, and hjSim/the slalom API are written against botS advancing
+       under throttle. Free steering does not make them better, it makes
+       them meaningless. */
     if(OW_ARMED && !this.ow && this.route && this.state === "play"
-       && this.mode === "freeroam") owInstall(this);
+       && (this.mode === "freeroam" || this.mode === "delivery")) owInstall(this);
     if(this.ow && this.ow.on){
       if(this.state === "play") owStep(this, Math.min(dt, 40));
       else { this.throttle = 0; owRespawnTick(this, t); }
