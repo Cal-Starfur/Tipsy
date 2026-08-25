@@ -19369,6 +19369,36 @@ class WorldScene extends Phaser.Scene {
         /* the approach gate. Rail: only from behind, within the
            standoff. World: from any side. */
         const hzWithin = R => owSep ? (Math.abs(dx) < R) : (dx > -R && dx < 0);
+        /* ---- RE-ARM ONLY ONCE THE PROP HAS STOPPED MOVING ----
+           The sliding props' one-shot latches say plainly why re-arm
+           must not follow the punt: "gating re-arm on the slide would
+           feed the punt back into re-triggering itself, stacking
+           redundant tilt/damage on the robot for what should read as a
+           single clean bonk."
+
+           On the rail dx was the ANCHOR distance, so one bonk was one
+           bonk: the robot drove past, the anchor fell behind, and the
+           26-unit trigger was never satisfied again. Under open world
+           owSep's fallback was made slide-aware so hitboxes follow
+           punted art -- right on its own terms, and it quietly broke
+           that. The trigger now tracks a cone FLEEING AT THE ROBOT'S OWN
+           SPEED, so he catches it again and again: measured, 12 triggers
+           for one approach at 0.18, 9 at full speed. Several tilt
+           impulses for one contact, which is the cone-tips-you-on-a-
+           single-bump report.
+
+           A DISTANCE RULE CANNOT FIX THIS, and the measurement is why
+           this is not the obvious patch. Re-arming on the anchor instead
+           was the first attempt and it is no better -- 13 triggers at
+           0.10 -- because the robot drives past the anchor, re-arms
+           there, and then runs into the cone anyway. Both numbers are
+           chasing the same moving pair.
+
+           So the rule is about STATE, not distance: a prop that is still
+           travelling under the punt cannot be hit again. It re-arms when
+           it has come to rest AND the robot is clear. One approach, one
+           bonk, at every speed (measured 1, 1, 1 against 12, 12, 9). */
+        const hzSettled = () => Math.abs(hz.slideVel || 0) <= 0.0001;
 
         if(hz.type === "william"){
           /* THE WILLIAM — the lap's resident robot-hater, ported from
@@ -19707,7 +19737,7 @@ class WorldScene extends Phaser.Scene {
             this.damage = Math.min(95, this.damage + Math.abs(kick)*20*CARGO_DAMAGE_SENS);
             this.speed *= 0.86;
           }
-          if(Math.abs(dx) > 40) hz.hit = false;
+          if(Math.abs(dx) > 40 && hzSettled()) hz.hit = false;
         } else if(hz.type === "bin"){
           /* the wall IS the bin (approved bin hit lab, 2026-07-09):
              a municipal bin is too big to plow through standing OR
@@ -20116,7 +20146,7 @@ class WorldScene extends Phaser.Scene {
           if(oversized){
             const span2 = planterSpanS(hz);
             if(this.botS < hz.s + span2.lo - 40 || this.botS > hz.s + span2.hi + 40) hz.hit = false;
-          } else if(Math.abs(dx) > BODY.hx + halfW + 14) hz.hit = false;
+          } else if(Math.abs(dx) > BODY.hx + halfW + 14 && hzSettled()) hz.hit = false;
 
           if(hz.moving){
             const KG = 1.5e-5;
@@ -20175,7 +20205,7 @@ class WorldScene extends Phaser.Scene {
             this.damage = Math.min(95, this.damage + Math.abs(kick)*46*CARGO_DAMAGE_SENS);
             this.speed *= 0.45;
           }
-          if(Math.abs(dx) > 40) hz.hit = false;
+          if(Math.abs(dx) > 40 && hzSettled()) hz.hit = false;
 
           if(hz.moving){
             const KG = 1.5e-5 * SCOOT_HIT.grav;
