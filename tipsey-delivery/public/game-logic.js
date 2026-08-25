@@ -9947,32 +9947,39 @@ function _generateRouteFresh(dateStr, opts){
     }
   }
 
-  /* The decorative world set minus anything that would land on top of a
-     route ramp -- those carry the physics and must stay the only ramp at
-     their spot. Route ramps are route-s anchored (straight crossings) or
-     world anchored (turn crossings), so both forms get resolved to world
-     coordinates before comparing. The tolerance is loose on purpose: the
-     nearest legitimately-different ramp is the one across the street,
-     2*598 units away, so there is nothing to accidentally delete. */
-  const routeRampPts = hazards
-    .filter(h => h.type === "sidewalkend" || h.type === "sidewalkbegin")
-    .map(h => h.wx !== undefined ? { x: h.wx, y: h.wy }
-                                 : segsWorldOf(segs, h.s, laneOffset(h.row)));
-  /* RECONCILE FIRST (2026-08-13). worldgenReconcile rebuilds
-     grid.curbRamps against final zoning -- the retype passes (pickup
-     shop, address, crime swap) can un-park a block and restore streets
-     the swallow pass had eaten. Capturing curbRamps before it ran meant
-     the route rendered the PRE-reconcile set: ramps at crossings the
-     reconcile had just retired, and none at crossings it had just
-     restored. Harmless while both sets happened to agree; not harmless
-     now that the ramp rule is stricter and the two sets diverge by
-     more. grid.signals was already read after the call -- this puts
-     the ramps on the same footing. */
-  worldgenReconcile(grid);
+  /* ---------- ONE SET OF CURB RAMPS: THE WORLD'S (2026-08-24) ----------
+     The route used to build its own ramps -- 2 per crossing, on the
+     robot's near side only -- while the city drew 4,952 of its own on
+     BOTH sides of BOTH streets at every corner. RAMP_DEDUP existed to
+     stop the two colliding.
 
-  const RAMP_DEDUP = 150;
-  const curbRamps = grid.curbRamps.filter(cr => !routeRampPts.some(
-    p => Math.abs(p.x - cr.x) < RAMP_DEDUP && Math.abs(p.y - cr.y) < RAMP_DEDUP));
+     MEASURED: THEY NEVER COLLIDED. Across 8 days and 86 route ramps, the
+     nearest surviving world ramp to a route ramp was >= 600 units in
+     100% of cases, typically ~1,067 -- the dedup's 150-unit window never
+     fired on the thing it was written for. The two systems sit about a
+     thousand units apart because the route anchors its ramps on its own
+     crossing span and the world anchors on WORLD_RAMP.along/cross off
+     the node. So the daily route has been drawing two unrelated sets of
+     ramps at every crossing, neither aware of the other.
+
+     Now that ramps are decoration everywhere (see CROSSING_PHYSICS),
+     there is no reason for the route to have its own: the world's set is
+     denser, symmetric, and already correct in the 6,002,000 units of
+     frontage a delivery never touches. So the route's ramps are dropped
+     and every world ramp is kept.
+
+     DROPPED HERE, NOT AT THE SPAWN. The pushes stay exactly where they
+     were, because the later spawn passes test spawnBlocked against
+     `hazards` -- a cone that was rejected for standing on a ramp must go
+     on being rejected, or removing the ramps would silently move other
+     props around. Filtering at the end changes what SHIPS without
+     changing a single placement decision that produced it. */
+  const hazardsNoRamps = hazards.filter(
+    h => h.type !== "sidewalkend" && h.type !== "sidewalkbegin");
+  hazards.length = 0;
+  for(const h of hazardsNoRamps) hazards.push(h);
+  worldgenReconcile(grid);
+  const curbRamps = grid.curbRamps;
   /* resolve every hazard and prop to world x/y before the route leaves
      the builder — see stampWorldCoords. Nothing reads wx/wy yet. */
   /* ---------- THE HARVEST (stage 4) ----------
@@ -19371,9 +19378,42 @@ class WorldScene extends Phaser.Scene {
          same reasoning as onLane() in the hazard loop: botRow flips the
          instant hop() is called, but the robot takes 480ms to actually
          arrive — the ground under him is where he IS. */
+      /* ---------- CURB RAMPS ARE DECORATION (2026-08-24, Sir's call) ----------
+         CROSSING_PHYSICS gates the whole pass below to nothing.
+
+         WHY, and it is a consistency argument rather than a simplifying
+         one. The city draws 4,952 curb ramps and every one of them was
+         already decorative -- buildWorldCurbRamps' own header says "no
+         hazard entry", and nothing ever gave them a surface. The daily
+         route separately built 6-16 ramps WITH this tuned ground model,
+         and RAMP_DEDUP deleted the world ramp wherever a route ramp
+         landed. So identical painted ramps had physics or did not,
+         depending on whether today's delivery happened to run past them,
+         and free play -- the whole city -- never got any.
+
+         Two ways to make that one rule. Giving all 4,952 a surface was
+         the other, and it works (measured: profile matched the art on
+         416 samples, 1.01us a call). This is the one Sir picked, and it
+         is the cheaper truth: the kerb is already a surface class in
+         free roam, where `curb` takes a tilt impulse from
+         W.surfaceAt -- one model, everywhere, and no second one keyed to
+         a rail that is being retired.
+
+         WHAT GOES WITH IT, stated rather than discovered later: the
+         cross-slope lean on the flanking lanes, the curb-drop kick, the
+         pad jitter, and the far-kerb WALL that used to stop a robot
+         leaving the pavement on a non-ramp lane. Under open world the
+         wall was already gone -- owInstall empties route.crossings -- so
+         this makes the rail match free play rather than changing free
+         play. The tuned block is left intact below the flag, because it
+         is a lab-approved model and re-deriving it later would be worse
+         than reading it. */
+      const CROSSING_PHYSICS = false;
       const _vRow = [0,1,2,3].reduce((b,r) =>
         Math.abs(this.laneOff - laneOffset(r)) < Math.abs(this.laneOff - laneOffset(b)) ? r : b, 0);
-      let _cg = crossingGroundAt(this.route.crossings, this.botS, _vRow);
+      let _cg = CROSSING_PHYSICS
+        ? crossingGroundAt(this.route.crossings, this.botS, _vRow)
+        : null;
       /* far-curb wall for the no-ramp lanes: clamp forward motion right
          at the boundary (lab clamped at boundary-1 too), then re-sample
          the ground from the corrected position so z/tilt never read a
@@ -19394,7 +19434,11 @@ class WorldScene extends Phaser.Scene {
          advance only, then re-samples, same discipline as the straight
          wall above. */
       let _tg = null;
-      if(!_cg){
+      /* TURN CROSSINGS TOO. This branch fires when _cg is null, which is
+         now ALWAYS -- so without its own gate, switching the straight
+         ramps off would have switched the corner ramps fully ON for the
+         first time, which is the exact opposite of the intent. */
+      if(CROSSING_PHYSICS && !_cg){
         for(const cx of this.route.crossings){
           if(cx.kind !== "turn") continue;
           if(this.botS < cx.sA - 3*T2 || this.botS > cx.sB + 3*T2) continue;
