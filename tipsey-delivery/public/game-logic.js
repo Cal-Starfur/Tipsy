@@ -4550,6 +4550,239 @@ function owAtDoor(scene){
       && lat <= Math.max(b0,b1) + OW_DOOR.latPad;
 }
 
+/* ---------- LIVE REROUTE (open-world nav) ----------
+   The GPS used to be a readout of a route decided at spawn. owRailSync
+   projects the robot onto that route and hands the rest of the game a
+   botS, which is enough to say "how far along am I" and nothing at all
+   to say "am I still going the right way". Miss a corner and the
+   projection quietly clamps to the nearest point on a route you are no
+   longer driving, and the strip keeps counting down to a turn that is
+   now behind you.
+
+   So the route is REBUILT, in place, from where the robot actually is.
+   A* over the street lattice the city is already made of, through the
+   same buildSegsFromLegs every route in the game is built by -- not a
+   parallel path model that would have to be kept honest separately.
+
+   WHAT SURVIVES A REBUILD, AND WHY IT IS SAFE:
+     - hazards: already world-anchored (hz.wx/wy, stamped once at build
+       time) and the open-world contact pass reads those, not hz.s. Cones
+       and bins do not move because the route changed.
+     - parMs: deliberately untouched. The clock is the whole pressure of
+       a delivery; a reroute spends the time you had, it does not earn
+       more. Missing a turn is supposed to cost something.
+     - doorS: RE-DERIVED, by projecting the door's own world position
+       onto the new segs. The door is a house at a place, not a number
+       on a rail, and it has to stay at that place across a rebuild.
+     - route.loop: dropped. It is the rail-era miss-the-door fallback --
+       a rectangular lap welded on at spawn -- and a live reroute
+       supersedes it entirely. null is already a supported state (grid
+       corner days build no loop at all), so nothing downstream is
+       surprised by it.
+
+   STATE IS (node, heading), NOT node. The cost of arriving somewhere
+   depends on which way you are pointing: straight through is free, a
+   corner costs a little, a reversal costs a lot. That is what keeps A*
+   from ever emitting a 180 between two legs -- measured at 0 across
+   3,000 paths -- which matters because buildSegsFromLegs cannot fillet
+   a reversal, and it is also why the first instruction is not "U-turn
+   now" every time the door happens to sit behind you. */
+const NAV = {
+  offD:      1100,   // off-corridor distance that counts as "not on the route".
+                     // Above OW_PROJ_FAR (900, itself derived from the widest
+                     // legal lane at 690) so hugging the outside of your own
+                     // sidewalk can never trip it. Miss a corner and lateral
+                     // error grows by a whole BLOCK (3,128) per block driven,
+                     // so this fires about a third of a block past the turn.
+  offMs:      900,   // sustained for this long. A clipped corner or a swerve
+                     // round a bin is off-corridor for a few frames and is not
+                     // a wrong turn.
+  cooldownMs: 3000,  // no second rebuild inside this, so a robot wandering the
+                     // far side of a park cannot thrash the route builder.
+  msgMs:      1400,  // how long the strip says "Recalculating".
+};
+
+/* the lattice node immediately BEHIND the door along the door's own
+   street, so the final leg runs down that street and passes the address
+   rather than arriving at the intersection off a perpendicular road. */
+function navDoorEntry(grid, dx, dy, doorF){
+  const d = DIRV[doorF];
+  let i, j;
+  if(d.x !== 0){ j = Math.round(dy/BLOCK); i = d.x > 0 ? Math.floor(dx/BLOCK) : Math.ceil(dx/BLOCK); }
+  else         { i = Math.round(dx/BLOCK); j = d.y > 0 ? Math.floor(dy/BLOCK) : Math.ceil(dy/BLOCK); }
+  return grid.nodeAt(i, j);
+}
+
+const NAV_TURN_COST  = 0.35;   // a corner, in blocks
+const NAV_UTURN_COST = 2.2;    // a reversal costs more than going round the block
+function navAStar(grid, startNode, startF, goalNode, goalF){
+  if(!startNode || !goalNode) return null;
+  const key = (n, f) => (n.j*grid.cols + n.i)*4 + f;
+  const H = n => Math.abs(n.i - goalNode.i) + Math.abs(n.j - goalNode.j);
+  const open = [], gS = new Map(), came = new Map();
+  const push = (n, f, g) => {
+    const k = key(n, f), p = gS.get(k);
+    if(p !== undefined && p <= g) return;
+    gS.set(k, g); open.push({ n, f, g, pri: g + H(n) });
+  };
+  if(startF == null) for(let f = 0; f < 4; f++) push(startNode, f, 0);
+  else push(startNode, startF, 0);
+  let guard = 0;
+  while(open.length){
+    if(++guard > 60000) return null;            // the lattice is ~14x14; this is unreachable
+    let bi = 0;
+    for(let i = 1; i < open.length; i++) if(open[i].pri < open[bi].pri) bi = i;
+    const cur = open.splice(bi, 1)[0], ck = key(cur.n, cur.f);
+    if(gS.get(ck) < cur.g) continue;
+    if(cur.n === goalNode && (goalF == null || cur.f === goalF)){
+      const out = [];
+      let k = ck, node = cur.n, f = cur.f;
+      while(true){ out.push({ n: node, f }); const p = came.get(k); if(!p) break; k = p.k; node = p.n; f = p.f; }
+      return out.reverse();
+    }
+    for(let nf = 0; nf < 4; nf++){
+      if(!cur.n.conn[nf]) continue;
+      const d = DIRV[nf], nxt = grid.nodeAt(cur.n.i + d.x, cur.n.j + d.y);
+      if(!nxt) continue;
+      const dt = ((nf - cur.f) % 4 + 4) % 4;
+      const g = cur.g + 1 + (dt === 0 ? 0 : dt === 2 ? NAV_UTURN_COST : NAV_TURN_COST);
+      const k = key(nxt, nf), p = gS.get(k);
+      if(p !== undefined && p <= g) continue;
+      came.set(k, { k: key(cur.n, cur.f), n: cur.n, f: cur.f });
+      push(nxt, nf, g);
+    }
+  }
+  return null;
+}
+
+/* node chain -> {f, blocks}, collapsing runs of a single heading into
+   one leg. buildSegsFromLegs wants legs, not steps, and a leg per block
+   would put a zero-degree "corner" at every intersection. */
+function navLegs(chain){
+  if(!chain || chain.length < 2) return null;
+  const legs = [];
+  for(let i = 1; i < chain.length; i++){
+    const f = chain[i].f;
+    if(legs.length && legs[legs.length-1].f === f) legs[legs.length-1].blocks++;
+    else legs.push({ f, blocks: 1 });
+  }
+  return legs;
+}
+
+/* Rebuild route.segs from the robot's current position to the door.
+   Returns true if the route actually changed. */
+function navReroute(scene, t){
+  const ow = scene.ow, r = scene.route;
+  if(!ow || !r || !r.grid || !r.segs || !r.segs.length || r.doorS === undefined) return false;
+  const grid = r.grid;
+  if(!grid.nodeAt || !grid.nodes) return false;
+
+  /* the door's WORLD position, stamped once and carried across every
+     rebuild after. Read from the current segs the first time: on the
+     welded loop F(s+len)===F(s), so a retargeted doorS still resolves to
+     the same physical house. */
+  if(!r.doorW){
+    const sgD = segsSegAt(r.segs, r.doorS);
+    if(!sgD) return false;
+    const p = segsPosAt(r.segs, r.doorS);
+    r.doorW = { x: p.x, y: p.y, f: sgD.f };
+  }
+  const D = r.doorW;
+  if(D.f === undefined || D.f === null) return false;
+
+  const entry = navDoorEntry(grid, D.x, D.y, D.f);
+  if(!entry) return false;
+
+  /* start from the nearest lattice node. If it sits behind the robot he
+     projects onto the new route at a positive s and nothing is lost; if
+     it sits ahead he clamps to s=0 for a moment and the readout
+     self-corrects as he reaches it. */
+  let start = null, bd = Infinity;
+  for(const n of grid.nodes){
+    const e = Math.abs(n.x - ow.px) + Math.abs(n.y - ow.py);
+    if(e < bd){ bd = e; start = n; }
+  }
+  if(!start) return false;
+
+  /* the robot's committed heading, quantised to the lattice, so A* is
+     not asked to plan a route that begins by driving through a wall. */
+  const botF = ((Math.round(ow.yaw / (Math.PI/2)) % 4) + 4) % 4;
+
+  let chain = (start === entry && botF === D.f)
+    ? [{ n: entry, f: D.f }]
+    : navAStar(grid, start, botF, entry, D.f);
+  if(!chain) chain = navAStar(grid, start, null, entry, D.f);   // let it turn on the spot rather than fail
+  if(!chain) return false;
+
+  const legs = navLegs(chain) || [];
+  /* one more block along the door's street, so the route runs PAST the
+     address instead of stopping at the intersection before it. */
+  if(legs.length && legs[legs.length-1].f === D.f) legs[legs.length-1].blocks++;
+  else legs.push({ f: D.f, blocks: 1 });
+
+  let built;
+  try { built = buildSegsFromLegs(chain[0].n, legs, TURN_R); }
+  catch(e){ return false; }
+  if(!built || !built.segs || !built.segs.length) return false;
+
+  /* re-derive doorS by projecting the door's world position onto the new
+     segs -- the same projection owRailSync uses for the robot, so the
+     door and the robot are measured against the route the same way. */
+  const dHit = owRailProject(built.segs, D.x, D.y, 0, Infinity);
+  if(!dHit) return false;
+
+  r.segs = built.segs;
+  r.totalLen = built.totalLen;
+  r.doorS = dHit.s;
+  r.loop = null;                 // the welded miss-the-door lap is superseded
+  /* WHICH NODE THIS REBUILD CAME FROM. The new route starts at the
+     nearest lattice node, and the robot can be most of a half-block away
+     from it -- measured at 1,571 units on a corner-to-corner case, well
+     over NAV.offD. So he is still nominally "off route" the instant the
+     rebuild lands, and without this the cooldown would just fire the
+     same rebuild again forever. Re-planning from a node we already
+     planned from cannot produce a different route, so it is skipped
+     until he has actually been back on the corridor (navTick clears
+     this the moment railD drops inside the threshold). */
+  ow.navFromKey = chain[0].n.i + "," + chain[0].n.j;
+  ow.railS = null;               // force a clean reacquire onto the new segs
+  ow.railReacq = 0;
+  owRailSync(scene);
+  scene.navMsgUntil = t + NAV.msgMs;
+  scene.navCount = (scene.navCount || 0) + 1;
+  return true;
+}
+
+/* Watches how far off the route the robot is and calls the rebuild.
+   Runs off ow.railD, which owRailSync has been measuring and discarding
+   this whole time. */
+function navTick(scene, t){
+  const ow = scene.ow, r = scene.route;
+  if(!ow || !ow.on || scene.state !== "play" || scene.mode !== "delivery") return;
+  if(!r || !r.grid || r.doorS === undefined) return;
+  if(scene.navLastAt && t - scene.navLastAt < NAV.cooldownMs) return;
+  if(ow.railD === undefined) return;
+  /* already at the address: nothing to recalculate, and rebuilding here
+     would only fight the arrival test. */
+  if(typeof owAtDoor === "function" && owAtDoor(scene)) { ow.navOffSince = 0; return; }
+  if(ow.railD <= NAV.offD){ ow.navOffSince = 0; ow.navFromKey = null; return; }
+  if(!ow.navOffSince){ ow.navOffSince = t; return; }
+  if(t - ow.navOffSince < NAV.offMs) return;
+  /* nothing to gain: a rebuild from the node we last rebuilt from
+     returns the identical route. See navReroute's note. */
+  if(ow.navFromKey){
+    let n = null, bd = Infinity;
+    for(const nd of r.grid.nodes){
+      const e = Math.abs(nd.x - ow.px) + Math.abs(nd.y - ow.py);
+      if(e < bd){ bd = e; n = nd; }
+    }
+    if(n && ow.navFromKey === n.i + "," + n.j){ ow.navOffSince = 0; return; }
+  }
+  ow.navOffSince = 0;
+  if(navReroute(scene, t)) scene.navLastAt = t;
+  else scene.navLastAt = t;     // failed rebuilds also cool down, or a dead-end thrashes
+}
+
 /* ---------- the step ----------
    One integration tick. Reads the stick off ow.stick / ow.keyv, writes
    ow.px/py/yaw/vel and the scene fields the renderer consumes. Called
@@ -21697,7 +21930,7 @@ class WorldScene extends Phaser.Scene {
     if(OW_ARMED && !this.ow && this.route && this.state === "play"
        && (this.mode === "freeroam" || this.mode === "delivery")) owInstall(this);
     if(this.ow && this.ow.on){
-      if(this.state === "play") owStep(this, Math.min(dt, 40));
+      if(this.state === "play"){ owStep(this, Math.min(dt, 40)); navTick(this, t); }
       else { this.throttle = 0; owRespawnTick(this, t); }
     }
     else if(this.attract){ this.attractDrive(); }
@@ -21852,7 +22085,12 @@ class WorldScene extends Phaser.Scene {
        countdown resumes only once the robot exits onto the straight. */
     const curSeg = this.segAt(this.botS);
     let turnText;
-    if(curSeg.type === "arc"){
+    /* RECALCULATING. A live reroute rebuilds route.segs under the strip,
+       so every number on it changes at once; saying so for a beat is the
+       difference between a GPS and a glitch. */
+    if(this.navMsgUntil && this.time.now < this.navMsgUntil){
+      turnText = "\u27f3 Recalculating\u2026";
+    } else if(curSeg.type === "arc"){
       /* sign>0 means the heading steps f -> f+1, which under this iso
          projection reads on screen as a RIGHT turn — the old mapping
          had it backwards (on-device: "says right, robot goes left"). */
