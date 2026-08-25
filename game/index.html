@@ -5289,9 +5289,52 @@ function owDoorFrame(r){
            dvx: Math.cos(hdg), dvy: Math.sin(hdg),
            rvx: -Math.sin(hdg), rvy: Math.cos(hdg) };
 }
+/* ON THE MAT. Arrival used to be a 94 x 460 box around the door -- wide
+   enough that "at the address" meant anywhere on that stretch of
+   pavement, on either side of the doormat, which is not a delivery so
+   much as a postcode. The mat is one T2 square of actual drawn art
+   sitting on lane 3, and it is now the target.
+
+   THE WHOLE BODY, INSIDE THE PERIMETER (Sir's call): not the robot's
+   centre, the robot. So this tests all four corners of the body box,
+   and it has to, because under open world he can be at any yaw and an
+   axis-aligned test would accept a robot parked diagonally with two
+   corners out on the pavement. Rotation is what makes this demanding:
+   square-on the body is 52 x 40 inside a 92 mat, so there is +/-20
+   along and +/-26 across to play with, but at 45 degrees the same body
+   spans 32.5 per axis and the slack falls to +/-13.5. Squaring up to
+   the door is part of the job now. */
+function owOnMat(scene){
+  const m = scene.route && scene.route.addressMat;
+  if(!m) return null;                     // no stamped mat -> caller falls back
+  const sx = scene.botX - m.x, sy = scene.botY - m.y;
+  const along = sx*m.dvx + sy*m.dvy;
+  const lat   = sx*m.rvx + sy*m.rvy;
+  /* the body's own axes at the current yaw, resolved into the mat's
+     frame. drawAngle is the drawn facing and is what the player sees;
+     under open world it is ow.yaw exactly (see the pose block). */
+  const a = (scene.ow && scene.ow.on) ? scene.ow.yaw : scene.drawAngle;
+  const ca = Math.cos(a), sa = Math.sin(a);
+  /* body +x is travel, +y is right-of-travel -- the same pair the rest
+     of the robot's geometry uses. Projected onto the mat's dv/rv. */
+  const fx = ca*m.dvx + sa*m.dvy,  fy = ca*m.rvx + sa*m.rvy;   // body +x in mat frame
+  const rx = -sa*m.dvx + ca*m.dvy, ry = -sa*m.rvx + ca*m.rvy;  // body +y in mat frame
+  /* half-extent of the ROTATED body along each mat axis. Testing this
+     is identical to testing all four corners and cheaper than doing it
+     literally, because the box is convex and centre-symmetric. */
+  const eAlong = Math.abs(fx)*BODY.hx + Math.abs(rx)*BODY.hy;
+  const eLat   = Math.abs(fy)*BODY.hx + Math.abs(ry)*BODY.hy;
+  return Math.abs(along) + eAlong <= m.half
+      && Math.abs(lat)   + eLat   <= m.half;
+}
 function owAtDoor(scene){
   const r = scene.route;
   if(!r || !r.segs || !r.segs.length || r.doorS === undefined) return false;
+  /* the mat is the address when one was stamped. The old box survives
+     only as the fallback for routes that never got a mat (the rare
+     block with no packed units, where addressSpot itself is null). */
+  const onMat = owOnMat(scene);
+  if(onMat !== null) return onMat;
   const f = owDoorFrame(r);
   const sx = scene.botX - f.x, sy = scene.botY - f.y;
   const along = sx*f.dvx + sy*f.dvy;
@@ -10362,7 +10405,7 @@ function _generateRouteFresh(dateStr, opts){
      gets, just with an opening so the customer still has somewhere
      to stand. */
   const addressUsesGate = !GOOD_LEG_HEADING[doorHeadingF];
-  let addressUnitIdx = 0, addressSpot = null;
+  let addressUnitIdx = 0, addressSpot = null, addressMat = null;
   if(addressBlock){
     const abEdges = [
       { ox: addressBlock.x0, oy: addressBlock.y0, dv: DIRV[0], rv: DIRV[3], len: addressBlock.x1-addressBlock.x0 },
@@ -10389,6 +10432,31 @@ function _generateRouteFresh(dateStr, opts){
       const au = aunits[addressUnitIdx];
       const aux = ae.ox + ae.dv.x*au.start, auy = ae.oy + ae.dv.y*au.start;
       addressSpot = { x: aux + ae.dv.x*(au.w/2), y: auy + ae.dv.y*(au.w/2) };
+      /* THE MAT, STAMPED IN WORLD SPACE, for the arrival test.
+         Same three numbers drawMatQuad draws it from -- the unit's own
+         edge frame, its centre at u.w/2 along the face, one T2 square
+         reaching out from the face onto lane 3 -- so the rectangle the
+         player must park inside IS the rectangle they can see.
+
+         NOT DERIVED FROM doorS, and that is the whole point. doorS is
+         this same spot projected onto the route and then CLAMPED into
+         the segment by inset0 (up to 90 units, a few lines below).
+         While arrival was a 460-unit-wide lateral band that clamp was
+         invisible -- it was swallowed whole by the tolerance. Against a
+         92-unit mat it is a full mat-width of error on any address whose
+         unit sits near a segment end, which would put the trigger off
+         the mat entirely and read on-device as "standing on the mat does
+         nothing". Same lesson as addrDoorPos: the honest source for
+         where the art is, is the thing the art is built from.
+
+         rv points away from the block (see abEdges), i.e. toward the
+         street, so the centre sits half a tile out from the face. */
+      addressMat = {
+        x: addressSpot.x + ae.rv.x*(T2/2),
+        y: addressSpot.y + ae.rv.y*(T2/2),
+        dvx: ae.dv.x, dvy: ae.dv.y,
+        rvx: ae.rv.x, rvy: ae.rv.y,
+        half: T2/2 };
     }
   }
   /* street name comes from the address's own DISTRICT now, not a single
@@ -11048,7 +11116,7 @@ function _generateRouteFresh(dateStr, opts){
     for(const hz of got.hazards) hazards.push(hz);
     cfTaken = got.taken;
   }
-  return stampWorldCoords({ cfTaken, hood: addressHood, grid, segs, totalLen: loop ? loop.sEnd : totalLen, loop, tiles, hazards, props, pal, night, traffic, trafficFleet, crossings, cutEdges, cutExt, challenge, crime, routeCells, curbRamps, signals: grid.signals,
+  return stampWorldCoords({ addressMat, cfTaken, hood: addressHood, grid, segs, totalLen: loop ? loop.sEnd : totalLen, loop, tiles, hazards, props, pal, night, traffic, trafficFleet, crossings, cutEdges, cutExt, challenge, crime, routeCells, curbRamps, signals: grid.signals,
            address:`${number} ${street}`, doorS, pickupS, pickupSpot, pickupShopName, addressBlock, pickupBlock, addressEdgeIdx, pickupEdgeIdx, addressUnitIdx, pickupUnitIdx, addressUsesGate, order, parMs, dateStr, runIndex  });
 }
 
