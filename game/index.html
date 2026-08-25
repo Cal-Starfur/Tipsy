@@ -8259,6 +8259,36 @@ let _cityTrafficCache = null;
 function buildCityTraffic(grid){
   const rng = mulberry32((hashStr(SL_SEED_DATE) ^ 0x7c1f) >>> 0);
   const loops = [], cars = [];
+  /* the road-occupancy index the seed check reads. One bucket per
+     MIN_SEED_GAP so a query only ever looks at its own cell and the
+     eight around it -- 120 loops x ~40 cars is 4,800 placements, and a
+     linear scan of those would be 11M comparisons. */
+  /* THE DIAL ITSELF, not a car-length multiple. spacing is the stated
+     contract -- one car per that many units of road -- so enforcing it
+     directly is what makes the number honest. A car-length-based gap
+     (the first cut used 2.2 lengths, ~500) only removed the worst
+     doubling and left density at 11 cars per 1,500 units against the 3
+     the dial implies. */
+  const MIN_SEED_GAP = CITY_TRAFFIC.spacing * 0.9;
+  const SEED_B = MIN_SEED_GAP;
+  const seedCells = new Map();
+  const seedKey = (ix, iy) => ix + "," + iy;
+  const seedOccupied = (x, y) => {
+    const ix = Math.floor(x/SEED_B), iy = Math.floor(y/SEED_B);
+    for(let a = -1; a <= 1; a++) for(let b = -1; b <= 1; b++){
+      const bucket = seedCells.get(seedKey(ix+a, iy+b));
+      if(!bucket) continue;
+      for(const p of bucket)
+        if(Math.hypot(p.x - x, p.y - y) < MIN_SEED_GAP) return true;
+    }
+    return false;
+  };
+  const seedMark = (x, y) => {
+    const k = seedKey(Math.floor(x/SEED_B), Math.floor(y/SEED_B));
+    let bucket = seedCells.get(k);
+    if(!bucket){ bucket = []; seedCells.set(k, bucket); }
+    bucket.push({ x, y });
+  };
   for(let d = 0; d < DISTRICT_COLS * DISTRICT_ROWS; d++){
     const dc = d % DISTRICT_COLS, dr = Math.floor(d / DISTRICT_COLS);
     for(let k = 0; k < CITY_TRAFFIC.loopsPerDistrict; k++){
@@ -8299,6 +8329,33 @@ function buildCityTraffic(grid){
           colorSeed: Math.floor(rng()*0xffffffff) >>> 0,
           hold: 0,
         };
+        /* ---- ONE CAR PER PIECE OF ROAD, NOT PER PIECE OF LOOP ----
+           `spacing` is documented as THE density dial, and it was not:
+           it spaces cars along ONE loop, and the 120 loops overlap.
+           Measured over 400 sample points, 55 sat on two loops, 37 on
+           three, and some on eight and ten -- so a street covered by
+           three loops got a car every ~333 units while the dial said
+           1,000. At a normal spot that came out as 12 cars within 1,500
+           units where the dial implies 3. Four times the intended
+           density, and the direct cause of the on-device car-stacking:
+           cars from different loops are seeded straight through each
+           other and have zero mutual awareness by construction, so
+           updateTrafficSpacing was being asked to unpick overlaps that
+           existed before the first frame.
+
+           So the claim is checked against the ROAD. A car whose t=0
+           position lands inside MIN_SEED_GAP of one already placed --
+           on any loop, not just this one -- is simply not created. The
+           dial now means what it says, and it costs nothing per frame
+           because it happens once at generation.
+
+           EVERY DRAW STILL HAPPENS. The rejection is decided AFTER the
+           car is fully rolled, so the rng stream advances identically
+           whether a car survives or not; dropping one never shifts the
+           next one's colour or speed. */
+        const seedWp = trafficWorldAt(tr, 0).wp;
+        if(seedOccupied(seedWp.x, seedWp.y)) continue;
+        seedMark(seedWp.x, seedWp.y);
         mine.push(tr); cars.push(tr);
       }
       loops.push({ walk, cars: mine });
