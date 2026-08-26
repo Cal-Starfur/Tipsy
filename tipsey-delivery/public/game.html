@@ -238,10 +238,42 @@
      that isn't a card — including the visible map — closes it, and the
      map's own search icon is now a toggle (see tpMapSearchIcon.onclick)
      since there's no back button left to do it explicitly. */
-  #tpMissionsPanel{position:fixed;left:0;right:0;top:64px;bottom:0;z-index:50;
-    background:transparent;display:flex;flex-direction:column;
-    opacity:0;pointer-events:none;transition:opacity .18s;}
-  #tpMissionsPanel.open{opacity:1;pointer-events:auto;}
+  /* IT IS THE MAP'S OWN SHEET NOW (Sir's call, 2026-08-26): "the cards
+     need to be collapsed into the bottom but can be brought up... the
+     same bottom sheet as other bottom sheets in the game to keep
+     everything cohesive."
+
+     This used to be a fixed, full-height, transparent overlay of cards
+     floating on top of the map -- its own surface, its own z-index, its
+     own tap-anywhere-to-close rule, cohesive with nothing. #bottomSheet
+     was already sitting under the map doing the job this wanted: same
+     cream, same fold, already part of #screenWrap's flex column. So the
+     list moved INTO it and this element is now just the drawer that
+     sheet opens, which is why it keeps its id and its .open contract
+     (tpOpenMissions/tpCloseMissions/tpSyncGlobalBtns are untouched) and
+     loses everything else.
+
+     .open now means EXPANDED, not mounted. Collapsed is the resting
+     state and the sheet is always there -- so max-height, not opacity
+     alone: the map above it is a flex sibling, so the drawer growing
+     shrinks the map rather than covering it. That is the whole reason
+     this reads like a map app and the old overlay did not. */
+  /* text-align:left is not cosmetic here -- the drawer is inside
+     #titleOverlay now, and .overlay sets text-align:center for the big
+     DELIVERED/CRASHED headings. The old fixed panel sat outside that
+     subtree and never inherited it; every row's name and description
+     came out centred the moment it moved in. */
+  #tpMissionsPanel{max-height:0;overflow:hidden;opacity:0;pointer-events:none;
+    text-align:left;transition:max-height .22s ease-out,opacity .16s;}
+  #tpMissionsPanel.open{max-height:52vh;overflow-y:auto;
+    -webkit-overflow-scrolling:touch;opacity:1;pointer-events:auto;}
+  /* the grab handle, and the only affordance that raises the drawer by
+     touch. Its own row rather than a pseudo-element on the sheet so the
+     tap target is a real 20px band, not a 4px pill. */
+  #sheetGrab{flex:none;height:20px;margin:-4px 0 2px;display:flex;
+    align-items:center;justify-content:center;}
+  #sheetGrab::after{content:"";width:40px;height:4px;border-radius:2px;background:#ddd6c4;}
+  #sheetGrab:active::after{background:#c9c0a8;}
 
   #tpProfHeader{flex:none;padding:calc(14px + env(safe-area-inset-top)) 14px 10px;
     background:#14161b;display:flex;align-items:center;gap:10px;}
@@ -263,8 +295,10 @@
   #tpProfBody{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;
     padding:14px 14px calc(14px + env(safe-area-inset-bottom));}
 
-  #tpMissionsBody{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;
-    padding:0 14px calc(14px + env(safe-area-inset-bottom));}
+  /* scrolling and the safe-area fold both belong to the drawer and the
+     sheet now (see #tpMissionsPanel.open and #bottomSheet), so this is
+     down to plain padding. */
+  #tpMissionsBody{padding:8px 0 2px;}
   .tpMedal.tpMission{background:#cfe0f5;}
   .tpMedal.tpComingSoon{background:#e4dfd0;}
   .tpMedal.tpCompleted{background:#d7f0dc;}
@@ -572,8 +606,16 @@
       <button class="btn" id="startBtn">GO</button>
     </div>
     <div id="bottomSheet">
+      <div id="sheetGrab"></div>
       <div class="sheetRow">
         <span class="status" id="sheetStatus">Ready for pickup</span>
+      </div>
+      <!-- the mission/place drawer, collapsed by default -- see the
+           #tpMissionsPanel CSS note for why it lives in here now -->
+      <div id="tpMissionsPanel">
+        <div id="tpMissionsBody">
+          <div id="tpMissionsList"></div>
+        </div>
       </div>
     </div>
   </div>
@@ -593,13 +635,6 @@
     <div id="tpProfBody">
       <div id="tpTrList"></div>
       <div id="tpStoreGrid" style="display:none;"></div>
-    </div>
-  </div>
-
-  <!-- ===== Tipsey Profile: Side Missions (cards floating over the map) ===== -->
-  <div id="tpMissionsPanel">
-    <div id="tpMissionsBody">
-      <div id="tpMissionsList"></div>
     </div>
   </div>
 
