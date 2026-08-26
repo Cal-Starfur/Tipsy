@@ -30036,6 +30036,11 @@ function tpCloseProfile(){
   tpResumeWorld();
   tpSyncGlobalBtns();
 }
+/* Set when the magnifying glass pulled the MAP up over a live run, so
+   closing the panel knows to put the map away again and hand the world
+   back. Without it, dismissing the list mid-delivery left the player
+   parked on the map screen with the game resumed underneath it. */
+let tpSearchMap = false;
 function tpOpenMissions(){
   tpPauseWorld();
   tpRender();
@@ -30044,6 +30049,11 @@ function tpOpenMissions(){
 }
 function tpCloseMissions(){
   document.getElementById("tpMissionsPanel").classList.remove("open");
+  /* put the map back down if the search button was what raised it, and
+     hand the run back exactly where it was left. Ordered BEFORE
+     tpResumeWorld so the world is uncovered before it starts stepping
+     again, rather than running a frame behind the overlay. */
+  if(tpSearchMap){ tpSearchMap = false; hide("titleOverlay"); }
   tpResumeWorld();
   tpSyncGlobalBtns();
   /* UNIFIED RETRY GATE: bindGlobalSearch hides #failOverlay and shows
@@ -30169,7 +30179,25 @@ document.getElementById("avatarIcon").addEventListener("click", tpOpenProfile);
        already over, so go back to the map on the way out. Mid-route or
        on the map, just open over what's there — tpOpenMissions() pauses
        a live run by itself. */
-    if(failed || won){ hide("failOverlay"); hide("winOverlay"); collapseSheet(); show("titleOverlay"); }
+    if(failed || won){ hide("failOverlay"); hide("winOverlay"); }
+    /* THE GLASS ALWAYS OPENS THE MAP. It used to do that only off a
+       finished run (the failed||won branch); every other press dropped
+       the mission list straight over whatever was on screen, so mid-
+       delivery you got cards floating on top of the city instead of the
+       city's map. Reported on-device as "the missions pop up over
+       gameplay and not the map". The map is where a place gets looked
+       up, so it is what the search button opens, from free play and
+       from a live delivery alike.
+
+       tpSearchMap remembers that WE raised it, and only in the case
+       that actually needs undoing: off a finished run the map is
+       already the right place to land, and tpCloseMissions' own
+       win/fail gate below owns that path. */
+    const _live = !failed && !won
+      && document.getElementById("titleOverlay").classList.contains("hidden");
+    if(_live) tpSearchMap = true;
+    collapseSheet();
+    show("titleOverlay");
     tpOpenMissions();
   };
   el.addEventListener("touchstart", go, {passive:false, capture:true});
