@@ -12206,7 +12206,7 @@ class WorldScene extends Phaser.Scene {
     this.tdVic = { t0: performance.now(), rolling: false,
                    spd: opts.spd0 || 0, carded: false,
                    cruise: opts.cruise, skipSettle: !!opts.skipSettle,
-                   onCard: opts.onCard || null };
+                   onCard: opts.onCard || null, release: !!opts.release };
   }
   tdVictoryTick(dt){
     const v = this.tdVic; if(!v) return;
@@ -12217,6 +12217,36 @@ class WorldScene extends Phaser.Scene {
          ending would simply never arrive. */
       const settled = v.skipSettle || (this.wonWalk || 0) >= 1;
       if(!settled && performance.now() - v.t0 < TD_VIC.settleMs) return;
+      /* ---------- NO LAP FOR THE DAILY (Sir's call, 2026-08-26) ----------
+         "now that its a free world it should just seemlessly relese
+         tipsye into free play and if he wants another rout he will have
+         to look for it in the map by clicking the mag glass button."
+
+         The lap was written for a rail. It advances botS and lets the
+         pose block derive a position from it -- which stopped meaning
+         anything the moment open world landed, because that block takes
+         its pose from ow.px/ow.py whenever ow.on, and owStep is gated on
+         state === "play". So under the city the "drive off" was a robot
+         standing still with its wheels turning for TD_VIC.cardDelay.
+         Not a lap that needed retuning: a lap with nowhere to go.
+
+         The replacement is not an animation at all. Settle is still
+         waited on -- the customer has to actually get back through his
+         door, that beat is the payoff and it is untouched -- and then
+         control simply comes back. Same position, same heading, same
+         speed (zero, he parked), mode flipped, state flipped. Nothing
+         moves him, which is precisely what makes it seamless.
+
+         THE HYDRANT KEEPS ITS LAP and that is why this is a flag rather
+         than a deletion: hjSim's ending is a rolling continuation out of
+         a landing on a rail course that open world deliberately does not
+         touch (see the OW install gate -- challenge is out). The slalom
+         never got here at all. Only the daily is released. */
+      if(v.release){
+        this.tdVic = null;
+        tdReleaseToFreePlay(this);
+        return;
+      }
       v.rolling = true;
       this.state = "victory";
       /* A rolling start keeps whatever speed it arrived with -- zeroing
@@ -20740,7 +20770,18 @@ class WorldScene extends Phaser.Scene {
          with the robot upright: the state gate stops the sim, input
          goes dead, fail overlay with the cancel pool. No payout, no
          daily-best entry — a canceled order never happened. */
-      if(this.runT > this.route.parMs + CANCEL_GRACE_MS){
+      /* AN ORDER HAS TO EXIST TO BE CANCELLED (2026-08-26). runT climbs
+         inside the play gate for every mode that reaches it, and this
+         test only ever asked the clock, never whether there was an
+         errand on it -- so free play, which drives the same route object
+         and therefore the same route.parMs, was on a fuse: park up and
+         explore for par + 60s and the cancel fail card would arrive for
+         a delivery you never accepted. Latent until the free-play
+         release below made every won delivery hand control back with a
+         runT already past par; now it is the first thing that would
+         fire. Same gate the arrival test a few lines down already uses,
+         and for the same reason. */
+      if(this.mode === "delivery" && this.runT > this.route.parMs + CANCEL_GRACE_MS){
         this.state = "canceled";
         this.speed = 0; this.throttle = 0;
         if(this.attractOwnsTip()){ this.attractRecycle(); return; }
@@ -20774,7 +20815,7 @@ class WorldScene extends Phaser.Scene {
       if(atDoor && (slSkipStop || this.speed < 0.02) && Math.abs(this.tilt) < 0.5){
         this.state = "won";
         if(this.attractOwnsTip()) this.attractRecycle(ATTRACT_WIN_MS);
-        else this.tdVictoryBegin();
+        else this.tdVictoryBegin({ release: true });
       }
       /* THE MAT IS THE UNIVERSAL "YOU HAVE ARRIVED" TRIGGER. Same
          geometry as the delivery address a few lines up, different
@@ -28146,6 +28187,56 @@ function tpFreePlay(){
 }
 if(typeof window !== "undefined") window.tpFreePlay = tpFreePlay;
 
+/* ---------- THE DELIVERY ENDS WHERE IT ENDS ----------
+   (Sir's call, 2026-08-26.) The counterpart to tpFreePlay above, and
+   deliberately NOT a call to it: tpFreePlay is the way back from a
+   mission, so it reloads the route and drops the robot on a charging
+   pad. Both of those are teleports, and a teleport is the one thing
+   this ending must not do. He earned the tip standing at that door and
+   he stays standing at that door.
+
+   Nothing is reloaded because nothing needs to be. Under open world
+   the route IS the city -- same grid, same furniture, same traffic,
+   same hazards -- and "delivery" vs "freeroam" is not two worlds, it
+   is one world with an errand attached or not. So the flip is the
+   whole transition:
+     - the arrival test reads mode === "delivery", so the door he is
+       parked on cannot re-fire and win the same order twice
+     - the mission mats read mode === "freeroam", so they arm
+     - the GPS strip hides itself on freeroam
+     - owStep resumes the frame state goes back to "play", from ow.px /
+       ow.py, which never moved
+
+   THE WON-CLOCKS ARE CLEARED, not left to expire. drawRobot's won
+   branch keys every part of the handoff choreography off them -- the
+   lid, the bag arc, the customer, the door swing -- and a robot driving
+   away with wonFrac still at 1 keeps a delivered burrito hovering over
+   his lid. Reset to exactly the values loadRoute seeds them with.
+
+   THE RUNG (see tpAdvanceRun's own note: "called HERE and nowhere else
+   ... inside the success branch of the post"). That rule was written
+   for a Devvit build where a win always landed on a card with a
+   composer on it, and it still holds there -- untouched, still gated on
+   the post. On web there is no composer and now no card either, so
+   without this line finishing today's delivery would hand you the
+   SAME address forever, which is the exact bug tpDailyDeliveryPin was
+   fixed for a day earlier. Guarded so the two can never both fire. */
+function tdReleaseToFreePlay(s){
+  if(!s) return;
+  showWin(s, { receipt: true });          // scoring + the bottom card, no screen
+  if(!IS_DEVVIT_BUILD) tpAdvanceRun();
+  s.wonT = 0; s.wonFrac = 0; s.wonLiftT = 0; s.wonLidClosing = false;
+  s.wonWalkAt = null; s.wonWalk = 0; s.wonOutT = 0; s.wonOutFrac = 0; s.wonMeet = null;
+  s.speed = 0; s.throttle = 0;
+  s.mode = "freeroam";
+  s.state = "play";
+  /* install now rather than waiting for update()'s gate, so the first
+     driveable frame already has the stick bound -- same reason
+     tpFreePlay does it, minus the pad placement. */
+  if(!s.ow) owInstall(s);
+}
+if(typeof window !== "undefined") window.tdReleaseToFreePlay = tdReleaseToFreePlay;
+
 function tpBackToDailyRoute(){
   /* Close the profile chrome FIRST, same opening line hjStart and
      slalomMapSelect both carry (2026-08-13). This is the third entry
@@ -29834,6 +29925,41 @@ function tpToast(msg){
   tpToast._t = setTimeout(()=>t.classList.remove("show"), 2200);
 }
 
+/* ---------- THE DELIVERED RECEIPT ----------
+   tpToast's bigger sibling, and placed beside it for that reason: both
+   are the same idea -- say something over a game that is still running
+   -- and the only reasons this is not just a tpToast call are that the
+   payload is rows of markup rather than a sentence, and that a pill is
+   the wrong shape for a receipt.
+
+   TD_RECEIPT_MS is longer than the toast's 2200 because there is more
+   to read here (address, order, time/cargo/tip, the day's running
+   total) and nothing is waiting on it -- the robot is already
+   driveable the frame it appears, so the dwell costs the player
+   nothing. A tap takes it away early for anyone who has already read
+   it.
+
+   Guarded on the element existing rather than assumed: this is called
+   from showWin, which the slalom and the hydrant also reach, and a
+   build that has not picked up the markup should lose a receipt, not
+   throw inside a win. */
+const TD_RECEIPT_MS = 4600;
+function tdShowReceipt(html){
+  const el = document.getElementById("tdReceipt");
+  if(!el) return;
+  el.innerHTML = '<div class="tdrHead">Delivered</div>' + html;
+  el.classList.add("show");
+  el.onclick = tdHideReceipt;
+  clearTimeout(tdShowReceipt._t);
+  tdShowReceipt._t = setTimeout(tdHideReceipt, TD_RECEIPT_MS);
+}
+function tdHideReceipt(){
+  const el = document.getElementById("tdReceipt");
+  if(!el) return;
+  clearTimeout(tdShowReceipt._t);
+  el.classList.remove("show");
+}
+
 /* ---------- Phase B: server sync for wallet/store/trophy actions ----------
    Each of these fires AFTER the local optimistic update above has already
    applied and rendered — same trust model as the daily submit near the top of
@@ -30186,7 +30312,7 @@ document.getElementById("tpTabStore").addEventListener("click", ()=>tpSetTab("st
 tpInitStaticIcons();
 tpRender();
 
-function showWin(s){
+function showWin(s, opts){
   document.getElementById("winSub").textContent =
     WIN_LINES[Math.floor(Math.random()*WIN_LINES.length)];
   const cargo = Math.round(100 - s.damage);
@@ -30301,13 +30427,32 @@ function showWin(s){
             : `<div class="sheetRow" style="color:#8f95a1;font-size:13px">day leader $${prev.tip.toFixed(2)}</div>`);
     } catch(e){}
   }
-  document.getElementById("winCard").innerHTML =
+  /* THE ROWS ARE A VALUE NOW, not a write (2026-08-26). Two things
+     paint them: the DELIVERED overlay below, and the auto-dismissing
+     receipt the daily's free-play ending uses. Identical markup on
+     purpose -- the numbers are the same numbers, and the only thing
+     the ending changed is what they are pinned to. */
+  const cardHTML =
     `<div class="sheetRow"><b>${s.route.address}</b>&nbsp;·&nbsp;${s.route.hood.n}</div>` +
     `<div class="sheetRow" style="color:#8f95a1;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;text-align:center">${order.text} · $${order.value.toFixed(2)}</div>` +
     `<div class="sheetRow">time <b>${secs.toFixed(1)}s</b>&nbsp;·&nbsp;cargo <b>${cargo}%</b>&nbsp;·&nbsp;tip <b>${pctShow}% · $${payout.toFixed(2)}</b>${cuts.length ? `&nbsp;<span style="color:#8f95a1">(${cuts.join(", ")})</span>` : ""}</div>` +
     bestRow;
   if(!offDate) tipsyProfileOnDelivery(s.route.dateStr, payout, s.runT);
   reportWin(s, payout, pctShow);
+  /* ---------- THE RECEIPT PATH ----------
+     Everything above this line is the SCORING and it is untouched: the
+     tip engine, tpBankDayTip, the best submit, tipsyProfileOnDelivery,
+     reportWin. That was the reason not to split this function when the
+     victory lap was written ("showWin is DELAYED, not split" -- see
+     tdVictoryBegin's own note), and it is still the reason: the ending
+     changed, the payout did not, so the payout code does not move.
+
+     What forks is only the last third, the part that builds a SCREEN.
+     opts.receipt takes the same rows to the bottom card and returns
+     before any of it -- no overlay shown, no icon row built, no
+     twFx composer, because there is no screen to put them on. */
+  if(opts && opts.receipt){ tdShowReceipt(cardHTML); return; }
+  document.getElementById("winCard").innerHTML = cardHTML;
   /* The whole win-screen stack anchors to the MEASURED panel, not a CSS
      constant: the receipt's height varies (order length, deduction
      notes, the daily-best row), and a fixed bottom was budgeted for the
