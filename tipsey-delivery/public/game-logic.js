@@ -2520,15 +2520,32 @@ const GOOD_LEG_HEADING = [true, false, false, true];
 /* The Hydrant Challenge lives at ONE address in Costa Palma. The Flats
    (HOODS index 0) is the only hood whose terrain does not fight a
    precision jump: zero grade, best pavement, widest streets. */
-const HJ_ADDRESS = { hoodIndex:0, hood:"The Flats", street:"Palmline Ave", number:"1200" };
-/* 1200 Palmline Ave is supposed to be a PLACE — the same corner of Costa
+const HJ_ADDRESS = { hoodIndex:0, hood:"The Flats", street:"Pelican St", cross:"5th St" };
+/* PELICAN ST AT 5TH is supposed to be a PLACE — the same corner of Costa
    Palma every time you go there, the way a real course would be. It was
    seeded from clientTodayUTC(), so hoodIndex pinned the neighbourhood
    but the street grid itself re-rolled at every UTC midnight and the
    course landed somewhere new each day. This is the seed the course was
    built and dialled in on (2026-07-30); frozen here so the address and
    the ground under it finally agree. Never change it without accepting
-   that every player's memory of the run moves with it. */
+   that every player's memory of the run moves with it.
+
+   THE ADDRESS WAS STALE (2026-08-25, placement census). It read "1200
+   Palmline Ave" -- hand-authored, never checked against the ground.
+   Measured: segsPosAt(atlas.segs, challenge.kickerS) puts the kicker at
+   world (13087, 12512), block (4.18, 4.00), i=4 j=4, heading f=0 --
+   IDENTICAL on the classic and the live grid, delta 0.0, so this is the
+   real permanent spot and not an atlas artifact. The map's own label
+   rule (drawRouteMap's streets pass) names a horizontal street
+   hood.streets[j % 3]; The Flats is [Palmline Ave, Pelican St, Marina
+   Way] and 4 % 3 = 1, so the course has always physically run down
+   PELICAN ST, just east of the column i=4 that same rule labels "5th
+   St". The card, the blurb, the win line and this address all said
+   Palmline. They say Pelican now.
+   `number` is gone rather than corrected: nothing ever read it, the map
+   draws no house numbers, and a corner is a fact that can be re-derived
+   from the pin. `cross` is unread too -- it is that verified corner,
+   written down. */
 const HJ_SEED_DATE = "2026-07-30";
 /* HYDRANT DRIFT (reported 2026-08-10): freezing the date wasn't enough.
    The coast-era worldgen pass (swallow pass + terrain, shipped
@@ -8852,7 +8869,7 @@ function _generateRouteFresh(dateStr, opts){
        single-hood city, so any long-enough leg anywhere in it WAS in The
        Flats by construction. Now every route shares one 12-district map,
        and this search has to say so explicitly or the hydrant course can
-       land in any of the twelve, unrelated to its own "1200 Palmline Ave,
+       land in any of the twelve, unrelated to its own "Pelican St at 5th,
        The Flats" address. Only filters when the caller actually asked for
        a hood (opts.hoodIndex != null) -- the daily route's own door-leg
        search reuses this same file's GOOD_LEG_HEADING rule elsewhere and
@@ -10650,7 +10667,7 @@ class WorldScene extends Phaser.Scene {
     /* ---- END OF THE COURSE ----
        Without this the attempt never ends: creep over the kicker below
        minSpeed and no launch fires, so Tipsey just drives on down
-       Palmline Ave and out of the mission entirely. Rolling past the
+       Pelican St and out of the mission entirely. Rolling past the
        catch ramp on the ground ends the run the same way a crash does —
        progress banked, crash screen, no free wandering. */
     if(!this.hjAir && !this.hjRolling && !this.hjEnded &&
@@ -18068,7 +18085,7 @@ class WorldScene extends Phaser.Scene {
        part of the beat) and is cleared by both resets. */
     let loadFrac = 0;
     /* CHALLENGE: there is no delivery here. No pickup shop, no worker
-       walking out, no bag, no loading beat — you are on Palmline Ave to
+       walking out, no bag, no loading beat — you are on Pelican St to
        jump hydrants. Skipping the whole pickup timeline rather than
        trying to fast-forward it, because every downstream effect
        (lid hinge, shop door, worker walk-back, cargo spill) keys off
@@ -26140,7 +26157,7 @@ const SLALOM_WIN_LINES = [
    as every other pool in this file so the card can share the pick. */
 const HYDRANT_WIN_LINES = [
   ["All ten cleared.", "Every hydrant in The Flats, still standing."],
-  ["Ten for ten.", "Not one drop spilled on Palmline Ave."],
+  ["Ten for ten.", "Not one drop spilled on Pelican St."],
   ["Clean sweep.", "The whole ladder, start to finish."],
   ["That's the set.", "Ten jumps, ten landings, no cast iron harmed."],
 ];
@@ -28489,12 +28506,12 @@ const TP_SIDE_MISSIONS = [
      duplicate and completed together. It is one mission carrying two
      trophies: the Chief at jump 8, the Daredevil at jump 10. */
   { id:"jump-hydrant", name:"Hydrant Challenge",
-    desc:"Ten jumps down Palmline Ave. Tap to charge, clear the hydrants, land the catch ramp.",
-    status:"playable", trophyId:"hydrant-hop", icon:"hydrant", place:"1200 Palmline Ave, The Flats",
-    note:"Ten jumps on Palmline Ave. Tap to charge, land the catch ramp." },
+    desc:"Ten jumps down Pelican St. Tap to charge, clear the hydrants, land the catch ramp.",
+    status:"playable", trophyId:"hydrant-hop", icon:"hydrant", place:"Pelican St at 5th, The Flats",
+    note:"Ten jumps on Pelican St. Tap to charge, land the catch ramp." },
   { id:"cone-slalom", name:"Cone Slalom Challenge",
     desc:"Weave the gates at double speed, then stop on the customer's mat like a real delivery.",
-    status:"playable", trophyId:"slalom-master", icon:"cone", place:"Costa Palma — today's route",
+    status:"playable", trophyId:"slalom-master", icon:"cone", place:"15th St at Stall, Market Dist.",
     note:"Miss the stop and it's once around the block — mind William." },
   { id:"new-sweater-city", name:"New Sweater City", desc:"", status:"comingSoon" },
   { id:"stunt-jump", name:"Stunt Jump Challenge", desc:"", status:"comingSoon" },
