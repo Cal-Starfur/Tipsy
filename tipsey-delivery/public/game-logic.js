@@ -4540,6 +4540,73 @@ function owRailSync(scene){
    arrival depend on whether the house is currently visible. doorS was
    already refined to the address unit's true on-route position at spawn,
    so the route itself is the honest source. */
+
+/* ====================== THE COURSE CORRIDOR ======================
+   A mission that runs on a real street has to clear that street, and
+   the array filter hjBuildCourse uses cannot do it.
+
+   WHY THE FILTER IS NOT ENOUGH. hjBuildCourse drops everything between
+   clearFrom and clearTo out of route.hazards and route.props. Those two
+   arrays are the DAILY ROUTE's own spawns. The ~14,700 permanent city
+   props are not in either one -- they are a pure function of the
+   frontage (cityFurnitureForEdge), materialized on demand, and reach
+   the sim through cityFurnitureNear in the open-world contact pass.
+   Nothing in the filter can see them.
+
+   That is currently hidden by an accident. On the hydrant's frozen
+   route the course leg IS the route's own corridor, so every in-band
+   city prop is already in route.cfTaken and the filter catches it as a
+   route hazard. Measured on that leg: 4 props in band, 4 of them
+   harvested, 0 live. The moment the course runs anywhere the daily
+   route is not -- which is the entire point of entering from a mat in
+   free roam -- none of them are harvested and all of them are live.
+
+   HOW MUCH THERE IS TO CLEAR. Swept all 1,651 street edges with a
+   level-10 band at the worst-case fillet start: mean 4.46 props across
+   the full four-lane sidewalk, mean 0.78 in lane 2 alone, worst case 4
+   in lane 2 and never more. 43.4% of sites have a clean lane 2 already.
+   So this is a small job done exactly, not a big one done roughly.
+
+   ALL FOUR LANES, NOT JUST ch.lane -- the same call hjBuildCourse's own
+   2026-08-11 fix made and for the same reason: `people` and `dog` land
+   in the band (75 and 78 citywide in lane 2 alone), a pedestrian hit is
+   the hardest tilt kick in the table, and he is reachable during the
+   run-up whether or not he is in the lane the jumps are in.
+
+   NO TRAFFIC WORK, AND THAT IS MEASURED TOO. The level-10 band is 1,743
+   units against a 3,128-unit block, so the course crosses no
+   intersection at all. Simulated the full 2,555-car fleet over 60s at
+   100ms: zero samples with a car on the robot's sidewalk band, zero in
+   the landing zone, closest approach 2,208 units to the band edge.
+   SL.trafficWaits exists because the slalom chains five legs through
+   four junctions; the hydrant is one straight and needs nothing. */
+const OW_CORRIDOR = {
+  latPad: 24,     // a little past the sidewalk edges, so nothing clips the boundary
+  alongPad: 0,    // the along ends already carry hjBuildCourse's own generous margins
+};
+/* Built from the course's OWN geometry -- the same segsPosAt/heading the
+   mat and the hazards come from -- so there is no second opinion about
+   where the course is. lane is the mat's lane; the band reaches from the
+   kerb to the block edge regardless, expressed relative to that anchor. */
+function owCorridorMake(ox, oy, dv, rv, a0, a1, lane){
+  const inward = SIDEWALK_W - (lane+1)*T2;   // anchor -> block edge, against rv
+  const toKerb = (lane+1)*T2;                // anchor -> kerb, along rv
+  return { ox, oy, dvx:dv.x, dvy:dv.y, rvx:rv.x, rvy:rv.y,
+           a0: a0 - OW_CORRIDOR.alongPad, a1: a1 + OW_CORRIDOR.alongPad,
+           l0: -inward - OW_CORRIDOR.latPad, l1: toKerb + OW_CORRIDOR.latPad };
+}
+/* pure, and shared by the sim and both draw passes -- the one rule that
+   decides whether a permanent prop exists right now. If these ever
+   disagreed the robot would collide with something nobody can see. */
+function owCorridorHas(c, x, y){
+  if(!c) return false;
+  const sx = x - c.ox, sy = y - c.oy;
+  const a = sx*c.dvx + sy*c.dvy;
+  if(a < c.a0 || a > c.a1) return false;
+  const l = sx*c.rvx + sy*c.rvy;
+  return l >= c.l0 && l <= c.l1;
+}
+
 const OW_DOOR = { ahead: 34, behind: 60, latPad: 46 };
 function owDoorFrame(r){
   const p = segsPosAt(r.segs, r.doorS), hdg = segsHeadingAt(r.segs, r.doorS);
@@ -5254,6 +5321,11 @@ function owStep(scene, dt){
       let cx = cp.wx, cy = cp.wy;
       const cw = (typeof hazWorldAt === 'function') ? hazWorldAt(scene.runT || 0, cp) : null;
       if(cw){ cx = cw.x; cy = cw.y; }
+      /* swept by an active course corridor. Tested on the EFFECTIVE
+         position, not the anchor: a walking pedestrian or dog is not
+         where its record says it is, and those are exactly the two
+         kinds that hurt most here. */
+      if(owCorridorHas(scene.owCorridor, cx, cy)) continue;
       if(owContact(scene, ow, D, dYaw, cp, cp.type, cx, cy)) hitNormal = hitNormal || 3;
       if(scene.state === 'tipped') break;   // tipped; the rest is moot this frame
     }
@@ -11137,6 +11209,25 @@ class WorldScene extends Phaser.Scene {
     const lipS = ch.kickerS + TILE;
     ch.catchS = Math.round(lipS + (2.25 + (level-1)*HJ_CH.gap) * T);
     const clearFrom = ch.kickerS - HJ_GEOM.runup - T2, clearTo = ch.catchS + 5*T2;
+    /* THE SAME WINDOW, IN WORLD SPACE. clearFrom/clearTo below sweep the
+       daily route's own arrays; the city's permanent props are not in
+       those arrays and have to be swept by geometry instead. Built from
+       the identical two numbers so the two sweeps can never disagree
+       about where the course is -- see OW_CORRIDOR for why this is
+       needed at all and how much it actually clears. */
+    {
+      const cp0 = segsPosAt(this.route.segs, Math.max(0, clearFrom));
+      const chdg = segsHeadingAt(this.route.segs, ch.kickerS);
+      const cdv = { x: Math.cos(chdg), y: Math.sin(chdg) };
+      const cr0 = { x: -Math.sin(chdg), y: Math.cos(chdg) };
+      /* anchor on the far edge of ch.lane, and rv toward the kerb --
+         the same frame missionMatAtS builds the start mat in. */
+      const face = ROBOT_SIDE * (ROAD_HALF + (ch.lane+1)*T2);
+      const crv = { x: -ROBOT_SIDE*cr0.x, y: -ROBOT_SIDE*cr0.y };
+      this.owCorridor = owCorridorMake(
+        cp0.x + cr0.x*face, cp0.y + cr0.y*face, cdv, crv,
+        0, clearTo - Math.max(0, clearFrom), ch.lane);
+    }
     /* ALL ROWS (2026-08-11, "get rid of the people at the hydrant
        challenge"): row === ch.lane only cleared the exact lane he runs
        in, leaving pedestrians and other hazards live on the sidewalk's
@@ -11933,6 +12024,10 @@ class WorldScene extends Phaser.Scene {
   }
 
   loadRoute(dateStr, opts){
+    /* a corridor belongs to a course, and loading a route ends whatever
+       course was running. Left set, it would keep a stretch of some
+       other street invisible and drive-through. */
+    this.owCorridor = null;
     /* THE RUNG COMES FROM THE PROFILE unless a caller names one. Only
        for TODAY's ordinary delivery: a challenge builds its own course,
        and a replay of a past date is a record of a route that was
@@ -13082,6 +13177,7 @@ class WorldScene extends Phaser.Scene {
     if(cityFurn) for(const cp of cityFurn){
       if(!GROUND_KINDS[cp.type]) continue;
       if(r.cfTaken && r.cfTaken.has(cp.key)) continue;       // the route draws it
+      if(owCorridorHas(this.owCorridor, cp.wx, cp.wy)) continue;   // swept by the course
       if(!this.visProp(cp.type, cp.wx, cp.wy)) continue;
       const cgt = cp.type, cgx = cp.wx, cgy = cp.wy, cgf = cp.f, cgo = cp;
       groundVQ.push({ depth: cgx+cgy, fn:(g,t)=>this.drawProp(g, cgt, cgx, cgy, t, cgf, 0, null, null, cgo) });
@@ -14940,6 +15036,10 @@ class WorldScene extends Phaser.Scene {
            null and use the anchor, which IS their position. */
         const eff = hazWorldAt(t, cp);
         const ebx = eff ? eff.x : cp.wx, eby = eff ? eff.y : cp.wy;
+        /* swept by the course corridor -- same pure test the contact
+           pass runs, on the same effective point, so what is drawn and
+           what is solid can never disagree. */
+        if(owCorridorHas(this.owCorridor, ebx, eby)) continue;
         let ltx = ebx, lty = eby;
         const ct = cp.type;
         if((ct === "planter" || ct === "bin" || ct === "cone" || ct === "scooter") && (cp.phi || 0) > 0.5){
