@@ -7926,6 +7926,21 @@ if(new URLSearchParams(location.search).get("gpsBench") === "1")
    without changing a line of this. */
 let gpsNav = null;
 
+/* READOUT FORMATTERS, HOISTED (2026-08-26). FT_PER_UNIT and both of
+   these lived as locals inside drawHUD, which was fine while the HUD
+   strip was the only thing that reported a distance or a clock. The
+   map card reports both now, and a second copy of "0.6 feet per unit"
+   is how the strip and the card end up quoting different distances for
+   the same drive. One conversion, one place. */
+const FT_PER_UNIT = 0.6;   // flavor conversion, not a real-world claim
+function tpDistText(units){
+  const ft = (units || 0) * FT_PER_UNIT;
+  return ft > 1000 ? (ft/5280).toFixed(1) + " mi" : Math.round(ft/10)*10 + " ft";
+}
+function tpClockText(ms){
+  return Math.floor(ms/60000) + ":" + String(Math.floor((ms%60000)/1000)).padStart(2, "0");
+}
+
 /* the robot's lattice heading, from the free-roam yaw. owInstall
    integrates stepX = cos(yaw), stepY = sin(yaw), so yaw 0 is +x and the
    quadrants land exactly on GPS_DI/GPS_DJ's east/south/west/north --
@@ -8061,6 +8076,11 @@ function gpsNavToMission(id){
       return;
     }
     tpToast("Routing to " + mm.name + ". Press GO.");
+    /* the card is the map screen's headline and it was still selling
+       today's croissants while the line on screen pointed at a
+       mission (2026-08-26). One writer owns it now; this is simply
+       telling it the situation changed. */
+    tpSyncOrderCard(s2);
     /* redraw under the finger that just picked: the map is still up, so
        the new line has to appear now rather than on the next thing that
        happens to trigger a draw. */
@@ -13459,11 +13479,16 @@ class WorldScene extends Phaser.Scene {
        missions lead with their own NAME, the way Cone Slalom's card
        always did ("Cone Slalom Challenge — ..."); the daily route is
        the one case that's place-first, since it doesn't have a name of
-       its own the way a mission does. */
-    document.getElementById("orderCard").innerHTML =
-      `<div class="tag" style="margin-bottom:4px">SIDE MISSION</div>`
-      + `<b>Hydrant Challenge</b> — ten jumps down ${HJ_ADDRESS.street}, tap to charge and clear them all`;
-    document.getElementById("sheetStatus").textContent = `Ten jumps · clear all ten for the Fire Chief`;
+       its own the way a mission does.
+
+       THE TEXT ITSELF MOVED OUT (2026-08-26). It was hand-typed here,
+       a fourth copy of a blurb TP_SIDE_MISSIONS already carried, and
+       it had to sit AFTER loadRoute above or loadRoute's own card
+       write silently clobbered it. tpSyncOrderCard reads the mode and
+       paints from the table, so the ordering rule is gone with the
+       duplicate -- see its own note for why three writers was the
+       reason nothing ever fixed across the board. */
+    tpSyncOrderCard(this);
     resizeRouteMap();
     drawRouteMap(this.route);
     /* the delivery game waits on a GO press to leave "idle"; the
@@ -13745,13 +13770,14 @@ class WorldScene extends Phaser.Scene {
     this.pickupLidClosing = false; // latches true while the lid still owes a close-out on
                                     // that flipped hinge, even after loading itself has ended
     this.state = "idle";
-    /* TODAY or nothing. The REPLAY tag went with Past Routes -- there is
-       no longer any way to load a past date as a delivery. */
-    const modeTag = !IS_DEVVIT_BUILD ? "" : `<div class="tag" style="margin-bottom:4px">TODAY</div>`;
-    document.getElementById("orderCard").innerHTML = modeTag + (this.route.pickupShopName
-      ? `<b>${this.route.hood.n}</b> — pickup at <b>${this.route.pickupShopName}</b>, deliver to <b>${this.route.address}</b>`
-      : `<b>${this.route.hood.n}</b> — deliver to <b>${this.route.address}</b>`);
-    document.getElementById("sheetStatus").textContent = `$${this.route.order.value.toFixed(2)} · ${this.route.order.text}`;
+    /* THE CARD IS DERIVED, NOT WRITTEN HERE (2026-08-26). This used to
+       paint the delivery text inline, which is why both mission
+       entries carry a warning that they must run AFTER their own
+       loadRoute call -- this line was the thing overwriting them.
+       tpSyncOrderCard checks the mode itself, so loading a mission's
+       world no longer paints a delivery card on the way past and the
+       ordering hazard is gone. */
+    tpSyncOrderCard(this);
     resizeRouteMap();
     drawRouteMap(this.route);
   }
@@ -24321,9 +24347,19 @@ class WorldScene extends Phaser.Scene {
 
        attract is OR'd in explicitly rather than leaned on state: the
        attract robot really is driving, so state === "play" is true out
-       on the title screen and the state test alone would not hide it. */
+       on the title screen and the state test alone would not hide it.
+
+       AND THE MAP IS OR'D IN TOO (2026-08-26, Sir on-device: "im still
+       getting the view button for the different side missions"). The
+       same stuck-VIEW-2 symptom this comment already describes, from a
+       new direction: routing to a mission off the map leaves the scene
+       in freeroam with the map still up, and "is a driving instrument
+       allowed on screen" was being answered by a proxy (state) instead
+       of by the actual question (is the map covering the game). Every
+       proxy for that eventually finds a state that contradicts it --
+       this is the second one. tpMapUp asks directly. */
     const zb = document.getElementById("zoomBtn");
-    if(zb) zb.classList.toggle("hidden", this.attract || this.state !== "play");
+    if(zb) zb.classList.toggle("hidden", tpMapUp() || this.attract || this.state !== "play");
     if(this.attract) return;
     const g = this.hud; g.clear();
     /* The tilt gauge, the cargo-condition bar and the GPS turn strip are
@@ -24352,16 +24388,14 @@ class WorldScene extends Phaser.Scene {
     const remainDist = (gpsNav && gpsNav.distU != null)
       ? gpsNav.distU
       : Math.max(0, this.targetDoorS() - this.botS);
-    const FT_PER_UNIT = 0.6; // flavor conversion, not a real-world claim
-    const distFt = remainDist * FT_PER_UNIT;
-    const distText = distFt > 1000 ? (distFt/5280).toFixed(1)+" mi" : Math.round(distFt/10)*10 + " ft";
+    const distText = tpDistText(remainDist);
 
     /* delivery TIMER (replaces the ETA estimate): counts down the
        route's par time; past zero it shows the overage with a minus —
        the tip is decaying (1%/5s, see showWin) and the driver should
        feel it. */
     const remainMs = this.route.parMs - this.runT;
-    const fmtMs = v => Math.floor(v/60000) + ":" + String(Math.floor((v%60000)/1000)).padStart(2,"0");
+    const fmtMs = tpClockText;
     /* two clocks in one: par countdown while there's time, then the
        CANCEL countdown through the grace window — a second, scarier
        timer instead of a mysterious negative number. */
@@ -27731,28 +27765,14 @@ function slalomMapSelect(){
   /* and one more pass after layout has settled, so a late reflow cannot
      leave it stale -- same safety net hjQuit() already carries */
   requestAnimationFrame(() => { resizeRouteMap(); drawRouteMap(s.route); });
-  /* HEADLINE IS THE MISSION NAME (2026-08-10, Sir's call, reverted the
-     same day it was changed): this originally led with the mission's
-     own name and got changed to lead with a hood/street instead, to
-     match the daily route's "place leads" convention -- backwards. Side
-     missions lead with their own name; the daily route is the one case
-     that's place-first, since a delivery doesn't have a name of its
-     own the way a mission does. Hydrant Challenge's own card follows
-     the same reverted convention (see loadChallenge).
-
-     MUST run AFTER loadRoute above, not before (2026-08-10, found
-     while wiring the spinner): loadRoute sets orderCard's HTML to its
-     own generic hood/pickup/address text as part of its own normal
-     execution -- setting this custom text BEFORE loadRoute meant
-     loadRoute silently overwrote it a moment later, and the card
-     quietly went back to reading like a delivery instead of a
-     mission. Same reason hydrant's own custom text already lives
-     inside loadChallenge, after its own loadRoute call, not beside
-     this function's setup code. */
-  document.getElementById("orderCard").innerHTML =
-    `<div class="tag" style="margin-bottom:4px">SIDE MISSION</div>`
-    + `<b>Cone Slalom Challenge</b> — weave the gates at double speed, then stop on the mat`;
-  document.getElementById("sheetStatus").textContent = `75s par · sub-60s earns Slalom Master`;
+  /* THE TEXT MOVED INTO TP_SIDE_MISSIONS (2026-08-26). The long note
+     that used to live here explained two things: that side missions
+     lead with their own name, and that this line MUST run after
+     loadRoute or loadRoute's own card write clobbers it. The first is
+     still true and is now tpSyncOrderCard's rule for every mission at
+     once; the second stopped being a rule when loadRoute stopped
+     writing the card itself. */
+  tpSyncOrderCard(s);
   /* TIGHT ZOOM, NO PULSE (2026-08-10, updated 2026-08-11, Sir's call): the
      daily route's own pickupS/doorS span (what loadRoute above just framed
      the map on) is a normal delivery-length stretch, not the actual
@@ -29681,6 +29701,17 @@ function tpDailyDeliveryPin(){
    Today's route is still what gets loaded — it is the world, the grid
    and the hazards, not just a delivery — but nothing targets its door,
    because mode is "freeroam" and update()'s install gate reads mode. */
+/* IS THE MAP COVERING THE GAME. One question, asked directly, instead
+   of each caller inferring it from a state flag that happens to
+   correlate today -- see drawHUD's zoomBtn gate for what inference
+   costs. #mapCard lives inside #titleOverlay, so the overlay's own
+   hidden class IS the answer. */
+function tpMapUp(){
+  const t = document.getElementById("titleOverlay");
+  return !!t && !t.classList.contains("hidden");
+}
+if(typeof window !== "undefined") window.tpMapUp = tpMapUp;
+
 /* ---------- FREEROAM WITHOUT LEAVING THE MAP ----------
    (Sir on-device, 2026-08-26: "its also falling through when i click
    the new place and not staying on the map".)
@@ -29722,7 +29753,13 @@ function tpEnsureFreeroam(s){
     if(!s.ow) owInstall(s);
     owPlaceOnPad(s, s.botX, s.botY);
   } else if(!s.ow) owInstall(s);
-  s.state = "play";
+  /* IDLE WHILE THE MAP IS UP. state "play" steps the world, and with
+     the map covering it that means the robot drives behind a screen
+     nobody can see him through -- plus every driving instrument keyed
+     off state === "play" (the VIEW toggle first among them) comes back
+     over the map. "idle" is exactly what the map screen has always
+     meant: loaded, framed, waiting on GO. GO sets play itself. */
+  s.state = tpMapUp() ? "idle" : "play";
   return s;
 }
 if(typeof window !== "undefined") window.tpEnsureFreeroam = tpEnsureFreeroam;
@@ -31040,10 +31077,14 @@ const TP_SIDE_MISSIONS = [
      trophies: the Chief at jump 8, the Daredevil at jump 10. */
   { id:"jump-hydrant", name:"Hydrant Challenge",
     desc:"Ten jumps down Pelican St. Tap to charge, clear the hydrants, land the catch ramp.",
+    card:"ten jumps down Pelican St, tap to charge and clear them all",
+    par:"Ten jumps · clear all ten for the Fire Chief",
     status:"playable", trophyId:"hydrant-hop", icon:"hydrant", place:"Pelican St at 5th, The Flats",
     note:"Ten jumps on Pelican St. Tap to charge, land the catch ramp." },
   { id:"cone-slalom", name:"Cone Slalom Challenge",
     desc:"Weave the gates at double speed, then stop on the customer's mat like a real delivery.",
+    card:"weave the gates at double speed, then stop on the mat",
+    par:"75s par · sub-60s earns Slalom Master",
     status:"playable", trophyId:"slalom-master", icon:"cone", place:"15th St at Stall, Market Dist.",
     note:"Miss the stop and it's once around the block — mind William." },
   { id:"new-sweater-city", name:"New Sweater City", desc:"", status:"comingSoon" },
@@ -31052,6 +31093,94 @@ const TP_SIDE_MISSIONS = [
 ];
 
 function tpSkinById(id){ return TP_SKINS.find(s=>s.skinId===id); }
+function tpMissionById(id){ return TP_SIDE_MISSIONS.find(m=>m.id===id); }
+
+/* ---------- ONE WRITER FOR THE MAP CARD ----------
+   (Sir on-device, 2026-08-26: "i need this menu to be consistent for
+   all missions and side missions. can you figure out why when i fix
+   one thing it isnt doing it across the board?")
+
+   It wasn't doing it across the board because #orderCard and
+   #sheetStatus were written IMPERATIVELY by whoever happened to be
+   starting an activity, and there were three of them:
+
+     - loadRoute's tail        -> the delivery text
+     - loadChallenge's tail    -> the Hydrant text, hand-typed
+     - slalomMapSelect's tail  -> the Cone Slalom text, hand-typed
+
+   Three copies of the same layout means a change to the shape of the
+   card is three edits, and the mission blurbs were a FOURTH copy of
+   text that already existed in TP_SIDE_MISSIONS. Worse, ordering was
+   load-bearing: both mission writers carry a comment warning that
+   loadRoute overwrites the card, so each had to run AFTER its own
+   loadRoute call or the card silently reverted to reading like a
+   delivery. That is not a rule anyone can be expected to remember at
+   the next call site -- and the next call site (gpsNavToMission, the
+   map's own routing entry, added earlier today) didn't, which is
+   exactly the bug on screen: routing to Cone Slalom while the card
+   still advertised today's croissants.
+
+   So the card is DERIVED now, not written. This function is the only
+   thing that touches either element; it reads the scene's mode and the
+   live nav destination and paints what is actually happening. Every
+   activity entry calls it at its tail and no entry needs to know what
+   any other one would have said. The mission copy comes from
+   TP_SIDE_MISSIONS, so a mission's name and blurb live in exactly one
+   place and the list, the detail sheet and the map card cannot drift.
+
+   THE TAG ROW IS UNCONDITIONAL. "TODAY" used to be Devvit-only, a
+   leftover from when the other possible tag was "REPLAY" (removed with
+   Past Routes). Missions always tag themselves, so on web the delivery
+   card was the one card in the game a line shorter than every other --
+   the whole card jumped height when you picked a mission. Consistent
+   means the same shape every time, including the shape's first row. */
+function tpSyncOrderCard(s){
+  const card = document.getElementById("orderCard");
+  const stat = document.getElementById("sheetStatus");
+  if(!card || !stat) return;
+  const tag = t => `<div class="tag" style="margin-bottom:4px">${t}</div>`;
+  const missionCard = (m, verb) => {
+    card.innerHTML = tag(verb) + `<b>${m.name}</b> — ${m.card || m.desc}`;
+    stat.textContent = m.par || m.desc;
+  };
+  /* IN a mission: its own frozen world is loaded and the card is its
+     briefing. mode is the authority, not gpsNav -- the nav is cleared
+     on launch (gpsNavLaunch) precisely so arriving hands the screen
+     over to the mission itself. */
+  if(s && s.mode === "challenge"){
+    const m = tpMissionById("jump-hydrant");
+    if(m){ missionCard(m, "SIDE MISSION"); return; }
+  }
+  if(s && s.mode === "slalom-pending"){
+    const m = tpMissionById("cone-slalom");
+    if(m){ missionCard(m, "SIDE MISSION"); return; }
+  }
+  /* DRIVING TO one: the world is the live city, so there is no mission
+     route to describe -- what the card owes you is where you are
+     headed and how far. Same two-line shape, different verb, and the
+     distance/ETA come off the same helpers the HUD strip uses so the
+     card and the strip cannot report different numbers. */
+  if(typeof gpsNav !== "undefined" && gpsNav){
+    const m = tpMissionById(gpsNav.id);
+    const name = (m && m.name) || gpsNav.name || "destination";
+    card.innerHTML = tag("ROUTING") + `<b>${name}</b> — ${(m && m.card) || "drive there, then press GO"}`;
+    const bits = [];
+    if(gpsNav.distU != null) bits.push(tpDistText(gpsNav.distU));
+    if(gpsNav.etaMs != null) bits.push("ETA " + tpClockText(gpsNav.etaMs));
+    stat.textContent = bits.length ? bits.join(" · ") : "Press GO to drive there";
+    return;
+  }
+  /* THE DELIVERY, and the fallback for anything with no activity of its
+     own -- free play included, where today's order is still the thing
+     the card can most usefully advertise. */
+  if(!s || !s.route){ card.innerHTML = tag("TODAY") + "<b>Loading\u2026</b>"; stat.textContent = "Ready for pickup"; return; }
+  card.innerHTML = tag("TODAY") + (s.route.pickupShopName
+    ? `<b>${s.route.hood.n}</b> — pickup at <b>${s.route.pickupShopName}</b>, deliver to <b>${s.route.address}</b>`
+    : `<b>${s.route.hood.n}</b> — deliver to <b>${s.route.address}</b>`);
+  stat.textContent = `$${s.route.order.value.toFixed(2)} · ${s.route.order.text}`;
+}
+if(typeof window !== "undefined") window.tpSyncOrderCard = tpSyncOrderCard;
+
 function tpTrophyById(id){ return TP_TROPHIES.find(t=>t.id===id); }
 function tpTrophyForSkin(skinId){ return TP_TROPHIES.find(t=>t.reward===skinId); }
 function tpMissionIconSvg(m, size, pinColor){
