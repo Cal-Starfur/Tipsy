@@ -7124,6 +7124,200 @@ function gpsBench(){
 if(new URLSearchParams(location.search).get("gpsBench") === "1")
   setTimeout(gpsBench, 6000);
 
+/* ---------- GPS NAV: drive to a place instead of teleporting to it ----------
+   Step 2 of drive-to-a-side-mission. gpsFindPath answers "which way";
+   this owns "where am I going, how long until I get there, and what
+   happens when I arrive".
+
+   The destination is a WORLD POINT, not a mission. Nothing here knows
+   what a hydrant is. A mission mat is simply the first thing that has
+   asked to be driven to, and PICKUP_SHOPS doors are the obvious second
+   without changing a line of this. */
+let gpsNav = null;
+
+/* the robot's lattice heading, from the free-roam yaw. owInstall
+   integrates stepX = cos(yaw), stepY = sin(yaw), so yaw 0 is +x and the
+   quadrants land exactly on GPS_DI/GPS_DJ's east/south/west/north --
+   the same 0-3 buildWalk's `dir` and every leg's `f` already use. No
+   second convention is introduced here on purpose; a fifth way of
+   saying "north" in this file is how the 90-degree facing bugs happen. */
+function gpsHeadingOf(scene){
+  const ow = scene && scene.ow;
+  if(!ow || !ow.on) return null;
+  return ((Math.round(ow.yaw / (Math.PI/2)) % 4) + 4) % 4;
+}
+
+/* Recomputed, not stepped along. Re-running A* from wherever the robot
+   actually is means going the wrong way simply produces a new correct
+   route -- there is no "off-route" state to detect and no progress
+   index to keep in sync with a robot that can drive anywhere. It costs
+   0.4ms worst case on this lattice (bench: corner to corner), which is
+   affordable at THIS throttle and would not be every frame. */
+const GPS_REPLOT_MS = 400;
+function gpsNavReplot(scene, force){
+  if(!gpsNav || !scene || !scene.route || !scene.route.grid) return;
+  const now = performance.now();
+  if(!force && now - gpsNav.plottedAt < GPS_REPLOT_MS) return;
+  gpsNav.plottedAt = now;
+  const p = gpsFindPath(scene.route.grid,
+                        { x: scene.botX, y: scene.botY },
+                        { x: gpsNav.tx,  y: gpsNav.ty },
+                        gpsHeadingOf(scene));
+  if(!p) return;                       // keep the last good line
+  gpsNav.path = p;
+  /* straight-line remainder from the robot to the first node, so the
+     readout moves while crossing a block rather than sitting still
+     until the next intersection ticks over. */
+  const head = p.pts.length ? p.pts[0] : null;
+  const lead = head ? Math.hypot(scene.botX - head.x, scene.botY - head.y) : 0;
+  gpsNav.etaMs = gpsEtaMs({ len: p.len + lead, turns: p.turns });
+  gpsNav.distU = p.len + lead;
+}
+
+function gpsNavTo(scene, id, name, tx, ty){
+  if(!scene || !scene.route || !scene.route.grid) return false;
+  gpsNav = { id, name, tx, ty, path: null, etaMs: null, distU: 0, plottedAt: -1e9 };
+  gpsNavReplot(scene, true);
+  if(!gpsNav.path){ gpsNav = null; return false; }
+  return true;
+}
+function gpsNavClear(){ gpsNav = null; }
+
+/* ARRIVAL. Deliberately not a radius test around gpsNav.tx/ty: the mat
+   already owns "is the robot on me", through owMatContains, and it
+   already knows the difference between ON (rolled over it) and ARMED
+   (stopped, upright). Re-deriving arrival from a distance threshold
+   here would be a second answer to a question that already has one,
+   and the two would drift the first time a mat moved.
+
+   So this only asks the mat, and only for the mat we were sent to --
+   driving over the OTHER mission's mat on the way past does not
+   hijack the trip. */
+function gpsNavArrived(scene){
+  if(!gpsNav || !scene) return null;
+  const mm = owMissionMatAt(scene);
+  if(!mm || mm.id !== gpsNav.id) return null;
+  return matHighlightState(scene, mm.mat, "freeroam") === "armed" ? mm : null;
+}
+
+/* Called from update() once armed. The mission entries still rebuild
+   their own frozen world (loadChallenge -> loadRoute(HJ_SEED_DATE));
+   unifying those onto the live city is step 3 and is deliberately NOT
+   smuggled in here. What HAS changed is that you now have to drive to
+   the mat to get there, which is the whole point of step 2. */
+function gpsNavLaunch(scene){
+  const mm = gpsNavArrived(scene);
+  if(!mm) return false;
+  const id = gpsNav.id;
+  gpsNavClear();
+  if(id === "jump-hydrant") hjStart();
+  else if(id === "cone-slalom") tpSlalomStart();
+  else return false;
+  return true;
+}
+
+/* THE DETOUR KILLS THE DELIVERY (Sir's call, 2026-08-26). Routing to a
+   side mission with a live order abandons the order outright -- no
+   frozen clock, no resume, no partial credit. That keeps the state
+   model to one running errand at a time, which is the only version of
+   this that does not need a second par to be tracked, paused, and
+   audited against the ladder.
+
+   It lands on the EXISTING cancel path rather than a new one: state
+   "canceled", sim stopped, reportFail(reason), CANCEL_LINES. That path
+   already guarantees the things this needs -- no payout, no daily-best
+   entry, and no win, so the ladder rung cannot advance on an abandon.
+
+   The reason string is "abandoned", not "canceled", even though the
+   player sees the identical card. A timeout means the route beat
+   someone; an abandon means they chose a mission instead. Logging both
+   as the same event makes the fail feed stop meaning "players are
+   struggling here", which is the only thing it is useful for. */
+function gpsAbandonDelivery(scene){
+  if(!scene || scene.mode !== "delivery") return;
+  scene.state = "canceled";
+  scene.speed = 0; scene.throttle = 0;
+  if(scene.attractOwnsTip && scene.attractOwnsTip()){ scene.attractRecycle(); return; }
+  reportFail(scene, "abandoned");
+}
+
+/* Pin tap entry. Confirms ONLY when there is something to lose: from
+   free play the pin routes instantly, because a confirm on a tap that
+   costs nothing is just a dialog to dismiss. Mid-delivery it always
+   asks -- the pins sit on the same map that gets opened purely to look
+   at where you are going, so a stray tap must not be able to destroy a
+   run in progress. */
+function gpsNavToMission(id){
+  const s = (typeof scn === "function") ? scn() : null;
+  if(!s) return;
+  const mm = getMissionMats().find(m => m.id === id);
+  if(!mm){ tpToast("That mission has no mat yet."); return; }
+  const live = s.mode === "delivery" && s.state === "play";
+  const go = () => {
+    if(live) gpsAbandonDelivery(s);
+    /* free play IS the driving mode: a delivery that just died leaves
+       mode "delivery" behind, and the nav has nowhere to steer if the
+       world is not installed. tpFreePlay does both and lands the robot
+       on a pad, so it is the one door into "now go drive". */
+    tpFreePlay();
+    const s2 = scn();
+    if(!gpsNavTo(s2, mm.id, mm.name, mm.mat.x, mm.mat.y)){
+      tpToast("No route to " + mm.name + ".");
+      return;
+    }
+    tpToast("Routing to " + mm.name + ".");
+  };
+  if(!live){ go(); return; }
+  gpsConfirm("Abandon today's delivery?",
+             "Driving to " + mm.name + " cancels the order. No tip, no ladder credit.",
+             "Abandon", go);
+}
+
+/* one-off confirm sheet. Deliberately its own tiny element rather than
+   a reuse of #failOverlay or the detail sheet: both of those carry
+   run state and their own show/hide gates, and borrowing either for a
+   yes/no question is how a dialog ends up resurrecting a dead run. */
+function gpsConfirm(title, body, okLabel, onOk){
+  let el = document.getElementById("gpsConfirm");
+  if(el) el.remove();
+  el = document.createElement("div");
+  el.id = "gpsConfirm";
+  el.style.cssText = "position:fixed;inset:0;z-index:300;display:flex;"
+    + "align-items:center;justify-content:center;background:rgba(10,11,14,.55);"
+    + "-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px);";
+  el.innerHTML =
+    '<div style="width:min(340px,86vw);background:rgba(240,236,224,.96);'
+    + 'border:1px solid rgba(54,59,70,.35);border-radius:14px;padding:18px 18px 14px;'
+    + 'box-shadow:0 8px 28px rgba(0,0,0,.4);color:#2e3138;'
+    + 'font:500 14px/1.4 -apple-system,sans-serif;text-align:center">'
+    + '<div style="font-weight:700;font-size:16px;color:#b5540e;margin-bottom:6px">'
+    + title + '</div><div style="margin-bottom:16px">' + body + '</div>'
+    + '<div style="display:flex;gap:10px">'
+    + '<button id="gpsConfirmNo" style="flex:1;height:40px;border-radius:999px;'
+    + 'border:1px solid rgba(54,59,70,.35);background:none;color:#2e3138;'
+    + 'font:700 14px/1 -apple-system,sans-serif">Keep driving</button>'
+    + '<button id="gpsConfirmYes" style="flex:1;height:40px;border-radius:999px;'
+    + 'border:0;background:#c2452e;color:#fff;'
+    + 'font:700 14px/1 -apple-system,sans-serif">' + okLabel + '</button>'
+    + '</div></div>';
+  document.body.appendChild(el);
+  /* pointerdown with capture, same as every other tap target in here:
+     iOS Safari will not deliver a reliable click to an element this
+     young, and Phaser is listening at the window regardless. */
+  const bind = (bid, fn) => {
+    const b = document.getElementById(bid);
+    const go = e => { e.preventDefault(); e.stopPropagation(); el.remove(); fn(); };
+    b.addEventListener("pointerdown", go, { capture: true });
+    b.addEventListener("click", go, { capture: true });
+  };
+  bind("gpsConfirmNo", () => {});
+  bind("gpsConfirmYes", onOk);
+}
+if(typeof window !== "undefined"){
+  window.gpsNavToMission = gpsNavToMission;
+  window.gpsNavClear = gpsNavClear;
+}
+
 /* ---------- PICKUP_SHOPS: 36 fixed, permanent shop landmarks ----------
    One entry per HOODS[].shops name (12 hoods x 3 = 36), each locked to
    ONE real commercial block inside its home district, forever -- CITY_SEED
@@ -21174,6 +21368,13 @@ class WorldScene extends Phaser.Scene {
           setTimeout(() => { if(this.mode === "challenge") hjShowCrash(this); }, 1400);
         }
       }
+      /* NAV. Replot on its own throttle and fire the moment the mat
+         says ARMED. Sits inside the same play gate as everything else
+         here so a paused or crashed robot cannot arrive anywhere. */
+      if(gpsNav){
+        gpsNavReplot(this);
+        if(gpsNavArrived(this)){ gpsNavLaunch(this); return; }
+      }
       /* CANCELLATION: par + grace expired -> the order dies. A fail
          with the robot upright: the state gate stops the sim, input
          goes dead, fail overlay with the cancel pool. No payout, no
@@ -23287,7 +23488,12 @@ class WorldScene extends Phaser.Scene {
        counts to the NEXT pass, GPS-style, instead of 0 ft -- see
        targetDoorS(), which findNextTurn() shares so the distance and the
        turn strip can never disagree about which door is being counted. */
-    const remainDist = Math.max(0, this.targetDoorS() - this.botS);
+    /* distance follows the same owner: on a nav leg it is the remaining
+       PATH, not the remaining rail -- targetDoorS describes an errand
+       that is no longer running. */
+    const remainDist = (gpsNav && gpsNav.distU != null)
+      ? gpsNav.distU
+      : Math.max(0, this.targetDoorS() - this.botS);
     const FT_PER_UNIT = 0.6; // flavor conversion, not a real-world claim
     const distFt = remainDist * FT_PER_UNIT;
     const distText = distFt > 1000 ? (distFt/5280).toFixed(1)+" mi" : Math.round(distFt/10)*10 + " ft";
@@ -23301,9 +23507,22 @@ class WorldScene extends Phaser.Scene {
     /* two clocks in one: par countdown while there's time, then the
        CANCEL countdown through the grace window — a second, scarier
        timer instead of a mysterious negative number. */
-    const timerText = remainMs >= 0
+    let timerText = remainMs >= 0
       ? fmtMs(remainMs)
       : "⚠ cancels " + fmtMs(Math.max(0, this.route.parMs + CANCEL_GRACE_MS - this.runT));
+
+    /* NAV LEG: the par clock becomes an ETA (Sir's call, 2026-08-26).
+       A par is a budget handed over at the door and it counts DOWN
+       toward a penalty; an ETA is a claim about arrival and it just
+       tracks the road. Same formula underneath -- gpsEtaMs reuses par's
+       own shape -- so the two can never disagree about how long a
+       stretch of street takes. The difference is that this is
+       recomputed from the remaining path on every replot rather than
+       ticking a fixed budget, so dawdling makes it GROW instead of
+       going negative. No red, no grace window: there is nothing to
+       fail on a drive to a mission, because taking one already
+       cancelled the order (see gpsAbandonDelivery). */
+    if(gpsNav && gpsNav.etaMs != null) timerText = "ETA " + fmtMs(gpsNav.etaMs);
 
     /* mid-turn HOLD: while the robot is actually ON an arc, show just
        the current turn's arrow — no distance. findNextTurn() looks
@@ -28922,8 +29141,19 @@ function tpMapExplore(){
       const hit = tpMapMissionPins.find(pin =>
         Math.hypot(e.offsetX-pin.x, e.offsetY-pin.y) <= pin.r);
       if(hit){
-        if(hit.id === "jump-hydrant") hjStart();
-        else if(hit.id === "cone-slalom") slalomMapSelect();
+        /* A PIN IS A DESTINATION NOW, NOT A DOOR (Sir's call,
+           2026-08-26). These used to call hjStart()/slalomMapSelect(),
+           which load the mission's own frozen route and drop the robot
+           on its start line -- from anywhere, instantly. The map is
+           where you decide where to GO; deciding was the same thing as
+           arriving, so the city between you and the mission may as
+           well not have existed. Now the tap plots a route and hands
+           the wheel back. The daily pin keeps its old behaviour: it is
+           not a place in the city, it is the errand you already have. */
+        if(hit.id === "jump-hydrant" || hit.id === "cone-slalom"){
+          tpCollapseMissions();
+          gpsNavToMission(hit.id);
+        }
         else if(hit.id === "daily-delivery") tpBackToDailyRoute();
       } else {
         /* and it puts the drawer down. The list no longer covers the
@@ -29510,6 +29740,27 @@ function drawRouteMap(route){
      hitboxes are recorded in tpMapMissionPins as we go, so the tap
      handler in tpMapExplore can hit-test against exactly what got
      drawn this frame rather than recomputing positions itself. */
+  /* THE DRIVEN ROUTE. Under the pins deliberately -- the line explains
+     how to reach the pin, so it must never be the thing covering it.
+     Dashed and in the delivery orange so it reads as "your current
+     instruction" rather than as another piece of permanent city. */
+  if(gpsNav && gpsNav.path && gpsNav.path.pts.length > 1 && !usingAtlas){
+    const pts = gpsNav.path.pts;
+    ctx.save();
+    ctx.setLineDash([7, 6]);
+    ctx.lineWidth = 4; ctx.lineJoin = "round"; ctx.lineCap = "round";
+    ctx.strokeStyle = "rgba(255,122,26,.92)";
+    ctx.beginPath();
+    const s0 = toScreen(pts[0]);
+    ctx.moveTo(s0.x, s0.y);
+    for(let q = 1; q < pts.length; q++){
+      const sp = toScreen(pts[q]);
+      ctx.lineTo(sp.x, sp.y);
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+
   tpMapMissionPins.length = 0;
   const MISSION_ICON = { hydrant: "🧯", cone: "🚧" };
   for(const m of TP_SIDE_MISSIONS){
