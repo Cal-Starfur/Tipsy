@@ -48,6 +48,17 @@
     display:flex;align-items:center;justify-content:center;
     font-size:19px;font-weight:700;letter-spacing:1px;box-shadow:0 4px 0 #b5540e;}
   #failOverlay .btn:active{transform:translateX(-50%) translateY(3px);box-shadow:0 1px 0 #b5540e;}
+  /* MAYBE LATER (2026-08-26, Sir's call). The quiet half of the fail
+     card, and deliberately NOT a second pill: Retry keeps the 88px
+     orange circle every primary action in this game wears (TAP, GO,
+     Retry are one control in three places), and the way out sits under
+     it as plain text so the two never read as an equal pair. Retry is
+     the offer; free play is the door. */
+  #failLaterBtn{position:absolute;left:50%;bottom:16px;transform:translateX(-50%);
+    background:none;border:none;padding:10px 20px;color:#fff;opacity:.85;
+    font-size:15px;font-weight:600;letter-spacing:.3px;
+    text-shadow:0 2px 3px #b5540e;-webkit-tap-highlight-color:transparent;}
+  #failLaterBtn:active{opacity:1;transform:translateX(-50%) translateY(2px);}
   #winOverlay{background:rgba(18,20,26,0);}
   #winOverlay h2,#winOverlay p{text-shadow:0 2px 3px #b5540e;transform:translateY(-165px);}
   #winOverlay p{color:#fff;}
@@ -638,6 +649,7 @@
   <h2 id="failMsg">The pavement won.</h2>
   <p id="failSub">Delivery status: horizontal.</p>
   <button class="btn" id="retryBtn">Retry</button>
+  <button id="failLaterBtn" class="hidden">Maybe later</button>
 </div>
 
 <div id="winOverlay" class="overlay hidden">
