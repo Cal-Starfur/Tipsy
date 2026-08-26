@@ -1211,7 +1211,14 @@ function tdStackIcons(overlayId){
   };
   mk("rgba(255,255,255,.92)",
      typeof tpSearchSvg === "function" ? tpSearchSvg("#2e3138", 18) : "",
-     "globalSearch", () => tpOpenMissions());
+     /* same destination as the corner glass (bindGlobalSearch's tail):
+        the map, drawer down. Was tpOpenMissions(), which now raises the
+        map itself but would also arrive with the list already up --
+        and, from here, over a fail/win overlay that was never hidden. */
+     "globalSearch", () => {
+       hide("failOverlay"); hide("winOverlay");
+       collapseSheet(); show("titleOverlay"); tpSyncGlobalBtns();
+     });
   const av = document.getElementById("globalAvatar");
   mk("#ff7a1a", av ? av.innerHTML : "", "globalAvatar", () => tpOpenProfile());
   document.getElementById(overlayId).appendChild(row);
@@ -28512,6 +28519,21 @@ function tpMapIndex(route){
      fall back to the old id-only behaviour, which still opens the
      detail sheet. "???" is the one genuinely unannounced slot; nothing
      useful to match against, so it's left out entirely. */
+  /* TODAY'S DELIVERY IS A PLACE (Sir's call, 2026-08-26): "we want to
+     be able to find the next delivery from the map or search and it
+     brings us to a place on the map like google maps would." It was
+     already a tappable pin (tpMapMissionPins' "daily-delivery") and
+     already a row in the list, but it was the one destination in the
+     game the search box could not find -- so the pin and the search
+     disagreed about what existed. Same tpDailyDeliveryPin() the pin is
+     drawn from, so the two can never point at different doors. Several
+     spellings because this is the thing people will actually type. */
+  {
+    const dp = (typeof tpDailyDeliveryPin === "function") ? tpDailyDeliveryPin() : null;
+    if(dp && Number.isFinite(dp.x) && Number.isFinite(dp.y))
+      for(const nm of ["Today's Delivery", "Next Delivery", "Drop-off"])
+        out.push({ name: nm, kind:"delivery", x: dp.x, y: dp.y });
+  }
   for(const m of TP_SIDE_MISSIONS){
     if(m.name === "???") continue;
     const pin = m.id === "jump-hydrant" ? tpHydrantPin()
@@ -28661,6 +28683,10 @@ function tpMapExplore(){
         else if(hit.id === "cone-slalom") slalomMapSelect();
         else if(hit.id === "daily-delivery") tpBackToDailyRoute();
       } else {
+        /* and it puts the drawer down. The list no longer covers the
+           map, so a tap here is a deliberate reach past it -- same
+           gesture every map app uses to get its sheet out of the way. */
+        if(typeof tpCollapseMissions === "function") tpCollapseMissions();
         const s = scn();
         if(s && tpMapView && Number.isFinite(s.botX) && Number.isFinite(s.botY)){
           tpMapView.cx = s.botX; tpMapView.cy = s.botY;
@@ -28693,7 +28719,10 @@ function tpMapExplore(){
   document.getElementById("tpMapPlus").onclick  = () => zoomAt(1.35, canvas.clientWidth/2, canvas.clientHeight/2);
   document.getElementById("tpMapMinus").onclick = () => zoomAt(1/1.35, canvas.clientWidth/2, canvas.clientHeight/2);
   document.getElementById("tpMapSearchIcon").onclick = () => {
-    document.getElementById("tpMissionsPanel").classList.contains("open") ? tpCloseMissions() : tpOpenMissions();
+    /* tpCollapseMissions, not tpCloseMissions: this icon sits ON the
+       map, so its "off" is the drawer going down, not the map going
+       away underneath the finger that pressed it. */
+    document.getElementById("tpMissionsPanel").classList.contains("open") ? tpCollapseMissions() : tpOpenMissions();
   };
   const box = document.getElementById("tpMapSearch");
   const res = document.getElementById("tpMapResults");
@@ -28717,7 +28746,7 @@ function tpMapExplore(){
            nowhere to jump to yet (not playable, no pin function) falls
            back to opening the list/detail sheet. */
         if(h.kind === "mission" && h.x === undefined){ tpOpenMissions(); tpOpenDetail("mission", h.id); }
-        else tpMapJumpTo(h);
+        else { tpCollapseMissions(); tpMapJumpTo(h); }
       };
       res.appendChild(row);
     }
@@ -30283,10 +30312,27 @@ function tpCloseProfile(){
    back. Without it, dismissing the list mid-delivery left the player
    parked on the map screen with the game resumed underneath it. */
 let tpSearchMap = false;
+/* RAISES THE DRAWER, AND THE MAP IT LIVES IN. The list is physically
+   inside #bottomSheet now (see the CSS note), so opening it without the
+   map on screen would open nothing -- show() is idempotent and every
+   caller that already raised the map is unaffected. */
 function tpOpenMissions(){
   tpPauseWorld();
+  show("titleOverlay");
   tpRender();
   document.getElementById("tpMissionsPanel").classList.add("open");
+  tpSyncGlobalBtns();
+}
+/* DOWN, NOT AWAY -- the third state the old overlay never had. The
+   sheet is part of the map screen now, so "put the list away" and
+   "leave the map" stopped being the same act: the handle, a tap on the
+   map, and picking a search result all want the first, and only an
+   explicit exit wants tpCloseMissions' full teardown (resume the world,
+   drop the map if the glass raised it, re-show a blocked delivery's
+   retry gate). Rows that navigate somewhere still call the full close,
+   because they really are leaving. */
+function tpCollapseMissions(){
+  document.getElementById("tpMissionsPanel").classList.remove("open");
   tpSyncGlobalBtns();
 }
 function tpCloseMissions(){
@@ -30439,8 +30485,18 @@ document.getElementById("avatarIcon").addEventListener("click", tpOpenProfile);
       && document.getElementById("titleOverlay").classList.contains("hidden");
     if(_live) tpSearchMap = true;
     collapseSheet();
+    /* THE GLASS OPENS THE MAP, NOT THE LIST (Sir's call, 2026-08-26).
+       It used to end in tpOpenMissions(), so every press arrived with
+       the cards already up over the map you came to look at. The sheet
+       is on screen either way now -- collapsed, with its handle -- so
+       the map is what you get and the list is one pull away.
+
+       tpPauseWorld moved here because tpOpenMissions was the only thing
+       calling it on this path: raising the map over a live run without
+       it left the world stepping behind the overlay. */
+    tpPauseWorld();
     show("titleOverlay");
-    tpOpenMissions();
+    tpSyncGlobalBtns();
   };
   el.addEventListener("touchstart", go, {passive:false, capture:true});
   el.addEventListener("pointerdown", go, {capture:true});
@@ -30491,7 +30547,7 @@ document.getElementById("searchIcon").addEventListener("click", tpOpenMissions);
    margin-bottom gaps between cards belong to the parent, not either
    card, for hit-testing purposes). */
 document.getElementById("tpMissionsPanel").addEventListener("click", e=>{
-  if(["tpMissionsPanel","tpMissionsBody","tpMissionsList"].includes(e.target.id)) tpCloseMissions();
+  if(["tpMissionsPanel","tpMissionsBody","tpMissionsList"].includes(e.target.id)) tpCollapseMissions();
 });
 document.getElementById("tpTabTrophy").addEventListener("click", ()=>tpSetTab("trophy"));
 document.getElementById("tpTabStore").addEventListener("click", ()=>tpSetTab("store"));
@@ -30788,6 +30844,14 @@ document.getElementById("rerollBtn").addEventListener("click", e => {
   const d = new Date(Date.now() + off*86400000);
   show("titleOverlay");
   scn().loadRoute(d.toISOString().slice(0,10));
+});
+/* THE GRAB HANDLE. The one touch affordance that raises the drawer --
+   the map's search icon does it too, but that is a button you have to
+   find; this is the edge of the sheet itself, which is where a thumb
+   already is. Toggles, so the same pull puts it back down. */
+document.getElementById("sheetGrab").addEventListener("click", () => {
+  document.getElementById("tpMissionsPanel").classList.contains("open")
+    ? tpCollapseMissions() : tpOpenMissions();
 });
 document.getElementById("panelToggle").addEventListener("click", () => {
   const collapsed = document.getElementById("panel").classList.toggle("hidden");
