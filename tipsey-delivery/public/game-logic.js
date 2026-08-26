@@ -486,6 +486,7 @@ function tdFxPaintDeliveryFailCard(){
   document.getElementById("failMsg").textContent = tdFx.failLine.m;
   document.getElementById("failSub").textContent = tdFx.failLine.s;
   document.getElementById("retryBtn").textContent = "Retry";   // hjPaintCrash leaves caps RETRY
+  tdFailLater(true);                                          // ...and hides Maybe later; this is the delivery half
   const mb = document.getElementById("failMenuBtn");
   if(mb) mb.classList.remove("hidden");
   /* The magnifier + robot row, which showFail() builds and this path
@@ -5432,6 +5433,25 @@ function owTip(scene, sgn){
   scene.tipT = 0;
   scene.damage = 95;
   ow.vel = 0; ow.clipTips++;
+  /* ...BUT A DELIVERY DOES. The comment above is still true of free
+     roam and only free roam. This function sets the tipped state
+     DIRECTLY (see its own note on why), which means it bypasses the
+     rail loop's `Math.abs(this.tilt) >= 1` branch and every fail
+     dispatch that branch owns -- harmless while owRespawnTick picked
+     him back up regardless, load-bearing now that a delivery fail
+     holds. Without this the hold would simply strand him on his side
+     with no card and nothing to tap.
+
+     Same two calls the rail branch makes, same order, same 1500ms
+     delay -- the fall has to read before the card lands. Cannot
+     double-fire: owStep only runs while state === "play", and the
+     state write above has just left it. */
+  if(scene.attractOwnsTip && scene.attractOwnsTip()){ scene.attractRecycle(); return; }
+  if(scene.mode === "delivery"){
+    const failPool = scene.tipCause === "william" ? WILLIAM_FAIL_LINES : null;
+    reportFail(scene, scene.tipCause);
+    setTimeout(() => showFail(failPool), 1500);
+  }
 }
 
 /* ---------- install / uninstall ---------- */
@@ -5497,6 +5517,23 @@ function owPlaceOnPad(scene, fromX, fromY){
 function owRespawnTick(scene, t){
   const ow = scene.ow;
   if(!ow || scene.state !== "tipped") return;
+  /* FREE ROAM ONLY (2026-08-26, Sir on-device: "when failing the
+     delivery im getting spawned back before i click retry").
+
+     This clock is 900ms (CHARGE.holdMs); the delivery fail card lands
+     on a 1500ms timer from the tip. Once delivery joined free roam the
+     two ran against each other and the recovery won by 600ms every
+     time -- the robot was already upright on a charging pad, undamaged,
+     camera snapped, before the crash card had appeared at all. Nothing
+     was wrong with either number; they were simply never meant to be
+     running at once.
+
+     A delivery fail HOLDS the fallen pose now, and the two answers live
+     on the card: Retry runs the day again, Maybe later calls this
+     recovery's own destination (tpFreePlay -> owPlaceOnPad). Free roam
+     is untouched -- it has no card to wait for, which is the whole
+     reason the auto-pickup exists. */
+  if(scene.mode !== "freeroam") return;
   if(!ow.downT){ ow.downT = t; return; }
   if(t - ow.downT < CHARGE.holdMs) return;
   ow.downT = 0;
@@ -26252,6 +26289,9 @@ function hjPaintCrash(s){
      player needs told every time they miss */
   document.getElementById("failSub").textContent = "";
   document.getElementById("retryBtn").textContent = "RETRY";   // one word keeps the pill tidy
+  /* not on this card: the challenge already has Retry + the icon row,
+     and "free play" is not one of the answers a missed jump asks for */
+  tdFailLater(false);
   const mb = document.getElementById("failMenuBtn");
   if(mb) mb.classList.remove("hidden");
 }
@@ -28739,6 +28779,17 @@ function drawRouteMap(route){
   bootLoaderDone();
 }
 
+/* MAYBE LATER's visibility, in one place. #failMsg/#failSub/#retryBtn
+   are one set of elements shared by every fail card in the game and
+   each painter overwrites what the last one left -- this button is the
+   same shape of thing, so it gets the same treatment: the delivery
+   painters turn it ON (showFail, tdFxPaintDeliveryFailCard), the
+   hydrant painter turns it OFF (hjPaintCrash). A challenge crash has
+   its own two answers already and free play is not one of them. */
+function tdFailLater(on){
+  const b = document.getElementById("failLaterBtn");
+  if(b) b.classList.toggle("hidden", !on);
+}
 function showFail(pool){
   const P = pool || FAIL_LINES;
   const [m, s] = P[Math.floor(Math.random()*P.length)];
@@ -28750,6 +28801,7 @@ function showFail(pool){
      time you came back to it, which is the opposite of "it should be
      the fail not a clean reload". */
   tdFxRememberFailLine(m, s);
+  tdFailLater(true);
   show("failOverlay");
   tdStackIcons();       // every build: glass + robot in the EXPLORE slot
   tdFxOnFailScreen();   // Devvit only: COMMENT button + 3rd-fail follow prompt
@@ -30112,6 +30164,7 @@ document.getElementById("startBtn").addEventListener("click", () => {
 });
 document.getElementById("retryBtn").addEventListener("click", () => {
   hide("failOverlay");
+  tdFailLater(false);
   const s = scn();
   /* In the challenge, Retry means RETRY THE JUMP. Loading the daily
      route dumped the player out of the mission entirely. */
@@ -30119,6 +30172,22 @@ document.getElementById("retryBtn").addEventListener("click", () => {
   document.getElementById("retryBtn").textContent = "Retry";
   countPlay();
   s.loadRoute(s.route.dateStr); s.state = "play";
+});
+/* THE OTHER ANSWER. Not a quit and not a menu: it is the recovery
+   owRespawnTick used to perform on its own, now asked for rather than
+   assumed. tpFreePlay is the whole of it -- loadRoute (which
+   uninstalls open world and hands the delivery's private hazard/
+   crossing lists back), owInstall, owPlaceOnPad -- the identical three
+   steps the map's own free-play entry takes, so there is no second
+   copy of "put him on a pad" to keep in step with the first. */
+document.getElementById("failLaterBtn").addEventListener("click", () => {
+  /* UNIFIED RETRY GATE: an unposted fail blocks the free RELOAD, and
+     free play is a reload. Same refusal every other exit off the daily
+     already runs (GO, Today's Delivery, hjQuit, tpSlalomQuit) -- the
+     card stays up and re-syncs rather than the button doing nothing. */
+  if(typeof tdFxDeliveryBlocked === "function" && tdFxDeliveryBlocked()){ tdFxSyncGate(); return; }
+  tdFailLater(false);
+  tpFreePlay();
 });
 document.getElementById("todayBtn").addEventListener("click", e => {
   document.getElementById("rerollBtn").classList.remove("on");
