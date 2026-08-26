@@ -347,6 +347,39 @@
     text-align:center;white-space:normal;}
   #tpToast.show{opacity:1;transform:translateX(-50%) translateY(0);}
 
+  /* ---------- DELIVERED RECEIPT (Sir's call, 2026-08-26) ----------
+     "lets give the bottom card and it goes away after a few seconds."
+
+     The daily's ending under free play. Deliberately NOT #winOverlay:
+     an overlay is a screen, and the whole point of the new ending is
+     that there is no screen -- the city is still running, the robot is
+     already driveable, and this is a receipt sliding over a live game
+     rather than a card you have to dismiss to get back to one.
+
+     Same cream sheet as #winCard, same .sheetRow typography, so the
+     numbers read identically to the card it replaces; the geometry is
+     just inverted (fixed to the viewport, rounded on TOP, slides up
+     from below) because it is anchored to the screen instead of to the
+     bottom of an overlay. z-index 58 is #tpToast's -- the other thing
+     in this file that talks over a live game -- and matches the same
+     number tdStackIcons already reserves for over-overlay chrome.
+
+     pointer-events auto, unlike the toast: a tap dismisses it early.
+     Nothing else on it is interactive, and it sits in the bottom
+     safe-area strip where the stick is not. */
+  #tdReceipt{position:fixed;left:0;right:0;bottom:0;z-index:58;
+    background:#f0ece0;color:#2e3138;border-radius:20px 20px 0 0;
+    padding:12px 16px calc(10px + env(safe-area-inset-bottom));
+    transform:translateY(115%);transition:transform .28s ease;
+    pointer-events:auto;box-shadow:0 -4px 18px rgba(0,0,0,0.28);}
+  #tdReceipt.show{transform:translateY(0);}
+  #tdReceipt .sheetRow + .sheetRow{margin-top:3px;}
+  #tdReceipt .sheetRow{display:flex;align-items:center;justify-content:center;
+    font-weight:700;font-size:15px;line-height:1.1;}
+  #tdReceipt b{color:#b5540e;}
+  #tdReceipt .tdrHead{text-align:center;font-size:12px;letter-spacing:1.4px;
+    font-weight:800;color:#ff7a1a;text-transform:uppercase;margin-bottom:7px;}
+
   /* ---------- HYDRANT CHALLENGE overlay ---------- */
   .hjHidden{display:none !important;}
   #hjUI{position:absolute;left:0;right:0;bottom:0;top:0;pointer-events:none;z-index:6;}
@@ -585,6 +618,7 @@
   </div>
 
   <div id="tpToast"></div>
+  <div id="tdReceipt"></div>
 
 <button class="iconBtn" id="globalAvatar" aria-label="Profile"><svg viewBox="0 0 40 46" width="23" height="27">
       <line x1="13" y1="5" x2="13" y2="11" stroke="#2e3138" stroke-width="1.5"/>
