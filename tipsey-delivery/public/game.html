@@ -554,6 +554,11 @@
      is harmless. */
   body.tpPanelOpen #globalAvatar, body.tpPanelOpen #globalSearch,
   body.tpPanelOpen #zoomBtn{display:none !important;}
+  /* #tpMapSearch is injected as a string by tpMapExplore, so its inline
+     style cannot reach ::placeholder -- that pseudo needs a real rule.
+     Lives here for exactly that one reason; everything else about the
+     field is inline next to the rest of the map chrome. */
+  #tpMapSearch::placeholder{color:#6b6f78;opacity:1;}
 </style>
 </head>
 <body>
