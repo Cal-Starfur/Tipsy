@@ -4638,20 +4638,34 @@ function owOnMat(scene){
    map opens). CITY_SEED is fixed, so the answer never changes -- built
    once on the first frame that needs it, then free forever. */
 let _missionMatsCache = null;
-function missionMatAtS(route, s, id, name, style){
+/* LANE IS A PARAMETER (2026-08-25, Sir's call: "lets move the matt to
+   lane 2 for the hydrant jump"). The mat used to be pinned to lane 3
+   because that is where a customer's doormat sits -- anchored on the
+   block edge, half a tile streetward. Right for an address; wrong for
+   the Hydrant Challenge, whose whole course runs in ch.lane === 2. A
+   mat one lane off the course means you stand on the start line and
+   then have to change lanes before the run-up, which is exactly the
+   kind of seam this architecture exists to remove.
+
+   The anchor is derived from the lane rather than from SIDEWALK_W, so
+   the two agree by construction: the face for lane n sits at
+   ROAD_HALF + (n+1)*T2, and owMatFrame's own half-tile step inward
+   lands the centre on laneOffset(n) exactly. Lane 3 reproduces the old
+   number (ROAD_HALF + 4*T2 === ROAD_HALF + SIDEWALK_W), so the slalom
+   mat does not move. */
+function missionMatAtS(route, s, id, name, style, lane){
   const p = segsPosAt(route.segs, s), hdg = segsHeadingAt(route.segs, s);
   const dv = { x: Math.cos(hdg), y: Math.sin(hdg) };
   /* right-of-travel; laneOffset is measured along this axis */
   const r0 = { x: -Math.sin(hdg), y: Math.cos(hdg) };
-  /* the sidewalk's inside line on the robot's own side -- the same place
-     a block edge sits, which is what the address mat anchors to */
-  const face = ROBOT_SIDE * (ROAD_HALF + SIDEWALK_W);
+  /* the far edge of the requested lane, on the robot's own side */
+  const face = ROBOT_SIDE * (ROAD_HALF + (lane+1)*T2);
   const ax = p.x + r0.x*face, ay = p.y + r0.y*face;
   /* rv points OUT toward the street, away from the block, matching
      abEdges' own convention -- so owMatFrame puts the centre half a tile
-     streetward of the face, i.e. on lane 3. */
+     streetward of the face, i.e. dead centre of `lane`. */
   const rv = { x: -ROBOT_SIDE*r0.x, y: -ROBOT_SIDE*r0.y };
-  return { id, name, style, mat: owMatFrame(ax, ay, dv, rv),
+  return { id, name, style, lane, mat: owMatFrame(ax, ay, dv, rv),
            ax, ay, dv, rv };
 }
 /* DERIVED ONCE, THEN FROZEN -- and this is a measurement, not a
@@ -4728,14 +4742,19 @@ function matHighlightState(scene, m, forMode){
 }
 
 const MISSION_MAT_SITES = [
-  { id:"jump-hydrant", name:"Hydrant Challenge", style:"rug",
-    ax:12572, ay:11776, dv:{ x:1, y:0 }, rv:{ x:0, y:1 } },
-  { id:"cone-slalom",  name:"Cone Slalom Challenge", style:"rug",
+  /* lane 2 -- the lane ch.lane runs the whole course in, so the start
+     line and the run-up are the same piece of road. Was lane 3. */
+  { id:"jump-hydrant", name:"Hydrant Challenge", style:"rug", lane:2,
+    ax:12572, ay:11868, dv:{ x:1, y:0 }, rv:{ x:0, y:1 } },
+  /* lane 3 -- the slalom weaves the whole 0..3 band (SL.rowA/rowB) and
+     finishes on a customer's own mat, so its start keeps the doormat
+     lane. Unchanged. */
+  { id:"cone-slalom",  name:"Cone Slalom Challenge", style:"rug", lane:3,
     ax:44528, ay:75072, dv:{ x:0, y:1 }, rv:{ x:-1, y:0 } },
 ];
 function buildMissionMats(){
   return MISSION_MAT_SITES.map(st => ({
-    id: st.id, name: st.name, style: st.style,
+    id: st.id, name: st.name, style: st.style, lane: st.lane,
     ax: st.ax, ay: st.ay, dv: st.dv, rv: st.rv,
     mat: owMatFrame(st.ax, st.ay, st.dv, st.rv) }));
 }
@@ -4745,13 +4764,13 @@ function missionMatDerive(){
   try {
     const hj = generateRoute(HJ_SEED_DATE, { hoodIndex: HJ_ADDRESS.hoodIndex, challenge: true });
     if(hj && hj.challenge)
-      out.push(missionMatAtS(hj, hj.challenge.s0, "jump-hydrant", "Hydrant Challenge", "rug"));
+      out.push(missionMatAtS(hj, hj.challenge.s0, "jump-hydrant", "Hydrant Challenge", "rug", 2));
   } catch(e){ console.warn("hydrant mat underivable", e); }
   try {
     const sl = generateRoute(SL_SEED_DATE, { unanchoredStart: true });
     const chain = typeof slFindChain === "function" ? slFindChain(sl) : null;
     if(chain && chain.segs && chain.segs.length)
-      out.push(missionMatAtS(sl, chain.segs[0].s0, "cone-slalom", "Cone Slalom Challenge", "rug"));
+      out.push(missionMatAtS(sl, chain.segs[0].s0, "cone-slalom", "Cone Slalom Challenge", "rug", 3));
   } catch(e){ console.warn("slalom mat underivable", e); }
   return out;
 }
@@ -4764,7 +4783,7 @@ function verifyMissionMats(){
     const off = Math.hypot(d.ax - st.ax, d.ay - st.ay);
     const dvOff = Math.hypot(d.dv.x - st.dv.x, d.dv.y - st.dv.y);
     const rvOff = Math.hypot(d.rv.x - st.rv.x, d.rv.y - st.rv.y);
-    const ok = off < EPS && dvOff < EPS && rvOff < EPS;
+    const ok = off < EPS && dvOff < EPS && rvOff < EPS && d.lane === st.lane;
     if(!ok) bad++;
     console.log(`MAT VERIFY ${st.id}: ${ok ? "OK" : "DRIFTED"}  anchor off ${off.toFixed(6)}  `
       + `frozen (${st.ax}, ${st.ay})  derived (${d.ax}, ${d.ay})`);
