@@ -4592,8 +4592,9 @@ function owDoorFrame(r){
    corners out on the pavement. Rotation is what makes this demanding:
    square-on the body is 52 x 40 inside a 92 mat, so there is +/-20
    along and +/-26 across to play with, but at 45 degrees the same body
-   spans 32.5 per axis and the slack falls to +/-13.5. Squaring up to
-   the door is part of the job now. */
+   spans 32.5 per axis and the slack falls to +/-13.5 before grace --
+   see MAT_GRACE below, which widens every one of those numbers by a
+   fixed overhang allowance. Squaring up to the door still pays. */
 /* THE MAT FRAME, BUILT IN ONE PLACE. A mat is a T2 square lying flat on
    the pavement, anchored at a FACE point with dv along the face and rv
    pointing out toward the street -- so its centre is half a tile out
@@ -4610,6 +4611,30 @@ function owMatFrame(x, y, dv, rv){
 /* the containment test itself, over ANY mat frame. owOnMat is this
    applied to the delivery address; mission mats apply it to their own.
    Pure -- reads the scene only for the robot's pose. */
+/* MAT GRACE -- how far a body CORNER may hang past the mat's edge and
+   still count as standing on it.
+
+   The test below is "the whole body inside the perimeter", and rotation
+   is what made that punishing. Square-on the body has +/-20 along and
+   +/-26 across of a 92 mat to play with; at 45 degrees the same box
+   spans 32.5 per axis and the slack collapses to +/-13.5 -- a 27 x 27
+   landing window, on a robot you are stopping by feel on a phone.
+   Measured over all yaws the mean window was 1,140 square units. Sir
+   called it: the win does not fire easily enough.
+
+   This is a forgiveness margin, NOT a bigger mat. The art, owMatFrame
+   and MAT_HL are all untouched. Because 14 is under min(BODY.hx,
+   BODY.hy) = 20, the robot's CENTRE is still always inside the drawn
+   square whenever the test passes -- there is no pose that triggers
+   from somewhere that does not look like standing on the mat. Window at
+   45 degrees goes 27 -> 55; mean window 1,140 -> 3,798.
+
+   ONE CONSTANT, ONE QUESTION: overhang forgiveness. Not the mat size
+   (owMatFrame), not the approach radius (MAT_HL.near). And it lands in
+   owMatContains, so the delivery address, both mission mats and the
+   four-state highlight all move together -- the green "armed" ring
+   still means exactly what the trigger means. */
+const MAT_GRACE = 14;
 function owMatContains(scene, m){
   if(!m) return null;                     // no mat -> caller falls back
   const sx = scene.botX - m.x, sy = scene.botY - m.y;
@@ -4629,8 +4654,8 @@ function owMatContains(scene, m){
      literally, because the box is convex and centre-symmetric. */
   const eAlong = Math.abs(fx)*BODY.hx + Math.abs(rx)*BODY.hy;
   const eLat   = Math.abs(fy)*BODY.hx + Math.abs(ry)*BODY.hy;
-  return Math.abs(along) + eAlong <= m.half
-      && Math.abs(lat)   + eLat   <= m.half;
+  return Math.abs(along) + eAlong <= m.half + MAT_GRACE
+      && Math.abs(lat)   + eLat   <= m.half + MAT_GRACE;
 }
 function owOnMat(scene){
   return owMatContains(scene, scene.route && scene.route.addressMat);
