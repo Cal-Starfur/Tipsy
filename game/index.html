@@ -8048,15 +8048,23 @@ function gpsNavToMission(id){
     if(live) gpsAbandonDelivery(s);
     /* free play IS the driving mode: a delivery that just died leaves
        mode "delivery" behind, and the nav has nowhere to steer if the
-       world is not installed. tpFreePlay does both and lands the robot
-       on a pad, so it is the one door into "now go drive". */
-    tpFreePlay();
-    const s2 = scn();
+       world is not installed. tpEnsureFreeroam does exactly that much
+       and NO MORE -- it used to be tpFreePlay, which also hid the map
+       and padded the robot; see tpEnsureFreeroam's own note for why
+       both were wrong here. The abandon path can raise the fail card,
+       so those two overlays are still cleared explicitly -- the map is
+       the one that now stays. */
+    hide("failOverlay"); hide("winOverlay");
+    const s2 = tpEnsureFreeroam(scn());
     if(!gpsNavTo(s2, mm.id, mm.name, mm.mat.x, mm.mat.y)){
       tpToast("No route to " + mm.name + ".");
       return;
     }
-    tpToast("Routing to " + mm.name + ".");
+    tpToast("Routing to " + mm.name + ". Press GO.");
+    /* redraw under the finger that just picked: the map is still up, so
+       the new line has to appear now rather than on the next thing that
+       happens to trigger a draw. */
+    if(s2 && s2.route){ resizeRouteMap(); drawRouteMap(s2.route); }
   };
   if(!live){ go(); return; }
   gpsConfirm("Abandon today's delivery?",
@@ -29673,12 +29681,65 @@ function tpDailyDeliveryPin(){
    Today's route is still what gets loaded — it is the world, the grid
    and the hazards, not just a delivery — but nothing targets its door,
    because mode is "freeroam" and update()'s install gate reads mode. */
+/* ---------- FREEROAM WITHOUT LEAVING THE MAP ----------
+   (Sir on-device, 2026-08-26: "its also falling through when i click
+   the new place and not staying on the map".)
+
+   tpFreePlay below is an EXIT: its whole contract is "leave whatever
+   activity is up and hand the city back", which is why it hides
+   #titleOverlay, reloads the route and drops the robot on a pad.
+   gpsNavToMission was calling it purely to reach the mode flip and
+   owInstall in its tail, and inherited all three side effects --
+   #mapCard lives INSIDE #titleOverlay, so picking a destination tore
+   the map down and left the live world under the finger that picked
+   it. The pad placement was worse in the quiet way: picking a
+   destination while already free-roaming teleported the robot to a
+   charging pad and then plotted from THERE, so the line on the map
+   started somewhere he had never been.
+
+   This is the mode flip on its own. It reloads and pads ONLY when the
+   scene is standing in a world the nav cannot steer through -- a
+   mission's frozen route (challenge / slalom-pending, or any route
+   whose dateStr isn't today) or no open world installed at all.
+   Standing in today's city already, which is every case that matters
+   here, nothing moves: same position, same yaw, same hazards, and the
+   A* plots from where he actually is.
+
+   It does not touch a single overlay. Deciding where to go and going
+   there are separate acts now -- GO is the one thing that drops the
+   map, same as it has always been. */
+function tpEnsureFreeroam(s){
+  if(!s) return null;
+  if(s.attractStop) s.attractStop();
+  s.attract = false;
+  const wrongWorld = !s.route
+    || s.route.dateStr !== clientTodayUTC()
+    || s.mode === "challenge"
+    || s.mode === "slalom-pending";
+  s.mode = "freeroam";
+  if(wrongWorld){
+    s.loadRoute(clientTodayUTC());
+    if(!s.ow) owInstall(s);
+    owPlaceOnPad(s, s.botX, s.botY);
+  } else if(!s.ow) owInstall(s);
+  s.state = "play";
+  return s;
+}
+if(typeof window !== "undefined") window.tpEnsureFreeroam = tpEnsureFreeroam;
+
 function tpFreePlay(){
   tpCloseDetail(); tpCloseMissions(); tpCloseProfile();
   hide("failOverlay"); hide("winOverlay"); hide("titleOverlay");
   collapseSheet();
   const s = scn(); if(!s) return;
   { if(s.attractStop) s.attractStop(); s.attract = false; }
+  /* WHOEVER SETS AN ERRAND CLEARS THE LAST ONE (2026-08-26). gpsNav was
+     cleared in exactly one place -- gpsNavLaunch, on arrival -- so every
+     other way out of a trip (this, tpBackToDailyRoute, a mission quit)
+     left a live destination behind, and its dashed line kept being drawn
+     over a route it had nothing to do with. One running errand at a
+     time is the state model; this is the half of it that was missing. */
+  gpsNavClear();
   s.mode = "freeroam";
   s.loadRoute(clientTodayUTC());
   s.state = "play";
@@ -29791,6 +29852,11 @@ function tpBackToDailyRoute(){
      with their own overlays up, and a blocked delivery must not flash
      the map on its way to the fail card. */
   const s = scn();
+  /* the errand you already have replaces the one you were driving to --
+     same one-at-a-time rule tpFreePlay carries. Without this the dashed
+     nav line to a mission mat survived the return and drew on top of
+     today's route (2026-08-26). */
+  gpsNavClear();
   show("titleOverlay");                  // the map, with GO -- before any measuring
   s.mode = "delivery";
   s.loadRoute(clientTodayUTC());
@@ -30640,16 +30706,35 @@ function drawRouteMap(route){
      real route's segs) would cut through blocks that don't correspond
      to real streets here. */
   if(!usingAtlas){
-    ctx.strokeStyle = "#ff7a1a";
-    ctx.lineWidth = 4;
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-    ctx.beginPath();
-    samples.forEach((p, i) => {
-      const sp = toScreen(p);
-      if(i === 0) ctx.moveTo(sp.x, sp.y); else ctx.lineTo(sp.x, sp.y);
-    });
-    ctx.stroke();
+    /* ONE INSTRUCTION LINE AT A TIME (Sir on-device, 2026-08-26: "its
+       giving me the new route on the map to my new selection but its
+       keeping the old daily route too").
+
+       This stroke is today's pickup->door line, drawn out of samples[],
+       and it knew nothing about gpsNav -- which is drawn ~50 lines
+       above in the same orange, dashed. Both passes ran, so choosing a
+       destination left the map showing two orange routes to two
+       different places with no way to tell which one was the live
+       instruction.
+
+       The daily line is not deleted, it is DEFERRED: gpsNav is cleared
+       by every exit off a trip now (tpFreePlay, tpBackToDailyRoute,
+       gpsNavLaunch), so today's route paints itself back in the moment
+       there is no other errand to confuse it with. The robot marker
+       below stays outside this gate on purpose -- "you are here" is
+       true regardless of what you are driving toward. */
+    if(!gpsNav){
+      ctx.strokeStyle = "#ff7a1a";
+      ctx.lineWidth = 4;
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      ctx.beginPath();
+      samples.forEach((p, i) => {
+        const sp = toScreen(p);
+        if(i === 0) ctx.moveTo(sp.x, sp.y); else ctx.lineTo(sp.x, sp.y);
+      });
+      ctx.stroke();
+    }
 
     /* YOU ARE HERE, NOT WHERE YOU STARTED (2026-08-25, Sir's call:
        "when i click on the map it shows my current location").
@@ -32204,10 +32289,18 @@ document.getElementById("startBtn").addEventListener("click", () => {
      same carve-out the fail gate makes on the very next line, and for
      the same reason: a side mission is a different activity, not a free
      reload of the delivery being gated. */
-  if(tdFxWinBlocked() && s.mode !== "challenge" && s.mode !== "slalom-pending"){
+  /* FREEROAM JOINS THE CARVE-OUT (2026-08-26). The gate exists to stop
+     an unposted fail buying a free RELOAD of the delivery. GO in
+     freeroam reloads nothing -- it drops the map and resumes the city
+     the robot is already standing in, which is now the only way to
+     start driving to a destination picked off the map. Leaving it
+     gated meant abandoning a delivery for a mission stranded you on
+     the map with no button that worked. Delivery mode is still gated,
+     which is the case the rule was written for. */
+  if(tdFxWinBlocked() && s.mode !== "challenge" && s.mode !== "slalom-pending" && s.mode !== "freeroam"){
     tpRestoreWinScreen(); return;
   }
-  if(tdFxDeliveryBlocked() && s.mode !== "challenge" && s.mode !== "slalom-pending"){
+  if(tdFxDeliveryBlocked() && s.mode !== "challenge" && s.mode !== "slalom-pending" && s.mode !== "freeroam"){
     tpRestoreFailScene(s);
     hide("titleOverlay");
     show("failOverlay");
