@@ -28722,10 +28722,32 @@ function tpBackToDailyRoute(){
      wrapped in the spinner helper; removed so tapping the delivery pin
      behaves the same as every other map selection instead of being the
      single case that pauses first. */
+  /* SHOW THE OVERLAY FIRST -- the same fix hjStart carries, on the one
+     entry into a route that never got it (2026-08-25, Sir on-device:
+     "from free play if i select the mag glass then todays route i'm
+     getting an over lay of the live game but it should be the map with
+     the route like when i click the challenges").
+
+     loadRoute ends with resizeRouteMap(), which MEASURES #routeMap's
+     client rect. Reached from a live run -- free play or mid-delivery --
+     the magnifying glass raised the map itself and set tpSearchMap, so
+     the tpCloseMissions() at the top of this function has just hidden
+     #titleOverlay again. Measuring a hidden card reads ZERO, the map
+     draws blank, and the show() below then puts up an empty canvas over
+     the running city: what you see is the live game through the
+     overlay's own scrim. Exactly the symptom hjStart's own comment
+     describes, from exactly the same cause.
+
+     AFTER the two gate guards above, not before: those return early
+     with their own overlays up, and a blocked delivery must not flash
+     the map on its way to the fail card. */
   const s = scn();
+  show("titleOverlay");                  // the map, with GO -- before any measuring
   s.mode = "delivery";
   s.loadRoute(clientTodayUTC());
-  show("titleOverlay");
+  /* and one more pass once layout has settled, so a late reflow cannot
+     leave it stale -- the same safety net hjStart and hjQuit carry. */
+  requestAnimationFrame(() => { const s2 = scn(); if(s2 && s2.route){ resizeRouteMap(); drawRouteMap(s2.route); } });
 }
 
 function tpMapIndex(route){
