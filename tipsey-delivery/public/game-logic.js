@@ -28083,6 +28083,13 @@ function tpMapExplore(){
      tpSlalomStart() goes straight into the run -- so slalomMapSelect()
      below is the new lighter equivalent: stage the mission, show the
      map, let GO do what tpSlalomStart already does. */
+  /* TAP THE EMPTY MAP = FIND ME. A pin tap still selects that pin; a
+     clean tap on anything else recentres the view on the robot without
+     touching the zoom, so panning off into the city always has a
+     one-tap way back to yourself. Scale is deliberately preserved --
+     tpMapJumpTo slams to a fixed street-level zoom, which is right when
+     you are jumping to a place you have not seen and wrong when you are
+     just asking "where am I in what I'm already looking at". */
   const tapUp = e => {
     if(ptrs.size === 1 && !dragged && downPos){
       const hit = tpMapMissionPins.find(pin =>
@@ -28091,6 +28098,12 @@ function tpMapExplore(){
         if(hit.id === "jump-hydrant") hjStart();
         else if(hit.id === "cone-slalom") slalomMapSelect();
         else if(hit.id === "daily-delivery") tpBackToDailyRoute();
+      } else {
+        const s = scn();
+        if(s && tpMapView && Number.isFinite(s.botX) && Number.isFinite(s.botY)){
+          tpMapView.cx = s.botX; tpMapView.cy = s.botY;
+          clampView(); redraw();
+        }
       }
     }
     ptrs.delete(e.pointerId); if(ptrs.size < 2) pinch0 = null;
@@ -28659,11 +28672,11 @@ function drawRouteMap(route){
      a red ring/dot here whenever tpMapMark was set by tpMapJumpTo; that
      mechanism is gone (see tpMapJumpTo above), so there's nothing left
      to check or draw here. */
-  /* the "you are here" route line + robot start marker only mean
-     anything on the REAL route's own ground -- in atlas mode the
-     backdrop is a different city's geometry-in-context, so samples[]
-     (built from the real route's segs) would cut through blocks that
-     don't correspond to real streets here. */
+  /* the "you are here" route line + robot marker only mean anything on
+     the REAL route's own ground -- in atlas mode the backdrop is a
+     different city's geometry-in-context, so samples[] (built from the
+     real route's segs) would cut through blocks that don't correspond
+     to real streets here. */
   if(!usingAtlas){
     ctx.strokeStyle = "#ff7a1a";
     ctx.lineWidth = 4;
@@ -28676,8 +28689,26 @@ function drawRouteMap(route){
     });
     ctx.stroke();
 
-    const startPt = toScreen(samples[0]);
-    drawRobotMarker(ctx, startPt.x, startPt.y);
+    /* YOU ARE HERE, NOT WHERE YOU STARTED (2026-08-25, Sir's call:
+       "when i click on the map it shows my current location").
+
+       This marker has always been drawn at samples[0] -- the first
+       sample of the route line, i.e. where the route BEGINS. On a rail
+       delivery that read as roughly right because you started there and
+       the map was a pre-run screen. It is simply wrong now: in free
+       play the route is loaded for its world and never driven, so
+       samples[0] is a pickup shop you have never been to, potentially a
+       district away from the robot.
+
+       botX/botY is where he actually is, on the rail and off it alike --
+       owRailSync writes botS FROM the pose rather than the other way
+       round. Falls back to samples[0] only when there is no scene yet
+       (the boot draw, before the world exists). */
+    const _s = (typeof scn === "function") ? scn() : null;
+    const here = (_s && Number.isFinite(_s.botX) && Number.isFinite(_s.botY))
+      ? { x: _s.botX, y: _s.botY } : samples[0];
+    const herePt = toScreen(here);
+    drawRobotMarker(ctx, herePt.x, herePt.y);
   }
   /* THE DELIVERY PIN (2026-08-10, Sir's call): today's destination is
      tappable now, the same way a mission pin is -- not a dedicated
