@@ -23881,14 +23881,27 @@ class WorldScene extends Phaser.Scene {
        the launch flag it still drew the tilt arc across the standalone
        title screen, which is a gauge reporting on a robot the player is
        not controlling. */
+    /* Camera depth is the ONE instrument both modes share, so its
+       visibility is settled FIRST -- above the attract return as well as
+       the challenge return below, and #zoomBtn is deliberately absent
+       from hjChrome()'s hide list for the same reason.
+
+       It used to sit one line under the attract return, which meant the
+       toggle simply never ran on the title/map screen: attract is true
+       there, drawHUD bailed before reaching this, and VIEW kept whatever
+       class it was left with by the last route. Drive once, come back to
+       the map, and a stuck "VIEW 2" sat over the top-right of the map
+       forever. Hoisting it is the whole fix -- the button is still bound,
+       still persisted (zoomSet writes localStorage), and still reappears
+       the instant state flips to play. Nothing about in-game changes.
+
+       attract is OR'd in explicitly rather than leaned on state: the
+       attract robot really is driving, so state === "play" is true out
+       on the title screen and the state test alone would not hide it. */
+    const zb = document.getElementById("zoomBtn");
+    if(zb) zb.classList.toggle("hidden", this.attract || this.state !== "play");
     if(this.attract) return;
     const g = this.hud; g.clear();
-    /* Camera depth is the ONE instrument both modes share, so its
-       visibility is settled here BEFORE the challenge early-return
-       below — and #zoomBtn is deliberately absent from hjChrome()'s
-       hide list for the same reason. Visible whenever driving. */
-    const zb = document.getElementById("zoomBtn");
-    if(zb) zb.classList.toggle("hidden", this.state !== "play");
     /* The tilt gauge, the cargo-condition bar and the GPS turn strip are
        all DELIVERY instruments — they are drawn onto the HUD canvas, not
        into DOM, which is why hiding the panels never got rid of them.
