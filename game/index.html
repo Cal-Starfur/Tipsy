@@ -6034,6 +6034,17 @@ function owStep(scene, dt){
          hazard loop above has already resolved it. Running it twice
          would double the damage on every contact. */
       if(scene.route.cfTaken && scene.route.cfTaken.has(cp.key)) continue;
+      /* HANDED OVER TO THE REAL LOOP (2026-08-26). The route's own
+         hazard pass a few lines up has skipped OW_LOOP_TYPES since the
+         port, on the rule that a type has exactly one owner; the city
+         pass never did, which is the whole reason a city cone was a
+         wall and a route cone was knockable. Same rule, same set, now
+         on both sides -- the interaction loop takes these kinds for
+         city props too (see "ONE SET OF PROPS, ONE LOOP"), so running
+         the stand-in as well would double the damage and fight the
+         loop's own stop response, exactly as the route comment warns.
+         Everything outside the set is still the stand-in's. */
+      if(OW_LOOP_TYPES.has(cp.type)) continue;
       let cx = cp.wx, cy = cp.wy;
       const cw = (typeof hazWorldAt === 'function') ? hazWorldAt(scene.runT || 0, cp) : null;
       if(cw){ cx = cw.x; cy = cw.y; }
@@ -20111,7 +20122,81 @@ class WorldScene extends Phaser.Scene {
          impossible regardless of cause, while leaving the small
          intentional wall-stop nudges untouched. */
       const safeStop = target => Math.max(target, this.botS - 60);
-      for(const hz of this.route.hazards){
+      /* ================= ONE SET OF PROPS, ONE LOOP =================
+         (Sir's call, 2026-08-26: "we need to unifie route and city they
+         should not be independent. lets make city knockables real knock
+         and not all a wall.")
+
+         Until now a prop's BEHAVIOUR depended on which list it came from.
+         A cone on today's corridor is in route.hazards, so it reaches
+         this loop and gets knocked flying. The identical cone one street
+         over is city furniture, so it only ever met owContact's stand-in
+         -- a solid disc answering to OW_D.clipThresh, the same number a
+         lamp post and a parked car answer to. Measured before this: 51%
+         of top speed into a city cone put the robot on his side, and
+         cone is the most common body prop in the city (2,720 of 14,732).
+         A traffic cone that topples a delivery robot is not a hazard,
+         it is a bollard painted orange.
+
+         WHY THIS IS A MERGE AND NOT A SECOND KNOCK PATH (the file's own
+         rule: never write a parallel copy of a code path, call the real
+         one). Open-world step 3 already rewrote this entire loop in
+         world space -- owSep projects the real separation onto the
+         hazard's own axis pair, and every branch below reads dx/lat from
+         it. Verified before writing this: all three
+         `this.botS = safeStop(...)` writes in the 750 lines below are
+         gated behind `if(!owSep)` and take hzWallStopAt's world-space
+         branch instead. The loop has NO rail dependency left for these
+         types. It was never the rail keeping city props out -- it was
+         this line iterating one array.
+
+         A city prop already carries every field the loop touches --
+         type, f, wx, wy, hit, phi, slide, angVel, pose, items, spilled,
+         knockSpent -- because propSpawnState seeds them from the same
+         table the route uses. Diffed field-for-field against a route
+         hazard before writing this: no gap. hz.s and hz.row are the two
+         that would be wrong (a city prop's s is EDGE-LOCAL, and feeding
+         it to the rail mapping would place it wherever that number
+         happens to land on today's route), and they are exactly the two
+         owSep replaces.
+
+         OW_LOOP_TYPES ONLY, so the ownership rule the port established
+         holds unchanged: one owner per prop, never two. The kinds in
+         that set are handled here and skipped in owStep's city pass
+         below; the kinds outside it (hydrant, lamp, palm, trash, crack)
+         stay the stand-in's, exactly as before. This does not make a
+         city hydrant burst -- a separate question, and not the one Sir
+         asked.
+
+         THE KNOCK PERSISTS, and that is the point. City props come from
+         cityFurnitureForEdgeCached, so these are the same objects the
+         draw pass reads -- a cone knocked flat stays flat, and the
+         renderer's own phi>0.5 branch already draws it that way. The
+         cache lives as long as the session, so the city remembers what
+         you have driven into.
+
+         REBUILT PER FRAME INTO A HELD ARRAY rather than allocated: this
+         runs at 60Hz and the city query returns single digits. */
+      const _hzList = this._hzUnified || (this._hzUnified = []);
+      _hzList.length = 0;
+      for(const _h of this.route.hazards) _hzList.push(_h);
+      if(this.ow && this.ow.on && CITY_FURN.on && this.route.grid){
+        const _cf = cityFurnitureNear(this.route.grid, this.botX, this.botY,
+                                      OW_CF_QUERY_R, (this._hzCF = this._hzCF || []));
+        for(const cp of _cf){
+          if(!OW_LOOP_TYPES.has(cp.type)) continue;      // the stand-in still owns these
+          /* harvested by the active route: it is in route.hazards, so it
+             is already in this list -- adding it twice would run every
+             branch below on the same prop twice in one frame. */
+          if(this.route.cfTaken && this.route.cfTaken.has(cp.key)) continue;
+          /* swept by a course corridor -- the same pure test the contact
+             pass and the draw pass both run, on the same point, so what
+             is solid and what is drawn can never disagree. */
+          if(owCorridorHas(this.owCorridor, cp.wx, cp.wy)) continue;
+          _hzList.push(cp);
+        }
+      }
+      for(const hz of _hzList){
         /* curb ramps are static ground visuals for now — no tilt/pitch/
            curb physics wired yet (docs/DESIGN.md "Sidewalkend curb
            ramps"). Without this skip they'd fall through to the generic
