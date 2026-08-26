@@ -5321,9 +5321,24 @@ function owDoorFrame(r){
    along and +/-26 across to play with, but at 45 degrees the same body
    spans 32.5 per axis and the slack falls to +/-13.5. Squaring up to
    the door is part of the job now. */
-function owOnMat(scene){
-  const m = scene.route && scene.route.addressMat;
-  if(!m) return null;                     // no stamped mat -> caller falls back
+/* THE MAT FRAME, BUILT IN ONE PLACE. A mat is a T2 square lying flat on
+   the pavement, anchored at a FACE point with dv along the face and rv
+   pointing out toward the street -- so its centre is half a tile out
+   from that anchor. drawMatAt lays the art out from exactly the same
+   anchor over exactly the same span (dy from 0 to T2), which is what
+   makes this record a description of the drawn thing rather than a
+   second opinion about where it is. The address mat and every mission
+   mat are built through here, so art and trigger cannot drift. */
+function owMatFrame(x, y, dv, rv){
+  return { x: x + rv.x*(T2/2), y: y + rv.y*(T2/2),
+           dvx: dv.x, dvy: dv.y, rvx: rv.x, rvy: rv.y,
+           half: T2/2 };
+}
+/* the containment test itself, over ANY mat frame. owOnMat is this
+   applied to the delivery address; mission mats apply it to their own.
+   Pure -- reads the scene only for the robot's pose. */
+function owMatContains(scene, m){
+  if(!m) return null;                     // no mat -> caller falls back
   const sx = scene.botX - m.x, sy = scene.botY - m.y;
   const along = sx*m.dvx + sy*m.dvy;
   const lat   = sx*m.rvx + sy*m.rvy;
@@ -5343,6 +5358,9 @@ function owOnMat(scene){
   const eLat   = Math.abs(fy)*BODY.hx + Math.abs(ry)*BODY.hy;
   return Math.abs(along) + eAlong <= m.half
       && Math.abs(lat)   + eLat   <= m.half;
+}
+function owOnMat(scene){
+  return owMatContains(scene, scene.route && scene.route.addressMat);
 }
 function owAtDoor(scene){
   const r = scene.route;
@@ -10468,12 +10486,7 @@ function _generateRouteFresh(dateStr, opts){
 
          rv points away from the block (see abEdges), i.e. toward the
          street, so the centre sits half a tile out from the face. */
-      addressMat = {
-        x: addressSpot.x + ae.rv.x*(T2/2),
-        y: addressSpot.y + ae.rv.y*(T2/2),
-        dvx: ae.dv.x, dvy: ae.dv.y,
-        rvx: ae.rv.x, rvy: ae.rv.y,
-        half: T2/2 };
+      addressMat = owMatFrame(addressSpot.x, addressSpot.y, ae.dv, ae.rv);
     }
   }
   /* street name comes from the address's own DISTRICT now, not a single
@@ -14015,12 +14028,31 @@ class WorldScene extends Phaser.Scene {
      props (parked robots, palms, streetlamps) get seeded independently
      of which door is nearby -- hasn't been checked against every route,
      worth an eye on-device for a mat cutting through something. */
-  drawMatQuad(g, ox, oy, dv, rv, doorCenterX, dz){
-    const M = (dx, dy, dzz) => this.W(ox + dv.x*(doorCenterX+dx) + rv.x*dy, oy + dv.y*(doorCenterX+dx) + rv.y*dy, dz+dzz);
+  /* THE MAT, OFF THE HOUSE (2026-08-25). This body used to BE
+     drawMatQuad, reachable only from drawHouseUnit's address branch and
+     therefore only ever drawable at a customer's door. A mission mat has
+     no house to hang off -- measured, the Cone Slalom's own start line
+     runs along block (14,24), which is a PARK: no frontage unit, no
+     door, no mat. So the art is standalone now and the door is just one
+     caller of it.
+
+     ANCHORED AT THE FACE, NOT THE CENTRE, and `alongC` is kept as a
+     separate term rather than folded into ox/oy: `ox + dv.x*(alongC+dx)`
+     and `(ox + dv.x*alongC) + dv.x*dx` are the same number in algebra
+     and not always the same float, and the door path's output must not
+     move by so much as a sub-pixel for a refactor. Standalone callers
+     pass alongC = 0 and put the anchor in ox/oy.
+
+     STYLE IS A PARAMETER, not a scene flag. The `this._slAPI` branch
+     stays exactly what it always was for the door -- see drawMatQuad
+     below -- but a mission mat needs to choose its own look without
+     claiming a slalom engine is attached. */
+  drawMatAt(g, ox, oy, dv, rv, alongC, dz, style){
+    const M = (dx, dy, dzz) => this.W(ox + dv.x*(alongC+dx) + rv.x*dy, oy + dv.y*(alongC+dx) + rv.y*dy, dz+dzz);
     const half = T2/2;
     const matNear = T2*0.5 - half;
     const bw = 3.5;
-    if (this._slAPI){
+    if (style === "checker"){
       /* checker flag -- slalom finish only, all sidewalk lanes deep.
          cellSize keeps squares actually square in world units: cols is
          fixed at the old N=5 lateral density, rows is derived from the
@@ -14062,6 +14094,12 @@ class WorldScene extends Phaser.Scene {
         g.lineBetween(p0.x, p0.y, p1.x, p1.y);
       }
     }
+  }
+  /* the door's own call, unchanged in behaviour: same anchor, same
+     along-offset, and the same "checker only while the slalom engine is
+     attached" rule that has always governed a customer's mat. */
+  drawMatQuad(g, ox, oy, dv, rv, doorCenterX, dz){
+    this.drawMatAt(g, ox, oy, dv, rv, doorCenterX, dz, this._slAPI ? "checker" : "rug");
   }
 
 
