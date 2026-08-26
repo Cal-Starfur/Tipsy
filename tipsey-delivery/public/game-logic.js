@@ -3867,7 +3867,7 @@ function hazWorldAt(tms, hz){
      - the botS advance is gated (drawRobot's play gate),
      - the 'world pose from the path' block branches on ow.on,
      - drawAngle takes yaw directly instead of easing toward the rail,
-     - the input handlers hand the left half of the screen to the stick.
+     - the input handlers hand the canvas to the stick.
    The camera needed nothing at all: it leads from botX/botY along hdg,
    and hdg is the free yaw in this mode, so it follows for free. That
    was the lab's single hardest fight (it had to own the camera outright
@@ -5600,11 +5600,26 @@ function owInstall(scene){
     if(m > 1){ ow.keyv.x /= m; ow.keyv.y /= m; }
   };
   /* FLOATING ORIGIN. The stick spawns where the thumb lands, because on
-     a phone you are looking at the robot and not at your thumb. Left
-     half only — the right half stays free. */
+     a phone you are looking at the robot and not at your thumb.
+
+     ANYWHERE ON THE CANVAS (2026-08-26, Sir's call: "i want to get rid
+     of the left only gate"). This used to carry a
+     `t.clientX > innerWidth * 0.5 -> continue` and hand the stick only
+     the left half, which was inherited reasoning rather than current
+     reasoning: on the RAIL the right half was the gas pedal, so the two
+     could not share a screen. Open world took the pointer away from
+     that handler outright -- bindInput early-returns on ow.on -- so the
+     right half has been dead space ever since, and the gate was only
+     still costing right-handed players half the screen to steer from.
+
+     Nothing else needs to move with it. The stick is single-touch by
+     construction (the ow.stick.active guard below), it tracks its own
+     finger by identifier, and the DOM chrome that lives over the
+     canvas -- zoom, the robot, the magnifier -- listens at capture with
+     stopPropagation, so those taps never reach this handler to spawn a
+     stick under a button. */
   ow.onDown = e => {
     for(const t of (e.changedTouches || [e])){
-      if(t.clientX > window.innerWidth * 0.5) continue;
       if(ow.stick.active) continue;
       ow.stick.active = true; ow.stick.id = t.identifier !== undefined ? t.identifier : 'mouse';
       ow.stick.ox = t.clientX; ow.stick.oy = t.clientY; ow.stick.dx = 0; ow.stick.dy = 0;
