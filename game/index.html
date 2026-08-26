@@ -5362,6 +5362,137 @@ function owMatContains(scene, m){
 function owOnMat(scene){
   return owMatContains(scene, scene.route && scene.route.addressMat);
 }
+
+/* ====================== MISSION MATS ==============================
+   A side mission is a PLACE now, not a menu item that teleports you.
+   It exists in the world as one mat on the pavement; you drive there,
+   you stand on it, and that is what loads the course.
+
+   PLACEMENT IS DERIVED, NOT AUTHORED -- the same rule buildPickupShops
+   and buildChargeStations follow. Each mission already knows where its
+   own course begins (the hydrant's reserved leg, the slalom's chain),
+   so the mat is read back off that geometry rather than written down a
+   second time. Move the course and the mat follows it; there is no
+   number here that can disagree with the course.
+
+   ON THE LIVE GRID, NOT THE FROZEN ONE. The hydrant route is built
+   WITHOUT classic:true here. Measured 2026-08-25: the kicker lands at
+   world (13087, 12512) on both the classic and the live lattice, delta
+   0.0 -- the walk starts at the same district anchor and the swallow
+   pass touches nothing until well past the course leg. So the frozen
+   grid buys nothing at this call site and asking for it would put a mat
+   on streets the player cannot actually drive.
+
+   NO BUILDING REQUIRED. The address mat hangs off a house frontage
+   unit, which is why it could never have been the model for this: the
+   Cone Slalom's own start line runs along block (14,24), a PARK -- no
+   unit, no door, no face to anchor to. Sir's call, park frontage is
+   fine, so the anchor is computed from the STREET (centreline + the
+   sidewalk's inside line) and needs no block at all. That lands the mat
+   centre at exactly laneOffset(3), the same lane a customer's mat sits
+   on, by construction rather than by coincidence.
+
+   LAZY AND CACHED. Building this needs both missions' routes, which is
+   real work (the same work tpHydrantPin/tpSlalomPin already do when the
+   map opens). CITY_SEED is fixed, so the answer never changes -- built
+   once on the first frame that needs it, then free forever. */
+let _missionMatsCache = null;
+function missionMatAtS(route, s, id, name, style){
+  const p = segsPosAt(route.segs, s), hdg = segsHeadingAt(route.segs, s);
+  const dv = { x: Math.cos(hdg), y: Math.sin(hdg) };
+  /* right-of-travel; laneOffset is measured along this axis */
+  const r0 = { x: -Math.sin(hdg), y: Math.cos(hdg) };
+  /* the sidewalk's inside line on the robot's own side -- the same place
+     a block edge sits, which is what the address mat anchors to */
+  const face = ROBOT_SIDE * (ROAD_HALF + SIDEWALK_W);
+  const ax = p.x + r0.x*face, ay = p.y + r0.y*face;
+  /* rv points OUT toward the street, away from the block, matching
+     abEdges' own convention -- so owMatFrame puts the centre half a tile
+     streetward of the face, i.e. on lane 3. */
+  const rv = { x: -ROBOT_SIDE*r0.x, y: -ROBOT_SIDE*r0.y };
+  return { id, name, style, mat: owMatFrame(ax, ay, dv, rv),
+           ax, ay, dv, rv };
+}
+/* DERIVED ONCE, THEN FROZEN -- and this is a measurement, not a
+   preference. missionMatDerive below is the real derivation, and it
+   costs two full route generations: 8.0s marginal on a warm grid in the
+   node harness, on top of the 3.3s the daily route already spends. That
+   cannot sit on the draw path or in create(); it is a load-time freeze
+   either way you slice it, for two numbers that CANNOT CHANGE -- the
+   city is CITY_SEED and both missions are frozen dates.
+
+   So the positions live here as data, and the derivation lives on as
+   the thing that CHECKS them. ?verifyMats=1 runs it and logs any
+   disagreement. That is the whole guard against these rotting: if
+   anyone moves the hydrant's reserved leg or the slalom's chain, the
+   check says so out loud instead of the mat quietly sitting a block
+   from its own course.
+
+   dv/rv are snapped to the exact axis unit vectors. The derivation
+   produces cos(PI/2) = 6.1e-17 rather than 0 for the southbound mat;
+   that is float dust in a direction vector, and carrying it into a
+   frozen table would make the table look like it means something it
+   does not. verifyMissionMats compares within 1e-9 for the same
+   reason. */
+const MISSION_MAT_SITES = [
+  { id:"jump-hydrant", name:"Hydrant Challenge", style:"checker",
+    ax:12572, ay:11776, dv:{ x:1, y:0 }, rv:{ x:0, y:1 } },
+  { id:"cone-slalom",  name:"Cone Slalom Challenge", style:"checker",
+    ax:44528, ay:75072, dv:{ x:0, y:1 }, rv:{ x:-1, y:0 } },
+];
+function buildMissionMats(){
+  return MISSION_MAT_SITES.map(st => ({
+    id: st.id, name: st.name, style: st.style,
+    ax: st.ax, ay: st.ay, dv: st.dv, rv: st.rv,
+    mat: owMatFrame(st.ax, st.ay, st.dv, st.rv) }));
+}
+/* the expensive truth. Never called in play -- see the note above. */
+function missionMatDerive(){
+  const out = [];
+  try {
+    const hj = generateRoute(HJ_SEED_DATE, { hoodIndex: HJ_ADDRESS.hoodIndex, challenge: true });
+    if(hj && hj.challenge)
+      out.push(missionMatAtS(hj, hj.challenge.s0, "jump-hydrant", "Hydrant Challenge", "checker"));
+  } catch(e){ console.warn("hydrant mat underivable", e); }
+  try {
+    const sl = generateRoute(SL_SEED_DATE, { unanchoredStart: true });
+    const chain = typeof slFindChain === "function" ? slFindChain(sl) : null;
+    if(chain && chain.segs && chain.segs.length)
+      out.push(missionMatAtS(sl, chain.segs[0].s0, "cone-slalom", "Cone Slalom Challenge", "checker"));
+  } catch(e){ console.warn("slalom mat underivable", e); }
+  return out;
+}
+function verifyMissionMats(){
+  const live = missionMatDerive(), EPS = 1e-9;
+  let bad = 0;
+  for(const st of MISSION_MAT_SITES){
+    const d = live.find(l => l.id === st.id);
+    if(!d){ console.warn("MAT VERIFY: no derivation for", st.id); bad++; continue; }
+    const off = Math.hypot(d.ax - st.ax, d.ay - st.ay);
+    const dvOff = Math.hypot(d.dv.x - st.dv.x, d.dv.y - st.dv.y);
+    const rvOff = Math.hypot(d.rv.x - st.rv.x, d.rv.y - st.rv.y);
+    const ok = off < EPS && dvOff < EPS && rvOff < EPS;
+    if(!ok) bad++;
+    console.log(`MAT VERIFY ${st.id}: ${ok ? "OK" : "DRIFTED"}  anchor off ${off.toFixed(6)}  `
+      + `frozen (${st.ax}, ${st.ay})  derived (${d.ax}, ${d.ay})`);
+  }
+  console.log(`MAT VERIFY: ${bad ? bad + " drifted" : "all sites match"}`);
+  return bad === 0;
+}
+if(new URLSearchParams(location.search).get("verifyMats") === "1")
+  setTimeout(verifyMissionMats, 0);
+function getMissionMats(){
+  if(!_missionMatsCache) _missionMatsCache = buildMissionMats();
+  return _missionMatsCache;
+}
+/* which mission mat, if any, the robot is standing inside. Same
+   containment test the delivery address uses -- one geometry, three
+   payloads. */
+function owMissionMatAt(scene){
+  for(const mm of getMissionMats())
+    if(owMatContains(scene, mm.mat)) return mm;
+  return null;
+}
 function owAtDoor(scene){
   const r = scene.route;
   if(!r || !r.segs || !r.segs.length || r.doorS === undefined) return false;
@@ -13873,6 +14004,20 @@ class WorldScene extends Phaser.Scene {
       }
     }
 
+    /* MISSION MATS ride the same queue for the same reason the charging
+       stations do: layerFor picks near/far per mat, so a mat is never
+       painted over the robot standing on it -- which is the one frame
+       that matters, since standing on it is how you enter the mission.
+       Drawn flat at h=0 like the pads; the mat is a plate on the
+       pavement, not a thing with height. */
+    for(const mm of getMissionMats()){
+      if(!this.visProp("chargestation", mm.mat.x, mm.mat.y)) continue;
+      const _mm = mm;
+      hazVQ.push({ depth: _mm.mat.x + _mm.mat.y,
+                   fn:(gg,tt)=>this.drawMatAt(layerFor(_mm.mat.x, _mm.mat.y),
+                                              _mm.ax, _mm.ay, _mm.dv, _mm.rv, 0, 0, _mm.style) });
+    }
+
     hazVQ.sort((a, b) => a.depth - b.depth);
     for(const item of hazVQ) item.fn(g, t);
 
@@ -20973,6 +21118,28 @@ class WorldScene extends Phaser.Scene {
         this.state = "won";
         if(this.attractOwnsTip()) this.attractRecycle(ATTRACT_WIN_MS);
         else this.tdVictoryBegin();
+      }
+      /* THE MAT IS THE UNIVERSAL "YOU HAVE ARRIVED" TRIGGER. Same
+         geometry as the delivery address a few lines up, different
+         payload: stand on a mission mat and the mission loads.
+
+         FREE ROAM ONLY, and deliberately. Free play is the mode with no
+         errand of its own, so it is the only one where being pulled
+         into a side mission is what the player asked for by driving
+         there. Mid-delivery it would abandon an order the player
+         accepted, mid-challenge it would restart the thing you are
+         already doing, and attract has no player to consent.
+
+         STOPPED AND UPRIGHT, the same bar the delivery arrival sets.
+         Rolling across a corner of the mat is not arriving. */
+      if(this.ow && this.ow.on && this.mode === "freeroam" && !this.attract
+         && this.speed < 0.02 && Math.abs(this.tilt) < 0.5){
+        const mm = owMissionMatAt(this);
+        if(mm){
+          this.speed = 0; this.throttle = 0;
+          if(mm.id === "jump-hydrant" && typeof hjStart === "function") hjStart();
+          else if(mm.id === "cone-slalom" && typeof tpSlalomStart === "function") tpSlalomStart();
+        }
       }
       /* overshot the door: clamp to whichever is closer — the edge of the
          win window itself (doorS+60, matching the "remain > -60" bound
