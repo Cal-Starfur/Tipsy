@@ -28705,16 +28705,43 @@ function tpMapExplore(){
   /* +/- for pointers without a pinch, and a search box for everyone */
   const ui = document.createElement("div");
   ui.id = "tpMapUI";
-  ui.innerHTML = '<div style="position:absolute;right:10px;bottom:64px;display:flex;flex-direction:column;gap:6px;z-index:6">'
-    + '<button id="tpMapPlus"  style="width:34px;height:34px;border-radius:8px;border:1px solid #4a4a52;background:rgba(20,21,26,0.85);color:#eee;font:700 18px/1 ui-monospace,monospace">+</button>'
-    + '<button id="tpMapMinus" style="width:34px;height:34px;border-radius:8px;border:1px solid #4a4a52;background:rgba(20,21,26,0.85);color:#eee;font:700 18px/1 ui-monospace,monospace">\u2212</button></div>'
-    + '<div id="tpMapSearchWrap" style="position:absolute;left:10px;right:56px;top:10px;z-index:6">'
-    + '<button id="tpMapSearchIcon" aria-label="Side missions" style="position:absolute;left:9px;top:50%;'
+  /* One material for every piece of map chrome. The bar used to be an
+     opaque dark rect at radius 10 while the robot next to it is a solid
+     circle and the mission card under it is cream glass at radius 14 --
+     three languages in one corner. Controls are now pills/circles in the
+     card's own tint, surfaces stay at 14. GLASS is repeated inline
+     rather than hoisted to a class because this whole block is injected
+     as a string and has no stylesheet of its own to reach. */
+  const GLASS = "border:1px solid rgba(54,59,70,.35);background:rgba(240,236,224,.62);"
+    + "-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);"
+    + "box-shadow:0 2px 6px rgba(0,0,0,.25);color:#2e3138;";
+  const ZOOMBTN = 'style="width:38px;height:38px;border-radius:50%;padding:0;' + GLASS
+    + 'font:700 18px/1 ui-monospace,monospace"';
+  ui.innerHTML = '<div style="position:absolute;right:10px;bottom:64px;display:flex;flex-direction:column;gap:10px;z-index:6">'
+    + '<button id="tpMapPlus"  ' + ZOOMBTN + '>+</button>'
+    + '<button id="tpMapMinus" ' + ZOOMBTN + '>\u2212</button></div>'
+    /* top/left/right match #globalAvatar exactly (14px gutter, same
+       safe-area calc). The old top:10px had no env() at all, so on a
+       notched device the bar sat ~44px HIGHER than the robot it is
+       supposed to line up with -- that, not the radius, was most of the
+       visible mismatch. right:62px = 14 + the robot's 38 + a 10px gap. */
+    + '<div id="tpMapSearchWrap" style="position:absolute;left:14px;right:62px;'
+    + 'top:calc(12px + env(safe-area-inset-top));z-index:6">'
+    + '<button id="tpMapSearchIcon" aria-label="Side missions" style="position:absolute;left:13px;top:50%;'
     + 'transform:translateY(-50%);width:22px;height:22px;padding:0;border:0;background:none;display:flex;'
-    + 'align-items:center;justify-content:center;z-index:7">' + tpSearchSvg("#9aa0ab", 16) + '</button>'
+    + 'align-items:center;justify-content:center;z-index:7">' + tpSearchSvg("#6b6f78", 16) + '</button>'
     + '<input id="tpMapSearch" type="text" placeholder="Find a place or mission\u2026" autocomplete="off" '
-    + 'style="width:100%;box-sizing:border-box;padding:8px 12px 8px 34px;border-radius:10px;border:1px solid #4a4a52;background:rgba(20,21,26,0.88);color:#eee;font:500 13px/1.2 -apple-system,sans-serif">'
-    + '<div id="tpMapResults" style="display:none;margin-top:4px;max-height:180px;overflow:auto;border-radius:10px;border:1px solid #4a4a52;background:rgba(20,21,26,0.94)"></div></div>';
+    /* explicit height, not padding: the robot is a hard 38px and the bar
+       has to be the same number or no amount of corner radius makes them
+       read as a pair. */
+    + 'style="width:100%;box-sizing:border-box;height:38px;padding:0 16px 0 38px;'
+    + 'border-radius:999px;' + GLASS + 'font:500 13px/1.2 -apple-system,sans-serif">'
+    /* the results list is a SURFACE, so it keeps the mission card's 14px
+       rather than following the input into a pill, and takes more opacity
+       because rows of text over a moving map at .62 are unreadable. */
+    + '<div id="tpMapResults" style="display:none;margin-top:6px;max-height:180px;overflow:auto;'
+    + 'border-radius:14px;border:1px solid rgba(54,59,70,.35);background:rgba(240,236,224,.92);'
+    + '-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)"></div></div>';
   card.appendChild(ui);
   document.getElementById("tpMapPlus").onclick  = () => zoomAt(1.35, canvas.clientWidth/2, canvas.clientHeight/2);
   document.getElementById("tpMapMinus").onclick = () => zoomAt(1/1.35, canvas.clientWidth/2, canvas.clientHeight/2);
@@ -28737,8 +28764,8 @@ function tpMapExplore(){
     res.style.display = "block";
     for(const h of hits){
       const row = document.createElement("div");
-      row.style.cssText = "padding:8px 12px;color:#eee;font:500 13px/1.2 -apple-system,sans-serif;display:flex;justify-content:space-between;cursor:pointer";
-      row.innerHTML = "<span>" + h.name + "</span><span style='color:#8a8a92;font-size:11px'>" + h.kind + "</span>";
+      row.style.cssText = "padding:8px 14px;color:#2e3138;font:500 13px/1.2 -apple-system,sans-serif;display:flex;justify-content:space-between;cursor:pointer";
+      row.innerHTML = "<span>" + h.name + "</span><span style='color:#6b6f78;font-size:11px'>" + h.kind + "</span>";
       row.onclick = () => {
         res.style.display = "none"; box.blur();
         /* a mission with a real pin (x !== undefined -- see tpMapIndex)
