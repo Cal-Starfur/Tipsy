@@ -28650,14 +28650,36 @@ function tpSlalomPin(){  return tpMissionPin("cone-slalom"); }
    the two above -- HJ_SEED_DATE/SL_SEED_DATE never change, but "today"
    does, once a day, and a session left open across midnight shouldn't
    keep pointing at yesterday's door. Built independently of s.route on
-   purpose -- see the comment where this gets called in drawRouteMap. */
+   purpose -- see the comment where this gets called in drawRouteMap.
+
+   THE RUNG WAS MISSING, TWICE OVER (2026-08-25, Sir on-device: "we need
+   it to update so if we finish the delivery then we get the next todays
+   delivery"). "Today" is not one route. tpRunIndex() is the day's rung,
+   tpAdvanceRun() bumps it every time a delivery banks, and loadRoute
+   feeds it to generateRoute as runIndex -- so finishing a delivery
+   changes which route today MEANS. This function had neither half of
+   that: the cache keyed on dateStr alone, so it could never notice a
+   rung change; and generateRoute(today) with no opts defaults to
+   runIndex 1, so even a cold call pointed at the FIRST delivery of the
+   day rather than the current one.
+
+   Not a near miss. Measured on today's seed, the first four rungs are
+   1143 Marina Way, 1689 Dock Ave, 2873 Campus Loop, 2199 Pier Ave --
+   four different districts. The pin sat on the first one all day.
+
+   tpRunIndex() rather than tpProfile.runIndex directly: it is the
+   function that rolls the day over, so asking it is also what keeps
+   the date half honest. Its write only happens on an actual rollover,
+   so this is not a save per frame. */
 let _tpDailyPinCache = null;
 function tpDailyDeliveryPin(){
   const today = clientTodayUTC();
-  if(_tpDailyPinCache && _tpDailyPinCache.dateStr === today) return _tpDailyPinCache;
-  const r = generateRoute(today);
+  const rung = (typeof tpRunIndex === "function") ? tpRunIndex() : 1;
+  if(_tpDailyPinCache && _tpDailyPinCache.dateStr === today
+     && _tpDailyPinCache.runIndex === rung) return _tpDailyPinCache;
+  const r = generateRoute(today, { runIndex: rung });
   const p = segsPosAt(r.segs, r.doorS);
-  _tpDailyPinCache = { dateStr: today, x: p.x, y: p.y };
+  _tpDailyPinCache = { dateStr: today, runIndex: rung, x: p.x, y: p.y, address: r.address };
   return _tpDailyPinCache;
 }
 /* Tapping the delivery pin -- restores the daily route's own info in
