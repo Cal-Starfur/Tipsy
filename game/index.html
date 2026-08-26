@@ -27969,6 +27969,21 @@ function resizeRouteMap(){
   const dpr = window.devicePixelRatio || 1;
   const mc = document.getElementById("mapCard");
   const cssW = mc.clientWidth, cssH = mc.clientHeight;
+  /* ZERO-RECT GUARD. #mapCard lives inside #titleOverlay, so while the
+     overlay is hidden its clientWidth/clientHeight are both 0 -- and
+     assigning canvas.width = 0 does not merely skip a frame, it
+     DESTROYS the existing bitmap. The map card then shows the live
+     world straight through it and stays that way until some unrelated
+     path happens to redraw, which reads on device as "the map takes
+     ages to load" when in truth it was never drawn at all.
+
+     Three callers already knew about this and worked around it by
+     ordering show("titleOverlay") ahead of the resize (see the SHOW THE
+     OVERLAY FIRST comments in slalomMapSelect and hjQuit). That put the
+     fix in the callers, so every new caller had to rediscover it. It
+     belongs here: measuring nothing is not a resize, so keep the last
+     good buffer and let the next call with a real rect do the work. */
+  if(cssW <= 0 || cssH <= 0) return;
   canvas.style.width = cssW + "px";
   canvas.style.height = cssH + "px";
   canvas.width = Math.round(cssW * dpr);
@@ -31430,6 +31445,21 @@ document.getElementById("avatarIcon").addEventListener("click", tpOpenProfile);
     tpPauseWorld();
     show("titleOverlay");
     tpSyncGlobalBtns();
+    /* ...and repaint, which this path alone never did. Every other route
+       onto the map screen ends with exactly this line (slalomMapSelect,
+       hjQuit, tpBackToDailyRoute, loadRoute's tail); the glass ended at
+       tpSyncGlobalBtns and stopped, so it raised the overlay over a
+       canvas nobody had touched since the last time something else drew
+       it. With the zero-rect guard above that is no longer a BLANK map,
+       but it is still a STALE one -- a route the player may have left
+       several missions ago. rAF, not a direct call, because show() has
+       only just removed .hidden and the card has not been laid out yet
+       at this point in the tick, which is the same reason every other
+       caller defers it. */
+    requestAnimationFrame(() => {
+      const s2 = scn();
+      if(s2 && s2.route){ resizeRouteMap(); drawRouteMap(s2.route); }
+    });
   };
   el.addEventListener("touchstart", go, {passive:false, capture:true});
   el.addEventListener("pointerdown", go, {capture:true});
