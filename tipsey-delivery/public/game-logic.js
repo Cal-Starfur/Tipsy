@@ -59,10 +59,6 @@ const WORLDGEN_COAST = new URLSearchParams(location.search).get("worldgen") !== 
 const SHORE_FORCE = new URLSearchParams(location.search).get("shore") === "1";
 
 function clientTodayUTC(){ return new Date().toISOString().slice(0,10); }
-function fmtReplayDate(dateStr){
-  return new Date(dateStr + "T00:00:00Z")
-    .toLocaleDateString("en-US", { month:"short", day:"numeric", timeZone:"UTC" });
-}
 
 /* ---------- Devvit bridge (optional) ----------
    On the Devvit build, swaps the daily-best leaderboard's persistence
@@ -82,14 +78,10 @@ function fmtReplayDate(dateStr){
    loadRoute(dateStr) (see loadRoute). Standalone GitHub Pages / itch.io
    builds never call fetch() here at all and fall straight back to
    localStorage, same as before this bridge existed. */
-/* historyBest caches this player's own best {tip,ms} per past date —
-   populated whenever Past Routes is opened (requestHistory) and kept
-   current afterward the same optimistic way tipsyBridge.best already
-   is: written locally the instant a replay win looks better, with the
-   server call itself fire-and-forget (server is still the real source
-   of truth on next load). allTimeTotal mirrors the same pattern for
-   the number shown atop the Past Routes list. */
-const tipsyBridge = { active: IS_DEVVIT_BUILD, best: {}, historyBest: {}, allTimeTotal: null };
+/* historyBest/allTimeTotal are GONE with Past Routes -- both existed
+   only to feed that panel and its replay scoring. `best` stays: it is
+   today's top-of-board number, which the win receipt still reports. */
+const tipsyBridge = { active: IS_DEVVIT_BUILD, best: {} };
 function requestDailyBest(dateStr){
   if(!IS_DEVVIT_BUILD) return;
   fetch("api/tipsy/best", { headers: { Accept: "application/json" } })
@@ -97,48 +89,20 @@ function requestDailyBest(dateStr){
     .then(data => { if(data) tipsyBridge.best[dateStr] = data.best || null; })
     .catch(()=>{});
 }
-/** Fetches every day this player has ever completed (tipsey-delivery's
- *  src/server/db.ts historyKey — permanent, not the 30-day daily-board
- *  TTL) plus their current all-time total. cb receives the raw history
- *  array for rendering; the cache fields above are populated as a
- *  side effect regardless of whether a callback is passed. */
-function requestHistory(cb){
-  if(!IS_DEVVIT_BUILD) return;
-  fetch("api/tipsy/history", { headers: { Accept: "application/json" } })
-    .then(rsp => rsp.ok ? rsp.json() : null)
-    .then(data => {
-      if(!data) return;
-      for(const h of (data.history || [])) tipsyBridge.historyBest[h.dateStr] = { tip: h.tip, ms: h.ms };
-      tipsyBridge.allTimeTotal = data.allTimeTotal;
-      if(cb) cb(data.history || []);
-    })
-    .catch(()=>{});
-}
-/** Submits a replay run for a PAST date (today's route still goes
- *  through requestDailyBest/api/tipsy/best/submit, untouched). The
- *  server re-derives everything from its own history record for this
- *  user+date — same trust model as the existing daily submit, just
- *  with a per-day eligibility check added; see dbSubmitReplayScore's
- *  own comment in db.ts for why a client-supplied date is safe here
- *  specifically. Fire-and-forget, matching the existing submit call. */
-function submitReplay(dateStr, tip, ms){
-  if(!IS_DEVVIT_BUILD) return;
-  fetch("api/tipsy/history/submit", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Accept: "application/json" },
-    body: JSON.stringify({ dateStr, tip, ms })
-  }).catch(()=>{});
-}
+/* requestHistory() and submitReplay() are GONE with Past Routes: they
+   were the only callers of api/tipsy/history and api/tipsy/history/submit.
+   The server halves still exist and are simply unused now -- removing a
+   live endpoint is a Devvit deploy, not a client change, and an unused
+   route costs nothing. */
 /** Server-authoritative Tipsey Profile sync (Phase B, Devvit only).
  *  Called once whenever the profile panel opens (tpOpenProfile) so
  *  walletCents/owned/equipped self-heal from whatever Redis actually
  *  holds — same "local optimistic update, server wins on next load"
- *  pattern tipsyBridge.best/historyBest already use above. tpProfile,
+ *  pattern tipsyBridge.best already uses above. tpProfile,
  *  tpSaveProfile, and tpRender are defined later in this file (Tipsey
  *  Profile section) but this function is only ever invoked from a user
  *  action after the whole script has run, so they're already assigned
- *  by call time. history/allTimeTotal are untouched here — those stay
- *  requestHistory's job. */
+ *  by call time. */
 function requestTpProfile(){
   if(!IS_DEVVIT_BUILD) return;
   fetch("api/tipsy/profile", { headers: { Accept: "application/json" } })
@@ -12142,9 +12106,9 @@ class WorldScene extends Phaser.Scene {
     this.pickupLidClosing = false; // latches true while the lid still owes a close-out on
                                     // that flipped hinge, even after loading itself has ended
     this.state = "idle";
-    const modeTag = !IS_DEVVIT_BUILD ? "" : (dateStr === clientTodayUTC()
-      ? `<div class="tag" style="margin-bottom:4px">TODAY</div>`
-      : `<div class="tag" style="margin-bottom:4px">REPLAY · ${fmtReplayDate(dateStr)}</div>`);
+    /* TODAY or nothing. The REPLAY tag went with Past Routes -- there is
+       no longer any way to load a past date as a delivery. */
+    const modeTag = !IS_DEVVIT_BUILD ? "" : `<div class="tag" style="margin-bottom:4px">TODAY</div>`;
     document.getElementById("orderCard").innerHTML = modeTag + (this.route.pickupShopName
       ? `<b>${this.route.hood.n}</b> — pickup at <b>${this.route.pickupShopName}</b>, deliver to <b>${this.route.address}</b>`
       : `<b>${this.route.hood.n}</b> — deliver to <b>${this.route.address}</b>`);
@@ -27921,7 +27885,7 @@ function tpBackToDailyRoute(){
   }
   /* NO SPINNER (2026-08-11, Sir's call): matches every other selection
      path now -- slalomMapSelect, hjStart, hjQuit, tpSlalomQuit, retry,
-     today/reroll, prGoToRoute all call loadRoute/loadChallenge directly
+     today/reroll all call loadRoute/loadChallenge directly
      with no "Plotting route" pause. This was the one holdout still
      wrapped in the spinner helper; removed so tapping the delivery pin
      behaves the same as every other map selection instead of being the
@@ -29120,27 +29084,21 @@ let tpProfile = tpLoadProfile();
    Fire Chief only appeared after you next opened the Store */
 tpApplySkin(tpProfile.equipped);
 
-/* Called from showWin() once payout/ms are final. TODAY credits the
-   wallet unconditionally (mirrors dbSubmitScore's zIncrBy — every
-   completed delivery counts, best-or-not). A REPLAY only credits the
-   IMPROVEMENT over that day's prior best (mirrors dbSubmitReplayScore),
-   same anti-farming rule the server enforces for the leaderboard. */
-function tipsyProfileOnDelivery(dateStr, payout, ms, isReplay){
+/* Called from showWin() once payout/ms are final, and only ever for
+   TODAY now -- the caller refuses off-date routes outright. The isReplay
+   arm (credit only the improvement over that day's prior best, mirroring
+   the server's anti-farming rule) went with Past Routes.
+
+   history and allTimeTotal STAY. They are the record of days delivered
+   and the running total the profile and the trophies read; neither was
+   ever the replay feature, they were only surfaced by its panel. */
+function tipsyProfileOnDelivery(dateStr, payout, ms){
   const prevIdx = tpProfile.history.findIndex(h => h.dateStr === dateStr);
   const prev = prevIdx >= 0 ? tpProfile.history[prevIdx] : null;
   const better = !prev || payout > prev.tip || (payout === prev.tip && ms < prev.ms);
-
-  if(!isReplay){
-    tpProfile.walletCents += Math.round(payout * 100);
-    tpProfile.allTimeTotal += payout;
-    if(better){
-      const entry = {dateStr, tip:payout, ms};
-      if(prevIdx >= 0) tpProfile.history[prevIdx] = entry; else tpProfile.history.push(entry);
-    }
-  } else if(better){
-    const delta = Math.max(0, payout - (prev ? prev.tip : 0));
-    tpProfile.walletCents += Math.round(delta * 100);
-    tpProfile.allTimeTotal += delta;
+  tpProfile.walletCents += Math.round(payout * 100);
+  tpProfile.allTimeTotal += payout;
+  if(better){
     const entry = {dateStr, tip:payout, ms};
     if(prevIdx >= 0) tpProfile.history[prevIdx] = entry; else tpProfile.history.push(entry);
   }
@@ -29303,35 +29261,6 @@ function tpRenderMissions(){
     tpBackToDailyRoute();
   });
   list.appendChild(td);
-
-  /* Past Routes sits at the head of this list as well as on the map's
-     bottom sheet. The magnifying glass is reachable mid-route now, and
-     browsing your history is the other thing you'd reach for from it.
-     DEVVIT ONLY: the history array and the all-time total both come
-     from the Reddit server (requestHistory / tipsyBridge, which
-     no-op when !IS_DEVVIT_BUILD), so on itch.io / GitHub Pages there is
-     nothing behind this row and it would open an empty panel. */
-  if(IS_DEVVIT_BUILD){
-    const pr = document.createElement("div");
-    pr.id = "tpPastRoutesRow";
-    pr.className = "tpTrRow";
-    pr.innerHTML = `
-      <div class="tpMedal tpMission" style="font-size:18px;">&#9776;</div>
-      <div class="tpTrInfo">
-        <div class="tpTrName">Past Routes</div>
-        <div class="tpTrDesc">Replay any day you've already delivered.</div>
-        <div class="tpTrReward">Beat a day's best — the difference adds to your all-time total.</div>
-      </div>
-      <div class="tpTrRight"></div>`;
-    /* Drop the .open class directly instead of calling tpCloseMissions():
-       that would resume the world for one frame before Past Routes
-       paused it again. */
-    pr.addEventListener("click", ()=>{
-      document.getElementById("tpMissionsPanel").classList.remove("open");
-      openPastRoutes();   // calls tpSyncGlobalBtns via expandSheet
-    });
-    list.appendChild(pr);
-  }
 
   TP_SIDE_MISSIONS.forEach(m=>{
     const completed = tpProfile.missionsCompleted.has(m.id);
@@ -29579,7 +29508,7 @@ function tpToast(msg){
 
 /* ---------- Phase B: server sync for wallet/store/trophy actions ----------
    Each of these fires AFTER the local optimistic update above has already
-   applied and rendered — same trust model as submitReplay near the top of
+   applied and rendered — same trust model as the daily submit near the top of
    this file: the local copy reflects what SHOULD happen, this tells the
    server (source of truth) to actually make it so, and the response
    re-syncs tpProfile in case the server disagreed (e.g. a stale client
@@ -29692,7 +29621,7 @@ function tpResumeWorld(){
 /* One place that decides whether the global buttons are showing, driven
    off the panels' own state rather than each call site remembering. */
 function tpSyncGlobalBtns(){
-  const anyOpen = ["tpProfilePanel","tpMissionsPanel","pastRoutesPanel"]
+  const anyOpen = ["tpProfilePanel","tpMissionsPanel"]
     .some(id => { const el = document.getElementById(id); return el && el.classList.contains("open"); });
   document.body.classList.toggle("tpPanelOpen", anyOpen);
 }
@@ -29976,37 +29905,24 @@ function showWin(s){
      standalone GitHub Pages build, exactly as before this bridge
      existed.
 
-     isReplay is decided purely off the loaded route's own date: on
-     Devvit the ONLY way s.route.dateStr is ever not today is via the
-     Past Routes picker (the old reroll panel is hidden there), so
-     there's no separate "replay mode" flag to keep in sync — the date
-     already says everything. This also guarantees api/tipsy/best/submit
-     (today-only on the server; see db.ts todayUTC()) never receives a
-     replay's date by accident. */
-  const isReplay = IS_DEVVIT_BUILD && s.route.dateStr !== clientTodayUTC();
-  let bestRow = "", allTimeRow = "";
-  if(isReplay){
-    try {
-      /* tipsyBridge.historyBest was populated when Past Routes was
-         opened to reach this route in the first place, so it's already
-         warm — same optimistic-then-server-confirms pattern as the
-         today branch below, just against the history cache instead of
-         tipsyBridge.best. */
-      const prev = tipsyBridge.historyBest[s.route.dateStr];
-      const better = !prev || payout > prev.tip || (payout === prev.tip && s.runT < prev.ms);
-      const delta = Math.max(0, payout - (prev ? prev.tip : 0));
-      if(better){
-        tipsyBridge.historyBest[s.route.dateStr] = { tip: payout, ms: s.runT };
-        if(tipsyBridge.allTimeTotal != null) tipsyBridge.allTimeTotal += delta;
-      }
-      submitReplay(s.route.dateStr, payout, s.runT);
-      bestRow = better
-        ? `<div class="sheetRow" style="color:#3f7d43;font-size:13px">★ NEW BEST FOR THIS DAY</div>`
-        : `<div class="sheetRow" style="color:#8f95a1;font-size:13px">best for this day $${prev.tip.toFixed(2)} · ${(prev.ms/1000).toFixed(1)}s</div>`;
-      allTimeRow = (better && delta > 0)
-        ? `<div class="sheetRow" style="color:#ff9c4d;font-size:13px;font-weight:700">+$${delta.toFixed(2)} added to all-time</div>`
-        : "";
-    } catch(e){}
+     The off-date check below is decided purely off the loaded route's
+     own date, so there is no separate mode flag to keep in sync. It
+     guarantees api/tipsy/best/submit (today-only on the server; see
+     db.ts todayUTC()) can never receive anything but today. */
+  /* NOT TODAY'S DATE = DO NOT SCORE IT. This used to be `isReplay`, the
+     branch that submitted a past date to the history endpoint. Past
+     Routes is gone, so nothing can load a past date as a delivery any
+     more -- but the CHECK has to stay, and not as a replay branch.
+     The frozen mission routes carry non-today dateStrs (HJ_SEED_DATE,
+     SL_SEED_DATE); their endings are owned by hjOwnsTip/slOwnsTip and
+     should never reach here, but "should never" is not "cannot", and
+     without this a mission win would POST to api/tipsy/best/submit as
+     today's score. So an off-date route now banks nothing, submits
+     nothing, and prints no receipt row. */
+  const offDate = s.route.dateStr !== clientTodayUTC();
+  let bestRow = "";
+  if(offDate){
+    /* deliberately empty -- see the note above */
   } else {
     try {
       const key = "tipsy-best-" + s.route.dateStr;
@@ -30061,8 +29977,8 @@ function showWin(s){
     `<div class="sheetRow"><b>${s.route.address}</b>&nbsp;·&nbsp;${s.route.hood.n}</div>` +
     `<div class="sheetRow" style="color:#8f95a1;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;text-align:center">${order.text} · $${order.value.toFixed(2)}</div>` +
     `<div class="sheetRow">time <b>${secs.toFixed(1)}s</b>&nbsp;·&nbsp;cargo <b>${cargo}%</b>&nbsp;·&nbsp;tip <b>${pctShow}% · $${payout.toFixed(2)}</b>${cuts.length ? `&nbsp;<span style="color:#8f95a1">(${cuts.join(", ")})</span>` : ""}</div>` +
-    bestRow + allTimeRow;
-  tipsyProfileOnDelivery(s.route.dateStr, payout, s.runT, isReplay);
+    bestRow;
+  if(!offDate) tipsyProfileOnDelivery(s.route.dateStr, payout, s.runT);
   reportWin(s, payout, pctShow);
   /* The whole win-screen stack anchors to the MEASURED panel, not a CSS
      constant: the receipt's height varies (order length, deduction
@@ -30194,79 +30110,16 @@ document.getElementById("panelToggle").addEventListener("click", () => {
   document.getElementById("panelToggle").classList.toggle("flipped", collapsed);
 });
 
-/* ---------- Past Routes ----------
-   Lives inside #bottomSheet, not a separate overlay — see the CSS
-   comment on #bottomSheet for why. expandSheet/collapseSheet just
-   toggle two classes; the flex reflow (mapCard vs bottomSheet, both
-   siblings in #screenWrap) does the actual layout work. */
-function expandSheet(){
-  document.getElementById("pastRoutesPanel").classList.add("open");
-  tpPauseWorld();
-  tpSyncGlobalBtns();
-}
+/* expandSheet/openPastRoutes/prGoToRoute/renderPastRoutes are GONE.
+   collapseSheet SURVIVES as a no-op-shaped helper because three live
+   paths still call it -- tpFreePlay, the magnifying glass, and
+   failMenuBtn -- and all three want the same thing it always really
+   did for them: hand the world back. The panel it used to close no
+   longer exists, so that is all it does now. */
 function collapseSheet(){
-  document.getElementById("pastRoutesPanel").classList.remove("open");
   tpResumeWorld();
   tpSyncGlobalBtns();
 }
-/* Reached from the Past Routes row in Side Missions. Kept as its own
-   function rather than inlined at the call site — the win/fail "menu"
-   paths still call collapseSheet(), so open and close stay a pair. */
-function openPastRoutes(){
-  document.getElementById("prList").innerHTML = `<div id="prEmpty">Loading…</div>`;
-  document.getElementById("prAllTimeVal").textContent =
-    tipsyBridge.allTimeTotal != null ? `$${tipsyBridge.allTimeTotal.toFixed(2)}` : "—";
-  expandSheet();
-  requestHistory(renderPastRoutes);
-}
-/* Picking a day can now happen mid-route, so the overlay has to come
-   back before loadRoute() runs — resizeRouteMap() measures the map
-   canvas's client rect and reads ZERO while #titleOverlay is hidden,
-   which is the blank-map bug hjQuit() documents. */
-function prGoToRoute(dateStr){
-  collapseSheet();
-  show("titleOverlay");
-  scn().loadRoute(dateStr);
-  requestAnimationFrame(() => { resizeRouteMap(); drawRouteMap(scn().route); });
-}
-function renderPastRoutes(history){
-  document.getElementById("prAllTimeVal").textContent =
-    tipsyBridge.allTimeTotal != null ? `$${tipsyBridge.allTimeTotal.toFixed(2)}` : "—";
-  const list = document.getElementById("prList");
-  if(!history || history.length === 0){
-    list.innerHTML = `<div id="prEmpty">No completed routes yet — play today's route to start building history.</div>`;
-    return;
-  }
-  /* generateRoute(dateStr) is pure and date-seeded (see Route Lab
-     comment near the top of this file) — calling it again here just
-     to pull address/hood/order flavor for the list is cheap and never
-     touches the network. Capped at 30 rows: history itself never
-     expires (unlike the 30-day daily board), so a long-time player's
-     full list could otherwise mean 30+ of these calls plus a very
-     long scroll for no real benefit over "recent". */
-  const sorted = [...history].sort((a,b) => b.dateStr.localeCompare(a.dateStr)).slice(0, 30);
-  list.innerHTML = sorted.map(h => {
-    const r = generateRoute(h.dateStr);
-    const d = new Date(h.dateStr + "T00:00:00Z");
-    const day = d.getUTCDate();
-    const mon = d.toLocaleDateString("en-US", { month:"short", timeZone:"UTC" });
-    return `<button class="prRow" data-date="${h.dateStr}">
-      <div class="prDate"><div class="d">${day}</div><div class="m">${mon}</div></div>
-      <div class="prInfo"><div class="addr">${r.address}</div><div class="hood">${r.hood.n} · ${r.order.text}</div></div>
-      <div class="prScore"><div class="tip">$${h.tip.toFixed(2)}</div><div class="time">${(h.ms/1000).toFixed(1)}s</div></div>
-      <div class="prChev">›</div>
-    </button>`;
-  }).join("");
-  list.querySelectorAll(".prRow").forEach(row => {
-    row.addEventListener("click", () => {
-      prGoToRoute(row.dataset.date);
-    });
-  });
-}
-document.getElementById("prClose").addEventListener("click", () => collapseSheet());
-document.getElementById("prPlayToday").addEventListener("click", () => {
-  prGoToRoute(clientTodayUTC());
-});
 document.getElementById("failMenuBtn").addEventListener("click", () => {
   hide("failOverlay");
   if(scn().mode === "challenge"){
@@ -30294,8 +30147,8 @@ document.getElementById("failMenuBtn").addEventListener("click", () => {
    correct and complete; this was purely a missing caller.
 
    Fires unguarded here because requestTpProfile() carries its own
-   IS_DEVVIT_BUILD check on line 1, same as requestDailyBest and
-   requestHistory. Safe at this point in the file: everything the
+   IS_DEVVIT_BUILD check on line 1, same as requestDailyBest. Safe at
+   this point in the file: everything the
    function touches beyond the fetch itself (tpProfile, tpApplySkin,
    tpSaveProfile, tpRender) runs inside the .then, which cannot resolve
    until after this script has finished executing.
