@@ -4675,10 +4675,62 @@ function missionMatAtS(route, s, id, name, style){
    frozen table would make the table look like it means something it
    does not. verifyMissionMats compares within 1e-9 for the same
    reason. */
+/* ---------- MISSION MAT HIGHLIGHT ----------
+   Dial-bench settled (mat-highlight-v4): near 270, rim 8, pulse 3000,
+   apron 0.
+
+   APRON 0 IS THE WHOLE DESIGN, not a disabled feature. The bench let
+   the highlight sit proud of the mat as its own outset square; at 0 it
+   collapses onto the mat's own rim, and that is what Sir picked -- the
+   mat lights up, nothing hovers beside it. The dial stays because it is
+   the one knob that decides whether this is a border or a halo, and a
+   later mat on a busier frontage may want the halo.
+
+   SQUARE, ON THE MAT'S OWN AXES. Everything here is built from dv/rv
+   and projects to an iso diamond that lines up with the mat exactly.
+   An ellipse was tried first and read as a separate marker parked next
+   to the mat rather than the mat itself. */
+const MAT_HL = {
+  near: 270,        // world units from the mat centre before it speaks up
+  rimW: 8,          // band weight
+  pulseMs: 3000,    // NEAR breath period
+  apron: 0,         // outset from the rim; 0 = the rim IS the highlight
+  breath: 7,        // how far the NEAR band swells, in units
+  bite: 15,         // corner tick length, in units
+  /* every state changes SHAPE as well as colour -- outline, then filled
+     with corner ticks, then tinted with a heavy rim -- so it reads on a
+     phone and never leans on colour alone. */
+  toneNear:  0xffb25a,
+  toneOn:    0xffc94a,
+  toneArmed: 0x7ee081,
+};
+/* far | near | on | armed, for ANY mat -- one state machine, three
+   mats. forMode is the mode in which that particular mat is a live
+   target: "freeroam" for a mission mat (there is nothing to offer
+   mid-delivery or mid-challenge) and "delivery" for the customer's
+   own doormat. A mat that is not currently a target reads "far" and
+   draws nothing, which is what keeps a mission mat dark while you are
+   carrying an order and the address dark while you are not.
+
+   ARMED MIRRORS THE ACTUAL TRIGGER, including the parts that are easy
+   to forget: upright, and the slalom's own exemption from the stop
+   requirement. A robot lying on his side over the mat is "on", never
+   "armed" -- the mission will not load in that state, so the mat must
+   not claim it will. */
+function matHighlightState(scene, m, forMode){
+  if(!m || !scene || scene.mode !== forMode || !(scene.ow && scene.ow.on)) return "far";
+  if(owMatContains(scene, m)){
+    const stopped = !!scene._slAPI || scene.speed < 0.02;
+    return (stopped && Math.abs(scene.tilt) < 0.5) ? "armed" : "on";
+  }
+  const dx = scene.botX - m.x, dy = scene.botY - m.y;
+  return (dx*dx + dy*dy) < MAT_HL.near*MAT_HL.near ? "near" : "far";
+}
+
 const MISSION_MAT_SITES = [
-  { id:"jump-hydrant", name:"Hydrant Challenge", style:"checker",
+  { id:"jump-hydrant", name:"Hydrant Challenge", style:"rug",
     ax:12572, ay:11776, dv:{ x:1, y:0 }, rv:{ x:0, y:1 } },
-  { id:"cone-slalom",  name:"Cone Slalom Challenge", style:"checker",
+  { id:"cone-slalom",  name:"Cone Slalom Challenge", style:"rug",
     ax:44528, ay:75072, dv:{ x:0, y:1 }, rv:{ x:-1, y:0 } },
 ];
 function buildMissionMats(){
@@ -4693,13 +4745,13 @@ function missionMatDerive(){
   try {
     const hj = generateRoute(HJ_SEED_DATE, { hoodIndex: HJ_ADDRESS.hoodIndex, challenge: true });
     if(hj && hj.challenge)
-      out.push(missionMatAtS(hj, hj.challenge.s0, "jump-hydrant", "Hydrant Challenge", "checker"));
+      out.push(missionMatAtS(hj, hj.challenge.s0, "jump-hydrant", "Hydrant Challenge", "rug"));
   } catch(e){ console.warn("hydrant mat underivable", e); }
   try {
     const sl = generateRoute(SL_SEED_DATE, { unanchoredStart: true });
     const chain = typeof slFindChain === "function" ? slFindChain(sl) : null;
     if(chain && chain.segs && chain.segs.length)
-      out.push(missionMatAtS(sl, chain.segs[0].s0, "cone-slalom", "Cone Slalom Challenge", "checker"));
+      out.push(missionMatAtS(sl, chain.segs[0].s0, "cone-slalom", "Cone Slalom Challenge", "rug"));
   } catch(e){ console.warn("slalom mat underivable", e); }
   return out;
 }
@@ -12146,6 +12198,10 @@ class WorldScene extends Phaser.Scene {
   /* ---------- world drawing ---------- */
   drawWorld(t){
     const d = this.d, g = this.gWorld, r = this.route; g.clear();
+    /* the frame clock, parked where drawHouseUnit's descendants can
+       reach it: the house mat's highlight needs to breathe and nothing
+       on that path is handed t. */
+    this._matT = t;
     /* refilled by queueStreetFurniture as the visible blocks are laid
        out, so it holds exactly the dressing on screen -- which is also
        exactly the dressing the robot can reach. */
@@ -13178,7 +13234,10 @@ class WorldScene extends Phaser.Scene {
        way every other hazard in this file already does. */
     for(const mm of getMissionMats()){
       if(!this.visProp("chargestation", mm.mat.x, mm.mat.y)) continue;
-      this.drawMatAt(layerFor(mm.mat.x, mm.mat.y), mm.ax, mm.ay, mm.dv, mm.rv, 0, 0, mm.style);
+      const lg = layerFor(mm.mat.x, mm.mat.y);
+      this.drawMatAt(lg, mm.ax, mm.ay, mm.dv, mm.rv, 0, 0, mm.style);
+      this.drawMatHighlight(lg, mm.ax, mm.ay, mm.dv, mm.rv, 0, 0,
+        matHighlightState(this, mm.mat, "freeroam"), t);
     }
 
     /* SIGNALS -- drawn immediately here, NOT queued.
@@ -13425,8 +13484,59 @@ class WorldScene extends Phaser.Scene {
   /* the door's own call, unchanged in behaviour: same anchor, same
      along-offset, and the same "checker only while the slalom engine is
      attached" rule that has always governed a customer's mat. */
+  /* the highlight, drawn straight onto the mat it belongs to. Same
+     anchor and the same dv/rv drawMatAt uses, so the two cannot drift
+     apart -- see MAT_HL for why apron 0 is the shipped look. */
+  drawMatHighlight(g, ox, oy, dv, rv, alongC, dz, state, t){
+    if(state === "far") return;
+    /* SAME SHAPE AS drawMatAt, argument for argument -- alongC kept
+       separate and dz carried through, so the highlight lands on the
+       mat it belongs to whether that mat is a mission's (alongC 0, flat
+       ground) or a customer's (alongC doorCenterX, on the door's own
+       ground height). +0.7 clears the mat's own 0.6/0.65 quads so the
+       band sits on the fibers instead of z-fighting them. */
+    const M = (dx, dy) => this.W(ox + dv.x*(alongC+dx) + rv.x*dy, oy + dv.y*(alongC+dx) + rv.y*dy, dz+0.7);
+    const half = T2/2, K = this.K;
+    const ph = (t % MAT_HL.pulseMs) / MAT_HL.pulseMs;
+    const breathe = state === "near" ? 0.5 + 0.5*Math.sin(ph*Math.PI*2) : 1;
+    const tone = state === "armed" ? MAT_HL.toneArmed
+               : state === "on"    ? MAT_HL.toneOn : MAT_HL.toneNear;
+    const ap = MAT_HL.apron + (state === "near" ? breathe*MAT_HL.breath : 0);
+    const A = [M(-half-ap, -ap), M(half+ap, -ap), M(half+ap, T2+ap), M(-half-ap, T2+ap)];
+    const R = [M(-half, 0), M(half, 0), M(half, T2), M(-half, T2)];
+    if(state === "near"){
+      this.edgeOn(g, A, tone, MAT_HL.rimW*K);
+      return;
+    }
+    this.quadOn(g, A, tone, 0.16);
+    this.edgeOn(g, A, tone, MAT_HL.rimW*K);
+    if(state === "armed") this.quadOn(g, R, tone, 0.30);
+    this.edgeOn(g, R, tone, (MAT_HL.rimW + (state === "armed" ? 1.5 : 0.5))*K);
+    /* corner ticks: four right angles biting into the mat. Shape-only
+       confirmation, so the ON/ARMED read survives without colour. */
+    const b = MAT_HL.bite;
+    g.lineStyle((MAT_HL.rimW+1)*K, tone, 1);
+    for(const [sx, sy] of [[-1,0],[1,0],[1,1],[-1,1]]){
+      const cx = sx*half, cy = sy*T2;
+      const p0 = M(cx - sx*b, cy), p1 = M(cx, cy), p2 = M(cx, cy + (sy ? -b : b));
+      g.strokePoints([p0, p1, p2].map(p => new Phaser.Geom.Point(p.x, p.y)), false);
+    }
+  }
+
   drawMatQuad(g, ox, oy, dv, rv, doorCenterX, dz){
     this.drawMatAt(g, ox, oy, dv, rv, doorCenterX, dz, this._slAPI ? "checker" : "rug");
+    /* THE HOUSE MAT GETS THE SAME HIGHLIGHT (Sir's call, 2026-08-25:
+       "can we match the house matt to this"). Put here rather than at
+       drawHouseUnit's two isAddress call sites so the door and the gate
+       variant both pick it up from the one place they already share --
+       the same reason drawMatQuad still exists at all.
+
+       It reads route.addressMat, which is the frame owMatFrame stamped
+       from this exact unit at spawn, so the lit border is the same
+       square owAtDoor tests against. Not "near the door" -- the door. */
+    this.drawMatHighlight(g, ox, oy, dv, rv, doorCenterX, dz,
+      matHighlightState(this, this.route && this.route.addressMat, "delivery"),
+      this._matT || 0);
   }
 
 
