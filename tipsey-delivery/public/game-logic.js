@@ -27677,35 +27677,38 @@ function tpAtlas(){
   return _tpAtlasRoute;
 }
 
-/* Mission pin positions, each computed once and cached. Hydrant's course
-   lives on the SAME frozen grid as the atlas itself (literally
-   tpAtlas()'s own .challenge), so there is zero translation involved —
-   as authoritative as a pin can be. Cone Slalom's course lives on its
-   own frozen grid (SL_SEED_DATE); slFindChain is a pure function of a
-   route object (hoisted to module scope 2026-08-10 for exactly this
-   reason — see the comment where it's declared), so building one
-   throwaway SL_SEED_DATE route once is enough to read its course's real
-   position without a live scene ever existing. */
-let _tpHydrantPin = null;
-function tpHydrantPin(){
-  if(_tpHydrantPin) return _tpHydrantPin;
-  const atlas = tpAtlas();
-  const p = segsPosAt(atlas.segs, atlas.challenge.kickerS);
-  _tpHydrantPin = { x: p.x, y: p.y };
-  return _tpHydrantPin;
+/* MISSION PINS ARE THE MATS NOW (2026-08-25).
+
+   THEY POINT AT THE WRONG THING OTHERWISE. These used to mark each
+   course's own START -- the hydrant's kicker, the slalom's first gate.
+   That was right when a mission was a menu item and the pin was just a
+   place on a map you could never drive to. It stopped being right the
+   day the mission became a mat you stand on: the pin said "the course
+   begins here" and the mat sat on the frontage beside it, so the map
+   was directing the player to a spot with nothing on it. The mat is
+   the destination, so the mat is the pin.
+
+   AND THEY WERE THE LAST EXPENSIVE THING ON THE MAP-OPEN PATH. The old
+   pair cost two full route generations -- tpAtlas() for the hydrant and
+   a throwaway SL_SEED_DATE route plus slFindChain for the slalom --
+   measured at ~8.0s marginal in the node harness, paid the first time
+   anyone opened the map. getMissionMats() is a frozen table lookup, so
+   both are now free. This is the same measurement that moved the mats
+   themselves off the draw path; the map was still paying it.
+
+   NO MORE ATLAS SWAP. The pins used to carry atlas:true, which told
+   tpMapJumpTo to swap the map's whole backdrop to the frozen classic
+   city, because the missions genuinely lived on a different grid. They
+   do not any more -- the mats are in the live city -- so the jump stays
+   on the city the player is actually driving. That is what makes a pin
+   something you can navigate to rather than a picture of somewhere
+   else. tpAtlas() is left standing but nothing routes to it now. */
+function tpMissionPin(id){
+  const mm = getMissionMats().find(m => m.id === id);
+  return mm ? { x: mm.mat.x, y: mm.mat.y } : null;
 }
-let _tpSlalomPin = null;
-function tpSlalomPin(){
-  if(_tpSlalomPin) return _tpSlalomPin;
-  const route = generateRoute(SL_SEED_DATE, { unanchoredStart: true });
-  const chain = slFindChain(route);
-  /* shouldn't happen — SL_SEED_DATE is the exact frozen course the game
-     ships — but the map should never throw over a missing pin. */
-  if(!chain) return null;
-  const p = segsPosAt(route.segs, chain.segs[0].s0);
-  _tpSlalomPin = { x: p.x, y: p.y };
-  return _tpSlalomPin;
-}
+function tpHydrantPin(){ return tpMissionPin("jump-hydrant"); }
+function tpSlalomPin(){  return tpMissionPin("cone-slalom"); }
 /* TODAY'S DELIVERY PIN (2026-08-10): cached by date, not forever like
    the two above -- HJ_SEED_DATE/SL_SEED_DATE never change, but "today"
    does, once a day, and a session left open across midnight shouldn't
@@ -27811,24 +27814,22 @@ function tpMapIndex(route){
     if(b2.type === "park")
       out.push({ name: mapParkName(b2.cx, b2.cy, route), kind:"park", x: b2.cx, y: b2.cy });
   for(const lm of worldgenLandmarks(g2)) out.push(lm);
-  /* side missions: real x/y now, via the atlas. Each mission lives on
-     its own frozen seed — a different neighbourhood entirely from
-     whatever route is loaded today — so there used to be nothing to
-     jump to here; tpAtlas()/tpHydrantPin()/tpSlalomPin() give every
-     playable mission a position in one shared, persistent city instead
-     of trying to reconcile two different daily grids. atlas:true tells
-     tpMapJumpTo to swap the map's backdrop to that city. Missions
-     without a computed pin (not yet playable) fall back to the old
-     id-only behaviour, which still opens the detail sheet. "???" is the
-     one genuinely unannounced slot; nothing useful to match against, so
-     it's left out entirely. */
+  /* side missions: the mat's own x/y, in the live city. These used to
+     come from each mission's frozen grid and carried atlas:true so the
+     map swapped backdrops to show them -- see tpMissionPin for why
+     neither is true any more. A mission pin is now a place in the city
+     the player is driving, which means jumping to it and then driving
+     there are the same act. Missions without a pin (not yet playable)
+     fall back to the old id-only behaviour, which still opens the
+     detail sheet. "???" is the one genuinely unannounced slot; nothing
+     useful to match against, so it's left out entirely. */
   for(const m of TP_SIDE_MISSIONS){
     if(m.name === "???") continue;
     const pin = m.id === "jump-hydrant" ? tpHydrantPin()
               : m.id === "cone-slalom"  ? tpSlalomPin()
               : null;
     out.push(pin
-      ? { name: m.name, kind:"mission", id: m.id, x: pin.x, y: pin.y, atlas: true }
+      ? { name: m.name, kind:"mission", id: m.id, x: pin.x, y: pin.y }
       : { name: m.name, kind:"mission", id: m.id });
   }
   return out;
