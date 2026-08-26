@@ -8776,9 +8776,23 @@ function graftShore(walk, grid){
    Cars are a threat (they share trafficWorldAt as a hitbox), so this
    number is a difficulty dial as much as a density one. */
 const CITY_TRAFFIC = {
-  loopsPerDistrict: 10,
-  turns:   { min: 6, max: 10 },  // ~38k per loop; short 2-3 loops were the corridor's local-footprint rule
+  /* THE FLEET IS SIZED BY THE CITY, NOT BY THE DISTRICT. There is no
+     loopsPerDistrict any more: loops are generated until the citywide
+     car budget (total road length / spacing) is met, seeded anywhere on
+     the lattice. Districts were only ever a seeding convenience and
+     they were what kept every loop small and local to one hood. */
   spacing: 1000,                 // units of road per vehicle -- THE density dial
+  /* Loop size in BLOCKS of tour, drawn from a two-mode mixture. Short
+     loops fill side streets; long loops are the ones that actually
+     cross the map. Census over the real CITY_SEED lattice (36x27, 1651
+     live edges): 45/55 short/long gave 67.7% citywide street coverage,
+     52% on border streets and 41-85% per district -- the best of every
+     mixture tried, and the only one with no dead hood. A pure long-tour
+     fleet spans further per car but leaves a whole district at 0%. */
+  tourShort: { min: 8,  max: 18 },
+  tourLong:  { min: 40, max: 75 },
+  tourShortP: 0.45,              // P(short); the rest are long cross-map tours
+  loopTries: 3000,               // generation attempts before giving up on the budget
   arcLen:  4000,                 // sim-gate bucket along a loop
   activeR: 9000,                 // Manhattan reach that gets simulated (depth 3 sees ~3,584)
   crimeR:  6000,                 // the cordon classifies cars around the pinch, not the camera
@@ -8812,6 +8826,222 @@ function buildLoopArcs(walk){
   }
   walk.bbox = { x0: lx0, x1: lx1, y0: ly0, y1: ly1 };
   return arcs;
+}
+
+/* ---------- CLOSED CITY TOURS ----------
+   THE LOOP MUST CLOSE. buildWalk returns an OPEN path -- a wander from
+   one node to a different node -- but trafficWorldAt advances a car with
+   `s % totalLen`. So a car reaching the end of a buildWalk loop wrapped
+   to s=0, which is a DIFFERENT INTERSECTION several blocks away, and
+   teleported. Measured over 400 traffic walks: 0 of 400 closed, mean
+   start-to-end gap 8.1 blocks, and the heading snapped 90 degrees too.
+   Because a loop has exactly two seam nodes, all ~36 cars on it vanished
+   at the same intersection and rematerialised at the same other one --
+   the reported "cars spawning at intersections".
+
+   These tours are closed BY CONSTRUCTION: the emitter lays N lines and N
+   arcs and the final arc lands exactly on line 0's start, so s=totalLen
+   and s=0 are the same point at the same heading in both lanes. Verified
+   0.000000 position and heading gap over every loop of every generated
+   fleet -- not "small", exactly zero.
+
+   The wander is COVERAGE-SEEKING rather than random. At spacing 1000 the
+   fleet's total loop length equals the city's total road length, so every
+   unit two loops share is a street left empty somewhere else -- coverage
+   is an overlap-efficiency problem, not a loop-count one. Each tour
+   therefore seeds itself on a street no loop has used yet and prefers
+   unused streets at every turn. A purely random wander of the same total
+   length covered 50%; this covers 67.7%.
+
+   Nothing here consumes the daily route's rng. buildCityTraffic owns its
+   own stream off SL_SEED_DATE, and buildWalk is untouched -- the player's
+   route still builds through it exactly as before. */
+
+/* legs -> lattice cells actually visited, for the coverage bookkeeping */
+function tourLegsToPath(start, legs){
+  const path = [{ i: start.i, j: start.j }];
+  let i = start.i, j = start.j;
+  for(const lg of legs){
+    const d = DIRV[lg.f];
+    for(let b = 0; b < lg.blocks; b++){ i += d.x; j += d.y; path.push({ i, j }); }
+  }
+  return path;
+}
+/* merge same-heading neighbours (INCLUDING across the wrap) and drop
+   zero-length legs. A zero-length or doubled leg would put a corner arc
+   on top of another corner arc and the fillet stops being tangent. */
+function tourNormalize(legs){
+  const out = [];
+  for(const lg of legs){
+    if(lg.blocks <= 0) continue;
+    const last = out[out.length - 1];
+    if(last && last.f === lg.f) last.blocks += lg.blocks; else out.push({ f: lg.f, blocks: lg.blocks });
+  }
+  while(out.length > 1 && out[0].f === out[out.length - 1].f) out[0].blocks += out.pop().blocks;
+  return out;
+}
+/* every leg follows a REAL edge (conn), and the leg vectors sum to zero.
+   Checked rather than trusted: a swallowed park street can remove an edge
+   the wander thought it had. */
+function tourCloses(grid, start, legs){
+  let i = start.i, j = start.j;
+  for(const lg of legs){
+    const d = DIRV[lg.f];
+    for(let b = 0; b < lg.blocks; b++){
+      const n = grid.nodeAt(i, j);
+      if(!n || !n.conn[lg.f]) return false;
+      i += d.x; j += d.y;
+      if(!grid.nodeAt(i, j)) return false;
+    }
+  }
+  return i === start.i && j === start.j;
+}
+/* the closed seg emitter. Same fillet math as buildSegsFromLegs, with the
+   one difference that matters: it emits an arc after the LAST leg too,
+   turning back into leg 0. That closing arc is the whole fix. */
+function tourEmitClosed(start, legs, R){
+  const corners = [];
+  let i = start.i, j = start.j;
+  for(const lg of legs){
+    corners.push({ x: i*BLOCK, y: j*BLOCK });
+    const d = DIRV[lg.f]; i += d.x*lg.blocks; j += d.y*lg.blocks;
+  }
+  const segs = [];
+  let s = 0;
+  for(let k = 0; k < legs.length; k++){
+    const f = legs[k].f, d = DIRV[f], rv = DIRV[(f+1)%4];
+    const legLen = legs[k].blocks * BLOCK;
+    const Ck = corners[k], Cn = corners[(k+1) % legs.length];
+    const lineLen = legLen - 2*R;
+    if(lineLen <= 0) return null;          // leg too short to carry two fillets
+    segs.push({ type:"line", s0:s, s1:s+lineLen, f, hA:f*Math.PI/2,
+                start:{ x: Ck.x + d.x*R, y: Ck.y + d.y*R } });
+    s += lineLen;
+    const f1 = legs[(k+1) % legs.length].f;
+    const sign = ((f1 - f + 4) % 4 === 1) ? 1 : -1;
+    const center = { x: Cn.x - d.x*R + sign*rv.x*R,
+                     y: Cn.y - d.y*R + sign*rv.y*R };
+    const startPt = { x: Cn.x - d.x*R, y: Cn.y - d.y*R };
+    const a0 = Math.atan2(startPt.y - center.y, startPt.x - center.x);
+    const arcLen = Math.PI/2 * R;
+    segs.push({ type:"arc", s0:s, s1:s+arcLen, center, a0, sign, R, hA:f*Math.PI/2, f });
+    s += arcLen;
+  }
+  return { segs, totalLen: s };
+}
+/* one closed, wandering, coverage-seeking tour. `covered` is the shared
+   citywide edge tally -- passed in, mutated by the caller, so each tour
+   is generated against what the whole fleet has already claimed. */
+function buildTourCircuit(grid, rng, covered, edgeKey){
+  const short = rng() < CITY_TRAFFIC.tourShortP;
+  const band = short ? CITY_TRAFFIC.tourShort : CITY_TRAFFIC.tourLong;
+  const targetBlocks = band.min + Math.floor(rng()*(band.max - band.min + 1));
+  const step = (node, dir) => {
+    if(!node || !node.conn[dir]) return null;
+    const d = DIRV[dir];
+    return grid.nodeAt(node.i + d.x, node.j + d.y);
+  };
+  for(let attempt = 0; attempt < 40; attempt++){
+    /* SEED ON AN UNUSED STREET. This is what pushes the fleet outward
+       into the parts of the map nothing has reached yet, instead of
+       re-paving the middle -- border-street coverage went 25% -> 52%
+       on this one rule. */
+    let start = null, f0 = null;
+    for(let s = 0; s < 40 && !start; s++){
+      const n = grid.nodes[Math.floor(rng()*grid.nodes.length)];
+      const dirs = [0,1,2,3].filter(d => n.conn[d]);
+      if(!dirs.length) continue;
+      const fresh = dirs.filter(d => { const m = step(n, d); return m && !covered.has(edgeKey(n, m)); });
+      const pool = fresh.length ? fresh : dirs;
+      start = n; f0 = pool[Math.floor(rng()*pool.length)];
+    }
+    if(!start) continue;
+
+    const legs = [];
+    const used = new Set();
+    let cur = start, f = f0, blocks = 0, ok = true;
+    while(blocks < targetBlocks){
+      /* run 1-3 blocks on this heading, stopping at any edge this tour
+         has already driven -- self-avoidance keeps a loop from doubling
+         back onto itself and wasting budget. */
+      const want = 1 + Math.floor(rng()*3);
+      let run = 0, probe = cur;
+      while(run < want){
+        const nx = step(probe, f);
+        if(!nx || used.has(edgeKey(probe, nx))) break;
+        probe = nx; run++;
+      }
+      if(run === 0){ ok = false; break; }
+      let p = cur;
+      for(let b = 0; b < run; b++){ const nx = step(p, f); used.add(edgeKey(p, nx)); p = nx; }
+      legs.push({ f, blocks: run });
+      cur = p; blocks += run;
+
+      /* +-90 only (a 180 would be a U-turn in the middle of a street),
+         preferring unused streets, with a homing pull that grows as the
+         quadratic of how far through the tour we are -- so the tour
+         wanders freely early and converges on its own start late. */
+      const cands = [(f+1)%4, (f+3)%4].filter(d => {
+        const nx = step(cur, d); return nx && !used.has(edgeKey(cur, nx));
+      });
+      if(!cands.length){ ok = false; break; }
+      const urge = blocks / targetBlocks;
+      let best = null, bestScore = -Infinity;
+      for(const d of cands){
+        const dv = DIRV[d], nx = grid.nodeAt(cur.i + dv.x, cur.j + dv.y);
+        let sc = covered.has(edgeKey(cur, nx)) ? 0 : 2.0;
+        const toward = (start.i - cur.i)*dv.x + (start.j - cur.j)*dv.y;
+        sc += urge*urge*3.0*Math.sign(toward);
+        sc += rng()*1.2;
+        if(sc > bestScore){ bestScore = sc; best = d; }
+      }
+      f = best;
+      if(urge >= 1) break;
+    }
+    if(!ok) continue;
+
+    /* ---- home. An L back to the start node, tried on both axis orders.
+       Rejected if either turn would be a U-turn, if a leg crosses a
+       street that isn't there, or if the JOIN back into leg 0 isn't a
+       real +-90 corner -- the closing arc has to be a genuine fillet or
+       the seam reappears as a heading snap. */
+    const tryAxis = (first) => {
+      const out = [];
+      let i = cur.i, j = cur.j, ff = f;
+      for(const ax of (first === "x" ? ["x","y"] : ["y","x"])){
+        const need = ax === "x" ? start.i - i : start.j - j;
+        if(need === 0) continue;
+        const dir = ax === "x" ? (need > 0 ? 0 : 2) : (need > 0 ? 1 : 3);
+        if((dir - ff + 4) % 4 === 2) return null;
+        let p = grid.nodeAt(i, j);
+        for(let b = 0; b < Math.abs(need); b++){ const q = step(p, dir); if(!q) return null; p = q; }
+        out.push({ f: dir, blocks: Math.abs(need) });
+        if(ax === "x") i += need; else j += need;
+        ff = dir;
+      }
+      if(i !== start.i || j !== start.j) return null;
+      const join = (f0 - ff + 4) % 4;
+      if(join !== 1 && join !== 3) return null;
+      return out;
+    };
+    const back = tryAxis("x") || tryAxis("y");
+    if(!back) continue;
+
+    const all = tourNormalize(legs.concat(back));
+    if(all.length < 4) continue;
+    let bad = false;
+    for(let q = 0; q < all.length; q++){
+      const a = all[q].f, b = all[(q+1) % all.length].f;
+      if(a === b || (b - a + 4) % 4 === 2){ bad = true; break; }
+    }
+    if(bad) continue;
+    if(!tourCloses(grid, start, all)) continue;
+    const built = tourEmitClosed(start, all, CORNER_R);
+    if(!built) continue;
+    built.path = tourLegsToPath(start, all);
+    return built;
+  }
+  return { segs: [], totalLen: 1 };
 }
 
 let _cityTrafficCache = null;
@@ -8848,31 +9078,31 @@ function buildCityTraffic(grid){
     if(!bucket){ bucket = []; seedCells.set(k, bucket); }
     bucket.push({ x, y });
   };
-  for(let d = 0; d < DISTRICT_COLS * DISTRICT_ROWS; d++){
-    const dc = d % DISTRICT_COLS, dr = Math.floor(d / DISTRICT_COLS);
-    for(let k = 0; k < CITY_TRAFFIC.loopsPerDistrict; k++){
-      /* seed INSIDE the district so every hood owns loops of its own.
-         The walk is free to wander out from there -- overlapping
-         coverage between neighbours is what keeps district borders from
-         reading as a traffic seam. */
-      /* buildWalk's opening `while(!cur.conn[dir])` spins forever on a
-         node with no connections at all, so the seed is VERIFIED here
-         rather than trusted: try a handful of candidates in the
-         district, and fall back to buildWalk's own random pick if the
-         district somehow offers none. */
-      let seed = null;
-      for(let a = 0; a < 12 && !seed; a++){
-        const si = dc*DISTRICT_W + 1 + Math.floor(rng()*Math.max(1, DISTRICT_W-2));
-        const sj = dr*DISTRICT_H + 1 + Math.floor(rng()*Math.max(1, DISTRICT_H-2));
-        const nd = grid.nodeAt(si, sj);
-        if(nd && nd.conn && nd.conn.some(Boolean)) seed = { i: si, j: sj };
-      }
-      const walk = buildWalk(grid, mulberry32(Math.floor(rng()*4294967296)),
-                             seed, CITY_TRAFFIC.turns);
+  /* THE CITY IS THE UNIT, NOT THE DISTRICT. The budget is the whole
+     map's road length over the density dial; loops are generated until
+     it is met, seeded anywhere. `covered` is the citywide edge tally
+     every tour is generated against, which is what turns coverage from
+     an accident into an objective. */
+  const edgeKey = (a, b) => (a.i < b.i || (a.i === b.i && a.j < b.j))
+    ? a.i + "," + a.j + "|" + b.i + "," + b.j
+    : b.i + "," + b.j + "|" + a.i + "," + a.j;
+  const covered = new Map();
+  const roadLen = (grid.edges ? grid.edges.length : 0) * BLOCK;
+  const carBudget = Math.max(1, Math.round(roadLen / CITY_TRAFFIC.spacing));
+  let placed = 0;
+  for(let attempt = 0; attempt < CITY_TRAFFIC.loopTries && placed < carBudget; attempt++){
+    {
+      const walk = buildTourCircuit(grid, rng, covered, edgeKey);
       if(!walk.segs.length) continue;
+      /* claim this tour's streets so the NEXT tour steers around them */
+      for(let q = 0; q < walk.path.length - 1; q++){
+        const k = edgeKey(walk.path[q], walk.path[q+1]);
+        covered.set(k, (covered.get(k) || 0) + 1);
+      }
       walk.arcs = buildLoopArcs(walk);
       const L = walk.totalLen;
       const n = Math.max(2, Math.round(L / CITY_TRAFFIC.spacing));
+      placed += n;
       const mine = [];
       for(let c = 0; c < n; c++){
         /* alternate direction so both lanes are used, and phase evenly
