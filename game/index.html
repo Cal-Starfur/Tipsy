@@ -4934,8 +4934,67 @@ const OW_D = {
      turnMax*turnVWash = 0.00187, v01² = 1, decay 0.0021, so gain 1.0
      gives 0.89. The same gain at the mid-speed turn peak (v01² = 0.14)
      settles at 0.23. Fast turns punish, mid turns don't. */
-  tiltGain:   1.0,
-  tiltDecay:  0.0021,    // matches the game's own tilt decay
+  /* TILT DEADBAND (Sir's on-device capture, 2026-08-27). The readout sat
+     at a rock-steady tilt 0.39 at two positions a thousand units apart,
+     with "(no contacts yet)" -- nothing had touched him. Run that back
+     through steady = gain*yawRate*v01^2/decay and it needs a SUSTAINED
+     0.00082 rad/ms, about 47 deg/s, the whole time he was driving what
+     looked like a straight line. That is just what holding a lane costs
+     on a thumbstick: a steady trickle of small corrections, none of them
+     a turn, every one of them charged. It never decayed because he never
+     stopped correcting, so he was 44% of the way to the tip line before
+     anything happened to him.
+
+     The integrator was not wrong about rate, it was wrong that all rate
+     is turning. So the charge now starts above a floor. Lane-holding
+     falls under it and costs nothing; everything above it is charged on
+     the excess only, and the gain is re-derived so the anchor the
+     original tuning was built around does not move:
+
+       hard turn at vMax, yawRate 0.00187, gain 1.927 on the 0.00097
+       excess -> 0.89, exactly where it sat before.
+
+     The mid-turn peak does firm up, 0.23 to 0.33, because a deadband
+     cannot preserve two anchors with one free constant. Still far under
+     the line, and it buys back the whole 0.39 of baseline. */
+  /* LEAN IS TWO CHANNELS, NOT ONE ACCUMULATOR (Sir's call, 2026-08-27).
+
+     The old model integrated |yawRate| into a single decaying tilt. That
+     was right on the rail, where the line was fixed and a turn was a
+     discrete corner you could be judged on. In free roam steering IS the
+     control: you command heading every frame, yawRate is never zero, and
+     an accumulator reads a continuous stream of small corrections as one
+     endless corner. Sir's on-device readout sat at a rock-steady 0.39
+     with "(no contacts yet)" while driving what looked like a straight
+     line -- 44% of the way to falling over, from nothing.
+
+     Worse, the old build took Math.abs(dYaw) BEFORE charging and
+     reattached the sign after. Correcting left-right-left-right holds a
+     dead straight line -- net heading change zero -- and was billed
+     exactly the same as carving a constant-radius turn. That is the "it
+     always thinks I'm turning" report, precisely.
+
+     So steering lean is now SIGNED and INSTANTANEOUS: a lean angle
+     tracking the lateral acceleration of the turn you are actually in,
+     which is what tips a top-heavy thing. Alternating corrections drive
+     it alternately either way and average to nothing; a sustained carve
+     holds one sign and holds a lean. Stop turning and he stands up,
+     rather than bleeding down a decay curve.
+
+     Note leanGain multiplies v01, NOT v01 squared. Centripetal
+     acceleration is v*omega, linear in speed. The old square is part of
+     why speed felt so punishing.
+
+     STEERING ALONE CANNOT TIP YOU (Sir's call). leanMax caps the
+     steering channel below the 1.0 line, so the hardest carve at top
+     speed leaves you leaning hard and still upright. Impacts are the
+     other channel: they accumulate and decay as before, and they add on
+     top. Carving hard and clipping something goes over; the same clip
+     while straight does not. Tipping is steering PLUS a bump. */
+  leanGain:   401,       // leanMax / (turnMax*turnVWash): hard carve -> leanMax
+  leanTrack:  0.008,     // per ms; ~125ms for the lean to follow the turn
+  leanMax:    0.75,      // steering-only ceiling. 0.25 of headroom left for impacts
+  tiltDecay:  0.0021,    // impact channel only, unchanged
 
   /* COLLISION. clipThresh is the NORMAL-component speed at which a
      scrape becomes a topple, set against the game's own
@@ -5283,7 +5342,7 @@ function owContact(scene, ow, D, dYaw, key, type, hx, hy){
     if(dist < D.hzFlat){
       if(!ow.flatOn.has(key)){
         ow.flatOn.add(key);
-        scene.tilt += (dYaw >= 0 ? 1 : -1) * D.hzFlatTilt * (Math.abs(ow.vel) / D.vMax);
+        owLeanKick(scene, ow, (dYaw >= 0 ? 1 : -1) * D.hzFlatTilt * (Math.abs(ow.vel) / D.vMax));
         owDbgHit(scene, 'flat', type, key, hx, hy);
       }
     } else ow.flatOn.delete(key);
@@ -5307,7 +5366,7 @@ function owContact(scene, ow, D, dYaw, key, type, hx, hy){
   if(vN >= D.clipThresh){
     owTip(scene, -(Math.sign(Math.cos(ow.yaw) * nx + Math.sin(ow.yaw) * ny) || 1));
   } else {
-    scene.tilt += (dYaw >= 0 ? 1 : -1) * D.clipTilt * vN * (fresh ? 1 : D.grindTilt);
+    owLeanKick(scene, ow, (dYaw >= 0 ? 1 : -1) * D.clipTilt * vN * (fresh ? 1 : D.grindTilt));
     ow.vel *= D.clipLoss; if(fresh) ow.clipScrapes++;
   }
   return true;
@@ -5358,7 +5417,7 @@ function owShoreCollide(scene, ow, D, dYaw){
     if(vN >= D.clipThresh){
       owTip(scene, -(Math.sign(Math.cos(ow.yaw)*nx + Math.sin(ow.yaw)*ny) || 1));
     } else {
-      scene.tilt += (dYaw >= 0 ? 1 : -1) * D.clipTilt * vN * D.grindTilt;
+      owLeanKick(scene, ow, (dYaw >= 0 ? 1 : -1) * D.clipTilt * vN * D.grindTilt);
       ow.vel *= D.clipLoss;
     }
     hit = true;
@@ -6278,6 +6337,26 @@ function navTick(scene, t){
   else scene.navLastAt = t;     // failed rebuilds also cool down, or a dead-end thrashes
 }
 
+/* THE TWO CHANNELS, COMPOSED. Steering is clamped to leanMax so it can
+   never reach the 1.0 line on its own; impacts are added unclamped on
+   top, which is what makes a tip cost steering PLUS a bump. Composing
+   rather than storing means scene.tilt stays the single value the
+   renderer and the fail test already read -- nothing downstream had to
+   learn about the split. */
+function owLeanCompose(scene, ow){
+  const D = OW_D;
+  const s = Math.max(-D.leanMax, Math.min(D.leanMax, ow.leanS || 0));
+  scene.tilt = s + (ow.leanI || 0);
+}
+
+/* An impact. Lands in the impact channel and recomposes at once, so a
+   hard hit can put you over inside the same frame it happened rather
+   than waiting for the next step. */
+function owLeanKick(scene, ow, amt){
+  ow.leanI = (ow.leanI || 0) + amt;
+  owLeanCompose(scene, ow);
+}
+
 /* WHICH WAY A CURB LEANS YOU.
    The impulse acts on the wheels that meet the lip first, so the lean is
    a property of the BOUNDARY, not of the stick -- which is what the old
@@ -6441,7 +6520,7 @@ function owStep(scene, dt){
          accumulated into a topple no single moment deserved: measured, a
          0.225 oblique graze tipped after six frames of touching. */
       const fresh = !ow.inContact;
-      scene.tilt += (dYaw >= 0 ? 1 : -1) * D.clipTilt * vN * (fresh ? 1 : D.grindTilt);
+      owLeanKick(scene, ow, (dYaw >= 0 ? 1 : -1) * D.clipTilt * vN * (fresh ? 1 : D.grindTilt));
       ow.vel *= D.clipLoss; if(fresh) ow.clipScrapes++;
     }
   }
@@ -6449,11 +6528,14 @@ function owStep(scene, dt){
   /* ---------- tilt ----------
      Yaw rate × speed², the honest formula the arc-radius model was
      approximating. Slam the stick over at speed and you go down. */
-  const yawRate = dt > 0 ? Math.abs(dYaw) / dt : 0;
+  const yawSigned = dt > 0 ? dYaw / dt : 0;          // SIGNED. see leanGain
   const v01 = Math.abs(ow.vel) / D.vMax;
-  const build = D.tiltGain * yawRate * v01 * v01;
-  const sgn = dYaw >= 0 ? 1 : -1;
-  scene.tilt = (scene.tilt || 0) * (1 - D.tiltDecay * dt) + sgn * build * dt;
+  const leanTarget = D.leanGain * yawSigned * v01 * (ow.vel < 0 ? -1 : 1);
+  /* first-order track toward the target, so the lean has weight without
+     having memory -- it follows the turn and forgets it immediately. */
+  ow.leanS += (leanTarget - ow.leanS) * Math.min(1, D.leanTrack * dt);
+  ow.leanI *= (1 - D.tiltDecay * dt);                // impacts still decay
+  owLeanCompose(scene, ow);
 
   /* ---------- HAZARD CONTACT, IN WORLD SPACE ----------
      The rail test was dx = botS - hz.s along-track plus a row test
@@ -6655,7 +6737,7 @@ function owStep(scene, dt){
   const sfc = W.surfaceAt(ow.px, ow.py);
   if(sfc === 'road' || sfc === 'sidewalk'){
     if(ow.sfcCommit && ow.sfcCommit !== sfc && Math.abs(ow.vel) > 0.03)
-      scene.tilt += owCurbSign(ow, sfc) * 0.10 * (Math.abs(ow.vel) / D.vMax);
+      owLeanKick(scene, ow, owCurbSign(ow, sfc) * 0.10 * (Math.abs(ow.vel) / D.vMax));
     ow.sfcCommit = sfc;
   }
   ow.lastSfc = sfc;
@@ -6697,6 +6779,9 @@ function owTip(scene, sgn){
      work in world space this will need to ask whether one is ACTIVE; for
      now free roam is the only thing open world does. */
   ow.downT = 0;
+  /* the fall is authoritative: clear both channels so the next compose
+     cannot stand him back up mid-topple. */
+  ow.leanS = 0; ow.leanI = 1.1 * sgn;
   scene.tilt = 1.1 * sgn;
   scene.state = "tipped";
   scene.tipDir = sgn;
@@ -6755,6 +6840,7 @@ function owPlaceOnPad(scene, fromX, fromY){
   const pk = chargeParkAt(st);
   ow.px = pk.x; ow.py = pk.y; ow.yaw = st.a; ow.vel = 0;
   ow.reversing = false; ow.latchSign = 0; ow.inContact = false;
+  ow.leanS = 0; ow.leanI = 0;   // stand him up on both channels
   ow.sfcCommit = null;          // respawn must not charge a phantom crossing
   if(OW_DBG) ow._dbgEnd = null;  // nor read as an unattributed shove
   ow.solidOn = new Set(); ow.flatOn = new Set();
@@ -6826,6 +6912,7 @@ function owInstall(scene){
        rather than a cut. */
     yaw: (scene.drawAngle !== undefined ? scene.drawAngle : scene.headingAt(scene.botS)),
     vel: 0, reversing: false, latchSign: 0,
+    leanS: 0, leanI: 0,          // steering lean and impact lean; see leanGain
     /* the derived-s anchor. Seeded from wherever the rail already had
        him so the first projection is a continuation rather than a
        search — install is continuous in s the same way it is in pose. */
