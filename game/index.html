@@ -5160,6 +5160,68 @@ const OW_CF_QUERY_R = T2 * 8;
    on. It must be stable across frames -- for city props that is the
    cached record itself, which is why the chunk cache holding onto them
    matters for feel and not just for cost. */
+
+/* ---------- COLLIDER DEBUG READOUT (?dbg=1) ----------
+   Ships dark. Every responder that can move the robot calls owDbgHit
+   with its own name, so an invisible wall answers the only question
+   that matters on-device: WHAT was that. Identical hits coalesce into a
+   count rather than flooding the list, because a wall you are leaning
+   on fires every frame.
+
+   The catch-all matters as much as the named hooks. owStep is not the
+   only thing that writes ow.px: the interaction loop inside drawRobot
+   does too (hzWallStop and its sibling), and so could anything added
+   later. So the position at the END of owStep is remembered, and if it
+   has moved by the START of the next one without a hook firing, that
+   shows as UNATTRIBUTED with the distance -- which is the signature of
+   a collider nobody has instrumented yet. */
+const OW_DBG = (() => {
+  try { return new URLSearchParams(location.search).get('dbg') === '1'; }
+  catch(e){ return false; }
+})();
+
+function owDbgHit(scene, src, type, key, wx, wy){
+  if(!OW_DBG || !scene) return;
+  const L = scene._owDbg || (scene._owDbg = []);
+  scene._owDbgSeen = scene._owDbgTick || 0;
+  const k = src + (type ? ':' + type : '');
+  const kk = (key && key.key) ? key.key : (typeof key === 'string' ? key : null);
+  const top = L[0];
+  if(top && top.k === k && top.kk === kk){ top.n++; top.t = Date.now(); return; }
+  L.unshift({ k, kk, x: Math.round(wx), y: Math.round(wy), n: 1, t: Date.now() });
+  if(L.length > 7) L.length = 7;
+}
+
+/* One div, appended once, updated at 6Hz. DOM rather than a Phaser text
+   object on purpose: it survives scene restarts, sits above the canvas
+   with no depth argument, and reads at arm's length on a phone. */
+function owDbgDraw(scene){
+  if(!OW_DBG) return;
+  const now = Date.now();
+  if(scene._owDbgAt && now - scene._owDbgAt < 160) return;
+  scene._owDbgAt = now;
+  let el = scene._owDbgEl;
+  if(!el){
+    el = document.createElement('div');
+    el.style.cssText = 'position:fixed;left:8px;bottom:8px;z-index:99999;' +
+      'font:11px/1.35 ui-monospace,Menlo,monospace;color:#9fe;' +
+      'background:rgba(0,0,0,.72);padding:6px 8px;border-radius:6px;' +
+      'pointer-events:none;white-space:pre;max-width:64vw';
+    document.body.appendChild(el);
+    scene._owDbgEl = el;
+  }
+  const ow = scene.ow;
+  const head = 'pos ' + Math.round(ow ? ow.px : 0) + ',' + Math.round(ow ? ow.py : 0) +
+               '  sfc ' + ((ow && ow.surface) || '-') +
+               '  tilt ' + (scene.tilt || 0).toFixed(2);
+  const rows = (scene._owDbg || []).map(h => {
+    const age = ((now - h.t) / 1000).toFixed(1);
+    return h.k + (h.n > 1 ? ' x' + h.n : '') +
+           '  @' + h.x + ',' + h.y + '  ' + age + 's' + (h.kk ? '  ' + h.kk : '');
+  });
+  el.textContent = [head, ...(rows.length ? rows : ['(no contacts yet)'])].join('\n');
+}
+
 function owContact(scene, ow, D, dYaw, key, type, hx, hy){
   const dx = ow.px - hx, dy = ow.py - hy;
   const dist = Math.hypot(dx, dy) || 1e-6;
@@ -5172,6 +5234,7 @@ function owContact(scene, ow, D, dYaw, key, type, hx, hy){
       if(!ow.flatOn.has(key)){
         ow.flatOn.add(key);
         scene.tilt += (dYaw >= 0 ? 1 : -1) * D.hzFlatTilt * (Math.abs(ow.vel) / D.vMax);
+        owDbgHit(scene, 'flat', type, key, hx, hy);
       }
     } else ow.flatOn.delete(key);
     return false;
@@ -5185,6 +5248,7 @@ function owContact(scene, ow, D, dYaw, key, type, hx, hy){
   const nx = dx / dist, ny = dy / dist;
   ow.px = hx + nx * reach;
   ow.py = hy + ny * reach;
+  owDbgHit(scene, 'solid', type, key, hx, hy);
 
   const vN = Math.abs(Math.cos(ow.yaw) * nx + Math.sin(ow.yaw) * ny) * Math.abs(ow.vel);
   const fresh = !ow.solidOn.has(key);
@@ -5248,6 +5312,7 @@ function owShoreCollide(scene, ow, D, dYaw){
       ow.vel *= D.clipLoss;
     }
     hit = true;
+    owDbgHit(scene, 'shore', null, null, ow.px, ow.py);
   };
 
   /* ---- 1. the roundhouse: a solid octagon ----
@@ -6195,6 +6260,21 @@ function owCurbSign(ow, toSfc){
 function owStep(scene, dt){
   const ow = scene.ow, D = OW_D, W = ow.world;
 
+  /* CATCH-ALL, ARMED BEFORE ANYTHING ELSE RUNS. Position at the end of
+     the previous step vs. position now: any difference was written by
+     something outside owStep -- the drawRobot interaction loop, or a
+     responder nobody has hooked. Named hooks that fired during that
+     window suppress it, so this only ever reports the unexplained. */
+  if(OW_DBG){
+    scene._owDbgTick = (scene._owDbgTick || 0) + 1;
+    const e = ow._dbgEnd;
+    if(e){
+      const d = Math.hypot(ow.px - e.x, ow.py - e.y);
+      if(d > 0.5 && scene._owDbgSeen !== scene._owDbgTick - 1 && d < 400)
+        owDbgHit(scene, 'UNATTRIBUTED', Math.round(d) + 'u', null, ow.px, ow.py);
+    }
+  }
+
   let sx = ow.stick.active ? ow.stick.dx / D.maxR : ow.keyv.x;
   let sy = ow.stick.active ? ow.stick.dy / D.maxR : ow.keyv.y;
   let mag = Math.hypot(sx, sy);
@@ -6290,6 +6370,10 @@ function owStep(scene, dt){
   if(!W.solidAt(ow.px + stepX, ow.py + stepY, D.botR)){
     ow.px += stepX; ow.py += stepY;
   } else {
+    if(OW_DBG){
+      const _b = W.solidAt(ow.px + stepX, ow.py + stepY, D.botR);
+      if(_b) owDbgHit(scene, 'block', _b.type, _b.i + ',' + _b.j, _b.cx, _b.cy);
+    }
     const freeX = !W.solidAt(ow.px + stepX, ow.py, D.botR);
     const freeY = !W.solidAt(ow.px, ow.py + stepY, D.botR);
     if(freeX){ ow.px += stepX; hitNormal = 2; }
@@ -6540,6 +6624,11 @@ function owStep(scene, dt){
      frame behind -- a few units against a 1200-unit window, and it
      self-corrects next frame. */
   owRailSync(scene);
+
+  if(OW_DBG){
+    ow._dbgEnd = { x: ow.px, y: ow.py };
+    owDbgDraw(scene);
+  }
 }
 
 /* THE TIP, LATCHED, NOT NUDGED. Writing tilt = 1.1 and trusting the
@@ -6617,6 +6706,7 @@ function owPlaceOnPad(scene, fromX, fromY){
   ow.px = pk.x; ow.py = pk.y; ow.yaw = st.a; ow.vel = 0;
   ow.reversing = false; ow.latchSign = 0; ow.inContact = false;
   ow.sfcCommit = null;          // respawn must not charge a phantom crossing
+  if(OW_DBG) ow._dbgEnd = null;  // nor read as an unattributed shove
   ow.solidOn = new Set(); ow.flatOn = new Set();
   scene.botX = pk.x; scene.botY = pk.y;
   /* SNAP THE CAMERA, do not ease it. camX/camY lerp toward the robot at
@@ -21378,6 +21468,7 @@ class WorldScene extends Phaser.Scene {
           const ny = owSep.hy + owSep.dv.y*sgn*standoff + owSep.rv.y*owSep.lat;
           this.botX = nx; this.botY = ny;
           if(this.ow){ this.ow.px = nx; this.ow.py = ny; this.ow.vel = 0; }
+          owDbgHit(this, 'loop', hz && hz.type, hz, nx, ny);
         };
         /* ASYMMETRIC-SPAN SIBLING. hzWallStop places the robot at
            ±standoff, which is exactly right for a lamp post: a pole is
@@ -21401,6 +21492,7 @@ class WorldScene extends Phaser.Scene {
           const ny = owSep.hy + owSep.dv.y*offA + owSep.rv.y*B;
           this.botX = nx; this.botY = ny;
           if(this.ow){ this.ow.px = nx; this.ow.py = ny; this.ow.vel = 0; }
+          owDbgHit(this, 'loop', hz && hz.type, hz, nx, ny);
         };
         /* THE ROBOT'S OWN LANE, off the rail. botRow is a rail input and
            laneOff is pinned to 0 under open world, so every row test
