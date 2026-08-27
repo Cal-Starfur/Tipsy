@@ -3488,7 +3488,7 @@ function zoomSet(n){
 }
 /* 1 -> 2 -> 3 -> 1. Persisted, so it survives loadChallenge()/hjQuit()
    rebuilding the route and re-entering create(). */
-function zoomCycle(){ zoomSet(zoomDepth === 3 ? 1 : zoomDepth + 1); }
+function zoomCycle(){ owDbgArm(); zoomSet(zoomDepth === 3 ? 1 : zoomDepth + 1); }
 /* Straight run-up before the kicker. Was four sidewalk tile-pairs; 5.75
    now, because the run-up is where charge is built and doubling the speed
    halves the time available to build it. It is still QUICKER than it was in
@@ -4271,10 +4271,58 @@ const OW_CF_QUERY_R = T2 * 8;
    has moved by the START of the next one without a hook firing, that
    shows as UNATTRIBUTED with the distance -- which is the signature of
    a collider nobody has instrumented yet. */
-const OW_DBG = (() => {
-  try { return new URLSearchParams(location.search).get('dbg') === '1'; }
-  catch(e){ return false; }
+const OW_DBG_KEY = 'tipsey.owdbg';
+let OW_DBG = (() => {
+  /* ?dbg=1 only reaches the game where the game IS the page, i.e. GitHub
+     Pages. itch.io runs the build inside an iframe, so a query param
+     typed in the address bar lands on itch's page and never gets here;
+     on Devvit the webview src is not ours to edit at all. So the URL is
+     the desktop convenience and the stored flag is the real switch. */
+  try { if(new URLSearchParams(location.search).get('dbg') === '1') return true; } catch(e){}
+  try { return localStorage.getItem(OW_DBG_KEY) === '1'; } catch(e){ return false; }
 })();
+
+/* FIVE TAPS ON THE VIEW BADGE. A gesture rather than a URL, because it
+   has to work identically on Pages, itch and Reddit -- and it has to be
+   something no player finds by accident. Taps must land inside
+   OW_DBG_TAP_MS of each other or the count resets, so idle cycling of
+   the view never arms it. The badge keeps doing its normal job on every
+   one of those taps; the view level just ends up somewhere else, which
+   is a fair price and easily cycled back. */
+const OW_DBG_TAPS = 5, OW_DBG_TAP_MS = 1200;
+let _owDbgTaps = 0, _owDbgTapAt = 0;
+function owDbgArm(){
+  const now = Date.now();
+  _owDbgTaps = (now - _owDbgTapAt > OW_DBG_TAP_MS) ? 1 : _owDbgTaps + 1;
+  _owDbgTapAt = now;
+  if(_owDbgTaps < OW_DBG_TAPS) return;
+  _owDbgTaps = 0;
+  OW_DBG = !OW_DBG;
+  try { localStorage.setItem(OW_DBG_KEY, OW_DBG ? '1' : '0'); } catch(e){}
+  owDbgToast(OW_DBG ? 'collider debug ON' : 'collider debug OFF');
+  if(!OW_DBG){
+    /* tear the overlay down rather than leaving a frozen one on screen.
+       The scene holds the reference, so find it the same way owDbgDraw
+       would and clear both sides. */
+    const el = document.getElementById('owDbgPanel');
+    if(el && el.parentNode) el.parentNode.removeChild(el);
+  }
+}
+if(typeof window !== 'undefined') window.owDbgArm = owDbgArm;
+
+/* Confirmation, so five taps that did nothing visible are not mistaken
+   for five taps that failed. Self-removing, no state. */
+function owDbgToast(msg){
+  try {
+    const t = document.createElement('div');
+    t.textContent = msg;
+    t.style.cssText = 'position:fixed;left:50%;top:12%;transform:translateX(-50%);' +
+      'z-index:100000;font:12px ui-monospace,Menlo,monospace;color:#fff;' +
+      'background:rgba(0,0,0,.8);padding:7px 12px;border-radius:14px;pointer-events:none';
+    document.body.appendChild(t);
+    setTimeout(() => { if(t.parentNode) t.parentNode.removeChild(t); }, 1600);
+  } catch(e){}
+}
 
 function owDbgHit(scene, src, type, key, wx, wy){
   if(!OW_DBG || !scene) return;
@@ -4297,8 +4345,10 @@ function owDbgDraw(scene){
   if(scene._owDbgAt && now - scene._owDbgAt < 160) return;
   scene._owDbgAt = now;
   let el = scene._owDbgEl;
+  if(el && !el.parentNode) el = scene._owDbgEl = null;   // removed by owDbgArm
   if(!el){
     el = document.createElement('div');
+    el.id = 'owDbgPanel';
     el.style.cssText = 'position:fixed;left:8px;bottom:8px;z-index:99999;' +
       'font:11px/1.35 ui-monospace,Menlo,monospace;color:#9fe;' +
       'background:rgba(0,0,0,.72);padding:6px 8px;border-radius:6px;' +
