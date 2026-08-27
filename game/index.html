@@ -20020,14 +20020,45 @@ class WorldScene extends Phaser.Scene {
         const bedBackA = -hl+1, bedFrontA = -cl-2;
         const railTop = chassisTop + CR.chassisH*0.55;
         const floorH = chassisTop + 1;
-        const wallFar = [carP(bedBackA,-hw,floorH), carP(bedFrontA,-hw,floorH), carP(bedFrontA,-hw,railTop), carP(bedBackA,-hw,railTop)];
+        const midA = (bedBackA + bedFrontA)/2;
+
+        /* WHICH SIDE WALL IS NEAR IS A DEPTH QUESTION, NOT A CONSTANT.
+           These were hardcoded to -hw for "far" and +hw for "near",
+           which is only true at some headings -- the same mistake the
+           near-wheel pass already documents fixing ("only correct at two
+           of the four fdir headings"). At the other headings the walls
+           painted in the wrong order. Picked by carDepth now, the same
+           way rearNearSide/frontNearSide/sgSide are. */
+        const nearB = carDepth(midA, hw, railTop) > carDepth(midA, -hw, railTop) ? 1 : -1;
+        const sideWall = s => [carP(bedBackA, s*hw, floorH), carP(bedFrontA, s*hw, floorH),
+                               carP(bedFrontA, s*hw, railTop), carP(bedBackA, s*hw, railTop)];
         const floor = [carP(bedBackA,-hw*0.88,floorH), carP(bedFrontA,-hw*0.88,floorH), carP(bedFrontA,hw*0.88,floorH), carP(bedBackA,hw*0.88,floorH)];
         const cabBackWall = [carP(bedFrontA,-hw*0.88,floorH), carP(bedFrontA,hw*0.88,floorH), carP(bedFrontA,hw*0.88,railTop), carP(bedFrontA,-hw*0.88,railTop)];
-        const wallNear = [carP(bedBackA,hw,floorH), carP(bedFrontA,hw,floorH), carP(bedFrontA,hw,railTop), carP(bedBackA,hw,railTop)];
-        this.quadOn(g, wallFar, col.bodyDk);
+
+        this.quadOn(g, sideWall(-nearB), col.bodyDk);
         this.quadOn(g, floor, CR.bedFloor);
         this.quadOn(g, cabBackWall, col.bodyDk);
-        this.quadOn(g, wallNear, col.body);
+        this.quadOn(g, sideWall(nearB), col.body);
+
+        /* THE TAILGATE, WHICH WAS NEVER DRAWN AT ALL.
+           The bed had a floor, two side walls and the back of the cab --
+           and nothing closing the tail. chassis() paints the body
+           silhouette underneath, so from any heading with the tail
+           toward the camera the bed floor and its interior walls
+           projected straight over where the rear panel should be. That
+           is the "bed drawing over its rear panel" report (2026-08-27):
+           not a z-order fight, a missing face.
+
+           Only drawn when the tail is actually the camera-facing end --
+           from the front the cab occludes it anyway, and painting it
+           regardless would put an exterior panel over the bed interior
+           you are meant to be looking into. */
+        if(carDepth(bedBackA, 0, railTop) > carDepth(bedFrontA, 0, railTop)){
+          const tailgate = [carP(bedBackA,-hw,floorH), carP(bedBackA,hw,floorH),
+                            carP(bedBackA,hw,railTop), carP(bedBackA,-hw,railTop)];
+          this.quadOn(g, tailgate, col.body);
+          this.edgeOn(g, tailgate, col.bodyDk, 1);
+        }
       };
 
       const cabin = () => {
