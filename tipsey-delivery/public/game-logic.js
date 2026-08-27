@@ -31969,6 +31969,34 @@ document.getElementById("retryBtn").addEventListener("click", () => {
   /* In the challenge, Retry means RETRY THE JUMP. Loading the daily
      route dumped the player out of the mission entirely. */
   if(s.mode === "challenge"){ s.hjResetRun(); return; }
+  /* IN FREE ROAM, RETRY MEANS STAND HIM BACK UP -- on a charging pad,
+     which is where free roam starts and the only place in the open city
+     that means "ready" (Sir, 2026-08-26: "it put me at the red carpet
+     for the pick up when i hit retry but that should bring me back to
+     the charging station").
+
+     The bare loadRoute below is the DELIVERY's retry: it rebuilds
+     today's errand and drops the robot on the shop's mat with a clean
+     load, which is exactly right when the run you just lost was that
+     errand. Free roam has no errand and no mat -- the toppling happened
+     somewhere out in the city -- so the same call answered a question
+     nobody asked and left him standing on a pickup carpet with the
+     delivery re-armed behind him.
+
+     tpFreePlay is the recovery, whole: it is the same three steps
+     failLaterBtn and the map's Free Play row both take (loadRoute,
+     owInstall, owPlaceOnPad), so there is still exactly one copy of
+     "put him on a pad". It hides #failOverlay itself, which this
+     handler has already done -- harmless, and worth more than a
+     second entry point that could drift from the first.
+
+     No countPlay: a free-roam pick-up-and-continue is not an attempt at
+     anything scored, same reasoning failLaterBtn's path already had. */
+  if(s.mode === "freeroam"){
+    document.getElementById("retryBtn").textContent = "Retry";
+    tpFreePlay();
+    return;
+  }
   document.getElementById("retryBtn").textContent = "Retry";
   countPlay();
   s.loadRoute(s.route.dateStr); s.state = "play";
