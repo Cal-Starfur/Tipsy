@@ -7274,6 +7274,12 @@ function tpPickupHere(scene){
   if(!scene || !scene.route) return false;
   scene.mode = "delivery";
   scene.loadRoute(clientTodayUTC());
+  /* countPlay() is the GO button's job on every other entry into a run,
+     and driving onto the mat is now an entry into a run. Without it a
+     delivery you drove to was invisible to the play counter, so the
+     "Regular -- play 5 different days" trophy silently ignored exactly
+     the flow the game now steers people into. */
+  countPlay();
   scene.state = "play";
   hide("titleOverlay");
   tpToast("Order picked up \u2014 deliver to " + scene.route.address + ".");
