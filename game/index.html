@@ -9421,6 +9421,65 @@ function cityFurnitureForEdge(grid, blk, fi){
   {
     const R = mulberry32(cityFurnEdgeSeed(e, 0x0c17));
     let a = 0;
+
+    /* ---------- SPACING MEMORY, NOT AN INDEPENDENT DRAW ----------
+       Every slot used to roll its type with no knowledge of its
+       neighbours: `r3 < 0.25 ? dog : ... : bin : planter`. Independent
+       draws cluster -- that is what independent draws DO -- and the
+       slots here are close together, roughly 52 to 101 units apart, so
+       a 1,656-unit frontage gets about 22 of them. Three bins in a row
+       is three consecutive slots inside 150 units. At ~6% per slot that
+       triple is rare on any one frontage and a certainty across 3,640.
+       Reported on-device 2026-08-27: three bins in a row.
+
+       Street furniture is not placed by dice. Two bins do not go up ten
+       feet apart because a council does not buy them that way. So each
+       type now carries a minimum spacing and its weight RECOVERS with
+       distance rather than being on or off: a type just placed has
+       almost no weight, and is back to full by the time the gap is
+       cleared. Squared, so the suppression bites hard up close and
+       fades quickly after.
+
+       Weight recovery rather than hard suppression matters, because a
+       hard ban would just hand the slot to whatever type happened to be
+       eligible and push the clustering onto THAT type instead. Here the
+       whole table stays live and merely re-weights, so density holds
+       and no type inherits the run. */
+    /* cone/trash/scooter carry the LARGER gaps despite being commoner,
+       because they draw from one- and two-item tables: with no sibling
+       to hand the slot to, their only dispersal mechanism is the empty
+       -slot floor below, which needs a gap wide enough to actually
+       trip. Measured at cone: 240 sat under the natural slot spacing,
+       so it never bound at all and cones stayed the worst offender by
+       an order of magnitude. The four-way table needs less help --
+       there the re-weighting alone does the work. */
+    const MIN_GAP = { bin: 520, planter: 420, trash: 660, scooter: 700,
+                      cone: 720, dog: 700, people: 500 };
+    const lastAt = Object.create(null);
+    const pickSpaced = (table) => {
+      const w = []; let tot = 0, baseTot = 0;
+      for(const [ty, base] of table){
+        const gap = MIN_GAP[ty] || 0;
+        const since = a - (lastAt[ty] !== undefined ? lastAt[ty] : -1e9);
+        const k = gap > 0 ? Math.min(1, since / gap) : 1;
+        const ww = base * k * k;
+        w.push(ww); tot += ww; baseTot += base;
+      }
+      /* LEAVE THE SLOT EMPTY RATHER THAN PLACE A SUPPRESSED TYPE.
+         Re-weighting alone only disperses a table with somewhere else
+         to go. The four-way table has that; cone is a table of ONE and
+         scooter/trash a table of two, so with every option suppressed
+         the picker just handed the slot back to the type it was trying
+         to space out -- measured, cone/trash/scooter still ran to 4
+         while bin dropped to 2. Below a quarter strength the honest
+         answer is that this stretch of pavement has nothing on it. */
+      if(tot < baseTot * 0.25) return null;
+      if(tot <= 0) return null;
+      let r = R() * tot;
+      for(let i = 0; i < table.length; i++){ r -= w[i]; if(r <= 0) return table[i][0]; }
+      return table[table.length - 1][0];
+    };
+
     while(a < e.len){
       a += ((330 - density*176) + R()*198) * 0.25 * CITY_FURN.sparse * CITY_FURN.cal.mix;
       const aR = Math.round(a);
@@ -9431,12 +9490,14 @@ function cityFurnitureForEdge(grid, blk, fi){
       if(blocked(aR, lane)) continue;
       const r2 = R();
       let type;
-      if(r2 < hood.litter*0.35)           type = R() < 0.6 ? "scooter" : "trash";
+      if(r2 < hood.litter*0.35)           type = pickSpaced([["scooter",0.60],["trash",0.40]]);
       else if(r2 < 0.75){
         if(R() < 0.5) continue;
-        type = "cone";
+        type = pickSpaced([["cone",1]]);
       }
-      else { const r3 = R(); type = r3 < 0.25 ? "dog" : r3 < 0.48 ? "people" : r3 < 0.73 ? "bin" : "planter"; }
+      else type = pickSpaced([["dog",0.25],["people",0.23],["bin",0.25],["planter",0.27]]);
+      if(!type) continue;
+      lastAt[type] = a;
       propSpawnState(type, place(type, aR, lane, p), R, walkRange);
     }
   }
