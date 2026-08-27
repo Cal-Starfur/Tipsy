@@ -7298,6 +7298,86 @@ function gpsNavTurn(scene){
 }
 if(typeof window !== "undefined") window.gpsNavTurn = gpsNavTurn;
 
+/* THE LINE THE ROBOT WOULD ACTUALLY DRIVE (Sir, 2026-08-26: "can we get
+   the route to be on the sidewalks").
+
+   A* is correct as a ROUTE and wrong as a picture. buildGrid puts every
+   node at {x:i*BLOCK, y:j*BLOCK} -- street-centreline intersections --
+   so the polyline ran down the middle of the road while the robot, who
+   can only travel the sidewalk band, drove a lane and a half to one
+   side of his own instruction. Nothing about the navigation was wrong;
+   only the drawing was.
+
+   So the legs are pushed sideways onto the walk, using the SAME frame
+   every other lateral offset in this file uses: heading f gives
+   dv = DIRV[f] along the leg and rv = DIRV[(f+1)%4] across it, and the
+   offset rides rv. laneOffset() supplies the magnitude, so this cannot
+   drift from where the robot really is -- if the band moves, the line
+   moves with it.
+
+   GPS_WALK_LANE is 1.5, the middle of the four-row band rather than a
+   real lane: the drawn line is an instruction, not a rail, and picking
+   lane 0 or 3 would claim a precision about which row to use that the
+   player is free to ignore.
+
+   CORNERS MITRE, they do not swing wide (Sir: "we dont need to make a
+   wide turn on the map the free steering lets the player decide"). The
+   join is the intersection of the two offset lines, and for axis-
+   aligned legs that has a closed form: corner = B + OFF*(rv1 + rv2).
+   Worth deriving rather than trusting -- on a RIGHT turn rv2 = -dv1 and
+   the sum collapses to OFF*(rv1 - dv1); on a LEFT turn rv2 = +dv1 and
+   it gives OFF*(rv1 + dv1). Both are exactly the intersection point,
+   which is why one expression covers both and no branch on turn
+   direction is needed. That is the all-four-headings trap closed by
+   construction instead of by four cases.
+
+   A U-TURN is the one case the formula cannot serve: rv2 = -rv1, the
+   sum is zero, and the "corner" lands back on the centreline. A* charges
+   GPS_UTURN_COST so these are rare, but rare is not never -- so that
+   case emits both offset points and lets the line jog across, which is
+   what a U-turn on a one-sided walk genuinely looks like.
+
+   Collinear legs emit nothing: two nodes in a straight run are already
+   on the same offset line and a midpoint would only add a vertex. */
+const GPS_WALK_LANE = 1.5;
+function gpsWalkPts(pts){
+  if(!pts || pts.length < 2) return pts || [];
+  const OFF = laneOffset(GPS_WALK_LANE);
+  /* heading index of a leg, from the leg itself rather than from the
+     A* state word -- gpsFindPath already discards the per-node heading
+     when it maps chain to pts, and re-deriving it here keeps this
+     function usable on any lattice polyline. */
+  const fOf = (a, b) => {
+    const dx = b.x - a.x, dy = b.y - a.y;
+    return Math.abs(dx) >= Math.abs(dy) ? (dx >= 0 ? 0 : 2) : (dy >= 0 ? 1 : 3);
+  };
+  const rvOf = f => DIRV[(f + 1) % 4];
+  const push = (out, x, y) => {
+    const last = out[out.length - 1];
+    if(last && Math.abs(last.x - x) < 1 && Math.abs(last.y - y) < 1) return;
+    out.push({ x, y });
+  };
+  const out = [];
+  const f0 = fOf(pts[0], pts[1]), r0 = rvOf(f0);
+  push(out, pts[0].x + r0.x*OFF, pts[0].y + r0.y*OFF);
+  for(let q = 1; q < pts.length - 1; q++){
+    const f1 = fOf(pts[q-1], pts[q]), f2 = fOf(pts[q], pts[q+1]);
+    if(f1 === f2) continue;                       // straight run, no vertex owed
+    const r1 = rvOf(f1), r2 = rvOf(f2);
+    if((f1 + 2) % 4 === f2){                      // U-turn: jog, do not mitre
+      push(out, pts[q].x + r1.x*OFF, pts[q].y + r1.y*OFF);
+      push(out, pts[q].x + r2.x*OFF, pts[q].y + r2.y*OFF);
+      continue;
+    }
+    push(out, pts[q].x + (r1.x + r2.x)*OFF, pts[q].y + (r1.y + r2.y)*OFF);
+  }
+  const fN = fOf(pts[pts.length-2], pts[pts.length-1]), rN = rvOf(fN);
+  const end = pts[pts.length-1];
+  push(out, end.x + rN.x*OFF, end.y + rN.y*OFF);
+  return out;
+}
+if(typeof window !== "undefined") window.gpsWalkPts = gpsWalkPts;
+
 function gpsNavTo(scene, id, name, tx, ty){
   if(!scene || !scene.route || !scene.route.grid) return false;
   gpsNav = { id, name, tx, ty, path: null, etaMs: null, distU: 0, plottedAt: -1e9 };
@@ -30138,7 +30218,10 @@ function drawRouteMap(route){
        NOT sidewalk-aligned yet; the lattice legs between them are not
        either (nodes sit on street centrelines), and fixing that is its
        own change. */
-    const pts = gpsNav.path.pts;
+    /* offset onto the walk before anything is projected -- gpsWalkPts
+       works in world units, the same space toScreen expects, so the map
+       and any future in-world drawing of this line share one geometry. */
+    const pts = gpsWalkPts(gpsNav.path.pts);
     ctx.save();
     ctx.setLineDash([7, 6]);
     ctx.lineWidth = 4; ctx.lineJoin = "round"; ctx.lineCap = "round";
