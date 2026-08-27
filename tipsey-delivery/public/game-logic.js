@@ -18603,10 +18603,29 @@ class WorldScene extends Phaser.Scene {
     const V = {a:0,b:1,h:0}, HH = {a:0,b:0,h:1};
     const px = r => r * this.K * 1.12;          // sphere → screen radius
 
-    /* ---- shadow ---- */
+    /* ---- shadow ----
+       SCALED BY K LIKE EVERY OTHER PART OF THE DOG. This ellipse was
+       the one piece drawn in raw screen pixels: the body, head and paws
+       all run through px() above, which carries this.K, and the shadow
+       did not. So the dog shrank with the zoom and its shadow stayed a
+       fixed 32x11, which is why it swamped him at VIEW 3 -- reported
+       on-device 2026-08-27, "the shadow on the dogs is way too big".
+
+       Every other prop in the file already does this correctly: the
+       lamp scales its base shadow by K, the car by this.K*0.42.
+
+       ANCHORED ON VIEW 1, not on the car's factor. ZOOM_K is
+       [1.5, 0.70, 0.30] and the dog was plainly art-directed at the
+       closest view -- that is where the old fixed 32x11 actually sat
+       right under him. Dividing by ZOOM_K[0] keeps VIEW 1 pixel-for-
+       pixel identical to the tuned appearance and lets the other two
+       fall out of it, so this is a pure scaling fix and not a
+       re-styling. Borrowing the car's 0.42 was the first attempt and
+       shrank VIEW 1 by a third, which read as too thin. */
+    const shK = this.K / ZOOM_K[0];
     const sh = G((rearA + chestA)/2, 0, 0);
     g.fillStyle(D.shadow, 0.13);
-    g.fillEllipse(sh.x, sh.y + 1, (sit ? 34 : 40)*L, 14*L);
+    g.fillEllipse(sh.x, sh.y + 1, (sit ? 34 : 40)*L * shK, 14*L * shK);
 
     /* ---- parts (built as closures, depth-sorted) ---- */
 
