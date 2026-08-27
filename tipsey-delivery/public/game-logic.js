@@ -4197,6 +4197,34 @@ const OW_HZ_R = {
 const OW_HZ_FLAT = new Set(['crack', 'slab', 'pigeons', 'grade', 'burnoutMark',
                             'sidewalkend', 'sidewalkbegin']);
 
+/* ---------- WHICH WAY A KICK THROWS HIM ----------
+   Every tilt impulse in the open world took its sign from dYaw, this
+   frame's steering delta. Driving STRAIGHT, err converges, Math.sign(err)
+   returns 0, dYaw is exactly 0 -- and `dYaw >= 0` is TRUE. So on a dead
+   straight road every crack, slab and scrape pushed tilt the SAME way,
+   +1. Nothing cancelled. Against a ~330ms decay half-life and city
+   cracks landing every few hundred units of frontage in four lanes, they
+   stacked into a permanent positive offset: meter filled, robot visibly
+   leaning, on a straight line with no hazard he ever hit hard. The rail
+   never had this because kicks carried the hazard's own hz.kickDir,
+   which alternated per prop; the port swapped that for the thumb.
+
+   The sign is a property of the CONTACT, not of the stick. cx/cy is the
+   direction from the robot TO the thing he touched; its cross product
+   with his heading names the side it sits on, so a crack under the left
+   wheels throws him left, one under the right throws him right, and a
+   run of them averages out instead of integrating. dYaw is the tie-break
+   for a genuinely dead-centre hit -- head-on into a wall has no side --
+   and an alternating per-robot flip is the tie-break for THAT. The one
+   thing this must never return is a constant. */
+function owTiltSide(ow, dYaw, cx, cy){
+  const s = Math.sign(Math.cos(ow.yaw) * cy - Math.sin(ow.yaw) * cx);
+  if(s) return s;
+  if(dYaw > 0) return 1;
+  if(dYaw < 0) return -1;
+  return (ow.tiltFlip = -(ow.tiltFlip || 1));
+}
+
 /* how far around the robot the city-furniture table is queried each
    step. HZ_CELL (the route hazard bucket) is T2*8 and its 3x3 neighbour
    sweep reaches the same distance, so the two sources see the same
@@ -4231,7 +4259,8 @@ function owContact(scene, ow, D, dYaw, key, type, hx, hy){
     if(dist < D.hzFlat){
       if(!ow.flatOn.has(key)){
         ow.flatOn.add(key);
-        scene.tilt += (dYaw >= 0 ? 1 : -1) * D.hzFlatTilt * (Math.abs(ow.vel) / D.vMax);
+        scene.tilt += owTiltSide(ow, dYaw, hx - ow.px, hy - ow.py)
+                    * D.hzFlatTilt * (Math.abs(ow.vel) / D.vMax);
       }
     } else ow.flatOn.delete(key);
     return false;
@@ -4253,7 +4282,7 @@ function owContact(scene, ow, D, dYaw, key, type, hx, hy){
   if(vN >= D.clipThresh){
     owTip(scene, -(Math.sign(Math.cos(ow.yaw) * nx + Math.sin(ow.yaw) * ny) || 1));
   } else {
-    scene.tilt += (dYaw >= 0 ? 1 : -1) * D.clipTilt * vN * (fresh ? 1 : D.grindTilt);
+    scene.tilt += owTiltSide(ow, dYaw, -nx, -ny) * D.clipTilt * vN * (fresh ? 1 : D.grindTilt);
     ow.vel *= D.clipLoss; if(fresh) ow.clipScrapes++;
   }
   return true;
@@ -4304,7 +4333,7 @@ function owShoreCollide(scene, ow, D, dYaw){
     if(vN >= D.clipThresh){
       owTip(scene, -(Math.sign(Math.cos(ow.yaw)*nx + Math.sin(ow.yaw)*ny) || 1));
     } else {
-      scene.tilt += (dYaw >= 0 ? 1 : -1) * D.clipTilt * vN * D.grindTilt;
+      scene.tilt += owTiltSide(ow, dYaw, -nx, -ny) * D.clipTilt * vN * D.grindTilt;
       ow.vel *= D.clipLoss;
     }
     hit = true;
@@ -5338,7 +5367,13 @@ function owStep(scene, dt){
          accumulated into a topple no single moment deserved: measured, a
          0.225 oblique graze tipped after six frames of touching. */
       const fresh = !ow.inContact;
-      scene.tilt += (dYaw >= 0 ? 1 : -1) * D.clipTilt * vN * (fresh ? 1 : D.grindTilt);
+      /* the blocked axis, pointed the way he was travelling, IS the
+         direction to the face he touched. Square-on gives a zero cross
+         and falls through to the tie-break, which is correct: a head-on
+         wall has no side to throw you toward. */
+      const cxB = hitNormal === 1 ? (Math.sign(stepX) || Math.cos(ow.yaw)) : 0;
+      const cyB = hitNormal === 2 ? (Math.sign(stepY) || Math.sin(ow.yaw)) : 0;
+      scene.tilt += owTiltSide(ow, dYaw, cxB, cyB) * D.clipTilt * vN * (fresh ? 1 : D.grindTilt);
       ow.vel *= D.clipLoss; if(fresh) ow.clipScrapes++;
     }
   }
