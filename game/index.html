@@ -8481,10 +8481,97 @@ function gpsNavReplot(scene, force){
    The 0.3 threshold ignores the sub-degree wobble between two nodes
    that are nominally collinear; a real lattice turn is a full 90 and
    scores 1.0. */
+/* WHICH EDGE THE CARGO LID HINGES ON, DERIVED FROM WHERE THE HANDOVER
+   ACTUALLY IS (2026-08-27, Sir: "we need to write the lid animation to
+   be aware of the worker").
+
+   drawLid hinges on a FIXED body edge -- lidHingeFlip picks yh = +hy or
+   -hy and flips the sin term to match -- so the mouth always opened
+   toward the same side of travel. That was right for exactly as long as
+   the rail was: on the rail the robot always faced along the route with
+   the shop on its left (ROBOT_SIDE is -1 and the shop sits further from
+   the centreline than lane 1), so "always left" and "toward the worker"
+   were the same sentence. Free steering broke the tie, and keepPose
+   removes the last thing that was quietly re-imposing it -- park facing
+   the other way and the worker reaches OVER the closed half to drop the
+   bag in.
+
+   The person's bearing is read off the MAT rather than off the person,
+   because the person's world position is computed in the draw pass and
+   this is decided in update. rv points out toward the street on every
+   mat in this file, so the door -- shop or house -- is at -rv. That is
+   the same vector for the pickup worker and the dropoff customer, which
+   is why one helper covers both.
+
+   Body +y is right-of-travel, world (-sin a, cos a): the same pair
+   owMatContains resolves the body box with, not a second convention.
+   side <= 0 means the person is on the LEFT, which returns true -- the
+   exact hinge the rail always used, so the approved look is reproduced
+   bit for bit on every pose that used to be reachable and only mirrors
+   on the ones that were not.
+
+   No mat (a challenge route has no pickupMat) falls back to that same
+   legacy side rather than to a guess. */
+function tpHingeSideToward(scene, mat){
+  if(!scene || !mat) return true;
+  const rvx = (mat.rvx !== undefined) ? mat.rvx : (mat.rv ? mat.rv.x : 0);
+  const rvy = (mat.rvy !== undefined) ? mat.rvy : (mat.rv ? mat.rv.y : 0);
+  const wx = -rvx, wy = -rvy;                       // robot -> door
+  const a = (scene.ow && scene.ow.on) ? scene.ow.yaw : scene.drawAngle;
+  const side = wx*(-Math.sin(a)) + wy*(Math.cos(a));
+  return side <= 0;
+}
+if(typeof window !== "undefined") window.tpHingeSideToward = tpHingeSideToward;
+
 function gpsNavTurn(scene){
   if(!gpsNav || !gpsNav.path || !scene) return null;
   const pts = gpsNav.path.pts;
   if(!pts || pts.length < 2) return null;
+  /* TWO THINGS THIS USED TO MISS (2026-08-27, Sir: "we need the gps to
+     be directionally aware if he needs to make a uturn").
+
+     gpsFindPath was never the problem -- it searches (node x heading),
+     seeds from the robot's real yaw and charges GPS_UTURN_COST for a
+     180, and gpsWalkPts already draws a U-turn as a jog rather than a
+     mitre. Only the SPOKEN direction was blind, in two places.
+
+     (a) THE ROBOT'S OWN FACING WAS NEVER READ. The loop below starts at
+     pts[1] and compares node to node, so every instruction it gave was
+     about a corner somewhere ahead. Plot a route while pointed the
+     wrong way down the block and it announced that corner and said
+     nothing at all about the turnaround under your wheels.
+
+     Only a REVERSAL is reported from the lead, deliberately. The
+     tempting version -- treat the robot as another vertex and let the
+     loop classify it -- was tried and is wrong twice over: pts[0] is a
+     lattice node on the STREET CENTRELINE while the robot is always a
+     lane and a half onto the pavement, so the leg robot->pts[0] is
+     diagonal and scored a phantom "Turn Right" on a robot driving
+     dead straight at its destination (measured: sign 1, dist 0, on a
+     zero-turn path). And a merely perpendicular lead is the robot
+     standing sideways on the walk or halfway round a corner, which is
+     not an instruction, it is a pose. A 180 is neither ambiguous nor a
+     pose: you cannot get there without turning around.
+
+     Measured against the first real LEG (pts[0]->pts[1]), which is a
+     pure lattice axis, rather than against the offset lead.
+
+     (b) A U-TURN SCORES ZERO CROSS. d2 = -d1 makes the cross product 0,
+     under the 0.3 threshold, so a 180 mid-path was skipped in silence
+     and the NEXT turn got reported in its place -- actively wrong
+     directions, not merely absent ones. The dot product is what
+     distinguishes it, and it is tested FIRST: a reversal is not a sharp
+     left.
+
+     The 0.3 threshold still ignores sub-degree wobble between nominally
+     collinear nodes; a real lattice turn is a full 90 and scores 1.0. */
+  const yaw = (scene.ow && scene.ow.on) ? scene.ow.yaw : scene.drawAngle;
+  if(yaw !== undefined && yaw !== null){
+    const gx = pts[1].x - pts[0].x, gy = pts[1].y - pts[0].y;
+    const gl = Math.hypot(gx, gy) || 1;
+    if(Math.cos(yaw)*(gx/gl) + Math.sin(yaw)*(gy/gl) < -0.5)
+      return { sign: 0, uturn: true, dist: 0 };
+  }
   let acc = Math.hypot(pts[0].x - scene.botX, pts[0].y - scene.botY);
   for(let i = 1; i < pts.length - 1; i++){
     const a = pts[i-1], b = pts[i], c = pts[i+1];
@@ -8492,7 +8579,9 @@ function gpsNavTurn(scene){
     const d2x = c.x - b.x, d2y = c.y - b.y;
     const l1 = Math.hypot(d1x, d1y) || 1, l2 = Math.hypot(d2x, d2y) || 1;
     acc += l1;
-    const cross = (d1x/l1)*(d2y/l2) - (d1y/l1)*(d2x/l2);
+    const ux = d1x/l1, uy = d1y/l1, vx = d2x/l2, vy = d2y/l2;
+    if(ux*vx + uy*vy < -0.5) return { sign: 0, uturn: true, dist: Math.max(0, acc) };
+    const cross = ux*vy - uy*vx;
     if(Math.abs(cross) > 0.3) return { sign: cross > 0 ? 1 : -1, dist: Math.max(0, acc) };
   }
   return null;
@@ -8648,7 +8737,12 @@ function gpsNavLaunch(scene){
 function tpPickupHere(scene){
   if(!scene || !scene.route) return false;
   scene.mode = "delivery";
-  scene.loadRoute(clientTodayUTC());
+  /* keepPose closes the seam this comment used to call out as deferred.
+     The mat now sits centred on pickupSpot, so the robot standing armed
+     on it is already within the mat's own grace of where loadRoute would
+     have put it -- and keepPose removes even that, plus the rotation
+     snap, which was the more visible of the two. */
+  scene.loadRoute(clientTodayUTC(), { keepPose: true });
   /* countPlay() is the GO button's job on every other entry into a run,
      and driving onto the mat is now an entry into a run. Without it a
      delivery you drove to was invisible to the play counter, so the
@@ -12955,24 +13049,56 @@ function _generateRouteFresh(dateStr, opts){
     for(const hz of got.hazards) hazards.push(hz);
     cfTaken = got.taken;
   }
-  /* THE PICKUP MAT. Same builder the two mission mats use, so the shop
-     door gets the identical geometry, containment test and four-state
-     highlight the Hydrant and Slalom starts already have -- there is no
-     second answer to "is the robot standing on it" anywhere in this
-     file, and this does not add one.
+  /* THE PICKUP MAT, CENTRED ON THE SHOP SPOT (2026-08-27, Sir: "can we
+     move the matt out to the pick up placing"). Same owMatFrame every
+     other mat is built through, so the geometry, the containment test
+     and the four-state highlight are still the shared ones -- what
+     changed is only WHERE.
 
-     Lane 3 is the doormat lane, the same one the delivery address sits
-     in: this IS a doormat, it just belongs to a shop. Built off pickupS
-     rather than pickupSpot because pickupS was already refined during
-     generation to the closest ON-ROUTE position to the shop, so the mat
-     is guaranteed reachable by a robot driving the street. Anchoring on
-     pickupSpot instead could park it inside the building.
+     It used to be missionMatAtS(..., lane 3): the doormat lane, hard
+     against the shop frontage. Measured on the 2026-08-27 daily
+     (Terrace Coffee): mat centre y 33718, route.pickupSpot y 33865.2 --
+     147.2 units apart, and the delta is PURELY LATERAL (both sat at
+     x 61004.36, so the pickupS clamp contributed nothing). That 147 was
+     the visible yank toward the street when loadRoute repositioned the
+     robot onto pickupSpot.
+
+     The old comment here warned that anchoring on pickupSpot "could
+     park it inside the building". It cannot, and the numbers say so:
+     pickupSpot sits 174.8 past ROAD_HALF, so a T2 mat centred on it
+     spans 496.8..588.8 off the centreline while the sidewalk band runs
+     368..736. Fully on pavement, clear of the road, clear of the
+     frontage. The building worry was about the ADDRESS spot, which is a
+     door on a wall; a shop's pickup spot is a standing place at the
+     kerb.
+
+     Anchor is pickupSpot stepped half a tile BACK along rv, because
+     owMatFrame's own half-tile step out along rv is what then lands the
+     centre exactly on the spot. That matters beyond tidiness: the
+     pickup worker's meet point is hard-anchored to pickupSpot (see
+     drawPickupUnit's "the meet is static and exact"), so a mat anywhere
+     else means he walks out and sets the bag down where the robot is
+     not.
+
+     lane is null rather than 3 -- nothing reads .lane off a mission mat
+     (only ch.lane, which is the hydrant course's own), and a number
+     here would be a claim about a band this mat no longer sits in.
 
      Challenge routes have no shop at all (loadRoute nulls pickupSpot
      for them), so they get no mat. */
   const pickupMat = (!(opts && opts.challenge) && pickupSpot)
-    ? missionMatAtS({ segs }, pickupS, "pickup",
-                    "Pickup \u2014 " + pickupShopName, "rug", 3)
+    ? (() => {
+        const hdg = segsHeadingAt(segs, pickupS);
+        const dv = { x: Math.cos(hdg), y: Math.sin(hdg) };
+        const r0 = { x: -Math.sin(hdg), y: Math.cos(hdg) };   // right-of-travel
+        /* rv points OUT toward the street, matching abEdges' convention
+           and every other mat in this file */
+        const rv = { x: -ROBOT_SIDE*r0.x, y: -ROBOT_SIDE*r0.y };
+        const ax = pickupSpot.x - rv.x*(T2/2), ay = pickupSpot.y - rv.y*(T2/2);
+        return { id: "pickup", name: "Pickup \u2014 " + pickupShopName,
+                 style: "rug", lane: null,
+                 mat: owMatFrame(ax, ay, dv, rv), ax, ay, dv, rv };
+      })()
     : null;
   return stampWorldCoords({ addressMat, pickupMat, cfTaken, hood: addressHood, grid, segs, totalLen: loop ? loop.sEnd : totalLen, loop, tiles, hazards, props, pal, night, traffic, trafficFleet, crossings, cutEdges, cutExt, challenge, crime, routeCells, curbRamps, signals: grid.signals,
            address:`${number} ${street}`, doorS, pickupS, pickupSpot, pickupShopName, addressBlock, pickupBlock, addressEdgeIdx, pickupEdgeIdx, addressUnitIdx, pickupUnitIdx, addressUsesGate, order, parMs, dateStr, runIndex  });
@@ -14372,6 +14498,25 @@ class WorldScene extends Phaser.Scene {
   }
 
   loadRoute(dateStr, opts){
+    /* KEEP THE POSE (2026-08-27, Sir: "i want it to be seemless").
+       loadRoute has always ended by putting the robot at pickupSpot
+       facing headingAt(pickupS), which is correct for every entry that
+       comes off a map screen and wrong for the one entry that does not:
+       driving onto the pickup mat, where the robot is already standing
+       in the right place facing a direction the player chose.
+
+       Captured HERE, before generateRoute replaces this.route, and
+       re-applied at the very END -- see the pose restore after
+       owUninstall, which is the reason it cannot simply be done inline
+       in the position block below.
+
+       ow.px/py/yaw are the authority whenever free roam is installed;
+       botX/botY/drawAngle are the fallback for a rail pose. */
+    const _pose = (opts && opts.keepPose)
+      ? { x:   this.ow ? this.ow.px  : this.botX,
+          y:   this.ow ? this.ow.py  : this.botY,
+          yaw: this.ow ? this.ow.yaw : this.drawAngle }
+      : null;
     /* a corridor belongs to a course, and loading a route ends whatever
        course was running. Left set, it would keep a stretch of some
        other street invisible and drive-through. */
@@ -14477,6 +14622,8 @@ class WorldScene extends Phaser.Scene {
                             // walk phase can start
     this.walkAt = null;   // timestamp (this.runT-relative) captured when the walk phase
                            // actually begins, after loading finishes
+    this.lidHingeSide = true;  // which edge that flip uses; latched per handover
+                               // (tpHingeSideToward). true is the legacy side.
     this.lidHingeFlip = false; // true only during pickup loading — opens the cargo lid
                                 // from the opposite edge than the tip/spill crash animation uses
     /* HANDOVER OUT OF FREE PLAY. Open world takes the route's hazard,
@@ -14487,6 +14634,24 @@ class WorldScene extends Phaser.Scene {
        hydrant, the slalom, retry — so uninstalling here closes all of
        them at once instead of six call sites each remembering. */
     if(this.ow) owUninstall(this);
+    /* THE POSE RESTORE, AND IT HAS TO BE HERE. owUninstall above puts
+       botS and laneOff back to the values it stashed at INSTALL time --
+       wherever the robot was standing when free play began, which on a
+       normal session is a charging station a district away. Correct for
+       handing the rail back; useless as the s-anchor owInstall will read
+       again next frame, when the robot is standing outside a shop.
+
+       So this re-seats both from the route just loaded and then puts the
+       captured pose back on top. Doing it inline in the position block
+       above would have been silently undone by that restore. */
+    if(_pose){
+      this.botS = this.route.pickupS;
+      this.botZ = this.groundZ(this.botS);
+      this.laneOff = 0;               // world x/y is the authority, same as owInstall
+      this.botX = _pose.x; this.botY = _pose.y;
+      this.drawAngle = _pose.yaw;
+      this.camX = this.botX; this.camY = this.botY; this.camZ = this.botZ;
+    }
     this.pickupLidClosing = false; // latches true while the lid still owes a close-out on
                                     // that flipped hinge, even after loading itself has ended
     this.state = "idle";
@@ -21160,7 +21325,18 @@ class WorldScene extends Phaser.Scene {
        set by loadingLidOpen itself, never by lidAng's value alone. */
     const loadingLidOpen = this.state === "play" && loadFrac > 0.05 && loadFrac < LOAD_ART.dropFrac;
     const lidLoadTarget = loadingLidOpen ? LOAD_ART.lidOpenAngle : 0;
-    if(loadingLidOpen) this.pickupLidClosing = true;
+    /* THE SIDE IS LATCHED, NOT SAMPLED. tpHingeSideToward reads the
+       robot's CURRENT yaw, and the robot can still be nudged while the
+       worker is walking out -- evaluated per frame the hinge would flap
+       mid-animation, and a hinge that swaps while the lid is 0.4 rad
+       open is the same visible pop pickupLidClosing already exists to
+       prevent. Latched on the rising edge only: pickupLidClosing is
+       still false on the first frame loadingLidOpen goes true, which is
+       exactly the edge, so no second flag is needed to find it. */
+    if(loadingLidOpen){
+      if(!this.pickupLidClosing) this.lidHingeSide = tpHingeSideToward(this, this.route.pickupMat);
+      this.pickupLidClosing = true;
+    }
     else if(this.lidAng < 0.02) this.pickupLidClosing = false;
     /* 0.02 rad (~1 degree), NOT the old 0.15 (~8.5 degrees): the hinge
        mirrors the instant this latch releases, and at 0.15 the lid was
@@ -21174,10 +21350,21 @@ class WorldScene extends Phaser.Scene {
        writer (tipped), or the cornering-crack effect (play). Opens
        while the bag is still in the bin, closes once it's out. */
     const wonLidOpen = this.state === "won" && this.wonFrac > 0.02 && this.wonFrac < LOAD_ART.dropFrac;
-    if(wonLidOpen) this.wonLidClosing = true;
+    /* the dropoff had this bug ALREADY, before any of today's changes:
+       freeing the delivery from the rail let the robot arrive at the
+       doormat facing any way it liked while this side stayed constant.
+       Same latch, same helper, the address mat's own rv. */
+    if(wonLidOpen){
+      if(!this.wonLidClosing) this.lidHingeSide = tpHingeSideToward(this, this.route.addressMat);
+      this.wonLidClosing = true;
+    }
     else if(this.lidAng < 0.02) this.wonLidClosing = false;   // same invisible-swap bar as the pickup latch
-    this.lidHingeFlip = (this.state === "play" && (loadingLidOpen || this.pickupLidClosing))
-                     || (this.state === "won" && (wonLidOpen || this.wonLidClosing));
+    /* the WINDOW is unchanged -- what used to be a bare `true` in it is
+       now the latched side. Outside the window it is still false, which
+       is the tip/spill crash animation's fixed hinge, untouched. */
+    this.lidHingeFlip = ((this.state === "play" && (loadingLidOpen || this.pickupLidClosing))
+                      || (this.state === "won" && (wonLidOpen || this.wonLidClosing)))
+                      ? (this.lidHingeSide !== false) : false;
     /* THE EASE IS PER-FRAME, AND THE RELEASE GATE READS IT.
        PEEL.lidShut deliberately makes the standing start release on a
        lid ANGLE rather than a duration (see its own note). That only
@@ -25235,11 +25422,15 @@ class WorldScene extends Phaser.Scene {
     if(gpsNav && gpsNav.path){
       const nt = gpsNavTurn(this);
       if(nt){
-        const dir = nt.sign > 0 ? "Right" : "Left";
-        const arrow = nt.sign > 0 ? "\u2192" : "\u2190";
+        /* a U-turn is its own instruction, not a sharp Left. U+21B6 is
+           the anticlockwise open-circle arrow -- one glyph, same width
+           budget as the two straight arrows, no new font dependency. */
+        const dir = nt.uturn ? "Around" : nt.sign > 0 ? "Right" : "Left";
+        const arrow = nt.uturn ? "\u21b6" : nt.sign > 0 ? "\u2192" : "\u2190";
+        const verb = nt.uturn ? "Turn Around" : `Turn ${dir}`;
         turnText = nt.dist < 20
-          ? `${arrow} Turn ${dir}`
-          : `${arrow} Turn ${dir} in ${Math.round(nt.dist*FT_PER_UNIT/10)*10} ft`;
+          ? `${arrow} ${verb}`
+          : `${arrow} ${verb} in ${Math.round(nt.dist*FT_PER_UNIT/10)*10} ft`;
       } else {
         /* no turns left on the path: name the destination, same as the
            delivery's own final-approach line names the address. */
