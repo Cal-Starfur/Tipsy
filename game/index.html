@@ -26955,7 +26955,7 @@ function tpSlalomOn(){
            <div style="font-size:12px;font-weight:800;letter-spacing:.14em;
                 color:#ffd9a8;text-shadow:0 1px 2px rgba(0,0,0,.7)">NEXT UP</div>
            <button id="slGoHydrant" class="slRetryBtn"
-                   style="position:static;transform:none;left:auto;top:auto">Hydrant Challenge</button>
+                   style="position:static;transform:none;left:auto;top:auto">Hydrant Jump</button>
            <button id="slGoDaily" class="slRetryBtn"
                    style="position:static;transform:none;left:auto;top:auto;
                           background:#f0ece0;color:#2e3138;box-shadow:0 4px 0 #b9b3a3">Today's route</button>
@@ -31414,7 +31414,11 @@ const TP_TROPHIES = [
      Chief away with two jumps still to go. Driven by actual jumps
      landed, so the card can never claim a trophy the player has not
      reached. */
-  { id:"hydrant-hop", name:"Hydrant Hopper", desc:"Clear all ten jumps in the Hydrant Challenge.", tier:"gold", reward:"fire-chief",
+  /* the mission's name, not a description of it: the drawer, the map
+     card and this line all read from the same rename (2026-08-26), and
+     a trophy that points at a mission by an old name is a trophy for a
+     mission the player cannot find. */
+  { id:"hydrant-hop", name:"Hydrant Hopper", desc:"Clear all ten jumps in Hydrant Jump.", tier:"gold", reward:"fire-chief",
     progress:()=>({current: Math.min(10, tpProfile.hjBest || 0), target:10}) },
   /* Reserved: the Daredevil's own challenge, not built yet -- same
      shape as slalom-master, which has sat here un-earnable since its
@@ -31459,7 +31463,7 @@ const TP_TROPHIES = [
      depends on it; the profile card's "Best: 57.47s" line still does,
      and will read blank on a device that lost its storage. That needs
      the server key. */
-  { id:"slalom-master", name:"Slalom Master", desc:"Finish the \"Cone Slalom Challenge\" side mission in under 60 seconds.", tier:"silver", reward:"cone-dodger",
+  { id:"slalom-master", name:"Slalom Master", desc:"Finish the \"Cone Slalom\" side mission in under 60 seconds.", tier:"silver", reward:"cone-dodger",
     progress:(h,t,missions)=>({current: (missions && missions.has("cone-slalom")) ? 1 : 0, target:1}) },
 ];
 
@@ -32185,7 +32189,7 @@ function tpOpenDetail(kind, id){
       if(rs) rs.onclick = (e)=>{ e.preventDefault();
         tpProfile.hjLevel = 1; tpSaveProfile();
         tpOpenDetail("mission", m.id);           // redraw with the new state
-        tpToast("Hydrant Challenge reset to jump 1"); };
+        tpToast("Hydrant Jump reset to jump 1"); };
       }
       /* NO early return here. tpOpenDetail() opens the sheet at the very
          END of the function, so returning from inside this branch set up
