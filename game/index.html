@@ -136,14 +136,25 @@
   body.attract #mapCard .btn,
   body.attract #mapCard .iconBtn{z-index:2;}
   #titleOverlay{padding:0;justify-content:flex-start;}
+  /* --sheetH is the bottom sheet's RESTING height, and it is one
+     constant answering one question: how much of the map's bottom edge
+     the sheet covers. #bottomSheet floats over the map now rather than
+     taking a row of its own (see its rule), so the GO button is the one
+     thing that has to know this number -- everything else is anchored to
+     an edge. Change it here or nowhere. */
   #screenWrap{width:100vw;height:100vh;height:100dvh;display:flex;flex-direction:column;
     border-radius:20px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,.35);
-    position:relative;} /* positioning context for the tp* panels' inset:0 */
+    position:relative;
+    --sheetH:calc(58px + env(safe-area-inset-bottom));} /* positioning context for the tp* panels' inset:0 */
   #mapCard{position:relative;width:100%;flex:1;min-height:0;overflow:hidden;}
   #mapCard .brand{position:absolute;top:14px;left:50%;transform:translateX(-50%);margin:0;text-shadow:0 1px 4px rgba(181,84,14,.9),0 1px 4px rgba(181,84,14,.9);}
   #mapCard .card{position:absolute;top:60px;left:12px;right:12px;margin:0;background:rgba(240,236,224,.55);color:#2e3138;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);}
   #mapCard .card b{color:#b5540e;}
-  #mapCard .btn{position:absolute;bottom:16px;left:50%;transform:translateX(-50%);margin-top:0;
+  /* clears the floating sheet. GO used to sit 16px off #mapCard's bottom
+     and that WAS the sheet's top edge, because the sheet was a flex
+     sibling holding its own row open. Now the sheet overlays, so the
+     same 16px would park GO underneath it. */
+  #mapCard .btn{position:absolute;bottom:calc(16px + var(--sheetH));left:50%;transform:translateX(-50%);margin-top:0;
     width:88px;height:88px;border-radius:50%;padding:0;
     display:flex;align-items:center;justify-content:center;}
   #mapCard .btn:active{transform:translateX(-50%) translateY(3px);}
@@ -162,8 +173,43 @@
      clips it, but it pushed the row's content box 16px right — fine
      when three items shared the row, obvious now that the centred
      status line is the only thing in it. */
-  #bottomSheet{width:100%;box-sizing:border-box;background:#f0ece0;color:#2e3138;
-    display:flex;flex-direction:column;min-height:0;
+  /* FLOATS OVER THE MAP, AND THE MAP NEVER RESIZES AGAIN (Sir's call,
+     2026-08-26: "lets stop resizing the map when we open the bottom card
+     to see the missions its buggy and i dont think we need it").
+
+     This was a flex sibling of #mapCard, which is the whole story: the
+     drawer inside it changing height changed #mapCard's height, #mapCard
+     is what resizeRouteMap measures, and nothing fired on that change --
+     so the canvas kept a stale size and the live Phaser world showed
+     through the gap. tpSheetReflow existed to chase that with an
+     rAF loop for the length of the animation. Taking the sheet out of
+     flow deletes the cause instead of chasing the symptom: #mapCard is
+     now the full height of #screenWrap, forever, and the drawer grows
+     upward over it. tpSheetReflow is gone with it.
+
+     Glass, same recipe as #tpProfSheet -- rgba tint plus backdrop-filter
+     both prefixed and not -- so the map reads through the sheet the way
+     it reads through the store pop-out. Now that it overlays the map
+     there is finally something behind it worth seeing; as a flex row it
+     had only the dark .overlay wash behind it and frosting would have
+     bought nothing.
+
+     max-height caps the drawer's expansion; the sheet is anchored
+     bottom:0 so growing it grows upward on its own, no anchoring math. */
+  /* z-index 7, not 3: the map's own chrome (the zoom pills, the search
+     bar) is injected at z-index 6 inside #mapCard, and #mapCard sets no
+     z-index of its own -- it is position:relative but not a stacking
+     context -- so those children compete with this element directly.
+     At 3 the zoom pills painted straight through the raised drawer. */
+  #bottomSheet{position:absolute;left:0;right:0;bottom:0;z-index:7;
+    box-sizing:border-box;color:#2e3138;
+    background:rgba(243,239,229,.74);
+    -webkit-backdrop-filter:blur(20px) saturate(150%);
+    backdrop-filter:blur(20px) saturate(150%);
+    border-top:1px solid rgba(255,255,255,.5);
+    border-radius:20px 20px 0 0;
+    box-shadow:0 -8px 28px rgba(20,22,27,.18);
+    display:flex;flex-direction:column;min-height:0;max-height:72vh;
     padding:12px 16px calc(10px + env(safe-area-inset-bottom));}
   #bottomSheet .sheetRow{flex:none;display:flex;align-items:center;gap:8px;}
   #bottomSheet .status{flex:1;min-width:0;font-weight:700;font-size:15px;color:#b5540e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center;}
@@ -31983,39 +32029,16 @@ function tpOpenMissions(){
   tpRender();
   document.getElementById("tpMissionsPanel").classList.add("open");
   tpSyncGlobalBtns();
-  tpSheetReflow();
 }
-/* THE MAP CANVAS DOES NOT RESIZE ITSELF (on-device, 2026-08-26: "after
-   selecting and the list collapse the map doesn't expand and we are
-   seeing the game loaded up"). resizeRouteMap sizes #routeMap off
-   #mapCard's MEASURED height, and until now the only things that ever
-   called it were boot and a window `resize` event. The drawer changing
-   height resizes #mapCard -- it's a flex sibling, that is the whole
-   design -- but fires neither, so the canvas kept whatever size it had
-   when the drawer went up and the rest of the grown #mapCard showed the
-   live Phaser world straight through.
-
-   Which direction it breaks is not symmetric, and that is why this runs
-   for the whole animation rather than once at the end: expanding the
-   drawer SHRINKS the map, leaving the canvas oversized and harmlessly
-   clipped by #mapCard's overflow:hidden, but collapsing GROWS it and
-   leaves a gap with nothing drawn in it. Re-measuring only on
-   transitionend would still show that gap for the 220ms of the slide.
-
-   Bounded at 320ms (the .22s transition plus slack) and self-cancelling,
-   so a fast open/close/open cannot stack loops. */
-function tpSheetReflow(){
-  if(document.getElementById("titleOverlay").classList.contains("hidden")) return;
-  if(tpSheetReflow._raf) cancelAnimationFrame(tpSheetReflow._raf);
-  const t0 = performance.now();
-  const step = () => {
-    resizeRouteMap();
-    const s = scn();
-    if(s && s.route) drawRouteMap(s.route);
-    tpSheetReflow._raf = (performance.now() - t0 < 320) ? requestAnimationFrame(step) : 0;
-  };
-  step();
-}
+/* tpSheetReflow IS GONE (2026-08-26). It ran an rAF loop for the length
+   of the drawer animation, calling resizeRouteMap + drawRouteMap every
+   frame, because raising the drawer resized #mapCard and nothing else
+   told the canvas about it. #bottomSheet is out of flow now (see its
+   CSS note), so #mapCard's height is fixed for the life of the screen
+   and there is nothing left to chase. Deleted rather than left as a
+   no-op: a function named "reflow" that reflows nothing is worse than
+   no function. The window `resize` listener still drives
+   resizeRouteMap, which was always the real caller. */
 /* DOWN, NOT AWAY -- the third state the old overlay never had. The
    sheet is part of the map screen now, so "put the list away" and
    "leave the map" stopped being the same act: the handle, a tap on the
@@ -32027,7 +32050,6 @@ function tpSheetReflow(){
 function tpCollapseMissions(){
   document.getElementById("tpMissionsPanel").classList.remove("open");
   tpSyncGlobalBtns();
-  tpSheetReflow();
 }
 function tpCloseMissions(){
   document.getElementById("tpMissionsPanel").classList.remove("open");
@@ -32055,11 +32077,6 @@ function tpCloseMissions(){
     show("failOverlay");
     tdFxSyncGate();
   }
-  /* same reflow as the collapse -- this drops the drawer too, and on the
-     paths that leave the map up (everything except the two gates above)
-     the canvas has the same growing-#mapCard gap to fill. Its own guard
-     no-ops it when the map went away. */
-  tpSheetReflow();
 }
 
 function tpInitStaticIcons(){
