@@ -222,10 +222,44 @@
      for the full note: nested inside #screenWrap these panels inherited
      the map screen's display:none once a route started, so the always-on
      robot button opened a panel nobody could see. */
-  #tpProfilePanel{position:fixed;inset:0;background:#f0ece0;z-index:50;
-    display:flex;flex-direction:column;transform:translateY(100%);
-    transition:transform .24s ease-out;}
-  #tpProfilePanel.open{transform:translateY(0);}
+  /* SHEET OVER THE MAP, NOT A PAGE (Sir's call, 2026-08-26: "give it a
+     sheet over the map -- i dont want the map to resize we are already
+     having issues with that").
+
+     Two constraints, and the second is why this is NOT the missions
+     drawer. #tpMissionsPanel lives INSIDE #bottomSheet as a flex sibling
+     of #mapCard, so raising it shrinks the map -- that coupling is what
+     forced tpSheetReflow into existence and is the source of the resize
+     trouble. This surface stays position:fixed and overlays instead, so
+     #mapCard never changes size and nothing on this path needs to touch
+     resizeRouteMap/drawRouteMap at all.
+
+     The panel itself is now the SCRIM; #tpProfSheet is the thing that
+     slides. Deliberately the same vocabulary as #tpDetailScrim /
+     #tpDetailSheet further down -- rounded top, translateY(100%) at
+     rest, opacity on the scrim -- so the game has one pop-out language
+     rather than two. z-index stays 50, still under the detail scrim's
+     55: opening a skin from the store grid has to land on top of the
+     grid, and that ordering was already right.
+
+     max-height, not inset:0. 82vh leaves a band of the map card
+     visible above the sheet, which is the entire point -- at full
+     height this is the old full-screen page with rounded corners. */
+  #tpProfilePanel{position:fixed;inset:0;z-index:50;background:rgba(20,22,27,.5);
+    display:flex;align-items:flex-end;opacity:0;pointer-events:none;
+    transition:opacity .18s;}
+  #tpProfilePanel.open{opacity:1;pointer-events:auto;}
+  #tpProfSheet{width:100%;max-height:82vh;box-sizing:border-box;
+    background:#f0ece0;border-radius:20px 20px 0 0;overflow:hidden;
+    display:flex;flex-direction:column;
+    transform:translateY(100%);transition:transform .24s ease-out;}
+  #tpProfilePanel.open #tpProfSheet{transform:translateY(0);}
+  /* the sheet's grab band, matching #sheetGrab on the map's own bottom
+     sheet. Decorative -- there is no drag gesture here, the scrim and
+     the X are the exits -- but it is the cue that says "sheet" instead
+     of "screen". */
+  #tpProfGrab{flex:none;height:18px;display:flex;align-items:center;justify-content:center;}
+  #tpProfGrab::after{content:"";width:40px;height:4px;border-radius:2px;background:#ddd6c4;}
 
   /* Side missions: no chrome at all (2026-08-11, Sir's call) — just the
      mission cards floating directly over the live map. No scrim, no
@@ -275,19 +309,28 @@
   #sheetGrab::after{content:"";width:40px;height:4px;border-radius:2px;background:#ddd6c4;}
   #sheetGrab:active::after{background:#c9c0a8;}
 
-  #tpProfHeader{flex:none;padding:calc(14px + env(safe-area-inset-top)) 14px 10px;
-    background:#14161b;display:flex;align-items:center;gap:10px;}
-  #tpProfBack{flex:none;width:34px;height:34px;border-radius:50%;background:#20242d;
-    border:1px solid #363b46;color:#e8eaef;display:flex;align-items:center;
-    justify-content:center;font-size:15px;}
+  /* CREAM, AND NO SAFE-AREA INSET. Both of these were correct for a
+     full-screen page and wrong for a sheet: the dark #14161b chrome was
+     standing in for a phone status bar this surface no longer reaches,
+     and env(safe-area-inset-top) was padding away from a notch that is
+     now several hundred pixels above the sheet's top edge. The header
+     is just the sheet's first row. */
+  #tpProfHeader{flex:none;padding:2px 14px 10px;
+    background:#f0ece0;display:flex;align-items:center;gap:10px;}
+  /* the exit is an X, not a chevron -- there is no screen to go "back"
+     to, the map is already visible above the sheet. Same dark pill as
+     #tpDetailClose so both pop-outs dismiss the same way. */
+  #tpProfBack{flex:none;width:30px;height:30px;border-radius:50%;background:#2e3138;
+    border:none;color:#fff;display:flex;align-items:center;
+    justify-content:center;font-size:13px;}
   #tpProfBack:active{transform:scale(0.92);}
-  #tpProfTitle{flex:1;font-size:16px;font-weight:800;letter-spacing:1px;color:#ff7a1a;}
-  #tpWalletPill{flex:none;background:#20242d;border:1px solid #363b46;border-radius:20px;
+  #tpProfTitle{flex:1;font-size:16px;font-weight:800;letter-spacing:1px;color:#b5540e;}
+  #tpWalletPill{flex:none;background:#fff;border:1px solid #ddd6c4;border-radius:20px;
     padding:6px 12px;display:flex;align-items:center;gap:6px;margin-left:auto;}
-  #tpWalletPill .tpWVal{font-size:14px;font-weight:800;color:#ff9c4d;}
+  #tpWalletPill .tpWVal{font-size:14px;font-weight:800;color:#b5540e;}
 
-  #tpTabBar{flex:none;display:flex;background:#14161b;padding:0 14px 12px;gap:8px;}
-  .tpTabBtn{flex:1;background:#20242d;border:1px solid #363b46;color:#8f95a1;border-radius:10px;
+  #tpTabBar{flex:none;display:flex;background:#f0ece0;padding:0 14px 12px;gap:8px;}
+  .tpTabBtn{flex:1;background:#fff;border:1px solid #ddd6c4;color:#8f8571;border-radius:10px;
     padding:9px 4px;font-size:12px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;}
   .tpTabBtn.tpActive{background:#ff7a1a;border-color:#ff7a1a;color:#fff;}
   .tpTabBtn:active{transform:scale(0.97);}
@@ -628,18 +671,21 @@
 
   <!-- ===== Tipsey Profile: Trophy Case + Store (Phase A) ===== -->
   <div id="tpProfilePanel">
-    <div id="tpProfHeader">
-      <button id="tpProfBack"></button>
-      <div id="tpProfTitle">TROPHY CASE</div>
-    </div>
-    <div id="tpTabBar">
-      <button class="tpTabBtn" id="tpTabTrophy">Trophy Case</button>
-      <button class="tpTabBtn" id="tpTabStore">Store</button>
-      <div id="tpWalletPill"><span class="tpWVal" id="tpWalletVal">$0.00</span></div>
-    </div>
-    <div id="tpProfBody">
-      <div id="tpTrList"></div>
-      <div id="tpStoreGrid" style="display:none;"></div>
+    <div id="tpProfSheet">
+      <div id="tpProfGrab"></div>
+      <div id="tpProfHeader">
+        <button id="tpProfBack"></button>
+        <div id="tpProfTitle">TROPHY CASE</div>
+      </div>
+      <div id="tpTabBar">
+        <button class="tpTabBtn" id="tpTabTrophy">Trophy Case</button>
+        <button class="tpTabBtn" id="tpTabStore">Store</button>
+        <div id="tpWalletPill"><span class="tpWVal" id="tpWalletVal">$0.00</span></div>
+      </div>
+      <div id="tpProfBody">
+        <div id="tpTrList"></div>
+        <div id="tpStoreGrid" style="display:none;"></div>
+      </div>
     </div>
   </div>
 
