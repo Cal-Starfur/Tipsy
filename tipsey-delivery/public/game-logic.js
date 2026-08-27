@@ -28896,14 +28896,45 @@ function tpSlalomPin(){  return tpMissionPin("cone-slalom"); }
    the date half honest. Its write only happens on an actual rollover,
    so this is not a save per frame. */
 let _tpDailyPinCache = null;
+/* THE PIN IS THE NEXT PLACE YOU HAVE TO REACH, not the end of the
+   errand (Sir, 2026-08-26: "the pick up needs a pin on the map now not
+   the destination").
+
+   This always pointed at doorS, which was the only honest answer while
+   the route began at the shop -- there was no leg before the drop-off,
+   so the drop-off WAS the next place. Now that you drive to the shop
+   first, a pin on the customer's door while the header reads "drive
+   there, then press GO" is pointing at the wrong end of the trip.
+
+   One rule decides it, and it is the same one that decides whether the
+   pickup mat is listed at all (see getMissionMats): mode "delivery"
+   means the bag is aboard and the door is next; anything else means the
+   shop is next. Deriving it from mode rather than from gpsNav is
+   deliberate -- the pin should be right when you are just looking at
+   the map with no errand plotted, not only while a line is drawn.
+
+   leg is part of the cache key. Without it the first call of the day
+   would freeze one end of the trip in for good, which is the same class
+   of staleness the dateStr/runIndex keys already guard against. */
 function tpDailyDeliveryPin(){
   const today = clientTodayUTC();
   const rung = (typeof tpRunIndex === "function") ? tpRunIndex() : 1;
+  const _s = (typeof scn === "function") ? scn() : null;
+  const leg = (_s && _s.mode === "delivery") ? "door" : "pickup";
   if(_tpDailyPinCache && _tpDailyPinCache.dateStr === today
-     && _tpDailyPinCache.runIndex === rung) return _tpDailyPinCache;
+     && _tpDailyPinCache.runIndex === rung
+     && _tpDailyPinCache.leg === leg) return _tpDailyPinCache;
   const r = generateRoute(today, { runIndex: rung });
-  const p = segsPosAt(r.segs, r.doorS);
-  _tpDailyPinCache = { dateStr: today, runIndex: rung, x: p.x, y: p.y, address: r.address };
+  /* the MAT, not segsPosAt(pickupS): the mat is what the GPS is steering
+     at and what arrival is tested against, so the pin has to be the same
+     point or the map is telling you to stop somewhere that will not
+     trigger anything. Falls back to the centreline for a route that
+     never got a shop mat. */
+  const p = (leg === "door")
+    ? segsPosAt(r.segs, r.doorS)
+    : (r.pickupMat ? r.pickupMat.mat : segsPosAt(r.segs, r.pickupS));
+  _tpDailyPinCache = { dateStr: today, runIndex: rung, leg, x: p.x, y: p.y,
+                       address: r.address, shop: r.pickupShopName };
   return _tpDailyPinCache;
 }
 /* Tapping the delivery pin -- restores the daily route's own info in
@@ -29196,9 +29227,17 @@ function tpMapIndex(route){
      spellings because this is the thing people will actually type. */
   {
     const dp = (typeof tpDailyDeliveryPin === "function") ? tpDailyDeliveryPin() : null;
-    if(dp && Number.isFinite(dp.x) && Number.isFinite(dp.y))
+    if(dp && Number.isFinite(dp.x) && Number.isFinite(dp.y)){
       for(const nm of ["Today's Delivery", "Next Delivery", "Drop-off"])
         out.push({ name: nm, kind:"delivery", x: dp.x, y: dp.y });
+      /* the shop is a searchable place too, and by its own name -- the
+         thing a player will actually type once the header has been
+         telling them to drive to Terrace Coffee. Same dp the pin uses,
+         so search and pin cannot point at different corners. */
+      if(dp.leg === "pickup" && dp.shop)
+        for(const nm of [dp.shop, "Pickup"])
+          out.push({ name: nm, kind:"delivery", x: dp.x, y: dp.y });
+    }
   }
   for(const m of TP_SIDE_MISSIONS){
     if(m.name === "???") continue;
@@ -30061,13 +30100,18 @@ function drawRouteMap(route){
     const dp = tpDailyDeliveryPin();
     if(inView(dp.x, dp.y)){
       const p = toScreen(dp);
-      ctx.fillStyle = "#c2452e";
+      const onPickup = dp.leg === "pickup";
+      /* orange for the shop, the deep red for the customer's door --
+         the same two colours the order card already uses for the two
+         ends of the trip, so the pin agrees with the text above it. */
+      ctx.fillStyle = onPickup ? "#ff7a1a" : "#c2452e";
       ctx.beginPath(); ctx.arc(p.x, p.y, 9, 0, Math.PI*2); ctx.fill();
       ctx.strokeStyle = "#fff"; ctx.lineWidth = 2; ctx.stroke();
       ctx.font = "11px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
       ctx.fillText("📦", p.x, p.y);
       ctx.fillStyle = "#2e3138"; ctx.font = "700 10px sans-serif";
-      ctx.fillText("Today's delivery", p.x, p.y+17);
+      ctx.fillText(onPickup ? ("Pickup \u2014 " + (dp.shop || "shop"))
+                            : "Today's delivery", p.x, p.y+17);
       tpMapMissionPins.push({ id: "daily-delivery", x: p.x, y: p.y, r: 16 });
     }
   }
