@@ -31141,7 +31141,7 @@ function tpInitStaticIcons(){
   document.getElementById("globalSearch").innerHTML = tpSearchSvg("#2e3138", 18);
   const fmb = document.getElementById("failMenuBtn");
   if(fmb) fmb.innerHTML = tpSearchSvg("#2e3138", 18);
-  document.getElementById("tpProfBack").innerHTML = tpChevronSvg("#e8eaef", 16);
+  document.getElementById("tpProfBack").innerHTML = tpCloseSvg("#fff", 13);
   document.getElementById("tpDetailClose").innerHTML = tpCloseSvg("#fff", 13);
 }
 
@@ -31324,6 +31324,12 @@ document.getElementById("failAvatarBtn").addEventListener("click", () => {
   tpOpenProfile();
 });
 document.getElementById("tpProfBack").addEventListener("click", tpCloseProfile);
+/* tap the scrim to dismiss, same contract as #tpDetailScrim: the id
+   test means a tap that lands anywhere inside #tpProfSheet -- a skin
+   card, the tab bar, empty cream between rows -- is not an exit. The
+   sheet only covers 82vh, so the visible map above it is scrim and is
+   the natural place to tap to get back to the map. */
+document.getElementById("tpProfilePanel").addEventListener("click", e=>{ if(e.target.id==="tpProfilePanel") tpCloseProfile(); });
 document.getElementById("tpDetailScrim").addEventListener("click", e=>{ if(e.target.id==="tpDetailScrim") tpCloseDetail(); });
 document.getElementById("tpDetailClose").addEventListener("click", tpCloseDetail);
 document.getElementById("searchIcon").addEventListener("click", tpOpenMissions);
