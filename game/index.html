@@ -31092,7 +31092,29 @@ function drawRouteMap(route){
        there is no other errand to confuse it with. The robot marker
        below stays outside this gate on purpose -- "you are here" is
        true regardless of what you are driving toward. */
-    if(!gpsNav){
+    /* AND ONLY WHEN THE DAILY IS THE ERRAND YOU ARE ON (2026-08-26, Sir
+       on-device: "when i hit mag glass its automatically showing me the
+       daily rout but it should just be the map with nothing selected").
+
+       The line was drawn from s.route, and s.route is loaded in free
+       roam too -- it is the world, the grid and the hazards, not just a
+       delivery (see tpEnsureFreeroam). So opening the map from free play
+       painted a full pickup-to-door route across the city and read as a
+       delivery already chosen, when nothing had been.
+
+       mode is the whole test. "freeroam" means no errand: no line.
+       "delivery" means the bag is aboard and this line is the
+       instruction. "challenge"/"slalom-pending" are mission previews,
+       where the line IS what the player asked to look at. A missing
+       scene (the boot draw, before the world exists) keeps the old
+       behaviour rather than flashing an empty map.
+
+       Note this is now two independent reasons to withhold the line, not
+       one: gpsNav means some OTHER errand is plotted and its dashed line
+       is on screen instead, which is the deferral the old gate
+       described. */
+    const _mode = (typeof scn === "function" && scn()) ? scn().mode : null;
+    if(!gpsNav && _mode !== "freeroam"){
       ctx.strokeStyle = "#ff7a1a";
       ctx.lineWidth = 4;
       ctx.lineCap = "round";
@@ -32263,12 +32285,36 @@ let tpSearchMap = false;
    inside #bottomSheet now (see the CSS note), so opening it without the
    map on screen would open nothing -- show() is idempotent and every
    caller that already raised the map is unaffected. */
+/* ONE REDRAW, ON DEMAND. Raising the map does not redraw the canvas by
+   itself -- loadRoute is what normally ends in resizeRouteMap +
+   drawRouteMap, and simply un-hiding #titleOverlay loads nothing. Until
+   the bottom sheet stopped resizing the map, tpSheetReflow was
+   incidentally covering this: it ran resize+draw every frame of the
+   drawer animation for a completely different reason (the map card was
+   changing height) and a fresh map fell out of it for free. Removing it
+   removed that too, so the glass showed whatever the canvas was last
+   left holding -- a route line drawn back when the mode still had one.
+
+   Not a loop this time. The map no longer changes size, so there is
+   nothing to chase across the animation: one draw, once, at the moment
+   the map appears. */
+function tpMapRedraw(){
+  if(!tpMapUp()) return;
+  const s = scn();
+  if(s && s.route){ resizeRouteMap(); drawRouteMap(s.route); }
+}
+if(typeof window !== "undefined") window.tpMapRedraw = tpMapRedraw;
+
 function tpOpenMissions(){
   tpPauseWorld();
   show("titleOverlay");
   tpRender();
   document.getElementById("tpMissionsPanel").classList.add("open");
   tpSyncGlobalBtns();
+  /* AFTER show(): resizeRouteMap measures #mapCard, and #mapCard lives
+     inside #titleOverlay -- measuring it while hidden reads zero and
+     destroys the bitmap (see resizeRouteMap's own zero-rect guard). */
+  tpMapRedraw();
 }
 /* tpSheetReflow IS GONE (2026-08-26). It ran an rAF loop for the length
    of the drawer animation, calling resizeRouteMap + drawRouteMap every
