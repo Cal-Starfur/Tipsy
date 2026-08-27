@@ -5261,6 +5261,30 @@ function navTick(scene, t){
   else scene.navLastAt = t;     // failed rebuilds also cool down, or a dead-end thrashes
 }
 
+/* WHICH WAY A CURB LEANS YOU.
+   The impulse acts on the wheels that meet the lip first, so the lean is
+   a property of the BOUNDARY, not of the stick -- which is what the old
+   `sgn` got wrong. A curb runs along one lattice axis; its outward
+   normal points from the road centreline toward the sidewalk. The side
+   of the robot that takes the hit is the cross product of heading and
+   that normal, and climbing UP a curb throws you the opposite way to
+   dropping OFF one, hence the dir flip.
+
+   The crossing axis is whichever offset sits nearer the road edge; the
+   other axis is the one you are travelling along. Falls back to +1 only
+   on degenerate geometry (dead on a centreline), which a real crossing
+   cannot produce. */
+function owCurbSign(ow, toSfc){
+  const nx = Math.round(ow.px / BLOCK) * BLOCK;
+  const ny = Math.round(ow.py / BLOCK) * BLOCK;
+  const dx = ow.px - nx, dy = ow.py - ny;
+  const ax = Math.abs(Math.abs(dx) - ROAD_HALF) <= Math.abs(Math.abs(dy) - ROAD_HALF) ? 0 : 1;
+  const nX = ax === 0 ? (Math.sign(dx) || 1) : 0;
+  const nY = ax === 1 ? (Math.sign(dy) || 1) : 0;
+  const side = Math.sign(Math.cos(ow.yaw) * nY - Math.sin(ow.yaw) * nX) || 1;
+  return side * (toSfc === 'sidewalk' ? 1 : -1);
+}
+
 /* ---------- the step ----------
    One integration tick. Reads the stick off ow.stick / ow.keyv, writes
    ow.px/py/yaw/vel and the scene fields the renderer consumes. Called
@@ -5571,10 +5595,39 @@ function owStep(scene, dt){
 
   ow.inContact = hitNormal !== 0;
 
-  /* curb crossing: an impulse, not a wall. Road is not a fail. */
+  /* CURB CROSSING: A COMMITTED TRANSITION, NOT A BAND TOUCH.
+     Road is not a fail; the curb is an impulse, not a wall. But the old
+     test fired on `sfc === 'curb' && lastSfc !== 'curb'` -- a one-frame
+     edge detector with no hysteresis, against the thinnest band in the
+     model (CURB_W = T2*0.5, against ROAD_HALF = 4*T2). surfaceAt is a
+     pure position query, so driving PARALLEL to a curb at a lane offset
+     near that band flickers road/curb/road/curb frame to frame, and
+     near an intersection it is worse still: surfaceAt resolves the two
+     axes on `dx < dy`, which alternates on its own. Every re-entry read
+     as a fresh curb strike.
+
+     The sign made it fatal. `sgn` is the STEERING sign lifted from the
+     tilt block -- and while driving straight dYaw is ~0, so sgn is a
+     CONSTANT, and `dYaw >= 0` makes that constant +1. The flicker
+     therefore did not cancel: every kick leaned the same way, dozens a
+     second, stacking past the 1.0 line well inside the 330ms decay
+     half-life. A robot that never turned went over anyway. That is the
+     "tipping while just driving" report (2026-08-27) -- it read as a
+     tilted world because it only fires near the road edge, which is a
+     screen diagonal, and it read as the stick because it literally was
+     the stick.
+
+     Now the curb is a TRANSITION band rather than a trigger: only a
+     committed road<->sidewalk change charges anything, so skimming the
+     lip is free no matter how many times you clip it. You have to
+     actually reach the other side. Sign comes from the boundary (see
+     owCurbSign), not from the thumb. */
   const sfc = W.surfaceAt(ow.px, ow.py);
-  if(sfc === 'curb' && ow.lastSfc !== 'curb' && Math.abs(ow.vel) > 0.03)
-    scene.tilt += sgn * 0.10 * (Math.abs(ow.vel) / D.vMax);
+  if(sfc === 'road' || sfc === 'sidewalk'){
+    if(ow.sfcCommit && ow.sfcCommit !== sfc && Math.abs(ow.vel) > 0.03)
+      scene.tilt += owCurbSign(ow, sfc) * 0.10 * (Math.abs(ow.vel) / D.vMax);
+    ow.sfcCommit = sfc;
+  }
   ow.lastSfc = sfc;
   ow.surface = sfc;
 
@@ -5667,6 +5720,7 @@ function owPlaceOnPad(scene, fromX, fromY){
   const pk = chargeParkAt(st);
   ow.px = pk.x; ow.py = pk.y; ow.yaw = st.a; ow.vel = 0;
   ow.reversing = false; ow.latchSign = 0; ow.inContact = false;
+  ow.sfcCommit = null;          // respawn must not charge a phantom crossing
   ow.solidOn = new Set(); ow.flatOn = new Set();
   scene.botX = pk.x; scene.botY = pk.y;
   /* SNAP THE CAMERA, do not ease it. camX/camY lerp toward the robot at
@@ -5741,6 +5795,9 @@ function owInstall(scene){
        search — install is continuous in s the same way it is in pose. */
     railS: scene.botS, railLat: 0, railD: 0, railReacq: 0,
     inContact: false, lastSfc: 'sidewalk', surface: 'sidewalk',
+    /* the committed side of the curb. null = not yet latched, so the
+       first surface read after a spawn seats it without charging. */
+    sfcCommit: null,
     solidOn: new Set(), flatOn: new Set(),
     clipTips: 0, clipScrapes: 0,
     /* TEST-ONLY. Held velocity for the headless collision harness:
