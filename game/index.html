@@ -17140,9 +17140,27 @@ class WorldScene extends Phaser.Scene {
   }
 
   queueParkBlock(vq, blk){
-    /* the entire method is scatter -- clusters of palms, then benches,
-       then the verge pass. Park GRASS is fillBlockGround's job and is
-       unaffected, so an empty park is still a park. */
+    /* FRONTAGE FIRST, ABOVE THE SCATTER GUARD. This call used to sit at
+       the BOTTOM of the method, below the WORLD_SCATTER return -- so
+       with scatter swept off, a park bailed on line two and its
+       frontage furniture was never drawn at all. queueBlockContent
+       early-returns every park into this method, so that was every park
+       in the city, and the collision side never knew: cityFurnitureNear
+       is a radius query over the spatial hash with no idea what kind of
+       block a prop sits on. Result was a solid, invisible palm on park
+       frontage. Sir's readout caught one at 66383,33013, key 21,10,3,3,
+       29 contacts in three and a half seconds, nothing drawn there.
+
+       queueStreetFurniture makes the same distinction correctly: it
+       calls queueCityFurniture on its FIRST line and only then checks
+       WORLD_SCATTER, because permanent frontage furniture is not
+       scatter. Parks now do the same. Everything BELOW this line really
+       is scatter -- palm clusters and benches strewn inside the grass --
+       and stays behind the guard.
+
+       Park GRASS is fillBlockGround's job and is unaffected either way,
+       so an empty park is still a park. */
+    this.queueStreetFurniture(vq, blk);
     if(!WORLD_SCATTER) return;                 // see WORLD SCATTER: SWEPT
     const rng = mulberry32(((Math.round((blk.x0+blk.x1)/2)*7919) ^ (Math.round((blk.y0+blk.y1)/2)*104729) ^ 0x50a2) >>> 0);
     /* clusters, not isolated single trees — real palms/dwarf palms
@@ -17180,7 +17198,6 @@ class WorldScene extends Phaser.Scene {
       else { x = blk.x0+14; y = blk.y0+(blk.y1-blk.y0)*tt; dv = DIRV[1]; }
       vq.push({ depth:x+y, fn:(g,t)=>this.scatterBlockProp(this.propLayer(g, x, y), x, y, "bench", t, dv) });
     }
-    this.queueStreetFurniture(vq, blk);
   }
 
   fillBlockGround(g, blk){
