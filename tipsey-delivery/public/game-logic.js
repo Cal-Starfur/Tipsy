@@ -31033,7 +31033,6 @@ function tpSetTab(tab){
   document.getElementById("tpTabStore").className = "tpTabBtn" + (tab==="store" ? " tpActive" : "");
   document.getElementById("tpTrList").style.display = tab==="trophy" ? "" : "none";
   document.getElementById("tpStoreGrid").style.display = tab==="store" ? "grid" : "none";
-  document.getElementById("tpProfTitle").textContent = tab==="trophy" ? "TROPHY CASE" : "STORE";
   /* The wallet is only meaningful where you can SPEND it. On the Trophy
      Case it was just noise, and in the header it sat directly under the
      always-on robot button. Shown on the Store tab only, and moved into
@@ -31490,7 +31489,6 @@ function tpInitStaticIcons(){
   document.getElementById("globalSearch").innerHTML = tpSearchSvg("#2e3138", 18);
   const fmb = document.getElementById("failMenuBtn");
   if(fmb) fmb.innerHTML = tpSearchSvg("#2e3138", 18);
-  document.getElementById("tpProfBack").innerHTML = tpCloseSvg("#fff", 13);
   document.getElementById("tpDetailClose").innerHTML = tpCloseSvg("#fff", 13);
 }
 
@@ -31681,7 +31679,6 @@ document.getElementById("failAvatarBtn").addEventListener("click", () => {
   if(scn().mode === "challenge") hjQuit();     // banks progress on the way out
   tpOpenProfile();
 });
-document.getElementById("tpProfBack").addEventListener("click", tpCloseProfile);
 /* tap the scrim to dismiss, same contract as #tpDetailScrim: the id
    test means a tap that lands anywhere inside #tpProfSheet -- a skin
    card, the tab bar, empty cream between rows -- is not an exit. The

@@ -395,25 +395,27 @@
   #sheetGrab::after{content:"";width:40px;height:4px;border-radius:2px;background:#ddd6c4;}
   #sheetGrab:active::after{background:#c9c0a8;}
 
-  /* CREAM, AND NO SAFE-AREA INSET. Both of these were correct for a
-     full-screen page and wrong for a sheet: the dark #14161b chrome was
-     standing in for a phone status bar this surface no longer reaches,
-     and env(safe-area-inset-top) was padding away from a notch that is
-     now several hundred pixels above the sheet's top edge. The header
-     is just the sheet's first row. */
-  /* transparent, not cream: the header and the tab bar are ON the glass
-     now, so painting them their own solid colour would punch two opaque
-     bands through the pane. */
-  #tpProfHeader{flex:none;padding:2px 14px 10px;
-    background:transparent;display:flex;align-items:center;gap:10px;}
-  /* the exit is an X, not a chevron -- there is no screen to go "back"
-     to, the map is already visible above the sheet. Same dark pill as
-     #tpDetailClose so both pop-outs dismiss the same way. */
-  #tpProfBack{flex:none;width:30px;height:30px;border-radius:50%;background:#2e3138;
-    border:none;color:#fff;display:flex;align-items:center;
-    justify-content:center;font-size:13px;}
-  #tpProfBack:active{transform:scale(0.92);}
-  #tpProfTitle{flex:1;font-size:16px;font-weight:800;letter-spacing:1px;color:#b5540e;}
+  /* THE HEADER ROW IS GONE (Sir, 2026-08-26, circled on a screenshot:
+     the X and the title). Both were saying something already on screen.
+     #tpProfTitle read "TROPHY CASE" or "STORE" directly above a tab bar
+     whose active pill reads exactly that in filled orange -- the label
+     was a second, quieter copy of the answer. And the X duplicated an
+     exit that already exists twice over: #tpProfilePanel closes on any
+     tap outside the sheet, and the sheet caps at 82vh precisely so
+     there is always a band of live map up there to tap.
+
+     With the pane removed in the previous commit there was nothing left
+     for the row to sit ON either -- an orange word and a dark circle
+     floating over traffic, which is what the screenshot shows.
+
+     The tab bar is now the sheet's first row after the grab band.
+     #tpWalletPill was moved into the tab bar earlier and is unaffected.
+
+     KEPT: body.tpPanelOpen still hides #globalSearch/#globalAvatar. That
+     rule was written because those two landed on top of #tpProfBack and
+     swallowed its taps, and #tpProfBack is what just went away -- but
+     they would now sit on the cards instead, which is no better, so the
+     rule stands on its own merits. */
   #tpWalletPill{flex:none;background:#fff;border:1px solid #ddd6c4;border-radius:20px;
     padding:6px 12px;display:flex;align-items:center;gap:6px;margin-left:auto;}
   #tpWalletPill .tpWVal{font-size:14px;font-weight:800;color:#b5540e;}
@@ -769,10 +771,6 @@
   <div id="tpProfilePanel">
     <div id="tpProfSheet">
       <div id="tpProfGrab"></div>
-      <div id="tpProfHeader">
-        <button id="tpProfBack"></button>
-        <div id="tpProfTitle">TROPHY CASE</div>
-      </div>
       <div id="tpTabBar">
         <button class="tpTabBtn" id="tpTabTrophy">Trophy Case</button>
         <button class="tpTabBtn" id="tpTabStore">Store</button>
