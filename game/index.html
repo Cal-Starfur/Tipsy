@@ -5841,15 +5841,30 @@ function verifyMissionMats(){
 }
 if(new URLSearchParams(location.search).get("verifyMats") === "1")
   setTimeout(verifyMissionMats, 0);
-function getMissionMats(){
+/* THE PICKUP RIDES THE MISSION-MAT LIST (2026-08-26). Everything the
+   pickup needs -- drawn in the depth-sorted pass, highlighted through
+   the four states, containment-tested, findable by id from the GPS, and
+   arrival-detected -- is already written once for mission mats. Adding
+   today's shop to this one list buys all of it and adds no new code
+   path; the alternative was a parallel set of pickup-shaped copies of
+   owMissionMatAt / gpsNavArrived / the draw queue entry.
+
+   scene is optional so the frozen pair still answer for callers that
+   have no scene. Excluded once mode is "delivery": the mat's whole job
+   is to start the run, and once the run is going it is just a rug
+   outside a shop the player has already left. */
+function getMissionMats(scene){
   if(!_missionMatsCache) _missionMatsCache = buildMissionMats();
-  return _missionMatsCache;
+  const r = scene && scene.route;
+  return (r && r.pickupMat && scene.mode !== "delivery")
+    ? _missionMatsCache.concat(r.pickupMat)
+    : _missionMatsCache;
 }
 /* which mission mat, if any, the robot is standing inside. Same
    containment test the delivery address uses -- one geometry, three
    payloads. */
 function owMissionMatAt(scene){
-  for(const mm of getMissionMats())
+  for(const mm of getMissionMats(scene))
     if(owMatContains(scene, mm.mat)) return mm;
   return null;
 }
@@ -8135,9 +8150,44 @@ function gpsNavLaunch(scene){
   gpsNavClear();
   if(id === "jump-hydrant") hjStart();
   else if(id === "cone-slalom") tpSlalomStart();
+  else if(id === "pickup") return tpPickupHere(scene);
   else return false;
   return true;
 }
+
+/* ARRIVED AT THE SHOP -- the delivery starts here, on the street, with
+   no map screen and no GO (Sir, 2026-08-26: "there should be a matt i
+   land on to trigger the pick up so we can make it seemless").
+
+   It goes through loadRoute rather than flipping fields by hand, and
+   that is the load-bearing decision. A delivery run resets about thirty
+   pieces of state -- openHold/openAdopted/peelReset, the tip and spill
+   chain, the whole worker-walks-out pickup animation (pickupWalk,
+   doorSwing, loadDone, walkAt, lidHingeFlip, bagOnBoard), hazard hit
+   flags, damage, runT -- and loadRoute is the single place that knows
+   the full list. Hand-rolling a subset here would have gone stale the
+   first time anyone added a field to that tail.
+
+   The one thing loadRoute does that we do not want is the position
+   teleport, and standing on this mat is what makes that harmless: it
+   snaps to route.pickupSpot, which is the shop-relative point this mat
+   was derived from, a lane away rather than a city away. Closing that
+   last few units means teaching loadRoute to keep the robot's position
+   when it is already on the pickup mat, which is a separate change with
+   its own risk -- not smuggled in here.
+
+   state is forced back to "play" because loadRoute ends on "idle", the
+   map-screen resting state. There is no map up on this path. */
+function tpPickupHere(scene){
+  if(!scene || !scene.route) return false;
+  scene.mode = "delivery";
+  scene.loadRoute(clientTodayUTC());
+  scene.state = "play";
+  hide("titleOverlay");
+  tpToast("Order picked up \u2014 deliver to " + scene.route.address + ".");
+  return true;
+}
+if(typeof window !== "undefined") window.tpPickupHere = tpPickupHere;
 
 /* THE DETOUR KILLS THE DELIVERY (Sir's call, 2026-08-26). Routing to a
    side mission with a live order abandons the order outright -- no
@@ -8173,7 +8223,7 @@ function gpsAbandonDelivery(scene){
 function gpsNavToMission(id){
   const s = (typeof scn === "function") ? scn() : null;
   if(!s) return;
-  const mm = getMissionMats().find(m => m.id === id);
+  const mm = getMissionMats(s).find(m => m.id === id);
   if(!mm){ tpToast("That mission has no mat yet."); return; }
   const live = s.mode === "delivery" && s.state === "play";
   const go = () => {
@@ -12371,7 +12421,26 @@ function _generateRouteFresh(dateStr, opts){
     for(const hz of got.hazards) hazards.push(hz);
     cfTaken = got.taken;
   }
-  return stampWorldCoords({ addressMat, cfTaken, hood: addressHood, grid, segs, totalLen: loop ? loop.sEnd : totalLen, loop, tiles, hazards, props, pal, night, traffic, trafficFleet, crossings, cutEdges, cutExt, challenge, crime, routeCells, curbRamps, signals: grid.signals,
+  /* THE PICKUP MAT. Same builder the two mission mats use, so the shop
+     door gets the identical geometry, containment test and four-state
+     highlight the Hydrant and Slalom starts already have -- there is no
+     second answer to "is the robot standing on it" anywhere in this
+     file, and this does not add one.
+
+     Lane 3 is the doormat lane, the same one the delivery address sits
+     in: this IS a doormat, it just belongs to a shop. Built off pickupS
+     rather than pickupSpot because pickupS was already refined during
+     generation to the closest ON-ROUTE position to the shop, so the mat
+     is guaranteed reachable by a robot driving the street. Anchoring on
+     pickupSpot instead could park it inside the building.
+
+     Challenge routes have no shop at all (loadRoute nulls pickupSpot
+     for them), so they get no mat. */
+  const pickupMat = (!(opts && opts.challenge) && pickupSpot)
+    ? missionMatAtS({ segs }, pickupS, "pickup",
+                    "Pickup \u2014 " + pickupShopName, "rug", 3)
+    : null;
+  return stampWorldCoords({ addressMat, pickupMat, cfTaken, hood: addressHood, grid, segs, totalLen: loop ? loop.sEnd : totalLen, loop, tiles, hazards, props, pal, night, traffic, trafficFleet, crossings, cutEdges, cutExt, challenge, crime, routeCells, curbRamps, signals: grid.signals,
            address:`${number} ${street}`, doorS, pickupS, pickupSpot, pickupShopName, addressBlock, pickupBlock, addressEdgeIdx, pickupEdgeIdx, addressUnitIdx, pickupUnitIdx, addressUsesGate, order, parMs, dateStr, runIndex  });
 }
 
@@ -15168,7 +15237,7 @@ class WorldScene extends Phaser.Scene {
        that matters, since standing on it is how you enter the mission.
        Drawn flat at h=0 like the pads; the mat is a plate on the
        pavement, not a thing with height. */
-    for(const mm of getMissionMats()){
+    for(const mm of getMissionMats(this)){
       if(!this.visProp("chargestation", mm.mat.x, mm.mat.y)) continue;
       const _mm = mm, _hl = matHighlightState(this, _mm.mat, "freeroam");
       hazVQ.push({ depth: _mm.mat.x + _mm.mat.y,
@@ -30005,18 +30074,50 @@ function tpBackToDailyRoute(){
      AFTER the two gate guards above, not before: those return early
      with their own overlays up, and a blocked delivery must not flash
      the map on its way to the fail card. */
+  /* YOU DRIVE TO THE SHOP NOW (Sir, 2026-08-26: "if i click todays
+     delivery im not getting routed from my position in the world its
+     showing me pick up to delivery but we need to have directions to
+     the pick up").
+
+     The old body was `s.mode = "delivery"; s.loadRoute(today)`, and
+     loadRoute sets botS = route.pickupS and botX/botY =
+     route.pickupSpot. That is the teleport: wherever you were standing
+     in Costa Palma, tapping this put you at the shop door holding the
+     bag, so the map could only ever draw pickup -> dropoff. There was
+     no leg from the player to the shop because the player was never
+     anywhere else.
+
+     This is now shaped exactly like gpsNavToMission, because it is the
+     same act: pick a destination, plot from where the robot actually
+     is, leave the map up, let GO start the driving. tpEnsureFreeroam is
+     the piece that makes it work -- it flips mode WITHOUT reloading
+     when you are already standing in today's city, which is the whole
+     reason the A* can plot from your real position. Arrival is handled
+     by the mat (gpsNavLaunch -> tpPickupHere), so the delivery still
+     begins at the shop; it just begins there because you drove. */
   const s = scn();
-  /* the errand you already have replaces the one you were driving to --
-     same one-at-a-time rule tpFreePlay carries. Without this the dashed
-     nav line to a mission mat survived the return and drew on top of
-     today's route (2026-08-26). */
+  /* one errand at a time -- same rule tpFreePlay and gpsNavToMission
+     carry. Clears any mission line still on the map before plotting. */
   gpsNavClear();
   show("titleOverlay");                  // the map, with GO -- before any measuring
-  s.mode = "delivery";
-  s.loadRoute(clientTodayUTC());
+  const s2 = tpEnsureFreeroam(s);
+  const pm = s2 && s2.route && s2.route.pickupMat;
+  if(!pm){
+    /* no shop mat (a route that never got a pickupSpot). Fall back to
+       the old direct entry rather than stranding the player with a row
+       that does nothing. */
+    s2.mode = "delivery";
+    s2.loadRoute(clientTodayUTC());
+  } else if(!gpsNavTo(s2, "pickup", pm.name, pm.mat.x, pm.mat.y)){
+    tpToast("No route to the pickup.");
+    return;
+  } else {
+    tpToast("Routing to " + s2.route.pickupShopName + ". Press GO.");
+  }
+  tpSyncOrderCard(s2);
   /* and one more pass once layout has settled, so a late reflow cannot
      leave it stale -- the same safety net hjStart and hjQuit carry. */
-  requestAnimationFrame(() => { const s2 = scn(); if(s2 && s2.route){ resizeRouteMap(); drawRouteMap(s2.route); } });
+  requestAnimationFrame(() => { const s3 = scn(); if(s3 && s3.route){ resizeRouteMap(); drawRouteMap(s3.route); } });
 }
 
 function tpMapIndex(route){
@@ -31631,9 +31732,29 @@ function tpRenderMissions(){
        instead of opening a "Coming soon" card; they're already dimmed
        via .tpLocked and there's nothing to confirm on a mission that
        doesn't exist yet. */
+    /* DRIVE THERE, DON'T TELEPORT THERE (Sir, 2026-08-26: "we still
+       arent getting the drive to the missions we wanted"). These rows
+       called hjStart/slalomMapSelect directly, which build the
+       mission's own frozen world and drop you on its start line.
+       gpsNavToMission -- already written, already handling the abandon
+       confirm when a delivery is live -- plots a line across the real
+       city to the mission's mat instead. It was reachable only by
+       tapping the mat's pin ON the map, which is why the drive felt
+       missing: the list, the obvious way in, bypassed it.
+
+       The drawer comes down first. gpsNavToMission deliberately leaves
+       the map standing so the new line appears under the finger that
+       picked it, and with the drawer still raised there is nothing to
+       see it on.
+
+       NOTE the seam this does NOT close: arriving at the mat still
+       calls hjStart/tpSlalomStart, which swap the live city for the
+       challenge's frozen build. You now drive there; the handover at
+       the end is still a cut. */
     row.addEventListener("click", ()=>{
       if(comingSoon) return;
-      (m.id === "cone-slalom" ? slalomMapSelect : hjStart)();
+      tpCollapseMissions();
+      gpsNavToMission(m.id);
     });
     list.appendChild(row);
   });
