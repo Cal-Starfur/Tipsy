@@ -30054,15 +30054,47 @@ function drawRouteMap(route){
     }
   }
 
-  /* real streets from route.grid.edges */
+  /* REAL STREETS AT THEIR REAL WIDTH (Sir, 2026-08-26: "its a little
+     funny how thin the road is on the map").
+
+     It was funny because it was a lie of scale. buildBlockLayout insets
+     every block by ROAD_HALF + SIDEWALK_W, so the corridor between two
+     blocks is 2*(ROAD_HALF + SIDEWALK_W) = 16*T2 -- just under HALF a
+     BLOCK. All of that was painted in pal.pave by the background fill
+     and then a 3px hairline was drawn down the middle of it and called
+     the road. So the widest single feature in Costa Palma rendered as
+     the thinnest thing on its own map, and every street read as a vast
+     pale gap with a pencil line in it.
+
+     The fix is to stop inventing a width. 2*ROAD_HALF is the asphalt's
+     actual span, scale converts world units to canvas pixels, and the
+     stroke is simply that. What remains pale on either side is exactly
+     SIDEWALK_W of walk, which is now correct BY SUBTRACTION rather than
+     by coincidence -- the sidewalk band is whatever the block inset
+     leaves over, and it always was.
+
+     This also makes the sidewalk nav line legible for the first time:
+     gpsWalkPts offsets it laneOffset(1.5) off the centreline, which
+     lands it in that pale margin. Against a uniform pave field it just
+     looked like a line that had missed the road.
+
+     lineWidth clamps at 1.5px so a city-wide zoom-out keeps a visible
+     network instead of dissolving; below that the streets are thinner
+     than the gaps between them anyway and the grid stops reading. BUTT
+     caps, not round: at true width a round cap projects half the road's
+     width past each intersection, which bulges every dead-end and every
+     edge of the built grid into a lollipop. Interior intersections are
+     covered by the crossing street's own stroke, so nothing needs the
+     overhang. */
   ctx.strokeStyle = hex(pal.road);
-  ctx.lineWidth = 3;
-  ctx.lineCap = "round";
+  ctx.lineWidth = Math.max(1.5, 2*ROAD_HALF*scale);
+  ctx.lineCap = "butt";
   for(const e of bgRoute.grid.edges){
     if(!inView(e.a.x, e.a.y) && !inView(e.b.x, e.b.y)) continue;
     const pa = toScreen(e.a), pb = toScreen(e.b);
     ctx.beginPath(); ctx.moveTo(pa.x, pa.y); ctx.lineTo(pb.x, pb.y); ctx.stroke();
   }
+  ctx.lineCap = "round";
 
   /* street name labels — one per row/col (not per grid-cell segment,
      which would repeat the same street's name many times). Horizontal
