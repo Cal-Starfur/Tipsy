@@ -31067,18 +31067,53 @@ function drawRouteMap(route){
      Dashed and in the delivery orange so it reads as "your current
      instruction" rather than as another piece of permanent city. */
   if(gpsNav && gpsNav.path && gpsNav.path.pts.length > 1 && !usingAtlas){
+    /* BOTH ENDS WERE MISSING (Sir, 2026-08-26: "can we get the route to
+       ... actually go from my position to the pin?").
+
+       pts[] is the A* result, and A* runs node-to-node: pts[0] is the
+       INTERSECTION nearest the robot and the last pt is the
+       intersection nearest the destination. Neither is the thing the
+       player is looking at. Drawn raw, the line floated -- starting at
+       a corner the robot had already left and stopping a block short of
+       the pin it was supposed to be pointing at.
+
+       The lead leg is not new information. gpsNavReplot already
+       measures robot -> pts[0] and folds it into distU and into
+       gpsNavTurn's running total, so the readout has always counted a
+       segment the drawing did not show. This makes the picture agree
+       with the numbers rather than adding anything to them.
+
+       The tail is the same argument at the far end, with one extra
+       reason: gpsNav.tx/ty is exactly where gpsNavArrived's mat test
+       fires, so the line now ends where the trip actually ends.
+
+       Both are straight hops off the lattice, which is honest -- that
+       last stretch across the block IS a straight drive, and drawing it
+       dashed like the rest says "still the same instruction". They are
+       NOT sidewalk-aligned yet; the lattice legs between them are not
+       either (nodes sit on street centrelines), and fixing that is its
+       own change. */
     const pts = gpsNav.path.pts;
     ctx.save();
     ctx.setLineDash([7, 6]);
     ctx.lineWidth = 4; ctx.lineJoin = "round"; ctx.lineCap = "round";
     ctx.strokeStyle = "rgba(255,122,26,.92)";
     ctx.beginPath();
-    const s0 = toScreen(pts[0]);
+    /* YOU ARE HERE is the same point the robot marker below is drawn
+       at -- read off the scene, not off samples[0], for the reason that
+       marker's own comment gives. Guarded: drawRouteMap also runs on
+       the boot draw before a scene exists, and a null there would take
+       the whole map down rather than just this line. */
+    const _s = (typeof scn === "function") ? scn() : null;
+    const from = _s ? { x: _s.botX, y: _s.botY } : pts[0];
+    const s0 = toScreen(from);
     ctx.moveTo(s0.x, s0.y);
-    for(let q = 1; q < pts.length; q++){
+    for(let q = 0; q < pts.length; q++){
       const sp = toScreen(pts[q]);
       ctx.lineTo(sp.x, sp.y);
     }
+    const sEnd = toScreen({ x: gpsNav.tx, y: gpsNav.ty });
+    ctx.lineTo(sEnd.x, sEnd.y);
     ctx.stroke();
     ctx.restore();
   }
