@@ -31779,6 +31779,25 @@ function tpSyncMapChrome(s){
   const chosen = !!s && (s.mode !== "freeroam"
     || (typeof gpsNav !== "undefined" && !!gpsNav));
   if(go) go.classList.toggle("hidden", !chosen);
+  /* VIEW IS A DRIVING INSTRUMENT AND THE MAP IS NOT DRIVING (Sir,
+     2026-08-26: "im still getting the view button on the map").
+
+     drawHUD already answers this correctly -- it hides #zoomBtn on
+     tpMapUp() -- and that answer never arrives, because drawHUD only
+     runs while the world scene is STEPPING and every path onto the map
+     calls tpPauseWorld() first. The toggle stops firing at the exact
+     moment it would have fired usefully, so VIEW keeps whatever class
+     the last played frame left on it. This is the third appearance of
+     the same stuck-VIEW-2 symptom; the previous two were fixed by
+     asking a better question, and this one is fixed by asking it from
+     somewhere that is still running.
+
+     HIDE ONLY, never show. drawHUD owns making it visible again and has
+     the whole picture -- attract, state, mode -- that this function does
+     not. Un-hiding here would race the resumed loop and could put a
+     driving instrument back on a paused screen. */
+  const zb = document.getElementById("zoomBtn");
+  if(zb && typeof tpMapUp === "function" && tpMapUp()) zb.classList.add("hidden");
   /* THE BANNER GOES WITH IT (Sir, 2026-08-26: "remove the card that is
      showing the address of the pick up too for the free roam map, but
      keep it when the daily route is selected"). Same test, same beat --
