@@ -31527,18 +31527,54 @@ function tpSyncOrderCard(s){
     if(gpsNav.distU != null) bits.push(tpDistText(gpsNav.distU));
     if(gpsNav.etaMs != null) bits.push("ETA " + tpClockText(gpsNav.etaMs));
     stat.textContent = bits.length ? bits.join(" · ") : "Press GO to drive there";
+    tpSyncMapChrome(s);
     return;
   }
   /* THE DELIVERY, and the fallback for anything with no activity of its
      own -- free play included, where today's order is still the thing
      the card can most usefully advertise. */
   if(!s || !s.route){ card.innerHTML = tag("TODAY") + "<b>Loading\u2026</b>"; stat.textContent = "Ready for pickup"; return; }
+  tpSyncMapChrome(s);
   card.innerHTML = tag("TODAY") + (s.route.pickupShopName
     ? `<b>${s.route.hood.n}</b> — pickup at <b>${s.route.pickupShopName}</b>, deliver to <b>${s.route.address}</b>`
     : `<b>${s.route.hood.n}</b> — deliver to <b>${s.route.address}</b>`);
-  stat.textContent = `$${s.route.order.value.toFixed(2)} · ${s.route.order.text}`;
+  /* NOTHING CHOSEN SAYS SO (Sir, 2026-08-26: "the bottom rocker should
+     just say pick up ready"). The order total is a fact about a run
+     that has not started. In free roam the one thing the player owes is
+     the pickup, so the status line names it; the total comes back the
+     moment the run does, which is mode "delivery" from tpPickupHere on.
+
+     Note this branch is only reached with no gpsNav -- the ROUTING
+     branch above returns first and keeps its distance/ETA, which is a
+     real answer to "how far" rather than a restatement of the errand. */
+  stat.textContent = (s.mode === "freeroam")
+    ? "Pickup ready"
+    : `$${s.route.order.value.toFixed(2)} · ${s.route.order.text}`;
 }
 if(typeof window !== "undefined") window.tpSyncOrderCard = tpSyncOrderCard;
+
+/* GO MEANS "START THE THING I PICKED", so it is only on screen once
+   something is picked (Sir, 2026-08-26: "the go should only be there if
+   i choose a mission or delivery ... if im opening the map im going to
+   find a place to go").
+
+   The map is a chooser now, and choosing is also how you leave it --
+   every row in the drawer (Free Play, Today's Delivery, both missions)
+   ends in a path that drops the overlay, so an idle map with no GO is
+   not a dead end and needs no separate exit control.
+
+   Three states put something on the map worth starting: a plotted
+   destination (gpsNav, from Today's Delivery or a mission pin), a live
+   delivery, and a mission preview holding its own frozen world. Free
+   roam with nothing plotted is the only case that hides it. */
+function tpSyncMapChrome(s){
+  const go = document.getElementById("startBtn");
+  if(!go) return;
+  const chosen = !!s && (s.mode !== "freeroam"
+    || (typeof gpsNav !== "undefined" && !!gpsNav));
+  go.classList.toggle("hidden", !chosen);
+}
+if(typeof window !== "undefined") window.tpSyncMapChrome = tpSyncMapChrome;
 
 function tpTrophyById(id){ return TP_TROPHIES.find(t=>t.id===id); }
 function tpTrophyForSkin(skinId){ return TP_TROPHIES.find(t=>t.reward===skinId); }
