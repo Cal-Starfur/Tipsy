@@ -245,12 +245,34 @@
      max-height, not inset:0. 82vh leaves a band of the map card
      visible above the sheet, which is the entire point -- at full
      height this is the old full-screen page with rounded corners. */
-  #tpProfilePanel{position:fixed;inset:0;z-index:50;background:rgba(20,22,27,.5);
+  /* GLASS, NOT CREAM (Sir's call, 2026-08-26: "lets have them more like
+     glass i want the background behind the cards translucent"). The
+     sheet surface is now a frosted pane the city reads through, and the
+     scrim dropped from .5 to .28 to match -- at half opacity the map
+     above the sheet was dimmed to mud and there was nothing worth
+     seeing through the glass anyway.
+
+     The rows and skin cards stay OPAQUE white on purpose. Frosting the
+     surface is what makes it read as glass; frosting the content on top
+     of it just makes small text sit on moving traffic. Translucent
+     surface, solid cards.
+
+     Both -webkit- and unprefixed backdrop-filter: iOS Safari still
+     wants the prefix, and this panel ships to Devvit's webview too.
+     Where backdrop-filter is unsupported the rgba background alone
+     degrades to a flat wash rather than breaking -- legible, just not
+     frosted. */
+  #tpProfilePanel{position:fixed;inset:0;z-index:50;background:rgba(20,22,27,.28);
     display:flex;align-items:flex-end;opacity:0;pointer-events:none;
     transition:opacity .18s;}
   #tpProfilePanel.open{opacity:1;pointer-events:auto;}
   #tpProfSheet{width:100%;max-height:82vh;box-sizing:border-box;
-    background:#f0ece0;border-radius:20px 20px 0 0;overflow:hidden;
+    background:rgba(243,239,229,.74);
+    -webkit-backdrop-filter:blur(20px) saturate(150%);
+    backdrop-filter:blur(20px) saturate(150%);
+    border-top:1px solid rgba(255,255,255,.5);
+    box-shadow:0 -8px 28px rgba(20,22,27,.18);
+    border-radius:20px 20px 0 0;overflow:hidden;
     display:flex;flex-direction:column;
     transform:translateY(100%);transition:transform .24s ease-out;}
   #tpProfilePanel.open #tpProfSheet{transform:translateY(0);}
@@ -315,8 +337,11 @@
      and env(safe-area-inset-top) was padding away from a notch that is
      now several hundred pixels above the sheet's top edge. The header
      is just the sheet's first row. */
+  /* transparent, not cream: the header and the tab bar are ON the glass
+     now, so painting them their own solid colour would punch two opaque
+     bands through the pane. */
   #tpProfHeader{flex:none;padding:2px 14px 10px;
-    background:#f0ece0;display:flex;align-items:center;gap:10px;}
+    background:transparent;display:flex;align-items:center;gap:10px;}
   /* the exit is an X, not a chevron -- there is no screen to go "back"
      to, the map is already visible above the sheet. Same dark pill as
      #tpDetailClose so both pop-outs dismiss the same way. */
@@ -329,7 +354,7 @@
     padding:6px 12px;display:flex;align-items:center;gap:6px;margin-left:auto;}
   #tpWalletPill .tpWVal{font-size:14px;font-weight:800;color:#b5540e;}
 
-  #tpTabBar{flex:none;display:flex;background:#f0ece0;padding:0 14px 12px;gap:8px;}
+  #tpTabBar{flex:none;display:flex;background:transparent;padding:0 14px 12px;gap:8px;}
   .tpTabBtn{flex:1;background:#fff;border:1px solid #ddd6c4;color:#8f8571;border-radius:10px;
     padding:9px 4px;font-size:12px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;}
   .tpTabBtn.tpActive{background:#ff7a1a;border-color:#ff7a1a;color:#fff;}
