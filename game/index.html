@@ -320,16 +320,34 @@
      Where backdrop-filter is unsupported the rgba background alone
      degrades to a flat wash rather than breaking -- legible, just not
      frosted. */
-  #tpProfilePanel{position:fixed;inset:0;z-index:50;background:rgba(20,22,27,.28);
+  /* NO PANE AT ALL (Sir, 2026-08-26: "can we make these even more
+     transparent? i want the background invisible. i only want to see the
+     buttons"). The glass above was one step; this is the end of that
+     road. The scrim tint, the frosted fill, the highlight edge and the
+     lift shadow all go -- what is left is a positioning shell that still
+     slides up from the bottom and still caps itself at 82vh, carrying
+     rows and cards that were always opaque in their own right.
+
+     The transition and the .open opacity ramp stay: the sheet still
+     needs somewhere to fade its CONTENTS from, and pointer-events:none
+     at rest is what keeps a closed panel from eating taps on the map.
+
+     backdrop-filter is gone rather than set to none -- there is nothing
+     behind it to frost now, and on iOS an active backdrop-filter still
+     promotes a compositing layer even at zero blur. This surface is over
+     a live Phaser canvas, so a layer that does nothing is not free.
+
+     Side missions reached this same conclusion first ("no chrome at all
+     -- just the mission cards floating directly over the live map"); the
+     store and trophy case now read the same way, which is the cohesion
+     argument that moved the missions list into #bottomSheet running the
+     other direction. */
+  #tpProfilePanel{position:fixed;inset:0;z-index:50;background:transparent;
     display:flex;align-items:flex-end;opacity:0;pointer-events:none;
     transition:opacity .18s;}
   #tpProfilePanel.open{opacity:1;pointer-events:auto;}
   #tpProfSheet{width:100%;max-height:82vh;box-sizing:border-box;
-    background:rgba(243,239,229,.74);
-    -webkit-backdrop-filter:blur(20px) saturate(150%);
-    backdrop-filter:blur(20px) saturate(150%);
-    border-top:1px solid rgba(255,255,255,.5);
-    box-shadow:0 -8px 28px rgba(20,22,27,.18);
+    background:transparent;
     border-radius:20px 20px 0 0;overflow:hidden;
     display:flex;flex-direction:column;
     transform:translateY(100%);transition:transform .24s ease-out;}
@@ -436,7 +454,13 @@
     transition:box-shadow .3s;}
   .tpSkinCard:active{transform:scale(0.97);}
   .tpSkinCard.tpEquipped{border-color:#ff7a1a;background:#fff7ef;}
-  .tpSkinCard.tpLocked{opacity:.62;}
+  /* DIM THE CONTENTS, NOT THE CARD. opacity on the element itself made
+     the whole card translucent, which was fine over frosted glass and is
+     not fine over a live city -- a locked skin would have traffic
+     driving through its name. The children fade by exactly the same
+     amount; the white surface underneath them stays solid. */
+  .tpSkinCard.tpLocked{opacity:1;}
+  .tpSkinCard.tpLocked > *{opacity:.62;}
   .tpSwatch{width:64px;height:64px;border-radius:12px;background:#f4f0e4;
     display:flex;align-items:center;justify-content:center;margin-bottom:8px;border:1px solid #ece6d4;}
   .tpSkinName{font-size:12.5px;font-weight:700;color:#2e3138;line-height:1.25;min-height:32px;
@@ -455,7 +479,8 @@
   .tpTrRow{background:#fff;border:1px solid #ddd6c4;border-radius:14px;padding:12px;
     display:flex;align-items:center;gap:12px;margin-bottom:10px;transition:box-shadow .3s;}
   .tpTrRow:active{transform:scale(0.98);}
-  .tpTrRow.tpLocked{opacity:.68;}
+  .tpTrRow.tpLocked{opacity:1;}
+  .tpTrRow.tpLocked > *{opacity:.68;}   /* see .tpSkinCard.tpLocked above */
   .tpTrRow.tpUnclaimed{border-color:#ff7a1a;background:#fff7ef;}
   .tpMedal{flex:none;width:46px;height:46px;border-radius:50%;display:flex;align-items:center;
     justify-content:center;font-size:22px;}
