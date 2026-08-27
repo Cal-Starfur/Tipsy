@@ -25001,14 +25001,23 @@ class WorldScene extends Phaser.Scene {
        to read as compromised well before a tip-over is imminent, not
        in lockstep with it. A crash snaps damage to 95, which drains
        this to fully empty: nothing left, goods ruined. */
-    const dmgFrac = Phaser.Math.Clamp(this.damage / 95, 0, 1);
-    const qualityFrac = 1 - dmgFrac;
-    const barW = 70, barH = 6, barX = cx - barW/2, barY = cy + r + 14;
-    g.fillStyle(0x000000, 0.35);
-    g.fillRoundedRect(barX, barY, barW, barH, barH/2);
-    if(qualityFrac > 0){
-      g.fillStyle(dmgFrac > 0.5 ? 0xc2452e : dmgFrac > 0.25 ? 0xff7a1a : 0x3f7d43, 1);
-      g.fillRoundedRect(barX, barY, barW*qualityFrac, barH, barH/2);
+    /* NOT IN FREE ROAM (2026-08-27). Same rule the GPS strip below
+       already follows, applied one widget higher: there is no order in
+       the bed during aimless free play, so "quality remaining" is
+       reporting on goods that do not exist. Unlike the strip, this one
+       has no errand exception -- a plotted destination is a drive, not
+       a delivery, and still carries nothing. The tilt arc above stays:
+       that reports on the ROBOT, which is being driven either way. */
+    if(this.mode !== "freeroam"){
+      const dmgFrac = Phaser.Math.Clamp(this.damage / 95, 0, 1);
+      const qualityFrac = 1 - dmgFrac;
+      const barW = 70, barH = 6, barX = cx - barW/2, barY = cy + r + 14;
+      g.fillStyle(0x000000, 0.35);
+      g.fillRoundedRect(barX, barY, barW, barH, barH/2);
+      if(qualityFrac > 0){
+        g.fillStyle(dmgFrac > 0.5 ? 0xc2452e : dmgFrac > 0.25 ? 0xff7a1a : 0x3f7d43, 1);
+        g.fillRoundedRect(barX, barY, barW*qualityFrac, barH, barH/2);
+      }
     }
 
     /* DOM readout (see #gpsHud CSS): textContent update is cheap, the
