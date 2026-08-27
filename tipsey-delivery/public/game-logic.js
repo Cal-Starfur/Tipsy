@@ -31057,39 +31057,16 @@ function tpOpenMissions(){
   tpRender();
   document.getElementById("tpMissionsPanel").classList.add("open");
   tpSyncGlobalBtns();
-  tpSheetReflow();
 }
-/* THE MAP CANVAS DOES NOT RESIZE ITSELF (on-device, 2026-08-26: "after
-   selecting and the list collapse the map doesn't expand and we are
-   seeing the game loaded up"). resizeRouteMap sizes #routeMap off
-   #mapCard's MEASURED height, and until now the only things that ever
-   called it were boot and a window `resize` event. The drawer changing
-   height resizes #mapCard -- it's a flex sibling, that is the whole
-   design -- but fires neither, so the canvas kept whatever size it had
-   when the drawer went up and the rest of the grown #mapCard showed the
-   live Phaser world straight through.
-
-   Which direction it breaks is not symmetric, and that is why this runs
-   for the whole animation rather than once at the end: expanding the
-   drawer SHRINKS the map, leaving the canvas oversized and harmlessly
-   clipped by #mapCard's overflow:hidden, but collapsing GROWS it and
-   leaves a gap with nothing drawn in it. Re-measuring only on
-   transitionend would still show that gap for the 220ms of the slide.
-
-   Bounded at 320ms (the .22s transition plus slack) and self-cancelling,
-   so a fast open/close/open cannot stack loops. */
-function tpSheetReflow(){
-  if(document.getElementById("titleOverlay").classList.contains("hidden")) return;
-  if(tpSheetReflow._raf) cancelAnimationFrame(tpSheetReflow._raf);
-  const t0 = performance.now();
-  const step = () => {
-    resizeRouteMap();
-    const s = scn();
-    if(s && s.route) drawRouteMap(s.route);
-    tpSheetReflow._raf = (performance.now() - t0 < 320) ? requestAnimationFrame(step) : 0;
-  };
-  step();
-}
+/* tpSheetReflow IS GONE (2026-08-26). It ran an rAF loop for the length
+   of the drawer animation, calling resizeRouteMap + drawRouteMap every
+   frame, because raising the drawer resized #mapCard and nothing else
+   told the canvas about it. #bottomSheet is out of flow now (see its
+   CSS note), so #mapCard's height is fixed for the life of the screen
+   and there is nothing left to chase. Deleted rather than left as a
+   no-op: a function named "reflow" that reflows nothing is worse than
+   no function. The window `resize` listener still drives
+   resizeRouteMap, which was always the real caller. */
 /* DOWN, NOT AWAY -- the third state the old overlay never had. The
    sheet is part of the map screen now, so "put the list away" and
    "leave the map" stopped being the same act: the handle, a tap on the
@@ -31101,7 +31078,6 @@ function tpSheetReflow(){
 function tpCollapseMissions(){
   document.getElementById("tpMissionsPanel").classList.remove("open");
   tpSyncGlobalBtns();
-  tpSheetReflow();
 }
 function tpCloseMissions(){
   document.getElementById("tpMissionsPanel").classList.remove("open");
@@ -31129,11 +31105,6 @@ function tpCloseMissions(){
     show("failOverlay");
     tdFxSyncGate();
   }
-  /* same reflow as the collapse -- this drops the drawer too, and on the
-     paths that leave the map up (everything except the two gates above)
-     the canvas has the same growing-#mapCard gap to fill. Its own guard
-     no-ops it when the map went away. */
-  tpSheetReflow();
 }
 
 function tpInitStaticIcons(){
