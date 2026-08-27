@@ -4922,12 +4922,17 @@ function matHighlightState(scene, m, forMode){
 const MISSION_MAT_SITES = [
   /* lane 2 -- the lane ch.lane runs the whole course in, so the start
      line and the run-up are the same piece of road. Was lane 3. */
-  { id:"jump-hydrant", name:"Hydrant Challenge", style:"rug", lane:2,
+  /* name is a SECOND copy of TP_SIDE_MISSIONS' -- it is what
+     gpsNavTo/tpToast say while you drive there ("Routing to X. Press
+     GO."), so leaving it on the old wording would have the toast and
+     the card disagreeing mid-drive. Renamed in step; the duplication
+     itself is pre-existing and left alone. */
+  { id:"jump-hydrant", name:"Hydrant Jump", style:"rug", lane:2,
     ax:12572, ay:11868, dv:{ x:1, y:0 }, rv:{ x:0, y:1 } },
   /* lane 3 -- the slalom weaves the whole 0..3 band (SL.rowA/rowB) and
      finishes on a customer's own mat, so its start keeps the doormat
      lane. Unchanged. */
-  { id:"cone-slalom",  name:"Cone Slalom Challenge", style:"rug", lane:3,
+  { id:"cone-slalom",  name:"Cone Slalom", style:"rug", lane:3,
     ax:44528, ay:75072, dv:{ x:0, y:1 }, rv:{ x:-1, y:0 } },
 ];
 function buildMissionMats(){
@@ -4942,13 +4947,13 @@ function missionMatDerive(){
   try {
     const hj = generateRoute(HJ_SEED_DATE, { hoodIndex: HJ_ADDRESS.hoodIndex, challenge: true });
     if(hj && hj.challenge)
-      out.push(missionMatAtS(hj, hj.challenge.s0, "jump-hydrant", "Hydrant Challenge", "rug", 2));
+      out.push(missionMatAtS(hj, hj.challenge.s0, "jump-hydrant", "Hydrant Jump", "rug", 2));
   } catch(e){ console.warn("hydrant mat underivable", e); }
   try {
     const sl = generateRoute(SL_SEED_DATE, { unanchoredStart: true });
     const chain = typeof slFindChain === "function" ? slFindChain(sl) : null;
     if(chain && chain.segs && chain.segs.length)
-      out.push(missionMatAtS(sl, chain.segs[0].s0, "cone-slalom", "Cone Slalom Challenge", "rug", 3));
+      out.push(missionMatAtS(sl, chain.segs[0].s0, "cone-slalom", "Cone Slalom", "rug", 3));
   } catch(e){ console.warn("slalom mat underivable", e); }
   return out;
 }
@@ -30511,13 +30516,20 @@ const TP_SIDE_MISSIONS = [
      "Hydrant Challenge - All Ten" were the same course, which read as a
      duplicate and completed together. It is one mission carrying two
      trophies: the Chief at jump 8, the Daredevil at jump 10. */
-  { id:"jump-hydrant", name:"Hydrant Challenge",
+  /* Renamed 2026-08-26 (Sir): "Hydrant Jump" / "Cone Slalom". The word
+     Challenge was doing no work in either -- everything in this table is
+     a challenge -- and the list rows are name-only now, so the name is
+     the whole label. One edit here reaches the list, the detail sheet
+     and the map card, which is the point of TP_SIDE_MISSIONS being the
+     single source: tpSyncOrderCard reads m.name, so the ROUTING card
+     changes with it and cannot drift. */
+  { id:"jump-hydrant", name:"Hydrant Jump",
     desc:"Ten jumps down Pelican St. Tap to charge, clear the hydrants, land the catch ramp.",
     card:"ten jumps down Pelican St, tap to charge and clear them all",
     par:"Ten jumps · clear all ten for the Fire Chief",
     status:"playable", trophyId:"hydrant-hop", icon:"hydrant", place:"Pelican St at 5th, The Flats",
     note:"Ten jumps on Pelican St. Tap to charge, land the catch ramp." },
-  { id:"cone-slalom", name:"Cone Slalom Challenge",
+  { id:"cone-slalom", name:"Cone Slalom",
     desc:"Weave the gates at double speed, then stop on the customer's mat like a real delivery.",
     card:"weave the gates at double speed, then stop on the mat",
     par:"75s par · sub-60s earns Slalom Master",
@@ -30624,8 +30636,17 @@ function tpSyncOrderCard(s){
      Note this branch is only reached with no gpsNav -- the ROUTING
      branch above returns first and keeps its distance/ETA, which is a
      real answer to "how far" rather than a restatement of the errand. */
+  /* SILENT IN FREE ROAM (Sir, 2026-08-26: "remove this pick up ready").
+     It moved rather than vanished -- "Pick up ready" is the Today's
+     Delivery row's title in the drawer directly below this line, so the
+     status was announcing the name of a button the player can already
+     see. Earlier today this line was the ONLY place that said it, which
+     is why it was put here; the drawer redesign made it the second.
+
+     Empty, not hidden: the element keeps its slot so the sheet does not
+     change height when a run starts and the total comes back. */
   stat.textContent = (s.mode === "freeroam")
-    ? "Pickup ready"
+    ? ""
     : `$${s.route.order.value.toFixed(2)} · ${s.route.order.text}`;
 }
 if(typeof window !== "undefined") window.tpSyncOrderCard = tpSyncOrderCard;
@@ -30921,11 +30942,29 @@ function tpRenderMissions(){
   const fp = document.createElement("div");
   fp.id = "tpFreePlayRow";
   fp.className = "tpTrRow";
+  /* THE ROBOT, NOT A CAR (Sir, 2026-08-26, marked on a screenshot).
+     &#127950; is the racing-car emoji -- rendered small and dark on an
+     iPad it read as a red race car, which is not what the player drives
+     and not what this row does. tpRobotSvg is the same drawing the store
+     swatches and the trophy rewards use, so the one place in the list
+     that shows Tipsey himself now shows the SAME Tipsey, wearing
+     whatever skin is equipped.
+
+     Falls back to "classic" rather than guarding the whole call: the
+     profile may not have landed from the server yet the first time this
+     list is built, and an unstyled robot is a better empty state than a
+     hole where the icon goes.
+
+     "Explore", and nothing under it. The description said the row was a
+     drive with no route and no clock, which is what NOT choosing a
+     mission already means -- the list is short enough to read as a menu
+     of verbs and the subtitles were slowing that down. Same treatment on
+     every row below (Sir: "no small writing describing it"). */
+  const fpSkin = tpSkinById(tpProfile.equipped) || tpSkinById("classic");
   fp.innerHTML = `
-    <div class="tpMedal tpMission" style="font-size:18px;">&#127950;</div>
+    <div class="tpMedal tpMission">${tpRobotSvg(fpSkin ? fpSkin.filter : "none", 22, fpSkin ? fpSkin.skinId : "classic")}</div>
     <div class="tpTrInfo">
-      <div class="tpTrName">Free Play</div>
-      <div class="tpTrDesc">Drive Costa Palma. No route, no clock.</div>
+      <div class="tpTrName">Explore</div>
     </div>
     <div class="tpTrRight"></div>`;
   fp.addEventListener("click", ()=>{ tpCloseMissions(); tpFreePlay(); });
@@ -30937,8 +30976,7 @@ function tpRenderMissions(){
   td.innerHTML = `
     <div class="tpMedal tpMission" style="font-size:18px;">&#128230;</div>
     <div class="tpTrInfo">
-      <div class="tpTrName">Today's Delivery</div>
-      <div class="tpTrDesc">Head back to today's actual delivery run.</div>
+      <div class="tpTrName">Pick up ready</div>
     </div>
     <div class="tpTrRight"></div>`;
   td.addEventListener("click", ()=>{
@@ -30973,19 +31011,28 @@ function tpRenderMissions(){
     row.id = "tpMissionRow-" + m.id;
     row.className = "tpTrRow" + (comingSoon ? " tpLocked" : "");
 
-    const trophy = m.trophyId ? tpTrophyById(m.trophyId) : null;
-    const rewardHtml = trophy
-      ? `<div class="tpTrReward">${tpTrophySvg(trophy.tier,14)} ${completed ? "Trophy earned: " : "Rewards: "}${trophy.name}</div>`
-      : "";
+    /* NAME ONLY (Sir, 2026-08-26: "no other writing"). Two lines go:
+       m.desc, and the trophy strapline underneath it. Neither was
+       telling the player anything the row's own destination doesn't --
+       the description restates the mission you are about to be driven
+       to, and the reward line is the Trophy Case's whole job one tab
+       over, where it is shown with progress attached rather than as a
+       bare claim.
 
+       "Coming soon" SURVIVES on locked rows, and is the reason this is a
+       conditional rather than a deletion: New Sweater City has no
+       destination, so with no subtitle the row would be a title with no
+       explanation for why tapping it does nothing.
+
+       The green check on a completed mission stays too -- unmarked on
+       the screenshot, and it is a state, not writing. */
     row.innerHTML = `
       <div class="tpMedal ${comingSoon ? "tpComingSoon" : (completed ? "tpCompleted" : "tpMission")}">${
         comingSoon ? tpLockSvg("#8f8571", 20) : tpMissionIconSvg(m, 22, "#2e3138")
       }</div>
       <div class="tpTrInfo">
         <div class="tpTrName">${m.name}</div>
-        <div class="tpTrDesc">${m.desc || (comingSoon ? "Coming soon" : "")}</div>
-        ${rewardHtml}
+        ${comingSoon ? `<div class="tpTrDesc">${m.desc || "Coming soon"}</div>` : ""}
       </div>
       <div class="tpTrRight">${completed ? `<div class="tpCheckBadge">${tpCheckSvg("#2f8f4e", 13)}</div>` : ""}</div>
     `;
