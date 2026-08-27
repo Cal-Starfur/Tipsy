@@ -2454,18 +2454,18 @@ const SHOP_MENUS = {
 };
 
 const HOODS = [
-  { n:"The Flats",       hill:0.0, pave:0.9, litter:0.2, palms:0.9, streets:["Palmline Ave","Pelican St","Marina Way"], parks:["Pelican","Driftwood","Marina","Tidewater","Sandpiper","Cove","Seabreeze","Lagoon","Estuary","Harbor Seal"], shops:["Pelican Coffee","Marina Provisions","Driftwood Deli"] },
-  { n:"Boardwalk",       hill:0.0, pave:0.6, litter:1.0, palms:1.0, streets:["Pier Ave","Saltbox Ln","Tide St"], parks:["Tide Pool","Carousel","Salt Air","Arcade","Ferris","Shoreline","Funhouse","Taffy","Pier's End","Sun Deck"], shops:["Tide Pool Tacos","Carousel Creamery","Salt Air Surf Shop"] },
-  { n:"Old Town",        hill:0.2, pave:0.2, litter:0.4, palms:0.4, streets:["Founders St","Cobble Ct","Lantern Row"], parks:["Founders","Lantern","Ivy","Cobblestone","Heritage","Chapel","Brickyard","Archway","Old Bell","Cornerstone"], shops:["Founders Hardware","Lantern Books","Cobblestone Bakery"] },
-  { n:"Scooter Row",     hill:0.1, pave:0.5, litter:1.0, palms:0.6, streets:["Beryl Ave","Kickstand St","Charger Way"], parks:["Volt","Spoke & Wheel","Recharge","Throttle","Gearhead","Battery","Piston","Ignition","Rev","Torque"], shops:["Volt Bike Co.","Kickstand Cafe","Charger Depot"] },
-  { n:"University",      hill:0.2, pave:0.7, litter:0.7, palms:0.5, streets:["Campus Loop","Quad St","Provost Ave"], parks:["The Quad","Provost","Scholars","Bell Tower","Ivy League","Commencement","Lecture Hall","Dean's","Alumni","Sophomore"], shops:["Quad Coffee","Provost Pizza","Scholars Stationery"] },
-  { n:"Warehouse Dist.", hill:0.0, pave:0.3, litter:0.6, palms:0.1, streets:["Freight St","Dock Ave","Pallet Way"], parks:["Sparrow","Crate","Rustwater","Loading Dock","Silo","Gantry","Forklift","Cargo","Freighter","Depot"], shops:["Freight Diner","Dockside Hardware","Pallet Coffee Co."] },
-  { n:"Sunset Terrace",  hill:0.6, pave:0.7, litter:0.3, palms:0.8, streets:["Terrace Dr","Vista Ct","Golden Steps"], parks:["Golden Hour","Vista","Amber","Sundial","Horizon","Dusk","Twilight","Marigold","Copper Sky","Afterglow"], shops:["Golden Hour Bakery","Vista Market","Terrace Coffee"] },
-  { n:"The Bluffs",      hill:1.0, pave:0.6, litter:0.2, palms:0.5, streets:["Switchback Rd","Crestline Dr","Ladder St"], parks:["Overlook","Crestline","Windward","Precipice","Eagle's Nest","Ridge","Cliffside","Updraft","Timberline","Vantage"], shops:["Crestline Cafe","Overlook Market","Switchback Coffee"] },
-  { n:"Meridian Hts.",   hill:0.8, pave:0.5, litter:0.4, palms:0.5, streets:["Meridian Ave","Summit Walk","Cable Ct"], parks:["Summit","Cable Car","Highline","Zenith","Alpine","Skyline","Ascent","Peak","Tramline","Overhead"], shops:["Summit Bakery","Cable Car Diner","Highline Market"] },
-  { n:"Market Dist.",    hill:0.1, pave:0.5, litter:0.7, palms:0.4, streets:["Stall St","Grocer Ave","Crate Ln"], parks:["Grocers","Barrel","Peddlers","Bazaar","Spice","Vendor's","Stallkeeper's","Basket","Farmstand","Tradewind"], shops:["Grocer's Corner","Barrel & Stall Deli","Peddler's Pantry"] },
-  { n:"Little Harbor",   hill:0.3, pave:0.6, litter:0.5, palms:0.7, streets:["Wharf St","Anchor Ave","Gull Ct"], parks:["Anchor","Gull Point","Fishmongers","Lighthouse","Tidewater","Skipper's","Buoy","Netmender's","Harbor Master's","Sailmaker's"], shops:["Anchor Diner","Gull Point Bakery","Wharfside Coffee"] },
-  { n:"Palm Gardens",    hill:0.2, pave:0.8, litter:0.3, palms:1.0, streets:["Frond Ave","Coconut Ct","Shade St"], parks:["Frond","Coconut Grove","Shade","Palmetto","Oasis","Tropic","Banyan","Hibiscus","Canopy","Sunfern"], shops:["Frond Cafe","Coconut Grove Deli","Shade Market"] },
+  { n:"The Flats",       hill:0.0, pave:0.9, litter:0.2, palms:0.9, streets:["Palmline Ave","Pelican St","Marina Way"], parks:["Pelican Park","Driftwood Green","Marina Commons","Tidewater Green","Sandpiper Field","Cove Grove","Seabreeze Gardens","Lagoon Point"], shops:["Pelican Coffee","Marina Provisions","Driftwood Deli"] },
+  { n:"Boardwalk",       hill:0.0, pave:0.6, litter:1.0, palms:1.0, streets:["Pier Ave","Saltbox Ln","Tide St"], parks:["Tide Pool Green","Carousel Square","Salt Air Park","Arcade Plaza","Ferris Field","Shoreline Esplanade","Funhouse Yard","Taffy Grove","Pier's End","Sun Deck Terrace","Boardwalk Commons","Skeeball Court","Ticket Booth Triangle"], shops:["Tide Pool Tacos","Carousel Creamery","Salt Air Surf Shop"] },
+  { n:"Old Town",        hill:0.2, pave:0.2, litter:0.4, palms:0.4, streets:["Founders St","Cobble Ct","Lantern Row"], parks:["Founders Square","Lantern Green","Ivy Grove","Cobblestone Commons","Heritage Park","Chapel Yard","Brickyard Field","Archway Plaza","Old Bell Green","Cornerstone Court","Millwright Grove","Tannery Field","Printer's Row Green","Gaslight Square","Almshouse Lawn","Wagon Yard","Stonecutter's Park"], shops:["Founders Hardware","Lantern Books","Cobblestone Bakery"] },
+  { n:"Scooter Row",     hill:0.1, pave:0.5, litter:1.0, palms:0.6, streets:["Beryl Ave","Kickstand St","Charger Way"], parks:["Volt Park","Spoke & Wheel Green","Recharge Plaza","Throttle Field","Gearhead Yard","Battery Commons","Piston Grove","Ignition Square","Rev Circle","Torque Terrace","Kickstand Green","Handlebar Park","Freewheel Field","Sprocket Yard","Dynamo Grove","Coasting Commons","Halfshaft Triangle","Chainlink Walk"], shops:["Volt Bike Co.","Kickstand Cafe","Charger Depot"] },
+  { n:"University",      hill:0.2, pave:0.7, litter:0.7, palms:0.5, streets:["Campus Loop","Quad St","Provost Ave"], parks:["The Quad","Provost Green","Scholars Grove","Bell Tower Square","Ivy League Lawn","Commencement Field","Lecture Hall Yard","Dean's Gardens","Alumni Commons","Sophomore Park","Freshman Green"], shops:["Quad Coffee","Provost Pizza","Scholars Stationery"] },
+  { n:"Warehouse Dist.", hill:0.0, pave:0.3, litter:0.6, palms:0.1, streets:["Freight St","Dock Ave","Pallet Way"], parks:["Sparrow Park","Crate Yard","Rustwater Field","Loading Dock Green","Silo Grove","Gantry Commons","Forklift Triangle","Cargo Square"], shops:["Freight Diner","Dockside Hardware","Pallet Coffee Co."] },
+  { n:"Sunset Terrace",  hill:0.6, pave:0.7, litter:0.3, palms:0.8, streets:["Terrace Dr","Vista Ct","Golden Steps"], parks:["Golden Hour Park","Vista Green","Amber Grove","Sundial Square","Horizon Field","Dusk Commons","Twilight Gardens","Marigold Meadow","Copper Sky Terrace","Afterglow Overlook","Ember Lawn","Lantern Rise"], shops:["Golden Hour Bakery","Vista Market","Terrace Coffee"] },
+  { n:"The Bluffs",      hill:1.0, pave:0.6, litter:0.2, palms:0.5, streets:["Switchback Rd","Crestline Dr","Ladder St"], parks:["Overlook Park","Crestline Green","Windward Field","Precipice Point","Eagle's Nest","Ridge Grove","Cliffside Commons","Updraft Rise","Timberline Preserve","Vantage Terrace"], shops:["Crestline Cafe","Overlook Market","Switchback Coffee"] },
+  { n:"Meridian Hts.",   hill:0.8, pave:0.5, litter:0.4, palms:0.5, streets:["Meridian Ave","Summit Walk","Cable Ct"], parks:["Summit Park","Cable Car Square","Highline Walk","Zenith Green","Alpine Grove","Skyline Terrace","Ascent Steps","Peak Field","Tramline Commons","Overhead Court","Funicular Landing","Meridian Green","Grip Line Yard","Cogwheel Park","Turntable Circle","Belltop Rise","Gradient Field","Counterweight Triangle"], shops:["Summit Bakery","Cable Car Diner","Highline Market"] },
+  { n:"Market Dist.",    hill:0.1, pave:0.5, litter:0.7, palms:0.4, streets:["Stall St","Grocer Ave","Crate Ln"], parks:["Grocers Green","Barrel Yard","Peddlers Square","Bazaar Plaza","Spice Grove","Vendor's Commons","Stallkeeper's Court","Basket Field","Farmstand Meadow","Tradewind Park","Awning Walk"], shops:["Grocer's Corner","Barrel & Stall Deli","Peddler's Pantry"] },
+  { n:"Little Harbor",   hill:0.3, pave:0.6, litter:0.5, palms:0.7, streets:["Wharf St","Anchor Ave","Gull Ct"], parks:["Anchor Green","Gull Point","Fishmongers Yard","Lighthouse Field","Tidewater Landing","Skipper's Walk"], shops:["Anchor Diner","Gull Point Bakery","Wharfside Coffee"] },
+  { n:"Palm Gardens",    hill:0.2, pave:0.8, litter:0.3, palms:1.0, streets:["Frond Ave","Coconut Ct","Shade St"], parks:["Frond Park","Coconut Grove","Shade Commons","Palmetto Green","Oasis Gardens","Tropic Field","Banyan Grove","Hibiscus Court","Canopy Walk","Sunfern Meadow","Bromeliad Green","Fan Palm Square","Orchid Terrace","Mango Grove"], shops:["Frond Cafe","Coconut Grove Deli","Shade Market"] },
 ];
 
 /* ---------- THE PERMANENT MAP: all 12 hoods, one city (2026-08-10) ----------
@@ -28029,10 +28029,101 @@ function tpHideRouteLoading(){
 /* ---------- EXPLORABLE MAP: names, landmarks, free camera ---------- */
 /* one source for the map's park naming — the draw pass and the search
    index both ask this, so they can never disagree */
+/* ONE NAME PER PARK, DEALT ONCE (2026-08-26, Sir: "they should all have
+   individual names").
+
+   Was: h.parks[floor(mulberry32(seed)() * h.parks.length)] -- an
+   independent roll per park, WITH REPLACEMENT, against a pool of 10. The
+   city has 146 parks (census: 106 merged interior components + 40
+   perimeter lots), up to 18 in one district, so collisions were not a
+   tuning problem, they were arithmetic. Enlarging the pools alone would
+   not have fixed it: 18 independent rolls into 18 slots still repeat
+   (birthday problem). The roll had to go, not just the pool size.
+
+   Now each district's parks[] is sized to that district's exact park
+   count and dealt WITHOUT replacement, so every park in Costa Palma
+   carries a distinct name and no name is left unreachable.
+
+   Derived once, then frozen -- same move as MISSION_MAT_SITES and
+   PICKUP_SHOPS. CITY_SEED never changes, so the 146 parks are the same
+   146 forever; the table is built on first ask and cached on the grid.
+
+   Order is stable rather than seeded: interior components in grid.blocks
+   order (j-major, i-minor, which IS the anchor order the map's own draw
+   pass computes by reduce), then perimeter lots in grid.extLots order.
+   Same city, same walk, same names, every session, no rng involved.
+
+   Keyed by rounded block centre, not by i/j, for two reasons: perimeter
+   lots have no i/j at all (buildExteriorLots returns bare cx/cy), and the
+   search index asks by an individual block's centre while the map draws
+   one label per merged component. Keying every member block of a
+   component to the component's name makes both callers land on the same
+   string, which is the whole point of there being one function here.
+
+   WHICH DISTRICT OWNS A PARK is hoodAtWorld(cx, cy), unchanged and
+   deliberately not "fixed" here: it rounds the block CENTRE, and
+   (i*BLOCK + BLOCK/2)/BLOCK is i+0.5, which JS rounds up -- so a block
+   is attributed to hoodAt(i+1, j+1) and ownership sits one block off the
+   geometry at every district boundary. The map's street labels share
+   that offset. The pool sizes below were censused against what the code
+   ACTUALLY does, not what the grid looks like, so they agree with it.
+   Changing the rounding is a separate change that would resize all 12
+   pools; it is not this one. */
+function parkNameTable(grid){
+  if(grid._parkNames) return grid._parkNames;
+  const table = new Map();
+  const key = (x, y) => Math.round(x) + "," + Math.round(y);
+  const dealt = new Map();               // hood name -> how many handed out
+  const deal = (cx, cy) => {
+    const h = hoodAtWorld(cx, cy);
+    const n = dealt.get(h.n) || 0;
+    dealt.set(h.n, n + 1);
+    /* pools are sized to the census, so this cannot fire on CITY_SEED.
+       If the city is ever reseeded and a district grows, say so out loud
+       rather than silently handing two parks the same name -- a silent
+       duplicate is exactly the bug this function exists to kill. */
+    if(n >= h.parks.length){
+      console.warn("park name pool exhausted:", h.n, (n+1), ">", h.parks.length);
+      return h.parks[h.parks.length - 1] + " " + (n - h.parks.length + 2);
+    }
+    return h.parks[n];
+  };
+  const seen = new Set();
+  for(const b of grid.blocks){
+    if(b.type !== "park" || b.i === undefined) continue;
+    const k0 = b.i + "," + b.j;
+    if(seen.has(k0)) continue;
+    const comp = [], q = [b]; seen.add(k0);
+    while(q.length){
+      const c = q.pop(); comp.push(c);
+      for(const [di, dj] of [[1,0],[-1,0],[0,1],[0,-1]]){
+        const nk = (c.i+di) + "," + (c.j+dj);
+        if(seen.has(nk)) continue;
+        const nb = grid.blockByIJ && grid.blockByIJ.get(nk);
+        if(nb && nb.type === "park"){ seen.add(nk); q.push(nb); }
+      }
+    }
+    /* same anchor rule the map's park-landmark pass uses, restated here
+       rather than shared because that pass computes it for a label
+       position and this one for a name -- one expression, two questions,
+       is how CORNER_R went wrong. They agree by construction anyway:
+       grid.blocks is j-major, so b already IS min-j-then-min-i. */
+    const anchor = comp.reduce((a, c) => (c.j < a.j || (c.j === a.j && c.i < a.i)) ? c : a);
+    const name = deal(anchor.cx, anchor.cy);
+    for(const c of comp) table.set(key(c.cx, c.cy), name);
+  }
+  for(const lot of (grid.extLots || [])){
+    if(lot.type !== "park") continue;
+    table.set(key(lot.cx, lot.cy), deal(lot.cx, lot.cy));
+  }
+  grid._parkNames = table;
+  return table;
+}
 function mapParkName(cx, cy, route){
-  const seed = ((Math.round(cx)*7919) ^ (Math.round(cy)*104729)) >>> 0;
-  const h = hoodAtWorld(cx, cy);
-  return h.parks[Math.floor(mulberry32(seed)() * h.parks.length)];
+  const g = route && route.grid;
+  if(!g) return hoodAtWorld(cx, cy).parks[0];
+  return parkNameTable(g).get(Math.round(cx) + "," + Math.round(cy))
+      || hoodAtWorld(cx, cy).parks[0];
 }
 /* the coast geometry's shared fractions — drawWorld's terrain pass and
    the landmark index both read THIS table, so a landmark can never
@@ -29407,9 +29498,30 @@ function tpMapIndex(route){
   const ord = n2 => n2 + ((n2%10===1&&n2!==11)?"st":(n2%10===2&&n2!==12)?"nd":(n2%10===3&&n2!==13)?"rd":"th");
   for(let i = 0; i < g2.cols; i++)
     out.push({ name: ord(i+1) + " St", kind:"street", x: i*BLOCK, y: (g2.rows-1)*BLOCK/2 });
+  /* ONE SEARCH ROW PER PARK, not per park BLOCK. This loop used to push
+     every one of the 323 park blocks, so a merged park the map draws as
+     a single label listed up to 17 identical rows in search -- invisible
+     while every park shared a handful of names, obvious the moment they
+     all became distinct. Dedupe by the name the table dealt, and place
+     the row at the component's centroid so tapping it jumps where the
+     label is rather than to one arbitrary corner block.
+     Perimeter park lots were never indexed at all (this loop only ever
+     walked g2.blocks, and extLots are not in it), so 40 named parks were
+     undiscoverable by search; they are in now. */
+  const parkRows = new Map();
+  const addPark = (nm, x, y) => {
+    const r = parkRows.get(nm);
+    if(r){ r.sx += x; r.sy += y; r.n++; }
+    else parkRows.set(nm, { sx:x, sy:y, n:1 });
+  };
   for(const b2 of g2.blocks)
     if(b2.type === "park")
-      out.push({ name: mapParkName(b2.cx, b2.cy, route), kind:"park", x: b2.cx, y: b2.cy });
+      addPark(mapParkName(b2.cx, b2.cy, route), b2.cx, b2.cy);
+  for(const lot of (g2.extLots || []))
+    if(lot.type === "park")
+      addPark(mapParkName(lot.cx, lot.cy, route), lot.cx, lot.cy);
+  for(const [nm, r] of parkRows)
+    out.push({ name: nm, kind:"park", x: r.sx/r.n, y: r.sy/r.n });
   for(const lm of worldgenLandmarks(g2)) out.push(lm);
   /* side missions: the mat's own x/y, in the live city. These used to
      come from each mission's frozen grid and carried atlas:true so the
