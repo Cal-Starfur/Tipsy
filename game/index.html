@@ -8112,6 +8112,51 @@ function gpsNavReplot(scene, force){
   gpsNav.distU = p.len + lead;
 }
 
+/* THE NEXT TURN ON THE NAV PATH, not on the rail (2026-08-26, Sir
+   on-device: "im not getting my gps directions to the pick up yet").
+
+   drawHUD's turn strip is built from findNextTurn(), which walks
+   route.segs looking for the next arc ahead of botS. That is the
+   DELIVERY rail, and on a drive to the shop or to a mission there is no
+   rail under the robot -- botS does not advance in free roam, so those
+   numbers are frozen at whatever the last delivery left behind. That
+   staleness is exactly why the whole strip was hidden in free roam, and
+   hiding it is why a plotted route gave no directions.
+
+   The A* path already has everything the strip needs, so this reads the
+   turns off the polyline instead. Distance is measured from the robot's
+   real position -- the straight-line lead to pts[0] plus the segments
+   after it -- which is the same lead gpsNavReplot already adds to
+   distU, so the turn countdown and the distance readout cannot
+   disagree.
+
+   Handedness matches the rail's convention exactly: the rail calls
+   sign>0 a RIGHT turn on screen, sign>0 means heading f -> f+1, and
+   DIRV steps (1,0) -> (0,1), whose 2D cross product is +1. So cross>0
+   is Right here too, by the same arithmetic rather than by a second
+   guess at the projection.
+
+   The 0.3 threshold ignores the sub-degree wobble between two nodes
+   that are nominally collinear; a real lattice turn is a full 90 and
+   scores 1.0. */
+function gpsNavTurn(scene){
+  if(!gpsNav || !gpsNav.path || !scene) return null;
+  const pts = gpsNav.path.pts;
+  if(!pts || pts.length < 2) return null;
+  let acc = Math.hypot(pts[0].x - scene.botX, pts[0].y - scene.botY);
+  for(let i = 1; i < pts.length - 1; i++){
+    const a = pts[i-1], b = pts[i], c = pts[i+1];
+    const d1x = b.x - a.x, d1y = b.y - a.y;
+    const d2x = c.x - b.x, d2y = c.y - b.y;
+    const l1 = Math.hypot(d1x, d1y) || 1, l2 = Math.hypot(d2x, d2y) || 1;
+    acc += l1;
+    const cross = (d1x/l1)*(d2y/l2) - (d1y/l1)*(d2x/l2);
+    if(Math.abs(cross) > 0.3) return { sign: cross > 0 ? 1 : -1, dist: Math.max(0, acc) };
+  }
+  return null;
+}
+if(typeof window !== "undefined") window.gpsNavTurn = gpsNavTurn;
+
 function gpsNavTo(scene, id, name, tx, ty){
   if(!scene || !scene.route || !scene.route.grid) return false;
   gpsNav = { id, name, tx, ty, path: null, etaMs: null, distU: 0, plottedAt: -1e9 };
@@ -24615,6 +24660,23 @@ class WorldScene extends Phaser.Scene {
        countdown resumes only once the robot exits onto the straight. */
     const curSeg = this.segAt(this.botS);
     let turnText;
+    /* NAV LEG OWNS THE WHOLE STRIP. Handled before the rail branches
+       rather than after, because every one of them reads botS/route.segs
+       and there is no rail under a free-roam drive to answer them. */
+    if(gpsNav && gpsNav.path){
+      const nt = gpsNavTurn(this);
+      if(nt){
+        const dir = nt.sign > 0 ? "Right" : "Left";
+        const arrow = nt.sign > 0 ? "\u2192" : "\u2190";
+        turnText = nt.dist < 20
+          ? `${arrow} Turn ${dir}`
+          : `${arrow} Turn ${dir} in ${Math.round(nt.dist*FT_PER_UNIT/10)*10} ft`;
+      } else {
+        /* no turns left on the path: name the destination, same as the
+           delivery's own final-approach line names the address. */
+        turnText = `\uD83C\uDFC1 ${gpsNav.name || "destination"}`;
+      }
+    } else
     /* RECALCULATING. A live reroute rebuilds route.segs under the strip,
        so every number on it changes at once; saying so for a beat is the
        difference between a GPS and a glitch. */
@@ -24699,7 +24761,14 @@ class WorldScene extends Phaser.Scene {
 
        The tilt arc and cargo bar above stay: those report on the ROBOT,
        which is being driven either way. */
-    const _freeRoam = this.mode === "freeroam";
+    /* ...UNLESS THERE IS AN ERRAND. The rule above is right for AIMLESS
+       free roam and wrong the moment a destination is plotted: with
+       gpsNav live all three fields are real and path-derived -- ETA from
+       gpsEtaMs, distance from gpsNav.distU, and the turn from
+       gpsNavTurn -- so none of them is the frozen rail number this was
+       written to suppress. Driving to the shop with no directions on
+       screen was the cost of not making that distinction. */
+    const _freeRoam = this.mode === "freeroam" && !gpsNav;
     if(!_freeRoam) gpsEl.textContent = `${timerText} · ${distText} · ${turnText}`;
     gpsEl.classList.toggle("hidden", _freeRoam || this.state !== "play");
   }
