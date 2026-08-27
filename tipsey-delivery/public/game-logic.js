@@ -1218,6 +1218,15 @@ function tdStackIcons(overlayId){
      "globalSearch", () => {
        hide("failOverlay"); hide("winOverlay");
        collapseSheet(); show("titleOverlay"); tpSyncGlobalBtns();
+       /* ...and repaint the card, same as the corner glass now does.
+          Raising the map does not change mode, so without this the card
+          and GO are whatever the LAST thing to write them said -- on a
+          cold boot that is loadRoute's delivery state, which is why free
+          roam kept showing GO and the order total instead of "Pickup
+          ready" (Sir, 2026-08-26: "i thought you addressed the Go and
+          the pick up ready already but they havent landed"). They had
+          landed; nothing on this path was asking for them. */
+       if(typeof tpSyncOrderCard === "function") tpSyncOrderCard(scn());
      });
   const av = document.getElementById("globalAvatar");
   mk("#ff7a1a", av ? av.innerHTML : "", "globalAvatar", () => tpOpenProfile());
@@ -30637,10 +30646,22 @@ if(typeof window !== "undefined") window.tpSyncOrderCard = tpSyncOrderCard;
    roam with nothing plotted is the only case that hides it. */
 function tpSyncMapChrome(s){
   const go = document.getElementById("startBtn");
-  if(!go) return;
   const chosen = !!s && (s.mode !== "freeroam"
     || (typeof gpsNav !== "undefined" && !!gpsNav));
-  go.classList.toggle("hidden", !chosen);
+  if(go) go.classList.toggle("hidden", !chosen);
+  /* THE BANNER GOES WITH IT (Sir, 2026-08-26: "remove the card that is
+     showing the address of the pick up too for the free roam map, but
+     keep it when the daily route is selected"). Same test, same beat --
+     the card describes the errand GO would start, so a map with nothing
+     to start has nothing to describe either, and the banner was covering
+     four blocks of the city you opened the map to look at.
+
+     Toggled, not emptied: tpSyncOrderCard has already written today's
+     text into it above, so picking Today's Delivery or a mission pin
+     just un-hides a card that is already correct -- no second writer,
+     nothing to keep in sync, and no flash of stale copy on the way in. */
+  const card = document.getElementById("orderCard");
+  if(card) card.classList.toggle("hidden", !chosen);
 }
 if(typeof window !== "undefined") window.tpSyncMapChrome = tpSyncMapChrome;
 
@@ -31612,6 +31633,15 @@ document.getElementById("avatarIcon").addEventListener("click", tpOpenProfile);
     requestAnimationFrame(() => {
       const s2 = scn();
       if(s2 && s2.route){ resizeRouteMap(); drawRouteMap(s2.route); }
+      /* THE CARD IS PART OF THE REPAINT. The line above fixed a stale
+         CANVAS on this path; the card underneath it had exactly the
+         same bug and was missed. tpSyncOrderCard derives GO and the
+         status line from mode, and mode may have changed several times
+         (Free Play, a mission, a quit) since anything last called it --
+         so the map came up over a live free roam still advertising the
+         delivery, with a GO that no longer started anything. Raising
+         the map is a read of current state; read all of it. */
+      if(typeof tpSyncOrderCard === "function") tpSyncOrderCard(s2);
     });
   };
   el.addEventListener("touchstart", go, {passive:false, capture:true});
