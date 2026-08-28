@@ -6041,6 +6041,9 @@ function owTip(scene, sgn){
    "play", and every stepper is gated on it. */
 function owDispatchTipFail(scene){
   if(scene.mode !== "delivery" && scene.mode !== "freeroam") return;
+  /* same retirement showWin does, for the other ending: a crashed
+     delivery is not still navigating anywhere. */
+  gpsNavClear();
   const failPool = scene.tipCause === "william" ? WILLIAM_FAIL_LINES : null;
   if(scene.mode === "freeroam"){
     if(scene.ow) scene.ow.failHold = true;
@@ -8080,6 +8083,29 @@ function tpPickupHere(scene){
   countPlay();
   scene.state = "play";
   hide("titleOverlay");
+  /* THE GPS DOES NOT HANG UP AT THE SHOP (2026-08-27, Sir on-device: "i
+     dont see the route in the mini map either").
+
+     gpsNavLaunch clears the nav leg the instant the mat arms, which is
+     right for a mission -- the mission owns the screen from there -- and
+     wrong for a pickup, because the pickup is the FIRST HALF of a trip.
+     Everything the player was navigating by is drawn off gpsNav: the
+     minimap's dashed line, the strip's turn text, the chevron. All three
+     went dark at the shop and the delivery leg was left with the rail's
+     own findNextTurn and no line at all.
+
+     So the leg is re-plotted to the address the moment the order is on
+     board. addressMat is the same frame owOnMat wins against, so the
+     line ends exactly where the delivery ends rather than at a door
+     projected onto the rail.
+
+     It cannot arm anything: gpsNavArrived only fires on a MISSION mat
+     (getMissionMats -- the two courses, plus the pickup mat and only
+     while not in delivery), and "dropoff" is not one of them, so
+     gpsNavLaunch is unreachable from here. The win still belongs to
+     owAtDoor, untouched. */
+  const am = scene.route.addressMat;
+  if(am && Number.isFinite(am.x)) gpsNavTo(scene, "dropoff", scene.route.address, am.x, am.y);
   tpToast("Order picked up \u2014 deliver to " + scene.route.address + ".");
   return true;
 }
@@ -14026,7 +14052,19 @@ class WorldScene extends Phaser.Scene {
     const _pose = (opts && opts.keepPose)
       ? { x:   this.ow ? this.ow.px  : this.botX,
           y:   this.ow ? this.ow.py  : this.botY,
-          yaw: this.ow ? this.ow.yaw : this.drawAngle }
+          yaw: this.ow ? this.ow.yaw : this.drawAngle,
+          /* AND THE CAMERA (2026-08-27, Sir on-device: "there was a cut
+             away and it didnt feel seemless"). The pose survived this
+             load already; the VIEW did not. camX/camY ease toward the
+             robot at 8% a frame, so while driving they sit a real
+             distance behind him -- measured at pickup speed on the mat,
+             104 world units -- and the load slams them onto him in one
+             frame. The robot does not move (posDelta 0, yawDelta 0) but
+             the whole city lurches, which is exactly what reads as a
+             cut. Kept as absolutes: botX/botY are unchanged across a
+             keepPose load, so restoring the camera verbatim preserves
+             the lag rather than re-deriving it. */
+          camX: this.camX, camY: this.camY, camZ: this.camZ }
       : null;
     /* a corridor belongs to a course, and loading a route ends whatever
        course was running. Left set, it would keep a stretch of some
@@ -14161,7 +14199,11 @@ class WorldScene extends Phaser.Scene {
       this.laneOff = 0;               // world x/y is the authority, same as owInstall
       this.botX = _pose.x; this.botY = _pose.y;
       this.drawAngle = _pose.yaw;
-      this.camX = this.botX; this.camY = this.botY; this.camZ = this.botZ;
+      /* the trailing camera, not a snap onto the robot -- see the
+         capture above. camZ still comes off the new botZ when the old
+         one is not finite (a rail pose has no camZ worth keeping). */
+      this.camX = _pose.camX; this.camY = _pose.camY;
+      this.camZ = Number.isFinite(_pose.camZ) ? _pose.camZ : this.botZ;
     }
     this.pickupLidClosing = false; // latches true while the lid still owes a close-out on
                                     // that flipped hinge, even after loading itself has ended
@@ -22721,6 +22763,7 @@ class WorldScene extends Phaser.Scene {
       if(this.mode === "delivery" && this.runT > this.route.parMs + CANCEL_GRACE_MS){
         this.state = "canceled";
         this.speed = 0; this.throttle = 0;
+        gpsNavClear();   // the order died; the line dies with it
         if(this.attractOwnsTip()){ this.attractRecycle(); return; }
         reportFail(this, "canceled");
         setTimeout(() => showFail(CANCEL_LINES), 900);
@@ -24858,7 +24901,17 @@ class WorldScene extends Phaser.Scene {
        going negative. No red, no grace window: there is nothing to
        fail on a drive to a mission, because taking one already
        cancelled the order (see gpsAbandonDelivery). */
-    if(gpsNav && gpsNav.etaMs != null) timerText = "ETA " + fmtMs(gpsNav.etaMs);
+    /* ...BUT NOT ON A DELIVERY (2026-08-27). The nav leg runs through
+       the delivery now (see tpPickupHere), and it has no claim on this
+       field: par is the order's own budget and its decay is the whole
+       pressure of the run. An ETA that grows while you dawdle is the
+       right readout for a drive to a shop and the wrong one for a
+       burrito going cold. The distance and the turn DO come from the
+       leg -- they describe the line being drawn on the minimap, and a
+       strip quoting a different path than the one on screen is worse
+       than either. */
+    if(gpsNav && gpsNav.etaMs != null && this.mode !== "delivery")
+      timerText = "ETA " + fmtMs(gpsNav.etaMs);
 
     /* mid-turn HOLD: while the robot is actually ON an arc, show just
        the current turn's arrow — no distance. findNextTurn() looks
@@ -33501,6 +33554,13 @@ tpInitStaticIcons();
 tpRender();
 
 function showWin(s, opts){
+  /* THE TRIP IS OVER, so the line comes off the map with it. The nav
+     leg survives the pickup now and nothing else was going to retire
+     it: gpsNavLaunch's clear only runs on a mission mat, and the win is
+     owAtDoor's. Left set, the dashed line and the chevron would still
+     be pointing at a door already delivered to, through the win card
+     and into whatever came next. */
+  if(typeof gpsNavClear === "function") gpsNavClear();
   document.getElementById("winSub").textContent =
     WIN_LINES[Math.floor(Math.random()*WIN_LINES.length)];
   const cargo = Math.round(100 - s.damage);
