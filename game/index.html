@@ -17976,7 +17976,32 @@ class WorldScene extends Phaser.Scene {
          own footprint (slice width plus unit depth), h clears the
          tallest frontage. */
       if(!this.visWorldPt(cx, cy, sliceW + D, 420)) continue;
-      vq.push({ depth: cx+cy, fn: (g,t) => drawFn(g, t, a0, a1) });
+      /* AND THE SAME NEAR/FAR TEST EVERY OTHER BODY GETS (2026-08-27,
+         Sir on-device: "the overlapping issue with all the props and
+         the houses and tipsey").
+
+         Every strip here was drawn into the raw layer, unconditionally
+         -- see the bodies pass, whose own comment states the rule:
+         "always gWorld, the robot must stay visible over block-wrap
+         dressing, never hidden behind it". On a rail that was right and
+         free: he ran a fixed sidewalk lane with the dressing behind
+         him, never between him and the camera. Off the rail it expired,
+         which is the identical expiry propLayer was written for -- and
+         furniture got that fix while the BUILDINGS it stands in front
+         of did not. So Tipsey painted over roofs he was standing behind.
+
+         It also explains the props on roofs. A scooter nearer to camera
+         than the robot correctly went to gFront; the house between it
+         and the camera went to the base layer regardless; gFront
+         composites above, so the scooter landed on the roof. One rule
+         missing from one place, two symptoms.
+
+         propLayer is a no-op off open world, so the rail path stays
+         byte-for-byte -- which is what the hazard oracle gates and what
+         any bisect against the shipping game needs. Per STRIP, not per
+         building: these are T2 slices, so a house occludes him only
+         along the part of itself that is actually nearer. */
+      vq.push({ depth: cx+cy, fn: (g,t) => drawFn(this.propLayer(g, cx, cy), t, a0, a1) });
     }
   }
 
