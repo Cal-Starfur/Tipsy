@@ -35,6 +35,16 @@ export const TS_SKINS: Record<string, TsSkinDef> = {
   'cone-dodger': {priceCents: 0, unlockType: 'achievement'},
 }
 
+/** Price of a Continue, in cents. Mirrors TP_CONT_CENTS in
+ *  game/index.html and must be changed in the same commit as it (same
+ *  known duplication cost this file's header describes).
+ *
+ *  IT LIVES HERE BECAUSE THE CLIENT MUST NOT NAME THE PRICE. The debit
+ *  endpoint takes no amount -- a request that carried one could carry
+ *  zero. Same reason TS_SKINS holds priceCents rather than trusting
+ *  PurchaseSkinReq. */
+export const TS_CONTINUE_CENTS = 100
+
 export type TsHistoryEntry = {dateStr: string; tip: number; ms: number}
 
 /** Side missions the server keeps a record for. `best` is a monotonic
