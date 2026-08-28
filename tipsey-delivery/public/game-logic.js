@@ -6626,7 +6626,34 @@ const DOOR_ART = {
 };
 const MAT_ART = { red: 0xc2452e, redDk: 0x8f331f, border: 0x6e2718, fiber: 0xa8391f,
   ckWhite: 0xf5f5f2, ckBlack: 0x1a1a1c, ckFrame: 0x2a2a2a, ckBorder: 0x0d0d0d };
-const PICKUP_ART = { walkMs: 1000 }; // real elapsed ms for the worker to walk back in after "go" — frame-rate independent, driven by runT. Halved with the intro cut; also the fallback for the won walk-back when wonMeet is missing, where 1000ms is still a sane floor
+const PICKUP_ART = { walkMs: 1000, // real elapsed ms for the worker to walk back in after "go" — frame-rate independent, driven by runT. Halved with the intro cut; also the fallback for the won walk-back when wonMeet is missing, where 1000ms is still a sane floor
+  /* THE WALK OUT (2026-08-27, Sir on-device: "the worker is just
+     aperaring and not coming out of the door").
+
+     The pickup timeline had two phases -- load, then walk back in --
+     and pickupWalk was set to 1 the moment the run began. 1 is not
+     "idle": it is "standing a full row out from the shop wall holding
+     the bag". So he existed, already outside, on frame one, in front of
+     a shut door. It went unnoticed while runs started from a map screen
+     that cut to the shop; driving up to the mat put a man on the
+     pavement out of nothing, in view, which is what Sir saw.
+
+     outSpeed is a HUSTLE, deliberately not the 0.18 u/ms of the walk
+     back: that stroll happens behind a player who already has the bag,
+     and this one is the thing being watched. Measured door-to-meet
+     distance is 211 units, so 0.30 spends ~700ms on it against ~1170
+     at the return pace.
+
+     loadLead overlaps the beats instead of queueing them. Sir cut this
+     ceremony from ~3.5s once already (LOAD_ART.ms) and a walk bolted
+     onto the front would hand ~700ms of that straight back. The lid
+     starts opening at 55% of the walk instead -- the robot preparing to
+     receive while he covers the last few steps, which reads better than
+     him waiting for it -- so the opening grows by ~390ms, not 700. The
+     bag still lands after he arrives: the drop is at LOAD_ART.dropFrac
+     of a 700ms load that starts ~390ms in, so ~880ms, against his
+     ~700ms arrival. */
+  outSpeed: 0.30, outMin: 320, outMax: 760, loadLead: 0.55 };
 const LIFT_MAX_ANGLE = Math.PI/2; // full lift = carrying arm swung forward to horizontal, pivoting at the shoulder
 
 /* pickup loading phase: robot's cargo lid opens, worker places a
@@ -12754,6 +12781,7 @@ class WorldScene extends Phaser.Scene {
        length read is never undefined on the very first frame. */
     this.peel = { smoke: [], held: false, launchT0: 0 };
     this.openHold = false; this.openAdopted = false; this.openT0 = null;
+    this.pickupOut = 0; this.pickupOutAt = null; this.pickupOutMs = null;
     this.tipT = 0; this.tipStartRoll = 0; this.postSpillMs = 0; this.lidAng = 0; this.items = []; this.spilled = false;
     this.wonT = 0; this.wonFrac = 0; this.wonLiftT = 0; this.wonLidClosing = false; this.wonWalkAt = null; this.wonWalk = 0; this.wonOutT = 0; this.wonOutFrac = 0; this.wonMeet = null;
     this.bagOnBoard = false;
@@ -14177,6 +14205,7 @@ class WorldScene extends Phaser.Scene {
        loadRoute (GO, Retry, Today, the attract recycle) and only this one
        also zeroes runT, which is the clock the hold is measured against. */
     this.openHold = true; this.openAdopted = false; this.openT0 = null; this.peelReset();
+    this.pickupOut = 0; this.pickupOutAt = null; this.pickupOutMs = null;   // phase 0 replays per run
     this.tipCause = null;
     this.roll = 0; this.tipT = 0; this.tipStartRoll = 0; this.postSpillMs = 0; this.lidAng = 0; this.items = []; this.spilled = false;
     this.wonT = 0; this.wonFrac = 0; this.wonLiftT = 0; this.wonLidClosing = false; this.wonWalkAt = null; this.wonWalk = 0; this.wonOutT = 0; this.wonOutFrac = 0; this.wonMeet = null;
@@ -20704,12 +20733,57 @@ class WorldScene extends Phaser.Scene {
     if(this.mode === "challenge" || this.mode === "freeroam"){
       this.loadDone = false; this.walkAt = null;
       this.pickupWalk = (this.mode === "freeroam") ? 0 : 1;
+      this.pickupOut = 1; this.pickupOutAt = null; this.pickupOutMs = null;
       this.bagOnBoard = false; this.doorSwing = 0; this.pickupLidClosing = false;
     } else if(this.state === "play"){
-      if(this.openT0 == null) this.openT0 = performance.now();
-      const loadT = performance.now() - this.openT0;
+      /* ---------- PHASE 0: OUT THE DOOR (2026-08-27) ----------
+         Latched on the first play frame, on the same performance.now()
+         clock the loading beat uses -- runT is Phaser's smoothed delta,
+         and two beats that have to line up cannot be measured on two
+         different clocks.
+
+         The distance is the SAME geometry the walk back measures (door
+         plane out to the meet point, 12 short of the pickup spot), read
+         off the fields drawPickupUnit stamps. Those do not exist until
+         the shop has been drawn once, so the first frames fall back to
+         walkMs and this latches the real number as soon as they appear.
+         Computed once and kept: a ramp that changed length under itself
+         mid-walk would stutter. */
+      if(this.pickupOutAt == null) this.pickupOutAt = performance.now();
+      if(this.pickupOutMs == null && this.route.pickupSpot && this.pickupDoorDV){
+        const dpx0 = this.pickupDoorUX + this.pickupDoorDV.x*this.pickupDoorCenterX;
+        const dpy0 = this.pickupDoorUY + this.pickupDoorDV.y*this.pickupDoorCenterX;
+        const ovx = this.route.pickupSpot.x - dpx0, ovy = this.route.pickupSpot.y - dpy0;
+        const od = Math.hypot(ovx, ovy) || 1;
+        const omx = this.route.pickupSpot.x - ovx/od*12, omy = this.route.pickupSpot.y - ovy/od*12;
+        const obx = dpx0 - this.pickupDoorRV.x*30, oby = dpy0 - this.pickupDoorRV.y*30;
+        this.pickupOutMs = Phaser.Math.Clamp(
+          Math.hypot(omx - obx, omy - oby) / PICKUP_ART.outSpeed,
+          PICKUP_ART.outMin, PICKUP_ART.outMax);
+      }
+      const outMs = this.pickupOutMs || PICKUP_ART.walkMs;
+      const outFrac = Phaser.Math.Clamp((performance.now() - this.pickupOutAt) / outMs, 0, 1);
+      this.pickupOut = outFrac;
+      /* EASE IN, because he is LEAVING (2026-08-27). drawPickupUnit puts
+         its own wu = 1-(1-t)^2 on top of whatever it is handed, and that
+         is an ease-OUT: fast off the mark, slow into the stop. Correct
+         for arriving, exactly backwards for a man stepping through a
+         door that is still swinging -- fed the raw ramp he was 28% down
+         the pavement at 349ms with the door only a quarter open, which
+         reads as bursting through it.
+         Squaring first composes to 1-(1-t^2)^2, which is slow-fast-slow:
+         12% out at a quarter of the walk (the door is ~85% open by
+         then, on SHOPDOOR_ART.openEase), full speed across the middle,
+         settling into the meet point. Ends at exactly 1, so nothing
+         downstream that keys off "arrived" moves. */
+      const outEase = outFrac * outFrac;
+      /* the loading clock starts PART WAY along the walk, not after it
+         -- see PICKUP_ART.loadLead. Still a lazy latch, so the beat is
+         frame-rate independent exactly as it was. */
+      if(this.openT0 == null && outFrac >= PICKUP_ART.loadLead) this.openT0 = performance.now();
+      const loadT = this.openT0 == null ? 0 : performance.now() - this.openT0;
       loadFrac = Phaser.Math.Clamp(loadT / LOAD_ART.ms, 0, 1);
-      this.loadDone = loadT >= LOAD_ART.ms;
+      this.loadDone = this.openT0 != null && loadT >= LOAD_ART.ms;
       /* persistent latch for the spill: loadDone itself is VOLATILE —
          the else branch below wipes it the instant state leaves "play",
          and spillCargo fires frames AFTER state becomes "tipped", so
@@ -20737,11 +20811,23 @@ class WorldScene extends Phaser.Scene {
         this.pickupWalk = Phaser.Math.Clamp(1 - (this.runT - this.walkAt)/backMs, 0, 1);
       } else {
         this.walkAt = null;
-        this.pickupWalk = 1; // still idle at the robot during loading
+        /* HIS POSITION ON THE DOOR->MEET LINE, which during phase 0 is
+           the walk itself and afterwards is a constant 1 -- the same
+           "standing at the robot during loading" the literal 1 used to
+           mean, now arrived at rather than assumed. */
+        this.pickupWalk = outEase;
       }
     } else {
+      /* NOT PLAYING = NOT OUT (2026-08-27). This branch parked him at 1,
+         so the title screen and every non-play frame had a worker
+         already standing on the pavement with the bag -- which is the
+         other half of "he is just appearing": there was nothing for him
+         to appear FROM, because he had been out the whole time. 0 is
+         inside with the door shut, and clearing the latch means the walk
+         plays from the top on the first play frame. */
       this.loadDone = false; this.walkAt = null;
-      this.pickupWalk = 1;
+      this.pickupWalk = 0;
+      this.pickupOut = 0; this.pickupOutAt = null; this.pickupOutMs = null;
     }
 
     /* ---------- dropoff handoff timeline: the pickup's loading phase
@@ -20933,7 +21019,14 @@ class WorldScene extends Phaser.Scene {
        tracking state==="play" directly, which would open it once and
        leave it open for the rest of the route instead of it actually
        swinging shut behind him. */
-    const shopDoorTarget = (this.state === "play" && this.loadDone && this.pickupWalk > 0) ? SHOPDOOR_ART.openAngle : 0;
+    /* ...AND IT OPENS FOR HIM ON THE WAY OUT TOO (2026-08-27). The
+       target only ever covered the walk BACK, which is why the old
+       first frame stood him outside a shut door. Two swings now, one
+       per crossing, with the door closing behind him while he loads --
+       which is what a shop door does. */
+    const shopDoorTarget = (this.state === "play" &&
+      ((this.pickupOut != null && this.pickupOut < 1) || (this.loadDone && this.pickupWalk > 0)))
+      ? SHOPDOOR_ART.openAngle : 0;
     this.doorSwing += (shopDoorTarget - this.doorSwing) * SHOPDOOR_ART.openEase;
     if(Math.abs(shopDoorTarget - this.doorSwing) < 0.002) this.doorSwing = shopDoorTarget;
 
@@ -28280,6 +28373,7 @@ function tpSlalomOn(){
     r.pickupSpot = null; r.pickupShopName = null; r.pickupBlock = null;
     scene.pickupDoorDV = null; scene.pickupDoorRV = null;
     scene.walkAt = null; scene.doorSwing = 0;
+    scene.pickupOut = 1; scene.pickupOutAt = null; scene.pickupOutMs = null;
 
     /* ============ THE DELIVERY IS NOT THE ENDING ============
        Two live pieces of delivery logic were still running underneath the
