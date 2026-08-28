@@ -1865,19 +1865,94 @@ function tdFxSyncGate(){
     tdFxShowPlainRetry();   // draft never showed up -- don't strand the player over it
     return;
   }
+  /* PAY INSTEAD OF POST, ON A TRIP (Sir, 2026-08-28: "lets replace
+     comment with pay"). The composer is the gate's whole UI and it
+     takes the slot #retryBtn lives in, so on Devvit a gated delivery
+     fail could never reach Continue at all -- the button was display
+     none before tpContSyncBtn ever ran.
+
+     ONLY WHEN THERE IS A TRIP TO CONTINUE. A fail with no live leg has
+     nothing to sell, so it keeps the composer and posting stays the
+     price of Retry there. This is the same tpContArmed the plain card
+     asks, so Devvit and web cannot disagree about what counts as a
+     trip.
+
+     The plain button is restored rather than a second one built:
+     tpContSyncBtn already labels it Continue or Tow, and the click
+     handler already knows how to charge, tow and (below) clear the
+     gate. One owner, one behaviour, two builds. */
+  if(typeof tpContArmed === "function" && tpContArmed()){
+    /* BOTH, NOT EITHER (Sir, 2026-08-28). #retryBtn carries the cash
+       price and the composer sits under it carrying the other one:
+       posting to the delivery log buys the same Continue for free. Two
+       currencies, one thing bought -- so a player with no tips is never
+       out of options, and the log keeps getting fed by the players who
+       would rather write than pay.
+
+       tdFxShowPlainRetry FIRST because it hides the panel; the render
+       below then puts it back at a lower top, out of #retryBtn's own
+       slot at 46% which the composer was written to occupy alone. */
+    tdFxShowPlainRetry();
+    tpContSyncBtn();
+    const g2 = tdFxGatePanel();
+    g2.style.top = "58%";
+    tdFxRenderComposer(g2, {
+      heading: "OR POST TO THE DELIVERY LOG AND CONTINUE FREE",
+      label: "Post & Continue",
+      onPost: tpContFire
+    });
+    tdFxPositionIconsAbove("tdStackIcons_failOverlay", g2);
+    return;
+  }
   const r = document.getElementById("retryBtn");
   if(r) r.style.display = "none";
   const g = tdFxGatePanel();
   tdFxRenderComposer(g);
   tdFxPositionIconsAbove("tdStackIcons_failOverlay", g);
 }
+/* WHAT CLEARS THE GATE NOW. Posting used to be the only thing that
+   did; on a trip fail, resolving it is. Both actions clear -- the tow
+   is free and that is deliberate (its price is paid in position, see
+   dbResolveDeliveryFail) -- so a player with an empty wallet is never
+   left on a card with no working button, which is the trap the swap
+   would otherwise have created.
+
+   LOCAL FLAGS FIRST, SERVER SECOND, matching tpSubmitPurchase: the
+   optimistic clear keeps the card responsive and the reconcile below
+   puts the wallet back to server truth if the debit was rejected. */
+function tdFxResolveFail(action){
+  tdFx.deliveryUnposted = false;
+  tdFxClearSnap(TDFX_SNAP_KEY);
+  if(!IS_DEVVIT_BUILD) return;
+  fetch("api/tipsy/fail/resolve", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ action })
+  })
+    .then(rsp => rsp.ok ? rsp.json() : null)
+    .then(data => {
+      if(!data || typeof data.walletCents !== "number") return;
+      tpProfile.walletCents = data.walletCents;
+      tpSaveProfile();
+      tpRender();
+    })
+    .catch(()=>{});
+}
 /* Draft pre-filled, editable, ONE button. No bonus tag -- posting is
    the price of Retry now, not an optional paid extra. */
-function tdFxRenderComposer(g){
+/* OPTS IS OPTIONAL AND THE DEFAULT IS THE OLD BEHAVIOUR EXACTLY -- every
+   non-trip fail still gets "post to retry", unchanged, because posting
+   is still the only thing that clears those. Only the trip variant
+   passes opts, and only to change the two strings and what a successful
+   post then does. */
+function tdFxRenderComposer(g, opts){
+  const o = opts || {};
+  const heading = o.heading || "POST TO DELIVERY LOG TO RETRY TODAY'S ROUTE";
+  const label   = o.label   || "Retry";
   g.style.display = "block";
   g.innerHTML =
     '<div style="font-weight:700;font-size:11px;letter-spacing:0.8px;line-height:1.4;' +
-      'margin-bottom:12px;">POST TO DELIVERY LOG TO RETRY TODAY\'S ROUTE</div>' +
+      'margin-bottom:12px;">' + heading + '</div>' +
     '<div id="tdFxComposeErr" style="color:#b5540e;font-size:12px;margin-bottom:8px;display:none;"></div>';
   const ta = document.createElement("textarea");
   ta.id = "tdFxComposeText";
@@ -1892,14 +1967,18 @@ function tdFxRenderComposer(g){
   ta.addEventListener("input", () => { count.textContent = ta.value.length + " / 480"; });
   const btn = document.createElement("button");
   btn.id = "tdFxGateBtn";
-  btn.textContent = "Retry";
+  btn.textContent = label;
   btn.style.cssText = TDFX_BTN + TDFX_ORANGE;
-  btn.addEventListener("click", () => tdFxPostAndRetry(ta, btn));
+  btn.addEventListener("click", () => tdFxPostAndRetry(ta, btn, o.onPost));
   g.appendChild(ta);
   g.appendChild(count);
   g.appendChild(btn);
 }
-function tdFxPostAndRetry(ta, btn){
+/* onPost is what a SUCCESSFUL post does instead of reloading the route.
+   Null everywhere it always was; the trip variant passes tpContFire, so
+   the comment buys the stand-up beside the fall rather than a restart. */
+function tdFxPostAndRetry(ta, btn, onPost){
+  const _label = btn.textContent;
   if(tdFx.busy) return;
   const text = (ta.value || "").trim();
   if(!text) return;
@@ -1909,7 +1988,7 @@ function tdFxPostAndRetry(ta, btn){
   const fail = () => {
     tdFx.busy = false;
     btn.disabled = false;
-    btn.textContent = "Retry";
+    btn.textContent = _label;   // its own label back, not every gate's
     const e = document.getElementById("tdFxComposeErr");
     if(e){ e.textContent = "Couldn't post. Try again."; e.style.display = "block"; }
   };
@@ -1933,7 +2012,10 @@ function tdFxPostAndRetry(ta, btn){
          a stale one here would repaint a gate that no longer exists */
       if(tdFx.serverDraft) tdFx.serverDraft[tdFx.mode] = "";
       if(tdFx.mode === "hydrant"){ tdFx.hydrantUnposted = false; tdFxClearSnap(TDFX_HSNAP_KEY); tdFxFireHydrantRetry(); }
-      else { tdFx.deliveryUnposted = false; tdFxClearSnap(TDFX_SNAP_KEY); tdFxFireRetry(); }
+      else {
+        tdFx.deliveryUnposted = false; tdFxClearSnap(TDFX_SNAP_KEY);
+        if(onPost) onPost(); else tdFxFireRetry();
+      }
     })
     .catch(fail);
 }
@@ -7413,6 +7495,24 @@ function tpContAvailable(){ return tpContArmed() && tpContAfford(); }
    answer: the button still says what it costs, the tap says why it
    cannot be paid, and MAYBE LATER is the free way off the card that it
    always was. */
+/* THE CONTINUE ACTION, ONE OWNER, TWO WAYS TO BUY IT (Sir, 2026-08-28:
+   "lets give it as an option on fail under continue for $1 we can give
+   Continue from where you are for posting to the log now too so there
+   are options"). Cash buys it from #retryBtn; a comment buys it from
+   the composer directly below. Both end here, so the two prices cannot
+   drift into meaning two different things.
+
+   The label reset matters: #retryBtn is shared with every other fail in
+   the game and must not still read Continue on a card that is not one. */
+function tpContFire(){
+  hide("failOverlay");
+  tdFailLater(false);
+  tpCont.armed = false;
+  const r = document.getElementById("retryBtn");
+  if(r) r.textContent = "Retry";
+  owContinueHere(scn());
+}
+
 function tpContSyncBtn(){
   const r = document.getElementById("retryBtn");
   if(!r) return;
@@ -35824,7 +35924,12 @@ document.getElementById("retryBtn").addEventListener("click", () => {
      RELOAD, and tpFreePlay is a reload. Refusing only that, never the
      ability to leave. */
   if(tpContArmed() && !tpContAfford()){
-    if(typeof tdFxDeliveryBlocked === "function" && tdFxDeliveryBlocked()){ tdFxSyncGate(); return; }
+    /* THE TOW CLEARS THE GATE, it no longer bounces off it. This used
+       to defer to tdFxDeliveryBlocked because posting was the only way
+       through; now that paying replaced posting, deferring would send a
+       broke player back to a composer that tdFxSyncGate no longer
+       renders -- a card with no working button on it. */
+    tdFxResolveFail("tow");
     hide("failOverlay");
     tdFailLater(false);
     tpCont.armed = false;
@@ -35844,13 +35949,12 @@ document.getElementById("retryBtn").addEventListener("click", () => {
      and disarmed BEFORE the stand-up so no path through the spot search
      can hand out a free one, and no double tap can buy it twice. */
   if(tpContAvailable()){
-    tpCont.armed = false;
     tpProfile.walletCents -= TP_CONT_CENTS;
     tpSaveProfile();
     tpRender();
-    document.getElementById("retryBtn").textContent = "Retry";
-    owContinueHere(s);
-    tpToast("Continued \u2014 " + tpMoney(TP_CONT_CENTS) + " off your tips.");
+    tdFxResolveFail("continue");   // server debit + the gate this fail was holding
+    tpContFire();
+    tpToast("Continued. " + tpMoney(TP_CONT_CENTS) + " off your tips.");
     return;
   }
   /* In the challenge, Retry means RETRY THE JUMP. Loading the daily
