@@ -16833,6 +16833,10 @@ class WorldScene extends Phaser.Scene {
      the pass structure around this is unchanged. */
   queueUnitStrips(vq, ux, uy, dv, rv, w, D, sliceW, drawFn){
     const n = Math.max(1, Math.ceil(w / sliceW));
+    /* the whole unit's own near/far answer, taken at its centre -- see
+       the note on the push below for why this cannot be per slice. */
+    const ucx = ux + dv.x*(w/2) + rv.x*(-D/2), ucy = uy + dv.y*(w/2) + rv.y*(-D/2);
+    const unitG = (g) => this.propLayer(g, ucx, ucy);
     for(let i = 0; i < n; i++){
       const a0 = w*i/n, a1 = i === n-1 ? w : w*(i+1)/n, am = (a0+a1)/2;
       const cx = ux + dv.x*am + rv.x*(-D/2), cy = uy + dv.y*am + rv.y*(-D/2);
@@ -16863,10 +16867,27 @@ class WorldScene extends Phaser.Scene {
 
          propLayer is a no-op off open world, so the rail path stays
          byte-for-byte -- which is what the hazard oracle gates and what
-         any bisect against the shipping game needs. Per STRIP, not per
-         building: these are T2 slices, so a house occludes him only
-         along the part of itself that is actually nearer. */
-      vq.push({ depth: cx+cy, fn: (g,t) => drawFn(this.propLayer(g, cx, cy), t, a0, a1) });
+         any bisect against the shipping game needs.
+
+         PER UNIT, NOT PER STRIP (corrected 2026-08-27, Sir on-device:
+         "the houses dont seem to be drawing correctly i can see windows
+         and sides through the back of them"). The first cut tested each
+         T2 slice on its own, reasoning that a house should occlude the
+         robot only along the part of itself that is actually nearer.
+         That is true of the DEPTH KEY and false of the LAYER, and the
+         difference is what broke it: gFront composites above g as a
+         whole, not per item, so a threshold falling through the middle
+         of a house split it across two layers and every slice on the
+         near side painted over the far side's walls, windows and roof
+         -- one building rendered as two interleaved ones.
+
+         So the layer is decided ONCE, at the unit's centre, and every
+         slice of that unit gets it. The per-strip depth keys are
+         untouched: they still sort each slice individually inside
+         whichever layer the unit landed in, which is the bug they were
+         added for (a nearby body painting over another unit's roof).
+         One building, one layer, many keys. */
+      vq.push({ depth: cx+cy, fn: (g,t) => drawFn(unitG(g), t, a0, a1) });
     }
   }
 
