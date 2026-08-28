@@ -17189,7 +17189,7 @@ class WorldScene extends Phaser.Scene {
     }
   }
 
-  drawHouseUnit(g, ox, oy, dv, rv, w, seed, isAddress=false, part='all', a0=0, a1=w){
+  drawHouseUnit(g, ox, oy, dv, rv, w, seed, isAddress=false, part='all', a0=0, a1=w, b0=null, b1=null){
     const rng = mulberry32(seed);
     /* a = along the edge (0..w), b = depth (0 at the sidewalk-facing
        front, -D back into the block interior). A real box: front,
@@ -17217,15 +17217,28 @@ class WorldScene extends Phaser.Scene {
        the body/roof split already relies on. */
     const inS = c => c >= a0 && (c < a1 || a1 >= w);
 
+    /* THE DEPTH WINDOW (2026-08-27). Defaults to the whole box, so every
+       caller that has not opted into depth slicing renders exactly what
+       it always did. qB is the FRONT edge of this piece and qF the far
+       one; hasFront/hasBack say whether this piece owns the real faces,
+       which is what stops the front elevation being drawn three times
+       and the back wall being drawn at every interior seam. */
+    const qF = (b0 === null) ? -D : b0;
+    const qB = (b1 === null) ? 0 : b1;
+    const hasBack = qF <= -D + 0.5;
+    const hasFront = qB >= -0.5;
+
     if(part !== 'roof'){
-      const back = [G(a0,-D,H), G(a1,-D,H), G(a1,-D,0), G(a0,-D,0)];
-      this.quadOn(g, back, C.wallDk);
+      if(hasBack){
+        const back = [G(a0,-D,H), G(a1,-D,H), G(a1,-D,0), G(a0,-D,0)];
+        this.quadOn(g, back, C.wallDk);
+      }
       if(a0 === 0){
-        const left = [G(0,0,H), G(0,-D,H), G(0,-D,0), G(0,0,0)];
+        const left = [G(0,qB,H), G(0,qF,H), G(0,qF,0), G(0,qB,0)];
         this.quadOn(g, left, C.wallDk); this.edgeOn(g, left, C.trim, 1);
       }
       if(a1 >= w){
-        const right = [G(w,0,H), G(w,-D,H), G(w,-D,0), G(w,0,0)];
+        const right = [G(w,qB,H), G(w,qF,H), G(w,qF,0), G(w,qB,0)];
         this.quadOn(g, right, C.wallLt); this.edgeOn(g, right, C.trim, 1);
       }
     }
@@ -17233,19 +17246,29 @@ class WorldScene extends Phaser.Scene {
     if(part !== 'body'){
       const ov = 5;
       const rL = a0 === 0 ? -ov : a0, rR = a1 >= w ? w+ov : a1;
-      const roof = [G(rL,ov,H), G(rR,ov,H), G(rR,-D-ov,H), G(rL,-D-ov,H)];
+      /* the overhang belongs to the real edges of the roof, not to an
+         interior depth seam -- so it is only added on the piece that
+         actually owns that edge. */
+      const rB = hasFront ? ov : qB, rF = hasBack ? -D-ov : qF;
+      const roof = [G(rL,rB,H), G(rR,rB,H), G(rR,rF,H), G(rL,rF,H)];
       this.quadOn(g, roof, C.roof);
       /* open-edge border: front/back lips per slice, side edges only
          at the real unit ends — a closed edgeOn per slice would paint
-         a seam line across the roof at every slice boundary */
+         a seam line across the roof at every slice boundary. Same rule
+         now applies across depth: a lip only where the roof really
+         ends. */
       g.lineStyle(1, C.wallDk, 1);
-      g.lineBetween(roof[0].x,roof[0].y,roof[1].x,roof[1].y);
-      g.lineBetween(roof[3].x,roof[3].y,roof[2].x,roof[2].y);
+      if(hasFront) g.lineBetween(roof[0].x,roof[0].y,roof[1].x,roof[1].y);
+      if(hasBack)  g.lineBetween(roof[3].x,roof[3].y,roof[2].x,roof[2].y);
       if(a0 === 0) g.lineBetween(roof[0].x,roof[0].y,roof[3].x,roof[3].y);
       if(a1 >= w) g.lineBetween(roof[1].x,roof[1].y,roof[2].x,roof[2].y);
     }
 
     if(part === 'roof') return;
+    /* the whole front elevation -- face, base, trim, seams, windows,
+       door -- lives on the frontage plane, so it belongs to the front
+       depth piece and to nothing else. */
+    if(!hasFront) return;
 
     const face = [G(a0,0.4,H), G(a1,0.4,H), G(a1,0.4,0), G(a0,0.4,0)];
     this.quadOn(g, face, C.wall);
@@ -17294,7 +17317,7 @@ class WorldScene extends Phaser.Scene {
     }
   }
 
-  drawStoreUnit(g, ox, oy, dv, rv, w, seed, isFirst, isLast, part='all', a0=0, a1=w, opts=null){
+  drawStoreUnit(g, ox, oy, dv, rv, w, seed, isFirst, isLast, part='all', a0=0, a1=w, opts=null, b0=null, b1=null){
     const rng = mulberry32(seed);
     const G = (a,b,h) => this.W(ox + dv.x*a + rv.x*b, oy + dv.y*a + rv.y*b, h);
     /* slice window [a0,a1): same contract as drawHouseUnit — clip
@@ -17320,27 +17343,43 @@ class WorldScene extends Phaser.Scene {
     const signZ0 = awnZ1+8, signZ1 = signZ0+16;
     const H = signZ1 + 16 + rng()*12;
 
+    /* the depth window, exactly as drawHouseUnit's -- see its note and
+       queueUnitStrips' for the measurement. Defaults to the whole box so
+       any caller that has not opted in renders what it always did. */
+    const qF = (b0 === null) ? -D : b0;
+    const qB = (b1 === null) ? 0 : b1;
+    const hasBack = qF <= -D + 0.5;
+    const hasFront = qB >= -0.5;
+
     if(part !== 'roof'){
-      const back = [G(a0,-D,H), G(a1,-D,H), G(a1,-D,0), G(a0,-D,0)];
-      this.quadOn(g, back, C.wallDk);
-      if(isFirst && a0 === 0){ const l=[G(0,0,H),G(0,-D,H),G(0,-D,0),G(0,0,0)]; this.quadOn(g,l,C.wallDk); this.edgeOn(g,l,C.trim,1); }
-      if(isLast && a1 >= w){  const r=[G(w,0,H),G(w,-D,H),G(w,-D,0),G(w,0,0)]; this.quadOn(g,r,C.wallLt); this.edgeOn(g,r,C.trim,1); }
+      if(hasBack){
+        const back = [G(a0,-D,H), G(a1,-D,H), G(a1,-D,0), G(a0,-D,0)];
+        this.quadOn(g, back, C.wallDk);
+      }
+      if(isFirst && a0 === 0){ const l=[G(0,qB,H),G(0,qF,H),G(0,qF,0),G(0,qB,0)]; this.quadOn(g,l,C.wallDk); this.edgeOn(g,l,C.trim,1); }
+      if(isLast && a1 >= w){  const r=[G(w,qB,H),G(w,qF,H),G(w,qF,0),G(w,qB,0)]; this.quadOn(g,r,C.wallLt); this.edgeOn(g,r,C.trim,1); }
     }
 
     if(part !== 'body'){
       const ov = isFirst||isLast ? 5 : 0;
       const rL = a0 === 0 ? (isFirst?-ov:0) : a0, rR = a1 >= w ? (isLast?w+ov:w) : a1;
-      const roof = [G(rL,ov,H), G(rR,ov,H), G(rR,-D-ov,H), G(rL,-D-ov,H)];
+      /* overhang only on the piece that owns the real edge, not at an
+         interior depth seam */
+      const rB = hasFront ? ov : qB, rF = hasBack ? -D-ov : qF;
+      const roof = [G(rL,rB,H), G(rR,rB,H), G(rR,rF,H), G(rL,rF,H)];
       this.quadOn(g, roof, C.trim);
       /* open-edge border — see the house roof note */
       g.lineStyle(1, C.wallDk, 1);
-      g.lineBetween(roof[0].x,roof[0].y,roof[1].x,roof[1].y);
-      g.lineBetween(roof[3].x,roof[3].y,roof[2].x,roof[2].y);
+      if(hasFront) g.lineBetween(roof[0].x,roof[0].y,roof[1].x,roof[1].y);
+      if(hasBack)  g.lineBetween(roof[3].x,roof[3].y,roof[2].x,roof[2].y);
       if(a0 === 0) g.lineBetween(roof[0].x,roof[0].y,roof[3].x,roof[3].y);
       if(a1 >= w) g.lineBetween(roof[1].x,roof[1].y,roof[2].x,roof[2].y);
     }
 
     if(part === 'roof') return;
+    /* the entire shopfront -- glass, kick, door, awning, sign -- is on
+       the frontage plane and belongs to the front depth piece alone. */
+    if(!hasFront) return;
 
     const face = [G(a0,0.4,H), G(a1,0.4,H), G(a1,0.4,0), G(a0,0.4,0)];
     this.quadOn(g, face, C.wall);
@@ -18006,15 +18045,43 @@ class WorldScene extends Phaser.Scene {
      drawFn receives (g, t, a0, a1) — the slice window in unit-local a.
      Stage 2 (queue unification) builds on these fine keys; until then
      the pass structure around this is unchanged. */
-  queueUnitStrips(vq, ux, uy, dv, rv, w, D, sliceW, drawFn){
+  queueUnitStrips(vq, ux, uy, dv, rv, w, D, sliceW, drawFn, depthSliceW = 0){
     const n = Math.max(1, Math.ceil(w / sliceW));
+    /* SLICE THE DEPTH TOO (2026-08-27, Sir on-device: "i can see windows
+       and sides through the back of them").
+
+       Measured before writing this: of 112 visible building units, 187
+       pairs overlap on screen and 164 of them INTERPENETRATE in depth --
+       neither box is wholly in front of the other. Key ties are not the
+       cause (zero pairs sat within 60 of each other), so no choice of
+       corner or centre could have fixed it: one scalar per box is
+       structurally unable to order 88% of the overlapping pairs, and the
+       loser shows its windows and walls through its neighbour.
+
+       Frontage slicing alone could not reach it because a slice still
+       spanned the unit's whole 276-unit depth while its key described a
+       single point at mid-depth. Cutting the depth as well makes each
+       piece small enough that pieces genuinely do not interpenetrate,
+       and the existing sort then orders them correctly with no new
+       machinery.
+
+       Opt-in per caller (depthSliceW): fences pass D=0 and are already
+       flat, so nothing that does not need this pays for it. */
+    const nb = (depthSliceW > 0 && D > 0) ? Math.max(1, Math.round(D / depthSliceW)) : 1;
     /* the whole unit's own near/far answer, taken at its centre -- see
        the note on the push below for why this cannot be per slice. */
     const ucx = ux + dv.x*(w/2) + rv.x*(-D/2), ucy = uy + dv.y*(w/2) + rv.y*(-D/2);
     const unitG = (g) => this.propLayer(g, ucx, ucy);
     for(let i = 0; i < n; i++){
       const a0 = w*i/n, a1 = i === n-1 ? w : w*(i+1)/n, am = (a0+a1)/2;
-      const cx = ux + dv.x*am + rv.x*(-D/2), cy = uy + dv.y*am + rv.y*(-D/2);
+      for(let k = 0; k < nb; k++){
+      /* b runs 0 at the frontage to -D into the block, so slice k spans
+         [b0, b1] with b0 the FARTHER edge. k===nb-1 is the front piece,
+         the one that carries the face, windows and door. */
+      const b1 = nb === 1 ? 0 : -D * (nb-1-k) / nb;
+      const b0 = nb === 1 ? -D : -D * (nb-k) / nb;
+      const bm = (b0+b1)/2;
+      const cx = ux + dv.x*am + rv.x*bm, cy = uy + dv.y*am + rv.y*bm;
       /* one gate for every building and fence strip in the city --
          this is the funnel they all pass through. r covers the strip's
          own footprint (slice width plus unit depth), h clears the
@@ -18062,7 +18129,8 @@ class WorldScene extends Phaser.Scene {
          whichever layer the unit landed in, which is the bug they were
          added for (a nearby body painting over another unit's roof).
          One building, one layer, many keys. */
-      vq.push({ depth: cx+cy, fn: (g,t) => drawFn(unitG(g), t, a0, a1) });
+      vq.push({ depth: cx+cy, fn: (g,t) => drawFn(unitG(g), t, a0, a1, b0, b1) });
+      }
     }
   }
 
@@ -18242,10 +18310,14 @@ class WorldScene extends Phaser.Scene {
         /* body then roof per slice, preserving the old body→roof paint
            order within each strip; the fine per-strip keys replace the
            globally-last roof pass for every generic unit */
-        this.queueUnitStrips(vq, ux, uy, e.dv, e.rv, u.w, HOUSE_DEPTH, T2, (g,t,a0,a1)=>{
-          this.drawHouseUnit(g, ux, uy, e.dv, e.rv, u.w, hseed, false, 'body', a0, a1);
-          this.drawHouseUnit(g, ux, uy, e.dv, e.rv, u.w, hseed, false, 'roof', a0, a1);
-        });
+        /* T2 as the depth slice as well as the frontage one: a house is
+           HOUSE_DEPTH = 3*T2, so this is three pieces deep, each the
+           same size as a frontage slice. See queueUnitStrips for the
+           measurement that made depth slicing necessary. */
+        this.queueUnitStrips(vq, ux, uy, e.dv, e.rv, u.w, HOUSE_DEPTH, T2, (g,t,a0,a1,b0,b1)=>{
+          this.drawHouseUnit(g, ux, uy, e.dv, e.rv, u.w, hseed, false, 'body', a0, a1, b0, b1);
+          this.drawHouseUnit(g, ux, uy, e.dv, e.rv, u.w, hseed, false, 'roof', a0, a1, b0, b1);
+        }, T2);
       }
     });
     for(const gp of gapsFromUnits(units, e.len)){
@@ -18325,10 +18397,10 @@ class WorldScene extends Phaser.Scene {
         }});
         vq.push({ depth:hx+hy, isRoof:true, fn:(g)=>this.drawStoreUnit(g, ux, uy, e.dv, e.rv, u.w, hseed, isFirst, isLast, 'roof') });
       } else {
-        this.queueUnitStrips(vq, ux, uy, e.dv, e.rv, u.w, STORE_DEPTH, T2, (g,t,a0,a1)=>{
-          this.drawStoreUnit(g, ux, uy, e.dv, e.rv, u.w, hseed, isFirst, isLast, 'body', a0, a1);
-          this.drawStoreUnit(g, ux, uy, e.dv, e.rv, u.w, hseed, isFirst, isLast, 'roof', a0, a1);
-        });
+        this.queueUnitStrips(vq, ux, uy, e.dv, e.rv, u.w, STORE_DEPTH, T2, (g,t,a0,a1,b0,b1)=>{
+          this.drawStoreUnit(g, ux, uy, e.dv, e.rv, u.w, hseed, isFirst, isLast, 'body', a0, a1, null, b0, b1);
+          this.drawStoreUnit(g, ux, uy, e.dv, e.rv, u.w, hseed, isFirst, isLast, 'roof', a0, a1, null, b0, b1);
+        }, T2);
       }
     });
   }
@@ -18790,10 +18862,10 @@ class WorldScene extends Phaser.Scene {
           return;
         }
         const isFirst = idx===0, isLast = idx===units.length-1;
-        this.queueUnitStrips(vq, ux, uy, lot.dv, faceIn, u.w, STORE_DEPTH, T2, (g,t,a0,a1)=>{
-          this.drawStoreUnit(g, ux, uy, lot.dv, faceIn, u.w, hseed, isFirst, isLast, 'body', a0, a1);
-          this.drawStoreUnit(g, ux, uy, lot.dv, faceIn, u.w, hseed, isFirst, isLast, 'roof', a0, a1);
-        });
+        this.queueUnitStrips(vq, ux, uy, lot.dv, faceIn, u.w, STORE_DEPTH, T2, (g,t,a0,a1,b0,b1)=>{
+          this.drawStoreUnit(g, ux, uy, lot.dv, faceIn, u.w, hseed, isFirst, isLast, 'body', a0, a1, null, b0, b1);
+          this.drawStoreUnit(g, ux, uy, lot.dv, faceIn, u.w, hseed, isFirst, isLast, 'roof', a0, a1, null, b0, b1);
+        }, T2);
       });
     } else {
       const eseed = ((Math.round(lot.ox*3+lot.dv.x)*7919) ^ (Math.round(lot.oy*3+lot.dv.y)*104729) ^ 0x9e3779b9) >>> 0;
@@ -18806,10 +18878,10 @@ class WorldScene extends Phaser.Scene {
           this.queueUnitStrips(vq, ux, uy, lot.dv, faceIn, u.w, 0, TILE, (g,t,a0,a1)=>this.drawSolidFenceRow(g, ux, uy, lot.dv, faceIn, u.w, hseed, a0, a1));
           return;
         }
-        this.queueUnitStrips(vq, ux, uy, lot.dv, faceIn, u.w, HOUSE_DEPTH, T2, (g,t,a0,a1)=>{
-          this.drawHouseUnit(g, ux, uy, lot.dv, faceIn, u.w, hseed, false, 'body', a0, a1);
-          this.drawHouseUnit(g, ux, uy, lot.dv, faceIn, u.w, hseed, false, 'roof', a0, a1);
-        });
+        this.queueUnitStrips(vq, ux, uy, lot.dv, faceIn, u.w, HOUSE_DEPTH, T2, (g,t,a0,a1,b0,b1)=>{
+          this.drawHouseUnit(g, ux, uy, lot.dv, faceIn, u.w, hseed, false, 'body', a0, a1, b0, b1);
+          this.drawHouseUnit(g, ux, uy, lot.dv, faceIn, u.w, hseed, false, 'roof', a0, a1, b0, b1);
+        }, T2);
       });
       for(const gp of gapsFromUnits(units, lot.len)){
         const gx = lot.ox + lot.dv.x*(gp.start+gp.w/2), gy = lot.oy + lot.dv.y*(gp.start+gp.w/2);
