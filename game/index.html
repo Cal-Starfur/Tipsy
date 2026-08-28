@@ -8892,6 +8892,12 @@ if(typeof window !== "undefined") window.tpHingeSideToward = tpHingeSideToward;
    Reads yaw through the identical expression gpsNavTurn uses -- one
    convention for "which way is the robot pointed", not a second one. */
 const GPS_AIM_MIN = 40;
+/* the chevron's own three stops, hoisted (2026-08-27) so the strip's
+   wrong-way test and the arrow's colour cannot drift apart. Red and
+   "wrong way" are now the SAME claim -- the arrow goes red exactly when
+   the strip says turn around -- and one number is how that stays true.
+   0.79 rad is 45 degrees, 2.09 is 120. */
+const GPS_CHEV_WARN = 0.79, GPS_CHEV_BACK = 2.09;
 function gpsAimErr(scene){
   if(!gpsNav || !scene) return null;
   const yaw = (scene.ow && scene.ow.on) ? scene.ow.yaw : scene.drawAngle;
@@ -8899,11 +8905,31 @@ function gpsAimErr(scene){
   let tx = gpsNav.tx, ty = gpsNav.ty;
   const pts = gpsNav.path && gpsNav.path.pts;
   if(pts && pts.length){
+    /* PREFER A NODE THAT IS ACTUALLY AHEAD (2026-08-27). gpsFindPath
+       starts from gpsNearestNode, and for the whole first half of a
+       block the nearest lattice node is the one BEHIND you -- the
+       corner you just came round. Skipping only on distance therefore
+       aimed the chevron back down the street you were correctly driving
+       up: measured 30% along a leg, driving it perfectly, the arrow was
+       red and pointing backwards.
+       So: the first node beyond GPS_AIM_MIN that the robot is not
+       driving away from. hx/hy is the heading; a node with a positive
+       dot is in front of the axle line.
+       If NOTHING on the path is ahead, that is not a failure to find an
+       aim point -- it is the definition of going the wrong way, and the
+       fallback below (first node beyond GPS_AIM_MIN, behind or not)
+       points the arrow back at the route, which is where the driver
+       needs to go. The strip reads the same error and says so in
+       words. */
+    const hx = Math.cos(yaw), hy = Math.sin(yaw);
+    let fallback = null;
     for(let i = 0; i < pts.length; i++){
-      if(Math.hypot(pts[i].x - scene.botX, pts[i].y - scene.botY) > GPS_AIM_MIN){
-        tx = pts[i].x; ty = pts[i].y; break;
-      }
+      const dxi = pts[i].x - scene.botX, dyi = pts[i].y - scene.botY;
+      if(Math.hypot(dxi, dyi) <= GPS_AIM_MIN) continue;
+      if(fallback === null) fallback = pts[i];
+      if(hx*dxi + hy*dyi > 0){ fallback = pts[i]; break; }
     }
+    if(fallback){ tx = fallback.x; ty = fallback.y; }
   }
   if(!Number.isFinite(tx) || !Number.isFinite(ty)) return null;
   const dx = tx - scene.botX, dy = ty - scene.botY;
@@ -26073,6 +26099,12 @@ class WorldScene extends Phaser.Scene {
        countdown resumes only once the robot exits onto the straight. */
     const curSeg = this.segAt(this.botS);
     let turnText, navAlert = false;
+    /* Computed HERE rather than down at the chevron writer, because the
+       turn strip needs the same number: "wrong way" and "the arrow is
+       red" are one fact, and reading it twice is how they would drift.
+       null off a nav leg, which is also "nothing to be backwards to". */
+    const _aim = gpsAimErr(this);
+    const _backwards = _aim !== null && Math.abs(_aim) > GPS_CHEV_BACK;
     /* NAV LEG OWNS THE WHOLE STRIP. Handled before the rail branches
        rather than after, because every one of them reads botS/route.segs
        and there is no rail under a free-roam drive to answer them. */
@@ -26096,15 +26128,31 @@ class WorldScene extends Phaser.Scene {
         turnText = nt.dist < 20
           ? verb
           : `${verb} in ${Math.round(nt.dist*FT_PER_UNIT/10)*10} ft`;
-        /* WRONG WAY GETS SAID, NOT IMPLIED (2026-08-27). A reversal and
-           a corner were rendered in the same weight, so the moment the
-           driver most needs to notice looked like every other
-           instruction. nt.uturn is the reversal; nt.lead is the 90 he
-           has to make before the path starts at all. Both mean "you are
-           not pointed at your route", both go red -- see #gpsHud's
-           .navAlert rule, which is the whole visual difference. */
-        navAlert = !!(nt.uturn || nt.lead);
-        if(nt.uturn) turnText = "\u26a0 Wrong way \u2014 " + turnText;
+        /* WRONG WAY GETS SAID, NOT IMPLIED (2026-08-27, revised the same
+           day after Sir on-device: "the directions didn't seem to notice
+           if i was driving the wrong way during the daily route").
+
+           The first cut reddened the strip on nt.uturn OR nt.lead, and
+           lead was the wrong half of that pair. lead means "the path's
+           first leg is not the way you are pointed", which is ALSO true
+           of every ordinary approach to a corner: measured driving a leg
+           correctly toward its own turn, lead fired at 70% and 95% along
+           and the strip went red saying "Turn Left in 560 ft". Red that
+           fires while you are driving perfectly is red nobody reads, so
+           by the time it meant something it had stopped being noticed.
+
+           And the genuine case said nothing. Driving dead backwards, the
+           words were still "Turn Right in 380 ft" -- only the colour
+           changed, and only because lead happened to catch it.
+
+           So the alert is now the aim itself, in words: the arrow is red
+           exactly when nothing on the path is ahead of you (see
+           gpsAimErr), and that is the same instant this says turn
+           around. One claim, two places, one threshold. lead keeps its
+           instruction and loses its colour -- a corner is a corner. */
+        navAlert = !!nt.uturn || _backwards;
+        if(nt.uturn || _backwards)
+          turnText = "\u26a0 Wrong way \u2014 Turn Around";
       } else {
         /* no turns left on the path: name the destination, same as the
            delivery's own final-approach line names the address. */
@@ -26235,13 +26283,14 @@ class WorldScene extends Phaser.Scene {
        120, red past it. */
     const chev = document.getElementById("gpsChev");
     if(chev){
-      const aim = _freeRoam ? null : gpsAimErr(this);
+      const aim = _freeRoam ? null : _aim;   // the strip's own number, see above
       if(aim === null){ chev.classList.remove("on"); }
       else {
         chev.classList.add("on");
         chev.style.transform = `rotate(${(aim*180/Math.PI).toFixed(1)}deg)`;
         const mag = Math.abs(aim);
-        chev.style.fill = mag > 2.09 ? "#c2452e" : mag > 0.79 ? "#ff7a1a" : "#3f7d43";
+        chev.style.fill = mag > GPS_CHEV_BACK ? "#c2452e"
+                        : mag > GPS_CHEV_WARN ? "#ff7a1a" : "#3f7d43";
       }
     }
     gpsEl.classList.toggle("navAlert", !!navAlert && !_freeRoam);
@@ -33598,7 +33647,27 @@ function tpSyncMapChrome(s){
   const go = document.getElementById("startBtn");
   const chosen = !!s && (s.mode !== "freeroam"
     || (typeof gpsNav !== "undefined" && !!gpsNav));
-  if(go) go.classList.toggle("hidden", !chosen);
+  /* ...AND ONLY IF IT IS NOT ALREADY RUNNING (2026-08-27, Sir on-device:
+     "when i hit the mag glass im still getting the go button but we dont
+     need it there at this point since we already hit go to get the
+     delivery").
+
+     GO starts the thing you picked. Raise the map over a run already in
+     progress and there is nothing left for it to start -- it drops the
+     overlay and hands the world back, which the robot marker already
+     does, captioned, in the place your eye is on. Worse, GO also calls
+     countPlay() on the way past, so opening the map and tapping it
+     twice logged two more attempts at a delivery you never restarted.
+
+     The test is the marker's own: tpSearchMap (the glass raised this
+     over a live run) or tpPausedWorld (something else did). Exactly the
+     condition under which the "Tap to drive" caption is drawn, so the
+     button can only be withdrawn when its replacement is on screen. On
+     the boot title neither is true -- nothing is running, GO is the way
+     in, and it stays. */
+  const _running = (typeof tpSearchMap   !== "undefined" && tpSearchMap)
+                || (typeof tpPausedWorld !== "undefined" && tpPausedWorld);
+  if(go) go.classList.toggle("hidden", !chosen || _running);
   /* VIEW IS A DRIVING INSTRUMENT AND THE MAP IS NOT DRIVING (Sir,
      2026-08-26: "im still getting the view button on the map").
 
