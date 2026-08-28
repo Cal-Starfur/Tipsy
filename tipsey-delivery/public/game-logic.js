@@ -4448,6 +4448,101 @@ function owDbgDraw(scene){
   el.textContent = [head, ...(rows.length ? rows : ['(no contacts yet)'])].join('\n');
 }
 
+/* ---------- FREEZE WATCHDOG (2026-08-27) ----------
+   Diagnostic only. Deliberately OUTSIDE the game loop, which is the
+   whole reason it exists.
+
+   The symptom being chased: pick a side mission off the drawer, press
+   GO, and the city is a still photograph while the joystick still
+   tracks the thumb. Three different causes produce a byte-identical
+   screen, and nothing already on screen separates them:
+
+     1. THE rAF LOOP IS DEAD. Phaser's RequestAnimationFrame.step
+        re-requests the frame AFTER invoking the callback, so a single
+        uncaught throw inside update() ends the loop permanently. The
+        last rendered frame stays up forever.
+     2. THE WORLD SCENE IS STILL PAUSED. tpResumeWorld early-returns on
+        !tpPausedWorld and swallows its own exception in a try/catch,
+        so a desync between the flag and the scene's real status is
+        completely silent.
+     3. state IS STUCK OFF "play". #zoomBtn and #gpsHud both hide on
+        state !== "play", which is exactly the chrome missing from the
+        on-device screenshots.
+
+   owDbgDraw cannot report on any of this, because it runs INSIDE the
+   step: case 1 freezes the debug panel along with everything else,
+   which is precisely what the screenshots show (same pos in two shots
+   taken seconds apart). So this panel is driven by setInterval, which
+   survives a dead rAF, and every read is wrapped -- it must be able to
+   report on a game that is too broken to answer questions.
+
+   The error listener installs UNCONDITIONALLY. The throw being hunted
+   can land before anyone thinks to turn the overlay on, and a listener
+   that holds one string costs nothing; only the PAINT is gated on
+   OW_DBG, so a player never sees either. */
+let _owWatchErr = null, _owWatchOn = false;
+function owDbgWatchInstall(){
+  if(_owWatchOn || typeof window === 'undefined') return;
+  _owWatchOn = true;
+  /* FIRST ONE ONLY. A loop killed mid-frame does not throw again --
+     there are no more frames -- but a loop that survives will repeat
+     the same error every tick and scroll the useful one off. The first
+     throw is the one that matters either way. */
+  window.addEventListener('error', e => {
+    if(_owWatchErr) return;
+    _owWatchErr = 'ERR ' + String(e.message || '?').slice(0, 90)
+      + '\n  ' + String(e.filename || '?').split('/').pop()
+      + ':' + (e.lineno || '?') + ':' + (e.colno || '?');
+  });
+  window.addEventListener('unhandledrejection', e => {
+    if(_owWatchErr) return;
+    _owWatchErr = 'REJ ' + String((e.reason && e.reason.message) || e.reason || '?').slice(0, 110);
+  });
+  setInterval(owDbgWatchPaint, 250);
+}
+function owDbgWatchPaint(){
+  let el = null;
+  try {
+    el = document.getElementById('owDbgWatch');
+    if(!OW_DBG){ if(el) el.remove(); return; }
+    if(!el){
+      el = document.createElement('div');
+      el.id = 'owDbgWatch';
+      /* TOP-left, not bottom: owDbgPanel already owns the bottom-left
+         corner and the two must be readable at the same time. Below
+         the button row so it never covers the magnifier. */
+      el.style.cssText = 'position:fixed;left:8px;top:calc(62px + env(safe-area-inset-top));'
+        + 'z-index:99999;font:11px/1.35 ui-monospace,Menlo,monospace;color:#fd8;'
+        + 'background:rgba(0,0,0,.72);padding:6px 8px;border-radius:6px;'
+        + 'pointer-events:none;white-space:pre;max-width:64vw';
+      document.body.appendChild(el);
+    }
+  } catch(e){ return; }
+  /* EVERY READ IS ITS OWN try. One dead field must not blank the whole
+     panel -- the fields that still answer are the diagnosis. */
+  const get = fn => { try { const v = fn(); return (v === undefined || v === null) ? '-' : v; } catch(e){ return '!'; } };
+  /* f IS THE HEADLINE. Watch it for a second: climbing means the loop
+     is alive and the freeze is state or pause; frozen means the loop
+     itself is dead and the error line below says why.
+     ss is Phaser's own scene status -- 5 RUNNING, 6 PAUSED, 7 SLEEPING
+     -- read from the scene rather than inferred, because the entire
+     point of case 2 is that tpPausedWorld may be lying about it. */
+  const line = 'f '   + get(() => game.loop.frame)
+    + '  st '  + get(() => scn().state)
+    + '  md '  + get(() => scn().mode)
+    + '  pw '  + get(() => tpPausedWorld ? 1 : 0)
+    + '  ss '  + get(() => scn().sys.settings.status)
+    + '  ow '  + get(() => (scn().ow && scn().ow.on) ? 1 : 0)
+    + '\nnav ' + get(() => gpsNav ? gpsNav.id : '-')
+    + '  map ' + get(() => tpMapUp() ? 1 : 0)
+    + '  stk ' + get(() => Math.round(Math.hypot(scn().ow.stick.dx, scn().ow.stick.dy)));
+  try { el.textContent = _owWatchErr ? (line + '\n' + _owWatchErr) : line; } catch(e){}
+}
+if(typeof window !== 'undefined'){
+  window.owDbgWatchInstall = owDbgWatchInstall;
+  owDbgWatchInstall();
+}
+
 function owContact(scene, ow, D, dYaw, key, type, hx, hy){
   const dx = ow.px - hx, dy = ow.py - hy;
   const dist = Math.hypot(dx, dy) || 1e-6;
