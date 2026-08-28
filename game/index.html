@@ -8925,47 +8925,224 @@ const GPS_AIM_MIN = 40;
    the strip says turn around -- and one number is how that stays true.
    0.79 rad is 45 degrees, 2.09 is 120. */
 const GPS_CHEV_WARN = 0.79, GPS_CHEV_BACK = 2.09;
-function gpsAimErr(scene){
+
+/* HOW FAR UP THE ROUTE THE ARROW LOOKS (2026-08-27, Sir: "it cant just
+   point to the destination it should point to where the turn is").
+   600 units is ~360 ft at FT_PER_UNIT against a 3128-unit block, so on
+   a straight the aim point is up the road and the arrow reads "carry
+   on", and it rounds a corner about a fifth of a block early -- the
+   arrow swinging INTO the turn before you reach it. That swing IS the
+   instruction: the same thing the words say, drawn. */
+const GPS_AIM_LOOK = 600;
+/* and the near one, for "am I still going the right way" -- see the
+   walker in gpsAimPoint for why the two cannot be the same number. */
+const GPS_TAN_LOOK = 200;
+
+/* THE AIM POINT: a carrot on the drawn line, not a node, not the
+   destination.
+
+   Pointing at the DESTINATION went straight through the buildings and
+   disagreed with the dashed line. Pointing at the next lattice NODE was
+   closer but still not the maneuver -- a node is every intersection,
+   including the ones you drive straight through, so the arrow never
+   said anything about the turn.
+
+   This walks GPS_AIM_LOOK forward along gpsWalkPts, the SAME polyline
+   the dashed line is drawn from on both maps, starting from the robot's
+   own projection onto it (a projection, not a lookup: the robot rides
+   the pavement and the line is drawn on the walk, so it is never
+   exactly on it). On a straight the carrot is up the street. Coming to
+   a corner it rounds the corner first and the arrow follows it round.
+   There is no "is there a turn here" test anywhere in it -- the
+   geometry produces the maneuver by itself, which is why it cannot
+   disagree with the line or with the words.
+
+   Returns a world point, or null when there is no line to walk. */
+function gpsAimPoint(scene){
+  if(!gpsNav || !scene) return null;
+  const pts = gpsNav.path && gpsNav.path.pts;
+  if(!pts || !pts.length)
+    return Number.isFinite(gpsNav.tx) ? { x: gpsNav.tx, y: gpsNav.ty } : null;
+  /* THE RAW LATTICE NODES, NOT THE DRAWN WALK (2026-08-27). gpsWalkPts
+     shifts each vertex a lane and a half sideways onto the pavement of
+     its OUTGOING leg. That is right for a dashed line and wrong for a
+     direction, because near a junction the shift is bigger than the
+     distance left to it: measured, a robot 156 units short of a corner
+     had that corner's walk vertex 396 units BEHIND him, so nothing on
+     the line was ahead, the lead pointed backwards, and a perfectly
+     driven approach was called a wrong way in red.
+     The raw nodes sit on the street centrelines and cannot do that. The
+     robot's own lane offset from them is a tenth of a block, which is a
+     ten-degree tilt on a full-block leg -- and none at all on the
+     approach, because the junction vertex below is built from his own
+     position rather than from the lattice. */
+  const walk = pts;
+  /* THE LEAD BELONGS TO THE LINE (2026-08-27). gpsFindPath starts at
+     gpsNearestNode, which is the nearest node in ANY direction -- a
+     third of the way down a block that is the corner ahead, so the
+     polyline began at the corner and the street the robot was actually
+     driving on was not in it at all. Measured: the route tangent read
+     90 degrees off from 600 ft out, on a robot driving the leg
+     perfectly, because the only segment to project onto was the one
+     after the turn.
+     Both maps already draw the lead -- moveTo(robot) then the points --
+     so this is not a new geometry, it is the same one the dashed line
+     has always had, finally handed to the thing measuring it. */
+  /* ...but the lead is only a lead if it goes FORWARD. gpsNearestNode is
+     nearest in any direction, so a quarter of the way down a block it
+     is the node behind, and a lead drawn to that points back the way he
+     came: measured, the tangent read a flat 180 degrees off on a robot
+     driving perfectly. So the walk is opened at the first point the
+     robot is not driving away from, and the lead runs to that.
+     If NOTHING is ahead, nothing is dropped -- the lead then genuinely
+     points backwards, which is the wrong way, and the colour and the
+     strip both say so. Same rule, same reason, as the node preference
+     this function's first version had. */
+  const _yaw0 = (scene.ow && scene.ow.on) ? scene.ow.yaw : scene.drawAngle;
+  /* snapped to the lattice quarter the streets actually run on: the
+     perpendicular below is a claim about a STREET, and feeding it a
+     yaw caught mid-steer would tilt the junction vertex off the road. */
+  const _yaw1 = Number.isFinite(_yaw0) ? Math.round(_yaw0/(Math.PI/2))*(Math.PI/2) : _yaw0;
+  let head = 0;
+  if(Number.isFinite(_yaw0)){
+    const hx0 = Math.cos(_yaw0), hy0 = Math.sin(_yaw0);
+    for(let i = 0; i < walk.length; i++){
+      if(hx0*(walk[i].x - scene.botX) + hy0*(walk[i].y - scene.botY) > 0){ head = i; break; }
+    }
+  }
+  /* THE JUNCTION VERTEX (2026-08-27). The path starts at the nearest
+     node, so the street the robot is CURRENTLY on is never in it, and a
+     straight lead from him to the first path point cuts diagonally
+     across the junction. Measured at 1000 units out: the first walk
+     point sat 448 ahead and 552 sideways, so the arrow read 30 degrees
+     off the road he was driving.
+
+     Neither polyline can supply the missing vertex -- the raw lattice
+     nodes are the centreline and he drives a lane and a half off it,
+     which tilts the aim the other way by just as much (measured: the
+     arrow never turned into the corner at all). So it is derived from
+     the robot instead: drop a perpendicular from the first path point
+     onto his own heading line. That is the spot he will occupy when he
+     draws level with the corner, on his own side of his own street, and
+     it needs no lattice knowledge to find.
+
+     The line is then robot -> level with the corner -> round it, which
+     is the shape he actually drives, so the carrot runs straight up the
+     road and then rounds the corner exactly where he will. */
+  const line = [{ x: scene.botX, y: scene.botY }];
+  const nxt = walk[head];
+  let skip = 0;
+  if(nxt && Number.isFinite(_yaw0)){
+    const hx1 = Math.cos(_yaw1), hy1 = Math.sin(_yaw1);
+    const ahead = hx1*(nxt.x - scene.botX) + hy1*(nxt.y - scene.botY);
+    if(ahead > GPS_AIM_MIN){
+      line.push({ x: scene.botX + hx1*ahead, y: scene.botY + hy1*ahead });
+      /* AND IT REPLACES THAT POINT, rather than preceding it. Both
+         describe the same junction -- one on the robot's side of it, one
+         on the next street's -- and keeping both left a short diagonal
+         jog between them. The carrot crosses that jog in a frame or two
+         and points along it while it does, which measured as the arrow
+         flicking backwards (284 degrees, between a 243 approach and a
+         117 turn) about 420 ft out. Dropping it leaves one corner and
+         one swing. */
+      skip = 1;
+    }
+  }
+  for(let i = head + skip; i < walk.length; i++) line.push(walk[i]);
+  if(Number.isFinite(gpsNav.tx)) line.push({ x: gpsNav.tx, y: gpsNav.ty });
+  if(line.length < 2) return line[0] || null;
+  let bi = 0, bt = 0, bd = Infinity;
+  for(let i = 0; i < line.length - 1; i++){
+    const ax = line[i].x, ay = line[i].y;
+    const vx = line[i+1].x - ax, vy = line[i+1].y - ay;
+    const vv = vx*vx + vy*vy;
+    let t = vv ? ((scene.botX - ax)*vx + (scene.botY - ay)*vy) / vv : 0;
+    t = t < 0 ? 0 : t > 1 ? 1 : t;
+    const px = ax + vx*t, py = ay + vy*t;
+    const d = (scene.botX - px)*(scene.botX - px) + (scene.botY - py)*(scene.botY - py);
+    if(d < bd){ bd = d; bi = i; bt = t; }
+  }
+  /* one walker, two distances. The far one is the arrow; the near one is
+     the route's own direction where the robot is standing, which is what
+     answers "am I going the right way".
+     A SHORT CARROT, not the segment he is projected onto: within a few
+     units of a junction that segment goes degenerate -- it is the last
+     scrap of the lead, pointing mostly sideways at a corner point
+     already beside him -- and reading a direction off it called a robot
+     driving perfectly at 95% of its leg a wrong way, in red, with the
+     turn 90 ft ahead. Walking 200 units instead is the same question
+     asked of a stretch of road rather than a splinter of one.
+     Still nothing like the aim's own 600: that carrot rounds the corner
+     a fifth of a block early, and measuring the heading against it would
+     make every ordinary left turn a wrong way -- the opposite failure,
+     and the one this pair of distances exists to keep apart. */
+  const walkTo = (need) => {
+    let cx = line[bi].x + (line[bi+1].x - line[bi].x)*bt;
+    let cy = line[bi].y + (line[bi+1].y - line[bi].y)*bt;
+    for(let i = bi; i < line.length - 1; i++){
+      const ex = line[i+1].x, ey = line[i+1].y;
+      const segLen = Math.hypot(ex - cx, ey - cy);
+      /* clamped at the far end on purpose: the last stretch of the trip
+         aims at the door rather than running off the end of the line. */
+      if(segLen >= need){
+        const k = segLen ? need/segLen : 0;
+        return { x: cx + (ex - cx)*k, y: cy + (ey - cy)*k };
+      }
+      need -= segLen; cx = ex; cy = ey;
+    }
+    return { x: cx, y: cy };
+  };
+  const aimP = walkTo(GPS_AIM_LOOK), tanP = walkTo(GPS_TAN_LOOK);
+  let tanx = tanP.x - scene.botX, tany = tanP.y - scene.botY;
+  const tl = Math.hypot(tanx, tany) || 1;
+  return { x: aimP.x, y: aimP.y, tx: tanx/tl, ty: tany/tl };
+}
+
+/* W()'s own mapping, direction only: screen x = ux - uy, screen
+   y = (ux + uy)*0.5. One copy, because every angle this instrument
+   draws has to be measured through the projection the world is drawn
+   with. */
+function gpsScreenAng(ux, uy){ return Math.atan2((ux + uy)*0.5, ux - uy); }
+
+/* THE ARROW, IN THE FRAME THE PLAYER IS ACTUALLY IN (2026-08-27, Sir:
+   "the chevron and the gps are not helping me").
+
+   It was a RELATIVE bearing -- up meant "straight ahead" -- and that is
+   unreadable from outside the vehicle in an isometric view. Measured
+   through the game's own W(), the robot's nose points 117 / -117 / -63 /
+   63 degrees from screen-up on the four headings, and is never near up
+   at all. So every glance cost a mental rotation of sixty to a hundred
+   and twenty degrees before it meant anything.
+
+   `screen` is absolute, clockwise from screen-up, which is how the SVG
+   is drawn: the arrow points the way you have to go on the screen in
+   front of you. Nothing to translate.
+
+   `off` is a different question and needs a different measurement: how
+   far the robot's heading is from THE ROUTE'S OWN DIRECTION where he is
+   standing. That is what the colour and the wrong-way line are actually
+   asking, and measuring it against the AIM instead would be wrong by
+   construction -- the carrot rounds the corner a fifth of a block early,
+   so the gap between nose and aim reaches 127 degrees on an ordinary
+   left turn and every one of them would flash red and claim a wrong
+   way. Measured in world space, not screen: "am I driving along this
+   street" is a fact about the street, and the isometric squash that the
+   rotation has to respect would only distort it. */
+function gpsAim(scene){
   if(!gpsNav || !scene) return null;
   const yaw = (scene.ow && scene.ow.on) ? scene.ow.yaw : scene.drawAngle;
   if(!Number.isFinite(yaw)) return null;
-  let tx = gpsNav.tx, ty = gpsNav.ty;
-  const pts = gpsNav.path && gpsNav.path.pts;
-  if(pts && pts.length){
-    /* PREFER A NODE THAT IS ACTUALLY AHEAD (2026-08-27). gpsFindPath
-       starts from gpsNearestNode, and for the whole first half of a
-       block the nearest lattice node is the one BEHIND you -- the
-       corner you just came round. Skipping only on distance therefore
-       aimed the chevron back down the street you were correctly driving
-       up: measured 30% along a leg, driving it perfectly, the arrow was
-       red and pointing backwards.
-       So: the first node beyond GPS_AIM_MIN that the robot is not
-       driving away from. hx/hy is the heading; a node with a positive
-       dot is in front of the axle line.
-       If NOTHING on the path is ahead, that is not a failure to find an
-       aim point -- it is the definition of going the wrong way, and the
-       fallback below (first node beyond GPS_AIM_MIN, behind or not)
-       points the arrow back at the route, which is where the driver
-       needs to go. The strip reads the same error and says so in
-       words. */
-    const hx = Math.cos(yaw), hy = Math.sin(yaw);
-    let fallback = null;
-    for(let i = 0; i < pts.length; i++){
-      const dxi = pts[i].x - scene.botX, dyi = pts[i].y - scene.botY;
-      if(Math.hypot(dxi, dyi) <= GPS_AIM_MIN) continue;
-      if(fallback === null) fallback = pts[i];
-      if(hx*dxi + hy*dyi > 0){ fallback = pts[i]; break; }
-    }
-    if(fallback){ tx = fallback.x; ty = fallback.y; }
-  }
-  if(!Number.isFinite(tx) || !Number.isFinite(ty)) return null;
-  const dx = tx - scene.botX, dy = ty - scene.botY;
+  const p = gpsAimPoint(scene);
+  if(!p) return null;
+  const dx = p.x - scene.botX, dy = p.y - scene.botY;
   if(!dx && !dy) return null;
-  /* W()'s own mapping, direction-only: screen x = ux - uy,
-     screen y = (ux + uy)/2. atan2 takes them in (y, x) order. */
-  const sa = (ux, uy) => Math.atan2((ux + uy)*0.5, ux - uy);
-  const at = sa(dx, dy), ah = sa(Math.cos(yaw), Math.sin(yaw));
-  return Math.atan2(Math.sin(at - ah), Math.cos(at - ah));
+  const at = gpsScreenAng(dx, dy);
+  let off = 0;
+  if(Number.isFinite(p.tx)){
+    const ta = Math.atan2(p.ty, p.tx);
+    off = Math.atan2(Math.sin(ta - yaw), Math.cos(ta - yaw));
+  }
+  return { screen: at + Math.PI/2, off };
 }
 
 function gpsNavTurn(scene){
@@ -26196,7 +26373,8 @@ class WorldScene extends Phaser.Scene {
        turn strip needs the same number: "wrong way" and "the arrow is
        red" are one fact, and reading it twice is how they would drift.
        null off a nav leg, which is also "nothing to be backwards to". */
-    const _aim = gpsAimErr(this);
+    const _aimA = gpsAim(this);
+    const _aim = _aimA ? _aimA.off : null;
     const _backwards = _aim !== null && Math.abs(_aim) > GPS_CHEV_BACK;
     /* NAV LEG OWNS THE WHOLE STRIP. Handled before the rail branches
        rather than after, because every one of them reads botS/route.segs
@@ -26376,12 +26554,15 @@ class WorldScene extends Phaser.Scene {
        120, red past it. */
     const chev = document.getElementById("gpsChev");
     if(chev){
-      const aim = _freeRoam ? null : _aim;   // the strip's own number, see above
-      if(aim === null){ chev.classList.remove("on"); }
+      const A = _freeRoam ? null : _aimA;
+      if(A === null){ chev.classList.remove("on"); }
       else {
         chev.classList.add("on");
-        chev.style.transform = `rotate(${(aim*180/Math.PI).toFixed(1)}deg)`;
-        const mag = Math.abs(aim);
+        /* ROTATION IS THE ABSOLUTE ANGLE, COLOUR IS THE RELATIVE ONE.
+           They answer different questions and always have: where do I
+           steer (screen), and how far wrong am I right now (err). */
+        chev.style.transform = `rotate(${(A.screen*180/Math.PI).toFixed(1)}deg)`;
+        const mag = Math.abs(A.off);
         chev.style.fill = mag > GPS_CHEV_BACK ? "#c2452e"
                         : mag > GPS_CHEV_WARN ? "#ff7a1a" : "#3f7d43";
       }
