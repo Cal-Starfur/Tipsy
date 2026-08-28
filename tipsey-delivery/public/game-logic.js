@@ -7667,12 +7667,46 @@ function gpsNavTurn(scene){
 
      The 0.3 threshold still ignores sub-degree wobble between nominally
      collinear nodes; a real lattice turn is a full 90 and scores 1.0. */
+  /* (c) AND THE TURN UNDER YOUR WHEELS (2026-08-27, Sir on-device: "if
+     im going the wrong direction it doesnt let me know").
+
+     Measured on a synthetic lattice before touching anything. Standing
+     at (5,5) facing EAST with the destination at (2,2), this returned
+     "Turn Left in 9384 ft" -- a corner three blocks up the road. Facing
+     NORTH, correctly, on the same path, it returned the IDENTICAL
+     string. Every instruction was about a corner ahead, so pointing the
+     wrong way changed nothing on screen: the one turn that mattered was
+     the 90 he had not made yet, and the loop below starts at pts[1] and
+     could never see it.
+
+     (a) above rescued only the 180. What kept the rest out was the
+     reasoning about measuring off the LEAD (robot -> pts[0]), which is
+     diagonal -- the robot rides a lane and a half onto the pavement
+     while pts[0] sits on the centreline -- and really did score phantom
+     turns on a robot driving dead straight. This measures off the first
+     real LEG (pts[0] -> pts[1]), a pure lattice axis, exactly as (a)
+     already does. Pointed along it, dot is ~1 and nothing fires; the
+     phantom never had a way in.
+
+     0.5 is 60 degrees: past any wobble between nominally collinear
+     nodes, short of the 90 a real corner scores. Distance is to pts[0],
+     where the turn is actually made -- 0 when he is sitting on it, so
+     the strip reads "Turn Left" rather than "Turn Left in 0 ft". */
   const yaw = (scene.ow && scene.ow.on) ? scene.ow.yaw : scene.drawAngle;
   if(yaw !== undefined && yaw !== null){
     const gx = pts[1].x - pts[0].x, gy = pts[1].y - pts[0].y;
     const gl = Math.hypot(gx, gy) || 1;
-    if(Math.cos(yaw)*(gx/gl) + Math.sin(yaw)*(gy/gl) < -0.5)
-      return { sign: 0, uturn: true, dist: 0 };
+    const ux = gx/gl, uy = gy/gl;
+    const hx = Math.cos(yaw), hy = Math.sin(yaw);
+    const dot = hx*ux + hy*uy;
+    if(dot < -0.5) return { sign: 0, uturn: true, dist: 0 };
+    if(dot < 0.5){
+      /* same handedness as the loop below: cross of INCOMING x OUTGOING,
+         positive reads as a right turn under this projection. */
+      const lead = Math.hypot(pts[0].x - scene.botX, pts[0].y - scene.botY);
+      return { sign: (hx*uy - hy*ux) > 0 ? 1 : -1, lead: true,
+               dist: Math.max(0, lead) };
+    }
   }
   let acc = Math.hypot(pts[0].x - scene.botX, pts[0].y - scene.botY);
   for(let i = 1; i < pts.length - 1; i++){
@@ -24458,7 +24492,7 @@ class WorldScene extends Phaser.Scene {
        countdown the instant the current turn began, mid-steer. The
        countdown resumes only once the robot exits onto the straight. */
     const curSeg = this.segAt(this.botS);
-    let turnText;
+    let turnText, navAlert = false;
     /* NAV LEG OWNS THE WHOLE STRIP. Handled before the rail branches
        rather than after, because every one of them reads botS/route.segs
        and there is no rail under a free-roam drive to answer them. */
@@ -24474,6 +24508,15 @@ class WorldScene extends Phaser.Scene {
         turnText = nt.dist < 20
           ? `${arrow} ${verb}`
           : `${arrow} ${verb} in ${Math.round(nt.dist*FT_PER_UNIT/10)*10} ft`;
+        /* WRONG WAY GETS SAID, NOT IMPLIED (2026-08-27). A reversal and
+           a corner were rendered in the same weight, so the moment the
+           driver most needs to notice looked like every other
+           instruction. nt.uturn is the reversal; nt.lead is the 90 he
+           has to make before the path starts at all. Both mean "you are
+           not pointed at your route", both go red -- see #gpsHud's
+           .navAlert rule, which is the whole visual difference. */
+        navAlert = !!(nt.uturn || nt.lead);
+        if(nt.uturn) turnText = "\u26a0 Wrong way \u2014 " + turnText;
       } else {
         /* no turns left on the path: name the destination, same as the
            delivery's own final-approach line names the address. */
@@ -24523,6 +24566,40 @@ class WorldScene extends Phaser.Scene {
     g.strokePath();
     g.lineStyle(3, 0x2e3138, 1);
     g.lineBetween(cx, cy, cx + Math.sin(this.tilt*1.2)*r, cy - Math.cos(this.tilt*1.2)*r);
+
+    /* WHICH WAY IS IT, RIGHT NOW (2026-08-27, Sir on-device). The turn
+       strip is a claim about the next CORNER; this is a claim about the
+       DESTINATION, and they answer different questions. Mid-instruction
+       the strip is legitimately talking about a corner two blocks off
+       while this quietly swings behind you -- one glance, nothing to
+       read. Straight ahead is up, so the screen angle is the bearing
+       error minus a quarter turn; green under 45 degrees, orange to
+       120, red past it, which is the same three-stop language the tilt
+       gauge above already speaks.
+
+       Only on a nav leg: with no errand there is nothing to point at.
+       Sits BELOW the cargo bar's slot (cy+r+14, 6 tall) rather than
+       replacing it -- on a delivery both are true at once. */
+    if(gpsNav && Number.isFinite(gpsNav.tx) && Number.isFinite(gpsNav.ty)){
+      const _yaw = (this.ow && this.ow.on) ? this.ow.yaw : this.drawAngle;
+      if(Number.isFinite(_yaw)){
+        const brg = Math.atan2(gpsNav.ty - this.botY, gpsNav.tx - this.botX);
+        const err = Math.atan2(Math.sin(brg - _yaw), Math.cos(brg - _yaw));
+        const ax = cx, ay = cy + r + 28, ar = 11;
+        const a0 = err - Math.PI/2;
+        const pt = (ang, rad) => ({ x: ax + Math.cos(ang)*rad, y: ay + Math.sin(ang)*rad });
+        const tip = pt(a0, ar), lf = pt(a0 + 2.5, ar*0.9), rt = pt(a0 - 2.5, ar*0.9);
+        const mag = Math.abs(err);
+        g.fillStyle(0x000000, 0.28);
+        g.fillCircle(ax, ay, ar + 3);
+        g.fillStyle(mag > 2.09 ? 0xc2452e : mag > 0.79 ? 0xff7a1a : 0x3f7d43, 1);
+        g.fillTriangle(tip.x, tip.y, lf.x, lf.y, rt.x, rt.y);
+      }
+    }
+
+    /* the minimap rides the same frame as every other instrument, and
+       throttles itself internally -- see tpMiniDraw. */
+    if(typeof tpMiniDraw === "function") tpMiniDraw(this);
 
     /* cargo condition meter — separate bar under the tilt gauge (spec:
        tied to the red zone, own widget rather than fused into tilt's).
@@ -24582,6 +24659,7 @@ class WorldScene extends Phaser.Scene {
        screen was the cost of not making that distinction. */
     const _freeRoam = this.mode === "freeroam" && !gpsNav;
     if(!_freeRoam) gpsEl.textContent = `${timerText} · ${distText} · ${turnText}`;
+    gpsEl.classList.toggle("navAlert", !!navAlert && !_freeRoam);
     gpsEl.classList.toggle("hidden", _freeRoam || this.state !== "play");
   }
 }
@@ -28529,9 +28607,192 @@ function resizeRouteMap(){
    map, same real colors as the avatar icon SVG (SKIN.bodyTop/outline/
    visor/eye/stripe) -- canvas primitives instead of SVG since this
    draws directly onto the map canvas. */
-function drawRobotMarker(ctx, x, y){
+/* ---------- THE LIVE MINIMAP ----------
+   (2026-08-27, Sir on-device: "its not activly tracking me showing me
+   where i am on the map... can we get this working to be more like a
+   real gps".)
+
+   The map SCREEN cannot ever do this: raising it calls tpPauseWorld, so
+   the robot is frozen the entire time it is on screen. Tracking has to
+   live where the driving happens, which is here -- a corner of the HUD,
+   permanently, the way a phone in a windscreen cradle works.
+
+   Deliberately NOT drawRouteMap at a smaller size. That function paints
+   the whole of Costa Palma -- coast, marina, pier, mountains, hill
+   estates, street labels -- and running it every frame to fill a 104px
+   square would cost more than the game does. This draws the four things
+   a driving minimap owes you and nothing else: the blocks around you,
+   the streets between them, your errand's line, and you.
+
+   NORTH-UP, not heading-up. The big map is north-up and the two have to
+   agree or they teach contradictory mental models of the same city; the
+   heading cone is what tells you which way you are pointed, exactly as
+   it now does on the big map. */
+const MINI_BLOCKS = 3.2;      // blocks visible from centre to edge
+const MINI_MS     = 110;      // ~9fps: it is a map, not an animation
+let _miniAt = 0;
+function tpMiniDraw(scene){
+  const wrap = document.getElementById("miniMap");
+  if(!wrap) return;
+  /* Every gate here is a place the minimap would be lying or in the
+     way: no world yet, the big map covering it (and the sim paused
+     behind that), the attract reel, or the Hydrant Challenge, which is
+     a run down one street with no navigation in it at all. */
+  const on = !!(scene && scene.route && scene.route.grid && scene.route.pal
+                && scene.state === "play" && !scene.attract
+                && scene.mode !== "challenge" && !scene._slAPI
+                && Number.isFinite(scene.botX) && Number.isFinite(scene.botY)
+                && !(typeof tpMapUp === "function" && tpMapUp()));
+  wrap.classList.toggle("hidden", !on);
+  if(!on) return;
+  const now = (typeof performance !== "undefined" && performance.now)
+    ? performance.now() : Date.now();
+  if(now - _miniAt < MINI_MS) return;
+  _miniAt = now;
+  const c = document.getElementById("miniMapC");
+  if(!c) return;
+  const W = c.clientWidth || 104, H = c.clientHeight || 104;
+  /* backing store at device pixels, sized once and only when it changes
+     -- assigning canvas.width every frame clears and reallocates it. */
+  const dpr = Math.min(2, (typeof window !== "undefined" && window.devicePixelRatio) || 1);
+  const bw = Math.round(W*dpr), bh = Math.round(H*dpr);
+  if(c.width !== bw || c.height !== bh){ c.width = bw; c.height = bh; }
+  const ctx = c.getContext("2d");
+  if(!ctx) return;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+  const grid = scene.route.grid, pal = scene.route.pal;
+  const hex = n => "#" + n.toString(16).padStart(6, "0");
+  const span  = BLOCK*MINI_BLOCKS*2;
+  const scale = Math.min(W, H)/span;
+  const cx = scene.botX, cy = scene.botY;
+  const T = p => ({ x: W/2 + (p.x - cx)*scale, y: H/2 + (p.y - cy)*scale });
+
+  /* pavement first, blocks on top, streets over the gap between them --
+     the same three-layer order and the same palette the big map uses,
+     so the two never disagree about what a park looks like. */
+  ctx.fillStyle = hex(pal.pave);
+  ctx.fillRect(0, 0, W, H);
+  const BLOCKCOL = { housing: "#e3d4b8", park: "#8fbf7a", commercial: "#c4c8cc" };
+  const i0 = Math.floor((cx - span/2)/BLOCK) - 1, i1 = Math.ceil((cx + span/2)/BLOCK) + 1;
+  const j0 = Math.floor((cy - span/2)/BLOCK) - 1, j1 = Math.ceil((cy + span/2)/BLOCK) + 1;
+  const byIJ = grid.blockByIJ;
+  if(byIJ){
+    for(let j = j0; j <= j1; j++) for(let i = i0; i <= i1; i++){
+      const b = byIJ.get(i + "," + j);
+      if(!b) continue;
+      const a = T({ x: b.x0, y: b.y0 }), d = T({ x: b.x1, y: b.y1 });
+      ctx.fillStyle = BLOCKCOL[b.type] || "#d8d2c2";
+      ctx.fillRect(a.x, a.y, d.x - a.x, d.y - a.y);
+    }
+    /* merged parks: bridge the swallowed street, same +x/+y neighbour
+       rule fillBlockGround and the big map both follow. Classic grids
+       ran no swallow pass, so there is no gap to fill. */
+    if(!grid.classic){
+      ctx.fillStyle = "#8fbf7a";
+      for(let j = j0; j <= j1; j++) for(let i = i0; i <= i1; i++){
+        const b = byIJ.get(i + "," + j);
+        if(!b || b.type !== "park") continue;
+        const nx = byIJ.get((i+1) + "," + j), ny = byIJ.get(i + "," + (j+1));
+        if(nx && nx.type === "park"){
+          const a = T({ x: b.x1, y: b.y0 }), d = T({ x: nx.x0, y: b.y1 });
+          ctx.fillRect(a.x, a.y, d.x - a.x, d.y - a.y);
+        }
+        if(ny && ny.type === "park"){
+          const a = T({ x: b.x0, y: b.y1 }), d = T({ x: b.x1, y: ny.y0 });
+          ctx.fillRect(a.x, a.y, d.x - a.x, d.y - a.y);
+        }
+      }
+    }
+  }
+  ctx.strokeStyle = hex(pal.road);
+  ctx.lineWidth = Math.max(1.5, 2*ROAD_HALF*scale);
+  ctx.lineCap = "butt";
+  const near = p => Math.abs(p.x - cx) < span && Math.abs(p.y - cy) < span;
+  for(const e of (grid.edges || [])){
+    if(!near(e.a) && !near(e.b)) continue;
+    const pa = T(e.a), pb = T(e.b);
+    ctx.beginPath(); ctx.moveTo(pa.x, pa.y); ctx.lineTo(pb.x, pb.y); ctx.stroke();
+  }
+  ctx.lineCap = "round";
+
+  /* the errand's own line, offset onto the walk by the SAME gpsWalkPts
+     the big map draws through -- one geometry, two canvases, so the
+     line in the corner cannot point somewhere the line on the map does
+     not. Lead leg from the robot and tail to gpsNav.tx/ty for the same
+     reasons the big map's copy gives. */
+  if(gpsNav && gpsNav.path && gpsNav.path.pts && gpsNav.path.pts.length){
+    const pts = (typeof gpsWalkPts === "function")
+      ? gpsWalkPts(gpsNav.path.pts) : gpsNav.path.pts;
+    ctx.save();
+    ctx.setLineDash([5, 4]);
+    ctx.lineWidth = 3; ctx.lineJoin = "round"; ctx.lineCap = "round";
+    ctx.strokeStyle = "rgba(255,122,26,.95)";
+    ctx.beginPath();
+    const s0 = T({ x: cx, y: cy });
+    ctx.moveTo(s0.x, s0.y);
+    for(const q of pts){ const sp = T(q); ctx.lineTo(sp.x, sp.y); }
+    if(Number.isFinite(gpsNav.tx)){
+      const se = T({ x: gpsNav.tx, y: gpsNav.ty });
+      ctx.lineTo(se.x, se.y);
+    }
+    ctx.stroke();
+    ctx.restore();
+    /* the destination itself, when it is close enough to be on screen;
+       when it is not, the dashed line running off the edge is already
+       the arrow pointing at it. */
+    if(Number.isFinite(gpsNav.tx) && near({ x: gpsNav.tx, y: gpsNav.ty })){
+      const p = T({ x: gpsNav.tx, y: gpsNav.ty });
+      ctx.fillStyle = "#ff7a1a";
+      ctx.beginPath(); ctx.arc(p.x, p.y, 5, 0, Math.PI*2); ctx.fill();
+      ctx.strokeStyle = "#fff"; ctx.lineWidth = 1.5; ctx.stroke();
+    }
+  }
+
+  /* you, dead centre, facing where you are facing. Same marker the big
+     map draws, same cone, so the two screens read as one instrument. */
+  const yaw = (scene.ow && scene.ow.on) ? scene.ow.yaw : scene.drawAngle;
+  drawRobotMarker(ctx, W/2, H/2, Number.isFinite(yaw) ? yaw : null);
+
+  /* north tick: a north-up map that never says so is just a map you
+     have to guess the orientation of. */
+  ctx.fillStyle = "rgba(20,23,29,.55)";
+  ctx.font = "700 8px sans-serif";
+  ctx.textAlign = "center"; ctx.textBaseline = "top";
+  ctx.fillText("N", W - 9, 4);
+}
+if(typeof window !== "undefined") window.tpMiniDraw = tpMiniDraw;
+
+function drawRobotMarker(ctx, x, y, yaw){
   ctx.save();
   ctx.translate(x, y);
+  /* WHICH WAY HE IS POINTED (2026-08-27, Sir on-device: the map "isnt
+     actively tracking me showing me where i am"). Half of that was
+     framing, fixed at the callers; the other half is this. The marker
+     was a plain box, so even sitting dead centre it could not answer
+     the one question you open a map mid-drive to ask -- am I aimed at
+     the dashed line or away from it.
+
+     A cone, not an arrow: the classic phone-GPS heading wedge, and it
+     stays legible at any zoom because it is drawn in SCREEN pixels
+     rather than world units. World yaw 0 is +x and the map projects x
+     right / y down with no rotation, so a canvas rotation of yaw is the
+     whole transform; the wedge is built pointing up (-PI/2) and the
+     extra quarter turn cancels that. */
+  if(yaw !== null && yaw !== undefined && Number.isFinite(yaw)){
+    ctx.save();
+    ctx.rotate(yaw + Math.PI/2);
+    const cone = ctx.createRadialGradient(0, 0, 2, 0, 0, 34);
+    cone.addColorStop(0, "rgba(127,227,255,.55)");
+    cone.addColorStop(1, "rgba(127,227,255,0)");
+    ctx.fillStyle = cone;
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.arc(0, 0, 34, -Math.PI/2 - 0.42, -Math.PI/2 + 0.42);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
   ctx.fillStyle = "#f7f8fa"; ctx.strokeStyle = "#30343d"; ctx.lineWidth = 1;
   ctx.beginPath(); ctx.rect(-7, -6, 14, 12); ctx.fill(); ctx.stroke();
   ctx.fillStyle = "#22242b";
@@ -30401,7 +30662,15 @@ function tpMapExplore(){
     + 'font:700 18px/1 ui-monospace,monospace"';
   ui.innerHTML = '<div style="position:absolute;right:10px;bottom:64px;display:flex;flex-direction:column;gap:10px;z-index:6">'
     + '<button id="tpMapPlus"  ' + ZOOMBTN + '>+</button>'
-    + '<button id="tpMapMinus" ' + ZOOMBTN + '>\u2212</button></div>'
+    + '<button id="tpMapMinus" ' + ZOOMBTN + '>\u2212</button>'
+    /* RECENTER (2026-08-27). Tapping empty map already did this, which
+       is a gesture nobody has ever been told about and which no-ops
+       outright when tpMapView is null -- exactly the state the map is
+       in the moment it opens. A button in the rail the zoom controls
+       already occupy costs one row and is the control every map app
+       puts there. U+25CE, the bullseye, for the same reason the zoom
+       pair are glyphs and not words. */
+    + '<button id="tpMapHere"  ' + ZOOMBTN + '>\u25ce</button></div>'
     /* top/left/right match #globalAvatar exactly (14px gutter, same
        safe-area calc). The old top:10px had no env() at all, so on a
        notched device the bar sat ~44px HIGHER than the robot it is
@@ -30427,6 +30696,54 @@ function tpMapExplore(){
   card.appendChild(ui);
   document.getElementById("tpMapPlus").onclick  = () => zoomAt(1.35, canvas.clientWidth/2, canvas.clientHeight/2);
   document.getElementById("tpMapMinus").onclick = () => zoomAt(1/1.35, canvas.clientWidth/2, canvas.clientHeight/2);
+
+  /* PUT ME ON THE MAP (2026-08-27, Sir on-device: "if i use the mag
+     glass its not activly tracking me showing me where i am on the
+     map"). The world is PAUSED while the map is up (tpPauseWorld), so
+     live tracking here is not a thing that can exist -- the minimap
+     owns that job now, while driving. What the map screen owes is the
+     other half: open ON him, at a zoom where the errand is legible.
+
+     fit=true frames BOTH ends of a live errand rather than slamming to
+     street zoom on the robot, because the question being asked at that
+     moment is "where am I relative to where I am going" and a
+     robot-only frame answers half of it. With no errand there is no
+     second point to frame, so it is street zoom on him and nothing
+     else. clampView still owns the limits either way -- this proposes a
+     framing, it does not get to exceed the map's own bounds.
+
+     Exposed on window because the glass (bindGlobalSearch) raises the
+     map from outside this closure and needs the same behaviour; every
+     other map control in here is bound to an element and does not. */
+  const recenterOnRobot = (fit) => {
+    const s = scn();
+    if(!s || !s.route) return;
+    if(!Number.isFinite(s.botX) || !Number.isFinite(s.botY)) return;
+    seed();
+    const streetScale = Math.min(canvas.clientWidth, canvas.clientHeight)/(BLOCK*3.2);
+    if(!tpMapView) tpMapView = { cx: s.botX, cy: s.botY, scale: streetScale,
+                                stamp: s.route.dateStr, atlas: false };
+    /* a recenter is a return to the REAL city: an atlas jump is a look
+       at somewhere else, and leaving that flag set would draw him
+       standing on another day's geometry. */
+    tpMapView.atlas = false;
+    tpMapView.stamp = s.route.dateStr;
+    tpMapView.cx = s.botX; tpMapView.cy = s.botY;
+    if(fit && gpsNav && Number.isFinite(gpsNav.tx) && Number.isFinite(gpsNav.ty)){
+      tpMapView.cx = (s.botX + gpsNav.tx)/2;
+      tpMapView.cy = (s.botY + gpsNav.ty)/2;
+      const availW = Math.max(1, canvas.clientWidth  - 96);   // clears the search bar + zoom rail
+      const availH = Math.max(1, canvas.clientHeight - 140);  // clears the routing card + GO
+      const dx = Math.max(BLOCK*1.5, Math.abs(gpsNav.tx - s.botX));
+      const dy = Math.max(BLOCK*1.5, Math.abs(gpsNav.ty - s.botY));
+      tpMapView.scale = Math.min(streetScale, availW/dx, availH/dy);
+    } else {
+      tpMapView.scale = streetScale;
+    }
+    clampView(); redraw();
+  };
+  document.getElementById("tpMapHere").onclick = () => recenterOnRobot(true);
+  if(typeof window !== "undefined") window.tpMapRecenter = recenterOnRobot;
   document.getElementById("tpMapSearchIcon").onclick = () => {
     /* tpCollapseMissions, not tpCloseMissions: this icon sits ON the
        map, so its "off" is the drawer going down, not the map going
@@ -31140,7 +31457,12 @@ function drawRouteMap(route){
     const here = (_s && Number.isFinite(_s.botX) && Number.isFinite(_s.botY))
       ? { x: _s.botX, y: _s.botY } : samples[0];
     const herePt = toScreen(here);
-    drawRobotMarker(ctx, herePt.x, herePt.y);
+    /* the pose the cone is drawn from, chosen the same way every other
+       reader of "which way is he facing" chooses it: the open-world yaw
+       when the stick is bound, drawAngle otherwise. null on the boot
+       draw, which drawRobotMarker treats as "no cone". */
+    const hereYaw = _s ? ((_s.ow && _s.ow.on) ? _s.ow.yaw : _s.drawAngle) : null;
+    drawRobotMarker(ctx, herePt.x, herePt.y, hereYaw);
   }
   /* THE DELIVERY PIN (2026-08-10, Sir's call): today's destination is
      tappable now, the same way a mission pin is -- not a dedicated
@@ -32613,6 +32935,14 @@ document.getElementById("avatarIcon").addEventListener("click", tpOpenProfile);
     requestAnimationFrame(() => {
       const s2 = scn();
       if(s2 && s2.route){ resizeRouteMap(); drawRouteMap(s2.route); }
+      /* ...AND ON HIM. The repaint above fixed a stale canvas; it still
+         framed whatever the last gesture or the route auto-fit left
+         behind, which after any panning around the city is nowhere near
+         the robot. Opening a map mid-drive is a "where am I" question
+         and it now gets that answer without a second gesture. AFTER the
+         draw, not before: recenterOnRobot seeds from tpMapLast, which
+         only exists once something has drawn. */
+      if(typeof window.tpMapRecenter === "function") window.tpMapRecenter(true);
       /* THE CARD IS PART OF THE REPAINT. The line above fixed a stale
          CANVAS on this path; the card underneath it had exactly the
          same bug and was missed. tpSyncOrderCard derives GO and the
