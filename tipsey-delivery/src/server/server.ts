@@ -35,6 +35,8 @@ import {
   type PostWinCommentRsp,
   type PurchaseSkinReq,
   type PurchaseSkinRsp,
+  type ResolveFailReq,
+  type ResolveFailRsp,
   type SubmitDailyBestReq,
   type SubmitDailyBestRsp,
   type SubmitFailReq,
@@ -69,6 +71,7 @@ import {
   dbIncrPlays,
   dbMarkAnnounced,
   dbPurchaseSkin,
+  dbResolveDeliveryFail,
   dbRecordMission,
   dbRemoveUser,
   dbSetFailPending,
@@ -88,6 +91,7 @@ type AnyRsp =
   | SubmitReplayRsp
   | TpProfileRsp
   | PurchaseSkinRsp
+  | ResolveFailRsp
   | EquipSkinRsp
   | ClaimTrophyRewardRsp
   | CountPlayRsp
@@ -150,6 +154,9 @@ async function route(
         break
       case Endpoint.PurchaseSkin:
         rsp = await routePurchaseSkin(reqMsg)
+        break
+      case Endpoint.ResolveFail:
+        rsp = await routeResolveFail(reqMsg)
         break
       case Endpoint.EquipSkin:
         rsp = await routeEquipSkin(reqMsg)
@@ -321,6 +328,24 @@ async function routeGetTpProfile(): Promise<TpProfileRsp> {
   const user = await getCurrentUserRetrying()
   const username = user?.username ?? 'anonymous'
   return dbGetTpProfile(username)
+}
+
+/** Validates the action string rather than passing it through: it
+ *  reaches a Redis debit, and 'continue' arriving as anything else must
+ *  fail closed rather than fall through to the free branch. */
+async function routeResolveFail(
+  reqMsg: IncomingMessage,
+): Promise<ResolveFailRsp | ErrorRsp> {
+  const req = await readJson<ResolveFailReq>(reqMsg)
+  const user = await getCurrentUserRetrying()
+  const username = user?.username ?? 'anonymous'
+  const action = req?.action === 'continue' ? 'continue' : 'tow'
+  const result = await dbResolveDeliveryFail(username, action)
+  if (!result.ok) {
+    console.error(`routeResolveFail: ${username} -> ${action}: ${result.error}`)
+    return {error: result.error, status: 400}
+  }
+  return result.profile
 }
 
 async function routePurchaseSkin(
