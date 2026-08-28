@@ -104,6 +104,12 @@ export type TpProfileRsp = {
    *  string wherever the matching failPending flag is false. */
   failPoses: {delivery: string; slalom: string; hydrant: string}
 }
+/** How a delivery fail was resolved. No amount: the server owns the
+ *  price (TS_CONTINUE_CENTS), so a request cannot name its own. Both
+ *  actions clear the fail gate; only 'continue' costs anything. */
+export type ResolveFailReq = {action: 'continue' | 'tow'}
+export type ResolveFailRsp = TpProfileRsp
+
 /** skinId must be a 'purchase'-type skin in the server's own TS_SKINS
  *  catalog (tpcatalog.ts) -- price is never taken from the client. */
 export type PurchaseSkinReq = {skinId: string}
@@ -336,6 +342,7 @@ export const Endpoint = {
   SubmitReplay: 'api/tipsy/history/submit',
   GetTpProfile: 'api/tipsy/profile',
   PurchaseSkin: 'api/tipsy/profile/purchase',
+  ResolveFail: 'api/tipsy/fail/resolve',
   EquipSkin: 'api/tipsy/profile/equip',
   ClaimTrophyReward: 'api/tipsy/profile/claim',
   CompleteMission: 'api/tipsy/mission/complete',
@@ -363,6 +370,7 @@ export const EndpointMethod = {
   [Endpoint.SubmitReplay]: 'POST',
   [Endpoint.GetTpProfile]: 'GET',
   [Endpoint.PurchaseSkin]: 'POST',
+  [Endpoint.ResolveFail]: 'POST',
   [Endpoint.EquipSkin]: 'POST',
   [Endpoint.ClaimTrophyReward]: 'POST',
   [Endpoint.CompleteMission]: 'POST',
