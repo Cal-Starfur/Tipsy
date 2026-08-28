@@ -9953,9 +9953,49 @@ const CITY_FURN = {
      off for a bisect or an oracle run. */
   on: true,
   sparse: 4,          // clutter: a quarter of the route's density
-  infra: 4,           // lamps and hydrants -- separate dial, see the note in
-                      // cityFurnitureForEdge: quartering INFRASTRUCTURE is a
-                      // different question from quartering litter
+  infra: 4,           // hydrants -- separate dial from the clutter, see the
+                      // note in cityFurnitureForEdge: quartering
+                      // INFRASTRUCTURE is a different question from
+                      // quartering litter
+  /* LAMPS OFF THE SHARED INFRA DIAL (2026-08-27, Sir: "i feel like we
+     dont have enough street lamps in the world").
+
+     Censused before touching it: 1,287 lamps citywide, and a NOMINAL
+     stride of 2,539 units that lands at 4,684 once corner clearance,
+     off-walk and charging-pad rejections take their cut -- 2,810 ft
+     between lamps, about one every block and a half. The daily route
+     lights its own corridor at LAMP_ACT.spacing*T2 = 552 units, so the
+     city was running roughly eight times darker than the street every
+     other art decision in this game was made against.
+
+     infra could not answer it alone: it also governs hydrants, and at
+     453 those are right. So lamps get their own knob and hydrants keep
+     theirs, which is the same reasoning that split infra off from
+     sparse in the first place -- one dial per question.
+
+     THE DIAL, MEASURED (Sir's call, 1.5). Counted citywide against
+     6,027,840 units of frontage, so these are placed lamps after corner
+     clearance, off-walk and charging-pad rejections take their cut --
+     not what the stride says:
+
+       4 (was)   1,287 lamps   2,810 ft apart
+       2         2,614         1,384
+       1.5       ~3,500        ~1,030
+       1         5,321           680
+       0.6       8,953           404
+
+     A block is 1,877 ft, so 4 stood a lamp every block and a half and
+     1.5 stands roughly two a block.
+
+     And the reason this needed its own dial at all is worth recording,
+     because the first diagnosis was wrong. The city was NOT eight times
+     darker than the daily route: that compared the city's ACTUAL
+     spacing against the route's NOMINAL stride, and the route rejects
+     about 87% of its own samples too. Measured like for like, the route
+     places a lamp every 3,137-4,641 units against the city's 4,684 --
+     near enough the same. The whole game was under-lit, which is a
+     different fact and the one this answers. */
+  lampInfra: 1.5,
   /* CALIBRATED AGAINST WHAT THE ROUTE ACTUALLY PRODUCES, not against
      what its formulas say. Every route pass rolls a spot and then
      rejects most of them -- corners, off-walk, spawnBlocked against an
@@ -10327,7 +10367,7 @@ function cityFurnitureForEdge(grid, blk, fi){
      knob so the answer can be changed without touching the clutter. */
   {
     const R = mulberry32(cityFurnEdgeSeed(e, 0x51a3));
-    const step = LAMP_ACT.spacing * T2 * CITY_FURN.infra * CITY_FURN.cal.lamp;
+    const step = LAMP_ACT.spacing * T2 * CITY_FURN.lampInfra * CITY_FURN.cal.lamp;
     /* THE STRIDE IS CITYWIDE, NOT PER-FRONTAGE. Restarting the count at
        0 on every edge placed exactly zero lamps: the average frontage is
        1,656 units and a quartered stride is 2,208, so the only sample
