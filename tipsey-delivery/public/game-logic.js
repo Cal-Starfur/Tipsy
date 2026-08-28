@@ -30162,6 +30162,61 @@ function tpDailyDeliveryPin(){
    correlate today -- see drawHUD's zoomBtn gate for what inference
    costs. #mapCard lives inside #titleOverlay, so the overlay's own
    hidden class IS the answer. */
+/* ---------- TAP YOURSELF TO GET BACK IN ----------
+   (2026-08-27, Sir on-device: "after ive already chose then i look back
+   at the map i might need to get back out of it without reseting the
+   mission i chose... if we click on the robot that would be a good way
+   to get back into the game from the map".)
+
+   Before this the map screen had NO exit in free roam. GO is hidden
+   there on purpose -- tpSyncMapChrome's "nothing chosen, nothing to
+   start" rule, which is right on its own terms -- and the only code
+   that ever called tpResumeWorld() was tpCloseMissions. So raising the
+   map over a live run and not touching the drawer left the player on a
+   screen with no working control, over a paused world. Measured: press
+   GO from there and the robot moves 0.0 units with the throttle pinned.
+
+   The marker is the right control because it is already the thing you
+   are looking for when you open a map mid-drive, and "tap me to go back
+   to me" needs no label to explain it. It is also the only exit that is
+   correct with an errand live: GO would START something and a close
+   button would have to decide whether to keep the route. This decides
+   nothing. gpsNav is not touched, the route is not reloaded, the robot
+   does not move -- the map simply stops covering the city.
+
+   The gate carve-outs are GO's own, verbatim: an unposted delivery
+   fail/win must land back on its retry screen rather than buying a free
+   return to the world, and a mission or free roam was never what that
+   rule was written to catch. */
+function tpMapResumeDriving(){
+  const s = scn();
+  if(!s) return false;
+  const carved = s.mode === "challenge" || s.mode === "slalom-pending" || s.mode === "freeroam";
+  if(typeof tdFxWinBlocked === "function" && tdFxWinBlocked() && !carved){
+    tpRestoreWinScreen(); return true;
+  }
+  if(typeof tdFxDeliveryBlocked === "function" && tdFxDeliveryBlocked() && !carved){
+    tpRestoreFailScene(s);
+    hide("titleOverlay");
+    show("failOverlay");
+    tdFxSyncGate();
+    return true;
+  }
+  if(typeof tpCollapseMissions === "function") tpCollapseMissions();
+  /* the glass's own flag: whoever raised the map is no longer holding
+     it up, and leaving this set would have tpCloseMissions hide an
+     overlay that is already down. */
+  tpSearchMap = false;
+  /* uncover BEFORE stepping, the same order tpCloseMissions gives its
+     own reason for -- a resumed world running a frame behind the
+     overlay is a frame nobody sees. */
+  hide("titleOverlay");
+  tpResumeWorld();
+  s.state = "play";
+  return true;
+}
+if(typeof window !== "undefined") window.tpMapResumeDriving = tpMapResumeDriving;
+
 function tpMapUp(){
   const t = document.getElementById("titleOverlay");
   return !!t && !t.classList.contains("hidden");
@@ -30608,8 +30663,17 @@ function tpMapExplore(){
      just asking "where am I in what I'm already looking at". */
   const tapUp = e => {
     if(ptrs.size === 1 && !dragged && downPos){
-      const hit = tpMapMissionPins.find(pin =>
-        Math.hypot(e.offsetX-pin.x, e.offsetY-pin.y) <= pin.r);
+      /* NEAREST, NOT FIRST (2026-08-27). This was a .find(), so an
+         overlap was resolved by push order -- and the robot marker now
+         registers a pin of its own that can sit exactly on top of the
+         daily delivery pin whenever he is parked at the shop. Push
+         order is not an answer to "which one did the thumb mean"; the
+         closer centre is. */
+      let hit = null, hitD = Infinity;
+      for(const pin of tpMapMissionPins){
+        const d = Math.hypot(e.offsetX-pin.x, e.offsetY-pin.y);
+        if(d <= pin.r && d < hitD){ hitD = d; hit = pin; }
+      }
       if(hit){
         /* A PIN IS A DESTINATION NOW, NOT A DOOR (Sir's call,
            2026-08-26). These used to call hjStart()/slalomMapSelect(),
@@ -30625,6 +30689,9 @@ function tpMapExplore(){
           gpsNavToMission(hit.id);
         }
         else if(hit.id === "daily-delivery") tpBackToDailyRoute();
+        /* the one pin that is not a destination: it is where you already
+           are, so tapping it means "put the map away", not "go there". */
+        else if(hit.id === "you") tpMapResumeDriving();
       } else {
         /* and it puts the drawer down. The list no longer covers the
            map, so a tap here is a deliberate reach past it -- same
@@ -31463,6 +31530,45 @@ function drawRouteMap(route){
        draw, which drawRobotMarker treats as "no cone". */
     const hereYaw = _s ? ((_s.ow && _s.ow.on) ? _s.ow.yaw : _s.drawAngle) : null;
     drawRobotMarker(ctx, herePt.x, herePt.y, hereYaw);
+    /* ...AND HE IS A BUTTON (see tpMapResumeDriving). Only when there is
+       a world to go back TO: the map raised over a live run, which is
+       either the glass holding it up or a scene we paused to show it.
+       On the boot title screen neither is true -- nothing is running,
+       GO is the way in, and a marker that resumed a world that had
+       never started would be a trap rather than an exit.
+
+       The caption is the whole discoverability budget. A marker that
+       silently accepts taps is a secret; two words under it is not, and
+       it costs nothing on a screen that already labels every pin. */
+    const _canReturn = (typeof tpSearchMap    !== "undefined" && tpSearchMap)
+                    || (typeof tpPausedWorld  !== "undefined" && tpPausedWorld);
+    if(_canReturn){
+      /* on a PILL, not bare on the map. Every other label here sits on
+         a block -- pale, and big enough to read against. This one sits
+         wherever the robot happens to be, which is the road: dark grey
+         asphalt under the heading cone, the worst background the map
+         has. Same cream the map's own chrome uses, so it reads as a
+         control rather than another street name. y+26 clears the cone's
+         throat; the marker box is only 12 tall but the cone is not. */
+      const _cap = "Tap to drive";
+      ctx.font = "700 10px sans-serif";
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      const _cw = ctx.measureText(_cap).width + 12, _cy = herePt.y + 26;
+      ctx.fillStyle = "rgba(240,236,224,.92)";
+      ctx.strokeStyle = "rgba(54,59,70,.35)"; ctx.lineWidth = 1;
+      if(ctx.roundRect){
+        ctx.beginPath(); ctx.roundRect(herePt.x - _cw/2, _cy - 8, _cw, 16, 8);
+        ctx.fill(); ctx.stroke();
+      } else {
+        ctx.fillRect(herePt.x - _cw/2, _cy - 8, _cw, 16);
+        ctx.strokeRect(herePt.x - _cw/2, _cy - 8, _cw, 16);
+      }
+      ctx.fillStyle = "#2e3138";
+      ctx.fillText(_cap, herePt.x, _cy);
+      /* the pill is part of the target -- a thumb aiming at the words is
+         aiming at the control, so the hit box covers both. */
+      tpMapMissionPins.push({ id: "you", x: herePt.x, y: herePt.y + 8, r: 26 });
+    }
   }
   /* THE DELIVERY PIN (2026-08-10, Sir's call): today's destination is
      tappable now, the same way a mission pin is -- not a dedicated
@@ -33255,6 +33361,20 @@ document.getElementById("startBtn").addEventListener("click", () => {
     return;
   }
   hide("titleOverlay");
+  /* GO HANDS THE WORLD BACK TOO (2026-08-27). tpPauseWorld only fires
+     when #titleOverlay was HIDDEN at the time -- i.e. the map went up
+     over a running game -- so the boot title screen never paused
+     anything and GO never needed to resume. The magnifying glass DOES
+     pause, and nothing on this path undid it: tpCloseMissions was the
+     only caller of tpResumeWorld in the file. Measured before the fix:
+     glass -> GO left the scene paused and the robot moved 0.0 units
+     with the throttle pinned, on every mode including the delivery.
+
+     Both lines are no-ops when they are not needed -- tpResumeWorld
+     returns on !tpPausedWorld -- so this is safe ahead of the mission
+     branches rather than duplicated into each of them. */
+  tpSearchMap = false;
+  tpResumeWorld();
   if(s.mode === "challenge"){ hjBegin(); return; }
   if(s.mode === "slalom-pending"){ tpSlalomStart(); return; }
   /* Leave attract BEFORE anything else -- attractStop clears the pending
