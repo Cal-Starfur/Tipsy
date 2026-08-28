@@ -353,6 +353,18 @@
      the tilt gauge and the cargo bar go to, so it needs no learning.
      Toggled by drawHUD off gpsNavTurn's uturn/lead flags. */
   #gpsHud.navAlert{color:#ffd9d2;text-shadow:0 2px 3px #c2452e;}
+  /* WHICH WAY, IN THE STRIP ITSELF (2026-08-27, Sir on-device: "can we
+     get it to be a part of the gps so that it is replacing the arrow").
+     Sized in em so it tracks #gpsHud's own min() font-size instead of
+     needing a second breakpoint, and rotated about its centre by
+     drawHUD off gpsAimErr. Art points UP at rotate(0) -- straight ahead
+     is up, so zero error needs no offset. fill is set inline (the
+     three-stop green/orange/red the tilt gauge already speaks), NOT
+     currentColor: the strip's own white/navAlert-red is about the
+     written instruction, this is about the angle. */
+  #gpsChev{display:none;width:1em;height:1em;vertical-align:-0.12em;margin-right:0.3em;
+    transform-origin:50% 50%;filter:drop-shadow(0 2px 3px rgba(0,0,0,0.45));}
+  #gpsChev.on{display:inline-block;}
   /* THE LIVE MINIMAP (see tpMiniDraw). Bottom-left: the four corners
      were spoken for at the TOP (#globalSearch, #globalAvatar, #zoomBtn)
      and the bottom centre is #gpsHud's strip, which is centre-anchored
@@ -882,7 +894,7 @@
     </div>
   </div>
   <div id="game"></div>
-  <div id="gpsHud" class="hidden"></div>
+  <div id="gpsHud" class="hidden"><svg id="gpsChev" viewBox="0 0 24 24" aria-hidden="true"><polygon points="12,3 20,20 12,15.5 4,20"/></svg><span id="gpsText"></span></div>
   <div id="zoomBtn" class="hidden"><span class="zCap">VIEW</span><span class="zLvl">1</span></div>
   <div id="hjUI" class="hidden">
     <div id="hjTitle"></div>
