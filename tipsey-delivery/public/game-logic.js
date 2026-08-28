@@ -5991,11 +5991,10 @@ function owStep(scene, dt){
    writes. */
 function owTip(scene, sgn){
   const ow = scene.ow;
-  /* FREE PLAY DOES NOT FAIL YOU. A tip out on the open city is not a
-     failed delivery -- you never accepted one -- so it starts a recovery
-     clock instead. owRespawnTick below does the pickup. Once deliveries
-     work in world space this will need to ask whether one is ACTIVE; for
-     now free roam is the only thing open world does. */
+  /* A tip is a tip in every mode now (2026-08-27) -- see
+     owDispatchTipFail below for who gets a card and who gets the gate.
+     downT is still wound back here because the recovery clock is what
+     picks him up once the card is answered. */
   ow.downT = 0;
   /* the fall is authoritative: clear both channels so the next compose
      cannot stand him back up mid-topple. */
@@ -6007,25 +6006,52 @@ function owTip(scene, sgn){
   scene.tipT = 0;
   scene.damage = 95;
   ow.vel = 0; ow.clipTips++;
-  /* ...BUT A DELIVERY DOES. The comment above is still true of free
-     roam and only free roam. This function sets the tipped state
-     DIRECTLY (see its own note on why), which means it bypasses the
-     rail loop's `Math.abs(this.tilt) >= 1` branch and every fail
-     dispatch that branch owns -- harmless while owRespawnTick picked
-     him back up regardless, load-bearing now that a delivery fail
-     holds. Without this the hold would simply strand him on his side
-     with no card and nothing to tap.
-
-     Same two calls the rail branch makes, same order, same 1500ms
-     delay -- the fall has to read before the card lands. Cannot
-     double-fire: owStep only runs while state === "play", and the
-     state write above has just left it. */
+  /* THE CARD. This function sets the tipped state DIRECTLY (see its own
+     note on why), which means it bypasses the rail loop's
+     `Math.abs(this.tilt) >= 1` branch and every fail dispatch that
+     branch owns -- so it has to dispatch for itself, through the same
+     one owner the rail branch now calls. Without this the hold would
+     simply strand him on his side with no card and nothing to tap. */
   if(scene.attractOwnsTip && scene.attractOwnsTip()){ scene.attractRecycle(); return; }
-  if(scene.mode === "delivery"){
-    const failPool = scene.tipCause === "william" ? WILLIAM_FAIL_LINES : null;
+  owDispatchTipFail(scene);
+}
+
+/* THE TIP FAIL, ONE OWNER (2026-08-27, Sir on-device: "it should be all
+   tips im not sure why there would be a no card tip").
+
+   Two call sites reach a genuine tip-over -- owTip (clip/wall contact,
+   which latches the state directly and so bypasses the rail loop) and
+   the rail loop's own |tilt| >= 1 branch -- and they had drifted:
+   owTip's card was gated on `mode === "delivery"` and the rail branch's
+   was not gated at all. Free roam therefore had TWO different tip
+   outcomes depending on what knocked you over: a silent auto-pickup
+   from one, a fail card from the other. This is the whole of the
+   dispatch for both now, so there is nothing left to drift.
+
+   FREE ROAM GETS THE CARD BUT NOT THE GATE. reportFail arms the Devvit
+   comment gate (gateEligible / deliveryUnposted / the server's
+   failPending) which locks Retry behind a post, and there is no daily
+   errand out here to have lost -- so free roam clears the gate flag
+   instead of arming it, and its card opens on a plain Retry. It also
+   raises failHold, which is what stops owRespawnTick standing him back
+   up at 900ms while the card is still 600ms out (see its own note).
+
+   1500ms on both paths, unchanged: the fall has to read before the card
+   lands. Cannot double-fire -- both callers have just left state
+   "play", and every stepper is gated on it. */
+function owDispatchTipFail(scene){
+  if(scene.mode !== "delivery" && scene.mode !== "freeroam") return;
+  const failPool = scene.tipCause === "william" ? WILLIAM_FAIL_LINES : null;
+  if(scene.mode === "freeroam"){
+    if(scene.ow) scene.ow.failHold = true;
+    /* explicit, not merely "we skipped reportFail": a previous delivery
+       fail this session leaves gateEligible true, and tdFxSyncGate
+       would drop that composer onto this card. */
+    tdFx.gateEligible = false;
+  } else {
     reportFail(scene, scene.tipCause);
-    setTimeout(() => showFail(failPool), 1500);
   }
+  setTimeout(() => showFail(failPool), 1500);
 }
 
 /* ---------- install / uninstall ---------- */
@@ -6088,6 +6114,11 @@ function owPlaceOnPad(scene, fromX, fromY){
      ungated, the lid shut, the post-spill timer wound back. */
   scene.items = []; scene.spilled = false;
   scene.postSpillMs = 0; scene.lidAng = 0;
+  /* the fall is over the moment he is on a pad, however we got here --
+     the free-roam card's hold is released HERE rather than in either
+     button's handler, so the flag cannot outlive the pose it froze. */
+  ow.failHold = false;
+  ow.downT = 0;
   return st;
 }
 
@@ -6111,6 +6142,19 @@ function owRespawnTick(scene, t){
      is untouched -- it has no card to wait for, which is the whole
      reason the auto-pickup exists. */
   if(scene.mode !== "freeroam") return;
+  /* ...AND NOT WHILE A FREE-ROAM FAIL CARD IS COMING OR UP (2026-08-27).
+     The guard above was written when free roam had no card to wait for;
+     it does now (owDispatchTipFail), and this clock is 900ms against
+     the card's 1500ms, so the recovery won by 600ms every time -- the
+     robot was upright on a pad, undamaged, camera snapped, before the
+     card had even painted. Same race, same 600ms, as the delivery half
+     the guard above already fixed.
+
+     failHold is raised by the dispatch and cleared by owPlaceOnPad, so
+     both answers on the card release it through the recovery they
+     already call (Retry -> tpFreePlay, Maybe later -> tpFreePlay) and
+     there is no second place that has to remember to lower it. */
+  if(ow.failHold) return;
   if(!ow.downT){ ow.downT = t; return; }
   if(t - ow.downT < CHARGE.holdMs) return;
   ow.downT = 0;
@@ -22578,10 +22622,9 @@ class WorldScene extends Phaser.Scene {
         /* the challenge resets the run itself (hjPendingReset); the
            delivery fail overlay would take over the screen and its
            Retry reloads the daily route. */
-        const failPool = this.tipCause === "william" ? WILLIAM_FAIL_LINES : null;
         if(this.attractOwnsTip()){ this.attractRecycle(); }
         else if(this.slOwnsTip()){ this._slAPI.crash(this.tipCause); }
-        else if(!this.hjOwnsTip()){ reportFail(this, this.tipCause); setTimeout(() => showFail(failPool), 1500); }
+        else if(!this.hjOwnsTip()){ owDispatchTipFail(this); }
         /* SAFETY NET (2026-08-11): hjOwnsTip() only checks mode, not
            cause — it correctly muzzles the delivery fail overlay for
            EVERY tip during a challenge, but only hjSim's own jump/
