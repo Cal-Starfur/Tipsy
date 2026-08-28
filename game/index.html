@@ -7,76 +7,112 @@
      without it iOS screenshots the page for bookmarks. -->
 <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<!-- BOOT VIEWPORT PROBE (2026-08-27). Sir on-device: the boot loader
-     "starts in the bottom right then moves to the center".
+<!-- THE VISUAL VIEWPORT, MEASURED AND PUBLISHED AS CSS VARS
+     (2026-08-27). Sir on-device: the boot loader "starts in the bottom
+     right then moves to the center", reproducing in a HOME-SCREEN WEB
+     APP on iPad and not in ordinary Safari.
 
      #bootLoader is position:fixed;inset:0 and paints on the first frame
-     by design, so wherever it lands IS wherever the browser thought the
-     viewport was at that instant. Reconstructing from IMG_3133 the box
-     was about 1710x1200 while the device is 1194x834 -- but the two
-     have essentially the SAME aspect (1.425 vs 1.432), and a window
-     resize changes aspect. A uniform scale at constant aspect points at
-     the layout viewport being wider at first paint, i.e. the viewport
-     meta not yet in effect -- which would need a different fix than a
-     late resize does. That is inference from one screenshot, and
-     guessing wrong ships another wrong fix, so this measures it instead.
+     by design -- that is the whole reason it is static markup rather
+     than JS-injected. So wherever it lands IS wherever the browser
+     thought the viewport was at that instant. Reconstructed from
+     IMG_3133 the box was about 1710x1200 against a 1194x834 device, and
+     the two have essentially the same ASPECT (1.425 vs 1.432). A window
+     resize changes aspect; a uniform scale at constant aspect does not.
+     That is the layout viewport being wider at first paint and
+     narrowing once it settles -- which is exactly what a standalone
+     launch does, resolving its viewport during the launch animation.
 
-     Placed here, immediately after the meta and before every stylesheet
-     and every other script, because the first sample has to be the
-     earliest observable moment -- later is exactly the data we already
-     have. Inline is fine on Pages; the Devvit copy carries the same
-     block and will simply not run there under script-src 'self' (same
-     CSP that stranded viewport-fix.js -- see its header), which costs
-     nothing since Pages is where the report came from.
+     visualViewport is the more reliable signal here for the same reason
+     tipsey-delivery's viewport-fix.js gives for preferring it: it
+     tracks the actual visible area directly and fires its own resize
+     independent of the window's. This publishes all four numbers, not
+     just height as that file does, because the offset is what makes the
+     centre right rather than merely the size.
 
-     OPT-IN AND OFF BY DEFAULT: ?vpdiag=1 arms it. Players run none of
-     this, and there is no timer left ticking when it is off. -->
+     INLINE AND FIRST, immediately after the meta and ahead of every
+     stylesheet: the vars have to exist before the loader is parsed or
+     the first paint uses the fallbacks and we are back where we
+     started. Inline is fine on Pages. The Devvit copy carries the same
+     block and will not execute there under script-src 'self' (the same
+     CSP that stranded viewport-fix.js -- see its header); that build
+     already loads viewport-fix.js and can be moved onto this properly
+     if the bug ever shows up there, which so far it has not. -->
 <script>
 (function(){
-  try{ if(new URLSearchParams(location.search).get("vpdiag") !== "1") return; }catch(e){ return; }
-  var t0 = (performance && performance.now) ? performance.now() : Date.now(), trace = [], last = "";
-  function read(tag){
-    var v = window.visualViewport, d = document.documentElement;
-    var row = { t: Math.round(((performance && performance.now) ? performance.now() : Date.now()) - t0), tag: tag,
-      inner: innerWidth + "x" + innerHeight,
-      client: d ? (d.clientWidth + "x" + d.clientHeight) : "-",
-      visual: v ? (Math.round(v.width) + "x" + Math.round(v.height)) : "-",
-      vscale: v ? +(v.scale || 1).toFixed(3) : "-",
-      voff: v ? (Math.round(v.offsetLeft) + "," + Math.round(v.offsetTop)) : "-",
-      screen: screen.width + "x" + screen.height, dpr: devicePixelRatio };
-    /* only bank a row when something actually MOVED -- a per-frame log
-       of 120 identical rows buries the two transitions that matter */
-    var key = row.inner + "|" + row.client + "|" + row.visual + "|" + row.vscale + "|" + row.voff;
-    if(key === last && tag !== "first-script") return;
-    last = key; trace.push(row); paint();
+  var d = document.documentElement;
+  function vv(){
+    var v = window.visualViewport;
+    var w = (v && v.width)  || window.innerWidth;
+    var h = (v && v.height) || window.innerHeight;
+    var l = (v && v.offsetLeft) || 0, t = (v && v.offsetTop) || 0;
+    d.style.setProperty("--vvw", w + "px");
+    d.style.setProperty("--vvh", h + "px");
+    d.style.setProperty("--vvl", l + "px");
+    d.style.setProperty("--vvt", t + "px");
+    return w + "x" + h + " @" + l + "," + t;
   }
+  var first = vv();
+  addEventListener("resize", vv);
+  addEventListener("orientationchange", vv);
+  if(window.visualViewport){
+    visualViewport.addEventListener("resize", vv);
+    visualViewport.addEventListener("scroll", vv);
+  }
+
+  /* ---- SELF-ARMING TRACE ----
+     The earlier version of this armed on ?vpdiag=1, which was useless
+     for the one person who needed it: a home-screen web app launches a
+     FROZEN url and there is no way to append a query string to it. So
+     it arms itself instead, and only on evidence -- it records the
+     viewport at first script and then watches, and it puts anything on
+     screen ONLY if the viewport actually changes after that. A device
+     whose viewport is settled at first paint shows nothing, ever, which
+     is every player. A device where it moves shows the numbers that
+     explain why, without anyone having to arm anything.
+
+     ?vpdiag=1 still forces it on for testing in a normal browser. */
+  var forced = false;
+  try{ forced = new URLSearchParams(location.search).get("vpdiag") === "1"; }catch(e){}
+  var t0 = (window.performance && performance.now) ? performance.now() : Date.now();
+  var trace = [{ t: 0, tag: "first-script", vv: first,
+                 inner: innerWidth + "x" + innerHeight,
+                 client: d.clientWidth + "x" + d.clientHeight }];
+  var changed = false, lastKey = first + "|" + innerWidth + "x" + innerHeight;
+  window.__vpTrace = trace;
   function paint(){
+    if(!changed && !forced) return;
     var el = document.getElementById("blDiag");
     if(!el) return;
     el.textContent = trace.map(function(r){
-      return r.t + "ms " + r.tag + "  inner " + r.inner + "  client " + r.client
-           + "  vis " + r.visual + " @" + r.vscale + " off " + r.voff;
+      return r.t + "ms " + r.tag + "  vis " + r.vv + "  inner " + r.inner + "  client " + r.client;
     }).join("\n") + "\nscreen " + screen.width + "x" + screen.height + " dpr " + devicePixelRatio;
   }
-  window.__vpTrace = trace;
-  read("first-script");
-  document.addEventListener("DOMContentLoaded", function(){ read("domcontentloaded"); });
-  addEventListener("load", function(){ read("load"); });
-  addEventListener("resize", function(){ read("resize"); });
-  addEventListener("orientationchange", function(){ read("orientationchange"); });
-  if(window.visualViewport){
-    visualViewport.addEventListener("resize", function(){ read("vv-resize"); });
-    visualViewport.addEventListener("scroll", function(){ read("vv-scroll"); });
+  function sample(tag){
+    var v = window.visualViewport;
+    var cur = ((v ? Math.round(v.width) + "x" + Math.round(v.height) + " @" + Math.round(v.offsetLeft) + "," + Math.round(v.offsetTop) : "-"))
+            + "|" + innerWidth + "x" + innerHeight;
+    if(cur === lastKey) return;
+    lastKey = cur; changed = true;
+    trace.push({ t: Math.round((((window.performance && performance.now) ? performance.now() : Date.now())) - t0),
+                 tag: tag, vv: v ? (Math.round(v.width) + "x" + Math.round(v.height) + " @" + Math.round(v.offsetLeft) + "," + Math.round(v.offsetTop)) : "-",
+                 inner: innerWidth + "x" + innerHeight, client: d.clientWidth + "x" + d.clientHeight });
+    paint();
   }
-  /* poll every frame for 3s as well: the transition we are chasing may
-     land without firing any event at all, which is itself the finding */
-  var rafT0 = t0;
+  addEventListener("resize", function(){ sample("resize"); });
+  addEventListener("orientationchange", function(){ sample("orientationchange"); });
+  if(window.visualViewport){
+    visualViewport.addEventListener("resize", function(){ sample("vv-resize"); });
+    visualViewport.addEventListener("scroll", function(){ sample("vv-scroll"); });
+  }
+  /* poll for 3s as well: the transition may land without firing any
+     event at all, and that would itself be the finding */
   (function tick(){
-    read("frame");
-    if((((performance && performance.now) ? performance.now() : Date.now()) - rafT0) < 3000) requestAnimationFrame(tick);
+    sample("frame");
+    if((((window.performance && performance.now) ? performance.now() : Date.now())) - t0 < 3000) requestAnimationFrame(tick);
   })();
-  try{ addEventListener("load", function(){ setTimeout(function(){
-    localStorage.setItem("tpVpTrace", JSON.stringify(trace)); }, 3200); }); }catch(e){}
+  addEventListener("load", function(){ paint(); setTimeout(paint, 400); });
+  try{ setTimeout(function(){ localStorage.setItem("tpVpTrace", JSON.stringify(trace)); }, 3200); }catch(e){}
 })();
 </script>
 <title>TIPSEY — a clumsy delivery</title>
@@ -728,10 +764,40 @@
 
      z-index 200 puts it over #globalAvatar and #globalSearch at 60, so
      the two always-on buttons do not sit on top of the loader. */
-  #bootLoader{position:fixed;inset:0;z-index:200;display:flex;
-    flex-direction:column;align-items:center;justify-content:center;gap:10px;
+  /* TWO JOBS, SPLIT (2026-08-27). This element was doing both of them
+     and only one of them can be got wrong.
+
+     COVERING THE SCREEN is the entire reason the loader is static
+     markup that paints on frame one, and inset:0 does that correctly at
+     any viewport size the browser cares to report -- a box that is too
+     big still covers everything. So the background keeps inset:0 and is
+     unchanged.
+
+     BEING CENTRED is the part that needs a correct number, and it was
+     getting it from the same box. On a standalone launch that box is
+     the unsettled layout viewport, so the column centred in something
+     larger than the screen and sat low and right until the real size
+     arrived. #blInner is anchored to the MEASURED visual viewport
+     instead (--vvl/--vvt/--vvw/--vvh, published by the head script
+     above), so it is centred on what is actually visible rather than on
+     what the layout viewport currently believes.
+
+     The fallbacks are 100vw/100vh, i.e. exactly today's behaviour, so
+     if visualViewport is unavailable this is a no-op rather than a
+     regression.
+
+     opacity on this element makes a stacking context but NOT a
+     containing block for fixed descendants (only transform/filter/
+     perspective/will-change/contain do), so #blInner stays anchored to
+     the viewport and still fades out with the parent on .done. */
+  #bootLoader{position:fixed;inset:0;z-index:200;
     background:#14161a;transition:opacity .28s ease;}
   #bootLoader.done{opacity:0;pointer-events:none;}
+  #blInner{position:fixed;
+    left:calc(var(--vvl, 0px) + var(--vvw, 100vw) / 2);
+    top:calc(var(--vvt, 0px) + var(--vvh, 100vh) / 2);
+    transform:translate(-50%, -50%);
+    display:flex;flex-direction:column;align-items:center;gap:10px;}
   /* FLAT 2D FLIP, NOT FAKE VOLUME (2026-08-11, Sir's call: "nothing in
      the game is 3D, it has to be 2D" -- reverts the 2026-08-10 rotateY
      rig). That version gave the card real depth via a two-faced
@@ -947,6 +1013,7 @@
     </svg></button>
 <button class="iconBtn" id="globalSearch" aria-label="Side missions"></button>
 <div id="bootLoader">
+ <div id="blInner">
   <div id="blRobotStage">
    <div id="blRobotCard">
     <svg id="blRobot" class="blFace" viewBox="0 0 40 46" width="88" height="101" aria-hidden="true">
@@ -977,7 +1044,8 @@
   </div>
   <div id="blShadow"></div>
   <div id="blText">Plotting route</div>
-  <div id="blDiag"></div>
+ </div>
+ <div id="blDiag"></div>
 </div>
 
 <div id="failOverlay" class="overlay hidden">
