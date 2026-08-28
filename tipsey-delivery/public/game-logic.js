@@ -7764,6 +7764,60 @@ function tpHingeSideToward(scene, mat){
 }
 if(typeof window !== "undefined") window.tpHingeSideToward = tpHingeSideToward;
 
+/* WHICH WAY IS THE ROUTE, RIGHT NOW (2026-08-27, Sir on-device: "it
+   doesn't seem to be accurately pointing me in the correct direction").
+
+   Replaces the tilt gauge's own chevron, which was wrong twice.
+
+   (a) IT DIFFERENCED WORLD ANGLES AND DREW THEM ON SCREEN. Costa Palma
+   is isometric: W() maps a world direction (dx,dy) to screen
+   (dx-dy, (dx+dy)*0.5), halving the vertical. World and screen angles
+   agree dead ahead and dead behind and nowhere else. Measured against
+   the game's own W(), robot facing east, target 400u out: 45deg world
+   read 18deg short, 90deg read 37deg short -- the error peaked exactly
+   where the arrow matters most, square to your target. Same family as
+   the 90-degree facing bugs labs/heading-reference.html exists for. So
+   both vectors are projected FIRST and differenced after; K is a
+   uniform scale and drops out.
+
+   (b) IT AIMED CROW-FLIES AT gpsNav.tx/ty, through whatever buildings
+   were in the way, so it disagreed with the dashed line and the turn
+   strip -- both of which follow the A* path. It aims at the next PATH
+   node now.
+
+   GPS_AIM_MIN skips nodes we are already standing on: pts[0] sits on
+   the street centreline while the robot rides a lane and a half onto
+   the pavement, so the nearest node's bearing spins as you pass it.
+   Same offset lead gpsNavTurn deliberately refuses to measure off, for
+   the same reason. Falls through to the destination when every node is
+   underfoot, i.e. on the last few units of the trip.
+
+   Reads yaw through the identical expression gpsNavTurn uses -- one
+   convention for "which way is the robot pointed", not a second one. */
+const GPS_AIM_MIN = 40;
+function gpsAimErr(scene){
+  if(!gpsNav || !scene) return null;
+  const yaw = (scene.ow && scene.ow.on) ? scene.ow.yaw : scene.drawAngle;
+  if(!Number.isFinite(yaw)) return null;
+  let tx = gpsNav.tx, ty = gpsNav.ty;
+  const pts = gpsNav.path && gpsNav.path.pts;
+  if(pts && pts.length){
+    for(let i = 0; i < pts.length; i++){
+      if(Math.hypot(pts[i].x - scene.botX, pts[i].y - scene.botY) > GPS_AIM_MIN){
+        tx = pts[i].x; ty = pts[i].y; break;
+      }
+    }
+  }
+  if(!Number.isFinite(tx) || !Number.isFinite(ty)) return null;
+  const dx = tx - scene.botX, dy = ty - scene.botY;
+  if(!dx && !dy) return null;
+  /* W()'s own mapping, direction-only: screen x = ux - uy,
+     screen y = (ux + uy)/2. atan2 takes them in (y, x) order. */
+  const sa = (ux, uy) => Math.atan2((ux + uy)*0.5, ux - uy);
+  const at = sa(dx, dy), ah = sa(Math.cos(yaw), Math.sin(yaw));
+  return Math.atan2(Math.sin(at - ah), Math.cos(at - ah));
+}
+
 function gpsNavTurn(scene){
   if(!gpsNav || !gpsNav.path || !scene) return null;
   const pts = gpsNav.path.pts;
@@ -24823,11 +24877,19 @@ class WorldScene extends Phaser.Scene {
            the anticlockwise open-circle arrow -- one glyph, same width
            budget as the two straight arrows, no new font dependency. */
         const dir = nt.uturn ? "Around" : nt.sign > 0 ? "Right" : "Left";
-        const arrow = nt.uturn ? "\u21b6" : nt.sign > 0 ? "\u2192" : "\u2190";
         const verb = nt.uturn ? "Turn Around" : `Turn ${dir}`;
+        /* NO GLYPH ON A NAV LEG (2026-08-27). #gpsChev sits in this
+           slot now and it is a better answer than the arrow was: the
+           arrow described the corner, the chevron describes the street
+           under you, live. The two never contradict -- the chevron aims
+           at the corner the words are counting down to, so "Turn Right
+           in 300 ft" arrives with the chevron pointing straight at the
+           corner where that right turn is made. The rail branches below
+           keep their own glyphs: there is no path to aim along without
+           gpsNav, so the chevron stays hidden for them. */
         turnText = nt.dist < 20
-          ? `${arrow} ${verb}`
-          : `${arrow} ${verb} in ${Math.round(nt.dist*FT_PER_UNIT/10)*10} ft`;
+          ? verb
+          : `${verb} in ${Math.round(nt.dist*FT_PER_UNIT/10)*10} ft`;
         /* WRONG WAY GETS SAID, NOT IMPLIED (2026-08-27). A reversal and
            a corner were rendered in the same weight, so the moment the
            driver most needs to notice looked like every other
@@ -24887,35 +24949,10 @@ class WorldScene extends Phaser.Scene {
     g.lineStyle(3, 0x2e3138, 1);
     g.lineBetween(cx, cy, cx + Math.sin(this.tilt*1.2)*r, cy - Math.cos(this.tilt*1.2)*r);
 
-    /* WHICH WAY IS IT, RIGHT NOW (2026-08-27, Sir on-device). The turn
-       strip is a claim about the next CORNER; this is a claim about the
-       DESTINATION, and they answer different questions. Mid-instruction
-       the strip is legitimately talking about a corner two blocks off
-       while this quietly swings behind you -- one glance, nothing to
-       read. Straight ahead is up, so the screen angle is the bearing
-       error minus a quarter turn; green under 45 degrees, orange to
-       120, red past it, which is the same three-stop language the tilt
-       gauge above already speaks.
-
-       Only on a nav leg: with no errand there is nothing to point at.
-       Sits BELOW the cargo bar's slot (cy+r+14, 6 tall) rather than
-       replacing it -- on a delivery both are true at once. */
-    if(gpsNav && Number.isFinite(gpsNav.tx) && Number.isFinite(gpsNav.ty)){
-      const _yaw = (this.ow && this.ow.on) ? this.ow.yaw : this.drawAngle;
-      if(Number.isFinite(_yaw)){
-        const brg = Math.atan2(gpsNav.ty - this.botY, gpsNav.tx - this.botX);
-        const err = Math.atan2(Math.sin(brg - _yaw), Math.cos(brg - _yaw));
-        const ax = cx, ay = cy + r + 28, ar = 11;
-        const a0 = err - Math.PI/2;
-        const pt = (ang, rad) => ({ x: ax + Math.cos(ang)*rad, y: ay + Math.sin(ang)*rad });
-        const tip = pt(a0, ar), lf = pt(a0 + 2.5, ar*0.9), rt = pt(a0 - 2.5, ar*0.9);
-        const mag = Math.abs(err);
-        g.fillStyle(0x000000, 0.28);
-        g.fillCircle(ax, ay, ar + 3);
-        g.fillStyle(mag > 2.09 ? 0xc2452e : mag > 0.79 ? 0xff7a1a : 0x3f7d43, 1);
-        g.fillTriangle(tip.x, tip.y, lf.x, lf.y, rt.x, rt.y);
-      }
-    }
+    /* the direction chevron used to be drawn here, under the tilt
+       gauge, in canvas. It lives in the GPS strip now as #gpsChev --
+       see gpsAimErr for both of the things that were wrong with it and
+       the writer at the bottom of this function for where it is set. */
 
     /* the minimap rides the same frame as every other instrument, and
        throttles itself internally -- see tpMiniDraw. */
@@ -24978,7 +25015,29 @@ class WorldScene extends Phaser.Scene {
        written to suppress. Driving to the shop with no directions on
        screen was the cost of not making that distinction. */
     const _freeRoam = this.mode === "freeroam" && !gpsNav;
-    if(!_freeRoam) gpsEl.textContent = `${timerText} · ${distText} · ${turnText}`;
+    /* #gpsText, not #gpsHud: the strip owns a chevron element as well
+       now, and writing textContent on the parent would delete it on the
+       first frame. Still textContent, not innerHTML -- shop and mission
+       names go through here and none of them should be parsed. */
+    const gpsTx = document.getElementById("gpsText");
+    if(!_freeRoam && gpsTx) gpsTx.textContent = `${timerText} · ${distText} · ${turnText}`;
+    /* THE CHEVRON. Only on a nav leg (gpsAimErr returns null without
+       one), and re-aimed every frame -- it is the one instrument here
+       that reports on the CURRENT heading rather than on a distance,
+       so a throttle would read as lag while turning. Three stops, same
+       language as the tilt gauge: green inside 45 degrees, orange to
+       120, red past it. */
+    const chev = document.getElementById("gpsChev");
+    if(chev){
+      const aim = _freeRoam ? null : gpsAimErr(this);
+      if(aim === null){ chev.classList.remove("on"); }
+      else {
+        chev.classList.add("on");
+        chev.style.transform = `rotate(${(aim*180/Math.PI).toFixed(1)}deg)`;
+        const mag = Math.abs(aim);
+        chev.style.fill = mag > 2.09 ? "#c2452e" : mag > 0.79 ? "#ff7a1a" : "#3f7d43";
+      }
+    }
     gpsEl.classList.toggle("navAlert", !!navAlert && !_freeRoam);
     gpsEl.classList.toggle("hidden", _freeRoam || this.state !== "play");
   }
