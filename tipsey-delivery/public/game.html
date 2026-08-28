@@ -362,8 +362,30 @@
      three-stop green/orange/red the tilt gauge already speaks), NOT
      currentColor: the strip's own white/navAlert-red is about the
      written instruction, this is about the angle. */
-  #gpsChev{display:none;width:1em;height:1em;vertical-align:-0.12em;margin-right:0.3em;
-    transform-origin:50% 50%;filter:drop-shadow(0 2px 3px rgba(0,0,0,0.45));}
+  /* SIZED TO THE LETTERING, AND OUTLINED IN WHITE (2026-08-27, Sir: "it
+     needs to be the same size as the lettering and then maybe somthing
+     to make it pop ... the shadow might need to be white").
+
+     1em was the BOX, not the arrow: the old glyph filled about two
+     thirds of its viewBox, so it drew visibly smaller than the cap
+     height beside it. 1.3em with a bolder head lands the arrow itself
+     on the text's own height.
+
+     The outline is white, not dark, because this strip crosses both
+     surfaces the city is made of -- benched on road-dark and
+     pavement-light, a dark edge disappeared into the asphalt exactly
+     where the red wrong-way arrow most needs to be seen. White also
+     matches the lettering, so the arrow reads as part of the sentence
+     rather than pasted beside it, and it leaves the FILL free to go on
+     carrying the status colour. paint-order puts the stroke behind the
+     fill so the outline surrounds the shape instead of eating it.
+
+     The drop shadow stays dark and stays underneath: it is what lifts
+     the arrow off the city, the same job the lettering's own
+     text-shadow does. */
+  #gpsChev{display:none;width:1.3em;height:1.3em;vertical-align:-0.32em;margin-right:0.24em;
+    transform-origin:50% 50%;filter:drop-shadow(0 2px 3px rgba(0,0,0,0.5));}
+  #gpsChev polygon{stroke:#fff;stroke-width:2.2;stroke-linejoin:round;paint-order:stroke fill;}
   #gpsChev.on{display:inline-block;}
   /* THE LIVE MINIMAP (see tpMiniDraw). Bottom-left: the four corners
      were spoken for at the TOP (#globalSearch, #globalAvatar, #zoomBtn)
@@ -894,7 +916,7 @@
     </div>
   </div>
   <div id="game"></div>
-  <div id="gpsHud" class="hidden"><svg id="gpsChev" viewBox="0 0 24 24" aria-hidden="true"><polygon points="12,3 20,20 12,15.5 4,20"/></svg><span id="gpsText"></span></div>
+  <div id="gpsHud" class="hidden"><svg id="gpsChev" viewBox="0 0 24 24" aria-hidden="true"><polygon points="12,2 21,21 12,16 3,21"/></svg><span id="gpsText"></span></div>
   <div id="zoomBtn" class="hidden"><span class="zCap">VIEW</span><span class="zLvl">1</span></div>
   <div id="hjUI" class="hidden">
     <div id="hjTitle"></div>
