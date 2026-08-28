@@ -7,6 +7,78 @@
      without it iOS screenshots the page for bookmarks. -->
 <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<!-- BOOT VIEWPORT PROBE (2026-08-27). Sir on-device: the boot loader
+     "starts in the bottom right then moves to the center".
+
+     #bootLoader is position:fixed;inset:0 and paints on the first frame
+     by design, so wherever it lands IS wherever the browser thought the
+     viewport was at that instant. Reconstructing from IMG_3133 the box
+     was about 1710x1200 while the device is 1194x834 -- but the two
+     have essentially the SAME aspect (1.425 vs 1.432), and a window
+     resize changes aspect. A uniform scale at constant aspect points at
+     the layout viewport being wider at first paint, i.e. the viewport
+     meta not yet in effect -- which would need a different fix than a
+     late resize does. That is inference from one screenshot, and
+     guessing wrong ships another wrong fix, so this measures it instead.
+
+     Placed here, immediately after the meta and before every stylesheet
+     and every other script, because the first sample has to be the
+     earliest observable moment -- later is exactly the data we already
+     have. Inline is fine on Pages; the Devvit copy carries the same
+     block and will simply not run there under script-src 'self' (same
+     CSP that stranded viewport-fix.js -- see its header), which costs
+     nothing since Pages is where the report came from.
+
+     OPT-IN AND OFF BY DEFAULT: ?vpdiag=1 arms it. Players run none of
+     this, and there is no timer left ticking when it is off. -->
+<script>
+(function(){
+  try{ if(new URLSearchParams(location.search).get("vpdiag") !== "1") return; }catch(e){ return; }
+  var t0 = (performance && performance.now) ? performance.now() : Date.now(), trace = [], last = "";
+  function read(tag){
+    var v = window.visualViewport, d = document.documentElement;
+    var row = { t: Math.round(((performance && performance.now) ? performance.now() : Date.now()) - t0), tag: tag,
+      inner: innerWidth + "x" + innerHeight,
+      client: d ? (d.clientWidth + "x" + d.clientHeight) : "-",
+      visual: v ? (Math.round(v.width) + "x" + Math.round(v.height)) : "-",
+      vscale: v ? +(v.scale || 1).toFixed(3) : "-",
+      voff: v ? (Math.round(v.offsetLeft) + "," + Math.round(v.offsetTop)) : "-",
+      screen: screen.width + "x" + screen.height, dpr: devicePixelRatio };
+    /* only bank a row when something actually MOVED -- a per-frame log
+       of 120 identical rows buries the two transitions that matter */
+    var key = row.inner + "|" + row.client + "|" + row.visual + "|" + row.vscale + "|" + row.voff;
+    if(key === last && tag !== "first-script") return;
+    last = key; trace.push(row); paint();
+  }
+  function paint(){
+    var el = document.getElementById("blDiag");
+    if(!el) return;
+    el.textContent = trace.map(function(r){
+      return r.t + "ms " + r.tag + "  inner " + r.inner + "  client " + r.client
+           + "  vis " + r.visual + " @" + r.vscale + " off " + r.voff;
+    }).join("\n") + "\nscreen " + screen.width + "x" + screen.height + " dpr " + devicePixelRatio;
+  }
+  window.__vpTrace = trace;
+  read("first-script");
+  document.addEventListener("DOMContentLoaded", function(){ read("domcontentloaded"); });
+  addEventListener("load", function(){ read("load"); });
+  addEventListener("resize", function(){ read("resize"); });
+  addEventListener("orientationchange", function(){ read("orientationchange"); });
+  if(window.visualViewport){
+    visualViewport.addEventListener("resize", function(){ read("vv-resize"); });
+    visualViewport.addEventListener("scroll", function(){ read("vv-scroll"); });
+  }
+  /* poll every frame for 3s as well: the transition we are chasing may
+     land without firing any event at all, which is itself the finding */
+  var rafT0 = t0;
+  (function tick(){
+    read("frame");
+    if((((performance && performance.now) ? performance.now() : Date.now()) - rafT0) < 3000) requestAnimationFrame(tick);
+  })();
+  try{ addEventListener("load", function(){ setTimeout(function(){
+    localStorage.setItem("tpVpTrace", JSON.stringify(trace)); }, 3200); }); }catch(e){}
+})();
+</script>
 <title>TIPSEY — a clumsy delivery</title>
 <style>
   html,body{margin:0;padding:0;background:#14161b;height:100%;height:100dvh;height:var(--vvh, 100dvh);overflow:hidden;touch-action:none;
@@ -672,6 +744,15 @@
                      25%,75%{transform:scaleX(.46);opacity:.22;}}
   #blText{margin-top:6px;font:700 12px/1 system-ui,-apple-system,sans-serif;
     letter-spacing:2.5px;text-transform:uppercase;color:#ff7a1a;opacity:.85;}
+  /* the probe's readout. Rides inside the loader because the loader is
+     already the thing on screen during the window being measured, so
+     this needs no new overlay and cannot itself perturb the layout it
+     is reporting on -- position:absolute, out of the flex column, so
+     adding it does not move the robot by a single pixel. Empty and
+     zero-size unless ?vpdiag=1 fills it. */
+  #blDiag{position:absolute;left:8px;top:8px;right:8px;white-space:pre;
+    font:11px/1.35 ui-monospace,SFMono-Regular,Menlo,monospace;
+    color:#7fe3ff;opacity:.9;pointer-events:none;text-align:left;}
   #globalSearch{position:fixed;top:calc(12px + env(safe-area-inset-top));left:14px;
     z-index:60;background:rgba(255,255,255,.92);cursor:pointer;
     box-shadow:0 2px 6px rgba(0,0,0,.35);}
@@ -844,6 +925,7 @@
   </div>
   <div id="blShadow"></div>
   <div id="blText">Plotting route</div>
+  <div id="blDiag"></div>
 </div>
 
 <div id="failOverlay" class="overlay hidden">
