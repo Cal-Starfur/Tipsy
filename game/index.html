@@ -7157,6 +7157,19 @@ function owTip(scene, sgn){
    "play", and every stepper is gated on it. */
 function owDispatchTipFail(scene){
   if(scene.mode !== "delivery" && scene.mode !== "freeroam") return;
+  /* ARM CONTINUE BEFORE THE NAV IS RETIRED. gpsNavClear below is the
+     only record that this fall interrupted a TRIP, and it is about to
+     be thrown away -- so the leg is copied here, alongside the exact
+     spot he went down, and #retryBtn becomes Continue on the card that
+     follows. Disarmed unconditionally first: a previous trip's arm must
+     not survive into a fall that is not one. */
+  tpCont.armed = false; tpCont.nav = null;
+  if(tpContTripMode(scene.mode) && typeof gpsNav !== "undefined" && gpsNav){
+    tpCont.nav = { id: gpsNav.id, name: gpsNav.name, tx: gpsNav.tx, ty: gpsNav.ty };
+    tpCont.x = scene.ow ? scene.ow.px : scene.botX;
+    tpCont.y = scene.ow ? scene.ow.py : scene.botY;
+    tpCont.armed = true;
+  }
   /* same retirement showWin does, for the other ending: a crashed
      delivery is not still navigating anywhere. */
   gpsNavClear();
@@ -7201,19 +7214,34 @@ function owPlaceOnPad(scene, fromX, fromY){
      the pad centre is inside its contact radius. chargeParkAt owns that
      arithmetic so the spawn and the art cannot disagree about it. */
   const pk = chargeParkAt(st);
-  ow.px = pk.x; ow.py = pk.y; ow.yaw = st.a; ow.vel = 0;
+  owStandUpAt(scene, pk.x, pk.y, st.a);
+  return st;
+}
+
+/* THE STAND-UP, ONE OWNER (2026-08-28). Everything owPlaceOnPad did
+   once it had CHOSEN a point: set the robot down there upright,
+   repaired, un-spilled, camera snapped, contact bookkeeping wiped and
+   the fall's hold released. Split out because Continue (below) wants
+   exactly this body and a different point -- a second copy of "stand
+   him up" is a second thing to keep in step with the pad respawn, and
+   the pad respawn is the one that already got the spilled-cargo bug
+   right. */
+function owStandUpAt(scene, x, y, yaw){
+  const ow = scene.ow;
+  if(!ow) return;
+  ow.px = x; ow.py = y; ow.yaw = yaw; ow.vel = 0;
   ow.reversing = false; ow.latchSign = 0; ow.inContact = false;
   ow.leanS = 0; ow.leanI = 0;   // stand him up on both channels
   ow.sfcCommit = null;          // respawn must not charge a phantom crossing
   if(OW_DBG) ow._dbgEnd = null;  // nor read as an unattributed shove
   ow.solidOn = new Set(); ow.flatOn = new Set();
-  scene.botX = pk.x; scene.botY = pk.y;
+  scene.botX = x; scene.botY = y;
   /* SNAP THE CAMERA, do not ease it. camX/camY lerp toward the robot at
      8% a frame, which is right for driving and wrong for a teleport: the
      pad can be thousands of units from where he fell, so easing reads as
      a long slow flight over the city before the game is playable again.
      The lab hit this too and snapped for the same reason. */
-  scene.camX = pk.x; scene.camY = pk.y;
+  scene.camX = x; scene.camY = y;
   scene.state = "play";
   scene.tilt = 0; scene.roll = 0; scene.pitch = 0;
   scene.tipT = 0; scene.tipStartRoll = 0; scene.speed = 0;
@@ -7238,7 +7266,179 @@ function owPlaceOnPad(scene, fromX, fromY){
      button's handler, so the flag cannot outlive the pose it froze. */
   ow.failHold = false;
   ow.downT = 0;
-  return st;
+}
+
+/* ---------- CONTINUE (Sir, 2026-08-28) ----------
+   "when tipsey fails on the way to a pick up or a mission we shouldnt
+   get Retry we should get a new button it says Continue and it cost the
+   player money from his tips to continue from where he left off. he
+   will respawn in a safe place adjacent to where he tipped over."
+
+   SCOPE IS THE TRIP, NOT THE THING AT THE END OF IT. A live gpsNav leg
+   IS the trip, and there are exactly three: to a pickup mat and to a
+   mission mat (both free roam, since tpEnsureFreeroam is what lets the
+   A* plot from where the robot actually stands), and to the customer's
+   door (mode "delivery", plotted by tpPickupHere the moment the order
+   is aboard). One condition covers all three with no id list to drift
+   out of step with getMissionMats.
+
+   BOTH MODES, NOT JUST FREE ROAM (2026-08-28, Sir on-device: "still
+   getting retry on my way to the delivery not continue"). The first cut
+   asked for `mode === "freeroam"` on the reasoning that the trips Sir
+   named were free roam -- true of the two he named, and false of the
+   third, because the leg from the shop to the door is the delivery
+   itself and runs in delivery mode. It is still open world (drawUpdate
+   re-installs ow on the first play frame of either mode); only the mode
+   string differs, and gating on the mode string was the whole bug.
+
+   Side missions keep Retry -- hydrant and slalom are courses, and their
+   crash cards are painted by hjPaintCrash / slShowCard, never by
+   showFail. Standing still in free roam with no errand keeps Retry too:
+   nothing to continue, nothing worth charging for.
+
+   WALLET NOTE: the debit is local (tpProfile/localStorage), same as the
+   store's optimistic path, but unlike the store there is no server
+   endpoint behind it -- db.ts has purchase and mission, not spend. On
+   Devvit the next profile fetch heals the balance back, i.e. refunds
+   the Continue. Standalone builds (Pages/itch) are correct today. */
+const TP_CONT_CENTS = 100;                     // $1.00 flat
+const tpCont = { armed: false, nav: null, x: 0, y: 0 };
+/* the two modes a trip can be driven in. Not a mode check scattered at
+   two call sites, because that is exactly how the delivery leg got
+   missed the first time. */
+function tpContTripMode(m){ return m === "freeroam" || m === "delivery"; }
+
+/* A SAFE PLACE ADJACENT TO WHERE HE TIPPED. Rings out from the fall
+   point and takes the first clear spot, where clear means the same
+   three things the sim itself would charge him for standing there: no
+   solid block under the body circle, nothing within a hazard's or a
+   city prop's own contact radius, and a surface he is allowed on.
+
+   PREFERS PAVEMENT, ACCEPTS ROAD. Refusing the road outright would
+   strand a robot who went over halfway across an intersection, which is
+   exactly where the tips happen.
+
+   NEVER RETURNS NULL. If no ring answers he stands up where he fell and
+   the contact pass pushes him out on the next step. That is the honest
+   failure mode: a Continue that has been PAID FOR must never quietly
+   become a teleport to a charging pad on the far side of the city,
+   which is the one thing it was bought to avoid. */
+function owSafeSpotNear(scene, x, y){
+  const ow = scene.ow, W = ow && ow.world;
+  if(!W) return { x, y };
+  const R = OW_D.botR * 1.2;
+  const grid = scene.route && scene.route.grid;
+  const cfBuf = [];
+  const clear = (px, py) => {
+    if(W.solidAt(px, py, R)) return false;
+    for(const h of W.hzNear(px, py)){
+      const hr = OW_HZ_R[h.type];
+      if(hr === undefined) continue;
+      if(Math.hypot(px - h.wx, py - h.wy) < hr + R) return false;
+    }
+    if(typeof CITY_FURN !== "undefined" && CITY_FURN.on && grid){
+      for(const cp of cityFurnitureNear(grid, px, py, OW_CF_QUERY_R, cfBuf)){
+        const cr = OW_HZ_R[cp.type];
+        if(cr === undefined) continue;
+        if(Math.hypot(px - cp.wx, py - cp.wy) < cr + R) return false;
+      }
+    }
+    if(grid){
+      for(const st of getChargeStations(grid)){
+        if(Math.abs(px - st.x) + Math.abs(py - st.y) > 300) continue;
+        const pp = chargePoleAt(st);
+        if(Math.hypot(px - pp.x, py - pp.y) < OW_HZ_R.chargepost + R) return false;
+      }
+    }
+    return true;
+  };
+  let road = null;
+  for(const r of [70, 110, 160, 220, 290]){
+    for(let k = 0; k < 16; k++){
+      const a = k * Math.PI / 8;
+      const px = x + Math.cos(a) * r, py = y + Math.sin(a) * r;
+      const sfc = W.surfaceAt(px, py);
+      if(sfc !== "sidewalk" && sfc !== "curb" && sfc !== "road" && sfc !== "boardwalk") continue;
+      if(!clear(px, py)) continue;
+      if(sfc === "sidewalk" || sfc === "boardwalk") return { x: px, y: py };
+      if(!road) road = { x: px, y: py };
+    }
+    if(road) return road;
+  }
+  return { x, y };
+}
+
+/* The purchase, performed. Stand him up beside the fall FIRST -- both
+   gpsNavReplot and the facing below read scene.botX/botY, so re-plotting
+   before the move would route from the wreck. */
+function owContinueHere(scene){
+  const ow = scene.ow;
+  if(!ow) return false;
+  const spot = owSafeSpotNear(scene, tpCont.x, tpCont.y);
+  owStandUpAt(scene, spot.x, spot.y, ow.yaw);
+  const nv = tpCont.nav;
+  if(nv && gpsNavTo(scene, nv.id, nv.name, nv.tx, nv.ty)
+        && gpsNav.path && gpsNav.path.pts && gpsNav.path.pts.length){
+    /* point him AT the trip he just paid for. Keeping the old yaw would
+       stand him up nose-to-nose with whatever knocked him over. */
+    const p = gpsNav.path.pts[0];
+    ow.yaw = Math.atan2(p.y - ow.py, p.x - ow.px);
+  }
+  return true;
+}
+
+/* WHETHER THIS FALL IS A TRIP, and nothing about money. Armed by
+   owDispatchTipFail, spent by #retryBtn. The state test is what makes a
+   stale arm harmless: anything that stands the robot back up leaves
+   "tipped", so a Continue can only ever be bought against the fall it
+   was armed for. */
+function tpContArmed(){
+  const s = (typeof scn === "function") ? scn() : null;
+  return !!(tpCont.armed && s && tpContTripMode(s.mode) && s.state === "tipped");
+}
+function tpContAfford(){
+  return !!(typeof tpProfile === "object" && tpProfile
+            && tpProfile.walletCents >= TP_CONT_CENTS);
+}
+function tpContAvailable(){ return tpContArmed() && tpContAfford(); }
+/* Last word on #retryBtn's label, so it runs after tdFxSyncGate's own
+   writes rather than against them.
+
+   BEING BROKE DOES NOT PUT RETRY BACK (2026-08-28, Sir on-device: "im
+   still getting retry not continue when i fail on my way to pick up the
+   delivery" -- on a fresh profile, where the wallet is 0.00 and the
+   silent fall-back to Retry looked exactly like the feature not being
+   wired at all). Sir's instruction was that these fails do not offer
+   Retry, so an empty wallet dims the price rather than swapping the
+   answer: the button still says what it costs, the tap says why it
+   cannot be paid, and MAYBE LATER is the free way off the card that it
+   always was. */
+function tpContSyncBtn(){
+  const r = document.getElementById("retryBtn");
+  if(!r) return;
+  r.style.opacity = "";
+  if(!tpContArmed()){ r.textContent = "Retry"; return; }
+  if(tpContAfford()){ r.textContent = "Continue " + tpMoney(TP_CONT_CENTS); return; }
+  /* BROKE IS AN ANSWER, NOT A DEAD BUTTON (Sir, 2026-08-28: "we need it
+     to notify the player they have no money then so that the respawn at
+     the charger is understood"). A dimmed price the player cannot pay
+     explains nothing and leaves them tapping at it; the tow says what
+     happened, what it costs to have avoided it, and where he is about
+     to wake up -- so the charging station he arrives at reads as the
+     consequence rather than a glitch.
+
+     MAYBE LATER comes off the card here because the tow IS what MAYBE
+     LATER does (both end in tpFreePlay -> owPlaceOnPad); two buttons
+     one above the other performing the identical recovery is a choice
+     that isn't one. */
+  r.textContent = "Tow to Charger";
+  const sub = document.getElementById("failSub");
+  /* PRICE STAYS OFF THIS LINE (Sir's wording). The button carries the
+     cost when he can actually pay it; quoting it to a player who has
+     nothing is a bill, not information. Two plain sentences, no dash. */
+  if(sub) sub.textContent = "You need tips to continue from where you tipped over. "
+                          + "Towing you back to the nearest charger.";
+  tdFailLater(false);
 }
 
 function owRespawnTick(scene, t){
@@ -30352,6 +30552,11 @@ const hjScn = () => scn();
    which is wasteful and not what "restore the crash" means. hjShowCrash
    below is the only caller that also reports; this is the shared paint. */
 function hjPaintCrash(s){
+  /* a side mission keeps Retry (Sir, 2026-08-28: "side missions get
+     retry still this contiune is only for when you are traveling").
+     Disarmed rather than merely not-painted, so a mission entered
+     straight off an armed trip cannot leave a live purchase behind. */
+  tpCont.armed = false;
   tdFxFollowRestore();   // BEFORE the crash copy: restore writes the saved
                          // delivery text back, so run it first or it would
                          // overwrite the crash line we set below
@@ -32393,7 +32598,16 @@ function tpEnsureFreeroam(s){
 }
 if(typeof window !== "undefined") window.tpEnsureFreeroam = tpEnsureFreeroam;
 
-function tpFreePlay(){
+/* FROM-POINT IS OPTIONAL AND IT MATTERS (2026-08-28, Sir: "will it bring
+   me to a charger thats in a different hood if thats where i am?").
+   loadRoute below puts the robot back on today's pickup shop, so the pad
+   search that follows it was reading the SHOP's position, not the
+   caller's -- fine for the mission exit this was written for, wrong for
+   the tow, which promises the charger nearest where he went down and
+   could otherwise land him across the city next to a shop he was
+   nowhere near. Callers with a real origin pass it; everyone else keeps
+   the old behaviour exactly. */
+function tpFreePlay(fromX, fromY){
   tpCloseDetail(); tpCloseMissions(); tpCloseProfile();
   hide("failOverlay"); hide("winOverlay"); hide("titleOverlay");
   collapseSheet();
@@ -32415,7 +32629,9 @@ function tpFreePlay(){
   /* and land on a pad, same as boot does -- loadRoute above has just put
      him back on the pickup spot, so without this every return from a
      mission drops him at a shop door again. */
-  owPlaceOnPad(s, s.botX, s.botY);
+  owPlaceOnPad(s,
+    (typeof fromX === "number") ? fromX : s.botX,
+    (typeof fromY === "number") ? fromY : s.botY);
 }
 if(typeof window !== "undefined") window.tpFreePlay = tpFreePlay;
 
@@ -33748,6 +33964,7 @@ function showFail(pool){
   show("failOverlay");
   tdStackIcons();       // every build: glass + robot in the EXPLORE slot
   tdFxOnFailScreen();   // Devvit only: COMMENT button + 3rd-fail follow prompt
+  tpContSyncBtn();      // LAST: owns #retryBtn's label, over tdFxSyncGate's own writes
 }
 /* =========================================================================
    TIPSEY PROFILE — Trophy Case + Store + Side Missions (Phase A)
@@ -34127,6 +34344,39 @@ if(typeof window !== "undefined") window.tpSyncOrderCard = tpSyncOrderCard;
    destination (gpsNav, from Today's Delivery or a mission pin), a live
    delivery, and a mission preview holding its own frozen world. Free
    roam with nothing plotted is the only case that hides it. */
+/* WHAT IS SELECTED, AS ONE STRING (Sir, 2026-08-28: "when i selec
+   hydrant jump or slalom im not getting the go button anymore ... the
+   only time the go isnt there is if ive already hit go on that mission.
+   if im doing that mission i dont need the go for that mission but if
+   its a diffent mission i need the go to confirm that im changing
+   missions").
+
+   THE WHOLE DELIVERY ARC IS ONE KEY. Routing to the shop, carrying the
+   order, routing to the door -- one activity under three different
+   (mode, gpsNav) readings, and GO was pressed once for all of it. Were
+   these separate keys, arriving at the shop would flip the key mid-run
+   and put GO back on a delivery already in progress, which is the exact
+   8-27 bug this file already fixed once.
+
+   RUNNING MISSIONS READ THEIR MODE, not gpsNav, borrowing
+   tpSyncOrderCard's mapping so the map's two readers cannot disagree
+   about which mission is on screen -- the nav is cleared on launch
+   precisely so arriving hands the screen to the mission. */
+function tpMapSelKey(s){
+  if(!s) return "none";
+  if(s.mode === "challenge")      return "mission:jump-hydrant";
+  if(s.mode === "slalom-pending") return "mission:cone-slalom";
+  if(s.mode === "delivery")       return "delivery";
+  if(typeof gpsNav !== "undefined" && gpsNav){
+    return (gpsNav.id === "pickup" || gpsNav.id === "dropoff")
+      ? "delivery" : "mission:" + gpsNav.id;
+  }
+  return "none";
+}
+/* Set by #startBtn and by nothing else, because "already hit go" is
+   literally what it records. Null until the first GO of the session. */
+let tpGoneKey = null;
+
 function tpSyncMapChrome(s){
   const go = document.getElementById("startBtn");
   const chosen = !!s && (s.mode !== "freeroam"
@@ -34151,7 +34401,23 @@ function tpSyncMapChrome(s){
      in, and it stays. */
   const _running = (typeof tpSearchMap   !== "undefined" && tpSearchMap)
                 || (typeof tpPausedWorld !== "undefined" && tpPausedWorld);
-  if(go) go.classList.toggle("hidden", !chosen || _running);
+  /* ...AND ONLY IF IT IS THE SAME THING (2026-08-28). _running alone
+     could not tell "the map went up and nothing was picked" from "the
+     map went up and a DIFFERENT mission was picked on it", and hid GO
+     for both -- so every mission chosen off the drawer or a map pin
+     landed on a map with no way to start it, while gpsNavToMission's
+     own toast said "Press GO". Today's Delivery escaped only because
+     tpBackToDailyRoute clears tpSearchMap on its way through, which is
+     the asymmetry Sir hit.
+
+     Picking anything new changes the key, so GO comes back to confirm
+     the change; re-opening the map over the run it already started
+     leaves the key alone and GO stays off, which is the whole of the
+     8-27 behaviour this preserves. The robot marker is still the
+     captioned way back in either case. */
+  const _sameAsRunning = _running && tpGoneKey !== null
+                      && tpGoneKey === tpMapSelKey(s);
+  if(go) go.classList.toggle("hidden", !chosen || _sameAsRunning);
   /* VIEW IS A DRIVING INSTRUMENT AND THE MAP IS NOT DRIVING (Sir,
      2026-08-26: "im still getting the view button on the map").
 
@@ -35523,6 +35789,12 @@ document.getElementById("startBtn").addEventListener("click", () => {
      Both lines are no-ops when they are not needed -- tpResumeWorld
      returns on !tpPausedWorld -- so this is safe ahead of the mission
      branches rather than duplicated into each of them. */
+  /* RECORD WHAT GO IS STARTING, after both gates have declined to
+     return early -- a blocked press starts nothing and must not claim
+     to. Read BEFORE the mission branches below so it captures the
+     freeroam+gpsNav reading ("mission:cone-slalom"), which is the same
+     key the run will report once its own mode is set. */
+  tpGoneKey = tpMapSelKey(s);
   tpSearchMap = false;
   tpResumeWorld();
   if(s.mode === "challenge"){ hjBegin(); return; }
@@ -35542,9 +35814,45 @@ document.getElementById("startBtn").addEventListener("click", () => {
   s.state = "play";
 });
 document.getElementById("retryBtn").addEventListener("click", () => {
+  /* THE TOW. Broke on a trip: the card said so and this is the ride.
+     tpFreePlay is the whole recovery and the one owner of "put him on a
+     pad" -- the same three steps MAYBE LATER and the map's Free Play row
+     take -- so there is no second copy to drift.
+
+     Carries the UNIFIED RETRY GATE check failLaterBtn already carries,
+     for the same reason: an unposted delivery fail blocks the free
+     RELOAD, and tpFreePlay is a reload. Refusing only that, never the
+     ability to leave. */
+  if(tpContArmed() && !tpContAfford()){
+    if(typeof tdFxDeliveryBlocked === "function" && tdFxDeliveryBlocked()){ tdFxSyncGate(); return; }
+    hide("failOverlay");
+    tdFailLater(false);
+    tpCont.armed = false;
+    document.getElementById("retryBtn").textContent = "Retry";
+    const fx = tpCont.x, fy = tpCont.y;
+    tpToast("You need tips to continue. Towing you back to the nearest charger.");
+    tpFreePlay(fx, fy);
+    return;
+  }
   hide("failOverlay");
   tdFailLater(false);
   const s = scn();
+  /* CONTINUE. The paid answer, and it is the whole of what was bought:
+     the trip survives, he stands up beside where he fell instead of on
+     a pad across town, and the nav leg is re-plotted so the minimap
+     line and the chevron come back pointing where they were. Charged
+     and disarmed BEFORE the stand-up so no path through the spot search
+     can hand out a free one, and no double tap can buy it twice. */
+  if(tpContAvailable()){
+    tpCont.armed = false;
+    tpProfile.walletCents -= TP_CONT_CENTS;
+    tpSaveProfile();
+    tpRender();
+    document.getElementById("retryBtn").textContent = "Retry";
+    owContinueHere(s);
+    tpToast("Continued \u2014 " + tpMoney(TP_CONT_CENTS) + " off your tips.");
+    return;
+  }
   /* In the challenge, Retry means RETRY THE JUMP. Loading the daily
      route dumped the player out of the mission entirely. */
   if(s.mode === "challenge"){ s.hjResetRun(); return; }
