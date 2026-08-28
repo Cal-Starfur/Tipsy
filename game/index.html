@@ -9583,7 +9583,13 @@ const CITY_FURN = {
      per-unit count for that type. Re-fit by regenerating a few dates,
      counting per type per route unit, and comparing against a full
      materialization -- the audit these were fitted with. */
-  cal: { mix: 1.35, palm: 1.77, lamp: 1.15, hydrant: 0.72, slab: 1.95, crack: 1.92 },
+  /* robot/pigeons/roadcrack joined the table when those three families
+     moved off generateRoute (stage 4 tail). Calibrated the same way the
+     other six were -- against what the ROUTE actually produced on a
+     37,124-unit run, not against what its formula says -- so a street
+     keeps the population it had: 14 robots, 2 flocks, 13 road cracks. */
+  cal: { mix: 1.35, palm: 1.77, lamp: 1.15, hydrant: 0.72, slab: 1.95, crack: 1.92,
+         robot: 0.60, pigeons: 0.50, roadcrack: 0.80 },
   cornerClear: T2*2.5,   // keep the corners clear, same idea as inCorner()
   gap: 60,               // spawnBlocked's own floor between props
   padClear: 40,          // extra standoff around a charging pad, on top of padR
@@ -9944,9 +9950,29 @@ function cityFurnitureForEdge(grid, blk, fi){
        boundaries, instead of each block keeping its own private beat. */
     const proj0 = e.ox*e.dv.x + e.oy*e.dv.y;
     const a0 = ((-proj0 % step) + step) % step;
+    /* KERB SIDE ONLY (Sir, 2026-08-27: "i think they look better on the
+       road side not the house side of the sidewalk. can we just have
+       the one side?").
+
+       This alternated row 0 and row 3 so both edges of the walking band
+       were lit. The reasoning was coverage, and coverage is not what a
+       street looks like: real lamps stand on the kerb, in a single file
+       you can read down the block, because that is where the light is
+       needed and where the pole is out of the way of a doorway. Split
+       across two rows they read as scattered rather than as a line.
+
+       THE STRIDE IS UNTOUCHED, so this is not half the lamps -- it is
+       the same sample points, all landing on the kerb. Density is held;
+       only the row moves.
+
+       armSign is now a constant for the same reason it was a ternary
+       before: -1 reaches INWARD from the kerb, over the pavement, so no
+       lamp throws its head out across the road. See the b-axis note at
+       the top of this function for why -1 is the inward direction from
+       row 0 on every frontage in the city. */
     for(let a = a0; a < e.len; a += step){
-      const lane = (Math.round((proj0 + a) / step) % 2) ? 0 : 3;
-      const armSign = lane === 0 ? -1 : 1;   // always reach INWARD, over the walk
+      const lane = 0;                        // kerb: the road side of the walk
+      const armSign = -1;                    // reach INWARD, over the pavement
       const aR = Math.round(a);
       if(inClear(aR)) continue;
       const p = pointAt(aR, lane);
@@ -10020,6 +10046,127 @@ function cityFurnitureForEdge(grid, blk, fi){
       if(!sn || blocked(Math.round(a), lane)) continue;
       place("crack", Math.round(a), lane, sn,
             { len: 24 + Math.floor(R()*49), surface: "sidewalk" });
+    }
+  }
+
+  /* ================= STAGE 4 TAIL: THE THREE THE ROUTE STILL OWNED =========
+     (Sir, 2026-08-27: "the generate route doesnt need to have any
+     furnature anymore it should just be makeing the route and the world
+     should own the rest".)
+
+     Stage 4 moved six ambient passes off generateRoute, but five of them
+     were never gated and kept rolling their own props. Two of those five
+     were pure double-furnishing -- the far-lane planter/bin pass and the
+     parked car -- because the city already stands 678 planters, 643 bins
+     and a full traffic fleet. The other three had NO city equivalent at
+     all, measured across all 3,640 frontages: zero robots, zero pigeon
+     flocks, zero road cracks. Deleting those passes would have removed
+     three prop families from the game rather than moving them, so they
+     are rebuilt here and the route's copies become stream burns.
+
+     APPENDED AT THE END, and that is load-bearing. place() keys a record
+     as "i,j,fi,out.length", so inserting a pass anywhere above this point
+     would renumber every prop after it -- and those keys are exactly what
+     route.cfTaken holds to decide which props the rail already owns.
+     Appending leaves all 14,590 existing keys untouched.
+
+     Each pass takes its own salt, so none of them perturbs the streams
+     the existing six passes draw from. */
+
+  /* ---- parked and roving robots ---- */
+  {
+    const R = mulberry32(cityFurnEdgeSeed(e, 0x6b13));
+    /* The route ran these as TWO passes at two spacings -- parked ones
+       pinned to lane 3 every ~1,250 units, rovers on any lane every
+       ~1,900. One pass with a roll for the difference produces the same
+       two populations and only walks the frontage once. Spacing goes
+       through the sparse dial rather than infra: a robot is scenery you
+       drive around, not a reason the street works. */
+    /* PHASED CITYWIDE, NOT PER-FRONTAGE -- the same hole the lamp pass
+       documents a few blocks up, and it bit exactly the same way here.
+       A randomised stride restarting at 0 on every edge places its first
+       sample at 1,800-3,200 units, and the average frontage is 1,656, so
+       the first sample falls off the end of most blocks: measured, this
+       pass placed ZERO robots across all 3,640 frontages. A fixed stride
+       phased off the frontage's own world position along its axis fixes
+       the hole and is the better model anyway -- robots parked down a
+       street on one rhythm rather than each block keeping a private
+       beat. Jitter moved from the stride into the roll below. */
+    const step = 1250 * CITY_FURN.sparse * CITY_FURN.cal.robot;
+    const proj0 = e.ox*e.dv.x + e.oy*e.dv.y;
+    for(let a = ((-proj0 % step) + step) % step; a < e.len; a += step){
+      const aR = Math.round(a);
+      if(inClear(aR)) continue;
+      const roving = R() < 0.45;
+      const lane = roving ? Math.floor(R()*4) : 3;
+      const p = pointAt(aR, lane);
+      if(!onWalk(p) || onPad(p) || blocked(aR, lane)) continue;
+      const ob = place("robot", aR, lane, p, {
+        robotSeed: (R()*4294967296) >>> 0,
+        knocked: false, fallPsi: (R()*2-1)*0.4, items: [] });
+      /* a rover paces its own frontage, the same range william gets.
+         harvestCityFurniture re-expresses walkS0/walkS1 onto the run it
+         lands on, so this stays correct once the rail takes it. */
+      if(roving){ ob.roving = true; walkRange(ob); }
+    }
+  }
+
+  /* ---- pigeon flocks ---- */
+  {
+    const R = mulberry32(cityFurnEdgeSeed(e, 0x2f7d));
+    /* The route placed 2-5 flocks over a whole 37,000-unit run, so per
+       frontage this is the RAREST thing in the city: a long stride with a
+       low roll on top, rather than a count. Rows 1-2 only -- pigeons sit
+       in the middle of the pavement, not against the kerb or the
+       shopfront, which is what the route's own `1 + rng()*2` said. */
+    const step = 4500 * CITY_FURN.sparse * CITY_FURN.cal.pigeons;
+    const proj0 = e.ox*e.dv.x + e.oy*e.dv.y;
+    for(let a = ((-proj0 % step) + step) % step; a < e.len; a += step){
+      if(R() > 0.5) continue;
+      const aR = Math.round(a);
+      if(inClear(aR)) continue;
+      const lane = 1 + Math.floor(R()*2);
+      const p = pointAt(aR, lane);
+      if(!onWalk(p) || onPad(p) || blocked(aR, lane)) continue;
+      place("pigeons", aR, lane, p, { fledAt: null });
+    }
+  }
+
+  /* ---- road cracks: asphalt spall, texture only ---- */
+  {
+    const R = mulberry32(cityFurnEdgeSeed(e, 0x8e45));
+    /* OFF THE WALK ENTIRELY, which is why this pass cannot use pointAt's
+       lane frame. It steps further out along rv, past the kerb, and asks
+       the same classifier the world is built from whether it landed on
+       road. onWalk would reject every one of these by construction.
+
+       NO `row`, AND THAT IS THE PHYSICS. The route's version carries the
+       guarantee in its own comment -- "pure texture, zero physics" -- and
+       _hzUnified now states it as a rule rather than leaning on
+       laneOffset(undefined) being NaN: a crack with no row is not on the
+       sidewalk and does not touch anyone. place() stamps `row` from the
+       lane it is handed, so the field is deleted straight after and
+       roadOffset written in its place, the same field the route wrote.
+
+       That also keeps these OUT of the harvest by construction: it
+       matches a lateral against the four lane offsets and skips anything
+       not near one, so a road crack stays city-owned on a route corridor
+       rather than being copied onto the rail with a meaningless row. */
+    const kerbOut = lateralOf(0);
+    const step = 580 * CITY_FURN.sparse * CITY_FURN.cal.roadcrack;
+    const proj0 = e.ox*e.dv.x + e.oy*e.dv.y;
+    for(let a = ((-proj0 % step) + step) % step; a < e.len; a += step){
+      const aR = Math.round(a);
+      if(inClear(aR)) continue;
+      if(R() > (1 - hood.pave)*0.8 + 0.1) continue;
+      const out0 = kerbOut + T2*0.5 + R()*T2*1.5;
+      const p = { x: e.ox + e.dv.x*aR + e.rv.x*out0,
+                  y: e.oy + e.dv.y*aR + e.rv.y*out0 };
+      if(grid.classify(p.x, p.y) !== "road") continue;
+      const ob = place("crack", aR, 0, p,
+        { len: 24 + Math.floor(R()*49), surface: "road" });
+      delete ob.row;
+      ob.roadOffset = out0 - kerbOut;
     }
   }
 
@@ -12157,6 +12304,41 @@ function _generateRouteFresh(dateStr, opts){
      loop runs, not after it. */
   const hazards = [];
   const props = [];
+  /* ---------- THE STREAM BURN ----------
+     (Sir, 2026-08-27: "the generate route doesnt need to have any
+     furnature anymore it should just be makeing the route and the world
+     should own the rest".)
+
+     Five ambient passes below were never gated on CF_OWNS and kept
+     rolling their own props on top of the city's: the far-lane
+     planter/bin pass, the road cracks, both robot passes and the parked
+     car. All five are now the city's job -- planters, bins and vehicles
+     it already had, and robots, pigeons and road cracks were added to
+     cityFurnitureForEdge's tail for this.
+
+     THE PASSES STAY, THE PROPS GO, and that distinction is the whole
+     point. Every one of these loops draws from the shared route rng, and
+     they run UPSTREAM of the night roll and the address pick -- so
+     simply deleting them would renumber the draw sequence and reshuffle
+     every daily route in the game. Worse, HJ_SEED_DATE and SL_SEED_DATE
+     freeze the Hydrant Jump and Cone Slalom courses off that same
+     stream, so the two side missions would silently rebuild themselves
+     on different geometry and every posted best time would be a time on
+     a course that no longer exists.
+
+     So each pass keeps its body, its rolls and its rejections exactly as
+     they were, and only the final push becomes this. The object is still
+     CONSTRUCTED -- several of them make rng draws inside the literal
+     itself (robotSeed, fallPsi, the car's kind roll) -- and then
+     dropped. Verified after the change: same address, same night, same
+     doorS on today's route and on both frozen mission dates.
+
+     Not deleted outright, and not wrapped in `if(!CF_OWNS)` like the six
+     above either: those six are reachable at ?cf=0, which the hazard
+     oracle still drives. These five would double-furnish at ?cf=0 too,
+     because the props they invent now exist in the city unconditionally.
+     One owner, in both configurations. */
+  const cfDrop = _ => {};
 
   /* ADA curb ramps at both ends of every crossing SPAN — straight
      crossings and outside turns alike (see crossings[] above).
@@ -12212,7 +12394,7 @@ function _generateRouteFresh(dateStr, opts){
       if(inCorner(s) || inCrossing(s)) continue;
       if(!onSidewalk(s, laneOffset(srow))) continue;
       if(spawnBlocked(s, laneOffset(srow))) continue;
-      hazards.push({ type:"pigeons", s, row: srow, f: sg2.f, hit:false, fledAt: null });
+      cfDrop({ type:"pigeons", s, row: srow, f: sg2.f, hit:false, fledAt: null });
       placedF++;
     }
   }
@@ -12353,7 +12535,7 @@ function _generateRouteFresh(dateStr, opts){
     const off = farLaneOffset(farLane);
     if(!onSidewalk(fsR, off)) continue;
     if(spawnBlocked(fsR, off)) continue;
-    if(rng() < 0.6) props.push({
+    if(rng() < 0.6) cfDrop({
       kind: rng() < 0.55 ? "planter" : "bin",
       s: fsR, roadOffset: off, f: facingAt(fsR) });
   }
@@ -12367,7 +12549,7 @@ function _generateRouteFresh(dateStr, opts){
     const off = (rng()<0.5?-1:1) * (T2 + rng()*T2*1.5);
     if(!onRoad(rsR, off)) continue;
     if(spawnBlocked(rsR, off)) continue;
-    hazards.push({ type:"crack", s: rsR, roadOffset: off, surface: "road",
+    cfDrop({ type:"crack", s: rsR, roadOffset: off, surface: "road",
                    len: 24 + Math.floor(rng()*49), f: facingAt(rsR), hit:false });
   }
 
@@ -12386,7 +12568,7 @@ function _generateRouteFresh(dateStr, opts){
     if(!onSidewalk(rbR, laneOffset(3))) continue;
     if(spawnBlocked(rbR, laneOffset(3))) continue;
     if(rng() < 0.5){
-      hazards.push({ type:"robot", s: rbR, row: 3, f: facingAt(rbR),
+      cfDrop({ type:"robot", s: rbR, row: 3, f: facingAt(rbR),
                      hit:false, robotSeed: (rng()*4294967296) >>> 0,
                      knocked:false, fallPsi: (rng()*2-1)*0.4, items:[] });
     }
@@ -12412,7 +12594,7 @@ function _generateRouteFresh(dateStr, opts){
     if(!rSeg) continue;
     const rw0 = rSeg.s0 + CROSSING_CLEAR, rw1 = rSeg.s1 - CROSSING_CLEAR;
     if(rw1 - rw0 < T2) continue;   // block too short after margins -- skip, don't spawn stationary
-    hazards.push({ type:"robot", s: rrR, row: rLane, f: facingAt(rrR),
+    cfDrop({ type:"robot", s: rrR, row: rLane, f: facingAt(rrR),
                    hit:false, robotSeed: (rng()*4294967296) >>> 0,
                    knocked:false, fallPsi: (rng()*2-1)*0.4,
                    roving:true, walkS0: rw0, walkS1: rw1, items:[] });
@@ -12596,7 +12778,7 @@ function _generateRouteFresh(dateStr, opts){
   if(rng() < 0.5){
     const cs = Math.round(SPAWN_S + 150 + rng()*(totalLen - 500));
     const off = -1*(T2*1.5);
-    if(!inCorner(cs) && onRoad(cs, off) && !spawnBlocked(cs, off)) props.push({ kind: rng() < 0.65 ? "car" : "truck", s: cs, roadOffset: off, f: facingAt(cs) });
+    if(!inCorner(cs) && onRoad(cs, off) && !spawnBlocked(cs, off)) cfDrop({ kind: rng() < 0.65 ? "car" : "truck", s: cs, roadOffset: off, f: facingAt(cs) });
   }
 
   /* the pickup — FIXED now, not searched. todaysShop (above) already says
