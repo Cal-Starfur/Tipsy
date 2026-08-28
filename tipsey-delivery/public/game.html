@@ -215,6 +215,7 @@
   body.attractBare #panel,
   body.attractBare #panelToggle,
   body.attractBare #gpsHud,
+  body.attractBare #miniMap,
   body.attractBare #zoomBtn,
   body.attractBare #bottomSheet,
   body.attractBare #globalAvatar,
@@ -348,6 +349,28 @@
   #gpsHud{position:fixed;left:50%;bottom:calc(3px + env(safe-area-inset-bottom));
     transform:translateX(-50%);z-index:4;pointer-events:none;white-space:nowrap;
     font-size:min(22px, 4.5vw);font-weight:700;color:#fff;text-shadow:0 2px 3px #b5540e;}
+  /* WRONG WAY, IN THE ONLY COLOUR THIS GAME USES FOR TROUBLE. Same red
+     the tilt gauge and the cargo bar go to, so it needs no learning.
+     Toggled by drawHUD off gpsNavTurn's uturn/lead flags. */
+  #gpsHud.navAlert{color:#ffd9d2;text-shadow:0 2px 3px #c2452e;}
+  /* THE LIVE MINIMAP (see tpMiniDraw). Bottom-left: the four corners
+     were spoken for at the TOP (#globalSearch, #globalAvatar, #zoomBtn)
+     and the bottom centre is #gpsHud's strip, which is centre-anchored
+     and grows both ways -- so the left corner, lifted clear of the
+     strip's line. pointer-events:none because it is an instrument, not
+     a control; the glass opens the real map. */
+  #miniMap{position:fixed;left:14px;bottom:calc(38px + env(safe-area-inset-bottom));
+    z-index:5;width:104px;height:104px;border-radius:14px;overflow:hidden;
+    background:rgba(20,23,29,0.62);border:1px solid #363b46;
+    box-shadow:0 2px 8px rgba(0,0,0,.35);pointer-events:none;}
+  #miniMap canvas{display:block;width:100%;height:100%;}
+  /* the map screen pauses the world, so a minimap under it is frozen and
+     meaningless -- and during attract the overlay above it is
+     transparent. Same combinator, same reasoning, as #globalSearch's own
+     rule further down. */
+  #titleOverlay:not(.hidden) ~ #miniMap{display:none !important;}
+  body.tdFailUp #miniMap, body.tdWinUp #miniMap,
+  body.slFailUp #miniMap{display:none !important;}
   /* camera depth toggle (see ZOOM_K). Sits in the RIGHT RAIL, directly
      under #globalAvatar — every other edge is already spoken for:
      #globalAvatar top-right, #globalSearch top-left, #panelToggle
@@ -841,7 +864,7 @@
      directly over the map now), but hiding these while it's open too
      is harmless. */
   body.tpPanelOpen #globalAvatar, body.tpPanelOpen #globalSearch,
-  body.tpPanelOpen #zoomBtn{display:none !important;}
+  body.tpPanelOpen #zoomBtn, body.tpPanelOpen #miniMap{display:none !important;}
   /* #tpMapSearch is injected as a string by tpMapExplore, so its inline
      style cannot reach ::placeholder -- that pseudo needs a real rule.
      Lives here for exactly that one reason; everything else about the
@@ -960,6 +983,17 @@
       <rect x="5" y="36" width="30" height="3" fill="#494e58"/>
     </svg></button>
 <button class="iconBtn" id="globalSearch" aria-label="Side missions"></button>
+<!-- AFTER #titleOverlay ON PURPOSE (2026-08-27). The minimap is hidden by
+     tpMiniDraw, which only runs from drawHUD -- and drawHUD stops running
+     the moment the map screen pauses the world, so the toggle never fires
+     and a stale minimap is left sitting there. #titleOverlay's z-index
+     covers it in the ordinary case, but body.attract makes that overlay
+     transparent. The CSS sibling rule below is the real guard, and a `~`
+     combinator only reaches FOLLOWING siblings -- which is the whole
+     reason this lives down here next to #globalSearch, which is hidden by
+     the identical rule for the identical reason, rather than up beside
+     #gpsHud where it visually belongs. -->
+<div id="miniMap" class="hidden"><canvas id="miniMapC"></canvas></div>
 <div id="bootLoader">
  <div id="blInner">
   <div id="blRobotStage">
