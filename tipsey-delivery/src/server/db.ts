@@ -2,6 +2,7 @@ import {reddit, redis} from '@devvit/web/server'
 import type {DailyBest, LeaderboardEntry, TpProfileRsp} from '../shared/api.ts'
 import {
   TS_CLAIMABLE_TROPHIES,
+  TS_CONTINUE_CENTS,
   TS_MISSIONS,
   TS_SKINS,
   type TsMissionState,
@@ -620,6 +621,44 @@ export async function dbPurchaseSkin(
   }
   await redis.hSet(tpOwnedKey(username), {[skinId]: '1'})
   await redis.hSet(key, {equipped: skinId})
+  return {ok: true, profile: await dbGetTpProfile(username)}
+}
+
+/** Resolving a delivery fail, which on Devvit is now what CLEARS THE
+ *  GATE -- posting a comment used to be the only thing that did (Sir,
+ *  2026-08-28: "lets replace comment with pay").
+ *
+ *  TWO ACTIONS, ONE ENDPOINT, because they are the same transaction
+ *  seen from either side of the wallet: 'continue' buys the stand-up
+ *  beside the fall, 'tow' is what a player with nothing left gets, and
+ *  both end the pending fail. Splitting them would mean two routes that
+ *  must never disagree about what clears the flag.
+ *
+ *  THE TOW IS FREE ON PURPOSE and is therefore also a free way past the
+ *  gate. That is the design and not an oversight: the tow's price is
+ *  paid in position -- it puts the robot on a charging pad, which on
+ *  this map can be most of a city away from the fall -- so the gate is
+ *  still a speed bump, just one denominated in driving rather than
+ *  comments.
+ *
+ *  DEBIT FIRST, CLEAR SECOND. A failed debit must leave the gate
+ *  exactly as locked as it found it, same no-payment-no-clear doctrine
+ *  dbClearFailPending's own comment describes; and the refund on a
+ *  negative balance is what makes the check atomic without a lock,
+ *  borrowed wholesale from dbPurchaseSkin. */
+export async function dbResolveDeliveryFail(
+  username: string,
+  action: 'continue' | 'tow',
+): Promise<{ok: true; profile: TpProfileRsp} | {ok: false; error: string}> {
+  if (action === 'continue') {
+    const key = tpProfileKey(username)
+    const newBalance = await redis.hIncrBy(key, 'walletCents', -TS_CONTINUE_CENTS)
+    if (newBalance < 0) {
+      await redis.hIncrBy(key, 'walletCents', TS_CONTINUE_CENTS) // refund
+      return {ok: false, error: 'insufficient funds'}
+    }
+  }
+  await dbClearFailPending(username, 'delivery')
   return {ok: true, profile: await dbGetTpProfile(username)}
 }
 
