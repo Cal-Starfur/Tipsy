@@ -18561,9 +18561,38 @@ class WorldScene extends Phaser.Scene {
         }
         this.quadOn(g, place(H, 1.8, 8), C.bodyDk);
       };
+      /* THE OPEN BOTTOM (2026-08-27, Sir on-device: "this knocked cone
+         looks upside down because of the angle").
+
+         A cone at rest lies at phiRest = 102 degrees, just past
+         horizontal, and it was drawn as ONE convex-hull silhouette in a
+         single flat orange with only a small dark cap at the tip. That
+         silhouette carries no cue for which end is which -- so when the
+         fall runs up-screen, the wide base projects HIGHER than the
+         narrow tip and the shape reads as an upright cone with its
+         taper backwards, which is exactly "upside down".
+
+         A real cone is hollow, and the giveaway that one is lying down
+         is that you can see into it. So the base opening is drawn: the
+         ring at the foot of the body, dark, with a lit rim.
+
+         Gated on its own outward normal, which is what keeps every
+         standing cone in the city untouched -- upright, that normal
+         points straight down and this never fires. Knocked, one end or
+         the other always faces you: the dark opening if it fell away,
+         the dark tip cap if it fell toward. Either way one end is
+         unmistakably the bottom and the taper can be read. */
+      const baseCap = () => {
+        const nub = -sphi, nzb = -cphi;
+        if(nub*fc + nub*fsn + nzb <= 0.05) return;
+        const ring = place(2, rOf(2), 14);
+        this.quadOn(g, ring, C.bodyDk);
+        this.edgeOn(g, ring, C.body, 1.2);
+      };
       const cparts = [
         { d: dAt(0, 0, 1.5), fn: baseSlab },
-        { d: dAt(0, 0, H*0.45), fn: body }
+        { d: dAt(0, 0, H*0.45), fn: body },
+        { d: dAt(0, 0, 2) + 0.6, fn: baseCap }
       ];
       cparts.sort((p1, p2) => p1.d - p2.d);
       for(const pt of cparts) pt.fn();
