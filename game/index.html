@@ -5669,7 +5669,9 @@ function owDbgDraw(scene){
   const ow = scene.ow;
   const head = 'pos ' + Math.round(ow ? ow.px : 0) + ',' + Math.round(ow ? ow.py : 0) +
                '  sfc ' + ((ow && ow.surface) || '-') +
-               '  tilt ' + (scene.tilt || 0).toFixed(2);
+               '  tilt ' + (scene.tilt || 0).toFixed(2) +
+               '  xray ' + (scene._xrayHits || 0) + '/' + XRAY.fan.length +
+               ' a' + (scene.xrayA || 0).toFixed(2);
   const rows = (scene._owDbg || []).map(h => {
     const age = ((now - h.t) / 1000).toFixed(1);
     return h.k + (h.n > 1 ? ' x' + h.n : '') +
@@ -8192,6 +8194,61 @@ const STORE_PALETTES = [
 ];
 const AWNING_STRIPES = [0xffffff, 0xc4c4c4];
 const STORE_DEPTH = T2 * 3; // matches houses
+
+/* ================= X-RAY OCCLUSION =================
+   W() is  sx = (x-y)*K + cx  and  sy = ((x+y)*0.5 - (z - camZ))*K + cy.
+   Stepping s units along world (+1,+1) leaves sx untouched and moves sy
+   DOWN by s*K; raising z by s moves it back UP by exactly s*K. So a
+   body at forward offset s covers a point at height zh if and only if
+   its own top reaches zh + s. That identity is the whole occlusion
+   test -- no screen-space AABBs, no per-item extents, nothing to keep
+   in sync with PROP_EXT when the art changes.
+
+   THE IDENTITY ALSO SETS A HARD RANGE, and it is shorter than it
+   feels. drawHouseUnit's roof is FLAT at H = DOOR_H + 50 + rng()*40,
+   so 234 is the top of the shortest house -- there is no ridge above
+   it. A house can therefore only hide a point at height zh out to
+   (234 - zh) units behind it, and nothing tunable changes that. At
+   zhead 150 that was 84 units, under a single tile, which is why the
+   effect vanished entirely: the sidewalk is SIDEWALK_W = 368 wide and
+   he is rarely that close to a frontage. zhead is the dial that trades
+   range against honesty -- LOW asks only that his feet be covered and
+   fires early, HIGH waits until his lid is under the roofline.
+
+   MUTABLE OBJECT, not bare consts, for the reason the HJ_GEOM note
+   already gives: these are the numbers most likely to need turning
+   after seeing them on device, and a const is a dial the console
+   cannot reach. Tune live with e.g. XRAY.zhead = 40, XRAY.hits = 3.
+   Also exported to window below so the artifact console can see it. */
+const XRAY = {
+  col:   0x8fe3d0,   // teal -- the robot's own accent
+  max:   0.55,       // silhouette alpha at full coverage
+  rise:  0.14,       // lerp in
+  fall:  0.09,       // slower out, so a clipped corner does not strobe
+  probe: 24,         // world units between samples along a ray
+  reach: 400,        // backstop; the height break below fires first
+  zhead: 60,         // height on him that must be covered -- see the range note
+  minH:  DOOR_H + 50,// top of the SHORTEST house; also the only height builtHeightAt returns
+  /* LATERAL FAN. u offsets along world (+1,-1), which is
+     screen-HORIZONTAL and depth-preserving (the components cancel in
+     x+y), so every ray tests the same forward distance at a different
+     screen column. 34 is his own shadow ring radius, i.e. his
+     half-width. A +-68 pair was tried and removed (Sir on-device: "the
+     robot is still glowing when out in the open") -- a body-width out
+     is not his body, and those rays sat over the block's wall band
+     while the wall was nowhere near his screen column. */
+  fan:   [0, -34, 34],
+  hits:  2,          // rays of the fan needed before he counts as hidden
+  /* PROPS. A bin or a hydrant behind a frontage gets the same ghost.
+     Two separate dials because a prop is not a robot: it is short, so
+     it needs a low sample height, and there are a lot of them, so it
+     wants a fainter alpha or the street reads as a light show. Set
+     propMax to 0 to switch prop ghosting off entirely. */
+  propMax: 0.38,     // silhouette alpha for props
+  propZ:   24,       // height on a prop that must be covered
+  propFan: false     // props use the centre ray only -- see xrayCoverageAt
+};
+try { window.XRAY = XRAY; } catch(e){}
 
 /* corner stores get their own, richer palette set -- the block's anchor
    tenant, not another storefront in the run. accent = knob/sign border. */
@@ -14445,6 +14502,9 @@ class WorldScene extends Phaser.Scene {
     this.wonT = 0; this.wonFrac = 0; this.wonLiftT = 0; this.wonLidClosing = false; this.wonWalkAt = null; this.wonWalk = 0; this.wonOutT = 0; this.wonOutFrac = 0; this.wonMeet = null;
     this.bagOnBoard = false;
     this.cornerLean = 0;
+    this.xrayA = 0;                   // x-ray silhouette alpha, eased -- see XRAY
+    this._xrayPropCache = new Map();  // static prop occlusion; a new route is a new city
+    this._xrayInProp = false;
     this.corneringSpeedSmooth = 0;   // lagged speed feeding cornering lean —
                                       // see loadRoute() reset for the full note
     this.stuckAmt = 0; this.isBlocked = false;
@@ -14452,6 +14512,15 @@ class WorldScene extends Phaser.Scene {
     this.gSky = this.add.graphics();
     this.gWorld = this.add.graphics();
     this.gFade = this.add.graphics();      // the one wall being faded out/in — separate object so it can have its own alpha
+    /* PROP X-RAY GHOSTS. Its own Graphics rather than sharing gFade,
+       because gFade carries the ROBOT's eased alpha on the layer --
+       that is what makes his overlapping quads composite as one flat
+       body instead of a pile of seams. Props need a different alpha,
+       and a constant one (they do not move, so there is nothing to
+       ease), so they cannot ride the same layer. Created HERE so it
+       slots between gFade and gGlowLo: add.graphics() appends, and the
+       display list order is the whole point of these objects. */
+    this.gXProp = this.add.graphics();
     /* this.g IS the world layer now, not a layer of its own above it
        (2026-08-28). Every robot part -- hull, wheels, stripe stars,
        flag, eyes -- reaches for this.g independently through its own
@@ -14488,7 +14557,7 @@ class WorldScene extends Phaser.Scene {
        frame that were fragmenting Phaser's batches. Applied to every
        Graphics this scene draws into, including the ones with their own
        alpha and blend mode, since the memo is per instance. */
-    [this.gSky, this.gWorld, this.gFade, this.g, this.gGlowLo, this.gFront,
+    [this.gSky, this.gWorld, this.gFade, this.gXProp, this.g, this.gGlowLo, this.gFront,
      this.gNight, this.gGlow, this.hud].forEach(memoGraphicsStyles);
     this.qtext = this.add.text(0, 0, "?!", { fontSize:"30px", fontStyle:"bold", color:"#ffb04d" })
       .setOrigin(0.5).setDepth(4).setVisible(false);
@@ -15882,6 +15951,9 @@ class WorldScene extends Phaser.Scene {
     this.slabZ = 0; this.slabRoll = 0;
     this.crossZ = 0; this.crossSlope = 0; this.crossJitter = 0;
     this.cornerLean = 0;
+    this.xrayA = 0;                   // x-ray silhouette alpha, eased -- see XRAY
+    this._xrayPropCache = new Map();  // static prop occlusion; a new route is a new city
+    this._xrayInProp = false;
     this.corneringSpeedSmooth = 0;
     this.stuckAmt = 0; this.isBlocked = false;
     this.doorTheta = 0;   // hull door hinge angle — opens once this.state becomes "won"
@@ -16057,6 +16129,89 @@ class WorldScene extends Phaser.Scene {
       if(p.y < top) top = p.y; else if(p.y > bot) bot = p.y;
     }
     return hi >= 0 && lo <= gw && bot >= 0 && top <= gh;
+  }
+
+  /* ---------- x-ray: is he behind something? ----------
+     Height of built mass at a world point, or 0. Conservative by
+     construction: parks are skipped, and only the HOUSE_DEPTH band
+     inside each block edge counts -- a block's middle is yard, not
+     wall, and claiming otherwise would ghost him across open gardens.
+     Fed visBlocks rather than the whole grid, so this is a handful of
+     rect tests and not 200. */
+  builtHeightAt(x, y, blocks, lots){
+    for(const b of blocks){
+      if(b.type === "park") continue;
+      if(x < b.x0 || x > b.x1 || y < b.y0 || y > b.y1) continue;
+      const band = (x - b.x0 < HOUSE_DEPTH) || (b.x1 - x < HOUSE_DEPTH) ||
+                   (y - b.y0 < HOUSE_DEPTH) || (b.y1 - y < HOUSE_DEPTH);
+      return band ? XRAY.minH : 0;
+    }
+    /* the world's outer perimeter builds on extLots, not blocks, and
+       those were missing entirely from v1 -- so the whole outside edge
+       of the city never ghosted. lotRect is the same helper the lot's
+       own render uses, so this cannot drift from where the walls are. */
+    if(lots) for(const l of lots){
+      if(l.type === "park") continue;
+      const r = lotRect(l.ox, l.oy, l.dv, l.rv, l.len, HOUSE_DEPTH);
+      if(x >= r.x0 && x <= r.x1 && y >= r.y0 && y <= r.y1) return XRAY.minH;
+    }
+    return 0;
+  }
+
+  /* March the camera ray out from the robot. See the XRAY constants
+     note: at offset s the occluder needs height zh + s, so once that
+     requirement passes the tallest thing in the city nothing further
+     out can possibly qualify and the loop is done. ~7 iterations. */
+  /* How much of him is behind something, 0..1 -- the fraction of the
+     fan that found an occluder at ANY forward distance. A count rather
+     than the old first-hit boolean, so the answer degrades smoothly:
+     clip one corner of a wall and one ray of three reports, which is
+     under XRAY.hits and correctly shows nothing; walk in behind a
+     frontage and all three report. */
+  /* Which ghost layer the CURRENT draw should mirror into, and at what
+     alpha, or null when nothing is being captured. Exists because the
+     two capture paths differ in both target and alpha -- the robot
+     rides gFade's eased layer alpha at per-shape 1, props ride gXProp
+     at a constant per-shape alpha -- and every primitive that bypasses
+     quadOn (the flag's strokePath, the palm's fronds) would otherwise
+     have to re-derive that distinction itself and get it wrong. */
+  xrayGhost(){
+    if(this._xrayCap)   return { g: this.gFade,  a: 1 };
+    if(this._xrayInProp) return { g: this.gXProp, a: XRAY.propMax };
+    return null;
+  }
+
+  xrayCoverage(blocks, lots){ return this.xrayCoverageAt(this.botX, this.botY, XRAY.zhead, blocks, lots, true); }
+
+  /* Same test at an arbitrary point. wide=false collapses the fan to
+     its centre ray: a prop is a fraction of the robot's width, so the
+     lateral rays would only ever report on mass that is not actually
+     over it -- and props are numerous enough that three rays each is
+     real frame time for an answer one ray already gives. */
+  xrayCoverageAt(bx, by, zh, blocks, lots, wide){
+    const fan = wide ? XRAY.fan : [0];
+    const needHits = wide ? XRAY.hits : 1;
+    let hits = 0;
+    for(let i = 0; i < fan.length; i++){
+      const u = fan[i];
+      /* u is depth-preserving, so every ray in the fan is at the same
+         forward distance s and the height test holds for all of them
+         unchanged. s starts at PROBE, never 0: a body at his EXACT
+         depth is a sort tie, not an occluder, and admitting u offsets
+         at s=0 ghosts him whenever he walks past a wall he is standing
+         beside in plain view. */
+      for(let s = XRAY.probe; s <= XRAY.reach; s += XRAY.probe){
+        const need = zh + s;
+        /* bound against minH, not a separate ceiling: minH is the ONLY
+           value builtHeightAt ever returns, so once need passes it no
+           sample further out can succeed. The old bound was minH + 120
+           and just burned iterations that could not hit. */
+        if(need > XRAY.minH) break;
+        if(this.builtHeightAt(bx + s + u, by + s - u, blocks, lots) >= need){ hits++; break; }
+      }
+    }
+    if(wide) this._xrayHits = hits;   // read by the owDbg readout
+    return hits >= needHits ? hits / fan.length : 0;
   }
 
   /* props: the kind's own MEASURED extent (see PROP_EXT) against the
@@ -17333,8 +17488,50 @@ class WorldScene extends Phaser.Scene {
        only, and drawRobot needs both. */
     worldVQ.push({ depth: this.botX + this.botY, isRobot: true,
                    fn: (gg, tt) => this.drawRobot(tt, this._frameDt || 0) });
+    /* X-RAY: the silhouette is captured in the SAME pass he already
+       draws, not by a second drawRobot call. drawRobot advances the
+       pose, runs the hazard interaction loop that writes ow.px, and
+       spawns peel smoke -- calling it twice steps the sim twice. Every
+       robot part reaches for quadOn, so wrapping quadOn for the
+       duration of his ONE queue item stamps each polygon a second
+       time, flat-coloured, into gFade. Union of his own quads at alpha
+       1 with the layer alpha applied once on top, so overlapping parts
+       give a clean flat body instead of a pile of seams.
+
+       gFade sits above gWorld and below gFront/gNight/gGlow, which is
+       exactly right: the walls that sorted AFTER him drew into gWorld,
+       so the ghost reads through them, while the night tint still
+       lands on him because he genuinely is in the world.
+
+       This is also what gFade was declared for and never used to do. */
+    this.gFade.clear();
+    this.gXProp.clear();
+    /* stashed for drawProp, which is called from a dozen queue sites
+       and has no way to be handed these */
+    this._visBlocks = visBlocks; this._visLots = visLots;
+    this._xraySkip = false;   // never inherit a stuck flag from a bailed frame
+    /* alpha SCALES with coverage now instead of snapping to XRAY.max, so
+       a partially hidden robot reads as partially there. */
+    const xrayWant = XRAY.max * this.xrayCoverage(visBlocks, visLots);
+    this.xrayA += (xrayWant - this.xrayA) *
+                  (xrayWant > this.xrayA ? XRAY.rise : XRAY.fall);
+    if(this.xrayA < 0.004) this.xrayA = 0;
+    this.gFade.setAlpha(this.xrayA);
+
     worldVQ.sort((a, b) => a.depth - b.depth);
-    for(const item of worldVQ) item.fn(g, t); // layer per item — layerFor/propLayer already split g vs gFront
+    for(const item of worldVQ){
+      if(item.isRobot && this.xrayA > 0){
+        const qp = this.quadOn;
+        /* own property shadowing the prototype method; deleted rather
+           than reassigned so the class method is the one that survives */
+        this.quadOn = (gg, pts, col, a) => {
+          qp.call(this, gg, pts, col, a);
+          if(!this._xraySkip) qp.call(this, this.gFade, pts, XRAY.col, 1);
+        };
+        this._xrayCap = true;   // read by drawFlag, which bypasses quadOn
+        try { item.fn(g, t); } finally { delete this.quadOn; this._xrayCap = false; }
+      } else item.fn(g, t); // layer per item — layerFor/propLayer already split g vs gFront
+    }
     /* no roofs pass any more -- they are in worldVQ above, so the sort
        that just ran placed them. Nothing draws after the world. */
 
@@ -20150,6 +20347,40 @@ class WorldScene extends Phaser.Scene {
     g.fillCircle(gp.x, gp.y, CHARGE.glowR*K);
   }
   drawProp(g, kind, x, y, t, fdir = 0, z = 0, wheelPhase = null, colorSeed = null, data = null){
+    /* X-RAY FOR PROPS (2026-08-28, Sir: same effect for property hidden
+       by the houses). Hooked HERE rather than at the queue sites
+       because there are a dozen of those -- blockVQ, topLayer, the
+       scatter passes, the perimeter lots -- and drawProp is the single
+       funnel every one of them goes through. One edit, every prop.
+
+       CACHED, and permanently: this camera does not rotate, and both
+       the prop and the buildings are static, so whether a bin is
+       behind a wall is a property of the route and not of the frame.
+       Computing it once per prop position turns a per-frame ray march
+       over ~244 visible pieces into a map lookup. Cleared by
+       loadRoute, since a new route is a new city. */
+    if(XRAY.propMax > 0 && !this._xrayCap && !this._xrayInProp && this._visBlocks){
+      const key = kind + "|" + Math.round(x) + "," + Math.round(y);
+      let hid = this._xrayPropCache.get(key);
+      if(hid === undefined){
+        hid = this.xrayCoverageAt(x, y, XRAY.propZ, this._visBlocks, this._visLots, XRAY.propFan) > 0;
+        this._xrayPropCache.set(key, hid);
+      }
+      if(hid){
+        const qp = this.quadOn;
+        this.quadOn = (gg, pts, col, aa) => {
+          qp.call(this, gg, pts, col, aa);
+          qp.call(this, this.gXProp, pts, XRAY.col, XRAY.propMax);
+        };
+        /* re-entry guard: the recursive call must fall THROUGH this
+           block to the real body, or it re-tests, re-wraps and never
+           terminates. */
+        this._xrayInProp = true;
+        try {
+          return this.drawProp(g, kind, x, y, t, fdir, z, wheelPhase, colorSeed, data);
+        } finally { delete this.quadOn; this._xrayInProp = false; }
+      }
+    }
     /* fdir may now be CONTINUOUS (a float, in quarter-turn units) --
        moving traffic passes its real heading so a car rotates smoothly
        through a corner instead of popping 90 degrees at the arc
@@ -20195,6 +20426,7 @@ class WorldScene extends Phaser.Scene {
         }
       }
       const crown = spine[SEG];
+      const XG = this.xrayGhost();
       const fronds = [];
       for(let i=0; i<P.fronds; i++){
         const baseA = (i/P.fronds)*Math.PI*2 + rng()*0.25;
@@ -20217,17 +20449,32 @@ class WorldScene extends Phaser.Scene {
           const tx2 = nx - px, ty2 = ny - py;
           const tl = Math.hypot(tx2, ty2) || 1;
           const pxn = -ty2/tl, pyn = tx2/tl;
+          /* leaf corners hoisted so the x-ray mirror below draws the
+             SAME two triangles rather than a second copy of the
+             arithmetic that could drift from it */
+          const ax = px + pxn*lw + tx2*0.3, ay = py + pyn*lw + ty2*0.3;
+          const bx = px - pxn*lw + tx2*0.3, by = py - pyn*lw + ty2*0.3;
           g.fillStyle(color, 1);
-          g.fillTriangle(px, py, nx, ny, px + pxn*lw + tx2*0.3, py + pyn*lw + ty2*0.3);
-          g.fillTriangle(px, py, nx, ny, px - pxn*lw + tx2*0.3, py - pyn*lw + ty2*0.3);
+          g.fillTriangle(px, py, nx, ny, ax, ay);
+          g.fillTriangle(px, py, nx, ny, bx, by);
+          /* X-RAY: fronds are fillTriangle, the trunk is quadOn. Only
+             the trunk was reaching the ghost, so an occluded palm read
+             as a bare teal post with no head on it (Sir on-device). */
+          if(XG){
+            XG.g.fillStyle(XRAY.col, XG.a);
+            XG.g.fillTriangle(px, py, nx, ny, ax, ay);
+            XG.g.fillTriangle(px, py, nx, ny, bx, by);
+          }
           px = nx; py = ny;
         }
       };
       for(const f2 of fronds) if(f2.back) drawFrond(f2, P.frondB);
       for(let i=0; i<3; i++){
         const a3 = phase + i*2.1;
+        const ccx = crown.x + Math.cos(a3)*6*K, ccy = crown.y + 4*K + Math.sin(a3)*3*K;
         g.fillStyle(i === 1 ? P.cocoHi : P.coco, 1);
-        g.fillCircle(crown.x + Math.cos(a3)*6*K, crown.y + 4*K + Math.sin(a3)*3*K, 4.2*K);
+        g.fillCircle(ccx, ccy, 4.2*K);
+        if(XG){ XG.g.fillStyle(XRAY.col, XG.a); XG.g.fillCircle(ccx, ccy, 4.2*K); }
       }
       for(const f2 of fronds) if(!f2.back) drawFrond(f2, P.frondA);
     } else if(kind === "scooter"){
@@ -25493,7 +25740,18 @@ class WorldScene extends Phaser.Scene {
       const a=(i/14)*Math.PI*2;
       sh.push(this.P(Math.cos(a)*34, -this.tipT*26*(this.tipDir||1) + Math.sin(a)*(30 + this.tipT*26), 0.5));
     }
+    /* EXCLUDED FROM THE X-RAY GHOST. This goes through quadOn like
+       every other robot part, so the silhouette wrap in drawWorld's
+       flush was stamping it -- putting a flat teal disc of his shadow
+       ring on the ground inside the ghost, which reads as a puddle and
+       not as a robot. The ghost is meant to be the BODY seen through a
+       wall; a shadow is cast on the ground the wall is standing on, so
+       it belongs to the world, not to him. Explicit flag rather than
+       testing col === SKIN.shadow, because that colour is plain black
+       and other parts are free to use it. */
+    this._xraySkip = true;
     this.quadOn(g, sh, SKIN.shadow, 0.16);
+    this._xraySkip = false;
     this.pitch = sp; this.roll = srl;
 
     /* spilled cargo lies in the world, behind the robot */
@@ -26608,18 +26866,43 @@ class WorldScene extends Phaser.Scene {
        already scaled the point positions, so without kScale() the
        pennant keeps its full size on a robot a fifth as big. */
     const ks = this.kScale();
-    g.lineStyle(Math.max(1, 3*ks), SKIN.flagPole, 1);
-    g.beginPath();
-    g.moveTo(pts[0].x, pts[0].y);
-    for(let i=1; i<=seg; i++) g.lineTo(pts[i].x, pts[i].y);
-    g.strokePath();
+    const poleW = Math.max(1, 3*ks);
     const p = pts[seg], q = pts[seg-1];
     let dx = p.x - q.x, dy = p.y - q.y;
     const dl = Math.hypot(dx, dy) || 1; dx /= dl; dy /= dl;
+    /* pennant corners hoisted out of the fill call so the x-ray mirror
+       below draws the SAME triangle rather than a second copy of the
+       arithmetic that could drift from it */
+    const t1x = p.x,                  t1y = p.y;
+    const t2x = p.x - dy*11*ks,       t2y = p.y + dx*11*ks;
+    const t3x = p.x + dx*20*ks,       t3y = p.y + dy*20*ks + 4*ks;
+
+    const stroke = (gg, col) => {
+      gg.lineStyle(poleW, col, 1);
+      gg.beginPath();
+      gg.moveTo(pts[0].x, pts[0].y);
+      for(let i=1; i<=seg; i++) gg.lineTo(pts[i].x, pts[i].y);
+      gg.strokePath();
+    };
+
+    stroke(g, SKIN.flagPole);
     g.fillStyle(SKIN.flag, 1);
-    g.fillTriangle(p.x, p.y,
-                   p.x - dy*11*ks, p.y + dx*11*ks,
-                   p.x + dx*20*ks, p.y + dy*20*ks + 4*ks);
+    g.fillTriangle(t1x, t1y, t2x, t2y, t3x, t3y);
+
+    /* X-RAY: the pole is a strokePath and the pennant a fillTriangle --
+       neither goes through quadOn, so the silhouette wrap in
+       drawWorld's flush never saw them and he lost his flag the moment
+       he went behind a wall (Sir on-device: "we dont see tipsey's flag
+       in the effect"). Mirrored explicitly here rather than by widening
+       the wrap: quadOn is the one primitive every OTHER part shares,
+       and wrapping Graphics' whole API to catch two calls would put a
+       tax on every fill in the frame. */
+    const XG = this.xrayGhost();
+    if(XG){
+      stroke(XG.g, XRAY.col);
+      XG.g.fillStyle(XRAY.col, XG.a);
+      XG.g.fillTriangle(t1x, t1y, t2x, t2y, t3x, t3y);
+    }
   }
 
   /* ---------- THE WILLIAM: TAIL OF THE TIMELINE ----------
