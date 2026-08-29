@@ -4868,10 +4868,36 @@ const FLAT_CULL_PAD = T2 * 2;   /* a tile's own Manhattan corner is T2
                                    (half-width on each axis); doubled so
                                    the tile at the boundary is drawn
                                    whole rather than clipped */
+/* FLAT_CULL_LEAD: the pad above covers a TILE's own size, which is a
+   fixed world quantity and correctly a constant. It does not cover the
+   camera MOVING between the frame the span was computed for and the
+   frame it is drawn on, and that error is proportional to how much
+   world is on screen -- so it grows as you zoom out while the constant
+   pad does not.
+
+   Measured against what the four screen corners actually need
+   (2026-08-28, Sir on-device: "the culling is to tight its causing
+   things to shift on screen when im in view 3"):
+
+     VIEW 1  span  593  needed  409   margin 45%
+     VIEW 2  span 1060  needed  876   margin 21%
+     VIEW 3  span 2227  needed 2043   margin  9%   <- 184 units, two tiles
+
+   At VIEW 3 the whole margin is two tiles. Any camera lead at all eats
+   it and ground tiles cross the boundary mid-drive, popping in and out
+   at the screen edge -- which is the shifting. The 12% term restores a
+   roughly constant PROPORTIONAL margin at every zoom instead of a
+   constant absolute one, so VIEW 3 gets ~245 extra units of slack and
+   VIEW 1 is nearly unchanged (it never had the problem).
+
+   Deliberately not a bigger constant: that would over-draw VIEW 1,
+   where ground is densest per screen pixel, to fix a VIEW 3 symptom. */
+const FLAT_CULL_LEAD = 0.12;
 function flatSpanOf(cx, cy, w, h, K, camZ){
   const ax = Math.max(cx, w - cx) / K;
   const by = 2 * Math.max(Math.abs(cy / K + camZ), Math.abs((h - cy) / K - camZ));
-  return Math.max(ax, by) + FLAT_CULL_PAD;
+  const span = Math.max(ax, by);
+  return span * (1 + FLAT_CULL_LEAD) + FLAT_CULL_PAD;
 }
 
 /* ================= REDUNDANT STYLE ELISION =================
@@ -14426,7 +14452,17 @@ class WorldScene extends Phaser.Scene {
     this.gSky = this.add.graphics();
     this.gWorld = this.add.graphics();
     this.gFade = this.add.graphics();      // the one wall being faded out/in — separate object so it can have its own alpha
-    this.g = this.add.graphics();
+    /* this.g IS the world layer now, not a layer of its own above it
+       (2026-08-28). Every robot part -- hull, wheels, stripe stars,
+       flag, eyes -- reaches for this.g independently through its own
+       `const g = this.g` or through quad()/edge(), so pointing drawRobot
+       alone at gWorld left all of those still drawing into a layer that
+       nothing cleared, and he smeared a trail of flags and wheels
+       across the frame. One alias moves the whole robot at once and
+       keeps every existing call site honest. The Graphics that used to
+       live here is gone rather than left empty: an unused object in the
+       display list is a thing for someone to wonder about later. */
+    this.g = this.gWorld;
     /* gGlowLo: ADD accents that belong to the SAME depth bracket as the
        things drawn in g -- Tipsey's own eyes/pool/beams, and any lamp
        the depth sort put behind him. Deliberately BELOW gFront so the
@@ -16059,6 +16095,29 @@ class WorldScene extends Phaser.Scene {
     g.fillStyle(color, alpha);
     g.fillPoints(pts.map(p => new Phaser.Geom.Point(p.x, p.y)), true, true);
   }
+  /* OPEN outline for a depth-sliced side wall (2026-08-28, Sir
+     on-device: "i see the art braking and showing lines through its
+     segments").
+
+     edgeOn strokes a CLOSED path. That is right for a whole quad and
+     wrong for one piece of a wall that got cut into three: the two
+     verticals where a piece meets its neighbours are interior seams,
+     not silhouette, and stroking them drew a line down the wall at
+     every cut. The wall was solid -- the fills met exactly -- but the
+     outline advertised the joins, which is what reads as the art
+     breaking into segments.
+
+     Quad order is [near-top, far-top, far-bottom, near-bottom], so the
+     top and bottom runs are always real silhouette and the two
+     verticals are drawn only when this piece owns the real end. Same
+     rule the roofs already use for their front and back lips. */
+  wallOutline(g, q, color, hasNear, hasFar, w=1){
+    g.lineStyle(w, color, 1);
+    g.lineBetween(q[0].x, q[0].y, q[1].x, q[1].y);          // top / roofline
+    g.lineBetween(q[2].x, q[2].y, q[3].x, q[3].y);          // bottom / ground
+    if(hasFar)  g.lineBetween(q[1].x, q[1].y, q[2].x, q[2].y);
+    if(hasNear) g.lineBetween(q[3].x, q[3].y, q[0].x, q[0].y);
+  }
   edgeOn(g, pts, color=SKIN.outline, w=2){
     g.lineStyle(w, color, 1);
     g.strokePoints(pts.map(p => new Phaser.Geom.Point(p.x, p.y)), true);
@@ -16529,7 +16588,14 @@ class WorldScene extends Phaser.Scene {
        before the block-wrap pass, not after it. */
     this.gFront.clear();
     const botDepth = this.botX + this.botY;
-    const layerFor = (px, py) => (px + py > botDepth + 14) ? this.gFront : g;
+    /* ONE LAYER. This used to return gFront for anything nearer to
+       camera than the robot, because the robot was composited on top of
+       the world and that was the only way to get a car or a signal post
+       back in front of him. He is inside this sort now (see drawRobot),
+       so "in front of the robot" is just a larger depth key and the
+       sort already handles it. Kept as a function so every call site
+       reads the same; it simply has nothing left to decide. */
+    const layerFor = (px, py) => g;
 
     /* moved up from below: cars/traffic now need world position before
        the body depth-sort runs (see the trafficPts block after the
@@ -16968,11 +17034,44 @@ class WorldScene extends Phaser.Scene {
        (their body entries are entangled with the customer/worker
        choreography — extraction is stage 2), so this pass now carries
        at most those two roofs. */
+    /* ONE WORLD SORT (2026-08-28, Sir on-device: "im still seeing
+       through buildings" -- an NPC sidewalk robot's flag pole and body
+       painted straight over the roof of the store it was standing
+       behind).
+
+       The cause was structural and this file had already written it
+       down, in queueCityFurniture's own note: hazVQ was flushed as its
+       OWN pass, after every building, every roof and every parked car,
+       so any hazard painted over any building regardless of true
+       depth. That note called the exposure acceptable because hazards
+       "are always in the corridor the robot is driving and effectively
+       never behind a building from the camera". That was true of the
+       rail. It stopped being true the moment the city started dropping
+       its own furniture into route.hazards (cfDrop: sidewalk robots,
+       people, dogs, palms, hydrants on frontages right across the
+       grid) -- those stand behind blocks constantly, and every one of
+       them showed through the block in front of it.
+
+       So bodies, parked cars and hazards stop being three sequential
+       passes that each win against the one before, and become one
+       sort. Nothing new is computed: each of the three was ALREADY
+       carrying a real depth key and ALREADY routing its layer through
+       layerFor/propLayer. The passes existed only because the three
+       were written at different times, and every later pass silently
+       outranked the earlier ones.
+
+       ROOFS STILL DRAW LAST, unchanged. Only the address house and the
+       pickup store still queue whole (their bodies are entangled with
+       the customer/worker choreography -- extraction is stage 2), so
+       their single coarse key cannot be trusted against a neighbour's
+       per-strip keys; that is the exact bug the roofs-last pass was
+       added to fix and it is still live for those two units. The cost
+       of keeping them last is that those two roofs can cover a hazard
+       or a parked car standing in front of them -- two units, and the
+       CLEAR sweep already keeps hazards off the pickup unit and the
+       customer choreography off the address unit. */
     const bodies = blockVQ.filter(it => !it.isRoof), roofs = blockVQ.filter(it => it.isRoof);
-    bodies.sort((a,b) => a.depth - b.depth);
-    for(const item of bodies) item.fn(g, t); // always gWorld — the robot must stay visible over block-wrap dressing, never hidden behind it
-    roofs.sort((a,b) => a.depth - b.depth);
-    for(const item of roofs) item.fn(g, t);
+    const worldVQ = bodies;   // parked cars and hazards join this below; flushed once, after hazVQ is built
     /* parking-row cars draw in a THIRD pass, after roofs — they were
        part of the normal body pass before, so any visible building's
        roof (drawn unconditionally last, globally, regardless of true
@@ -16996,8 +17095,16 @@ class WorldScene extends Phaser.Scene {
        as visibly wrong otherwise (reported on-device, f=1 specifically).
        Still its own pass, still after roofs — this only fixes ordering
        WITHIN the pass, not when the pass itself runs. */
-    topLayer.sort((a, b) => (a.x + a.y) - (b.x + b.y));
-    for(const c of topLayer) this.drawProp(layerFor(c.x, c.y), c.kind, c.x, c.y, t, c.fdir, 0);
+    /* joins the one world sort (see it above) instead of running as a
+       third pass. The reason this was ever split out -- roofs drawn
+       globally last painting over a parked car -- is unchanged, because
+       roofs are still drawn last; what changes is that a car no longer
+       paints over a house that is genuinely in front of it, and a
+       hazard no longer paints over a car that is genuinely in front of
+       IT. Its own sort is dropped: the merged sort does it. */
+    for(const c of topLayer)
+      worldVQ.push({ depth: c.x + c.y,
+                     fn: (gg, tt) => this.drawProp(layerFor(c.x, c.y), c.kind, c.x, c.y, tt, c.fdir, 0) });
 
     /* volumetric props (and ground-kind hazards like curb ramps) are
        handled earlier now -- pushed into blockVQ before the body
@@ -17188,8 +17295,48 @@ class WorldScene extends Phaser.Scene {
                    } });
     }
 
-    hazVQ.sort((a, b) => a.depth - b.depth);
-    for(const item of hazVQ) item.fn(g, t);
+    /* THE one flush (see the ONE WORLD SORT note above the bodies
+       filter). hazVQ is no longer a pass of its own -- its entries were
+       already keyed on each hazard's effective body position, which is
+       the same key the bodies carry, so they merge straight in.
+       Deferring the body flush to here is safe: everything between the
+       two points only PUSHES closures, and the addrDoor* side effects
+       the address unit's render sets are read later in the frame (the
+       win-state camera reframe), never during hazard queueing. */
+    for(const item of hazVQ) worldVQ.push(item);
+    /* ROOFS JOIN THE SORT TOO (2026-08-28, Sir on-device: "im seeing
+       through buildings ... from every angle", with a shot of a store's
+       roof and wall cut straight across the roof of the house in front
+       of it).
+
+       This was the last pass still drawing globally last, and I kept it
+       that way on purpose one round ago -- the reasoning being that the
+       address house and the pickup store are the only units still
+       queued whole, so their single coarse key could lose to a
+       neighbour's per-strip keys, which is the bug the roofs-last pass
+       was originally written to fix.
+
+       That reasoning protected the wrong thing. Losing a sort against a
+       neighbour is a hairline seam between two adjacent frontages.
+       Drawing last means those two roofs paint over EVERY building in
+       the city that stands in front of them, at every heading, which is
+       a whole roof and wall landing on top of a house one block nearer
+       the camera. The first is a blemish, the second is the report.
+       Sorted at their own depth they are wrong in neither direction
+       more often than any other body is. */
+    for(const item of roofs) worldVQ.push(item);
+    /* THE ROBOT IS A BODY. Queued here at his own depth key, so the one
+       sort below places him among the walls, cars and hazards instead
+       of compositing him over all of them. This is the whole fix; every
+       layer decision above it collapses because of this line. dt comes
+       off the frame's own stash (see update) -- drawWorld is handed t
+       only, and drawRobot needs both. */
+    worldVQ.push({ depth: this.botX + this.botY, isRobot: true,
+                   fn: (gg, tt) => this.drawRobot(tt, this._frameDt || 0) });
+    worldVQ.sort((a, b) => a.depth - b.depth);
+    for(const item of worldVQ) item.fn(g, t); // layer per item — layerFor/propLayer already split g vs gFront
+    /* no roofs pass any more -- they are in worldVQ above, so the sort
+       that just ran placed them. Nothing draws after the world. */
 
     /* addrDoorPos/addrDoorDV/etc. are still set below as a side effect
        of the real address house unit's own render pass (see
@@ -17528,18 +17675,66 @@ class WorldScene extends Phaser.Scene {
     const hasBack = qF <= -D + 0.5;
     const hasFront = qB >= -0.5;
 
+    /* BACK-FACE CULLING (2026-08-28, Sir on-device: "they are see
+       through at times and i can see windows and faces are missing its
+       the buildings themselves").
+
+       Every unit drew all four walls, unconditionally, in a fixed order
+       that ended with the front elevation -- back, left, right, roof,
+       then the whole detailed frontage. That order is only right when
+       the frontage happens to face the camera. Blocks have four edges,
+       so a quarter of the city's units front AWAY from it, and for
+       every one of those the windows, door, trim and sign painted last,
+       straight over the roof and the near wall that should have hidden
+       them. Read as the building being transparent, because you were
+       looking at its far elevation through it.
+
+       dv and rv are DIRV unit vectors, so dv.x+dv.y and rv.x+rv.y are
+       always +/-1, never 0: exactly one of front/back and exactly one
+       of left/right faces the camera, and there is no edge-on tie to
+       break. Depth increases with x+y (the same key the world sort
+       uses), so a face is camera-facing when its outward normal has a
+       positive x+y. Front's outward normal is +rv, back's is -rv,
+       right's is +dv, left's is -dv.
+
+       This is a cull, not a reorder: the faces that stop being drawn
+       are the ones no camera angle can see. It also halves the wall
+       quads per unit. */
+    const dvS = dv.x + dv.y, rvS = rv.x + rv.y;
+    const showFront = rvS > 0, showBack = !showFront;
+    const showRight = dvS > 0, showLeft = !showRight;
+    /* WALL TONE COMES FROM THE FACE'S WORLD DIRECTION, NOT FROM WHICH
+       END OF THE UNIT IT IS (2026-08-28, Sir on-device: "the side faces
+       need some work").
+
+       The tones were bound to the model: the a=0 end was always wallDk
+       and the a=w end always wallLt. Those ends point opposite ways on
+       opposite edges of a block, so the SAME physical orientation was
+       lit two different ways depending on which edge a unit sat on --
+       +x came out light on block edge 0 and dark on edge 2, +y light on
+       edge 1 and dark on edge 3. Neighbouring buildings around a corner
+       disagreed about where the sun was.
+
+       Culling means only two normals are ever drawn, +x and +y, so one
+       lookup covers the whole city: +x is the lit side, +y the shaded
+       one. Light from the right, fixed camera, no per-unit state. The
+       front elevation keeps C.wall either way -- it is the detailed
+       face and carries its own trim, so it reads as the front rather
+       than as a lit or shaded plane. */
+    const toneOf = nx => nx > 0 ? C.wallLt : C.wallDk;
+
     if(part !== 'roof'){
-      if(hasBack){
+      if(hasBack && showBack){
         const back = [G(a0,-D,H), G(a1,-D,H), G(a1,-D,0), G(a0,-D,0)];
-        this.quadOn(g, back, C.wallDk);
+        this.quadOn(g, back, toneOf(-rv.x));
       }
-      if(a0 === 0){
+      if(a0 === 0 && showLeft){
         const left = [G(0,qB,H), G(0,qF,H), G(0,qF,0), G(0,qB,0)];
-        this.quadOn(g, left, C.wallDk); this.edgeOn(g, left, C.trim, 1);
+        this.quadOn(g, left, toneOf(-dv.x)); this.wallOutline(g, left, C.trim, hasFront, hasBack);
       }
-      if(a1 >= w){
+      if(a1 >= w && showRight){
         const right = [G(w,qB,H), G(w,qF,H), G(w,qF,0), G(w,qB,0)];
-        this.quadOn(g, right, C.wallLt); this.edgeOn(g, right, C.trim, 1);
+        this.quadOn(g, right, toneOf(dv.x)); this.wallOutline(g, right, C.trim, hasFront, hasBack);
       }
     }
 
@@ -17567,8 +17762,10 @@ class WorldScene extends Phaser.Scene {
     if(part === 'roof') return;
     /* the whole front elevation -- face, base, trim, seams, windows,
        door -- lives on the frontage plane, so it belongs to the front
-       depth piece and to nothing else. */
-    if(!hasFront) return;
+       depth piece and to nothing else, and to nothing at all when that
+       plane faces away from the camera (see the cull note above: this
+       elevation drawing last was the see-through report). */
+    if(!hasFront || !showFront) return;
 
     const face = [G(a0,0.4,H), G(a1,0.4,H), G(a1,0.4,0), G(a0,0.4,0)];
     this.quadOn(g, face, C.wall);
@@ -17651,13 +17848,23 @@ class WorldScene extends Phaser.Scene {
     const hasBack = qF <= -D + 0.5;
     const hasFront = qB >= -0.5;
 
+    /* same cull as drawHouseUnit -- see its note. A shopfront is the
+       worst offender of the two: glass, awning and sign are the most
+       detailed elevation in the game, so a store fronting away from the
+       camera painted the loudest possible artifact over its own roof. */
+    const dvS = dv.x + dv.y, rvS = rv.x + rv.y;
+    const showFront = rvS > 0, showBack = !showFront;
+    const showRight = dvS > 0, showLeft = !showRight;
+
     if(part !== 'roof'){
-      if(hasBack){
+    /* same tone rule as drawHouseUnit -- see its note. */
+    const toneOf = nx => nx > 0 ? C.wallLt : C.wallDk;
+      if(hasBack && showBack){
         const back = [G(a0,-D,H), G(a1,-D,H), G(a1,-D,0), G(a0,-D,0)];
-        this.quadOn(g, back, C.wallDk);
+        this.quadOn(g, back, toneOf(-rv.x));
       }
-      if(isFirst && a0 === 0){ const l=[G(0,qB,H),G(0,qF,H),G(0,qF,0),G(0,qB,0)]; this.quadOn(g,l,C.wallDk); this.edgeOn(g,l,C.trim,1); }
-      if(isLast && a1 >= w){  const r=[G(w,qB,H),G(w,qF,H),G(w,qF,0),G(w,qB,0)]; this.quadOn(g,r,C.wallLt); this.edgeOn(g,r,C.trim,1); }
+      if(isFirst && a0 === 0 && showLeft){ const l=[G(0,qB,H),G(0,qF,H),G(0,qF,0),G(0,qB,0)]; this.quadOn(g,l,toneOf(-dv.x)); this.wallOutline(g,l,C.trim,hasFront,hasBack); }
+      if(isLast && a1 >= w && showRight){  const r=[G(w,qB,H),G(w,qF,H),G(w,qF,0),G(w,qB,0)]; this.quadOn(g,r,toneOf(dv.x)); this.wallOutline(g,r,C.trim,hasFront,hasBack); }
     }
 
     if(part !== 'body'){
@@ -17678,8 +17885,9 @@ class WorldScene extends Phaser.Scene {
 
     if(part === 'roof') return;
     /* the entire shopfront -- glass, kick, door, awning, sign -- is on
-       the frontage plane and belongs to the front depth piece alone. */
-    if(!hasFront) return;
+       the frontage plane and belongs to the front depth piece alone,
+       and is not drawn at all when that plane faces away (see cull). */
+    if(!hasFront || !showFront) return;
 
     const face = [G(a0,0.4,H), G(a1,0.4,H), G(a1,0.4,0), G(a0,0.4,0)];
     this.quadOn(g, face, C.wall);
@@ -17764,7 +17972,37 @@ class WorldScene extends Phaser.Scene {
      iso camera resolve which wall wins. Under that camera a block's SE
      corner shows the chamfer door head-on, NE/SW are edge-on, NW is
      roof-side -- the same reality every facade in the city lives with. */
-  drawCornerStoreUnit(g, ox, oy, dv, rv, w, seed, cornerAtStart, part='all', a0=0, a1=w){
+  drawCornerStoreUnit(g, ox, oy, dv, rv, w, seed, cornerAtStart, part='all', a0=0, a1=w, b0=null, b1=null){
+    /* THE DEPTH WINDOW, three weeks late (2026-08-28, Sir: "somthing
+       weve done with the other buidings is coliding with the art of the
+       corner house").
+
+       This function has not changed since it was written on 07 Aug --
+       verified by hashing it across all 400 commits that touch this
+       file. It broke anyway, because its NEIGHBOURS changed underneath
+       it. queueUnitStrips grew a depthSliceW parameter; every caller
+       passes T2 except queueCornerUnit, which passed nothing. With
+       STORE_DEPTH = T2*3 that left an ordinary store cut into THREE
+       depth pieces with three fine keys, and the corner store beside it
+       on ONE key describing a single point at mid-depth across its
+       whole 276-unit box.
+
+       That is precisely the condition a58ee167 was written to remove,
+       in its own words: one scalar per box cannot order boxes that
+       interpenetrate in depth, and the loser shows its windows and
+       walls through its neighbour. Houses and stores were fixed. The
+       corner store was left on the old model, pressed against
+       neighbours that now sort three times finer than it -- so it lost,
+       every time, at the one lot guaranteed to be seen from two
+       streets.
+
+       Same contract as drawHouseUnit's: qB is this piece's near edge
+       and qF its far one; hasFront/hasBack say whether this piece owns
+       the real elevations, which is what stops the facade being drawn
+       three times and the back wall appearing at every interior seam.
+       The chamfer spans b in [-CH, 0] and CH === T2 === the slice
+       width, so it falls entirely inside the front piece and rides
+       hasFront with the facade. */
     const rng = mulberry32(seed);
     const G = (a,b,h) => this.W(ox + dv.x*a + rv.x*b, oy + dv.y*a + rv.y*b, h);
     const cs = !!cornerAtStart;
@@ -17778,6 +18016,17 @@ class WorldScene extends Phaser.Scene {
     };
     const C = CORNER_STORE_PALETTES[Math.floor(rng()*CORNER_STORE_PALETTES.length)];
     const D = STORE_DEPTH, CH = CORNER_CHAMFER;
+    const qF = (b0 === null) ? -D : b0;
+    const qB = (b1 === null) ? 0 : b1;
+    const hasBack = qF <= -D + 0.5;
+    const hasFront = qB >= -0.5;
+    /* clip a b-range to this depth piece; returns null when the piece
+       owns none of it. b runs 0 at the street to -D into the block, so
+       `hi` is the street-side edge. */
+    const clipB = (lo, hi) => {
+      const l = Math.max(lo, qF), h2 = Math.min(hi, qB);
+      return (h2 - l < 0.5) ? null : [l, h2];
+    };
     /* same bottom-up height stack as drawStoreUnit, then a taller
        parapet -- the corner store reads as the block's anchor. rng
        calls stay unconditional per the slice contract. */
@@ -17810,15 +18059,41 @@ class WorldScene extends Phaser.Scene {
        actually sees, or the notch leaks lower walls through the roof. */
     const chamSum = ((cs ? -dv.x : dv.x) + rv.x) + ((cs ? -dv.y : dv.y) + rv.y);
     const chamAway = chamSum < -0.01, chamFront = chamSum > 0.01;
+    /* AND THE SAME TEST FOR THE FACADE (2026-08-28, Sir on-device:
+       "why is our corner building broken now?").
+
+       This function already reasoned about the fixed camera twice --
+       chamSum for the chamfer, flankVis for the corner-side flank --
+       but the facade itself, the long frontage carrying the parapet,
+       the full display-glass run, the awning and the sign band, was
+       drawn unconditionally and drawn LAST. On a corner whose frontage
+       points away from the camera that entire elevation painted over
+       its own roof and back wall.
+
+       drawHouseUnit and drawStoreUnit got this cull; this one is a
+       separate function and did not, which is why the corner store was
+       the last building still showing its shopfront through itself.
+       Same rule as theirs: the facade plane's outward normal is +rv,
+       and depth grows with x+y, so it faces the camera when rv sums
+       positive. The chamfer keeps its own chamSum gate -- the two
+       planes face different ways and each needs its own answer. */
+    const faceVis = (rv.x + rv.y) > 0.01;
     const fTop = chamAway ? 0 : -CH;   // corner flank's street-side extent
 
     if(part !== 'roof'){
-      /* back wall */
-      clipQU(0, w, -D, 0, H, C.wallDk);
-      /* far flank: plain cap against the neighbouring frontage */
+      /* back wall: the real rear elevation, so only the piece that owns
+         the back draws it -- otherwise it repeats at every interior
+         depth seam */
+      if(hasBack) clipQU(0, w, -D, 0, H, C.wallDk);
+      /* far flank: plain cap against the neighbouring frontage, clipped
+         to this piece's depth window */
       if(u1 >= w - 0.01){
-        const r = [Gu(w,0,H),Gu(w,-D,H),Gu(w,-D,0),Gu(w,0,0)];
-        this.quadOn(g, r, C.wallDk); this.edgeOn(g, r, C.trim, 1);
+        const fb = clipB(-D, 0);
+        if(fb){
+          const r = [Gu(w,fb[1],H),Gu(w,fb[0],H),Gu(w,fb[0],0),Gu(w,fb[1],0)];
+          this.quadOn(g, r, C.wallDk);
+          this.wallOutline(g, r, C.trim, fb[1] >= -0.01, fb[0] <= -D + 0.01);
+        }
       }
       /* corner-side flank faces the perpendicular STREET: a display
          wall, not a cap -- lit tone, kick strip, its own windows run
@@ -17830,19 +18105,79 @@ class WorldScene extends Phaser.Scene {
            for z >= H + |b| - D) and leak over the back wall otherwise.
            Same normal test as the chamfer; an away flank is a plain cap. */
         const flankVis = ((cs ? -dv.x : dv.x) + (cs ? -dv.y : dv.y)) > 0.01;
-        const f = [Gu(0,fTop,H),Gu(0,-D,H),Gu(0,-D,0),Gu(0,fTop,0)];
+        /* the flank runs the store's full depth, so it is the one
+           elevation that genuinely belongs to EVERY depth piece -- each
+           draws its own band of it, clipped to its window. */
+        const kb = clipB(-D, fTop);
+        if(!kb){ /* this piece owns none of the flank */ }
+        else {
+        const f = [Gu(0,kb[1],H),Gu(0,kb[0],H),Gu(0,kb[0],0),Gu(0,kb[1],0)];
+        /* the flank's real ends: the street end at fTop, the party end
+           at -D. Everything between is an interior depth seam. */
+        const fN = kb[1] >= fTop - 0.01, fF = kb[0] <= -D + 0.01;
         if(!flankVis){
-          this.quadOn(g, f, C.wallDk); this.edgeOn(g, f, C.trim, 1);
+          this.quadOn(g, f, C.wallDk); this.wallOutline(g, f, C.trim, fN, fF);
         } else {
-        this.quadOn(g, f, C.wallLt); this.edgeOn(g, f, C.trim, 1);
-        this.quadOn(g, [Gu(-0.4,fTop-2,kickH),Gu(-0.4,-D+2,kickH),Gu(-0.4,-D+2,0),Gu(-0.4,fTop-2,0)], C.wallDk);
-        const b0 = fTop-10, b1 = -D+10, span = b1-b0;
-        for(let i=0;i<sideWinN;i++){
-          const bc = b0 + span*(i+0.5)/sideWinN;
-          const wHW = Math.min(26, Math.abs(span)/(sideWinN*2)-6);
+        /* THE TRIM TURNS THE CORNER (2026-08-28, Sir on-device: "do you
+           see whats missing?" -- a shot of the parapet, awning and sign
+           running the facade, wrapping the chamfer, then stopping dead
+           at the chamfer's far edge with the perpendicular street face
+           left as bare wall and one lone window).
+
+           This flank already had a "display treatment", but it was only
+           half of one: lit tone, kick strip and windows. The three bands
+           that actually make a shopfront read as a shopfront -- parapet,
+           awning, sign -- were facade-only, so a corner store presented
+           a finished elevation to one street and an unfinished one to
+           the other. The corner store is the block's anchor and is the
+           one building guaranteed to be seen from both.
+
+           Every z band below is the SAME variable the facade uses
+           (H-8..H, awnZ0..awnZ1, signZ0..signZ1) rather than a new
+           constant, so the two elevations cannot drift apart: change
+           the height stack once and both follow. The b axis here plays
+           the role u plays on the facade, and outward is -u, which is
+           why the nudges are negative and the awning's lower lip steps
+           to -0.7 exactly as the facade's steps to +0.7. */
+        this.quadOn(g, f, C.wallLt); this.wallOutline(g, f, C.trim, fN, fF);
+        const kk = clipB(-D+2, fTop-2);
+        if(kk) this.quadOn(g, [Gu(-0.4,kk[1],kickH),Gu(-0.4,kk[0],kickH),Gu(-0.4,kk[0],0),Gu(-0.4,kk[1],0)], C.wallDk);
+        /* windows are laid out across the WHOLE flank, then each is
+           assigned to the piece holding its centre -- the same
+           whole-element-to-one-slice rule the frontage doors and
+           windows already use, so a pane is never cut in half at a
+           depth seam nor drawn twice at one. */
+        const bW0 = fTop-10, bW1 = -D+10, span = bW1-bW0;
+        /* window RUN, not one or two tokens: the flank is the store's
+           full depth, and sideWinN (1-2, the old count) left most of it
+           blank. Spacing is derived from the depth so the rhythm reads
+           the same on a shallow corner lot as a deep one; sideWinN is
+           still consumed for variation, keeping the rng stream and its
+           call order untouched. */
+        const winN = Math.max(sideWinN, Math.round(Math.abs(span) / 96));
+        for(let i=0;i<winN;i++){
+          const bc = bW0 + span*(i+0.5)/winN;
+          if(bc > qB || bc < qF) continue;          // belongs to another depth piece
+          const wHW = Math.min(26, Math.abs(span)/(winN*2)-6);
+          if(wHW <= 2) continue;
           this.quadOn(g, [Gu(-0.4,bc-wHW-2,winZ1+2),Gu(-0.4,bc+wHW+2,winZ1+2),Gu(-0.4,bc+wHW+2,winZ0),Gu(-0.4,bc-wHW-2,winZ0)], C.trim);
           this.quadOn(g, [Gu(-0.5,bc-wHW,winZ1),Gu(-0.5,bc+wHW,winZ1),Gu(-0.5,bc+wHW,winZ0+2),Gu(-0.5,bc-wHW,winZ0+2)], 0x6b93a8);
           this.quadOn(g, [Gu(-0.55,bc-wHW+2,winZ1-3),Gu(-0.55,bc-2,winZ1-3),Gu(-0.55,bc-2,winZ0+5),Gu(-0.55,bc-wHW+2,winZ0+5)], 0x86adc0, 0.55);
+        }
+        /* parapet band -- the cap the facade and chamfer already carry */
+        this.quadOn(g, [Gu(-0.42,kb[1],H),Gu(-0.42,kb[0],H),Gu(-0.42,kb[0],H-8),Gu(-0.42,kb[1],H-8)], C.trim);
+        /* awning: same canvas and the same outward step as the facade's */
+        this.quadOn(g, [Gu(-0.5,kb[1],awnZ1),Gu(-0.5,kb[0],awnZ1),Gu(-0.7,kb[0],awnZ0),Gu(-0.7,kb[1],awnZ0)], C.awn);
+        this.quadOn(g, [Gu(-0.45,kb[1],awnZ1+3),Gu(-0.45,kb[0],awnZ1+3),Gu(-0.45,kb[0],awnZ1),Gu(-0.45,kb[1],awnZ1)], C.trim);
+        /* sign band, inset from both ends like the facade's */
+        const sb = clipB(-D+4, fTop-4);
+        if(sb){
+          const sqF = [Gu(-0.44,sb[1],signZ1),Gu(-0.44,sb[0],signZ1),Gu(-0.44,sb[0],signZ0),Gu(-0.44,sb[1],signZ0)];
+          this.quadOn(g, sqF, C.sign);
+          g.lineStyle(1, C.trim, 1);
+          g.lineBetween(sqF[0].x,sqF[0].y,sqF[1].x,sqF[1].y);
+          g.lineBetween(sqF[3].x,sqF[3].y,sqF[2].x,sqF[2].y);
+        }
         }
         }
       }
@@ -17852,14 +18187,25 @@ class WorldScene extends Phaser.Scene {
       /* roof: the chamfer cuts the street corner off the slab. Street
          boundary bs(u) = min(0, u - CH); a slice straddling the kink
          splits into two exact quads instead of approximating it. */
+      /* street boundary, then clipped to this depth piece. The chamfer
+         kink only exists on the piece that owns the street edge; an
+         interior piece is a plain rectangle running qF..qB, which is
+         why bsC collapses to qB there and the two-quad split below
+         becomes a harmless no-op. */
       const bs = u => chamAway ? 0 : Math.min(0, u - CH);
+      const bsC = u => Math.min(bs(u), qB);
+      const rFar = Math.max(-D, qF);
       const roofQ = (q0, q1) => {
         if(q1 - q0 < 0.5) return;
-        const R = [Gu(q0,bs(q0),H), Gu(q1,bs(q1),H), Gu(q1,-D,H), Gu(q0,-D,H)];
+        if(bsC(q0) - rFar < 0.5 && bsC(q1) - rFar < 0.5) return;   // piece owns none of it
+        const R = [Gu(q0,bsC(q0),H), Gu(q1,bsC(q1),H), Gu(q1,rFar,H), Gu(q0,rFar,H)];
         this.quadOn(g, R, C.trim);
         g.lineStyle(1, C.wallDk, 1);
-        g.lineBetween(R[0].x,R[0].y,R[1].x,R[1].y);
-        g.lineBetween(R[3].x,R[3].y,R[2].x,R[2].y);
+        /* a lip only where the roof really ends -- same rule the house
+           and store roofs follow across depth, so no seam line is drawn
+           across the slab at an interior boundary */
+        if(hasFront) g.lineBetween(R[0].x,R[0].y,R[1].x,R[1].y);
+        if(hasBack)  g.lineBetween(R[3].x,R[3].y,R[2].x,R[2].y);
         if(q0 <= 0.01) g.lineBetween(R[0].x,R[0].y,R[3].x,R[3].y);
         if(q1 >= w - 0.01) g.lineBetween(R[1].x,R[1].y,R[2].x,R[2].y);
       };
@@ -17868,7 +18214,9 @@ class WorldScene extends Phaser.Scene {
     }
     if(part === 'roof') return;
 
-    /* facade proper: from the chamfer edge to the far flank */
+    /* facade proper: from the chamfer edge to the far flank. Skipped
+       whole when that plane faces away -- see faceVis above. */
+    if(faceVis && hasFront){
     clipQU(CH, w, 0.4, 0, H, C.wall);
     clipQU(CH, w, 0.42, H-8, H, C.trim);                 // parapet band
     clipQU(CH+1, w-2, 0.42, 0, kickH, C.wallDk);
@@ -17894,10 +18242,12 @@ class WorldScene extends Phaser.Scene {
       g.lineBetween(sq2[3].x,sq2[3].y,sq2[2].x,sq2[2].y);
     }
 
+    }
+
     /* ---------- the chamfer: wall, corner door, marquee ----------
        discrete elements, assigned whole to the slice holding the face
        centre (u = CH/2), the same assignment rule doors already use */
-    if(!chamAway && inU(CH*0.5)){
+    if(!chamAway && hasFront && inU(CH*0.5)){
       chamQ(0, L, 0, 0, H, C.wall);
       chamQ(0, L, 0.3, H-8, H, C.trim);                  // parapet wraps the corner
       chamQ(0, 7, 0.3, 0, H-8, C.trim);                  // pilasters at both chamfer edges
@@ -18429,7 +18779,35 @@ class WorldScene extends Phaser.Scene {
          whichever layer the unit landed in, which is the bug they were
          added for (a nearby body painting over another unit's roof).
          One building, one layer, many keys. */
-      vq.push({ depth: cx+cy, fn: (g,t) => drawFn(unitG(g), t, a0, a1, b0, b1) });
+      /* KEY ON THE NEAR CORNER, NOT THE CENTRE (2026-08-28, Sir
+         on-device: "the buidings are still shifting when i drive by").
+
+         Depth keys are static world quantities, so nothing in this sort
+         can change as the camera pans -- the only key that MOVES is the
+         robot's, now that he is a body in it. So the shifting is him
+         crossing these keys, and a centre key puts the crossing in the
+         wrong place: a piece spans T2 along the frontage and T2 into
+         the block, so its centre sits up to a full tile-pair short of
+         the corner that actually faces the camera. He passed a wall's
+         near face and it kept drawing in front of him for another 92
+         units, then flipped all at once.
+
+         For two boxes that do not interpenetrate under this fixed
+         camera, the near corner -- the largest x+y on the footprint --
+         is the honest comparator: it is the first part of the piece the
+         camera reaches. Depth slicing is what makes it safe to use,
+         because it is what guarantees the pieces do not interpenetrate
+         (see the note at the top of this method); on the old
+         whole-box keys this would have swapped one error for another.
+
+         cx/cy stay as they are for the visibility test, which wants the
+         middle of the piece, not its corner. */
+      let dNear = -Infinity;
+      for(const aa of [a0, a1]) for(const bb of [b0, b1]){
+        const px = ux + dv.x*aa + rv.x*bb, py = uy + dv.y*aa + rv.y*bb;
+        if(px + py > dNear) dNear = px + py;
+      }
+      vq.push({ depth: dNear, fn: (g,t) => drawFn(unitG(g), t, a0, a1, b0, b1) });
       }
     }
   }
@@ -18656,10 +19034,15 @@ class WorldScene extends Phaser.Scene {
        classic neighbourhood corner store -- with its chamfered door
        facing the intersection (drawCornerStoreUnit). cu.kind carries
        the "cornerStore" flag for future systems (names, unlocks). */
-    this.queueUnitStrips(vq, cu.ux, cu.uy, cu.e.dv, cu.e.rv, cu.w, STORE_DEPTH, T2, (g,t,a0,a1)=>{
-      this.drawCornerStoreUnit(g, cu.ux, cu.uy, cu.e.dv, cu.e.rv, cu.w, hseed, cu.atStart, 'body', a0, a1);
-      this.drawCornerStoreUnit(g, cu.ux, cu.uy, cu.e.dv, cu.e.rv, cu.w, hseed, cu.atStart, 'roof', a0, a1);
-    });
+    /* depthSliceW: THE omission this whole corner regression came from.
+       Every other caller of queueUnitStrips passes T2 here; this one
+       passed nothing, so the corner store stayed on one depth key per
+       frontage slice while the stores it abuts were cut into three.
+       See drawCornerStoreUnit's own note for the measurement. */
+    this.queueUnitStrips(vq, cu.ux, cu.uy, cu.e.dv, cu.e.rv, cu.w, STORE_DEPTH, T2, (g,t,a0,a1,b0,b1)=>{
+      this.drawCornerStoreUnit(g, cu.ux, cu.uy, cu.e.dv, cu.e.rv, cu.w, hseed, cu.atStart, 'body', a0, a1, b0, b1);
+      this.drawCornerStoreUnit(g, cu.ux, cu.uy, cu.e.dv, cu.e.rv, cu.w, hseed, cu.atStart, 'roof', a0, a1, b0, b1);
+    }, T2);
   }
   queueHousingBlock(vq, blk, excludeEdges=null, cornerSkip=null){
     const isAddressBlock = (blk === this.route.addressBlock);
@@ -18941,9 +19324,31 @@ class WorldScene extends Phaser.Scene {
      slabs and cracks -- where a single centre point flips the layer as
      the robot sweeps past and paints the ground over him. */
   propLayer(g, x, y){
-    if(!(this.ow && this.ow.on)) return g;
-    return (x + y > this.botX + this.botY + 14) ? this.gFront : g;
+    /* ONE LAYER now -- see layerFor in drawWorld and the note in
+       drawRobot. The history is worth keeping because it cost three
+       passes to get here:
+
+       This began as a near/far test against the robot, gated to open
+       world only. On the rail that gate meant every building landed in
+       gWorld, the layer BELOW the one the robot drew into, so nothing
+       was solid: measured, ten units out of ten came back gWorld on the
+       rail against twelve out of twelve correct in free roam.
+
+       Deleting the gate fixed that and broke the corner store, because
+       gFront composites above gWorld AS A WHOLE and this test ran ONCE
+       PER UNIT: two storefronts that abut sit either side of the
+       robot's depth line whenever he stands at the join, so one painted
+       its side wall over the other. Measured: 0 torn pairs with the
+       gate, 16 without.
+
+       Neither answer was available because the question was wrong. A
+       binary split cannot describe a building that is partly in front
+       of the robot and partly behind him, and every building he stands
+       beside is exactly that. Putting him in the world's depth sort
+       deletes the question. */
+    return g;
   }
+
   /* ---------- PERMANENT CITY FURNITURE: DRAWN BY ITS OWN BLOCK ----------
      This queues into the BLOCK's vq, not into hazVQ, and that placement
      is the whole point rather than a detail.
@@ -22503,7 +22908,22 @@ class WorldScene extends Phaser.Scene {
 
   /* ---------- robot (approved sprite, driving) ---------- */
   drawRobot(t, dt){
-    const g = this.g; g.clear();
+    /* DRAWS INTO THE WORLD LAYER, FROM INSIDE THE WORLD'S OWN DEPTH SORT
+       (2026-08-28). He used to own this.g and clear it, drawing as a
+       whole pass after drawWorld() had finished -- which is precisely
+       why gFront had to exist: a layer above him to claw back the
+       things that should have been in front. That split could never be
+       right, because it decided ONCE PER BUILDING which side of him a
+       building was on, and a building he stands beside is partly in
+       front of him and partly behind. See propLayer for the two ways
+       that failed and the measurements for each.
+
+       Now he is one more body in worldVQ, keyed at botX+botY like
+       everything else, so a wall in front of him draws after him and
+       covers him because it genuinely is in front. No clear() here:
+       gWorld is cleared once at the top of drawWorld, and clearing it
+       mid-sort would erase every body already drawn. */
+    const g = this.g;   // === gWorld; see the alias in create()
 
     /* house door hinge: opens once the route is won, and swings shut
        again once the customer is carrying the bag back through it
@@ -26725,8 +27145,16 @@ class WorldScene extends Phaser.Scene {
     this.updateWilliamIdle(t);
     this.updateCrimeTraffic(t, dt);
     this.updateCrimeTape(t);
+    /* dt stashed for drawRobot, which drawWorld now calls from inside
+       its depth sort (drawWorld takes t only). Written here, before the
+       draw, for the same reason the note above this block gives about
+       postupdate writes landing on a frame already drawn. */
+    this._frameDt = dt;
     this.drawWorld(t);
-    this.drawRobot(t, dt);
+    /* drawRobot is NOT called here any more -- he is queued into
+       worldVQ at his own depth and drawn in sort order with every other
+       body. Calling him here as well would draw him twice, the second
+       time over the walls that had just correctly covered him. */
     this.drawHUD();
     if(this.mode === "challenge") hjUpdateMeter(this);
   }
