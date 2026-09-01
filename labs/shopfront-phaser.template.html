@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Shopfront — Phaser bench</title>
+<style>
+  html,body{margin:0;background:#111418;color:#dfe6ea;font:14px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;-webkit-text-size-adjust:100%}
+  #bar{display:flex;align-items:center;gap:8px;padding:8px 10px;background:#171b21;border-bottom:1px solid #232a33;flex-wrap:wrap}
+  button{background:#232a33;color:#dfe6ea;border:1px solid #2e3743;border-radius:7px;padding:7px 11px;font-size:13px;cursor:pointer}
+  button.on{background:#2f4f6b;border-color:#3d6customs}
+  button.on{background:#2f4f6b;border-color:#3d688c}
+  #nm{font-weight:600;min-width:130px}
+  #ix{opacity:.55;font-size:12px}
+  #stage{display:block;width:100%;touch-action:none}
+  #meta{padding:9px 12px;font-size:13px}
+  #warn{padding:8px 12px;color:#e2a25c;font-size:12.5px;white-space:pre-wrap}
+  .tag{display:inline-block;background:#232a33;border-radius:5px;padding:2px 7px;margin:2px 4px 2px 0;font-size:11.5px;opacity:.8}
+  .edge{font-size:12px;opacity:.7}
+</style></head><body>
+<div id="bar">
+  <button id="prev">‹</button>
+  <span id="nm">—</span><span id="ix"></span>
+  <button id="next">›</button>
+  <button id="eEdge">edge 1</button>
+  <button id="tRoof" class="on">roof</button>
+  <button id="tProps" class="on">props</button>
+  <button id="tGap" class="on">gap T2/2</button>
+  <button id="tSolo">solo</button>
+</div>
+<div id="host"></div>
+<div id="warn"></div>
+<div id="meta"><span id="mh"></span><div id="mt"></div></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/phaser/3.85.2/phaser.min.js"></script>
+<script src="shopfront-ctx2phaser.js"></script>
+<script src="shopfront-kit.js"></script>
+<script src="shopfront-shops.js"></script>
+<script>
+/* =====================================================================
+   SHOPFRONT PHASER BENCH
+   =====================================================================
+   A REPLICA OF THE GAME'S WORLD, NOT THE GAME. Nothing here loads
+   index.html and nothing here can affect it. What it does instead is
+   run the game's OWN rendering machinery, lifted verbatim, so that a
+   shop drawn in this bench is drawn by the same code that will draw it
+   after the port. The point of the exercise is that a shop which looks
+   right in the canvas lab and wrong here has a real problem, and one
+   that looks right in both is genuinely portable.
+
+   VERBATIM LIFT -- copied, not reimplemented, so drift is detectable:
+
+/*__PROVENANCE__*/
+
+   Re-lift these if the game moves. A reimplementation would agree with
+   the game only until the day it quietly stopped, which is the whole
+   failure mode this bench exists to prevent.
+
+   WHAT IS DELIBERATELY NOT HERE
+     - Tipsey. Sorting against the robot is a separate question and a
+       stand-in that is not the real robot would prove nothing about it.
+     - Routes, hoods, hazards, the wallet, anything stateful. The bench
+       builds one block out of the frozen geometry and stops.
+
+   THE FOUR EDGES ARE THE POINT. A shop lands on one of four block
+   edges, and the camera is fixed iso -- W() has no rotation term -- so
+   each edge is a different, fixed mapping from unit-local (a,b) to the
+   screen, with a different set of faces surviving drawStoreUnit's cull:
+
+     edge 0   x = a + b   recedes left    front CULLED    right flank
+     edge 1   x = -a + b  recedes left    front drawn     right flank
+     edge 2   x = -a - b  recedes right   front drawn     LEFT flank
+     edge 3   x = a - b   recedes right   front CULLED    left flank
+
+   The canvas lab draws x = a - b with the front AND the right flank,
+   which is none of the four. Every shop in the library was composed
+   against a view the game never renders, so the edge selector is the
+   single most useful control on this page.
+   ===================================================================== */
+
+/*__GAME_FREE__*/
+
+/* =====================================================================
+   packEdgeDetached -- BENCH-OWNED. This is NOT lifted from the game and
+   must not be mistaken for it.
+   =====================================================================
+   The game's commercial edges use packEdgeNoGap: storefronts butt
+   edge-to-edge as a terrace, which is why drawStoreUnit gates its end
+   walls on isFirst/isLast -- in a terrace only the two ends of the whole
+   run are ever exposed, so drawing interior ends would be painting walls
+   nobody can see.
+
+   Standing the units apart changes that premise, and the two changes
+   have to travel together. Gaps alone would leave a hole at every
+   interior end, which is exactly the artifact that showed up when this
+   bench was accidentally packing commercial edges with the HOUSING
+   packer. So when gap > 0 the caller also passes isFirst = isLast =
+   true for every unit, which makes each one own its own ends: it draws
+   whichever flank the cull says is visible, and takes the 5-unit roof
+   overhang at both ends instead of only at the ends of a run.
+
+   Unit width is held near the game's own average rather than being
+   squeezed: the gap comes out of the UNIT COUNT, not out of the
+   frontages, so a shop still meets a unit the size it would have met in
+   the shipped city.
+
+   If this is ever adopted, it lands in the game as a change to
+   packEdgeNoGap plus the isFirst/isLast gating in drawStoreUnit, and it
+   moves every commercial frontage in Costa Palma -- so it needs judging
+   against the block, not against one shop. */
+function packEdgeDetached(edgeLen, rng, gap){
+  const avgW = T2*2.2;
+  const cornerMargin = STORE_DEPTH + T2*0.3;
+  const usableLen = Math.max(avgW, edgeLen - 2*cornerMargin);
+  const n = Math.max(1, Math.round((usableLen + gap) / (avgW + gap)));
+  const runW = usableLen - gap*(n-1);
+  const raw = [];
+  for(let i=0;i<n;i++) raw.push(0.8 + rng()*0.4);
+  const sum = raw.reduce((a,b)=>a+b, 0);
+  const units = []; let cursor = cornerMargin;
+  for(let i=0;i<n;i++){
+    const w = runW * raw[i]/sum;
+    units.push({ start: cursor, w });
+    cursor += w + gap;
+  }
+  return units;
+}
+
+/* ---- the bench's own state; the kit only reads .roof and .props ---- */
+const state = { i:0, roof:true, props:true, pal:0, edge:1, solo:false, gapIdx:1 };
+const GAPS = [0, 46, 92, 138];      // 0, T2*0.5, T2, T2*1.5
+/* body() suppresses the plain roof plate when NOPLATE is set. That is a
+   canvas-lab framing device -- its measure pass hides the plate so the
+   auto-frame fits the facade rather than the 276-deep slab. This bench
+   frames on the unit itself and always wants the real building, so the
+   flag exists here only to satisfy the kit's contract. */
+const NOPLATE = false;
+/* which unit along the chosen edge carries the library shop -- 2 puts
+   real neighbours on both sides of it rather than a block corner. */
+const SLOT_IDX = 2;
+
+/* ---- the seam: K and P(a,b,z), the ONLY things the two benches do not
+   share. Everything above the seam is the game's; everything below it,
+   in shopfront-kit.js and shopfront-shops.js, is the library's. ---- */
+let K = 1;
+let SCENE = null, SLOT = null;
+/* ZSCALE -- same name the canvas lab uses, because the kit reads it:
+   shopDoor divides its opening height by it so a real 161.92 door comes
+   out at 161.92 whatever factor the shop itself is drawn at. The canvas lab draws at LAB_ZS = 1.5 and a shop opts out with
+   zs:1 once it has been rebuilt on the game's own anchors. That factor
+   is real geometry, not a lab artifact -- a shop authored at 1.5 IS
+   1.5x taller than its z numbers say -- so the bench applies the same
+   one. When a shop finally ports, this multiply is what gets baked in. */
+let ZSCALE = 1.5;
+/* the kit's copy of drawStoreUnit's showRight (dvS > 0) -- set per edge
+   before a library shop draws, so its end wall lands on the same side
+   the shipped stores put theirs. */
+let FLANK_RIGHT = true;
+function P(a,b,z){ return SLOT ? SLOT.G(a, b, z*ZSCALE) : { x:0, y:0 }; }
+
+let ctx = null;   // the shim, bound to a Graphics for the duration of a draw
+
+class Bench extends Phaser.Scene {
+  create(){
+    SCENE = this;
+    this.gWorld = this.add.graphics();
+    this.camX = 0; this.camY = 0; this.camZ = 0;
+    this.cx = 0; this.cy = 0; this.K = 1;
+    ctx = makeCtx2Phaser();
+    this.scale.on('resize', () => this.redraw());
+    sync();
+  }
+
+/*__GAME_METHODS__*/
+
+  /* propLayer is a no-op in the game now -- one layer, the robot is in
+     the world's own depth sort -- so it is reproduced as the no-op it
+     is rather than left out. If it ever grows a body again, this is the
+     line that has to be re-lifted with it. */
+  propLayer(g, x, y){ return g; }
+
+  /* ---- one block, its four edges packed the way the game packs them ---- */
+  buildBlock(){
+    /* BLOCK SIZE IS NOT COSMETIC. packEdge clears HOUSE_DEPTH + T2*0.3
+       from each end of an edge before it starts placing, so a T2*11
+       block has 405 usable units against a 221-386 unit width: exactly
+       ONE shop per edge, and the slot has no neighbours to sit between.
+       The first cut of this bench shipped that way and the only other
+       buildings in the world were the three units on the other edges,
+       seen from behind -- which is what those large blank red planes
+       across the back of the view were. Solved by arithmetic rather
+       than by eye: packEdgeNoGap clears STORE_DEPTH + T2*0.3 from each
+       end and then fills the rest at an average T2*2.2, so T2*28 leaves
+       1969 usable and packs ten shops to an edge. */
+    const L = T2*28;
+    const blk = { x0:0, y0:0, x1:L, y1:L };
+    const edges = blockEdgesOf(blk).map((e, ei) => {
+      /* THE COMMERCIAL PACKER, NOT THE HOUSING ONE. The first cut used
+         packEdge and every neighbour showed open ends where its flank
+         should be. That is not a fault in drawStoreUnit: it gates the
+         end walls on isFirst/isLast precisely BECAUSE storefronts run
+         edge-to-edge as a terrace, so only the two ends of the run are
+         ever exposed. packEdge is for houses and leaves 46-101 unit
+         gaps between units, which turned every interior end into a hole.
+         Seed constant is the commercial one too (0x51b3, not the
+         housing 0x9e3779b9), so this bench packs the edge exactly the
+         way queueCommercialEdgeAt does. */
+      const eseed = ((Math.round(e.ox*3+e.dv.x)*7919) ^ (Math.round(e.oy*3+e.dv.y)*104729) ^ 0x51b3) >>> 0;
+      const gap = GAPS[state.gapIdx];
+      return { ...e, ei, gap, units: gap > 0 ? packEdgeDetached(e.len, mulberry32(eseed), gap)
+                                            : packEdgeNoGap(e.len, mulberry32(eseed)) };
+    });
+    return { blk, edges, gap: GAPS[state.gapIdx] };
+  }
+
+  queueAll(vq){
+    const { edges } = this.world;
+    for(const e of edges){
+      e.units.forEach((u, idx) => {
+        const ux = e.ox + e.dv.x*u.start, uy = e.oy + e.dv.y*u.start;
+        const hx = e.ox + e.dv.x*(u.start + u.w/2), hy = e.oy + e.dv.y*(u.start + u.w/2);
+        const hseed = ((Math.round(hx)*7919) ^ (Math.round(hy)*104729)) >>> 0;
+        const isSlot = (e.ei === state.edge && idx === Math.min(SLOT_IDX, e.units.length-1));
+        /* SOLO MEANS THE UNIT, NOT THE EDGE. The first cut filtered whole
+           edges, which left the two generic neighbours standing either
+           side of the shop under test -- the one thing solo is for is
+           getting rid of them, so it was the only case it did not
+           handle. Everything except the slot goes now, and the block
+           plate stays so the shop is still standing on something. */
+        if(state.solo && !isSlot) return;
+        /* detached units each own both ends -- see packEdgeDetached */
+        const detached = e.gap > 0;
+        const isFirst = detached || idx === 0, isLast = detached || idx === e.units.length-1;
+        this.queueUnitStrips(vq, ux, uy, e.dv, e.rv, u.w, STORE_DEPTH, 0, (g, t, a0, a1, b0, b1) => {
+          if(isSlot) this.drawLibraryShop(g, ux, uy, e.dv, e.rv, u.w);
+          else {
+            this.drawStoreUnit(g, ux, uy, e.dv, e.rv, u.w, hseed, isFirst, isLast, 'body', a0, a1, null, b0, b1);
+            this.drawStoreUnit(g, ux, uy, e.dv, e.rv, u.w, hseed, isFirst, isLast, 'roof', a0, a1, null, b0, b1);
+          }
+        });
+        if(isSlot) this.slotAt = { ux, uy, dv:e.dv, rv:e.rv, w:u.w };
+      });
+    }
+  }
+
+  /* ---- the library shop, drawn through the game's own G() ---- */
+  drawLibraryShop(g, ux, uy, dv, rv, unitW){
+    const shop = SHOPS[state.i];
+    ZSCALE = shop.zs === undefined ? 1.5 : shop.zs;
+    /* THE UNIT IS NOT ALWAYS 230 WIDE. The library composes against a
+       fixed W = 230; the game splits an edge with packEdge and hands
+       whatever width came out (T2*2.4 to T2*4.2, so 220 to 386). The
+       shop is drawn in its own 230 frame and centred in the real unit
+       rather than stretched, because stretching would hide exactly the
+       proportion faults this bench is meant to expose. The gap either
+       side is left visible on purpose. */
+    const off = (unitW - 230) / 2;
+    FLANK_RIGHT = (dv.x + dv.y) > 0;
+    SLOT = { G: (a, b, h) => this.W(ux + dv.x*(a+off) + rv.x*b, uy + dv.y*(a+off) + rv.y*b, h) };
+    K = this.K;
+    ctx.__bind(g);
+    try { shop.draw(PAL[state.pal]); }
+    catch(err){ this.shopError = err; }
+    SLOT = null;
+  }
+
+  redraw(){
+    const gw = this.scale.gameSize.width, gh = this.scale.gameSize.height;
+    if(!this.world || this.world.gap !== GAPS[state.gapIdx]) this.world = this.buildBlock();
+    this.shopError = null;
+    if(ctx) ctx.__missing = null;
+
+    /* frame on the slot unit rather than the block, so the shop under
+       test fills the screen and its neighbours run off the edges */
+    const L = this.world.blk.x1;
+    const e = this.world.edges[state.edge];
+    const u = e.units[Math.min(SLOT_IDX, e.units.length-1)];
+    const fx = e.ox + e.dv.x*(u.start + u.w/2) + e.rv.x*(-STORE_DEPTH/2);
+    const fy = e.oy + e.dv.y*(u.start + u.w/2) + e.rv.y*(-STORE_DEPTH/2);
+    this.camX = fx; this.camY = fy; this.camZ = 0;
+    /* FRAME FROM THE BOX, NOT FROM A MULTIPLIER. The first cut scaled by
+       a hand-picked 1.55 and the shop ran off the bottom of the screen,
+       because a unit's screen footprint is (w + STORE_DEPTH) across and
+       roughly half that plus its height tall -- and the height is the
+       part that varies, from a 158-unit kiosk on the 1.5 factor to a
+       tall:true block past 470. So the eight corners of the unit box get
+       projected at K = 1 and the fit is solved from the result. */
+    this.K = 1; this.cx = 0; this.cy = 0;
+    /* fit the SHOP, not the unit. The unit can be 386 wide where the
+       library composes at 230, and reserving height for a tall:true
+       block when the current shop is a 158-unit kiosk pushes it into the
+       bottom corner with a screenful of empty sky above it. */
+    const sh = SHOPS[state.i], zsc = sh.zs === undefined ? 1.5 : sh.zs;
+    const HTOP = (sh.tall ? 430 : 270) * zsc;
+    const off = (u.w - 230) / 2;
+    let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
+    for(const a of [off, off+230]) for(const bb of [0, -STORE_DEPTH]) for(const h of [0, HTOP]){
+      const q = this.W(e.ox + e.dv.x*(u.start+a) + e.rv.x*bb,
+                       e.oy + e.dv.y*(u.start+a) + e.rv.y*bb, h);
+      if(q.x<x0)x0=q.x; if(q.x>x1)x1=q.x; if(q.y<y0)y0=q.y; if(q.y>y1)y1=q.y;
+    }
+    const PAD = 26;
+    this.K = Math.min((gw - PAD*2) / Math.max(1, x1-x0), (gh - PAD*2) / Math.max(1, y1-y0));
+    K = this.K;
+    /* centre the measured box rather than the camera point, so the shop
+       sits in the frame instead of its own footprint centre doing */
+    this.cx = gw/2 - ((x0+x1)/2) * this.K;
+    this.cy = gh/2 - ((y0+y1)/2) * this.K;
+
+    const g = this.gWorld; g.clear();
+    this.groundPlane(g);
+    const vq = [];
+    this.queueAll(vq);
+    vq.sort((a,b) => a.depth - b.depth);      // the game's sort, verbatim
+    for(const it of vq) it.fn(g, 0);
+    this.report(vq.length);
+  }
+
+  groundPlane(g){
+    const L = this.world.blk.x1, M = 900;
+    this.quadOn(g, [this.W(-M,-M,0), this.W(L+M,-M,0), this.W(L+M,L+M,0), this.W(-M,L+M,0)], 0x2a2f36);
+    this.quadOn(g, [this.W(0,0,0), this.W(L,0,0), this.W(L,L,0), this.W(0,L,0)], 0x353b44);
+  }
+
+  report(n){
+    const w = document.getElementById('warn');
+    const lines = [];
+    if(this.shopError) lines.push('SHOP THREW: ' + this.shopError.message);
+    if(ctx && ctx.__missing) lines.push('unsupported canvas ops: ' + Object.keys(ctx.__missing).join(', '));
+    const e = this.world.edges[state.edge];
+    const rvS = e.rv.x + e.rv.y, dvS = e.dv.x + e.dv.y;
+    lines.push(`edge ${state.edge}: shopfront ${rvS > 0 ? 'DRAWN' : 'CULLED by drawStoreUnit'} · ${dvS > 0 ? 'right' : 'left'} flank shown · ${n} queue entries`);
+    w.textContent = lines.join('\n');
+  }
+}
+
+function sync(){
+  const s = SHOPS[state.i];
+  document.getElementById('nm').textContent = s.name;
+  document.getElementById('ix').textContent = (state.i+1)+' of '+SHOPS.length;
+  document.getElementById('mh').textContent = s.head || '';
+  document.getElementById('mt').innerHTML = (s.tags||[]).map(t=>'<span class="tag">'+t+'</span>').join('');
+  document.getElementById('eEdge').textContent = 'edge ' + state.edge;
+  document.getElementById('tGap').textContent = GAPS[state.gapIdx] === 0 ? 'terrace' : 'gap ' + GAPS[state.gapIdx];
+  document.getElementById('tGap').classList.toggle('on', GAPS[state.gapIdx] > 0);
+  if(SCENE) SCENE.redraw();
+}
+
+new Phaser.Game({
+  type: Phaser.AUTO, parent: 'host', backgroundColor: '#111418',
+  scale: { mode: Phaser.Scale.RESIZE, width: '100%', height: 560 },
+  scene: Bench
+});
+
+document.getElementById('prev').onclick = ()=>{ state.i=(state.i+SHOPS.length-1)%SHOPS.length; sync(); };
+document.getElementById('next').onclick = ()=>{ state.i=(state.i+1)%SHOPS.length; sync(); };
+document.getElementById('eEdge').onclick = ()=>{ state.edge=(state.edge+1)%4; sync(); };
+document.getElementById('tGap').onclick = ()=>{ state.gapIdx=(state.gapIdx+1)%GAPS.length; if(SCENE) SCENE.world=null; sync(); };
+for(const [id,key] of [['tRoof','roof'],['tProps','props'],['tSolo','solo']]){
+  document.getElementById(id).onclick = e => {
+    state[key] = !state[key]; e.currentTarget.classList.toggle('on', state[key]);
+    if(SCENE) SCENE.redraw();
+  };
+}
+</script>
+</body></html>
