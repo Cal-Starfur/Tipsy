@@ -305,8 +305,39 @@ const SHOPS = [
     glaze(10, W*0.52, 18, 116, null);
     slab(6, W*0.52+4, 112, 120, -1, -9, trim);
     shopDoor(W*0.72, wall, trim);
-    slab(6,W-6, 122, 152, -1, -9, '#12261c', null, trim);
-    F(16,W-16, 130, 144, trim, null,0,-9.5);
+    /* THE RECESS IS WHAT PUT IT OVER THE CORNER. This ran a = 6..W-6 at
+       b = -1..-9, which looks inboard until the projection is worked
+       out: screen x moves -1 per unit of a and +1 per unit of b, so a
+       piece pushed 9 units INTO the wall lands 9 units nearer the a = 0
+       corner -- and its a = W-6 end came out at x 570 against a corner
+       at 573, three pixels PAST the return. A fascia cannot overhang the
+       building it is screwed to.
+       So the inset is sized against the recess rather than guessed: 22
+       units at the far end absorbs the 9 and leaves 13 of green pier
+       showing on the pier side, which is the margin the shop is dialled
+       to. The lettering keeps its 10-unit margin inside the panel.
+
+       THE AWNING END IS NOT A MARGIN, IT IS A JOINT. The other end has
+       nothing to be inset from -- it meets the awning -- so it is
+       solved to land ON the awning's top corner rather than near it.
+       That corner is P(8, 0, 120) and the panel's front face lies at
+       b = -1, and screen x moves -1 per unit of a and +1 per unit of b,
+       so the two share a screen x when a0 + 1 = 8. Hence 7, not 8: the
+       one-unit recess of the fascia face is exactly the correction, and
+       reading 8 off the awning would have left the joint a pixel open.
+
+       AND THE DEPTH IS NOT FREE, because b flips sign with the edge.
+       a0 = 7 with the old -9 back plane is clean on edges 1 and 3 and
+       two units OVER the return on edge 2, where a mirrors and the
+       recess drifts the other way -- the slab's gold top face wrapped
+       the corner and sat on the flank. bFront is spoken for by the
+       joint, so the depth is the only variable left: at -4 the back
+       plane clears the return by 2.9 on the mirrored edge and the
+       fascia still reads as recessed, because the lettering behind it
+       is the deeper plane. The lettering follows to -4.5 to stay just
+       behind the panel's back rather than through it. */
+    slab(7,W-22, 122, 152, -1, -4, '#12261c', null, trim);
+    F(17,W-32, 130, 144, trim, null,0,-4.5);
     poly([P(8,0,120),P(W*0.54,0,120),P(W*0.54,26,96),P(8,26,96)], shade(trim,.55));
     for(let i=0;i<5;i++)
       poly([P(8+(W*0.46)*i/5,0,120),P(8+(W*0.46)*(i+0.5)/5,0,120),
@@ -314,22 +345,46 @@ const SHOPS = [
     poly([P(8,26,96),P(W*0.54,26,96),P(W*0.54,26,86),P(8,26,86)], shade(trim,.42));
     poly([P(W*0.54,0,120),P(W*0.54,26,96),P(W*0.54,26,86),P(W*0.54,0,110)], shade(wall,.6));
     if(state.props){
-      const pa = W*0.545, pb = -9;
-      cyl(pa, pb, 22, 92, 6, '#f4f2ee');
-      for(let i=0;i<6;i++){
-        const z = 26 + i*11;
+      /* WRONG PIER, AND SIZED OFF NOTHING. The pole stood at a = 125.35,
+         which is the 9-unit slot between the window reveal (ends 119.6)
+         and the door surround (starts 128.5) -- so it read as jammed in
+         the reveal's jamb rather than mounted on a pier, and it covered
+         the near edge of the glass it was standing in front of.
+         The door surround runs a = 128.5..202.7 and the wall ends at
+         230, so the far pier is 27.3 wide and is the only piece of blank
+         frontage on the shop. Centred there at 216 the pole clears the
+         surround by 8.3 and the return by 8.3.
+
+         HEIGHT MEASURED AGAINST THE DOOR, not chosen. It ran z 15..109
+         against a door head at 108 -- a pole as tall as the doorway,
+         about 2.3m of it. A real one is roughly a third of that and
+         hangs with its finial at head height, so the body is 62..108 and
+         the finial tops out at 118, level with the fascia. Radius comes
+         down 6 -> 5, which is 15% of the 66-unit door leaf and matches
+         a real 15cm pole against a 90cm door.
+
+         b GOES POSITIVE. It was -9, i.e. nine units INSIDE the wall --
+         invisible in the lab because paint order carried it, but a prop
+         behind its own frontage is the fault that bites inside
+         queueUnitStrips. At b = 4 with r = 5 the back of the drum sits
+         a unit into the render and the rest stands proud, which is what
+         a bracketed pole does. */
+      const pa = 216, pb = 4, pr = 5;
+      cyl(pa, pb, 62, 108, pr, '#f4f2ee');
+      for(let i=0;i<4;i++){
+        const z = 64 + i*10;
         for(let k=0;k<6;k++){
           const t0 = 3*Math.PI/4 - Math.PI*k/6, t1 = 3*Math.PI/4 - Math.PI*(k+1)/6;
-          poly([P(pa+6*Math.cos(t0), pb+6*Math.sin(t0), z + k*1.5),
-                P(pa+6*Math.cos(t1), pb+6*Math.sin(t1), z + (k+1)*1.5),
-                P(pa+6*Math.cos(t1), pb+6*Math.sin(t1), z + (k+1)*1.5 + 5),
-                P(pa+6*Math.cos(t0), pb+6*Math.sin(t0), z + k*1.5 + 5)],
+          poly([P(pa+pr*Math.cos(t0), pb+pr*Math.sin(t0), z + k*1.2),
+                P(pa+pr*Math.cos(t1), pb+pr*Math.sin(t1), z + (k+1)*1.2),
+                P(pa+pr*Math.cos(t1), pb+pr*Math.sin(t1), z + (k+1)*1.2 + 4.5),
+                P(pa+pr*Math.cos(t0), pb+pr*Math.sin(t0), z + k*1.2 + 4.5)],
                i%2 ? '#2e5fa3' : '#c2452e');
         }
       }
-      cyl(pa, pb, 92, 99, 8, '#b9bcc0');
-      cyl(pa, pb, 15, 22, 8, '#b9bcc0');
-      ball(pa, pb, 103, 6, '#b9bcc0');
+      cyl(pa, pb, 108, 114, pr+2, '#b9bcc0');
+      cyl(pa, pb, 56, 62, pr+2, '#b9bcc0');
+      ball(pa, pb, 118, pr, '#b9bcc0');
     }
     if(state.roof){
       box(W*0.20,W*0.44,-120,-80,H,H+26,'#8f969d','#787f86','#697077');
