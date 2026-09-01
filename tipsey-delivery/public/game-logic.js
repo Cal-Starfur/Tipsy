@@ -17293,7 +17293,40 @@ class WorldScene extends Phaser.Scene {
      Stage 2 (queue unification) builds on these fine keys; until then
      the pass structure around this is unchanged. */
   queueUnitStrips(vq, ux, uy, dv, rv, w, D, sliceW, drawFn, depthSliceW = 0){
-    const n = Math.max(1, Math.ceil(w / sliceW));
+    /* WHOLE UNIT (sliceW <= 0), the default for every building
+       (2026-08-31, Sir on-device: shops "move when tipsey moves").
+
+       Measured first: 40 frames of captured store geometry while
+       driving, every quad reduced to camera-invariant coordinates --
+       max drift 0.01 units, i.e. the rounding in the harness. Nothing
+       moves. What moved was the ORDER: a store was cut into up to 5
+       frontage strips x 3 depth slices, fifteen entries with fifteen
+       separate keys, and the robot's key is the only one in the sort
+       that travels. Driving past a shop, he crossed those fifteen keys
+       one at a time and the shop re-composited around him piece by
+       piece -- half a facade in front of him, half behind, seams
+       opening and closing. One shop, fifteen chances to look wrong.
+
+       Slicing was introduced to stop buildings interpenetrating each
+       other. Re-measured on whole units, that premise does not hold:
+       of 49 unit pairs overlapping on screen in a live frame, zero are
+       ambiguous and zero are mis-ordered by the centre key. The
+       interpenetration that motivated slicing was between PIECES --
+       an artifact the slicing itself created. Against point movers,
+       whole units also scored zero over 4,930 probe positions and
+       15,143 screen-column overlaps.
+
+       So a building is one queue entry again: one key, one flip, no
+       internal seams. This also retires the roof seam (the hairline
+       crack between roof depth pieces) by deleting its cause, and
+       drops the per-unit entry count roughly fifteenfold.
+
+       Fences keep slicing. They are paper-thin (D=0), so no key can
+       order them exactly and the fine keys are doing real work there;
+       they also cost one entry per TILE, not fifteen per unit. */
+    const whole = !(sliceW > 0);
+    const n = whole ? 1 : Math.max(1, Math.ceil(w / sliceW));
+    const stripW = whole ? w : sliceW;
     /* SLICE THE DEPTH TOO (2026-08-27, Sir on-device: "i can see windows
        and sides through the back of them").
 
@@ -17333,7 +17366,7 @@ class WorldScene extends Phaser.Scene {
          this is the funnel they all pass through. r covers the strip's
          own footprint (slice width plus unit depth), h clears the
          tallest frontage. */
-      if(!this.visWorldPt(cx, cy, sliceW + D, 420)) continue;
+      if(!this.visWorldPt(cx, cy, stripW + D, 420)) continue;
       /* AND THE SAME NEAR/FAR TEST EVERY OTHER BODY GETS (2026-08-27,
          Sir on-device: "the overlapping issue with all the props and
          the houses and tipsey").
@@ -17376,7 +17409,36 @@ class WorldScene extends Phaser.Scene {
          whichever layer the unit landed in, which is the bug they were
          added for (a nearby body painting over another unit's roof).
          One building, one layer, many keys. */
-      vq.push({ depth: cx+cy, fn: (g,t) => drawFn(unitG(g), t, a0, a1, b0, b1) });
+      /* KEY AT THE PIECE CENTRE (restored 2026-08-31, Sir on-device:
+         "houses drawing over tipsey"). A near-corner key shipped here
+         on 2026-08-28 chasing "the buidings are still shifting when i
+         drive by"; it was the wrong lever and this is the measurement
+         that says so.
+
+         The near corner is the LARGEST x+y on the footprint, and the
+         sort draws ascending, so raising every building key toward its
+         near corner can only make buildings draw in front MORE often --
+         the opposite of what that report asked for, and exactly the
+         symptom now reported. It also breaks the invariant at the top
+         of this method: with a piece spanning W along the frontage and
+         D into the block, the only keys that order a point exactly are
+         those between the two middle corners, min+min(W,D) and
+         min+max(W,D). The near corner sits at min+W+D -- outside that
+         band by a whole slice, so a robot standing in front of the
+         low-a half of any slice loses to it.
+
+         Censused headless on the live city (51 building units, 441
+         strips, 11,475 robot probe positions from 4 to 380 units off
+         the frontage, 307,080 real screen-column overlaps):
+
+           near-corner key : 4,743 house-drawn-over-robot violations
+           centre key      :     0 violations, 0 in either direction
+
+         The centre, min+(W+D)/2, is always inside the valid band while
+         W < D, which the slicing guarantees. It is also what
+         game-logic.js has been running all along -- this restores the
+         pair to agreement. */
+      vq.push({ depth: cx + cy, fn: (g,t) => drawFn(unitG(g), t, a0, a1, b0, b1) });
       }
     }
   }
@@ -17561,10 +17623,10 @@ class WorldScene extends Phaser.Scene {
            HOUSE_DEPTH = 3*T2, so this is three pieces deep, each the
            same size as a frontage slice. See queueUnitStrips for the
            measurement that made depth slicing necessary. */
-        this.queueUnitStrips(vq, ux, uy, e.dv, e.rv, u.w, HOUSE_DEPTH, T2, (g,t,a0,a1,b0,b1)=>{
+        this.queueUnitStrips(vq, ux, uy, e.dv, e.rv, u.w, HOUSE_DEPTH, 0, (g,t,a0,a1,b0,b1)=>{
           this.drawHouseUnit(g, ux, uy, e.dv, e.rv, u.w, hseed, false, 'body', a0, a1, b0, b1);
           this.drawHouseUnit(g, ux, uy, e.dv, e.rv, u.w, hseed, false, 'roof', a0, a1, b0, b1);
-        }, T2);
+        });
       }
     });
     for(const gp of gapsFromUnits(units, e.len)){
@@ -17603,7 +17665,7 @@ class WorldScene extends Phaser.Scene {
        classic neighbourhood corner store -- with its chamfered door
        facing the intersection (drawCornerStoreUnit). cu.kind carries
        the "cornerStore" flag for future systems (names, unlocks). */
-    this.queueUnitStrips(vq, cu.ux, cu.uy, cu.e.dv, cu.e.rv, cu.w, STORE_DEPTH, T2, (g,t,a0,a1)=>{
+    this.queueUnitStrips(vq, cu.ux, cu.uy, cu.e.dv, cu.e.rv, cu.w, STORE_DEPTH, 0, (g,t,a0,a1)=>{
       this.drawCornerStoreUnit(g, cu.ux, cu.uy, cu.e.dv, cu.e.rv, cu.w, hseed, cu.atStart, 'body', a0, a1);
       this.drawCornerStoreUnit(g, cu.ux, cu.uy, cu.e.dv, cu.e.rv, cu.w, hseed, cu.atStart, 'roof', a0, a1);
     });
@@ -17644,10 +17706,10 @@ class WorldScene extends Phaser.Scene {
         }});
         vq.push({ depth:hx+hy, isRoof:true, fn:(g)=>this.drawStoreUnit(g, ux, uy, e.dv, e.rv, u.w, hseed, isFirst, isLast, 'roof') });
       } else {
-        this.queueUnitStrips(vq, ux, uy, e.dv, e.rv, u.w, STORE_DEPTH, T2, (g,t,a0,a1,b0,b1)=>{
+        this.queueUnitStrips(vq, ux, uy, e.dv, e.rv, u.w, STORE_DEPTH, 0, (g,t,a0,a1,b0,b1)=>{
           this.drawStoreUnit(g, ux, uy, e.dv, e.rv, u.w, hseed, isFirst, isLast, 'body', a0, a1, null, b0, b1);
           this.drawStoreUnit(g, ux, uy, e.dv, e.rv, u.w, hseed, isFirst, isLast, 'roof', a0, a1, null, b0, b1);
-        }, T2);
+        });
       }
     });
   }
@@ -18109,10 +18171,10 @@ class WorldScene extends Phaser.Scene {
           return;
         }
         const isFirst = idx===0, isLast = idx===units.length-1;
-        this.queueUnitStrips(vq, ux, uy, lot.dv, faceIn, u.w, STORE_DEPTH, T2, (g,t,a0,a1,b0,b1)=>{
+        this.queueUnitStrips(vq, ux, uy, lot.dv, faceIn, u.w, STORE_DEPTH, 0, (g,t,a0,a1,b0,b1)=>{
           this.drawStoreUnit(g, ux, uy, lot.dv, faceIn, u.w, hseed, isFirst, isLast, 'body', a0, a1, null, b0, b1);
           this.drawStoreUnit(g, ux, uy, lot.dv, faceIn, u.w, hseed, isFirst, isLast, 'roof', a0, a1, null, b0, b1);
-        }, T2);
+        });
       });
     } else {
       const eseed = ((Math.round(lot.ox*3+lot.dv.x)*7919) ^ (Math.round(lot.oy*3+lot.dv.y)*104729) ^ 0x9e3779b9) >>> 0;
@@ -18125,10 +18187,10 @@ class WorldScene extends Phaser.Scene {
           this.queueUnitStrips(vq, ux, uy, lot.dv, faceIn, u.w, 0, TILE, (g,t,a0,a1)=>this.drawSolidFenceRow(g, ux, uy, lot.dv, faceIn, u.w, hseed, a0, a1));
           return;
         }
-        this.queueUnitStrips(vq, ux, uy, lot.dv, faceIn, u.w, HOUSE_DEPTH, T2, (g,t,a0,a1,b0,b1)=>{
+        this.queueUnitStrips(vq, ux, uy, lot.dv, faceIn, u.w, HOUSE_DEPTH, 0, (g,t,a0,a1,b0,b1)=>{
           this.drawHouseUnit(g, ux, uy, lot.dv, faceIn, u.w, hseed, false, 'body', a0, a1, b0, b1);
           this.drawHouseUnit(g, ux, uy, lot.dv, faceIn, u.w, hseed, false, 'roof', a0, a1, b0, b1);
-        }, T2);
+        });
       });
       for(const gp of gapsFromUnits(units, lot.len)){
         const gx = lot.ox + lot.dv.x*(gp.start+gp.w/2), gy = lot.oy + lot.dv.y*(gp.start+gp.w/2);
