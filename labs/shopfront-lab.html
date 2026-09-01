@@ -55,13 +55,57 @@
    Unit-local coords: a runs along the frontage, b runs 0 at the
    frontage to -D into the block, z is height. Front face is b = 0.
    --------------------------------------------------------------- */
-const cv = document.getElementById('stage'), ctx = cv.getContext('2d');
+const SCREEN = document.getElementById('stage');
+let cv = SCREEN, ctx = cv.getContext('2d');
 let K = 1, OX = 0, OY = 0;
 
-const W = 230, D = 276;                 // one unit: frontage width, depth
+/* ---- GAME SCALE ANCHORS ----
+   Measured against the shipped drawStoreUnit rather than chosen. D was
+   already exactly STORE_DEPTH (T2*3 = 276), but the lab's heights were
+   not: shops were hand-set around H = 160-170 while a real store wall
+   runs 238-266, so the lab has been drawing at roughly 0.65 of game
+   scale vertically. The consequence is not cosmetic -- DOOR_H*0.88 =
+   161.9 is the real shopfront door, which is TALLER than the whole
+   168-unit bakery wall was, so the pickup worker who walks out of it
+   would not have fitted through the opening.
+
+   These are the game's own numbers. Height stacks build off DOOR_H the
+   way drawStoreUnit does, so a shop comes out human-scaled by
+   construction instead of by eye. */
+const TILE = 46, T2 = TILE*2;
+const DOOR_W = T2, DOOR_H = T2*2;       // 92 x 184, from DOOR_ART
+const SHOP_DOOR_W = DOOR_W*0.72;        // 66.24  -- drawPickupUnit
+const SHOP_DOOR_H = DOOR_H*0.88;        // 161.92 -- drawShopDoor dZ1
+const STORE_H = 252;                    // mid of drawStoreUnit's 238..266 stack
+const W = 230, D = T2*3;                // one unit: frontage width, depth (276)
 const state = { i:0, roof:true, props:true, pal:0, grid:false };
 
-function P(a,b,z){ return { x:(a-b)*K + OX, y:((a+b)*0.5 - z)*K + OY }; }
+/* ================= VERTICAL SCALE =================
+   Measured, not chosen. The lab's shops were hand-set at H = 104..314,
+   median 172, while a real drawStoreUnit wall runs 238..266 -- the lab
+   has been drawing at roughly two thirds of game height throughout. The
+   consequence is not cosmetic: SHOP_DOOR_H is 161.9, taller than most
+   of these shops' entire walls, so no pickup worker could have walked
+   out of one.
+
+   A per-shop `H = STORE_H` swap does NOT fix it. Only about six z
+   values per shop are written relative to H; the rest -- sills, heads,
+   signs, roof kit -- are absolute literals that would stay where they
+   were and leave every shop internally broken.
+
+   What does work is one factor, applied once, here. Every height in the
+   lab reaches the screen through this function: F, S, T, box, slab,
+   cyl, tube, faceCircle and ball all build on P. So scaling z here
+   scales a whole shop uniformly and preserves every proportion already
+   dialled into it. 252/172 rounds to 1.5, which puts a typical shop on
+   the game's one-storey stack and leaves a 314 shop at 471 -- a real
+   three storeys rather than a squashed one.
+
+   A shop that has already been rebuilt on the game anchors opts out
+   with zs:1 so it is not scaled twice. */
+const LAB_ZS = 1.5;
+let ZSCALE = LAB_ZS;
+function P(a,b,z){ return { x:(a-b)*K + OX, y:((a+b)*0.5 - z*ZSCALE)*K + OY }; }
 function poly(pts, fill, stroke, lw){
   ctx.beginPath();
   pts.forEach((p,i)=> i ? ctx.lineTo(p.x,p.y) : ctx.moveTo(p.x,p.y));
@@ -244,36 +288,144 @@ const PAL = [
    ======================================================= */
 const SHOPS = [
 {
-  name:'Bakery', head:'Rounded gable, bunting, chimney',
-  tags:['gable parapet','arched window','loaves behind glass','bunting','brick stovepipe'],
-  desc:'The loaves stand on a shelf set into the shop with the pane glazed over them, so you look through the window at the display instead of at loaves stuck on the outside of it.',
+  name:'Bakery', head:'Curved gable, brick flue, bunting on the arch',
+  zs:1,                                   // already rebuilt on the game anchors
+  tags:['deep gable parapet','sign on the gable','bunting on the arch','brick stack','recessed door'],
+  desc:'The gable is a real parapet with 30 units of depth and a capped coping, so it stands above the roofline instead of lying on it. Bunting is pinned around the arch rather than strung across the shopfront, and the flue is brick so it no longer disappears into a roof of its own colour.',
   draw(p){
-    const wall = '#e8d9bd', trim = p[0], H = 168, GB = -16;
+    const wall = '#e8d9bd', trim = p[0], H = STORE_H, GB = -30;
     body(wall, trim, H);
+
+    /* ---------------- THE GABLE ----------------
+       It was reading as a ribbon laid on the roof, and there were two
+       reasons, both fixable without changing the shape. First it was
+       only 16 deep, which at this projection is barely a lip. Second
+       its receding band was shade(wall,1.10) -- LIGHTER than the front
+       face -- so the eye took the band as the lit top of a flat strip
+       rather than the shaded flank of a wall. Deepened to 30 and the
+       band darkened below the face, and it stands up. */
+    /* THE CRESCENT PROBLEM. Springing the arc directly off the wall top
+       gives a shape that is thin everywhere: the chord closing it runs
+       between two points at the same HEIGHT but far apart in depth, so
+       under this projection it is a steeply raked line and the filled
+       region between it and the curve is a sliver. A real gable end has
+       solid wall under the curve. So the parapet gets a straight band
+       first, and the arch springs off THAT. It also gives the sign
+       somewhere to live that has wall behind it across its full width. */
+    const N = 14, base = H + 40;
+    F(0,W,H,base, shade(wall,.66), null,0, GB);          // band, back face
+    T(0,W,GB,0,base, shade(wall,.80));                    // band, top
+    /* THE MISSING FACE. The band was built as three quads -- back, top,
+       front -- with no return at a = W, so the right-hand end was open
+       and you looked straight through the parapet onto the roof plate.
+       The left end at a = 0 faces away and is correctly absent. */
+    S(W, GB, 0, H, base, shade(wall,.70));                // band, right return
+    F(0,W,H,base, wall);                                  // band, front
+    ctx.strokeStyle = shade(wall,.55); ctx.lineWidth = 1.2;
+    poly([P(0,0,base),P(W,0,base),P(W,0,H),P(0,0,H)], null, shade(wall,.58), 1.2);
+    const arcPt = (t,bb) => {
+      const u = 1-t, a = u*u*(W*0.14) + 2*u*t*(W*0.5) + t*t*(W*0.86);
+      const z = u*u*base + 2*u*t*(base+92) + t*t*base;
+      return P(a,bb,z);
+    };
     const gArc = (bb) => {
       ctx.beginPath();
-      const c0 = P(W*0.14,bb,H), c1 = P(W*0.86,bb,H), ap = P(W*0.5,bb,H+104);
+      const c0 = P(W*0.14,bb,base), c1 = P(W*0.86,bb,base), ap = P(W*0.5,bb,base+92);
       ctx.moveTo(c0.x,c0.y); ctx.quadraticCurveTo(ap.x, ap.y, c1.x, c1.y);
       ctx.closePath();
     };
-    gArc(GB); ctx.fillStyle = shade(wall,.80); ctx.fill();
-    const N = 14, arcPt = (t,bb) => {
-      const u = 1-t, a = u*u*(W*0.14) + 2*u*t*(W*0.5) + t*t*(W*0.86);
-      const z = u*u*H + 2*u*t*(H+104) + t*t*H;
-      return P(a,bb,z);
-    };
-    for(let i=0;i<N;i++)
-      poly([arcPt(i/N,0),arcPt((i+1)/N,0),arcPt((i+1)/N,GB),arcPt(i/N,GB)], shade(wall,1.10));
-    gArc(0); ctx.fillStyle = wall; ctx.fill();
-    ctx.strokeStyle = shade(trim,.8); ctx.lineWidth = 2.5; ctx.stroke();
-    slab(W*0.32,W*0.68, H+14, H+38, -1, -7, trim);
-    /* THE WINDOW, back to front: reveal, shelf, loaves, then the pane */
-    const gz0 = 20, gz1 = 104, ax0 = 14, ax1 = W*0.62;
-    reveal(ax0, ax1, gz0, gz1+30, 13, '#4a3a2a');
-    slab(ax0+6, ax1-6, gz1-48, gz1-40, 20, 6, shade(wall,1.05));
+    /* the back arc was filled darker than the flank quads in front of
+       it, so its far edge showed as a thin dark line arcing away over
+       the roof. Same value as the flank and the two merge into one
+       solid parapet. */
+    gArc(GB); ctx.fillStyle = shade(wall,.80); ctx.fill();      // back face
+    for(let i=0;i<N;i++)                                         // receding flank
+      poly([arcPt(i/N,0),arcPt((i+1)/N,0),arcPt((i+1)/N,GB),arcPt(i/N,GB)], shade(wall,.80));
+    /* TYMPANUM VALUE. Filled in `wall` it was the same cream as the band
+       below it and the facade below that, so the only thing separating
+       the gable from the rest of the elevation was a 2.5px stroke -- an
+       outline, which is exactly how it read. Its own value, a coping in
+       trim, and an oculus give it a face of its own. */
+    gArc(0); ctx.fillStyle = shade(wall,.93); ctx.fill();
+    ctx.save(); gArc(0); ctx.clip();
+    ctx.lineWidth = 14; ctx.strokeStyle = trim; ctx.beginPath();
+    let cq = arcPt(0,0); ctx.moveTo(cq.x,cq.y);
+    for(let k=1;k<=N;k++){ cq = arcPt(k/N,0); ctx.lineTo(cq.x,cq.y); }
+    ctx.stroke(); ctx.restore();
+    ctx.strokeStyle = shade(trim,.7); ctx.lineWidth = 2; gArc(0); ctx.stroke();
+    faceCircle(W*0.5, -0.6, base+44, 17, shade(wall,.62));
+    faceCircle(W*0.5, -0.8, base+44, 13, 'rgba(104,146,168,.92)', shade(trim,.8), 2.5);
+    /* ---------------- SIGN ----------------
+       Was a slab hung at b -1..-7, i.e. floating BEHIND the gable face
+       with nothing carrying it. Now it spans the gable plane (+3 to -3)
+       so it is mounted flat on the parapet, and it sits low enough on
+       the arch to have wall behind it across its whole width. */
+    slab(W*0.20, W*0.80, H+6, H+34, 3, -3, trim);
+    F(W*0.23, W*0.77, H+11, H+29, '#f2e6cc', null, 0, 3.4);
+    for(let i=0;i<6;i++) F(W*0.26+i*W*0.08, W*0.30+i*W*0.08, H+15, H+25, shade(trim,.72), null,0,3.6);
+
+    /* ---------------- BUNTING ----------------
+       It used to swing out to b = +22 -- out over the pavement, in
+       front of the glass and across the door, which is why the shopfront
+       read as having strings hung over it. Bunting belongs to the gable:
+       pinned just inside the arch, flags hanging into the parapet face,
+       never crossing the window. */
+    if(state.props){
+      /* THE STRAY LINE, and it was this. The string offset itself by
+         P(0,bb,drop) - P(0,bb,0), but raising z moves a point UP the
+         screen -- so the string was drawn 15 units ABOVE the arch while
+         the flags hung 15 below it. They were never attached to each
+         other; the "stray line" was a bunting string with no bunting on
+         it. Both derive z from one function now.
+
+         And it has come down off the arch. Pinned around the parapet it
+         was competing with the coping and the oculus for the same band
+         of the elevation; strung just above the window it does the job
+         bunting actually does, which is to mark the shopfront. The sag
+         is tuned so the flag tips clear the arched window head -- the
+         head tops out at gz1 + 38 and the lowest tip lands a little
+         above it. */
+      const bb = 1.5, a0b = 8, a1b = W - 8, zTop = H - 16, sag = 8, flag = 12;
+      const bZ = (t) => zTop - Math.sin(Math.PI*t)*sag;
+      ctx.strokeStyle = '#7a5c44'; ctx.lineWidth = 2; ctx.beginPath();
+      for(let i=0;i<=28;i++){
+        const t = i/28, pt = P(a0b + (a1b-a0b)*t, bb, bZ(t));
+        i ? ctx.lineTo(pt.x,pt.y) : ctx.moveTo(pt.x,pt.y);
+      }
+      ctx.stroke();
+      for(let i=0;i<11;i++){
+        const t = (i+0.5)/11, a = a0b + (a1b-a0b)*t, z = bZ(t);
+        poly([P(a-7,bb,z),P(a+7,bb,z),P(a,bb,z-flag)], [p[1],'#f2e6cc',p[2]][i%3]);
+      }
+    }
+
+    /* ---------------- THE WINDOW, back to front ---------------- */
+    /* window: sill on the kick, head at the game's window line
+       (dZ1 + 14), and it stops short of the door rather than being a
+       fixed fraction of W -- the door owns its end of the frontage. */
+    const dW = SHOP_DOOR_W, dH = SHOP_DOOR_H;
+    const dx1 = W - 9, dx0 = dx1 - dW;
+    const gz0 = 22, gz1 = SHOP_DOOR_H + 14, ax0 = 14, ax1 = dx0 - 14;
+    /* the reveal ran 30 units above the pane, so a brown rectangle sat
+       between the glass head and the arch. It stops at the glass now --
+       the arched head fills that band itself. */
+    /* reveal() hardcodes b = +2, which is toward the street, so the dark
+       backing sat a touch PROUD of the pane and showed as a dark sliver
+       down the left jamb. Drawn directly here so it can sit behind. */
+    F(ax0, ax1, gz0, gz1+2, '#4a3a2a', null, 0, -1.2);
+    /* the shelf was at b = +6..+20 -- outside the glass, out over the
+       pavement, which is the cream bar that was cutting across the
+       window and hanging off the left jamb. Inside the shop now, under
+       the loaves that stand on it. */
+    slab(ax0+14, ax1-30, gz1-74, gz1-64, -4, -16, shade(wall,1.05));
+    /* THEY WERE OUTSIDE. The loaves sat at b = +8..+18, and positive b
+       is toward the street, which under this projection also shifts them
+       LEFT on screen -- far enough that the first one cleared the window
+       jamb entirely and appeared to be sitting on the pavement. Negative
+       b puts them back in the shop, behind the pane where they belong. */
     depthSort([0,1,2,3,4].map(i => ({
-      b: 18 - (i%2)*10, z: 0,
-      draw: () => cyl(28+i*26, 18 - (i%2)*10, gz1-40, gz1-24, 9, i%2 ? '#c98a4a' : '#b87a3c')
+      b: -7 - (i%2)*7, z: 0,
+      draw: () => cyl(34+i*19, -7 - (i%2)*7, gz1-64, gz1-42, 9, i%2 ? '#c98a4a' : '#b87a3c')
     })));
     const aPt = (t,bb) => {
       const u=1-t, a = u*u*ax0 + 2*u*t*((ax0+ax1)/2) + t*t*ax1;
@@ -284,32 +436,48 @@ const SHOPS = [
     ctx.beginPath();
     let q = aPt(0,-0.4); ctx.moveTo(q.x,q.y);
     for(let i=1;i<=N;i++){ q = aPt(i/N,-0.4); ctx.lineTo(q.x,q.y); }
-    ctx.closePath(); ctx.fillStyle='rgba(150,190,206,.42)'; ctx.fill();
+    /* the arched head was filled paler than the pane below it, so it
+       floated free of the window as a hoop. Same tint as glaze, so head
+       and pane are one opening. */
+    ctx.closePath(); ctx.fillStyle='rgba(104,146,168,.92)'; ctx.fill();
     for(let i=0;i<N;i++)
       poly([aPt(i/N,0),aPt((i+1)/N,0),aPt((i+1)/N,-9),aPt(i/N,-9)], shade(wall,.88));
     slab(ax0-4, ax1+4, gz0-4, gz0+2, -1, -9, shade(wall,.9));
-    slab(W*0.68,W*0.94, 0, 96, 0, -6, shade(wall,.72), null, shade(trim,.9));
-    F(W*0.72,W*0.90, 52, 86, 'rgba(150,190,206,.5)', null,0,-6.5);
-    if(state.props){
-      const bz = (t) => H - 6 - Math.sin(Math.PI*t)*26 - t*34;
-      const bb = (t) => 6 + Math.sin(Math.PI*t)*16;
-      ctx.strokeStyle='#5a4636'; ctx.lineWidth=2; ctx.beginPath();
-      for(let i=0;i<=24;i++){
-        const t=i/24, pt = P(6 + (W-12)*t, bb(t), bz(t));
-        i ? ctx.lineTo(pt.x,pt.y) : ctx.moveTo(pt.x,pt.y);
-      }
-      ctx.stroke();
-      for(let i=0;i<9;i++){
-        const t=(i+0.5)/9, a = 6 + (W-12)*t, z = bz(t), d = bb(t);
-        poly([P(a-8,d,z),P(a+8,d,z),P(a,d,z-20)], [p[0],p[1],'#f2e6cc'][i%3]);
-      }
-    }
+
+    /* ---------------- THE DOOR ----------------
+       Was a blank slab with a small rectangle of tint on it, which is
+       why door and second window were indistinguishable. Built properly
+       now: surround, dark opening, leaf with two raised panels, glazed
+       transom over, handle, and a step onto the pavement. */
+    /* NO VOLUME. Every version of this door had a slab somewhere -- a
+       surround with a return, then a shallower one -- and a slab is a
+       box, so it always put a second little building beside the door.
+       A shopfront door is a hole in a wall. Everything below is on the
+       frontage plane within a unit and a half of it, so nothing has a
+       side face to cast onto the flank. */
+    shopDoor((dx0+dx1)/2, wall, trim);
+    if(state.props) box(dx0-6, dx1+6, 2, 20, 0, 9, '#c3c8be','#adb2a4','#999e91');
+
+    /* ---------------- ROOF ----------------
+       The flue was shade(trim,1.05) -- the EXACT colour body() paints
+       the roof plate, so its fill vanished and only the outline read,
+       which is why it looked transparent. It is brick now, and the
+       generic grey air-handler is gone: a bakery gets a brick stack and
+       an extract cowl, both of which say what the building is. */
     if(state.roof){
-      cyl(W*0.78, -56, H, H+56, 11, shade(trim,1.05));
-      cyl(W*0.78, -56, H+56, H+62, 14, shade(trim,.85));
-      box(W*0.10,W*0.34,-150,-96,H,H+22, '#9aa0a6','#7d838a','#6a7076');
+      const brick = '#a8674e';
+      /* the stack used to sit at W*0.10 and collided with the gable
+         apex from behind. Pushed right and deeper, with the extract
+         cowl taking the shallow left position, so the two roof objects
+         read as two objects instead of one cluster over the arch. */
+      box(W*0.58,W*0.80,-176,-124, H, H+58, shade(brick,1.12), brick, shade(brick,.82));
+      slab(W*0.56,W*0.82, H+58, H+66, -122, -178, shade(brick,.74));
+      for(let k=0;k<2;k++) cyl(W*0.62+k*W*0.13, -150, H+66, H+80, 5.5, '#4a3a30');
+      cyl(W*0.30, -158, H, H+40, 9, '#8d949b');
+      cyl(W*0.30, -158, H+40, H+47, 15, '#767d84');
+      cyl(W*0.30, -158, H+47, H+52, 8, '#616870');
     }
-    kerb(p, 'crates');
+    kerb(p, 'none');
   }
 },
 {
@@ -331,7 +499,7 @@ const SHOPS = [
     glaze(8, W-8, 14, H-22, null);
     for(let i=0;i<4;i++) F(8+(W-16)*(i+1)/5-2, 8+(W-16)*(i+1)/5+2, 14, H-22, shade(wall,.72), null,0,-1);
     slab(4, W-4, H-26, H-20, -1, -9, shade(wall,.8));
-    slab(W*0.40,W*0.62, 0, 92, 0, -7, shade(wall,.8), null, shade(trim,1.2));
+    shopDoor(W*0.51, wall, trim);
     slab(W*0.06,W*0.24, H+8, H+96, -2, -20, '#1d2833');
     F(W*0.085,W*0.215, H+16, H+88, p[2], null,0,-2.5);
     for(let i=0;i<4;i++) F(W*0.10,W*0.20, H+22+i*17, H+30+i*17, '#f4f8fa', null,0,-3);
@@ -361,8 +529,7 @@ const SHOPS = [
     F(16, W*0.46, 22, 44, shade(wall,.75), null,0, 1.6);          // a band low in the bay
     glaze(10, W*0.52, 18, 116, null);
     slab(6, W*0.52+4, 112, 120, -1, -9, trim);
-    slab(W*0.58,W*0.86, 0, 104, 0, -6, shade(wall,.7), null, shade(trim,.8));
-    F(W*0.62,W*0.82, 58, 96, 'rgba(150,190,206,.5)', null,0,-6.5);
+    shopDoor(W*0.72, wall, trim);
     slab(6,W-6, 122, 152, -1, -9, '#12261c', null, trim);
     F(16,W-16, 130, 144, trim, null,0,-9.5);
     poly([P(8,0,120),P(W*0.54,0,120),P(W*0.54,26,96),P(8,26,96)], shade(trim,.55));
@@ -410,7 +577,7 @@ const SHOPS = [
       b: 20 - (i%2)*8, z: 0,
       draw: () => cyl(24+i*30, 20 - (i%2)*8, 74, 92, 11, ['#c2452e','#d8a12a','#5c8a3a'][i%3])
     })));
-    slab(W*0.82,W-10, 0, 104, 0, -6, shade(wall,.75), null, trim);
+    shopDoor(W*0.88, wall, trim);
     const cz0 = 118, cz1 = 138, out = 46;
     for(let i=0;i<8;i++){
       const x0 = 4+(W-8)*i/8, x1 = 4+(W-8)*(i+1)/8;
@@ -456,8 +623,7 @@ const SHOPS = [
     slab(6, W-6, 100, 108, -1, -9, shade(wall,.86));
     slab(16,W-16, 96, 116, -1, -7, '#dfe9e6');
     for(let i=0;i<9;i++) F(18+i*((W-36)/9), 18+(i+0.86)*((W-36)/9), 98, 114, '#c3dbd8', null,0,-7.5);
-    slab(W*0.40,W*0.66, 0, 100, 0, -6, trim, null, shade(trim,1.2));
-    F(W*0.44,W*0.62, 52, 92, 'rgba(150,200,196,.55)', null,0,-6.5);
+    shopDoor(W*0.53, wall, trim, 'rgba(150,200,196,.55)');
     slab(6,W-6, 120, 146, -1, -9, trim);
     F(20,W-20, 126, 140, wall, null,0,-9.5);
     const cs = 15, ca = W*0.80, cb = -10;
@@ -491,7 +657,7 @@ const SHOPS = [
       F(20+i*30, 42+i*30, 34, 90, ['#e0483c','#e8c34a','#4aa3e0'][i], null,0, 1.6);
     glaze(12, W*0.56, 18, 112, null, 'rgba(60,72,86,.42)');
     slab(8, W*0.56+4, 108, 116, -1, -9, shade(wall,1.6));
-    slab(W*0.60,W*0.86, 0, 104, 0, -6, shade(wall,1.3), null, shade(trim,.8));
+    shopDoor(W*0.73, shade(wall,1.4), shade(wall,1.9), 'rgba(60,72,86,.55)');
     for(let r=0;r<3;r++) for(let c=0;c<2;c++)
       slab(W*0.885+c*0.05*W, W*0.925+c*0.05*W, 30+r*30, 54+r*30, -1, -4,
            ['#e8c34a','#4aa3e0','#e0483c','#f2ece0'][(r+c)%4]);
@@ -530,8 +696,7 @@ const SHOPS = [
     slab(0,W, H+12, H+18, -1, -10, trim);
     reveal(14, W*0.70, 0, 96, 44, '#2a1a18');
     slab(14,W*0.70, 58, 72, 22, 4, '#d9c49a', shade(wall,.6), '#e6d2a8');
-    slab(W*0.74,W-12, 0, 104, 0, -6, shade(wall,.75), null, trim);
-    F(W*0.78,W-16, 56, 94, '#e8d9bd', null,0,-6.5);
+    shopDoor(W*0.85, wall, shade(wall,.7), 'rgba(232,217,189,.6)');
     for(const [x,col] of [[W*0.06,trim],[W*0.86,'#f2ece0']]){
       slab(x-9,x+9, 84, H-6, -2, -12, col, shade(col,.7));
       for(let i=0;i<4;i++) F(x-5,x+5, 96+i*17, 106+i*17, shade(wall,.8), null,0,-2.5);
@@ -568,14 +733,19 @@ const SHOPS = [
     slab(0,W, H, H+10, -1, -12, trim);
     slab(6,W-6, 110, H-10, -1, -10, shade(wall,1.12), null, shade(wall,.9));
     for(let i=0;i<3;i++) F(18,W-18, 122+i*22, 134+i*22, shade(trim,1.6), null,0,-10.5);
-    reveal(12, W*0.72, 0, 102, 40, '#4a4238');
-    F(12,W*0.72, 46, 102, '#8c8676', shade(trim,1.3), 2, -1);      // shutter, half down
-    for(let i=0;i<6;i++) F(14,W*0.72-2, 50+i*9, 55+i*9, '#a09a88', null,0,-2);
-    slab(12,W*0.72, 40, 48, -2, -9, trim);
-    slab(W*0.76,W-10, 0, 100, 0, -6, shade(wall,.72), null, trim);
+    /* the shutter used to run to W*0.72 and the ladders leaned at
+       W*0.752, both of which the real door now occupies -- it is 66
+       wide and its midpoint clamps to W - 38. Shutter pulled back to
+       W*0.62 and the ladders moved to the left end, where they lean on
+       the shopfront instead of standing in the doorway. */
+    reveal(12, W*0.62, 0, 102, 40, '#4a4238');
+    F(12,W*0.62, 46, 102, '#8c8676', shade(trim,1.3), 2, -1);      // shutter, half down
+    for(let i=0;i<6;i++) F(14,W*0.62-2, 50+i*9, 55+i*9, '#a09a88', null,0,-2);
+    slab(12,W*0.62, 40, 48, -2, -9, trim);
+    shopDoor(W*0.86, wall, trim);
     if(state.props){
       for(let i=0;i<2;i++){
-        const la = W*0.752 + i*13, lb = 20 + i*9, col = i? '#8c6f43' : '#b08d55';
+        const la = W*0.055 + i*13, lb = 20 + i*9, col = i? '#8c6f43' : '#b08d55';
         tube(la-8, lb, 4, la-4, lb-16, 104, 2.6, col);
         tube(la+8, lb, 4, la+12, lb-16, 104, 2.6, col);
         for(let k=1;k<=4;k++){
@@ -617,8 +787,7 @@ const SHOPS = [
     F(18, W*0.60, 40, 46, '#dfe6d2', null,0, 1.6);                 // painted shelf line
     glaze(12, W*0.66, 16, 104, null);
     slab(8, W*0.66+4, 100, 108, -1, -9, shade(trim,1.25));
-    slab(W*0.70,W-12, 0, 100, 0, -6, shade(wall,.82), null, trim);
-    F(W*0.74,W-16, 52, 90, 'rgba(150,200,180,.5)', null,0,-6.5);
+    shopDoor(W*0.83, wall, trim, 'rgba(150,200,180,.5)');
     slab(8,W-8, 108, 132, -1, -9, trim);
     F(22,W-22, 113, 127, '#f4f6ee', null,0,-9.5);
     const cz = 136, out = 34;
@@ -695,12 +864,12 @@ const SHOPS = [
       const t0 = 0.10 - 0.62*k/5, t1 = 0.10 - 0.62*(k+1)/5;
       poly([P(W-R+R*Math.cos(t0), -R+R*Math.sin(t0), 0),
             P(W-R+R*Math.cos(t1), -R+R*Math.sin(t1), 0),
-            P(W-R+R*Math.cos(t1), -R+R*Math.sin(t1), 100),
-            P(W-R+R*Math.cos(t0), -R+R*Math.sin(t0), 100)], shade(wall,.80));
-      poly([P(W-R+R*Math.cos(t0), -R+R*Math.sin(t0), 14),
-            P(W-R+R*Math.cos(t1), -R+R*Math.sin(t1), 14),
-            P(W-R+R*Math.cos(t1), -R+R*Math.sin(t1), 88),
-            P(W-R+R*Math.cos(t0), -R+R*Math.sin(t0), 88)], '#7fb0c4');
+            P(W-R+R*Math.cos(t1), -R+R*Math.sin(t1), 108),
+            P(W-R+R*Math.cos(t0), -R+R*Math.sin(t0), 108)], shade(wall,.80));
+      poly([P(W-R+R*Math.cos(t0), -R+R*Math.sin(t0), 16),
+            P(W-R+R*Math.cos(t1), -R+R*Math.sin(t1), 16),
+            P(W-R+R*Math.cos(t1), -R+R*Math.sin(t1), 96),
+            P(W-R+R*Math.cos(t0), -R+R*Math.sin(t0), 96)], '#7fb0c4');
     }
     if(state.roof){
       const sa = W*0.40, sb = -34;
@@ -738,7 +907,7 @@ const SHOPS = [
     slab(12,W-12, 104, 128, -1, -9, '#f2ece0');
     for(let i=0;i<3;i++) F(24+i*44, 56+i*44, 110, 122, shade(wall,1.1), null,0,-9.5);
     for(let i=0;i<2;i++) slab(14+i*54, 54+i*54, 24, 92, -1, -8, ['#c2452e','#3b6e75'][i], null, '#f2ece0');
-    slab(W*0.56,W-14, 0, 100, 0, -8, shade(wall,1.15), null, trim);
+    shopDoor(W*0.78, shade(wall,1.3), trim);
     F(W*0.60,W*0.76, 12, 92, '#1a1d2b', null,0,-8.5);
     F(W*0.80,W*0.96, 12, 92, '#1a1d2b', null,0,-8.5);
     if(state.roof){
@@ -766,7 +935,7 @@ const SHOPS = [
       slab(x0-5,x1+5, z0-6, z0-3, -1, -8, shade(trim,.86));      // cill with depth
     }
     F(10,W*0.52, 20, 88, '#6b93a8', trim, 3);
-    slab(W*0.58,W*0.84, 0, 94, 0, -6, shade(wall,.75), null, trim);
+    shopDoor(W*0.71, wall, trim);
     F(W*0.62,W*0.80, 44, 84, '#6b93a8', null,0,-6.5);
     // entrance canopy: top, underside, returns, on round posts
     poly([P(W*0.54,0,98),P(W*0.88,0,98),P(W*0.88,36,92),P(W*0.54,36,92)], trim);
@@ -829,7 +998,7 @@ const SHOPS = [
       ball(aa+7, bb+2, zz-1, 4.4, ['#9fb6c2','#c2907e','#8fa8b8'][i%3]);
       poly([P(aa-8,bb,zz),P(aa-14,bb,zz+5),P(aa-14,bb,zz-5)], shade(['#9fb6c2','#c2907e','#8fa8b8'][i%3],.8));
     }
-    slab(W*0.78,W-8, 0, 100, 0, -6, shade(wall,.82), null, trim);
+    shopDoor(W*0.87, wall, trim);
     F(W*0.82,W-12, 50, 90, '#7fb0c4', null,0,-6.5);
     slab(4,W-4, 104, 130, -1, -9, trim);
     F(16,W-16, 110, 124, '#eef2f3', null,0,-9.5);
@@ -862,13 +1031,19 @@ const SHOPS = [
     slab(0,W, H, H+10, -1, -12, trim);
     slab(0,W, H-30, H-8, -1, -8, shade(wall,1.3));
     F(16,W-16, H-26, H-12, trim, null,0,-8.5);
+    /* the two roller bays ran 12..W-12, the whole frontage, so there was
+       nowhere for a person to get in -- a garage with no pedestrian
+       door. The bays now share the left three quarters and the door
+       takes the end. */
+    const bayR = W*0.70;
     for(let i=0;i<2;i++){
-      const x0 = 12+i*(W-24)/2+ (i?6:0), x1 = 12+(i+1)*(W-24)/2 - (i?0:6);
+      const x0 = 12+i*(bayR-24)/2+ (i?6:0), x1 = 12+(i+1)*(bayR-24)/2 - (i?0:6);
       F(x0-4,x1+4, 0, H-38, shade(wall,.72), null,0, 1);
       F(x0,x1, 0, H-46, '#8c9298', shade(wall,1.4), 2, -1);
       for(let j=0;j<9;j++) F(x0+2,x1-2, 6+j*12, 12+j*12, '#a2a8ae', null,0,-2);
       slab(x0-4,x1+4, H-46, H-38, -2, -9, trim);
     }
+    shopDoor(W*0.85, wall, trim);
     if(state.props){
       for(let i=0;i<4;i++) cyl(W+34, 26, i*11, i*11+11, 17, i%2?'#2b2f33':'#33383d');
       cyl(W+22, 56, 0, 34, 14, '#c2452e');
@@ -913,8 +1088,7 @@ const SHOPS = [
         ball(ma, mb, 98, 6, '#e8ddc8');
       }
     }
-    slab(WW*0.64,WW-10, 0, 104, 0, -6, shade(wall,.78), null, trim);
-    F(WW*0.68,WW-14, 54, 94, '#8a94a8', null,0,-6.5);
+    shopDoor(WW*0.80, wall, trim, 'rgba(138,148,168,.6)', WW);
     slab(6,WW-6, 120, 146, -1, -9, shade(wall,.6));
     F(18,WW-18, 126, 140, trim, null,0,-9.5);
     poly([P(8,0,118),P(WW*0.60,0,118),P(WW*0.60,24,100),P(8,24,100)], trim);
@@ -943,7 +1117,7 @@ const SHOPS = [
     slab(0,W, H-12, H, -1, -6, shade(wall,1.08));
     F(14,W*0.54, 24, 100, '#5d4a3a', shade(wall,.6), 3);
     F(20,W*0.48, 32, 64, shade(wall,1.15), null,0,-1);
-    slab(W*0.60,W*0.90, 0, 96, 0, -6, '#6b4a30', null, shade(trim,1.2));
+    shopDoor(W*0.75, wall, '#6b4a30');
     F(W*0.60,W*0.90, 40, 44, shade(wall,.7), null,0,-6.5);
     F(W*0.745,W*0.755, 44, 96, shade(wall,.7), null,0,-6.5);
     for(const aa of [10, W*0.50, W-10]) cyl(aa, pb, 0, 118, 5, '#6b4a30');
@@ -1021,7 +1195,7 @@ const SHOPS = [
     F(12,W*0.62, 30, 92, '#bcdde2', shade(trim,.85), 3);
     slab(12,W*0.62, 88, 98, -1, -7, trim);
     F(18,W*0.56, 36, 52, '#fbf3f5', null,0,-1);
-    slab(W*0.68,W-12, 0, 96, 0, -6, shade(wall,.86), null, trim);
+    shopDoor(W*0.84, wall, trim);
     F(W*0.72,W-16, 48, 86, '#bcdde2', null,0,-6.5);
     const cz=104, out=32;
     poly([P(4,0,cz+18),P(W-4,0,cz+18),P(W-4,out,cz),P(4,out,cz)], '#fbf3f5');
@@ -1065,8 +1239,12 @@ const SHOPS = [
     slab(0,W, H, H+10, -1, -14, shade(wall,.72));
     F(6,W-6, 150, H-6, shade(wall,1.06), null,0,-1);
     F(18,W-18, 0, 150, shade(wall,.6), null,0, 1);                 // recessed reveal
-    F(W*0.36,W*0.64, 0, 112, shade(wall,.44), null,0, 2);
-    F(W*0.39,W*0.61, 10, 104, '#5d6b74', null,0, 1.5);
+    /* the entrance here is a portico recessed between the columns, not
+       a shopfront door, so it keeps its own form -- but the opening is
+       now the real 161.92 tall (108 before the 1.5 lab factor) instead
+       of an eyeballed 112. */
+    F(W*0.36,W*0.64, 0, 108, shade(wall,.44), null,0, 2);
+    F(W*0.39,W*0.61, 8, 100, '#5d6b74', null,0, 1.5);
     for(let i=0;i<2;i++) F(28+i*(W*0.62), 28+i*(W*0.62)+44, 26, 118, '#5d6b74', shade(wall,.8), 2, 1.5);
     // four turned columns standing forward of the wall
     for(let i=0;i<4;i++){
@@ -1110,7 +1288,7 @@ const SHOPS = [
     body(wall, trim, H, W, D);
     slab(0,W, H, H+8, -1, -10, trim);
     F(14,W*0.62, 20, 90, '#7fb0c4', shade(wall,.6), 3);
-    slab(W*0.68,W-14, 0, 96, 0, -6, shade(wall,.84), null, trim);
+    shopDoor(W*0.83, wall, trim);
     F(W*0.72,W-18, 48, 86, '#7fb0c4', null,0,-6.5);
     slab(8,W-8, 96, 112, -1, -8, trim);
     const cb0 = 40, cb1 = 150, cz = 168;
@@ -1192,7 +1370,7 @@ const SHOPS = [
     slab((t0+t1)/2-9, (t0+t1)/2+9, H+186, H+190, (tb+tk)/2+2, (tb+tk)/2-2, '#c9a24a');
     ball((t0+t1)/2, (tb+tk)/2, H+202, 4, '#c9a24a');
     // arched door, swept
-    F(WW*0.56,WW*0.78, 0, 92, trim, shade(wall,.7), 2);
+    shopDoor(WW*0.67, wall, trim, 'rgba(120,150,170,.55)', WW);
     const dp = (t,bb) => {
       const u=1-t, a = u*u*(WW*0.56) + 2*u*t*(WW*0.67) + t*t*(WW*0.78);
       const z = u*u*92 + 2*u*t*126 + t*t*92;
@@ -1217,12 +1395,16 @@ const SHOPS = [
     body(wall, trim, H);
     slab(0,W, H, H+12, -1, -12, shade(wall,2.0));
     F(10,W-10, 0, 120, '#0c0c14', null,0, 1);
-    for(let i=0;i<5;i++){
+    /* five cabinets ran 26..178 and the frontage was otherwise an open
+       black hole -- no door anywhere. Four cabinets now, leaving the
+       end of the run for a real entrance. */
+    for(let i=0;i<4;i++){
       const ca = 26+i*38;
       box(ca-13, ca+13, 2, 22, 0, 84, '#2a2a3c', '#1e1e2e', '#16161f');
-      F(ca-10,ca+10, 44, 76, ['#37e0d0','#e04b8a','#e8c34a','#4a8ae0','#7ae04a'][i], null,0, 1.5);
+      F(ca-10,ca+10, 44, 76, ['#37e0d0','#e04b8a','#e8c34a','#4a8ae0'][i], null,0, 1.5);
       F(ca-10,ca+10, 24, 40, '#2a2a3c', null,0, 1.5);
     }
+    shopDoor(W*0.82, shade(wall,1.6), shade(wall,2.2), 'rgba(55,224,208,.30)');
     slab(10,W-10, 116, 126, -1, -8, trim);
     const bl = [[0,0],[1,0],[2,0],[0,1],[0,2],[1,2],[2,2],[4,0],[4,1],[4,2],[5,2],[6,2],
                 [8,0],[8,1],[8,2],[9,0],[10,0],[10,1],[10,2]];
@@ -1268,7 +1450,7 @@ const SHOPS = [
       const c0=P(ha-6,-7,76), c1=P(ha+6,-7,70);
       ctx.beginPath(); ctx.moveTo(c0.x,c0.y); ctx.lineTo(c1.x,c1.y); ctx.stroke();
     }
-    slab(W*0.74,W-10, 0, 100, 0, -6, shade(wall,.84), null, trim);
+    shopDoor(W*0.86, wall, trim);
     F(W*0.78,W-14, 50, 90, '#d6e2e4', null,0,-6.5);
     const out = 34;
     for(let i=0;i<8;i++){
@@ -1302,7 +1484,7 @@ const SHOPS = [
     F(12,WW*0.60, 22, 104, '#6a7f96', shade(wall,1.5), 3);
     for(let i=0;i<6;i++) tube(14+i*((WW*0.58-14)/6), -4, 22, 14+i*((WW*0.58-14)/6), -4, 104, 1.4, shade(wall,1.15));
     for(let i=0;i<3;i++) tube(12, -4, 34+i*24, WW*0.60, -4, 34+i*24, 1.2, shade(wall,1.15));
-    slab(WW*0.66,WW-10, 0, 104, 0, -6, shade(wall,.82), null, trim);
+    shopDoor(WW*0.81, wall, trim, null, WW);
     F(WW*0.70,WW-14, 52, 94, '#6a7f96', null,0,-6.5);
     tube(WW*0.075, -2, 112, WW*0.075, -26, 112, 1.8, '#4a4f55');
     tube(WW*0.02, -26, 112, WW*0.16, -26, 112, 1.6, '#4a4f55');
@@ -1337,7 +1519,7 @@ const SHOPS = [
       F(x0,x1, 32, 102, '#7f9ab0', null,0,-7.5);
       for(let j=1;j<3;j++) F(x0+(x1-x0)*j/3-1.5, x0+(x1-x0)*j/3+1.5, 32,102, trim, null,0,-8);
     }
-    slab(W*0.40,W*0.62, 0, 110, 0, -6, shade(wall,.78), null, trim);
+    shopDoor(W*0.51, wall, trim);
     F(W*0.44,W*0.58, 56, 100, '#7f9ab0', null,0,-6.5);
     slab(0,W, 0, 22, -1, -6, shade(wall,.7));
     if(state.props){
@@ -1375,7 +1557,7 @@ const SHOPS = [
       F(x0,x1, z0, z0+2, 'rgba(216,240,232,.55)', null,0,-1.5);
       for(let k=0;k<2;k++) ball(x0+6+k*9, -3, z0+8+k*5, 3.4, ['#e8a13a','#f2ece0'][k]);
     }
-    slab(W*0.74,W-10, 0, 100, 0, -6, shade(wall,.8), null, trim);
+    shopDoor(W*0.86, wall, trim);
     F(W*0.78,W-14, 50, 90, '#8fb8a0', null,0,-6.5);
     const out = 32;
     poly([P(4,0,128),P(W-4,0,128),P(W-4,out,112),P(4,out,112)], trim);
@@ -1430,10 +1612,12 @@ const SHOPS = [
     tube(W*0.18+6, -10, 172, W*0.18+4, -10, 178, 2, trim);
     F(W*0.34,W*0.86, 160, 168, trim, null,0,-9.5);
     for(const bx of [W*0.34,W*0.40,W*0.80,W*0.86]) F(bx-4,bx+4, 152, 176, trim, null,0,-10);
-    F(W*0.30,W*0.72, 0, 100, shade(wall,.7), null,0, 1);
-    F(W*0.30,W*0.72, 0, 92, '#8c9298', shade(wall,1.4), 2, -1);
-    for(let j=0;j<8;j++) F(W*0.30+2, W*0.72-2, 6+j*11, 12+j*11, '#a2a8ae', null,0,-2);
-    slab(W*0.28,W*0.74, 92, 102, -2, -9, trim);
+    /* the entrance was a roller shutter 96 wide and 92 tall -- half a
+       loading bay on a building people walk into. Real door on the same
+       centreline, with the header band kept so the elevation still has
+       its horizontal. */
+    shopDoor(W*0.51, wall, trim);
+    slab(W*0.28,W*0.74, 112, 122, -2, -9, trim);
     if(state.roof){
       for(let i=0;i<5;i++){
         const bb = -30 - i*44;
@@ -1476,7 +1660,7 @@ const SHOPS = [
     for(let r=0;r<3;r++) for(let i=0;i<7;i++)
       F(16+i*((W*0.62-16)/7), 16+(i+0.78)*((W*0.62-16)/7), 26+r*24, 46+r*24,
         ['#8f2b2b','#2f6f8f','#c9a24a','#3f6b4a','#7a4a6b'][(i+r)%5], null,0,-1);
-    slab(W*0.70,W-10, 0, 100, 0, -6, shade(wall,.72), null, trim);
+    shopDoor(W*0.84, wall, trim);
     F(W*0.74,W-14, 52, 90, '#7f93a0', null,0,-6.5);
     if(state.props){
       // ladder leaning on the shopfront, rails as tubes
@@ -1527,7 +1711,7 @@ const SHOPS = [
       F(x0+4,x1-4, 52, 86, ['#9aa8b4','#b09a8c','#8ea89a'][i], null,0,-2.5);
       ball((x0+x1)/2, -3, 76, 5, '#e8ddc8');
     }
-    slab(W*0.66,W-12, 0, 100, 0, -6, shade(wall,.8), null, trim);
+    shopDoor(W*0.83, wall, trim);
     F(W*0.70,W-16, 50, 90, '#6e7c8c', null,0,-6.5);
     slab(6,W-6, 120, 146, -1, -9, trim);
     F(20,W-20, 126, 140, shade(wall,1.12), null,0,-9.5);
@@ -1557,7 +1741,7 @@ const SHOPS = [
     cyl(bx-24, bb, 44, 70, 7, '#b8843c');
     cyl(bx+24, bb, 44, 70, 7, '#b8843c');
     F(bx-8,bx+8, 72, 86, '#e8ddc8', null,0,-6);
-    slab(W*0.72,W-10, 0, 98, 0, -6, shade(wall,.78), null, trim);
+    shopDoor(W*0.84, wall, trim);
     F(W*0.76,W-14, 50, 88, '#7fb4c4', null,0,-6.5);
     const out = 30;
     poly([P(4,0,124),P(W-4,0,124),P(W-4,out,110),P(4,out,110)], trim);
@@ -1632,7 +1816,7 @@ const SHOPS = [
       ctx.quadraticCurveTo(m.x,m.y+1,r.x,r.y+1);
       ctx.strokeStyle=trim; ctx.lineWidth=3; ctx.stroke();
     }
-    slab(WW*0.40,WW*0.60, 0, 100, 0, -6, shade(wall,.78), null, trim);
+    shopDoor(WW*0.50, wall, trim, null, WW);
     F(WW*0.44,WW*0.56, 52, 92, '#8f93a8', null,0,-6.5);
     if(state.roof) box(WW*0.26,WW*0.52,-140,-100,H,H+20,'#8f969d','#787f86','#697077');
     kerb(p,'none');
@@ -1650,20 +1834,25 @@ const SHOPS = [
     slab(0,WW, 96, 106, -1, -6, trim);
     for(let i=0;i<9;i++) F(6+i*((WW-12)/9), 6+(i+0.62)*((WW-12)/9), 98, 104, shade(trim,1.5), null,0,-6.5);
     const ax0 = WW*0.34, ax1 = WW*0.66;
-    F(ax0-8,ax1+8, 0, 88, trim, null,0,-1);
+    /* the portal is already 67 wide, within a unit of SHOP_DOOR_W, so
+       the arch keeps its shape -- only the heights move. The opening
+       was 84 (126 after the lab factor); it is 108 now, which lands on
+       the real 161.92. Both arcs rise by the same amount so the curve
+       is unchanged. */
+    F(ax0-8,ax1+8, 0, 112, trim, null,0,-1);
     const ap = (t,bb) => {
       const u=1-t, a = u*u*(ax0-8) + 2*u*t*((ax0+ax1)/2) + t*t*(ax1+8);
-      const z = u*u*88 + 2*u*t*158 + t*t*88;
+      const z = u*u*112 + 2*u*t*182 + t*t*112;
       return P(a,bb,z);
     };
     ctx.beginPath(); let q=ap(0,-1); ctx.moveTo(q.x,q.y);
     for(let k=1;k<=12;k++){ q=ap(k/12,-1); ctx.lineTo(q.x,q.y); }
     ctx.closePath(); ctx.fillStyle=trim; ctx.fill();
     for(let k=0;k<12;k++) poly([ap(k/12,-1),ap((k+1)/12,-1),ap((k+1)/12,-10),ap(k/12,-10)], shade(trim,1.25));
-    F(ax0,ax1, 0, 84, shade(wall,.5), null,0,-9);
+    F(ax0,ax1, 0, 108, shade(wall,.5), null,0,-9);
     const ip = (t,bb) => {
       const u=1-t, a = u*u*ax0 + 2*u*t*((ax0+ax1)/2) + t*t*ax1;
-      const z = u*u*84 + 2*u*t*142 + t*t*84;
+      const z = u*u*108 + 2*u*t*166 + t*t*108;
       return P(a,bb,z);
     };
     ctx.beginPath(); q=ip(0,-9); ctx.moveTo(q.x,q.y);
@@ -1712,7 +1901,7 @@ const SHOPS = [
     F(10,WW*0.56, 24, 100, '#7f8a94', shade(wall,1.4), 3);
     for(let i=0;i<5;i++)
       tube(12+i*((WW*0.54-12)/5), -4, 24, 12+i*((WW*0.54-12)/5), -4, 100, 1.5, shade(wall,1.15));
-    slab(WW*0.62,WW-10, 0, 102, 0, -6, shade(wall,.8), null, trim);
+    shopDoor(WW*0.78, wall, trim, null, WW);
     F(WW*0.66,WW-14, 52, 92, '#7f8a94', null,0,-6.5);
     slab(10,WW*0.56, 12, 24, -1, -7, shade(wall,.66));
     // the key, hung on an arm and lying in that arm's plane
@@ -1757,7 +1946,7 @@ const SHOPS = [
     ctx.lineTo(lc1.x+9*K, lc1.y); ctx.lineTo(lc1.x-9*K, lc1.y);
     ctx.closePath(); ctx.fillStyle='#e8d9bd'; ctx.fill();
     ctx.strokeStyle=shade('#e8d9bd',.8); ctx.lineWidth=1.5; ctx.stroke();
-    slab(W*0.78,W-10, 0, 108, 0, -6, shade(wall,.8), null, trim);
+    shopDoor(W*0.87, wall, trim);
     F(W*0.82,W-14, 54, 98, '#7f93a0', null,0,-6.5);
     slab(6,W-6, H-26, H-6, -1, -10, trim);
     F(20,W-20, H-22, H-10, shade(wall,1.16), null,0,-10.5);
@@ -1785,7 +1974,7 @@ const SHOPS = [
     const wall = '#b7ae98', trim = '#3f6b4a', H = 146, gb = 76, gz = 132;
     body(wall, trim, H);
     slab(0,W, H, H+8, -1, -12, trim);
-    slab(W*0.72,W-10, 0, 96, 0, -6, shade(wall,.8), null, trim);
+    shopDoor(W*0.84, wall, trim);
     F(W*0.76,W-14, 48, 86, '#8fb8a0', null,0,-6.5);
     F(10,W*0.66, 30, 96, shade(wall,.7), null,0,-1);
     // glazed end walls, then the sloping roof over them
@@ -1842,7 +2031,7 @@ const SHOPS = [
       for(let k=0;k<4;k++) F(x0+3+(x1-x0-6)*k/4, x0+3+(x1-x0-6)*(k+0.5)/4, z0+4, z0+26,
         'rgba(255,255,255,.22)', null,0,-2);
     }
-    slab(W*0.74,W-10, 0, 100, 0, -6, shade(wall,.78), null, trim);
+    shopDoor(W*0.86, wall, trim);
     F(W*0.78,W-14, 50, 90, '#4a5056', null,0,-6.5);
     if(state.roof){
       const masts = [[W*0.14,-40,120],[W*0.30,-96,88],[W*0.46,-30,140],[W*0.62,-120,96],[W*0.80,-60,110]];
@@ -1895,8 +2084,11 @@ const SHOPS = [
     poly([P(2,0,116),P(2,out,100),P(2,out,88),P(2,0,104)], shade(trim,.6));
     poly([P(W-2,0,116),P(W-2,out,100),P(W-2,out,88),P(W-2,0,104)], shade(trim,.6));
     for(let i=0;i<6;i++) ball(14+(W-28)*(i+0.5)/6, out-4, 95, 5, '#fff0c0');
-    for(let i=0;i<3;i++)
-      slab(18+i*((W-36)/3)+6, 18+(i+1)*((W-36)/3)-6, 0, 92, 0, -6, shade(wall,.66), null, trim);
+    /* three leaves at 52.7 wide across a 194 bay. Three real doors need
+       198.7 and do not fit, so the theatre entrance becomes a pair --
+       still reads as a bank of doors, and both are the game's size. */
+    shopDoor(W*0.34, wall, trim, 'rgba(232,201,160,.5)');
+    shopDoor(W*0.66, wall, trim, 'rgba(232,201,160,.5)');
     for(let i=0;i<2;i++)
       slab(W*0.06+i*W*0.80, W*0.06+i*W*0.80+W*0.10, 96, 116, -1, -8, ['#c2452e','#2a5c6c'][i], null, trim);
     if(state.props){
@@ -1929,13 +2121,18 @@ const SHOPS = [
     slab(0,W, H, H+12, -1, -14, trim);
     slab(6,W-6, 136, H-10, -1, -9, shade(wall,1.2), null, trim);
     F(20,W-20, 144, 164, trim, null,0,-9.5);
+    /* same fault as the Garage: two appliance bays ran the full 14..W-14
+       and there was no pedestrian door. Bays share the left, the crew
+       door takes the gap before the hose tower. */
+    const bayR = W*0.62;
     for(let i=0;i<2;i++){
-      const x0 = 14+i*(W-28)/2+(i?8:0), x1 = 14+(i+1)*(W-28)/2-(i?0:8);
+      const x0 = 14+i*(bayR-28)/2+(i?8:0), x1 = 14+(i+1)*(bayR-28)/2-(i?0:8);
       F(x0-5,x1+5, 0, 128, shade(wall,.74), null,0, 1);
       F(x0,x1, 0, 120, '#c9b48e', shade(wall,1.3), 2, -1);
       for(let j=0;j<5;j++) F(x0+3, x1-3, 8+j*23, 26+j*23, '#d8c9a4', shade(wall,.85), 1.5, -2);
       slab(x0-5,x1+5, 120, 128, -2, -9, trim);
     }
+    shopDoor(W*0.78, wall, trim);
     const t0 = W-8, t1 = W+62;
     F(t0,t1, 0, H+120, shade(wall,1.08), shade(wall,.7), 2, -6);
     S(t1, -76, -6, 0, H+120, shade(wall,.78));
@@ -1974,7 +2171,7 @@ const SHOPS = [
     }
     slab(W*0.50,W*0.63, 40, 100, -2, -8, '#ffffff', shade(wall,.7));
     for(let i=0;i<5;i++) F(W*0.515, W*0.515+(W*0.10)*(1-i*0.17), 88-i*11, 92-i*11, '#3a3f4a', null,0,-2.5);
-    slab(W*0.72,W-10, 0, 104, 0, -6, shade(wall,.84), null, trim);
+    shopDoor(W*0.85, wall, trim);
     F(W*0.76,W-14, 54, 94, '#8fb4c8', null,0,-6.5);
     // spectacles, in the plane of the fascia
     const gz = 146, gb = -10;
@@ -2026,7 +2223,7 @@ const SHOPS = [
       }
       for(let k=1;k<4;k++) poly([pt(k/4-0.012,30),pt(k/4+0.012,30),pt(k/4+0.012,112),pt(k/4-0.012,112)], shade(wall,.72));
     }
-    slab(W*0.44,W*0.56, 0, 100, 0, -6, '#5a3f2a', null, trim);
+    shopDoor(W*0.50, wall, '#5a3f2a');
     F(W*0.46,W*0.54, 56, 92, '#8fa0aa', null,0,-6.5);
     if(state.props){
       tube(W*0.03, -2, 132, W*0.03, -28, 132, 2, '#2b2f33');
@@ -2078,7 +2275,7 @@ const SHOPS = [
     F(10,WW*0.62, 20, 104, '#c6b89c', shade(trim,1.1), 2);
     for(let i=0;i<7;i++) F(12+i*((WW*0.60-12)/7), 16+i*((WW*0.60-12)/7), 20, 104, trim, null,0,-1);
     for(let i=0;i<3;i++) F(10,WW*0.62, 32+i*24, 36+i*24, trim, null,0,-1);
-    slab(WW*0.68,WW-10, 0, 100, 0, -6, shade(wall,.8), null, trim);
+    shopDoor(WW*0.82, wall, trim, null, WW);
     F(WW*0.72,WW-14, 50, 90, '#c6b89c', null,0,-6.5);
     if(state.props){
       for(let i=0;i<4;i++){
@@ -2109,7 +2306,7 @@ const SHOPS = [
     box(60,92, 2, 20, 40, 96, '#9a7a5a','#8a6a4a','#75563a');
     box(98,126, 2, 20, 30, 66, '#7a5a6a','#6a4a5a','#5a3c4a');
     for(let i=0;i<4;i++) ball(24+i*30, -3, 88, 7, ['#c9a24a','#8fb4a0','#c2807e','#d8c9a4'][i]);
-    slab(W*0.70,W-10, 0, 104, 0, -6, shade(wall,.74), null, trim);
+    shopDoor(W*0.84, wall, trim);
     if(state.props){
       // stacked chairs, each with legs, seat and back
       for(let i=0;i<3;i++){
@@ -2148,7 +2345,7 @@ const SHOPS = [
     slab(0,W, H, H+10, -1, -12, trim);
     F(10,W*0.66, 24, 98, '#8fc0cc', shade(wall,.6), 3);
     for(let i=0;i<3;i++) F(16+i*((W*0.60)/3), 20+i*((W*0.60)/3), 24, 98, shade(wall,1.2), null,0,-1);
-    slab(W*0.72,W-10, 0, 96, 0, -6, shade(wall,.78), null, trim);
+    shopDoor(W*0.84, wall, trim);
     F(W*0.76,W-14, 48, 86, '#8fc0cc', null,0,-6.5);
     // bikes lying in the wall plane
     for(let i=0;i<2;i++){
@@ -2226,7 +2423,7 @@ const SHOPS = [
       ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(0.45,-0.55); ctx.stroke();
       ctx.restore();
     }
-    slab(WW*0.66,WW-10, 0, 104, 0, -6, shade(wall,.8), null, trim);
+    shopDoor(WW*0.81, wall, trim, null, WW);
     F(WW*0.70,WW-14, 54, 94, '#6e7c88', null,0,-6.5);
     slab(6,WW-6, 108, 116, -1, -8, trim);
     if(state.roof) box(WW*0.24,WW*0.46,-150,-110,H,H+20,'#8f969d','#787f86','#697077');
@@ -2247,7 +2444,7 @@ const SHOPS = [
     for(let r=0;r<3;r++) for(let c=0;c<5;c++)
       F(16+c*((W*0.62-16)/5), 16+(c+0.82)*((W*0.62-16)/5), 30+r*24, 48+r*24,
         ['#e8a13a','#4aa8c4','#c2452e','#7ac48a','#f0e2d0','#e2748c'][(r*5+c)%6], null,0,-1);
-    slab(W*0.74,W-10, 0, 98, 0, -6, shade(wall,.78), null, trim);
+    shopDoor(W*0.86, wall, trim);
     F(W*0.78,W-14, 50, 88, '#8f7a8c', null,0,-6.5);
     for(let t=0;t<2;t++){
       const z1 = 124 - t*30, z0 = z1 - 16, out = 26 + t*12, base = ['#c2452e','#4aa8c4'][t];
@@ -2292,7 +2489,7 @@ const SHOPS = [
     for(let i=0;i<10;i++) F(22+i*6.4, 24+i*6.4, 60, 68, '#2b2119', null,0, 1.2);
     box(96,W*0.62, 2, 20, 30, 92, '#4a3226','#3a2a20','#2e2018');
     for(let i=0;i<4;i++) F(100,W*0.60, 36+i*14, 46+i*14, ['#c9a24a','#e8ddc8','#8fb4a0','#c2807e'][i], null,0, 1.5);
-    slab(W*0.72,W-10, 0, 100, 0, -6, shade(wall,.76), null, trim);
+    shopDoor(W*0.84, wall, trim);
     F(W*0.76,W-14, 52, 90, '#5d7a68', null,0,-6.5);
     // guitars, lying in the wall plane
     for(let i=0;i<3;i++){
@@ -2333,7 +2530,7 @@ const SHOPS = [
       faceCircle(pa, -3.5, 66, 11, '#7fa8b8');
       for(let k=0;k<4;k++) faceCircle(pa + 13*Math.cos(k*1.57), -3.6, 66 + 13*Math.sin(k*1.57), 1.6, shade(trim,.65));
     }
-    slab(W*0.66,W-10, 0, 100, 0, -6, shade(wall,.76), null, trim);
+    shopDoor(W*0.83, wall, trim);
     F(W*0.70,W-14, 52, 90, '#7fa8b8', null,0,-6.5);
     slab(6,W-6, 112, 140, -1, -9, shade(wall,1.25), null, trim);
     F(18,W-18, 120, 132, trim, null,0,-9.5);
@@ -2393,7 +2590,7 @@ const SHOPS = [
     plateCircle(sa+46, sb, 106, 9, '#c9803a');
     cyl(sa, sb, 20, 30, 22, '#3a2e26');
     F(sa-14, sa+14, 24, 40, '#e8a13a', null,0, sb-22);
-    slab(W*0.74,W-10, 0, 108, 0, -6, shade(wall,.74), null, trim);
+    shopDoor(W*0.86, wall, trim);
     F(W*0.78,W-14, 56, 98, '#8a7a5a', null,0,-6.5);
     if(state.props){
       poly([P(W*0.10,30,2),P(W*0.40,30,2),P(W*0.40,64,2),P(W*0.10,64,2)], '#4a3a2a', '#3a2c1e', 2);
@@ -2436,7 +2633,7 @@ const SHOPS = [
       faceCircle(38+i*30, 0.6, 62, 4, '#8d979f');
     }
     F(W*0.46,W*0.68, 40, 46, '#d8d2c4', null,0, 1.5);
-    slab(W*0.78,W-10, 0, 104, 0, -6, shade(wall,.78), null, trim);
+    shopDoor(W*0.88, wall, trim);
     F(W*0.82,W-14, 54, 94, '#7b8f9c', null,0,-6.5);
     faceCircle(W*0.90, -10, 143, 13, '#f2ece0', shade(wall,1.5), 2.5);
     faceT(W*0.90, -10.4, 143, 13);
@@ -2481,7 +2678,7 @@ const SHOPS = [
         cyl(ja, jb, z+18, z+22, 4, '#b9bcc0');
       }
     }
-    slab(WW*0.66,WW-16, 0, 100, 0, -6, '#f8eef0', null, trim);
+    shopDoor(WW*0.80, wall, '#f8eef0', null, WW);
     F(WW*0.70,WW-20, 52, 90, '#d8c0c8', null,0,-6.5);
     for(const ca of [WW*0.63, WW-11]){
       cyl(ca, -6, 0, 118, 6, '#fbf3f5');
@@ -2549,7 +2746,7 @@ const SHOPS = [
       cyl(pa, pb, 60, 68, 6, col);
       plateCircle(pa, pb, 68, 7, shade(col,1.15), shade(col,.8), 1.5);
     }
-    slab(W*0.84,W-8, 0, 96, 0, -6, shade(wall,.72), null, trim);
+    shopDoor(W*0.88, wall, trim);
     slab(6,W-6, 110, 138, -1, -9, shade(wall,1.14), null, trim);
     F(20,W-20, 118, 130, trim, null,0,-9.5);
     if(state.props){
@@ -2590,7 +2787,7 @@ const SHOPS = [
       box(sa-7, sa+5, 6, 16, 52, 57, shade(col,1.1), col, shade(col,.85));
     }
     for(let r=0;r<2;r++) slab(14,WW*0.56, 74+r*12, 78+r*12, -1, 18, '#5a4128');
-    slab(WW*0.66,WW-10, 0, 100, 0, -6, shade(wall,.76), null, trim);
+    shopDoor(WW*0.78, wall, trim, null, WW);
     F(WW*0.70,WW-14, 52, 90, '#8a9aa0', null,0,-6.5);
     // the boot, as a solid
     const ba = WW*0.30, bb = -22;
@@ -2620,7 +2817,7 @@ const SHOPS = [
     slab(14,W*0.70, 44, 52, -1, 20, '#c9b48e');
     for(let i=0;i<4;i++) box(20+i*30, 40+i*30, 4, 18, 52, 76, ['#e8a13a','#e2748c','#7ac48a','#f4ecd6'][i],
       shade(['#e8a13a','#e2748c','#7ac48a','#f4ecd6'][i],.85), shade(['#e8a13a','#e2748c','#7ac48a','#f4ecd6'][i],.7));
-    slab(W*0.78,W-10, 0, 96, 0, -6, shade(wall,.8), null, trim);
+    shopDoor(W*0.87, wall, trim);
     if(state.props){
       // boards leaning in a real plane against the pier
       for(let i=0;i<3;i++){
@@ -2693,7 +2890,7 @@ const SHOPS = [
       tube(ta, 6, 40, ta, 6, 88, 1.6, '#8d979f');
       tube(ta-5, 6, 88, ta+5, 6, 88, 1.4, '#6d757c');
     }
-    slab(W*0.76,W-10, 0, 104, 0, -6, shade(wall,.78), null, trim);
+    shopDoor(W*0.86, wall, trim);
     F(W*0.80,W-14, 54, 94, '#6a6258', null,0,-6.5);
     const hc = W*0.88, hb = -6, hz = 124;
     faceT(hc, hb, hz, 17);
@@ -2732,7 +2929,7 @@ const SHOPS = [
     slab(6,W-6, 124, 152, -1, -9, shade(wall,1.2), null, trim);
     F(20,W-20, 132, 144, trim, null,0,-9.5);
     F(12,W*0.68, 24, 112, '#2e1d24', shade(wall,.6), 3);
-    slab(W*0.74,W-10, 0, 100, 0, -6, shade(wall,.76), null, trim);
+    shopDoor(W*0.85, wall, trim);
     F(W*0.78,W-14, 52, 90, '#8a6a74', null,0,-6.5);
     for(const aa of [10, W*0.5, W-10]){
       tube(aa, 0, railZ+6, aa, railB, railZ, 3, shade(wall,1.3));
@@ -2795,7 +2992,7 @@ const SHOPS = [
       cyl(bx, 4, 30, 74, 12, '#5c4232');
       plateCircle(bx, 4, 74, 12, ['#3a2a1e','#5a3a24','#2e2018'][i], '#3a2c22', 1.6);
     }
-    slab(W*0.76,W-10, 0, 104, 0, -6, shade(wall,.78), null, trim);
+    shopDoor(W*0.86, wall, trim);
     F(W*0.80,W-14, 54, 94, '#8a7458', null,0,-6.5);
     if(state.props){
       for(let i=0;i<3;i++){
@@ -2830,7 +3027,7 @@ const SHOPS = [
       cyl(sa, 6, 26, 46, 12, '#c9b48e');
       ball(sa, 6, 50, 11, '#c9b48e', '#d8c49e');
     }
-    slab(W*0.72,W-10, 0, 96, 0, -6, shade(wall,.78), null, trim);
+    shopDoor(W*0.84, wall, trim);
     F(W*0.76,W-14, 48, 86, '#6a7a68', null,0,-6.5);
     slab(6,W-6, 104, 130, -1, -9, shade(wall,1.15), null, trim);
     F(20,W-20, 112, 122, trim, null,0,-9.5);
@@ -2880,7 +3077,7 @@ const SHOPS = [
     tube(20, -4, 152, W-20, -4, 152, 2, '#8a7a94');
     for(const aa of [30, W-30]) tube(aa, -1, 130, aa, -4, 152, 1.6, '#8a7a94');
     F(12,W*0.56, 20, 96, '#9aa8b4', shade(wall,.65), 3);
-    slab(W*0.62,W*0.80, 0, 100, 0, -6, shade(wall,.76), null, trim);
+    shopDoor(W*0.71, wall, trim);
     F(W*0.65,W*0.77, 52, 92, '#9aa8b4', null,0,-6.5);
     if(state.props){
       const steps = 9;
@@ -2916,7 +3113,7 @@ const SHOPS = [
       slab(x0,x1, z0, z0+22, -1, -6, '#e8e2d4', shade(wall,2.0));
       F(x0+3,x1-3, z0+3, z0+19, ['#c2452e','#2f5f6b','#c9a24a','#6b4a7a'][(r+c)%4], null,0,-6.5);
     }
-    slab(W*0.74,W-10, 0, 104, 0, -6, shade(wall,1.9), null, trim);
+    shopDoor(W*0.85, wall, shade(wall,1.9), 'rgba(60,66,80,.55)');
     F(W*0.78,W-14, 54, 94, '#3a2a30', null,0,-6.5);
     slab(6,W-6, 118, 150, -1, -9, shade(wall,1.7));
     // neon script, sampled through world points in the fascia plane
@@ -2972,7 +3169,7 @@ const SHOPS = [
       F((x0+x1)/2-1.5,(x0+x1)/2+1.5, 26, 60, shade(wall,1.6), null,0, 5);
       faceCircle((x0+x1)/2, 4, 44, 8, '#8d8f96');
     }
-    slab(W*0.44,W*0.56, 0, 104, 0, -6, shade(wall,1.3), null, trim);
+    shopDoor(W*0.50, wall, shade(wall,1.3));
     if(state.roof){
       for(const aa of [W*0.10, W*0.50, W*0.90]){
         box(aa-13, aa+13, -14, 0, H+8, H+15, '#9a9ca2','#8f9198','#7c7e85');
@@ -3003,7 +3200,7 @@ const SHOPS = [
       slab(x0,x1, z0, z0+20, -1, -5, '#7fb0c8');
       F(x0+3,x1-3, z0+3, z0+17, ['#c2452e','#e8c34a','#7ac48a','#f0e2c0','#e2748c'][(r+c)%5], null,0,-5.5);
     }
-    slab(W*0.76,W-10, 0, 100, 0, -6, shade(wall,.78), null, trim);
+    shopDoor(W*0.86, wall, trim);
     F(W*0.80,W-14, 52, 90, '#7fb0c8', null,0,-6.5);
     if(state.props){
       for(let i=0;i<3;i++){
@@ -3049,13 +3246,19 @@ const SHOPS = [
     F(-10, W+10, 0, DOCK-12, '#6a7076', null,0, 54);
     for(let i=0;i<9;i++) F(-10+(W+20)*i/9, -10+(W+20)*i/9+4, 0, DOCK-12, '#5e646b', null,0, 53.5);
     for(let i=0;i<7;i++) box(-6+(W+12)*i/7, -6+(W+12)*i/7+22, 54, 58, DOCK-16, DOCK-8, '#2b2f33','#3a4046','#22262a');
+    /* third building with no way in on foot, after the Garage and the
+       Fire station. Bays pulled back and a personnel door added -- on
+       the dock, not the pavement, which is what the base argument is
+       for. */
+    const bayR = W*0.68;
     for(let i=0;i<2;i++){
-      const x0 = 14+i*(W-28)/2+(i?8:0), x1 = 14+(i+1)*(W-28)/2-(i?0:8);
+      const x0 = 14+i*(bayR-28)/2+(i?8:0), x1 = 14+(i+1)*(bayR-28)/2-(i?0:8);
       F(x0-5,x1+5, DOCK, 120, shade(wall,.74), null,0, 1);
       F(x0,x1, DOCK, 112, '#8c9298', shade(wall,1.3), 2, -1);
       for(let j=0;j<6;j++) F(x0+2, x1-2, DOCK+6+j*12, DOCK+12+j*12, '#a2a8ae', null,0,-2);
       slab(x0-5,x1+5, 112, 120, -2, -9, trim);
     }
+    shopDoor(W*0.86, wall, trim, null, W, DOCK);
     if(state.props){
       for(let i=0;i<4;i++){
         const z = DOCK - i*9;
@@ -3100,7 +3303,7 @@ const SHOPS = [
       }
     }
     for(let i=1;i<5;i++) F(10+(W*0.66-10)*i/5-1.6, 10+(W*0.66-10)*i/5+1.6, 22, 104, shade(wall,1.3), null,0,-1);
-    slab(W*0.72,W-10, 0, 102, 0, -6, shade(wall,.76), null, trim);
+    shopDoor(W*0.84, wall, trim);
     F(W*0.76,W-14, 54, 92, '#6a7a5a', null,0,-6.5);
     // mortar and pestle, turned
     const ma = W*0.86, mb = -10, mz = 126;
@@ -3157,7 +3360,7 @@ const SHOPS = [
       tube(x0, 24, 118, x1, 24, 118, 1.2, '#3c3a36');
     }
     F(10,W*0.62, 20, 88, '#7f93a0', shade(wall,.6), 3);
-    slab(W*0.68,W-10, 0, 92, 0, -6, shade(wall,.76), null, trim);
+    shopDoor(W*0.83, wall, trim);
     F(W*0.72,W-14, 48, 82, '#7f93a0', null,0,-6.5);
     slab(6,W-6, 92, 100, -1, -8, trim);
     if(state.props){
@@ -3205,6 +3408,7 @@ const SHOPS = [
       }
     }
     F(8,W-8, 20, 108, '#8fa8b8', shade(wall,.62), 3);
+    shopDoor(W*0.50, wall, trim);      // 214 of glazing with no way through it
     for(let k=1;k<6;k++) F(8+(W-16)*k/6-3, 8+(W-16)*k/6+3, 20, 108, shade(wall,.8), null,0,-1);
     for(let i=0;i<5;i++){
       const ma = 24+i*40, col = ['#7a3b46','#3f6b6b','#c9a24a','#4a4f6b','#8a5a6a'][i];
@@ -3267,7 +3471,7 @@ const SHOPS = [
         slab(x0-6,x1+6, z0-8, z0-3, -1, -13, shade(wall,.92));
       }
     }
-    slab(W*0.42,W*0.62, 0, 96, 0, -8, trim, null, shade(wall,1.1));
+    shopDoor(W*0.52, wall, trim);
     F(W*0.45,W*0.59, 12, 88, '#5f7280', null,0,-8.5);
     slab(W*0.40,W*0.64, 96, 104, -1, -10, shade(wall,1.1));
     for(let i=0;i<2;i++) F(i? W*0.70 : 12, i? W-12 : W*0.32, 26, 88, '#5f7280', shade(wall,.7), 2);
@@ -3317,7 +3521,7 @@ const SHOPS = [
     }
     F(10,W*0.40, 22, 94, '#7f93a0', shade(wall,.62), 3);
     F(W*0.62,W-10, 22, 94, '#7f93a0', shade(wall,.62), 3);
-    slab(W*0.44,W*0.58, 0, 100, 0, -8, trim, null, shade(trim,1.2));
+    shopDoor(W*0.51, wall, trim);
     F(W*0.46,W*0.56, 14, 90, '#5a6f7a', null,0,-8.5);
     const az = 108, ao = 46;
     ctx.beginPath();
@@ -3367,7 +3571,7 @@ const SHOPS = [
         for(let k=1;k<4;k++) F(x0,x1, z0+64*k/4-2, z0+64*k/4+2, trim, null,0,-10);
       }
     }
-    slab(W*0.40,W*0.60, 0, 96, 0, -8, shade(wall,.7), null, trim);
+    shopDoor(W*0.50, wall, trim);
     F(W*0.43,W*0.57, 10, 88, '#4a5a64', null,0,-8.5);
     slab(W*0.36,W*0.64, 96, 108, -1, -10, trim);
     slab(W*0.42,W*0.58, 262, 278, -1, -7, trim);
@@ -3408,6 +3612,10 @@ const SHOPS = [
       const z0 = 30 + fl*88;
       for(let i=0;i<3;i++){
         const x0 = 6+(W-12)*i/3+14, x1 = 6+(W-12)*(i+1)/3-14;
+        /* the ground floor was three bays -- two windows and a loading
+           door -- with no pedestrian entrance anywhere on the building.
+           The right-hand ground bay becomes the way in. */
+        if(fl===0 && i===2){ shopDoor((x0+x1)/2, wall, trim); continue; }
         if(i===1){
           F(x0-6,x1+6, z0-6, z0+68, shade(wall,.72), null,0,-1);
           slab(x0,x1, z0, z0+62, -2, -9, '#6a5442', trim);
@@ -3448,6 +3656,7 @@ const SHOPS = [
     slab(0,W, H, H+12, -1, -14, shade(wall,.74));
     slab(0,W, H-18, H, -1, -10, shade(wall,1.06));
     slab(0,W, 110, 122, -1, -8, shade(wall,.86));
+    shopDoor(W*0.50, wall, trim);      // ground floor was blank wall
     for(let i=0;i<4;i++){
       const x0 = 12+(W-24)*(i+0.12)/4, x1 = 12+(W-24)*(i+0.88)/4;
       F(x0-4,x1+4, 130, 216, shade(wall,1.08), null,0,-1);
@@ -3515,6 +3724,7 @@ const SHOPS = [
       for(let i=0;i<11;i++) cyl(W*(i+0.5)/11, -18, z0+70, z0+78, 1.6, trim);
     }
     slab(0,W, H, H+10, -1, -D, trim);
+    shopDoor(W*0.12, wall, trim);   // stair core -- the ramp was the only way in
     // helical ramp with treads, an edge beam and a centre column
     const ra = W + 58, rb = -60, rr = 54;
     cyl(ra, rb, 0, H, 8, trim);
@@ -3546,6 +3756,7 @@ const SHOPS = [
   draw(p){
     const wall = '#c4bda8', trim = '#3f5a52', H = 232, steps = 12;
     body(wall, trim, H);
+    shopDoor(W*0.50, wall, trim);
     slab(0,W, H, H+12, -1, -14, trim);
     const vp = (i) => {
       const a = Math.PI*i/steps;
@@ -3641,8 +3852,7 @@ const SHOPS = [
     }
     slab(0,W, 106, 114, -1, -8, shade(wall,1.5));
     F(10,W*0.48, 24, 96, '#7f93a8', shade(wall,.7), 3);
-    F(W*0.54,W-10, 0, 100, shade(wall,.72), null,0, 1);
-    F(W*0.54,W-10, 0, 92, '#8c9298', shade(wall,1.4), 2, -1);
+    shopDoor(W*0.80, wall, trim);
     for(let j=0;j<6;j++) F(W*0.54+3, W-13, 6+j*14, 14+j*14, '#a2a8ae', null,0,-2);
     slab(W*0.52,W-8, 92, 100, -2, -9, '#c2452e');
     if(state.props){
@@ -3698,7 +3908,7 @@ const SHOPS = [
       }
     }
     slab(0,W, 88, 96, -1, -8, shade(wall,.8));
-    slab(W*0.40,W*0.60, 0, 82, 0, -8, trim, null, shade(wall,1.1));
+    shopDoor(W*0.50, wall, trim);
     F(W*0.43,W*0.57, 10, 74, '#6a7a80', null,0,-8.5);
     for(let i=0;i<2;i++) F(i? W*0.70 : 12, i? W-12 : W*0.30, 26, 76, '#6a7a80', shade(wall,.72), 2);
     slab(W*0.34,W*0.66, 82, 90, -1, -10, shade(wall,1.1));
@@ -3752,7 +3962,7 @@ const SHOPS = [
       for(let k=0;k<6;k++) cyl(x0+(x1-x0)*(k+0.5)/6, 4, 30, 92, 1.6, '#2b3138');
       tube(x0, 4, 61, x1, 4, 61, 1.4, '#2b3138');
     }
-    slab(W*0.42,W*0.58, 0, 96, 0, -8, trim, null, shade(wall,1.1));
+    shopDoor(W*0.50, wall, trim);
     F(W*0.45,W*0.55, 12, 88, '#5a6a7a', null,0,-8.5);
     slab(W*0.36,W*0.64, 96, 106, -1, -10, shade(wall,1.12));
     slab(W*0.40,W*0.60, 108, 122, -1, -8, trim);
@@ -3789,7 +3999,10 @@ const SHOPS = [
     slab(0,W, H, H+14, -1, -16, shade(wall,.76));
     slab(0,W, H-22, H, -1, -10, shade(wall,1.08));
     F(W*0.28,W*0.72, 0, 150, shade(wall,.66), null,0, 1);
-    for(let i=0;i<3;i++) F(W*0.30+i*W*0.14, W*0.30+i*W*0.14+W*0.10, 0, 132, '#3f4a4a', null,0, 2);
+    /* three openings at 23 wide inside a 101 portico. Two real doors
+       need 132.5 and will not fit between the columns, so the museum
+       entrance becomes a single proper one on the centreline. */
+    shopDoor(W*0.50, wall, '#3f4a4a', 'rgba(95,114,116,.55)');
     for(let i=0;i<4;i++) cyl(W*0.28+i*W*0.147, -8, 0, 150, 7, shade(wall,1.0));
     slab(W*0.24,W*0.76, 150, 164, -6, -14, shade(wall,1.06));
     for(let fl=0; fl<2; fl++){
@@ -3850,6 +4063,7 @@ const SHOPS = [
         slab(x0-7,x1+7, z0-9, z0-4, -1, -13, trim);
       }
     }
+    shopDoor(W*0.56, wall, trim);   // ground floor began at z0 = 40, no way in
     const t0 = -8, t1 = W*0.24;
     F(t0,t1, 0, H+46, shade(wall,1.12), shade(wall,.7), 2, -14);
     S(t1, -14, 0, 0, H+46, shade(wall,.86));
@@ -3913,7 +4127,7 @@ const SHOPS = [
     slab(W*0.46, W*0.54, 268, 292, -1, -12, shade(wall,1.3), null, trim);   // keystone
     F(12,W*0.36, 26, 96, '#7a6a8c', shade(wall,.7), 2);
     F(W*0.64,W-12, 26, 96, '#7a6a8c', shade(wall,.7), 2);
-    slab(W*0.40,W*0.60, 0, 100, 0, -8, shade(wall,.72), null, trim);
+    shopDoor(W*0.50, wall, trim);
     F(W*0.43,W*0.57, 12, 92, '#e8d9a8', null,0,-8.5);
     const out = 50;
     poly([P(W*0.30,0,116),P(W*0.70,0,116),P(W*0.70,out,104),P(W*0.30,out,104)], trim);
@@ -3958,7 +4172,7 @@ const SHOPS = [
       }
     }
     F(12,W*0.44, 26, 96, '#6a8a98', shade(wall,.7), 2);
-    slab(W*0.52,W*0.70, 0, 100, 0, -8, trim, null, shade(wall,1.1));
+    shopDoor(W*0.61, wall, trim);
     F(W*0.76,W-12, 26, 96, '#6a8a98', shade(wall,.7), 2);
     slab(6,W-6, 100, 112, -1, -9, trim);
     if(state.props){
@@ -4015,6 +4229,10 @@ const SHOPS = [
     slab(W*0.36,W*0.68, 48, 54, -9.5, -12, trim);
     F(W*0.50,W*0.54, 6, 96, trim, null,0,-9.5);
     slab(W*0.10,W*0.24, 20, 84, 0, -7, trim, null, shade(wall,1.05));
+    /* the wide opening is an insulated sliding door for goods and is the
+       identity of the building, so it stays. This is the way in for a
+       person, which it did not have. */
+    shopDoor(W*0.86, wall, trim);
     if(state.props){
       for(let i=0;i<3;i++){
         const pa = W*0.78 + i*13;
@@ -4075,7 +4293,10 @@ const SHOPS = [
       ctx.beginPath(); q=ip(0,2); ctx.moveTo(q.x,q.y);
       for(let k=1;k<=12;k++){ q=ip(k/12,2); ctx.lineTo(q.x,q.y); }
       ctx.closePath(); ctx.fillStyle='#3f342a'; ctx.fill();
-      F(x0+5,x1-5, 0, 92, '#3f342a', null,0, 2);
+      /* the only shop in the 81 where a row of three real doors fits:
+       centres at W/6, W/2 and 5W/6 give 66.24-wide leaves with ten
+       units of pier between them. */
+    shopDoor((x0+x1)/2, wall, trim, 'rgba(63,52,42,.5)');
     }
     slab(0,W, 118, 132, -1, -10, shade(wall,.86));
     for(let fl=0; fl<2; fl++){
@@ -4119,12 +4340,57 @@ const SHOPS = [
    right flank, and the blank front wall the shop then dresses */
 function body(wall, trim, H, wid, dep){
   const w = wid===undefined ? W : wid, d = dep===undefined ? D : dep;
-  T(0,w,-d,0,H, shade(trim,1.05));                       // roof
+  if(!NOPLATE) T(0,w,-d,0,H, shade(trim,1.05));          // roof
   S(w,-d,0,0,H, shade(wall,.78));                        // right flank
   F(0,w,0,H, wall);                                      // front wall
   ctx.strokeStyle = shade(wall,.55); ctx.lineWidth = 1.5;
   poly([P(0,0,H),P(w,0,H),P(w,0,0),P(0,0,0)], null, shade(wall,.6), 1.5);
   F(0,w,0,16, shade(wall,.66), null,0,-0.5);             // stallriser
+}
+
+/* ================= THE DOOR KIT =================
+   Every shop had drawn its own door as a slab -- a box, 92 to 104 tall
+   and 31 to 64 wide, standing proud of the wall. Three faults in one
+   object: it was a volume where a shopfront door is a hole, it was the
+   wrong size, and it was a different wrong size in every shop.
+
+   The real one, from the shipped drawPickupUnit / drawShopDoor:
+     width   min(DOOR_W*0.72, unitW*0.3)  =  66.24
+     height  DOOR_H*0.88                  = 161.92
+
+   dH divides by ZSCALE so the opening comes out at 161.92 in game units
+   whatever vertical scale the shop itself is drawn at -- a shop on the
+   1.5 lab factor and a shop already rebuilt on the anchors both get the
+   same real door.
+
+   Position is the shop's own business. The game centres the PICKUP
+   door on u.w/2, but pickups will be targeted per shop rather than
+   assumed, so the kit takes a midpoint and puts the door there. It
+   clamps only so a door near the end of a frontage cannot run off it.
+
+   Everything is on the frontage plane within 1.2 units. No slab, no
+   return, so nothing casts a second little building onto the flank. */
+function shopDoor(aMid, wall, trim, glass, wid, base){
+  /* wid: some shops are drawn on a narrower unit (Tailor WW=170,
+     Newsstand WW=150), so the clamp has to be against THEIR frontage,
+     not the default W, or the door slides off the end of the wall. */
+  const uw = wid === undefined ? W : wid;
+  /* base: the floor the door stands on. Zero for a shopfront, but a
+     goods depot's openings sit on a loading dock and a door drawn from
+     the pavement would run through the dock face. */
+  const z = base === undefined ? 0 : base;
+  const hw = SHOP_DOOR_W/2, dH = SHOP_DOOR_H/ZSCALE;
+  const mid = Math.max(hw+5, Math.min(uw-hw-5, aMid));
+  const a0 = mid-hw, a1 = mid+hw;
+  F(a0-4, a1+4, z, z+dH+7, shade(wall,.90), null, 0, 0.3);       // painted surround
+  F(a0, a1, z, z+dH, '#2b2118', null, 0, 0.4);                    // opening
+  F(a0+2, a1-2, z+dH-24, z+dH-4, glass || 'rgba(150,190,206,.55)', null,0,0.6);
+  F(a0+2, a1-2, z+dH-28, z+dH-24, shade(trim,.8), null,0,0.6);    // transom rail
+  F(a0+2, a1-2, z, z+dH-28, trim, null, 0, 0.6);                  // leaf
+  for(let k=0;k<2;k++)
+    F(a0+8, a1-8, z+dH*0.07+k*dH*0.36, z+dH*0.30+k*dH*0.36, shade(trim,1.18), shade(trim,.7), 1.5, 0.9);
+  F(a1-14, a1-10, z+dH*0.40, z+dH*0.53, '#d8c28a', null, 0, 1.2); // handle
+  return { a0, a1, dH };
 }
 
 /* pavement props shared between shops */
@@ -4176,27 +4442,87 @@ function guides(){
   const t=P(0,0,0); ctx.fillText('w '+W+'  ·  D '+D, t.x, t.y+18);
 }
 
+/* ================= FRAMING BY MEASUREMENT =================
+   The old frame fitted K to (W + D*0.42) with a hand-tuned headroom
+   constant and a `tall` flag to bump it. Measured against the real ink:
+   57 of the 81 shops ran off the canvas, nearly all on the right and
+   bottom, because nothing in that formula knew about the things that
+   live OUTSIDE the unit box -- kerb crates at a > W, pavement props at
+   positive b, roof kit above H, a pylon leaning past the flank.
+
+   So stop predicting the extent and measure it. Draw the shop once to
+   an offscreen canvas at a known K and origin, read the alpha bounding
+   box, and solve for the K and origin that put that box in the middle
+   of the real one. The projection is linear -- screen = K*local + O --
+   so inverting a measured box is exact, not a fit.
+
+   Cached per (shop, roof, props, palette) because the toggles genuinely
+   change the extent: turning the roof kit off on a shop whose identity
+   is a water tank should reframe, not leave a hole at the top. */
+const MCV = document.createElement('canvas');
+MCV.width = 1100; MCV.height = 1100;
+const MCTX = MCV.getContext('2d');
+const MK = 0.62, MOX = 550, MOY = 760;      // nominal measure transform
+const boundsCache = new Map();
+let NOPLATE = false;   // measure pass suppresses the plain roof slab
+
+function measureBounds(){
+  const key = state.i + '|' + (state.roof?1:0) + (state.props?1:0) + state.pal;
+  if(boundsCache.has(key)) return boundsCache.get(key);
+  const sCv = cv, sCtx = ctx, sK = K, sOX = OX, sOY = OY;
+  cv = MCV; ctx = MCTX;
+  ctx.setTransform(1,0,0,1,0,0);
+  ctx.clearRect(0,0,MCV.width,MCV.height);
+  K = MK; OX = MOX; OY = MOY;
+  /* THE PLATE IS NOT THE SUBJECT. A 276-deep roof slab projects up and
+     to the right and is simply the largest thing on screen for every
+     shop that has one -- fitting to it shrinks the facade, which is the
+     part being dialled, to a strip down the left. So the measure pass
+     suppresses the plain plate and frames everything else: facade, sign,
+     roof KIT, kerb props, flanks. The plate is still drawn for real and
+     is allowed to run off the top corner, which is what the original
+     hand-tuned frame was reaching for before it got the numbers wrong. */
+  NOPLATE = true;
+  ZSCALE = SHOPS[state.i].zs === undefined ? LAB_ZS : SHOPS[state.i].zs;
+  SHOPS[state.i].draw(PAL[state.pal]);       // shop only -- pavement is not content
+  NOPLATE = false;
+  const d = ctx.getImageData(0,0,MCV.width,MCV.height).data;
+  let x0=1e9,x1=-1e9,y0=1e9,y1=-1e9;
+  for(let y=0;y<MCV.height;y++) for(let x=0;x<MCV.width;x++){
+    if(d[(y*MCV.width+x)*4+3] > 8){
+      if(x<x0)x0=x; if(x>x1)x1=x; if(y<y0)y0=y; if(y>y1)y1=y;
+    }
+  }
+  cv = sCv; ctx = sCtx; K = sK; OX = sOX; OY = sOY;
+  /* back out of screen space into local units */
+  const b = (x1 < x0) ? {lx0:0,lx1:W,ly0:0,ly1:W} : {
+    lx0:(x0-MOX)/MK, lx1:(x1-MOX)/MK, ly0:(y0-MOY)/MK, ly1:(y1-MOY)/MK };
+  boundsCache.set(key, b);
+  return b;
+}
+
 function draw(){
   const dpr = Math.min(2, window.devicePixelRatio||1);
   const cssW = Math.min(document.body.clientWidth, 900);
   const cssH = Math.round(Math.min(600, Math.max(400, cssW*0.86)));
-  cv.style.width = cssW+'px'; cv.style.height = cssH+'px';
-  cv.width = cssW*dpr; cv.height = cssH*dpr;
+  SCREEN.style.width = cssW+'px'; SCREEN.style.height = cssH+'px';
+  SCREEN.width = cssW*dpr; SCREEN.height = cssH*dpr;
   ctx.setTransform(dpr,0,0,dpr,0,0);
   ctx.clearRect(0,0,cssW,cssH);
-  /* frame the FACADE, not the box: the roof plate of a 276-deep unit
-     will happily fill the whole canvas if you fit the bounding box, and
-     this view exists to dial shopfronts. Fit on the frontage plus a
-     little of the depth so the roof kit still reads, and let the far
-     corner run off the top. */
-  /* taller units need more headroom or the upper storeys run off the
-     top of the frame; shops flag themselves with tall:true */
-  const headroom = SHOPS[state.i].tall ? 560 : 330;
-  K = Math.min(cssW/(W + D*0.42 + 70), cssH/(W*0.5 + headroom)) * 0.94;
-  OX = cssW*0.5 - (W*0.5)*K + (D*0.16)*K;
-  OY = cssH*0.82;
+
+  const b = measureBounds();
+  const PAD = 16;
+  const lw = Math.max(1, b.lx1 - b.lx0), lh = Math.max(1, b.ly1 - b.ly0);
+  K = Math.min((cssW - PAD*2)/lw, (cssH - PAD*2)/lh);
+  /* centre the measured box, then sit it a little low in the frame so a
+     shop reads as standing on ground rather than floating mid-canvas */
+  OX = (cssW - (b.lx0 + b.lx1)*K)/2;
+  OY = (cssH - (b.ly0 + b.ly1)*K)/2 + Math.min(14, (cssH - lh*K)/4);
+
   pavement();
+  ZSCALE = SHOPS[state.i].zs === undefined ? LAB_ZS : SHOPS[state.i].zs;
   SHOPS[state.i].draw(PAL[state.pal]);
+  ZSCALE = 1;
   if(state.grid) guides();
 }
 function sync(){
