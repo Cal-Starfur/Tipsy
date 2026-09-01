@@ -166,6 +166,29 @@ function unitCircle(fill, stroke, lw, r){
 }
 function faceCircle(a,b,z,r,fill,stroke,lw){ faceT(a,b,z,r); unitCircle(fill,stroke,lw,r); ctx.restore(); }
 function plateCircle(a,b,z,r,fill,stroke,lw){ plateT(a,b,z,r); unitCircle(fill,stroke,lw,r); ctx.restore(); }
+/* A BAND AROUND A SOLID IS NOT A RING. plateCircle draws the whole
+   ellipse, which is right for a disc lying flat with nothing on top of
+   it -- a manhole, a drain -- and wrong for every hoop that wraps a
+   barrel, drum, silo or dome, because the far half of the band is
+   behind the thing it is wrapping. Drawn as a full ellipse it reads
+   straight across the front of the solid and the solid goes
+   see-through. Same fault as the bakery's stovepipe.
+
+   The visible half is the arc that passes the front. Under the plate
+   projection the rim turns vertical on screen at 0 = 3pi/4 and
+   0 = -pi/4 -- the identical derivation cyl() uses for its silhouette,
+   so a hoop drawn here meets the cylinder's own edges exactly. */
+function plateHoop(a,b,z,r,col,lw){
+  const N = 14, pts = [];
+  for(let i=0;i<=N;i++){
+    const t = 3*Math.PI/4 - Math.PI*i/N;
+    pts.push(P(a + r*Math.cos(t), b + r*Math.sin(t), z));
+  }
+  ctx.beginPath();
+  pts.forEach((q,i)=> i ? ctx.lineTo(q.x,q.y) : ctx.moveTo(q.x,q.y));
+  ctx.strokeStyle = col; ctx.lineWidth = lw||2;
+  ctx.lineCap = 'round'; ctx.stroke(); ctx.lineCap = 'butt';
+}
 /* a sphere IS a screen circle under an orthographic camera, so arc is
    correct here -- with a shading crescent so it reads as a ball and not
    as a dot */
@@ -222,12 +245,43 @@ function tube(a0,b0,z0, a1,b1,z1, r, col){
    Index order only happens to be right when the loop runs the same way
    the camera does. */
 function reveal(a0, a1, z0, z1, deep, col){
-  /* NOT A ROOM. An earlier pass cut a reveal into the block with a back
-     wall, side returns and a soffit, and then furnished it -- which is
-     the thing we are trying not to need. All this does now is put a
-     dark backing behind the pane so the glass has something to be dark
-     against. Nothing behind it, nothing to look into. */
-  F(a0, a1, z0, z1, col, null, 0, 2);
+  /* WRONG SIGN, AND A DISCARDED ARGUMENT. This took `deep` and threw it
+     away, then hardcoded b = +2. Positive b is toward the street, so the
+     "dark backing behind the pane" was actually sitting 2.4 units in
+     FRONT of the glass and only looked right because the canvas is
+     painted in call order and glaze() came after it. The bakery hit this
+     and had to hand-roll its own backing at b = -1.2 to get rid of a
+     dark sliver down the jamb.
+
+     That is the fault that matters for the port. In the lab, order is
+     everything and depth is decoration; inside queueUnitStrips the
+     opposite is true, and a backing at +2 sorts in front of its own
+     window. So the recess is real now: the back plate sits at b = -deep
+     and `deep` means what it says.
+
+     YOU CAN ONLY SEE INTO A RECESS THROUGH THE OPENING. The first cut of
+     this had the depth right and no clip, and a plate at -deep projects
+     right by deep and up by deep/2 (x = (a-b)K, y = ((a+b)/2 - z)K), so
+     on the laundromat's 13-unit reveal the backing ran 13 units past the
+     right-hand end of the glazing and read as a grey volume standing off
+     the corner of the building. The wall has a hole in it; everything
+     behind that hole is bounded by it. Clipping to the opening quad is
+     what makes that true, and it is what lets `deep` be any value at all
+     without the shop having to know about the projection.
+
+     Inside the clip the plate leaves a gap down the LEFT jamb and along
+     the CILL, so those two returns are drawn and the other two are
+     correctly never seen. Three quads, not a room: the pass that got
+     rejected was the one that furnished the inside, not the one that
+     gave the opening a thickness. */
+  const d = deep === undefined ? 2 : deep;
+  ctx.save();
+  poly([P(a0,0,z1),P(a1,0,z1),P(a1,0,z0),P(a0,0,z0)]);
+  ctx.clip();
+  F(a0, a1, z0, z1, col, null, 0, -d);           // the backing, deepest, so first
+  S(a0, 0, -d, z0, z1, shade(col,.84));          // left return, exposed by the shift
+  T(a0, a1, 0, -d, z0, shade(col,.72));          // cill, exposed by the rise
+  ctx.restore();
 }
 /* THE PANE DOES THE WORK. Glass that you can see through has to have
    something behind it that stands up to being seen, and nothing we
@@ -236,19 +290,30 @@ function reveal(a0, a1, z0, z1, deep, col){
    Whatever sits behind survives only as a suggestion, which is exactly
    as much as the illusion needs. */
 function glaze(a0, a1, z0, z1, frame, tint){
+  /* The stack used to run -0.4 for the tint and then -0.6, -0.7 for the
+     reflections and the bright edge -- each highlight DEEPER than the
+     pane it is supposed to be lying on, surviving only because it was
+     painted afterwards. Depth-sorted, every reflection disappears
+     inside the glass. The frame had the same fault at -1: a shopfront
+     frame stands proud of the pane, it does not sit behind it.
+
+     So the stack ascends toward the viewer now, the way the door kit
+     already does: tint, reflections, bright edge, frame. Same picture
+     on this canvas, and the only one of the two that survives a real
+     depth key. */
   F(a0, a1, z0, z1, tint || 'rgba(104,146,168,.92)', null, 0, -0.4);
   const w = a1 - a0, h = z1 - z0;
-  poly([P(a0,-0.6,z1),P(a0+w*0.30,-0.6,z1),P(a0+w*0.06,-0.6,z0),P(a0,-0.6,z0)],
+  poly([P(a0,-0.30,z1),P(a0+w*0.30,-0.30,z1),P(a0+w*0.06,-0.30,z0),P(a0,-0.30,z0)],
        'rgba(240,250,254,.20)');
-  poly([P(a0+w*0.40,-0.6,z1),P(a0+w*0.52,-0.6,z1),P(a0+w*0.28,-0.6,z0),P(a0+w*0.16,-0.6,z0)],
+  poly([P(a0+w*0.40,-0.26,z1),P(a0+w*0.52,-0.26,z1),P(a0+w*0.28,-0.26,z0),P(a0+w*0.16,-0.26,z0)],
        'rgba(240,250,254,.13)');
-  poly([P(a0,-0.7,z1),P(a1,-0.7,z1),P(a1,-0.7,z1-h*0.06),P(a0,-0.7,z1-h*0.06)],
+  poly([P(a0,-0.22,z1),P(a1,-0.22,z1),P(a1,-0.22,z1-h*0.06),P(a0,-0.22,z1-h*0.06)],
        'rgba(255,255,255,.16)');
   if(frame){
-    F(a0-3, a0, z0-3, z1+3, frame, null,0,-1);
-    F(a1, a1+3, z0-3, z1+3, frame, null,0,-1);
-    F(a0-3, a1+3, z1, z1+3, frame, null,0,-1);
-    F(a0-3, a1+3, z0-3, z0, frame, null,0,-1);
+    F(a0-3, a0, z0-3, z1+3, frame, null,0, 0.5);
+    F(a1, a1+3, z0-3, z1+3, frame, null,0, 0.5);
+    F(a0-3, a1+3, z1, z1+3, frame, null,0, 0.5);
+    F(a0-3, a1+3, z0-3, z0, frame, null,0, 0.5);
   }
 }
 /* paint a set of items far-to-near. Each item is {b, z, draw} and the
@@ -488,7 +553,13 @@ const SHOPS = [
     const wall = '#dfe6ea', trim = '#2e4d68', H = 158;
     body(wall, trim, H);
     slab(0,W, H, H+12, -1, -10, trim);
-    reveal(8, W-8, 14, H-22, 13, '#4e6270');
+    /* FLUSH. A laundromat is a glass box -- the shopfront is a curtain
+       wall set in the plane of the facade, not a window punched into
+       masonry with a jamb around it. This was asking for a 13-unit
+       recess, which gave the frontage a volume it should not have. Two
+       units is enough for the pane to have something dark to be dark
+       against, and reads flush with the face of the building. */
+    reveal(8, W-8, 14, H-22, 2, '#4e6270');
     // the machines, as solids standing inside
     /* the drums, on the glass line and nothing more */
     for(let i=0;i<5;i++){
@@ -498,7 +569,19 @@ const SHOPS = [
     }
     glaze(8, W-8, 14, H-22, null);
     for(let i=0;i<4;i++) F(8+(W-16)*(i+1)/5-2, 8+(W-16)*(i+1)/5+2, 14, H-22, shade(wall,.72), null,0,-1);
-    slab(4, W-4, H-26, H-20, -1, -9, shade(wall,.8));
+    /* THE LEDGE WAS HANGING OFF THE CORNER, and the reason is the sign
+       of its depth. It ran b -1..-9 -- recessed INTO the wall -- and
+       screen x is (a - b), so going negative pushes a piece RIGHT. Its
+       far top edge landed at 226 + 9 = 235 against a building corner at
+       230, so five units of lintel projected past the front face and sat
+       on the flank.
+
+       A ledge over a window projects OUT over the pavement, not back
+       into the masonry. At b +8..0 it reads as the drip mould it is, and
+       the arithmetic can no longer fail: positive b moves a piece LEFT,
+       so a lintel that ends at a1 can never cross the corner however far
+       it projects. */
+    slab(4, W-4, H-26, H-20, 8, 0, shade(wall,.8));
     shopDoor(W*0.51, wall, trim);
     slab(W*0.06,W*0.24, H+8, H+96, -2, -20, '#1d2833');
     F(W*0.085,W*0.215, H+16, H+88, p[2], null,0,-2.5);
@@ -508,12 +591,24 @@ const SHOPS = [
       for(const [la,lb] of [[ta-30,tb+28],[ta+30,tb+28],[ta-30,tb-28],[ta+30,tb-28]])
         cyl(la, lb, H, H+34, 4, '#6d747c');
       cyl(ta, tb, H+34, H+92, 42, '#8b6a4e');
-      for(let i=0;i<3;i++) plateCircle(ta, tb, H+48+i*20, 43, null, '#6a5039', 2.5);
+      for(let i=0;i<3;i++) plateHoop(ta, tb, H+48+i*20, 43, '#6a5039', 2.5);
       plateCircle(ta, tb, H+92, 42, '#a07f60', '#7a5c44', 2);
       cyl(ta, tb, H+92, H+100, 10, '#7a5c44');
-      box(W*0.08,W*0.30,-60,-30,H,H+16,'#aab1b8','#8f979e','#7d858c');
+      /* IT WAS SITTING IN THE PYLON. The vent ran a = W*0.08..W*0.30 at
+         b = -60..-30, and the pylon occupies W*0.06..W*0.24 -- the same
+         strip of frontage, a few units apart in depth, so the box read
+         as growing out of the sign's base.
+
+         WORLD SEPARATION IS NOT SCREEN SEPARATION. The first move put it
+         back-left at b -200..-165, which is nowhere near the tank in
+         world space and directly behind it on screen -- x is (a - b), so
+         going deeper moves a prop RIGHT, straight into the tank's span.
+         Solved on x instead: pylon holds 16..75, tank holds 164..332,
+         and the vent now takes 356..430, so the roof reads as three
+         separate masses left to right with clear air between them. */
+      box(W*0.70,W*0.89,-225,-195,H,H+16,'#aab1b8','#8f979e','#7d858c');
     }
-    kerb(p,'bench');
+    kerb(p,'none');
   }
 },
 {
@@ -1136,7 +1231,7 @@ const SHOPS = [
       }
       for(const [ba,bb] of [[W+20,34],[W+52,48]]){
         cyl(ba, bb, 0, 32, 15, '#8a5a34');
-        for(const hz of [6, 16, 26]) plateCircle(ba, bb, hz, 16, null, '#5c3d22', 2.5);
+        for(const hz of [6, 16, 26]) plateHoop(ba, bb, hz, 16, '#5c3d22', 2.5);
         plateCircle(ba, bb, 32, 15, '#a06a3e', '#75492a', 2);
       }
     }
@@ -1533,7 +1628,7 @@ const SHOPS = [
       cyl(ba, bb, 0, 62, 17, '#c2452e');
       plateCircle(ba, bb, 62, 17, '#a33124');
       ball(ba, bb, 62, 17, '#b03c28', '#c2452e');
-      plateCircle(ba, bb, 8, 18, null, '#8d3120', 3);
+      plateHoop(ba, bb, 8, 18, '#8d3120', 3);
       F(ba-11, ba+11, 44, 50, '#2b2f33', null,0, bb+16);
       F(ba-13, ba+13, 24, 34, '#e8ddc8', null,0, bb+16.4);
     }
@@ -2546,7 +2641,7 @@ const SHOPS = [
     if(state.props){
       for(let i=0;i<2;i++){
         const ra = W+18+i*36, rb = 30;
-        for(let k=0;k<3;k++) plateCircle(ra, rb, 2+k*3, 16-k*4, null, '#b8a880', 3);
+        for(let k=0;k<3;k++) plateHoop(ra, rb, 2+k*3, 16-k*4, '#b8a880', 3);
       }
     }
     if(state.roof){
@@ -2582,7 +2677,7 @@ const SHOPS = [
     // the still, turned
     const sa = W*0.28, sb = 4;
     cyl(sa, sb, 26, 84, 30, '#b87333');
-    for(const hz of [40, 58, 76]) plateCircle(sa, sb, hz, 31, null, '#98561f', 2.5);
+    for(const hz of [40, 58, 76]) plateHoop(sa, sb, hz, 31, '#98561f', 2.5);
     ball(sa, sb, 84, 28, '#c9803a', '#d89a52');
     cyl(sa, sb, 108, 118, 8, '#b87333');
     tube(sa, sb, 112, sa+40, sb, 104, 5, '#b87333');
@@ -2597,7 +2692,7 @@ const SHOPS = [
       poly([P(W*0.12,32,4),P(W*0.24,32,4),P(W*0.24,62,4),P(W*0.12,62,4)], '#5c4632');
       const ba = W+28, bb = 40;
       cyl(ba, bb, 0, 34, 17, '#8a5a34');
-      for(const hz of [7, 17, 27]) plateCircle(ba, bb, hz, 18, null, '#5c4632', 2.5);
+      for(const hz of [7, 17, 27]) plateHoop(ba, bb, hz, 18, '#5c4632', 2.5);
       plateCircle(ba, bb, 34, 17, '#a06a3e', '#75492a', 2);
     }
     if(state.roof){
@@ -2649,7 +2744,7 @@ const SHOPS = [
       for(let i=0;i<2;i++){
         const da = W*0.08+i*44, db = 38;
         cyl(da, db, 0, 30, 13, '#39424a');
-        for(const hz of [7, 22]) plateCircle(da, db, hz, 14, null, '#262d33', 2);
+        for(const hz of [7, 22]) plateHoop(da, db, hz, 14, '#262d33', 2);
         plateCircle(da, db, 30, 13, '#4a545c', '#2f3840', 2);
       }
     }
@@ -3874,6 +3969,11 @@ const SHOPS = [
       for(let k=0;k<3;k++)
         faceCircle(ga, gb, H+108, 48*Math.sin(0.6+k*0.5), null, 'rgba(143,196,216,.8)', 2);
       for(let k=-1;k<=1;k++)
+        /* NOT A HOOP. plateHoop clips to the silhouette angles of a
+           CYLINDER; these are latitude wires on a sphere, where the
+           visible span depends on the latitude, so the cylinder cut
+           left them hanging in mid-air. It is a wire emblem rather
+           than a band on a solid, so the full ellipse is correct. */
         plateCircle(ga, gb, H+108+k*24, 48*Math.cos(Math.abs(k)*0.55), null, 'rgba(143,196,216,.7)', 2);
       ctx.fillStyle='#4e9a5a';
       const c1=P(ga-14,gb,H+116);
@@ -4384,9 +4484,23 @@ function shopDoor(aMid, wall, trim, glass, wid, base){
   const a0 = mid-hw, a1 = mid+hw;
   F(a0-4, a1+4, z, z+dH+7, shade(wall,.90), null, 0, 0.3);       // painted surround
   F(a0, a1, z, z+dH, '#2b2118', null, 0, 0.4);                    // opening
-  F(a0+2, a1-2, z+dH-24, z+dH-4, glass || 'rgba(150,190,206,.55)', null,0,0.6);
-  F(a0+2, a1-2, z+dH-28, z+dH-24, shade(trim,.8), null,0,0.6);    // transom rail
-  F(a0+2, a1-2, z, z+dH-28, trim, null, 0, 0.6);                  // leaf
+  /* THE FANLIGHT WAS A PANEL. Transom glass, rail and leaf were all at
+     b = 0.6 -- one flat plane with three colours on it -- and the glass
+     was a 55% wash over the near-black opening, so it came out as a grey
+     slab sitting above the door rather than as a light over it.
+
+     A fanlight is glazed into the head of the opening and the leaf
+     swings in front of it, so the two cannot share a depth. The glass
+     goes BEHIND the leaf line at 0.45, gets a tint from the same family
+     as glaze() instead of a wash, and takes a raked highlight so it
+     reads as glazing. The rail that divides them stands proud at 0.7,
+     which is what a transom rail does. */
+  F(a0+2, a1-2, z+dH-26, z+dH-4, glass || 'rgba(96,132,152,.94)', null,0,0.45);
+  poly([P(a0+2,0.5,z+dH-4),P(a0+(a1-a0)*0.42,0.5,z+dH-4),
+        P(a0+(a1-a0)*0.20,0.5,z+dH-26),P(a0+2,0.5,z+dH-26)],
+       'rgba(240,250,254,.17)');
+  F(a0+2, a1-2, z+dH-30, z+dH-26, shade(trim,.8), null,0,0.7);    // transom rail
+  F(a0+2, a1-2, z, z+dH-30, trim, null, 0, 0.6);                  // leaf
   for(let k=0;k<2;k++)
     F(a0+8, a1-8, z+dH*0.07+k*dH*0.36, z+dH*0.30+k*dH*0.36, shade(trim,1.18), shade(trim,.7), 1.5, 0.9);
   F(a1-14, a1-10, z+dH*0.40, z+dH*0.53, '#d8c28a', null, 0, 1.2); // handle
