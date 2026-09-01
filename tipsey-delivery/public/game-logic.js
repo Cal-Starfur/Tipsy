@@ -7508,20 +7508,63 @@ function buildWorldCurbRamps(grid){
      nothing but final conn. `dirFromNode` is which way the edge leaves
      the node being served, so the landing lives at its opposite. */
   const hasLanding = (n, dirFromNode) => n.conn[(dirFromNode + 2) % 4];
+  /* ---------- A CROSSING NEEDS A FAR KERB, NOT A FAR CORNER ----------
+     (Sir, 2026-08-31: "we want there to be these ramps on the other side
+     too even if it's not a corner".)
+     hasLanding above asks whether the ramp's own street CONTINUES
+     through the node, and uses that as a stand-in for "is there
+     somewhere to land". It is the right instinct and the wrong test.
+     Where the swallow pass merged a park across the continuation, the
+     street stops -- but the park still carries a perimeter sidewalk,
+     the cross street still has a roadway, and the junction still has a
+     signal standing over it. There is a real crossing there. The old
+     rule retired BOTH ends of it, which is why a signalised corner
+     could end up with no ramp on either side and no sidewalkbegin
+     opposite.
+     CENSUS on the frozen 36x27 city, before any change: 4,952
+     placements survive hasLanding, 798 are retired by it, and of those
+     798 exactly 216 are the outer ring (the landing point falls outside
+     the city and is correctly retired) while the other 582 have a
+     landing point that classifies as SIDEWALK. Not "most" -- all 582.
+     Zero of them land on grass. So every one of those was a real
+     crossing being deleted for want of a corner.
+     THE HONEST TEST IS THE PAVEMENT. Ask the classifier the world is
+     built from whether there is a kerb to land on, rather than asking
+     the topology to imply it. STRICTLY ADDITIVE: a continuation still
+     places exactly what it always did, so none of the 4,952 move. Only
+     the no-continuation case is re-examined, and it now either places
+     BOTH ends of the crossing or stays retired as before.
+     AND IT EMITS THE FAR END ITSELF. Where the street continues, the
+     landing ramp is placed by the OTHER edge's own end -- that is why
+     nothing here ever had to. Where it does not continue there is no
+     other edge, so this is the only place that can, and the landing
+     would otherwise stay the bare kerb Sir photographed. Facing is the
+     same convention as everything else here: a ramp sits `along` out
+     from its node and looks back at it. */
+  const landingOf = (n, dirFromNode, rv, perp) => {
+    const od = DIRV[(dirFromNode + 2) % 4];
+    return { x: n.x + od.x*along + rv.x*perp, y: n.y + od.y*along + rv.y*perp };
+  };
+  const pavedLanding = (p) => interior(p.x, p.y) &&
+    (typeof grid.classify !== "function" || grid.classify(p.x, p.y) === "sidewalk");
   for(const e of grid.edges){
     const dv = DIRV[e.f], rv = DIRV[(e.f+1)%4];
     for(const side of [-1, 1]){
       const perp = side * perpMag;
       /* the a-end ramp faces BACK down the edge (f+2), the b-end ramp
          faces forward (f) -- both pointing at their own node. */
-      if(serves(e.a, e.f) && hasCrossStreet(e.a, e.f, side) && hasLanding(e.a, e.f)){
-        const ax = e.a.x + dv.x*along + rv.x*perp, ay = e.a.y + dv.y*along + rv.y*perp;
-        if(interior(ax, ay)) ramps.push({ x: ax, y: ay, f: (e.f + 2) % 4 });
-      }
-      if(serves(e.b, e.f) && hasCrossStreet(e.b, e.f, side) && hasLanding(e.b, (e.f + 2) % 4)){
-        const bx = e.b.x - dv.x*along + rv.x*perp, by = e.b.y - dv.y*along + rv.y*perp;
-        if(interior(bx, by)) ramps.push({ x: bx, y: by, f: e.f });
-      }
+      const end = (n, dirFromNode, px, py, faceF) => {
+        if(!serves(n, e.f) || !hasCrossStreet(n, e.f, side)) return;
+        if(!interior(px, py)) return;
+        const cont = hasLanding(n, dirFromNode);
+        const land = cont ? null : landingOf(n, dirFromNode, rv, perp);
+        if(!cont && !pavedLanding(land)) return;   // the outer ring: nothing across, retire
+        ramps.push({ x: px, y: py, f: faceF });
+        /* the half a merged park left behind, completed */
+        if(!cont) ramps.push({ x: land.x, y: land.y, f: dirFromNode });
+      };
+      end(e.a, e.f, e.a.x + dv.x*along + rv.x*perp, e.a.y + dv.y*along + rv.y*perp, (e.f + 2) % 4);
+      end(e.b, (e.f + 2) % 4, e.b.x - dv.x*along + rv.x*perp, e.b.y - dv.y*along + rv.y*perp, e.f);
     }
   }
   return ramps;
