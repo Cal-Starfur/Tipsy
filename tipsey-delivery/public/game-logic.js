@@ -3704,7 +3704,15 @@ const PROP_EXT = {
   bin:[19,19,45,7], burrito:[40,40,40,40], can:[40,40,40,40],
   car:[158,158,153,59], cone:[18,18,43,9], crack:[88,88,45,49],
   dog:[73,73,54,32], grade:[72,72,36,36], hydrant:[15,15,26,6],
-  hydrantBurst:[107,107,54,53], lamp:[113,113,347,56],
+  hydrantBurst:[107,107,54,53],
+  /* hydrantFlood is DERIVED, not sampled -- it is the only kind whose
+     art is a closed formula rather than a drawing, so a bound can be
+     proved instead of measured. Offsets from the anchor are dv*A + rv*B
+     with |A| <= 8 + T2 + HYD_SLIP.pud = 141.4 and |B| <= 1.5*T2 = 138.
+     DIRV components are unit axes, so |dv.x - dv.y| = |rv.x - rv.y| = 1
+     and the 2:1 iso gives |sx| <= (|A| + |B|) = 279.4 and
+     |sy| <= (|A| + |B|)/2 = 139.7. Rounded up, before the x1.25 pad. */
+  hydrantFlood:[280,280,140,140], lamp:[113,113,347,56],
   palm:[148,139,355,8], palmDwarf:[83,85,135,8], paper:[40,40,40,40],
   people:[83,83,166,37], pigeons:[98,98,60,49], planter:[36,36,67,11],
   policecar:[158,158,153,59], robot:[50,50,129,22], scooter:[36,36,62,17],
@@ -4831,7 +4839,23 @@ function owShoreCollide(scene, ow, D, dYaw){
    which is the one thing a traffic cone must never be. */
 const OW_LOOP_TYPES = new Set(['lamp', 'palm', 'hydrant', 'pigeons',
                                'crack', 'trash', 'palmDwarf', 'dog', 'people',
-                               'cone', 'scooter', 'planter', 'bin', 'robot', 'william']);
+                               'cone', 'scooter', 'planter', 'bin', 'robot', 'william',
+                               /* 'slab' joined 2026-08-31 (Sir: "slabs aren't giving
+                                  as much tilt as they did in the past"). It was in
+                                  OW_HZ_FLAT, so it got owStep's generic drive-over
+                                  trigger -- one kick of hzFlatTilt*(|vel|/vMax),
+                                  identical for a lift-3 and a lift-8, with no wedge
+                                  and no ride-up. Measured on a lift-7 at full speed:
+                                  peak tilt 0.135 against the real branch's 0.677 on
+                                  the lip alone, and slabZ never left zero. Since
+                                  owInstall runs for delivery AND freeroam, that was
+                                  every driving mode -- the real slab physics had not
+                                  run since open world landed.
+                                  It stays listed in OW_HZ_FLAT too; both owStep passes
+                                  test OW_LOOP_TYPES first, so the stand-in is already
+                                  unreachable for it and removing the entry would only
+                                  make that dependency implicit. */
+                               'slab']);
 
 /* ---------- iso inverse ----------
    W() is a plain 2:1 iso: sx = (X - Y)*K, sy = (X + Y)*0.5*K. Inverting
@@ -14911,6 +14935,47 @@ class WorldScene extends Phaser.Scene {
      viewport. Per-kind rather than one blanket margin because the
      spread is 25x -- a hydrant reaches 15 units sideways and a turn
      ramp 414 -- so any single number is either useless or unsafe. */
+  /* ONE QUEUE SITE PER SOURCE, ONE SHAPE. The route's hazards and the
+     permanent city furniture are two different lists and two different
+     loops, but a burst hydrant's flood is the same object in both, so
+     the offset, the visibility gate and the depth key live here rather
+     than being written twice and drifting.
+     Drawn from the HYDRANT's anchor (the branch applies its own landA),
+     keyed at the FLOOD's centre, pinned to gWorld -- the depth key and
+     the paint are then two views of the same tile. */
+  queueHydrantFlood(vq, g, wp, f, data){
+    const fq = ((Math.round(f || 0) % 4) + 4) % 4, dv = DIRV[fq];
+    const off = 8 + ((data && data.pudDir) ? data.pudDir * T2 : 0);
+    const fx = wp.x + dv.x*off, fy = wp.y + dv.y*off;
+    if(!this.visProp("hydrantFlood", fx, fy)) return;
+    const px = wp.x, py = wp.y, pz = wp.z || 0, pf = f, pd = data;
+    vq.push({ depth: fx + fy,
+              fn:(gg,tt)=>this.drawProp(g, "hydrantFlood", px, py, tt, pf, pz, null, null, pd) });
+  }
+
+  /* ---------- WHO OWNS TILT ----------
+     (Sir, 2026-08-31: "it's still just giving a bump not a sustained tilt".)
+     owLeanCompose ASSIGNS -- `scene.tilt = leanS + leanI` -- and owStep
+     runs it at the top of every update(). The interaction loop runs
+     later in the same frame, so everything it adds to this.tilt lives
+     for exactly one frame and is gone before the next one reads it.
+     MEASURED, driving onto a lift-5 slab: the loop's own trace shows
+     `pre` 0.4836 on the frame the robot arrives and then 0.0000 on
+     every single frame after, with leanI and leanS both 0 -- the
+     sustained term re-adding the same 0.1612 ten frames running and
+     never once building on itself. A one-frame spike is a bump. That
+     is the whole report.
+     ow.leanI is the channel that survives, and it is not a workaround:
+     it decays at D.tiltDecay, which is 0.0021 -- the identical constant
+     the rail's own tilt spring uses -- so the same impulse decays the
+     same way on both sides. Routing through here means a branch does
+     not have to know which model owns the robot this frame.
+     RAIL UNCHANGED: no ow, plain accumulation, exactly as before. */
+  addTilt(amt){
+    if(this.ow && this.ow.on){ owLeanKick(this, this.ow, amt); return; }
+    this.tilt += amt;
+  }
+
   visProp(kind, wx, wy){
     const e = PROP_EXT[kind] || PROP_EXT._default;
     const p = this.W(wx, wy, 0), K = this.K, P = PROP_EXT_PAD, M = PROP_EXT_MIN;
@@ -15737,6 +15802,12 @@ class WorldScene extends Phaser.Scene {
 
     const groundVQ = [];
     for(const hz of r.hazards){
+      /* a burst hydrant is a BODY that owns a piece of GROUND. The body
+         stays in hazVQ at its own depth; the flood joins the ground pass
+         at the flood's, which is up to a tile away from it. */
+      if(hz.type === "hydrant" && hz.burst)
+        this.queueHydrantFlood(groundVQ, g,
+          worldOf(hz.s + (hz.slide || 0), hazardOffset(hz)), hz.f, hz);
       if(!GROUND_KINDS[hz.type]) continue;
       /* world-anchored ramps (turn crossings) carry their own wx/wy —
          they sit at the true curb lines, positions the route-s mapping
@@ -15814,6 +15885,14 @@ class WorldScene extends Phaser.Scene {
        cracks and slabs are: flat paint the robot drives straight over,
        which must never point-depth-flip to in front of him. */
     if(cityFurn) for(const cp of cityFurn){
+      /* the city's own burst hydrants, same split as the route's above.
+         Both skips are repeated here rather than shared because they
+         must be asked BEFORE the GROUND_KINDS filter, which a hydrant
+         does not pass -- a hydrant is a body, only its water is ground. */
+      if(cp.type === "hydrant" && cp.burst
+         && !(r.cfTaken && r.cfTaken.has(cp.key))
+         && !owCorridorHas(this.owCorridor, cp.wx, cp.wy))
+        this.queueHydrantFlood(groundVQ, g, { x: cp.wx, y: cp.wy, z: 0 }, cp.f, cp);
       if(!GROUND_KINDS[cp.type]) continue;
       if(r.cfTaken && r.cfTaken.has(cp.key)) continue;       // the route draws it
       if(owCorridorHas(this.owCorridor, cp.wx, cp.wy)) continue;   // swept by the course
@@ -19054,6 +19133,47 @@ class WorldScene extends Phaser.Scene {
       ];
       cparts.sort((p1, p2) => p1.d - p2.d);
       for(const pt of cparts) pt.fn();
+    } else if(kind === "hydrantFlood"){
+      /* THE FLOOD IS GROUND PAINT, AND GROUND GOES FIRST.
+         It used to be drawn inside the hydrant's own body piece, which
+         meant it carried the HYDRANT's depth key -- and the flood does
+         not sit on the hydrant. It sits a full tile away along the walk
+         (pudDir), so half of all burst hydrants had their water sorted
+         a tile in FRONT of where it is drawn, and anything standing on
+         that tile was painted over. Tipsey included.
+         MEASURED, on-device and headless, on the same hydrant Sir
+         photographed: hydrant anchor (62146, 60952), depth key 123098;
+         flood centre (62146, 60860), depth 123006 -- 92 units BEHIND
+         its own hydrant, which is exactly -pudDir*T2*(dv.x+dv.y) for
+         f=3. Robot standing in it reads 122970, lower than both, so he
+         sorted first and the hydrant piece painted its water over him.
+         So the flood becomes its own ground kind, queued into groundVQ
+         at the flood's own centre and PINNED to gWorld -- the same
+         treatment, and the same rule, cracks and heaved slabs already
+         get: nothing that stands ON the ground is ever behind it. The
+         depth key stops being a guess about which side of a hydrant
+         you are on.
+         The two semi-axes are the SIM's, unchanged (see the hydroplane
+         test): |sdx| < HYD_SLIP.pud along the walk, +-1.5*T2 across,
+         with the road-ward side clamped to TILE*0.85 so the water does
+         not overflow the kerb. Art and slip zone still agree. */
+      const HH = HYD;
+      const grow = (data && data.burstT !== undefined)
+        ? Math.min(1, (t - data.burstT)/1800) : 1;
+      const landA = 8 + ((data && data.pudDir) ? data.pudDir * T2 : 0);
+      const floodRing = (radA, radBPos, radBNeg, nn=16) => {
+        const pts = [];
+        for(let i=0; i<nn; i++){
+          const phi = (i/nn)*Math.PI*2;
+          const radB = Math.sin(phi) >= 0 ? radBPos : radBNeg;
+          pts.push(W(landA + Math.cos(phi)*radA, Math.sin(phi)*radB, 0.3));
+        }
+        return pts;
+      };
+      const outerA = HYD_SLIP.pud * grow;
+      const outerBNeg = T2*1.5 * grow, outerBPos = TILE*0.85 * grow;
+      this.quadOn(g, floodRing(outerA, outerBPos, outerBNeg), HH.water, 0.28);
+      this.quadOn(g, floodRing(outerA*0.62, outerBPos*0.62, outerBNeg*0.62), HH.water, 0.22);
     } else if(kind === "hydrant" || kind === "hydrantBurst"){
       /* approved in hydrant lab: height 20 · base 8 · dome 6.5 · nozzle 2.6.
          hydrantBurst shears the front nozzle open with an animated water
@@ -19103,72 +19223,31 @@ class WorldScene extends Phaser.Scene {
       g.fillStyle(HH.shadow, 0.14);
       g.fillEllipse(hsh.x, hsh.y + 2, HH.baseR*2.1*this.K*0.42, HH.baseR*0.95*this.K*0.42);
 
-      /* puddle: ground decal, paints BEFORE the hydrant's own body
-         parts so the barrel/dome/nozzles naturally draw over it. */
-      if(bursting){
+      /* GALLERY RINGS ONLY. A LIVE flood (data.burst) is no longer drawn
+         here at all -- it is its own ground kind, "hydrantFlood", queued
+         into the ground pass at the flood's own centre so it can never
+         sort in front of something standing in it. See that branch for
+         why, and for the sim's two semi-axes.
+         What is left is the lab's static gallery kind, which has no
+         world queue to move into: a thrown-landing ring at the sheared
+         nozzle's tip, circular (radB === radA), gated on the hydrant's
+         own decorative rotation exactly as before. Unchanged. */
+      if(bursting && !(data && data.burst)){
         const nc0 = 1, ns0 = 0;
         const facing0 = (nc0*(hcs+hsn) + ns0*(hcs-hsn) > 0) || forceVisible;
         if(facing0){
           const tipA0 = HH.baseR*0.55 + HH.nozR*2.2;
-          /* robot-burst floods pool around the base (that's where the
-             slip zone lives); the lab's static gallery kind keeps the
-             original thrown-landing rings */
-          /* pre-burst (pudDir set at spawn): the flood a full tile over
-             along the walk; fresh robot-bursts still pool at the base. */
-          const preOff = (data && data.pudDir) ? data.pudDir * T2 : 0;
-          const isLiveBurst = !!(data && data.burst);
-          const landA = isLiveBurst ? 8 + preOff : tipA0 + nc0*26;
-          const landB = isLiveBurst ? 0 : ns0*26;
-          const place2D = isLiveBurst ? W : GG;
-          /* the puddle must TELL THE TRUTH about the slip zone
-             (2026-07-27, "spinning out but the puddle isn't on the
-             square"): the sim's hydroplane test is a RECTANGLE —
-             |sdx| < HYD_SLIP.pud along the route by ±1.5·T2 across
-             the lanes (the lateral band was deliberately widened
-             2026-07-24 so a row-1 driver gets wet too), but the art
-             stayed a circle of radius pud=41 centered on row 0 —
-             not even reaching row 1's center 92 units away. Live
-             bursts now draw an ELLIPSE with exactly the sim's two
-             semi-axes, so wherever the robot can slip, there is
-             visible water. Gallery/decorative rings keep the
-             original circles (radB === radA). */
-          /* puddleRing takes separate B radii for the two lateral sides
-             (radBPos for local +b, radBNeg for local -b) instead of one
-             symmetric radius. */
-          const puddleRing = (radA, radBPos, radBNeg, nn=16) => {
+          const landA = tipA0 + nc0*26, landB = ns0*26;
+          const puddleRing = (rad, nn=16) => {
             const pts = [];
             for(let i=0; i<nn; i++){
               const phi = (i/nn)*Math.PI*2;
-              const radB = Math.sin(phi) >= 0 ? radBPos : radBNeg;
-              pts.push(place2D(landA + Math.cos(phi)*radA, landB + Math.sin(phi)*radB, 0.3));
+              pts.push(GG(landA + Math.cos(phi)*rad, landB + Math.sin(phi)*rad, 0.3));
             }
             return pts;
           };
-          const outerA = ((data && data.burst) ? HYD_SLIP.pud : TILE*0.85) * grow;
-          /* cone/hydrant clutter pass (2026-08-10, "overflowing into the
-             street... too oval"): live bursts used to draw a SYMMETRIC
-             ellipse using the sim's full +-1.5*T2 lateral reach on both
-             sides. But hydrants only ever spawn at row 0, closest to the
-             curb (see the hazard spawn note above), and local +b here is
-             the curb/road-ward side -- confirmed against ROBOT_SIDE (a
-             fixed constant, so this holds for all 4 headings, not just
-             the one tested): increasing row (away from the curb) is -b,
-             so +b is the road. The sim's inFlood test can only ever fire
-             for the robot, which never leaves the sidewalk lanes, so the
-             +b reach was pure visual overflow with zero gameplay
-             function. outerBPos now clamps to the same TILE*0.85 radius
-             the static gallery puddle already uses (comfortably inside
-             the curb, row 0's center sits T2*0.5=46 units from it) while
-             outerBNeg keeps the full sim-matching reach toward row 1, so
-             the truth-telling for the one lane that's actually reachable
-             stays intact. */
-          const outerBNeg = isLiveBurst ? T2*1.5 * grow : outerA;
-          const outerBPos = isLiveBurst ? TILE*0.85 * grow : outerA;
-          const innerA = ((data && data.burst) ? HYD_SLIP.pud*0.62 : TILE*0.55) * grow;
-          const innerBNeg = isLiveBurst ? outerBNeg*0.62 : innerA;
-          const innerBPos = isLiveBurst ? outerBPos*0.62 : innerA;
-          this.quadOn(g, puddleRing(outerA, outerBPos, outerBNeg), HH.water, 0.28);
-          this.quadOn(g, puddleRing(innerA, innerBPos, innerBNeg), HH.water, 0.22);
+          this.quadOn(g, puddleRing(TILE*0.85 * grow), HH.water, 0.28);
+          this.quadOn(g, puddleRing(TILE*0.55 * grow), HH.water, 0.22);
         }
       }
 
@@ -22542,7 +22621,100 @@ class WorldScene extends Phaser.Scene {
              the normal slab physics (tilt += side*speed*lift*0.9) tip the
              robot over the instant he touches it — he never reaches the
              lip to launch. hjSim owns these; the world just draws them. */
-          if(onLane(hz.row) && !hz.hjRole){
+          /* ---------- THE SLAB HAS FOUR EDGES NOW ----------
+             (Sir, 2026-08-31: "we can now approach it from all sides so
+             the other sides need to be addressed".)
+             The two-stage model above is correct and stays -- it just
+             assumed the one thing the rail guaranteed and free roam does
+             not: that you always arrive along the slab's own axis, at
+             the same joint, square on. Off the rail every edge is an
+             approach, so the model is re-derived from the SHAPE instead
+             of from the heading.
+
+             THE SHAPE, STATED ONCE. One sidewalk tile, half-extent TILE
+             on both axes. Height runs across the LATERAL axis only:
+             flush at one edge, `lift` at the other, `side` naming which.
+             So with u the position across the tile,
+
+                 u = (1 + side*lat/TILE) / 2   in [0,1]
+                 h = lift * u                  the surface under you
+
+             and the whole 360 model is two readings of that one field:
+
+             THE STEP IS h AT THE POINT YOU CROSS. Not a fixed lip on one
+             joint -- the perimeter height varies, so where you cross
+             decides what you hit. The flush lateral edge is h=0 and
+             costs nothing; the raised lateral edge is h=lift and is the
+             worst way onto it; crossing either along-axis joint lands
+             mid-wedge. At lat=0 that is h=lift/2, and with the 1.8 below
+             the kick is speed*lift*0.9 -- the rail's own number, so
+             "approach along the axis" is not a special case any more,
+             it is one point on a continuum. Fires LEAVING as well as
+             arriving, opposite sign: dropping off a step throws you the
+             other way to climbing one, the same fact owCurbSign is
+             built on.
+
+             THE LEAN IS THE DOWNHILL YOU STRADDLE. Gravity does not know
+             your heading, so the sustained term is the downhill unit
+             (-side*rv) resolved onto the robot's own right -- how much
+             of the slope lies ACROSS the wheelbase. Driving the length
+             of the wedge that is all of it, and this reduces to exactly
+             `side`, the rail's constant. Driving straight across it, it
+             is zero: you are climbing, not leaning, which is what
+             actually happens and what the old form could not say.
+             (The matching PITCH is deliberately not wired -- the ground
+             pitch line is a single clamped expression shared with the
+             hill grade and the crossing ramps, and a slab wedge exceeds
+             MAX_GRADE. Flagged, not smuggled in.)
+
+             RAIL UNTOUCHED. owSep null takes the original branch below,
+             character for character. */
+          if(owSep && !hz.hjRole){
+            const on = Math.abs(dx) < TILE && Math.abs(lat) < TILE;
+            const u = Math.min(1, Math.max(0, (1 + hz.side * lat / TILE) * 0.5));
+            /* downhill unit, and how much of it lies across the wheelbase */
+            const nx = Math.cos(this.ow.yaw), ny = Math.sin(this.ow.yaw);
+            const dwx = -hz.side * owSep.rv.x, dwy = -hz.side * owSep.rv.y;
+            const rollShare = dwx*ny - dwy*nx;   // downhill . robot-right
+            if(on !== !!hz.owOn){
+              hz.owOn = on;
+              /* THE STEP AND THE LEAN ARE TWO DIFFERENT QUANTITIES, and
+                 splitting them is what makes the square-on case honest.
+                 `step` is the size of the event -- speed times the
+                 height you crossed at -- and it is charged to the cargo
+                 whatever your heading, because driving off a raised
+                 edge nose-first is a bang even though it does not lean
+                 you an inch. The ROLL is only the part of that step
+                 that differs across the wheelbase, which is rollShare,
+                 and square-on that is genuinely zero.
+                 Parity: along the axis |rollShare| is 1 and u is 0.5,
+                 so both terms collapse to the rail's speed*lift*0.9 --
+                 the damage number does not move for any approach the
+                 rail could make. */
+              const step = this.speed * (hz.lift * u) * 1.8;
+              const kick = rollShare * step * (on ? 1 : -1);
+              this.addTilt(kick * TILT_SENS);
+              this.damage = Math.min(95, this.damage + step*30*CARGO_DAMAGE_SENS);
+            }
+            if(on){
+              /* THE ONE THAT HAD TO BUILD. Riding the wedge is not an
+                 impact, it is a load held for as long as you are on it,
+                 so this is the term the frame-by-frame wipe was
+                 destroying outright -- adding a fixed 0.16 to a value
+                 reset to zero is a constant, not a ramp. Through
+                 addTilt it lands in the channel that persists and
+                 climbs toward its own decay-limited steady state, the
+                 way the rail's did. */
+              this.addTilt(rollShare * this.speed * 0.030 * (hz.lift/5) * dt * TILT_SENS);
+              slabUnder = hz;
+              /* the wedge is REAL now: ride height is the surface where
+                 he stands, not the tile's mid-height, so crossing it is
+                 a climb from flush to full lift instead of a step onto a
+                 plateau. Both default to the rail's old constants (u=0.5,
+                 rollShare=side) when nothing sets them. */
+              this._slabU = u; this._slabRoll = rollShare;
+            }
+          } else if(onLane(hz.row) && !hz.hjRole){
             if(!hz.lipHit && dx > -TILE && dx < -TILE + 14){
               hz.lipHit = true;
               const kick = hz.side * this.speed * hz.lift * 0.9;
@@ -22588,14 +22760,42 @@ class WorldScene extends Phaser.Scene {
              Pre-burst floods sit a tile over (hz.pudDir), so the slick
              tests against the flood's REAL center — same s-offset the
              puddle draws at. */
-          const slickS = hz.s + (hz.pudDir ? hz.pudDir * T2 : 0);
-          const sdx = this.botS - slickS;
+          /* THE SLICK IS MEASURED THE SAME WAY THE HYDRANT IS. Everything
+             else in this branch reads dx/lat, which owSep already
+             expresses in world space -- but the flood test kept its own
+             private pair built from raw botS/hz.s and laneOff/hz.row, and
+             those are exactly the two fields owSep exists to replace. On
+             the rail that was invisible (owSep is null, the arithmetic is
+             character-for-character what it always was). Off it, since
+             stage 4 made the city own every ambient hydrant, hz.s is
+             EDGE-LOCAL -- so the test compared a route s against a
+             frontage s and could not fire.
+             MEASURED, not reasoned: headless freeroam, robot driven onto
+             a burst city hydrant's flood. owSep read dx -25 / lat 0 --
+             dead on it -- while this block's own numbers read sdx 1708
+             against a pud radius of 41.4, and inFlood false (laneOff 0 vs
+             laneOffset(0) = -414). 420 frames, this.slide never set.
+             The pudDir offset is unchanged in either frame: rail
+             sdx = (botS - hz.s) - pudDir*T2 = dx - pudOff, and the two
+             dx's agree to the bit on a straight (the 334-of-336 census
+             the owSep note above records). City furniture never spawns
+             within cornerClear of a frontage end, so there are no arcs
+             here to disagree about. */
+          const pudOff = hz.pudDir ? hz.pudDir * T2 : 0;
+          const sdx = owSep ? (owSep.dx - pudOff) : (this.botS - (hz.s + pudOff));
           /* water spreads off the curb — the flood shouldn't need the
              exact lane the hydrant itself sits in (onLane's T2*0.5 half-
              tile band). Widened to 1.5 tiles so the puddle also catches
              the adjacent lane; hydrants only ever spawn at row 0, and a
              player who isn't hugging the curb was never getting wet. */
-          const inFlood = Math.abs(this.laneOff - laneOffset(hz.row)) < T2*1.5;
+          /* Band UNCHANGED at the sim's own +-1.5*T2 -- this is a
+             coordinate fix, not a retune. (The drawn puddle clamps its
+             road-ward side to TILE*0.85 on the reasoning that the robot
+             "never leaves the sidewalk lanes", which free roam makes
+             false; art and sim can disagree by ~60 units on the road
+             side. Flagged, not folded in here.) */
+          const inFlood = owSep ? (Math.abs(owSep.lat) < T2*1.5)
+                                : (Math.abs(this.laneOff - laneOffset(hz.row)) < T2*1.5);
           if(hz.burst && !this.slide && !hz.slid){
             const grow = Math.min(1, (t - hz.burstT)/1800);
             if(inFlood && Math.abs(sdx) < HYD_SLIP.pud*grow && this.speed > 0.02){
@@ -23210,9 +23410,19 @@ class WorldScene extends Phaser.Scene {
       /* wedge underfoot: the wheels ride the slab's mid-height and its
          actual surface angle — smoothed so entering/leaving the lip
          reads as a climb, not a teleport */
-      this.slabZ = Phaser.Math.Linear(this.slabZ || 0, slabUnder ? slabUnder.lift*0.5 : 0, 0.25);
+      /* _slabU / _slabRoll are the world-space branch's readings of the
+         wedge at the robot's own position (see THE SLAB HAS FOUR EDGES).
+         The rail branch sets neither, and its defaults ARE the constants
+         this line used to hardcode -- lat is 0 on the rail, so u is 0.5
+         and rollShare is side -- which is why the rail keeps the exact
+         height and lean it always had. Cleared each frame so a slab left
+         behind cannot keep feeding its wedge to the next one. */
+      const _sU = (slabUnder && this._slabU !== undefined) ? this._slabU : 0.5;
+      const _sR = (slabUnder && this._slabRoll !== undefined) ? this._slabRoll : (slabUnder ? slabUnder.side : 0);
+      this.slabZ = Phaser.Math.Linear(this.slabZ || 0, slabUnder ? slabUnder.lift*_sU : 0, 0.25);
       this.slabRoll = Phaser.Math.Linear(this.slabRoll || 0,
-        slabUnder ? slabUnder.side * Math.atan(slabUnder.lift/(2*TILE)) : 0, 0.2);
+        slabUnder ? _sR * Math.atan(slabUnder.lift/(2*TILE)) : 0, 0.2);
+      this._slabU = undefined; this._slabRoll = undefined;
 
       /* ---------- street-crossing curb ramps ----------
          Physics ported from labs/sidewalkend-lab.html (constants
