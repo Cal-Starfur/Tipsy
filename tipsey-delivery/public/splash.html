@@ -414,13 +414,20 @@
       font-variant-numeric: tabular-nums;
       text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
     }
+    /* CREAM MENU PALETTE, OVER THE LIVE CITY. Values lifted from the
+       game's own profile sheet in game/index.html: sheet #f0ece0, tile
+       #fff on a #ddd6c4 hairline, ink #2e3138, label #8f8571, dim note
+       #a99f8a, accent #ff7a1a. The scrim is deliberately light and the
+       card deliberately translucent+blurred -- the same recipe
+       #mapCard .card uses (rgba(240,236,224,.55) + backdrop blur) so the
+       city stays visible behind the panel instead of being blacked out. */
     .how-to-modal {
       position: fixed;
       inset: 0;
       z-index: 10;
       display: none;
       place-items: center;
-      background: rgba(10, 6, 20, 0.72);
+      background: rgba(20, 18, 14, 0.38);
       padding: 24px;
     }
     .how-to-modal.open {
@@ -431,14 +438,22 @@
       width: min(92vw, 360px);
       max-height: 82dvh;
       overflow-y: auto;
-      background: linear-gradient(180deg, #3a2064, #1c0f34);
-      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: rgba(240, 236, 224, 0.93);
+      -webkit-backdrop-filter: blur(10px);
+      backdrop-filter: blur(10px);
+      border: 1px solid #ddd6c4;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+      --ink: #2e3138;
+      --ink-dim: #5f5a50;
+      --accent: #ff7a1a;
+      color: var(--ink);
       border-radius: 20px;
       padding: 1.6rem 1.4rem;
     }
     .how-to-card h2 {
       margin: 0 0 0.8rem;
       font-size: 1.15rem;
+      color: var(--ink);
     }
     .how-to-card p {
       margin: 0 0 0.9rem;
@@ -449,10 +464,14 @@
     .how-to-note {
       font-style: italic;
       font-size: 0.8rem !important;
+      color: #a99f8a !important;
     }
+    /* rows are TILES, not ruled lines -- same white-on-hairline card the
+       trophy and skin rows wear (.tpTrRow / .tpSkinCard) */
     .controls-table {
       width: 100%;
-      border-collapse: collapse;
+      border-collapse: separate;
+      border-spacing: 0 6px;
       margin-bottom: 0.9rem;
       font-size: 0.85rem;
     }
@@ -462,20 +481,29 @@
       font-weight: 700;
       text-transform: uppercase;
       letter-spacing: 0.04em;
-      color: var(--ink-dim);
-      padding-bottom: 0.4rem;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      color: #8f8571;
+      padding: 0 0.6rem 0.1rem;
     }
     .controls-table th:last-child,
     .controls-table td:last-child {
       text-align: right;
     }
     .controls-table td {
-      padding: 0.45rem 0;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      background: #fff;
+      padding: 0.5rem 0.6rem;
+      border-top: 1px solid #ddd6c4;
+      border-bottom: 1px solid #ddd6c4;
+      color: var(--ink);
+    }
+    .controls-table td:first-child {
+      border-left: 1px solid #ddd6c4;
+      border-radius: 10px 0 0 10px;
+      font-weight: 700;
     }
     .controls-table td:last-child {
-      font-weight: 600;
+      border-right: 1px solid #ddd6c4;
+      border-radius: 0 10px 10px 0;
+      font-weight: 700;
       color: var(--accent);
     }
     .how-to-card h3 {
@@ -484,19 +512,23 @@
       font-weight: 700;
       text-transform: uppercase;
       letter-spacing: 0.04em;
-      color: var(--ink-dim);
+      color: #8f8571;
       padding-bottom: 0.4rem;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      border-bottom: 1px solid #ddd6c4;
     }
     .btn-guide {
       display: grid;
-      gap: 0.75rem;
+      gap: 0.5rem;
       margin-bottom: 0.9rem;
     }
     .btn-guide-row {
       display: flex;
       align-items: flex-start;
       gap: 0.7rem;
+      background: #fff;
+      border: 1px solid #ddd6c4;
+      border-radius: 14px;
+      padding: 0.6rem 0.7rem;
     }
     /* chips are deliberately painted from the same recipe as the real
        buttons in game/index.html -- white circle for #globalSearch,
@@ -512,13 +544,13 @@
       align-items: center;
       justify-content: center;
       line-height: 1.05;
-      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
     }
-    .btn-chip.chip-search { background: rgba(255, 255, 255, 0.92); }
+    .btn-chip.chip-search { background: #fff; border: 1px solid #ddd6c4; }
     .btn-chip.chip-robot { background: #ff7a1a; }
     .btn-chip.chip-view {
       border-radius: 10px;
-      background: rgba(20, 23, 29, 0.62);
+      background: #20242d;
       border: 1px solid #363b46;
     }
     .btn-chip .vcap {
@@ -550,12 +582,13 @@
       height: 28px;
       border-radius: 50%;
       appearance: none;
-      border: none;
-      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid #ddd6c4;
+      background: #fff;
       color: var(--ink);
       font-size: 16px;
       cursor: pointer;
     }
+
     </style>
   </head>
   <body>
@@ -591,12 +624,13 @@
       <div class="how-to-card">
         <button class="how-to-close" id="how-to-close" type="button" aria-label="Close">×</button>
         <h2>How to Play</h2>
-        <p>You're the routing AI of a top-heavy sidewalk delivery robot in <strong>Costa Palma</strong>. One address a day — reach the door <strong>slow and upright</strong>. Tip over and the lid flops open.</p>
+        <p>Pick up an order and head to the drop off — but don't tip over.</p>
+        <h3>Driving</h3>
         <table class="controls-table">
           <tr><th>Action</th><th>Touch</th><th>Keys</th></tr>
-          <tr><td>Throttle</td><td>Hold right side</td><td>→ / D</td></tr>
-          <tr><td>Brake</td><td>Hold left side</td><td>← / A</td></tr>
-          <tr><td>Change lane</td><td>Swipe up / down</td><td>↑W / ↓S</td></tr>
+          <tr><td>Steering</td><td>Drag, aim where you want to end up</td><td>WASD / arrows</td></tr>
+          <tr><td>Slow down</td><td>Let go, or aim back the way you came</td><td>Release / opposite key</td></tr>
+          <tr><td>Reverse</td><td>Pull back once you're stopped</td><td>Opposite key at a standstill</td></tr>
         </table>
         <h3>On-screen buttons</h3>
         <div class="btn-guide">
@@ -604,21 +638,21 @@
             <div class="btn-chip chip-view"><span class="vcap">VIEW</span><span class="vlvl">1</span></div>
             <div>
               <b>View &mdash; camera depth</b>
-              <span>Out on the route, tap to cycle three heights: <strong>1</strong> rides close for tight corner work, <strong>2</strong> and <strong>3</strong> pull back so you spot traffic, cracks and ramps earlier. Your pick is remembered between runs.</span>
+              <span>Tap to cycle three camera heights. Close for tight corners, pulled back to spot trouble early.</span>
             </div>
           </div>
           <div class="btn-guide-row">
             <div class="btn-chip chip-search"><svg viewBox="0 0 24 24" width="19" height="19" aria-hidden="true"><circle cx="10" cy="10" r="6.5" fill="none" stroke="#2e3138" stroke-width="2.2"/><line x1="15" y1="15" x2="21" y2="21" stroke="#2e3138" stroke-width="2.4" stroke-linecap="round"/></svg></div>
             <div>
-              <b>Magnifying glass &mdash; side missions</b>
-              <span>Top left of the menus. Search Costa Palma for jobs off the daily route, like the <strong>Hydrant Challenge</strong>.</span>
+              <b>Magnifying glass</b>
+              <span>Check your map for new pick-ups and side missions.</span>
             </div>
           </div>
           <div class="btn-guide-row">
             <div class="btn-chip chip-robot"><svg viewBox="0 0 40 46" width="19" height="22" aria-hidden="true"><line x1="13" y1="5" x2="13" y2="11" stroke="#2e3138" stroke-width="1.5"/><circle cx="13" cy="5" r="2" fill="#ff5722"/><rect x="9" y="11" width="22" height="7" fill="#f7f8fa" stroke="#30343d" stroke-width="1.2"/><rect x="5" y="18" width="30" height="21" fill="#f7f8fa" stroke="#30343d" stroke-width="1.2"/><rect x="9" y="22" width="22" height="8" fill="#22242b"/><circle cx="16" cy="26" r="1.9" fill="#7fe3ff"/><circle cx="24" cy="26" r="1.9" fill="#7fe3ff"/><rect x="5" y="32" width="30" height="4" fill="#c2452e"/><rect x="5" y="34" width="30" height="3" fill="#ffcc33" stroke="#c9a020" stroke-width="0.5"/><rect x="5" y="36" width="30" height="3" fill="#494e58"/></svg></div>
             <div>
               <b>Orange robot &mdash; your profile</b>
-              <span>Top right of the menus. Trophy case, tip wallet, and the store where tips buy new paint for Tipsey.</span>
+              <span>Top right. Trophy case, wallet, and the store — tips buy new paint.</span>
             </div>
           </div>
         </div>
