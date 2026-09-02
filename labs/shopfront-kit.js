@@ -72,9 +72,27 @@ function T(a0,a1,b0,b1,z,fill,stroke,lw){
 }
 /* a small solid box sitting on the roof or the pavement */
 function box(a0,a1,b0,b1,z0,z1,top,front,side){
+  /* WHICH TWO FACES EXIST, asked rather than asserted. This drew F at
+     b1 and S at a1 unconditionally -- the near face and the a = a1 end
+     of ONE projection. Under the game's four block edges neither is a
+     constant: on edge 2 the visible end is a = a0, so the box painted
+     its far end and left its near one open and rendered inside-out, an
+     open shell with its interior on show. Same fault body() already
+     solved with FLANK_RIGHT, and the same fault the kit fixed once for
+     faceT/plateT: one projection hardcoded into a shared primitive.
+
+     A face is visible when its outward normal comes toward the eye, and
+     under this projection nearer is further DOWN the screen, so the
+     test is just the sign of the screen-y step along each axis. Derived
+     from P() so it holds for whatever view the host installed -- and it
+     agrees with FLANK_RIGHT by construction, since that flag is the
+     same dv test written in world terms. */
+  const o = P(a0,b0,z0), pa = P(a0+1,b0,z0), pb = P(a0,b0+1,z0);
+  const nearB = (pb.y - o.y) > 0 ? b1 : b0;   // the b face toward the eye
+  const endA  = (pa.y - o.y) > 0 ? a1 : a0;   // the end wall that is seen
   T(a0,a1,b0,b1,z1, top);
-  F(a0,a1,z0,z1, front, null,0, b1);
-  S(a1,b0,b1,z0,z1, side);
+  F(a0,a1,z0,z1, front, null,0, nearB);
+  S(endA,b0,b1,z0,z1, side);
 }
 /* ================= ISO-CORRECT PRIMITIVES =================
    A circle drawn with ctx.arc is a circle ON THE SCREEN. That is only
@@ -160,14 +178,34 @@ function plateCircle(a,b,z,r,fill,stroke,lw){ plateT(a,b,z,r); unitCircle(fill,s
    straight across the front of the solid and the solid goes
    see-through. Same fault as the bakery's stovepipe.
 
-   The visible half is the arc that passes the front. Under the plate
-   projection the rim turns vertical on screen at 0 = 3pi/4 and
-   0 = -pi/4 -- the identical derivation cyl() uses for its silhouette,
-   so a hoop drawn here meets the cylinder's own edges exactly. */
+   The visible half is the arc that passes the front, between the two
+   points where the rim turns vertical on screen -- the identical
+   derivation cyl() uses for its silhouette, and now literally the same
+   call, so a hoop drawn here meets the cylinder's own edges exactly. */
+/* THE SILHOUETTE OF A FLAT RIM, derived. A rim point is
+     x = x0 + r(ux cos0 + vx sin0),  y = y0 + r(uy cos0 + vy sin0)
+   with (ux,uy) and (vx,vy) the screen steps of a and b. dx/d0 = 0 at
+   tan0 = vx/ux, so the rim turns vertical at 0s = atan2(vx,ux) and
+   0s+pi -- and the visible half is whichever of the two arcs between
+   them passes the FRONT, i.e. the larger screen y. Both cyl() and
+   plateHoop() had 0s = 3pi/4 written in as a constant, which is only
+   the answer when vx/ux = -1. It is on the canvas lab and on the game's
+   edges 1 and 3; on edges 0 and 2 ux and vx share a sign, both constant
+   angles land on the SAME screen x, and the sweep spans 0.00 of a
+   32.15px drum -- the body collapses to a sliver and only the lid
+   survives, which is why every jar read as a disc on a stem. */
+function plateSweep(a,b,z){
+  const o = P(a,b,z), pa = P(a+1,b,z), pb = P(a,b+1,z);
+  const ux = pa.x-o.x, uy = pa.y-o.y, vx = pb.x-o.x, vy = pb.y-o.y;
+  const ts = Math.atan2(vx, ux);
+  const dir = (uy*Math.cos(ts+Math.PI/2) + vy*Math.sin(ts+Math.PI/2)) > 0 ? 1 : -1;
+  return { ts, dir };
+}
 function plateHoop(a,b,z,r,col,lw){
   const N = 14, pts = [];
+  const { ts, dir } = plateSweep(a,b,z);
   for(let i=0;i<=N;i++){
-    const t = 3*Math.PI/4 - Math.PI*i/N;
+    const t = ts + dir*Math.PI*i/N;
     pts.push(P(a + r*Math.cos(t), b + r*Math.sin(t), z));
   }
   ctx.beginPath();
@@ -185,15 +223,18 @@ function ball(a,b,z,r,fill,lit){
   ctx.fillStyle = lit || shade(fill,1.22); ctx.fill();
 }
 /* VERTICAL CYLINDER. The silhouette runs between the two points where
-   the flat rim turns vertical on screen, which for the plate ellipse
-   above is 0 = 3pi/4 and 0 = -pi/4; the visible side is the arc that
-   passes the front (0 = pi/4). Body first, then the lid, so the lid
-   always caps it cleanly. */
+   the flat rim turns vertical on screen, and the visible side is the
+   arc between them that passes the front -- both read off P() by
+   plateSweep() rather than written in, so the drum is a drum on all
+   four block edges. Body first, then the lid, so the lid always caps it
+   cleanly. */
 function cyl(a,b,z0,z1,r,col,lid){
   const N = 14, rim = (t,z) => P(a + r*Math.cos(t), b + r*Math.sin(t), z);
   const pts = [];
-  for(let i=0;i<=N;i++){ const t = 3*Math.PI/4 - Math.PI*i/N; pts.push(rim(t,z0)); }
-  for(let i=N;i>=0;i--){ const t = 3*Math.PI/4 - Math.PI*i/N; pts.push(rim(t,z1)); }
+  const { ts, dir } = plateSweep(a,b,z0);   // see plateSweep: was a constant
+  const ang = i => ts + dir*Math.PI*i/N;
+  for(let i=0;i<=N;i++){ pts.push(rim(ang(i),z0)); }
+  for(let i=N;i>=0;i--){ pts.push(rim(ang(i),z1)); }
   ctx.beginPath();
   pts.forEach((q,i)=> i ? ctx.lineTo(q.x,q.y) : ctx.moveTo(q.x,q.y));
   ctx.closePath(); ctx.fillStyle = col; ctx.fill();
