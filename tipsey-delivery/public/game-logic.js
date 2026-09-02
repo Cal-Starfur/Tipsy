@@ -6648,11 +6648,16 @@ function owMountUI(){
   const ui = document.createElement('div');
   ui.id = 'owUI';
   ui.style.cssText = 'position:fixed;inset:0;z-index:9990;pointer-events:none';
-  ui.innerHTML =
-    '<div id="owRing" style="position:absolute;width:120px;height:120px;margin:-60px 0 0 -60px;' +
-    'border:2px solid rgba(255,255,255,.28);border-radius:50%;display:none"></div>' +
-    '<div id="owNub" style="position:absolute;width:44px;height:44px;margin:-22px 0 0 -22px;' +
-    'border-radius:50%;background:rgba(255,122,26,.85);display:none"></div>';
+  /* STICK ART REMOVED, STICK KEPT. The ring and nub were the only
+     children here. The control itself is state (ow.stick.ox/oy/dx/dy),
+     read straight by owStep -- it never needed the pixels. Dropping the
+     markup leaves owPaintStick's `if(!ring || !nub) return;` guard as
+     the no-op, so the paint calls on down/move/up stay wired and the
+     art comes back by restoring these two divs and nothing else.
+
+     The container stays: owMountUI/owUnmount are a matched pair on the
+     #owUI id, and anything overlaid on the city later hangs off it. */
+  ui.innerHTML = '';
   document.body.appendChild(ui);
 }
 function owPaintStick(ow){
