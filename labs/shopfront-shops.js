@@ -395,42 +395,79 @@ const SHOPS = [
 },
 {
   name:'Grocer', head:'Open front, striped canopy, crate steps',
-  tags:['open frontage','deep canopy','stacked crates','crate steps','hanging scales'],
-  desc:'No glass at all here, so the layering is in the stack: the crate steps are painted far to near and each tier sits on the one below with its top face showing.',
+  tags:['open frontage','striped canopy','crate display'],
+  desc:'No glass at all here, so the layering is in the depth: the crates stand side by side on the pavement and are painted far to near, with the counter jars behind them and the canopy over both.',
   draw(p){
     const wall = '#b8552f', trim = '#f0e4c8', H = 150;
     body(wall, trim, H);
-    slab(0,W, H, H+12, -1, -10, shade(wall,.65));
+    /* A FULL-WIDTH BAND AT A NEGATIVE b ALWAYS CROSSES. This ran
+       a = 0..W at b = -1..-10; screen x moves -1 per unit of a and +1
+       per b, so the recess slides it 10 units sideways with no margin
+       to absorb it, and it came out 9.8 past the return -- a nub of
+       cornice hanging on the flank. 18 clears it by 7.7. */
+    slab(18,W-18, H, H+12, -1, -10, shade(wall,.65));
     reveal(12, W*0.78, 0, 112, 42, '#3a2a22');
     slab(12,W*0.78, 58, 74, 24, 8, '#c9b48e', shade(wall,.75), '#d8c49a');
-    depthSort([0,1,2,3,4,5].map(i => ({
-      b: 20 - (i%2)*8, z: 0,
-      draw: () => cyl(24+i*30, 20 - (i%2)*8, 74, 92, 11, ['#c2452e','#d8a12a','#5c8a3a'][i%3])
+    /* THE RAGGEDNESS WAS THE ALTERNATING b. Six jars ran at
+       b = 18/10/18/10..., so they sat in two staggered rows on one
+       shelf -- even spacing in a, but the stagger threw the gaps out
+       and the row read as spilled rather than set out. And the run
+       a = 24..174 was laid against nothing: the last jar spanned
+       163..185, standing over a door surround that starts at 154.8,
+       and the first spanned 13..35, poking past the canopy's near end
+       at 20.
+       So the row is now laid against the two edges it has to respect.
+       Five jars at one b of 16: the first centre of 32 puts its near
+       face on 21, just inside the canopy, and a step of 28 puts the
+       last centre at 144 with its far face on 155, just short of the
+       door. Gaps come out at 6 and identical, which is what makes it
+       read as arranged. b + r is 27, still inside the canopy's 30. */
+    depthSort([0,1,2,3,4].map(i => ({
+      b: 16, z: 0,
+      draw: () => cyl(32+i*28, 16, 74, 92, 11, ['#c2452e','#d8a12a','#5c8a3a'][i%3])
     })));
     shopDoor(W*0.88, wall, trim);
-    const cz0 = 118, cz1 = 138, out = 46;
+    /* THE CANOPY WAS REACHING ONTO THE NEIGHBOUR. out was 46, near
+       double the Barber awning's 26, and the run started at a = 4. A
+       projection moves screen x by +1 per unit of b, so the a = 4 end
+       landed 41.4 units past the return -- and with the bench gap at 46
+       that is the whole gap, so the canopy sat on the next shop's
+       facade. (The other end measures 49.2 INBOARD; only one end of a
+       full-width canopy can cross, and it is not the one it looks like.)
+       out 46 -> 30 and the run pulled to 20, which leaves 10.4 over the
+       return instead of 41.4. It cannot reach zero: a canopy that
+       projects at all must show outside the silhouette in isometric,
+       which is perspective rather than a fault. What was a fault was
+       reaching far enough to cover somebody else's shop. */
+    const cz0 = 118, cz1 = 138, out = 30, cA = 20, cB = W-20;
     for(let i=0;i<8;i++){
-      const x0 = 4+(W-8)*i/8, x1 = 4+(W-8)*(i+1)/8;
+      const x0 = cA+(cB-cA)*i/8, x1 = cA+(cB-cA)*(i+1)/8;
       poly([P(x0,0,cz1),P(x1,0,cz1),P(x1,out,cz0),P(x0,out,cz0)], i%2?'#f2ece0':trim);
     }
-    poly([P(4,out,cz0),P(W-4,out,cz0),P(W-4,out,cz0-12),P(4,out,cz0-12)], shade(wall,.8));
-    poly([P(4,0,cz1-6),P(4,out,cz0-12),P(4,out,cz0),P(4,0,cz1)], shade(wall,.62));
-    poly([P(W-4,0,cz1-6),P(W-4,out,cz0-12),P(W-4,out,cz0),P(W-4,0,cz1)], shade(wall,.62));
-    slab(0,W, cz1, cz1+5, -1, -8, shade(wall,.6));
+    poly([P(cA,out,cz0),P(cB,out,cz0),P(cB,out,cz0-12),P(cA,out,cz0-12)], shade(wall,.8));
+    poly([P(cA,0,cz1-6),P(cA,out,cz0-12),P(cA,out,cz0),P(cA,0,cz1)], shade(wall,.62));
+    poly([P(cB,0,cz1-6),P(cB,out,cz0-12),P(cB,out,cz0),P(cB,0,cz1)], shade(wall,.62));
+    /* Same fault one band down, and this is the one that shows: at
+       b = -8 over a = 0..W it stood 7.9 past the return, right at the
+       canopy's shoulder. 16 clears it by 7.7. */
+    slab(16,W-16, cz1, cz1+5, -1, -8, shade(wall,.6));
     if(state.props){
-      // crate steps, painted far to near so each tier sits on the last
+      /* NOT A STAIRCASE ANY MORE. The two crates ran to different
+         heights (z 0..26 and 0..20) at different depths (b 10..44 and
+         16..54), which read as a stepped display rather than two crates
+         put down on the pavement -- and the deeper one projected 54,
+         well past even the old canopy. Both now share one height and
+         one depth and stand side by side, so the row is flat and sits
+         under the canopy at b 8..30 instead of out in the road. */
       depthSort([
-        { b: 44, z: 0, draw: () => {
-            box(10,64,10,44,0,26,'#c98a4a','#a9703a','#8f5e31');
-            for(let i=0;i<3;i++) cyl(22+i*17, 26, 26, 40, 7, ['#c2452e','#5c8a3a','#d8a12a'][i]); } },
-        { b: 54, z: 0, draw: () => {
-            box(70,124,16,54,0,20,'#c98a4a','#a9703a','#8f5e31');
-            for(let i=0;i<3;i++) cyl(80+i*17, 34, 20, 32, 7, ['#d8a12a','#c2452e','#e0c24a'][i]); } }
+        { b: 30, z: 0, draw: () => {
+            box(14,68, 8,30, 0,22, '#c98a4a','#a9703a','#8f5e31');
+            for(let i=0;i<3;i++) cyl(26+i*17, 19, 22, 34, 7, ['#c2452e','#5c8a3a','#d8a12a'][i]); } },
+        { b: 30, z: 0, draw: () => {
+            box(76,130, 8,30, 0,22, '#c98a4a','#a9703a','#8f5e31');
+            for(let i=0;i<3;i++) cyl(88+i*17, 19, 22, 34, 7, ['#d8a12a','#c2452e','#e0c24a'][i]); } }
       ]);
-      tube(W*0.30, 18, cz0-6, W*0.30, 18, cz0-30, 1.6, '#7d838a');
-      plateCircle(W*0.30, 18, cz0-30, 11, '#c9ccd0', '#9aa0a6', 2);
-      for(const t of [0.4, 2.5, 4.6])
-        tube(W*0.30 + 10*Math.cos(t), 18 + 10*Math.sin(t), cz0-30, W*0.30, 18, cz0-14, 0.9, '#9aa0a6');
+      /* hanging scales removed at Sir's direction. */
     }
     if(state.roof) box(W*0.30,W*0.62,-140,-90,H,H+20,'#9aa0a6','#7d838a','#6a7076');
     kerb(p,'none');
