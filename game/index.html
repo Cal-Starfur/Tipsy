@@ -6891,18 +6891,45 @@ function owAtRampMouth(grid, x, y){
    kick reads -- deliberately not surfaceAt's raw per-frame answer,
    which flickers road/curb/road along a kerb (see CURB CROSSING). */
 function owCurbBlocks(ow, W, x, y){
-  if(ow.sfcCommit !== 'road') return false;
-  /* THE BARRIER IS THE DRAWN KERB FACE, WHICH IS 'curb' AND NOT
-     'sidewalk'. drawWorld puts the kerb face at exactly +/-ROAD_HALF
-     (curbFace(-ROAD_HALF)/curbFace(ROAD_HALF)), but surfaceAt calls the
-     next CURB_W = T2*0.5 = 46 units past that edge 'curb' and only
-     reserves 'sidewalk' for beyond it. Testing for 'sidewalk' therefore
-     put the wall 46 units INSIDE the visible pavement -- bumper 46 past
-     the kerb, body centre 76 past -- which is the "he still gets in too
-     far" report, with the HUD reading sfc curb while he is plainly up on
-     the pavement. Anything that is not road is over the step. */
-  const sfc = W.surfaceAt(x, y);
-  if(sfc !== 'curb' && sfc !== 'sidewalk') return false;
+  /* ARM ON WHERE HE IS, NOT ONLY ON THE LATCH. sfcCommit is written
+     ONLY when the surface reads 'road' or 'sidewalk' -- never on
+     'curb', 'park' or 'lot' -- so it goes stale the moment he is
+     anywhere else. MEASURED on a random drive: he sits in the curb band
+     with the latch still reading 'sidewalk', and while it reads
+     anything but 'road' this gate was switched off completely and he
+     could drive onto the pavement unopposed.
+     The gate predicate itself is sound -- 202,567 road points swept in
+     all four directions, zero holes -- so the leak was never the test,
+     it was whether the test ran at all.
+     Being physically in the roadway is the honest condition: road, or
+     the curb band, which IS the step. The latch stays as a fallback for
+     the case it was right about (committed to the road while momentarily
+     over something the classifier does not name). Descending is
+     unaffected either way, because a target of 'road' returns below. */
+  const here = W.surfaceAt(ow.px, ow.py);
+  if(here !== 'road' && here !== 'curb' && ow.sfcCommit !== 'road') return false;
+  /* NOT-ROAD IS THE TEST. Two earlier versions of this line named the
+     surfaces they expected -- first 'sidewalk', then 'curb' or
+     'sidewalk' -- and both leaked, because naming what you expect only
+     works if you can name all of it.
+       'sidewalk' alone put the wall CURB_W = 46 units inside the
+     visible pavement: drawWorld draws the kerb face at exactly
+     +/-ROAD_HALF, but surfaceAt reserves the next 46 units for 'curb'
+     and only calls it 'sidewalk' beyond that.
+       Adding 'curb' fixed the straight-on case and still leaked
+     diagonally. Driving out of a junction at an angle lands in the
+     corner quadrant, where neither axis is within a road band and the
+     classifier falls through to the block type -- 'park', or 'lot'.
+     Neither was on the list, so he drove straight in. MEASURED: 0
+     breaches in 2,600 perpendicular runs, but 2,660 in 21,616 runs once
+     diagonal headings were swept -- 2,021 onto sidewalk, 639 onto park.
+     (Sir's report, 2026-09-03: "still able to get on the sidewalk on
+     these smaller squares".)
+       So ask the question the kerb actually poses. Every surface that
+     is not road is on the far side of the step, including the ones
+     nobody has thought of yet: park, lot, void, the boardwalk. The road
+     is a closed set of one and the exceptions are the ramps. */
+  if(W.surfaceAt(x, y) === 'road') return false;
   return !owAtRampMouth(W.grid, x, y);
 }
 
@@ -8877,8 +8904,28 @@ function buildWorldCurbRamps(grid){
     const od = DIRV[(dirFromNode + 2) % 4];
     return { x: n.x + od.x*along + rv.x*perp, y: n.y + od.y*along + rv.y*perp };
   };
-  const pavedLanding = (p) => interior(p.x, p.y) &&
-    (typeof grid.classify !== "function" || grid.classify(p.x, p.y) === "sidewalk");
+  /* ASK THE PAVEMENT, DON'T ALSO ASK THE BOUNDING BOX. The rule above
+     is "the honest test is the pavement", but this predicate then ANDed
+     `interior` back in -- the very topology proxy it was written to
+     replace -- so a landing was retired for being outside the block
+     lattice even when the classifier said it was kerb.
+     CENSUS on the frozen 36x27 city: of everything this predicate
+     retires, 216 fail on `interior` and ZERO fail on classify. All 216
+     are called 'sidewalk' by grid.classify AND, independently, by the
+     world's own surfaceAt -- the same classifier that decides what the
+     robot is standing on. They sit a few hundred units outside the
+     0..112608 box, which is exactly where the perimeter pavement wraps
+     the OUTSIDE of the boundary blocks: real kerb, on the far side of a
+     real signalised crossing, with a sidewalkend and no sidewalkbegin
+     opposite it. (Sir's report, 2026-09-03, at the north edge: both
+     corners across the street missing.)
+     interior survives only as the fallback for a grid with no
+     classifier at all, where a bounding box is the best answer there
+     is. The ramp's OWN position keeps its interior test untouched --
+     measured at 0 retirements, so there is no evidence to change it. */
+  const pavedLanding = (p) => (typeof grid.classify === "function")
+    ? grid.classify(p.x, p.y) === "sidewalk"
+    : interior(p.x, p.y);
   for(const e of grid.edges){
     const dv = DIRV[e.f], rv = DIRV[(e.f+1)%4];
     for(const side of [-1, 1]){
