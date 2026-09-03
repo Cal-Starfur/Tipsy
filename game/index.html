@@ -5163,9 +5163,17 @@ function hazSpotWorld(hz, a, b){
      bin has been punted. Undefined on every walking type, so this term
      is zero for them and the anchors are equal by construction. */
   const A = a + (hz.slide || 0);
+  /* AND ACROSS. hz.slideB is the lateral half of the same skid. It has
+     to exist because a punt is a 2-D event the moment the robot can
+     steer: the trigger box is |dx|<26 by |lat|<46, so a broadside hit
+     enters with dx ~ 0 and a scalar along-dv skid then fires the prop
+     SIDEWAYS out of a collision it had no part in. Zero on every prop
+     that has never been punted and on every walking type, so this term
+     vanishes for them and the anchor is what it always was. */
+  const B = (b || 0) + (hz.slideB || 0);
   return {
-    x: hz.wx + dv.x*A + rv.x*(b || 0),
-    y: hz.wy + dv.y*A + rv.y*(b || 0)
+    x: hz.wx + dv.x*A + rv.x*B,
+    y: hz.wy + dv.y*A + rv.y*B
   };
 }
 
@@ -12844,7 +12852,7 @@ function propSpawnState(type, hzObj, R, walkRange){
     hzObj.phase = preKnocked ? 2 : 1;
     hzObj.angVel = 0; hzObj.moving = false;
     hzObj.pose = preKnocked ? "knocked" : "standing";
-    hzObj.slide = 0; hzObj.slideVel = 0;
+    hzObj.slide = 0; hzObj.slideVel = 0; hzObj.slideB = 0; hzObj.slideVelB = 0;
     if(preKnocked) hzObj.fallPsi = R()*Math.PI*2;
   }
   if(type === "bin"){
@@ -12869,7 +12877,7 @@ function propSpawnState(type, hzObj, R, walkRange){
     hzObj.phi = 0;
     hzObj.angVel = 0; hzObj.moving = false;
     hzObj.pose = "standing";
-    hzObj.slide = 0; hzObj.slideVel = 0;
+    hzObj.slide = 0; hzObj.slideVel = 0; hzObj.slideB = 0; hzObj.slideVelB = 0;
     hzObj.bonked = false;
     hzObj.knockSpent = false;
     hzObj.items = []; hzObj.spilled = false;
@@ -12914,7 +12922,7 @@ function propSpawnState(type, hzObj, R, walkRange){
     hzObj.phi = preKnocked ? SCOOT_HIT.phiRest : 0;
     hzObj.angVel = 0; hzObj.moving = false;
     hzObj.pose = preKnocked ? "knocked" : "standing";
-    hzObj.slide = 0; hzObj.slideVel = 0;
+    hzObj.slide = 0; hzObj.slideVel = 0; hzObj.slideB = 0; hzObj.slideVelB = 0;
     if(preKnocked) hzObj.fallPsi = hzObj.thetaF;
   }
   return hzObj;
@@ -17440,7 +17448,7 @@ class WorldScene extends Phaser.Scene {
          at the flood's, which is up to a tile away from it. */
       if(hz.type === "hydrant" && hz.burst)
         this.queueHydrantFlood(groundVQ, g,
-          worldOf(hz.s + (hz.slide || 0), hazardOffset(hz)), hz.f, hz);
+          worldOf(hz.s + (hz.slide || 0), hazardOffset(hz) + (hz.slideB || 0)), hz.f, hz);
       if(!GROUND_KINDS[hz.type]) continue;
       /* world-anchored ramps (turn crossings) carry their own wx/wy —
          they sit at the true curb lines, positions the route-s mapping
@@ -17448,7 +17456,7 @@ class WorldScene extends Phaser.Scene {
          stays route-anchored via worldOf as before. */
       const wp = hz.wx !== undefined
         ? { x: hz.wx, y: hz.wy, z: hz.wz || 0 }
-        : worldOf(hz.s + (hz.slide || 0), hazardOffset(hz));
+        : worldOf(hz.s + (hz.slide || 0), hazardOffset(hz) + (hz.slideB || 0));
       if(!this.visProp(hz.type, wp.x, wp.y)) continue;
       const hzt = hz.type, hwx = wp.x, hwy = wp.y, hwz = wp.z, hf = hz.f, hzObj = hz;
       /* slab is a full T2 tile the robot drives directly across and
@@ -17657,7 +17665,7 @@ class WorldScene extends Phaser.Scene {
     const hazVQ = [];
     for(const hz of r.hazards){
       if(GROUND_KINDS[hz.type]) continue;
-      const wp = worldOf(hz.s + (hz.slide || 0), hazardOffset(hz));
+      const wp = worldOf(hz.s + (hz.slide || 0), hazardOffset(hz) + (hz.slideB || 0));
       /* a fallen/falling scooter (phi>0) reaches out along its own
          local a-axis well past its single anchor point once laid
          down (see the scooter draw fn's M()) -- layerFor only tests
@@ -17745,7 +17753,7 @@ class WorldScene extends Phaser.Scene {
       }
       if(hz.clusterExtras){
         for(const ex of hz.clusterExtras){
-          const exWp = worldOf(hz.s + (hz.slide || 0) + ex.ds, hazardOffset(hz) + ex.dOff);
+          const exWp = worldOf(hz.s + (hz.slide || 0) + ex.ds, hazardOffset(hz) + (hz.slideB || 0) + ex.dOff);
           if(!this.visProp(ex.kind, exWp.x, exWp.y)) continue;
           const exk = ex.kind, exx = exWp.x, exy = exWp.y, exz = exWp.z, exf = hz.f;
           hazVQ.push({ depth: exx+exy, fn:(gg,tt)=>this.drawProp(layerFor(exx, exy), exk, exx, exy, tt, exf, exz) });
@@ -20961,7 +20969,21 @@ class WorldScene extends Phaser.Scene {
       const th = (data && data.fallPsi !== undefined) ? data.fallPsi : ((data && data.thetaF !== undefined) ? data.thetaF : thSeed);
       const scs = Math.cos(th), ssn = Math.sin(th);
       const brand = (data && data.brand) || brandSeed;
-      const slide = (data && data.slide) || 0;
+      /* THE SKID IS APPLIED BY THE ANCHOR, ONCE, AND NOT AGAIN HERE.
+         drawProp is called at wp = worldOf(hz.s + hz.slide, ...) -- the
+         skid is already in the origin this body is drawn around. Adding
+         data.slide to the model 'a' as well moved the art a SECOND time,
+         and through the fall rotation, so the drawn offset came out
+         S*(1+cos psi) along and S*sin psi across while hazSpotWorld --
+         the hitbox -- moved by S along only. The art therefore sat
+         exactly S units from the thing you actually collide with, in the
+         direction of the fall angle, for every punted prop. At vMax a
+         scooter's skid settles near 120 units, which is over a tile.
+         The CONE draw fn never had this term and has always been right;
+         scooter, bin and planter each grew their own copy. Kept as a
+         named 0 rather than deleted so the arithmetic below is provably
+         untouched and the reason survives next to it. */
+      const slide = 0;
       const phi = (data && data.phi) || 0;
       const layAmount = Math.min(1, phi / SCOOT_HIT.phiRest);
 
@@ -22000,7 +22022,10 @@ class WorldScene extends Phaser.Scene {
       const fc = Math.cos(cth), fsn = Math.sin(cth);
       const pivotA = Math.abs(fc)*hw + Math.abs(fsn)*hd;
       const cphi = Math.cos(phi), sphi = Math.sin(phi);
-      const pslide = (isHaz && data.slide) || 0;   // the shove skid — bin's data.slide, same convention
+      /* 0, not data.slide: see the scooter/bin note. The anchor this is
+         drawn around already carries the skid; re-adding it here drew
+         the pot one whole skid length away from its own hitbox. */
+      const pslide = 0;
       const tip = (u, h) => ({ u: pslide + pivotA - (pivotA-u)*cphi + h*sphi, z: (pivotA-u)*sphi + h*cphi });
       /* TP: local (a,b,h) offset -> project onto the fall frame,
          rigid-rotate about the pivot edge, map back to dv/rv offsets.
@@ -22938,7 +22963,21 @@ class WorldScene extends Phaser.Scene {
       const cth = (data && data.fallPsi !== undefined) ? data.fallPsi : cthSeed;
       const fc = Math.cos(cth), fsn = Math.sin(cth);
       const cphi = Math.cos(phi), sphi = Math.sin(phi);
-      const slide = (data && data.slide) || 0;
+      /* THE SKID IS APPLIED BY THE ANCHOR, ONCE, AND NOT AGAIN HERE.
+         drawProp is called at wp = worldOf(hz.s + hz.slide, ...) -- the
+         skid is already in the origin this body is drawn around. Adding
+         data.slide to the model 'a' as well moved the art a SECOND time,
+         and through the fall rotation, so the drawn offset came out
+         S*(1+cos psi) along and S*sin psi across while hazSpotWorld --
+         the hitbox -- moved by S along only. The art therefore sat
+         exactly S units from the thing you actually collide with, in the
+         direction of the fall angle, for every punted prop. At vMax a
+         scooter's skid settles near 120 units, which is over a tile.
+         The CONE draw fn never had this term and has always been right;
+         scooter, bin and planter each grew their own copy. Kept as a
+         named 0 rather than deleted so the arithmetic below is provably
+         untouched and the reason survives next to it. */
+      const slide = 0;
 
       const tip = (u, h) => {
         if(phi === 0) return { u, z: h };
@@ -24647,7 +24686,60 @@ class WorldScene extends Phaser.Scene {
            travelling under the punt cannot be hit again. It re-arms when
            it has come to rest AND the robot is clear. One approach, one
            bonk, at every speed (measured 1, 1, 1 against 12, 12, 9). */
-        const hzSettled = () => Math.abs(hz.slideVel || 0) <= 0.0001;
+        const hzSettled = () => Math.abs(hz.slideVel || 0) <= 0.0001
+                             && Math.abs(hz.slideVelB || 0) <= 0.0001;
+
+        /* ---- WHICH WAY A PUNTED PROP LEAVES ----
+           Every shoved prop used `-(Math.sign(dx) || -1)` and a skid
+           that only ran along the prop's own dv. Both halves of that
+           are rail-era: on a rail you could only meet a prop head-on,
+           so one axis was the only axis and dx's sign was the only
+           question. Steering makes it a 2-D event and the old answer
+           fails in two distinct ways at once.
+             The trigger box is |dx| < 26 by |lat| < T2*0.5. Come in
+           BROADSIDE -- which free roam makes the common case -- and you
+           enter it with dx near zero, so the sign is decided by
+           sub-26-unit noise, and when dx lands exactly 0 the `|| -1`
+           fallback picks a direction outright. The prop then leaves
+           along dv: an axis the collision never involved.
+             MEASURED against the real gate, 7,188 approaches swept over
+           360 degrees and +/-40 units of lateral miss: 14.6% of hits
+           punt the prop BACK THROUGH THE ROBOT (>90 deg wrong), 48.4%
+           are more than 45 deg off, mean error 49.9 deg. (Sir's report,
+           2026-09-03: "when i hit the scooter it moves in the wrong
+           direction at times ... could be present in other props".)
+             Candidates, same sweep: taking the sign from velocity.dv
+           instead of position kills the punt-through case but leaves
+           the rest (0% / 46.8% / 43.1 deg) -- it only makes the wrong
+           answer less dramatic. Pushing away along -(dx, lat) is worse
+           than it sounds (6.8% / 33.6% / 38.4 deg) because dx and lat
+           are both small and noisy at the trigger. Sending it along the
+           ROBOT'S TRAVEL is exact by construction: 0%, 0%, 0.0 deg. A
+           light prop struck by a moving body leaves the way the body
+           was going, which is the physics as well as the best number.
+             Rail path returns {a:1, b:0} -- the +dv the unsigned punt
+           always produced -- so nothing the hazard oracle gates moves. */
+        const puntDir = () => {
+          const ow = this.ow;
+          if(!owSep || !ow || !ow.on) return { a: 1, b: 0 };
+          const sgn = Math.sign(ow.vel) || 1;
+          const ux = Math.cos(ow.yaw) * sgn, uy = Math.sin(ow.yaw) * sgn;
+          const a = ux*owSep.dv.x + uy*owSep.dv.y;
+          const b = ux*owSep.rv.x + uy*owSep.rv.y;
+          /* dead stop and still triggering: fall back to pushing away
+             from where the robot physically is, which is at least never
+             INTO him. Degenerate only if he is exactly on the anchor. */
+          if(!a && !b){
+            const d = Math.hypot(owSep.dx, owSep.lat) || 1;
+            return { a: -owSep.dx/d, b: -owSep.lat/d };
+          }
+          return { a, b };
+        };
+        const hzPunt = (mag) => {
+          const p = puntDir();
+          hz.slideVel  = (hz.slideVel  || 0) + p.a * mag;
+          hz.slideVelB = (hz.slideVelB || 0) + p.b * mag;
+        };
 
         if(hz.type === "william"){
           /* THE WILLIAM — the lap's resident robot-hater, ported from
@@ -25073,6 +25165,10 @@ class WorldScene extends Phaser.Scene {
             hz.slide += hz.slideVel * dt;
             hz.slideVel *= Math.exp(-0.004 * dt);
           } else hz.slideVel = 0;
+          if(Math.abs(hz.slideVelB) > 0.0001){
+            hz.slideB = (hz.slideB || 0) + hz.slideVelB * dt;
+            hz.slideVelB *= Math.exp(-0.004 * dt);
+          } else hz.slideVelB = 0;
 
           /* one-shot per approach — same convention as every other
              hazard (hz.hit, re-armed once the robot is well clear).
@@ -25100,8 +25196,7 @@ class WorldScene extends Phaser.Scene {
                -sign(dx): away from where the robot is. Identical to the
                old behaviour on the rail, where dx is negative on
                approach and this evaluates to +1. */
-            const away = -(Math.sign(dx) || -1);
-            hz.slideVel += away * sp * 1.2 * CONE_HIT.punt;
+            hzPunt(sp * 1.2 * CONE_HIT.punt);
             const kick = sp * 2.2 * (Math.random() < 0.5 ? 1 : -1);
             this.tilt += kick * TILT_SENS;
             this.damage = Math.min(95, this.damage + Math.abs(kick)*20*CARGO_DAMAGE_SENS);
@@ -25194,7 +25289,7 @@ class WorldScene extends Phaser.Scene {
               hz.moving = true;
               hz.angVel += sp * 0.06 * BIN_HIT.kick;
               /* SIGNED, like every other shoved prop. */
-              hz.slideVel += -(Math.sign(dx) || -1) * sp * 0.6 * BIN_HIT.punt;   // a shove as it goes over, not a full punt
+              hzPunt(sp * 0.6 * BIN_HIT.punt);   // a shove as it goes over, not a full punt
               const kick = sp * 2.6 * (Math.random() < 0.5 ? 1 : -1);
               this.tilt += kick * TILT_SENS;
               this.damage = Math.min(95, this.damage + Math.abs(kick)*40*CARGO_DAMAGE_SENS);
@@ -25237,6 +25332,10 @@ class WorldScene extends Phaser.Scene {
             hz.slide += hz.slideVel * dt;
             hz.slideVel *= Math.exp(-0.0045 * dt);
           } else hz.slideVel = 0;
+          if(Math.abs(hz.slideVelB) > 0.0001){
+            hz.slideB = (hz.slideB || 0) + hz.slideVelB * dt;
+            hz.slideVelB *= Math.exp(-0.0045 * dt);
+          } else hz.slideVelB = 0;
           this.simBinTrash(hz, dt);
         } else if(hz.type === "robot"){
           /* another robot on the sidewalk (requested 2026-07-24;
@@ -25506,8 +25605,7 @@ class WorldScene extends Phaser.Scene {
                along the same axis the pot fell along, away from the
                robot. Unsigned it would shove a head-on hit straight
                through him. */
-            hz.slideVel = (hz.slideVel || 0)
-                        + -(Math.sign(dx) || -1) * sp * 0.45 / Math.pow(hz.scale, PLANTER_HIT.potPower);
+            hzPunt(sp * 0.45 / Math.pow(hz.scale, PLANTER_HIT.potPower));
             const kick = sp * 1.6 * (Math.random() < 0.5 ? 1 : -1);
             this.tilt += kick * TILT_SENS;
             this.damage = Math.min(95, this.damage + Math.abs(kick)*40*CARGO_DAMAGE_SENS);
@@ -25548,6 +25646,10 @@ class WorldScene extends Phaser.Scene {
             hz.slide = (hz.slide || 0) + hz.slideVel * dt;
             hz.slideVel *= Math.exp(-0.0045 * dt);   // bin's exact skid decay
           } else hz.slideVel = 0;
+          if(Math.abs(hz.slideVelB) > 0.0001){
+            hz.slideB = (hz.slideB || 0) + hz.slideVelB * dt;
+            hz.slideVelB *= Math.exp(-0.0045 * dt);
+          } else hz.slideVelB = 0;
           this.simPlanterLeaves(hz, dt);
         } else if(hz.type === "scooter"){
           /* soft hazard, same contract as before (sev 9, 55% speed
@@ -25569,7 +25671,7 @@ class WorldScene extends Phaser.Scene {
             /* SIGNED, for the cone's reason exactly: the rail could only
                ever meet this from behind, so the punt never needed a
                direction. Steering supplies one. */
-            hz.slideVel += -(Math.sign(dx) || -1) * sp * 1.2 * SCOOT_HIT.punt;
+            hzPunt(sp * 1.2 * SCOOT_HIT.punt);
             const kick = sp * 9 * (Math.random() < 0.5 ? 1 : -1);
             this.tilt += kick * TILT_SENS;
             this.damage = Math.min(95, this.damage + Math.abs(kick)*46*CARGO_DAMAGE_SENS);
@@ -25606,6 +25708,10 @@ class WorldScene extends Phaser.Scene {
             hz.slide += hz.slideVel * dt;
             hz.slideVel *= Math.exp(-0.004 * dt);
           } else hz.slideVel = 0;
+          if(Math.abs(hz.slideVelB) > 0.0001){
+            hz.slideB = (hz.slideB || 0) + hz.slideVelB * dt;
+            hz.slideVelB *= Math.exp(-0.004 * dt);
+          } else hz.slideVelB = 0;
         } else if(!hz.hit && Math.abs(dx) < 26 && onLaneHz()){
           hz.hit = true; this.tipCause = hz.type;
           const sev = hz.type === "crack"
@@ -26828,7 +26934,9 @@ class WorldScene extends Phaser.Scene {
     const cth = hz.fallPsi !== undefined ? hz.fallPsi : (hz.thetaF || 0);
     const fc = Math.cos(cth), fsn = Math.sin(cth);
     const tt = binTipPoint(BIN.height, 2, hz.phi);
-    const slide = hz.slide || 0;
+    /* 0 for the anchor reason above: these items are LOCAL to the bin,
+       and the bin's own origin has already moved by the skid. */
+    const slide = 0;
     const mx = (tt.u + slide)*fc, my = (tt.u + slide)*fsn, mz = tt.z;
     const spawn = (kind, size) => hz.items.push({
       kind, size,
@@ -29421,7 +29529,7 @@ function tpSlalomOn(){
       scene.route.hazards.push({
         type:'cone', s: Math.round(at), row, f:0, hit:false,
         phi:0, phase:1, angVel:0, moving:false, pose:'standing',
-        slide:0, slideVel:0,
+        slide:0, slideVel:0, slideB:0, slideVelB:0,
         slRole:'gate', slIndex:k,
         slWant: want,
         /* want is a row delta: +1 heads toward row 3 (buildings), -1 toward
@@ -29691,7 +29799,7 @@ function tpSlalomOn(){
           scene.route.hazards.push({
             type:'cone', s: Math.round(at), row: r, f:0, hit:false,
             phi:0, phase:1, angVel:0, moving:false, pose:'standing',
-            slide:0, slideVel:0,
+            slide:0, slideVel:0, slideB:0, slideVelB:0,
             /* r < lane sits between the robot and the road, so it is taken on
                its building side; r > lane is taken on its road side. Derived
                from the wall's own row rather than stored, so it cannot fall out
