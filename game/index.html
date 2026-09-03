@@ -6892,7 +6892,17 @@ function owAtRampMouth(grid, x, y){
    which flickers road/curb/road along a kerb (see CURB CROSSING). */
 function owCurbBlocks(ow, W, x, y){
   if(ow.sfcCommit !== 'road') return false;
-  if(W.surfaceAt(x, y) !== 'sidewalk') return false;
+  /* THE BARRIER IS THE DRAWN KERB FACE, WHICH IS 'curb' AND NOT
+     'sidewalk'. drawWorld puts the kerb face at exactly +/-ROAD_HALF
+     (curbFace(-ROAD_HALF)/curbFace(ROAD_HALF)), but surfaceAt calls the
+     next CURB_W = T2*0.5 = 46 units past that edge 'curb' and only
+     reserves 'sidewalk' for beyond it. Testing for 'sidewalk' therefore
+     put the wall 46 units INSIDE the visible pavement -- bumper 46 past
+     the kerb, body centre 76 past -- which is the "he still gets in too
+     far" report, with the HUD reading sfc curb while he is plainly up on
+     the pavement. Anything that is not road is over the step. */
+  const sfc = W.surfaceAt(x, y);
+  if(sfc !== 'curb' && sfc !== 'sidewalk') return false;
   return !owAtRampMouth(W.grid, x, y);
 }
 
