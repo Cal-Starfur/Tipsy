@@ -518,8 +518,19 @@ const SHOPS = [
        to absorb it, and it came out 9.8 past the return -- a nub of
        cornice hanging on the flank. 18 clears it by 7.7. */
     slab(18,W-18, H, H+12, -1, -10, shade(wall,.65));
-    reveal(12, W*0.78, 0, 112, 42, '#3a2a22');
-    slab(12,W*0.78, 58, 74, 24, 8, '#c9b48e', shade(wall,.75), '#d8c49a');
+    /* THE OPENING RAN INTO THE DOORWAY -- the last of this shop's four
+       faults, and the same one the noodle bar named. The reveal and its
+       shelf both ended at W*0.78 = 179.4 while the door's painted
+       surround starts at 154.76, so 24.64 units of open frontage sat
+       inside the doorway with no pier between them: the shelf ran on
+       behind the door leaf and the recess back plate showed through the
+       surround's own edge.
+       The door cannot move. shopDoor was asked for a-mid W*0.88 = 202.4
+       and clamped to 191.88, so it is already as far toward the corner
+       as the kit allows. So the opening is what gives way: 179.4 -> 150
+       leaves a 4.76 pier, matching the 4.8 the noodle bar settled on. */
+    reveal(12, 150, 0, 112, 42, '#3a2a22');
+    slab(12, 150, 58, 74, 24, 8, '#c9b48e', shade(wall,.75), '#d8c49a');
     /* THE RAGGEDNESS WAS THE ALTERNATING b. Six jars ran at
        b = 18/10/18/10..., so they sat in two staggered rows on one
        shelf -- even spacing in a, but the stagger threw the gaps out
@@ -530,13 +541,18 @@ const SHOPS = [
        at 20.
        So the row is now laid against the two edges it has to respect.
        Five jars at one b of 16: the first centre of 32 puts its near
-       face on 21, just inside the canopy, and a step of 28 puts the
-       last centre at 144 with its far face on 155, just short of the
-       door. Gaps come out at 6 and identical, which is what makes it
-       read as arranged. b + r is 27, still inside the canopy's 30. */
+       face on 21, just inside the canopy, and the step carries the last
+       one to the far end of the shelf. Equal gaps are what make a row
+       read as arranged rather than spilled. b + r is 27, still inside
+       the canopy's 30.
+       The step was 28, which put the last far face on 155 -- fine
+       against the old 179.4 shelf, but the shelf now stops at 150, so
+       that jar would have stood half off the end of it. 26 lands the
+       last centre on 136 and its far face on 147, three units clear of
+       the shelf end, with the gaps still equal at 4. */
     depthSort([0,1,2,3,4].map(i => ({
       b: 16, z: 0,
-      draw: () => cyl(32+i*28, 16, 74, 92, 11, ['#c2452e','#d8a12a','#5c8a3a'][i%3])
+      draw: () => cyl(32+i*26, 16, 74, 92, 11, ['#c2452e','#d8a12a','#5c8a3a'][i%3])
     })));
     shopDoor(W*0.88, wall, trim);
     /* THE CANOPY WAS REACHING ONTO THE NEIGHBOUR. out was 46, near
@@ -734,25 +750,65 @@ const SHOPS = [
   }
 },
 {
-  name:'Hardware', head:'Tall board sign, ladder rack, roof hoist',
-  tags:['goods behind the shutter','ladder rack','roll shutter','hoist beam','stacked stock'],
+  name:'Hardware', head:'Tall board sign, ladder rack, roll shutter',
+  tags:['goods behind the shutter','ladder rack','roll shutter','stacked stock'],
   desc:'The shutter is half up with the shop visible under it, so there is a lit interior behind the opening, and the stock outside is stacked far to near.',
   draw(p){
     const wall = '#c9962f', trim = '#3a3327', H = 180;
     body(wall, trim, H);
-    slab(0,W, H, H+10, -1, -12, trim);
-    slab(6,W-6, 110, H-10, -1, -10, shade(wall,1.12), null, shade(wall,.9));
-    for(let i=0;i<3;i++) F(18,W-18, 122+i*22, 134+i*22, shade(trim,1.6), null,0,-10.5);
-    /* the shutter used to run to W*0.72 and the ladders leaned at
-       W*0.752, both of which the real door now occupies -- it is 66
-       wide and its midpoint clamps to W - 38. Shutter pulled back to
-       W*0.62 and the ladders moved to the left end, where they lean on
-       the shopfront instead of standing in the doorway. */
-    reveal(12, W*0.62, 0, 102, 40, '#4a4238');
-    F(12,W*0.62, 46, 102, '#8c8676', shade(trim,1.3), 2, -1);      // shutter, half down
-    for(let i=0;i<6;i++) F(14,W*0.62-2, 50+i*9, 55+i*9, '#a09a88', null,0,-2);
-    slab(12,W*0.62, 40, 48, -2, -9, trim);
-    shopDoor(W*0.86, wall, trim);
+    /* ================= THE SIGN, REBUILT AS ONE ASSEMBLY =================
+       The last pass only pulled the two bands off the return. That fixed
+       the overrun and left everything else about the sign wrong, because
+       the three pieces had never been dimensioned against each other:
+
+         * The stripes sat at b -10.5. The board's front face is at -3
+           and its BACK is at -11, so the stripes were painted behind the
+           board entirely and survived only because the canvas paints in
+           call order. Under a depth key they vanish inside it.
+         * The top stripe ran z 166..178 against a board that ended at
+           170, so eight of its twelve units hung above the board in open
+           air, showing over the bare wall.
+         * The board bottom was 110 and the door surround's head is
+           114.95, so the board ran a full five units THROUGH the top of
+           the doorway.
+         * Cap and board had different margins (18 vs 16) and different
+           depths (12 vs 10), so their end returns landed two units
+           apart -- a stepped seam at the corner rather than one object.
+
+       Rebuilt as a hierarchy that steps inward as it comes forward, so
+       the pieces read as cap, board, lettering rather than three bands
+       that happen to overlap:
+
+         cap     a 18..212   b -1..-13   widest, deepest, sits on H
+         board   a 22..208   b -3..-11   inset 4, so the cap overhangs it
+         stripes a 28..202   b -2.5      inset 6, and PROUD of the board
+
+       Every gap in it is 6: six of wall between board top and cap, six
+       above and below the stripe run, six between stripes, six of board
+       showing each side of them. The board now starts at z 120, which
+       clears the door head by 5, and the cap's return at a 212, b -13
+       lands on screen-a 225 against a 230 return. */
+    const sA0 = 18, sA1 = W-18;
+    slab(sA0, sA1, H, H+10, -1, -13, trim);                        // parapet cap
+    slab(sA0+4, sA1-4, 120, 174, -3, -11,
+         shade(wall,1.12), null, shade(wall,.9));                  // board
+    for(let i=0;i<3;i++)
+      F(sA0+10, sA1-10, 126+i*16, 136+i*16, shade(trim,1.6), null, 0, -2.5);
+    /* THE DOOR WAS WRAPPING THE CORNER. shopDoor was asked for a-mid
+       W*0.86 = 197.8 and clamped to 191.88, which puts the painted
+       surround's far edge on 229 against a 230 return -- one unit of
+       wall, so the surround read as continuing round onto the flank
+       rather than as an opening in a facade.
+       Both ends move together. Door mid 180 leaves 12.88 of corner
+       pier, and the shutter opening pulls from W*0.62 = 142.6 to 138 so
+       the pier on the other side comes out at 4.88 -- the same 4.8 the
+       noodle bar and the grocer settled on. The ladders lean at the
+       left end and are unaffected. */
+    reveal(12, 138, 0, 102, 40, '#4a4238');
+    F(12,138, 46, 102, '#8c8676', shade(trim,1.3), 2, -1);         // shutter, half down
+    for(let i=0;i<6;i++) F(14,136, 50+i*9, 55+i*9, '#a09a88', null,0,-2);
+    slab(12,138, 40, 48, -2, -9, trim);
+    shopDoor(180, wall, trim);
     if(state.props){
       for(let i=0;i<2;i++){
         const la = W*0.055 + i*13, lb = 20 + i*9, col = i? '#8c6f43' : '#b08d55';
@@ -763,23 +819,31 @@ const SHOPS = [
           tube(ax, lb - 16*t, 4 + 100*t, bx, lb - 16*t, 4 + 100*t, 1.7, shade(col,.8));
         }
       }
+      /* THE TINS DID NOT FIT THE CRATE THEY STOOD ON. Three at r 6 on
+         centres 30/46/62 span 24..68, and the crate under them ran
+         24..60 -- so the first was flush with the near edge with no
+         margin at all and the third overhung the far end by 8 units and
+         stood on nothing, which is what read as a tin floating off the
+         end of the stack.
+         Sized from the row instead of guessed at: three 12-wide tins
+         with 3-unit gaps and 3-unit end margins need 48, so the upper
+         crate goes 24..72. That keeps it inset 4 from the 20..74 crate
+         below it on both ends -- the same 4 the b span already had --
+         so the stack still steps in rather than sitting flush. Centres
+         33/48/63 and b 23 puts every tin fully on the plate with 5
+         units of crate showing all round. */
       depthSort([
         { b: 40, z: 0, draw: () => box(20,74,8,40,0,18,'#6f665a','#5d5548','#4e473c') },
-        { b: 34, z: 0, draw: () => box(24,60,12,34,18,32,'#8a8272','#75705f','#635e50') },
-        { b: 22, z: 0, draw: () => { for(let i=0;i<3;i++) cyl(30+i*16, 22, 32, 46, 6, ['#7d838a','#8c8676','#6f665a'][i]); } }
+        { b: 34, z: 0, draw: () => box(24,72,12,34,18,32,'#8a8272','#75705f','#635e50') },
+        { b: 23, z: 0, draw: () => { for(let i=0;i<3;i++) cyl(33+i*15, 23, 32, 46, 6, ['#7d838a','#8c8676','#6f665a'][i]); } }
       ]);
     }
     if(state.roof){
-      const ha = W*0.43;
-      slab(ha-6, ha+6, H+10, H+58, -2, -14, trim);
-      poly([P(ha-6,-2,H+56),P(ha-6,58,H+46),P(ha-6,58,H+34),P(ha-6,-2,H+44)], shade(trim,1.3));
-      poly([P(ha-6,-2,H+56),P(ha+6,-2,H+56),P(ha+6,58,H+46),P(ha-6,58,H+46)], shade(trim,1.6));
-      poly([P(ha+6,-2,H+56),P(ha+6,58,H+46),P(ha+6,58,H+34),P(ha+6,-2,H+44)], shade(trim,1.1));
-      tube(ha, 20, H+50, ha, -2, H+18, 2.4, shade(trim,1.2));
-      tube(ha, 52, H+40, ha, 52, H+4, 1.4, '#6d747c');
-      const hk = P(ha,52,H+2);
-      ctx.strokeStyle='#6d747c'; ctx.lineWidth=3;
-      ctx.beginPath(); ctx.arc(hk.x,hk.y,6*K,0.5,5.0); ctx.stroke();
+      /* HOIST REMOVED at Sir's direction. Mast, jib, brace, cable and
+         hook all went: the whole assembly stood on the parapet at
+         a = W*0.43 and reached out to b = 58, further into the street
+         than anything else on the shop, and the hook hung free in the
+         air over the pavement with no load and nothing under it. */
       box(W*0.62,W*0.88,-150,-100,H,H+22,'#8f969d','#787f86','#697077');
     }
     kerb(p,'none');
