@@ -9402,7 +9402,21 @@ function cityFurnitureForEdge(grid, blk, fi){
      On a straight frontage wA and f agree exactly, which is the whole
      point: a city block has no arcs for them to diverge on. */
   const wA = Math.atan2(-fdv.x, fdv.y);
-  const hood = hoodAt(blk.i, blk.j);
+  /* EXTERIOR LOTS HAVE NO i/j. queueExteriorLot -> queueParkBlock hands
+     this pass a bare lotRect bbox {x0,x1,y0,y1} for perimeter parks,
+     which live outside the grid and were never indexed. blk.i was then
+     undefined, Math.floor(undefined/DISTRICT_W) is NaN, and HOODS[NaN]
+     is undefined -- a hard throw on 'hood.litter' the moment a perimeter
+     park came into view. The district is a property of WHERE the block
+     is, so derive the index from the rect's own centre when it isn't
+     carried: floor(centre/BLOCK) reproduces i/j exactly on all 910
+     interior blocks (measured, 0 mismatches), and hoodAt clamps, so a
+     lot sitting off the grid resolves to the district it abuts.
+     BLEND -- the whole-map average -- is the last resort for any future
+     caller that arrives with neither an index nor a box. */
+  const bi = blk.i !== undefined ? blk.i : Math.floor((blk.x0 + blk.x1)/2 / BLOCK);
+  const bj = blk.j !== undefined ? blk.j : Math.floor((blk.y0 + blk.y1)/2 / BLOCK);
+  const hood = hoodAt(bi, bj) || BLEND;
   /* the route's own two knobs, read per-district instead of blended */
   const density = 0.45 + hood.litter*0.35 + (1 - hood.pave)*0.3;
 
