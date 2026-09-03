@@ -1287,60 +1287,171 @@ const SHOPS = [
 },
 {
   name:'Rooming house', tall:true,
-  head:'Fire escape, projecting canopy, upper windows',
-  tags:['fire escape','entrance canopy','three ranks of windows','roof sign frame','stoop'],
-  desc:'The fire escape is built from real members — platform slabs, tube handrails and a diagonal stringer for each flight — instead of a flat grey patch on the flank.',
+  head:'Four storeys, cantilevered fire escape, entrance hood',
+  tags:['real storey rhythm','fire escape with depth','cantilevered hood','band courses','roof tank on legs'],
+  desc:'Sized against the game one-storey anchor rather than by eye: a shopfront-height ground floor with three residential storeys over it, so the three ranks of windows have room to be storeys instead of stripes.',
   draw(p){
-    const wall = '#9a6b52', trim = '#e8ddc8', H = 226;
+    /* ================= THE HEIGHT WAS THE FAULT =================
+       Measured against the game's own anchor -- STORE_H 252 over
+       ZSCALE 1.5, so one shop storey is 168 lab units -- this stood at
+       H 226, which is 1.35 storeys, while drawing a shopfront AND three
+       ranks of windows over it. A four storey elevation in one and a
+       third storeys of height: every floor came out at 38, less than a
+       quarter of a storey, which is why the windows read as a stripe
+       pattern rather than as floors.
+       The frontage does NOT change with it. W is the block's frontage
+       unit and every building on a street shares it; a walk-up is tall
+       and narrow, not wide, and widening this one would break the
+       packing drawStoreUnit does. Only z moves.
+       Rebuilt on a real rhythm: a shopfront-height ground storey, then
+       three residential storeys at 100 -- shorter than a shop storey,
+       the way they are in the world -- with a band course at each
+       floor line. H 420 puts it at 2.5 shop storeys, the tallest thing
+       in the library, which is what a rooming house should be next to
+       a row of one storey shops. */
+    const wall = '#9a6b52', trim = '#e8ddc8', H = 420;
+    const G = 120, FH = 100;                 // ground storey, residential storey
     body(wall, trim, H);
-    slab(0,W, H, H+10, -1, -12, shade(wall,.7));
-    slab(0,W, 96, 104, -1, -6, shade(wall,.72));
-    for(let r=0;r<3;r++) for(let c=0;c<4;c++){
-      const x0 = 14+(W-28)*(c+0.12)/4, x1 = 14+(W-28)*(c+0.88)/4, z0 = 116+r*38;
-      F(x0-3,x1+3, z0-3, z0+29, trim, null,0,-1);
-      F(x0,x1, z0, z0+26, '#5d7f92', null,0,-2);
-      slab(x0-5,x1+5, z0-6, z0-3, -1, -8, shade(trim,.86));      // cill with depth
+    slab(0,W, H, H+16, -1, -12, shade(wall,.7), shade(wall,.55), shade(wall,.85));
+    slab(6,W-6, H-12, H, -1, -9, shade(trim,.86));                 // cornice
+    for(let f=0;f<3;f++)
+      slab(0,W, G+f*FH-6, G+f*FH+2, -1, -6, shade(wall,.72));      // band courses
+
+    /* ---- the three upper storeys ---- */
+    for(let f=0;f<3;f++) for(let c=0;c<4;c++){
+      const x0 = 14+(W-28)*(c+0.12)/4, x1 = 14+(W-28)*(c+0.88)/4;
+      const z0 = G + f*FH + 26;
+      slab(x0-5, x1+5, z0-8, z0-4, -1, -8, shade(trim,.86));       // cill
+      F(x0-4, x1+4, z0-4, z0+62, trim, null, 0, -1);               // architrave
+      F(x0, x1, z0, z0+58, '#5d7f92', null, 0, -2);                // glass
+      F(x0, x1, z0+27, z0+31, trim, null, 0, -2.4);                // meeting rail
+      F(x0+1, x1*0+x0+7, z0+3, z0+55, 'rgba(240,250,254,.13)', null, 0, -2.6);
+      slab(x0-6, x1+6, z0+62, z0+68, -1, -9, shade(trim,.92));     // hood mould
     }
-    F(10,W*0.52, 20, 88, '#6b93a8', trim, 3);
-    shopDoor(W*0.71, wall, trim);
-    F(W*0.62,W*0.80, 44, 84, '#6b93a8', null,0,-6.5);
-    // entrance canopy: top, underside, returns, on round posts
-    poly([P(W*0.54,0,98),P(W*0.88,0,98),P(W*0.88,36,92),P(W*0.54,36,92)], trim);
-    poly([P(W*0.54,0,92),P(W*0.88,0,92),P(W*0.88,36,86),P(W*0.54,36,86)], shade(trim,.78));
-    poly([P(W*0.54,0,98),P(W*0.54,36,92),P(W*0.54,36,86),P(W*0.54,0,92)], shade(trim,.62));
-    poly([P(W*0.88,0,98),P(W*0.88,36,92),P(W*0.88,36,86),P(W*0.88,0,92)], shade(trim,.62));
-    cyl(W*0.565, 32, 0, 90, 3, '#7d838a');
-    cyl(W*0.865, 32, 0, 90, 3, '#7d838a');
+
+    /* ---- ground storey ---- */
+    reveal(12, 118, 18, 104, 12, '#3c3a36');
+    glaze(12, 118, 18, 104, trim);
+    shopDoor(163, wall, trim);
+    /* THE HOOD, REBUILT. It was a flat sloped sheet on two round posts
+       standing out on the pavement, which is a market stall, not the
+       entrance to a building -- and the posts landed in front of the
+       door on the very line people walk. A rooming house hood is
+       cantilevered: it hangs off the wall on tie rods and touches
+       nothing below it. Top, front fascia, the a1 return (the visible
+       end under this projection, same test box() makes), a dentil row
+       on the fascia and two rods back to the wall above. */
+    const hA0 = 118, hA1 = 212, hOut = 40, hZ0 = 118, hZ1 = 134;
+    /* BRACKETS, NOT RODS. Tie rods would have to anchor above the hood,
+       and above the hood is the first floor -- any anchor high enough
+       to work landed inside a window. A bracket carries the load the
+       other way, from under the hood back to the wall below it, where
+       there is nothing but brick. Two of them, each a triangle with a
+       thickness, set in from the ends the way real ones are. */
+    for(const ha of [hA0+12, hA1-12])
+      for(const d of [0, 3])
+        poly([P(ha+d,0,hZ0),P(ha+d,hOut-6,hZ0),P(ha+d,0,hZ0-46)],
+             d ? shade(trim,.5) : shade(trim,.62));
+    T(hA0, hA1, 0, hOut, hZ1, shade(trim,.94));
+    poly([P(hA0,hOut,hZ1),P(hA1,hOut,hZ1),
+          P(hA1,hOut,hZ0),P(hA0,hOut,hZ0)], trim);
+    poly([P(hA1,0,hZ1),P(hA1,hOut,hZ1),
+          P(hA1,hOut,hZ0),P(hA1,0,hZ0)], shade(trim,.8));
+    for(let i=0;i<13;i++){
+      const a = hA0+5+(hA1-hA0-10)*i/12;
+      poly([P(a,hOut+0.5,hZ0+4),P(a+4,hOut+0.5,hZ0+4),
+            P(a+4,hOut+0.5,hZ0+12),P(a,hOut+0.5,hZ0+12)], shade(trim,.66));
+    }
+
     if(state.props){
-      // fire escape as real members on the flank
+      /* ================= THE FIRE ESCAPE =================
+         It had no depth. Every member was drawn on the a = W+1 plane --
+         deck, rail infill, handrail, stringer, all of it -- so a
+         cantilevered steel structure was a set of flat translucent
+         quads lying on the brick, which is why it read as a smear
+         rather than as ironwork standing off the wall.
+         A fire escape is a thing you could walk on: decks that project,
+         balustrades standing on their outer edge, brackets carrying
+         the load back to the wall, and flights that actually connect
+         one deck to the next. Which flank it hangs on is asked of
+         FLANK_RIGHT rather than assumed, so it is on the wall the host
+         is drawing instead of floating off the one it culled. */
+      const fSide = FLANK_RIGHT ? 1 : -1, fW = FLANK_RIGHT ? W : 0;
+      const fOut = fW + fSide*20, fLo = Math.min(fW,fOut), fHi = Math.max(fW,fOut);
+      const fb0 = -68, fb1 = -12, steel = '#5a6068';
       for(let i=0;i<3;i++){
-        const z = 112+i*38, b0 = -58, b1 = -6;
-        poly([P(W,b0,z),P(W,b1,z),P(W+1,b1,z),P(W+1,b0,z)], '#4a4f55');
-        S(W+1, b0, b1, z, z+3, '#5a6068');                        // platform edge
-        S(W+1, b0, b1, z+3, z+22, 'rgba(90,96,104,.42)');         // rail infill
-        for(let j=0;j<5;j++) S(W+1, b0+4+j*12, b0+6+j*12, z+3, z+22, '#5a6068');
-        S(W+1, b0, b1, z+21, z+24, '#6a7076');                    // handrail
-        // stringer down to the platform below
-        if(i>0){
-          const q0 = P(W+1, b1-4, z), q1 = P(W+1, b1-30, z-38);
-          ctx.strokeStyle='#5a6068'; ctx.lineWidth=4;
-          ctx.beginPath(); ctx.moveTo(q0.x,q0.y); ctx.lineTo(q1.x,q1.y); ctx.stroke();
-          ctx.lineWidth=1.6;
-          for(let k=1;k<6;k++){
-            const t=k/6;
-            const s0=P(W+1, b1-4-26*t, z-38*t), s1=P(W+1, b1-14-26*t, z-38*t+3);
-            ctx.beginPath(); ctx.moveTo(s0.x,s0.y); ctx.lineTo(s1.x,s1.y); ctx.stroke();
+        const z = G + i*FH + 20;
+        tube(fOut-fSide*3, fb0+10, z-4, fW, fb0+10, z-30, 1.6, shade(steel,.8));
+        tube(fOut-fSide*3, fb1-10, z-4, fW, fb1-10, z-30, 1.6, shade(steel,.8));
+        T(fLo, fHi, fb0, fb1, z, shade(steel,1.12));                // deck
+        for(let j=0;j<7;j++)                                        // deck grating
+          T(fLo, fHi, fb0+2+j*8, fb0+4+j*8, z+0.2, shade(steel,.9));
+        S(fOut, fb0, fb1, z-5, z, shade(steel,.78));                // deck edge
+        poly([P(fLo,fb1,z),P(fHi,fb1,z),
+              P(fHi,fb1,z-5),P(fLo,fb1,z-5)], shade(steel,.7));
+        for(let j=0;j<=6;j++){                                      // balusters
+          const b = fb0 + (fb1-fb0)*j/6;
+          poly([P(fOut,b-0.9,z),P(fOut,b+0.9,z),
+                P(fOut,b+0.9,z+24),P(fOut,b-0.9,z+24)], shade(steel,1.3));
+        }
+        tube(fOut, fb0, z+24, fOut, fb1, z+24, 1.5, shade(steel,1.45));
+        tube(fOut, fb0, z+13, fOut, fb1, z+13, 1.0, shade(steel,1.2));
+        tube(fW, fb1, z+24, fOut, fb1, z+24, 1.5, shade(steel,1.45));
+        /* the flight down to the deck below, with treads you can count */
+        if(i > 0){
+          const zT = z - 6, zB = z - FH + 20, sA = fW + fSide*5, sB = fW + fSide*16;
+          poly([P(sA,fb1-6,zT),P(sA,fb0+8,zB),
+                P(sB,fb0+8,zB),P(sB,fb1-6,zT)], shade(steel,.66));
+          for(let k=0;k<9;k++){
+            const t = (k+0.5)/9;
+            const b = (fb1-6) + ((fb0+8)-(fb1-6))*t, zz = zT + (zB-zT)*t;
+            T(sA, sB, b-2.6, b+2.6, zz, shade(steel,1.25));
           }
+          tube(sB, fb1-6, zT+22, sB, fb0+8, zB+22, 1.3, shade(steel,1.4));
         }
       }
+      for(let k=0;k<7;k++)                                          // drop ladder
+        tube(fW+fSide*7, -30, G+18-8-k*11, fW+fSide*15, -30, G+18-8-k*11, 1.1, shade(steel,1.2));
+      tube(fW+fSide*7, -30, G+12, fW+fSide*7, -30, G-72, 1.1, shade(steel,1.35));
+      tube(fW+fSide*15, -30, G+12, fW+fSide*15, -30, G-72, 1.1, shade(steel,1.35));
     }
+
     if(state.roof){
-      cyl(W*0.22, -40, H+10, H+56, 3, '#6d747c');
-      cyl(W*0.64, -40, H+10, H+56, 3, '#6d747c');
-      slab(W*0.18,W*0.68, H+40, H+56, -36, -44, 'rgba(120,127,134,.45)', '#6d747c');
-      box(W*0.30,W*0.52,-160,-120,H,H+28,'#8b6a4e','#7a5c44','#6a5039');
+      /* THE TANK WAS STACKING ON THE SIGN FRAME. Its depth key (a+b+z)
+         is 194 against the frame's 332, so it stands well behind, and
+         it was drawn after -- and at b -160..-120 its screen-a of
+         189..280 caught the frame's own 85..192. Back to b -210..-165
+         (screen-a 234..330), and the order comes off depthSort. A roof
+         tank also stands on legs; this one was a box sitting flat on
+         the plate. */
+      depthSort([
+        { a: 95, b: -188, z: H+34, draw: () => {
+            for(const [la,lb] of [[76,-200],[114,-200],[76,-172],[114,-172]])
+              cyl(la, lb, H, H+20, 3, '#6a5039');
+            slab(70,120, H+20, H+26, -168, -204, '#7a5c44', '#6a5039', '#8b6a4e');
+            cyl(95, -186, H+26, H+70, 25, '#8b6a4e', '#9c7b5c');
+            plateHoop(95, -186, H+40, 25, '#6a5039', 2.4);
+            plateHoop(95, -186, H+58, 25, '#6a5039', 2.4); } },
+        { a: 98, b: -40, z: H+48, draw: () => {
+            /* AN OPEN FRAME, which is what a roof sign frame is. It was
+               a translucent slab with a solid return, so it read as a
+               black plank on two sticks rather than as ironwork with
+               sky through it. Four members and nothing between. */
+            const s0 = W*0.18, s1 = W*0.68, sz0 = H+44, sz1 = H+66;
+            cyl(s0+7, -40, H+16, sz1, 3, '#6d747c');
+            cyl(s1-7, -40, H+16, sz1, 3, '#6d747c');
+            slab(s0, s1, sz1-4, sz1, -36, -44, '#7d838a', '#5d646b', '#8f969d');
+            slab(s0, s1, sz0, sz0+4, -36, -44, '#7d838a', '#5d646b', '#8f969d');
+            slab(s0, s0+4, sz0, sz1, -36, -44, '#6d747c', '#5d646b', '#8f969d');
+            slab(s1-4, s1, sz0, sz1, -36, -44, '#6d747c', '#5d646b', '#8f969d');
+            for(let i=1;i<4;i++)
+              slab(s0+(s1-s0)*i/4-1.5, s0+(s1-s0)*i/4+1.5, sz0+4, sz1-4,
+                   -38, -42, '#6d747c'); } }
+      ]);
     }
-    kerb(p,'stoop');
+    /* stoop removed at Sir's direction: the entrance is level now, and
+       the hood no longer needs anything standing under it. */
+    kerb(p,'none');
   }
 },
 {
