@@ -352,9 +352,71 @@ function depthSort(items){
 /* a flat panel given real thickness, so no sign or parapet is ever a
    single zero-depth quad seen edge-on */
 function slab(a0,a1,z0,z1,bFront,bBack,front,side,top){
+  /* SAME FAULT box() HAD, and for the same reason: the end return was
+     drawn at a1 unconditionally. a1 is the seen end only where the a
+     axis runs toward the eye, which is edges 1 and 3 and the canvas lab;
+     on edges 0 and 2 a1 is the far end, so every parapet, fascia and
+     sign in the library put its return on the side you cannot see and
+     left the side you can flat. Asked of P() rather than asserted. */
+  const o = P(a0,bFront,z0), pa = P(a0+1,bFront,z0);
+  const endA = (pa.y - o.y) > 0 ? a1 : a0;
   F(a0,a1,z0,z1, front, null,0, bFront);
-  poly([P(a1,bFront,z1),P(a1,bBack,z1),P(a1,bBack,z0),P(a1,bFront,z0)], side || shade(front,.78));
+  poly([P(endA,bFront,z1),P(endA,bBack,z1),P(endA,bBack,z0),P(endA,bFront,z0)], side || shade(front,.78));
   poly([P(a0,bFront,z1),P(a1,bFront,z1),P(a1,bBack,z1),P(a0,bBack,z1)], top || shade(front,1.14));
+}
+
+/* A SHAPED EMBLEM IS ONE SOLID, NOT A PILE OF SLABS. slab() gives a
+   rectangle thickness; anything that is not a rectangle -- a cross, a
+   chevron, an arrow, a letter -- was being built by overlapping two or
+   three of them, and it reads as exactly that: the pieces' own returns
+   and top plates run through the middle of the shape, so the eye sees
+   the joins rather than the emblem.
+
+   prism() takes ONE outline in the frontage plane and extrudes it. The
+   outline has no interior edges, so there is nothing to seam.
+
+   Which of its side faces exist is the same question box() and slab()
+   answer, but an outline has as many faces as it has edges and they do
+   not all face the same way, so it cannot be one test. The general form
+   of that test is the projected winding: every outward-facing face of a
+   closed solid projects with the SAME signed-area sign, and the near b
+   face is outward by construction, so it supplies the sign and each
+   side face is kept or dropped by comparing against it. That is
+   projection-agnostic -- it needs to know nothing about which edge the
+   block sits on -- and on a rectangle it selects the identical end that
+   slab() derives, which is how it was checked.
+
+   A horizontal outline edge extrudes to a plate rather than a return,
+   so it takes the lighter top shade; the undersides that would want the
+   same treatment are culled before they are ever asked about. */
+function prism(pts, b0, b1, front, side, top){
+  const n = pts.length;
+  const o = P(0,b0,0), q1 = P(0,b1,0);
+  const nb = q1.y > o.y ? b1 : b0, fb = q1.y > o.y ? b0 : b1;
+  const area = q => { let A = 0;
+    for(let k=0;k<q.length;k++){ const p = q[k], r = q[(k+1)%q.length];
+      A += p.x*r.y - r.x*p.y; } return A; };
+  const face = pts.map(([a,z]) => P(a,nb,z));
+  const s = Math.sign(area(face));
+  for(let i=0;i<n;i++){
+    const [a0,z0] = pts[i], [a1,z1] = pts[(i+1)%n];
+    const q = [P(a0,nb,z0),P(a0,fb,z0),P(a1,fb,z1),P(a1,nb,z1)];
+    if(Math.sign(area(q)) !== s) continue;
+    poly(q, z0 === z1 ? (top || shade(front,1.14)) : (side || shade(front,.78)));
+  }
+  poly(face, front);
+}
+
+/* the outline of a plus, wound once, for prism(). Half-length and
+   half-thickness are given in WORLD units and the z extents are divided
+   back by ZSCALE, so the arms stay equal whatever vertical scale the
+   shop is drawn at -- the fault that made the pharmacy cross a block
+   with a stick through it. */
+function plusOutline(a, z, half, thick){
+  const L = half, T = thick, k = 1/ZSCALE;
+  return [[a-T,z-L*k],[a+T,z-L*k],[a+T,z-T*k],[a+L,z-T*k],[a+L,z+T*k],
+          [a+T,z+T*k],[a+T,z+L*k],[a-T,z+L*k],[a-T,z+T*k],[a-L,z+T*k],
+          [a-L,z-T*k],[a-T,z-T*k]];
 }
 
 function shade(hex, m){
