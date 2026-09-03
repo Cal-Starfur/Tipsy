@@ -38,6 +38,7 @@
   <button id="tRoof" class="on">Roof kit</button>
   <button id="tProps" class="on">Kerb props</button>
   <button id="tPal">Palette</button>
+  <button id="tScale">True scale</button>
   <button id="tGrid">Guides</button>
 </div>
 <canvas id="stage"></canvas>
@@ -74,7 +75,7 @@ let K = 1, OX = 0, OY = 0;
    These are the game's own numbers. Height stacks build off DOOR_H the
    way drawStoreUnit does, so a shop comes out human-scaled by
    construction instead of by eye. */
-const state = { i:0, roof:true, props:true, pal:0, grid:false };
+const state = { i:0, roof:true, props:true, pal:0, grid:false, scale:false };
 const LAB_ZS = 1.5;
 let ZSCALE = LAB_ZS;
 function P(a,b,z){ return { x:(a-b)*K + OX, y:((a+b)*0.5 - z*ZSCALE)*K + OY }; }
@@ -188,11 +189,29 @@ function draw(){
   const b = measureBounds();
   const PAD = 16;
   const lw = Math.max(1, b.lx1 - b.lx0), lh = Math.max(1, b.ly1 - b.ly0);
-  K = Math.min((cssW - PAD*2)/lw, (cssH - PAD*2)/lh);
-  /* centre the measured box, then sit it a little low in the frame so a
-     shop reads as standing on ground rather than floating mid-canvas */
-  OX = (cssW - (b.lx0 + b.lx1)*K)/2;
-  OY = (cssH - (b.ly0 + b.ly1)*K)/2 + Math.min(14, (cssH - lh*K)/4);
+  if(state.scale){
+    /* ================= TRUE SCALE =================
+       The fit-to-frame pass below is the right default for dialling one
+       shop, and it is a liar about every question that involves two.
+       It solves K per shop, so a 104-unit pottery and a 314-unit
+       department store both fill the canvas and read as the same
+       building -- which is exactly the illusion that hides a three
+       storey elevation squeezed into one storey of height.
+       This mode pins K to a constant and puts every shop's ground
+       plane on the same screen line, so heights are comparable by eye.
+       REF is in local screen units: 0..H*ZSCALE vertically for the
+       tallest thing in the library plus its roof kit. */
+    const REF = 780;
+    K = Math.min((cssW - PAD*2)/520, (cssH - PAD*2)/REF);
+    OX = cssW/2 - ((W/2) - (-D/2))*K;
+    OY = cssH - PAD - 24 - (((W/2) + (-D/2))/2)*K;
+  } else {
+    K = Math.min((cssW - PAD*2)/lw, (cssH - PAD*2)/lh);
+    /* centre the measured box, then sit it a little low in the frame so a
+       shop reads as standing on ground rather than floating mid-canvas */
+    OX = (cssW - (b.lx0 + b.lx1)*K)/2;
+    OY = (cssH - (b.ly0 + b.ly1)*K)/2 + Math.min(14, (cssH - lh*K)/4);
+  }
 
   pavement();
   ZSCALE = SHOPS[state.i].zs === undefined ? LAB_ZS : SHOPS[state.i].zs;
@@ -211,7 +230,7 @@ function sync(){
 }
 document.getElementById('prev').onclick = ()=>{ state.i=(state.i+SHOPS.length-1)%SHOPS.length; sync(); };
 document.getElementById('next').onclick = ()=>{ state.i=(state.i+1)%SHOPS.length; sync(); };
-for(const [id,key] of [['tRoof','roof'],['tProps','props'],['tGrid','grid']]){
+for(const [id,key] of [['tRoof','roof'],['tProps','props'],['tGrid','grid'],['tScale','scale']]){
   document.getElementById(id).onclick = e => {
     state[key] = !state[key]; e.currentTarget.classList.toggle('on', state[key]); draw();
   };
@@ -221,6 +240,7 @@ document.getElementById('tPal').onclick = e => {
   e.currentTarget.classList.toggle('on', state.pal!==0); draw();
 };
 document.getElementById('tGrid').classList.remove('on');
+document.getElementById('tScale').classList.remove('on');
 addEventListener('resize', draw);
 sync();
 </script>
