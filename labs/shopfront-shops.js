@@ -654,19 +654,69 @@ const SHOPS = [
     body(wall, trim, H);
     slab(0,W, H, H+12, -1, -10, shade(wall,.6));
     slab(0,W, H+12, H+18, -1, -10, trim);
-    reveal(14, W*0.70, 0, 96, 44, '#2a1a18');
-    slab(14,W*0.70, 58, 72, 22, 4, '#d9c49a', shade(wall,.6), '#e6d2a8');
+    /* THE COUNTER RAN INTO THE DOORWAY. It ended at W*0.70 = 161 while
+       the door surround starts at 154.76, so 6.24 units of counter sat
+       inside the opening with no pier between them -- the same fault
+       still open on the grocer. shopDoor had also been asked for a-mid
+       W*0.85 = 195.5 and silently clamped to 191.88, which is what left
+       the door hard against the corner with 1 unit of return; the
+       counter is what moves, since the door is already as far over as
+       the clamp allows. 150 leaves a 4.8 pier. */
+    reveal(14, 150, 0, 96, 44, '#2a1a18');
+    slab(14, 150, 58, 72, 22, 4, '#d9c49a', shade(wall,.6), '#e6d2a8');
     shopDoor(W*0.85, wall, shade(wall,.7), 'rgba(232,217,189,.6)');
-    for(const [x,col] of [[W*0.06,trim],[W*0.86,'#f2ece0']]){
-      slab(x-9,x+9, 84, H-6, -2, -12, col, shade(col,.7));
-      for(let i=0;i<4;i++) F(x-5,x+5, 96+i*17, 106+i*17, shade(wall,.8), null,0,-2.5);
+    /* THE BANNERS. Two faults. The right one ran z 84..154 across a 188.8
+       to 206.8, which is inside the door surround for its whole width and
+       below the 114.9 head for a third of its height -- it was painted
+       over the door. And the left one sat at a-margin 4.8 against a
+       12-deep recess, so it came out 8.2px past the return: Rule 1, a
+       recessed element cannot show outside the silhouette.
+
+       Both are answered by the same move. They go on the wall ABOVE the
+       door head rather than beside the door, at 26 and W-26 so the two
+       carry the same 5 units of pier at their own depth. 51 world tall by
+       18 wide still reads as a banner at 2.8:1. */
+    for(const [x,col] of [[26,trim],[W-26,'#f2ece0']]){
+      slab(x-9,x+9, 120, H-6, -2, -12, col, shade(col,.7));
+      for(let i=0;i<3;i++) F(x-5,x+5, 124+i*11, 130+i*11, shade(wall,.8), null,0,-2.5);
     }
+    /* THE LANTERNS HUNG FROM NOTHING. Each cord ran from z 126 down to
+       112 at b 16, and there is no geometry at b 16, z 126 -- the wall is
+       at b 0 and the fascia starts at H. So four cords rose out of the
+       lanterns and stopped in mid-air over the pavement. The cord also
+       ran to 112, the body's top, passing straight through the finial
+       that caps it at 115.
+
+       A rail is what they hang from: two brackets cantilevered off the
+       wall at b 0..20, and a tube between them at b 18. The lanterns move
+       out to b 18 so the cords are vertical rather than raked, and each
+       cord now runs rail to finial-top, 128 down to 115. The row is
+       respaced to sit within the rail with equal end margins instead of
+       running past it. */
+    const rb0 = 40, rb1 = 136, rby = 18;
+    box(rb0, rb0+6, 0, 20, 124, 132, shade(wall,.9), shade(wall,.75), shade(wall,.6));
+    box(rb1-6, rb1, 0, 20, 124, 132, shade(wall,.9), shade(wall,.75), shade(wall,.6));
+    tube(rb0+3, rby, 128, rb1-3, rby, 128, 1.2, '#5a4636');
     for(let i=0;i<4;i++){
-      const la = 24+(W*0.62)*i/3.2, lb = 16;
-      tube(la, lb, 126, la, lb, 112, 0.8, '#5a4636');
-      cyl(la, lb, 96, 112, 11, '#e2564a', '#ef6a5c');
-      plateCircle(la, lb, 96, 8, '#c0392f');
+      const la = rb0+3 + ((rb1-3)-(rb0+3))*(i+0.5)/4, lb = rby;
+      tube(la, lb, 128, la, lb, 115, 0.8, '#5a4636');
+      /* THE FINIAL'S LID WAS PAINTED ON THE LANTERN. cyl() caps at z1 and
+         only at z1, which is right -- the lid of a drum is its top and we
+         look down on it. But the bottom finial runs 92..96, so ITS top is
+         at 96, which is inside the body that starts there. Drawn after the
+         body, that buried cap came out as a yellow disc across the lower
+         third of the red. Same for the 96 underside plate: a lantern's
+         base is not visible from above and it was painting over the front.
+
+         Order fixes it, not geometry. Anything whose cap is buried must be
+         drawn BEFORE the thing that buries it, so the two pieces that meet
+         the body at 96 go first and the body covers them. What is left of
+         the finial below 96 is its stem, which is what should show. The
+         top finial keeps its lid and stays last, because at 112..115 its
+         cap is the one surface up there that is genuinely seen. */
       cyl(la, lb, 92, 96, 5, trim);
+      plateCircle(la, lb, 96, 8, '#c0392f');
+      cyl(la, lb, 96, 112, 11, '#e2564a', '#ef6a5c');
       cyl(la, lb, 112, 115, 5, trim);
     }
     if(state.props){
