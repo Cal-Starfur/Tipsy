@@ -343,10 +343,38 @@ function glaze(a0, a1, z0, z1, frame, tint){
     F(a0-3, a1+3, z0-3, z0, frame, null,0, 0.5);
   }
 }
-/* paint a set of items far-to-near. Each item is {b, z, draw} and the
-   key is b descending -- deeper into the shop is further from the eye. */
+/* paint a set of items far-to-near. Each item is {a, b, z, draw}.
+   THE KEY WAS BOTH THE WRONG DIRECTION AND THE WRONG QUANTITY, which
+   is why it only ever showed on a row whose members overlap on screen.
+
+   Direction first. It sorted b DESCENDING, and its own comment said
+   that was far-to-near because "deeper into the shop is further from
+   the eye" -- true, but deeper into the shop is NEGATIVE b, so
+   descending starts at the largest, which is the NEAREST. Measured
+   rather than argued: P(0,1,0).y - P(0,0,0).y is +0.51, so a step of
+   +1 in b moves an item DOWN the screen, and box() already uses that
+   same sign to decide which b face is toward the eye. The sort was
+   painting near first and far last -- backwards.
+
+   Quantity second, and this is why flipping the sign alone is not the
+   fix. The view direction is the null space of the projection:
+     x = (a - b)K,  y = ((a + b)/2 - z)K
+   is degenerate along (da,db,dz) with da = db = dz, so the camera looks
+   down (1,1,1) and true depth is a + b + z. b alone is only a valid key
+   when a and z are constant across the run, which is exactly the case
+   in four of the six call sites -- and in the two where a varies (the
+   bakery's loaves and the florist's buckets, both laid out along a with
+   b alternating) it put every other item in the row on top of the one
+   in front of it. That is the layering fault visible on the florist.
+
+   So: a + b + z, ascending. `a` is optional and defaults to 0, which
+   degenerates to the old behaviour for a uniform-a run; every call site
+   in this library supplies it. z ascending breaks ties so a thing on a
+   shelf still paints over the shelf. */
 function depthSort(items){
-  items.slice().sort((m,n) => (n.b - m.b) || ((m.z||0) - (n.z||0))).forEach(it => it.draw());
+  const key = it => (it.a || 0) + it.b + (it.z || 0);
+  items.slice().sort((m,n) => (key(m) - key(n)) || ((m.z||0) - (n.z||0)))
+       .forEach(it => it.draw());
 }
 
 /* a flat panel given real thickness, so no sign or parapet is ever a
