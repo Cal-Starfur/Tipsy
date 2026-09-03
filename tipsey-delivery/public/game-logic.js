@@ -4282,10 +4282,46 @@ function owBuildWorld(route){
     const i = Math.round(x / BLOCK), j = Math.round(y / BLOCK);
     const dx = Math.abs(x - nx), dy = Math.abs(y - ny);
     /* a centreline only exists where the lattice actually has an edge,
-       otherwise the "road" through a solid block is imaginary */
+       otherwise the "road" through a solid block is imaginary.
+
+       DIRECTIONAL, AND WITH THE SAME OVERSHOOT classifyAt USES.
+       The previous test asked "does ANY vertical edge touch this node"
+       -- conn[1] on the node, or conn[1] on the node above, which is the
+       same edge as conn[3]. That is an OR over both directions, and the
+       band it gated was then applied to the WHOLE node cell, both
+       halves, +/-BLOCK/2. So a node with a street leaving it southward
+       and nothing to the north still painted a full-width phantom
+       roadway 1,564 units NORTH of itself, over ground drawWorld paints
+       as plain pavement. Every dead end does this: the 36x27 perimeter,
+       and every interior node the park-merge swallow pass stripped an
+       edge from (426 of 972 nodes are incomplete on the live lattice).
+       MEASURED on CITY_SEED, 4,794,885 points at T2/2: 219,351 called
+       'road' that classifyAt -- the documented single source of truth,
+       which reads real edges -- calls sidewalk or block, plus 148,528
+       phantom pavement points beyond those. owCurbBlocks returns false
+       the moment its target reads 'road', so on all 219,351 of them the
+       kerb was simply not there. (Sir's report, 2026-09-03, north edge:
+       "I can just drive onto this section of sidewalk", HUD reading
+       `sfc road` at 100030,-467 -- dx=66 from the N-S centreline, dy=467,
+       nearer axis wins, phantom road.)
+
+       So ask each half of the cell about its OWN edge. The far edge
+       still reaches across, but only as far as classifyAt lets it:
+       `along >= -OVERSHOOT`, the junction stub past an endpoint node.
+       Strict side-only was tried first and cuts that stub off -- 7,763
+       real road points lost. With the overshoot term the model is
+       EXACTLY classifyAt over the same 4.79M points: zero phantom road,
+       zero lost road, zero phantom pavement, zero lost pavement. One
+       model, everywhere, and no second one keyed to the node. */
     const nX = g2.nodeAt(i, j);
-    const liveY = !!(nX && (nX.conn[1] || ((g2.nodeAt(i, j - 1) || {}).conn || [])[1]));
-    const liveX = !!(nX && (nX.conn[0] || ((g2.nodeAt(i - 1, j) || {}).conn || [])[0]));
+    const cn = nX ? nX.conn : null;
+    /* conn: 0=+i east, 1=+j south, 2=-i west, 3=-j north */
+    const nearY = cn ? (y >= ny ? cn[1] : cn[3]) : false;
+    const farY  = cn ? (y >= ny ? cn[3] : cn[1]) : false;
+    const nearX = cn ? (x >= nx ? cn[0] : cn[2]) : false;
+    const farX  = cn ? (x >= nx ? cn[2] : cn[0]) : false;
+    const liveY = !!(nearY || (farY && dy <= OVERSHOOT));
+    const liveX = !!(nearX || (farX && dx <= OVERSHOOT));
     const band = d => d <= ROAD_HALF ? 'road'
                     : d <= ROAD_HALF + CURB_W ? 'curb'
                     : d <= SW_OUT ? 'sidewalk' : null;
@@ -5780,7 +5816,30 @@ function owCurbBlocks(ow, W, x, y){
      is not road is on the far side of the step, including the ones
      nobody has thought of yet: park, lot, void, the boardwalk. The road
      is a closed set of one and the exceptions are the ramps. */
-  if(W.surfaceAt(x, y) === 'road') return false;
+  const to = W.surfaceAt(x, y);
+  if(to === 'road') return false;
+  /* THE CURB BAND IS A DEAD END IF YOU DEMAND 'road' FROM INSIDE IT.
+     The arm condition above deliberately includes 'curb' -- being
+     physically in the step IS being in the roadway. But the target test
+     asked for 'road' and nothing else, and CURB_W is 46 units against a
+     top speed of 0.225/ms = 3.76 units per frame. So every one of the
+     ~12 frames it takes to cross the band steps curb -> curb, which is
+     not 'road', which is blocked; along the band is curb, blocked; out
+     is sidewalk, blocked. All 16 headings blocked, and the robot is
+     welded to the kerb face until the page reloads.
+     He gets in from the PAVEMENT side, where the gate is disarmed --
+     which is to say the descent this gate was explicitly written not to
+     touch ("Blocks ONLY the climb") ended in a trap one step later.
+     MEASURED on CITY_SEED: 17,359 curb-band points sampled, 12,530 of
+     them -- 72.2% -- have zero free headings at vMax. (Sir's report,
+     2026-09-03: "that works but i found a bug .. i got trapped".)
+     Curb -> curb is therefore free, and ONLY from curb. The wall does
+     not move: from 'road' a step outward still lands in 'curb', which
+     is still not 'road', so the climb is refused at +/-ROAD_HALF exactly
+     as before -- 'curb' is reachable only by descending into it. And
+     curb -> sidewalk stays blocked, so the band is a one-way vestibule
+     down to the roadway, never a route up onto the pavement. */
+  if(here === 'curb' && to === 'curb') return false;
   return !owAtRampMouth(W.grid, x, y);
 }
 
