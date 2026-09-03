@@ -17583,7 +17583,28 @@ class WorldScene extends Phaser.Scene {
     for(const mm of getMissionMats(this)){
       if(!this.visProp("chargestation", mm.mat.x, mm.mat.y)) continue;
       const _mm = mm, _hl = matHighlightState(this, _mm.mat, "freeroam");
-      hazVQ.push({ depth: _mm.mat.x + _mm.mat.y,
+      /* NEAREST CORNER, NOT THE CENTRE POINT. The mat is a large flat
+         plate the robot STANDS ON, so a single point-depth test at its
+         centre flips exactly the way the slab/crack/curb-ramp pins were
+         written to stop: stand on the near half and the robot's own
+         x+y is SMALLER than the mat centre's, the mat sorts after him,
+         and it paints over the robot (measured: correct at dy>=0,
+         inverted at dy=-9, which is where the on-device report was
+         standing). Keying on the minimum x+y over the plate's four
+         drawn corners makes the mat sort at its near edge, so anything
+         standing anywhere on it has a depth >= the mat's and always
+         draws after. Orientation-independent -- it's a min over all
+         four corners, so it's right on all four headings at once
+         rather than needing a per-heading case. Footprint is the one
+         drawMatAt lays out: +/-T2/2 along dv, 0..SIDEWALK_W along rv. */
+      const _mh = T2/2;
+      let _mdep = Infinity;
+      for(const _s of [-_mh, _mh]) for(const _f of [0, SIDEWALK_W]){
+        const _px = _mm.ax + _mm.dv.x*_s + _mm.rv.x*_f;
+        const _py = _mm.ay + _mm.dv.y*_s + _mm.rv.y*_f;
+        if(_px + _py < _mdep) _mdep = _px + _py;
+      }
+      hazVQ.push({ depth: _mdep,
                    fn:(gg,tt)=>{
                      const lg = layerFor(_mm.mat.x, _mm.mat.y);
                      this.drawMatAt(lg, _mm.ax, _mm.ay, _mm.dv, _mm.rv, 0, 0, _mm.style);
