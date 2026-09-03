@@ -17569,8 +17569,29 @@ class WorldScene extends Phaser.Scene {
       for(const st of getChargeStations(r.grid)){
         if(!this.visProp("chargestation", st.x, st.y)) continue;
         const _cst = st;
-        hazVQ.push({ depth: _cst.x + _cst.y,
-                     fn:(gg,tt)=>this.drawChargeStation(layerFor(_cst.x, _cst.y), _cst, tt) });
+        /* TWO ENTRIES, TWO DEPTHS -- same reason the signal post and
+           head are queued as separate pieces. Keyed as one object at
+           the pad centre, this had the mission mat's bug and the
+           opposite one at the same time: park on the near half and the
+           PAD painted over the robot, but move the key near enough to
+           fix that and the MAST would sort in front of him even when he
+           was standing behind it.
+
+           PAD: flat plate, robot parks on it, so key it at the nearest
+           point of the disc -- min of x+y over a circle of radius padR
+           is centre - padR*sqrt(2). Anything standing on the pad then
+           has a depth >= the pad's and always draws after it.
+
+           MAST: a slim volume, so the point test at its base is the
+           right one, exactly as it is for a lamp post. chargePoleAt is
+           already the single source of truth for where it stands (the
+           sim reads it too) -- this is simply its third consumer, not a
+           second copy of the -padR*0.62 rule. */
+        hazVQ.push({ depth: _cst.x + _cst.y - CHARGE.padR*Math.SQRT2,
+                     fn:(gg,tt)=>this.drawChargeStation(layerFor(_cst.x, _cst.y), _cst, tt, "pad") });
+        const _cp = chargePoleAt(_cst);
+        hazVQ.push({ depth: _cp.x + _cp.y,
+                     fn:(gg,tt)=>this.drawChargeStation(layerFor(_cp.x, _cp.y), _cst, tt, "pole") });
       }
     }
 
@@ -20500,11 +20521,20 @@ class WorldScene extends Phaser.Scene {
      every building and picks its layer per object the way every other
      prop does -- which is the whole reason this could not be finished in
      the bench, where neither reachable layer is both. */
-  drawChargeStation(g, st, t){
+  /* PART-SPLIT FOR THE DEPTH SORT (see the two hazVQ pushes). A charge
+     station is TWO different kinds of object wearing one draw call: a
+     flat pad the robot parks ON, and a mast with real height he can
+     stand in front of or behind. They need opposite sort answers, so
+     they can no longer share a single depth key. part is "pad", "pole",
+     or omitted for both -- omitted keeps every other caller (and
+     game-logic.js, which draws immediately and needs no split) working
+     exactly as before. */
+  drawChargeStation(g, st, t, part){
     const cs = Math.cos(st.a), sn = Math.sin(st.a), K = this.K, P = CHARGE_PAL;
     const W = (a, b, h) => this.W(st.x + a*cs - b*sn, st.y + a*sn + b*cs, h);
     const o = W(0, 0, 0);
 
+    if(part !== "pole"){
     g.fillStyle(P.shadow, 0.16);
     g.fillEllipse(o.x, o.y + 3, CHARGE.padR*2.1*K, CHARGE.padR*1.05*K);
     g.fillStyle(P.padDk, 1);
@@ -20513,6 +20543,9 @@ class WorldScene extends Phaser.Scene {
     g.fillEllipse(o.x, o.y, CHARGE.padR*2*K, CHARGE.padR*1.0*K);
     g.fillStyle(P.pad, 1);
     g.fillEllipse(o.x, o.y, (CHARGE.padR - CHARGE.ringW)*2*K, (CHARGE.padR - CHARGE.ringW)*1.0*K);
+
+    }
+    if(part === "pad") return;
 
     const bx = -CHARGE.padR*CHARGE.poleAt;
     const box = (x0, x1, y0, y1, z0, z1, top, side) => {
