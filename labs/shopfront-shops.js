@@ -1493,46 +1493,143 @@ const SHOPS = [
   }
 },
 {
-  name:'Fishmonger', head:'Sloped ice display, tiled front, gull',
-  tags:['sloped ice bed','white tile','open display','bracket sign','gull on the parapet'],
-  desc:'The ice bed is a slab with a real edge thickness and a front fascia, the fish are rounded solids lying in it, and the bracket sign hangs off an arm with its own return.',
+  name:'Fishmonger', head:'Open marble counter, iced slab, striped awning',
+  tags:['open frontage','counter that projects','shallow ice slab','fish as solids','bracket sign over the pavement'],
+  desc:'A wet-fish shop is an open counter with ice on it and a dark shop behind, so the depth runs pavement, counter, ice, interior — and the fish are laid on a shallow slab you can see the top of rather than pinned to a wall of ice.',
   draw(p){
-    const wall = '#eef2f3', trim = '#2f6f8f', H = 148;
+    /* ================= WHAT WAS WRONG, MEASURED =================
+       Five faults, and four of them were one mistake each about depth:
+
+       1  The stall base read slab(..., -1, 40). slab draws its single F
+          at bFront, so bFront must be the b NEARER the eye -- the larger
+          one. Passed (-1, 40) it painted the FAR face and left the near
+          one open, so the base was a flat blue flap on the pavement.
+       2  The ice bed hung in the air. Its front lip bottomed at z 48
+          against a base whose top was 16 -- a 32-unit gap under the
+          whole display.
+       3  It was also enormous: 48 units of fall over 40 of projection,
+          which put a pale wedge across the entire facade and left no
+          shop behind it.
+       4  The bracket sign hung INTO the block. Its arm ran b -4 to -30
+          and the board sat at -28..-34, so a sign meant to be read from
+          the pavement was buried in the wall.
+       5  The door was at W*0.87, which clamps to 191.88 and leaves one
+          unit of corner pier, and the window at 188.6..218 sat inside
+          the door surround for its whole width.
+
+       Rebuilt on what the shop actually is. The depth runs pavement,
+       counter, ice, dark interior -- four planes at four b values, in
+       that order, so the eye reads into the shop instead of at a sheet.
+       The ice is a SHALLOW slab sloping toward the street, which is how
+       a real one presents its fish; the fish are solids lying on it. */
+    const wall = '#eef2f3', trim = '#2f6f8f', H = 158;
+    const ice = '#e6f2f5', dark = '#16232a';
     body(wall, trim, H);
-    slab(0,W, H, H+10, -1, -12, trim);
-    for(let i=0;i<10;i++) F(i*(W/10), i*(W/10)+1.6, 16,96, shade(wall,.9), null,0,-1);
-    for(let r=0;r<4;r++) F(0,W, 16+r*20, 17.6+r*20, shade(wall,.9), null,0,-1);
-    slab(6,W*0.74, 0, 16, -1, 40, trim);
-    // ice bed: sloping top, front fascia, and a thickness at the lip
-    poly([P(8,0,96),P(W*0.74,0,96),P(W*0.74,40,62),P(8,40,62)], '#dfeef2');
-    poly([P(8,40,62),P(W*0.74,40,62),P(W*0.74,40,48),P(8,40,48)], shade(trim,1.25));
-    poly([P(8,0,96),P(8,40,62),P(8,40,48),P(8,0,82)], shade(trim,.95));
-    poly([P(W*0.74,0,96),P(W*0.74,40,62),P(W*0.74,40,48),P(W*0.74,0,82)], shade(trim,.95));
-    for(let i=0;i<7;i++){
-      const t=(i+0.5)/7, aa = 8+(W*0.74-8)*t, bb = 10+((i%3)*9), zz = 88-((i%3)*7);
-      ball(aa, bb, zz, 6, ['#9fb6c2','#c2907e','#8fa8b8'][i%3]);
-      ball(aa+7, bb+2, zz-1, 4.4, ['#9fb6c2','#c2907e','#8fa8b8'][i%3]);
-      poly([P(aa-8,bb,zz),P(aa-14,bb,zz+5),P(aa-14,bb,zz-5)], shade(['#9fb6c2','#c2907e','#8fa8b8'][i%3],.8));
+    slab(16, W-16, H, H+12, -1, -12, trim, shade(trim,.72), shade(trim,1.2));
+    slab(16, W-16, H-28, H-6, -1, -9, trim);                    // name fascia
+    F(26, W-26, H-23, H-11, wall, null, 0, -9.5);
+    for(let i=0;i<12;i++) F(i*(W/12), i*(W/12)+1.6, 0, H-28, shade(wall,.9), null,0,-1);
+    for(let r=0;r<6;r++)  F(0, W, 18+r*20, 19.6+r*20, shade(wall,.9), null,0,-1);
+
+    /* ---- the open front, and a dark shop behind it ---- */
+    const oA0 = 12, oA1 = 138, oZ = 104;
+    reveal(oA0, oA1, 0, oZ, 30, dark);
+    for(let i=0;i<4;i++)                                         // things hanging inside
+      F(oA0+18+i*28, oA0+24+i*28, 62, 92, shade(dark,2.1), null, 0, -26);
+
+    /* ---- the counter: it projects, but 26, not 34 ----
+       A wet-fish counter does stand out onto the pavement; what it must
+       not do is stand 22 units past the return. b 0..26 from a 20 puts
+       its near corner 6 outside the silhouette, the same order as an
+       awning, and the tiling goes on the face that is actually seen. */
+    const cA0 = 20, cA1 = 138, cOut = 26, cZ = 66;
+    box(cA0, cA1, 0, cOut, 0, cZ, shade(wall,1.03), wall, shade(wall,.84));
+    for(let i=0;i<10;i++)
+      poly([P(cA0+6+i*12, cOut+0.4, 6),P(cA0+7.4+i*12, cOut+0.4, 6),
+            P(cA0+7.4+i*12, cOut+0.4, cZ-6),P(cA0+6+i*12, cOut+0.4, cZ-6)], shade(wall,.88));
+    poly([P(cA0, cOut+0.4, cZ-6),P(cA1, cOut+0.4, cZ-6),
+          P(cA1, cOut+0.4, cZ-9),P(cA0, cOut+0.4, cZ-9)], trim);   // counter edge stripe
+
+    /* ---- the ice: a shallow slab, back edge high, front lip low ---- */
+    const iA0 = cA0+5, iA1 = cA1-5, iB0 = 3, iB1 = cOut-3, iZB = 80, iZF = 71;
+    const iceZ = b => iZB + (iZF-iZB)*(b-iB0)/(iB1-iB0);
+    box(cA0+2, cA1-2, 1, cOut-1, cZ, cZ+4, shade(trim,1.5), trim, shade(trim,.8));  // tray
+    poly([P(iA0,iB0,iZB),P(iA1,iB0,iZB),P(iA1,iB1,iZF),P(iA0,iB1,iZF)], ice);
+    poly([P(iA0,iB1,iZF),P(iA1,iB1,iZF),
+          P(iA1,iB1,cZ+4),P(iA0,iB1,cZ+4)], shade(ice,.86));        // the lip you see
+    for(let i=0;i<26;i++){                                          // chipped ice
+      const t = ((i*37)%100)/100, u = ((i*61)%100)/100;
+      const a = iA0+2 + (iA1-iA0-4)*t, b = iB0+1 + (iB1-iB0-2)*u;
+      ball(a, b, iceZ(b)+1.2, 1.9, i%3 ? '#f4fafc' : shade(ice,1.05));
     }
-    shopDoor(W*0.87, wall, trim);
-    F(W*0.82,W-12, 50, 90, '#7fb0c4', null,0,-6.5);
-    slab(4,W-4, 104, 130, -1, -9, trim);
-    F(16,W-16, 110, 124, '#eef2f3', null,0,-9.5);
-    // bracket sign: arm with a return, board hanging clear of the wall
-    cyl(W*0.08, -4, 116, 132, 2, '#4a4f55');
-    tube(W*0.08, -4, 130, W*0.08, -30, 130, 2, '#4a4f55');
-    slab(W*0.02,W*0.20, 86, 116, -28, -34, trim, null, shade(trim,1.3));
-    F(W*0.045,W*0.175, 92, 110, '#eef2f3', null,0,-28.5);
+    /* A FISH IS A SOLID LYING DOWN. These were two spheres with a flat
+       triangle stuck on, drawn in the frontage plane, so they read as
+       bubbles pinned to a wall. A body is a capped tube along a, and
+       the tail and fin are triangles in the HORIZONTAL plane, at the
+       fish's own z, so the whole thing lies on the ice. */
+    /* z IS AN ARGUMENT, not a lookup. The first cut had fish() read its
+       height off iceZ(), which is the counter slab's own slope, and then
+       called it for the crates on the pavement too -- b 38..48 is off
+       the end of that ramp, so it extrapolated to z 64 and three fish
+       hung in the air beside the shop. Anything drawn in two places
+       takes its position from the caller. */
+    const fish = (a,b,z,len,r,col) => {
+      poly([P(a+len/2-2, b, z),P(a+len/2+8, b-5, z),P(a+len/2+8, b+5, z)], shade(col,.78));
+      tube(a-len/2, b, z, a+len/2, b, z, r, col);
+      poly([P(a-2, b, z),P(a+6, b, z),P(a+2, b-5.5, z)], shade(col,.88));
+      ball(a-len/2+3, b-r*0.45, z+r*0.35, 1.3, '#12181c');
+    };
+    const FC = ['#93b0bd','#c4907c','#8aa6b6','#b9c6cc','#a8807a','#9db8c4'];
+    /* laid in two rows against the slab rather than scattered: a back
+       row of three set between a front row of four, so the row reads as
+       arranged and every tail lands short of the next fish's head */
+    depthSort([...[0,1,2,3].map(i => ({ a: 44+i*24, b: iB1-5 })),
+               ...[0,1,2].map(i => ({ a: 56+i*24, b: iB0+4 }))]
+      .map((f,i) => ({ a: f.a, b: f.b, z: iceZ(f.b)+3.6,
+                       draw: () => fish(f.a, f.b, iceZ(f.b)+3.6, 16, 4.2, FC[i%FC.length]) })));
+
+    /* ---- door, with a corner pier this time ---- */
+    shopDoor(180, trim, wall, 'rgba(150,190,205,.55)');
+
+    /* ---- the awning: it is what keeps sun off a fish counter ---- */
+    const wA0 = 28, wA1 = 152, wOut = 38, wZ0 = 112, wZ1 = 128;
+    for(let i=0;i<8;i++){
+      const x0 = wA0+(wA1-wA0)*i/8, x1 = wA0+(wA1-wA0)*(i+1)/8;
+      poly([P(x0,0,wZ1),P(x1,0,wZ1),P(x1,wOut,wZ0),P(x0,wOut,wZ0)], i%2 ? '#f4f8f9' : trim);
+    }
+    poly([P(wA0,wOut,wZ0),P(wA1,wOut,wZ0),
+          P(wA1,wOut,wZ0-9),P(wA0,wOut,wZ0-9)], shade(trim,.78));
+    poly([P(wA1,0,wZ1),P(wA1,wOut,wZ0),
+          P(wA1,wOut,wZ0-9),P(wA1,0,wZ1-9)], shade(trim,.62));
+
+    /* ---- bracket sign, OVER the pavement and clear of the awning ----
+       A projecting sign is read edge-on from up the street, so its board
+       lies in the a plane and it hangs on positive b. Set over the door
+       at a 196..202 its screen-a runs 162..196, inside the return, and
+       it is clear of the awning's 152. */
+    /* THE SIGN WAS HANGING ACROSS THE DOOR. Its board ran z 74..104
+       against a door whose surround heads at 114.95, so the whole board
+       sat over the opening -- and a bracket sign is hung high precisely
+       so people can walk under it. The arm goes up to 154, between the
+       fascia top at 152 and the parapet at 158, and the board hangs
+       118..146, clearing the door head by 3. It passes in front of the
+       fascia, which is what a bracket sign does. */
+    const gA = 196, gB0 = 8, gB1 = 36, gZ0 = 118, gZ1 = 146, gArm = 154;
+    tube(gA+3, 3, gArm, gA+3, gB1, gArm, 1.6, '#4a4f55');
+    tube(gA+3, gB1-2, gArm, gA+3, gB1-2, gZ1, 1.4, '#4a4f55');
+    tube(gA+3, gB0+2, gArm, gA+3, gB0+2, gZ1, 1.4, '#4a4f55');
+    T(gA, gA+6, gB0, gB1, gZ1, shade(trim,.7));
+    S(gA+6, gB0, gB1, gZ0, gZ1, trim);
+    poly([P(gA,gB1,gZ1),P(gA+6,gB1,gZ1),P(gA+6,gB1,gZ0),P(gA,gB1,gZ0)], shade(trim,.6));
+    S(gA+6.6, gB0+4, gB1-4, gZ0+5, gZ1-5, wall);
+    for(let i=0;i<3;i++) S(gA+7, gB0+7+i*8, gB0+12+i*8, gZ0+9, gZ1-9, trim);
+
+    /* pavement crates removed at Sir's direction. */
     if(state.roof){
-      box(W*0.34,W*0.58,-130,-88,H,H+22,'#9aa0a6','#7d838a','#6a7076');
-      if(state.props){
-        const ga = W*0.86, gb = -6;
-        ball(ga, gb, H+22, 7, '#f4f6f7');
-        ball(ga-6, gb, H+28, 4.4, '#f4f6f7');
-        poly([P(ga-9,gb,H+29),P(ga-14,gb,H+28),P(ga-9,gb,H+26)], '#e8a13a');
-        poly([P(ga+4,gb,H+22),P(ga+13,gb,H+26),P(ga+6,gb,H+18)], '#dfe3e6');
-        cyl(ga, gb, H+14, H+17, 1.4, '#8f969d');
-      }
+      /* gull removed at Sir's direction; with one object left on the
+         roof there is nothing to sort against, so the depthSort goes
+         with it rather than sitting there wrapping a single call. */
+      box(W*0.34, W*0.58, -132, -88, H, H+22, '#9aa0a6','#7d838a','#6a7076');
     }
     kerb(p,'none');
   }
