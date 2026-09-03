@@ -20,6 +20,9 @@
   .idx{color:var(--mut);font-size:13px;font-weight:500}
   .meta{padding:14px 16px 26px;max-width:720px}
   .meta h2{font-size:15px;margin:0 0 6px;color:var(--hot);letter-spacing:.04em;text-transform:uppercase}
+  .todo{display:none;margin:0 0 10px;padding:9px 12px;border-radius:8px;
+        background:#3a2a12;border:1px solid #7a5410;color:#f0c674;font-size:13.5px;line-height:1.45}
+  .todo b{color:#ffd98a}
   .meta p{margin:0 0 10px;color:#c9cdd4;font-size:14.5px}
   .tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
   .tag{background:#232830;border:1px solid var(--line);border-radius:20px;padding:5px 11px;
@@ -44,6 +47,7 @@
 <canvas id="stage"></canvas>
 <div class="meta">
   <h2 id="mh">—</h2>
+  <div class="todo" id="mz"></div>
   <p id="md"></p>
   <div class="tags" id="mt"></div>
 </div>
@@ -225,6 +229,18 @@ function sync(){
   document.getElementById('ix').textContent = (state.i+1)+' of '+SHOPS.length;
   document.getElementById('mh').textContent = s.head;
   document.getElementById('md').textContent = s.desc;
+  /* THE FLAG HAS TO FIND YOU, not wait to be looked for. A shop that has
+     not been sized against the game carries zTodo -- its height in game
+     storeys -- and the bench says so the moment the shop is opened, with
+     the True scale toggle named because that is the mode that shows it. */
+  const mz = document.getElementById('mz');
+  if(s.zTodo){
+    mz.style.display = 'block';
+    mz.innerHTML = '<b>Scale review open</b> — this shop stands at <b>' + s.zTodo +
+      '</b> game storeys (one shop storey = 168 lab units). The tall tier was set ' +
+      'by eye; decide a target against what this facade actually depicts, then ' +
+      'clear zTodo. Turn on True scale to see it against the rest.';
+  } else mz.style.display = 'none';
   document.getElementById('mt').innerHTML = s.tags.map(t=>'<span class="tag">'+t+'</span>').join('');
   draw();
 }
