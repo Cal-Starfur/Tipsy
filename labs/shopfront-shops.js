@@ -1,11 +1,11 @@
 /* =====================================================================
-   THE 81 SHOPS -- the single source of truth.
+   THE 82 SHOPS -- the single source of truth.
    =====================================================================
    These bodies used to live inside shopfront-lab.html. They now live
    here because there is more than one bench that has to run them: the
    canvas lab where they are dialled, and shopfront-phaser.html, which
    renders them through the GAME's own projection, queue and face cull
-   to prove a port will not break. Two copies of 81 shops would drift
+   to prove a port will not break. Two copies of 82 shops would drift
    within a session -- the same trap game/index.html and game-logic.js
    are permanently guarded against -- so there is one copy and both
    benches load it.
@@ -30,6 +30,118 @@
    Do not add a bench-specific branch to a shop body. If a shop needs
    something a bench cannot do, the bench grows a primitive.
    ===================================================================== */
+
+/* ================= ONE BODY, TWO SHOPS =================
+   The chemist is drawn twice, in two liveries: DISPENSARY in the
+   original green and PHARMACY in red. It is one function and two colour
+   sets rather than two shop bodies, for the same reason there is one
+   copy of these 81 -- sorry, 82 -- rather than one per bench. A pasted
+   duplicate would agree with its twin until the first time only one of
+   them got a polish pass, and every fix in this body took a measurement
+   to arrive at. Four literals differ between the two; nothing else can.
+
+   Green and red are the two real-world chemist crosses (green across
+   most of Europe, red in the older British and US convention), so this
+   is a livery split rather than an invented one. */
+const CHEMIST_LIVERY = {
+  green: { trim:'#2f7d74', inner:'#7fa8a4', glass:'rgba(150,200,196,.55)', cross:'#3fae7f' },
+  red:   { trim:'#9c3b34', inner:'#a8807d', glass:'rgba(200,158,152,.55)', cross:'#d6483c' }
+};
+function drawChemist(p, c){
+    const wall = '#f0f2f0', trim = c.trim, H = 172;
+    body(wall, trim, H);
+    slab(0,W, H, H+8, -1, -12, trim);
+    slab(W*0.30,W*0.70, H+8, H+30, -2, -12, wall, null, shade(wall,1.1));
+    F(W*0.38,W*0.62, H+14, H+26, trim, null,0,-2.5);
+    reveal(10, W-10, 20, 104, 13, c.inner);
+    for(let r=0;r<2;r++)                                           // two painted shelf lines
+      F(18, W-18, 44+r*26, 49+r*26, '#dfe9e6', null,0, 1.6);
+    glaze(10, W-10, 20, 104, null);
+    /* THE ENDS LANDED ON THE CORNER. Both of this shop's recessed bands
+       ran a 6..W-6 at b -1..-9: an 8-deep recess with 6 of a margin to
+       absorb it, so each end came out 3.4px PAST the building's return
+       and the facade had no pier left at the corner. Rule 1, and the
+       exact slab(6,W-6,...,-1,-9) signature that was wrong on the
+       barber -- the third instance of it found so far.
+
+       The crossing swaps ends between mirrored edges, so it is not a
+       one-end fix: both need margin greater than the depth, and the
+       surplus IS the pier. 14 of margin against 7 of depth leaves 8,
+       which is a 9.1px pier at both ends on all four edges. */
+    /* THE WHOLE TRANSOM IS GONE, at Sir's direction: the glass block
+       band (nine blocks at z 98..114) first, then the two bands that
+       carried it -- a shelf at 100..108 and a cill at 96..116. With the
+       blocks removed the two bands were a pale stripe over the window
+       with nothing to explain it, which read worse than the blocks did.
+       The window head at 104 now runs to the fascia at 118 as plain
+       wall, which is what the rest of this facade is made of. */
+    shopDoor(W*0.53, wall, trim, c.glass);
+    slab(14, W-14, 118, 154, -1, -7, trim);   // see the pier note above
+    /* SYMMETRIC IN a IS NOT CENTRED, AND YOU CANNOT FIX THAT IN a. This
+       ran 20..W-20, symmetric about 115, and showed 25.5px of band at
+       one end against 6.2px at the other. Cause: it sat at b -9.5 while
+       the band front is at -1, and a recess projects sideways by its own
+       depth -- apparent x is K(b-a), so 8.5 of relative depth is 9.7px
+       of apparent shift.
+
+       The obvious repair, moving the a-centre to 115 + b, was tried and
+       is wrong: b flips sign between mirrored edges and a does not, so
+       an offset that centres it on edge 1 puts it 21.6px out on edge 2.
+       Same trap as the barber fascia. Depth is the free variable, so the
+       panel stays symmetric in a and comes up to 1.5 behind the band
+       face instead of 8.5. The shift is 1.7px now, equal and opposite on
+       the mirrors, and invisible on both. */
+    F(20, W-20, 122, 150, wall, null,0,-2.5);
+    /* THE CROSS WAS NOT A CROSS. Faults, in the order they were found.
+
+       Thickness: the arms were cs*0.55 in z and cs*0.36 in a, written as
+       if one `cs` governed both. z is multiplied by ZSCALE before it is
+       projected and a is not, so 16.5 z came out 24.75 world against
+       10.8 -- the arms were 2:1 apart and the a-arm measured 38.1px long
+       by 28.1px thick, a block rather than an arm.
+
+       Depth: it sat at b -10, BEHIND the -9 back face of the fascia band
+       it is mounted on -- inside the wall, surviving only because it was
+       painted afterwards, and gone the moment anything depth-sorts it.
+
+       Build: two overlapping slabs, so each piece's own return and top
+       plate ran through the middle of the other and it read as two
+       pieces. One outline, one solid, via prism().
+
+       Position: a census of this shop's a-centres put every other
+       element on 115.0 and the cross on 184.0 -- the only thing on the
+       facade that was not centred, by 69 units. Both plaque and emblem
+       are on 115 now and stay there, for the reason above: a is the axis
+       that survives mirroring, so world-centred is the only centring
+       that holds on all four edges, and the apparent shift is kept small
+       by keeping the stack shallow -- band -1, plaque 1, emblem 3.
+
+       The plaque it used to sit on is gone. It was a second white
+       rectangle in front of a white rectangle, which is one object more
+       than the facade needs -- the fascia's own sign panel is the thing
+       a cross gets mounted on. That panel was 14 z tall against a 16 z
+       emblem, so the band had to grow to carry it: 120..146 became
+       118..154 and the panel 126..140 became 122..150. The emblem sits
+       on 136 with 6 z of panel above and below it, 6.8px, and 4 z of
+       band reveal outside that. Depth stays shallow for the centring
+       reason above -- band -1, panel -2.5, emblem 0.5. */
+    const cz = 136;
+    prism(plusOutline(115, cz, 12, 4), 0.5, -2.5, c.cross);
+    if(state.roof){
+      box(W*0.12,W*0.36,-120,-70,H,H+30,'#c3c8cc','#a8aeb3','#95999e');
+      box(W*0.62,W*0.84,-160,-120,H,H+18,'#9aa0a6','#7d838a','#6a7076');
+    }
+    if(state.props){
+      for(const aa of [W*0.06, W*0.90]){
+        cyl(aa, 32, 0, 26, 15, '#b9beb4');
+        plateCircle(aa, 32, 25, 12, '#5a4a38');
+        ball(aa, 32, 36, 12, '#4f7a4a');
+        ball(aa-7, 30, 30, 8, '#5c8a56');
+      }
+    }
+    kerb(p,'none');
+}
+
 
 const SHOPS = [
 {
@@ -474,42 +586,16 @@ const SHOPS = [
   }
 },
 {
-  name:'Pharmacy', head:'Stepped parapet, cross emblem, glass block',
-  tags:['dispensary behind glass','solid cross','glass block band','clinical white','planters'],
+  name:'Dispensary', head:'Stepped parapet, cross emblem, green livery',
+  tags:['counter behind glass','solid cross emblem','green fascia','clinical white','planters'],
   desc:'A counter and a wall of shelved bottles sit inside the reveal with the pane over them, so the shop has depth behind the window rather than a flat tinted sheet.',
-  draw(p){
-    const wall = '#f0f2f0', trim = '#2f7d74', H = 172;
-    body(wall, trim, H);
-    slab(0,W, H, H+8, -1, -12, trim);
-    slab(W*0.30,W*0.70, H+8, H+30, -2, -12, wall, null, shade(wall,1.1));
-    F(W*0.38,W*0.62, H+14, H+26, trim, null,0,-2.5);
-    reveal(10, W-10, 20, 104, 13, '#7fa8a4');
-    for(let r=0;r<2;r++)                                           // two painted shelf lines
-      F(18, W-18, 44+r*26, 49+r*26, '#dfe9e6', null,0, 1.6);
-    glaze(10, W-10, 20, 104, null);
-    slab(6, W-6, 100, 108, -1, -9, shade(wall,.86));
-    slab(16,W-16, 96, 116, -1, -7, '#dfe9e6');
-    for(let i=0;i<9;i++) F(18+i*((W-36)/9), 18+(i+0.86)*((W-36)/9), 98, 114, '#c3dbd8', null,0,-7.5);
-    shopDoor(W*0.53, wall, trim, 'rgba(150,200,196,.55)');
-    slab(6,W-6, 120, 146, -1, -9, trim);
-    F(20,W-20, 126, 140, wall, null,0,-9.5);
-    const cs = 15, ca = W*0.80, cb = -10;
-    slab(ca-cs, ca+cs, 150-cs*0.55, 150+cs*0.55, cb, cb-7, '#3fae7f');
-    slab(ca-cs*0.36, ca+cs*0.36, 150-cs, 150+cs, cb-0.5, cb-7, '#3fae7f');
-    if(state.roof){
-      box(W*0.12,W*0.36,-120,-70,H,H+30,'#c3c8cc','#a8aeb3','#95999e');
-      box(W*0.62,W*0.84,-160,-120,H,H+18,'#9aa0a6','#7d838a','#6a7076');
-    }
-    if(state.props){
-      for(const aa of [W*0.06, W*0.90]){
-        cyl(aa, 32, 0, 26, 15, '#b9beb4');
-        plateCircle(aa, 32, 25, 12, '#5a4a38');
-        ball(aa, 32, 36, 12, '#4f7a4a');
-        ball(aa-7, 30, 30, 8, '#5c8a56');
-      }
-    }
-    kerb(p,'none');
-  }
+  draw(p){ drawChemist(p, CHEMIST_LIVERY.green); }
+},
+{
+  name:'Pharmacy', head:'Stepped parapet, cross emblem, red livery',
+  tags:['counter behind glass','solid cross emblem','red fascia','clinical white','planters'],
+  desc:'A counter and a wall of shelved bottles sit inside the reveal with the pane over them, so the shop has depth behind the window rather than a flat tinted sheet.',
+  draw(p){ drawChemist(p, CHEMIST_LIVERY.red); }
 },
 {
   name:'Record shop', head:'Blacked-out front, marquee, poster wall',
