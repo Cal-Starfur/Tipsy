@@ -599,7 +599,7 @@ const SHOPS = [
 },
 {
   name:'Record shop', head:'Blacked-out front, marquee, poster wall',
-  tags:['racks inside','angled marquee','poster grid','bulb row','A-board'],
+  tags:['racks inside','angled marquee','poster grid','bulb row on the fascia'],
   desc:'Record racks stand in the window with sleeves in them, behind a dark tinted pane, so the blackness has something in it rather than being a hole.',
   draw(p){
     const wall = '#22222a', trim = '#e0483c', H = 164;
@@ -620,17 +620,24 @@ const SHOPS = [
     poly([P(m0,0,106),P(m1,0,106),P(m1,out,134),P(m0,out,134)], shade(wall,1.25));
     poly([P(m0,0,120),P(m0,out,150),P(m0,out,134),P(m0,0,106)], shade(trim,.55));
     poly([P(m1,0,120),P(m1,out,150),P(m1,out,134),P(m1,0,106)], shade(trim,.55));
-    for(let i=0;i<7;i++) ball(14+(W-28)*(i+0.5)/7, out-3, 133, 4, '#ffe9a8');
+    /* THE BULBS WERE NOT ON ANYTHING. They sat at b 37, z 133 -- three
+       units inboard of the marquee's front lip and one below its
+       underside, so they hung in the air in front of the fascia with
+       nothing behind them, and they ran a 14..W-14 against a fascia that
+       runs 4..W-4, so the row was inset from the thing it belonged to as
+       well as floating off it.
+
+       The fascia is the quad at b = out, z 134..150. The row goes ON it:
+       centred on z 142, at b out+1 so each bulb is proud by a quarter of
+       its own diameter and reads as fixed to the face rather than
+       hovering near it, and spanning the fascia's own m0..m1 so the run
+       ends where the board ends. Nine at that span sits the gaps at
+       about two bulb widths; seven over the wider run would have read as
+       sparse. */
+    for(let i=0;i<9;i++) ball(m0+(m1-m0)*(i+0.5)/9, out+1, 142, 4, '#ffe9a8');
     slab(20,W-20, H-40, H-14, -1, -8, '#f2ece0');
-    if(state.props){
-      poly([P(W*0.08,26,0),P(W*0.30,26,0),P(W*0.30,40,52),P(W*0.08,40,52)], '#1a1a22');
-      poly([P(W*0.08,54,0),P(W*0.30,54,0),P(W*0.30,40,52),P(W*0.08,40,52)], '#2c2c36');
-      poly([P(W*0.30,26,0),P(W*0.30,54,0),P(W*0.30,40,52)], '#111118');
-      for(let i=0;i<3;i++)
-        poly([P(W*0.11,26+(i*2), 12+i*12),P(W*0.27,26+(i*2),12+i*12),
-              P(W*0.27,33+(i*2),15+i*12),P(W*0.11,33+(i*2),15+i*12)],
-             ['#e0483c','#e8c34a','#4aa3e0'][i]);
-    }
+    /* A-board removed at Sir's direction: it stood on the pavement at
+       b 26..54, further into the street than the marquee reaches. */
     if(state.roof){
       box(W*0.50,W*0.78,-150,-100,H,H+24,'#8f969d','#787f86','#697077');
       tube(W*0.24,-90,H+14, W*0.24,-90,H+70, 2, '#6d747c');
