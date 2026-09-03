@@ -948,7 +948,30 @@ const SHOPS = [
     const wall = '#f2f0ea', trim = '#c2452e', H = 150, R = 42;
     // flat part of the box, stopping short of the curved end
     T(0,W-R,-D,0,H, shade(trim,1.05));
-    S(W-R,-D,-D+1,0,H, shade(wall,.78));
+    /* THE FLANK WAS A ONE-UNIT SLIVER. This read S(W-R, -D, -D+1, ...),
+       a wall from b -276 to -275 -- a hairline at the very BACK of the
+       block -- so the entire right side of the diner was open and the
+       roof plate floated with nothing under it, a single white thread
+       hanging off its far corner.
+       body() draws its end wall across the unit's whole depth, and this
+       shop hand-rolls its box instead of calling body(), which is how
+       the b range got lost. It cannot run the full depth here, though:
+       the drum takes over the last stretch. The cylinder is centred
+       (W-R, -R) with radius R, so at a = W-R it spans b -2R..0 -- the
+       end wall runs from the back of the block to where the curve
+       starts, and the two meet exactly at b = -2R. */
+    /* THE FLANK IS THE SAME BUILDING, so it gets the same elevation.
+       It was one flat sheet of shade(wall,.78) -- a grey slab with no
+       plinth, no banding and no fluting, against a front that has all
+       three -- which is why it read as a blank wall bolted onto a diner
+       rather than as the side of one. On a streamlined building the
+       horizontal bands are the whole idea: they wrap. */
+    S(W-R,-D,-2*R,0,H, shade(wall,.97));                   // white, a hair off the drum
+    S(W-R,-D,-2*R,0,26, '#3b6e75');                        // tiled base, as the front
+    for(let bb=-2*R-14; bb>-D+8; bb-=18)
+      S(W-R, bb, bb-1.5, 0, 26, shade('#3b6e75',.7));      // flutes, same 18 pitch
+    S(W-R,-D,-2*R,26,34, '#c9ccd0');                       // lower chrome band
+    S(W-R,-D,-2*R,H-16,H-8, '#c9ccd0');                    // upper chrome band
     F(0,W-R,0,H, wall);
     F(0,W-R,0,16, shade(wall,.66), null,0,-0.5);
     // the streamlined end as a genuine cylinder
@@ -957,42 +980,107 @@ const SHOPS = [
     slab(0,W-R, H, H+8, -1, -12, trim);
     plateCircle(W-R, -R, H+8, R, trim, shade(trim,.8), 2);
     // chrome bands, wrapped round the curve as short surface quads
-    const band = (z0,z1,col) => {
-      F(0,W-R, z0, z1, col, null,0,-0.6);
-      for(let k=0;k<8;k++){
-        const t0 = 3*Math.PI/4 - Math.PI*k/8, t1 = 3*Math.PI/4 - Math.PI*(k+1)/8;
-        poly([P(W-R+R*Math.cos(t0), -R+R*Math.sin(t0), z0),
-              P(W-R+R*Math.cos(t1), -R+R*Math.sin(t1), z0),
-              P(W-R+R*Math.cos(t1), -R+R*Math.sin(t1), z1),
-              P(W-R+R*Math.cos(t0), -R+R*Math.sin(t0), z1)], col);
-      }
+    /* THE SWEEP IS ASKED FOR, NOT WRITTEN IN. Both the bands and the
+       door had their arc limits as constants -- 3pi/4..-pi/4 for the
+       bands, 0.10..-0.52 for the door. The band constants happen to be
+       the correct visible half on this bench and would be wrong on half
+       the game's block edges, the identical fault plateSweep() was
+       written to end. The door constants were not even right here: the
+       drum's front is at the MIDDLE of the visible arc, and 0.10..-0.52
+       is centred a full radian off it, which is why the door sat almost
+       edge-on at the drum's right silhouette instead of facing out. */
+    const sweep = plateSweep(W-R, -R, 0);
+    const arc = u => sweep.ts + sweep.dir*Math.PI*u;      // u 0..1 across the visible half
+    /* ONE POLYGON, NOT A ROW OF QUADS. Every strip on this drum was
+       being built as n separate quads sharing edges, and adjacent fills
+       that share an edge do not close over it -- the antialiased seam
+       lets whatever is behind show through as a hairline. On the glass
+       that read as a set of pale vertical lines down the pane. Walking
+       the arc out along one z and back along the other gives a single
+       closed outline with no interior edges at all. */
+    const curveBand = (u0,u1,z0,z1,col,seg) => {
+      const n = seg || 10, pts = [], rim = (u,z) => {
+        const t = arc(u0+(u1-u0)*u);
+        return P(W-R+R*Math.cos(t), -R+R*Math.sin(t), z);
+      };
+      for(let k=0;k<=n;k++) pts.push(rim(k/n, z0));
+      for(let k=n;k>=0;k--) pts.push(rim(k/n, z1));
+      poly(pts, col);
     };
+    const band = (z0,z1,col) => { F(0,W-R, z0, z1, col, null,0,-0.6);
+                                  curveBand(0, 1, z0, z1, col, 16); };
     band(H-16, H-8, '#c9ccd0');
     band(26, 34, '#c9ccd0');
     band(0, 26, '#3b6e75');
-    for(let i=0;i<12;i++) F(i*(W/12), i*(W/12)+1.5, 0, 26, shade('#3b6e75',.7), null,0,-0.8);
-    F(10,W-R-8, 40, 104, '#7fb0c4', shade(wall,.62), 3);
-    for(let i=0;i<4;i++) F(10+(W-R-18)*(i+1)/5-1.5, 10+(W-R-18)*(i+1)/5+1.5, 40, 104, shade(wall,.6), null,0,-1);
-    for(let i=0;i<5;i++) faceCircle(24+i*30, -3, 58, 8, '#c2452e', '#8f2f22', 2);
-    /* door set INTO the curve: drawn as surface quads following the
-       cylinder, so it wraps instead of hanging flat off the front */
-    for(let k=0;k<5;k++){
-      const t0 = 0.10 - 0.62*k/5, t1 = 0.10 - 0.62*(k+1)/5;
-      poly([P(W-R+R*Math.cos(t0), -R+R*Math.sin(t0), 0),
-            P(W-R+R*Math.cos(t1), -R+R*Math.sin(t1), 0),
-            P(W-R+R*Math.cos(t1), -R+R*Math.sin(t1), 108),
-            P(W-R+R*Math.cos(t0), -R+R*Math.sin(t0), 108)], shade(wall,.80));
-      poly([P(W-R+R*Math.cos(t0), -R+R*Math.sin(t0), 16),
-            P(W-R+R*Math.cos(t1), -R+R*Math.sin(t1), 16),
-            P(W-R+R*Math.cos(t1), -R+R*Math.sin(t1), 96),
-            P(W-R+R*Math.cos(t0), -R+R*Math.sin(t0), 96)], '#7fb0c4');
-    }
+    for(let i=0;i<9;i++) F(8+i*18, 9.5+i*18, 0, 26, shade('#3b6e75',.7), null,0,-0.8);
+    for(let i=1;i<6;i++) curveBand(i/6, i/6 + 1.5/(Math.PI*R), 0, 26, shade('#3b6e75',.7), 1);
+    /* THE FLAT FACADE DOES NOT REACH a = W-R ON SCREEN. Everything on
+       it was laid out against the drum's CENTRE line at 188, but the
+       drum's near silhouette is where it actually takes over, and that
+       is further left: a rim point is (W-R+Rcos t, -R+Rsin t), so its
+       screen-a is 230 + R(cos t - sin t), which bottoms out at
+       230 - R*sqrt2 = 170.6. The window ran to 180 and the base flutes
+       ran the full 0..230, so both were painted ON the curved wall --
+       drawn after the drum, so they won over it.
+       The window now stops at 162, 8.6 clear of the silhouette, and the
+       flutes stop with it and are continued round the drum as surface
+       quads on the sweep plateSweep() reports, so the fluting carries
+       through the corner instead of stopping dead at it. */
+    F(10, 162, 40, 104, '#7fb0c4', shade(wall,.62), 3);
+    for(let i=0;i<4;i++) F(10+152*(i+1)/5-1.5, 10+152*(i+1)/5+1.5, 40, 104, shade(wall,.6), null,0,-1);
+    for(let i=0;i<5;i++) faceCircle(26+i*28, -3, 58, 8, '#c2452e', '#8f2f22', 2);
+    /* THE GLAZING HUNG BELOW ITS OWN SILL LINE. The leaf ran z 16..96
+       while the flat wall's window runs 40..104, so the glass on the
+       curve started 24 units lower than the glass beside it and dropped
+       through both the chrome band at 26..34 and the tiled base at
+       0..26 -- a pane crossing the plinth it should be standing on.
+       A sill and a head are continuous mouldings: they carry round the
+       corner rather than stepping at it. The glazing takes the flat
+       wall's own 40..104, which puts it clear above the chrome band and
+       leaves 0..40 as the door's solid lower panel, and the surround
+       goes to 112 so the head has 8 units of margin. */
+    /* THE GREY WAS A DOOR SURROUND THAT SHOULD NEVER HAVE BEEN THERE.
+       The opening was built as two stacked quads: a full-height panel in
+       shade(wall,.80) from z 0 to 112 with the glass laid on top of it.
+       That panel is what showed as grey -- a cap above the head, and
+       below the sill a solid stump that cut clean through the chrome
+       band at 26..34 and the tiled base at 0..26, so the drum looked
+       like it had a grey post standing against it.
+       There is no door on this elevation. The flat wall's opening is a
+       pane with a thin frame and nothing behind it, and the corner
+       window is the same opening carried round the curve: glass on the
+       flat wall's own 40..104 sill and head, a 3-unit frame on all four
+       sides, and nothing below the sill at all -- so the chrome band and
+       the fluted base run under it unbroken, which is the whole point of
+       a streamlined end. */
+    const gU0 = 0.355, gU1 = 0.645, frame = shade(wall,.62);
+    curveBand(gU0, gU1, 37, 107, frame);                     // frame, glass sits inside it
+    curveBand(gU0+0.012, gU1-0.012, 40, 104, '#7fb0c4');     // the pane
+    curveBand(0.497, 0.503, 40, 104, frame, 1);              // one mullion, on the drum's centre
     if(state.roof){
+      /* THE A/C WAS STACKING OVER THE SIGN, and it was pure call order.
+         The plant sat at a 13.8..55.2, b -120..-70, which is screen-a
+         83.8..175.2, straight across the sign's 72..180 -- but its depth
+         key (a+b+z) is 102 against the sign's 271, so it is a long way
+         BEHIND the sign and was being painted last, on top of it.
+         Two fixes, both needed. The order comes off depthSort now rather
+         than being asserted by the sequence of statements, so it is
+         right whatever the host's projection. And the plant moves BACK
+         along the roof. a 130..172 at b -120..-70 cleared the sign but
+         still stood on the drum's roof cap, which covers b -2R..0, so
+         anything nearer than b -84 is sitting on it. b -220..-170 puts
+         the box's screen-a at 300..392, clear of the cap's own 170.6 to
+         289.4 as well as the sign's 180, and leaves it where roof plant
+         actually goes -- at the back of the roof. */
       const sa = W*0.40, sb = -34;
-      for(const la of [sa-56, sa+56]) cyl(la, sb, H+8, H+40, 4, '#9aa0a6');
-      slab(sa-62, sa+62, H+40, H+86, sb+8, sb-8, trim, null, shade(trim,1.2));
-      F(sa-54, sa+54, H+48, H+78, '#f2e6cc', null,0, sb+8.5);
-      box(W*0.06,W*0.24,-120,-70,H,H+26,'#9aa0a6','#7d838a','#6a7076');
+      depthSort([
+        { a: 151, b: -195, z: 163, draw: () =>
+            box(130,172,-220,-170,H,H+26,'#9aa0a6','#7d838a','#6a7076') },
+        { a: sa, b: sb, z: H+63, draw: () => {
+            for(const la of [sa-56, sa+56]) cyl(la, sb, H+8, H+40, 4, '#9aa0a6');
+            slab(sa-62, sa+62, H+40, H+86, sb+8, sb-8, trim, null, shade(trim,1.2));
+            F(sa-54, sa+54, H+48, H+78, '#f2e6cc', null,0, sb+8.5); } }
+      ]);
     }
     kerb(p,'none');
   }
