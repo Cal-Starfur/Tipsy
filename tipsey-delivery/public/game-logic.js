@@ -4345,7 +4345,11 @@ function owBuildWorld(route){
     }
     return out;
   };
-  return { surfaceAt, solidAt, hzNear, sgNear, HZ, SG, waterfrontAt };
+  /* grid comes back out because the kerb gate needs curbRamps and the
+     world is the thing that already knows which grid it was built from.
+     Same object as route.grid, not a copy, so a rebuilt world cannot
+     answer with a stale city. */
+  return { surfaceAt, solidAt, hzNear, sgNear, HZ, SG, waterfrontAt, grid: g2 };
 }
 
 const OW_HZ_R = {
@@ -5689,6 +5693,60 @@ function owLeanKick(scene, ow, amt){
    other axis is the one you are travelling along. Falls back to +1 only
    on degenerate geometry (dead on a centreline), which a real crossing
    cannot produce. */
+/* ---------- THE KERB IS A WALL ONE WAY ----------
+   Stepping DOWN into the road is free and always was. Climbing back UP
+   is not: the only ways onto the pavement are the dropped kerbs at the
+   junctions, which the city already draws 6,116 of and which, until
+   now, were scenery with no surface (buildWorldCurbRamps' own header
+   says "no hazard entry").
+
+   The mouth is +/-T2 on each axis around the ramp's point, which is not
+   a new number: WORLD_RAMP puts the pad's own drawn extent at exactly
+   +/-T2 about its centre, so the gap you can drive through is the gap
+   you can see. Chebyshev rather than radial because the pad is square.
+
+   Bucketed at T2 and probed 3x3 so a grind along the kerb costs nine
+   map lookups a frame instead of a 6,116-entry scan. Cached on the grid
+   -- same lifetime as curbRamps itself, so a rebuilt world cannot end
+   up answering with another city's kerbs. */
+/* Sentinel, compared by IDENTITY (=== OW_CURB_BLOCK), so a kerb hit is
+   distinguishable from a building without inventing a type string that
+   solidAt's own callers would then have to know about. Shaped like a
+   solidAt result purely so the OW_DBG line can read it unchanged. */
+const OW_CURB_BLOCK = { type: 'curb', i: -1, j: -1, cx: 0, cy: 0 };
+function owRampHash(grid){
+  if(grid._rampHash) return grid._rampHash;
+  const m = new Map();
+  for(const r of (grid.curbRamps || [])){
+    const k = Math.floor(r.x/T2) + "," + Math.floor(r.y/T2);
+    let a = m.get(k); if(!a) m.set(k, a = []);
+    a.push(r);
+  }
+  grid._rampHash = m;
+  return m;
+}
+function owAtRampMouth(grid, x, y){
+  if(!grid) return true;               // no grid, no gate: never trap the robot
+  const m = owRampHash(grid);
+  const ci = Math.floor(x/T2), cj = Math.floor(y/T2);
+  for(let i = ci-1; i <= ci+1; i++) for(let j = cj-1; j <= cj+1; j++){
+    const a = m.get(i + "," + j);
+    if(!a) continue;
+    for(const r of a) if(Math.abs(r.x - x) <= T2 && Math.abs(r.y - y) <= T2) return true;
+  }
+  return false;
+}
+/* Blocks ONLY the climb, and only from a committed road position, so
+   skimming the lip from the pavement side and dropping down are both
+   untouched. sfcCommit is the same committed-transition latch the lean
+   kick reads -- deliberately not surfaceAt's raw per-frame answer,
+   which flickers road/curb/road along a kerb (see CURB CROSSING). */
+function owCurbBlocks(ow, W, x, y){
+  if(ow.sfcCommit !== 'road') return false;
+  if(W.surfaceAt(x, y) !== 'sidewalk') return false;
+  return !owAtRampMouth(W.grid, x, y);
+}
+
 function owCurbSign(ow, toSfc){
   const nx = Math.round(ow.px / BLOCK) * BLOCK;
   const ny = Math.round(ow.py / BLOCK) * BLOCK;
@@ -5814,18 +5872,52 @@ function owStep(scene, dt){
   const stepY = Math.sin(ow.yaw) * ow.vel * dt;
   let hitNormal = 0;                       // 0 none, 1 x-face, 2 y-face, 3 hazard disc
 
-  if(!W.solidAt(ow.px + stepX, ow.py + stepY, D.botR)){
+  /* THE KERB JOINS THIS TEST rather than getting a pass of its own. The
+     axis-separated resolve below already turns geometry into the exact
+     behaviour asked for: hit the kerb square and both axes fail, so he
+     stops; clip it at an angle and one axis survives, so he slides
+     along it carrying his speed. Nothing new to tune. */
+  /* PROBE THE LEADING EDGE. solidAt takes botR and so stops him a body
+     clear of a wall; surfaceAt is a bare point query, so asking it about
+     the CENTRE let him drive a whole botR (30) up onto the pavement
+     before the kerb answered -- which is the "he gets in too far"
+     report. Offsetting the probe by botR along the axis being tested
+     puts the question at his front bumper instead, which is where the
+     wheels actually meet the step. Per-axis, so the slide still works:
+     the x probe only leads on x, the y probe only on y. */
+  const _pR = D.botR;
+  const _ox = Math.sign(stepX) * _pR, _oy = Math.sign(stepY) * _pR;
+  const blockAt = (x, y, ox, oy) => W.solidAt(x, y, D.botR) ||
+                            (owCurbBlocks(ow, W, x + (ox||0), y + (oy||0)) ? OW_CURB_BLOCK : null);
+  const _full = blockAt(ow.px + stepX, ow.py + stepY, _ox, _oy);
+  if(!_full){
     ow.px += stepX; ow.py += stepY;
   } else {
     if(OW_DBG){
-      const _b = W.solidAt(ow.px + stepX, ow.py + stepY, D.botR);
+      const _b = _full;
       if(_b) owDbgHit(scene, 'block', _b.type, _b.i + ',' + _b.j, _b.cx, _b.cy);
     }
-    const freeX = !W.solidAt(ow.px + stepX, ow.py, D.botR);
-    const freeY = !W.solidAt(ow.px, ow.py + stepY, D.botR);
+    const freeX = !blockAt(ow.px + stepX, ow.py, _ox, 0);
+    const freeY = !blockAt(ow.px, ow.py + stepY, 0, _oy);
     if(freeX){ ow.px += stepX; hitNormal = 2; }
     else if(freeY){ ow.py += stepY; hitNormal = 1; }
     else hitNormal = Math.abs(stepX) > Math.abs(stepY) ? 1 : 2;
+
+    /* A KERB NEVER TIPS HIM (Sir's call). It is a step, not a bollard:
+       it stops the wheels dead and that is the whole punishment. So the
+       kerb skips the tip branch entirely, and when he does not actually
+       move it kills the speed and raises isBlocked -- which is what puts
+       the "?!" over his head, the same signal a building gives.
+       STOPPED means "did not move", not "both axes reported busy":
+       square onto a kerb running along x, stepX is exactly 0, and a
+       zero-length move on x is trivially free, so freeX is true and the
+       slide branch is taken while he travels nowhere. */
+    if(_full === OW_CURB_BLOCK){
+      const _slid = (freeX && Math.abs(stepX) > 1e-6) || (freeY && Math.abs(stepY) > 1e-6);
+      if(!_slid) ow.vel = 0;
+      else ow.vel *= D.clipLoss;
+      hitNormal = 0;
+    } else {
 
     const vN = Math.abs(hitNormal === 1 ? Math.cos(ow.yaw) : Math.sin(ow.yaw)) * Math.abs(ow.vel);
     if(vN >= D.clipThresh){
@@ -5847,6 +5939,25 @@ function owStep(scene, dt){
       owLeanKick(scene, ow, owTiltSide(ow, dYaw, cxB, cyB) * D.clipTilt * vN * (fresh ? 1 : D.grindTilt));
       ow.vel *= D.clipLoss; if(fresh) ow.clipScrapes++;
     }
+    }
+  }
+
+  /* NOSE AGAINST THE KERB, ASKED SEPARATELY FROM THE STOP.
+     Reusing the resolve's own blocked flag made the "?!" flicker and
+     never build: the stop leaves him a botR short of the step, so the
+     next frame's probe reads 'curb' rather than 'sidewalk', the block
+     does not fire, he creeps, it fires again. True for one frame in
+     three is not enough for stuckAmt to climb.
+
+     This asks the stabler question -- would the kerb refuse me if I
+     kept going, and am I getting nowhere -- probing slightly beyond the
+     stop distance so it stays true while he is leaning on it. owStep
+     owns and clears it, unlike isBlocked, which drawRobot resets after
+     owStep has already run. */
+  {
+    const _nR = D.botR + 12;
+    scene.owCurbStop = Math.abs(ow.vel) < 0.15 &&
+      owCurbBlocks(ow, W, ow.px + Math.cos(ow.yaw)*_nR, ow.py + Math.sin(ow.yaw)*_nR);
   }
 
   /* ---------- tilt ----------
@@ -6072,7 +6183,12 @@ function owStep(scene, dt){
      touched, which is exactly where the stick lives. */
   scene.speed = Math.abs(ow.vel);
   scene.throttle = 0;
-  scene.wheelPhase = (scene.wheelPhase || 0) - ow.vel * dt * 0.28;
+  /* "is the player asking to move" -- stick past the dead zone, or a
+     key held. Read by the stuck rattle/"?!" bubble, which on the rail
+     asks throttle === 1 and has no equivalent question out here. */
+  scene.owPush = (ow.stick.active && Math.hypot(ow.stick.dx, ow.stick.dy) > D.dead * D.maxR)
+                 || ow.held.size > 0;
+    scene.wheelPhase = (scene.wheelPhase || 0) - ow.vel * dt * 0.28;
 
   /* botS, MEASURED. Last thing in the step, because it reads the pose
      this step just resolved. The hazard loop in drawRobot can still
@@ -23722,7 +23838,14 @@ class WorldScene extends Phaser.Scene {
       }
 
       /* stuck on a trunk: wheels churn, robot rattles, dignity evaporates */
-      const stuckTarget = (this.isBlocked && this.throttle === 1) ? 1 : 0;
+      /* THE "?!" GATE. throttle === 1 is the RAIL asking "is the player
+         holding go"; free roam sets scene.throttle = 0 every step on
+         purpose, so on the open map isBlocked was true and the bubble
+         could never fire. owPush is free roam's answer to the same
+         question, and owCurbStop is owStep's own blocked flag -- kept
+         separate from isBlocked because drawRobot clears that one at
+         the top of its hazard section, after owStep has run. */
+      const stuckTarget = ((this.isBlocked || this.owCurbStop) && (this.throttle === 1 || this.owPush)) ? 1 : 0;
       this.stuckAmt = Phaser.Math.Linear(this.stuckAmt, stuckTarget, stuckTarget ? 0.12 : 0.1);
       if(this.stuckAmt > 0.05)
         this.wheelPhase += dt * 0.02 * this.stuckAmt * (Math.random() > 0.5 ? 1 : -1);
