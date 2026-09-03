@@ -1087,37 +1087,200 @@ const SHOPS = [
 },
 {
   name:'Cinema', tall:true,
-  head:'Blade tower, wrapping marquee, poster cases',
-  tags:['solid blade tower','deep marquee','poster cases','roof letters','tallest unit'],
-  desc:'The blade tower is a box with a returned side and a capped top, and the marquee is a full wedge with an underside and end returns. The roof letters stand as solids rather than as painted strips.',
+  head:'Blade sign, wrapping marquee, recessed lobby, ticket booth',
+  tags:['vertical blade','marquee that wraps the entry','changeable readerboard','bulb chase','island ticket booth','poster cases'],
+  desc:'A picture palace rather than a shop with a sign on it: the facade steps back under the marquee, the booth stands out in the recess with the doors behind it, and the marquee carries letters round its return the way a real one does.',
   draw(p){
-    const wall = '#2b2f45', trim = '#e8b23a', H = 210;
+    /* ================= WHAT A MARQUEE THEATRE ACTUALLY IS =================
+       The old cut had the parts named but not doing their jobs. The
+       marquee was a 54-deep wedge starting at a = 2, so its near end sat
+       52 units past the return and it read as a plank stuck on the
+       corner of the block rather than a canopy over an entrance. The
+       blade floated above the parapet with a gap under it. The door was
+       a shopDoor dropped straight onto the front wall, so the building
+       had a shop entrance and no lobby, and the two poster cases stood
+       out on open pavement with nothing to flank.
+       A marquee theatre is four things working together, and the whole
+       point of it is DEPTH -- the facade steps BACK and the marquee
+       steps FORWARD over the gap:
+         1  a blade standing proud of the wall, read edge-on from up the
+            street, rising well clear of the parapet
+         2  a marquee that WRAPS: a front fascia and a return fascia both
+            carrying changeable letters, with a bulb chase round the edge
+         3  a recessed lobby under it, with the doors at the back
+         4  an island ticket booth standing out in that recess
+       Everything below is sized so nothing recessed crosses the return
+       and only the marquee -- which must project to be a marquee -- shows
+       outside the silhouette, by 10, the same as the grocer's canopy. */
+    const wall = '#2b2f45', trim = '#e8b23a', cream = '#f2ece0', H = 210;
+    const glass = '#5a7f96';
     body(wall, trim, H);
-    slab(0,W, H, H+12, -1, -14, shade(wall,1.4));
-    // blade tower with real depth
-    const t0 = W*0.08, t1 = W*0.34, tb = -2, tk = -26;
-    slab(t0,t1, H+12, H+150, tb, tk, shade(wall,1.25), shade(wall,1.0), shade(wall,1.5));
-    for(let i=0;i<6;i++) F(t0+8,t1-8, H+24+i*20, H+38+i*20, i%2?trim:'#f2ece0', null,0, tb-0.6);
-    slab(t0-4,t1+4, H+150, H+168, tb, tk, trim);
-    ball((t0+t1)/2, (tb+tk)/2, H+182, 8, trim);
-    // marquee: top, front edge, underside, returns
-    const m0 = 2, m1 = W-2, out = 54;
-    poly([P(m0,0,132),P(m1,0,132),P(m1,out,158),P(m0,out,158)], trim);
-    poly([P(m0,out,158),P(m1,out,158),P(m1,out,138),P(m0,out,138)], shade(trim,.75));
-    poly([P(m0,0,114),P(m1,0,114),P(m1,out,138),P(m0,out,138)], shade(wall,1.5));
-    poly([P(m0,0,132),P(m0,out,158),P(m0,out,138),P(m0,0,114)], shade(trim,.6));
-    poly([P(m1,0,132),P(m1,out,158),P(m1,out,138),P(m1,0,114)], shade(trim,.6));
-    for(let i=0;i<10;i++) ball(8+(W-16)*(i+0.5)/10, out-4, 137, 4.5, '#fff3c4');
-    slab(12,W-12, 104, 128, -1, -9, '#f2ece0');
-    for(let i=0;i<3;i++) F(24+i*44, 56+i*44, 110, 122, shade(wall,1.1), null,0,-9.5);
-    for(let i=0;i<2;i++) slab(14+i*54, 54+i*54, 24, 92, -1, -8, ['#c2452e','#3b6e75'][i], null, '#f2ece0');
-    shopDoor(W*0.78, shade(wall,1.3), trim);
-    F(W*0.60,W*0.76, 12, 92, '#1a1d2b', null,0,-8.5);
-    F(W*0.80,W*0.96, 12, 92, '#1a1d2b', null,0,-8.5);
+
+    /* ---- parapet, stepped the way a deco house front is ---- */
+    slab(18, W-18, H, H+16, -1, -14, trim, shade(trim,.72), shade(trim,1.2));
+    slab(80, 150, H+16, H+38, -1, -12, trim, shade(trim,.72), shade(trim,1.2));
+    F(88, 142, H+22, H+32, shade(wall,1.2), null, 0, -0.5);
+
+    /* ---- upper facade: fins and the house name panel ---- */
+    /* the fluting is a FRIEZE, in the gap between marquee and panel.
+        Run 176..H it sat behind the 182..206 panel and only its ends
+        showed, top and bottom, as a row of tabs. 168..178 gives it a
+        band of its own and stacks the elevation cleanly: marquee 164,
+        frieze 168, panel 182, parapet 210. */
+    for(let i=0;i<9;i++)
+      slab(76+i*15, 82+i*15, 168, 178, -1, -7, shade(wall,1.18));
+    slab(76, 200, 182, 206, -1, -9, shade(wall,1.3), shade(wall,1.0), shade(wall,1.5));
+    for(let i=0;i<8;i++)
+      F(84+i*14, 92+i*14, 188, 200, i%3 ? cream : trim, null, 0, -0.5);
+
+    /* ================= THE RECESSED LOBBY =================
+       The wall has a hole in it and everything behind that hole is
+       bounded by it, so the whole recess is clipped to its own opening
+       -- the same rule reveal() follows. Inside, back to front: the
+       rear wall with the door bank on it, the side returns and floor
+       that the shift exposes, then the booth standing clear of them.
+       Nothing here can reach the return: the clip guarantees it. */
+    const rA0 = 60, rA1 = 178, rZ = 112, rD = 34;
+    ctx.save();
+    poly([P(rA0,0,rZ),P(rA1,0,rZ),P(rA1,0,0),P(rA0,0,0)]);
+    ctx.clip();
+    F(rA0, rA1, 0, rZ, shade(wall,.75), null, 0, -rD);          // rear wall
+    S(rA0, 0, -rD, 0, rZ, shade(wall,.62));                     // left jamb
+    S(rA0+0.6, -6, -28, 34, 92, shade(trim,.75));               // poster on the jamb
+    S(rA0+1.2, -9, -25, 38, 88, '#c2452e');
+    T(rA0, rA1, 0, -rD, 0, '#6a5c48');                          // lobby floor
+    slab(rA0, rA1, 92, 100, -rD+1, -rD+7, trim);                // transom band
+    /* THE DOORS HAVE TO BE LAID AGAINST WHERE THE REAR WALL LANDS, not
+       against the opening. A plate at b -rD projects right by rD, so
+       only a 60..144 of the rear wall falls inside a 60..178 opening --
+       the old bank ran to 170 and its last leaf was clipped away
+       entirely while the left third of the recess showed nothing but
+       jamb. Five leaves across 62..148 all land inside the clip. */
+    for(let i=0;i<5;i++){                                       // the door bank
+      const d0 = rA0+2+i*18, d1 = d0+14;
+      F(d0-2, d1+2, 0, 90, shade(trim,.8), null, 0, -rD+1.2);
+      F(d0, d1, 4, 86, glass, null, 0, -rD+1.6);
+      F(d0+1, d0+7, 8, 82, 'rgba(240,250,254,.14)', null, 0, -rD+1.8);
+    }
+    /* the booth stands OUT in the recess, which is the whole reason a
+       lobby is recessed -- at b -20..-8 it is 14 clear of the doors and
+       20 back from the frontage, so it reads as an island */
+    box(104, 134, -20, -8, 0, 54, shade(trim,1.1), trim, shade(trim,.8));
+    F(108, 130, 18, 46, glass, null, 0, -7.4);
+    F(109, 114, 22, 42, 'rgba(240,250,254,.16)', null, 0, -7.6);
+    F(113, 125, 10, 14, shade(trim,.7), null, 0, -7.4);         // the sill you pay at
+    slab(100, 138, 54, 62, -6, -22, trim, shade(trim,.72), shade(trim,1.2));
+    ctx.restore();
+    /* the opening gets a frame, standing proud, so the recess reads as
+       cut into the wall rather than painted on it */
+    F(rA0-5, rA0, 0, rZ+5, shade(trim,.85), null, 0, 0.6);
+    F(rA1, rA1+5, 0, rZ+5, shade(trim,.85), null, 0, 0.6);
+    F(rA0-5, rA1+5, rZ, rZ+5, shade(trim,.85), null, 0, 0.6);
+
+    /* ---- poster cases, on the piers the recess leaves either side ---- */
+    for(const [c0,c1] of [[14,46],[190,218]]){
+      slab(c0-3, c1+3, 30, 104, -1, -7, shade(trim,.9), shade(trim,.7), trim);
+      F(c0, c1, 34, 100, '#1a1d2b', null, 0, -1.4);
+      F(c0+4, c1-4, 40, 94, ['#c2452e','#3b6e75'][c0>100?1:0], null, 0, -1.6);
+      F(c0+5, c0+11, 42, 92, 'rgba(240,250,254,.13)', null, 0, -1.8);
+    }
+
+    /* ================= THE MARQUEE =================
+       Four surfaces, and the return fascia is the one that makes it a
+       marquee rather than an awning: a canopy you can read from up the
+       street as well as from in front of it. Only the a1 end is drawn
+       because +a is toward the eye here (the same test box() and slab()
+       make), and the a0 end is against nothing the eye can reach.
+       out 44 with the run starting at 34 puts the near end 10 outside
+       the silhouette. A canopy that projects at all must show outside
+       it in isometric; what matters is that 10 is a canopy and 52 was
+       somebody else's shopfront. */
+    const mA0 = 34, mA1 = 214, mOut = 44, mZ0 = 118, mZ1 = 164;
+    tube(72, 4, 178, 72, mOut-8, mZ1, 1.6, shade(trim,.7));      // hanger rods
+    tube(204, 4, 178, 204, mOut-8, mZ1, 1.6, shade(trim,.7));
+    T(mA0, mA1, 0, mOut, mZ1, shade(trim,.72));                  // top
+    poly([P(mA0,mOut,mZ1),P(mA1,mOut,mZ1),
+          P(mA1,mOut,mZ0),P(mA0,mOut,mZ0)], cream);              // front fascia
+    poly([P(mA1,0,mZ1),P(mA1,mOut,mZ1),
+          P(mA1,mOut,mZ0),P(mA1,0,mZ0)], shade(cream,.88));      // return fascia
+    poly([P(mA0,mOut,mZ0),P(mA1,mOut,mZ0),
+          P(mA1,mOut,mZ0-7),P(mA0,mOut,mZ0-7)], trim);           // lower lip, front
+    poly([P(mA1,0,mZ0),P(mA1,mOut,mZ0),
+          P(mA1,mOut,mZ0-7),P(mA1,0,mZ0-7)], shade(trim,.82));   // lower lip, return
+    /* CHANGEABLE LETTERS, not a texture. Uneven widths in runs with
+       gaps between them is what makes a readerboard read as words; an
+       even comb reads as louvres, which is what the old fascia was. */
+    const LW = [7,4,6,9,5,7,4,8,6,5,7,4,6,8,5,9,4,7,6,5];
+    for(let r=0;r<2;r++){
+      let a = mA0 + 10, k = r*7;
+      while(a < mA1 - 12){
+        const w = LW[k++ % LW.length];
+        poly([P(a,mOut+0.6,mZ1-10-r*17),P(a+w,mOut+0.6,mZ1-10-r*17),
+              P(a+w,mOut+0.6,mZ1-23-r*17),P(a,mOut+0.6,mZ1-23-r*17)], wall);
+        a += w + (k%4 === 0 ? 8 : 3);
+      }
+    }
+    for(let b = 6, k = 3; b < mOut-8; ){                          // letters on the return
+      const w = LW[k++ % LW.length];
+      poly([P(mA1+0.6,b,mZ1-14),P(mA1+0.6,b+w,mZ1-14),
+            P(mA1+0.6,b+w,mZ1-32),P(mA1+0.6,b,mZ1-32)], wall);
+      b += w + (k%3 === 0 ? 7 : 3);
+    }
+    /* the chase: bulbs round the edge of the fascia, front and return,
+       which is the light a marquee is actually for */
+    for(let i=0;i<16;i++){
+      const a = mA0+6+(mA1-mA0-12)*i/15;
+      ball(a, mOut+2, mZ1-4, 3.2, '#fff3c4');
+      ball(a, mOut+2, mZ0-3.5, 3.2, '#fff3c4');
+    }
+    for(let i=0;i<5;i++){
+      const b = 6+(mOut-14)*i/4;
+      ball(mA1+2, b, mZ1-4, 3.2, '#fff3c4');
+      ball(mA1+2, b, mZ0-3.5, 3.2, '#fff3c4');
+    }
+
+    /* ================= THE BLADE =================
+       A blade is read EDGE-ON from up the street, so its board lies in
+       the a plane and it projects into the street on b -- the opposite
+       of every other sign in this library. It rises from just above the
+       marquee to well over the parapet, which is what makes a theatre
+       findable from three blocks away. Its front edge at a 46, b 34 is
+       screen-a 12, inside the return. */
+    const bA0 = 46, bA1 = 66, bOut = 34, bZ0 = 170, bZ1 = H + 132;
+    T(bA0, bA1, 0, bOut, bZ1, shade(wall,1.5));                   // cap plate
+    S(bA1, 0, bOut, bZ0, bZ1, shade(wall,1.32));                  // the board
+    poly([P(bA0,bOut,bZ1),P(bA1,bOut,bZ1),
+          P(bA1,bOut,bZ0),P(bA0,bOut,bZ0)], shade(wall,1.05));    // leading edge
+    for(let i=0;i<7;i++)                                          // the name, vertically
+      S(bA1+0.6, 5, bOut-5, bZ1-16-i*26, bZ1-38-i*26, i%2 ? trim : cream);
+    for(let i=0;i<11;i++)                                         // bulbs down the edge
+      ball(bA1, bOut+2, bZ0+8+(bZ1-bZ0-16)*i/10, 3, '#fff3c4');
+    /* THE CROWN'S b ARGUMENTS WERE THE WRONG WAY ROUND. slab takes
+        (bFront, bBack) and draws its one F at bFront, so bFront has to
+        be the b NEARER the eye -- the larger one, since +b is toward the
+        street. Passed as (2, bOut-2) it painted the FAR face and left
+        the near one open, so the crown was a shell you could see into.
+        Every other call in the library reads (-1, -12); this one reads
+        (bOut-2, 2) because the blade lives on positive b. */
+    slab(bA0-4, bA1+4, bZ1, bZ1+12, bOut-2, 2, trim, shade(trim,.72), shade(trim,1.2));
+    ball((bA0+bA1)/2, bOut/2, bZ1+17, 7, trim);
+
     if(state.roof){
-      for(let i=0;i<3;i++)
-        slab(W*0.44+i*24, W*0.44+i*24+16, H+12, H+52, -52, -68, trim, shade(trim,.75), shade(trim,1.2));
-      box(W*0.70,W*0.94,-150,-110,H,H+22,'#8f969d','#787f86','#697077');
+      /* THE VENT WAS STACKED ON THE PLANT. At a W*0.46, b -210 its
+         screen-a is 308.8..322.8 and the box's is 321..332, so they
+         overlapped -- and the vent's depth key (a+b+z) is 125 against
+         the box's 238, meaning it stands well BEHIND the box and was
+         being drawn after it. Moved to a 60, b -160: screen-a 213..227,
+         clear of the box, of the attic step's 81..162 and of the
+         blade's 12..66. Order comes off depthSort rather than statement
+         sequence so the stacking cannot come back. */
+      depthSort([
+        { a: 60, b: -160, z: 229, draw: () => {
+            cyl(60, -160, H, H+4, 11, '#7d838a');
+            cyl(60, -160, H+4, H+42, 7, '#9aa0a6'); } },
+        { a: 171, b: -155, z: 222, draw: () =>
+            box(W*0.62, W*0.88, -180, -130, H, H+24, '#8f969d','#787f86','#697077') }
+      ]);
     }
     kerb(p,'none');
   }
