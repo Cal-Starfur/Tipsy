@@ -143,6 +143,43 @@ function drawChemist(p, c){
 }
 
 
+/* ================= SCALE REVIEW, OPEN =================
+   `zTodo` on a shop is its measured height in GAME STOREYS and means
+   the shop has not been sized against the game yet -- raise it when
+   that shop comes up for polish.
+
+   The measure. drawStoreUnit's wall runs 238..266, so STORE_H is 252
+   game units for one shop storey, and the lab draws through ZSCALE
+   1.5, which puts one shop storey at 168 LAB units. A shop's storey
+   count is therefore just H/168, and it can be read straight off the
+   number in the shop body.
+
+   Why it went unnoticed. The lab's framing pass solves K per shop, so
+   every shop fills the canvas whatever its height and a three storey
+   building looks exactly like a one storey one. Turn on TRUE SCALE in
+   the bench to see the real thing; that toggle is what surfaced this.
+
+   What the number does NOT say. It is a measurement, not a target. A
+   two storey bank wants 2, a bathhouse may genuinely be one -- what is
+   wrong is that the whole tall tier was set by eye, which is how 34 of
+   the 35 tall-flagged shops ended up between 0.92 and 1.87 storeys
+   while drawing two, three and four storey elevations. Decide the
+   target per shop against what its own facade depicts.
+
+   Worked example: Rooming house. It stood at H 226 = 1.35 storeys and
+   drew a shopfront plus THREE ranks of windows, so every floor came out
+   at 38 -- under a quarter of a storey, which is why the windows read
+   as stripes. Rebuilt as a shopfront-height ground storey of 120 plus
+   three residential storeys of 100 (shorter than a shop storey, the way
+   they are in the world), H 420 = 2.5. Its zTodo is gone because it has
+   been done.
+
+   The frontage does NOT move with the height. W is the block's frontage
+   unit and every building on a street shares it; a walk-up is tall and
+   narrow, and widening one would break drawStoreUnit's packing. Only z
+   changes.
+   ===================================================================== */
+
 const SHOPS = [
 {
   name:'Bakery', head:'Curved gable, brick flue, bunting on the arch',
@@ -1087,6 +1124,7 @@ const SHOPS = [
 },
 {
   name:'Cinema', tall:true,
+  zTodo:1.25,          // H 210 -- see SCALE REVIEW at the head of this file
   head:'Blade sign, wrapping marquee, recessed lobby, ticket booth',
   tags:['vertical blade','marquee that wraps the entry','changeable readerboard','bulb chase','island ticket booth','poster cases'],
   desc:'A picture palace rather than a shop with a sign on it: the facade steps back under the marquee, the booth stands out in the recess with the doors behind it, and the marquee carries letters round its return the way a real one does.',
@@ -1708,6 +1746,7 @@ const SHOPS = [
 },
 {
   name:'Bank', tall:true,
+  zTodo:1.24,          // H 208 -- see SCALE REVIEW at the head of this file
   head:'Colonnade, pediment, stone steps',
   tags:['round columns','solid pediment','stone steps','deep reveal','formal front'],
   desc:'The columns are turned cylinders with wider bases and capitals, standing clear of a recessed wall, so the colonnade self-shadows properly. The pediment is swept to a real thickness rather than being a painted triangle.',
@@ -1799,6 +1838,7 @@ const SHOPS = [
 },
 {
   name:'Chapel', tall:true,
+  zTodo:1.06,          // H 178 -- see SCALE REVIEW at the head of this file
   head:'Bell tower, rose window, arched door',
   tags:['pyramid spire','rose window','swept arch heads','stone banding','finial'],
   desc:'The spire is a four-sided pyramid with two faces visible, so it turns a corner against the sky instead of reading as a cardboard triangle. Arch heads over the lancets are swept bands with depth.',
@@ -1979,6 +2019,7 @@ const SHOPS = [
 },
 {
   name:'Post office', tall:true,
+  zTodo:1.11,          // H 186 -- see SCALE REVIEW at the head of this file
   head:'Flagpole, crest parapet, pillar box',
   tags:['flagpole and flag','crest parapet','counter windows','round pillar box','official palette'],
   desc:'The letterbox is a proper round pillar box with a domed cap and an aperture, and the flag hangs in the plane of its own pole rather than lying flat on the wall.',
@@ -2110,6 +2151,7 @@ const SHOPS = [
 },
 {
   name:'Bookshop', tall:true,
+  zTodo:1.23,          // H 206 -- see SCALE REVIEW at the head of this file
   head:'Jettied upper floor, ladder, hanging sign',
   tags:['overhanging upper storey','shaped brackets','sliding ladder','leaded panes','swinging sign'],
   desc:'The jetty brackets are shaped solids carrying the overhang, the ladder rails are tubes leaning on the shopfront, and the hanging sign is a board on an arm with its own thickness instead of a rotated rectangle.',
@@ -2302,6 +2344,7 @@ const SHOPS = [
 },
 {
   name:'Bathhouse', tall:true,
+  zTodo:1.04,          // H 174 -- see SCALE REVIEW at the head of this file
   head:'Onion dome, steam vents, tiled arch',
   tags:['onion dome on a drum','tiled arch entry','steam plumes','mosaic band','high windows'],
   desc:'The dome sits on a low round drum with a moulded base ring, the arch is swept to a real reveal, and the steam pipes are cylinders with collars.',
@@ -2400,6 +2443,7 @@ const SHOPS = [
 },
 {
   name:'Furniture showroom', tall:true,
+  zTodo:1.27,          // H 214 -- see SCALE REVIEW at the head of this file
   head:'Double-height glass, loading hoist, mezzanine',
   tags:['double-height glazing','sofa in the round','loft hoist','wide unit','open mezzanine'],
   desc:'The sofa is a set of boxes with seat, back and arms rather than stacked rectangles, the standard lamp has a real conical shade, and the hoist beam is a solid with a brace and a plumb hook.',
@@ -2540,6 +2584,7 @@ const SHOPS = [
 },
 {
   name:'Playhouse', tall:true,
+  zTodo:1.05,          // H 176 -- see SCALE REVIEW at the head of this file
   head:'Fly tower behind, poster columns, lamp canopy',
   tags:['solid fly tower','round poster columns','lamp canopy','stage door','mass behind the front'],
   desc:'The fly tower is a closed box with a returned side and a capped top, and the poster columns are cylinders with domed caps standing on the pavement.',
@@ -2590,6 +2635,7 @@ const SHOPS = [
 },
 {
   name:'Fire station', tall:true,
+  zTodo:1.06,          // H 178 -- see SCALE REVIEW at the head of this file
   head:'Drill tower, twin appliance doors, bell',
   tags:['hose drill tower','two tall bay doors','turned bell','red and cream','apron'],
   desc:'The bell is turned from a cylinder and a dome with a headstock and clapper, hanging in its bracket, and the drill tower is capped so it closes off against the sky.',
@@ -2666,6 +2712,7 @@ const SHOPS = [
 },
 {
   name:'Public house', tall:true,
+  zTodo:1.08,          // H 182 -- see SCALE REVIEW at the head of this file
   head:'Bow windows, twin chimneys, bracket sign',
   tags:['true bowed bays','chimney pots','hanging bracket sign','window boxes','tiled base'],
   desc:'The bows are built from surface quads swept round a real arc, with a curved head and cill following the same sweep, so they bulge instead of stepping. Chimneys get clay pots.',
@@ -2863,6 +2910,7 @@ const SHOPS = [
 },
 {
   name:'Clockmaker', tall:true,
+  zTodo:1.11,          // H 186 -- see SCALE REVIEW at the head of this file
   head:'Huge clock over the door, faces in the window',
   tags:['clock in the wall plane','swept pediment','clock faces','brass palette','narrow'],
   desc:'Both the big clock and the small faces lie in the wall plane with their hands drawn inside that same plane, and the pediment is swept to a thickness so it caps the parapet properly.',
@@ -3047,6 +3095,7 @@ const SHOPS = [
 },
 {
   name:'Brewery tap', tall:true,
+  zTodo:1.11,          // H 186 -- see SCALE REVIEW at the head of this file
   head:'Copper still through the glass, vent stacks',
   tags:['turned copper still','swan neck','vent stacks','cellar hatch','barrel'],
   desc:'The still is a turned copper pot with a domed head and a swan neck running to a condenser column, all as solids, and the vent stacks are cylinders with collars and cowls.',
@@ -3093,6 +3142,7 @@ const SHOPS = [
 },
 {
   name:'Print works', tall:true,
+  zTodo:1.05,          // H 176 -- see SCALE REVIEW at the head of this file
   head:'Paper roll, press through the glass, ink drums',
   tags:['turned paper roll','press rollers','ink drums','clock','industrial glazing'],
   desc:'The newsprint roll is a cylinder standing on end with a visible core, the press rollers are circles in the glass plane, and the ink drums are hooped cylinders on the pavement.',
@@ -3186,6 +3236,7 @@ const SHOPS = [
 },
 {
   name:'Pottery', tall:true,
+  zTodo:0.92,          // H 154 -- see SCALE REVIEW at the head of this file
   head:'Kiln chimney with smoke, arched kiln door',
   tags:['tapered round chimney','swept kiln arch','thrown pots','raw brick','smoke'],
   desc:'The chimney is a stack of tapering cylinders instead of flat rectangles, the kiln arch is swept to a real reveal, and the pots are thrown forms with rims and feet.',
@@ -3541,6 +3592,7 @@ const SHOPS = [
 },
 {
   name:'Dance studio', tall:true,
+  zTodo:1.27,          // H 214 -- see SCALE REVIEW at the head of this file
   head:'External stair up the flank, mirrored upper floor',
   tags:['built external stair','mirror wall upstairs','tube barre','tall upper glazing','landing'],
   desc:'The stair is built from tread slabs on a stringer with tube handrails and posts, and the barre is a tube on real brackets in front of the mirror.',
@@ -3626,6 +3678,7 @@ const SHOPS = [
 },
 {
   name:'Undertaker', tall:true,
+  zTodo:1.06,          // H 178 -- see SCALE REVIEW at the head of this file
   head:'Sober black front, urn finials, drawn blinds',
   tags:['turned urns','half-drawn blinds','black and grey','deep cornice','restrained'],
   desc:'The urns are turned — foot, bowl, neck and lid — standing on plinths, and the blinds hang inside the reveal with a real bottom rail rather than being painted on the glass.',
@@ -3810,6 +3863,7 @@ const SHOPS = [
 },
 {
   name:'Apartments over shop', tall:true,
+  zTodo:1.79,          // H 300 -- see SCALE REVIEW at the head of this file
   head:'Three storeys, iron balconies, washing lines',
   tags:['3 storey','built balconies','washing lines','shutters','shop below'],
   desc:'Each balcony is a stone floor slab with tube standards and a handrail, and the shutters stand off the reveal on their own thickness so they read as hinged open.',
@@ -3866,6 +3920,7 @@ const SHOPS = [
 },
 {
   name:'Department store', tall:true,
+  zTodo:1.87,          // H 314 -- see SCALE REVIEW at the head of this file
   head:'Three storeys, corner turret, deep canopy, flags',
   tags:['3 storey','turret on a drum','flagpoles','deep canopy','grid glazing'],
   desc:'The turret is a round drum with a proper dome and a finial, the canopy is a full wedge on round posts, and the mannequins in the window are turned bodies with ball heads.',
@@ -3929,6 +3984,7 @@ const SHOPS = [
 },
 {
   name:'Chambers', tall:true,
+  zTodo:1.74,          // H 292 -- see SCALE REVIEW at the head of this file
   head:'Three storeys of sash windows, brass plaques',
   tags:['3 storey','sash windows','brass plaques','stone cills','area railings'],
   desc:'Every cill is a stone slab with a return, the plaques stand off the wall, and the area railings are round standards with a proper top rail and finials.',
@@ -3971,6 +4027,7 @@ const SHOPS = [
 },
 {
   name:'Grand hotel', tall:true,
+  zTodo:1.76,          // H 296 -- see SCALE REVIEW at the head of this file
   head:'Three storeys, vertical HOTEL sign, entrance awning',
   tags:['3 storey','projecting sign box','bowed awning','juliet rails','corner quoins'],
   desc:'The sign is a box hung clear of the corner on brackets, the entrance awning is bowed with a valance and round posts, and the juliet rails are turned standards on stone cills.',
@@ -4030,6 +4087,7 @@ const SHOPS = [
 },
 {
   name:'School', tall:true,
+  zTodo:1.71,          // H 288 -- see SCALE REVIEW at the head of this file
   head:'Three storeys of tall windows, bellcote, railings',
   tags:['3 storey','tall classroom windows','turned bell','railed yard','plaque'],
   desc:'The bellcote is a solid with a gabled cap and the bell is turned inside it, and the yard railings are round standards with a top rail and gate posts.',
@@ -4078,6 +4136,7 @@ const SHOPS = [
 },
 {
   name:'Warehouse loft', tall:true,
+  zTodo:1.81,          // H 304 -- see SCALE REVIEW at the head of this file
   head:'Stacked loading doors, hoist beam, brick',
   tags:['3 storey','stacked loading doors','gantry hoist','brick pier bays','hanging crate'],
   desc:'The gantry is a boxed beam on a post with a diagonal brace, the hook hangs plumb on a chain, and the crate slung under it is a real box with banding.',
@@ -4125,6 +4184,7 @@ const SHOPS = [
 },
 {
   name:'Library', tall:true,
+  zTodo:1.6,          // H 268 -- see SCALE REVIEW at the head of this file
   head:'Tall arched upper windows, entrance steps',
   tags:['2 storey','swept arch heads','entrance steps','stone pilasters','plaque'],
   desc:'The arch heads are swept bands with a real reveal so the reading-room windows sit inside the wall, and the pilasters between them stand proud with capitals.',
@@ -4178,6 +4238,7 @@ const SHOPS = [
 },
 {
   name:'Car park', tall:true,
+  zTodo:1.73,          // H 290 -- see SCALE REVIEW at the head of this file
   head:'Three open decks, spiral ramp, no walls',
   tags:['3 open decks','helical ramp','round columns','cars with wheels','structural'],
   desc:'The ramp is a helix of real treads with an outer edge beam and a centre column, the deck columns are cylinders, and the cars have bodies, cabins and wheels.',
@@ -4228,6 +4289,7 @@ const SHOPS = [
 },
 {
   name:'Market hall', tall:true,
+  zTodo:1.38,          // H 232 -- see SCALE REVIEW at the head of this file
   head:'Barrel-vaulted glazed roof over a two-storey front',
   tags:['2 storey','barrel vault','tube ribs','arched entry','stalls'],
   desc:'The vault ribs are tubes standing proud of the glazing and the gable arch has a swept reveal, so the roof reads as a glasshouse frame rather than a painted curve.',
@@ -4308,6 +4370,7 @@ const SHOPS = [
 },
 {
   name:'Newspaper HQ', tall:true,
+  zTodo:1.79,          // H 300 -- see SCALE REVIEW at the head of this file
   head:'Rooftop globe, headline band, delivery bay',
   tags:['globe on a frame','running headline band','van bay','corner clock','3 storey'],
   desc:'The globe is a sphere with its meridians drawn as real rings around it, carried on a braced frame, and the headline band is a recessed box with the lit panels inside it.',
@@ -4370,6 +4433,7 @@ const SHOPS = [
 },
 {
   name:'Telephone exchange', tall:true,
+  zTodo:1.76,          // H 296 -- see SCALE REVIEW at the head of this file
   head:'Blank upper floors, louvre vents, cable gantry',
   tags:['louvred vents','no upper windows','built cable gantry','blank mass','3 storey'],
   desc:'The louvres are stacked blades with a shaded return, and the cable gantry is a bracketed frame off the flank with the cables sagging from it as real lines.',
@@ -4419,6 +4483,7 @@ const SHOPS = [
 },
 {
   name:'Police station', tall:true,
+  zTodo:1.74,          // H 292 -- see SCALE REVIEW at the head of this file
   head:'Blue lamp, barred ground floor, mast',
   tags:['turned blue lamp','round bars','entrance steps','radio mast','3 storey'],
   desc:'The lamp is a turned lantern with a domed cap on a bracket, the ground-floor bars are round rods set into the reveal, and the mast has real crossbars on a base plate.',
@@ -4473,6 +4538,7 @@ const SHOPS = [
 },
 {
   name:'Museum', tall:true,
+  zTodo:1.7,          // H 286 -- see SCALE REVIEW at the head of this file
   head:'Roof lantern, hanging banners, deep reveal',
   tags:['built roof lantern','hanging banners','recessed entry','stone piers','3 storey'],
   desc:'The lantern is a glazed box with upstands, a ridge and end walls, and the banners hang from tube rails with weighted bottom bars.',
@@ -4527,6 +4593,7 @@ const SHOPS = [
 },
 {
   name:'Textile mill', tall:true,
+  zTodo:1.82,          // H 306 -- see SCALE REVIEW at the head of this file
   head:'Round chimney, stair tower, regular bays',
   tags:['round brick chimney','projecting stair tower','swept loading arch','regular bays','3 storey'],
   desc:'The stair tower is a closed solid with a capped parapet, the loading arch is swept to a reveal, and the chimney tapers through five turned lifts to a cap.',
@@ -4577,6 +4644,7 @@ const SHOPS = [
 },
 {
   name:'Ballroom', tall:true,
+  zTodo:1.71,          // H 288 -- see SCALE REVIEW at the head of this file
   head:'Great arched window, deep canopy, globe lamps',
   tags:['swept arch','globe lamps','deep canopy','poster frames','3 storey'],
   desc:'The great window head is swept to a real reveal with a keystone, the canopy is a wedge on round posts, and the globe lamps are spheres on turned brackets.',
@@ -4637,6 +4705,7 @@ const SHOPS = [
 },
 {
   name:'Harbour office', tall:true,
+  zTodo:1.63,          // H 274 -- see SCALE REVIEW at the head of this file
   head:'Cupola lookout, external stair, weathervane',
   tags:['glazed cupola','pyramid cap','built external stair','weathervane','3 storey'],
   desc:'The cupola is a glazed drum on a plinth with a four-sided cap, and the stair is tread boxes on a stringer with a handrail up to a railed landing.',
@@ -4693,6 +4762,7 @@ const SHOPS = [
 },
 {
   name:'Cold store', tall:true,
+  zTodo:1.74,          // H 292 -- see SCALE REVIEW at the head of this file
   head:'Blank insulated box, external pipework, frost',
   tags:['windowless','round pipe runs','condenser fans','insulated hatch','3 storey'],
   desc:'The pipe runs are cylinders with flanged joints and a real elbow over the parapet, and the condensers are drums with fan discs recessed into their tops.',
@@ -4748,6 +4818,7 @@ const SHOPS = [
 },
 {
   name:'Almshouses', tall:true,
+  zTodo:1.56,          // H 262 -- see SCALE REVIEW at the head of this file
   head:'Arcaded ground floor, dormers, courtyard gate',
   tags:['swept arcade','dormers with cheeks','courtyard gate','chimney pots','3 storey'],
   desc:'Every arch in the arcade is swept to a real reveal on round piers, and each dormer is a solid box with cheeks and a pitched roof rather than a face on the slope.',
