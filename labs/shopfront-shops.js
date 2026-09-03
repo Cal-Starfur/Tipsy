@@ -281,7 +281,7 @@ const SHOPS = [
        jamb entirely and appeared to be sitting on the pavement. Negative
        b puts them back in the shop, behind the pane where they belong. */
     depthSort([0,1,2,3,4].map(i => ({
-      b: -7 - (i%2)*7, z: 0,
+      a: 34+i*19, b: -7 - (i%2)*7, z: 0,
       draw: () => cyl(34+i*19, -7 - (i%2)*7, gz1-64, gz1-42, 9, i%2 ? '#c98a4a' : '#b87a3c')
     })));
     const aPt = (t,bb) => {
@@ -551,7 +551,7 @@ const SHOPS = [
        last centre on 136 and its far face on 147, three units clear of
        the shelf end, with the gaps still equal at 4. */
     depthSort([0,1,2,3,4].map(i => ({
-      b: 16, z: 0,
+      a: 32+i*26, b: 16, z: 0,
       draw: () => cyl(32+i*26, 16, 74, 92, 11, ['#c2452e','#d8a12a','#5c8a3a'][i%3])
     })));
     shopDoor(W*0.88, wall, trim);
@@ -588,10 +588,10 @@ const SHOPS = [
          one depth and stand side by side, so the row is flat and sits
          under the canopy at b 8..30 instead of out in the road. */
       depthSort([
-        { b: 30, z: 0, draw: () => {
+        { a: 41, b: 30, z: 0, draw: () => {
             box(14,68, 8,30, 0,22, '#c98a4a','#a9703a','#8f5e31');
             for(let i=0;i<3;i++) cyl(26+i*17, 19, 22, 34, 7, ['#c2452e','#5c8a3a','#d8a12a'][i]); } },
-        { b: 30, z: 0, draw: () => {
+        { a: 103, b: 30, z: 0, draw: () => {
             box(76,130, 8,30, 0,22, '#c98a4a','#a9703a','#8f5e31');
             for(let i=0;i<3;i++) cyl(88+i*17, 19, 22, 34, 7, ['#d8a12a','#c2452e','#e0c24a'][i]); } }
       ]);
@@ -737,7 +737,7 @@ const SHOPS = [
     }
     if(state.props){
       depthSort([0,1,2].map(i => ({
-        b: 26, z: 0,
+        a: 30+i*40, b: 26, z: 0,
         draw: () => { cyl(30+i*40, 26, 0, 30, 4, '#7d838a'); cyl(30+i*40, 26, 30, 36, 11, '#c9903a'); }
       })));
     }
@@ -833,9 +833,9 @@ const SHOPS = [
          33/48/63 and b 23 puts every tin fully on the plate with 5
          units of crate showing all round. */
       depthSort([
-        { b: 40, z: 0, draw: () => box(20,74,8,40,0,18,'#6f665a','#5d5548','#4e473c') },
-        { b: 34, z: 0, draw: () => box(24,72,12,34,18,32,'#8a8272','#75705f','#635e50') },
-        { b: 23, z: 0, draw: () => { for(let i=0;i<3;i++) cyl(33+i*15, 23, 32, 46, 6, ['#7d838a','#8c8676','#6f665a'][i]); } }
+        { a: 47, b: 24, z: 9, draw: () => box(20,74,8,40,0,18,'#6f665a','#5d5548','#4e473c') },
+        { a: 48, b: 23, z: 25, draw: () => box(24,72,12,34,18,32,'#8a8272','#75705f','#635e50') },
+        { a: 48, b: 23, z: 39, draw: () => { for(let i=0;i<3;i++) cyl(33+i*15, 23, 32, 46, 6, ['#7d838a','#8c8676','#6f665a'][i]); } }
       ]);
     }
     if(state.roof){
@@ -856,34 +856,76 @@ const SHOPS = [
   draw(p){
     const wall = '#eef0e6', trim = '#4f7a4a', H = 156;
     body(wall, trim, H);
-    slab(0,W, H, H+10, -1, -10, trim);
-    reveal(12, W*0.66, 16, 104, 13, '#8fae9c');
-    F(18, W*0.60, 40, 46, '#dfe6d2', null,0, 1.6);                 // painted shelf line
-    glaze(12, W*0.66, 16, 104, null);
-    slab(8, W*0.66+4, 100, 108, -1, -9, shade(trim,1.25));
-    shopDoor(W*0.83, wall, trim, 'rgba(150,200,180,.5)');
-    slab(8,W-8, 108, 132, -1, -9, trim);
-    F(22,W-22, 113, 127, '#f4f6ee', null,0,-9.5);
-    const cz = 136, out = 34;
-    poly([P(4,0,cz+16),P(W-4,0,cz+16),P(W-4,out,cz),P(4,out,cz)], '#dfe6d2');
-    poly([P(4,0,cz+6),P(W-4,0,cz+6),P(W-4,out,cz-10),P(4,out,cz-10)], shade('#dfe6d2',.8));
-    poly([P(4,0,cz+16),P(4,out,cz),P(4,out,cz-10),P(4,0,cz+6)], shade(trim,1.5));
-    poly([P(W-4,0,cz+16),P(W-4,out,cz),P(W-4,out,cz-10),P(W-4,0,cz+6)], shade(trim,1.5));
+    /* THREE BANDS OVER THE RETURN, all the same fault: a slab at
+       negative b projects RIGHT on screen by its own depth, so the
+       margin has to beat the recess. The parapet ran 0..W at b -1..-10
+       and landed on screen-a 240 against a 230 return -- ten units of
+       coping on the flank -- and the sign band ran 8..W-8 at -1..-9 and
+       landed on 231, over by one. 16 clears both by 6. */
+    slab(16,W-16, H, H+10, -1, -10, trim);
+    /* THE TRELLIS HAD NOWHERE TO STAND, which is what put it through
+       the awning. It ran a 154.6..159.7 at b = -2 and z 18..150:
+         * b -2 is INTO the wall, so the whole thing was buried in the
+           facade and survived on paint order alone;
+         * z 150 took it up through the sign band at 108..132 and into
+           the canopy fascia at 126..152, which is the overlap;
+         * and 154.6 is inside the door surround, which began at 153.78.
+       There is no strip of wall between window and door wide enough for
+       it -- the door is 74 across with its surround and the window ran
+       to 151.8 -- so it moves to the left end, where a climbing trellis
+       belongs anyway, and everything else on the frontage shifts right
+       to make the room.
+       Window 12..W*0.66 -> 34..138, which leaves 8..24 for the trellis
+       with a 6-unit pier, and 4.88 to the door surround on the other
+       side. The trellis stands PROUD at b 2 and stops at z 104, under
+       the sign band, so nothing it does can reach the canopy. */
+    reveal(34, 138, 16, 104, 13, '#8fae9c');
+    F(44, 128, 40, 46, '#dfe6d2', null,0, -1.5);                   // shelf line, inside the pane
+    glaze(34, 138, 16, 104, null);
+    slab(30, 142, 100, 108, -1, -9, shade(trim,1.25));
+    /* THE DOOR WAS WRAPPING THE CORNER, same as the hardware store:
+       W*0.83 asks for 190.9 and the surround's far edge lands on 228
+       against a 230 return. 180 leaves a 12.88 pier. */
+    shopDoor(180, wall, trim, 'rgba(150,200,180,.5)');
+    slab(16,W-16, 108, 132, -1, -9, trim);
+    /* the panel goes ON the band, not behind it: the band's front face
+       is b -1 and its back is -9, and this sat at -9.5 */
+    F(24,W-24, 113, 127, '#f4f6ee', null,0,-0.5);
+    /* the trellis, on the left wall and clear of everything */
+    for(let i=0;i<6;i++) F(8, 24, 26+i*14, 29+i*14, shade(trim,1.2), null,0, 2);
+    for(const ax of [8, 21]) F(ax, ax+3, 18, 104, shade(trim,1.2), null,0, 2);
+    for(let i=0;i<6;i++) ball(16, 3, 30+i*12, 5, ['#d98a9e','#e8c34a','#f4f6ee'][i%3]);
+    /* A CANOPY CAN ONLY CROSS AT ONE END. Positive b shifts an item
+       LEFT on screen, so the far end of this one was never the problem
+       -- the near end was: a 4 at b 34 sat 30 units past the left
+       return, the whole bench gap, so the canopy lay on the neighbour's
+       facade. 24 leaves 10 over, the same as the grocer's. */
+    const cz = 136, out = 34, cA = 24, cB = W-8;
+    poly([P(cA,0,cz+16),P(cB,0,cz+16),P(cB,out,cz),P(cA,out,cz)], '#dfe6d2');
+    poly([P(cA,0,cz+6),P(cB,0,cz+6),P(cB,out,cz-10),P(cA,out,cz-10)], shade('#dfe6d2',.8));
+    poly([P(cA,0,cz+16),P(cA,out,cz),P(cA,out,cz-10),P(cA,0,cz+6)], shade(trim,1.5));
+    poly([P(cB,0,cz+16),P(cB,out,cz),P(cB,out,cz-10),P(cB,0,cz+6)], shade(trim,1.5));
     for(let i=0;i<9;i++){
-      const x0=4+(W-8)*i/9, x1=4+(W-8)*(i+1)/9, m=P((x0+x1)/2,out,cz-12);
+      const x0=cA+(cB-cA)*i/9, x1=cA+(cB-cA)*(i+1)/9, m=P((x0+x1)/2,out,cz-12);
       const l=P(x0,out,cz), r=P(x1,out,cz);
       ctx.beginPath(); ctx.moveTo(l.x,l.y);
       ctx.quadraticCurveTo(m.x,m.y+6,r.x,r.y); ctx.closePath();
       ctx.fillStyle = i%2 ? '#dfe6d2' : trim; ctx.fill();
     }
-    for(let i=0;i<6;i++) F(W*0.675,W*0.695, 18+i*22, 21+i*22, shade(trim,1.2), null,0,-2);
-    for(let i=0;i<2;i++) F(W*0.672+i*0.016*W, W*0.678+i*0.016*W, 18,150, shade(trim,1.2), null,0,-2);
-    for(let i=0;i<7;i++) ball(W*0.686, -3, 26+i*18, 5, ['#d98a9e','#e8c34a','#f4f6ee'][i%3]);
     if(state.props){
+      /* THE BUCKETS WERE IN TWO ROWS PRETENDING TO BE ONE. b alternated
+         22/32 down the run, which staggered them into a zigzag, and it
+         is also what exposed the depthSort fault -- with a varying and b
+         alternating, the old b-only key painted every other bucket over
+         the one standing in front of it. The row is flat now at one b of
+         22, which keeps b + r at 32 inside the canopy's 34, and the run
+         is laid against the frontage rather than started at a 8 where
+         the first bucket stood outside the canopy: centres 34 to 130 at
+         a step of 24 gives five even 4-unit gaps under the window. */
       depthSort([0,1,2,3,4].map(i => ({
-        b: 22 + (i%2)*10, z: 0,
+        a: 34+i*24, b: 22, z: 0,
         draw: () => {
-          const ba = 18+i*26, bb = 22 + (i%2)*10;
+          const ba = 34+i*24, bb = 22;
           cyl(ba, bb, 0, 24, 10, '#7d838a');
           plateCircle(ba, bb, 23, 8, '#3d5a3a');
           for(let j=0;j<3;j++){
