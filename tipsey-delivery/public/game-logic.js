@@ -18251,8 +18251,26 @@ class WorldScene extends Phaser.Scene {
         /* effective body point for the depth key and the layer test:
            a walking dog is not where its anchor is. Static kinds return
            null and use the anchor, which IS their position. */
+        /* THE SKID HAS TO COME FROM THE ANCHOR HERE TOO.
+           A city prop is drawn from its raw stamp cp.wx/cp.wy, unlike a
+           route hazard whose anchor is worldOf(hz.s + hz.slide, ...) --
+           so the stamp does not move when one is punted. That was
+           survivable only because the scooter/bin/planter draw fns each
+           re-added data.slide in model space, which is the very term
+           removed as a double-count: it IS a double-count on the route
+           pass, whose anchor already carries the skid, and it was the
+           ONLY thing moving a city prop. Net effect for Sir: route
+           props punted correctly and city props -- the ones actually
+           parked along the frontages you drive past in free roam --
+           stopped moving at all. ("punt isnt punting at all".)
+           hazSpotWorld folds both slide and slideB onto the stamp, and
+           it is the same function owSep's fallback uses for the HITBOX,
+           so art and collision come from one call and cannot drift.
+           Zero on an untouched prop, so an unpunted city stays put. */
         const eff = hazWorldAt(t, cp);
-        const ebx = eff ? eff.x : cp.wx, eby = eff ? eff.y : cp.wy;
+        const _cw = eff ? null : hazSpotWorld(cp, 0, 0);
+        const ebx = eff ? eff.x : (_cw ? _cw.x : cp.wx),
+              eby = eff ? eff.y : (_cw ? _cw.y : cp.wy);
         /* swept by the course corridor -- same pure test the contact
            pass runs, on the same effective point, so what is drawn and
            what is solid can never disagree. */
@@ -18265,7 +18283,10 @@ class WorldScene extends Phaser.Scene {
           const kR = Math.min(kd, ct === "scooter" ? 30 : 28);
           ltx += kx/kd*kR; lty += ky/kd*kR;
         }
-        const cx = cp.wx, cy = cp.wy, cf = cp.f, cobj = cp;
+        /* draw anchor = the skidded stamp, same point the depth key and
+           the layer test above just used. */
+        const cx = _cw ? _cw.x : (eff ? eff.x : cp.wx),
+              cy = _cw ? _cw.y : (eff ? eff.y : cp.wy), cf = cp.f, cobj = cp;
         /* PER-PROP SCREEN GATE. The block is on screen or we would not
            be in this method, but a block is far larger than the visible
            diamond, so most of its frontage furniture is off screen even
