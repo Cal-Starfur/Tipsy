@@ -2108,37 +2108,119 @@ const SHOPS = [
   }
 },
 {
-  name:'Newsstand', head:'Low kiosk, wide canopy, paper racks',
-  cTodo:'2 pavement props need collision volumes, 31 of them lapping past the frontage',
-  tags:['half height','small footprint','wide overhang','paper racks','scale contrast'],
-  desc:'The canopy has an underside and returns and rests on round posts, and the paper racks are sloped trays with a real lip rather than tilted cards.',
+  name:'Newsagent', head:'Full shopfront, headline placards, rack of papers',
+  tags:['full unit','glazed front','sloping paper racks','placard boards','fascia set out in screen space'],
+  desc:'A shop rather than a kiosk: full frontage, full depth, one shopfront storey, with the papers racked on the pavement under its own awning instead of on the neighbour.',
   draw(p){
-    const wall = '#2f6350', trim = '#e8c34a', H = 104, WW = 150, DD = 120;
-    body(wall, trim, H, WW, DD);
-    slab(0,WW, H, H+8, -1, -10, trim);
-    F(10,WW-10, 34, 88, '#1e3d33', shade(trim,.8), 3);
-    slab(10,WW-10, 84, 92, -1, -7, trim);
-    const c0 = -34, c1 = WW+34, out = 58;
-    poly([P(c0,0,H+8),P(c1,0,H+8),P(c1,out,H-8),P(c0,out,H-8)], trim);
-    poly([P(c0,out,H-8),P(c1,out,H-8),P(c1,out,H-20),P(c0,out,H-20)], shade(trim,.75));
-    poly([P(c0,0,H-4),P(c1,0,H-4),P(c1,out,H-20),P(c0,out,H-20)], shade(trim,.6));
-    poly([P(c0,0,H+8),P(c0,out,H-8),P(c0,out,H-20),P(c0,0,H-4)], shade(trim,.55));
-    poly([P(c1,0,H+8),P(c1,out,H-8),P(c1,out,H-20),P(c1,0,H-4)], shade(trim,.55));
-    for(const aa of [c0+6, c1-6]) cyl(aa, out-4, 0, H-14, 3, '#7d838a');
-    if(state.props){
-      for(let i=0;i<3;i++){
-        const z = 22+i*22;
-        poly([P(-30,10,z+18),P(-4,10,z+18),P(-4,34,z+8),P(-30,34,z+8)], '#e8e3d6');
-        poly([P(-30,34,z+8),P(-4,34,z+8),P(-4,34,z+3),P(-30,34,z+3)], '#c2bcac');
-        for(let j=0;j<3;j++)
-          poly([P(-28+j*8,11,z+17),P(-22+j*8,11,z+17),P(-22+j*8,33,z+7),P(-28+j*8,33,z+7)],
-               ['#c2452e','#3b6e75','#e8c34a'][j]);
-      }
-      for(let i=0;i<4;i++) slab(WW+6+i*9, WW+12+i*9, 24, 74, 22, 18,
-        ['#c2452e','#e8c34a','#3b6e75','#e8e3d6'][i]);
-      F(WW*0.30,WW*0.70, 92, 100, '#f2ece0', null,0,-7.5);
+    /* ================= IT WAS A KIOSK IN A ROW OF SHOPS =================
+       The old unit was built for scale contrast -- its own tags said
+       "half height", "small footprint" -- and that does not survive
+       contact with a packed commercial edge:
+
+         frontage 150 against the packer's 202.4 slot  = 0.74 of one,
+                  so it leaves a hole in a run that has no gaps
+         depth    120 against STORE_DEPTH 276          = 0.43, and the
+                  block behind shows straight through
+         height   104 against one shop storey of 168   = 0.62
+
+       And it did not stay inside itself. The canopy ran a -34 to 184
+       at out 58, which puts its near end on screen-a -92: ninety-two
+       units standing on the neighbour. Both prop racks sat entirely
+       outside 0..150 as well.
+
+       Rebuilt as a building, on the rules the rest of the library has
+       been settling: full W and D, H 184 (1.10 storeys, so no zTodo),
+       a door with a 13 corner pier, an awning that overhangs by the
+       usual 10, a fascia whose margin beats its recess, and every
+       pavement prop inside the frontage. */
+    const wall = '#2f6350', trim = '#e8c34a', H = 184;
+    const dark = '#16241f', paper = '#e8e3d6';
+    body(wall, trim, H);
+    slab(0, W, H, H+12, -1, -12, shade(wall,.62), shade(wall,.5), shade(wall,.8));
+    slab(W*0.32, W*0.68, H+12, H+30, -1, -10, shade(wall,.62), shade(wall,.5), trim);
+    F(W*0.37, W*0.63, H+17, H+25, trim, null, 0, -0.5);
+
+    /* ---- the fascia, set out in screen space ----
+       board face b -1 spans screen 17..215, centre 116; the lettering
+       goes PROUD at -0.5 and is centred on that, not on `a`. Margin 16
+       against a depth of 9 puts the return on 223, seven clear. */
+    slab(16, W-16, 138, 164, -1, -9, shade(wall,.5), shade(wall,.4), shade(wall,.72));
+    F(30.5, 201.5, 144, 158, trim, null, 0, -0.5);
+    /* -0.9 would have put these BEHIND the panel they sit on at -0.5,
+       the same fault the fascia census counts 29 times. Proud, at -0.2. */
+    for(let i=0;i<6;i++) F(38+i*28, 54+i*28, 147, 155, shade(wall,.5), null, 0, -0.2);
+
+    /* ---- the shopfront ---- */
+    /* ================= THE DISPLAY GOES INSIDE =================
+       The rack and the placards were on the pavement. Inside the window
+       they stop being obstacles Tipsy can hit -- this shop's collision
+       register goes to nothing -- and the shopfront gets the depth it
+       was missing: back wall, rack, placards, then the pane over all of
+       it, four planes instead of a tinted sheet with nothing behind.
+
+       EVERYTHING BEHIND THE OPENING IS BOUNDED BY THE OPENING, so the
+       interior is clipped to it -- the rule reveal() follows. My first
+       cut drew the magazines at b -24 with no clip, and a plate at -24
+       projects right by 24, so the row ran 18 units past the opening's
+       own edge and out onto the wall. */
+    reveal(12, 138, 20, 112, 26, dark);
+    ctx.save();
+    poly([P(12,0,112),P(138,0,112),P(138,0,20),P(12,0,20)]);
+    ctx.clip();
+    for(let r=0;r<3;r++) for(let c=0;c<5;c++)          // magazines on the back wall
+      F(18+c*24, 34+c*24, 40+r*24, 62+r*24,
+        ['#c2452e','#3b6e75','#e8c34a','#e8e3d6','#8a5a34'][(r+c)%5], null, 0, -25);
+    /* the rack, standing on the cill the reveal leaves at z 20. Trays
+       slope DOWN toward the street -- back edge high at b -24, front lip
+       low at -8 -- which is what presents a paper to someone outside. */
+    for(const fa of [22, 108]) box(fa-3, fa+3, -24, -8, 20, 104, shade('#5a4a3a',1.1), '#5a4a3a', '#493c2f');
+    for(let i=0;i<3;i++){
+      const z = 34+i*24;
+      poly([P(22,-24,z+16),P(108,-24,z+16),P(108,-8,z+6),P(22,-8,z+6)], paper);
+      poly([P(22,-8,z+6),P(108,-8,z+6),P(108,-8,z),P(22,-8,z)], shade(paper,.8));
+      for(let j=0;j<5;j++)
+        poly([P(26+j*17,-23.4,z+15),P(38+j*17,-23.4,z+15),
+              P(38+j*17,-8.6,z+5),P(26+j*17,-8.6,z+5)],
+             ['#c2452e','#3b6e75','#e8c34a','#e8e3d6','#8a5a34'][(i+j)%5]);
     }
-    if(state.roof) box(WW*0.30,WW*0.62,-70,-40,H+8,H+20,'#8f969d','#787f86','#697077');
+    for(let i=0;i<2;i++){                              // placards against the back wall
+      const pa = 112+i*13;
+      poly([P(pa,-10,20),P(pa+11,-10,20),P(pa+11,-24,74),P(pa,-24,74)], paper);
+      for(let k=0;k<3;k++)
+        poly([P(pa+2,-24.4+3.4*k,66-k*17),P(pa+9,-24.4+3.4*k,66-k*17),
+              P(pa+9,-24.4+3.4*k,62-k*17),P(pa+2,-24.4+3.4*k,62-k*17)], shade(paper,.5));
+    }
+    ctx.restore();
+    /* THE PANE HAD TO GIVE. glaze defaults to nearly opaque on purpose --
+       its own note says the pane hides the fact that there is no room
+       behind it -- but here there IS something behind it, and hiding a
+       rack we just built is work for no picture. A 0.38 tint keeps the
+       glass reading as glass while the display stays legible through
+       it. Same call the record shop makes for its sleeves. */
+    glaze(12, 138, 20, 112, trim, 'rgba(118,162,182,.38)');
+    slab(8, 142, 112, 118, -1, -8, shade(wall,.72));   // window head
+    F(0, W, 0, 20, shade(wall,.78), null, 0, -0.4);    // stallriser
+    for(let i=0;i<9;i++) F(6+i*25, 8+i*25, 0, 20, shade(wall,.6), null, 0, -0.8);
+    shopDoor(179.88, wall, trim, 'rgba(120,170,150,.55)');
+
+    /* ---- the awning, over the racks ---- */
+    const wA0 = 22, wA1 = 222, wOut = 32, wZ0 = 118, wZ1 = 134;
+    T(wA0, wA1, 0, wOut, wZ1, shade(trim,.7));
+    poly([P(wA0,wOut,wZ1),P(wA1,wOut,wZ1),P(wA1,wOut,wZ0),P(wA0,wOut,wZ0)], trim);
+    poly([P(wA1,0,wZ1),P(wA1,wOut,wZ1),P(wA1,wOut,wZ0),P(wA1,0,wZ0)], shade(trim,.82));
+    for(let i=0;i<10;i++)
+      poly([P(wA0+6+(wA1-wA0-12)*i/10, wOut+0.5, wZ0+3),
+            P(wA0+16+(wA1-wA0-12)*i/10, wOut+0.5, wZ0+3),
+            P(wA0+16+(wA1-wA0-12)*i/10, wOut+0.5, wZ0+11),
+            P(wA0+6+(wA1-wA0-12)*i/10, wOut+0.5, wZ0+11)], shade(trim,.66));
+
+    /* NO PAVEMENT PROPS. The rack and the placards are inside the
+       window now, so this shop stands nothing on the ground for Tipsy
+       to hit and carries no collision register at all. */
+    if(state.roof){
+      box(W*0.34, W*0.58, -150, -110, H, H+22, '#8f969d','#787f86','#697077');
+      cyl(W*0.76, -190, H, H+34, 6, '#7d838a');
+    }
     kerb(p,'none');
   }
 },
