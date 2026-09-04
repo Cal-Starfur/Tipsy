@@ -511,7 +511,19 @@ function body(wall, trim, H, wid, dep){
 
    Everything is on the frontage plane within 1.2 units. No slab, no
    return, so nothing casts a second little building onto the flank. */
-function shopDoor(aMid, wall, trim, glass, wid, base){
+/* HALF DOORS ARE A DOOR, NOT A DECORATION. The cantina had a pair of
+   saloon leaves painted onto a full shopfront door, so the shop had two
+   doors in one opening and neither read. A half door REPLACES the leaf:
+   the opening stays open above and below it, which is the whole point
+   of one, and that gap is what has to survive into the game.
+
+   FOR THE PORT. drawShopDoor swings a single leaf on an SL hinge
+   (SHOPDOOR_ART.openAngle). A half door is two leaves hinged at
+   OPPOSITE jambs, both swinging out, over a band that covers roughly
+   z 0.26..0.70 of the opening -- so the worker passes through a gap
+   that is already partly open, and the dark above and below the leaves
+   must not be filled in. Same hinge maths, twice, mirrored. */
+function shopDoor(aMid, wall, trim, glass, wid, base, opts){
   /* wid: some shops are drawn on a narrower unit (Tailor WW=170,
      Newsstand WW=150), so the clamp has to be against THEIR frontage,
      not the default W, or the door slides off the end of the wall. */
@@ -541,6 +553,23 @@ function shopDoor(aMid, wall, trim, glass, wid, base){
         P(a0+(a1-a0)*0.20,0.5,z+dH-26),P(a0+2,0.5,z+dH-26)],
        'rgba(240,250,254,.17)');
   F(a0+2, a1-2, z+dH-30, z+dH-26, shade(trim,.8), null,0,0.7);    // transom rail
+  if(opts && opts.half){
+    /* two leaves, hinged at opposite jambs, over the middle band only */
+    const h0 = z + dH*0.26, h1 = z + dH*0.70, mA = (a0+a1)/2;
+    for(const [la0,la1] of [[a0+2, mA-1], [mA+1, a1-2]]){
+      F(la0, la1, h0, h1, trim, null, 0, 0.6);
+      F(la0, la1, h1-5, h1, shade(trim,.74), null, 0, 0.78);      // top rail
+      F(la0, la1, h0, h0+5, shade(trim,.74), null, 0, 0.78);      // bottom rail
+      for(let k=1;k<3;k++){
+        const zz = h0 + 5 + (h1-h0-10)*k/3;
+        F(la0+2, la1-2, zz-1, zz+1, shade(trim,.62), null, 0, 0.82);
+      }
+    }
+    for(const ha of [a0+4, a1-4])                                  // hinge straps
+      for(const zz of [h0+7, h1-9])
+        F(ha-1.5, ha+9, zz-1.6, zz+1.6, shade(trim,.5), null, 0, 0.9);
+    return { a0, a1, dH, half:true, h0, h1 };
+  }
   F(a0+2, a1-2, z, z+dH-30, trim, null, 0, 0.6);                  // leaf
   for(let k=0;k<2;k++)
     F(a0+8, a1-8, z+dH*0.07+k*dH*0.36, z+dH*0.30+k*dH*0.36, shade(trim,1.18), shade(trim,.7), 1.5, 0.9);
