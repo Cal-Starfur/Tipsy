@@ -2457,43 +2457,141 @@ const SHOPS = [
   }
 },
 {
-  name:'Fuel station', head:'Forecourt canopy on posts, pumps, low kiosk',
-  cTodo:'9 pavement props need collision volumes',
-  tags:['forecourt canopy','round posts','pumps with hoses','price totem','widest footprint'],
-  desc:'The canopy is a slab with a fascia, an underside and returns, carried on round posts, and each pump has a nozzle on a hose rather than a painted panel.',
+  name:'Fuel station', ww: T2*4.4,
+  wTodo:'two packing slots',
+  cTodo:'4 pavement props need collision volumes',   // 2 canopy posts, 2 pumps
+  head:'Kiosk on one slot, forecourt lot on the other',
+  tags:['two packing slots','forecourt is a side lot, not the pavement','pump island','pumps turned side-on','laid out on one grid'],
+  desc:'The kiosk takes the first slot and the second is an open lot the same depth as the building, with the canopy, its posts and the pump island all set out from the lot rectangle rather than placed by eye.',
   draw(p){
-    const wall = '#e6e8e6', trim = '#c2452e', H = 116;
-    body(wall, trim, H, W, D);
-    slab(0,W, H, H+8, -1, -10, trim);
-    F(14,W*0.62, 20, 90, '#7fb0c4', shade(wall,.6), 3);
-    shopDoor(W*0.83, wall, trim);
-    F(W*0.72,W-18, 48, 86, '#7fb0c4', null,0,-6.5);
-    slab(8,W-8, 96, 112, -1, -8, trim);
-    const cb0 = 40, cb1 = 150, cz = 168;
-    for(const aa of [24, W-24]) for(const bb of [cb0+14, cb1-14]) cyl(aa, bb, 0, cz-16, 6, '#b9bcc0');
-    T(-16, W+16, cb0, cb1, cz, '#f2f2f0');
-    F(-16, W+16, cz-16, cz, '#f2f2f0', shade(wall,.7), 2, cb0);
-    F(-16, W+16, cz-16, cz-11, trim, null,0, cb0-0.6);
-    poly([P(-16,cb0,cz-16),P(W+16,cb0,cz-16),P(W+16,cb1,cz-16),P(-16,cb1,cz-16)], shade('#f2f2f0',.7));
-    S(W+16, cb0, cb1, cz-16, cz, shade('#f2f2f0',.82));
-    S(-16, cb0, cb1, cz-16, cz, shade('#f2f2f0',.82));
-    if(state.props){
-      for(const aa of [W*0.26, W*0.66]){
-        box(aa-16,aa+16, 78, 104, 0, 62, '#d9dbd9','#c2452e','#a53a26');
-        F(aa-11,aa+11, 30, 52, '#2b2f33', null,0, 77);
-        F(aa-9,aa+9, 34, 48, '#7fe0c0', null,0, 76);
-        // hose looping down to a nozzle on the flank
-        ctx.strokeStyle='#2b2f33'; ctx.lineWidth=3;
-        const h0=P(aa+16,90,54), h1=P(aa+30,90,16);
-        ctx.beginPath(); ctx.moveTo(h0.x,h0.y);
-        ctx.quadraticCurveTo(h0.x+22*K, h0.y+26*K, h1.x, h1.y); ctx.stroke();
-        box(aa+26,aa+36, 84, 96, 12, 22, '#8d949a','#a2a8ae','#7d838a');
-      }
-      cyl(W*0.06, 176, 0, 96, 5, '#b9bcc0');
-      slab(W*0.0, W*0.20, 96, 152, 172, 182, trim, shade(wall,.7), shade(trim,1.2));
-      for(let i=0;i<3;i++) F(W*0.03, W*0.17, 104+i*15, 116+i*15, '#f2f2f0', null,0, 171.5);
-    }
-    if(state.roof) box(W*0.20,W*0.44,-120,-80,H,H+20,'#9aa0a6','#7d838a','#6a7076');
+    /* ================= THE FORECOURT IS A LOT, NOT A PAVEMENT
+       =================
+       The original put the canopy at a -16..246 and b 40..150, which is
+       screen-a -166..206 against a 230 frontage: a hundred and sixty
+       six units of canopy standing on the shop to the left, with the
+       pumps and the totem out on the sidewalk beside it.
+
+       Widening to two slots was right; moving the forecourt to positive
+       b was still wrong, because positive b is the PAVEMENT -- the band
+       Tipsy drives down. A filling station forecourt is the open LOT
+       beside the building. The unit footprint is a 0..404.8 by b 0..-276,
+       so a lot at negative b sits inside the unit's own ground and off
+       the sidewalk completely. Negative b shifts RIGHT on screen, so
+       the lot runs screen 180..585 -- fine, because the unit's ground
+       runs 0..681. The return test that governs the FRONT wall does not
+       apply to things standing inside the footprint.
+
+       EVERYTHING IN THE LOT IS SET OUT FROM THE LOT, not placed by eye.
+       One rectangle, and every part of the forecourt derived from it:
+
+         lot      a 180..404.8   b 0..-180
+         canopy   inset 8 from the lot on all four sides
+         posts    inset 20 from the canopy corners
+         island   centred on the lot, 48 by 108
+         pumps    at a third and two thirds along the island
+
+       Which means the spacing is a consequence rather than a decision,
+       and moving the lot moves everything correctly. */
+    /* ================= THE KIOSK WAS NOT SCALED TO ITS OWN DOOR
+       =================
+       shopDoor is a fixed size -- 66.24 wide and a head at 114.95 with
+       its surround -- and the kiosk was 150 by 116. That is a door head
+       at 99% of the wall height, and since the fascia sat 96..112 the
+       door came out THROUGH the sign band and finished 3 above it. In
+       plan it was no better: 74.24 of surround in a 150 frontage is
+       half the shop.
+
+       Sized to the door instead. 180 by 152 puts the head at 76% of the
+       wall with a clear fascia at 120..146 above it, and the surround
+       at 41% of the frontage with a 13 corner pier and a 74-wide window
+       beside it. The kiosk now ends exactly where the lot begins at 180,
+       so the two slots meet rather than overlap, and its door's right
+       edge lands on screen-a 167 against a canopy whose near edge is at
+       196 -- still 29 clear. */
+    const WW = T2*4.4, KW = 180;
+    /* THE LOT RUNS THE SHOP'S OWN DEPTH. It stopped at -180 against a
+       building that runs to -276, so the kiosk stuck 96 out behind its
+       own forecourt. LB is D now, and the canopy, apron, island and
+       posts all follow because they are derived from it. */
+    const LA0 = 180, LA1 = WW, LB = -T2*3;
+    const wall = '#e6e8e6', trim = '#c2452e', H = 152;
+    body(wall, trim, H, KW);
+    slab(0, KW, H, H+10, -1, -10, trim);
+    slab(12, KW-12, 120, 146, -1, -8, trim);
+    F(24, KW-24, 126, 140, '#f2f2f0', null, 0, -0.5);
+    F(14, 88, 24, 112, '#7fb0c4', shade(wall,.6), 3);
+    slab(8, 94, 112, 118, -1, -7, shade(wall,.72));             // window head
+    shopDoor(129.88, wall, trim);                               // 13 corner pier, 4.76 to the window
+    S(KW, 0, LB, 0, H, shade(wall,.78));                        // the flank the lot looks at
+
+    /* ---- the apron ---- */
+    T(LA0, LA1, 0, LB, 0.4, '#d6d8d6');
+    for(let i=1;i<4;i++) T(LA0, LA1, LB*i/4-0.8, LB*i/4+0.8, 0.6, '#c6c9c6');
+
+    const cA0 = LA0+8, cA1 = LA1-8, cb0 = -8, cb1 = LB+8;
+    const iC = (LA0+LA1)/2;                                     // island centre
+
+    /* the island is the plate everything else stands ON, so it is drawn
+       before the sort rather than inside it. A 144-long kerb has no
+       single depth to sort by: keyed at its centre it paints over the
+       pump at its far end and under the one at its near end. */
+    box(iC-26, iC+26, LB*0.76, LB*0.24, 0, 9, '#c6c9c6','#b4b8b4','#a2a6a2');
+
+    /* ================= STACKING: THE KEY IS THE GROUND, NOT THE CENTRE
+       =================
+       depthSort keys on a + b + z, and z was each object's centre. A
+       172-tall post came out at z 86 against a 61-tall pump at z 39, so
+       the post gained 47 of key over it -- more than the 40 of b that
+       actually separated them. The far post (key 228) sorted after the
+       far pump (221) and was painted over it, forty units in front of
+       where it stands.
+       Everything in this lot stands ON THE GROUND, so its depth is
+       a + b and nothing else. z is passed as 0 and only ever breaks a
+       tie between two things at the same spot. */
+    depthSort([
+      /* price totem removed at Sir's direction. */
+      ...[LB*0.41, LB*0.59].map(bb => ({ a: iC, b: bb, z: 0, draw: () => {
+          /* THE PUMPS ARE TURNED 90 DEGREES: long in b, narrow in a,
+             with the dial on the a face, so they read side-on to the
+             street the way a pump on an island does. */
+          box(iC-10, iC+10, bb-15, bb+15, 9, 70, '#d9dbd9','#c2452e','#a53a26');
+          S(iC+10.6, bb-11, bb+11, 30, 58, '#2b2f33');
+          S(iC+11.2, bb-9, bb+9, 34, 54, '#7fe0c0');
+          ctx.strokeStyle='#2b2f33'; ctx.lineWidth=3;
+          const h0=P(iC+10, bb, 62), h1=P(iC+34, bb+8, 34);
+          ctx.beginPath(); ctx.moveTo(h0.x,h0.y);
+          ctx.quadraticCurveTo(h0.x+14*K, h0.y+12*K, h1.x, h1.y); ctx.stroke(); } })),
+      /* THE CANOPY IS CARRIED ON THE ISLAND, not on four corner posts:
+         with a central island any corner post crosses the middle of the
+         lot on screen and runs through the pumps. These two land either
+         side of them. */
+      ...[LB*0.28, LB*0.72].map(pb => ({ a: iC, b: pb, z: 0,
+          draw: () => {
+            /* THE POSTS WERE BURIED IN THEIR OWN ISLAND. Both the shaft
+               and its collar started at z 0, but the island kerb is
+               0..9, so the shaft's foot was inside the kerb and the
+               collar -- a flat 10-tall disc -- surfaced just above it
+               and read as a cup left on the ground.
+               A post standing on a plinth starts at the plinth. Square
+               pad on the kerb at 9..17, a tapered collar 17..30, then
+               the shaft: three courses, each narrower than the one
+               under it, which is what a base is. */
+            box(iC-15, iC+15, pb-15, pb+15, 9, 17, '#c6c9c6','#b0b4b0','#9ea29e');
+            cyl(iC, pb, 17, 30, 12, '#b0b4b0');
+            cyl(iC, pb, 30, 172, 9, '#b9bcc0');
+          } }))
+    ]);
+
+    /* ---- the canopy ---- */
+    const CZ = 190;
+    T(cA0, cA1, cb1, cb0, CZ, '#f2f2f0');
+    poly([P(cA0,cb0,CZ-18),P(cA1,cb0,CZ-18),
+          P(cA1,cb1,CZ-18),P(cA0,cb1,CZ-18)], shade('#f2f2f0',.7));
+    F(cA0, cA1, CZ-18, CZ, '#f2f2f0', shade(wall,.7), 2, cb0);
+    F(cA0, cA1, CZ-18, CZ-12, trim, null, 0, cb0+0.6);
+    S(cA1, cb1, cb0, CZ-18, CZ, shade('#f2f2f0',.82));          // near end only
+
+    if(state.roof) box(40, 128, -150, -110, H, H+22, '#9aa0a6','#7d838a','#6a7076');
     kerb(p,'none');
   }
 },
