@@ -2967,22 +2967,144 @@ const SHOPS = [
     const wall = '#3d3346', trim = '#c9a24a', H = 176, WW = 178;
     body(wall, trim, H, WW);
     slab(0,WW, H, H+10, -1, -12, shade(wall,.7));
-    slab(4,WW-4, 116, H-8, -1, -10, shade(wall,1.25), null, trim);
-    F(16,WW-16, 126, 152, trim, null,0,-10.5);
-    F(12,WW*0.60, 22, 104, '#6a7f96', shade(wall,1.5), 3);
-    for(let i=0;i<6;i++) tube(14+i*((WW*0.58-14)/6), -4, 22, 14+i*((WW*0.58-14)/6), -4, 104, 1.4, shade(wall,1.15));
-    for(let i=0;i<3;i++) tube(12, -4, 34+i*24, WW*0.60, -4, 34+i*24, 1.2, shade(wall,1.15));
-    shopDoor(WW*0.81, wall, trim, null, WW);
-    F(WW*0.70,WW-14, 52, 94, '#6a7f96', null,0,-6.5);
-    tube(WW*0.075, -2, 112, WW*0.075, -26, 112, 1.8, '#4a4f55');
-    tube(WW*0.02, -26, 112, WW*0.16, -26, 112, 1.6, '#4a4f55');
-    for(const [ba,bz] of [[WW*0.05,96],[WW*0.12,96],[WW*0.085,78]]){
-      tube(ba, -26, 110, ba, -26, bz+11, 0.9, '#4a4f55');
-      ball(ba, -26, bz, 11, trim);
+    /* MARGIN 4 AGAINST A RECESS OF 10. The board ran 4..WW-4 at b -1..
+       -10 and landed screen-a 5..184 on a 178 frontage -- six past the
+       far return. Rule 1 again: a slab at negative b projects RIGHT by
+       its own depth, so the a-margin has to beat it. Margin 12 puts it
+       on 13..176 with 2 of pier at each end. */
+    slab(12,WW-12, 116, H-8, -1, -10, shade(wall,1.25), null, trim);
+    /* THE LETTERING WAS BEHIND THE BOARD IT IS PAINTED ON. b -10.5
+       against a board whose back face is -10 -- inside the board,
+       surviving on call order alone, and gone the moment anything
+       depth-sorts it. Class B of the fascia check, and the same fault
+       as the chemist cross that sat behind its own band.
+
+       The panel goes proud of the board face at -0.5 instead, and once
+       it is at a different depth its screen span moves, so it is set
+       out in SCREEN space: the board now reads 13..176, and the panel
+       at b -0.5 has screen-a = a + 0.5, so a 22.5..165.5 gives 23..166
+       -- 10 of board showing at both ends. Centred in z on the board
+       too, 129..155 about 142, which it was not before.
+
+       THE PANEL HAD TO GO DARK ONCE THE SIGN CAME UP. The plate was
+       `trim` and so are the balls, so raising the emblem onto the board
+       put gold on gold and the three balls very nearly vanished -- the
+       render showed it immediately and no measurement would have. A
+       dark plate at shade(wall,.7) with the gold band around it reads
+       as a name board and gives the emblem something to sit against,
+       which is the usual pawnbroker arrangement anyway. */
+    F(22.5,165.5, 129, 155, shade(wall,.7), null,0,-0.5);
+    F(12,WW*0.52, 22, 104, '#6a7f96', shade(wall,1.5), 3);   // see the door note below
+    for(let i=0;i<6;i++) tube(14+i*((WW*0.50-14)/6), -4, 22, 14+i*((WW*0.50-14)/6), -4, 104, 1.4, shade(wall,1.15));
+    for(let i=0;i<3;i++) tube(12, -4, 34+i*24, WW*0.52, -4, 34+i*24, 1.2, shade(wall,1.15));
+    /* THE DOOR WAS BEING CLAMPED, AND THE SURROUND LAY ON THE GLASS --
+       the same pair of faults the Butcher had, found the same way.
+
+       shopDoor clamps to uw-hw-5, which on this 178 frontage is 139.88.
+       The shop asked for WW*0.81 = 144.18, so the door was drawn 4.30
+       from where this line says it is. Underneath that, the painted
+       surround runs a0-4..a1+4 and reached back to 102.8 while the
+       window ran to WW*0.60 = 106.8 -- 4.0 of surround across the
+       glass, which the extra window below was covering up.
+
+       The window gives up the space: WW*0.60 -> WW*0.52 takes the glass
+       to 92.6, the bars follow (WW*0.58 -> WW*0.50 for the uprights,
+       WW*0.60 -> WW*0.52 for the rails), and the door comes to
+       WW*0.78 = 138.8, INSIDE the clamp, so the number written here is
+       the number drawn. Surround 101.7..176.0: 9.1 of pier between
+       glass and surround, 2.0 at the return.
+
+       THE SECOND WINDOW IS GONE, at Sir's direction. F(WW*0.70, WW-14,
+       52, 94) sat at a 124.6..164, screen-a 131.1..170.5, laid straight
+       across the doorway -- and it was what hid the surround overlap. */
+    shopDoor(WW*0.78, wall, trim, 'rgba(106,127,150,.55)', WW);
+    /* THE SIGN WAS INSIDE THE BUILDING. The bracket arm ran from b -2
+       to b -26 and the balls hung at b -26, radius 11, so they occupied
+       b -37..-15 -- up to thirty-seven units BEHIND the shopfront
+       plane, buried in the wall. A hanging sign that is inside the
+       block is not hanging at all; it survived only because it is
+       painted after the wall, and it would disappear the moment
+       anything depth-sorts it. Exactly the chemist cross, which sat at
+       b -10 behind its own -9 band, and the third time this sign
+       convention has been found pointing the wrong way.
+
+       Negative b is INTO the block. A bracket projects OUT over the
+       pavement, so every b in this assembly flips sign: arm 2..26,
+       cross bar and balls at 26.
+
+       THAT MOVES IT SIDEWAYS, WHICH IS WHY IT ALSO MOVED ALONG THE
+       FRONTAGE. Positive b shifts a prop LEFT on screen by its own b,
+       so the rule from the prop note applies -- but for a SPHERE the
+       rule is not a >= b, it is a >= r + b + r. A ball's own depth
+       radius shifts its near edge a further r left on top of the shift
+       its centre already has. I got this wrong on the first pass: the
+       bracket went to a 50, which is right by the centre-only rule, and
+       the census put the leftmost ball at screen-a -4.0. At the old a
+       of WW*0.05 = 8.9 the flipped sign would have landed at -28.1, and
+       the old unflipped version was ALREADY over the line at -2.1.
+
+       AND THEY WERE INSIDE EACH OTHER. First pass hung the two upper
+       balls at brA +/- 6 -- twelve apart with a radius of eleven, so
+       they overlapped by ten and read as one lump with a bite out of
+       it, and the lower ball's hanger, dropping down the centre line,
+       ran straight through both of them because there was no gap
+       between them to drop through. Spacing has to beat 2r: +/- 13 is
+       twenty-six apart, four clear, and the hanger passes down the gap.
+
+       UP TO FASCIA LEVEL AND CENTRED ON THE FRONTAGE, at Sir's
+       direction. The bracket now springs off the board face at z 164
+       and the balls hang across the board rather than over the window.
+       That is only possible because the assembly is at b +26, in front
+       of everything: it overlaps the board on screen without touching
+       it in space, which is what a projecting sign does.
+
+       CENTRING IS DONE ON THE SCREEN SPAN, NOT ON a. The group runs
+       b 15..37, so its left edge is shifted 37 and its right edge only
+       15, and the screen centre works out at brA - 26 rather than brA.
+       Setting brA - 26 = 89 (half of the 178 frontage) gives brA = 115.
+       The sign occupies screen-a 54..124, centred on 89 to the unit.
+       Writing brA = 89 would have put it 26 to the left, which is the
+       same trap the chemist plaque fell into.
+
+       That lands it over the doorway rather than the window, which is
+       where Sir wants it and where a bracket sign usually goes.
+
+       Two up and one below is the pawnbroker's arrangement, unchanged.
+       The balls hang in front of the facade rather than inside it,
+       which is where a projecting sign belongs. */
+    const brA = 115, brB = 26;
+    tube(brA, -1, 164, brA, brB, 164, 1.8, '#4a4f55');          // arm, off the board face and out
+    tube(brA-16, brB, 164, brA+16, brB, 164, 1.6, '#4a4f55');   // cross bar at the arm's end
+    for(const [ba,bz] of [[brA-13,148],[brA+13,148],[brA,126]]){
+      tube(ba, brB, 162, ba, brB, bz+11, 0.9, '#4a4f55');
+      ball(ba, brB, bz, 11, trim);
     }
     if(state.roof){
-      box(WW*0.30,WW*0.54,-150,-110,H,H+20,'#8f969d','#787f86','#697077');
-      cyl(WW*0.72, -70, H+10, H+52, 2.5, '#6d747c');
+      /* THE FLUE WAS SKEWERING THE PLANT AND STANDING ON NOTHING.
+         The box occupied screen-a 163.4..246.1 and the pipe sat at
+         193.2..203.2 -- entirely INSIDE that span, and nearer in b
+         (-70 against -110..-150), so it drew in front and read as a
+         pole driven through the unit. Nothing in the a or b numbers
+         says so: they do not overlap in either axis on their own. It
+         is only screen-a = a - b that puts them on top of each other,
+         which is why this had to be measured in screen space.
+
+         And it began at H+10, ten units above the roof deck, floating.
+         H+10 is exactly the cornice top, so the pipe had been started
+         where the parapet stops hiding it -- the float was there to
+         dodge an occlusion rather than to sit on anything.
+
+         Rebuilt as one assembly that stands on the deck. Plinth at H,
+         unit on the plinth, flue landing at H as well and let the
+         parapet hide its first ten units, which is what a parapet does.
+         Separated in SCREEN space, not in a: flue at 106.4..112.8,
+         plinth from 126.3, so 13.5 of clear roof between them. */
+      box(WW*0.17, WW*0.44, -122, -96, H,    H+6,  '#6e747b','#5d636a','#4f555c');
+      box(WW*0.19, WW*0.42, -118, -100, H+6, H+24, '#8f969d','#787f86','#697077');
+      for(let i=0;i<3;i++)                                     // louvres, proud of the unit's near face at -100
+        F(WW*0.21, WW*0.40, H+10+i*4, H+12+i*4, '#6b7177', null, 0, -99.5);
+      cyl(WW*0.11, -90, H, H+46, 3.2, '#5c636b');
+      plateCircle(WW*0.11, -90, H+46, 4.5, '#7c838b', '#5c636b', 1.5);
     }
     kerb(p,'none');
   }
