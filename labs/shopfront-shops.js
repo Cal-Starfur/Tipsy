@@ -1823,30 +1823,114 @@ const SHOPS = [
     slab(0,WW, H, H+8, -1, -12, shade(wall,.7));
     slab(WW*0.24,WW*0.76, H+8, H+22, -2, -12, shade(wall,.85), null, trim);
     F(WW*0.40,WW*0.60, H+12, H+20, trim, null,0,-2.5);
-    F(10,WW*0.58, 22, 116, '#8a94a8', trim, 3);
+    /* THE DOOR WAS WRAPPING THE CORNER, the same fault as the hardware
+       store, the florist, the fishmonger and the cinema. shopDoor was
+       asked for WW*0.80 = 136 and clamped to 131.88, which puts the
+       painted surround's far edge on 169 against a 170 return -- one
+       unit of wall, so the surround read as turning onto the flank
+       instead of being an opening in a facade.
+       Everything moves together. Door mid 119.88 leaves a 13 corner
+       pier, and the window and canopy pull from WW*0.58/0.60 back to 78
+       so the pier on the other side comes out at 4.76 -- the same 4.8
+       the grocer and the noodle bar settled on. The two mannequins at
+       26 and 66 have far faces on 74, still inside the shorter window. */
+    F(10, 72, 22, 116, '#8a94a8', trim, 3);
     if(state.props){
       for(let i=0;i<2;i++){
-        const ma = 26+i*40, mb = -4;
+        /* the window lost 20 units when the door moved for its corner
+           pier, and at 26/66 the second mannequin's screen span reached
+           78 -- flush with the new window edge, so it read as standing
+           on the pier. 24/58 puts its far side on 70, 8 clear. */
+        const ma = 24+i*34, mb = -4;
         cyl(ma, mb, 26, 34, 4, '#8a8272');                     // stand
         cyl(ma, mb, 34, 86, 8, ['#d8c48a','#c2807e'][i]);      // torso
         cyl(ma, mb, 86, 92, 5, ['#d8c48a','#c2807e'][i]);
         ball(ma, mb, 98, 6, '#e8ddc8');
       }
     }
-    shopDoor(WW*0.80, wall, trim, 'rgba(138,148,168,.6)', WW);
-    slab(6,WW-6, 120, 146, -1, -9, shade(wall,.6));
-    F(18,WW-18, 126, 140, trim, null,0,-9.5);
-    poly([P(8,0,118),P(WW*0.60,0,118),P(WW*0.60,24,100),P(8,24,100)], trim);
-    poly([P(8,24,100),P(WW*0.60,24,100),P(WW*0.60,24,92),P(8,24,92)], shade(trim,.7));
-    poly([P(WW*0.60,0,118),P(WW*0.60,24,100),P(WW*0.60,24,92),P(WW*0.60,0,110)], shade(wall,.6));
-    // clock: arm out from the wall, face in the arm's plane
-    tube(WW*0.79, -2, 114, WW*0.79, -22, 114, 1.6, '#4a4f55');
-    faceCircle(WW*0.79, -22, 110, 14, '#f2ece0', shade(trim,.7), 3);
-    faceT(WW*0.79, -22.4, 110, 14);
-    ctx.strokeStyle='#3a3327'; ctx.lineWidth=2/(14*K);
-    ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(0,-0.6); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(0.45,0.15); ctx.stroke();
-    ctx.restore();
+    shopDoor(119.88, wall, trim, 'rgba(138,148,168,.6)', WW);
+    /* THE SIGN BAND'S END RETURN WAS ON THE CORNER. It ran 6..164 at
+       b -1..-9, and a slab at negative b projects RIGHT on screen by
+       its own depth, so its return landed on screen-a 173 against a 170
+       return -- 3 units of fascia lying on the flank, which is the hard
+       vertical edge at the corner.
+       This is the applied-signage case, not the structural one: a
+       cornice may wrap a corner because it belongs to the building, but
+       a name board belongs to ONE shopfront and the neighbour's board
+       occupies that space. The margin has to beat the recess, so 16
+       against a depth of 9 puts the return on 163 and clears by 7.
+       (The parapet above it stays full width at 0..WW on purpose --
+       that one is a cornice.) */
+    slab(16, WW-16, 120, 146, -1, -9, shade(wall,.6));
+    /* ================= THE FASCIA, SET OUT IN SCREEN SPACE =================
+       Screen-a is a - b, so two things given the same `a` at different
+       `b` are NOT aligned, and nothing about that shows in the numbers
+       you write. This board had three depths on it and every one of
+       them drifted:
+
+         board face   b -1.0   a  16..154  ->  screen  17.0..155.0
+         lettering    b -9.5   a  24.. 69  ->  screen  33.5.. 78.5
+                              a 101..146  ->  screen 110.5..155.5
+         clock        b +1.6   a       85  ->  screen  83.4
+
+       The lettering sat at -9.5, DEEPER than the board's own back face
+       at -9, so it was behind the board and shifted 9.5 right by the
+       projection -- the right panel ran off the board's end. The clock
+       was proud at +1.6 and shifted LEFT. Put a-centred at 85 they came
+       out 11 apart on screen: 9.1 of overlap on the left panel and 13.1
+       of gap on the right. That lopsidedness is the whole complaint,
+       and it is invisible in `a`.
+
+       So the fascia is laid out in SCREEN space and converted back.
+       Lettering goes to -0.5, PROUD of the board face at -1 the way
+       paint on a board is, and every gap comes out at 8:
+
+         board   screen  17..155      clock  screen  74..98
+         panels  screen  25.. 66             screen 106..147
+         margins        8    8      8     8                     */
+    F(24.5, 65.5, 126, 140, trim, null, 0, -0.5);
+    F(105.5, 146.5, 126, 140, trim, null, 0, -0.5);
+    /* the awning's top corner is at screen-a 72 and the dial starts at
+       74, so it stops 2 clear instead of clipping the clock's lower
+       left; the window follows it and the pier to the door goes to
+       10.76 */
+    poly([P(8,0,118),P(72,0,118),P(72,24,100),P(8,24,100)], trim);
+    poly([P(8,24,100),P(72,24,100),P(72,24,92),P(8,24,92)], shade(trim,.7));
+    poly([P(72,0,118),P(72,24,100),P(72,24,92),P(72,0,110)], shade(wall,.6));
+    /* ================= THE CLOCK =================
+       Two faults, and neither was about where it sat.
+
+       IT HUNG INSIDE THE BUILDING. The arm ran b -2 to -22, and
+       negative b is INTO the block, so a clock meant to be read from
+       the pavement was buried in the wall -- the same fault the
+       fishmonger's bracket sign had.
+
+       AND IT WAS NOT CENTRED: a = WW*0.79 = 134.3 on a 170 frontage
+       put it over the door and half off the corner.
+
+       It is a flat clock on the fascia, so it needs no arm at all --
+       the b -2..-22 tube was solving a problem the shop does not have.
+       faceCircle is the right primitive for that: the frontage plane,
+       b fixed, which is exactly where a wall clock's dial lies. It sits
+       proud at b 1.6 against a band whose face is at -1, so it reads as
+       fixed to the fascia rather than painted on it, and the name runs
+       either side of it instead of behind it. */
+    const clA = 87.6, clB = 1.6, clZ = 133, clR = 12;
+    faceCircle(clA, clB, clZ, clR+2, shade(trim,.55));           // bezel
+    faceCircle(clA, clB+0.4, clZ, clR, '#f2ece0');
+    for(let i=0;i<12;i++){                                       // hour marks
+      const t = i*Math.PI/6, r0 = clR*0.84, r1 = clR*0.97;
+      poly([P(clA+r0*Math.sin(t)-0.7, clB+0.8, clZ+r0*Math.cos(t)),
+            P(clA+r1*Math.sin(t)-0.7, clB+0.8, clZ+r1*Math.cos(t)),
+            P(clA+r1*Math.sin(t)+0.7, clB+0.8, clZ+r1*Math.cos(t)),
+            P(clA+r0*Math.sin(t)+0.7, clB+0.8, clZ+r0*Math.cos(t))], shade(trim,.5));
+    }
+    faceT(clA, clB+1.0, clZ, clR);
+    ctx.strokeStyle='#3a3327'; ctx.lineWidth=2/(clR*K); ctx.lineCap='round';
+    ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(0,0.58); ctx.stroke();      // hour hand
+    ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(0.44,-0.6); ctx.stroke();   // minute hand
+    ctx.lineCap='butt'; ctx.restore();
+    ball(clA, clB+1.2, clZ, 1.5, shade(trim,.45));               // centre boss
     if(state.roof) box(WW*0.28,WW*0.56,-140,-100,H,H+20,'#9aa0a6','#7d838a','#6a7076');
     kerb(p,'none');
   }
