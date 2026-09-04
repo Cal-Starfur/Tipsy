@@ -267,6 +267,11 @@ function sync(){
       'applied signage, so unlike the cornice it may not cross the return; its ' +
       'lettering goes PROUD of the board face, not behind it; and it is set out ' +
       'in screen space (a − b), not in a. Clear fTodo when done.');
+  if(s.cTodo)
+    notes.push('<b>Collision</b> — ' + s.cTodo + '. Pavement props are things ' +
+      'Tipsy can drive into and none of them exists to the game yet; they need ' +
+      'volumes registered at port time. Anything outside 0..w in a is standing ' +
+      'on the neighbour, and a kerb prop needs a ≥ b to stay inside the return.');
   if(s.wTodo)
     notes.push('<b>Wide unit</b> — this shop is ' + s.wTodo +
       ' and the port cannot place it yet. See the WIDE UNITS note at the head of ' +
