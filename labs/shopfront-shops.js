@@ -2226,25 +2226,45 @@ const SHOPS = [
 },
 {
   name:'Ice cream', head:'Giant cone on the roof, hatch window, scallops',
-  cTodo:'4 pavement props need collision volumes',
-  fTodo:'z126..140 return +6',
   tags:['giant roof cone','pastel palette','serving hatch','scalloped awning','pavement seats'],
   desc:'The cone stands on a small plinth so it is planted on the roof rather than hovering, the scoops overlap as real balls, and the pavement seats are turned stools.',
   draw(p){
     const wall = '#f6e4e8', trim = '#e2748c', H = 140;
     body(wall, trim, H);
     slab(0,W, H, H+10, -1, -12, trim);
-    slab(0,W, H-14, H, -1, -6, '#fbf3f5');
+    /* fTodo cleared: at 0..W with a back face of -6 the return landed on
+       screen-a 236 against 230. 12 puts it on 224. The parapet above
+       stays full width -- that one is a cornice. */
+    slab(12, W-12, H-14, H, -1, -6, '#fbf3f5');
     F(12,W*0.62, 30, 92, '#bcdde2', shade(trim,.85), 3);
     slab(12,W*0.62, 88, 98, -1, -7, trim);
     F(18,W*0.56, 36, 52, '#fbf3f5', null,0,-1);
     shopDoor(W*0.84, wall, trim);
-    F(W*0.72,W-16, 48, 86, '#bcdde2', null,0,-6.5);
-    const cz=104, out=32;
+    /* extra hatch pane removed at Sir's direction -- it sat between the
+       main window and the door with nothing to be. */
+    /* ================= THE AWNING WAS A BACK FACE SHORT AND A BACK
+       FACE LONG =================
+       It was built as two whole sloping PLANES ten apart, plus a quad
+       closing each end. That is wrong twice over:
+
+         * the lower plane is the awning's UNDERSIDE, and you cannot see
+           the underside of a canopy from above. It was only reading at
+           all because it peeks 10 below the top plane along the front,
+           where what belongs is the canopy's own EDGE.
+         * both ends were drawn. Positive a is toward the eye, so the
+           a = W-4 end is the visible one and the a = 4 end faces away.
+           That far end was a back face painted unconditionally -- the
+           same fault box() carried until it was fixed to derive its
+           near faces from P().
+
+       So: a top face, a front edge where the underside used to show,
+       and the near end only. */
+    const cz=104, out=32, th=10;
     poly([P(4,0,cz+18),P(W-4,0,cz+18),P(W-4,out,cz),P(4,out,cz)], '#fbf3f5');
-    poly([P(4,0,cz+8),P(W-4,0,cz+8),P(W-4,out,cz-10),P(4,out,cz-10)], shade('#fbf3f5',.82));
-    poly([P(4,0,cz+18),P(4,out,cz),P(4,out,cz-10),P(4,0,cz+8)], shade(trim,1.1));
-    poly([P(W-4,0,cz+18),P(W-4,out,cz),P(W-4,out,cz-10),P(W-4,0,cz+8)], shade(trim,1.1));
+    poly([P(4,out,cz),P(W-4,out,cz),
+          P(W-4,out,cz-th),P(4,out,cz-th)], shade('#fbf3f5',.82));   // the edge
+    poly([P(W-4,0,cz+18),P(W-4,out,cz),
+          P(W-4,out,cz-th),P(W-4,0,cz+18-th)], shade(trim,1.1));     // near end only
     for(let i=0;i<10;i++){
       const x0=4+(W-8)*i/10, x1=4+(W-8)*(i+1)/10;
       const l=P(x0,out,cz), r=P(x1,out,cz), m=P((x0+x1)/2,out,cz-14);
@@ -2252,23 +2272,44 @@ const SHOPS = [
       ctx.fillStyle = i%2 ? trim : '#fbf3f5'; ctx.fill();
     }
     if(state.roof){
-      const ca = W*0.46, cb = -34;
-      cyl(ca, cb, H, H+12, 20, '#e8dfe2');                       // plinth
-      plateCircle(ca, cb, H+12, 20, '#f2ecee', '#d8ccd0', 2);
-      const tip = P(ca,cb,H+12), l = P(ca-36,cb,H+110), r = P(ca+36,cb,H+110);
-      poly([tip,l,r], '#e0b26a', '#c08f4a', 2);
-      ctx.strokeStyle='#c08f4a'; ctx.lineWidth=1.5;
-      for(let i=1;i<4;i++){
-        const a=P(ca-36+72*i/4,cb,H+110), b2=P(ca,cb,H+12);
-        ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b2.x,b2.y); ctx.stroke();
+      /* ================= THE CONE =================
+         It was a flat triangle -- three points and some strokes ruled
+         across it -- so a solid the height of the building read as a
+         paper cut-out. A cone is an apex and a rim: sweep the visible
+         half of the top circle, close it to the tip, and it has volume
+         from any view the host installs, because the sweep is asked of
+         plateSweep() rather than written in.
+
+         AND IT STOOD ON THE PARAPET EDGE. b -34 against a front wall at
+         b 0 put the plinth's near rim 14 short of the lip -- it read as
+         about to fall off. b -104 sets it a third of the way back into
+         the roof, where a rooftop sign is actually bolted down. */
+      const ca = W*0.46, cb = -104, cR = 34, zTip = H+16, zTop = H+112;
+      cyl(ca, cb, H, H+16, 22, '#e8dfe2');                        // plinth
+      plateCircle(ca, cb, H+16, 22, '#f2ecee', '#d8ccd0', 2);
+      const sw = plateSweep(ca, cb, 0), arc = u => sw.ts + sw.dir*Math.PI*u;
+      const rim = (u,z) => { const t = arc(u);
+        return P(ca + cR*Math.cos(t), cb + cR*Math.sin(t), z); };
+      const lit = [P(ca,cb,zTip)], dark = [P(ca,cb,zTip)];
+      for(let k=0;k<=20;k++) lit.push(rim(k/20, zTop));
+      for(let k=0;k<=10;k++) dark.push(rim(k/20, zTop));
+      poly(lit, '#e0b26a');
+      poly(dark, shade('#e0b26a',.84));                            // the shaded side
+      for(let k=1;k<7;k++){                                        // waffle ribs
+        const t = rim(k/7, zTop), b2 = P(ca,cb,zTip);
+        ctx.strokeStyle = '#c08f4a'; ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.moveTo(t.x,t.y); ctx.lineTo(b2.x,b2.y); ctx.stroke();
       }
-      ball(ca, cb, H+118, 30, '#f6c9d4');
-      ball(ca-6, cb, H+150, 28, '#cfe6c8');
-      ball(ca+5, cb, H+178, 26, '#f4e2b0');
-      ball(ca+5, cb, H+202, 6, '#c2452e');
-      box(W*0.72,W*0.94,-160,-124,H,H+18,'#9aa0a6','#7d838a','#6a7076');
+      plateCircle(ca, cb, zTop, cR, '#d9a75f', '#c08f4a', 2);
+      ball(ca, cb, zTop+8, 30, '#f6c9d4');
+      ball(ca-6, cb, zTop+40, 28, '#cfe6c8');
+      ball(ca+5, cb, zTop+68, 26, '#f4e2b0');
+      ball(ca+5, cb, zTop+92, 6, '#c2452e');
+      box(W*0.72,W*0.94,-190,-154,H,H+18,'#9aa0a6','#7d838a','#6a7076');
     }
-    kerb(p,'seats');
+    /* stools removed at Sir's direction. With nothing standing on the
+       ground this shop carries no collision register at all. */
+    kerb(p,'none');
   }
 },
 {
