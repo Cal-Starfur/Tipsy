@@ -256,14 +256,23 @@ function sync(){
      not been sized against the game carries zTodo -- its height in game
      storeys -- and the bench says so the moment the shop is opened, with
      the True scale toggle named because that is the mode that shows it. */
-  const mz = document.getElementById('mz');
-  if(s.zTodo){
-    mz.style.display = 'block';
-    mz.innerHTML = '<b>Scale review open</b> — this shop stands at <b>' + s.zTodo +
+  const mz = document.getElementById('mz'), notes = [];
+  if(s.zTodo)
+    notes.push('<b>Scale review open</b> — this shop stands at <b>' + s.zTodo +
       '</b> game storeys (one shop storey = 168 lab units). The tall tier was set ' +
       'by eye; decide a target against what this facade actually depicts, then ' +
-      'clear zTodo. Turn on True scale to see it against the rest.';
-  } else mz.style.display = 'none';
+      'clear zTodo. Turn on True scale to see it against the rest.');
+  if(s.fTodo)
+    notes.push('<b>Fascia check open</b> — ' + s.fTodo + '. The name board is ' +
+      'applied signage, so unlike the cornice it may not cross the return; its ' +
+      'lettering goes PROUD of the board face, not behind it; and it is set out ' +
+      'in screen space (a − b), not in a. Clear fTodo when done.');
+  if(s.wTodo)
+    notes.push('<b>Wide unit</b> — this shop is ' + s.wTodo +
+      ' and the port cannot place it yet. See the WIDE UNITS note at the head of ' +
+      'shopfront-shops.js.');
+  if(notes.length){ mz.style.display='block'; mz.innerHTML = notes.join('<hr style="border:0;border-top:1px solid #7a5410;margin:8px 0">'); }
+  else mz.style.display = 'none';
   document.getElementById('mt').innerHTML = s.tags.map(t=>'<span class="tag">'+t+'</span>').join('');
   draw();
 }
