@@ -104,8 +104,15 @@ const FLANK_RIGHT = true;
    contract this file has to satisfy is documented at the top of that
    file: every primitive a shop body calls is defined in this script. */
 /* ---------------- ground, framing, chrome ---------------- */
+/* A SHOP MAY BE WIDER THAN ONE UNIT. Everything in this bench assumed
+   the frontage was W, because until now nothing was ever wider -- the
+   eleven shops with their own WW are all NARROWER and sit inside the
+   default box. A double-width shop leaves the pavement ending under its
+   own facade and the guide box drawn round the wrong footprint, so both
+   ask the shop instead of assuming. */
+function shopW(){ const s = SHOPS[state.i]; return s.ww || W; }
 function pavement(){
-  const g0=-90, g1=W+90, b0=110, b1=-D-70;
+  const g0=-90, g1=shopW()+90, b0=110, b1=-D-70;
   T(g0,g1,b1,b0,0,'#cfc9b8');
   ctx.strokeStyle='#bdb7a6'; ctx.lineWidth=1;
   for(let a=g0;a<=g1;a+=46){ const s=P(a,b0,0), e=P(a,b1,0);
@@ -116,10 +123,22 @@ function pavement(){
 }
 function guides(){
   ctx.strokeStyle='rgba(255,122,26,.85)'; ctx.lineWidth=1.5; ctx.setLineDash([6,5]);
-  poly([P(0,0,0),P(W,0,0),P(W,-D,0),P(0,-D,0)], null,'rgba(255,122,26,.85)',1.5);
+  const gw = shopW();
+  poly([P(0,0,0),P(gw,0,0),P(gw,-D,0),P(0,-D,0)], null,'rgba(255,122,26,.85)',1.5);
+  if(gw !== W)   // the packer's slot boundary, so the overrun is visible
+    poly([P(W,0,0),P(W,-D,0)], null,'rgba(255,122,26,.45)',1.5);
   ctx.setLineDash([]);
   ctx.fillStyle='rgba(255,122,26,.9)'; ctx.font='600 11px ui-monospace,monospace';
-  const t=P(0,0,0); ctx.fillText('w '+W+'  ·  D '+D, t.x, t.y+18);
+  const t=P(0,0,0);
+  /* IN SLOTS, NOT IN W. The first cut divided by the bench's own W of
+     230 and printed 1.76, which is true and useless: the port's unit is
+     packEdgeNoGap's slot, avgW = T2*2.2 = 202.4, and against that the
+     garage is exactly 2.00. The label has to speak the packer's
+     language or it cannot be acted on. (W 230 is itself 1.14 slots --
+     the bench's default frontage sits above the packer's average, which
+     is worth knowing and is not a fault: slots run 162..243.) */
+  const SLOT = T2*2.2;
+  ctx.fillText('w '+gw.toFixed(0)+'  ·  '+(gw/SLOT).toFixed(2)+' slots  ·  D '+D, t.x, t.y+18);
 }
 
 /* ================= FRAMING BY MEASUREMENT =================
@@ -140,9 +159,13 @@ function guides(){
    change the extent: turning the roof kit off on a shop whose identity
    is a water tank should reframe, not leave a hole at the top. */
 const MCV = document.createElement('canvas');
-MCV.width = 1100; MCV.height = 1100;
+MCV.width = 1500; MCV.height = 1200;
 const MCTX = MCV.getContext('2d');
-const MK = 0.62, MOX = 550, MOY = 760;      // nominal measure transform
+const MK = 0.62, MOX = 470, MOY = 780;      // nominal measure transform
+/* MOX moved left and the canvas widened when the first double-width
+   shop arrived: a 405-wide unit projects to screen-a 405 + D, which ran
+   off the right of the 1100px measure buffer and the bounds pass then
+   framed a clipped box. */
 const boundsCache = new Map();
 let NOPLATE = false;   // measure pass suppresses the plain roof slab
 
