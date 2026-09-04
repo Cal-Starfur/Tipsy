@@ -143,6 +143,36 @@ function drawChemist(p, c){
 }
 
 
+/* ============ PAVEMENT PROPS AND COLLISION, OPEN AT THE PORT ============
+   `cTodo` on a shop counts the solids it stands on the pavement. Every
+   one of them is a thing Tipsy can drive into, and none of them exists
+   to the game yet: this library is art, and the collision volumes have
+   to be registered when it ports, the way cones, bins, planters,
+   hydrants and scooters already are.
+
+   Measured by instrumenting cyl() and box() for anything at b > 8 (off
+   the facade, out on the ground) with z0 < 40 (standing, not hanging).
+   42 shops carry pavement props.
+
+   AND 21 OF THEM STAND ON THE NEIGHBOUR'S GROUND. A commercial edge is
+   packed with no gaps, so anything outside 0..w in `a` is on the next
+   shop's pavement -- the nursery reaches 82 past its own frontage, the
+   cantina's barrels reached 68. That is the same fault as a cornice
+   crossing a return, at prop scale, and it matters more here because
+   two neighbours' props would occupy the same collision volume.
+
+   Worth knowing when placing one: positive b shifts a prop LEFT on
+   screen by its own b, so a kerb prop needs a >= b just to stay inside
+   the near return. The garage's pylon at a -18, b 64 landed on
+   screen-a -82 before it was moved.
+
+   Headroom is NOT on this list, and was checked: Tipsy is BODY z 14..54,
+   LID to 61, FLAG to 97, footprint 52 x 40. The cantina's pergola beam
+   soffits at game z 159 and its posts leave a 95-unit gap against a
+   66-unit diagonal, so it clears with 62 to spare -- and SIDEWALK_W is
+   4*T2 = 368, so a 52-deep porch never forces Tipsy under it anyway.
+   ===================================================================== */
+
 /* ================= FASCIA CHECK, OPEN =================
    `fTodo` on a shop lists what is wrong with its FASCIA -- the name
    board: the slab band across the shopfront plus the lettering panels
@@ -268,6 +298,7 @@ function drawChemist(p, c){
 const SHOPS = [
 {
   name:'Bakery', head:'Curved gable, brick flue, bunting on the arch',
+  cTodo:'1 pavement props need collision volumes',
   zs:1,                                   // already rebuilt on the game anchors
   tags:['deep gable parapet','sign on the gable','bunting on the arch','brick stack','recessed door'],
   desc:'The gable is a real parapet with 30 units of depth and a capped coping, so it stands above the roofline instead of lying on it. Bunting is pinned around the arch rather than strung across the shopfront, and the flue is brick so it no longer disappears into a roof of its own colour.',
@@ -630,6 +661,7 @@ const SHOPS = [
 },
 {
   name:'Grocer', head:'Open front, striped canopy, crate steps',
+  cTodo:'8 pavement props need collision volumes',
   tags:['open frontage','striped canopy','crate display'],
   desc:'No glass at all here, so the layering is in the depth: the crates stand side by side on the pavement and are painted far to near, with the counter jars behind them and the canopy over both.',
   draw(p){
@@ -726,12 +758,14 @@ const SHOPS = [
 },
 {
   name:'Dispensary', head:'Stepped parapet, cross emblem, green livery',
+  cTodo:'2 pavement props need collision volumes, 1 of them lapping past the frontage',
   tags:['counter behind glass','solid cross emblem','green fascia','clinical white','planters'],
   desc:'A counter and a wall of shelved bottles sit inside the reveal with the pane over them, so the shop has depth behind the window rather than a flat tinted sheet.',
   draw(p){ drawChemist(p, CHEMIST_LIVERY.green); }
 },
 {
   name:'Pharmacy', head:'Stepped parapet, cross emblem, red livery',
+  cTodo:'2 pavement props need collision volumes, 1 of them lapping past the frontage',
   tags:['counter behind glass','solid cross emblem','red fascia','clinical white','planters'],
   desc:'A counter and a wall of shelved bottles sit inside the reveal with the pane over them, so the shop has depth behind the window rather than a flat tinted sheet.',
   draw(p){ drawChemist(p, CHEMIST_LIVERY.red); }
@@ -786,6 +820,7 @@ const SHOPS = [
 },
 {
   name:'Noodle bar', head:'Vertical banners, lantern row, counter',
+  cTodo:'6 pavement props need collision volumes',
   tags:['stools under the counter','round lanterns','open counter','steam duct','banners'],
   desc:'The counter is a solid with a bar top, the cook side is set back behind it, and the stools stand on the pavement in front — so the three depths read in the right order.',
   draw(p){
@@ -874,6 +909,7 @@ const SHOPS = [
 },
 {
   name:'Hardware', head:'Tall board sign, ladder rack, roll shutter',
+  cTodo:'5 pavement props need collision volumes',
   tags:['goods behind the shutter','ladder rack','roll shutter','stacked stock'],
   desc:'The shutter is half up with the shop visible under it, so there is a lit interior behind the opening, and the stock outside is stacked far to near.',
   draw(p){
@@ -974,6 +1010,7 @@ const SHOPS = [
 },
 {
   name:'Florist', head:'Scalloped canopy, bucket rows, trellis',
+  cTodo:'5 pavement props need collision volumes',
   tags:['blooms inside and out','round buckets','trellis','glazed over','soft palette'],
   desc:'There are flowers inside the window as well as out on the pavement, and the pane glazes over the inside ones so the two sets sit at different depths instead of on the same plane.',
   draw(p){
@@ -1581,6 +1618,7 @@ const SHOPS = [
 },
 {
   name:'Fishmonger', head:'Open marble counter, iced slab, striped awning',
+  cTodo:'1 pavement props need collision volumes',
   fTodo:'z130..152 lettering behind board',
   tags:['open frontage','counter that projects','shallow ice slab','fish as solids','bracket sign over the pavement'],
   desc:'A wet-fish shop is an open counter with ice on it and a dark shop behind, so the depth runs pavement, counter, ice, interior — and the fish are laid on a shallow slab you can see the top of rather than pinned to a wall of ice.',
@@ -1991,6 +2029,7 @@ const SHOPS = [
 },
 {
   name:'Cantina', head:'Pergola porch, string bulbs, chimney',
+  cTodo:'5 pavement props need collision volumes, 67 of them lapping past the frontage',
   fTodo:'z140..152 return +6',
   tags:['round pergola posts','string bulbs','half doors','barrels','stucco chimney'],
   desc:'Pergola posts are turned cylinders with the beam sitting on them, the barrels are hooped cylinders standing on the pavement, and the chimney gets a clay pot.',
@@ -2001,24 +2040,59 @@ const SHOPS = [
     slab(0,W, H-12, H, -1, -6, shade(wall,1.08));
     F(14,W*0.54, 24, 100, '#5d4a3a', shade(wall,.6), 3);
     F(20,W*0.48, 32, 64, shade(wall,1.15), null,0,-1);
-    shopDoor(W*0.75, wall, '#6b4a30');
-    F(W*0.60,W*0.90, 40, 44, shade(wall,.7), null,0,-6.5);
-    F(W*0.745,W*0.755, 44, 96, shade(wall,.7), null,0,-6.5);
-    for(const aa of [10, W*0.50, W-10]) cyl(aa, pb, 0, 118, 5, '#6b4a30');
-    poly([P(6,pb,118),P(W-6,pb,118),P(W-6,pb,106),P(6,pb,106)], '#7a5638');
-    poly([P(6,0,124),P(W-6,0,124),P(W-6,pb,118),P(6,pb,118)], 'rgba(122,86,56,.55)');
+    shopDoor(W*0.75, wall, '#6b4a30', null, W, 0, { half:true });
+    /* THE HALF DOORS WERE PAINTED ON THE REAL ONE. Two strips at
+       b -6.5 -- inside the wall, behind the leaf shopDoor puts at 0.6 --
+       so they showed as a stray line and a tick beside the opening. The
+       first fix moved them onto the leaf, which was worse: the shop then
+       had a full door AND a pair of saloon doors in the same opening.
+       A half door replaces the leaf, so it is the kit's job. */
+    /* ================= THE PERGOLA STOOD IN THE DOORWAY =================
+       Two faults, and only ONE of them was about the beam's length.
+
+       The posts sat at a 10, 115, 220 against b 52, and screen-a is
+       a - b, so they landed on -42, 63 and 168. The door runs screen
+       135..209, so the third post was planted in the middle of the only
+       way in -- and the first was 42 units past the left return,
+       standing on the neighbour.
+
+       Shortening the run to clear the door fixed the posts and threw
+       away the porch, which is the thing worth having. The beam does
+       not need to be short; it needs to be HIGH. At the old soffit of
+       106 a full-width run would have crossed the door head at 114.95
+       and sliced the doorway -- so the whole porch goes up 14. Soffit
+       120 clears the head by 5, the rafter plane tops at 138 against a
+       fascia band starting at 140, and at game z 180 it clears Tipsy's
+       flag tip by 83.
+
+       The run is 42..224: the near end is 10 outside the silhouette,
+       the same 10 the grocer's canopy and the fishmonger's awning
+       carry, because a canopy that projects at all must show outside
+       it. Posts at 46, 110, 174 land on screen -6, 58 and 122, all of
+       them clear of the door. */
+    const pA0 = 42, pA1 = W-6, pZ = 132;
+    for(const aa of [46, 110, 174]) cyl(aa, pb, 0, pZ, 5, '#6b4a30');
+    poly([P(pA0,pb,pZ),P(pA1,pb,pZ),P(pA1,pb,pZ-12),P(pA0,pb,pZ-12)], '#7a5638');
+    poly([P(pA0,0,pZ+6),P(pA1,0,pZ+6),P(pA1,pb,pZ),P(pA0,pb,pZ)], 'rgba(122,86,56,.55)');
     for(let i=0;i<11;i++){
-      const aa = 10+(W-20)*i/10;
-      poly([P(aa-3,0,124),P(aa+3,0,124),P(aa+3,pb,118),P(aa-3,pb,118)], '#8a6440');
-      poly([P(aa-3,0,124),P(aa-3,pb,118),P(aa-3,pb,114),P(aa-3,0,120)], '#7a5638');
+      const aa = pA0+4+(pA1-pA0-8)*i/10;
+      poly([P(aa-3,0,pZ+6),P(aa+3,0,pZ+6),P(aa+3,pb,pZ),P(aa-3,pb,pZ)], '#8a6440');
+      poly([P(aa-3,0,pZ+6),P(aa-3,pb,pZ),P(aa-3,pb,pZ-4),P(aa-3,0,pZ+2)], '#7a5638');
     }
     if(state.props){
       for(let i=0;i<8;i++){
-        const ba = 16+(W-32)*i/7;
-        tube(ba, pb-4, 110, ba, pb-4, 104, 0.7, '#5d4a3a');
-        ball(ba, pb-4, 100, 5, '#ffe9a8');
+        const ba = pA0+8+(pA1-pA0-16)*i/7;
+        tube(ba, pb-4, pZ-8, ba, pb-4, pZ-16, 0.7, '#5d4a3a');
+        ball(ba, pb-4, pZ-20, 5, '#ffe9a8');
       }
-      for(const [ba,bb] of [[W+20,34],[W+52,48]]){
+      /* THE BARRELS WERE ON THE NEIGHBOUR'S PAVEMENT. At a W+20 and
+         W+52 with a hoop radius of 16 they reached 298 against a 230
+         frontage -- 68 units past the return, which on a packed
+         commercial edge is the next shop's ground. They keep their
+         place on the open pavement, street side of the pergola line, at
+         a 150 and 188: inside 0..W, and far enough out in b to read as
+         standing in front of the porch rather than under it. */
+      for(const [ba,bb] of [[150,66],[188,78]]){
         cyl(ba, bb, 0, 32, 15, '#8a5a34');
         for(const hz of [6, 16, 26]) plateHoop(ba, bb, hz, 16, '#5c3d22', 2.5);
         plateCircle(ba, bb, 32, 15, '#a06a3e', '#75492a', 2);
@@ -2035,6 +2109,7 @@ const SHOPS = [
 },
 {
   name:'Newsstand', head:'Low kiosk, wide canopy, paper racks',
+  cTodo:'2 pavement props need collision volumes, 31 of them lapping past the frontage',
   tags:['half height','small footprint','wide overhang','paper racks','scale contrast'],
   desc:'The canopy has an underside and returns and rests on round posts, and the paper racks are sloped trays with a real lip rather than tilted cards.',
   draw(p){
@@ -2069,6 +2144,7 @@ const SHOPS = [
 },
 {
   name:'Ice cream', head:'Giant cone on the roof, hatch window, scallops',
+  cTodo:'4 pavement props need collision volumes',
   fTodo:'z126..140 return +6',
   tags:['giant roof cone','pastel palette','serving hatch','scalloped awning','pavement seats'],
   desc:'The cone stands on a small plinth so it is planted on the roof rather than hovering, the scoops overlap as real balls, and the pavement seats are turned stools.',
@@ -2115,6 +2191,7 @@ const SHOPS = [
 },
 {
   name:'Bank', tall:true,
+  cTodo:'2 pavement props need collision volumes',
   zTodo:1.24,          // H 208 -- see SCALE REVIEW at the head of this file
   head:'Colonnade, pediment, stone steps',
   tags:['round columns','solid pediment','stone steps','deep reveal','formal front'],
@@ -2167,6 +2244,7 @@ const SHOPS = [
 },
 {
   name:'Fuel station', head:'Forecourt canopy on posts, pumps, low kiosk',
+  cTodo:'9 pavement props need collision volumes',
   tags:['forecourt canopy','round posts','pumps with hoses','price totem','widest footprint'],
   desc:'The canopy is a slab with a fascia, an underside and returns, carried on round posts, and each pump has a nozzle on a hose rather than a painted panel.',
   draw(p){
@@ -2275,6 +2353,7 @@ const SHOPS = [
 },
 {
   name:'Arcade', head:'Black hole of a front, screen glow, pixel sign',
+  cTodo:'4 pavement props need collision volumes',
   fTodo:'z110..116 return +2',
   tags:['unlit front','screen glow','solid pixel sign','step-in entry','A-board'],
   desc:'Every block of the pixel sign is a slab with a lit top edge, so the lettering stands off the fascia. The cabinets inside are boxes with visible tops rather than coloured rectangles.',
@@ -2319,6 +2398,7 @@ const SHOPS = [
 },
 {
   name:'Butcher', head:'Hooks and rail, tiled base, block outside',
+  cTodo:'5 pavement props need collision volumes, 56 of them lapping past the frontage',
   fTodo:'z132..138 return +8',
   tags:['round rail','hooked cuts','white tile','striped awning','chopping block'],
   desc:'The rail is a tube with the hooks bent over it and the cuts hanging as rounded solids. The chopping block is a heavy round butcher block on legs.',
@@ -2390,6 +2470,7 @@ const SHOPS = [
 },
 {
   name:'Post office', tall:true,
+  cTodo:'1 pavement props need collision volumes, 51 of them lapping past the frontage',
   fTodo:'z120..132 return +8; z138..166 lettering behind board',
   zTodo:1.11,          // H 186 -- see SCALE REVIEW at the head of this file
   head:'Flagpole, crest parapet, pillar box',
@@ -2434,6 +2515,7 @@ const SHOPS = [
 },
 {
   name:'Pet shop', head:'Lit tanks, hanging cage, kennel',
+  cTodo:'1 pavement props need collision volumes, 56 of them lapping past the frontage',
   fTodo:'z128..134 return +8',
   tags:['aquarium glow','round birdcage','kennel outside','scalloped valance','warm interior'],
   desc:'The birdcage is a cylinder with a domed top and vertical bars, hanging on a chain, and the tanks have a lit front edge so the glow reads as coming out of the glass.',
@@ -2485,6 +2567,7 @@ const SHOPS = [
 },
 {
   name:'Gym', head:'Clerestory band, roof duct run, kettlebell sign',
+  cTodo:'1 pavement props need collision volumes',
   fTodo:'z148..172 return +3, lettering behind board',
   tags:['high clerestory','round duct run','no display glass','equipment sign','roller door'],
   desc:'The duct is a run of real cylinders with joint collars snaking across the roof, and the kettlebell on the fascia is a sphere with a bent tube handle.',
@@ -2616,6 +2699,7 @@ const SHOPS = [
 },
 {
   name:'Toy shop', head:'Rooftop kite, oversized bear, pinwheels',
+  cTodo:'3 pavement props need collision volumes, 60 of them lapping past the frontage',
   tags:['kite in a real plane','turned bear','pinwheels','bright banding','scalloped canopy'],
   desc:'The bear is built from cylinders and balls so it stands in the window, and the kite is a diamond lying in a genuine world plane on the end of its string rather than a rotated sprite.',
   draw(p){
@@ -2821,6 +2905,7 @@ const SHOPS = [
 },
 {
   name:'Furniture showroom', tall:true,
+  cTodo:'4 pavement props need collision volumes',
   fTodo:'z188..208 return +4, lettering behind board',
   zTodo:1.27,          // H 214 -- see SCALE REVIEW at the head of this file
   head:'Double-height glass, loading hoist, mezzanine',
@@ -2869,6 +2954,7 @@ const SHOPS = [
 },
 {
   name:'Nursery', head:'Glasshouse lean-to, palms over the parapet',
+  cTodo:'21 pavement props need collision volumes, 82 of them lapping past the frontage',
   tags:['glazed lean-to','ridge and end walls','plants over the roofline','low fence','soil bins'],
   desc:'The glasshouse now has glazed end walls and a ridge capping where it meets the shop, so it encloses a space instead of being a sheet of blue leaning on the wall. Plants are stems with real foliage balls.',
   draw(p){
@@ -2964,6 +3050,7 @@ const SHOPS = [
 },
 {
   name:'Playhouse', tall:true,
+  cTodo:'2 pavement props need collision volumes, 38 of them lapping past the frontage',
   zTodo:1.05,          // H 176 -- see SCALE REVIEW at the head of this file
   head:'Fly tower behind, poster columns, lamp canopy',
   tags:['solid fly tower','round poster columns','lamp canopy','stage door','mass behind the front'],
@@ -3151,6 +3238,7 @@ const SHOPS = [
 },
 {
   name:'Tea house', head:'Pitched tiled roof, upturned eaves, veranda',
+  cTodo:'4 pavement props need collision volumes, 1 of them lapping past the frontage',
   tags:['pitched roof','ridge capping','round veranda posts','paper lanterns','timber screen'],
   desc:'The roof gets a ridge capping and a visible gable end, the veranda posts are turned cylinders under the beam, and the lanterns are cylinders with capped ends hanging on cords.',
   draw(p){
@@ -3199,6 +3287,7 @@ const SHOPS = [
 },
 {
   name:'Antiques', head:'Cluttered forecourt, chandelier, mirror',
+  cTodo:'12 pavement props need collision volumes, 33 of them lapping past the frontage',
   fTodo:'z118..150 return +3, lettering behind board',
   tags:['stacked chairs','hanging chandelier','framed mirror','painted sign','crowded'],
   desc:'The chairs are real chairs — seat, back and four legs — stacked on each other, the mirror stands in a framed slab leaning on the wall, and the chandelier hangs from tube arms with balls on the ends.',
@@ -3246,6 +3335,7 @@ const SHOPS = [
 },
 {
   name:'Bike shop', head:'Bikes on the wall, wheel sign, ramp',
+  cTodo:'3 pavement props need collision volumes, 30 of them lapping past the frontage',
   tags:['bikes in the wall plane','spoked wheel sign','entry ramp','tool board','open roller'],
   desc:'The bike wheels are circles lying in the wall plane and the frames are tubes between real hubs, so a bike hung on the render leans with the building instead of facing the camera.',
   draw(p){
@@ -3389,6 +3479,7 @@ const SHOPS = [
 },
 {
   name:'Music shop', head:'Instruments on the wall, horn sign, piano',
+  cTodo:'2 pavement props need collision volumes',
   tags:['guitars in the wall plane','turned horn','upright piano','deep green','sheet racks'],
   desc:'The guitar bodies are circles lying in the wall plane with tube necks, so they lean with the render, and the horn is a tube run into a conical bell rather than a painted swirl.',
   draw(p){
@@ -3482,6 +3573,7 @@ const SHOPS = [
 },
 {
   name:'Brewery tap', tall:true,
+  cTodo:'1 pavement props need collision volumes, 45 of them lapping past the frontage',
   fTodo:'z132..164 return +1, lettering behind board',
   zTodo:1.11,          // H 186 -- see SCALE REVIEW at the head of this file
   head:'Copper still through the glass, vent stacks',
@@ -3530,6 +3622,7 @@ const SHOPS = [
 },
 {
   name:'Print works', tall:true,
+  cTodo:'4 pavement props need collision volumes, 66 of them lapping past the frontage',
   fTodo:'z128..158 return +3, lettering behind board',
   zTodo:1.05,          // H 176 -- see SCALE REVIEW at the head of this file
   head:'Paper roll, press through the glass, ink drums',
@@ -3626,6 +3719,7 @@ const SHOPS = [
 },
 {
   name:'Pottery', tall:true,
+  cTodo:'4 pavement props need collision volumes, 50 of them lapping past the frontage',
   fTodo:'z110..138 return +3, lettering behind board',
   zTodo:0.92,          // H 154 -- see SCALE REVIEW at the head of this file
   head:'Kiln chimney with smoke, arched kiln door',
@@ -3690,6 +3784,7 @@ const SHOPS = [
 },
 {
   name:'Cobbler', head:'Giant boot sign, bench in the window',
+  cTodo:'2 pavement props need collision volumes',
   fTodo:'z112..140 return +5, lettering behind board',
   tags:['boot as a solid','narrowest unit','work bench','shoe racks','worn timber'],
   desc:'The boot is built as a leg cylinder with a boxed foot and a sole slab, hanging from its bracket in the world, and the shoes on the bench are rounded solids.',
@@ -3789,6 +3884,7 @@ const SHOPS = [
 },
 {
   name:'Forge', head:'Brick stack, open fire, anvil on the pavement',
+  cTodo:'4 pavement props need collision volumes, 52 of them lapping past the frontage',
   fTodo:'z118..148 return +3, lettering behind board',
   tags:['round forge stack','glowing fire','anvil as a solid','horseshoe sign','open front'],
   desc:'The hood over the fire is a solid tapering to a round stack, the tools hang as tubes on a rack, and the anvil is a shaped solid on a timber block.',
@@ -3891,6 +3987,7 @@ const SHOPS = [
 },
 {
   name:'Coffee roaster', head:'Roaster drum, sack stack, vent chimney',
+  cTodo:'4 pavement props need collision volumes, 62 of them lapping past the frontage',
   fTodo:'z126..152 return +3, lettering behind board',
   tags:['turned roaster','hessian sacks','round flue','warm glow','bean bins'],
   desc:'The roaster is a drum with a hinged face and a hopper on top, the flue is a cylinder with collars running up the front, and the sacks are slumped solids rather than ovals.',
@@ -4165,6 +4262,7 @@ const SHOPS = [
 },
 {
   name:'Goods depot', head:'Raised loading dock, dock stairs, roller bays',
+  cTodo:'16 pavement props need collision volumes, 46 of them lapping past the frontage',
   fTodo:'z128..150 return +3, lettering behind board',
   tags:['raised dock platform','dock stairs','twin roller bays','pallets','bollards'],
   desc:'The dock is a platform with a bumper strip and a proper edge, the stairs are tread boxes on a stringer with a handrail, and the bollards are cylinders with painted bands.',
@@ -4324,6 +4422,7 @@ const SHOPS = [
 },
 {
   name:'Department store', tall:true,
+  cTodo:'3 pavement props need collision volumes',
   fTodo:'z292..314 return +10; z128..134 return +1; z212..218 return +1',
   zTodo:1.87,          // H 314 -- see SCALE REVIEW at the head of this file
   head:'Three storeys, corner turret, deep canopy, flags',
@@ -4389,6 +4488,7 @@ const SHOPS = [
 },
 {
   name:'Chambers', tall:true,
+  cTodo:'10 pavement props need collision volumes, 5 of them lapping past the frontage',
   fTodo:'z274..292 return +10; z90..96 return +7; z156..162 return +7; z222..228 return +7',
   zTodo:1.74,          // H 292 -- see SCALE REVIEW at the head of this file
   head:'Three storeys of sash windows, brass plaques',
@@ -4433,6 +4533,7 @@ const SHOPS = [
 },
 {
   name:'Grand hotel', tall:true,
+  cTodo:'2 pavement props need collision volumes',
   fTodo:'z276..296 return +10',
   zTodo:1.76,          // H 296 -- see SCALE REVIEW at the head of this file
   head:'Three storeys, vertical HOTEL sign, entrance awning',
@@ -4494,6 +4595,7 @@ const SHOPS = [
 },
 {
   name:'School', tall:true,
+  cTodo:'19 pavement props need collision volumes, 10 of them lapping past the frontage',
   fTodo:'z106..112 return +7; z188..194 return +7',
   zTodo:1.71,          // H 288 -- see SCALE REVIEW at the head of this file
   head:'Three storeys of tall windows, bellcote, railings',
@@ -4592,6 +4694,7 @@ const SHOPS = [
 },
 {
   name:'Library', tall:true,
+  cTodo:'3 pavement props need collision volumes',
   fTodo:'z250..268 return +10; z110..122 return +8',
   zTodo:1.6,          // H 268 -- see SCALE REVIEW at the head of this file
   head:'Tall arched upper windows, entrance steps',
@@ -4698,6 +4801,7 @@ const SHOPS = [
 },
 {
   name:'Market hall', tall:true,
+  cTodo:'12 pavement props need collision volumes',
   fTodo:'z118..130 return +8',
   zTodo:1.38,          // H 232 -- see SCALE REVIEW at the head of this file
   head:'Barrel-vaulted glazed roof over a two-storey front',
@@ -4895,6 +4999,7 @@ const SHOPS = [
 },
 {
   name:'Police station', tall:true,
+  cTodo:'2 pavement props need collision volumes',
   fTodo:'z274..292 return +10; z118..124 return +7; z186..192 return +7',
   zTodo:1.74,          // H 292 -- see SCALE REVIEW at the head of this file
   head:'Blue lamp, barred ground floor, mast',
@@ -5058,6 +5163,7 @@ const SHOPS = [
 },
 {
   name:'Ballroom', tall:true,
+  cTodo:'2 pavement props need collision volumes',
   fTodo:'z268..288 return +10',
   zTodo:1.71,          // H 288 -- see SCALE REVIEW at the head of this file
   head:'Great arched window, deep canopy, globe lamps',
@@ -5120,6 +5226,7 @@ const SHOPS = [
 },
 {
   name:'Harbour office', tall:true,
+  cTodo:'3 pavement props need collision volumes',
   fTodo:'z106..112 return +7, lettering 64 off-centre; z174..180 return +7; z100..112 return +3, lettering 70 off-centre',
   zTodo:1.63,          // H 274 -- see SCALE REVIEW at the head of this file
   head:'Cupola lookout, external stair, weathervane',
