@@ -2313,55 +2313,146 @@ const SHOPS = [
   }
 },
 {
-  name:'Bank', tall:true,
-  cTodo:'2 pavement props need collision volumes',
-  zTodo:1.24,          // H 208 -- see SCALE REVIEW at the head of this file
-  head:'Colonnade, pediment, stone steps',
-  tags:['round columns','solid pediment','stone steps','deep reveal','formal front'],
-  desc:'The columns are turned cylinders with wider bases and capitals, standing clear of a recessed wall, so the colonnade self-shadows properly. The pediment is swept to a real thickness rather than being a painted triangle.',
+  name:'Bank', tall:true, ww: T2*4.4,
+  wTodo:'two packing slots',
+  cTodo:'3 pavement props need collision volumes',   // the entrance steps
+  head:'Hexastyle giant order, deep portico, pediment, stone steps',
+  tags:['giant order','six columns','double-width unit','deep portico','swept pediment','tallest in the library'],
+  desc:'A bank is a monument, so it is sized as one in both directions: a giant order spanning the banking hall in a single storey, two packing slots wide, with the columns standing forward of a recessed portico rather than behind it.',
   draw(p){
-    const wall = '#d8d2c4', trim = '#8a8375', H = 208, CB = -20;
-    body(wall, trim, H);
-    slab(0,W, H, H+10, -1, -14, shade(wall,.72));
-    F(6,W-6, 150, H-6, shade(wall,1.06), null,0,-1);
-    F(18,W-18, 0, 150, shade(wall,.6), null,0, 1);                 // recessed reveal
-    /* the entrance here is a portico recessed between the columns, not
-       a shopfront door, so it keeps its own form -- but the opening is
-       now the real 161.92 tall (108 before the 1.5 lab factor) instead
-       of an eyeballed 112. */
-    F(W*0.36,W*0.64, 0, 108, shade(wall,.44), null,0, 2);
-    F(W*0.39,W*0.61, 8, 100, '#5d6b74', null,0, 1.5);
-    for(let i=0;i<2;i++) F(28+i*(W*0.62), 28+i*(W*0.62)+44, 26, 118, '#5d6b74', shade(wall,.8), 2, 1.5);
-    // four turned columns standing forward of the wall
-    for(let i=0;i<4;i++){
-      const ca = 22 + (W-44)*i/3;
-      cyl(ca, CB, 0, 12, 15, shade(wall,1.08));                     // base
-      cyl(ca, CB, 12, 150, 11, wall);                               // shaft
-      for(let k=0;k<5;k++)                                          // flutes
-        F(ca-8+k*4, ca-7+k*4, 12, 150, shade(wall,.9), null,0, CB-11);
-      cyl(ca, CB, 150, 164, 15, shade(wall,1.10));                  // capital
+    /* ================= IT WAS NOT A MONUMENT =================
+       H 208 is 1.24 shop storeys. The building next to it is 0.95, so a
+       bank with a colonnade and a pediment stood a quarter taller than
+       a laundrette. A giant order is not a stack of floors -- it is ONE
+       storey the height of the whole banking hall -- and that is the
+       whole reason the type exists. H 460 = 2.74 storeys, taller than
+       the rooming house's 2.50 and the tallest thing here, which is
+       what a bank is meant to be on a street of shops.
+
+       THE COLONNADE ALSO STOOD ON THE WRONG SIDE OF ITS OWN WALL. The
+       columns were at CB = -20, which is INTO the block, while the
+       "recessed" wall behind them was drawn at b +1, PROUD of it. So
+       the order was buried in the facade and the wall stood in front of
+       it -- the exact opposite of what the description claimed, and the
+       reason the colonnade never self-shadowed. The portico is a real
+       recess now and the columns stand forward at b +8, on the podium.
+
+       The frontage does not change. W is the block's slot; a bank on a
+       narrow lot is an urban giant order, not a temple front, and at
+       2.37:1 that is what this reads as. */
+    /* HEIGHT ALONE MADE IT A SLICE. At the frontage of 230 a facade
+       reaching 545 is 2.37:1 -- taller than wide by more than double,
+       which is a tower, not a temple front. A Greek front is about
+       0.6:1 and an urban bank block 1.2 to 1.5; two packing slots put
+       this at 1.35:1, which is the shape the type actually has.
+
+       ww = T2*4.4 = 404.8, exactly two of packEdgeNoGap's own slots,
+       the same anchor the garage uses. THE PORT CANNOT PLACE IT YET --
+       see wTodo and the WIDE UNITS note at the head of this file. That
+       is now two shops waiting on one packer change rather than one,
+       which is an argument for making the change rather than against.
+
+       Six columns instead of four: r 18 on centres 24..381 gives equal
+       35-unit gaps at 53% solid, and a shaft of 7.6 diameters, which is
+       Doric proportion -- the right order for a bank. */
+    const WW = T2*4.4;
+    const wall = '#d8d2c4', trim = '#8a8375', H = 460;
+    /* A DEEP RECESS SHIFTS ITS CONTENTS RIGHT BY ITS OWN DEPTH -- screen-a
+       is a - b, and there is no way round it. So deepening the landing
+       walks the doorway sideways into the right-hand columns: at the
+       even hexastyle spacing the open centre bay is 178 on screen, and
+       deep 66 put 34 of the door behind a column.
+       Pairing the columns tighter widens that bay to 231 without moving
+       the outer ones off the frontage -- 28/73 and 340/385, both pairs
+       at 45 -- and then deep 66 costs 3 units of overlap instead of 34.
+       Landing goes 66 -> 92 measured from the column's front face to
+       the door wall, which is the room to breathe. */
+    const colB = 8, deep = 66, COLS = [28, 73, 340, 385];
+    body(wall, trim, H, WW);
+
+    /* ---- the portico: a recess, with everything inside bounded by it ---- */
+    const rA0 = 16, rA1 = WW-16, rZ = 400;
+    ctx.save();
+    poly([P(rA0,0,rZ),P(rA1,0,rZ),P(rA1,0,0),P(rA0,0,0)]);
+    ctx.clip();
+    /* the portico reads as depth only if it is LIT -- at shade .62 it
+       was a dark slot behind the order and the entrance was invisible
+       in it. Back wall up to .82, doorway warm rather than near-black. */
+    F(rA0, rA1, 0, rZ, shade(wall,.82), null, 0, -deep);            // back wall
+    S(rA0, 0, -deep, 0, rZ, shade(wall,.66));                       // jamb
+    T(rA0, rA1, 0, -deep, 0, shade(wall,.9));                       // portico floor
+    F(WW*0.38, WW*0.62, 0, 240, shade(wall,.56), null, 0, -deep+1); // the doorway
+    F(WW*0.395, WW*0.605, 10, 228, '#5a6f7a', null, 0, -deep+1.6);
+    F(WW*0.40, WW*0.455, 20, 218, 'rgba(250,244,225,.16)', null, 0, -deep+2);
+    slab(WW*0.36, WW*0.64, 240, 254, -deep+2, -deep+10, shade(wall,.9));
+    /* TWO WINDOWS, FLANKING. Four at a step of 106 put the middle pair
+       on 140..196 and 246..302 against a doorway running 153.8..251 --
+       both of them across the entrance -- and the fourth ran to 408
+       past a 404.8 frontage, saved only by the recess clip. The wall
+       either side of the door is 16..153.8 and 251..388.8, so one
+       window in each: 44..118 and 287..361, clearing the door by 36
+       on both sides. */
+    /* the windows follow the deeper wall: at b -64.4 they shift 64 right
+       on screen, so the right one had to come in from 287..361 (screen
+       351..425, clipped by the opening at 388.8) to 254..324, which
+       lands on 318..388 -- inside the clip, and 3 clear of the door. */
+    for(const [wa0,wa1] of [[40,110],[254,324]])
+      F(wa0, wa1, 60, 310, '#4a5a64', shade(wall,.72), 2, -deep+1.6);
+    ctx.restore();
+
+    /* ---- the podium the order stands on ---- */
+    slab(0, WW, 0, 70, colB+14, -2, shade(wall,1.04), shade(wall,.86), shade(wall,1.1));
+
+    /* ---- the giant order: four columns, standing FORWARD ---- */
+    /* AN EVEN COLONNADE. At r 16 on 28..202 the order was 56% solid
+       with 30-unit gaps -- a wall of columns rather than a colonnade,
+       and the portico behind it never got a clear opening. r 14 on
+       20..210 is 49% solid with equal 35s, and the shaft comes out at
+       9.7 diameters, which is Ionic proportion for a bank. */
+    /* the two centre columns are OUT at Sir's direction, leaving a wide
+       central bay over the entrance. Positions are unchanged so the
+       remaining four still sit on the hexastyle rhythm the frieze and
+       the pediment are set out to. */
+    for(const ca of COLS){
+      cyl(ca, colB, 70, 88, 23, shade(wall,1.08));                  // base
+      cyl(ca, colB, 88, 360, 18, wall, shade(wall,.78));            // shaft
+      for(const fo of [-8, 0, 8])                                   // flutes
+        F(ca+fo-1.2, ca+fo+1.2, 92, 356, shade(wall,.9), null, 0, colB+15);
+      cyl(ca, colB, 360, 378, 21, shade(wall,1.10));                // capital neck
+      slab(ca-25, ca+25, 378, 388, colB+24, colB-24, shade(wall,1.14));
     }
-    slab(0,W, 164, 176, CB+16, CB-16, shade(wall,.88));             // architrave
-    // pediment swept to a thickness, like a real gable
-    const pk = (t,bb) => {
-      const a = t < 0.5 ? W*t*2*0.5 : W*0.5 + W*(t-0.5);
-      const z = 176 + (1 - Math.abs(t-0.5)*2) * 50;
-      return P(t*W, bb, z);
-    };
-    for(let i=0;i<18;i++)
-      poly([pk(i/18,CB+16),pk((i+1)/18,CB+16),pk((i+1)/18,CB-16),pk(i/18,CB-16)], shade(wall,1.12));
+
+    /* ---- entablature. 6..W-6 against a back face of -4 puts the
+            return on 228, inside the 230 -- a cornice may wrap, but
+            nothing here needs to. ---- */
+    slab(6, WW-6, 386, 408, colB+20, -4, shade(wall,.96));          // architrave
+    slab(6, WW-6, 408, 438, colB+18, -4, shade(wall,1.02), shade(wall,.84), shade(wall,1.1));
+    for(let i=0;i<19;i++)                                           // triglyphs
+      F(16+i*20, 24+i*20, 412, 434, shade(wall,.8), null, 0, colB+18.6);
+    slab(2, WW-2, 438, 460, colB+26, -6, shade(wall,1.1), shade(wall,.9), shade(wall,1.18));
+
+    /* ---- the pediment, swept to a real thickness ---- */
+    const pB0 = colB+22, pB1 = colB-18, apex = 545;
+    const pk = (t,bb) => P(t*WW, bb, 460 + (1 - Math.abs(t-0.5)*2) * (apex-460));
+    for(let i=0;i<20;i++)
+      poly([pk(i/20,pB0),pk((i+1)/20,pB0),pk((i+1)/20,pB1),pk(i/20,pB1)], shade(wall,1.14));
     ctx.beginPath();
-    let q = P(0,CB+16,176); ctx.moveTo(q.x,q.y);
-    q = P(W/2,CB+16,226); ctx.lineTo(q.x,q.y);
-    q = P(W,CB+16,176); ctx.lineTo(q.x,q.y);
-    ctx.closePath(); ctx.fillStyle = shade(wall,1.04); ctx.fill();
+    let q = P(0,pB0,460); ctx.moveTo(q.x,q.y);
+    q = P(WW/2,pB0,apex); ctx.lineTo(q.x,q.y);
+    q = P(WW,pB0,460); ctx.lineTo(q.x,q.y);
+    ctx.closePath(); ctx.fillStyle = shade(wall,1.05); ctx.fill();
     ctx.strokeStyle = shade(wall,.68); ctx.lineWidth = 3; ctx.stroke();
-    faceCircle(W*0.50, CB+15, 196, 13, trim, shade(wall,.7), 2);    // roundel
+    faceCircle(WW*0.50, pB0+1, 500, 19, trim, shade(wall,.7), 2);   // roundel
+
     if(state.props){
-      box(14,W-14,0,26,0,10,shade(wall,1.02),shade(wall,.86),shade(wall,.74));
-      box(20,W-20,0,18,10,20,shade(wall,1.04),shade(wall,.88),shade(wall,.76));
+      /* the steps: three treads onto the pavement. b runs to 30, so the
+         run starts at a 32 to keep its near corner on screen-a 2 --
+         positive b shifts a prop left by its own b. */
+      box(40, WW-40, 0, 30, 0, 16, shade(wall,1.02), shade(wall,.86), shade(wall,.74));
+      box(46, WW-46, 0, 22, 16, 32, shade(wall,1.04), shade(wall,.88), shade(wall,.76));
+      box(52, WW-52, 0, 14, 32, 48, shade(wall,1.06), shade(wall,.9), shade(wall,.78));
     }
-    if(state.roof) box(W*0.66,W*0.90,-170,-130,H,H+20,'#9aa0a6','#7d838a','#6a7076');
+    if(state.roof) box(WW*0.66, WW*0.86, -210, -170, H, H+22, '#9aa0a6','#7d838a','#6a7076');
     kerb(p,'none');
   }
 },
