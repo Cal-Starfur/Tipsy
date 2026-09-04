@@ -143,6 +143,56 @@ function drawChemist(p, c){
 }
 
 
+/* ================= FASCIA CHECK, OPEN =================
+   `fTodo` on a shop lists what is wrong with its FASCIA -- the name
+   board: the slab band across the shopfront plus the lettering panels
+   on it. The band at the wall top is the CORNICE and is a different
+   thing; it belongs to the building and is allowed to wrap a corner.
+   A fascia belongs to ONE shopfront and the neighbour's board occupies
+   the space past the return, so it may not.
+
+   Measured by instrumenting body(), which is the only place that knows
+   a shop's real frontage -- the narrow shops declare WW as a local
+   inside draw() -- and its wall height, which is how fascia is told
+   from cornice. Bands below z 60 are excluded: those are stallrisers
+   and base plinths, not name boards.
+
+   99 fascias found; 54 shops carry a fault, in three classes.
+
+   A  RETURN PAST THE SILHOUETTE (52 shops, +1 to +12). A slab at
+      negative b projects RIGHT on screen by its own depth, so the
+      a-margin has to beat the recess. Fix: a0 = margin, a1 = w - margin
+      with margin >= |bBack| + 6.
+
+   B  LETTERING BEHIND THE BOARD (29 shops). The library convention is
+      F(..., -9.5) against a board whose back face is -9, so the panel
+      is behind the thing it is painted on and survives on call order
+      alone -- under a depth key it vanishes inside the board. It also
+      shifts 9.5 right while the board shifts 1, which is what throws
+      the centring out. Fix: bFront + 0.5, proud of the face.
+
+   C  LETTERING OFF-CENTRE ON SCREEN (Harbour office). Screen-a is
+      a - b, so two things given the same `a` at different `b` are NOT
+      aligned, and none of that shows in the numbers you write. Set the
+      board out in SCREEN space and convert back -- see the Tailor,
+      which is the worked example.
+
+   WHY THIS IS A FLAG AND NOT A BULK EDIT. Three things make a blind
+   pass unsafe, all of them found by trying:
+     * the classifier cannot separate a fascia from a plinth on its own
+       -- the first cut flagged the gym's 0..30 base band and the
+       chapel's 26..32 as name boards;
+     * -9.5 is not always a fascia: it appears legitimately inside
+       reveals, and the garage truck's rear doors sit at -19.x, so a
+       regex on the number would corrupt them;
+     * fixing A forces C, because narrowing the board moves its screen
+       span and the lettering has to reflow around whatever else is on
+       that facade. The tailor took three passes for exactly that
+       reason, and it had a clock in the way.
+   So each one gets looked at when its shop comes up, and the flag is
+   cleared then.
+   ===================================================================== */
+
 /* ================= WIDE UNITS, OPEN AT THE PORT =================
    `ww` on a shop is its frontage when that is NOT the default W, and
    `wTodo` says the game cannot place it yet.
@@ -477,6 +527,7 @@ const SHOPS = [
 },
 {
   name:'Barber', head:'Narrow bay, turning pole, gold lettering',
+  fTodo:'z168..192 return +12; z122..152 lettering behind board',
   tags:['chairs inside','cylindrical pole','swept awning','gold fascia','deep green'],
   desc:'A barber chair stands in the reveal behind the glass with a mirror on the back wall, so the bay has something to look into instead of being a flat pane of blue.',
   draw(p){
@@ -1360,6 +1411,7 @@ const SHOPS = [
 },
 {
   name:'Rooming house', tall:true,
+  fTodo:'z408..420 return +3; z114..122 return +6; z214..222 return +6; z314..322 return +6',
   head:'Four storeys, cantilevered fire escape, entrance hood',
   tags:['real storey rhythm','fire escape with depth','cantilevered hood','band courses','roof tank on legs'],
   desc:'Sized against the game one-storey anchor rather than by eye: a shopfront-height ground floor with three residential storeys over it, so the three ranks of windows have room to be storeys instead of stripes.',
@@ -1529,6 +1581,7 @@ const SHOPS = [
 },
 {
   name:'Fishmonger', head:'Open marble counter, iced slab, striped awning',
+  fTodo:'z130..152 lettering behind board',
   tags:['open frontage','counter that projects','shallow ice slab','fish as solids','bracket sign over the pavement'],
   desc:'A wet-fish shop is an open counter with ice on it and a dark shop behind, so the depth runs pavement, counter, ice, interior — and the fish are laid on a shallow slab you can see the top of rather than pinned to a wall of ice.',
   draw(p){
@@ -1671,6 +1724,7 @@ const SHOPS = [
 },
 {
   name:'Garage', ww: T2*4.4,
+  fTodo:'z126..150 lettering behind board',
   wTodo:'two packing slots',
   head:'Two full-size bays, open workshop, turbine vents',
   tags:['two bays a car actually fits','double-width unit','truck in the open bay','turbine vents','oil drums'],
@@ -1937,6 +1991,7 @@ const SHOPS = [
 },
 {
   name:'Cantina', head:'Pergola porch, string bulbs, chimney',
+  fTodo:'z140..152 return +6',
   tags:['round pergola posts','string bulbs','half doors','barrels','stucco chimney'],
   desc:'Pergola posts are turned cylinders with the beam sitting on them, the barrels are hooped cylinders standing on the pavement, and the chimney gets a clay pot.',
   draw(p){
@@ -2014,6 +2069,7 @@ const SHOPS = [
 },
 {
   name:'Ice cream', head:'Giant cone on the roof, hatch window, scallops',
+  fTodo:'z126..140 return +6',
   tags:['giant roof cone','pastel palette','serving hatch','scalloped awning','pavement seats'],
   desc:'The cone stands on a small plinth so it is planted on the roof rather than hovering, the scoops overlap as real balls, and the pavement seats are turned stools.',
   draw(p){
@@ -2219,6 +2275,7 @@ const SHOPS = [
 },
 {
   name:'Arcade', head:'Black hole of a front, screen glow, pixel sign',
+  fTodo:'z110..116 return +2',
   tags:['unlit front','screen glow','solid pixel sign','step-in entry','A-board'],
   desc:'Every block of the pixel sign is a slab with a lit top edge, so the lettering stands off the fascia. The cabinets inside are boxes with visible tops rather than coloured rectangles.',
   draw(p){
@@ -2262,6 +2319,7 @@ const SHOPS = [
 },
 {
   name:'Butcher', head:'Hooks and rail, tiled base, block outside',
+  fTodo:'z132..138 return +8',
   tags:['round rail','hooked cuts','white tile','striped awning','chopping block'],
   desc:'The rail is a tube with the hooks bent over it and the cuts hanging as rounded solids. The chopping block is a heavy round butcher block on legs.',
   draw(p){
@@ -2332,6 +2390,7 @@ const SHOPS = [
 },
 {
   name:'Post office', tall:true,
+  fTodo:'z120..132 return +8; z138..166 lettering behind board',
   zTodo:1.11,          // H 186 -- see SCALE REVIEW at the head of this file
   head:'Flagpole, crest parapet, pillar box',
   tags:['flagpole and flag','crest parapet','counter windows','round pillar box','official palette'],
@@ -2375,6 +2434,7 @@ const SHOPS = [
 },
 {
   name:'Pet shop', head:'Lit tanks, hanging cage, kennel',
+  fTodo:'z128..134 return +8',
   tags:['aquarium glow','round birdcage','kennel outside','scalloped valance','warm interior'],
   desc:'The birdcage is a cylinder with a domed top and vertical bars, hanging on a chain, and the tanks have a lit front edge so the glow reads as coming out of the glass.',
   draw(p){
@@ -2425,6 +2485,7 @@ const SHOPS = [
 },
 {
   name:'Gym', head:'Clerestory band, roof duct run, kettlebell sign',
+  fTodo:'z148..172 return +3, lettering behind board',
   tags:['high clerestory','round duct run','no display glass','equipment sign','roller door'],
   desc:'The duct is a run of real cylinders with joint collars snaking across the roof, and the kettlebell on the fascia is a sphere with a bent tube handle.',
   draw(p){
@@ -2517,6 +2578,7 @@ const SHOPS = [
 },
 {
   name:'Photo studio', head:'North-light glazing, portrait cases',
+  fTodo:'z120..146 return +3, lettering behind board',
   tags:['sawtooth north light','glazing bars','portrait cases','deep sill','glass roof plane'],
   desc:'Each sawtooth now has a solid upstand behind the glass and a capping at the ridge, so the roof reads as built rather than as two blue sheets, and the portraits are framed boxes with a visible edge.',
   draw(p){
@@ -2619,6 +2681,7 @@ const SHOPS = [
 },
 {
   name:'Milliner', head:'Three half-dome awnings, narrow bays',
+  fTodo:'z128..162 return +3, lettering behind board',
   tags:['domed awnings','three narrow bays','turned hat blocks','slim unit','scalloped hems'],
   desc:'Hat blocks are turned stands with real crowns and brims, and each dome awning has a shaded underside so it reads as a hood rather than a painted arc.',
   draw(p){
@@ -2657,6 +2720,7 @@ const SHOPS = [
 },
 {
   name:'Bathhouse', tall:true,
+  fTodo:'z96..106 return +6, lettering behind board',
   zTodo:1.04,          // H 174 -- see SCALE REVIEW at the head of this file
   head:'Onion dome, steam vents, tiled arch',
   tags:['onion dome on a drum','tiled arch entry','steam plumes','mosaic band','high windows'],
@@ -2724,6 +2788,7 @@ const SHOPS = [
 },
 {
   name:'Locksmith', head:'Giant key sign, barred glass, narrow',
+  fTodo:'z116..150 return +3, lettering behind board',
   tags:['oversized key','round bars','narrow unit','bracket arm','worn palette'],
   desc:'The key bow is a circle lying in the plane of its bracket, the shaft is a tube and the wards are solid blocks off the end, so the whole thing hangs in the world instead of facing the camera.',
   draw(p){
@@ -2756,6 +2821,7 @@ const SHOPS = [
 },
 {
   name:'Furniture showroom', tall:true,
+  fTodo:'z188..208 return +4, lettering behind board',
   zTodo:1.27,          // H 214 -- see SCALE REVIEW at the head of this file
   head:'Double-height glass, loading hoist, mezzanine',
   tags:['double-height glazing','sofa in the round','loft hoist','wide unit','open mezzanine'],
@@ -2850,6 +2916,7 @@ const SHOPS = [
 },
 {
   name:'TV repair', head:'Aerial forest, dish, wall of screens',
+  fTodo:'z116..146 return +3, lettering behind board',
   tags:['aerial forest','dish on a mount','stacked screens','test-card glow','cluttered roof'],
   desc:'Every aerial is a tube with real crossbars and each mast has a base plate on the roof; the dish sits on a bracket with an arm to the feed horn instead of floating as an oval.',
   draw(p){
@@ -2948,6 +3015,7 @@ const SHOPS = [
 },
 {
   name:'Fire station', tall:true,
+  fTodo:'z136..168 return +3, lettering behind board',
   zTodo:1.06,          // H 178 -- see SCALE REVIEW at the head of this file
   head:'Drill tower, twin appliance doors, bell',
   tags:['hose drill tower','two tall bay doors','turned bell','red and cream','apron'],
@@ -2992,6 +3060,7 @@ const SHOPS = [
 },
 {
   name:'Optician', head:'Giant spectacles across the fascia',
+  fTodo:'z118..126 return +7',
   tags:['oversized spectacles','eye chart','clean white','frame display','deep reveal'],
   desc:'The spectacle rims are circles lying in the fascia plane, joined by a tube bridge with the temples folding back into the wall, so the whole sign shears with the building.',
   draw(p){
@@ -3025,6 +3094,7 @@ const SHOPS = [
 },
 {
   name:'Public house', tall:true,
+  fTodo:'z122..152 return +3, lettering behind board',
   zTodo:1.08,          // H 182 -- see SCALE REVIEW at the head of this file
   head:'Bow windows, twin chimneys, bracket sign',
   tags:['true bowed bays','chimney pots','hanging bracket sign','window boxes','tiled base'],
@@ -3129,6 +3199,7 @@ const SHOPS = [
 },
 {
   name:'Antiques', head:'Cluttered forecourt, chandelier, mirror',
+  fTodo:'z118..150 return +3, lettering behind board',
   tags:['stacked chairs','hanging chandelier','framed mirror','painted sign','crowded'],
   desc:'The chairs are real chairs — seat, back and four legs — stacked on each other, the mirror stands in a framed slab leaning on the wall, and the chandelier hangs from tube arms with balls on the ends.',
   draw(p){
@@ -3223,6 +3294,7 @@ const SHOPS = [
 },
 {
   name:'Clockmaker', tall:true,
+  fTodo:'z108..116 return +2',
   zTodo:1.11,          // H 186 -- see SCALE REVIEW at the head of this file
   head:'Huge clock over the door, faces in the window',
   tags:['clock in the wall plane','swept pediment','clock faces','brass palette','narrow'],
@@ -3271,6 +3343,7 @@ const SHOPS = [
 },
 {
   name:'Fabric shop', head:'Bolt racks outside, twin awnings, hanging rolls',
+  fTodo:'z128..150 return +1, lettering behind board',
   tags:['rolled bolts','two-tier awnings','hanging rolls','pattern blocks','busy colour'],
   desc:'Both the hanging rolls and the bolts on the pavement are cylinders with visible ends, and each awning tier has an underside and returns so they stack as two real hoods.',
   draw(p){
@@ -3355,6 +3428,7 @@ const SHOPS = [
 },
 {
   name:'Chandlery', head:'Mast and rigging on the roof, anchor sign',
+  fTodo:'z112..140 return +3, lettering behind board',
   tags:['stepped mast','rigging lines','porthole windows','coiled rope','tarred timber'],
   desc:'The mast is a tapered cylinder on a deck block with a yard across it, the portholes are circles in the wall plane with real rims, and the rope coils lie flat on the pavement.',
   draw(p){
@@ -3408,6 +3482,7 @@ const SHOPS = [
 },
 {
   name:'Brewery tap', tall:true,
+  fTodo:'z132..164 return +1, lettering behind board',
   zTodo:1.11,          // H 186 -- see SCALE REVIEW at the head of this file
   head:'Copper still through the glass, vent stacks',
   tags:['turned copper still','swan neck','vent stacks','cellar hatch','barrel'],
@@ -3455,6 +3530,7 @@ const SHOPS = [
 },
 {
   name:'Print works', tall:true,
+  fTodo:'z128..158 return +3, lettering behind board',
   zTodo:1.05,          // H 176 -- see SCALE REVIEW at the head of this file
   head:'Paper roll, press through the glass, ink drums',
   tags:['turned paper roll','press rollers','ink drums','clock','industrial glazing'],
@@ -3500,6 +3576,7 @@ const SHOPS = [
 },
 {
   name:'Sweet shop', head:'Barley-twist columns, jar rows, striped canopy',
+  fTodo:'z118..142 return +3, lettering behind board; z114..120 return +8',
   tags:['twisted columns','lidded jars','candy stripes','tiny scale','pastel'],
   desc:'The barley twist is now a real cylinder with the stripe wrapping it, the same way the barber pole works, and every jar is a turned glass with a lid sitting on the shelf.',
   draw(p){
@@ -3549,6 +3626,7 @@ const SHOPS = [
 },
 {
   name:'Pottery', tall:true,
+  fTodo:'z110..138 return +3, lettering behind board',
   zTodo:0.92,          // H 154 -- see SCALE REVIEW at the head of this file
   head:'Kiln chimney with smoke, arched kiln door',
   tags:['tapered round chimney','swept kiln arch','thrown pots','raw brick','smoke'],
@@ -3612,6 +3690,7 @@ const SHOPS = [
 },
 {
   name:'Cobbler', head:'Giant boot sign, bench in the window',
+  fTodo:'z112..140 return +5, lettering behind board',
   tags:['boot as a solid','narrowest unit','work bench','shoe racks','worn timber'],
   desc:'The boot is built as a leg cylinder with a boxed foot and a sole slab, hanging from its bracket in the world, and the shoes on the bench are rounded solids.',
   draw(p){
@@ -3646,6 +3725,7 @@ const SHOPS = [
 },
 {
   name:'Beach shop', head:'Boards on the wall, palm through the roof, open shutter',
+  fTodo:'z114..132 return +7',
   tags:['boards leaning in plane','palm with real fronds','open shutter','hammock','sun-bleached'],
   desc:'Boards lean in a genuine world plane against the pier and the palm fronds are polygons laid out around the crown in three dimensions, so the tree turns rather than facing the camera.',
   draw(p){
@@ -3709,6 +3789,7 @@ const SHOPS = [
 },
 {
   name:'Forge', head:'Brick stack, open fire, anvil on the pavement',
+  fTodo:'z118..148 return +3, lettering behind board',
   tags:['round forge stack','glowing fire','anvil as a solid','horseshoe sign','open front'],
   desc:'The hood over the fire is a solid tapering to a round stack, the tools hang as tubes on a rack, and the anvil is a shaped solid on a timber block.',
   draw(p){
@@ -3762,6 +3843,7 @@ const SHOPS = [
 },
 {
   name:'Carpet shop', head:'Rugs draped over a rail across the front',
+  fTodo:'z124..152 return +3, lettering behind board',
   tags:['hanging rugs','draped cloth','round rail','rolled stock','deep colour'],
   desc:'The rail is a tube on turned brackets and the rolled stock leans as real cylinders with visible ends, so the only soft thing left is the cloth itself.',
   draw(p){
@@ -3809,6 +3891,7 @@ const SHOPS = [
 },
 {
   name:'Coffee roaster', head:'Roaster drum, sack stack, vent chimney',
+  fTodo:'z126..152 return +3, lettering behind board',
   tags:['turned roaster','hessian sacks','round flue','warm glow','bean bins'],
   desc:'The roaster is a drum with a hinged face and a hopper on top, the flue is a cylinder with collars running up the front, and the sacks are slumped solids rather than ovals.',
   draw(p){
@@ -3856,6 +3939,7 @@ const SHOPS = [
 },
 {
   name:'Pigeon loft', head:'Timber loft on the roof, landing board, birds',
+  fTodo:'z104..130 return +3, lettering behind board',
   tags:['rooftop loft','landing board','birds as solids','feed shop below','timber'],
   desc:'The loft has a closed gable end and a ridge, the landing board is carried on real brackets, and the birds are rounded solids with tails and beaks rather than flat ovals.',
   draw(p){
@@ -3905,6 +3989,7 @@ const SHOPS = [
 },
 {
   name:'Dance studio', tall:true,
+  fTodo:'z104..114 return +7',
   zTodo:1.27,          // H 214 -- see SCALE REVIEW at the head of this file
   head:'External stair up the flank, mirrored upper floor',
   tags:['built external stair','mirror wall upstairs','tube barre','tall upper glazing','landing'],
@@ -3944,6 +4029,7 @@ const SHOPS = [
 },
 {
   name:'Tattoo parlour', head:'Neon script, flash sheets, blacked front',
+  fTodo:'z118..150 return +3',
   tags:['neon in the wall plane','framed flash sheets','black render','red glow','A-board'],
   desc:'The neon is drawn through points in the wall plane so the script leans with the fascia, and every flash sheet is a framed slab standing off the glass.',
   draw(p){
@@ -3991,6 +4077,7 @@ const SHOPS = [
 },
 {
   name:'Undertaker', tall:true,
+  fTodo:'z162..178 return +10; z156..162 return +6; z122..152 return +1, lettering behind board',
   zTodo:1.06,          // H 178 -- see SCALE REVIEW at the head of this file
   head:'Sober black front, urn finials, drawn blinds',
   tags:['turned urns','half-drawn blinds','black and grey','deep cornice','restrained'],
@@ -4030,6 +4117,7 @@ const SHOPS = [
 },
 {
   name:'Model shop', head:'Biplane on a bracket, kites, tiny windows',
+  fTodo:'z120..148 return +3, lettering behind board',
   tags:['biplane as a solid','kites in plane','small display panes','busy fascia','bright'],
   desc:'The biplane is built from a fuselage cylinder, two wing slabs, struts and a tail, banking on its bracket, and the kites hang in their own planes.',
   draw(p){
@@ -4077,6 +4165,7 @@ const SHOPS = [
 },
 {
   name:'Goods depot', head:'Raised loading dock, dock stairs, roller bays',
+  fTodo:'z128..150 return +3, lettering behind board',
   tags:['raised dock platform','dock stairs','twin roller bays','pallets','bollards'],
   desc:'The dock is a platform with a bumper strip and a proper edge, the stairs are tread boxes on a stringer with a handrail, and the bollards are cylinders with painted bands.',
   draw(p){
@@ -4127,6 +4216,7 @@ const SHOPS = [
 },
 {
   name:'Apothecary', head:'Herb bunches hung under the fascia, jar wall',
+  fTodo:'z120..148 return +3, lettering behind board',
   tags:['hanging herb bunches','lidded jars','mortar sign','dark timber','small panes'],
   desc:'Every jar on the wall is a turned glass with a stopper, and the herb bunches hang from real cords with the stems bound and the leaves falling around them.',
   draw(p){
@@ -4176,6 +4266,7 @@ const SHOPS = [
 },
 {
   name:'Apartments over shop', tall:true,
+  fTodo:'z100..110 return +7; z196..206 return +7; z92..100 return +2',
   zTodo:1.79,          // H 300 -- see SCALE REVIEW at the head of this file
   head:'Three storeys, iron balconies, washing lines',
   tags:['3 storey','built balconies','washing lines','shutters','shop below'],
@@ -4233,6 +4324,7 @@ const SHOPS = [
 },
 {
   name:'Department store', tall:true,
+  fTodo:'z292..314 return +10; z128..134 return +1; z212..218 return +1',
   zTodo:1.87,          // H 314 -- see SCALE REVIEW at the head of this file
   head:'Three storeys, corner turret, deep canopy, flags',
   tags:['3 storey','turret on a drum','flagpoles','deep canopy','grid glazing'],
@@ -4297,6 +4389,7 @@ const SHOPS = [
 },
 {
   name:'Chambers', tall:true,
+  fTodo:'z274..292 return +10; z90..96 return +7; z156..162 return +7; z222..228 return +7',
   zTodo:1.74,          // H 292 -- see SCALE REVIEW at the head of this file
   head:'Three storeys of sash windows, brass plaques',
   tags:['3 storey','sash windows','brass plaques','stone cills','area railings'],
@@ -4340,6 +4433,7 @@ const SHOPS = [
 },
 {
   name:'Grand hotel', tall:true,
+  fTodo:'z276..296 return +10',
   zTodo:1.76,          // H 296 -- see SCALE REVIEW at the head of this file
   head:'Three storeys, vertical HOTEL sign, entrance awning',
   tags:['3 storey','projecting sign box','bowed awning','juliet rails','corner quoins'],
@@ -4400,6 +4494,7 @@ const SHOPS = [
 },
 {
   name:'School', tall:true,
+  fTodo:'z106..112 return +7; z188..194 return +7',
   zTodo:1.71,          // H 288 -- see SCALE REVIEW at the head of this file
   head:'Three storeys of tall windows, bellcote, railings',
   tags:['3 storey','tall classroom windows','turned bell','railed yard','plaque'],
@@ -4497,6 +4592,7 @@ const SHOPS = [
 },
 {
   name:'Library', tall:true,
+  fTodo:'z250..268 return +10; z110..122 return +8',
   zTodo:1.6,          // H 268 -- see SCALE REVIEW at the head of this file
   head:'Tall arched upper windows, entrance steps',
   tags:['2 storey','swept arch heads','entrance steps','stone pilasters','plaque'],
@@ -4602,6 +4698,7 @@ const SHOPS = [
 },
 {
   name:'Market hall', tall:true,
+  fTodo:'z118..130 return +8',
   zTodo:1.38,          // H 232 -- see SCALE REVIEW at the head of this file
   head:'Barrel-vaulted glazed roof over a two-storey front',
   tags:['2 storey','barrel vault','tube ribs','arched entry','stalls'],
@@ -4683,6 +4780,7 @@ const SHOPS = [
 },
 {
   name:'Newspaper HQ', tall:true,
+  fTodo:'z106..114 return +8',
   zTodo:1.79,          // H 300 -- see SCALE REVIEW at the head of this file
   head:'Rooftop globe, headline band, delivery bay',
   tags:['globe on a frame','running headline band','van bay','corner clock','3 storey'],
@@ -4746,6 +4844,7 @@ const SHOPS = [
 },
 {
   name:'Telephone exchange', tall:true,
+  fTodo:'z280..296 return +10; z88..96 return +8',
   zTodo:1.76,          // H 296 -- see SCALE REVIEW at the head of this file
   head:'Blank upper floors, louvre vents, cable gantry',
   tags:['louvred vents','no upper windows','built cable gantry','blank mass','3 storey'],
@@ -4796,6 +4895,7 @@ const SHOPS = [
 },
 {
   name:'Police station', tall:true,
+  fTodo:'z274..292 return +10; z118..124 return +7; z186..192 return +7',
   zTodo:1.74,          // H 292 -- see SCALE REVIEW at the head of this file
   head:'Blue lamp, barred ground floor, mast',
   tags:['turned blue lamp','round bars','entrance steps','radio mast','3 storey'],
@@ -4851,6 +4951,7 @@ const SHOPS = [
 },
 {
   name:'Museum', tall:true,
+  fTodo:'z264..286 return +10',
   zTodo:1.7,          // H 286 -- see SCALE REVIEW at the head of this file
   head:'Roof lantern, hanging banners, deep reveal',
   tags:['built roof lantern','hanging banners','recessed entry','stone piers','3 storey'],
@@ -4957,6 +5058,7 @@ const SHOPS = [
 },
 {
   name:'Ballroom', tall:true,
+  fTodo:'z268..288 return +10',
   zTodo:1.71,          // H 288 -- see SCALE REVIEW at the head of this file
   head:'Great arched window, deep canopy, globe lamps',
   tags:['swept arch','globe lamps','deep canopy','poster frames','3 storey'],
@@ -5018,6 +5120,7 @@ const SHOPS = [
 },
 {
   name:'Harbour office', tall:true,
+  fTodo:'z106..112 return +7, lettering 64 off-centre; z174..180 return +7; z100..112 return +3, lettering 70 off-centre',
   zTodo:1.63,          // H 274 -- see SCALE REVIEW at the head of this file
   head:'Cupola lookout, external stair, weathervane',
   tags:['glazed cupola','pyramid cap','built external stair','weathervane','3 storey'],
@@ -5131,6 +5234,7 @@ const SHOPS = [
 },
 {
   name:'Almshouses', tall:true,
+  fTodo:'z118..132 return +10',
   zTodo:1.56,          // H 262 -- see SCALE REVIEW at the head of this file
   head:'Arcaded ground floor, dormers, courtyard gate',
   tags:['swept arcade','dormers with cheeks','courtyard gate','chimney pots','3 storey'],
