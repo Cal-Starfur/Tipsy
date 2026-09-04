@@ -2869,19 +2869,23 @@ const SHOPS = [
   }
 },
 {
-  name:'Butcher', head:'Hooks and rail, tiled base, block outside',
-  cTodo:'5 pavement props need collision volumes, 56 of them lapping past the frontage',
-  fTodo:'z132..138 return +8',
-  tags:['round rail','hooked cuts','white tile','striped awning','chopping block'],
-  desc:'The rail is a tube with the hooks bent over it and the cuts hanging as rounded solids. The chopping block is a heavy round butcher block on legs.',
+  name:'Butcher', head:'Hooks and rail, tiled base, striped awning',
+  tags:['round rail','hooked cuts','white tile','striped awning','no pavement props'],
+  desc:'The rail is a tube with the hooks bent over it and the cuts hanging as rounded solids rather than painted shapes. The awning is a folded canopy with a real underside, not a flat stripe on the wall.',
   draw(p){
     const wall = '#f0ece2', trim = '#8f2b2b', H = 150;
     body(wall, trim, H);
     slab(0,W, H, H+10, -1, -12, trim);
     for(let i=0;i<12;i++) F(i*(W/12), i*(W/12)+1.6, 0,42, shade(wall,.9), null,0,-1);
-    slab(0,W, 40, 46, -1, -6, trim);
-    F(12,W*0.70, 46, 108, '#d6e2e4', shade(wall,.62), 3);
-    tube(16, -6, 98, W*0.68, -6, 98, 2, '#9aa0a6');
+    /* SAME RULE, MISSED BY THE CLASSIFIER. This band is below z 60, so
+       the fascia census excluded it as a plinth and it was never
+       flagged -- but 0..W at b -1..-6 lands screen-a 1..236, six past
+       the far return, exactly the fault the fTodo describes. Margin 8
+       against a recess of 6 leaves 2 of pier: screen 9..228, flush
+       with the 132..138 band above it. */
+    slab(8,W-8, 40, 46, -1, -6, trim);
+    F(12,W*0.64, 46, 108, '#d6e2e4', shade(wall,.62), 3);   // see the door note below
+    tube(16, -6, 98, W*0.62, -6, 98, 2, '#9aa0a6');
     for(let i=0;i<5;i++){
       const ha = 28+i*26, col = ['#c2606a','#a84a54','#c2606a','#b45560','#a84a54'][i];
       tube(ha, -6, 96, ha, -6, 86, 1.2, '#b9bcc0');
@@ -2891,8 +2895,44 @@ const SHOPS = [
       const c0=P(ha-6,-7,76), c1=P(ha+6,-7,70);
       ctx.beginPath(); ctx.moveTo(c0.x,c0.y); ctx.lineTo(c1.x,c1.y); ctx.stroke();
     }
-    shopDoor(W*0.86, wall, trim);
-    F(W*0.78,W-14, 50, 90, '#d6e2e4', null,0,-6.5);
+    /* THE DOOR WAS BEING SILENTLY MOVED, AND IT STILL OVERLAPPED THE
+       GLASS. Two faults, and the first one hid the second.
+
+       shopDoor clamps: mid = max(hw+5, min(uw-hw-5, aMid)). This shop
+       asked for W*0.86 = 197.8 and the clamp handed back 191.88 -- the
+       door was drawn 5.92 from where the source says it is, every time,
+       and nothing in the shop body could tell. A number in this file
+       that the kit quietly overrides is worse than a wrong number,
+       because it survives every reading of the code.
+
+       Underneath that, the painted surround runs a0-4..a1+4, so the
+       clamped door occupied 154.8..229.0 while the window ran to 161.0
+       -- 6.2 of surround lying across the glass. That is what the
+       drawing showed and what the numbers had not, because the census
+       stub did not model the clamp and put the door at 158.8 on paper.
+       Measure the measurement: the render caught this, not the census.
+
+       Both fixed by giving the window less and the door a real slot.
+       W*0.70 -> W*0.64 takes the glass back to 147.2 and the rail
+       follows it W*0.68 -> W*0.62; the door comes to W*0.83 = 190.9,
+       which is INSIDE the clamp limit of 191.88, so the number written
+       here is now the number drawn. Door a 157.8..224.0, surround
+       153.8..228.0: 6.6 of pier between glass and surround and 2.0 at
+       the return. The hooks are unmoved -- they top out at a 132 and
+       the shortened rail reaches 144.6, so the last cut still hangs
+       from rail rather than from air.
+
+       THE SECOND WINDOW IS GONE, at Sir's direction. F(W*0.78, W-14,
+       50, 90) sat at a 179.4..216, screen-a 185.9..222.5, directly over
+       the doorway -- a pane of shop glass laid across the door, which
+       is what it looked like. It was also what hid the surround overlap
+       above, and removing it is what frees the wall the door needed.
+
+       The door glass is given explicitly now. Left to default it came
+       out the kit's cool blue, which read as a stray blue wedge under
+       the awning against this shop's red and cream; it is tinted from
+       the window colour instead so the two pieces of glazing agree. */
+    shopDoor(W*0.83, wall, trim, 'rgba(214,226,228,.55)');
     const out = 34;
     for(let i=0;i<8;i++){
       const x0=4+(W-8)*i/8, x1=4+(W-8)*(i+1)/8;
@@ -2902,12 +2942,19 @@ const SHOPS = [
     poly([P(4,out,112),P(W-4,out,112),P(W-4,out,104),P(4,out,104)], shade(trim,.8));
     poly([P(4,0,132),P(4,out,112),P(4,out,104),P(4,0,124)], shade(trim,.55));
     poly([P(W-4,0,132),P(W-4,out,112),P(W-4,out,104),P(W-4,0,124)], shade(trim,.55));
-    slab(0,W, 132, 138, -1, -8, shade(trim,.8));
-    if(state.props){
-      for(const [la,lb] of [[W+18,26],[W+42,26],[W+18,50],[W+42,50]]) cyl(la, lb, 0, 22, 4, '#8a6a3a');
-      cyl(W+30, 38, 22, 44, 26, '#c9a26a');
-      plateCircle(W+30, 38, 44, 26, '#d8b47c', '#a9834e', 2);
-    }
+    /* MARGIN 0 AGAINST A RECESS OF 8 -- the fTodo this shop carried.
+       slab(0,W,...,-1,-8) landed screen-a 1..238, eight past the far
+       return, because a slab at negative b projects RIGHT by its own
+       depth and there was no a-margin to absorb it. Margin 10 puts it
+       on 11..228 with 2 of pier at each end. */
+    slab(10,W-10, 132, 138, -1, -8, shade(trim,.8));
+    /* THE CHOPPING BLOCK WAS NOT ON THIS SHOP'S GROUND. Block and its
+       four legs ran a 234..286 against a 230 frontage -- not lapping
+       the neighbour, ENTIRELY on the neighbour, every one of the five.
+       The block measured screen-a 274, forty-four past the far return.
+       That was the whole of cTodo, so with them gone the flag goes and
+       there is no state.props branch left to keep. Removed rather than
+       slid back inside, per Sir. */
     if(state.roof) box(W*0.28,W*0.54,-140,-96,H,H+22,'#9aa0a6','#7d838a','#6a7076');
     kerb(p,'none');
   }
