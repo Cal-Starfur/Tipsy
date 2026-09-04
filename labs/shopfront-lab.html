@@ -228,7 +228,11 @@ function draw(){
        plane on the same screen line, so heights are comparable by eye.
        REF is in local screen units: 0..H*ZSCALE vertically for the
        tallest thing in the library plus its roof kit. */
-    const REF = 780;
+    /* REF has to cover the TALLEST thing in the library, and the chapel
+       moved that: its finial is at z 710, which is 1065 local screen
+       units once ZSCALE is applied. At 780 the spire ran off the top of
+       the frame in the one mode whose whole job is showing true height. */
+    const REF = 1180;
     K = Math.min((cssW - PAD*2)/520, (cssH - PAD*2)/REF);
     OX = cssW/2 - ((W/2) - (-D/2))*K;
     OY = cssH - PAD - 24 - (((W/2) + (-D/2))/2)*K;
