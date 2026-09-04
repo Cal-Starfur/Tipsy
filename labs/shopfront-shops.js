@@ -143,6 +143,41 @@ function drawChemist(p, c){
 }
 
 
+/* ================= WIDE UNITS, OPEN AT THE PORT =================
+   `ww` on a shop is its frontage when that is NOT the default W, and
+   `wTodo` says the game cannot place it yet.
+
+   Eleven shops already carry their own width, but every one of them is
+   NARROWER than W and simply sits inside its slot -- harmless. The
+   Garage is the first that is WIDER, and wider is a different question
+   entirely, because in the game a unit's width is not the shop's to
+   choose:
+
+     packEdgeNoGap  avgW = T2*2.2 = 202.4, per-unit jitter 0.8..1.2
+                    normalised, so slots run about 162..243
+     queueCommercialEdgeAt  passes that u.w INTO drawStoreUnit
+
+   A shop drawing past its slot laps onto its neighbour -- the same
+   fault as a cornice crossing a return, at building scale. So a wide
+   shop needs the PACKER to hand it the room, and that is a game-side
+   change: packEdgeNoGap has to be able to emit a double slot, the
+   chooser has to know only wide-capable bodies may sit in one, and
+   queueUnitStrips / PICKUP_SHOPS / the corner-margin inset all have to
+   agree about the wider footprint.
+
+   Why the Garage earns it. The game's car is len 150, wid 60. Two bays
+   plus a pedestrian door plus corner and mullion piers do not fit in
+   230 -- the arithmetic leaves 59.9 a bay, less than the car itself.
+   One bay would fit, and a garage with one bay is a fine building, but
+   the brief is two, so the building gets wider instead. ww = T2*4.4 is
+   exactly two of the packer's own slots, so the port is a clean "this
+   shop occupies two" rather than a number to reverse-engineer.
+
+   The bench honours ww for the pavement, the guide box and the measure
+   pass, and draws the single-slot boundary as a faint line so the
+   overrun stays visible while this is open.
+   ===================================================================== */
+
 /* ================= SCALE REVIEW, OPEN =================
    `zTodo` on a shop is its measured height in GAME STOREYS and means
    the shop has not been sized against the game yet -- raise it when
@@ -1635,48 +1670,145 @@ const SHOPS = [
   }
 },
 {
-  name:'Garage', head:'Twin roller bays, pylon sign, turbine vents',
-  tags:['two vehicle bays','round pylon post','tyre stacks','turbine vents','oil drums'],
-  desc:'Turbines are cylinders with the fan as a flat disc on top, tyres are stacked cylinders rather than flat ovals, and the pylon stands on a round post with a two-sided sign box.',
+  name:'Garage', ww: T2*4.4,
+  wTodo:'two packing slots',
+  head:'Two full-size bays, open workshop, turbine vents',
+  tags:['two bays a car actually fits','double-width unit','truck in the open bay','turbine vents','oil drums'],
+  desc:'Sized against the game car rather than against the frontage: two bays of 132 for a 60-wide car, which needs twice a normal shop unit — the first building in the library that does.',
   draw(p){
+    /* ================= THIS SHOP IS TWO UNITS WIDE =================
+       Measured, the old bays did not admit a car. The game's car is
+       len 150, wid 60; the bays were 62.5, so a car had 1.25 units of
+       clearance a side -- it did not fit, and a garage whose doors a car
+       cannot pass is a shed with stripes painted on it. Depth and height
+       were never the problem: STORE_DEPTH 276 takes the 150 length and
+       the opening is 168 game units tall against a ~76 car.
+
+       Two bays cannot be bought inside one frontage. Take the pedestrian
+       door and its surround (74.2), a 13 corner pier, a 5 pier to the
+       bay and a 12 margin, and 125.8 is left -- 59.9 a bay, which is
+       LESS than the car. So the building gets wider instead.
+
+       ww = T2*4.4 = 404.8, which is exactly two of packEdgeNoGap's own
+       slots (avgW = T2*2.2 = 202.4). Anchored on the packer rather than
+       chosen, so the port is a clean "this shop occupies two slots"
+       rather than a number somebody has to reverse-engineer.
+
+       THE PORT DOES NOT SUPPORT THIS YET -- see wTodo and the WIDE
+       UNITS note at the head of this file. In the game u.w comes OUT of
+       packEdgeNoGap (range ~162..243) and is passed INTO drawStoreUnit;
+       a shop drawing wider than its slot would lap onto its neighbour,
+       which is the same fault as a cornice crossing a return, at
+       building scale. The lab is where this gets designed; the packer
+       has to learn to emit a double slot before it ships. */
+    const WW = T2*4.4;
     const wall = '#3f4a52', trim = '#e8a13a', H = 158;
-    body(wall, trim, H);
-    slab(0,W, H, H+10, -1, -12, trim);
-    slab(0,W, H-30, H-8, -1, -8, shade(wall,1.3));
-    F(16,W-16, H-26, H-12, trim, null,0,-8.5);
-    /* the two roller bays ran 12..W-12, the whole frontage, so there was
-       nowhere for a person to get in -- a garage with no pedestrian
-       door. The bays now share the left three quarters and the door
-       takes the end. */
-    const bayR = W*0.70;
-    for(let i=0;i<2;i++){
-      const x0 = 12+i*(bayR-24)/2+ (i?6:0), x1 = 12+(i+1)*(bayR-24)/2 - (i?0:6);
-      F(x0-4,x1+4, 0, H-38, shade(wall,.72), null,0, 1);
-      F(x0,x1, 0, H-46, '#8c9298', shade(wall,1.4), 2, -1);
-      for(let j=0;j<9;j++) F(x0+2,x1-2, 6+j*12, 12+j*12, '#a2a8ae', null,0,-2);
-      slab(x0-4,x1+4, H-46, H-38, -2, -9, trim);
+    body(wall, trim, H, WW);
+    slab(14, WW-14, H, H+12, -1, -12, trim, shade(trim,.72), shade(trim,1.2));
+    slab(14, WW-14, H-32, H-8, -1, -8, shade(wall,1.3));
+    F(26, WW-26, H-27, H-13, trim, null, 0, -8.5);
+
+    /* ---- the bays, sized off the car ----
+       132 each for a 60-wide car is 36 of clearance a side, a bay/car
+       ratio of 2.2 -- roomy, and roomy is right for a workshop where a
+       door gets driven through twice an hour. */
+    const BAYS = [[20,152],[168,300]], bayZ = H-44, shop = '#20262b';
+    /* BAY 1, SHUT. Roller down, so it is a curtain with a vision strip
+       across it, and nothing behind it to draw. */
+    {
+      const [x0,x1] = BAYS[0];
+      F(x0-6, x1+6, 0, H-34, shade(wall,.72), null, 0, 1);
+      F(x0, x1, 0, bayZ, '#8c9298', shade(wall,1.4), 2, -1);
+      for(let j=0;j<11;j++) F(x0+2, x1-2, 5+j*11, 11+j*11, '#a2a8ae', null, 0, -2);
+      F(x0+2, x1-2, H-58, H-48, '#5d6a74', null, 0, -2.4);
+      for(let k=0;k<4;k++)
+        F(x0+10+(x1-x0-20)*k/4, x0+10+(x1-x0-20)*(k+0.62)/4, H-56, H-50, '#9fc2d4', null,0,-2.6);
     }
-    shopDoor(W*0.85, wall, trim);
-    if(state.props){
-      for(let i=0;i<4;i++) cyl(W+34, 26, i*11, i*11+11, 17, i%2?'#2b2f33':'#33383d');
-      cyl(W+22, 56, 0, 34, 14, '#c2452e');
-      plateCircle(W+22, 56, 34, 14, '#a53a26', '#8d3120', 2);
-      cyl(W*0.08, 64, 0, 120, 5, '#7d838a');
-      slab(W*0.0, W*0.20, 120, 168, 60, 70, trim, shade(wall,.8), shade(trim,1.2));
-      for(let i=0;i<3;i++) F(W*0.03, W*0.17, 128+i*15, 140+i*15, shade(wall,.8), null,0, 59.5);
+    /* ================= BAY 2, OPEN, WITH A TRUCK IN IT =================
+       The point of building a bay a vehicle fits is to put a vehicle in
+       it. Everything behind the opening is bounded by the opening, so
+       the whole workshop is clipped to it -- the rule reveal() follows,
+       and the reason the truck can run 140 deep into a shop while only
+       its back end is ever on screen.
+       The truck is nose-in with its tail to the street, which is how a
+       vehicle sits in a bay and also what puts its readable end -- rear
+       doors, bumper, lights -- where the eye is. It is 60 wide against
+       the car's own 60, centred in the 132 bay, so the clearance you can
+       see is the clearance that was designed. */
+    {
+      const [x0,x1] = BAYS[1], deep = 130;
+      F(x0-6, x1+6, 0, H-34, shade(wall,.72), null, 0, 1);
+      ctx.save();
+      poly([P(x0,0,bayZ),P(x1,0,bayZ),P(x1,0,0),P(x0,0,0)]);
+      ctx.clip();
+      F(x0, x1, 0, bayZ, shop, null, 0, -deep);                       // back of the shop
+      S(x0, 0, -deep, 0, bayZ, shade(shop,1.25));                     // side wall
+      T(x0, x1, 0, -deep, 0, '#39424a');                              // shop floor
+      for(let i=1;i<5;i++)                                            // floor bay markings
+        T(x0, x1, -i*26-1, -i*26+1, 0.3, '#4a545d');
+      const tA0 = 204, tA1 = 264, cab = '#2f6f8f';
+      depthSort([
+        /* THE ONLY PLACE THINGS SHOW. The truck sweeps screen-a 224 at
+           its tail to 404 at its nose, and the bay's own clip ends at
+           300, so everything else in the workshop has to live in the
+           band 168..224 -- which at b -34 means a up to 190, and at
+           b -60 means nothing at all. Props deeper than that are drawn
+           and then hidden by the truck, which is work for no picture. */
+        { a: 184, b: -34, z: 20, draw: () => {
+            for(let i=0;i<4;i++) cyl(184, -34, i*10, i*10+10, 14, i%2?'#2b2f33':'#33383d'); } },
+        { a: 232, b: -80, z: 55, draw: () => {
+            /* the truck: box body, tail to the street */
+            box(tA0-3, tA1+3, -118, -92, 0, 17, '#1a1e22','#23282d','#15181b');   // rear axle
+            box(tA0-3, tA1+3, -46, -26, 0, 17, '#1a1e22','#23282d','#15181b');    // front axle
+            box(tA0, tA1, -140, -20, 15, 94, shade(cab,1.15), cab, shade(cab,.78));
+            F(tA0+4, tA1-4, 22, 86, shade(cab,.86), null, 0, -19.4);              // rear doors
+            F(tA0+31, tA1-27, 22, 86, shade(cab,.7), null, 0, -19.2);             // door split
+            F(tA0+8, tA0+14, 48, 56, '#c9ced3', null, 0, -19.0);                  // handles
+            F(tA1-14, tA1-8, 48, 56, '#c9ced3', null, 0, -19.0);
+            box(tA0-3, tA1+3, -22, -16, 8, 16, '#767c82','#878d94','#5f656b');    // bumper
+            F(tA0+3, tA0+11, 26, 34, '#c94f4f', null, 0, -19.0);                  // lamps
+            F(tA1-11, tA1-3, 26, 34, '#c94f4f', null, 0, -19.0);
+            slab(tA0, tA1, 94, 98, -22, -138, shade(cab,1.3)); } },
+        { a: 180, b: -10, z: 17, draw: () => {
+            cyl(180, -10, 0, 34, 12, '#c2452e');
+            plateCircle(180, -10, 34, 12, '#a53a26', '#8d3120', 2); } }
+      ]);
+      ctx.restore();
+      /* the curtain rolled up into its drum, which is what an open
+         roller door leaves behind rather than a bare hole */
+      tube(x0+2, -5, bayZ-9, x1-2, -5, bayZ-9, 9, '#8c9298');
+      F(x0+2, x1-2, bayZ-19, bayZ-15, '#5d6a74', null, 0, -2);
     }
+    for(const [x0,x1] of BAYS){
+      slab(x0-6, x1+6, bayZ, H-34, -2, -9, trim);                     // lintel
+      poly([P(x0-6,1.2,H-34),P(x1+6,1.2,H-34),P(x1+6,1.2,H-38),P(x0-6,1.2,H-38)], shade(trim,.7));
+    }
+    /* the mullion between the bays is a pier, so it gets a pier's
+       thickness rather than being a gap in a painted stripe */
+    slab(152, 168, 0, H-34, 1, -6, shade(wall,1.12), shade(wall,.9), shade(wall,1.3));
+    shopDoor(WW-13-4-SHOP_DOOR_W/2, wall, trim, null, WW);
+
+    /* NOTHING ON THE PAVEMENT. The pylon and the last tyre stack went
+       at Sir's direction, and with them the whole kerb-prop block: the
+       drums and tyres that used to stand out here are inside the open
+       bay where a workshop keeps them, and the truck in that bay is the
+       shop's identity now rather than a sign on a post.
+       The bay contents are deliberately NOT under state.props -- they
+       are the building, not street furniture, and the toggle is for
+       things that sit on the pavement. */
     if(state.roof){
-      for(const aa of [W*0.24, W*0.56]){
-        cyl(aa, -110, H+10, H+26, 9, '#8f969d');
-        cyl(aa, -110, H+26, H+34, 13, '#b6bcc2');
-        plateCircle(aa, -110, H+34, 13, '#c8ced4', '#8f969d', 2);
+      for(const aa of [WW*0.20, WW*0.46, WW*0.72]){
+        cyl(aa, -110, H+12, H+28, 9, '#8f969d');
+        cyl(aa, -110, H+28, H+36, 13, '#b6bcc2');
+        plateCircle(aa, -110, H+36, 13, '#c8ced4', '#8f969d', 2);
         for(let k=0;k<6;k++){
           const t=k*1.047;
-          poly([P(aa,-110,H+35),
-                P(aa+13*Math.cos(t), -110+13*Math.sin(t), H+35),
-                P(aa+13*Math.cos(t+0.5), -110+13*Math.sin(t+0.5), H+35)], '#a8aeb4');
+          poly([P(aa,-110,H+37),
+                P(aa+13*Math.cos(t), -110+13*Math.sin(t), H+37),
+                P(aa+13*Math.cos(t+0.5), -110+13*Math.sin(t+0.5), H+37)], '#a8aeb4');
         }
       }
+      box(WW*0.80, WW*0.94, -180, -140, H, H+22, '#8f969d','#787f86','#697077');
     }
     kerb(p,'none');
   }
