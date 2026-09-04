@@ -2790,43 +2790,77 @@ const SHOPS = [
   }
 },
 {
-  name:'Arcade', head:'Black hole of a front, screen glow, pixel sign',
-  cTodo:'4 pavement props need collision volumes',
-  fTodo:'z110..116 return +2',
-  tags:['unlit front','screen glow','solid pixel sign','step-in entry','A-board'],
-  desc:'Every block of the pixel sign is a slab with a lit top edge, so the lettering stands off the fascia. The cabinets inside are boxes with visible tops rather than coloured rectangles.',
+  name:'Arcade', head:'Black hole of a front, magenta pixel sign',
+  tags:['unlit front','solid pixel sign','step-in entry','no pavement props'],
+  desc:'The front is a flat unlit black panel with one door in it -- the whole shop is the sign. Every block of the pixel sign is a slab with a lit top edge, so the lettering stands off the wall rather than being painted on it.',
   draw(p){
     const wall = '#1b1b26', trim = '#37e0d0', H = 168;
     body(wall, trim, H);
     slab(0,W, H, H+12, -1, -12, shade(wall,2.0));
     F(10,W-10, 0, 120, '#0c0c14', null,0, 1);
-    /* five cabinets ran 26..178 and the frontage was otherwise an open
-       black hole -- no door anywhere. Four cabinets now, leaving the
-       end of the run for a real entrance. */
-    for(let i=0;i<4;i++){
-      const ca = 26+i*38;
-      box(ca-13, ca+13, 2, 22, 0, 84, '#2a2a3c', '#1e1e2e', '#16161f');
-      F(ca-10,ca+10, 44, 76, ['#37e0d0','#e04b8a','#e8c34a','#4a8ae0'][i], null,0, 1.5);
-      F(ca-10,ca+10, 24, 40, '#2a2a3c', null,0, 1.5);
-    }
+    /* THE CABINETS WERE STANDING IN THE STREET. Five ran 26..178, then
+       four, and all of them sat at b 2..22 -- OUTSIDE the glass line at
+       b 0, so they were not "cabinets inside" as the desc claimed but
+       four solids parked on the pavement. The leftmost measured
+       screen-a -9.0, nine units onto the neighbour's ground, which is
+       the prop-scale version of a cornice crossing a return.
+
+       They were also the whole of this shop's cTodo: four pavement
+       props with no collision volume in the game. Removed at Sir's
+       direction rather than pushed back behind the glass, so the front
+       is now what the head always said it was -- a black hole with one
+       door in it, and the sign does all the work. cTodo is gone. */
     shopDoor(W*0.82, shade(wall,1.6), shade(wall,2.2), 'rgba(55,224,208,.30)');
     slab(10,W-10, 116, 126, -1, -8, trim);
+    /* THE SIGN WAS ON THE ROOF, NOT ON THE SHOP. It ran z 146..188 at a
+       pitch of 15 with 12-unit blocks. The wall top is 168 and the
+       cornice occupies 168..180, so of the three rows only the bottom
+       one was on the building: the middle row cut through the cornice
+       and the top row cleared it entirely and floated in open sky above
+       the roof plate. On screen it read as loose blocks standing on the
+       roof, which is how Sir spotted it.
+
+       IT COULD NOT SIMPLY BE MOVED DOWN. The clear wall between the
+       fascia band top at 126 and the wall top at 168 is 42 units, and
+       the sign was 42 tall (2*15 + 12) -- an exact fit with zero margin
+       at both ends, jammed against the band below and the cornice
+       above. So the sign shrinks as well as drops: pitch 15 -> 12 and
+       block 12 -> 10 makes it 34 tall, and rows at 130/142/154 leave 4
+       units of wall showing under it and 4 above.
+
+       AND IT WAS NEVER CENTRED. Columns started at a 22 and the widest
+       reached a 184, screen-a 24..194 against a 230 frontage -- centre
+       109, twelve units left of the building. Fixed in SCREEN space,
+       because a recess projects sideways by its own depth and this
+       stack sits at b -2..-10: front face 46, back face 184, centre
+       115 exactly, with 46 of margin at both returns. Start column
+       moves 22 -> 44, pitch 12, eleven columns.
+
+       Colour is magenta now, matching the cabinet pink that used to be
+       in the window before the cabinets came out -- the last piece of
+       that palette left on the shop. */
+    const sign = '#e04b8a';
     const bl = [[0,0],[1,0],[2,0],[0,1],[0,2],[1,2],[2,2],[4,0],[4,1],[4,2],[5,2],[6,2],
                 [8,0],[8,1],[8,2],[9,0],[10,0],[10,1],[10,2]];
     for(const [bx,bz] of bl){
-      const x0 = 22 + bx*15, z0 = 176 - bz*15;
-      slab(x0, x0+12, z0, z0+12, -2, -10, trim, shade(trim,.7), shade(trim,1.3));
+      const x0 = 44 + bx*12, z0 = 154 - bz*12;
+      slab(x0, x0+10, z0, z0+10, -2, -10, sign, shade(sign,.7), shade(sign,1.3));
     }
-    slab(6,W-6, H-58, H-52, -1, -8, shade(wall,2.4));
-    if(state.props){
-      poly([P(W*0.06,26,0),P(W*0.28,26,0),P(W*0.28,40,52),P(W*0.06,40,52)], '#1a1a22');
-      poly([P(W*0.06,54,0),P(W*0.28,54,0),P(W*0.28,40,52),P(W*0.06,40,52)], '#2c2c36');
-      poly([P(W*0.28,26,0),P(W*0.28,54,0),P(W*0.28,40,52)], '#111118');
-      for(let i=0;i<3;i++)
-        poly([P(W*0.09,27+i*2,12+i*12),P(W*0.25,27+i*2,12+i*12),
-              P(W*0.25,34+i*2,15+i*12),P(W*0.09,34+i*2,15+i*12)],
-             ['#e04b8a','#e8c34a','#37e0d0'][i]);
-    }
+    /* MARGIN 6 AGAINST A RECESS OF 8. This band ran 6..W-6 at b -1..-8
+       and landed screen-a 7..232 -- 2 past the right return, which is
+       the fTodo this shop was carrying. Rule 1: the a-margin has to
+       beat the recess depth. 10 leaves 2 of pier and puts it on exactly
+       the same screen span as the fascia band above it, 11..228, so the
+       two now stack flush instead of one overhanging the other. */
+    slab(10,W-10, H-58, H-52, -1, -8, shade(wall,2.4));
+    /* THE A-BOARD IS GONE TOO. It stood at b 26..54 with its near face
+       at a W*0.06 = 13.8, which is screen-a -40.2: forty units out on
+       the neighbour's pavement, the worst overrun measured on this
+       shop. Positive b shifts a prop LEFT on screen by its own b, so a
+       board that far off the facade needed a >= 54 just to stay inside
+       its own return, and it had 13.8. Removed rather than slid right,
+       per Sir -- this shop keeps no pavement props at all now, which is
+       why there is no state.props branch left. */
     if(state.roof){
       box(W*0.56,W*0.84,-150,-104,H,H+26,'#4a4a58','#3a3a46','#2e2e38');
       cyl(W*0.26, -60, H+12, H+62, 2.5, '#4a4a58');
