@@ -3489,52 +3489,244 @@ const SHOPS = [
 },
 {
   name:'Bookshop', tall:true,
-  zTodo:1.23,          // H 206 -- see SCALE REVIEW at the head of this file
-  head:'Jettied upper floor, ladder, hanging sign',
-  tags:['overhanging upper storey','shaped brackets','sliding ladder','leaded panes','swinging sign'],
-  desc:'The jetty brackets are shaped solids carrying the overhang, the ladder rails are tubes leaning on the shopfront, and the hanging sign is a board on an arm with its own thickness instead of a rotated rectangle.',
+  head:'Two flush storeys, books behind real glass, hanging sign',
+  tags:['two full storeys','flush elevation','books behind glass','string course','swinging sign'],
+  desc:'A true two-storey building with both storeys on one plane: a shopfront of 168 with the books behind a real recess and a tinted pane, and an upper floor of 168 over it divided by a single string course. The hanging sign is a board on an arm with its own thickness.',
   draw(p){
-    const wall = '#8a6a4e', trim = '#e6dcc4', H = 206, J = 34;
+    /* ================= IT WAS TWO STOREYS IN THE SPACE OF ONE =======
+       THE DOOR WAS TALLER THAN THE FLOOR IT STOOD IN. That is the
+       finding that settles this, and it is a collision rather than an
+       opinion about scale: the shop door's head is at z 107.9 and its
+       painted surround reaches 114.9, while the jetty soffit sat at
+       z 104. The doorway punched through the overhang by 10.9 and had
+       presumably done so since the shop was written.
+
+       The rest agrees with it. H was 206 carrying two drawn floors --
+       ground 0..104 and upper 104..206 -- so each came out about 103
+       against a game storey of 168. zTodo said 1.23 for a building
+       depicting two storeys, which is the Rooming house fault exactly:
+       a facade drawing more floors than its height can pay for.
+
+       Rebuilt at Sir's direction as a true two-storey building: 168 of
+       shopfront storey and 168 of jettied upper floor, H 336 = 2.00
+       game storeys on the nose. zTodo is gone because it has been done.
+       Note this is a taller reading than the Rooming house took -- that
+       one used a 120 ground and 100 residential floors, deliberately
+       short. Sir chose full storeys here, so a bookshop's ground floor
+       now has 168 to put a shopfront in and the door clears the soffit
+       by 53.
+
+       STILL OPEN, AND NOT A NEW FAULT: the jetty projects b 34, and
+       forward projection shifts left on screen, so the upper storey
+       lands at screen-a -34. Same class as the Butcher's awning at
+       building scale rather than canopy scale, and left for the same
+       one decision that should cover every projecting element in the
+       library. A jetty that does not overhang is not a jetty. */
+    const wall = '#8a6a4e', trim = '#e6dcc4', H = 336, GF = 168;
+    const inner = shade(wall,.35);
     body(wall, trim, H);
-    F(0,W, 104, H, shade(wall,1.14), shade(wall,.7), 2, J);
-    T(0,W, 0, J, 104, shade(wall,.62));
-    S(W, 0, J, 104, H, shade(wall,.88));
-    // shaped brackets, each a solid wedge under the jetty
-    for(const aa of [16, W*0.5, W-16]){
-      poly([P(aa-5,0,104),P(aa-5,J,104),P(aa-5,J,92),P(aa-5,0,66)], shade(wall,.80));
-      poly([P(aa+5,0,104),P(aa+5,J,104),P(aa+5,J,92),P(aa+5,0,66)], shade(wall,.66));
-      poly([P(aa-5,J,104),P(aa+5,J,104),P(aa+5,J,92),P(aa-5,J,92)], shade(wall,.94));
-      poly([P(aa-5,0,66),P(aa+5,0,66),P(aa+5,J,92),P(aa-5,J,92)], shade(wall,.74));
-    }
-    slab(0,W, H, H+10, J-1, J-11, shade(wall,.66));
+    /* THE JETTY IS GONE AND SO IS EVERYTHING THAT CARRIED IT, at Sir's
+       direction: too many faces for what it bought. What came out was
+       the overhanging upper face at b 34, the soffit under it, the
+       jetty return, the bressummer and the three shaped brackets --
+       and with them the whole band of near-parallel edges that was the
+       problem in the first place.
+
+       The upper storey is FLUSH with the shopfront now, both on the
+       wall plane the body already draws, so there is no second face at
+       all up there. The storey line is one string course instead of a
+       beam, a soffit, three corbels and their four faces each.
+
+       It also settles the projecting-element question for this shop by
+       removing the projection. The jetty was the worst overhang in the
+       library at screen-a -34, worse than the Butcher's awning; the
+       only thing that laps a neighbour here now is the hanging sign,
+       which is a sign and is supposed to. */
+    /* THE JETTY HAD NO BRESSUMMER, which is what Sir circled. The upper
+       storey's front face at b 34 and the soffit at z 168 met at a
+       knife edge -- geometrically closed, and with nothing at all along
+       the leading edge, so a storey that overhangs 34 had zero
+       thickness where it overhangs. The beam that carries a jetty is
+       the one member the detail cannot do without, and it was missing
+       in the old shop too; at half the height it just did not show.
+
+       It runs the full frontage because a bressummer does, and it sits
+       proud of the jetty face at b 36 against 34. That puts it at
+       screen-a -36 against the jetty's -34, so it is two units worse on
+       the projecting-element question and no different in kind.
+
+       THE BRACKETS HAD TO DROP TO MEET IT. They topped out at z 168,
+       which is now inside the beam, so each one would have been buried
+       for its top 16 and read as a stub. They stop at the beam's
+       underside at 152 instead, keeping the same 14 and 46 tapers below
+       their new top -- which is also what a bracket does in the world:
+       it carries the beam, it does not run past it. */
+    /* THE JETTY BAND WAS SEVEN PARALLEL LINES IN THIRTY-SIX UNITS, which
+       is what Sir meant by messy. Counted from the census: window head
+       132, head band 134 and 148, bracket tops 152, bressummer bottom
+       152 and top 170, soffit 168. Two of them were crossings rather
+       than stacking -- the brackets ran down to z 106, BELOW the window
+       head, so they cut across the top of the glass, and the bressummer
+       sat at b 26..36 against a jetty face at 34, so it stood two proud
+       of the storey and put an extra edge on both sides of it.
+
+       Three changes, and they remove five of the seven lines.
+
+       The bressummer is COPLANAR with the jetty face now, b 34 back to
+       22 rather than 36 back to 26. Its front is the same plane as the
+       storey above it, so there is no step and no shadow line -- it
+       reads as the thickened base of the upper floor, which is what a
+       bressummer is, instead of a separate board bolted to it. It also
+       stops being the worst overhang on the shop: screen-a -34, equal
+       to the jetty rather than 2 past it.
+
+       The brackets stop at z 128 instead of 106. They were dropping 46
+       into a storey whose window head is at 132, so the bottom of every
+       bracket crossed the glass. Checked in APPARENT terms this time:
+       the front bottom corner at b 34 z 138 reads appz 126.7, and the
+       window head is appz 120, so it clears by 6.7 rather than cutting
+       in. Same corbel shape, two thirds the drop.
+
+       And the head band I added last pass is gone. It was the right
+       instinct -- the shopfront did need tying together -- and the
+       wrong member: it put two more lines into the busiest part of the
+       elevation. The window head does that job instead, see below. */
+    /* One string course marks the floor line, margin 14 against a
+       recess of 9 so it keeps a pier at both returns: screen-a 15..225.
+       That is the whole of what the jetty band used to be. */
+    slab(14,W-14, GF-6, GF+8, -1, -9, shade(wall,.78));
+    slab(0,W, H, H+10, -1, -11, shade(wall,.66));            // cornice
+
+    /* ---- upper storey windows ----
+       THREE FAULTS, ALL VISIBLE AND ALL MEASURABLE.
+
+       THE GLASS SAT OUTSIDE ITS OWN FRAME. Frame at b -1..-8, glass at
+       -8.5 -- behind the frame's back face, which is the lettering-
+       behind-a-board fault wearing a different hat, and gone under any
+       depth key. On screen the frame read 18.7..85.6 and the glass
+       29.2..83.1: a 10.5 border on one side against 2.5 on the other.
+       That lopsided border is what made them look wrong.
+
+       Fixed by solving for the depth rather than nudging it. A slab at
+       b -1..-8 spans screen a0+1..a1+8, so its screen centre is
+       a_centre + 4.5; glass at depth g has screen centre a_centre - g.
+       Setting those equal gives g = -4.5 exactly, which also lands the
+       glass centred in APPARENT z at 244.5 against the frame's 244.5.
+       One number fixes both axes because both come from the same b.
+
+       THE FRAMES WERE TOUCHING. Window 1 ended at screen 85.6 and
+       window 2 began at 86.1 -- half a unit of wall between them, so
+       they read as one band of joinery rather than three windows. The
+       cause is the same 7 units of screen width a recessed slab eats
+       beyond its a span: at a pitch of 67.3 and a frame of 59.9 the
+       a-gap was 7.4 and the screen gap was 0.4. Screen gap is
+       pitch - width - 7, so a 14 gap needs pitch = width + 21. 48 wide
+       on a 69 pitch gives 14 of pier between them and 18 and 19 at the
+       returns.
+
+       THE MULLIONS WERE DEEPER THAN THE GLASS at -9. They stand proud
+       of it now at -3.8, which is what glazing bars do and what the
+       kit's own glaze() note says about stacks ascending toward the
+       viewer. Four columns of panes in a narrower window would have
+       been 10 wide, so it is three now: twelve panes rather than
+       sixteen, and each one big enough to read. */
     for(let i=0;i<3;i++){
-      const x0 = 14+(W-28)*(i+0.10)/3, x1 = 14+(W-28)*(i+0.90)/3;
-      slab(x0-3,x1+3, 121, 179, J-1, J-8, trim);
-      F(x0,x1, 128, 172, '#7f93a0', null,0, J-8.5);
-      for(let k=1;k<4;k++) F(x0+(x1-x0)*k/4-1.2, x0+(x1-x0)*k/4+1.2, 128,172, trim, null,0, J-9);
-      for(let k=1;k<3;k++) F(x0,x1, 128+44*k/3-1.2, 128+44*k/3+1.2, trim, null,0, J-9);
+      const fx0 = 17 + i*69, fx1 = fx0 + 48;
+      slab(fx0, fx1, 196, 290, -1, -8, trim);
+      const gx0 = fx0 + 3, gx1 = fx1 - 3;
+      F(gx0, gx1, 204, 282, '#7f93a0', null,0, -4.5);
+      for(let k=1;k<3;k++) F(gx0+(gx1-gx0)*k/3-1.2, gx0+(gx1-gx0)*k/3+1.2, 204,282, trim, null,0, -3.8);
+      for(let k=1;k<4;k++) F(gx0,gx1, 204+78*k/4-1.2, 204+78*k/4+1.2, trim, null,0, -3.8);
     }
-    F(10,W*0.66, 20, 96, '#5f4634', shade(wall,.6), 3);
-    for(let r=0;r<3;r++) for(let i=0;i<7;i++)
-      F(16+i*((W*0.62-16)/7), 16+(i+0.78)*((W*0.62-16)/7), 26+r*24, 46+r*24,
-        ['#8f2b2b','#2f6f8f','#c9a24a','#3f6b4a','#7a4a6b'][(i+r)%5], null,0,-1);
-    shopDoor(W*0.84, wall, trim);
-    F(W*0.74,W-14, 52, 90, '#7f93a0', null,0,-6.5);
+
+    /* ---- the shopfront ----
+       THE WINDOW IS A REAL RECESS NOW, not an opaque panel. It used to
+       be a flat F at b 0 with the books painted on it at -1 and the
+       ladder at -4..-14 BEHIND it -- a solid fill with a ladder hidden
+       inside, alive on call order alone and gone the instant anything
+       depth-sorts it. Same shape of fault as the gym's equipment, and
+       the fix is the same: reveal for the recess, content between the
+       pane and the back plate, and an explicit tint on the glaze.
+
+       glaze()'s default tint is rgba(104,146,168,.92), which is not
+       glass but a wall the colour of glass. .32 here, so the books and
+       the ladder read through it. */
+    const wx1 = W*0.62;
+    reveal(10, wx1, 26, 120, 14, inner);
+    /* THE BOOKS DID NOT FIT THE OPENING, AND MY CENSUS COULD NOT SEE IT.
+       The real projection is y = ((a+b)*0.5 - z*ZSCALE)*K, so b moves a
+       thing VERTICALLY as well as horizontally -- and every screen check
+       in this session had been computing x = a - b only. Content at
+       b -9 sits 3 higher than its z says, because the equivalent z at
+       b 0 is z - b/(2*ZSCALE) = z - b/3.
+
+       So the top rank of books, written at z 128 against a window head
+       of 132, actually landed at an apparent 131: one unit of
+       clearance, and on screen it read as books spilling out of the
+       top-right corner of the glass. Sideways it was no better, 138.7
+       against a jamb at 142.6.
+
+       Sized in APPARENT terms now, which is the only frame that means
+       anything for content behind a pane. The grid runs a 14..118.6 and
+       z 34..104, which after the b -9 shift is 23..127.6 across and
+       37..107 up, inside a 10..142.6 by 26..120 opening with 13 to 15
+       of margin on every side. */
+    for(let r=0;r<4;r++) for(let i=0;i<7;i++)
+      F(14+i*15.43, 14+i*15.43+12.03, 34+r*18, 50+r*18,
+        ['#8f2b2b','#2f6f8f','#c9a24a','#3f6b4a','#7a4a6b'][(i+r)%5], null,0,-9);
+    /* THE LADDER IS GONE, at Sir's direction. It was a sliding library
+       ladder on rails, leaning at b -6..-11 inside the window, and it
+       is worth recording that it was BROKEN before the rebuild and
+       nobody could see it: the old shopfront was an opaque F at b 0
+       with the ladder drawn behind it, surviving on call order alone.
+       Making the window a real recess is what put it on show, and it
+       came off one render later. */
+    glaze(10, wx1, 26, 120, null, 'rgba(127,147,160,.32)');
+
+    /* ---- the entrance ----
+       CLAMPED, and the extra window was covering it. W*0.84 = 193.2
+       against a clamp limit of 191.88, so the door was drawn 1.32 from
+       where the source said. And F(W*0.74, W-14, 52, 90, ..., -6.5) sat
+       at a 170.2..216, screen-a 176.7..222.5, laid over the doorway --
+       the same idiom found on the Butcher, the Pawn shop and the Pet
+       shop, in a different fraction.
+
+       Door to W*0.83 = 190.9, inside the clamp. The window gives up the
+       space it needed: W*0.66 -> W*0.62 takes the glass to 142.6 and
+       the book ranks follow W*0.62 -> W*0.58, which puts the last rank
+       at 129.7 rather than hanging past the frame. Surround
+       153.8..228.0, so 11.2 of pier from the glass and 2.0 at the
+       return. Door glass passed explicitly so the fanlight does not
+       default to the kit's cool blue. */
+    shopDoor(W*0.83, wall, trim, 'rgba(127,147,160,.55)');
+    /* THE WINDOW HEAD DOES THE TYING, not a band. It comes down from
+       132 to 120, which puts it within 5 of the door surround at 114.9
+       -- close enough to read as one shopfront under one line, and it
+       leaves the wall above clear for the brackets instead of putting
+       a second horizontal into the busiest part of the elevation. The
+       book grid follows it down to z 34..104. */
+
     if(state.props){
-      // ladder leaning on the shopfront, rails as tubes
-      const lb = -4;
-      tube(W*0.06, lb, 6, W*0.28, lb-10, 98, 2.6, '#c9a26a');
-      tube(W*0.12, lb, 6, W*0.34, lb-10, 98, 2.6, '#c9a26a');
-      for(let k=1;k<=5;k++){
-        const t=k/6;
-        tube(W*0.06 + (W*0.22)*t, lb-10*t, 6+92*t, W*0.12 + (W*0.22)*t, lb-10*t, 6+92*t, 1.7, '#a9834e');
-      }
-      // hanging sign on an arm, hung clear of the jetty
-      tube(W*0.80, J-4, 96, W*0.80, J+26, 96, 2, '#4a3a2c');
-      tube(W*0.80, J+24, 96, W*0.80, J+24, 84, 1.2, '#4a3a2c');
-      slab(W*0.68, W*0.92, 56, 84, J+28, J+22, trim, shade(wall,.6), shade(trim,1.1));
-      F(W*0.71, W*0.89, 64, 69, shade(wall,.7), null,0, J+28.5);
-      F(W*0.71, W*0.85, 72, 77, shade(wall,.7), null,0, J+28.5);
+      /* THE SIGN LANDED ON THE DISPLAY WINDOW. Scaled up as it was, the
+         arm reached b 60 and the board hung at 56..62, so it shifted
+         about 59 left on screen and covered the lower half of the shop
+         window -- which is now the showpiece, with the books and the
+         ladder behind real glass. It was not wrong before because the
+         window was an opaque panel with nothing worth seeing in it.
+
+         Two changes. The arm springs from the WALL at b 2 rather than
+         starting at b 30 in mid-air under the overhang, and it reaches
+         only b 30, so the sign hangs under the jetty instead of beyond
+         it -- which is what a jettied building gives you the overhang
+         for. And it moves right to a 170.2..225.4, so it reads screen-a
+         138.2..199.4 against a window that ends at 142.6: 4 of overlap
+         instead of 40, and the board sits over the doorway where a shop
+         sign belongs. */
+      tube(W*0.86, 2, GF-14, W*0.86, 30, GF-14, 2, '#4a3a2c');
+      tube(W*0.86, 28, GF-14, W*0.86, 28, GF-26, 1.2, '#4a3a2c');
+      slab(W*0.74, W*0.98, GF-60, GF-26, 32, 26, trim, shade(wall,.6), shade(trim,1.1));
+      F(W*0.77, W*0.95, GF-50, GF-45, shade(wall,.7), null,0, 32.5);
+      F(W*0.77, W*0.91, GF-40, GF-35, shade(wall,.7), null,0, 32.5);
     }
     if(state.roof) box(W*0.30,W*0.54,-150,-108,H,H+22,'#8f969d','#787f86','#697077');
     kerb(p,'none');
