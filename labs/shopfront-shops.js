@@ -3965,40 +3965,140 @@ const SHOPS = [
   }
 },
 {
-  name:'Milliner', head:'Three half-dome awnings, narrow bays',
-  fTodo:'z128..162 return +3, lettering behind board',
-  tags:['domed awnings','three narrow bays','turned hat blocks','slim unit','scalloped hems'],
-  desc:'Hat blocks are turned stands with real crowns and brims, and each dome awning has a shaded underside so it reads as a hood rather than a painted arc.',
+  name:'Milliner', head:'Hat sign on a bracket, hats and boxes in one deep window',
+  tags:['top hat bracket sign','hats on turned stands','striped hat boxes','dome awning','slim unit'],
+  desc:'Recognisable as a hat shop from the street: a top hat hanging on a bracket over the door, a wide window with hats on turned stands at two levels, and a stack of striped hat boxes. The hats are built from a disc brim and a real crown rather than painted on.',
   draw(p){
-    const wall = '#5a4a63', trim = '#e8d9c0', H = 168, WW = 190;
+    /* ================= REDESIGNED TO READ AS A HAT SHOP =============
+       Sir asked for it to be recognisable as a milliner. The old shop
+       had the right idea and could not carry it, for a reason worth
+       recording.
+
+       A DISC'S SCREEN WIDTH IS 4r, NOT 2r. plateCircle(ha, b, z, r)
+       occupies a from ha-r to ha+r AND b from b-r to b+r, and screen-a
+       is a - b, so it spans ha-b-2r to ha-b+2r. Its own depth radius
+       adds r on each side. The old shop split a 190 frontage into three
+       42-wide bays, which caps a brim at r 7.5 -- and a hat whose brim
+       is 15 across with a ball on top is a mushroom, which is what it
+       looked like. One wide window instead of three narrow ones is what
+       buys a brim big enough to read as a hat.
+
+       AND ONE OF THE THREE BAYS WAS BEHIND THE DOOR. Bay 2 ran a
+       69.5..120.5 against a door surround of 57.6..131.8, so a third of
+       the display was drawn where nobody could see it.
+
+       What makes it legible now, in order of how far away it works
+       from: a top hat hanging on a bracket over the door, big enough to
+       read as a silhouette; then two hats on turned stands at two
+       levels in the window; then the stack of striped boxes. The dome
+       awning survives the rebuild -- Sir liked it -- as one wide hood
+       over the window rather than three little ones. */
+    const wall = '#5a4a63', trim = '#e8d9c0', H = 176, WW = 190;
+    const inner = shade(wall,1.02), ROSE = '#c26a7e', TEAL = '#4a7a6a', GOLD = '#c9a24a';
     body(wall, trim, H, WW);
-    slab(0,WW, H, H+8, -1, -12, shade(wall,.7));
-    slab(6,WW-6, 128, H-6, -1, -9, shade(wall,1.2), null, trim);
-    F(20,WW-20, 136, 152, trim, null,0,-9.5);
-    for(let i=0;i<3;i++){
-      const x0 = 8+(WW-16)*(i+0.06)/3, x1 = 8+(WW-16)*(i+0.94)/3, col = ['#c26a7e','#4a7a6a','#c9a24a'][i];
-      F(x0,x1, 22, 96, '#8f93a8', trim, 2);
-      const ha = (x0+x1)/2;
-      cyl(ha, -4, 30, 54, 3, shade(wall,1.4));                     // stand
-      plateCircle(ha, -4, 56, 17, col, shade(col,.78), 2);         // brim
-      ball(ha, -4, 62, 9, col);
-      // dome awning with an underside
-      const l=P(x0-4,0,116), r=P(x1+4,0,116), m=P((x0+x1)/2,28,92);
+    slab(0,WW, H, H+10, -1, -12, shade(wall,.7));
+
+    /* ---- the window ----
+       One bay, 10..96, recess 16. Everything inside sits at b -8, half
+       the recess, so it is genuinely between the pane and the back
+       plate rather than behind either. Screen centres are a + 8 and
+       every disc is checked on the 4r rule above.
+
+       THE INTERIOR IS LIGHT ON PURPOSE. First pass used shade(wall,.45)
+       and a top hat is black, so the best-built object in the window
+       was invisible -- the gym's contrast fault, walked into a second
+       time. A hat shop's window is lit from inside anyway, so the
+       backing goes to shade(wall,1.02) and the dark hats read against
+       it instead of dissolving into it. */
+    reveal(10, 96, 26, 122, 16, inner);
+    F(14, 92, 88, 92, shade(wall,1.15), null,0,-11);          // the upper shelf
+    /* Stack of striped hat boxes, r 7 so they span 28 on screen at
+       64..92, inside the opening with 4 of margin. */
+    for(let k=0;k<3;k++){
+      cyl(70, -8, 28+k*15, 41+k*15, 7, [ROSE,GOLD,TEAL][k]);
+      plateCircle(70, -8, 41+k*15, 7.6, shade([ROSE,GOLD,TEAL][k],1.2));
+    }
+    /* Top hat on a turned stand, lower left. Brim r 10 spans 40 on
+       screen at 20..60; the crown is a real cylinder, not a ball. */
+    cyl(30, -8, 26, 52, 2.5, shade(wall,1.5));
+    plateCircle(30, -8, 52, 10, '#2e2a33', shade('#2e2a33',1.4), 2);
+    cyl(30, -8, 52, 76, 6.5, '#2e2a33');
+    plateCircle(30, -8, 76, 6.5, shade('#2e2a33',1.35));
+    F(23.5, 36.5, 54, 60, ROSE, null,0,-14.6);                // hat band
+    /* Wide-brim hat on the upper shelf. Brim r 13 spans 52 on screen at
+       28..80, and the crown is a shallow dome rather than a sphere. */
+    plateCircle(46, -8, 96, 13, TEAL, shade(TEAL,.72), 2);
+    ball(46, -8, 100, 8, shade(TEAL,1.12));
+    F(38, 54, 97, 102, GOLD, null,0,-16.2);                   // ribbon
+    glaze(10, 96, 26, 122, null, 'rgba(150,150,175,.30)');
+
+    /* ---- one dome awning over the window ----
+       Kept because Sir liked it, rebuilt as a single hood. It reaches
+       b 14 rather than the old 28: a canopy shifts LEFT on screen by
+       its own projection, and at 28 from a 12 start it crossed the near
+       return. From 22 with a 14 bulge the whole curve stays inside
+       22..90. Hood, shaded underside and a bright hem, in that order,
+       so the underside is not painted over the hood it belongs to. */
+    {
+      const l=P(22,0,130), r=P(90,0,130), m=P(56,14,110);
       ctx.beginPath(); ctx.moveTo(l.x,l.y);
-      ctx.quadraticCurveTo(m.x, m.y-34*K, r.x, r.y);
+      ctx.quadraticCurveTo(m.x, m.y-30*K, r.x, r.y);
       ctx.quadraticCurveTo(m.x, m.y+2*K, l.x, l.y);
-      ctx.closePath(); ctx.fillStyle=col; ctx.fill();
+      ctx.closePath(); ctx.fillStyle=ROSE; ctx.fill();
       ctx.strokeStyle=shade(wall,.6); ctx.lineWidth=2; ctx.stroke();
       ctx.beginPath(); ctx.moveTo(l.x,l.y+2);
       ctx.quadraticCurveTo(m.x, m.y+10*K, r.x, r.y+2);
       ctx.quadraticCurveTo(m.x, m.y+3*K, l.x, l.y+2);
-      ctx.closePath(); ctx.fillStyle=shade(col,.62); ctx.fill();
+      ctx.closePath(); ctx.fillStyle=shade(ROSE,.62); ctx.fill();
       ctx.beginPath(); ctx.moveTo(l.x,l.y+1);
       ctx.quadraticCurveTo(m.x,m.y+1,r.x,r.y+1);
       ctx.strokeStyle=trim; ctx.lineWidth=3; ctx.stroke();
     }
-    shopDoor(WW*0.50, wall, trim, null, WW);
-    F(WW*0.44,WW*0.56, 52, 92, '#8f93a8', null,0,-6.5);
+
+    /* ---- the entrance ----
+       WW*0.76 = 144.4 against a clamp limit of uw-hw-5 = 151.88, so the
+       number written is the number drawn. Surround 107.3..181.5 leaves
+       11.3 of pier from the window and 8.5 at the return. */
+    shopDoor(WW*0.76, wall, trim, 'rgba(150,150,175,.55)', WW);
+
+    /* ---- the fascia ----
+       Both halves of the old fTodo. The board ran 6..WW-6 at b -1..-9
+       and landed screen-a 7..193 on a 190 frontage, three past the far
+       return -- margin 6 against a recess of 9. Margin 14 puts it on
+       15..184. And the lettering sat at -9.5 against a back face of -9,
+       inside the thing it is painted on; proud at -0.5 now and set out
+       in both screen axes, since changing its depth moves it in x and
+       in apparent z together. Board screen 15..184 centred on 99.5 and
+       appz 132.3..168.7 centred on 150.5; the panel lands screen
+       37.5..161.5 on 99.5 and appz 143.2..158.2 on 150.7. */
+    slab(14,WW-14, 132, 166, -1, -8, shade(wall,1.2), null, trim);
+    F(37,161, 143, 158, trim, null,0,-0.5);
+
+    /* ---- the hat on a bracket, which is the sign ----
+       This is the piece that has to work from across the street, so it
+       is built as a real top hat rather than a board with a hat drawn
+       on it: disc brim, cylinder crown, banded.
+
+       Placed on the 4r rule. At b 26 the brim of r 12 spans 48 on
+       screen centred on a - 26, so a = 160 puts it at 110..158 --
+       hanging over the doorway at 107.3..181.5, where a shop sign
+       belongs, and 32 clear of the far return.
+
+       AND IT IS DRAWN AFTER THE FASCIA, which it was not on the first
+       pass. The arm sits at z 152, inside the fascia band at 132..166,
+       so a board drawn later painted straight over it and the hat hung
+       from nothing. The arm is at b 2..26 and the board at -1..-8, so
+       the arm is genuinely in front; only call order was wrong. Same
+       class as the Photo studio's sawteeth, and the second time today
+       that a correct depth lost to a wrong order. */
+    tube(160, 2, 152, 160, 26, 152, 2, shade(wall,1.5));      // arm, out over the pavement
+    tube(160, 26, 152, 160, 26, 146, 1.2, shade(wall,1.5));   // drop
+    cyl(160, 26, 124, 146, 8, '#2e2a33');                     // crown
+    plateCircle(160, 26, 146, 8, shade('#2e2a33',1.35));
+    plateCircle(160, 26, 124, 12, '#2e2a33', shade('#2e2a33',1.4), 2);   // brim
+    F(152, 168, 126, 132, ROSE, null,0, 38.2);                // band, proud of the crown
+
+
     if(state.roof) box(WW*0.26,WW*0.52,-140,-100,H,H+20,'#8f969d','#787f86','#697077');
     kerb(p,'none');
   }
