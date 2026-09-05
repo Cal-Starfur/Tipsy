@@ -3111,21 +3111,36 @@ const SHOPS = [
 },
 {
   name:'Post office', tall:true,
-  cTodo:'1 pavement props need collision volumes, 51 of them lapping past the frontage',
-  fTodo:'z120..132 return +8; z138..166 lettering behind board',
   zTodo:1.11,          // H 186 -- see SCALE REVIEW at the head of this file
-  head:'Flagpole, crest parapet, pillar box',
-  tags:['flagpole and flag','crest parapet','counter windows','round pillar box','official palette'],
-  desc:'The letterbox is a proper round pillar box with a domed cap and an aperture, and the flag hangs in the plane of its own pole rather than lying flat on the wall.',
+  head:'Raked flagpole, crest parapet, counter windows',
+  tags:['stars and stripes','crest parapet','counter windows','no pavement props','official palette'],
+  desc:'The flag is a real sheet standing in its own pole plane rather than a decal on the wall, with thirteen stripes running the length and the canton over the top seven. The pole rakes out over the pavement and the flag hangs down from it.',
   draw(p){
     const wall = '#dcd6c6', trim = '#1f4a6b', H = 186;
     body(wall, trim, H);
     slab(0,W, H, H+10, -1, -12, trim);
     slab(W*0.32,W*0.68, H+10, H+34, -2, -12, shade(wall,1.04), null, trim);
     F(W*0.42,W*0.58, H+16, H+28, trim, null,0,-2.5);
-    slab(0,W, 120, 132, -1, -8, trim);
+    /* MARGIN 0 AGAINST A RECESS OF 8 -- the first half of this shop's
+       fTodo. slab(0,W,...,-1,-8) landed screen-a 1..238, eight past the
+       far return. Margin 10 puts it on 11..228. */
+    slab(10,W-10, 120, 132, -1, -8, trim);
     slab(14,W-14, 138, 166, -1, -9, shade(wall,1.06));
-    for(let i=0;i<3;i++) F(30+i*54, 66+i*54, 144,160, trim, null,0,-9.5);
+    /* LETTERING BEHIND THE BOARD -- the second half, class B of the
+       fascia check. The three panels sat at b -9.5 against a board
+       whose back face is -9, so they were inside the thing they are
+       painted on, alive on call order alone and gone under any depth
+       key. Proud at -0.5.
+
+       MOVING THEM CHANGED THEIR CENTRING, which is the trap the check
+       warns about: fixing B forces C. At -9.5 the panels read screen-a
+       39.5..183.5; at -0.5 they read 30.5..174.5, and the board runs
+       15..225 with a centre of 120. The group centre was 102.5, out by
+       17.5 -- and it had been wrong before too, just differently. Set
+       out in screen space instead: three 36-wide panels on a 54 pitch
+       is a 144 group, centred on 119.5 in a so it lands 48..192 on
+       screen with 33 of board showing at each end. */
+    for(let i=0;i<3;i++) F(47.5+i*54, 83.5+i*54, 144,160, trim, null,0,-0.5);
     for(let i=0;i<3;i++){
       const x0 = 16+(W-32)*(i+0.10)/3, x1 = 16+(W-32)*(i+0.90)/3;
       slab(x0-3,x1+3, 28, 106, -1, -7, trim);
@@ -3133,22 +3148,100 @@ const SHOPS = [
       for(let j=1;j<3;j++) F(x0+(x1-x0)*j/3-1.5, x0+(x1-x0)*j/3+1.5, 32,102, trim, null,0,-8);
     }
     shopDoor(W*0.51, wall, trim);
-    F(W*0.44,W*0.58, 56, 100, '#7f9ab0', null,0,-6.5);
-    slab(0,W, 0, 22, -1, -6, shade(wall,.7));
+    /* THE EXTRA WINDOW IS GONE, at Sir's direction. F(W*0.44, W*0.58,
+       56, 100) sat at a 101.2..133.4, screen-a 107.7..139.9, laid
+       straight across the doorway at 79.9..154.1 -- a pane of counter
+       glass over the door. Third shop running with the same object in
+       the same place; it looks like a copied idiom rather than three
+       independent mistakes. Worth a grep across the remaining shops.
+
+       The door itself is clean here: W*0.51 = 117.3 against a clamp
+       limit of 191.9, so it is drawn where the source says. */
+    /* THE BASE PLINTH IS GONE, at Sir's direction. slab(0,W,0,22,-1,-6)
+       ran the full frontage under the counter windows and the door. It
+       had a return fault too -- screen-a 1..236, six past the far
+       return, unflagged because it sits below z 60 and the fascia
+       census reads anything down there as a plinth -- but the fix is
+       moot now that the band itself has gone. The window stallrisers
+       and the door surround carry the base on their own. */
     if(state.props){
-      // flagpole raked off the wall, flag hanging in the pole's plane
-      tube(W*0.10, -2, 150, W*0.10, -96, 214, 3, '#b9bcc0');
-      poly([P(W*0.10,-96,214),P(W*0.10,-58,204),P(W*0.10,-58,176),P(W*0.10,-96,188)], '#c2452e');
-      poly([P(W*0.10,-96,188),P(W*0.10,-58,176),P(W*0.10,-58,172),P(W*0.10,-96,184)], '#a33124');
-      ball(W*0.10, -96, 218, 3.5, '#c9a24a');
-      // pillar box: round, domed, with an aperture
-      const ba = W+34, bb = 40;
-      cyl(ba, bb, 0, 62, 17, '#c2452e');
-      plateCircle(ba, bb, 62, 17, '#a33124');
-      ball(ba, bb, 62, 17, '#b03c28', '#c2452e');
-      plateHoop(ba, bb, 8, 18, '#8d3120', 3);
-      F(ba-11, ba+11, 44, 50, '#2b2f33', null,0, bb+16);
-      F(ba-13, ba+13, 24, 34, '#e8ddc8', null,0, bb+16.4);
+      /* THE FLAGPOLE RAKED INTO THE BUILDING. It ran from b -2 to
+         b -96 -- ninety-six units BACK, through the wall and out the
+         far side of the shop -- and the flag hung at b -58..-96, buried
+         in the block with it. Negative b is INTO the block. Second time
+         this session after the pawn shop bracket, and the same reading:
+         somebody wrote the rake as a distance and let the sign follow
+         the wrong axis. Every b in the assembly flips positive so the
+         pole projects out over the pavement, which is where a flagpole
+         goes.
+
+         FLIPPING IT FORCED IT ALONG THE FRONTAGE. Positive b shifts
+         left on screen by its own b, so at the old a of W*0.10 = 23 the
+         flag would have landed at screen-a -73. The rake also shortens:
+         96 of projection is longer than the pavement is deep. Pole
+         reaches b 58, flag hangs between b 16 and 56, and the whole
+         assembly moves to a 70, which puts it at screen-a 5..71 -- the
+         pole tip ball is the leftmost thing on it at 5.0.
+
+         The base sits at z 168, two above the name board top at 166,
+         so it springs off wall rather than out of the lettering.
+
+         IT WAS HUNG BY THE WRONG EDGE. First pass ran the flag's LONG
+         side along the pole and dropped its short side, which makes a
+         pennant strung along a staff rather than a flag. A house-mounted
+         flag is attached along its HOIST -- the short side, the one
+         with the grommets -- and the fly hangs down from it. So the two
+         axes swap: the hoist now runs along the pole and the fly drops
+         vertically, which also turns the stripes ninety degrees. They
+         run from hoist to fly, so with the hoist on the pole they run
+         DOWN the flag, thirteen bands stacked along the staff.
+
+         PROPORTION HAS TO SURVIVE ZSCALE, and this is where the first
+         two passes went wrong in two different ways.
+
+         In raw units the flag is a parallelogram in the b-z plane: the
+         hoist is raked at 45 degrees and the fly hangs vertically, so
+         the true fly is the drop times the cosine of the rake. Getting
+         only that right gives 1.9:1 on paper -- and it still drew as a
+         ribbon, because z is multiplied by ZSCALE before it is
+         projected and b is not. A 14-wide hoist is 14 wide on screen
+         while a 53 drop is 80 tall, so the flag came out about 3:1 as
+         DRAWN while measuring 1.9:1 as written.
+
+         Same trap as the chemist cross, whose arms were 16.5 in z
+         against 10.8 in a and came out 2:1 apart; the kit fixed that by
+         dividing the z arm by ZSCALE, and the same correction applies
+         here. The hoist also widens -- 14 of b is simply too small to
+         read whatever the ratio says -- so the staff carries a hoist of
+         26 and the fly drops 62, which is 1.9:1 on the screen rather
+         than on the page.
+
+         The union goes at the PEAK of the staff, not at the wall --
+         that is the rule for a flag flown from a projecting staff, and
+         it is the opposite of what a vertical pole wants. Canton over
+         the seven stripes nearest the peak, four tenths along the fly.
+
+         The stars are a 3x4 grid of small quads: fifty at this size
+         would be mud, and a dozen reads as a star field at the distance
+         the game draws it. */
+      const fa = 70, pb0 = 2, pz0 = 168, pb1 = 58, pz1 = 224;   // 45 degree staff
+      tube(fa, pb0, pz0, fa, pb1, pz1, 2.5, '#b9bcc0');
+      ball(fa, pb1, pz1+2, 3.5, '#c9a24a');
+      const hb = 28, fb = 54, fly = 62;
+      const bAt = u => hb + (fb-hb)*u;                          // u runs along the hoist, up the staff
+      const zAt = (u,v) => pz0 + (pz1-pz0)*(bAt(u)-pb0)/(pb1-pb0) - fly*v;   // v drops down the fly
+      const sheet = (u0,u1,v0,v1,c) => poly([P(fa,bAt(u0),zAt(u0,v0)), P(fa,bAt(u1),zAt(u1,v0)),
+                                             P(fa,bAt(u1),zAt(u1,v1)), P(fa,bAt(u0),zAt(u0,v1))], c);
+      for(let s=0;s<13;s++) sheet(s/13,(s+1)/13, 0,1, s%2 ? '#eceff2' : '#b22234');
+      sheet(6/13,1, 0,0.40, '#3c3b6e');
+      for(let r=0;r<3;r++) for(let c=0;c<4;c++)
+        sheet(0.50+r*0.16, 0.57+r*0.16, 0.05+c*0.09, 0.10+c*0.09, '#eceff2');
+      /* THE PILLAR BOX IS GONE, at Sir's direction. It stood at a
+         247..281 against a 230 frontage -- entirely on the neighbour,
+         not merely lapping, and reaching screen-a 258, twenty-eight
+         past the far return. It was the one prop in cTodo, so the flag
+         goes with it: the flagpole is wall-mounted and does not stand
+         on the pavement, so this shop now has no ground props at all. */
     }
     if(state.roof) box(W*0.14,W*0.36,-160,-120,H,H+22,'#9aa0a6','#7d838a','#6a7076');
     kerb(p,'none');
