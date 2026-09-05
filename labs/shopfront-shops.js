@@ -3248,25 +3248,62 @@ const SHOPS = [
   }
 },
 {
-  name:'Pet shop', head:'Lit tanks, hanging cage, kennel',
-  cTodo:'1 pavement props need collision volumes, 56 of them lapping past the frontage',
-  fTodo:'z128..134 return +8',
-  tags:['aquarium glow','round birdcage','kennel outside','scalloped valance','warm interior'],
-  desc:'The birdcage is a cylinder with a domed top and vertical bars, hanging on a chain, and the tanks have a lit front edge so the glow reads as coming out of the glass.',
+  name:'Pet shop', head:'Lit tanks, scalloped valance, glowing glass',
+  tags:['aquarium glow','scalloped valance','warm interior','no pavement props'],
+  desc:'The tanks have a lit front edge so the glow reads as coming out of the glass rather than being painted on it, and the fish are spheres set behind the pane at their own depth. The valance is a folded canopy with scalloped ends, not a stripe on the wall.',
   draw(p){
     const wall = '#e0d3b8', trim = '#3f6b4a', H = 154;
     body(wall, trim, H);
     slab(0,W, H, H+10, -1, -12, trim);
-    F(10,W*0.70, 20, 108, '#2a3a34', shade(wall,.6), 3);
+    F(10,W*0.64, 20, 108, '#2a3a34', shade(wall,.6), 3);   // see the door note below
     for(let r=0;r<3;r++) for(let c=0;c<3;c++){
-      const x0 = 16+(W*0.66-16)*(c+0.06)/3, x1 = 16+(W*0.66-16)*(c+0.94)/3, z0 = 26+r*28;
+      const x0 = 16+(W*0.60-16)*(c+0.06)/3, x1 = 16+(W*0.60-16)*(c+0.94)/3, z0 = 26+r*28;
       F(x0,x1, z0, z0+22, ['#4fb0a0','#5ab8c8','#3f9f86'][(r+c)%3], null,0,-1);
       F(x0,x1, z0+20, z0+22, '#d8f0e8', null,0,-1.5);
       F(x0,x1, z0, z0+2, 'rgba(216,240,232,.55)', null,0,-1.5);
       for(let k=0;k<2;k++) ball(x0+6+k*9, -3, z0+8+k*5, 3.4, ['#e8a13a','#f2ece0'][k]);
     }
-    shopDoor(W*0.86, wall, trim);
-    F(W*0.78,W-14, 50, 90, '#8fb8a0', null,0,-6.5);
+    /* THE SAME TWO FAULTS AS THE BUTCHER, IN THE SAME NUMBERS. This is
+       the strongest evidence yet that the extra window is a copied
+       idiom rather than independent mistakes.
+
+       shopDoor clamps to uw-hw-5 = 191.88. This shop asked for W*0.86 =
+       197.8 and got 191.88 back -- drawn 5.92 from where the source
+       says, to the hundredth the same displacement the Butcher had,
+       because both wrote the same W*0.86 on the same 230 frontage.
+       Underneath it, the surround runs a0-4..a1+4 and reached 154.8
+       while the window ran to W*0.70 = 161: 6.2 of surround lying
+       across the glass, again identical.
+
+       And the extra window was the same CALL, not merely the same idea:
+       F(W*0.78, W-14, 50, 90, ..., -6.5) here and F(W*0.78, W-14, 50,
+       90, ..., -6.5) on the Butcher, differing only in fill colour. It
+       sat at a 179.4..216, screen-a 185.9..222.5, straight over the
+       doorway -- and covering the surround overlap, which is why
+       neither shop showed the real fault until the window came off.
+
+       Same repair as the Butcher, so the two stay in step: the glass
+       gives up the space rather than the door being shaved. W*0.70 ->
+       W*0.64 takes the window to 147.2 and the door comes to W*0.83 =
+       190.9, INSIDE the clamp, so the number written here is the number
+       drawn. Surround 153.8..228.0: 6.6 of pier from the glass, 2.0 at
+       the return.
+
+       THE TANK GRID HAD TO FOLLOW THE GLASS. It was laid out on
+       W*0.66 and its right column reached a 149.1, which would have
+       stood 1.9 PAST the narrowed window -- tanks hanging in the wall
+       beside the frame. W*0.60 brings the column to 135.6, back inside
+       with 11.6 of frame to spare. Narrowing a window is never just the
+       window; whatever was measured off it moves too.
+
+       THE DOOR GLASS IS PASSED EXPLICITLY, for the third time on this
+       fault. Left to default, the fanlight comes out the kit's cool
+       blue, which reads as a stray wedge under the valance against this
+       shop's green -- and it only becomes visible once the extra window
+       stops covering it. Butcher, Pawn shop and now here: any shop
+       carrying the copied window is likely to have a bare shopDoor call
+       hiding behind it too. */
+    shopDoor(W*0.83, wall, trim, 'rgba(143,184,160,.55)');
     const out = 32;
     poly([P(4,0,128),P(W-4,0,128),P(W-4,out,112),P(4,out,112)], trim);
     poly([P(4,0,120),P(W-4,0,120),P(W-4,out,104),P(4,out,104)], shade(trim,.7));
@@ -3278,23 +3315,22 @@ const SHOPS = [
       ctx.beginPath(); ctx.moveTo(l.x,l.y); ctx.quadraticCurveTo(m.x,m.y+6,r.x,r.y); ctx.closePath();
       ctx.fillStyle = i%2 ? shade(trim,1.35) : '#f0e8d4'; ctx.fill();
     }
-    slab(0,W, 128, 134, -1, -8, shade(trim,.8));
-    if(state.props){
-      const hc = W*0.36, hb = 22;
-      tube(hc, hb, 108, hc, hb, 98, 0.9, '#8a8272');
-      cyl(hc, hb, 60, 96, 13, 'rgba(220,214,190,.35)');
-      for(let k=0;k<7;k++){
-        const t = 3*Math.PI/4 - Math.PI*k/6;
-        tube(hc+13*Math.cos(t), hb+13*Math.sin(t), 60, hc+13*Math.cos(t), hb+13*Math.sin(t), 96, 0.7, '#8a8272');
-      }
-      ball(hc, hb, 96, 13, 'rgba(201,162,74,.9)', '#d8b45e');
-      plateCircle(hc, hb, 58, 14, '#c9a24a', '#8a8272', 2);
-      ball(hc, hb, 76, 5, '#e8c34a');
-      box(W+10,W+56, 20, 60, 0, 34, '#a9703a','#c98a4a','#8f5e31');
-      poly([P(W+10,20,34),P(W+33,20,58),P(W+56,20,34)], '#8f5e31');
-      poly([P(W+56,20,34),P(W+33,20,58),P(W+33,60,58),P(W+56,60,34)], '#7a5030');
-      F(W+24,W+42, 4, 28, '#4a3626', null,0, 19);
-    }
+    /* MARGIN 0 AGAINST A RECESS OF 8 -- this shop's fTodo. It landed
+       screen-a 1..238, eight past the far return. Margin 10 puts it on
+       11..228. */
+    slab(10,W-10, 128, 134, -1, -8, shade(trim,.8));
+    /* THE BIRDCAGE AND THE KENNEL ARE BOTH GONE, at Sir's direction.
+
+       The cage was the only piece on this shop that was geometrically
+       sound -- hung at b 22, in FRONT of the glass where a hanging cage
+       belongs, screen-a 34.8..86.8, well inside both returns. It came
+       out because Sir wanted it out, not because it was wrong.
+
+       The kennel was the opposite. It stood at a 240..286 against a 230
+       frontage -- entirely on the neighbour, not merely lapping, and
+       reaching screen-a 266, thirty-six past the far return. It was the
+       one prop in cTodo, so the flag goes with it, and with the cage
+       gone too there is no state.props branch left on this shop. */
     if(state.roof) box(W*0.30,W*0.56,-140,-100,H,H+20,'#9aa0a6','#7d838a','#6a7076');
     kerb(p,'none');
   }
