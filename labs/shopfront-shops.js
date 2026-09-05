@@ -3336,44 +3336,155 @@ const SHOPS = [
   }
 },
 {
-  name:'Gym', head:'Clerestory band, roof duct run, kettlebell sign',
-  cTodo:'1 pavement props need collision volumes',
-  fTodo:'z148..172 return +3, lettering behind board',
-  tags:['high clerestory','round duct run','no display glass','equipment sign','roller door'],
-  desc:'The duct is a run of real cylinders with joint collars snaking across the roof, and the kettlebell on the fascia is a sphere with a bent tube handle.',
+  name:'Gym', ww: T2*4.4,
+  wTodo:'two packing slots',
+  head:'Double-width glass front, equipment on show, central entrance',
+  tags:['double-width unit','full-height glazing','equipment on show','kettlebell sign','no pavement props'],
+  desc:'Rebuilt at Sir\'s direction as a double-width unit with a glazed front: two full-height windows with real recesses, treadmills and a weight rack silhouetted behind the glass, and a central entrance between them.',
   draw(p){
-    const wall = '#4a4f55', trim = '#e8a13a', H = 182;
-    body(wall, trim, H);
-    slab(0,W, H, H+10, -1, -12, shade(wall,1.4));
-    slab(0,W, 0, 30, -1, -6, shade(wall,.8));
-    for(let i=0;i<6;i++){
-      const x0 = 10+(W-20)*(i+0.08)/6, x1 = 10+(W-20)*(i+0.92)/6;
-      slab(x0-2,x1+2, 108, 142, -1, -7, shade(wall,1.25));
-      F(x0,x1, 112, 138, '#8fb4c4', null,0,-7.5);
-    }
-    slab(6,W-6, 148, H-10, -1, -9, shade(wall,1.15), null, trim);
-    ball(W*0.18, -10, 164, 11, trim);
-    tube(W*0.18-6, -10, 172, W*0.18+6, -10, 172, 2, trim);
-    tube(W*0.18-6, -10, 172, W*0.18-4, -10, 178, 2, trim);
-    tube(W*0.18+6, -10, 172, W*0.18+4, -10, 178, 2, trim);
-    F(W*0.34,W*0.86, 160, 168, trim, null,0,-9.5);
-    for(const bx of [W*0.34,W*0.40,W*0.80,W*0.86]) F(bx-4,bx+4, 152, 176, trim, null,0,-10);
-    /* the entrance was a roller shutter 96 wide and 92 tall -- half a
-       loading bay on a building people walk into. Real door on the same
-       centreline, with the header band kept so the elevation still has
-       its horizontal. */
-    shopDoor(W*0.51, wall, trim);
-    slab(W*0.28,W*0.74, 112, 122, -2, -9, trim);
-    if(state.roof){
-      for(let i=0;i<5;i++){
-        const bb = -30 - i*44;
-        cyl(W*0.44, bb, H+10, H+40, 15, i%2 ? '#b9bcc0' : '#c6c9cd');
-        plateCircle(W*0.44, bb, H+40, 15, '#d2d5d8', '#a8adb2', 1.6);
-        cyl(W*0.44, bb - 22, H+14, H+36, 17, '#aab0b4');
+    /* ================= REBUILT, AND TWICE AS WIDE =================
+       The old gym was a 230 unit with no display glass at all -- a
+       clerestory band of six small lights at z 108..142 and a blank
+       wall under it, which is a warehouse elevation on a building
+       people are supposed to look into. Sir asked for a double-width
+       unit with big windows in front, so this is a rebuild rather than
+       a polish pass and none of the old front survives.
+
+       ww = T2*4.4 = 404.8, the same figure the Garage uses and for the
+       same reason: it is exactly two of packEdgeNoGap's own slots
+       (avgW = T2*2.2 = 202.4), so the port is a clean "this shop
+       occupies two slots" rather than a number to reverse-engineer.
+       Second wide shop in the library; wTodo says the packer still
+       cannot place either of them. See the WIDE UNITS note at the head
+       of this file.
+
+       CENTRING IS DONE IN a, NOT ON SCREEN, and that is deliberate.
+       The chemist note settles the rule: a is the axis that survives
+       mirroring, b flips sign between mirrored edges, so world-centred
+       is the only centring that holds on all four faces of the block.
+       Everything symmetric here is symmetric about a = WW/2 = 202.4,
+       and the apparent shift is kept small by keeping the stack
+       shallow -- board -1, lettering -0.5, emblem 0.
+
+       THE BENCH IS GONE AND THAT IS A KIT FAULT, NOT A CHOICE. The old
+       shop ended kerb(p,'bench'), and kerb() places its props against
+       the hardcoded W, not against the shop's own frontage -- there is
+       no width argument. On a 404.8 building the bench would sit at
+       W*0.08..W*0.52 = 18.4..119.6, laid out for a 230 unit and parked
+       off to one side of a building nearly twice that. It does not lap
+       the neighbour, so no census would flag it; it is simply measured
+       off the wrong building. Left as kerb(p,'none') until kerb takes a
+       width the way shopDoor already does. cTodo goes with it. */
+    const WW = T2*4.4;
+    const wall = '#4a4f55', trim = '#e8a13a', H = 210;
+    const inner = shade(wall,.5), gear = '#cfd6db', lit = trim;
+    body(wall, trim, H, WW);
+    slab(0,WW, H, H+12, -1, -12, shade(wall,1.4));           // cornice, belongs to the building
+    slab(14,WW-14, 0, 30, -1, -8, shade(wall,.8));           // stallriser, margin 14 beats recess 8
+
+    /* ---- the two big windows ----
+       Recess is 16 deep, so the a-margin has to beat 16 or the reveal
+       crosses the return: left starts at 26, right ends at WW-26 =
+       378.8 and reads screen-a 394.8 with 10 of pier. Symmetric in a
+       about 202.4, which leaves the screen margins uneven at 26 and 10
+       -- that is the cost of world-centring and the reason the recess
+       is 16 rather than the 24 a shopfront would like. */
+    const WINS = [[26,146],[258.8,378.8]];
+    WINS.forEach(([x0,x1], w) => {
+      reveal(x0, x1, 30, 140, 16, inner);
+      /* Everything here lives between the pane at 0 and reveal's back
+         plate at -16, so nothing is deeper than -13. Put a machine at
+         -18 and it is behind the wall of its own shop. */
+      if(w === 0){
+        for(let i=0;i<3;i++){                                 // treadmills
+          const tx = x0 + 15 + i*36;
+          F(tx,    tx+26, 34,  50, gear, null,0,-12);         // deck
+          F(tx+19, tx+24, 50,  98, gear, null,0,-12.4);       // upright
+          F(tx+11, tx+27, 94, 110, lit,  null,0,-12.8);       // console, lit
+        }
+      } else {
+        for(const rx of [x0+22, x0+96])                       // rack uprights
+          F(rx-4, rx+4, 34, 116, gear, null,0,-12);
+        for(let r=0;r<3;r++){                                 // bars with discs
+          const rz = 46 + r*28;
+          F(x0+22, x0+96, rz, rz+5, gear, null,0,-12.4);
+          for(const dx of [x0+34, x0+84]) ball(dx, -12.8, rz+2, 9, lit);
+        }
       }
-      box(W*0.76,W*0.96,-150,-110,H,H+30,'#8f969d','#787f86','#697077');
+      /* THE PANE WAS 92% OPAQUE AND I HAD NOT READ IT. First pass drew
+         the equipment at shade(wall,1.45) against a shade(wall,.55)
+         backing -- a real difference in the numbers -- and the window
+         still came out as one flat blue rectangle. Raising the contrast
+         to near-white barely helped, which is what sent me to the kit:
+         glaze()'s default tint is rgba(104,146,168,.92). That is not
+         glass, it is a wall the colour of glass, and nothing behind it
+         was ever going to show.
+
+         The chemist gets away with the default because its shelf lines
+         sit at b +1.6 -- in FRONT of the pane, not behind it. That is
+         fine for a painted shelf line and wrong for a treadmill, which
+         is inside the building. So the tint is passed explicitly at .35
+         and the equipment stays where it belongs, behind the glass.
+
+         Worth carrying: anything meant to be SEEN THROUGH glaze needs
+         its own tint. The default is for windows with nothing behind
+         them. */
+      glaze(x0, x1, 30, 140, null, 'rgba(104,146,168,.35)');
+      /* Mullions and transom stand PROUD of the pane at -0.5, not
+         behind it. A shopfront frame is in front of its glass; the
+         glaze() note in the kit is about exactly this, and putting them
+         at -1.5 would hide them inside the window under any depth key. */
+      for(let k=1;k<4;k++){
+        const mx = x0 + (x1-x0)*k/4;
+        F(mx-2.5, mx+2.5, 30, 140, shade(wall,1.3), null,0,-0.5);
+      }
+      F(x0, x1, 96, 101, shade(wall,1.3), null,0,-0.5);
+    });
+
+    /* ---- the entrance ----
+       The bay between the windows is 146..258.8, 112.8 wide. A shop
+       door and its surround is 74.2, centred on 202.4, so it runs
+       165.3..239.5 with 19.3 of pier a side. The clamp does not bite
+       here: uw-hw-5 on a 404.8 frontage is 366.7 and this asks for
+       202.4, so the number written is the number drawn -- worth stating
+       because it is the first door in several shops that is. */
+    F(158, 246.8, 0, 118, shade(wall,.9), null,0, 0.4);       // entrance surround
+    shopDoor(WW/2, wall, trim, 'rgba(143,180,196,.55)', WW);
+    slab(150, 254.8, 118, 130, -2, -9, trim);                 // header over the entrance
+
+    /* ---- the fascia ----
+       Board margin 18 against a recess of 10, so it reads screen-a
+       19..396.8 and keeps a pier at both returns. The lettering is
+       PROUD at -0.5, not the -9.5 the old one used: that convention
+       puts the panel behind the board it is painted on and it survives
+       on call order alone. This shop carried exactly that as its
+       fTodo, along with a +3 return on the board itself; both are gone
+       by construction rather than by patch. */
+    slab(18,WW-18, 152, 196, -1, -10, shade(wall,1.15), null, trim);
+    F(WW/2-100, WW/2+100, 162, 186, trim, null,0,-0.5);       // name panel, centred in a
+    /* Kettlebells at both ends, mirrored about 202.4. A sphere's own
+       depth radius shifts its near edge, so these sit at b 0 with the
+       ball symmetric -- no net screen shift at all, which is what keeps
+       the pair looking level. */
+    for(const kb of [WW/2-148.4, WW/2+148.4]){
+      ball(kb, 0, 168, 10, trim);
+      tube(kb-6, 0, 179, kb+6, 0, 179, 2, trim);
+      tube(kb-6, 0, 179, kb-4, 0, 185, 2, trim);
+      tube(kb+6, 0, 179, kb+4, 0, 185, 2, trim);
     }
-    kerb(p,'bench');
+
+    if(state.roof){
+      /* THE DUCT RUN IS GONE, at Sir's direction. Five cylinders with
+         joint collars ran back from a WW*0.28 at b -30 to -206, and it
+         was the one part of the old gym I had carried through the
+         rebuild on the grounds that it was the shop's signature and had
+         never been the broken part. It reached screen-a 375 against a
+         plant box starting at 418, so it cleared -- it goes because the
+         glazed front is the signature now and the roof does not need a
+         second one competing with it. */
+      box(WW*0.76,WW*0.96,-150,-110,H,H+30,'#8f969d','#787f86','#697077');
+    }
+    kerb(p,'none');   // see the bench note above
   }
 },
 {
