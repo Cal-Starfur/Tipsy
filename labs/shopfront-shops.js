@@ -3733,15 +3733,31 @@ const SHOPS = [
   }
 },
 {
-  name:'Photo studio', head:'North-light glazing, portrait cases',
-  fTodo:'z120..146 return +3, lettering behind board',
-  tags:['sawtooth north light','glazing bars','portrait cases','deep sill','glass roof plane'],
-  desc:'Each sawtooth now has a solid upstand behind the glass and a capping at the ridge, so the roof reads as built rather than as two blue sheets, and the portraits are framed boxes with a visible edge.',
+  name:'Photo studio', head:'North-light glazing, portraits behind real glass',
+  tags:['sawtooth north light','glazing bars','portrait cases','glass roof plane','depth-ordered roof'],
+  desc:'Each sawtooth has a solid upstand behind the glass and a capping at the ridge, so the roof reads as built rather than as two blue sheets, and the two teeth are drawn far to near so the back one no longer lands on the front one. The portraits stand in a real recess behind a tinted pane.',
   draw(p){
     const wall = '#c8c2b4', trim = '#3a3f4a', H = 172;
     body(wall, trim, H);
     slab(0,W, H, H+8, -1, -12, trim);
-    for(let i=0;i<2;i++){
+    /* ================= THE SAWTEETH WERE DRAWN BACK TO FRONT =========
+       Sir kept the skylights and asked for the stacking fixed, and the
+       stacking was one character: the loop ran i = 0 then 1, which is
+       NEAR tooth then FAR tooth. On a painter's canvas the far one then
+       lands on top of the near one, which is why the back tooth's tan
+       upstand was sitting across the front tooth's glass.
+
+       Measured: tooth 1's upstand occupies screen-a 150..364 and tooth
+       2's glass 162..454, so they overlap across nearly their whole
+       width and only call order decides which wins. Far to near now,
+       and within each tooth the order was already right -- upstand at
+       b -142 before glass at -50..-128, which is far before near.
+
+       Worth noting which way round this fault runs. Everything else
+       found this session survives ON call order and would die under a
+       depth key; this one dies on call order and a depth key would fix
+       it. Both are worth finding before the port, for opposite reasons. */
+    for(let i=1;i>=0;i--){
       const b0 = -50 - i*104, b1 = b0 - 78;
       poly([P(8,b1,H+46),P(W-8,b1,H+46),P(W-8,b1-14,H+46),P(8,b1-14,H+46)], shade(trim,1.2));  // upstand top
       F(8,W-8, H, H+46, shade(wall,.86), null,0, b1-14);                                        // upstand face
@@ -3751,21 +3767,82 @@ const SHOPS = [
         poly([P(8+(W-16)*t-2, b0, H),P(8+(W-16)*t+2, b0, H),
               P(8+(W-16)*t+2, b1, H+46),P(8+(W-16)*t-2, b1, H+46)], shade(trim,1.4));
       }
-      S(W-8, b0, b1, H, H+46, shade(wall,.7));
-      S(8, b0, b1, H, H+46, shade(wall,.82));
+      /* THE ENDS WERE SQUARES ON A WEDGE. S() draws a rectangle in the
+         b-z plane, so each tooth was capped with a full b0..b1 by
+         H..H+46 block -- but a sawtooth end is a PROFILE, and this
+         tooth's profile is a ramp climbing from the eaves at (b0, H)
+         to the ridge at (b1, H+46), then the upstand dropping back to
+         (b1-14, H). The square filled in all the air under the ramp
+         and left the upstand's own end uncovered, which is why the
+         glass looked like it was slotted into a solid block.
+
+         Drawn as the profile now, one quad per end following the same
+         four corners the rest of the tooth already uses: eaves, ridge,
+         back of the upstand at the ridge, back of the upstand at the
+         deck. The base edge closes it along z = H. Nothing new is
+         invented here -- b0, b1 and b1-14 are the numbers the ramp and
+         the upstand were already built from, so the end cannot drift
+         out of step with them the way a separately-written rectangle
+         could. */
+      /* AND ONLY THE VISIBLE END GETS DRAWN. Both were, unconditionally
+         -- and the a = 8 end faces AWAY from the camera, so it had no
+         business being drawn at all. Painted after the ramp, it landed
+         on top of the glass, which is what Sir circled: a tan wedge
+         lying across the panes at the left of each tooth.
+
+         This is a solved problem in the kit and the shop was not using
+         the solution. body() draws one end wall gated on FLANK_RIGHT,
+         which is the host's copy of drawStoreUnit's own showRight test
+         -- and the reason it exists is that the a = w end is the
+         visible one on only half the block edges in the game. Hardcoding
+         both ends is wrong twice over: it overdraws here, and in the
+         game it would put a wall on the face the cull says is hidden.
+         Same gate, same reason. */
+      const endA = FLANK_RIGHT ? W-8 : 8;
+      poly([P(endA,b0,H),P(endA,b1,H+46),P(endA,b1-14,H+46),P(endA,b1-14,H)],
+           shade(wall, FLANK_RIGHT ? .7 : .82));
     }
-    F(12,W*0.60, 24, 112, '#6e7c8c', shade(wall,.62), 3);
-    F(18,W*0.54, 32, 104, shade(wall,1.1), null,0,-1);
+    /* ---- the shopfront ----
+       IT WAS AN OPAQUE PANEL WITH THE PORTRAITS HIDDEN BEHIND IT. The
+       window was a flat F at b 0 and the three cases sat at b -2..-8
+       behind it, visible only because they are painted afterwards --
+       the Bookshop's ladder fault again, and the third instance of it.
+       A real recess now, with the cases between the pane and the back
+       plate at -14, and an explicit tint because glaze()'s default is
+       rgba(104,146,168,.92) and nothing survives behind that.
+
+       The cases already fitted once measured properly: screen 26..118.7
+       and appz 44.7..94.7 inside an opening of 12..138 by 24..112, so
+       14 to 20 of margin on every side. They keep their positions. */
+    reveal(12, W*0.60, 24, 112, 14, shade(wall,.5));
+    F(18,W*0.54, 32, 104, shade(wall,.72), null,0,-13);        // back wall inside the shop
     for(let i=0;i<3;i++){
       const x0 = 24+i*((W*0.50-24)/3), x1 = x0 + 26;
       slab(x0,x1, 44, 92, -2, -8, '#e8ddc8', trim, shade('#e8ddc8',1.1));
       F(x0+4,x1-4, 52, 86, ['#9aa8b4','#b09a8c','#8ea89a'][i], null,0,-2.5);
       ball((x0+x1)/2, -3, 76, 5, '#e8ddc8');
     }
-    shopDoor(W*0.83, wall, trim);
-    F(W*0.70,W-16, 50, 90, '#6e7c8c', null,0,-6.5);
-    slab(6,W-6, 120, 146, -1, -9, trim);
-    F(20,W-20, 126, 140, shade(wall,1.12), null,0,-9.5);
+    glaze(12, W*0.60, 24, 112, null, 'rgba(110,124,140,.30)');
+    /* THE EXTRA WINDOW IS GONE. F(W*0.70, W-16, 50, 90, ..., -6.5) sat
+       at a 161..214, screen-a 167.5..220.5, laid over a doorway running
+       153.5..227.7 -- the same copied idiom as the Butcher, Pawn shop,
+       Pet shop and Bookshop, in yet another fraction. The door itself
+       is clean here: W*0.83 = 190.9 against a clamp limit of 191.88, so
+       it is drawn where the source says. */
+    shopDoor(W*0.83, wall, trim, 'rgba(110,124,140,.55)');
+    /* BOTH HALVES OF fTodo. The board ran 6..W-6 at b -1..-9 and landed
+       screen-a 7..233, three past the far return -- margin 6 against a
+       recess of 9. Margin 12 puts it on 13..227.
+
+       And the lettering sat at b -9.5 against a board whose back face
+       is -9: class B, inside the thing it is painted on. Proud at -0.5,
+       and then set out in BOTH screen axes rather than in a, because
+       moving its depth moves it in x and in apparent z together. Board
+       reads screen 13..227 centred on 120 and appz 120.3..149 centred
+       on 134.7; the panel at b -0.5 lands screen 35..205 centred on 120
+       and appz 127.7..141.7 centred on 134.7. Centred on both. */
+    slab(12,W-12, 120, 146, -1, -9, trim);
+    F(34.5,204.5, 127.5, 141.5, shade(wall,1.12), null,0,-0.5);
     if(state.roof) box(W*0.62,W*0.86,-30,-6,H,H+18,'#9aa0a6','#7d838a','#6a7076');
     kerb(p,'none');
   }
