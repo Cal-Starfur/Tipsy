@@ -3848,69 +3848,120 @@ const SHOPS = [
   }
 },
 {
-  name:'Toy shop', head:'Rooftop kite, oversized bear, pinwheels',
-  cTodo:'3 pavement props need collision volumes, 60 of them lapping past the frontage',
-  tags:['kite in a real plane','turned bear','pinwheels','bright banding','scalloped canopy'],
-  desc:'The bear is built from cylinders and balls so it stands in the window, and the kite is a diamond lying in a genuine world plane on the end of its string rather than a rotated sprite.',
+  name:'Toy shop', ww: T2*4.4,
+  wTodo:'two packing slots',
+  head:'Big-box toy store, alphabet-block fascia, no pavement props',
+  tags:['double-width unit','big-box format','alphabet block sign','toys behind real glass','primary palette'],
+  desc:'Rebuilt at Sir\'s direction as a big-box toy store: a double-width unit with two very large glazed bays, a central entrance, and a fascia of oversized alphabet blocks in primary colours. Everything fun is ON the building -- there are no pavement props at all.',
   draw(p){
-    const wall = '#e8564a', trim = '#f4e2b0', H = 150;
-    body(wall, trim, H);
-    slab(0,W, H, H+10, -1, -12, trim);
-    for(let i=0;i<6;i++) F(i*(W/6), (i+0.5)*(W/6), H-22, H, trim, null,0,-1);
-    F(10,W*0.68, 24, 104, '#7fb4c4', shade(wall,.7), 3);
-    // bear, turned from cylinders and balls
-    const bx = W*0.30, bb = -4;
-    cyl(bx, bb, 26, 78, 22, '#c9944a');
-    ball(bx, bb, 96, 20, '#c9944a');
-    ball(bx-15, bb, 110, 8, '#b8843c');
-    ball(bx+15, bb, 110, 8, '#b8843c');
-    ball(bx-6, bb-2, 100, 3, '#4a3626');
-    ball(bx+6, bb-2, 100, 3, '#4a3626');
-    ball(bx, bb-4, 92, 6, '#e0b070');
-    cyl(bx-24, bb, 44, 70, 7, '#b8843c');
-    cyl(bx+24, bb, 44, 70, 7, '#b8843c');
-    F(bx-8,bx+8, 72, 86, '#e8ddc8', null,0,-6);
-    shopDoor(W*0.84, wall, trim);
-    F(W*0.76,W-14, 50, 88, '#7fb4c4', null,0,-6.5);
-    const out = 30;
-    poly([P(4,0,124),P(W-4,0,124),P(W-4,out,110),P(4,out,110)], trim);
-    poly([P(4,0,116),P(W-4,0,116),P(W-4,out,102),P(4,out,102)], shade(trim,.78));
-    poly([P(4,0,124),P(4,out,110),P(4,out,102),P(4,0,116)], shade(wall,.7));
-    poly([P(W-4,0,124),P(W-4,out,110),P(W-4,out,102),P(W-4,0,116)], shade(wall,.7));
-    for(let i=0;i<10;i++){
-      const x0=4+(W-8)*i/10, x1=4+(W-8)*(i+1)/10;
-      const l=P(x0,out,110), r=P(x1,out,110), m=P((x0+x1)/2,out,98);
-      ctx.beginPath(); ctx.moveTo(l.x,l.y); ctx.quadraticCurveTo(m.x,m.y+6,r.x,r.y); ctx.closePath();
-      ctx.fillStyle = i%2 ? '#4aa8c4' : trim; ctx.fill();
-    }
-    if(state.props){
-      for(let i=0;i<3;i++){
-        const pa = W+14+i*22, pb = 30;
-        cyl(pa, pb, 0, 56, 1.6, '#c9ccd0');
-        for(let k=0;k<4;k++){                                    // vanes in the pinwheel's own plane
-          const a0 = k*1.57 + 0.4, a1 = a0 + 0.6;
-          poly([P(pa, pb, 60),
-                P(pa + 11*Math.cos(a0), pb, 60 + 11*Math.sin(a0)),
-                P(pa + 11*Math.cos(a1), pb, 60 + 11*Math.sin(a1))],
-               ['#e8564a','#f4e2b0','#4aa8c4','#7ac44a'][k]);
-        }
-        ball(pa, pb, 60, 2.5, '#8d979f');
+    /* ================= REBUILT AS A BIG BOX =================
+       The old toy shop was a 230 unit at H 150 with a bear, a kite on a
+       string and three pinwheels standing on the pavement -- a corner
+       shop pretending to be a toy shop by putting toys outside it. Sir
+       asked for the opposite: a huge store, no pavement props, and the
+       fun carried by the building instead.
+
+       ww = T2*4.4 = 404.8, the third wide unit after the Garage and the
+       Gym, and anchored the same way: exactly two of packEdgeNoGap's
+       own slots (avgW = T2*2.2 = 202.4). wTodo says the packer still
+       cannot place any of the three.
+
+       H = 252, which is 1.50 game storeys exactly -- one tall trading
+       volume rather than two floors, which is what a big box is. Tall
+       enough to carry a deep fascia over full-height glazing, and the
+       parapet hides the roof the way a real one does.
+
+       NO PAVEMENT PROPS, and that is the point rather than an omission.
+       Everything here is on the building: the blocks are on the fascia,
+       the toys are behind glass, the roof carries the oversized ones.
+       cTodo goes with the old props -- three of them, sixty units past
+       the frontage between them. */
+    const WW = T2*4.4;
+    const wall = '#f4f2ec', trim = '#d8352a', H = 252;
+    const BLU = '#2f6fd0', YEL = '#f2c230', GRN = '#3fa85c', ORG = '#e07a2a';
+    const TOY = [trim, BLU, YEL, GRN, ORG];
+    const inner = '#2a2f36';
+    body(wall, trim, H, WW);
+    slab(0,WW, H, H+14, -1, -14, trim);                      // parapet, belongs to the building
+    slab(14,WW-14, 0, 30, -1, -8, shade(wall,.82));          // stallriser, margin 14 beats recess 8
+
+    /* ---- two very large glazed bays ----
+       Symmetric in a about WW/2 = 202.4, which is the mirroring-safe
+       centring the chemist note settles. Recess 14, so the a-margin has
+       to beat 14: left starts at 26 and right ends at 378.8, reading
+       screen-a 392.8 with 12 of pier. The entrance bay between them is
+       135..269.8, 134.8 wide, which takes a door and its surround with
+       30 of pier either side. */
+    const WINS = [[26,135],[269.8,378.8]];
+    WINS.forEach(([x0,x1], w) => {
+      reveal(x0, x1, 34, 150, 14, inner);
+      /* Toys behind the pane, sized in APPARENT terms. Content sits at
+         b -10, which shifts it 10 right and 3.33 UP -- the projection
+         moves b in both axes and only the second one is easy to forget.
+         Blocks run z 40..120, appz 43.3..123.3 inside an opening of
+         34..150; and a 34..115, screen 44..125 inside 26..135. */
+      for(let k=0;k<3;k++)                                   // a tower of blocks
+        F(x0+10+k*3, x0+40+k*3, 40+k*28, 64+k*28, TOY[(k+w*2)%5], null,0,-10);
+      ball(x0+66, -10, 55, 11, TOY[(w*3+1)%5]);              // a ball beside it
+      for(let k=0;k<2;k++)                                   // and two more stacked
+        F(x0+82, x0+108, 40+k*26, 62+k*26, TOY[(k+w+3)%5], null,0,-10);
+      glaze(x0, x1, 34, 150, null, 'rgba(150,180,205,.30)');
+      /* Mullions PROUD of the pane at -0.5, not behind it. Four lights
+         to a bay; the kit's glaze() note is about exactly this stack
+         ascending toward the viewer. */
+      for(let k=1;k<4;k++){
+        const mx = x0 + (x1-x0)*k/4;
+        F(mx-3, mx+3, 34, 150, trim, null,0,-0.5);
       }
+      F(x0, x1, 112, 118, trim, null,0,-0.5);                // transom
+    });
+
+    /* ---- the entrance ----
+       Centred on WW/2. The clamp does not bite on a frontage this wide:
+       uw-hw-5 is 366.7 and this asks for 202.4, so the number written
+       is the number drawn. Glass passed explicitly rather than left to
+       the kit's cool blue default. */
+    F(150, 254.8, 0, 126, shade(wall,.9), null,0, 0.4);      // entrance surround
+    shopDoor(WW/2, wall, trim, 'rgba(150,180,205,.55)', WW);
+    slab(142, 262.8, 126, 140, -2, -9, BLU);                 // header over the entrance
+
+    /* ---- bunting, because Sir asked for fun ----
+       A row of pennants across the whole frontage at b -0.5, proud of
+       the wall. Triangles rather than a painted stripe: each one is a
+       real poly with its own two top corners on the string. */
+    for(let i=0;i<14;i++){
+      const px0 = 22 + i*27, px1 = px0 + 22;
+      poly([P(px0,-0.5,182),P(px1,-0.5,182),P((px0+px1)/2,-0.5,160)], TOY[i%5]);
     }
+    F(18,WW-18, 182, 185, shade(wall,.6), null,0,-0.6);      // the string
+
+    /* ---- the fascia ----
+       A shallow board on purpose. A slab at b -1..-5 has its screen
+       centre at a_centre + 3, and the blocks applied to it sit at -0.5
+       with a shift of 0.5 -- so the two are 2.5 apart rather than the
+       5.5 a deeper board would give. That is the chemist's rule: keep
+       an applied element symmetric in a and keep the stack shallow,
+       because a survives mirroring and b does not.
+
+       Five oversized alphabet blocks, 44 square on a 62 pitch, centred
+       on 202.4. Each has a face panel inset so it reads as a block with
+       a letter plate rather than a flat coloured square. */
+    slab(16,WW-16, 190, 244, -1, -5, trim, null, shade(trim,1.25));
+    for(let i=0;i<5;i++){
+      const bx = 202.4 - 155 + i*62;
+      F(bx, bx+44, 195, 239, TOY[(i+1)%5], null,0,-0.5);
+      F(bx+7, bx+37, 202, 232, shade(wall,1.02), null,0,-1.1);
+    }
+
     if(state.roof){
-      // kite: a diamond lying in a plane at the end of the string
-      const ka = W*0.34, kb = -40, kz = H+150;
-      ctx.strokeStyle='#e8ddc8'; ctx.lineWidth=1.8;
-      const s0=P(W*0.22,-40,H+10), s1=P(ka,kb,kz-30);
-      ctx.beginPath(); ctx.moveTo(s0.x,s0.y);
-      ctx.quadraticCurveTo(s0.x+34*K, s0.y-52*K, s1.x, s1.y); ctx.stroke();
-      poly([P(ka,kb,kz+28),P(ka+20,kb,kz),P(ka,kb,kz-30),P(ka-20,kb,kz)], '#4aa8c4', '#f4e2b0', 2);
-      ctx.strokeStyle='#f4e2b0'; ctx.lineWidth=2;
-      const t0=P(ka,kb,kz+28), t1=P(ka,kb,kz-30);
-      ctx.beginPath(); ctx.moveTo(t0.x,t0.y); ctx.lineTo(t1.x,t1.y); ctx.stroke();
-      box(W*0.60,W*0.84,-140,-104,H,H+20,'#9aa0a6','#7d838a','#6a7076');
+      /* Oversized blocks on the roof, which is where the fun goes when
+         the pavement is off limits. Set back behind the parapet so they
+         read as sitting on the deck rather than balanced on the edge. */
+      const RB = [[60,-70,GRN],[150,-120,BLU],[236,-64,YEL]];
+      for(const [ra,rb,rc] of RB) box(ra, ra+52, rb-52, rb, H, H+46, rc, shade(rc,.82), shade(rc,1.15));
+      box(WW*0.80,WW*0.94,-150,-110,H,H+26,'#8f969d','#787f86','#697077');
     }
-    kerb(p,'none');
+    kerb(p,'none');   // no pavement props at all, per Sir
   }
 },
 {
