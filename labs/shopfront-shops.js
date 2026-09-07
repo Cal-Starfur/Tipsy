@@ -4402,31 +4402,129 @@ const SHOPS = [
   }
 },
 {
-  name:'Locksmith', head:'Giant key sign, barred glass, narrow',
-  fTodo:'z116..150 return +3, lettering behind board',
-  tags:['oversized key','round bars','narrow unit','bracket arm','worn palette'],
-  desc:'The key bow is a circle lying in the plane of its bracket, the shaft is a tube and the wards are solid blocks off the end, so the whole thing hangs in the world instead of facing the camera.',
+  name:'Locksmith', head:'Giant brass key on a bracket, barred window, narrow',
+  tags:['giant key on a bracket','barred window','narrow unit','recessed glazing','dark name plate'],
+  desc:'The key is a projecting bracket sign hanging out over the footway, built as one extruded solid so it has a real thickness and a bow that is round in the world rather than an ellipse. It is centred on the frontage so it stays on the building whichever way the block edge runs. The window is a proper recess with the bars standing outside the glass, the door is ironmonger dark so the brass reads against it, and the facade is set out with piers instead of running edge to edge.',
   draw(p){
+    /* ================= THE KEY WAS INSIDE THE BUILDING =================
+       Every part of the sign -- bracket arm, bow, shaft and wards --
+       sat at b -22. Negative b is INTO the block, so the shop's one
+       identifying object was buried 22 units inside its own masonry and
+       survived only because it was painted after the wall. Same class
+       as the chemist cross at -10 behind a -9 fascia, and it dies the
+       moment anything depth-sorts. A bracket sign hangs OUT over the
+       footway, which is positive b -- the milliner's hat is the worked
+       example, arm at b 2..26, drawn after the fascia it crosses.
+
+       THE BOW WAS AN ELLIPSE. faceCircle(r) draws radius r in a AND in
+       z, and z is multiplied by ZSCALE before it is projected, so a bow
+       written as r 26 came out 52 wide by 82 tall -- 1.58:1 where the
+       correct isometric figure for a circle standing in the frontage
+       plane is 1.12:1. The kit already solved this for the chemist by
+       dividing the z radius by ZSCALE; the same correction is applied
+       here, and because the key is now built as ONE prism rather than a
+       circle plus a tube plus three slabs, there are no interior seams
+       running through it either.
+
+       AND A WINDOW WAS DRAWN ACROSS THE DOOR. F(WW*0.66, WW-14, 52, 92)
+       ran a 110.9..154 against a door opening at 96.8..163 -- a grey
+       panel plastered over the top half of the doorway, painted after
+       it. It is gone; a 168 frontage does not have room for a second
+       window and never did.
+
+       THE FACADE HAD NO PIERS. Window 10..94.1, door 96.8..163: a 2.7
+       gap between them and 5 to the far return, which is shopDoor's own
+       clamp minimum rather than a chosen margin. Set out again as
+       12 pier / 66 window / 10 pier / 66 door / 10 pier. */
     const wall = '#6b6257', trim = '#c9a24a', H = 166, WW = 168;
+    /* THE KEY WAS BRASS ON A BRASS DOOR. The sign hangs over the doorway
+       and the doorway was painted in the same trim, so the shaft and
+       the wards -- the half of a key that says which trade this is --
+       ran gold on gold and vanished. A locksmith's door is ironmongery
+       anyway, so the leaf goes dark and the brass is spent on the two
+       things that have to carry from across the street: the key and the
+       name panel. */
+    const iron = '#4a4f55', leaf = '#3d4741';
     body(wall, trim, H, WW);
-    slab(0,WW, H, H+8, -1, -12, shade(wall,.72));
-    slab(6,WW-6, 116, 150, -1, -9, shade(wall,1.2), null, trim);
-    F(18,WW-18, 124, 140, trim, null,0,-9.5);
-    F(10,WW*0.56, 24, 100, '#7f8a94', shade(wall,1.4), 3);
-    for(let i=0;i<5;i++)
-      tube(12+i*((WW*0.54-12)/5), -4, 24, 12+i*((WW*0.54-12)/5), -4, 100, 1.5, shade(wall,1.15));
-    shopDoor(WW*0.78, wall, trim, null, WW);
-    F(WW*0.66,WW-14, 52, 92, '#7f8a94', null,0,-6.5);
-    slab(10,WW*0.56, 12, 24, -1, -7, shade(wall,.66));
-    // the key, hung on an arm and lying in that arm's plane
-    const ka = WW*0.30, kb = -22;
-    tube(ka, -2, 156, ka, kb, 156, 2, '#4a4f55');
-    tube(ka, kb, 156, ka, kb, 142, 1.6, '#4a4f55');
-    faceCircle(ka, kb, 122, 26, trim, shade(trim,.68), 3);
-    faceCircle(ka, kb-0.4, 122, 12, shade(wall,.85));
-    tube(ka, kb, 110, ka, kb, 46, 5.5, trim);
-    for(let i=0;i<3;i++)
-      slab(ka+3, ka + (i===1 ? 14 : 22), 50+i*13, 56+i*13, kb+3, kb-3, trim, shade(trim,.72), shade(trim,1.2));
+    slab(0,WW, H, H+8, -1, -12, shade(wall,.72));          // cornice: the building's, may wrap
+
+    /* ---- the window: a real recess, with the bars OUTSIDE the glass ----
+       The bars ran at b -4 against a pane at b 0, so they were behind
+       the glass they are supposed to be protecting -- Class B of the
+       fascia check, at window scale. They are at b 1 now, in front of
+       the pane, and they span the whole opening: the old five stopped
+       at a 75 against an opening that ran to 94, leaving a fifth of the
+       glass unbarred at the end nobody would look at twice. */
+    reveal(12, 78, 24, 100, 12, shade(wall,.52));
+    glaze(12, 78, 24, 100, null, 'rgba(58,68,76,.90)');
+    for(let i=0;i<5;i++){
+      const aa = 12 + 66*(i+0.5)/5;
+      tube(aa, 1, 25, aa, 1, 99, 2.4, shade(wall,1.3));   // 4.8 wide on a 13.2 pitch
+    }
+    slab(10, 80, 12, 24, -1, -5, shade(wall,.66));         // cill
+
+    shopDoor(125, wall, leaf, null, WW);                   // a 91.88..158.12
+
+    /* ---- fascia ----
+       Was slab(6, WW-6, ..., -1, -9): 6 of margin against 9 of recess,
+       so the far end of the board came out 3 PAST the building's return
+       and there was no pier left at the corner. Rule A wants margin at
+       least |bBack| + 6; at 14 against a 7-deep recess the piers are 15
+       and 7, which is the chemist's resolution and the smallest shift a
+       recessed board can be given without asking a to fix a fault that
+       lives in b. */
+    slab(14, WW-14, 116, 150, -1, -7, shade(wall,1.04), null, shade(wall,1.2));
+    /* The lettering sat at b -9.5 against a board whose back face was
+       -9 -- painted inside the board, surviving on call order alone.
+       bFront + 0.5 puts it proud of the face, where a painted panel
+       belongs, and symmetric in a so it holds on all four headings.
+       It is a DARK plate rather than a brass one because the key passes
+       in front of it -- see the placement note below -- and brass on
+       brass is the fault that has already been fixed once on this
+       facade. */
+    F(22, WW-22, 122, 144, shade(wall,.60), null, 0, -0.5);
+
+    /* ================= THE KEY =================
+       Hung on the milliner's pattern: arm out from the wall at b 2, the
+       sign itself a slab of real thickness at b 22..28, and the whole
+       thing drawn AFTER the fascia it crosses.
+
+       PLACED SO IT SURVIVES ALL FOUR HEADINGS, which the milliner's is
+       not. Screen-a is a - b on edges 1 and 3 and a + b on edges 0 and
+       2, so a sign at b 28 swings 28 EACH WAY between mirrored edges --
+       the same term the props note gives for kerb props, applied at
+       height. A key written at a 153 reads over the doorway here and
+       lands at screen-a 181 on a 168 frontage there, hanging off the
+       corner onto the neighbour. Centred at a 84 it comes out at 56 or
+       112, mirror images about the middle of the shop, and the bow of
+       25 stays inside 0..168 on both. Cost of that: the key crosses the
+       name plate on every edge, which is what a bracket sign in front
+       of a fascia actually does -- the plate is dark for that reason.
+
+       Sized against the headroom note: the tip is at z 86, which is 129
+       game units once ZSCALE is applied, and Tipsy's flag reaches 97.
+       It projects over the footway and clears by 32. */
+    const kA = 84, kZ = 132, kR = 25, kW = 7, kTip = 86, zk = 1/ZSCALE;
+    tube(kA, 2, 156, kA, 25, 156, 2.2, iron);              // arm, out over the footway
+    tube(kA, 25, 156, kA, 25, 147, 1.6, iron);             // drop
+    const ring = (r,n) => { const q = [];
+      for(let i=0;i<n;i++){ const t = Math.PI*2*i/n;
+        q.push([kA + r*Math.cos(t), kZ + r*Math.sin(t)*zk]); }
+      return q; };
+    const key = (() => {
+      const j = Math.acos(kW/kR), pts = [];
+      for(let i=0;i<=24;i++){                              // the bow, round in the WORLD
+        const t = -j + (Math.PI + 2*j)*i/24;
+        pts.push([kA + kR*Math.cos(t), kZ + kR*Math.sin(t)*zk]);
+      }
+      pts.push([kA-kW, kTip], [kA+kW, kTip]);              // down the left edge, across the tip
+      for(const [z0,z1] of [[kTip+4, kTip+12],[kTip+19, kTip+27]])   // two wards, on the way back up
+        pts.push([kA+kW, z0], [kA+kW+18, z0], [kA+kW+18, z1], [kA+kW, z1]);
+      return pts;
+    })();
+    prism(key, 22, 28, trim, shade(trim,.66), shade(trim,1.22));
+    poly(ring(kR*0.44, 22).map(([a,z]) => P(a, 28.3, z)), shade(wall,.5));   // the bow's eye
+
     if(state.roof){
       box(WW*0.30,WW*0.54,-140,-100,H,H+20,'#8f969d','#787f86','#697077');
       cyl(WW*0.72, -60, H+8, H+44, 2.5, '#6d747c');
