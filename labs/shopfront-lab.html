@@ -282,6 +282,13 @@ function sync(){
       'Tipsy can drive into and none of them exists to the game yet; they need ' +
       'volumes registered at port time. Anything outside 0..w in a is standing ' +
       'on the neighbour, and a kerb prop needs a ≥ b to stay inside the return.');
+  if(s.bTodo)
+    notes.push('<b>Block landmark, open</b> — ' + s.bTodo + '. This shop should take a whole ' +
+      'block edge (usable run 1048.8, five packing slots) and stand in its own yard with an ' +
+      'entrance on every street, the way the Bathhouse does. Not the same as block WIDTH: a ' +
+      'department store takes the edge and builds to the pavement. Size is not the test — the ' +
+      'Bank is the biggest building here and must not get this, because a portico lands ON the ' +
+      'footway. See BLOCK LANDMARKS at the head of shopfront-shops.js.');
   if(s.block)
     notes.push('<b>Block landmark</b> — this is not a shop in a run. It takes a whole ' +
       'block edge (usable run 1048.8 after corner margins, five packing slots of 209.8) ' +
