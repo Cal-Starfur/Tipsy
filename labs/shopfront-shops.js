@@ -4104,226 +4104,220 @@ const SHOPS = [
   }
 },
 {
-  name:'Bathhouse', tall:true, ww: T2*4.4,
-  wTodo:'two packing slots',
-  head:'Great arched portal, onion dome, mosaic band',
-  tags:['double-width unit','two full storeys','great arch','onion dome on a drum','mosaic band'],
-  desc:'A civic building rather than a shop: a double-width unit two full storeys tall, with a great arched portal, high windows over a blank lower wall the way a bathhouse actually builds, a mosaic band and an onion dome on a drum.',
+  name:'Bathhouse', tall:true, block:true, ww: 1048.8, dd: 1048.8,
+  wTodo:'a whole block edge -- five packing slots, and the packer places none of them',
+  head:'Block landmark in its own yard, entrance on every street',
+  tags:['block landmark','yard on four sides','four entrances','great arched portal','onion dome'],
+  desc:'Not a shop in a run: a freestanding civic building on a whole block edge, set back in its own yard with a walk up to an entrance on each of the four streets. The dome is a real solid of revolution built in world space.',
   draw(p){
-    /* ================= REBUILT AT CIVIC SCALE =================
-       Sir asked for it to be way bigger and the measurements agreed
-       twice over. It was WW 210 -- NARROWER than a standard 230 unit --
-       and H 174, which is 1.04 game storeys. A bathhouse was the
-       smallest building on the street.
+    /* ================= A BLOCK LANDMARK, NOT A WIDE SHOP =============
+       Sir asked for this to fill a block, with a yard around it and a
+       walk up to the entrance, wrapping the corner with a door on all
+       four sides. That is a different object from everything else in
+       this file and the numbers say why.
 
-       zTodo said 1.04 and the SCALE REVIEW's own caveat applies here:
-       H is the WALL top, and this shop's height was mostly dome, with
-       the finial reaching 298 for a silhouette of 1.77. So the walls
-       were the problem, not the outline -- exactly what the note warns
-       to check before deciding a shop is undersized. Here they really
-       were: a 1.04 storey wall carrying a 124-unit dome.
+       THE BLOCK MEASUREMENTS, and I got these wrong once before. A
+       first pass took len: BLOCK = 3128 from buildExteriorLots and
+       reported twelve slots and 2520 of frontage. That is the
+       WORLD-PERIMETER lot case. An interior block edge is the side of
+       the block rect:
 
-       Now ww = T2*4.4 = 404.8 and H = 336, which is 2.00 game storeys
-       of wall on the nose with the dome on top of that. Fourth wide
-       unit after the Garage, Gym and Toy shop, anchored the same way on
-       two of packEdgeNoGap's slots. zTodo is gone because it has been
-       done.
+         BLOCK pitch                     3128
+         inset = ROAD_HALF + SIDEWALK_W   736
+         block land            1656 x 1656
+         cornerMargin = STORE_DEPTH + T2*0.3   303.6
+         usable edge run       1048.8
+         units per edge        5, at 209.8 each
 
-       THE BLANK LOWER WALL IS DELIBERATE. Windows start at 150, above
-       head height, over 110 of plain wall -- which is how a bathhouse
-       is actually built, for the obvious reason. It also gives the
-       great arch something to be great against. */
-    const WW = T2*4.4;
+       So a whole edge is 1048.8, not 2520, and the old double-wide
+       Bathhouse at 404.8 was already 1.93 of five slots. This is 2.59x
+       that, not 6.2x.
+
+       THE LOT IS SQUARE. ww 1048.8 by dd 1048.8, which is why the bench
+       needed shopD() -- ww taught it not to assume the frontage and the
+       pavement plate still ran to a shop's D of 276, which would have
+       ended under the building.
+
+       THE YARD IS 130 ALL ROUND, so the building itself is 788.8
+       square, centred at a 524.4 and b -524.4. Everything on the
+       elevations is set out from that centre rather than from the lot
+       edge, so the yard can change without moving the composition.
+
+       FOUR ENTRANCES, and only two of them are visible from this
+       camera. The other two are drawn anyway: the bench sees one
+       corner, the game will see all four across the block's streets,
+       and a door that only exists on the faces we happen to be looking
+       at is the FLANK_RIGHT mistake in a different costume.
+
+       WHAT THE PORT STILL NEEDS, beyond wTodo: a block type that places
+       this INSTEAD of running packEdgeNoGap on the edge, and four
+       dropoff registrations rather than one. The type dispatch already
+       picks housing/park/commercial per block, so a fourth type is the
+       hook. */
+    const LOT = 1048.8, Y = 130;
+    const bx0 = Y, bx1 = LOT - Y, bb0 = -Y, bb1 = -(LOT - Y);
+    const CA = (bx0+bx1)/2, CB = (bb0+bb1)/2;               // 524.4, -524.4
     const wall = '#dfe4e2', trim = '#2a7a8c', H = 336;
     const MOS = ['#2a7a8c','#c9a24a','#7fa8b4','#b4674a'];
-    body(wall, trim, H, WW);
-    slab(0,WW, H, H+14, -1, -14, trim);                      // cornice
-    slab(14,WW-14, 0, 40, -1, -9, shade(wall,.85));          // plinth, margin 14 beats recess 9
 
-    /* ---- high windows, two a side ----
-       Screen gap is pitch - width - 7, the 7 being the extra screen
-       width a recessed slab eats beyond its a span. 40-wide frames on a
-       61 pitch give 14 of pier between them, 19 at the near return and
-       10 at the far one, and 7.7 clear of the arch surround. Mirrored
-       about WW/2 = 202.4 in a, which is the axis that survives
-       mirroring. */
-    for(const fx0 of [18, 79, 285.8, 346.8]){
-      const fx1 = fx0 + 40;
-      slab(fx0, fx1, 150, 244, -1, -8, trim);
-      /* Glass at b -4.5, which is the closed form rather than a guess:
-         a slab at b -1..-8 has its screen centre at a_centre + 4.5, and
-         glass at depth g has screen centre a_centre - g, so g = -4.5
-         centres it in x -- and in apparent z at the same time, because
-         both offsets come from the same b. */
-      F(fx0+4, fx1-4, 158, 236, '#7fa8b4', null,0, -4.5);
-      F(fx0+18.5, fx0+21.5, 158, 236, trim, null,0, -3.8);   // mullion, proud of the pane
-      for(let k=1;k<4;k++) F(fx0+4, fx1-4, 158+78*k/4-1.5, 158+78*k/4+1.5, trim, null,0, -3.8);
+    /* ---- the yard ----
+       Lawn over the whole lot, then paved walks from the kerb line to
+       each entrance. The walks are drawn at z 0.5 so they sit on the
+       lawn rather than fighting it for the same plane. */
+    T(0, LOT, -LOT, 0, 0, '#9fb08a');
+    T(CA-46, CA+46, bb0, 0, 0.5, '#cfc9b8');                // front walk
+    T(bx1, LOT, CB-46, CB+46, 0.5, '#cfc9b8');              // right walk
+    T(CA-46, CA+46, -LOT, bb1, 0.5, '#cfc9b8');             // back walk
+    T(0, bx0, CB-46, CB+46, 0.5, '#cfc9b8');                // left walk
+    for(let i=0;i<3;i++){                                   // steps up to the front door
+      const r = 12 - i*4;
+      T(CA-40+i*3, CA+40-i*3, bb0-r, bb0, 2+i*4, shade(wall,.92));
     }
 
-    /* ---- the great arched portal ----
-       Springs at 150 with the windows and turns to an apex at 254, so
-       the whole portal is 254 tall in a 336 wall. The opening is
-       145.7..259.1, which takes the door and its surround at
-       165.3..239.5 with 19.6 of pier either side. Both arcs are
-       quadratics on the same three control points, offset by the reveal
-       depth, so the inner curve cannot drift away from the outer one. */
-    const ax0 = WW*0.36, ax1 = WW*0.64;
-    F(ax0-12, ax1+12, 0, 150, trim, null,0,-1);
-    /* THE RISE HAS TO MATCH THE SPAN OR IT IS NOT AN ARCH. A quadratic
-       reaches zs + (za-zs)/2 at its apex, and the first pass set za by
-       eye: 254 over a springing of 150 is a rise of 52 on a half-span
-       of 68.7, which drew as a pointed wedge rather than a round head.
-       Setting rise = half-span gives za = zs + 2*halfspan and a proper
-       semicircular-looking arch. Outer half-span 68.7, inner 56.7,
-       glazing 46.7, so 287.4, 257.4 and 211.4.
+    /* ---- the volume ----
+       Drawn directly rather than through body(), which starts at b 0
+       and runs to the fixed D. This one is set back 130 and is 788.8
+       deep, so it needs its own box. */
+    /* THE FAR ENTRANCES GO FIRST. Back and left are on faces pointing
+       away from this camera; drawn after the box they painted straight
+       over the near elevations, which is the Photo studio's sawtooth
+       fault at building scale. Far before near, then the box hides
+       them, which is what a solid should do to its own back wall. */
+    F(CA-42, CA+42, 0, 130, shade(trim,1.1), null,0, bb1);   // back entrance
+    F(CA-34, CA+34, 0, 118, shade(wall,.55), null,0, bb1-0.5);
+    poly([P(bx0,CB+42,0),P(bx0,CB-42,0),P(bx0,CB-42,130),P(bx0,CB+42,130)], shade(trim,.9));
+    box(bx0, bx1, bb1, bb0, 0, H, shade(trim,1.05), shade(wall,1.0), shade(wall,.78));
+    slab(bx0-6, bx1+6, H, H+14, bb0-6, bb1, trim);          // cornice, all round
 
-       Note a(t) is LINEAR here even though z is a parabola: with the
-       control point on the midpoint, u*u*a0 + 2ut*(a0+a1)/2 + t*t*a1
-       collapses to a0*u + a1*t. That is what lets the glazing bars be
-       placed by t and still land at even a-spacing. */
-    const arcAZ = (t,a0,a1,zs,za) => {
-      const u=1-t;
-      return { a: a0*u + a1*t, z: u*u*zs + 2*u*t*za + t*t*zs };
+    /* ---- elevations ----
+       front is the b = bb0 face, right is the a = bx1 face. Anything on
+       the front is an F at a b just proud of bb0; anything on the right
+       is a poly at a constant a just proud of bx1, since F only draws
+       in the a-z plane. */
+    const FB = bb0 + 0.5, RA = bx1 + 0.5;
+    const faceR = (q0,q1,z0,z1,c) =>
+      poly([P(RA,q0,z0),P(RA,q1,z0),P(RA,q1,z1),P(RA,q0,z1)], c);
+
+    slab(bx0, bx1, 0, 40, bb0, bb0-9, shade(wall,.85));     // plinth, front
+    faceR(bb0, bb1, 0, 40, shade(wall,.72));                // plinth, right
+
+    /* high windows over a blank lower wall, which is how a bathhouse
+       builds and what gives the arch something to be great against.
+       Frames 40 wide on a 61 pitch: screen gap is pitch - width - 7, so
+       that is 14 of pier between them. */
+    for(const fx0 of [160,221,282,343, 665.8,726.8,787.8,848.8]){
+      slab(fx0, fx0+40, 150, 244, bb0, bb0-8, trim);
+      F(fx0+4, fx0+36, 158, 236, '#7fa8b4', null,0, bb0-4.5);
+      F(fx0+18.5, fx0+21.5, 158, 236, trim, null,0, bb0-3.8);
+    }
+    for(const q0 of [-190,-251,-312,-373, -675.8,-736.8,-797.8,-858.8]){
+      faceR(q0, q0-40, 150, 244, trim);
+      faceR(q0-4, q0-36, 158, 236, '#7fa8b4');
+    }
+
+    /* ---- the great arched portal, front ----
+       Rise = half-span, which is what makes it a round head rather than
+       a pointed wedge: a quadratic reaches zs + (za-zs)/2, so za = zs +
+       2*halfspan. Outer half-span 92, inner 80, glazing 66. */
+    const ax0 = CA-80, ax1 = CA+80;
+    const arcAZ = (t,a0,a1,zs,za) => { const u=1-t;
+      return { a: a0*u + a1*t, z: u*u*zs + 2*u*t*za + t*t*zs }; };
+    const ring = (a0,a1,zs,za,bF,bB,col,side) => {
+      const pt = (t,bb) => { const q=arcAZ(t,a0,a1,zs,za); return P(q.a,bb,q.z); };
+      ctx.beginPath(); let q=pt(0,bF); ctx.moveTo(q.x,q.y);
+      for(let k=1;k<=16;k++){ q=pt(k/16,bF); ctx.lineTo(q.x,q.y); }
+      ctx.closePath(); ctx.fillStyle=col; ctx.fill();
+      if(side) for(let k=0;k<16;k++)
+        poly([pt(k/16,bF),pt((k+1)/16,bF),pt((k+1)/16,bB),pt(k/16,bB)], side);
     };
-    const arc = (t,bb,a0,a1,zs,za) => {
-      const q = arcAZ(t,a0,a1,zs,za); return P(q.a,bb,q.z);
-    };
-    const ap = (t,bb) => arc(t,bb, ax0-12, ax1+12, 150, 287.4);
-    ctx.beginPath(); let q=ap(0,-1); ctx.moveTo(q.x,q.y);
-    for(let k=1;k<=16;k++){ q=ap(k/16,-1); ctx.lineTo(q.x,q.y); }
-    ctx.closePath(); ctx.fillStyle=trim; ctx.fill();
-    for(let k=0;k<16;k++) poly([ap(k/16,-1),ap((k+1)/16,-1),ap((k+1)/16,-12),ap(k/16,-12)], shade(trim,1.25));
-    F(ax0, ax1, 0, 144, shade(wall,.55), null,0,-11);
-    const ip = (t,bb) => arc(t,bb, ax0, ax1, 144, 257.4);
-    ctx.beginPath(); q=ip(0,-11); ctx.moveTo(q.x,q.y);
-    for(let k=1;k<=16;k++){ q=ip(k/16,-11); ctx.lineTo(q.x,q.y); }
-    ctx.closePath(); ctx.fillStyle=shade(wall,.55); ctx.fill();
-    /* THE TYMPANUM WAS A RECTANGLE IN AN ARCHED HOLE. It ran
-       F(ax0+10, ax1-10, 118, 214) with square top corners, so both of
-       them poked out through the arch head and the glazing read as a
-       board propped inside the opening. It follows the arch now -- same
-       three control points as the inner ring, inset 10 -- and the
-       glazing bars stop at the curve instead of running past it, each
-       one placed by t and topped at the arc's own z there. */
-    const gp = (t,bb) => arc(t,bb, ax0+10, ax1-10, 118, 211.4);
-    ctx.beginPath(); q=gp(0,-11.5); ctx.moveTo(q.x,q.y);
-    for(let k=1;k<=16;k++){ q=gp(k/16,-11.5); ctx.lineTo(q.x,q.y); }
-    ctx.closePath(); ctx.fillStyle='#7fa8b4'; ctx.fill();
+    F(ax0-12, ax1+12, 0, 150, trim, null,0, bb0);
+    ring(ax0-12, ax1+12, 150, 334, bb0, bb0-12, trim, shade(trim,1.25));
+    F(ax0, ax1, 0, 144, shade(wall,.55), null,0, bb0-11);
+    ring(ax0, ax1, 144, 304, bb0-11, bb0-11, shade(wall,.55), null);
+    ring(ax0+14, ax1-14, 152, 284, bb0-11.5, bb0-11.5, '#7fa8b4', null);
     for(let k=1;k<4;k++){
-      const g = arcAZ(k/4, ax0+10, ax1-10, 118, 211.4);
-      F(g.a-2, g.a+2, 118, g.z, trim, null,0,-12);
+      const g = arcAZ(k/4, ax0+14, ax1-14, 152, 284);
+      F(g.a-2.5, g.a+2.5, 152, g.z, trim, null,0, bb0-12);
     }
-    shopDoor(WW/2, wall, trim, 'rgba(127,168,180,.55)', WW);
+    /* THE DOOR CANNOT BE shopDoor HERE, and that is worth stating. The
+       kit's shopDoor draws at b 0 -- the frontage plane -- because every
+       other building in this file has its face there. This one is set
+       back 130 into its own yard, so shopDoor put a door standing on
+       the grass 130 in front of the wall it belongs to. Drawn by hand
+       on the recessed face instead.
 
-    /* ---- the mosaic band ----
-       Real tesserae rather than a painted stripe: 40 squares proud of
-       the band face at -0.5, four colours on a repeat that does not
-       divide into 40, so the pattern never lines up under itself. */
-    slab(12,WW-12, 262, 280, -1, -8, shade(trim,.75));
-    for(let i=0;i<40;i++){
-      const tx = 20 + i*9.2;
-      F(tx, tx+6.6, 266, 276, MOS[(i*3)%4], null,0,-0.5);
-    }
+       It also wants to be bigger than a shop door: 92 across and 142
+       tall against SHOP_DOOR_W 66.2, because this is the principal
+       entrance of a civic building at the head of a flight of steps,
+       not a shop doorway. */
+    F(CA-46, CA+46, 0, 142, shade(trim,1.1), null,0, bb0-10.6);
+    F(CA-38, CA+38, 0, 132, shade(wall,.32), null,0, bb0-11.0);
+    F(CA-36, CA-2,  8, 124, shade(trim,.85), null,0, bb0-11.4);
+    F(CA+2,  CA+36, 8, 124, shade(trim,.85), null,0, bb0-11.4);
+    F(CA-3,  CA+3,  8, 124, shade(trim,.6),  null,0, bb0-11.6);
 
-    /* ---- the name board ----
-       Both halves of the old fTodo, fixed by construction. The old band
-       ran 0..WW at b -1..-6 and landed screen-a 1..216 on a 210
-       frontage, six past the far return; and its lettering sat at -6.5
-       behind a -6 back face. Margin 20 against a recess of 8 here, so
-       the board reads screen 21..392.8, and the panel is proud at -0.5
-       and set out in both screen axes: board centre 206.9 in x and
-       307.5 in appz, panel 206.9 and 307.7. */
-    slab(20,WW-20, 292, 328, -1, -8, shade(wall,1.1), null, trim);
-    F(96.4, 316.4, 302, 318, trim, null,0,-0.5);
+    /* ---- the other three entrances ----
+       Simpler than the front, because a bathhouse has one principal
+       door and three ways in. Right is visible from this camera; left
+       and back are drawn for the port, where they face real streets. */
+    faceR(CB+42, CB-42, 0, 130, shade(trim,1.1));
+    faceR(CB+34, CB-34, 0, 118, shade(wall,.55));
+    faceR(CB+26, CB-26, 6, 104, '#7fa8b4');
+
+    /* ---- mosaic band and name board, wrapping the corner ----
+       The band runs the front and turns onto the right face, because a
+       block landmark is seen from two streets at once and a band that
+       stops at the corner announces which elevation was the real one. */
+    slab(bx0, bx1, 262, 280, bb0, bb0-8, shade(trim,.75));
+    for(let i=0;i<44;i++){ const tx = bx0+14 + i*17.3;
+      if(tx+12 < bx1) F(tx, tx+12, 266, 276, MOS[(i*3)%4], null,0, bb0-0.5); }
+    faceR(bb0, bb1, 262, 280, shade(trim,.62));
+    for(let i=0;i<44;i++){ const tq = bb0-14 - i*17.3;
+      if(tq-12 > bb1) faceR(tq, tq-12, 266, 276, MOS[(i*3+2)%4]); }
+    slab(bx0+40, bx1-40, 292, 328, bb0, bb0-8, shade(wall,1.1), null, trim);
+    F(CA-150, CA+150, 302, 318, trim, null,0, bb0-0.5);
 
     if(state.roof){
-      /* THE DOME IS SIZED ON THE 4r RULE. A drum of r 62 spans 4r = 248
-         on screen centred on a - b, so at a 202.4 and b -150 it reads
-         228..476 across a roof plate that runs 0..680.8. Under the old
-         210 frontage a dome this size would have been wider than the
-         building it sits on. */
-      const da = WW/2, db = -150;
-      cyl(da, db, H+12, H+56, 62, shade(wall,1.02));         // drum
-      plateCircle(da, db, H+56, 66, shade(trim,.8), shade(trim,.6), 2);
-      const c = P(da, db, H+56);                             // dome springing, in screen space
-      /* THE DOME WAS A PAPER CUT-OUT, AND GORING IT FLAT WAS NOT
-         ENOUGH. First pass filled one bezier outline with a single
-         colour: a solid of revolution 124 wide and 130 tall with no
-         more shading on it than a sticker. Second pass shaded it into
-         meridian gores, which gave it volume -- and left it a flat
-         shape standing ON the drum rather than a solid rising OUT of
-         it, because a screen-space silhouette has a straight bottom
-         edge where the drum's rim is an ellipse.
+      /* The dome, scaled to the building rather than to the old 404.8
+         frontage: drum r 104 on a 788.8 square reads as a dome on a
+         hall instead of a hat on a shed. Built in WORLD space as a
+         surface of revolution -- profile is a cubic in (radius,
+         height), every gore runs through P(), so its base lands on the
+         drum's own ellipse rather than on a straight screen line.
 
-         Built in WORLD space now, as an actual surface of revolution.
-         The profile is a cubic in (radius, height): 62 out to 65.8 and
-         back to 0 over a rise of 130, which is the onion swell. Each
-         gore is a strip between two meridians, its points run through
-         P() like everything else, and its base therefore lands on the
-         drum's own ellipse without being told to.
-
-         DEPTH ORDER IS SORTED, NOT ASSUMED. A dome is convex, so the
-         far meridians must be painted before the near ones, and
-         nearness is b = db + R sin(theta). The gores are sorted on
-         sin(mid) ascending -- the same painter's rule the Photo studio
-         sawteeth needed, applied to twenty strips instead of two.
-
-         Shading follows screen position, lighter on the left, which is
-         the convention the box faces use everywhere else: horizontal
-         offset goes as cos(theta) - sin(theta), so that normalised is
-         the shade parameter.
-
-         AND A CORRECTION WORTH RECORDING. The Milliner note says a disc
-         spans 4r on screen. That is the BOUNDING BOX, which is what the
-         census reports: it takes the a extent and the b extent
-         separately and combines the corners. The disc itself is an
-         ellipse spanning 2*sqrt(2)*r, about 2.83r, because x = (a-b)K
-         and cos(theta) - sin(theta) peaks at sqrt(2). 4r is a safe
-         over-estimate, not the true width -- which is why the Milliner
-         hats fit with room to spare. */
-      const domeR = t => { const u=1-t;
-        return u*u*u*62 + 3*u*u*t*84 + 3*u*t*t*30; };
-      const domeZ = t => { const u=1-t;
-        return 3*u*u*t*58 + 3*u*t*t*100 + t*t*t*130; };
-      const NG = 20, NS = 14, zB = H+56;
-      const gores = [];
+         Depth order is SORTED, not assumed: a dome is convex, so far
+         meridians paint before near ones and nearness is
+         b = db + R*sin(theta). */
+      const da = CA, db = CB, zB = H+56;
+      cyl(da, db, H+12, zB, 104, shade(wall,1.02));
+      plateCircle(da, db, zB, 110, shade(trim,.8), shade(trim,.6), 2);
+      const domeR = t => { const u=1-t; return u*u*u*104 + 3*u*u*t*140 + 3*u*t*t*50; };
+      const domeZ = t => { const u=1-t; return 3*u*u*t*96 + 3*u*t*t*166 + t*t*t*216; };
+      const NG = 24, NS = 14, gores = [];
       for(let g=0; g<NG; g++){
         const t0 = -Math.PI/2 + 2*Math.PI*g/NG, t1 = -Math.PI/2 + 2*Math.PI*(g+1)/NG;
         gores.push({ t0, t1, near: Math.sin((t0+t1)/2) });
       }
-      gores.sort((x,y) => x.near - y.near);                  // far meridians first
+      gores.sort((x,y) => x.near - y.near);
       for(const gg of gores){
         ctx.beginPath();
-        for(let k=0;k<=NS;k++){
-          const t=k/NS, R=domeR(t), q=P(da + R*Math.cos(gg.t0), db + R*Math.sin(gg.t0), zB + domeZ(t));
-          k? ctx.lineTo(q.x,q.y) : ctx.moveTo(q.x,q.y);
-        }
-        for(let k=NS;k>=0;k--){
-          const t=k/NS, R=domeR(t), q=P(da + R*Math.cos(gg.t1), db + R*Math.sin(gg.t1), zB + domeZ(t));
-          ctx.lineTo(q.x,q.y);
-        }
+        for(let k=0;k<=NS;k++){ const t=k/NS, R=domeR(t),
+          q=P(da+R*Math.cos(gg.t0), db+R*Math.sin(gg.t0), zB+domeZ(t));
+          k? ctx.lineTo(q.x,q.y) : ctx.moveTo(q.x,q.y); }
+        for(let k=NS;k>=0;k--){ const t=k/NS, R=domeR(t),
+          q=P(da+R*Math.cos(gg.t1), db+R*Math.sin(gg.t1), zB+domeZ(t));
+          ctx.lineTo(q.x,q.y); }
         ctx.closePath();
-        const m=(gg.t0+gg.t1)/2, lit=(Math.cos(m)-Math.sin(m))/Math.SQRT2;   // -1 left .. +1 right
+        const m=(gg.t0+gg.t1)/2, lit=(Math.cos(m)-Math.sin(m))/Math.SQRT2;
         ctx.fillStyle = shade(trim, 1.24 - (lit+1)/2 * 0.62);
         ctx.fill();
       }
-      /* The finial has to clear the APEX, not the springing. The dome
-         rises 130 above zB = H+56, so its top is H+186; the finial was
-         still written against the old flat outline at H+142 and was
-         therefore inside the dome, painted over it only because it is
-         drawn later. Derived from the profile now rather than typed. */
-      const apex = zB + domeZ(1);
-      cyl(da, db, apex, apex+30, 3.2, '#c9a24a');            // finial
-      ball(da, db, apex+38, 7, '#c9a24a');
-      /* Steam vents, plumes removed at Sir's direction. The pipes stay
-         -- they are what tells you the building is heated -- but the
-         three translucent balls that rose off each one came out. They
-         sit on the roof, so their projection past the far return is the
-         same allowance the plant boxes get: the roof plane itself runs
-         to screen 680.8. */
-      for(const aa of [WW*0.13, WW*0.87]){
-        cyl(aa, -40, H+12, H+50, 8, '#9aa0a6');
-        cyl(aa, -40, H+50, H+58, 11, '#aeb4b8');
+      const apex = zB + domeZ(1);                            // derived, not typed
+      cyl(da, db, apex, apex+44, 4.5, '#c9a24a');
+      ball(da, db, apex+56, 10, '#c9a24a');
+      for(const [ va, vb ] of [[bx0+90, bb0-90],[bx1-90, bb1+90]]){
+        cyl(va, vb, H+12, H+56, 12, '#9aa0a6');
+        cyl(va, vb, H+56, H+66, 16, '#aeb4b8');
       }
     }
     kerb(p,'none');
