@@ -258,6 +258,56 @@ function drawChemist(p, c){
    overrun stays visible while this is open.
    ===================================================================== */
 
+/* ============ BLOCK LANDMARKS, OPEN AT THE PORT ============
+   `block: true` says a shop is not a unit in a run at all: it takes a
+   whole block edge, stands in its own yard, and has an entrance on
+   every street. `bTodo` marks the ones that SHOULD be and are not yet.
+
+   The measurements, because I got them wrong once and reported it with
+   confidence. len: BLOCK = 3128 is the WORLD-PERIMETER lot case from
+   buildExteriorLots. An interior block edge is the side of the block
+   rect:
+
+     BLOCK pitch                             3128
+     inset = ROAD_HALF + SIDEWALK_W           736
+     block land                       1656 x 1656
+     cornerMargin = STORE_DEPTH + T2*0.3    303.6
+     usable edge run                        1048.8
+     units per edge                     5, at 209.8
+
+   So a whole edge is 1048.8, and a double-wide at 404.8 is already 1.93
+   of five slots -- nearly 40% of an edge. The step from wide unit to
+   landmark is 2.59x, not 6x.
+
+   THERE ARE TWO TREATMENTS AND THEY ARE NOT THE SAME. Block WIDTH takes
+   the whole edge and builds to the pavement, with no yard: a department
+   store or a warehouse wants this, because those types build to the
+   line. Block LANDMARK is freestanding, set back, with a yard and four
+   entrances. Only genuinely freestanding types want the second, and
+   `block: true` means that one.
+
+   WHICH IS WHY SIZE IS NOT THE TEST. The Bank is the largest building
+   here at H 460 and must NOT get it: a portico lands ON the pavement,
+   which is the whole point of a portico, and a setback would destroy
+   it. Same for the Cinema and the Playhouse, whose marquees exist to
+   overhang the footway. Ask what the building does at its own front
+   door, not how big it is.
+
+   WHAT THE PORT NEEDS, and it is more than wTodo. A block type that
+   places a landmark INSTEAD of running packEdgeNoGap on that edge, and
+   four dropoff registrations rather than one -- twelve doors along a
+   run become one building with four. The type dispatch in buildBlocks
+   already picks housing/park/commercial per block, so a fourth type is
+   the hook.
+
+   AND TWO KIT GAPS FOUND BUILDING THE FIRST ONE. shopDoor draws at
+   b 0, the frontage plane, because every other building in this file
+   has its face there -- a set-back building has to draw its door by
+   hand until shopDoor takes a depth. And kerb() places props against
+   the hardcoded W with no width argument, so it cannot be used on any
+   wide unit at all, let alone a landmark.
+   ===================================================================== */
+
 /* ================= SCALE REVIEW, OPEN =================
    `zTodo` on a shop is its measured height in GAME STOREYS and means
    the shop has not been sized against the game yet -- raise it when
@@ -2466,6 +2516,7 @@ const SHOPS = [
 {
   name:'Fuel station', ww: T2*4.4,
   wTodo:'two packing slots',
+  bTodo:'already a building plus an open lot -- needs the setback and the wrap',
   cTodo:'4 pavement props need collision volumes',   // 2 canopy posts, 2 pumps
   head:'Kiosk on one slot, forecourt lot on the other',
   tags:['two packing slots','forecourt is a side lot, not the pavement','pump island','pumps turned side-on','laid out on one grid'],
@@ -2603,189 +2654,216 @@ const SHOPS = [
   }
 },
 {
-  name:'Chapel', tall:true, ww: T2*4.4,
-  wTodo:'two packing slots',
-  head:'Pitched nave, west door, bell tower and spire',
-  tags:['a real pitched roof','tallest thing in the library','tower and pyramid spire','rose window in the gable','swept arch heads'],
-  desc:'Sized as a church rather than as a shop with a steeple on it: two slots wide, the nave reaching 1.79 storeys to the eaves and 2.62 to the gable, and the spire topping out at 4.23 — over the bank, which is the point of a spire.',
+  name:'Chapel', tall:true, block:true, ww: 1048.8, dd: 1048.8,
+  wTodo:'a whole block edge -- five packing slots, and the packer places none of them',
+  head:'Chapel in its own churchyard, tower and spire, four gates',
+  tags:['block landmark','churchyard on four sides','pitched nave','tower and pyramid spire','tallest thing in the library'],
+  desc:'A chapel standing in its own churchyard rather than wedged between two shops: a pitched nave on the long axis with a west door facing the street, an engaged tower and spire, headstones in the grass and a walk in from every side.',
   draw(p){
-    /* ================= IT WAS A SHOP WITH A STEEPLE ON IT
-       =================
-       H 178 is 1.06 shop storeys, and WW 200 was NARROWER than a normal
-       frontage. A chapel is not a shop with a spire; the nave itself is
-       the tall thing, and the tower goes above that again.
+    /* ================= A CHAPEL WEDGED BETWEEN TWO SHOPS =============
+       The old one was already two slots wide and correctly tall, and it
+       was still wrong in the way that matters most: it was a terrace
+       unit. A church between a butcher and a pawnbroker is not a small
+       church, it is a category error -- the type is freestanding, has
+       a churchyard, and is approached rather than walked past.
 
-       AND THE ROOF WAS FLAT. body() draws its plate at H, and the gable
-       was a triangle applied to the front of a flat-topped box -- so the
-       building read as a shed with a cardboard front. A pitched roof is
-       the shape of the type, not decoration on it: a ridge running the
-       depth of the nave with two slopes falling to the eaves, and the
-       gable is what you get where that roof meets the front wall.
+       So this is the second block landmark, and Sir asked for the same
+       treatment the Bathhouse got. Lot 1048.8 square, yard 130 all
+       round. The measurements are in the BLOCK LANDMARKS note at the
+       head of this file.
 
-       The door was a pile-up too. Its swept arch head ran z 92..126
-       against shopDoor's own head at 114.95, and the lancet arch heads
-       reached 146, so door surround, arch and windows all occupied the
-       same band. With the nave three times taller there is room to set
-       them out in courses instead.
+       THE PLAN IS NOT A BOX, WHICH IS THE NEW PART. The Bathhouse was
+       a square building centred in a square lot, so its yard was an
+       even border. A chapel is a long nave with a tower stuck on one
+       corner, so the yard is a different width on every side and the
+       four walks cannot simply run to the middle of each face.
 
-         eaves       300   1.79 storeys
-         gable apex  400   2.38
-         tower top   470   2.80
-         spire apex  620   3.69
-         finial      650   3.87
+       The nave runs on b -- the long axis pointing away from the
+       street -- so the WEST FRONT faces the front street and you
+       approach the principal door head on, which is how a church is
+       meant to be met. That also puts the nave flank and the tower on
+       the right elevation, which is the other face this camera sees, so
+       both visible sides carry real content.
 
-       Frontage stays one slot. A chapel on a narrow lot between shops
-       is a real thing, and it is the height that makes it read. */
-    /* TWO SLOTS WIDE. ww = T2*4.4 = 404.8, exactly two of
-       packEdgeNoGap's own, the same anchor the garage, the bank and the
-       fuel station use. Fourth shop on wTodo; one packer change serves
-       all four, and all four are types that genuinely cannot live in a
-       shop slot. The span goes with it: a nave of 308.8 at the old apex
-       of 400 falls to a 33 degree pitch, which reads as a bungalow, so
-       the apex goes to 440 and holds 42. */
-    const wall = '#cfc6b0', trim = '#6b5a44', H = 300, WW = T2*4.4, ND = D;
-    /* THE TOWER WAS EATING THE WEST FRONT. At a 6..66 and b -2..-62 it
-       covers screen-a 8..128 -- and screen-a is a - b, so a tower's
-       depth pushes it sideways over the wall beside it. The door
-       surround started at 115.88 and the left lancet at 88: both behind
-       it, and the rose window's left half with them.
-       A west tower is usually shallower than it is wide anyway. 6..58
-       by -2..-44 covers 8..102, and everything on the nave front is set
-       out to clear that: door 122.88, nearest lancet 113, rose 116. */
-    /* THE TOWER MOVES, NOT THE BUILDING. The last pass separated the
-       two by pushing the NAVE from a 96 to 152 and left the tower on
-       screen-a 0..150 -- within ten of where it started. Nothing moved
-       that anyone could see; the building just backed away from it.
-       So this time the tower goes to the far end of the frontage and
-       the nave takes the near end. The nave runs a 0..316 (screen the
-       same, its front is at b 0) and the tower a 320..400, and they
-       abut at 316 with the tower on the flank side, which is where it
-       reads as being on the side of the building rather than across
-       its front. 316 of nave at an apex of 440 over eaves of 300 is a
-       42 degree pitch. */
-    const nA0 = 0, nA1 = 316, ridge = (nA0+nA1)/2, apex = 440;
-    body(wall, trim, H, WW, ND);
+         nave    a 360..690   b -170..-830   290 wide, 660 long
+         tower   a 690..850   b -170..-330   engaged at the west end
+         ridge   a 525, apex 440 over eaves at 300
+         spire   680, still the tallest thing in the library
 
-    /* ---- the pitched roof, and the gable is where it meets the front ---- */
-    poly([P(nA0,0,H),P(ridge,0,apex),P(ridge,-ND,apex),P(nA0,-ND,H)], shade(trim,.78));
-    poly([P(ridge,0,apex),P(nA1,0,H),P(nA1,-ND,H),P(ridge,-ND,apex)], trim);
+       FOUR GATES, and the walks go to the doors rather than to the
+       centres of the faces. West to the great door, east to the chancel
+       door, north to the nave side door, and the fourth to the TOWER
+       door, because the tower is what occupies that side of the lot --
+       a walk to the middle of the right-hand face would have arrived at
+       a blank flank. */
+    const LOT = 1048.8, Y = 130;
+    const wall = '#cfc6b0', trim = '#6b5a44', H = 300;
+    const nA0 = 360, nA1 = 690, nB0 = -170, nB1 = -830;
+    const ridge = (nA0+nA1)/2, apex = 440;
+    const tA0 = 690, tA1 = 850, tB0 = -170, tB1 = -330, tTop = 500, sTop = 680;
+    const CA = (nA0+nA1)/2;
+
+    /* ---- the churchyard ---- */
+    T(0, LOT, -LOT, 0, 0, '#93a67f');
+    T(CA-46, CA+46, nB0, 0, 0.5, '#cfc9b8');                 // west walk, to the great door
+    T(CA-46, CA+46, -LOT, nB1, 0.5, '#cfc9b8');              // east walk, to the chancel door
+    T(0, nA0, -546, -454, 0.5, '#cfc9b8');                   // north walk, to the nave door
+    T(tA1, LOT, tB0-46-30, tB0-30+46, 0.5, '#cfc9b8');       // east-side walk, to the TOWER door
+    for(let i=0;i<3;i++){                                    // steps up to the west door
+      const r = 12 - i*4;
+      T(CA-40+i*3, CA+40-i*3, nB0-r, nB0, 2+i*4, shade(wall,.92));
+    }
+    /* ---- the churchyard wall, with a gate at every walk ----
+       Sir asked for a fence to keep people off the grass, and a
+       churchyard wall does a second job worth having: it draws the LOT
+       BOUNDARY, which is the line the port has to respect. Everything
+       inside it is the shop's own ground; everything outside is footway
+       the packer owns.
+
+       A dwarf wall with iron railings on it and a pier either side of
+       each opening, which is what a churchyard actually has. The four
+       gaps are cut to the four walks rather than placed by eye, so a
+       gate can never end up somewhere the path does not go -- the
+       segment lists below are derived from the same numbers the walks
+       are drawn from.
+
+       DRAWN IN TWO HALVES, FAR AND NEAR. The a=0 and b=-LOT runs are on
+       the far side of the building and go before it; the b=0 and a=LOT
+       runs are between the camera and the chapel and go after. Drawn
+       all at once, the near rails would have been buried by the nave
+       and the far ones would have been painted over it -- the same
+       painter's rule the Photo studio sawteeth and the Bathhouse's back
+       entrances needed. */
+    const WH = 14, RH = 46, iron = '#4a4f55';
+    const pier = (pa,pb) => {
+      box(pa-9, pa+9, pb-9, pb+9, 0, 58, shade(wall,.95), shade(wall,.8), shade(wall,.7));
+      slab(pa-12, pa+12, 58, 64, pb+12, pb-12, shade(wall,.86));
+    };
+    const fenceA = (bb, segs) => { for(const [s0,s1] of segs){
+      box(s0, s1, bb-5, bb+5, 0, WH, shade(wall,.9), shade(wall,.76), shade(wall,.66));
+      for(let x=s0+14; x<s1-8; x+=30) cyl(x, bb, WH, RH, 2.2, iron);
+      tube(s0, bb, RH-4, s1, bb, RH-4, 2.2, iron); } };
+    const fenceB = (aa, segs) => { for(const [s0,s1] of segs){
+      box(aa-5, aa+5, s1, s0, 0, WH, shade(wall,.9), shade(wall,.76), shade(wall,.66));
+      for(let y=s0-14; y>s1+8; y-=30) cyl(aa, y, WH, RH, 2.2, iron);
+      tube(aa, s0, RH-4, aa, s1, RH-4, 2.2, iron); } };
+    fenceB(0,    [[0,-454],[-546,-LOT]]);                    // far, left
+    fenceA(-LOT, [[0,479],[571,LOT]]);                       // far, back
+    for(const [pa,pb] of [[0,-454],[0,-546],[479,-LOT],[571,-LOT]]) pier(pa,pb);
+
+    /* Headstones, which are what says churchyard louder than anything
+       else on the building. They stand in the LOT, not on the pavement:
+       the yard is the shop's own ground and Tipsy drives the road and
+       the footway, so these are not the kerb-prop class the cTodo
+       census counts. Kept off the walks and out of the nave's shadow. */
+    for(const [ga,gb,gh] of [[150,-260,34],[196,-330,28],[132,-410,31],[210,-470,26],
+                             [148,-640,33],[206,-700,29],[140,-780,27],[196,-860,32],
+                             [790,-560,30],[850,-640,26],[806,-720,33]]){
+      box(ga-11, ga+11, gb-7, gb+7, 0, gh, shade(wall,.9), shade(wall,.76), shade(wall,.66));
+      poly([P(ga-11,gb+7,gh),P(ga,gb+7,gh+9),P(ga+11,gb+7,gh)], shade(wall,.82));
+    }
+
+    /* ---- the nave ----
+       Far faces first, then the box, then the near elevations. The east
+       and north doors are on faces pointing away from this camera, and
+       drawn after the box they would paint straight over the near
+       walls -- the Photo studio's sawtooth fault at building scale. */
+    F(CA-38, CA+38, 0, 150, shade(trim,1.1), null,0, nB1);    // east door
+    F(CA-30, CA+30, 0, 138, shade(wall,.5), null,0, nB1-0.5);
+    poly([P(nA0,-546,0),P(nA0,-454,0),P(nA0,-454,150),P(nA0,-546,150)], shade(trim,1.05));
+    poly([P(nA0,-538,0),P(nA0,-462,0),P(nA0,-462,138),P(nA0,-538,138)], shade(wall,.5));
+    box(nA0, nA1, nB1, nB0, 0, H, shade(wall,.88), shade(wall,1.0), shade(wall,.78));
+
+    /* ---- the pitched roof, ridge running down the nave ---- */
+    poly([P(nA0,nB0,H),P(ridge,nB0,apex),P(ridge,nB1,apex),P(nA0,nB1,H)], shade(trim,.78));
+    poly([P(ridge,nB0,apex),P(nA1,nB0,H),P(nA1,nB1,H),P(ridge,nB1,apex)], trim);
     ctx.beginPath();
-    let q=P(nA0,0,H); ctx.moveTo(q.x,q.y);
-    q=P(ridge,0,apex); ctx.lineTo(q.x,q.y);
-    q=P(nA1,0,H); ctx.lineTo(q.x,q.y);
-    ctx.closePath(); ctx.fillStyle=wall; ctx.fill();
+    let q=P(nA0,nB0,H); ctx.moveTo(q.x,q.y);
+    q=P(ridge,nB0,apex); ctx.lineTo(q.x,q.y);
+    q=P(nA1,nB0,H); ctx.lineTo(q.x,q.y);
+    ctx.closePath(); ctx.fillStyle=wall; ctx.fill();          // the west gable
     ctx.strokeStyle=shade(wall,.66); ctx.lineWidth=3; ctx.stroke();
-    for(const [ga,gz,ha,hz] of [[nA0,H,ridge,apex],[ridge,apex,nA1,H]]){  // barge boards
+    for(const [ga,gz,ha,hz] of [[nA0,H,ridge,apex],[ridge,apex,nA1,H]]){
       const n=12;
-      for(let i=0;i<n;i++)
-        poly([P(ga+(ha-ga)*i/n, 1.2, gz+(hz-gz)*i/n),
-              P(ga+(ha-ga)*(i+1)/n, 1.2, gz+(hz-gz)*(i+1)/n),
-              P(ga+(ha-ga)*(i+1)/n, 1.2, gz+(hz-gz)*(i+1)/n-11),
-              P(ga+(ha-ga)*i/n, 1.2, gz+(hz-gz)*i/n-11)], shade(trim,1.15));
+      for(let i=0;i<n;i++)                                    // barge boards
+        poly([P(ga+(ha-ga)*i/n, nB0+1.2, gz+(hz-gz)*i/n),
+              P(ga+(ha-ga)*(i+1)/n, nB0+1.2, gz+(hz-gz)*(i+1)/n),
+              P(ga+(ha-ga)*(i+1)/n, nB0+1.2, gz+(hz-gz)*(i+1)/n-11),
+              P(ga+(ha-ga)*i/n, nB0+1.2, gz+(hz-gz)*i/n-11)], shade(trim,1.15));
     }
 
     /* ---- the west front, set out in courses ---- */
-    slab(nA0, nA1, 168, 178, -1, -9, shade(wall,.86));           // string course
-    slab(nA0, nA1, 286, 296, -1, -11, shade(wall,.86));          // eaves course
-    const dm = ridge;                                            // centred on the nave
-    shopDoor(dm, wall, trim, 'rgba(120,150,170,.55)', WW);
-    /* the arch sits ABOVE the door head at 114.95, not through it */
+    const FB = nB0 + 0.5;
+    slab(nA0, nA1, 168, 178, nB0, nB0-9, shade(wall,.86));    // string course
+    slab(nA0, nA1, 286, 296, nB0, nB0-11, shade(wall,.86));   // eaves course
+    /* The great door is drawn by hand, not by shopDoor. The kit draws
+       at b 0 -- the frontage plane -- and this west front is 170 back
+       in its own churchyard, so shopDoor would have stood a door on the
+       grass in front of it. Same gap the Bathhouse found; it wants a
+       depth argument. */
+    const dm = CA;
+    F(dm-46, dm+46, 0, 152, shade(trim,1.1), null,0, nB0-0.4);
+    F(dm-38, dm+38, 0, 142, shade(wall,.34), null,0, nB0-0.8);
+    F(dm-36, dm-2,  8, 134, shade(trim,.85), null,0, nB0-1.2);
+    F(dm+2,  dm+36, 8, 134, shade(trim,.85), null,0, nB0-1.2);
+    F(dm-3,  dm+3,  8, 134, shade(trim,.6),  null,0, nB0-1.4);
+    /* the arch over it: rise = half-span, which is what makes a round
+       head rather than a pointed wedge. Half-span 58, so za = 152+116. */
     const dp = (t,bb) => { const u=1-t;
-      return P(u*u*(dm-52) + 2*u*t*dm + t*t*(dm+52), bb,
-               u*u*120 + 2*u*t*186 + t*t*120); };
-    ctx.beginPath(); let d0=dp(0,0); ctx.moveTo(d0.x,d0.y);
-    for(let k=1;k<=12;k++){ d0=dp(k/12,0); ctx.lineTo(d0.x,d0.y); }
-    q=P(dm+52,0,120); ctx.lineTo(q.x,q.y); q=P(dm-52,0,120); ctx.lineTo(q.x,q.y);
+      return P((dm-58)*u + (dm+58)*t, bb, u*u*152 + 2*u*t*268 + t*t*152); };
+    ctx.beginPath(); let d0=dp(0,nB0); ctx.moveTo(d0.x,d0.y);
+    for(let k=1;k<=14;k++){ d0=dp(k/14,nB0); ctx.lineTo(d0.x,d0.y); }
     ctx.closePath(); ctx.fillStyle=shade(wall,.94); ctx.fill();
     ctx.strokeStyle=shade(wall,.6); ctx.lineWidth=2; ctx.stroke();
-    for(let k=0;k<12;k++)
-      poly([dp(k/12,0),dp((k+1)/12,0),dp((k+1)/12,-10),dp(k/12,-10)], shade(wall,1.08));
-
-    /* four lancets across the wider front, all clear of the tower's
-       screen-a 146 -- the nearest starts at 162 */
-    for(const xa of [68, 128, 188, 248]){
-      F(xa-14, xa+14, 196, 268, '#6f8fa8', trim, 3);
+    for(let k=0;k<14;k++)
+      poly([dp(k/14,nB0),dp((k+1)/14,nB0),dp((k+1)/14,nB0-10),dp(k/14,nB0-10)], shade(wall,1.08));
+    for(const xa of [408, 468, 582, 642]){                    // lancets
+      F(xa-14, xa+14, 196, 268, '#6f8fa8', trim, 3, nB0-0.5);
       const ap = (t,bb) => { const u=1-t;
-        return P(u*u*(xa-14) + 2*u*t*xa + t*t*(xa+14), bb,
-                 u*u*268 + 2*u*t*300 + t*t*268); };
-      ctx.beginPath(); let r0=ap(0,0); ctx.moveTo(r0.x,r0.y);
-      for(let k=1;k<=10;k++){ r0=ap(k/10,0); ctx.lineTo(r0.x,r0.y); }
+        return P((xa-14)*u + (xa+14)*t, bb, u*u*268 + 2*u*t*296 + t*t*268); };
+      ctx.beginPath(); let r0=ap(0,nB0-0.5); ctx.moveTo(r0.x,r0.y);
+      for(let k=1;k<=10;k++){ r0=ap(k/10,nB0-0.5); ctx.lineTo(r0.x,r0.y); }
       ctx.closePath(); ctx.fillStyle='#6f8fa8'; ctx.fill();
-      for(let k=0;k<10;k++)
-        poly([ap(k/10,0),ap((k+1)/10,0),ap((k+1)/10,-9),ap(k/10,-9)], shade(wall,.9));
     }
-    faceCircle(ridge, -1, 366, 38, trim);                        // rose, in the gable
-    faceCircle(ridge, -2, 366, 31, '#6f8fa8');
-    faceT(ridge, -3, 366, 31);
+    faceCircle(ridge, nB0-1, 366, 38, trim);                  // rose, in the gable
+    faceCircle(ridge, nB0-2, 366, 31, '#6f8fa8');
+    faceT(ridge, nB0-3, 366, 31);
     ctx.strokeStyle=trim; ctx.lineWidth=2/(31*K);
     for(let k=0;k<4;k++){ ctx.beginPath(); ctx.moveTo(-Math.cos(k*0.79),-Math.sin(k*0.79));
       ctx.lineTo(Math.cos(k*0.79),Math.sin(k*0.79)); ctx.stroke(); }
     ctx.restore();
 
-    /* ---- the tower, and the spire over everything ---- */
-    /* ON THE SIDE MEANS BACK ALONG THE FLANK. Moving the tower to the
-       far end of the frontage put it at the front CORNER -- b 4..-66 is
-       eleven per cent back on a 276-deep block, still hard against the
-       street. b -100..-180 centres it at -140, halfway down the flank,
-       which is where a tower attached to the side of a nave actually
-       stands. It projects 84 past the nave flank at a 316, so it reads
-       as built onto the side rather than as part of the front.
-       Screen-a 420..580, inside the footprint and inside the flank own
-       316..592 -- the return test governs the front wall, not things
-       standing in the building own volume. */
-    /* THE TOWER WAS NOT ATTACHED TO ANYTHING. a 320..400 against a nave
-       flank at 316 left a 4-unit gap, so the shaft was a free-standing
-       block standing on pavement beside the building -- which is what
-       reads as floating. A base course does not fix that; nothing was
-       holding it up because nothing was touching it.
-       a 296..400 laps the flank by 20, so the shaft is built INTO the
-       wall and the two share mass the way a tower engaged with a nave
-       does. */
-    /* OUT ON THE SIDE, AND ON THE GROUND. These are two different faults
-       and I kept trading one for the other:
+    /* ---- the nave's right flank, which is the other face we see ---- */
+    const faceR = (q0,q1,z0,z1,c) =>
+      poly([P(nA1+0.5,q0,z0),P(nA1+0.5,q1,z0),P(nA1+0.5,q1,z1),P(nA1+0.5,q0,z1)], c);
+    faceR(nB0, nB1, 168, 178, shade(wall,.86));
+    faceR(nB0, nB1, 286, 296, shade(wall,.86));
+    for(const qb of [-400,-480,-560,-640,-720,-800])          // flank lancets
+      { faceR(qb+14, qb-14, 196, 282, trim); faceR(qb+10, qb-10, 200, 278, '#6f8fa8'); }
 
-         a 320..400, b -100..-180  projected past the nave flank at 316,
-             but left a 4-unit gap and put the tower's foot 50 above the
-             front wall's -- out on the side, floating.
-         a 296..400, b -40..-120   lapped the flank by 20, so the shaft
-             read as part of the building mass -- grounded, but in.
-
-       Both at once needs the tower to ABUT the flank rather than lap
-       it, with all of its width beyond: a 316..398 touches at 316 and
-       projects 82. And b 0 puts its base on the same depth as the front
-       wall, so the base line carries straight on from it -- screen y
-       158 where the front wall's ends at 158.
-
-       Screen y is (a+b)/2 - z*ZSCALE, so 2 units back in b lifts a
-       thing 1 unit up the screen. That is why no base course ever fixed
-       this: at b -100 the foot was 50 too high, and a plinth cannot
-       lower a ground line. */
-    /* the tower abuts the nave flank at 316 and projects 82 past it,
-       with b at 0 so its base line carries straight on from the front
-       wall's. This is the position Sir approved the base of. */
-    const t0 = 316, t1 = 398, tb = 0, tk = -80, tTop = 500, sTop = 680;
-    /* THE PLINTH IS GONE. I added it to cure the floating, and it was the
-       wrong diagnosis twice over: the shaft was floating because it was
-       not TOUCHING anything -- a 4-unit gap between it and the nave
-       flank -- and once it laps the flank by 20 the wall itself is what
-       holds it up. The plinth then had nothing to do but sit proud of
-       the shaft at b -90 against the shaft's -100 and read as a shelf
-       stuck on the corner, hovering over the pavement in front of it.
-       A base course that has to be explained is not doing its job. */
-    slab(t0, t1, 0, tTop, tb, tk, shade(wall,1.05), shade(wall,.8), shade(wall,.9));
-    slab(t0-4, t1+4, tTop-14, tTop, tb+4, tk-4, shade(wall,.86));   // cornice
-    /* the two tower string courses at z 186 and 316 removed at Sir's
-       direction -- they read as ledges stuck round the shaft rather
-       than as courses in it. The cornice under the spire stays. */
-    for(let i=0;i<3;i++)                                             // belfry louvres
-      F(t0+11+i*23, t0+26+i*23, 392, 478, trim, shade(wall,.7), 2, tb-0.6);
-    const sap = P((t0+t1)/2, (tb+tk)/2, sTop);
-    poly([P(t0-6,tb+4,tTop), P(t1+6,tb+4,tTop), sap], trim);         // front face
-    poly([P(t1+6,tb+4,tTop), P(t1+6,tk-4,tTop), sap], shade(trim,.72));  // right face
-    cyl((t0+t1)/2, (tb+tk)/2, sTop, sTop+22, 2.4, '#c9a24a');
-    slab((t0+t1)/2-10, (t0+t1)/2+10, sTop+8, sTop+12,
-         (tb+tk)/2+2.4, (tb+tk)/2-2.4, '#c9a24a');
-    ball((t0+t1)/2, (tb+tk)/2, sTop+30, 5, '#c9a24a');
+    /* ---- the tower, engaged at the west end ---- */
+    slab(tA0, tA1, 0, tTop, tB0, tB1, shade(wall,1.05), shade(wall,.8), shade(wall,.9));
+    slab(tA0-4, tA1+4, tTop-14, tTop, tB0+4, tB1-4, shade(wall,.86));   // cornice
+    for(let i=0;i<3;i++)                                      // belfry louvres
+      F(tA0+11+i*46, tA0+42+i*46, 392, 478, trim, shade(wall,.7), 2, tB0-0.6);
+    /* the tower door, which is the fourth entrance and the one the
+       east-side walk arrives at */
+    poly([P(tA1+0.5,tB0-8,0),P(tA1+0.5,tB0-52,0),
+          P(tA1+0.5,tB0-52,132),P(tA1+0.5,tB0-8,132)], shade(trim,1.1));
+    poly([P(tA1+0.5,tB0-14,0),P(tA1+0.5,tB0-46,0),
+          P(tA1+0.5,tB0-46,120),P(tA1+0.5,tB0-14,120)], shade(wall,.5));
+    const sap = P((tA0+tA1)/2, (tB0+tB1)/2, sTop);
+    poly([P(tA0-6,tB0+4,tTop), P(tA1+6,tB0+4,tTop), sap], trim);            // spire, front
+    poly([P(tA1+6,tB0+4,tTop), P(tA1+6,tB1-4,tTop), sap], shade(trim,.72)); // spire, right
+    cyl((tA0+tA1)/2, (tB0+tB1)/2, sTop, sTop+22, 2.4, '#c9a24a');
+    slab((tA0+tA1)/2-10, (tA0+tA1)/2+10, sTop+8, sTop+12,
+         (tB0+tB1)/2+2.4, (tB0+tB1)/2-2.4, '#c9a24a');
+    ball((tA0+tA1)/2, (tB0+tB1)/2, sTop+30, 5, '#c9a24a');
+    /* the near two runs, after the chapel, so the rails read in front of
+       it rather than being swallowed by the nave */
+    fenceA(0,   [[0,479],[571,LOT]]);                        // near, front
+    fenceB(LOT, [[0,-154],[-246,-LOT]]);                     // near, right
+    for(const [pa,pb] of [[479,0],[571,0],[LOT,-154],[LOT,-246]]) pier(pa,pb);
     kerb(p,'none');
   }
 },
@@ -4555,6 +4633,7 @@ const SHOPS = [
 },
 {
   name:'Fire station', tall:true,
+  bTodo:'the apron is working forecourt, not decoration -- and it needs the height too',
   zTodo:1.06,          // H 178 -- see SCALE REVIEW at the head of this file
   fTodo:'z136..168 return +3, lettering behind board',
   head:'Drill tower, twin appliance doors, bell',
@@ -6048,6 +6127,7 @@ const SHOPS = [
 },
 {
   name:'School', tall:true,
+  bTodo:'the playground is the yard -- same relationship, already 1.71 storeys',
   cTodo:'19 pavement props need collision volumes, 10 of them lapping past the frontage',
   fTodo:'z106..112 return +7; z188..194 return +7',
   zTodo:1.71,          // H 288 -- see SCALE REVIEW at the head of this file
