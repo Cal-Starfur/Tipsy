@@ -111,8 +111,14 @@ const FLANK_RIGHT = true;
    own facade and the guide box drawn round the wrong footprint, so both
    ask the shop instead of assuming. */
 function shopW(){ const s = SHOPS[state.i]; return s.ww || W; }
+/* AND ITS DEPTH, for the same reason. ww taught the bench not to assume
+   the frontage; a block landmark sits on a square lot far deeper than
+   the D=276 a shop unit occupies, so the pavement plate and the guide
+   box have to ask for that too or they end under the building. */
+function shopD(){ const s = SHOPS[state.i]; return s.dd || D; }
 function pavement(){
-  const g0=-90, g1=shopW()+90, b0=110, b1=-D-70;
+  const DD = shopD();
+  const g0=-90, g1=shopW()+90, b0=110, b1=-DD-70;
   T(g0,g1,b1,b0,0,'#cfc9b8');
   ctx.strokeStyle='#bdb7a6'; ctx.lineWidth=1;
   for(let a=g0;a<=g1;a+=46){ const s=P(a,b0,0), e=P(a,b1,0);
@@ -123,10 +129,10 @@ function pavement(){
 }
 function guides(){
   ctx.strokeStyle='rgba(255,122,26,.85)'; ctx.lineWidth=1.5; ctx.setLineDash([6,5]);
-  const gw = shopW();
-  poly([P(0,0,0),P(gw,0,0),P(gw,-D,0),P(0,-D,0)], null,'rgba(255,122,26,.85)',1.5);
+  const gw = shopW(), gd = shopD();
+  poly([P(0,0,0),P(gw,0,0),P(gw,-gd,0),P(0,-gd,0)], null,'rgba(255,122,26,.85)',1.5);
   if(gw !== W)   // the packer's slot boundary, so the overrun is visible
-    poly([P(W,0,0),P(W,-D,0)], null,'rgba(255,122,26,.45)',1.5);
+    poly([P(W,0,0),P(W,-gd,0)], null,'rgba(255,122,26,.45)',1.5);
   ctx.setLineDash([]);
   ctx.fillStyle='rgba(255,122,26,.9)'; ctx.font='600 11px ui-monospace,monospace';
   const t=P(0,0,0);
@@ -276,6 +282,12 @@ function sync(){
       'Tipsy can drive into and none of them exists to the game yet; they need ' +
       'volumes registered at port time. Anything outside 0..w in a is standing ' +
       'on the neighbour, and a kerb prop needs a ≥ b to stay inside the return.');
+  if(s.block)
+    notes.push('<b>Block landmark</b> — this is not a shop in a run. It takes a whole ' +
+      'block edge (usable run 1048.8 after corner margins, five packing slots of 209.8) ' +
+      'on a 1656 square of block land, set back in its own yard with an entrance on every ' +
+      'street. The port needs a block type that places it INSTEAD of running packEdgeNoGap ' +
+      'on that edge, and four dropoff points rather than one.');
   if(s.wTodo)
     notes.push('<b>Wide unit</b> — this shop is ' + s.wTodo +
       ' and the port cannot place it yet. See the WIDE UNITS note at the head of ' +
