@@ -5681,50 +5681,150 @@ const SHOPS = [
 },
 {
   name:'Public house', tall:true,
-  fTodo:'z122..152 return +3, lettering behind board',
-  zTodo:1.08,          // H 182 -- see SCALE REVIEW at the head of this file
-  head:'Bow windows, twin chimneys, bracket sign',
-  tags:['true bowed bays','chimney pots','hanging bracket sign','window boxes','tiled base'],
-  desc:'The bows are built from surface quads swept round a real arc, with a curved head and cill following the same sweep, so they bulge instead of stepping. Chimneys get clay pots.',
+  head:'Three storeys: pub on the ground, flats over, bowed bays',
+  tags:['three real storeys','flats above the pub','true bowed bays','chimney pots','hanging bracket sign'],
+  desc:'A proper corner local: the public bar on the ground with two bowed bays either side of the door, and two floors of flats over it with sash windows on a string course. The bows are swept on a real ellipse and bulge OUT over the footway, which is the direction a bow window goes.',
   draw(p){
-    const wall = '#3f4a35', trim = '#d8c48a', H = 182;
+    /* ============ THREE STOREYS, AND EVERYTHING BULGED INWARDS =======
+       zTodo 1.08 on a wall of 182: one storey, drawing a pub with two
+       floors of chimneys over it. At Sir's direction it is three real
+       floors -- H 504, which is 3.00 exactly -- with the bar on the
+       ground and flats above, and the levels are set out rather than
+       implied: ground 0..168, first 168..336, second 336..504, with a
+       string course on each floor line so the divisions are visible
+       from the street rather than being a fact about the source.
+
+       THE BOW WINDOWS BULGED INTO THE BUILDING. The sweep read
+
+           b = -rr*sin(a)*0.62 + rr*0.30
+
+       which on the pub's own numbers is -9.8 at the ends and -15.6 at
+       the middle -- every value negative, and negative b is INTO the
+       block. So both bays were bowed backwards into the bar, deepest at
+       the centre, and the only reason they looked convex was that the
+       shading ran brightest in the middle. A bow window bulges OUT.
+
+       That is the sixth thing this session found sitting at the wrong
+       sign of b, after the Locksmith key, the showroom's whole
+       interior, the TV cabinets, the fire station bell and the
+       Optician's spectacles. The sweep is written as an ellipse now --
+       b = BD*sqrt(1 - u^2), zero at the ends and BD at the centre --
+       which cannot come out negative whatever the numbers.
+
+       AND SO DID THE BRACKET SIGN, at b -28, twenty-eight units inside
+       the wall, on an a of W*0.03 = 6.9. Even with the sign flipped
+       outwards that a puts it on screen-a -21. It hangs at a 46, b 26
+       now: 4 clear of the near return here and 88 clear of the far one
+       on the mirrored heading.
+
+       A WINDOW WAS DRAWN ACROSS THE DOOR, sixth consecutive shop.
+       F(W*0.46, W*0.54, 56, 92) ran a 105.8..124.2 against an opening
+       at 81.9..148.1 -- this one was dead centre of the doorway. */
+    const wall = '#3f4a35', trim = '#d8c48a', H = 504;
+    const brick = '#4a3326';
+    const BD = 14, BOWS = [[16,74],[156,214]];        // bays, and how far they bulge
     body(wall, trim, H);
-    slab(0,W, H, H+10, -1, -12, shade(wall,.66));
-    slab(0,W, 0, 30, -1, -6, '#4a3326');
-    slab(6,W-6, 122, 152, -1, -9, shade(wall,1.25), null, trim);
-    F(18,W-18, 130, 146, trim, null,0,-9.5);
-    for(let i=0;i<3;i++){
-      const x0 = 16+(W-32)*(i+0.14)/3, x1 = 16+(W-32)*(i+0.86)/3;
-      slab(x0-3,x1+3, 156, H-6, -1, -8, trim);
-      F(x0,x1, 160, H-10, '#7f93a0', null,0,-8.5);
-      if(state.props){
-        box(x0-4,x1+4, -14, -2, 150, 162, shade(wall,1.1), shade(wall,.85), shade(wall,.7));
-        for(let k=0;k<3;k++) ball(x0+(x1-x0)*(k+0.5)/3, -9, 166, 6, ['#c2452e','#c9a24a','#8a4a6a'][i]);
-      }
-    }
-    // bowed bays swept on an arc
-    for(let i=0;i<2;i++){
-      const bx = i ? W*0.56 : W*0.08, bw = W*0.34, cxm = bx + bw/2, rr = bw*0.62;
+    slab(0,W, H, H+12, -1, -14, shade(wall,.66));     // eaves
+    slab(0,W, 0, 30, -1, -6, brick);                  // tiled base
+
+    /* ---- the two bowed bays ----
+       Swept on an ellipse: u runs -1..1 across the bay and b is
+       BD*sqrt(1-u^2), so the ends meet the wall at b 0 and the centre
+       stands BD proud. At BD 14 a bay starting at a 16 comes to
+       screen-a 2 here and 228 on the mirror -- inside the frontage on
+       both headings, which is what set the bays' width. */
+    for(const [x0,x1] of BOWS){
+      const cxm = (x0+x1)/2, hw = (x1-x0)/2;
       const pt = (t,z) => {
-        const a = Math.PI*0.30 + (Math.PI*0.40)*t;
-        return P(cxm - rr*Math.cos(a), -rr*Math.sin(a)*0.62 + rr*0.30, z);
+        const u = -1 + 2*t;
+        return P(cxm + hw*u, BD*Math.sqrt(Math.max(0,1-u*u)), z);
       };
-      for(let k=0;k<8;k++){
-        const t0=k/8, t1=(k+1)/8;
-        poly([pt(t0,30),pt(t1,30),pt(t1,112),pt(t0,112)],
-             shade('#7f93a0', 1 - Math.abs(0.5-(t0+t1)/2)*0.30));
-        poly([pt(t0,112),pt(t1,112),pt(t1,122),pt(t0,122)], shade(wall,1.15));
-        poly([pt(t0,22),pt(t1,22),pt(t1,30),pt(t0,30)], shade(wall,.8));
+      /* ONE PASS OF QUADS, SHADED BY WHERE THEY FACE. The first cut
+         drew the glass and then a second amber layer over the same
+         sweep, so the two cancelled to a flat gold slab and the bow
+         read as a painted panel. A curved surface only reads as curved
+         through its shading, so the factor is a real gradient across
+         the sweep -- 0.80 at the left edge where the surface turns
+         away, 1.10 at the right where it turns toward the light, with a
+         centre lift for the part facing straight out. */
+      for(let k=0;k<10;k++){
+        const t0=k/10, t1=(k+1)/10, u = -1+(t0+t1);
+        const f = 0.80 + 0.30*(u+1)/2 + 0.16*(1-Math.abs(u));
+        poly([pt(t0,22),pt(t1,22),pt(t1,30),pt(t0,30)], shade(brick, f));            // cill
+        poly([pt(t0,30),pt(t1,30),pt(t1,126),pt(t0,126)], shade('#d8a856', f));      // the lit bar
+        poly([pt(t0,126),pt(t1,126),pt(t1,138),pt(t0,138)], shade(wall, f+0.22));    // head
       }
-      for(let k=1;k<4;k++) poly([pt(k/4-0.012,30),pt(k/4+0.012,30),pt(k/4+0.012,112),pt(k/4-0.012,112)], shade(wall,.72));
+      for(let k=1;k<10;k++)                           // glazing bars, on the same sweep
+        poly([pt(k/10-0.014,30),pt(k/10+0.014,30),pt(k/10+0.014,126),pt(k/10-0.014,126)],
+             shade(wall,.72));
+      for(const zz of [58, 92])                       // transoms
+        for(let k=0;k<10;k++){
+          const t0=k/10, t1=(k+1)/10;
+          poly([pt(t0,zz),pt(t1,zz),pt(t1,zz+3),pt(t0,zz+3)], shade(wall,.72));
+        }
     }
-    shopDoor(W*0.50, wall, '#5a3f2a');
-    F(W*0.46,W*0.54, 56, 92, '#8fa0aa', null,0,-6.5);
+
+    shopDoor(115, wall, '#5a3f2a');                   // a 81.88..148.12
+
+    /* ---- fascia ----
+       Was slab(6, W-6, 122, 152, -1, -9): 6 of margin against 9 of
+       recess put the far end on screen-a 233 against a return at 230,
+       and the lettering sat at -9.5, behind the board's own backing.
+       Margin 15 against an 8-deep recess leaves piers of 16 and 7. */
+    slab(15, W-15, 140, 174, -1, -8, shade(wall,1.25), null, trim);
+    F(28, W-28, 148, 166, trim, null,0, -0.5);
+
+    /* ---- the floor lines, and two floors of flats ---- */
+    for(const fz of [176, 344]) slab(0, W, fz, fz+10, -1, -8, shade(wall,1.1));
+    for(const fz of [206, 374]) for(const c of [45, 115, 185]){
+      slab(c-32, c+32, fz-6, fz+106, 1, -11, shade(wall,1.15), null, trim);
+      reveal(c-26, c+26, fz, fz+100, 14, shade(wall,.44));
+      glaze(c-26, c+26, fz, fz+100, null, 'rgba(112,132,140,.80)');
+      F(c-2, c+2, fz, fz+100, shade(wall,1.15), null,0, 1.4);          // meeting rail stile
+      F(c-26, c+26, fz+48, fz+54, shade(wall,1.15), null,0, 1.4);      // meeting rail
+      slab(c-32, c+32, fz-12, fz-6, 4, -8, shade(wall,.9));            // cill
+    }
+
     if(state.props){
-      tube(W*0.03, -2, 132, W*0.03, -28, 132, 2, '#2b2f33');
-      tube(W*0.03, -28, 132, W*0.03, -28, 124, 1.4, '#2b2f33');
-      slab(W*0.0, W*0.14, 88, 122, -30, -24, trim, '#2b2f33', shade(trim,1.15));
-      F(W*0.02,W*0.12, 94, 116, shade(wall,1.1), null,0,-30.5);
+      /* window boxes, on the first-floor cills at b 4..16 -- out over
+         the footway, 294 game units up, so nothing passes near them */
+      for(const c of [45, 115, 185]){
+        box(c-24, c+24, 4, 16, 194, 208, shade(brick,1.1), brick, shade(brick,.8));
+        for(let k=0;k<4;k++)
+          ball(c-24+48*(k+0.5)/4, 10, 212, 6, ['#c2452e','#c9a24a','#8a4a6a','#c2452e'][k]);
+      }
+      /* ---- the bracket sign, PERPENDICULAR to the building ----
+         At Sir's direction, and it is the right way round: a pub sign
+         hangs across the footway so it is read from up and down the
+         street, not flat on the wall where the fascia already is. The
+         board was a slab spanning `a`, which is the frontage direction
+         -- face-on to the building and edge-on to anyone walking past.
+         It is a box spanning `b` now: 6 thick in a, 36 out from the
+         wall, and its two big faces look along the street.
+
+         Screen-a is a -/+ b, so a board reaching b 44 swings 44 each
+         way between mirrored edges: at a 52 it occupies 8..44 here and
+         60..96 there, clear of both returns. That is what set a, not
+         the look of it -- at the old a of 46 the far edge would have
+         come to 2.
+
+         WHICH FACE IS PAINTED is asked rather than assumed, the same
+         derivation slab() uses for b and the fire station's tower uses
+         for its return: the near face is the one whose screen y steps
+         positive, so the lettering lands on the side being looked at on
+         all four headings instead of on the back of the board. */
+      const sa = 52, SB0 = 8, SB1 = 44;
+      tube(sa, 2, 178, sa, SB1, 178, 2.4, '#2b2f33');            // arm
+      tube(sa, 2, 154, sa, SB0+14, 178, 1.8, '#2b2f33');         // diagonal stay
+      for(const hb of [SB0+5, SB1-5]) tube(sa, hb, 178, sa, hb, 166, 1.3, '#2b2f33');
+      box(sa-3, sa+3, SB0, SB1, 112, 166, shade(trim,1.15), trim, shade(trim,.72));
+      {
+        const o = P(sa,SB0,0), pa = P(sa+1,SB0,0);
+        const nf = (pa.y - o.y) > 0 ? sa + 3.4 : sa - 3.4;
+        poly([P(nf,SB0+4,118),P(nf,SB1-4,118),P(nf,SB1-4,160),P(nf,SB0+4,160)],
+             shade(wall,1.1), '#2b2f33', 2);
+        poly([P(nf,SB0+9,128),P(nf,SB1-9,128),P(nf,SB1-9,150),P(nf,SB0+9,150)], trim);
+      }
     }
     if(state.roof){
       for(const ca of [W*0.22, W*0.70]){
