@@ -253,9 +253,40 @@ function drawChemist(p, c){
    exactly two of the packer's own slots, so the port is a clean "this
    shop occupies two" rather than a number to reverse-engineer.
 
+   EVERY WIDTH IS A WHOLE NUMBER OF SLOTS, and that is the rule the rest
+   of this note now rests on. Widths are written as multiples of T2*2.2
+   so a shop never asks the packer for a number it has to reverse-
+   engineer -- it asks for n slots.
+
+     ww          slots  who
+     230 (W)       1    most of the library
+     T2*4.4  404.8 2    Garage, Bank, Gym, Toy shop, Fuel station,
+                        Furniture showroom
+     T2*6.6  607.2 3    Fire station
+     1048.8        5    Playhouse, and the three landmarks
+
+   THE THREE-SLOT TIER EXISTS BECAUSE SOMETHING NEEDED IT. The Fire
+   station is three appliance bays, a crew entrance and a drill tower;
+   two slots will not hold that and a whole edge is more ground than a
+   station occupies. It was the gap in the ladder, not a new idea --
+   the packer's own arithmetic already had the number.
+
+   FOUR IS MISSING AND THAT IS FINE. Nothing so far wants 809.6, and a
+   tier with no occupant is a tier that will be wrong when one arrives.
+   Add it when a building asks.
+
+   AND DEPTH IS NOW A DIMENSION TOO. `dd` overrides the shop depth D of
+   276 the way ww overrides W. A shop's depth used not to matter because
+   nothing was deep enough for it to show, but an auditorium (dd 620) or
+   an appliance room (dd 420) is a real volume -- the game's car is 150
+   long, so a pump bay at 276 would be a facade with nothing behind it.
+   The port needs the packer to know the footprint, not just the
+   frontage, and the corner-margin inset is computed from STORE_DEPTH.
+
    The bench honours ww for the pavement, the guide box and the measure
    pass, and draws the single-slot boundary as a faint line so the
-   overrun stays visible while this is open.
+   overrun stays visible while this is open. shopD() does the same for
+   dd, which the first landmark needed -- see the note below.
    ===================================================================== */
 
 /* ============ BLOCK LANDMARKS, OPEN AT THE PORT ============
@@ -279,33 +310,78 @@ function drawChemist(p, c){
    of five slots -- nearly 40% of an edge. The step from wide unit to
    landmark is 2.59x, not 6x.
 
-   THERE ARE TWO TREATMENTS AND THEY ARE NOT THE SAME. Block WIDTH takes
-   the whole edge and builds to the pavement, with no yard: a department
-   store or a warehouse wants this, because those types build to the
-   line. Block LANDMARK is freestanding, set back, with a yard and four
-   entrances. Only genuinely freestanding types want the second, and
-   `block: true` means that one.
+   THERE ARE TWO TREATMENTS AND THEY ARE NOT THE SAME, and both now have
+   an occupant. Block WIDTH takes the whole edge and builds TO THE LINE,
+   with no yard, because that is what the type does. Block LANDMARK is
+   freestanding, set back, with a yard and four entrances. Only
+   genuinely freestanding types want the second, and `block: true` means
+   that one and only that one.
+
+     block WIDTH     ww 1048.8, no block flag     Playhouse
+     block LANDMARK  block:true, ww = dd = 1048.8 Bathhouse, Chapel,
+                                                  Nursery
 
    WHICH IS WHY SIZE IS NOT THE TEST. The Bank is the largest building
    here at H 460 and must NOT get it: a portico lands ON the pavement,
    which is the whole point of a portico, and a setback would destroy
-   it. Same for the Cinema and the Playhouse, whose marquees exist to
-   overhang the footway. Ask what the building does at its own front
-   door, not how big it is.
+   it. Same for the Cinema. The Playhouse is the worked example of the
+   other treatment -- it took the whole edge and stayed on the line,
+   because a marquee exists to overhang the footway. Ask what the
+   building does at its own front door, not how big it is.
 
-   WHAT THE PORT NEEDS, and it is more than wTodo. A block type that
-   places a landmark INSTEAD of running packEdgeNoGap on that edge, and
-   four dropoff registrations rather than one -- twelve doors along a
-   run become one building with four. The type dispatch in buildBlocks
-   already picks housing/park/commercial per block, so a fourth type is
-   the hook.
+   THE SAME TEST DECIDED THE FIRE STATION, one tier down. Its bTodo read
+   "the apron is working forecourt, not decoration", and a forecourt
+   sounds like a yard. It is not one: the appliance doors open straight
+   onto the footway because an engine has to be on the road in seconds,
+   and an apron is the paved strip it crosses. Three slots, on the line.
+   A flag saying a building is big is not a flag saying it is
+   freestanding, and bTodo has now been wrong once for exactly that
+   reason.
 
-   AND TWO KIT GAPS FOUND BUILDING THE FIRST ONE. shopDoor draws at
-   b 0, the frontage plane, because every other building in this file
-   has its face there -- a set-back building has to draw its door by
-   hand until shopDoor takes a depth. And kerb() places props against
-   the hardcoded W with no width argument, so it cannot be used on any
-   wide unit at all, let alone a landmark.
+   SO THERE ARE FOUR PLACEMENT BEHAVIOURS, not two, and the port has to
+   tell them apart:
+
+     1  one slot                packEdgeNoGap as it stands
+     2  n slots, n = 2 or 3     the packer emits a wide slot; the
+                                chooser knows which bodies may sit in
+                                one; one dropoff
+     3  whole edge, on the line the packer yields the edge; still one
+                                frontage, still one dropoff
+     4  whole edge, landmark    placed INSTEAD of packing that edge,
+                                on a square lot, with FOUR dropoffs
+
+   Three and four differ in more than the yard: a landmark is entered
+   from any of four streets, so twelve doors along a run become one
+   building with four registrations, while a block-width building is
+   still one frontage with one door to deliver to. The type dispatch in
+   buildBlocks already picks housing/park/commercial per block, so a
+   fourth type is the hook for case 4; cases 2 and 3 are packer work.
+
+   AND ONE LANDMARK IS DRIVABLE THROUGH. The Nursery's yard is ground,
+   not building -- gravel, a cross of paths and four gates -- so unlike
+   the Bathhouse and the Chapel its collision volume is the fence line,
+   the hut and the two glasshouses rather than the footprint. That is
+   the first shop in this file whose interior the game is meant to let
+   Tipsy into, and it will need saying out loud when the block type is
+   written.
+
+   AND TWO KIT GAPS FOUND BUILDING THE FIRST ONE, both still open and
+   both now worked around four times. shopDoor draws at b 0, the
+   frontage plane, because every other building in this file has its
+   face there -- a set-back building has to draw its door by hand until
+   shopDoor takes a depth. And kerb() places props against the hardcoded
+   W with no width argument, so it cannot be used on any wide unit at
+   all, let alone a landmark; every shop past one slot calls
+   kerb(p,'none') or does not call it.
+
+   A THIRD THING, learned on the two biggest. body() lays its roof plate
+   down as shade(trim,1.05). That is right on a 230 shop, where the
+   plate is a sliver, and wrong the moment the footprint is large: at
+   1048 by 620 it is the biggest thing on screen and brighter than the
+   building under it, so the Playhouse and the Fire station both
+   overdraw it with T(0,ww,-dd,0,H+0.4,...) in a roofing colour. If a
+   fourth building needs the same line, the plate shade belongs in the
+   kit as an argument rather than in three shop bodies.
    ===================================================================== */
 
 /* ================= SCALE REVIEW, OPEN =================
@@ -5481,35 +5557,124 @@ const SHOPS = [
   }
 },
 {
-  name:'Optician', head:'Giant spectacles across the fascia',
-  fTodo:'z118..126 return +7',
+  name:'Optician', head:'Giant spectacles across the fascia, frames behind real glass',
   tags:['oversized spectacles','eye chart','clean white','frame display','deep reveal'],
-  desc:'The spectacle rims are circles lying in the fascia plane, joined by a tube bridge with the temples folding back into the wall, so the whole sign shears with the building.',
+  desc:'The spectacles are two solid rims in the plane of the wall, round in the world rather than stretched by ZSCALE, standing proud of the fascia on a bridge with the temples folding back to the wall. The frames and the eye chart are inside a real recess behind the pane.',
   draw(p){
+    /* ============ EVERY CIRCLE ON THIS SHOP WAS AN ELLIPSE ============
+       faceCircle(a, b, z, r) draws radius r in a AND in z, and z is
+       multiplied by ZSCALE before it is projected, so a lens written as
+       r 30 came out 60 wide by 90 tall. On a shop whose whole identity
+       is a pair of round lenses that is not a detail: the spectacles
+       read as two eggs. The frame display had it too, sixteen rings at
+       r 6 drawing 12 by 18.
+
+       Fourth instance of this after the chemist cross, the Locksmith
+       key bow and the TV dish, and the fix is the same every time --
+       the z radius divides back by ZSCALE. It is worth a census across
+       the rest of the library rather than one shop at a time: any
+       face-plane circle whose radius is not divided back is wrong, and
+       it is a one-line test.
+
+       AND THE SPECTACLES WERE INSIDE THE WALL. gb = -10, and negative b
+       is INTO the block, so the sign hung ten units inside its own
+       masonry -- behind the fascia band's -7 backing as well. Same as
+       the Locksmith key at -22 and the fire station bell at -20. They
+       stand proud at b 6 now, which is what a sign applied to a wall
+       does, and the temples fold back to b 0 at the outer ends.
+
+       THE RIM IS A SOLID, NOT A STROKE. Two concentric corrected
+       circles, outer in trim and inner in glass, give a rim 5 units
+       thick in the WORLD -- so it stays 5 units at any K. The old lw 7
+       was seven screen pixels, which is a different rim on every zoom
+       and on every block edge.
+
+       A WINDOW WAS DRAWN ACROSS THE DOOR, fifth consecutive shop.
+       F(W*0.76, W-14, 54, 94) ran a 174.8..216 against an opening at
+       158.8..225. Gone.
+
+       AND THE TAG SAID "deep reveal" WHERE THERE WAS NONE. The window
+       was F(12, W*0.66, 24, 108) -- a flat blue rectangle at b 0 with a
+       stroke round it -- and the frames and the eye chart were painted
+       at b -3 and -2, inside the wall behind a pane that did not exist.
+       It is a real opening now, 26 deep, with the goods clipped to it. */
     const wall = '#f2f2ee', trim = '#2b4a6b', H = 166;
+    const inner = '#5d6a76', lens = 'rgba(150,186,206,.62)';
+    const WA0 = 12, WA1 = 140, WZ0 = 24, WZ1 = 100;
+    /* a circle in the frontage plane that is actually round: the z
+       radius divides back by ZSCALE, exactly as plusOutline does */
+    const ring = (a, b, z, r, n) => {
+      const q = [];
+      for(let i=0;i<(n||26);i++){
+        const t = Math.PI*2*i/(n||26);
+        q.push(P(a + r*Math.cos(t), b, z + r*Math.sin(t)/ZSCALE));
+      }
+      return q;
+    };
     body(wall, trim, H);
     slab(0,W, H, H+8, -1, -12, trim);
-    slab(0,W, 118, 126, -1, -7, trim);
-    F(12,W*0.66, 24, 108, '#8fb4c8', shade(wall,.6), 3);
-    for(let r=0;r<2;r++) for(let c=0;c<4;c++){
-      const cx = 26+c*32, cz = 44+r*32;
-      faceCircle(cx-9, -3, cz, 6, null, ['#2b4a6b','#8f2b2b','#c9a24a','#3f6b4a'][(r+c)%4], 2.5);
-      faceCircle(cx+9, -3, cz, 6, null, ['#2b4a6b','#8f2b2b','#c9a24a','#3f6b4a'][(r+c)%4], 2.5);
-      tube(cx-3, -3, cz, cx+3, -3, cz, 1, ['#2b4a6b','#8f2b2b','#c9a24a','#3f6b4a'][(r+c)%4]);
+
+    /* ---- the window: recess, goods, pane ---- */
+    reveal(WA0, WA1, WZ0, WZ1, 26, inner);
+    ctx.save();
+    poly([P(WA0,0,WZ1),P(WA1,0,WZ1),P(WA1,0,WZ0),P(WA0,0,WZ0)]);
+    ctx.clip();
+    /* THREE SHELVES, AND THE FRAMES STAND ON THEM. The first cut hung
+       six pairs at z 44, 68 and 92 over a single shelf at 34, so they
+       floated in three ranks with nothing under them -- a scatter of
+       rings rather than a display. A ring of r 8 reaches 8/ZSCALE = 5.33
+       in z, so a shelf top at cz - 6 puts the frames on the timber with
+       a hair of clearance. */
+    for(let r=0;r<3;r++){
+      const sz = 38 + r*24;
+      slab(18, 94, sz-4, sz, -6, -22, shade(wall,.78), null, shade(wall,.96));
+      for(const cx of [40, 78]){
+        const cz = sz + 6;
+        const col = ['#2b4a6b','#a8362b','#c9a24a','#3f6b4a','#6b3348','#2a6b6b'][(r*2+(cx>60?1:0))%6];
+        for(const d of [-10, 10]){
+          poly(ring(cx+d, -8, cz, 8), col);
+          poly(ring(cx+d, -7.6, cz, 5.5), 'rgba(222,236,244,.62)');
+        }
+        poly([P(cx-4,-8,cz),P(cx+4,-8,cz),P(cx+4,-8,cz-1.6),P(cx-4,-8,cz-1.6)], col);
+        for(const d of [-18, 18])                                   // temples, folded back
+          poly([P(cx+d,-8,cz),P(cx+d*1.05,-16,cz-1),
+                P(cx+d*1.05,-16,cz-2.6),P(cx+d,-8,cz-1.6)], shade(col,.8));
+      }
     }
-    slab(W*0.50,W*0.63, 40, 100, -2, -8, '#ffffff', shade(wall,.7));
-    for(let i=0;i<5;i++) F(W*0.515, W*0.515+(W*0.10)*(1-i*0.17), 88-i*11, 92-i*11, '#3a3f4a', null,0,-2.5);
-    shopDoor(W*0.85, wall, trim);
-    F(W*0.76,W-14, 54, 94, '#8fb4c8', null,0,-6.5);
-    // spectacles, in the plane of the fascia
-    const gz = 146, gb = -10;
-    for(const ga of [W*0.24, W*0.76]){
-      faceCircle(ga, gb, gz, 30, null, trim, 7);
-      faceCircle(ga, gb+0.4, gz, 27, 'rgba(143,180,200,.55)');
+    slab(98, 130, 36, 96, -6, -14, '#ffffff', null, shade(wall,.86));        // eye chart
+    for(let i=0;i<6;i++)
+      F(101, 101 + 26*(1 - i*0.15), 86 - i*9, 90 - i*9, '#3a3f4a', null,0, -5.4);
+    ctx.restore();
+    glaze(WA0, WA1, WZ0, WZ1, null, 'rgba(146,178,196,.36)');
+    F(WA0 + (WA1-WA0)/2 - 2.5, WA0 + (WA1-WA0)/2 + 2.5, WZ0, WZ1, shade(wall,.72), null,0, 0.8);
+
+    shopDoor(184, wall, trim);                          // a 150.88..217.12
+
+    /* ---- fascia ----
+       Was slab(0, W, 118, 126, -1, -7): a0 of 0 and a1 of W, so the
+       board had no margin at either end and its back face came out on
+       screen-a 237 against a return at 230. Margin 14 against a 7-deep
+       recess leaves piers of 15 and 7. */
+    slab(14, W-14, 110, 132, -1, -7, trim);
+    F(26, W-26, 115, 127, shade(wall,.94), null,0, -0.5);
+
+    /* ---- the spectacles, standing on the wall above the board ----
+       Lens radius 26 with the z radius corrected is 52 wide and 34.7
+       tall, which sits between the board at 132 and the wall top at 166
+       with 2 to spare either side. At b 6 the sign swings 6 each way
+       between mirrored edges, so the outer temple reaches 32 here and
+       198 there against a frontage of 230. */
+    const gz = 146, gb = 6;
+    for(const ga of [74, 156]){
+      poly(ring(ga, gb, gz, 26), trim);
+      poly(ring(ga, gb+0.4, gz, 21), lens);
+      poly([P(ga-9,gb+0.8,gz+13),P(ga+2,gb+0.8,gz+15),
+            P(ga+6,gb+0.8,gz+7),P(ga-5,gb+0.8,gz+5)], 'rgba(255,255,255,.34)');
     }
-    tube(W*0.24+30, gb, gz, W*0.76-30, gb, gz, 3, trim);
-    tube(W*0.24-30, gb, gz, W*0.24-46, -2, gz+6, 2.6, trim);
-    tube(W*0.76+30, gb, gz, W*0.76+46, -2, gz+6, 2.6, trim);
+    tube(74+26, gb, gz, 156-26, gb, gz, 3.2, trim);                 // bridge
+    tube(74-26, gb, gz, 74-42, 0, gz+5, 2.8, trim);                 // temples, folding back
+    tube(156+26, gb, gz, 156+42, 0, gz+5, 2.8, trim);
+
     if(state.roof) box(W*0.30,W*0.54,-140,-100,H,H+20,'#9aa0a6','#7d838a','#6a7076');
     kerb(p,'none');
   }
