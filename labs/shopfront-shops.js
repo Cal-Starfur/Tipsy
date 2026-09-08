@@ -5330,49 +5330,154 @@ const SHOPS = [
   }
 },
 {
-  name:'Fire station', tall:true,
-  bTodo:'the apron is working forecourt, not decoration -- and it needs the height too',
-  zTodo:1.06,          // H 178 -- see SCALE REVIEW at the head of this file
-  fTodo:'z136..168 return +3, lettering behind board',
-  head:'Drill tower, twin appliance doors, bell',
-  tags:['hose drill tower','two tall bay doors','turned bell','red and cream','apron'],
-  desc:'The bell is turned from a cylinder and a dome with a headstock and clapper, hanging in its bracket, and the drill tower is capped so it closes off against the sky.',
+  name:'Fire station', tall:true, ww: T2*6.6, dd: 420,
+  wTodo:'three packing slots -- the middle tier, between a double-wide and a whole edge',
+  head:'Three appliance bays, drill tower, apron, bell',
+  tags:['three packing slots','three appliance bays','drill tower','painted apron','builds to the line'],
+  desc:'Sized between the two things the library already had: bigger than a double-wide shop, smaller than a block. Three appliance bays with the doors opening straight onto the apron, a crew entrance, and a drill tower carrying the station bell 636 above the pavement.',
   draw(p){
-    const wall = '#a8291f', trim = '#e8ddc8', H = 178;
-    body(wall, trim, H);
-    slab(0,W, H, H+12, -1, -14, trim);
-    slab(6,W-6, 136, H-10, -1, -9, shade(wall,1.2), null, trim);
-    F(20,W-20, 144, 164, trim, null,0,-9.5);
-    /* same fault as the Garage: two appliance bays ran the full 14..W-14
-       and there was no pedestrian door. Bays share the left, the crew
-       door takes the gap before the hose tower. */
-    const bayR = W*0.62;
-    for(let i=0;i<2;i++){
-      const x0 = 14+i*(bayR-28)/2+(i?8:0), x1 = 14+(i+1)*(bayR-28)/2-(i?0:8);
-      F(x0-5,x1+5, 0, 128, shade(wall,.74), null,0, 1);
-      F(x0,x1, 0, 120, '#c9b48e', shade(wall,1.3), 2, -1);
-      for(let j=0;j<5;j++) F(x0+3, x1-3, 8+j*23, 26+j*23, '#d8c9a4', shade(wall,.85), 1.5, -2);
-      slab(x0-5,x1+5, 120, 128, -2, -9, trim);
+    /* ============ THE MIDDLE TIER, WHICH DID NOT EXIST ============
+       Sir is right that this needs more than a shop and less than a
+       block, and the packer's own arithmetic already has the number.
+       packEdgeNoGap works on avgW = T2*2.2 = 202.4, the wide shops take
+       T2*4.4 = two of them, and a whole edge is 1048.8 = five. There was
+       nothing at three. This is it: ww = T2*6.6 = 607.2, and wTodo says
+       three slots rather than two, so the port has one more case rather
+       than one more special case.
+
+       AND IT IS NOT A LANDMARK, for the Playhouse's reason. bTodo had
+       this flagged as a block candidate -- "the apron is working
+       forecourt, not decoration" -- and a forecourt sounds like a yard.
+       It is not one. A fire station builds TO THE LINE: the appliance
+       doors open directly onto the footway because an engine has to be
+       on the road in seconds, and an apron is the paved strip it
+       crosses, not a setback with a building standing back in it. Ask
+       what the building does at its own front door -- the note's own
+       test -- and the answer is that it throws three doors open onto
+       the street. So width, not setback, and bTodo comes off.
+
+       dd 420 because an appliance room has to hold an appliance. The
+       game's car is len 150 and a pump is longer than a car; at the
+       shop depth of 276 the bays would be a facade with nothing behind
+       them.
+
+       zTodo 1.06 comes off with it. H 178 was one storey drawing a
+       two-storey station with a drill tower; at 336 it is 2.00 and the
+       tower reaches 636, which is 3.79.
+
+       THE DRILL TOWER WAS BUILT ON THE NEIGHBOUR. t0 = W-8, t1 = W+62
+       put it at a 222..292 on a 230 frontage -- sixty-two units past
+       the return, a whole tower standing on the next shop's plot. It
+       is at a 490..607.2 now, which is inside the frontage on every
+       heading because for a > 0 the only test is a within 0..WW.
+
+       AND THE BELL WAS INSIDE THE WALL. Its bracket ran b -2 to -20 --
+       negative b is INTO the block -- so the bell hung twenty units
+       inside the masonry, the Locksmith key's fault exactly. It hangs
+       out at b 22 now, off the tower where a station bell goes, and at
+       a 542 the 4r sweep of its r-18 mouth comes to 600 on the mirrored
+       heading against a frontage of 607.2. */
+    const wall = '#a8291f', trim = '#e8ddc8', H = 336, WW = T2*6.6, DD = 420;
+    const TA0 = 490;                                    // the drill tower bay
+    const BAYS = [[24,164],[182,322],[340,480]];
+    body(wall, trim, H, WW, DD);
+    /* body() lays its plate down as shade(trim,1.05), which is right on
+       a 230 shop and is 607 by 420 of near-white here -- the largest
+       thing on screen and brighter than the building under it. Same
+       overdraw the Playhouse needed at 1048 by 620. */
+    T(0, WW, -DD, 0, H+0.4, '#5a4038');
+
+    /* ---- the apron ----
+       Flat paint at z 0.6, not a solid: a forecourt is a surface a
+       robot drives over, so giving it thickness would be giving it a
+       kerb. It runs a 60..500 at b 0..44 because screen-a is a -/+ b,
+       so a 44-deep strip needs 44 of inset at the near end or it paints
+       onto the neighbour's pavement on one of the two headings. */
+    T(60, 500, 0, 44, 0.6, '#8f8578');
+    for(const [x0,x1] of BAYS){
+      T(x0+4, x1-4, 2, 6, 0.8, shade(trim,.9));
+      for(let k=0;k<5;k++)
+        T(x0+8+(x1-x0-16)*k/5, x0+8+(x1-x0-16)*(k+0.55)/5, 12, 40, 0.8, shade(trim,.82));
     }
-    shopDoor(W*0.78, wall, trim);
-    const t0 = W-8, t1 = W+62;
-    F(t0,t1, 0, H+120, shade(wall,1.08), shade(wall,.7), 2, -6);
-    S(t1, -76, -6, 0, H+120, shade(wall,.78));
-    T(t0,t1, -76, -6, H+120, shade(wall,.86));
-    for(let r=0;r<4;r++) slab(t0+14, t1-14, 40+r*54, 78+r*54, -7, -14, '#3a4046', null, trim);
-    slab(t0-4,t1+4, H+120, H+132, -4, -78, trim);
+
+    slab(0, WW, H, H+14, -1, -16, trim);                // cornice
+    slab(0, WW, 0, 26, -1, -10, shade(wall,.70));       // plinth
+
+    /* ---- three appliance bays ---- */
+    for(let i=0;i<3;i++){
+      const [x0,x1] = BAYS[i];
+      slab(x0-10, x1+10, 20, 224, 2, -10, shade(wall,1.14));
+      F(x0, x1, 26, 210, '#2b2118', null, 0, -1);
+      for(let j=0;j<6;j++)
+        F(x0+4, x1-4, 32+j*30, 54+j*30, '#c9b48e', shade(wall,.85), 1.5, -2);
+      slab(x0-10, x1+10, 210, 226, 1, -9, trim);        // lintel
+      F((x0+x1)/2-13, (x0+x1)/2+13, 232, 258, trim, null, 0, 1.4);   // bay number plate
+    }
+
+    /* ---- the crew entrance, in the tower bay ---- */
+    shopDoor(548, wall, trim, null, WW);                // a 514.9..581.1
+
+    /* ---- dormitory windows over the bays ---- */
+    for(const c of [94, 252, 410, 548]) for(const d of (c===548 ? [0] : [-36, 36])){
+      const w0 = c + d - 24;
+      slab(w0-6, w0+54, 262, 330, 1, -11, shade(wall,1.1), null, trim);
+      reveal(w0, w0+48, 270, 322, 12, shade(wall,.5));
+      glaze(w0, w0+48, 270, 322, null, 'rgba(96,120,140,.86)');
+      F(w0+22, w0+26, 270, 322, shade(wall,1.1), null, 0, 1.4);
+    }
+
+    /* ---- the drill tower ----
+       WHICH END OF IT EXISTS is asked rather than asserted, the same
+       derivation slab() and box() use: a = WW is the seen return on
+       edges 1 and 3 and a = TA0 on the other two, so a tower that
+       always drew S(WW) would show no side at all on half the block. */
+    const TH = H + 340;
+    F(TA0, WW, H+14, TH, shade(wall,1.06), shade(wall,.7), 2, -1);
+    {
+      const o = P(TA0,-1,0), pa = P(TA0+1,-1,0);
+      S((pa.y - o.y) > 0 ? WW : TA0, -90, -1, H+14, TH, shade(wall,.76));
+    }
+    T(TA0, WW, -90, -1, TH, shade(wall,.88));
+    /* THREE DRILL STAGES, NOT FOUR, AND THE TOWER GREW TO PAY FOR IT.
+       Four stages ran to H+294 and left nowhere for the bell: the first
+       opening started at H+46 and the band below it was 32 tall against
+       a bell 62 deep, so the bell was hung across an opening and read
+       as a blob on a grille. Three stages end at H+240 and the tower
+       runs to H+340, which gives a clear 44 of face for the bell to
+       hang on and takes the drill tower to 676 -- 4.02 storeys. */
+    for(let r=0;r<3;r++)                                 // hose-drill openings
+      slab(TA0+18, WW-18, H+46+r*68, H+104+r*68, -1, -9, '#3a4046', null, trim);
+    slab(TA0-6, WW, TH, TH+16, 3, -94, trim);            // capped, so it closes off the sky
+
+    /* ---- fascia ----
+       Was slab(6, W-6, 136, H-10, -1, -9): 6 of margin against 9 of
+       recess put the far end on screen-a 233 against a return at 230.
+       Margin 22 against an 8-deep recess leaves piers of 23 and 14, and
+       the lettering comes out from -9.5 -- behind the board's own
+       backing -- to bFront + 0.5. */
+    slab(22, TA0-14, 340, 372, -1, -8, shade(wall,1.2), null, trim);
+    F(38, TA0-30, 348, 366, trim, null, 0, -0.5);
+
     if(state.props){
-      // bell: headstock, dome crown, cylindrical waist, clapper
-      const ba = W*0.09, bb = -20;
-      tube(ba, -2, 138, ba, bb, 138, 1.6, '#4a4f55');
-      slab(ba-14, ba+14, 130, 136, bb+4, bb-4, '#4a4f55');
-      cyl(ba, bb, 104, 122, 13, '#c9a24a');
-      ball(ba, bb, 122, 13, '#c9a24a', '#d8b45e');
-      plateCircle(ba, bb, 104, 15, '#a8842e', '#8f6f26', 2);
-      ball(ba, bb, 98, 4, '#8f6f26');
+      /* the bell: headstock, dome crown, cylindrical waist, clapper --
+         hung on the tower at b 22, out over the footway, above the
+         cornice where nothing else competes with it */
+      const ba = 542, bb = 22, bz = H + 284;         // clear of the top drill stage
+      tube(ba, 2, bz+26, ba, bb, bz+26, 2.2, '#4a4f55');
+      slab(ba-16, ba+16, bz+18, bz+26, bb+5, bb-5, '#4a4f55');
+      cyl(ba, bb, bz-28, bz+2, 16, '#c9a24a');
+      ball(ba, bb, bz+2, 16, '#c9a24a', '#d8b45e');
+      plateCircle(ba, bb, bz-28, 18, '#a8842e', '#8f6f26', 2);
+      ball(ba, bb, bz-36, 5, '#8f6f26');
     }
-    if(state.roof) box(W*0.30,W*0.56,-150,-110,H,H+22,'#8f969d','#787f86','#697077');
-    kerb(p,'none');
+    if(state.roof){
+      /* kept off the tower, which occupies screen-a 490..697: everything
+         here sits below 480 on the a - b line, and the three are ordered
+         on the a + b key rather than as typed */
+      cyl(60, -260, H, H+34, 8, '#8f969d');              // key -200
+      cyl(140, -300, H, H+34, 8, '#8f969d');             // key -160
+      box(90, 220, -190, -130, H, H+24, '#8f969d','#787f86','#697077');   // key -100..90
+    }
   }
 },
 {
