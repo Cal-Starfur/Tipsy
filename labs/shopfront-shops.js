@@ -4533,51 +4533,157 @@ const SHOPS = [
   }
 },
 {
-  name:'Furniture showroom', tall:true,
-  cTodo:'4 pavement props need collision volumes',
-  fTodo:'z188..208 return +4, lettering behind board',
-  zTodo:1.27,          // H 214 -- see SCALE REVIEW at the head of this file
-  head:'Double-height glass, loading hoist, mezzanine',
-  tags:['double-height glazing','sofa in the round','loft hoist','wide unit','open mezzanine'],
-  desc:'The sofa is a set of boxes with seat, back and arms rather than stacked rectangles, the standard lamp has a real conical shade, and the hoist beam is a solid with a brace and a plumb hook.',
+  name:'Furniture showroom', tall:true, ww: T2*4.4,
+  wTodo:'two packing slots',
+  head:'Double-width, two storeys of glass, mezzanine across both bays',
+  tags:['double-width unit','double-height glazing','mezzanine deck behind the glass','sofa in the round','clipped interior'],
+  desc:'A double-width two-storey elevation: two big glazed bays either side of a central entrance, with one mezzanine deck running behind both. The sofa, dining set, wardrobe, chest and lamp stand BEHIND the pane instead of out on the footway, and the interior is clipped to each opening so a piece can be set as deep into the shop as it likes without projecting past a jamb.',
   draw(p){
-    const wall = '#a89a86', trim = '#4a3f36', H = 214;
-    body(wall, trim, H);
-    slab(0,W, H, H+10, -1, -12, trim);
-    F(12,W*0.74, 18, H-30, '#7f93a0', shade(wall,.62), 4);
-    for(let k=1;k<4;k++) F(12+(W*0.74-12)*k/4-2, 12+(W*0.74-12)*k/4+2, 18, H-30, shade(wall,.75), null,0,-1);
-    slab(12,W*0.74, 104, 112, -1, 20, shade(wall,.68));
-    // sofa, in the round
-    box(34,116, 6, 40, 22, 50, '#9a6a7a','#8a5a6a','#7a4a5a');
-    box(30,120, 6, 16, 22, 68, '#8a5a6a','#7a4a5a','#6e4050');
-    box(30,42, 6, 40, 22, 60, '#7a4a5a','#8a5a6a','#6e4050');
-    box(108,120, 6, 40, 22, 60, '#7a4a5a','#8a5a6a','#6e4050');
-    box(40,74, 6, 30, 118, 176, '#7a6248','#8a7258','#6a5440');       // wardrobe on the mezzanine
-    F(56,58, 122, 172, shade(wall,1.2), null,0, 5.5);
-    cyl(98, 18, 118, 156, 2.4, '#c9ccd0');                            // standard lamp
-    const lc0 = P(98,18,156), lc1 = P(98,18,174);
-    ctx.beginPath();
-    ctx.moveTo(lc0.x-14*K, lc0.y); ctx.lineTo(lc0.x+14*K, lc0.y);
-    ctx.lineTo(lc1.x+9*K, lc1.y); ctx.lineTo(lc1.x-9*K, lc1.y);
-    ctx.closePath(); ctx.fillStyle='#e8d9bd'; ctx.fill();
-    ctx.strokeStyle=shade('#e8d9bd',.8); ctx.lineWidth=1.5; ctx.stroke();
-    shopDoor(W*0.87, wall, trim);
-    F(W*0.82,W-14, 54, 98, '#7f93a0', null,0,-6.5);
-    slab(6,W-6, H-26, H-6, -1, -10, trim);
-    F(20,W-20, H-22, H-10, shade(wall,1.16), null,0,-10.5);
-    if(state.roof){
-      const ha = W*0.33;
-      slab(ha-8, ha+8, H+10, H+34, -2, -14, trim);
-      poly([P(ha-8,-2,H+34),P(ha+8,-2,H+34),P(ha+8,64,H+26),P(ha-8,64,H+26)], shade(trim,1.5));
-      poly([P(ha+8,-2,H+34),P(ha+8,64,H+26),P(ha+8,64,H+16),P(ha+8,-2,H+24)], shade(trim,1.1));
-      poly([P(ha-8,-2,H+34),P(ha-8,64,H+26),P(ha-8,64,H+16),P(ha-8,-2,H+24)], shade(trim,.8));
-      tube(ha, 26, H+22, ha, -2, H+2, 2.4, shade(trim,1.2));
-      tube(ha, 60, H+20, ha, 60, H-24, 1.4, '#6d747c');
-      const hk = P(ha,60,H-30);
-      ctx.strokeStyle='#6d747c'; ctx.lineWidth=3;
-      ctx.beginPath(); ctx.arc(hk.x,hk.y,6*K,0.5,5.0); ctx.stroke();
-      box(W*0.58,W*0.88,-160,-116,H,H+24,'#8f969d','#787f86','#697077');
-    }
+    /* ============ THE SHOP WAS INSIDE OUT, AND HALF A STOREY SHORT ====
+       Two faults, and the second is why the first was never obvious.
+
+       EVERYTHING WAS ON THE PAVEMENT. Positive b is toward the street,
+       and the mezzanine slab ran b -1..20, the sofa b 6..40, the
+       wardrobe b 6..30 and the lamp b 18 -- so the deck jutted 20 units
+       out over the footway and the entire contents of the showroom hung
+       in the air outside its own window. It is the exact layering fault
+       the SHOPFRONT DEPTH note in the kit was written about, at whole-
+       room scale. The sofa's near arm reached screen-a -10, ten units
+       past the return onto the neighbour's ground, and it was one of
+       the four solids cTodo was counting as pavement props needing
+       collision volumes. There are none now.
+
+       AND THE INTERIOR IS CLIPPED. This is what makes it possible to
+       put the deck a whole storey back. An object at depth d shifts d
+       on screen -- right on edges 1 and 3, LEFT on 0 and 2 -- so a
+       sofa 30 into the shop needs 30 of clearance inside BOTH jambs or
+       it hangs out of the window on one heading or the other. reveal()
+       already solves this for its own backing by clipping to the
+       opening quad; the same clip around the goods is what buys the
+       depth back, and it is the reason the deck can be 44 deep and the
+       bays still only as wide as they are.
+
+       zTodo 1.27 WAS THE SAME FAULT SEEN FROM OUTSIDE. The shop drew
+       double-height glazing, a mezzanine and a wardrobe standing on it,
+       on a wall of 214 -- 1.27 storeys, so the whole two-storey scheme
+       was crammed into one and a quarter and every level of it had to
+       be pushed out of the building to fit. At H 336 it is 2.00 and the
+       levels are real: ground floor 0..168, deck 168..180, upper floor
+       180..336, all of it inside.
+
+       A WINDOW WAS DRAWN ACROSS THE DOOR, second instance this session
+       after the Locksmith. F(W*0.82, W-14, 54, 98) ran a 188.6..216
+       against a door opening at 158.8..225 -- a blue-grey panel over
+       the top half of the doorway. Gone; the upper floor gets its own
+       windows above the door, where there was blank wall.
+
+       AND IT IS TWO SLOTS WIDE NOW, at Sir's direction, on the Garage's
+       terms: ww = T2*4.4 is exactly two of packEdgeNoGap's own slots
+       rather than a number to reverse-engineer, and wTodo says the game
+       cannot place it yet. A furniture showroom is a big-box type -- it
+       needs floor, and one bay of sofa was never going to say that. The
+       elevation is set out symmetrically about the entrance: pier 16,
+       bay 139, pier 14.3, door 66.2, pier 14.3, bay 139, pier 16. */
+    const wall = '#a89a86', trim = '#4a3f36', H = 336, WW = T2*4.4;   // 404.8
+    /* THE PANE IS LIGHTER THAN THE KIT'S DEFAULT, ON PURPOSE. glaze()
+       is nearly opaque because at this scale there is usually nothing
+       behind it worth seeing. Here there is -- a deck and five pieces
+       of furniture, all modelled -- so the tint drops to .42 and the
+       goods are pitched BRIGHT against a dark interior rather than mid
+       against mid. A lit backing was tried first and is wrong: it puts
+       the room and its contents within a few percent of each other and
+       everything behind the glass turns to one wash, which is the state
+       the pane is nearly opaque to avoid. */
+    const inner = '#2e2a24', glass = 'rgba(96,132,152,.42)';
+    const WZ0 = 20, WZ1 = 280;                           // the shopfront opening
+    const DK0 = 168, DK1 = 180;                          // the mezzanine deck
+    const B1 = [16, 155], B2 = [249.8, 388.8];           // the two bays
+    body(wall, trim, H, WW);
+    slab(0,WW, H, H+12, -1, -12, trim);                  // cornice
+
+    /* One bay: recess, deck, goods, pane, frame. Both bays go through
+       this rather than being written twice -- the same reason there is
+       one chemist body and two liveries. */
+    const bay = (a0, a1, fit) => {
+      reveal(a0, a1, WZ0, WZ1, 34, inner);
+      ctx.save();
+      poly([P(a0,0,WZ1),P(a1,0,WZ1),P(a1,0,WZ0),P(a0,0,WZ0)]);
+      ctx.clip();
+      slab(a0-4, a1+4, DK0, DK1, -8, -44, '#b3a58c', null, '#c6b89f');
+      fit();
+      ctx.restore();
+      glaze(a0, a1, WZ0, WZ1, null, glass);
+      const n = Math.round((a1-a0)/35);                  // mullions, on a 35 pitch
+      for(let k=1;k<n;k++){
+        const aa = a0 + (a1-a0)*k/n;
+        F(aa-2.5, aa+2.5, WZ0, WZ1, shade(wall,.72), null,0, 0.8);
+      }
+      F(a0, a1, DK0-2, DK1+2, shade(wall,.72), null,0, 0.8);   // deck transom
+    };
+
+    bay(B1[0], B1[1], () => {
+      /* THE SOFA WAS A SLAB. Seat 22..50, arms to 60, back to 68 -- 18
+         units of articulation on a 46-unit object, and through a tinted
+         pane that is no articulation at all. A sofa reads from three
+         steps, so it gets three: cushion at 44, arms at 64, back at 88,
+         and the cushion is pitched lighter than the frame rather than
+         within a shade of it. */
+      box(40,130, -44,-34, 18, 88, '#a06a82','#8e5c73','#7c4e64');   // back
+      box(40,54,  -40,-14, 18, 64, '#a06a82','#8e5c73','#7c4e64');   // arm
+      box(116,130,-40,-14, 18, 64, '#a06a82','#8e5c73','#7c4e64');   // arm
+      box(48,122, -38,-16, 18, 44, '#d7a2b4','#c48fa2','#ad7b8d');   // cushion
+      box(44,84,  -42,-18, DK1, DK1+74, '#c49a68','#d3aa79','#ac855a');   // wardrobe
+      F(62,66, DK1+6, DK1+68, shade(wall,1.2), null,0, -17.5);            // its door line
+      cyl(112, -24, DK1, DK1+56, 2.4, '#c9ccd0');                         // standard lamp
+      const l0 = P(112,-24,DK1+56), l1 = P(112,-24,DK1+76);
+      ctx.beginPath();
+      ctx.moveTo(l0.x-9*K, l0.y); ctx.lineTo(l0.x+9*K, l0.y);
+      ctx.lineTo(l1.x+15*K, l1.y); ctx.lineTo(l1.x-15*K, l1.y);
+      ctx.closePath(); ctx.fillStyle='#e8d9bd'; ctx.fill();
+      ctx.strokeStyle=shade('#e8d9bd',.8); ctx.lineWidth=1.5; ctx.stroke();
+    });
+
+    bay(B2[0], B2[1], () => {
+      // dining set on the ground floor
+      for(const aa of [292, 344]) box(aa,aa+8, -38,-16, 18, 46, '#ac855a','#bd956a','#997448');
+      box(286,354, -42,-12, 46, 54, '#dcb489','#c8a077','#b08c66');       // table top
+      for(const aa of [262, 358]){                                        // two chairs
+        box(aa,aa+24, -36,-16, 18, 40, '#c49a68','#d3aa79','#ac855a');    // seat
+        box(aa,aa+24, -36,-30, 18, 76, '#c49a68','#d3aa79','#ac855a');    // back
+      }
+      box(276,330, -42,-18, DK1, DK1+50, '#c49a68','#d3aa79','#ac855a');  // chest, on the deck
+      for(let k=0;k<3;k++)
+        F(282,324, DK1+8+k*14, DK1+18+k*14, shade('#c49a68',1.24), null,0, -17.5);
+      box(344,378, -42,-20, DK1, DK1+86, '#9d6f45','#ae7f52','#8a603a');  // bookcase
+      for(let k=0;k<4;k++)
+        F(348,374, DK1+14+k*18, DK1+18+k*18, '#e2c79c', null,0, -19.5);
+    });
+
+    shopDoor(WW/2, wall, trim, null, WW);                // a 169.28..235.52
+    /* the upper floor's own window, over the door, where the panel that
+       was painted across the doorway used to be */
+    reveal(172, 232, 190, 268, 12, inner);
+    glaze(172, 232, 190, 268, null, glass);
+    F(201, 203, 190, 268, shade(wall,.72), null,0, 0.8);
+
+    /* ---- fascia ----
+       Was slab(6, W-6, H-26, H-6, -1, -10): 6 of margin against 10 of
+       recess put the far end at screen-a 234 against a return at 230.
+       Margin 16 against an 8-deep recess leaves piers of 17 and 8. The
+       lettering was at b -10.5, behind the board's own -10 backing;
+       bFront + 0.5 puts it proud of the face. */
+    slab(16, WW-16, 288, 324, -1, -8, trim);
+    F(28, WW-28, 296, 316, shade(wall,1.16), null,0, -0.5);
+
+    /* THE HOIST IS GONE, at Sir's direction. It was a beam, a brace, a
+       chain and a hook reaching b 64 out over the footway from above
+       the cornice -- five objects and the only thing on the building
+       that had to be re-checked on both b signs, and it read as a crane
+       on a shop rather than a loft hoist on a warehouse. The showroom
+       says what it is with two storeys of glass and what is standing
+       behind them; it does not need a machine on the roof as well. */
+    if(state.roof)
+      box(WW*0.62,WW*0.86,-160,-116,H,H+26,'#8f969d','#787f86','#697077');
     kerb(p,'none');
   }
 },
