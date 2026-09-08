@@ -165,7 +165,16 @@ function guides(){
    change the extent: turning the roof kit off on a shop whose identity
    is a water tank should reframe, not leave a hole at the top. */
 const MCV = document.createElement('canvas');
-MCV.width = 1500; MCV.height = 1200;
+/* WIDE ENOUGH FOR A WHOLE BLOCK. Screen-a is a - b, so a square lot of
+   1048.8 spans 2097.6 of screen-a before MK is applied -- 1300 at 0.62,
+   plus MOX 470 is 1770, and at a buffer width of 1500 the far corner of
+   every block landmark fell off the right edge of the MEASURE pass. The
+   bounds box then came back clipped and the framing solved a K for a
+   building it had only seen two thirds of, so the Bathhouse, the Chapel
+   and now the Nursery all drew with their far corner cut off the real
+   canvas as well. It was the same fault MOX was widened for when the
+   first double-width shop arrived, one order of magnitude further on. */
+MCV.width = 2000; MCV.height = 1200;
 const MCTX = MCV.getContext('2d');
 const MK = 0.62, MOX = 470, MOY = 780;      // nominal measure transform
 /* MOX moved left and the canvas widened when the first double-width
