@@ -5837,51 +5837,382 @@ const SHOPS = [
   }
 },
 {
-  name:'Tea house', head:'Pitched tiled roof, upturned eaves, veranda',
-  cTodo:'4 pavement props need collision volumes, 1 of them lapping past the frontage',
-  tags:['pitched roof','ridge capping','round veranda posts','paper lanterns','timber screen'],
-  desc:'The roof gets a ridge capping and a visible gable end, the veranda posts are turned cylinders under the beam, and the lanterns are cylinders with capped ends hanging on cords.',
+  name:'Tea house', ww: T2*4.4,
+  wTodo:'two packing slots',
+  head:'Two-tier red roof, dougong brackets, colonnade over the footway',
+  cTodo:'6 colonnade columns need collision volumes -- they stand at b 76, out at the kerb',
+  tags:['double eave','dougong bracket sets','vermilion colonnade','ice-ray lattice','name plaque','walkway over the whole footway'],
+  desc:'A proper tea house rather than a shop with a pitched roof: two tiers of grey glazed tile on concave eaves, stepped dougong bracket sets carrying them, a vermilion colonnade standing right out at the kerb so the walkway covers the full width of the footway, ice-ray lattice screens and a lacquered name plaque over the doors.',
   draw(p){
-    const wall = '#e4dccb', trim = '#5a3a2e', H = 132, WW = 214;
-    body(wall, trim, H, WW);
-    const ridge = H + 74, eaveB = 44, backB = -D;
-    poly([P(-22,eaveB,H+10),P(WW+22,eaveB,H+10),P(WW+22,-D*0.5,ridge),P(-22,-D*0.5,ridge)],
-         '#7a4a3a', shade('#7a4a3a',.72), 2);
-    poly([P(-22,-D*0.5,ridge),P(WW+22,-D*0.5,ridge),P(WW+22,backB-16,H+10),P(-22,backB-16,H+10)],
-         shade('#7a4a3a',.82));
-    for(let i=0;i<9;i++){
-      const t=(i+1)/10, z = H+10 + (ridge-H-10)*t, bb = eaveB + (-D*0.5-eaveB)*t;
-      poly([P(-22,bb,z),P(WW+22,bb,z),P(WW+22,bb,z-3),P(-22,bb,z-3)], shade('#7a4a3a',.9));
+    /* ============ A COVERED WALKWAY, NOT A 44-DEEP AWNING ============
+       At Sir's direction the roof reaches the whole footway. The bench
+       draws the pavement from b 0 out to b 110, so the colonnade stands
+       at b 92 and the lower eave oversails it to b 104 -- a walkway a
+       robot drives the length of, rather than a canopy hugging the wall.
+       That is what the type is: the covered street frontage IS the
+       building's public room.
+
+       WHICH MAKES THE COLUMNS REAL OBSTACLES, and cTodo says so
+       plainly. Six solids at b 92 sit at the kerb line, not against the
+       wall, so they are in the middle of the drivable footway rather
+       than at the edge of it. That is the honest cost of the walkway
+       and the game has to know about all six.
+
+       THE TWO TESTS, since the columns fail one of them. `a` must be
+       inside 0..WW -- does it stand on this shop's ground -- and that
+       holds. `a -/+ b` inside 0..WW asks whether it APPEARS inside the
+       silhouette on both headings, and at b 92 nothing possibly could.
+       The second test is for ISOLATED objects, which have nothing to
+       say whose they are; a column under a beam under a roof says so by
+       being attached, the same way the roof itself does. The nursery's
+       loose fence and the playhouse's poster columns failed both tests,
+       which is why those went and these stay.
+
+       AUTHENTICITY, also at Sir's direction, and it is mostly four
+       things this had none of:
+
+         DOUGONG. The stepped bracket sets carrying the eaves are the
+         one element that says Chinese before anything else does. Three
+         tiers of blocks widening upward, one cluster over every column
+         and a row of intermediate ones along the wall.
+         A DOUBLE EAVE. One pitched plane was a barn. Two tiers with a
+         band of wall between them is the form.
+         CONCAVE EAVES. A Chinese roof slope is not straight: it is
+         shallow at the eave and steepens toward the ridge, which is
+         what makes the profile read. Four segments per slope, rises of
+         8, 12, 16, 20.
+         VERMILION AND GREY. Red lacquered columns and beams against
+         grey glazed tile and white plaster, rather than brown timber on
+         cream.
+
+       Also kept from the rebuild before this one: the roof stays inside
+       a 0..WW -- it used to run -22..WW+22 and sit on both neighbours --
+       and the gable is drawn on whichever return is being looked at.
+
+       THE DRAW ORDER, WRITTEN DOWN, because this shop has more depth
+       range than anything else in the file at one slot wide -- from
+       b -292 at the back of the main roof to b +104 at the eave, which
+       is 396 of it -- and every fault it has had has been an ordering
+       one. Far to near, and nothing goes in between them:
+
+         1  body, and the main roof: back slope, ridge, front slope
+         2  the gable, on the seen return
+         3  the wall: screens, doors, name plaque      b -20 .. 0
+         4  the lower slope from the wall to b 76
+         5  the colonnade: columns, beam, brackets     b 76
+         6  the lanterns                               b 76
+         7  the last 28 of eave, fascia and corners    b 76 .. 104 */
+    /* A 104-DEEP WALKWAY HIDES THE SHOP UNLESS IT IS HELD HIGH. The
+       roof plane between b 0 and b 104 covers the wall from the height
+       where the two meet on screen upward: with the eave at 166 that
+       crossover is z 131, so the plaque and the top of every screen
+       were behind the roof and the frontage read as a dark slab with
+       poles in front of it. At an eave of 210 the crossover moves to
+       175 and the whole shopfront is under the walkway rather than
+       behind it -- which is the arithmetic that set H, not the look of
+       the elevation.
+
+       THE SAME SUM DECIDES WHETHER THE BRACKET SETS SURVIVE. They sit
+       at b 92, z 176..197, and the eave fascia hangs at b 104 from
+       z 189 to 200 -- which on screen lands right across them, so at
+       an eave of 200 the one element that says Chinese was hidden by
+       the roof it holds up. At 210 the fascia clears the top of the
+       clusters and the whole set is in the open under the overhang,
+       which is where you actually see dougong on a building. */
+    /* ---- THE ROOF IS WIDER THAN THE BUILDING, at Sir's direction ----
+       It is the overhang that makes the form, and it could not be had
+       while the roof and the walls were both 0..WW. The answer is not
+       to let the roof out past the frontage -- it used to run -22..WW+22
+       and sat on both neighbours -- but to bring the BUILDING IN. Walls
+       at a 40..364.8 inside a frontage of 404.8 leave 40 of oversail at
+       each gable end, all of it over this shop's own ground.
+
+       AND IT IS TWO SLOTS WIDE, at Sir's direction, on the same terms
+       as the six other wide shops: ww = T2*4.4 is exactly two of
+       packEdgeNoGap's own slots. At 214 the oversail had to come out of
+       an already narrow frontage -- 48 of 214 -- and what was left held
+       one door and two small screens. At 404.8 it holds four screens
+       either side of a double door, six columns on a 61 pitch, and an
+       oversail that costs proportionally less. This is a hall, not a
+       lock-up; it wanted the width.
+
+       That is the same trade the setback made in b, now made in a: the
+       overhang is bought out of the plot rather than out of the
+       neighbour's. It costs 48 of frontage and buys a roof that reads
+       as a roof.
+
+       AND THE TILE IS RED, also at Sir's direction. The columns go a
+       shade deeper than they were so the two reds are not the same red:
+       lacquer 8a2a22 on the timber, warm b04a36 on the tile. */
+    const wall = '#efe9db', trim = '#8a2a22', H = 288, WW = T2*4.4;   // 404.8
+    const tile = '#b04a36', gold = '#c9a24a', jade = '#3f6b52', dark = '#26221e';
+    const BA0 = 40, BA1 = WW - 40, CN = 64;           // the walls, inside the roof
+    const CB = 76, EB = 104;                          // colonnade, and the eave over it
+    /* ---- THE BUILDING IS SET BACK, at Sir's direction ----
+       The awning stays where it is, at the kerb, and the wall goes 84
+       into the plot instead -- so the covered walkway is 188 deep
+       rather than 104, and there is a real forecourt between the shop
+       front and the eave.
+
+       WHICH MEANS body() CANNOT BE USED, and neither can reveal(),
+       glaze() or shopDoor(). All four draw at b 0, the frontage plane,
+       because every other building in this file has its face there.
+       That is the kit gap the BLOCK LANDMARKS note records, and this is
+       the first ONE-SLOT shop to hit it -- the Bathhouse, the Chapel
+       and the Nursery hut all roll their own openings for exactly this
+       reason. The shell is four calls: front wall, base, the seen
+       return, and the roof over the top. If a fifth building wants a
+       setback, the depth argument belongs in the kit rather than in a
+       fifth copy of this. */
+    /* SET 60, and the number is the crossover sum again. A walkway
+       roof hides the wall above the height where the two meet on
+       screen: with the eave at b 104, z 210 and the wall at b -SET
+       that height is 155 at SET 60 and only 147 at 84. The name plaque
+       has to sit under it, so the setback is as deep as the plaque
+       allows rather than as deep as it could be -- 164 of covered
+       walkway against the 104 it had, which is what Sir asked for. */
+    const SET = 60, FB = -SET;
+    T(BA0-6, BA1+6, FB, 100, 0.6, '#cfc7b6');         // the forecourt, flat paint
+    for(let k=0;k<7;k++)
+      T(BA0-6, BA1+6, FB + (100-FB)*k/7 - 1, FB + (100-FB)*k/7 + 1, 0.8, '#bdb5a4');
+
+    /* ---- ROOF TIERS, AND WHY THE CORNERS ARE PART OF THE SURFACE ----
+       The turn-ups had no volume because they were not part of the
+       roof: the lift was a flat strip drawn in the vertical plane at
+       b = eave, filling the gap between a straight slope edge and a
+       raised fascia line. A vertical strip has no top, so it read as a
+       painted flare on a flat roof. Before that they were separate
+       horns springing off the corners, which could not work either --
+       each swept 40 in z but only 10 in a, because a is boxed into
+       0..WW, so it projected as a sliver ten wide and eighty tall.
+
+       A Chinese roof corner is not an ornament attached to a plane. The
+       PLANE ITSELF rises: the whole surface near each end lifts, most
+       at the eave and dying away up the slope, so the corner has a top,
+       a fascia and a thickness because it is made of the same tiles as
+       the rest. So the lift is a function of BOTH a and b, applied to
+       every vertex of every quad, and the roof is subdivided in a --
+       seven spans across each CN-wide corner, one across the middle --
+       so there is geometry for it to act on. Flat roofs get amp 0 and
+       cost one span, as before.
+
+       hump(a) is 0 beyond CN of either return and rises as (1 - d/CN)^2
+       to the corner, so the eave line is level across the middle and
+       sweeps up at the ends. The b term is (b - b0)/(be - b0) squared,
+       which puts the lift almost entirely in the eave band and blends
+       it to nothing where this tier meets the next piece -- that is
+       what keeps the split halves of the lower roof continuous. */
+    const hump = a => { const d = Math.min(a, WW-a);
+                        return d >= CN ? 0 : Math.pow(1 - d/CN, 2); };
+    const XS = (() => { const q=[];
+      for(let i=0;i<=7;i++) q.push(CN*i/7);
+      for(let i=1;i<=7;i++) q.push(WW-CN + CN*i/7);
+      return q.slice(0,8).concat([WW-CN]).concat(q.slice(8)); })();
+    const tier = (prof, col, ends, amp, b0) => {
+      const be = prof[0][0], A = amp || 0;
+      const L = (a,b) => { if(!A) return 0;
+        const t = Math.max(0, Math.min(1, (b - b0)/(be - b0)));
+        return A * hump(a) * t*t; };
+      const Q = (a0,a1,b0_,z0_,b1_,z1_,fill) =>
+        poly([P(a0,b0_,z0_+L(a0,b0_)), P(a1,b0_,z0_+L(a1,b0_)),
+              P(a1,b1_,z1_+L(a1,b1_)), P(a0,b1_,z1_+L(a0,b1_))], fill);
+      for(let i=0;i<prof.length-1;i++){
+        const [bA,zA] = prof[i], [bB,zB] = prof[i+1];
+        for(let k=0;k<XS.length-1;k++){
+          const a0 = XS[k], a1 = XS[k+1];
+          Q(a0,a1, bA,zA, bB,zB, shade(col, 1.06 - i*0.05));
+          for(let c=1;c<5;c++){                        // tile courses
+            const t=c/5, bb=bA+(bB-bA)*t, zz=zA+(zB-zA)*t;
+            Q(a0,a1, bb,zz, bb,zz-2, shade(col,.84));
+          }
+        }
+      }
+      if(!ends) return;
+      const [bE,zE] = prof[0];
+      for(let k=0;k<XS.length-1;k++){                  // fascia, and the drip under it
+        const a0 = XS[k], a1 = XS[k+1];
+        Q(a0,a1, bE,zE, bE,zE-11, shade(col,.7));
+        Q(a0,a1, bE,zE-11, bE,zE-14, shade(col,.5));
+      }
+      /* THE VERGE, on whichever roof end is being looked at. Without it
+         the oversail is a plane with no thickness, and where it passes
+         the gable wall it showed as a single red hairline lying across
+         the masonry -- a 40 overhang drawn as a line. A barge board
+         following the whole slope profile closes the end and gives the
+         overhang the depth it is supposed to have. */
+      const vo = P(0,bE,0), vp = P(1,bE,0), ve = (vp.y - vo.y) > 0 ? WW : 0;
+      const vp2 = [];
+      for(const [b,z] of prof) vp2.push(P(ve,b,z+L(ve,b)));
+      for(let i=prof.length-1;i>=0;i--){ const [b,z]=prof[i]; vp2.push(P(ve,b,z+L(ve,b)-13)); }
+      poly(vp2, shade(col,.6));
+    };
+    /* a dougong cluster: three tiers of blocks, each wider than the one
+       under it, which is the whole idea of the bracket set */
+    const dougong = (aa, bb, z0) => {
+      for(let t=0;t<3;t++){
+        const hw = 4 + t*3.2, hz = z0 + t*6;
+        box(aa-hw, aa+hw, bb-3-t*1.6, bb+3+t*1.6, hz, hz+4, shade(trim,1.15), trim, shade(trim,.78));
+        if(t<2) box(aa-2.4, aa+2.4, bb-2.4, bb+2.4, hz+4, hz+6, shade(jade,1.1), jade, shade(jade,.8));
+      }
+    };
+
+    /* ---- the main roof, over the building ---- */
+    F(BA0, BA1, 0, H, wall, null, 0, FB);             // front wall
+    F(BA0, BA1, 0, 18, shade(wall,.78), null, 0, FB+0.4); // base course
+    {
+      const o = P(0,FB,0), pa = P(1,FB,0);
+      S((pa.y - o.y) > 0 ? BA1 : BA0, -D, FB, 0, H, shade(wall,.72));
     }
-    slab(-24, WW+24, ridge, ridge+9, -D*0.5+8, -D*0.5-8, '#5a3628', shade('#5a3628',.8), '#6a4232');
-    // gable end so the roof closes rather than floating
-    poly([P(WW+22,eaveB,H+10),P(WW+22,-D*0.5,ridge),P(WW+22,backB-16,H+10)], shade(wall,.72));
-    slab(-22,WW+22, H+4, H+14, eaveB, eaveB-8, shade('#7a4a3a',.66));
-    for(const [ea,dir] of [[-22,-1],[WW+22,1]]){
-      const c0=P(ea,eaveB,H+10), c1=P(ea+dir*30,eaveB,H+30);
-      ctx.beginPath(); ctx.moveTo(c0.x,c0.y);
-      ctx.quadraticCurveTo(c0.x+dir*26*K, c0.y-6*K, c1.x, c1.y);
-      ctx.lineTo(c1.x, c1.y+10*K);
-      ctx.quadraticCurveTo(c0.x+dir*22*K, c0.y+8*K, c0.x, c0.y+10*K);
-      ctx.closePath(); ctx.fillStyle='#7a4a3a'; ctx.fill();
+    tier([[-36,288],[-64,298],[-100,312],[-136,336],[-168,372]], tile, true, 32, -136);
+    poly([P(0,-168,372),P(WW,-168,372),P(WW,-D-16,288),P(0,-D-16,288)], shade(tile,.72));
+    /* ---- THE RIDGE TURNS UP TOO, which it did not ----
+       Sir's other point: the top beam had no horns at all. A Chinese
+       ridge is not a straight capping with a lump on each end -- it
+       sweeps up over the last stretch the same way the eaves do, and
+       then carries an ornament above that. Same hump(a), so the ridge
+       and the eaves flare on one curve, and it is built as three faces
+       rather than a slab so it has a top and two sides. */
+    for(let k=0;k<XS.length-1;k++){
+      const a0=XS[k], a1=XS[k+1], u0=26*hump(a0), u1=26*hump(a1);
+      poly([P(a0,-176,383+u0),P(a1,-176,383+u1),P(a1,-160,383+u1),P(a0,-160,383+u0)], shade(tile,1.0));
+      poly([P(a0,-160,372+u0),P(a1,-160,372+u1),P(a1,-160,383+u1),P(a0,-160,383+u0)], shade(tile,.62));
+      poly([P(a0,-176,372+u0),P(a1,-176,372+u1),P(a1,-176,383+u1),P(a0,-176,383+u0)], shade(tile,.5));
     }
-    slab(0,WW, H, H+6, -1, -8, trim);
-    for(const aa of [4, WW*0.34, WW*0.66, WW-4]) cyl(aa, eaveB-6, 0, H+6, 5, trim);
-    poly([P(0,eaveB-6,H+6),P(WW,eaveB-6,H+6),P(WW,eaveB-6,H-6),P(0,eaveB-6,H-6)], shade(trim,1.2));
-    F(10,WW*0.62, 20, 104, '#c6b89c', shade(trim,1.1), 2);
-    for(let i=0;i<7;i++) F(12+i*((WW*0.60-12)/7), 16+i*((WW*0.60-12)/7), 20, 104, trim, null,0,-1);
-    for(let i=0;i<3;i++) F(10,WW*0.62, 32+i*24, 36+i*24, trim, null,0,-1);
-    shopDoor(WW*0.82, wall, trim, null, WW);
-    F(WW*0.72,WW-14, 50, 90, '#c6b89c', null,0,-6.5);
+    for(const [oa,dir] of [[9,-1],[WW-9,1]]){          // the ornament on each raised end
+      const z0 = 383 + 26*hump(oa);
+      poly([P(oa-9,-168,z0),P(oa+9,-168,z0),P(oa+9,-168,z0+17),P(oa-9,-168,z0+26)], shade(tile,1.06));
+      poly([P(oa+dir*9,-176,z0),P(oa+dir*9,-160,z0),
+            P(oa+dir*9,-160,z0+26),P(oa+dir*9,-176,z0+17)], shade(tile,.72));
+      ball(oa, -168, z0+28, 5, shade(tile,1.15));
+    }
+    {                                                   // gable, on the seen return
+      const o = P(0,-36,0), pa = P(1,-36,0), ge = (pa.y - o.y) > 0 ? BA1 : BA0;
+      poly([P(ge,-36,288),P(ge,-168,372),P(ge,-D-16,288)], shade(wall,.72));
+    }
+
+    /* ---- the shopfront: two ice-ray lattice screens and the doors ---- */
+    /* Hand-rolled, for the reason above: reveal() and glaze() put the
+       opening at b 0 and this wall is at b FB. Same four planes they
+       would have made -- jamb backing, lit paper, lattice, glass. */
+    const screen = (x0, x1) => {
+      F(x0-5, x1+5, 16, 140, shade(wall,.72), null, 0, FB+0.6);     // surround
+      F(x0, x1, 22, 132, '#3a2f26', null, 0, FB-20);                // the jamb backing
+      F(x0, x1, 22, 132, '#f2e6c8', null, 0, FB-16);                // lit paper behind
+      for(let i=1;i<3;i++) F(x0+(x1-x0)*i/3-2.4, x0+(x1-x0)*i/3+2.4, 22, 132, trim, null,0, FB-13);
+      for(let k=1;k<3;k++) F(x0, x1, 22+110*k/3-2.4, 22+110*k/3+2.4, trim, null,0, FB-13);
+      /* THREE PANELS, NOT THIRTY. Six by five diamonds on a 62-wide
+         screen came out as a red and white check at any distance a
+         robot actually sees this from -- the lattice has to be legible
+         as lattice, so it is one diamond per bay on a coarser grid. */
+      for(let i=0;i<3;i++) for(let k=0;k<3;k++){
+        const ca = x0+(x1-x0)*(i+0.5)/3, cz = 22+110*(k+0.5)/3;
+        poly([P(ca-13,FB-12.6,cz),P(ca,FB-12.6,cz+13),P(ca+13,FB-12.6,cz),P(ca,FB-12.6,cz-13)], trim);
+        poly([P(ca-8,FB-12.4,cz),P(ca,FB-12.4,cz+8),P(ca+8,FB-12.4,cz),P(ca,FB-12.4,cz-8)], '#f2e6c8');
+      }
+      F(x0, x1, 22, 132, 'rgba(178,196,190,.20)', null, 0, FB+0.4);  // glass
+      F(x0-8, x1+8, 132, 144, shade(trim,1.05), null, 0, FB+0.8);    // head
+    };
+    for(const [x0,x1] of [[52,106],[112,166],[240,294],[300,354]]) screen(x0, x1);
+    /* the doors, hand-rolled at the set-back wall */
+    F(168, 238, 0, 118, shade(wall,.72), null, 0, FB+0.6);          // surround
+    F(172, 234, 0, 112, dark, null, 0, FB+0.9);                     // opening
+    for(const [d0,d1] of [[175,202],[204,231]]){
+      F(d0, d1, 3, 108, trim, shade(trim,.7), 1.6, FB+1.3);
+      for(let r=0;r<4;r++) for(let c=0;c<3;c++)
+        ball(d0 + (d1-d0)*(c+0.5)/3, FB+1.8, 16+r*24, 2.4, gold);   // door studs
+    }
+    ball(201, FB+2.2, 58, 3.4, gold); ball(208, FB+2.2, 58, 3.4, gold);
+    F(150, 256, 124, 156, dark, null, 0, FB+0.6);                   // the name plaque
+    F(154, 252, 126, 154, gold, null, 0, FB+0.9);
+    F(158, 248, 130, 150, shade(dark,1.4), null,0, FB+1.2);
+    for(let i=0;i<4;i++) F(170+i*18, 182+i*18, 133, 147, gold, null,0, FB+1.6);
+
+    /* ---- the lower tier, in TWO pieces, split at the colonnade ----
+       The heights are stacked from the bottom: columns to 160, beam
+       160..176, bracket sets 176..197, and only then the eave at 200.
+       Written the other way round the eave came out at 138, BELOW the
+       beam it is carried on, and the roof cut through the colonnade.
+       Only then the eave at 210, with 13 of clear air over the
+       brackets.
+
+       AND THE SLOPE CANNOT BE ONE OBJECT IN THE QUEUE, which is what
+       made this shop a run of stacking faults rather than one. It
+       spans b 0 to b 104, and the colonnade stands at b 76 -- so part
+       of the roof is behind the columns and part is in front of them,
+       and no single position in a far-to-near order is right for both.
+       Drawn before, the eave fascia went behind the bracket sets it
+       oversails; drawn after, the whole slope covered the shopfront.
+       It is split at b 76: everything from the wall out to the columns
+       goes first, then the colonnade, then the last 28 of slope with
+       the fascia and the upturned corners on it.
+
+       That is the general answer to a class of fault this session has
+       hit seven times. Ordering by depth only works for objects that
+       HAVE a depth; an object spanning a range has to be cut where the
+       things it interleaves with sit. */
+    tier([[CB,216],[30,228],[-14,242],[FB,264]], tile, false);
+
+    /* ---- the colonnade ---- */
+    /* FOUR COLUMNS, ON A 60.7 PITCH -- AND THE PITCH IS MEASURED.
+       Six at r 7 read as a picket fence; five at r 8 on a 46 pitch
+       looked crowded because of what hangs BETWEEN them, not because of
+       the columns themselves. A lantern sits at the bay centre, so the
+       clear gap either side is pitch/2 minus the lantern's widest part
+       minus the column's half-width -- and the widest part of a lantern
+       is not its body but its gold plate, which at r 6 spans 4r = 24 on
+       screen by the plateCircle rule, not 12. At a 46 pitch that left
+       23 - 12 - 8 = 3 of air and everything touched. At 60.7 it is
+       10.3, which reads as a colonnade with lanterns in it rather than
+       a row of things in contact. */
+    for(let i=0;i<6;i++){
+      const ca = 50 + i*60.96;
+      /* ---- THE PLINTH, WHICH WAS A COLLAR ----
+         It was a drum of r 9 running z 0..16 with the column at r 8
+         starting at 15 -- one unit wider than the post and overlapping
+         it by one, so the two shared an edge and the base read as a
+         ferrule clipped round the pole rather than a stone the pole
+         stands on. A plinth has to be visibly wider and it has to STOP
+         where the column starts.
+
+         Two steps, and the widths are the 4r rule again: a plateCircle
+         of r spans 4r on screen, so the bottom cap at 11.5 is 46 wide
+         against a column of 16 -- clearly a base -- and at a 61 pitch
+         that still leaves 15 of air between neighbouring plinths. At
+         r 14, which is what it wanted to be, they would have been 5
+         apart and the complaint would have moved from post-and-base to
+         base-and-base. */
+      cyl(ca, CB, 0, 11, 12, '#8f887b');
+      plateCircle(ca, CB, 11, 11.5, '#a49d90', '#7e7869', 1.4);
+      cyl(ca, CB, 11, 19, 9.5, '#a49d90');                          // cushion
+      plateCircle(ca, CB, 19, 9, '#b6afa2', '#8a8478', 1.4);
+      cyl(ca, CB, 19, 162, 8, trim);                                // the column, standing on it
+    }
+    poly([P(BA0-6,CB,176),P(BA1+6,CB,176),P(BA1+6,CB,160),P(BA0-6,CB,160)], shade(trim,1.12));   // beam
+    /* the painted band sits on the beam's STREET face, so b CB + 0.4.
+       At CB - 0.4 it was four tenths of a unit BEHIND the beam and
+       showed only because it was painted after it. */
+    for(let i=0;i<20;i++)
+      poly([P(40+i*17,CB+0.4,164),P(40+i*17+12,CB+0.4,164),
+            P(40+i*17+12,CB+0.4,172),P(40+i*17,CB+0.4,172)], [jade, gold, shade(trim,.75)][i%3]);
+    for(let i=0;i<6;i++) dougong(50+i*60.96, CB, 176);
+
     if(state.props){
-      for(let i=0;i<4;i++){
-        const la = 24+i*46, lb = eaveB-10;
-        tube(la, lb, H-6, la, lb, H-18, 0.8, '#5a3628');
-        cyl(la, lb, H-42, H-18, 10, '#f0e2c8');
-        plateCircle(la, lb, H-42, 7, '#c2452e');
-        cyl(la, lb, H-46, H-42, 4, '#c2452e');
+      /* IN THE PLANE OF THE COLONNADE, NOT BEHIND IT. At b CB-16 they
+         hung sixteen units back from the columns, which are drawn last
+         and 14 wide, so every lantern sat in a column's shadow. On the
+         beam line, midway between column centres, they hang in the bays
+         where a lantern belongs. */
+      for(let i=0;i<5;i++){
+        const la = 80.5+i*60.96, lb = CB;
+        tube(la, lb, 160, la, lb, 152, 0.8, dark);
+        cyl(la, lb, 124, 152, 8, '#c2352b');
+        plateCircle(la, lb, 124, 5, gold);
+        cyl(la, lb, 152, 156, 3, gold);
       }
     }
+    /* the last 28 of eave, with its fascia and corners, in front of the
+       colonnade it lands on */
+    tier([[EB,210],[CB,216]], tile, true, 32, CB);
     kerb(p,'none');
   }
 },
