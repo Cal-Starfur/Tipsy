@@ -6531,49 +6531,145 @@ const SHOPS = [
 },
 {
   name:'Clockmaker', tall:true,
-  fTodo:'z108..116 return +2',
-  zTodo:1.11,          // H 186 -- see SCALE REVIEW at the head of this file
-  head:'Huge clock over the door, faces in the window',
-  tags:['clock in the wall plane','swept pediment','clock faces','brass palette','narrow'],
-  desc:'Both the big clock and the small faces lie in the wall plane with their hands drawn inside that same plane, and the pediment is swept to a thickness so it caps the parapet properly.',
+  head:'Two storeys, a big round clock, faces behind the glass',
+  tags:['round clock','swept pediment','clocks in the window','brass palette','narrow'],
+  desc:'The clock is round in the world rather than stretched by ZSCALE, built as a brass rim with a real dial and hands, and it stands proud of the wall instead of twelve units inside it. The window is a real recess with the stock ticking away behind the pane.',
   draw(p){
-    const wall = '#3c4a52', trim = '#c9a24a', H = 186, WW = 196;
+    /* ============ A CLOCK THAT WAS NOT ROUND, INSIDE THE WALL ========
+       faceCircle(a, b, z, r) draws radius r in a AND in z, and z is
+       multiplied by ZSCALE before it is projected. The big clock was
+       written at r 42 and came out 84 wide by 126 tall -- half again
+       taller than it is wide, on a shop whose entire identity is one
+       round dial. The six small faces in the window had it too.
+
+       Sixth instance of this after the chemist cross, the Locksmith key
+       bow, the TV dish, the Optician's spectacles and the Bike shop's
+       wheels. Six shops, one line: any face-plane circle whose z radius
+       is not divided back by ZSCALE is wrong, and a census over the
+       remaining shops would find the rest of them in one pass.
+
+       AND IT WAS INSIDE THE MASONRY, at b -12, with the small faces at
+       -3 behind a pane that sits at 0. Eighth time this session
+       something has been found at the wrong sign of b. The clock stands
+       proud at b 5, which is where a clock on a wall goes; the small
+       ones are inside the shop behind real glass, which is where a
+       clockmaker's stock goes.
+
+       A WINDOW WAS DRAWN ACROSS THE DOOR, ninth consecutive shop.
+       F(WW*0.70, WW-14, 54, 94) ran a 137.2..182 against an opening
+       that shopDoor had clamped to 124.8..191.
+
+       zTodo 1.11 on a wall of 186, drawing a swept pediment over a
+       parapet and a clock the height of a person. H 336 is 2.00, and
+       the upper floor is what the clock has always needed to sit on:
+       a tall window either side of it and the pediment over the top.
+
+       fTodo: slab(6, WW-6, 108, 116, -1, -8) put its far end on
+       screen-a 198 against a return at 196. Margin 15 against an 8-deep
+       recess leaves piers of 16 and 7. */
+    const wall = '#3c4a52', trim = '#c9a24a', H = 336, WW = 196;
+    const inner = '#1c252b', dial = '#f2ece0', hand = '#2b3138';
+    /* a circle in the frontage plane that is actually round */
+    const ring = (a, b, z, r, n) => {
+      const q = [];
+      for(let i=0;i<(n||30);i++){
+        const t = Math.PI*2*i/(n||30);
+        q.push(P(a + r*Math.cos(t), b, z + r*Math.sin(t)/ZSCALE));
+      }
+      return q;
+    };
+    /* one clock: rim, dial, twelve marks, two hands -- every radial
+       distance divided into the projection the same way */
+    const clock = (a, b, z, r, hr, mn) => {
+      poly(ring(a, b, z, r), trim);
+      poly(ring(a, b+0.3, z, r*0.86), shade(trim,.72));
+      poly(ring(a, b+0.6, z, r*0.80), dial);
+      for(let k=0;k<12;k++){
+        const t = k*Math.PI/6, w = (k%3 ? 0.06 : 0.11)*r;
+        tube(a + 0.80*r*Math.sin(t), b+0.9, z + 0.80*r*Math.cos(t)/ZSCALE,
+             a + (0.80*r-w)*Math.sin(t), b+0.9, z + (0.80*r-w)*Math.cos(t)/ZSCALE,
+             r*0.035, hand);
+      }
+      tube(a, b+1.1, z, a + 0.46*r*Math.sin(hr), b+1.1, z + 0.46*r*Math.cos(hr)/ZSCALE, r*0.05, hand);
+      tube(a, b+1.2, z, a + 0.70*r*Math.sin(mn), b+1.2, z + 0.70*r*Math.cos(mn)/ZSCALE, r*0.035, hand);
+      poly(ring(a, b+1.4, z, r*0.07), hand);
+    };
     body(wall, trim, H, WW);
-    slab(0,WW, H, H+8, -1, -12, shade(wall,1.4));
-    const pk = (t,bb) => P(WW*0.22 + WW*0.56*t, bb, H+8 + (1-Math.abs(t-0.5)*2)*50);
-    for(let i=0;i<14;i++) poly([pk(i/14,-1),pk((i+1)/14,-1),pk((i+1)/14,-11),pk(i/14,-11)], shade(wall,1.35));
+    T(0, WW, -D, 0, H+0.4, '#232d34');                  // roof, over body's near-white plate
+    slab(0, WW, H, H+10, -1, -12, shade(wall,1.4));     // parapet
+    slab(0, WW, 0, 24, -1, -8, shade(wall,.74));        // plinth
+
+    /* ---- the swept pediment over the parapet ---- */
+    const pk = (t,bb) => P(WW*0.20 + WW*0.60*t, bb, H+10 + (1-Math.abs(t-0.5)*2)*54);
+    /* THE TYMPANUM IS FILLED, NOT OUTLINED. At shade(wall,1.2) against
+       a roof plate of the same family it came out within a few percent
+       of what is behind it, so only the gold edge showed and the
+       pediment read as a wire triangle floating over the roof. A
+       pediment is a solid gable end; it wants to be lighter than the
+       wall, not the same as it. */
     ctx.beginPath();
-    let q=P(WW*0.22,-1,H+8); ctx.moveTo(q.x,q.y);
-    q=P(WW*0.50,-1,H+58); ctx.lineTo(q.x,q.y);
-    q=P(WW*0.78,-1,H+8); ctx.lineTo(q.x,q.y);
-    ctx.closePath(); ctx.fillStyle=shade(wall,1.2); ctx.fill();
+    let q=P(WW*0.20,-1,H+10); ctx.moveTo(q.x,q.y);
+    q=P(WW*0.50,-1,H+64); ctx.lineTo(q.x,q.y);
+    q=P(WW*0.80,-1,H+10); ctx.lineTo(q.x,q.y);
+    ctx.closePath(); ctx.fillStyle=shade(wall,1.62); ctx.fill();
     ctx.strokeStyle=trim; ctx.lineWidth=3; ctx.stroke();
-    // the big clock, in the wall plane
-    const ca = WW*0.50, cb = -12, cz = 142;
-    faceCircle(ca, cb, cz, 42, trim, shade(trim,.72), 2);
-    faceCircle(ca, cb-0.5, cz, 35, '#f2ece0');
-    faceT(ca, cb-1, cz, 35);
-    ctx.strokeStyle='#2b3138'; ctx.lineWidth=2/(35*K);
-    for(let k=0;k<12;k++){
-      const a=k*0.5236;
-      ctx.beginPath(); ctx.moveTo(0.86*Math.cos(a), 0.86*Math.sin(a));
-      ctx.lineTo(0.97*Math.cos(a), 0.97*Math.sin(a)); ctx.stroke();
+    for(let i=0;i<16;i++)
+      poly([pk(i/16,-1),pk((i+1)/16,-1),pk((i+1)/16,-11),pk(i/16,-11)], shade(wall,1.28));
+
+    /* ---- the shop window: a clockmaker's stock, behind glass ---- */
+    slab(4, 114, 24, 122, 2, -12, shade(wall,1.2), null, trim);
+    reveal(12, 106, 30, 112, 24, inner);
+    ctx.save();
+    poly([P(12,0,112),P(106,0,112),P(106,0,30),P(12,0,30)]);
+    ctx.clip();
+    for(let r=0;r<2;r++){
+      const sz = 42 + r*38;
+      slab(16, 102, sz-4, sz, -6, -22, shade(wall,.9), null, shade(wall,1.05));
+      for(let c=0;c<3;c++) clock(26 + c*32, -8, sz + 14, 11, 0.7 + c, 3.2 - c*0.8);
     }
-    ctx.lineWidth=4/(35*K); ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(0.05,-0.62); ctx.stroke();
-    ctx.lineWidth=3/(35*K); ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(0.48,0.26); ctx.stroke();
     ctx.restore();
-    F(10,WW*0.60, 22, 104, '#6e7c88', shade(wall,1.5), 3);
-    for(let r=0;r<2;r++) for(let c=0;c<3;c++){
-      const fa = 24+c*32, fz = 40+r*38;
-      faceCircle(fa, -3, fz, 11, '#e8ddc8', trim, 2.5);
-      faceT(fa, -3.5, fz, 11);
-      ctx.strokeStyle='#2b3138'; ctx.lineWidth=1.6/(11*K);
-      ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(0.45,-0.55); ctx.stroke();
-      ctx.restore();
+    glaze(12, 106, 30, 112, null, 'rgba(110,124,136,.44)');
+    for(let k=1;k<3;k++) F(12 + 94*k/3 - 3, 12 + 94*k/3 + 3, 30, 112, shade(wall,1.5), null,0, 0.8);
+
+    shopDoor(150, wall, trim, null, WW);                // a 116.88..183.12
+
+    /* ---- fascia ---- */
+    slab(15, WW-15, 128, 164, -1, -8, trim);
+    F(28, WW-28, 136, 156, shade(wall,1.25), null,0, -0.5);
+
+    /* ---- the upper floor: a tall window either side of the clock ----
+       THE END MARGINS WERE FOUR. At c 28 and 168 with a surround of
+       c +/- 24 the windows ran a 4..52 and 144..192 on a frontage of
+       196, so each sat four units off its own return -- which reads as
+       a window about to fall off the corner, and would read worse in a
+       run where the neighbour's wall starts there.
+
+       Narrower windows rather than a wider gap, because the gap is
+       spoken for: the clock at r 40 already fills a 58..138, and on a
+       frontage of 196 two surrounds plus the clock plus four clearances
+       do not fit at 48 wide. At c +/- 18 the margins are 14 and the
+       tightest clock-to-surround gap is 4 -- and it is 4 on BOTH
+       headings, which is the number that had to be checked: the clock
+       stands at b 5 and the surrounds at b 1, so the pair closes up on
+       one side and opens on the other depending on which way the edge
+       runs. */
+    for(const c of [32, 164]){
+      slab(c-18, c+18, 186, 292, 1, -12, shade(wall,1.2), null, trim);
+      reveal(c-13, c+13, 194, 284, 14, shade(wall,.5));
+      glaze(c-13, c+13, 194, 284, null, 'rgba(96,112,124,.84)');
+      F(c-1.6, c+1.6, 194, 284, shade(wall,1.2), null,0, 1.4);
+      F(c-13, c+13, 236, 242, shade(wall,1.2), null,0, 1.4);
     }
-    shopDoor(WW*0.81, wall, trim, null, WW);
-    F(WW*0.70,WW-14, 54, 94, '#6e7c88', null,0,-6.5);
-    slab(6,WW-6, 108, 116, -1, -8, trim);
+    /* THE CLOCK, AND ITS CLEARANCE OF THE WINDOWS EITHER SIDE. It
+       stands at b 5, so its screen span is a - 5 here and a + 5 there,
+       while the window surrounds sit at b 1: at r 44 the two overlapped
+       by six on one heading. r 40 on 98 gives screen-a 53..133 here and
+       63..143 on the mirror, against surrounds at 13..49 / 145..181 and
+       15..51 / 147..183 -- clear by 4 at the tightest, and by 4 either
+       way round rather than by 2 one way and 10 the other. */
+    tube(98, 0, 262, 98, 5, 262, 3, shade(wall,1.3));
+    clock(98, 5, 262, 40, 1.9, 5.1);
+
     if(state.roof) box(WW*0.24,WW*0.46,-150,-110,H,H+20,'#8f969d','#787f86','#697077');
     kerb(p,'none');
   }
