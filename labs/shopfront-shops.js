@@ -5057,55 +5057,276 @@ const SHOPS = [
   }
 },
 {
-  name:'Playhouse', tall:true,
-  cTodo:'2 pavement props need collision volumes, 38 of them lapping past the frontage',
-  zTodo:1.05,          // H 176 -- see SCALE REVIEW at the head of this file
-  head:'Fly tower behind, poster columns, lamp canopy',
-  tags:['solid fly tower','round poster columns','lamp canopy','stage door','mass behind the front'],
-  desc:'The fly tower is a closed box with a returned side and a capped top, and the poster columns are cylinders with domed caps standing on the pavement.',
+  name:'Playhouse', tall:true, ww: 1048.8, dd: 620,
+  wTodo:'a whole block edge -- five packing slots, and the packer places none of them',
+  head:'Whole-edge theatre: marquee over four doors, fly tower behind',
+  tags:['whole block edge','builds to the pavement','marquee over the footway','solid fly tower','no pavement props'],
+  desc:'A theatre taking a whole block edge and building right up to the pavement, which is the other block treatment and not the same thing as a landmark: no yard, no setback, and a marquee that exists to overhang the footway. Four doors under it, poster bays and tall windows either side, and the fly tower standing 240 above the cornice behind the auditorium. Nothing stands on the footway -- the posters are on the building, where a theatre puts them anyway.',
   draw(p){
-    const wall = '#6b3348', trim = '#e8c9a0', H = 176;
-    body(wall, trim, H);
-    // fly tower, set back, built as a solid
-    F(W*0.16,W*0.84, H, H+96, shade(wall,.82), shade(wall,.62), 2, -150);
-    S(W*0.84, -230, -150, H, H+96, shade(wall,.66));
-    T(W*0.16,W*0.84, -230, -150, H+96, shade(wall,.9));
-    slab(W*0.14,W*0.86, H+96, H+106, -148, -232, shade(wall,.72));
-    F(W*0.30,W*0.70, H+54, H+78, shade(wall,.7), null,0, -151);
-    slab(0,W, H, H+10, -1, -12, trim);
-    slab(6,W-6, 124, H-8, -1, -9, shade(wall,1.2), null, trim);
-    F(20,W-20, 134, 156, trim, null,0,-9.5);
-    const out = 44;
-    poly([P(2,0,116),P(W-2,0,116),P(W-2,out,100),P(2,out,100)], trim);
-    poly([P(2,out,100),P(W-2,out,100),P(W-2,out,88),P(2,out,88)], shade(trim,.72));
-    poly([P(2,0,104),P(W-2,0,104),P(W-2,out,88),P(2,out,88)], shade(wall,1.15));
-    poly([P(2,0,116),P(2,out,100),P(2,out,88),P(2,0,104)], shade(trim,.6));
-    poly([P(W-2,0,116),P(W-2,out,100),P(W-2,out,88),P(W-2,0,104)], shade(trim,.6));
-    for(let i=0;i<6;i++) ball(14+(W-28)*(i+0.5)/6, out-4, 95, 5, '#fff0c0');
-    /* three leaves at 52.7 wide across a 194 bay. Three real doors need
-       198.7 and do not fit, so the theatre entrance becomes a pair --
-       still reads as a bank of doors, and both are the game's size. */
-    shopDoor(W*0.34, wall, trim, 'rgba(232,201,160,.5)');
-    shopDoor(W*0.66, wall, trim, 'rgba(232,201,160,.5)');
-    for(let i=0;i<2;i++)
-      slab(W*0.06+i*W*0.80, W*0.06+i*W*0.80+W*0.10, 96, 116, -1, -8, ['#c2452e','#2a5c6c'][i], null, trim);
-    if(state.props){
-      for(const [ca,cb] of [[W*0.02,54],[W+22,34]]){
-        cyl(ca, cb, 0, 96, 16, '#3f4a52');
-        for(let i=0;i<3;i++){
-          const t = 2.0 - i*0.9;
-          poly([P(ca+16*Math.cos(t), cb+16*Math.sin(t), 14),
-                P(ca+16*Math.cos(t-0.55), cb+16*Math.sin(t-0.55), 14),
-                P(ca+16*Math.cos(t-0.55), cb+16*Math.sin(t-0.55), 82),
-                P(ca+16*Math.cos(t), cb+16*Math.sin(t), 82)],
-               ['#e8c9a0','#c2452e','#e8c34a'][i]);
-        }
-        plateCircle(ca, cb, 96, 18, trim, shade(trim,.7), 2);
-        ball(ca, cb, 100, 8, trim);
+    /* ====== WHOLE BLOCK, BUT NOT A LANDMARK -- AND THAT IS THE POINT ==
+       Sir asked for the whole block. The BLOCK LANDMARKS note at the
+       head of this file names the Playhouse, by name, as a building
+       that must NOT get block:true, and it is right: a marquee exists
+       to overhang the footway, and a setback with a yard round it would
+       destroy the one thing this type does at its own front door.
+
+       The note also says there are TWO treatments and they are not the
+       same. Block LANDMARK is freestanding, set back, four entrances --
+       the Bathhouse, the Chapel, the Nursery. Block WIDTH takes the
+       whole edge and builds TO THE LINE, with no yard at all, because
+       that is what the type does. A theatre is the block-width case
+       exactly, so this is ww 1048.8 without block:true, and the port
+       needs the same thing the wide shops need -- room from the packer
+       -- rather than the landmark's whole separate placement path.
+
+       dd 620 because the depth is the building. An auditorium and a fly
+       tower are not 276 deep, and the fly tower has to stand BEHIND
+       something for its mass to mean anything.
+
+       zTodo 1.05 is gone. H 176 was one and a bit storeys drawing a
+       theatre; at 420 the front is 2.5 and the fly tower reaches 660,
+       which is 3.93 -- second only to the chapel spire, which is what a
+       playhouse should be on a street of shops.
+
+       THE POSTER COLUMNS ARE GONE, at Sir's direction, and cTodo with
+       them. They were the shop's whole prop debt and both were off the
+       frontage: one at a 4.6, b 54 -- screen-a -49.4, fifty units onto
+       the neighbour -- and the other written at a W+22, outside on
+       purpose. Widening to a block edge would have made them placeable
+       (a column of r 16 on a plate of r 18 sweeps a +/- b +/- 36, so it
+       wants a between 86 and 962 here) but placeable is not the same as
+       wanted: two free-standing solids on the footway in front of a
+       marquee that already overhangs it are two things for a robot to
+       hit on the approach to four doors. The posters live in the
+       flanking bays, which is where a theatre puts them anyway. This
+       building now stands entirely on its own plot. */
+    const wall = '#6b3348', trim = '#e8c9a0', H = 420, WW = 1048.8, DD = 620;
+    /* ---- THE OTHER THREE ELEVATIONS ----
+       A 230 shop shows one face and a return, and everything else in
+       this library is composed for that. A building occupying a whole
+       block edge is 620 deep, stands in an alley on each side, and gets
+       driven past on three streets, so a blank flank is 620 x 420 of
+       nothing seen at close range -- roughly nine shopfronts' worth of
+       wall per side.
+
+       BOTH FLANKS COME OFF ONE BODY. flank(ra, sgn) draws on a plane of
+       constant a with sgn giving the outward direction, so the a = 0
+       and a = WW elevations cannot drift apart -- the same argument as
+       the chemist's two liveries and the showroom's two bays. What a
+       theatre puts on its side wall is what is here: a plinth, buttress
+       piers on a 100 bay, blind arched openings high up where the
+       auditorium wall is solid below, the stage door, and the scene
+       dock at the back where the get-in happens.
+
+       ORDER. The a = 0 flank and the b = -DD back both face away, and
+       their screen spans lie INSIDE the front elevation's, so they are
+       drawn BEFORE body() and the box then hides them. Drawn after,
+       they paint across the facade -- which is exactly what the far
+       stage door did on the first pass of this shop. */
+    const flank = (ra, sgn) => {
+      const q = (b0,b1,z0,z1,col,o) => poly([P(ra+o*sgn,b0,z0),P(ra+o*sgn,b1,z0),
+                                             P(ra+o*sgn,b1,z1),P(ra+o*sgn,b0,z1)], col);
+      /* THE BAYS ARE SET OUT SO NOTHING CUTS A PIER. First pass ran six
+         piers on a flat 100 pitch and then dropped a 110-wide scene
+         dock on top of two of them -- a loading door sliced through a
+         buttress, which is the elevation equivalent of a fascia running
+         past a return. Four piers over the auditorium at 100, then one
+         wide stage-house bay to the back pier, and every opening sits
+         inside a bay. It also says the right thing about the plan:
+         auditorium in front, stage house behind. */
+      q(0,-DD, 0, 28, shade(wall,.68), 0.6);                         // plinth
+      for(const bb of [-40,-140,-240,-340,-574]){                    // buttress piers
+        q(bb, bb-26, 28, 394, shade(wall,1.08), 1.2);
+        q(bb+5, bb-31, 394, 414, shade(trim,.86), 2.0);
+      }
+      for(const b0 of [-72,-172,-272]){                              // auditorium bays
+        const b1 = b0 - 62;
+        q(b0, b1, 206, 366, shade(wall,.86), 0.9);
+        q(b0-8, b1+8, 220, 352, '#39485a', 1.4);
+        q(b0-8, b1+8, 220, 228, shade(trim,.7), 1.7);
+      }
+      q(-78,-128, 0, 112, '#2b2118', 1.0);                           // stage door, in bay 1
+      q(-83,-123, 0, 106, shade(trim,.55), 1.4);
+      q(-88,-118, 116, 124, trim, 1.9);
+      q(-400,-540, 0, 210, '#2b2118', 1.0);                          // scene dock
+      for(const [d0,d1] of [[-406,-468],[-472,-534]])
+        q(d0, d1, 6, 204, shade(trim,.5), 1.4);
+      q(-390,-550, 210, 228, shade(trim,.8), 2.0);                   // dock lintel
+      q(-400,-540, 258, 380, shade(wall,.86), 0.9);                  // stage-house louvre
+      for(let k=0;k<7;k++)
+        q(-406, -534, 264+k*16, 272+k*16, shade(wall,.6), 1.4);
+      q(4, -DD-4, 420, 436, trim, 2.4);                              // cornice return
+    };
+    /* the back: the scene dock proper, where the lorries come in */
+    const backElev = () => {
+      const bb = -DD;
+      const q = (a0,a1,z0,z1,col,o) => F(a0,a1,z0,z1,col,null,0, bb-o);
+      q(0, WW, 0, 28, shade(wall,.68), 0.6);
+      for(const pa of [30, 230, 430, 630, 830, 1018]){
+        q(pa-15, pa+15, 28, 394, shade(wall,1.08), 1.2);
+        q(pa-20, pa+20, 394, 414, shade(trim,.86), 2.0);
+      }
+      /* the dock doors sit INSIDE bays 245..415 and 445..615, for the
+         reason the flank records -- they cut two piers on the first
+         pass -- and each carries its own lintel rather than one band
+         running through the pier between them */
+      for(const [g0,g1] of [[270,390],[470,590]]){
+        q(g0, g1, 0, 230, '#2b2118', 1.0);
+        q(g0+6, (g0+g1)/2-3, 6, 224, shade(trim,.5), 1.4);
+        q((g0+g1)/2+3, g1-6, 6, 224, shade(trim,.5), 1.4);
+        q(g0-10, g1+10, 230, 248, shade(trim,.8), 2.0);
+      }
+      for(const wa of [130, 730, 930]){                              // high workshop lights
+        q(wa-52, wa+52, 250, 350, shade(wall,.86), 0.9);
+        q(wa-44, wa+44, 260, 340, '#39485a', 1.4);
+        q(wa-2, wa+2, 260, 340, shade(wall,1.08), 1.7);
+      }
+      q(0, WW, 420, 436, trim, 2.4);                                 // cornice
+    };
+    const CA0 = 300, CA1 = 748;                       // the entrance bay
+    /* THE FAR STAGE DOOR GOES FIRST, and it has to. The a = 0 return
+       faces away from this camera and its screen span, 0..620, lies
+       INSIDE the front elevation's 0..1048.8 -- so drawn after body()
+       it paints straight across the facade, which is what it did on the
+       first pass. Far before near, then the box hides it: the
+       Bathhouse's note about its back and left entrances, at door
+       scale. The a = WW one is on a face we can see and goes at the
+       end with everything else. */
+    backElev();
+    flank(-0.5, -1);
+    body(wall, trim, H, WW, DD);
+    /* The plate body() lays down is shade(trim,1.05), which is right on
+       a 230 shop and is 1048 by 620 of near-white here -- the largest
+       thing on screen by a factor of three, and the building underneath
+       it stopped reading. Overdrawn in a roofing colour at H + 0.4. */
+    T(0, WW, -DD, 0, H+0.4, '#4a3a3f');
+
+    /* ---- the fly tower, behind the auditorium, built as a solid ---- */
+    F(CA0+20, CA1-20, H, H+240, shade(wall,.82), shade(wall,.62), 2, -300);
+    S(CA1-20, -560, -300, H, H+240, shade(wall,.66));
+    T(CA0+20, CA1-20, -560, -300, H+240, shade(wall,.9));
+    slab(CA0+10, CA1-10, H+240, H+254, -298, -562, shade(wall,.72));
+    F(440, 610, H+150, H+206, shade(wall,.66), null, 0, -301);      // louvre
+
+    slab(0, WW, H, H+16, -1, -16, trim);                            // cornice
+    slab(0, WW, 0, 28, -1, -10, shade(wall,.68));                   // plinth
+
+    /* ---- the order: four pilasters, capped ---- */
+    for(const pa of [26, 296, 752, 1022]){
+      slab(pa-18, pa+18, 28, 394, 2, -10, shade(wall,1.12));
+      slab(pa-24, pa+24, 394, 412, 4, -12, trim);
+    }
+
+    /* ---- the flanking bays: posters below, tall windows above ----
+       Both bays are the same composition mirrored about the centre, so
+       they run off one offset rather than being written twice. */
+    for(const off of [0, 706]){
+      for(const q of [64, 166]){                                    // poster frames
+        slab(q+off, q+off+92, 70, 232, 1, -9, shade(wall,1.18), null, trim);
+        F(q+off+8, q+off+84, 80, 222, ['#c2452e','#2a5c6c'][q===64?0:1], null, 0, 1.6);
+        F(q+off+16, q+off+76, 176, 210, shade(trim,1.1), null, 0, 2);
+      }
+      for(const q of [59, 132, 205]){                               // tall windows
+        slab(q+off-6, q+off+64, 244, 386, 1, -11, shade(wall,1.1), null, trim);
+        reveal(q+off, q+off+58, 252, 378, 14, shade(wall,.5));
+        glaze(q+off, q+off+58, 252, 378, null, 'rgba(96,120,140,.86)');
+        F(q+off+27, q+off+31, 252, 378, shade(wall,1.1), null, 0, 1.4);
       }
     }
-    if(state.roof) box(W*0.20,W*0.44,-120,-84,H,H+20,'#8f969d','#787f86','#697077');
-    kerb(p,'none');
+
+    /* ---- the entrance: four doors, and the marquee over them ---- */
+    for(const md of [398.4, 482.4, 566.4, 650.4])
+      shopDoor(md, wall, trim, 'rgba(232,201,160,.5)', WW);
+    /* THE MARQUEE OVERHANGS, and that is checked rather than assumed.
+       It reaches b 58, so it swings 58 each way between mirrored edges:
+       CA0 - 58 = 242 and CA1 + 58 = 806, both well inside 0..1048.8.
+       Soffit at z 160 is 240 game units and Tipsy's flag reaches 97, so
+       a robot passes under it with 143 to spare. */
+    const MB = 76, MA0 = CA0-14, MA1 = CA1+14;
+    /* THE SOFFIT WAS PAINTED OVER THE FASCIA. Written top, fascia,
+       soffit, the underside plane -- which runs b 0..MB and shares its
+       lower edge with the fascia's -- came last and covered the whole
+       band, so the marquee's name face read as wall colour with a row
+       of bulbs floating on it. The fascia is the NEAREST plane in the
+       assembly at b MB, so it goes last: top, soffit, ends, fascia,
+       bulbs. Third order-versus-depth fault this session, after the
+       nursery's staging bench and the playhouse's own far stage door. */
+    poly([P(MA0,0,212),P(MA1,0,212),P(MA1,MB,192),P(MA0,MB,192)], trim);
+    poly([P(MA0,0,180),P(MA1,0,180),P(MA1,MB,152),P(MA0,MB,152)], shade(wall,.72));
+    for(const ea of [MA0, MA1])
+      poly([P(ea,0,212),P(ea,MB,192),P(ea,MB,152),P(ea,0,180)], shade(trim,.66));
+    poly([P(MA0,MB,192),P(MA1,MB,192),P(MA1,MB,152),P(MA0,MB,152)], shade(trim,.94));
+    poly([P(MA0+14,MB+0.4,186),P(MA1-14,MB+0.4,186),
+          P(MA1-14,MB+0.4,158),P(MA0+14,MB+0.4,158)], '#7c2038');   // the name strip
+    for(let i=0;i<18;i++){                                          // bulbs, above and below it
+      const ba = MA0+8+(MA1-MA0-16)*(i+0.5)/18;
+      ball(ba, MB+1.2, 189, 4.5, '#fff0c0');
+      ball(ba, MB+1.2, 155, 4.5, '#fff0c0');
+    }
+    for(let i=0;i<14;i++) ball(MA0+16+(MA1-MA0-32)*(i+0.5)/14, MB-10, 158, 5, '#ffe8a8');
+
+    /* ---- the name board, over the marquee ---- */
+    slab(318, 730, 250, 344, -1, -10, shade(wall,1.2), null, trim);
+    F(340, 708, 268, 326, trim, null, 0, -0.5);
+
+    flank(WW+0.5, 1);                                 // the near return, after the box
+
+    if(state.roof){
+      /* ---- roof plant ----
+         SPREAD OVER 620, AND KEPT OFF THE FLY TOWER. First pass put the
+         water tank at a 370..670, b -480..-600 -- straight inside the
+         fly tower, which stands a 320..728 by b -300..-560 -- so a
+         2000-gallon tank was sitting in the middle of the stage house
+         and only survived because the roof kit is painted last. The
+         tower is the one solid up here that other things have to be
+         placed AROUND rather than on, so everything now sits in the
+         clear ground either side of it: a below 320 or above 728.
+
+         And they are drawn far to near on the a + b key rather than in
+         the order they were typed, which is what the two cowls beside
+         the tank needed once they were all in the same quarter. */
+      const cowl = (va, vb) => {
+        cyl(va, vb, H, H+30, 13, '#8f969d');
+        plateCircle(va, vb, H+30, 17, '#a6acb2', '#7d838a', 1.6);
+        cyl(va, vb, H+30, H+40, 5, '#7d838a');
+      };
+      /* THE LEFT COWLS HAVE TO STAY LEFT OF THE TOWER ON SCREEN, which
+         is not the same as staying left of it on the ground. One sat at
+         a 230, b -500: screen-a is a - b, so 730, which lands inside
+         the tower's own 620..1288 -- and its depth key a + b of -270 is
+         BEHIND the tower's 20..428, so it should have been hidden and
+         was painted over the tower's face instead. Moving it left in a
+         does not help at that depth; b is what puts it there. Both left
+         cowls come forward instead: at b -400 and -220 they clear the
+         tower's near screen edge at 620 with 66 and 190 to spare, on
+         the far side of the arithmetic rather than by eye.
+
+         The right pair is inside the tower's screen span too and is
+         correct: keys 600 and 640 are in FRONT of the tower, so they
+         belong on top of it. Same test, opposite answer -- which is why
+         it is a test and not a rule about which side of the roof things
+         go on.
+
+         AND THE SAME TEST APPLIES BETWEEN TWO PIECES OF PLANT, which is
+         what the second attempt missed: a cowl at a 210, b -220 has
+         screen-a 430 and key -10, against a plant box occupying 240..440
+         with keys running to 130, so the near end of the box was in
+         front of it and the cowl went over the box instead. The three
+         left-hand items are laid out on the a + |b| < 586 line that
+         keeps them clear of the tower, and then spaced so their screen
+         spans do not touch each other either: 266..334, 486..554, and
+         the box at 250..450. Nothing up here is placed by eye. */
+      cowl(120, -400);                                    // key -280, screen-a 486..554
+      cowl(60,  -240);                                    // key -180, screen-a 266..334
+      box(150, 280, -170, -100, H, H+26, '#8f969d','#787f86','#697077');   // screen-a 250..450
+      for(const tb of [-430, -530]) for(const ta of [830, 970])            // tank frame
+        cyl(ta, tb, H, H+34, 4, '#6a7076');
+      box(800, 1000, -560, -400, H+34, H+96, '#9aa0a6','#828a91','#727981');
+      slab(792, 1008, H+96, H+106, -394, -566, '#7d848a');
+      cowl(830, -230);                                    // key 600
+      cowl(940, -300);                                    // key 640
+      box(700, 830, -120, -50, H, H+26, '#8f969d','#787f86','#697077');    // key 650
+    }
   }
 },
 {
