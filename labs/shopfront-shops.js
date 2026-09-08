@@ -6217,50 +6217,164 @@ const SHOPS = [
   }
 },
 {
-  name:'Antiques', head:'Cluttered forecourt, chandelier, mirror',
-  cTodo:'12 pavement props need collision volumes, 33 of them lapping past the frontage',
-  fTodo:'z118..150 return +3, lettering behind board',
-  tags:['stacked chairs','hanging chandelier','framed mirror','painted sign','crowded'],
-  desc:'The chairs are real chairs — seat, back and four legs — stacked on each other, the mirror stands in a framed slab leaning on the wall, and the chandelier hangs from tube arms with balls on the ends.',
+  name:'Antiques', tall:true, ww: T2*6.6, dd: 340,
+  wTodo:'three packing slots',
+  head:'Triple-wide dealer: three deep windows under a long awning',
+  tags:['three packing slots','two storeys','goods behind the glass','long scalloped awning','hanging chandelier','no pavement props'],
+  desc:'A dealer occupying three slots: three deep bay windows with the whole stock standing inside them -- a press, a chest, a low table, a chandelier over the middle bay -- under a scalloped canvas awning running the full frontage. Nothing at all on the footway.',
   draw(p){
-    const wall = '#5c4a5e', trim = '#d8c9a4', H = 164;
-    body(wall, trim, H);
-    slab(0,W, H, H+8, -1, -12, shade(wall,.7));
-    slab(6,W-6, 118, 150, -1, -9, shade(wall,1.2));
-    slab(W*0.14, W*0.86, 124, 146, -10, -16, trim, shade(wall,.7), shade(trim,1.1));
-    F(W*0.20, W*0.80, 130, 134, shade(wall,.8), null,0,-16.5);
-    F(W*0.24, W*0.72, 138, 142, shade(wall,.8), null,0,-16.5);
-    F(10,W*0.64, 22, 108, '#3a2e3c', shade(wall,.6), 3);
-    box(18,54, 2, 20, 30, 74, '#8a6a4a','#7a5a3a','#6a4a2e');
-    box(60,92, 2, 20, 40, 96, '#9a7a5a','#8a6a4a','#75563a');
-    box(98,126, 2, 20, 30, 66, '#7a5a6a','#6a4a5a','#5a3c4a');
-    for(let i=0;i<4;i++) ball(24+i*30, -3, 88, 7, ['#c9a24a','#8fb4a0','#c2807e','#d8c9a4'][i]);
-    shopDoor(W*0.84, wall, trim);
-    if(state.props){
-      // stacked chairs, each with legs, seat and back
-      for(let i=0;i<3;i++){
-        const ca = W+18, cb = 34, cz = i*30;
-        for(const [la,lb] of [[ca-13,cb-13],[ca+13,cb-13],[ca-13,cb+13],[ca+13,cb+13]])
-          cyl(la, lb, cz, cz+16, 2.2, '#7a5a3a');
-        box(ca-15, ca+15, cb-15, cb+15, cz+16, cz+21, '#9a7a52','#8a6a4a','#75563a');
-        box(ca-15, ca+15, cb+11, cb+15, cz+21, cz+40, '#8a6a4a','#9a7a52','#75563a');
+    /* ============ THE CLUTTER WAS ON THE NEIGHBOUR'S GROUND ============
+       cTodo counted twelve prop volumes and thirty-three units of
+       overrun, and the overrun was almost all one object: the stack of
+       chairs was written at a = W + 18, eighteen units PAST the
+       frontage, and with a seat half-width of 15 it ran a 233..263 on a
+       shop 230 wide. Not lapping -- entirely outside.
+
+       THE SHOPFRONT WAS INSIDE OUT AS WELL, which is the fault this
+       session has found on five other shops. F(10, W*0.64, 22, 108) was
+       a flat dark rectangle at b 0 with a stroke round it, so there was
+       no recess; the three pieces of furniture then stood at b 2..20,
+       which is OUTSIDE it, on the pavement. A dealer's stock goes
+       behind glass. It is a real opening now, and the clutter that is
+       genuinely meant to be outside is out there on purpose.
+
+       AND THE CHANDELIER HUNG IN THE STREET. Its stem ran from z 120 to
+       100 at b 22 with nothing above it -- no bracket, no ceiling, no
+       hook -- so it floated over the footway. It hangs inside the
+       middle bay now, off the head of the reveal, which is the only
+       place a chandelier can hang.
+
+       fTodo, both classes, and the second one twice over. The board was
+       slab(6, W-6, 118, 150, -1, -9), so its far end came out on
+       screen-a 233 against a return at 230. Then the sign panel on it
+       was drawn at b -10..-16 -- BEHIND the board's own -9 backing --
+       and the lettering on THAT at -16.5, behind the panel. Three
+       layers, each one deeper into the wall than the thing it was
+       supposed to sit on.
+
+       THREE SLOTS, at Sir's direction: ww = T2*6.6, the tier the Fire
+       station opened. And two storeys with it, because 607 of frontage
+       on a wall of 164 is 3.7 to 1 -- a shed, not a dealer's premises.
+       At H 336 it is 1.8 to 1 and the upper floor is where the stock
+       that will not fit downstairs lives. dd 340 for the same reason:
+       an antiques warehouse is deep. */
+    const wall = '#5c4a5e', trim = '#d8c9a4', H = 336, WW = T2*6.6, DD = 340;
+    const inner = '#2a2130', glass = 'rgba(120,116,132,.44)';
+    const BAYS = [[16,170],[186,340],[438,592]];
+    body(wall, trim, H, WW, DD);
+    T(0, WW, -DD, 0, H+0.4, '#3a2f3e');                 // roof, over body's near-white plate
+    slab(0, WW, H, H+14, -1, -16, shade(wall,.7));      // cornice
+    slab(0, WW, 0, 24, -1, -10, shade(wall,.62));       // plinth
+
+    /* ---- three deep bays, with the stock inside them ----
+       Clipped to the opening, for the reason the showroom records: an
+       object d into the shop shifts d on screen, right on edges 1 and 3
+       and left on 0 and 2, so a dresser 30 back needs 30 of clearance
+       inside BOTH jambs or it hangs out of the window on one heading. */
+    BAYS.forEach(([x0,x1], n) => {
+      slab(x0-10, x1+10, 24, 182, 2, -12, shade(wall,1.14), null, trim);
+      reveal(x0, x1, 30, 170, 30, inner);
+      ctx.save();
+      poly([P(x0,0,170),P(x1,0,170),P(x1,0,30),P(x0,0,30)]);
+      ctx.clip();
+      const c = (x0+x1)/2;
+      slab(x0+6, x1-6, 30, 36, -8, -34, shade(wall,.8), null, shade(wall,.95));   // floor
+      box(c-64, c-24, -32,-10, 36, 118, '#8a6a4a','#9a7a52','#75563a');           // press
+      for(let k=0;k<3;k++) F(c-58, c-30, 46+k*24, 62+k*24, shade('#8a6a4a',1.28), null,0, -9.4);
+      box(c-14, c+22, -30,-12, 36, 74, '#9a7a5a','#aa8a68','#85684a');            // chest
+      box(c+30, c+62, -28,-12, 36, 44, '#7a5a6a','#8a6a7a','#5a3c4a');            // low table
+      for(const [ba,bz] of [[c+36,44],[c+52,44]]) ball(ba, -20, bz+8, 7, ['#c9a24a','#8fb4a0'][n%2]);
+      if(n === 1){                                       // the chandelier, inside
+        tube(c, -16, 168, c, -16, 150, 1.2, '#c9a24a');
+        ball(c, -16, 146, 7, '#c9a24a');
+        for(let k=0;k<6;k++){
+          const q = k*1.047, ea = c + 20*Math.cos(q), eb = -16 + 20*Math.sin(q);
+          tube(c, -16, 146, ea, eb, 138, 1.1, '#c9a24a');
+          ball(ea, eb, 133, 5, '#fff0c0');
+        }
       }
-      // framed mirror leaning on the wall
-      slab(W*0.02, W*0.24, 0, 88, 30, 24, trim, shade(wall,.6), shade(trim,1.15));
-      F(W*0.045, W*0.215, 8, 80, '#c9ccd0', null,0, 30.5);
-      F(W*0.06, W*0.13, 16, 72, '#a8b2b8', null,0, 30.8);
-      // chandelier
-      const ch = W*0.80, chb = 22;
-      tube(ch, chb, 120, ch, chb, 100, 1.2, '#c9a24a');
-      ball(ch, chb, 96, 6, '#c9a24a');
-      for(let k=0;k<5;k++){
-        const a = k*1.256;
-        const ea = ch + 16*Math.cos(a), eb = chb + 16*Math.sin(a);
-        tube(ch, chb, 96, ea, eb, 90, 1.1, '#c9a24a');
-        ball(ea, eb, 86, 4.5, '#fff0c0');
-      }
+      ctx.restore();
+      glaze(x0, x1, 30, 170, null, glass);
+      for(let k=1;k<4;k++)
+        F(x0 + (x1-x0)*k/4 - 3, x0 + (x1-x0)*k/4 + 3, 30, 170, shade(wall,.8), null,0, 0.8);
+    });
+
+    /* ---- THE DOORCASE IS A FRAME, NOT A PANEL ----
+       It was one slab across a 346..432 from z 24 to 188, drawn AFTER
+       shopDoor and standing 2 proud of the wall -- so the surround
+       meant to frame the doorway was a solid board over the whole of
+       it. Which is, exactly, the "a window drawn across the door" fault
+       this session has found on seven consecutive shops, committed here
+       by me while rebuilding one of them. The lesson is the same in
+       both directions: anything drawn over a 346..432 has to know where
+       the door is, and shopDoor's opening on this frontage is
+       355.88..422.12.
+
+       Two jambs, a head above the leaf, and a transom panel in the gap
+       between the two -- and all of it before the door rather than
+       after, so call order is not what is keeping the doorway clear. */
+    for(const [j0,j1] of [[346,356],[422,432]])
+      slab(j0, j1, 24, 188, 2, -12, shade(wall,1.14), null, trim);
+    slab(346, 432, 170, 188, 2, -12, shade(wall,1.14), null, trim);
+    F(356, 422, 112, 166, shade(wall,.88), shade(wall,1.2), 2, 1.6);
+    for(let i=0;i<4;i++) F(364+i*15, 372+i*15, 120, 158, trim, null, 0, 2);
+    shopDoor(389, wall, trim, null, WW);                 // a 355.88..422.12
+
+    /* ---- fascia ----
+       ABOVE THE AWNING, NOT BEHIND IT. Written at 196..244 against an
+       awning whose head is at 238, the name board was covered along its
+       whole length by the canvas in front of it -- the shop's name
+       hidden by the shop's own blind. The awning heads at 186 now and
+       the board starts at 192. */
+    slab(20, WW-20, 192, 238, -1, -10, shade(wall,1.2), null, trim);
+    F(38, WW-38, 201, 229, trim, null,0, -0.5);
+
+    /* ---- the upper floor ---- */
+    for(let i=0;i<5;i++){
+      const c = 66 + i*118;
+      slab(c-40, c+40, 246, 328, 1, -13, shade(wall,1.1), null, trim);
+      reveal(c-32, c+32, 254, 320, 16, shade(wall,.42));
+      glaze(c-32, c+32, 254, 320, null, 'rgba(120,116,132,.82)');
+      F(c-2, c+2, 254, 320, shade(wall,1.1), null,0, 1.4);
     }
-    if(state.roof) box(W*0.34,W*0.58,-140,-100,H,H+20,'#8f969d','#787f86','#697077');
+
+    /* ---- the awning over the forecourt ----
+       It reaches b 52, so it swings 52 each way between mirrored edges:
+       at a 10..597 the leading edge lands on -42 here and 649 there.
+       Both are outside 0..WW, and both are FINE -- a canopy spanning
+       the full frontage is over this shop's own pavement, and the a
+       term never leaves the plot. It is the isolated props under it
+       that have to pass the tighter test. */
+    const MB = 52;
+    poly([P(10,0,186),P(WW-10,0,186),P(WW-10,MB,162),P(10,MB,162)], '#7a3f4a');
+    for(let i=0;i<26;i++)
+      poly([P(10+(WW-20)*(i+0.5)/26,0,186),P(10+(WW-20)*(i+0.98)/26,0,186),
+            P(10+(WW-20)*(i+0.98)/26,MB,162),P(10+(WW-20)*(i+0.5)/26,MB,162)], '#8f4c58');
+    poly([P(10,MB,162),P(WW-10,MB,162),P(WW-10,MB,146),P(10,MB,146)], shade('#7a3f4a',.8));
+    for(let i=0;i<26;i++){                                // scalloped valance
+      const va = 10+(WW-20)*(i+0.5)/26, p0=P(va-9,MB,146), p1=P(va+9,MB,146);
+      ctx.beginPath(); ctx.moveTo(p0.x,p0.y);
+      ctx.quadraticCurveTo((p0.x+p1.x)/2, p0.y+11*K, p1.x, p1.y);
+      ctx.closePath(); ctx.fillStyle=shade('#7a3f4a',.8); ctx.fill();
+    }
+
+    /* ---- NOTHING STANDS ON THE FOOTWAY, at Sir's direction ----
+       The forecourt props are gone and cTodo goes with them. They had
+       been rebuilt onto this shop's own ground and would have passed --
+       each one clearing a - b - r >= 0 and a + b + r <= WW, which is
+       the test the old stack of chairs at a = W + 18 failed outright --
+       but passing the test is not the same as being wanted. Five solids
+       on the pavement in front of a 607 frontage are five things for a
+       robot to hit along the longest approach on the street, and the
+       stock reads better through three deep windows than it does
+       scattered across the pavement in front of them. The awning stays:
+       a blind over a shop window is a blind over a shop window whether
+       or not there is furniture under it.
+    */
+    if(state.roof){
+      box(90, 210, -200, -140, H, H+26, '#8f969d','#787f86','#697077');
+      box(400, 520, -200, -140, H, H+26, '#8f969d','#787f86','#697077');
+    }
     kerb(p,'none');
   }
 },
