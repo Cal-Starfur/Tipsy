@@ -4930,26 +4930,104 @@ const SHOPS = [
   }
 },
 {
-  name:'TV repair', head:'Aerial forest, dish, wall of screens',
-  fTodo:'z116..146 return +3, lettering behind board',
+  name:'TV repair', head:'Aerial forest, dish, a wall of screens behind the glass',
   tags:['aerial forest','dish on a mount','stacked screens','test-card glow','cluttered roof'],
-  desc:'Every aerial is a tube with real crossbars and each mast has a base plate on the roof; the dish sits on a bracket with an arm to the feed horn instead of floating as an oval.',
+  desc:'Every aerial is a tube with real crossbars and each mast has a base plate on the roof; the dish sits on a bracket with an arm to the feed horn and is round in the world rather than stretched by ZSCALE. The screens are stacked inside a real recess, behind the pane, instead of standing out on the footway.',
   draw(p){
+    /* ============ THE WALL OF SCREENS WAS ON THE PAVEMENT ============
+       Each cabinet was slab(x0, x1, z0, z0+30, -1, 14) -- bFront -1 and
+       bBack +14. Positive b is toward the street, so the "back" of the
+       box was fifteen units IN FRONT of its own front face: the solid
+       stood outside the shop and its front plate was buried inside it.
+       The screen was then painted at -1.5, behind that plate, so the
+       one part of a television that has to be seen was the deepest
+       thing in the assembly and survived on call order alone.
+
+       Same fault as the Furniture showroom's mezzanine, at cabinet
+       scale, and it came from the same place: the window was never a
+       window. F(10, W*0.70, 22, 106) is a flat dark rectangle at b 0
+       with a stroke round it, so there was no recess to put anything
+       in and the only direction left was out. It is a real opening now
+       -- reveal, goods, pane -- and the cabinets sit at b -8..-30 with
+       their screens facing the street.
+
+       THE INTERIOR IS CLIPPED, for the reason the showroom records: an
+       object d into the shop shifts d on screen, right on edges 1 and 3
+       and left on 0 and 2, so a cabinet 30 deep needs 30 of clearance
+       inside both jambs or it hangs out of the window on one heading.
+       Clipping to the opening quad is what lets the recess be 30 deep
+       in a 128-wide window.
+
+       A WINDOW WAS DRAWN ACROSS THE DOOR, fourth instance this session.
+       F(W*0.78, W-14, 50, 90) ran a 179.4..216 against an opening at
+       158.8..225. That is four consecutive shops with the same mistake
+       and it is always the same shape: a panel placed by eye near the
+       far end of the frontage, landing inside a door shopDoor had
+       silently clamped left. Gone.
+
+       THE DISH WAS AN ELLIPSE. faceT(da, db, z, 24) installs a basis
+       whose z step carries ZSCALE, so a unit circle drawn in it comes
+       out 48 wide by 72 tall -- the Locksmith's key bow again, and the
+       chemist cross before that. The z radius divides back by ZSCALE
+       and it is a 48 by 54 isometric circle, which is what a dish
+       standing on a mount actually projects to.
+
+       THE MASTS ARE FINE, and I checked because the b sign has caught
+       three shops this session. They sit at b -30..-120, which is
+       INSIDE the block footprint rather than out on the pavement, and
+       for negative b the constraint is just a within 0..W -- the roof
+       itself legitimately occupies screen-a -276..230 on the mirrored
+       edges. The a +/- b test is for things standing in front of the
+       wall, and none of these are. */
     const wall = '#7a7f86', trim = '#2b2f33', H = 158;
+    const WA0 = 12, WA1 = 140, WZ0 = 22, WZ1 = 108;
     body(wall, trim, H);
     slab(0,W, H, H+10, -1, -12, trim);
-    slab(6,W-6, 116, 146, -1, -9, shade(wall,.72));
-    F(18,W-18, 124, 138, '#e8c34a', null,0,-9.5);
-    F(10,W*0.70, 22, 106, '#1e2226', shade(wall,.6), 3);
-    for(let r=0;r<2;r++) for(let c=0;c<4;c++){
-      const x0 = 16+(W*0.66-16)*(c+0.08)/4, x1 = 16+(W*0.66-16)*(c+0.92)/4, z0 = 30+r*38;
-      slab(x0,x1, z0, z0+30, -1, 14, '#3a4046', '#2e3338', '#454b52');
-      F(x0+3,x1-3, z0+4, z0+26, ['#4aa3c4','#c4a34a','#4ac47a','#c44a6a'][(r*4+c)%4], null,0,-1.5);
-      for(let k=0;k<4;k++) F(x0+3+(x1-x0-6)*k/4, x0+3+(x1-x0-6)*(k+0.5)/4, z0+4, z0+26,
-        'rgba(255,255,255,.22)', null,0,-2);
+
+    /* ---- the shopfront ---- */
+    reveal(WA0, WA1, WZ0, WZ1, 30, '#171a1d');
+    ctx.save();
+    poly([P(WA0,0,WZ1),P(WA1,0,WZ1),P(WA1,0,WZ0),P(WA0,0,WZ0)]);
+    ctx.clip();
+    /* SIX SETS, NOT EIGHT, AND THE ARITHMETIC IS THE CLIP'S. A cabinet
+       at depth d shifts d on screen -- right here, left on the mirrored
+       edges -- so it is only wholly inside the opening if a0 - d >= WA0
+       and a1 + d <= WA1. The first cut ran eight cabinets over a 20..132
+       at d 30 against a window of 12..140, and the fourth column was
+       simply cut off at the jamb by the clip that makes the recess
+       safe. At d 22 the usable run is 34..114, which is three columns
+       of 26 rather than four of 21 -- and six larger sets read as a
+       wall of screens from across the street where eight small ones
+       read as a pattern. */
+    for(let r=0;r<2;r++) for(let c=0;c<3;c++){
+      const x0 = 34 + 80*(c+0.05)/3, x1 = 34 + 80*(c+0.95)/3, z0 = 30+r*40;
+      box(x0, x1, -22, -6, z0, z0+34, '#454b52', '#3a4046', '#2e3338');
+      F(x0+3, x1-3, z0+5, z0+29, ['#4aa3c4','#c4a34a','#4ac47a','#c44a6a','#4ac47a','#c4a34a'][r*3+c], null,0, -5.5);
+      for(let k=0;k<4;k++)                                       // test-card bars
+        F(x0+3+(x1-x0-6)*k/4, x0+3+(x1-x0-6)*(k+0.5)/4, z0+5, z0+29,
+          'rgba(255,255,255,.22)', null,0, -5.2);
+      F(x0+6, x1-6, z0+30, z0+33, shade('#454b52',1.3), null,0, -5.9);   // brand strip
     }
-    shopDoor(W*0.86, wall, trim);
-    F(W*0.78,W-14, 50, 90, '#4a5056', null,0,-6.5);
+    ctx.restore();
+    glaze(WA0, WA1, WZ0, WZ1, null, 'rgba(88,116,132,.46)');
+    /* ONE mullion, not three. The frame is at b 0.8 and the cabinets at
+       -6..-22, so a bar written on a column boundary does not land on
+       one after the depth shift -- three of them came down across the
+       middle of three screens. A single centre bar cannot fall anywhere
+       worse than it does. */
+    F(WA0 + (WA1-WA0)/2 - 2.5, WA0 + (WA1-WA0)/2 + 2.5, WZ0, WZ1, shade(wall,.66), null,0, 0.8);
+
+    shopDoor(184, wall, trim);                                    // a 150.88..217.12
+
+    /* ---- fascia ----
+       Was slab(6, W-6, 116, 146, -1, -9): 6 of margin against 9 of
+       recess put the far end on screen-a 233 against a return at 230.
+       Margin 15 against an 8-deep recess leaves piers of 16 and 7, and
+       the lettering comes out from -9.5 -- behind the board's own -9
+       backing -- to bFront + 0.5. */
+    slab(15, W-15, 116, 146, -1, -8, shade(wall,.72));
+    F(26, W-26, 122, 140, '#e8c34a', null,0, -0.5);
+
     if(state.roof){
       const masts = [[W*0.14,-40,120],[W*0.30,-96,88],[W*0.46,-30,140],[W*0.62,-120,96],[W*0.80,-60,110]];
       for(const [ma,mb,mh] of masts){
@@ -4962,16 +5040,17 @@ const SHOPS = [
           tube(ma, mb, z, ma, mb, z+6, 0.9, '#c3c8cc');
         }
       }
-      const da = W*0.68, db = -20;
+      const da = W*0.68, db = -20, dz = H+66, dr = 24, zk = 1/ZSCALE;
       box(da-6, da+6, db-6, db+6, H+10, H+16, '#8d979f','#82888e','#767c82');
       cyl(da, db, H+16, H+50, 3, '#8f969d');
-      faceT(da, db, H+66, 24);
-      ctx.beginPath(); ctx.arc(0,0,1,0,Math.PI*2);
-      ctx.fillStyle='#d8dbde'; ctx.fill();
-      ctx.strokeStyle='#a8adb2'; ctx.lineWidth=2.5/(24*K); ctx.stroke();
-      ctx.restore();
-      tube(da, db, H+66, da, db+22, H+58, 1.4, '#8f969d');
-      ball(da, db+22, H+56, 4, '#6a7076');
+      const dish = [];
+      for(let i=0;i<28;i++){
+        const t = Math.PI*2*i/28;
+        dish.push(P(da + dr*Math.cos(t), db, dz + dr*Math.sin(t)*zk));
+      }
+      poly(dish, '#d8dbde', '#a8adb2', 2.5);
+      tube(da, db, dz, da, db+22, dz-8, 1.4, '#8f969d');
+      ball(da, db+22, dz-10, 4, '#6a7076');
       box(W*0.86,W*0.98,-150,-120,H,H+18,'#8f969d','#787f86','#697077');
     }
     kerb(p,'none');
