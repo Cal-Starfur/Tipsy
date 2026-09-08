@@ -4688,51 +4688,245 @@ const SHOPS = [
   }
 },
 {
-  name:'Nursery', head:'Glasshouse lean-to, palms over the parapet',
-  cTodo:'21 pavement props need collision volumes, 82 of them lapping past the frontage',
-  tags:['glazed lean-to','ridge and end walls','plants over the roofline','low fence','soil bins'],
-  desc:'The glasshouse now has glazed end walls and a ridge capping where it meets the shop, so it encloses a space instead of being a sheet of blue leaning on the wall. Plants are stems with real foliage balls.',
+  name:'Nursery', block:true, ww: 1048.8, dd: 1048.8,
+  wTodo:'a whole block edge -- five packing slots, and the packer places none of them',
+  cTodo:'fence line, sales hut and two glasshouses need volumes; the yard itself is drivable',
+  head:'Garden centre on a whole block: small hut, big yard, two glasshouses',
+  tags:['block landmark','yard on four sides','four gates','two span glasshouses','small hut in a big lot'],
+  desc:'Not a shop in a run and not a shop with a conservatory bolted on: a garden centre occupying a whole block edge. The building is deliberately tiny -- a timber sales hut in one corner -- and everything else is what a nursery actually is, which is ground: a gravelled yard on a cross of paths, four ranks of staging under the open sky, and two span glasshouses along the back.',
   draw(p){
-    const wall = '#b7ae98', trim = '#3f6b4a', H = 146, gb = 76, gz = 132;
-    body(wall, trim, H);
-    slab(0,W, H, H+8, -1, -12, trim);
-    shopDoor(W*0.84, wall, trim);
-    F(W*0.76,W-14, 48, 86, '#8fb8a0', null,0,-6.5);
-    F(10,W*0.66, 30, 96, shade(wall,.7), null,0,-1);
-    // glazed end walls, then the sloping roof over them
-    poly([P(6,0,gz),P(6,gb,54),P(6,gb,0),P(6,0,0)], 'rgba(180,214,204,.42)', shade(trim,1.2), 2);
-    poly([P(W*0.70,0,gz),P(W*0.70,gb,54),P(W*0.70,gb,0),P(W*0.70,0,0)], 'rgba(180,214,204,.42)', shade(trim,1.2), 2);
-    poly([P(6,gb,54),P(W*0.70,gb,54),P(W*0.70,gb,0),P(6,gb,0)], 'rgba(180,214,204,.30)', shade(trim,1.1), 2);
-    poly([P(6,0,gz),P(W*0.70,0,gz),P(W*0.70,gb,54),P(6,gb,54)], 'rgba(180,214,204,.55)', shade(trim,1.2), 2);
-    for(let k=1;k<6;k++){
-      const t=k/6, x=6+(W*0.70-6)*t;
-      poly([P(x-2,0,gz),P(x+2,0,gz),P(x+2,gb,54),P(x-2,gb,54)], shade(trim,1.05));
+    /* ============ WHY THIS IS A LANDMARK AND NOT A SHOP ============
+       Sir asked for the whole block, with the shop itself kept small
+       and the room going to the plants. That is the right call and the
+       type argues for it: a nursery is a LOT with a hut on it, the way
+       a chapel is a churchyard with a church in it. Everything the old
+       one did wrong came from trying to be a 230 terrace unit --
+
+         glasshouse   a 6..161 at gb 76, outer corner on screen-a -70,
+                      seventy past the near return, and 237 on the
+                      mirrored heading, seven past the far one
+         palm pots    a 22 at b 40 with r 11, screen-a -33.6..-2.4
+         flower pots  written at a W+19, W+45, W+71, outside on purpose
+         fence        a -10 at b 96, screen-a -106
+
+       -- and every one of those is the same sentence: the shop needed
+       more ground than a slot has, so it took the neighbour's. cTodo
+       counted twenty-one prop volumes and eighty-two units of overrun.
+       On its own block there is no neighbour to lap onto and no reason
+       to keep the stock small.
+
+       THE MEASUREMENTS are the BLOCK LANDMARKS note at the head of this
+       file: usable edge run 1048.8, a square lot, five packing slots.
+       Same as the Bathhouse and the Chapel, and wTodo says the same
+       thing -- the packer places none of them yet.
+
+       THE PLAN. A cross of paths splits the lot into four quarters and
+       puts a gate on each of the four streets, which is what a block
+       landmark owes: an entrance a robot can arrive at from any side.
+
+         front centre  the sales hut, 280 x 220, ON the spine, set back
+                       220 so the gate stands clear in its forecourt
+         front left    a sixteen-tree grove on a 100 by 110 grid
+         front right   four ranks of staging, clear of the hut in a
+         back          two span glasshouses, 390 square each
+
+       THE DOOR IS ON THE GATE'S AXIS, at Sir's direction, and it has to
+       be built that way rather than nudged: the hut moved to a 385..665
+       so its opening lands on 494..556, dead centre of a gate gap at
+       490..560. The spine path is split at the hut rather than run
+       under it -- front length from the gate to the door, back length
+       from the rear gate to the cross walk -- because a path drawn
+       through a building is a path drawn through a building whichever
+       object happens to be painted last.
+
+       THE HUT IS SMALL ON PURPOSE and carries no zTodo for it. H 150 is
+       0.89 storeys, which would be undersized for a shopfront in a run
+       and is right for a timber hut standing alone in a yard -- the
+       thing that makes this building read is the 1048 of ground around
+       it, not its own height.
+
+       SHOPDOOR IS NOT USED, and could not be: it draws at b 0, the
+       frontage plane, and this door is 140 back. That is one of the two
+       kit gaps the BLOCK LANDMARKS note already records; the hut rolls
+       its own opening the way the Bathhouse and the Chapel do. kerb()
+       is the other, and is simply not called. */
+    const LOT = 1048.8;
+    const wall = '#c9bfa6', trim = '#3f6b4a', tim = '#8a6f4e';
+    const pane = 'rgba(180,214,204,.50)';
+    const GAP0 = 490, GAP1 = 560;                 // the gate gap, both axes
+
+    /* ---- the ground: gravel, then the cross of paths on top of it ---- */
+    T(0, LOT, -LOT, 0, 0, '#b3aa93');
+    T(GAP0, GAP1, -220, 0, 0.5, '#d6d0bd');       // front gate to the hut door
+    T(GAP0, GAP1, -LOT, -440, 0.5, '#d6d0bd');    // back gate to the cross walk
+    T(0, LOT, -GAP1, -GAP0, 0.5, '#d6d0bd');
+
+    /* ---- the boundary, and the four gates ----
+       Runs are broken at the gate gap on all four sides. The back and
+       left fences face away from this camera and are drawn anyway, for
+       the reason the Bathhouse gives about its far entrances: a gate
+       that only exists on the faces we happen to be looking at is the
+       FLANK_RIGHT mistake in a different costume. */
+    const FH = 40;
+    const railA = (bb, a0, a1) => {
+      for(const z of [FH-8, FH-24]) tube(a0, bb, z, a1, bb, z, 2.5, shade(trim,1.1));
+      for(let a=a0; a<=a1+0.1; a+=Math.max(1,(a1-a0)/Math.round((a1-a0)/62)))
+        cyl(a, bb, 0, FH, 5, trim);
+    };
+    const railB = (aa, b0, b1) => {
+      for(const z of [FH-8, FH-24]) tube(aa, b0, z, aa, b1, z, 2.5, shade(trim,1.1));
+      for(let b=b0; b>=b1-0.1; b-=Math.max(1,(b0-b1)/Math.round((b0-b1)/62)))
+        cyl(aa, b, 0, FH, 5, trim);
+    };
+    /* a gate: two tall posts and a name board across them, on every
+       street. archA spans the a axis (front and back), archB the b. */
+    const archA = (bb) => {
+      for(const a of [GAP0, GAP1]) cyl(a, bb, 0, 104, 7, tim);
+      slab(GAP0-10, GAP1+10, 104, 132, bb+5, bb-5, tim, null, shade(tim,1.2));
+      F(GAP0+2, GAP1-2, 110, 126, shade(wall,1.14), null, 0, bb+5.5);
+    };
+    const archB = (aa) => {
+      for(const b of [-GAP0, -GAP1]) cyl(aa, b, 0, 104, 7, tim);
+      poly([P(aa,-GAP0-10,104),P(aa,-GAP1+10,104),P(aa,-GAP1+10,132),P(aa,-GAP0-10,132)], tim);
+      poly([P(aa+0.5,-GAP0-2,110),P(aa+0.5,-GAP1+2,110),
+            P(aa+0.5,-GAP1+2,126),P(aa+0.5,-GAP0-2,126)], shade(wall,1.14));
+    };
+    railA(-LOT+18, 18, GAP0);  railA(-LOT+18, GAP1, LOT-18);      // back
+    railB(18, -18, -GAP0);     railB(18, -GAP1, -LOT+18);          // left
+    archA(-LOT+18);            archB(18);
+
+    /* ---- two span glasshouses along the back ----
+       b0 is the near eave, b1 the far one, ridge on the centreline
+       running along a. Far slope first, then the gables, then the near
+       slope and the near wall, so the house closes over its own back. */
+    const glasshouse = (a0, a1, b0, b1, ez, rz) => {
+      const bm = (b0+b1)/2;
+      poly([P(a0,bm,rz),P(a1,bm,rz),P(a1,b1,ez),P(a0,b1,ez)], 'rgba(180,214,204,.34)', shade(trim,1.05), 2);
+      box(a0, a1, b1, b0, 0, 26, shade(trim,.95), shade(wall,.86), shade(wall,.70));   // dwarf wall
+      for(const aa of [a0, a1])
+        poly([P(aa,b0,26),P(aa,b0,ez),P(aa,bm,rz),P(aa,b1,ez),P(aa,b1,26)], pane, shade(trim,1.2), 2);
+      poly([P(a0,b0,26),P(a1,b0,26),P(a1,b0,ez),P(a0,b0,ez)], 'rgba(180,214,204,.44)', shade(trim,1.2), 2);
+      poly([P(a0,b0,ez),P(a1,b0,ez),P(a1,bm,rz),P(a0,bm,rz)], 'rgba(180,214,204,.58)', shade(trim,1.2), 2);
+      for(let k=1;k<7;k++){                                        // glazing bars
+        const x = a0 + (a1-a0)*k/7;
+        poly([P(x-3,b0,ez),P(x+3,b0,ez),P(x+3,bm,rz),P(x-3,bm,rz)], shade(trim,1.15));
+        poly([P(x-3,b0,26),P(x+3,b0,26),P(x+3,b0,ez),P(x-3,b0,ez)], shade(trim,1.1));
+      }
+      tube(a0-6, bm, rz+3, a1+6, bm, rz+3, 4, trim);               // ridge
+      for(const aa of [a0+10, (a0+a1)/2, a1-10])                   // roof vents
+        poly([P(aa-26,bm,rz+2),P(aa+26,bm,rz+2),P(aa+26,bm-46,rz-12),P(aa-26,bm-46,rz-12)],
+             'rgba(200,228,220,.62)', shade(trim,1.25), 2);
+    };
+    glasshouse(60, 450, -600, -990, 88, 148);
+    glasshouse(600, 990, -600, -990, 88, 148);
+
+    /* ---- specimen trees, the FAR row, before the hut ----
+       A stacking fault on the first pass: every tree was drawn in one
+       loop after the hut, so the two at b -430 -- which are behind it,
+       and land on screen-a 520 and 680 inside a hut spanning 525..1025
+       -- were painted straight over its wall. Far before near, the same
+       rule the glasshouse's own slopes and the staging ranks follow;
+       the hut is simply another thing in the queue rather than a
+       backdrop the props are laid on. */
+    const tree = (ta, tb, th) => {
+      cyl(ta, tb, 0, 22, 14, '#9a8a68');
+      plateCircle(ta, tb, 22, 11, '#5a4a30');
+      cyl(ta, tb, 22, th, 4, '#6b5a3a');
+      for(let k=0;k<5;k++){
+        const q = k*1.26 + 0.3;
+        ball(ta + 14*Math.cos(q), tb + 14*Math.sin(q), th-6, 14, ['#3f6b4a','#4e8058','#356045'][k%3]);
+      }
+      ball(ta, tb, th+6, 15, '#4e8058');
+    };
+    const hA0 = 385, hA1 = 665, hB0 = -220, hB1 = -440, hH = 150, FB = hB0 + 0.5;
+    /* ---- the tree field, front left ----
+       Moving the hut onto the gate axis emptied the whole front-left
+       quarter, and at Sir's direction it fills with stock rather than
+       being left as yard: a four by four grove on a 100 by 110 grid,
+       heights cycled so it is not sixteen of the same lollipop. The
+       columns stop at a 370 because the hut starts at 385 -- a tree
+       standing in the wall is the fault this shop was rebuilt to get
+       away from -- and the rows stop short of the cross walk at 490.
+
+       IT SPLITS AROUND THE HUT, which is the whole reason the tree body
+       became a helper. Rows at b -290 and -400 are BEHIND the hut's
+       near face at -220, so they are painted before it; the rows at
+       -70 and -180 are in front and go after. That was the stacking
+       fault on the first pass, and adding a dozen more trees to the
+       same quarter is exactly the change that would have made it worse
+       rather than obvious.
+
+       AND THE GROVE IS NOT A RECTANGLE, because the ground it fills is
+       not one. A plain four by four grid put five of its sixteen trees
+       behind the hut and correctly invisible: screen-a is a - b, so the
+       hut occupies 605..1105 on screen whatever its footprint, and a
+       tree is only seen at a row of depth b if a - b < 605 or it stands
+       in front of the near face. That is 315 at b -290 and 205 at
+       -400, so the back rows are short and the front two run the full
+       width -- which is also what a nursery bed looks like, tapering
+       away behind the building rather than marching under it. */
+    const ROWS = [[-70, 5],[-180, 5],[-290, 3],[-400, 2]];
+    const GROVE = [];
+    ROWS.forEach(([tb, n], r) => {
+      for(let c=0;c<n;c++)
+        GROVE.push([70 + c*90, tb, [150,120,138,114,132,126,144,118][(r*5+c)%8]]);
+    });
+    if(state.props) for(const t of GROVE) if(t[1] < hB0) tree(...t);
+
+    /* ---- the sales hut, on the gate axis ----
+       280 x 220, timber, with a plain overhanging roof. Door and
+       windows are drawn on the b = -220 face, which is the one turned
+       toward the front street, at a b just proud of it. */
+    box(hA0, hA1, hB1, hB0, 0, hH, shade(tim,1.1), tim, shade(tim,.78));
+    slab(hA0-14, hA1+14, hH, hH+14, hB0+14, hB1-14, shade(trim,.9), null, shade(trim,1.1));
+    F(hA0+4, hA1-4, 0, 20, shade(tim,.72), null, 0, FB);           // plinth
+    for(let k=0;k<7;k++)                                            // boarding
+      F(hA0+4, hA1-4, 24+k*17, 26+k*17, shade(tim,.86), null, 0, FB+0.2);
+    F(494, 556, 0, 108, '#2b2118', null, 0, FB+0.4);                // the doorway, on 525
+    F(498, 552, 0, 82, trim, null, 0, FB+0.9);                      // leaf
+    F(498, 552, 84, 104, 'rgba(122,158,178,.72)', null, 0, FB+0.7); // fanlight
+    F(544, 548, 40, 52, '#d8c28a', null, 0, FB+1.2);                // handle
+    for(const w0 of [430, 620]){                                    // two windows
+      slab(w0-30, w0+30, 44, 112, FB+1, FB-7, shade(trim,.9));
+      F(w0-25, w0+25, 50, 106, 'rgba(122,158,178,.72)', null, 0, FB+1.6);
+      F(w0-1.5, w0+1.5, 50, 106, shade(trim,.9), null, 0, FB+2);
     }
-    for(const aa of [8, W*0.68]) cyl(aa, gb-4, 0, 54, 4, shade(trim,1.1));
-    poly([P(6,gb,54),P(W*0.70,gb,54),P(W*0.70,gb,44),P(6,gb,44)], shade(trim,.85));
-    slab(6,W*0.70, gz, gz+10, -1, -8, trim);                          // ridge capping at the wall
+    poly([P(hA1+0.5,hB0,0),P(hA1+0.5,hB1,0),P(hA1+0.5,hB1,hH),P(hA1+0.5,hB0,hH)], shade(tim,.86));
+    for(let k=0;k<7;k++)                                            // boarding, right face
+      poly([P(hA1+0.7,hB0-4,24+k*17),P(hA1+0.7,hB1+4,24+k*17),
+            P(hA1+0.7,hB1+4,26+k*17),P(hA1+0.7,hB0-4,26+k*17)], shade(tim,.7));
+    if(state.roof) cyl(hA1-40, hB1+40, hH+14, hH+64, 7, '#6d747c');  // flue
+
     if(state.props){
-      for(let i=0;i<4;i++){
-        const pa = 22+i*40, pb = 40, ph = [92,150,110,168][i];
-        cyl(pa, pb, 0, 18, 11, '#8a7a5a');
-        plateCircle(pa, pb, 18, 9, '#5a4a30');
-        cyl(pa, pb, 18, ph, 3, '#6b5a3a');
-        for(let k=0;k<5;k++){
-          const a = k*1.26 + 0.3;
-          ball(pa + 13*Math.cos(a), pb + 13*Math.sin(a), ph - 4, 11, ['#3f6b4a','#4e8058','#356045'][k%3]);
+      /* ---- four ranks of staging, front right, out in the open ----
+         The bench is a real trestle at z 42 and the pots stand ON it;
+         each rank is drawn far to near so the near pots are not painted
+         under the rank behind them. */
+      for(let r=3;r>=0;r--){
+        const bb = -120 - r*108;
+        slab(720, 1020, 42, 50, bb+22, bb-22, tim, null, shade(tim,1.18));
+        for(const la of [734, 870, 1006]) cyl(la, bb, 0, 42, 6, shade(tim,.8));
+        for(let i=0;i<7;i++){
+          const sa = 740 + i*45;
+          cyl(sa, bb, 50, 68, 11, '#9a8a68');
+          plateCircle(sa, bb, 68, 9, '#5a4a30');
+          ball(sa, bb, 78, 13, ['#4e8058','#c26a7e','#e8c34a','#3f6b4a','#b4674a'][(i+r)%5]);
         }
-        ball(pa, pb, ph + 4, 12, '#4e8058');
       }
-      for(let i=0;i<3;i++){
-        cyl(W+19+i*26, 34, 0, 22, 11, '#8a7a5a');
-        plateCircle(W+19+i*26, 34, 22, 9, '#5a4a30');
-        ball(W+19+i*26, 34, 30, 9, ['#4e8058','#c26a7e','#e8c34a'][i]);
-      }
-      tube(-10, 96, 26, W*0.72, 96, 26, 2, shade(trim,1.1));
-      for(let i=0;i<8;i++) cyl(-10+(W*0.72+10)*i/8, 96, 0, 30, 2, shade(trim,1.1));
+      /* the NEAR row of specimens, after the hut for the same reason */
+      for(const t of GROVE) if(t[1] >= hB0) tree(...t);
     }
-    if(state.roof) box(W*0.74,W*0.94,-140,-104,H,H+18,'#9aa0a6','#7d838a','#6a7076');
-    kerb(p,'none');
+
+    railB(LOT-18, -18, -GAP0);  railB(LOT-18, -GAP1, -LOT+18);     // right
+    /* THE FRONT FENCE WAS OUTSIDE THE LOT. It was written at b 18, and
+       b runs 0 at the front boundary to -LOT at the back, so positive
+       18 stood it eighteen units out on the pavement -- the same sign
+       error, at the same size, that put the old shop's fence on
+       screen-a -106. The one place it can still happen on a landmark is
+       the front boundary, because that is the only side where the lot
+       edge is b 0 rather than a coordinate you have to type. */
+    railA(-18, 18, GAP0);       railA(-18, GAP1, LOT-18);            // front
+    archB(LOT-18);              archA(-18);
   }
 },
 {
