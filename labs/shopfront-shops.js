@@ -6379,50 +6379,152 @@ const SHOPS = [
   }
 },
 {
-  name:'Bike shop', head:'Bikes on the wall, wheel sign, ramp',
-  cTodo:'3 pavement props need collision volumes, 30 of them lapping past the frontage',
-  tags:['bikes in the wall plane','spoked wheel sign','entry ramp','tool board','open roller'],
-  desc:'The bike wheels are circles lying in the wall plane and the frames are tubes between real hubs, so a bike hung on the render leans with the building instead of facing the camera.',
+  name:'Bike shop', head:'One whole bicycle as the sign, workshop behind the glass',
+  tags:['a complete bicycle as the sign','round wheels','real frame geometry','workshop window','bare footway'],
+  desc:'One bicycle, drawn whole and big, hung on brackets across the display band: round wheels with real spokes, and a frame laid out from the bottom bracket in true proportions rather than numbers tuned until it looked right. The workshop is behind a real pane, and the footway is completely bare.',
   draw(p){
-    const wall = '#2f5f6b', trim = '#e8a13a', H = 162;
-    body(wall, trim, H);
-    slab(0,W, H, H+10, -1, -12, trim);
-    F(10,W*0.66, 24, 98, '#8fc0cc', shade(wall,.6), 3);
-    for(let i=0;i<3;i++) F(16+i*((W*0.60)/3), 20+i*((W*0.60)/3), 24, 98, shade(wall,1.2), null,0,-1);
-    shopDoor(W*0.84, wall, trim);
-    F(W*0.76,W-14, 48, 86, '#8fc0cc', null,0,-6.5);
-    // bikes lying in the wall plane
-    for(let i=0;i<2;i++){
-      const ba = W*0.22 + i*W*0.42, bz = 112, bb = -5, rimc = ['#e8a13a','#e8ddc8'][i], frc = ['#c2452e','#8fc0cc'][i];
-      for(const dx of [-22, 22]){
-        faceCircle(ba+dx, bb, bz, 15, null, rimc, 3);
-        faceT(ba+dx, bb-0.4, bz, 15);
-        ctx.strokeStyle=rimc; ctx.lineWidth=1/(15*K);
-        for(let k=0;k<6;k++){ ctx.beginPath(); ctx.moveTo(0,0);
-          ctx.lineTo(Math.cos(k*1.05), Math.sin(k*1.05)); ctx.stroke(); }
-        ctx.restore();
+    /* ============ THE WHEELS WERE EGGS, AND THEY WERE IN THE WALL ====
+       Two faults on the one object, and on this shop of all shops.
+
+       faceCircle(a, b, z, r) draws radius r in a AND in z, and z is
+       multiplied by ZSCALE before it is projected, so a wheel written
+       at r 15 came out 30 wide by 45 tall and the sign at r 25 came out
+       50 by 75. A bicycle wheel is the roundest thing anyone draws;
+       this is the fifth instance of the same arithmetic after the
+       chemist cross, the Locksmith key bow, the TV dish and the
+       Optician's spectacles, and it is a one-line test: any face-plane
+       circle whose z radius is not divided back by ZSCALE is wrong.
+
+       AND b WAS NEGATIVE. The bikes sat at b -5 and the sign at -6, so
+       both were INSIDE the masonry -- a display hung on the inside face
+       of the front wall. The tag says "bikes in the wall plane", and
+       the plane they wanted was the outside of it. The one bicycle that
+       replaces all three hangs at b 6. Seventh time this session
+       something has been found at the wrong sign of b.
+
+       A WINDOW WAS DRAWN ACROSS THE DOOR, eighth consecutive shop.
+       F(W*0.76, W-14, 48, 86) ran a 174.8..216 against an opening at
+       158.8..225.
+
+       THE WINDOW WAS A FLAT PANEL, with three mullions painted at b -1
+       on the back of it. A bike shop's window is a workshop seen from
+       the street, so it is a real recess with a repair stand and a
+       wheel rack in it.
+
+       cTodo: three railing posts at a = W + 12, 20 and 28 -- all three
+       past the frontage, which is the 30 the flag counted. They are
+       gone rather than moved: at b 40 a post needs a <= W - 42 to clear
+       the far return, and the only place left for them is across the
+       ramp they were meant to edge -- and the ramp has gone too, at
+       Sir's direction. Nothing on the footway at all, and no state.props
+       block on this shop for the first time.
+
+       H 162 -> 210. The old elevation had no name board: a cornice, a
+       window and two bikes floating on bare wall. At 210 there is room
+       for a fascia at 110..146 and a display band above it, which is
+       where the bikes hang. 1.25 storeys, and deliberately so -- a
+       shop with goods hung above the sign needs the extra band. */
+    const wall = '#2f5f6b', trim = '#e8a13a', H = 210;
+    const inner = '#173038', glass = 'rgba(122,168,184,.42)';
+    /* a circle in the frontage plane that is actually round */
+    const ring = (a, b, z, r, n) => {
+      const q = [];
+      for(let i=0;i<(n||28);i++){
+        const t = Math.PI*2*i/(n||28);
+        q.push(P(a + r*Math.cos(t), b, z + r*Math.sin(t)/ZSCALE));
       }
-      tube(ba-22, bb, bz, ba+4, bb, bz+14, 1.8, frc);
-      tube(ba+4, bb, bz+14, ba+18, bb, bz+14, 1.8, frc);
-      tube(ba+18, bb, bz+14, ba+22, bb, bz, 1.8, frc);
-      tube(ba-22, bb, bz, ba+22, bb, bz, 1.8, frc);
-      tube(ba+4, bb, bz+14, ba+4, bb, bz+24, 1.4, '#3a4046');
-      tube(ba+18, bb, bz+14, ba+18, bb, bz+22, 1.4, '#3a4046');
-    }
-    // spoked wheel as the sign
-    const wa = W*0.50, wb = -6, wz = H-16;
-    faceCircle(wa, wb, wz, 25, null, trim, 6);
-    faceT(wa, wb-0.4, wz, 25);
-    ctx.strokeStyle=trim; ctx.lineWidth=1.6/(25*K);
-    for(let k=0;k<8;k++){ ctx.beginPath(); ctx.moveTo(0,0);
-      ctx.lineTo(0.88*Math.cos(k*0.785), 0.88*Math.sin(k*0.785)); ctx.stroke(); }
+      return q;
+    };
+    const wheel = (a, b, z, r, rim, back) => {
+      poly(ring(a, b, z, r), rim);
+      poly(ring(a, b+0.3, z, r-3.4), back);
+      for(let k=0;k<8;k++){
+        const t = k*Math.PI/4;
+        tube(a, b+0.5, z, a + (r-3)*Math.cos(t), b+0.5, z + (r-3)*Math.sin(t)/ZSCALE, 0.7, rim);
+      }
+      poly(ring(a, b+0.8, z, r*0.16), '#3a4046');
+    };
+    body(wall, trim, H);
+    T(0, W, -D, 0, H+0.4, '#1e3d45');                   // roof, over body's trim-coloured plate
+    slab(0, W, H, H+10, -1, -12, trim);
+    slab(0, W, 0, 22, -1, -8, shade(wall,.72));
+
+    /* ---- the workshop, behind glass ---- */
+    reveal(10, 140, 26, 100, 22, inner);
+    ctx.save();
+    poly([P(10,0,100),P(140,0,100),P(140,0,26),P(10,0,26)]);
+    ctx.clip();
+    slab(16, 134, 30, 34, -6, -26, shade(wall,.86), null, shade(wall,1.0));   // bench
+    box(30, 96, -22,-16, 34, 38, '#6a7076','#5c6268','#4e545a');              // repair stand rail
+    for(const sa of [36, 90]) cyl(sa, -19, 34, 78, 2.6, '#6a7076');
+    tube(40, -18, 74, 86, -18, 66, 2.4, '#c2452e');                           // a frame on the stand
+    tube(40, -18, 74, 58, -18, 52, 2.4, '#c2452e');
+    tube(86, -18, 66, 58, -18, 52, 2.4, '#c2452e');
+    for(let i=0;i<3;i++) wheel(112, -14 - i*4, 52 + i*2, 13, '#8fc0cc', inner); // wheels on a rack
     ctx.restore();
-    faceCircle(wa, wb-1, wz, 5, trim);
-    if(state.props){
-      poly([P(W*0.70,0,4),P(W-8,0,4),P(W-8,46,0),P(W*0.70,46,0)], '#9aa0a6', '#7d838a', 2);
-      poly([P(W*0.70,0,4),P(W-8,0,4),P(W-8,0,0),P(W*0.70,0,0)], '#7d838a');
-      for(let i=0;i<3;i++) cyl(W+12+i*8, 40, 0, 26, 2, '#7d838a');
+    glaze(10, 140, 26, 100, null, glass);
+    for(let k=1;k<4;k++)
+      F(10 + 130*k/4 - 3, 10 + 130*k/4 + 3, 26, 100, shade(wall,1.2), null,0, 0.8);
+
+    shopDoor(184, wall, trim);                          // a 150.88..217.12
+
+    /* ---- fascia ---- */
+    slab(15, W-15, 110, 146, -1, -8, shade(wall,1.15), null, trim);
+    F(28, W-28, 118, 138, trim, null,0, -0.5);
+
+    /* ---- THE SIGN IS ONE WHOLE BICYCLE, at Sir's direction ----
+       It was two small bikes with a bare wheel between them: three
+       objects, none of them complete, and the middle one a wheel doing
+       duty as a sign because it was easier than drawing the rest. One
+       bicycle at twice the size says the trade in a single read, and it
+       is the only thing in the band so it gets the whole band.
+
+       Laid out from the bottom bracket in TRUE proportions and then
+       divided into the projection, which is the same correction the
+       wheels need and for the same reason: a vertical distance of dy
+       has to be written as dy/ZSCALE or the bike comes out half again
+       too tall. So the frame geometry below is a real bicycle -- 88
+       between the hubs, 26 wheels, a 34 seat tube -- rather than
+       numbers tuned until the picture looked right.
+
+       At b 6 the whole machine spans a 47..187, so screen-a 41 here and
+       193 on the mirrored heading. It hangs on two brackets at the
+       hubs, which is how a bike goes on a wall. */
+    {
+      const CA = 115, HB = 172, BB = 6, ZS = 1/ZSCALE;
+      const frame = trim, rimc = '#e8ddc8', dk = '#3a4046';
+      const pt = (dx, dy) => [CA + dx, HB + dy*ZS];
+      const T2b = (p0, p1, r, c) => tube(p0[0], BB+1, p0[1], p1[0], BB+1, p1[1], r, c);
+      for(const dx of [-42, 46])                        // the brackets it hangs on
+        tube(CA+dx, 0, HB, CA+dx, BB, HB, 1.8, shade(wall,1.3));
+      wheel(CA-42, BB, HB, 26, rimc, shade(wall,.9));
+      wheel(CA+46, BB, HB, 26, rimc, shade(wall,.9));
+      const bb = pt(0,0), rh = pt(-42,0), fh = pt(46,0),
+            sc = pt(-16,34), ht = pt(30,36), hb = pt(34,20),
+            sd = pt(-19,43), br = pt(29,45);
+      T2b(bb, hb, 2.6, frame);                          // down tube
+      T2b(bb, sc, 2.6, frame);                          // seat tube
+      T2b(sc, ht, 2.4, frame);                          // top tube
+      T2b(ht, hb, 2.6, frame);                          // head tube
+      T2b(bb, rh, 2.0, frame);                          // chain stay
+      T2b(sc, rh, 2.0, frame);                          // seat stay
+      T2b(hb, fh, 2.2, frame);                          // fork
+      T2b(sc, sd, 1.8, dk);                             // seat post
+      T2b(pt(-26,43), pt(-11,44), 2.6, dk);             // saddle
+      T2b(ht, br, 1.8, dk);                             // stem
+      T2b(pt(19,45), pt(38,45), 1.8, dk);               // bars
+      poly(ring(CA, BB+1.6, HB, 8), dk);                // chainring
+      poly(ring(CA, BB+1.9, HB, 5.5), frame);
+      T2b(bb, pt(9,-9), 1.6, dk);                       // crank
+      T2b(bb, pt(-9,9), 1.6, dk);
+      T2b(pt(-42,0), pt(0,0), 1.0, dk);                 // chain, on the bottom run
     }
+    /* THE RAMP IS GONE, at Sir's direction. It was already flat paint
+       rather than a solid, so it owed nothing to the collision pass --
+       but a grey striped rectangle laid in front of a doorway reads as
+       a mat dropped on the pavement rather than as a threshold, and the
+       door has a plinth under it that does the same job without being
+       an object. The footway is bare. */
     if(state.roof) box(W*0.28,W*0.52,-140,-100,H,H+20,'#8f969d','#787f86','#697077');
     kerb(p,'none');
   }
