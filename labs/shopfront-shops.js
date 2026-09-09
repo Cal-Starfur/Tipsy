@@ -9864,53 +9864,249 @@ const SHOPS = [
   }
 },
 {
-  name:'Apothecary', head:'Herb bunches hung under the fascia, jar wall',
-  fTodo:'z120..148 return +3, lettering behind board',
-  tags:['hanging herb bunches','lidded jars','mortar sign','dark timber','small panes'],
-  desc:'Every jar on the wall is a turned glass with a stopper, and the herb bunches hang from real cords with the stems bound and the leaves falling around them.',
+  name:'Drugstore', block:true, ww: 1048.8, dd: 1048.8,
+  wTodo:'a whole block edge -- five packing slots, and the packer places none of them',
+  cTodo:'store, entrance tower, canopy and columns, pylon sign, kerb islands and the bin store need volumes; the car park and the drive lane are both drivable',
+  pTodo:'the drive lane sits on ONE flank, so on the two mirrored headings it is behind the building -- the plan is handed and the packer has to know which way round to place the lot',
+  head:'Suburban drugstore on a whole block: drive-through pharmacy lane, parking',
+  tags:['block landmark','drive-through pharmacy','pickup window','drivable lane','corner entrance tower','red band'],
+  desc:'The suburban drugstore type rather than the chemist shopfront: a low box across the back of its own car park with a covered drive lane wrapping one flank, and the pharmacy pickup window built into that flank with a chute, an intercom post and a stop line painted on the ground in front of it.',
   draw(p){
-    const wall = '#3f4a3a', trim = '#d8c8a0', H = 166;
-    body(wall, trim, H);
-    slab(0,W, H, H+8, -1, -12, shade(wall,.7));
-    slab(6,W-6, 120, 148, -1, -9, shade(wall,1.25), null, trim);
-    F(22,W-22, 128, 140, trim, null,0,-9.5);
-    F(10,W*0.66, 22, 104, '#26301f', shade(wall,.6), 3);
-    for(let r=0;r<3;r++){
-      const z = 30+r*24;
-      slab(14,W*0.63, z-3, z, -1, 14, '#5a4a34');
-      for(let i=0;i<6;i++){
-        const ja = 22+i*20, col = ['#c9a24a','#8fa86a','#c2807e','#7a9ab0','#d8c8a0','#a8834a'][(r+i)%6];
-        cyl(ja, 5, z, z+16, 7, col);
-        plateCircle(ja, 5, z+16, 7, shade(col,1.25));
-        cyl(ja, 5, z+16, z+20, 4, '#e8e2d0');
-      }
+    /* ============ WHY THIS IS NOT THE THIRD CHEMIST ============
+       Dispensary and Pharmacy are already here, and they are the right
+       thing: a chemist shopfront in a terrace, one body in two liveries.
+       This is a different building that happens to sell the same goods.
+
+       AND THE DRIVE-THROUGH DECIDES THE PLACEMENT. The BLOCK LANDMARKS
+       test is to ask what the building does at its own front door. This
+       one has a second door that a CAR stops at, and a car cannot queue
+       on a footway -- that is off-street circulation by definition, so
+       it is case 4, freestanding on a square lot. The three-slot tier
+       would have held the building and not the lane.
+
+       THE FIRST LAYOUT PUT THE BUILDING AT THE FRONT and left half the
+       lot as bare asphalt -- 560 by 400 of it, with the store's own
+       parking crammed down one side. A drugstore lot is a car park with
+       a store across the back of it, the same organisation as the Home
+       store and for the same reason: what the customer meets first is
+       the parking. The two are kept apart by everything else -- this
+       building is a third the footprint, it has a drive lane wrapping a
+       flank, and its entrance is a tower on the corner nearest the road.
+
+         b -60..-500    the car park, four ranks and an aisle
+         b -500..-540   the walk at the store front
+         b -540..-900   the store, a 220..760
+         a 800..960     the drive lane, in at the front, out at the back
+         a 760..972     the canopy, over the pickup window in the flank
+
+       EVERY PIECE OF CAR PARK FURNITURE STANDS AT b > -500, in front of
+       the store's own front wall. That is not decoration: the first pass
+       had a light mast at b -560 and a 151, which is screen-a 711 --
+       inside a store occupying 720..1660 on screen -- and props are
+       drawn after the building, so the mast was painted straight through
+       the roof. Keeping the furniture in front of the frontage makes
+       call order and depth order the same thing, which is the only
+       version of that rule that survives a port.
+
+       WHAT WAS WRONG with the Apothecary this replaces, all five
+       measured:
+
+         F(W*0.76, W-14, 54, 92) ran a 174.8..216 against a door opening
+           at 158.76..225 -- a panel across the doorway, the 23rd
+         the jar shelf was slab(..., -1, 14): bBack NEARER the street
+           than bFront, so slab() drew it inside out
+         the jars stood at b +5, outside their own glass, on the footway
+         the mortar and pestle sat at b -10 with no opening there --
+           inside the masonry, over the door
+         the herb bunches hung at b +26, screen-a -10, onto the
+           neighbour's frontage on the mirrored headings
+
+       and the fTodo fascia, 6 of margin against 9 of recess with the
+       lettering half a unit behind the board's own back face. */
+    const LOT = 1048.8;
+    const wall = '#d2cabb', band = '#b8322c', conc = '#a8aca8', asph = '#6b6f6c';
+    const trim = '#b0aa9e', dark = '#7a746a', glass = 'rgba(126,166,186,.72)', roofc = '#6a7076';
+    const SA0 = 220, SA1 = 760, SB0 = -540, SB1 = -900, PZ = 232, RD = 216;
+    const EA0 = 258, EA1 = 408, EB = -500, EZ = 288;         // entrance tower
+    const LA0 = 800, LA1 = 960;                              // the drive lane
+    const CB0 = -646, CB1 = -816, AA = 846, CZ = 176;        // the awning
+    const PW0 = -690, PW1 = -772;                            // the pickup window in b
+
+    /* ---- the ground ---- */
+    T(0, LOT, -LOT, 0, 0, asph);
+    T(SA0-32, LA1, SB0, -480, 4, conc);                      // the walk at the store front
+    /* THE LANE HAS TO READ AS A LANE. First pass laid it in
+       shade(asph,1.12) on asphalt, which is a shade nobody sees; it is
+       a paved strip with painted edges now, the way a drive-through
+       lane is marked out on the ground in the world. */
+    T(LA0, LA1, -40, -980, 1.5, shade(conc,.86));            // the drive lane
+    for(const la of [LA0+6, LA1-6]) T(la-3, la+3, -40, -980, 2, '#d9d5c6');
+    for(const ab of [-150, -330, -510]){                     // lane arrows, pointing IN
+      const am = (LA0+LA1)/2;
+      poly([P(am,ab-40,2),P(am-22,ab-6,2),P(am-8,ab-6,2),P(am-8,ab+34,2),
+            P(am+8,ab+34,2),P(am+8,ab-6,2),P(am+22,ab-6,2)], '#d9d5c6');
     }
-    for(let i=1;i<5;i++) F(10+(W*0.66-10)*i/5-1.6, 10+(W*0.66-10)*i/5+1.6, 22, 104, shade(wall,1.3), null,0,-1);
-    shopDoor(W*0.84, wall, trim);
-    F(W*0.76,W-14, 54, 92, '#6a7a5a', null,0,-6.5);
-    // mortar and pestle, turned
-    const ma = W*0.86, mb = -10, mz = 126;
-    cyl(ma, mb, mz-8, mz-4, 8, shade(trim,.8));
-    cyl(ma, mb, mz-4, mz+12, 14, trim);
-    plateCircle(ma, mb, mz+12, 14, shade(trim,1.15), shade(trim,.8), 1.5);
-    tube(ma+4, mb, mz+10, ma+14, mb, mz+26, 3, shade(trim,.9));
-    ball(ma+14, mb, mz+26, 4, trim);
+    T(LA0, LA1, PW0+18, PW0+26, 2, '#d9d5c6');               // stop line at the window
+    const rank = (b0, b1) => {
+      T(40, 780, b1-3, b1+3, 0.6, '#d9d5c6');
+      for(let x=40; x<=780.1; x+=46) T(x-2.5, x+2.5, b0, b1, 0.6, '#d9d5c6');
+    };
+    rank(-110, -196); rank(-196, -282); rank(-350, -436);
+    for(let i=0;i<2;i++){                                     // accessible bays, on the door axis
+      const x0 = EA0 + 8 + i*46;
+      T(x0+2, x0+44, -350, -436, 0.7, '#3f6b9a');
+      T(x0+16, x0+30, -378, -410, 0.9, '#d9d5c6');
+    }
+
+    /* ---- the back: bin store and a staff door, because three of the
+       four streets look at this side ---- */
+    box(SA0+40, SA0+180, SB1-92, SB1-16, 0, 74, shade(dark,1.24), dark, shade(dark,.86));
+    F(SA0+46, SA0+174, 0, 66, shade(dark,.86), null, 0, SB1-15.6);
+    F(SA0+250, SA0+292, 0, 108, shade(wall,.52), null, 0, SB1-0.6);
+    F(SA0+254, SA0+288, 0, 104, dark, null, 0, SB1-1.2);
+
+    /* ---- the store: one volume to the parapet, roof deck inset ---- */
+    box(SA0, SA1, SB1, SB0, 0, PZ, shade(wall,1.14), wall, shade(wall,.82));
+    T(SA0+12, SA1-12, SB1+12, SB0-12, RD, roofc);
+    if(state.roof){
+      for(const [ra,rb] of [[340,-660],[500,-760],[640,-620]]){
+        box(ra-40, ra+40, rb-30, rb+30, RD, RD+24, shade(roofc,1.34), shade(roofc,1.10), shade(roofc,.88));
+        box(ra-26, ra+26, rb-18, rb+18, RD+24, RD+30, shade(roofc,1.44), shade(roofc,1.18), shade(roofc,.94));
+      }
+      cyl(SA0+58, -840, RD, RD+42, 6, '#6d747c');
+    }
+
+    /* ---- the front elevation ---- */
+    F(SA0+2, SA1-2, 0, 16, shade(wall,.72), null, 0, SB0+0.6);
+    F(SA0+2, SA1-2, 164, 200, band, null, 0, SB0+1.0);                   // the red band
+    for(let k=0;k<6;k++) F(SA0+30+k*86, SA0+92+k*86, 172, 192, shade(wall,1.12), null, 0, SB0+1.5);
+    F(SA0+2, SA1-2, 200, 208, shade(band,.72), null, 0, SB0+1.0);
+    { const w0 = EA1 + 26, w1 = SA1 - 28;                                 // storefront glazing
+      slab(w0-7, w1+7, 12, 150, SB0+8, SB0-2, trim);
+      F(w0, w1, 18, 144, glass, null, 0, SB0+8.5);
+      for(let k=1;k<6;k++) F(w0+(w1-w0)*k/6-2.4, w0+(w1-w0)*k/6+2.4, 18, 144, shade(trim,1.14), null, 0, SB0+9);
+      F(w0, w1, 78, 82, shade(trim,1.10), null, 0, SB0+9);                // a shelf line behind it
+    }
+
+    /* ---- the entrance tower ---- */
+    box(EA0, EA1, SB0, EB, 0, EZ, shade(wall,1.20), shade(wall,1.06), shade(wall,.86));
+    F(EA0+8, EA1-8, 12, 160, trim, null, 0, EB+0.6);
+    F(EA0+14, EA1-14, 18, 154, glass, null, 0, EB+1.2);
+    { const d0 = EA0 + 40;                                                // one sliding pair
+      F(d0, d0+70, 18, 126, '#2b3138', null, 0, EB+1.6);
+      F(d0+2, d0+34, 20, 124, 'rgba(150,190,206,.80)', null, 0, EB+2.0);
+      F(d0+36, d0+68, 20, 124, 'rgba(150,190,206,.80)', null, 0, EB+2.0);
+      F(d0+33, d0+37, 18, 126, shade(trim,1.2), null, 0, EB+2.4);
+    }
+    F(EA0+10, EA1-10, 190, 272, band, null, 0, EB+1.2);                   // sign panel
+    for(let k=0;k<3;k++) F(EA0+28+k*42, EA0+62+k*42, 206, 256, shade(wall,1.14), null, 0, EB+1.7);
+    slab(EA0-18, EA1+18, 160, 180, EB+32, EB+2, trim, null, shade(trim,1.16));
+    F(EA0-18, EA1+18, 160, 167, band, null, 0, EB+32.5);
+
+    /* ================= THE DRIVE-THROUGH =================
+       The lane runs up the a = SA1 flank and the window is IN that
+       flank, so the plan is HANDED: on the two mirrored block edges the
+       visible flank is a = SA0 and the lane is round the back. That is a
+       fact about the plan rather than a drawing fault -- a real one is
+       handed too -- but the packer has to be told which way round to lay
+       the lot down, which is what pTodo says.
+
+       S() draws on the a = aa plane, the one primitive in the kit that
+       already speaks this face, so the window, its chute and its
+       surround are geometry ON the wall rather than props floating
+       beside it. */
+    const e = 0.6;
+    S(SA1+e, SB0, SB1, 0, 16, shade(wall,.72));                           // plinth, continued
+    S(SA1+e, SB0, SB1, 164, 200, band);                                   // band, continued
+    S(SA1+e, SB0, SB1, 200, 208, shade(band,.72));
+    S(SA1+e*2, PW0+18, PW1-18, 30, 134, trim);                            // window surround
+    S(SA1+e*3, PW0, PW1, 40, 124, glass);
+    S(SA1+e*4, PW0-2, PW0-7, 40, 124, shade(trim,1.16));                  // mullion
+    box(SA1, SA1+28, PW1+10, PW0-10, 52, 70, shade(trim,1.18), shade(trim,.94), trim);   // the chute
+
+    /* THE INTERCOM POST STOOD IN THE LANE. It was at a 810 with the
+       lane running 800..960, so it was a bollard planted in the middle
+       of the running surface a car has to use -- gone at Sir's
+       direction, and it would have needed a collision volume in a lane
+       cTodo already calls drivable. */
+    /* ================= THE CANOPY HID THE WINDOW =================
+       First pass roofed the whole lane -- a plate at z 178 running the
+       full 212 out to the lane's far edge -- and from this camera that
+       plate covers the wall it is attached to. Derived rather than
+       guessed: a soffit point (a_s, b_s, CZ) lands on the same screen
+       pixel as a flank point (SA1, b_w, z_w) when
+
+         a_s - b_s = SA1 - b_w        and
+         (a_s+b_s)/2 - CZ*ZSCALE = (SA1+b_w)/2 - z_w*ZSCALE
+
+       and eliminating b_w gives z_w = (SA1 + CZ*2*ZSCALE - a_s)/ZSCALE.
+       Over a_s from 760 to 972 that is z_w 178 down to 36.7 -- the whole
+       window, the chute and the sign, all of them behind their own roof.
+       A real drive-through works because you sit UNDER the canopy; an
+       isometric camera never does.
+
+       So it is a cantilevered awning instead, out to a 846, which puts
+       the bottom of its shadow at z 121 -- clear of a window whose head
+       is 124 -- and the pharmacy sign goes on the awning's OUTER fascia
+       where the lane can read it, which is where that sign lives in the
+       world anyway. No columns, because a 86 cantilever does not need
+       them and two posts in the lane would be two more things between
+       the camera and the window. */
+    T(SA1, AA, CB0, CB1, CZ, shade(wall,.88));                            // soffit
+    slab(SA1, AA, CZ, CZ+22, CB0, CB1, trim, null, shade(trim,1.2));
+    S(AA+0.6, CB0, CB1, CZ, CZ+22, band);                                 // fascia, facing the lane
+    for(let k=0;k<3;k++) S(AA+1.2, CB0-16-k*40, CB0-44-k*40, CZ+5, CZ+17, shade(wall,1.16));
+    for(const cb of [CB0-10, CB1+10])                                     // tie rods
+      tube(SA1+4, cb, CZ+40, AA-8, cb, CZ+2, 2.2, shade(trim,.86));
+
     if(state.props){
-      for(let i=0;i<6;i++){
-        const ha = 16 + i*((W-40)/6), hb = 26;
-        tube(ha, hb, 120, ha, hb, 110, 0.8, '#8a7a52');
-        cyl(ha, hb, 100, 110, 3, '#8a7a52');
-        const col=['#6a8a4a','#8fa86a','#5a7a3a','#7a9a5a','#6a8a4a','#96a86a'][i];
-        for(let k=0;k<5;k++){
-          const a = -0.9 + k*0.45;
-          poly([P(ha, hb, 102),
-                P(ha + 9*Math.sin(a), hb + 4*Math.cos(a), 88),
-                P(ha + 5*Math.sin(a), hb + 2*Math.cos(a), 74)], col);
+      /* ---- the car park, all of it in FRONT of the store frontage ---- */
+      const tree = (ta, tb) => {
+        cyl(ta, tb, 12, 46, 5, '#6b5a3a');
+        for(let k=0;k<4;k++) ball(ta + 11*Math.cos(k*1.57+0.5), tb + 11*Math.sin(k*1.57+0.5), 56, 13, ['#3f6b4a','#4e8058','#568a5e'][k%3]);
+        ball(ta, tb, 66, 12, '#4e8058');
+      };
+      const islandA = (a0, a1, bb) => {                                   // a strip running along a
+        box(a0, a1, bb-30, bb+30, 0, 12, shade(conc,1.06), shade(conc,.84), shade(conc,.70));
+        for(let k=0;k<3;k++) tree(a0 + 46 + k*(a1-a0-92)/2, bb);
+      };
+      const mast = (ma, mb) => {
+        cyl(ma, mb, 0, 16, 11, shade(conc,.8));
+        cyl(ma, mb, 16, 168, 5, '#8d949a');
+        for(const d of [-24, 24]){
+          tube(ma, mb, 168, ma+d, mb, 172, 2.4, '#8d949a');
+          box(ma+d-18, ma+d+18, mb-12, mb+12, 166, 176, '#c9ced2','#a6acb1','#8d949a');
         }
+      };
+      islandA(40, 300, -316);   islandA(520, 780, -316);                  // far, at the aisle
+      mast(410, -316);
+      for(let i=0;i<5;i++){                                               // bollards on the walk
+        const ba = 250 + i*118;
+        if(ba > EA0-16 && ba < EA1+16) continue;
+        cyl(ba, -496, 0, 30, 6, dark);
+        ball(ba, -496, 30, 6, shade(dark,1.24));
       }
+      islandA(40, 300, -78);    islandA(520, 780, -78);                   // near, at the street
+      mast(410, -78);
     }
-    if(state.roof) box(W*0.30,W*0.54,-140,-104,H,H+20,'#8f969d','#787f86','#697077');
-    kerb(p,'none');
+
+    /* ---- the pylon sign, on the corner ---- */
+    { const PA = 150, PB = -58;
+      for(const d of [-30, 30]) cyl(PA+d, PB, 0, 176, 7, dark);
+      slab(PA-56, PA+56, 176, 278, PB+8, PB-8, shade(wall,1.10), null, shade(wall,1.26));
+      F(PA-49, PA+49, 183, 271, band, null, 0, PB+8.5);
+      for(let k=0;k<3;k++) F(PA-38, PA+38, 194+k*26, 210+k*26, shade(wall,1.12), null, 0, PB+9);
+      box(PA-38, PA+38, PB-22, PB+22, 0, 16, shade(conc,1.06), shade(conc,.84), shade(conc,.70));
+    }
+
+    /* ---- kerb and planting on the street line, broken at the parking
+       crossover and at the lane mouth ---- */
+    for(const [r0,r1] of [[0, 250],[430, LA0-40],[LA1+20, LOT]]){
+      if(r1 - r0 < 6) continue;
+      box(r0, r1, -28, -2, 0, 14, shade(conc,1.04), shade(conc,.82), shade(conc,.68));
+      if(state.props) for(let x = r0+26; x < r1-18; x += 54)
+        ball(x, -15, 24, 15, ['#4e8058','#568a5e','#3f6b4a'][Math.round(x/54)%3]);
+    }
   }
 },
 {
