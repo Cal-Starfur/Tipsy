@@ -8463,50 +8463,103 @@ const SHOPS = [
   }
 },
 {
-  name:'Coffee roaster', head:'Roaster drum, sack stack, vent chimney',
-  cTodo:'4 pavement props need collision volumes, 62 of them lapping past the frontage',
-  fTodo:'z126..152 return +3, lettering behind board',
-  tags:['turned roaster','hessian sacks','round flue','warm glow','bean bins'],
-  desc:'The roaster is a drum with a hinged face and a hopper on top, the flue is a cylinder with collars running up the front, and the sacks are slumped solids rather than ovals.',
+  name:'Coffee roaster', tall:true,
+  head:'The roaster, the bins and the flue behind one deep window',
+  tags:['turned roaster','round drum door','bean bins','flue through the roof','bare footway'],
+  desc:'The roastery is inside the shop where it belongs: a drum on its firebox with a round hinged door, bins of beans beside it, and the flue carrying up through the roof. Nothing on the footway.',
   draw(p){
-    const wall = '#4a3428', trim = '#d8b87a', H = 168;
+    /* ============ THE ROASTERY WAS ON THE PAVEMENT ============
+       F(10, W*0.70, 22, 116) at b 0 was a flat dark rectangle with a
+       stroke round it -- twentieth flat panel where a window belongs --
+       and the roaster, the hopper, the flue and the three bins were all
+       built at b 4..22, in FRONT of it. A gas-fired drum roasting on
+       the footway with a painted brown rectangle behind it. Same fault
+       as the Forge two shops ago, and the same cause: the machinery was
+       drawn first and the window was drawn as a backdrop for it.
+
+       cTodo COUNTED 4 PROPS AND 62 PAST THE FRONTAGE -- the sacks, at
+       a = W + 16 and W + 46 with a belly radius of 16, so a 246..292 on
+       a shop 230 wide. Every one of them entirely on the neighbour.
+       A sack of green coffee is stock, and stock goes inside.
+
+       THE DRUM DOOR WAS AN ELLIPSE. faceCircle draws radius r in a AND
+       in z and z carries ZSCALE, so a door of r 13 came out 26 wide by
+       39 tall. Eleventh instance of the session.
+
+       A WINDOW WAS DRAWN ACROSS THE DOOR, twentieth consecutive shop.
+       F(W*0.80, W-14, 54, 94) ran a 184..216 against an opening at
+       158.8..225.
+
+       H 168 -> 210. The flue has to clear the drum, the hopper has to
+       clear the flue, and at 168 the whole stack was leaving the
+       building through the fascia.
+
+       fTodo: slab(6, W-6, 126, 152, -1, -9) put its far end on screen-a
+       233 against a return at 230, with the lettering at -9.5 behind
+       the board's own -9 backing. */
+    const wall = '#4a3428', trim = '#d8b87a', H = 210;
+    const inner = '#1b120d', copper = '#b87333';
     body(wall, trim, H);
-    slab(0,W, H, H+10, -1, -12, shade(wall,1.35));
-    slab(6,W-6, 126, 152, -1, -9, shade(wall,1.2), null, trim);
-    F(20,W-20, 133, 145, trim, null,0,-9.5);
-    F(10,W*0.70, 22, 116, '#241a14', shade(wall,.6), 3);
-    const ra = W*0.26, rb = 6;
-    box(ra-30, ra+30, rb-16, rb+16, 20, 30, '#3a2e26','#2f251e','#241c17');
-    cyl(ra, rb, 30, 84, 28, '#2f6f6b');
-    plateCircle(ra, rb, 84, 28, '#3f8f88', '#1f4f4c', 2);
-    faceCircle(ra + 16, rb - 16, 56, 13, '#c9a24a', '#8f6f26', 2.5);
-    faceCircle(ra + 16, rb - 16.4, 56, 5, '#8f6f26');
-    cyl(ra, rb, 84, 100, 12, '#b87333');
-    poly([P(ra-14,rb,100),P(ra+14,rb,100),P(ra+8,rb,116),P(ra-8,rb,116)], '#c9803a');
-    F(ra-20, ra+20, 22, 30, '#e8763a', null,0, rb-17);
-    cyl(ra, rb-22, 100, 128, 4, '#8d979f');
-    for(const cz of [108, 122]) plateCircle(ra, rb-22, cz, 6, '#a8aeb4');
-    for(let i=0;i<3;i++){
-      const bx = W*0.44 + i*30;
-      cyl(bx, 4, 30, 74, 12, '#5c4232');
-      plateCircle(bx, 4, 74, 12, ['#3a2a1e','#5a3a24','#2e2018'][i], '#3a2c22', 1.6);
+    T(0, W, -D, 0, H+0.4, '#332319');                   // roof, over body's pale plate
+    slab(0, W, H, H+10, 4, 0, shade(wall,1.35));        // cornice
+
+    /* ---- one shopfront band, both openings cut out of it ---- */
+    slab(0, W, 0, 130, 4, 0, shade(wall,1.1), null, trim);
+    reveal(14, 128, 22, 118, 60, inner);
+    ctx.save();
+    poly([P(14,0,118),P(128,0,118),P(128,0,22),P(14,0,22)]);
+    ctx.clip();
+    slab(18, 124, 22, 28, -8, -58, shade(wall,.88), null, shade(wall,1.02));
+    /* the roaster. DEPTH MOVES IT RIGHT, which is the thing to solve
+       for: screen-a is a - b, so a drum at b -26 sits 26 further right
+       than its own a and the clip then forces a into 62..80 -- which
+       put it hard against the right jamb with the left third of the
+       window empty. At b -18 the same drum clears from a 54, so it
+       stands on 58 and lands on screen 76 in an opening of 14..128,
+       which is where the eye goes first. */
+    box(34, 82, -2, -34, 24, 34, '#3a2e26','#2f251e','#241c17');
+    F(40, 76, 26, 32, '#e8763a', null, 0, -1.4);        // the fire under it
+    cyl(58, -18, 34, 82, 22, '#2f6f6b');
+    plateCircle(58, -18, 82, 22, '#3f8f88', '#1f4f4c', 2);
+    {                                                   // its round door, corrected
+      const ring = (r, bb, n) => { const q = [];
+        for(let i=0;i<(n||24);i++){ const t = Math.PI*2*i/(n||24);
+          q.push(P(72 + r*Math.cos(t), bb, 56 + r*Math.sin(t)/ZSCALE)); }
+        return q; };
+      poly(ring(11, 2), '#c9a24a');
+      poly(ring(7.5, 2.4), '#8f6f26');
+      tube(72, 3, 56, 84, 3, 56, 2, '#c9a24a');
     }
-    shopDoor(W*0.86, wall, trim);
-    F(W*0.80,W-14, 54, 94, '#8a7458', null,0,-6.5);
-    if(state.props){
-      for(let i=0;i<3;i++){
-        const sa = W+16+(i%2)*30, sb = 36, sz = (i<2)?0:24;
-        cyl(sa, sb, sz, sz+22, 16, '#c9b48e');
-        ball(sa, sb, sz+26, 15, '#c9b48e', '#d8c49e');
-        slab(sa-9, sa+9, sz+10, sz+16, sb-16, sb-18, '#8a7458');
-      }
+    cyl(58, -18, 82, 96, 10, copper);                   // the hopper
+    poly([P(46,-18,96),P(70,-18,96),P(65,-18,112),P(51,-18,112)], '#c9803a');
+    tube(58, -34, 96, 58, -34, 118, 4, '#8d979f');      // the flue
+    for(const cz of [102, 112]) plateCircle(58, -34, cz, 6, '#a8aeb4');
+    for(let i=0;i<2;i++){                               // bean bins
+      const bx = 96 + i*14;
+      cyl(bx, -10, 28, 62, 8, '#5c4232');
+      plateCircle(bx, -10, 62, 8, ['#3a2a1e','#5a3a24'][i], '#3a2c22', 1.4);
     }
+    for(let i=0;i<2;i++){                               // sacks of green coffee
+      const sa = 94 - i*8, sz = i*20;
+      cyl(sa, -22 - i*8, 28+sz, 46+sz, 11, '#c9b48e');
+      ball(sa, -22 - i*8, 49+sz, 10, '#c9b48e', '#d8c49e');
+    }
+    ctx.restore();
+    glaze(14, 128, 22, 118, null, 'rgba(150,126,100,.32)');
+    for(let k=1;k<4;k++) F(14 + 114*k/4 - 3, 14 + 114*k/4 + 3, 22, 118, shade(wall,1.2), null,0, 0.8);
+
+    shopDoor(180, wall, trim);                          // a 146.88..213.12
+
+    /* ---- fascia ---- */
+    slab(0, W, 136, 170, 4, 0, shade(wall,1.2), null, trim);
+    F(24, W-24, 144, 162, trim, null,0, 4.6);
+
     if(state.roof){
-      cyl(W*0.27, -20, H+10, H+66, 7, '#8d979f');
-      cyl(W*0.27, -20, H+66, H+74, 10, '#a0a8b0');
-      for(let k=0;k<3;k++)
-        ball(W*0.27 + (k%2?8:-6), -20, H+86+k*15, 9+k*4, 'rgba(214,208,196,.4)', 'rgba(228,222,210,.38)');
-      box(W*0.62,W*0.88,-150,-112,H,H+20,'#8f969d','#787f86','#697077');
+      cyl(58, -34, H, H+62, 5, '#8d979f');              // the flue, carried up
+      for(const cz of [H+18, H+40]) plateCircle(58, -34, cz, 7, '#a8aeb4');
+      cyl(58, -34, H+62, H+70, 8, '#7d838a');
+      plateCircle(58, -34, H+70, 8, '#2a2a2e', '#6a7076', 1.6);
+      box(W*0.46, W*0.72, -160, -110, H, H+24, '#8f969d','#787f86','#697077');
     }
     kerb(p,'none');
   }
