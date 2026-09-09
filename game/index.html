@@ -14810,10 +14810,29 @@ const ROBOT_NPC = { stripe:0x2e6fd1, stripeDk:0x24569f, flag:0x2e6fd1 };
    be edited to run here, what ships would not be what the lab dialled.
    ===================================================================== */
 /* which named park component carries which library entry. One line per
-   graft, and the name on the left is a PARK NAME from a hood's pool --
-   see parkNameTable. Gantry Commons is the Warehouse District's sixth,
-   nine cells of staircase on the shipped seed. */
-const PARK_LANDMARKS = { "Gantry Commons": "Undertaker" };
+   graft, and the key is a PARK NAME from a hood's pool -- see
+   parkNameTable. Gantry Commons is the Warehouse District's sixth, nine
+   cells of staircase on the shipped seed.
+
+   THE MAP HAS TO AGREE WITH THE GROUND. A component carrying a burial
+   ground is not a park any more, and leaving it labelled "Gantry
+   Commons" under a tree pin is the map telling the player something the
+   world contradicts -- which is worse than no label. So the graft
+   carries its own map name and pin, and mapParkName / mapParkIcon are
+   the single place both the map and the minimap read them from.
+
+   The toponym survives the rename because the place does: it is still
+   the ground the Warehouse District calls Gantry, and a cemetery named
+   after where it is is how cemeteries are named.
+
+   The pin is U+1FAA6, which is Unicode 13 (2020). If it ever has to run
+   somewhere older the fallback is a plain filled circle rather than a
+   tofu box -- worth checking on the oldest device the web build has to
+   support before this ships wide. */
+const PARK_LANDMARKS = {
+  "Gantry Commons": { shop:"Undertaker", mapName:"Gantry Cemetery",
+                      icon:"\u{1FAA6}", pin:"#6a6a64" }
+};
 
 const LIB = (function(){
   /* K IS THE PROJECTION'S SCALE, and the kit reads it directly. It is
@@ -21053,7 +21072,8 @@ class WorldScene extends Phaser.Scene {
     for(const blk of (grid.blocks || [])){
       if(blk.type !== "park") continue;
       const nm = tbl.get(Math.round(blk.cx) + "," + Math.round(blk.cy));
-      if(!nm || !LIB.get(PARK_LANDMARKS[nm] || "")) continue;
+      const lm = PARK_LANDMARKS[nm];
+      if(!lm || !LIB.get(lm.shop)) continue;
       if(!byName.has(nm)) byName.set(nm, []);
       byName.get(nm).push(blk);
     }
@@ -21070,7 +21090,7 @@ class WorldScene extends Phaser.Scene {
       for(const c of cells){ if(c.x0 < x0) x0 = c.x0; if(c.y0 < y0) y0 = c.y0; }
       x0 -= ROAD_HALF * 2; y0 -= ROAD_HALF * 2;
       for(const c of cells)
-        out.set(c.i + "," + c.j, { name: PARK_LANDMARKS[nm], anchor: c === anchor, x0, y0 });
+        out.set(c.i + "," + c.j, { name: PARK_LANDMARKS[nm].shop, anchor: c === anchor, x0, y0 });
     }
     grid._parkLandmarks = out;
     return out;
@@ -34219,11 +34239,24 @@ function parkNameTable(grid){
   grid._parkNames = table;
   return table;
 }
-function mapParkName(cx, cy, route){
+function mapParkRaw(cx, cy, route){
   const g = route && route.grid;
   if(!g) return hoodAtWorld(cx, cy).parks[0];
   return parkNameTable(g).get(Math.round(cx) + "," + Math.round(cy))
       || hoodAtWorld(cx, cy).parks[0];
+}
+/* the name the MAP shows. A component carrying a landmark shows the
+   landmark's name; everything else is the park's own. Both the map and
+   the minimap go through here, and so does the search index, so a place
+   cannot be called one thing in one of them and another elsewhere. */
+function mapParkName(cx, cy, route){
+  const raw = mapParkRaw(cx, cy, route), lm = PARK_LANDMARKS[raw];
+  return (lm && lm.mapName) || raw;
+}
+/* the pin: glyph and colour, defaulting to the park tree. */
+function mapParkIcon(cx, cy, route){
+  const lm = PARK_LANDMARKS[mapParkRaw(cx, cy, route)];
+  return { icon: (lm && lm.icon) || "\u{1F333}", pin: (lm && lm.pin) || "#3f7a4a" };
 }
 /* the coast geometry's shared fractions — drawWorld's terrain pass and
    the landmark index both read THIS table, so a landmark can never
@@ -36535,10 +36568,11 @@ function drawRouteMap(route){
     const anchor = comp.reduce((a,b) => (b.j < a.j || (b.j === a.j && b.i < a.i)) ? b : a);
     const p = toScreen({x:cx, y:cy});
     const r = comp.length > 1 ? Math.min(11, 7 + comp.length) : 7;
-    ctx.fillStyle = "#3f7a4a";
+    const pk = mapParkIcon(anchor.cx, anchor.cy, bgRoute);
+    ctx.fillStyle = pk.pin;
     ctx.beginPath(); ctx.arc(p.x, p.y-8, r, 0, Math.PI*2); ctx.fill();
     ctx.font = Math.round(r+2)+"px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
-    ctx.fillText("🌳", p.x, p.y-8);
+    ctx.fillText(pk.icon, p.x, p.y-8);
     const pname = mapParkName(anchor.cx, anchor.cy, bgRoute);
     ctx.fillStyle = "#2e3138"; ctx.font = "10px sans-serif";
     ctx.fillText(pname, p.x, p.y+8);
@@ -36546,10 +36580,11 @@ function drawRouteMap(route){
   for(const blk of extRects){
     if(blk.type !== "park" || !inView(blk.cx, blk.cy)) continue;
     const p = toScreen({x:blk.cx, y:blk.cy});
-    ctx.fillStyle = "#3f7a4a";
+    const pk = mapParkIcon(blk.cx, blk.cy, bgRoute);
+    ctx.fillStyle = pk.pin;
     ctx.beginPath(); ctx.arc(p.x, p.y-8, 7, 0, Math.PI*2); ctx.fill();
     ctx.font = "9px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
-    ctx.fillText("🌳", p.x, p.y-8);
+    ctx.fillText(pk.icon, p.x, p.y-8);
     const pname = mapParkName(blk.cx, blk.cy, bgRoute);
     ctx.fillStyle = "#2e3138"; ctx.font = "10px sans-serif";
     ctx.fillText(pname, p.x, p.y+8);
