@@ -7424,49 +7424,160 @@ const SHOPS = [
   }
 },
 {
-  name:'Print works', tall:true,
-  cTodo:'4 pavement props need collision volumes, 66 of them lapping past the frontage',
-  fTodo:'z128..158 return +3, lettering behind board',
-  zTodo:1.05,          // H 176 -- see SCALE REVIEW at the head of this file
-  head:'Paper roll, press through the glass, ink drums',
-  tags:['turned paper roll','press rollers','ink drums','clock','industrial glazing'],
-  desc:'The newsprint roll is a cylinder standing on end with a visible core, the press rollers are circles in the glass plane, and the ink drums are hooped cylinders on the pavement.',
+  name:'Print works', tall:true, ww: 1048.8, dd: 620,
+  wTodo:'a whole block edge -- five packing slots, and the packer places none of them',
+  head:'Whole-edge works: presses behind the glass, north-light hall behind',
+  tags:['whole block edge','builds to the line','north-light sawtooth roof','presses behind glass','goods door','no pavement props'],
+  desc:'A works taking a whole block edge and building to the line, because a print works has an office on the street and a machine hall behind it. Three tall press windows, an office entrance and a goods door on the frontage; a sawtooth north-light roof over the hall, which is the form that says machine shop before anything else does.',
   draw(p){
-    const wall = '#4a5259', trim = '#e8ddc8', H = 176;
-    body(wall, trim, H);
-    slab(0,W, H, H+10, -1, -12, shade(wall,1.35));
-    slab(6,W-6, 128, 158, -1, -9, shade(wall,1.2), null, trim);
-    F(20,W-20, 136, 150, trim, null,0,-9.5);
-    F(10,W*0.72, 22, 118, '#7b8f9c', shade(wall,1.4), 3);
-    for(let i=1;i<8;i++) F(10+(W*0.72-10)*i/8-1.5, 10+(W*0.72-10)*i/8+1.5, 22,118, shade(wall,1.15), null,0,-1);
-    for(let i=1;i<4;i++) F(10,W*0.72, 22+96*i/4-1.5, 22+96*i/4+1.5, shade(wall,1.15), null,0,-1);
-    box(24,W*0.44, 2, 24, 30, 92, '#39424a','#2f3840','#262d33');
-    for(let i=0;i<3;i++){
-      faceCircle(38+i*30, 1, 62, 13, '#5a646c', '#8d979f', 2.5);
-      faceCircle(38+i*30, 0.6, 62, 4, '#8d979f');
+    /* ============ WHOLE EDGE, ON THE LINE -- NOT A LANDMARK =========
+       Sir asked for a whole block, and the choice is the same one the
+       Playhouse and the Brewery made differently. A brewery works in a
+       yard and got block:true. A print works does not: paper comes in
+       at a goods door and printed matter goes out of one, both straight
+       off the street, and the machine hall behind wants to be BUILDING
+       rather than open ground. So this is the block WIDTH case, like
+       the Playhouse -- ww 1048.8, dd 620, no yard, no setback.
+
+       Worth being explicit that these are now three different answers
+       to "make it a whole block", and the question that separates them
+       is what the building does at its own front door: a marquee that
+       overhangs the footway (Playhouse, width), a cartway a dray turns
+       on (Brewery, landmark), a goods door in the frontage (this).
+
+       THE ROOF IS THE POINT. A north-light sawtooth -- a long shallow
+       slope up to each ridge and a short steep glazed face dropping
+       back -- is what a machine hall looks like from outside, and there
+       is nothing like it in this file. Six bays of it over the hall,
+       drawn far to near so each glazed face sits in front of the slope
+       behind it.
+
+       cTodo WAS FOUR PROPS AND SIXTY-SIX PAST THE FRONTAGE, all of it
+       one object: the newsprint roll at a = W + 34 with r 32 ran a
+       242..306 on a shop 230 wide, so the whole roll and its plate were
+       outside. The roll and the ink drums are inside the works now,
+       which is where a works keeps its paper.
+
+       A WINDOW WAS DRAWN ACROSS THE DOOR, fourteenth consecutive shop.
+       F(W*0.82, W-14, 54, 94) ran a 188.6..216 against an opening at
+       158.8..225. The press rollers were faceCircle at r 13, so 26 wide
+       by 39 tall -- ninth ZSCALE instance -- and the clock the same, at
+       b -10 inside the wall besides.
+
+       zTodo 1.05 goes with the width: H 176 was one storey drawing a
+       works. At 336 the front range is 2.00 and the hall roof rises to
+       404 behind it.
+
+       fTodo: slab(6, W-6, 128, 158, -1, -9) put its far end on screen-a
+       233 against a return at 230, with the lettering at -9.5 behind
+       the board's own -9 backing. The bands follow the Fabric shop:
+       0..WW at b 4..0, full width because they are bounded by the
+       terrace, and bBack 0 so none of them paints its end face onto the
+       flank. */
+    const wall = '#4a5259', trim = '#e8ddc8', H = 336, WW = 1048.8, DD = 620;
+    const inner = '#1c2227', glass = 'rgba(123,143,156,.40)';
+    const BAYS = [[240,420],[450,630],[660,840]];
+    body(wall, trim, H, WW, DD);
+    T(0, WW, -DD, 0, H+0.4, '#333b41');                 // roof, over body's pale plate
+
+    /* ---- the north-light hall behind the front range ----
+       Bays of 64 in b: a long slope rising 72 to the ridge, then a
+       short glazed face dropping straight back. Far bay first, so each
+       glazed face is painted in front of the slope behind it. */
+    for(let i=5;i>=0;i--){
+      const bN = -232 - i*64, bF = bN - 64;
+      /* THE SAWTOOTH SITS ON THE ROOF, NOT THROUGH IT. Written at
+         z 300..372 its eaves were 36 BELOW the plate at 336 and 50
+         below the parapet, so the hall's glazing started underneath its
+         own roof and only survived because the plate is painted first.
+         340..412 puts the eave 4 clear of the plate. */
+      poly([P(20,bF,340),P(WW-20,bF,340),P(WW-20,bN,412),P(20,bN,412)], shade(wall,.86));
+      for(let k=1;k<7;k++){
+        const t = k/7, bb = bF + (bN-bF)*t, zz = 340 + 72*t;
+        poly([P(20,bb,zz),P(WW-20,bb,zz),P(WW-20,bb,zz-3),P(20,bb,zz-3)], shade(wall,.74));
+      }
+      poly([P(20,bN,412),P(WW-20,bN,412),P(WW-20,bN,340),P(20,bN,340)], 'rgba(150,178,196,.66)');
+      for(let k=1;k<9;k++){
+        const aa = 20 + (WW-40)*k/9;
+        poly([P(aa-4,bN+0.4,412),P(aa+4,bN+0.4,412),P(aa+4,bN+0.4,340),P(aa-4,bN+0.4,340)], shade(wall,.9));
+      }
+      poly([P(14,bN+4,412),P(WW-14,bN+4,412),P(WW-14,bN-4,418),P(14,bN-4,418)], shade(wall,1.1));
     }
-    F(W*0.46,W*0.68, 40, 46, '#d8d2c4', null,0, 1.5);
-    shopDoor(W*0.88, wall, trim);
-    F(W*0.82,W-14, 54, 94, '#7b8f9c', null,0,-6.5);
-    faceCircle(W*0.90, -10, 143, 13, '#f2ece0', shade(wall,1.5), 2.5);
-    faceT(W*0.90, -10.4, 143, 13);
-    ctx.strokeStyle='#39424a'; ctx.lineWidth=2/(13*K);
-    ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(0,-0.62); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(0.46,0.24); ctx.stroke();
-    ctx.restore();
-    if(state.props){
-      const ra = W+34, rb = 40;
-      cyl(ra, rb, 0, 116, 32, '#e4ddcb');
-      plateCircle(ra, rb, 116, 32, '#f2ece0', '#c9c2b0', 2);
-      plateCircle(ra, rb, 117, 12, '#c9c2b0');
-      for(let i=0;i<2;i++){
-        const da = W*0.08+i*44, db = 38;
-        cyl(da, db, 0, 30, 13, '#39424a');
-        for(const hz of [7, 22]) plateHoop(da, db, hz, 14, '#262d33', 2);
-        plateCircle(da, db, 30, 13, '#4a545c', '#2f3840', 2);
+    slab(0, WW, H, H+14, 4, 0, shade(wall,1.35));       // parapet over the front range
+
+    /* ---- one shopfront band, every opening cut out of it ---- */
+    slab(0, WW, 0, 150, 4, 0, shade(wall,1.2), null, trim);
+    BAYS.forEach(([x0,x1], n) => {
+      reveal(x0, x1, 24, 140, 32, inner);
+      ctx.save();
+      poly([P(x0,0,140),P(x1,0,140),P(x1,0,24),P(x0,0,24)]);
+      ctx.clip();
+      const c = (x0+x1)/2;
+      slab(x0+6, x1-6, 24, 30, -10, -38, shade(wall,.9), null, shade(wall,1.05));
+      box(c-72, c+40, -34,-12, 30, 96, '#39424a','#2f3840','#262d33');   // the press frame
+      const ring = (a,b,z,r,m) => { const q=[];
+        for(let i=0;i<(m||24);i++){ const t=Math.PI*2*i/(m||24);
+          q.push(P(a + r*Math.cos(t), b, z + r*Math.sin(t)/ZSCALE)); }
+        return q; };
+      for(let i=0;i<3;i++){                                             // its rollers
+        poly(ring(c-56+i*28, -11, 62, 13), '#5a646c');
+        poly(ring(c-56+i*28, -10.6, 62, 4), '#8d979f');
+      }
+      box(c+48, c+70, -30,-14, 30, 116, '#3f4850','#4a5259','#333b41');  // a paper stand
+      cyl(c+59, -22, 116, 150, 17, '#e4ddcb');                           // the reel on it
+      plateCircle(c+59, -22, 150, 17, '#f2ece0', '#c9c2b0', 2);
+      F(c-72, c+40, 40, 46, '#d8d2c4', null,0, -11.4);                   // the web running through
+      ctx.restore();
+      glaze(x0, x1, 24, 140, null, glass);
+      for(let k=1;k<5;k++)
+        F(x0 + (x1-x0)*k/5 - 3.4, x0 + (x1-x0)*k/5 + 3.4, 24, 140, shade(wall,1.15), null,0, 0.8);
+    });
+
+    /* ---- the office entrance, and the goods door at the far end ---- */
+    shopDoor(120, wall, trim, null, WW);                // a 86.88..153.12
+    F(886, 1016, 0, 216, shade(wall,1.06), null, 0, 4.6);
+    F(894, 1008, 6, 208, '#22282d', null, 0, 5);
+    for(let k=0;k<11;k++) F(898, 1004, 14+k*17, 26+k*17, shade('#3a444c',1.1), null, 0, 5.4);
+    F(880, 1022, 216, 232, shade(wall,1.3), null, 0, 5.6);
+
+    /* ---- fascia and the upper floor ---- */
+    slab(0, WW, 156, 200, 4, 0, shade(wall,1.25), null, trim);
+    F(30, WW-30, 166, 190, trim, null,0, 4.6);
+    for(let i=0;i<7;i++){
+      const c = 84 + i*146;
+      slab(c-46, c+46, 214, 314, 1, -13, shade(wall,1.1), null, trim);
+      reveal(c-38, c+38, 222, 306, 16, shade(wall,.46));
+      glaze(c-38, c+38, 222, 306, null, 'rgba(110,128,140,.80)');
+      for(let k=1;k<4;k++) F(c-38 + 76*k/4 - 2, c-38 + 76*k/4 + 2, 222, 306, shade(wall,1.1), null,0, 1.4);
+      F(c-38, c+38, 260, 266, shade(wall,1.1), null,0, 1.4);
+    }
+
+    if(state.roof){
+      /* ---- THE CHIMNEY MOVES OFF THE GLAZING ----
+         At a 940, b -520 it stood on screen-a 1460, inside the
+         sawtooth's own 252..1645, so it crossed four bays of roof
+         glass. It was in FRONT of them and correct to be -- its key of
+         420 beats the glazing's 228 at that point -- but a flue drawn
+         across a roof light reads as a mistake whether or not the depth
+         is right. The only ground on this roof clear of the sawtooth in
+         screen terms is a - b below 252, so the chimney goes to the
+         near left corner where a boiler house belongs anyway.
+
+         And the plant: the flat strip between the parapet and the first
+         bay had nothing on it. Two units with condenser fans, which are
+         nearer than the glazing behind them and so are drawn after it,
+         far to near on the a + b key. */
+      cyl(86, -120, H, H+180, 22, '#5a4038');           // the boiler chimney
+      cyl(86, -120, H+180, H+196, 27, '#6a4c42');
+      plateCircle(86, -120, H+196, 27, '#7a5a4e', '#4e3730', 2);
+      for(const [ba, bb] of [[300, -150],[600, -110]]){
+        box(ba, ba+130, bb-70, bb, H, H+30, '#8f969d','#787f86','#697077');
+        for(const fa of [ba+34, ba+96]){
+          cyl(fa, bb-35, H+30, H+38, 20, '#7d838a');
+          plateCircle(fa, bb-35, H+38, 20, '#a8aeb4', '#6a7076', 2);
+        }
       }
     }
-    if(state.roof) box(W*0.34,W*0.62,-150,-104,H,H+26,'#8f969d','#787f86','#697077');
     kerb(p,'none');
   }
 },
