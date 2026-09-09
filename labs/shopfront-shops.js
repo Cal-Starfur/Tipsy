@@ -7582,51 +7582,112 @@ const SHOPS = [
   }
 },
 {
-  name:'Sweet shop', head:'Barley-twist columns, jar rows, striped canopy',
-  fTodo:'z118..142 return +3, lettering behind board; z114..120 return +8',
-  tags:['twisted columns','lidded jars','candy stripes','tiny scale','pastel'],
-  desc:'The barley twist is now a real cylinder with the stripe wrapping it, the same way the barber pole works, and every jar is a turned glass with a lid sitting on the shelf.',
+  name:'Sweet shop', head:'Barley-twist columns, jars behind the glass, striped canopy',
+  tags:['twisted columns','lidded jars on shelves','candy stripes','tiny scale','pastel'],
+  desc:'The barley twist is a real cylinder with the stripe wrapping it, standing proud of the wall the way a pilaster does, and the jars are turned glasses with lids sitting on shelves inside the window rather than on the pavement.',
   draw(p){
-    const wall = '#f0dce2', trim = '#c2452e', H = 152, WW = 196;
+    /* ============ THE JARS WERE ON THE PAVEMENT ============
+       The shelves were slab(26, WW*0.58, z-3, z, -1, 16) -- bFront -1
+       and bBack +16 -- so the "back" of each shelf was seventeen units
+       IN FRONT of its own front face, and the jars standing on them sat
+       at b 6, outside the wall. A row of glass jars on the footway of a
+       sweet shop is a row of things to knock over. Same inversion as
+       the TV repair cabinets, which had bFront -1 and bBack +14.
+
+       AND NO cTodo TO SAY SO. The jars are cyl at ground-adjacent z but
+       centred on b 6, and the prop test asks whether the CENTRE b is
+       past 8 -- so fifteen glass jars on the pavement counted as
+       nothing. Fourth census gap of the session, and the second of the
+       wrong-measure kind after the Brewery's still. The test wants the
+       object's EXTENT.
+
+       THE BARLEY TWISTS WERE AT b -6, six units inside the masonry.
+       Twelfth time this session. They are pilasters: they stand proud
+       of the wall at b 6, flanking the window.
+
+       A WINDOW WAS DRAWN ACROSS THE DOOR, fifteenth consecutive shop.
+       F(WW*0.70, WW-20, 52, 90) ran a 137.2..176 against an opening at
+       123.7..189.9. And the window was a flat panel, fifteenth.
+
+       fTodo LISTED TWO RETURNS AND THEY WANT DIFFERENT ANSWERS, which
+       is the distinction the Fabric shop turned up. The name board at
+       slab(6, WW-6, 118, 142, -1, -9) is bounded by the FRONTAGE: it
+       stops short of the return, so a back face on screen-a 199 against
+       a return at 196 is an object hanging off the building, and it
+       needs margin. The canopy band at slab(0, WW, 114, 120, -1, -8) is
+       bounded by the TERRACE: it runs wall to wall like a cornice, and
+       its +8 is not an overrun but a band leaking its end face onto the
+       flank. One wants a margin, the other wants bBack 0. */
+    const wall = '#f0dce2', trim = '#c2452e', H = 162, WW = 196;
+    const inner = '#5a4148';
+    const sweet = ['#e8a13a','#c2452e','#7ac48a','#4aa8c4','#e2c74a','#e2748c'];
     body(wall, trim, H, WW);
-    slab(0,WW, H, H+8, -1, -12, trim);
-    slab(6,WW-6, 118, 142, -1, -9, '#fbf3f5', null, trim);
-    F(18,WW-18, 124, 136, trim, null,0,-9.5);
-    F(24,WW*0.60, 24, 102, '#f8eef0', shade(wall,.72), 3);
+    T(0, WW, -D, 0, H+0.4, '#8a3428');                  // roof, over body's trim-red plate
+    slab(0, WW, H, H+10, 4, 0, trim);                   // cornice
+
+    /* ---- one shopfront band, both openings cut out of it ---- */
+    slab(0, WW, 0, 112, 4, 0, '#fbf3f5', null, trim);
+    reveal(16, 106, 22, 96, 22, inner);
+    ctx.save();
+    poly([P(16,0,96),P(106,0,96),P(106,0,22),P(16,0,22)]);
+    ctx.clip();
     for(let r=0;r<3;r++){
-      const z = 30+r*26;
-      slab(26,WW*0.58, z-3, z, -1, 16, '#d8c0c8');
-      for(let i=0;i<5;i++){
-        const ja = 34+i*17, jb = 6, col = ['#e8a13a','#c2452e','#7ac48a','#4aa8c4','#e2c74a'][(r+i)%5];
-        cyl(ja, jb, z, z+18, 7, col);
-        plateCircle(ja, jb, z+18, 7, shade(col,1.2));
-        cyl(ja, jb, z+18, z+22, 4, '#b9bcc0');
+      const z = 30 + r*22;
+      slab(30, 92, z-3, z, -6, -20, '#d8c0c8', null, '#e8d4da');
+      for(let i=0;i<4;i++){
+        const ja = 36 + i*16, jb = -10, col = sweet[(r*4+i)%6];
+        cyl(ja, jb, z, z+14, 6, col);
+        plateCircle(ja, jb, z+14, 6, shade(col,1.2));
+        cyl(ja, jb, z+14, z+18, 3.4, '#b9bcc0');
       }
     }
-    shopDoor(WW*0.80, wall, '#f8eef0', null, WW);
-    F(WW*0.70,WW-20, 52, 90, '#d8c0c8', null,0,-6.5);
-    for(const ca of [WW*0.63, WW-11]){
-      cyl(ca, -6, 0, 118, 6, '#fbf3f5');
-      for(let i=0;i<9;i++){
-        const z = 4+i*13;
+    ctx.restore();
+    glaze(16, 106, 22, 96, null, 'rgba(216,192,200,.30)');
+    for(let k=1;k<3;k++) F(16 + 90*k/3 - 2.6, 16 + 90*k/3 + 2.6, 22, 96, shade(wall,.82), null,0, 0.8);
+
+    shopDoor(150, wall, '#f8eef0', null, WW);           // a 116.88..183.12
+
+    /* ---- the barley twists, standing proud as pilasters ----
+       At b 6 with a shaft of r 6 a column on a 14 comes to screen-a 2
+       here and 26 on the mirrored heading, and the far one on 110
+       reaches 122 -- inside 0..196 both ways. */
+    /* THE CAPS HAVE TO STOP UNDER THE CANOPY, and where that is depends
+       on the column's b rather than on the canopy's springing height.
+       The canopy runs from z 118 at the wall down to 104 at b 28, so at
+       the columns' b 6 its soffit is at 107 -- and a shaft of 116 with
+       a cap to 124 pushed straight through the fabric. Shafts to 98 and
+       caps to 106 put them one unit under it, which also makes them
+       read as carrying it. */
+    for(const ca of [14, 110]){
+      cyl(ca, 6, 0, 98, 6, '#fbf3f5');
+      for(let i=0;i<7;i++){
+        const z = 4 + i*13;
         for(let k=0;k<6;k++){
           const t0 = 3*Math.PI/4 - Math.PI*k/6, t1 = 3*Math.PI/4 - Math.PI*(k+1)/6;
-          poly([P(ca+6*Math.cos(t0), -6+6*Math.sin(t0), z + k*1.5),
-                P(ca+6*Math.cos(t1), -6+6*Math.sin(t1), z + (k+1)*1.5),
-                P(ca+6*Math.cos(t1), -6+6*Math.sin(t1), z + (k+1)*1.5 + 5),
-                P(ca+6*Math.cos(t0), -6+6*Math.sin(t0), z + k*1.5 + 5)], trim);
+          poly([P(ca+6*Math.cos(t0), 6+6*Math.sin(t0), z + k*1.5),
+                P(ca+6*Math.cos(t1), 6+6*Math.sin(t1), z + (k+1)*1.5),
+                P(ca+6*Math.cos(t1), 6+6*Math.sin(t1), z + (k+1)*1.5 + 5),
+                P(ca+6*Math.cos(t0), 6+6*Math.sin(t0), z + k*1.5 + 5)], trim);
         }
       }
-      cyl(ca, -6, 118, 126, 9, '#fbf3f5');
+      cyl(ca, 6, 98, 106, 9, '#fbf3f5');
+      plateCircle(ca, 6, 106, 9, '#fbf3f5', shade(wall,.8), 1.4);
     }
+
+    /* ---- the striped canopy ---- */
     const out = 28;
     for(let i=0;i<9;i++){
-      const x0=4+(WW-8)*i/9, x1=4+(WW-8)*(i+1)/9;
-      poly([P(x0,0,114),P(x1,0,114),P(x1,out,100),P(x0,out,100)], i%2 ? '#fbf3f5' : trim);
+      const x0 = 4+(WW-8)*i/9, x1 = 4+(WW-8)*(i+1)/9;
+      poly([P(x0,0,118),P(x1,0,118),P(x1,out,104),P(x0,out,104)], i%2 ? '#fbf3f5' : trim);
     }
-    poly([P(4,0,106),P(WW-4,0,106),P(WW-4,out,92),P(4,out,92)], shade(trim,.62));
-    poly([P(4,out,100),P(WW-4,out,100),P(WW-4,out,92),P(4,out,92)], shade(trim,.8));
-    slab(0,WW,114,120, -1, -8, shade(trim,.8));
+    poly([P(4,0,110),P(WW-4,0,110),P(WW-4,out,96),P(4,out,96)], shade(trim,.62));
+    poly([P(4,out,104),P(WW-4,out,104),P(WW-4,out,96),P(4,out,96)], shade(trim,.8));
+    slab(0, WW, 112, 120, 4, 0, shade(trim,.8));        // its rail, bBack 0
+
+    /* ---- fascia ---- */
+    slab(0, WW, 126, 150, 4, 0, '#fbf3f5', null, trim);
+    F(20, WW-20, 132, 144, trim, null,0, 4.6);
+
     if(state.roof) box(WW*0.30,WW*0.54,-140,-100,H,H+18,'#9aa0a6','#7d838a','#6a7076');
     kerb(p,'none');
   }
