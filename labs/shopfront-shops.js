@@ -9031,43 +9031,338 @@ const SHOPS = [
   }
 },
 {
-  name:'Undertaker', tall:true,
-  fTodo:'z162..178 return +10; z156..162 return +6; z122..152 return +1, lettering behind board',
-  zTodo:1.06,          // H 178 -- see SCALE REVIEW at the head of this file
-  head:'Sober black front, urn finials, drawn blinds',
-  tags:['turned urns','half-drawn blinds','black and grey','deep cornice','restrained'],
-  desc:'The urns are turned — foot, bowl, neck and lid — standing on plinths, and the blinds hang inside the reveal with a real bottom rail rather than being painted on the glass.',
+  name:'Undertaker', tall:true, block:true, place:'park',
+  ww: 4*1048.8, dd: 5*1048.8,
+  wTodo:'nine block cells in a staircase -- the packer has no concept of a multi-block, non-rectangular footprint',
+  pTodo:'GANTRY COMMONS specifically, Warehouse District. Measured on buildGrid(36,27,hashStr("2026-08-09")): 9 cells at i,j (10,13)(9,14)(10,14)(9,15)(10,15)(10,16)(11,16)(11,17)(12,17). The chooser places by block type and has no way to name a component',
+  gTodo:'pin to the Gantry Commons component via parkNameTable/mapParkName, the way WG_COAST pins the aquarium to its deck. Anchor is the min-j then min-i cell, (10,13). If worldgen ever reshapes the component the footprint here has to be regenerated from it rather than kept as a literal',
+  cTodo:'perimeter railings on the staircase outline, lych gate, chapel and ~200 headstones need volumes; the walks and the grass are drivable',
+  head:'Burial ground filling Gantry Commons, nine cells of it',
+  tags:['nine-cell footprint','staircase outline','burial ground','chapel of rest','lych gate','drivable walks'],
+  desc:'Not a shopfront and not a block: the undertaker takes the whole of Gantry Commons in the shape the worldgen actually makes it, nine cells running diagonally with the streets between them swallowed, railed round the staircase and walked through.',
   draw(p){
-    const wall = '#22242a', trim = '#8d8f96', H = 178;
-    body(wall, trim, H);
-    slab(0,W, H, H+8, -1, -14, shade(wall,1.9));
-    slab(0,W, H-16, H, -1, -10, shade(wall,1.5));
-    slab(0,W, H-22, H-16, -1, -6, shade(wall,2.1));
-    slab(8,W-8, 122, 152, -1, -9, shade(wall,1.4), null, trim);
-    F(24,W-24, 130, 143, trim, null,0,-9.5);
-    for(let i=0;i<2;i++){
-      const x0 = i? W*0.52 : 12, x1 = i? W*0.86 : W*0.44;
-      slab(x0-3,x1+3, 22, 108, -1, 10, shade(wall,1.6));
-      F(x0,x1, 26, 104, '#3f4650', null,0, 8);
-      F(x0,x1, 66, 104, '#6a6f78', null,0, 6);
-      for(let k=0;k<4;k++) F(x0,x1, 70+k*9, 72+k*9, '#5c626a', null,0, 5.5);
-      slab(x0,x1, 60, 66, 5, 9, '#8d8f96');
-      F((x0+x1)/2-1.5,(x0+x1)/2+1.5, 26, 60, shade(wall,1.6), null,0, 5);
-      faceCircle((x0+x1)/2, 4, 44, 8, '#8d8f96');
+    /* ============ THE FOOTPRINT IS A MEASURED PARK, NOT A BLOCK =====
+       At Sir's direction this fills GANTRY COMMONS in the shape the
+       worldgen actually gives it. The cells were read off the real
+       city -- buildGrid(36, 27, hashStr("2026-08-09")), which is
+       DISTRICT_COLS*DISTRICT_W by DISTRICT_ROWS*DISTRICT_H, 910 blocks
+       -- and parkNameTable's component for that name is nine cells:
+
+         (10,13) (9,14) (10,14) (9,15) (10,15) (10,16) (11,16)
+         (11,17) (12,17)
+
+       Normalised to its own origin that is a 4 by 5 bounding box with
+       nine of the twenty cells filled, running as a staircase from the
+       north-west down to the south-east. ww and dd are the bounding
+       box; the SHAPE is the CELLS list.
+
+       A CORRECTION WORTH KEEPING. My first census said Gantry Commons
+       never exists, across 120 runs. That census used buildGrid(12,12)
+       -- a twelfth of the city's area -- and at that size a hood never
+       gets enough park components for the sixth name in its pool to be
+       dealt. The method was right and the parameter was wrong, which is
+       the worst kind of wrong: it produces a confident number. The real
+       grid dimensions were in _generateRouteFresh the whole time.
+
+       WHAT THE SWALLOW PASS MEANS HERE. Where two cells are edge
+       adjacent the street between them is gone, so the grass runs
+       straight through; where a cell has no neighbour on a side, that
+       side is a real street frontage and gets the railing. So the
+       ground is not nine squares, it is one continuous piece with a
+       staircase outline, and the railing is derived from the cell set
+       rather than drawn as a rectangle.
+
+       cTodo IS LARGE AND HONEST. Nine cells at the old 62 by 88 stone
+       pitch would have been about eighteen hundred headstones. At 150
+       by 200 it is around two hundred, which still reads as rows and is
+       a collision bill somebody has to agree to. */
+    const BLK = 1048.8, ROAD = 90;
+    const CELLS = [[1,0],[0,1],[1,1],[0,2],[1,2],[1,3],[2,3],[2,4],[3,4]];
+    const has = (ci, cj) => CELLS.some(c => c[0] === ci && c[1] === cj);
+    const grass = '#4a6b46', walk = '#b3a894', iron = '#2a2e33';
+    const stoneA = '#9a9a92', stoneB = '#8a8a82', wall = '#6a6a64', roofc = '#3a3f44';
+    /* the chapel stands in cell (1,1), which is inside the solid 2x2
+       core the component happens to contain -- (0,1)(1,1)(0,2)(1,2) */
+    const CA0 = 1*BLK + 210, CA1 = 1*BLK + 700, CB0 = -1*BLK - 250, CB1 = -1*BLK - 700, CH = 250;
+
+    /* ---- the ground, cell by cell, with the swallowed streets ---- */
+    T(0, 4*BLK, -5*BLK, 0, 0.3, '#b3a894');
+    for(const [ci, cj] of CELLS){
+      const a0 = ci*BLK + (has(ci-1,cj) ? 0 : ROAD), a1 = (ci+1)*BLK - (has(ci+1,cj) ? 0 : ROAD);
+      const b1 = -cj*BLK - (has(ci,cj-1) ? 0 : ROAD), b0 = -(cj+1)*BLK + (has(ci,cj+1) ? 0 : ROAD);
+      T(a0, a1, b0, b1, 0.6, grass);
     }
-    shopDoor(W*0.50, wall, shade(wall,1.3));
-    if(state.roof){
-      for(const aa of [W*0.10, W*0.50, W*0.90]){
-        box(aa-13, aa+13, -14, 0, H+8, H+15, '#9a9ca2','#8f9198','#7c7e85');
-        cyl(aa, -7, H+15, H+20, 5, '#9a9ca2');
-        ball(aa, -7, H+28, 11, '#9a9ca2', '#adb0b6');
-        cyl(aa, -7, H+36, H+40, 5, '#9a9ca2');
-        slab(aa-14, aa+14, H+40, H+44, -1, -13, '#9a9ca2');
-        ball(aa, -7, H+48, 4, '#8d8f96');
+    /* ---- the walks, and every one of them ends at a gate ----
+       A walk that runs into a railing is a path to nowhere, and the
+       first cut had three of them doing exactly that -- one overshot
+       onto the pavement outside, one stopped 30 short of the fence and
+       one crossed a cell that is not in the component at all. Each now
+       runs from perimeter to perimeter and the railing opens where it
+       meets one. */
+    T(1*BLK+470, 1*BLK+610, -3*BLK, -ROAD, 0.8, walk);           // the spine
+    T(0*BLK+ROAD, 2*BLK-ROAD, -1*BLK-820, -1*BLK-960, 0.8, walk);// the cross walk
+    T(2*BLK+ROAD, 4*BLK-ROAD, -4*BLK-300, -4*BLK-440, 0.8, walk);// the lower walk
+
+    /* ---- the railing, derived from the cell set ----
+       Every cell side with no neighbour is a street frontage. Segments
+       run 20 inside the grass edge and overrun 20 at each end so the
+       corners close without a mitre. */
+    /* ---- THE RAILING IS THE BOUNDARY OF THE GRASS, NOT OF THE CELLS ----
+       The first cut put a rail on every cell side with no neighbour and
+       overran each end by 20. That is right along a straight run and
+       wrong at every step of the staircase, which is where the holes
+       Sir photographed were.
+
+       The reason: a cell's grass is inset by ROAD on the sides with no
+       neighbour and NOT inset on the sides with one, so two diagonally
+       adjacent cells produce grass edges that are offset by ROAD in
+       both axes. At a step the boundary has to make two short turns of
+       90 each to get from one cell's edge to the next -- and 20 of
+       overrun does not cover 90.
+
+       So: build the grass rectangle for each cell exactly as the ground
+       pass does, and for each of its four edges emit rail over the part
+       NOT shared with the neighbour on that side. Where there is no
+       neighbour that is the whole edge; where there is one it is the
+       interval difference, which is precisely the little notch at each
+       step. Same rule everywhere, no special case for corners. */
+    const rect = (ci, cj) => [
+      ci*BLK + (has(ci-1,cj) ? 0 : ROAD), (ci+1)*BLK - (has(ci+1,cj) ? 0 : ROAD),
+      -(cj+1)*BLK + (has(ci,cj+1) ? 0 : ROAD), -cj*BLK - (has(ci,cj-1) ? 0 : ROAD)];
+    const railSegs = [];
+    for(const [ci, cj] of CELLS){
+      const [a0, a1, b0, b1] = rect(ci, cj);
+      const span = (lo, hi, nb, along) => {         // the part of an edge that is open
+        if(!nb) return [[lo, hi]];
+        const r = rect(nb[0], nb[1]);
+        const [c0, c1] = along ? [r[0], r[1]] : [r[2], r[3]];
+        const out = [];
+        if(lo < c0) out.push([lo, Math.min(hi, c0)]);
+        if(hi > c1) out.push([Math.max(lo, c1), hi]);
+        return out;
+      };
+      const nb = (i, j) => has(i, j) ? [i, j] : null;
+      for(const [x0, x1] of span(a0, a1, nb(ci, cj-1), true))
+        railSegs.push([x0 - 12, x1 + 12, b1 - 12, b1]);
+      for(const [x0, x1] of span(a0, a1, nb(ci, cj+1), true))
+        railSegs.push([x0 - 12, x1 + 12, b0, b0 + 12]);
+      for(const [y0, y1] of span(b0, b1, nb(ci-1, cj), false))
+        railSegs.push([a0, a0 + 12, y0 - 12, y1 + 12]);
+      for(const [y0, y1] of span(b0, b1, nb(ci+1, cj), false))
+        railSegs.push([a1 - 12, a1, y0 - 12, y1 + 12]);
+    }
+    /* ---- THE GATES, one at every place a walk meets the perimeter ----
+       Four of them: the lych gate on the north street where the spine
+       walk starts, and three iron gates where the cross walk and the
+       lower walk reach the railing. Each is a rectangle the railing
+       opens for, so adding a walk means adding its gate and nothing
+       else has to change. */
+    const GA0 = 1*BLK + 448, GA1 = 1*BLK + 632, GB = -ROAD - 6;
+    const GATES = [
+      { a0: GA0,            a1: GA1,            b0: GB-30,        b1: GB+30, lych:true },
+      { a0: 0*BLK+ROAD-30,  a1: 0*BLK+ROAD+30,  b0: -1*BLK-980,   b1: -1*BLK-800 },
+      { a0: 2*BLK-ROAD-30,  a1: 2*BLK-ROAD+30,  b0: -1*BLK-980,   b1: -1*BLK-800 },
+      { a0: 4*BLK-ROAD-30,  a1: 4*BLK-ROAD+30,  b0: -4*BLK-460,   b1: -4*BLK-280 }
+    ];
+    const railing = (a0, a1, b0, b1) => {
+      for(const g of GATES){
+        if(a0 < g.a1 && a1 > g.a0 && b0 < g.b1 && b1 > g.b0){
+          if((a1 - a0) > Math.abs(b1 - b0)){
+            if(a0 < g.a0) railing(a0, g.a0, b0, b1);
+            if(a1 > g.a1) railing(g.a1, a1, b0, b1);
+          } else {
+            if(b0 < g.b0) railing(a0, a1, b0, g.b0);
+            if(b1 > g.b1) railing(a0, a1, g.b1, b1);
+          }
+          return;
+        }
       }
-      box(W*0.30,W*0.52,-150,-116,H,H+16,'#6a6f78','#5c626a','#4e545c');
+      box(a0, a1, b0, b1, 0, 10, shade(wall,.9), shade(wall,.7), shade(wall,.6));
+      const along = (a1 - a0) > Math.abs(b1 - b0);
+      const n = Math.max(2, Math.round((along ? a1-a0 : Math.abs(b1-b0)) / 30));
+      const mb = (b0+b1)/2, ma = (a0+a1)/2;
+      for(let i=0;i<=n;i++){
+        const t = i/n;
+        cyl(along ? a0 + (a1-a0)*t : ma, along ? mb : b0 + (b1-b0)*t, 10, 60, 2.2, iron);
+      }
+      for(const z of [16, 54])
+        poly(along ? [P(a0,mb,z),P(a1,mb,z),P(a1,mb,z+4),P(a0,mb,z+4)]
+                   : [P(ma,b0,z),P(ma,b1,z),P(ma,b1,z+4),P(ma,b0,z+4)], iron);
+    };
+
+    /* ---- the stones, the yews, and the railing, all one sorted list ---- */
+    const stones = [];
+    let seed = 11;
+    const rnd = () => (seed = (seed*1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
+    for(const [ci, cj] of CELLS)
+      for(let aa = ci*BLK + 150; aa < (ci+1)*BLK - 120; aa += 150)
+        for(let bb = -cj*BLK - 150; bb > -(cj+1)*BLK + 120; bb -= 200){
+          if(aa > CA0-140 && aa < CA1+140 && bb < CB0+180 && bb > CB1-260) continue;
+          if(aa > 1*BLK+430 && aa < 1*BLK+650 && bb > -3*BLK) continue;      // the spine walk
+          if(bb < -1*BLK-790 && bb > -1*BLK-990) continue;                   // the cross walk
+          if(bb < -4*BLK-270 && bb > -4*BLK-470) continue;
+          stones.push([aa + rnd()*20, bb - rnd()*20, Math.floor(rnd()*4)]);
+        }
+    const yews = [];
+    for(const [ci, cj] of CELLS)
+      if((ci + cj) % 2 === 0) yews.push([ci*BLK + 220 + rnd()*300, -cj*BLK - 240 - rnd()*400]);
+
+    const drawStone = ([sa, sb, kind]) => {
+      if(kind === 0){
+        box(sa-15, sa+15, sb-6, sb+6, 0, 46, stoneA, shade(stoneA,1.1), shade(stoneA,.78));
+        const q = [];
+        for(let i=0;i<=12;i++){ const t = Math.PI*i/12;
+          q.push(P(sa - 15*Math.cos(t), sb+6, 46 + 15*Math.sin(t)/ZSCALE)); }
+        poly(q, shade(stoneA,1.1));
+      } else if(kind === 1){
+        box(sa-6, sa+6, sb-6, sb+6, 0, 60, stoneB, shade(stoneB,1.1), shade(stoneB,.78));
+        box(sa-18, sa+18, sb-5, sb+5, 40, 51, stoneB, shade(stoneB,1.1), shade(stoneB,.78));
+      } else if(kind === 2){
+        box(sa-13, sa+13, sb-11, sb+11, 0, 14, stoneB, shade(stoneB,1.05), shade(stoneB,.74));
+        box(sa-9, sa+9, sb-8, sb+8, 14, 72, stoneA, shade(stoneA,1.12), shade(stoneA,.76));
+        poly([P(sa-9,sb+8,72),P(sa+9,sb+8,72),P(sa,sb+8,90)], shade(stoneA,1.12));
+      } else {
+        box(sa-22, sa+22, sb-13, sb+13, 0, 30, stoneB, shade(stoneB,1.06), shade(stoneB,.74));
+        slab(sa-26, sa+26, 30, 37, sb+15, sb-15, shade(stoneA,1.14), null, shade(stoneA,1.2));
+      }
+    };
+    const drawYew = ([ya, yb]) => {
+      cyl(ya, yb, 0, 46, 11, '#4a3c2e');
+      for(let k=0;k<3;k++)
+        ball(ya + (k-1)*15, yb + (k%2 ? 11 : -11), 66 + k*19, 35 - k*6,
+             k%2 ? '#2f5638' : '#365f3e');
+    };
+
+    const inFront = (oa, ob) => {
+      const s0 = oa - ob, key = oa + ob;
+      if(s0 < CA0 - CB0 || s0 > CA1 - CB1) return key > CA1 + CB0;
+      return key > (s0 <= CA1 - CB0 ? s0 + 2*CB0 : 2*CA1 - s0);
+    };
+    const items = []
+      .concat(stones.map(o => [o[0]+o[1], () => drawStone(o), o]))
+      .concat(yews.map(o => [o[0]+o[1], () => drawYew(o), o]))
+      /* ---- LONG RAILS HAVE TO BE CUT UP BEFORE THEY ARE SORTED ----
+         A rail segment can be a whole block long, and a box that long
+         has a different depth key at every point along it. Sorting the
+         whole run on its MIDPOINT key puts it in one place in the
+         queue, so stones near its far end came out in front of it and
+         stones near its near end behind -- which is what the headstones
+         standing on the railing were.
+
+         Same fault as the chapel two passes ago and the same fix as the
+         tea house roof: an object that spans a range cannot be one item
+         in a depth-sorted queue. Cut into 140s, every piece's midpoint
+         is accurate for its own extent, and railing() already spaces
+         its posts by length so the joins do not show. */
+      .concat(railSegs.flatMap(r => {
+        const along = (r[1]-r[0]) > Math.abs(r[3]-r[2]);
+        const len = along ? r[1]-r[0] : r[3]-r[2];
+        const n = Math.max(1, Math.round(len / 140));
+        const out = [];
+        for(let i=0;i<n;i++){
+          const t0 = i/n, t1 = (i+1)/n;
+          const q = along ? [r[0]+(r[1]-r[0])*t0, r[0]+(r[1]-r[0])*t1, r[2], r[3]]
+                          : [r[0], r[1], r[2]+(r[3]-r[2])*t0, r[2]+(r[3]-r[2])*t1];
+          const mid = [(q[0]+q[1])/2, (q[2]+q[3])/2];
+          out.push([mid[0]+mid[1], () => railing(q[0], q[1], q[2], q[3]), mid]);
+        }
+        return out;
+      }));
+    items.sort((u, v) => u[0] - v[0]);
+    for(const [, fn, o] of items) if(!inFront(o[0], o[1])) fn();
+
+    /* ---- the chapel of rest ----
+       Hand-rolled, like every set-back building in this file: reveal(),
+       glaze() and shopDoor() all draw at b 0 and this stands a block in.
+       Back wall first: two planes of one building at different b always
+       overlap on screen by exactly the building's depth. */
+    F(CA0, CA1, 0, CH, shade(wall,.86), null, 0, CB1);
+    {
+      const o = P(0,CB0,0), pa = P(1,CB0,0), ge = (pa.y - o.y) > 0 ? CA1 : CA0;
+      S(ge, CB1, CB0, 0, CH, shade(wall,.74));
+      poly([P(ge,CB0,CH),P(ge,(CB0+CB1)/2,CH+96),P(ge,CB1,CH)], shade(wall,.68));
     }
-    kerb(p,'none');
+    F(CA0, CA1, 0, CH, wall, null, 0, CB0);
+    F(CA0, CA1, 0, 22, shade(wall,.82), null, 0, CB0+0.4);
+    const CBM = (CB0+CB1)/2;
+    poly([P(CA0-8,CB0+8,CH),P(CA1+8,CB0+8,CH),P(CA1+8,CBM,CH+96),P(CA0-8,CBM,CH+96)],
+         shade(roofc,1.04));
+    for(let i=1;i<9;i++){
+      const t = i/9, bb = CB0+8 + (CBM-CB0-8)*t, zz = CH + 96*t;
+      poly([P(CA0-6,bb,zz),P(CA1+6,bb,zz),P(CA1+6,bb-1.6,zz-2),P(CA0-6,bb-1.6,zz-2)],
+           shade(roofc,.88));
+    }
+    poly([P(CA0-8,CBM,CH+96),P(CA1+8,CBM,CH+96),P(CA1+8,CB1-8,CH),P(CA0-8,CB1-8,CH)],
+         shade(roofc,.74));
+    slab(CA0-10, CA1+10, CH+96, CH+104, CBM+8, CBM-8, shade(roofc,.6));
+    for(const wa of [CA0+80, CA0+230, CA1-80]){
+      F(wa-26, wa+26, 60, 172, shade(wall,1.1), null, 0, CB0-0.6);
+      F(wa-20, wa+20, 66, 156, '#2f3a42', null, 0, CB0-1);
+      const q = [];
+      for(let i=0;i<=10;i++){ const t = Math.PI*i/10;
+        q.push(P(wa - 20*Math.cos(t), CB0-1, 156 + 20*Math.sin(t)/ZSCALE)); }
+      poly(q, '#2f3a42');
+      F(wa-2, wa+2, 66, 170, shade(wall,1.1), null, 0, CB0-1.4);
+    }
+    {
+      const da = (CA0+CA1)/2;
+      F(da-50, da+50, 0, 134, shade(wall,1.06), null, 0, CB0+0.8);
+      F(da-36, da+36, 0, 110, '#241f1c', null, 0, CB0+1.2);
+      const q = [];
+      for(let i=0;i<=10;i++){ const t = Math.PI*i/10;
+        q.push(P(da - 36*Math.cos(t), CB0+1.2, 110 + 36*Math.sin(t)/ZSCALE)); }
+      poly(q, '#241f1c');
+      for(const [d0,d1] of [[da-32, da-2],[da+2, da+32]])
+        F(d0, d1, 4, 106, '#3a3028', shade(wall,.7), 1.4, CB0+1.6);
+    }
+
+    for(const [, fn, o] of items) if(inFront(o[0], o[1])) fn();
+
+    /* ---- the three iron gates, then the lych gate ----
+       Piers with ball caps and an arched overthrow between them, turned
+       to face along whichever axis the opening runs. */
+    for(const g of GATES){
+      if(g.lych) continue;
+      const across = (g.a1 - g.a0) > Math.abs(g.b1 - g.b0);
+      const ma = (g.a0+g.a1)/2, mb = (g.b0+g.b1)/2;
+      const ends = across ? [[g.a0-6, mb],[g.a1+6, mb]] : [[ma, g.b0-6],[ma, g.b1+6]];
+      for(const [pa, pb] of ends){
+        box(pa-15, pa+15, pb-15, pb+15, 0, 92, shade(wall,.95), shade(wall,.75), shade(wall,.62));
+        slab(pa-19, pa+19, 92, 100, pb+19, pb-19, shade(wall,1.1));
+        ball(pa, pb, 112, 13, shade(wall,1.05), shade(wall,1.2));
+      }
+      for(let i=0;i<=10;i++){                                     // the overthrow
+        const t = i/10, zz = 104 + 26*Math.sin(Math.PI*t);
+        const aa = across ? ends[0][0] + (ends[1][0]-ends[0][0])*t : ma;
+        const bb = across ? mb : ends[0][1] + (ends[1][1]-ends[0][1])*t;
+        if(i){
+          const t0 = (i-1)/10, z0 = 104 + 26*Math.sin(Math.PI*t0);
+          const a0 = across ? ends[0][0] + (ends[1][0]-ends[0][0])*t0 : ma;
+          const b0 = across ? mb : ends[0][1] + (ends[1][1]-ends[0][1])*t0;
+          tube(a0, b0, z0, aa, bb, zz, 2.4, iron);
+        }
+      }
+    }
+    {
+      const gb = GB;
+      for(const ga of [GA0, GA1])
+        box(ga-14, ga+14, gb-14, gb+14, 0, 112, shade(wall,.95), shade(wall,.75), shade(wall,.62));
+      box(GA0+12, GA1-12, gb-7, gb+7, 92, 106, '#4a4038','#584c42','#3c332c');
+      for(const [ba, sgn] of [[GA0+14, 1],[GA1-14, -1]])
+        poly([P(ba, gb+7, 92),P(ba + sgn*30, gb+7, 92),P(ba, gb+7, 64)], '#4a4038');
+      poly([P(GA0-32,gb+38,112),P(GA1+32,gb+38,112),P(GA1+32,gb,158),P(GA0-32,gb,158)],
+           shade(roofc,1.04));
+      for(let i=1;i<6;i++){
+        const t = i/6, bb = gb+38 - 38*t, zz = 112 + 46*t;
+        poly([P(GA0-30,bb,zz),P(GA1+30,bb,zz),P(GA1+30,bb-1.6,zz-2),P(GA0-30,bb-1.6,zz-2)],
+             shade(roofc,.88));
+      }
+      poly([P(GA0-32,gb,158),P(GA1+32,gb,158),P(GA1+32,gb-38,112),P(GA0-32,gb-38,112)],
+           shade(roofc,.72));
+      slab(GA0-34, GA1+34, 158, 165, gb+5, gb-5, shade(roofc,.58));
+      const o = P(0,gb,0), pa = P(1,gb,0), ge = (pa.y - o.y) > 0 ? GA1+32 : GA0-32;
+      poly([P(ge,gb+38,112),P(ge,gb,158),P(ge,gb-38,112)], shade(wall,.9));
+    }
   }
 },
 {
