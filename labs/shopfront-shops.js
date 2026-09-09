@@ -7156,52 +7156,271 @@ const SHOPS = [
   }
 },
 {
-  name:'Brewery tap', tall:true,
-  cTodo:'1 pavement props need collision volumes, 45 of them lapping past the frontage',
-  fTodo:'z132..164 return +1, lettering behind board',
-  zTodo:1.11,          // H 186 -- see SCALE REVIEW at the head of this file
-  head:'Copper still through the glass, vent stacks',
-  tags:['turned copper still','swan neck','vent stacks','cellar hatch','barrel'],
-  desc:'The still is a turned copper pot with a domed head and a swan neck running to a condenser column, all as solids, and the vent stacks are cylinders with collars and cowls.',
+  name:'Brewery tap', tall:true, block:true, ww: 1048.8, dd: 1048.8,
+  wTodo:'a whole block edge -- five packing slots, and the packer places none of them',
+  cTodo:'yard wall, gate posts and the dock platform need volumes; the yard itself is drivable',
+  head:'Brewery on a whole block: tap room to the street, yard wrapping three sides',
+  tags:['block landmark','tap room on the street','yard on three sides','loading dock','copper still behind glass','drivable yard'],
+  desc:'The brewhouse stands as an island in its own block with the tap room facing the street and the working yard wrapping round the other three sides -- dock and casks down one flank, crates across the back, a cartway returning up the other. The still and the tuns are behind the tap-room glass.',
   draw(p){
-    const wall = '#6b4a2e', trim = '#e0c88a', H = 186;
-    body(wall, trim, H);
-    slab(0,W, H, H+10, -1, -12, shade(wall,.7));
-    slab(8,W-8, 132, 164, -1, -9, shade(wall,1.2), null, trim);
-    F(22,W-22, 140, 156, trim, null,0,-9.5);
-    F(10,W*0.68, 20, 122, '#2e2018', shade(wall,.6), 3);
-    // the still, turned
-    const sa = W*0.28, sb = 4;
-    cyl(sa, sb, 26, 84, 30, '#b87333');
-    for(const hz of [40, 58, 76]) plateHoop(sa, sb, hz, 31, '#98561f', 2.5);
-    ball(sa, sb, 84, 28, '#c9803a', '#d89a52');
-    cyl(sa, sb, 108, 118, 8, '#b87333');
-    tube(sa, sb, 112, sa+40, sb, 104, 5, '#b87333');
-    cyl(sa+46, sb, 58, 106, 9, '#a8672c');
-    plateCircle(sa+46, sb, 106, 9, '#c9803a');
-    cyl(sa, sb, 20, 30, 22, '#3a2e26');
-    F(sa-14, sa+14, 24, 40, '#e8a13a', null,0, sb-22);
-    shopDoor(W*0.86, wall, trim);
-    F(W*0.78,W-14, 56, 98, '#8a7a5a', null,0,-6.5);
-    if(state.props){
-      poly([P(W*0.10,30,2),P(W*0.40,30,2),P(W*0.40,64,2),P(W*0.10,64,2)], '#4a3a2a', '#3a2c1e', 2);
-      poly([P(W*0.12,32,4),P(W*0.24,32,4),P(W*0.24,62,4),P(W*0.12,62,4)], '#5c4632');
-      const ba = W+28, bb = 40;
-      cyl(ba, bb, 0, 34, 17, '#8a5a34');
-      for(const hz of [7, 17, 27]) plateHoop(ba, bb, hz, 18, '#5c4632', 2.5);
-      plateCircle(ba, bb, 34, 17, '#a06a3e', '#75492a', 2);
+    /* ============ A BREWERY IS A LANDMARK, AND THE YARD IS WHY ======
+       Sir asked for a whole block with a loading dock, and that settles
+       which of the two block treatments this is. The Playhouse took a
+       whole edge and stayed on the line because a theatre does
+       everything at its front door. A brewery does not: it sells at the
+       front and WORKS everywhere else, and the work needs ground a dray
+       can turn on. That is the landmark case -- a lot with buildings on
+       it -- so block:true, ww = dd = 1048.8, on the same terms as the
+       Bathhouse, the Chapel and the Nursery.
+
+       THE YARD WRAPS THREE SIDES, at Sir's direction, and that is the
+       shape the type wants: the brewhouse is an ISLAND on its plot with
+       a cartway all the way round it, so a dray comes in at the gate,
+       loads at the dock, and goes on round rather than reversing out.
+       A yard on one side is a strip of ground; a yard that returns is a
+       working circuit.
+
+       IT ALSO SOLVES A CAMERA PROBLEM. The first cut put the dock on
+       the b -880 face -- "the back" in the world -- and the camera in
+       this game is a fixed isometric: it always shows the same two
+       faces of a lot. That dock would have been correct, reachable,
+       registered for a dropoff, and never once seen. With the yard
+       wrapping, the near flank and the back-right corner of the circuit
+       are both in view, so the working half of the building is on the
+       side the player actually drives past.
+
+       AND THE BREWHOUSE NEEDED A BACK WALL. It was a front face, a
+       return and a roof plate, which is every other building in this
+       file and correct for every one of them because the front hides
+       the back. As an island on a block it has open ground behind it,
+       and from a rotated camera you looked straight through it.
+
+       WHAT CAME FROM THE PREVIOUS PASS. The still was at b 4, outside
+       the wall on the footway, in front of a flat panel standing in for
+       a window -- a pot of r 30 centred on 4 occupies b -26..34. The
+       census did not count it: cTodo said "1 pavement prop", which was
+       the barrel at a = W + 28, because the prop test asks whether the
+       CENTRE b is past 8. Third census gap of the session and the only
+       one that is a wrong MEASURE rather than a missing primitive.
+
+       A WINDOW WAS DRAWN ACROSS THE DOOR, thirteenth consecutive shop,
+       and the window itself was a flat panel. fTodo's board put its far
+       end on screen-a 231 against a return at 230 with the lettering
+       behind its own backing. zTodo 1.11 goes with the height: H 420 is
+       2.5 storeys, which is what a still two storeys tall stands in. */
+    const wall = '#6b4a2e', trim = '#e0c88a', H = 420, LOT = 1048.8;
+    const inner = '#231710', copper = '#b87333', glass = 'rgba(150,132,104,.34)';
+    const BA0 = 180, BA1 = 660, FB = -40, BB = -660;    // the brewhouse island
+    const YW0 = 24, YW1 = LOT - 24, YB = -20, YBK = -LOT + 24;
+    const BAYS = [[216,376],[466,626]];
+    const FH = 72;
+    const yWall = (a0,a1,b0,b1) => {
+      box(a0, a1, b0, b1, 0, FH, shade(wall,.9), shade(wall,.66), shade(wall,.54));
+      slab(a0-3, a1+3, FH, FH+8, b1+3, b0-3, shade(wall,1.05), null, shade(wall,1.2));
+    };
+
+    /* ---- the ground: pavement all round, gravel over the whole yard ---- */
+    T(0, LOT, -LOT, 0, 0.4, '#b3a894');
+    T(YW0, YW1, YBK, YB, 0.6, '#9a917f');
+
+    /* ---- the far half of the perimeter, before the building ----
+       Only the back and left runs go here. The rest of the wall is
+       NEARER than the brewhouse and has to be painted after it: the
+       street wall sits at b -20 with a depth key near 1000, against a
+       building whose deepest corner keys -480, and on screen the two
+       overlap because screen-a is a - b and 620 of building depth
+       carries its mass out to 1280. Drawn with the back wall, the whole
+       street frontage of the yard and its gate went behind the building
+       and simply were not there. Ninth order-versus-depth fault of the
+       session, and the first where the thing that vanished was an
+       entrance. */
+    yWall(YW0, YW1, YBK, YBK+12);
+    yWall(YW0, YW0+12, YBK, YB);
+    /* ---- the stock on the BACK run of the circuit, before the building ----
+       These sit at b -780..-900, behind the brewhouse's back plane at
+       -660, and on screen they land at a - b of 1100..1330 against a
+       building whose roof reaches 1280. Drawn with the rest of the yard
+       they were painted on top of the roof: crates stacked in mid-air
+       over the slates. The yard has to be split at the building the way
+       the tea house's roof had to be split at its colonnade -- an
+       object spanning a circuit is not one item in the queue. */
+    for(let k=0;k<4;k++)
+      box(300+k*3, 430-k*3, -800+k*3, -900+k*3, k*26, k*26+24,
+          '#7d6650','#6b5540','#5c4836');
+    /* CASKS GO IN DEPTH ORDER, NOT IN THE ORDER THEY WERE TYPED. A
+       group of them written [540,-780], [572,-780], [556,-816] has keys
+       of a + b at -240, -208 and -260, so the last one listed is the
+       FARTHEST and was painted over the two in front of it. Two casks
+       standing a few units apart is exactly where this shows: they
+       overlap on screen, and whichever is drawn last wins regardless of
+       which is nearer. Sorted ascending, here and everywhere else casks
+       appear on this shop. */
+    const cask = (ca, cb, z0) => {
+      cyl(ca, cb, z0, z0+34, 11, '#8a5a34');
+      for(const hz of [z0+7, z0+17, z0+27]) plateHoop(ca, cb, hz, 12, '#5c4632', 2);
+      plateCircle(ca, cb, z0+34, 11, '#a06a3e', '#75492a', 1.6);
+    };
+    for(const [ca, cb] of [[540,-780],[572,-780],[556,-816]]
+        .sort((u,v) => (u[0]+u[1]) - (v[0]+v[1]))) cask(ca, cb, 0);
+
+    /* ---- the back wall of the brewhouse ---- */
+    F(BA0, BA1, 0, H, shade(wall,.86), null, 0, BB);
+    F(BA0, BA1, 0, 24, shade(wall,.66), null, 0, BB-0.4);
+    for(const wa of [280, 560]){
+      F(wa-44, wa+44, 250, 330, shade(wall,1.1), null, 0, BB-0.6);
+      F(wa-38, wa+38, 256, 324, '#3f5a68', null, 0, BB-1);
+      F(wa-2, wa+2, 256, 324, shade(wall,1.1), null, 0, BB-1.4);
     }
-    if(state.roof){
-      for(const aa of [W*0.24, W*0.62]){
-        cyl(aa, -60, H+10, H+56, 11, '#8a8272');
-        cyl(aa, -60, H+56, H+64, 15, '#9a9282');
-        plateCircle(aa, -60, H+64, 15, '#a8a08e', '#7d7566', 2);
-        for(let k=0;k<3;k++)
-          ball(aa + (k%2?8:-6), -60, H+76+k*16, 10+k*5, 'rgba(226,226,220,.42)', 'rgba(240,240,234,.4)');
+
+    /* ---- the flanks, one body called twice ---- */
+    const flank = (ra, sgn) => {
+      const q = (b0,b1,z0,z1,col,o) => poly([P(ra+o*sgn,b0,z0),P(ra+o*sgn,b1,z0),
+                                             P(ra+o*sgn,b1,z1),P(ra+o*sgn,b0,z1)], col);
+      /* THE FLANK PLANE ITSELF, which was missing. flank() drew a
+         plinth, piers, blind bays and a door -- every feature OF a wall
+         and no wall. On a shop in a run body() supplies the return with
+         S() and the helper only decorates it; this building rolls its
+         own shell and the S() call went with the rewrite, so the piers
+         and the roller doors were standing in mid-air with the yard
+         visible between them. Every other elevation on this shop starts
+         with its own plane; the flank had to as well. */
+      q(FB, BB, 0, H, shade(wall,.78), 0);
+      q(FB, BB, 0, 30, shade(wall,.68), 0.6);
+      for(const bb of [FB-50, FB-180, FB-310, FB-440, BB+26]){
+        q(bb, bb-28, 30, 396, shade(wall,1.08), 1.2);
+        q(bb+5, bb-33, 396, 414, shade(trim,.86), 2.0);
       }
-      box(W*0.78,W*0.96,-150,-120,H,H+18,'#8f969d','#787f86','#697077');
+      for(const b0 of [FB-88, FB-218, FB-348]){
+        q(b0, b0-84, 240, 370, shade(wall,.88), 0.9);
+        q(b0-8, b0-76, 252, 356, '#3f5a68', 1.4);
+        q(b0-8, b0-76, 252, 260, shade(trim,.7), 1.7);
+      }
+      q(FB-110, FB-166, 0, 116, '#2b2119', 1.0);                       // personnel door
+      q(FB-116, FB-160, 0, 110, shade(trim,.55), 1.4);
+      q(FB-122, FB-154, 120, 128, trim, 1.9);
+      q(FB+4, BB-4, 420, 436, trim, 2.4);
+    };
+    flank(BA0 - 0.5, -1);
+
+    /* ---- the brewhouse ---- */
+    F(BA0, BA1, 0, H, wall, null, 0, FB);
+    F(BA0, BA1, 0, 24, shade(wall,.78), null, 0, FB+0.4);
+    T(BA0, BA1, BB, FB, H+0.4, '#3d2a1a');
+    slab(BA0-6, BA1+6, H, H+16, FB+6, BB-6, shade(wall,.7));           // cornice
+
+    /* ---- the tap room, on the b -40 face ---- */
+    slab(BA0, BA1, 0, 150, FB+6, FB, shade(wall,1.2), null, trim);
+    BAYS.forEach(([x0,x1], n) => {
+      F(x0, x1, 24, 140, inner, null, 0, FB-34);
+      ctx.save();
+      poly([P(x0,FB,140),P(x1,FB,140),P(x1,FB,24),P(x0,FB,24)]);
+      ctx.clip();
+      slab(x0+6, x1-6, 24, 30, FB-10, FB-44, shade(wall,.86), null, shade(wall,1.0));
+      if(n === 0){
+        const sa = 296, sb = FB-38;
+        cyl(sa, sb, 22, 26, 24, '#3a2e26');
+        F(sa-13, sa+13, 24, 38, '#e8a13a', null, 0, sb-24.4);
+        cyl(sa, sb, 30, 84, 30, copper);
+        for(const hz of [42, 60, 78]) plateHoop(sa, sb, hz, 31, '#98561f', 2.5);
+        ball(sa, sb, 84, 28, '#c9803a', '#d89a52');
+        cyl(sa, sb, 106, 116, 8, copper);
+        tube(sa, sb, 110, sa+42, sb, 102, 5, copper);
+        cyl(sa+48, sb, 52, 104, 9, '#a8672c');
+        plateCircle(sa+48, sb, 104, 9, '#c9803a');
+      } else {
+        cyl(516, FB-38, 30, 96, 30, '#8a7a58');
+        for(const hz of [44, 62, 80]) plateHoop(516, FB-38, hz, 31, '#5c4632', 2.5);
+        plateCircle(516, FB-38, 96, 30, '#9a8a66', '#75674a', 2);
+        for(let r=0;r<2;r++) for(let c=0;c<3;c++){
+          const ca = 566 + c*22, cz = 30 + r*38, cb = FB-24 - r*8;
+          cyl(ca, cb, cz, cz+34, 11, '#8a5a34');
+          for(const hz of [cz+7, cz+17, cz+27]) plateHoop(ca, cb, hz, 12, '#5c4632', 2);
+          plateCircle(ca, cb, cz+34, 11, '#a06a3e', '#75492a', 1.6);
+        }
+      }
+      ctx.restore();
+      F(x0, x1, 24, 140, glass, null, 0, FB+0.4);
+      for(let k=1;k<5;k++)
+        F(x0 + (x1-x0)*k/5 - 3.4, x0 + (x1-x0)*k/5 + 3.4, 24, 140, shade(wall,1.25), null,0, FB+1.2);
+    });
+    /* the tap-room door, hand-rolled: the frontage is 40 back and
+       shopDoor draws at b 0 */
+    F(384, 458, 0, 150, shade(wall,1.14), null, 0, FB+6.4);
+    F(390, 452, 0, 120, '#2b2119', null, 0, FB+6.8);
+    for(const [d0,d1] of [[394,419],[423,448]]){
+      F(d0, d1, 4, 112, trim, shade(trim,.7), 1.6, FB+7.2);
+      F(d0+3, d1-3, 62, 106, shade(wall,.8), null, 0, FB+7.6);
     }
-    kerb(p,'none');
+    F(390, 452, 122, 144, 'rgba(200,214,224,.7)', null, 0, FB+7.2);
+
+    slab(BA0, BA1, 156, 200, FB+6, FB, shade(wall,1.25), null, trim);  // fascia
+    F(BA0+24, BA1-24, 166, 190, trim, null,0, FB+6.6);
+    for(let i=0;i<5;i++){                                              // upper floor
+      const c = 232 + i*88;
+      slab(c-38, c+38, 214, 314, FB+3, FB-13, shade(wall,1.1), null, trim);
+      F(c-30, c+30, 222, 306, '#3f5a68', null, 0, FB-14);
+      F(c-30, c+30, 222, 306, 'rgba(126,108,84,.72)', null, 0, FB+0.4);
+      F(c-2, c+2, 222, 306, shade(wall,1.1), null,0, FB+1.4);
+      F(c-30, c+30, 260, 266, shade(wall,1.1), null,0, FB+1.4);
+    }
+
+    /* ---- the near flank, and the loading dock on it ----
+       A deck at z 34, a dray's bed height, with three roller shutters
+       over it and a ramp at each end so the cartway still reads as
+       drivable ground rather than a step. */
+    flank(BA1 + 0.5, 1);
+    const RA = BA1 + 1;
+    for(let i=0;i<3;i++){
+      const d0 = -150 - i*150, d1 = d0 - 100;
+      poly([P(RA,d0+10,26),P(RA,d1-10,26),P(RA,d1-10,196),P(RA,d0+10,196)], shade(wall,1.1));
+      poly([P(RA+0.6,d0,34),P(RA+0.6,d1,34),P(RA+0.6,d1,186),P(RA+0.6,d0,186)], '#2b2119');
+      for(let k=0;k<9;k++)
+        poly([P(RA+1,d0-3,42+k*17),P(RA+1,d1+3,42+k*17),
+              P(RA+1,d1+3,52+k*17),P(RA+1,d0-3,52+k*17)], shade('#4a3a2a',1.1));
+    }
+    slab(BA1, BA1+66, 0, 34, -110, -620, '#6b5540', null, '#7d6650');
+    for(let k=0;k<10;k++)
+      poly([P(BA1+2, -120-k*50, 34.4),P(BA1+64, -120-k*50, 34.4),
+            P(BA1+64, -124-k*50, 34.4),P(BA1+2, -124-k*50, 34.4)], '#5c4836');
+    for(const [r0,r1] of [[-110,-64],[-620,-666]])
+      poly([P(BA1,r0,34),P(BA1,r1,0),P(BA1+66,r1,0),P(BA1+66,r0,34)], '#5c4836');
+    for(let i=3;i>=0;i--) cask(BA1+33, -180-i*120, 34);   // far to near along the deck
+
+    /* ---- the stock on the NEAR run, and then the near wall ---- */
+    for(const [ca, cb] of [[900,-700],[932,-700],[840,-420],[872,-420],[856,-456]]
+        .sort((u,v) => (u[0]+u[1]) - (v[0]+v[1]))) cask(ca, cb, 0);
+    yWall(YW1-12, YW1, YBK, YB);                                       // the right run
+    /* ---- the street wall, and the circuit has a gate at EACH end ----
+       The left return of the yard was closed with a plain wall run and
+       it read as a wall that stopped: the whole left arm of the circuit
+       is behind the brewhouse on screen, so all that showed of it was a
+       stub at the pavement with nothing leading anywhere. It is not a
+       wall problem, it is a plan problem -- a cartway that goes in one
+       gate and has no way out is a dead end, and a dray would have to
+       reverse the length of the block.
+
+       Two gates: the cart gate on the wide side, where the dock is, and
+       a second on the narrow one. In at one, round the circuit, out at
+       the other -- which is what the wrap was for, and it puts two of
+       the landmark's four entrances on the same street as the tap room
+       rather than leaving them on faces the camera never shows. */
+    for(const [a0,a1] of [[672, 866],[994, YW1]]) yWall(a0, a1, YB-12, YB);
+    const gate = (g0, g1) => {
+      for(const ga of [g0, g1]){
+        cyl(ga, YB-6, 0, 116, 10, shade(wall,.62));
+        plateCircle(ga, YB-6, 116, 10, shade(wall,.9));
+      }
+      slab(g0-12, g1+12, 116, 140, YB+3, YB-15, trim, null, shade(trim,1.1));
+      F(g0, g1, 122, 134, shade(wall,1.2), null, 0, YB+3.6);
+    };
+    gate(866, 994);
+    gate(36, 156);
+
+    if(state.roof) for(const [aa,bb] of [[260,-180],[400,-360],[560,-220],[330,-560]]){
+      cyl(aa, bb, H, H+56, 13, '#8a8272');
+      cyl(aa, bb, H+56, H+66, 18, '#9a9282');
+      plateCircle(aa, bb, H+66, 18, '#a8a08e', '#7d7566', 2);
+    }
   }
 },
 {
