@@ -8809,50 +8809,224 @@ const SHOPS = [
   }
 },
 {
-  name:'Tattoo parlour', head:'Neon script, flash sheets, blacked front',
-  fTodo:'z118..150 return +3',
-  tags:['neon in the wall plane','framed flash sheets','black render','red glow','A-board'],
-  desc:'The neon is drawn through points in the wall plane so the script leans with the fascia, and every flash sheet is a framed slab standing off the glass.',
+  name:'Tattoo parlour', tall:true,
+  head:'TATTOO in yellow under a neon run, flash behind the glass',
+  tags:['block letters as prisms','neon as tubes','framed flash sheets','black render','yellow on black'],
+  desc:'The word is built from extruded bars standing proud of the fascia, so the letters have a top and a side and keep their thickness at any zoom, and the flash sheets hang inside the shop behind real glass.',
   draw(p){
-    const wall = '#1e1c22', trim = '#e0334a', H = 162;
+    /* ============ THE NEON WAS INSIDE THE WALL, AND IT WAS A STROKE ==
+       Two faults on the one object. nb = -10 put the script ten units
+       INTO the masonry -- sixteenth thing at the wrong sign of b this
+       session -- and it was drawn with ctx.stroke at lineWidth 5*K,
+       which is five SCREEN pixels scaled by the current zoom. That is
+       not a thickness, it is a rendering artefact: the same sign comes
+       out fat on a close block edge and hairline on a far one, and it
+       has no depth at all, so nothing can pass in front of it.
+
+       Neon is a glass tube. It is built from tube() segments now,
+       sampled along the same script curve, standing at b 5 with a
+       brighter core inside a dimmer envelope -- 3.4 and 1.6 in WORLD
+       units, which stay 3.4 and 1.6 wherever the shop is drawn.
+
+       THE FLASH SHEETS WERE IN THE WALL TOO, slabs at b -1..-6 painted
+       on the back of a flat panel -- F(10, W*0.68, 20, 112) with a
+       stroke round it, the twenty-fourth flat window of the session.
+       They hang inside the shop now, behind glass, which is where a
+       parlour keeps its flash.
+
+       THE A-BOARD WAS ON THE FOOTWAY and carried no cTodo. It is built
+       from poly() and the prop census counts cyl, box and plateCircle,
+       so it was invisible to it -- eighth census gap of the session.
+       It goes rather than moves: the neon is the sign, and a second
+       sign on the pavement is a second thing to hit.
+
+       A WINDOW WAS DRAWN ACROSS THE DOOR, twenty-third consecutive
+       shop. F(W*0.78, W-14, 54, 94) ran a 179.4..216 against an opening
+       at 158.8..225.
+
+       fTodo: slab(6, W-6, 118, 150, -1, -9) put its far end on screen-a
+       233 against a return at 230. That one is FRONTAGE-bounded -- it
+       stops short of the return -- so it wants a margin, unlike the
+       Dance studio's band which wanted bBack 0. H 162 -> 200 to give
+       the fascia and the neon room over the glass. */
+    const wall = '#1e1c22', trim = '#e0334a', H = 200;
+    const inner = '#0e0c12', ink = ['#c2452e','#2f5f6b','#c9a24a','#6b4a7a','#3f8f5a'];
     body(wall, trim, H);
-    slab(0,W, H, H+12, -1, -14, shade(wall,2.2));
-    F(10,W*0.68, 20, 112, '#141218', shade(wall,2.4), 3);
-    for(let r=0;r<3;r++) for(let c=0;c<4;c++){
-      const x0 = 16+(W*0.62-16)*(c+0.06)/4, x1 = 16+(W*0.62-16)*(c+0.94)/4, z0 = 26+r*28;
-      slab(x0,x1, z0, z0+22, -1, -6, '#e8e2d4', shade(wall,2.0));
-      F(x0+3,x1-3, z0+3, z0+19, ['#c2452e','#2f5f6b','#c9a24a','#6b4a7a'][(r+c)%4], null,0,-6.5);
-    }
-    shopDoor(W*0.85, wall, shade(wall,1.9), 'rgba(60,66,80,.55)');
-    F(W*0.78,W-14, 54, 94, '#3a2a30', null,0,-6.5);
-    slab(6,W-6, 118, 150, -1, -9, shade(wall,1.7));
-    // neon script, sampled through world points in the fascia plane
-    const nz = 134, nb = -10;
-    const scriptPt = (t) => {
-      const a = 16 + (W-32)*t;
-      const z = nz + Math.sin(t*Math.PI*5)*15 - Math.sin(t*Math.PI*2)*4;
-      return P(a, nb, z);
+    /* THE OVERDRAW HAS TO BE BIGGER THAN THE PLATE. body() lays its
+       roof at exactly 0..W by -D..0, and an overdraw at the same
+       extents leaves a hairline of the original showing along the far
+       edges -- which on this shop is trim RED against near-black, so a
+       one-pixel sliver read as a wire across the roof. Two units proud
+       on every side and it is covered. */
+    T(-2, W+2, -D-2, 2, H+0.4, '#141218');              // roof, over body's red plate
+    slab(0, W, H, H+12, 4, 0, shade(wall,2.2));         // cornice
+
+    /* ---- one shopfront band, both openings cut out of it ---- */
+    slab(0, W, 0, 126, 4, 0, shade(wall,1.5), null, shade(wall,2.4));
+    reveal(14, 126, 22, 108, 30, inner);
+    ctx.save();
+    poly([P(14,0,108),P(126,0,108),P(126,0,22),P(14,0,22)]);
+    ctx.clip();
+    slab(18, 122, 22, 28, -8, -28, shade(wall,1.7), null, shade(wall,2.1));
+    /* the flash, on the back wall. At b -29 a sheet shifts 29 right on
+       screen, so a 22..96 lands on 51..125 inside an opening of
+       14..126 -- the Coffee roaster's rule: depth moves things right,
+       and the a range is what is left after it has. */
+    /* ---- THE SHEETS CARRY FLASH, NOT A FLAT FILL ----
+       Each was a single rectangle of colour inside a cream frame, which
+       is a swatch rather than a design -- nine of them read as a paint
+       chart. Flash is the whole point of the window: it is what a
+       parlour puts up instead of stock, and it has to be recognisable
+       at a glance or it is not flash.
+
+       Drawn in sheet-local u,v so the same design can go on any sheet,
+       and every ROUND part divides v by ZSCALE -- the star's points and
+       the skull's dome come out circular rather than tall, which is the
+       correction eleven shops have now needed.
+
+       No chair and no lamp stand. They read as podiums under the
+       sheets, and a window of flash wants nothing in front of it. */
+    const flash = (x0, z0, bb, kind, col) => {
+      const q = (pts, c) => poly(pts.map(([u,v]) => P(x0 + u, bb, z0 + v)), c || col);
+      const arc = (cu, cv, r, n, c, from, to) => { const g = [];
+        for(let i=0;i<=n;i++){ const t = from + (to-from)*i/n;
+          g.push([cu + r*Math.cos(t), cv + r*Math.sin(t)/ZSCALE]); }
+        return q(g, c); };
+      if(kind === 0){                                     // heart
+        q([[10,3],[3,10],[4,14],[10,12],[16,14],[17,10]]);
+      } else if(kind === 1){                              // star
+        const g = [];
+        for(let k=0;k<10;k++){ const r = k%2 ? 3 : 7.5, t = -Math.PI/2 + k*Math.PI/5;
+          g.push([10 + r*Math.cos(t), 9 + r*Math.sin(t)/ZSCALE]); }
+        q(g);
+      } else if(kind === 2){                              // anchor
+        q([[9,2],[11,2],[11,15],[9,15]]);
+        q([[4,11],[16,11],[16,13],[4,13]]);
+        arc(10, 15, 3.4, 12, col, 0, Math.PI);
+        q([[9,4],[3,8],[3,4],[9,1]]); q([[11,4],[17,8],[17,4],[11,1]]);
+      } else if(kind === 3){                              // dagger
+        q([[10,17],[13,9],[7,9]]);
+        q([[4,7],[16,7],[16,9],[4,9]]);
+        q([[9,2],[11,2],[11,7],[9,7]]);
+      } else if(kind === 4){                              // swallow
+        q([[10,9],[2,15],[4,7],[10,10]]);
+        q([[10,9],[18,15],[16,7],[10,10]]);
+        q([[8,7],[12,7],[10,2]]);
+      } else {                                            // lightning
+        q([[12,17],[5,8],[9,8],[7,1],[15,10],[11,10]]);
+      }
     };
-    for(const [lw,col] of [[5*K, trim],[1.8,'rgba(255,180,190,.8)']]){
-      ctx.strokeStyle=col; ctx.lineWidth=lw; ctx.lineJoin='round'; ctx.lineCap='round';
-      ctx.beginPath();
-      for(let i=0;i<=48;i++){ const q=scriptPt(i/48); i?ctx.lineTo(q.x,q.y):ctx.moveTo(q.x,q.y); }
-      ctx.stroke();
+    for(let r=0;r<3;r++) for(let c=0;c<3;c++){
+      const x0 = 22 + c*26, z0 = 34 + r*24, i = r*3 + c;
+      slab(x0, x0+20, z0, z0+18, -28, -30, '#e8e2d4', shade(wall,2.0));
+      flash(x0, z0, -27.4, i % 6, ink[i % 5]);
     }
-    ctx.lineCap='butt'; ctx.lineJoin='miter';
-    if(state.props){
-      poly([P(4,0,0),P(W-4,0,0),P(W-4,64,0),P(4,64,0)], 'rgba(224,51,74,.14)');
-      poly([P(W*0.06,26,0),P(W*0.26,26,0),P(W*0.26,40,48),P(W*0.06,40,48)], '#141218');
-      poly([P(W*0.06,54,0),P(W*0.26,54,0),P(W*0.26,40,48),P(W*0.06,40,48)], '#221f28');
-      poly([P(W*0.26,26,0),P(W*0.26,54,0),P(W*0.26,40,48)], '#0e0c12');
-      for(let i=0;i<3;i++)
-        poly([P(W*0.09,27+i*2,10+i*12),P(W*0.23,27+i*2,10+i*12),
-              P(W*0.23,34+i*2,13+i*12),P(W*0.09,34+i*2,13+i*12)], trim);
+    ctx.restore();
+    glaze(14, 126, 22, 108, null, 'rgba(90,80,100,.34)');
+    for(let k=1;k<3;k++) F(14 + 112*k/3 - 3, 14 + 112*k/3 + 3, 22, 108, shade(wall,2.0), null,0, 0.8);
+
+    shopDoor(178, wall, shade(wall,1.9), 'rgba(60,66,80,.55)');   // a 144.88..211.12
+
+    /* ---- fascia, and TATTOO across it ----
+       At Sir's direction the front says what the shop is, in large
+       yellow letters, and the neon moves up out of their way rather
+       than going altogether -- see the run above the fascia. Two signs
+       only work when one of them frames the other; side by side in the
+       same band they would have fought, which is what the Music shop's
+       horn did to its own name board.
+
+       THE LETTERS ARE PRISMS, NOT PAINT, which is the lesson the neon
+       itself taught two passes ago. Extruded b 2..10, so they have a
+       top and a side, they take the light like everything else on the
+       elevation, and their thickness is 8 WORLD units at any zoom --
+       where the old ctx.stroke was five screen pixels and changed with
+       the camera.
+
+       Built from bars in letter-local u,v on a 24 by 34 box with a 7
+       stroke, so T, A and O are three shapes and TATTOO is six calls.
+       Six letters on a 30 pitch is 174 wide, which centres on a 230
+       frontage with 28 either side. */
+    slab(15, W-15, 132, 176, -1, -9, shade(wall,1.7), null, shade(wall,2.2));
+    {
+      /* ---- ONE PIECE PER LETTER ----
+         Each glyph was a stack of separate bars -- T two, A and O four
+         apiece -- and prism() gives every one of them its own top and
+         side, so the seams between them showed as bright edges running
+         through the middle of the letters. Twenty-two prisms pretending
+         to be six letters.
+
+         A letter is one outline. T traces round its own bar and stem in
+         a single path; A and O trace their outer edge, and their
+         COUNTERS -- the enclosed holes -- are painted on the front face
+         in the fascia colour rather than cut, because prism() takes a
+         simple polygon and cannot carry a hole. At 8 deep and this
+         angle a painted counter reads as a hole, and the sides stay
+         solid, which is what a cut letter looks like anyway.
+
+         Letter-local u,v on a 24 by 34 box with a 7 stroke, six letters
+         on a 30 pitch: 174 wide, centred on 230 with 28 either side. */
+      const gold = '#f2c53a', back = shade(wall,1.7);
+      const GLYPH = {
+        T: { out: [[0,27],[8.5,27],[8.5,0],[15.5,0],[15.5,27],[24,27],[24,34],[0,34]] },
+        A: { out: [[0,0],[7,0],[7,14],[17,14],[17,0],[24,0],[24,34],[0,34]],
+             cut: [[7,21],[17,21],[17,27],[7,27]] },
+        O: { out: [[0,0],[24,0],[24,34],[0,34]],
+             cut: [[7,7],[17,7],[17,27],[7,27]] }
+      };
+      const x0 = 28, z0 = 138;
+      'TATTOO'.split('').forEach((ch, i) => {
+        const g = GLYPH[ch], sh = (u,v) => [x0 + i*30 + u, z0 + v];
+        prism(g.out.map(([u,v]) => sh(u,v)), 2, 10, gold, shade(gold,.62), shade(gold,1.2));
+        if(g.cut)
+          poly(g.cut.map(([u,v]) => { const q = sh(u,v); return P(q[0], 10.4, q[1]); }), back);
+      });
     }
-    if(state.roof){
-      box(W*0.50,W*0.76,-150,-110,H,H+24,'#3a3a44','#2e2e36','#26262c');
-      cyl(W*0.22, -70, H+12, H+60, 2.5, '#4a4a54');
+
+    /* ---- THE NEON COMES BACK, ABOVE THE WORD ----
+       At Sir's direction and where he put it: on the band of wall
+       between the fascia head at 176 and the cornice at 200, running
+       the frontage. It works there for a reason worth naming -- it is
+       no longer competing with the sign, it is FRAMING it. Below the
+       letters it would have fought them for the same band; above, the
+       word reads first and the glow reads second, which is the order a
+       shopfront wants.
+
+       AND IT HANGS OFF THE CORNICE, at Sir's direction. Centred at 188
+       it floated in the middle of a blank band with nothing holding it
+       -- a sign has to be fixed to something, and the only thing up
+       there is the grey cornice at 200..212. At 196 with an amplitude
+       of 9 the crests run to 205, INTO the cornice band, so the tube
+       reads as mounted on it rather than hovering below it, and four
+       stand-off pins carry the troughs up to 202.
+
+       Overlapping the moulding is the point. A neon that stops one unit
+       short of what it is fixed to reads as floating however close it
+       gets; it has to cross the line.
+
+       Still tubes, not a stroke: 3 and 1.4 in WORLD units at b 5, so it
+       keeps its thickness at any zoom. */
+    {
+      const nz = 196, nb = 5;
+      const npt = t => [12 + (W-24)*t,
+                        nz + Math.sin(t*Math.PI*5)*9 - Math.sin(t*Math.PI*2)*3];
+      for(const [rr, col] of [[3, trim], [1.4, '#ffb4be']]){
+        for(let i=0;i<40;i++){
+          const [a0,z0] = npt(i/40), [a1,z1] = npt((i+1)/40);
+          tube(a0, nb, z0, a1, nb, z1, rr, col);
+        }
+      }
+      for(const t of [0.1, 0.35, 0.65, 0.9]){            // stand-offs up to the cornice
+        const [aa,zz] = npt(t);
+        tube(aa, 4.6, zz, aa, 4.6, 202, 1.2, shade(wall,2.4));
+      }
+      for(const t of [0, 1]){                             // the tube ends and their pins
+        const [aa,zz] = npt(t);
+        ball(aa, nb, zz, 3.6, shade(trim,.7));
+        tube(aa, 0, zz, aa, nb, zz, 1.2, shade(wall,2.0));
+      }
     }
+
+    if(state.roof) box(W*0.30,W*0.56,-150,-108,H,H+22,'#8f969d','#787f86','#697077');
     kerb(p,'none');
   }
 },
