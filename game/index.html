@@ -14774,6 +14774,1252 @@ const FLAG = { base:{x:-25, y:17}, z0:54, z1:97 };  // anchored to the body's to
    earlier multi-color variety in favor of just this). */
 const ROBOT_NPC = { stripe:0x2e6fd1, stripeDk:0x24569f, flag:0x2e6fd1 };
 
+
+/* =====================================================================
+   THE SHOPFRONT LIBRARY, IN THE GAME -- first entry ported
+   =====================================================================
+   Sir's call: do not teach the park drawer how to build a graveyard,
+   REPLACE the park's own content with a call to the shop body. The
+   library already draws the whole thing -- ground, railing, gates,
+   chapel, two hundred stones -- so the game's job is to hand it a
+   coordinate frame and get out of the way.
+
+   THE SEAM IS ONE FUNCTION. labs/shopfront-phaser.html has proved this
+   on edge units: everything above the seam is the game's, everything
+   below it is the library's, and the only thing between them is
+   P(a, b, z). An edge shop anchors on a unit with dv/rv; a block:true
+   entry anchors on the north-west corner of its own footprint with a
+   running east and b running south, which is exactly what a park
+   component's cells give you.
+
+   IT IS AN IIFE BECAUSE THE NAMES COLLIDE. The kit declares TILE, W, D,
+   STORE_H and PAL at top level and so does this file -- the first cut
+   of this graft died on `Identifier 'TILE' has already been declared`,
+   which is the right failure to get early. Everything the library needs
+   lives inside the closure and the only export is LIB.draw.
+
+   WHAT IS LIFTED, AND FROM WHERE. shopfront-kit.js and
+   shopfront-ctx2phaser.js verbatim, plus the ONE entry this graft
+   needs. Not all 82: the library is 586KB and this file is already 2MB.
+   The entry below is a COPY, and copies drift --
+   labs/shopfront-shops.js is canonical, and a change there has to come
+   back here. Same rule the two game builds already live under.
+
+   ctx2phaser exists because 37 of the 81 bodies drive the 2D context
+   directly. Emulating is what keeps the port honest: if a body had to
+   be edited to run here, what ships would not be what the lab dialled.
+   ===================================================================== */
+/* which named park component carries which library entry. One line per
+   graft, and the name on the left is a PARK NAME from a hood's pool --
+   see parkNameTable. Gantry Commons is the Warehouse District's sixth,
+   nine cells of staircase on the shipped seed. */
+const PARK_LANDMARKS = { "Gantry Commons": "Undertaker" };
+
+const LIB = (function(){
+  /* K IS THE PROJECTION'S SCALE, and the kit reads it directly. It is
+     used for exactly one thing -- turning a WORLD line width or radius
+     into a screen one, in plateCircle, ball and the unit-circle
+     helpers -- and the first cut of this graft left it out, so the game
+     threw "K is not defined" the moment a stone with a round top came
+     into view. The bench sets it from its own fit; here it is the
+     scene's own this.K, handed in per draw. */
+  let K = 1;
+  let SHOP_SLOT = null, ZSCALE = 1.5, FLANK_RIGHT = true;
+  const NOPLATE = false;
+  function P(a, b, z){ return SHOP_SLOT ? SHOP_SLOT.G(a, b, z * ZSCALE) : { x:0, y:0 }; }
+  let ctx = null;
+  /* the kit reads state.roof and state.props and nothing else of the
+     lab's state; in the game both are always on. */
+  const state = { roof:true, props:true, pal:0 };
+
+/* =====================================================================
+   ctx2phaser -- a Canvas2D PATH SUBSET, backed by a Phaser Graphics.
+   =====================================================================
+   Why this exists rather than a rewrite of the shops.
+
+   Censused before writing it: 37 of the 81 shop bodies reach past the
+   kit and drive the 2D context directly -- 75 beginPath, 68 moveTo, 56
+   lineTo, 49 stroke, 25 quadraticCurveTo, 5 arc, 3 bezierCurveTo, 1
+   clip. Those are not stray calls; they are how the bakery's arched
+   gable, the clockmaker's hands and the chapel's tracery are drawn, and
+   there is no version of "port the shops to phaser" that does not
+   either reimplement them or emulate the API they were written against.
+
+   Emulating is the only option that keeps the port HONEST. If a shop
+   body has to be edited to run here, then what this bench renders is
+   not the thing the canvas lab dialled, and the comparison it exists to
+   make is worthless. So the bodies run byte-identical and this file
+   absorbs the difference.
+
+   WHAT THE GAME CANNOT DO, and therefore neither can this:
+     - ctx.clip() has no Phaser equivalent. It is emulated by polygon
+       intersection (Sutherland-Hodgman) against the clip path, which is
+       exact for a CONVEX clip and approximate otherwise. reveal()'s
+       clip is a projected rectangle, so exact. The bakery's arched
+       clip is not convex and is the one place this bench is a model
+       rather than a replica -- flagged rather than hidden, because it
+       means the bakery's coping needs a different construction before
+       it can port.
+     - Curves are flattened to line segments here. The game has no
+       curve primitive either, so anything that survives flattening is
+       portable and anything that does not was never going to ship.
+
+   Everything is applied through a full CTM, because faceT/plateT set a
+   transform and 17 shops then draw in unit-circle space inside it.
+   ===================================================================== */
+function makeCtx2Phaser(){
+  const S = {
+    g: null,
+    fillStyle: '#000', strokeStyle: '#000', lineWidth: 1,
+    lineCap: 'butt', lineJoin: 'miter',
+    m: [1,0,0,1,0,0],            // a b c d e f
+    clip: null,                  // array of screen points, or null
+    subs: [], cur: null, stack: []
+  };
+
+  /* ---- colour: the kit speaks CSS, quadOn speaks int + alpha ---- */
+  const cache = new Map();
+  function col(v){
+    if(cache.has(v)) return cache.get(v);
+    let out;
+    if(typeof v === 'number') out = { c:v, a:1 };
+    else if(v[0] === '#'){
+      let h = v.slice(1);
+      if(h.length === 3) h = h[0]+h[0]+h[1]+h[1]+h[2]+h[2];
+      out = { c: parseInt(h,16), a:1 };
+    } else {
+      const m = /rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)\s*(?:,\s*([\d.]+))?/.exec(v);
+      out = m ? { c: (Math.round(+m[1])<<16) | (Math.round(+m[2])<<8) | Math.round(+m[3]),
+                  a: m[4] === undefined ? 1 : +m[4] }
+              : { c: 0x000000, a: 1 };
+    }
+    cache.set(v, out); return out;
+  }
+
+  /* ---- CTM ---- */
+  const ap = (x,y) => { const m = S.m; return { x: m[0]*x + m[2]*y + m[4], y: m[1]*x + m[3]*y + m[5] }; };
+  const mscale = () => { const m = S.m; return Math.sqrt(Math.abs(m[0]*m[3] - m[1]*m[2])) || 1; };
+
+  /* ---- Sutherland-Hodgman: exact for a convex clip ---- */
+  function clipTo(poly, cp){
+    if(!cp || cp.length < 3) return poly;
+    let out = poly;
+    for(let i=0;i<cp.length && out.length;i++){
+      const A = cp[i], B = cp[(i+1)%cp.length];
+      const side = p => (B.x-A.x)*(p.y-A.y) - (B.y-A.y)*(p.x-A.x);
+      const inp = out; out = [];
+      for(let j=0;j<inp.length;j++){
+        const P = inp[j], Q = inp[(j+1)%inp.length];
+        const sp = side(P), sq = side(Q);
+        if(sp <= 0) out.push(P);
+        if((sp < 0 && sq > 0) || (sp > 0 && sq < 0)){
+          const t = sp/(sp-sq);
+          out.push({ x:P.x + (Q.x-P.x)*t, y:P.y + (Q.y-P.y)*t });
+        }
+      }
+    }
+    return out;
+  }
+  /* the clip polygon's winding decides which side `side() <= 0` keeps,
+     so normalise to a consistent orientation rather than trusting the
+     order the caller happened to build the path in */
+  function orient(p){
+    let s = 0;
+    for(let i=0;i<p.length;i++){ const q = p[(i+1)%p.length]; s += (q.x-p[i].x)*(q.y+p[i].y); }
+    return s > 0 ? p : p.slice().reverse();
+  }
+
+  const ctx = {
+    /* ---- state ---- */
+    save(){ S.stack.push({ fillStyle:S.fillStyle, strokeStyle:S.strokeStyle, lineWidth:S.lineWidth,
+                           lineCap:S.lineCap, lineJoin:S.lineJoin, m:S.m.slice(), clip:S.clip }); },
+    restore(){ const p = S.stack.pop(); if(!p) return;
+               S.fillStyle=p.fillStyle; S.strokeStyle=p.strokeStyle; S.lineWidth=p.lineWidth;
+               S.lineCap=p.lineCap; S.lineJoin=p.lineJoin; S.m=p.m; S.clip=p.clip; },
+    setTransform(a,b,c,d,e,f){ S.m = [a,b,c,d,e,f]; },
+    transform(a,b,c,d,e,f){
+      const m = S.m;
+      S.m = [ m[0]*a + m[2]*b,        m[1]*a + m[3]*b,
+              m[0]*c + m[2]*d,        m[1]*c + m[3]*d,
+              m[0]*e + m[2]*f + m[4], m[1]*e + m[3]*f + m[5] ];
+    },
+
+    /* ---- path ---- */
+    beginPath(){ S.subs = []; S.cur = null; },
+    moveTo(x,y){ S.cur = [ap(x,y)]; S.subs.push(S.cur); },
+    lineTo(x,y){ if(!S.cur) return ctx.moveTo(x,y); S.cur.push(ap(x,y)); },
+    closePath(){ if(S.cur) S.cur.closed = true; },
+    quadraticCurveTo(cx,cy,x,y){
+      if(!S.cur) ctx.moveTo(cx,cy);
+      const p0 = S.cur[S.cur.length-1], N = 16;
+      for(let i=1;i<=N;i++){
+        const t=i/N, u=1-t, c=ap(cx,cy), e=ap(x,y);
+        S.cur.push({ x:u*u*p0.x + 2*u*t*c.x + t*t*e.x, y:u*u*p0.y + 2*u*t*c.y + t*t*e.y });
+      }
+    },
+    bezierCurveTo(c1x,c1y,c2x,c2y,x,y){
+      if(!S.cur) ctx.moveTo(c1x,c1y);
+      const p0 = S.cur[S.cur.length-1], N = 18;
+      const a=ap(c1x,c1y), b=ap(c2x,c2y), e=ap(x,y);
+      for(let i=1;i<=N;i++){
+        const t=i/N, u=1-t;
+        S.cur.push({ x:u*u*u*p0.x + 3*u*u*t*a.x + 3*u*t*t*b.x + t*t*t*e.x,
+                     y:u*u*u*p0.y + 3*u*u*t*a.y + 3*u*t*t*b.y + t*t*t*e.y });
+      }
+    },
+    arc(x,y,r,s,e,ccw){ ctx.ellipse(x,y,r,r,0,s,e,ccw); },
+    ellipse(x,y,rx,ry,rot,s,e,ccw){
+      let d = e - s;
+      if(ccw && d > 0) d -= Math.PI*2;
+      if(!ccw && d < 0) d += Math.PI*2;
+      const N = Math.max(10, Math.ceil(Math.abs(d)/(Math.PI/14)));
+      const cr = Math.cos(rot||0), sr = Math.sin(rot||0);
+      for(let i=0;i<=N;i++){
+        const t = s + d*i/N, px = Math.cos(t)*rx, py = Math.sin(t)*ry;
+        const q = ap(x + px*cr - py*sr, y + px*sr + py*cr);
+        (i === 0 && !S.cur) ? (S.cur = [q], S.subs.push(S.cur)) : S.cur.push(q);
+      }
+    },
+
+    /* ---- paint ---- */
+    fill(){
+      const { c, a } = col(S.fillStyle);
+      for(const sp of S.subs){
+        const p = S.clip ? clipTo(sp, S.clip) : sp;
+        if(p.length < 3) continue;
+        S.g.fillStyle(c, a);
+        S.g.fillPoints(p.map(q => new Phaser.Geom.Point(q.x, q.y)), true, true);
+      }
+    },
+    stroke(){
+      const { c, a } = col(S.strokeStyle);
+      const w = Math.max(0.35, S.lineWidth * mscale());
+      S.g.lineStyle(w, c, a);
+      for(const sp of S.subs){
+        if(sp.length < 2) continue;
+        S.g.strokePoints(sp.map(q => new Phaser.Geom.Point(q.x, q.y)), !!sp.closed);
+      }
+    },
+    clip(){ if(S.subs.length) S.clip = orient(S.subs[0].slice()); },
+
+    /* the bench never needs these, but a shop that calls one should not
+       take the whole render down with it -- it should show up as a
+       missing feature in the report instead */
+    fillRect(){ ctx.__unsupported('fillRect'); },
+    strokeRect(){ ctx.__unsupported('strokeRect'); },
+    drawImage(){ ctx.__unsupported('drawImage'); },
+    createLinearGradient(){ ctx.__unsupported('createLinearGradient'); return '#888'; },
+
+    __unsupported(name){ (ctx.__missing || (ctx.__missing = {}))[name] = (ctx.__missing[name]||0)+1; },
+    __bind(g){ S.g = g; S.m = [1,0,0,1,0,0]; S.clip = null; S.stack.length = 0; S.subs = []; S.cur = null; },
+    __state: S
+  };
+  /* fillStyle etc. are plain properties on the real thing, so they are
+     plain properties here too -- a shop assigning ctx.fillStyle must not
+     have to know it is talking to a shim */
+  ['fillStyle','strokeStyle','lineWidth','lineCap','lineJoin'].forEach(k => {
+    Object.defineProperty(ctx, k, { get:()=>S[k], set:v=>{ S[k]=v; } });
+  });
+  return ctx;
+}
+
+
+/* =====================================================================
+   THE SHARED SHOPFRONT KIT
+   =====================================================================
+   Same reason the shops moved out: there is more than one bench that
+   has to draw them, and a primitive that exists twice is a primitive
+   that will disagree with itself within a session.
+
+   WHAT IS NOT IN HERE, deliberately: the projection. Each bench owns
+   P(a,b,z) and the K it scales by, because that is the ONLY thing that
+   differs between them --
+
+     shopfront-lab.html      one hand-chosen iso view, ZSCALE 1.5
+     shopfront-phaser.html   the game's own W() through a block edge
+
+   -- and keeping it as the single seam is what makes the phaser bench a
+   port test rather than a second implementation. A bench must define,
+   before anything here runs: P(a,b,z), K, ctx, and state{roof,props}.
+   ===================================================================== */
+
+const TILE = 46, T2 = TILE*2;
+const DOOR_W = T2, DOOR_H = T2*2;       // 92 x 184, from DOOR_ART
+const SHOP_DOOR_W = DOOR_W*0.72;        // 66.24  -- drawPickupUnit
+const SHOP_DOOR_H = DOOR_H*0.88;        // 161.92 -- drawShopDoor dZ1
+const STORE_H = 252;                    // mid of drawStoreUnit's 238..266 stack
+const W = 230, D = T2*3;                // one unit: frontage width, depth (276)
+/* `state` is bench-owned: each bench has its own shape for it (the
+   canvas lab tracks a framing cache and a grid toggle it does not
+   share). The kit only ever reads state.roof and state.props. */
+
+/* ================= VERTICAL SCALE =================
+   Measured, not chosen. The lab's shops were hand-set at H = 104..314,
+   median 172, while a real drawStoreUnit wall runs 238..266 -- the lab
+   has been drawing at roughly two thirds of game height throughout. The
+   consequence is not cosmetic: SHOP_DOOR_H is 161.9, taller than most
+   of these shops' entire walls, so no pickup worker could have walked
+   out of one.
+
+   A per-shop `H = STORE_H` swap does NOT fix it. Only about six z
+   values per shop are written relative to H; the rest -- sills, heads,
+   signs, roof kit -- are absolute literals that would stay where they
+   were and leave every shop internally broken.
+
+   What does work is one factor, applied once, here. Every height in the
+   lab reaches the screen through this function: F, S, T, box, slab,
+   cyl, tube, faceCircle and ball all build on P. So scaling z here
+   scales a whole shop uniformly and preserves every proportion already
+   dialled into it. 252/172 rounds to 1.5, which puts a typical shop on
+   the game's one-storey stack and leaves a 314 shop at 471 -- a real
+   three storeys rather than a squashed one.
+
+   A shop that has already been rebuilt on the game anchors opts out
+   with zs:1 so it is not scaled twice. */
+function poly(pts, fill, stroke, lw){
+  ctx.beginPath();
+  pts.forEach((p,i)=> i ? ctx.lineTo(p.x,p.y) : ctx.moveTo(p.x,p.y));
+  ctx.closePath();
+  if(fill){ ctx.fillStyle = fill; ctx.fill(); }
+  if(stroke){ ctx.strokeStyle = stroke; ctx.lineWidth = lw||1; ctx.stroke(); }
+}
+/* front-plane rectangle (the facade); bb nudges it off the wall */
+function F(a0,a1,z0,z1,fill,stroke,lw,bb){
+  const b = bb===undefined ? 0 : bb;
+  poly([P(a0,b,z1),P(a1,b,z1),P(a1,b,z0),P(a0,b,z0)], fill, stroke, lw);
+}
+/* side-plane rectangle on the a = aa face */
+function S(aa,b0,b1,z0,z1,fill,stroke,lw){
+  poly([P(aa,b0,z1),P(aa,b1,z1),P(aa,b1,z0),P(aa,b0,z0)], fill, stroke, lw);
+}
+/* horizontal plate at height z */
+function T(a0,a1,b0,b1,z,fill,stroke,lw){
+  poly([P(a0,b0,z),P(a1,b0,z),P(a1,b1,z),P(a0,b1,z)], fill, stroke, lw);
+}
+/* a small solid box sitting on the roof or the pavement */
+function box(a0,a1,b0,b1,z0,z1,top,front,side){
+  /* WHICH TWO FACES EXIST, asked rather than asserted. This drew F at
+     b1 and S at a1 unconditionally -- the near face and the a = a1 end
+     of ONE projection. Under the game's four block edges neither is a
+     constant: on edge 2 the visible end is a = a0, so the box painted
+     its far end and left its near one open and rendered inside-out, an
+     open shell with its interior on show. Same fault body() already
+     solved with FLANK_RIGHT, and the same fault the kit fixed once for
+     faceT/plateT: one projection hardcoded into a shared primitive.
+
+     A face is visible when its outward normal comes toward the eye, and
+     under this projection nearer is further DOWN the screen, so the
+     test is just the sign of the screen-y step along each axis. Derived
+     from P() so it holds for whatever view the host installed -- and it
+     agrees with FLANK_RIGHT by construction, since that flag is the
+     same dv test written in world terms. */
+  const o = P(a0,b0,z0), pa = P(a0+1,b0,z0), pb = P(a0,b0+1,z0);
+  const nearB = (pb.y - o.y) > 0 ? b1 : b0;   // the b face toward the eye
+  const endA  = (pa.y - o.y) > 0 ? a1 : a0;   // the end wall that is seen
+  T(a0,a1,b0,b1,z1, top);
+  F(a0,a1,z0,z1, front, null,0, nearB);
+  S(endA,b0,b1,z0,z1, side);
+}
+/* ================= ISO-CORRECT PRIMITIVES =================
+   A circle drawn with ctx.arc is a circle ON THE SCREEN. That is only
+   ever right for a sphere. Every other circle in this world lies in a
+   PLANE -- a clock face on a wall, the end of a drum, a bucket rim, a
+   manhole -- and under this projection a plane circle becomes a sheared
+   ellipse. Drawing those with arc() is what makes a prop read as a
+   sticker stuck on the render rather than as a thing standing in the
+   world, and it was the single most common fault in the first pass.
+
+   Derivation, so these can be checked rather than trusted:
+     screen x = (a - b)K,  screen y = ((a + b)/2 - z)K
+   A circle in the FRONTAGE plane (b fixed) is (a + r cos0, z + r sin0):
+     x = x0 + rK cos0
+     y = y0 + (rK/2) cos0 - rK sin0
+   A circle lying FLAT (z fixed) is (a + r cos0, b + r sin0):
+     x = x0 + rK (cos0 - sin0)
+     y = y0 + (rK/2)(cos0 + sin0)
+   Both are linear in (cos0, sin0), so each is just a matrix on a unit
+   circle -- which is what faceT and plateT set up. */
+/* ================= ISO-CORRECT PRIMITIVES =================
+   A circle drawn with ctx.arc is a circle ON THE SCREEN. That is only
+   ever right for a sphere. Every other circle in this world lies in a
+   PLANE -- a clock face on a wall, the end of a drum, a bucket rim, a
+   manhole -- and under an isometric projection a plane circle becomes a
+   sheared ellipse. Drawing those with arc() is what makes a prop read as
+   a sticker stuck on the render rather than as a thing standing in the
+   world, and it was the single most common fault in the first pass.
+
+   THE BASIS IS NOW DERIVED FROM P(), NOT ASSUMED.
+   These used to set the ellipse up with a hardcoded matrix:
+
+       ctx.transform(r*K, r*K*0.5, 0, -r*K, o.x, o.y)
+
+   which says the vertical basis of the projection is exactly (0,-K).
+   Two things were wrong with that. It ignored ZSCALE, so on every shop
+   that did not opt out with zs:1 a face circle came out at 1/1.5 of its
+   true height -- portholes, clocks and dials squashed to two thirds,
+   16 shops affected. And it hardcoded ONE projection, so the same call
+   in the phaser bench, where a shop can sit on any of four block edges
+   with a different (a,b) -> screen mapping on each, would have drawn the
+   ellipse of a view that bench never renders.
+
+   Both faults have one cause and one fix: ask the projection what its
+   basis is instead of asserting it. A circle in a plane is linear in
+   (cos, sin), so two finite differences of P() give the exact ellipse
+   for whatever projection the host installed.
+
+     face  circle lies in the frontage plane (b fixed): spanned by a, z
+     plate circle lies flat            (z fixed): spanned by a, b */
+function basisFace(a,b,z){                 // plane b fixed: spanned by a and z
+  const o = P(a,b,z), pa = P(a+1,b,z), pz = P(a,b,z+1);
+  return { o, ux:pa.x-o.x, uy:pa.y-o.y, vx:pz.x-o.x, vy:pz.y-o.y };
+}
+function basisPlate(a,b,z){                // plane z fixed: spanned by a and b
+  const o = P(a,b,z), pa = P(a+1,b,z), pb = P(a,b+1,z);
+  return { o, ux:pa.x-o.x, uy:pa.y-o.y, vx:pb.x-o.x, vy:pb.y-o.y };
+}
+/* faceT/plateT keep their old contract -- they install a transform and
+   the caller then draws in UNIT-CIRCLE space and restores -- because 17
+   shops call them directly and draw more than a circle inside. Only the
+   matrix changed: it is read off P() now instead of being asserted. */
+function faceT(a,b,z,r){
+  const B = basisFace(a,b,z);
+  ctx.save(); ctx.transform(B.ux*r, B.uy*r, B.vx*r, B.vy*r, B.o.x, B.o.y);
+}
+function plateT(a,b,z,r){
+  const B = basisPlate(a,b,z);
+  ctx.save(); ctx.transform(B.ux*r, B.uy*r, B.vx*r, B.vy*r, B.o.x, B.o.y);
+}
+function unitCircle(fill, stroke, lw, r){
+  ctx.beginPath(); ctx.arc(0,0,1,0,Math.PI*2);
+  if(fill){ ctx.fillStyle = fill; ctx.fill(); }
+  if(stroke){ ctx.strokeStyle = stroke; ctx.lineWidth = (lw||1)/(r*K); ctx.stroke(); }
+}
+function faceCircle(a,b,z,r,fill,stroke,lw){ faceT(a,b,z,r); unitCircle(fill,stroke,lw,r); ctx.restore(); }
+function plateCircle(a,b,z,r,fill,stroke,lw){ plateT(a,b,z,r); unitCircle(fill,stroke,lw,r); ctx.restore(); }
+/* A BAND AROUND A SOLID IS NOT A RING. plateCircle draws the whole
+   ellipse, which is right for a disc lying flat with nothing on top of
+   it -- a manhole, a drain -- and wrong for every hoop that wraps a
+   barrel, drum, silo or dome, because the far half of the band is
+   behind the thing it is wrapping. Drawn as a full ellipse it reads
+   straight across the front of the solid and the solid goes
+   see-through. Same fault as the bakery's stovepipe.
+
+   The visible half is the arc that passes the front, between the two
+   points where the rim turns vertical on screen -- the identical
+   derivation cyl() uses for its silhouette, and now literally the same
+   call, so a hoop drawn here meets the cylinder's own edges exactly. */
+/* THE SILHOUETTE OF A FLAT RIM, derived. A rim point is
+     x = x0 + r(ux cos0 + vx sin0),  y = y0 + r(uy cos0 + vy sin0)
+   with (ux,uy) and (vx,vy) the screen steps of a and b. dx/d0 = 0 at
+   tan0 = vx/ux, so the rim turns vertical at 0s = atan2(vx,ux) and
+   0s+pi -- and the visible half is whichever of the two arcs between
+   them passes the FRONT, i.e. the larger screen y. Both cyl() and
+   plateHoop() had 0s = 3pi/4 written in as a constant, which is only
+   the answer when vx/ux = -1. It is on the canvas lab and on the game's
+   edges 1 and 3; on edges 0 and 2 ux and vx share a sign, both constant
+   angles land on the SAME screen x, and the sweep spans 0.00 of a
+   32.15px drum -- the body collapses to a sliver and only the lid
+   survives, which is why every jar read as a disc on a stem. */
+function plateSweep(a,b,z){
+  const o = P(a,b,z), pa = P(a+1,b,z), pb = P(a,b+1,z);
+  const ux = pa.x-o.x, uy = pa.y-o.y, vx = pb.x-o.x, vy = pb.y-o.y;
+  const ts = Math.atan2(vx, ux);
+  const dir = (uy*Math.cos(ts+Math.PI/2) + vy*Math.sin(ts+Math.PI/2)) > 0 ? 1 : -1;
+  return { ts, dir };
+}
+function plateHoop(a,b,z,r,col,lw){
+  const N = 14, pts = [];
+  const { ts, dir } = plateSweep(a,b,z);
+  for(let i=0;i<=N;i++){
+    const t = ts + dir*Math.PI*i/N;
+    pts.push(P(a + r*Math.cos(t), b + r*Math.sin(t), z));
+  }
+  ctx.beginPath();
+  pts.forEach((q,i)=> i ? ctx.lineTo(q.x,q.y) : ctx.moveTo(q.x,q.y));
+  ctx.strokeStyle = col; ctx.lineWidth = lw||2;
+  ctx.lineCap = 'round'; ctx.stroke(); ctx.lineCap = 'butt';
+}
+/* a sphere IS a screen circle under an orthographic camera, so arc is
+   correct here -- with a shading crescent so it reads as a ball and not
+   as a dot */
+function ball(a,b,z,r,fill,lit){
+  const o = P(a,b,z);
+  ctx.beginPath(); ctx.arc(o.x,o.y,r*K,0,Math.PI*2); ctx.fillStyle=fill; ctx.fill();
+  ctx.beginPath(); ctx.arc(o.x - r*K*0.30, o.y - r*K*0.30, r*K*0.62, 0, Math.PI*2);
+  ctx.fillStyle = lit || shade(fill,1.22); ctx.fill();
+}
+/* VERTICAL CYLINDER. The silhouette runs between the two points where
+   the flat rim turns vertical on screen, and the visible side is the
+   arc between them that passes the front -- both read off P() by
+   plateSweep() rather than written in, so the drum is a drum on all
+   four block edges. Body first, then the lid, so the lid always caps it
+   cleanly. */
+function cyl(a,b,z0,z1,r,col,lid){
+  const N = 14, rim = (t,z) => P(a + r*Math.cos(t), b + r*Math.sin(t), z);
+  const pts = [];
+  const { ts, dir } = plateSweep(a,b,z0);   // see plateSweep: was a constant
+  const ang = i => ts + dir*Math.PI*i/N;
+  for(let i=0;i<=N;i++){ pts.push(rim(ang(i),z0)); }
+  for(let i=N;i>=0;i--){ pts.push(rim(ang(i),z1)); }
+  ctx.beginPath();
+  pts.forEach((q,i)=> i ? ctx.lineTo(q.x,q.y) : ctx.moveTo(q.x,q.y));
+  ctx.closePath(); ctx.fillStyle = col; ctx.fill();
+  ctx.strokeStyle = shade(col,.72); ctx.lineWidth = 1.2; ctx.stroke();
+  plateCircle(a,b,z1,r, lid || shade(col,1.16), shade(col,.78), 1.4);
+}
+/* a run of pipe or rail between any two world points, with rounded ends */
+function tube(a0,b0,z0, a1,b1,z1, r, col){
+  const p0 = P(a0,b0,z0), p1 = P(a1,b1,z1);
+  ctx.strokeStyle = col; ctx.lineWidth = r*2*K; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(p0.x,p0.y); ctx.lineTo(p1.x,p1.y); ctx.stroke();
+  ctx.lineCap = 'butt';
+  ctx.strokeStyle = shade(col,1.2); ctx.lineWidth = r*0.7*K;
+  ctx.beginPath(); ctx.moveTo(p0.x - r*0.4*K, p0.y - r*0.5*K);
+  ctx.lineTo(p1.x - r*0.4*K, p1.y - r*0.5*K); ctx.stroke();
+}
+/* ================= SHOPFRONT DEPTH =================
+   THE LAYERING FAULT, and it was in every unit. A shopfront was being
+   built as: opaque glass pane, then the goods painted ON TOP of it at a
+   b NEARER the street than the glass. So everything that was meant to
+   be standing inside the shop was in fact hanging on the outside of the
+   window, which is why the props never read as being behind anything.
+
+   The fix is an ORDER fix, not a modelling one. Back to front:
+     1. reveal()  -- a shallow jamb, so the opening has a thickness
+     2. anything on show -- inside that jamb, at descending b
+     3. glaze()   -- the pane LAST, and nearly opaque
+   Nothing is drawn at a b in front of the glass except things that are
+   genuinely outside on the pavement. The pane hides the rest: we are
+   not building rooms, we are keeping the eye off the fact that there
+   are none.
+
+   depthSort() exists for the stacking: a pile of crates or a shelf of
+   jars has to be painted far-to-near or the near ones end up underneath.
+   Index order only happens to be right when the loop runs the same way
+   the camera does. */
+function reveal(a0, a1, z0, z1, deep, col){
+  /* WRONG SIGN, AND A DISCARDED ARGUMENT. This took `deep` and threw it
+     away, then hardcoded b = +2. Positive b is toward the street, so the
+     "dark backing behind the pane" was actually sitting 2.4 units in
+     FRONT of the glass and only looked right because the canvas is
+     painted in call order and glaze() came after it. The bakery hit this
+     and had to hand-roll its own backing at b = -1.2 to get rid of a
+     dark sliver down the jamb.
+
+     That is the fault that matters for the port. In the lab, order is
+     everything and depth is decoration; inside queueUnitStrips the
+     opposite is true, and a backing at +2 sorts in front of its own
+     window. So the recess is real now: the back plate sits at b = -deep
+     and `deep` means what it says.
+
+     YOU CAN ONLY SEE INTO A RECESS THROUGH THE OPENING. The first cut of
+     this had the depth right and no clip, and a plate at -deep projects
+     right by deep and up by deep/2 (x = (a-b)K, y = ((a+b)/2 - z)K), so
+     on the laundromat's 13-unit reveal the backing ran 13 units past the
+     right-hand end of the glazing and read as a grey volume standing off
+     the corner of the building. The wall has a hole in it; everything
+     behind that hole is bounded by it. Clipping to the opening quad is
+     what makes that true, and it is what lets `deep` be any value at all
+     without the shop having to know about the projection.
+
+     Inside the clip the plate leaves a gap down the LEFT jamb and along
+     the CILL, so those two returns are drawn and the other two are
+     correctly never seen. Three quads, not a room: the pass that got
+     rejected was the one that furnished the inside, not the one that
+     gave the opening a thickness. */
+  const d = deep === undefined ? 2 : deep;
+  ctx.save();
+  poly([P(a0,0,z1),P(a1,0,z1),P(a1,0,z0),P(a0,0,z0)]);
+  ctx.clip();
+  F(a0, a1, z0, z1, col, null, 0, -d);           // the backing, deepest, so first
+  S(a0, 0, -d, z0, z1, shade(col,.84));          // left return, exposed by the shift
+  T(a0, a1, 0, -d, z0, shade(col,.72));          // cill, exposed by the rise
+  ctx.restore();
+}
+/* THE PANE DOES THE WORK. Glass that you can see through has to have
+   something behind it that stands up to being seen, and nothing we
+   build at this scale does. So the pane is nearly opaque: a tinted
+   sheet with two reflection bands raked across it and a bright edge.
+   Whatever sits behind survives only as a suggestion, which is exactly
+   as much as the illusion needs. */
+function glaze(a0, a1, z0, z1, frame, tint){
+  /* The stack used to run -0.4 for the tint and then -0.6, -0.7 for the
+     reflections and the bright edge -- each highlight DEEPER than the
+     pane it is supposed to be lying on, surviving only because it was
+     painted afterwards. Depth-sorted, every reflection disappears
+     inside the glass. The frame had the same fault at -1: a shopfront
+     frame stands proud of the pane, it does not sit behind it.
+
+     So the stack ascends toward the viewer now, the way the door kit
+     already does: tint, reflections, bright edge, frame. Same picture
+     on this canvas, and the only one of the two that survives a real
+     depth key. */
+  F(a0, a1, z0, z1, tint || 'rgba(104,146,168,.92)', null, 0, -0.4);
+  const w = a1 - a0, h = z1 - z0;
+  poly([P(a0,-0.30,z1),P(a0+w*0.30,-0.30,z1),P(a0+w*0.06,-0.30,z0),P(a0,-0.30,z0)],
+       'rgba(240,250,254,.20)');
+  poly([P(a0+w*0.40,-0.26,z1),P(a0+w*0.52,-0.26,z1),P(a0+w*0.28,-0.26,z0),P(a0+w*0.16,-0.26,z0)],
+       'rgba(240,250,254,.13)');
+  poly([P(a0,-0.22,z1),P(a1,-0.22,z1),P(a1,-0.22,z1-h*0.06),P(a0,-0.22,z1-h*0.06)],
+       'rgba(255,255,255,.16)');
+  if(frame){
+    F(a0-3, a0, z0-3, z1+3, frame, null,0, 0.5);
+    F(a1, a1+3, z0-3, z1+3, frame, null,0, 0.5);
+    F(a0-3, a1+3, z1, z1+3, frame, null,0, 0.5);
+    F(a0-3, a1+3, z0-3, z0, frame, null,0, 0.5);
+  }
+}
+/* paint a set of items far-to-near. Each item is {a, b, z, draw}.
+   THE KEY WAS BOTH THE WRONG DIRECTION AND THE WRONG QUANTITY, which
+   is why it only ever showed on a row whose members overlap on screen.
+
+   Direction first. It sorted b DESCENDING, and its own comment said
+   that was far-to-near because "deeper into the shop is further from
+   the eye" -- true, but deeper into the shop is NEGATIVE b, so
+   descending starts at the largest, which is the NEAREST. Measured
+   rather than argued: P(0,1,0).y - P(0,0,0).y is +0.51, so a step of
+   +1 in b moves an item DOWN the screen, and box() already uses that
+   same sign to decide which b face is toward the eye. The sort was
+   painting near first and far last -- backwards.
+
+   Quantity second, and this is why flipping the sign alone is not the
+   fix. The view direction is the null space of the projection:
+     x = (a - b)K,  y = ((a + b)/2 - z)K
+   is degenerate along (da,db,dz) with da = db = dz, so the camera looks
+   down (1,1,1) and true depth is a + b + z. b alone is only a valid key
+   when a and z are constant across the run, which is exactly the case
+   in four of the six call sites -- and in the two where a varies (the
+   bakery's loaves and the florist's buckets, both laid out along a with
+   b alternating) it put every other item in the row on top of the one
+   in front of it. That is the layering fault visible on the florist.
+
+   So: a + b + z, ascending. `a` is optional and defaults to 0, which
+   degenerates to the old behaviour for a uniform-a run; every call site
+   in this library supplies it. z ascending breaks ties so a thing on a
+   shelf still paints over the shelf. */
+function depthSort(items){
+  const key = it => (it.a || 0) + it.b + (it.z || 0);
+  items.slice().sort((m,n) => (key(m) - key(n)) || ((m.z||0) - (n.z||0)))
+       .forEach(it => it.draw());
+}
+
+/* a flat panel given real thickness, so no sign or parapet is ever a
+   single zero-depth quad seen edge-on */
+function slab(a0,a1,z0,z1,bFront,bBack,front,side,top){
+  /* SAME FAULT box() HAD, and for the same reason: the end return was
+     drawn at a1 unconditionally. a1 is the seen end only where the a
+     axis runs toward the eye, which is edges 1 and 3 and the canvas lab;
+     on edges 0 and 2 a1 is the far end, so every parapet, fascia and
+     sign in the library put its return on the side you cannot see and
+     left the side you can flat. Asked of P() rather than asserted. */
+  const o = P(a0,bFront,z0), pa = P(a0+1,bFront,z0);
+  const endA = (pa.y - o.y) > 0 ? a1 : a0;
+  F(a0,a1,z0,z1, front, null,0, bFront);
+  poly([P(endA,bFront,z1),P(endA,bBack,z1),P(endA,bBack,z0),P(endA,bFront,z0)], side || shade(front,.78));
+  poly([P(a0,bFront,z1),P(a1,bFront,z1),P(a1,bBack,z1),P(a0,bBack,z1)], top || shade(front,1.14));
+}
+
+/* A SHAPED EMBLEM IS ONE SOLID, NOT A PILE OF SLABS. slab() gives a
+   rectangle thickness; anything that is not a rectangle -- a cross, a
+   chevron, an arrow, a letter -- was being built by overlapping two or
+   three of them, and it reads as exactly that: the pieces' own returns
+   and top plates run through the middle of the shape, so the eye sees
+   the joins rather than the emblem.
+
+   prism() takes ONE outline in the frontage plane and extrudes it. The
+   outline has no interior edges, so there is nothing to seam.
+
+   Which of its side faces exist is the same question box() and slab()
+   answer, but an outline has as many faces as it has edges and they do
+   not all face the same way, so it cannot be one test. The general form
+   of that test is the projected winding: every outward-facing face of a
+   closed solid projects with the SAME signed-area sign, and the near b
+   face is outward by construction, so it supplies the sign and each
+   side face is kept or dropped by comparing against it. That is
+   projection-agnostic -- it needs to know nothing about which edge the
+   block sits on -- and on a rectangle it selects the identical end that
+   slab() derives, which is how it was checked.
+
+   A horizontal outline edge extrudes to a plate rather than a return,
+   so it takes the lighter top shade; the undersides that would want the
+   same treatment are culled before they are ever asked about. */
+function prism(pts, b0, b1, front, side, top){
+  const n = pts.length;
+  const o = P(0,b0,0), q1 = P(0,b1,0);
+  const nb = q1.y > o.y ? b1 : b0, fb = q1.y > o.y ? b0 : b1;
+  const area = q => { let A = 0;
+    for(let k=0;k<q.length;k++){ const p = q[k], r = q[(k+1)%q.length];
+      A += p.x*r.y - r.x*p.y; } return A; };
+  const face = pts.map(([a,z]) => P(a,nb,z));
+  const s = Math.sign(area(face));
+  for(let i=0;i<n;i++){
+    const [a0,z0] = pts[i], [a1,z1] = pts[(i+1)%n];
+    const q = [P(a0,nb,z0),P(a0,fb,z0),P(a1,fb,z1),P(a1,nb,z1)];
+    if(Math.sign(area(q)) !== s) continue;
+    poly(q, z0 === z1 ? (top || shade(front,1.14)) : (side || shade(front,.78)));
+  }
+  poly(face, front);
+}
+
+/* the outline of a plus, wound once, for prism(). Half-length and
+   half-thickness are given in WORLD units and the z extents are divided
+   back by ZSCALE, so the arms stay equal whatever vertical scale the
+   shop is drawn at -- the fault that made the pharmacy cross a block
+   with a stick through it. */
+function plusOutline(a, z, half, thick){
+  const L = half, T = thick, k = 1/ZSCALE;
+  return [[a-T,z-L*k],[a+T,z-L*k],[a+T,z-T*k],[a+L,z-T*k],[a+L,z+T*k],
+          [a+T,z+T*k],[a+T,z+L*k],[a-T,z+L*k],[a-T,z+T*k],[a-L,z+T*k],
+          [a-L,z-T*k],[a-T,z-T*k]];
+}
+
+function shade(hex, m){
+  const n = parseInt(hex.slice(1),16);
+  const r = Math.min(255,Math.max(0,((n>>16)&255)*m))|0;
+  const g = Math.min(255,Math.max(0,((n>>8)&255)*m))|0;
+  const b = Math.min(255,Math.max(0,(n&255)*m))|0;
+  return '#'+((1<<24)+(r<<16)+(g<<8)+b).toString(16).slice(1);
+}
+
+/* ---- palettes: three swaps per shop so colour can be dialled apart
+       from form. Index 0 is the intended one. ---- */
+const PAL = [
+  ['#8a3f36','#c4a23a','#2a5c5c'],   // warm / gold / teal
+  ['#3f6b4a','#c46a4a','#2e4d68'],   // green / terracotta / navy
+  ['#3a3a3e','#d98a9e','#c9a56e']    // charcoal / coral / tan
+];
+
+/* =======================================================
+   NINE SHOPS. Each owns its wall colour, parapet profile,
+   sign geometry, roof kit and kerb props — identity comes
+   from the silhouette, not from the facade texture.
+   right flank, and the blank front wall the shop then dresses */
+function body(wall, trim, H, wid, dep){
+  const w = wid===undefined ? W : wid, d = dep===undefined ? D : dep;
+  if(!NOPLATE) T(0,w,-d,0,H, shade(trim,1.05));          // roof
+  /* WHICH END WALL, decided by the host rather than assumed.
+     This drew S(w) unconditionally -- the a = w end -- which is right
+     for the canvas lab's single view and wrong on half the block edges
+     in the game, where drawStoreUnit's own cull (showRight = dvS > 0)
+     says the a = 0 end is the visible one and the a = w end faces away.
+     A shop that always draws S(w) shows no end wall at all on those
+     edges, which reads as a missing face the moment units are not
+     packed shoulder to shoulder.
+     FLANK_RIGHT is the host's copy of that same test, so the library
+     and the shipped stores agree about which end of a unit exists. */
+  if(FLANK_RIGHT) S(w,-d,0,0,H, shade(wall,.78));        // a = w end
+  else            S(0,-d,0,0,H, shade(wall,.72));        // a = 0 end
+  F(0,w,0,H, wall);                                      // front wall
+  ctx.strokeStyle = shade(wall,.55); ctx.lineWidth = 1.5;
+  poly([P(0,0,H),P(w,0,H),P(w,0,0),P(0,0,0)], null, shade(wall,.6), 1.5);
+  F(0,w,0,16, shade(wall,.66), null,0,-0.5);             // stallriser
+}
+
+/* ================= THE DOOR KIT =================
+   Every shop had drawn its own door as a slab -- a box, 92 to 104 tall
+   and 31 to 64 wide, standing proud of the wall. Three faults in one
+   object: it was a volume where a shopfront door is a hole, it was the
+   wrong size, and it was a different wrong size in every shop.
+
+   The real one, from the shipped drawPickupUnit / drawShopDoor:
+     width   min(DOOR_W*0.72, unitW*0.3)  =  66.24
+     height  DOOR_H*0.88                  = 161.92
+
+   dH divides by ZSCALE so the opening comes out at 161.92 in game units
+   whatever vertical scale the shop itself is drawn at -- a shop on the
+   1.5 lab factor and a shop already rebuilt on the anchors both get the
+   same real door.
+
+   Position is the shop's own business. The game centres the PICKUP
+   door on u.w/2, but pickups will be targeted per shop rather than
+   assumed, so the kit takes a midpoint and puts the door there. It
+   clamps only so a door near the end of a frontage cannot run off it.
+
+   Everything is on the frontage plane within 1.2 units. No slab, no
+   return, so nothing casts a second little building onto the flank. */
+/* HALF DOORS ARE A DOOR, NOT A DECORATION. The cantina had a pair of
+   saloon leaves painted onto a full shopfront door, so the shop had two
+   doors in one opening and neither read. A half door REPLACES the leaf:
+   the opening stays open above and below it, which is the whole point
+   of one, and that gap is what has to survive into the game.
+
+   FOR THE PORT. drawShopDoor swings a single leaf on an SL hinge
+   (SHOPDOOR_ART.openAngle). A half door is two leaves hinged at
+   OPPOSITE jambs, both swinging out, over a band that covers roughly
+   z 0.26..0.70 of the opening -- so the worker passes through a gap
+   that is already partly open, and the dark above and below the leaves
+   must not be filled in. Same hinge maths, twice, mirrored. */
+function shopDoor(aMid, wall, trim, glass, wid, base, opts){
+  /* wid: some shops are drawn on a narrower unit (Tailor WW=170,
+     Newsstand WW=150), so the clamp has to be against THEIR frontage,
+     not the default W, or the door slides off the end of the wall. */
+  const uw = wid === undefined ? W : wid;
+  /* base: the floor the door stands on. Zero for a shopfront, but a
+     goods depot's openings sit on a loading dock and a door drawn from
+     the pavement would run through the dock face. */
+  const z = base === undefined ? 0 : base;
+  const hw = SHOP_DOOR_W/2, dH = SHOP_DOOR_H/ZSCALE;
+  const mid = Math.max(hw+5, Math.min(uw-hw-5, aMid));
+  const a0 = mid-hw, a1 = mid+hw;
+  F(a0-4, a1+4, z, z+dH+7, shade(wall,.90), null, 0, 0.3);       // painted surround
+  F(a0, a1, z, z+dH, '#2b2118', null, 0, 0.4);                    // opening
+  /* THE FANLIGHT WAS A PANEL. Transom glass, rail and leaf were all at
+     b = 0.6 -- one flat plane with three colours on it -- and the glass
+     was a 55% wash over the near-black opening, so it came out as a grey
+     slab sitting above the door rather than as a light over it.
+
+     A fanlight is glazed into the head of the opening and the leaf
+     swings in front of it, so the two cannot share a depth. The glass
+     goes BEHIND the leaf line at 0.45, gets a tint from the same family
+     as glaze() instead of a wash, and takes a raked highlight so it
+     reads as glazing. The rail that divides them stands proud at 0.7,
+     which is what a transom rail does. */
+  F(a0+2, a1-2, z+dH-26, z+dH-4, glass || 'rgba(96,132,152,.94)', null,0,0.45);
+  poly([P(a0+2,0.5,z+dH-4),P(a0+(a1-a0)*0.42,0.5,z+dH-4),
+        P(a0+(a1-a0)*0.20,0.5,z+dH-26),P(a0+2,0.5,z+dH-26)],
+       'rgba(240,250,254,.17)');
+  F(a0+2, a1-2, z+dH-30, z+dH-26, shade(trim,.8), null,0,0.7);    // transom rail
+  if(opts && opts.half){
+    /* two leaves, hinged at opposite jambs, over the middle band only */
+    const h0 = z + dH*0.26, h1 = z + dH*0.70, mA = (a0+a1)/2;
+    for(const [la0,la1] of [[a0+2, mA-1], [mA+1, a1-2]]){
+      F(la0, la1, h0, h1, trim, null, 0, 0.6);
+      F(la0, la1, h1-5, h1, shade(trim,.74), null, 0, 0.78);      // top rail
+      F(la0, la1, h0, h0+5, shade(trim,.74), null, 0, 0.78);      // bottom rail
+      for(let k=1;k<3;k++){
+        const zz = h0 + 5 + (h1-h0-10)*k/3;
+        F(la0+2, la1-2, zz-1, zz+1, shade(trim,.62), null, 0, 0.82);
+      }
+    }
+    for(const ha of [a0+4, a1-4])                                  // hinge straps
+      for(const zz of [h0+7, h1-9])
+        F(ha-1.5, ha+9, zz-1.6, zz+1.6, shade(trim,.5), null, 0, 0.9);
+    return { a0, a1, dH, half:true, h0, h1 };
+  }
+  F(a0+2, a1-2, z, z+dH-30, trim, null, 0, 0.6);                  // leaf
+  for(let k=0;k<2;k++)
+    F(a0+8, a1-8, z+dH*0.07+k*dH*0.36, z+dH*0.30+k*dH*0.36, shade(trim,1.18), shade(trim,.7), 1.5, 0.9);
+  F(a1-14, a1-10, z+dH*0.40, z+dH*0.53, '#d8c28a', null, 0, 1.2); // handle
+  return { a0, a1, dH };
+}
+
+/* pavement props shared between shops */
+function kerb(p, kind){
+  if(!state.props) return;
+  if(kind==='crates'){
+    box(W+16,W+62,14,54,0,26,'#c98a4a','#a9703a','#8f5e31');
+    box(W+22,W+56,20,48,26,38,'#b87d3e','#9a6634','#82562c');
+  } else if(kind==='bench'){
+    box(W*0.08,W*0.52,26,44,20,26,'#8b6a4e','#7a5c44','#6a5039');
+    F(W*0.10,W*0.14,0,20,'#6d747c',null,0,34);
+    F(W*0.46,W*0.50,0,20,'#6d747c',null,0,34);
+  } else if(kind==='planters'){
+    for(const aa of [W*0.06, W*0.88]){
+      box(aa-14,aa+14,16,44,0,24,'#b9beb4','#a3a89a','#8f9487');
+      const c=P(aa,30,34); ctx.beginPath(); ctx.arc(c.x,c.y,13*K,0,7);
+      ctx.fillStyle='#4f7a4a'; ctx.fill();
+    }
+  } else if(kind==='stoop'){
+    box(W*0.56,W*0.90,10,34,0,12,'#b9beb4','#a3a89a','#8f9487');
+    box(W*0.58,W*0.88,14,30,12,20,'#c3c8be','#adb2a4','#999e91');
+  } else if(kind==='seats'){
+    for(const aa of [W*0.10, W*0.34]){
+      cyl(aa, 34, 0, 22, 4, '#b9bcc0');
+      cyl(aa, 34, 22, 28, 13, '#e2748c');
+    }
+  } else if(kind==='aboard'){
+    poly([P(W*0.10,30,0),P(W*0.34,30,0),P(W*0.34,30,48),P(W*0.10,30,48)],'#22222a','#e0483c',2);
+    for(let i=0;i<3;i++) F(W*0.13,W*0.31, 12+i*12, 18+i*12, '#f2ece0', null,0,-30);
+  }
+}
+
+
+
+  /* ---- the ported entries. One, so far. ---- */
+  const SHOPS = [
+  {
+  name:'Undertaker', tall:true, block:true, place:'park',
+  ww: 4*3128, dd: 5*3128,
+  wTodo:'nine block cells in a staircase -- the packer has no concept of a multi-block, non-rectangular footprint',
+  pTodo:'GANTRY COMMONS specifically, Warehouse District. Measured on buildGrid(36,27,hashStr("2026-08-09")): 9 cells at i,j (10,13)(9,14)(10,14)(9,15)(10,15)(10,16)(11,16)(11,17)(12,17). The chooser places by block type and has no way to name a component',
+  gTodo:'pin to the Gantry Commons component via parkNameTable/mapParkName, the way WG_COAST pins the aquarium to its deck. Anchor is the min-j then min-i cell, (10,13). If worldgen ever reshapes the component the footprint here has to be regenerated from it rather than kept as a literal',
+  cTodo:'perimeter railings on the staircase outline, lych gate, chapel and ~200 headstones need volumes; the walks and the grass are drivable',
+  head:'Burial ground filling Gantry Commons, nine cells of it',
+  tags:['nine-cell footprint','staircase outline','burial ground','chapel of rest','lych gate','drivable walks'],
+  desc:'Not a shopfront and not a block: the undertaker takes the whole of Gantry Commons in the shape the worldgen actually makes it, nine cells running diagonally with the streets between them swallowed, railed round the staircase and walked through.',
+  draw(p){
+    /* ============ THE FOOTPRINT IS A MEASURED PARK, NOT A BLOCK =====
+       At Sir's direction this fills GANTRY COMMONS in the shape the
+       worldgen actually gives it. The cells were read off the real
+       city -- buildGrid(36, 27, hashStr("2026-08-09")), which is
+       DISTRICT_COLS*DISTRICT_W by DISTRICT_ROWS*DISTRICT_H, 910 blocks
+       -- and parkNameTable's component for that name is nine cells:
+
+         (10,13) (9,14) (10,14) (9,15) (10,15) (10,16) (11,16)
+         (11,17) (12,17)
+
+       Normalised to its own origin that is a 4 by 5 bounding box with
+       nine of the twenty cells filled, running as a staircase from the
+       north-west down to the south-east. ww and dd are the bounding
+       box; the SHAPE is the CELLS list.
+
+       A CORRECTION WORTH KEEPING. My first census said Gantry Commons
+       never exists, across 120 runs. That census used buildGrid(12,12)
+       -- a twelfth of the city's area -- and at that size a hood never
+       gets enough park components for the sixth name in its pool to be
+       dealt. The method was right and the parameter was wrong, which is
+       the worst kind of wrong: it produces a confident number. The real
+       grid dimensions were in _generateRouteFresh the whole time.
+
+       WHAT THE SWALLOW PASS MEANS HERE. Where two cells are edge
+       adjacent the street between them is gone, so the grass runs
+       straight through; where a cell has no neighbour on a side, that
+       side is a real street frontage and gets the railing. So the
+       ground is not nine squares, it is one continuous piece with a
+       staircase outline, and the railing is derived from the cell set
+       rather than drawn as a rectangle.
+
+       cTodo IS LARGE AND HONEST. Nine cells at the old 62 by 88 stone
+       pitch would have been about eighteen hundred headstones. At 150
+       by 200 it is around two hundred, which still reads as rows and is
+       a collision bill somebody has to agree to. */
+    /* ---- THE CELL PITCH IS THE GAME'S, MEASURED ----
+       This was 1048.8 with a 90 road, which is the canvas lab's
+       block:true convention, and it is WRONG BY A FACTOR OF THREE. Read
+       off the running game: BLOCK is 34*T2 = 3128, a block's buildable
+       interior is x1-x0 = 1656, and ROAD_HALF is 368 -- so 736 of road,
+       1656 of ground, 736 of road makes the 3128 pitch.
+
+       The graft found it. Standing the robot in Gantry Commons showed
+       grass and a palm and no graveyard, because the burial ground was
+       being drawn at a third of the component's real size, tucked in
+       one corner of nine cells that are each three times bigger than it
+       assumed.
+
+       WORTH CHECKING THE OTHER FIVE. Bathhouse, Chapel, Nursery,
+       Brewery and Print works all use ww = dd = 1048.8 on the same
+       convention, and if that number came from the same place they are
+       all a third of a block. The lab cannot tell -- it frames whatever
+       it is given -- which is exactly why this only surfaced on the
+       first entry to reach the game. */
+    const BLK = 3128, ROAD = 736;
+    const CELLS = [[1,0],[0,1],[1,1],[0,2],[1,2],[1,3],[2,3],[2,4],[3,4]];
+    const has = (ci, cj) => CELLS.some(c => c[0] === ci && c[1] === cj);
+    const grass = '#4a6b46', walk = '#b3a894', iron = '#2a2e33';
+    const stoneA = '#9a9a92', stoneB = '#8a8a82', wall = '#6a6a64', roofc = '#3a3f44';
+    /* the chapel stands in cell (1,1), which is inside the solid 2x2
+       core the component happens to contain -- (0,1)(1,1)(0,2)(1,2) */
+    const CA0 = 1*BLK + 900, CA1 = 1*BLK + 1500, CB0 = -1*BLK - 900, CB1 = -1*BLK - 1450, CH = 250;
+
+    /* ---- the ground, cell by cell, with the swallowed streets ---- */
+    T(0, 4*BLK, -5*BLK, 0, 0.3, '#b3a894');
+    for(const [ci, cj] of CELLS){
+      const a0 = ci*BLK + (has(ci-1,cj) ? 0 : ROAD), a1 = (ci+1)*BLK - (has(ci+1,cj) ? 0 : ROAD);
+      const b1 = -cj*BLK - (has(ci,cj-1) ? 0 : ROAD), b0 = -(cj+1)*BLK + (has(ci,cj+1) ? 0 : ROAD);
+      T(a0, a1, b0, b1, 0.6, grass);
+    }
+    /* ---- the walks, and every one of them ends at a gate ----
+       A walk that runs into a railing is a path to nowhere, and the
+       first cut had three of them doing exactly that -- one overshot
+       onto the pavement outside, one stopped 30 short of the fence and
+       one crossed a cell that is not in the component at all. Each now
+       runs from perimeter to perimeter and the railing opens where it
+       meets one. */
+    T(1*BLK+1120, 1*BLK+1280, -3*BLK, -ROAD, 0.8, walk);          // the spine
+    T(0*BLK+ROAD, 2*BLK-ROAD, -1*BLK-1560, -1*BLK-1720, 0.8, walk);// the cross walk
+    T(2*BLK+ROAD, 4*BLK-ROAD, -4*BLK-760, -4*BLK-920, 0.8, walk); // the lower walk
+
+    /* ---- the railing, derived from the cell set ----
+       Every cell side with no neighbour is a street frontage. Segments
+       run 20 inside the grass edge and overrun 20 at each end so the
+       corners close without a mitre. */
+    /* ---- THE RAILING IS THE BOUNDARY OF THE GRASS, NOT OF THE CELLS ----
+       The first cut put a rail on every cell side with no neighbour and
+       overran each end by 20. That is right along a straight run and
+       wrong at every step of the staircase, which is where the holes
+       Sir photographed were.
+
+       The reason: a cell's grass is inset by ROAD on the sides with no
+       neighbour and NOT inset on the sides with one, so two diagonally
+       adjacent cells produce grass edges that are offset by ROAD in
+       both axes. At a step the boundary has to make two short turns of
+       90 each to get from one cell's edge to the next -- and 20 of
+       overrun does not cover 90.
+
+       So: build the grass rectangle for each cell exactly as the ground
+       pass does, and for each of its four edges emit rail over the part
+       NOT shared with the neighbour on that side. Where there is no
+       neighbour that is the whole edge; where there is one it is the
+       interval difference, which is precisely the little notch at each
+       step. Same rule everywhere, no special case for corners. */
+    const rect = (ci, cj) => [
+      ci*BLK + (has(ci-1,cj) ? 0 : ROAD), (ci+1)*BLK - (has(ci+1,cj) ? 0 : ROAD),
+      -(cj+1)*BLK + (has(ci,cj+1) ? 0 : ROAD), -cj*BLK - (has(ci,cj-1) ? 0 : ROAD)];
+    const railSegs = [];
+    for(const [ci, cj] of CELLS){
+      const [a0, a1, b0, b1] = rect(ci, cj);
+      const span = (lo, hi, nb, along) => {         // the part of an edge that is open
+        if(!nb) return [[lo, hi]];
+        const r = rect(nb[0], nb[1]);
+        const [c0, c1] = along ? [r[0], r[1]] : [r[2], r[3]];
+        const out = [];
+        if(lo < c0) out.push([lo, Math.min(hi, c0)]);
+        if(hi > c1) out.push([Math.max(lo, c1), hi]);
+        return out;
+      };
+      const nb = (i, j) => has(i, j) ? [i, j] : null;
+      for(const [x0, x1] of span(a0, a1, nb(ci, cj-1), true))
+        railSegs.push([x0 - 12, x1 + 12, b1 - 12, b1]);
+      for(const [x0, x1] of span(a0, a1, nb(ci, cj+1), true))
+        railSegs.push([x0 - 12, x1 + 12, b0, b0 + 12]);
+      for(const [y0, y1] of span(b0, b1, nb(ci-1, cj), false))
+        railSegs.push([a0, a0 + 12, y0 - 12, y1 + 12]);
+      for(const [y0, y1] of span(b0, b1, nb(ci+1, cj), false))
+        railSegs.push([a1 - 12, a1, y0 - 12, y1 + 12]);
+    }
+    /* ---- THE GATES, one at every place a walk meets the perimeter ----
+       Four of them: the lych gate on the north street where the spine
+       walk starts, and three iron gates where the cross walk and the
+       lower walk reach the railing. Each is a rectangle the railing
+       opens for, so adding a walk means adding its gate and nothing
+       else has to change. */
+    const GA0 = 1*BLK + 1090, GA1 = 1*BLK + 1310, GB = -ROAD - 6;
+    const GATES = [
+      { a0: GA0,            a1: GA1,            b0: GB-30,        b1: GB+30, lych:true },
+      { a0: 0*BLK+ROAD-30,  a1: 0*BLK+ROAD+30,  b0: -1*BLK-1740,  b1: -1*BLK-1540 },
+      { a0: 2*BLK-ROAD-30,  a1: 2*BLK-ROAD+30,  b0: -1*BLK-1740,  b1: -1*BLK-1540 },
+      { a0: 4*BLK-ROAD-30,  a1: 4*BLK-ROAD+30,  b0: -4*BLK-940,   b1: -4*BLK-740 }
+    ];
+    const railing = (a0, a1, b0, b1) => {
+      for(const g of GATES){
+        if(a0 < g.a1 && a1 > g.a0 && b0 < g.b1 && b1 > g.b0){
+          if((a1 - a0) > Math.abs(b1 - b0)){
+            if(a0 < g.a0) railing(a0, g.a0, b0, b1);
+            if(a1 > g.a1) railing(g.a1, a1, b0, b1);
+          } else {
+            if(b0 < g.b0) railing(a0, a1, b0, g.b0);
+            if(b1 > g.b1) railing(a0, a1, g.b1, b1);
+          }
+          return;
+        }
+      }
+      box(a0, a1, b0, b1, 0, 10, shade(wall,.9), shade(wall,.7), shade(wall,.6));
+      const along = (a1 - a0) > Math.abs(b1 - b0);
+      const n = Math.max(2, Math.round((along ? a1-a0 : Math.abs(b1-b0)) / 30));
+      const mb = (b0+b1)/2, ma = (a0+a1)/2;
+      for(let i=0;i<=n;i++){
+        const t = i/n;
+        cyl(along ? a0 + (a1-a0)*t : ma, along ? mb : b0 + (b1-b0)*t, 10, 60, 2.2, iron);
+      }
+      for(const z of [16, 54])
+        poly(along ? [P(a0,mb,z),P(a1,mb,z),P(a1,mb,z+4),P(a0,mb,z+4)]
+                   : [P(ma,b0,z),P(ma,b1,z),P(ma,b1,z+4),P(ma,b0,z+4)], iron);
+    };
+
+    /* ---- the stones, the yews, and the railing, all one sorted list ---- */
+    const stones = [];
+    let seed = 11;
+    const rnd = () => (seed = (seed*1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
+    for(const [ci, cj] of CELLS)
+      /* 260 by 340 on cells of 1656 gives about 24 stones a cell and
+         216 in all -- the same bill the 150 by 200 pitch gave on cells
+         a third the size, which is the point of re-cutting it rather
+         than letting the rescale multiply it by nine. */
+      for(let aa = ci*BLK + ROAD + 130; aa < (ci+1)*BLK - ROAD - 100; aa += 260)
+        for(let bb = -cj*BLK - ROAD - 130; bb > -(cj+1)*BLK + ROAD + 100; bb -= 340){
+          if(aa > CA0-220 && aa < CA1+220 && bb < CB0+300 && bb > CB1-420) continue;
+          if(aa > 1*BLK+1060 && aa < 1*BLK+1340 && bb > -3*BLK) continue;    // the spine walk
+          if(bb < -1*BLK-1500 && bb > -1*BLK-1780) continue;                 // the cross walk
+          if(bb < -4*BLK-700 && bb > -4*BLK-980) continue;
+          stones.push([aa + rnd()*20, bb - rnd()*20, Math.floor(rnd()*4)]);
+        }
+    const yews = [];
+    for(const [ci, cj] of CELLS)
+      if((ci + cj) % 2 === 0) yews.push([ci*BLK + ROAD + 200 + rnd()*900, -cj*BLK - ROAD - 220 - rnd()*900]);
+
+    const drawStone = ([sa, sb, kind]) => {
+      if(kind === 0){
+        box(sa-15, sa+15, sb-6, sb+6, 0, 46, stoneA, shade(stoneA,1.1), shade(stoneA,.78));
+        const q = [];
+        for(let i=0;i<=12;i++){ const t = Math.PI*i/12;
+          q.push(P(sa - 15*Math.cos(t), sb+6, 46 + 15*Math.sin(t)/ZSCALE)); }
+        poly(q, shade(stoneA,1.1));
+      } else if(kind === 1){
+        box(sa-6, sa+6, sb-6, sb+6, 0, 60, stoneB, shade(stoneB,1.1), shade(stoneB,.78));
+        box(sa-18, sa+18, sb-5, sb+5, 40, 51, stoneB, shade(stoneB,1.1), shade(stoneB,.78));
+      } else if(kind === 2){
+        box(sa-13, sa+13, sb-11, sb+11, 0, 14, stoneB, shade(stoneB,1.05), shade(stoneB,.74));
+        box(sa-9, sa+9, sb-8, sb+8, 14, 72, stoneA, shade(stoneA,1.12), shade(stoneA,.76));
+        poly([P(sa-9,sb+8,72),P(sa+9,sb+8,72),P(sa,sb+8,90)], shade(stoneA,1.12));
+      } else {
+        box(sa-22, sa+22, sb-13, sb+13, 0, 30, stoneB, shade(stoneB,1.06), shade(stoneB,.74));
+        slab(sa-26, sa+26, 30, 37, sb+15, sb-15, shade(stoneA,1.14), null, shade(stoneA,1.2));
+      }
+    };
+    const drawYew = ([ya, yb]) => {
+      cyl(ya, yb, 0, 46, 11, '#4a3c2e');
+      for(let k=0;k<3;k++)
+        ball(ya + (k-1)*15, yb + (k%2 ? 11 : -11), 66 + k*19, 35 - k*6,
+             k%2 ? '#2f5638' : '#365f3e');
+    };
+
+    const inFront = (oa, ob) => {
+      const s0 = oa - ob, key = oa + ob;
+      if(s0 < CA0 - CB0 || s0 > CA1 - CB1) return key > CA1 + CB0;
+      return key > (s0 <= CA1 - CB0 ? s0 + 2*CB0 : 2*CA1 - s0);
+    };
+    const items = []
+      .concat(stones.map(o => [o[0]+o[1], () => drawStone(o), o]))
+      .concat(yews.map(o => [o[0]+o[1], () => drawYew(o), o]))
+      /* ---- LONG RAILS HAVE TO BE CUT UP BEFORE THEY ARE SORTED ----
+         A rail segment can be a whole block long, and a box that long
+         has a different depth key at every point along it. Sorting the
+         whole run on its MIDPOINT key puts it in one place in the
+         queue, so stones near its far end came out in front of it and
+         stones near its near end behind -- which is what the headstones
+         standing on the railing were.
+
+         Same fault as the chapel two passes ago and the same fix as the
+         tea house roof: an object that spans a range cannot be one item
+         in a depth-sorted queue. Cut into 140s, every piece's midpoint
+         is accurate for its own extent, and railing() already spaces
+         its posts by length so the joins do not show. */
+      .concat(railSegs.flatMap(r => {
+        const along = (r[1]-r[0]) > Math.abs(r[3]-r[2]);
+        const len = along ? r[1]-r[0] : r[3]-r[2];
+        const n = Math.max(1, Math.round(len / 140));
+        const out = [];
+        for(let i=0;i<n;i++){
+          const t0 = i/n, t1 = (i+1)/n;
+          const q = along ? [r[0]+(r[1]-r[0])*t0, r[0]+(r[1]-r[0])*t1, r[2], r[3]]
+                          : [r[0], r[1], r[2]+(r[3]-r[2])*t0, r[2]+(r[3]-r[2])*t1];
+          const mid = [(q[0]+q[1])/2, (q[2]+q[3])/2];
+          out.push([mid[0]+mid[1], () => railing(q[0], q[1], q[2], q[3]), mid]);
+        }
+        return out;
+      }));
+    items.sort((u, v) => u[0] - v[0]);
+    for(const [, fn, o] of items) if(!inFront(o[0], o[1])) fn();
+
+    /* ---- the chapel of rest ----
+       Hand-rolled, like every set-back building in this file: reveal(),
+       glaze() and shopDoor() all draw at b 0 and this stands a block in.
+       Back wall first: two planes of one building at different b always
+       overlap on screen by exactly the building's depth. */
+    F(CA0, CA1, 0, CH, shade(wall,.86), null, 0, CB1);
+    {
+      const o = P(0,CB0,0), pa = P(1,CB0,0), ge = (pa.y - o.y) > 0 ? CA1 : CA0;
+      S(ge, CB1, CB0, 0, CH, shade(wall,.74));
+      poly([P(ge,CB0,CH),P(ge,(CB0+CB1)/2,CH+96),P(ge,CB1,CH)], shade(wall,.68));
+    }
+    F(CA0, CA1, 0, CH, wall, null, 0, CB0);
+    F(CA0, CA1, 0, 22, shade(wall,.82), null, 0, CB0+0.4);
+    const CBM = (CB0+CB1)/2;
+    poly([P(CA0-8,CB0+8,CH),P(CA1+8,CB0+8,CH),P(CA1+8,CBM,CH+96),P(CA0-8,CBM,CH+96)],
+         shade(roofc,1.04));
+    for(let i=1;i<9;i++){
+      const t = i/9, bb = CB0+8 + (CBM-CB0-8)*t, zz = CH + 96*t;
+      poly([P(CA0-6,bb,zz),P(CA1+6,bb,zz),P(CA1+6,bb-1.6,zz-2),P(CA0-6,bb-1.6,zz-2)],
+           shade(roofc,.88));
+    }
+    poly([P(CA0-8,CBM,CH+96),P(CA1+8,CBM,CH+96),P(CA1+8,CB1-8,CH),P(CA0-8,CB1-8,CH)],
+         shade(roofc,.74));
+    slab(CA0-10, CA1+10, CH+96, CH+104, CBM+8, CBM-8, shade(roofc,.6));
+    for(const wa of [CA0+80, CA0+230, CA1-80]){
+      F(wa-26, wa+26, 60, 172, shade(wall,1.1), null, 0, CB0-0.6);
+      F(wa-20, wa+20, 66, 156, '#2f3a42', null, 0, CB0-1);
+      const q = [];
+      for(let i=0;i<=10;i++){ const t = Math.PI*i/10;
+        q.push(P(wa - 20*Math.cos(t), CB0-1, 156 + 20*Math.sin(t)/ZSCALE)); }
+      poly(q, '#2f3a42');
+      F(wa-2, wa+2, 66, 170, shade(wall,1.1), null, 0, CB0-1.4);
+    }
+    {
+      const da = (CA0+CA1)/2;
+      F(da-50, da+50, 0, 134, shade(wall,1.06), null, 0, CB0+0.8);
+      F(da-36, da+36, 0, 110, '#241f1c', null, 0, CB0+1.2);
+      const q = [];
+      for(let i=0;i<=10;i++){ const t = Math.PI*i/10;
+        q.push(P(da - 36*Math.cos(t), CB0+1.2, 110 + 36*Math.sin(t)/ZSCALE)); }
+      poly(q, '#241f1c');
+      for(const [d0,d1] of [[da-32, da-2],[da+2, da+32]])
+        F(d0, d1, 4, 106, '#3a3028', shade(wall,.7), 1.4, CB0+1.6);
+    }
+
+    for(const [, fn, o] of items) if(inFront(o[0], o[1])) fn();
+
+    /* ---- the three iron gates, then the lych gate ----
+       Piers with ball caps and an arched overthrow between them, turned
+       to face along whichever axis the opening runs. */
+    for(const g of GATES){
+      if(g.lych) continue;
+      const across = (g.a1 - g.a0) > Math.abs(g.b1 - g.b0);
+      const ma = (g.a0+g.a1)/2, mb = (g.b0+g.b1)/2;
+      const ends = across ? [[g.a0-6, mb],[g.a1+6, mb]] : [[ma, g.b0-6],[ma, g.b1+6]];
+      for(const [pa, pb] of ends){
+        box(pa-15, pa+15, pb-15, pb+15, 0, 92, shade(wall,.95), shade(wall,.75), shade(wall,.62));
+        slab(pa-19, pa+19, 92, 100, pb+19, pb-19, shade(wall,1.1));
+        ball(pa, pb, 112, 13, shade(wall,1.05), shade(wall,1.2));
+      }
+      for(let i=0;i<=10;i++){                                     // the overthrow
+        const t = i/10, zz = 104 + 26*Math.sin(Math.PI*t);
+        const aa = across ? ends[0][0] + (ends[1][0]-ends[0][0])*t : ma;
+        const bb = across ? mb : ends[0][1] + (ends[1][1]-ends[0][1])*t;
+        if(i){
+          const t0 = (i-1)/10, z0 = 104 + 26*Math.sin(Math.PI*t0);
+          const a0 = across ? ends[0][0] + (ends[1][0]-ends[0][0])*t0 : ma;
+          const b0 = across ? mb : ends[0][1] + (ends[1][1]-ends[0][1])*t0;
+          tube(a0, b0, z0, aa, bb, zz, 2.4, iron);
+        }
+      }
+    }
+    {
+      const gb = GB;
+      for(const ga of [GA0, GA1])
+        box(ga-14, ga+14, gb-14, gb+14, 0, 112, shade(wall,.95), shade(wall,.75), shade(wall,.62));
+      box(GA0+12, GA1-12, gb-7, gb+7, 92, 106, '#4a4038','#584c42','#3c332c');
+      for(const [ba, sgn] of [[GA0+14, 1],[GA1-14, -1]])
+        poly([P(ba, gb+7, 92),P(ba + sgn*30, gb+7, 92),P(ba, gb+7, 64)], '#4a4038');
+      poly([P(GA0-32,gb+38,112),P(GA1+32,gb+38,112),P(GA1+32,gb,158),P(GA0-32,gb,158)],
+           shade(roofc,1.04));
+      for(let i=1;i<6;i++){
+        const t = i/6, bb = gb+38 - 38*t, zz = 112 + 46*t;
+        poly([P(GA0-30,bb,zz),P(GA1+30,bb,zz),P(GA1+30,bb-1.6,zz-2),P(GA0-30,bb-1.6,zz-2)],
+             shade(roofc,.88));
+      }
+      poly([P(GA0-32,gb,158),P(GA1+32,gb,158),P(GA1+32,gb-38,112),P(GA0-32,gb-38,112)],
+           shade(roofc,.72));
+      slab(GA0-34, GA1+34, 158, 165, gb+5, gb-5, shade(roofc,.58));
+      const o = P(0,gb,0), pa = P(1,gb,0), ge = (pa.y - o.y) > 0 ? GA1+32 : GA0-32;
+      poly([P(ge,gb+38,112),P(ge,gb,158),P(ge,gb-38,112)], shade(wall,.9));
+    }
+  }
+  }
+  ];
+  const BY_NAME = new Map(SHOPS.map(s => [s.name, s]));
+
+  return {
+    get(name){ return BY_NAME.get(name) || null; },
+    /* g   -- the Phaser Graphics to draw into
+       G   -- (a, b, h) => screen point, the game's own W() composed with
+              whatever anchor the caller chose
+       pal -- one of the kit's palettes, or undefined for the shop's own */
+    draw(name, g, G, pal, k){
+      const shop = BY_NAME.get(name);
+      if(!shop) return false;
+      if(!ctx) ctx = makeCtx2Phaser();
+      K = k || 1;
+      ZSCALE = shop.zs === undefined ? 1.5 : shop.zs;
+      FLANK_RIGHT = true;
+      SHOP_SLOT = { G };
+      ctx.__bind(g);
+      try { shop.draw(pal || PAL[0]); }
+      finally { SHOP_SLOT = null; }
+      return true;
+    }
+  };
+})();
+
 class WorldScene extends Phaser.Scene {
   constructor(){ super("world"); }
 
@@ -19784,7 +21030,85 @@ class WorldScene extends Phaser.Scene {
     this.queueStreetFurniture(vq, blk, excludeEdges);
   }
 
+  /* ---------- PARK LANDMARKS ----------
+     Which park component, if any, a block belongs to as a landmark, and
+     where that component starts. Built once per grid and cached on it.
+
+     THE NAME IS THE HANDLE, and parkNameTable already provides it: it
+     walks the park blocks into connected components, picks each a
+     stable anchor -- min-j then min-i -- and deals it a name from the
+     hood's pool. So "is this block part of Gantry Commons" is a lookup
+     the game already knows how to answer, and the anchor it picks is
+     the same cell every run.
+
+     Measured before wiring: on buildGrid(36, 27, hashStr("2026-08-09"))
+     Gantry Commons is nine cells in a staircase, which is what the
+     entry in the library was drawn to. If the component ever comes out
+     a different shape the entry has to be regenerated from it -- the
+     CELLS list inside it is a literal, and that is the one place this
+     graft can silently disagree with the ground. */
+  parkLandmarkIndex(grid){
+    if(grid._parkLandmarks) return grid._parkLandmarks;
+    const tbl = parkNameTable(grid), byName = new Map();
+    for(const blk of (grid.blocks || [])){
+      if(blk.type !== "park") continue;
+      const nm = tbl.get(Math.round(blk.cx) + "," + Math.round(blk.cy));
+      if(!nm || !LIB.get(PARK_LANDMARKS[nm] || "")) continue;
+      if(!byName.has(nm)) byName.set(nm, []);
+      byName.get(nm).push(blk);
+    }
+    const out = new Map();
+    for(const [nm, cells] of byName){
+      const anchor = cells.reduce((a, c) => (c.j < a.j || (c.j === a.j && c.i < a.i)) ? c : a);
+      /* THE ORIGIN IS THE BLOCK'S, NOT ITS INTERIOR'S. blk.x0 is where
+         the buildable ground starts -- i*BLOCK + ROAD_HALF*2 -- and the
+         entry's own cell grid counts from the block ORIGIN and insets
+         the road itself. Anchoring on x0 put the graveyard one road
+         width off in both axes, which on a first look reads as "it did
+         not draw" because you are standing in the notch. */
+      let x0 = Infinity, y0 = Infinity;
+      for(const c of cells){ if(c.x0 < x0) x0 = c.x0; if(c.y0 < y0) y0 = c.y0; }
+      x0 -= ROAD_HALF * 2; y0 -= ROAD_HALF * 2;
+      for(const c of cells)
+        out.set(c.i + "," + c.j, { name: PARK_LANDMARKS[nm], anchor: c === anchor, x0, y0 });
+    }
+    grid._parkLandmarks = out;
+    return out;
+  }
+  parkLandmarkAt(blk){
+    const g = this.route && this.route.grid;
+    if(!g || blk.i === undefined) return null;
+    return this.parkLandmarkIndex(g).get(blk.i + "," + blk.j) || null;
+  }
+
   queueParkBlock(vq, blk){
+    /* ---- THE LANDMARK CHECK, FIRST ----
+       A park that carries a landmark is not a park with something on
+       it: the library entry draws its own ground, walks, railing and
+       gates, so the park's grass, frontage furniture and scatter must
+       all stand down. Anything else and two sets of ground fight over
+       the same cells.
+
+       IT RUNS ONCE PER COMPONENT, NOT ONCE PER BLOCK. queueParkBlock is
+       called for every cell; the railing and the chapel are properties
+       of the whole nine-cell shape. So the anchor cell draws the lot
+       and the other eight draw nothing at all -- which is also what
+       keeps the stone count at two hundred rather than eighteen
+       hundred.
+
+       THE FRAME COMES FROM THE COMPONENT, NOT FROM A LITERAL. The
+       entry's own CELLS list is normalised to its own origin; the
+       anchor here is the component's real north-west corner, so the
+       graveyard and the ground under it cannot drift apart if worldgen
+       reshapes the park. */
+    const lm = this.parkLandmarkAt(blk);
+    if(lm){
+      if(!lm.anchor) return;                  // a member cell: draw nothing
+      const x0 = lm.x0, y0 = lm.y0;
+      vq.push({ depth: (blk.x0 + blk.y0), fn: (g) =>
+        LIB.draw(lm.name, g, (a, b, h) => this.W(x0 + a, y0 - b, h), null, this.K) });
+      return;
+    }
     /* FRONTAGE FIRST, ABOVE THE SCATTER GUARD. This call used to sit at
        the BOTTOM of the method, below the WORLD_SCATTER return -- so
        with scatter swept off, a park bailed on line two and its
