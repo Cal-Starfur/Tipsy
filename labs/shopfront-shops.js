@@ -8033,65 +8033,155 @@ const SHOPS = [
   }
 },
 {
-  name:'Beach shop', head:'Boards on the wall, palm through the roof, open shutter',
-  fTodo:'z114..132 return +7',
-  tags:['boards leaning in plane','palm with real fronds','open shutter','hammock','sun-bleached'],
-  desc:'Boards lean in a genuine world plane against the pier and the palm fronds are polygons laid out around the crown in three dimensions, so the tree turns rather than facing the camera.',
+  name:'Surf shop', place:'waterfront', ww: T2*4.4, dd: 440,
+  wTodo:'two packing slots',
+  pTodo:'waterfront only -- the shore, boardwalk and pier exist in game/index.html; the chooser still places by block type',
+  head:'Two slots: an open frontage of boards, with the yard wrapping three sides',
+  tags:['waterfront only','two packing slots','open frontage, no glass','boards receding into the shop','wrap-around yard','rinse-down and shower'],
+  desc:'A surf shop on a double plot: the shop itself takes the middle of the frontage with its front wide open and eight boards standing back into it, and the working yard wraps round three sides -- an empty rack and a rinse-down on the near arm, stores across the back, and a way through on both.',
   draw(p){
-    const wall = '#5fbcc4', trim = '#f4ecd6', H = 138;
-    body(wall, trim, H);
-    slab(0,W, H, H+10, -1, -12, trim);
-    slab(0,W, H-24, H-6, -1, -7, shade(wall,1.2));
-    F(12,W*0.72, 0, 104, '#2e4a4e', null,0, 1);
-    slab(12,W*0.72, 96, 110, -1, -8, '#c9ccd0');
-    for(let i=0;i<3;i++) F(14,W*0.72-2, 98+i*4, 100+i*4, '#a9acb0', null,0,-8.5);
-    slab(14,W*0.70, 44, 52, -1, 20, '#c9b48e');
-    for(let i=0;i<4;i++) box(20+i*30, 40+i*30, 4, 18, 52, 76, ['#e8a13a','#e2748c','#7ac48a','#f4ecd6'][i],
-      shade(['#e8a13a','#e2748c','#7ac48a','#f4ecd6'][i],.85), shade(['#e8a13a','#e2748c','#7ac48a','#f4ecd6'][i],.7));
-    shopDoor(W*0.87, wall, trim);
-    if(state.props){
-      // boards leaning in a real plane against the pier
-      for(let i=0;i<3;i++){
-        const ba = W*0.74 + i*13, bb = -6 - i*7, col = ['#f4ecd6','#e8a13a','#e2748c'][i];
-        const lean = 14 - i*3;
-        const p0 = P(ba, bb, 2), p1 = P(ba + lean, bb, 112);
-        ctx.beginPath();
-        ctx.moveTo(p0.x, p0.y);
-        ctx.quadraticCurveTo(p0.x - 12*K, (p0.y+p1.y)/2, p1.x - 3*K, p1.y);
-        ctx.quadraticCurveTo(p1.x + 9*K, (p0.y+p1.y)/2 - 6*K, p0.x + 9*K, p0.y);
-        ctx.closePath(); ctx.fillStyle=col; ctx.fill();
-        ctx.strokeStyle='#c9b48e'; ctx.lineWidth=2; ctx.stroke();
-      }
-      const h0=P(6,26,86), h1=P(W*0.44,26,86);
-      ctx.strokeStyle='#e0d2b0'; ctx.lineWidth=3;
-      ctx.beginPath(); ctx.moveTo(h0.x,h0.y);
-      ctx.quadraticCurveTo((h0.x+h1.x)/2,(h0.y+h1.y)/2+30*K, h1.x,h1.y); ctx.stroke();
-      ctx.lineWidth=1.4;
-      for(let i=1;i<7;i++){
-        const t=i/7, x=(1-t)*(1-t)*h0.x+2*(1-t)*t*((h0.x+h1.x)/2)+t*t*h1.x;
-        const y=(1-t)*(1-t)*h0.y+2*(1-t)*t*(((h0.y+h1.y)/2)+30*K)+t*t*h1.y;
-        ctx.beginPath(); ctx.moveTo(x,y-14*K); ctx.lineTo(x,y); ctx.stroke();
-      }
+    /* ============ TWO SLOTS AND A YARD THAT RETURNS ============
+       At Sir's direction. The shop was one slot with its whole frontage
+       given to the opening, which left nowhere for the part of a surf
+       shop that is not retail: boards get racked, rinsed, waxed and
+       stored, and none of that happens behind the counter.
+
+       WHICH BLOCK TREATMENT THIS IS NOT. It is not a landmark -- ww is
+       T2*4.4, two slots, not a whole edge -- and it does not build to
+       the line either. The building sits in the MIDDLE of its plot at
+       a 96..300 with the yard wrapping past both ends and across the
+       back, which is a fourth case: a shop on a lot rather than a shop
+       in a terrace. The Brewery is the same idea at five slots; this
+       is the smallest plot it works on, because at one slot the arms
+       would be narrower than the gate.
+
+       The arms are open to the street rather than gated. A cartway
+       needs a gate; a board yard needs a way in with a board under your
+       arm, and two open ends make the wrap a route rather than a pen.
+
+       WHAT CAME FROM THE PREVIOUS PASSES. The counter was inside out --
+       bFront -1 and bBack +20, so its back was twenty-one units in
+       front of its own front face and the crates on it stood on the
+       paving. The boards were at b -6..-20, inside the masonry, drawn
+       as stroked quadratics. The hammock lapped to screen-a -20. The
+       shutter drum, the palm, the deck and the mural all went the same
+       way: each was there to justify an idea rather than because the
+       elevation wanted it.
+
+       fTodo was the terrace-bounded kind: slab(0, W, H-24, H-6, -1, -7)
+       runs wall to wall like a cornice, so its +7 wanted bBack 0 rather
+       than a margin. */
+    const wall = '#5fbcc4', trim = '#f4ecd6', H = 180, WW = T2*4.4, DD = 440;
+    const inner = '#1d3a3e', sand = '#c9b48e';
+    const board = ['#f4ecd6','#e8a13a','#e2748c','#7ac48a'];
+    /* ---- THE SHOP FRONTS THE LINE, FB 0 ----
+       It was set back to b -28 and that broke the window outright:
+       reveal(), glaze() and shopDoor() all draw at b 0, so the opening
+       and the door were floating twenty-eight units in front of the
+       wall they belong to, while the clip path was at the wall. That is
+       the setback gap this file already records -- the Tea house, the
+       Bathhouse, the Chapel and the Nursery hut all roll their own
+       openings for it -- and I walked into it while moving the building
+       off the frontage line.
+
+       A setback is not what this shop needed anyway. The yard wraps
+       past the ENDS and the back; the shop itself is a shopfront and
+       belongs on the street. FB 0 puts it there and the kit works. */
+    const BA0 = 96, BA1 = 300, FB = 0, BB = -296;      // the shop, mid-plot, on the line
+    const YW0 = 20, YW1 = WW - 20, YBK = -DD + 20;      // the yard round it
+    const FH = 46;
+    const yWall = (a0,a1,b0,b1) => {
+      box(a0, a1, b0, b1, 0, FH, shade(wall,.86), shade(wall,.64), shade(wall,.52));
+      slab(a0-3, a1+3, FH, FH+7, b1+3, b0-3, shade(wall,1.08), null, shade(wall,1.22));
+    };
+
+    /* ---- ground, and the far half of the perimeter ----
+       Only the back and the far arm go before the building. The near
+       arm's fence sits at b -12 with a depth key near 380 against a
+       building whose deepest corner keys -196, so it is far nearer and
+       has to be painted after -- the Brewery's lesson, where the whole
+       street frontage of the yard went behind the building because it
+       was drawn with the back wall. */
+    T(0, WW, -DD, 0, 0.4, '#cfc6b2');
+    T(YW0, YW1, YBK, -12, 0.6, '#b8ae98');
+    yWall(YW0, YW1, YBK, YBK+12);
+    yWall(YW0, YW0+12, YBK, -12);
+
+    /* ---- stock on the back run, before the building ---- */
+    for(let k=0;k<4;k++)
+      box(150+k*4, 250-k*4, YBK+26+k*3, YBK+96+k*3, k*20, k*20+18,
+          '#8d7a5e','#7a6a52','#665846');
+
+    /* ---- the shop ---- */
+    F(BA0, BA1, 0, H, wall, null, 0, FB);
+    F(BA0, BA1, 0, 20, shade(wall,.76), null, 0, FB+0.4);
+    F(BA0, BA1, 0, H, shade(wall,.8), null, 0, BB);          // its back wall
+    {
+      const o = P(0,FB,0), pa = P(1,FB,0);
+      S((pa.y - o.y) > 0 ? BA1 : BA0, BB, FB, 0, H, shade(wall,.72));
+      S((pa.y - o.y) > 0 ? BA0 : BA1, BB, FB, 0, H, shade(wall,.66));
     }
+    slab(BA0-6, BA1+6, H, H+10, FB+6, BB-6, trim);          // cornice
+    /* THE ROOF GOES AFTER THE CORNICE, not before. slab()'s first
+       colour is its TOP face, so a cornice run round the whole
+       footprint paints a cream plate over the entire roof -- which is
+       what it did, and at 216 by 274 it was the largest and brightest
+       thing on the shop. Laying the roof over it afterwards leaves the
+       cornice showing as the edge band it is meant to be. */
+    T(BA0-6, BA1+6, BB-6, FB+6, H+10.4, '#2e7a80');
+
+    /* ---- the frontage: one opening, eight boards running back ----
+       The clip is in SCREEN-a, not in a: a board of half-width 11 sits
+       on a - b and has to stay inside 106..200, so the run has 72 of
+       screen and eight boards is a step of 9, half a board's width. */
+    slab(BA0, BA1, 0, 130, FB+6, FB, shade(wall,1.12), null, trim);
+    reveal(106, 200, 18, 112, 92, inner);
+    ctx.save();
+    poly([P(106,FB,112),P(200,FB,112),P(200,FB,18),P(106,FB,18)]);
+    ctx.clip();
+    for(let i=7;i>=0;i--){
+      const ba = 115, bb = FB - 6 - i*9, S = 0.98, Z0 = 19;
+      const col = shade(board[i%4], 1 - i*0.062);
+      const qq = pts => pts.map(([x,z]) => P(ba + x*S, bb, Z0 + z*S/ZSCALE));
+      poly(qq([[11,0],[19,16],[22,50],[19,84],[11,100],[3,84],[0,50],[3,16]]),
+           col, shade(col,.66), 1.2);
+      poly(qq([[11,6],[13,50],[11,92],[9,50]]), shade(col,.84));
+      poly(qq([[7,2],[15,2],[15,8],[7,8]]), shade(col,.62));
+      poly(qq([[9,60],[13,60],[13,74],[9,74]]), shade(col,.72));
+    }
+    ctx.restore();
+    shopDoor(250, wall, trim, null, WW);                    // a 216.88..283.12
+    slab(BA0, BA1, 136, 164, FB+6, FB, shade(wall,1.2), null, trim);
+    F(BA0+18, BA1-18, 142, 158, trim, null,0, FB+6.6);
+
+    /* ---- the near arm: an empty rack, a rinse trough and a shower ----
+       NO BOARDS OUT HERE, at Sir's direction. There were five on the
+       near rack and four across the back, and they were competing with
+       the eight in the window -- which are the ones lit, framed and
+       receding, and the reason the shop reads at all. Stock in two
+       places at once halves the value of both, the same way the Music
+       shop's horn competed with its own name board.
+
+       The rack stays and stays empty, which is what a rack outside a
+       surf shop mostly is: somewhere to lean a board while you rinse
+       it, not a second shop window. */
+    for(const rb of [-36, -116]) cyl(316, rb, 0, 96, 4, shade(wall,.6));
+    poly([P(316,-36,92),P(316,-116,92),P(316,-116,86),P(316,-36,86)], shade(wall,.6));
+    poly([P(316,-36,54),P(316,-116,54),P(316,-116,48),P(316,-36,48)], shade(wall,.6));
+    box(330, 386, -170, -230, 0, 18, sand, shade(sand,.8), shade(sand,.66));
+    cyl(352, -260, 0, 118, 5, shade(wall,.62));             // the shower
+    tube(352, -260, 114, 352, -282, 114, 3, shade(wall,.62));
+    plateCircle(352, -282, 110, 7, shade(wall,.9));
+
+    /* ---- the near perimeter, last ---- */
+    yWall(YW1-12, YW1, YBK, -12);
+
     if(state.roof){
-      // palm: tapering trunk, fronds laid out around the crown in 3D
-      const pa = W*0.30, pb = -110;
-      for(let i=0;i<6;i++){
-        const t=i/6, t2=(i+1)/6;
-        cyl(pa + 14*t*t, pb, H + 120*t, H + 120*t2, 7 - t*3, i%2 ? '#8a7a52' : '#93835a');
+      box(150, 236, -140, -86, H, H+26, '#8f969d','#787f86','#697077');
+      for(const [fa, fb] of [[172, -126],[214, -100]].sort((u,v) => (u[0]+u[1]) - (v[0]+v[1]))){
+        cyl(fa, fb, H+26, H+34, 17, '#7d838a');
+        plateCircle(fa, fb, H+34, 17, '#a8aeb4', '#6a7076', 2);
       }
-      const ca = pa + 14, cz = H + 120;
-      for(let k=0;k<7;k++){
-        const a = k*0.897;
-        const tipA = ca + 46*Math.cos(a), tipB = pb + 46*Math.sin(a);
-        poly([P(ca, pb, cz),
-              P((ca+tipA)/2, (pb+tipB)/2, cz + 12),
-              P(tipA, tipB, cz - 6),
-              P((ca+tipA)/2, (pb+tipB)/2, cz - 4)],
-             k%2 ? '#3f8f5a' : '#4ea36a');
-      }
-      for(let k=0;k<3;k++) ball(ca + 9*Math.cos(k*2.1), pb + 9*Math.sin(k*2.1), cz - 4, 5, '#c9a24a');
-      box(W*0.62,W*0.86,-140,-104,H,H+16,'#9aa0a6','#7d838a','#6a7076');
     }
     kerb(p,'none');
   }
