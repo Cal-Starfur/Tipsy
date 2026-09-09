@@ -7810,38 +7810,187 @@ const SHOPS = [
   }
 },
 {
-  name:'Cobbler', head:'Giant boot sign, bench in the window',
-  cTodo:'2 pavement props need collision volumes',
-  fTodo:'z112..140 return +5, lettering behind board',
-  tags:['boot as a solid','narrowest unit','work bench','shoe racks','worn timber'],
-  desc:'The boot is built as a leg cylinder with a boxed foot and a sole slab, hanging from its bracket in the world, and the shoes on the bench are rounded solids.',
+  name:'Shoe shop', ww: T2*4.4,
+  wTodo:'two packing slots',
+  pTodo:'renamed from Cobbler -- if tpcatalog or any dropoff label keys off the shop name, that reference needs following',
+  head:'Modern sneaker store: full-width glazing, tiered shoe walls',
+  tags:['two packing slots','full-width glazing','tiered shoe walls','bold banded fascia','glass entrance','bare footway'],
+  desc:'A present-day athletic shoe store: the whole frontage is glass in a dark frame, with the entrance a pair of glass leaves set into it, tiered shoe walls and a bench behind the pane, and a bold banded fascia over the top.',
   draw(p){
-    const wall = '#7a5a3a', trim = '#e0cfae', H = 158, WW = 152;
+    /* ============ A MODERN SHOE STORE, AT SIR'S DIRECTION ==========
+       The Cobbler was a 152-wide unit with a boot on a bracket, a work
+       bench and worn timber. This is a different trade rather than a
+       repair of that one, so it is a rebuild and a rename.
+
+       TWO THINGS TO FLAG RATHER THAN DECIDE QUIETLY.
+
+       FIRST, THE NAME. `name` is the only handle a shop has, and the
+       Devvit side may key a dropoff label or a catalogue entry off it.
+       Nothing in this file references it, but tpcatalog.ts is not in
+       this file. pTodo records it; the reference wants following before
+       the port picks this up.
+
+       SECOND, THE PERIOD. Everything else on this street is chapels,
+       chandleries, barley-twist sweet shops and gas lamps. A present-day
+       sneaker store is not the same century, and one anachronism reads
+       as a mistake where a consistent set reads as a style. It is built
+       as asked; the question of whether Costa Palma is period or mixed
+       is Sir's, and it is worth settling before a second modern shop
+       goes in rather than after.
+
+       It is also drawn to be its own thing rather than a copy of a
+       particular chain's livery -- broad vertical bands and a plain
+       wordmark panel, which is the language of the type rather than any
+       one shop's trade dress.
+
+       TWO SLOTS, because the type wants frontage: a sneaker store is a
+       wall of product behind one long window, and at 152 -- which is
+       what the Cobbler had, the narrowest unit in the file -- there is
+       no wall to see.
+
+       cTodo and fTodo both go with the rebuild. The old flags were two
+       pavement props, and a board at slab(6, WW-6, 112, 140, -1, -9)
+       whose far end came out on screen-a 157 against a return at 152 --
+       a +5, the worst proportionally in the file, because the shop was
+       so narrow that a 6 margin was all there was. */
+    const wall = '#e8e6e2', trim = '#1e1e20', H = 244, WW = T2*4.4;   // 404.8
+    const accent = '#d0342c', inner = '#f2f0ec';
+    const shoe = ['#d0342c','#2f6fb8','#e8b13a','#3f8f5a','#1e1e20','#e0e0dc'];
+    /* ---- ONE SNEAKER, DRAWN AT TWO SIZES ----
+       The sign and the stock are the same last: one outline, one sole,
+       one notch, scaled. That is worth doing for its own sake -- a shop
+       whose sign is a shoe and whose shelves hold something else is a
+       shop selling two products -- but it also means the silhouette
+       that took five passes to get right only had to be got right once.
+
+       The outline carries the ANKLE NOTCH, which is the whole reason
+       the sign reads: the dip between the tongue at dz 60 and the
+       collar at 64. On a shelf shoe 18 wide that notch is two pixels,
+       and it is still the thing doing the work -- a closed top at any
+       size is a hull. */
+    const LAST = [[0,16],[4,6],[12,2],[72,2],[86,8],[90,16],[86,26],[78,38],[56,46],
+                  [48,60],[40,50],[22,52],[18,64],[6,44]];
+    const LSOLE = [[0,16],[4,6],[12,2],[72,2],[86,8],[90,16],[86,24],[12,22],[2,20]];
+    const sneaker = (X0, Z0, S, b, up, sl) => {
+      const q = pts => pts.map(([x,z]) => P(X0 + x*S, b, Z0 + z*S/ZSCALE));
+      poly(q(LAST), up, shade(up,.58), 0.9);
+      poly(q(LSOLE), sl);
+      poly(q([[22,50],[40,48],[46,58],[24,60]]), '#2a2a2e');
+      poly(q([[16,26],[46,33],[43,40],[14,33]]), sl);
+    };
     body(wall, trim, H, WW);
-    slab(0,WW, H, H+8, -1, -12, shade(wall,.7));
-    slab(4,WW-4, 112, 140, -1, -9, shade(wall,1.2), null, trim);
-    F(16,WW-16, 120, 132, trim, null,0,-9.5);
-    F(10,WW*0.60, 24, 100, '#8a9aa0', shade(wall,1.35), 3);
-    box(14,WW*0.56, 2, 22, 44, 52, '#5a4128','#6a4f32','#4a3520');
-    for(const la of [18, WW*0.50]){ cyl(la, 6, 24, 44, 3, '#4a3520'); cyl(la, 18, 24, 44, 3, '#4a3520'); }
-    for(let i=0;i<4;i++){
-      const sa = 22+i*17, col = ['#3a2a1a','#6a4a2a','#2e2018','#8a6a4a'][i];
-      ball(sa, 10, 58, 6, col);
-      box(sa-7, sa+5, 6, 16, 52, 57, shade(col,1.1), col, shade(col,.85));
+    T(0, WW, -D, 0, H+0.4, '#3a3a3e');                  // roof, over body's pale plate
+    slab(0, WW, H, H+12, 4, 0, trim);                   // cornice
+
+    /* ---- the whole frontage is one glazed front in a dark frame ---- */
+    slab(0, WW, 0, 168, 4, 0, trim);
+    reveal(16, WW-16, 26, 156, 30, inner);
+    ctx.save();
+    poly([P(16,0,156),P(WW-16,0,156),P(WW-16,0,26),P(16,0,26)]);
+    ctx.clip();
+    /* THE TIERED WALLS. At b -22 a shelf needs 22 of clearance inside
+       each jamb, so the run is 38..350 against an opening of 16..388 --
+       the usable width of a window interior is the opening minus twice
+       the depth of what stands in it, which is the rule the Pottery
+       shelves were re-set out on. */
+    slab(30, 358, 26, 32, -8, -30, shade(wall,.86), null, shade(wall,.96));
+    for(let r=0;r<4;r++){
+      const z = 46 + r*26;
+      slab(38, 350, z-4, z, -14, -30, shade(wall,.78), null, shade(wall,.94));
+      for(let i=0;i<13;i++){
+        const col = shoe[(r*13+i)%6];
+        sneaker(46 + i*24, z, 0.2, -20, col, col === '#e0e0dc' ? '#9a9a9e' : inner);
+      }
     }
-    for(let r=0;r<2;r++) slab(14,WW*0.56, 74+r*12, 78+r*12, -1, 18, '#5a4128');
-    shopDoor(WW*0.78, wall, trim, null, WW);
-    F(WW*0.70,WW-14, 52, 90, '#8a9aa0', null,0,-6.5);
-    // the boot, as a solid
-    const ba = WW*0.30, bb = -22;
-    tube(ba, -2, 148, ba, bb, 148, 1.8, '#4a4f55');
-    tube(ba, bb, 148, ba, bb, 138, 1.4, '#4a4f55');
-    cyl(ba, bb, 88, 136, 15, '#5a3a24');
-    plateCircle(ba, bb, 136, 15, '#6a4630', '#3a2416', 2);
-    box(ba-15, ba+34, bb-15, bb+15, 76, 92, '#5a3a24', '#6a4630', '#4a2f1c');
-    slab(ba-17, ba+36, 68, 76, bb+16, bb-16, '#2e1d12');
-    for(let i=0;i<4;i++) tube(ba-9, bb-16, 100+i*11, ba+8, bb-16, 104+i*11, 1.1, '#c9b48e');
-    if(state.roof) box(WW*0.28,WW*0.52,-130,-96,H,H+18,'#8f969d','#787f86','#697077');
+    box(60, 150, -24,-10, 26, 40, '#6a6a6e','#7a7a7e','#5a5a5e');     // the bench
+    F(200, 330, 100, 150, accent, null, 0, -29);                       // a graphic panel
+    F(214, 316, 112, 138, inner, null, 0, -28.6);
+    ctx.restore();
+    glaze(16, WW-16, 26, 156, null, 'rgba(150,168,180,.26)');
+
+    /* ---- the entrance: two glass leaves set into the front ----
+       Hand-rolled, because shopDoor draws a panelled timber door in a
+       masonry surround and this frontage has neither. */
+    F(272, 384, 0, 160, trim, null, 0, 4.6);
+    F(280, 376, 8, 152, 'rgba(150,168,180,.34)', null, 0, 5);
+    F(327, 329, 8, 152, trim, null, 0, 5.4);
+    for(const [d0,d1] of [[280,327],[329,376]]){
+      F(d0, d0+3, 8, 152, shade(trim,1.6), null, 0, 5.4);
+      F(d1-3, d1, 8, 152, shade(trim,1.6), null, 0, 5.4);
+      F(d0+6, d1-6, 74, 80, shade(trim,2.2), null, 0, 5.8);            // push bars
+    }
+
+    /* ---- the fascia, and the winged shoe that is the sign ----
+       Sir's point stands: full-width glazing and a wall of product says
+       "shop" and not "shoe shop", and a wordmark panel says nothing at
+       all at the distance a robot passes at. A trade needs an emblem
+       that reads as a silhouette, which is the argument the Locksmith's
+       key and the Bike shop's bicycle both settled.
+
+       It goes at a 44..238, over the GLAZING and not over the entrance
+       at 272..384 -- the rule that has cost eleven of the sixteen
+       across-the-door faults this session, applied to my own sign
+       before it is placed rather than after.
+
+       The fascia grew from 34 to 66 to hold it, and H from 214 to 244
+       with it. A band sized for lettering will not take a device, and
+       shrinking the device to fit the band is how you get an emblem
+       nobody can read. */
+    slab(0, WW, 172, 238, 4, 0, trim);
+    for(let i=0;i<14;i++)
+      F(10+i*28, 10+i*28+14, 178, 232, i%2 ? accent : shade(wall,1.02), null, 0, 4.6);
+    {
+      /* ---- THE SHOE ----
+         Five goes, and the last one found the actual fault. It is not
+         proportion -- the third attempt had a correct 90 by 56 last in
+         true units. It is not flatness either, though extruding helped:
+         every emblem that works in this file is a solid or a circle,
+         and the Locksmith's key is a prism for the same reason.
+
+         IT IS THE OUTLINE. The silhouette ran from the tongue straight
+         across to the heel collar, so the top of the shoe was CLOSED --
+         and a closed top on a long low shape is a hull. The one feature
+         that says shoe from across a street is the notch: the dip
+         between the tongue at the front and the collar at the back,
+         with the ankle opening in it. Painting a dark slot on the face
+         does not help while the SILHOUETTE has no dip, because at any
+         distance the silhouette is all there is.
+
+         So the notch is cut into the prism outline itself -- up the
+         tongue to dz 60, down to 50, across, up the collar to 64 -- and
+         the top face prism() derives follows it. Everything else is
+         detail painted on the near face.
+
+         Proportions still in TRUE units: dz divided by ZSCALE and one
+         scale factor, as the Bike shop's frame is. */
+      const S = 1.5, X0 = 56, Z0 = 172;
+      const up = accent, sole = '#f2f0ec', dk = '#2a2a2e';
+      const pt = (dx, dz) => [X0 + dx*S, Z0 + dz*S/ZSCALE];
+      const face = (pts, b, col) => poly(pts.map(([x,z]) => {
+        const q = pt(x,z); return P(q[0], b, q[1]); }), col);
+      for(let k=2;k>=0;k--)                                     // the wing, off the heel
+        face([[0, 30+k*5],[-16+k*4, 38+k*6],[-12+k*4, 46+k*6],[8, 38+k*5]],
+             5.6, k%2 ? up : sole);
+      prism(LAST.map(([x,z]) => pt(x,z)), 6, 26, up, shade(up,.62), shade(up,1.28));
+      face(LSOLE, 26.4, sole);
+      face([[2,17],[74,17],[86,20],[82,22],[72,20],[6,20]], 26.6, shade(sole,.84));
+      face([[68,24],[86,29],[80,40],[64,38]], 26.6, shade(up,.76));     // toe cap
+      face([[22,50],[40,48],[46,58],[24,60]], 26.6, dk);                // inside the notch
+      face([[24,52],[38,50],[42,56],[26,57]], 26.7, shade(dk,1.6));
+      face([[40,44],[52,48],[48,60],[38,55]], 26.9, sole);              // the tongue
+      face([[16,26],[46,33],[43,40],[14,33]], 26.8, sole);              // side panel
+      for(let k=0;k<3;k++)                                              // laces
+        face([[36+k*10, 30+k*4],[48+k*10, 33+k*4],[46+k*10, 38+k*4],[34+k*10, 35+k*4]],
+             27.1, sole);
+    }
+
+    if(state.roof){
+      box(90, 210, -180, -120, H, H+28, '#8f969d','#787f86','#697077');
+      for(const fa of [124, 176]){
+        cyl(fa, -150, H+28, H+36, 18, '#7d838a');
+        plateCircle(fa, -150, H+36, 18, '#a8aeb4', '#6a7076', 2);
+      }
+    }
     kerb(p,'none');
   }
 },
