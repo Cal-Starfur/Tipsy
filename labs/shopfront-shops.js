@@ -7006,7 +7006,7 @@ const SHOPS = [
 },
 {
   name:'Chandlery', place:'waterfront',
-  pTodo:'waterfront only -- the chooser places by block type, not by where a trade belongs',
+  pTodo:'waterfront only -- the shore, boardwalk and pier exist in game/index.html; the chooser still places by block type',
   head:'Three portholes, anchor on the boarding, mast on the roof',
   tags:['waterfront only','round portholes','stepped mast','rigging lines','anchor sign','tarred boarding'],
   desc:'The portholes are round in the world rather than stretched by ZSCALE, and they are the shop\'s glazing rather than decoration painted inside a flat panel. The anchor stands proud of the boarding, and nothing is on the footway or over the door.',
@@ -7025,8 +7025,15 @@ const SHOPS = [
        collision pass. buildBlocks picks housing / park / commercial per
        block and the chooser takes any body from the matching list; it
        has no notion that some trades are tied to a feature of the map.
-       Until the waterfront geometry lands there is nowhere to honour
-       this, which is exactly what pTodo records.
+       AND THE WATERFRONT IS FURTHER ALONG THAN THIS NOTE ASSUMED.
+       Checked while chasing the Shoe shop rename: game/index.html
+       already carries shore, boardwalk and pier work -- 281 mentions of
+       pier, 85 of shore, 49 of boardwalk, 21 of aquarium -- and
+       buildWalk knows about shore legs well enough that hasGoodDoorLeg
+       rejects them for doors. So there IS somewhere to honour this
+       already; what is missing is only the chooser, which still picks
+       by block type. pTodo says that rather than "wait for the
+       geometry".
 
        THE FISHMONGER IS THE OTHER ONE, and it is already polished, so
        this wants a sweep rather than a note on one shop: any trade
@@ -7812,7 +7819,6 @@ const SHOPS = [
 {
   name:'Shoe shop', ww: T2*4.4,
   wTodo:'two packing slots',
-  pTodo:'renamed from Cobbler -- if tpcatalog or any dropoff label keys off the shop name, that reference needs following',
   head:'Modern sneaker store: full-width glazing, tiered shoe walls',
   tags:['two packing slots','full-width glazing','tiered shoe walls','bold banded fascia','glass entrance','bare footway'],
   desc:'A present-day athletic shoe store: the whole frontage is glass in a dark frame, with the entrance a pair of glass leaves set into it, tiered shoe walls and a bench behind the pane, and a bold banded fascia over the top.',
@@ -7824,11 +7830,22 @@ const SHOPS = [
 
        TWO THINGS TO FLAG RATHER THAN DECIDE QUIETLY.
 
-       FIRST, THE NAME. `name` is the only handle a shop has, and the
-       Devvit side may key a dropoff label or a catalogue entry off it.
-       Nothing in this file references it, but tpcatalog.ts is not in
-       this file. pTodo records it; the reference wants following before
-       the port picks this up.
+       FIRST, THE NAME -- CHECKED, AND IT IS SAFE, so the pTodo that
+       recorded it comes off. `name` is the only handle a shop has, so a
+       rename is the kind of thing that breaks quietly. Searched:
+       tpcatalog.ts, api.ts, db.ts, server.ts, game/index.html and
+       game-logic.js contain no shop name from this file at all -- not
+       Cobbler, not Chandlery, not Locksmith, none of them. There is no
+       SHOP_NAMES list anywhere; getPickupShops works off grid nodes,
+       not off named bodies.
+
+       WHICH SAYS SOMETHING LARGER THAN THIS RENAME. None of this
+       library is wired up yet: fifty polished shop bodies live in labs/
+       and the game draws none of them. Every wTodo, cTodo and pTodo in
+       this file is debt against a port that has not started -- so
+       renames and re-tiering are free right now and will not be once it
+       has. Worth settling the naming and the widths deliberately while
+       they still cost nothing.
 
        SECOND, THE PERIOD. Everything else on this street is chapels,
        chandleries, barley-twist sweet shops and gas lamps. A present-day
@@ -7884,41 +7901,62 @@ const SHOPS = [
 
     /* ---- the whole frontage is one glazed front in a dark frame ---- */
     slab(0, WW, 0, 168, 4, 0, trim);
-    reveal(16, WW-16, 26, 156, 30, inner);
+    /* ---- THE WINDOW STOPS WHERE THE ENTRANCE STARTS ----
+       The glazing ran the whole frontage, 16 to 388, and the entrance
+       was a dark panel painted on top of it from 272 to 384. So the
+       doors had shoe shelves behind them, the window's mullions ran on
+       through the door leaves, and the two read as one sheet of glass
+       with a rectangle drawn on it. An entrance is a hole in a
+       frontage, not a decal on one.
+
+       Window 16..248, a 14 pier, entrance 262..390 in its own recess.
+       The pier is what makes them two things; without it the reveal
+       jambs of one land on the reveal jambs of the other and neither
+       reads. */
+    reveal(16, 248, 26, 156, 30, inner);
     ctx.save();
-    poly([P(16,0,156),P(WW-16,0,156),P(WW-16,0,26),P(16,0,26)]);
+    poly([P(16,0,156),P(248,0,156),P(248,0,26),P(16,0,26)]);
     ctx.clip();
     /* THE TIERED WALLS. At b -22 a shelf needs 22 of clearance inside
        each jamb, so the run is 38..350 against an opening of 16..388 --
        the usable width of a window interior is the opening minus twice
        the depth of what stands in it, which is the rule the Pottery
        shelves were re-set out on. */
-    slab(30, 358, 26, 32, -8, -30, shade(wall,.86), null, shade(wall,.96));
+    slab(30, 234, 26, 32, -8, -30, shade(wall,.86), null, shade(wall,.96));
     for(let r=0;r<4;r++){
       const z = 46 + r*26;
-      slab(38, 350, z-4, z, -14, -30, shade(wall,.78), null, shade(wall,.94));
-      for(let i=0;i<13;i++){
-        const col = shoe[(r*13+i)%6];
-        sneaker(46 + i*24, z, 0.2, -20, col, col === '#e0e0dc' ? '#9a9a9e' : inner);
+      slab(38, 226, z-4, z, -14, -30, shade(wall,.78), null, shade(wall,.94));
+      for(let i=0;i<8;i++){
+        const col = shoe[(r*8+i)%6];
+        sneaker(46 + i*23, z, 0.2, -20, col, col === '#e0e0dc' ? '#9a9a9e' : inner);
       }
     }
-    box(60, 150, -24,-10, 26, 40, '#6a6a6e','#7a7a7e','#5a5a5e');     // the bench
-    F(200, 330, 100, 150, accent, null, 0, -29);                       // a graphic panel
-    F(214, 316, 112, 138, inner, null, 0, -28.6);
+    box(56, 140, -24,-10, 26, 40, '#6a6a6e','#7a7a7e','#5a5a5e');     // the bench
+    /* NO GRAPHIC PANEL. There was a red board on the back wall at
+       z 100..150, and the shelf tiers run to 124 -- so three quarters of
+       it was behind the stock and what showed was an L of red poking
+       out from between two shelves. It read as a fault rather than as
+       anything, which is the honest test: if a viewer has to ask what
+       an object is, it is not doing the job it was added for. The shoe
+       wall is the display and the fascia carries the sign; a poster
+       behind both was a third thing competing for the same window. */
     ctx.restore();
-    glaze(16, WW-16, 26, 156, null, 'rgba(150,168,180,.26)');
+    glaze(16, 248, 26, 156, null, 'rgba(150,168,180,.26)');
 
-    /* ---- the entrance: two glass leaves set into the front ----
+    /* ---- the entrance: a recessed portal with two glass leaves ----
        Hand-rolled, because shopDoor draws a panelled timber door in a
        masonry surround and this frontage has neither. */
-    F(272, 384, 0, 160, trim, null, 0, 4.6);
-    F(280, 376, 8, 152, 'rgba(150,168,180,.34)', null, 0, 5);
-    F(327, 329, 8, 152, trim, null, 0, 5.4);
-    for(const [d0,d1] of [[280,327],[329,376]]){
-      F(d0, d0+3, 8, 152, shade(trim,1.6), null, 0, 5.4);
-      F(d1-3, d1, 8, 152, shade(trim,1.6), null, 0, 5.4);
-      F(d0+6, d1-6, 74, 80, shade(trim,2.2), null, 0, 5.8);            // push bars
+    reveal(262, 390, 0, 156, 18, shade(trim,1.45));
+    F(268, 384, 6, 148, 'rgba(150,168,180,.34)', null, 0, -17);
+    F(324, 328, 6, 148, shade(trim,1.2), null, 0, -16.6);
+    for(const [d0,d1] of [[268,324],[328,384]]){
+      F(d0, d0+4, 6, 148, shade(trim,1.35), null, 0, -16.6);
+      F(d1-4, d1, 6, 148, shade(trim,1.35), null, 0, -16.6);
+      F(d0, d1, 6, 10, shade(trim,1.35), null, 0, -16.6);
+      F(d0, d1, 144, 148, shade(trim,1.35), null, 0, -16.6);
+      F(d0+8, d1-8, 74, 80, shade(trim,2.2), null, 0, -16.2);          // push bars
     }
+    F(258, 394, 152, 168, shade(trim,1.3), null, 0, 4.6);              // the portal head
 
     /* ---- the fascia, and the winged shoe that is the sign ----
        Sir's point stands: full-width glazing and a wall of product says
