@@ -6890,41 +6890,116 @@ const SHOPS = [
   }
 },
 {
-  name:'Music shop', head:'Instruments on the wall, horn sign, piano',
-  cTodo:'2 pavement props need collision volumes',
-  tags:['guitars in the wall plane','turned horn','upright piano','deep green','sheet racks'],
-  desc:'The guitar bodies are circles lying in the wall plane with tube necks, so they lean with the render, and the horn is a tube run into a conical bell rather than a painted swirl.',
+  name:'Music shop', head:'Guitars hung on the wall, piano behind the glass',
+  tags:['guitars hung on the wall','round bouts','upright piano behind glass','sheet racks','deep green'],
+  desc:'The guitar bodies are round in the world rather than stretched by ZSCALE, laid out from the lower bout in true proportions, and they hang on the outside of the wall where a shop hangs its stock. The piano and the sheet racks are inside the window, nothing stands on the footway, and nothing sits over the door.',
   draw(p){
-    const wall = '#2f4a3a', trim = '#c9a24a', H = 168;
+    /* ============ THE GUITARS WERE OVAL AND IN THE WALL ==============
+       faceCircle(a, b, z, r) draws radius r in a AND in z, and z is
+       multiplied by ZSCALE, so a lower bout at r 15 came out 30 wide by
+       45 tall and the upper bout 22 by 33. A guitar body is two circles;
+       these were two eggs, one above the other. Seventh instance after
+       the chemist cross, the Locksmith key bow, the TV dish, the
+       Optician's spectacles, the Bike shop's wheels and the Clockmaker's
+       dial -- and the same one-line test finds every one of them.
+
+       AND b WAS NEGATIVE: the guitars at -4 and the horn at -12, both
+       inside the masonry. Tenth time this session. The guitars hang at
+       b 5, which is the outside of the wall; the horn is gone.
+
+       THE PIANO AND THE SHEET RACK WERE ON THE PAVEMENT, at b 2..22 --
+       which is what cTodo's two props were. An upright piano standing
+       on the footway is not a display, it is an obstruction; both are
+       inside the window now and the flag comes off.
+
+       A WINDOW WAS DRAWN ACROSS THE DOOR, eleventh consecutive shop.
+       F(W*0.76, W-14, 52, 90) ran a 174.8..216 against an opening at
+       158.8..225.
+
+       THE WINDOW WAS A FLAT PANEL, eleventh shop. Real recess now, with
+       the piano and the racks standing in it.
+
+       H 168 -> 224, and it is the Bike shop's argument again: the old
+       elevation had no name board at all, and a shop that hangs its
+       goods ABOVE its sign needs a band to hang them in. 1.33 storeys,
+       deliberately between the tiers.
+
+       THE BANDS FOLLOW THE FABRIC SHOP. Shopfront, fascia and cornice
+       all run 0..W at b 4..0 -- full width because they are bounded by
+       the terrace rather than by the frontage, and bBack 0 because a
+       band that reaches the return would otherwise paint its end face
+       onto the flank. */
+    const wall = '#2f4a3a', trim = '#c9a24a', H = 224;
+    const inner = '#152219';
     body(wall, trim, H);
-    slab(0,W, H, H+10, -1, -12, trim);
-    F(10,W*0.66, 22, 100, '#1e3228', shade(wall,.6), 3);
-    box(20,86, 2, 22, 26, 78, '#5a3f2e','#4a3226','#3c281d');
-    F(20,86, 60, 68, '#e8ddc8', null,0, 1.5);
-    for(let i=0;i<10;i++) F(22+i*6.4, 24+i*6.4, 60, 68, '#2b2119', null,0, 1.2);
-    box(96,W*0.62, 2, 20, 30, 92, '#4a3226','#3a2a20','#2e2018');
-    for(let i=0;i<4;i++) F(100,W*0.60, 36+i*14, 46+i*14, ['#c9a24a','#e8ddc8','#8fb4a0','#c2807e'][i], null,0, 1.5);
-    shopDoor(W*0.84, wall, trim);
-    F(W*0.76,W-14, 52, 90, '#5d7a68', null,0,-6.5);
-    // guitars, lying in the wall plane
-    for(let i=0;i<3;i++){
-      const ga = W*0.16 + i*W*0.30, gz = 118, gb = -4, col = ['#a8632f','#c9a24a','#8a3f36'][i];
-      faceCircle(ga, gb, gz+6, 15, col, shade(col,.75), 1.5);
-      faceCircle(ga, gb, gz-8, 11, col, shade(col,.75), 1.5);
-      faceCircle(ga, gb-0.4, gz+6, 4.5, '#2b2119');
-      tube(ga, gb, gz+18, ga, gb, gz+38, 2, '#2b2119');
-      slab(ga-5, ga+5, gz+38, gz+46, gb-0.5, gb-4, '#2b2119');
-      for(let k=0;k<3;k++) tube(ga-3+k*3, gb-0.8, gz-6, ga-3+k*3, gb-0.8, gz+38, 0.4, '#d8cfae');
+    T(0, W, -D, 0, H+0.4, '#1e3228');                   // roof, over body's pale plate
+    slab(0, W, H, H+10, 4, 0, trim);                    // cornice
+
+    /* ---- one shopfront band, both openings cut out of it ---- */
+    slab(0, W, 0, 122, 4, 0, shade(wall,1.2), null, trim);
+    reveal(16, 126, 22, 102, 26, inner);
+    ctx.save();
+    poly([P(16,0,102),P(126,0,102),P(126,0,22),P(16,0,22)]);
+    ctx.clip();
+    slab(20, 122, 24, 30, -6, -26, shade(wall,.86), null, shade(wall,1.0));   // the floor
+    box(26, 78, -26, -8, 30, 80, '#5a3f2e','#4a3226','#3c281d');              // upright piano
+    F(30, 74, 60, 68, '#e8ddc8', null,0, -7.4);                               // keyboard
+    for(let i=0;i<10;i++) F(32+i*4.2, 33.6+i*4.2, 60, 68, '#2b2119', null,0, -7.1);
+    box(30, 74, -22, -12, 80, 86, '#4a3226','#5a3f2e','#3c281d');             // lid
+    box(88, 122, -24, -10, 30, 94, '#4a3226','#3a2a20','#2e2018');            // sheet racks
+    for(let i=0;i<4;i++)
+      F(92, 118, 36+i*14, 46+i*14, ['#c9a24a','#e8ddc8','#8fb4a0','#c2807e'][i], null,0, -9.4);
+    ctx.restore();
+    glaze(16, 126, 22, 102, null, 'rgba(120,150,132,.40)');
+    for(let k=1;k<4;k++) F(16 + 110*k/4 - 3, 16 + 110*k/4 + 3, 22, 102, shade(wall,1.25), null,0, 0.8);
+
+    shopDoor(178, wall, trim);                          // a 144.88..211.12
+
+    /* ---- fascia ----
+       THE HORN IS GONE, at Sir's direction. It had already been moved
+       once, off the doorway where I had put it, and moving a thing is
+       the wrong answer when the thing was the problem: an emblem
+       painted on the name board competes with the board for the same
+       job, and this shop already says what it is with three guitars
+       hung above the sign. The board carries lettering and nothing
+       else.
+
+       Two removals now on this shop and both the same shape -- the
+       piano and rack off the pavement, the horn off the board. The
+       elevation is three things: goods on the wall, a name, and a
+       window with the stock in it. */
+    slab(0, W, 128, 152, 4, 0, shade(wall,1.25), null, trim);
+    F(24, W-24, 133, 147, trim, null,0, 4.6);
+
+    /* ---- three guitars hung on the wall ----
+       Laid out from the lower bout in TRUE proportions and divided into
+       the projection, the way the Bike shop's frame is: bouts of 13 and
+       9.5, a 22 waist, a 58 scale to the nut. Written straight into z
+       the whole instrument would come out half again too long.
+
+       At b 5 a guitar of half-width 13 on a 45 spans screen-a 27..53
+       here and 37..63 on the mirror, and the far one on 185 comes to
+       203 -- inside 0..230 both ways. */
+    const ZK = 1/ZSCALE;
+    for(const [ga, col] of [[45,'#a8632f'],[115,'#c9a24a'],[185,'#8a3f36']]){
+      const gz = 170, gb = 5;
+      const ring = (a,b,z,r,n) => { const q=[];
+        for(let i=0;i<(n||24);i++){ const t=Math.PI*2*i/(n||24);
+          q.push(P(a + r*Math.cos(t), b, z + r*Math.sin(t)*ZK)); }
+        return q; };
+      tube(ga, gb+1, gz + 30*ZK, ga, gb+1, gz + 58*ZK, 2.2, '#2b2119');       // neck
+      slab(ga-5.5, ga+5.5, gz + 58*ZK, gz + 68*ZK, gb+2, gb-1, '#2b2119');    // head
+      poly(ring(ga, gb, gz + 22*ZK, 9.5), col);                               // upper bout
+      poly(ring(ga, gb, gz, 13), col);                                        // lower bout
+      poly(ring(ga, gb+0.4, gz + 22*ZK, 8), shade(col,1.12));
+      poly(ring(ga, gb+0.4, gz, 11.5), shade(col,1.12));
+      poly(ring(ga, gb+0.8, gz + 6*ZK, 4), '#2b2119');                        // sound hole
+      F(ga-9, ga+9, gz + 12*ZK, gz + 14*ZK, '#2b2119', null,0, gb+0.8);       // bridge
+      for(let k=0;k<3;k++)
+        tube(ga-2.4+k*2.4, gb+1.4, gz + 12*ZK, ga-2.4+k*2.4, gb+1.4, gz + 58*ZK, 0.5, '#d8cfae');
+      tube(ga, 0, gz + 40*ZK, ga, gb, gz + 40*ZK, 1.4, shade(wall,1.35));     // its hook
     }
-    // horn: tube run into a conical bell
-    const ha = W*0.50, hb = -12, hz = H-16;
-    tube(ha-30, hb, hz+4, ha-6, hb, hz+20, 3, trim);
-    tube(ha-6, hb, hz+20, ha+16, hb, hz+12, 3, trim);
-    tube(ha+16, hb, hz+12, ha+16, hb, hz-2, 3, trim);
-    const b0=P(ha+16,hb,hz-2), b1=P(ha+34,hb,hz-18), b2=P(ha+2,hb,hz-22);
-    ctx.beginPath(); ctx.moveTo(b0.x,b0.y); ctx.lineTo(b1.x,b1.y); ctx.lineTo(b2.x,b2.y);
-    ctx.closePath(); ctx.fillStyle=trim; ctx.fill();
-    faceCircle(ha+18, hb, hz-20, 9, shade(trim,1.2), shade(trim,.7), 2);
+
     if(state.roof) box(W*0.28,W*0.52,-140,-100,H,H+20,'#8f969d','#787f86','#697077');
     kerb(p,'none');
   }
