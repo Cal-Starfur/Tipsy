@@ -176,7 +176,15 @@ const MCV = document.createElement('canvas');
    first double-width shop arrived, one order of magnitude further on. */
 MCV.width = 7000; MCV.height = 4200;
 const MCTX = MCV.getContext('2d');
-const MK = 0.62, MOX = 1400, MOY = 900;     // nominal measure transform
+/* MK IS DERIVED NOW, not chased. The buffer has been widened three
+   times -- once for double-width shops, once for block landmarks, once
+   for the Undertaker's nine cells -- and the third time it stopped
+   working: at 0.62 a 12512 by 15640 footprint projects to about 17000
+   pixels across, which no buffer is going to hold. So the measure
+   transform scales itself to the entry instead: big footprints are
+   measured small, and since the bounds are inverted through MK
+   afterwards the fit is exact either way. */
+let MK = 0.62; const MOX = 1400, MOY = 900;  // nominal measure transform
 /* MOX moved left and the canvas widened when the first double-width
    shop arrived: a 405-wide unit projects to screen-a 405 + D, which ran
    off the right of the 1100px measure buffer and the bounds pass then
@@ -191,6 +199,8 @@ function measureBounds(){
   cv = MCV; ctx = MCTX;
   ctx.setTransform(1,0,0,1,0,0);
   ctx.clearRect(0,0,MCV.width,MCV.height);
+  { const sh = SHOPS[state.i];
+    MK = Math.min(0.62, 2400 / ((sh.ww || W) + (sh.dd || D))); }
   K = MK; OX = MOX; OY = MOY;
   /* THE PLATE IS NOT THE SUBJECT. A 276-deep roof slab projects up and
      to the right and is simply the largest thing on screen for every
