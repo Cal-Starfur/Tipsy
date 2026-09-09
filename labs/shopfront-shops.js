@@ -8565,25 +8565,78 @@ const SHOPS = [
   }
 },
 {
-  name:'Pigeon loft', head:'Timber loft on the roof, landing board, birds',
-  fTodo:'z104..130 return +3, lettering behind board',
-  tags:['rooftop loft','landing board','birds as solids','feed shop below','timber'],
-  desc:'The loft has a closed gable end and a ridge, the landing board is carried on real brackets, and the birds are rounded solids with tails and beaks rather than flat ovals.',
+  name:'Pigeon loft',
+  gTodo:'spawn the game\'s own pigeons on this shop -- landing board at b -50..+16, z H+18..H+26, a W*0.19..W*0.73; ridge at z H+104; five pop-holes on the loft face at b -50',
+  head:'Feed shop below, timber loft on the roof',
+  tags:['rooftop loft','landing board','pop-holes','feed behind the glass','timber'],
+  desc:'The loft keeps its closed gable, ridge, pop-holes and bracketed landing board -- somewhere for the game\'s own pigeons to land -- and the feed the shop sells is inside the window instead of stacked on the paving.',
   draw(p){
-    const wall = '#8a7a5e', trim = '#4a3f2e', H = 148;
+    /* ============ THE FEED WAS ON THE PAVEMENT ============
+       Three sacks at b 6, standing z 26..61 in front of a flat panel --
+       twenty-first flat window of the session, F(10, W*0.66, 22, 96)
+       with a stroke round it and nothing behind. So the shop's whole
+       stock sat on the footway and the window was a painted backdrop
+       for it, which is the Forge's fault and the Coffee roaster's for
+       the third time in four shops.
+
+       AND NO cTodo TO SAY SO. The sacks are cyl and ball centred on
+       b 6, and the prop test asks whether the CENTRE b is past 8 -- so
+       a sack 11 wide sitting half on the paving counted as nothing.
+       Sixth census gap of the session, and the third of the
+       wrong-measure kind after the Brewery's still and the Sweet shop's
+       jars. The test wants the object's EXTENT.
+
+       THE MULLIONS WERE INSIDE THE WALL, at b -1, painted on the back
+       of the panel they were meant to divide. They are on the glass now
+       at b 0.8, where a glazing bar goes.
+
+       A WINDOW WAS DRAWN ACROSS THE DOOR, twenty-first consecutive
+       shop. F(W*0.76, W-14, 48, 86) ran a 174.8..216 against an opening
+       at 158.8..225.
+
+       H 148 -> 168, which is 1.00 exactly. The loft, the landing board
+       and the birds all sit on top of it and the extra 20 gives the
+       fascia room without pushing the loft off the top of the frame.
+
+       fTodo: slab(6, W-6, 104, 130, -1, -9) put its far end on screen-a
+       233 against a return at 230, with the lettering at -9.5 behind
+       the board's own -9 backing. */
+    const wall = '#8a7a5e', trim = '#4a3f2e', H = 168;
+    const inner = '#2a2318';
     body(wall, trim, H);
-    slab(0,W, H, H+10, -1, -12, trim);
-    F(10,W*0.66, 22, 96, '#6a7a68', shade(wall,.65), 3);
-    for(let i=0;i<4;i++) F(16+i*((W*0.60)/4), 20+i*((W*0.60)/4), 22, 96, shade(wall,1.15), null,0,-1);
+    T(0, W, -D, 0, H+0.4, '#6b5f48');                   // roof, over body's pale plate
+    slab(0, W, H, H+10, 4, 0, trim);                    // cornice
+
+    /* ---- one shopfront band, both openings cut out of it ---- */
+    slab(0, W, 0, 112, 4, 0, shade(wall,1.12), null, trim);
+    reveal(14, 124, 22, 96, 26, inner);
+    ctx.save();
+    poly([P(14,0,96),P(124,0,96),P(124,0,22),P(14,0,22)]);
+    ctx.clip();
+    slab(18, 120, 22, 28, -8, -24, shade(wall,.86), null, shade(wall,1.02));
+    /* the feed. At b -18 a sack of r 11 needs a between 43 and 95
+       inside an opening of 14..124 -- the Pottery's rule -- so the
+       three sit on 50, 68 and 86. */
     for(let i=0;i<3;i++){
-      const sa = 28+i*32;
-      cyl(sa, 6, 26, 46, 12, '#c9b48e');
-      ball(sa, 6, 50, 11, '#c9b48e', '#d8c49e');
+      const sa = 50 + i*18, sz = 28 + (i%2)*4;
+      cyl(sa, -18, sz, sz+20, 11, '#c9b48e');
+      ball(sa, -18, sz+24, 10, '#c9b48e', '#d8c49e');
+      slab(sa-8, sa+8, sz+8, sz+13, -7, -9, '#8a7458');
     }
-    shopDoor(W*0.84, wall, trim);
-    F(W*0.76,W-14, 48, 86, '#6a7a68', null,0,-6.5);
-    slab(6,W-6, 104, 130, -1, -9, shade(wall,1.15), null, trim);
-    F(20,W-20, 112, 122, trim, null,0,-9.5);
+    box(96, 116, -12, -22, 28, 62, '#5c4a32','#6a5840','#4c3c28');   // a grain bin
+    F(100, 112, 46, 58, '#a8916a', null, 0, -11.4);
+    tube(104, -10, 62, 112, -10, 74, 2, '#8d979f');                  // its scoop
+    plateCircle(112, -10, 74, 5, '#a8aeb4');
+    ctx.restore();
+    glaze(14, 124, 22, 96, null, 'rgba(120,132,116,.34)');
+    for(let k=1;k<4;k++) F(14 + 110*k/4 - 3, 14 + 110*k/4 + 3, 22, 96, shade(wall,1.2), null,0, 0.8);
+
+    shopDoor(178, wall, trim);                          // a 144.88..211.12
+
+    /* ---- fascia ---- */
+    slab(0, W, 118, 150, 4, 0, shade(wall,1.15), null, trim);
+    F(22, W-22, 126, 142, trim, null,0, 4.6);
+
     if(state.roof){
       const l0 = W*0.16, l1 = W*0.76, b0 = -150, b1 = -50;
       F(l0,l1, H+10, H+72, '#a8916a', shade(wall,.6), 2, b1);
@@ -8600,16 +8653,35 @@ const SHOPS = [
         poly([P(aa-3,b1,H+26),P(aa+3,b1,H+26),P(aa+3,b1+60,H+19),P(aa-3,b1+60,H+19)], '#8f7b58');
         poly([P(aa-3,b1,H+8),P(aa-3,b1,H+26),P(aa-3,b1+50,H+20)], shade('#8f7b58',.8));
       }
-      if(state.props){
-        for(let i=0;i<5;i++){
-          const ba = 18 + i*44, bb = i%2 ? b1+50 : -8, bz = (i%2 ? H+22 : H+12) + 8;
-          const col = ['#c9ccd0','#8d949c','#e0e2e4','#a8adb2','#c9ccd0'][i];
-          ball(ba, bb, bz, 7, col);
-          ball(ba - 6, bb, bz + 5, 4.2, col);
-          poly([P(ba+5,bb,bz+2),P(ba+15,bb,bz+5),P(ba+6,bb,bz-2)], shade(col,.86));
-          poly([P(ba-10,bb,bz+6),P(ba-15,bb,bz+5),P(ba-10,bb,bz+4)], '#c2452e');
-        }
-      }
+      /* ---- NO BIRDS, at Sir's direction ----
+         The game has its own pigeons and they are the ones that should
+         land here: a shopfront that draws its own would put two
+         different birds in the same city, and the drawn ones cannot
+         move, scatter or be hit. A prop that duplicates a live entity
+         is worse than no prop -- it is a second answer to a question
+         the game has already answered.
+
+         The loft, the landing board and the pop-holes stay, which is
+         what a pigeon loft is: somewhere for the real birds to be.
+         Eleventh removal of the session, and the first for a new
+         reason: the previous ten were things competing with the
+         frontage or standing where they should not. This one asked
+         "does the game already own this?" -- worth putting to anything
+         drawn that the engine also simulates.
+
+         gTodo IS A NEW FLAG, because this is a new kind of debt. It is
+         not a fault in the shop and it is not something the shop can
+         fix: it is a hook the GAME has to pick up. The landing board
+         runs b -50..+16 at z H+18..H+26 across a W*0.19..W*0.73, the
+         ridge is at H+104, and there are five pop-holes on the loft
+         face at b -50 -- which is everything a spawner needs to perch
+         birds on this building without measuring it again.
+
+         Worth keeping distinct from pTodo. pTodo says WHERE a shop
+         belongs; gTodo says what the game owes a shop once it is
+         placed. The Chandlery and the Surf shop want the first; this
+         wants the second. */
+
     }
     kerb(p,'none');
   }
