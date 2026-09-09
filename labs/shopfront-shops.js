@@ -9583,55 +9583,284 @@ const SHOPS = [
   }
 },
 {
-  name:'Goods depot', head:'Raised loading dock, dock stairs, roller bays',
-  cTodo:'16 pavement props need collision volumes, 46 of them lapping past the frontage',
-  fTodo:'z128..150 return +3, lettering behind board',
-  tags:['raised dock platform','dock stairs','twin roller bays','pallets','bollards'],
-  desc:'The dock is a platform with a bumper strip and a proper edge, the stairs are tread boxes on a stringer with a handrail, and the bollards are cylinders with painted bands.',
+  name:'Home store', block:true, ww: 1048.8, dd: 1048.8,
+  wTodo:'a whole block edge -- five packing slots, and the packer places none of them',
+  cTodo:'store box, entrance tower, garden cage, pylon sign, light masts, islands and trolley bays need volumes; the car park itself is drivable',
+  head:'Big-box home store on a whole block: car park, garden centre, pylon sign',
+  tags:['block landmark','drivable car park','painted bays','garden centre cage','pylon sign','entrance tower'],
+  desc:'A warehouse retail shed set at the back of its own car park, which is the way the type is actually laid out: the building is a long blank box with one tall glazed entrance tower and a name band, and everything in front of it is ground -- painted bays, kerbed islands, light masts, trolley bays -- with a caged garden centre on the right flank and a pylon sign out on the corner.',
   draw(p){
-    const wall = '#5a6068', trim = '#e8a13a', H = 172, DOCK = 34;
-    body(wall, trim, H);
-    slab(0,W, H, H+10, -1, -12, trim);
-    slab(6,W-6, 128, 150, -1, -9, shade(wall,1.25), null, trim);
-    F(20,W-20, 134, 145, trim, null,0,-9.5);
-    T(-10, W+10, 0, 54, DOCK, '#9aa0a6');
-    F(-10, W+10, DOCK-12, DOCK, '#7d838a', shade(wall,.7), 2, 54);
-    F(-10, W+10, 0, DOCK-12, '#6a7076', null,0, 54);
-    for(let i=0;i<9;i++) F(-10+(W+20)*i/9, -10+(W+20)*i/9+4, 0, DOCK-12, '#5e646b', null,0, 53.5);
-    for(let i=0;i<7;i++) box(-6+(W+12)*i/7, -6+(W+12)*i/7+22, 54, 58, DOCK-16, DOCK-8, '#2b2f33','#3a4046','#22262a');
-    /* third building with no way in on foot, after the Garage and the
-       Fire station. Bays pulled back and a personnel door added -- on
-       the dock, not the pavement, which is what the base argument is
-       for. */
-    const bayR = W*0.68;
-    for(let i=0;i<2;i++){
-      const x0 = 14+i*(bayR-28)/2+(i?8:0), x1 = 14+(i+1)*(bayR-28)/2-(i?0:8);
-      F(x0-5,x1+5, DOCK, 120, shade(wall,.74), null,0, 1);
-      F(x0,x1, DOCK, 112, '#8c9298', shade(wall,1.3), 2, -1);
-      for(let j=0;j<6;j++) F(x0+2, x1-2, DOCK+6+j*12, DOCK+12+j*12, '#a2a8ae', null,0,-2);
-      slab(x0-5,x1+5, 112, 120, -2, -9, trim);
+    /* ============ A BIG-BOX STORE, NOT A GOODS DEPOT ============
+       This entry was a freight depot on a 230 slot, then a freight depot
+       on a block. Sir wants the retail type, and the retail type is a
+       different building with a different plan: a warehouse shed pushed
+       to the BACK of the lot so the front two thirds can be car park,
+       because the car park is what a customer meets first and what the
+       type is organised around.
+
+       IT IS STILL A LANDMARK on the BLOCK LANDMARKS test at the head of
+       this file -- ask what the building does at its own front door. A
+       big-box store's front door opens onto its own parking, three
+       hundred units back from the street, and cars enter over dropped
+       kerbs rather than at a gate. So it is case 4, freestanding on a
+       square lot, and it is drivable in the Nursery's sense: the car
+       park is ground, not building.
+
+       WHAT CARRIES OVER from the depot rebuild, because it was right:
+       the lot is 1048.8 square, nothing crosses the boundary, and the
+       raised dock survives -- moved to the BACK where a service yard
+       belongs on this type, rather than being the front elevation.
+
+       THE PLAN.
+         b 0..-30       kerb and planting, broken at two crossovers
+         b -30..-440    car park: three bay rows, an aisle, islands
+         b -440..-500   the front walk, concrete, on the store's line
+         b -500..-1010  the store, a 40..760; garden cage a 760..1020
+         back           service dock, drawn because three of the four
+                        streets see it
+
+       THE SILHOUETTE IS THE PARAPET. A shed of this kind is a low box
+       whose front wall runs up past the roof to hide the plant, so the
+       walls are built to PZ and the roof DECK is a plate inset 12 and
+       dropped 16 -- the box's own top plate becomes the parapet rim
+       rather than being a lid drawn on top of one. One volume, no seam.
+
+       AND IT WAS A CUBE. First pass built the walls to 352 on a 720 by
+       510 footprint, which is 2.1 shop storeys and read as a three
+       storey block rather than a shed -- exactly the SCALE REVIEW
+       failure in the other direction, a building drawing more storeys
+       than its type has. A warehouse store is ONE tall storey: 236 is
+       1.4, the parapet does the rest of the silhouette, and the
+       entrance tower at 288 is the only thing that goes past it.
+
+       NO BRAND. The band and the sign panel carry blocks where letters
+       would be, the way every other name board in this file does. */
+    const LOT = 1048.8;
+    const wall = '#7d8287', band = '#e2691f', conc = '#a2a6a4', asph = '#6b6f6c';
+    const roofc = '#5f666c', glass = 'rgba(126,166,186,.72)';
+    const SA0 = 40, SA1 = 760, SB0 = -500, SB1 = -1010, PZ = 236, RD = 220;
+    const GA0 = 760, GA1 = 1020, GB0 = -500, GB1 = -860, GH = 148;
+    const EA0 = 330, EA1 = 540, EB = -436, EZ = 288;      // entrance tower
+    const XO = [[120,268],[610,758]];                      // the two crossovers
+
+    /* ---- the ground, and everything painted on it ---- */
+    T(0, LOT, -LOT, 0, 0, asph);
+    T(SA0-24, GA1, SB0, -440, 4, conc);                    // the front walk
+    const stall = (b0, b1) => {                            // one row of painted bays
+      T(56, 1000, b1-3, b1+3, 0.6, '#d9d5c6');
+      for(let x=56; x<=1000.1; x+=48) T(x-2.5, x+2.5, b0, b1, 0.6, '#d9d5c6');
+    };
+    stall(-86, -172); stall(-172, -258); stall(-344, -430);
+    for(let i=0;i<2;i++){                                  // accessible bays, by the entrance
+      const x0 = 392 + i*48;
+      T(x0+2, x0+46, -344, -430, 0.7, '#3f6b9a');
+      T(x0+18, x0+30, -370, -404, 0.9, '#d9d5c6');
     }
-    shopDoor(W*0.86, wall, trim, null, W, DOCK);
+    for(const [c0,c1] of XO) T(c0, c1, -30, 0, 0.6, conc); // crossover aprons
+
+    /* ---- the service dock, at the back ----
+       Three of the four streets look at this side, so it is built even
+       though this camera never sees it -- the Bathhouse's note about far
+       entrances, and the reason the depot's fence was drawn all the way
+       round. */
+    T(SA0, SA1, SB1, SB1+70, 46, shade(conc,1.10));
+    F(SA0, SA1, 0, 46, shade(conc,.70), null, 0, SB1+70);
+    for(let i=0;i<3;i++){
+      const x0 = 120 + i*200;
+      F(x0, x0+130, 46, 158, '#20242a', null, 0, SB1+1);
+      slab(x0-7, x0+137, 158, 174, SB1-9, SB1+2, shade(wall,1.14));
+    }
+
+    /* ---- the store: one volume to the parapet, roof deck inset ---- */
+    box(SA0, SA1, SB1, SB0, 0, PZ, shade(wall,1.16), wall, shade(wall,.80));
+    T(SA0+12, SA1-12, SB1+12, SB0-12, RD, roofc);
+    if(state.roof){
+      for(const [ra,rb] of [[180,-620],[340,-780],[520,-640],[640,-840]]){   // rooftop plant
+        box(ra-46, ra+46, rb-34, rb+34, RD, RD+26, shade(roofc,1.30), shade(roofc,1.06), shade(roofc,.86));
+        box(ra-30, ra+30, rb-20, rb+20, RD+26, RD+32, shade(roofc,1.40), shade(roofc,1.14), shade(roofc,.92));
+      }
+      cyl(SA1-70, -900, RD, RD+44, 7, '#6d747c');
+    }
+
+    /* ---- the front elevation ---- */
+    F(SA0+2, SA1-2, 0, 20, shade(wall,.68), null, 0, SB0+0.6);              // plinth
+    for(let i=0;i<=8;i++)                                                    // wall joints
+      F(SA0 + (SA1-SA0)*i/8 - 4, SA0 + (SA1-SA0)*i/8 + 4, 20, 224, shade(wall,1.07), null, 0, SB0+0.8);
+    F(SA0+2, SA1-2, 182, 218, band, null, 0, SB0+1.2);                       // the name band
+    for(let k=0;k<9;k++) F(SA0+34+k*76, SA0+86+k*76, 190, 210, shade(wall,.42), null, 0, SB0+1.7);
+    F(SA0+2, SA1-2, 218, 225, shade(band,.72), null, 0, SB0+1.2);
+    for(const [w0,w1] of [[176,318],[556,700]]){                             // glazed runs
+      slab(w0-6, w1+6, 14, 152, SB0+7, SB0-2, shade(wall,.72));
+      F(w0, w1, 20, 146, glass, null, 0, SB0+7.5);
+      for(let k=1;k<5;k++) F(w0+(w1-w0)*k/5-2, w0+(w1-w0)*k/5+2, 20, 146, shade(wall,1.2), null, 0, SB0+8);
+    }
+
+    /* ---- the entrance tower ----
+       Projects 64 in front of the wall and runs 50 past the parapet,
+       which is what makes a blank 720 shed read as having a front door
+       at all. Doors are openings cut in the glazed screen rather than
+       panels painted on it. */
+    box(EA0, EA1, SB0, EB, 0, EZ, shade(wall,1.20), shade(wall,1.06), shade(wall,.84));
+    F(EA0+8, EA1-8, 14, 164, shade(wall,.66), null, 0, EB+0.6);              // screen surround
+    F(EA0+14, EA1-14, 20, 158, glass, null, 0, EB+1.2);
+    for(const d0 of [EA0+30, EA0+118]){                                      // two door pairs
+      F(d0, d0+62, 20, 124, '#2b3138', null, 0, EB+1.6);
+      F(d0+2, d0+30, 22, 122, 'rgba(150,190,206,.80)', null, 0, EB+2.0);
+      F(d0+32, d0+60, 22, 122, 'rgba(150,190,206,.80)', null, 0, EB+2.0);
+      F(d0+29, d0+33, 20, 124, shade(wall,1.3), null, 0, EB+2.4);
+    }
+    F(EA0+14, EA1-14, 194, 272, band, null, 0, EB+1.2);                      // the sign panel
+    for(let k=0;k<4;k++) F(EA0+30+k*46, EA0+66+k*46, 208, 258, shade(wall,.40), null, 0, EB+1.7);
+    /* THE CANOPY WAS INVERTED, and it is the same fault this entry's
+       predecessor had at its bracket: slab() takes bFront then bBack and
+       bFront is the NEARER face, so writing (EB-16, EB+2) put the back
+       of the canopy 18 units in front of its own front and slab() picked
+       the wrong end to return. It projects toward the car park now,
+       which is the direction a canopy over a door projects. */
+    slab(EA0-18, EA1+18, 164, 186, EB+34, EB+2, shade(wall,.60), null, shade(wall,.9));
+    F(EA0-18, EA1+18, 164, 172, band, null, 0, EB+34.5);
+    for(const ca of [EA0+4, (EA0+EA1)/2, EA1-4])                             // canopy ties
+      tube(ca, EB+2, 186, ca, EB+32, 178, 1.6, shade(wall,1.2));
+
+    /* ---- the garden centre, caged, on the right flank ----
+       Open to the sky under a shade lattice, which is the whole
+       difference between a garden centre and another room: it is a
+       fenced piece of GROUND with the store's wall as one side. */
+    T(GA0, GA1, GB1, GB0, 1, '#8f8a78');
+    const mesh = (axis, fixed, v0, v1, h) => {
+      const q = (v,z) => axis === 'a' ? P(v, fixed, z) : P(fixed, v, z);
+      poly([q(v0,0),q(v1,0),q(v1,h),q(v0,h)], 'rgba(154,162,164,.16)');
+      const n = Math.max(2, Math.round(Math.abs(v1-v0)/30));
+      for(let i=0;i<=n;i++){ const v = v0 + (v1-v0)*i/n;
+        const a = q(v,0), b = q(v,h);
+        ctx.strokeStyle = '#9aa0a2'; ctx.lineWidth = 1; ctx.beginPath();
+        ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke(); }
+      for(let k=0;k<=6;k++){ const z = h*k/6, a = q(v0,z), b = q(v1,z);
+        ctx.strokeStyle = '#9aa0a2'; ctx.lineWidth = 1; ctx.beginPath();
+        ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke(); }
+      const c = q(v0,h), d = q(v1,h);
+      ctx.strokeStyle = shade(wall,.9); ctx.lineWidth = 3; ctx.beginPath();
+      ctx.moveTo(c.x,c.y); ctx.lineTo(d.x,d.y); ctx.stroke();
+    };
+    mesh('a', GB1+6, GA0, GA1, GH);                                          // back
+    mesh('b', GA1-6, GB0, GB1, GH);                                          // right
+    for(const [ga,gb] of [[GA0,GB1+6],[GA1-6,GB1+6],[GA1-6,GB0]]) cyl(ga, gb, 0, GH+8, 6, shade(wall,.78));
     if(state.props){
-      for(let i=0;i<4;i++){
-        const z = DOCK - i*9;
-        box(W+12, W+46, 54+i*13, 54+i*13+13, z-9, z, '#9aa0a6','#8d949a','#7d838a');
+      const plant = (pa, pb, s, col) => {
+        cyl(pa, pb, 0, 16*s, 11*s, '#8a5a3a');
+        plateCircle(pa, pb, 16*s, 9*s, '#4a3a26');
+        cyl(pa, pb, 16*s, 30*s, 3*s, '#6b5a3a');
+        for(let k=0;k<4;k++) ball(pa + 10*s*Math.cos(k*1.57+0.4), pb + 10*s*Math.sin(k*1.57+0.4), 34*s, 11*s, col);
+      };
+      for(let r=0;r<3;r++){                                                  // staging, far to near
+        const bb = GB1 + 90 + r*110;
+        slab(GA0+26, GA1-26, 40, 48, bb+24, bb-24, '#8a6f4e', null, shade('#8a6f4e',1.18));
+        for(const la of [GA0+40, GA0+110, GA1-40]) cyl(la, bb, 0, 40, 6, shade('#8a6f4e',.8));
+        for(let i=0;i<6;i++)
+          plant(GA0+42 + i*34, bb, 0.62, ['#4e8058','#3f6b4a','#c26a7e','#e8c34a','#6b9a52','#b4674a'][i]);
       }
-      tube(W+46, 54, DOCK+34, W+46, 106, 4, 2.4, '#8d979f');
-      for(let i=0;i<4;i++) tube(W+46, 58+i*13, DOCK-i*9, W+46, 58+i*13, DOCK-i*9+30, 1.6, '#8d979f');
-      for(let i=0;i<2;i++){
-        box(24+i*70, 70+i*70, 10, 44, DOCK, DOCK+10, '#a8834a','#8f6c3f','#7a5c36');
-        box(28+i*70, 66+i*70, 14, 40, DOCK+10, DOCK+34, '#c9b48e','#b09a72','#96825f');
-      }
-      for(let i=0;i<3;i++){
-        const ba = 20 + i*72;
-        cyl(ba, 78, 0, 30, 6, trim);
-        F(ba-6,ba+6, 20, 25, '#2b2f33', null,0, 72);
-        ball(ba, 78, 30, 6, shade(trim,1.1));
-      }
+      for(let i=0;i<3;i++)                                                    // bagged compost
+        for(let k=0;k<3;k++)
+          box(GA0+30+i*72, GA0+92+i*72, GB0-60, GB0-14, k*15, k*15+15,
+              '#5a5348','#6b6355','#4a443b');
     }
-    if(state.roof) box(W*0.34,W*0.66,-150,-104,H,H+26,'#8f969d','#787f86','#697077');
-    kerb(p,'none');
+    for(let k=0;k<7;k++)                                                     // shade lattice overhead
+      tube(GA0+8, GB1+14+k*(GB0-GB1-28)/6, GH, GA1-8, GB1+14+k*(GB0-GB1-28)/6, GH, 2, shade(wall,.86));
+    /* the cage front has a GATE in it. First pass ran the mesh the whole
+       width, so a garden centre a customer is meant to walk into had no
+       way in -- the same fault the old depot's own comment admitted to
+       about foot access, one building later. */
+    mesh('a', GB0-6, GA0, GA0+84, GH);
+    mesh('a', GB0-6, GA1-84, GA1, GH);
+    for(const ga of [GA0+84, GA1-84]) cyl(ga, GB0-6, 0, GH+8, 6, shade(wall,.78));
+    slab(GA0+78, GA1-78, GH+8, GH+34, GB0-1, GB0-11, shade(wall,1.10), null, shade(wall,1.28));
+    F(GA0+92, GA1-92, GH+14, GH+28, band, null, 0, GB0-0.5);
+
+    if(state.props){
+      /* ---- the car park, far to near ---- */
+      const island = (a0, a1, bb) => {
+        box(a0, a1, bb-38, bb+38, 0, 12, shade(conc,1.06), shade(conc,.84), shade(conc,.70));
+        for(const ta of [a0+34, (a0+a1)/2, a1-34]){
+          cyl(ta, bb, 12, 46, 5, '#6b5a3a');
+          for(let k=0;k<4;k++) ball(ta + 11*Math.cos(k*1.57+0.5), bb + 11*Math.sin(k*1.57+0.5), 56, 13, ['#3f6b4a','#4e8058','#568a5e'][k%3]);
+          ball(ta, bb, 66, 12, '#4e8058');
+        }
+      };
+      const mast = (ma, mb) => {
+        cyl(ma, mb, 0, 16, 11, shade(conc,.8));
+        cyl(ma, mb, 16, 172, 5, '#8d949a');
+        for(const d of [-26, 26]){
+          tube(ma, mb, 172, ma+d, mb, 176, 2.4, '#8d949a');
+          box(ma+d-20, ma+d+20, mb-13, mb+13, 170, 180, '#c9ced2','#a6acb1','#8d949a');
+        }
+      };
+      const corral = (ca, cb) => {
+        for(const aa of [ca, ca+96]) for(const z of [30, 58])
+          tube(aa, cb+30, z, aa, cb-30, z, 1.8, '#9aa0a2');
+        for(const aa of [ca, ca+96]) for(const bb of [cb+30, cb-30]) cyl(aa, bb, 0, 62, 3, '#9aa0a2');
+        for(let k=0;k<4;k++){
+          const x = ca + 16 + k*20;
+          box(x, x+26, cb-18, cb+18, 12, 40, '#b8bec2','#9aa0a2','#868c90');
+          for(const bb of [cb-18, cb+18]) tube(x+2, bb, 12, x+2, bb, 46, 1.4, '#9aa0a2');
+        }
+      };
+      /* ---- ORDER VERSUS DEPTH, and it was drawn backwards ----
+         The car park was painted islands, masts, corrals, then the front
+         walk -- and the front walk is the FARTHEST thing in this block.
+         The walk bollards sit at b -452 against masts at b -301, so two
+         of them were painted straight through a mast that stands 150
+         units in front of them.
+
+         Measured rather than eyeballed, because only one of the two is
+         visible enough to notice. Screen-a is a - b:
+
+           bollard a 280  ->  732      mast a 430  ->  731     1 apart
+           bollard a 720  -> 1172      mast a 880  -> 1181     9 apart
+
+         Two fixes, and both are needed. The block is ordered far to near
+         now -- b -452, then -301, then -58 -- which makes the occlusion
+         correct. But correct occlusion of a bollard that stands exactly
+         behind a mast base is still a bollard nobody can see, so the
+         masts move off the line as well: 470 and 820 put 39 and 51
+         between them and the nearest bollard.
+
+         The bagged goods on the walk are gone at Sir's direction. */
+      for(let i=0;i<7;i++){                                    // front walk, farthest
+        const ba = 60 + i*110;
+        if(ba > EA0-30 && ba < EA1+30) continue;
+        cyl(ba, -452, 0, 30, 6, band);
+        plateHoop(ba, -452, 21, 6, shade(band,.6), 3);
+        ball(ba, -452, 30, 6, shade(band,1.14));
+      }
+      island(64, 260, -301);  island(560, 756, -301);          // then the back row
+      mast(470, -301);        mast(820, -301);
+      corral(300, -301);
+      island(64, 260, -58);   island(800, 996, -58);           // then the front row
+      mast(430, -58);
+      corral(560, -58);
+    }
+
+    /* ---- the pylon sign, out on the corner ---- */
+    { const PA = 196, PB = -62;
+      for(const d of [-38, 38]) cyl(PA+d, PB, 0, 196, 8, shade(wall,.72));
+      slab(PA-68, PA+68, 196, 312, PB+9, PB-9, shade(wall,1.12), null, shade(wall,1.3));
+      F(PA-60, PA+60, 203, 305, band, null, 0, PB+9.5);
+      for(let k=0;k<4;k++) F(PA-46, PA+46, 213+k*23, 228+k*23, shade(wall,.40), null, 0, PB+10);
+      box(PA-46, PA+46, PB-26, PB+26, 0, 18, shade(conc,1.06), shade(conc,.84), shade(conc,.70));
+    }
+
+    /* ---- the kerb and planting on the street line ----
+       Nearest thing on the lot, so it is drawn last, and broken at the
+       two crossovers -- the front boundary is the one place the sign of
+       b can still go wrong, because it is the only side whose edge is
+       b 0 rather than a coordinate you have to type. */
+    const runs = [[0, XO[0][0]], [XO[0][1], XO[1][0]], [XO[1][1], LOT]];
+    for(const [r0,r1] of runs){
+      if(r1 - r0 < 6) continue;
+      box(r0, r1, -30, -2, 0, 14, shade(conc,1.04), shade(conc,.82), shade(conc,.68));
+      if(state.props) for(let x = r0+26; x < r1-18; x += 54)
+        ball(x, -16, 24, 16, ['#4e8058','#568a5e','#3f6b4a'][Math.round(x/54)%3]);
+    }
   }
 },
 {
