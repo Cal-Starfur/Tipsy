@@ -8187,56 +8187,154 @@ const SHOPS = [
   }
 },
 {
-  name:'Forge', head:'Brick stack, open fire, anvil on the pavement',
-  cTodo:'4 pavement props need collision volumes, 52 of them lapping past the frontage',
-  fTodo:'z118..148 return +3, lettering behind board',
-  tags:['round forge stack','glowing fire','anvil as a solid','horseshoe sign','open front'],
-  desc:'The hood over the fire is a solid tapering to a round stack, the tools hang as tubes on a rack, and the anvil is a shaped solid on a timber block.',
+  name:'Forge', tall:true, ww: T2*6.6, dd: 420,
+  wTodo:'three packing slots',
+  head:'Triple-wide smithy: the fire, the hood and the anvil inside an open bay',
+  tags:['three packing slots','open smithy bay','hood and stack','glowing hearth','round horseshoe','bare footway'],
+  desc:'A working smithy taking three slots: one wide open bay with the hearth, the hood, the anvil and the tool rack standing inside it, a counter window for finished work, and the stack carrying up through the roof.',
   draw(p){
-    const wall = '#4a4238', trim = '#c9a24a', H = 164;
-    body(wall, trim, H);
-    slab(0,W, H, H+10, -1, -12, shade(wall,1.3));
-    slab(6,W-6, 118, 148, -1, -9, shade(wall,1.2), null, trim);
-    F(20,W-20, 126, 140, trim, null,0,-9.5);
-    F(12,W*0.70, 0, 110, '#1d1813', null,0, 1);
-    const fa = W*0.26;
-    box(fa-30, fa+30, 4, 34, 12, 44, '#3a322a','#2e2620','#262019');
-    F(fa-24, fa+24, 16, 40, '#e8763a', null,0, 3.5);
-    F(fa-15, fa+15, 18, 34, '#f6c05a', null,0, 3.2);
-    // hood tapering to a round stack
-    poly([P(fa-34,2,52),P(fa+34,2,52),P(fa+22,2,86),P(fa-22,2,86)], '#3a332b');
-    poly([P(fa-34,2,52),P(fa-34,34,52),P(fa-22,34,86),P(fa-22,2,86)], '#2f2922');
-    poly([P(fa+34,2,52),P(fa+34,34,52),P(fa+22,34,86),P(fa+22,2,86)], '#453d33');
-    cyl(fa, 18, 86, 110, 20, '#3a332b');
-    for(let i=0;i<4;i++){
-      const ta = W*0.50 + i*13;
-      tube(ta, 6, 40, ta, 6, 88, 1.6, '#8d979f');
-      tube(ta-5, 6, 88, ta+5, 6, 88, 1.4, '#6d757c');
+    /* ============ THE WHOLE SMITHY WAS ON THE PAVEMENT ============
+       F(12, W*0.70, 0, 110) at b +1 was a flat dark rectangle on the
+       OUTSIDE of the wall -- eighteenth flat panel where an opening
+       belongs -- and then the hearth, the hood, the tool rack and the
+       stack were all built at b 2..34, in FRONT of it. So a forge fire
+       burned on the footway with a painted black rectangle behind it.
+       The tag says "open front", and an open front is an opening: a
+       bay you can see into, not a dark shape you cannot.
+
+       cTodo COUNTED 4 PROPS AND 52 PAST THE FRONTAGE, and that is the
+       anvil: block at a = W + 14..W + 52 and the anvil itself on
+       W + 33, so both were entirely on the neighbour's ground. An anvil
+       belongs in the shop -- it is the one thing a smith does not leave
+       out overnight -- so it stands inside the bay now and cTodo goes.
+
+       THE HORSESHOE WAS AN ELLIPSE AND IT WAS IN THE WALL. faceT()
+       installs ZSCALE in the z basis, so a shoe of radius 17 came out
+       34 wide by 51 tall; and hb -6 put it six units inside the
+       masonry. Tenth ZSCALE circle of the session and the fifteenth
+       thing at the wrong sign of b.
+
+       A WINDOW WAS DRAWN ACROSS THE DOOR, eighteenth consecutive shop.
+       F(W*0.80, W-14, 54, 94) ran a 184..216 against an opening at
+       158.8..225.
+
+       THREE SLOTS at Sir's direction: ww = T2*6.6, the Fire station's
+       tier. A smithy is a shed with a fire in it and needs the width to
+       show the fire, the anvil and the work at once -- at 230 the hood
+       alone took a third of the frontage. H 164 -> 280, because the
+       hood has to clear a standing man and the stack has to clear the
+       hood.
+
+       fTodo: slab(6, W-6, 118, 148, -1, -9) put its far end on screen-a
+       233 against a return at 230, with the lettering at -9.5 behind
+       the board's own -9 backing. */
+    const wall = '#4a4238', trim = '#c9a24a', H = 280, WW = T2*6.6, DD = 420;
+    const inner = '#160f0b', iron = '#3f464c';
+    body(wall, trim, H, WW, DD);
+    T(0, WW, -DD, 0, H+0.4, '#332d26');                 // roof, over body's pale plate
+    slab(0, WW, H, H+12, 4, 0, shade(wall,1.3));        // cornice
+    slab(0, WW, 0, 170, 4, 0, shade(wall,1.1), null, trim);
+
+    /* ---- the open bay: hearth, hood, anvil, rack ----
+       Ninety deep, and the interior is set out on that: at b -d an
+       object needs a - d >= 40 and a + d <= 330, so the hearth on 120
+       at -50 and the anvil on 240 at -30 both clear their jambs. */
+    reveal(40, 330, 20, 156, 90, inner);
+    ctx.save();
+    poly([P(40,0,156),P(330,0,156),P(330,0,20),P(40,0,20)]);
+    ctx.clip();
+    slab(46, 324, 20, 26, -10, -88, '#2a221b', null, '#3a3129');
+    /* the hearth */
+    box(84, 156, -30, -74, 26, 62, '#332b24','#3d342b','#28211b');
+    F(92, 148, 34, 58, '#e8763a', null, 0, -29.4);
+    F(104, 136, 36, 52, '#f6c05a', null, 0, -29);
+    /* the hood, tapering to the stack */
+    poly([P(78,-28,74),P(162,-28,74),P(144,-28,120),P(96,-28,120)], '#3a332b');
+    poly([P(78,-28,74),P(78,-76,74),P(96,-76,120),P(96,-28,120)], '#2f2922');
+    poly([P(162,-28,74),P(162,-76,74),P(144,-76,120),P(144,-28,120)], '#453d33');
+    poly([P(96,-28,120),P(144,-28,120),P(144,-76,120),P(96,-76,120)], '#453d33');
+    cyl(120, -52, 120, 156, 24, '#3a332b');
+    /* THE RACK IS FARTHER THAN THE ANVIL, so it goes first. The rack
+       hangs on the back wall at b -70 with depth keys of 106..196; the
+       anvil stands out at b -20..-44 on 194..214. Written anvil-first
+       the rack was painted over it and a wall of tools hung in front of
+       the anvil they belong behind. Twelfth order-versus-depth fault of
+       the session, and the cheapest to avoid: three objects in one
+       clipped interior, sorted once on a + b. */
+    poly([P(176,-70,86),P(266,-70,86),P(266,-70,80),P(176,-70,80)], '#4a3d2e');
+    for(let i=0;i<6;i++){
+      const ta = 184 + i*15;
+      tube(ta, -70, 80, ta, -70, 34, 1.8, '#8d979f');
+      tube(ta-5, -70, 34, ta+5, -70, 34, 1.6, '#6d757c');
     }
-    shopDoor(W*0.86, wall, trim);
-    F(W*0.80,W-14, 54, 94, '#6a6258', null,0,-6.5);
-    const hc = W*0.88, hb = -6, hz = 124;
-    faceT(hc, hb, hz, 17);
-    ctx.strokeStyle=trim; ctx.lineWidth=8/(17*K);
-    ctx.beginPath(); ctx.arc(0,0,1,0.6,2.54,true); ctx.stroke();
+    /* the anvil, on its block, where an anvil lives */
+    box(222, 258, -20, -44, 26, 54, '#5a4a3a','#6a5842','#4a3d2e');
+    box(216, 254, -22, -40, 54, 64, iron, shade(iron,1.15), shade(iron,.78));
+    poly([P(254,-22,64),P(276,-31,60),P(254,-40,64)], shade(iron,1.15));
+    box(224, 242, -26, -36, 64, 72, iron, shade(iron,1.15), shade(iron,.78));
+    /* the quench trough */
+    box(272, 320, -40, -70, 26, 44, '#4a3d2e','#584a38','#3c3126');
+    F(276, 316, 40, 44, '#3f6b74', null, 0, -39.4);
     ctx.restore();
-    tube(hc-14, hb, hz-9, hc-15, hb, hz-20, 3.5, trim);
-    tube(hc+14, hb, hz-9, hc+15, hb, hz-20, 3.5, trim);
-    if(state.props){
-      box(W+14, W+52, 26, 60, 0, 24, '#5a4a3a','#6a5842','#4a3d2e');
-      const an = W+33, ab = 42;
-      box(an-20, an+14, ab-9, ab+9, 24, 33, '#3a4046','#454b52','#2f353a');
-      poly([P(an+14,ab-9,33),P(an+30,ab,29),P(an+14,ab+9,33)], '#454b52');
-      box(an-12, an+4, ab-6, ab+6, 33, 40, '#454b52','#4e555c','#363c42');
+    /* ---- AND THERE IS GLASS IN IT ----
+       The bay was a true opening and it read as a hole: a 290-wide
+       black rectangle with a fire somewhere in the back of it. A hole
+       in a wall has no plane, so nothing on this elevation told you
+       where the front of the building was between a 40 and 330 -- the
+       fascia jumped straight to the pavement.
+
+       A smithy's front is a big industrial screen: timber mullions,
+       two transoms, and glass thin enough to see the fire through. It
+       still reads as open because the hearth glows through it, and now
+       it also reads as a FRONT. */
+    glaze(40, 330, 20, 156, null, 'rgba(148,138,122,.20)');
+    for(let k=1;k<5;k++)
+      F(40 + 290*k/5 - 4, 40 + 290*k/5 + 4, 20, 156, shade(wall,1.25), null, 0, 0.8);
+    for(const tz of [66, 112])
+      F(40, 330, tz-4, tz+4, shade(wall,1.25), null, 0, 0.8);
+
+    shopDoor(420, wall, trim, null, WW);                // a 386.88..453.12
+
+    /* ---- the counter window, for finished work ---- */
+    reveal(486, 572, 40, 130, 30, shade(wall,.7));
+    ctx.save();
+    poly([P(486,0,130),P(572,0,130),P(572,0,40),P(486,0,40)]);
+    ctx.clip();
+    slab(492, 566, 40, 46, -8, -28, shade(wall,.9), null, shade(wall,1.05));
+    for(let i=0;i<4;i++){
+      const ga = 500 + i*18;
+      tube(ga, -18, 46, ga, -18, 84, 2.2, '#8d979f');
+      plateHoop(ga, -18, 92, 9, '#7d858c', 3);
     }
+    ctx.restore();
+    glaze(486, 572, 40, 130, null, 'rgba(140,130,116,.40)');
+
+    /* ---- fascia, and the horseshoe on it ---- */
+    slab(0, WW, 176, 216, 4, 0, shade(wall,1.2), null, trim);
+    F(30, 470, 186, 208, trim, null,0, 4.6);
+    {
+      /* round in the world: the z radius divides back by ZSCALE, and it
+         stands proud at b 5 rather than six units inside the wall */
+      const hc = 530, hb = 5, hz = 194, r = 20;
+      const ring = (rr, bb, n) => { const q = [];
+        for(let i=0;i<(n||26);i++){ const t = Math.PI*2*i/(n||26);
+          q.push(P(hc + rr*Math.cos(t), bb, hz + rr*Math.sin(t)/ZSCALE)); }
+        return q; };
+      poly(ring(r, hb), trim);
+      poly(ring(r-6, hb+0.4), shade(wall,1.2));
+      F(hc-8, hc+8, hz - r/ZSCALE - 2, hz - 2, shade(wall,1.2), null, 0, hb+0.8);
+      for(const s of [-1, 1]){
+        tube(hc + s*(r-3), hb+0.6, hz - 4, hc + s*(r-1), hb+0.6, hz - r/ZSCALE + 1, 3, trim);
+        for(let k=0;k<3;k++)
+          ball(hc + s*(r-3.5), hb+1.2, hz + 4 - k*5, 1.6, shade(trim,.6));
+      }
+    }
+
     if(state.roof){
-      const ca = W*0.26, cb = -60;
-      cyl(ca, cb, H+10, H+72, 20, shade(wall,1.1));
-      cyl(ca, cb, H+72, H+80, 24, shade(wall,.9));
-      plateCircle(ca, cb, H+80, 24, '#2e2620', shade(wall,.7), 2);
-      for(let k=0;k<3;k++)
-        ball(ca + (k%2?9:-7), cb, H+92+k*17, 11+k*5, 'rgba(70,66,60,.48)', 'rgba(92,88,82,.44)');
-      box(W*0.62,W*0.86,-150,-116,H,H+18,'#8f969d','#787f86','#697077');
+      cyl(120, -52, H, H+70, 22, '#3a332b');            // the stack, carried up
+      cyl(120, -52, H+70, H+80, 27, '#463d33');
+      plateCircle(120, -52, H+80, 27, '#241d18', '#2f2922', 2);
+      box(380, 500, -220, -160, H, H+26, '#8f969d','#787f86','#697077');
     }
     kerb(p,'none');
   }
