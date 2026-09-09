@@ -7694,65 +7694,117 @@ const SHOPS = [
 },
 {
   name:'Pottery', tall:true,
-  cTodo:'4 pavement props need collision volumes, 50 of them lapping past the frontage',
-  fTodo:'z110..138 return +3, lettering behind board',
-  zTodo:0.92,          // H 154 -- see SCALE REVIEW at the head of this file
-  head:'Kiln chimney with smoke, arched kiln door',
-  tags:['tapered round chimney','swept kiln arch','thrown pots','raw brick','smoke'],
-  desc:'The chimney is a stack of tapering cylinders instead of flat rectangles, the kiln arch is swept to a real reveal, and the pots are thrown forms with rims and feet.',
+  head:'Studio: wheel and drying shelves behind tall glass, roof lantern',
+  tags:['tall studio glazing','potter\'s wheel','drying shelves','roof lantern','raw brick','bare footway'],
+  desc:'A working studio rather than a works: one tall window with the wheel and the drying shelves standing inside it, brick courses over, and a glazed lantern on the roof for the north light a potter actually needs. No industrial stack.',
   draw(p){
-    const wall = '#a8654a', trim = '#e0d2b8', H = 154;
+    /* ============ IT WAS A KILN WORKS, NOT A STUDIO ============
+       At Sir's direction the tall stack goes. It was five tapering
+       cylinders climbing 220 above a wall of 154 -- taller than the
+       building carrying it -- with four translucent balls of smoke on
+       top, and it made the shop read as heavy industry. A studio potter
+       has a small electric or bottle kiln in the back and takes its
+       light from a roof lantern; the lantern is the thing that says
+       studio, and there is nothing else like it in this file.
+
+       WHAT WAS WRONG BESIDES.
+
+       FOUR POTS ON THE NEIGHBOUR. cTodo counted 50 past the frontage:
+       they were at a = W + 12 and W + 42 with a belly radius of 13, so
+       a 241..285 on a shop 230 wide -- every one of them entirely
+       outside. Gone rather than moved; the ware is in the window.
+
+       THE DISPLAY POTS WERE AT b -3, inside the masonry behind a flat
+       panel standing in for a window. Thirteenth time this session
+       something has been found at the wrong sign of b, and the
+       sixteenth flat panel where a window belongs.
+
+       AND THE WINDOW RAN INTO THE DOOR, which is the sixteenth
+       consecutive shop but a new form of it: not a panel drawn across
+       the opening, the WINDOW ITSELF. F(W*0.50, W*0.78, 26, 102) spans
+       a 115..179.4 and shopDoor clamps its opening to 158.8..225, so
+       the two overlapped by 20.6. Worth noting because the census I
+       keep proposing would catch a panel and miss this -- the test has
+       to be any a-span against mid +/- 33.12, not just the ones that
+       look like signs.
+
+       zTodo 0.92 on a wall of 154. At 200 it is 1.19, which is what a
+       studio wants: one tall window rather than a shop window, because
+       the light is the point.
+
+       fTodo: slab(6, W-6, 110, 138, -1, -9) put its far end on screen-a
+       233 against a return at 230, with the lettering at -9.5 behind
+       the board's own -9 backing. */
+    const wall = '#a8654a', trim = '#e0d2b8', H = 200;
+    const inner = '#3a241b', clay = ['#c98a4a','#8a6a4a','#b87a52','#a8654a'];
     body(wall, trim, H);
-    slab(0,W, H, H+10, -1, -12, shade(wall,.7));
-    for(let r=0;r<9;r++) F(0,W, 8+r*16, 11+r*16, shade(wall,.86), null,0,-1);
-    const kx0 = W*0.10, kx1 = W*0.42;
-    F(kx0-8,kx1+8, 0, 84, shade(wall,.76), null,0,-1);
-    const ap = (t,bb) => {
-      const u=1-t, a = u*u*(kx0-8) + 2*u*t*((kx0+kx1)/2) + t*t*(kx1+8);
-      const z = u*u*84 + 2*u*t*146 + t*t*84;
-      return P(a,bb,z);
-    };
-    ctx.beginPath(); let q=ap(0,-1); ctx.moveTo(q.x,q.y);
-    for(let k=1;k<=12;k++){ q=ap(k/12,-1); ctx.lineTo(q.x,q.y); }
-    ctx.closePath(); ctx.fillStyle=shade(wall,.76); ctx.fill();
-    for(let k=0;k<12;k++) poly([ap(k/12,-1),ap((k+1)/12,-1),ap((k+1)/12,-11),ap(k/12,-11)], shade(wall,.94));
-    F(kx0,kx1, 0, 78, '#2e1d16', null,0,-10);
-    const ip = (t,bb) => {
-      const u=1-t, a = u*u*kx0 + 2*u*t*((kx0+kx1)/2) + t*t*kx1;
-      const z = u*u*78 + 2*u*t*132 + t*t*78;
-      return P(a,bb,z);
-    };
-    ctx.beginPath(); q=ip(0,-10); ctx.moveTo(q.x,q.y);
-    for(let k=1;k<=12;k++){ q=ip(k/12,-10); ctx.lineTo(q.x,q.y); }
-    ctx.closePath(); ctx.fillStyle='#2e1d16'; ctx.fill();
-    F(kx0+6,kx1-6, 4, 34, '#e8763a', null,0,-10.5);
-    F(kx0+12,kx1-12, 6, 22, '#f4b055', null,0,-11);
-    F(W*0.50,W*0.78, 26, 102, '#7f93a0', trim, 3);
-    for(let i=0;i<3;i++){
-      const pa = W*0.545+i*W*0.09, pb = -3, col = ['#c98a4a','#8a6a4a','#b87a52'][i];
-      cyl(pa, pb, 34, 44, 6, shade(col,.85));
-      ball(pa, pb, 54, 11, col);
-      cyl(pa, pb, 60, 68, 6, col);
-      plateCircle(pa, pb, 68, 7, shade(col,1.15), shade(col,.8), 1.5);
-    }
-    shopDoor(W*0.88, wall, trim);
-    slab(6,W-6, 110, 138, -1, -9, shade(wall,1.14), null, trim);
-    F(20,W-20, 118, 130, trim, null,0,-9.5);
-    if(state.props){
-      for(let i=0;i<4;i++){
-        const pa = W+12+(i%2)*30, pb = 34, pz = (i<2)?0:26, col = ['#c98a4a','#a8654a','#b87a52','#8a6a4a'][i];
-        cyl(pa, pb, pz, pz+10, 8, shade(col,.85));
-        ball(pa, pb, pz+18, 13, col);
-        plateCircle(pa, pb, pz+28, 9, shade(col,1.1), shade(col,.8), 1.5);
+    T(0, W, -D, 0, H+0.4, '#6e422f');                   // roof, over body's pale plate
+    slab(0, W, H, H+10, 4, 0, shade(wall,.7));          // cornice
+    for(let r=0;r<4;r++) F(0, W, 172+r*7, 175+r*7, shade(wall,.86), null,0, 0.4);   // brick courses
+
+    /* ---- one shopfront band, both openings cut out of it ---- */
+    slab(0, W, 0, 130, 4, 0, shade(wall,1.1), null, trim);
+    reveal(14, 134, 22, 118, 22, inner);
+    ctx.save();
+    poly([P(14,0,118),P(134,0,118),P(134,0,22),P(14,0,22)]);
+    ctx.clip();
+    slab(18, 130, 22, 28, -6, -24, shade(wall,.9), null, shade(wall,1.05));
+    /* ---- SIX POTS, NOT TWELVE, AND THE PITCH IS MEASURED ----
+       Three shelves of four at a 12 pitch put pots of 14 across on
+       centres 12 apart: every one overlapping its neighbour, in a
+       window 120 wide that also had to hold a wheel and a stool. A
+       drying shelf is meant to look like there is room to lift a pot
+       off it.
+
+       Two shelves of three at a 17 pitch leaves 3 of air between pots,
+       and the shelf run stops at a 84 so the wheel has the right third
+       of the window to itself. The b terms set the ends: at b -20 the
+       rack needs 20 of clearance inside each jamb, so 34..84 against a
+       window of 14..134; the wheel at b -12 with a pan of r 13 needs
+       25, so its centre sits on 108. */
+    for(let r=0;r<2;r++){
+      const z = 40 + r*38;
+      slab(34, 84, z-3, z, -14, -26, '#7a5a44', null, '#8d6c52');
+      for(let i=0;i<3;i++){
+        const pa = 42 + i*17, col = clay[(r*3+i)%4];
+        cyl(pa, -20, z, z+6, 4.5, shade(col,.85));
+        ball(pa, -20, z+13, 7, col);
+        plateCircle(pa, -20, z+19, 5, shade(col,1.15), shade(col,.8), 1.2);
       }
     }
+    /* the wheel: a cast frame, a splash pan, the head, and a pot on it */
+    box(96, 120, -20,-6, 22, 48, '#6a5348','#7a6055','#5a463c');
+    plateCircle(108, -13, 48, 13, '#8d979f', '#6a7076', 1.6);
+    cyl(108, -13, 48, 55, 8, clay[0]);
+    ball(108, -13, 64, 12, clay[0]);
+    cyl(108, -13, 71, 78, 7, clay[0]);
+    plateCircle(108, -13, 78, 8, shade(clay[0],1.15), shade(clay[0],.8), 1.4);
+    ctx.restore();
+    glaze(14, 134, 22, 118, null, 'rgba(150,138,120,.30)');
+    for(let k=1;k<4;k++) F(14 + 120*k/4 - 3, 14 + 120*k/4 + 3, 22, 118, shade(wall,1.2), null,0, 0.8);
+
+    shopDoor(178, wall, trim);                          // a 144.88..211.12
+
+    /* ---- fascia ---- */
+    slab(0, W, 136, 164, 4, 0, shade(wall,1.14), null, trim);
+    F(24, W-24, 143, 157, trim, null,0, 4.6);
+
     if(state.roof){
-      const ca = W*0.70, cb = -140;
-      for(let i=0;i<5;i++) cyl(ca, cb, H + i*44, H + (i+1)*44, 30 - i*3.6, shade(wall, 0.92 + i*0.02));
-      plateCircle(ca, cb, H+220, 13, '#3a2a22', shade(wall,.8), 2);
-      for(let k=0;k<4;k++)
-        ball(ca + (k%2?11:-8), cb, H+236+k*20, 12+k*6, 'rgba(190,186,178,.42)', 'rgba(210,206,198,.4)');
-      box(W*0.16,W*0.36,-120,-88,H,H+16,'#9aa0a6','#7d838a','#6a7076');
+      /* ---- THE ROOF LANTERN, which is what a studio has instead of a
+         stack: a raised monitor with its glazing facing the near side,
+         a capped roof over it, and a short kiln flue beside it. ---- */
+      const LA0 = 46, LA1 = 168, LB0 = -54, LB1 = -142;
+      poly([P(LA0,LB0,H),P(LA1,LB0,H),P(LA1,LB0,H+46),P(LA0,LB0,H+46)], 'rgba(160,186,196,.62)');
+      for(let k=1;k<6;k++){
+        const aa = LA0 + (LA1-LA0)*k/6;
+        poly([P(aa-3,LB0+0.4,H),P(aa+3,LB0+0.4,H),P(aa+3,LB0+0.4,H+46),P(aa-3,LB0+0.4,H+46)], shade(wall,.8));
+      }
+      poly([P(LA1,LB0,H),P(LA1,LB1,H),P(LA1,LB1,H+46),P(LA1,LB0,H+46)], shade(wall,.86));
+      poly([P(LA0,LB0,H+46),P(LA1,LB0,H+46),P(LA1,LB1,H+58),P(LA0,LB1,H+58)], shade(wall,.74));
+      slab(LA0-6, LA1+6, H+46, H+54, LB0+6, LB0-4, shade(wall,1.2));
+      cyl(198, -96, H, H+50, 11, shade(wall,.8));       // the kiln flue, short
+      cyl(198, -96, H+50, H+58, 15, shade(wall,.94));
+      plateCircle(198, -96, H+58, 15, '#3a2a22', shade(wall,.7), 2);
     }
     kerb(p,'none');
   }
