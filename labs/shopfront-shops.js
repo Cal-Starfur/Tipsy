@@ -8688,40 +8688,122 @@ const SHOPS = [
 },
 {
   name:'Dance studio', tall:true,
-  fTodo:'z104..114 return +7',
-  zTodo:1.27,          // H 214 -- see SCALE REVIEW at the head of this file
-  head:'External stair up the flank, mirrored upper floor',
-  tags:['built external stair','mirror wall upstairs','tube barre','tall upper glazing','landing'],
-  desc:'The stair is built from tread slabs on a stringer with tube handrails and posts, and the barre is a tube on real brackets in front of the mirror.',
+  head:'Studio over a lobby: mirror wall and barre behind the upper glass',
+  tags:['two storeys','mirror wall','tube barre','tall upper glazing','stair inside','bare footway'],
+  desc:'The studio is upstairs behind one long window with the mirror wall, the barre on real brackets and the sprung floor visible through it, and the stair that reaches it runs inside the building instead of up the neighbour\'s wall.',
   draw(p){
-    const wall = '#c8b8c8', trim = '#4a3a52', H = 214;
+    /* ============ THE STAIR WAS ON THE NEIGHBOUR ============
+       Every part of it -- nine treads, the stringer, both handrails,
+       five balusters and the landing -- was built at a = W + 2 to
+       W + 32, so a full external staircase stood entirely on the plot
+       next door, from the pavement to 150 up. Thirty-two units past the
+       frontage along its whole height.
+
+       AND NO cTodo TO SAY SO. This entry carried only fTodo and zTodo.
+       Seventh census gap of the session, and a new one: the treads are
+       box() at ground level with a centre b of -28, which is exactly
+       what the prop test looks for -- so it is not a missing primitive
+       or a wrong measure this time, the census simply never saw a shop
+       whose props were all beyond a = W. Worth checking whether it
+       clamps its scan to 0..W.
+
+       The stair goes inside. A studio over a lobby has an internal
+       stair, and the flight is visible through the lobby window doing
+       the same job of saying "upstairs" without standing on anyone.
+
+       zTodo 1.27 on a wall of 214. H 336 is 2.00 exactly, which is what
+       the building always was: a lobby under a studio.
+
+       fTodo 'z104..114 return +7' is the terrace-bounded kind, the
+       distinction the Fabric shop turned up and the Sweet shop had both
+       halves of. slab(0, W, 104, 114, -1, -7) runs wall to wall like a
+       cornice, so its +7 is not a board overhanging the return wanting
+       a margin -- it is a band leaking its end face onto the flank,
+       wanting bBack 0.
+
+       BOTH WINDOWS WERE FLAT PANELS, twenty-second and twenty-third of
+       the session, and the barre and its brackets were painted at b -4
+       and -1 on the back of the upper one. A barre stands in front of a
+       mirror; both are inside the room now, behind real glass.
+
+       A WINDOW WAS DRAWN ACROSS THE DOOR, twenty-second consecutive
+       shop. F(W*0.65, W*0.77, 52, 92) ran a 149.5..177.1 against an
+       opening at 130.2..196.4. */
+    const wall = '#c8b8c8', trim = '#4a3a52', H = 336;
+    const inner = '#3a3040', floor = '#b49a7a';
     body(wall, trim, H);
-    slab(0,W, H, H+10, -1, -12, trim);
-    slab(0,W, 104, 114, -1, -7, trim);
-    F(10,W-10, 124, 196, '#8fa0b0', shade(wall,.6), 3);
-    F(16,W-16, 130, 190, '#c4cfd8', null,0,-1);
-    for(let i=1;i<5;i++) F(10+(W-20)*i/5-2, 10+(W-20)*i/5+2, 124, 196, shade(wall,.62), null,0,-1.5);
-    tube(20, -4, 152, W-20, -4, 152, 2, '#8a7a94');
-    for(const aa of [30, W-30]) tube(aa, -1, 130, aa, -4, 152, 1.6, '#8a7a94');
-    F(12,W*0.56, 20, 96, '#9aa8b4', shade(wall,.65), 3);
-    shopDoor(W*0.71, wall, trim);
-    F(W*0.65,W*0.77, 52, 92, '#9aa8b4', null,0,-6.5);
-    if(state.props){
-      const steps = 9;
-      for(let i=0;i<steps;i++){
-        const b0 = -18 - i*20, z = 8 + i*11;
-        box(W+2, W+30, b0-20, b0, z-6, z, '#a3abb2','#9aa2a9','#8d949a');
-      }
-      // stringer and handrail
-      tube(W+16, -18, 4, W+16, -18-steps*20, 4 + steps*11, 3, '#7d838a');
-      tube(W+30, -18, 40, W+30, -18-steps*20, 40 + steps*11, 2.4, '#8d979f');
-      for(let i=0;i<5;i++)
-        tube(W+30, -18-i*36, 8+i*20, W+30, -18-i*36, 42+i*20, 1.6, '#8d979f');
-      box(W+2, W+32, -70, -16, 101, 107, '#a3abb2','#9aa2a9','#8d949a');
-      tube(W+32, -16, 143, W+32, -70, 143, 2.4, '#8d979f');
-      for(let i=0;i<4;i++) tube(W+32, -20-i*16, 107, W+32, -20-i*16, 143, 1.6, '#8d979f');
-      slab(W-14, W+2, 104, 176, -18, -26, trim);
+    T(0, W, -D, 0, H+0.4, '#9a8a9c');                   // roof, over body's pale plate
+    slab(0, W, H, H+12, 4, 0, trim);                    // cornice
+
+    /* ---- the lobby, and the stair inside it ---- */
+    slab(0, W, 0, 130, 4, 0, shade(wall,1.06), null, trim);
+    reveal(14, 118, 24, 112, 40, inner);
+    ctx.save();
+    poly([P(14,0,112),P(118,0,112),P(118,0,24),P(14,0,24)]);
+    ctx.clip();
+    slab(18, 114, 24, 30, -8, -38, shade(floor,.9), null, floor);
+    /* NO STAIR IN THE LOBBY, at Sir's direction. It was doing the job
+       of saying "upstairs", and the upper window now says that on its
+       own by showing a room with depth. A flight of seven treads in a
+       104-wide window is a lot of object for one word. */
+    box(24, 50, -16, -32, 26, 44, '#6a5a6e','#7a6a80','#584a5c');    // a bench
+    box(70, 110, -14, -30, 26, 56, '#584a5c','#6a5a6e','#483c4c');   // the desk
+    F(74, 106, 56, 60, shade(wall,1.24), null, 0, -13.4);
+    F(28, 46, 60, 96, shade(wall,1.2), null, 0, -33.4);              // notices
+    for(let k=0;k<3;k++) F(31, 43, 66+k*10, 74+k*10, shade(wall,.86), null, 0, -33)
+    ctx.restore();
+    glaze(14, 118, 24, 112, null, 'rgba(150,160,176,.34)');
+    for(let k=1;k<3;k++) F(14 + 104*k/3 - 3, 14 + 104*k/3 + 3, 24, 112, shade(wall,.8), null,0, 0.8);
+
+    shopDoor(178, wall, trim);                          // a 144.88..211.12
+
+    /* ---- fascia ---- */
+    slab(0, W, 136, 172, 4, 0, shade(wall,1.14), null, trim);
+    F(24, W-24, 145, 163, trim, null,0, 4.6);
+
+    /* ---- the studio: the mirror and barre run BACK along the side
+       wall, at Sir's direction, the way the Surf shop's boards recede
+       into the shop rather than standing flat across the glass.
+
+       IT IS A DIFFERENT PLANE, and that is the whole point. A mirror on
+       the BACK wall is an F at constant b: it fills the opening and
+       says nothing about the room behind it. A mirror on the SIDE wall
+       is a poly at constant a spanning b -- 96 of it -- and the
+       projection turns that into a plane running away up-right, which
+       is what tells you the studio is a long room rather than a
+       shallow display case.
+
+       The reveal goes to 110 deep to hold it. The clip is in screen-a,
+       so the mirror at a 22 spanning b -8..-104 lands on 30..126 inside
+       an opening of 16..214, and the barre at a 40 on 48..144 -- the
+       far ends of both pass behind the window head, exactly as they
+       would from the street. */
+    slab(8, W-8, 182, 320, 1, -13, shade(wall,1.1), null, trim);
+    reveal(16, W-16, 190, 312, 110, inner);
+    ctx.save();
+    poly([P(16,0,312),P(W-16,0,312),P(W-16,0,190),P(16,0,190)]);
+    ctx.clip();
+    slab(20, W-20, 190, 196, -6, -108, floor, null, shade(floor,1.12));
+    const MA = 22, BA = 40, MB0 = -8, MB1 = -104;
+    poly([P(MA,MB0,196),P(MA,MB1,196),P(MA,MB1,300),P(MA,MB0,300)], '#dce4ec');
+    poly([P(MA,MB0,196),P(MA,MB1,196),P(MA,MB1,201),P(MA,MB0,201)], shade(wall,.7));
+    poly([P(MA,MB0,296),P(MA,MB1,296),P(MA,MB1,300),P(MA,MB0,300)], shade(wall,.7));
+    for(let k=1;k<4;k++){
+      const bb = MB0 + (MB1-MB0)*k/4;
+      poly([P(MA+0.4,bb-2,196),P(MA+0.4,bb+2,196),P(MA+0.4,bb+2,300),P(MA+0.4,bb-2,300)],
+           shade(wall,.8));
     }
+    poly([P(MA+0.8,MB0,238),P(MA+0.8,MB1,238),P(MA+0.8,MB1,296),P(MA+0.8,MB0,296)],
+         'rgba(200,184,200,.26)');
+    tube(BA, MB0, 250, BA, MB1, 250, 2.6, '#8a7a94');                // the barre
+    for(const bb of [MB0-14, (MB0+MB1)/2, MB1+14])
+      tube(MA+1, bb, 250, BA, bb, 250, 2, '#8a7a94');
+    ctx.restore();
+    glaze(16, W-16, 190, 312, null, 'rgba(150,160,176,.30)');
+    for(let k=1;k<5;k++)
+      F(16 + (W-32)*k/5 - 3, 16 + (W-32)*k/5 + 3, 190, 312, shade(wall,.8), null,0, 0.8);
+    F(16, W-16, 248, 254, shade(wall,.8), null,0, 0.8);
+
     if(state.roof) box(W*0.26,W*0.52,-150,-110,H,H+22,'#8f969d','#787f86','#697077');
     kerb(p,'none');
   }
