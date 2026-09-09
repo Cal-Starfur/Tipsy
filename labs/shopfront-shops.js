@@ -8340,50 +8340,125 @@ const SHOPS = [
   }
 },
 {
-  name:'Carpet shop', head:'Rugs draped over a rail across the front',
-  fTodo:'z124..152 return +3, lettering behind board',
-  tags:['hanging rugs','draped cloth','round rail','rolled stock','deep colour'],
-  desc:'The rail is a tube on turned brackets and the rolled stock leans as real cylinders with visible ends, so the only soft thing left is the cloth itself.',
+  name:'Carpet shop', head:'Rugs on a rail above head height, rolled stock behind the glass',
+  tags:['hanging rugs','round rail','rolled stock in the window','deep colour','bare footway'],
+  desc:'The rail runs the full frontage on turned brackets with five rugs over it, hung high enough for a robot to pass under, and the rolled stock stands inside the window instead of on the paving.',
   draw(p){
-    const wall = '#5a3742', trim = '#e0c88a', H = 164, railZ = 116, railB = 30;
-    body(wall, trim, H);
-    slab(0,W, H, H+10, -1, -12, shade(wall,.7));
-    slab(6,W-6, 124, 152, -1, -9, shade(wall,1.2), null, trim);
-    F(20,W-20, 132, 144, trim, null,0,-9.5);
-    F(12,W*0.68, 24, 112, '#2e1d24', shade(wall,.6), 3);
-    shopDoor(W*0.85, wall, trim);
-    F(W*0.78,W-14, 52, 90, '#8a6a74', null,0,-6.5);
-    for(const aa of [10, W*0.5, W-10]){
-      tube(aa, 0, railZ+6, aa, railB, railZ, 3, shade(wall,1.3));
-      ball(aa, railB, railZ, 3.4, shade(wall,1.15));
-    }
-    tube(4, railB, railZ+2, W-4, railB, railZ+2, 2.6, '#8d979f');
+    /* ============ THE RUGS HUNG IN THE ROAD ============
+       The rail sat at z 116 and the rugs dropped 62 to 78 below it, so
+       their hems finished at z 38 -- which is 57 game units, against a
+       robot whose flag clears at 97. Tipsy drove through the stock.
+
+       Nothing in this file catches that, and it is worth naming as its
+       own class: not a lapping prop, not a wrong sign of b, but a
+       HEADROOM fault -- something hung over the footway low enough to
+       hit. The Playhouse marquee and the tea house lanterns were both
+       checked against the flag when they went in; this was not, because
+       it hangs off a rail rather than standing on the ground and the
+       prop census only ever looks at things with their feet down.
+
+       The rail goes to 146 and the rugs drop 28 to 34, so the hems are
+       at 112 -- 168 game units, clear by 71. H 164 -> 216 to give the
+       fascia somewhere to go above them.
+
+       THREE ROLLS ON THE NEIGHBOUR, AND NO cTodo. They were at
+       a = W + 18, +33 and +48, so 248 to 286 on a shop 230 wide, and
+       this entry carried only fTodo because the rolls are tube() and
+       the prop census counts cyl, box and plateCircle. Fifth census gap
+       of the session. They stand in the window now.
+
+       A WINDOW WAS DRAWN ACROSS THE DOOR, nineteenth consecutive shop.
+       F(W*0.78, W-14, 52, 90) ran a 179.4..216 against an opening at
+       158.8..225. And the window was a flat panel, nineteenth: F(12,
+       W*0.68, 24, 112) with a stroke round it and nothing behind.
+
+       fTodo: slab(6, W-6, 124, 152, -1, -9) put its far end on screen-a
+       233 against a return at 230, with the lettering at -9.5 behind
+       the board's own -9 backing. */
+    /* FOUR RUGS, NOT FIVE, AND A SHALLOWER DROP. At five across a 218
+       run each was 43.6 wide and hung 40..48 -- and z projects at 1.5,
+       so they came out 60 tall on screen against 44 wide. That is a
+       banner, not a rug. Four at 54.5 wide dropping 28 read 42 by 54,
+       which is the way round a rug goes.
+
+       The rail also had to come up. At 130 the hems finished at 86 and
+       covered the top of the window behind them; at 146 they stop at
+       112 against a window head of 106, so the stock inside is still
+       visible under the stock outside. */
+    const wall = '#5a3742', trim = '#e0c88a', H = 216, railZ = 146, railB = 26;
+    const inner = '#241219';
     const cols = ['#a83a3a','#2f5f6b','#c9922f','#6b4a7a','#3f6b4a'];
-    for(let i=0;i<5;i++){
-      const x0 = 6 + (W-12)*i/5, x1 = 6 + (W-12)*(i+1)/5, drop = 62 + (i%2)*16;
-      poly([P(x0,railB-1,railZ),P(x1,railB-1,railZ),P(x1,0,railZ+6),P(x0,0,railZ+6)], shade(cols[i],1.2));
-      ctx.beginPath();
-      const tl=P(x0,railB-1,railZ), tr=P(x1,railB-1,railZ);
-      const bl=P(x0,railB-1,railZ-drop), br=P(x1,railB-1,railZ-drop);
-      const mid=P((x0+x1)/2,railB-1,railZ-drop-11);
-      ctx.moveTo(tl.x,tl.y); ctx.lineTo(tr.x,tr.y); ctx.lineTo(br.x,br.y);
-      ctx.quadraticCurveTo(mid.x,mid.y,bl.x,bl.y);
-      ctx.closePath(); ctx.fillStyle=cols[i]; ctx.fill();
-      ctx.strokeStyle=shade(cols[i],.72); ctx.lineWidth=2; ctx.stroke();
-      for(const zz of [railZ-8, railZ-drop+12]){
-        const q0=P(x0+8,railB-2,zz), q1=P(x1-8,railB-2,zz);
-        ctx.strokeStyle=shade(cols[i],1.35); ctx.lineWidth=4;
-        ctx.beginPath(); ctx.moveTo(q0.x,q0.y); ctx.lineTo(q1.x,q1.y); ctx.stroke();
+    body(wall, trim, H);
+    T(0, W, -D, 0, H+0.4, '#3d252d');                   // roof, over body's pale plate
+    slab(0, W, H, H+10, 4, 0, shade(wall,.7));          // cornice
+
+    /* ---- one shopfront band, both openings cut out of it ---- */
+    slab(0, W, 0, 120, 4, 0, shade(wall,1.12), null, trim);
+    reveal(14, 118, 24, 106, 30, inner);
+    ctx.save();
+    poly([P(14,0,106),P(118,0,106),P(118,0,24),P(14,0,24)]);
+    ctx.clip();
+    slab(18, 114, 24, 30, -8, -28, shade(wall,.86), null, shade(wall,1.0));
+    /* the rolled stock, leaning against the back. At b -20 a roll of
+       r 9 needs a between 43 and 89 inside an opening of 14..118, which
+       is the Pottery's rule: the opening minus twice the depth of what
+       stands in it. */
+    for(let i=0;i<4;i++){
+      const ra = 46 + i*14, col = cols[i%5];
+      tube(ra, -20, 30, ra + 6, -20, 98, 9, col);
+      plateCircle(ra + 6, -20, 98, 9, shade(col,1.25), shade(col,.7), 1.4);
+    }
+    for(let i=0;i<3;i++){                               // a stack of folded rugs
+      const fz = 30 + i*11, col = cols[(i+2)%5];
+      box(76, 110, -14, -26, fz, fz+9, shade(col,1.15), col, shade(col,.75));
+    }
+    ctx.restore();
+    glaze(14, 118, 24, 106, null, 'rgba(140,110,124,.34)');
+    for(let k=1;k<3;k++) F(14 + 104*k/3 - 3, 14 + 104*k/3 + 3, 24, 106, shade(wall,1.2), null,0, 0.8);
+
+    shopDoor(178, wall, trim);                          // a 144.88..211.12
+
+    /* ---- the rail, and the rugs over it ----
+       Brackets on 12, 115 and 218, and the rail from a 4 to W-4 at
+       b 26. Full width and attached along its length, so it takes the
+       same licence the cornice does; it is the HEMS that had to be
+       argued, not the rail. */
+    for(const aa of [12, 115, 218]){
+      tube(aa, 0, railZ+8, aa, railB, railZ, 3, shade(wall,1.3));
+      ball(aa, railB, railZ, 3.6, shade(wall,1.15));
+    }
+    tube(4, railB, railZ+2, W-4, railB, railZ+2, 2.8, '#8d979f');
+    for(let i=0;i<4;i++){
+      const x0 = 6 + (W-12)*i/4, x1 = 6 + (W-12)*(i+1)/4, drop = 28 + (i%2)*6;
+      poly([P(x0,railB-1,railZ),P(x1,railB-1,railZ),P(x1,0,railZ+8),P(x0,0,railZ+8)],
+           shade(cols[i],1.2));
+      const N = 8, top = [], bot = [];
+      for(let k=0;k<=N;k++){
+        const t = k/N, xx = x0 + (x1-x0)*t;
+        top.push(P(xx, railB-1, railZ));
+        bot.push(P(xx, railB-1, railZ - drop - 7*Math.sin(Math.PI*t)));
+      }
+      poly(top.concat(bot.reverse()), cols[i], shade(cols[i],.7), 1.6);
+      for(const off of [8, drop - 6]){
+        const band = [], back = [];
+        for(let k=0;k<=N;k++){
+          const t = k/N, xx = x0 + 8 + (x1-x0-16)*t;
+          const zz = railZ - off - 7*Math.sin(Math.PI*t)*(off/drop);
+          band.push(P(xx, railB-2, zz)); back.push(P(xx, railB-2, zz-4));
+        }
+        poly(band.concat(back.reverse()), shade(cols[i],1.35));
       }
     }
-    if(state.props){
-      for(let i=0;i<3;i++){
-        const ra = W+18+i*15, col = cols[(i+1)%5];
-        tube(ra, 30, 4, ra + 7, 52, 96, 8, col);
-        ball(ra + 7, 52, 96, 8, shade(col,1.18));
-      }
+
+    /* ---- fascia, above the rugs ---- */
+    slab(0, W, 162, 196, 4, 0, shade(wall,1.2), null, trim);
+    F(24, W-24, 170, 188, trim, null,0, 4.6);
+
+    if(state.roof){
+      box(W*0.30, W*0.58, -150, -100, H, H+24, '#8f969d','#787f86','#697077');
+      cyl(W*0.38, -125, H+24, H+32, 15, '#7d838a');
+      plateCircle(W*0.38, -125, H+32, 15, '#a8aeb4', '#6a7076', 2);
     }
-    if(state.roof) box(W*0.30,W*0.56,-140,-100,H,H+20,'#8f969d','#787f86','#697077');
     kerb(p,'none');
   }
 },
