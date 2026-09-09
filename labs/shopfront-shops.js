@@ -6675,47 +6675,216 @@ const SHOPS = [
   }
 },
 {
-  name:'Fabric shop', head:'Bolt racks outside, twin awnings, hanging rolls',
-  fTodo:'z128..150 return +1, lettering behind board',
-  tags:['rolled bolts','two-tier awnings','hanging rolls','pattern blocks','busy colour'],
-  desc:'Both the hanging rolls and the bolts on the pavement are cylinders with visible ends, and each awning tier has an underside and returns so they stack as two real hoods.',
+  name:'Fabric shop', head:'One deep awning, bolt ends and rolls behind the glass',
+  tags:['deep window awning','rolls hanging in the window','bolt ends on shelves','clear doorway','no pavement props'],
+  desc:'One real awning hood with an underside and returns over a deep window of shelved bolt ends and hanging rolls. Nothing on the footway and nothing over the door.',
   draw(p){
+    /* ============ FIVE BOLTS ON THE NEIGHBOUR, AND THE CENSUS
+                    NEVER SAW THEM ============
+       The leaning bolts were written at a = W + 12 + i*15, so 242, 257,
+       272, 287 and 302 on a frontage of 230 -- the nearest one twelve
+       units past the return and the furthest seventy-two. Five solids,
+       none of them on this shop's ground.
+
+       AND THIS ENTRY CARRIED NO cTodo AT ALL. Every other shop with
+       props on the footway has the flag; this one has only fTodo, and
+       the reason is that the bolts are built from tube() and ball()
+       while the prop census counts cyl, box and plateCircle. So the
+       count in every cTodo in this file is a floor, not a total, and a
+       shop with no cTodo is not the same as a shop with nothing on the
+       pavement. Worth a re-run with tube and ball added before anyone
+       trusts the numbers.
+
+       They stay, because "bolt racks outside" is what this shop is --
+       but on its own ground. Each leans to b 52 with a radius of 6, so
+       it needs a between 58 and 172; the five sit on 60 to 140, under
+       the window hood rather than out past the end of it.
+
+       THE HANGING ROLLS WERE AT b -30, thirty units inside the masonry,
+       suspended from a rail that was also inside it. Ninth time this
+       session. They hang in the window now, which is where a fabric
+       shop hangs them and where they cost nothing to walk past.
+
+       A WINDOW WAS DRAWN ACROSS THE DOOR, tenth consecutive shop.
+       F(W*0.78, W-14, 50, 88) ran a 179.4..216 against an opening at
+       158.8..225.
+
+       THE WINDOW WAS A FLAT PANEL with the pattern blocks painted at
+       b -1 on the back of it. It is a real recess with the bolt ends
+       stacked on shelves inside.
+
+       fTodo: slab(8, W-8, 128, 150, -1, -9) put its far end on screen-a
+       231 against a return at 230, and the lettering sat at -9.5 behind
+       the board's own -9 backing.
+
+       AND THE AWNINGS SET THE ELEVATION. A hood reaching b 34 has to
+       clear Tipsy, whose flag is 97 game units -- 65
+       local. The hood's underside is at z 92, which is 138, so a robot
+       passes under it with 41 to spare; that is what fixed the window
+       head at 98 and the fascia at 130 rather than the other way
+       round. */
     const wall = '#7a4a6b', trim = '#f0e2d0', H = 158;
+    const inner = '#3a2434';
+    const cloth = ['#e8a13a','#4aa8c4','#c2452e','#7ac48a','#f0e2d0','#e2748c'];
     body(wall, trim, H);
-    slab(0,W, H, H+10, -1, -12, trim);
-    slab(8,W-8, 128, 150, -1, -9, shade(wall,1.25), null, trim);
-    F(20,W-20, 134, 145, trim, null,0,-9.5);
-    F(10,W*0.68, 24, 100, '#4a2e42', shade(wall,.6), 3);
-    for(let r=0;r<3;r++) for(let c=0;c<5;c++)
-      F(16+c*((W*0.62-16)/5), 16+(c+0.82)*((W*0.62-16)/5), 30+r*24, 48+r*24,
-        ['#e8a13a','#4aa8c4','#c2452e','#7ac48a','#f0e2d0','#e2748c'][(r*5+c)%6], null,0,-1);
-    shopDoor(W*0.86, wall, trim);
-    F(W*0.78,W-14, 50, 88, '#8f7a8c', null,0,-6.5);
-    for(let t=0;t<2;t++){
-      const z1 = 124 - t*30, z0 = z1 - 16, out = 26 + t*12, base = ['#c2452e','#4aa8c4'][t];
-      for(let i=0;i<7;i++){
-        const x0=6+(W-12)*i/7, x1=6+(W-12)*(i+1)/7;
-        poly([P(x0,0,z1),P(x1,0,z1),P(x1,out,z0),P(x0,out,z0)], i%2 ? trim : base);
+    T(0, W, -D, 0, H+0.4, '#4a2e42');                   // roof, over body's pale plate
+    slab(0, W, H, H+10, 4, 0, trim);                    // cornice, on the band's face
+    /* NO PLINTH. There was a full-width band at z 0..20 in
+       shade(wall,.72), and once the shopfront became one band running
+       to the ground it had nothing left to do -- it showed as a dark
+       stub at each end with a return block on the corner, a base course
+       that started and stopped for no reason a person could see. Now
+       that the band itself runs 0..W it is covered along its whole
+       length. The band IS the base treatment. */
+
+    /* ---- ONE SHOPFRONT BAND, WITH BOTH OPENINGS CUT OUT OF IT ----
+       The door was hanging off the corner and the reason is the margin
+       rule at the head of this file, which I broke twice on one
+       elevation. A recessed slab's back face lands on screen-a
+       a1 + |bBack|, so at b 2..-12 it needs 18 of margin; the door case
+       had 6 and came out on 236 against a return at 230, and the window
+       case had 4. Six units of doorway standing on the neighbour, which
+       is exactly what it looked like.
+
+       And two separate cases with a pier between them was the wrong
+       shape anyway -- five stacked horizontal bands on a 158 wall,
+       every one with its own numbers. One band, with the window recess
+       and shopDoor's opening cut through it, is one set of numbers, and
+       the pier between the openings is simply the part of the band
+       neither of them took.
+
+       AND IT RUNS THE FULL WIDTH, at Sir's direction, rather than being
+       inset to satisfy the margin rule. That is the right call and the
+       precedent is at the head of this file: a CORNICE may wrap a
+       corner, because on a terrace it runs to the party wall and meets
+       its neighbour's. A shopfront band is the same thing at the other
+       end of the elevation -- a real one runs wall to wall too, and
+       inset to a 18..212 it read as a panel stuck on the front rather
+       than as the shop. So it takes the cornice's licence: 0..W, back
+       face on screen-a 240, wrapping by 10 exactly as the cornice above
+       it wraps by 12.
+
+       The margin rule is not repealed by this. It applies to boards and
+       cases that stop short of the return -- a fascia, a doorcase, a
+       window surround -- where a back face landing past the corner is
+       an object hanging off the building. A band that is MEANT to reach
+       the corner has nothing to hang off. The test is whether the
+       element is bounded by the frontage or by the terrace. */
+    slab(0, W, 0, 122, 4, 0, shade(wall,1.2), null, trim);
+    reveal(16, 126, 22, 102, 26, inner);
+    ctx.save();
+    poly([P(16,0,102),P(126,0,102),P(126,0,22),P(16,0,22)]);
+    ctx.clip();
+    for(let r=0;r<3;r++){
+      const sz = 30 + r*24;
+      slab(20, 122, sz-4, sz, -8, -26, shade(wall,.86), null, shade(wall,1.02));
+      for(let c=0;c<5;c++){                             // bolt ends on the shelf
+        const ba = 30 + c*21;
+        cyl(ba, -14, sz, sz+18, 9, cloth[(r*5+c)%6]);
+        plateCircle(ba, -14, sz+18, 8, shade(cloth[(r*5+c)%6],1.2));
       }
-      poly([P(6,0,z1-8),P(W-6,0,z1-8),P(W-6,out,z0-8),P(6,out,z0-8)], shade(base,.6));
-      poly([P(6,out,z0),P(W-6,out,z0),P(W-6,out,z0-8),P(6,out,z0-8)], shade(base,.8));
-      poly([P(6,0,z1),P(6,out,z0),P(6,out,z0-8),P(6,0,z1-8)], shade(base,.55));
-      poly([P(W-6,0,z1),P(W-6,out,z0),P(W-6,out,z0-8),P(W-6,0,z1-8)], shade(base,.55));
     }
-    if(state.props){
-      for(let i=0;i<4;i++){
-        const ra = W*0.12 + i*W*0.20, col = ['#e8a13a','#4aa8c4','#e2748c','#7ac48a'][i];
-        tube(ra, -30, 126, ra, -30, 122, 0.9, '#8d979f');
-        cyl(ra, -30, 60, 122, 7, col);
-        plateCircle(ra, -30, 60, 7, shade(col,.75));
-      }
-      for(let i=0;i<5;i++){
-        const ba = W+12+i*15, col = ['#c2452e','#e8a13a','#4aa8c4','#7ac48a','#e2748c'][i];
-        const lean = 12;
-        tube(ba, 26, 0, ba - lean*0.2, 52, 74, 6, col);
-        ball(ba - lean*0.2, 52, 74, 6, shade(col,1.15));
-      }
+    for(let i=0;i<4;i++){                               // rolls hanging from the head
+      const ra = 34 + i*24;
+      tube(ra, -20, 100, ra, -20, 96, 0.9, '#8d979f');
+      cyl(ra, -20, 44, 96, 7, cloth[(i+2)%6]);
+      plateCircle(ra, -20, 44, 6, shade(cloth[(i+2)%6],.75));
     }
+    ctx.restore();
+    glaze(16, 126, 22, 102, null, 'rgba(150,120,146,.34)');
+    for(let k=1;k<4;k++) F(16 + 110*k/4 - 3, 16 + 110*k/4 + 3, 22, 102, shade(wall,1.25), null,0, 0.8);
+
+    /* ---- THE DOORCASE IS ONE CASED OPENING, LIKE THE WINDOW'S ----
+       It was three separate pieces -- two jambs at a 144..152 and
+       215..223 and a lintel across the top -- laid over a doorway whose
+       own surround already runs 146.9..221.1. So there were two frames
+       on one opening, the outer one overlapping the inner by five on
+       each side, and the jambs started at z 18 with the plinth below
+       them, floating. It read as a pale block with a door sunk in it.
+
+       The window is cased with a single slab that shopDoor's opening
+       then cuts out of, and the door gets the same treatment: one slab,
+       drawn BEFORE the door so the door paints its own opening through
+       it. Centred, so the margins come out even -- 9.9 either side and
+       12 above -- which is what the three-piece version could not do,
+       because its numbers were set by the pieces rather than by the
+       opening -- and it is the same band the window sits in, so the two
+       cannot drift apart. */
+    shopDoor(178, wall, trim);                          // a 144.88..211.12
+
+    /* ---- fascia ----
+       THE THREE BANDS NOW SHARE ONE FACE AND ONE WIDTH. The shopfront
+       ran 0..W and stood 2 proud; the fascia was inset 15 and recessed
+       to -1, and the cornice was recessed too. So at the corner the
+       three stopped in three different places at three different
+       depths, and the return read as a set of ledges rather than as the
+       edge of a building.
+
+       All three are b 4..0 across 0..W now, stacked with a 6 reveal
+       between them: shopfront 0..122, fascia 128..152, cornice 158..168.
+
+       AND bBack IS 0, WHICH IS THE PART THAT WAS ACTUALLY WRONG. At
+       2..-10 each band was a twelve-deep solid of which ten sat inside
+       the masonry, invisible -- except at the return, where slab() drew
+       its end face at a = W spanning the full twelve. That face is
+       coplanar with the side wall and a different colour, so it painted
+       a cream patch onto the flank: a band that appeared to carry on
+       round the corner for twelve units and then stop in mid-air. The
+       buried ten did no work anywhere else and only that harm. With the
+       back flush at 0 and the projection at 4, each band is a real 4
+       proud of the wall, its end at the corner is 4 deep, and nothing
+       lands on the return at all.
+
+       The lettering moves with the face it sits on: proud of a fascia
+       at -1 it was -0.5, and proud of one at +4 it is 4.6. Same rule
+       this session has caught eleven times in the other direction --
+       change a face's depth and everything painted on it is silently
+       orphaned, with no error, only a thing that vanishes. */
+    slab(0, W, 128, 152, 4, 0, shade(wall,1.25), null, trim);
+    F(28, W-28, 133, 147, trim, null,0, 4.6);
+
+    /* ---- TWIN AWNINGS, SIDE BY SIDE -- WHICH IS WHAT "TWIN" MEANT ----
+       They were stacked: two full-width hoods reaching b 26 and b 38,
+       one 22 above the other, and between them they covered the entire
+       shopfront. The window was visible below z 81 and the fascia not at
+       all -- a wall of canvas with a shop somewhere behind it. The head
+       said "twin awnings" and a twin pair is two blinds beside each
+       other, one over the window and one over the door, not one blind
+       on top of another.
+
+       AND THEN THE DOOR ONE WENT TOO, at Sir's direction: nothing over
+       the door. It is the right call on this shop for the reason the
+       whole session keeps running into -- a doorway is the one part of
+       a frontage a robot has to find, and anything hung over it is
+       something to look past. The entrance now has jambs and a lintel
+       and clear air above.
+
+       The window hood heads at 116, so the fascia at 130 clears it. It
+       reaches b 34, which puts its near edge on screen where the wall
+       is at z 88.7, so two thirds of the window shows under it; and its
+       underside at z 92 is 138 game units against Tipsy's flag at 97. */
+    for(const [x0, x1, out, base] of [[12, 132, 34, '#c2452e']]){
+      const z1 = 118, z0 = z1 - 16, n = Math.max(3, Math.round((x1-x0)/16));
+      for(let i=0;i<n;i++){
+        const s0=x0+(x1-x0)*i/n, s1=x0+(x1-x0)*(i+1)/n;
+        poly([P(s0,0,z1),P(s1,0,z1),P(s1,out,z0),P(s0,out,z0)], i%2 ? trim : base);
+      }
+      poly([P(x0,0,z1-8),P(x1,0,z1-8),P(x1,out,z0-8),P(x0,out,z0-8)], shade(base,.6));
+      poly([P(x0,out,z0),P(x1,out,z0),P(x1,out,z0-8),P(x0,out,z0-8)], shade(base,.8));
+      for(const ea of [x0, x1])
+        poly([P(ea,0,z1),P(ea,out,z0),P(ea,out,z0-8),P(ea,0,z1-8)], shade(base,.55));
+    }
+
+    /* THE BOLTS ARE GONE, at Sir's direction, and cTodo with them.
+       They had been brought back onto this shop's own ground -- each
+       leaning to b 52 with a radius of 6 needs a between 58 and 172,
+       and the five sat on 60 to 140 -- but that only made them legal,
+       not wanted. Five poles leaning into the footway are five things
+       to hit, and the stock reads through the window. Fourth shop this
+       session where the answer to "these props need collision volumes"
+       turned out to be "these props do not need to exist", after the
+       nursery's fence, the playhouse's poster columns and the antiques
+       forecourt. */
     if(state.roof) box(W*0.32,W*0.58,-140,-100,H,H+20,'#8f969d','#787f86','#697077');
     kerb(p,'none');
   }
