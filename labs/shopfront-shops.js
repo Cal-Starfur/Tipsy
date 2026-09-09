@@ -7005,41 +7005,138 @@ const SHOPS = [
   }
 },
 {
-  name:'Chandlery', head:'Mast and rigging on the roof, anchor sign',
-  fTodo:'z112..140 return +3, lettering behind board',
-  tags:['stepped mast','rigging lines','porthole windows','coiled rope','tarred timber'],
-  desc:'The mast is a tapered cylinder on a deck block with a yard across it, the portholes are circles in the wall plane with real rims, and the rope coils lie flat on the pavement.',
+  name:'Chandlery', place:'waterfront',
+  pTodo:'waterfront only -- the chooser places by block type, not by where a trade belongs',
+  head:'Three portholes, anchor on the boarding, mast on the roof',
+  tags:['waterfront only','round portholes','stepped mast','rigging lines','anchor sign','tarred boarding'],
+  desc:'The portholes are round in the world rather than stretched by ZSCALE, and they are the shop\'s glazing rather than decoration painted inside a flat panel. The anchor stands proud of the boarding, and nothing is on the footway or over the door.',
   draw(p){
-    const wall = '#2b3f4a', trim = '#c9b48e', H = 160;
+    /* ============ WATERFRONT ONLY, AND THE FILE HAD NO WAY TO SAY SO
+       A chandler is a ship chandler: the shop on the quay that sells a
+       vessel its rope, canvas, tar, blocks, lamps, paint and charts.
+       It is not a shop the public browses, it is the one a skipper
+       visits before sailing, and it exists because the water is there.
+       Dropped into an inland commercial run it is a mast and a set of
+       portholes on a street with no boats.
+
+       So `place: 'waterfront'` is a new field, and pTodo is a new flag,
+       because nothing in this file could previously say WHERE a shop
+       belongs -- only how wide it is, how tall, and what it owes the
+       collision pass. buildBlocks picks housing / park / commercial per
+       block and the chooser takes any body from the matching list; it
+       has no notion that some trades are tied to a feature of the map.
+       Until the waterfront geometry lands there is nowhere to honour
+       this, which is exactly what pTodo records.
+
+       THE FISHMONGER IS THE OTHER ONE, and it is already polished, so
+       this wants a sweep rather than a note on one shop: any trade
+       whose reason for existing is the water. Worth deciding at the
+       same time whether `place` should also cover the inverse -- a
+       trade that must NOT be on the waterfront -- because a one-value
+       field will not stretch to that later.
+
+       ============ ROUND THINGS THAT WERE NOT ROUND, AGAIN ===========
+       faceCircle(a, b, z, r) draws radius r in a AND in z, and z is
+       multiplied by ZSCALE. The portholes were written at r 15 and came
+       out 30 wide by 45 tall -- an oval porthole, which is a thing that
+       does not exist. Eighth instance after the chemist cross, the
+       Locksmith key bow, the TV dish, the Optician's spectacles, the
+       Bike shop's wheels, the Clockmaker's dial and the Music shop's
+       guitar bouts.
+
+       AND THEY WERE INSIDE THE WALL, at b -3, painted on the back of a
+       flat panel that was itself standing in for a window. So the shop
+       had no glazing at all: a dark rectangle with three ovals drawn
+       behind it. The portholes ARE the glazing now -- rim, glass and a
+       lit interior, cut into the shopfront band -- which is what a
+       chandlery has instead of a plate-glass window.
+
+       THE ANCHOR WAS AT b -6, six units into the masonry. Eleventh time
+       this session something has been found at the wrong sign of b.
+
+       A WINDOW WAS DRAWN ACROSS THE DOOR, twelfth consecutive shop.
+       F(W*0.70, W-14, 52, 90) ran a 161..216 against an opening that
+       shopDoor had clamped to 157.8..224.
+
+       TWO ROPE COILS ON THE NEIGHBOUR, AND NO cTodo TO SAY SO. They
+       were at a = W + 18 and W + 54, eighteen and fifty-four past the
+       return -- and this entry carried only fTodo, because the coils
+       are plateHoop and the prop census counts cyl, box and
+       plateCircle. Second shop today with unflagged pavement props the
+       census cannot see, after the Fabric shop's tube-and-ball bolts.
+       plateHoop belongs on that list too. They are gone rather than
+       moved: nothing on the footway.
+
+       fTodo: slab(6, W-6, 112, 140, -1, -9) put its far end on screen-a
+       233 against a return at 230, and the lettering sat at -9.5 behind
+       the board's own -9 backing.
+
+       H 160 -> 200 so the anchor has a wall to stand on. The boarding
+       runs above the fascia rather than behind the shopfront, which is
+       where it was: F(0, W, 12 + i*20, ...) at b -1 ran the full height
+       of the elevation and everything else was drawn over it. */
+    const wall = '#2b3f4a', trim = '#c9b48e', H = 200;
+    const inner = '#111d24';
     body(wall, trim, H);
-    slab(0,W, H, H+10, -1, -12, trim);
-    for(let i=0;i<7;i++) F(0,W, 12+i*20, 15+i*20, shade(wall,1.15), null,0,-1);
-    F(12,W*0.60, 26, 104, '#3f5a68', shade(wall,1.4), 3);
-    for(let i=0;i<3;i++){
-      const pa = 28+i*40;
-      faceCircle(pa, -3, 66, 15, trim, shade(trim,.7), 2.5);
-      faceCircle(pa, -3.5, 66, 11, '#7fa8b8');
-      for(let k=0;k<4;k++) faceCircle(pa + 13*Math.cos(k*1.57), -3.6, 66 + 13*Math.sin(k*1.57), 1.6, shade(trim,.65));
-    }
-    shopDoor(W*0.83, wall, trim);
-    F(W*0.70,W-14, 52, 90, '#7fa8b8', null,0,-6.5);
-    slab(6,W-6, 112, 140, -1, -9, shade(wall,1.25), null, trim);
-    F(18,W-18, 120, 132, trim, null,0,-9.5);
-    // anchor, built from tubes and a ring
-    const aa = W*0.86, ab = -6, az = 124;
-    tube(aa, ab, az-18, aa, ab, az+16, 4, trim);
-    tube(aa-13, ab, az-8, aa+13, ab, az-8, 3.4, trim);
-    faceCircle(aa, ab, az+20, 5, null, trim, 3.5);
-    faceT(aa, ab-0.4, az+2, 15);
-    ctx.strokeStyle=trim; ctx.lineWidth=4/(15*K);
-    ctx.beginPath(); ctx.arc(0,0,1,0.5,2.64); ctx.stroke();
-    ctx.restore();
-    if(state.props){
-      for(let i=0;i<2;i++){
-        const ra = W+18+i*36, rb = 30;
-        for(let k=0;k<3;k++) plateHoop(ra, rb, 2+k*3, 16-k*4, '#b8a880', 3);
+    T(0, W, -D, 0, H+0.4, '#1b2a33');                   // roof, over body's pale plate
+    slab(0, W, H, H+10, 4, 0, trim);                    // cornice
+
+    /* ---- one shopfront band, portholes and the door cut out of it ---- */
+    slab(0, W, 0, 108, 4, 0, shade(wall,1.2), null, trim);
+    const ring = (a, b, z, r, n) => { const q = [];
+      for(let i=0;i<(n||30);i++){ const t = Math.PI*2*i/(n||30);
+        q.push(P(a + r*Math.cos(t), b, z + r*Math.sin(t)/ZSCALE)); }
+      return q; };
+    /* THREE PORTHOLES, AND THE SPACING IS THE DOOR'S. shopDoor puts its
+       opening on 144.9..211.1 with a surround from 140.9, so the last
+       porthole plus its rim has to finish before that: at r 18 on a 116
+       it reaches 136, clear by 5. */
+    for(const pa of [28, 72, 116]){
+      /* THE BACKING HAS TO STAY BEHIND THE RIM, and how far back it can
+         sit is set by how wide it is: at b -10 with r 17 it shifts 10 on
+         screen and reaches pa + 27 against a rim ending at pa + 21, so
+         it showed as a dark crescent outside the porthole on one side.
+         r 16 at b -4 reaches pa + 20 and is covered. */
+      poly(ring(pa, -4, 60, 16), inner);                               // the shop behind it
+      cyl(pa, -3, 46, 56, 4.5, '#8a7a58');                             // a lamp on the sill
+      poly(ring(pa, -2.6, 58, 5), '#f0e2b4');
+      poly(ring(pa, 0.4, 60, 17), 'rgba(150,196,214,.46)');            // glass
+      poly([P(pa-11,0.7,66),P(pa-1,0.7,69),P(pa+4,0.7,63),P(pa-6,0.7,60)],
+           'rgba(255,255,255,.22)');
+      poly(ring(pa, 2, 60, 21), trim);                                 // rim
+      poly(ring(pa, 2.3, 60, 17.5), shade(trim,.62));
+      for(let k=0;k<6;k++){                                            // rim bolts
+        const t = k*Math.PI/3;
+        poly(ring(pa + 19*Math.cos(t), 2.6, 60 + 19*Math.sin(t)/ZSCALE, 1.6, 10), shade(trim,.55));
       }
     }
+    shopDoor(178, wall, trim);                          // a 144.88..211.12
+
+    /* ---- fascia ---- */
+    slab(0, W, 114, 138, 4, 0, shade(wall,1.25), null, trim);
+    F(24, W-24, 119, 133, trim, null,0, 4.6);
+
+    /* ---- tarred boarding, above the fascia and ON the wall ---- */
+    for(let i=0;i<5;i++) F(0, W, 144+i*11, 147+i*11, shade(wall,1.12), null,0, 0.4);
+
+    /* ---- the anchor, standing proud of the boarding ----
+       At b 5 the flukes span a 102..128, so screen-a 97..123 here and
+       107..133 on the mirrored heading -- well inside 0..230 both ways,
+       and clear of the door in a, which is the check this session has
+       failed on twelve consecutive shops. */
+    {
+      const aa = 115, ab = 5, az = 174;
+      tube(aa, ab, az-22, aa, ab, az+16, 4, trim);                     // shank
+      tube(aa-13, ab, az-6, aa+13, ab, az-6, 3.4, trim);               // stock
+      poly(ring(aa, ab, az+20, 6), trim);                              // ring
+      poly(ring(aa, ab+0.3, az+20, 3.4), shade(wall,1.12));
+      for(const s of [-1, 1]){                                         // the two flukes
+        const t0 = P(aa, ab, az-22), t1 = P(aa + s*13, ab, az-8),
+              t2 = P(aa + s*15, ab, az-14), t3 = P(aa, ab, az-30);
+        poly([t0, t1, t2, t3], trim, shade(trim,.7), 1.6);
+      }
+    }
+
     if(state.roof){
       const ma = W*0.44, mb = -70;
       box(ma-14, ma+14, mb-14, mb+14, H+10, H+18, '#8a7a58','#9a8a66','#786a4c');
