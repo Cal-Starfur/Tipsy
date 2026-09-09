@@ -9389,49 +9389,195 @@ const SHOPS = [
   }
 },
 {
-  name:'Model shop', head:'Biplane on a bracket, kites, tiny windows',
-  fTodo:'z120..148 return +3, lettering behind board',
-  tags:['biplane as a solid','kites in plane','small display panes','busy fascia','bright'],
-  desc:'The biplane is built from a fuselage cylinder, two wing slabs, struts and a tail, banking on its bracket, and the kites hang in their own planes.',
+  name:'Model shop', head:'Biplane on a bracket, kites in the window, glazing-bar grid',
+  tags:['biplane as one extruded solid','banked wings','kites behind the glass','glazing bar grid','bright'],
+  desc:'The biplane is one extruded outline -- nose taper, cockpit notch, headrest and fin all cut from the same loop -- hung from a bracket that actually reaches the top wing, holding a bank, with the far wing halves, struts and tailplane drawn before the body and the near halves after it. The kites hang inside the window recess where the stock lives, and the tiny panes are glazing bars in front of one real sheet rather than fifteen painted rectangles.',
   draw(p){
-    const wall = '#2f5f8a', trim = '#f0e2c0', H = 160;
+    /* ================= WHAT WAS WRONG =================
+       Twelve faults, and the two that mattered most were both openings.
+
+       A WINDOW ACROSS THE DOOR, instance 22. F(W*0.80, W-14, 52, 90) ran
+       a 184..216 against an opening at 158.76..225 -- shopDoor clamps
+       W*0.86 = 197.8 down to 191.88 -- so a pale blue panel sat over the
+       middle of the doorway, at b -6.5, behind the wall it was painted
+       on. Gone. A 230 frontage has room for one window and it already
+       had one.
+
+       AND THE TWO OPENINGS TOUCHED. Display window to a 161 against a
+       door surround starting at mid - 37.12 = 154.76: a 6.2 overlap
+       where a pier belongs. Set out again as
+         12 pier | 118 window | 12 pier | 74.24 door | 13.76 pier
+       which puts the door mid on 179.12 -- inside the clamp, so the
+       number in the call is the number on the wall.
+
+       THE WINDOW WAS A FLAT RECTANGLE with fifteen opaque rectangles
+       painted on it, and the fifteen died under a depth key anyway: the
+       pane slab ran b -1..-5 and the model inside it sat at -5.5, deeper
+       than the pane's own back face and inset 3 within it, so a + b + z
+       paints the model first and the opaque front covers it. One real
+       recess now, one real sheet, and the tiny panes are glazing bars
+       standing at b 1 in FRONT of the glass, which is what a glazing bar
+       is.
+
+       THE KITES WERE INSIDE THE MASONRY, instance 17: kb -8, -11, -14
+       with no hole in the wall to be inside of, and z 114..142 laid them
+       across the fascia band with the third one over the door surround.
+       Negative b is only legal behind an opening, so they hang in the
+       recess -- which is also where a model shop's kites would be. */
+    const wall = '#2f5f8a', trim = '#f0e2c0', iron = '#8d979f', H = 160;
+    const zk = 1/ZSCALE;
     body(wall, trim, H);
     slab(0,W, H, H+10, -1, -12, trim);
-    slab(6,W-6, 120, 148, -1, -9, shade(wall,1.25), null, trim);
-    F(20,W-20, 128, 140, trim, null,0,-9.5);
-    F(10,W*0.70, 22, 108, '#1e3f5a', shade(wall,.6), 3);
-    for(let r=0;r<3;r++) for(let c=0;c<5;c++){
-      const x0 = 16+(W*0.64-16)*(c+0.06)/5, x1 = 16+(W*0.64-16)*(c+0.94)/5, z0 = 28+r*26;
-      slab(x0,x1, z0, z0+20, -1, -5, '#7fb0c8');
-      F(x0+3,x1-3, z0+3, z0+17, ['#c2452e','#e8c34a','#7ac48a','#f0e2c0','#e2748c'][(r+c)%5], null,0,-5.5);
-    }
-    shopDoor(W*0.86, wall, trim);
-    F(W*0.80,W-14, 52, 90, '#7fb0c8', null,0,-6.5);
-    if(state.props){
-      for(let i=0;i<3;i++){
-        const ka = W*0.16 + i*W*0.30, kb = -8 - i*3, kz = H-32;
-        poly([P(ka,kb,kz+14),P(ka+10,kb,kz),P(ka,kb,kz-14),P(ka-10,kb,kz)],
-             ['#e8564a','#7ac48a','#e8c34a'][i], trim, 1.5);
-        tube(ka, kb, kz-14, ka, kb, kz-26, 0.6, trim);
+
+    /* ---- the window: one recess, real glass, bars in front of it ---- */
+    reveal(12, 130, 22, 104, 12, shade(wall,.42));
+    for(let r=0;r<2;r++){
+      const z = 26 + r*22;
+      slab(16, 116, z-3, z, -3, -11, '#5a4634');
+      for(let i=0;i<5;i++){
+        const x0 = 18 + 96*(i+0.10)/5, x1 = 18 + 96*(i+0.90)/5;
+        const col = ['#c2452e','#e8c34a','#7ac48a','#7a9ab0','#e2748c'][(r*2+i)%5];
+        box(x0, x1, -9, -5, z, z+14, shade(col,1.14), col, shade(col,.78));
       }
     }
-    // biplane on a bracket, banking
-    /* scaled up half again: correct but too small to read at street
-       size was the note from the last pass */
-    const pa = W*0.44, pb = 48, pz = 102;
-    slab(pa-2, pa+2, 112, 124, 8, 12, '#8d979f');
-    tube(pa, 10, 120, pa, pb, 112, 2.4, '#8d979f');
-    cyl(pa, pb, pz-9, pz+9, 10, '#c2452e');
-    poly([P(pa-45,pb,pz+3),P(pa+39,pb,pz+6),P(pa+39,pb,pz-6),P(pa-45,pb,pz-4)], '#c2452e');
-    slab(pa-18, pa+33, pz+21, pz+27, pb+24, pb-24, '#f0e2c0');
-    slab(pa-15, pa+30, pz-18, pz-12, pb+21, pb-21, '#f0e2c0');
-    for(const sa of [pa-3, pa+21]){
-      tube(sa, pb+18, pz-13, sa, pb+18, pz+22, 1.6, '#8d979f');
-      tube(sa, pb-18, pz-13, sa, pb-18, pz+22, 1.6, '#8d979f');
+    for(let i=0;i<3;i++){
+      const ka = 30 + i*36, kb = -7, kz = 86, hz = 15, kw = 9;
+      const col = ['#e8564a','#7ac48a','#e8c34a'][i];
+      poly([P(ka,kb,kz+hz),P(ka+kw,kb,kz),P(ka,kb,kz-hz),P(ka-kw,kb,kz)],
+           col, shade(col,.55), 1.2);
+      tube(ka, kb, kz-hz, ka, kb, kz+hz, 0.5, shade(col,.5));
+      tube(ka-kw, kb, kz, ka+kw, kb, kz, 0.5, shade(col,.5));
+      tube(ka, kb, kz+hz, ka, kb, 103, 0.4, '#d8cbb0');          // hung from the head
+      for(let k=0;k<2;k++){
+        const bz = kz-hz-3-k*4, off = k%2 ? 3 : -3;
+        poly([P(ka+off-3,kb,bz),P(ka+off+3,kb,bz-1),P(ka+off,kb,bz-4)], shade(col,1.12));
+      }
     }
-    poly([P(pa-45,pb,pz+3),P(pa-63,pb,pz+21),P(pa-60,pb,pz-2)], '#c2452e');
-    slab(pa-57, pa-42, pz-12, pz-7, pb+13, pb-13, '#c2452e');
-    slab(pa+40, pa+45, pz-21, pz+21, pb+3, pb-3, '#3a4046');
+    glaze(12, 130, 22, 104, trim, 'rgba(120,164,186,.40)');
+    for(let i=1;i<5;i++){ const x = 12 + 118*i/5;
+      F(x-1.3, x+1.3, 22, 104, shade(trim,.82), null,0, 1); }
+    for(let j=1;j<3;j++){ const z = 22 + 82*j/3;
+      F(12, 130, z-1.3, z+1.3, shade(trim,.82), null,0, 1); }
+    slab(9, 133, 12, 22, 3, -1, shade(wall,.66));                 // cill, projecting
+
+    shopDoor(179.12, wall, trim);
+
+    /* ---- fascia ----
+       Was slab(6, W-6, 120, 148, -1, -9): 6 of margin against 9 of
+       recess, so both ends came out 3 past the building's return, and
+       the lettering at b -9.5 was 0.5 BEHIND the board's own back face.
+       The chemist/barber/locksmith resolution: 14 of margin over a
+       7-deep recess, plate at bFront + 0.5. The plate is dark because
+       the aeroplane crosses it, which is what a bracket sign does. */
+    slab(14, W-14, 120, 150, -1, -7, shade(wall,1.25), null, trim);
+    F(22, W-22, 126, 144, shade(wall,.60), null, 0, -0.5);
+
+    /* ================= THE BIPLANE =================
+       WAS TWO AEROPLANES. cyl() is vertical-only, so the "fuselage
+       cylinder" was a barrel r10 by 18 tall -- 27 on screen once ZSCALE
+       had it -- and then a flat quad drew the real silhouette straight
+       over the top of it. The quad had no reversal anywhere in its
+       outline: no nose taper, no cockpit, no fin junction, so it read as
+       a red lozenge with square plates near it. One prism now, one
+       outline, and every one of those features is a reversal cut from
+       the same loop.
+
+       THE WINGS WERE SQUARE: 51 chord against 48 span on top, 45 by 42
+       below. A wing at 1:1 is a plate. 16 chord on a 36 span here, and
+       they are quads rather than slabs so the bank is real -- slab()
+       cannot tilt, which is why the old "banking" amounted to 3 units of
+       slope on the fuselage quad and nothing else.
+
+       THE FAR STRUTS SHOWED THROUGH THE BODY, instance 13: both pairs
+       were drawn after the fuselage and both crossed it. Split at the
+       centreline now -- far wing halves, far struts, far tailplane, then
+       the body, then the near half of each -- which is the same rule
+       that says anything longer than its neighbours is split before it
+       enters a depth sort.
+
+       THE BRACKET WAS INVERTED AND JOINED TO NOTHING. slab(..., 8, 12)
+       had bBack NEARER the street than bFront, so slab() picked the
+       wrong end face and drew it inside out; it started at b 8 rather
+       than at the wall; the arm started at b 10, two units off it; and
+       the arm's outer end landed in clear air between the fuselage top
+       and the underside of the top wing. Wall plate on the wall, arm to
+       the top wing centre, and the arm rides just over the far wing on
+       its way there.
+
+       AND IT HUNG OFF THE BUILDING. Screen-a is a - b on edges 1 and 3
+       and a + b on 0 and 2, so a b of 48..72 swings the object that far
+       each way: the tailplane measured screen-a -16.8 and the fin -9.8,
+       both onto the neighbour's frontage. Locksmith's budget is
+       half-length + b_max <= W/2 = 115; the old plane needed 126. This
+       one is centred on 115 at b 30 with an 18 half-span, and the widest
+       excursion measured is 62..174. */
+    const pa = 115, pb = 30, pz = 140, BANK = 0.26, red = '#c2452e';
+    const ct = Math.cos(0.13), st = Math.sin(0.13);
+    const QW = (u,v,b) => ({ a: pa + u*ct - v*st, b:b,
+                             z: pz + (u*st + v*ct - (b-pb)*BANK)*zk });
+    const Q  = (u,v,b) => { const q = QW(u,v,b); return P(q.a,q.b,q.z); };
+    /* u runs along the axis, nose positive; v is world height, so it is
+       divided back by ZSCALE on the way out and the aeroplane keeps its
+       proportions whatever vertical scale the shop is drawn at. */
+    /* THE FIN IS NOT PART OF THE FUSELAGE. First cut had it cut from the
+       same loop, so it was extruded to the body's own 10 of width and
+       came out as thick as it was broad -- a red block that swallowed
+       the tailplane whole. A fin is a plate: its own outline, its own
+       3 of thickness, drawn after the body it stands on. */
+    const OUT = [[33,0],[29,4],[19,6.5],[11,7],[9,7],[7.5,3],[1.5,3],[0,7],[-2,8.5],[-4,7],
+                 [-18,6],[-27,5],[-33,2.5],
+                 [-33,-1.5],[-21,-5],[-7,-6.5],[7,-7],[21,-6],[29,-4]];
+    const FIN = [[-19,5],[-25,20],[-31,21],[-32,4.5]];
+    const wing = (uLE,uTE,vv,bA,bB,col,cap) => {
+      poly([Q(uLE,vv,bA),Q(uLE,vv-2.5,bA),Q(uLE,vv-2.5,bB),Q(uLE,vv,bB)], shade(col,.70));
+      poly([Q(uTE,vv,bA),Q(uTE,vv-2.5,bA),Q(uTE,vv-2.5,bB),Q(uTE,vv,bB)], shade(col,.56));
+      if(cap !== undefined)
+        poly([Q(uLE,vv,cap),Q(uTE,vv,cap),Q(uTE,vv-2.5,cap),Q(uLE,vv-2.5,cap)], shade(col,.64));
+      poly([Q(uLE,vv,bA),Q(uTE,vv,bA),Q(uTE,vv,bB),Q(uLE,vv,bB)], col);
+    };
+    const strut = (u,b) => { const l = QW(u,-9,b), t = QW(u,14,b);
+      tube(l.a,l.b,l.z, t.a,t.b,t.z, 1.4, iron); };
+    const wire  = (u0,v0,u1,v1,b) => { const m = QW(u0,v0,b), n = QW(u1,v1,b);
+      tube(m.a,m.b,m.z, n.a,n.b,n.z, 0.45, shade(iron,1.18)); };
+
+    slab(pa-2.5, pa+2.5, 136, 154, 3.5, 0, iron);                 // wall plate, on the wall
+    // ---- far half ----
+    wing( 8,-8, -9, pb-18, pb, '#e8e2d4', pb-18);                 // lower
+    wing(13,-3, 14, pb-18, pb, trim,      pb-18);                 // upper
+    wing(-20,-30,  0, pb-11, pb, shade(red,1.10), pb-11);        // tailplane
+    { const e = QW(5,14,pb);                                      // arm, over the far wing
+      tube(pa, 3, 151, e.a, e.b, e.z, 2.2, iron);
+      tube(pa, 3, 138, pa+(e.a-pa)*0.42, 3+(pb-3)*0.42, 151-(151-e.z)*0.42, 1.1, iron); }
+    strut(6, pb-15); strut(-4, pb-15);
+    wire(6,-9,-4,14, pb-15); wire(-4,-9,6,14, pb-15);
+    // ---- the body ----
+    prism(OUT.map(([u,v]) => { const q = QW(u,v,pb); return [q.a, q.z]; }),
+          pb-5, pb+5, red, shade(red,.66), shade(red,1.20));
+    poly([Q(7.5,3.2,pb+5.3),Q(1.5,3.2,pb+5.3),Q(1.5,-1.4,pb+5.3),Q(7.5,-1.4,pb+5.3)],
+         '#2b2118');                                              // the cockpit is a hole
+    prism(FIN.map(([u,v]) => { const q = QW(u,v,pb); return [q.a, q.z]; }),
+          pb-1.6, pb+1.6, shade(red,1.10), shade(red,.70), shade(red,1.26));
+    for(const cb of [pb-4, pb+4]){ const c0 = QW(6,7,cb), c1 = QW(6,14,cb);
+      tube(c0.a,c0.b,c0.z, c1.a,c1.b,c1.z, 1.1, iron); }          // cabane struts
+    // ---- near half ----
+    wing(-20,-30,  0, pb, pb+11, shade(red,1.10), pb+11);
+    strut(6, pb+15); strut(-4, pb+15);
+    wire(6,-9,-4,14, pb+15); wire(-4,-9,6,14, pb+15);
+    wing( 8,-8, -9, pb, pb+18, '#e8e2d4', pb+18);
+    wing(13,-3, 14, pb, pb+18, trim,      pb+18);
+    /* THE PROPELLER WAS A RECTANGLE: a 5 by 42 dark slab, no hub, no
+       disc. A propeller disc stands perpendicular to the axis, so it
+       lives in the b-z plane -- no primitive draws that, but the circle
+       is two lines to build off P() directly, with the z radius divided
+       by ZSCALE the way every circle in this file has to be. */
+    { const R = 11, pp = [];
+      for(let i=0;i<=24;i++){ const t = Math.PI*2*i/24;
+        pp.push(Q(33, R*Math.sin(t), pb + R*Math.cos(t))); }
+      poly(pp, 'rgba(226,232,238,.16)', 'rgba(226,232,238,.34)', 1);
+      const l0 = QW(33,-R,pb), l1 = QW(33,R,pb), hb = QW(33,0,pb);
+      tube(l0.a,l0.b,l0.z, l1.a,l1.b,l1.z, 1.2, '#3a4046');
+      ball(hb.a, hb.b, hb.z, 3.4, shade(iron,1.12)); }
+
     if(state.roof) box(W*0.60,W*0.86,-150,-110,H,H+20,'#8f969d','#787f86','#697077');
     kerb(p,'none');
   }
