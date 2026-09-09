@@ -10110,60 +10110,278 @@ const SHOPS = [
   }
 },
 {
-  name:'Apartments over shop', tall:true,
-  fTodo:'z100..110 return +7; z196..206 return +7; z92..100 return +2',
-  zTodo:1.79,          // H 300 -- see SCALE REVIEW at the head of this file
-  head:'Three storeys, iron balconies, washing lines',
-  tags:['3 storey','built balconies','washing lines','shutters','shop below'],
-  desc:'Each balcony is a stone floor slab with tube standards and a handrail, and the shutters stand off the reveal on their own thickness so they read as hinged open.',
+  name:'Apartments over shop', tall:true, ww: 1048.8, dd: 620,
+  wTodo:'a whole block edge -- five packing slots, and the packer emits no wide slot yet',
+  kTodo:'reveal(), glaze() and shopDoor() are all nailed to the b = 0 plane; this body carries frame-general copies of the first two, and they should move into the kit',
+  head:'A whole edge of flats over shops, elevated on all four faces',
+  tags:['block width, on the line','shops on three faces','flats all the way round','wall frames','balconies with end returns'],
+  desc:'A mansion block taking a whole block edge and built to the line, with a real elevation on every face rather than one front and three blank planes: shopfronts on the street and both cross-street flanks, flats over all four sides, and courses and a cornice that wrap the corners.',
   draw(p){
-    const wall = '#d8b98a', trim = '#7a5a3a', H = 300;
-    body(wall, trim, H);
-    slab(0,W, H, H+12, -1, -14, shade(wall,.66));
-    slab(0,W, 100, 110, -1, -7, shade(wall,.78));
-    slab(0,W, 196, 206, -1, -7, shade(wall,.78));
-    for(let fl=0; fl<2; fl++){
-      const z0 = 122 + fl*96;
-      for(let i=0;i<3;i++){
-        const x0 = 14+(W-28)*(i+0.12)/3, x1 = 14+(W-28)*(i+0.88)/3;
-        slab(x0-4,x1+4, z0-4, z0+62, -1, -8, shade(wall,1.08));
-        F(x0,x1, z0, z0+58, '#4a5f6b', null,0,-8.5);
-        F(x0,x1, z0+28, z0+31, shade(wall,1.08), null,0,-9);
-        if(fl===1) for(const sx of [x0-11, x1+1])
-          slab(sx, sx+10, z0, z0+58, -9, -15, ['#6b8a5a','#8a6b5a','#6b8a5a'][i], shade(wall,.6));
+    /* ============ AN ELEVATION ON ALL FOUR FACES ============
+       Sir asked for shop windows and flat windows the whole way round.
+       On a whole-edge building that is the right ask and the old body
+       could not do it: it had ONE elevation, on b = 0, and three blank
+       planes, which is only defensible for a terrace unit with party
+       walls at both ends. This one has cross streets at both ends.
+
+       WHY IT NEEDED MACHINERY. reveal(), glaze() and shopDoor() are all
+       written in a and z with b nailed to 0, because every other
+       building in this file has its face there -- the same kit gap the
+       BLOCK LANDMARKS note already records for shopDoor. So the body
+       carries a WALL FRAME: a map from (u along the elevation, n out of
+       it, v up) to world (a, b, z), and every primitive below is written
+       against a frame instead of against b = 0.
+
+         FR_FRONT  u = a,       n = +b        street
+         FR_RIGHT  u = -b,      n = +a        cross street
+         FR_LEFT   u = -b,      n = -a        cross street
+         FR_BACK   u = WW - a,  n = -b        rear
+
+       rev() and glz() are frame-general reveal() and glaze(): identical
+       arithmetic, and on FR_FRONT they reduce to the originals exactly.
+       They belong in the kit, which is what kTodo says -- two copies of
+       a primitive is the fault this whole file is arranged to avoid, and
+       these two are only here because the kit cannot yet be asked.
+
+       WHICH RETURN A RECESS EXPOSES IS DERIVED, not written down. A
+       recess at n = -deep shifts on screen; decomposing that shift into
+       the frame's own u and v screen steps says which way the contents
+       move, and the gap opens on the opposite side. On FR_FRONT that
+       comes out as the low-u jamb and the cill, which is exactly what
+       reveal() has hardcoded; on FR_RIGHT it comes out as the far end of
+       the flank instead. Same three quads, no per-face special case.
+
+       DRAW ORDER IS THE WHOLE TRICK. A box's far faces must be painted
+       BEFORE the solid, or they stand in open sky above it. Checked
+       rather than assumed: at screen x = 300K the far flank runs y -675K
+       to -150K while the front wall only reaches -375K, so 300 units of
+       it are uncovered -- and the roof plate spans exactly -675K to
+       -375K at that x. The roof is what hides the far side. So the
+       order is back, far flank, body(), near flank, front, and
+       FLANK_RIGHT decides which flank is which, the same test body()
+       uses for its own end wall.
+
+       THE STOREY STACK is unchanged, from the Rooming house arithmetic
+       in the SCALE REVIEW note: 150 + 100 + 100 = 350.
+
+         0..104   display window       107.95  door head
+         118..140 fascia board         140..150 first course
+         176..238 first floor          250..260 second course
+         276..338 second floor         350..364 cornice */
+    const wall = '#d8b98a', trim = '#7a5a3a', iron = '#3c3a36';
+    const WW = 1048.8, DD = 620, H = 350;
+    const glassT = 'rgba(96,124,140,.86)';
+    const LIV = ['#7a5a3a','#4a5f6b','#6b4a4a','#4a6b52','#6b5a7a','#7a6b3a','#4a6b6b'];
+    const SHUT = ['#6b8a5a','#8a6b5a','#5a7a8a'];
+    const EA0 = 470, EA1 = 580;
+
+    /* ---- the wall frames, and the primitives written against them ---- */
+    const FR_FRONT = { P:(u,n,v)=>[u, n, v],            len:WW, kind:'street' };
+    const FR_RIGHT = { P:(u,n,v)=>[WW+n, -u, v],        len:DD, kind:'flank'  };
+    const FR_LEFT  = { P:(u,n,v)=>[-n, -u, v],          len:DD, kind:'flank'  };
+    const FR_BACK  = { P:(u,n,v)=>[WW-u, -DD-n, v],     len:WW, kind:'back'   };
+    const Q = (fr,u,n,v) => { const c = fr.P(u,n,v); return P(c[0],c[1],c[2]); };
+    const R = (fr,u0,u1,v0,v1,n,fill,stroke,lw) =>
+      poly([Q(fr,u0,n,v1),Q(fr,u1,n,v1),Q(fr,u1,n,v0),Q(fr,u0,n,v0)], fill, stroke, lw);
+    /* a panel with real thickness: face, the end return that is seen,
+       and the top plate -- slab(), asked of a frame */
+    /* THE END RETURN IS OPTIONAL, and the corners are why. A course that
+       WRAPS the building has no end -- the next elevation continues it --
+       but bandF was capping every run, and the front is drawn after the
+       flank, so each wrapping band painted a dark end cap straight onto
+       the corner it was supposed to turn. Three courses, a cornice and
+       two corner pilasters, six dark wedges down one corner.
+
+       `em` is a mask of which ends may be capped: bit 0 is the u0 end,
+       bit 1 the u1 end, 3 both, 0 none. The end that WOULD be seen is
+       still derived from P() -- the mask only says whether it exists --
+       so a run that is capped at one end still caps the correct one
+       whichever way the block edge runs.
+
+       And a wrapping run is extended PAST the corner at each end, by its
+       own projection plus two. Extending by exactly the projection is
+       not enough and that was the visible seam Sir found: the front
+       band's face and the flank band's face then abut on the identical
+       screen column, and two antialiased quads that share an edge and
+       do not overlap leave a hairline of background between them. It
+       ran the full height of the corner pier. Two units of overlap is
+       hidden inside the corner and closes it. */
+    const bandF = (fr,u0,u1,v0,v1,n0,n1,front,side,top,em) => {
+      const mask = em === undefined ? 3 : em;
+      R(fr,u0,u1,v0,v1,n0,front);
+      const o = Q(fr,u0,n0,v0), du = Q(fr,u0+1,n0,v0);
+      const hi = (du.y - o.y) > 0, eu = hi ? u1 : u0;
+      if(mask & (hi ? 2 : 1))
+        poly([Q(fr,eu,n0,v1),Q(fr,eu,n1,v1),Q(fr,eu,n1,v0),Q(fr,eu,n0,v0)], side || shade(front,.78));
+      poly([Q(fr,u0,n0,v1),Q(fr,u1,n0,v1),Q(fr,u1,n1,v1),Q(fr,u0,n1,v1)], top || shade(front,1.14));
+    };
+    const rev = (fr,u0,u1,v0,v1,deep,col) => {
+      const o = Q(fr,u0,0,v0), du = Q(fr,u0+1,0,v0), dv = Q(fr,u0,0,v0+1), dn = Q(fr,u0,-1,v0);
+      const ux = du.x-o.x, uy = du.y-o.y, vx = dv.x-o.x, vy = dv.y-o.y;
+      const sx = dn.x-o.x, sy = dn.y-o.y, det = ux*vy - vx*uy;
+      const al = (sx*vy - vx*sy)/det, be = (ux*sy - sx*uy)/det;   // shift, in u and v
+      const ju = al > 0 ? u0 : u1, cv = be > 0 ? v0 : v1;         // gap opens opposite it
+      ctx.save();
+      poly([Q(fr,u0,0,v1),Q(fr,u1,0,v1),Q(fr,u1,0,v0),Q(fr,u0,0,v0)]); ctx.clip();
+      R(fr,u0,u1,v0,v1,-deep,col);
+      poly([Q(fr,ju,0,v0),Q(fr,ju,-deep,v0),Q(fr,ju,-deep,v1),Q(fr,ju,0,v1)], shade(col,.84));
+      poly([Q(fr,u0,0,cv),Q(fr,u1,0,cv),Q(fr,u1,-deep,cv),Q(fr,u0,-deep,cv)], shade(col,.72));
+      ctx.restore();
+    };
+    const glz = (fr,u0,u1,v0,v1,frame,tint) => {
+      const w = u1-u0, h = v1-v0;
+      R(fr,u0,u1,v0,v1,-0.4, tint || 'rgba(104,146,168,.92)');
+      poly([Q(fr,u0,-0.30,v1),Q(fr,u0+w*0.30,-0.30,v1),Q(fr,u0+w*0.06,-0.30,v0),Q(fr,u0,-0.30,v0)],
+           'rgba(240,250,254,.20)');
+      poly([Q(fr,u0,-0.22,v1),Q(fr,u1,-0.22,v1),Q(fr,u1,-0.22,v1-h*0.06),Q(fr,u0,-0.22,v1-h*0.06)],
+           'rgba(255,255,255,.16)');
+      if(frame){
+        R(fr,u0-3,u0,v0-3,v1+3,0.5,frame);  R(fr,u1,u1+3,v0-3,v1+3,0.5,frame);
+        R(fr,u0-3,u1+3,v1,v1+3,0.5,frame);  R(fr,u0-3,u1+3,v0-3,v0,0.5,frame);
       }
+    };
+    /* shopDoor on a frame. Built from the kit's own SHOP_DOOR_W and
+       SHOP_DOOR_H so the openings on the flanks are the same door the
+       front gets from shopDoor() -- the front still calls the kit, so
+       the one the pickup worker walks out of stays canonical. */
+    const doorF = (fr, uMid, w, t) => {
+      const hw = SHOP_DOOR_W/2, dH = SHOP_DOOR_H/ZSCALE;
+      const mid = Math.max(hw+5, Math.min(fr.len-hw-5, uMid));
+      const u0 = mid-hw, u1 = mid+hw;
+      R(fr,u0-4,u1+4, 0, dH+7, 0.3, shade(w,.90));
+      R(fr,u0,u1, 0, dH, 0.4, '#2b2118');
+      R(fr,u0+2,u1-2, dH-26, dH-4, 0.45, 'rgba(96,132,152,.94)');
+      R(fr,u0+2,u1-2, dH-30, dH-26, 0.7, shade(t,.8));
+      R(fr,u0+2,u1-2, 0, dH-30, 0.6, t);
+      for(let k=0;k<2;k++)
+        R(fr,u0+8,u1-8, dH*0.07+k*dH*0.36, dH*0.30+k*dH*0.36, 0.9, shade(t,1.18), shade(t,.7), 1.5);
+      R(fr,u1-14,u1-10, dH*0.40, dH*0.53, 1.2, '#d8c28a');
+    };
+    /* one shop, WIDTH-PARAMETERISED: pier 9 / window / pier 11 / door
+       66.24 / pier 9.76. At 218 that is the packer's own 209.76 rhythm
+       and the window comes out 122; the flank asks for 200 instead,
+       which is what let its blank end block go -- see the note there. */
+    const shopUnit = (fr, U, WD, liv) => {
+      const w0 = U+9, w1 = U + WD - 87, dm = U + WD - 42.88;
+      rev(fr, w0, w1, 20, 104, 12, shade(wall,.48));
+      R(fr, w0+6, w1-6, 46, 52, -2, shade(wall,1.16));
+      R(fr, w0+6, w1-6, 74, 80, -2, shade(wall,1.16));
+      glz(fr, w0, w1, 20, 104, liv, 'rgba(110,140,156,.80)');
+      for(let k=1;k<4;k++) R(fr, w0+(w1-w0)*k/4-2, w0+(w1-w0)*k/4+2, 20, 104, 1, shade(liv,1.3));
+      bandF(fr, w0-3, w1+3, 12, 20, 3, -1, shade(wall,.70));
+      if(fr === FR_FRONT) shopDoor(dm, wall, liv, null, WW);         // the canonical door
+      else doorF(fr, dm, wall, liv);
+      bandF(fr, U+4, U+WD-4, 118, 140, 3, -1, shade(liv,1.06), null, shade(liv,1.3));
+      R(fr, U+12, U+WD-12, 122, 136, 3.5, shade(liv,.52));
+    };
+
+    const elevation = fr => {
+      const L = fr.len;
+      bandF(fr, -5, L+5, 140, 150, 3, 0, shade(wall,.80), null, shade(wall,1.1), 0);   // courses,
+      bandF(fr, -5, L+5, 250, 260, 3, 0, shade(wall,.80), null, shade(wall,1.1), 0);   // which wrap,
+      bandF(fr, -7, L+7, H, H+14, 5, -1, shade(wall,.66), null, null, 0);              // and the cornice
+      bandF(fr, -6, 24,   16, H, 4, 0, shade(wall,1.08), null, shade(wall,1.2), 2);    // corner piers:
+      bandF(fr, L-24, L+6, 16, H, 4, 0, shade(wall,1.08), null, shade(wall,1.2), 1);   // capped inboard only
+
+      if(fr.kind === 'street'){
+        [20, 242, 590, 812].forEach((U,i) => shopUnit(fr, U, 218, LIV[i]));
+        bandF(fr, EA0-14, EA1+14, 16, 150, 5, -1, shade(wall,1.10), null, shade(wall,1.26));
+        shopDoor((EA0+EA1)/2, wall, trim, null, WW);
+        bandF(fr, EA0-6, EA1+6, 118, 134, 8, 4, shade(wall,.58), null, shade(wall,.8));
+        R(fr, EA0+6, EA1-6, 122, 130, 8.5, shade(wall,1.2));
+        bandF(fr, EA0-16, EA1+16, 150, H, 5, 0, shade(wall,1.06), null, shade(wall,1.22));
+        bandF(fr, EA0-22, EA1+22, H, H+46, 4, -12, shade(wall,.72), null, shade(wall,1.05));
+        R(fr, EA0-6, EA1+6, H+11, H+35, 4.5, shade(wall,1.14));
+      } else if(fr.kind === 'flank'){
+        /* THREE SHOPS, NOT TWO AND A BLANK END. Two units of 218 leave
+           154 of a 620 flank over, and that remainder was being filled
+           with a solid pale panel carrying a lone brown door and one
+           small window -- a blank wall with a door in it, in the middle
+           of a run of glazed shopfronts. It read as exactly what it was.
+           Three units of 200 fill the flank with 10 of pier at each end
+           and no remainder, which is what parameterising shopUnit's
+           width was for. */
+        [10, 210, 410].forEach((U,i) => shopUnit(fr, U, 200, LIV[4+i]));
+      } else {
+        /* AND THE REAR HAD THREE MORE OF THEM. Service doors standing in
+           bare wall with windows dodged around them; the rule the front
+           and flanks follow is that ground level is glazed, so the rear
+           is a continuation of the same bay rhythm carried down to the
+           street rather than a different kind of elevation. */
+        for(let i=0;i<15;i++){
+          const c = 26 + (L-52)*(i+0.5)/15, x0 = c-23, x1 = c+23;
+          rev(fr, x0, x1, 24, 110, 9, shade(wall,.44));
+          glz(fr, x0, x1, 24, 110, shade(wall,1.14), glassT);
+          R(fr, x0, x1, 66, 70, 1, shade(wall,1.14));
+          bandF(fr, x0-5, x1+5, 16, 24, 4, -1, shade(wall,.86));
+        }
+        bandF(fr, -5, L+5, 118, 130, 3, 0, shade(wall,.74), null, shade(wall,1.05), 0);
+      }
+
+      const NB = fr.kind === 'flank' ? 8 : 15, B0 = 26, B1 = L - 26;
+      for(let fl=0; fl<2; fl++){
+        const v0 = 176 + fl*100, v1 = v0 + 62;
+        for(let i=0;i<NB;i++){
+          const c = B0 + (B1-B0)*(i+0.5)/NB, x0 = c-23, x1 = c+23;
+          rev(fr, x0, x1, v0, v1, 9, shade(wall,.44));
+          glz(fr, x0, x1, v0, v1, shade(wall,1.14), glassT);
+          R(fr, x0, x1, (v0+v1)/2 - 2, (v0+v1)/2 + 2, 1, shade(wall,1.14));
+          bandF(fr, x0-5, x1+5, v0-8, v0, 4, -1, shade(wall,.86));
+          if(fl === 1) for(const sx of [x0-13, x1+2])
+            bandF(fr, sx, sx+11, v0, v1, 4, 0, SHUT[i%3], shade(wall,.6));
+        }
+      }
+    };
+
+    /* ---- back and far flank BEFORE the solid; near flank and street
+       after it. See the draw-order note above. ---- */
+    const NEAR = FLANK_RIGHT ? FR_RIGHT : FR_LEFT;
+    const FAR  = FLANK_RIGHT ? FR_LEFT  : FR_RIGHT;
+    elevation(FR_BACK);
+    elevation(FAR);
+    body(wall, trim, H, WW, DD);
+    T(0, WW, -DD, 0, H+0.4, '#6a7076');          // body()'s roof plate is too bright at this size
+    elevation(NEAR);
+    elevation(FR_FRONT);
+
+    /* ---- balconies, on the street front, under five of the bays ---- */
+    const bayC = i => 26 + (WW-52)*(i+0.5)/15;
+    for(const i of [1, 4, 7, 10, 13]){
+      const c = bayC(i), x0 = c-30, x1 = c+30, D = 18, r0 = 176, r1 = 206;
+      box(x0, x1, 0, D, 164, 176, shade(wall,.94), shade(wall,.86), shade(wall,.72));
+      for(const [z,r] of [[r1,1.8],[r0+3,1.2]]) tube(x0, D, z, x1, D, z, r, iron);
+      for(let k=0;k<=10;k++){ const xa = x0 + (x1-x0)*k/10;
+        tube(xa, D, r0, xa, D, r1, 0.9, iron); }
+      for(const aa of [x0, x1]){                                     // the end returns
+        for(const [z,r] of [[r1,1.8],[r0+3,1.2]]) tube(aa, D, z, aa, 0, z, r, iron);
+        for(let k=1;k<=3;k++) tube(aa, D*k/3, r0, aa, D*k/3, r1, 0.9, iron);
+      }
+      for(const aa of [x0+1.5, x1-1.5]) tube(aa, D, 164, aa, D, r1, 1.4, iron);
     }
-    for(let i=0;i<3;i++){
-      const x0 = 10+(W-20)*(i+0.06)/3, x1 = 10+(W-20)*(i+0.94)/3;
-      box(x0, x1, 0, 26, 112, 118, shade(wall,.94), shade(wall,.86), shade(wall,.72));
-      tube(x0, 24, 146, x1, 24, 146, 1.8, '#3c3a36');
-      for(let k=0;k<9;k++) tube(x0+(x1-x0)*k/8, 24, 118, x0+(x1-x0)*k/8, 24, 146, 0.9, '#3c3a36');
-      tube(x0, 24, 118, x1, 24, 118, 1.2, '#3c3a36');
-    }
-    F(10,W*0.62, 20, 88, '#7f93a0', shade(wall,.6), 3);
-    shopDoor(W*0.83, wall, trim);
-    F(W*0.72,W-14, 48, 82, '#7f93a0', null,0,-6.5);
-    slab(6,W-6, 92, 100, -1, -8, trim);
+
     if(state.props){
-      for(let i=0;i<2;i++){
-        const a0 = 10+(W-20)*(i+0.94)/3, a1 = 10+(W-20)*(i+1.06)/3;
-        const s0=P(a0,22,150), s1=P(a1,22,150);
-        ctx.strokeStyle='#c9c2b0'; ctx.lineWidth=1.6;
-        ctx.beginPath(); ctx.moveTo(s0.x,s0.y);
-        ctx.quadraticCurveTo((s0.x+s1.x)/2,(s0.y+s1.y)/2+12*K,s1.x,s1.y); ctx.stroke();
+      for(const [i0,i1] of [[2,4],[10,12]]){
+        const LA0 = bayC(i0)-20, LA1 = bayC(i1)+20, LZ = 340, LB = 14, sagz = 14;
+        const l0 = P(LA0, LB, LZ), l1 = P(LA1, LB, LZ);
+        ctx.strokeStyle = '#c9c2b0'; ctx.lineWidth = 1.6;
+        ctx.beginPath(); ctx.moveTo(l0.x, l0.y);
+        ctx.quadraticCurveTo((l0.x+l1.x)/2, (l0.y+l1.y)/2 + sagz*K, l1.x, l1.y); ctx.stroke();
+        for(let k=0;k<5;k++){
+          const t = (k+0.5)/5, a = LA0 + (LA1-LA0)*t;
+          const sag = LZ - Math.sin(Math.PI*t)*sagz;
+          slab(a-5, a+5, sag-20, sag, LB+1, LB-1,
+               ['#e8e2d4','#7fb0c4','#e2748c','#8fb48a','#c9a24a'][k]);
+        }
       }
-      const l0=P(16,24,268), l1=P(W-16,24,268);
-      ctx.strokeStyle='#c9c2b0'; ctx.lineWidth=1.6;
-      ctx.beginPath(); ctx.moveTo(l0.x,l0.y);
-      ctx.quadraticCurveTo((l0.x+l1.x)/2,(l0.y+l1.y)/2+22*K,l1.x,l1.y); ctx.stroke();
-      for(let i=0;i<7;i++){
-        const t=(i+0.5)/7, a = 16 + (W-32)*t;
-        const sag = 268 - Math.sin(Math.PI*t)*22;
-        slab(a-7, a+7, sag-22, sag, 25, 23,
-             ['#e8e2d4','#7fb0c4','#e2748c','#f0e2c0','#8fb48a','#e8e2d4','#c9a24a'][i]);
+      for(const i of [1, 7, 13]) slab(bayC(i)-8, bayC(i)+8, 182, 202, 19, 17,
+        ['#7fb0c4','#e8e2d4','#8fb48a'][i%3]);
+    }
+    if(state.roof){
+      for(const ca of [150, 430, 700, 950]){
+        box(ca-22, ca+22, -300, -240, H, H+52, '#9aa0a6','#7d838a','#6a7076');
+        for(const cb of [-288, -252]) cyl(ca-10, cb, H+52, H+64, 5, '#5e646b');
       }
     }
-    if(state.roof) box(W*0.30,W*0.56,-150,-110,H,H+22,'#9aa0a6','#7d838a','#6a7076');
     kerb(p,'none');
   }
 },
