@@ -9032,7 +9032,7 @@ const SHOPS = [
 },
 {
   name:'Undertaker', tall:true, block:true, place:'park',
-  ww: 4*1048.8, dd: 5*1048.8,
+  ww: 4*3128, dd: 5*3128,
   wTodo:'nine block cells in a staircase -- the packer has no concept of a multi-block, non-rectangular footprint',
   pTodo:'GANTRY COMMONS specifically, Warehouse District. Measured on buildGrid(36,27,hashStr("2026-08-09")): 9 cells at i,j (10,13)(9,14)(10,14)(9,15)(10,15)(10,16)(11,16)(11,17)(12,17). The chooser places by block type and has no way to name a component',
   gTodo:'pin to the Gantry Commons component via parkNameTable/mapParkName, the way WG_COAST pins the aquarium to its deck. Anchor is the min-j then min-i cell, (10,13). If worldgen ever reshapes the component the footprint here has to be regenerated from it rather than kept as a literal',
@@ -9076,14 +9076,33 @@ const SHOPS = [
        pitch would have been about eighteen hundred headstones. At 150
        by 200 it is around two hundred, which still reads as rows and is
        a collision bill somebody has to agree to. */
-    const BLK = 1048.8, ROAD = 90;
+    /* ---- THE CELL PITCH IS THE GAME'S, MEASURED ----
+       This was 1048.8 with a 90 road, which is the canvas lab's
+       block:true convention, and it is WRONG BY A FACTOR OF THREE. Read
+       off the running game: BLOCK is 34*T2 = 3128, a block's buildable
+       interior is x1-x0 = 1656, and ROAD_HALF is 368 -- so 736 of road,
+       1656 of ground, 736 of road makes the 3128 pitch.
+
+       The graft found it. Standing the robot in Gantry Commons showed
+       grass and a palm and no graveyard, because the burial ground was
+       being drawn at a third of the component's real size, tucked in
+       one corner of nine cells that are each three times bigger than it
+       assumed.
+
+       WORTH CHECKING THE OTHER FIVE. Bathhouse, Chapel, Nursery,
+       Brewery and Print works all use ww = dd = 1048.8 on the same
+       convention, and if that number came from the same place they are
+       all a third of a block. The lab cannot tell -- it frames whatever
+       it is given -- which is exactly why this only surfaced on the
+       first entry to reach the game. */
+    const BLK = 3128, ROAD = 736;
     const CELLS = [[1,0],[0,1],[1,1],[0,2],[1,2],[1,3],[2,3],[2,4],[3,4]];
     const has = (ci, cj) => CELLS.some(c => c[0] === ci && c[1] === cj);
     const grass = '#4a6b46', walk = '#b3a894', iron = '#2a2e33';
     const stoneA = '#9a9a92', stoneB = '#8a8a82', wall = '#6a6a64', roofc = '#3a3f44';
     /* the chapel stands in cell (1,1), which is inside the solid 2x2
        core the component happens to contain -- (0,1)(1,1)(0,2)(1,2) */
-    const CA0 = 1*BLK + 210, CA1 = 1*BLK + 700, CB0 = -1*BLK - 250, CB1 = -1*BLK - 700, CH = 250;
+    const CA0 = 1*BLK + 900, CA1 = 1*BLK + 1500, CB0 = -1*BLK - 900, CB1 = -1*BLK - 1450, CH = 250;
 
     /* ---- the ground, cell by cell, with the swallowed streets ---- */
     T(0, 4*BLK, -5*BLK, 0, 0.3, '#b3a894');
@@ -9099,9 +9118,9 @@ const SHOPS = [
        one crossed a cell that is not in the component at all. Each now
        runs from perimeter to perimeter and the railing opens where it
        meets one. */
-    T(1*BLK+470, 1*BLK+610, -3*BLK, -ROAD, 0.8, walk);           // the spine
-    T(0*BLK+ROAD, 2*BLK-ROAD, -1*BLK-820, -1*BLK-960, 0.8, walk);// the cross walk
-    T(2*BLK+ROAD, 4*BLK-ROAD, -4*BLK-300, -4*BLK-440, 0.8, walk);// the lower walk
+    T(1*BLK+1120, 1*BLK+1280, -3*BLK, -ROAD, 0.8, walk);          // the spine
+    T(0*BLK+ROAD, 2*BLK-ROAD, -1*BLK-1560, -1*BLK-1720, 0.8, walk);// the cross walk
+    T(2*BLK+ROAD, 4*BLK-ROAD, -4*BLK-760, -4*BLK-920, 0.8, walk); // the lower walk
 
     /* ---- the railing, derived from the cell set ----
        Every cell side with no neighbour is a street frontage. Segments
@@ -9157,12 +9176,12 @@ const SHOPS = [
        lower walk reach the railing. Each is a rectangle the railing
        opens for, so adding a walk means adding its gate and nothing
        else has to change. */
-    const GA0 = 1*BLK + 448, GA1 = 1*BLK + 632, GB = -ROAD - 6;
+    const GA0 = 1*BLK + 1090, GA1 = 1*BLK + 1310, GB = -ROAD - 6;
     const GATES = [
       { a0: GA0,            a1: GA1,            b0: GB-30,        b1: GB+30, lych:true },
-      { a0: 0*BLK+ROAD-30,  a1: 0*BLK+ROAD+30,  b0: -1*BLK-980,   b1: -1*BLK-800 },
-      { a0: 2*BLK-ROAD-30,  a1: 2*BLK-ROAD+30,  b0: -1*BLK-980,   b1: -1*BLK-800 },
-      { a0: 4*BLK-ROAD-30,  a1: 4*BLK-ROAD+30,  b0: -4*BLK-460,   b1: -4*BLK-280 }
+      { a0: 0*BLK+ROAD-30,  a1: 0*BLK+ROAD+30,  b0: -1*BLK-1740,  b1: -1*BLK-1540 },
+      { a0: 2*BLK-ROAD-30,  a1: 2*BLK-ROAD+30,  b0: -1*BLK-1740,  b1: -1*BLK-1540 },
+      { a0: 4*BLK-ROAD-30,  a1: 4*BLK-ROAD+30,  b0: -4*BLK-940,   b1: -4*BLK-740 }
     ];
     const railing = (a0, a1, b0, b1) => {
       for(const g of GATES){
@@ -9195,17 +9214,21 @@ const SHOPS = [
     let seed = 11;
     const rnd = () => (seed = (seed*1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
     for(const [ci, cj] of CELLS)
-      for(let aa = ci*BLK + 150; aa < (ci+1)*BLK - 120; aa += 150)
-        for(let bb = -cj*BLK - 150; bb > -(cj+1)*BLK + 120; bb -= 200){
-          if(aa > CA0-140 && aa < CA1+140 && bb < CB0+180 && bb > CB1-260) continue;
-          if(aa > 1*BLK+430 && aa < 1*BLK+650 && bb > -3*BLK) continue;      // the spine walk
-          if(bb < -1*BLK-790 && bb > -1*BLK-990) continue;                   // the cross walk
-          if(bb < -4*BLK-270 && bb > -4*BLK-470) continue;
+      /* 260 by 340 on cells of 1656 gives about 24 stones a cell and
+         216 in all -- the same bill the 150 by 200 pitch gave on cells
+         a third the size, which is the point of re-cutting it rather
+         than letting the rescale multiply it by nine. */
+      for(let aa = ci*BLK + ROAD + 130; aa < (ci+1)*BLK - ROAD - 100; aa += 260)
+        for(let bb = -cj*BLK - ROAD - 130; bb > -(cj+1)*BLK + ROAD + 100; bb -= 340){
+          if(aa > CA0-220 && aa < CA1+220 && bb < CB0+300 && bb > CB1-420) continue;
+          if(aa > 1*BLK+1060 && aa < 1*BLK+1340 && bb > -3*BLK) continue;    // the spine walk
+          if(bb < -1*BLK-1500 && bb > -1*BLK-1780) continue;                 // the cross walk
+          if(bb < -4*BLK-700 && bb > -4*BLK-980) continue;
           stones.push([aa + rnd()*20, bb - rnd()*20, Math.floor(rnd()*4)]);
         }
     const yews = [];
     for(const [ci, cj] of CELLS)
-      if((ci + cj) % 2 === 0) yews.push([ci*BLK + 220 + rnd()*300, -cj*BLK - 240 - rnd()*400]);
+      if((ci + cj) % 2 === 0) yews.push([ci*BLK + ROAD + 200 + rnd()*900, -cj*BLK - ROAD - 220 - rnd()*900]);
 
     const drawStone = ([sa, sb, kind]) => {
       if(kind === 0){
