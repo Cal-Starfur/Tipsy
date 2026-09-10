@@ -10808,67 +10808,236 @@ const SHOPS = [
   }
 },
 {
-  name:'Department store', tall:true,
-  cTodo:'3 pavement props need collision volumes',
-  fTodo:'z292..314 return +10; z128..134 return +1; z212..218 return +1',
-  zTodo:1.87,          // H 314 -- see SCALE REVIEW at the head of this file
-  head:'Three storeys, corner turret, deep canopy, flags',
-  tags:['3 storey','turret on a drum','flagpoles','deep canopy','grid glazing'],
-  desc:'The turret is a round drum with a proper dome and a finial, the canopy is a full wedge on round posts, and the mannequins in the window are turned bodies with ball heads.',
+  name:'Department store', tall:true, ww: 1048.8, dd: 620,
+  wTodo:'a whole block edge -- five packing slots, and the packer emits no wide slot yet',
+  kTodo:'shares wallFrames() with Apartments over shop and Car dealership; rev, glz and doorF belong in the kit',
+  head:'A whole edge, four storeys, corner turret, cantilevered canopy',
+  tags:['block width, on the line','deep display windows','mannequins behind the glass','corner turret','cantilevered canopy'],
+  desc:'The type that actually takes a whole block: a stone pile with deep display windows at street level, mannequins standing inside them, three ranks of windows over, a cantilevered canopy along the street and a domed turret on the corner.',
   draw(p){
-    const wall = '#c9c2b4', trim = '#7a3b46', H = 314;
-    body(wall, trim, H);
-    slab(0,W, H, H+14, -1, -16, trim);
-    slab(0,W, H-22, H, -1, -10, shade(wall,1.06));
-    for(let fl=0; fl<2; fl++){
-      const z0 = 136 + fl*84;
-      slab(6,W-6, z0-8, z0-2, -1, -7, shade(wall,.86));
-      for(let i=0;i<4;i++){
-        const x0 = 12+(W-24)*(i+0.08)/4, x1 = 12+(W-24)*(i+0.92)/4;
-        slab(x0-3,x1+3, z0, z0+62, -1, -8, shade(wall,1.08));
-        F(x0,x1, z0+4, z0+58, '#8fa8b8', null,0,-8.5);
-        for(let k=1;k<3;k++) F(x0+(x1-x0)*k/3-1.5, x0+(x1-x0)*k/3+1.5, z0+4, z0+58, shade(wall,1.08), null,0,-9);
-        F(x0,x1, z0+30, z0+33, shade(wall,1.08), null,0,-9);
+    /* ============ A DEPARTMENT STORE IS A WHOLE EDGE ============
+       Sir asked for the dealership's footprint and the type wants it:
+       this is the building that occupies a block. Block WIDTH again --
+       ww 1048.8, dd 620, on the line, no yard -- and elevated on all
+       four faces through wallFrames, which is now shared by three shops
+       and still wants to be in the kit. kTodo says so on all of them.
+
+       WHAT WAS WRONG with the 230 version, measured:
+
+         THREE GLAZING BARS ACROSS THE DOOR. F() bars at a 79.3, 115.0
+         and 150.7 against an opening at 81.88..148.12 -- the middle one
+         splitting the doorway exactly in half -- and all three drawn
+         AFTER shopDoor. The entry's own comment said the glazing had no
+         way through it; the door was added and the bars were not
+         reconsidered. That is the 25th of these.
+
+         THE DOOR DID NOT FIT ITS OWN SHOPFRONT. Head 107.95 in a band
+         running to 108, and a surround top at 114.95 -- 7 units of door
+         surround standing in bare wall above the glazing.
+
+         THE MANNEQUINS WERE OUTSIDE THE GLASS, at b +6, standing on the
+         footway. Same fault as the Apothecary's jars at +5, and the
+         reason it keeps happening is that a display is the one thing in
+         a shopfront that reads better when you get the sign wrong on
+         this canvas -- painted last, it looks fine and dies under a
+         depth key.
+
+         THE CANOPY RAN a -6..236 at b 0..52: six past BOTH returns and
+         52 out over the footway, on three posts whose screen-a was -44.
+         That is what the cTodo counted.
+
+         Plus the fTodo bands, 10 and 1 past the return, a flat rectangle
+         for every window on the building, and zTodo 1.87 for three
+         storeys drawn.
+
+       THE STOREY STACK, on the Rooming house arithmetic: a ground storey
+       tall enough for the kit's door and a canopy over it, then three
+       upper storeys of 110. 160 + 330 = 490, which is 2.92.
+
+         24..104   display windows      107.95 door head
+         124..136  canopy               138..158 name band
+         160..170  first course         186..252 first floor
+         270..280  second course        296..362 second floor
+         380..390  third course         406..472 third floor
+         490..508  cornice */
+    const wall = '#c9c2b4', trim = '#7a3b46', iron = '#8d979f';
+    const WW = 1048.8, DD = 620, H = 490;
+    const glassT = 'rgba(112,140,158,.84)', showT = 'rgba(134,166,184,.34)';
+    const { FR_FRONT, FR_RIGHT, FR_LEFT, FR_BACK, NEAR, FAR, Q, R, bandF, rev, glz, doorF }
+      = wallFrames(WW, DD);
+    const EMID = WW/2, CZ0 = 124, CZ1 = 136, COUT = 28;
+    const FIG = ['#7a3b46','#3f6b6b','#c9a24a','#4a4f6b','#8a5a6a'];
+
+    /* a mannequin: a turned body on a plinth with a ball head, standing
+       INSIDE the reveal at n -20 rather than at +6 on the pavement */
+    const figure = (fr, u, n, v, col) => {
+      const c = fr.P(u, n, 0);
+      cyl(c[0], c[1], v, v+8, 5, shade(wall,.70));
+      cyl(c[0], c[1], v+8, v+46, 8, col);
+      ball(c[0], c[1], v+55, 7, '#e8ddc8');
+    };
+    /* one display window: a 60 recess with a floor and figures on it,
+       then the pane. THE CANOPY DOES NOT SHADOW IT, and that is why the
+       head is 104 rather than 118: a soffit point and a wall point share
+       a pixel when z_w = (CZ0*ZSCALE*2 - b_s)/ZSCALE, so a canopy at 124
+       projecting 28 covers the wall from 124 down to 105.3. The
+       drugstore learned this the expensive way with its pickup window
+       behind its own roof. */
+    const display = (fr, u0, u1, figs) => {
+      rev(fr, u0, u1, 24, 104, 60, shade(trim,.42));
+      ctx.save();
+      poly([Q(fr,u0,0,104),Q(fr,u1,0,104),Q(fr,u1,0,24),Q(fr,u0,0,24)]); ctx.clip();
+      poly([Q(fr,u0,0,24),Q(fr,u1,0,24),Q(fr,u1,-60,24),Q(fr,u0,-60,24)], shade(wall,.80));
+      R(fr, u0, u1, 74, 80, -58, shade(trim,.60));                  // a lit band at the back
+      for(let k=0;k<figs;k++)
+        figure(fr, u0 + (u1-u0)*(k+0.5)/figs, -20, 24, FIG[(k + Math.round(u0)) % FIG.length]);
+      ctx.restore();
+      glz(fr, u0, u1, 24, 104, shade(wall,.72), showT);
+      bandF(fr, u0-6, u1+6, 14, 24, 4, -1, shade(wall,.74));         // cill
+      bandF(fr, u0-6, u1+6, 104, 114, 4, -1, shade(wall,.92));       // head
+    };
+
+    const elevation = fr => {
+      const L = fr.len;
+      bandF(fr, -5, L+5, 138, 158, 5, 0, shade(trim,1.22), null, shade(trim,1.4), 0);   // name band
+      for(let k=0;k<Math.round(L/150);k++)
+        R(fr, 40+k*150, 128+k*150, 144, 153, 5.5, shade(wall,1.12));
+      for(const cv of [160, 270, 380])
+        bandF(fr, -5, L+5, cv, cv+10, 3, 0, shade(wall,.84), null, shade(wall,1.12), 0);
+      bandF(fr, -7, L+7, H, H+18, 5, -1, trim, null, shade(trim,1.15), 0);      // cornice
+      bandF(fr, -6, 26,   14, H, 5, 0, shade(wall,1.06), null, shade(wall,1.2), 2);
+      bandF(fr, L-26, L+6, 14, H, 5, 0, shade(wall,1.06), null, shade(wall,1.2), 1);
+
+      /* ---- ground: display windows, with the entrance cut out of the
+         run rather than drawn over it ---- */
+      const dmid = fr.kind === 'front' ? EMID : L/2, u0c = 26;
+      const s0 = dmid - 37.12, s1 = dmid + 37.12;                     // shopDoor's own surround
+      const runs = [[26, s0], [s1, L-26]];
+      for(const [r0, r1] of runs){
+        const nW = Math.max(1, Math.round((r1-r0)/240)), pier = 24;
+        const wW = ((r1-r0) - pier*(nW-1)) / nW;
+        for(let i=0;i<nW;i++){
+          const x0 = r0 + i*(wW+pier);
+          display(fr, x0, x0+wW, Math.max(1, Math.round(wW/95)));
+        }
       }
-    }
-    F(8,W-8, 20, 108, '#8fa8b8', shade(wall,.62), 3);
-    shopDoor(W*0.50, wall, trim);      // 214 of glazing with no way through it
-    for(let k=1;k<6;k++) F(8+(W-16)*k/6-3, 8+(W-16)*k/6+3, 20, 108, shade(wall,.8), null,0,-1);
-    for(let i=0;i<5;i++){
-      const ma = 24+i*40, col = ['#7a3b46','#3f6b6b','#c9a24a','#4a4f6b','#8a5a6a'][i];
-      cyl(ma, 6, 30, 40, 4, shade(wall,.8));
-      cyl(ma, 6, 40, 78, 7, col);
-      ball(ma, 6, 86, 6, '#e8ddc8');
-    }
-    const out = 52;
-    poly([P(-6,0,120),P(W+6,0,120),P(W+6,out,108),P(-6,out,108)], trim);
-    poly([P(-6,out,108),P(W+6,out,108),P(W+6,out,96),P(-6,out,96)], shade(trim,.75));
-    poly([P(-6,0,110),P(W+6,0,110),P(W+6,out,96),P(-6,out,96)], shade(wall,1.1));
-    poly([P(-6,0,120),P(-6,out,108),P(-6,out,96),P(-6,0,110)], shade(trim,.6));
-    poly([P(W+6,0,120),P(W+6,out,108),P(W+6,out,96),P(W+6,0,110)], shade(trim,.6));
-    for(const aa of [4, W*0.5, W-4]) cyl(aa, out-4, 0, 106, 4, '#8d979f');
+      if(fr === FR_FRONT) shopDoor(EMID, wall, trim, null, WW);       // the canonical door
+      else doorF(fr, dmid, wall, trim);
+
+      /* ---- the canopy, CANTILEVERED, and on every face ----
+         The old one stood on three posts at b 48: three props in the
+         footway needing three collision volumes, which was the whole of
+         its cTodo. A canopy over a shopfront is a bracketed cantilever
+         in the world and does not need them, so it hangs on tie rods and
+         nothing of this building stands on the pavement.
+
+         It goes round the corner because the display windows do. A
+         canopy on the street front alone reads as the flank being the
+         back of the building, which on a whole-edge store it is not --
+         and it is drawn at the END of each elevation so it sits over
+         that face's own glazing and under the next face's. */
+      poly([Q(fr,u0c,0,CZ0),Q(fr,L-26,0,CZ0),Q(fr,L-26,COUT,CZ0),Q(fr,u0c,COUT,CZ0)],
+           shade(wall,.76));                                            // soffit
+      bandF(fr, u0c, L-26, CZ0, CZ1, COUT, 0, shade(trim,.80), null, shade(trim,.95));
+      R(fr, u0c, L-26, CZ0, CZ0+4, COUT+0.4, shade(trim,1.05));
+      for(let i=0;i<=Math.round((L-52)/128);i++){
+        const ta = u0c + (L-26-u0c)*i/Math.round((L-52)/128);
+        const b0 = fr.P(ta, 2, 0), b1 = fr.P(ta, COUT-3, 0);
+        tube(b0[0], b0[1], CZ1+34, b1[0], b1[1], CZ1-1, 2.2, iron);
+      }
+
+      /* ---- three ranks of windows over ---- */
+      const NB = fr.kind === 'flank' ? 8 : 15, B0 = 26, B1 = L - 26;
+      for(let fl=0; fl<3; fl++){
+        const v0 = 186 + fl*110, v1 = v0 + 66;
+        for(let i=0;i<NB;i++){
+          const c = B0 + (B1-B0)*(i+0.5)/NB, x0 = c-24, x1 = c+24;
+          rev(fr, x0, x1, v0, v1, 9, shade(trim,.40));
+          glz(fr, x0, x1, v0, v1, shade(wall,1.10), glassT);
+          R(fr, x0, x1, (v0+v1)/2 - 2, (v0+v1)/2 + 2, 1, shade(wall,1.10));
+          for(const k of [1,2]) R(fr, x0+48*k/3-1.6, x0+48*k/3+1.6, v0, v1, 1, shade(wall,1.10));
+          bandF(fr, x0-5, x1+5, v0-9, v0, 4, -1, shade(wall,.88));
+        }
+      }
+    };
+
+    elevation(FR_BACK);
+    elevation(FAR);
+    body(wall, trim, H, WW, DD);
+    T(0, WW, -DD, 0, H+0.4, '#5f666c');           // body()'s roof plate is too bright at this size
+    elevation(NEAR);
+    elevation(FR_FRONT);
+
     if(state.roof){
-      /* narrower drum, deeper dome: at the old proportion it read as a
-         water tank rather than a turret */
-      const ta = W*0.14, tb = -60;
-      cyl(ta, tb, H+14, H+62, 25, shade(wall,1.04));
-      for(let i=0;i<2;i++) F(ta-14+i*17, ta-5+i*17, H+26, H+52, '#8fa8b8', null,0, tb-24);
-      plateCircle(ta, tb, H+62, 27, shade(trim,1.1), shade(trim,.8), 2);
-      const c=P(ta,tb,H+62);
-      ctx.beginPath();
-      ctx.moveTo(c.x-28*K,c.y);
-      ctx.bezierCurveTo(c.x-30*K,c.y-46*K, c.x+30*K,c.y-46*K, c.x+28*K,c.y);
-      ctx.closePath(); ctx.fillStyle=trim; ctx.fill();
-      ctx.strokeStyle=shade(trim,.7); ctx.lineWidth=2; ctx.stroke();
-      cyl(ta, tb, H+104, H+132, 2.4, '#c9a24a');
-      ball(ta, tb, H+138, 5, '#c9a24a');
-      for(let i=0;i<3;i++){
-        const fa = W*0.42 + i*W*0.20;
-        cyl(fa, -10, H+14, H+72, 2.4, '#c9ccd0');
-        poly([P(fa+2,-10,H+72),P(fa+30,-10,H+64),P(fa+30,-10,H+48),P(fa+2,-10,H+54)],
-             ['#7a3b46','#c9a24a','#3f6b6b'][i]);
-      }
-      box(W*0.60,W*0.90,-170,-130,H,H+22,'#8f969d','#787f86','#697077');
+      /* ================= FOUR TURRETS, AND A DEPTH KEY =================
+         One per corner at Sir's direction, on the same 84 inset the
+         single one had -- so a 964.8/-84 becomes 84/-84, 84/-536 and
+         964.8/-536, and every one of them keeps the geometry unchanged.
+         All four fit: 52 of radius against a 32 margin at the closest
+         edge.
+
+         THE MOMENT THERE ARE FOUR, CALL ORDER STOPS WORKING. The single
+         turret only needed the rooftop plant drawn before it; with four
+         turrets, four flagpoles and two plant boxes on one roof the
+         answer is not an order, it is a key -- a + b + z, which is what
+         depthSort already computes. Written as a list of items now
+         rather than as a sequence of calls, so adding a seventh object
+         to this roof cannot reintroduce the fault the plant box had.
+
+         The camera-facing side needs no special case either: onDrum
+         takes b = tb + sqrt(DR^2 - da^2), which is the larger b and so
+         the nearer face, whichever corner the drum stands on. */
+      const turret = (ta, tb) => {
+        const DR = 46;
+        cyl(ta, tb, H+1,   H+26,  DR+6, shade(wall,.86));               // plinth, ON the roof
+        cyl(ta, tb, H+26,  H+104, DR,   shade(wall,1.04));              // drum
+        /* A DRUM IS NOT A WALL. Putting these on the tangent plane at
+           b = tb + DR is only right at a = ta; 39 off centre the surface
+           has fallen back 21.6, so the outer pilasters hung off the
+           silhouette in mid-air. */
+        const onDrum = (da, inset) => tb + Math.sqrt(Math.max(0, DR*DR - da*da)) - inset;
+        for(let i=0;i<3;i++){
+          const da = -26 + i*26, bb = onDrum(da, 2);
+          F(ta+da-8, ta+da+8, H+44, H+88, glassT, null, 0, bb);
+          F(ta+da-10, ta+da+10, H+88, H+93, shade(wall,.80), null, 0, bb+0.6);
+        }
+        for(let i=0;i<4;i++){
+          const da = -39 + i*26, bb = onDrum(da, 1);
+          F(ta+da-3, ta+da+3, H+30, H+100, shade(wall,1.14), null, 0, bb);
+        }
+        cyl(ta, tb, H+104, H+116, DR+7, trim);                          // cornice ring
+        /* the dome: an ogee revolved, as a stack of PLATES rather than of
+           drums. cyl() gives every lift a lid, and a lid is wider than
+           the lift above it, so each showed as a ring -- and cyl()'s rim
+           is a twelve-gon, so every ring spiked at its corners along the
+           silhouette. plateCircle draws a true arc off the same basis,
+           so the union of the ellipses IS the dome, with no facets. */
+        { const N = 30, DH = 60, z0 = H+116, prof = t => Math.pow(Math.cos(Math.PI/2*t), 0.55);
+          for(let i=0;i<=N;i++)
+            plateCircle(ta, tb, z0 + DH*i/N, (DR+5)*prof(i/N), shade(trim, 1 + i*0.011)); }
+        cyl(ta, tb, H+176, H+200, 12, shade(wall,1.06));                // lantern, on the apex
+        plateCircle(ta, tb, H+200, 13, shade(trim,1.1), shade(trim,.8), 1.5);
+        { const N = 16, SH = 40, z0 = H+200;                             // spire, on the lantern
+          for(let i=0;i<=N;i++)
+            plateCircle(ta, tb, z0 + SH*i/N, 9*(1 - i/N), shade('#c9a24a', 1 + i*0.012)); }
+        ball(ta, tb, H+244, 5.5, shade('#c9a24a',1.2));
+      };
+      const flag = (fa, fb, col) => {
+        cyl(fa, fb, H+18, H+96, 3, '#c9ccd0');
+        poly([P(fa+2,fb,H+96),P(fa+38,fb,H+86),P(fa+38,fb,H+64),P(fa+2,fb,H+72)], col);
+      };
+      const plant = (ra, rb) => box(ra-46, ra+46, rb-35, rb+35, H, H+30,
+                                    '#8f969d','#787f86','#697077');
+      const IN = 84, roofItems = [];
+      for(const [ta, tb] of [[WW-IN,-IN],[IN,-IN],[IN,-DD+IN],[WW-IN,-DD+IN]])
+        roofItems.push({ a:ta, b:tb, z:0, draw:() => turret(ta, tb) });
+      ['#7a3b46','#c9a24a','#3f6b6b','#4a4f6b'].forEach((c,i) => {
+        const fa = 260 + i*180;
+        roofItems.push({ a:fa, b:-34, z:0, draw:() => flag(fa, -34, c) });
+      });
+      for(const [ra, rb] of [[420,-300],[700,-300]])
+        roofItems.push({ a:ra, b:rb, z:0, draw:() => plant(ra, rb) });
+      depthSort(roofItems);
     }
     kerb(p,'none');
   }
