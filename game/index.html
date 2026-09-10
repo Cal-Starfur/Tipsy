@@ -10224,6 +10224,46 @@ function gpsNavToMission(id){
              "Abandon", go);
 }
 
+/* A PLACE IS A DESTINATION TOO. The map pins learned this in August --
+   "the map is where you decide where to GO" -- but only missions got it:
+   every other row in search just panned the view, so a landmark you
+   could find was a landmark you then had to drive to by eye.
+
+   This is gpsNavToMission with the mat lookup taken out, because that is
+   genuinely the only difference. A mission navigates to its mat and can
+   be LAUNCHED on arrival; a place navigates to a point and arriving is
+   simply arriving. gpsNavArrived only ever answers for the mat whose id
+   it was sent to, and gpsNavLaunch returns false for an id it does not
+   know, so id "place" needs no new case in either -- the same way
+   "dropoff" has never needed one.
+
+   The target does not have to be on a road. gpsFindPath runs
+   gpsNearestNode on both ends, so a park's centroid -- which is in the
+   middle of the grass by construction -- snaps to the nearest lattice
+   node like anything else. */
+function gpsNavToPlace(name, tx, ty){
+  const s = (typeof scn === "function") ? scn() : null;
+  if(!s) return;
+  if(!Number.isFinite(tx) || !Number.isFinite(ty)){ tpToast("No pin for " + name + "."); return; }
+  const live = s.mode === "delivery" && s.state === "play";
+  const go = () => {
+    if(live) gpsAbandonDelivery(s);
+    hide("failOverlay"); hide("winOverlay");
+    const s2 = tpEnsureFreeroam(scn());
+    if(!gpsNavTo(s2, "place", name, tx, ty)){
+      tpToast("No route to " + name + ".");
+      return;
+    }
+    tpToast("Routing to " + name + ". Press GO.");
+    tpSyncOrderCard(s2);
+    if(s2 && s2.route){ resizeRouteMap(); drawRouteMap(s2.route); }
+  };
+  if(!live){ go(); return; }
+  gpsConfirm("Abandon today's delivery?",
+             "Driving to " + name + " cancels the order. No tip, no ladder credit.",
+             "Abandon", go);
+}
+
 /* one-off confirm sheet. Deliberately its own tiny element rather than
    a reuse of #failOverlay or the detail sheet: both of those carry
    run state and their own show/hide gates, and borrowing either for a
@@ -36498,12 +36538,20 @@ function tpMapExplore(){
       row.innerHTML = "<span>" + h.name + "</span><span style='color:#6b6f78;font-size:11px'>" + h.kind + "</span>";
       row.onclick = () => {
         res.style.display = "none"; box.blur();
-        /* a mission with a real pin (x !== undefined -- see tpMapIndex)
-           jumps on the map like any place would; only a mission with
-           nowhere to jump to yet (not playable, no pin function) falls
-           back to opening the list/detail sheet. */
+        /* PICKING A ROW IS CHOOSING A DESTINATION. It used to pan the
+           view and stop there, which left search and the map pins
+           disagreeing about what a tap means: tapping the slalom's PIN
+           plotted a route, tapping its search ROW only looked at it.
+           One rule now -- anything with a pin gets routed to.
+
+           A mission with no pin yet still opens its sheet, because
+           there is nowhere to send you; and the daily delivery is not
+           a place in the city but the errand you already have, so it
+           goes back to the route the same way its own pin does. */
         if(h.kind === "mission" && h.x === undefined){ tpOpenMissions(); tpOpenDetail("mission", h.id); }
-        else { tpCollapseMissions(); tpMapJumpTo(h); }
+        else if(h.id === "daily-delivery"){ tpCollapseMissions(); tpBackToDailyRoute(); }
+        else if(h.kind === "mission"){ tpCollapseMissions(); gpsNavToMission(h.id); }
+        else { tpCollapseMissions(); gpsNavToPlace(h.name, h.x, h.y); }
       };
       res.appendChild(row);
     }
