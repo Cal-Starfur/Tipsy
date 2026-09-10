@@ -11160,63 +11160,205 @@ const SHOPS = [
   }
 },
 {
-  name:'Grand hotel', tall:true,
-  cTodo:'2 pavement props need collision volumes',
-  fTodo:'z276..296 return +10',
-  zTodo:1.76,          // H 296 -- see SCALE REVIEW at the head of this file
-  head:'Three storeys, vertical HOTEL sign, entrance awning',
-  tags:['3 storey','projecting sign box','bowed awning','juliet rails','corner quoins'],
-  desc:'The sign is a box hung clear of the corner on brackets, the entrance awning is bowed with a valance and round posts, and the juliet rails are turned standards on stone cills.',
+  name:'Grand hotel', tall:true, ww: 1048.8, dd: 620,
+  wTodo:'a whole block edge -- five packing slots, and the packer emits no wide slot yet',
+  kTodo:'shares wallFrames() with Apartments over shop, Car dealership and Department store; rev, glz and doorF belong in the kit',
+  head:'A whole edge, five storeys, hipped mansard with dormers',
+  tags:['block width, on the line','hipped mansard','dormers on the slope','juliet balconies','cantilevered awning'],
+  desc:'The type that takes a block: a cream stone pile of five storeys under a hipped slate mansard, dormers standing on the slope, juliet balconies on the first floor and a cantilevered awning over the entrance carrying the name.',
   draw(p){
-    const wall = '#e0d6c2', trim = '#8a2f3c', H = 296;
-    body(wall, trim, H);
-    slab(0,W, H, H+12, -1, -14, trim);
-    slab(0,W, H-20, H, -1, -10, shade(wall,1.05));
-    for(let i=0;i<3;i++){
-      slab(0, 18, 110+i*60, 140+i*60, -1, -7, shade(wall,.88));
-      slab(W-18, W, 110+i*60, 140+i*60, -1, -7, shade(wall,.88));
-    }
-    for(let fl=0; fl<3; fl++){
-      const z0 = 112 + fl*62;
-      for(let i=0;i<4;i++){
-        const x0 = 24+(W-48)*(i+0.12)/4, x1 = 24+(W-48)*(i+0.88)/4;
-        slab(x0-3,x1+3, z0-3, z0+47, -1, -8, shade(wall,1.08));
-        F(x0,x1, z0, z0+44, '#5a6f7a', null,0,-8.5);
-        F(x0,x1, z0+21, z0+24, shade(wall,1.08), null,0,-9);
-        if(fl===0){
-          box(x0-5,x1+5, 0, 14, z0-6, z0-2, shade(wall,.94), shade(wall,.86), shade(wall,.74));
-          tube(x0-4, 12, z0+16, x1+4, 12, z0+16, 1.4, '#3a3430');
-          for(let k=0;k<8;k++) cyl(x0-4+(x1-x0+8)*k/7, 12, z0-2, z0+16, 0.8, '#3a3430');
+    /* ============ A GRAND HOTEL IS A WHOLE EDGE ============
+       Block WIDTH -- ww 1048.8, dd 620, on the line, no yard -- elevated
+       on all four faces through wallFrames, shared by four shops now and
+       still belonging in the kit.
+
+       WHAT WAS WRONG with the 230 version, measured:
+
+         THE SIGN WAS INSIDE THE BUILDING. slab(..., -26, -42): BOTH
+         arguments negative, so the whole box sat 26 to 42 units into the
+         masonry with its brackets in there with it, and read only
+         because it was painted after the wall. The Locksmith's giant key
+         word for word. The sign is gone entirely at Sir's direction and
+         the name is on the awning fascia instead.
+
+         A PANEL ACROSS THE DOOR, the 27th: a 105.8..128.8 inside an
+         opening at 84.18..150.42, at b -8.5.
+
+         AND BOTH GROUND WINDOWS RAN INTO THE DOOR SURROUND, by 11.82
+         each -- windows set out as fractions of W, door set out by
+         shopDoor's own clamp arithmetic, nothing reconciling the two.
+
+         THE AWNING WAS A SCREEN-SPACE BEZIER, quadraticCurveTo with
+         controls offset in pixels, the same class as the Department
+         store's dome -- projecting 46 over the footway on two posts at
+         b 42, which is what the cTodo counted.
+
+         Plus the fTodo frieze 10 past the return, quoins 7 past, and
+         zTodo 1.76 for three floors on a 62 pitch.
+
+       THE STOREY STACK, on the Rooming house arithmetic: 160 + 4 x 110
+       = 600, which is 3.57 -- the tallest wall in the file.
+
+         26..104   ground windows       107.95 door head
+         124..142  awning and name      150..160 first course
+         186..252  first floor, juliets 270..280 second course
+         306..372  second floor         390..400 third course
+         426..492  third floor          510..520 fourth course
+         542..594  attic storey         600..618 cornice
+         618..692  mansard, deck at 692 */
+    const wall = '#e0d6c2', trim = '#8a2f3c', gold = '#c9a24a', slate = '#4a5058';
+    const WW = 1048.8, DD = 620, H = 600;
+    const glassT = 'rgba(90,111,122,.86)';
+    const { FR_FRONT, FR_RIGHT, FR_LEFT, FR_BACK, NEAR, FAR, Q, R, bandF, rev, glz, doorF }
+      = wallFrames(WW, DD);
+    const EMID = WW/2, AZ0 = 124, AZ1 = 142, AOUT = 26;
+    const MN = -52, MZ = H+92, HIP = 52;
+
+    const elevation = fr => {
+      const L = fr.len;
+      for(const cv of [150, 270, 390, 510])
+        bandF(fr, -5, L+5, cv, cv+10, 3, 0, shade(wall,.84), null, shade(wall,1.14), 0);
+      bandF(fr, -7, L+7, H, H+18, 5, -1, trim, null, shade(trim,1.18), 0);          // cornice
+      /* the quoins are PROUD -- bFront 4, bBack 0 -- so 0..L has no
+         recess to overrun. They were at -7 and landed 7 past the return
+         on the mirrored heading, which was half the fTodo. */
+      bandF(fr, -6, 26,   14, H, 4, 0, shade(wall,1.06), null, shade(wall,1.2), 2);
+      bandF(fr, L-26, L+6, 14, H, 4, 0, shade(wall,1.06), null, shade(wall,1.2), 1);
+      for(const qa of [10, L-10]) for(let k=0;k<9;k++)
+        R(fr, qa-9, qa+9, 30+k*62, 60+k*62, 4.5, shade(wall,1.14));
+
+      /* ---- ground: the entrance cut out of the run, not drawn over it ---- */
+      const dmid = fr.kind === 'front' ? EMID : L/2;
+      const s0 = dmid - 37.12, s1 = dmid + 37.12;
+      for(const [r0, r1] of [[26, s0], [s1, L-26]]){
+        const nW = Math.max(1, Math.round((r1-r0)/150)), pier = 22;
+        const wW = ((r1-r0) - pier*(nW-1)) / nW, nBar = Math.max(1, Math.round(wW/44));
+        for(let i=0;i<nW;i++){
+          const x0 = r0 + i*(wW+pier);
+          bandF(fr, x0-6, x0+wW+6, 16, 26, 4, -1, shade(wall,.92));
+          rev(fr, x0, x0+wW, 26, 104, 11, shade(trim,.44));
+          glz(fr, x0, x0+wW, 26, 104, shade(wall,1.10), 'rgba(118,144,158,.62)');
+          for(let k=1;k<nBar;k++)
+            R(fr, x0+wW*k/nBar-2, x0+wW*k/nBar+2, 26, 104, 1, shade(wall,1.12));
+          bandF(fr, x0-6, x0+wW+6, 104, 114, 4, -1, shade(wall,1.02));
         }
       }
-    }
-    F(10,W*0.40, 22, 94, '#7f93a0', shade(wall,.62), 3);
-    F(W*0.62,W-10, 22, 94, '#7f93a0', shade(wall,.62), 3);
-    shopDoor(W*0.51, wall, trim);
-    F(W*0.46,W*0.56, 14, 90, '#5a6f7a', null,0,-8.5);
-    const az = 108, ao = 46;
-    ctx.beginPath();
-    const al=P(W*0.36,0,az), ar=P(W*0.66,0,az), am=P(W*0.51,ao,az-16);
-    ctx.moveTo(al.x,al.y);
-    ctx.quadraticCurveTo(am.x, am.y-16*K, ar.x, ar.y);
-    ctx.quadraticCurveTo(am.x, am.y+2*K, al.x, al.y);
-    ctx.closePath(); ctx.fillStyle=trim; ctx.fill();
-    ctx.strokeStyle=shade(trim,.7); ctx.lineWidth=2; ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(al.x,al.y+2);
-    ctx.quadraticCurveTo(am.x, am.y+12*K, ar.x, ar.y+2);
-    ctx.quadraticCurveTo(am.x, am.y+4*K, al.x, al.y+2);
-    ctx.closePath(); ctx.fillStyle=shade(trim,.6); ctx.fill();
-    for(const aa of [W*0.37, W*0.65]) cyl(aa, ao-4, 0, az-16, 3, '#c9a24a');
-    const sa = W*0.06;
-    tube(sa, -2, 268, sa, -24, 268, 2.4, '#c9a24a');
-    tube(sa, -2, 140, sa, -24, 140, 2.4, '#c9a24a');
-    slab(sa-16, sa+16, 132, 276, -26, -42, trim, shade(wall,.6), shade(trim,1.2));
-    for(let i=0;i<5;i++) F(sa-10, sa+10, 146+i*26, 168+i*26, '#f0e2c8', null,0,-26.5);
-    slab(sa-19, sa+19, 276, 284, -25, -43, '#c9a24a');
-    slab(sa-19, sa+19, 124, 132, -25, -43, '#c9a24a');
+      if(fr === FR_FRONT) shopDoor(EMID, wall, trim, null, WW);        // the canonical door
+      else doorF(fr, dmid, wall, trim);
+
+      /* ---- four ranks over, juliet balconies on the first ---- */
+      const NB = fr.kind === 'flank' ? 8 : 15, B0 = 26, B1 = L - 26;
+      for(let fl=0; fl<4; fl++){
+        const v0 = [186, 306, 426, 542][fl], hh = fl === 3 ? 52 : 66;
+        for(let i=0;i<NB;i++){
+          const c = B0 + (B1-B0)*(i+0.5)/NB, x0 = c-23, x1 = c+23;
+          bandF(fr, x0-6, x1+6, v0-10, v0, 4, -1, shade(wall,.92));      // stone cill
+          rev(fr, x0, x1, v0, v0+hh, 9, shade(trim,.42));
+          glz(fr, x0, x1, v0, v0+hh, shade(wall,1.10), glassT);
+          R(fr, x0, x1, v0+hh/2-2, v0+hh/2+2, 1, shade(wall,1.12));
+          R(fr, (x0+x1)/2-1.6, (x0+x1)/2+1.6, v0, v0+hh, 1, shade(wall,1.12));
+          if(fl === 0){
+            /* eight standards a bay across fifteen bays came out as a
+               black fringe the length of the elevation rather than as
+               railings: at a 66.45 bay pitch a rail written x0-4..x1+4
+               is 54 wide with 12.4 between. Five standards, thinner, and
+               the rail stops at the reveal so the gap is 20.4. */
+            const b0 = fr.P(x0, 13, 0), b1 = fr.P(x1, 13, 0);
+            tube(b0[0], b0[1], v0+20, b1[0], b1[1], v0+20, 1.5, '#3a3430');
+            tube(b0[0], b0[1], v0+3,  b1[0], b1[1], v0+3,  1.0, '#3a3430');
+            for(let k=0;k<=4;k++){
+              const q = fr.P(x0 + (x1-x0)*k/4, 13, 0);
+              cyl(q[0], q[1], v0, v0+20, 0.9, '#3a3430');
+            }
+          }
+          if(fl === 3) R(fr, x0-4, x1+4, v0+hh, v0+hh+7, 4, shade(wall,1.04));
+        }
+      }
+
+      /* ---- the mansard, HIPPED, and its dormers ----
+         THE CORNERS WERE TWO SLOPES ON TOP OF EACH OTHER. Each face drew
+         its mansard as a rectangle running the full length at n 0..-52,
+         so at every corner the front slope and the flank slope both
+         covered the same 52 by 52 square and whichever was painted
+         second won. That is not a corner, it is an overlap, and it read
+         as a notch.
+
+         A hipped mansard is a TRAPEZOID: full width at the eaves, inset
+         by the lean at the deck, 0..L becoming 52..L-52. The four
+         trapezoids then tile the roof exactly, with a hip line down each
+         corner and nothing drawn twice. The ribs follow the same taper,
+         because a rib on a hipped slope converges with it. */
+      const NR = Math.round(L/58);
+      poly([Q(fr,0,0,H+18), Q(fr,L,0,H+18), Q(fr,L-HIP,MN,MZ), Q(fr,HIP,MN,MZ)], slate);
+      for(let k=1;k<NR;k++){
+        const t = k/NR, u0 = L*t, u1 = HIP + (L-2*HIP)*t;
+        poly([Q(fr,u0-2,0,H+18), Q(fr,u0+2,0,H+18),
+              Q(fr,u1+2,MN,MZ), Q(fr,u1-2,MN,MZ)], shade(slate,1.12));
+      }
+      /* A DORMER STANDS ON THE SLOPE. The first cut drew these at n 0,
+         which is the wall plane -- the mansard only touches that at its
+         very foot (z H+18), so every dormer floated in front of the
+         slope with nothing under it. The slope is
+         z(n) = H+18 + 74*(-n)/52, so a face at n -13 has its foot at
+         H+36.5 and its cheeks run back to n -33 where the slope has
+         reached H+64.9. Face, two cheeks, a roof and its fascia, all off
+         that one line -- and 30 wide by 47 tall rather than 38 by 44,
+         which is a dormer rather than a hatch.
+
+         The bays that fall on the HIP are skipped: a dormer on a hip is
+         a dormer with one cheek in mid-air. */
+      const slopeZ = n => H + 18 + 74*(-n)/52;
+      for(let i=0;i<NB;i+=2){
+        const c = B0 + (B1-B0)*(i+0.5)/NB;
+        if(c < HIP + 22 || c > L - HIP - 22) continue;
+        const fn = -13, bn = -33, hw2 = 15;
+        for(const cu of [c-hw2, c+hw2])                                   // cheeks
+          poly([Q(fr,cu,fn,slopeZ(fn)), Q(fr,cu,fn,H+84),
+                Q(fr,cu,bn,H+90), Q(fr,cu,bn,slopeZ(bn))], shade(slate,.74));
+        R(fr, c-hw2, c+hw2, slopeZ(fn), H+84, fn, shade(wall,1.04), shade(wall,.66), 1.5);
+        R(fr, c-hw2+4, c+hw2-4, slopeZ(fn)+8, H+78, fn-0.6, glassT);
+        poly([Q(fr,c-hw2-5,fn+3,H+84), Q(fr,c+hw2+5,fn+3,H+84),
+              Q(fr,c+hw2+5,bn,H+90), Q(fr,c-hw2-5,bn,H+90)], shade(slate,1.20));
+        R(fr, c-hw2-5, c+hw2+5, H+80, H+84, fn+3.4, shade(slate,.60));
+      }
+    };
+
+    elevation(FR_BACK);
+    elevation(FAR);
+    body(wall, trim, H, WW, DD);
+    T(0, WW, -DD, 0, H+0.4, shade(slate,.70));    // body()'s roof plate is too bright at this size
+    /* THE MANSARD HAD NO DECK. body()'s plate sits at H, and the slopes
+       rise to H+92 leaning in 52 -- so the flat roof was 92 units BELOW
+       the tops of its own roof and the far slopes stood above nothing. A
+       mansard's deck is the plane the four slopes meet at: inset by the
+       lean, at the height they reach. */
+    T(HIP, WW-HIP, -DD+HIP, -HIP, MZ, shade(slate,1.06));
+    elevation(NEAR);
+    elevation(FR_FRONT);
+
+    /* ---- the awning over the entrance, CANTILEVERED ----
+       Two posts at b 42 were the cTodo; a hotel awning is a bracketed
+       cantilever and does not need them. It clears the ground windows:
+       a soffit point and a wall point share a pixel at
+       z_w = (AZ0*ZSCALE - b_s/2)/ZSCALE, so 124 projecting 26 shadows
+       the wall down to 106.7 against a window head of 104. */
+    T(EMID-92, EMID+92, AOUT, 0, AZ0, shade(trim,.55));
+    slab(EMID-92, EMID+92, AZ0, AZ1, AOUT, 0, trim, null, shade(trim,1.2));
+    F(EMID-92, EMID+92, AZ0, AZ0+5, gold, null, 0, AOUT+0.4);
+    for(let k=0;k<7;k++)                                                // valance scallops
+      plateCircle(EMID-78+k*26, AOUT-1, AZ0-1, 8, shade(trim,.75));
+    for(const ta of [EMID-86, EMID, EMID+86])
+      tube(ta, 2, AZ1+30, ta, AOUT-3, AZ1-1, 2.2, gold);
+    /* the name, on the awning fascia. The vertical sign that used to
+       carry it is gone at Sir's direction -- the whole box, not just the
+       gilt -- and this is where a hotel without a tower sign puts it. */
+    for(let k=0;k<5;k++)
+      F(EMID-62+k*26, EMID-46+k*26, AZ0+7, AZ1-3, '#f0e2c8', null, 0, AOUT+0.6);
+
     if(state.roof){
-      box(W*0.36,W*0.62,-160,-120,H,H+26,'#8f969d','#787f86','#697077');
-      cyl(W*0.82, -40, H+12, H+70, 2.4, '#c9ccd0');
+      for(const [ra, rb] of [[320,-300],[720,-300]])
+        box(ra-48, ra+48, rb-36, rb+36, MZ, MZ+32, '#8f969d','#787f86','#697077');
+      for(const ca of [200, 860]) cyl(ca, -300, MZ, MZ+58, 4, '#c9ccd0');
     }
     kerb(p,'none');
   }
