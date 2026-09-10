@@ -484,12 +484,18 @@ function drawChemist(p, c){
    back, far flank, body(), near flank, front, with FLANK_RIGHT saying
    which flank is which -- the same test body() uses for its end wall.
    ===================================================================== */
-function wallFrames(WW, DD){
+/* AN ORIGIN, because a landmark's building does not start at 0. The four
+   whole-edge shops all fill their lot, so their frontage IS a = 0 and
+   b = 0; a school standing in a park does not, and translating the frame
+   is the only difference between the two cases. oa and ob default to 0,
+   so nothing that already calls this changes. */
+function wallFrames(WW, DD, OA, OB){
+  const oa = OA || 0, ob = OB || 0;
   /* ---- the wall frames, and the primitives written against them ---- */
-  const FR_FRONT = { P:(u,n,v)=>[u, n, v],            len:WW, kind:'front' };
-  const FR_RIGHT = { P:(u,n,v)=>[WW+n, -u, v],        len:DD, kind:'flank'  };
-  const FR_LEFT  = { P:(u,n,v)=>[-n, -u, v],          len:DD, kind:'flank'  };
-  const FR_BACK  = { P:(u,n,v)=>[WW-u, -DD-n, v],     len:WW, kind:'back'   };
+  const FR_FRONT = { P:(u,n,v)=>[oa+u, ob+n, v],        len:WW, kind:'front' };
+  const FR_RIGHT = { P:(u,n,v)=>[oa+WW+n, ob-u, v],     len:DD, kind:'flank'  };
+  const FR_LEFT  = { P:(u,n,v)=>[oa-n, ob-u, v],        len:DD, kind:'flank'  };
+  const FR_BACK  = { P:(u,n,v)=>[oa+WW-u, ob-DD-n, v],  len:WW, kind:'back'   };
   const Q = (fr,u,n,v) => { const c = fr.P(u,n,v); return P(c[0],c[1],c[2]); };
   const R = (fr,u0,u1,v0,v1,n,fill,stroke,lw) =>
     poly([Q(fr,u0,n,v1),Q(fr,u1,n,v1),Q(fr,u1,n,v0),Q(fr,u0,n,v0)], fill, stroke, lw);
@@ -11364,55 +11370,304 @@ const SHOPS = [
   }
 },
 {
-  name:'School', tall:true,
-  bTodo:'the playground is the yard -- same relationship, already 1.71 storeys',
-  cTodo:'19 pavement props need collision volumes, 10 of them lapping past the frontage',
-  fTodo:'z106..112 return +7; z188..194 return +7',
-  zTodo:1.71,          // H 288 -- see SCALE REVIEW at the head of this file
-  head:'Three storeys of tall windows, bellcote, railings',
-  tags:['3 storey','tall classroom windows','turned bell','railed yard','plaque'],
-  desc:'The bellcote is a solid with a gabled cap and the bell is turned inside it, and the yard railings are round standards with a top rail and gate posts.',
+  name:'School', tall:true, block:true, place:'park',
+  ww: 3*3128, dd: 2*3128,
+  wTodo:'four block cells in an L -- the packer has no concept of a multi-block, non-rectangular footprint',
+  pTodo:'PEDDLERS SQUARE specifically, Market District. Measured on buildGrid(36,27,hashStr("2026-08-09")): 4 cells at i,j (10,18)(10,19)(11,19)(12,19). The chooser places by block type and has no way to name a component',
+  gTodo:'DRIFTWOOD ELEMENTARY. Pin to the Peddlers Square component the way Gantry Commons pins the Undertaker: PARK_LANDMARKS["Peddlers Square"] = { shop:"School", mapName:"Driftwood Elementary", icon:"\\u{1F3EB}", pin:"#b06a4a" }, and the entry copied into the game LIB alongside wallFrames. Anchor is the min-j then min-i cell, (10,18). If worldgen ever reshapes the component this footprint has to be regenerated from it rather than kept as a literal',
+  sTodo:'the LIB graft is in game/index.html ONLY -- game-logic.js has no ctx2phaser, no LIB.draw and no parkLandmarkIndex, so the Undertaker has never shipped to Devvit either. Porting a shop to the game is currently a one-build change, which is the thing the two-canonical-files rule exists to stop',
+  cTodo:'perimeter railings on the L outline, gate piers, the school block, the shelter and the trees need volumes; the yard and the walks are drivable',
+  head:'Driftwood Elementary, filling Peddlers Square, four cells of it',
+  tags:['four-cell footprint','L outline','school in its own yard','painted courts','bellcote','drivable yard'],
+  desc:'Not a shopfront and not a block: the school takes the whole of Peddlers Square in the shape the worldgen actually makes it, four cells in an L with the streets between them swallowed, railed round the outline with the building in the near cell and the yard filling the rest.',
   draw(p){
-    const wall = '#b06a4a', trim = '#e0d6c2', H = 288;
-    body(wall, trim, H);
-    slab(0,W, H, H+12, -1, -14, shade(wall,.68));
-    for(let r=0;r<12;r++) F(0,W, 6+r*24, 9+r*24, shade(wall,.9), null,0,-1);
-    for(let fl=0; fl<3; fl++){
-      const z0 = 34 + fl*82;
-      slab(0,W, z0-10, z0-4, -1, -7, shade(wall,.78));
-      for(let i=0;i<3;i++){
-        const x0 = 14+(W-28)*(i+0.10)/3, x1 = 14+(W-28)*(i+0.90)/3;
-        slab(x0-5,x1+5, z0-4, z0+70, -1, -9, trim);
-        F(x0,x1, z0, z0+64, '#6a8494', null,0,-9.5);
-        for(let k=1;k<3;k++) F(x0+(x1-x0)*k/3-2, x0+(x1-x0)*k/3+2, z0, z0+64, trim, null,0,-10);
-        for(let k=1;k<4;k++) F(x0,x1, z0+64*k/4-2, z0+64*k/4+2, trim, null,0,-10);
-      }
+    /* ============ THE FOOTPRINT IS A MEASURED PARK ============
+       The Undertaker's treatment, on the park Sir named. The cells were
+       read off the real city -- buildGrid(36, 27, hashStr("2026-08-09")),
+       DISTRICT_COLS*DISTRICT_W by DISTRICT_ROWS*DISTRICT_H -- and
+       parkNameTable's component for PEDDLERS SQUARE is four cells:
+
+         (10,18) (10,19) (11,19) (12,19)
+
+       Normalised to its own origin that is a 3 by 2 bounding box with
+       four of the six cells filled: one cell on the street side and a
+       row of three behind it, an L. ww and dd are the bounding box; the
+       SHAPE is the CELLS list. Anchor -- min-j then min-i -- is (10,18),
+       which is the cell the building stands in.
+
+       THE CELL PITCH IS THE GAME'S. BLOCK is 34*T2 = 3128 and ROAD_HALF
+       is 368, so 736 of road, 1656 of ground, 736 of road makes the
+       3128 pitch. That is the correction the Undertaker's graft forced:
+       the canvas lab's old block:true convention of 1048.8 is a THIRD of
+       a block, and five other shops still carry it.
+
+       WHAT THE SWALLOW PASS MEANS. Where two cells are edge adjacent the
+       street between them is gone and the ground runs straight through;
+       where a cell has no neighbour on a side, that side is a real
+       street frontage and gets the railing. So the ground is not four
+       squares, it is one L, and the railing is derived from the cell set
+       rather than drawn as a rectangle.
+
+       WHAT WAS WRONG with the 230 version. Its own bTodo already said
+       it: "the playground is the yard -- same relationship", which is
+       the landmark test in one line. Beyond that the entry had
+
+         F(W*0.43, W*0.57, 10, 88) at a 98.9..131.1 inside an opening at
+           81.88..148.12 -- a panel across the door, the 28th
+         slab(W*0.36, W*0.64, 96, 108) at a 82.8..147.2, a band through
+           that same doorway under a head of 107.95
+         yard railings at a -6..W+6 on b 44: six past BOTH returns and 44
+           out over the footway, which is what the cTodo counted
+         two fTodo bands at -7, landing 7 past the return
+         and zTodo 1.71, three floors of tall classroom windows on an 82
+           pitch
+
+       The building is 160 + 2 x 140 = 440 now, which is 2.62, and it
+       stands in its own ground so its railings are a boundary rather
+       than somebody else's pavement. */
+    const BLK = 3128, ROAD = 736;
+    const CELLS = [[0,0],[0,1],[1,1],[2,1]];
+    const has = (ci, cj) => CELLS.some(c => c[0] === ci && c[1] === cj);
+    const wall = '#b06a4a', trim = '#e0d6c2', H = 440;
+    const grass = '#4e7a4a', tar = '#6e6f6b', walk = '#b3a894', iron = '#3c4a44';
+    const glassT = 'rgba(106,132,148,.86)';
+    /* the building stands in the anchor cell, whose ground is
+       a 736..2392 by b -3128..-736 */
+    const SA0 = 950, SA1 = 2200, SB0 = -2860, SB1 = -1560;
+    const { FR_FRONT, FR_RIGHT, FR_LEFT, FR_BACK, NEAR, FAR, Q, R, bandF, rev, glz, doorF }
+      = wallFrames(SA1-SA0, SB1-SB0, SA0, SB1);
+
+    /* ---- the ground, cell by cell, with the swallowed streets ---- */
+    const rect = (ci, cj) => [
+      ci*BLK + (has(ci-1,cj) ? 0 : ROAD), (ci+1)*BLK - (has(ci+1,cj) ? 0 : ROAD),
+      -(cj+1)*BLK + (has(ci,cj+1) ? 0 : ROAD), -cj*BLK - (has(ci,cj-1) ? 0 : ROAD)];
+    T(0, 3*BLK, -2*BLK, 0, 0.3, walk);
+    for(const [ci, cj] of CELLS){
+      const [a0, a1, b0, b1] = rect(ci, cj);
+      T(a0, a1, b0, b1, 0.6, tar);
     }
-    shopDoor(W*0.50, wall, trim);
-    F(W*0.43,W*0.57, 10, 88, '#4a5a64', null,0,-8.5);
-    slab(W*0.36,W*0.64, 96, 108, -1, -10, trim);
-    slab(W*0.42,W*0.58, 262, 278, -1, -7, trim);
-    if(state.props){
-      tube(-6, 44, 26, W+6, 44, 26, 2, '#3c4a44');
-      for(let i=0;i<16;i++){
-        cyl(-6+(W+12)*i/15, 44, 0, 30, 1.5, '#3c4a44');
-        ball(-6+(W+12)*i/15, 44, 32, 2.2, '#3c4a44');
-      }
-      for(const aa of [-6, W*0.5, W+6]) cyl(aa, 44, 0, 44, 3.5, '#3c4a44');
+    /* EVERY YARD ELEMENT IS CHECKED AGAINST ITS CELL RECTANGLE, because
+       the bounding box is not the ground. The four cells come out
+
+         (0,0)  a  736..2392   b -3128..-736
+         (0,1)  a  736..3128   b -5520..-3128
+         (1,1)  a 3128..6256   b -5520..-3864
+         (2,1)  a 6256..8648   b -5520..-3864
+
+       and the first pass ignored the shape: the pitch's near edge sat at
+       -3548 against a boundary of -3864, 316 outside; the court
+       straddled the step at a 3128; and every tree and the bike shelter
+       were written at b -1180 to -1800, which only exists at ci 0 -- so
+       ten props and a shelter stood on the pavement outside their own
+       railings. That is the cTodo the 230 version had, reproduced at
+       landmark scale by looking at ww by dd instead of at the cells. */
+    T(3428, 8528, -5380, -3960, 0.9, grass);                              // the pitch
+    /* the spine walk runs GATE to DOOR, not gate to back fence: the
+       first cut ran it b -3864..-736 straight through a building
+       standing at -2860..-1560. */
+    T(1475, 1675, -1560, -ROAD, 1.2, walk);
+    { const c0 = 1200, c1 = 2900, d0 = -5200, d1 = -3400;                 // a marked court
+      for(const [x0,x1,y0,y1] of [[c0,c1,d0,d0+16],[c0,c1,d1-16,d1],
+                                  [c0,c0+16,d0,d1],[c1-16,c1,d0,d1],
+                                  [(c0+c1)/2-8,(c0+c1)/2+8,d0,d1]])
+        T(x0, x1, y0, y1, 1.2, '#d8d2c2');
+      for(let k=0;k<26;k++){
+        const t = k/25*Math.PI*2, r = 150;
+        T((c0+c1)/2 + r*Math.cos(t) - 7, (c0+c1)/2 + r*Math.cos(t) + 7,
+          (d0+d1)/2 + r*Math.sin(t) - 7, (d0+d1)/2 + r*Math.sin(t) + 7, 1.2, '#d8d2c2');
+      } }
+
+    /* ---- the railing, derived from the cell set ----
+       Every cell side with no neighbour is a street frontage, and the
+       rail covers the part of that edge NOT shared with a neighbour --
+       the Undertaker's rule, which is what closes the notch where the L
+       steps rather than leaving the hole an overrun leaves. */
+    const railSegs = [];
+    for(const [ci, cj] of CELLS){
+      const [a0, a1, b0, b1] = rect(ci, cj);
+      const nb = (i, j) => has(i, j) ? [i, j] : null;
+      const span = (lo, hi, n2, along) => {
+        if(!n2) return [[lo, hi]];
+        const r = rect(n2[0], n2[1]), [c0, c1] = along ? [r[0], r[1]] : [r[2], r[3]];
+        const out = [];
+        if(lo < c0) out.push([lo, Math.min(hi, c0)]);
+        if(hi > c1) out.push([Math.max(lo, c1), hi]);
+        return out;
+      };
+      for(const [x0, x1] of span(a0, a1, nb(ci, cj-1), true)) railSegs.push([x0-12, x1+12, b1-12, b1]);
+      for(const [x0, x1] of span(a0, a1, nb(ci, cj+1), true)) railSegs.push([x0-12, x1+12, b0, b0+12]);
+      for(const [y0, y1] of span(b0, b1, nb(ci-1, cj), false)) railSegs.push([a0, a0+12, y0-12, y1+12]);
+      for(const [y0, y1] of span(b0, b1, nb(ci+1, cj), false)) railSegs.push([a1-12, a1, y0-12, y1+12]);
     }
+    const GATE = [1475, 1675];                                   // the one gap, on the spine walk
+    /* ---- CHAIN LINK, not a railing ----
+       A school yard fence is galvanised mesh on line posts, and the
+       difference is not the colour: a palisade is a row of solids and
+       mesh is a TRANSPARENT plane you see the yard through, so it has to
+       be built as a plane rather than as objects.
+
+       The diamonds are two sets of diagonals CLIPPED to the run, which
+       is reveal()'s own trick -- a diagonal that has to stop exactly at
+       a post is arithmetic per line, and a diagonal drawn long and
+       clipped is one rule for every run whatever its length or which
+       axis it lies on. The wash behind them is what stops the mesh
+       reading as bare wire.
+
+       Line posts go to 152 and the mesh to 140, which is 228 and 210 in
+       game units -- a real yard fence rather than the 116 hip-height
+       railing this was, and the top rail is at the mesh head where a
+       chain link top rail actually runs. */
+    const MESH = '#a8b0ae', POST = '#7d8785', FZ0 = 14, FZ1 = 140;
+    const railRun = (x0, x1, y0, y1) => {
+      const along = (x1-x0) > (y1-y0), lo = along ? x0 : y0, hi = along ? x1 : y1;
+      const parts = (along && Math.abs(y1 - (-ROAD)) < 40)
+        ? [[lo, GATE[0]], [GATE[1], hi]] : [[lo, hi]];
+      for(const [q0, q1] of parts){
+        if(q1 - q0 < 30) continue;
+        const A = along ? [q0, q1, (y0+y1)/2, (y0+y1)/2] : [(x0+x1)/2, (x0+x1)/2, q0, q1];
+        const len = q1 - q0;
+        const pt = (t, z) => P(A[0] + (A[1]-A[0])*t, A[2] + (A[3]-A[2])*t, z);
+        poly([pt(0,FZ1), pt(1,FZ1), pt(1,FZ0), pt(0,FZ0)], 'rgba(206,214,212,.14)');
+        /* THE DIAMONDS ARE CLIPPED BY ARITHMETIC, NOT BY ctx.clip().
+           A clip was the obvious way and it is the wrong one HERE: the
+           game emulates ctx.clip() by Sutherland-Hodgman polygon
+           intersection, which clips FILLS. These are strokes, and a
+           stroke is not a polygon -- so a fence that looked right on
+           this canvas could arrive in the game as a run of diagonals
+           overshooting every post.
+
+           A diagonal is a line in (distance-along, height), so solving
+           it is two divides: the line runs from (s, FZ0) to
+           (s + dir*rise, FZ1), and the part with distance-along inside
+           [0, len] is a parameter interval. Same result, no clip, and it
+           ports. */
+        ctx.strokeStyle = MESH; ctx.lineWidth = 1.1;
+        const rise = (FZ1 - FZ0) * ZSCALE, step = 90;
+        for(let k = -2; k <= len/step + 2; k++){
+          for(const dir of [1, -1]){
+            const s0 = k*step, s1 = s0 + dir*rise;
+            let u0 = 0, u1 = 1;
+            if(s1 !== s0){
+              const ua = (0 - s0)/(s1 - s0), ub = (len - s0)/(s1 - s0);
+              u0 = Math.max(0, Math.min(ua, ub));
+              u1 = Math.min(1, Math.max(ua, ub));
+            } else if(s0 < 0 || s0 > len) continue;
+            if(u1 <= u0) continue;
+            const q0 = pt((s0 + (s1-s0)*u0)/len, FZ0 + (FZ1-FZ0)*u0);
+            const q1 = pt((s0 + (s1-s0)*u1)/len, FZ0 + (FZ1-FZ0)*u1);
+            ctx.beginPath(); ctx.moveTo(q0.x, q0.y); ctx.lineTo(q1.x, q1.y); ctx.stroke();
+          }
+        }
+        tube(A[0], A[2], FZ1, A[1], A[3], FZ1, 4, POST);            // top rail
+        tube(A[0], A[2], FZ0, A[1], A[3], FZ0, 2.4, POST);          // bottom tension wire
+        /* THE POSTS ARE TUBES, NOT DRUMS. cyl() builds its silhouette
+           from fourteen rim segments, and at r 5 on a lot 9384 wide that
+           ellipse is under a pixel -- the 1.2px stroke then draws the
+           degenerate polygon, which came out as a trident on top of
+           every post. tube() is one stroked segment with a round cap, so
+           it is right at any scale. Same reason the kit's own note says
+           a sphere IS a screen circle: match the primitive to how small
+           the thing actually lands. */
+        const n = Math.max(2, Math.round(len/380));
+        for(let k=0;k<=n;k++){
+          const t = k/n, xa = A[0] + (A[1]-A[0])*t, ya = A[2] + (A[3]-A[2])*t;
+          const end = (k === 0 || k === n);
+          tube(xa, ya, 0, xa, ya, end ? 158 : 152, end ? 9 : 6.5, POST);
+        }
+      }
+    };
+    for(const s of railSegs) railRun(s[0], s[1], s[2], s[3]);
+    for(const ga of GATE){                                        // gate piers
+      box(ga-34, ga+34, -ROAD-34, -ROAD+34, 0, 210, shade(wall,1.05), wall, shade(wall,.78));
+      box(ga-42, ga+42, -ROAD-42, -ROAD+42, 210, 236, shade(trim,1.05), trim, shade(trim,.8));
+      ball(ga, -ROAD, 254, 20, shade(trim,.9));
+    }
+
+    /* ---- the school block ---- */
+    const elevation = fr => {
+      const L = fr.len, NB = Math.max(3, Math.round(L/180));
+      bandF(fr, -5, L+5, 150, 160, 4, 0, shade(wall,.78), null, shade(wall,1.06), 0);
+      bandF(fr, -5, L+5, 300, 310, 4, 0, shade(wall,.78), null, shade(wall,1.06), 0);
+      bandF(fr, -7, L+7, H, H+16, 5, -1, shade(wall,.66), null, null, 0);
+      bandF(fr, -6, 26,   14, H, 4, 0, trim, null, shade(trim,1.14), 2);
+      bandF(fr, L-26, L+6, 14, H, 4, 0, trim, null, shade(trim,1.14), 1);
+      const dmid = L/2, s0 = dmid - 37.12, s1 = dmid + 37.12;
+      for(let fl=0; fl<3; fl++){
+        const v0 = [30, 190, 336][fl], hh = [90, 82, 82][fl];
+        for(let i=0;i<NB;i++){
+          const c = 30 + (L-60)*(i+0.5)/NB, x0 = c-52, x1 = c+52;
+          if(fl === 0 && x1 > s0 - 14 && x0 < s1 + 14) continue;    // the doorway's bay
+          bandF(fr, x0-7, x1+7, v0-10, v0, 4, -1, shade(trim,.94));
+          rev(fr, x0, x1, v0, v0+hh, 10, shade(wall,.44));
+          glz(fr, x0, x1, v0, v0+hh, trim, glassT);
+          for(let k=1;k<3;k++) R(fr, x0+104*k/3-2.5, x0+104*k/3+2.5, v0, v0+hh, 1, trim);
+          for(let k=1;k<4;k++) R(fr, x0, x1, v0+hh*k/4-2.5, v0+hh*k/4+2.5, 1, trim);
+          bandF(fr, x0-5, x1+5, v0+hh, v0+hh+8, 4, -1, shade(trim,1.02));
+        }
+      }
+      /* the doorway is CUT from the bay run, not drawn over it -- the
+         230 version put a panel and a band through its own opening.
+
+         AND IT CANNOT BE shopDoor. That is nailed to the b = 0 plane,
+         and this building's front face is at b -1560: the first cut
+         called shopDoor(dmid + SA0) and put the school's main entrance
+         1560 units out in the yard, standing on nothing beside the front
+         railing. The census found it -- worst point [1231, 1.2, 57.2],
+         its own painted surround, 737 outside the nearest cell. This is
+         the kit gap the BLOCK LANDMARKS note records and the Nursery and
+         the Bathhouse both work around: a set-back building has to roll
+         its own opening until shopDoor takes a depth. doorF is that,
+         built from the same SHOP_DOOR_W and SHOP_DOOR_H, so the school's
+         door is the game's door in everything but which plane it knows
+         how to reach. */
+      bandF(fr, dmid-60, dmid+60, 12, 126, 6, -1, trim, null, shade(trim,1.16));
+      doorF(fr, dmid, wall, trim);
+      if(fr === FR_FRONT){
+        bandF(fr, dmid-72, dmid+72, 126, 150, 7, -1, shade(trim,1.06), null, shade(trim,1.2));
+        R(fr, dmid-56, dmid+56, 132, 145, 7.5, shade(wall,.62));
+      }
+    };
+    elevation(FR_BACK);
+    elevation(FAR);
+    T(SA0, SA1, SB0, SB1, H, shade(wall,1.02));                    // the roof
+    S((NEAR === FR_RIGHT) ? SA1 : SA0, SB0, SB1, 0, H, shade(wall,.78));
+    F(SA0, SA1, 0, H, wall, null, 0, SB1);
+    elevation(NEAR);
+    elevation(FR_FRONT);
+
     if(state.roof){
-      const ba = W*0.50, bb = -70;
-      slab(ba-24, ba+24, H+12, H+64, bb+16, bb-16, shade(wall,.9), shade(wall,.7), shade(wall,1.05));
-      F(ba-14, ba+14, H+24, H+56, '#3a3026', null,0, bb+15.5);
-      cyl(ba, bb, H+46, H+54, 8, '#c9a24a');
-      ball(ba, bb, H+46, 8, '#c9a24a', '#d8b45e');
-      ball(ba, bb, H+38, 3, '#8f6f26');
-      poly([P(ba-30,bb+16,H+64),P(ba,bb+16,H+96),P(ba+30,bb+16,H+64)], shade(wall,.62));
-      poly([P(ba+30,bb+16,H+64),P(ba,bb+16,H+96),P(ba,bb-16,H+96),P(ba+30,bb-16,H+64)], shade(wall,.52));
-      box(W*0.16,W*0.34,-160,-124,H,H+44,shade(wall,.9),shade(wall,.75),shade(wall,.66));
-      for(const ca of [W*0.20, W*0.30]) cyl(ca, -142, H+44, H+58, 5, '#4a3a30');
+      const ba = (SA0+SA1)/2, bb = SB1 - 190;
+      slab(ba-90, ba+90, H+16, H+210, bb+60, bb-60, shade(wall,.92), shade(wall,.72), shade(wall,1.06));
+      F(ba-52, ba+52, H+60, H+180, '#3a3026', null, 0, bb+61);
+      cyl(ba, bb, H+140, H+172, 30, '#c9a24a');
+      ball(ba, bb, H+140, 30, '#c9a24a', '#d8b45e');
+      poly([P(ba-112,bb+60,H+210), P(ba,bb+60,H+320), P(ba+112,bb+60,H+210)], shade(wall,.60));
+      poly([P(ba+112,bb+60,H+210), P(ba,bb+60,H+320), P(ba,bb-60,H+320), P(ba+112,bb-60,H+210)],
+           shade(wall,.50));
+      for(const [ca, cb] of [[SA0+220,SB0+240],[SA1-220,SB0+240]])
+        box(ca-70, ca+70, cb-70, cb+70, H+16, H+150, shade(wall,.9), shade(wall,.74), shade(wall,.64));
     }
-    kerb(p,'none');
+    if(state.props){
+      const tree = (ta, tb) => {
+        cyl(ta, tb, 0, 150, 20, '#6b5a3a');
+        for(let k=0;k<5;k++)
+          ball(ta + 62*Math.cos(k*1.26+0.4), tb + 62*Math.sin(k*1.26+0.4), 210, 66, ['#3f6b4a','#4e8058','#568a5e'][k%3]);
+        ball(ta, tb, 260, 62, '#4e8058');
+      };
+      const shelter = (ca, cb) => {
+        for(const q of [[ca-190,cb-70],[ca+190,cb-70],[ca-190,cb+70],[ca+190,cb+70]])
+          cyl(q[0], q[1], 0, 260, 11, iron);
+        slab(ca-220, ca+220, 260, 286, cb+100, cb-100, shade(trim,.88), null, shade(trim,1.1));
+        for(let k=0;k<4;k++)
+          box(ca-170+k*100, ca-110+k*100, cb-40, cb+40, 60, 78, '#8b6a4e','#7a5c44','#6a5039');
+      };
+      const items = [];
+      for(const [ta, tb] of [[1000,-5220],[2600,-5220],[4200,-5220],[5800,-5220],[7400,-5220],
+                             [8380,-4600],[8380,-4080],[900,-1000],[2240,-1000],[900,-2960]])
+        items.push({ a:ta, b:tb, z:0, draw:() => tree(ta, tb) });
+      items.push({ a:5600, b:-4600, z:0, draw:() => shelter(5600, -4600) });
+      depthSort(items);
+    }
   }
 },
 {
