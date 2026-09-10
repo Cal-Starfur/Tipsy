@@ -11782,57 +11782,112 @@ const SHOPS = [
 },
 {
   name:'Library', tall:true,
-  cTodo:'3 pavement props need collision volumes',
-  fTodo:'z250..268 return +10; z110..122 return +8',
-  zTodo:1.6,          // H 268 -- see SCALE REVIEW at the head of this file
-  head:'Tall arched upper windows, entrance steps',
-  tags:['2 storey','swept arch heads','entrance steps','stone pilasters','plaque'],
-  desc:'The arch heads are swept bands with a real reveal so the reading-room windows sit inside the wall, and the pilasters between them stand proud with capitals.',
+  head:'Tall arched reading-room windows over a stone doorcase, nothing on the footway',
+  tags:['2 storey','swept arch heads','proud pilasters','stone doorcase'],
+  desc:'Arched reading-room windows in real reveals with swept voussoir heads, pilasters standing proud between them, and a stone doorcase round the one opening whose width is not ours to choose.',
   draw(p){
-    const wall = '#d2cbb8', trim = '#5a5a4a', H = 268;
+    /* ============ THREE THINGS IN ONE DOORWAY ============
+       The entry's own comment says why: "ground floor was blank wall".
+       shopDoor(W*0.50) was bolted on at a 115 -- where a painted doorway
+       already stood -- and nothing removed the painted one. Against an
+       opening at 81.88..148.12 with its head at 107.95 there were
+
+         slab(W*0.40, W*0.60, 26, 104)   a  92.0..138.0, a trim panel
+         F(W*0.43, W*0.57, 36, 96)       a  98.9..131.1, its glass
+         slab(W*0.34, W*0.66, 104, 110)  a  78.2..151.8, a band across it
+
+       two doors and a string course stacked on one hole. The panel and
+       its glass are gone; the band moves to 142, clear of the surround
+       top at 114.95, and the doorcase between them is what a stone
+       library actually has there.
+
+       THE PILASTERS OVERRAN BOTH RETURNS. bBack -12 on a run starting at
+       a 6 is screen-a -6, and the capitals at -14 from a 3 are -11; the
+       right-hand pair reach 236 the other way. Proud now -- bFront 5,
+       bBack 0 -- so there is no recess to overrun, which is the same
+       answer the fTodo's two bands needed: 0..W is safe when a band
+       stands OUT rather than being let in.
+
+       AND zTodo 1.6 -- two storeys on a 134 pitch, for the building type
+       with the tallest room on the street. A reading room is the whole
+       point of the upper floor: 160 + 200 = 360, which is 2.14.
+
+         26..104   ground windows       107.95 door head
+         114.95    surround top         120..142 doorcase entablature
+         142..154  string course        180..300 reading-room windows
+         300..342  swept arch heads     360..374 cornice */
+    const wall = '#d2cbb8', trim = '#5a5a4a', H = 360;
+    const glassT = 'rgba(93,116,132,.88)';
+    const DMID = 115, S0 = DMID - 37.12, S1 = DMID + 37.12;
+    const bay = i => [12 + 206*(i+0.12)/4, 12 + 206*(i+0.88)/4];
+
     body(wall, trim, H);
-    slab(0,W, H, H+12, -1, -14, shade(wall,.74));
-    slab(0,W, H-18, H, -1, -10, shade(wall,1.06));
-    slab(0,W, 110, 122, -1, -8, shade(wall,.86));
-    shopDoor(W*0.50, wall, trim);      // ground floor was blank wall
+    slab(0,W, H, H+14, -1, -16, shade(wall,.74));                    // cornice, may wrap
+    slab(0,W, 142, 154, 3, 0, shade(wall,.86), null, shade(wall,1.12));
+    slab(0,W, H-20, H, 3, 0, shade(wall,1.04), null, shade(wall,1.16));
+
+    /* ---- the ground floor: two windows and the doorcase ---- */
+    for(const [x0,x1] of [[14, 70], [160, 216]]){
+      slab(x0-6, x1+6, 18, 26, 4, -1, shade(wall,.92));
+      reveal(x0, x1, 26, 104, 9, shade(wall,.50));
+      glaze(x0, x1, 26, 104, shade(wall,1.12), glassT);
+      for(let k=1;k<3;k++) F(x0+(x1-x0)*k/3-2, x0+(x1-x0)*k/3+2, 26, 104, shade(wall,1.14), null,0, 1);
+      F(x0, x1, 63, 67, shade(wall,1.14), null, 0, 1);
+      slab(x0-5, x1+5, 104, 112, 4, -1, shade(wall,1.02));
+    }
+    for(const pa of [S0-14, S1+2])                                    // doorcase pilasters
+      slab(pa, pa+12, 12, 120, 6, -1, shade(wall,1.08), null, shade(wall,1.22));
+    shopDoor(DMID, wall, trim);
+    slab(S0-20, S1+20, 120, 142, 7, -1, shade(wall,1.10), null, shade(wall,1.24));
+    F(S0-10, S1+10, 126, 137, shade(wall,.58), null, 0, 7.5);          // the name, on the frieze
+    /* THE PLAQUE IS GONE at Sir's direction -- and it was also wrong
+       where it stood: a 170.12..186.12 is inside the right ground
+       window's 160..216, so a bronze panel was screwed across its glass.
+       A plaque belongs on a pier, and this frontage has none spare. */
+
+    /* ---- the reading room: four arched windows ---- */
     for(let i=0;i<4;i++){
-      const x0 = 12+(W-24)*(i+0.12)/4, x1 = 12+(W-24)*(i+0.88)/4;
-      F(x0-4,x1+4, 130, 216, shade(wall,1.08), null,0,-1);
-      F(x0,x1, 134, 212, '#6d8494', null,0,-6);
-      const ap = (t,bb) => {
-        const u=1-t, a = u*u*(x0-4) + 2*u*t*((x0+x1)/2) + t*t*(x1+4);
-        const z = u*u*216 + 2*u*t*258 + t*t*216;
-        return P(a,bb,z);
+      const [x0,x1] = bay(i), zc = 300, zt = 342;
+      slab(x0-6, x1+6, 170, 180, 4, -1, shade(wall,.92));              // cill
+      reveal(x0, x1, 180, zc, 10, shade(wall,.46));
+      glaze(x0, x1, 180, zc, shade(wall,1.12), glassT);
+      F(x0+(x1-x0)/2-2.4, x0+(x1-x0)/2+2.4, 180, zc, shade(wall,1.14), null,0, 1);
+      for(let k=1;k<4;k++) F(x0, x1, 180+120*k/4-2, 180+120*k/4+2, shade(wall,1.14), null,0, 1);
+      /* the arch is sampled in WORLD space off P(), not drawn as a screen
+         curve -- the Department store's dome and the Grand hotel's awning
+         were both beziers in pixels and both had to be rebuilt. */
+      const arc = (t, bb, ox, oz) => {
+        const u = 1-t;
+        return P(u*u*(x0-ox) + 2*u*t*((x0+x1)/2) + t*t*(x1+ox), bb,
+                 u*u*zc + 2*u*t*(zt+oz) + t*t*zc);
       };
-      ctx.beginPath(); let q=ap(0,-1); ctx.moveTo(q.x,q.y);
-      for(let k=1;k<=12;k++){ q=ap(k/12,-1); ctx.lineTo(q.x,q.y); }
-      ctx.closePath(); ctx.fillStyle=shade(wall,1.08); ctx.fill();
-      for(let k=0;k<12;k++) poly([ap(k/12,-1),ap((k+1)/12,-1),ap((k+1)/12,-7),ap(k/12,-7)], shade(wall,.92));
-      const ip = (t,bb) => {
-        const u=1-t, a = u*u*x0 + 2*u*t*((x0+x1)/2) + t*t*x1;
-        const z = u*u*212 + 2*u*t*248 + t*t*212;
-        return P(a,bb,z);
-      };
-      ctx.beginPath(); q=ip(0,-6); ctx.moveTo(q.x,q.y);
-      for(let k=1;k<=12;k++){ q=ip(k/12,-6); ctx.lineTo(q.x,q.y); }
-      ctx.closePath(); ctx.fillStyle='#6d8494'; ctx.fill();
-      F(x0+(x1-x0)/2-2, x0+(x1-x0)/2+2, 134, 240, shade(wall,1.12), null,0,-6.5);
-      for(let k=1;k<4;k++) F(x0,x1, 134+78*k/4-1.8, 134+78*k/4+1.8, shade(wall,1.12), null,0,-6.5);
+      const ring = (bb, ox, oz) => { const q = [];
+        for(let k=0;k<=14;k++) q.push(arc(k/14, bb, ox, oz));
+        q.push(P(x1+ox, bb, zc)); q.push(P(x0-ox, bb, zc));
+        return q; };
+      poly(ring(-10, 0, -6), shade(wall,.46));                         // the reveal behind
+      poly(ring(-0.4, 0, -6), glassT);                                 // glass in the head
+      for(let k=0;k<14;k++)                                            // voussoirs
+        poly([arc(k/14,1,6,0), arc((k+1)/14,1,6,0),
+              arc((k+1)/14,1,0,-6), arc(k/14,1,0,-6)],
+             k % 2 ? shade(wall,1.14) : shade(wall,1.04));
     }
-    for(let i=0;i<5;i++)
-      slab(12+(W-24)*i/4-6, 12+(W-24)*i/4+6, 122, 246, -1, -12, shade(wall,.94));
-    for(let i=0;i<5;i++)
-      slab(12+(W-24)*i/4-9, 12+(W-24)*i/4+9, 246, 254, -1, -14, shade(wall,1.06));
-    slab(W*0.40,W*0.60, 26, 104, 0, -8, trim, null, shade(wall,1.1));
-    F(W*0.43,W*0.57, 36, 96, '#6d8494', null,0,-8.5);
-    for(let i=0;i<2;i++) F(i? W*0.70 : 14, i? W-14 : W*0.30, 40, 92, '#6d8494', shade(wall,.72), 2);
-    slab(W*0.34,W*0.66, 104, 110, -1, -10, shade(wall,1.1));
-    if(state.props){
-      box(W*0.32,W*0.68, 0, 30, 0, 10, shade(wall,1.02), shade(wall,.86), shade(wall,.76));
-      box(W*0.35,W*0.65, 0, 22, 10, 20, shade(wall,1.04), shade(wall,.88), shade(wall,.78));
-      box(W*0.38,W*0.62, 0, 14, 20, 26, shade(wall,1.06), shade(wall,.9), shade(wall,.8));
+    /* the pilasters and their capitals, PROUD */
+    for(let i=0;i<5;i++){
+      const pa = 12 + 206*i/4;
+      slab(pa-6, pa+6, 154, 346, 5, 0, shade(wall,.96), null, shade(wall,1.14));
+      slab(pa-9, pa+9, 346, 356, 7, 0, shade(wall,1.08), null, shade(wall,1.2));
     }
-    if(state.roof) box(W*0.24,W*0.48,-160,-120,H,H+22,'#8f969d','#787f86','#697077');
+
+    /* THE ENTRANCE STEPS ARE GONE too. They were the licence case -- an
+       entrance step lands on the footway the way the Bank's portico does
+       -- but with them off nothing on this building is at b > 7, which is
+       the proud capitals, so the cTodo goes with them. The door sits on
+       the pavement now, which is what every other shopfront here does. */
+    if(state.roof){
+      box(W*0.24, W*0.48, -160, -120, H, H+22, '#8f969d','#787f86','#697077');
+      cyl(W*0.66, -140, H, H+40, 7, '#6d747c');
+    }
     kerb(p,'none');
   }
 },
