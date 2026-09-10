@@ -11672,48 +11672,110 @@ const SHOPS = [
 },
 {
   name:'Warehouse loft', tall:true,
-  zTodo:1.81,          // H 304 -- see SCALE REVIEW at the head of this file
-  head:'Stacked loading doors, hoist beam, brick',
-  tags:['3 storey','stacked loading doors','gantry hoist','brick pier bays','hanging crate'],
-  desc:'The gantry is a boxed beam on a post with a diagonal brace, the hook hangs plumb on a chain, and the crate slung under it is a real box with banding.',
+  head:'Stacked loading doors, brick piers, set out around the door',
+  tags:['3 storey','stacked loading doors','brick piers','set out around the door'],
+  desc:'Brick piers running the full height with the loading doors stacked in the middle bay, set out from the door backwards so the one opening with a fixed width gets its room before anything else does.',
   draw(p){
-    const wall = '#8a5a4a', trim = '#4a3a30', H = 304;
+    /* ============ THE SET-OUT NEVER ADMITTED THE DOOR ============
+       Three equal bays on a 230 frontage is 44 of clear opening, and
+       shopDoor's surround is 74.24. So the ground door was put in a bay
+       that could not hold it and both flanking piers ran 10.79 into its
+       own opening -- and it only looked right because the piers are
+       drawn before shopDoor and the door is proud of them.
+
+       THE OUTER PIERS HUNG OFF BOTH ENDS. 6 + (W-12)*i/3 +- 10 puts
+       pier 0 at a -4..16 and pier 3 at 214..234, and with bBack -7 they
+       reach screen-a -11 and 241 on the mirrored headings.
+
+       EVERY OPENING WAS ORDER-ONLY. The glass went in at b -8.5 inside a
+       surround running -1..-8, so the surround's own front face is
+       nearer than the glass AND covers it -- fine painted in order, gone
+       under a depth key. The loading leaves had it too: an F surround at
+       -1 spanning wider than the leaf it sat in front of.
+
+       AND zTodo 1.81 -- three warehouse storeys on a 101 pitch, which is
+       under two thirds of a shop storey for the tallest-floored building
+       type on the street.
+
+       SET OUT FROM THE DOOR BACKWARDS, the Model shop's method: take the
+       74.24 the surround needs and its piers first, then divide what is
+       left. 12 pier / 54 bay / 10 pier / 54 loading bay / 12 pier /
+       74.24 door / 13.76 pier. The bays are not equal and that is the
+       point -- the right one is wider because a door lives in it.
+
+       THE HOIST IS GONE at Sir's direction -- beam, brace, chain and
+       crate. It was the only thing on this building reaching out over
+       the footway, and with it off nothing here projects past its own
+       piers: bmax drops from 84 to 4. The loading doors stay, which is
+       what makes it a loft; a warehouse that loads by forklift needs no
+       gantry.
+
+       Worth keeping the reasoning even though the object is gone,
+       because the next thing hung off a frontage will need it: screen-a
+       is a +- b, so anything spanning a0..a1 at b_max needs
+       b_max <= min(a0, W - a1). The crate sat over the middle bay and
+       spent 84 of an 85 budget. Over the LEFT bay the same crate at the
+       same reach would have been 41 past the return.
+
+         24..140   ground openings      107.95 door head
+         160..172  first course         184..300 first floor
+         310..322  second course        334..450 second floor
+         460..476  cornice */
+    const wall = '#8a5a4a', trim = '#4a3a30', H = 460;
+    const glassT = 'rgba(78,96,106,.88)';
+    const PIERS = [[0,12],[66,76],[130,142],[216.24,230]];
+    const BAYS  = [[12,66],[76,130],[142,216.24]];
+    const LOAD = 1, DMID = 179.12;
+
     body(wall, trim, H);
-    slab(0,W, H, H+14, -1, -16, shade(wall,.66));
-    for(let i=0;i<4;i++) slab(6+(W-12)*i/3-10, 6+(W-12)*i/3+10, 0, H, -1, -7, shade(wall,1.1));
+    slab(0,W, H, H+14, -1, -16, shade(wall,.66));                    // cornice, may wrap
+    /* the piers are PROUD -- bFront 4, bBack 0 -- so there is no recess
+       to overrun, and the outer two sit inside the frontage instead of
+       four past it. */
+    for(const [x0,x1] of PIERS)
+      slab(x0, x1, 0, H, 4, 0, shade(wall,1.10), null, shade(wall,1.24));
+    for(const cv of [160, 310])
+      slab(0,W, cv, cv+12, 3, 0, shade(wall,.80), null, shade(wall,1.06));
+
     for(let fl=0; fl<3; fl++){
-      const z0 = 30 + fl*88;
-      for(let i=0;i<3;i++){
-        const x0 = 6+(W-12)*i/3+14, x1 = 6+(W-12)*(i+1)/3-14;
-        /* the ground floor was three bays -- two windows and a loading
-           door -- with no pedestrian entrance anywhere on the building.
-           The right-hand ground bay becomes the way in. */
-        if(fl===0 && i===2){ shopDoor((x0+x1)/2, wall, trim); continue; }
-        if(i===1){
-          F(x0-6,x1+6, z0-6, z0+68, shade(wall,.72), null,0,-1);
-          slab(x0,x1, z0, z0+62, -2, -9, '#6a5442', trim);
-          F(x0+(x1-x0)/2-2, x0+(x1-x0)/2+2, z0, z0+62, trim, null,0,-2.5);
-          for(let k=0;k<3;k++) F(x0+3,x1-3, z0+8+k*18, z0+14+k*18, '#7c644e', null,0,-2.5);
-        } else {
-          slab(x0-4,x1+4, z0-4, z0+66, -1, -8, shade(wall,1.06));
-          F(x0,x1, z0, z0+62, '#5a6a72', null,0,-8.5);
-          for(let k=1;k<4;k++) F(x0+(x1-x0)*k/4-1.6, x0+(x1-x0)*k/4+1.6, z0, z0+62, shade(wall,1.12), null,0,-9);
-          for(let k=1;k<4;k++) F(x0,x1, z0+62*k/4-1.6, z0+62*k/4+1.6, shade(wall,1.12), null,0,-9);
+      const z0 = [24, 184, 334][fl], z1 = z0 + 116;
+      BAYS.forEach(([x0,x1], i) => {
+        if(fl === 0 && i === 2){                                      // the way in
+          slab(x0, x1, 0, 126, 5, -1, shade(wall,.86), null, shade(wall,1.1));
+          shopDoor(DMID, wall, trim);
+          return;
         }
-      }
+        if(i === LOAD){
+          /* a loading door: a real recess with the leaf standing IN it,
+             not a surround painted in front of a leaf behind it */
+          reveal(x0, x1, z0, z1, 12, shade(wall,.42));
+          slab(x0+3, x1-3, z0+2, z1-2, -3, -11, '#6a5442', shade(trim,1.2));
+          for(let k=0;k<6;k++)
+            F(x0+7, x1-7, z0+8+k*18, z0+14+k*18, '#7c644e', null, 0, -2.5);
+          F((x0+x1)/2-2.4, (x0+x1)/2+2.4, z0+2, z1-2, trim, null, 0, -2.4);
+          slab(x0-6, x1+6, z1, z1+10, 5, -1, shade(wall,1.02));       // lintel
+          for(const ha2 of [x0+10, x1-10])                            // hinge straps
+            F(ha2-2, ha2+2, z0+10, z1-10, shade(trim,1.4), null, 0, -2.3);
+        } else {
+          slab(x0-5, x1+5, z0-9, z0, 4, -1, shade(wall,.92));          // cill
+          reveal(x0, x1, z0, z1, 10, shade(wall,.46));
+          glaze(x0, x1, z0, z1, shade(wall,1.14), glassT);
+          for(let k=1;k<4;k++) F(x0+(x1-x0)*k/4-2, x0+(x1-x0)*k/4+2, z0, z1, shade(wall,1.16), null,0, 1);
+          for(let k=1;k<5;k++) F(x0, x1, z0+116*k/5-2, z0+116*k/5+2, shade(wall,1.16), null,0, 1);
+          slab(x0-5, x1+5, z1, z1+9, 4, -1, shade(wall,1.02));         // head
+        }
+      });
     }
-    slab(W*0.06,W*0.24, 0, 26, -1, -7, trim);
+    /* THE LOADING STEP IS GONE too, at Sir's direction. It stood at
+       a 14..58, bFront 4, under the left ground window -- a kerb-height
+       block on the footway in front of a pane, and after the hoist it
+       was the last thing on this building at b > 0. Nothing projects
+       past the piers now: bmax 4, which is the piers themselves. */
+
     if(state.roof){
-      const ha = W*0.50;
-      slab(ha-9, ha+9, H+14, H+40, -2, -18, trim, shade(wall,.7), shade(trim,1.3));
-      poly([P(ha-9,-2,H+40),P(ha+9,-2,H+40),P(ha+9,72,H+30),P(ha-9,72,H+30)], shade(trim,1.5));
-      poly([P(ha+9,-2,H+40),P(ha+9,72,H+30),P(ha+9,72,H+18),P(ha+9,-2,H+28)], shade(trim,1.1));
-      poly([P(ha-9,-2,H+40),P(ha-9,72,H+30),P(ha-9,72,H+18),P(ha-9,-2,H+28)], shade(trim,.8));
-      tube(ha, 30, H+24, ha, -2, H+2, 3, shade(trim,1.2));
-      tube(ha, 66, H+22, ha, 66, H-16, 1.6, '#5a6068');
-      box(ha-18, ha+18, 48, 84, H-52, H-16, '#a8834a','#8f6c3f','#7a5c36');
-      for(const bz of [H-44, H-26]) slab(ha-19, ha+19, bz, bz+4, 47, 85, '#6f5430');
-      box(W*0.10,W*0.30,-170,-130,H,H+22,'#8f969d','#787f86','#697077');
+      box(W*0.10, W*0.30, -170, -130, H, H+22, '#8f969d','#787f86','#697077');
+      box(W*0.52, W*0.74, -150, -112, H, H+30, '#8f969d','#787f86','#697077');
+      cyl(W*0.40, -132, H, H+46, 7, '#6d747c');
     }
     kerb(p,'none');
   }
