@@ -11044,45 +11044,117 @@ const SHOPS = [
 },
 {
   name:'Chambers', tall:true,
-  cTodo:'10 pavement props need collision volumes, 5 of them lapping past the frontage',
-  fTodo:'z274..292 return +10; z90..96 return +7; z156..162 return +7; z222..228 return +7',
-  zTodo:1.74,          // H 292 -- see SCALE REVIEW at the head of this file
-  head:'Three storeys of sash windows, brass plaques',
-  tags:['3 storey','sash windows','brass plaques','stone cills','area railings'],
-  desc:'Every cill is a stone slab with a return, the plaques stand off the wall, and the area railings are round standards with a proper top rail and finials.',
+  cTodo:'the area railing is a volume: a 10..120 at b 8..12, on the property line rather than out on the footway',
+  head:'Four storeys of sash windows, brass plaques, area railing',
+  tags:['terrace unit','sash windows in real reveals','brass plaques proud of the wall','stone cills','area railing on the line'],
+  desc:'A Georgian chambers: a fine doorway with a fanlight, two ground windows behind an area railing, brass plaques on the pier beside the door, and three ranks of sashes over with stone cills and proud string courses.',
   draw(p){
-    const wall = '#b9b0a0', trim = '#3f4a52', H = 292;
+    /* ============ TWO THINGS DRAWN ACROSS ONE DOORWAY ============
+       shopDoor(W*0.52) opens 86.48..152.72 with its head at 107.95, and
+       this facade put two separate objects through it:
+
+         F(W*0.45, W*0.59, 12, 88)      a 103.5..135.7, at b -8.5
+         slab(W*0.40, W*0.64, 96, 104)  a 92..147.2, under the head
+
+       The panel is the 26th of these. The band is the Apartments' and
+       the Department store's fault at the same height for the same
+       reason -- a horizontal run written across the whole frontage
+       without asking what the frontage already has a hole in.
+
+       THE PLAQUES WERE IN THE WALL. slab(..., -1, -5) is a recess, and
+       the desc claimed they stand off it. Brass on a chambers is screwed
+       to the face; bFront 5, bBack 0 now. They also overlapped the door
+       surround by 0.8, which is what happens when a prop's a is written
+       as a fraction of W and the door's is not.
+
+       THE AREA RAILING WAS OUT ON THE FOOTWAY. a -4 at b 40 is screen-a
+       -44, four past the return and forty out over the pavement -- the
+       five props the cTodo counted. A real area railing stands ON the
+       property line, which is b 0, so it sits at b 10 and runs 10..120
+       in front of the two windows only. It is still a volume and the
+       cTodo says so; what it is not any more is somebody else's ground.
+
+       AND THE STOREY PITCH WAS 66. zTodo 1.74 for a ground floor and
+       three ranks over is 66 a storey, well under half a shop storey,
+       which is why every window read as a slot. Rebuilt on the Rooming
+       house arithmetic: 150 + 3 x 100 = 450, which is 2.68.
+
+         26..104   ground windows        107.95 door head
+         114.95    surround top          122..140 entablature
+         140..150  first course          176..240 first floor
+         250..260  second course         276..340 second floor
+         350..360  third course          376..432 third floor
+         450..464  cornice */
+    const wall = '#b9b0a0', trim = '#3f4a52', H = 450;
+    const glassT = 'rgba(84,104,118,.88)', brass = '#c9a24a';
+    /* 6 OF PIER IS NOT A PIER. The two ground windows were 16..62 and
+       68..114 and read as one opening with a bar in it; 10 separates
+       them. And the doorcase had pilasters at DMID-45, which is 123..127
+       -- straight through the brass at 118..132. The entablature over
+       the opening does the job on its own, so the pilasters are gone and
+       the pier between the last window and the door surround is 14.9,
+       which is what the plaques stand on. */
+    const DMID = 168, GW = [[14,60],[70,116]];        // door, and the two ground windows
+    const bay = i => { const w = 44, g = (W - 3*w)/4; return [g + i*(w+g), g + i*(w+g) + w]; };
+
     body(wall, trim, H);
-    slab(0,W, H, H+12, -1, -14, shade(wall,.72));
-    slab(0,W, H-18, H, -1, -10, shade(wall,1.08));
+    slab(0,W, H, H+14, -1, -16, shade(wall,.72));                    // cornice, may wrap
+    slab(0,W, H-16, H, 3, 0, shade(wall,1.10), null, shade(wall,1.2));
+    /* the string courses run 0..W because the terrace bounds them, and
+       they are PROUD -- bFront 3, bBack 0 -- so there is no recess to
+       overrun. The fTodo was three of them at -7 landing 7 past the
+       return, plus the frieze at -10. */
+    for(const cv of [140, 250, 350])
+      slab(0,W, cv, cv+10, 3, 0, shade(wall,.86), null, shade(wall,1.14));
+
+    /* ---- the sashes: three ranks, real reveals, stone cills ---- */
     for(let fl=0; fl<3; fl++){
-      const z0 = 104 + fl*66;
-      slab(0,W, z0-14, z0-8, -1, -7, shade(wall,.88));
-      for(let i=0;i<4;i++){
-        const x0 = 12+(W-24)*(i+0.14)/4, x1 = 12+(W-24)*(i+0.86)/4, hh = fl===2 ? 40 : 48;
-        slab(x0-4,x1+4, z0-3, z0+hh+3, -1, -9, shade(wall,1.1));
-        F(x0,x1, z0, z0+hh, '#5f7280', null,0,-9.5);
-        F(x0,x1, z0+hh/2-1.5, z0+hh/2+1.5, shade(wall,1.14), null,0,-10);
-        F(x0+(x1-x0)/2-1.5, x0+(x1-x0)/2+1.5, z0, z0+hh, shade(wall,1.14), null,0,-10);
-        slab(x0-6,x1+6, z0-8, z0-3, -1, -13, shade(wall,.92));
+      const z0 = [176, 276, 376][fl], hh = fl === 2 ? 56 : 64;
+      for(let i=0;i<3;i++){
+        const [x0,x1] = bay(i);
+        slab(x0-6, x1+6, z0-10, z0-2, 4, -1, shade(wall,.94));       // stone cill, proud
+        reveal(x0, x1, z0, z0+hh, 9, shade(wall,.52));
+        glaze(x0, x1, z0, z0+hh, shade(wall,1.12), glassT);
+        F(x0, x1, z0+hh/2-2, z0+hh/2+2, shade(wall,1.16), null, 0, 1);        // meeting rail
+        F((x0+x1)/2-1.6, (x0+x1)/2+1.6, z0, z0+hh, shade(wall,1.16), null, 0, 1);
+        slab(x0-4, x1+4, z0+hh, z0+hh+6, 3, -1, shade(wall,1.02));   // head
       }
     }
-    shopDoor(W*0.52, wall, trim);
-    F(W*0.45,W*0.59, 12, 88, '#5f7280', null,0,-8.5);
-    slab(W*0.40,W*0.64, 96, 104, -1, -10, shade(wall,1.1));
-    for(let i=0;i<2;i++) F(i? W*0.70 : 12, i? W-12 : W*0.32, 26, 88, '#5f7280', shade(wall,.7), 2);
+
+    /* ---- the ground floor ---- */
+    for(const [x0,x1] of GW){
+      slab(x0-6, x1+6, 18, 26, 4, -1, shade(wall,.94));
+      reveal(x0, x1, 26, 104, 10, shade(wall,.48));
+      glaze(x0, x1, 26, 104, shade(wall,1.12), glassT);
+      F(x0, x1, 63, 67, shade(wall,1.16), null, 0, 1);
+      F((x0+x1)/2-1.6, (x0+x1)/2+1.6, 26, 104, shade(wall,1.16), null, 0, 1);
+      slab(x0-4, x1+4, 104, 110, 3, -1, shade(wall,1.02));
+    }
+    /* the doorcase: an entablature over the opening, starting at 122 --
+       above the surround top of 114.95, which is the clearance the old
+       band at 96..104 did not leave. */
+    shopDoor(DMID, wall, trim);
+    slab(DMID-52, DMID+52, 122, 140, 6, -1, shade(wall,1.08), null, shade(wall,1.22));
+    F(DMID-44, DMID+44, 126, 136, shade(wall,.62), null, 0, 6.5);
+
     if(state.props){
-      for(let i=0;i<4;i++) slab(W*0.65, W*0.685, 40+i*15, 52+i*15, -1, -5, '#c9a24a', shade(wall,.6));
-      tube(-4, 40, 26, W*0.34, 40, 26, 1.6, '#3c3a36');
-      for(let i=0;i<10;i++){
-        const ra = -4+(W*0.34+4)*i/9;
-        cyl(ra, 40, 0, 26, 1.4, '#3c3a36');
-        ball(ra, 40, 28, 2.2, '#3c3a36');
+      /* brass, PROUD of the pier -- bFront 5, bBack 0 -- and on the pier,
+         which is 114..123 wide between the last window and the doorcase */
+      for(let i=0;i<4;i++)
+        slab(119, 131, 44+i*17, 57+i*17, 5, 0, brass, shade(brass,.62), shade(brass,1.2));
+      /* the area railing, on the property line */
+      tube(10, 10, 30, 120, 10, 30, 1.8, '#3c3a36');
+      tube(10, 10, 12, 120, 10, 12, 1.4, '#3c3a36');
+      for(let i=0;i<=10;i++){
+        const ra = 10 + 110*i/10;
+        cyl(ra, 10, 0, 30, 1.5, '#3c3a36');
+        ball(ra, 10, 32, 2.4, '#3c3a36');
       }
     }
     if(state.roof){
-      box(W*0.20,W*0.42,-150,-110,H,H+40,'#8a7a6a','#75665a','#645749');
-      for(const ca of [W*0.24, W*0.34]) cyl(ca, -130, H+40, H+56, 5, '#4a4038');
+      box(W*0.18, W*0.44, -150, -108, H+14, H+62, '#8a7a6a','#75665a','#645749');
+      for(const ca of [W*0.22, W*0.31, W*0.40])
+        cyl(ca, -129, H+62, H+80, 5, '#4a4038');
     }
     kerb(p,'none');
   }
