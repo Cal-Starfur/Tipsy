@@ -245,9 +245,22 @@ function drawChemist(p, c){
    queueUnitStrips / PICKUP_SHOPS / the corner-margin inset all have to
    agree about the wider footprint.
 
-   Why the Garage earns it. The game's car is len 150, wid 60. Two bays
-   plus a pedestrian door plus corner and mullion piers do not fit in
-   230 -- the arithmetic leaves 59.9 a bay, less than the car itself.
+   Why the Garage earns it. The game's car is len 225, wid 90 -- see the
+   correction below. Two bays plus a pedestrian door plus corner and
+   mullion piers do not fit in 230 -- the arithmetic leaves 59.9 a bay,
+   less than the car itself.
+
+   THE CAR'S SIZE WAS WRONG IN THIS NOTE, found porting the real one
+   into the Dealership showroom. It read "len 150, wid 60"; shipped CARC
+   is len 225, wid 90, and CARC's own header comment is where the 150/60
+   came from -- it quotes "approved in car lab: len 150 x wid 60 x
+   chassis 28 x cabin 32 x wheel 16", which is the whole car divided by
+   1.5. That division is right for the three HEIGHTS and wrong for the
+   two plan dimensions, because the lab's ZSCALE only scales z: a and b
+   are game units already. So the heights in that line are usable as
+   lab z and the lengths are not, and this note inherited the error.
+   The Garage's conclusion is unaffected and in fact strengthened -- a
+   59.9 bay against a 225 car rather than a 150 one.
    One bay would fit, and a garage with one bay is a fine building, but
    the brief is two, so the building gets wider instead. ww = T2*4.4 is
    exactly two of the packer's own slots, so the port is a clean "this
@@ -427,6 +440,148 @@ function drawChemist(p, c){
    narrow, and widening one would break drawStoreUnit's packing. Only z
    changes.
    ===================================================================== */
+
+/* ================= WALL FRAMES, OPEN AT THE KIT =================
+   reveal(), glaze() and shopDoor() are written in a and z with b nailed
+   to 0, because every other building in this file has its face there.
+   That is fine for a terrace unit with party walls at both ends and it
+   is useless the moment a building takes a whole block edge and has a
+   cross street at each end -- see the Apartments and the Dealership,
+   which both need a real elevation on four faces.
+
+   A WALL FRAME is a map from (u along the elevation, n out of it, v up)
+   to world (a, b, z), and the primitives below are written against a
+   frame instead of against b = 0.
+
+     FR_FRONT  u = a,       n = +b        street
+     FR_RIGHT  u = -b,      n = +a        cross street
+     FR_LEFT   u = -b,      n = -a        cross street
+     FR_BACK   u = WW - a,  n = -b        rear
+
+   rev() and glz() are frame-general reveal() and glaze(): identical
+   arithmetic, and on FR_FRONT they reduce to the originals exactly.
+   THIS IS STILL THE WRONG PLACE FOR THEM. A primitive that exists twice
+   is what this whole file is arranged to prevent, and these are a
+   second copy of two that already live in the kit -- they are at file
+   scope rather than inside a shop body only so that the two whole-edge
+   buildings share one copy instead of holding two. When the kit takes a
+   frame argument, rev, glz and doorF all delete themselves. kTodo on
+   both shops says so.
+
+   WHICH RETURN A RECESS EXPOSES IS DERIVED, not written down. A recess
+   shifts on screen; decomposing that shift into the frame's own u and v
+   screen steps says which way the contents move, and the gap opens on
+   the opposite side. On FR_FRONT that comes out as the low-u jamb and
+   the cill, which is exactly what reveal() hardcodes; on FR_RIGHT it
+   comes out as the far end of the flank instead. No per-face case.
+
+   DRAW ORDER IS THE CALLER'S JOB and it is not optional: a box's far
+   faces must be painted BEFORE the solid or they stand in open sky
+   above it. Measured on the Apartments: at screen x = 300K the far
+   flank runs y -675K to -150K while the front wall only reaches -375K,
+   so 300 units of it are uncovered -- and the roof plate spans exactly
+   -675K to -375K at that x. The roof is what hides the far side. So:
+   back, far flank, body(), near flank, front, with FLANK_RIGHT saying
+   which flank is which -- the same test body() uses for its end wall.
+   ===================================================================== */
+function wallFrames(WW, DD){
+  /* ---- the wall frames, and the primitives written against them ---- */
+  const FR_FRONT = { P:(u,n,v)=>[u, n, v],            len:WW, kind:'front' };
+  const FR_RIGHT = { P:(u,n,v)=>[WW+n, -u, v],        len:DD, kind:'flank'  };
+  const FR_LEFT  = { P:(u,n,v)=>[-n, -u, v],          len:DD, kind:'flank'  };
+  const FR_BACK  = { P:(u,n,v)=>[WW-u, -DD-n, v],     len:WW, kind:'back'   };
+  const Q = (fr,u,n,v) => { const c = fr.P(u,n,v); return P(c[0],c[1],c[2]); };
+  const R = (fr,u0,u1,v0,v1,n,fill,stroke,lw) =>
+    poly([Q(fr,u0,n,v1),Q(fr,u1,n,v1),Q(fr,u1,n,v0),Q(fr,u0,n,v0)], fill, stroke, lw);
+  /* a panel with real thickness: face, the end return that is seen,
+     and the top plate -- slab(), asked of a frame */
+  /* THE END RETURN IS OPTIONAL, and the corners are why. A course that
+     WRAPS the building has no end -- the next elevation continues it --
+     but bandF was capping every run, and the front is drawn after the
+     flank, so each wrapping band painted a dark end cap straight onto
+     the corner it was supposed to turn. Three courses, a cornice and
+     two corner pilasters, six dark wedges down one corner.
+
+     `em` is a mask of which ends may be capped: bit 0 is the u0 end,
+     bit 1 the u1 end, 3 both, 0 none. The end that WOULD be seen is
+     still derived from P() -- the mask only says whether it exists --
+     so a run that is capped at one end still caps the correct one
+     whichever way the block edge runs.
+
+     And a wrapping run is extended PAST the corner at each end, by its
+     own projection plus two. Extending by exactly the projection is
+     not enough and that was the visible seam Sir found: the front
+     band's face and the flank band's face then abut on the identical
+     screen column, and two antialiased quads that share an edge and
+     do not overlap leave a hairline of background between them. It
+     ran the full height of the corner pier. Two units of overlap is
+     hidden inside the corner and closes it. */
+  const bandF = (fr,u0,u1,v0,v1,n0,n1,front,side,top,em) => {
+    const mask = em === undefined ? 3 : em;
+    R(fr,u0,u1,v0,v1,n0,front);
+    const o = Q(fr,u0,n0,v0), du = Q(fr,u0+1,n0,v0);
+    const hi = (du.y - o.y) > 0, eu = hi ? u1 : u0;
+    if(mask & (hi ? 2 : 1))
+      poly([Q(fr,eu,n0,v1),Q(fr,eu,n1,v1),Q(fr,eu,n1,v0),Q(fr,eu,n0,v0)], side || shade(front,.78));
+    poly([Q(fr,u0,n0,v1),Q(fr,u1,n0,v1),Q(fr,u1,n1,v1),Q(fr,u0,n1,v1)], top || shade(front,1.14));
+  };
+  const rev = (fr,u0,u1,v0,v1,deep,col) => {
+    const o = Q(fr,u0,0,v0), du = Q(fr,u0+1,0,v0), dv = Q(fr,u0,0,v0+1), dn = Q(fr,u0,-1,v0);
+    const ux = du.x-o.x, uy = du.y-o.y, vx = dv.x-o.x, vy = dv.y-o.y;
+    const sx = dn.x-o.x, sy = dn.y-o.y, det = ux*vy - vx*uy;
+    const al = (sx*vy - vx*sy)/det, be = (ux*sy - sx*uy)/det;   // shift, in u and v
+    const ju = al > 0 ? u0 : u1, cv = be > 0 ? v0 : v1;         // gap opens opposite it
+    ctx.save();
+    poly([Q(fr,u0,0,v1),Q(fr,u1,0,v1),Q(fr,u1,0,v0),Q(fr,u0,0,v0)]); ctx.clip();
+    R(fr,u0,u1,v0,v1,-deep,col);
+    poly([Q(fr,ju,0,v0),Q(fr,ju,-deep,v0),Q(fr,ju,-deep,v1),Q(fr,ju,0,v1)], shade(col,.84));
+    poly([Q(fr,u0,0,cv),Q(fr,u1,0,cv),Q(fr,u1,-deep,cv),Q(fr,u0,-deep,cv)], shade(col,.72));
+    ctx.restore();
+  };
+  const glz = (fr,u0,u1,v0,v1,frame,tint) => {
+    const w = u1-u0, h = v1-v0;
+    R(fr,u0,u1,v0,v1,-0.4, tint || 'rgba(104,146,168,.92)');
+    poly([Q(fr,u0,-0.30,v1),Q(fr,u0+w*0.30,-0.30,v1),Q(fr,u0+w*0.06,-0.30,v0),Q(fr,u0,-0.30,v0)],
+         'rgba(240,250,254,.20)');
+    poly([Q(fr,u0,-0.22,v1),Q(fr,u1,-0.22,v1),Q(fr,u1,-0.22,v1-h*0.06),Q(fr,u0,-0.22,v1-h*0.06)],
+         'rgba(255,255,255,.16)');
+    if(frame){
+      R(fr,u0-3,u0,v0-3,v1+3,0.5,frame);  R(fr,u1,u1+3,v0-3,v1+3,0.5,frame);
+      R(fr,u0-3,u1+3,v1,v1+3,0.5,frame);  R(fr,u0-3,u1+3,v0-3,v0,0.5,frame);
+    }
+  };
+  /* shopDoor on a frame. Built from the kit's own SHOP_DOOR_W and
+     SHOP_DOOR_H so the openings on the flanks are the same door the
+     front gets from shopDoor() -- the front still calls the kit, so
+     the one the pickup worker walks out of stays canonical. */
+  const doorF = (fr, uMid, w, t) => {
+    const hw = SHOP_DOOR_W/2, dH = SHOP_DOOR_H/ZSCALE;
+    const mid = Math.max(hw+5, Math.min(fr.len-hw-5, uMid));
+    const u0 = mid-hw, u1 = mid+hw;
+    R(fr,u0-4,u1+4, 0, dH+7, 0.3, shade(w,.90));
+    R(fr,u0,u1, 0, dH, 0.4, '#2b2118');
+    R(fr,u0+2,u1-2, dH-26, dH-4, 0.45, 'rgba(96,132,152,.94)');
+    R(fr,u0+2,u1-2, dH-30, dH-26, 0.7, shade(t,.8));
+    R(fr,u0+2,u1-2, 0, dH-30, 0.6, t);
+    for(let k=0;k<2;k++)
+      R(fr,u0+8,u1-8, dH*0.07+k*dH*0.36, dH*0.30+k*dH*0.36, 0.9, shade(t,1.18), shade(t,.7), 1.5);
+    R(fr,u1-14,u1-10, dH*0.40, dH*0.53, 1.2, '#d8c28a');
+  };
+  /* a solid inside a frame -- the two faces that turn toward the eye and
+     the top, each chosen by the same screen-y test box() and slab() use,
+     so a car parked in a showroom sits the right way round on all four
+     block edges. */
+  const qbox = (fr,u0,u1,n0,n1,v0,v1,top,fu,fn) => {
+    const o = Q(fr,u0,n0,v0), du = Q(fr,u0+1,n0,v0), dn = Q(fr,u0,n0+1,v0);
+    const eu = (du.y - o.y) > 0 ? u1 : u0, en = (dn.y - o.y) > 0 ? n1 : n0;
+    poly([Q(fr,u0,en,v1),Q(fr,u1,en,v1),Q(fr,u1,en,v0),Q(fr,u0,en,v0)], fn);
+    poly([Q(fr,eu,n0,v1),Q(fr,eu,n1,v1),Q(fr,eu,n1,v0),Q(fr,eu,n0,v0)], fu);
+    poly([Q(fr,u0,n0,v1),Q(fr,u1,n0,v1),Q(fr,u1,n1,v1),Q(fr,u0,n1,v1)], top);
+  };
+  return { FR_FRONT, FR_RIGHT, FR_LEFT, FR_BACK, Q, R, bandF, rev, glz, doorF, qbox,
+           NEAR: FLANK_RIGHT ? FR_RIGHT : FR_LEFT,
+           FAR:  FLANK_RIGHT ? FR_LEFT  : FR_RIGHT };
+}
 
 const SHOPS = [
 {
@@ -10175,88 +10330,9 @@ const SHOPS = [
     const SHUT = ['#6b8a5a','#8a6b5a','#5a7a8a'];
     const EA0 = 470, EA1 = 580;
 
-    /* ---- the wall frames, and the primitives written against them ---- */
-    const FR_FRONT = { P:(u,n,v)=>[u, n, v],            len:WW, kind:'street' };
-    const FR_RIGHT = { P:(u,n,v)=>[WW+n, -u, v],        len:DD, kind:'flank'  };
-    const FR_LEFT  = { P:(u,n,v)=>[-n, -u, v],          len:DD, kind:'flank'  };
-    const FR_BACK  = { P:(u,n,v)=>[WW-u, -DD-n, v],     len:WW, kind:'back'   };
-    const Q = (fr,u,n,v) => { const c = fr.P(u,n,v); return P(c[0],c[1],c[2]); };
-    const R = (fr,u0,u1,v0,v1,n,fill,stroke,lw) =>
-      poly([Q(fr,u0,n,v1),Q(fr,u1,n,v1),Q(fr,u1,n,v0),Q(fr,u0,n,v0)], fill, stroke, lw);
-    /* a panel with real thickness: face, the end return that is seen,
-       and the top plate -- slab(), asked of a frame */
-    /* THE END RETURN IS OPTIONAL, and the corners are why. A course that
-       WRAPS the building has no end -- the next elevation continues it --
-       but bandF was capping every run, and the front is drawn after the
-       flank, so each wrapping band painted a dark end cap straight onto
-       the corner it was supposed to turn. Three courses, a cornice and
-       two corner pilasters, six dark wedges down one corner.
+    const { FR_FRONT, FR_RIGHT, FR_LEFT, FR_BACK, NEAR, FAR, Q, R, bandF, rev, glz, doorF }
+      = wallFrames(WW, DD);
 
-       `em` is a mask of which ends may be capped: bit 0 is the u0 end,
-       bit 1 the u1 end, 3 both, 0 none. The end that WOULD be seen is
-       still derived from P() -- the mask only says whether it exists --
-       so a run that is capped at one end still caps the correct one
-       whichever way the block edge runs.
-
-       And a wrapping run is extended PAST the corner at each end, by its
-       own projection plus two. Extending by exactly the projection is
-       not enough and that was the visible seam Sir found: the front
-       band's face and the flank band's face then abut on the identical
-       screen column, and two antialiased quads that share an edge and
-       do not overlap leave a hairline of background between them. It
-       ran the full height of the corner pier. Two units of overlap is
-       hidden inside the corner and closes it. */
-    const bandF = (fr,u0,u1,v0,v1,n0,n1,front,side,top,em) => {
-      const mask = em === undefined ? 3 : em;
-      R(fr,u0,u1,v0,v1,n0,front);
-      const o = Q(fr,u0,n0,v0), du = Q(fr,u0+1,n0,v0);
-      const hi = (du.y - o.y) > 0, eu = hi ? u1 : u0;
-      if(mask & (hi ? 2 : 1))
-        poly([Q(fr,eu,n0,v1),Q(fr,eu,n1,v1),Q(fr,eu,n1,v0),Q(fr,eu,n0,v0)], side || shade(front,.78));
-      poly([Q(fr,u0,n0,v1),Q(fr,u1,n0,v1),Q(fr,u1,n1,v1),Q(fr,u0,n1,v1)], top || shade(front,1.14));
-    };
-    const rev = (fr,u0,u1,v0,v1,deep,col) => {
-      const o = Q(fr,u0,0,v0), du = Q(fr,u0+1,0,v0), dv = Q(fr,u0,0,v0+1), dn = Q(fr,u0,-1,v0);
-      const ux = du.x-o.x, uy = du.y-o.y, vx = dv.x-o.x, vy = dv.y-o.y;
-      const sx = dn.x-o.x, sy = dn.y-o.y, det = ux*vy - vx*uy;
-      const al = (sx*vy - vx*sy)/det, be = (ux*sy - sx*uy)/det;   // shift, in u and v
-      const ju = al > 0 ? u0 : u1, cv = be > 0 ? v0 : v1;         // gap opens opposite it
-      ctx.save();
-      poly([Q(fr,u0,0,v1),Q(fr,u1,0,v1),Q(fr,u1,0,v0),Q(fr,u0,0,v0)]); ctx.clip();
-      R(fr,u0,u1,v0,v1,-deep,col);
-      poly([Q(fr,ju,0,v0),Q(fr,ju,-deep,v0),Q(fr,ju,-deep,v1),Q(fr,ju,0,v1)], shade(col,.84));
-      poly([Q(fr,u0,0,cv),Q(fr,u1,0,cv),Q(fr,u1,-deep,cv),Q(fr,u0,-deep,cv)], shade(col,.72));
-      ctx.restore();
-    };
-    const glz = (fr,u0,u1,v0,v1,frame,tint) => {
-      const w = u1-u0, h = v1-v0;
-      R(fr,u0,u1,v0,v1,-0.4, tint || 'rgba(104,146,168,.92)');
-      poly([Q(fr,u0,-0.30,v1),Q(fr,u0+w*0.30,-0.30,v1),Q(fr,u0+w*0.06,-0.30,v0),Q(fr,u0,-0.30,v0)],
-           'rgba(240,250,254,.20)');
-      poly([Q(fr,u0,-0.22,v1),Q(fr,u1,-0.22,v1),Q(fr,u1,-0.22,v1-h*0.06),Q(fr,u0,-0.22,v1-h*0.06)],
-           'rgba(255,255,255,.16)');
-      if(frame){
-        R(fr,u0-3,u0,v0-3,v1+3,0.5,frame);  R(fr,u1,u1+3,v0-3,v1+3,0.5,frame);
-        R(fr,u0-3,u1+3,v1,v1+3,0.5,frame);  R(fr,u0-3,u1+3,v0-3,v0,0.5,frame);
-      }
-    };
-    /* shopDoor on a frame. Built from the kit's own SHOP_DOOR_W and
-       SHOP_DOOR_H so the openings on the flanks are the same door the
-       front gets from shopDoor() -- the front still calls the kit, so
-       the one the pickup worker walks out of stays canonical. */
-    const doorF = (fr, uMid, w, t) => {
-      const hw = SHOP_DOOR_W/2, dH = SHOP_DOOR_H/ZSCALE;
-      const mid = Math.max(hw+5, Math.min(fr.len-hw-5, uMid));
-      const u0 = mid-hw, u1 = mid+hw;
-      R(fr,u0-4,u1+4, 0, dH+7, 0.3, shade(w,.90));
-      R(fr,u0,u1, 0, dH, 0.4, '#2b2118');
-      R(fr,u0+2,u1-2, dH-26, dH-4, 0.45, 'rgba(96,132,152,.94)');
-      R(fr,u0+2,u1-2, dH-30, dH-26, 0.7, shade(t,.8));
-      R(fr,u0+2,u1-2, 0, dH-30, 0.6, t);
-      for(let k=0;k<2;k++)
-        R(fr,u0+8,u1-8, dH*0.07+k*dH*0.36, dH*0.30+k*dH*0.36, 0.9, shade(t,1.18), shade(t,.7), 1.5);
-      R(fr,u1-14,u1-10, dH*0.40, dH*0.53, 1.2, '#d8c28a');
-    };
     /* one shop, WIDTH-PARAMETERISED: pier 9 / window / pier 11 / door
        66.24 / pier 9.76. At 218 that is the packer's own 209.76 rhythm
        and the window comes out 122; the flank asks for 200 instead,
@@ -10283,7 +10359,7 @@ const SHOPS = [
       bandF(fr, -6, 24,   16, H, 4, 0, shade(wall,1.08), null, shade(wall,1.2), 2);    // corner piers:
       bandF(fr, L-24, L+6, 16, H, 4, 0, shade(wall,1.08), null, shade(wall,1.2), 1);   // capped inboard only
 
-      if(fr.kind === 'street'){
+      if(fr.kind === 'front'){
         [20, 242, 590, 812].forEach((U,i) => shopUnit(fr, U, 218, LIV[i]));
         bandF(fr, EA0-14, EA1+14, 16, 150, 5, -1, shade(wall,1.10), null, shade(wall,1.26));
         shopDoor((EA0+EA1)/2, wall, trim, null, WW);
@@ -10335,8 +10411,6 @@ const SHOPS = [
 
     /* ---- back and far flank BEFORE the solid; near flank and street
        after it. See the draw-order note above. ---- */
-    const NEAR = FLANK_RIGHT ? FR_RIGHT : FR_LEFT;
-    const FAR  = FLANK_RIGHT ? FR_LEFT  : FR_RIGHT;
     elevation(FR_BACK);
     elevation(FAR);
     body(wall, trim, H, WW, DD);
@@ -10381,6 +10455,354 @@ const SHOPS = [
         box(ca-22, ca+22, -300, -240, H, H+52, '#9aa0a6','#7d838a','#6a7076');
         for(const cb of [-288, -252]) cyl(ca-10, cb, H+52, H+64, 5, '#5e646b');
       }
+    }
+    kerb(p,'none');
+  }
+},
+{
+  name:'Car dealership', tall:true, ww: 1048.8, dd: 620,
+  wTodo:'a whole block edge -- five packing slots, and the packer emits no wide slot yet',
+  kTodo:'shares wallFrames() with Apartments over shop; rev, glz and doorF belong in the kit',
+  head:'Whole edge, one showroom wrapping all four faces, offices over',
+  tags:['block width, on the line','one continuous showroom','cars behind the glass','mullions not piers','offices over'],
+  desc:'The apartments block again with its ground floor unified: instead of a parade of separate shops the whole storey is one showroom, glazed the entire way round on all four faces and deep enough to stand cars in, with the offices above keeping the punched-window rhythm.',
+  draw(p){
+    /* ============ ONE SHOP, NOT A PARADE ============
+       Same footprint and the same wall frames as Apartments over shop --
+       block WIDTH, on the line, ww 1048.8 by dd 620 -- with the ground
+       floor unified at Sir's direction. What that actually changes:
+
+       THE GROUND STOREY IS ONE OPENING PER FACE, not five. A parade is
+       set out in units because each unit is a separate tenancy with its
+       own door and its own fascia; a showroom is one tenancy, so the
+       piers between units go and the glazing runs from corner pier to
+       corner pier. What holds it up is MULLIONS -- proud verticals at
+       n 1.5, in front of the glass -- rather than masonry between
+       openings, which is the honest structure for a shopfront that wide
+       and is why it can be that wide at all.
+
+       AND IT IS DEEP, which is the part that makes it a showroom rather
+       than a window. 96 of recess, so there is floor behind the glass to
+       stand cars on. They sit BROADSIDE to the street: the game's car is
+       150 by 60, and 150 will not fit in a 96 recess nose-in, while 60
+       will -- and side-on is the view of a car worth putting in a
+       window anyway.
+
+       THE CARS ARE SOLIDS, not decals. qbox() in wallFrames picks which
+       two faces of a box turn toward the eye by the same screen-y test
+       box() and slab() use, so a car parked in the flank showroom sits
+       the right way round rather than inside out -- which is the fault
+       body() and box() both had before they asked P() instead of
+       asserting.
+
+       THEY ARE ALSO CLIPPED TO THE OPENING. You can only see into a
+       recess through the hole in the wall, which is reveal()'s own note;
+       a car at n -78 projects 78 sideways and would otherwise stand out
+       past the corner of the building as a solid object in the street.
+
+       THE OFFICES OVER keep the apartments' bay rhythm and lose
+       everything residential: no balconies, no shutters, no washing.
+
+         20..118  showroom          124..152 name band, wraps
+         176..238 first floor       250..260 course
+         276..338 second floor      350..364 cornice */
+    const wall = '#dfe1e3', trim = '#3a4046', band = '#1f5fa8', iron = '#8d949a';
+    const WW = 1048.8, DD = 620, H = 350;
+    const glassT = 'rgba(120,152,172,.80)';
+    const SHOW = 'rgba(150,186,204,.20)';                  // the showroom pane, seen through
+    const { FR_FRONT, FR_RIGHT, FR_LEFT, FR_BACK, NEAR, FAR, Q, R, bandF, rev, glz, doorF, qbox }
+      = wallFrames(WW, DD);
+    /* THE TOWER PROJECTED 46 ONTO THE FOOTWAY, and 80 once its canopy
+       was on. A building on the line may lean over the pavement the way
+       the apartments' balconies do at 19, or the way a portico does --
+       but not as 46 of solid wall from the ground up, which is a
+       pavement blocked rather than a porch. 14 and 28, which puts it in
+       the same bracket as the balconies on its sibling. */
+    const EA0 = 462, EA1 = 592, EB = 14, EZ = 404;         // the sign fin
+    const EMID = (EA0+EA1)/2;                              // and the door under it
+
+    /* ================= THE GAME'S OWN CAR, PORTED =================
+       The first cut was a car I made up: two boxes and four smaller ones
+       at 150 by 60 by 66, which is nobody's car. The shipped one is real
+       geometry and it ports, because it is built on exactly the pattern
+       wallFrames uses -- carT(a, b, h) defines the whole vehicle ONCE in
+       a fixed local frame with the car facing +a, and the rig rotates as
+       one rigid unit. Substituting Q(fr, ...) for the game's carP is the
+       entire port; every panel below is the shipped one.
+
+       CARC, verbatim: len 225, wid 90, chassisH 42, cabinH 48,
+       wheelR 24, and CAR_COLORS' four liveries. The three HEIGHTS are
+       divided by ZSCALE on the way in and the two plan dimensions are
+       not, which is the whole of the correction in the WIDE UNITS note
+       at the head of this file -- the lab scales z and nothing else.
+
+       WHAT IS ASKED RATHER THAN ASSERTED. The game picks its near wheel
+       side, its camera-facing side glass and which bumper to draw at all
+       by comparing carDepth; here the same choices come off screen y,
+       which is the test box() and slab() already use. Nothing is
+       hardcoded to a side.
+
+       AND THE WHEELS ARE FACE-PLANE CIRCLES, so their z radius is
+       divided by ZSCALE. That is fault one on the standing list, eleven
+       instances deep, and a wheel is the most obvious place in the file
+       for it: r 24 undivided comes out 24 by 36 and the car rolls on
+       ovals.
+
+       WHAT THE REAL CAR COSTS: it is 225 long against my 150, so a 200
+       showroom bay will not hold it. The bay target went to 330, which
+       divides the 996.8 front into 3 and the 568 flank into 2. */
+    const CR = { len:225, wid:90, chassisH:42, cabinH:48, wheelR:24,
+      windshield:'#9fc4d6', windshieldEdge:'#6f8fa0', bumper:'#b8bcc2',
+      light:'#f4e9b0', tail:'#c94f4f', wheel:'#24262c', wheelDk:'#17191d',
+      hub:'#8a919c', hubFace:'#3d424c' };
+    const CAR_COLORS = [
+      { body:'#9aa7b5', bodyDk:'#76839a', roof:'#8695a5' },   // silver
+      { body:'#c45a4e', bodyDk:'#9c473d', roof:'#af4f44' },   // red
+      { body:'#5678a8', bodyDk:'#435e87', roof:'#4c6c99' },   // blue
+      { body:'#e4e6ea', bodyDk:'#c0c3c9', roof:'#d6d9dd' }    // white
+    ];
+    const carIn = (fr, uc, nc, vf, col) => {
+      const zk = 1/ZSCALE;
+      const hl = CR.len/2, hw = CR.wid/2, cz = CR.wheelR*zk;
+      const chassisTop = (CR.wheelR + CR.chassisH)*zk;
+      const cabinTop   = (CR.wheelR + CR.chassisH + CR.cabinH)*zk;
+      const cl = hl*0.62, roofF = -cl*0.55, roofR = cl*0.55;
+      const cP = (a,b,h) => Q(fr, uc+a, nc+b, vf+h);
+      const cd = (a,b,h) => cP(a,b,h).y;                    // nearer = larger screen y
+
+      const wheel = (a0, r, side) => {
+        const rz = r*zk;                                     // face-plane circle: z radius over ZSCALE
+        const ring = (bc, rr) => { const q = [];
+          for(let i=0;i<12;i++){ const t = i/12*Math.PI*2;
+            q.push(cP(a0 + Math.cos(t)*rr, bc, cz + Math.sin(t)*rr*zk)); }
+          return q; };
+        const bIn = side*(hw-1), bOut = side*(hw+5);
+        poly(ring(bIn, r), CR.wheelDk);
+        const faceB = cd(a0,bOut,cz) > cd(a0,bIn,cz) ? bOut : bIn;
+        poly(ring(faceB, r), CR.wheel);
+        poly(ring(faceB, r*0.5), CR.hubFace);
+        const h = cP(a0, faceB, cz);
+        ctx.beginPath(); ctx.arc(h.x, h.y, r*0.30*K, 0, 7); ctx.fillStyle = CR.hub; ctx.fill();
+      };
+      const chassis = () => {
+        const nb = cd(0,hw,chassisTop) > cd(0,-hw,chassisTop) ? hw : -hw;
+        const na = cd(hl,0,chassisTop) > cd(-hl,0,chassisTop) ? hl : -hl;
+        poly([cP(-hl,nb,cz),cP(hl,nb,cz),cP(hl,nb,chassisTop),cP(-hl,nb,chassisTop)], col.bodyDk);
+        poly([cP(na,-hw,cz),cP(na,hw,cz),cP(na,hw,chassisTop),cP(na,-hw,chassisTop)], shade(col.bodyDk,.90));
+        poly([cP(-hl,-hw,chassisTop),cP(hl,-hw,chassisTop),cP(hl,hw,chassisTop),cP(-hl,hw,chassisTop)], col.body);
+      };
+      const cabin = () => {
+        const roofPts = [cP(roofF,-hw*0.86,cabinTop),cP(roofR,-hw*0.86,cabinTop),
+                         cP(roofR, hw*0.86,cabinTop),cP(roofF, hw*0.86,cabinTop)];
+        const sg = cd(0,hw*0.9,cabinTop) > cd(0,-hw*0.9,cabinTop) ? 1 : -1;
+        const sgB = sg*hw*0.86, beltB = sg*hw*0.92;
+        const P4 = [[roofF,sgB,cabinTop],[roofR,sgB,cabinTop],[cl,beltB,chassisTop],[-cl,beltB,chassisTop]];
+        poly(P4.map(q => cP(q[0],q[1],q[2])), col.roof);                       // the greenhouse solid
+        poly(roofPts, col.roof, col.bodyDk, 1);
+        poly([cP(roofR,-hw*0.85,cabinTop),cP(roofR,hw*0.85,cabinTop),
+              cP(cl, hw*0.90,chassisTop),cP(cl,-hw*0.90,chassisTop)], CR.windshield, CR.windshieldEdge, 1);
+        poly([cP(roofF,-hw*0.86,cabinTop),cP(roofF,hw*0.86,cabinTop),
+              cP(-cl, hw*0.92,chassisTop),cP(-cl,-hw*0.92,chassisTop)], CR.windshield, CR.windshieldEdge, 1);
+        poly(roofPts, col.roof, col.bodyDk, 1);                                // the game's roof redraw
+        const c = [0,1,2].map(i => P4.reduce((t,q) => t+q[i], 0)/4);
+        poly(P4.map(q => cP(q[0],q[1],q[2])), col.body);
+        poly(P4.map(q => cP(c[0]+(q[0]-c[0])*0.7, c[1]+(q[1]-c[1])*0.7, c[2]+(q[2]-c[2])*0.7)), CR.windshield);
+      };
+      const bumper = () => {
+        const front = cd(hl,0,cz) > cd(-hl,0,cz), e = front ? hl : -hl, i = front ? hl-0.3 : -hl+0.3;
+        poly([cP(i,-hw,cz),cP(e,-hw,cz+3*zk),cP(e,hw,cz+3*zk),cP(i,hw,cz)], CR.bumper);
+        for(const sgn of [-1,1]){
+          const lp = cP(e - (front?0.4:-0.4), sgn*(hw-3), cz+5*zk);
+          ctx.beginPath(); ctx.arc(lp.x, lp.y, 2*K, 0, 7);
+          ctx.fillStyle = front ? CR.light : CR.tail; ctx.fill();
+        }
+      };
+      const rearNear  = cd(-hl*0.55,hw,cz) > cd(-hl*0.55,-hw,cz) ? 1 : -1;
+      const frontNear = cd( hl*0.55,hw,cz) > cd( hl*0.55,-hw,cz) ? 1 : -1;
+      const cabRef = cd(0,0,(chassisTop+cabinTop)/2);
+      wheel(-hl*0.55, CR.wheelR,      -rearNear);
+      wheel( hl*0.55, CR.wheelR*0.95, -frontNear);
+      chassis();
+      if(cd(-hl*0.55, hw*rearNear,  cz) <= cabRef) wheel(-hl*0.55, CR.wheelR,      rearNear);
+      if(cd( hl*0.55, hw*frontNear, cz) <= cabRef) wheel( hl*0.55, CR.wheelR*0.95, frontNear);
+      cabin();
+      bumper();
+      if(cd(-hl*0.55, hw*rearNear,  cz) >  cabRef) wheel(-hl*0.55, CR.wheelR,      rearNear);
+      if(cd( hl*0.55, hw*frontNear, cz) >  cabRef) wheel( hl*0.55, CR.wheelR*0.95, frontNear);
+    };
+    /* the showroom: one deep opening, floor, cars on it, then the glass
+       and the mullions in front of the glass.
+
+       THE WALL WAS 18 UNITS BEHIND THE CARS. First cut recessed 96 and
+       stood a 60-wide car at n -48, which leaves the back plate sitting
+       right against the tail of every car -- so the whole storey read as
+       a shallow display case with a dark board behind it rather than as
+       a room you could walk into. Depth is the only thing that fixes
+       that, and dd is 620, so there was plenty to spend: 200 of recess,
+       columns at -120, and the far wall in a LIT colour a long way back
+       instead of a dark plate close up. What sells the depth is the
+       floor visible behind the cars, which is why the floor plate runs
+       the whole 200 rather than stopping where they do.
+
+       A SECOND ROW OF CARS DOES NOT WORK, tried and measured. Depth
+       moves a thing UP the screen by n/2, which is n/(2*ZSCALE) in
+       apparent height -- so a car at n -150 reads 50 higher than one at
+       the glass, its roof lands at an apparent 134 against a 118 head,
+       and the clip cuts it in half. Anything deep in a recess has to fit
+       under the head AFTER that rise, and a 98 opening will not take two
+       ranks of a 66-tall car. One row, and the depth behind it.
+
+       Everything inside is still clipped to the opening -- reveal()'s
+       own note, and it matters more here: a car at n -180 projects 180
+       sideways and would stand well past the corner of the building as
+       a solid object in the street. */
+    const showroom = (fr, u0, u1, show, gap) => {
+      const DEEP = 200;
+      /* THE BAY RHYTHM IS 200, a car wide, which divides the 996.8 front
+         into 5 and the 568 flank into 3 -- every mullion, every column
+         and every car centre comes off that one number rather than the
+         mullions being on a 72 pitch and the cars on a list of typed
+         positions, which is how a 150 car came to straddle two panes.
+
+         WHICH BAYS GET A CAR IS THE CALLER'S. One car per glazed RUN,
+         at Sir's direction: two on the street because the entrance
+         tower splits it into two runs, one on each flank, one at the
+         rear. A showroom with a car in every bay reads as a car park
+         behind glass; one car standing on its own in the middle of a
+         run is what a showroom window is for. */
+      /* THE BAY GRID AND THE GLAZED RUN ARE NOT THE SAME THING, and
+         putting the cars on bay centres is what made that show. The
+         flank has two bays, so bay 0's centre is a QUARTER of the way
+         along the glass -- 168 against a run centred on 310, 142 out --
+         and the two on the street were 52 out each for the same reason.
+         The bay grid now only sets the columns, which is all it has been
+         doing since the mullions went; where a car stands is given to
+         showroom() as a position ON THE RUN, because that is a fact
+         about the run and not about the structure behind it. */
+      const SPAN = u1 - u0, NB = Math.max(1, Math.round(SPAN/190)), BW = SPAN/NB;
+      rev(fr, u0, u1, 20, 118, DEEP, '#b2b8bd');
+      ctx.save();
+      poly([Q(fr,u0,0,118),Q(fr,u1,0,118),Q(fr,u1,0,20),Q(fr,u0,0,20)]); ctx.clip();
+      poly([Q(fr,u0,0,20),Q(fr,u1,0,20),Q(fr,u1,-DEEP,20),Q(fr,u0,-DEEP,20)], '#8d949a');
+      /* floor joints, running INTO the room. A flat plate and a flat
+         wall are the same shape in this projection, so the light area
+         behind the cars was reading as another wall; lines that recede
+         are what tells the two apart. */
+      for(let m=0; m*90 < u1-u0; m++)
+        poly([Q(fr,u0+m*90-2.4,0,20.4),Q(fr,u0+m*90+2.4,0,20.4),
+              Q(fr,u0+m*90+2.4,-DEEP,20.4),Q(fr,u0+m*90-2.4,-DEEP,20.4)], shade('#8d949a',.80));
+      R(fr, u0, u1, 44, 52, -DEEP+1, shade('#b2b8bd',.86));       // a band on the far wall
+      for(let m=1;m<NB;m++){                                       // columns, on the bay lines
+        const c = fr.P(u0+BW*m, -120, 0);
+        cyl(c[0], c[1], 20, 118, 7, '#c6cace');
+      }
+      /* the livery is named per car rather than derived: the first pass
+         derived it and drew silver, white, silver, which is three of the
+         four CAR_COLORS being nearly the same colour. */
+      for(const [ua, liv] of show) carIn(fr, ua, -58, 20, CAR_COLORS[liv]);
+      ctx.restore();
+      /* NO BARS ACROSS THE GLASS. There were dark mullions on every bay
+         line and a transom right through the middle, all in trim, which
+         put a black grid over the one thing the storey exists to show.
+         A shopfront that wide does need something holding it up -- but
+         it already has it, and it is INSIDE: the columns at n -120 stand
+         on the bay lines and read through the pane as the structure they
+         are. The frame round the opening goes pale for the same reason,
+         so nothing dark crosses a car. */
+      glz(fr, u0, u1, 20, 118, shade(wall,.86), SHOW);
+      /* the cill is BROKEN at the doorway. Run whole it crosses the
+         opening at z 12..20 -- a band drawn through a door, which is the
+         fault the Apartments' string course had at exactly this height,
+         and a threshold you would trip over. */
+      if(gap){
+        bandF(fr, u0-4, gap[0], 12, 20, 3, -1, shade(wall,.72));
+        bandF(fr, gap[1], u1+4, 12, 20, 3, -1, shade(wall,.72));
+      } else bandF(fr, u0-4, u1+4, 12, 20, 3, -1, shade(wall,.72));
+    };
+
+    const elevation = fr => {
+      const L = fr.len;
+      bandF(fr, -5, L+5, 124, 152, 5, 0, band, null, shade(band,1.2), 0);       // name band, wraps
+      for(let k=0;k<Math.round(L/150);k++)
+        R(fr, 40+k*150, 128+k*150, 131, 145, 5.5, shade(wall,1.06));
+      bandF(fr, -5, L+5, 250, 260, 3, 0, shade(wall,.82), null, shade(wall,1.1), 0);
+      bandF(fr, -7, L+7, H, H+14, 5, -1, shade(wall,.70), null, null, 0);        // cornice
+      bandF(fr, -6, 24,   16, H, 4, 0, shade(wall,.96), null, shade(wall,1.14), 2);
+      bandF(fr, L-24, L+6, 16, H, 4, 0, shade(wall,.96), null, shade(wall,1.14), 1);
+
+      if(fr.kind === 'front'){
+        /* THE CANONICAL DOOR, and it has to be. This is the b = 0 plane,
+           so shopDoor() works here directly -- doorF is the frame copy
+           and exists only for the faces the kit cannot reach. The door
+           the pickup worker walks out of is not a thing to reimplement
+           when the real one is available. */
+        showroom(fr, 26, L-26,                        // one centred in each run either
+          [[(26+EA0)/2, 1], [(EA1+L-26)/2, 2]],       // side of the fin, not on a bay centre
+          [EMID-37.12, EMID+37.12]);
+        shopDoor(EMID, wall, trim, null, WW);
+      } else if(fr.kind === 'flank'){
+        showroom(fr, 26, L-26, [[L/2, 3]]);
+      } else {
+        showroom(fr, 26, L-26, [[L/2, 0]]);
+      }
+
+      const NB = fr.kind === 'flank' ? 8 : 15, B0 = 26, B1 = L - 26;
+      for(let fl=0; fl<2; fl++){
+        const v0 = 176 + fl*100, v1 = v0 + 62;
+        for(let i=0;i<NB;i++){
+          const c = B0 + (B1-B0)*(i+0.5)/NB, x0 = c-23, x1 = c+23;
+          rev(fr, x0, x1, v0, v1, 9, shade(wall,.52));
+          glz(fr, x0, x1, v0, v1, shade(wall,.90), glassT);
+          R(fr, x0, x1, (v0+v1)/2 - 2, (v0+v1)/2 + 2, 1, shade(wall,.92));
+          bandF(fr, x0-5, x1+5, v0-8, v0, 4, -1, shade(wall,.86));
+        }
+      }
+    };
+
+    elevation(FR_BACK);
+    elevation(FAR);
+    body(wall, trim, H, WW, DD);
+    T(0, WW, -DD, 0, H+0.4, '#6a7076');           // body()'s roof plate is too bright at this size
+    elevation(NEAR);
+    elevation(FR_FRONT);
+
+    /* ---- the sign fin, ABOVE the fascia ----
+       It used to be a solid box from the ground up, projecting 14 across
+       a 462..592 -- and the door was drawn at b 0.3, behind its front
+       face, so the building had no way in on foot at all. That is the
+       third shop in this file to have had that, after the Garage and the
+       Fire station, and here it was self-inflicted.
+
+       The fix is not to move the door out; a shopfront door belongs in
+       the glass. The fin starts at 152, on top of the name band, where a
+       dealership pylon actually springs from -- so the showroom glazing
+       runs unbroken underneath it and the canonical door sits in that
+       glazing on the b = 0 plane where shopDoor can reach. */
+    slab(EA0-14, EA1+14, 146, 156, EB+4, -1, shade(wall,.90), null, shade(wall,1.12));   // corbel
+    box(EA0, EA1, 0, EB, 156, EZ, shade(wall,1.16), shade(wall,1.04), shade(wall,.84));
+    F(EA0+10, EA1-10, 176, 372, band, null, 0, EB+1.2);            // the sign
+    for(let k=0;k<4;k++) F(EA0+24, EA1-24, 190+k*46, 224+k*46, shade(wall,1.1), null, 0, EB+1.7);
+    for(const ca of [EA0+8, EA1-8])
+      tube(ca, 2, 150, ca, EB-2, 162, 1.8, iron);                  // stays back to the wall
+
+    if(state.props){
+      /* THE FLAGS WERE ON THE PAVEMENT, which is the one thing a prop in
+         this file may not be: poles standing at b 10 with pennants
+         written to b -44, so each flag flew straight through the wall
+         behind it and each pole would have wanted a collision volume in
+         the footway. They fly off the roof instead, which is where a
+         dealership puts them anyway. */
+      [[180,-70],[400,-70],[620,-70]].forEach(([fa,fb],i) => {
+        cyl(fa, fb, H, H+124, 3.5, iron);
+        poly([P(fa,fb,H+124),P(fa,fb,H+86),P(fa+40,fb,H+94),P(fa+40,fb,H+118)],
+             [band,'#c2452e',shade(wall,1.12)][i]);
+        ball(fa, fb, H+126, 4.5, shade(iron,1.2));
+      });
+    }
+    if(state.roof){
+      for(const ca of [180, 470, 760])
+        box(ca-40, ca+40, -300, -230, H, H+30, '#9aa0a6','#7d838a','#6a7076');
+      cyl(940, -260, H, H+40, 6, '#6d747c');
     }
     kerb(p,'none');
   }
