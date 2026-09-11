@@ -12850,58 +12850,187 @@ const SHOPS = [
   }
 },
 {
-  name:'Museum', tall:true,
-  fTodo:'z264..286 return +10',
-  zTodo:1.7,          // H 286 -- see SCALE REVIEW at the head of this file
-  head:'Roof lantern, hanging banners, deep reveal',
-  tags:['built roof lantern','hanging banners','recessed entry','stone piers','3 storey'],
-  desc:'The lantern is a glazed box with upstands, a ridge and end walls, and the banners hang from tube rails with weighted bottom bars.',
+  name:'Museum', tall:true, block:true, ww: 3128, dd: 3128,
+  wTodo:'a FULL block cell -- BLOCK 3128 with ROAD_HALF 368 each side, so 1656 square of buildable ground; the packer places no landmark',
+  cTodo:'the building, the portico columns, the forecourt railing and its gate piers, the plinths and their sculptures are volumes; the forecourt paving is walkable',
+  head:'A block cell: portico set back behind its own sculpture garden',
+  tags:['block landmark','the real BLOCK, 3128','portico that stands OUT','sculpture garden','roof lantern'],
+  desc:'A museum arranged the way one is: the building set back across a forecourt, a real colonnade standing proud in front of it, and the space between given over to a sculpture garden behind a railing.',
   draw(p){
-    const wall = '#cfc7b4', trim = '#4a5250', H = 286;
-    body(wall, trim, H);
-    slab(0,W, H, H+14, -1, -16, shade(wall,.76));
-    slab(0,W, H-22, H, -1, -10, shade(wall,1.08));
-    F(W*0.28,W*0.72, 0, 150, shade(wall,.66), null,0, 1);
-    /* three openings at 23 wide inside a 101 portico. Two real doors
-       need 132.5 and will not fit between the columns, so the museum
-       entrance becomes a single proper one on the centreline. */
-    shopDoor(W*0.50, wall, '#3f4a4a', 'rgba(95,114,116,.55)');
-    for(let i=0;i<4;i++) cyl(W*0.28+i*W*0.147, -8, 0, 150, 7, shade(wall,1.0));
-    slab(W*0.24,W*0.76, 150, 164, -6, -14, shade(wall,1.06));
-    for(let fl=0; fl<2; fl++){
-      const z0 = 180 + fl*54;
-      for(let i=0;i<5;i++){
-        const x0 = 12+(W-24)*(i+0.16)/5, x1 = 12+(W-24)*(i+0.84)/5;
-        slab(x0-3,x1+3, z0-3, z0+41, -1, -8, shade(wall,.9));
-        F(x0,x1, z0, z0+38, '#5f7274', null,0,-8.5);
+    /* ============ THE PORTICO WAS INSIDE OUT ============
+       F(W*0.28, W*0.72, 0, 150) drew the portico's back face at b +1 --
+       PROUD, on the pavement side -- while its columns sat at b -8 and
+       its entablature at -6..-14. So the wall the colonnade is meant to
+       stand in front of was nine units IN FRONT of the columns, and the
+       whole thing read only because it was painted in the right order.
+
+       A portico is not a recess. It STANDS OUT: the wall stays on the
+       frontage and the columns come forward of it. That is the fix, and
+       it is why this shop wanted the room -- on 230 there was nowhere
+       for a colonnade to stand, so it got flattened into the wall.
+
+       A BLOCK CELL at Sir's direction, and the arrangement follows the
+       type. A museum has a FORECOURT: the building sets back and the
+       space in front is the sculpture garden.
+
+         cell        a  736..2392   b -2392.. -736    1656 square
+         building    a  880..2250   b -2200.. -1480   1370 x 720
+         forecourt   b -1480..-736 across the width   744 deep
+
+       THE BANNERS HUNG INSIDE THE MASONRY -- rail at b -12, cloth to
+       -18, the seventh instance of that sign error. They hang off the
+       portico entablature now, out in front where a banner hangs.
+
+       Plus side windows at b +2 with their glass proud of their own
+       wall, upper glass at -8.5 behind its own surround's back face at
+       -8, the fTodo band 10 past the return, and zTodo 1.7 -- storeys on
+       a 54 pitch, which is a third of a shop storey for a gallery. */
+    const BLK = 3128, ROAD = 736;
+    const CA0 = ROAD, CA1 = BLK - ROAD, CB1 = -ROAD, CB0 = -(BLK - ROAD);
+    const BA0 = 880, BA1 = 2250, BB0 = -2200, BB1 = -1480;
+    const BW = BA1 - BA0, BD = BB1 - BB0, H = 440;
+    const wall = '#cfc7b4', trim = '#4a5250', glassT = 'rgba(95,114,116,.86)';
+    const { FR_FRONT, FR_RIGHT, FR_LEFT, FR_BACK, NEAR, FAR, Q, R, bandF, rev, glz, doorF }
+      = wallFrames(BW, BD, BA0, BB1);
+    const DMID = BW/2, PA0 = 285, PA1 = 1085, NCOL = 9;
+
+    T(0, BLK, -BLK, 0, 0.3, '#b3a894');                        // pavement round the cell
+    T(CA0, CA1, CB0, CB1, 0.6, '#bdb5a2');                     // the forecourt
+    T(DMID+BA0-110, DMID+BA0+110, CB1-20, BB1, 1.1, '#cdc6b4'); // the axis walk
+    for(const gx of [[CA0+40, BA0-60],[BA1+60, CA1-40]])       // lawns either side
+      T(gx[0], gx[1], BB1-40, CB1-120, 1.0, '#6f8a5e');
+
+    const items = [];
+
+    /* ---- the building ---- */
+    const elevation = fr => {
+      const L = fr.len;
+      bandF(fr, -6, L+6, H, H+16, 6, -1, shade(wall,.76), null, null, 0);
+      bandF(fr, -5, L+5, H-24, H, 4, 0, shade(wall,1.08), null, shade(wall,1.2), 0);
+      bandF(fr, -5, L+5, 300, 350, 5, 0, shade(wall,1.04), null, shade(wall,1.18), 0);
+      bandF(fr, -4, L+4, 40, 48, 5, 0, shade(wall,.9), null, shade(wall,1.1), 0);
+      const nb = fr.kind === 'flank' ? 5 : 9;
+      for(let i=0;i<nb;i++){
+        const c = 60 + (L-120)*(i+0.5)/nb, x0 = c-40, x1 = c+40;
+        if(fr === FR_FRONT && x1 > PA0-30 && x0 < PA1+30) continue;    // the colonnade's bay
+        bandF(fr, x0-7, x1+7, 96, 106, 4, -1, shade(wall,.92));
+        rev(fr, x0, x1, 106, 268, 10, shade(wall,.52));
+        glz(fr, x0, x1, 106, 268, shade(wall,1.12), glassT);
+        R(fr, x0, x1, 184, 190, 1, shade(wall,1.12));
+        R(fr, (x0+x1)/2-2, (x0+x1)/2+2, 106, 268, 1, shade(wall,1.12));
+        bandF(fr, x0-6, x1+6, 268, 278, 4, -1, shade(wall,1.02));
+        R(fr, x0+6, x1-6, 360, 420, 4.5, shade(wall,.92));             // attic panel
       }
-    }
-    F(12,W*0.24, 30, 120, '#5f7274', shade(wall,.7), 2);
-    F(W*0.78,W-12, 30, 120, '#5f7274', shade(wall,.7), 2);
+      if(fr !== FR_FRONT) return;
+      /* THE COLONNADE, STANDING OUT. Columns at n 30..66, the entablature
+         carried on them at n 74, and the wall behind on the frontage
+         where a wall belongs. */
+      rev(fr, PA0, PA1, 48, 300, 14, shade(wall,.58));
+      doorF(fr, DMID, wall, trim);
+      for(let i=0;i<NCOL;i++){
+        const ca = PA0 + (PA1-PA0)*i/(NCOL-1), q = fr.P(ca, 48, 0);
+        cyl(q[0], q[1], 48, 292, 17, shade(wall,1.06), shade(wall,.8));
+        plateCircle(q[0], q[1], 292, 21, shade(wall,1.14), shade(wall,.86), 2);
+        plateCircle(q[0], q[1], 48, 22, shade(wall,.94), shade(wall,.78), 2);
+      }
+      bandF(fr, PA0-34, PA1+34, 292, 350, 74, 0, shade(wall,1.1), null, shade(wall,1.24));
+      poly([Q(fr,PA0-34,74,350), Q(fr,DMID,74,404), Q(fr,PA1+34,74,350)], shade(wall,1.02));
+      R(fr, PA0-34, PA1+34, 292, 300, 74.5, shade(wall,.86));
+      for(let k=0;k<2;k++){                                            // banners, OUT in front
+        const ba = DMID + (k ? 300 : -300), col = ['#8a2f3c','#2f5a6b'][k];
+        const r0 = fr.P(ba-26, 70, 0), r1 = fr.P(ba+26, 70, 0);
+        tube(r0[0], r0[1], 286, r1[0], r1[1], 286, 2.4, '#8d979f');
+        bandF(fr, ba-22, ba+22, 170, 282, 70, 64, col, shade(wall,.6));
+        R(fr, ba-13, ba+13, 200, 258, 70.5, shade(wall,1.12));
+        bandF(fr, ba-26, ba+26, 162, 170, 71, 63, '#8d979f');
+      }
+      for(let s=0;s<4;s++)                                             // the steps
+        bandF(fr, PA0-60+s*6, PA1+60-s*6, s*12, s*12+12, 90-s*18, -1,
+              shade(wall,1.02), null, shade(wall,.88));
+    };
+    items.push({ a:(BA0+BA1)/2, b:(BB0+BB1)/2, z:0, draw:() => {
+      elevation(FR_BACK); elevation(FAR);
+      T(BA0, BA1, BB0, BB1, H, shade(wall,1.02));
+      S((NEAR === FR_RIGHT) ? BA1 : BA0, BB0, BB1, 0, H, shade(wall,.78));
+      F(BA0, BA1, 0, H, wall, null, 0, BB1);
+      elevation(NEAR); elevation(FR_FRONT);
+      if(state.roof){
+        const l0 = BA0+BW*0.22, l1 = BA0+BW*0.78, q0 = BB1-140, q1 = BB1-560;
+        F(l0,l1, H+16, H+38, shade(wall,1.02), null,0, q0);
+        poly([P(l0,q0,H+38),P(l1,q0,H+38),P(l1,q0-30,H+74),P(l0,q0-30,H+74)], 'rgba(160,196,206,.85)');
+        poly([P(l0,q1,H+38),P(l1,q1,H+38),P(l1,q1+30,H+74),P(l0,q1+30,H+74)], 'rgba(140,176,188,.8)');
+        poly([P(l0,q0-30,H+74),P(l1,q0-30,H+74),P(l1,q1+30,H+74),P(l0,q1+30,H+74)], 'rgba(186,214,222,.9)');
+        poly([P(l1,q0,H+38),P(l1,q0-30,H+74),P(l1,q1+30,H+74),P(l1,q1,H+38)], shade(wall,.86));
+        slab(l0-6, l1+6, H+74, H+82, q0-26, q1+26, shade(trim,1.1));
+        for(let i=1;i<9;i++){
+          const x = l0 + (l1-l0)*i/9;
+          tube(x, q0-30, H+74, x, q1+30, H+74, 1.8, shade(trim,1.1));
+        }
+      }
+    }});
+
+    /* ---- the forecourt railing, segmented so the sort can use it ---- */
+    const GATE = [DMID+BA0-130, DMID+BA0+130];
+    const railSeg = (x0,y0,x1,y1) => {
+      const len = Math.hypot(x1-x0, y1-y0);
+      if(len < 30) return;
+      items.push({ a:(x0+x1)/2, b:(y0+y1)/2, z:0, draw:() => {
+        tube(x0, y0, 104, x1, y1, 104, 4.5, trim);
+        tube(x0, y0, 38,  x1, y1, 38,  3.5, trim);
+        const n = Math.max(2, Math.round(len/64));
+        for(let k=0;k<=n;k++){
+          const t = k/n, xa = x0+(x1-x0)*t, ya = y0+(y1-y0)*t;
+          cyl(xa, ya, 0, 112, 3.2, trim); ball(xa, ya, 116, 4.6, trim);
+        }
+      }});
+    };
+    const chop = (x0,y0,x1,y1) => {
+      const len = Math.hypot(x1-x0, y1-y0), n = Math.max(1, Math.round(len/300));
+      for(let k=0;k<n;k++)
+        railSeg(x0+(x1-x0)*k/n, y0+(y1-y0)*k/n, x0+(x1-x0)*(k+1)/n, y0+(y1-y0)*(k+1)/n);
+    };
+    chop(CA0, CB1, GATE[0], CB1);
+    chop(GATE[1], CB1, CA1, CB1);
+    chop(CA0, CB0, CA0, CB1);
+    chop(CA1, CB0, CA1, CB1);
+    chop(CA0, CB0, CA1, CB0);
+    for(const ga of GATE)
+      items.push({ a:ga, b:CB1, z:0, draw:() => {
+        box(ga-28, ga+28, CB1-28, CB1+28, 0, 200, shade(wall,1.06), wall, shade(wall,.82));
+        slab(ga-34, ga+34, 200, 212, CB1+34, CB1-34, shade(wall,1.12));
+        ball(ga, CB1, 230, 17, shade(trim,1.2));
+      }});
+
     if(state.props){
-      for(let i=0;i<2;i++){
-        const ba = i? W*0.86 : W*0.14, col = ['#8a2f3c','#2f5a6b'][i];
-        tube(ba-22, -12, 272, ba+22, -12, 272, 2, '#8d979f');
-        slab(ba-18, ba+18, 160, 268, -12, -18, col, shade(wall,.6));
-        F(ba-11, ba+11, 190, 246, shade(wall,1.1), null,0,-18.5);
-        slab(ba-22, ba+22, 154, 160, -11, -19, '#8d979f');
-        poly([P(ba-18,-12,160),P(ba+18,-12,160),P(ba,-12,146)], col);
-      }
+      /* ---- the sculpture garden ---- */
+      const plinth = (pa, pb, k) => {
+        box(pa-44, pa+44, pb-44, pb+44, 0, 16, shade(wall,1.04), shade(wall,.9), shade(wall,.8));
+        box(pa-34, pa+34, pb-34, pb+34, 16, 96, shade(wall,1.1), shade(wall,.94), shade(wall,.84));
+        if(k === 0){ ball(pa, pb, 150, 44, '#8f969d', '#a9b0b6'); }
+        else if(k === 1){ box(pa-30, pa+30, pb-30, pb+30, 96, 186, '#9aa0a6','#868d94','#767d84');
+                          box(pa-18, pa+18, pb-18, pb+18, 186, 212, '#9aa0a6','#868d94','#767d84'); }
+        else if(k === 2){ cyl(pa, pb, 96, 208, 26, '#8a7f74', shade('#8a7f74',.8));
+                          ball(pa, pb, 226, 24, '#8a7f74', '#a09488'); }
+        else { for(let m=0;m<3;m++)
+                 cyl(pa - 16 + m*16, pb, 96, 150 + m*44, 9, ['#8f969d','#7a8a72','#9a8f74'][m]); }
+      };
+      [[1020,-1000,0],[1420,-900,1],[2010,-1010,2],[1200,-1300,3],[1900,-1320,0]]
+        .forEach(([pa,pb,k]) => items.push({ a:pa, b:pb, z:0, draw:() => plinth(pa,pb,k) }));
+      const tree = (ta, tb) => {
+        cyl(ta, tb, 0, 130, 17, '#6b5a3a');
+        for(let k=0;k<5;k++)
+          ball(ta + 54*Math.cos(k*1.26+0.4), tb + 54*Math.sin(k*1.26+0.4), 184, 56,
+               ['#3f6b4a','#4e8058','#568a5e'][k%3]);
+        ball(ta, tb, 226, 52, '#4e8058');
+      };
+      for(const [ta,tb] of [[CA0+120,-900],[CA1-120,-900],[CA0+120,-1330],[CA1-120,-1330]])
+        items.push({ a:ta, b:tb, z:0, draw:() => tree(ta,tb) });
+      for(const [ha,hb] of [[1100,-820],[1560,-820],[2020,-820]])
+        items.push({ a:ha, b:hb, z:0, draw:() => {
+          box(ha-110, ha+110, hb-22, hb+22, 0, 46, '#4e7a4a','#416b3e','#3a5f38');
+        }});
     }
-    if(state.roof){
-      const l0 = W*0.16, l1 = W*0.84, b0 = -40, b1 = -200;
-      F(l0,l1, H+14, H+30, shade(wall,1.02), null,0, b0);         // upstand
-      poly([P(l0,b0,H+30),P(l1,b0,H+30),P(l1,b0-16,H+52),P(l0,b0-16,H+52)], 'rgba(160,196,206,.85)');
-      poly([P(l0,b1,H+30),P(l1,b1,H+30),P(l1,b1+16,H+52),P(l0,b1+16,H+52)], 'rgba(140,176,188,.8)');
-      poly([P(l0,b0-16,H+52),P(l1,b0-16,H+52),P(l1,b1+16,H+52),P(l0,b1+16,H+52)], 'rgba(186,214,222,.9)');
-      poly([P(l1,b0,H+30),P(l1,b0-16,H+52),P(l1,b1+16,H+52),P(l1,b1,H+30)], shade(wall,.86));
-      slab(l0-4, l1+4, H+52, H+58, b0-14, b1+14, shade(trim,1.1));
-      for(let i=1;i<7;i++){
-        const x = l0 + (l1-l0)*i/7;
-        tube(x, b0-16, H+52, x, b1+16, H+52, 1.6, shade(trim,1.1));
-      }
-      box(W*0.86,W*0.98,-230,-200,H,H+18,'#8f969d','#787f86','#697077');
-    }
+    depthSort(items);
     kerb(p,'none');
   }
 },
