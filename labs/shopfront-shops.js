@@ -13205,64 +13205,132 @@ const SHOPS = [
   }
 },
 {
-  name:'Ballroom', tall:true,
-  cTodo:'2 pavement props need collision volumes',
-  fTodo:'z268..288 return +10',
-  zTodo:1.71,          // H 288 -- see SCALE REVIEW at the head of this file
-  head:'Great arched window, deep canopy, globe lamps',
-  tags:['swept arch','globe lamps','deep canopy','poster frames','3 storey'],
-  desc:'The great window head is swept to a real reveal with a keystone, the canopy is a wedge on round posts, and the globe lamps are spheres on turned brackets.',
+  name:'Ballroom', tall:true, block:true, ww: 3128, dd: 3128,
+  wTodo:'a FULL block cell -- BLOCK 3128 with ROAD_HALF 368 each side, so 1656 square of buildable ground, and the hall fills all of it',
+  cTodo:'the hall and the two canopy posts are volumes; the canopy soffit is at 148, which is 222 game units, so it clears',
+  head:'A block cell filled edge to edge: one hall, great arched windows all round',
+  tags:['block landmark','the real BLOCK, 3128','no yard','swept arches on four faces','deep canopy','globe lamps'],
+  desc:'A ballroom is one room, so it takes the whole cell and leaves no yard: great swept-arch windows on all four faces, a deep canopy over the entrance and globe lamps standing out on brackets beside it.',
   draw(p){
-    const wall = '#5a4a6b', trim = '#e0c88a', H = 288;
-    body(wall, trim, H);
-    slab(0,W, H, H+12, -1, -14, trim);
-    slab(0,W, H-20, H, -1, -10, shade(wall,1.2));
-    const gx0 = W*0.14, gx1 = W*0.86;
-    F(gx0-8,gx1+8, 130, 240, shade(wall,1.15), null,0,-1);
-    const ap = (t,bb) => {
-      const u=1-t, a = u*u*(gx0-8) + 2*u*t*((gx0+gx1)/2) + t*t*(gx1+8);
-      const z = u*u*240 + 2*u*t*312 + t*t*240;
-      return P(a,bb,z);
+    /* ============ A BALLROOM IS ONE ROOM ============
+       Sir's call, and it is the right shape for the type: the hall fills
+       the cell edge to edge with no yard at all. Every other landmark in
+       this file is a building plus its ground -- a playground, a
+       compound, a forecourt, a mill yard -- and this is the one that is
+       nothing but building, because a ballroom is a single volume and
+       the volume IS the plot.
+
+         cell / hall   a 736..2392   b -2392..-736   1656 square
+
+       All four faces are elevations, so it goes through wallFrames with
+       an origin: the sixth shop on that factory.
+
+       A PANEL ACROSS THE DOOR, the 41st. F(W*0.43, W*0.57, 12, 92) at
+       a 98.9..131.1, inside an opening at 81.88..148.12.
+
+       THE GLOBE LAMPS WERE INSIDE THE MASONRY -- bracket b -2..-14 and
+       the globe itself at -14, both ends negative. Eighth instance of
+       that sign error, and the one that keeps surviving review because
+       a thing painted at negative b still looks right when it is drawn
+       after the wall. They stand out at b 10..30 now.
+
+       Plus side windows at b +2 with their glass proud of their own
+       wall, the fTodo band 10 past the return, and zTodo 1.71 -- H 288
+       for a room whose whole point is height. 480 now, which is 2.86,
+       and the great window runs 190..430 of it. */
+    const BLK = 3128, ROAD = 736;
+    const A0 = ROAD, A1 = BLK - ROAD, B1 = -ROAD, B0 = -(BLK - ROAD);
+    const LW = A1 - A0, LD = B1 - B0, H = 480;
+    const wall = '#5a4a6b', trim = '#e0c88a';
+    const { FR_FRONT, FR_RIGHT, FR_LEFT, FR_BACK, NEAR, FAR, Q, R, bandF, rev, glz, doorF }
+      = wallFrames(LW, LD, A0, B1);
+    /* the canopy and the lamps are sized against the FRONTAGE, not
+       against a 230 shop: 520 of canopy on 1656 read as trim rather than
+       as the way in, and a 17 globe was a dot. 700 and 26. */
+    const DMID = LW/2, NB = 5, CAN = [DMID-350, DMID+350], COUT = 150;
+
+    T(0, BLK, -BLK, 0, 0.3, '#b3a894');
+
+    const elevation = fr => {
+      const L = fr.len;
+      bandF(fr, -6, L+6, H, H+16, 6, -1, trim, null, null, 0);
+      bandF(fr, -5, L+5, H-26, H, 4, 0, shade(wall,1.2), null, shade(wall,1.34), 0);
+      bandF(fr, -5, L+5, 150, 164, 4, 0, shade(wall,1.14), null, trim, 0);
+      for(let i=0;i<=NB;i++){                                  // pilasters between the bays
+        const pa = 20 + (L-40)*i/NB;
+        bandF(fr, pa-16, pa+16, 14, H-26, 5, 0, shade(wall,1.1), null, shade(wall,1.26), 0);
+        R(fr, pa-20, pa+20, H-46, H-26, 5.5, trim);
+      }
+      for(let i=0;i<NB;i++){
+        const c = 20 + (L-40)*(i+0.5)/NB, x0 = c-108, x1 = c+108;
+        /* the great window: a swept head on a real reveal, drawn in
+           WORLD space off Q() rather than as a screen curve */
+        const arc = (t, ox, oz) => { const u = 1-t;
+          return [u*u*(x0-ox) + 2*u*t*c + t*t*(x1+ox),
+                  u*u*430 + 2*u*t*(506+oz) + t*t*430]; };
+        const ring = (n, ox, oz) => { const q = [];
+          for(let k=0;k<=14;k++){ const v = arc(k/14, ox, oz); q.push(Q(fr, v[0], n, v[1])); }
+          q.push(Q(fr, x1+ox, n, 430)); q.push(Q(fr, x0-ox, n, 430)); return q; };
+        bandF(fr, x0-8, x1+8, 178, 190, 4, -1, trim);
+        rev(fr, x0, x1, 190, 430, 11, shade(wall,.62));
+        glz(fr, x0, x1, 190, 430, shade(wall,1.15), 'rgba(232,217,168,.90)');
+        poly(ring(-11, 0, -12), shade(wall,.62));
+        poly(ring(-0.4, 0, -12), 'rgba(232,217,168,.90)');
+        for(let k=1;k<5;k++) R(fr, x0+216*k/5-3, x0+216*k/5+3, 190, 430, 1, shade(wall,1.15));
+        for(let k=1;k<4;k++) R(fr, x0, x1, 190+240*k/4-3, 190+240*k/4+3, 1, shade(wall,1.15));
+        for(let k=0;k<14;k++){                                 // voussoirs, proud
+          const c0 = arc(k/14, 12, 0), c1 = arc((k+1)/14, 12, 0);
+          const d0 = arc(k/14, 0, -14), d1 = arc((k+1)/14, 0, -14);
+          poly([Q(fr,c0[0],1,c0[1]),Q(fr,c1[0],1,c1[1]),Q(fr,d1[0],1,d1[1]),Q(fr,d0[0],1,d0[1])],
+               k % 2 ? shade(wall,1.34) : shade(wall,1.2));
+        }
+        bandF(fr, c-26, c+26, 498, 530, 6, -1, shade(wall,1.3), null, trim);   // keystone
+        /* ground: the centre bay of the front is the way in */
+        if(fr === FR_FRONT && i === Math.floor(NB/2)) continue;
+        bandF(fr, x0-6, x1+6, 24, 32, 4, -1, shade(wall,.9));
+        rev(fr, x0+14, x1-14, 32, 132, 10, shade(wall,.66));
+        glz(fr, x0+14, x1-14, 32, 132, trim, 'rgba(122,106,140,.88)');
+        for(let k=1;k<4;k++)
+          R(fr, x0+14+(x1-x0-28)*k/4-2, x0+14+(x1-x0-28)*k/4+2, 32, 132, 1, trim);
+        bandF(fr, x0-5, x1+5, 132, 140, 4, -1, shade(wall,1.04));
+      }
+      if(fr !== FR_FRONT) { doorF(fr, DMID, wall, trim); return; }
+      doorF(fr, DMID, wall, trim);
+      for(let k=0;k<2;k++)                                     // poster frames
+        bandF(fr, DMID + (k ? 150 : -230), DMID + (k ? 230 : -150), 40, 128, 6, -1,
+              ['#8a2f3c','#2f5a6b'][k], null, trim);
     };
-    ctx.beginPath(); let q=ap(0,-1); ctx.moveTo(q.x,q.y);
-    for(let k=1;k<=14;k++){ q=ap(k/14,-1); ctx.lineTo(q.x,q.y); }
-    ctx.closePath(); ctx.fillStyle=shade(wall,1.15); ctx.fill();
-    for(let k=0;k<14;k++) poly([ap(k/14,-1),ap((k+1)/14,-1),ap((k+1)/14,-10),ap(k/14,-10)], shade(wall,1.32));
-    F(gx0,gx1, 136, 238, '#e8d9a8', null,0,-9);
-    const ip = (t,bb) => {
-      const u=1-t, a = u*u*gx0 + 2*u*t*((gx0+gx1)/2) + t*t*gx1;
-      const z = u*u*238 + 2*u*t*300 + t*t*238;
-      return P(a,bb,z);
-    };
-    ctx.beginPath(); q=ip(0,-9); ctx.moveTo(q.x,q.y);
-    for(let k=1;k<=14;k++){ q=ip(k/14,-9); ctx.lineTo(q.x,q.y); }
-    ctx.closePath(); ctx.fillStyle='#e8d9a8'; ctx.fill();
-    for(let k=1;k<6;k++) F(gx0+(gx1-gx0)*k/6-2.5, gx0+(gx1-gx0)*k/6+2.5, 136, 280, shade(wall,1.15), null,0,-9.5);
-    for(let k=1;k<4;k++) F(gx0,gx1, 136+102*k/4-2.5, 136+102*k/4+2.5, shade(wall,1.15), null,0,-9.5);
-    slab(W*0.46, W*0.54, 268, 292, -1, -12, shade(wall,1.3), null, trim);   // keystone
-    F(12,W*0.36, 26, 96, '#7a6a8c', shade(wall,.7), 2);
-    F(W*0.64,W-12, 26, 96, '#7a6a8c', shade(wall,.7), 2);
-    shopDoor(W*0.50, wall, trim);
-    F(W*0.43,W*0.57, 12, 92, '#e8d9a8', null,0,-8.5);
-    const out = 50;
-    poly([P(W*0.30,0,116),P(W*0.70,0,116),P(W*0.70,out,104),P(W*0.30,out,104)], trim);
-    poly([P(W*0.30,out,104),P(W*0.70,out,104),P(W*0.70,out,92),P(W*0.30,out,92)], shade(trim,.75));
-    poly([P(W*0.30,0,106),P(W*0.70,0,106),P(W*0.70,out,92),P(W*0.30,out,92)], shade(wall,1.25));
-    poly([P(W*0.30,0,116),P(W*0.30,out,104),P(W*0.30,out,92),P(W*0.30,0,106)], shade(trim,.6));
-    poly([P(W*0.70,0,116),P(W*0.70,out,104),P(W*0.70,out,92),P(W*0.70,0,106)], shade(trim,.6));
-    for(const aa of [W*0.31, W*0.69]) cyl(aa, out-4, 0, 102, 3.4, '#c9a24a');
-    for(let i=0;i<2;i++)
-      slab(i? W*0.74 : W*0.10, i? W*0.90 : W*0.26, 104, 128, -1, -8, ['#8a2f3c','#2f5a6b'][i], null, trim);
+
+    elevation(FR_BACK); elevation(FAR);
+    T(A0, A1, B0, B1, H, shade(wall,1.06));
+    S((NEAR === FR_RIGHT) ? A1 : A0, B0, B1, 0, H, shade(wall,.8));
+    F(A0, A1, 0, H, wall, null, 0, B1);
+    elevation(NEAR); elevation(FR_FRONT);
+
+    /* ---- the canopy over the entrance, on posts ---- */
+    { const ca0 = A0 + CAN[0], ca1 = A0 + CAN[1], bb = B1;
+      poly([P(ca0,bb,172),P(ca1,bb,172),P(ca1,bb+COUT,148),P(ca0,bb+COUT,148)], trim);
+      poly([P(ca0,bb+COUT,148),P(ca1,bb+COUT,148),P(ca1,bb+COUT,126),P(ca0,bb+COUT,126)], shade(trim,.75));
+      poly([P(ca0,bb,150),P(ca1,bb,150),P(ca1,bb+COUT,126),P(ca0,bb+COUT,126)], shade(wall,1.25));
+      for(const q of [ca0, ca1])
+        poly([P(q,bb,172),P(q,bb+COUT,148),P(q,bb+COUT,126),P(q,bb,150)], shade(trim,.6));
+      for(const q of [ca0+30, ca1-30]) cyl(q, bb+COUT-12, 0, 142, 9, '#c9a24a', shade('#c9a24a',.75));
+      for(let k=0;k<12;k++)
+        F(ca0+36+k*54, ca0+66+k*54, 128, 146, shade(trim,1.15), null, 0, bb+COUT+0.5);
+    }
     if(state.props){
-      for(const aa of [W*0.06, W*0.94]){
-        tube(aa, -2, 116, aa, -14, 112, 1.8, '#c9a24a');
-        ball(aa, -14, 106, 12, '#fff2c8', '#fffbe4');
+      /* THE GLOBE LAMPS, OUT on brackets. They were at b -2..-14: the
+         bracket and the globe both inside the wall. */
+      for(const q of [A0 + DMID - 430, A0 + DMID + 430]){
+        tube(q, B1+2, 230, q, B1+34, 212, 3.4, '#c9a24a');
+        cyl(q, B1+34, 200, 212, 5.5, '#c9a24a');
+        ball(q, B1+34, 176, 26, '#fff2c8', '#fffbe4');
       }
     }
     if(state.roof){
-      for(let i=0;i<3;i++)
-        slab(W*0.20+i*W*0.24, W*0.20+i*W*0.24+W*0.16, H+12, H+38, -20, -30, trim, shade(wall,.7));
-      box(W*0.60,W*0.86,-170,-130,H,H+24,'#8f969d','#787f86','#697077');
+      for(let i=0;i<4;i++)
+        slab(A0+180+i*340, A0+180+i*340+180, H+16, H+52, B1-60, B1-96, trim, shade(wall,.7));
+      box(A0+LW*0.58, A0+LW*0.84, B1-980, B1-860, H, H+28, '#8f969d','#787f86','#697077');
     }
     kerb(p,'none');
   }
