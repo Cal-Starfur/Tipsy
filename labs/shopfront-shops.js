@@ -12154,83 +12154,230 @@ const SHOPS = [
   }
 },
 {
-  name:'Market hall', tall:true,
-  cTodo:'12 pavement props need collision volumes',
-  fTodo:'z118..130 return +8',
-  zTodo:1.38,          // H 232 -- see SCALE REVIEW at the head of this file
-  head:'Barrel-vaulted glazed roof over a two-storey front',
-  tags:['2 storey','barrel vault','tube ribs','arched entry','stalls'],
-  desc:'The vault ribs are tubes standing proud of the glazing and the gable arch has a swept reveal, so the roof reads as a glasshouse frame rather than a painted curve.',
+  name:'Market hall', tall:true, ww: 2392, dd: 2392,
+  wTodo:'a whole block edge, 2392 = BLOCK - 2*ROAD_HALF, of which the hall is 460 and the market yard is the rest; the packer emits no wide slot',
+  cTodo:'the two stalls are volumes: a 88..134 and 326..372 at b 0..28, on the line and clear of the doorway',
+  head:'A nave under one barrel vault, with the market yard filling the block',
+  tags:['gable to the street','a block deep','barrel vault down the nave','market yard','covered stall rows'],
+  desc:'A market hall shaped like one: a gable end on the street, a nave running a whole block back under one glasshouse barrel vault, and the rest of the block given over to the open market yard it serves.',
   draw(p){
-    const wall = '#c4bda8', trim = '#3f5a52', H = 232, steps = 12;
-    body(wall, trim, H);
-    shopDoor(W*0.50, wall, trim);
-    slab(0,W, H, H+12, -1, -14, trim);
-    const vp = (i) => {
-      const a = Math.PI*i/steps;
-      return { x: W/2 - Math.cos(a)*(W/2-6), z: H + Math.sin(a)*86 };
-    };
+    /* ============ THE ENTRY WAS PAINTED OVER THE DOOR ============
+       shopDoor(W*0.50) opens 81.88..148.12, and the arched entry was two
+       more objects on the same hole:
+
+         F(ex0-8, ex1+8, 0, 76)   a 65.6..164.4, the outer arch head
+         F(ex0, ex1, 0, 70)       a 73.6..156.4, its dark inner
+
+       the 32nd and 33rd of these, and the Library's fault exactly: a
+       painted doorway that predates shopDoor and was never taken out
+       when the real one arrived.
+
+       An arch CAN live with a door -- it just has to spring clear of it.
+       The surround top is 114.95, so the relieving arch springs at 122
+       on piers either side of the opening, and the tympanum it encloses
+       is glazed. Nothing crosses the hole.
+
+       FIFTY-TWO OF THE RIBS DREW NOTHING. tube(q.x, bb, q.z, q.x, bb,
+       q.z, 4) has its start point equal to its end point -- thirteen rib
+       stations times four positions of zero-length tube. The vault only
+       ever read because of the ctx polyline underneath them, which is
+       the thing actually drawing the ribs. Gone.
+
+       THE STALLS HUNG OFF THE FRONTAGE. At b 26..62, the first one at
+       a 13.8 is screen-a -48.2. A market stall belongs on the pavement
+       -- that is the whole type -- but ON the line, and CLEAR OF THE
+       DOOR: my own first pass at moving them put three at a 40, 92 and
+       144, which stood the middle one straight across an entrance at
+       77.88..152.12. Two, flanking, at b 0..28: screen-a 2..228. They
+       stay a cTodo because they are still volumes.
+
+       Plus the fTodo band 8 past the return, side windows at b +2 with
+       their glass PROUD of the masonry it sits in, and zTodo 1.38 --
+       two storeys at 116 for a building whose ground floor is a hall.
+       200 + 160 = 360, which is 2.14, and the vault springs off that. */
+    /* ============ A HALL IS A NAVE, so it is long and it is narrow ====
+       At Sir's direction, and the shape follows from what the type is.
+       A market hall presents its GABLE to the street and runs back: the
+       arch you see is the end of one barrel, not a roof sitting on a
+       square box. So the frontage is the double and the LENGTH is the
+       block --
+
+         the hall  460 wide, 2392 deep -- 5.2 : 1, a train shed, and one
+                   barrel spans the 460 and runs the whole length rather
+                   than four short ones across a 276 box
+
+       AND THE REST OF THE BLOCK IS THE YARD, at Sir's direction. A hall
+       460 wide on a 2392 edge leaves 1932, and a market hall without its
+       yard is the building without the thing it exists to serve -- the
+       covered rows, the loading ground, the crates waiting to go in.
+       Same relationship the School's playground has to the School.
+
+         ww 2392   the whole edge, BLOCK - 2*ROAD_HALF
+         dd 2392   the same again; dd is not packer-constrained
+         hall      a    0.. 460
+         yard      a  470..2380 */
+    const wall = '#c4bda8', trim = '#3f5a52', H = 360, steps = 14, RISE = 190;
+    const WW = 460, DD = 2392, glassT = 'rgba(127,152,160,.86)';
+    const DMID = WW/2, S0 = DMID - 37.12, S1 = DMID + 37.12;
+
+    body(wall, trim, H, WW, DD);
+    /* ---- the flank. 2392 of blank wall is not a hall either: a nave
+       this long is an ARCADE, and the bay rhythm down the side is most
+       of what says the building has a length at all.
+
+       ONE flank, not both. I drew the far one too, on the argument that
+       the game might show either -- it cannot: this projection is fixed
+       and body() itself only ever draws the a = WW face. What the far
+       one actually did was show THROUGH the vault, because the glazing
+       is translucent and everything drawn before it comes through. It
+       also put screen-a at -8.96. ---- */
+    for(const [fa, off] of [[WW, 0.4]]){
+      S(fa + off*0.5, -DD, 0, 196, 210, shade(wall,.84));               // string course
+      S(fa + off*0.5, -DD, 0, H-18, H, shade(wall,1.04));               // frieze
+      for(let k=0;k<13;k++){
+        const q1 = -64 - k*176, q0 = q1 - 116;
+        S(fa + off,   q0-8, q1+8, 30, 190, shade(wall,1.08));           // surround
+        S(fa + off*0.2, q0, q1, 40, 180, shade(wall,.46));              // reveal
+        S(fa + off*0.6, q0, q1, 40, 180, glassT);
+        for(let m=1;m<3;m++)
+          S(fa + off*1.2, q0 + (q1-q0)*m/3 - 3, q0 + (q1-q0)*m/3 + 3, 40, 180, shade(wall,1.10));
+        S(fa + off*1.2, q0, q1, 108, 114, shade(wall,1.10));            // transom
+        S(fa + off*1.6, q0-14, q1+14, 218, 300, shade(wall,1.02));      // pilaster panel over
+        S(fa + off*2,   q0+6, q1-6, 228, 290, glassT);                  // clerestory
+      }
+      for(let k=0;k<=13;k++)
+        S(fa + off*2.4, -16 - k*176 - 8, -16 - k*176 + 8, 20, H-18, shade(wall,1.14));
+    }
+    slab(0,WW, H, H+12, -1, -14, trim);
+    slab(0,WW, 200, 214, 3, 0, shade(wall,.84), null, shade(wall,1.12));
+
+    /* ---- the vault: glazing, then the ribs that hold it ---- */
+    const vp = i => { const a = Math.PI*i/steps;
+      return { x: WW/2 - Math.cos(a)*(WW/2-6), z: H + Math.sin(a)*RISE }; };
     for(let i=0;i<steps;i++){
       const p0 = vp(i), p1 = vp(i+1);
-      poly([P(p0.x,0,p0.z),P(p1.x,0,p1.z),P(p1.x,-D,p1.z),P(p0.x,-D,p0.z)],
+      poly([P(p0.x,0,p0.z),P(p1.x,0,p1.z),P(p1.x,-DD,p1.z),P(p0.x,-DD,p0.z)],
            i%2 ? 'rgba(150,190,200,.80)' : 'rgba(168,205,214,.86)');
     }
-    for(let i=0;i<=steps;i++){
-      const q = vp(i);
-      for(let b=0;b<4;b++) tube(q.x, -b*(D/3), q.z, q.x, -b*(D/3), q.z, 4, shade(trim,.9));
-    }
-    for(let b=0;b<4;b++){
-      const bb = -b*(D/3);
-      ctx.strokeStyle=shade(trim,.9); ctx.lineWidth=5;
+    /* the ribs are polylines through the vault's own points -- world
+       space, not a screen curve; the Department store's dome is the
+       worked example of getting that wrong. */
+    const RIBS = 9;                                         // a rib every ~300 down the nave
+    for(let b=0;b<RIBS;b++){
+      const bb = -b*(DD/(RIBS-1));
+      ctx.strokeStyle = shade(trim,.9); ctx.lineWidth = 5;
       ctx.beginPath();
-      for(let i=0;i<=steps;i++){ const q=vp(i), pt=P(q.x,bb,q.z); i?ctx.lineTo(pt.x,pt.y):ctx.moveTo(pt.x,pt.y); }
+      for(let i=0;i<=steps;i++){ const q = vp(i), pt = P(q.x,bb,q.z);
+        i ? ctx.lineTo(pt.x,pt.y) : ctx.moveTo(pt.x,pt.y); }
       ctx.stroke();
     }
     ctx.beginPath();
-    let q0 = P(6,0,H); ctx.moveTo(q0.x,q0.y);
-    for(let i=0;i<=steps;i++){ const q=vp(i), pt=P(q.x,0,q.z); ctx.lineTo(pt.x,pt.y); }
-    ctx.closePath(); ctx.fillStyle='rgba(150,190,200,.5)'; ctx.fill();
-    ctx.strokeStyle=trim; ctx.lineWidth=3; ctx.stroke();
-    for(let i=1;i<6;i++){
-      const a = Math.PI*i/6;
-      const x = W/2 - Math.cos(a)*(W/2-6), z = H + Math.sin(a)*86;
-      tube(x, 0, z, x, 0, H, 2.2, shade(trim,1.15));
+    { const g0 = P(6,0,H); ctx.moveTo(g0.x,g0.y); }
+    for(let i=0;i<=steps;i++){ const q = vp(i), pt = P(q.x,0,q.z); ctx.lineTo(pt.x,pt.y); }
+    ctx.closePath(); ctx.fillStyle = 'rgba(150,190,200,.5)'; ctx.fill();
+    ctx.strokeStyle = trim; ctx.lineWidth = 3; ctx.stroke();
+    for(let i=1;i<8;i++){                                   // gable mullions
+      const a = Math.PI*i/8;
+      tube(WW/2 - Math.cos(a)*(WW/2-6), 0, H + Math.sin(a)*RISE,
+           WW/2 - Math.cos(a)*(WW/2-6), 0, H, 2.2, shade(trim,1.15));
     }
-    slab(0,W, 118, 130, -1, -8, shade(wall,.84));
-    for(let i=0;i<4;i++){
-      const x0 = 12+(W-24)*(i+0.12)/4, x1 = 12+(W-24)*(i+0.88)/4;
-      slab(x0-3,x1+3, 142, 200, -1, -8, shade(wall,1.08));
-      F(x0,x1, 146, 196, '#7f98a0', null,0,-8.5);
-      for(let k=1;k<3;k++) F(x0+(x1-x0)*k/3-1.6, x0+(x1-x0)*k/3+1.6, 146,196, shade(wall,1.08), null,0,-9);
+
+    /* ---- the upper floor ---- */
+    for(let i=0;i<6;i++){
+      const x0 = 12+(WW-24)*(i+0.12)/6, x1 = 12+(WW-24)*(i+0.88)/6;
+      slab(x0-6, x1+6, 232, 240, 4, -1, shade(wall,.92));
+      reveal(x0, x1, 240, 330, 9, shade(wall,.50));
+      glaze(x0, x1, 240, 330, shade(wall,1.10), glassT);
+      for(let k=1;k<3;k++) F(x0+(x1-x0)*k/3-2, x0+(x1-x0)*k/3+2, 240, 330, shade(wall,1.12), null,0,1);
+      slab(x0-5, x1+5, 330, 338, 4, -1, shade(wall,1.02));
     }
-    const ex0 = W*0.32, ex1 = W*0.68;
-    F(ex0-8,ex1+8, 0, 76, shade(wall,.86), null,0,-1);
-    const ap = (t,bb) => {
-      const u=1-t, a = u*u*(ex0-8) + 2*u*t*((ex0+ex1)/2) + t*t*(ex1+8);
-      const z = u*u*76 + 2*u*t*140 + t*t*76;
-      return P(a,bb,z);
-    };
-    ctx.beginPath(); let q=ap(0,-1); ctx.moveTo(q.x,q.y);
-    for(let k=1;k<=12;k++){ q=ap(k/12,-1); ctx.lineTo(q.x,q.y); }
-    ctx.closePath(); ctx.fillStyle=shade(wall,.86); ctx.fill();
-    for(let k=0;k<12;k++) poly([ap(k/12,-1),ap((k+1)/12,-1),ap((k+1)/12,-12),ap(k/12,-12)], shade(wall,.96));
-    F(ex0,ex1, 0, 70, '#2e3a36', null,0,-11);
-    const ip = (t,bb) => {
-      const u=1-t, a = u*u*ex0 + 2*u*t*((ex0+ex1)/2) + t*t*ex1;
-      const z = u*u*70 + 2*u*t*126 + t*t*70;
-      return P(a,bb,z);
-    };
-    ctx.beginPath(); q=ip(0,-11); ctx.moveTo(q.x,q.y);
-    for(let k=1;k<=12;k++){ q=ip(k/12,-11); ctx.lineTo(q.x,q.y); }
-    ctx.closePath(); ctx.fillStyle='#2e3a36'; ctx.fill();
-    for(let i=0;i<2;i++) F(i? W*0.74 : 12, i? W-12 : W*0.26, 24, 96, '#7f98a0', shade(wall,.7), 2);
+
+    /* ---- the ground: two windows, and the door under a relieving arch ---- */
+    for(const [x0,x1] of [[20, 170], [290, 440]]){
+      slab(x0-6, x1+6, 24, 32, 4, -1, shade(wall,.92));
+      reveal(x0, x1, 32, 150, 10, shade(wall,.46));
+      glaze(x0, x1, 32, 150, shade(wall,1.10), glassT);
+      for(let k=1;k<3;k++) F(x0+(x1-x0)*k/3-2, x0+(x1-x0)*k/3+2, 32, 150, shade(wall,1.12), null,0,1);
+      slab(x0-5, x1+5, 150, 158, 4, -1, shade(wall,1.02));
+    }
+    for(const pa of [S0-18, S1+4])                          // the arch's piers
+      slab(pa, pa+14, 10, 122, 6, -1, shade(wall,1.06), null, shade(wall,1.2));
+    shopDoor(DMID, wall, trim);
+    /* the arch springs at 122, clear of the surround top at 114.95 */
+    const AX0 = S0-18, AX1 = S1+18, APEX = 190;
+    const arc = (t, ox, oz) => { const u = 1-t;
+      return [u*u*(AX0-ox) + 2*u*t*DMID + t*t*(AX1+ox), u*u*122 + 2*u*t*(APEX+oz) + t*t*122]; };
+    { const ring = (bb, ox, oz) => { const q = [];
+        for(let k=0;k<=14;k++){ const c = arc(k/14, ox, oz); q.push(P(c[0], bb, c[1])); }
+        q.push(P(AX1+ox, bb, 122)); q.push(P(AX0-ox, bb, 122)); return q; };
+      poly(ring(-9, 0, -8), shade(wall,.46));               // the tympanum reveal
+      poly(ring(-0.4, 0, -8), glassT);                      // glazed
+      for(let k=0;k<14;k++){                                // voussoirs, proud
+        const c0 = arc(k/14, 10, 0), c1 = arc((k+1)/14, 10, 0);
+        const d0 = arc(k/14, 0, -10), d1 = arc((k+1)/14, 0, -10);
+        poly([P(c0[0],1,c0[1]),P(c1[0],1,c1[1]),P(d1[0],1,d1[1]),P(d0[0],1,d0[1])],
+             k % 2 ? shade(wall,1.14) : shade(wall,1.02));
+      } }
+
+    /* ================= THE MARKET YARD =================
+       Open ground, a boundary rail on the street line with one gate, and
+       two covered rows running the length beside the hall -- the same
+       shape as the hall's own nave, in timber and canvas instead of iron
+       and glass. */
+    const YA0 = 470, YA1 = 2380, YB0 = -2380, YB1 = -10;
+    T(YA0, YA1, YB0, YB1, 0.5, '#a89b86');
+    for(let k=0;k<9;k++) T(YA0, YA1, YB1 - 40 - k*292, YB1 - 26 - k*292, 0.9, shade('#a89b86',.9));
+    for(const ra of [700, 1560]){                          // two covered rows
+      for(let k=0;k<8;k++){
+        const rb = -160 - k*270;
+        for(const [pa,pb] of [[ra-150,rb-90],[ra+150,rb-90],[ra-150,rb+90],[ra+150,rb+90]])
+          cyl(pa, pb, 0, 150, 7, '#8a7a5a');
+      }
+      poly([P(ra-170,-70,150),P(ra+170,-70,150),P(ra+170,-2300,150),P(ra-170,-2300,150)], '#b8a882');
+      for(let k=0;k<16;k++)
+        poly([P(ra-176, -70-k*140, 152),P(ra+176, -70-k*140, 152),
+              P(ra+176, -70-k*140-70, 152),P(ra-176, -70-k*140-70, 152)],
+             k%2 ? '#c2452e' : '#e8ddc8');
+      for(let k=0;k<8;k++){
+        const rb = -180 - k*270;
+        slab(ra-120, ra+120, 58, 64, rb+70, rb-70, '#8a7a5a');
+        for(let m=0;m<4;m++)
+          box(ra-110+m*58, ra-70+m*58, rb-30, rb+30, 64, 92,
+              ['#c2452e','#e8c34a','#3f8f5a','#7a5a3a'][(k+m)%4], null, null);
+      }
+    }
+    /* the boundary rail and its gate go LAST, because at b 6 they are
+       the nearest thing on the lot -- drawn before the stall rows, the
+       rows painted straight over them and the run east of the gate
+       vanished entirely. */
+    const GATE = [980, 1220];
+    for(const [g0,g1] of [[YA0, GATE[0]], [GATE[1], YA1]]){
+      tube(g0, 6, 104, g1, 6, 104, 5, trim);
+      tube(g0, 6, 40,  g1, 6, 40,  4, trim);
+      for(let k=0;k<=Math.round((g1-g0)/78);k++){
+        const ga = g0 + (g1-g0)*k/Math.round((g1-g0)/78);
+        cyl(ga, 6, 0, 112, 3.5, trim); ball(ga, 6, 116, 5, trim);
+      }
+    }
+    for(const ga of GATE){
+      box(ga-30, ga+30, -24, 36, 0, 190, shade(wall,1.05), wall, shade(wall,.78));
+      ball(ga, 6, 208, 18, shade(trim,1.1));
+    }
+
     if(state.props){
-      for(let i=0;i<3;i++){
-        const sa = W*0.06 + i*W*0.34, col = ['#c2452e','#e8c34a','#3f8f5a'][i];
-        for(const [la,lb] of [[sa+4,30],[sa+48,30],[sa+4,58],[sa+48,58]]) cyl(la, lb, 0, 44, 2.4, '#8a7a5a');
-        slab(sa, sa+52, 44, 48, 26, 62, '#8a7a5a');
-        poly([P(sa,26,64),P(sa+52,26,64),P(sa+52,62,54),P(sa,62,54)], col, shade(trim,.9), 1.5);
-        poly([P(sa,62,54),P(sa+52,62,54),P(sa+52,62,48),P(sa,62,48)], shade(col,.75));
+      /* the stalls. On the pavement, which is the type -- but on the
+         LINE, and CLEAR OF THE DOOR. Three of them at a 40, 92 and 144
+         put the middle one straight across an entrance at 77.88..152.12:
+         a market hall with its own stalls blocking the way in. Two,
+         flanking, at b 0..28, so screen-a runs 2..228. */
+      for(const sa of [88, 326]){
+        const col = sa < 200 ? '#c2452e' : '#3f8f5a';
+        for(const [la,lb] of [[sa+3,3],[sa+43,3],[sa+3,25],[sa+43,25]])
+          cyl(la, lb, 0, 44, 2.4, '#8a7a5a');
+        slab(sa, sa+46, 44, 48, 2, 26, '#8a7a5a');
+        poly([P(sa,2,64),P(sa+46,2,64),P(sa+46,26,54),P(sa,26,54)], col, shade(trim,.9), 1.5);
+        poly([P(sa,26,54),P(sa+46,26,54),P(sa+46,26,48),P(sa,26,48)], shade(col,.75));
+        for(let k=0;k<3;k++) ball(sa+10+k*13, 15, 50, 5, ['#c2452e','#e8c34a','#3f8f5a'][k]);
       }
     }
     kerb(p,'none');
