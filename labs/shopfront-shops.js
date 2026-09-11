@@ -13467,58 +13467,195 @@ const SHOPS = [
   }
 },
 {
-  name:'Cold store', tall:true,
-  zTodo:1.74,          // H 292 -- see SCALE REVIEW at the head of this file
-  head:'Blank insulated box, external pipework, frost',
-  tags:['windowless','round pipe runs','condenser fans','insulated hatch','3 storey'],
-  desc:'The pipe runs are cylinders with flanged joints and a real elbow over the parapet, and the condensers are drums with fan discs recessed into their tops.',
+  name:'Cold store', tall:true, block:true, ww: 3128, dd: 3128,
+  wTodo:'a FULL block cell -- BLOCK 3128 with ROAD_HALF 368 each side, so 1656 square of buildable ground',
+  cTodo:'the box, the dock platform and its steps, the canopy posts, the pipe runs, the yard wall and its gate piers are volumes; the apron is drivable and the platform is 60 above it',
+  head:'A block cell: the insulated box at the back, the loading dock in front',
+  tags:['block landmark','the real BLOCK, 3128','six dock doors','raised loading platform','pipe runs OUTSIDE'],
+  desc:'The refrigerated warehouse between the harbour and the market: a windowless insulated box across the back of its cell with a raised loading dock in front of it, six dock doors, and the refrigerant runs up the outside where they belong.',
   draw(p){
-    const wall = '#c6cbcc', trim = '#5c666a', H = 292;
-    body(wall, trim, H);
-    slab(0,W, H, H+12, -1, -14, trim);
-    for(let i=0;i<4;i++) F(W*i/3-8, W*i/3+8, 0, H, shade(wall,.92), null,0,-1);
-    for(let r=0;r<5;r++) F(0,W, 40+r*54, 44+r*54, shade(wall,.94), null,0,-1);
-    for(let i=0;i<3;i++){
-      const fa = 30 + i*68;
-      F(fa-13,fa+13, 120, 250, 'rgba(232,240,242,.55)', null,0,-2);
-      F(fa-7,fa+7, 96, 250, 'rgba(244,250,252,.6)', null,0,-2.5);
+    /* ============ WHAT THIS BUILDING IS ============
+       A cold store is where perishables sit at temperature between
+       landing and being sold -- the building between the Harbour office
+       and the Market hall. No windows, insulated doors, refrigerant runs
+       on the OUTSIDE, condensers on the roof. Every fault in the 230
+       version was one of those facts drawn wrong.
+
+       AND A COLD STORE'S YARD IS ITS LOADING DOCK, which is what the
+       block buys. A lorry has to reverse square to a door and sit at bed
+       height; none of that exists on a 230 frontage, so the old one had
+       a sliding door and nowhere to put anything in front of it.
+
+         cell      a  736..2392   b -2392.. -736
+         box       a  736..2392   b -2392..-1200   1656 x 1192
+         platform  b -1200..-1060, raised to z 60 -- 90 game units, a
+                   lorry bed
+         apron     b -1060.. -736, 324 deep, and a car is 225 long, so
+                   it backs in with 99 to spare
+
+       THE DOOR CLAMPED TO WITHIN 1 OF THE RETURN in the 230 version.
+       shopDoor(W*0.86 = 197.8) is past the 191.88 maximum, so it snapped
+       there -- surround 154.76..229.00 against a frontage of 230, a pier
+       of ONE UNIT. Second clamp instance after the Car park.
+
+       THE SLIDING DOOR WAS PROUD AND ON TOP OF IT, at b +1 on the
+       pavement side of its own wall, overlapping that surround by 6.24.
+
+       AND THE PIPES WERE INSIDE THE MASONRY at b -8 -- the ninth
+       instance of wrong-sign-of-b and the least forgivable of them,
+       because a refrigerant run is the one thing on a cold store that is
+       definitionally on the outside. They ran down the door opening too.
+
+       A PROP AT POSITIVE b HAS TWO SCREEN-a VALUES, a - b and a + b, and
+       both must stay inside the frontage. That caught my own first pipe
+       bay on the 230 version at a + b of 242. It is why the runs here
+       sit at u 1560..1640 with the personnel door at 1480, not the other
+       way round. */
+    const BLK = 3128, ROAD = 736;
+    const CA0 = ROAD, CA1 = BLK - ROAD, CB1 = -ROAD, CB0 = -(BLK - ROAD);
+    const BB1 = -1200, PL = -1060;
+    const BW = CA1 - CA0, BD = BB1 - CB0, H = 420;
+    const wall = '#c6cbcc', trim = '#5c666a';
+    const { FR_FRONT, FR_RIGHT, FR_LEFT, FR_BACK, NEAR, FAR, Q, R, bandF, rev, glz, doorF }
+      = wallFrames(BW, BD, CA0, BB1);
+    const DMID = 1480, PIPE = 1600;
+
+    T(0, BLK, -BLK, 0, 0.3, '#b3a894');
+    T(CA0, CA1, CB0, CB1, 0.6, '#8f8c86');                     // the apron
+    for(let i=0;i<6;i++){                                      // bay markings
+      const u = CA0 + 120 + i*210;
+      for(let k=0;k<5;k++) T(u-3, u+3, PL-40-k*56, PL-16-k*56, 0.9, '#d2cdbe');
+      for(let k=0;k<5;k++) T(u+147, u+153, PL-40-k*56, PL-16-k*56, 0.9, '#d2cdbe');
     }
-    F(W*0.34,W*0.70, 0, 104, shade(wall,.78), null,0, 1);
-    slab(W*0.36,W*0.68, 6, 96, -1, -9, '#8d979f', trim);
-    slab(W*0.36,W*0.68, 48, 54, -9.5, -12, trim);
-    F(W*0.50,W*0.54, 6, 96, trim, null,0,-9.5);
-    slab(W*0.10,W*0.24, 20, 84, 0, -7, trim, null, shade(wall,1.05));
-    /* the wide opening is an insulated sliding door for goods and is the
-       identity of the building, so it stays. This is the way in for a
-       person, which it did not have. */
-    shopDoor(W*0.86, wall, trim);
-    if(state.props){
-      for(let i=0;i<3;i++){
-        const pa = W*0.78 + i*13;
-        cyl(pa, -8, 8, 240, 4, ['#8d979f','#b0b8bc','#8d979f'][i]);
-        for(let k=0;k<5;k++) plateCircle(pa, -8, 30+k*48, 6, '#6a7076');
+
+    const items = [];
+
+    const elevation = fr => {
+      const L = fr.len;
+      bandF(fr, -5, L+5, H, H+12, 5, -1, trim, null, null, 0);
+      bandF(fr, -4, L+4, H-16, H, 4, 0, shade(wall,1.06), null, shade(wall,1.16), 0);
+      for(let i=0;i<=Math.round(L/276);i++)
+        R(fr, L*i/Math.round(L/276)-7, L*i/Math.round(L/276)+7, 0, H-16, -1, shade(wall,.92));
+      for(let r=0;r<7;r++) R(fr, 0, L, 130+r*40, 134+r*40, -1, shade(wall,.95));
+      for(let k=0;k<4;k++){                                    // frost bleeding from the joints
+        const fa = 90 + k*(L-180)/3;
+        R(fr, fa-16, fa+16, 190+((k*67)%120), H-30, -2, 'rgba(232,240,242,.42)');
+        R(fr, fa-8, fa+8, 160+((k*67)%120), H-30, -2.4, 'rgba(244,250,252,.5)');
       }
-      tube(W*0.78, -8, 240, W*0.78, -8, 258, 4, '#8d979f');
-      tube(W*0.78, -8, 258, W*0.62, -8, 262, 4, '#8d979f');
-    }
-    if(state.roof){
-      F(W*0.30,W*0.80, H+12, H+66, shade(wall,1.02), shade(wall,.8), 2, -60);
-      S(W*0.80, -140, -60, H+12, H+66, shade(wall,.86));
-      T(W*0.30,W*0.80, -140, -60, H+66, shade(wall,1.06));
-      for(let i=0;i<2;i++){
-        const ca = W*0.38 + i*W*0.26;
-        cyl(ca, -100, H+66, H+84, 20, '#b0b8bc');
-        plateCircle(ca, -100, H+84, 20, '#8f979c', '#7d858a', 2);
-        plateCircle(ca, -100, H+85, 15, '#a8b0b4');
-        for(let k=0;k<4;k++){
-          const t=k*1.57;
-          poly([P(ca,-100,H+86),
-                P(ca+15*Math.cos(t), -100+15*Math.sin(t), H+86),
-                P(ca+15*Math.cos(t+0.6), -100+15*Math.sin(t+0.6), H+86)], '#c3c9cd');
+      if(fr !== FR_FRONT) return;
+      for(let i=0;i<6;i++){                                    // the dock doors
+        const u0 = 120 + i*210, u1 = u0 + 150;
+        rev(fr, u0, u1, 60, 190, 13, '#3c4448');
+        R(fr, u0+4, u1-4, 66, 184, -3, '#8d979f');
+        for(let k=0;k<5;k++) R(fr, u0+10, u1-10, 76+k*22, 82+k*22, -2.6, shade('#8d979f',.86));
+        bandF(fr, u0-8, u1+8, 190, 202, 5, -1, trim, null, shade(trim,1.3));
+        R(fr, u0-6, u1+6, 52, 60, 6, shade(trim,1.1));         // the dock bumper
+      }
+      doorF(fr, DMID, wall, trim);
+      bandF(fr, DMID-44, DMID+44, 122, 142, 5, -1, trim, null, shade(trim,1.3));
+    };
+    items.push({ a:(CA0+CA1)/2, b:(CB0+BB1)/2, z:0, draw:() => {
+      elevation(FR_BACK); elevation(FAR);
+      T(CA0, CA1, CB0, BB1, H, shade(wall,1.02));
+      S((NEAR === FR_RIGHT) ? CA1 : CA0, CB0, BB1, 0, H, shade(wall,.82));
+      F(CA0, CA1, 0, H, wall, null, 0, BB1);
+      elevation(NEAR); elevation(FR_FRONT);
+      if(state.roof){
+        const r = [];
+        r.push({ a:(CA0+CA1)/2, b:BB1-420, z:0, draw:() => {
+          box(CA0+300, CA1-300, BB1-520, BB1-320, H+12, H+72, shade(wall,1.06), shade(wall,1.0), shade(wall,.86)); }});
+        for(let i=0;i<4;i++){
+          const ca = CA0+420+i*260;
+          r.push({ a:ca, b:BB1-420, z:0, draw:() => {
+            cyl(ca, BB1-420, H+72, H+92, 26, '#b0b8bc');
+            plateCircle(ca, BB1-420, H+92, 26, '#8f979c', '#7d858a', 2);
+            plateCircle(ca, BB1-420, H+93, 19, '#a8b0b4');
+            for(let k=0;k<4;k++){ const t = k*1.57;
+              poly([P(ca,BB1-420,H+94),
+                    P(ca+19*Math.cos(t), BB1-420+19*Math.sin(t), H+94),
+                    P(ca+19*Math.cos(t+0.6), BB1-420+19*Math.sin(t+0.6), H+94)], '#c3c9cd'); }
+          }});
         }
+        depthSort(r);
       }
-      cyl(W*0.17, -30, H+12, H+40, 6, '#8d979f');
+    }});
+
+    /* ---- the loading platform, at lorry-bed height ---- */
+    items.push({ a:(CA0+CA1)/2, b:(BB1+PL)/2, z:0, draw:() => {
+      box(CA0+40, CA1-40, PL, BB1, 0, 60, '#a8a49c', '#94908a', '#86827c');
+      T(CA0+40, CA1-40, PL, BB1, 60.6, '#b2aea6');
+      for(let i=0;i<6;i++){                                    // bumpers on the platform edge
+        const u = CA0 + 120 + i*210;
+        box(u-4, u+154, PL-8, PL, 34, 52, '#3a3f42', '#2e3336', '#262b2e');
+      }
+      for(let s=0;s<4;s++)                                     // steps up at the end
+        box(CA1-150+s*26, CA1-40, PL-26+s*6, PL, s*15, s*15+15, '#a8a49c','#94908a','#86827c');
+    }});
+    /* the dock canopy, cantilevered over the platform */
+    items.push({ a:(CA0+CA1)/2, b:PL-30, z:0, draw:() => {
+      T(CA0+40, CA1-40, PL-40, BB1, 214, shade(wall,.78));
+      slab(CA0+40, CA1-40, 214, 232, PL-40, BB1, trim, null, shade(trim,1.2));
+      for(let i=0;i<7;i++){
+        const ta = CA0 + 100 + i*240;
+        tube(ta, BB1+4, 262, ta, PL-34, 230, 2.6, '#8d979f');
+      }
+    }});
+
+    if(state.props){
+      /* THE PIPE RUNS, on the outside where a refrigerant line lives */
+      items.push({ a:CA0+PIPE, b:BB1+10, z:0, draw:() => {
+        for(let i=0;i<3;i++){
+          const pa = CA0 + PIPE - 14 + i*14, col = ['#8d979f','#b0b8bc','#8d979f'][i];
+          cyl(pa, BB1+8, 10, H-40, 5, col);
+          for(let k=0;k<7;k++) plateCircle(pa, BB1+8, 34+k*52, 7, '#6a7076');
+        }
+        for(let k=0;k<5;k++)
+          slab(CA0+PIPE-24, CA0+PIPE+24, 60+k*76, 68+k*76, BB1+14, BB1+2, shade(wall,.84), trim);
+        tube(CA0+PIPE-14, BB1+8, H-40, CA0+PIPE-14, BB1+8, H-14, 5, '#8d979f');
+        tube(CA0+PIPE-14, BB1+8, H-14, CA0+PIPE-14, BB1-60, H-6, 5, '#8d979f');
+        box(CA0+PIPE-30, CA0+PIPE+26, BB1+2, BB1+22, 0, 40, shade(wall,.9), shade(wall,.8), shade(wall,.74));
+        cyl(CA0+PIPE-2, BB1+12, 40, 62, 9, '#6a7076');
+      }});
+      /* lorries backed square to the dock: the mapper points the vehicle's
+         own +a (its nose) OUT toward the street */
+      for(const [i, liv] of [[0,1],[2,0],[4,3]]){
+        /* PL + 118, not PL - 118. The platform runs BB1..PL and the apron
+           is in front of PL, so minus put the lorries up on the dock
+           itself -- a vehicle parked where the pallets go. Backed square
+           to the edge, a 225 car centred 112.5 out from it. */
+        const ca = CA0 + 120 + i*210 + 75, cb = PL + 118;
+        items.push({ a:ca, b:cb, z:0, draw:() =>
+          gameCar((a,b,h) => P(ca + b, cb + a, h), CAR_COLORS[liv]) });
+      }
     }
+
+    /* ---- the yard wall, segmented for the sort ---- */
+    const GATE = [1180, 1520];
+    const wseg = (x0,y0,x1,y1) => {
+      const len = Math.hypot(x1-x0, y1-y0);
+      if(len < 30) return;
+      items.push({ a:(x0+x1)/2, b:(y0+y1)/2, z:0, draw:() => {
+        const dx = (y1-y0)/len*8, dy = -(x1-x0)/len*8;
+        poly([P(x0+dx,y0+dy,150),P(x1+dx,y1+dy,150),P(x1+dx,y1+dy,0),P(x0+dx,y0+dy,0)], shade(wall,.8));
+        poly([P(x0+dx,y0+dy,150),P(x1+dx,y1+dy,150),P(x1-dx,y1-dy,150),P(x0-dx,y0-dy,150)], shade(wall,1.0));
+      }});
+    };
+    const chop = (x0,y0,x1,y1) => {
+      const len = Math.hypot(x1-x0, y1-y0), n = Math.max(1, Math.round(len/300));
+      for(let k=0;k<n;k++)
+        wseg(x0+(x1-x0)*k/n, y0+(y1-y0)*k/n, x0+(x1-x0)*(k+1)/n, y0+(y1-y0)*(k+1)/n);
+    };
+    chop(CA0, CB1, GATE[0], CB1);
+    chop(GATE[1], CB1, CA1, CB1);
+    chop(CA0, BB1, CA0, CB1);
+    chop(CA1, BB1, CA1, CB1);
+    for(const ga of GATE)
+      items.push({ a:ga, b:CB1, z:0, draw:() => {
+        box(ga-26, ga+26, CB1-26, CB1+26, 0, 190, shade(wall,1.04), wall, shade(wall,.8));
+        slab(ga-32, ga+32, 190, 202, CB1+32, CB1-32, trim);
+      }});
+
+    depthSort(items);
     kerb(p,'none');
   }
 },
