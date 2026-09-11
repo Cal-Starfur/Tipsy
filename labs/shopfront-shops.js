@@ -13336,60 +13336,132 @@ const SHOPS = [
   }
 },
 {
-  name:'Harbour office', tall:true,
-  cTodo:'3 pavement props need collision volumes',
-  fTodo:'z106..112 return +7, lettering 64 off-centre; z174..180 return +7; z100..112 return +3, lettering 70 off-centre',
-  zTodo:1.63,          // H 274 -- see SCALE REVIEW at the head of this file
-  head:'Cupola lookout, external stair, weathervane',
-  tags:['glazed cupola','pyramid cap','built external stair','weathervane','3 storey'],
-  desc:'The cupola is a glazed drum on a plinth with a four-sided cap, and the stair is tread boxes on a stringer with a handrail up to a railed landing.',
+  name:'Harbour office', tall:true, ww: T2*6.6, dd: 340,
+  wTodo:'three packing slots -- the Fire station tier; the packer emits no wide slot yet',
+  head:'Three slots of window and door, cupola lookout over, nothing on the footway',
+  tags:['3 slots','glazed cupola','weathervane','harbour board','nothing on the footway'],
+  desc:'A harbour office on three slots: window, door and two more windows under nine bays of office glazing, with a glazed cupola lookout and a weathervane over.',
   draw(p){
-    const wall = '#d8d2c0', trim = '#2f5a6b', H = 274;
-    body(wall, trim, H);
-    slab(0,W, H, H+12, -1, -14, trim);
+    /* ============ THE STAIR HUNG OFF THE FOOTWAY ============
+       Treads at a 32.2..101.2 on b 30..88 put screen-a at -55.8, and the
+       landing at a 23 on b 86 at -63. The whole flight was out over the
+       pavement, and that was the entire cTodo.
+
+       AND 230 CANNOT HOLD IT. A 113 rise wants about 250 of run at 1:2,
+       and on a 230 frontage a flight that long either crosses the
+       doorway at 103.18..177.42 or goes out over the footway -- which is
+       what it did. The Newspaper HQ's finding again: the frontage caused
+       the fault, so the fix is width, not redrawing it smaller.
+
+       THREE SLOTS, and the stair gets a bay to itself. Set out from the
+       door's fixed 74.24 backwards:
+
+         0..14        pier    14..150      window
+         150..168     pier    168..242.24  door, mid 205.12
+         242.24..250  pier    250..560     THE STAIR BAY, 310 of run
+         560..607.2   pier
+
+       310 of run on a 170 rise is 1:1.8, which is a real external stair,
+       and it runs ALONG the wall rather than out from it: screen-a
+       bottoms out at 214 instead of -56.
+
+       It still PROJECTS 36 over the footway, because a stair against a
+       wall does -- that is a volume and the cTodo says so. What it no
+       longer does is hang off the end of the building. The bay stops at
+       560 rather than 594 for the same reason: at 594 the landing's far
+       corner put a + b at 638 against a frontage of 607.2, 31 past the
+       return on the mirrored heading.
+
+       A BAND ACROSS THE DOORWAY, the 42nd: slab(6, W-6, 100, 112) run
+       the whole frontage against a head at 107.95. And two props stood
+       IN the surround -- the right window started 2.62 inside it and the
+       noticeboard 11.82 inside. Plus side windows at b +2 with their
+       glass proud of their own wall, the fTodo's three bands past the
+       return, and zTodo 1.63. 160 + 2 x 130 = 420. */
+    const wall = '#d8d2c0', trim = '#2f5a6b', H = 420;
+    const WW = T2*6.6, DD = 340, glassT = 'rgba(106,138,152,.88)';
+    const DMID = 205.12, WIN = [14, 150], ST = [250, 560];
+
+    body(wall, trim, H, WW, DD);
+    slab(0,WW, H, H+12, -1, -14, trim);
+    slab(0,WW, H-20, H, 4, 0, shade(wall,1.08), null, shade(wall,1.2));
+    for(const cv of [160, 290])
+      slab(0,WW, cv, cv+10, 3, 0, shade(wall,.86), null, shade(wall,1.1));
+
     for(let fl=0; fl<2; fl++){
-      const z0 = 118 + fl*68;
-      slab(0,W, z0-12, z0-6, -1, -7, shade(wall,.86));
-      for(let i=0;i<4;i++){
-        const x0 = 12+(W-24)*(i+0.14)/4, x1 = 12+(W-24)*(i+0.86)/4;
-        slab(x0-3,x1+3, z0-3, z0+51, -1, -8, shade(wall,1.06));
-        F(x0,x1, z0, z0+48, '#6a8a98', null,0,-8.5);
-        F(x0,x1, z0+23, z0+26, shade(wall,1.06), null,0,-9);
+      const z0 = 186 + fl*130;
+      for(let i=0;i<9;i++){
+        const c = 20 + (WW-40)*(i+0.5)/9, x0 = c-30, x1 = c+30;
+        slab(x0-6, x1+6, z0-9, z0, 4, -1, shade(wall,.92));
+        reveal(x0, x1, z0, z0+84, 9, shade(wall,.56));
+        glaze(x0, x1, z0, z0+84, shade(wall,1.08), glassT);
+        F(x0, x1, z0+40, z0+44, shade(wall,1.08), null,0, 1);
+        F((x0+x1)/2-2, (x0+x1)/2+2, z0, z0+84, shade(wall,1.08), null,0, 1);
+        slab(x0-5, x1+5, z0+84, z0+91, 4, -1, shade(wall,1.02));
       }
     }
-    F(12,W*0.44, 26, 96, '#6a8a98', shade(wall,.7), 2);
-    shopDoor(W*0.61, wall, trim);
-    F(W*0.76,W-12, 26, 96, '#6a8a98', shade(wall,.7), 2);
-    slab(6,W-6, 100, 112, -1, -9, trim);
+
+    /* ---- the ground ---- */
+    slab(WIN[0]-6, WIN[1]+6, 24, 32, 4, -1, shade(wall,.92));
+    reveal(WIN[0], WIN[1], 32, 128, 10, shade(wall,.5));
+    glaze(WIN[0], WIN[1], 32, 128, shade(wall,1.08), glassT);
+    for(let k=1;k<4;k++)
+      F(WIN[0]+(WIN[1]-WIN[0])*k/4-2, WIN[0]+(WIN[1]-WIN[0])*k/4+2, 32, 128, shade(wall,1.08), null,0,1);
+    slab(WIN[0]-5, WIN[1]+5, 128, 136, 4, -1, shade(wall,1.02));
+    shopDoor(DMID, wall, trim, null, WW);
+    /* the name band stops either side of the door rather than running
+       through it -- the 42nd of these was exactly this band, run 6..224
+       straight across a head at 107.95. Both runs are back now that the
+       stair has gone; while it was there the right one would have been a
+       sign behind a staircase. */
+    for(const [u0,u1] of [[6, DMID-42], [DMID+42, WW-6]])
+      slab(u0, u1, 124, 140, 5, -1, trim, null, shade(trim,1.3));
+    for(let k=0;k<5;k++) F(26+k*26, 44+k*26, 128, 137, shade(wall,1.2), null, 0, 5.5);
     if(state.props){
-      slab(W*0.72,W*0.76, 20, 96, -1, -6, '#f0ece0', trim);
-      for(let i=0;i<8;i++) F(W*0.72,W*0.745, 26+i*9, 28+i*9, trim, null,0,-6.5);
-      for(let i=0;i<8;i++){
-        const z = 10 + i*13, b = 30 + i*7;
-        box(W*0.14, W*0.44, b, b+9, z-8, z, '#a3abb2','#9aa2a9','#8d949a');
-      }
-      tube(W*0.44, 30, 40, W*0.44, 86, 132, 3, '#7d838a');
-      tube(W*0.44, 30, 8, W*0.44, 86, 106, 2.4, '#7d838a');
-      box(W*0.10, W*0.46, 40, 86, 107, 113, '#a3abb2','#9aa2a9','#8d949a');
-      tube(W*0.10, 42, 143, W*0.46, 42, 143, 2, '#8d979f');
-      for(let i=0;i<6;i++) cyl(W*0.10 + W*0.36*i/5, 42, 113, 143, 1.4, '#8d979f');
+      slab(DMID+54, DMID+96, 30, 118, 5, 0, '#f0ece0', trim);      // the harbour board
+      for(let i=0;i<9;i++) F(DMID+60, DMID+90, 38+i*8, 40+i*8, trim, null,0, 5.5);
     }
+
+    /* THE STAIR IS GONE at Sir's direction. Three slots were bought to
+       give it a bay -- 310 of run at 1:1.8, running along the wall
+       instead of out over the pavement -- and it goes anyway. The width
+       still earns itself: the bay it vacated is two more window bays,
+       and the frontage now reads window / door / window / window rather
+       than a door squeezed between a stair and a return.
+
+       With it off, bmax drops from 36 to 5 and the cTodo goes entirely:
+       nothing on this building stands on the footway. */
+    for(const [x0,x1] of [[260, 420], [438, 594]]){
+      slab(x0-6, x1+6, 24, 32, 4, -1, shade(wall,.92));
+      reveal(x0, x1, 32, 128, 10, shade(wall,.5));
+      glaze(x0, x1, 32, 128, shade(wall,1.08), glassT);
+      for(let k=1;k<4;k++)
+        F(x0+(x1-x0)*k/4-2, x0+(x1-x0)*k/4+2, 32, 128, shade(wall,1.08), null,0,1);
+      slab(x0-5, x1+5, 128, 136, 4, -1, shade(wall,1.02));
+    }
+
     if(state.roof){
-      const ca = W*0.50, cb = -90;
-      slab(ca-42, ca+42, H+12, H+22, cb+42, cb-42, shade(wall,1.04), shade(wall,.8));
-      cyl(ca, cb, H+22, H+82, 32, 'rgba(160,196,206,.7)');
+      /* THE PLANT GOES FIRST. It sits at b -300..-240, further out than
+         the cupola at -110, so the cupola should occlude it -- and drawn
+         after, the box painted straight over the lantern. Fourth time
+         this session: Department store, Newspaper HQ, Telephone
+         exchange, here. On a roof the order IS the depth key and nothing
+         enforces it. */
+      box(WW*0.07, WW*0.23, -300, -240, H, H+20, '#8f969d','#787f86','#697077');
+      const ca = WW*0.50, cb = -110;
+      slab(ca-50, ca+50, H+12, H+24, cb+50, cb-50, shade(wall,1.04), shade(wall,.8));
+      cyl(ca, cb, H+24, H+96, 38, 'rgba(160,196,206,.7)');
       for(let k=0;k<6;k++){
         const t = 3*Math.PI/4 - Math.PI*k/5;
-        cyl(ca + 32*Math.cos(t), cb + 32*Math.sin(t), H+22, H+82, 2, trim);
+        cyl(ca + 38*Math.cos(t), cb + 38*Math.sin(t), H+24, H+96, 2.4, trim);
       }
-      plateCircle(ca, cb, H+82, 36, shade(trim,1.1), shade(trim,.8), 2);
-      poly([P(ca-42,cb+42,H+82),P(ca+42,cb+42,H+82),P(ca,cb,H+126)], trim);
-      poly([P(ca+42,cb+42,H+82),P(ca+42,cb-42,H+82),P(ca,cb,H+126)], shade(trim,.76));
-      cyl(ca, cb, H+126, H+156, 2, '#c9a24a');
-      tube(ca-16, cb, H+156, ca+16, cb, H+156, 1.6, '#c9a24a');
-      poly([P(ca+4,cb,H+164),P(ca+26,cb,H+156),P(ca+4,cb,H+148)], '#c9a24a');
-      ball(ca, cb, H+160, 3.5, '#c9a24a');
-      box(W*0.12,W*0.30,-180,-140,H,H+18,'#8f969d','#787f86','#697077');
+      plateCircle(ca, cb, H+96, 42, shade(trim,1.1), shade(trim,.8), 2);
+      poly([P(ca-50,cb+50,H+96),P(ca+50,cb+50,H+96),P(ca,cb,H+148)], trim);
+      poly([P(ca+50,cb+50,H+96),P(ca+50,cb-50,H+96),P(ca,cb,H+148)], shade(trim,.76));
+      cyl(ca, cb, H+148, H+184, 2.4, '#c9a24a');
+      tube(ca-18, cb, H+184, ca+18, cb, H+184, 1.8, '#c9a24a');
+      poly([P(ca+5,cb,H+193),P(ca+30,cb,H+184),P(ca+5,cb,H+175)], '#c9a24a');
+      ball(ca, cb, H+188, 4, '#c9a24a');
     }
     kerb(p,'none');
   }
