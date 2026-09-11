@@ -13035,53 +13035,172 @@ const SHOPS = [
   }
 },
 {
-  name:'Textile mill', tall:true,
-  zTodo:1.82,          // H 306 -- see SCALE REVIEW at the head of this file
-  head:'Round chimney, stair tower, regular bays',
-  tags:['round brick chimney','projecting stair tower','swept loading arch','regular bays','3 storey'],
-  desc:'The stair tower is a closed solid with a capped parapet, the loading arch is swept to a reveal, and the chimney tapers through five turned lifts to a cap.',
+  name:'Textile mill', tall:true, block:true, ww: 3128, dd: 3128,
+  wTodo:'a FULL block cell -- BLOCK 3128 with ROAD_HALF 368 each side, so 1656 square of buildable ground; the packer places no landmark',
+  cTodo:'the mill, the stair tower, the boiler house, the yard wall and its gate piers and the bale stacks are volumes; the yard is drivable',
+  head:'A block cell: the mill down one side, the boiler house in its yard',
+  tags:['block landmark','the real BLOCK, 3128','projecting stair tower','mill yard','bale stacks'],
+  desc:'A mill arranged the way one is: a long multi-storey block down one side of its cell with the loading arch and the pedestrian door as separate openings, and the yard beside it carrying the boiler house and the bale stacks.',
   draw(p){
-    const wall = '#9c5a45', trim = '#d8cdb8', H = 306;
-    body(wall, trim, H);
-    slab(0,W, H, H+12, -1, -14, shade(wall,.66));
-    for(let r=0;r<14;r++) F(0,W, 6+r*22, 9+r*22, shade(wall,.9), null,0,-1);
-    for(let fl=0; fl<3; fl++){
-      const z0 = 40 + fl*88;
-      for(let i=0;i<4;i++){
-        const x0 = 14+(W-28)*(i+0.10)/4, x1 = 14+(W-28)*(i+0.90)/4;
-        slab(x0-4,x1+4, z0-4, z0+70, -1, -9, shade(wall,.78));
-        F(x0,x1, z0, z0+66, '#6a7f8c', null,0,-9.5);
-        for(let k=1;k<3;k++) F(x0+(x1-x0)*k/3-1.6, x0+(x1-x0)*k/3+1.6, z0, z0+66, trim, null,0,-10);
-        for(let k=1;k<4;k++) F(x0,x1, z0+66*k/4-1.6, z0+66*k/4+1.6, trim, null,0,-10);
-        slab(x0-7,x1+7, z0-9, z0-4, -1, -13, trim);
+    /* ============ THE LOADING ARCH WAS ON THE DOOR ============
+       The entry's own comment says why -- "ground floor began at z0 = 40,
+       no way in" -- so shopDoor was bolted on at W*0.56, which is
+       exactly where the loading arch already stood:
+
+         door opening            95.68..161.92, head 107.95
+         F(W*0.56, W*0.86, 0, 68)  a 128.8..197.8, overlapping by 33.12
+         F(W*0.59, W*0.83, 0, 62)  a 135.7..190.9, inside it
+         and the arch head sweeps to 108, crossing the head at 107.95
+
+       the 39th and 40th. A mill needs a cart arch AND a way in on foot;
+       on 230 they had nowhere to be but on top of each other.
+
+       A BLOCK CELL at Sir's direction, and the arrangement is what a
+       mill actually is: a long block down ONE side with its yard beside
+       it, because the chimney, the boiler house and the bales have to
+       stand somewhere and they are half of what the building is.
+
+         cell    a  736..2392   b -2392.. -736    1656 square
+         mill    a  736..1500   b -2392.. -900    764 x 1492
+         yard    a 1500..2392, and the strip in front of the mill
+
+       Both the mill's street face and its yard flank face the camera,
+       which is the reason it is down the left rather than across the
+       front: a yard behind the building is a yard nobody ever sees.
+
+       THE STAIR TOWER HUNG OFF THE RETURN. F(t0 = -8, ...) at b -14 puts
+       a eight past the frontage and a+b at -22, and its cap at -12 and
+       -30. Plus the fTodo's window glass at b -9.5 sitting behind its
+       own surround's back face at -9, and zTodo 1.82 -- three floors at
+       88. Four at 115 now, H 460. */
+    const BLK = 3128, ROAD = 736;
+    const CA0 = ROAD, CA1 = BLK - ROAD, CB1 = -ROAD, CB0 = -(BLK - ROAD);
+    const MA0 = 736, MA1 = 1500, MB0 = -2392, MB1 = -900;
+    const MW = MA1 - MA0, MD = MB1 - MB0, H = 460;
+    const wall = '#9c5a45', trim = '#d8cdb8', glassT = 'rgba(106,127,140,.86)';
+    const { FR_FRONT, FR_RIGHT, FR_LEFT, FR_BACK, NEAR, FAR, Q, R, bandF, rev, glz, doorF }
+      = wallFrames(MW, MD, MA0, MB1);
+    const DMID = 180, ARCH = [380, 620];
+
+    T(0, BLK, -BLK, 0, 0.3, '#b3a894');
+    T(CA0, CA1, CB0, CB1, 0.6, '#8f867a');                     // the yard, setts
+    for(let k=0;k<12;k++) T(CA0, CA1, CB1-60-k*150, CB1-48-k*150, 0.9, shade('#8f867a',.93));
+
+    const items = [];
+
+    /* ---- the mill ---- */
+    const elevation = fr => {
+      const L = fr.len, nb = Math.max(3, Math.round(L/190));
+      bandF(fr, -6, L+6, H, H+14, 6, -1, shade(wall,.66), null, null, 0);
+      for(let r=0;r<20;r++) R(fr, 0, L, 8+r*23, 11+r*23, -1, shade(wall,.9));
+      for(let fl=0; fl<4; fl++){
+        const z0 = 38 + fl*115;
+        for(let i=0;i<nb;i++){
+          const c = 20 + (L-40)*(i+0.5)/nb, x0 = c-52, x1 = c+52;
+          if(fr === FR_FRONT && fl === 0 &&
+             ((x1 > DMID-45 && x0 < DMID+45) || (x1 > ARCH[0]-20 && x0 < ARCH[1]+20))) continue;
+          bandF(fr, x0-7, x1+7, z0-9, z0-4, 4, -1, trim);
+          rev(fr, x0, x1, z0, z0+86, 9, shade(wall,.62));
+          glz(fr, x0, x1, z0, z0+86, trim, glassT);
+          for(let k=1;k<3;k++) R(fr, x0+104*k/3-2, x0+104*k/3+2, z0, z0+86, 1, trim);
+          for(let k=1;k<4;k++) R(fr, x0, x1, z0+86*k/4-2, z0+86*k/4+2, 1, trim);
+          bandF(fr, x0-5, x1+5, z0+86, z0+92, 4, -1, trim);
+        }
       }
-    }
-    shopDoor(W*0.56, wall, trim);   // ground floor began at z0 = 40, no way in
-    const t0 = -8, t1 = W*0.24;
-    F(t0,t1, 0, H+46, shade(wall,1.12), shade(wall,.7), 2, -14);
-    S(t1, -14, 0, 0, H+46, shade(wall,.86));
-    T(t0,t1, -14, 0, H+46, shade(wall,.92));
-    for(let i=0;i<4;i++) slab(t0+14, t1-14, 44+i*66, 84+i*66, -15, -22, '#4a5a64', trim);
-    slab(t0-4,t1+4, H+46, H+58, -12, -18, trim);
-    F(W*0.56,W*0.86, 0, 68, shade(wall,.72), null,0,-1);
-    const ap = (t,bb) => {
-      const u=1-t, a = u*u*(W*0.56) + 2*u*t*(W*0.71) + t*t*(W*0.86);
-      const z = u*u*68 + 2*u*t*108 + t*t*68;
-      return P(a,bb,z);
+      if(fr !== FR_FRONT) return;
+      doorF(fr, DMID, wall, trim);
+      /* the cart arch, in its OWN bay and clear of the door's 142.88..217.12 */
+      rev(fr, ARCH[0], ARCH[1], 0, 108, 14, shade(wall,.6));
+      const arc = (t, ox, oz) => { const u = 1-t;
+        return [u*u*(ARCH[0]-ox) + 2*u*t*((ARCH[0]+ARCH[1])/2) + t*t*(ARCH[1]+ox),
+                u*u*108 + 2*u*t*(170+oz) + t*t*108]; };
+      { const ring = (n, ox, oz) => { const q = [];
+          for(let k=0;k<=14;k++){ const c = arc(k/14, ox, oz); q.push(Q(fr, c[0], n, c[1])); }
+          q.push(Q(fr, ARCH[1]+ox, n, 108)); q.push(Q(fr, ARCH[0]-ox, n, 108)); return q; };
+        poly(ring(-14, 0, -10), shade(wall,.6));
+        poly(ring(-0.4, 0, -10), '#2e2018');
+        for(let k=0;k<14;k++){
+          const c0 = arc(k/14, 12, 0), c1 = arc((k+1)/14, 12, 0);
+          const d0 = arc(k/14, 0, -12), d1 = arc((k+1)/14, 0, -12);
+          poly([Q(fr,c0[0],1,c0[1]),Q(fr,c1[0],1,c1[1]),Q(fr,d1[0],1,d1[1]),Q(fr,d0[0],1,d0[1])],
+               k % 2 ? shade(wall,1.14) : shade(wall,1.0));
+        } }
+      R(fr, ARCH[0]+8, ARCH[1]-8, 0, 104, -13, '#2e2018');
     };
-    ctx.beginPath(); let q=ap(0,-1); ctx.moveTo(q.x,q.y);
-    for(let k=1;k<=12;k++){ q=ap(k/12,-1); ctx.lineTo(q.x,q.y); }
-    ctx.closePath(); ctx.fillStyle=shade(wall,.72); ctx.fill();
-    for(let k=0;k<12;k++) poly([ap(k/12,-1),ap((k+1)/12,-1),ap((k+1)/12,-12),ap(k/12,-12)], shade(wall,.9));
-    F(W*0.59,W*0.83, 0, 62, '#2e2018', null,0,-11);
-    if(state.roof){
-      const ca = W*0.62, cb = -170;
-      for(let i=0;i<5;i++) cyl(ca, cb, H + i*44, H + (i+1)*44, 30 - i*3.6, shade(wall, 0.92 + i*0.02));
-      cyl(ca, cb, H+220, H+232, 15, shade(wall,.8));
-      plateCircle(ca, cb, H+232, 13, '#3a2a22', shade(wall,.72), 2);
-      for(let k=0;k<3;k++)
-        ball(ca + (k%2?11:-8), cb, H+248+k*20, 12+k*6, 'rgba(120,116,110,.4)', 'rgba(142,138,132,.38)');
+    items.push({ a:(MA0+MA1)/2, b:(MB0+MB1)/2, z:0, draw:() => {
+      elevation(FR_BACK); elevation(FAR);
+      T(MA0, MA1, MB0, MB1, H, shade(wall,.72));
+      S((NEAR === FR_RIGHT) ? MA1 : MA0, MB0, MB1, 0, H, shade(wall,.8));
+      F(MA0, MA1, 0, H, wall, null, 0, MB1);
+      elevation(NEAR); elevation(FR_FRONT);
+    }});
+    /* the stair tower, projecting into the yard and INSIDE the cell --
+       the old one hung 8 past its own return */
+    items.push({ a:MA1+56, b:(MB1-560+MB1-260)/2, z:0, draw:() => {
+      const ta = MA1, tb0 = -1460, tb1 = -1180;
+      box(ta, ta+150, tb0, tb1, 0, H+64, shade(wall,1.12), shade(wall,.86), shade(wall,.72));
+      slab(ta-6, ta+156, H+64, H+78, tb1+6, tb0-6, trim);
+      for(let i=0;i<5;i++)
+        F(ta+26, ta+124, 52+i*88, 108+i*88, '#4a5a64', trim, 2, tb1+0.5);
+    }});
+
+    /* ---- the yard wall, segmented for the sort ---- */
+    const GATE = [1900, 2180];
+    const wallSeg = (x0,y0,x1,y1) => {
+      const len = Math.hypot(x1-x0, y1-y0);
+      if(len < 30) return;
+      items.push({ a:(x0+x1)/2, b:(y0+y1)/2, z:0, draw:() => {
+        const dx = (y1-y0)/len*9, dy = -(x1-x0)/len*9;
+        poly([P(x0+dx,y0+dy,150),P(x1+dx,y1+dy,150),P(x1+dx,y1+dy,0),P(x0+dx,y0+dy,0)], shade(wall,.92));
+        poly([P(x0+dx,y0+dy,150),P(x1+dx,y1+dy,150),P(x1-dx,y1-dy,150),P(x0-dx,y0-dy,150)], shade(wall,1.1));
+        for(let k=0;k<Math.round(len/28);k++)
+          poly([P(x0+(x1-x0)*k/Math.round(len/28)+dx, y0+(y1-y0)*k/Math.round(len/28)+dy, 138),
+                P(x0+(x1-x0)*(k+0.6)/Math.round(len/28)+dx, y0+(y1-y0)*(k+0.6)/Math.round(len/28)+dy, 138),
+                P(x0+(x1-x0)*(k+0.6)/Math.round(len/28)+dx, y0+(y1-y0)*(k+0.6)/Math.round(len/28)+dy, 150),
+                P(x0+(x1-x0)*k/Math.round(len/28)+dx, y0+(y1-y0)*k/Math.round(len/28)+dy, 150)], shade(wall,.8));
+      }});
+    };
+    const chop = (x0,y0,x1,y1) => {
+      const len = Math.hypot(x1-x0, y1-y0), n = Math.max(1, Math.round(len/300));
+      for(let k=0;k<n;k++)
+        wallSeg(x0+(x1-x0)*k/n, y0+(y1-y0)*k/n, x0+(x1-x0)*(k+1)/n, y0+(y1-y0)*(k+1)/n);
+    };
+    chop(MA0, CB1, GATE[0], CB1);
+    chop(GATE[1], CB1, CA1, CB1);
+    chop(CA1, CB0, CA1, CB1);
+    chop(MA1, CB0, CA1, CB0);
+    for(const ga of GATE)
+      items.push({ a:ga, b:CB1, z:0, draw:() => {
+        box(ga-30, ga+30, CB1-30, CB1+30, 0, 210, shade(wall,1.08), wall, shade(wall,.82));
+        slab(ga-38, ga+38, 210, 224, CB1+38, CB1-38, trim);
+        ball(ga, CB1, 240, 17, trim);
+      }});
+
+    /* ---- the yard: chimney, boiler house, bales ---- */
+    items.push({ a:2060, b:-1900, z:0, draw:() => {
+      box(1780, 2340, -2110, -1690, 0, 250, shade(wall,1.04), shade(wall,.86), shade(wall,.74));
+      slab(1772, 2348, 250, 266, -1682, -2118, trim);
+      for(let i=0;i<3;i++) F(1836+i*156, 1916+i*156, 70, 190, '#4a5a64', trim, 2, -1689.5);
+    }});
+    /* THE CHIMNEY IS GONE at Sir's direction. Two passes went into it --
+       eight lifts of 84 to make it clear the mill, then moved out of the
+       far corner so its base stood on open ground rather than appearing
+       to rise from the roof -- and it goes anyway. The boiler house
+       stays: it is the thing the yard is actually for, and it reads as a
+       works building without a stack on top of it. zMax drops 784 -> 538,
+       which is the mill's own roof. */
+
+    if(state.props){
+      for(const [sa, sb] of [[1660,-1050],[1660,-1230],[2150,-1120],[2280,-1380]])
+        items.push({ a:sa, b:sb, z:0, draw:() => {
+          for(let r=0;r<3;r++) for(let c2=0;c2<2;c2++)
+            box(sa-56+c2*58, sa-8+c2*58, sb-28, sb+28, r*34, r*34+30,
+                '#c7bda6', '#b3a98f', '#a09679');
+        }});
+      items.push({ a:2260, b:-900, z:0, draw:() =>
+        gameCar((a,b,h) => P(2260 + b, -900 - a, h), CAR_COLORS[3]) });
     }
+    depthSort(items);
     kerb(p,'none');
   }
 },
