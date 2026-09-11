@@ -12384,44 +12384,121 @@ const SHOPS = [
   }
 },
 {
-  name:'Newspaper HQ', tall:true,
-  fTodo:'z106..114 return +8',
-  zTodo:1.79,          // H 300 -- see SCALE REVIEW at the head of this file
-  head:'Rooftop globe, headline band, delivery bay',
-  tags:['globe on a frame','running headline band','van bay','corner clock','3 storey'],
-  desc:'The globe is a sphere with its meridians drawn as real rings around it, carried on a braced frame, and the headline band is a recessed box with the lit panels inside it.',
+  name:'Newspaper HQ', tall:true, ww: T2*6.6, dd: 460,
+  wTodo:'three packing slots -- the Fire station tier; the packer emits no wide slot yet',
+  head:'Three slots: counter, entrance, two van bays, headline band, globe',
+  tags:['3 slots','globe on a frame','running headline band','two van bays','round clock'],
+  desc:'A press building on three slots: a public counter window, the entrance, two van bays for the night run, a headline band across the whole frontage and the globe on its frame above.',
   draw(p){
-    const wall = '#3f4652', trim = '#e8ddc8', H = 300;
-    body(wall, trim, H);
-    slab(0,W, H, H+12, -1, -14, shade(wall,1.35));
-    F(4,W-4, 244, 276, '#15181e', null,0, -1);
-    slab(4,W-4, 240, 244, -1, -9, shade(wall,1.5));
-    slab(4,W-4, 276, 280, -1, -9, shade(wall,1.5));
-    for(let i=0;i<9;i++) F(12+i*((W-24)/9), 12+(i+0.7)*((W-24)/9), 254, 266, '#e8c34a', null,0,-1.5);
+    /* ============ THE VAN BAY WAS PAINTED OVER THE DOOR ============
+       shopDoor(W*0.80) opens 150.88..217.12 with its head at 107.95, and
+       the delivery bay was drawn straight through it:
+
+         F(W*0.54+3, W-13, 6..90)       a 127.2..217, the shutter slats
+         slab(W*0.52, W-8, 92, 100)     a 119.6..222, its head band
+
+       the 34th of these. A newspaper HQ genuinely needs both a door and
+       a vehicle opening, and on 230 the two of them plus their piers
+       leave nothing over -- which is why the bay ended up drawn through
+       the door in the first place. THREE SLOTS at Sir's direction, and
+       the set-out runs from the door's fixed 74.24 backwards:
+
+         0.00..16.00     pier        16.00..140.00    counter window
+         140.00..158.00  pier        158.00..232.24   door, mid 195.12
+         232.24..250.24  pier        250.24..400.24   van bay
+         400.24..414.24  pier        414.24..564.24   van bay
+         564.24..607.20  pier -- and the CLOCK stands on this one
+
+       That last pier is 43 wide because a 14-radius clock has to fit on
+       it. At the 230 set-out it was 15 of radius on 15 of pier, so it
+       lapped the door surround one side and the bay the other: a prop
+       sized without asking what it sits on.
+
+       THE CLOCK WAS INSIDE THE WALL, at b -10 with no opening there, and
+       it was an OVAL. basisFace reads its matrix off P() now, so a
+       faceCircle comes out a true circle ON SCREEN -- but screen-round
+       is 15 of a against 15 of z, and z is game-scaled by 1.5, so the
+       thing it represents is 15 wide and 22.5 tall. The z radius is
+       divided, and the clock hangs proud on a bracket where a street
+       clock hangs.
+
+       Plus the ground window at b +3 with its glass PROUD of the masonry
+       it sits in, upper windows whose glass at -8.5 sits behind their
+       own surround's back face at -8, the fTodo band 8 past the return,
+       and zTodo 1.79 -- three storeys at 100. 160 + 2 x 130 = 420. */
+    const wall = '#3f4652', trim = '#e8ddc8', H = 420;
+    const WW = T2*6.6, DD = 460, glassT = 'rgba(127,147,168,.88)';
+    const DMID = 195.12, BAYS = [[250.24, 400.24], [414.24, 564.24]];
+    const CTR = [16, 140];
+
+    body(wall, trim, H, WW, DD);
+    /* body() floors the roof in TRIM, which on a dark building is a
+       cream lid -- fine on a stone shopfront, wrong here. */
+    T(0, WW, -DD, 0, H+0.4, shade(wall,1.06));
+    slab(0,WW, H, H+12, -1, -14, shade(wall,1.35));
+    for(const cv of [160, 290])
+      slab(0,WW, cv, cv+10, 3, 0, shade(wall,1.5), null, shade(wall,1.7));
+
+    /* ---- the headline band: above the door's surround top at 114.95 ---- */
+    F(4,WW-4, 124, 156, '#15181e', null,0, -1);
+    slab(4,WW-4, 120, 124, 4, -1, shade(wall,1.5));
+    slab(4,WW-4, 156, 160, 4, -1, shade(wall,1.5));
+    for(let i=0;i<24;i++)
+      F(12+i*((WW-24)/24), 12+(i+0.7)*((WW-24)/24), 132, 148, '#e8c34a', null,0,-1.5);
+
+    /* ---- two ranks of windows ---- */
     for(let fl=0; fl<2; fl++){
-      const z0 = 118 + fl*62;
-      for(let i=0;i<5;i++){
-        const x0 = 10+(W-20)*(i+0.10)/5, x1 = 10+(W-20)*(i+0.90)/5;
-        slab(x0-3,x1+3, z0-3, z0+51, -1, -8, shade(wall,1.2));
-        F(x0,x1, z0, z0+48, '#7f93a8', null,0,-8.5);
-        F(x0,x1, z0+23, z0+26, shade(wall,1.2), null,0,-9);
+      const z0 = 190 + fl*130;
+      for(let i=0;i<13;i++){
+        const x0 = 10+(WW-20)*(i+0.10)/13, x1 = 10+(WW-20)*(i+0.90)/13;
+        slab(x0-5, x1+5, z0-9, z0, 4, -1, shade(wall,1.25));
+        reveal(x0, x1, z0, z0+80, 9, shade(wall,.72));
+        glaze(x0, x1, z0, z0+80, shade(wall,1.35), glassT);
+        F(x0, x1, z0+38, z0+42, shade(wall,1.35), null,0, 1);
+        F((x0+x1)/2-2, (x0+x1)/2+2, z0, z0+80, shade(wall,1.35), null,0, 1);
+        slab(x0-4, x1+4, z0+80, z0+87, 4, -1, shade(wall,1.28));
       }
     }
-    slab(0,W, 106, 114, -1, -8, shade(wall,1.5));
-    F(10,W*0.48, 24, 96, '#7f93a8', shade(wall,.7), 3);
-    shopDoor(W*0.80, wall, trim);
-    for(let j=0;j<6;j++) F(W*0.54+3, W-13, 6+j*14, 14+j*14, '#a2a8ae', null,0,-2);
-    slab(W*0.52,W-8, 92, 100, -2, -9, '#c2452e');
+
+    /* ---- the ground: counter, door, two van bays ---- */
+    slab(CTR[0]-6, CTR[1]+6, 24, 32, 4, -1, shade(wall,1.25));
+    reveal(CTR[0], CTR[1], 32, 110, 11, shade(wall,.72));
+    glaze(CTR[0], CTR[1], 32, 110, shade(wall,1.35), glassT);
+    for(let k=1;k<4;k++)
+      F(CTR[0]+(CTR[1]-CTR[0])*k/4-2, CTR[0]+(CTR[1]-CTR[0])*k/4+2, 32, 110, shade(wall,1.35), null,0,1);
+    slab(CTR[0]-5, CTR[1]+5, 110, 118, 4, -1, shade(wall,1.28));
+    shopDoor(DMID, wall, trim, null, WW);
+    for(const BAY of BAYS){
+      reveal(BAY[0], BAY[1], 0, 110, 13, '#15181e');
+      for(let j=0;j<8;j++)
+        F(BAY[0]+4, BAY[1]-4, 96-j*12, 104-j*12, '#a2a8ae', null, 0, -2.5);
+      slab(BAY[0]-7, BAY[1]+7, 110, 120, 5, -1, '#c2452e', null, shade('#c2452e',1.2));
+      F(BAY[0]+14, BAY[1]-14, 0, 4, '#2b3138', null, 0, 1.2);          // the threshold plate
+    }
+
     if(state.props){
-      faceCircle(W*0.30, -10, 110, 15, '#f2ece0', trim, 3);
-      faceT(W*0.30, -10.4, 110, 15);
-      ctx.strokeStyle='#2b3138'; ctx.lineWidth=2/(15*K);
-      ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(0.06,-0.6); ctx.stroke();
+      /* THE CLOCK, round and proud. r 15 in a needs r 10 in z, because
+         z carries the 1.5 -- and it stands on a bracket at b 4..14
+         instead of 10 inside the masonry. */
+      const CA = 585.7, CB = 13, CZ = 84, R = 14;
+      tube(CA, 1, CZ, CA, CB, CZ, 2.4, shade(trim,.7));
+      tube(CA, 1, CZ+16, CA, CB-3, CZ+3, 1.8, shade(trim,.7));
+      faceT(CA, CB+0.6, CZ, R); ctx.scale(1, 1/ZSCALE);
+      ctx.beginPath(); ctx.arc(0,0,1,0,Math.PI*2);
+      ctx.fillStyle = '#f2ece0'; ctx.fill();
+      ctx.strokeStyle = trim; ctx.lineWidth = 3/(R*K); ctx.stroke();
+      ctx.strokeStyle = '#2b3138'; ctx.lineWidth = 2/(R*K);
+      ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(0.06,-0.62); ctx.stroke();
       ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(0.46,0.26); ctx.stroke();
       ctx.restore();
     }
     if(state.roof){
-      const ga = W*0.50, gb = -80;
+      /* plant FIRST: it stands at b -230..-300, further out than the
+         globe at -120, and drawn after it painted over the sphere. Order
+         versus depth on the roof, same as the Department store's. */
+      box(WW*0.10,WW*0.24,-300,-230,H,H+22,'#8f969d','#787f86','#697077');
+      box(WW*0.74,WW*0.90,-300,-230,H,H+26,'#8f969d','#787f86','#697077');
+      const ga = WW*0.50, gb = -120;
       for(const aa of [ga-34, ga+34]){
         cyl(aa, gb, H+12, H+52, 4, '#8d979f');
         tube(aa, gb, H+50, ga, gb, H+30, 1.6, '#8d979f');
@@ -12442,7 +12519,6 @@ const SHOPS = [
       ctx.beginPath(); ctx.ellipse(c1.x,c1.y,17*K,12*K,0.3,0,7); ctx.fill();
       const c2=P(ga+18,gb,H+94);
       ctx.beginPath(); ctx.ellipse(c2.x,c2.y,13*K,9*K,-0.2,0,7); ctx.fill();
-      box(W*0.12,W*0.32,-170,-130,H,H+22,'#8f969d','#787f86','#697077');
     }
     kerb(p,'none');
   }
