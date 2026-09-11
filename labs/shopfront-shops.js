@@ -12524,53 +12524,207 @@ const SHOPS = [
   }
 },
 {
-  name:'Telephone exchange', tall:true,
-  fTodo:'z280..296 return +10; z88..96 return +8',
-  zTodo:1.76,          // H 296 -- see SCALE REVIEW at the head of this file
-  head:'Blank upper floors, louvre vents, cable gantry',
-  tags:['louvred vents','no upper windows','built cable gantry','blank mass','3 storey'],
-  desc:'The louvres are stacked blades with a shaded return, and the cable gantry is a bracketed frame off the flank with the cables sagging from it as real lines.',
+  name:'Telephone exchange', tall:true, block:true, ww: 3128, dd: 3128,
+  wTodo:'a FULL block cell -- BLOCK 3128 with ROAD_HALF 368 each side, so 1656 square of buildable ground; the packer places no landmark',
+  cTodo:'the building, the compound fence and its gate piers, the cable drums and the cabinets are volumes; the yard hardstanding is drivable',
+  head:'A block cell: the exchange tight to the pavement, the rest a fenced compound',
+  tags:['block landmark','the real BLOCK, 3128','louvred vents','high chain link','cable compound'],
+  desc:'An exchange is a box with no windows and a yard full of plant: the building stands hard on the pavement edge of its block and the rest of the cell is a compound behind high chain link, with the cable drums and cabinets inside it.',
   draw(p){
-    const wall = '#9a9484', trim = '#5c5a50', H = 296;
-    body(wall, trim, H);
-    slab(0,W, H, H+12, -1, -14, trim);
-    slab(0,W, H-16, H, -1, -10, shade(wall,1.08));
-    for(let i=0;i<5;i++) slab(W*i/4-9, W*i/4+9, 96, H-16, -1, -8, shade(wall,1.08));
-    for(let fl=0; fl<3; fl++){
-      const z0 = 112 + fl*62;
-      for(let i=0;i<4;i++){
-        const x0 = W*i/4+12, x1 = W*(i+1)/4-12;
-        F(x0,x1, z0, z0+46, shade(wall,.6), null,0, 2);
-        for(let k=0;k<7;k++){
-          poly([P(x0,2,z0+3+k*6),P(x1,2,z0+3+k*6),P(x1,-4,z0+6+k*6),P(x0,-4,z0+6+k*6)], shade(wall,.98));
-          poly([P(x0,-4,z0+6+k*6),P(x1,-4,z0+6+k*6),P(x1,-4,z0+3+k*6),P(x0,-4,z0+3+k*6)], shade(wall,.78));
+    /* ============ TIGHT TO THE PAVEMENT, THE REST FENCED ============
+       Sir's shape. The cell is the real block -- BLOCK 3128 with
+       ROAD_HALF 368 either side, so 1656 square of buildable ground --
+       and the building sits hard on the street edge of it rather than
+       floating in the middle:
+
+         cell       a  736..2392   b -2392.. -736
+         building   a  736..1343.2 b -1156.. -736    607.2 x 420
+         compound   the rest, behind high chain link
+
+       THE GANTRY WAS ENTIRELY OFF THE PLOT in the 230 version: brackets
+       at a 232..248, arms to 294, cables to 290, against a frontage of
+       0..230. Every part of it. That is what the compound is for -- a
+       cable rack has somewhere to stand now, which is the honest fix
+       rather than moving it onto the roof and calling it solved.
+
+       AND A SET-BACK BUILDING CANNOT USE THE KIT'S OPENINGS. reveal,
+       glaze and shopDoor all draw on the b = 0 plane, and this one's
+       frontage is at b -736. So it is drawn through wallFrames with an
+       origin -- the fifth shop on that factory -- and rev/glz/doorF do
+       the work. Same kit gap the School, the Nursery and the Bathhouse
+       all record.
+
+       TWO THINGS SAT IN THE DOORWAY of the old one, the 35th and 36th:
+       F(W*0.43, W*0.57, 10, 74) at a 98.9..131.1, and
+       slab(W*0.34, W*0.66, 82, 90) at 78.2..151.8, a band across it
+       under a head of 107.95. And the pilasters hung off both ends --
+       W*i/4 +- 9 puts the first at a -9..9 and the last at 221..239,
+       screen-a -17 and 247. Plus glass at b +2 proud of its own masonry,
+       and zTodo 1.76: three storeys at 62, a third of a shop storey for
+       a building full of equipment racks. 170 + 2 x 130 = 430. */
+    const BLK = 3128, ROAD = 736;
+    const FA0 = ROAD, FA1 = BLK - ROAD, FB1 = -ROAD, FB0 = -(BLK - ROAD);
+    const BW = 607.2, BD = 420, H = 430;
+    const wall = '#9a9484', trim = '#5c5a50', glassT = 'rgba(106,122,128,.88)';
+    const MESH = '#a8b0ae', POST = '#7d8785', FZ0 = 14, FZ1 = 200;
+    const { FR_FRONT, FR_RIGHT, FR_LEFT, FR_BACK, NEAR, FAR, Q, R, bandF, rev, glz, doorF }
+      = wallFrames(BW, BD, FA0, FB1);
+    const DMID = 205.12, WIN = [[18,150],[260,392]], CBAY = [410, 530];
+    const NB = 8, B0 = 16, B1 = BW - 16;
+
+    T(0, BLK, -BLK, 0, 0.3, '#b3a894');                        // pavement round the cell
+    T(FA0, FA1, FB0, FB1, 0.6, '#8a8578');                     // the compound hardstanding
+    for(let k=0;k<7;k++) T(FA0+40, FA1-40, FB1-140-k*300, FB1-128-k*300, 0.9, shade('#8a8578',.92));
+
+    /* ---- the building ---- */
+    const elevation = fr => {
+      const L = fr.len;
+      bandF(fr, -5, L+5, H, H+12, 5, -1, trim, null, null, 0);
+      bandF(fr, -5, L+5, H-18, H, 4, 0, shade(wall,1.08), null, shade(wall,1.2), 0);
+      bandF(fr, -5, L+5, 170, 182, 4, 0, shade(wall,.86), null, shade(wall,1.1), 0);
+      const nb = fr.kind === 'flank' ? 6 : NB, e1 = L - 16;
+      for(let i=0;i<=nb;i++){
+        const pa = 16 + (e1-16)*i/nb;
+        bandF(fr, pa-9, pa+9, 182, H-18, 4, 0, shade(wall,1.08), null, shade(wall,1.22), 0);
+      }
+      for(let fl=0; fl<2; fl++){
+        const z0 = 200 + fl*130;
+        for(let i=0;i<nb;i++){
+          const x0 = 16 + (e1-16)*i/nb + 12, x1 = 16 + (e1-16)*(i+1)/nb - 12;
+          rev(fr, x0, x1, z0, z0+100, 8, shade(wall,.44));
+          for(let k=0;k<11;k++){                               // stacked blades
+            const bz = z0 + 4 + k*9;
+            poly([Q(fr,x0,1,bz),Q(fr,x1,1,bz),Q(fr,x1,-6,bz+4),Q(fr,x0,-6,bz+4)], shade(wall,.98));
+            poly([Q(fr,x0,-6,bz+4),Q(fr,x1,-6,bz+4),Q(fr,x1,-6,bz),Q(fr,x0,-6,bz)], shade(wall,.72));
+          }
+          bandF(fr, x0-5, x1+5, z0+100, z0+108, 4, -1, shade(wall,1.04));
         }
       }
-    }
-    slab(0,W, 88, 96, -1, -8, shade(wall,.8));
-    shopDoor(W*0.50, wall, trim);
-    F(W*0.43,W*0.57, 10, 74, '#6a7a80', null,0,-8.5);
-    for(let i=0;i<2;i++) F(i? W*0.70 : 12, i? W-12 : W*0.30, 26, 76, '#6a7a80', shade(wall,.72), 2);
-    slab(W*0.34,W*0.66, 82, 90, -1, -10, shade(wall,1.1));
-    if(state.roof){
-      for(let i=0;i<3;i++){
-        const b0 = -30 - i*70;
-        box(W+2, W+18, b0-14, b0, 146, 158, '#8d949a','#7d848a','#6f767c');
-        poly([P(W+18,b0,158),P(W+64,b0,150),P(W+64,b0-14,150),P(W+18,b0-14,158)], '#a3abb2');
-        poly([P(W+18,b0,150),P(W+64,b0,142),P(W+64,b0-14,142),P(W+18,b0-14,150)], '#8d949a');
-        poly([P(W+18,b0,158),P(W+18,b0,150),P(W+30,b0,142)], '#7d848a');
+      if(fr !== FR_FRONT) return;
+      for(const [x0,x1] of WIN){
+        bandF(fr, x0-6, x1+6, 24, 32, 4, -1, shade(wall,.92));
+        rev(fr, x0, x1, 32, 120, 10, shade(wall,.5));
+        glz(fr, x0, x1, 32, 120, shade(wall,1.12), glassT);
+        for(let k=1;k<4;k++)
+          R(fr, x0+(x1-x0)*k/4-2, x0+(x1-x0)*k/4+2, 32, 120, 1, shade(wall,1.14));
+        bandF(fr, x0-5, x1+5, 120, 128, 4, -1, shade(wall,1.02));
       }
-      for(let k=0;k<4;k++){
-        const z = 148 - k*4;
-        ctx.strokeStyle='#4a4f55'; ctx.lineWidth=1.6;
-        const a=P(W+60,-30,z), b2=P(W+60,-170,z-6);
-        ctx.beginPath(); ctx.moveTo(a.x,a.y);
-        ctx.quadraticCurveTo((a.x+b2.x)/2,(a.y+b2.y)/2+14*K,b2.x,b2.y); ctx.stroke();
+      doorF(fr, DMID, wall, trim);
+      bandF(fr, DMID-46, DMID+46, 122, 146, 6, -1, shade(wall,1.1), null, shade(wall,1.24));
+      R(fr, DMID-34, DMID+34, 128, 141, 6.5, shade(wall,.56));
+      rev(fr, CBAY[0], CBAY[1], 0, 120, 12, '#2a2c2a');        // the cable bay
+      R(fr, CBAY[0]+4, CBAY[1]-4, 4, 116, -3, shade(trim,1.1));
+      for(let k=0;k<5;k++)
+        R(fr, CBAY[0]+12, CBAY[1]-12, 20+k*20, 26+k*20, -2.6, shade(trim,1.4));
+      bandF(fr, CBAY[0]-7, CBAY[1]+7, 120, 130, 5, -1, shade(wall,1.06));
+    };
+    const building = () => {
+      elevation(FR_BACK); elevation(FAR);
+      T(FA0, FA0+BW, FB1-BD, FB1, H, shade(wall,1.04));
+      S((NEAR === FR_RIGHT) ? FA0+BW : FA0, FB1-BD, FB1, 0, H, shade(wall,.78));
+      F(FA0, FA0+BW, 0, H, wall, null, 0, FB1);
+      elevation(NEAR); elevation(FR_FRONT);
+      if(state.roof){
+        for(let i=0;i<3;i++)
+          box(FA0+70+i*180, FA0+70+i*180+100, FB1-340, FB1-260, H, H+30,
+              '#8f969d','#787f86','#697077');
+        cyl(FA0+BW*0.9, FB1-60, H+12, H+110, 2.8, '#c9ccd0');
       }
-      for(let i=0;i<3;i++)
-        box(W*0.12+i*W*0.30, W*0.12+i*W*0.30+W*0.18, -150, -100, H, H+30,'#8f969d','#787f86','#697077');
-      cyl(W*0.88, -40, H+12, H+96, 2.4, '#c9ccd0');
+    };
+
+    /* ---- HIGH CHAIN LINK round the compound ----
+       The School's mesh: a wash, then two sets of diagonals clipped BY
+       ARITHMETIC rather than by ctx.clip(), because the game emulates
+       clip by polygon intersection and these are strokes. 200 of mesh on
+       212 posts is 300 game units -- a compound fence, not a garden one. */
+    const GATE = [1620, 1880];
+    const chain = (x0, y0, x1, y1) => {
+      const len = Math.hypot(x1-x0, y1-y0);
+      if(len < 30) return;
+      const pt = (t, z) => P(x0 + (x1-x0)*t, y0 + (y1-y0)*t, z);
+      poly([pt(0,FZ1), pt(1,FZ1), pt(1,FZ0), pt(0,FZ0)], 'rgba(206,214,212,.14)');
+      ctx.strokeStyle = MESH; ctx.lineWidth = 1.1;
+      const rise = (FZ1 - FZ0) * ZSCALE, step = 90;
+      for(let k = -2; k <= len/step + 2; k++){
+        for(const dir of [1, -1]){
+          const s0 = k*step, s1 = s0 + dir*rise;
+          let u0 = 0, u1 = 1;
+          if(s1 !== s0){
+            const ua = (0 - s0)/(s1 - s0), ub = (len - s0)/(s1 - s0);
+            u0 = Math.max(0, Math.min(ua, ub)); u1 = Math.min(1, Math.max(ua, ub));
+          } else if(s0 < 0 || s0 > len) continue;
+          if(u1 <= u0) continue;
+          const q0 = pt((s0 + (s1-s0)*u0)/len, FZ0 + (FZ1-FZ0)*u0);
+          const q1 = pt((s0 + (s1-s0)*u1)/len, FZ0 + (FZ1-FZ0)*u1);
+          ctx.beginPath(); ctx.moveTo(q0.x, q0.y); ctx.lineTo(q1.x, q1.y); ctx.stroke();
+        }
+      }
+      tube(x0, y0, FZ1, x1, y1, FZ1, 4, POST);
+      tube(x0, y0, FZ0, x1, y1, FZ0, 2.4, POST);
+      const n = Math.max(2, Math.round(len/300));
+      for(let k=0;k<=n;k++){
+        const t = k/n, end = (k === 0 || k === n);
+        tube(x0+(x1-x0)*t, y0+(y1-y0)*t, 0, x0+(x1-x0)*t, y0+(y1-y0)*t, end ? 218 : 212,
+             end ? 9 : 6.5, POST);
+      }
+    };
+    /* ================= ONE DEPTH KEY FOR THE WHOLE LOT =================
+       Everything here was drawn in CALL order -- building, then fence,
+       then props -- and all four of the faults Sir marked come from that
+       single choice:
+
+         near-side fence  a 736, b -1156..-2392   key -420..-1656
+         the building     a 736..1343, b -736..-1156   key -420..607
+           the fence runs BEHIND the building and was drawn after it
+
+         far-side fence   a 2392, b -736..-2392   key 1656..0
+         cabinets         a 2080                  key 900 / 760
+           at the same b the fence is NEARER and was drawn before
+
+       AND A FENCE RUN IS ONE LONG OBJECT. Even sorted, a single key
+       cannot order 1656 of fence against props scattered along it: the
+       run has to be SEGMENTED so the sort has something to work with.
+       Each run is cut into 300-ish pieces and every piece, every prop,
+       the gate piers and the building itself go into one depthSort. */
+    const items = [];
+    const fenceRun = (x0, y0, x1, y1) => {
+      const len = Math.hypot(x1-x0, y1-y0), n = Math.max(1, Math.round(len/300));
+      for(let k=0;k<n;k++){
+        const t0 = k/n, t1 = (k+1)/n;
+        const p0 = [x0+(x1-x0)*t0, y0+(y1-y0)*t0], p1 = [x0+(x1-x0)*t1, y0+(y1-y0)*t1];
+        items.push({ a:(p0[0]+p1[0])/2, b:(p0[1]+p1[1])/2, z:0,
+                     draw:() => chain(p0[0], p0[1], p1[0], p1[1]) });
+      }
+    };
+    fenceRun(FA0, FB0, FA1, FB0);                              // back
+    fenceRun(FA1, FB0, FA1, FB1);                              // far side
+    fenceRun(FA0, FB1-BD, FA0, FB0);                           // near side, below the building
+    fenceRun(FA0+BW, FB1, GATE[0], FB1);                       // street edge, to the gate
+    fenceRun(GATE[1], FB1, FA1, FB1);                          // street edge, past it
+    for(const ga of GATE)
+      items.push({ a:ga, b:FB1, z:0, draw:() => {
+        box(ga-26, ga+26, FB1-26, FB1+26, 0, 250, shade(wall,1.05), wall, shade(wall,.78));
+        ball(ga, FB1, 266, 16, shade(trim,1.2));
+      }});
+    items.push({ a:(FA0+FA0+BW)/2, b:(FB1+FB1-BD)/2, z:0, draw:building });
+
+    if(state.props){
+      for(const [da, db] of [[1500,-1500],[1720,-1520],[1560,-1760],[1900,-1660]])
+        items.push({ a:da, b:db, z:0, draw:() => {           // cable drums, on their sides
+          cyl(da, db, 0, 96, 46, shade(trim,1.25));
+          for(const dz of [4, 92]) plateCircle(da, db, dz, 48, shade(trim,.9), shade(trim,1.4), 2);
+          plateCircle(da, db, 94, 20, '#6b5a3a');
+        }});
+      for(const [ca2, cb2] of [[1420,-960],[1560,-960],[2080,-1180],[2080,-1320]])
+        items.push({ a:ca2, b:cb2, z:0, draw:() => {          // equipment cabinets
+          box(ca2-46, ca2+46, cb2-34, cb2+34, 0, 150, shade(wall,1.1), shade(wall,.92), shade(wall,.8));
+          F(ca2-36, ca2+36, 40, 130, shade(trim,1.1), null, 0, cb2+34.5);
+          for(let k=0;k<4;k++) F(ca2-30, ca2+30, 48+k*20, 54+k*20, shade(trim,1.5), null, 0, cb2+35);
+        }});
+      for(const [va, vb] of [[2140,-880],[1320,-2180]])
+        items.push({ a:va, b:vb, z:0, draw:() => gameCar((a,b,h) => P(va + b, vb - a, h), CAR_COLORS[1]) });
     }
+    depthSort(items);
     kerb(p,'none');
   }
 },
