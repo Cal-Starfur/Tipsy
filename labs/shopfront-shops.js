@@ -250,6 +250,26 @@ function drawChemist(p, c){
    mullion piers do not fit in 230 -- the arithmetic leaves 59.9 a bay,
    less than the car itself.
 
+   AND SO WAS THE BLOCK EDGE, found scaling the Car park against that
+   car. Six shops carry ww 1048.8 and call it "a whole block edge, five
+   packing slots". Measured in the running game instead of assumed:
+
+     BLOCK 3128, ROAD_HALF 368  ->  buildable edge = 3128 - 736 = 2392
+     packEdgeNoGap(2392)        ->  NINE slots, not five
+     1048.8 / 2392              =  0.438
+
+   So 1048.8 is a bit under HALF a block edge, and every shop built to it
+   -- Apartments, Dealership, Department store, Grand hotel, and the
+   block:true landmarks on 1048.8 square -- is that much smaller than its
+   own description claims. It does not make any of them wrong to LOOK at;
+   it makes them wrong to REASON from, which is exactly what happened
+   here: a car park sized to 1048.8 could not hold a row of bays and an
+   aisle, because it is not the building it says it is.
+
+   The Car park is on 2392 now. The others are left alone deliberately --
+   resizing six shops is not a note, it is a pass, and it wants doing
+   alongside the packer work rather than one entry at a time.
+
    THE CAR'S SIZE WAS WRONG IN THIS NOTE, found porting the real one
    into the Dealership showroom. It read "len 150, wid 60"; shipped CARC
    is len 225, wid 90, and CARC's own header comment is where the 150/60
@@ -484,6 +504,125 @@ function drawChemist(p, c){
    back, far flank, body(), near flank, front, with FLANK_RIGHT saying
    which flank is which -- the same test body() uses for its end wall.
    ===================================================================== */
+  /* ================= THE GAME'S OWN CAR, PORTED =================
+   AT FILE SCOPE, because the Car park is its second user. The rule this
+   file keeps making itself: a thing that exists twice drifts, so it gets
+   hoisted the moment there are two -- the same move wallFrames needed.
+
+   It takes a MAPPER rather than a position, which is how the game itself
+   is written: carT(a, b, h) defines the vehicle once in a fixed local
+   frame facing +a, and the caller decides where that frame lands. The
+   showroom passes a wall-frame mapper so its cars sit inside a recess;
+   the car park passes a world one with the axes swapped so they park
+   nose-in. Neither knows anything about the other.
+     The first cut was a car I made up: two boxes and four smaller ones
+     at 150 by 60 by 66, which is nobody's car. The shipped one is real
+     geometry and it ports, because it is built on exactly the pattern
+     wallFrames uses -- carT(a, b, h) defines the whole vehicle ONCE in
+     a fixed local frame with the car facing +a, and the rig rotates as
+     one rigid unit. Substituting Q(fr, ...) for the game's carP is the
+     entire port; every panel below is the shipped one.
+
+     CARC, verbatim: len 225, wid 90, chassisH 42, cabinH 48,
+     wheelR 24, and CAR_COLORS' four liveries. The three HEIGHTS are
+     divided by ZSCALE on the way in and the two plan dimensions are
+     not, which is the whole of the correction in the WIDE UNITS note
+     at the head of this file -- the lab scales z and nothing else.
+
+     WHAT IS ASKED RATHER THAN ASSERTED. The game picks its near wheel
+     side, its camera-facing side glass and which bumper to draw at all
+     by comparing carDepth; here the same choices come off screen y,
+     which is the test box() and slab() already use. Nothing is
+     hardcoded to a side.
+
+     AND THE WHEELS ARE FACE-PLANE CIRCLES, so their z radius is
+     divided by ZSCALE. That is fault one on the standing list, eleven
+     instances deep, and a wheel is the most obvious place in the file
+     for it: r 24 undivided comes out 24 by 36 and the car rolls on
+     ovals.
+
+     WHAT THE REAL CAR COSTS: it is 225 long against my 150, so a 200
+     showroom bay will not hold it. The bay target went to 330, which
+     divides the 996.8 front into 3 and the 568 flank into 2. */
+  const CR = { len:225, wid:90, chassisH:42, cabinH:48, wheelR:24,
+    windshield:'#9fc4d6', windshieldEdge:'#6f8fa0', bumper:'#b8bcc2',
+    light:'#f4e9b0', tail:'#c94f4f', wheel:'#24262c', wheelDk:'#17191d',
+    hub:'#8a919c', hubFace:'#3d424c' };
+  const CAR_COLORS = [
+    { body:'#9aa7b5', bodyDk:'#76839a', roof:'#8695a5' },   // silver
+    { body:'#c45a4e', bodyDk:'#9c473d', roof:'#af4f44' },   // red
+    { body:'#5678a8', bodyDk:'#435e87', roof:'#4c6c99' },   // blue
+    { body:'#e4e6ea', bodyDk:'#c0c3c9', roof:'#d6d9dd' }    // white
+  ];
+function gameCar(cP, col){
+    const zk = 1/ZSCALE;
+    const hl = CR.len/2, hw = CR.wid/2, cz = CR.wheelR*zk;
+    const chassisTop = (CR.wheelR + CR.chassisH)*zk;
+    const cabinTop   = (CR.wheelR + CR.chassisH + CR.cabinH)*zk;
+    const cl = hl*0.62, roofF = -cl*0.55, roofR = cl*0.55;
+    const cd = (a,b,h) => cP(a,b,h).y;                    // nearer = larger screen y
+
+    const wheel = (a0, r, side) => {
+      const rz = r*zk;                                     // face-plane circle: z radius over ZSCALE
+      const ring = (bc, rr) => { const q = [];
+        for(let i=0;i<12;i++){ const t = i/12*Math.PI*2;
+          q.push(cP(a0 + Math.cos(t)*rr, bc, cz + Math.sin(t)*rr*zk)); }
+        return q; };
+      const bIn = side*(hw-1), bOut = side*(hw+5);
+      poly(ring(bIn, r), CR.wheelDk);
+      const faceB = cd(a0,bOut,cz) > cd(a0,bIn,cz) ? bOut : bIn;
+      poly(ring(faceB, r), CR.wheel);
+      poly(ring(faceB, r*0.5), CR.hubFace);
+      const h = cP(a0, faceB, cz);
+      ctx.beginPath(); ctx.arc(h.x, h.y, r*0.30*K, 0, 7); ctx.fillStyle = CR.hub; ctx.fill();
+    };
+    const chassis = () => {
+      const nb = cd(0,hw,chassisTop) > cd(0,-hw,chassisTop) ? hw : -hw;
+      const na = cd(hl,0,chassisTop) > cd(-hl,0,chassisTop) ? hl : -hl;
+      poly([cP(-hl,nb,cz),cP(hl,nb,cz),cP(hl,nb,chassisTop),cP(-hl,nb,chassisTop)], col.bodyDk);
+      poly([cP(na,-hw,cz),cP(na,hw,cz),cP(na,hw,chassisTop),cP(na,-hw,chassisTop)], shade(col.bodyDk,.90));
+      poly([cP(-hl,-hw,chassisTop),cP(hl,-hw,chassisTop),cP(hl,hw,chassisTop),cP(-hl,hw,chassisTop)], col.body);
+    };
+    const cabin = () => {
+      const roofPts = [cP(roofF,-hw*0.86,cabinTop),cP(roofR,-hw*0.86,cabinTop),
+                       cP(roofR, hw*0.86,cabinTop),cP(roofF, hw*0.86,cabinTop)];
+      const sg = cd(0,hw*0.9,cabinTop) > cd(0,-hw*0.9,cabinTop) ? 1 : -1;
+      const sgB = sg*hw*0.86, beltB = sg*hw*0.92;
+      const P4 = [[roofF,sgB,cabinTop],[roofR,sgB,cabinTop],[cl,beltB,chassisTop],[-cl,beltB,chassisTop]];
+      poly(P4.map(q => cP(q[0],q[1],q[2])), col.roof);                       // the greenhouse solid
+      poly(roofPts, col.roof, col.bodyDk, 1);
+      poly([cP(roofR,-hw*0.85,cabinTop),cP(roofR,hw*0.85,cabinTop),
+            cP(cl, hw*0.90,chassisTop),cP(cl,-hw*0.90,chassisTop)], CR.windshield, CR.windshieldEdge, 1);
+      poly([cP(roofF,-hw*0.86,cabinTop),cP(roofF,hw*0.86,cabinTop),
+            cP(-cl, hw*0.92,chassisTop),cP(-cl,-hw*0.92,chassisTop)], CR.windshield, CR.windshieldEdge, 1);
+      poly(roofPts, col.roof, col.bodyDk, 1);                                // the game's roof redraw
+      const c = [0,1,2].map(i => P4.reduce((t,q) => t+q[i], 0)/4);
+      poly(P4.map(q => cP(q[0],q[1],q[2])), col.body);
+      poly(P4.map(q => cP(c[0]+(q[0]-c[0])*0.7, c[1]+(q[1]-c[1])*0.7, c[2]+(q[2]-c[2])*0.7)), CR.windshield);
+    };
+    const bumper = () => {
+      const front = cd(hl,0,cz) > cd(-hl,0,cz), e = front ? hl : -hl, i = front ? hl-0.3 : -hl+0.3;
+      poly([cP(i,-hw,cz),cP(e,-hw,cz+3*zk),cP(e,hw,cz+3*zk),cP(i,hw,cz)], CR.bumper);
+      for(const sgn of [-1,1]){
+        const lp = cP(e - (front?0.4:-0.4), sgn*(hw-3), cz+5*zk);
+        ctx.beginPath(); ctx.arc(lp.x, lp.y, 2*K, 0, 7);
+        ctx.fillStyle = front ? CR.light : CR.tail; ctx.fill();
+      }
+    };
+    const rearNear  = cd(-hl*0.55,hw,cz) > cd(-hl*0.55,-hw,cz) ? 1 : -1;
+    const frontNear = cd( hl*0.55,hw,cz) > cd( hl*0.55,-hw,cz) ? 1 : -1;
+    const cabRef = cd(0,0,(chassisTop+cabinTop)/2);
+    wheel(-hl*0.55, CR.wheelR,      -rearNear);
+    wheel( hl*0.55, CR.wheelR*0.95, -frontNear);
+    chassis();
+    if(cd(-hl*0.55, hw*rearNear,  cz) <= cabRef) wheel(-hl*0.55, CR.wheelR,      rearNear);
+    if(cd( hl*0.55, hw*frontNear, cz) <= cabRef) wheel( hl*0.55, CR.wheelR*0.95, frontNear);
+    cabin();
+    bumper();
+    if(cd(-hl*0.55, hw*rearNear,  cz) >  cabRef) wheel(-hl*0.55, CR.wheelR,      rearNear);
+    if(cd( hl*0.55, hw*frontNear, cz) >  cabRef) wheel( hl*0.55, CR.wheelR*0.95, frontNear);
+  };
+
 /* AN ORIGIN, because a landmark's building does not start at 0. The four
    whole-edge shops all fill their lot, so their frontage IS a = 0 and
    b = 0; a school standing in a park does not, and translating the frame
@@ -10527,115 +10666,12 @@ const SHOPS = [
     const EA0 = 462, EA1 = 592, EB = 14, EZ = 404;         // the sign fin
     const EMID = (EA0+EA1)/2;                              // and the door under it
 
-    /* ================= THE GAME'S OWN CAR, PORTED =================
-       The first cut was a car I made up: two boxes and four smaller ones
-       at 150 by 60 by 66, which is nobody's car. The shipped one is real
-       geometry and it ports, because it is built on exactly the pattern
-       wallFrames uses -- carT(a, b, h) defines the whole vehicle ONCE in
-       a fixed local frame with the car facing +a, and the rig rotates as
-       one rigid unit. Substituting Q(fr, ...) for the game's carP is the
-       entire port; every panel below is the shipped one.
+    /* the car is gameCar() at file scope now -- the Car park is its
+       second user, so it stopped being ours. The mapper is what places
+       it: local (a along, b across, z up) into this frame's recess. */
+    const carIn = (fr, uc, nc, vf, col) =>
+      gameCar((a,b,h) => Q(fr, uc+a, nc+b, vf+h), col);
 
-       CARC, verbatim: len 225, wid 90, chassisH 42, cabinH 48,
-       wheelR 24, and CAR_COLORS' four liveries. The three HEIGHTS are
-       divided by ZSCALE on the way in and the two plan dimensions are
-       not, which is the whole of the correction in the WIDE UNITS note
-       at the head of this file -- the lab scales z and nothing else.
-
-       WHAT IS ASKED RATHER THAN ASSERTED. The game picks its near wheel
-       side, its camera-facing side glass and which bumper to draw at all
-       by comparing carDepth; here the same choices come off screen y,
-       which is the test box() and slab() already use. Nothing is
-       hardcoded to a side.
-
-       AND THE WHEELS ARE FACE-PLANE CIRCLES, so their z radius is
-       divided by ZSCALE. That is fault one on the standing list, eleven
-       instances deep, and a wheel is the most obvious place in the file
-       for it: r 24 undivided comes out 24 by 36 and the car rolls on
-       ovals.
-
-       WHAT THE REAL CAR COSTS: it is 225 long against my 150, so a 200
-       showroom bay will not hold it. The bay target went to 330, which
-       divides the 996.8 front into 3 and the 568 flank into 2. */
-    const CR = { len:225, wid:90, chassisH:42, cabinH:48, wheelR:24,
-      windshield:'#9fc4d6', windshieldEdge:'#6f8fa0', bumper:'#b8bcc2',
-      light:'#f4e9b0', tail:'#c94f4f', wheel:'#24262c', wheelDk:'#17191d',
-      hub:'#8a919c', hubFace:'#3d424c' };
-    const CAR_COLORS = [
-      { body:'#9aa7b5', bodyDk:'#76839a', roof:'#8695a5' },   // silver
-      { body:'#c45a4e', bodyDk:'#9c473d', roof:'#af4f44' },   // red
-      { body:'#5678a8', bodyDk:'#435e87', roof:'#4c6c99' },   // blue
-      { body:'#e4e6ea', bodyDk:'#c0c3c9', roof:'#d6d9dd' }    // white
-    ];
-    const carIn = (fr, uc, nc, vf, col) => {
-      const zk = 1/ZSCALE;
-      const hl = CR.len/2, hw = CR.wid/2, cz = CR.wheelR*zk;
-      const chassisTop = (CR.wheelR + CR.chassisH)*zk;
-      const cabinTop   = (CR.wheelR + CR.chassisH + CR.cabinH)*zk;
-      const cl = hl*0.62, roofF = -cl*0.55, roofR = cl*0.55;
-      const cP = (a,b,h) => Q(fr, uc+a, nc+b, vf+h);
-      const cd = (a,b,h) => cP(a,b,h).y;                    // nearer = larger screen y
-
-      const wheel = (a0, r, side) => {
-        const rz = r*zk;                                     // face-plane circle: z radius over ZSCALE
-        const ring = (bc, rr) => { const q = [];
-          for(let i=0;i<12;i++){ const t = i/12*Math.PI*2;
-            q.push(cP(a0 + Math.cos(t)*rr, bc, cz + Math.sin(t)*rr*zk)); }
-          return q; };
-        const bIn = side*(hw-1), bOut = side*(hw+5);
-        poly(ring(bIn, r), CR.wheelDk);
-        const faceB = cd(a0,bOut,cz) > cd(a0,bIn,cz) ? bOut : bIn;
-        poly(ring(faceB, r), CR.wheel);
-        poly(ring(faceB, r*0.5), CR.hubFace);
-        const h = cP(a0, faceB, cz);
-        ctx.beginPath(); ctx.arc(h.x, h.y, r*0.30*K, 0, 7); ctx.fillStyle = CR.hub; ctx.fill();
-      };
-      const chassis = () => {
-        const nb = cd(0,hw,chassisTop) > cd(0,-hw,chassisTop) ? hw : -hw;
-        const na = cd(hl,0,chassisTop) > cd(-hl,0,chassisTop) ? hl : -hl;
-        poly([cP(-hl,nb,cz),cP(hl,nb,cz),cP(hl,nb,chassisTop),cP(-hl,nb,chassisTop)], col.bodyDk);
-        poly([cP(na,-hw,cz),cP(na,hw,cz),cP(na,hw,chassisTop),cP(na,-hw,chassisTop)], shade(col.bodyDk,.90));
-        poly([cP(-hl,-hw,chassisTop),cP(hl,-hw,chassisTop),cP(hl,hw,chassisTop),cP(-hl,hw,chassisTop)], col.body);
-      };
-      const cabin = () => {
-        const roofPts = [cP(roofF,-hw*0.86,cabinTop),cP(roofR,-hw*0.86,cabinTop),
-                         cP(roofR, hw*0.86,cabinTop),cP(roofF, hw*0.86,cabinTop)];
-        const sg = cd(0,hw*0.9,cabinTop) > cd(0,-hw*0.9,cabinTop) ? 1 : -1;
-        const sgB = sg*hw*0.86, beltB = sg*hw*0.92;
-        const P4 = [[roofF,sgB,cabinTop],[roofR,sgB,cabinTop],[cl,beltB,chassisTop],[-cl,beltB,chassisTop]];
-        poly(P4.map(q => cP(q[0],q[1],q[2])), col.roof);                       // the greenhouse solid
-        poly(roofPts, col.roof, col.bodyDk, 1);
-        poly([cP(roofR,-hw*0.85,cabinTop),cP(roofR,hw*0.85,cabinTop),
-              cP(cl, hw*0.90,chassisTop),cP(cl,-hw*0.90,chassisTop)], CR.windshield, CR.windshieldEdge, 1);
-        poly([cP(roofF,-hw*0.86,cabinTop),cP(roofF,hw*0.86,cabinTop),
-              cP(-cl, hw*0.92,chassisTop),cP(-cl,-hw*0.92,chassisTop)], CR.windshield, CR.windshieldEdge, 1);
-        poly(roofPts, col.roof, col.bodyDk, 1);                                // the game's roof redraw
-        const c = [0,1,2].map(i => P4.reduce((t,q) => t+q[i], 0)/4);
-        poly(P4.map(q => cP(q[0],q[1],q[2])), col.body);
-        poly(P4.map(q => cP(c[0]+(q[0]-c[0])*0.7, c[1]+(q[1]-c[1])*0.7, c[2]+(q[2]-c[2])*0.7)), CR.windshield);
-      };
-      const bumper = () => {
-        const front = cd(hl,0,cz) > cd(-hl,0,cz), e = front ? hl : -hl, i = front ? hl-0.3 : -hl+0.3;
-        poly([cP(i,-hw,cz),cP(e,-hw,cz+3*zk),cP(e,hw,cz+3*zk),cP(i,hw,cz)], CR.bumper);
-        for(const sgn of [-1,1]){
-          const lp = cP(e - (front?0.4:-0.4), sgn*(hw-3), cz+5*zk);
-          ctx.beginPath(); ctx.arc(lp.x, lp.y, 2*K, 0, 7);
-          ctx.fillStyle = front ? CR.light : CR.tail; ctx.fill();
-        }
-      };
-      const rearNear  = cd(-hl*0.55,hw,cz) > cd(-hl*0.55,-hw,cz) ? 1 : -1;
-      const frontNear = cd( hl*0.55,hw,cz) > cd( hl*0.55,-hw,cz) ? 1 : -1;
-      const cabRef = cd(0,0,(chassisTop+cabinTop)/2);
-      wheel(-hl*0.55, CR.wheelR,      -rearNear);
-      wheel( hl*0.55, CR.wheelR*0.95, -frontNear);
-      chassis();
-      if(cd(-hl*0.55, hw*rearNear,  cz) <= cabRef) wheel(-hl*0.55, CR.wheelR,      rearNear);
-      if(cd( hl*0.55, hw*frontNear, cz) <= cabRef) wheel( hl*0.55, CR.wheelR*0.95, frontNear);
-      cabin();
-      bumper();
-      if(cd(-hl*0.55, hw*rearNear,  cz) >  cabRef) wheel(-hl*0.55, CR.wheelR,      rearNear);
-      if(cd( hl*0.55, hw*frontNear, cz) >  cabRef) wheel( hl*0.55, CR.wheelR*0.95, frontNear);
-    };
     /* the showroom: one deep opening, floor, cars on it, then the glass
        and the mullions in front of the glass.
 
@@ -11892,53 +11928,228 @@ const SHOPS = [
   }
 },
 {
-  name:'Car park', tall:true,
-  zTodo:1.73,          // H 290 -- see SCALE REVIEW at the head of this file
-  head:'Three open decks, spiral ramp, no walls',
-  tags:['3 open decks','helical ramp','round columns','cars with wheels','structural'],
-  desc:'The ramp is a helix of real treads with an outer edge beam and a centre column, the deck columns are cylinders, and the cars have bodies, cabins and wheels.',
+  name:'Car park', tall:true, block:true, ww: 3128, dd: 3128,
+  wTodo:'a FULL block cell -- BLOCK 3128 with ROAD_HALF 368 each side, so 1656 square of buildable ground; the packer places no landmark',
+  cTodo:'the deck structure, the columns, the ramp and the stair core need volumes; the decks and the ramp are drivable, which is the point of them',
+  revisit:'SIR IS NOT HAPPY WITH THIS AND WANTS TO COME BACK TO IT. Pushed to save the work, not because it is finished. The ramps are the unresolved part: they were rebuilt four times in one sitting -- back band, front band, sloping front rail, rail on one edge, rail on both, then flights made independent of the decks -- and it still is not right to his eye. Do not treat this entry as settled, and do not copy its ramp handling into anything else until he has looked again',
+  head:'A full-block multi-storey: four decks, four rows, a two-lane ramp -- NOT SETTLED, see revisit',
+  tags:['block landmark','the real BLOCK, 3128','4 decks','central two-lane ramp','the game\u2019s own car'],
+  desc:'A multi-storey filling a whole block cell at the game\u2019s own pitch: four bay rows either side of a central ramp bay, four decks, and the cars at the size the game actually draws them.',
   draw(p){
-    const wall = '#9aa0a6', trim = '#6a7076', H = 290;
-    T(0,W,-D,0,H, shade(trim,1.05));
-    S(W,-D,0,0,H, 'rgba(120,127,134,.35)');
-    for(let fl=0; fl<3; fl++){
-      const z0 = 12 + fl*90;
-      T(0,W,-D,0,z0, '#8d949a');
-      slab(0,W, z0, z0+16, -1, -D, wall, shade(trim,.9));
-      slab(0,W, z0+16, z0+22, -1, -6, trim);
-      for(let i=0;i<5;i++) cyl(W*i/4, -18, z0+22, z0+90, 6, wall);
-      for(let i=0;i<3;i++){
-        const ca = 26 + i*74, cb = -26, col = ['#c2452e','#3f6b8a','#c9a24a'][(i+fl)%3];
-        box(ca-26, ca+26, cb-16, cb+16, z0+22, z0+44, col, shade(col,.85), shade(col,.7));
-        box(ca-15, ca+13, cb-13, cb+13, z0+44, z0+58, shade(col,.75), shade(col,.65), shade(col,.55));
-        for(const [wa,wb] of [[ca-17,cb+16],[ca+17,cb+16]])
-          faceCircle(wa, wb, z0+26, 5, '#2b2f33');
+    /* ============ A FULL BLOCK, AT THE GAME'S OWN PITCH ============
+       Sir's call. And "full block" means the real one: BLOCK is 3128
+       with ROAD_HALF 368 either side, so a cell gives 1656 square of
+       buildable ground. NOT the 1048.8 six other shops in this file call
+       a block edge -- that is 0.438 of one, and the correction is in the
+       WIDE UNITS note at the head of the file.
+
+       WHAT 1656 SQUARE BUYS, which is the whole reason to be here:
+
+         depth   260 RAMP BAY + 210 aisle
+                 + 225 row + 225 row + 210 aisle
+                 + 225 row + 225 row               = 1580, 76 spare
+         across  16 bays a row at a 100 pitch, 4 rows = 64 bays a deck
+         ramp    rise 160 lab = 240 game; 1:6 needs 1440 of run,
+                 and a gives exactly 1440
+
+       Every one of those failed on the smaller footprints. On one slot a
+       driven park is impossible at all -- 225 + 200 + 225 is 650 against
+       230. On the 1048.8 "block edge" the ramp had no run.
+
+       THE RAMP BAY IS ON THE STREET, not in the middle. Central is the
+       better plan and it is invisible: a slope four rows deep sits under
+       the deck above with sixty cars in front of it, and this camera
+       never moves. On the frontage the deck edge FOLLOWS the slope, and
+       that rising line is the whole way you read a multi-storey from
+       outside. The aisle behind it feeds all four rows.
+
+       THE RAMP RULES, kept from the driven version and still the ones
+       that matter:
+
+         flights ALTERNATE and stack in one bay, so each starts where
+         the last ended -- otherwise a car reaching the top of a flight
+         is 1440 from the foot of the next
+
+         the deck above is open only where the flight below needs
+         HEADROOM: t > (PITCH - carH - BEAM)/PITCH = 0.375, so the upper
+         62.5 per cent of the run. Taking the whole bay throws away 540
+         of deck on every level for nothing
+
+         PITCH 160, because a driven deck is 2.13 x the car floor to
+         floor -- someone has to steer on it */
+    const BLK = 3128, ROAD = 736;
+    const FA0 = ROAD, FA1 = BLK - ROAD, FB1 = -ROAD, FB0 = -(BLK - ROAD);
+    const LW = FA1 - FA0, LD = FB1 - FB0;
+    const H = 480, PITCH = 160, BEAM = 24, carH = 114/ZSCALE;
+    const deck = '#9aa0a6', soff = '#8d949a', trim = '#6a7076', wall = '#a6acb2';
+    const { FR_FRONT, FR_RIGHT, FR_LEFT, FR_BACK, NEAR, FAR, Q, R, bandF }
+      = wallFrames(LW, LD, FA0, FB1);
+    const ROWB = [-1318.5, -1543.5, -1978.5, -2203.5];     // four rows of bays
+    const RB1 = -736, RB0 = -996;                          // the ramp bay, on the street
+    const RA0 = FA0 + 25, RA1 = RA0 + 1440;                // 1:6 at a 160 rise
+    /* the core goes on the STREET corner, past the ramp's top at 2201 --
+       buried four rows in, its door opened onto a deck rather than onto
+       the pavement, which is no way in on foot at all. */
+    const CORE = [2220, 2380, -880, -740];
+    const LIV = [1, 2, 0, 3, 2, 1, 3, 0];
+    const BAYS = 16;
+
+    const rampDir = f => (f % 2 === 0) ? 1 : -1;
+    const rampZ = (f, u) => { const t = Math.max(0, Math.min(1, (u-RA0)/(RA1-RA0)));
+      return f*PITCH + PITCH * (rampDir(f) > 0 ? t : 1 - t); };
+    /* a painted chevron on the ground, pointing along +a, -a, +b or -b.
+       It takes its z from the caller, so the same arrow works on a flat
+       deck and on a slope -- which matters, because the ramp arrows have
+       to lie ON the ramp. */
+    const arrow = (ca, cb, cz, dir, col) => {
+      const L = 48, HW = 17, S = 7;
+      const q = Math.abs(dir) === 1
+        ? (s => [[ca+s*L,cb],[ca+s*S,cb-HW],[ca+s*S,cb-6],[ca-s*L,cb-6],
+                 [ca-s*L,cb+6],[ca+s*S,cb+6],[ca+s*S,cb+HW]])(Math.sign(dir))
+        : (s => [[ca,cb+s*L],[ca-HW,cb+s*S],[ca-6,cb+s*S],[ca-6,cb-s*L],
+                 [ca+6,cb-s*L],[ca+6,cb+s*S],[ca+HW,cb+s*S]])(Math.sign(dir));
+      poly(q.map(v => P(v[0], v[1], cz)), col || '#d9d5c6');
+    };
+    const parked = (ca, cb, cz, liv) =>
+      gameCar((a, b, h) => P(ca + b, cb - a, cz + h), CAR_COLORS[liv % CAR_COLORS.length]);
+
+    T(0, BLK, -BLK, 0, 0.3, '#b3a894');                    // the pavement round the cell
+    T(FA0-20, FA1+20, FB0-20, FB1+20, 0.6, '#7d848a');
+
+    /* ================= A FLIGHT IS NOT PART OF A FLOOR ================
+       It SPANS two of them, and everything that went wrong with the
+       fencing came from pretending otherwise. The deck's beam broke for
+       the ramp, the deck's rail broke for it, zAt() made the deck's rail
+       CLIMB it, and beam() drew the ramp's own sloping fascia -- so a
+       floor was drawing a flight's edges, at the floor's b rather than
+       the flight's, which is exactly why one guard kept landing three
+       units off the thing it was meant to guard.
+
+       So: the DECK gets a hole and knows nothing else. Flat beam, flat
+       rail, both simply absent across the bay. And the FLIGHT is one
+       object that draws everything it owns -- soffit, surface, both
+       fascias, both rails, kerbs, lane line, arrows -- in its own pass,
+       after the decks, because the ramp bay is the nearest band on the
+       building. */
+    const flight = f => {
+      const z = f*PITCH, up = rampDir(f) > 0;
+      const A = t => RA0 + (RA1-RA0)*t;
+      const Z = t => z + PITCH*(up ? t : 1 - t);
+      const z1 = up ? z + PITCH : z, z0 = up ? z : z + PITCH;
+      poly([P(RA0,RB0,z0-BEAM),P(RA1,RB0,z1-BEAM),P(RA1,RB1,z1-BEAM),P(RA0,RB1,z0-BEAM)], soff);
+      poly([P(RA0,RB0,z0),P(RA1,RB0,z1),P(RA1,RB1,z1),P(RA0,RB1,z0)], deck);
+      for(const eb of [RB0, RB1])                                  // its OWN fascias
+        poly([P(RA0,eb,z0),P(RA1,eb,z1),P(RA1,eb,z1-BEAM),P(RA0,eb,z0-BEAM)],
+             shade(deck, eb === RB1 ? .92 : .76));
+      for(let k=0;k<14;k++){                                       // the lane line, dashed
+        const t0 = (k+0.18)/14, t1 = (k+0.82)/14, m = (RB0+RB1)/2;
+        poly([P(A(t0),m-3,Z(t0)+0.8),P(A(t1),m-3,Z(t1)+0.8),
+              P(A(t1),m+3,Z(t1)+0.8),P(A(t0),m+3,Z(t0)+0.8)], '#d9d5c6');
       }
-      tube(2, -18, z0+78, W-2, -18, z0+78, 2, trim);
-      for(let i=0;i<11;i++) cyl(W*(i+0.5)/11, -18, z0+70, z0+78, 1.6, trim);
-    }
-    slab(0,W, H, H+10, -1, -D, trim);
-    shopDoor(W*0.12, wall, trim);   // stair core -- the ramp was the only way in
-    // helical ramp with treads, an edge beam and a centre column
-    const ra = W + 58, rb = -60, rr = 54;
-    cyl(ra, rb, 0, H, 8, trim);
-    for(let t=0;t<3;t++){
-      const z = 16 + t*90;
-      for(let k=0;k<12;k++){
-        const a0 = k*0.524, a1 = (k+1)*0.524;
-        const x0 = ra + Math.cos(a0)*rr, b0 = rb + Math.sin(a0)*rr;
-        const x1 = ra + Math.cos(a1)*rr, b1 = rb + Math.sin(a1)*rr;
-        const ix0 = ra + Math.cos(a0)*(rr-26), ib0 = rb + Math.sin(a0)*(rr-26);
-        const ix1 = ra + Math.cos(a1)*(rr-26), ib1 = rb + Math.sin(a1)*(rr-26);
-        const z0 = z + k*7.5, z1 = z + (k+1)*7.5;
-        poly([P(x0,b0,z0),P(x1,b1,z1),P(ix1,ib1,z1),P(ix0,ib0,z0)], k%2?'#8d949a':'#969ca2');
-        poly([P(x0,b0,z0),P(x1,b1,z1),P(x1,b1,z1-9),P(x0,b0,z0-9)], shade('#8d949a',.78));
-        tube(x0, b0, z0+26, x1, b1, z1+26, 1.6, trim);
-        cyl(x0, b0, z0, z0+26, 1.4, trim);
+      for(let k=0;k<4;k++){                                        // a lane each way
+        const t = (k+0.5)/4;
+        arrow(A(t), RB1-62, Z(t)+1.2, up ?  1 : -1);
+        arrow(A(t), RB0+62, Z(t)+1.2, up ? -1 :  1);
       }
+      for(const bo of [RB0 + 7, RB1 - 7]){                         // its OWN rails, both edges
+        for(let k=0;k<14;k++){
+          const t0 = k/14, t1 = (k+1)/14;
+          for(const d of [46, 24])
+            tube(A(t0), bo, Z(t0)+d, A(t1), bo, Z(t1)+d, 2.2, trim);
+        }
+        for(let k=0;k<=14;k++) cyl(A(k/14), bo, Z(k/14), Z(k/14) + 46, 2.8, trim);
+      }
+    };
+
+    const frontLast = [];
+    for(let fl=0; fl<4; fl++){
+      const z = fl*PITCH, top = fl === 3;
+      /* the deck knows ONE thing about the ramp: where its bay is, so it
+         can leave a gap. No slope anywhere in here. */
+      const gap = (fr, u) => fr === FR_FRONT && u + FA0 > RA0 - 30 && u + FA0 < RA1 + 30;
+      const beam = fr => { if(fl === 0) return;
+        const runs = fr === FR_FRONT
+          ? [[-3, RA0-FA0-30], [RA1-FA0+30, fr.len+3]] : [[-3, fr.len+3]];
+        for(const [u0,u1] of runs){
+          if(u1 - u0 < 8) continue;
+          bandF(fr, u0, u1, z-BEAM, z, 3, 0, wall, null, shade(wall,1.14), 0);
+          R(fr, u0, u1, z-BEAM+3, z-BEAM+7, 3.4, trim);
+        } };
+      const rail = fr => { const L = fr.len, n = Math.round(L/60);
+        for(let k=0;k<n;k++){
+          const u0 = 4 + (L-8)*k/n, u1 = 4 + (L-8)*(k+1)/n;
+          if(gap(fr,u0) || gap(fr,u1)) continue;
+          const q0 = fr.P(u0,3,0), q1 = fr.P(u1,3,0);
+          for(const d of [46, 24]) tube(q0[0], q0[1], z+d, q1[0], q1[1], z+d, 2.2, trim);
+        }
+        for(let k=0;k<=n;k++){ const u = 4 + (L-8)*k/n;
+          if(gap(fr,u)) continue;
+          const q = fr.P(u, 3, 0);
+          cyl(q[0], q[1], z, z+46, 2.6, trim); } };
+
+      beam(FR_BACK); beam(FAR);
+      if(fl > 0){
+        /* THE VOID, sized to the headroom the flight below needs rather
+           than to the bay: open over the upper 62.5 per cent of the run,
+           floor over the rest. */
+        const d = rampDir(fl-1), cut = (RA1-RA0) * (PITCH - carH - BEAM) / PITCH;
+        const h0 = d > 0 ? RA0 + cut : RA0, h1 = d > 0 ? RA1 : RA1 - cut;
+        T(FA0, FA1, FB0, RB0, z, deck);
+        T(FA0, FA1, RB1, FB1, z, deck);
+        if(h0 > RA0) T(RA0, h0, RB0, RB1, z, deck);
+        if(h1 < RA1) T(h1, RA1, RB0, RB1, z, deck);
+        T(FA0, RA0, RB0, RB1, z, deck);
+        T(RA1, FA1, RB0, RB1, z, deck);
+        T(FA0+2, FA1-2, FB0+2, RB0, z-BEAM-0.4, soff);
+        T(FA0+2, FA1-2, RB1, FB1-2, z-BEAM-0.4, soff);
+      }
+      if(!top) for(let i=0;i<9;i++) for(const cb of [-1206, -1431, -1866, -2091]){
+        const ca = FA0 + 40 + i*195;
+        if(ca > CORE[0]-40 && cb > CORE[2]-40) continue;
+        cyl(ca, cb, z, z + PITCH - BEAM, 9, wall);
+      }
+      rail(FR_BACK); rail(FAR);
+      /* circulation on the deck: the two aisles run opposite ways, which
+         is what makes a one-way loop round the rows. */
+      for(let k=0;k<6;k++){
+        const ca = FA0 + 180 + k*260;
+        if(ca > CORE[0]-60) continue;
+        arrow(ca, -1101, z+1.2,  1);
+        arrow(ca, -1761, z+1.2, -1);
+      }
+      for(const cb of [-1101, -1761])                      // the turn at each end
+        for(const ca of [FA0+40, FA1-40]) arrow(ca, cb, z+1.2, cb === -1101 ? 2 : -2);
+      for(let r=0;r<4;r++) for(let i=0;i<BAYS;i++){
+        const ca = FA0 + 70 + i*100, cb = ROWB[r];
+        if(ca > CORE[0]-50 && cb > CORE[2]-60) continue;
+        if((i*5 + r*7 + fl*3) % 7 < 3) continue;           // a bay free is what says the rest are taken
+        for(const [q0,q1] of [[ROWB[r]+112, ROWB[r]-112]])
+          T(ca-52, ca-48, q0, q1, z+1.2, '#d9d5c6');
+        parked(ca, cb, z, LIV[(i + r*3 + fl) % LIV.length]);
+      }
+      beam(NEAR); rail(NEAR);
+      frontLast.push(() => { beam(FR_FRONT); rail(FR_FRONT); });
     }
-    slab(6,W*0.30, 0, 34, -1, 2, '#e8a13a');
-    F(12,W*0.24, 8, 26, '#2b2f33', null,0, 1.5);
+    for(const f of frontLast) f();
+    for(let f=0; f<3; f++) flight(f);          // the flights, in their own pass
+    slab(FA0, FA1, H, H+24, 3, 0, wall, null, shade(wall,1.14));
+    box(CORE[0], CORE[1], CORE[2], CORE[3], 0, H+44, shade(wall,1.06), wall, shade(wall,.82));
+    slab(CORE[0]-10, CORE[1]+10, H+44, H+58, 4, -1, trim, null, shade(trim,1.2));
+    for(let fl=0; fl<3; fl++)
+      F(CORE[0]+22, CORE[1]-22, 40+fl*160, 110+fl*160, 'rgba(96,120,134,.88)', null, 0, CORE[3]+0.6);
+    /* the way in on foot. The core stands 760 back from the street, and
+       shopDoor draws on the b = 0 plane -- the kit gap the landmark note
+       records and the Nursery, the Bathhouse and the School all work
+       around. Same SHOP_DOOR_W and SHOP_DOOR_H, on the face that exists. */
+    { const hw = SHOP_DOOR_W/2, dH = SHOP_DOOR_H/ZSCALE;
+      const dm = (CORE[0]+CORE[1])/2, bb = CORE[3] + 0.4;
+      F(dm-hw-5, dm+hw+5, 0, dH+8, shade(wall,.78), null, 0, bb);
+      F(dm-hw, dm+hw, 0, dH, '#2b2f33', null, 0, bb+0.4);
+      F(dm-hw+3, dm+hw-3, dH-28, dH-5, 'rgba(96,132,152,.94)', null, 0, bb+0.8);
+      F(dm-hw+3, dm+hw-3, 0, dH-32, trim, null, 0, bb+0.8);
+      F(dm+hw-16, dm+hw-11, dH*0.40, dH*0.53, '#d8c28a', null, 0, bb+1.4);
+      slab(dm-hw-14, dm+hw+14, dH+8, dH+30, bb+7, bb-2, '#e8a13a', null, shade('#e8a13a',1.2));
+      for(let k=0;k<3;k++) F(dm-28+k*20, dm-14+k*20, dH+14, dH+25, '#2b2f33', null, 0, bb+7.5); }
     kerb(p,'none');
   }
 },
