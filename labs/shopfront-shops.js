@@ -12730,57 +12730,121 @@ const SHOPS = [
 },
 {
   name:'Police station', tall:true,
-  cTodo:'2 pavement props need collision volumes',
-  fTodo:'z274..292 return +10; z118..124 return +7; z186..192 return +7',
-  zTodo:1.74,          // H 292 -- see SCALE REVIEW at the head of this file
-  head:'Blue lamp, barred ground floor, mast',
-  tags:['turned blue lamp','round bars','entrance steps','radio mast','3 storey'],
-  desc:'The lamp is a turned lantern with a domed cap on a bracket, the ground-floor bars are round rods set into the reveal, and the mast has real crossbars on a base plate.',
+  cTodo:'the entrance steps are volumes: a 78..152 at b 0..22, on the line under the doorcase',
+  head:'Chequer band, barred ground floor, mast',
+  tags:['chequer band','round bars in the reveal','entrance steps','radio mast','3 storey'],
+  desc:'The chequer runs the whole frontage, which is what makes the building legible at a glance; the ground-floor bars are round rods set INTO the reveal behind the glass.',
   draw(p){
-    const wall = '#8a7f74', trim = '#2f3a4a', H = 292;
+    /* ============ THREE THINGS OVER ONE DOORWAY ============
+       shopDoor(W*0.50) opens 81.88..148.12, head 107.95, surround top
+       114.95, and this frontage put all of
+
+         F(W*0.45, W*0.55, 12, 88)      a 103.5..126.5, at b -8.5
+         slab(W*0.36, W*0.64, 96, 106)  a 82.8..147.2, a band across it
+         slab(W*0.40, W*0.60, 108, 122) a 92..138, a sign crossing the
+                                        surround top
+
+       through it -- the 37th and 38th, plus a third that only half
+       clears. The sign goes to 124 now, above 114.95, and the band
+       becomes the doorcase entablature rather than a run across a hole.
+
+       THE BARRED WINDOWS WERE INVERTED AND OUTSIDE. slab(..., 26, 96,
+       -1, 8) has bFront -1 and bBack 8: the BACK face nine units nearer
+       the street than the front one, which is the inverted-slab fault.
+       Then its glass went in at b +6 and its bars at b +4 -- both out on
+       the pavement side of the wall they are meant to be set into. Bars
+       on a police station are in the REVEAL, behind the glass: a real
+       recess, glaze, then rods at b -2..-9.
+
+       AND THE BLUE LAMP WAS INSIDE THE WALL. The bracket ran b -2 to
+       -16 and the lantern hung at -16, so the whole assembly sat in the
+       masonry -- both ends negative, the Locksmith's giant key word for
+       word, reading only because it was painted after the wall. The lamp
+       is gone entirely now at Sir's direction, so the fault goes with
+       it; the note stays because it is the sixth instance of that sign
+       error and the count is worth keeping.
+
+       Plus the fTodo's three bands 10, 7 and 7 past the return -- proud
+       now, so 0..W has no recess to overrun -- and zTodo 1.74, three
+       storeys at 68. 170 + 2 x 130 = 430. */
+    const wall = '#8a7f74', trim = '#2f3a4a', H = 450;
+    const glassT = 'rgba(90,106,122,.88)';
+    const DMID = 115, S0 = DMID - 37.12, S1 = DMID + 37.12;
+
     body(wall, trim, H);
     slab(0,W, H, H+12, -1, -14, shade(wall,.7));
-    slab(0,W, H-18, H, -1, -10, shade(wall,1.1));
+    slab(0,W, H-18, H, 4, 0, shade(wall,1.1), null, shade(wall,1.22));
+    for(const cv of [180, 310])
+      slab(0,W, cv, cv+10, 3, 0, shade(wall,.88), null, shade(wall,1.1));
+
+    /* ---- two ranks over ---- */
     for(let fl=0; fl<2; fl++){
-      const z0 = 130 + fl*68;
-      slab(0,W, z0-12, z0-6, -1, -7, shade(wall,.88));
+      const z0 = 210 + fl*130;
       for(let i=0;i<4;i++){
         const x0 = 12+(W-24)*(i+0.12)/4, x1 = 12+(W-24)*(i+0.88)/4;
-        slab(x0-4,x1+4, z0-3, z0+51, -1, -9, shade(wall,1.1));
-        F(x0,x1, z0, z0+48, '#5a6a7a', null,0,-9.5);
-        F(x0,x1, z0+23, z0+26, shade(wall,1.1), null,0,-10);
-        F(x0+(x1-x0)/2-1.6, x0+(x1-x0)/2+1.6, z0, z0+48, shade(wall,1.1), null,0,-10);
+        slab(x0-6, x1+6, z0-9, z0, 4, -1, shade(wall,.94));
+        reveal(x0, x1, z0, z0+84, 9, shade(wall,.54));
+        glaze(x0, x1, z0, z0+84, shade(wall,1.14), glassT);
+        F(x0, x1, z0+40, z0+44, shade(wall,1.14), null,0, 1);
+        F((x0+x1)/2-2, (x0+x1)/2+2, z0, z0+84, shade(wall,1.14), null,0, 1);
+        slab(x0-5, x1+5, z0+84, z0+91, 4, -1, shade(wall,1.04));
       }
     }
-    for(let i=0;i<2;i++){
-      const x0 = i? W*0.62 : 12, x1 = i? W-12 : W*0.36;
-      slab(x0-4,x1+4, 26, 96, -1, 8, shade(wall,1.1));
-      F(x0,x1, 30, 92, '#4a5a68', null,0, 6);
-      for(let k=0;k<6;k++) cyl(x0+(x1-x0)*(k+0.5)/6, 4, 30, 92, 1.6, '#2b3138');
-      tube(x0, 4, 61, x1, 4, 61, 1.4, '#2b3138');
+
+    /* ---- the ground: barred windows, then the doorcase ---- */
+    for(const [x0,x1] of [[14, 66], [164, 216]]){
+      slab(x0-6, x1+6, 24, 32, 4, -1, shade(wall,.94));
+      reveal(x0, x1, 32, 118, 11, shade(wall,.50));
+      glaze(x0, x1, 32, 118, shade(wall,1.14), glassT);
+      for(let k=0;k<6;k++)                                     // the bars, IN the reveal
+        cyl(x0 + (x1-x0)*(k+0.5)/6, -2, 34, 116, 1.8, '#2b3138');
+      tube(x0+2, -2, 75, x1-2, -2, 75, 1.5, '#2b3138');
+      slab(x0-5, x1+5, 118, 126, 4, -1, shade(wall,1.04));
     }
-    shopDoor(W*0.50, wall, trim);
-    F(W*0.45,W*0.55, 12, 88, '#5a6a7a', null,0,-8.5);
-    slab(W*0.36,W*0.64, 96, 106, -1, -10, shade(wall,1.12));
-    slab(W*0.40,W*0.60, 108, 122, -1, -8, trim);
-    // blue lamp, turned, on a bracket
-    tube(W*0.50, -2, 118, W*0.50, -16, 118, 1.6, '#3a4046');
-    cyl(W*0.50, -16, 108, 116, 5, '#3a4046');
-    cyl(W*0.50, -16, 90, 108, 12, '#2f6fd0');
-    ball(W*0.50, -16, 90, 12, '#2f6fd0', '#5a92e0');
-    plateCircle(W*0.50, -16, 108, 13, '#1e4a94');
+    for(const pa of [S0-16, S1+2])                             // doorcase pilasters
+      slab(pa, pa+14, 10, 124, 6, -1, shade(wall,1.08), null, shade(wall,1.2));
+    shopDoor(DMID, wall, trim);
+
+    /* ---- THE CHEQUER BAND, which is what actually says police ----
+       A small lamp high up and a blank dark board told you nothing at a
+       glance: the building read as any dark-trimmed office with bars.
+       The Sillitoe chequer is the signal -- it is legible at one pixel a
+       square and needs no lettering to work -- so it runs the whole
+       frontage rather than sitting over the door as a sign.
+
+       It goes at 124..148, clear of the door surround top at 114.95, and
+       runs 0..W at bFront 4 -- not -2..W+2 at 6.6, which was my own first
+       cut and put screen-a at -8.6 and 242.6, further past the returns
+       than anything else on the building. */
+    slab(0, W, 122, 150, 4, -1, '#11284e', null, shade('#11284e',1.4));
+    { const CQ = W/16;
+      for(let r=0;r<2;r++) for(let i=0;i<16;i++)
+        F(i*CQ, (i+1)*CQ, 124 + r*12, 136 + r*12,
+          (i + r) % 2 ? '#1e4a94' : '#eef1f5', null, 0, 4.6);
+    }
+    slab(S0-24, S1+24, 150, 158, 6, -1, shade(wall,1.14), null, shade(wall,1.26));
+
+    /* THE BLUE LAMP IS GONE at Sir's direction. It went through three
+       shapes -- a small dot, a bucket, then a proper lantern box -- and
+       none of them earned the space: the CHEQUER is what says police,
+       and it says it across the whole frontage rather than at one point
+       on it. With the lamp off, bmax drops from 43 to 22, which is the
+       entrance steps, and nothing on this building projects above head
+       height at all. */
+
     if(state.props){
-      box(W*0.34,W*0.66, 0, 26, 0, 10, shade(wall,1.02), shade(wall,.86), shade(wall,.76));
-      box(W*0.37,W*0.63, 0, 18, 10, 18, shade(wall,1.04), shade(wall,.88), shade(wall,.78));
+      /* the entrance steps, on the line and under the doorcase */
+      box(78, 152, 0, 22, 0, 10, shade(wall,1.02), shade(wall,.86), shade(wall,.76));
+      box(84, 146, 0, 15, 10, 20, shade(wall,1.04), shade(wall,.88), shade(wall,.78));
     }
     if(state.roof){
-      box(W*0.22, W*0.30, -78, -62, H+12, H+18, '#9aa0a6','#8d949a','#7d848a');
-      cyl(W*0.26, -70, H+18, H+120, 2.2, '#c3c8cc');
-      for(let k=0;k<3;k++){
-        const z = H+100-k*22, half = 8+k*4;
-        tube(W*0.26-half, -70, z, W*0.26+half, -70, z, 1.2, '#c3c8cc');
-      }
       box(W*0.56,W*0.84,-160,-116,H,H+26,'#8f969d','#787f86','#697077');
+      box(W*0.22, W*0.30, -78, -62, H+12, H+18, '#9aa0a6','#8d949a','#7d848a');
+      cyl(W*0.26, -70, H+18, H+140, 2.4, '#c3c8cc');
+      for(let k=0;k<3;k++){
+        const z = H+118-k*26, half = 8+k*5;
+        tube(W*0.26-half, -70, z, W*0.26+half, -70, z, 1.3, '#c3c8cc');
+      }
     }
     kerb(p,'none');
   }
