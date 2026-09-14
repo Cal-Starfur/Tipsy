@@ -7290,6 +7290,51 @@ const HOUSE_WRAP_PALETTES = [
 ];
 const HOUSE_DEPTH = T2 * 3; // exactly 3 tiles deep — real footprint, not a thin cutout
 
+/* ---------- LEGACY SHOPFRONT ART ----------
+   Every commercial unit in the city is drawn by drawStoreUnit: one
+   procedural generator seeded off the unit's position, picking a palette
+   from STORE_PALETTES and rolling its own door side, window head, awning,
+   sign band and roofline. Eighty-three hand-built shopfronts now exist in
+   labs/shopfront-shops.js, and the two systems cannot both own a frontage.
+
+   Sir's call: clear the old art out first so the new designs are not
+   fighting it. This is the switch that does it, and it is a SWITCH rather
+   than a deletion for one pass only -- flipping it back is one character
+   if anything turns out to depend on the art in a way the audit missed.
+   The code comes out for real once the library path is proven.
+
+   MEASURED BEFORE CUTTING, because this looked like it might be
+   load-bearing and is not:
+
+     solidAt(x, y, R)   tests b.x0..b.x1, the worldgen BLOCK rectangle
+     builtHeightAt      tests a HOUSE_DEPTH band off the block edge
+
+   Neither reads a single thing drawStoreUnit draws, so turning the art
+   off cannot let Tipsy through a wall: he is stopped by the block, not
+   by the building. What stays is the LAYOUT -- packEdgeNoGap, unit
+   starts, widths and per-unit seeds are untouched -- so the slots the
+   library will plug into are exactly where they were. */
+const SHOP_ART_LEGACY = false;
+
+/* ---------- LEGACY CORNER UNITS ----------
+   Their own switch, because they are their own building type and the
+   library does not replace them: drawCornerStoreUnit has its own
+   generator and its own CORNER_STORE_PALETTES, and none of the 83
+   entries is corner-shaped -- they are all frontage units.
+
+   AND THEY ARE NOT ONLY ON COMMERCIAL BLOCKS. queueCornerUnit is called
+   from queueCommercialBlock AND queueHousingBlock, so folding them into
+   SHOP_ART_LEGACY took corner shops off the housing blocks too. Worse,
+   queueHousingBlock cuts its terrace back for them first --
+
+     trims[cu.edgeIdx][cu.atStart ? 0 : 1] = CORNER_LOT_INSET + cu.w
+
+   -- so with the unit gone the houses are still inset and every housing
+   block ends up with a HOLE at each corner. If this is ever set false,
+   liveCornerUnits must return nothing so the trims go with it, which is
+   what the guard below does. */
+const CORNER_ART_LEGACY = true;
+
 const STORE_PALETTES = [
   { wall:0x8a3f36, wallDk:0x6e2f28, wallLt:0x9e4c42, trim:0x3a2018, sign:0xe8ddc0 },  // brick red
   { wall:0x2a5c5c, wallDk:0x1e4646, wallLt:0x357070, trim:0x16302f, sign:0xf0e6cc },  // deep teal
@@ -16824,6 +16869,7 @@ class WorldScene extends Phaser.Scene {
   }
 
   drawStoreUnit(g, ox, oy, dv, rv, w, seed, isFirst, isLast, part='all', a0=0, a1=w, opts=null, b0=null, b1=null){
+    if(!SHOP_ART_LEGACY) return;                 // see SHOP_ART_LEGACY
     const rng = mulberry32(seed);
     const G = (a,b,h) => this.W(ox + dv.x*a + rv.x*b, oy + dv.y*a + rv.y*b, h);
     /* slice window [a0,a1): same contract as drawHouseUnit — clip
@@ -17911,6 +17957,7 @@ class WorldScene extends Phaser.Scene {
      and it cannot be relied on here (reported separately, not fixed
      in this change). */
   liveCornerUnits(blk, excludeEdges){
+    if(!CORNER_ART_LEGACY) return [];            // kills the trims with the units
     const out = [];
     for(const cu of cornerUnitsOf(blk)){
       if(excludeEdges && cu.adjEdges.some(a => excludeEdges.includes(a))) continue;
@@ -17919,6 +17966,7 @@ class WorldScene extends Phaser.Scene {
     return out;
   }
   queueCornerUnit(vq, blk, cu){
+    if(!CORNER_ART_LEGACY) return;               // see CORNER_ART_LEGACY
     const hseed = ((Math.round(cu.hx)*7919) ^ (Math.round(cu.hy)*104729)) >>> 0;
     /* every corner lot is a SPECIAL corner store, both districts -- the
        classic neighbourhood corner store -- with its chamfered door
@@ -30574,32 +30622,10 @@ function resizeRouteMap(){
    a driving minimap owes you and nothing else: the blocks around you,
    the streets between them, your errand's line, and you.
 
-   SCREEN-ALIGNED, NOT NORTH-UP (2026-09-13, Sir on-device: "the in game
-   gps and the onscreen map arent in agreement... they should both be
-   giving me the same direction to the target").
-
-   It WAS north-up, drawn straight in world x/y, to match the big map.
-   That is exactly what broke it. Costa Palma is isometric: W() maps a
-   world direction (dx,dy) to screen (dx-dy, (dx+dy)*0.5), which is a 45
-   degree rotation with the vertical halved. The GPS chevron already
-   measures through that projection (gpsScreenAng) because it has to --
-   it is drawn over the city the player is looking at. So the two
-   instruments were reporting the same errand in two different frames,
-   and every direction on the minimap sat roughly 45 degrees off the
-   chevron beside it. Two arrows, one destination, two answers.
-
-   The fix is the frame, not the arrow: this canvas now goes through the
-   SAME projection the world is drawn with, so up on the minimap is up on
-   the screen. Blocks become diamonds, which is what a city block looks
-   like from this camera anyway. K drops out -- it is a uniform scale --
-   so the angles here are identical to the chevron's by construction,
-   not by agreement.
-
-   The big map stays north-up: it is a paused, whole-city, you-are-here
-   screen and north-up is right for reading a city. This is the
-   windscreen instrument, and a windscreen instrument that disagrees with
-   the windscreen is worse than no instrument. The compass needle below
-   is what keeps the two readable as the same city. */
+   NORTH-UP, not heading-up. The big map is north-up and the two have to
+   agree or they teach contradictory mental models of the same city; the
+   heading cone is what tells you which way you are pointed, exactly as
+   it now does on the big map. */
 const MINI_BLOCKS = 3.2;      // blocks visible from centre to edge
 const MINI_MS     = 110;      // ~9fps: it is a map, not an animation
 let _miniAt = 0;
@@ -30636,31 +30662,9 @@ function tpMiniDraw(scene){
   const grid = scene.route.grid, pal = scene.route.pal;
   const hex = n => "#" + n.toString(16).padStart(6, "0");
   const span  = BLOCK*MINI_BLOCKS*2;
-  /* SAME SCALE AS THE NORTH-UP VERSION, deliberately. Turning the square
-     on its point stretches it 2:1, so the honest numbers are: measured
-     from the centre, 4.5 blocks up the screen and 2.3 across, against a
-     flat 3.2 both ways before. That is the right trade for a driving
-     instrument -- up the screen is where you are going -- and anything
-     tighter loses the block either side of you at a junction. */
   const scale = Math.min(W, H)/span;
   const cx = scene.botX, cy = scene.botY;
-  /* THE PROJECTION, direction-for-direction the same one gpsScreenAng
-     and W() use. Nothing else in this function knows the camera exists;
-     everything below just calls T. */
-  const T = p => {
-    const dx = p.x - cx, dy = p.y - cy;
-    return { x: W/2 + (dx - dy)*scale, y: H/2 + (dx + dy)*0.5*scale };
-  };
-  /* a world-space axis-aligned rectangle is a parallelogram once it is
-     projected, so blocks cannot be fillRect any more. */
-  const quad = (x0, y0, x1, y1) => {
-    const a = T({ x: x0, y: y0 }), b = T({ x: x1, y: y0 });
-    const d = T({ x: x1, y: y1 }), e = T({ x: x0, y: y1 });
-    ctx.beginPath();
-    ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y);
-    ctx.lineTo(d.x, d.y); ctx.lineTo(e.x, e.y);
-    ctx.closePath(); ctx.fill();
-  };
+  const T = p => ({ x: W/2 + (p.x - cx)*scale, y: H/2 + (p.y - cy)*scale });
 
   /* pavement first, blocks on top, streets over the gap between them --
      the same three-layer order and the same palette the big map uses,
@@ -30668,18 +30672,16 @@ function tpMiniDraw(scene){
   ctx.fillStyle = hex(pal.pave);
   ctx.fillRect(0, 0, W, H);
   const BLOCKCOL = { housing: "#e3d4b8", park: "#8fbf7a", commercial: "#c4c8cc" };
-  /* the visible region is a rotated square now, so the world-space box
-     the cull walks has to be the diamond's bounding box: span either
-     side rather than span/2. Cheap -- it is a Map lookup per cell. */
-  const i0 = Math.floor((cx - span)/BLOCK) - 1, i1 = Math.ceil((cx + span)/BLOCK) + 1;
-  const j0 = Math.floor((cy - span)/BLOCK) - 1, j1 = Math.ceil((cy + span)/BLOCK) + 1;
+  const i0 = Math.floor((cx - span/2)/BLOCK) - 1, i1 = Math.ceil((cx + span/2)/BLOCK) + 1;
+  const j0 = Math.floor((cy - span/2)/BLOCK) - 1, j1 = Math.ceil((cy + span/2)/BLOCK) + 1;
   const byIJ = grid.blockByIJ;
   if(byIJ){
     for(let j = j0; j <= j1; j++) for(let i = i0; i <= i1; i++){
       const b = byIJ.get(i + "," + j);
       if(!b) continue;
+      const a = T({ x: b.x0, y: b.y0 }), d = T({ x: b.x1, y: b.y1 });
       ctx.fillStyle = BLOCKCOL[b.type] || "#d8d2c2";
-      quad(b.x0, b.y0, b.x1, b.y1);
+      ctx.fillRect(a.x, a.y, d.x - a.x, d.y - a.y);
     }
     /* merged parks: bridge the swallowed street, same +x/+y neighbour
        rule fillBlockGround and the big map both follow. Classic grids
@@ -30690,18 +30692,21 @@ function tpMiniDraw(scene){
         const b = byIJ.get(i + "," + j);
         if(!b || b.type !== "park") continue;
         const nx = byIJ.get((i+1) + "," + j), ny = byIJ.get(i + "," + (j+1));
-        if(nx && nx.type === "park") quad(b.x1, b.y0, nx.x0, b.y1);
-        if(ny && ny.type === "park") quad(b.x0, b.y1, b.x1, ny.y0);
+        if(nx && nx.type === "park"){
+          const a = T({ x: b.x1, y: b.y0 }), d = T({ x: nx.x0, y: b.y1 });
+          ctx.fillRect(a.x, a.y, d.x - a.x, d.y - a.y);
+        }
+        if(ny && ny.type === "park"){
+          const a = T({ x: b.x0, y: b.y1 }), d = T({ x: b.x1, y: ny.y0 });
+          ctx.fillRect(a.x, a.y, d.x - a.x, d.y - a.y);
+        }
       }
     }
   }
   ctx.strokeStyle = hex(pal.road);
-  /* 1.118 is |(dx-dy, (dx+dy)/2)| for a unit normal on either lattice
-     axis -- both axes project to the same width, so one number covers
-     the whole grid and the roads stay the width of the gap they fill. */
-  ctx.lineWidth = Math.max(1.5, 2*ROAD_HALF*scale*1.118);
+  ctx.lineWidth = Math.max(1.5, 2*ROAD_HALF*scale);
   ctx.lineCap = "butt";
-  const near = p => Math.abs(p.x - cx) < span*1.5 && Math.abs(p.y - cy) < span*1.5;
+  const near = p => Math.abs(p.x - cx) < span && Math.abs(p.y - cy) < span;
   for(const e of (grid.edges || [])){
     if(!near(e.a) && !near(e.b)) continue;
     const pa = T(e.a), pb = T(e.b);
@@ -30733,53 +30738,27 @@ function tpMiniDraw(scene){
     ctx.restore();
     /* the destination itself, when it is close enough to be on screen;
        when it is not, the dashed line running off the edge is already
-       the arrow pointing at it. Tested in CANVAS space, not world: the
-       visible region is a diamond now and a world-space box test would
-       either clip the marker early or draw it off the edge. */
-    if(Number.isFinite(gpsNav.tx)){
+       the arrow pointing at it. */
+    if(Number.isFinite(gpsNav.tx) && near({ x: gpsNav.tx, y: gpsNav.ty })){
       const p = T({ x: gpsNav.tx, y: gpsNav.ty });
-      if(p.x >= -2 && p.x <= W + 2 && p.y >= -2 && p.y <= H + 2){
-        ctx.fillStyle = "#ff7a1a";
-        ctx.beginPath(); ctx.arc(p.x, p.y, 5, 0, Math.PI*2); ctx.fill();
-        ctx.strokeStyle = "#fff"; ctx.lineWidth = 1.5; ctx.stroke();
-      }
+      ctx.fillStyle = "#ff7a1a";
+      ctx.beginPath(); ctx.arc(p.x, p.y, 5, 0, Math.PI*2); ctx.fill();
+      ctx.strokeStyle = "#fff"; ctx.lineWidth = 1.5; ctx.stroke();
     }
   }
 
-  /* you, dead centre, facing where you are facing. The marker takes an
-     angle in ITS canvas's frame, and this canvas is the screen's now, so
-     the world yaw is projected on the way in -- through gpsScreenAng,
-     the chevron's own function, so the cone and the chevron are aimed by
-     one line of code. The big map still passes raw yaw: it is still
-     north-up and the marker is unchanged. */
+  /* you, dead centre, facing where you are facing. Same marker the big
+     map draws, same cone, so the two screens read as one instrument. */
   const yaw = (scene.ow && scene.ow.on) ? scene.ow.yaw : scene.drawAngle;
-  const yawS = Number.isFinite(yaw)
-    ? gpsScreenAng(Math.cos(yaw), Math.sin(yaw)) : null;
-  drawRobotMarker(ctx, W/2, H/2, yawS);
+  drawRobotMarker(ctx, W/2, H/2, Number.isFinite(yaw) ? yaw : null);
 
-  /* compass needle: on a screen-aligned map north is a direction, not a
-     corner, so the tick has to point. World north is -y, which this
-     camera puts up and to the right; the letter rides the tip. */
-  {
-    const nA = gpsScreenAng(0, -1);
-    const ox = W - 16, oy = 13, L = 6;
-    ctx.save();
-    ctx.translate(ox, oy);
-    ctx.rotate(nA);
-    ctx.strokeStyle = "rgba(20,23,29,.55)"; ctx.lineWidth = 1.5;
-    ctx.beginPath(); ctx.moveTo(-L, 0); ctx.lineTo(L, 0); ctx.stroke();
-    ctx.fillStyle = "rgba(20,23,29,.55)";
-    ctx.beginPath();
-    ctx.moveTo(L + 3, 0); ctx.lineTo(L - 2, -2.6); ctx.lineTo(L - 2, 2.6);
-    ctx.closePath(); ctx.fill();
-    ctx.restore();
-    ctx.fillStyle = "rgba(20,23,29,.75)";
-    ctx.font = "700 8px sans-serif";
-    ctx.textAlign = "center"; ctx.textBaseline = "middle";
-    ctx.fillText("N", ox + Math.cos(nA)*(L + 5), oy + Math.sin(nA)*(L + 5));
-  }
+  /* north tick: a north-up map that never says so is just a map you
+     have to guess the orientation of. */
+  ctx.fillStyle = "rgba(20,23,29,.55)";
+  ctx.font = "700 8px sans-serif";
+  ctx.textAlign = "center"; ctx.textBaseline = "top";
+  ctx.fillText("N", W - 9, 4);
 }
-
 if(typeof window !== "undefined") window.tpMiniDraw = tpMiniDraw;
 
 function drawRobotMarker(ctx, x, y, yaw){
