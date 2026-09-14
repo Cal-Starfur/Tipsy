@@ -13660,75 +13660,280 @@ const SHOPS = [
   }
 },
 {
-  name:'Almshouses', tall:true,
-  fTodo:'z118..132 return +10',
-  zTodo:1.56,          // H 262 -- see SCALE REVIEW at the head of this file
-  head:'Arcaded ground floor, dormers, courtyard gate',
-  tags:['swept arcade','dormers with cheeks','courtyard gate','chimney pots','3 storey'],
-  desc:'Every arch in the arcade is swept to a real reveal on round piers, and each dormer is a solid box with cheeks and a pitched roof rather than a face on the slope.',
+  name:'Almshouses', tall:true, block:true, ww: 3128, dd: 3128,
+  wTodo:'a FULL block cell -- BLOCK 3128 with ROAD_HALF 368 each side, so 1656 square of buildable ground, arranged as three ranges round a court',
+  cTodo:'the three ranges, the gate piers and the court pump are volumes; the courtyard and the carriage arch are walkable',
+  head:'Three ranges round a court, the carriage arch on the street',
+  tags:['block landmark','the real BLOCK, 3128','ranges round a courtyard','carriage arch','dormers with cheeks'],
+  desc:'Almshouses as they are actually built: ranges of small dwellings round an open court, each with its own door, the side and back ranges opening onto the court and the street range reached through a carriage arch.',
   draw(p){
-    const wall = '#c9b48e', trim = '#6a5340', H = 262;
-    body(wall, trim, H);
-    slab(0,W, H, H+10, -1, -12, shade(wall,.7));
-    F(0,W, 0, 118, shade(wall,.55), null,0, 1);
-    for(let i=0;i<4;i++) cyl(W*i/3, -8, 0, 118, 11, shade(wall,1.02));
-    for(let i=0;i<3;i++){
-      const x0 = W*i/3+11, x1 = W*(i+1)/3-11;
-      const ap = (t,bb) => {
-        const u=1-t, a = u*u*x0 + 2*u*t*((x0+x1)/2) + t*t*x1;
-        const z = u*u*92 + 2*u*t*136 + t*t*92;
-        return P(a,bb,z);
+    /* ============ AN ARCADE OF THREE DWELLINGS DOES NOT FIT 230 =======
+       The old entry got the doors right and the structure wrong. Three
+       shopDoors at W/6, W/2 and 5W/6 do fit -- surrounds 1.21..75.45,
+       77.88..152.12 and 154.55..228.79, with 10.4 of pier between -- and
+       its own comment says so. But that uses 222.7 of the 230, leaving
+       7.3 for FOUR arcade piers, so the piers were drawn r 11 at a 0,
+       76.7, 153.3 and 230:
+
+         pier 0  a -11.0.. 11.0   past the return
+         pier 1  a  65.7.. 87.7   through a door surround
+         pier 2  a 142.3..164.3   through a door surround
+         pier 3  a 219.0..241.0   past the return
+
+       AND THE ARCADE WAS INSIDE OUT, exactly like the Museum's portico:
+       the back face at F(0, W, 0, 118) sat at b +1, PROUD, while the
+       piers sat at b -8 -- nine units BEHIND the wall they are meant to
+       stand in front of. Tenth instance of wrong-sign-of-b.
+
+       THE ANSWER IS THE PLAN, not the elevation. Almshouses are a ROW
+       ROUND A COURT -- which the entry's own courtyard-gate tag already
+       said -- so they take a block cell and the dwellings face inward:
+
+         cell    a  736..2392   b -2392.. -736
+         street  a  736..2392   b -1000.. -736   with the carriage arch
+         left    a  736..1000   b -2392..-1000
+         right   a 2128..2392   b -2392..-1000
+         court   a 1000..2128   b -2128..-1000   1128 square
+
+       Each door now has a whole range to sit in instead of fighting a
+       pier for the same 76 units. The side and back ranges open onto the
+       court, which is what almshouses do; the street range keeps its
+       doors on the street because that face is the one the game's camera
+       actually sees, and a blank wall there would be accurate and
+       useless. The arch is the way through. */
+    const BLK = 3128, ROAD = 736;
+    const CA0 = ROAD, CA1 = BLK - ROAD, CB1 = -ROAD, CB0 = -(BLK - ROAD);
+    const RD = 264, H = 300;
+    const SB0 = CB1 - RD, LA1 = CA0 + RD, RA0 = CA1 - RD;
+    const wall = '#c9b48e', trim = '#6a5340', roofc = '#8f5540';
+    const glassT = 'rgba(122,138,146,.88)';
+    const GMID = (CA0+CA1)/2, GW = 190;
+
+    T(0, BLK, -BLK, 0, 0.3, '#b3a894');
+    T(CA0, CA1, CB0, CB1, 0.6, '#a99d86');
+    T(LA1, RA0, CB0+RD, SB0, 0.9, '#6f8a5e');                  // the court lawn
+    T(GMID-70, GMID+70, CB0+RD, SB0, 1.2, '#bdb299');          // the path from the arch
+
+    const items = [];
+
+    /* ============ AND THEY ARE COTTAGES, NOT RANGES ============
+       At Sir's direction, and it is how most foundations were actually
+       built: separate dwellings round a green rather than one long
+       terrace with doors punched in it. Each one is its own box with its
+       own roof and its own chimney, and the gaps between them are what
+       says there are sixteen households here rather than one building.
+
+         street  500 + 94 + gate 468 + 94 + 500 = 1656
+         sides   640 + 112 + 640                 = 1392
+         back    528 +  72 + 528                 = 1128
+
+       EIGHT, not sixteen. The first cut put sixteen 260-wide dwellings
+       on a 1656 cell, and at that pitch a row of separate cottages reads
+       as a terrace with gaps in it -- the gap has to be a fair fraction
+       of the house for the house to look detached. At roughly double the
+       width they read as eight buildings round a green, which is the
+       size an endowment of this kind actually was.
+
+       THE DOORS DO DIFFER, and it is worth writing down because it looks
+       like they do not. Street row onto the street; left row +a, right
+       row -a, back row +b -- all three onto the COURT. That is correct
+       almshouse planning, and because the court is the middle of the
+       picture it still reads as most doors pointing one way. Each
+       cottage also gets its window on the OTHER side of its door from
+       its neighbour's, so the pairs read as pairs. */
+    const cottage = (a0, a1, b0, b1, ax, fv, mir) => {
+      const along = ax === 'a', M = (mir === undefined ? 1 : mir);
+      /* WHICH SIDE OF ITS OWN BOX THE FACE IS ON DECIDES THE ORDER. This
+         camera sees the +a and +b sides, so a cottage's face is visible
+         only when that face is the HIGH coordinate of its own box. The
+         right range opens onto the court, which is on its LOW a -- so the
+         camera sees its back, and the door drawn after box() painted
+         straight through it. Correct position, wrong order: hidden faces
+         go before the box, visible ones after. */
+      const hidden = along ? (fv < b1) : (fv < a1);
+
+      const openings = () => {
+        if(along){
+          const c = (a0+a1)/2, d = fv > b0 ? 1 : -1;
+          F(c-M*140, c-M*44, 34, 128, glassT, trim, 2, fv + d*0.5);
+          F(c-M*140, c-M*44, 79, 83, trim, null, 0, fv + d*0.9);
+          F(c+M*22, c+M*94, 0, 132, '#3f342a', trim, 2, fv + d*0.5);
+          F(c+M*28, c+M*88, 96, 124, glassT, null, 0, fv + d*0.9);
+          F(c+M*84, c+M*88, 58, 70, '#c9a24a', null, 0, fv + d*1.3);
+          poly([P(c+M*12,fv,152),P(c+M*104,fv,152),
+                P(c+M*104,fv+d*26,138),P(c+M*12,fv+d*26,138)], shade(trim,1.1));
+          poly([P(c+M*12,fv+d*26,138),P(c+M*104,fv+d*26,138),
+                P(c+M*104,fv+d*26,130),P(c+M*12,fv+d*26,130)], shade(trim,.8));
+        } else {
+          const c = (b0+b1)/2, d = fv > a0 ? 1 : -1;
+          S(fv + d*0.5, c-M*140, c-M*44, 34, 128, glassT);
+          S(fv + d*0.9, c+M*22, c+M*94, 0, 132, '#3f342a');
+          poly([P(fv,c+M*12,152),P(fv,c+M*104,152),
+                P(fv+d*26,c+M*104,138),P(fv+d*26,c+M*12,138)], shade(trim,1.1));
+        }
       };
-      ctx.beginPath(); let q=ap(0,-7); ctx.moveTo(q.x,q.y);
-      for(let k=1;k<=12;k++){ q=ap(k/12,-7); ctx.lineTo(q.x,q.y); }
-      ctx.closePath(); ctx.fillStyle=shade(wall,1.02); ctx.fill();
-      for(let k=0;k<12;k++) poly([ap(k/12,-7),ap((k+1)/12,-7),ap((k+1)/12,2),ap(k/12,2)], shade(wall,.86));
-      const ip = (t,bb) => {
-        const u=1-t, a = u*u*(x0+5) + 2*u*t*((x0+x1)/2) + t*t*(x1-5);
-        const z = u*u*92 + 2*u*t*128 + t*t*92;
-        return P(a,bb,z);
+      /* and the back gets windows of its own, because a cottage has them
+         and because the right range would otherwise be 1392 of blank wall */
+      /* A BARE PANE IS NOT A WINDOW. The back windows were a single
+         translucent quad each -- no reveal behind, no surround, no cill
+         -- and S() takes no stroke, so on the 'b' faces they had not
+         even the trim outline the 'a' faces got. glassT is 88 per cent
+         opaque, so the wall read straight through and the pane looked
+         like a hole you could see the court through. They get the same
+         parts the front windows have: a dark reveal, the glass, a bar,
+         a surround and a cill. */
+      const back = () => {
+        const win = (plane, ax2, q0, q1) => {
+          const dk = '#2e2820';
+          if(ax2 === 'a'){
+            F(q0-5, q1+5, 38, 120, shade(wall,1.14), trim, 2, plane);
+            F(q0, q1, 44, 114, dk, null, 0, plane + (plane > b0 ? 0.4 : -0.4));
+            F(q0+2, q1-2, 46, 112, glassT, null, 0, plane + (plane > b0 ? 0.8 : -0.8));
+            F(q0+2, q1-2, 77, 81, trim, null, 0, plane + (plane > b0 ? 1.2 : -1.2));
+            F(q0-8, q1+8, 32, 38, trim, null, 0, plane + (plane > b0 ? 1.2 : -1.2));
+          } else {
+            const d = plane > a0 ? 1 : -1;
+            S(plane,           q0-5, q1+5, 38, 120, shade(wall,1.14));
+            S(plane + d*0.4,   q0, q1, 44, 114, dk);
+            S(plane + d*0.8,   q0+2, q1-2, 46, 112, glassT);
+            S(plane + d*1.2,   q0+2, q1-2, 77, 81, trim);
+            S(plane + d*1.2,   q0-8, q1+8, 32, 38, trim);
+          }
+        };
+        if(along){
+          const c = (a0+a1)/2, bb = (fv > b0 ? b0 : b1), o = (fv > b0 ? -0.5 : 0.5);
+          for(const q of [c-74, c+34]) win(bb + o, 'a', q, q+40);
+        } else {
+          const c = (b0+b1)/2, aa = (fv > a0 ? a0 : a1), o = (fv > a0 ? -0.5 : 0.5);
+          for(const q of [c-74, c+34]) win(aa + o, 'b', q, q+40);
+        }
       };
-      ctx.beginPath(); q=ip(0,2); ctx.moveTo(q.x,q.y);
-      for(let k=1;k<=12;k++){ q=ip(k/12,2); ctx.lineTo(q.x,q.y); }
-      ctx.closePath(); ctx.fillStyle='#3f342a'; ctx.fill();
-      /* the only shop in the 81 where a row of three real doors fits:
-       centres at W/6, W/2 and 5W/6 give 66.24-wide leaves with ten
-       units of pier between them. */
-    shopDoor((x0+x1)/2, wall, trim, 'rgba(63,52,42,.5)');
-    }
-    slab(0,W, 118, 132, -1, -10, shade(wall,.86));
-    for(let fl=0; fl<2; fl++){
-      const z0 = 148 + fl*54;
-      for(let i=0;i<5;i++){
-        const x0 = 12+(W-24)*(i+0.16)/5, x1 = 12+(W-24)*(i+0.84)/5;
-        slab(x0-3,x1+3, z0-3, z0+39, -1, -8, trim);
-        F(x0,x1, z0, z0+36, '#7a8a92', null,0,-8.5);
-        F(x0,x1, z0+17, z0+20, trim, null,0,-9);
-        F(x0+(x1-x0)/2-1.4, x0+(x1-x0)/2+1.4, z0, z0+36, trim, null,0,-9);
+
+      /* BOTH faces need ordering, not one. openings() sits on fv and
+         back() on the opposite face, so EXACTLY ONE of them is behind
+         the box on any given row -- and it is the back on three rows out
+         of four. Ordering only openings() left those three bleeding
+         through, which is the same fault one step along. */
+      if(hidden){ openings(); box(a0, a1, b0, b1, 0, H, shade(wall,1.04), wall, shade(wall,.86)); back(); }
+      else      { back();     box(a0, a1, b0, b1, 0, H, shade(wall,1.04), wall, shade(wall,.86)); openings(); }
+
+      /* THE EAVES COURSE GOES BEFORE THE ROOF. slab() is a solid BOX and
+         its top face is the full a x b rectangle at z = H -- the whole
+         roof footprint. Drawn after the slopes it painted over every one
+         of them, and only the strip rising above it survived. That is
+         what looked like missing roof pieces: the roof was there the
+         whole time, buried under its own eaves course. */
+      slab(a0-7, a1+7, H-9, H, b1+7, b0-7, trim);
+      if(along){
+        const m = (b0+b1)/2;
+        /* THE GABLE ENDS ARE WALL, not roof. In roofc they read as two
+           more slopes flying off the ends of the building instead of the
+           masonry carrying up to the ridge. The verge is the only roof
+           material that belongs on that edge. */
+        poly([P(a1,b0,H),P(a1,b1,H),P(a1,m,H+80)], shade(wall,1.04));
+        poly([P(a0,b0,H),P(a0,b1,H),P(a0,m,H+80)], shade(wall,.88));
+        poly([P(a0,b1,H),P(a1,b1,H),P(a1,m,H+80),P(a0,m,H+80)], shade(roofc,1.1));
+        poly([P(a0,b0,H),P(a1,b0,H),P(a1,m,H+80),P(a0,m,H+80)], shade(roofc,.82));
+        for(const [va, d] of [[a1, 1], [a0, -1]]){
+          poly([P(va,b1,H),P(va+d*9,b1,H),P(va+d*9,m,H+80),P(va,m,H+80)], shade(roofc,.72));
+          poly([P(va,b0,H),P(va+d*9,b0,H),P(va+d*9,m,H+80),P(va,m,H+80)], shade(roofc,.62));
+        }
+        const ca = (a0+a1)/2;
+        box(ca-22, ca+22, m-22, m+22, H+40, H+124, '#a86a52','#b8785e','#96604a');
+        slab(ca-26, ca+26, H+124, H+132, m+26, m-26, '#8f5540');
+        cyl(ca, m, H+132, H+152, 7, '#4a3a30');
+      } else {
+        const m = (a0+a1)/2;
+        poly([P(a0,b1,H),P(a1,b1,H),P(m,b1,H+80)], shade(wall,1.04));
+        poly([P(a0,b0,H),P(a1,b0,H),P(m,b0,H+80)], shade(wall,.88));
+        poly([P(a0,b0,H),P(a0,b1,H),P(m,b1,H+80),P(m,b0,H+80)], shade(roofc,.86));
+        poly([P(a1,b0,H),P(a1,b1,H),P(m,b1,H+80),P(m,b0,H+80)], shade(roofc,1.06));
+        for(const [vb, d] of [[b1, 1], [b0, -1]]){
+          poly([P(a0,vb,H),P(a0,vb+d*9,H),P(m,vb+d*9,H+80),P(m,vb,H+80)], shade(roofc,.72));
+          poly([P(a1,vb,H),P(a1,vb+d*9,H),P(m,vb+d*9,H+80),P(m,vb,H+80)], shade(roofc,.62));
+        }
+        const cb = (b0+b1)/2;
+        box(m-22, m+22, cb-22, cb+22, H+40, H+124, '#a86a52','#b8785e','#96604a');
+        slab(m-26, m+26, H+124, H+132, cb+26, cb-26, '#8f5540');
+        cyl(m, cb, H+132, H+152, 7, '#4a3a30');
       }
+    };
+
+    /* ---- the street row: two cottages and the carriage gate ---- */
+    for(const [a0, a1, m] of [[CA0, CA0+500, 1], [CA1-500, CA1, -1]])
+      items.push({ a:(a0+a1)/2, b:(SB0+CB1)/2, z:0,
+                   draw:() => cottage(a0, a1, SB0, CB1, 'a', CB1, m) });
+    items.push({ a:GMID, b:(SB0+CB1)/2, z:0, draw:() => {
+      /* the gate: two piers and a swept arch between them, in the gap the
+         middle cottage left. Nothing is drawn across it. */
+      for(const ga of [GMID-GW, GMID+GW])
+        box(ga-30, ga+30, SB0, CB1, 0, 250, shade(wall,1.08), shade(wall,1.0), shade(wall,.84));
+      const arc = (t, bb, ox, oz) => { const u = 1-t;
+        return P(u*u*(GMID-GW-ox) + 2*u*t*GMID + t*t*(GMID+GW+ox), bb,
+                 u*u*180 + 2*u*t*(276+oz) + t*t*180); };
+      const ring = (bb, ox, oz) => { const q = [];
+        for(let k=0;k<=14;k++) q.push(arc(k/14, bb, ox, oz));
+        q.push(P(GMID+GW+ox, bb, 180)); q.push(P(GMID-GW-ox, bb, 180)); return q; };
+      poly(ring(SB0, 0, -20), '#2e2820');
+      poly(ring(CB1-0.4, 0, -20), '#2e2820');
+      for(let k=0;k<14;k++){
+        const c0 = arc(k/14, CB1+1, 18, 0), c1 = arc((k+1)/14, CB1+1, 18, 0);
+        const d0 = arc(k/14, CB1+1, 0, -20), d1 = arc((k+1)/14, CB1+1, 0, -20);
+        poly([c0, c1, d1, d0], k % 2 ? shade(wall,1.16) : shade(wall,1.02));
+      }
+      /* THE GATE ROOF WAS HALF A ROOF. It had one slope and one gable --
+         the +a slope and the street gable -- and nothing on the other
+         side, so the trim-topped eaves slab under it showed through as a
+         flat dark plate where the -a slope should be. Same shape as the
+         cottages' fault and the same fix: both slopes, both gables, and
+         the gables in WALL because they are the masonry carrying up to
+         the ridge. */
+      slab(GMID-GW-38, GMID+GW+38, 250, 272, CB1+8, SB0, shade(wall,1.1), null, shade(wall,1.16));
+      const GR = 318, GX0 = GMID-GW-38, GX1 = GMID+GW+38;
+      poly([P(GX0,CB1+8,272),P(GMID,CB1+8,GR),P(GX1,CB1+8,272)], shade(wall,1.06));
+      poly([P(GX0,SB0,272),P(GMID,SB0,GR),P(GX1,SB0,272)], shade(wall,.88));
+      poly([P(GX1,CB1+8,272),P(GMID,CB1+8,GR),P(GMID,SB0,GR),P(GX1,SB0,272)], shade(roofc,1.06));
+      poly([P(GX0,CB1+8,272),P(GMID,CB1+8,GR),P(GMID,SB0,GR),P(GX0,SB0,272)], shade(roofc,.84));
+      for(const [vb, d] of [[CB1+8, 1], [SB0, -1]]){          // the verge over each gable
+        poly([P(GX0,vb,272),P(GX0,vb+d*9,272),P(GMID,vb+d*9,GR),P(GMID,vb,GR)], shade(roofc,.7));
+        poly([P(GX1,vb,272),P(GX1,vb+d*9,272),P(GMID,vb+d*9,GR),P(GMID,vb,GR)], shade(roofc,.6));
+      }
+      for(let k=0;k<4;k++) F(GMID-52+k*28, GMID-34+k*28, 256, 268, trim, null, 0, CB1+8.5);
+    }});
+    /* ---- the side rows, facing the court ---- */
+    for(const [b0, b1, m] of [[CB0, CB0+640, 1], [CB1-RD-640, CB1-RD, -1]]){
+      items.push({ a:CA0+RD/2, b:(b0+b1)/2, z:0,
+                   draw:() => cottage(CA0, CA0+RD, b0, b1, 'b', CA0+RD, m) });
+      items.push({ a:CA1-RD/2, b:(b0+b1)/2, z:0,
+                   draw:() => cottage(CA1-RD, CA1, b0, b1, 'b', CA1-RD, m) });
     }
+    /* ---- the back row ---- */
+    for(const [a0, a1, m] of [[CA0+RD, CA0+RD+528, 1], [CA1-RD-528, CA1-RD, -1]])
+      items.push({ a:(a0+a1)/2, b:CB0+RD/2, z:0,
+                   draw:() => cottage(a0, a1, CB0, CB0+RD, 'a', CB0+RD, m) });
+
     if(state.props){
-      const gx0 = W*0.42, gx1 = W*0.58;
-      for(let i=0;i<6;i++) cyl(gx0 + (gx1-gx0)*i/5, 4, 0, 74, 1.6, trim);
-      tube(gx0, 4, 74, gx1, 4, 74, 1.6, trim);
-      tube(gx0, 4, 36, gx1, 4, 36, 1.2, trim);
+      items.push({ a:GMID, b:-1560, z:0, draw:() => {           // the court pump
+        box(GMID-26, GMID+26, -1586, -1534, 0, 20, shade(wall,1.02), shade(wall,.88), shade(wall,.8));
+        cyl(GMID, -1560, 20, 128, 11, trim);
+        ball(GMID, -1560, 134, 12, shade(trim,1.2));
+        tube(GMID, -1560, 104, GMID, -1520, 96, 4, trim);
+      }});
+      for(const [ta,tb] of [[1180,-1240],[1950,-1240],[1180,-1880],[1950,-1880]])
+        items.push({ a:ta, b:tb, z:0, draw:() => {
+          cyl(ta, tb, 0, 96, 13, '#6b5a3a');
+          for(let k=0;k<4;k++)
+            ball(ta + 40*Math.cos(k*1.57+0.4), tb + 40*Math.sin(k*1.57+0.4), 140, 40, ['#3f6b4a','#4e8058'][k%2]);
+          ball(ta, tb, 172, 38, '#4e8058');
+        }});
     }
-    if(state.roof){
-      for(let i=0;i<3;i++){
-        const da = W*0.18 + i*W*0.32, db = -34;
-        F(da-20,da+20, H+10, H+46, shade(wall,1.02), shade(wall,.76), 2, db);
-        poly([P(da+20,db,H+10),P(da+20,db-26,H+10),P(da+20,db-26,H+40),P(da+20,db,H+46)], shade(wall,.84));
-        poly([P(da-20,db,H+10),P(da-20,db-26,H+10),P(da-20,db-26,H+40),P(da-20,db,H+46)], shade(wall,.9));
-        F(da-11,da+11, H+18, H+40, '#7a8a92', null,0, db-0.6);
-        poly([P(da-25,db,H+46),P(da,db,H+70),P(da+25,db,H+46)], trim);
-        poly([P(da+25,db,H+46),P(da,db,H+70),P(da,db-26,H+62),P(da+25,db-26,H+40)], shade(trim,.8));
-      }
-      for(const ca of [W*0.06, W*0.94]){
-        box(ca-16, ca+16, -150, -110, H, H+56, '#a86a52','#b8785e','#96604a');
-        slab(ca-19, ca+19, H+56, H+62, -108, -152, '#8f5540');
-        for(let k=0;k<2;k++) cyl(ca-8+k*16, -130, H+62, H+76, 5, '#4a3a30');
-      }
-    }
+    for(const ga of [GMID-GW-30, GMID+GW+30])
+      items.push({ a:ga, b:CB1, z:0, draw:() => {
+        for(let k=0;k<5;k++) cyl(ga + (ga < GMID ? -1 : 1)*k*22, CB1+14, 0, 92, 3, trim);
+        tube(ga, CB1+14, 92, ga + (ga < GMID ? -1 : 1)*88, CB1+14, 92, 2.6, trim);
+      }});
+
+    depthSort(items);
     kerb(p,'none');
   }
 }
