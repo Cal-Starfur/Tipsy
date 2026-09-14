@@ -7333,7 +7333,7 @@ const SHOP_ART_LEGACY = false;
    block ends up with a HOLE at each corner. If this is ever set false,
    liveCornerUnits must return nothing so the trims go with it, which is
    what the guard below does. */
-const CORNER_ART_LEGACY = true;
+const CORNER_ART_LEGACY = false;
 
 const STORE_PALETTES = [
   { wall:0x8a3f36, wallDk:0x6e2f28, wallLt:0x9e4c42, trim:0x3a2018, sign:0xe8ddc0 },  // brick red
