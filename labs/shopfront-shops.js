@@ -13988,6 +13988,65 @@ const SHOPS = [
     const P3 = (q, z) => P(q[0], q[1], z);
     const DOOR = [0.10, 0.90], DH = 168, RD = 250;           // opening, head, room depth
 
+    /* ============ WHICH SIDE OF IT THE CAMERA IS ON ============
+       Everything below the back-view block was drawn for ONE projection:
+       the lab's, where +a and +b both come toward the eye and the chamfer
+       is the most square-on face. In the game the lot is laid on whatever
+       corner frame depotMap hands in, and the home corner is the block's
+       FAR corner -- chamfer pointing away. Drawn anyway, the door, room
+       and sign painted over the building's own back walls: the whole
+       front, seen through the building from behind (Sir on-device).
+
+       Asked of P(), the same test box() and slab() already use: a face
+       is toward the eye when stepping along its normal moves DOWN the
+       screen. STREET is the lab's view and runs the art below unchanged.
+       Anything else draws the faces that are actually seen -- the two
+       back walls, the roof and the roof plant.
+
+       state.part / state.partW let the game queue those walls as thin
+       depth strips (like fences) instead of one whole-unit key, so a
+       robot INSIDE the room sorts behind them. Unset -- the lab, and
+       the street view -- means everything, in one draw. */
+    const _o = P(0,0,0), _pa = P(1,0,0), _pb = P(0,1,0);
+    const SEE_A = (_pa.y - _o.y) > 0, SEE_B = (_pb.y - _o.y) > 0;
+    const STREET = SEE_A && SEE_B;
+    const PART = state.part || 'all', PW = state.partW || null;
+    if(!STREET){
+      const BF = 4;                                           // the fascia's projection, as FSC below
+      /* lit the way the lab lights it: the face that steps screen-LEFT
+         (lab +b) takes the wall colour, screen-right (lab +a) the .82 */
+      const lit = (na, nb) => (P(na, nb, 0).x - _o.x) < 0 ? wall : shade(wall,.82);
+      const win = (lo, hi) => PW ? [Math.max(lo, PW[0]), Math.min(hi, PW[1])] : [lo, hi];
+      if(PART === 'all' || PART === 'wallA'){
+        const aw = SEE_A ? WW : 0, span = win(-DD, SEE_A ? -CW : 0);
+        if(span[1] > span[0]) S(aw, span[0], span[1], 0, H, lit(SEE_A ? 1 : -1, 0));
+        /* the fascia's end, where the front band stops at a = 0 */
+        if(!SEE_A && !SEE_B && (!PW || PW[1] >= -0.001))
+          S(0, 0, BF, H-18, H, shade(brand,.78));
+      }
+      if(PART === 'all' || PART === 'wallB'){
+        const bw = SEE_B ? 0 : -DD, span = win(0, SEE_B ? WW-CW : WW);
+        if(span[1] > span[0]) F(span[0], span[1], 0, H, lit(0, SEE_B ? 1 : -1), null, 0, bw);
+        /* and where the flank band stops at b = -DD */
+        if(!SEE_A && !SEE_B && (!PW || PW[1] >= WW-0.001))
+          F(WW, WW+BF, H-18, H, shade(brand,.78), null, 0, -DD);
+      }
+      if(PART === 'all' || PART === 'roof'){
+        /* the roof is the chamfered footprint, not the lot rectangle --
+           T(0,WW,-DD,0) would hang the cut-off corner out past the
+           chamfer wall, and from behind nothing covers it */
+        poly([P(0,0,H), P(WW-CW,0,H), P(WW,-CW,H), P(WW,-DD,H), P(0,-DD,H)], shade(wall,1.12));
+        /* the fascia's top shows as a lip along the far edges */
+        const q0 = cpt(0,-BF), q1 = cpt(1,-BF), r0 = cpt(0,0), r1 = cpt(1,0);
+        poly([P(0,0,H), P(WW-CW,0,H), P(WW-CW,BF,H), P(0,BF,H)], shade(brand,1.2));
+        poly([P3(r0,H), P3(q0,H), P3(q1,H), P3(r1,H)], shade(brand,1.2));
+        poly([P(WW,-CW,H), P(WW+BF,-CW,H), P(WW+BF,-DD,H), P(WW,-DD,H)], shade(brand,1.2));
+      }
+    }
+    /* STREET VIEW ONLY from here to the roof plant -- the lab's art,
+       unchanged. Not re-indented, so the diff stays the two lines. */
+    if(STREET){
+
     /* ---- the shell: two street elevations ---- */
     T(0, WW, -DD, 0, H, shade(wall,1.12));
     F(0, WW-CW, 0, H, wall, null, 0, 0);
@@ -14339,8 +14398,9 @@ const SHOPS = [
     { const A0 = WW, A1 = WW + FSC;
       poly([P(A1,-CW,H), P(A1,-DD,H), P(A1,-DD,H-18), P(A1,-CW,H-18)], shade(brand,.78));
       poly([P(A0,-CW,H), P(A1,-CW,H), P(A1,-DD,H), P(A0,-DD,H)], shade(brand,1.2)); }
+    }   // end STREET
 
-    if(state.roof){
+    if(state.roof && (STREET || PART === 'all' || PART === 'roof')){
       /* ---- THE PLANT, AS A MACHINE RATHER THAN A CRATE ----
          It was one 89 x 80 x 34 box with three flat discs sitting on top
          of it and a bare stick beside it -- primitives stacked, which is
@@ -14361,11 +14421,13 @@ const SHOPS = [
         for(const rb of [UB0+12, UB1-12])
           box(UA0-4, UA1+4, rb-5, rb+5, deck, deck+10, shade(steel,.8), shade(steel,.66), shade(steel,.6));
         box(UA0, UA1, UB0, UB1, deck+10, deck+52, shade(steel,1.12), shade(steel,.94), shade(steel,.8));
-        /* louvre banks on the two faces the camera sees */
+        /* louvre banks on the two faces the camera sees -- which two
+           depends on the view (SEE_A / SEE_B), same as box() decides */
+        const LB = SEE_B ? UB1+0.4 : UB0-0.4, LA = SEE_A ? UA1+0.4 : UA0-0.4;
         for(let k=0;k<7;k++){
           const z = deck+16+k*5;
-          F(UA0+6, UA1-6, z, z+3, shade(steel,.74), null, 0, UB1+0.4);
-          S(UA1+0.4, UB0+6, UB1-6, z, z+3, shade(steel,.64));
+          F(UA0+6, UA1-6, z, z+3, shade(steel,.74), null, 0, LB);
+          S(LA, UB0+6, UB1-6, z, z+3, shade(steel,.64));
         }
         /* fan wells: recessed, with a guard grille and blades */
         for(const fa of [UA0+30, UA1-30]){
@@ -14407,7 +14469,10 @@ const SHOPS = [
         ball(ma, mb, deck+114, 2.6, brand);
       }});
 
-      depthSort(R);
+      /* depthSort keys on a + b, which is the lab's near-ness only. Keyed
+         on the projected ground point instead, so seen from behind the
+         far kit still draws first. Same order as depthSort in the lab. */
+      R.slice().sort((m, n) => P(m.a, m.b, 0).y - P(n.a, n.b, 0).y).forEach(it => it.draw());
     }
     kerb(p,'none');
   }
