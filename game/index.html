@@ -5450,7 +5450,11 @@ function owBuildWorld(route){
       const list = bucket.get((i + a) + ',' + (j + c));
       if(!list) continue;
       for(const b of list)
-        if(x > b.x0 - R && x < b.x1 + R && y > b.y0 - R && y < b.y1 + R) return b;
+        if(x > b.x0 - R && x < b.x1 + R && y > b.y0 - R && y < b.y1 + R){
+          /* the depot's room and doorway are carved out of their block */
+          if(_depotCache && isDepotBlock(g2, b) && depotOpenAt(g2, x, y, R)) continue;
+          return b;
+        }
     }
     return null;
   };
@@ -10639,6 +10643,91 @@ function getCrimeSites(grid){
 }
 
 let _chargeStationsCache = null;
+/* ---------- THE HOME DEPOT ----------
+   ONE of them, in ONE district, at Sir's direction -- not three a
+   district like the roadside chargers. It is the building the game
+   opens inside, so there is exactly one and it is always in the same
+   place: district 0, the first commercial block in raster order, corner
+   0. Deterministic with no rng, because "where is home" is not a thing
+   to roll for.
+
+   THE FRAME COMES FROM cornerUnitsOf, not from a literal. That function
+   already defines a corner lot as (HOUSE_DEPTH + T2*0.3) - CORNER_LOT_INSET
+   by STORE_DEPTH -- 295.6 by 276 -- which is exactly what the entry was
+   drawn to, so the lot and the art cannot drift apart. Lab `a` runs
+   along the edge on dv; lab `b` runs INTO the block, so it maps to -rv. */
+const DEPOT_HOOD = 0;
+let _depotCache = null;
+function depotLot(grid){
+  if(_depotCache !== undefined && _depotCache !== null) return _depotCache;
+  const dc = DEPOT_HOOD % DISTRICT_COLS, dr = Math.floor(DEPOT_HOOD / DISTRICT_COLS);
+  const i0 = dc*DISTRICT_W, i1 = i0 + DISTRICT_W - 1;
+  const j0 = dr*DISTRICT_H, j1 = j0 + DISTRICT_H - 1;
+  const blk = grid.blocks
+    .filter(b => b.type === "commercial" && b.i >= i0 && b.i <= i1 && b.j >= j0 && b.j <= j1)
+    .sort((a,b) => a.j - b.j || a.i - b.i)[0];
+  if(!blk) return (_depotCache = false);
+  const cu = cornerUnitsOf(blk)[0];
+  return (_depotCache = { blk, cu });
+}
+/* ---------- THE CARVE ----------
+   solidAt is a plain rectangle over the block, so the depot's room and
+   its doorway are solid like everything else and Tipsey cannot get in.
+   This is the one engine change the building needs.
+
+   WORLD -> LAB. dv and rv are orthonormal, so the corner frame inverts
+   by projection: a = (p-u).dv and b = -((p-u).rv), which is the same
+   mapping the draw uses, run backwards.
+
+   TWO REGIONS, not one. The room alone is not enough -- the pavement
+   triangle the chamfer cuts off the corner is also inside the block
+   rect, so without it he is stopped on the doorstep. The passage is
+   everything on the outboard side of the chamfer line, which through
+   CA = (WW-CW, 0) with normal (1,1) is simply a + b > WW - CW. */
+const DEPOT_ROOM = { a0:40, a1:289.6, b0:-244, b1:-6 };
+const DEPOT_WW = 295.6, DEPOT_CW = 150;
+function depotLabXY(grid, x, y){
+  const d = depotLot(grid); if(!d) return null;
+  const e = d.cu.e, dx = x - d.cu.ux, dy = y - d.cu.uy;
+  return { a: dx*e.dv.x + dy*e.dv.y, b: -(dx*e.rv.x + dy*e.rv.y) };
+}
+function depotOpenAt(grid, x, y, R){
+  const p = depotLabXY(grid, x, y); if(!p) return false;
+  const M = R || 0;
+  const inRoom = p.a > DEPOT_ROOM.a0 + M && p.a < DEPOT_ROOM.a1 - M &&
+                 p.b > DEPOT_ROOM.b0 + M && p.b < DEPOT_ROOM.b1 - M;
+  const inDoor = (p.a + p.b) > (DEPOT_WW - DEPOT_CW) + M*1.42 &&
+                 p.a > 0 && p.a < DEPOT_WW && p.b > -DEPOT_CW - 40;
+  return inRoom || inDoor;
+}
+
+/* the back-wall pad, in world space. Lab (200, RB0 + 46) is the pad
+   centre the entry draws -- CHPAD is padR + 2 so the mast lands against
+   the wall -- and poleAt puts the mast behind it, which is the room the
+   robot stands in. */
+function depotPadWorld(grid){
+  const d = depotLot(grid); if(!d) return null;
+  const e = d.cu.e, a = 200, b = DEPOT_ROOM.b0 + 46;
+  return { x: d.cu.ux + e.dv.x*a - e.rv.x*b,
+           y: d.cu.uy + e.dv.y*a - e.rv.y*b };
+}
+/* the door opens when he is in the room or approaching the mat. The mat
+   itself lies 26..102 out along the chamfer normal; 150 gives him a beat
+   of warning so the door is up by the time he reaches it. */
+function depotDoorWants(grid, x, y){
+  const p = depotLabXY(grid, x, y); if(!p) return 0;
+  const inRoom = p.a > DEPOT_ROOM.a0 && p.a < DEPOT_ROOM.a1 &&
+                 p.b > DEPOT_ROOM.b0 && p.b < DEPOT_ROOM.b1;
+  const out = ((p.a + p.b) - (DEPOT_WW - DEPOT_CW)) / 1.4142;
+  const nearMat = out > -10 && out < 150 && p.a > -40 && p.a < DEPOT_WW + 40;
+  return (inRoom || nearMat) ? 1 : 0;
+}
+
+function isDepotBlock(grid, blk){
+  const d = depotLot(grid);
+  return !!d && d.blk === blk;
+}
+
 function buildChargeStations(grid){
   const out = [];
   const shops = getPickupShops(grid);
@@ -14964,7 +15053,10 @@ const LIB = (function(){
   let ctx = null;
   /* the kit reads state.roof and state.props and nothing else of the
      lab's state; in the game both are always on. */
-  const state = { roof:true, props:true, pal:0 };
+  /* doorT is the Charge depot's roll-up door, 0 shut to 1 fully coiled.
+     The scene drives it; 1 is the safe default so a draw with nobody
+     setting it shows an open door rather than a shut one. */
+  const state = { roof:true, props:true, pal:0, doorT:1 };
 
 /* =====================================================================
    ctx2phaser -- a Canvas2D PATH SUBSET, backed by a Phaser Graphics.
@@ -16539,12 +16631,490 @@ function kerb(p, kind){
       depthSort(items);
     }
   }
+  },
+{
+  name:'Charge depot', tall:true, corner:true, ww: 295.6, dd: 276,
+  wTodo:'a CORNER LOT: the game already defines one as (HOUSE_DEPTH + T2*0.3) - CORNER_LOT_INSET = 295.6 by STORE_DEPTH = 276, at the end of one edge turning onto the other. The packer emits frontage slots only',
+  cTodo:'the mass is a volume, but the ROOM IS NOT -- the bay must be carved out of the block rect or Tipsy cannot drive in. solidAt is a plain rectangle test today with no notion of an opening. This is the one engine change the depot needs',
+  mTodo:'THE TRIGGER MAT IS GAME-SIDE. It draws here but it does nothing: the state machine is matHighlightState(scene, m, forMode) with owMatContains for the on/armed test, and MAT_HL is already documented as \'one state machine, three mats\' -- this is the fourth. What it needs is forMode \'freeroam\' and an action that drives doorT rather than loading a mission, plus an entry in whatever builds the mat list. The mat is paint: no volume, Tipsey drives over it. Its own extents run past the lot on the diagonal (a to 359.6, b to +64) because a mat square to a 45 door has to -- the game\'s own mats are 0..SIDEWALK_W deep, which is 368, so that is in keeping',
+  rTodo:'ROBOTS ARE THE GAME\'S JOB, not the lab\'s. Two docks, and which is which matters: the LEFT-WALL bay is the half-hidden one -- the near jamb crosses it and the roll-up head cuts its top -- so it takes an in-game NPC robot, drawn by drawRobot with ROBOT_NPC (blue stripe and flag). The BACK-WALL bay is the one the door frames square on, with clear floor in front of it and nothing across it, so it stays EMPTY for the player: that is where Tipsey sits when the game opens and it is the first thing the camera sees. Both are drawn empty in the lab. Real dimensions for the fit, from game/index.html: BODY hx 26 hy 20 z 14..54, LID hx 22 hy 16 z 54..61, STRIPE z 20..27, WHEEL r 8 z 10 xs [-16,0,16] side 22, FLAG base (-25,17) z 54..97 -- 52 by 44 by 97 to the flag tip, botR 30. The pad is 88 across and the door head is 168, so he clears it by 71',
+  head:'Corner lot: roll-up door on the chamfer, chargers lining both walls',
+  tags:['corner lot','roll-up door that articulates','real interior','two docks on two walls','bots left to the game'],
+  desc:'The home depot. A corner lot with a roll-up door across the chamfer and a room running back behind it, one charge dock on each of the two walls the camera can see -- the back one framed square by the door, which is where the game starts.',
+  draw(p){
+    /* ============ A ROOM, NOT A BAY ============
+       Sir's brief, second pass: a roll-up door and a designed INTERIOR,
+       with the chargers LINING THE WALLS rather than ranked across the
+       front. Straight across the front is a forecourt; down the walls is
+       a depot, and it is the difference between parking and belonging.
+
+       HOW YOU SEE INTO IT -- the Surf shop's method, which is the only
+       interior precedent in this file: a deep reveal into an `inner`
+       colour, then ctx.save() / poly() / ctx.clip() and the contents
+       drawn receding back, then restore. The game's own note records
+       that it emulates clip by polygon intersection on FILLS, so an
+       interior has to be built from fills, not strokes.
+
+       THE ROOM RUNS ON THE CHAMFER'S AXIS, not on a or b. Its inward
+       normal is (-1,-1)/sqrt2, so the side walls run straight back from
+       the door jambs and you look down the length of the room with docks
+       left and right. An axis-aligned room behind a 45 door would put
+       one wall across your view and hide half the chargers.
+
+       AND THERE ARE NO INTERIORS IN THIS GAME. `interior` in the engine
+       means road-graph NODES; solidAt is a plain rectangle over the
+       block and nothing can enter one. The art can read as a room today;
+       DRIVING into it is the cTodo, and it is an engine change. */
+    const WW = 295.6, DD = 276, H = 300, CW = 150;
+    /* #ff7a1a IS THE GAME'S ORANGE, not a shade I picked. It is the
+       brand colour in game/index.html -- the active button, the avatar
+       chip, the .brand rule -- and it appears 35 times, more than any
+       other warm colour in the file. The band was #e8a13a, a muted
+       amber, with the letters dark on it: legible but quiet. Dark band,
+       BRAND letters puts the contrast where the word is, and the sign
+       now matches the UI the player is already looking at. */
+    const wall = '#3d4653', trim = '#1f262e', brand = '#ff7a1a', steel = '#8d949a';
+    const inner = '#20303a', floorC = '#55626c';
+    const glassT = 'rgba(122,160,180,.86)';
+    const R2 = Math.SQRT1_2;
+    const CA = [WW-CW, 0];
+    /* t across the chamfer, k into the room along its inward normal */
+    const cpt = (t, k) => [CA[0] + t*CW - (k||0)*R2, CA[1] - t*CW - (k||0)*R2];
+    const P3 = (q, z) => P(q[0], q[1], z);
+    const DOOR = [0.10, 0.90], DH = 168, RD = 250;           // opening, head, room depth
+
+    /* ---- the shell: two street elevations ---- */
+    T(0, WW, -DD, 0, H, shade(wall,1.12));
+    F(0, WW-CW, 0, H, wall, null, 0, 0);
+    S(WW, -DD, -CW, 0, H, shade(wall,.82));
+    /* NO a = 0 FACE. It points -x and this camera sees +x, +y and +z, so
+       it is never visible -- and drawn anyway it projects 276 wide on
+       screen against a 145.6 frontage, laid over the front face because
+       it comes after it. That was the phantom wall off the left side.
+       The kit's body() draws the front and ONE flank for this reason;
+       hand-rolling the shell for a corner lot loses that. */
+    for(const [t0,t1] of [[0, DOOR[0]], [DOOR[1], 1]]){      // chamfer jambs
+      const q0 = cpt(t0,0), q1 = cpt(t1,0);
+      poly([P3(q0,H), P3(q1,H), P3(q1,0), P3(q0,0)], shade(wall,.94));
+    }
+    poly([P3(cpt(DOOR[0],0),H), P3(cpt(DOOR[1],0),H),
+          P3(cpt(DOOR[1],0),DH+34), P3(cpt(DOOR[0],0),DH+34)], shade(wall,.94));
+
+    /* ---- THE ROOM, clipped to the door opening ----
+       AXIS-ALIGNED, and that is forced rather than chosen. This camera
+       shows a face when its normal has +x, +y or +z. The chamfer's
+       outward normal is (1,1)/sqrt2 -- +x AND +y -- which is why it is
+       the most square-on face on the building. But a room running back
+       along that same 45 has side walls whose planes CONTAIN the view
+       direction: they project to zero width. I built it that way first
+       and the docked bots came out as coloured stripes, edge-on, with
+       the chargers invisible.
+
+       The two walls that face this camera are a = const and b = const.
+       So the room is square to the block behind a 45 door, and the
+       chargers line its LEFT wall and its BACK wall -- the two the
+       camera can actually see into. */
+    const RA0 = 40, RA1 = WW - 6, RB0 = -244, RB1 = -6;
+    /* ---- THE DOOR ARTICULATES, and the room is clipped to what it
+       leaves open ---- OPEN is 0 shut to 1 fully coiled, read off
+       state.doorT so the game can drive it: opening on launch, and
+       again when Tipsey pulls in to charge.
+
+       The curtain's bottom edge IS the clip's top edge. That is the
+       whole trick -- a door drawn over a fully-clipped room would still
+       show the room through the slats' own gaps and around their edges,
+       and a shut door would reveal the interior it is supposed to hide.
+       Clipping to DH * OPEN means the room simply does not exist above
+       the curtain, so shut is genuinely shut. */
+    const OPEN = (typeof state.doorT === 'number') ? state.doorT : 1;
+    const CBOT = DH * OPEN;                                  // curtain's bottom edge
+    const o0 = cpt(DOOR[0],0), o1 = cpt(DOOR[1],0);
+    ctx.save();
+    poly([P3(o0,CBOT), P3(o1,CBOT), P3(o1,0), P3(o0,0)]);
+    ctx.clip();
+    { F(RA0, RA1, 0, DH, inner, null, 0, RB0);                  // back wall
+      S(RA0, RB0, RB1, 0, DH, shade(inner,1.22));               // left wall
+      T(RA0, RA1, RB0, RB1, 0.6, floorC);                       // floor
+      /* LIGHTING GOES ON A WALL, NOT IN THE AIR. These were four
+         horizontal plates at z = DH-4 -- ceiling strips for a room with
+         no ceiling, so they hung in the dark with nothing behind them,
+         which is the pale bars Sir marked.
+
+         A ceiling is not the fix either: this camera looks DOWN into the
+         room, so a plane at DH shows its TOP face and covers everything
+         under it. No shop in the file draws one. The two surfaces the
+         camera can see into a room are the back wall and the left wall,
+         so the light is a cove strip run along both of them, with a
+         housing above it and a wash below. */
+      F(RA0+14, RA1-14, DH-22, DH-14, shade(steel,.8), null, 0, RB0+0.5);
+      F(RA0+14, RA1-14, DH-30, DH-22, '#f2e6c0', null, 0, RB0+1.0);
+      F(RA0+14, RA1-14, DH-58, DH-30, 'rgba(242,230,192,.10)', null, 0, RB0+1.4);
+      S(RA0+0.5, RB0+14, RB1-14, DH-22, DH-14, shade(steel,.72));
+      S(RA0+1.0, RB0+14, RB1-14, DH-30, DH-22, '#e8dcb8');
+      S(RA0+1.4, RB0+14, RB1-14, DH-58, DH-30, 'rgba(242,230,192,.08)');
+      /* bay markings, one per dock, running out from each wall */
+      T(RA0+8, RA0+118, -143, -137, 1.0, '#7c8894');
+      T(197, 203, RB0+8, RB0+118, 1.0, '#7c8894');
+      /* ---- CHARGERS LINING BOTH WALLS ----
+         a cabinet against the wall with a lit head, and a Tipsy docked
+         nose-in to it. Left wall faces +a, back wall faces +b, so each
+         gets the faces that side of it. */
+      /* ---- THE REAL IN-GAME CHARGER, not an invented cabinet ----
+         Lifted from drawChargeStation + CHARGE + CHARGE_PAL in
+         game/index.html so the depot's docks are the same object the
+         player meets on every street:
+
+           padR 44, ringW 5   an elliptical pad with a painted ring
+           poleAt 0.62        the mast stands 27.3 BEHIND the pad centre,
+                              not on it -- that is where Tipsy parks
+           poleW 15, poleH 96
+           headW 21, headH 26 the head box on top
+           glowR 7            the indicator, which breathes in game
+
+         The cabinets I had were a shape I made up; this is the one the
+         game already teaches you to recognise. `side` is which way the
+         mast faces from the pad -- against the wall it serves. */
+      const CHPAD = 46;
+      const CH = { padR:44, ringW:5, poleAt:0.62, poleW:15, poleH:96,
+                   headW:21, headH:26, glowR:7 };
+      const CP = { pad:'#6d7484', padDk:'#565c6a', ring:'#ffb454',
+                   pole:'#e8eaef', poleDk:'#b9bcc6',
+                   head:'#3a4150', headDk:'#2b313d',
+                   glow:'rgba(127,227,255,.45)', glowHot:'#d8f7ff' };
+      const charger = (px, py, dx, dy) => {
+        plateCircle(px, py, 0.8, CH.padR, CP.padDk);
+        plateCircle(px, py, 1.2, CH.padR, CP.ring);
+        plateCircle(px, py, 1.6, CH.padR - CH.ringW, CP.pad);
+        const mx = px + dx*CH.padR*CH.poleAt, my = py + dy*CH.padR*CH.poleAt;
+        const hw = CH.poleW/2, hh = CH.headW/2;
+        box(mx-hw, mx+hw, my-hw, my+hw, 0, CH.poleH, CP.pole, CP.poleDk, CP.poleDk);
+        box(mx-hh, mx+hh, my-hh, my+hh, CH.poleH, CH.poleH+CH.headH, CP.head, CP.headDk, CP.headDk);
+        const gz = CH.poleH + CH.headH*0.55;
+        if(dy > 0 || dx > 0){
+          faceCircle(mx, my + (dy>0 ? hh+0.4 : 0), gz, CH.glowR*2.1, CP.glow);
+          faceCircle(mx, my + (dy>0 ? hh+0.8 : 0), gz, CH.glowR, CP.glowHot);
+        }
+      };
+
+      /* far to near on both walls */
+      /* TWO A WALL, NOT THREE. The real pad is padR*2 = 88 across, so at
+         a 72 pitch three of them overlapped each other AND ran into the
+         doorway -- 232 of run against a 238 room, with nothing left for
+         the bay lines. Two a wall at these centres keeps every pad clear
+         of both ends and of the pads on the other wall.
+
+         The pad sits padR off the wall so the MAST, which stands
+         padR*0.62 = 27.3 behind the pad centre, lands against the wall
+         rather than inside it. And the bot parks ON the pad centre --
+         that is what poleAt exists for. */
+      /* TWO DOCKS, one a wall. Four of them at 88 a pad crowded a 249 x 238
+         room -- the pads read as overlapping even where the arithmetic said
+         they cleared, because the MASTS and the robots on them overlap long
+         before the paint does. Sir's brief: one bay for us and one for the
+         other bot, which is also the whole story the depot has to tell.
+
+         BOTH BAYS ARE EMPTY HERE, at Sir's direction -- the lab draws the
+         building, and a robot in it is the game's job. rTodo records
+         which bay gets which. */
+      const BACK = [200, RB0 + CHPAD], LEFT = [RA0 + CHPAD, -140];
+      charger(BACK[0], BACK[1], 0, -1);
+      charger(LEFT[0], LEFT[1], -1, 0);
+
+    }
+    ctx.restore();
+
+    /* ---- THE ROLL-UP DOOR: drum, rolled slats, guide rails ---- */
+    { const hL = cpt(DOOR[0],0), hR = cpt(DOOR[1],0);
+      for(const t of [DOOR[0], DOOR[1]]){                    // guide rails
+        const g0 = cpt(t,-3), g1 = cpt(t,7);
+        poly([P3(g0,0), P3(g1,0), P3(g1,DH+30), P3(g0,DH+30)], shade(steel,.85));
+      }
+      /* THE CURTAIN: real slats from the head down to CBOT. A roll-up
+         door is not a panel that slides -- it is a run of slats that
+         leaves the opening and gathers on the drum, so the slats drawn
+         and the coil's thickness both move with OPEN. */
+      const SLAT = 9;
+      for(let z = CBOT; z < DH - 0.5; z += SLAT){
+        const z1 = Math.min(z + SLAT - 1.2, DH);
+        poly([P3(cpt(DOOR[0]+0.008,-5),z1), P3(cpt(DOOR[1]-0.008,-5),z1),
+              P3(cpt(DOOR[1]-0.008,-5),z), P3(cpt(DOOR[0]+0.008,-5),z)],
+             shade(steel, 1.12));
+        poly([P3(cpt(DOOR[0]+0.008,-5),z), P3(cpt(DOOR[1]-0.008,-5),z),
+              P3(cpt(DOOR[1]-0.008,-5),z-1.2), P3(cpt(DOOR[0]+0.008,-5),z-1.2)],
+             shade(steel, .84));
+      }
+      if(OPEN > 0.02){                                       // a pull handle on the bottom rail
+        poly([P3(cpt(0.46,-7),CBOT), P3(cpt(0.54,-7),CBOT),
+              P3(cpt(0.54,-7),CBOT+4), P3(cpt(0.46,-7),CBOT+4)], shade(steel,.6));
+      }
+      /* THE COIL GROWS. Five fixed wraps read as a decoration; the drum
+         has to thicken as the curtain comes off the opening, or nothing
+         says where the door went. */
+      const wraps = 2 + Math.round(OPEN * 4);
+      poly([P3(cpt(DOOR[0],-4),DH), P3(cpt(DOOR[1],-4),DH),
+            P3(cpt(DOOR[1],-4),DH+30), P3(cpt(DOOR[0],-4),DH+30)], shade(steel,1.05));
+      for(let k=0;k<wraps;k++)
+        poly([P3(cpt(DOOR[0]+0.01,-6-k*2),DH+4+k*5), P3(cpt(DOOR[1]-0.01,-6-k*2),DH+4+k*5),
+              P3(cpt(DOOR[1]-0.01,-6-k*2),DH+9+k*5), P3(cpt(DOOR[0]+0.01,-6-k*2),DH+9+k*5)],
+             shade(steel, 1.18 - k*0.06));
+      /* ---- THE NAME, IN EXTRUDED LETTERS ON THE HEAD BAND ----
+         The Tattoo parlour's method: a letter is ONE outline with a top
+         and a side, so it keeps its thickness at any zoom -- not a
+         painted rectangle. Its counters (the enclosed holes in P and E)
+         are painted on the front face in the band colour rather than
+         cut, because a prism takes a simple polygon and cannot carry a
+         hole; at this depth and angle a painted counter reads as one.
+
+         BUT prism() TAKES (a, z) ON A FIXED b, and this band is on the
+         45. So the chamfer gets its own sweep: the same outlines, run
+         between two offsets along the chamfer's own normal instead of
+         between two b planes. cd(d, k) is distance along the chamfer and
+         offset out of it.
+
+         TIPSEY, not TIPSY -- the game's own title is "TIPSEY -- a clumsy
+         delivery" and the string appears 82 times in game/index.html.
+         Six letters on a 24 box: at the Tattoo's 30 pitch that is 174
+         against a 169.7 band, so the pitch is 27 and it fits with 5
+         either side. */
+      const LCH = CW*Math.SQRT2;
+      const cd = (d, k) => cpt(d/LCH, k);
+      const cprism = (pts, k0, k1, front, side, top) => {
+        const q = (d, z, k) => P3(cd(d, k), z);
+        for(let i=0;i<pts.length;i++){
+          const [d0,z0] = pts[i], [d1,z1] = pts[(i+1)%pts.length];
+          poly([q(d0,z0,k0), q(d1,z1,k0), q(d1,z1,k1), q(d0,z0,k1)],
+               z1 === z0 ? top : side);
+        }
+        poly(pts.map(([d,z]) => q(d,z,k0)), front);
+      };
+      poly([P3(cpt(DOOR[0],-8),DH+36), P3(cpt(DOOR[1],-8),DH+36),
+            P3(cpt(DOOR[1],-8),DH+82), P3(cpt(DOOR[0],-8),DH+82)], trim);
+      { const GL = {
+          T: { out: [[0,27],[8.5,27],[8.5,0],[15.5,0],[15.5,27],[24,27],[24,34],[0,34]] },
+          I: { out: [[0,0],[24,0],[24,7],[15.5,7],[15.5,27],[24,27],[24,34],[0,34],
+                     [0,27],[8.5,27],[8.5,7],[0,7]] },
+          P: { out: [[0,0],[7,0],[7,14],[24,14],[24,34],[0,34]],
+               cut: [[7,21],[17,21],[17,27],[7,27]] },
+          S: { out: [[0,0],[24,0],[24,20],[7,20],[7,27],[24,27],[24,34],[0,34],
+                     [0,14],[17,14],[17,7],[0,7]] },
+          E: { out: [[0,0],[24,0],[24,7],[7,7],[7,14],[20,14],[20,20],[7,20],
+                     [7,27],[24,27],[24,34],[0,34]] },
+          Y: { out: [[0,34],[7,34],[12,22],[17,34],[24,34],[15.5,17],[15.5,0],
+                     [8.5,0],[8.5,17]] }
+        };
+        const ink = brand, d0 = DOOR[0]*LCH + 5.4, z0 = DH + 42;
+        'TIPSEY'.split('').forEach((ch, i) => {
+          const g = GL[ch], sh = ([u,v]) => [d0 + i*27 + u, z0 + v];
+          cprism(g.out.map(sh), -15, -8.4, ink, shade(ink,.66), shade(ink,1.22));
+          if(g.cut) poly(g.cut.map(pt => P3(cd(sh(pt)[0], -15.4), sh(pt)[1])), trim);
+        });
+      }
+    }
+
+    /* ---- THE DOOR TRIGGER MAT ----
+       Sir's ask: a trigger outside the door, like the delivery carpet.
+       The game already has the machinery and calls it general --
+       MAT_HL's own note says "far | near | on | armed, for ANY mat --
+       one state machine, three mats". This is the fourth, and the only
+       new thing it needs game-side is a forMode of "freeroam" and an
+       action that drives doorT instead of loading a mission.
+
+       NOT the red carpet, though. MAT_ART is a doormat: red pile, fibre
+       flecks, a dark border -- it says "a customer lives here". A door
+       trigger is a floor marking, so it takes MAT_HL's language (rim,
+       corner ticks, the three tones) and the depot's own paint.
+
+         MAT_HL.rimW 8, bite 15, toneNear #ffb25a, toneArmed #7ee081
+
+       It lies on the pavement in front of the chamfer, square to the
+       door rather than to the block, because what it is aligned to is
+       the thing you drive INTO. The lab drives its state off doorT so
+       the relationship is visible: amber while the door is shut, green
+       once it is moving. */
+    { const TA = DOOR[0] + 0.02, TB = DOOR[1] - 0.02, K0 = -26, K1 = -102;
+      const on = ((typeof state.doorT === 'number') ? state.doorT : 1) > 0.02;
+      const tone = on ? '#7ee081' : '#ffb25a';
+      const c = [cpt(TA,K0), cpt(TB,K0), cpt(TB,K1), cpt(TA,K1)];
+      poly(c.map(q => P3(q, 0.7)), 'rgba(20,24,28,.30)');
+      poly([cpt(TA+0.018,K0-8), cpt(TB-0.018,K0-8),
+            cpt(TB-0.018,K1+8), cpt(TA+0.018,K1+8)].map(q => P3(q, 0.9)), '#2f3740');
+      /* the rim, and corner ticks so it reads by SHAPE not colour alone --
+         MAT_HL's own reason: "so it reads on a phone and never leans on
+         colour alone" */
+      for(const [u0,u1,k0,k1] of [[TA,TB,K0,K0-8],[TA,TB,K1+8,K1],
+                                  [TA,TA+0.018,K0,K1],[TB-0.018,TB,K0,K1]])
+        poly([cpt(u0,k0), cpt(u1,k0), cpt(u1,k1), cpt(u0,k1)].map(q => P3(q, 1.1)), tone);
+      for(const [u,kk,du,dk] of [[TA,K0,0.05,-15],[TB,K0,-0.05,-15],
+                                 [TA,K1,0.05,15],[TB,K1,-0.05,15]]){
+        poly([cpt(u,kk), cpt(u+du,kk), cpt(u+du,kk+dk*0.25), cpt(u,kk+dk*0.25)].map(q => P3(q,1.3)), tone);
+        poly([cpt(u,kk), cpt(u,kk+dk), cpt(u+du*0.25,kk+dk), cpt(u+du*0.25,kk)].map(q => P3(q,1.3)), tone);
+      }
+      /* a chevron pointing at the door, so the mat says which way in */
+      for(let k=0;k<2;k++){
+        const kk = K1 + 34 + k*26;
+        poly([cpt((TA+TB)/2, kk+14), cpt(TB-0.06, kk-6), cpt(TB-0.075, kk-6),
+              cpt((TA+TB)/2, kk+8), cpt(TA+0.075, kk-6), cpt(TA+0.06, kk-6)]
+             .map(q => P3(q, 1.2)), shade(tone,.78));
+      }
+    }
+
+    /* ---- THE THRESHOLD BOLLARDS ARE EXTERIOR ----
+       They guard the door from the PAVEMENT, so they are drawn after the
+       building and outside the clip, at NEGATIVE k -- outward from the
+       chamfer, in the triangle the chamfer cuts off the corner, which is
+       pavement and not room:
+
+         t 0.12, k -16  ->  a 174.9, b  -6.7
+         t 0.88, k -16  ->  a 288.9, b -120.7
+
+       I had them at k +16, which is 16 INSIDE the room, and then drew
+       them after ctx.restore() so the posts were unclipped while the
+       floor they stood on was not -- floating. Moving them into the clip
+       fixed the floating and put them in the wrong building entirely.
+
+       YELLOW, not the brand orange: #ffcc33 is in the game already, and a
+       bollard is a marking rather than signage -- in brand it competed
+       with the sign and the fascia for the same colour. */
+    if(state.props) for(const t of [DOOR[0]+0.02, DOOR[1]-0.02]){
+      const q = cpt(t, -16), YEL = '#ffcc33';
+      plateCircle(q[0], q[1], 0.9, 13, 'rgba(0,0,0,.22)');
+      cyl(q[0], q[1], 0, 6, 11, shade(YEL,.62));
+      cyl(q[0], q[1], 6, 54, 8, YEL, shade(YEL,.7));
+      /* no reflective band. It was F(...) on a b-plane against a cyl()
+         bollard -- a flat rect stuck on a round post, which does not wrap
+         and reads as a square patch rather than a band. A band on a
+         cylinder wants its own ring; the bollard does not need one. */
+      ball(q[0], q[1], 54, 8, shade(YEL,1.15));
+    }
+
+    /* ---- windows on both streets ----
+       THE FLANK PAIR WERE TWO BARE PLANES AND ONE HUNG OFF THE BUILDING.
+       The front pair go through reveal() + glaze(), which is why they
+       read; the flank pair were S(WW-0.5) and S(WW-9) with no reveal, no
+       returns, no sill and no surround -- flat panels stuck on a wall.
+
+       And the flank runs b -276..-150, which is 126 of wall. At
+       -170 - i*74 the second one landed at -244..-298, hanging 22 PAST
+       the back of the building. reveal()/glaze() only work on the b = 0
+       plane, so the flank needs its own: back, four returns, glass and a
+       mullion, built on a = const. */
+    const FW = (q0, q1, z0, z1) => {
+      const DP = 10, A0 = WW, A1 = WW - DP;
+      poly([P(A0,q0,z1), P(A1,q0,z1), P(A1,q0,z0), P(A0,q0,z0)], shade(wall,.58));
+      poly([P(A0,q1,z1), P(A1,q1,z1), P(A1,q1,z0), P(A0,q1,z0)], shade(wall,.46));
+      poly([P(A0,q0,z1), P(A0,q1,z1), P(A1,q1,z1), P(A1,q0,z1)], shade(wall,.5));
+      poly([P(A0,q0,z0), P(A0,q1,z0), P(A1,q1,z0), P(A1,q0,z0)], shade(wall,.74));
+      S(A1,        q1, q0, z0, z1, shade(wall,.5));
+      S(A1+2.5,    q1, q0, z0+2, z1-2, glassT);
+      S(A1+3,      (q0+q1)/2-2, (q0+q1)/2+2, z0, z1, shade(wall,1.22));
+      S(A0-0.4,    q1-5, q0+5, z0-7, z0, shade(wall,1.12));      // sill
+    };
+    for(let i=0;i<2;i++){
+      const x0 = 14 + i*66, x1 = x0 + 50;
+      reveal(x0, x1, 190, 258, 9, shade(wall,.6));
+      glaze(x0, x1, 190, 258, shade(wall,1.3), glassT);
+      slab(x0-5, x1+5, 183, 190, 4, -1, shade(wall,1.12));
+    }
+    for(let i=0;i<2;i++) FW(-158 - i*66, -202 - i*66, 190, 258);
+    /* ---- THE FASCIA TURNS BOTH CORNERS ----
+       It ran the front face only, which on a terrace unit is right and on
+       a CORNER LOT is the giveaway: a band that stops dead at the chamfer
+       says the flank is a party wall, and this building has two streets.
+       Front, chamfer and flank, all at H-18..H and all proud by 4.
+
+       Proud on the flank means a > WW, which on a terrace unit would lap
+       the neighbour. Here it cannot: cornerUnitsOf holds the lot
+       CORNER_LOT_INSET = 8 off the perpendicular block line, so a 4
+       projection still has 4 to spare. */
+    const FSC = 4;
+    slab(0, WW-CW, H-18, H, FSC, 0, brand, null, shade(brand,1.2));
+    { const q0 = cpt(0,-FSC), q1 = cpt(1,-FSC), r0 = cpt(0,0), r1 = cpt(1,0);
+      poly([P3(q0,H), P3(q1,H), P3(q1,H-18), P3(q0,H-18)], brand);
+      poly([P3(r0,H), P3(q0,H), P3(q1,H), P3(r1,H)], shade(brand,1.2)); }
+    { const A0 = WW, A1 = WW + FSC;
+      poly([P(A1,-CW,H), P(A1,-DD,H), P(A1,-DD,H-18), P(A1,-CW,H-18)], shade(brand,.78));
+      poly([P(A0,-CW,H), P(A1,-CW,H), P(A1,-DD,H), P(A0,-DD,H)], shade(brand,1.2)); }
+
+    if(state.roof){
+      /* ---- THE PLANT, AS A MACHINE RATHER THAN A CRATE ----
+         It was one 89 x 80 x 34 box with three flat discs sitting on top
+         of it and a bare stick beside it -- primitives stacked, which is
+         the clunk. A condenser has parts: it stands on DUNNAGE clear of
+         the deck, its sides are LOUVRED because that is what it breathes
+         through, and its fans sit in WELLS with guards over them rather
+         than as cans on a lid.
+
+         And it is DEPTH-SORTED. Four separate objects on one roof is the
+         order-versus-depth fault this file has hit on four other roofs;
+         a list with one sort at the end costs nothing and cannot get it
+         wrong. */
+      const R = [], deck = H;
+      const UA0 = 46, UA1 = 158, UB0 = -196, UB1 = -122;
+
+      R.push({ a:(UA0+UA1)/2, b:(UB0+UB1)/2, z:0, draw:() => {
+        /* dunnage: two rails, the unit clear of the deck on them */
+        for(const rb of [UB0+12, UB1-12])
+          box(UA0-4, UA1+4, rb-5, rb+5, deck, deck+10, shade(steel,.8), shade(steel,.66), shade(steel,.6));
+        box(UA0, UA1, UB0, UB1, deck+10, deck+52, shade(steel,1.12), shade(steel,.94), shade(steel,.8));
+        /* louvre banks on the two faces the camera sees */
+        for(let k=0;k<7;k++){
+          const z = deck+16+k*5;
+          F(UA0+6, UA1-6, z, z+3, shade(steel,.74), null, 0, UB1+0.4);
+          S(UA1+0.4, UB0+6, UB1-6, z, z+3, shade(steel,.64));
+        }
+        /* fan wells: recessed, with a guard grille and blades */
+        for(const fa of [UA0+30, UA1-30]){
+          const fb = (UB0+UB1)/2;
+          plateCircle(fa, fb, deck+52.4, 22, shade(steel,.6));
+          plateCircle(fa, fb, deck+50, 19, shade(steel,.5));
+          for(let k=0;k<4;k++){
+            const t = k*Math.PI/2 + 0.5;
+            poly([P(fa,fb,deck+50.6),
+                  P(fa+17*Math.cos(t), fb+17*Math.sin(t), deck+50.6),
+                  P(fa+17*Math.cos(t+0.7), fb+17*Math.sin(t+0.7), deck+50.6)], shade(steel,.86));
+          }
+          for(let k=0;k<3;k++) plateCircle(fa, fb, deck+53 + k*0.1, 8+k*6, null, shade(steel,1.3), 1.4);
+          cyl(fa, fb, deck+50, deck+56, 4, shade(steel,1.2));
+        }
+      }});
+
+      /* the refrigerant run, unit to a roof curb */
+      R.push({ a:200, b:-150, z:0, draw:() => {
+        box(186, 216, -166, -136, deck, deck+14, shade(steel,.9), shade(steel,.76), shade(steel,.68));
+        for(const px of [194, 208]){
+          cyl(px, -151, deck+14, deck+30, 3.4, shade(steel,1.1));
+          tube(px, -151, deck+30, UA1-6, -151, deck+30, 3.4, shade(steel,1.1));
+          tube(UA1-6, -151, deck+30, UA1-6, -151, deck+22, 3.4, shade(steel,1.1));
+        }
+      }});
+
+      /* the antenna, on a corner and on a base plate rather than planted
+         in open deck: a mast with a stay, three elements and a tip */
+      R.push({ a:248, b:-232, z:0, draw:() => {
+        const ma = 248, mb = -232;
+        slab(ma-16, ma+16, deck, deck+6, mb+16, mb-16, shade(steel,.86), null, shade(steel,1.0));
+        cyl(ma, mb, deck+6, deck+112, 3.2, shade(steel,1.15));
+        tube(ma, mb, deck+62, ma+22, mb+22, deck+8, 1.6, shade(steel,.9));
+        for(let k=0;k<3;k++){
+          const z = deck+94 - k*16, half = 9 + k*5;
+          tube(ma-half, mb, z, ma+half, mb, z, 1.5, shade(steel,1.25));
+        }
+        ball(ma, mb, deck+114, 2.6, brand);
+      }});
+
+      depthSort(R);
+    }
+    kerb(p,'none');
   }
+}
   ];
   const BY_NAME = new Map(SHOPS.map(s => [s.name, s]));
 
   return {
     get(name){ return BY_NAME.get(name) || null; },
+    /* the Charge depot's roll-up door, 0 shut to 1 fully coiled. The
+       scene drives it; every other entry ignores state.doorT. */
+    setDoor(v){ state.doorT = v; },
     /* g   -- the Phaser Graphics to draw into
        G   -- (a, b, h) => screen point, the game's own W() composed with
               whatever anchor the caller chose
@@ -18051,6 +18621,19 @@ class WorldScene extends Phaser.Scene {
       this.botX = sp.x + (-Math.sin(hdg0))*this.laneOff;
       this.botY = sp.y + Math.cos(hdg0)*this.laneOff;
     }
+    /* ---------- HE STARTS IN THE DEPOT ----------
+       A run has always begun at route.pickupSpot -- the pickup shop --
+       because there was nowhere else to begin. Now there is: the home
+       depot's BACK-WALL pad, the one the roll-up door frames square on.
+       The pickup is unchanged and simply becomes the first place he
+       drives to rather than the place he wakes up.
+
+       botS and the route are untouched, so the moment he moves he is on
+       the same centreline he always was. This is a position override on
+       a standing start, which is exactly what the pickupSpot branch
+       above already is. */
+    const _dp = this.route && this.route.grid && depotPadWorld(this.route.grid);
+    if(_dp){ this.botX = _dp.x; this.botY = _dp.y; }
     this.hopAnim = null; this.yaw = 0; this.hopYaw = 0; this.hopKick = 0;
     this.drawAngle = hdg0;   // position teleports on route load — rotation teleports with it
     this.slide = null; this.slipYaw = 0;
@@ -18979,6 +19562,55 @@ class WorldScene extends Phaser.Scene {
        changes, when the robot crosses a block seam mid-leg, or through
        corner arcs (all three were reported on-device). A block can
        carry TWO cut edges if both an f=1 and an f=2 leg touch it. */
+    /* THE ROLL-UP DOOR, driven every frame. drawWorld runs from
+       update(t, dt) and rebuilds blockVQ each time, so the entry is
+       redrawn per frame and doorT animates for free -- no invalidation
+       needed. Eased rather than snapped: a shutter takes about a second
+       and a half either way. */
+    if(this.route && this.route.grid && depotLot(this.route.grid)){
+      /* THE SPAWN IS A ONE-SHOT HERE, not in the route loader. Setting
+         botX/botY beside the pickupSpot branch looked right and did
+         nothing: something after it -- the pose restore at _pose, and
+         the camera follow -- puts him back. drawWorld runs after all of
+         that, so a once-per-route snap here is the first point where the
+         position sticks. Keyed on the route's own dateStr so it fires
+         once a route and never fights the player afterwards. */
+      /* HELD, not one-shot. A one-shot keyed on dateStr fired on the
+         first loadRoute and then the SECOND loadRoute at boot -- the
+         file calls it twice -- put him back, with the key already
+         matching so it never re-fired. _doorT going to 1 and then
+         easing away was the tell that the snap had run and been undone.
+
+         So it HOLDS him on the pad while he is standing still at the
+         start of a route, and releases the moment he drives: vel > 1
+         ends it, and runT only grows, so it can never come back. */
+      if(this.runT < 2000 && this.ow && Math.abs(this.ow.vel || 0) < 1){
+        const p = depotPadWorld(this.route.grid);
+        if(p){
+          /* ow.px / ow.py IS THE POSITION. botX and botY are derived from
+             it every frame in open-world mode, so setting them alone
+             looked like it worked and was gone inside a second -- the
+             probe showed him back at the pickup 1.2s later. ow also
+             carries the rail state it was tracking, so railReacq is
+             cleared: without it he is handed a corridor from wherever he
+             used to be. */
+          this.botX = p.x; this.botY = p.y;
+          this.camX = p.x; this.camY = p.y;
+          if(this.ow){
+            this.ow.px = p.x; this.ow.py = p.y;
+            this.ow.vel = 0; this.ow.railReacq = 0;
+            this.ow.railS = null; this.ow.railD = null;
+          }
+          this._doorT = 1;              // he wakes with it open
+        }
+      }
+      const want = depotDoorWants(this.route.grid, this.botX, this.botY);
+      if(this._doorT === undefined) this._doorT = want;
+      const k = Math.min(1, (this._frameDt || 16) / 700);
+      this._doorT += (want - this._doorT) * k;
+      if(Math.abs(want - this._doorT) < 0.004) this._doorT = want;
+      LIB.setDoor(this._doorT);
+    }
     this.addrDoorPos = null;
     const blockVQ = [];
     const topLayer = [];
@@ -21643,6 +22275,22 @@ class WorldScene extends Phaser.Scene {
       this.queueCommercialEdgeAt(vq, e, isPickupBlock && idx === this.route.pickupEdgeIdx, cornerSkip);
     });
     for(const cu of this.liveCornerUnits(blk, excludeEdges)) this.queueCornerUnit(vq, blk, cu);
+    /* THE HOME DEPOT sits on one corner of one commercial block. Drawn
+       through LIB like the park landmarks, but off a CORNER frame rather
+       than a park component's north-west corner: ux/uy is the lot's own
+       origin, dv runs along the edge and -rv runs into the block, which
+       is what the entry's lab `b` means. */
+    /* the grid lives on the ROUTE, not on the scene -- parkLandmarkAt
+       reads `this.route && this.route.grid` for exactly this reason, and
+       this.grid is undefined. */
+    const _dg = this.route && this.route.grid;
+    if(_dg && isDepotBlock(_dg, blk)){
+      const cu = depotLot(_dg).cu, e = cu.e;
+      vq.push({ depth: (cu.hx + cu.hy), fn: (g) =>
+        LIB.draw('Charge depot', g,
+          (a, b, h) => this.W(cu.ux + e.dv.x*a - e.rv.x*b,
+                              cu.uy + e.dv.y*a - e.rv.y*b, h), null, this.K) });
+    }
     /* Commercial interior fill (1-2 free-standing "plaza" buildings in
        the middle of every commercial block) is OFF citywide -- 2026-08-12,
        Sir's call, it didn't read well on-device. The generator it used
