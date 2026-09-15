@@ -10685,7 +10685,7 @@ function depotLot(grid){
    everything on the outboard side of the chamfer line, which through
    CA = (WW-CW, 0) with normal (1,1) is simply a + b > WW - CW. */
 const DEPOT_ROOM = { a0:40, a1:289.6, b0:-244, b1:-6 };
-const DEPOT_WW = 295.6, DEPOT_CW = 150;
+const DEPOT_WW = 295.6, DEPOT_CW = 150, DEPOT_DD = 276;
 /* ONE MAPPER, BOTH WAYS. The lot's rv points OUT of the block, so lab b
    -- which runs INTO the building -- is +rv, not -rv. I had it negated,
    which drew the whole depot mirrored across its own frontage: standing
@@ -10697,19 +10697,27 @@ const DEPOT_WW = 295.6, DEPOT_CW = 150;
 
    The forward and inverse now sit next to each other and share the
    convention, so they cannot disagree again. */
+/* AND THE CHAMFER GOES ON THE CORNER'S END. The entry puts it at lab
+   a = WW. cornerUnitsOf lays the lot from ux along dv, and the block
+   corner is at the FAR end of that only when atStart is false; when the
+   seed picks the other street (atStart) the corner is at a = 0, and the
+   door would face the neighbouring lot instead of the intersection. So
+   a is mirrored for atStart -- here, once, where all three share it,
+   and the pad, carve and door logic follow for free. */
+function depotA(cu, a){ return cu.atStart ? DEPOT_WW - a : a; }
 function depotMap(cu){
   const e = cu.e;
-  return (a, b, h) => this.W(cu.ux + e.dv.x*a + e.rv.x*b,
-                             cu.uy + e.dv.y*a + e.rv.y*b, h);
+  return (a, b, h) => { const aa = depotA(cu, a);
+    return this.W(cu.ux + e.dv.x*aa + e.rv.x*b, cu.uy + e.dv.y*aa + e.rv.y*b, h); };
 }
 function depotWorld(cu, a, b){
-  const e = cu.e;
-  return { x: cu.ux + e.dv.x*a + e.rv.x*b, y: cu.uy + e.dv.y*a + e.rv.y*b };
+  const e = cu.e, aa = depotA(cu, a);
+  return { x: cu.ux + e.dv.x*aa + e.rv.x*b, y: cu.uy + e.dv.y*aa + e.rv.y*b };
 }
 function depotLabXY(grid, x, y){
   const d = depotLot(grid); if(!d) return null;
   const e = d.cu.e, dx = x - d.cu.ux, dy = y - d.cu.uy;
-  return { a: dx*e.dv.x + dy*e.dv.y, b: dx*e.rv.x + dy*e.rv.y };
+  return { a: depotA(d.cu, dx*e.dv.x + dy*e.dv.y), b: dx*e.rv.x + dy*e.rv.y };
 }
 function depotOpenAt(grid, x, y, R){
   const p = depotLabXY(grid, x, y); if(!p) return false;
@@ -15074,7 +15082,7 @@ const LIB = (function(){
   /* doorT is the Charge depot's roll-up door, 0 shut to 1 fully coiled.
      The scene drives it; 1 is the safe default so a draw with nobody
      setting it shows an open door rather than a shut one. */
-  const state = { roof:true, props:true, pal:0, doorT:1 };
+  const state = { roof:true, props:true, pal:0, doorT:1, part:null, partW:null };
 
 /* =====================================================================
    ctx2phaser -- a Canvas2D PATH SUBSET, backed by a Phaser Graphics.
@@ -16701,6 +16709,65 @@ function kerb(p, kind){
     const P3 = (q, z) => P(q[0], q[1], z);
     const DOOR = [0.10, 0.90], DH = 168, RD = 250;           // opening, head, room depth
 
+    /* ============ WHICH SIDE OF IT THE CAMERA IS ON ============
+       Everything below the back-view block was drawn for ONE projection:
+       the lab's, where +a and +b both come toward the eye and the chamfer
+       is the most square-on face. In the game the lot is laid on whatever
+       corner frame depotMap hands in, and the home corner is the block's
+       FAR corner -- chamfer pointing away. Drawn anyway, the door, room
+       and sign painted over the building's own back walls: the whole
+       front, seen through the building from behind (Sir on-device).
+
+       Asked of P(), the same test box() and slab() already use: a face
+       is toward the eye when stepping along its normal moves DOWN the
+       screen. STREET is the lab's view and runs the art below unchanged.
+       Anything else draws the faces that are actually seen -- the two
+       back walls, the roof and the roof plant.
+
+       state.part / state.partW let the game queue those walls as thin
+       depth strips (like fences) instead of one whole-unit key, so a
+       robot INSIDE the room sorts behind them. Unset -- the lab, and
+       the street view -- means everything, in one draw. */
+    const _o = P(0,0,0), _pa = P(1,0,0), _pb = P(0,1,0);
+    const SEE_A = (_pa.y - _o.y) > 0, SEE_B = (_pb.y - _o.y) > 0;
+    const STREET = SEE_A && SEE_B;
+    const PART = state.part || 'all', PW = state.partW || null;
+    if(!STREET){
+      const BF = 4;                                           // the fascia's projection, as FSC below
+      /* lit the way the lab lights it: the face that steps screen-LEFT
+         (lab +b) takes the wall colour, screen-right (lab +a) the .82 */
+      const lit = (na, nb) => (P(na, nb, 0).x - _o.x) < 0 ? wall : shade(wall,.82);
+      const win = (lo, hi) => PW ? [Math.max(lo, PW[0]), Math.min(hi, PW[1])] : [lo, hi];
+      if(PART === 'all' || PART === 'wallA'){
+        const aw = SEE_A ? WW : 0, span = win(-DD, SEE_A ? -CW : 0);
+        if(span[1] > span[0]) S(aw, span[0], span[1], 0, H, lit(SEE_A ? 1 : -1, 0));
+        /* the fascia's end, where the front band stops at a = 0 */
+        if(!SEE_A && !SEE_B && (!PW || PW[1] >= -0.001))
+          S(0, 0, BF, H-18, H, shade(brand,.78));
+      }
+      if(PART === 'all' || PART === 'wallB'){
+        const bw = SEE_B ? 0 : -DD, span = win(0, SEE_B ? WW-CW : WW);
+        if(span[1] > span[0]) F(span[0], span[1], 0, H, lit(0, SEE_B ? 1 : -1), null, 0, bw);
+        /* and where the flank band stops at b = -DD */
+        if(!SEE_A && !SEE_B && (!PW || PW[1] >= WW-0.001))
+          F(WW, WW+BF, H-18, H, shade(brand,.78), null, 0, -DD);
+      }
+      if(PART === 'all' || PART === 'roof'){
+        /* the roof is the chamfered footprint, not the lot rectangle --
+           T(0,WW,-DD,0) would hang the cut-off corner out past the
+           chamfer wall, and from behind nothing covers it */
+        poly([P(0,0,H), P(WW-CW,0,H), P(WW,-CW,H), P(WW,-DD,H), P(0,-DD,H)], shade(wall,1.12));
+        /* the fascia's top shows as a lip along the far edges */
+        const q0 = cpt(0,-BF), q1 = cpt(1,-BF), r0 = cpt(0,0), r1 = cpt(1,0);
+        poly([P(0,0,H), P(WW-CW,0,H), P(WW-CW,BF,H), P(0,BF,H)], shade(brand,1.2));
+        poly([P3(r0,H), P3(q0,H), P3(q1,H), P3(r1,H)], shade(brand,1.2));
+        poly([P(WW,-CW,H), P(WW+BF,-CW,H), P(WW+BF,-DD,H), P(WW,-DD,H)], shade(brand,1.2));
+      }
+    }
+    /* STREET VIEW ONLY from here to the roof plant -- the lab's art,
+       unchanged. Not re-indented, so the diff stays the two lines. */
+    if(STREET){
+
     /* ---- the shell: two street elevations ---- */
     T(0, WW, -DD, 0, H, shade(wall,1.12));
     F(0, WW-CW, 0, H, wall, null, 0, 0);
@@ -17052,8 +17119,9 @@ function kerb(p, kind){
     { const A0 = WW, A1 = WW + FSC;
       poly([P(A1,-CW,H), P(A1,-DD,H), P(A1,-DD,H-18), P(A1,-CW,H-18)], shade(brand,.78));
       poly([P(A0,-CW,H), P(A1,-CW,H), P(A1,-DD,H), P(A0,-DD,H)], shade(brand,1.2)); }
+    }   // end STREET
 
-    if(state.roof){
+    if(state.roof && (STREET || PART === 'all' || PART === 'roof')){
       /* ---- THE PLANT, AS A MACHINE RATHER THAN A CRATE ----
          It was one 89 x 80 x 34 box with three flat discs sitting on top
          of it and a bare stick beside it -- primitives stacked, which is
@@ -17074,11 +17142,13 @@ function kerb(p, kind){
         for(const rb of [UB0+12, UB1-12])
           box(UA0-4, UA1+4, rb-5, rb+5, deck, deck+10, shade(steel,.8), shade(steel,.66), shade(steel,.6));
         box(UA0, UA1, UB0, UB1, deck+10, deck+52, shade(steel,1.12), shade(steel,.94), shade(steel,.8));
-        /* louvre banks on the two faces the camera sees */
+        /* louvre banks on the two faces the camera sees -- which two
+           depends on the view (SEE_A / SEE_B), same as box() decides */
+        const LB = SEE_B ? UB1+0.4 : UB0-0.4, LA = SEE_A ? UA1+0.4 : UA0-0.4;
         for(let k=0;k<7;k++){
           const z = deck+16+k*5;
-          F(UA0+6, UA1-6, z, z+3, shade(steel,.74), null, 0, UB1+0.4);
-          S(UA1+0.4, UB0+6, UB1-6, z, z+3, shade(steel,.64));
+          F(UA0+6, UA1-6, z, z+3, shade(steel,.74), null, 0, LB);
+          S(LA, UB0+6, UB1-6, z, z+3, shade(steel,.64));
         }
         /* fan wells: recessed, with a guard grille and blades */
         for(const fa of [UA0+30, UA1-30]){
@@ -17120,7 +17190,10 @@ function kerb(p, kind){
         ball(ma, mb, deck+114, 2.6, brand);
       }});
 
-      depthSort(R);
+      /* depthSort keys on a + b, which is the lab's near-ness only. Keyed
+         on the projected ground point instead, so seen from behind the
+         far kit still draws first. Same order as depthSort in the lab. */
+      R.slice().sort((m, n) => P(m.a, m.b, 0).y - P(n.a, n.b, 0).y).forEach(it => it.draw());
     }
     kerb(p,'none');
   }
@@ -17137,7 +17210,9 @@ function kerb(p, kind){
        G   -- (a, b, h) => screen point, the game's own W() composed with
               whatever anchor the caller chose
        pal -- one of the kit's palettes, or undefined for the shop's own */
-    draw(name, g, G, pal, k){
+    /* part -- optional { part, w:[lo,hi] } for an entry that can draw in
+       depth strips (the Charge depot's back walls); cleared after */
+    draw(name, g, G, pal, k, part){
       const shop = BY_NAME.get(name);
       if(!shop) return false;
       if(!ctx) ctx = makeCtx2Phaser();
@@ -17145,9 +17220,11 @@ function kerb(p, kind){
       ZSCALE = shop.zs === undefined ? 1.5 : shop.zs;
       FLANK_RIGHT = true;
       SHOP_SLOT = { G };
+      state.part = part ? part.part : null;
+      state.partW = part ? (part.w || null) : null;
       ctx.__bind(g);
       try { shop.draw(pal || PAL[0]); }
-      finally { SHOP_SLOT = null; }
+      finally { SHOP_SLOT = null; state.part = null; state.partW = null; }
       return true;
     }
   };
@@ -22313,9 +22390,42 @@ class WorldScene extends Phaser.Scene {
        this.grid is undefined. */
     const _dg = this.route && this.route.grid;
     if(_dg && isDepotBlock(_dg, blk)){
-      const cu = depotLot(_dg).cu, e = cu.e;
-      vq.push({ depth: (cu.hx + cu.hy), fn: (g) =>
-        LIB.draw('Charge depot', g, depotMap.call(this, cu), null, this.K) });
+      const cu = depotLot(_dg).cu, map = depotMap.call(this, cu);
+      /* nearer the camera is larger x + y, so a lab axis faces the eye
+         when a step along it grows x + y -- the entry asks P() the same */
+      const key = (a, b) => { const q = depotWorld(cu, a, b); return q.x + q.y; };
+      const k0 = key(0, 0), seeA = key(1, 0) > k0, seeB = key(0, 1) > k0;
+      if(seeA && seeB){
+        vq.push({ depth: (cu.hx + cu.hy), fn: (g) =>
+          LIB.draw('Charge depot', g, map, null, this.K) });
+      } else {
+        /* FROM BEHIND, the building is two walls and a lid, and he can
+           be INSIDE it -- the pad is 78 off the back wall. One whole-unit
+           key cannot put him behind the walls and a palm in front of them
+           at once, so the walls queue as fence-style TILE strips keyed on
+           their own plane (misorder window TILE/4 of contact distance),
+           and the roof at the footprint's nearest corner: nothing on the
+           ground near it stands taller than the walls it sits on. */
+        const W0 = DEPOT_WW, D0 = DEPOT_DD, C0 = DEPOT_CW;
+        const strips = (lo, hi, fnKey, part) => {
+          const n = Math.max(1, Math.ceil((hi - lo) / TILE));
+          for(let i = 0; i < n; i++){
+            const s0 = lo + (hi-lo)*i/n, s1 = i === n-1 ? hi : lo + (hi-lo)*(i+1)/n;
+            /* the window laps its neighbours by 2: abutting fills leave a
+               hairline the ground shows through (0.75 still left one at
+               K 0.55, measured), and the lap is the same colour on the
+               same plane, clamped to the wall's own ends by the entry */
+            vq.push({ depth: fnKey((s0+s1)/2), fn: (g) =>
+              LIB.draw('Charge depot', g, map, null, this.K, { part, w:[s0 - 2, s1 + 2] }) });
+          }
+        };
+        const aw = seeA ? W0 : 0, bw = seeB ? 0 : -D0;
+        strips(-D0, seeA ? -C0 : 0, (b) => key(aw, b), 'wallA');
+        strips(0, seeB ? W0 - C0 : W0, (a) => key(a, bw), 'wallB');
+        const roofK = Math.max(key(0,0), key(W0-C0,0), key(W0,-C0), key(W0,-D0), key(0,-D0)) + 1;
+        vq.push({ depth: roofK, fn: (g) =>
+          LIB.draw('Charge depot', g, map, null, this.K, { part:'roof' }) });
+      }
     }
     /* Commercial interior fill (1-2 free-standing "plaza" buildings in
        the middle of every commercial block) is OFF citywide -- 2026-08-12,
