@@ -14047,22 +14047,43 @@ const SHOPS = [
        unchanged. Not re-indented, so the diff stays the two lines. */
     if(STREET){
 
+    /* ---- STREET VIEW IN PARTS, for the same reason as the back ----
+       Tipsey starts INSIDE this room with the camera looking in through
+       the door, so the building cannot be one draw: the room has to go
+       down before him and the walls that frame it after him. The game
+       queues five parts (see queueCommercialBlock):
+         room   the clipped interior, keyed behind anything in it
+         front  the b = 0 wall, its windows and fascia, in a-strips
+         flank  the a = WW wall, its windows and band, in b-strips
+         door   jambs, header, roll-up, sign, chamfer band, mat,
+                bollards, roof and roof plant -- all on or past the
+                chamfer, which is a constant-x+y plane, so one key
+                orders it exactly
+       PART 'all' (the lab) draws everything in the original order.
+       A window that straddles a strip edge draws in both strips: the
+       later strip's wall fill would otherwise cut it in half. */
+    const PT = n => PART === 'all' || PART === n;
+    const wA = (lo, hi) => PW ? [Math.max(lo, PW[0]), Math.min(hi, PW[1])] : [lo, hi];
+    const hits = (lo, hi) => !PW || (hi > PW[0] && lo < PW[1]);
+
     /* ---- the shell: two street elevations ---- */
-    T(0, WW, -DD, 0, H, shade(wall,1.12));
-    F(0, WW-CW, 0, H, wall, null, 0, 0);
-    S(WW, -DD, -CW, 0, H, shade(wall,.82));
+    if(PT('door')) T(0, WW, -DD, 0, H, shade(wall,1.12));
+    if(PT('front')){ const s = wA(0, WW-CW); if(s[1] > s[0]) F(s[0], s[1], 0, H, wall, null, 0, 0); }
+    if(PT('flank')){ const s = wA(-DD, -CW); if(s[1] > s[0]) S(WW, s[0], s[1], 0, H, shade(wall,.82)); }
     /* NO a = 0 FACE. It points -x and this camera sees +x, +y and +z, so
        it is never visible -- and drawn anyway it projects 276 wide on
        screen against a 145.6 frontage, laid over the front face because
        it comes after it. That was the phantom wall off the left side.
        The kit's body() draws the front and ONE flank for this reason;
        hand-rolling the shell for a corner lot loses that. */
+    if(PT('door')){
     for(const [t0,t1] of [[0, DOOR[0]], [DOOR[1], 1]]){      // chamfer jambs
       const q0 = cpt(t0,0), q1 = cpt(t1,0);
       poly([P3(q0,H), P3(q1,H), P3(q1,0), P3(q0,0)], shade(wall,.94));
     }
     poly([P3(cpt(DOOR[0],0),H), P3(cpt(DOOR[1],0),H),
           P3(cpt(DOOR[1],0),DH+34), P3(cpt(DOOR[0],0),DH+34)], shade(wall,.94));
+    }
 
     /* ---- THE ROOM, clipped to the door opening ----
        AXIS-ALIGNED, and that is forced rather than chosen. This camera
@@ -14093,6 +14114,7 @@ const SHOPS = [
     const OPEN = (typeof state.doorT === 'number') ? state.doorT : 1;
     const CBOT = DH * OPEN;                                  // curtain's bottom edge
     const o0 = cpt(DOOR[0],0), o1 = cpt(DOOR[1],0);
+    if(PT('room')){
     ctx.save();
     poly([P3(o0,CBOT), P3(o1,CBOT), P3(o1,0), P3(o0,0)]);
     ctx.clip();
@@ -14186,9 +14208,10 @@ const SHOPS = [
 
     }
     ctx.restore();
+    }   // end room
 
     /* ---- THE ROLL-UP DOOR: drum, rolled slats, guide rails ---- */
-    { const hL = cpt(DOOR[0],0), hR = cpt(DOOR[1],0);
+    if(PT('door')) { const hL = cpt(DOOR[0],0), hR = cpt(DOOR[1],0);
       for(const t of [DOOR[0], DOOR[1]]){                    // guide rails
         const g0 = cpt(t,-3), g1 = cpt(t,7);
         poly([P3(g0,0), P3(g1,0), P3(g1,DH+30), P3(g0,DH+30)], shade(steel,.85));
@@ -14295,7 +14318,7 @@ const SHOPS = [
        the thing you drive INTO. The lab drives its state off doorT so
        the relationship is visible: amber while the door is shut, green
        once it is moving. */
-    { const TA = DOOR[0] + 0.02, TB = DOOR[1] - 0.02, K0 = -26, K1 = -102;
+    if(PT('door')) { const TA = DOOR[0] + 0.02, TB = DOOR[1] - 0.02, K0 = -26, K1 = -102;
       const on = ((typeof state.doorT === 'number') ? state.doorT : 1) > 0.02;
       const tone = on ? '#7ee081' : '#ffb25a';
       const c = [cpt(TA,K0), cpt(TB,K0), cpt(TB,K1), cpt(TA,K1)];
@@ -14339,7 +14362,7 @@ const SHOPS = [
        YELLOW, not the brand orange: #ffcc33 is in the game already, and a
        bollard is a marking rather than signage -- in brand it competed
        with the sign and the fascia for the same colour. */
-    if(state.props) for(const t of [DOOR[0]+0.02, DOOR[1]-0.02]){
+    if(state.props && PT('door')) for(const t of [DOOR[0]+0.02, DOOR[1]-0.02]){
       const q = cpt(t, -16), YEL = '#ffcc33';
       plateCircle(q[0], q[1], 0.9, 13, 'rgba(0,0,0,.22)');
       cyl(q[0], q[1], 0, 6, 11, shade(YEL,.62));
@@ -14375,11 +14398,15 @@ const SHOPS = [
     };
     for(let i=0;i<2;i++){
       const x0 = 14 + i*66, x1 = x0 + 50;
+      if(!PT('front') || !hits(x0-5, x1+5)) continue;
       reveal(x0, x1, 190, 258, 9, shade(wall,.6));
       glaze(x0, x1, 190, 258, shade(wall,1.3), glassT);
       slab(x0-5, x1+5, 183, 190, 4, -1, shade(wall,1.12));
     }
-    for(let i=0;i<2;i++) FW(-158 - i*66, -202 - i*66, 190, 258);
+    if(PT('flank')) for(let i=0;i<2;i++){
+      const q0 = -158 - i*66, q1 = -202 - i*66;
+      if(hits(q1-5, q0+5)) FW(q0, q1, 190, 258);
+    }
     /* ---- THE FASCIA TURNS BOTH CORNERS ----
        It ran the front face only, which on a terrace unit is right and on
        a CORNER LOT is the giveaway: a band that stops dead at the chamfer
@@ -14391,16 +14418,18 @@ const SHOPS = [
        CORNER_LOT_INSET = 8 off the perpendicular block line, so a 4
        projection still has 4 to spare. */
     const FSC = 4;
-    slab(0, WW-CW, H-18, H, FSC, 0, brand, null, shade(brand,1.2));
-    { const q0 = cpt(0,-FSC), q1 = cpt(1,-FSC), r0 = cpt(0,0), r1 = cpt(1,0);
+    if(PT('front')){ const s = wA(0, WW-CW);
+      if(s[1] > s[0]) slab(s[0], s[1], H-18, H, FSC, 0, brand, null, shade(brand,1.2)); }
+    if(PT('door')) { const q0 = cpt(0,-FSC), q1 = cpt(1,-FSC), r0 = cpt(0,0), r1 = cpt(1,0);
       poly([P3(q0,H), P3(q1,H), P3(q1,H-18), P3(q0,H-18)], brand);
       poly([P3(r0,H), P3(q0,H), P3(q1,H), P3(r1,H)], shade(brand,1.2)); }
-    { const A0 = WW, A1 = WW + FSC;
-      poly([P(A1,-CW,H), P(A1,-DD,H), P(A1,-DD,H-18), P(A1,-CW,H-18)], shade(brand,.78));
-      poly([P(A0,-CW,H), P(A1,-CW,H), P(A1,-DD,H), P(A0,-DD,H)], shade(brand,1.2)); }
+    if(PT('flank')) { const A0 = WW, A1 = WW + FSC, s = wA(-DD, -CW), bl = s[0], bh = s[1];
+      if(bh > bl){
+        poly([P(A1,bh,H), P(A1,bl,H), P(A1,bl,H-18), P(A1,bh,H-18)], shade(brand,.78));
+        poly([P(A0,bh,H), P(A1,bh,H), P(A1,bl,H), P(A0,bl,H)], shade(brand,1.2)); } }
     }   // end STREET
 
-    if(state.roof && (STREET || PART === 'all' || PART === 'roof')){
+    if(state.roof && (PART === 'all' || PART === (STREET ? 'door' : 'roof'))){
       /* ---- THE PLANT, AS A MACHINE RATHER THAN A CRATE ----
          It was one 89 x 80 x 34 box with three flat discs sitting on top
          of it and a bare stick beside it -- primitives stacked, which is
