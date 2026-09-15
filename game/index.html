@@ -38187,12 +38187,15 @@ function drawRouteMap(route){
 
   tpMapMissionPins.length = 0;
   /* DEPOT PINS, under the mission pins so a mission is never covered by
-     a charger. Only once zoomed in to street level -- a block at least
-     a seventh of the short side, i.e. roughly six blocks across: at
-     city zoom 36 of them are confetti over the park labels. Search finds
-     them at any zoom. Tap routes to the door (see the tap handler). */
+     a charger. Shown until the view is wider than 20 blocks on its short
+     side. The first gate was 7, and Sir's everyday map view is ~10 by 16
+     on an iPad, so the pins never drew at the zoom he actually uses
+     (on-device, 2026-09-15); 14 still dropped them one pinch out from
+     there. Three a district over 81 blocks is under a dozen on screen at
+     20 (measured); only the whole-city overview drops them. Search
+     finds them at any zoom. Tap routes to the door (see the tap handler). */
   if(!usingAtlas && typeof depotsOf === "function" && route.grid
-     && scale * BLOCK >= Math.min(W, H) / 7){
+     && scale * BLOCK >= Math.min(W, H) / 20){
     for(const d of depotsOf(route.grid)){
       const q = depotDoorWorld(d);
       if(!inView(q.x, q.y)) continue;
