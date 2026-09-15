@@ -8528,7 +8528,15 @@ const XRAY = {
   probe: 24,         // world units between samples along a ray
   reach: 400,        // backstop; the height break below fires first
   zhead: 60,         // height on him that must be covered -- see the range note
-  minH:  DOOR_H + 50,// top of the SHORTEST house; also the only height builtHeightAt returns
+  minH:  DOOR_H + 50,// top of the SHORTEST house; what builtHeightAt returns for a frontage band
+  /* the TALLEST height builtHeightAt can return, and so where the ray
+     march stops. Was minH, which was right while minH was the only
+     answer. The Charge depot is 450 and seen from behind its mass only
+     starts ~150 in along the camera ray, so a march capped at 234 quit
+     before it got there. Raised to the depot's height below, next to
+     DEPOT_H; every other building still returns minH, so a sample
+     past minH still cannot hit one of them -- their result is unchanged. */
+  maxH:  DOOR_H + 50,
   /* LATERAL FAN. u offsets along world (+1,-1), which is
      screen-HORIZONTAL and depth-preserving (the components cancel in
      x+y), so every ray tests the same forward distance at a different
@@ -10747,6 +10755,39 @@ function depotDoorWants(grid, x, y){
   const out = ((p.a + p.b) - (DEPOT_WW - DEPOT_CW)) / 1.4142;
   const nearMat = out > -10 && out < 150 && p.a > -40 && p.a < DEPOT_WW + 40;
   return (inRoom || nearMat) ? 1 : 0;
+}
+
+/* ---------- WHICH WAY IT FACES, and HOW TALL IT LOOKS ----------
+   The view test the queue and the entry both make, named once: nearer
+   the camera is larger x + y, so a lab axis faces the eye when a step
+   along it grows x + y. Street view is the lab's own -- door, room and
+   sign toward the camera. */
+const DEPOT_H = 300 * 1.5;               // the entry's H, times its zs
+XRAY.maxH = Math.max(XRAY.minH, DEPOT_H);
+function depotStreetView(cu){
+  const o = depotWorld(cu, 0, 0), pa = depotWorld(cu, 1, 0), pb = depotWorld(cu, 0, 1);
+  const k0 = o.x + o.y;
+  return (pa.x + pa.y) > k0 && (pb.x + pb.y) > k0;
+}
+/* THE X-RAY NEEDS WHAT YOU SEE, NOT WHERE YOU CAN DRIVE. depotOpenAt is
+   the walkable carve -- doorway and room open -- and builtHeightAt was
+   using it for occlusion. From behind, a camera ray through the depot
+   crosses the chamfer passage and the room, both carved, and found no
+   building at all: behind it at 6919,657 the fan scored 1/3 (Sir
+   on-device, xray 1/3 a0.00).
+
+   Visually the building is solid over its footprint to DEPOT_H except
+   the chamfer's cut-off triangle, which is pavement. The room is only
+   "not there" when the camera can see into it through the door -- the
+   street view -- so that is the one case that keeps the carve. Returns
+   null off the lot so the caller's band rule applies as before. */
+function depotBuiltHeight(grid, x, y){
+  const d = depotLot(grid); if(!d) return null;
+  const p = depotLabXY(grid, x, y);
+  if(p.a < 0 || p.a > DEPOT_WW || p.b < -DEPOT_DD || p.b > 0) return null;
+  if(p.a + p.b > DEPOT_WW - DEPOT_CW) return 0;            // chamfer pavement
+  if(depotStreetView(d.cu) && depotOpenAt(grid, x, y, 0)) return 0;
+  return DEPOT_H;
 }
 
 function isDepotBlock(grid, blk){
@@ -18949,8 +18990,14 @@ class WorldScene extends Phaser.Scene {
          not behind it, he is IN it, and there is nothing overhead to
          ghost. I flagged this when the carve went into solidAt and then
          only carved the one. */
+      /* (and see depotBuiltHeight: the carve is the walkable answer, the
+         x-ray wants the visual one -- from behind, the room is inside
+         walls, not open air) */
       const _xg = this.route && this.route.grid;
-      if(band && _xg && isDepotBlock(_xg, b) && depotOpenAt(_xg, x, y, 0)) return 0;
+      if(band && _xg && isDepotBlock(_xg, b)){
+        const dh = depotBuiltHeight(_xg, x, y);
+        if(dh !== null) return dh;
+      }
       return band ? XRAY.minH : 0;
     }
     /* the world's outer perimeter builds on extLots, not blocks, and
@@ -19009,11 +19056,12 @@ class WorldScene extends Phaser.Scene {
          beside in plain view. */
       for(let s = XRAY.probe; s <= XRAY.reach; s += XRAY.probe){
         const need = zh + s;
-        /* bound against minH, not a separate ceiling: minH is the ONLY
-           value builtHeightAt ever returns, so once need passes it no
-           sample further out can succeed. The old bound was minH + 120
-           and just burned iterations that could not hit. */
-        if(need > XRAY.minH) break;
+        /* bound against maxH, the tallest value builtHeightAt can return
+           (see XRAY.maxH): once need passes it no sample further out can
+           succeed. Was minH while minH was the only answer; the depot
+           made that false. The old bound was minH + 120 and just burned
+           iterations that could not hit. */
+        if(need > XRAY.maxH) break;
         if(this.builtHeightAt(bx + s + u, by + s - u, blocks, lots) >= need){ hits++; break; }
       }
     }
@@ -22395,7 +22443,7 @@ class WorldScene extends Phaser.Scene {
          when a step along it grows x + y -- the entry asks P() the same */
       const key = (a, b) => { const q = depotWorld(cu, a, b); return q.x + q.y; };
       const k0 = key(0, 0), seeA = key(1, 0) > k0, seeB = key(0, 1) > k0;
-      if(seeA && seeB){
+      if(depotStreetView(cu)){
         vq.push({ depth: (cu.hx + cu.hy), fn: (g) =>
           LIB.draw('Charge depot', g, map, null, this.K) });
       } else {
