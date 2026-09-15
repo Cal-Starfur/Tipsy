@@ -10655,8 +10655,8 @@ let _chargeStationsCache = null;
    ONE of them, in ONE district, at Sir's direction -- not three a
    district like the roadside chargers. It is the building the game
    opens inside, so there is exactly one and it is always in the same
-   place: district 0, the first commercial block in raster order, corner
-   0. Deterministic with no rng, because "where is home" is not a thing
+   place: district 0, the first commercial block in raster order, its
+   corner nearest the camera (see depotLot). Deterministic with no rng, because "where is home" is not a thing
    to roll for.
 
    THE FRAME COMES FROM cornerUnitsOf, not from a literal. That function
@@ -10675,7 +10675,24 @@ function depotLot(grid){
     .filter(b => b.type === "commercial" && b.i >= i0 && b.i <= i1 && b.j >= j0 && b.j <= j1)
     .sort((a,b) => a.j - b.j || a.i - b.i)[0];
   if(!blk) return (_depotCache = false);
-  const cu = cornerUnitsOf(blk)[0];
+  /* THE NEAR CORNER, in the LAB'S OWN FRAME (Sir: "from this view i cant
+     see the door"). It was cornerUnitsOf(blk)[0] -- (x0, y0), the corner
+     FARTHEST from this fixed camera, so the door faced away forever and
+     no drawing could show it.
+
+     (x1, y1) is the corner nearest the camera, and its two streets face
+     +x and +y: exactly the two faces the lab draws the front and flank
+     on. So the frame is not taken from cornerUnitsOf either. Every block
+     edge frame has rv = dv turned -90, a mirror of the lab's (a -> +x,
+     b -> +y), which on this corner put the sign on backwards. The depot
+     takes the lab's frame outright: a runs +x along the y1 street with
+     the chamfer at a = WW on the corner, b = 0 on that street, and -b
+     into the block. The lot is the same corner square cornerUnitsOf
+     would give (x1 - M .. x1 - CORNER_LOT_INSET by STORE_DEPTH), with no
+     seeded pick of street, so it never mirrors either. */
+  const ux = blk.x1 - CORNER_LOT_INSET - DEPOT_WW, uy = blk.y1;
+  const cu = { e: { dv: DIRV[0], rv: DIRV[1] }, ux, uy, w: DEPOT_WW,
+               hx: ux + DEPOT_WW/2, hy: uy, kind: "depot" };
   return (_depotCache = { blk, cu });
 }
 /* ---------- THE CARVE ----------
@@ -10705,35 +10722,35 @@ const DEPOT_WW = 295.6, DEPOT_CW = 150, DEPOT_DD = 276;
 
    The forward and inverse now sit next to each other and share the
    convention, so they cannot disagree again. */
-/* AND THE CHAMFER GOES ON THE CORNER'S END. The entry puts it at lab
-   a = WW. cornerUnitsOf lays the lot from ux along dv, and the block
-   corner is at the FAR end of that only when atStart is false; when the
-   seed picks the other street (atStart) the corner is at a = 0, and the
-   door would face the neighbouring lot instead of the intersection. So
-   a is mirrored for atStart -- here, once, where all three share it,
-   and the pad, carve and door logic follow for free. */
-function depotA(cu, a){ return cu.atStart ? DEPOT_WW - a : a; }
+/* (The atStart mirror that lived here is gone: depotLot now builds the
+   frame itself, always the lab's handedness, so there is no seeded
+   street pick left to undo.) */
 function depotMap(cu){
   const e = cu.e;
-  return (a, b, h) => { const aa = depotA(cu, a);
-    return this.W(cu.ux + e.dv.x*aa + e.rv.x*b, cu.uy + e.dv.y*aa + e.rv.y*b, h); };
+  return (a, b, h) => this.W(cu.ux + e.dv.x*a + e.rv.x*b,
+                             cu.uy + e.dv.y*a + e.rv.y*b, h);
 }
 function depotWorld(cu, a, b){
-  const e = cu.e, aa = depotA(cu, a);
-  return { x: cu.ux + e.dv.x*aa + e.rv.x*b, y: cu.uy + e.dv.y*aa + e.rv.y*b };
+  const e = cu.e;
+  return { x: cu.ux + e.dv.x*a + e.rv.x*b, y: cu.uy + e.dv.y*a + e.rv.y*b };
 }
 function depotLabXY(grid, x, y){
   const d = depotLot(grid); if(!d) return null;
   const e = d.cu.e, dx = x - d.cu.ux, dy = y - d.cu.uy;
-  return { a: depotA(d.cu, dx*e.dv.x + dy*e.dv.y), b: dx*e.rv.x + dy*e.rv.y };
+  return { a: dx*e.dv.x + dy*e.dv.y, b: dx*e.rv.x + dy*e.rv.y };
 }
 function depotOpenAt(grid, x, y, R){
   const p = depotLabXY(grid, x, y); if(!p) return false;
   const M = R || 0;
   const inRoom = p.a > DEPOT_ROOM.a0 + M && p.a < DEPOT_ROOM.a1 - M &&
                  p.b > DEPOT_ROOM.b0 + M && p.b < DEPOT_ROOM.b1 - M;
+  /* a runs out to the BLOCK's corner, not the lot's: the lot stops
+     CORNER_LOT_INSET short of the block line and the body test inflates
+     the block by R, so a < WW left a solid sliver on the corner that
+     caught him driving straight out of the door along its normal
+     (measured: blocked at lab a 297..319 just past b = 0). */
   const inDoor = (p.a + p.b) > (DEPOT_WW - DEPOT_CW) + M*1.42 &&
-                 p.a > 0 && p.a < DEPOT_WW && p.b > -DEPOT_CW - 40;
+                 p.a > 0 && p.a < DEPOT_WW + CORNER_LOT_INSET + M + 1 && p.b > -DEPOT_CW - 40;
   return inRoom || inDoor;
 }
 
@@ -16809,22 +16826,43 @@ function kerb(p, kind){
        unchanged. Not re-indented, so the diff stays the two lines. */
     if(STREET){
 
+    /* ---- STREET VIEW IN PARTS, for the same reason as the back ----
+       Tipsey starts INSIDE this room with the camera looking in through
+       the door, so the building cannot be one draw: the room has to go
+       down before him and the walls that frame it after him. The game
+       queues five parts (see queueCommercialBlock):
+         room   the clipped interior, keyed behind anything in it
+         front  the b = 0 wall, its windows and fascia, in a-strips
+         flank  the a = WW wall, its windows and band, in b-strips
+         door   jambs, header, roll-up, sign, chamfer band, mat,
+                bollards, roof and roof plant -- all on or past the
+                chamfer, which is a constant-x+y plane, so one key
+                orders it exactly
+       PART 'all' (the lab) draws everything in the original order.
+       A window that straddles a strip edge draws in both strips: the
+       later strip's wall fill would otherwise cut it in half. */
+    const PT = n => PART === 'all' || PART === n;
+    const wA = (lo, hi) => PW ? [Math.max(lo, PW[0]), Math.min(hi, PW[1])] : [lo, hi];
+    const hits = (lo, hi) => !PW || (hi > PW[0] && lo < PW[1]);
+
     /* ---- the shell: two street elevations ---- */
-    T(0, WW, -DD, 0, H, shade(wall,1.12));
-    F(0, WW-CW, 0, H, wall, null, 0, 0);
-    S(WW, -DD, -CW, 0, H, shade(wall,.82));
+    if(PT('door')) T(0, WW, -DD, 0, H, shade(wall,1.12));
+    if(PT('front')){ const s = wA(0, WW-CW); if(s[1] > s[0]) F(s[0], s[1], 0, H, wall, null, 0, 0); }
+    if(PT('flank')){ const s = wA(-DD, -CW); if(s[1] > s[0]) S(WW, s[0], s[1], 0, H, shade(wall,.82)); }
     /* NO a = 0 FACE. It points -x and this camera sees +x, +y and +z, so
        it is never visible -- and drawn anyway it projects 276 wide on
        screen against a 145.6 frontage, laid over the front face because
        it comes after it. That was the phantom wall off the left side.
        The kit's body() draws the front and ONE flank for this reason;
        hand-rolling the shell for a corner lot loses that. */
+    if(PT('door')){
     for(const [t0,t1] of [[0, DOOR[0]], [DOOR[1], 1]]){      // chamfer jambs
       const q0 = cpt(t0,0), q1 = cpt(t1,0);
       poly([P3(q0,H), P3(q1,H), P3(q1,0), P3(q0,0)], shade(wall,.94));
     }
     poly([P3(cpt(DOOR[0],0),H), P3(cpt(DOOR[1],0),H),
           P3(cpt(DOOR[1],0),DH+34), P3(cpt(DOOR[0],0),DH+34)], shade(wall,.94));
+    }
 
     /* ---- THE ROOM, clipped to the door opening ----
        AXIS-ALIGNED, and that is forced rather than chosen. This camera
@@ -16855,6 +16893,7 @@ function kerb(p, kind){
     const OPEN = (typeof state.doorT === 'number') ? state.doorT : 1;
     const CBOT = DH * OPEN;                                  // curtain's bottom edge
     const o0 = cpt(DOOR[0],0), o1 = cpt(DOOR[1],0);
+    if(PT('room')){
     ctx.save();
     poly([P3(o0,CBOT), P3(o1,CBOT), P3(o1,0), P3(o0,0)]);
     ctx.clip();
@@ -16948,9 +16987,10 @@ function kerb(p, kind){
 
     }
     ctx.restore();
+    }   // end room
 
     /* ---- THE ROLL-UP DOOR: drum, rolled slats, guide rails ---- */
-    { const hL = cpt(DOOR[0],0), hR = cpt(DOOR[1],0);
+    if(PT('door')) { const hL = cpt(DOOR[0],0), hR = cpt(DOOR[1],0);
       for(const t of [DOOR[0], DOOR[1]]){                    // guide rails
         const g0 = cpt(t,-3), g1 = cpt(t,7);
         poly([P3(g0,0), P3(g1,0), P3(g1,DH+30), P3(g0,DH+30)], shade(steel,.85));
@@ -17057,7 +17097,7 @@ function kerb(p, kind){
        the thing you drive INTO. The lab drives its state off doorT so
        the relationship is visible: amber while the door is shut, green
        once it is moving. */
-    { const TA = DOOR[0] + 0.02, TB = DOOR[1] - 0.02, K0 = -26, K1 = -102;
+    if(PT('door')) { const TA = DOOR[0] + 0.02, TB = DOOR[1] - 0.02, K0 = -26, K1 = -102;
       const on = ((typeof state.doorT === 'number') ? state.doorT : 1) > 0.02;
       const tone = on ? '#7ee081' : '#ffb25a';
       const c = [cpt(TA,K0), cpt(TB,K0), cpt(TB,K1), cpt(TA,K1)];
@@ -17101,7 +17141,7 @@ function kerb(p, kind){
        YELLOW, not the brand orange: #ffcc33 is in the game already, and a
        bollard is a marking rather than signage -- in brand it competed
        with the sign and the fascia for the same colour. */
-    if(state.props) for(const t of [DOOR[0]+0.02, DOOR[1]-0.02]){
+    if(state.props && PT('door')) for(const t of [DOOR[0]+0.02, DOOR[1]-0.02]){
       const q = cpt(t, -16), YEL = '#ffcc33';
       plateCircle(q[0], q[1], 0.9, 13, 'rgba(0,0,0,.22)');
       cyl(q[0], q[1], 0, 6, 11, shade(YEL,.62));
@@ -17137,11 +17177,15 @@ function kerb(p, kind){
     };
     for(let i=0;i<2;i++){
       const x0 = 14 + i*66, x1 = x0 + 50;
+      if(!PT('front') || !hits(x0-5, x1+5)) continue;
       reveal(x0, x1, 190, 258, 9, shade(wall,.6));
       glaze(x0, x1, 190, 258, shade(wall,1.3), glassT);
       slab(x0-5, x1+5, 183, 190, 4, -1, shade(wall,1.12));
     }
-    for(let i=0;i<2;i++) FW(-158 - i*66, -202 - i*66, 190, 258);
+    if(PT('flank')) for(let i=0;i<2;i++){
+      const q0 = -158 - i*66, q1 = -202 - i*66;
+      if(hits(q1-5, q0+5)) FW(q0, q1, 190, 258);
+    }
     /* ---- THE FASCIA TURNS BOTH CORNERS ----
        It ran the front face only, which on a terrace unit is right and on
        a CORNER LOT is the giveaway: a band that stops dead at the chamfer
@@ -17153,16 +17197,18 @@ function kerb(p, kind){
        CORNER_LOT_INSET = 8 off the perpendicular block line, so a 4
        projection still has 4 to spare. */
     const FSC = 4;
-    slab(0, WW-CW, H-18, H, FSC, 0, brand, null, shade(brand,1.2));
-    { const q0 = cpt(0,-FSC), q1 = cpt(1,-FSC), r0 = cpt(0,0), r1 = cpt(1,0);
+    if(PT('front')){ const s = wA(0, WW-CW);
+      if(s[1] > s[0]) slab(s[0], s[1], H-18, H, FSC, 0, brand, null, shade(brand,1.2)); }
+    if(PT('door')) { const q0 = cpt(0,-FSC), q1 = cpt(1,-FSC), r0 = cpt(0,0), r1 = cpt(1,0);
       poly([P3(q0,H), P3(q1,H), P3(q1,H-18), P3(q0,H-18)], brand);
       poly([P3(r0,H), P3(q0,H), P3(q1,H), P3(r1,H)], shade(brand,1.2)); }
-    { const A0 = WW, A1 = WW + FSC;
-      poly([P(A1,-CW,H), P(A1,-DD,H), P(A1,-DD,H-18), P(A1,-CW,H-18)], shade(brand,.78));
-      poly([P(A0,-CW,H), P(A1,-CW,H), P(A1,-DD,H), P(A0,-DD,H)], shade(brand,1.2)); }
+    if(PT('flank')) { const A0 = WW, A1 = WW + FSC, s = wA(-DD, -CW), bl = s[0], bh = s[1];
+      if(bh > bl){
+        poly([P(A1,bh,H), P(A1,bl,H), P(A1,bl,H-18), P(A1,bh,H-18)], shade(brand,.78));
+        poly([P(A0,bh,H), P(A1,bh,H), P(A1,bl,H), P(A0,bl,H)], shade(brand,1.2)); } }
     }   // end STREET
 
-    if(state.roof && (STREET || PART === 'all' || PART === 'roof')){
+    if(state.roof && (PART === 'all' || PART === (STREET ? 'door' : 'roof'))){
       /* ---- THE PLANT, AS A MACHINE RATHER THAN A CRATE ----
          It was one 89 x 80 x 34 box with three flat discs sitting on top
          of it and a bare stick beside it -- primitives stacked, which is
@@ -22443,9 +22489,34 @@ class WorldScene extends Phaser.Scene {
          when a step along it grows x + y -- the entry asks P() the same */
       const key = (a, b) => { const q = depotWorld(cu, a, b); return q.x + q.y; };
       const k0 = key(0, 0), seeA = key(1, 0) > k0, seeB = key(0, 1) > k0;
+      const W0 = DEPOT_WW, D0 = DEPOT_DD, C0 = DEPOT_CW;
+      const strips = (lo, hi, fnKey, part) => {
+        const n = Math.max(1, Math.ceil((hi - lo) / TILE));
+        for(let i = 0; i < n; i++){
+          const s0 = lo + (hi-lo)*i/n, s1 = i === n-1 ? hi : lo + (hi-lo)*(i+1)/n;
+          /* the window laps its neighbours by 2: abutting fills leave a
+             hairline the ground shows through (0.75 still left one at
+             K 0.55, measured), and the lap is the same colour on the
+             same plane, clamped to the wall's own ends by the entry */
+          vq.push({ depth: fnKey((s0+s1)/2), fn: (g) =>
+            LIB.draw('Charge depot', g, map, null, this.K, { part, w:[s0 - 2, s1 + 2] }) });
+        }
+      };
       if(depotStreetView(cu)){
-        vq.push({ depth: (cu.hx + cu.hy), fn: (g) =>
-          LIB.draw('Charge depot', g, map, null, this.K) });
+        /* STREET VIEW, and he starts inside. Four keys, each exact for
+           the plane it stands on (see the entry's PARTS note):
+             room   behind the room's far corner, so anything in the room
+                    draws over its floor, walls and chargers
+             front  and flank as TILE strips on their own planes, like
+                    the back view's walls
+             door   on the chamfer line: x + y is constant along a 45
+                    face, so inside (a + b < WW - CW) sorts before the
+                    jambs and outside after, with no window at all */
+        const part = (p) => (g) => LIB.draw('Charge depot', g, map, null, this.K, { part: p });
+        vq.push({ depth: key(DEPOT_ROOM.a0, DEPOT_ROOM.b0) - 1, fn: part('room') });
+        strips(0, W0 - C0, (a) => key(a, 0), 'front');
+        strips(-D0, -C0, (b) => key(W0, b), 'flank');
+        vq.push({ depth: key(W0 - C0, 0) + 0.5, fn: part('door') });
       } else {
         /* FROM BEHIND, the building is two walls and a lid, and he can
            be INSIDE it -- the pad is 78 off the back wall. One whole-unit
@@ -22454,19 +22525,6 @@ class WorldScene extends Phaser.Scene {
            their own plane (misorder window TILE/4 of contact distance),
            and the roof at the footprint's nearest corner: nothing on the
            ground near it stands taller than the walls it sits on. */
-        const W0 = DEPOT_WW, D0 = DEPOT_DD, C0 = DEPOT_CW;
-        const strips = (lo, hi, fnKey, part) => {
-          const n = Math.max(1, Math.ceil((hi - lo) / TILE));
-          for(let i = 0; i < n; i++){
-            const s0 = lo + (hi-lo)*i/n, s1 = i === n-1 ? hi : lo + (hi-lo)*(i+1)/n;
-            /* the window laps its neighbours by 2: abutting fills leave a
-               hairline the ground shows through (0.75 still left one at
-               K 0.55, measured), and the lap is the same colour on the
-               same plane, clamped to the wall's own ends by the entry */
-            vq.push({ depth: fnKey((s0+s1)/2), fn: (g) =>
-              LIB.draw('Charge depot', g, map, null, this.K, { part, w:[s0 - 2, s1 + 2] }) });
-          }
-        };
         const aw = seeA ? W0 : 0, bw = seeB ? 0 : -D0;
         strips(-D0, seeA ? -C0 : 0, (b) => key(aw, b), 'wallA');
         strips(0, seeB ? W0 - C0 : W0, (a) => key(a, bw), 'wallB');
@@ -22488,7 +22546,14 @@ class WorldScene extends Phaser.Scene {
     /* scatter now dodges the interior footprints: same seed and call
        order as before, each piece just re-rolls (bounded) until it
        lands clear -- deterministic per block, retries included */
-    const clear = (x,y) => !interior.some(rc => x > rc.x0-30 && x < rc.x1+30 && y > rc.y0-30 && y < rc.y1+30);
+    /* and off the depot's lot, with room round it: its room is seen
+       through the door, so a bin rolled onto the lot either stands
+       inside the building mass or shows through the opening */
+    const _dq = (_dg && isDepotBlock(_dg, blk)) ? _dg : null;
+    const onDepot = (x,y) => { if(!_dq) return false; const p = depotLabXY(_dq, x, y);
+      return p.a > -60 && p.a < DEPOT_WW + 60 && p.b > -DEPOT_DD - 60; };
+    const clear = (x,y) => !interior.some(rc => x > rc.x0-30 && x < rc.x1+30 && y > rc.y0-30 && y < rc.y1+30)
+                           && !onDepot(x, y);
     const roll = () => {
       for(let tr = 0; tr < 6; tr++){
         const x = blk.x0 + rng()*(blk.x1-blk.x0), y = blk.y0 + rng()*(blk.y1-blk.y0);
