@@ -5452,7 +5452,7 @@ function owBuildWorld(route){
       for(const b of list)
         if(x > b.x0 - R && x < b.x1 + R && y > b.y0 - R && y < b.y1 + R){
           /* the depot's room and doorway are carved out of their block */
-          if(_depotCache && isDepotBlock(g2, b) && depotOpenAt(g2, x, y, R)) continue;
+          { const _dl = depotOnBlock(g2, b); if(_dl && depotOpenAt(_dl, x, y, R)) continue; }
           return b;
         }
     }
@@ -5592,12 +5592,6 @@ const OW_HZ_R = {
      covers the length, so this is the half-WIDTH only: 45 plus a little
      slack so he stops against the panel rather than inside it. */
   car: 50,
-  /* the charging mast. poleW/2 is 7.5 and the box corner reaches 10.6, so
-     10 is the honest disc for it. Deliberately NOT generous the way the
-     signal is: this is the one obstacle the game deliberately sets the
-     robot down beside, so every unit of slack here comes straight out of
-     the parking clearance (see CHARGE.park). */
-  chargepost: 10,
 };
 /* driven over, not driven into: ground features and triggers */
 const OW_HZ_FLAT = new Set(['crack', 'slab', 'pigeons', 'grade', 'burnoutMark',
@@ -7365,22 +7359,6 @@ function owStep(scene, dt){
     }
   }
 
-  /* ---------- CHARGING MASTS ----------
-     Same class as the signals: drawn, never solid, and you drove through
-     the mast. Only 36 in the whole city, so a Manhattan reject on each is
-     cheaper than any index would be.
-
-     The PAD is not solid and must not be -- it is a flat plate you park
-     on, and it is where owPlaceOnPad sets the robot down. Only the mast
-     answers. */
-  if(scene.route && scene.route.grid){
-    for(const st of getChargeStations(scene.route.grid)){
-      if(Math.abs(ow.px - st.x) + Math.abs(ow.py - st.y) > 300) continue;
-      const pp = chargePoleAt(st);
-      if(owContact(scene, ow, D, dYaw, st, 'chargepost', pp.x, pp.y)) hitNormal = hitNormal || 3;
-      if(scene.state === 'tipped') break;
-    }
-  }
 
   /* the pier: rails and the roundhouse. Cheap enough to run unguarded --
      two distance tests reject a downtown frame before anything else. */
@@ -7570,11 +7548,11 @@ function owPlaceOnPad(scene, fromX, fromY){
   const near = nearestChargeStation(grid, fromX, fromY);
   if(!near) return null;
   const st = near.station;
-  /* FORWARD OF THE MAST, not on top of it -- the mast is solid now, and
-     the pad centre is inside its contact radius. chargeParkAt owns that
-     arithmetic so the spawn and the art cannot disagree about it. */
-  const pk = chargeParkAt(st);
-  owStandUpAt(scene, pk.x, pk.y, st.a);
+  /* ON THE DEPOT'S BACK-WALL PAD, facing the door. The depot's masts are
+     art against the wall, not solid, so the pad centre is the spot --
+     the same one the home spawn uses. The door opens on its own: he is
+     in the room. */
+  owStandUpAt(scene, st.x, st.y, st.a);
   return st;
 }
 
@@ -7701,13 +7679,6 @@ function owSafeSpotNear(scene, x, y){
         const cr = OW_HZ_R[cp.type];
         if(cr === undefined) continue;
         if(Math.hypot(px - cp.wx, py - cp.wy) < cr + R) return false;
-      }
-    }
-    if(grid){
-      for(const st of getChargeStations(grid)){
-        if(Math.abs(px - st.x) + Math.abs(py - st.y) > 300) continue;
-        const pp = chargePoleAt(st);
-        if(Math.hypot(px - pp.x, py - pp.y) < OW_HZ_R.chargepost + R) return false;
       }
     }
     return true;
@@ -10490,7 +10461,8 @@ function getPickupShops(grid){
        0.55 hugs the storefronts and leaves 268 units clear.
 
    CITY_SEED is frozen, so this table is the same forever. */
-const CHARGE_PER_DISTRICT = 3;        // 12 districts -> 36 stations
+/* (CHARGE_PER_DISTRICT is gone: the stations are DEPOT_SITES now, and
+   CHARGE survives for the recovery timing, holdMs.) */
 const CHARGE = {
   padR:      44,        // pad radius. Robot is ~30, so this is "park on it"
   poleH:     96, poleW: 15,
@@ -10513,38 +10485,7 @@ const CHARGE = {
      on top of it. */
   park:      8,
 };
-const CHARGE_PAL = {
-  /* LIGHTER THAN THE LAB'S. At the lab's navy the pad read as a hole in
-     the pavement rather than a plate on top of it — it was darker than
-     the road. Lifted to a mid slate that sits above the sidewalk's own
-     value, so the ring reads as paint and the pad as a surface. */
-  pad: 0x6d7484, padDk: 0x565c6a,
-  ring: 0xffb454, ringDk: 0xd98f34,
-  pole: 0xe8eaef, poleDk: 0xb9bcc6,
-  head: 0x3a4150, headDk: 0x2b313d,
-  glow: 0x7fe3ff, glowHot: 0xd8f7ff,
-  shadow: 0x000000,
-};
 
-/* WHERE THE POLE ACTUALLY STANDS. drawChargeStation puts it at
-   a = -padR*0.62 on the pad's own axis (b = 0), and the sim has to agree
-   with that to the unit or the robot stops short of a charger that is not
-   there. One function, both consumers -- the same rule dogSpotAt and
-   trafficWorldAt already follow.
-
-   NOTE THE SIGN: bx is NEGATIVE and st.a points from the building toward
-   the road, so the pole sits at the BACK of the pad and the robot parks
-   in front of it, nose to the street. */
-function chargePoleAt(st){
-  const bx = -CHARGE.padR * CHARGE.poleAt;
-  return { x: st.x + bx*Math.cos(st.a), y: st.y + bx*Math.sin(st.a) };
-}
-/* WHERE THE ROBOT PARKS. Not the pad centre any more -- see CHARGE.park.
-   Same axis, the other way, so he sits forward of the mast with the
-   charger behind his shoulder. */
-function chargeParkAt(st){
-  return { x: st.x + CHARGE.park*Math.cos(st.a), y: st.y + CHARGE.park*Math.sin(st.a) };
-}
 
 /* ================= PERMANENT CUT LOTS =================
    Sir's call (2026-08-21): the course cutaway is a layout he likes for
@@ -10665,35 +10606,84 @@ let _chargeStationsCache = null;
    drawn to, so the lot and the art cannot drift apart. Lab `a` runs
    along the edge on dv; lab `b` runs INTO the block, so it maps to -rv. */
 const DEPOT_HOOD = 0;
-let _depotCache = null;
-function depotLot(grid){
-  if(_depotCache !== undefined && _depotCache !== null) return _depotCache;
-  const dc = DEPOT_HOOD % DISTRICT_COLS, dr = Math.floor(DEPOT_HOOD / DISTRICT_COLS);
-  const i0 = dc*DISTRICT_W, i1 = i0 + DISTRICT_W - 1;
-  const j0 = dr*DISTRICT_H, j1 = j0 + DISTRICT_H - 1;
-  const blk = grid.blocks
-    .filter(b => b.type === "commercial" && b.i >= i0 && b.i <= i1 && b.j >= j0 && b.j <= j1)
-    .sort((a,b) => a.j - b.j || a.i - b.i)[0];
-  if(!blk) return (_depotCache = false);
-  /* THE NEAR CORNER, in the LAB'S OWN FRAME (Sir: "from this view i cant
-     see the door"). It was cornerUnitsOf(blk)[0] -- (x0, y0), the corner
-     FARTHEST from this fixed camera, so the door faced away forever and
-     no drawing could show it.
+/* ---------- THIRTY-SIX OF THEM (Sir, 2026-09-15) ----------
+   "lets get rid of the 36 existing and replace them with 36 depots ...
+   on the near corner". The roadside pad-and-mast chargers are gone; every
+   charge point in the city is now this building, and the home depot is
+   one of them.
 
-     (x1, y1) is the corner nearest the camera, and its two streets face
-     +x and +y: exactly the two faces the lab draws the front and flank
-     on. So the frame is not taken from cornerUnitsOf either. Every block
-     edge frame has rv = dv turned -90, a mirror of the lab's (a -> +x,
-     b -> +y), which on this corner put the sign on backwards. The depot
-     takes the lab's frame outright: a runs +x along the y1 street with
-     the chamfer at a = WW on the corner, b = 0 on that street, and -b
-     into the block. The lot is the same corner square cornerUnitsOf
-     would give (x1 - M .. x1 - CORNER_LOT_INSET by STORE_DEPTH), with no
-     seeded pick of street, so it never mirrors either. */
+   THE TABLE IS AUTHORED, from a census Sir signed off on the map of.
+   Every commercial block (303) has streets on both near sides and
+   pavement at the corner, and no lot or door approach touches the
+   shore, so the near corner fits anywhere commercial. Two rules picked
+   among them:
+     - no PICKUP-SHOP block. A pickup frontage is always edge 1 or 2 --
+       one of the two near sides -- and for f = 3 the route STARTS at
+       the near corner node, which is where the door and mat stand;
+     - three a district, spread CITY-WIDE by round-robin farthest-point
+       from the home depot. Spread per district alone put two on
+       neighbouring blocks across a district line; city-wide the closest
+       pair is 3.2 blocks and the mean nearest neighbour 4.5.
+   CITY_SEED is frozen, so the blocks cannot move under it. depotsOf
+   still checks each entry is commercial and not a pickup block and
+   drops (with a warning) any that is not, rather than drawing a
+   building on something else. [i, j, home]. */
+const DEPOT_SITES = [
+  [2,0,1], [2,8], [6,4],               //  0 The Flats
+  [17,6], [10,2], [10,7],              //  1 Boardwalk
+  [26,0], [19,0], [24,5],              //  2 Old Town
+  [31,7], [32,2], [28,4],              //  3 Scooter Row
+  [0,17], [8,12], [0,12],              //  4 University
+  [15,17], [13,10], [12,14],           //  5 Warehouse Dist.
+  [26,17], [22,11], [18,13],           //  6 Sunset Terrace
+  [34,16], [29,12], [33,11],           //  7 The Bluffs
+  [7,25], [0,25], [5,21],              //  8 Meridian Hts.
+  [17,24], [9,19], [12,23],            //  9 Market Dist.
+  [26,25], [21,20], [25,21],           // 10 Little Harbor
+  [31,21], [31,25], [34,20],           // 11 Palm Gardens
+];
+let _depotsGrid = null, _depots = null, _depotByBlock = null;
+function depotsOf(grid){
+  if(_depotsGrid === grid && _depots) return _depots;
+  _depotsGrid = grid; _depots = []; _depotByBlock = new Map();
+  const byIJ = new Map(grid.blocks.map(b => [b.i + "," + b.j, b]));
+  const taken = new Set(getPickupShops(grid).map(sh => sh.blockI + "," + sh.blockJ));
+  for(const [i, j, home] of DEPOT_SITES){
+    const key = i + "," + j, blk = byIJ.get(key);
+    if(!blk || blk.type !== "commercial" || taken.has(key)){
+      try { console.warn("depot site " + key + " is not a free commercial block; skipped"); } catch(e){}
+      continue;
+    }
+    const hoodIndex = Math.floor(i / DISTRICT_W) + Math.floor(j / DISTRICT_H) * DISTRICT_COLS;
+    /* NUMBERED within the district, in table order (the home depot is The
+       Flats 1): three a district share the district name, and the map has
+       no per-block street names to tell them apart -- column names repeat
+       down a whole district. */
+    const nth = _depots.filter(x => x.hoodIndex === hoodIndex).length + 1;
+    const lot = { key, blk, cu: depotFrameOf(blk), hoodIndex, home: !!home,
+                  name: HOODS[hoodIndex].n + " Charging " + nth };
+    _depots.push(lot);
+    _depotByBlock.set(blk, lot);
+  }
+  return _depots;
+}
+function depotOnBlock(grid, blk){ depotsOf(grid); return _depotByBlock.get(blk) || null; }
+/* THE HOME DEPOT -- the one the game opens inside. `false` when the grid
+   has none, which every caller already tests for. */
+function depotLot(grid){ return depotsOf(grid).find(d => d.home) || false; }
+/* THE NEAR CORNER, in the LAB'S OWN FRAME (Sir: "from this view i cant
+   see the door"). (x1, y1) is the corner nearest this fixed camera, and
+   its two streets face +x and +y: exactly the two faces the lab draws
+   the front and flank on. Every block-edge frame has rv = dv turned -90,
+   a mirror of the lab's (a -> +x, b -> +y), which put the sign on
+   backwards, so the depot takes the lab's frame outright: a runs +x along
+   the y1 street with the chamfer at a = WW on the corner, b = 0 on that
+   street, -b into the block. The lot is the corner square cornerUnitsOf
+   would give (x1 - M .. x1 - CORNER_LOT_INSET by STORE_DEPTH). */
+function depotFrameOf(blk){
   const ux = blk.x1 - CORNER_LOT_INSET - DEPOT_WW, uy = blk.y1;
-  const cu = { e: { dv: DIRV[0], rv: DIRV[1] }, ux, uy, w: DEPOT_WW,
-               hx: ux + DEPOT_WW/2, hy: uy, kind: "depot" };
-  return (_depotCache = { blk, cu });
+  return { e: { dv: DIRV[0], rv: DIRV[1] }, ux, uy, w: DEPOT_WW,
+           hx: ux + DEPOT_WW/2, hy: uy, kind: "depot" };
 }
 /* ---------- THE CARVE ----------
    solidAt is a plain rectangle over the block, so the depot's room and
@@ -10734,13 +10724,14 @@ function depotWorld(cu, a, b){
   const e = cu.e;
   return { x: cu.ux + e.dv.x*a + e.rv.x*b, y: cu.uy + e.dv.y*a + e.rv.y*b };
 }
-function depotLabXY(grid, x, y){
-  const d = depotLot(grid); if(!d) return null;
+/* every lot function takes the LOT now, not the grid: there are 36 */
+function depotLabXY(d, x, y){
+  if(!d) return null;
   const e = d.cu.e, dx = x - d.cu.ux, dy = y - d.cu.uy;
   return { a: dx*e.dv.x + dy*e.dv.y, b: dx*e.rv.x + dy*e.rv.y };
 }
-function depotOpenAt(grid, x, y, R){
-  const p = depotLabXY(grid, x, y); if(!p) return false;
+function depotOpenAt(d, x, y, R){
+  const p = depotLabXY(d, x, y); if(!p) return false;
   const M = R || 0;
   const inRoom = p.a > DEPOT_ROOM.a0 + M && p.a < DEPOT_ROOM.a1 - M &&
                  p.b > DEPOT_ROOM.b0 + M && p.b < DEPOT_ROOM.b1 - M;
@@ -10758,15 +10749,15 @@ function depotOpenAt(grid, x, y, R){
    centre the entry draws -- CHPAD is padR + 2 so the mast lands against
    the wall -- and poleAt puts the mast behind it, which is the room the
    robot stands in. */
-function depotPadWorld(grid){
-  const d = depotLot(grid); if(!d) return null;
+function depotPadWorld(d){
+  if(!d) return null;
   return depotWorld(d.cu, 200, DEPOT_ROOM.b0 + 46);
 }
 /* the door opens when he is in the room or approaching the mat. The mat
    itself lies 26..102 out along the chamfer normal; 150 gives him a beat
    of warning so the door is up by the time he reaches it. */
-function depotDoorWants(grid, x, y){
-  const p = depotLabXY(grid, x, y); if(!p) return 0;
+function depotDoorWants(d, x, y){
+  const p = depotLabXY(d, x, y); if(!p) return 0;
   const inRoom = p.a > DEPOT_ROOM.a0 && p.a < DEPOT_ROOM.a1 &&
                  p.b > DEPOT_ROOM.b0 && p.b < DEPOT_ROOM.b1;
   const out = ((p.a + p.b) - (DEPOT_WW - DEPOT_CW)) / 1.4142;
@@ -10798,61 +10789,32 @@ function depotStreetView(cu){
    "not there" when the camera can see into it through the door -- the
    street view -- so that is the one case that keeps the carve. Returns
    null off the lot so the caller's band rule applies as before. */
-function depotBuiltHeight(grid, x, y){
-  const d = depotLot(grid); if(!d) return null;
-  const p = depotLabXY(grid, x, y);
+function depotBuiltHeight(d, x, y){
+  if(!d) return null;
+  const p = depotLabXY(d, x, y);
   if(p.a < 0 || p.a > DEPOT_WW || p.b < -DEPOT_DD || p.b > 0) return null;
   if(p.a + p.b > DEPOT_WW - DEPOT_CW) return 0;            // chamfer pavement
-  if(depotStreetView(d.cu) && depotOpenAt(grid, x, y, 0)) return 0;
+  if(depotStreetView(d.cu) && depotOpenAt(d, x, y, 0)) return 0;
   return DEPOT_H;
 }
 
-function isDepotBlock(grid, blk){
-  const d = depotLot(grid);
-  return !!d && d.blk === blk;
-}
+function isDepotBlock(grid, blk){ return !!depotOnBlock(grid, blk); }
+/* WHERE A TRIP TO A DEPOT ENDS: the door mat's centre, cpt(0.5, -64) =
+   lab (266, -30), on the pavement in front of the chamfer. Not the pad --
+   that is inside, and the GPS line's tail should stop at the door the
+   player drives in through. Map pins and search rows both route here. */
+function depotDoorWorld(d){ return depotWorld(d.cu, 266, -30); }
 
+/* THE CHARGE STATIONS ARE THE DEPOTS. Same record shape the recovery,
+   Continue and furniture code already read -- x/y is the depot's
+   back-wall pad, `a` faces out of the door so he wakes nose to the
+   street -- plus the lot itself. */
 function buildChargeStations(grid){
-  const out = [];
-  const shops = getPickupShops(grid);
-  for(let hoodIdx = 0; hoodIdx < HOODS.length; hoodIdx++){
-    const dc = hoodIdx % DISTRICT_COLS, dr = Math.floor(hoodIdx / DISTRICT_COLS);
-    const i0 = dc*DISTRICT_W, i1 = i0 + DISTRICT_W - 1;
-    const j0 = dr*DISTRICT_H, j1 = j0 + DISTRICT_H - 1;
-    const cand = grid.blocks
-      .filter(b => b.type === "commercial" && b.i >= i0 && b.i <= i1 && b.j >= j0 && b.j <= j1)
-      .sort((a,b) => a.j - b.j || a.i - b.i);
-    if(!cand.length) continue;
-    const taken = new Set(shops.filter(s => s.hoodIndex === hoodIdx)
-                               .map(s => s.blockI + "," + s.blockJ));
-    /* its OWN salt, so the stations are not all in the same corner of
-       their districts as the shops */
-    const rng = mulberry32(((hoodIdx*2654435761) ^ 0xc0ffee) >>> 0);
-    const pool = cand.slice();
-    for(let k = pool.length-1; k > 0; k--){
-      const r = Math.floor(rng()*(k+1));
-      const t = pool[k]; pool[k] = pool[r]; pool[r] = t;
-    }
-    const picks = pool.filter(b => !taken.has(b.i + "," + b.j)).slice(0, CHARGE_PER_DISTRICT);
-    for(const blk of picks){
-      const fRng = mulberry32(((blk.i*7919) ^ (blk.j*104729) ^ 0x5eed) >>> 0);
-      const f = fRng() < 0.5 ? 0 : 3;
-      const pe = blockEdgesOf(blk)[(f + 2) % 4];
-      const seed = ((Math.round(pe.ox*3+pe.dv.x)*7919) ^ (Math.round(pe.oy*3+pe.dv.y)*104729) ^ 0x51b3) >>> 0;
-      const units = packEdgeNoGap(pe.len, mulberry32(seed));
-      const u = units[Math.floor(units.length/2)] || { start:0, w: pe.len };
-      const ux = pe.ox + pe.dv.x*u.start, uy = pe.oy + pe.dv.y*u.start;
-      /* clamped so no dial can push a pad into the road or into a shop */
-      const off = Math.min(SIDEWALK_W - CHARGE.padR*0.5,
-                           Math.max(CHARGE.padR*0.5, T2*CHARGE.offset));
-      const x = ux + pe.dv.x*(u.w/2) + pe.rv.x*off;
-      const y = uy + pe.dv.y*(u.w/2) + pe.rv.y*off;
-      out.push({ hoodIndex: hoodIdx, name: HOODS[hoodIdx].n + " Charging",
-                 blockI: blk.i, blockJ: blk.j, x, y,
-                 a: Math.atan2(pe.rv.y, pe.rv.x) });
-    }
-  }
-  return out;
+  return depotsOf(grid).map(d => {
+    const pad = depotPadWorld(d), door = depotWorld(d.cu, (DEPOT_WW - DEPOT_CW) + DEPOT_CW/2, -DEPOT_CW/2);
+    return { hoodIndex: d.hoodIndex, name: d.name, blockI: d.blk.i, blockJ: d.blk.j,
+             x: pad.x, y: pad.y, a: Math.atan2(door.y - pad.y, door.x - pad.x), depot: d };
+  });
 }
 function getChargeStations(grid){
   if(!_chargeStationsCache) _chargeStationsCache = buildChargeStations(grid);
@@ -11165,13 +11127,15 @@ function cityFurnitureForEdge(grid, blk, fi){
      Cleared to padR plus a prop's own reach rather than to padR, so the
      approach is open too and not just the plate. Only the stations on
      THIS block are considered -- 36 in the city, a handful per block. */
-  const _pads = (typeof getChargeStations === "function")
-    ? getChargeStations(grid).filter(st => st.blockI === blk.i && st.blockJ === blk.j)
-    : [];
+  /* now the depot's DOOR APPROACH: the pad is inside the building, and
+     what furniture must not grow on is the mat, the bollards and the
+     pavement in front of the chamfer. Lab (266, -30) is the mat's centre
+     (cpt(0.5, -64)); 150 covers mat, bollards and the corner triangle. */
+  const _dlot = depotOnBlock(grid, blk);
   const onPad = p => {
-    for(const st of _pads)
-      if(Math.hypot(p.x - st.x, p.y - st.y) < CHARGE.padR + CITY_FURN.padClear) return true;
-    return false;
+    if(!_dlot) return false;
+    const q = depotLabXY(_dlot, p.x, p.y);
+    return Math.hypot(q.a - 266, q.b + 30) < 150 + CITY_FURN.padClear;
   };
   const blocked = (a, lane) => {
     const sm = e.len - a;   // compare in the same mirrored frame place() stores
@@ -18814,7 +18778,7 @@ class WorldScene extends Phaser.Scene {
        the same centreline he always was. This is a position override on
        a standing start, which is exactly what the pickupSpot branch
        above already is. */
-    const _dp = this.route && this.route.grid && depotPadWorld(this.route.grid);
+    const _dp = this.route && this.route.grid && depotPadWorld(depotLot(this.route.grid));
     if(_dp){ this.botX = _dp.x; this.botY = _dp.y; }
     this.hopAnim = null; this.yaw = 0; this.hopYaw = 0; this.hopKick = 0;
     this.drawAngle = hdg0;   // position teleports on route load — rotation teleports with it
@@ -19040,8 +19004,9 @@ class WorldScene extends Phaser.Scene {
          x-ray wants the visual one -- from behind, the room is inside
          walls, not open air) */
       const _xg = this.route && this.route.grid;
-      if(band && _xg && isDepotBlock(_xg, b)){
-        const dh = depotBuiltHeight(_xg, x, y);
+      const _dl = (band && _xg) ? depotOnBlock(_xg, b) : null;
+      if(_dl){
+        const dh = depotBuiltHeight(_dl, x, y);
         if(dh !== null) return dh;
       }
       return band ? XRAY.minH : 0;
@@ -19784,7 +19749,7 @@ class WorldScene extends Phaser.Scene {
          start of a route, and releases the moment he drives: vel > 1
          ends it, and runT only grows, so it can never come back. */
       if(this.runT < 2000 && this.ow && Math.abs(this.ow.vel || 0) < 1){
-        const p = depotPadWorld(this.route.grid);
+        const p = depotPadWorld(depotLot(this.route.grid));
         if(p){
           /* ow.px / ow.py IS THE POSITION. botX and botY are derived from
              it every frame in open-world mode, so setting them alone
@@ -19800,15 +19765,23 @@ class WorldScene extends Phaser.Scene {
             this.ow.vel = 0; this.ow.railReacq = 0;
             this.ow.railS = null; this.ow.railD = null;
           }
-          this._doorT = 1;              // he wakes with it open
+          if(!this._doorTs) this._doorTs = new Map();
+          this._doorTs.set(depotLot(this.route.grid).key, 1);   // he wakes with it open
         }
       }
-      const want = depotDoorWants(this.route.grid, this.botX, this.botY);
-      if(this._doorT === undefined) this._doorT = want;
+      /* ONE DOOR EACH. Only depots within reach of him are asked -- a door
+         across the city cannot be approached, so it eases shut; the
+         queue hands each depot its own value (LIB state is shared). */
+      if(!this._doorTs) this._doorTs = new Map();
       const k = Math.min(1, (this._frameDt || 16) / 700);
-      this._doorT += (want - this._doorT) * k;
-      if(Math.abs(want - this._doorT) < 0.004) this._doorT = want;
-      LIB.setDoor(this._doorT);
+      for(const d of depotsOf(this.route.grid)){
+        const near = Math.abs(d.cu.ux - this.botX) + Math.abs(d.cu.uy - this.botY) < 2400;
+        const want = near ? depotDoorWants(d, this.botX, this.botY) : 0;
+        let t = this._doorTs.has(d.key) ? this._doorTs.get(d.key) : want;
+        t += (want - t) * k;
+        if(Math.abs(want - t) < 0.004) t = want;
+        this._doorTs.set(d.key, t);
+      }
     }
     this.addrDoorPos = null;
     const blockVQ = [];
@@ -20423,41 +20396,6 @@ class WorldScene extends Phaser.Scene {
       }});
     }
 
-    /* CHARGING STATIONS ride the hazard queue. That is what makes them
-       correct where the bench could not be: hazVQ is flushed after every
-       building, and layerFor picks near/far per station, so the pad is
-       never swallowed by a storefront and never painted over the robot
-       standing on it. Both halves at once, for free, because this is the
-       slot the game already built for exactly this shape of object. */
-    if(r.grid){
-      for(const st of getChargeStations(r.grid)){
-        if(!this.visProp("chargestation", st.x, st.y)) continue;
-        const _cst = st;
-        /* TWO ENTRIES, TWO DEPTHS -- same reason the signal post and
-           head are queued as separate pieces. Keyed as one object at
-           the pad centre, this had the mission mat's bug and the
-           opposite one at the same time: park on the near half and the
-           PAD painted over the robot, but move the key near enough to
-           fix that and the MAST would sort in front of him even when he
-           was standing behind it.
-
-           PAD: flat plate, robot parks on it, so key it at the nearest
-           point of the disc -- min of x+y over a circle of radius padR
-           is centre - padR*sqrt(2). Anything standing on the pad then
-           has a depth >= the pad's and always draws after it.
-
-           MAST: a slim volume, so the point test at its base is the
-           right one, exactly as it is for a lamp post. chargePoleAt is
-           already the single source of truth for where it stands (the
-           sim reads it too) -- this is simply its third consumer, not a
-           second copy of the -padR*0.62 rule. */
-        hazVQ.push({ depth: _cst.x + _cst.y - CHARGE.padR*Math.SQRT2,
-                     fn:(gg,tt)=>this.drawChargeStation(layerFor(_cst.x, _cst.y), _cst, tt, "pad") });
-        const _cp = chargePoleAt(_cst);
-        hazVQ.push({ depth: _cp.x + _cp.y,
-                     fn:(gg,tt)=>this.drawChargeStation(layerFor(_cp.x, _cp.y), _cst, tt, "pole") });
-      }
-    }
 
     /* MISSION MATS ride the same queue for the same reason the charging
        stations do: layerFor picks near/far per mat, so a mat is never
@@ -22483,8 +22421,13 @@ class WorldScene extends Phaser.Scene {
        reads `this.route && this.route.grid` for exactly this reason, and
        this.grid is undefined. */
     const _dg = this.route && this.route.grid;
-    if(_dg && isDepotBlock(_dg, blk)){
-      const cu = depotLot(_dg).cu, map = depotMap.call(this, cu);
+    const _lot = _dg ? depotOnBlock(_dg, blk) : null;
+    if(_lot){
+      const cu = _lot.cu, map0 = depotMap.call(this, cu);
+      /* this depot's own door, set on the shared LIB state before every
+         part it draws */
+      const map = map0, doorOf = () => (this._doorTs && this._doorTs.has(_lot.key)) ? this._doorTs.get(_lot.key) : 0;
+      const LIBDRAW = (g, part) => { LIB.setDoor(doorOf()); return LIB.draw('Charge depot', g, map, null, this.K, part); };
       /* nearer the camera is larger x + y, so a lab axis faces the eye
          when a step along it grows x + y -- the entry asks P() the same */
       const key = (a, b) => { const q = depotWorld(cu, a, b); return q.x + q.y; };
@@ -22499,7 +22442,7 @@ class WorldScene extends Phaser.Scene {
              K 0.55, measured), and the lap is the same colour on the
              same plane, clamped to the wall's own ends by the entry */
           vq.push({ depth: fnKey((s0+s1)/2), fn: (g) =>
-            LIB.draw('Charge depot', g, map, null, this.K, { part, w:[s0 - 2, s1 + 2] }) });
+            LIBDRAW(g, { part, w:[s0 - 2, s1 + 2] }) });
         }
       };
       if(depotStreetView(cu)){
@@ -22512,7 +22455,7 @@ class WorldScene extends Phaser.Scene {
              door   on the chamfer line: x + y is constant along a 45
                     face, so inside (a + b < WW - CW) sorts before the
                     jambs and outside after, with no window at all */
-        const part = (p) => (g) => LIB.draw('Charge depot', g, map, null, this.K, { part: p });
+        const part = (p) => (g) => LIBDRAW(g, { part: p });
         vq.push({ depth: key(DEPOT_ROOM.a0, DEPOT_ROOM.b0) - 1, fn: part('room') });
         strips(0, W0 - C0, (a) => key(a, 0), 'front');
         strips(-D0, -C0, (b) => key(W0, b), 'flank');
@@ -22530,7 +22473,7 @@ class WorldScene extends Phaser.Scene {
         strips(0, seeB ? W0 - C0 : W0, (a) => key(a, bw), 'wallB');
         const roofK = Math.max(key(0,0), key(W0-C0,0), key(W0,-C0), key(W0,-D0), key(0,-D0)) + 1;
         vq.push({ depth: roofK, fn: (g) =>
-          LIB.draw('Charge depot', g, map, null, this.K, { part:'roof' }) });
+          LIBDRAW(g, { part:'roof' }) });
       }
     }
     /* Commercial interior fill (1-2 free-standing "plaza" buildings in
@@ -22549,8 +22492,7 @@ class WorldScene extends Phaser.Scene {
     /* and off the depot's lot, with room round it: its room is seen
        through the door, so a bin rolled onto the lot either stands
        inside the building mass or shows through the opening */
-    const _dq = (_dg && isDepotBlock(_dg, blk)) ? _dg : null;
-    const onDepot = (x,y) => { if(!_dq) return false; const p = depotLabXY(_dq, x, y);
+    const onDepot = (x,y) => { if(!_lot) return false; const p = depotLabXY(_lot, x, y);
       return p.a > -60 && p.a < DEPOT_WW + 60 && p.b > -DEPOT_DD - 60; };
     const clear = (x,y) => !interior.some(rc => x > rc.x0-30 && x < rc.x1+30 && y > rc.y0-30 && y < rc.y1+30)
                            && !onDepot(x, y);
@@ -23645,67 +23587,6 @@ class WorldScene extends Phaser.Scene {
     this.drawPersonHull(g, x, y, z, thW, build, skin,
       POLICE_UNIFORM.shirt, POLICE_UNIFORM.pants, hair, POLICE_UNIFORM.shoe,
       0, false, 0, liftT, null, POLICE_UNIFORM);
-  }
-
-
-  /* the station's own geometry: hull idiom, orientation transform, one
-     draw. Called from the hazard queue (see drawWorld) so it lands after
-     every building and picks its layer per object the way every other
-     prop does -- which is the whole reason this could not be finished in
-     the bench, where neither reachable layer is both. */
-  /* PART-SPLIT FOR THE DEPTH SORT (see the two hazVQ pushes). A charge
-     station is TWO different kinds of object wearing one draw call: a
-     flat pad the robot parks ON, and a mast with real height he can
-     stand in front of or behind. They need opposite sort answers, so
-     they can no longer share a single depth key. part is "pad", "pole",
-     or omitted for both -- omitted keeps every other caller (and
-     game-logic.js, which draws immediately and needs no split) working
-     exactly as before. */
-  drawChargeStation(g, st, t, part){
-    const cs = Math.cos(st.a), sn = Math.sin(st.a), K = this.K, P = CHARGE_PAL;
-    const W = (a, b, h) => this.W(st.x + a*cs - b*sn, st.y + a*sn + b*cs, h);
-    const o = W(0, 0, 0);
-
-    if(part !== "pole"){
-    g.fillStyle(P.shadow, 0.16);
-    g.fillEllipse(o.x, o.y + 3, CHARGE.padR*2.1*K, CHARGE.padR*1.05*K);
-    g.fillStyle(P.padDk, 1);
-    g.fillEllipse(o.x, o.y + 1, CHARGE.padR*2*K, CHARGE.padR*1.0*K);
-    g.fillStyle(P.ring, 0.92);
-    g.fillEllipse(o.x, o.y, CHARGE.padR*2*K, CHARGE.padR*1.0*K);
-    g.fillStyle(P.pad, 1);
-    g.fillEllipse(o.x, o.y, (CHARGE.padR - CHARGE.ringW)*2*K, (CHARGE.padR - CHARGE.ringW)*1.0*K);
-
-    }
-    if(part === "pad") return;
-
-    const bx = -CHARGE.padR*CHARGE.poleAt;
-    const box = (x0, x1, y0, y1, z0, z1, top, side) => {
-      const pts = [[x0,y0],[x1,y0],[x1,y1],[x0,y1]].map(p => W(p[0], p[1], z1));
-      g.fillStyle(top, 1);
-      g.beginPath(); g.moveTo(pts[0].x, pts[0].y);
-      for(let i = 1; i < 4; i++) g.lineTo(pts[i].x, pts[i].y);
-      g.closePath(); g.fillPath();
-      g.fillStyle(side, 1);
-      for(const pair of [[[x1,y0],[x1,y1]], [[x0,y1],[x1,y1]]]){
-        const lo = pair.map(p => W(p[0], p[1], z0));
-        const hi = pair.map(p => W(p[0], p[1], z1));
-        g.beginPath(); g.moveTo(hi[0].x, hi[0].y); g.lineTo(hi[1].x, hi[1].y);
-        g.lineTo(lo[1].x, lo[1].y); g.lineTo(lo[0].x, lo[0].y);
-        g.closePath(); g.fillPath();
-      }
-    };
-    const hw = CHARGE.poleW/2, hh = CHARGE.headW/2;
-    box(bx-hw, bx+hw, -hw, hw, 0, CHARGE.poleH, P.pole, P.poleDk);
-    box(bx-hh, bx+hh, -hh, hh, CHARGE.poleH, CHARGE.poleH + CHARGE.headH, P.head, P.headDk);
-
-    /* the indicator breathes: a charger doing nothing still reads live */
-    const u = (Math.sin(t / CHARGE.pulseMs * Math.PI*2) + 1) / 2;
-    const gp = W(bx, -hh, CHARGE.poleH + CHARGE.headH*0.55);
-    g.fillStyle(P.glow, 0.30 + 0.25*u);
-    g.fillCircle(gp.x, gp.y, CHARGE.glowR*2.1*K);
-    g.fillStyle(P.glowHot, 0.75 + 0.25*u);
-    g.fillCircle(gp.x, gp.y, CHARGE.glowR*K);
   }
   drawProp(g, kind, x, y, t, fdir = 0, z = 0, wheelPhase = null, colorSeed = null, data = null){
     /* X-RAY FOR PROPS (2026-08-28, Sir: same effect for property hidden
@@ -37325,6 +37206,17 @@ function tpMapIndex(route){
   for(const [nm, r] of parkRows)
     out.push({ name: nm, kind: r.kind, x: r.sx/r.n, y: r.sy/r.n });
   for(const lm of worldgenLandmarks(g2)) out.push(lm);
+  /* THE 36 DEPOTS. Named by district ("Sunset Terrace Charging"), and
+     findable by what a player will actually type -- depot, charger,
+     charging station -- through `alias`, which the search box matches
+     alongside the name. Ordered nearest-first there, not here: the
+     index does not know where the robot is. */
+  if(typeof depotsOf === "function")
+    for(const d of depotsOf(g2)){
+      const q = depotDoorWorld(d);
+      out.push({ name: d.name, kind: "charging", alias: "depot charger charging station",
+                 x: q.x, y: q.y, depotKey: d.key });
+    }
   /* side missions: the mat's own x/y, in the live city. These used to
      come from each mission's frozen grid and carried atlas:true so the
      map swapped backdrops to show them -- see tpMissionPin for why
@@ -37525,6 +37417,12 @@ function tpMapExplore(){
           gpsNavToMission(hit.id);
         }
         else if(hit.id === "daily-delivery") tpBackToDailyRoute();
+        /* a depot pin is a place: route to its door, same as its search row */
+        else if(hit.id.startsWith("charge:")){
+          const s = scn();
+          const d = s && s.route && s.route.grid && depotsOf(s.route.grid).find(x => "charge:" + x.key === hit.id);
+          if(d){ const q = depotDoorWorld(d); tpCollapseMissions(); gpsNavToPlace(d.name, q.x, q.y); }
+        }
         /* the one pin that is not a destination: it is where you already
            are, so tapping it means "put the map away", not "go there". */
         else if(hit.id === "you") tpMapResumeDriving();
@@ -37661,13 +37559,22 @@ function tpMapExplore(){
     if(!s || !s.route) return;
     const q2 = box.value.trim().toLowerCase();
     if(q2.length < 2) return;
-    const hits = tpMapIndex(s.route).filter(h => h.name.toLowerCase().includes(q2)).slice(0, 8);
+    const all = tpMapIndex(s.route).filter(h => (h.name + " " + (h.alias || "")).toLowerCase().includes(q2));
+    /* chargers NEAREST FIRST, after anything else that matched: "charg"
+       should put the closest depot at the top, and the 36 of them in
+       index order would bury it. Straight-line distance, in blocks -- the
+       same rule nearestChargeStation uses to pick where he respawns. */
+    const blk = h => Math.hypot(h.x - s.botX, h.y - s.botY) / BLOCK;
+    const hits = all.filter(h => h.kind !== "charging")
+      .concat(all.filter(h => h.kind === "charging").sort((a, b) => blk(a) - blk(b)))
+      .slice(0, 8);
     if(!hits.length) return;
     res.style.display = "block";
     for(const h of hits){
       const row = document.createElement("div");
       row.style.cssText = "padding:8px 14px;color:#2e3138;font:500 13px/1.2 -apple-system,sans-serif;display:flex;justify-content:space-between;cursor:pointer";
-      row.innerHTML = "<span>" + h.name + "</span><span style='color:#6b6f78;font-size:11px'>" + h.kind + "</span>";
+      const tag = h.kind === "charging" ? ("charging \u00b7 " + blk(h).toFixed(1) + " blk") : h.kind;
+      row.innerHTML = "<span>" + h.name + "</span><span style='color:#6b6f78;font-size:11px'>" + tag + "</span>";
       row.onclick = () => {
         res.style.display = "none"; box.blur();
         /* PICKING A ROW IS CHOOSING A DESTINATION. It used to pan the
@@ -38271,6 +38178,27 @@ function drawRouteMap(route){
   }
 
   tpMapMissionPins.length = 0;
+  /* DEPOT PINS, under the mission pins so a mission is never covered by
+     a charger. Only once zoomed in to street level -- a block at least
+     a seventh of the short side, i.e. roughly six blocks across: at
+     city zoom 36 of them are confetti over the park labels. Search finds
+     them at any zoom. Tap routes to the door (see the tap handler). */
+  if(!usingAtlas && typeof depotsOf === "function" && route.grid
+     && scale * BLOCK >= Math.min(W, H) / 7){
+    for(const d of depotsOf(route.grid)){
+      const q = depotDoorWorld(d);
+      if(!inView(q.x, q.y)) continue;
+      const pp = toScreen(q);
+      ctx.fillStyle = "#1f8aa0";
+      ctx.beginPath(); ctx.arc(pp.x, pp.y, 8, 0, Math.PI*2); ctx.fill();
+      ctx.strokeStyle = "#fff"; ctx.lineWidth = 1.5; ctx.stroke();
+      ctx.font = "10px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText("\u26a1", pp.x, pp.y);
+      ctx.fillStyle = "#2e3138"; ctx.font = "700 9px sans-serif";
+      ctx.fillText("Charging", pp.x, pp.y + 15);
+      tpMapMissionPins.push({ id: "charge:" + d.key, x: pp.x, y: pp.y, r: 14 });
+    }
+  }
   const MISSION_ICON = { hydrant: "🧯", cone: "🚧" };
   for(const m of TP_SIDE_MISSIONS){
     if(m.status !== "playable") continue;
