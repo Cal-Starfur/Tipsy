@@ -7354,10 +7354,29 @@ const CORNER_STORE_PALETTES = [
   { wall:0x2a4062, wallDk:0x1e2f4a, wallLt:0x35507a, trim:0x141f30, sign:0xead9b0, awn:0x9a7b3a, accent:0xc9a25a }   // navy & brass
 ];
 
+/* ---------- BENCH ----------
+   THE OLD ONE WAS A BENCH SQUASHED 215 TIMES FLAT. Its b values were
+   0.15, 0.30, 0.40 and 0.42, and every other prop in this file works in
+   WORLD units where PERSON_H is 124. Read them as FRACTIONS of a seat
+   depth and the proportions are right --
+
+     0.15 -> 8.7 back of seat      0.40 -> 23.2 front of seat
+     0.30 -> 17.4 legs             0.42 -> 24.4 backrest
+
+   -- so they were written as fractions and then used as units, which
+   collapsed the whole thing into 0.27 of a unit against a 161 length: a
+   597 : 1 plane standing on two 4px strokes. It also put the backrest
+   at 0.42 IN FRONT of the seat front at 0.40, which nobody could see
+   because there was nothing there to see.
+
+   Rebuilt in world units with the depth it always wanted. b runs 0 at
+   the back to `depth` at the front, which is the way round the seat face
+   was already drawn. */
 const BENCH_ART = {
-  w: PERSON_H*1.3, seatH: PERSON_H*0.35, backH: PERSON_H*0.3,
+  w: PERSON_H*1.3, depth: PERSON_H*0.47, seatH: PERSON_H*0.35, backH: PERSON_H*0.42,
+  slatT: 5, armH: PERSON_H*0.13,
   wood: 0x9d7a4e, woodDk: 0x7c5f3c, woodLt: 0xb8935e,
-  leg: 0x3a3d43
+  leg: 0x3a3d43, legLt: 0x4d525a
 };
 
 /* ground tones — grass for housing/park, warm pavers for commercial,
@@ -17544,23 +17563,119 @@ class WorldScene extends Phaser.Scene {
     const rv = DIRV[(DIRV.indexOf(dv)+1)%4] || {x:-dv.y,y:dv.x};
     const B = BENCH_ART;
     const G = (a,b,h) => this.W(x + dv.x*a + rv.x*b, y + dv.y*a + rv.y*b, h);
-    const hw = B.w/2;
+    const hw = B.w/2, D = B.depth, S = B.seatH, T = B.slatT;
+    const Q = (p, c, e) => { this.quadOn(g, p, c); if(e) this.edgeOn(g, p, e, 1); };
 
-    const legL = [G(-hw+4,0.3,B.seatH), G(-hw+4,0.3,0)];
-    const legR = [G(hw-4,0.3,B.seatH), G(hw-4,0.3,0)];
-    g.lineStyle(4, B.leg, 1);
-    g.lineBetween(legL[0].x,legL[0].y,legL[1].x,legL[1].y);
-    g.lineBetween(legR[0].x,legR[0].y,legR[1].x,legR[1].y);
+    /* EVERY PIECE IS A SOLID, AND THE BENCH TURNS. A box in this
+       projection shows exactly three faces -- the top and the two whose
+       outward normal points at the camera -- and W() sees +x, +y and +z,
+       so which of the four sides those are depends on dv:
 
-    const seat = [G(-hw,0.4,B.seatH), G(hw,0.4,B.seatH), G(hw,0.15,B.seatH), G(-hw,0.15,B.seatH)];
-    this.quadOn(g, seat, B.wood); this.edgeOn(g, seat, B.woodDk, 1);
-    const seatFace = [G(-hw,0.4,B.seatH), G(hw,0.4,B.seatH), G(hw,0.4,B.seatH-4), G(-hw,0.4,B.seatH-4)];
-    this.quadOn(g, seatFace, B.woodDk);
+         DIRV[0]  dv +x  rv +y   ->  top, a1, b1
+         DIRV[1]  dv +y  rv -x   ->  top, a1, b0
+         DIRV[2]  dv -x  rv -y   ->  top, a0, b0
+         DIRV[3]  dv -y  rv +x   ->  top, a0, b1
 
-    const back = [G(-hw,0.42,B.seatH+B.backH), G(hw,0.42,B.seatH+B.backH), G(hw,0.42,B.seatH), G(-hw,0.42,B.seatH)];
-    this.quadOn(g, back, B.woodLt); this.edgeOn(g, back, B.woodDk, 1);
-    g.lineStyle(1, B.woodDk, 0.4);
-    for(let i=1;i<3;i++){ const yy=B.seatH + B.backH*i/3; const a=G(-hw,0.42,yy), b=G(hw,0.42,yy); g.lineBetween(a.x,a.y,b.x,b.y); }
+       The first cut hardcoded a1 and b1, so on two of the four headings
+       it drew the faces pointing AWAY and left the visible ones empty --
+       a bench with holes in it. FA and FB pick the right pair once, off
+       the heading, and every solid on the bench goes through vol(). */
+    const FA = (dv.x > 0 || dv.y > 0) ? 1 : 0;
+    const FB = (rv.x > 0 || rv.y > 0) ? 1 : 0;
+    const vol = (a0, a1, b0, b1, z0, z1, top, sideA, sideB) => {
+      const av = FA ? a1 : a0, bv = FB ? b1 : b0;
+      Q([G(a0,b0,z1), G(a1,b0,z1), G(a1,b1,z1), G(a0,b1,z1)], top);
+      Q([G(a0,bv,z1), G(a1,bv,z1), G(a1,bv,z0), G(a0,bv,z0)], sideB);
+      Q([G(av,b0,z1), G(av,b1,z1), G(av,b1,z0), G(av,b0,z0)], sideA);
+    };
+    /* the raked back slats lean, so their two b faces are at different
+       heights -- same three-face rule, one of them a parallelogram */
+    const rake = (a0, a1, bLo, bHi, z0, z1, th, top, sideA, sideB) => {
+      const bv0 = FB ? bLo : bLo - th, bv1 = FB ? bHi : bHi - th;
+      const av = FA ? a1 : a0;
+      Q([G(a0,bHi,z1), G(a1,bHi,z1), G(a1,bHi-th,z1), G(a0,bHi-th,z1)], top);
+      Q([G(a0,bv1,z1), G(a1,bv1,z1), G(a1,bv0,z0), G(a0,bv0,z0)], sideB);
+      Q([G(av,bHi,z1), G(av,bHi-th,z1), G(av,bLo-th,z0), G(av,bLo,z0)], sideA);
+    };
+
+    /* ONE PIECE PER END, not a pile of blocks. The frame was two leg
+       boxes, a stretcher, a back post and two arm brackets -- seven
+       separate solids an end, each with its own silhouette, which is why
+       it read as parts rather than a bench. A real park bench has two
+       cast ends and some boards bolted across them, so that is what this
+       is: a single profile in (b, z) -- back foot, up the raked post,
+       over the top, forward along the arm, down the front leg -- swept
+       through the frame's thickness.
+
+       quadOn goes through fillPoints, so it takes an n-gon and the whole
+       profile is one fill. Each profile segment gets a quad for its
+       thickness, then the camera-facing side is laid over them. */
+    /* and the profile has no notch in it. Cutting back under the arm --
+       [D-4, armH-11] to [D-14, armH-11] to [D-14, S-T] -- left an open
+       pocket between the arm and the seat, which from the front reads as
+       a bite out of the seat board rather than as daylight under an arm.
+       The front runs straight down from the arm to the ground. */
+    const END = [
+      [12, 0], [12, S-T], [2, S+B.backH], [16, S+B.backH], [23, S+B.armH],
+      [D-4, S+B.armH], [D-4, 0]
+    ];
+    /* THE BOARDS RUN BETWEEN THE ENDS, not across them.
+
+       The near end is drawn last, so it covers its own board ends and
+       looks right. The FAR end is drawn first, and the only face of it
+       you can ever see is its INNER one -- the outer face points away
+       and is never drawn at all. So boards taken out to the outer face
+       ran 14 past the only part of the far end that exists on screen,
+       with no cap on them, which is the overhang on the far end of every
+       heading.
+
+       Between the inner faces at +-(EC-ET) they butt into both ends and
+       need no cap either way. */
+    const ET = 7, EC = hw - 9, EB = EC - ET;
+    const end = (sa) => {
+      const c = sa*EC, th = ET, av = FA ? c+th : c-th;
+      for(let i=0;i<END.length;i++){
+        const p = END[i], q = END[(i+1)%END.length];
+        Q([G(c-th,p[0],p[1]), G(c+th,p[0],p[1]), G(c+th,q[0],q[1]), G(c-th,q[0],q[1])], B.leg);
+      }
+      Q(END.map(p => G(av, p[0], p[1])), B.legLt, B.leg);
+      vol(c-ET-2, c+ET+2, 22, D-3, S+B.armH, S+B.armH+6, B.woodLt, B.woodDk, B.woodDk);
+    };
+    /* THE NEAR END GOES LAST. The boards run the full length and the ends
+       sit inboard of them, so drawing both ends first let every slat cut
+       straight through the one in front. FA already says which way a
+       grows toward the camera, so it says which end is near. */
+    const near = FA ? 1 : -1;
+    end(-near);
+    /* seat: three slats bolted across the ends. Four of them over a 36.28
+       run with a 6 gap left each slat 3.07 WIDE against a back slat of
+       12.69 -- the gap was twice the timber, so the seat read as wire
+       where the back read as boards. Three over the same run with a 3
+       gap is 10.76, which matches the back. */
+    const SR0 = 14, SRUN = (D-6) - SR0, SGAP = 3, SN = 3;
+    const SW = (SRUN - (SN-1)*SGAP)/SN;
+    for(let k=0;k<SN;k++){
+      const b0 = SR0 + k*(SW+SGAP);
+      vol(-EB, EB, b0, b0+SW, S-T, S, B.wood, B.woodDk, B.woodDk);
+    }
+    /* back: three slats, the top rail lighter */
+    /* THE SLATS TAKE THEIR LEAN FROM THE POST, not from a guessed number.
+       The end profile's back edge runs [12, S-T] to [2, S+backH], so at
+       height z the frame starts at postB(z) and anything behind that is
+       off the end of it. A hand-picked lean of 12 - k*3.5 put all three
+       slats ENTIRELY behind it -- b 4..10 against a post starting at
+       10.2, and worse further up -- which is the three pieces poking out
+       past the end. They were never overshooting in a; they were hanging
+       off in b. Derived off postB, each slat sits 0.5 in front of the
+       frame at its own height. */
+    const postB = z => 12 + (2-12)*(z-(S-T))/(B.backH+T);
+    const BTH = 6;
+    for(let k=0;k<3;k++){
+      const z0 = S + 5 + k*(B.backH-5)/3, z1 = z0 + (B.backH-5)/3 - 3;
+      const bHi = postB(z0) + BTH + 0.5, bLo = bHi + 2;
+      rake(-EB, EB, bLo, bHi, z0, z1, BTH, k === 2 ? B.woodLt : B.wood, B.woodDk, B.woodDk);
+    }
+    end(near);
   }
 
   /* park/commercial scatter: real approved props (palm/planter), not
