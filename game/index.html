@@ -10686,10 +10686,30 @@ function depotLot(grid){
    CA = (WW-CW, 0) with normal (1,1) is simply a + b > WW - CW. */
 const DEPOT_ROOM = { a0:40, a1:289.6, b0:-244, b1:-6 };
 const DEPOT_WW = 295.6, DEPOT_CW = 150;
+/* ONE MAPPER, BOTH WAYS. The lot's rv points OUT of the block, so lab b
+   -- which runs INTO the building -- is +rv, not -rv. I had it negated,
+   which drew the whole depot mirrored across its own frontage: standing
+   on the pavement and the road instead of on its lot. Everything else
+   followed from that one sign. solidAt carved a region OUTSIDE the
+   block, so the block stayed solid and he could never drive in, and the
+   spawn pad landed on the footway -- which is exactly what the HUD said,
+   `sfc sidewalk`, while I was hunting a rendering bug.
+
+   The forward and inverse now sit next to each other and share the
+   convention, so they cannot disagree again. */
+function depotMap(cu){
+  const e = cu.e;
+  return (a, b, h) => this.W(cu.ux + e.dv.x*a + e.rv.x*b,
+                             cu.uy + e.dv.y*a + e.rv.y*b, h);
+}
+function depotWorld(cu, a, b){
+  const e = cu.e;
+  return { x: cu.ux + e.dv.x*a + e.rv.x*b, y: cu.uy + e.dv.y*a + e.rv.y*b };
+}
 function depotLabXY(grid, x, y){
   const d = depotLot(grid); if(!d) return null;
   const e = d.cu.e, dx = x - d.cu.ux, dy = y - d.cu.uy;
-  return { a: dx*e.dv.x + dy*e.dv.y, b: -(dx*e.rv.x + dy*e.rv.y) };
+  return { a: dx*e.dv.x + dy*e.dv.y, b: dx*e.rv.x + dy*e.rv.y };
 }
 function depotOpenAt(grid, x, y, R){
   const p = depotLabXY(grid, x, y); if(!p) return false;
@@ -10707,9 +10727,7 @@ function depotOpenAt(grid, x, y, R){
    robot stands in. */
 function depotPadWorld(grid){
   const d = depotLot(grid); if(!d) return null;
-  const e = d.cu.e, a = 200, b = DEPOT_ROOM.b0 + 46;
-  return { x: d.cu.ux + e.dv.x*a - e.rv.x*b,
-           y: d.cu.uy + e.dv.y*a - e.rv.y*b };
+  return depotWorld(d.cu, 200, DEPOT_ROOM.b0 + 46);
 }
 /* the door opens when he is in the room or approaching the mat. The mat
    itself lies 26..102 out along the chamfer normal; 150 gives him a beat
@@ -18846,6 +18864,16 @@ class WorldScene extends Phaser.Scene {
       if(x < b.x0 || x > b.x1 || y < b.y0 || y > b.y1) continue;
       const band = (x - b.x0 < HOUSE_DEPTH) || (b.x1 - x < HOUSE_DEPTH) ||
                    (y - b.y0 < HOUSE_DEPTH) || (b.y1 - y < HOUSE_DEPTH);
+      /* THE DEPOT'S ROOM IS NOT BUILT-OVER, and this needs the same carve
+         solidAt got. Standing on the pad he is inside the block and well
+         inside the HOUSE_DEPTH band, so the x-ray decided he was behind a
+         frontage and dissolved the whole building around him -- the
+         fascia, windows and roof plant still drawn, the mass gone. He is
+         not behind it, he is IN it, and there is nothing overhead to
+         ghost. I flagged this when the carve went into solidAt and then
+         only carved the one. */
+      const _xg = this.route && this.route.grid;
+      if(band && _xg && isDepotBlock(_xg, b) && depotOpenAt(_xg, x, y, 0)) return 0;
       return band ? XRAY.minH : 0;
     }
     /* the world's outer perimeter builds on extLots, not blocks, and
@@ -22287,9 +22315,7 @@ class WorldScene extends Phaser.Scene {
     if(_dg && isDepotBlock(_dg, blk)){
       const cu = depotLot(_dg).cu, e = cu.e;
       vq.push({ depth: (cu.hx + cu.hy), fn: (g) =>
-        LIB.draw('Charge depot', g,
-          (a, b, h) => this.W(cu.ux + e.dv.x*a - e.rv.x*b,
-                              cu.uy + e.dv.y*a - e.rv.y*b, h), null, this.K) });
+        LIB.draw('Charge depot', g, depotMap.call(this, cu), null, this.K) });
     }
     /* Commercial interior fill (1-2 free-standing "plaza" buildings in
        the middle of every commercial block) is OFF citywide -- 2026-08-12,
