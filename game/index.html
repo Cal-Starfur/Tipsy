@@ -10097,7 +10097,15 @@ function gpsNavTo(scene, id, name, tx, ty){
   if(!gpsNav.path){ gpsNav = null; return false; }
   return true;
 }
-function gpsNavClear(){ gpsNav = null; }
+function gpsNavClear(){
+  /* a PLACE trip is over when its nav is: nothing is left running for
+     GO's "same as running" gate to protect, so re-picking the same depot
+     after a tow must bring GO back. Missions and the delivery key off
+     their mode, not the nav, and are left alone. */
+  if(gpsNav && gpsNav.id === "place" && typeof tpGoneKey !== "undefined"
+     && tpGoneKey && tpGoneKey.indexOf("place:") === 0) tpGoneKey = null;
+  gpsNav = null;
+}
 
 /* ARRIVAL. Deliberately not a radius test around gpsNav.tx/ty: the mat
    already owns "is the robot on me", through owMatContains, and it
@@ -38808,8 +38816,17 @@ function tpMapSelKey(s){
   if(s.mode === "slalom-pending") return "mission:cone-slalom";
   if(s.mode === "delivery")       return "delivery";
   if(typeof gpsNav !== "undefined" && gpsNav){
-    return (gpsNav.id === "pickup" || gpsNav.id === "dropoff")
-      ? "delivery" : "mission:" + gpsNav.id;
+    if(gpsNav.id === "pickup" || gpsNav.id === "dropoff") return "delivery";
+    /* A PLACE IS KEYED BY WHERE IT IS, not by its id (Sir on-device,
+       2026-09-15: no GO after picking a depot). Every search row and
+       depot pin navigates with the one id "place", so after GO on any
+       place, picking a DIFFERENT one produced the same key and read as
+       "already running" -- GO hidden under a card saying "press GO".
+       Name plus target keeps re-opening the map over the SAME trip
+       GO-less, which is the 8-27 behaviour this key exists for. */
+    if(gpsNav.id === "place")
+      return "place:" + gpsNav.name + "@" + Math.round(gpsNav.tx) + "," + Math.round(gpsNav.ty);
+    return "mission:" + gpsNav.id;
   }
   return "none";
 }
