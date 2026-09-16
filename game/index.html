@@ -5474,7 +5474,8 @@ function owBuildWorld(route){
       for(const b of list)
         if(x > b.x0 - R && x < b.x1 + R && y > b.y0 - R && y < b.y1 + R){
           /* the depot's room and doorway are carved out of their block */
-          { const _dl = depotOnBlock(g2, b); if(_dl && depotOpenAt(_dl, x, y, R)) continue; }
+          { const _dl = depotOnBlock(g2, b);
+            if(_dl){ const ds = depotSolidAt(_dl, x, y, R); if(ds === false) continue; if(ds === true) return b; } }
           return b;
         }
     }
@@ -7176,6 +7177,31 @@ function owStep(scene, dt){
     if(freeX){ ow.px += stepX; hitNormal = 2; }
     else if(freeY){ ow.py += stepY; hitNormal = 1; }
     else hitNormal = Math.abs(stepX) > Math.abs(stepY) ? 1 : 2;
+
+    /* A DEPOT WALL END DEFLECTS HIM (Sir, 2026-09-16: "lets fix his exit").
+       The resolve above tries x alone and y alone. Against a straight
+       block face one of them survives and he slides; against the END of a
+       thin wall -- a jamb, which is the only convex corner the city has --
+       both probes land inside the round end and he is pinned, pressed on
+       it frame after frame (measured: 60% speed out of the pad, stuck at
+       the right jamb until he went over). Inside the doorway's `threshold`
+       zone the volume knows the true surface normal, so the step keeps
+       only its component ALONG the surface and he rolls round the jamb.
+       A hit that is square on leaves almost nothing along the surface, so
+       it still stops -- and the tip test below still judges it. */
+    if(!freeX && !freeY && _full !== OW_CURB_BLOCK && W.grid && typeof depotOnBlock === "function"){
+      const _dl0 = depotOnBlock(W.grid, _full);
+      const _n0 = _dl0 && depotContactNormal(_dl0, ow.px, ow.py);
+      if(_n0){
+        const into = stepX*_n0.nx + stepY*_n0.ny;
+        if(into < 0){
+          const tx = stepX - into*_n0.nx, ty = stepY - into*_n0.ny;
+          if(tx*tx + ty*ty > 1e-9 && !blockAt(ow.px + tx, ow.py + ty, Math.sign(tx)*_pR, Math.sign(ty)*_pR)){
+            ow.px += tx; ow.py += ty;
+          }
+        }
+      }
+    }
 
     /* A KERB NEVER TIPS HIM (Sir's call). It is a step, not a bollard:
        it stops the wheels dead and that is the whole punishment. So the
@@ -10739,9 +10765,10 @@ function depotLot(grid){ return depotsOf(grid).find(d => d.home) || false; }
    street, -b into the block. The lot is the corner square cornerUnitsOf
    would give (x1 - M .. x1 - CORNER_LOT_INSET by STORE_DEPTH). */
 function depotFrameOf(blk){
-  const ux = blk.x1 - CORNER_LOT_INSET - DEPOT_WW, uy = blk.y1;
-  return { e: { dv: DIRV[0], rv: DIRV[1] }, ux, uy, w: DEPOT_WW,
-           hx: ux + DEPOT_WW/2, hy: uy, kind: "depot" };
+  const WW = depotGeom().WW;
+  const ux = blk.x1 - CORNER_LOT_INSET - WW, uy = blk.y1;
+  return { e: { dv: DIRV[0], rv: DIRV[1] }, ux, uy, w: WW,
+           hx: ux + WW/2, hy: uy, kind: "depot" };
 }
 /* ---------- THE CARVE ----------
    solidAt is a plain rectangle over the block, so the depot's room and
@@ -10757,9 +10784,16 @@ function depotFrameOf(blk){
    rect, so without it he is stopped on the doorstep. The passage is
    everything on the outboard side of the chamfer line, which through
    CA = (WW-CW, 0) with normal (1,1) is simply a + b > WW - CW. */
-const DEPOT_ROOM = { a0:40, a1:289.6, b0:-244, b1:-6 };
-const DEPOT_WW = 295.6, DEPOT_CW = 150, DEPOT_DD = 276;
-const DEPOT_DOOR = [0.10, 0.90];   // the opening along the chamfer -- the entry's DOOR
+/* THE DEPOT'S GEOMETRY AND VOLUME ARE THE ENTRY'S (Sir, 2026-09-16).
+   There used to be a hand copy here -- DEPOT_ROOM, DEPOT_WW/CW/DD,
+   DEPOT_DOOR, the pad at 200/b0+46, the mat at 266/-30, 300*1.5 -- and
+   every depot bug came out of that copy. Now DEPOT_GEOM and the entry's
+   `vol` (labs/shopfront-shops.js, inside LIB) are the only statement of
+   the building; these read it. Lazy, because LIB is defined further down
+   the file than the code that uses it. */
+function depotGeom(){ return LIB.get('Charge depot').geom; }
+function depotVol(){ return LIB.vol('Charge depot'); }
+function depotZS(){ return LIB.zs('Charge depot'); }
 /* ONE MAPPER, BOTH WAYS. The lot's rv points OUT of the block, so lab b
    -- which runs INTO the building -- is +rv, not -rv. I had it negated,
    which drew the whole depot mirrored across its own frontage: standing
@@ -10789,109 +10823,68 @@ function depotLabXY(d, x, y){
   const e = d.cu.e, dx = x - d.cu.ux, dy = y - d.cu.uy;
   return { a: dx*e.dv.x + dy*e.dv.y, b: dx*e.rv.x + dy*e.rv.y };
 }
-function depotOpenAt(d, x, y, R){
-  const p = depotLabXY(d, x, y); if(!p) return false;
-  const M = R || 0;
-  const inRoom = p.a > DEPOT_ROOM.a0 + M && p.a < DEPOT_ROOM.a1 - M &&
-                 p.b > DEPOT_ROOM.b0 + M && p.b < DEPOT_ROOM.b1 - M;
-  /* a runs out to the BLOCK's corner, not the lot's: the lot stops
-     CORNER_LOT_INSET short of the block line and the body test inflates
-     the block by R, so a < WW left a solid sliver on the corner that
-     caught him driving straight out of the door along its normal
-     (measured: blocked at lab a 297..319 just past b = 0). */
-  const inDoor = (p.a + p.b) > (DEPOT_WW - DEPOT_CW) + M*1.42 &&
-                 p.a > 0 && p.a < DEPOT_WW + CORNER_LOT_INSET + M + 1 && p.b > -DEPOT_CW - 40;
-  /* THE THRESHOLD (Sir on-device, 2026-09-15: "nudging the bollards on
-     the exit ... its tipping me"). inRoom and inDoor are two rectangles
-     that barely overlap across the chamfer: measured, a body centre had
-     50 units to pass at 30 outside the door against a 170-unit opening,
-     so the solid corners either side sat exactly where the bollards are
-     drawn, and 9 of 21 exits driven straight out of the room tipped.
+/* WHO DECIDES A POINT INSIDE THE BLOCK RECT: the depot's volume, or the
+   block. Returns true/false where the depot owns the ground, null where
+   the block rect should answer as it does for any other block.
 
-     A straight corridor (the opening less M each side) closed the pinch
-     -- 109 units at every depth -- but its edges were SQUARE corners and
-     an exit angled into one still tipped. A jamb is a thin wall end, not
-     a block corner, so it is modelled as one: near the door a body
-     centre is blocked only within M of the two jamb segments themselves
-     (chamfer t 0..0.1 and 0.9..1 at depth 0), which rounds the corners
-     so a glancing hit slides off. Inside it stays bounded by the room's
-     own walls; outside, the block rect and inDoor already decide.
-     t runs along the chamfer (0..1), k is depth into the building. */
-  const CA0 = DEPOT_WW - DEPOT_CW, LCH = DEPOT_CW * Math.SQRT2;
-  const t = (p.a - p.b - CA0) / (2 * DEPOT_CW);
-  const k = (CA0 - (p.a + p.b)) / Math.SQRT2;
-  let inGate = false;
-  if(Math.abs(k) < 90 && t > -0.3 && t < 1.3){
-    const sAlong = t * LCH;
-    const segD = (s0, s1) => Math.hypot(Math.max(0, s0 - sAlong, sAlong - s1), k);
-    const clearOfJambs = segD(0, DEPOT_DOOR[0]*LCH) > M && segD(DEPOT_DOOR[1]*LCH, LCH) > M;
-    /* inside, the walls either side of the door are the FRONT wall's
-       inner face (b = RB1, a up to the chamfer) and the FLANK's (a = RA1,
-       b down from the chamfer) -- segments that END at the chamfer. The
-       room rect runs both lines straight through to the corner, which
-       put a phantom wall just inside the opening: the tips that were
-       left all stopped against it, ~4 units in. */
-    const segP = (ax, ay, bx, by) => {
-      const dx = bx - ax, dy = by - ay, L2 = dx*dx + dy*dy;
-      const u = Math.max(0, Math.min(1, ((p.a - ax)*dx + (p.b - ay)*dy) / L2));
-      return Math.hypot(p.a - (ax + u*dx), p.b - (ay + u*dy));
-    };
-    const RB1 = DEPOT_ROOM.b1, RA1 = DEPOT_ROOM.a1;
-    inGate = clearOfJambs && (k > 0
-      ? (t > DEPOT_DOOR[0] - 0.05 && t < DEPOT_DOOR[1] + 0.05 &&
-         segP(DEPOT_ROOM.a0, RB1, CA0 - RB1, RB1) > M &&           // front wall, inner face
-         segP(RA1, -DEPOT_DD, RA1, CA0 - RA1) > M)                 // flank, inner face
-      : true);
-  }
-  return inRoom || inDoor || inGate;
+   The depot owns its lot out to the block's corner and R past the two
+   street lines -- the chamfer's pavement and the door approach are
+   there -- EXCEPT the strips alongside its own walls: beside the flank
+   (the CORNER_LOT_INSET strip) and in front of the front wall, where the
+   block line is the wall line and the block rect already agrees. "Its own
+   walls" is asked of the volume, not written down.
+
+   Inside that, it is volBlockedAt: the declared foot less its walkable
+   opens, and a body of radius R kept off the DERIVED boundary -- which
+   is what makes the jambs thin walls with round ends, and the room's
+   wall faces stop at the doorway, by construction.
+
+   BOLLARDS DO NOT COLLIDE (Sir, 2026-09-16). The entry declares them as
+   solids -- they are there, and the x-ray still reads their height -- but
+   the game asks for the volume without props, so Tipsey drives through
+   them as he always has. DEPOT_PROPS_COLLIDE is that choice. */
+const DEPOT_PROPS_COLLIDE = false;
+function depotSolidAt(d, x, y, R){
+  const p = depotLabXY(d, x, y); if(!p) return null;
+  const v = depotVol(), L = v.lot;
+  if(p.a < 0 || p.b < L.b0 || p.a > L.a1 + CORNER_LOT_INSET + R || p.b > R) return null;
+  if(p.a > L.a1 && volSolidAt(v, L.a1 - 1, p.b, false)) return null;  // beside the flank
+  if(p.b > 0 && volSolidAt(v, p.a, -1, false)) return null;           // in front of the front wall
+  return volBlockedAt(v, p.a, p.b, R, DEPOT_PROPS_COLLIDE);
 }
 
 /* THE DOORWAY'S TRUE SURFACE NORMAL, for the tip test (see owStep). The
    resolve there is axis-separated, so every contact is judged as an x-
-   or y-face -- right for a block's edges, wrong for a door that faces 45:
-   leaving it diagonally, a graze on a jamb read as 71% of full speed
-   INTO a wall and tipped him (Sir on-device, 2026-09-15). Near the door
-   this returns the unit normal off the nearest real surface -- a jamb
-   segment's end or face, or the chamfer -- in WORLD terms, so the test
-   can take the honest normal component. null anywhere else, and the
-   caller keeps the axis answer. The depot frame is the lab's own
-   (a -> +x, b -> +y), so lab and world directions coincide. */
+   or y-face -- wrong for a door that faces 45 (Sir on-device, 2026-09-15:
+   a graze on a jamb read as 71% of full speed into a wall). Inside the
+   entry's `threshold` zone this is the unit normal off the nearest real
+   surface the volume has -- jamb, wall face or bollard -- mapped to WORLD
+   through the lot frame. null anywhere else; the caller keeps the axis. */
 function depotContactNormal(d, x, y){
   const p = depotLabXY(d, x, y); if(!p) return null;
-  const CA0 = DEPOT_WW - DEPOT_CW, LCH = DEPOT_CW * Math.SQRT2;
-  const t = (p.a - p.b - CA0) / (2 * DEPOT_CW);
-  const k = (CA0 - (p.a + p.b)) / Math.SQRT2;
-  if(Math.abs(k) > 90 || t < -0.3 || t > 1.3) return null;
-  /* nearest point on the two jamb segments (the chamfer minus the opening) */
-  let best = null, bd = Infinity;
-  for(const [t0, t1] of [[0, DEPOT_DOOR[0]], [DEPOT_DOOR[1], 1]]){
-    const tc = Math.max(t0, Math.min(t1, t));
-    const qa = CA0 + tc*DEPOT_CW, qb = -tc*DEPOT_CW;          // on the chamfer, k = 0
-    const dd = Math.hypot(p.a - qa, p.b - qb);
-    if(dd < bd){ bd = dd; best = { qa, qb }; }
-  }
-  if(!best || bd < 1e-6) return { nx: Math.SQRT1_2, ny: Math.SQRT1_2 };
-  return { nx: (p.a - best.qa) / bd, ny: (p.b - best.qb) / bd };
+  const v = depotVol();
+  if(!v.zones.some(z => z.kind === 'forgive' && volInShape(z, p.a, p.b))) return null;
+  const n = volNearest(v, p.a, p.b, DEPOT_PROPS_COLLIDE);
+  if(!(n.d < Infinity) || (!n.na && !n.nb)) return null;
+  const e = d.cu.e;
+  return { nx: e.dv.x*n.na + e.rv.x*n.nb, ny: e.dv.y*n.na + e.rv.y*n.nb };
 }
 
-/* the back-wall pad, in world space. Lab (200, RB0 + 46) is the pad
-   centre the entry draws -- CHPAD is padR + 2 so the mast lands against
-   the wall -- and poleAt puts the mast behind it, which is the room the
-   robot stands in. */
+/* the spawn pad, in world space: the entry's `spawn` mark (the back-wall
+   pad the door frames square on) */
 function depotPadWorld(d){
   if(!d) return null;
-  return depotWorld(d.cu, 200, DEPOT_ROOM.b0 + 46);
+  const m = depotVol().marks.spawn;
+  return depotWorld(d.cu, m[0], m[1]);
 }
-/* the door opens when he is in the room or approaching the mat. The mat
-   itself lies 26..102 out along the chamfer normal; 150 gives him a beat
-   of warning so the door is up by the time he reaches it. */
+/* the door opens while he is in the room or in the entry's `door` zone
+   in front of it */
 function depotDoorWants(d, x, y){
   const p = depotLabXY(d, x, y); if(!p) return 0;
-  const inRoom = p.a > DEPOT_ROOM.a0 && p.a < DEPOT_ROOM.a1 &&
-                 p.b > DEPOT_ROOM.b0 && p.b < DEPOT_ROOM.b1;
-  const out = ((p.a + p.b) - (DEPOT_WW - DEPOT_CW)) / 1.4142;
-  const nearMat = out > -10 && out < 150 && p.a > -40 && p.a < DEPOT_WW + 40;
-  return (inRoom || nearMat) ? 1 : 0;
+  const v = depotVol();
+  const inRoom = v.opens.some(o => o.name === 'room' && volPip(o.poly, p.a, p.b));
+  const near = v.zones.some(z => z.kind === 'door' && volInShape(z, p.a, p.b));
+  return (inRoom || near) ? 1 : 0;
 }
 
 /* ---------- WHICH WAY IT FACES, and HOW TALL IT LOOKS ----------
@@ -10899,32 +10892,22 @@ function depotDoorWants(d, x, y){
    the camera is larger x + y, so a lab axis faces the eye when a step
    along it grows x + y. Street view is the lab's own -- door, room and
    sign toward the camera. */
-const DEPOT_H = 300 * 1.5;               // the entry's H, times its zs
-XRAY.maxH = Math.max(XRAY.minH, DEPOT_H);
 function depotStreetView(cu){
   const o = depotWorld(cu, 0, 0), pa = depotWorld(cu, 1, 0), pb = depotWorld(cu, 0, 1);
   const k0 = o.x + o.y;
   return (pa.x + pa.y) > k0 && (pb.x + pb.y) > k0;
 }
-/* THE X-RAY NEEDS WHAT YOU SEE, NOT WHERE YOU CAN DRIVE. depotOpenAt is
-   the walkable carve -- doorway and room open -- and builtHeightAt was
-   using it for occlusion. From behind, a camera ray through the depot
-   crosses the chamfer passage and the room, both carved, and found no
-   building at all: behind it at 6919,657 the fan scored 1/3 (Sir
-   on-device, xray 1/3 a0.00).
-
-   Visually the building is solid over its footprint to DEPOT_H except
-   the chamfer's cut-off triangle, which is pavement. The room is only
-   "not there" when the camera can see into it through the door -- the
-   street view -- so that is the one case that keeps the carve. Returns
-   null off the lot so the caller's band rule applies as before. */
+/* THE X-RAY NEEDS WHAT YOU SEE, NOT WHERE YOU CAN DRIVE (Sir on-device,
+   xray 1/3 behind the depot). volBuiltHeight is the visual answer: the
+   mass to its declared h, with the room and doorway see-through only
+   from the street view they open toward, 0 on the chamfer's pavement,
+   null off the lot. Heights come out in the entry's units; zs makes them
+   world. (XRAY.maxH is raised to match right after LIB is defined.) */
 function depotBuiltHeight(d, x, y){
   if(!d) return null;
   const p = depotLabXY(d, x, y);
-  if(p.a < 0 || p.a > DEPOT_WW || p.b < -DEPOT_DD || p.b > 0) return null;
-  if(p.a + p.b > DEPOT_WW - DEPOT_CW) return 0;            // chamfer pavement
-  if(depotStreetView(d.cu) && depotOpenAt(d, x, y, 0)) return 0;
-  return DEPOT_H;
+  const h = volBuiltHeight(depotVol(), p.a, p.b, depotStreetView(d.cu) ? 'street' : 'back', true);
+  return h === null ? null : h * depotZS();
 }
 
 function isDepotBlock(grid, blk){ return !!depotOnBlock(grid, blk); }
@@ -10967,8 +10950,7 @@ function battPadAt(scene){
   for(const d of depotsOf(g)){
     if(Math.abs(d.cu.ux - scene.botX) + Math.abs(d.cu.uy - scene.botY) > 900) continue;
     const q = depotLabXY(d, scene.botX, scene.botY);
-    if(Math.hypot(q.a - 200, q.b - (DEPOT_ROOM.b0 + 46)) < CHARGE.padR ||
-       Math.hypot(q.a - (DEPOT_ROOM.a0 + 46), q.b + 140) < CHARGE.padR) return d;
+    if(depotVol().zones.some(z => z.kind === 'charge' && volInShape(z, q.a, q.b))) return d;
   }
   return null;
 }
@@ -11065,7 +11047,7 @@ function battSyncHud(scene){
    lab (266, -30), on the pavement in front of the chamfer. Not the pad --
    that is inside, and the GPS line's tail should stop at the door the
    player drives in through. Map pins and search rows both route here. */
-function depotDoorWorld(d){ return depotWorld(d.cu, 266, -30); }
+function depotDoorWorld(d){ const m = depotVol().marks.mat; return depotWorld(d.cu, m[0], m[1]); }
 
 /* THE CHARGE STATIONS ARE THE DEPOTS. Same record shape the recovery,
    Continue and furniture code already read -- x/y is the depot's
@@ -11073,7 +11055,8 @@ function depotDoorWorld(d){ return depotWorld(d.cu, 266, -30); }
    street -- plus the lot itself. */
 function buildChargeStations(grid){
   return depotsOf(grid).map(d => {
-    const pad = depotPadWorld(d), door = depotWorld(d.cu, (DEPOT_WW - DEPOT_CW) + DEPOT_CW/2, -DEPOT_CW/2);
+    const dm = depotVol().marks.door;
+    const pad = depotPadWorld(d), door = depotWorld(d.cu, dm[0], dm[1]);
     return { hoodIndex: d.hoodIndex, name: d.name, blockI: d.blk.i, blockJ: d.blk.j,
              x: pad.x, y: pad.y, a: Math.atan2(door.y - pad.y, door.x - pad.x), depot: d };
   });
@@ -15348,6 +15331,220 @@ const PARK_LANDMARKS = {
                        icon:"\u{1F3EB}", pin:"#b06a4a", kind:"school" }
 };
 
+/* ---- labs/shopfront-vol.js, VERBATIM. Do not edit here: edit the lab file
+   and re-graft, the same rule as the kit and the entries inside LIB. ---- */
+/* =====================================================================
+   SHOPFRONT VOL -- the 3D half of an entry
+   =====================================================================
+   WHY THIS EXISTS. An entry used to be a draw() and nothing else. The
+   Charge depot port had to re-derive the building as a physical thing
+   from its drawing code -- room rect, door gap, jambs, height, pads,
+   mat -- into ~190 lines of depot-only functions full of numbers copied
+   out of the art. Every on-device bug that port produced (mirrored
+   frame, phantom wall inside the door, x-ray using the walkable carve,
+   jambs tipping 9/18) lived in that hand re-derivation. 82 shops would
+   have been 82 more.
+
+   So an entry now DECLARES its volume, next to its draw(), and this file
+   answers every physical question from the declaration alone. The lab
+   draws it over the art (Vol toggle) so a mismatch is caught on the
+   bench, not on-device. The game reads the same declaration.
+
+   THE DECLARATION -- all in the entry's own frame: a along the frontage,
+   b 0 at the glass and negative into the block. Heights are the entry's
+   OWN z units (before zs); volWorldH() applies zs.
+
+     vol: {
+       foot:   [[a,b], ...]      solid mass footprint (default: 0..ww by -dd..0)
+       h:      300               mass height (default: measured from body())
+       opens:  [{ name, poly, walk, see, h }]
+                                 carved out of the foot.
+                                 walk  true -> Tipsey can be in it
+                                 see   'street' -> see-through only from the
+                                       entry's own (street) view; 'always';
+                                       'never' (drivable under a roof)
+                                 h     what the x-ray reads when see-through
+       solids: [{ name, poly | c:[a,b] + r, h, prop }]
+                                 free-standing volumes (bollards, walls,
+                                 kiosks). prop:true -> only with kerb props on
+       zones:  [{ name, poly | c + r, kind }]   paint / triggers. No volume.
+       marks:  { name: [a,b] }           named points: pads, mat, spawn, door
+     }
+
+   WHAT IS DERIVED, never authored: the collision BOUNDARY. Every edge of
+   the foot, every open and every polygon solid is cut into short pieces,
+   and a piece is kept only where one side of it is solid and the other
+   is not. So a room's wall face that runs into a doorway stops at the
+   doorway by construction -- the phantom wall cannot exist -- and a jamb
+   is a real thin wall with rounded ends and true normals, with nobody
+   having to write a jamb.
+   ===================================================================== */
+
+const VOL_BOT_R = 30;          // botR in game/index.html
+const VOL_PIECE = 2;           // boundary resolution, entry units
+
+function volRect(a0, a1, b0, b1){ return [[a0,b0],[a1,b0],[a1,b1],[a0,b1]]; }
+
+function volPip(poly, a, b){
+  let inside = false;
+  for(let i = 0, j = poly.length - 1; i < poly.length; j = i++){
+    const [ai, bi] = poly[i], [aj, bj] = poly[j];
+    if(((bi > b) !== (bj > b)) && (a < (aj - ai) * (b - bi) / (bj - bi) + ai)) inside = !inside;
+  }
+  return inside;
+}
+
+/* a declared shape: { poly } or { c:[a,b], r } -- solids and zones both */
+function volInShape(s, a, b){
+  return s.c ? Math.hypot(a - s.c[0], b - s.c[1]) < s.r : volPip(s.poly, a, b);
+}
+
+function volSegDist(a, b, s){
+  const dx = s[2] - s[0], dy = s[3] - s[1], L2 = dx*dx + dy*dy || 1e-9;
+  const u = Math.max(0, Math.min(1, ((a - s[0])*dx + (b - s[1])*dy) / L2));
+  const qa = s[0] + u*dx, qb = s[1] + u*dy;
+  return { d: Math.hypot(a - qa, b - qb), qa, qb };
+}
+
+/* the entry's lot rectangle -- what the packer reserves, whatever the
+   mass inside it looks like */
+function volLot(shop, dflt){
+  const w = shop.ww || dflt.W, d = shop.dd || dflt.D;
+  return { a0:0, a1:w, b0:-d, b1:0 };
+}
+
+/* NORMALISE. Unauthored entries get the honest default -- the lot as a
+   solid box to the measured height -- and say so (authored:false), so the
+   bench can show which ones still owe a declaration. */
+function volOf(shop, measured, dflt){
+  const src = shop.vol || null;
+  const lot = volLot(shop, dflt);
+  const v = {
+    authored: !!src,
+    lot,
+    foot:   (src && src.foot) || volRect(lot.a0, lot.a1, lot.b0, lot.b1),
+    h:      (src && src.h != null) ? src.h : (measured && measured.h) || 0,
+    opens:  ((src && src.opens) || []).map(o => Object.assign({ walk:true, see:'street', h:0 }, o)),
+    solids: (src && src.solids) || [],
+    zones:  (src && src.zones) || [],
+    marks:  (src && src.marks) || {},
+    measured: measured || null
+  };
+  v.bound = volBoundary(v);
+  return v;
+}
+
+/* is (a,b) inside SOLID mass? props: whether kerb props count */
+function volSolidAt(v, a, b, props){
+  for(const s of v.solids){
+    if(s.prop && !props) continue;
+    if(volInShape(s, a, b)) return true;
+  }
+  if(!volPip(v.foot, a, b)) return false;
+  for(const o of v.opens) if(o.walk && volPip(o.poly, a, b)) return false;
+  return true;
+}
+
+/* the derived collision boundary: [a0,b0,a1,b1] segments between solid
+   and free. Circles are kept analytic, so props are not in here. */
+function volBoundary(v){
+  const polys = [v.foot, ...v.opens.filter(o => o.walk).map(o => o.poly),
+                 ...v.solids.filter(s => s.poly).map(s => s.poly)];
+  const out = [];
+  const EPS = 0.6;
+  const solid = (a, b) => {
+    for(const s of v.solids) if(s.poly && volPip(s.poly, a, b)) return true;
+    if(!volPip(v.foot, a, b)) return false;
+    for(const o of v.opens) if(o.walk && volPip(o.poly, a, b)) return false;
+    return true;
+  };
+  for(const poly of polys){
+    for(let i = 0; i < poly.length; i++){
+      const [a0, b0] = poly[i], [a1, b1] = poly[(i + 1) % poly.length];
+      const L = Math.hypot(a1 - a0, b1 - b0); if(L < 1e-6) continue;
+      const na = -(b1 - b0) / L, nb = (a1 - a0) / L;
+      const n = Math.max(1, Math.ceil(L / VOL_PIECE));
+      let run = null;
+      for(let k = 0; k < n; k++){
+        const u0 = k / n, u1 = (k + 1) / n, um = (u0 + u1) / 2;
+        const ma = a0 + (a1 - a0)*um, mb = b0 + (b1 - b0)*um;
+        const keep = solid(ma + na*EPS, mb + nb*EPS) !== solid(ma - na*EPS, mb - nb*EPS);
+        if(keep){
+          if(!run) run = [a0 + (a1 - a0)*u0, b0 + (b1 - b0)*u0];
+          run[2] = a0 + (a1 - a0)*u1; run[3] = b0 + (b1 - b0)*u1;
+        } else if(run){ out.push(run); run = null; }
+      }
+      if(run) out.push(run);
+    }
+  }
+  /* coincident edges (a doorway's side lying on a room's side) would be
+     reported twice; drop exact duplicates so the overlay and the census
+     count real surfaces */
+  const seen = new Set();
+  return out.filter(s => {
+    const k = s.map(x => x.toFixed(2)).join(','), r = [s[2],s[3],s[0],s[1]].map(x => x.toFixed(2)).join(',');
+    if(seen.has(k) || seen.has(r)) return false;
+    seen.add(k); return true;
+  });
+}
+
+/* NEAREST SURFACE to a body centre: distance, and the unit normal off it
+   toward the centre. The one query collision and the tip test both need. */
+function volNearest(v, a, b, props){
+  let best = { d: Infinity, na: 0, nb: 0, what: null };
+  for(const s of v.bound){
+    const q = volSegDist(a, b, s);
+    if(q.d < best.d) best = { d: q.d, qa: q.qa, qb: q.qb, what: 'wall' };
+  }
+  for(const s of v.solids){
+    if(!s.c || (s.prop && !props)) continue;
+    const dc = Math.hypot(a - s.c[0], b - s.c[1]), d = Math.abs(dc - s.r);
+    if(d < best.d){
+      const u = dc > 1e-9 ? 1/dc : 0;
+      best = { d, qa: s.c[0] + (a - s.c[0])*u*s.r, qb: s.c[1] + (b - s.c[1])*u*s.r, what: s.name || 'solid' };
+    }
+  }
+  if(best.d < Infinity){
+    const L = best.d || 1e-9;
+    best.na = (a - best.qa) / L; best.nb = (b - best.qb) / L;
+    if(best.d < 1e-6){ best.na = 0; best.nb = 0; }
+  }
+  return best;
+}
+
+/* CAN A BODY OF RADIUS R STAND HERE? */
+function volBlockedAt(v, a, b, R, props){
+  if(volSolidAt(v, a, b, props)) return true;
+  return volNearest(v, a, b, props).d < R;
+}
+
+/* WHAT THE X-RAY SEES. Visual, not walkable: an open room is only
+   see-through from the view it opens toward. null off the lot, 0 on the
+   lot but outside the mass (a chamfer's pavement), else a height in the
+   entry's own z units. */
+function volBuiltHeight(v, a, b, view, props){
+  for(const s of v.solids){
+    if(s.prop && !props) continue;
+    if(volInShape(s, a, b)) return s.h || 0;
+  }
+  const L = v.lot;
+  if(a < L.a0 || a > L.a1 || b < L.b0 || b > L.b1) return null;
+  if(!volPip(v.foot, a, b)) return 0;
+  for(const o of v.opens){
+    if(!volPip(o.poly, a, b)) continue;
+    if(o.see === 'always' || (o.see === 'street' && view === 'street')) return o.h;
+  }
+  return v.h;
+}
+
+function volZoneAt(v, a, b){
+  return v.zones.filter(z => volInShape(z, a, b)).map(z => z.name);
+}
+
+function volWorldH(shop, h, labZs){ return h * (shop.zs === undefined ? labZs : shop.zs); }
+
+/* ---- end labs/shopfront-vol.js ---- */
+
 const LIB = (function(){
   /* K IS THE PROJECTION'S SCALE, and the kit reads it directly. It is
      used for exactly one thing -- turning a WORLD line width or radius
@@ -16282,6 +16479,82 @@ function kerb(p, kind){
   }
 
   /* ---- the ported entries. Two, so far. ---- */
+/* =====================================================================
+   THE CHARGE DEPOT'S GEOMETRY, ONCE -- art and volume both read it.
+   =====================================================================
+   The first port of this building had to fish these numbers back out of
+   draw() by hand (DEPOT_ROOM, the pad at 200/b0+46, the mat at 266/-30,
+   300*1.5) and every on-device bug it produced came from that copy. Now
+   the draw and the vol declaration below take them from here, so the
+   building Tipsey collides with IS the building that is drawn.
+
+   Frame: a along the y1 street, b 0 on it and negative into the block,
+   chamfer on the corner at a = WW. cpt(t, k) is t across the chamfer
+   (0..1) and k in along its inward normal. */
+const DEPOT_GEOM = (() => {
+  const WW = 295.6, DD = 276, H = 300, CW = 150;
+  const DOOR = [0.10, 0.90], DH = 168;
+  const ROOM = { a0:40, a1:WW - 6, b0:-244, b1:-6 };      // RA0 RA1 RB0 RB1
+  const WALL = 6;                                          // shell thickness: front and flank
+  /* THE CHAMFER IS A SKIN, not a 6-thick wall. draw() builds the jambs as
+     one plane on the chamfer line (cpt(t, 0), "chamfer jambs") with no
+     inner face, so a 6-thick chamfer put an inside corner on each jamb
+     that is not in the picture -- and Tipsey caught it leaving: pad exits
+     aimed at the door's right side tipped 3/18 against 1/18. 1 unit is
+     the drawn plane plus enough to be solid. */
+  const CHWALL = 1;
+  const CHPAD = 46;
+  const MAT = { k0:-26, k1:-102 };                         // mat, outward of the chamfer
+  const BOLL = { k:-16, r:11, h:54 };                      // threshold bollards
+  const R2 = Math.SQRT1_2, CA0 = WW - CW;
+  const cpt = (t, k) => [CA0 + t*CW - (k||0)*R2, -t*CW - (k||0)*R2];
+  const PADS = { back:[200, ROOM.b0 + CHPAD], left:[ROOM.a0 + CHPAD, -140] };
+
+  /* THE ROOM IS THE INTERIOR, not a rect. The room rect the art clips to
+     runs right through the chamfer -- its corner (160.6,-15) is already
+     past the jamb -- so used as the carve it deleted the jambs, which is
+     the phantom-wall / tipping-jamb class of bug. The walkable interior
+     is that rect cut by the chamfer wall's INNER face, a + b = CA0 - CHWALL*sqrt2. */
+  const inner = CA0 - CHWALL * Math.SQRT2;
+  const room = [[ROOM.a0, ROOM.b0], [ROOM.a0, ROOM.b1], [inner - ROOM.b1, ROOM.b1],
+                [ROOM.a1, inner - ROOM.a1], [ROOM.a1, ROOM.b0]];
+  /* the doorway: the opening across the chamfer, through the wall */
+  const doorway = [cpt(DOOR[0], -1), cpt(DOOR[1], -1), cpt(DOOR[1], CHWALL + 2), cpt(DOOR[0], CHWALL + 2)];
+  const TA = DOOR[0] + 0.02, TB = DOOR[1] - 0.02;
+
+  const vol = {
+    foot: [[0,0], [CA0,0], [WW,-CW], [WW,-DD], [0,-DD]],
+    h: H,
+    opens: [
+      { name:'room',    poly: room,    walk:true, see:'street', h:0 },
+      { name:'doorway', poly: doorway, walk:true, see:'street', h:0 }
+    ],
+    solids: [
+      { name:'bollard L', c: cpt(DOOR[0] + 0.02, BOLL.k), r: BOLL.r, h: BOLL.h, prop:true },
+      { name:'bollard R', c: cpt(DOOR[1] - 0.02, BOLL.k), r: BOLL.r, h: BOLL.h, prop:true }
+    ],
+    zones: [
+      { name:'mat',  kind:'trigger', poly:[cpt(TA,MAT.k0), cpt(TB,MAT.k0), cpt(TB,MAT.k1), cpt(TA,MAT.k1)] },
+      { name:'pad back', kind:'charge', c: PADS.back, r: 44 },         // CHARGE.padR
+      { name:'pad left', kind:'charge', c: PADS.left, r: 44 },
+      /* the door opens while he is in here (or in the room): 10 inside the
+         chamfer line to 150 out, between a = -40 and WW + 40 */
+      { name:'approach',  kind:'door',    poly: (() => { const IN = CA0 - 10*Math.SQRT2, OUT = CA0 + 150*Math.SQRT2, A0 = -40, A1 = WW + 40;
+                                                        return [[A0, IN-A0], [A1, IN-A1], [A1, OUT-A1], [A0, OUT-A0]]; })() },
+      /* the doorway band: contacts in it take the surface's true normal and
+         the forgiving tip threshold (game: depotContactNormal, depotDoorTip) */
+      { name:'threshold', kind:'forgive', poly:[cpt(-0.3,-90), cpt(1.3,-90), cpt(1.3,90), cpt(-0.3,90)] }
+    ],
+    marks: {
+      spawn:  PADS.back,                      // Tipsey starts on the back-wall pad
+      padBack: PADS.back, padLeft: PADS.left, // left is the NPC bay (rTodo)
+      mat:    cpt(0.5, -64),                  // where a trip to a depot ends
+      door:   cpt(0.5, 0)                     // facing: spawn -> door
+    }
+  };
+  return { WW, DD, H, CW, DOOR, DH, ROOM, WALL, CHWALL, CHPAD, MAT, BOLL, PADS, cpt, vol };
+})();
+
   const SHOPS = [
   {
   name:'Undertaker', tall:true, block:true, place:'park',
@@ -16943,7 +17216,8 @@ function kerb(p, kind){
   }
   },
 {
-  name:'Charge depot', tall:true, corner:true, ww: 295.6, dd: 276,
+  name:'Charge depot', tall:true, corner:true, ww: DEPOT_GEOM.WW, dd: DEPOT_GEOM.DD,
+  vol: DEPOT_GEOM.vol, geom: DEPOT_GEOM,
   wTodo:'a CORNER LOT: the game already defines one as (HOUSE_DEPTH + T2*0.3) - CORNER_LOT_INSET = 295.6 by STORE_DEPTH = 276, at the end of one edge turning onto the other. The packer emits frontage slots only',
   cTodo:'the mass is a volume, but the ROOM IS NOT -- the bay must be carved out of the block rect or Tipsy cannot drive in. solidAt is a plain rectangle test today with no notion of an opening. This is the one engine change the depot needs',
   mTodo:'THE TRIGGER MAT IS GAME-SIDE. It draws here but it does nothing: the state machine is matHighlightState(scene, m, forMode) with owMatContains for the on/armed test, and MAT_HL is already documented as \'one state machine, three mats\' -- this is the fourth. What it needs is forMode \'freeroam\' and an action that drives doorT rather than loading a mission, plus an entry in whatever builds the mat list. The mat is paint: no volume, Tipsey drives over it. Its own extents run past the lot on the diagonal (a to 359.6, b to +64) because a mat square to a 45 door has to -- the game\'s own mats are 0..SIDEWALK_W deep, which is 368, so that is in keeping',
@@ -16975,7 +17249,7 @@ function kerb(p, kind){
        means road-graph NODES; solidAt is a plain rectangle over the
        block and nothing can enter one. The art can read as a room today;
        DRIVING into it is the cTodo, and it is an engine change. */
-    const WW = 295.6, DD = 276, H = 300, CW = 150;
+    const { WW, DD, H, CW } = DEPOT_GEOM;
     /* #ff7a1a IS THE GAME'S ORANGE, not a shade I picked. It is the
        brand colour in game/index.html -- the active button, the avatar
        chip, the .brand rule -- and it appears 35 times, more than any
@@ -16991,7 +17265,7 @@ function kerb(p, kind){
     /* t across the chamfer, k into the room along its inward normal */
     const cpt = (t, k) => [CA[0] + t*CW - (k||0)*R2, CA[1] - t*CW - (k||0)*R2];
     const P3 = (q, z) => P(q[0], q[1], z);
-    const DOOR = [0.10, 0.90], DH = 168, RD = 250;           // opening, head, room depth
+    const DOOR = DEPOT_GEOM.DOOR, DH = DEPOT_GEOM.DH, RD = 250;   // opening, head, room depth
 
     /* ============ WHICH SIDE OF IT THE CAMERA IS ON ============
        Everything below the back-view block was drawn for ONE projection:
@@ -17104,7 +17378,7 @@ function kerb(p, kind){
        So the room is square to the block behind a 45 door, and the
        chargers line its LEFT wall and its BACK wall -- the two the
        camera can actually see into. */
-    const RA0 = 40, RA1 = WW - 6, RB0 = -244, RB1 = -6;
+    const { a0: RA0, a1: RA1, b0: RB0, b1: RB1 } = DEPOT_GEOM.ROOM;
     /* ---- THE DOOR ARTICULATES, and the room is clipped to what it
        leaves open ---- OPEN is 0 shut to 1 fully coiled, read off
        state.doorT so the game can drive it: opening on launch, and
@@ -17165,7 +17439,7 @@ function kerb(p, kind){
          The cabinets I had were a shape I made up; this is the one the
          game already teaches you to recognise. `side` is which way the
          mast faces from the pad -- against the wall it serves. */
-      const CHPAD = 46;
+      const CHPAD = DEPOT_GEOM.CHPAD;
       const CH = { padR:44, ringW:5, poleAt:0.62, poleW:15, poleH:96,
                    headW:21, headH:26, glowR:7 };
       const CP = { pad:'#6d7484', padDk:'#565c6a', ring:'#ffb454',
@@ -17207,7 +17481,7 @@ function kerb(p, kind){
          BOTH BAYS ARE EMPTY HERE, at Sir's direction -- the lab draws the
          building, and a robot in it is the game's job. rTodo records
          which bay gets which. */
-      const BACK = [200, RB0 + CHPAD], LEFT = [RA0 + CHPAD, -140];
+      const BACK = DEPOT_GEOM.PADS.back, LEFT = DEPOT_GEOM.PADS.left;
       charger(BACK[0], BACK[1], 0, -1);
       charger(LEFT[0], LEFT[1], -1, 0);
 
@@ -17323,7 +17597,7 @@ function kerb(p, kind){
        the thing you drive INTO. The lab drives its state off doorT so
        the relationship is visible: amber while the door is shut, green
        once it is moving. */
-    if(PT('door')) { const TA = DOOR[0] + 0.02, TB = DOOR[1] - 0.02, K0 = -26, K1 = -102;
+    if(PT('door')) { const TA = DOOR[0] + 0.02, TB = DOOR[1] - 0.02, K0 = DEPOT_GEOM.MAT.k0, K1 = DEPOT_GEOM.MAT.k1;
       const on = ((typeof state.doorT === 'number') ? state.doorT : 1) > 0.02;
       const tone = on ? '#7ee081' : '#ffb25a';
       const c = [cpt(TA,K0), cpt(TB,K0), cpt(TB,K1), cpt(TA,K1)];
@@ -17368,7 +17642,7 @@ function kerb(p, kind){
        bollard is a marking rather than signage -- in brand it competed
        with the sign and the fascia for the same colour. */
     if(state.props && PT('door')) for(const t of [DOOR[0]+0.02, DOOR[1]-0.02]){
-      const q = cpt(t, -16), YEL = '#ffcc33';
+      const q = cpt(t, DEPOT_GEOM.BOLL.k), YEL = '#ffcc33';
       plateCircle(q[0], q[1], 0.9, 13, 'rgba(0,0,0,.22)');
       cyl(q[0], q[1], 0, 6, 11, shade(YEL,.62));
       cyl(q[0], q[1], 6, 54, 8, YEL, shade(YEL,.7));
@@ -17516,6 +17790,17 @@ function kerb(p, kind){
 
   return {
     get(name){ return BY_NAME.get(name) || null; },
+    /* AN ENTRY'S VOLUME, as it declares it (labs/shopfront-vol.js). What
+       collision, the x-ray, pads, mats and spawn read -- never numbers
+       fished out of draw(). Cached on the entry: the boundary is derived
+       once. `zs` is the factor its heights take into the world. */
+    vol(name){
+      const shop = BY_NAME.get(name);
+      if(!shop) return null;
+      if(!shop._vol) shop._vol = volOf(shop, null, { W, D });
+      return shop._vol;
+    },
+    zs(name){ const shop = BY_NAME.get(name); return shop && shop.zs !== undefined ? shop.zs : 1.5; },
     /* the Charge depot's roll-up door, 0 shut to 1 fully coiled. The
        scene drives it; every other entry ignores state.doorT. */
     setDoor(v){ state.doorT = v; },
@@ -17542,6 +17827,9 @@ function kerb(p, kind){
     }
   };
 })();
+/* the x-ray march ceiling: the tallest mass builtHeightAt can return,
+   which is the depot's declared height in world units (see XRAY.maxH) */
+XRAY.maxH = Math.max(XRAY.minH, depotVol().h * depotZS());
 
 class WorldScene extends Phaser.Scene {
   constructor(){ super("world"); }
@@ -22701,7 +22989,7 @@ class WorldScene extends Phaser.Scene {
          when a step along it grows x + y -- the entry asks P() the same */
       const key = (a, b) => { const q = depotWorld(cu, a, b); return q.x + q.y; };
       const k0 = key(0, 0), seeA = key(1, 0) > k0, seeB = key(0, 1) > k0;
-      const W0 = DEPOT_WW, D0 = DEPOT_DD, C0 = DEPOT_CW;
+      const _G = depotGeom(), W0 = _G.WW, D0 = _G.DD, C0 = _G.CW;
       const strips = (lo, hi, fnKey, part) => {
         const n = Math.max(1, Math.ceil((hi - lo) / TILE));
         for(let i = 0; i < n; i++){
@@ -22725,7 +23013,7 @@ class WorldScene extends Phaser.Scene {
                     face, so inside (a + b < WW - CW) sorts before the
                     jambs and outside after, with no window at all */
         const part = (p) => (g) => LIBDRAW(g, { part: p });
-        vq.push({ depth: key(DEPOT_ROOM.a0, DEPOT_ROOM.b0) - 1, fn: part('room') });
+        vq.push({ depth: key(_G.ROOM.a0, _G.ROOM.b0) - 1, fn: part('room') });
         strips(0, W0 - C0, (a) => key(a, 0), 'front');
         strips(-D0, -C0, (b) => key(W0, b), 'flank');
         vq.push({ depth: key(W0 - C0, 0) + 0.5, fn: part('door') });
@@ -22762,7 +23050,7 @@ class WorldScene extends Phaser.Scene {
        through the door, so a bin rolled onto the lot either stands
        inside the building mass or shows through the opening */
     const onDepot = (x,y) => { if(!_lot) return false; const p = depotLabXY(_lot, x, y);
-      return p.a > -60 && p.a < DEPOT_WW + 60 && p.b > -DEPOT_DD - 60; };
+      return p.a > -60 && p.a < depotGeom().WW + 60 && p.b > -depotGeom().DD - 60; };
     const clear = (x,y) => !interior.some(rc => x > rc.x0-30 && x < rc.x1+30 && y > rc.y0-30 && y < rc.y1+30)
                            && !onDepot(x, y);
     const roll = () => {
