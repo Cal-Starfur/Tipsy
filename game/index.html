@@ -5386,6 +5386,7 @@ const OW_D = {
      another machine. */
   botR:       30,        // BODY.hx 26 plus slack for the wheels
   clipThresh: 0.115,
+  depotDoorTip: 1.8,     // x clipThresh at a depot doorway: 0.207, ~92% of vMax square on
   clipTilt:   3.2,       // tilt impulse per unit of normal speed on a FRESH contact
   grindTilt:  0.25,      // fraction of that per frame while still in contact
   clipLoss:   0.55,      // fraction of normal-component speed kept after a scrape
@@ -7194,8 +7195,25 @@ function owStep(scene, dt){
       if(!_slid) ow.vel = 0;
       else ow.vel *= D.clipLoss;
     } else {
-    const vN = Math.abs(hitNormal === 1 ? Math.cos(ow.yaw) : Math.sin(ow.yaw)) * Math.abs(ow.vel);
-    if(vN >= D.clipThresh){
+    let vN = Math.abs(hitNormal === 1 ? Math.cos(ow.yaw) : Math.sin(ow.yaw)) * Math.abs(ow.vel);
+    /* a DEPOT DOORWAY answers with its real normal, not the axis one --
+       see depotContactNormal. Only ever lowers vN for a graze; a square
+       hit on a jamb still reads as square. */
+    let _thresh = D.clipThresh;
+    if(_full && W.grid && typeof depotOnBlock === "function"){
+      const _dl = depotOnBlock(W.grid, _full);
+      const _n = _dl && depotContactNormal(_dl, ow.px, ow.py);
+      if(_n){
+        vN = Math.abs(Math.cos(ow.yaw)*_n.nx + Math.sin(ow.yaw)*_n.ny) * Math.abs(ow.vel);
+        /* AND THE DOORWAY FORGIVES (Sir: "less chance of tipping over from
+           the exit of the depot"). With the true normal, what still tipped
+           was a post taken ~58 degrees on at half speed or more. Here only
+           a hit that is nearly square AND nearly flat out goes over:
+           D.depotDoorTip x clipThresh. The rest of the city is untouched. */
+        _thresh = D.clipThresh * D.depotDoorTip;
+      }
+    }
+    if(vN >= _thresh){
       const sgn2 = Math.sign(Math.cos(ow.yaw) * (hitNormal === 1 ? 1 : 0) +
                              Math.sin(ow.yaw) * (hitNormal === 2 ? 1 : 0)) || 1;
       owTip(scene, sgn2);
@@ -10734,6 +10752,7 @@ function depotFrameOf(blk){
    CA = (WW-CW, 0) with normal (1,1) is simply a + b > WW - CW. */
 const DEPOT_ROOM = { a0:40, a1:289.6, b0:-244, b1:-6 };
 const DEPOT_WW = 295.6, DEPOT_CW = 150, DEPOT_DD = 276;
+const DEPOT_DOOR = [0.10, 0.90];   // the opening along the chamfer -- the entry's DOOR
 /* ONE MAPPER, BOTH WAYS. The lot's rv points OUT of the block, so lab b
    -- which runs INTO the building -- is +rv, not -rv. I had it negated,
    which drew the whole depot mirrored across its own frontage: standing
@@ -10775,7 +10794,77 @@ function depotOpenAt(d, x, y, R){
      (measured: blocked at lab a 297..319 just past b = 0). */
   const inDoor = (p.a + p.b) > (DEPOT_WW - DEPOT_CW) + M*1.42 &&
                  p.a > 0 && p.a < DEPOT_WW + CORNER_LOT_INSET + M + 1 && p.b > -DEPOT_CW - 40;
-  return inRoom || inDoor;
+  /* THE THRESHOLD (Sir on-device, 2026-09-15: "nudging the bollards on
+     the exit ... its tipping me"). inRoom and inDoor are two rectangles
+     that barely overlap across the chamfer: measured, a body centre had
+     50 units to pass at 30 outside the door against a 170-unit opening,
+     so the solid corners either side sat exactly where the bollards are
+     drawn, and 9 of 21 exits driven straight out of the room tipped.
+
+     A straight corridor (the opening less M each side) closed the pinch
+     -- 109 units at every depth -- but its edges were SQUARE corners and
+     an exit angled into one still tipped. A jamb is a thin wall end, not
+     a block corner, so it is modelled as one: near the door a body
+     centre is blocked only within M of the two jamb segments themselves
+     (chamfer t 0..0.1 and 0.9..1 at depth 0), which rounds the corners
+     so a glancing hit slides off. Inside it stays bounded by the room's
+     own walls; outside, the block rect and inDoor already decide.
+     t runs along the chamfer (0..1), k is depth into the building. */
+  const CA0 = DEPOT_WW - DEPOT_CW, LCH = DEPOT_CW * Math.SQRT2;
+  const t = (p.a - p.b - CA0) / (2 * DEPOT_CW);
+  const k = (CA0 - (p.a + p.b)) / Math.SQRT2;
+  let inGate = false;
+  if(Math.abs(k) < 90 && t > -0.3 && t < 1.3){
+    const sAlong = t * LCH;
+    const segD = (s0, s1) => Math.hypot(Math.max(0, s0 - sAlong, sAlong - s1), k);
+    const clearOfJambs = segD(0, DEPOT_DOOR[0]*LCH) > M && segD(DEPOT_DOOR[1]*LCH, LCH) > M;
+    /* inside, the walls either side of the door are the FRONT wall's
+       inner face (b = RB1, a up to the chamfer) and the FLANK's (a = RA1,
+       b down from the chamfer) -- segments that END at the chamfer. The
+       room rect runs both lines straight through to the corner, which
+       put a phantom wall just inside the opening: the tips that were
+       left all stopped against it, ~4 units in. */
+    const segP = (ax, ay, bx, by) => {
+      const dx = bx - ax, dy = by - ay, L2 = dx*dx + dy*dy;
+      const u = Math.max(0, Math.min(1, ((p.a - ax)*dx + (p.b - ay)*dy) / L2));
+      return Math.hypot(p.a - (ax + u*dx), p.b - (ay + u*dy));
+    };
+    const RB1 = DEPOT_ROOM.b1, RA1 = DEPOT_ROOM.a1;
+    inGate = clearOfJambs && (k > 0
+      ? (t > DEPOT_DOOR[0] - 0.05 && t < DEPOT_DOOR[1] + 0.05 &&
+         segP(DEPOT_ROOM.a0, RB1, CA0 - RB1, RB1) > M &&           // front wall, inner face
+         segP(RA1, -DEPOT_DD, RA1, CA0 - RA1) > M)                 // flank, inner face
+      : true);
+  }
+  return inRoom || inDoor || inGate;
+}
+
+/* THE DOORWAY'S TRUE SURFACE NORMAL, for the tip test (see owStep). The
+   resolve there is axis-separated, so every contact is judged as an x-
+   or y-face -- right for a block's edges, wrong for a door that faces 45:
+   leaving it diagonally, a graze on a jamb read as 71% of full speed
+   INTO a wall and tipped him (Sir on-device, 2026-09-15). Near the door
+   this returns the unit normal off the nearest real surface -- a jamb
+   segment's end or face, or the chamfer -- in WORLD terms, so the test
+   can take the honest normal component. null anywhere else, and the
+   caller keeps the axis answer. The depot frame is the lab's own
+   (a -> +x, b -> +y), so lab and world directions coincide. */
+function depotContactNormal(d, x, y){
+  const p = depotLabXY(d, x, y); if(!p) return null;
+  const CA0 = DEPOT_WW - DEPOT_CW, LCH = DEPOT_CW * Math.SQRT2;
+  const t = (p.a - p.b - CA0) / (2 * DEPOT_CW);
+  const k = (CA0 - (p.a + p.b)) / Math.SQRT2;
+  if(Math.abs(k) > 90 || t < -0.3 || t > 1.3) return null;
+  /* nearest point on the two jamb segments (the chamfer minus the opening) */
+  let best = null, bd = Infinity;
+  for(const [t0, t1] of [[0, DEPOT_DOOR[0]], [DEPOT_DOOR[1], 1]]){
+    const tc = Math.max(t0, Math.min(t1, t));
+    const qa = CA0 + tc*DEPOT_CW, qb = -tc*DEPOT_CW;          // on the chamfer, k = 0
+    const dd = Math.hypot(p.a - qa, p.b - qb);
+    if(dd < bd){ bd = dd; best = { qa, qb }; }
+  }
+  if(!best || bd < 1e-6) return { nx: Math.SQRT1_2, ny: Math.SQRT1_2 };
+  return { nx: (p.a - best.qa) / bd, ny: (p.b - best.qb) / bd };
 }
 
 /* the back-wall pad, in world space. Lab (200, RB0 + 46) is the pad
