@@ -28,6 +28,9 @@
   .tag{background:#232830;border:1px solid var(--line);border-radius:20px;padding:5px 11px;
        font-size:12px;color:var(--mut)}
   .row{display:flex;gap:8px;padding:0 14px 14px;background:var(--panel);border-bottom:1px solid var(--line)}
+  .vol{display:none;margin:0 0 10px;padding:9px 12px;border-radius:8px;background:#10272b;
+       border:1px solid #1f6f78;color:#9fe6ee;font-size:13px;line-height:1.45;font-family:ui-monospace,monospace}
+  .vol b{color:#d4fbff}
   .row button{flex:1;min-width:0;font-size:13px;padding:10px 6px}
 </style>
 
@@ -44,10 +47,12 @@
   <button id="tScale">True scale</button>
   <button id="tGrid">Guides</button>
   <button id="tDoor">Door cycle</button>
+  <button id="tVol">Vol</button>
 </div>
 <canvas id="stage"></canvas>
 <div class="meta">
   <h2 id="mh">—</h2>
+  <div class="vol" id="mv"></div>
   <div class="todo" id="mz"></div>
   <p id="md"></p>
   <div class="tags" id="mt"></div>
@@ -55,6 +60,7 @@
 
 <script src="shopfront-kit.js"></script>
 <script src="shopfront-shops.js"></script>
+<script src="shopfront-vol.js"></script>
 <script>
 /* ---------------------------------------------------------------
    Same isometric projection the game uses:
@@ -86,10 +92,17 @@ let K = 1, OX = 0, OY = 0;
    drives it from a clock -- the bench had no clock at all before this,
    only toggles, so an articulating anything needed one. */
 const state = { i:0, roof:true, props:true, pal:0, grid:false, scale:false,
-                doorT:1, doorRun:false };
+                doorT:1, doorRun:false, vol:false, probe:null };
 const LAB_ZS = 1.5;
 let ZSCALE = LAB_ZS;
-function P(a,b,z){ return { x:(a-b)*K + OX, y:((a+b)*0.5 - z*ZSCALE)*K + OY }; }
+/* VOLCAP: while a volume measure runs, every z that reaches the screen
+   and every body() call is recorded. Null the rest of the time, so the
+   draw path is untouched. */
+let VOLCAP = null;
+function P(a,b,z){
+  if(VOLCAP && z > VOLCAP.zmax) VOLCAP.zmax = z;
+  return { x:(a-b)*K + OX, y:((a+b)*0.5 - z*ZSCALE)*K + OY };
+}
 
 /* this bench has one view and it is the one the library was composed
    against, where the a = w end of a unit is the visible one. The phaser
@@ -236,6 +249,142 @@ function measureBounds(){
   return b;
 }
 
+/* ================= THE VOLUME =================
+   See shopfront-vol.js. An entry that declares `vol` is used as written;
+   one that does not gets the lot as a solid box, with its height MEASURED
+   here rather than guessed: the largest H handed to body(), or failing
+   that the highest z the shell reaches with roof kit and props off. */
+{
+  const _body = body;
+  body = function(wall, trim, H, wid, dep){
+    if(VOLCAP) VOLCAP.bodies.push({ H, wid, dep });
+    return _body.apply(this, arguments);
+  };
+}
+const volCache = new Map();
+function measureVol(i){
+  if(volCache.has(i)) return volCache.get(i);
+  const sh = SHOPS[i];
+  const sCv = cv, sCtx = ctx, sK = K, sOX = OX, sOY = OY, sZ = ZSCALE;
+  const sRoof = state.roof, sProps = state.props, sI = state.i;
+  cv = MCV; ctx = MCTX; ctx.setTransform(1,0,0,1,0,0);
+  K = 0.1; OX = 3500; OY = 2100;
+  state.roof = false; state.props = false; state.i = i;
+  ZSCALE = sh.zs === undefined ? LAB_ZS : sh.zs;
+  VOLCAP = { zmax: 0, bodies: [] };
+  try { sh.draw(PAL[0]); } finally {
+    const cap = VOLCAP; VOLCAP = null;
+    ctx.setTransform(1,0,0,1,0,0); ctx.clearRect(0,0,MCV.width,MCV.height);
+    cv = sCv; ctx = sCtx; K = sK; OX = sOX; OY = sOY; ZSCALE = sZ;
+    state.roof = sRoof; state.props = sProps; state.i = sI;
+    const bh = cap.bodies.length ? Math.max(...cap.bodies.map(q => q.H)) : null;
+    const m = { h: bh != null ? bh : cap.zmax, from: bh != null ? 'body()' : 'max z', zmax: cap.zmax,
+                bodies: cap.bodies.length };
+    const v = volOf(sh, m, { W, D });
+    volCache.set(i, v);
+  }
+  return volCache.get(i);
+}
+function curVol(){ return measureVol(state.i); }
+
+function volOverlay(){
+  const sh = SHOPS[state.i], v = curVol();
+  ZSCALE = sh.zs === undefined ? LAB_ZS : sh.zs;
+  /* the field is ~70 samples a side whatever the lot: a block landmark is
+     15000 across and a fixed step would be millions of tests a frame */
+  const L = v.lot, M = 70, STEP = Math.max(12, Math.max(L.a1 - L.a0, L.b1 - L.b0) / 70);
+  const plate = (pts, z) => pts.map(([a,b]) => P(a, b, z));
+  /* 1. where a body of botR can stand: red = blocked */
+  for(let a = L.a0 - M; a <= L.a1 + M; a += STEP)
+    for(let b = L.b0 - M; b <= L.b1 + M; b += STEP){
+      const q = P(a, b, 0);
+      if(volSolidAt(v, a, b, state.props)){ ctx.fillStyle = 'rgba(200,40,40,.55)'; ctx.fillRect(q.x-1.2, q.y-1.2, 2.4, 2.4); }
+      else if(volBlockedAt(v, a, b, VOL_BOT_R, state.props)){ ctx.fillStyle = 'rgba(255,120,90,.9)'; ctx.fillRect(q.x-1.5, q.y-1.5, 3, 3); }
+      else { ctx.fillStyle = 'rgba(120,230,140,.55)'; ctx.fillRect(q.x-1, q.y-1, 2, 2); }
+    }
+  /* 2. the mass: footprint at the ground and at h, and its verticals */
+  poly(plate(v.foot, 0), null, 'rgba(90,220,240,.9)', 1.5);
+  poly(plate(v.foot, v.h), null, 'rgba(90,220,240,.9)', 1.5);
+  for(const [a,b] of v.foot){ const g = P(a,b,0), t = P(a,b,v.h);
+    ctx.strokeStyle = 'rgba(90,220,240,.6)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(g.x,g.y); ctx.lineTo(t.x,t.y); ctx.stroke(); }
+  /* 3. opens */
+  for(const o of v.opens) poly(plate(o.poly, 0.5), 'rgba(110,240,140,.18)', 'rgba(110,240,140,.95)', 1.2);
+  /* 4. the derived collision boundary -- the surfaces he actually hits */
+  ctx.strokeStyle = '#ffe14d'; ctx.lineWidth = 2.4; ctx.lineCap = 'round';
+  for(const sg of v.bound){ const p0 = P(sg[0], sg[1], 0), p1 = P(sg[2], sg[3], 0);
+    ctx.beginPath(); ctx.moveTo(p0.x,p0.y); ctx.lineTo(p1.x,p1.y); ctx.stroke(); }
+  ctx.lineCap = 'butt';
+  /* 5. solids, zones, marks */
+  for(const sd of v.solids){
+    if(sd.prop && !state.props) continue;
+    if(sd.c){ const pts = []; for(let k=0;k<20;k++){ const t=k/20*Math.PI*2; pts.push([sd.c[0]+sd.r*Math.cos(t), sd.c[1]+sd.r*Math.sin(t)]); }
+      poly(plate(pts, 0), 'rgba(255,150,40,.35)', '#ff9628', 1.5); poly(plate(pts, sd.h), null, '#ff9628', 1); }
+    else { poly(plate(sd.poly, 0), 'rgba(255,150,40,.35)', '#ff9628', 1.5); poly(plate(sd.poly, sd.h), null, '#ff9628', 1); }
+  }
+  ctx.setLineDash([4,4]);
+  for(const zn of v.zones) poly(plate(zn.poly, 1), null, 'rgba(220,120,255,.9)', 1.2);
+  ctx.setLineDash([]);
+  ctx.font = '600 10px ui-monospace,monospace';
+  /* marks that share a point share a label (spawn IS padBack) */
+  const byPt = new Map();
+  for(const [nm, [a,b]] of Object.entries(v.marks)){
+    const k = a.toFixed(1) + ',' + b.toFixed(1);
+    if(!byPt.has(k)) byPt.set(k, { a, b, names: [] });
+    byPt.get(k).names.push(nm);
+  }
+  for(const { a, b, names } of byPt.values()){
+    const nm = names.join(' = '), q = P(a, b, 0);
+    ctx.fillStyle = '#e57bff'; ctx.beginPath(); ctx.arc(q.x, q.y, 3.5, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#f6d9ff'; ctx.fillText(nm, q.x + 5, q.y - 4);
+  }
+  /* 6. the probe: tap the ground, read what the volume says there */
+  if(state.probe){
+    const [a, b] = state.probe, q = P(a, b, 0);
+    const n = volNearest(v, a, b, state.props);
+    const blk = volBlockedAt(v, a, b, VOL_BOT_R, state.props);
+    const hs = volBuiltHeight(v, a, b, 'street', state.props), hb = volBuiltHeight(v, a, b, 'back', state.props);
+    ctx.strokeStyle = blk ? '#ff5a4a' : '#6cf08a'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.ellipse(q.x, q.y, VOL_BOT_R*K*1.41, VOL_BOT_R*K*0.71, 0, 0, Math.PI*2); ctx.stroke();
+    if(n.d < Infinity){ const e = P(n.qa, n.qb, 0); ctx.strokeStyle = '#fff'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(q.x,q.y); ctx.lineTo(e.x,e.y); ctx.stroke(); }
+    const z = volZoneAt(v, a, b);
+    const lines = [
+      'a ' + a.toFixed(1) + '  b ' + b.toFixed(1),
+      (blk ? 'BLOCKED' : 'free') + '  @R' + VOL_BOT_R + '  surface ' + (n.d === Infinity ? '-' : n.d.toFixed(1)),
+      'normal ' + n.na.toFixed(2) + ', ' + n.nb.toFixed(2),
+      'x-ray h  street ' + (hs == null ? 'off lot' : hs) + '  back ' + (hb == null ? 'off lot' : hb),
+      z.length ? 'zone ' + z.join(', ') : ''
+    ].filter(Boolean);
+    const cw = SCREEN.clientWidth;
+    ctx.fillStyle = 'rgba(8,18,20,.86)'; ctx.fillRect(6, 6, Math.min(cw - 12, 270), lines.length*14 + 8);
+    ctx.fillStyle = '#bff4fa';
+    lines.forEach((ln, k) => ctx.fillText(ln, 12, 20 + k*14));
+  }
+  ZSCALE = 1;
+}
+function volMeta(){
+  const el = document.getElementById('mv'), s = SHOPS[state.i];
+  if(!state.vol){ el.style.display = 'none'; return; }
+  const v = curVol(), zs = s.zs === undefined ? LAB_ZS : s.zs;
+  const m = v.measured;
+  el.style.display = 'block';
+  el.innerHTML = '<b>Vol · ' + (v.authored ? 'AUTHORED' : 'AUTO') + '</b><br>' +
+    'h ' + v.h + ' (world ' + (v.h*zs).toFixed(0) + ')' + (v.authored ? '' : ' measured from ' + m.from) + '<br>' +
+    'foot ' + v.foot.length + ' pts · opens ' + v.opens.length + ' · solids ' + v.solids.length +
+    ' · zones ' + v.zones.length + ' · marks ' + Object.keys(v.marks).length + ' · surfaces ' + v.bound.length +
+    (v.authored ? '' : '<br>No declaration yet: the lot is a solid box. Yards, rooms and pavement props ' +
+     'are not physical until this entry gets a vol block.') +
+    '<br><span style="color:#6fb9c2">tap the ground to probe · red blocked @R30 · yellow = collision surfaces</span>';
+}
+SCREEN.addEventListener('click', e => {
+  if(!state.vol) return;
+  const r = SCREEN.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;
+  /* invert the projection on the ground plane: x = (a-b)K+OX, y = (a+b)/2 K + OY */
+  const d = (x - OX)/K, s2 = 2*(y - OY)/K;
+  state.probe = [(s2 + d)/2, (s2 - d)/2];
+  draw();
+});
+
 function draw(){
   const dpr = Math.min(2, window.devicePixelRatio||1);
   const cssW = Math.min(document.body.clientWidth, 900);
@@ -281,6 +430,7 @@ function draw(){
   SHOPS[state.i].draw(PAL[state.pal]);
   ZSCALE = 1;
   if(state.grid) guides();
+  if(state.vol) volOverlay();
 }
 function sync(){
   const s = SHOPS[state.i];
@@ -327,6 +477,7 @@ function sync(){
       'shopfront-shops.js.');
   if(notes.length){ mz.style.display='block'; mz.innerHTML = notes.join('<hr style="border:0;border-top:1px solid #7a5410;margin:8px 0">'); }
   else mz.style.display = 'none';
+  state.probe = null; volMeta();
   document.getElementById('mt').innerHTML = s.tags.map(t=>'<span class="tag">'+t+'</span>').join('');
   draw();
 }
@@ -337,6 +488,10 @@ for(const [id,key] of [['tRoof','roof'],['tProps','props'],['tGrid','grid'],['tS
     state[key] = !state[key]; e.currentTarget.classList.toggle('on', state[key]); draw();
   };
 }
+document.getElementById('tVol').onclick = e => {
+  state.vol = !state.vol; e.currentTarget.classList.toggle('on', state.vol);
+  state.probe = null; volMeta(); draw();
+};
 document.getElementById('tPal').onclick = e => {
   state.pal = (state.pal+1)%PAL.length;
   e.currentTarget.classList.toggle('on', state.pal!==0); draw();
