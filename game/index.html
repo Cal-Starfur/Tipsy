@@ -9580,9 +9580,16 @@ let gpsNav = null;
    is how the strip and the card end up quoting different distances for
    the same drive. One conversion, one place. */
 const FT_PER_UNIT = 0.6;   // flavor conversion, not a real-world claim
+/* MILES UNTIL THE LAST 500 FT (Sir, 2026-09-15: "it should be in miles
+   until its down to 500 feet"). The switch was at 1000 ft, and the turn
+   prompts never called this at all -- they built their own "in N ft", so
+   a corner three blocks up read "Turn Left in 3,400 ft". Every distance
+   the GPS shows comes through here now. 0.1 mi is 528 ft, so the mile
+   readout never shows 0.0 above the cut. */
+const GPS_FT_CUT = 500;
 function tpDistText(units){
   const ft = (units || 0) * FT_PER_UNIT;
-  return ft > 1000 ? (ft/5280).toFixed(1) + " mi" : Math.round(ft/10)*10 + " ft";
+  return ft > GPS_FT_CUT ? Math.max(0.1, ft/5280).toFixed(1) + " mi" : Math.round(ft/10)*10 + " ft";
 }
 function tpClockText(ms){
   return Math.floor(ms/60000) + ":" + String(Math.floor((ms%60000)/1000)).padStart(2, "0");
@@ -31364,7 +31371,7 @@ class WorldScene extends Phaser.Scene {
            gpsNav, so the chevron stays hidden for them. */
         turnText = nt.dist < 20
           ? verb
-          : `${verb} in ${Math.round(nt.dist*FT_PER_UNIT/10)*10} ft`;
+          : `${verb} in ${tpDistText(nt.dist)}`;
         /* WRONG WAY GETS SAID, NOT IMPLIED (2026-08-27, revised the same
            day after Sir on-device: "the directions didn't seem to notice
            if i was driving the wrong way during the daily route").
@@ -31416,7 +31423,7 @@ class WorldScene extends Phaser.Scene {
         const arrow = nextTurn.sign > 0 ? "→" : "←";
         turnText = distToTurn < 20
           ? `${arrow} Turn ${dir}`
-          : `${arrow} Turn ${dir} in ${Math.round(distToTurn*FT_PER_UNIT/10)*10} ft`;
+          : `${arrow} Turn ${dir} in ${tpDistText(distToTurn)}`;
       } else {
         /* Final approach: name the ADDRESS. "Straight ahead to drop-off"
            told the driver nothing they could act on, and this is the one
