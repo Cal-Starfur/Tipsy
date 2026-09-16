@@ -744,7 +744,14 @@ const DEPOT_GEOM = (() => {
   const WW = 295.6, DD = 276, H = 300, CW = 150;
   const DOOR = [0.10, 0.90], DH = 168;
   const ROOM = { a0:40, a1:WW - 6, b0:-244, b1:-6 };      // RA0 RA1 RB0 RB1
-  const WALL = 6;                                          // shell thickness: front, flank, chamfer
+  const WALL = 6;                                          // shell thickness: front and flank
+  /* THE CHAMFER IS A SKIN, not a 6-thick wall. draw() builds the jambs as
+     one plane on the chamfer line (cpt(t, 0), "chamfer jambs") with no
+     inner face, so a 6-thick chamfer put an inside corner on each jamb
+     that is not in the picture -- and Tipsey caught it leaving: pad exits
+     aimed at the door's right side tipped 3/18 against 1/18. 1 unit is
+     the drawn plane plus enough to be solid. */
+  const CHWALL = 1;
   const CHPAD = 46;
   const MAT = { k0:-26, k1:-102 };                         // mat, outward of the chamfer
   const BOLL = { k:-16, r:11, h:54 };                      // threshold bollards
@@ -756,12 +763,12 @@ const DEPOT_GEOM = (() => {
      runs right through the chamfer -- its corner (160.6,-15) is already
      past the jamb -- so used as the carve it deleted the jambs, which is
      the phantom-wall / tipping-jamb class of bug. The walkable interior
-     is that rect cut by the chamfer wall's INNER face, a + b = CA0 - WALL*sqrt2. */
-  const inner = CA0 - WALL * Math.SQRT2;
+     is that rect cut by the chamfer wall's INNER face, a + b = CA0 - CHWALL*sqrt2. */
+  const inner = CA0 - CHWALL * Math.SQRT2;
   const room = [[ROOM.a0, ROOM.b0], [ROOM.a0, ROOM.b1], [inner - ROOM.b1, ROOM.b1],
                 [ROOM.a1, inner - ROOM.a1], [ROOM.a1, ROOM.b0]];
   /* the doorway: the opening across the chamfer, through the wall */
-  const doorway = [cpt(DOOR[0], -1), cpt(DOOR[1], -1), cpt(DOOR[1], WALL + 2), cpt(DOOR[0], WALL + 2)];
+  const doorway = [cpt(DOOR[0], -1), cpt(DOOR[1], -1), cpt(DOOR[1], CHWALL + 2), cpt(DOOR[0], CHWALL + 2)];
   const TA = DOOR[0] + 0.02, TB = DOOR[1] - 0.02;
 
   const vol = {
@@ -777,8 +784,15 @@ const DEPOT_GEOM = (() => {
     ],
     zones: [
       { name:'mat',  kind:'trigger', poly:[cpt(TA,MAT.k0), cpt(TB,MAT.k0), cpt(TB,MAT.k1), cpt(TA,MAT.k1)] },
-      { name:'pad back', kind:'charge', poly: circ(PADS.back, 44) },
-      { name:'pad left', kind:'charge', poly: circ(PADS.left, 44) }
+      { name:'pad back', kind:'charge', c: PADS.back, r: 44 },         // CHARGE.padR
+      { name:'pad left', kind:'charge', c: PADS.left, r: 44 },
+      /* the door opens while he is in here (or in the room): 10 inside the
+         chamfer line to 150 out, between a = -40 and WW + 40 */
+      { name:'approach',  kind:'door',    poly: (() => { const IN = CA0 - 10*Math.SQRT2, OUT = CA0 + 150*Math.SQRT2, A0 = -40, A1 = WW + 40;
+                                                        return [[A0, IN-A0], [A1, IN-A1], [A1, OUT-A1], [A0, OUT-A0]]; })() },
+      /* the doorway band: contacts in it take the surface's true normal and
+         the forgiving tip threshold (game: depotContactNormal, depotDoorTip) */
+      { name:'threshold', kind:'forgive', poly:[cpt(-0.3,-90), cpt(1.3,-90), cpt(1.3,90), cpt(-0.3,90)] }
     ],
     marks: {
       spawn:  PADS.back,                      // Tipsey starts on the back-wall pad
@@ -787,8 +801,7 @@ const DEPOT_GEOM = (() => {
       door:   cpt(0.5, 0)                     // facing: spawn -> door
     }
   };
-  function circ(c, r){ const o = []; for(let i=0;i<24;i++){ const t=i/24*Math.PI*2; o.push([c[0]+r*Math.cos(t), c[1]+r*Math.sin(t)]); } return o; }
-  return { WW, DD, H, CW, DOOR, DH, ROOM, WALL, CHPAD, MAT, BOLL, PADS, cpt, vol };
+  return { WW, DD, H, CW, DOOR, DH, ROOM, WALL, CHWALL, CHPAD, MAT, BOLL, PADS, cpt, vol };
 })();
 
 const SHOPS = [
@@ -14002,7 +14015,7 @@ const SHOPS = [
 },
 {
   name:'Charge depot', tall:true, corner:true, ww: DEPOT_GEOM.WW, dd: DEPOT_GEOM.DD,
-  vol: DEPOT_GEOM.vol,
+  vol: DEPOT_GEOM.vol, geom: DEPOT_GEOM,
   wTodo:'a CORNER LOT: the game already defines one as (HOUSE_DEPTH + T2*0.3) - CORNER_LOT_INSET = 295.6 by STORE_DEPTH = 276, at the end of one edge turning onto the other. The packer emits frontage slots only',
   cTodo:'the mass is a volume, but the ROOM IS NOT -- the bay must be carved out of the block rect or Tipsy cannot drive in. solidAt is a plain rectangle test today with no notion of an opening. This is the one engine change the depot needs',
   mTodo:'THE TRIGGER MAT IS GAME-SIDE. It draws here but it does nothing: the state machine is matHighlightState(scene, m, forMode) with owMatContains for the on/armed test, and MAT_HL is already documented as \'one state machine, three mats\' -- this is the fourth. What it needs is forMode \'freeroam\' and an action that drives doorT rather than loading a mission, plus an entry in whatever builds the mat list. The mat is paint: no volume, Tipsey drives over it. Its own extents run past the lot on the diagonal (a to 359.6, b to +64) because a mat square to a 45 door has to -- the game\'s own mats are 0..SIDEWALK_W deep, which is 368, so that is in keeping',
