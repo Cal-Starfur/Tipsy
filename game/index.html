@@ -430,6 +430,26 @@
   #zoomBtn:active{opacity:0.6;}
   #zoomBtn .zCap{font-size:8px;letter-spacing:1px;color:#8f95a1;}
   #zoomBtn .zLvl{font-size:17px;font-weight:700;color:#e8eaef;}
+  /* THE BATTERY, under VIEW and built the same: a driving instrument,
+     hidden on the map and off trips. Tap it to route to the nearest
+     depot. .low pulses red at BATT.warnPct and below; .chg is on a pad. */
+  #battBtn{position:fixed;right:14px;
+    top:calc(12px + env(safe-area-inset-top) + 92px);z-index:60;
+    width:38px;height:38px;border-radius:11px;
+    background:rgba(20,23,29,0.62);border:1px solid #363b46;
+    box-shadow:0 2px 6px rgba(0,0,0,.35);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+    cursor:pointer;-webkit-user-select:none;user-select:none;
+    -webkit-tap-highlight-color:transparent;}
+  #battBtn:active{opacity:0.6;}
+  #battBtn .bCell{position:relative;width:22px;height:10px;border:1.5px solid #8f95a1;border-radius:2px;box-sizing:border-box;}
+  #battBtn .bCell::after{content:"";position:absolute;right:-4px;top:2px;width:2px;height:3px;background:#8f95a1;border-radius:0 1px 1px 0;}
+  #battBtn .bFill{position:absolute;left:1px;top:1px;bottom:1px;width:calc(100% - 2px);background:#7ee081;border-radius:1px;}
+  #battBtn .bPct{font-size:11px;font-weight:700;color:#e8eaef;line-height:1;}
+  #battBtn.low{border-color:#c2452e;animation:battPulse 1s ease-in-out infinite;}
+  #battBtn.low .bFill{background:#ff5a4e;}
+  #battBtn.chg .bFill{background:#7fe3ff;}
+  @keyframes battPulse{0%,100%{box-shadow:0 2px 6px rgba(0,0,0,.35);}50%{box-shadow:0 0 0 3px rgba(255,90,78,.45);}}
   .hidden{display:none!important;}
   .big{font-size:42px;margin:2px 0;}
   /* ================= TIPSEY PROFILE — Trophy Case + Store + Side Missions
@@ -970,6 +990,7 @@
   <div id="game"></div>
   <div id="gpsHud" class="hidden"><svg id="gpsChev" viewBox="0 0 24 24" aria-hidden="true"><polygon points="12,2 21,21 12,16 3,21"/></svg><span id="gpsText"></span></div>
   <div id="zoomBtn" class="hidden"><span class="zCap">VIEW</span><span class="zLvl">1</span></div>
+  <div id="battBtn" class="hidden" aria-label="Battery"><span class="bCell"><span class="bFill"></span></span><span class="bPct">100</span></div>
   <div id="hjUI" class="hidden">
     <div id="hjTitle"></div>
     <div id="hjUnlock"></div>
@@ -7553,6 +7574,7 @@ function owPlaceOnPad(scene, fromX, fromY){
      the same one the home spawn uses. The door opens on its own: he is
      in the room. */
   owStandUpAt(scene, st.x, st.y, st.a);
+  battRefill();   // the tow and the pad respawn both arrive charged
   return st;
 }
 
@@ -7766,6 +7788,8 @@ function tpContSyncBtn(){
   const r = document.getElementById("retryBtn");
   if(!r) return;
   r.style.opacity = "";
+  /* a DEAD BATTERY is towed, never retried or continued */
+  if(tpBatt.dead){ r.textContent = "Tow to Charger"; tdFailLater(false); return; }
   if(!tpContArmed()){ r.textContent = "Retry"; return; }
   if(tpContAfford()){ r.textContent = "Continue " + tpMoney(TP_CONT_CENTS); return; }
   /* BROKE IS AN ANSWER, NOT A DEAD BUTTON (Sir, 2026-08-28: "we need it
@@ -10296,7 +10320,7 @@ function gpsNavToMission(id){
    gpsNearestNode on both ends, so a park's centroid -- which is in the
    middle of the grass by construction -- snaps to the nearest lattice
    node like anything else. */
-function gpsNavToPlace(name, tx, ty){
+function gpsNavToPlace(name, tx, ty, toast){
   const s = (typeof scn === "function") ? scn() : null;
   if(!s) return;
   if(!Number.isFinite(tx) || !Number.isFinite(ty)){ tpToast("No pin for " + name + "."); return; }
@@ -10309,7 +10333,8 @@ function gpsNavToPlace(name, tx, ty){
       tpToast("No route to " + name + ".");
       return;
     }
-    tpToast("Routing to " + name + ". Press GO.");
+    /* a caller routing from the road (the HUD battery) has no GO to press */
+    tpToast(toast || ("Routing to " + name + ". Press GO."));
     tpSyncOrderCard(s2);
     if(s2 && s2.route){ resizeRouteMap(); drawRouteMap(s2.route); }
   };
@@ -10807,6 +10832,139 @@ function depotBuiltHeight(d, x, y){
 }
 
 function isDepotBlock(grid, blk){ return !!depotOnBlock(grid, blk); }
+/* ==================== THE BATTERY (Sir, 2026-09-15) ====================
+   "when i get to the next charger what happens?" -- now: it charges you.
+   Agreed shape:
+     - drains from DRIVING (distance) plus a little per bump;
+     - warns at 20%, and the HUD battery routes to the nearest depot;
+     - at 0% it is a FAIL and a TOW to the nearest depot -- no limp mode,
+       no paid Continue (continuing flat would only fail again);
+     - charges by stopping on a depot pad; arriving there ends a trip
+       that was headed for that depot;
+     - SESSION ONLY: full on every page load, nothing saved.
+
+   CAPACITY, MEASURED. Twenty days of routes: the pickup-to-door leg is
+   21,207 units at the median (9,181 .. 36,289) and the home depot sits
+   ~61,600 straight-line from a median pickup. 150,000 is a few
+   deliveries including the drive to each shop, and the 20% warning
+   leaves 30,000 -- several times the 4.5-block mean spacing between
+   depots, so a warning is always recoverable. */
+const BATT = {
+  capU:      150000,   // world units of driving on a full charge
+  warnPct:   20,
+  bumpPct:   0.5,      // per fresh scrape against anything solid
+  fillMs:    4000,     // empty to full, parked on a pad
+  teleportU: 400,      // a frame jump longer than this is a respawn, not driving
+  stillV:    0.02,     // |vel| under this counts as stopped on the pad
+};
+const tpBatt = { pct: 100, warned: false, dead: false, charging: false,
+                 fullToasted: true, lastX: null, lastY: null, lastScrapes: 0 };
+function battRefill(){
+  tpBatt.pct = 100; tpBatt.warned = false; tpBatt.dead = false;
+  tpBatt.charging = false; tpBatt.fullToasted = true; tpBatt.lastX = null;
+}
+/* the depot pad he is stopped on, or null. Both bays count: the left one
+   is waiting on its NPC, but nothing stands on it yet. */
+function battPadAt(scene){
+  const g = scene.route && scene.route.grid;
+  if(!g) return null;
+  for(const d of depotsOf(g)){
+    if(Math.abs(d.cu.ux - scene.botX) + Math.abs(d.cu.uy - scene.botY) > 900) continue;
+    const q = depotLabXY(d, scene.botX, scene.botY);
+    if(Math.hypot(q.a - 200, q.b - (DEPOT_ROOM.b0 + 46)) < CHARGE.padR ||
+       Math.hypot(q.a - (DEPOT_ROOM.a0 + 46), q.b + 140) < CHARGE.padR) return d;
+  }
+  return null;
+}
+/* one frame, inside the play gate, trips only (free roam and delivery):
+   missions run their own frozen worlds and the attract robot is nobody's */
+function battTick(scene, dt){
+  if(scene.attract || !tpContTripMode(scene.mode) || scene.state !== "play" || !scene.ow) return;
+  const ow = scene.ow;
+  /* DRAIN. Distance actually covered, so standing still is free and a
+     respawn or a Continue -- a jump, not a drive -- costs nothing. */
+  if(tpBatt.lastX !== null){
+    const step = Math.hypot(ow.px - tpBatt.lastX, ow.py - tpBatt.lastY);
+    if(step < BATT.teleportU) tpBatt.pct -= 100 * step / BATT.capU;
+  }
+  tpBatt.lastX = ow.px; tpBatt.lastY = ow.py;
+  const sc = ow.clipScrapes || 0;
+  if(sc > tpBatt.lastScrapes) tpBatt.pct -= BATT.bumpPct * (sc - tpBatt.lastScrapes);
+  tpBatt.lastScrapes = sc;
+  /* CHARGE. Stopped on a pad. */
+  const pad = Math.abs(ow.vel || 0) < BATT.stillV ? battPadAt(scene) : null;
+  if(pad){
+    if(!tpBatt.charging){
+      tpBatt.charging = true;
+      /* ARRIVAL: a trip to THIS depot ends on its pad */
+      if(gpsNav && gpsNav.id === "place"){
+        const q = depotDoorWorld(pad);
+        if(Math.hypot(gpsNav.tx - q.x, gpsNav.ty - q.y) < 1){
+          gpsNavClear();
+          if(typeof tpSyncOrderCard === "function") tpSyncOrderCard(scene);
+        }
+      }
+      if(tpBatt.pct < 99.5){ tpBatt.fullToasted = false; tpToast("Charging\u2026"); }
+    }
+    tpBatt.pct += 100 * dt / BATT.fillMs;
+    if(tpBatt.pct >= 100){
+      tpBatt.pct = 100;
+      if(!tpBatt.fullToasted){ tpBatt.fullToasted = true; tpToast("Fully charged."); }
+    }
+  } else {
+    tpBatt.charging = false;
+  }
+  if(tpBatt.pct > BATT.warnPct + 5) tpBatt.warned = false;
+  if(tpBatt.pct <= BATT.warnPct && !tpBatt.warned && tpBatt.pct > 0){
+    tpBatt.warned = true;
+    tpToast("Battery low. Tap the battery to route to the nearest charger.");
+  }
+  if(tpBatt.pct <= 0){ tpBatt.pct = 0; battDie(scene); }
+}
+/* THE DEAD BATTERY IS A FAIL. The robot stays upright and the sim
+   stops -- the same shape "canceled" already has -- and the card offers
+   exactly one thing: the tow. */
+function battDie(scene){
+  const ow = scene.ow;
+  tpBatt.dead = true; tpBatt.charging = false;
+  scene.state = "dead";
+  scene.speed = 0; scene.throttle = 0;
+  if(ow){ ow.vel = 0; ow.failHold = true; }
+  tpCont.armed = false; tpCont.nav = null;
+  gpsNavClear();
+  if(scene.mode === "delivery") reportFail(scene, "battery");
+  else tdFx.gateEligible = false;
+  setTimeout(() => {
+    if(!tpBatt.dead) return;
+    showFail([["Battery dead.", "Towing you back to the nearest charger."]]);
+  }, 900);
+}
+/* THE HUD BATTERY. Tap routes to the nearest depot's door. */
+function battRouteToCharger(){
+  const s = scn();
+  if(!s || !s.route || !s.route.grid) return;
+  const near = nearestChargeStation(s.route.grid, s.botX, s.botY);
+  if(!near) return;
+  const d = near.station.depot, q = depotDoorWorld(d);
+  gpsNavToPlace(d.name, q.x, q.y, "Routing to " + d.name + ".");
+}
+function battSyncHud(scene){
+  const el = document.getElementById("battBtn");
+  if(!el) return;
+  const show = !tpMapUp() && !scene.attract && tpContTripMode(scene.mode)
+            && (scene.state === "play" || scene.state === "dead");
+  el.classList.toggle("hidden", !show);
+  if(!show) return;
+  const pct = Math.max(0, Math.min(100, Math.round(tpBatt.pct)));
+  if(el._pct !== pct){
+    el._pct = pct;
+    el.querySelector(".bPct").textContent = pct;
+    el.querySelector(".bFill").style.width = "calc(" + pct + "% - 2px)";
+  }
+  el.classList.toggle("low", pct <= BATT.warnPct && !tpBatt.charging);
+  el.classList.toggle("chg", tpBatt.charging);
+}
+
 /* WHERE A TRIP TO A DEPOT ENDS: the door mat's centre, cpt(0.5, -64) =
    lab (266, -30), on the pavement in front of the chamfer. Not the pad --
    that is inside, and the GPS line's tail should stop at the door the
@@ -19756,7 +19914,14 @@ class WorldScene extends Phaser.Scene {
          So it HOLDS him on the pad while he is standing still at the
          start of a route, and releases the moment he drives: vel > 1
          ends it, and runT only grows, so it can never come back. */
-      if(this.runT < 2000 && this.ow && Math.abs(this.ow.vel || 0) < 1){
+      /* ...UNLESS HE HAS BEEN PUT SOMEWHERE ON PURPOSE. tpFreePlay (the tow,
+         Retry, Maybe later) reloads the route -- runT back to 0 -- and
+         THEN sets him on the nearest pad; this hold snapped him straight
+         back to the home depot on the next frame, so every tow ended at
+         home however far away he fell (measured, 2026-09-15: died by
+         Sunset Terrace Charging 2, woke at The Flats Charging 1).
+         owPlaceOnPad raises _homeHoldOff; boot never calls it. */
+      if(!this._homeHoldOff && this.runT < 2000 && this.ow && Math.abs(this.ow.vel || 0) < 1){
         const p = depotPadWorld(depotLot(this.route.grid));
         if(p){
           /* ow.px / ow.py IS THE POSITION. botX and botY are derived from
@@ -28853,6 +29018,8 @@ class WorldScene extends Phaser.Scene {
       /* NAV. Replot on its own throttle and fire the moment the mat
          says ARMED. Sits inside the same play gate as everything else
          here so a paused or crashed robot cannot arrive anywhere. */
+      battTick(this, dt);
+      if(this.state !== "play") return;   // the battery just died
       if(gpsNav){
         gpsNavReplot(this);
         if(gpsNavArrived(this)){ gpsNavLaunch(this); return; }
@@ -31005,6 +31172,7 @@ class WorldScene extends Phaser.Scene {
        this is the second one. tpMapUp asks directly. */
     const zb = document.getElementById("zoomBtn");
     if(zb) zb.classList.toggle("hidden", tpMapUp() || this.attract || this.state !== "play");
+    battSyncHud(this);
     if(this.attract) return;
     const g = this.hud; g.clear();
     /* The tilt gauge, the cargo-condition bar and the GPS turn strip are
@@ -37001,6 +37169,10 @@ function tpFreePlay(fromX, fromY){
   hide("failOverlay"); hide("winOverlay"); hide("titleOverlay");
   collapseSheet();
   const s = scn(); if(!s) return;
+  /* WHERE HE WAS, taken BEFORE loadRoute: the reload stands him on the
+     home pad, so a caller with no point of its own (Retry, Maybe later)
+     used to ask for the pad nearest HOME and always got home. */
+  const wasX = s.botX, wasY = s.botY;
   { if(s.attractStop) s.attractStop(); s.attract = false; }
   /* WHOEVER SETS AN ERRAND CLEARS THE LAST ONE (2026-08-26). gpsNav was
      cleared in exactly one place -- gpsNavLaunch, on arrival -- so every
@@ -37019,8 +37191,12 @@ function tpFreePlay(fromX, fromY){
      him back on the pickup spot, so without this every return from a
      mission drops him at a shop door again. */
   owPlaceOnPad(s,
-    (typeof fromX === "number") ? fromX : s.botX,
-    (typeof fromY === "number") ? fromY : s.botY);
+    (typeof fromX === "number") ? fromX : wasX,
+    (typeof fromY === "number") ? fromY : wasY);
+  /* and the home spawn hold must not take him back: loadRoute above set
+     runT to 0, which re-arms it (see _homeHoldOff at the hold). Boot
+     never comes through here, so it keeps its home spawn. */
+  s._homeHoldOff = true;
 }
 if(typeof window !== "undefined") window.tpFreePlay = tpFreePlay;
 
@@ -38897,6 +39073,9 @@ function tpSyncMapChrome(s){
      driving instrument back on a paused screen. */
   const zb = document.getElementById("zoomBtn");
   if(zb && typeof tpMapUp === "function" && tpMapUp()) zb.classList.add("hidden");
+  /* the battery is a driving instrument too, for the same reason */
+  const bb = document.getElementById("battBtn");
+  if(bb && typeof tpMapUp === "function" && tpMapUp()) bb.classList.add("hidden");
   /* THE BANNER GOES WITH IT (Sir, 2026-08-26: "remove the card that is
      showing the address of the pick up too for the free roam map, but
      keep it when the daily route is selected"). Same test, same beat --
@@ -40273,7 +40452,21 @@ document.getElementById("startBtn").addEventListener("click", () => {
   if(wasAttract) s.loadRoute(s.route ? s.route.dateStr : clientTodayUTC());
   s.state = "play";
 });
+document.getElementById("battBtn").addEventListener("click", battRouteToCharger);
 document.getElementById("retryBtn").addEventListener("click", () => {
+  /* THE BATTERY TOW. Same ride as the broke-trip tow below -- tpFreePlay,
+     which lands on the nearest pad and (owPlaceOnPad) refills. */
+  if(tpBatt.dead){
+    const s0 = scn();
+    const fx = s0 ? s0.botX : undefined, fy = s0 ? s0.botY : undefined;
+    tdFxResolveFail("tow");
+    hide("failOverlay");
+    tdFailLater(false);
+    document.getElementById("retryBtn").textContent = "Retry";
+    tpToast("Towed to the nearest charger.");
+    tpFreePlay(fx, fy);
+    return;
+  }
   /* THE TOW. Broke on a trip: the card said so and this is the ride.
      tpFreePlay is the whole recovery and the one owner of "put him on a
      pad" -- the same three steps MAYBE LATER and the map's Free Play row
