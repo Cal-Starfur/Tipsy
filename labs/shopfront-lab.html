@@ -322,7 +322,10 @@ function volOverlay(){
     else { poly(plate(sd.poly, 0), 'rgba(255,150,40,.35)', '#ff9628', 1.5); poly(plate(sd.poly, sd.h), null, '#ff9628', 1); }
   }
   ctx.setLineDash([4,4]);
-  for(const zn of v.zones) poly(plate(zn.poly, 1), null, 'rgba(220,120,255,.9)', 1.2);
+  for(const zn of v.zones){
+    const pts = zn.c ? Array.from({length:32}, (_, k) => { const t = k/32*Math.PI*2; return [zn.c[0]+zn.r*Math.cos(t), zn.c[1]+zn.r*Math.sin(t)]; }) : zn.poly;
+    poly(plate(pts, 1), null, 'rgba(220,120,255,.9)', 1.2);
+  }
   ctx.setLineDash([]);
   ctx.font = '600 10px ui-monospace,monospace';
   /* marks that share a point share a label (spawn IS padBack) */
