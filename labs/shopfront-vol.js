@@ -32,7 +32,7 @@
        solids: [{ name, poly | c:[a,b] + r, h, prop }]
                                  free-standing volumes (bollards, walls,
                                  kiosks). prop:true -> only with kerb props on
-       zones:  [{ name, poly, kind }]   paint / triggers. No volume.
+       zones:  [{ name, poly | c + r, kind }]   paint / triggers. No volume.
        marks:  { name: [a,b] }           named points: pads, mat, spawn, door
      }
 
@@ -57,6 +57,11 @@ function volPip(poly, a, b){
     if(((bi > b) !== (bj > b)) && (a < (aj - ai) * (b - bi) / (bj - bi) + ai)) inside = !inside;
   }
   return inside;
+}
+
+/* a declared shape: { poly } or { c:[a,b], r } -- solids and zones both */
+function volInShape(s, a, b){
+  return s.c ? Math.hypot(a - s.c[0], b - s.c[1]) < s.r : volPip(s.poly, a, b);
 }
 
 function volSegDist(a, b, s){
@@ -98,7 +103,7 @@ function volOf(shop, measured, dflt){
 function volSolidAt(v, a, b, props){
   for(const s of v.solids){
     if(s.prop && !props) continue;
-    if(s.c ? Math.hypot(a - s.c[0], b - s.c[1]) < s.r : volPip(s.poly, a, b)) return true;
+    if(volInShape(s, a, b)) return true;
   }
   if(!volPip(v.foot, a, b)) return false;
   for(const o of v.opens) if(o.walk && volPip(o.poly, a, b)) return false;
@@ -185,7 +190,7 @@ function volBlockedAt(v, a, b, R, props){
 function volBuiltHeight(v, a, b, view, props){
   for(const s of v.solids){
     if(s.prop && !props) continue;
-    if(s.c ? Math.hypot(a - s.c[0], b - s.c[1]) < s.r : volPip(s.poly, a, b)) return s.h || 0;
+    if(volInShape(s, a, b)) return s.h || 0;
   }
   const L = v.lot;
   if(a < L.a0 || a > L.a1 || b < L.b0 || b > L.b1) return null;
@@ -198,7 +203,7 @@ function volBuiltHeight(v, a, b, view, props){
 }
 
 function volZoneAt(v, a, b){
-  return v.zones.filter(z => volPip(z.poly, a, b)).map(z => z.name);
+  return v.zones.filter(z => volInShape(z, a, b)).map(z => z.name);
 }
 
 function volWorldH(shop, h, labZs){ return h * (shop.zs === undefined ? labZs : shop.zs); }
