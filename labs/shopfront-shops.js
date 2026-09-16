@@ -728,6 +728,69 @@ function wallFrames(WW, DD, OA, OB){
            FAR:  FLANK_RIGHT ? FR_LEFT  : FR_RIGHT };
 }
 
+/* =====================================================================
+   THE CHARGE DEPOT'S GEOMETRY, ONCE -- art and volume both read it.
+   =====================================================================
+   The first port of this building had to fish these numbers back out of
+   draw() by hand (DEPOT_ROOM, the pad at 200/b0+46, the mat at 266/-30,
+   300*1.5) and every on-device bug it produced came from that copy. Now
+   the draw and the vol declaration below take them from here, so the
+   building Tipsey collides with IS the building that is drawn.
+
+   Frame: a along the y1 street, b 0 on it and negative into the block,
+   chamfer on the corner at a = WW. cpt(t, k) is t across the chamfer
+   (0..1) and k in along its inward normal. */
+const DEPOT_GEOM = (() => {
+  const WW = 295.6, DD = 276, H = 300, CW = 150;
+  const DOOR = [0.10, 0.90], DH = 168;
+  const ROOM = { a0:40, a1:WW - 6, b0:-244, b1:-6 };      // RA0 RA1 RB0 RB1
+  const WALL = 6;                                          // shell thickness: front, flank, chamfer
+  const CHPAD = 46;
+  const MAT = { k0:-26, k1:-102 };                         // mat, outward of the chamfer
+  const BOLL = { k:-16, r:11, h:54 };                      // threshold bollards
+  const R2 = Math.SQRT1_2, CA0 = WW - CW;
+  const cpt = (t, k) => [CA0 + t*CW - (k||0)*R2, -t*CW - (k||0)*R2];
+  const PADS = { back:[200, ROOM.b0 + CHPAD], left:[ROOM.a0 + CHPAD, -140] };
+
+  /* THE ROOM IS THE INTERIOR, not a rect. The room rect the art clips to
+     runs right through the chamfer -- its corner (160.6,-15) is already
+     past the jamb -- so used as the carve it deleted the jambs, which is
+     the phantom-wall / tipping-jamb class of bug. The walkable interior
+     is that rect cut by the chamfer wall's INNER face, a + b = CA0 - WALL*sqrt2. */
+  const inner = CA0 - WALL * Math.SQRT2;
+  const room = [[ROOM.a0, ROOM.b0], [ROOM.a0, ROOM.b1], [inner - ROOM.b1, ROOM.b1],
+                [ROOM.a1, inner - ROOM.a1], [ROOM.a1, ROOM.b0]];
+  /* the doorway: the opening across the chamfer, through the wall */
+  const doorway = [cpt(DOOR[0], -1), cpt(DOOR[1], -1), cpt(DOOR[1], WALL + 2), cpt(DOOR[0], WALL + 2)];
+  const TA = DOOR[0] + 0.02, TB = DOOR[1] - 0.02;
+
+  const vol = {
+    foot: [[0,0], [CA0,0], [WW,-CW], [WW,-DD], [0,-DD]],
+    h: H,
+    opens: [
+      { name:'room',    poly: room,    walk:true, see:'street', h:0 },
+      { name:'doorway', poly: doorway, walk:true, see:'street', h:0 }
+    ],
+    solids: [
+      { name:'bollard L', c: cpt(DOOR[0] + 0.02, BOLL.k), r: BOLL.r, h: BOLL.h, prop:true },
+      { name:'bollard R', c: cpt(DOOR[1] - 0.02, BOLL.k), r: BOLL.r, h: BOLL.h, prop:true }
+    ],
+    zones: [
+      { name:'mat',  kind:'trigger', poly:[cpt(TA,MAT.k0), cpt(TB,MAT.k0), cpt(TB,MAT.k1), cpt(TA,MAT.k1)] },
+      { name:'pad back', kind:'charge', poly: circ(PADS.back, 44) },
+      { name:'pad left', kind:'charge', poly: circ(PADS.left, 44) }
+    ],
+    marks: {
+      spawn:  PADS.back,                      // Tipsey starts on the back-wall pad
+      padBack: PADS.back, padLeft: PADS.left, // left is the NPC bay (rTodo)
+      mat:    cpt(0.5, -64),                  // where a trip to a depot ends
+      door:   cpt(0.5, 0)                     // facing: spawn -> door
+    }
+  };
+  function circ(c, r){ const o = []; for(let i=0;i<24;i++){ const t=i/24*Math.PI*2; o.push([c[0]+r*Math.cos(t), c[1]+r*Math.sin(t)]); } return o; }
+  return { WW, DD, H, CW, DOOR, DH, ROOM, WALL, CHPAD, MAT, BOLL, PADS, cpt, vol };
+})();
+
 const SHOPS = [
 {
   name:'Bakery', head:'Curved gable, brick flue, bunting on the arch',
@@ -13938,7 +14001,8 @@ const SHOPS = [
   }
 },
 {
-  name:'Charge depot', tall:true, corner:true, ww: 295.6, dd: 276,
+  name:'Charge depot', tall:true, corner:true, ww: DEPOT_GEOM.WW, dd: DEPOT_GEOM.DD,
+  vol: DEPOT_GEOM.vol,
   wTodo:'a CORNER LOT: the game already defines one as (HOUSE_DEPTH + T2*0.3) - CORNER_LOT_INSET = 295.6 by STORE_DEPTH = 276, at the end of one edge turning onto the other. The packer emits frontage slots only',
   cTodo:'the mass is a volume, but the ROOM IS NOT -- the bay must be carved out of the block rect or Tipsy cannot drive in. solidAt is a plain rectangle test today with no notion of an opening. This is the one engine change the depot needs',
   mTodo:'THE TRIGGER MAT IS GAME-SIDE. It draws here but it does nothing: the state machine is matHighlightState(scene, m, forMode) with owMatContains for the on/armed test, and MAT_HL is already documented as \'one state machine, three mats\' -- this is the fourth. What it needs is forMode \'freeroam\' and an action that drives doorT rather than loading a mission, plus an entry in whatever builds the mat list. The mat is paint: no volume, Tipsey drives over it. Its own extents run past the lot on the diagonal (a to 359.6, b to +64) because a mat square to a 45 door has to -- the game\'s own mats are 0..SIDEWALK_W deep, which is 368, so that is in keeping',
@@ -13970,7 +14034,7 @@ const SHOPS = [
        means road-graph NODES; solidAt is a plain rectangle over the
        block and nothing can enter one. The art can read as a room today;
        DRIVING into it is the cTodo, and it is an engine change. */
-    const WW = 295.6, DD = 276, H = 300, CW = 150;
+    const { WW, DD, H, CW } = DEPOT_GEOM;
     /* #ff7a1a IS THE GAME'S ORANGE, not a shade I picked. It is the
        brand colour in game/index.html -- the active button, the avatar
        chip, the .brand rule -- and it appears 35 times, more than any
@@ -13986,7 +14050,7 @@ const SHOPS = [
     /* t across the chamfer, k into the room along its inward normal */
     const cpt = (t, k) => [CA[0] + t*CW - (k||0)*R2, CA[1] - t*CW - (k||0)*R2];
     const P3 = (q, z) => P(q[0], q[1], z);
-    const DOOR = [0.10, 0.90], DH = 168, RD = 250;           // opening, head, room depth
+    const DOOR = DEPOT_GEOM.DOOR, DH = DEPOT_GEOM.DH, RD = 250;   // opening, head, room depth
 
     /* ============ WHICH SIDE OF IT THE CAMERA IS ON ============
        Everything below the back-view block was drawn for ONE projection:
@@ -14099,7 +14163,7 @@ const SHOPS = [
        So the room is square to the block behind a 45 door, and the
        chargers line its LEFT wall and its BACK wall -- the two the
        camera can actually see into. */
-    const RA0 = 40, RA1 = WW - 6, RB0 = -244, RB1 = -6;
+    const { a0: RA0, a1: RA1, b0: RB0, b1: RB1 } = DEPOT_GEOM.ROOM;
     /* ---- THE DOOR ARTICULATES, and the room is clipped to what it
        leaves open ---- OPEN is 0 shut to 1 fully coiled, read off
        state.doorT so the game can drive it: opening on launch, and
@@ -14160,7 +14224,7 @@ const SHOPS = [
          The cabinets I had were a shape I made up; this is the one the
          game already teaches you to recognise. `side` is which way the
          mast faces from the pad -- against the wall it serves. */
-      const CHPAD = 46;
+      const CHPAD = DEPOT_GEOM.CHPAD;
       const CH = { padR:44, ringW:5, poleAt:0.62, poleW:15, poleH:96,
                    headW:21, headH:26, glowR:7 };
       const CP = { pad:'#6d7484', padDk:'#565c6a', ring:'#ffb454',
@@ -14202,7 +14266,7 @@ const SHOPS = [
          BOTH BAYS ARE EMPTY HERE, at Sir's direction -- the lab draws the
          building, and a robot in it is the game's job. rTodo records
          which bay gets which. */
-      const BACK = [200, RB0 + CHPAD], LEFT = [RA0 + CHPAD, -140];
+      const BACK = DEPOT_GEOM.PADS.back, LEFT = DEPOT_GEOM.PADS.left;
       charger(BACK[0], BACK[1], 0, -1);
       charger(LEFT[0], LEFT[1], -1, 0);
 
@@ -14318,7 +14382,7 @@ const SHOPS = [
        the thing you drive INTO. The lab drives its state off doorT so
        the relationship is visible: amber while the door is shut, green
        once it is moving. */
-    if(PT('door')) { const TA = DOOR[0] + 0.02, TB = DOOR[1] - 0.02, K0 = -26, K1 = -102;
+    if(PT('door')) { const TA = DOOR[0] + 0.02, TB = DOOR[1] - 0.02, K0 = DEPOT_GEOM.MAT.k0, K1 = DEPOT_GEOM.MAT.k1;
       const on = ((typeof state.doorT === 'number') ? state.doorT : 1) > 0.02;
       const tone = on ? '#7ee081' : '#ffb25a';
       const c = [cpt(TA,K0), cpt(TB,K0), cpt(TB,K1), cpt(TA,K1)];
@@ -14363,7 +14427,7 @@ const SHOPS = [
        bollard is a marking rather than signage -- in brand it competed
        with the sign and the fascia for the same colour. */
     if(state.props && PT('door')) for(const t of [DOOR[0]+0.02, DOOR[1]-0.02]){
-      const q = cpt(t, -16), YEL = '#ffcc33';
+      const q = cpt(t, DEPOT_GEOM.BOLL.k), YEL = '#ffcc33';
       plateCircle(q[0], q[1], 0.9, 13, 'rgba(0,0,0,.22)');
       cyl(q[0], q[1], 0, 6, 11, shade(YEL,.62));
       cyl(q[0], q[1], 6, 54, 8, YEL, shade(YEL,.7));
