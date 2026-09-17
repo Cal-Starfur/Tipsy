@@ -17298,7 +17298,12 @@ const DEPOT_GEOM = (() => {
      the bollards -- and k1 is the corner itself: cpt(0.5, -106) is
      (295.55, -0.05), the square corner at (WW, 0). k0 is 4 off the wall,
      so the wedge starts at the building and ends at the point. */
-  const MAT = { k0:-4, k1:-106, t0:0, t1:1 };               // mat, outward of the chamfer
+  /* AND PAST THE CHAMFER'S OWN ENDS (Sir: "still not quite filling the
+     corner" -- a sliver of pavement left along the side wall). t runs a
+     little beyond 0..1 so the base corners reach the two walls rather
+     than the jambs, k0 sits on the chamfer line itself, and k1 goes 6
+     past the corner point, so the wedge closes on all three sides. */
+  const MAT = { k0:0, k1:-112, t0:-0.06, t1:1.06 };        // mat, outward of the chamfer
   const BOLL = { k:-16, r:11, h:54 };                      // threshold bollards
   const R2 = Math.SQRT1_2, CA0 = WW - CW;
   const cpt = (t, k) => [CA0 + t*CW - (k||0)*R2, -t*CW - (k||0)*R2];
