@@ -372,7 +372,21 @@ function glaze(a0, a1, z0, z1, frame, tint){
    in this library supplies it. z ascending breaks ties so a thing on a
    shelf still paints over the shelf. */
 function depthSort(items){
-  const key = it => (it.a || 0) + it.b + (it.z || 0);
+  /* SORTED BY WHAT P() SAYS IS NEARER, not by a + b (Sir, 2026-09-17:
+     the Tidewater Maritime Museum's rear railing, hedges and plinths drew
+     OVER its portico). a + b is "nearer" only in the lab's own frame. The
+     game places a block landmark with b flipped -- W(x0 + a, y0 - b) --
+     where nearer is a - b, so the old key drew the whole sculpture garden
+     back to front. P(a, b, 0).y is the ground point's screen height in
+     whatever frame is live, and it is (a + b)K/2 + OY in the lab, so the
+     lab's order is unchanged; z keeps its old weight, one ground unit. */
+  const o = P(0,0,0);
+  const u = (Math.abs(P(1,0,0).y - o.y) + Math.abs(P(0,1,0).y - o.y)) / 2;
+  const key = it => P(it.a || 0, it.b, 0).y + (it.z || 0) * u;
+  /* A HOST MAY TAKE THE ITEMS instead: the game sorts each one into its
+     own world queue, against the robot and everything round the lot, so
+     a building 1656 across is not one depth. */
+  if(typeof state !== 'undefined' && state.emit){ state.emit(items); return; }
   items.slice().sort((m,n) => (key(m) - key(n)) || ((m.z||0) - (n.z||0)))
        .forEach(it => it.draw());
 }
