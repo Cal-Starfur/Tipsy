@@ -9749,44 +9749,40 @@ function depotLot(grid){ return depotsOf(grid).find(d => d.home) || false; }
    a pickup block, or whose shops do not fit the edge is skipped with a
    warning rather than drawn over something else. */
 const HOOD_SHOP_SITES = [
+  /* RE-PLANNED FOR 1.3x (2026-09-17): every edge of the 15 blocks, rows
+     flush from their corner (see packHoodShopEdge). All 73 fit; 18 moved
+     block to make room. */
+  [2,0, 0, ["Palmline Garage", "Palmline Savings"]],
   [2,0, 1, ["Tidewater Tea House", "Driftwood Books", "Marina Optical"]],
-  [2,0, 2, ["Lagoon Coffee Roasters", "Sandpiper Bakery", "Seabreeze Florist", "Cove Creamery"]],
+  [2,0, 2, ["Lagoon Coffee Roasters", "Sandpiper Bakery", "Seabreeze Florist"]],
+  [2,0, 3, ["Seabreeze Fuel", "Surfside Fitness"]],
+  [3,1, 0, ["Driftwood Home", "Sandpiper Shoes"]],
   [3,1, 1, ["Sandcastle Toys", "Cove Pottery", "Pelican Pets"]],
-  [3,1, 2, ["Palmline Bikes", "Pelican Photo", "Saltwater Sweets", "Low Tide Records"]],
+  [3,1, 2, ["Cove Creamery", "Palmline Bikes", "Pelican Photo", "Low Tide Records", "Sandpiper Suds"]],
   [2,3, 2, ["Driftwood Chapel"]],
   [0,2, 2, ["Lagoon Baths"]],
   [1,3, 2, ["Palmline Nursery"]],
   [5,2, 2, ["Saltwater Brewing"]],
   [0,5, 2, ["Dune Home & Garden"]],
   [6,4, 2, ["Pelican Drug"]],
-  [8,1, 1, ["The Tide Gazette", "The Flats Post Office", "Tidewater Clocks"]],
-  [8,1, 2, ["Seabreeze Playhouse"]],
-  [1,6, 1, ["The Flats Fire Station", "Low Tide TV & Radio", "Seabreeze Hats"]],
-  [1,6, 2, ["Tidewater Press"]],
-  [7,4, 1, ["Breakwater Ironworks", "The Sandpiper Arms", "Sea Glass Exchange"]],
-  [7,4, 2, ["Marina Flats"]],
-  [7,5, 1, ["Driftwood Antiques", "Seabreeze Fabrics", "Marina Tailors"]],
-  [7,5, 2, ["Palmline Motors"]],
-  [4,7, 1, ["Marina Office", "Low Tide Music", "Cove Locksmith"]],
-  [4,7, 2, ["Tidewater & Co."]],
-  [0,7, 1, ["Palmline Surf Co.", "Marina Chandlery", "Cove Rugs"]],
-  [0,7, 2, ["The Grand Pelican"]],
+  [8,1, 0, ["Seabreeze Grocer", "Cove Apothecary", "Marina Pharmacy"]],
+  [8,1, 1, ["The Tide Gazette"]],
+  [8,1, 2, ["Seabreeze Playhouse", "The Flats Post Office", "Low Tide Barbers"]],
+  [1,6, 0, ["Breakwater Hardware", "Surfside Diner", "Seabreeze Picture House"]],
+  [1,6, 1, ["The Flats Fire Station", "Seabreeze Hats"]],
+  [1,6, 2, ["Tidewater Press", "Low Tide TV & Radio", "Lagoon Noodle Bar"]],
+  [7,4, 0, ["Sandpiper Guest House", "Cove Fish Co.", "Tidewater News"]],
+  [7,4, 1, ["Breakwater Ironworks", "Sea Glass Exchange"]],
+  [7,4, 2, ["Marina Flats", "The Sandpiper Arms", "Pelican Cantina"]],
+  [7,5, 0, ["Cove Butchers", "Saltwater Sweets", "Tidewater Clocks"]],
+  [7,5, 1, ["Driftwood Antiques", "Marina Tailors"]],
+  [7,5, 2, ["Palmline Motors", "Seabreeze Fabrics", "Sunfish Arcade"]],
+  [4,7, 1, ["Marina Office", "Cove Locksmith"]],
+  [4,7, 2, ["Tidewater & Co.", "Low Tide Music"]],
+  [0,7, 1, ["Palmline Surf Co.", "Marina Chandlery"]],
+  [0,7, 2, ["The Grand Pelican", "Cove Rugs"]],
   [2,8, 1, ["Seawall Chambers", "Driftwood Lofts", "Seabreeze Library", "The Flats Police"]],
   [2,8, 2, ["Gull Loft", "Seabreeze Dance", "Kelp & Ink", "Sandcastle Models"]],
-  /* THE AWAY EDGES (Sir, 2026-09-17). A block with a whole-block building
-     holds that building and nothing else -- it used to take shops on its
-     other front edge and generic stores on both backs, four sides built
-     round one building. The 21 shops that stood beside those six
-     buildings moved to the backs (edges 0 and 3) of three blocks that
-     already carry front shops, in place of generic stores there: planned
-     against the real LIB widths and depths, no footprint on any of those
-     blocks overlapping another. */
-  [2,0, 0, ["Palmline Garage", "Palmline Savings", "Sandpiper Suds"]],
-  [2,0, 3, ["Seabreeze Fuel", "Surfside Fitness", "Low Tide Barbers"]],
-  [3,1, 0, ["Driftwood Home", "Sandpiper Shoes", "Seabreeze Grocer"]],
-  [3,1, 3, ["Cove Apothecary", "Marina Pharmacy", "Lagoon Noodle Bar", "Breakwater Hardware"]],
-  [8,1, 0, ["Surfside Diner", "Seabreeze Picture House", "Sandpiper Guest House", "Cove Fish Co."]],
-  [8,1, 3, ["Pelican Cantina", "Tidewater News", "Sunfish Arcade", "Cove Butchers"]],
 ];
 /* the blocks whose site list includes a whole-block building (block:true):
    those edges draw, the block's other edges draw nothing */
@@ -9870,50 +9866,122 @@ const HOOD_SHOP_ICON = {
   "Cold store":"\u{1F9CA}",
   "Almshouses":"\u{1F3D8}"
 };
-function hoodShopW(lib){ const e = LIB.get(lib); return (e && e.ww) || 230; }
+/* THE FOOTPRINT a shop needs on the ground: its own width and depth times
+   its drawn scale -- what a 1.3x shop actually covers */
+function hoodShopW(lib){ const e = LIB.get(lib); return ((e && e.ww) || 230) * ((e && e.sc) || 1); }
+function hoodShopD(lib){ const e = LIB.get(lib); return ((e && e.dd) || 276) * ((e && e.sc) || 1); }
 function hoodShopIcon(lib){ const e = LIB.get(lib); return HOOD_SHOP_ICON[(e && e.base) || lib] || "\u{1F3EA}"; }
-function packHoodShopEdge(edgeLen, list){
-  const M = STORE_DEPTH + T2*0.3, usable = edgeLen - 2*M, MINW = T2*2.4*0.8;
+/* PINWHEEL (Sir, 2026-09-17: the shops are 1.3x and fill the block). A row
+   starts FLUSH at its edge's origin corner and runs along it; the next
+   edge's row starts at the far corner, so the four rows lock round the
+   block with every corner built on. No corner margins and no filler
+   stores any more -- legacy shop art is off and a filler drew nothing.
+   start is 0, or clears the charge depot on a depot block's edge 2. A
+   block with a whole-block building centres that building on its edge
+   exactly as before. The table was planned offline against the scaled
+   footprints so no two rows on a block cross. */
+function packHoodShopEdge(edgeLen, list, start, whole){
   const ws = list.map(lib => hoodShopW(lib));
-  const spare = usable - ws.reduce((a, b) => a + b, 0);
-  if(spare < -0.01) return null;                     // 1048.8 on a 1048.8 run is exact, bar float
-  const nFill = Math.floor(Math.max(0, spare) / MINW);            // generic stores the spare can hold
-  const units = [];
-  const fillW = nFill ? spare / nFill : 0, lead = nFill ? 0 : Math.max(0, spare) / 2;
-  const headFill = Math.ceil(nFill / 2), tailFill = nFill - headFill;
-  let cur = M + lead;
-  for(let k = 0; k < headFill; k++){ units.push({ start: cur, w: fillW }); cur += fillW; }
-  list.forEach((lib, k) => { units.push({ start: cur, w: ws[k], shop: { lib, name: lib } }); cur += ws[k]; });
-  for(let k = 0; k < tailFill; k++){ units.push({ start: cur, w: fillW }); cur += fillW; }
-  return units;
+  const run = ws.reduce((a, b) => a + b, 0);
+  let cur = whole ? (edgeLen - run) / 2 : (start || 0);
+  if(cur < -0.5 || cur + run > edgeLen + 0.5) return null;
+  return list.map((lib, k) => { const u = { start: cur, w: ws[k], shop: { lib, name: lib } }; cur += ws[k]; return u; });
 }
 let _hsGrid = null, _hoodShops = null, _hoodShopEdges = null;
+/* ALLEYS (Sir, 2026-09-17: "every shop has a slight alley instead of being
+   butted up against one another"). Rows are packed flush first, exactly as
+   the table was planned. Then each edge with two or more shops spreads its
+   spare run into EQUAL gaps between them: the first shop stays on its
+   corner, the last one ends where the next edge's corner building begins
+   (or the charge depot, on a depot block), and every gap between is the
+   same. Whole-block buildings are untouched.
+   Guarded: if spreading any edge would make two footprints on the block
+   cross -- a deep building part-way along the next edge -- that block goes
+   back to flush rows and says so. */
+function hoodShopRect(e, u){
+  const d = hoodShopD(u.shop.lib), a0 = u.start, a1 = u.start + u.w;
+  const xs = [], ys = [];
+  for(const a of [a0, a1]) for(const b of [0, -d]){ xs.push(e.ox + e.dv.x*a + e.rv.x*b); ys.push(e.oy + e.dv.y*a + e.rv.y*b); }
+  return [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
+}
 function hoodShopsOf(grid){
   if(_hsGrid === grid && _hoodShops) return _hoodShops;
   _hsGrid = grid; _hoodShops = []; _hoodShopEdges = new Map();
   const byIJ = new Map(grid.blocks.map(b => [b.i + "," + b.j, b]));
   const taken = new Set(getPickupShops(grid).map(sh => sh.blockI + "," + sh.blockJ));
+  const perBlock = new Map();                  // key -> { blk, depot, whole, edges: {ei: units} }
   for(const [i, j, ei, list] of HOOD_SHOP_SITES){
     const key = i + "," + j, blk = byIJ.get(key);
     const bad = !blk ? "no block" : blk.type !== "commercial" ? "not commercial"
               : taken.has(key) ? "pickup block" : list.some(lib => !LIB.get(lib)) ? "shop not in LIB" : null;
     const e = blk && blockEdgesOf(blk)[ei];
-    const units = !bad ? packHoodShopEdge(e.len, list) : null;
+    const whole = list.some(n => { const x = LIB.get(n); return !!(x && x.block); });
+    const depot = !!(blk && typeof depotOnBlock === "function" && depotOnBlock(grid, blk));
+    const start = (!whole && ei === 2 && depot) ? 303.6 + 8 : 0;
+    const units = !bad ? packHoodShopEdge(e.len, list, start, whole) : null;
     if(bad || !units){
       try { console.warn("hood shop site " + key + "/" + ei + " skipped: " + (bad || "shops do not fit the edge")); } catch(err){}
       continue;
     }
-    _hoodShopEdges.set(key + "/" + ei, units);
-    const hoodIndex = Math.floor(i / DISTRICT_W) + Math.floor(j / DISTRICT_H) * DISTRICT_COLS;
-    for(const u of units){
-      if(!u.shop) continue;
-      /* THE PIN IS ON THE PAVEMENT at the middle of the frontage: rv
-         points out of the block, so +rv is the footway in front of the
-         glass. The GPS line ends there, where he would pull up. */
-      const PAVE = 70, am = u.start + u.w/2;
-      _hoodShops.push({ key: key + "/" + ei + "/" + u.start.toFixed(0), blockKey: key, edge: ei, hoodIndex,
-                        lib: u.shop.lib, name: u.shop.name, icon: hoodShopIcon(u.shop.lib),
-                        x: e.ox + e.dv.x*am + e.rv.x*PAVE, y: e.oy + e.dv.y*am + e.rv.y*PAVE });
+    if(!perBlock.has(key)) perBlock.set(key, { blk, depot, whole: false, edges: {} });
+    const pb = perBlock.get(key); pb.edges[ei] = units; if(whole) pb.whole = true;
+  }
+  for(const [key, pb] of perBlock){
+    const { blk } = pb, E = blockEdgesOf(blk);
+    if(!pb.whole){
+      const rectsOf = () => {
+        const R = [];
+        for(const ei in pb.edges) for(const u of pb.edges[ei]) R.push([+ei, hoodShopRect(E[ei], u), u.shop.lib]);
+        if(pb.depot) R.push([-1, [blk.x1 - 303.6, blk.x1 - 8, blk.y1 - 276, blk.y1], "depot"]);
+        return R;
+      };
+      const crosses = () => {
+        const R = rectsOf();
+        for(let a = 0; a < R.length; a++) for(let c = a + 1; c < R.length; c++){
+          const A = R[a], C = R[c];
+          if(A[0] !== C[0] && A[1][0] < C[1][1] - 0.5 && C[1][0] < A[1][1] - 0.5 && A[1][2] < C[1][3] - 0.5 && C[1][2] < A[1][3] - 0.5)
+            return A[2] + " x " + C[2];
+        }
+        return null;
+      };
+      /* one edge at a time, so a single edge that cannot take alleys (its
+         last shop would meet a deep building on the next edge) stays flush
+         without costing the rest of the block theirs */
+      for(const ei of Object.keys(pb.edges).map(Number)){
+        const units = pb.edges[ei], n = units.length;
+        if(n < 2) continue;
+        const next = pb.edges[(ei + 1) % 4], e = E[ei];
+        /* the run ends where the next edge's buildings reach back into this
+           edge's depth band: any of them starting nearer the corner than this
+           row is deep (on a depot block that is not the first one) */
+        const myD = Math.max(...units.map(u => hoodShopD(u.shop.lib)));
+        let end = e.len;
+        if(next) for(const v of next) if(v.start < myD) end = Math.min(end, e.len - hoodShopD(v.shop.lib));
+        if(pb.depot && ei === 1) end = Math.min(end, e.len - 276 - 8);
+        const last = units[n - 1], spare = end - (last.start + last.w);
+        if(spare <= 1) continue;
+        const was = units.map(u => u.start), gap = spare / (n - 1);
+        units.forEach((u, k) => { u.start += k * gap; });
+        const hit = crosses();
+        if(hit){
+          units.forEach((u, k) => { u.start = was[k]; });
+          try { console.warn("hood shop " + key + "/" + ei + ": no alleys, " + hit); } catch(err){}
+        }
+      }
+    }
+    const hoodIndex = Math.floor(blk.i / DISTRICT_W) + Math.floor(blk.j / DISTRICT_H) * DISTRICT_COLS;
+    for(const ei of Object.keys(pb.edges).map(Number)){
+      const units = pb.edges[ei], e = E[ei];
+      _hoodShopEdges.set(key + "/" + ei, units);
+      for(const u of units){
+        /* THE PIN IS ON THE PAVEMENT at the middle of the frontage: rv
+           points out of the block, so +rv is the footway in front of the
+           glass. The GPS line ends there, where he would pull up. */
+        const PAVE = 70, am = u.start + u.w/2;
+        _hoodShops.push({ key: key + "/" + ei + "/" + u.start.toFixed(0), blockKey: key, edge: ei, hoodIndex,
+                          lib: u.shop.lib, name: u.shop.name, icon: hoodShopIcon(u.shop.lib),
+                          x: e.ox + e.dv.x*am + e.rv.x*PAVE, y: e.oy + e.dv.y*am + e.rv.y*PAVE });
+      }
     }
   }
   return _hoodShops;
@@ -14855,8 +14923,16 @@ const LIB = (function(){
      scene's own this.K, handed in per draw. */
   let K = 1;
   let SHOP_SLOT = null, ZSCALE = 1.5, FLANK_RIGHT = true;
+  /* SC -- the entry's own drawn scale (`sc`, see the head of
+     labs/flats-shops.js): the single, double and triple lot Flats shops
+     are 1.3x. The body keeps its own units and P() makes it bigger on the
+     ground, after any turn. 1 for everything that does not carry it. */
+  let SC = 1;
   const NOPLATE = false;
-  function P(a, b, z){ return SHOP_SLOT ? SHOP_SLOT.G(a, b, z * ZSCALE) : { x:0, y:0 }; }
+  function P(a, b, z){
+    if(TURN){ a = TURN.w - a; b = -TURN.d - b; }        // see turned() in the kit
+    return SHOP_SLOT ? SHOP_SLOT.G(a * SC, b * SC, z * SC * ZSCALE) : { x:0, y:0 };
+  }
   let ctx = null;
   /* the kit reads state.roof and state.props and nothing else of the
      lab's state; in the game both are always on. */
@@ -15691,6 +15767,115 @@ function kerb(p, kind){
   }
 }
 
+/* ================= THE REAR KIT (Sir, 2026-09-17) =================
+   "lets just add the back elevations." A shop on an AWAY edge -- block
+   edge 0 or 3, glass facing away from the camera -- shows the camera its
+   back wall, its roof and one end. draw() painted the shopfront anyway,
+   and because the facade is the far face it landed over the shop's own
+   roof: glass, signs and awnings floating on the roof plate.
+
+   So an entry may carry back(p) beside draw(p). The host calls back()
+   when the edge's rv points away from the eye -- (rv.x + rv.y) < 0, the
+   inverse of drawStoreUnit's showFront -- and draw() everywhere else.
+   back() is written in the shop's OWN frame, rear wall at b = -d, so the
+   game needs no transform at all; FLANK_RIGHT is the same dv test on
+   both sides, which picks the right end on edge 0 (a = w) and edge 3
+   (a = 0). The canvas lab's Back toggle turns its frame 180 degrees to
+   show the same thing.
+
+   These are the pieces a rear is made of. Things fixed to the rear wall
+   sit a hair outside it (b = -d - 0.6 and beyond) so nothing z-fights
+   it; things on the ground stand in the yard behind (b < -d). Protruding
+   pieces use slab() with bFront as the OUTER face, which is the one the
+   camera sees from behind. */
+function rearBody(wall, trim, H, wid, dep, roof){
+  const w = wid===undefined ? W : wid, d = dep===undefined ? D : dep;
+  if(!NOPLATE) T(0,w,-d,0,H, roof || shade(trim,1.05));      // roof
+  if(FLANK_RIGHT) S(w,-d,0,0,H, shade(wall,.78));             // the seen end, as body()
+  else            S(0,-d,0,0,H, shade(wall,.72));
+  F(0,w,0,H, shade(wall,.93), null,0,-d);                     // rear wall: plainer than the front
+  poly([P(0,-d,H),P(w,-d,H),P(w,-d,0),P(0,-d,0)], null, shade(wall,.6), 1.5);
+  F(0,w,0,14, shade(wall,.62), null,0,-d-0.5);                // plinth
+}
+/* the front parapet seen from the roof side: its inner face is b = -t */
+function rearParapet(a0, a1, H, h, t, col){ slab(a0, a1, H, H+h, -t, -1, col); }
+/* a plain service door with its frame, push bar and a concrete step */
+function rearDoor(aMid, wall, col, d, h){
+  const dd = d===undefined ? D : d, hh = h || 150, hw = 32, b = -dd - 0.6;
+  F(aMid-hw-6, aMid+hw+6, 0, hh+6, shade(wall,.64), null,0,b);
+  F(aMid-hw, aMid+hw, 0, hh, col, shade(col,.62), 1.5, b-0.4);
+  F(aMid-hw+8, aMid+hw-8, hh*0.52, hh*0.56, shade(col,.72), null,0,b-0.8);
+  box(aMid-hw-10, aMid+hw+10, -dd-22, -dd, 0, 8, shade(wall,.86), shade(wall,.72), shade(wall,.62));
+}
+/* a back window: frame, dark glass with a sky band at the head, a sill */
+function rearWindow(a0, a1, z0, z1, wall, d){
+  const dd = d===undefined ? D : d, b = -dd - 0.6;
+  F(a0-5, a1+5, z0-5, z1+5, shade(wall,.7), null,0,b);
+  F(a0, a1, z0, z1, '#3a4850', null,0,b-0.4);
+  F(a0, a1, z1-(z1-z0)*0.42, z1, 'rgba(170,200,215,.35)', null,0,b-0.6);
+  slab(a0-8, a1+8, z0-10, z0-5, -dd-8, -dd, shade(wall,.82));
+}
+/* a roller shutter: frame, slats, a bottom rail */
+function rearShutter(a0, a1, z1, wall, d){
+  const dd = d===undefined ? D : d, b = -dd - 0.6;
+  F(a0-8, a1+8, 0, z1+10, shade(wall,.64), null,0,b);
+  F(a0, a1, 0, z1, '#a2a8ad', null,0,b-0.4);
+  for(let z=12; z<z1; z+=12) F(a0, a1, z-1.5, z, '#7f868c', null,0,b-0.8);
+  slab(a0-10, a1+10, z1+10, z1+22, -dd-14, -dd, '#8f969d');
+}
+function downpipe(a, H, col, d){
+  const b = -(d===undefined ? D : d) - 1.2;
+  F(a-3.5, a+3.5, 0, H-6, col, null,0,b);
+  F(a-7, a+7, 0, 8, shade(col,.8), null,0,b-0.5);
+}
+function gutter(a0, a1, H, col, d){
+  const dd = d===undefined ? D : d;
+  slab(a0, a1, H-10, H-2, -dd-9, -dd, col);
+}
+/* a square louvred extractor on the wall */
+function extractor(a, z, s, d){
+  const b = -(d===undefined ? D : d) - 0.8;
+  F(a-s, a+s, z-s, z+s, '#9aa0a6', '#5d646b', 1.5, b);
+  for(let i=1;i<4;i++) F(a-s+3, a+s-3, z-s+i*s/2-1.5, z-s+i*s/2+1, '#5d646b', null,0,b-0.5);
+}
+/* a condenser unit bracketed off the wall, fan grille on its face */
+function acUnit(a, z, d){
+  const dd = d===undefined ? D : d;
+  box(a-26, a+26, -dd-28, -dd, z, z+36, '#c3c8cc', '#a8aeb3', '#95999e');
+  faceCircle(a, -dd-28.6, z+18, 13, '#7d838a', '#5d646b', 1.5);
+}
+/* a wheelie bin in the yard, lid a shade darker */
+function wheelieBin(a, col, off, d){
+  const dd = d===undefined ? D : d, o = off || 0, b0 = -dd-14-o, b1 = -dd-50-o;
+  box(a-17, a+17, b1, b0, 0, 50, shade(col,1.12), col, shade(col,.8));
+  T(a-18, a+18, b1-2, b0+1, 52, shade(col,.68));
+}
+/* stacked crates or boxes against the wall */
+function crateStack(a, col, n, d, s){
+  const dd = d===undefined ? D : d, h = s || 22;
+  for(let i=0;i<(n||2);i++) box(a-19, a+19, -dd-52, -dd-14, i*(h+2), i*(h+2)+h, shade(col,1.15), col, shade(col,.8));
+}
+/* an upright drum or keg in the yard */
+function yardDrum(a, off, col, d){
+  const dd = d===undefined ? D : d;
+  cyl(a, -dd-off, 0, 44, 14, col, shade(col,1.18));
+}
+
+/* TURNED -- a building that stands in its own yard with a way in from
+   every street (the brewery, the home store, the drugstore) has no back
+   to invent: seen from behind, it is simply the same building from the
+   other side. turned() runs a draw with the lot rotated 180 degrees about
+   its own centre, so back(p){ turned(LOT, LOT, () => this.draw(p)); }
+   shows its yard and entrance to the camera. Both hosts' P() read TURN;
+   a turn inside a turned frame undoes it. The seen end flips with it. */
+let TURN = null;
+function turned(w, d, fn){
+  const pT = TURN, pF = FLANK_RIGHT;
+  TURN = pT ? null : { w, d };
+  FLANK_RIGHT = !FLANK_RIGHT;
+  try { fn(); } finally { TURN = pT; FLANK_RIGHT = pF; }
+}
+
 
 
   /* ---- WALL FRAMES, lifted with the entries ----
@@ -15993,6 +16178,24 @@ function flatsDrawChemist(p, c){
       }
     }
     kerb(p,'none');
+}
+
+/* the chemist's rear, shared by both liveries exactly as its front is */
+function flatsChemistBack(p, c){
+    const wall = '#f0f2f0', trim = c.trim, H = 172;
+    /* the raised name panel stands at the front, above the roof: far side */
+    slab(W*0.30,W*0.70, H+8, H+30, -12, -2, wall, null, shade(wall,1.1));
+    rearBody(wall, trim, H, W, D, '#b3bcb8');
+    slab(0, W, H, H+8, -12, -1, trim);
+    rearWindow(30, 66, 84, 120, wall);
+    F(34, 62, 88, 106, 'rgba(230,235,240,.45)', null,0,-D-1.2);   // frosted: the dispensary
+    rearDoor(160, wall, trim);
+    extractor(106, 132, 10);
+    depthSort([ { a: 110, b: -D-32, z: 0, draw: () => wheelieBin(110, trim) } ]);
+    if(state.roof){
+      box(W*0.12,W*0.36,-120,-70,H,H+30,'#c3c8cc','#a8aeb3','#95999e');
+      box(W*0.62,W*0.84,-160,-120,H,H+18,'#9aa0a6','#7d838a','#6a7076');
+    }
 }
 function flatsGameCar(cP, col){
     const zk = 1/ZSCALE;
@@ -17537,7 +17740,7 @@ const TIDEWATER_MUSEUM = (() => {
    Flats' own forked copies, edited one at a time). Edit the lab file and
    re-graft, same rule as the entries above. ---- */,
 {
-  name:'Lagoon Coffee Roasters', base:'Coffee roaster', hood:'The Flats', edited:true, tall:true,
+  name:'Lagoon Coffee Roasters', base:'Coffee roaster', hood:'The Flats', edited:true, sc:1.3, tall:true,
   head:'The roaster, the bins and the flue behind one deep window',
   tags:['turned roaster','round drum door','bean bins','flue through the roof','bare footway'],
   desc:'The roastery is inside the shop where it belongs: a drum on its firebox with a round hinged door, bins of beans beside it, and the flue carrying up through the roof. Nothing on the footway.',
@@ -17643,10 +17846,31 @@ const TIDEWATER_MUSEUM = (() => {
       box(W*0.46, W*0.72, -160, -110, H, H+24, '#8f969d','#787f86','#697077');
     }
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#e7dfcf', trim = '#2f7f86', H = 210;
+    slab(0, W, H, H+10, 0, 4, shade(wall,1.35));                    // the front cornice, from the roof side
+    rearBody(wall, trim, H, W, D, '#8c9a98');
+    rearDoor(62, wall, trim);
+    extractor(150, 130, 14);                                   // the roaster's exhaust
+    box(142, 158, -D-16, -D, 144, H+26, '#b87333', '#9a5f2a', '#7f4d22');   // copper flue up the back
+    depthSort([
+      { a: 120, b: -D-33, z: 0, draw: () => crateStack(120, '#6b4a32', 2, D, 24) },
+      { a: 196, b: -D-32, z: 0, draw: () => wheelieBin(196, '#3f6b4a', 0) }
+    ]);
+    if(state.roof){
+    cyl(58, -34, H, H+62, 5, '#8d979f');
+    for(const cz of [H+18, H+40]) plateCircle(58, -34, cz, 7, '#a8aeb4');
+    cyl(58, -34, H+62, H+70, 8, '#7d838a');
+    plateCircle(58, -34, H+70, 8, '#2a2a2e', '#6a7076', 1.6);
+    box(W*0.46, W*0.72, -160, -110, H, H+24, '#8f969d','#787f86','#697077');
+    }
   }
 },
 {
-  name:'Sandpiper Bakery', base:'Bakery', hood:'The Flats', edited:true, head:'Curved gable, brick flue, bunting on the arch',
+  name:'Sandpiper Bakery', base:'Bakery', hood:'The Flats', edited:true, sc:1.3, head:'Curved gable, brick flue, bunting on the arch',
   cTodo:'1 pavement props need collision volumes',
   zs:1,                                   // already rebuilt on the game anchors
   tags:['deep gable parapet','sign on the gable','bunting on the arch','brick stack','recessed door'],
@@ -17844,10 +18068,40 @@ const TIDEWATER_MUSEUM = (() => {
       cyl(W*0.30, -158, H+47, H+52, 8, '#616870');
     }
     kerb(p, 'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#e8d9bd', trim = '#d9735a', H = STORE_H, GB = -30;
+    const base = H + 40;
+    /* the raised pediment wall stands on the front edge: far side now */
+    slab(0, W, H, base, GB, 0, shade(wall,.80), shade(wall,.70), shade(wall,.86));
+    { ctx.beginPath();
+      const c0 = P(W*0.14,GB,base), c1 = P(W*0.86,GB,base), ap = P(W*0.5,GB,base+92);
+      ctx.moveTo(c0.x,c0.y); ctx.quadraticCurveTo(ap.x, ap.y, c1.x, c1.y); ctx.closePath();
+      ctx.fillStyle = shade(wall,.80); ctx.fill(); }
+    rearBody(wall, trim, H, W, D);
+    rearDoor(170, wall, trim);
+    rearWindow(30, 86, 90, 140, wall);
+    extractor(120, 190, 14);                                   // oven vent
+    depthSort([
+      { a: 60, b: -D-33, z: 0, draw: () => crateStack(60, '#e8e0cc', 3, D, 20) },
+      { a: 208, b: -D-32, z: 0, draw: () => wheelieBin(208, '#6d747c', 0) }
+    ]);
+    if(state.roof){
+    const brick = '#a8674e';
+      
+    box(W*0.58,W*0.80,-176,-124, H, H+58, shade(brick,1.12), brick, shade(brick,.82));
+    slab(W*0.56,W*0.82, H+58, H+66, -122, -178, shade(brick,.74));
+    for(let k=0;k<2;k++) cyl(W*0.62+k*W*0.13, -150, H+66, H+80, 5.5, '#4a3a30');
+    cyl(W*0.30, -158, H, H+40, 9, '#8d949b');
+    cyl(W*0.30, -158, H+40, H+47, 15, '#767d84');
+    cyl(W*0.30, -158, H+47, H+52, 8, '#616870');
+    }
   }
 },
 {
-  name:'Seabreeze Florist', base:'Florist', hood:'The Flats', edited:true, head:'Scalloped canopy, bucket rows, trellis',
+  name:'Seabreeze Florist', base:'Florist', hood:'The Flats', edited:true, sc:1.3, head:'Scalloped canopy, bucket rows, trellis',
   cTodo:'5 pavement props need collision volumes',
   tags:['blooms inside and out','round buckets','trellis','glazed over','soft palette'],
   desc:'There are flowers inside the window as well as out on the pavement, and the pane glazes over the inside ones so the two sets sit at different depths instead of on the same plane.',
@@ -17942,10 +18196,26 @@ const TIDEWATER_MUSEUM = (() => {
     }
     if(state.roof) box(W*0.30,W*0.58,-140,-96,H,H+18,'#9aa0a6','#7d838a','#6a7076');
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#f6f7f2', trim = '#4f9e8a', H = 156;
+    rearBody(wall, trim, H, W, D, '#a9b5ae');
+    rearDoor(170, wall, trim);
+    rearWindow(30, 80, 80, 120, wall);
+    downpipe(8, H, '#8a9296');
+    /* buckets and pots waiting to go out front */
+    depthSort([
+      { a: 60, b: -D-30, z: 0, draw: () => { cyl(60, -D-30, 0, 26, 15, '#b9beb4'); ball(60, -D-30, 36, 12, '#4f7a4a'); } },
+      { a: 96, b: -D-34, z: 0, draw: () => { cyl(96, -D-34, 0, 22, 12, '#b86a4a'); ball(96, -D-34, 30, 10, '#5c8a56'); } },
+      { a: 128, b: -D-30, z: 0, draw: () => crateStack(128, '#a8875a', 1, D, 20) }
+    ]);
+    if(state.roof) box(W*0.30,W*0.58,-140,-96,H,H+18,'#9aa0a6','#7d838a','#6a7076');
   }
 },
 {
-  name:'Cove Creamery', base:'Ice cream', hood:'The Flats', edited:true, head:'Giant cone on the roof, hatch window, scallops',
+  name:'Cove Creamery', base:'Ice cream', hood:'The Flats', edited:true, sc:1.3, head:'Giant cone on the roof, hatch window, scallops',
   tags:['giant roof cone','pastel palette','serving hatch','scalloped awning','pavement seats'],
   desc:'The cone stands on a small plinth so it is planted on the roof rather than hovering, the scoops overlap as real balls, and the pavement seats are turned stools.',
   draw(p){
@@ -18037,10 +18307,47 @@ const TIDEWATER_MUSEUM = (() => {
     /* stools removed at Sir's direction. With nothing standing on the
        ground this shop carries no collision register at all. */
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#fbf1d2', trim = '#4a9fd1', H = 140;
+    slab(0, W, H, H+10, -12, -1, trim);                 // the front parapet, from the roof side
+    rearBody(wall, trim, H, W, D, '#e3dccb');
+    rearDoor(170, wall, trim);
+    acUnit(76, 80);                                            // the freezers' condenser
+    depthSort([
+      { a: 210, b: -D-32, z: 0, draw: () => wheelieBin(210, '#4a9fd1', 0) }
+    ]);
+    if(state.roof){
+      
+    const ca = W*0.46, cb = -104, cR = 34, zTip = H+16, zTop = H+112;
+    cyl(ca, cb, H, H+16, 22, '#e8dfe2');
+    plateCircle(ca, cb, H+16, 22, '#f2ecee', '#d8ccd0', 2);
+    const sw = plateSweep(ca, cb, 0), arc = u => sw.ts + sw.dir*Math.PI*u;
+    const rim = (u,z) => { const t = arc(u);
+    return P(ca + cR*Math.cos(t), cb + cR*Math.sin(t), z); };
+    const lit = [P(ca,cb,zTip)], dark = [P(ca,cb,zTip)];
+    for(let k=0;k<=20;k++) lit.push(rim(k/20, zTop));
+    for(let k=0;k<=10;k++) dark.push(rim(k/20, zTop));
+    poly(lit, '#e0b26a');
+    poly(dark, shade('#e0b26a',.84));
+    for(let k=1;k<7;k++){
+    const t = rim(k/7, zTop), b2 = P(ca,cb,zTip);
+    ctx.strokeStyle = '#c08f4a'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(t.x,t.y); ctx.lineTo(b2.x,b2.y); ctx.stroke();
+    }
+    plateCircle(ca, cb, zTop, cR, '#d9a75f', '#c08f4a', 2);
+    ball(ca, cb, zTop+8, 30, '#f6c9d4');
+    ball(ca-6, cb, zTop+40, 28, '#cfe6c8');
+    ball(ca+5, cb, zTop+68, 26, '#f4e2b0');
+    ball(ca+5, cb, zTop+92, 6, '#c2452e');
+    box(W*0.72,W*0.94,-190,-154,H,H+18,'#9aa0a6','#7d838a','#6a7076');
+    }
   }
 },
 {
-  name:'Tidewater Tea House', base:'Tea house', hood:'The Flats', edited:true, ww: T2*4.4,
+  name:'Tidewater Tea House', base:'Tea house', hood:'The Flats', edited:true, sc:1.3, ww: T2*4.4,
   wTodo:'two packing slots',
   head:'Two-tier red roof, dougong brackets, colonnade over the footway',
   cTodo:'6 colonnade columns need collision volumes -- they stand at b 76, out at the kerb',
@@ -18422,10 +18729,49 @@ const TIDEWATER_MUSEUM = (() => {
        colonnade it lands on */
     tier([[EB,210],[CB,216]], tile, true, 32, CB);
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#efe9db', trim = '#2c4a6b', H = 288, WW = T2*4.4;
+    const tile = '#3f7a8f', gold = '#c9a24a', jade = '#3f6b52', dark = '#26221e';
+    const BA0 = 40, BA1 = WW - 40, CN = 64, FB = -60;
+    const hump = a => { const d = Math.min(a, WW-a); return d >= CN ? 0 : Math.pow(1 - d/CN, 2); };
+    const XS = (() => { const q=[];
+      for(let i=0;i<=7;i++) q.push(CN*i/7);
+      for(let i=1;i<=7;i++) q.push(WW-CN + CN*i/7);
+      return q.slice(0,8).concat([WW-CN]).concat(q.slice(8)); })();
+    { const o = P(0,-36,0), pa = P(1,-36,0), ge = (pa.y - o.y) > 0 ? BA1 : BA0;
+      poly([P(ge,-36,288),P(ge,-168,372),P(ge,-D-16,288)], shade(wall,.72)); }      // the gable
+    { const o = P(0,FB,0), pa = P(1,FB,0);
+      S((pa.y - o.y) > 0 ? BA1 : BA0, -D, FB, 0, H, shade(wall,.72)); }
+    F(BA0, BA1, 0, H, shade(wall,.93), null, 0, -D);
+    F(BA0, BA1, 0, 18, shade(wall,.7), null, 0, -D-0.5);
+    /* the tea garden's back: a long plain wall, a service gate and a
+       kitchen chimney; the tiered roof above is the same from every side */
+    rearDoor(WW-100, wall, dark);
+    rearWindow(80, 140, 110, 170, wall); rearWindow(180, 240, 110, 170, wall);
+    extractor(300, 200, 12);
+    /* the back slope of the roof is the near one from here: plain tile
+       courses, the eave band, then the ridge and its end ornaments */
+    poly([P(0,-168,372),P(WW,-168,372),P(WW,-D-16,288),P(0,-D-16,288)], shade(tile,.92));
+    for(let c=1;c<6;c++){ const bb = -168 + (-D-16+168)*c/6, zz = 372 + (288-372)*c/6;
+      poly([P(0,bb,zz),P(WW,bb,zz),P(WW,bb,zz-2),P(0,bb,zz-2)], shade(tile,.78)); }
+    poly([P(0,-D-16,288),P(WW,-D-16,288),P(WW,-D-16,277),P(0,-D-16,277)], shade(tile,.62));
+    for(let k=0;k<XS.length-1;k++){
+      const a0=XS[k], a1=XS[k+1], u0=26*hump(a0), u1=26*hump(a1);
+      poly([P(a0,-176,383+u0),P(a1,-176,383+u1),P(a1,-160,383+u1),P(a0,-160,383+u0)], shade(tile,1.0));
+      poly([P(a0,-176,372+u0),P(a1,-176,372+u1),P(a1,-176,383+u1),P(a0,-176,383+u0)], shade(tile,.62));
+    }
+    for(const [oa,dir] of [[9,-1],[WW-9,1]]){
+      const z0 = 383 + 26*hump(oa);
+      poly([P(oa-9,-168,z0),P(oa+9,-168,z0),P(oa+9,-168,z0+17),P(oa-9,-168,z0+26)], shade(tile,1.06));
+      ball(oa, -168, z0+28, 5, shade(tile,1.15));
+    }
   }
 },
 {
-  name:'Driftwood Books', base:'Bookshop', hood:'The Flats', edited:true, tall:true,
+  name:'Driftwood Books', base:'Bookshop', hood:'The Flats', edited:true, sc:1.3, tall:true,
   head:'Two flush storeys, books behind real glass, hanging sign',
   tags:['two full storeys','flush elevation','books behind glass','string course','swinging sign'],
   desc:'A true two-storey building with both storeys on one plane: a shopfront of 168 with the books behind a real recess and a tinted pane, and an upper floor of 168 over it divided by a single string course. The hanging sign is a board on an arm with its own thickness.',
@@ -18673,10 +19019,25 @@ const TIDEWATER_MUSEUM = (() => {
     }
     if(state.roof) box(W*0.30,W*0.54,-150,-108,H,H+22,'#8f969d','#787f86','#697077');
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#9c9384', trim = '#f3eee2', H = 336, GF = 168;
+    slab(0, W, H, H+10, -11, -1, shade(wall,.66));                 // the front parapet, from the roof side
+    rearBody(wall, trim, H, W, D, '#b7b1a6');
+    rearDoor(170, wall, trim);
+    for(const am of [60, 170]) rearWindow(am-26, am+26, 210, 290, wall);
+    rearWindow(34, 86, 70, 120, wall);
+    downpipe(8, H, '#8a9296');
+    depthSort([
+      { a: 110, b: -D-33, z: 0, draw: () => crateStack(110, '#b89468', 2, D, 22) }
+    ]);
+    if(state.roof) box(W*0.30,W*0.54,-150,-108,H,H+22,'#8f969d','#787f86','#697077');
   }
 },
 {
-  name:'Marina Optical', base:'Optician', hood:'The Flats', edited:true, head:'Giant spectacles across the fascia, frames behind real glass',
+  name:'Marina Optical', base:'Optician', hood:'The Flats', edited:true, sc:1.3, head:'Giant spectacles across the fascia, frames behind real glass',
   tags:['oversized spectacles','eye chart','clean white','frame display','deep reveal'],
   desc:'The spectacles are two solid rims in the plane of the wall, round in the world rather than stretched by ZSCALE, standing proud of the fascia on a bridge with the temples folding back to the wall. The frames and the eye chart are inside a real recess behind the pane.',
   draw(p){
@@ -18802,10 +19163,24 @@ const TIDEWATER_MUSEUM = (() => {
 
     if(state.roof) box(W*0.30,W*0.54,-140,-100,H,H+20,'#9aa0a6','#7d838a','#6a7076');
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#f2f2ee', trim = '#1f6f9b', H = 166;
+    slab(0, W, H, H+8, -12, -1, trim);                 // the front parapet, from the roof side
+    rearBody(wall, trim, H, W, D, '#9aa6ad');
+    rearDoor(62, wall, trim);
+    rearWindow(120, 170, 84, 126, wall);
+    downpipe(W-6, H, '#8a9296');
+    depthSort([
+      { a: 190, b: -D-32, z: 0, draw: () => wheelieBin(190, '#1f6f9b', 0) }
+    ]);
+    if(state.roof) box(W*0.30,W*0.54,-140,-100,H,H+20,'#9aa0a6','#7d838a','#6a7076');
   }
 },
 {
-  name:'Palmline Bikes', base:'Bike shop', hood:'The Flats', edited:true, head:'One whole bicycle as the sign, workshop behind the glass',
+  name:'Palmline Bikes', base:'Bike shop', hood:'The Flats', edited:true, sc:1.3, head:'One whole bicycle as the sign, workshop behind the glass',
   tags:['a complete bicycle as the sign','round wheels','real frame geometry','workshop window','bare footway'],
   desc:'One bicycle, drawn whole and big, hung on brackets across the display band: round wheels with real spokes, and a frame laid out from the bottom bracket in true proportions rather than numbers tuned until it looked right. The workshop is behind a real pane, and the footway is completely bare.',
   draw(p){
@@ -18958,10 +19333,27 @@ const TIDEWATER_MUSEUM = (() => {
        an object. The footway is bare. */
     if(state.roof) box(W*0.28,W*0.52,-140,-100,H,H+20,'#8f969d','#787f86','#697077');
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#3f7a5a', trim = '#f2c14e', H = 210;
+    slab(0, W, H, H+10, -12, -1, trim);                 // the front parapet, from the roof side
+    rearBody(wall, trim, H, W, D, '#2c4a3a');
+    rearShutter(20, 130, 128, wall);                           // bikes come in and out the back
+    rearDoor(180, wall, trim);
+    /* a rack of two bikes against the wall */
+    for(const ra of [150, 160]) tube(ra, -D-8, 0, ra, -D-8, 60, 2.5, '#6d747c');
+    for(const [ca, cc] of [[140, '#f2c14e'], [170, '#e2574c']]){
+      plateHoop(ca-14, -D-18, 18, 16, '#2b2f33', 3);
+      plateHoop(ca+14, -D-18, 18, 16, '#2b2f33', 3);
+      tube(ca-14, -D-18, 18, ca+14, -D-18, 34, 2.5, cc);
+    }
+    if(state.roof) box(W*0.28,W*0.52,-140,-100,H,H+20,'#8f969d','#787f86','#697077');
   }
 },
 {
-  name:'Pelican Photo', base:'Photo studio', hood:'The Flats', edited:true, head:'North-light glazing, portraits behind real glass',
+  name:'Pelican Photo', base:'Photo studio', hood:'The Flats', edited:true, sc:1.3, head:'North-light glazing, portraits behind real glass',
   tags:['sawtooth north light','glazing bars','portrait cases','glass roof plane','depth-ordered roof'],
   desc:'Each sawtooth has a solid upstand behind the glass and a capping at the ridge, so the roof reads as built rather than as two blue sheets, and the two teeth are drawn far to near so the back one no longer lands on the front one. The portraits stand in a real recess behind a tinted pane.',
   draw(p){
@@ -19077,10 +19469,25 @@ const TIDEWATER_MUSEUM = (() => {
     F(34.5,204.5, 127.5, 141.5, shade(wall,1.12), null,0,-0.5);
     if(state.roof) box(W*0.62,W*0.86,-30,-6,H,H+18,'#9aa0a6','#7d838a','#6a7076');
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#eeece6', trim = '#4d6a86', H = 172;
+    slab(0, W, H, H+8, -12, -1, trim);                 // the front parapet, from the roof side
+    rearBody(wall, trim, H, W, D);
+    rearDoor(170, wall, trim);
+    F(30, 90, 70, 130, '#2b2f33', null,0,-D-0.8);             // the darkroom: a blacked-out window
+    F(24, 96, 64, 70, shade(wall,.7), null,0,-D-1.0);
+    extractor(120, 140, 10);
+    depthSort([
+      { a: 66, b: -D-32, z: 0, draw: () => wheelieBin(66, '#6d747c', 0) }
+    ]);
+    if(state.roof) box(W*0.62,W*0.86,-30,-6,H,H+18,'#9aa0a6','#7d838a','#6a7076');
   }
 },
 {
-  name:'Saltwater Sweets', base:'Sweet shop', hood:'The Flats', edited:true, ww:196, head:'Barley-twist columns, jars behind the glass, striped canopy',
+  name:'Saltwater Sweets', base:'Sweet shop', hood:'The Flats', edited:true, sc:1.3, ww:196, head:'Barley-twist columns, jars behind the glass, striped canopy',
   tags:['twisted columns','lidded jars on shelves','candy stripes','tiny scale','pastel'],
   desc:'The barley twist is a real cylinder with the stripe wrapping it, standing proud of the wall the way a pilaster does, and the jars are turned glasses with lids sitting on shelves inside the window rather than on the pavement.',
   draw(p){
@@ -19193,10 +19600,24 @@ const TIDEWATER_MUSEUM = (() => {
 
     if(state.roof) box(WW*0.30,WW*0.54,-140,-100,H,H+18,'#9aa0a6','#7d838a','#6a7076');
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#dff1f0', trim = '#e2574c', H = 162, WW = 196;
+    slab(0, WW, H, H+10, 0, 4, trim);                    // the front cornice, from the roof side
+    rearBody(wall, trim, H, WW, D, '#8fa8a6');
+    rearDoor(140, wall, trim);
+    rearWindow(26, 70, 86, 124, wall);
+    depthSort([
+      { a: 60, b: -D-33, z: 0, draw: () => crateStack(60, '#e2748c', 2, D, 18) },
+      { a: 176, b: -D-32, z: 0, draw: () => wheelieBin(176, '#6d747c', 0) }
+    ]);
+    if(state.roof) box(WW*0.30,WW*0.54,-140,-100,H,H+18,'#9aa0a6','#7d838a','#6a7076');
   }
 },
 {
-  name:'Low Tide Records', base:'Record shop', hood:'The Flats', edited:true, head:'Blacked-out front, marquee, poster wall',
+  name:'Low Tide Records', base:'Record shop', hood:'The Flats', edited:true, sc:1.3, head:'Blacked-out front, marquee, poster wall',
   tags:['racks inside','angled marquee','poster grid','bulb row on the fascia'],
   desc:'Record racks stand in the window with sleeves in them, behind a dark tinted pane, so the blackness has something in it rather than being a hole.',
   draw(p){
@@ -19247,10 +19668,28 @@ const TIDEWATER_MUSEUM = (() => {
       tube(W*0.24,-90,H+14, W*0.24,-90,H+70, 2, '#6d747c');
     }
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#1f2f44', trim = '#f2b134', H = 164;
+    slab(0, W, H, H+14, -10, -1, shade(wall,1.5));                 // the front parapet, from the roof side
+    rearBody(wall, trim, H, W, D, '#34404f');
+    rearDoor(62, wall, '#3a3f44');
+    F(130, 200, 60, 140, shade(wall,1.3), null,0,-D-0.8);     // a gig poster pasted up by the door
+    F(136, 194, 66, 134, '#f2b134', null,0,-D-1.2);
+    F(140, 190, 90, 110, '#1f2f44', null,0,-D-1.6);
+    depthSort([
+      { a: 200, b: -D-32, z: 0, draw: () => wheelieBin(200, '#6d747c', 0) }
+    ]);
+    if(state.roof){
+    box(W*0.50,W*0.78,-150,-100,H,H+24,'#8f969d','#787f86','#697077');
+    tube(W*0.24,-90,H+14, W*0.24,-90,H+70, 2, '#6d747c');
+    }
   }
 },
 {
-  name:'Sandcastle Toys', base:'Toy shop', hood:'The Flats', edited:true, ww: T2*4.4,
+  name:'Sandcastle Toys', base:'Toy shop', hood:'The Flats', edited:true, sc:1.3, ww: T2*4.4,
   wTodo:'two packing slots',
   head:'Big-box toy store, alphabet-block fascia, no pavement props',
   tags:['double-width unit','big-box format','alphabet block sign','toys behind real glass','primary palette'],
@@ -19370,10 +19809,32 @@ const TIDEWATER_MUSEUM = (() => {
       box(WW*0.80,WW*0.94,-150,-110,H,H+26,'#8f969d','#787f86','#697077');
     }
     kerb(p,'none');   // no pavement props at all, per Sir
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const WW = T2*4.4;
+    const wall = '#f1e3c4', trim = '#2f86c9', H = 252;
+    const BLU = '#2f6fd0', YEL = '#f2c230', GRN = '#3fa85c', ORG = '#e07a2a';
+    slab(0, WW, H, H+14, -14, -1, trim);                 // the front parapet, from the roof side
+    rearBody(wall, trim, H, WW, D, '#d8c9a8');
+    rearShutter(40, 190, 140, wall);                           // deliveries
+    rearDoor(270, wall, trim);
+    for(const am of [100, 300]) rearWindow(am-30, am+30, 180, 220, wall);
+    downpipe(WW-8, H, '#8a9296');
+    depthSort([
+      { a: 350, b: -D-33, z: 0, draw: () => crateStack(350, '#c9a877', 3, D, 24) }
+    ]);
+    if(state.roof){
+      
+    const RB = [[60,-70,GRN],[150,-120,BLU],[236,-64,YEL]];
+    for(const [ra,rb,rc] of RB) box(ra, ra+52, rb-52, rb, H, H+46, rc, shade(rc,.82), shade(rc,1.15));
+    box(WW*0.80,WW*0.94,-150,-110,H,H+26,'#8f969d','#787f86','#697077');
+    }
   }
 },
 {
-  name:'Cove Pottery', base:'Pottery', hood:'The Flats', edited:true, tall:true,
+  name:'Cove Pottery', base:'Pottery', hood:'The Flats', edited:true, sc:1.3, tall:true,
   head:'Studio: wheel and drying shelves behind tall glass, roof lantern',
   tags:['tall studio glazing','potter\'s wheel','drying shelves','roof lantern','raw brick','bare footway'],
   desc:'A working studio rather than a works: one tall window with the wheel and the drying shelves standing inside it, brick courses over, and a glazed lantern on the roof for the north light a potter actually needs. No industrial stack.',
@@ -19492,10 +19953,39 @@ const TIDEWATER_MUSEUM = (() => {
       plateCircle(198, -96, H+58, 15, '#3a2a22', shade(wall,.7), 2);
     }
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#ece6da', trim = '#b8664a', H = 200;
+    slab(0, W, H, H+10, 0, 4, shade(wall,.7));                    // the front cornice, from the roof side
+    rearBody(wall, trim, H, W, D, '#6e422f');
+    rearDoor(62, wall, trim);
+    box(140, 200, -D-60, -D, 0, 80, '#b8664a', '#9a5438', '#7f432c');   // the kiln shed
+    T(134, 206, -D-66, -D+2, 82, '#6e422f');
+    cyl(186, -D-30, 80, 130, 7, '#6d747c');
+    depthSort([
+      { a: 110, b: -D-33, z: 0, draw: () => crateStack(110, '#c98a4a', 2, D, 18) }
+    ]);
+    if(state.roof){
+      
+    const LA0 = 46, LA1 = 168, LB0 = -54, LB1 = -142;
+    poly([P(LA0,LB0,H),P(LA1,LB0,H),P(LA1,LB0,H+46),P(LA0,LB0,H+46)], 'rgba(160,186,196,.62)');
+    for(let k=1;k<6;k++){
+    const aa = LA0 + (LA1-LA0)*k/6;
+    poly([P(aa-3,LB0+0.4,H),P(aa+3,LB0+0.4,H),P(aa+3,LB0+0.4,H+46),P(aa-3,LB0+0.4,H+46)], shade(wall,.8));
+    }
+    poly([P(LA1,LB0,H),P(LA1,LB1,H),P(LA1,LB1,H+46),P(LA1,LB0,H+46)], shade(wall,.86));
+    poly([P(LA0,LB0,H+46),P(LA1,LB0,H+46),P(LA1,LB1,H+58),P(LA0,LB1,H+58)], shade(wall,.74));
+    slab(LA0-6, LA1+6, H+46, H+54, LB0+6, LB0-4, shade(wall,1.2));
+    cyl(198, -96, H, H+50, 11, shade(wall,.8));
+    cyl(198, -96, H+50, H+58, 15, shade(wall,.94));
+    plateCircle(198, -96, H+58, 15, '#3a2a22', shade(wall,.7), 2);
+    }
   }
 },
 {
-  name:'Pelican Pets', base:'Pet shop', hood:'The Flats', edited:true, head:'Lit tanks, scalloped valance, glowing glass',
+  name:'Pelican Pets', base:'Pet shop', hood:'The Flats', edited:true, sc:1.3, head:'Lit tanks, scalloped valance, glowing glass',
   tags:['aquarium glow','scalloped valance','warm interior','no pavement props'],
   desc:'The tanks have a lit front edge so the glow reads as coming out of the glass rather than being painted on it, and the fish are spheres set behind the pane at their own depth. The valance is a folded canopy with scalloped ends, not a stripe on the wall.',
   draw(p){
@@ -19586,10 +20076,24 @@ const TIDEWATER_MUSEUM = (() => {
        gone too there is no state.props branch left on this shop. */
     if(state.roof) box(W*0.30,W*0.56,-140,-100,H,H+20,'#9aa0a6','#7d838a','#6a7076');
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#e0d3b8', trim = '#3c7fa0', H = 154;
+    slab(0, W, H, H+10, -12, -1, trim);                 // the front parapet, from the roof side
+    rearBody(wall, trim, H, W, D, '#a9b1ab');
+    rearDoor(62, wall, trim);
+    extractor(150, 120, 12);
+    depthSort([
+      { a: 120, b: -D-33, z: 0, draw: () => crateStack(120, '#b89468', 3, D, 18) },
+      { a: 196, b: -D-32, z: 0, draw: () => wheelieBin(196, '#3f6b4a', 0) }
+    ]);
+    if(state.roof) box(W*0.30,W*0.56,-140,-100,H,H+20,'#9aa0a6','#7d838a','#6a7076');
   }
 },
 {
-  name:'Sandpiper Suds', base:'Laundromat', hood:'The Flats', edited:true, head:'Glass box, porthole drums, roof tank',
+  name:'Sandpiper Suds', base:'Laundromat', hood:'The Flats', edited:true, sc:1.3, head:'Glass box, porthole drums, roof tank',
   tags:['machines inside','porthole drums','neon pylon','round water tank','bench'],
   desc:'The machines are a bank of boxes standing on the shop floor with the drums set into their fronts, and the whole frontage glazes over them, so the row reads as being inside the room.',
   draw(p){
@@ -19657,10 +20161,35 @@ const TIDEWATER_MUSEUM = (() => {
       box(W*0.70,W*0.89,-225,-195,H,H+16,'#aab1b8','#8f979e','#7d858c');
     }
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#e4f1f0', trim = '#2f8a8f', H = 158;
+    rearBody(wall, trim, H, W, D, '#aab4b2');
+    rearParapet(0, W, H, 8, 10, trim);
+    for(let i=0;i<4;i++)                                        // the dryers vent out the back
+      faceCircle(26 + i*30, -D-0.8, 118, 9, '#c9ced2', '#7d838a', 2);
+    rearDoor(176, wall, trim);
+    downpipe(8, H, '#8a9296');
+    depthSort([
+      { a: 40, b: -D-32, z: 0, draw: () => wheelieBin(40, '#2f6f8f') },
+      { a: 80, b: -D-32, z: 0, draw: () => wheelieBin(80, '#6d747c') }
+    ]);
+    if(state.roof){
+      const ta = W*0.60, tb = -110;
+      for(const [la,lb] of [[ta-30,tb+28],[ta+30,tb+28],[ta-30,tb-28],[ta+30,tb-28]])
+        cyl(la, lb, H, H+34, 4, '#6d747c');
+      cyl(ta, tb, H+34, H+92, 42, '#8b6a4e');
+      for(let i=0;i<3;i++) plateHoop(ta, tb, H+48+i*20, 43, '#6a5039', 2.5);
+      plateCircle(ta, tb, H+92, 42, '#a07f60', '#7a5c44', 2);
+      cyl(ta, tb, H+92, H+100, 10, '#7a5c44');
+      box(W*0.70,W*0.89,-225,-195,H,H+16,'#aab1b8','#8f979e','#7d858c');
+    }
   }
 },
 {
-  name:'Low Tide Barbers', base:'Barber', hood:'The Flats', edited:true, head:'Narrow bay, turning pole, gold lettering',
+  name:'Low Tide Barbers', base:'Barber', hood:'The Flats', edited:true, sc:1.3, head:'Narrow bay, turning pole, gold lettering',
   fTodo:'z168..192 return +12; z122..152 lettering behind board',
   tags:['chairs inside','cylindrical pole','swept awning','gold fascia','deep green'],
   desc:'A barber chair stands in the reveal behind the glass with a mirror on the back wall, so the bay has something to look into instead of being a flat pane of blue.',
@@ -19765,10 +20294,27 @@ const TIDEWATER_MUSEUM = (() => {
       cyl(W*0.62, -100, H, H+40, 5, '#6d747c');
     }
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#24435a', trim = '#e9d7a8', H = 176;
+    rearBody(wall, trim, H, W, D, '#36465a');
+    rearParapet(0, W, H, 8, 10, trim);
+    rearWindow(26, 66, 88, 130, wall);
+    F(30, 62, 92, 110, 'rgba(230,235,240,.4)', null,0,-D-1.2);   // frosted: it is the washroom
+    extractor(104, 136, 12);
+    rearDoor(172, wall, '#3a3f44');
+    downpipe(W-8, H, '#6d747c');
+    depthSort([ { a: 110, b: -D-32, z: 0, draw: () => wheelieBin(110, '#6d747c') } ]);
+    if(state.roof){
+      box(W*0.20,W*0.44,-120,-80,H,H+26,'#8f969d','#787f86','#697077');
+      cyl(W*0.62, -100, H, H+40, 5, '#6d747c');
+    }
   }
 },
 {
-  name:'Seabreeze Grocer', base:'Grocer', hood:'The Flats', edited:true, head:'Open front, striped canopy, crate steps',
+  name:'Seabreeze Grocer', base:'Grocer', hood:'The Flats', edited:true, sc:1.3, head:'Open front, striped canopy, crate steps',
   cTodo:'8 pavement props need collision volumes',
   tags:['open frontage','striped canopy','crate display'],
   desc:'No glass at all here, so the layering is in the depth: the crates stand side by side on the pavement and are painted far to near, with the counter jars behind them and the canopy over both.',
@@ -19867,24 +20413,41 @@ const TIDEWATER_MUSEUM = (() => {
     }
     if(state.roof) box(W*0.30,W*0.62,-140,-90,H,H+20,'#9aa0a6','#7d838a','#6a7076');
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#e8dcc0', trim = '#3f8f6a', H = 150;
+    rearBody(wall, trim, H, W, D, '#b3ab98');
+    rearParapet(0, W, H, 8, 10, trim);
+    rearDoor(66, wall, trim);
+    extractor(150, 118, 12);
+    depthSort([
+      { a: 140, b: -D-33, z: 0, draw: () => crateStack(140, '#3f8f6a', 2, D, 20) },
+      { a: 180, b: -D-33, z: 0, draw: () => crateStack(180, '#d9823f', 3, D, 20) },
+      { a: 212, b: -D-32, z: 0, draw: () => wheelieBin(212, '#3f6b4a') }
+    ]);
+    if(state.roof) box(W*0.30,W*0.62,-140,-90,H,H+20,'#9aa0a6','#7d838a','#6a7076');
   }
 },
 {
-  name:'Cove Apothecary', base:'Dispensary', hood:'The Flats', edited:true, head:'Stepped parapet, cross emblem, green livery',
+  name:'Cove Apothecary', base:'Dispensary', hood:'The Flats', edited:true, sc:1.3, head:'Stepped parapet, cross emblem, green livery',
   cTodo:'2 pavement props need collision volumes, 1 of them lapping past the frontage',
   tags:['counter behind glass','solid cross emblem','green fascia','clinical white','planters'],
   desc:'A counter and a wall of shelved bottles sit inside the reveal with the pane over them, so the shop has depth behind the window rather than a flat tinted sheet.',
-  draw(p){ flatsDrawChemist(p, FLATS_CHEMIST_LIVERY.seafoam); }
+  draw(p){ flatsDrawChemist(p, FLATS_CHEMIST_LIVERY.seafoam); },
+  back(p){ flatsChemistBack(p, FLATS_CHEMIST_LIVERY.seafoam); }
 },
 {
-  name:'Marina Pharmacy', base:'Pharmacy', hood:'The Flats', edited:true, head:'Stepped parapet, cross emblem, red livery',
+  name:'Marina Pharmacy', base:'Pharmacy', hood:'The Flats', edited:true, sc:1.3, head:'Stepped parapet, cross emblem, red livery',
   cTodo:'2 pavement props need collision volumes, 1 of them lapping past the frontage',
   tags:['counter behind glass','solid cross emblem','red fascia','clinical white','planters'],
   desc:'A counter and a wall of shelved bottles sit inside the reveal with the pane over them, so the shop has depth behind the window rather than a flat tinted sheet.',
-  draw(p){ flatsDrawChemist(p, FLATS_CHEMIST_LIVERY.coral); }
+  draw(p){ flatsDrawChemist(p, FLATS_CHEMIST_LIVERY.coral); },
+  back(p){ flatsChemistBack(p, FLATS_CHEMIST_LIVERY.coral); }
 },
 {
-  name:'Lagoon Noodle Bar', base:'Noodle bar', hood:'The Flats', edited:true, head:'Vertical banners, lantern row, counter',
+  name:'Lagoon Noodle Bar', base:'Noodle bar', hood:'The Flats', edited:true, sc:1.3, head:'Vertical banners, lantern row, counter',
   cTodo:'6 pavement props need collision volumes',
   tags:['stools under the counter','round lanterns','open counter','steam duct','banners'],
   desc:'The counter is a solid with a bar top, the cook side is set back behind it, and the stools stand on the pavement in front — so the three depths read in the right order.',
@@ -19975,10 +20538,30 @@ const TIDEWATER_MUSEUM = (() => {
       cyl(W*0.64, -110, H+44, H+52, 11, '#c3c8cc');
     }
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#2f6f7a', trim = '#f2d98c', H = 160;
+    rearBody(wall, trim, H, W, D, '#2a4a52');
+    rearParapet(0, W, H, 8, 10, trim);
+    /* the kitchen: a big extractor and its duct climbing the wall */
+    extractor(150, 96, 20);
+    box(142, 158, -D-16, -D, 116, H+30, '#b0b6bc', '#9aa0a6', '#8a9096');
+    rearDoor(62, wall, '#3a3f44');
+    depthSort([
+      { a: 196, b: -D-32, z: 0, draw: () => wheelieBin(196, '#6d747c') },
+      { a: 116, b: -D-33, z: 0, draw: () => crateStack(116, '#c2452e', 2, D, 18) }
+    ]);
+    if(state.roof){
+      box(W*0.24,W*0.52,-130,-84,H,H+30,'#9aa0a6','#7d838a','#6a7076');
+      cyl(W*0.64, -110, H, H+44, 8, '#b0b6bc');
+      cyl(W*0.64, -110, H+44, H+52, 11, '#c3c8cc');
+    }
   }
 },
 {
-  name:'Breakwater Hardware', base:'Hardware', hood:'The Flats', edited:true, head:'Tall board sign, ladder rack, roll shutter',
+  name:'Breakwater Hardware', base:'Hardware', hood:'The Flats', edited:true, sc:1.3, head:'Tall board sign, ladder rack, roll shutter',
   cTodo:'5 pavement props need collision volumes',
   tags:['goods behind the shutter','ladder rack','roll shutter','stacked stock'],
   desc:'The shutter is half up with the shop visible under it, so there is a lit interior behind the opening, and the stock outside is stacked far to near.',
@@ -20081,10 +20664,23 @@ const TIDEWATER_MUSEUM = (() => {
       box(W*0.62,W*0.88,-150,-100,H,H+22,'#8f969d','#787f86','#697077');
     }
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#d9c9a3', trim = '#2f4a6b', H = 180;
+    rearBody(wall, trim, H, W, D, '#a39a86');
+    rearParapet(0, W, H, 8, 10, trim);
+    rearShutter(24, 132, 124, wall);
+    rearDoor(182, wall, trim);
+    downpipe(W-6, H, '#8a9296');
+    /* timber in the yard, stacked on bearers */
+    for(let i=0;i<4;i++) box(20, 140, -D-58, -D-20, 4+i*9, 12+i*9,
+                             i%2 ? '#c9a877' : '#b89468', '#a8875a', '#8f7048');
   }
 },
 {
-  name:'Surfside Diner', base:'Diner', hood:'The Flats', edited:true, head:'Streamlined end, roof sign on legs, stools',
+  name:'Surfside Diner', base:'Diner', hood:'The Flats', edited:true, sc:1.3, head:'Streamlined end, roof sign on legs, stools',
   tags:['true curved corner','chrome bands','rooftop sign','counter stools','tiled base'],
   desc:'The rounded end is a real half-cylinder now, not a stack of narrowing rectangles, so the chrome bands wrap it and the wall runs into the curve properly. Stools shear with the glass.',
   draw(p){
@@ -20230,10 +20826,43 @@ const TIDEWATER_MUSEUM = (() => {
       ]);
     }
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#f2f0ea', trim = '#2fa0b0', H = 150, R = 42;
+    /* the hand-rolled shell, from behind: roof and the rounded end first
+       (they are the far side now), then the seen end and the rear wall */
+    cyl(W-R, -R, 0, H, R, wall);                              // its side is behind the roof from here
+    if(!NOPLATE) T(0,W-R,-D,0,H, shade(trim,1.05));
+    plateCircle(W-R, -R, H, R, shade(trim,1.05), shade(trim,.8), 2);
+    slab(0, W-R, H, H+8, -12, -1, trim);
+    plateCircle(W-R, -R, H+8, R, trim, shade(trim,.8), 2);
+    if(FLANK_RIGHT) S(W-R,-D,-2*R,0,H, shade(wall,.97));
+    else            S(0,-D,0,0,H, shade(wall,.72));
+    F(0,W-R,0,H, shade(wall,.93), null,0,-D);
+    F(0,W-R,0,26, '#3b6e75', null,0,-D-0.5);                  // the tiled base wraps the back too
+    F(0,W-R,26,34, '#c9ccd0', null,0,-D-0.6);
+    rearDoor(56, wall, '#c9ccd0');
+    extractor(132, 104, 13);
+    depthSort([
+      { a: 150, b: -D-32, z: 0, draw: () => wheelieBin(150, '#6d747c') },
+      { a: 110, b: -D-33, z: 0, draw: () => crateStack(110, '#c2452e', 2, D, 16) }
+    ]);
+    if(state.roof){
+      const sa = W*0.40, sb = -34;
+      depthSort([
+        { a: 151, b: -195, z: 163, draw: () =>
+            box(130,172,-220,-170,H,H+26,'#9aa0a6','#7d838a','#6a7076') },
+        { a: sa, b: sb, z: H+63, draw: () => {
+            for(const la of [sa-56, sa+56]) cyl(la, sb, H+8, H+40, 4, '#9aa0a6');
+            slab(sa-62, sa+62, H+40, H+86, sb-8, sb+8, trim, null, shade(trim,1.2)); } }
+      ]);
+    }
   }
 },
 {
-  name:'Seabreeze Picture House', base:'Cinema', hood:'The Flats', edited:true, tall:true,
+  name:'Seabreeze Picture House', base:'Cinema', hood:'The Flats', edited:true, sc:1.3, tall:true,
   zTodo:1.25,          // H 210 -- see SCALE REVIEW at the head of this file
   head:'Blade sign, wrapping marquee, recessed lobby, ticket booth',
   tags:['vertical blade','marquee that wraps the entry','changeable readerboard','bulb chase','island ticket booth','poster cases'],
@@ -20436,10 +21065,40 @@ const TIDEWATER_MUSEUM = (() => {
       ]);
     }
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#1f4a5e', trim = '#e8b23a', cream = '#f2ece0', H = 210;
+    /* the blade sign stands proud of the FRONT, above the roof: it is the
+       farthest thing now, so it goes first and the building covers its foot */
+    const bA0 = 46, bA1 = 66, bOut = 34, bZ0 = 170, bZ1 = H + 132;
+    box(bA0, bA1, 0, bOut, bZ0, bZ1, shade(wall,1.5), shade(wall,1.05), shade(wall,1.32));
+    { const o = P(bA0,0,bZ0), pa = P(bA0+1,0,bZ0), endA = (pa.y - o.y) > 0 ? bA1+0.6 : bA0-0.6;
+      for(let i=0;i<7;i++) S(endA, 5, bOut-5, bZ1-16-i*26, bZ1-38-i*26, i%2 ? trim : cream); }
+    slab(bA0-4, bA1+4, bZ1, bZ1+12, 2, bOut-2, trim, shade(trim,.72), shade(trim,1.2));
+    ball((bA0+bA1)/2, bOut/2, bZ1+17, 7, trim);
+    rearBody(wall, trim, H, W, D, '#1c3440');
+    slab(18, W-18, H, H+16, -14, -1, trim, shade(trim,.72), shade(trim,1.2));
+    slab(80, 150, H+16, H+38, -12, -1, trim, shade(trim,.72), shade(trim,1.2));
+    /* no windows on a cinema's back: two fire exits and the booth vent */
+    rearDoor(48, wall, '#3a3f44'); rearDoor(182, wall, '#3a3f44');
+    F(34, 62, 160, 170, '#3fae6a', null,0,-D-0.8); F(168, 196, 160, 170, '#3fae6a', null,0,-D-0.8);
+    extractor(115, 184, 11);
+    downpipe(W-6, H, '#6d747c');
+    if(state.roof){
+      depthSort([
+        { a: 60, b: -160, z: 229, draw: () => {
+            cyl(60, -160, H, H+4, 11, '#7d838a');
+            cyl(60, -160, H+4, H+42, 7, '#9aa0a6'); } },
+        { a: 171, b: -155, z: 222, draw: () =>
+            box(W*0.62, W*0.88, -180, -130, H, H+24, '#8f969d','#787f86','#697077') }
+      ]);
+    }
   }
 },
 {
-  name:'Sandpiper Guest House', base:'Rooming house', hood:'The Flats', edited:true, tall:true,
+  name:'Sandpiper Guest House', base:'Rooming house', hood:'The Flats', edited:true, sc:1.3, tall:true,
   fTodo:'z408..420 return +3; z114..122 return +6; z214..222 return +6; z314..322 return +6',
   head:'Four storeys, cantilevered fire escape, entrance hood',
   tags:['real storey rhythm','fire escape with depth','cantilevered hood','band courses','roof tank on legs'],
@@ -20611,10 +21270,42 @@ const TIDEWATER_MUSEUM = (() => {
     /* stoop removed at Sir's direction: the entrance is level now, and
        the hood no longer needs anything standing under it. */
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#dcd3c1', trim = '#4d7f95', H = 420;
+    rearBody(wall, trim, H, W, D, '#8a9699');
+    rearParapet(0, W, H, 12, 12, trim);
+    for(let f=0; f<3; f++) for(const am of [50, 115, 180])
+      rearWindow(am-18, am+18, 150 + f*100, 206 + f*100, wall);
+    rearWindow(32, 72, 52, 96, wall);
+    rearDoor(150, wall, trim);
+    downpipe(8, H, '#8a9296');
+    depthSort([
+      { a: 44, b: -D-32, z: 0, draw: () => wheelieBin(44, '#3f6b4a') },
+      { a: 82, b: -D-32, z: 0, draw: () => wheelieBin(82, '#2f6f8f') }
+    ]);
+    if(state.roof){
+      depthSort([
+        { a: 95, b: -188, z: H+34, draw: () => {
+            for(const [la,lb] of [[76,-200],[114,-200],[76,-172],[114,-172]])
+              cyl(la, lb, H, H+20, 3, '#6a5039');
+            slab(70,120, H+20, H+26, -204, -168, '#7a5c44', '#6a5039', '#8b6a4e');
+            cyl(95, -186, H+26, H+70, 25, '#8b6a4e', '#9c7b5c');
+            plateHoop(95, -186, H+40, 25, '#6a5039', 2.4);
+            plateHoop(95, -186, H+58, 25, '#6a5039', 2.4); } },
+        { a: 98, b: -40, z: H+48, draw: () => {
+            const s0 = W*0.18, s1 = W*0.68, sz0 = H+44, sz1 = H+66;
+            cyl(s0+7, -40, H+16, sz1, 3, '#6d747c');
+            cyl(s1-7, -40, H+16, sz1, 3, '#6d747c');
+            slab(s0, s1, sz0, sz1, -44, -36, '#6d747c', '#5d646b', '#8f969d'); } }
+      ]);
+    }
   }
 },
 {
-  name:'Cove Fish Co.', base:'Fishmonger', hood:'The Flats', edited:true, head:'Open marble counter, iced slab, striped awning',
+  name:'Cove Fish Co.', base:'Fishmonger', hood:'The Flats', edited:true, sc:1.3, head:'Open marble counter, iced slab, striped awning',
   cTodo:'1 pavement props need collision volumes',
   fTodo:'z130..152 lettering behind board',
   tags:['open frontage','counter that projects','shallow ice slab','fish as solids','bracket sign over the pavement'],
@@ -20760,10 +21451,27 @@ const TIDEWATER_MUSEUM = (() => {
       box(W*0.34, W*0.58, -132, -88, H, H+22, '#9aa0a6','#7d838a','#6a7076');
     }
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#eef2f3', trim = '#2a7f9e', H = 158;
+    rearBody(wall, trim, H, W, D, '#9fb0b5');
+    rearParapet(0, W, H, 8, 10, trim);
+    rearDoor(62, wall, trim);
+    acUnit(150, 96);                                          // the cold room's condenser
+    depthSort([
+      { a: 132, b: -D-33, z: 0, draw: () => crateStack(132, '#e8eef0', 3, D, 16) },
+      { a: 172, b: -D-33, z: 0, draw: () => crateStack(172, '#2a7f9e', 2, D, 16) },
+      { a: 210, b: -D-32, z: 0, draw: () => wheelieBin(210, '#6d747c') }
+    ]);
+    if(state.roof){
+      box(W*0.34, W*0.58, -132, -88, H, H+22, '#9aa0a6','#7d838a','#6a7076');
+    }
   }
 },
 {
-  name:'Palmline Garage', base:'Garage', hood:'The Flats', edited:true, ww: T2*4.4,
+  name:'Palmline Garage', base:'Garage', hood:'The Flats', edited:true, sc:1.3, ww: T2*4.4,
   fTodo:'z126..150 lettering behind board',
   wTodo:'two packing slots',
   head:'Two full-size bays, open workshop, turbine vents',
@@ -20910,10 +21618,41 @@ const TIDEWATER_MUSEUM = (() => {
       box(WW*0.80, WW*0.94, -180, -140, H, H+22, '#8f969d','#787f86','#697077');
     }
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const WW = T2*4.4, wall = '#e6e1d6', trim = '#3c7fa0', H = 158;
+    rearBody(wall, trim, H, WW, D, '#9aa3a6');
+    rearParapet(0, WW, H, 10, 12, trim);
+    gutter(0, WW, H, shade(wall,.78));
+    downpipe(10, H, '#8a9296'); downpipe(WW-10, H, '#8a9296');
+    rearShutter(214, 350, 122, wall);                 // the workshop's back bay
+    rearDoor(118, wall, trim);
+    rearWindow(30, 72, 72, 116, wall);
+    depthSort([
+      { a: 36, b: -D-30, z: 0, draw: () => yardDrum(36, 30, '#2f6f8f') },
+      { a: 66, b: -D-34, z: 0, draw: () => yardDrum(66, 34, '#c2452e') },
+      { a: 386, b: -D-32, z: 0, draw: () => wheelieBin(386, '#3f6b4a') }
+    ]);
+    if(state.roof){
+      for(const aa of [WW*0.20, WW*0.46, WW*0.72]){
+        cyl(aa, -110, H+12, H+28, 9, '#8f969d');
+        cyl(aa, -110, H+28, H+36, 13, '#b6bcc2');
+        plateCircle(aa, -110, H+36, 13, '#c8ced4', '#8f969d', 2);
+        for(let k=0;k<6;k++){
+          const t=k*1.047;
+          poly([P(aa,-110,H+37),
+                P(aa+13*Math.cos(t), -110+13*Math.sin(t), H+37),
+                P(aa+13*Math.cos(t+0.5), -110+13*Math.sin(t+0.5), H+37)], '#a8aeb4');
+        }
+      }
+      box(WW*0.80, WW*0.94, -180, -140, H, H+22, '#8f969d','#787f86','#697077');
+    }
   }
 },
 {
-  name:'Marina Tailors', base:'Tailor', hood:'The Flats', edited:true, ww:170, head:'Narrow bay, bracket clock, mannequins',
+  name:'Marina Tailors', base:'Tailor', hood:'The Flats', edited:true, sc:1.3, ww:170, head:'Narrow bay, bracket clock, mannequins',
   tags:['narrow unit','bracket clock','turned mannequins','half canopy','carved parapet'],
   desc:'The clock face lies in the plane of its own bracket rather than facing the screen, and the mannequins are turned cylinders on stands with rounded heads.',
   draw(p){
@@ -21036,10 +21775,23 @@ const TIDEWATER_MUSEUM = (() => {
     ball(clA, clB+1.2, clZ, 1.5, shade(trim,.45));               // centre boss
     if(state.roof) box(WW*0.28,WW*0.56,-140,-100,H,H+20,'#9aa0a6','#7d838a','#6a7076');
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#2c4a6b', trim = '#d8c48a', H = 172, WW = 170;
+    slab(0, WW, H, H+8, -12, -1, shade(wall,.7));                 // the front parapet, from the roof side
+    rearBody(wall, trim, H, WW, D, '#243850');
+    rearDoor(116, wall, trim);
+    rearWindow(24, 70, 90, 130, wall);
+    depthSort([
+      { a: 150, b: -D-32, z: 0, draw: () => wheelieBin(150, '#6d747c', 0) }
+    ]);
+    if(state.roof) box(WW*0.28,WW*0.56,-140,-100,H,H+20,'#9aa0a6','#7d838a','#6a7076');
   }
 },
 {
-  name:'Pelican Cantina', base:'Cantina', hood:'The Flats', edited:true, head:'Pergola porch, string bulbs, chimney',
+  name:'Pelican Cantina', base:'Cantina', hood:'The Flats', edited:true, sc:1.3, head:'Pergola porch, string bulbs, chimney',
   cTodo:'5 pavement props need collision volumes, 67 of them lapping past the frontage',
   fTodo:'z140..152 return +6',
   tags:['round pergola posts','string bulbs','half doors','barrels','stucco chimney'],
@@ -21121,10 +21873,32 @@ const TIDEWATER_MUSEUM = (() => {
       box(W*0.52,W*0.78,-160,-120,H,H+18,'#9aa0a6','#7d838a','#6a7076');
     }
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#f0d9b0', trim = '#d9735a', H = 152;
+    rearBody(wall, trim, H, W, D, '#c9b89a');
+    rearParapet(0, W, H, 8, 10, trim);
+    rearWindow(30, 66, 80, 116, wall);
+    for(let i=0;i<4;i++) F(34 + i*9, 36 + i*9, 80, 116, '#5d4a3a', null,0,-D-1.4);   // bars
+    rearDoor(160, wall, '#8a4f34');
+    extractor(106, 124, 11);
+    depthSort([
+      { a: 60, b: -D-30, z: 0, draw: () => yardDrum(60, 30, '#b9bec4') },
+      { a: 92, b: -D-32, z: 0, draw: () => yardDrum(92, 32, '#b9bec4') },
+      { a: 210, b: -D-32, z: 0, draw: () => wheelieBin(210, '#3f6b4a') }
+    ]);
+    if(state.roof){
+      box(W*0.16,W*0.34,-120,-84,H,H+40, shade(wall,.9), shade(wall,.75), shade(wall,.62));
+      cyl(W*0.25, -102, H+40, H+56, 8, '#8a4f34');
+      plateCircle(W*0.25, -102, H+56, 8, '#5d4a3a');
+      box(W*0.52,W*0.78,-160,-120,H,H+18,'#9aa0a6','#7d838a','#6a7076');
+    }
   }
 },
 {
-  name:'Tidewater News', base:'Newsagent', hood:'The Flats', edited:true, head:'Full shopfront, headline placards, rack of papers',
+  name:'Tidewater News', base:'Newsagent', hood:'The Flats', edited:true, sc:1.3, head:'Full shopfront, headline placards, rack of papers',
   tags:['full unit','glazed front','sloping paper racks','placard boards','fascia set out in screen space'],
   desc:'A shop rather than a kiosk: full frontage, full depth, one shopfront storey, with the papers racked on the pavement under its own awning instead of on the neighbour.',
   draw(p){
@@ -21243,10 +22017,30 @@ const TIDEWATER_MUSEUM = (() => {
       cyl(W*0.76, -190, H, H+34, 6, '#7d838a');
     }
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#3f7f8a', trim = '#e8c34a', H = 184;
+    rearBody(wall, trim, H, W, D, '#2e5a62');
+    rearParapet(0, W, H, 8, 10, trim);
+    rearDoor(66, wall, '#3a3f44');
+    rearWindow(140, 190, 96, 140, wall);
+    downpipe(W-6, H, '#6d747c');
+    /* the morning drop: bundled papers by the door, strapped */
+    depthSort([
+      { a: 118, b: -D-33, z: 0, draw: () => {
+          crateStack(118, '#e8e3d6', 3, D, 14);
+          for(let i=0;i<3;i++) F(98, 138, i*16+6, i*16+8, '#c2452e', null,0,-D-52.6); } }
+    ]);
+    if(state.roof){
+      box(W*0.34, W*0.58, -150, -110, H, H+22, '#8f969d','#787f86','#697077');
+      cyl(W*0.76, -190, H, H+34, 6, '#7d838a');
+    }
   }
 },
 {
-  name:'Palmline Savings', base:'Bank', hood:'The Flats', edited:true, tall:true, ww: T2*4.4,
+  name:'Palmline Savings', base:'Bank', hood:'The Flats', edited:true, sc:1.3, tall:true, ww: T2*4.4,
   wTodo:'two packing slots',
   cTodo:'3 pavement props need collision volumes',   // the entrance steps
   head:'Hexastyle giant order, deep portico, pediment, stone steps',
@@ -21392,10 +22186,25 @@ const TIDEWATER_MUSEUM = (() => {
     }
     if(state.roof) box(WW*0.66, WW*0.86, -210, -170, H, H+22, '#9aa0a6','#7d838a','#6a7076');
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const WW = T2*4.4, wall = '#f0ece2', trim = '#6f8f96', H = 460;
+    rearBody(wall, trim, H, WW, D, '#b9bcb6');
+    rearParapet(0, WW, H, 16, 14, shade(wall,.9));
+    slab(0, WW, H-28, H-20, -D-8, -D, shade(wall,.84));        // a plain string course, no order
+    for(const [z0,z1] of [[150,214],[250,314],[350,414]])
+      for(const am of [64, 150, 255, 341]) rearWindow(am-24, am+24, z0, z1, wall);
+    downpipe(8, H, '#8a9296'); downpipe(WW-8, H, '#8a9296');
+    rearDoor(202, wall, '#6d747c', D, 156);                    // the staff door, steel
+    F(170, 234, 176, 184, shade(wall,.7), null,0,-D-0.8);
+    acUnit(96, 60); acUnit(310, 60);
+    if(state.roof) box(WW*0.66, WW*0.86, -210, -170, H, H+22, '#9aa0a6','#7d838a','#6a7076');
   }
 },
 {
-  name:'Seabreeze Fuel', base:'Fuel station', hood:'The Flats', edited:true, ww: T2*4.4,
+  name:'Seabreeze Fuel', base:'Fuel station', hood:'The Flats', edited:true, sc:1.3, ww: T2*4.4,
   wTodo:'two packing slots',
   bTodo:'already a building plus an open lot -- needs the setback and the wrap',
   cTodo:'4 pavement props need collision volumes',   // 2 canopy posts, 2 pumps
@@ -21536,6 +22345,43 @@ const TIDEWATER_MUSEUM = (() => {
 
     if(state.roof) box(40, 128, -150, -110, H, H+22, '#9aa0a6','#7d838a','#6a7076');
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const WW = T2*4.4, KW = 180;
+    const LA0 = 180, LA1 = WW, LB = -T2*3;
+    const wall = '#e6e8e6', trim = '#2f9e8f', H = 152;
+    /* the forecourt first: canopy, pumps and island stand beyond the kiosk
+       wall on this side, and the kiosk's rear is nearer the eye */
+    T(LA0, LA1, 0, LB, 0.4, '#d6d8d6');
+    for(let i=1;i<4;i++) T(LA0, LA1, LB*i/4-0.8, LB*i/4+0.8, 0.6, '#c6c9c6');
+    const cA0 = LA0+8, cA1 = LA1-8, cb0 = -8, cb1 = LB+8;
+    const iC = (LA0+LA1)/2;
+    box(iC-26, iC+26, LB*0.76, LB*0.24, 0, 9, '#c6c9c6','#b4b8b4','#a2a6a2');
+    depthSort([
+      ...[LB*0.41, LB*0.59].map(bb => ({ a: iC, b: bb, z: 0, draw: () => {
+          box(iC-10, iC+10, bb-15, bb+15, 9, 70, '#d9dbd9','#c2452e','#a53a26'); } })),
+      ...[LB*0.28, LB*0.72].map(pb => ({ a: iC, b: pb, z: 0,
+          draw: () => {
+            box(iC-15, iC+15, pb-15, pb+15, 9, 17, '#c6c9c6','#b0b4b0','#9ea29e');
+            cyl(iC, pb, 17, 30, 12, '#b0b4b0');
+            cyl(iC, pb, 30, 172, 9, '#b9bcc0');
+          } }))
+    ]);
+    const CZ = 190;
+    T(cA0, cA1, cb1, cb0, CZ, '#f2f2f0');
+    slab(cA0, cA1, CZ-18, CZ, cb1, cb0, '#f2f2f0', shade('#f2f2f0',.82), '#f2f2f0');
+    F(cA0, cA1, CZ-18, CZ-12, trim, null, 0, cb1-0.6);
+    rearBody(wall, trim, H, KW, D, '#b9bfbc');
+    rearParapet(0, KW, H, 10, 10, trim);
+    rearDoor(120, wall, trim);
+    rearWindow(30, 66, 80, 118, wall);
+    depthSort([
+      { a: 40, b: -D-32, z: 0, draw: () => wheelieBin(40, '#3f6b4a') },
+      { a: 150, b: -D-33, z: 0, draw: () => crateStack(150, '#b08d55', 2) }
+    ]);
+    if(state.roof) box(40, 128, -150, -110, H, H+22, '#9aa0a6','#7d838a','#6a7076');
   }
 },
 {
@@ -21757,7 +22603,7 @@ const TIDEWATER_MUSEUM = (() => {
   }
 },
 {
-  name:'Sunfish Arcade', base:'Arcade', hood:'The Flats', edited:true, head:'Black hole of a front, magenta pixel sign',
+  name:'Sunfish Arcade', base:'Arcade', hood:'The Flats', edited:true, sc:1.3, head:'Black hole of a front, magenta pixel sign',
   tags:['unlit front','solid pixel sign','step-in entry','no pavement props'],
   desc:'The front is a flat unlit black panel with one door in it -- the whole shop is the sign. Every block of the pixel sign is a slab with a lit top edge, so the lettering stands off the wall rather than being painted on it.',
   draw(p){
@@ -21837,10 +22683,25 @@ const TIDEWATER_MUSEUM = (() => {
       cyl(W*0.26, -60, H+12, H+62, 2.5, '#4a4a58');
     }
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#1f2f44', trim = '#37e0d0', H = 168;
+    rearBody(wall, trim, H, W, D, '#26364a');
+    slab(0, W, H, H+12, -12, -1, shade(wall,2.0));
+    rearDoor(170, wall, '#3a3f44');
+    F(154, 186, 160, 170, trim, null,0,-D-0.8);                // exit sign, in the arcade's own neon
+    acUnit(70, 70);
+    depthSort([ { a: 64, b: -D-32, z: 0, draw: () => wheelieBin(64, '#6d747c') } ]);
+    if(state.roof){
+      box(W*0.56,W*0.84,-150,-104,H,H+26,'#4a4a58','#3a3a46','#2e2e38');
+      cyl(W*0.26, -60, H+12, H+62, 2.5, '#4a4a58');
+    }
   }
 },
 {
-  name:'Cove Butchers', base:'Butcher', hood:'The Flats', edited:true, head:'Hooks and rail, tiled base, striped awning',
+  name:'Cove Butchers', base:'Butcher', hood:'The Flats', edited:true, sc:1.3, head:'Hooks and rail, tiled base, striped awning',
   tags:['round rail','hooked cuts','white tile','striped awning','no pavement props'],
   desc:'The rail is a tube with the hooks bent over it and the cuts hanging as rounded solids rather than painted shapes. The awning is a folded canopy with a real underside, not a flat stripe on the wall.',
   draw(p){
@@ -21932,10 +22793,25 @@ const TIDEWATER_MUSEUM = (() => {
        slid back inside, per Sir. */
     if(state.roof) box(W*0.28,W*0.54,-140,-96,H,H+22,'#9aa0a6','#7d838a','#6a7076');
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#f0ece2', trim = '#2f5f7a', H = 150;
+    rearBody(wall, trim, H, W, D, '#aab2b4');
+    rearParapet(0, W, H, 8, 10, trim);
+    rearDoor(62, wall, trim);
+    acUnit(160, 90);                                          // the cold room
+    downpipe(W-6, H, '#8a9296');
+    depthSort([
+      { a: 128, b: -D-32, z: 0, draw: () => wheelieBin(128, '#c2452e') },
+      { a: 168, b: -D-32, z: 0, draw: () => wheelieBin(168, '#6d747c') }
+    ]);
+    if(state.roof) box(W*0.28,W*0.54,-140,-96,H,H+22,'#9aa0a6','#7d838a','#6a7076');
   }
 },
 {
-  name:'Sea Glass Exchange', base:'Pawn shop', hood:'The Flats', edited:true, ww:178, head:'Three balls, barred glass, narrow front',
+  name:'Sea Glass Exchange', base:'Pawn shop', hood:'The Flats', edited:true, sc:1.3, ww:178, head:'Three balls, barred glass, narrow front',
   tags:['three gold balls','window bars','narrow unit','deep fascia','hanging bracket'],
   desc:'The three balls hang as spheres from a bracket with a real arm and return, and the bars over the glass are round rods rather than painted stripes.',
   draw(p){
@@ -22087,10 +22963,32 @@ const TIDEWATER_MUSEUM = (() => {
       plateCircle(WW*0.11, -90, H+46, 4.5, '#7c838b', '#5c636b', 1.5);
     }
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#35555a', trim = '#c9a24a', H = 176, WW = 178;
+    slab(0, WW, H, H+10, -12, -1, shade(wall,.7));                 // the front parapet, from the roof side
+    rearBody(wall, trim, H, WW, D, '#2c4448');
+    rearDoor(120, wall, '#3a3f44');
+    rearWindow(26, 70, 90, 130, wall);
+    for(let i=0;i<5;i++) F(30 + i*9, 32 + i*9, 90, 130, '#2b2f33', null,0,-D-1.4);   // bars
+    depthSort([
+      { a: 60, b: -D-32, z: 0, draw: () => wheelieBin(60, '#6d747c', 0) }
+    ]);
+    if(state.roof){
+      
+    box(WW*0.17, WW*0.44, -122, -96, H,    H+6,  '#6e747b','#5d636a','#4f555c');
+    box(WW*0.19, WW*0.42, -118, -100, H+6, H+24, '#8f969d','#787f86','#697077');
+    for(let i=0;i<3;i++)
+    F(WW*0.21, WW*0.40, H+10+i*4, H+12+i*4, '#6b7177', null, 0, -99.5);
+    cyl(WW*0.11, -90, H, H+46, 3.2, '#5c636b');
+    plateCircle(WW*0.11, -90, H+46, 4.5, '#7c838b', '#5c636b', 1.5);
+    }
   }
 },
 {
-  name:'The Flats Post Office', base:'Post office', hood:'The Flats', edited:true, tall:true,
+  name:'The Flats Post Office', base:'Post office', hood:'The Flats', edited:true, sc:1.3, tall:true,
   zTodo:1.11,          // H 186 -- see SCALE REVIEW at the head of this file
   head:'Raked flagpole, crest parapet, counter windows',
   tags:['stars and stripes','crest parapet','counter windows','no pavement props','official palette'],
@@ -22230,10 +23128,25 @@ const TIDEWATER_MUSEUM = (() => {
     }
     if(state.roof) box(W*0.14,W*0.36,-160,-120,H,H+22,'#9aa0a6','#7d838a','#6a7076');
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#eee9dc', trim = '#1f4a6b', H = 186;
+    slab(0, W, H, H+10, -12, -1, trim);                 // the front parapet, from the roof side
+    rearBody(wall, trim, H, W, D, '#a6aca9');
+    rearShutter(20, 140, 132, wall);                           // the sorting-office bay
+    rearDoor(186, wall, trim);
+    /* a mail trolley by the bay */
+    box(150, 186, -D-60, -D-20, 10, 60, '#c2452e', '#a53a26', '#8a3020');
+    depthSort([
+      { a: 110, b: -D-33, z: 0, draw: () => crateStack(110, '#b89468', 1, D, 20) }
+    ]);
+    if(state.roof) box(W*0.14,W*0.36,-160,-120,H,H+22,'#9aa0a6','#7d838a','#6a7076');
   }
 },
 {
-  name:'Surfside Fitness', base:'Gym', hood:'The Flats', edited:true, ww: T2*4.4,
+  name:'Surfside Fitness', base:'Gym', hood:'The Flats', edited:true, sc:1.3, ww: T2*4.4,
   wTodo:'two packing slots',
   head:'Double-width glass front, equipment on show, central entrance',
   tags:['double-width unit','full-height glazing','equipment on show','kettlebell sign','no pavement props'],
@@ -22388,10 +23301,25 @@ const TIDEWATER_MUSEUM = (() => {
       box(WW*0.76,WW*0.96,-150,-110,H,H+30,'#8f969d','#787f86','#697077');
     }
     kerb(p,'none');   // see the bench note above
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const WW = T2*4.4, wall = '#dfe4e2', trim = '#e2574c', H = 210;
+    rearBody(wall, trim, H, WW, D, '#a9b1af');
+    rearParapet(0, WW, H, 10, 12, trim);
+    for(const am of [60, 150, 255, 345]) rearWindow(am-30, am+30, 150, 176, wall);   // high clerestory
+    rearDoor(202, wall, '#6d747c');
+    F(186, 218, 160, 172, '#3fae6a', null,0,-D-0.8);          // green exit sign over the fire door
+    acUnit(84, 40); acUnit(320, 40);
+    downpipe(8, H, '#8a9296'); downpipe(WW-8, H, '#8a9296');
+    if(state.roof){
+      box(WW*0.76,WW*0.96,-150,-110,H,H+30,'#8f969d','#787f86','#697077');
+    }
   }
 },
 {
-  name:'Seabreeze Hats', base:'Milliner', hood:'The Flats', edited:true, ww:190, head:'Hat sign on a bracket, hats and boxes in one deep window',
+  name:'Seabreeze Hats', base:'Milliner', hood:'The Flats', edited:true, sc:1.3, ww:190, head:'Hat sign on a bracket, hats and boxes in one deep window',
   tags:['top hat bracket sign','hats on turned stands','striped hat boxes','dome awning','slim unit'],
   desc:'Recognisable as a hat shop from the street: a top hat hanging on a bracket over the door, a wide window with hats on turned stands at two levels, and a stack of striped hat boxes. The hats are built from a disc brim and a real crown rather than painted on.',
   draw(p){
@@ -22531,6 +23459,19 @@ const TIDEWATER_MUSEUM = (() => {
 
     if(state.roof) box(WW*0.26,WW*0.52,-140,-100,H,H+20,'#8f969d','#787f86','#697077');
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#3f6f86', trim = '#e8d9c0', H = 176, WW = 190;
+    slab(0, WW, H, H+10, -12, -1, shade(wall,.7));                 // the front parapet, from the roof side
+    rearBody(wall, trim, H, WW, D, '#2f5566');
+    rearDoor(130, wall, trim);
+    rearWindow(26, 74, 90, 130, wall);
+    depthSort([
+      { a: 60, b: -D-33, z: 0, draw: () => crateStack(60, '#e8d9c0', 2, D, 26) }
+    ]);
+    if(state.roof) box(WW*0.26,WW*0.52,-140,-100,H,H+20,'#8f969d','#787f86','#697077');
   }
 },
 {
@@ -22758,7 +23699,7 @@ const TIDEWATER_MUSEUM = (() => {
   }
 },
 {
-  name:'Cove Locksmith', base:'Locksmith', hood:'The Flats', edited:true, ww:168, head:'Giant brass key on a bracket, barred window, narrow',
+  name:'Cove Locksmith', base:'Locksmith', hood:'The Flats', edited:true, sc:1.3, ww:168, head:'Giant brass key on a bracket, barred window, narrow',
   tags:['giant key on a bracket','barred window','narrow unit','recessed glazing','dark name plate'],
   desc:'The key is a projecting bracket sign hanging out over the footway, built as one extruded solid so it has a real thickness and a bow that is round in the world rather than an ellipse. It is centred on the frontage so it stays on the building whichever way the block edge runs. The window is a proper recess with the bars standing outside the glass, the door is ironmonger dark so the brass reads against it, and the facade is set out with piers instead of running edge to edge.',
   draw(p){
@@ -22891,10 +23832,27 @@ const TIDEWATER_MUSEUM = (() => {
       cyl(WW*0.72, -60, H+8, H+44, 2.5, '#6d747c');
     }
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#8f8a7e', trim = '#c9a24a', H = 166, WW = 168;
+    slab(0, WW, H, H+8, -12, -1, shade(wall,.72));                 // the front parapet, from the roof side
+    rearBody(wall, trim, H, WW, D, '#6f6b62');
+    rearDoor(120, wall, '#3a3f44');
+    rearWindow(24, 66, 90, 128, wall);
+    for(let i=0;i<4;i++) F(28 + i*11, 30 + i*11, 90, 128, '#2b2f33', null,0,-D-1.4);
+    depthSort([
+      { a: 56, b: -D-32, z: 0, draw: () => wheelieBin(56, '#6d747c', 0) }
+    ]);
+    if(state.roof){
+    box(WW*0.30,WW*0.54,-140,-100,H,H+20,'#8f969d','#787f86','#697077');
+    cyl(WW*0.72, -60, H+8, H+44, 2.5, '#6d747c');
+    }
   }
 },
 {
-  name:'Driftwood Home', base:'Furniture showroom', hood:'The Flats', edited:true, tall:true, ww: T2*4.4,
+  name:'Driftwood Home', base:'Furniture showroom', hood:'The Flats', edited:true, sc:1.3, tall:true, ww: T2*4.4,
   wTodo:'two packing slots',
   head:'Double-width, two storeys of glass, mezzanine across both bays',
   tags:['double-width unit','double-height glazing','mezzanine deck behind the glass','sofa in the round','clipped interior'],
@@ -23051,6 +24009,23 @@ const TIDEWATER_MUSEUM = (() => {
     if(state.roof)
       box(WW*0.62,WW*0.86,-160,-116,H,H+26,'#8f969d','#787f86','#697077');
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#e4dccb', trim = '#4d6a86', H = 336, WW = T2*4.4;
+    rearBody(wall, trim, H, WW, D, '#b4ad9c');
+    rearParapet(0, WW, H, 12, 12, trim);
+    rearShutter(40, 190, 150, wall);                          // deliveries come in the back
+    rearDoor(258, wall, trim);
+    for(const am of [80, 200, 320]) rearWindow(am-30, am+30, 220, 290, wall);
+    downpipe(WW-8, H, '#8a9296');
+    depthSort([
+      { a: 330, b: -D-33, z: 0, draw: () => crateStack(330, '#c9a877', 3, D, 26) },
+      { a: 372, b: -D-33, z: 0, draw: () => crateStack(372, '#c9a877', 2, D, 26) }
+    ]);
+    if(state.roof)
+      box(WW*0.62,WW*0.86,-160,-116,H,H+26,'#8f969d','#787f86','#697077');
   }
 },
 {
@@ -23300,7 +24275,7 @@ const TIDEWATER_MUSEUM = (() => {
   }
 },
 {
-  name:'Low Tide TV & Radio', base:'TV repair', hood:'The Flats', edited:true, head:'Aerial forest, dish, a wall of screens behind the glass',
+  name:'Low Tide TV & Radio', base:'TV repair', hood:'The Flats', edited:true, sc:1.3, head:'Aerial forest, dish, a wall of screens behind the glass',
   tags:['aerial forest','dish on a mount','stacked screens','test-card glow','cluttered roof'],
   desc:'Every aerial is a tube with real crossbars and each mast has a base plate on the roof; the dish sits on a bracket with an arm to the feed horn and is round in the world rather than stretched by ZSCALE. The screens are stacked inside a real recess, behind the pane, instead of standing out on the footway.',
   draw(p){
@@ -23429,6 +24404,45 @@ const TIDEWATER_MUSEUM = (() => {
       box(W*0.86,W*0.98,-150,-120,H,H+18,'#8f969d','#787f86','#697077');
     }
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#9fb3b8', trim = '#1f3f55', H = 158;
+    slab(0, W, H, H+10, -12, -1, trim);                 // the front parapet, from the roof side
+    rearBody(wall, trim, H, W, D, '#7f9095');
+    rearDoor(170, wall, trim);
+    /* the workshop's back door is where the dead sets pile up */
+    depthSort([
+      { a: 60, b: -D-34, z: 0, draw: () => { box(40, 80, -D-54, -D-14, 0, 36, '#5d646b', '#4a4f55', '#3a3f44'); F(46, 74, 6, 30, '#26323a', null,0,-D-54.6); } },
+      { a: 104, b: -D-34, z: 0, draw: () => { box(84, 124, -D-54, -D-14, 0, 30, '#8a6f4e', '#6f5a40', '#5a4834'); F(90, 118, 5, 25, '#26323a', null,0,-D-54.6); } }
+    ]);
+    extractor(120, 124, 10);
+    if(state.roof){
+    const masts = [[W*0.14,-40,120],[W*0.30,-96,88],[W*0.46,-30,140],[W*0.62,-120,96],[W*0.80,-60,110]];
+    for(const [ma,mb,mh] of masts){
+    box(ma-9, ma+9, mb-9, mb+9, H+10, H+16, '#9aa0a6','#8d949a','#7d848a');
+    cyl(ma, mb, H+16, H+16+mh, 2, '#c3c8cc');
+    const n = 3 + (mh>110?2:0);
+    for(let k=0;k<n;k++){
+    const z = H+16+mh - 14 - k*15, half = 20 - k*2;
+    tube(ma-half, mb, z, ma+half, mb, z, 1.1, '#c3c8cc');
+    tube(ma, mb, z, ma, mb, z+6, 0.9, '#c3c8cc');
+    }
+    }
+    const da = W*0.68, db = -20, dz = H+66, dr = 24, zk = 1/ZSCALE;
+    box(da-6, da+6, db-6, db+6, H+10, H+16, '#8d979f','#82888e','#767c82');
+    cyl(da, db, H+16, H+50, 3, '#8f969d');
+    const dish = [];
+    for(let i=0;i<28;i++){
+    const t = Math.PI*2*i/28;
+    dish.push(P(da + dr*Math.cos(t), db, dz + dr*Math.sin(t)*zk));
+    }
+    poly(dish, '#d8dbde', '#a8adb2', 2.5);
+    tube(da, db, dz, da, db+22, dz-8, 1.4, '#8f969d');
+    ball(da, db+22, dz-10, 4, '#6a7076');
+    box(W*0.86,W*0.98,-150,-120,H,H+18,'#8f969d','#787f86','#697077');
+    }
   }
 },
 {
@@ -23706,10 +24720,45 @@ const TIDEWATER_MUSEUM = (() => {
       cowl(940, -300);                                    // key 640
       box(700, 830, -120, -50, H, H+26, '#8f969d','#787f86','#697077');    // key 650
     }
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#2c5a75', trim = '#e8c9a0', H = 420, WW = 1048.8, DD = 620;
+    slab(0, WW, H, H+16, -16, -1, trim);                 // the front parapet, from the roof side
+    rearBody(wall, trim, H, WW, DD, '#223f52');
+    const CA0 = 300, CA1 = 748;
+    box(CA0+20, CA1-20, -560, -300, H, H+240, shade(wall,.9), shade(wall,.82), shade(wall,.66));   // the fly tower
+    slab(CA0+10, CA1-10, H+240, H+254, -562, -298, shade(wall,.72));
+    /* the stage door, the scenery dock and the fly tower's plain back */
+    rearShutter(420, 620, 300, wall, DD);                      // scenery dock, full height
+    rearDoor(200, wall, '#3a3f44', DD); rearDoor(860, wall, '#3a3f44', DD);
+    F(176, 224, 166, 176, '#3fae6a', null,0,-DD-0.8); F(836, 884, 166, 176, '#3fae6a', null,0,-DD-0.8);
+    for(const am of [120, 300, 760, 940]) rearWindow(am-30, am+30, 260, 330, wall, DD);
+    downpipe(8, H, '#6d747c', DD); downpipe(WW-8, H, '#6d747c', DD);
+    if(state.roof){
+      
+    const cowl = (va, vb) => {
+    cyl(va, vb, H, H+30, 13, '#8f969d');
+    plateCircle(va, vb, H+30, 17, '#a6acb2', '#7d838a', 1.6);
+    cyl(va, vb, H+30, H+40, 5, '#7d838a');
+    };
+      
+    cowl(120, -400);
+    cowl(60,  -240);
+    box(150, 280, -170, -100, H, H+26, '#8f969d','#787f86','#697077');
+    for(const tb of [-430, -530]) for(const ta of [830, 970])
+    cyl(ta, tb, H, H+34, 4, '#6a7076');
+    box(800, 1000, -560, -400, H+34, H+96, '#9aa0a6','#828a91','#727981');
+    slab(792, 1008, H+96, H+106, -394, -566, '#7d848a');
+    cowl(830, -230);
+    cowl(940, -300);
+    box(700, 830, -120, -50, H, H+26, '#8f969d','#787f86','#697077');
+    }
   }
 },
 {
-  name:'The Flats Fire Station', base:'Fire station', hood:'The Flats', edited:true, tall:true, ww: T2*6.6, dd: 420,
+  name:'The Flats Fire Station', base:'Fire station', hood:'The Flats', edited:true, sc:1.3, tall:true, ww: T2*6.6, dd: 420,
   wTodo:'three packing slots -- the middle tier, between a double-wide and a whole edge',
   head:'Three appliance bays, drill tower, apron, bell',
   tags:['three packing slots','three appliance bays','drill tower','painted apron','builds to the line'],
@@ -23862,10 +24911,32 @@ const TIDEWATER_MUSEUM = (() => {
       cyl(140, -300, H, H+34, 8, '#8f969d');             // key -160
       box(90, 220, -190, -130, H, H+24, '#8f969d','#787f86','#697077');   // key -100..90
     }
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#a8291f', trim = '#e8ddc8', H = 336, WW = T2*6.6, DD = 420;
+    slab(0, WW, H, H+14, -16, -1, trim);                 // the front parapet, from the roof side
+    rearBody(wall, trim, H, WW, DD, '#6a6f72');
+    const TA0 = 490, TH = H + 340;
+    box(TA0, WW, -90, -1, H+14, TH, shade(wall,.88), shade(wall,.96), shade(wall,.76));   // the drill tower, from behind
+    for(let r=0;r<4;r++) F(TA0+30, WW-30, H+56+r*68, H+96+r*68, '#3a4046', null,0,-91);
+    slab(TA0-6, WW, TH, TH+16, -94, 3, trim);
+    rearShutter(40, 200, 200, wall, DD);                        // the back of the appliance bays
+    rearShutter(240, 400, 200, wall, DD);
+    rearDoor(548, wall, trim, DD);
+    for(const am of [100, 320, 548]) rearWindow(am-30, am+30, 250, 300, wall, DD);
+    downpipe(8, H, '#6d747c', DD);
+    if(state.roof){
+      
+    cyl(60, -260, H, H+34, 8, '#8f969d');
+    cyl(140, -300, H, H+34, 8, '#8f969d');
+    box(90, 220, -190, -130, H, H+24, '#8f969d','#787f86','#697077');
+    }
   }
 },
 {
-  name:'The Sandpiper Arms', base:'Public house', hood:'The Flats', edited:true, tall:true,
+  name:'The Sandpiper Arms', base:'Public house', hood:'The Flats', edited:true, sc:1.3, tall:true,
   head:'Three storeys: pub on the ground, flats over, bowed bays',
   tags:['three real storeys','flats above the pub','true bowed bays','chimney pots','hanging bracket sign'],
   desc:'A proper corner local: the public bar on the ground with two bowed bays either side of the door, and two floors of flats over it with sash windows on a string course. The bows are swept on a real ellipse and bulge OUT over the footway, which is the direction a bow window goes.',
@@ -24024,10 +25095,33 @@ const TIDEWATER_MUSEUM = (() => {
       }
     }
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#1f4a5e', trim = '#d8c48a', H = 504;
+    slab(0, W, H, H+12, -14, -1, shade(wall,.66));                 // the front parapet, from the roof side
+    rearBody(wall, trim, H, W, D, '#243a48');
+    for(let f=0; f<3; f++) for(const am of [60, 170]) rearWindow(am-24, am+24, 190 + f*100, 250 + f*100, wall);
+    rearDoor(170, wall, '#3a3f44');
+    /* the cellar flap and the kegs waiting on it */
+    T(40, 110, -D-60, -D, 1, '#5d646b');
+    downpipe(8, H, '#6d747c');
+    depthSort([
+      { a: 60, b: -D-40, z: 0, draw: () => yardDrum(60, 40, '#b9bec4') },
+      { a: 92, b: -D-44, z: 0, draw: () => yardDrum(92, 44, '#b9bec4') }
+    ]);
+    if(state.roof){
+    for(const ca of [W*0.22, W*0.70]){
+    box(ca-20, ca+20, -120, -80, H, H+52, '#8a5040','#a05c48','#7a4636');
+    slab(ca-24, ca+24, H+52, H+60, -76, -124, '#b06a52');
+    for(let k=0;k<2;k++) cyl(ca-8+k*16, -100, H+60, H+74, 6, '#5a4038');
+    }
+    }
   }
 },
 {
-  name:'Driftwood Antiques', base:'Antiques', hood:'The Flats', edited:true, tall:true, ww: T2*6.6, dd: 340,
+  name:'Driftwood Antiques', base:'Antiques', hood:'The Flats', edited:true, sc:1.3, tall:true, ww: T2*6.6, dd: 340,
   wTodo:'three packing slots',
   head:'Triple-wide dealer: three deep windows under a long awning',
   tags:['three packing slots','two storeys','goods behind the glass','long scalloped awning','hanging chandelier','no pavement props'],
@@ -24189,10 +25283,29 @@ const TIDEWATER_MUSEUM = (() => {
       box(400, 520, -200, -140, H, H+26, '#8f969d','#787f86','#697077');
     }
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#5e7a82', trim = '#d8c9a4', H = 336, WW = T2*6.6, DD = 340;
+    slab(0, WW, H, H+14, -16, -1, shade(wall,.7));                 // the front parapet, from the roof side
+    rearBody(wall, trim, H, WW, DD, '#3f555c');
+    rearShutter(60, 260, 160, wall, DD);                       // the loading bay
+    rearDoor(360, wall, trim, DD);
+    for(const am of [120, 360, 520]) rearWindow(am-34, am+34, 220, 290, wall, DD);
+    downpipe(WW-8, H, '#8a9296', DD);
+    depthSort([
+      { a: 470, b: -DD-33, z: 0, draw: () => crateStack(470, '#a8875a', 3, DD, 30) },
+      { a: 520, b: -DD-33, z: 0, draw: () => crateStack(520, '#a8875a', 2, DD, 30) }
+    ]);
+    if(state.roof){
+    box(90, 210, -200, -140, H, H+26, '#8f969d','#787f86','#697077');
+    box(400, 520, -200, -140, H, H+26, '#8f969d','#787f86','#697077');
+    }
   }
 },
 {
-  name:'Tidewater Clocks', base:'Clockmaker', hood:'The Flats', edited:true, ww:196, tall:true,
+  name:'Tidewater Clocks', base:'Clockmaker', hood:'The Flats', edited:true, sc:1.3, ww:196, tall:true,
   head:'Two storeys, a big round clock, faces behind the glass',
   tags:['round clock','swept pediment','clocks in the window','brass palette','narrow'],
   desc:'The clock is round in the world rather than stretched by ZSCALE, built as a brass rim with a real dial and hands, and it stands proud of the wall instead of twelve units inside it. The window is a real recess with the stock ticking away behind the pane.',
@@ -24337,10 +25450,24 @@ const TIDEWATER_MUSEUM = (() => {
 
     if(state.roof) box(WW*0.24,WW*0.46,-150,-110,H,H+20,'#8f969d','#787f86','#697077');
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#2c5a6b', trim = '#c9a24a', H = 336, WW = 196;
+    slab(0, WW, H, H+10, -12, -1, shade(wall,1.4));                 // the front parapet, from the roof side
+    rearBody(wall, trim, H, WW, D, '#1f3f4a');
+    rearDoor(130, wall, trim);
+    for(const am of [60, 140]) rearWindow(am-24, am+24, 200, 270, wall);
+    downpipe(8, H, '#6d747c');
+    depthSort([
+      { a: 60, b: -D-32, z: 0, draw: () => wheelieBin(60, '#6d747c', 0) }
+    ]);
+    if(state.roof) box(WW*0.24,WW*0.46,-150,-110,H,H+20,'#8f969d','#787f86','#697077');
   }
 },
 {
-  name:'Seabreeze Fabrics', base:'Fabric shop', hood:'The Flats', edited:true, head:'One deep awning, bolt ends and rolls behind the glass',
+  name:'Seabreeze Fabrics', base:'Fabric shop', hood:'The Flats', edited:true, sc:1.3, head:'One deep awning, bolt ends and rolls behind the glass',
   tags:['deep window awning','rolls hanging in the window','bolt ends on shelves','clear doorway','no pavement props'],
   desc:'One real awning hood with an underside and returns over a deep window of shelved bolt ends and hanging rolls. Nothing on the footway and nothing over the door.',
   draw(p){
@@ -24555,10 +25682,24 @@ const TIDEWATER_MUSEUM = (() => {
        forecourt. */
     if(state.roof) box(W*0.32,W*0.58,-140,-100,H,H+20,'#8f969d','#787f86','#697077');
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#d98a7a', trim = '#f0e2d0', H = 158;
+    slab(0, W, H, H+10, 0, 4, trim);                    // the front cornice, from the roof side
+    rearBody(wall, trim, H, W, D, '#b8847a');
+    rearDoor(62, wall, trim);
+    rearWindow(130, 190, 80, 124, wall);
+    depthSort([
+      { a: 140, b: -D-33, z: 0, draw: () => crateStack(140, '#f0e2d0', 3, D, 20) },
+      { a: 196, b: -D-32, z: 0, draw: () => wheelieBin(196, '#6d747c', 0) }
+    ]);
+    if(state.roof) box(W*0.32,W*0.58,-140,-100,H,H+20,'#8f969d','#787f86','#697077');
   }
 },
 {
-  name:'Low Tide Music', base:'Music shop', hood:'The Flats', edited:true, head:'Guitars hung on the wall, piano behind the glass',
+  name:'Low Tide Music', base:'Music shop', hood:'The Flats', edited:true, sc:1.3, head:'Guitars hung on the wall, piano behind the glass',
   tags:['guitars hung on the wall','round bouts','upright piano behind glass','sheet racks','deep green'],
   desc:'The guitar bodies are round in the world rather than stretched by ZSCALE, laid out from the lower bout in true proportions, and they hang on the outside of the wall where a shop hangs its stock. The piano and the sheet racks are inside the window, nothing stands on the footway, and nothing sits over the door.',
   draw(p){
@@ -24674,10 +25815,23 @@ const TIDEWATER_MUSEUM = (() => {
 
     if(state.roof) box(W*0.28,W*0.52,-140,-100,H,H+20,'#8f969d','#787f86','#697077');
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#2f6a6b', trim = '#c9a24a', H = 224;
+    slab(0, W, H, H+10, 0, 4, trim);                    // the front cornice, from the roof side
+    rearBody(wall, trim, H, W, D, '#224a4b');
+    rearDoor(62, wall, '#3a3f44');
+    for(const am of [100, 170]) rearWindow(am-22, am+22, 150, 196, wall);
+    /* a flight case left out by the door */
+    box(120, 176, -D-50, -D-14, 0, 44, '#2b2f33', '#1e2226', '#14171a');
+    F(126, 170, 18, 26, '#c9a24a', null,0,-D-50.6);
+    if(state.roof) box(W*0.28,W*0.52,-140,-100,H,H+20,'#8f969d','#787f86','#697077');
   }
 },
 {
-  name:'Marina Chandlery', base:'Chandlery', hood:'The Flats', edited:true, place:'waterfront',
+  name:'Marina Chandlery', base:'Chandlery', hood:'The Flats', edited:true, sc:1.3, place:'waterfront',
   pTodo:'waterfront only -- the shore, boardwalk and pier exist in game/index.html; the chooser still places by block type',
   head:'Three portholes, anchor on the boarding, mast on the roof',
   tags:['waterfront only','round portholes','stepped mast','rigging lines','anchor sign','tarred boarding'],
@@ -24836,6 +25990,33 @@ const TIDEWATER_MUSEUM = (() => {
       box(W*0.66,W*0.88,-150,-116,H,H+18,'#8f969d','#787f86','#697077');
     }
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#24435a', trim = '#c9b48e', H = 200;
+    slab(0, W, H, H+10, 0, 4, trim);                    // the front cornice, from the roof side
+    rearBody(wall, trim, H, W, D, '#1f3548');
+    rearShutter(24, 140, 132, wall);
+    rearDoor(186, wall, trim);
+    /* rope coils and a fender on the step */
+    for(const [ca, cb] of [[60, -D-36], [96, -D-40]]) for(let k=0;k<4;k++) plateHoop(ca, cb, 3+k*5, 16-k, '#c9b48e', 3);
+    ball(150, -D-36, 18, 16, '#e2574c');
+    if(state.roof){
+    const ma = W*0.44, mb = -70;
+    box(ma-14, ma+14, mb-14, mb+14, H+10, H+18, '#8a7a58','#9a8a66','#786a4c');
+    cyl(ma, mb, H+18, H+90, 4, '#b8a880');
+    cyl(ma, mb, H+90, H+150, 2.6, '#c2b088');
+    tube(ma-26, mb, H+112, ma+26, mb, H+112, 2, '#b8a880');
+    const top = P(ma, mb, H+150);
+    ctx.strokeStyle='#b8a880'; ctx.lineWidth=1.6;
+    for(const [ra,rb] of [[W*0.06,-20],[W*0.86,-20],[ma,-190]]){
+    const foot = P(ra, rb, H+10);
+    ctx.beginPath(); ctx.moveTo(top.x,top.y); ctx.lineTo(foot.x,foot.y); ctx.stroke();
+    }
+    poly([P(ma+2,mb,H+150),P(ma+28,mb,H+142),P(ma+28,mb,H+126),P(ma+2,mb,H+132)], '#c2452e');
+    box(W*0.66,W*0.88,-150,-116,H,H+18,'#8f969d','#787f86','#697077');
+    }
   }
 },
 {
@@ -25108,6 +26289,11 @@ const TIDEWATER_MUSEUM = (() => {
       cyl(aa, bb, H+56, H+66, 18, '#9a9282');
       plateCircle(aa, bb, H+66, 18, '#a8a08e', '#7d7566', 2);
     }
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): this one stands in its own yard with a
+       way in from every street, so from behind it is itself turned round. */
+    turned(1048.8, 1048.8, () => this.draw(p));
   }
 },
 {
@@ -25269,10 +26455,39 @@ const TIDEWATER_MUSEUM = (() => {
       }
     }
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#6f8a92', trim = '#e8ddc8', H = 336, WW = 1048.8, DD = 620;
+    slab(0, WW, H, H+14, 0, 4, shade(wall,1.35));                    // the front cornice, from the roof side
+    rearBody(wall, trim, H, WW, DD, '#4f656c');
+    rearShutter(80, 360, 200, wall, DD);                       // paper rolls come in here
+    rearShutter(460, 740, 200, wall, DD);
+    rearDoor(880, wall, trim, DD);
+    for(const am of [140, 300, 520, 680, 900]) rearWindow(am-36, am+36, 250, 310, wall, DD);
+    downpipe(8, H, '#8a9296', DD); downpipe(WW-8, H, '#8a9296', DD);
+    depthSort([
+      { a: 200, b: -DD-40, z: 0, draw: () => { cyl(170, -DD-40, 0, 60, 28, '#e8e3d6'); cyl(230, -DD-40, 0, 60, 28, '#e8e3d6'); } },
+      { a: 980, b: -DD-32, z: 0, draw: () => wheelieBin(980, '#6d747c', 0, DD) }
+    ]);
+    if(state.roof){
+      
+    cyl(86, -120, H, H+180, 22, '#5a4038');
+    cyl(86, -120, H+180, H+196, 27, '#6a4c42');
+    plateCircle(86, -120, H+196, 27, '#7a5a4e', '#4e3730', 2);
+    for(const [ba, bb] of [[300, -150],[600, -110]]){
+    box(ba, ba+130, bb-70, bb, H, H+30, '#8f969d','#787f86','#697077');
+    for(const fa of [ba+34, ba+96]){
+    cyl(fa, bb-35, H+30, H+38, 20, '#7d838a');
+    plateCircle(fa, bb-35, H+38, 20, '#a8aeb4', '#6a7076', 2);
+    }
+    }
+    }
   }
 },
 {
-  name:'Sandpiper Shoes', base:'Shoe shop', hood:'The Flats', edited:true, ww: T2*4.4,
+  name:'Sandpiper Shoes', base:'Shoe shop', hood:'The Flats', edited:true, sc:1.3, ww: T2*4.4,
   wTodo:'two packing slots',
   head:'Modern sneaker store: full-width glazing, tiered shoe walls',
   tags:['two packing slots','full-width glazing','tiered shoe walls','bold banded fascia','glass entrance','bare footway'],
@@ -25489,10 +26704,32 @@ const TIDEWATER_MUSEUM = (() => {
       }
     }
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#e8e6e2', trim = '#24435a', H = 244, WW = T2*4.4;
+    rearBody(wall, trim, H, WW, D, '#2f4a5e');
+    rearParapet(0, WW, H, 10, 12, trim);
+    for(const am of [70, 200, 330]) rearWindow(am-26, am+26, 176, 206, wall);   // stockroom lights
+    rearDoor(122, wall, trim);
+    downpipe(8, H, '#8a9296');
+    depthSort([
+      { a: 262, b: -D-33, z: 0, draw: () => crateStack(262, '#b89468', 3, D, 20) },
+      { a: 302, b: -D-33, z: 0, draw: () => crateStack(302, '#b89468', 2, D, 20) },
+      { a: 360, b: -D-32, z: 0, draw: () => wheelieBin(360, '#2f6f8f') }
+    ]);
+    if(state.roof){
+      box(90, 210, -180, -120, H, H+28, '#8f969d','#787f86','#697077');
+      for(const fa of [124, 176]){
+        cyl(fa, -150, H+28, H+36, 18, '#7d838a');
+        plateCircle(fa, -150, H+36, 18, '#a8aeb4', '#6a7076', 2);
+      }
+    }
   }
 },
 {
-  name:'Palmline Surf Co.', base:'Surf shop', hood:'The Flats', edited:true, place:'waterfront', ww: T2*4.4, dd: 440,
+  name:'Palmline Surf Co.', base:'Surf shop', hood:'The Flats', edited:true, sc:1.3, place:'waterfront', ww: T2*4.4, dd: 440,
   wTodo:'two packing slots',
   pTodo:'waterfront only -- the shore, boardwalk and pier exist in game/index.html; the chooser still places by block type',
   head:'Two slots: an open frontage of boards, with the yard wrapping three sides',
@@ -25647,10 +26884,41 @@ const TIDEWATER_MUSEUM = (() => {
       }
     }
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#5fbcc4', trim = '#f4ecd6', H = 180, WW = T2*4.4, DD = 440;
+    const BA0 = 96, BA1 = 300, FB = 0, BB = -296, YW0 = 20, YW1 = WW - 20, YBK = -DD + 20, FH = 46;
+    T(YW0, YW1, YBK, BB, 0.5, '#c9b48e');                          // the sand yard behind the shop
+    T(BA0-6, BA1+6, BB-6, FB+6, H+10.4, '#2e7a80');
+    slab(BA0-6, BA1+6, H, H+10, BB-6, FB+6, trim);
+    { const o = P(0,FB,0), pa = P(1,FB,0);
+      S((pa.y - o.y) > 0 ? BA1 : BA0, BB, FB, 0, H, shade(wall,.72)); }
+    F(BA0, BA1, 0, H, shade(wall,.9), null, 0, BB);
+    F(BA0, BA1, 0, 20, shade(wall,.7), null, 0, BB-0.5);
+    /* the shop's rear wall is at BB; the yard behind it runs to -DD */
+    rearDoor((BA0+BA1)/2, wall, trim, -BB);
+    rearWindow(BA0+20, BA0+70, 90, 130, wall, -BB);
+    /* boards racked in the yard and the outdoor shower */
+    for(let i=0;i<4;i++){ const ba = BA1 - 30 - i*22;
+      box(ba-3, ba+3, BB-60, BB-20, 0, 150, ['#f4ecd6','#e8a13a','#e2748c','#7ac48a'][i], shade(['#f4ecd6','#e8a13a','#e2748c','#7ac48a'][i],.8), shade(['#f4ecd6','#e8a13a','#e2748c','#7ac48a'][i],.7)); }
+    cyl(BA0+30, BB-50, 0, 150, 3, '#b9bec4');
+    /* and the yard wall, nearest of all */
+    F(YW0, YW1, 0, FH, shade(wall,.82), null, 0, YBK);
+    slab(YW0, YW1, FH, FH+6, YBK, YBK+8, trim);
+
+    if(state.roof){
+    box(150, 236, -140, -86, H, H+26, '#8f969d','#787f86','#697077');
+    for(const [fa, fb] of [[172, -126],[214, -100]].sort((u,v) => (u[0]+u[1]) - (v[0]+v[1]))){
+    cyl(fa, fb, H+26, H+34, 17, '#7d838a');
+    plateCircle(fa, fb, H+34, 17, '#a8aeb4', '#6a7076', 2);
+    }
+    }
   }
 },
 {
-  name:'Breakwater Ironworks', base:'Forge', hood:'The Flats', edited:true, tall:true, ww: T2*6.6, dd: 420,
+  name:'Breakwater Ironworks', base:'Forge', hood:'The Flats', edited:true, sc:1.3, tall:true, ww: T2*6.6, dd: 420,
   wTodo:'three packing slots',
   head:'Triple-wide smithy: the fire, the hood and the anvil inside an open bay',
   tags:['three packing slots','open smithy bay','hood and stack','glowing hearth','round horseshoe','bare footway'],
@@ -25804,10 +27072,31 @@ const TIDEWATER_MUSEUM = (() => {
       box(380, 500, -220, -160, H, H+26, '#8f969d','#787f86','#697077');
     }
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#5a6a6e', trim = '#c9a24a', H = 280, WW = T2*6.6, DD = 420;
+    slab(0, WW, H, H+12, 0, 4, shade(wall,1.3));                    // the front cornice, from the roof side
+    rearBody(wall, trim, H, WW, DD, '#3f4b4f');
+    rearShutter(80, 300, 200, wall, DD);
+    rearDoor(420, wall, '#3a3f44', DD);
+    for(const am of [140, 420, 540]) rearWindow(am-34, am+34, 216, 260, wall, DD);
+    /* scrap and stock: a rack of bar and two drums */
+    for(let i=0;i<4;i++) box(340, 560, -DD-56, -DD-20, 4+i*8, 10+i*8, '#6d747c', '#5d646b', '#4a4f55');
+    depthSort([
+      { a: 60, b: -DD-34, z: 0, draw: () => yardDrum(60, 34, '#8a4f34', DD) }
+    ]);
+    if(state.roof){
+    cyl(120, -52, H, H+70, 22, '#3a332b');
+    cyl(120, -52, H+70, H+80, 27, '#463d33');
+    plateCircle(120, -52, H+80, 27, '#241d18', '#2f2922', 2);
+    box(380, 500, -220, -160, H, H+26, '#8f969d','#787f86','#697077');
+    }
   }
 },
 {
-  name:'Cove Rugs', base:'Carpet shop', hood:'The Flats', edited:true, head:'Rugs on a rail above head height, rolled stock behind the glass',
+  name:'Cove Rugs', base:'Carpet shop', hood:'The Flats', edited:true, sc:1.3, head:'Rugs on a rail above head height, rolled stock behind the glass',
   tags:['hanging rugs','round rail','rolled stock in the window','deep colour','bare footway'],
   desc:'The rail runs the full frontage on turned brackets with five rugs over it, hung high enough for a robot to pass under, and the rolled stock stands inside the window instead of on the paving.',
   draw(p){
@@ -25930,10 +27219,26 @@ const TIDEWATER_MUSEUM = (() => {
       plateCircle(W*0.38, -125, H+32, 15, '#a8aeb4', '#6a7076', 2);
     }
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#3f6f86', trim = '#e0c88a', H = 216, railZ = 146, railB = 26;
+    slab(0, W, H, H+10, 0, 4, shade(wall,.7));                    // the front cornice, from the roof side
+    rearBody(wall, trim, H, W, D, '#2f5566');
+    rearDoor(62, wall, trim);
+    rearWindow(130, 190, 120, 170, wall);
+    /* rolled rugs leaning on the wall */
+    for(const [ra, col] of [[130, '#c2452e'], [148, '#3f6f86'], [166, '#c9a24a']]) cyl(ra, -D-12, 0, 110, 8, col);
+    if(state.roof){
+    box(W*0.30, W*0.58, -150, -100, H, H+24, '#8f969d','#787f86','#697077');
+    cyl(W*0.38, -125, H+24, H+32, 15, '#7d838a');
+    plateCircle(W*0.38, -125, H+32, 15, '#a8aeb4', '#6a7076', 2);
+    }
   }
 },
 {
-  name:'Gull Loft', base:'Pigeon loft', hood:'The Flats', edited:true,
+  name:'Gull Loft', base:'Pigeon loft', hood:'The Flats', edited:true, sc:1.3,
   gTodo:'spawn the game\'s own pigeons on this shop -- landing board at b -50..+16, z H+18..H+26, a W*0.19..W*0.73; ridge at z H+104; five pop-holes on the loft face at b -50',
   head:'Feed shop below, timber loft on the roof',
   tags:['rooftop loft','landing board','pop-holes','feed behind the glass','timber'],
@@ -26056,10 +27361,41 @@ const TIDEWATER_MUSEUM = (() => {
 
     }
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#b9ae98', trim = '#4d6a86', H = 168;
+    slab(0, W, H, H+10, 0, 4, trim);                    // the front cornice, from the roof side
+    rearBody(wall, trim, H, W, D, '#8f887a');
+    rearDoor(62, wall, trim);
+    rearWindow(130, 190, 80, 124, wall);
+    /* the loft ladder up the back */
+    for(const la of [150, 176]) F(la-2, la+2, 0, H, '#6d5a44', null,0,-D-10);
+    for(let z=16; z<H; z+=18) F(150, 176, z-2, z, '#6d5a44', null,0,-D-10.4);
+    if(state.roof){
+    const l0 = W*0.16, l1 = W*0.76, b0 = -150, b1 = -50;
+    F(l0,l1, H+10, H+72, '#a8916a', shade(wall,.6), 2, b1);
+    S(l1, b0, b1, H+10, H+72, '#8f7b58');
+    poly([P(l0-8,b1+10,H+72),P(l1+8,b1+10,H+72),P(l1+8,(b0+b1)/2,H+104),P(l0-8,(b0+b1)/2,H+104)], '#5a4a34');
+    poly([P(l0-8,(b0+b1)/2,H+104),P(l1+8,(b0+b1)/2,H+104),P(l1+8,b0-8,H+72),P(l0-8,b0-8,H+72)], '#6a5840');
+    slab(l0-10, l1+10, H+104, H+111, (b0+b1)/2+7, (b0+b1)/2-7, '#4a3c2a');
+    poly([P(l1+8,b1+10,H+72),P(l1+8,(b0+b1)/2,H+104),P(l1+8,b0-8,H+72)], shade('#8f7b58',.86));
+    for(let i=0;i<5;i++)
+    slab(l0+10+i*((l1-l0-20)/5), l0+10+(i+0.62)*((l1-l0-20)/5), H+30, H+54, b1-1, b1-7, '#3a2f22');
+    poly([P(l0+6,b1,H+26),P(l1-6,b1,H+26),P(l1-6,b1+66,H+18),P(l0+6,b1+66,H+18)], '#a8916a');
+    poly([P(l0+6,b1+66,H+18),P(l1-6,b1+66,H+18),P(l1-6,b1+66,H+12),P(l0+6,b1+66,H+12)], '#8f7b58');
+    for(const aa of [l0+14, l1-14]){
+    poly([P(aa-3,b1,H+26),P(aa+3,b1,H+26),P(aa+3,b1+60,H+19),P(aa-3,b1+60,H+19)], '#8f7b58');
+    poly([P(aa-3,b1,H+8),P(aa-3,b1,H+26),P(aa-3,b1+50,H+20)], shade('#8f7b58',.8));
+    }
+      
+
+    }
   }
 },
 {
-  name:'Seabreeze Dance', base:'Dance studio', hood:'The Flats', edited:true, tall:true,
+  name:'Seabreeze Dance', base:'Dance studio', hood:'The Flats', edited:true, sc:1.3, tall:true,
   head:'Studio over a lobby: mirror wall and barre behind the upper glass',
   tags:['two storeys','mirror wall','tube barre','tall upper glazing','stair inside','bare footway'],
   desc:'The studio is upstairs behind one long window with the mirror wall, the barre on real brackets and the sprung floor visible through it, and the stair that reaches it runs inside the building instead of up the neighbour\'s wall.',
@@ -26181,10 +27517,22 @@ const TIDEWATER_MUSEUM = (() => {
 
     if(state.roof) box(W*0.26,W*0.52,-150,-110,H,H+22,'#8f969d','#787f86','#697077');
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#bfe0dc', trim = '#2f6f7a', H = 336;
+    slab(0, W, H, H+12, 0, 4, trim);                    // the front cornice, from the roof side
+    rearBody(wall, trim, H, W, D, '#93b3b0');
+    rearDoor(170, wall, trim);
+    for(const am of [60, 160]) rearWindow(am-34, am+34, 196, 290, wall);    // the studio's tall windows
+    acUnit(76, 60);
+    downpipe(8, H, '#8a9296');
+    if(state.roof) box(W*0.26,W*0.52,-150,-110,H,H+22,'#8f969d','#787f86','#697077');
   }
 },
 {
-  name:'Kelp & Ink', base:'Tattoo parlour', hood:'The Flats', edited:true, tall:true,
+  name:'Kelp & Ink', base:'Tattoo parlour', hood:'The Flats', edited:true, sc:1.3, tall:true,
   head:'TATTOO in yellow under a neon run, flash behind the glass',
   tags:['block letters as prisms','neon as tubes','framed flash sheets','black render','yellow on black'],
   desc:'The word is built from extruded bars standing proud of the fascia, so the letters have a top and a side and keep their thickness at any zoom, and the flash sheets hang inside the shop behind real glass.',
@@ -26407,10 +27755,25 @@ const TIDEWATER_MUSEUM = (() => {
 
     if(state.roof) box(W*0.30,W*0.56,-150,-108,H,H+22,'#8f969d','#787f86','#697077');
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#1c3440', trim = '#e2574c', H = 200;
+    slab(0, W, H, H+12, 0, 4, shade(wall,2.2));                    // the front cornice, from the roof side
+    rearBody(wall, trim, H, W, D, '#1a2c36');
+    rearDoor(170, wall, '#3a3f44');
+    rearWindow(30, 76, 90, 130, wall);
+    F(34, 72, 94, 126, 'rgba(230,235,240,.4)', null,0,-D-1.2);
+    extractor(116, 150, 10);
+    depthSort([
+      { a: 200, b: -D-32, z: 0, draw: () => wheelieBin(200, '#6d747c', 0) }
+    ]);
+    if(state.roof) box(W*0.30,W*0.56,-150,-108,H,H+22,'#8f969d','#787f86','#697077');
   }
 },
 {
-  name:'Sandcastle Models', base:'Model shop', hood:'The Flats', edited:true, head:'Biplane on a bracket, kites in the window, glazing-bar grid',
+  name:'Sandcastle Models', base:'Model shop', hood:'The Flats', edited:true, sc:1.3, head:'Biplane on a bracket, kites in the window, glazing-bar grid',
   tags:['biplane as one extruded solid','banked wings','kites behind the glass','glazing bar grid','bright'],
   desc:'The biplane is one extruded outline -- nose taper, cockpit notch, headrest and fin all cut from the same loop -- hung from a bracket that actually reaches the top wing, holding a bank, with the far wing halves, struts and tailplane drawn before the body and the near halves after it. The kites hang inside the window recess where the stock lives, and the tiny panes are glazing bars in front of one real sheet rather than fifteen painted rectangles.',
   draw(p){
@@ -26606,6 +27969,19 @@ const TIDEWATER_MUSEUM = (() => {
 
     if(state.roof) box(W*0.60,W*0.86,-150,-110,H,H+20,'#8f969d','#787f86','#697077');
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#e8dcc0', trim = '#2f5f8a', iron = '#8d979f', H = 160;
+    slab(0, W, H, H+10, -12, -1, trim);                 // the front parapet, from the roof side
+    rearBody(wall, trim, H, W, D, '#b3a88f');
+    rearDoor(62, wall, trim);
+    rearWindow(130, 196, 70, 126, wall);                        // the workshop bench sits under this
+    depthSort([
+      { a: 150, b: -D-33, z: 0, draw: () => crateStack(150, '#c9a877', 2, D, 20) }
+    ]);
+    if(state.roof) box(W*0.60,W*0.86,-150,-110,H,H+20,'#8f969d','#787f86','#697077');
   }
 },
 {
@@ -26891,6 +28267,11 @@ const TIDEWATER_MUSEUM = (() => {
       if(state.props) for(let x = r0+26; x < r1-18; x += 54)
         ball(x, -16, 24, 16, ['#4e8058','#568a5e','#3f6b4a'][Math.round(x/54)%3]);
     }
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): this one stands in its own yard with a
+       way in from every street, so from behind it is itself turned round. */
+    turned(1048.8, 1048.8, () => this.draw(p));
   }
 },
 {
@@ -27140,6 +28521,11 @@ const TIDEWATER_MUSEUM = (() => {
       if(state.props) for(let x = r0+26; x < r1-18; x += 54)
         ball(x, -15, 24, 15, ['#4e8058','#568a5e','#3f6b4a'][Math.round(x/54)%3]);
     }
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): this one stands in its own yard with a
+       way in from every street, so from behind it is itself turned round. */
+    turned(1048.8, 1048.8, () => this.draw(p));
   }
 },
 {
@@ -27339,6 +28725,30 @@ const TIDEWATER_MUSEUM = (() => {
       }
     }
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#e9e1cf', trim = '#3f7f95', iron = '#3c3a36';
+    const WW = 1048.8, DD = 620, H = 350;
+    rearBody(wall, trim, H, WW, DD, '#6a7076');
+    /* the service side of a big building: floors of plain windows, the
+       staff and goods doors, and the plant */
+    for(let f=0; f<6; f++) for(let c=0; c<7; c++){
+      const am = 90 + c*(WW-180)/(7-1), z0 = 150 + f*82;
+      if(z0 + 60 < H - 20) rearWindow(am-30, am+30, z0, z0+60, wall, DD);
+    }
+    rearShutter(120, 280, 120, wall, DD);
+    rearDoor(850, wall, trim, DD);
+    downpipe(8, H, '#8a9296', DD); downpipe(WW-8, H, '#8a9296', DD);
+    acUnit(360, 30, DD); acUnit(710, 30, DD);
+    depthSort([ { a: 920, b: -DD-32, z: 0, draw: () => wheelieBin(920, '#6d747c', 0, DD) }, { a: 960, b: -DD-32, z: 0, draw: () => wheelieBin(960, '#3f6b4a', 0, DD) } ]);
+    if(state.roof){
+    for(const ca of [150, 430, 700, 950]){
+    box(ca-22, ca+22, -300, -240, H, H+52, '#9aa0a6','#7d838a','#6a7076');
+    for(const cb of [-288, -252]) cyl(ca-10, cb, H+52, H+64, 5, '#5e646b');
+    }
+    }
   }
 },
 {
@@ -27587,6 +28997,27 @@ const TIDEWATER_MUSEUM = (() => {
       cyl(940, -260, H, H+40, 6, '#6d747c');
     }
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#dfe1e3', trim = '#3a4046', band = '#2f9e8f', iron = '#8d949a';
+    const WW = 1048.8, DD = 620, H = 350;
+    rearBody(wall, trim, H, WW, DD, '#6a7076');
+    /* the workshop end: service bays and the parts door */
+    rearShutter(80, 300, 180, wall, DD); rearShutter(360, 580, 180, wall, DD);
+    rearDoor(760, wall, trim, DD);
+    for(const am of [160, 440, 760, 940]) rearWindow(am-40, am+40, 240, 300, wall, DD);
+    downpipe(8, H, '#8a9296', DD); downpipe(WW-8, H, '#8a9296', DD);
+    depthSort([
+      { a: 880, b: -DD-30, z: 0, draw: () => yardDrum(880, 30, '#2f6f8f', DD) },
+      { a: 920, b: -DD-34, z: 0, draw: () => yardDrum(920, 34, '#c2452e', DD) }
+    ]);
+    if(state.roof){
+    for(const ca of [180, 470, 760])
+    box(ca-40, ca+40, -300, -230, H, H+30, '#9aa0a6','#7d838a','#6a7076');
+    cyl(940, -260, H, H+40, 6, '#6d747c');
+    }
   }
 },
 {
@@ -27826,10 +29257,75 @@ const TIDEWATER_MUSEUM = (() => {
       depthSort(roofItems);
     }
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#ece6d8', trim = '#2c4a6b', iron = '#8d979f';
+    const WW = 1048.8, DD = 620, H = 490;
+    const glassT = 'rgba(112,140,158,.84)', showT = 'rgba(134,166,184,.34)';
+    rearBody(wall, trim, H, WW, DD, '#5f666c');
+    /* the service side of a big building: floors of plain windows, the
+       staff and goods doors, and the plant */
+    for(let f=0; f<6; f++) for(let c=0; c<7; c++){
+      const am = 90 + c*(WW-180)/(7-1), z0 = 150 + f*82;
+      if(z0 + 60 < H - 20) rearWindow(am-30, am+30, z0, z0+60, wall, DD);
+    }
+    rearShutter(180, 340, 120, wall, DD);
+    rearDoor(780, wall, trim, DD);
+    downpipe(8, H, '#8a9296', DD); downpipe(WW-8, H, '#8a9296', DD);
+    acUnit(420, 30, DD); acUnit(640, 30, DD);
+    depthSort([ { a: 850, b: -DD-32, z: 0, draw: () => wheelieBin(850, '#6d747c', 0, DD) }, { a: 890, b: -DD-32, z: 0, draw: () => wheelieBin(890, '#3f6b4a', 0, DD) } ]);
+    if(state.roof){
+      
+    const turret = (ta, tb) => {
+    const DR = 46;
+    cyl(ta, tb, H+1,   H+26,  DR+6, shade(wall,.86));
+    cyl(ta, tb, H+26,  H+104, DR,   shade(wall,1.04));
+        
+    const onDrum = (da, inset) => tb + Math.sqrt(Math.max(0, DR*DR - da*da)) - inset;
+    for(let i=0;i<3;i++){
+    const da = -26 + i*26, bb = onDrum(da, 2);
+    F(ta+da-8, ta+da+8, H+44, H+88, glassT, null, 0, bb);
+    F(ta+da-10, ta+da+10, H+88, H+93, shade(wall,.80), null, 0, bb+0.6);
+    }
+    for(let i=0;i<4;i++){
+    const da = -39 + i*26, bb = onDrum(da, 1);
+    F(ta+da-3, ta+da+3, H+30, H+100, shade(wall,1.14), null, 0, bb);
+    }
+    cyl(ta, tb, H+104, H+116, DR+7, trim);
+        
+    { const N = 30, DH = 60, z0 = H+116, prof = t => Math.pow(Math.cos(Math.PI/2*t), 0.55);
+    for(let i=0;i<=N;i++)
+    plateCircle(ta, tb, z0 + DH*i/N, (DR+5)*prof(i/N), shade(trim, 1 + i*0.011)); }
+    cyl(ta, tb, H+176, H+200, 12, shade(wall,1.06));
+    plateCircle(ta, tb, H+200, 13, shade(trim,1.1), shade(trim,.8), 1.5);
+    { const N = 16, SH = 40, z0 = H+200;
+    for(let i=0;i<=N;i++)
+    plateCircle(ta, tb, z0 + SH*i/N, 9*(1 - i/N), shade('#c9a24a', 1 + i*0.012)); }
+    ball(ta, tb, H+244, 5.5, shade('#c9a24a',1.2));
+    };
+    const flag = (fa, fb, col) => {
+    cyl(fa, fb, H+18, H+96, 3, '#c9ccd0');
+    poly([P(fa+2,fb,H+96),P(fa+38,fb,H+86),P(fa+38,fb,H+64),P(fa+2,fb,H+72)], col);
+    };
+    const plant = (ra, rb) => box(ra-46, ra+46, rb-35, rb+35, H, H+30,
+    '#8f969d','#787f86','#697077');
+    const IN = 84, roofItems = [];
+    for(const [ta, tb] of [[WW-IN,-IN],[IN,-IN],[IN,-DD+IN],[WW-IN,-DD+IN]])
+    roofItems.push({ a:ta, b:tb, z:0, draw:() => turret(ta, tb) });
+    ['#7a3b46','#c9a24a','#3f6b6b','#4a4f6b'].forEach((c,i) => {
+    const fa = 260 + i*180;
+    roofItems.push({ a:fa, b:-34, z:0, draw:() => flag(fa, -34, c) });
+    });
+    for(const [ra, rb] of [[420,-300],[700,-300]])
+    roofItems.push({ a:ra, b:rb, z:0, draw:() => plant(ra, rb) });
+    depthSort(roofItems);
+    }
   }
 },
 {
-  name:'Seawall Chambers', base:'Chambers', hood:'The Flats', edited:true, tall:true,
+  name:'Seawall Chambers', base:'Chambers', hood:'The Flats', edited:true, sc:1.3, tall:true,
   cTodo:'the area railing is a volume: a 10..120 at b 8..12, on the property line rather than out on the footway',
   head:'Four storeys of sash windows, brass plaques, area railing',
   tags:['terrace unit','sash windows in real reveals','brass plaques proud of the wall','stone cills','area railing on the line'],
@@ -27947,6 +29443,24 @@ const TIDEWATER_MUSEUM = (() => {
         cyl(ca, -129, H+62, H+80, 5, '#4a4038');
     }
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#dcd6c8', trim = '#2c4a6b', H = 450;
+    slab(0, W, H, H+14, -16, -1, shade(wall,.72));                 // the front parapet, from the roof side
+    rearBody(wall, trim, H, W, D, '#8f969a');
+    for(let f=0; f<4; f++) for(const am of [60, 170]) rearWindow(am-22, am+22, 90 + f*90, 146 + f*90, wall);
+    rearDoor(115, wall, trim);
+    downpipe(8, H, '#8a9296');
+    depthSort([
+      { a: 196, b: -D-32, z: 0, draw: () => wheelieBin(196, '#6d747c', 0) }
+    ]);
+    if(state.roof){
+    box(W*0.18, W*0.44, -150, -108, H+14, H+62, '#8a7a6a','#75665a','#645749');
+    for(const ca of [W*0.22, W*0.31, W*0.40])
+    cyl(ca, -129, H+62, H+80, 5, '#4a4038');
+    }
   }
 },
 {
@@ -28155,10 +29669,34 @@ const TIDEWATER_MUSEUM = (() => {
       for(const ca of [200, 860]) cyl(ca, -300, MZ, MZ+58, 4, '#c9ccd0');
     }
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#f2ede2', trim = '#1f5f7a', gold = '#c9a24a', slate = '#4a5058';
+    const WW = 1048.8, DD = 620, H = 600;
+    const MN = -52, MZ = H+92, HIP = 52;
+    rearBody(wall, trim, H, WW, DD, shade(slate,.70));
+    /* the service side of a big building: floors of plain windows, the
+       staff and goods doors, and the plant */
+    for(let f=0; f<6; f++) for(let c=0; c<8; c++){
+      const am = 90 + c*(WW-180)/(8-1), z0 = 150 + f*82;
+      if(z0 + 60 < H - 20) rearWindow(am-30, am+30, z0, z0+60, wall, DD);
+    }
+    rearShutter(220, 380, 120, wall, DD);
+    rearDoor(740, wall, trim, DD);
+    downpipe(8, H, '#8a9296', DD); downpipe(WW-8, H, '#8a9296', DD);
+    acUnit(460, 30, DD); acUnit(600, 30, DD);
+    depthSort([ { a: 810, b: -DD-32, z: 0, draw: () => wheelieBin(810, '#6d747c', 0, DD) }, { a: 850, b: -DD-32, z: 0, draw: () => wheelieBin(850, '#3f6b4a', 0, DD) } ]);
+    if(state.roof){
+    for(const [ra, rb] of [[320,-300],[720,-300]])
+    box(ra-48, ra+48, rb-36, rb+36, MZ, MZ+32, '#8f969d','#787f86','#697077');
+    for(const ca of [200, 860]) cyl(ca, -300, MZ, MZ+58, 4, '#c9ccd0');
+    }
   }
 },
 {
-  name:'Driftwood Lofts', base:'Warehouse loft', hood:'The Flats', edited:true, tall:true,
+  name:'Driftwood Lofts', base:'Warehouse loft', hood:'The Flats', edited:true, sc:1.3, tall:true,
   head:'Stacked loading doors, brick piers, set out around the door',
   tags:['3 storey','stacked loading doors','brick piers','set out around the door'],
   desc:'Brick piers running the full height with the loading doors stacked in the middle bay, set out from the door backwards so the one opening with a fixed width gets its room before anything else does.',
@@ -28269,10 +29807,27 @@ const TIDEWATER_MUSEUM = (() => {
       cyl(W*0.40, -132, H, H+46, 7, '#6d747c');
     }
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#a89f90', trim = '#4a3a30', H = 460;
+    slab(0, W, H, H+14, -16, -1, shade(wall,.66));                 // the front parapet, from the roof side
+    rearBody(wall, trim, H, W, D, '#6f6a60');
+    for(let f=0; f<4; f++) for(const am of [60, 170]) rearWindow(am-26, am+26, 110 + f*90, 172 + f*90, wall);
+    rearDoor(115, wall, '#3a3f44');
+    /* a fire escape: landings and a ladder */
+    for(let f=1; f<4; f++) slab(30, 200, 100 + f*90, 106 + f*90, -D-40, -D, '#3a3f44');
+    for(const la of [34, 196]) F(la-2, la+2, 190, 380, '#3a3f44', null,0,-D-40);
+    if(state.roof){
+    box(W*0.10, W*0.30, -170, -130, H, H+22, '#8f969d','#787f86','#697077');
+    box(W*0.52, W*0.74, -150, -112, H, H+30, '#8f969d','#787f86','#697077');
+    cyl(W*0.40, -132, H, H+46, 7, '#6d747c');
+    }
   }
 },
 {
-  name:'Seabreeze Library', base:'Library', hood:'The Flats', edited:true, tall:true,
+  name:'Seabreeze Library', base:'Library', hood:'The Flats', edited:true, sc:1.3, tall:true,
   head:'Tall arched reading-room windows over a stone doorcase, nothing on the footway',
   tags:['2 storey','swept arch heads','proud pilasters','stone doorcase'],
   desc:'Arched reading-room windows in real reveals with swept voussoir heads, pilasters standing proud between them, and a stone doorcase round the one opening whose width is not ours to choose.',
@@ -28384,6 +29939,20 @@ const TIDEWATER_MUSEUM = (() => {
       cyl(W*0.66, -140, H, H+40, 7, '#6d747c');
     }
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#d2cbb8', trim = '#3f6f86', H = 360;
+    slab(0, W, H, H+14, -16, -1, shade(wall,.74));                 // the front parapet, from the roof side
+    rearBody(wall, trim, H, W, D, '#9da6a4');
+    for(let f=0; f<3; f++) for(const am of [56, 115, 174]) rearWindow(am-18, am+18, 110 + f*90, 170 + f*90, wall);
+    rearDoor(170, wall, trim);
+    downpipe(8, H, '#8a9296');
+    if(state.roof){
+    box(W*0.24, W*0.48, -160, -120, H, H+22, '#8f969d','#787f86','#697077');
+    cyl(W*0.66, -140, H, H+40, 7, '#6d747c');
+    }
   }
 },
 {
@@ -28850,7 +30419,7 @@ const TIDEWATER_MUSEUM = (() => {
   }
 },
 {
-  name:'The Tide Gazette', base:'Newspaper HQ', hood:'The Flats', edited:true, tall:true, ww: T2*6.6, dd: 460,
+  name:'The Tide Gazette', base:'Newspaper HQ', hood:'The Flats', edited:true, sc:1.3, tall:true, ww: T2*6.6, dd: 460,
   wTodo:'three packing slots -- the Fire station tier; the packer emits no wide slot yet',
   head:'Three slots: counter, entrance, two van bays, headline band, globe',
   tags:['3 slots','globe on a frame','running headline band','two van bays','round clock'],
@@ -28990,10 +30559,45 @@ const TIDEWATER_MUSEUM = (() => {
       ctx.beginPath(); ctx.ellipse(c2.x,c2.y,13*K,9*K,-0.2,0,7); ctx.fill();
     }
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#2f4f63', trim = '#e8ddc8', H = 420;
+    const WW = T2*6.6, DD = 460, glassT = 'rgba(127,147,168,.88)';
+    slab(0, WW, H, H+12, -14, -1, shade(wall,1.35));                 // the front parapet, from the roof side
+    rearBody(wall, trim, H, WW, DD, shade(wall,1.06));
+    rearShutter(60, 300, 200, wall, DD);                        // the press hall's loading door
+    rearDoor(420, wall, trim, DD);
+    for(let f=0; f<2; f++) for(const am of [100, 250, 420, 540]) rearWindow(am-34, am+34, 250 + f*80, 300 + f*80, wall, DD);
+    downpipe(8, H, '#8a9296', DD);
+    depthSort([ { a: 520, b: -DD-33, z: 0, draw: () => crateStack(520, '#e8e3d6', 3, DD, 16) } ]);
+    if(state.roof){
+      
+    box(WW*0.10,WW*0.24,-300,-230,H,H+22,'#8f969d','#787f86','#697077');
+    box(WW*0.74,WW*0.90,-300,-230,H,H+26,'#8f969d','#787f86','#697077');
+    const ga = WW*0.50, gb = -120;
+    for(const aa of [ga-34, ga+34]){
+    cyl(aa, gb, H+12, H+52, 4, '#8d979f');
+    tube(aa, gb, H+50, ga, gb, H+30, 1.6, '#8d979f');
+    }
+    slab(ga-38, ga+38, H+48, H+56, gb+8, gb-8, '#8d979f');
+    ball(ga, gb, H+108, 48, '#2f6f8f', '#3f86a8');
+    for(let k=0;k<3;k++)
+    faceCircle(ga, gb, H+108, 48*Math.sin(0.6+k*0.5), null, 'rgba(143,196,216,.8)', 2);
+    for(let k=-1;k<=1;k++)
+        
+    plateCircle(ga, gb, H+108+k*24, 48*Math.cos(Math.abs(k)*0.55), null, 'rgba(143,196,216,.7)', 2);
+    ctx.fillStyle='#4e9a5a';
+    const c1=P(ga-14,gb,H+116);
+    ctx.beginPath(); ctx.ellipse(c1.x,c1.y,17*K,12*K,0.3,0,7); ctx.fill();
+    const c2=P(ga+18,gb,H+94);
+    ctx.beginPath(); ctx.ellipse(c2.x,c2.y,13*K,9*K,-0.2,0,7); ctx.fill();
+    }
   }
 },
 {
-  name:'The Flats Police', base:'Police station', hood:'The Flats', edited:true, tall:true,
+  name:'The Flats Police', base:'Police station', hood:'The Flats', edited:true, sc:1.3, tall:true,
   cTodo:'the entrance steps are volumes: a 78..152 at b 0..22, on the line under the doorcase',
   head:'Chequer band, barred ground floor, mast',
   tags:['chequer band','round bars in the reveal','entrance steps','radio mast','3 storey'],
@@ -29116,6 +30720,26 @@ const TIDEWATER_MUSEUM = (() => {
       }
     }
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#d8d2c4', trim = '#2f3a4a', H = 450;
+    slab(0, W, H, H+12, -14, -1, shade(wall,.7));                 // the front parapet, from the roof side
+    rearBody(wall, trim, H, W, D, '#8f969a');
+    for(let f=0; f<4; f++) for(const am of [60, 170]) rearWindow(am-20, am+20, 110 + f*80, 160 + f*80, wall);
+    rearDoor(115, wall, '#2f3a4a');
+    F(94, 136, 158, 168, '#2f5fb8', null,0,-D-0.8);           // blue lamp over the yard door
+    downpipe(W-6, H, '#8a9296');
+    if(state.roof){
+    box(W*0.56,W*0.84,-160,-116,H,H+26,'#8f969d','#787f86','#697077');
+    box(W*0.22, W*0.30, -78, -62, H+12, H+18, '#9aa0a6','#8d949a','#7d848a');
+    cyl(W*0.26, -70, H+18, H+140, 2.4, '#c3c8cc');
+    for(let k=0;k<3;k++){
+    const z = H+118-k*26, half = 8+k*5;
+    tube(W*0.26-half, -70, z, W*0.26+half, -70, z, 1.3, '#c3c8cc');
+    }
+    }
   }
 },
 {
@@ -29447,7 +31071,7 @@ const TIDEWATER_MUSEUM = (() => {
   }
 },
 {
-  name:'Marina Office', base:'Harbour office', hood:'The Flats', edited:true, tall:true, ww: T2*6.6, dd: 340,
+  name:'Marina Office', base:'Harbour office', hood:'The Flats', edited:true, sc:1.3, tall:true, ww: T2*6.6, dd: 340,
   wTodo:'three packing slots -- the Fire station tier; the packer emits no wide slot yet',
   head:'Three slots of window and door, cupola lookout over, nothing on the footway',
   tags:['3 slots','glazed cupola','weathervane','harbour board','nothing on the footway'],
@@ -29580,6 +31204,36 @@ const TIDEWATER_MUSEUM = (() => {
       ball(ca, cb, H+188, 4, '#c9a24a');
     }
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#d8d2c0', trim = '#2f5a6b', H = 420;
+    const WW = T2*6.6, DD = 340, glassT = 'rgba(106,138,152,.88)';
+    slab(0, WW, H, H+12, -14, -1, trim);                 // the front parapet, from the roof side
+    rearBody(wall, trim, H, WW, DD, '#9aa6a8');
+    for(let f=0; f<3; f++) for(const am of [90, 230, 380, 520]) rearWindow(am-40, am+40, 120 + f*96, 180 + f*96, wall, DD);
+    rearDoor(300, wall, trim, DD);
+    downpipe(8, H, '#8a9296', DD); downpipe(WW-8, H, '#8a9296', DD);
+    acUnit(160, 40, DD); acUnit(440, 40, DD);
+    if(state.roof){
+      
+    box(WW*0.07, WW*0.23, -300, -240, H, H+20, '#8f969d','#787f86','#697077');
+    const ca = WW*0.50, cb = -110;
+    slab(ca-50, ca+50, H+12, H+24, cb+50, cb-50, shade(wall,1.04), shade(wall,.8));
+    cyl(ca, cb, H+24, H+96, 38, 'rgba(160,196,206,.7)');
+    for(let k=0;k<6;k++){
+    const t = 3*Math.PI/4 - Math.PI*k/5;
+    cyl(ca + 38*Math.cos(t), cb + 38*Math.sin(t), H+24, H+96, 2.4, trim);
+    }
+    plateCircle(ca, cb, H+96, 42, shade(trim,1.1), shade(trim,.8), 2);
+    poly([P(ca-50,cb+50,H+96),P(ca+50,cb+50,H+96),P(ca,cb,H+148)], trim);
+    poly([P(ca+50,cb+50,H+96),P(ca+50,cb-50,H+96),P(ca,cb,H+148)], shade(trim,.76));
+    cyl(ca, cb, H+148, H+184, 2.4, '#c9a24a');
+    tube(ca-18, cb, H+184, ca+18, cb, H+184, 1.8, '#c9a24a');
+    poly([P(ca+5,cb,H+193),P(ca+30,cb,H+184),P(ca+5,cb,H+175)], '#c9a24a');
+    ball(ca, cb, H+188, 4, '#c9a24a');
+    }
   }
 },
 {
@@ -29934,23 +31588,28 @@ const TIDEWATER_MUSEUM = (() => {
     },
     _enter(shop, G, k, flank){
       K = k || 1;
+      SC = shop.sc || 1;
       ZSCALE = shop.zs === undefined ? 1.5 : shop.zs;
       FLANK_RIGHT = flank === undefined ? true : !!flank;
       SHOP_SLOT = { G };
       state.part = null; state.partW = null;
     },
-    draw(name, g, G, pal, k, part, flank){
+    /* rear -- the edge's glass faces away from the camera. An entry with
+       back() draws its rear elevation there (THE REAR KIT); one without
+       still draws its front, as before. */
+    draw(name, g, G, pal, k, part, flank, rear){
       const shop = BY_NAME.get(name);
       if(!shop) return false;
       if(!ctx) ctx = makeCtx2Phaser();
       K = k || 1;
+      SC = shop.sc || 1;
       ZSCALE = shop.zs === undefined ? 1.5 : shop.zs;
       FLANK_RIGHT = flank === undefined ? true : !!flank;
       SHOP_SLOT = { G };
       state.part = part ? part.part : null;
       state.partW = part ? (part.w || null) : null;
       ctx.__bind(g);
-      try { shop.draw(pal || PAL[0]); }
+      try { (rear && shop.back ? shop.back : shop.draw).call(shop, pal || PAL[0]); }
       finally { SHOP_SLOT = null; state.part = null; state.partW = null; }
       return true;
     }
@@ -35115,9 +36774,9 @@ class WorldScene extends Phaser.Scene {
            0 at the glass and negative into the block, which is +rv*b
            because rv points out of it. */
         const lib = u.shop.lib;
-        this.queueUnitStrips(vq, ux, uy, e.dv, e.rv, u.w, Math.max(STORE_DEPTH, (LIB.get(lib) || {}).dd || 0), 0, (g) => {
+        this.queueUnitStrips(vq, ux, uy, e.dv, e.rv, u.w, Math.max(STORE_DEPTH, hoodShopD(lib)), 0, (g) => {
           LIB.draw(lib, g, (a, b, h) => this.W(ux + e.dv.x*a + e.rv.x*b, uy + e.dv.y*a + e.rv.y*b, h),
-                   null, this.K, null, flank);
+                   null, this.K, null, flank, (e.rv.x + e.rv.y) < 0);
         });
         return;
       }
