@@ -9481,7 +9481,10 @@ const SHOPS = [
     const CA0 = 1*BLK + 900, CA1 = 1*BLK + 1500, CB0 = -1*BLK - 900, CB1 = -1*BLK - 1450, CH = 250;
 
     /* ---- the ground, cell by cell, with the swallowed streets ---- */
-    T(0, 4*BLK, -5*BLK, 0, 0.3, '#b3a894');
+    /* NO PAVEMENT OVER THE STREETS (Sir, 2026-09-17). This painted the
+       whole bounding box -- node to node -- over half of every road round
+       the lot and both pavements. The city draws its own roads, kerbs and
+       pavements; the entry's ground is its own cells, below. */
     for(const [ci, cj] of CELLS){
       const a0 = ci*BLK + (has(ci-1,cj) ? 0 : ROAD), a1 = (ci+1)*BLK - (has(ci+1,cj) ? 0 : ROAD);
       const b1 = -cj*BLK - (has(ci,cj-1) ? 0 : ROAD), b0 = -(cj+1)*BLK + (has(ci,cj+1) ? 0 : ROAD);
@@ -11553,7 +11556,10 @@ const SHOPS = [
     const rect = (ci, cj) => [
       ci*BLK + (has(ci-1,cj) ? 0 : ROAD), (ci+1)*BLK - (has(ci+1,cj) ? 0 : ROAD),
       -(cj+1)*BLK + (has(ci,cj+1) ? 0 : ROAD), -cj*BLK - (has(ci,cj-1) ? 0 : ROAD)];
-    T(0, 3*BLK, -2*BLK, 0, 0.3, walk);
+    /* NO PAVEMENT OVER THE STREETS (Sir, 2026-09-17). This painted the
+       whole bounding box -- node to node -- over half of every road round
+       the lot and both pavements. The city draws its own roads, kerbs and
+       pavements; the entry's ground is its own cells, below. */
     for(const [ci, cj] of CELLS){
       const [a0, a1, b0, b1] = rect(ci, cj);
       T(a0, a1, b0, b1, 0.6, tar);
@@ -12089,7 +12095,11 @@ const SHOPS = [
     const parked = (ca, cb, cz, liv) =>
       gameCar((a, b, h) => P(ca + b, cb - a, cz + h), CAR_COLORS[liv % CAR_COLORS.length]);
 
-    T(0, BLK, -BLK, 0, 0.3, '#b3a894');                    // the pavement round the cell
+    /* NO PAVEMENT OVER THE STREETS (Sir, 2026-09-17, the museum's fix). This
+       painted 0..BLK -- node to node -- over half of every road round the
+       cell and both pavements. The city draws its own roads, kerbs and
+       pavements; the entry's ground is its lot, CA0..CA1, and nothing
+       outside it. */
     T(FA0-20, FA1+20, FB0-20, FB1+20, 0.6, '#7d848a');
 
     /* ================= A FLIGHT IS NOT PART OF A FLOOR ================
@@ -12230,7 +12240,7 @@ const SHOPS = [
   }
 },
 {
-  name:'Market hall', tall:true, ww: 2392, dd: 2392,
+  name:'Market hall', tall:true, ww: 2392, dd: 2392, sc: 0.6923,   /* fitted: 2392 x 0.6923 = 1656, the buildable square a block now has (road 368 + pavement 368 a side) -- at 1x it stood on the pavement */
   wTodo:'a whole block edge, 2392 = BLOCK - 2*ROAD_HALF, of which the hall is 460 and the market yard is the rest; the packer emits no wide slot',
   cTodo:'the two stalls are volumes: a 88..134 and 326..372 at b 0..28, on the line and clear of the doorway',
   head:'A nave under one barrel vault, with the market yard filling the block',
@@ -12648,7 +12658,11 @@ const SHOPS = [
     const DMID = 205.12, WIN = [[18,150],[260,392]], CBAY = [410, 530];
     const NB = 8, B0 = 16, B1 = BW - 16;
 
-    T(0, BLK, -BLK, 0, 0.3, '#b3a894');                        // pavement round the cell
+    /* NO PAVEMENT OVER THE STREETS (Sir, 2026-09-17, the museum's fix). This
+       painted 0..BLK -- node to node -- over half of every road round the
+       cell and both pavements. The city draws its own roads, kerbs and
+       pavements; the entry's ground is its lot, CA0..CA1, and nothing
+       outside it. */
     T(FA0, FA1, FB0, FB1, 0.6, '#8a8578');                     // the compound hardstanding
     for(let k=0;k<7;k++) T(FA0+40, FA1-40, FB1-140-k*300, FB1-128-k*300, 0.9, shade('#8a8578',.92));
 
@@ -12970,7 +12984,11 @@ const SHOPS = [
       = wallFrames(BW, BD, BA0, BB1);
     const DMID = BW/2, PA0 = 285, PA1 = 1085, NCOL = 9;
 
-    T(0, BLK, -BLK, 0, 0.3, '#b3a894');                        // pavement round the cell
+    /* NO PAVEMENT OVER THE STREETS (Sir, 2026-09-17, the museum's fix). This
+       painted 0..BLK -- node to node -- over half of every road round the
+       cell and both pavements. The city draws its own roads, kerbs and
+       pavements; the entry's ground is its lot, CA0..CA1, and nothing
+       outside it. */
     T(CA0, CA1, CB0, CB1, 0.6, '#bdb5a2');                     // the forecourt
     T(DMID+BA0-110, DMID+BA0+110, CB1-20, BB1, 1.1, '#cdc6b4'); // the axis walk
     for(const gx of [[CA0+40, BA0-60],[BA1+60, CA1-40]])       // lawns either side
@@ -13158,7 +13176,11 @@ const SHOPS = [
       = wallFrames(MW, MD, MA0, MB1);
     const DMID = 180, ARCH = [380, 620];
 
-    T(0, BLK, -BLK, 0, 0.3, '#b3a894');
+    /* NO PAVEMENT OVER THE STREETS (Sir, 2026-09-17, the museum's fix). This
+       painted 0..BLK -- node to node -- over half of every road round the
+       cell and both pavements. The city draws its own roads, kerbs and
+       pavements; the entry's ground is its lot, CA0..CA1, and nothing
+       outside it. */
     T(CA0, CA1, CB0, CB1, 0.6, '#8f867a');                     // the yard, setts
     for(let k=0;k<12;k++) T(CA0, CA1, CB1-60-k*150, CB1-48-k*150, 0.9, shade('#8f867a',.93));
 
@@ -13325,7 +13347,11 @@ const SHOPS = [
        as the way in, and a 17 globe was a dot. 700 and 26. */
     const DMID = LW/2, NB = 5, CAN = [DMID-350, DMID+350], COUT = 150;
 
-    T(0, BLK, -BLK, 0, 0.3, '#b3a894');
+    /* NO PAVEMENT OVER THE STREETS (Sir, 2026-09-17, the museum's fix). This
+       painted 0..BLK -- node to node -- over half of every road round the
+       cell and both pavements. The city draws its own roads, kerbs and
+       pavements; the entry's ground is its lot, CA0..CA1, and nothing
+       outside it. */
 
     const elevation = fr => {
       const L = fr.len;
@@ -13596,7 +13622,11 @@ const SHOPS = [
       = wallFrames(BW, BD, CA0, BB1);
     const DMID = 1480, PIPE = 1600;
 
-    T(0, BLK, -BLK, 0, 0.3, '#b3a894');
+    /* NO PAVEMENT OVER THE STREETS (Sir, 2026-09-17, the museum's fix). This
+       painted 0..BLK -- node to node -- over half of every road round the
+       cell and both pavements. The city draws its own roads, kerbs and
+       pavements; the entry's ground is its lot, CA0..CA1, and nothing
+       outside it. */
     T(CA0, CA1, CB0, CB1, 0.6, '#8f8c86');                     // the apron
     for(let i=0;i<6;i++){                                      // bay markings
       const u = CA0 + 120 + i*210;
@@ -13785,7 +13815,11 @@ const SHOPS = [
     const glassT = 'rgba(122,138,146,.88)';
     const GMID = (CA0+CA1)/2, GW = 190;
 
-    T(0, BLK, -BLK, 0, 0.3, '#b3a894');
+    /* NO PAVEMENT OVER THE STREETS (Sir, 2026-09-17, the museum's fix). This
+       painted 0..BLK -- node to node -- over half of every road round the
+       cell and both pavements. The city draws its own roads, kerbs and
+       pavements; the entry's ground is its lot, CA0..CA1, and nothing
+       outside it. */
     T(CA0, CA1, CB0, CB1, 0.6, '#a99d86');
     T(LA1, RA0, CB0+RD, SB0, 0.9, '#6f8a5e');                  // the court lawn
     T(GMID-70, GMID+70, CB0+RD, SB0, 1.2, '#bdb299');          // the path from the arch
