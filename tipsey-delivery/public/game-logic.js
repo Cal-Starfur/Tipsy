@@ -3713,6 +3713,12 @@ const BLOCK = 34 * T2;       // SCALED UP for block-wrap (was 22*T2) — the int
                               // node-to-node street spacing (whole multiple of T2 —
                               // keeps every intersection tile-aligned by construction)
 const ROAD_HALF = 4*T2;      // road is 8 rows wide, symmetric about the centerline
+/* THE GUTTER BAND, hoisted out of owBuildWorld (2026-09-17). surfaceAt
+   calls the 46 outside the asphalt 'curb' and owCurbBlocks puts the wall
+   at its far side, so this number IS where the kerb stands -- and now
+   drawWorld draws the kerb there too, off the same constant, instead of
+   restating the road edge. */
+const CURB_W = T2 * 0.5;
 const SIDEWALK_ROWS = 4;     // per side — the sidewalk width already live in-game
 const SIDEWALK_W = SIDEWALK_ROWS*T2;
 const OVERSHOOT = ROAD_HALF; // sufficient by construction — see classifyAt
@@ -4343,7 +4349,6 @@ const OW_D = {
    the whole "cut through the park" ask. */
 function owBuildWorld(route){
   const g2 = route.grid;
-  const CURB_W = T2 * 0.5;
   const SW_OUT = ROAD_HALF + SIDEWALK_W;
 
   /* WATERFRONT. The boardwalk and pier are drawn OUTSIDE the 36x27
@@ -34278,17 +34283,53 @@ class WorldScene extends Phaser.Scene {
       const { sx, sy, len } = midRun(edge.a, edge.b, dv);
       if(len <= 0) continue;
       const ex = sx + dv.x*len, ey = sy + dv.y*len;
-      const curbFace = offUnits => {
-        const ox = rv.x*offUnits, oy = rv.y*offUnits;
+      /* THE KERB IS WHERE THE WALL IS (Sir, on-device: "tipsy is getting
+         hung up on the curb when he is seemingly on the sidewalk ... its
+         not raised and has no volume").
+
+         The riser used to be a 5-high face at +/-ROAD_HALF, at the very
+         edge of the asphalt. The thing that actually stops him is
+         owCurbBlocks, and that wall stands CURB_W = 46 further out, at
+         ROAD_HALF + CURB_W, because surfaceAt reserves that band as
+         'curb' and blocks only curb -> sidewalk. So the step he saw and
+         the step he hit were 46 apart -- he was stopped a robot's width
+         inside what looked like pavement.
+
+         Now the band is drawn as what it is: a GUTTER at road level,
+         paved but part of the street, and the kerb itself is a raised
+         lip with a top and two faces standing exactly on the wall line.
+         Mid-block only, as before: a junction has a crossing, not a
+         kerb. */
+      const GUT = 0x5a5d64;                                 // gutter: asphalt, a shade lighter
+      const KERB_H = 7, LIP = 11;
+      const band = sgn => {
+        const o0 = sgn*ROAD_HALF, o1 = sgn*(ROAD_HALF + CURB_W);
         this.quadOn(g, [
-          this.W(sx+ox, sy+oy, 3),
-          this.W(ex+ox, ey+oy, 3),
-          this.W(ex+ox, ey+oy, -2),
-          this.W(sx+ox, sy+oy, -2)
-        ], d.paveEdge);
+          this.W(sx + rv.x*o0, sy + rv.y*o0, 0.6),
+          this.W(ex + rv.x*o0, ey + rv.y*o0, 0.6),
+          this.W(ex + rv.x*o1, ey + rv.y*o1, 0.6),
+          this.W(sx + rv.x*o1, sy + rv.y*o1, 0.6)
+        ], GUT);
       };
-      curbFace(-ROAD_HALF);
-      curbFace(ROAD_HALF);
+      const kerb = sgn => {
+        const oIn = sgn*(ROAD_HALF + CURB_W), oOut = sgn*(ROAD_HALF + CURB_W + LIP);
+        const face = (off, z0, z1, col) => this.quadOn(g, [
+          this.W(sx + rv.x*off, sy + rv.y*off, z1),
+          this.W(ex + rv.x*off, ey + rv.y*off, z1),
+          this.W(ex + rv.x*off, ey + rv.y*off, z0),
+          this.W(sx + rv.x*off, sy + rv.y*off, z0)
+        ], col);
+        face(oIn, 0, KERB_H, d.paveEdge);                       // the step, off the gutter
+        this.quadOn(g, [                                        // its top
+          this.W(sx + rv.x*oIn, sy + rv.y*oIn, KERB_H),
+          this.W(ex + rv.x*oIn, ey + rv.y*oIn, KERB_H),
+          this.W(ex + rv.x*oOut, ey + rv.y*oOut, KERB_H),
+          this.W(sx + rv.x*oOut, sy + rv.y*oOut, KERB_H)
+        ], d.pave);
+        face(oOut, 0, KERB_H, d.paveEdge);                      // and back down to the pavement
+      };
+      band(-1); band(1);
+      kerb(-1); kerb(1);
     }
 
     /* moved up from below: block-wrap houses/stores need the same
