@@ -12,6 +12,14 @@
    circles, windows over doors, flat panels, stacking order), port it
    here by hand. `base` is kept on every entry so that sweep is a grep.
 
+   `sc` IS THE SHOP'S DRAWN SCALE (Sir, 2026-09-17). Every single, double
+   and triple lot shop carries sc:1.3 -- they read too small against the
+   blocks. The body is still written in its own units (W 230, D 276, the
+   real door) and the host scales it on the ground: its footprint is
+   (ww || W) x (dd || D) times sc, which is what a packer must reserve.
+   Full-edge (1048.8) and block-landmark buildings carry none and stay 1x.
+   Honour it in P(): a, b and z all multiply by sc, after any turn.
+
    `edited` says which ones have had their pass. An entry with
    edited:false is still byte-for-byte its base body under a new name.
 
@@ -370,7 +378,7 @@ const TIDEWATER_MUSEUM = (() => {
 
 const SHOPS = [
 {
-  name:'Lagoon Coffee Roasters', base:'Coffee roaster', hood:'The Flats', edited:true, tall:true,
+  name:'Lagoon Coffee Roasters', base:'Coffee roaster', hood:'The Flats', edited:true, sc:1.3, tall:true,
   head:'The roaster, the bins and the flue behind one deep window',
   tags:['turned roaster','round drum door','bean bins','flue through the roof','bare footway'],
   desc:'The roastery is inside the shop where it belongs: a drum on its firebox with a round hinged door, bins of beans beside it, and the flue carrying up through the roof. Nothing on the footway.',
@@ -500,7 +508,7 @@ const SHOPS = [
   }
 },
 {
-  name:'Sandpiper Bakery', base:'Bakery', hood:'The Flats', edited:true, head:'Curved gable, brick flue, bunting on the arch',
+  name:'Sandpiper Bakery', base:'Bakery', hood:'The Flats', edited:true, sc:1.3, head:'Curved gable, brick flue, bunting on the arch',
   cTodo:'1 pavement props need collision volumes',
   zs:1,                                   // already rebuilt on the game anchors
   tags:['deep gable parapet','sign on the gable','bunting on the arch','brick stack','recessed door'],
@@ -731,7 +739,7 @@ const SHOPS = [
   }
 },
 {
-  name:'Seabreeze Florist', base:'Florist', hood:'The Flats', edited:true, head:'Scalloped canopy, bucket rows, trellis',
+  name:'Seabreeze Florist', base:'Florist', hood:'The Flats', edited:true, sc:1.3, head:'Scalloped canopy, bucket rows, trellis',
   cTodo:'5 pavement props need collision volumes',
   tags:['blooms inside and out','round buckets','trellis','glazed over','soft palette'],
   desc:'There are flowers inside the window as well as out on the pavement, and the pane glazes over the inside ones so the two sets sit at different depths instead of on the same plane.',
@@ -845,7 +853,7 @@ const SHOPS = [
   }
 },
 {
-  name:'Cove Creamery', base:'Ice cream', hood:'The Flats', edited:true, head:'Giant cone on the roof, hatch window, scallops',
+  name:'Cove Creamery', base:'Ice cream', hood:'The Flats', edited:true, sc:1.3, head:'Giant cone on the roof, hatch window, scallops',
   tags:['giant roof cone','pastel palette','serving hatch','scalloped awning','pavement seats'],
   desc:'The cone stands on a small plinth so it is planted on the roof rather than hovering, the scoops overlap as real balls, and the pavement seats are turned stools.',
   draw(p){
@@ -977,7 +985,7 @@ const SHOPS = [
   }
 },
 {
-  name:'Tidewater Tea House', base:'Tea house', hood:'The Flats', edited:true, ww: T2*4.4,
+  name:'Tidewater Tea House', base:'Tea house', hood:'The Flats', edited:true, sc:1.3, ww: T2*4.4,
   wTodo:'two packing slots',
   head:'Two-tier red roof, dougong brackets, colonnade over the footway',
   cTodo:'6 colonnade columns need collision volumes -- they stand at b 76, out at the kerb',
@@ -1401,7 +1409,7 @@ const SHOPS = [
   }
 },
 {
-  name:'Driftwood Books', base:'Bookshop', hood:'The Flats', edited:true, tall:true,
+  name:'Driftwood Books', base:'Bookshop', hood:'The Flats', edited:true, sc:1.3, tall:true,
   head:'Two flush storeys, books behind real glass, hanging sign',
   tags:['two full storeys','flush elevation','books behind glass','string course','swinging sign'],
   desc:'A true two-storey building with both storeys on one plane: a shopfront of 168 with the books behind a real recess and a tinted pane, and an upper floor of 168 over it divided by a single string course. The hanging sign is a board on an arm with its own thickness.',
@@ -1667,7 +1675,7 @@ const SHOPS = [
   }
 },
 {
-  name:'Marina Optical', base:'Optician', hood:'The Flats', edited:true, head:'Giant spectacles across the fascia, frames behind real glass',
+  name:'Marina Optical', base:'Optician', hood:'The Flats', edited:true, sc:1.3, head:'Giant spectacles across the fascia, frames behind real glass',
   tags:['oversized spectacles','eye chart','clean white','frame display','deep reveal'],
   desc:'The spectacles are two solid rims in the plane of the wall, round in the world rather than stretched by ZSCALE, standing proud of the fascia on a bridge with the temples folding back to the wall. The frames and the eye chart are inside a real recess behind the pane.',
   draw(p){
@@ -1810,7 +1818,7 @@ const SHOPS = [
   }
 },
 {
-  name:'Palmline Bikes', base:'Bike shop', hood:'The Flats', edited:true, head:'One whole bicycle as the sign, workshop behind the glass',
+  name:'Palmline Bikes', base:'Bike shop', hood:'The Flats', edited:true, sc:1.3, head:'One whole bicycle as the sign, workshop behind the glass',
   tags:['a complete bicycle as the sign','round wheels','real frame geometry','workshop window','bare footway'],
   desc:'One bicycle, drawn whole and big, hung on brackets across the display band: round wheels with real spokes, and a frame laid out from the bottom bracket in true proportions rather than numbers tuned until it looked right. The workshop is behind a real pane, and the footway is completely bare.',
   draw(p){
@@ -1983,7 +1991,7 @@ const SHOPS = [
   }
 },
 {
-  name:'Pelican Photo', base:'Photo studio', hood:'The Flats', edited:true, head:'North-light glazing, portraits behind real glass',
+  name:'Pelican Photo', base:'Photo studio', hood:'The Flats', edited:true, sc:1.3, head:'North-light glazing, portraits behind real glass',
   tags:['sawtooth north light','glazing bars','portrait cases','glass roof plane','depth-ordered roof'],
   desc:'Each sawtooth has a solid upstand behind the glass and a capping at the ridge, so the roof reads as built rather than as two blue sheets, and the two teeth are drawn far to near so the back one no longer lands on the front one. The portraits stand in a real recess behind a tinted pane.',
   draw(p){
@@ -2117,7 +2125,7 @@ const SHOPS = [
   }
 },
 {
-  name:'Saltwater Sweets', base:'Sweet shop', hood:'The Flats', edited:true, ww:196, head:'Barley-twist columns, jars behind the glass, striped canopy',
+  name:'Saltwater Sweets', base:'Sweet shop', hood:'The Flats', edited:true, sc:1.3, ww:196, head:'Barley-twist columns, jars behind the glass, striped canopy',
   tags:['twisted columns','lidded jars on shelves','candy stripes','tiny scale','pastel'],
   desc:'The barley twist is a real cylinder with the stripe wrapping it, standing proud of the wall the way a pilaster does, and the jars are turned glasses with lids sitting on shelves inside the window rather than on the pavement.',
   draw(p){
@@ -2247,7 +2255,7 @@ const SHOPS = [
   }
 },
 {
-  name:'Low Tide Records', base:'Record shop', hood:'The Flats', edited:true, head:'Blacked-out front, marquee, poster wall',
+  name:'Low Tide Records', base:'Record shop', hood:'The Flats', edited:true, sc:1.3, head:'Blacked-out front, marquee, poster wall',
   tags:['racks inside','angled marquee','poster grid','bulb row on the fascia'],
   desc:'Record racks stand in the window with sleeves in them, behind a dark tinted pane, so the blackness has something in it rather than being a hole.',
   draw(p){
@@ -2319,7 +2327,7 @@ const SHOPS = [
   }
 },
 {
-  name:'Sandcastle Toys', base:'Toy shop', hood:'The Flats', edited:true, ww: T2*4.4,
+  name:'Sandcastle Toys', base:'Toy shop', hood:'The Flats', edited:true, sc:1.3, ww: T2*4.4,
   wTodo:'two packing slots',
   head:'Big-box toy store, alphabet-block fascia, no pavement props',
   tags:['double-width unit','big-box format','alphabet block sign','toys behind real glass','primary palette'],
@@ -2464,7 +2472,7 @@ const SHOPS = [
   }
 },
 {
-  name:'Cove Pottery', base:'Pottery', hood:'The Flats', edited:true, tall:true,
+  name:'Cove Pottery', base:'Pottery', hood:'The Flats', edited:true, sc:1.3, tall:true,
   head:'Studio: wheel and drying shelves behind tall glass, roof lantern',
   tags:['tall studio glazing','potter\'s wheel','drying shelves','roof lantern','raw brick','bare footway'],
   desc:'A working studio rather than a works: one tall window with the wheel and the drying shelves standing inside it, brick courses over, and a glazed lantern on the roof for the north light a potter actually needs. No industrial stack.',
@@ -2615,7 +2623,7 @@ const SHOPS = [
   }
 },
 {
-  name:'Pelican Pets', base:'Pet shop', hood:'The Flats', edited:true, head:'Lit tanks, scalloped valance, glowing glass',
+  name:'Pelican Pets', base:'Pet shop', hood:'The Flats', edited:true, sc:1.3, head:'Lit tanks, scalloped valance, glowing glass',
   tags:['aquarium glow','scalloped valance','warm interior','no pavement props'],
   desc:'The tanks have a lit front edge so the glow reads as coming out of the glass rather than being painted on it, and the fish are spheres set behind the pane at their own depth. The valance is a folded canopy with scalloped ends, not a stripe on the wall.',
   draw(p){
@@ -2723,7 +2731,7 @@ const SHOPS = [
   }
 },
 {
-  name:'Sandpiper Suds', base:'Laundromat', hood:'The Flats', edited:true, head:'Glass box, porthole drums, roof tank',
+  name:'Sandpiper Suds', base:'Laundromat', hood:'The Flats', edited:true, sc:1.3, head:'Glass box, porthole drums, roof tank',
   tags:['machines inside','porthole drums','neon pylon','round water tank','bench'],
   desc:'The machines are a bank of boxes standing on the shop floor with the drums set into their fronts, and the whole frontage glazes over them, so the row reads as being inside the room.',
   draw(p){
@@ -2819,7 +2827,7 @@ const SHOPS = [
   }
 },
 {
-  name:'Low Tide Barbers', base:'Barber', hood:'The Flats', edited:true, head:'Narrow bay, turning pole, gold lettering',
+  name:'Low Tide Barbers', base:'Barber', hood:'The Flats', edited:true, sc:1.3, head:'Narrow bay, turning pole, gold lettering',
   fTodo:'z168..192 return +12; z122..152 lettering behind board',
   tags:['chairs inside','cylindrical pole','swept awning','gold fascia','deep green'],
   desc:'A barber chair stands in the reveal behind the glass with a mirror on the back wall, so the bay has something to look into instead of being a flat pane of blue.',
@@ -2944,7 +2952,7 @@ const SHOPS = [
   }
 },
 {
-  name:'Seabreeze Grocer', base:'Grocer', hood:'The Flats', edited:true, head:'Open front, striped canopy, crate steps',
+  name:'Seabreeze Grocer', base:'Grocer', hood:'The Flats', edited:true, sc:1.3, head:'Open front, striped canopy, crate steps',
   cTodo:'8 pavement props need collision volumes',
   tags:['open frontage','striped canopy','crate display'],
   desc:'No glass at all here, so the layering is in the depth: the crates stand side by side on the pavement and are painted far to near, with the counter jars behind them and the canopy over both.',
@@ -3061,7 +3069,7 @@ const SHOPS = [
   }
 },
 {
-  name:'Cove Apothecary', base:'Dispensary', hood:'The Flats', edited:true, head:'Stepped parapet, cross emblem, green livery',
+  name:'Cove Apothecary', base:'Dispensary', hood:'The Flats', edited:true, sc:1.3, head:'Stepped parapet, cross emblem, green livery',
   cTodo:'2 pavement props need collision volumes, 1 of them lapping past the frontage',
   tags:['counter behind glass','solid cross emblem','green fascia','clinical white','planters'],
   desc:'A counter and a wall of shelved bottles sit inside the reveal with the pane over them, so the shop has depth behind the window rather than a flat tinted sheet.',
@@ -3069,7 +3077,7 @@ const SHOPS = [
   back(p){ flatsChemistBack(p, FLATS_CHEMIST_LIVERY.seafoam); }
 },
 {
-  name:'Marina Pharmacy', base:'Pharmacy', hood:'The Flats', edited:true, head:'Stepped parapet, cross emblem, red livery',
+  name:'Marina Pharmacy', base:'Pharmacy', hood:'The Flats', edited:true, sc:1.3, head:'Stepped parapet, cross emblem, red livery',
   cTodo:'2 pavement props need collision volumes, 1 of them lapping past the frontage',
   tags:['counter behind glass','solid cross emblem','red fascia','clinical white','planters'],
   desc:'A counter and a wall of shelved bottles sit inside the reveal with the pane over them, so the shop has depth behind the window rather than a flat tinted sheet.',
@@ -3077,7 +3085,7 @@ const SHOPS = [
   back(p){ flatsChemistBack(p, FLATS_CHEMIST_LIVERY.coral); }
 },
 {
-  name:'Lagoon Noodle Bar', base:'Noodle bar', hood:'The Flats', edited:true, head:'Vertical banners, lantern row, counter',
+  name:'Lagoon Noodle Bar', base:'Noodle bar', hood:'The Flats', edited:true, sc:1.3, head:'Vertical banners, lantern row, counter',
   cTodo:'6 pavement props need collision volumes',
   tags:['stools under the counter','round lanterns','open counter','steam duct','banners'],
   desc:'The counter is a solid with a bar top, the cook side is set back behind it, and the stools stand on the pavement in front — so the three depths read in the right order.',
@@ -3191,7 +3199,7 @@ const SHOPS = [
   }
 },
 {
-  name:'Breakwater Hardware', base:'Hardware', hood:'The Flats', edited:true, head:'Tall board sign, ladder rack, roll shutter',
+  name:'Breakwater Hardware', base:'Hardware', hood:'The Flats', edited:true, sc:1.3, head:'Tall board sign, ladder rack, roll shutter',
   cTodo:'5 pavement props need collision volumes',
   tags:['goods behind the shutter','ladder rack','roll shutter','stacked stock'],
   desc:'The shutter is half up with the shop visible under it, so there is a lit interior behind the opening, and the stock outside is stacked far to near.',
@@ -3310,7 +3318,7 @@ const SHOPS = [
   }
 },
 {
-  name:'Surfside Diner', base:'Diner', hood:'The Flats', edited:true, head:'Streamlined end, roof sign on legs, stools',
+  name:'Surfside Diner', base:'Diner', hood:'The Flats', edited:true, sc:1.3, head:'Streamlined end, roof sign on legs, stools',
   tags:['true curved corner','chrome bands','rooftop sign','counter stools','tiled base'],
   desc:'The rounded end is a real half-cylinder now, not a stack of narrowing rectangles, so the chrome bands wrap it and the wall runs into the curve properly. Stools shear with the glass.',
   draw(p){
@@ -3492,7 +3500,7 @@ const SHOPS = [
   }
 },
 {
-  name:'Seabreeze Picture House', base:'Cinema', hood:'The Flats', edited:true, tall:true,
+  name:'Seabreeze Picture House', base:'Cinema', hood:'The Flats', edited:true, sc:1.3, tall:true,
   zTodo:1.25,          // H 210 -- see SCALE REVIEW at the head of this file
   head:'Blade sign, wrapping marquee, recessed lobby, ticket booth',
   tags:['vertical blade','marquee that wraps the entry','changeable readerboard','bulb chase','island ticket booth','poster cases'],
@@ -3728,7 +3736,7 @@ const SHOPS = [
   }
 },
 {
-  name:'Sandpiper Guest House', base:'Rooming house', hood:'The Flats', edited:true, tall:true,
+  name:'Sandpiper Guest House', base:'Rooming house', hood:'The Flats', edited:true, sc:1.3, tall:true,
   fTodo:'z408..420 return +3; z114..122 return +6; z214..222 return +6; z314..322 return +6',
   head:'Four storeys, cantilevered fire escape, entrance hood',
   tags:['real storey rhythm','fire escape with depth','cantilevered hood','band courses','roof tank on legs'],
@@ -3935,7 +3943,7 @@ const SHOPS = [
   }
 },
 {
-  name:'Cove Fish Co.', base:'Fishmonger', hood:'The Flats', edited:true, head:'Open marble counter, iced slab, striped awning',
+  name:'Cove Fish Co.', base:'Fishmonger', hood:'The Flats', edited:true, sc:1.3, head:'Open marble counter, iced slab, striped awning',
   cTodo:'1 pavement props need collision volumes',
   fTodo:'z130..152 lettering behind board',
   tags:['open frontage','counter that projects','shallow ice slab','fish as solids','bracket sign over the pavement'],
@@ -4101,7 +4109,7 @@ const SHOPS = [
   }
 },
 {
-  name:'Palmline Garage', base:'Garage', hood:'The Flats', edited:true, ww: T2*4.4,
+  name:'Palmline Garage', base:'Garage', hood:'The Flats', edited:true, sc:1.3, ww: T2*4.4,
   fTodo:'z126..150 lettering behind board',
   wTodo:'two packing slots',
   head:'Two full-size bays, open workshop, turbine vents',
@@ -4282,7 +4290,7 @@ const SHOPS = [
   }
 },
 {
-  name:'Marina Tailors', base:'Tailor', hood:'The Flats', edited:true, ww:170, head:'Narrow bay, bracket clock, mannequins',
+  name:'Marina Tailors', base:'Tailor', hood:'The Flats', edited:true, sc:1.3, ww:170, head:'Narrow bay, bracket clock, mannequins',
   tags:['narrow unit','bracket clock','turned mannequins','half canopy','carved parapet'],
   desc:'The clock face lies in the plane of its own bracket rather than facing the screen, and the mannequins are turned cylinders on stands with rounded heads.',
   draw(p){
@@ -4421,7 +4429,7 @@ const SHOPS = [
   }
 },
 {
-  name:'Pelican Cantina', base:'Cantina', hood:'The Flats', edited:true, head:'Pergola porch, string bulbs, chimney',
+  name:'Pelican Cantina', base:'Cantina', hood:'The Flats', edited:true, sc:1.3, head:'Pergola porch, string bulbs, chimney',
   cTodo:'5 pavement props need collision volumes, 67 of them lapping past the frontage',
   fTodo:'z140..152 return +6',
   tags:['round pergola posts','string bulbs','half doors','barrels','stucco chimney'],
@@ -4528,7 +4536,7 @@ const SHOPS = [
   }
 },
 {
-  name:'Tidewater News', base:'Newsagent', hood:'The Flats', edited:true, head:'Full shopfront, headline placards, rack of papers',
+  name:'Tidewater News', base:'Newsagent', hood:'The Flats', edited:true, sc:1.3, head:'Full shopfront, headline placards, rack of papers',
   tags:['full unit','glazed front','sloping paper racks','placard boards','fascia set out in screen space'],
   desc:'A shop rather than a kiosk: full frontage, full depth, one shopfront storey, with the papers racked on the pavement under its own awning instead of on the neighbour.',
   draw(p){
@@ -4670,7 +4678,7 @@ const SHOPS = [
   }
 },
 {
-  name:'Palmline Savings', base:'Bank', hood:'The Flats', edited:true, tall:true, ww: T2*4.4,
+  name:'Palmline Savings', base:'Bank', hood:'The Flats', edited:true, sc:1.3, tall:true, ww: T2*4.4,
   wTodo:'two packing slots',
   cTodo:'3 pavement props need collision volumes',   // the entrance steps
   head:'Hexastyle giant order, deep portico, pediment, stone steps',
@@ -4834,7 +4842,7 @@ const SHOPS = [
   }
 },
 {
-  name:'Seabreeze Fuel', base:'Fuel station', hood:'The Flats', edited:true, ww: T2*4.4,
+  name:'Seabreeze Fuel', base:'Fuel station', hood:'The Flats', edited:true, sc:1.3, ww: T2*4.4,
   wTodo:'two packing slots',
   bTodo:'already a building plus an open lot -- needs the setback and the wrap',
   cTodo:'4 pavement props need collision volumes',   // 2 canopy posts, 2 pumps
@@ -5233,7 +5241,7 @@ const SHOPS = [
   }
 },
 {
-  name:'Sunfish Arcade', base:'Arcade', hood:'The Flats', edited:true, head:'Black hole of a front, magenta pixel sign',
+  name:'Sunfish Arcade', base:'Arcade', hood:'The Flats', edited:true, sc:1.3, head:'Black hole of a front, magenta pixel sign',
   tags:['unlit front','solid pixel sign','step-in entry','no pavement props'],
   desc:'The front is a flat unlit black panel with one door in it -- the whole shop is the sign. Every block of the pixel sign is a slab with a lit top edge, so the lettering stands off the wall rather than being painted on it.',
   draw(p){
@@ -5331,7 +5339,7 @@ const SHOPS = [
   }
 },
 {
-  name:'Cove Butchers', base:'Butcher', hood:'The Flats', edited:true, head:'Hooks and rail, tiled base, striped awning',
+  name:'Cove Butchers', base:'Butcher', hood:'The Flats', edited:true, sc:1.3, head:'Hooks and rail, tiled base, striped awning',
   tags:['round rail','hooked cuts','white tile','striped awning','no pavement props'],
   desc:'The rail is a tube with the hooks bent over it and the cuts hanging as rounded solids rather than painted shapes. The awning is a folded canopy with a real underside, not a flat stripe on the wall.',
   draw(p){
@@ -5441,7 +5449,7 @@ const SHOPS = [
   }
 },
 {
-  name:'Sea Glass Exchange', base:'Pawn shop', hood:'The Flats', edited:true, ww:178, head:'Three balls, barred glass, narrow front',
+  name:'Sea Glass Exchange', base:'Pawn shop', hood:'The Flats', edited:true, sc:1.3, ww:178, head:'Three balls, barred glass, narrow front',
   tags:['three gold balls','window bars','narrow unit','deep fascia','hanging bracket'],
   desc:'The three balls hang as spheres from a bracket with a real arm and return, and the bars over the glass are round rods rather than painted stripes.',
   draw(p){
@@ -5618,7 +5626,7 @@ const SHOPS = [
   }
 },
 {
-  name:'The Flats Post Office', base:'Post office', hood:'The Flats', edited:true, tall:true,
+  name:'The Flats Post Office', base:'Post office', hood:'The Flats', edited:true, sc:1.3, tall:true,
   zTodo:1.11,          // H 186 -- see SCALE REVIEW at the head of this file
   head:'Raked flagpole, crest parapet, counter windows',
   tags:['stars and stripes','crest parapet','counter windows','no pavement props','official palette'],
@@ -5776,7 +5784,7 @@ const SHOPS = [
   }
 },
 {
-  name:'Surfside Fitness', base:'Gym', hood:'The Flats', edited:true, ww: T2*4.4,
+  name:'Surfside Fitness', base:'Gym', hood:'The Flats', edited:true, sc:1.3, ww: T2*4.4,
   wTodo:'two packing slots',
   head:'Double-width glass front, equipment on show, central entrance',
   tags:['double-width unit','full-height glazing','equipment on show','kettlebell sign','no pavement props'],
@@ -5949,7 +5957,7 @@ const SHOPS = [
   }
 },
 {
-  name:'Seabreeze Hats', base:'Milliner', hood:'The Flats', edited:true, ww:190, head:'Hat sign on a bracket, hats and boxes in one deep window',
+  name:'Seabreeze Hats', base:'Milliner', hood:'The Flats', edited:true, sc:1.3, ww:190, head:'Hat sign on a bracket, hats and boxes in one deep window',
   tags:['top hat bracket sign','hats on turned stands','striped hat boxes','dome awning','slim unit'],
   desc:'Recognisable as a hat shop from the street: a top hat hanging on a bracket over the door, a wide window with hats on turned stands at two levels, and a stack of striped hat boxes. The hats are built from a disc brim and a real crown rather than painted on.',
   draw(p){
@@ -6329,7 +6337,7 @@ const SHOPS = [
   }
 },
 {
-  name:'Cove Locksmith', base:'Locksmith', hood:'The Flats', edited:true, ww:168, head:'Giant brass key on a bracket, barred window, narrow',
+  name:'Cove Locksmith', base:'Locksmith', hood:'The Flats', edited:true, sc:1.3, ww:168, head:'Giant brass key on a bracket, barred window, narrow',
   tags:['giant key on a bracket','barred window','narrow unit','recessed glazing','dark name plate'],
   desc:'The key is a projecting bracket sign hanging out over the footway, built as one extruded solid so it has a real thickness and a bow that is round in the world rather than an ellipse. It is centred on the frontage so it stays on the building whichever way the block edge runs. The window is a proper recess with the bars standing outside the glass, the door is ironmonger dark so the brass reads against it, and the facade is set out with piers instead of running edge to edge.',
   draw(p){
@@ -6482,7 +6490,7 @@ const SHOPS = [
   }
 },
 {
-  name:'Driftwood Home', base:'Furniture showroom', hood:'The Flats', edited:true, tall:true, ww: T2*4.4,
+  name:'Driftwood Home', base:'Furniture showroom', hood:'The Flats', edited:true, sc:1.3, tall:true, ww: T2*4.4,
   wTodo:'two packing slots',
   head:'Double-width, two storeys of glass, mezzanine across both bays',
   tags:['double-width unit','double-height glazing','mezzanine deck behind the glass','sofa in the round','clipped interior'],
@@ -6905,7 +6913,7 @@ const SHOPS = [
   }
 },
 {
-  name:'Low Tide TV & Radio', base:'TV repair', hood:'The Flats', edited:true, head:'Aerial forest, dish, a wall of screens behind the glass',
+  name:'Low Tide TV & Radio', base:'TV repair', hood:'The Flats', edited:true, sc:1.3, head:'Aerial forest, dish, a wall of screens behind the glass',
   tags:['aerial forest','dish on a mount','stacked screens','test-card glow','cluttered roof'],
   desc:'Every aerial is a tube with real crossbars and each mast has a base plate on the roof; the dish sits on a bracket with an arm to the feed horn and is round in the world rather than stretched by ZSCALE. The screens are stacked inside a real recess, behind the pane, instead of standing out on the footway.',
   draw(p){
@@ -7388,7 +7396,7 @@ const SHOPS = [
   }
 },
 {
-  name:'The Flats Fire Station', base:'Fire station', hood:'The Flats', edited:true, tall:true, ww: T2*6.6, dd: 420,
+  name:'The Flats Fire Station', base:'Fire station', hood:'The Flats', edited:true, sc:1.3, tall:true, ww: T2*6.6, dd: 420,
   wTodo:'three packing slots -- the middle tier, between a double-wide and a whole edge',
   head:'Three appliance bays, drill tower, apron, bell',
   tags:['three packing slots','three appliance bays','drill tower','painted apron','builds to the line'],
@@ -7566,7 +7574,7 @@ const SHOPS = [
   }
 },
 {
-  name:'The Sandpiper Arms', base:'Public house', hood:'The Flats', edited:true, tall:true,
+  name:'The Sandpiper Arms', base:'Public house', hood:'The Flats', edited:true, sc:1.3, tall:true,
   head:'Three storeys: pub on the ground, flats over, bowed bays',
   tags:['three real storeys','flats above the pub','true bowed bays','chimney pots','hanging bracket sign'],
   desc:'A proper corner local: the public bar on the ground with two bowed bays either side of the door, and two floors of flats over it with sash windows on a string course. The bows are swept on a real ellipse and bulge OUT over the footway, which is the direction a bow window goes.',
@@ -7751,7 +7759,7 @@ const SHOPS = [
   }
 },
 {
-  name:'Driftwood Antiques', base:'Antiques', hood:'The Flats', edited:true, tall:true, ww: T2*6.6, dd: 340,
+  name:'Driftwood Antiques', base:'Antiques', hood:'The Flats', edited:true, sc:1.3, tall:true, ww: T2*6.6, dd: 340,
   wTodo:'three packing slots',
   head:'Triple-wide dealer: three deep windows under a long awning',
   tags:['three packing slots','two storeys','goods behind the glass','long scalloped awning','hanging chandelier','no pavement props'],
@@ -7935,7 +7943,7 @@ const SHOPS = [
   }
 },
 {
-  name:'Tidewater Clocks', base:'Clockmaker', hood:'The Flats', edited:true, ww:196, tall:true,
+  name:'Tidewater Clocks', base:'Clockmaker', hood:'The Flats', edited:true, sc:1.3, ww:196, tall:true,
   head:'Two storeys, a big round clock, faces behind the glass',
   tags:['round clock','swept pediment','clocks in the window','brass palette','narrow'],
   desc:'The clock is round in the world rather than stretched by ZSCALE, built as a brass rim with a real dial and hands, and it stands proud of the wall instead of twelve units inside it. The window is a real recess with the stock ticking away behind the pane.',
@@ -8097,7 +8105,7 @@ const SHOPS = [
   }
 },
 {
-  name:'Seabreeze Fabrics', base:'Fabric shop', hood:'The Flats', edited:true, head:'One deep awning, bolt ends and rolls behind the glass',
+  name:'Seabreeze Fabrics', base:'Fabric shop', hood:'The Flats', edited:true, sc:1.3, head:'One deep awning, bolt ends and rolls behind the glass',
   tags:['deep window awning','rolls hanging in the window','bolt ends on shelves','clear doorway','no pavement props'],
   desc:'One real awning hood with an underside and returns over a deep window of shelved bolt ends and hanging rolls. Nothing on the footway and nothing over the door.',
   draw(p){
@@ -8329,7 +8337,7 @@ const SHOPS = [
   }
 },
 {
-  name:'Low Tide Music', base:'Music shop', hood:'The Flats', edited:true, head:'Guitars hung on the wall, piano behind the glass',
+  name:'Low Tide Music', base:'Music shop', hood:'The Flats', edited:true, sc:1.3, head:'Guitars hung on the wall, piano behind the glass',
   tags:['guitars hung on the wall','round bouts','upright piano behind glass','sheet racks','deep green'],
   desc:'The guitar bodies are round in the world rather than stretched by ZSCALE, laid out from the lower bout in true proportions, and they hang on the outside of the wall where a shop hangs its stock. The piano and the sheet racks are inside the window, nothing stands on the footway, and nothing sits over the door.',
   draw(p){
@@ -8461,7 +8469,7 @@ const SHOPS = [
   }
 },
 {
-  name:'Marina Chandlery', base:'Chandlery', hood:'The Flats', edited:true, place:'waterfront',
+  name:'Marina Chandlery', base:'Chandlery', hood:'The Flats', edited:true, sc:1.3, place:'waterfront',
   pTodo:'waterfront only -- the shore, boardwalk and pier exist in game/index.html; the chooser still places by block type',
   head:'Three portholes, anchor on the boarding, mast on the roof',
   tags:['waterfront only','round portholes','stepped mast','rigging lines','anchor sign','tarred boarding'],
@@ -9117,7 +9125,7 @@ const SHOPS = [
   }
 },
 {
-  name:'Sandpiper Shoes', base:'Shoe shop', hood:'The Flats', edited:true, ww: T2*4.4,
+  name:'Sandpiper Shoes', base:'Shoe shop', hood:'The Flats', edited:true, sc:1.3, ww: T2*4.4,
   wTodo:'two packing slots',
   head:'Modern sneaker store: full-width glazing, tiered shoe walls',
   tags:['two packing slots','full-width glazing','tiered shoe walls','bold banded fascia','glass entrance','bare footway'],
@@ -9359,7 +9367,7 @@ const SHOPS = [
   }
 },
 {
-  name:'Palmline Surf Co.', base:'Surf shop', hood:'The Flats', edited:true, place:'waterfront', ww: T2*4.4, dd: 440,
+  name:'Palmline Surf Co.', base:'Surf shop', hood:'The Flats', edited:true, sc:1.3, place:'waterfront', ww: T2*4.4, dd: 440,
   wTodo:'two packing slots',
   pTodo:'waterfront only -- the shore, boardwalk and pier exist in game/index.html; the chooser still places by block type',
   head:'Two slots: an open frontage of boards, with the yard wrapping three sides',
@@ -9548,7 +9556,7 @@ const SHOPS = [
   }
 },
 {
-  name:'Breakwater Ironworks', base:'Forge', hood:'The Flats', edited:true, tall:true, ww: T2*6.6, dd: 420,
+  name:'Breakwater Ironworks', base:'Forge', hood:'The Flats', edited:true, sc:1.3, tall:true, ww: T2*6.6, dd: 420,
   wTodo:'three packing slots',
   head:'Triple-wide smithy: the fire, the hood and the anvil inside an open bay',
   tags:['three packing slots','open smithy bay','hood and stack','glowing hearth','round horseshoe','bare footway'],
@@ -9726,7 +9734,7 @@ const SHOPS = [
   }
 },
 {
-  name:'Cove Rugs', base:'Carpet shop', hood:'The Flats', edited:true, head:'Rugs on a rail above head height, rolled stock behind the glass',
+  name:'Cove Rugs', base:'Carpet shop', hood:'The Flats', edited:true, sc:1.3, head:'Rugs on a rail above head height, rolled stock behind the glass',
   tags:['hanging rugs','round rail','rolled stock in the window','deep colour','bare footway'],
   desc:'The rail runs the full frontage on turned brackets with five rugs over it, hung high enough for a robot to pass under, and the rolled stock stands inside the window instead of on the paving.',
   draw(p){
@@ -9868,7 +9876,7 @@ const SHOPS = [
   }
 },
 {
-  name:'Gull Loft', base:'Pigeon loft', hood:'The Flats', edited:true,
+  name:'Gull Loft', base:'Pigeon loft', hood:'The Flats', edited:true, sc:1.3,
   gTodo:'spawn the game\'s own pigeons on this shop -- landing board at b -50..+16, z H+18..H+26, a W*0.19..W*0.73; ridge at z H+104; five pop-holes on the loft face at b -50',
   head:'Feed shop below, timber loft on the roof',
   tags:['rooftop loft','landing board','pop-holes','feed behind the glass','timber'],
@@ -10025,7 +10033,7 @@ const SHOPS = [
   }
 },
 {
-  name:'Seabreeze Dance', base:'Dance studio', hood:'The Flats', edited:true, tall:true,
+  name:'Seabreeze Dance', base:'Dance studio', hood:'The Flats', edited:true, sc:1.3, tall:true,
   head:'Studio over a lobby: mirror wall and barre behind the upper glass',
   tags:['two storeys','mirror wall','tube barre','tall upper glazing','stair inside','bare footway'],
   desc:'The studio is upstairs behind one long window with the mirror wall, the barre on real brackets and the sprung floor visible through it, and the stair that reaches it runs inside the building instead of up the neighbour\'s wall.',
@@ -10162,7 +10170,7 @@ const SHOPS = [
   }
 },
 {
-  name:'Kelp & Ink', base:'Tattoo parlour', hood:'The Flats', edited:true, tall:true,
+  name:'Kelp & Ink', base:'Tattoo parlour', hood:'The Flats', edited:true, sc:1.3, tall:true,
   head:'TATTOO in yellow under a neon run, flash behind the glass',
   tags:['block letters as prisms','neon as tubes','framed flash sheets','black render','yellow on black'],
   desc:'The word is built from extruded bars standing proud of the fascia, so the letters have a top and a side and keep their thickness at any zoom, and the flash sheets hang inside the shop behind real glass.',
@@ -10403,7 +10411,7 @@ const SHOPS = [
   }
 },
 {
-  name:'Sandcastle Models', base:'Model shop', hood:'The Flats', edited:true, head:'Biplane on a bracket, kites in the window, glazing-bar grid',
+  name:'Sandcastle Models', base:'Model shop', hood:'The Flats', edited:true, sc:1.3, head:'Biplane on a bracket, kites in the window, glazing-bar grid',
   tags:['biplane as one extruded solid','banked wings','kites behind the glass','glazing bar grid','bright'],
   desc:'The biplane is one extruded outline -- nose taper, cockpit notch, headrest and fin all cut from the same loop -- hung from a bracket that actually reaches the top wing, holding a bank, with the far wing halves, struts and tailplane drawn before the body and the near halves after it. The kites hang inside the window recess where the stock lives, and the tiny panes are glazing bars in front of one real sheet rather than fifteen painted rectangles.',
   draw(p){
@@ -11955,7 +11963,7 @@ const SHOPS = [
   }
 },
 {
-  name:'Seawall Chambers', base:'Chambers', hood:'The Flats', edited:true, tall:true,
+  name:'Seawall Chambers', base:'Chambers', hood:'The Flats', edited:true, sc:1.3, tall:true,
   cTodo:'the area railing is a volume: a 10..120 at b 8..12, on the property line rather than out on the footway',
   head:'Four storeys of sash windows, brass plaques, area railing',
   tags:['terrace unit','sash windows in real reveals','brass plaques proud of the wall','stone cills','area railing on the line'],
@@ -12326,7 +12334,7 @@ const SHOPS = [
   }
 },
 {
-  name:'Driftwood Lofts', base:'Warehouse loft', hood:'The Flats', edited:true, tall:true,
+  name:'Driftwood Lofts', base:'Warehouse loft', hood:'The Flats', edited:true, sc:1.3, tall:true,
   head:'Stacked loading doors, brick piers, set out around the door',
   tags:['3 storey','stacked loading doors','brick piers','set out around the door'],
   desc:'Brick piers running the full height with the loading doors stacked in the middle bay, set out from the door backwards so the one opening with a fixed width gets its room before anything else does.',
@@ -12457,7 +12465,7 @@ const SHOPS = [
   }
 },
 {
-  name:'Seabreeze Library', base:'Library', hood:'The Flats', edited:true, tall:true,
+  name:'Seabreeze Library', base:'Library', hood:'The Flats', edited:true, sc:1.3, tall:true,
   head:'Tall arched reading-room windows over a stone doorcase, nothing on the footway',
   tags:['2 storey','swept arch heads','proud pilasters','stone doorcase'],
   desc:'Arched reading-room windows in real reveals with swept voussoir heads, pilasters standing proud between them, and a stone doorcase round the one opening whose width is not ours to choose.',
@@ -13049,7 +13057,7 @@ const SHOPS = [
   }
 },
 {
-  name:'The Tide Gazette', base:'Newspaper HQ', hood:'The Flats', edited:true, tall:true, ww: T2*6.6, dd: 460,
+  name:'The Tide Gazette', base:'Newspaper HQ', hood:'The Flats', edited:true, sc:1.3, tall:true, ww: T2*6.6, dd: 460,
   wTodo:'three packing slots -- the Fire station tier; the packer emits no wide slot yet',
   head:'Three slots: counter, entrance, two van bays, headline band, globe',
   tags:['3 slots','globe on a frame','running headline band','two van bays','round clock'],
@@ -13435,7 +13443,7 @@ const SHOPS = [
   }
 },
 {
-  name:'The Flats Police', base:'Police station', hood:'The Flats', edited:true, tall:true,
+  name:'The Flats Police', base:'Police station', hood:'The Flats', edited:true, sc:1.3, tall:true,
   cTodo:'the entrance steps are volumes: a 78..152 at b 0..22, on the line under the doorcase',
   head:'Chequer band, barred ground floor, mast',
   tags:['chequer band','round bars in the reveal','entrance steps','radio mast','3 storey'],
@@ -14082,7 +14090,7 @@ const SHOPS = [
   }
 },
 {
-  name:'Marina Office', base:'Harbour office', hood:'The Flats', edited:true, tall:true, ww: T2*6.6, dd: 340,
+  name:'Marina Office', base:'Harbour office', hood:'The Flats', edited:true, sc:1.3, tall:true, ww: T2*6.6, dd: 340,
   wTodo:'three packing slots -- the Fire station tier; the packer emits no wide slot yet',
   head:'Three slots of window and door, cupola lookout over, nothing on the footway',
   tags:['3 slots','glazed cupola','weathervane','harbour board','nothing on the footway'],
