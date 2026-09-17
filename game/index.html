@@ -7106,6 +7106,18 @@ function owCurbBlocks(ow, W, x, y){
      unaffected either way, because a target of 'road' returns below. */
   const here = W.surfaceAt(ow.px, ow.py);
   if(here !== 'road' && here !== 'curb' && ow.sfcCommit !== 'road') return false;
+  /* WHICH SIDE HE CAME FROM DECIDES IT (Sir, on-device: "tipsy is getting
+     hung up on the curb when he is seemingly on the sidewalk").
+     laneOffset(0) is ROAD_HALF + 0.5*T2 = 414, the far edge of the curb
+     band -- so a robot running the pavement edge, which is where the
+     delivery lane IS, dips into the band constantly. In the band the rule
+     below blocks curb -> sidewalk, the one-way vestibule that exists to
+     stop a ROAD robot climbing up; arriving from the pavement it welded
+     him to the kerb instead, unable to step back inland.
+     So the band only holds him if he came off the road. The climb is
+     untouched: from 'road', and from the band while committed to the
+     road, every not-road target below is still blocked. */
+  if(here === 'curb' && ow.sfcCommit !== 'road') return false;
   /* NOT-ROAD IS THE TEST. Two earlier versions of this line named the
      surfaces they expected -- first 'sidewalk', then 'curb' or
      'sidewalk' -- and both leaked, because naming what you expect only
@@ -35483,7 +35495,12 @@ class WorldScene extends Phaser.Scene {
          against the asphalt, the stone is twice as tall, and its three
          surfaces are a real light-to-dark set -- pale top, mid road face,
          dark shadow line where it meets the gutter. */
-      const GUT = 0x9a9488, KERB_TOP = 0xded8c8, KERB_FACE = 0x8b8578, KERB_DK = 0x6e6a5e;
+      /* PAINTED, so it is unmistakable from the seat (Sir: "lets make it a
+         painted stone so i can more easily identify it"). Kerb paint:
+         white top and white road face against grey asphalt and sand
+         paving, with the shadow line left dark so the step still reads
+         as a step rather than as a flat stripe. */
+      const GUT = 0x9a9488, KERB_TOP = 0xf4f1e8, KERB_FACE = 0xe2ded0, KERB_DK = 0x6e6a5e;
       /* CLEAR OF THE PAVEMENT, BY CONSTRUCTION (Sir: "move it to the edge
          of the last lane of the sidewalk i dont want it to over lap it at
          all"). Height is what covers ground behind: raising z by h lifts
@@ -35492,9 +35509,16 @@ class WorldScene extends Phaser.Scene {
          2*KERB_H from the wall line and the overlap lands on the gutter
          instead -- the pavement's outer row is never touched, whatever
          the height becomes. */
-      const KERB_H = 10, LIP = 13, KERB_SET = 2*KERB_H;
+      /* THE STONE IS THE BAND ITSELF (Sir: "we havent moved the ditch and
+         curb off of the edge of the last sidewalk row yet fully").
+         surfaceAt calls ROAD_HALF..ROAD_HALF+CURB_W 'curb' and everything
+         past it 'sidewalk', so the stone now fills exactly that 46 and
+         the pavement starts where the stone ends: no paving is built on
+         and none is painted over. The gutter moves to the ROAD side of
+         it, in the asphalt, and the gully goes with it. */
+      const KERB_H = 10;
       const band = sgn => {
-        const o0 = sgn*ROAD_HALF, o1 = sgn*(ROAD_HALF + CURB_W);
+        const o0 = sgn*(ROAD_HALF - CURB_W), o1 = sgn*ROAD_HALF;
         this.quadOn(g, [
           this.W(sx + rv.x*o0, sy + rv.y*o0, 0.6),
           this.W(ex + rv.x*o0, ey + rv.y*o0, 0.6),
@@ -35507,7 +35531,7 @@ class WorldScene extends Phaser.Scene {
          wall line; the lip runs back toward the road, so the pavement
          keeps every unit of its own width. */
       const kerb = sgn => {
-        const oIn = sgn*(ROAD_HALF + CURB_W - KERB_SET - LIP), oOut = sgn*(ROAD_HALF + CURB_W - KERB_SET);
+        const oIn = sgn*ROAD_HALF, oOut = sgn*(ROAD_HALF + CURB_W);
         const face = (off, z0, z1, col) => this.quadOn(g, [
           this.W(sx + rv.x*off, sy + rv.y*off, z1),
           this.W(ex + rv.x*off, ey + rv.y*off, z1),
@@ -35543,8 +35567,13 @@ class WorldScene extends Phaser.Scene {
     for(const n of r.grid.nodes){
       if(Math.abs(n.x - this.camX) > cullSpan || Math.abs(n.y - this.camY) > cullSpan) continue;
       const KR = KERB_ARC_R, OFF = ROAD_HALF + CURB_W, C = OFF + KR;
-      const KERB_H = 10, LIP = 13, KERB_SET = 2*KERB_H;
-      const GUT = 0x9a9488, KERB_TOP = 0xded8c8, KERB_FACE = 0x8b8578, KERB_DK = 0x6e6a5e;
+      const KERB_H = 10;
+      /* PAINTED, so it is unmistakable from the seat (Sir: "lets make it a
+         painted stone so i can more easily identify it"). Kerb paint:
+         white top and white road face against grey asphalt and sand
+         paving, with the shadow line left dark so the step still reads
+         as a step rather than as a flat stripe. */
+      const GUT = 0x9a9488, KERB_TOP = 0xf4f1e8, KERB_FACE = 0xe2ded0, KERB_DK = 0x6e6a5e;
       const QUAD = [[0,1],[1,2],[2,3],[3,0]];           // the two legs each quadrant needs
       for(let q = 0; q < 4; q++){
         const [f0, f1] = QUAD[q];
@@ -35571,14 +35600,15 @@ class WorldScene extends Phaser.Scene {
                             this.W(p1.x,p1.y,z0), this.W(p0.x,p0.y,z0)], col);
           }
         };
-        ring(KR, KR + CURB_W, 0.6, 0.6, GUT);                       // the gutter, swept
-        const kOut = KR + KERB_SET, kIn = kOut + LIP;               // stone, set back into it
-        faceArc(kIn, 0, 3, KERB_DK);
-        faceArc(kIn, 3, KERB_H, KERB_FACE);
-        ring(kOut, kIn, KERB_H, KERB_H, KERB_TOP);
-        faceArc(kOut, 0, KERB_H, KERB_FACE);
+        /* radius grows toward the road: KR is tangent to the pavement
+           edge, so the stone is the first 46 out and the gutter the next */
+        ring(KR + CURB_W, KR + 2*CURB_W, 0.6, 0.6, GUT);            // the gutter, in the asphalt
+        faceArc(KR + CURB_W, 0, 3, KERB_DK);                        // shadow where it meets the gutter
+        faceArc(KR + CURB_W, 3, KERB_H, KERB_FACE);                 // the step's road face
+        ring(KR, KR + CURB_W, KERB_H, KERB_H, KERB_TOP);            // the stone's top
+        faceArc(KR, 0, KERB_H, KERB_FACE);                          // and down onto the pavement
         /* THE GULLY, at the bottom of the sweep where the water goes */
-        const m = at(KR + CURB_W*0.5, 0.5), th = a0 + da*0.5;
+        const m = at(KR + CURB_W*1.5, 0.5), th = a0 + da*0.5;   // out in the gutter, clear of the stone
         const ux = Math.cos(th), uy = Math.sin(th), vx = -uy, vy = ux;
         const GW = 34, GL = 17;
         this.quadOn(g, [
