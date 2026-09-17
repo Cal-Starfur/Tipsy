@@ -3736,6 +3736,57 @@ function hoodAt(i, j){
   return HOODS[dr*DISTRICT_COLS + dc];
 }
 function hoodAtWorld(x, y){ return hoodAt(Math.round(x/BLOCK), Math.round(y/BLOCK)); }
+
+/* ==================== THE HOOD LOCK ====================
+   Sir, 2026-09-16: the game starts locked to The Flats. Each hood is a
+   store purchase (later: its own charging station and its own robot),
+   and a robot drives its own hood plus any owned hood touching it. This
+   is step 1 -- one robot, The Flats owned -- built so that owning more
+   is a change to HOOD_LOCK.owned and nothing else.
+
+   WHERE THE LINE IS. A district is DISTRICT_W x DISTRICT_H blocks, and
+   the street between two districts is shared. The line sits at that
+   street's FAR KERB (ROAD_HALF + 40 past its centre), so the whole border
+   street is yours -- your own hood's shops front onto it -- and the far
+   pavement, the side streets and everything past them are not. The
+   outermost districts run on to the world edge. Along a plain block the
+   line IS the kerb, so an invisible wall there reads as one; where a road
+   or the boardwalk crosses it, a Roadblock (labs/shopfront-shops.js)
+   stands on the line.
+
+   CONSOLE, to test (the artifact boots with an empty save):
+     HOOD_LOCK.owned.add(1)      own Boardwalk too (roadblocks update)
+     HOOD_LOCK.active = false    no lock at all */
+const HOOD_LOCK = { active: true, owned: new Set([0]) };   // HOODS indices
+function hoodLockEdge(){ return ROAD_HALF + 40; }
+function hoodCellAt(x, y){
+  const E = hoodLockEdge(), SW = DISTRICT_W*BLOCK, SH = DISTRICT_H*BLOCK;
+  const c = Math.max(0, Math.min(DISTRICT_COLS-1, Math.floor((x - E) / SW)));
+  const r = Math.max(0, Math.min(DISTRICT_ROWS-1, Math.floor((y - E) / SH)));
+  return { c, r, idx: r*DISTRICT_COLS + c };
+}
+function hoodLockAllows(x, y){
+  return !HOOD_LOCK.active || HOOD_LOCK.owned.has(hoodCellAt(x, y).idx);
+}
+/* a body of radius R: any of its four extremes over the line */
+function hoodLockBlocks(x, y, R){
+  if(!HOOD_LOCK.active) return false;
+  return !hoodLockAllows(x + R, y) || !hoodLockAllows(x - R, y) ||
+         !hoodLockAllows(x, y + R) || !hoodLockAllows(x, y - R);
+}
+function hoodOwnsIndex(i){ return !HOOD_LOCK.active || HOOD_LOCK.owned.has(i); }
+function hoodOwnsIJ(i, j){ return hoodOwnsIndex(HOODS.indexOf(hoodAt(i, j))); }
+/* the routing grid, seen through the lock: nodes past the line do not
+   exist, and a block past it cannot hold a door. buildWalk already stops
+   a leg where nodeAt returns null; findGoodS asks blockOK. */
+function hoodLockGridView(grid){
+  if(!HOOD_LOCK.active) return grid;
+  const v = Object.create(grid);
+  v.nodeAt = (i, j) => { const n = grid.nodeAt(i, j); return n && hoodLockAllows(n.x, n.y) ? n : null; };
+  v.blockOK = (bi, bj) => hoodOwnsIJ(bi, bj);
+  return v;
+}
+function hoodLockKey(){ return HOOD_LOCK.active ? [...HOOD_LOCK.owned].sort((a,b)=>a-b).join(',') : 'off'; }
 /* whole-map average of each hood knob -- terrain (HILL_AMP), the world
    colour palette, route difficulty, and par time all still read ONE value
    for the whole map rather than varying by district (see generateRoute's
@@ -7162,8 +7213,11 @@ function owStep(scene, dt){
      the x probe only leads on x, the y probe only on y. */
   const _pR = D.botR;
   const _ox = Math.sign(stepX) * _pR, _oy = Math.sign(stepY) * _pR;
+  /* the hood lock answers as a KERB (OW_CURB_BLOCK): it stops him and
+     never tips him -- a locked street is a closed door, not a crash */
   const blockAt = (x, y, ox, oy) => W.solidAt(x, y, D.botR) ||
-                            (owCurbBlocks(ow, W, x + (ox||0), y + (oy||0)) ? OW_CURB_BLOCK : null);
+                            (owCurbBlocks(ow, W, x + (ox||0), y + (oy||0)) ? OW_CURB_BLOCK : null) ||
+                            (hoodLockBlocks(x, y, D.botR) ? OW_CURB_BLOCK : null);
   const _full = blockAt(ow.px + stepX, ow.py + stepY, _ox, _oy);
   if(!_full){
     ow.px += stepX; ow.py += stepY;
@@ -11072,12 +11126,59 @@ function nearestChargeStation(grid, x, y){
   const list = getChargeStations(grid);
   let best = null, bd = Infinity;
   for(const s of list){
+    if(!hoodOwnsIndex(s.hoodIndex)) continue;        // the tow never lands you in a locked hood
     const d = Math.hypot(s.x - x, s.y - y);
     if(d < bd){ bd = d; best = s; }
   }
   return best ? { station: best, dist: bd } : null;
 }
 
+
+/* ==================== HOOD ROADBLOCKS ====================
+   One per crossing of the lock line, found by walking the line and asking
+   the world what is under it -- not a table, so any set of owned hoods
+   gets its own. A run of road or boardwalk 150+ long is a crossing (a
+   street mouth is 720-736). Each is a frame like a depot lot: dv along
+   the line, rv out of the owned side, so the entry's b < 0 is toward you
+   and its barricade band (b -44..-26) stands just past the line. dv x rv
+   keeps the depot's handedness on all four sides. Cached per owned set. */
+let _roadblockCache = null;
+function hoodRoadblocks(grid, W){
+  if(!HOOD_LOCK.active || !W || !W.surfaceAt) return [];
+  const key = hoodLockKey();
+  if(_roadblockCache && _roadblockCache.key === key && _roadblockCache.grid === grid) return _roadblockCache.list;
+  const E = hoodLockEdge(), SW = DISTRICT_W*BLOCK, SH = DISTRICT_H*BLOCK, PAD = 6*BLOCK;
+  const X0 = -PAD, X1 = grid.cols*BLOCK + PAD, Y0 = -PAD, Y1 = grid.rows*BLOCK + PAD;
+  const out = [], STEP = 16, OFF = 10;
+  const open = (x, y) => { const sf = W.surfaceAt(x, y); return sf === 'road' || sf === 'boardwalk'; };
+  const runsAlong = (fx, fy, t0, t1) => {
+    const rs = []; let st = null;
+    for(let t = t0; t <= t1; t += STEP){
+      if(open(fx(t), fy(t))){ if(st === null) st = t; }
+      else if(st !== null){ rs.push([st, t - STEP]); st = null; }
+    }
+    if(st !== null) rs.push([st, t1]);
+    return rs.filter(([a, b]) => b - a >= 150);
+  };
+  for(let r = 0; r < DISTRICT_ROWS; r++) for(let c = 0; c < DISTRICT_COLS; c++){
+    if(!HOOD_LOCK.owned.has(r*DISTRICT_COLS + c)) continue;
+    const x0 = c === 0 ? X0 : c*SW + E, x1 = c === DISTRICT_COLS-1 ? X1 : (c+1)*SW + E;
+    const y0 = r === 0 ? Y0 : r*SH + E, y1 = r === DISTRICT_ROWS-1 ? Y1 : (r+1)*SH + E;
+    const owned = (cc, rr) => cc >= 0 && rr >= 0 && cc < DISTRICT_COLS && rr < DISTRICT_ROWS
+                              ? HOOD_LOCK.owned.has(rr*DISTRICT_COLS + cc) : true;   // world edge: nothing to close
+    const push = (len, ux, uy, dv, rv) => out.push({ len, cu: { ux, uy, e: { dv, rv } } });
+    if(!owned(c+1, r)) for(const [a, b] of runsAlong(() => x1 + OFF, t => t, y0, y1))
+      push(b - a, x1 + 44, b, { x:0, y:-1 }, { x:1, y:0 });
+    if(!owned(c, r+1)) for(const [a, b] of runsAlong(t => t, () => y1 + OFF, x0, x1))
+      push(b - a, a, y1 + 44, { x:1, y:0 }, { x:0, y:1 });
+    if(!owned(c-1, r)) for(const [a, b] of runsAlong(() => x0 - OFF, t => t, y0, y1))
+      push(b - a, x0 - 44, a, { x:0, y:1 }, { x:-1, y:0 });
+    if(!owned(c, r-1)) for(const [a, b] of runsAlong(t => t, () => y0 - OFF, x0, x1))
+      push(b - a, b, y0 - 44, { x:-1, y:0 }, { x:0, y:-1 });
+  }
+  _roadblockCache = { key, grid, list: out };
+  return out;
+}
 
 /* ==================== PERMANENT CITY FURNITURE ====================
    The whole city's sidewalks, furnished once and forever, instead of a
@@ -12842,7 +12943,8 @@ function findGoodS(segs, totalLen, preferredS, scanFromEnd, grid, avoidBlock, mi
     if(!grid) return true; // no grid supplied -> legacy behaviour (never reject)
     const p = segsWorldOf(segs, s, nearOff);
     const bi = Math.floor(p.x / BLOCK), bj = Math.floor(p.y / BLOCK);
-    return bi >= 0 && bi <= grid.cols-2 && bj >= 0 && bj <= grid.rows-2;
+    return bi >= 0 && bi <= grid.cols-2 && bj >= 0 && bj <= grid.rows-2
+        && (!grid.blockOK || grid.blockOK(bi, bj));      // the hood lock's view
   };
   const order = scanFromEnd ? [...segs].reverse() : segs;
   let interiorFallback = null; // interior-facing, but on the avoided block
@@ -13685,13 +13787,20 @@ function _generateRouteFresh(dateStr, opts){
      no longer asks for that branch at all. HJ itself was already immune
      via its own hoodIndex request. */
   const useOldStart = !!(opts && (opts.hoodIndex != null || opts.unanchoredStart));
+  /* THE HOOD LOCK: today's shop is one of the shops in hoods you own, and
+     the walk and the door are looked for through the lock (see
+     hoodLockGridView). A district-anchored route (opts.hoodIndex, the
+     unanchored start) asked for its own hood on purpose and is left be. */
+  const _lockG = useOldStart ? grid : hoodLockGridView(grid);
   const PICKUP_SHOPS = getPickupShops(grid);
-  const todaysShop = PICKUP_SHOPS[seed % PICKUP_SHOPS.length];
+  const _ownShops = useOldStart ? PICKUP_SHOPS : PICKUP_SHOPS.filter(sh => hoodOwnsIJ(sh.blockI, sh.blockJ));
+  const _shopPool = _ownShops.length ? _ownShops : PICKUP_SHOPS;
+  const todaysShop = _shopPool[seed % _shopPool.length];
   const startAnchor = useOldStart ? districtStart : todaysShop.startNode;
   const startHeading = useOldStart ? undefined : todaysShop.f;
-  let walk = buildWalk(grid, rng, startAnchor, undefined, TURN_R, startHeading);
+  let walk = buildWalk(_lockG, rng, startAnchor, undefined, TURN_R, startHeading);
   for(let att = 0; att < 8 && !hasGoodDoorLeg(walk); att++)
-    walk = buildWalk(grid, rng, startAnchor, undefined, TURN_R, startHeading);
+    walk = buildWalk(_lockG, rng, startAnchor, undefined, TURN_R, startHeading);
   /* AFTER the accept loop, never inside it: hasGoodDoorLeg must judge the
      lattice walk on its own merits, since shore legs can't hold a door
      anyway (findGoodS rejects them at isGood). Grafting first would let a
@@ -13699,7 +13808,20 @@ function _generateRouteFresh(dateStr, opts){
      Challenge routes opt out entirely -- a splice moves totalLen, which
      moves parMs, the MIN_ROUTE_UNITS floor and doorS's scan-from-end, and
      both frozen courses are dialed against today's values. */
-  if(!(opts && opts.challenge)) walk = graftShore(walk, grid);
+  if(!(opts && opts.challenge)){
+    /* THE HOOD LOCK: the boardwalk runs the whole west shore, so a splice
+       onto it can carry the route out of an owned hood (measured: a
+       2026-09-09 route ran down it into University). A graft that
+       crosses the line is dropped and the lattice walk stands alone. */
+    const _ungrafted = walk;
+    walk = graftShore(walk, grid);
+    if(_lockG !== grid && walk !== _ungrafted){
+      for(let t = 0; t <= walk.totalLen; t += 200){
+        const q = segsWorldOf(walk.segs, t, 0);
+        if(!hoodLockAllows(q.x, q.y)){ walk = _ungrafted; break; }
+      }
+    }
+  }
   const segs = walk.segs, totalLen = walk.totalLen;
 
   const inCorner = sv => segs.some(sg => sg.type === "arc" && sv > sg.s0 - CORNER_HAZARD_CLEAR && sv < sg.s1 + CORNER_HAZARD_CLEAR);
@@ -14439,13 +14561,13 @@ function _generateRouteFresh(dateStr, opts){
      address; it's fixed now, so address is the one that has to dodge). A
      shared block can only hold one type, which would make the pickup
      render as the address house instead of a shop. */
-  let doorS = findGoodS(segs, totalLen, totalLen - 90, true, grid, pickupBlock, MIN_ROUTE_UNITS);
+  let doorS = findGoodS(segs, totalLen, totalLen - 90, true, _lockG, pickupBlock, MIN_ROUTE_UNITS);
   /* graceful degradation: if no interior good leg exists past the mile
      mark (short-walk day), take the best route the map offers rather
      than none — findGoodS's own final fallback returns preferredS-ish
      even with the floor, so re-run unfloored only if the floored pick
      itself landed short (it only can via that last-resort path). */
-  if(doorS < MIN_ROUTE_UNITS) doorS = Math.max(doorS, findGoodS(segs, totalLen, totalLen - 90, true, grid, pickupBlock));
+  if(doorS < MIN_ROUTE_UNITS) doorS = Math.max(doorS, findGoodS(segs, totalLen, totalLen - 90, true, _lockG, pickupBlock));
 
   /* the address is always a real block, forced to housing (a park or shop
      can't be the delivery destination). Same override the lab used with a
@@ -14670,7 +14792,7 @@ function _generateRouteFresh(dateStr, opts){
         let cur = n0; const dd = DIRV[fh];
         for(let k = 0; k < nB; k++){
           if(!cur || !cur.conn[fh]) return null;
-          cur = grid.nodeAt(cur.i + dd.x, cur.j + dd.y);
+          cur = _lockG.nodeAt(cur.i + dd.x, cur.j + dd.y);   // the lap stays inside the lock
         }
         return cur;
       };
@@ -14680,7 +14802,7 @@ function _generateRouteFresh(dateStr, opts){
            the entry corner's fillet can't eat the stopping zone */
         const aN0 = (Math.floor((aDoor + 60 + R + 20) / BLOCK) + 1) * BLOCK;
         const Ax = d.x !== 0 ? aN0*d.x : cN, Ay = d.x !== 0 ? cN : aN0*d.y;
-        const A = grid.nodeAt(Math.round(Ax/BLOCK), Math.round(Ay/BLOCK));
+        const A = _lockG.nodeAt(Math.round(Ax/BLOCK), Math.round(Ay/BLOCK));
         if(!A) continue;
         /* street sides span L blocks so the door sits safely inside the
            lap's return straight, >= R+90 clear of the re-entry corner —
@@ -14854,7 +14976,7 @@ function _generateRouteFresh(dateStr, opts){
        stream is untouched and every other feature on a given date keeps
        the exact position it had before this existed. Margins match the
        main walk's (+120 / -220 from each end). */
-    {
+    if(loop){   /* no lap on a corner day -- or where the hood lock leaves no room for one: it was read unguarded and threw */
       const lapRng = mulberry32(((dateStr.length*2654435761) ^ (Math.round(loop.sCut)*40503)
                                  ^ (Math.round(loop.sEnd)*97) ^ 0x1a9d) >>> 0);
       /* gated with the main walk's own passes (stage 4): the lap's segs
@@ -17784,6 +17906,99 @@ const DEPOT_GEOM = (() => {
     }
     kerb(p,'none');
   }
+},
+{
+  name:'Roadblock', road:true, zs:1, ww: 736, dd: 70,
+  head:'Hood border: the street is closed until you own what is past it',
+  tags:['three A-frame barricades','padlock sign','amber lamps','kerb cones'],
+  desc:'Stands across a street mouth where the hood you are in meets one you have not bought. 736 is the road curb to curb (ROAD_HALF x 2 plus the two curbs), so one entry closes one street; the lock line beside it is the kerb, and the kerb already stops wheels. Striped boards face the way you approach, a yellow padlock sign on the middle frame says why, and a lamp on each end frame reads at night.',
+  vol: {
+    foot: [[0,0],[736,0],[736,-70],[0,-70]], h: 0,      // no mass: open road under it
+    opens: [{ name:'road', poly: [[0,0],[736,0],[736,-70],[0,-70]], walk:true, see:'always', h:0 }],
+    solids: [
+      /* THE CLOSURE is one volume across the whole mouth, not three boxes
+         with gaps between the frames -- a robot must not thread it */
+      { name:'barricade', poly: [[0,-44],[736,-44],[736,-26],[0,-26]], h: 96 },
+      { name:'cone L', c:[22,-20], r:17, h:54, prop:true },      // the rubber base is the footprint
+      { name:'cone R', c:[714,-20], r:17, h:54, prop:true }
+    ],
+    zones: [{ name:'lock', kind:'hood-lock', poly: [[0,0],[736,0],[736,-70],[0,-70]] }],
+    marks: { centre: [368, -35] }
+  },
+  draw(p){
+    const ORANGE = '#f26a1b', WHITE = '#f4f1ea', STEEL = '#8b939b', YEL = '#ffc72c', INK = '#1d2024';
+    const B0 = -39, B1 = -31;                        // board depth
+    /* which board face turns to the eye -- the test box() uses, so the
+       stripes land on the visible face on all four block edges */
+    const faceB = P(0, B1, 0).y - P(0, B0, 0).y > 0 ? B1 : B0;
+    const stripes = (a0, a1, z0, z1) => {
+      box(a0, a1, B0, B1, z0, z1, shade(WHITE,.92), WHITE, shade(WHITE,.8));
+      const w = 26, h = z1 - z0;
+      for(let x = a0 - h; x < a1; x += w*2){
+        const q = [[x, z0], [x + w, z0], [x + w + h, z1], [x + h, z1]]
+          .map(([aa, zz]) => [Math.max(a0, Math.min(a1, aa)), zz]);
+        /* clip the parallelogram to the board by its a-range: an edge
+           that runs past a0/a1 is pinned there, which keeps each stripe
+           inside the board without a clip path */
+        if(q[1][0] - q[0][0] < 0.5 && q[2][0] - q[3][0] < 0.5) continue;
+        poly(q.map(([aa, zz]) => P(aa, faceB, zz)), ORANGE);
+      }
+    };
+    const frame = (c, wid) => {
+      const a0 = c - wid/2, a1 = c + wid/2;
+      for(const aa of [a0 + 14, a1 - 14]){           // A-frame legs, splayed across the board
+        tube(aa, B0 - 22, 0, aa, (B0 + B1)/2, 100, 3.2, STEEL);
+        tube(aa, B1 + 22, 0, aa, (B0 + B1)/2, 100, 3.2, shade(STEEL,1.08));
+      }
+      stripes(a0, a1, 40, 58);
+      stripes(a0, a1, 72, 90);
+    };
+    frame(126, 228); frame(368, 228); frame(610, 228);
+    /* lamps on the end frames */
+    for(const aa of [26, 710]){ cyl(aa, (B0+B1)/2, 90, 100, 5, INK); ball(aa, (B0+B1)/2, 107, 8, '#ffb000', '#fff1b0'); }
+    /* the padlock sign, a yellow diamond on the middle frame's top */
+    const zc = 132, R = 34, sb = faceB + (faceB === B1 ? 2 : -2);
+    tube(368, sb, 90, 368, sb, zc - R + 4, 3, STEEL);
+    poly([P(368, sb, zc + R), P(368 + R, sb, zc), P(368, sb, zc - R), P(368 - R, sb, zc)], YEL, INK, 1.6);
+    /* padlock: shackle as a thick arc of tube, body as a plate */
+    const sh = [];
+    for(let i = 0; i <= 8; i++){ const t = Math.PI * i/8; sh.push([368 + 9*Math.cos(t), zc + 2 + 11*Math.sin(t)]); }
+    for(let i = 0; i < sh.length - 1; i++) tube(sh[i][0], sb, sh[i][1], sh[i+1][0], sb, sh[i+1][1], 2.4, INK);
+    poly([P(355, sb, zc + 3), P(381, sb, zc + 3), P(381, sb, zc - 17), P(355, sb, zc - 17)], INK);
+    poly([P(366, sb, zc - 4), P(370, sb, zc - 4), P(370, sb, zc - 11), P(366, sb, zc - 11)], YEL);
+    /* KERB CONES, round. They were a flat card on one plane (Sir: "the
+       cones have no volume"). A frustum is cyl() with a different radius
+       at each rim: the silhouette is the lit half-sweep plateSweep picks,
+       so it is a cone on all four block edges, and its two sides are
+       shaded so it reads as turning. */
+    const cone = (a, b, z0, z1, r0, r1, col) => {
+      const N = 16, { ts, dir } = plateSweep(a, b, z0);
+      const rim = (i, z, r) => { const t = ts + dir*Math.PI*i/N; return P(a + r*Math.cos(t), b + r*Math.sin(t), z); };
+      const half = (i0, i1, c) => {
+        const pts = [];
+        for(let i = i0; i <= i1; i++) pts.push(rim(i, z0, r0));
+        for(let i = i1; i >= i0; i--) pts.push(rim(i, z1, r1));
+        poly(pts, c);
+      };
+      /* light from the left on every cone: the lit half is whichever
+         half sits further left on screen, not whichever the sweep starts on */
+      const leftFirst = rim(N/4, z0, r0).x < rim(3*N/4, z0, r0).x;
+      half(0, N/2, leftFirst ? col : shade(col, .78));
+      half(N/2, N, leftFirst ? shade(col, .78) : col);
+      const out = []; for(let i = 0; i <= N; i++) out.push(rim(i, z0, r0));
+      for(let i = N; i >= 0; i--) out.push(rim(i, z1, r1));
+      poly(out, null, shade(col, .62), 1);
+    };
+    if(state.props) for(const aa of [22, 714]){
+      const bc = -20;
+      box(aa - 17, aa + 17, bc - 17, bc + 17, 0, 5, shade(INK,1.5), shade(INK,1.2), INK);
+      const rz = z => 14 - (z - 5) * (14 - 2.5) / (54 - 5);     // radius at height z
+      cone(aa, bc, 5, 18, rz(5), rz(18), ORANGE);
+      cone(aa, bc, 18, 31, rz(18), rz(31), WHITE);                // reflective band
+      cone(aa, bc, 31, 54, rz(31), rz(54), ORANGE);
+      plateCircle(aa, bc, 54, rz(54), shade(ORANGE, 1.15), shade(ORANGE, .7), 1);
+    }
+  }
 }
   ];
   const BY_NAME = new Map(SHOPS.map(s => [s.name, s]));
@@ -20377,6 +20592,23 @@ class WorldScene extends Phaser.Scene {
       }
     }
     for(const lot of visLots) this.queueExteriorLot(blockVQ, lot);
+    /* HOOD ROADBLOCKS. Drawn through LIB like the depot, stretched along
+       the crossing (736 is a street mouth; the boardwalk is narrower).
+       He is always on the owned side, so the whole barricade sorts on
+       that side's far edge: behind him when the owned side is nearer the
+       camera, in front of him when it is not. */
+    if(this.ow && this.ow.world){
+      for(const rb of hoodRoadblocks(r.grid, this.ow.world)){
+        const { ux, uy, e } = rb.cu, sA = rb.len / 736;
+        if(Math.abs(ux - this.camX) + Math.abs(uy - this.camY) > BLOCK*3) continue;
+        const wx = (a, b) => ux + e.dv.x*a*sA + e.rv.x*b, wy = (a, b) => uy + e.dv.y*a*sA + e.rv.y*b;
+        const map = (a, b, h) => this.W(wx(a, b), wy(a, b), h);
+        const ks = [[0,0],[736,0],[0,-70],[736,-70]].map(([a, b]) => wx(a, b) + wy(a, b));
+        const ownedNearer = (-e.rv.x - e.rv.y) > 0;
+        const depth = ownedNearer ? Math.min(...ks) - 1 : Math.max(...ks) + 1;
+        blockVQ.push({ depth, fn: (g) => LIB.draw('Roadblock', g, map, null, this.K) });
+      }
+    }
     /* THE AQUARIUM. One item, same vq, same depth key, same body/roof
        split below -- it is an ordinary prop that happens not to belong to
        a block, so it is queued here rather than out of queueBlockContent
@@ -37781,6 +38013,7 @@ function tpMapIndex(route){
      index does not know where the robot is. */
   if(typeof depotsOf === "function")
     for(const d of depotsOf(g2)){
+      if(!hoodOwnsIndex(d.hoodIndex)) continue;       // locked hoods' chargers are not yours
       const q = depotDoorWorld(d);
       out.push({ name: d.name, kind: "charging", alias: "depot charger charging station",
                  x: q.x, y: q.y, depotKey: d.key });
@@ -38754,9 +38987,24 @@ function drawRouteMap(route){
      there. Three a district over 81 blocks is under a dozen on screen at
      20 (measured); only the whole-city overview drops them. Search
      finds them at any zoom. Tap routes to the door (see the tap handler). */
+  /* LOCKED HOODS read as locked on the map: a dark wash over each one,
+     bounded by the same line the roadblocks stand on */
+  if(HOOD_LOCK.active && route.grid){
+    const E = hoodLockEdge(), SW = DISTRICT_W*BLOCK, SH = DISTRICT_H*BLOCK, PAD = 8*BLOCK;
+    ctx.save(); ctx.fillStyle = "rgba(10,14,20,0.55)";
+    for(let r = 0; r < DISTRICT_ROWS; r++) for(let c = 0; c < DISTRICT_COLS; c++){
+      if(HOOD_LOCK.owned.has(r*DISTRICT_COLS + c)) continue;
+      const x0 = c === 0 ? -PAD : c*SW + E, x1 = c === DISTRICT_COLS-1 ? route.grid.cols*BLOCK + PAD : (c+1)*SW + E;
+      const y0 = r === 0 ? -PAD : r*SH + E, y1 = r === DISTRICT_ROWS-1 ? route.grid.rows*BLOCK + PAD : (r+1)*SH + E;
+      const a = toScreen({ x:x0, y:y0 }), b = toScreen({ x:x1, y:y1 });
+      ctx.fillRect(a.x, a.y, b.x - a.x, b.y - a.y);
+    }
+    ctx.restore();
+  }
   if(!usingAtlas && typeof depotsOf === "function" && route.grid
      && scale * BLOCK >= Math.min(W, H) / 20){
     for(const d of depotsOf(route.grid)){
+      if(!hoodOwnsIndex(d.hoodIndex)) continue;
       const q = depotDoorWorld(d);
       if(!inView(q.x, q.y)) continue;
       const pp = toScreen(q);
