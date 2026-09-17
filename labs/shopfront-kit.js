@@ -714,3 +714,18 @@ function yardDrum(a, off, col, d){
   const dd = d===undefined ? D : d;
   cyl(a, -dd-off, 0, 44, 14, col, shade(col,1.18));
 }
+
+/* TURNED -- a building that stands in its own yard with a way in from
+   every street (the brewery, the home store, the drugstore) has no back
+   to invent: seen from behind, it is simply the same building from the
+   other side. turned() runs a draw with the lot rotated 180 degrees about
+   its own centre, so back(p){ turned(LOT, LOT, () => this.draw(p)); }
+   shows its yard and entrance to the camera. Both hosts' P() read TURN;
+   a turn inside a turned frame undoes it. The seen end flips with it. */
+let TURN = null;
+function turned(w, d, fn){
+  const pT = TURN, pF = FLANK_RIGHT;
+  TURN = pT ? null : { w, d };
+  FLANK_RIGHT = !FLANK_RIGHT;
+  try { fn(); } finally { TURN = pT; FLANK_RIGHT = pF; }
+}
