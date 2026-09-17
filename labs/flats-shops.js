@@ -7224,7 +7224,6 @@ const SHOPS = [
        scale. The a = WW one is on a face we can see and goes at the
        end with everything else. */
     backElev();
-    flank(-0.5, -1);
     body(wall, trim, H, WW, DD);
     /* The plate body() lays down is shade(trim,1.05), which is right on
        a 230 shop and is 1048 by 620 of near-white here -- the largest
@@ -7234,7 +7233,7 @@ const SHOPS = [
 
     /* ---- the fly tower, behind the auditorium, built as a solid ---- */
     F(CA0+20, CA1-20, H, H+240, shade(wall,.82), shade(wall,.62), 2, -300);
-    S(CA1-20, -560, -300, H, H+240, shade(wall,.66));
+    S(FLANK_RIGHT ? CA1-20 : CA0+20, -560, -300, H, H+240, shade(wall,.66));   // the seen end of the fly tower
     T(CA0+20, CA1-20, -560, -300, H+240, shade(wall,.9));
     slab(CA0+10, CA1-10, H+240, H+254, -298, -562, shade(wall,.72));
     F(440, 610, H+150, H+206, shade(wall,.66), null, 0, -301);      // louvre
@@ -7300,7 +7299,13 @@ const SHOPS = [
     slab(318, 730, 250, 344, -1, -10, shade(wall,1.2), null, trim);
     F(340, 708, 268, 326, trim, null, 0, -0.5);
 
-    flank(WW+0.5, 1);                                 // the near return, after the box
+    /* ONLY THE SEEN END IS DRESSED, and after body(). Both flanks were
+       drawn unconditionally -- the a = 0 one before body(), the a = WW one
+       after -- which is right in the canvas lab's single view and wrong on
+       edges 0 and 2, where a = 0 is the seen end: its dressing was painted
+       over by body's plain end wall, and the far a = WW dressing landed on
+       top of the roof and the facade (Sir, on-device, block 8,1). */
+    if(FLANK_RIGHT) flank(WW+0.5, 1); else flank(-0.5, -1);
 
     if(state.roof){
       /* ---- roof plant ----
@@ -12681,8 +12686,11 @@ const SHOPS = [
     };
     const parked = (ca, cb, cz, liv) =>
       flatsGameCar((a, b, h) => P(ca + b, cb - a, cz + h), FLATS_CAR_COLORS[liv % FLATS_CAR_COLORS.length]);
-
-    T(0, BLK, -BLK, 0, 0.3, '#b3a894');                    // the pavement round the cell
+    /* NO PAVEMENT ROUND THE CELL (2026-09-17, the fix the museum already
+       had: "drawing over the sidewalk"). This painted 0..BLK -- node to
+       node -- over half of every street round the lot and both pavements.
+       The city draws its own roads, kerbs and pavements; the entry's
+       ground is its lot, CA0..CA1, and nothing outside it. */
     T(FA0-20, FA1+20, FB0-20, FB1+20, 0.6, '#7d848a');
 
     /* ================= A FLIGHT IS NOT PART OF A FLOOR ================
@@ -12823,7 +12831,7 @@ const SHOPS = [
   }
 },
 {
-  name:'Lagoon Market Hall', base:'Market hall', hood:'The Flats', edited:true, tall:true, ww: 2392, dd: 2392,
+  name:'Lagoon Market Hall', base:'Market hall', hood:'The Flats', edited:true, tall:true, ww: 2392, dd: 2392, sc: 0.6923,   /* fitted: 2392 x 0.6923 = 1656, the buildable square a park cell now has (roads 368 + pavement 368 a side) -- at 1x it stood on the pavement */
   wTodo:'a whole block edge, 2392 = BLOCK - 2*ROAD_HALF, of which the hall is 460 and the market yard is the rest; the packer emits no wide slot',
   cTodo:'the two stalls are volumes: a 88..134 and 326..372 at b 0..28, on the line and clear of the doorway',
   head:'A nave under one barrel vault, with the market yard filling the block',
@@ -13285,8 +13293,11 @@ const SHOPS = [
       = flatsWallFrames(BW, BD, FA0, FB1);
     const DMID = 205.12, WIN = [[18,150],[260,392]], CBAY = [410, 530];
     const NB = 8, B0 = 16, B1 = BW - 16;
-
-    T(0, BLK, -BLK, 0, 0.3, '#b3a894');                        // pavement round the cell
+    /* NO PAVEMENT ROUND THE CELL (2026-09-17, the fix the museum already
+       had: "drawing over the sidewalk"). This painted 0..BLK -- node to
+       node -- over half of every street round the lot and both pavements.
+       The city draws its own roads, kerbs and pavements; the entry's
+       ground is its lot, CA0..CA1, and nothing outside it. */
     T(FA0, FA1, FB0, FB1, 0.6, '#8a8578');                     // the compound hardstanding
     for(let k=0;k<7;k++) T(FA0+40, FA1-40, FB1-140-k*300, FB1-128-k*300, 0.9, shade('#8a8578',.92));
 
@@ -13831,8 +13842,11 @@ const SHOPS = [
     const { FR_FRONT, FR_RIGHT, FR_LEFT, FR_BACK, NEAR, FAR, Q, R, bandF, rev, glz, doorF }
       = flatsWallFrames(MW, MD, MA0, MB1);
     const DMID = 180, ARCH = [380, 620];
-
-    T(0, BLK, -BLK, 0, 0.3, '#b3a894');
+    /* NO PAVEMENT ROUND THE CELL (2026-09-17, the fix the museum already
+       had: "drawing over the sidewalk"). This painted 0..BLK -- node to
+       node -- over half of every street round the lot and both pavements.
+       The city draws its own roads, kerbs and pavements; the entry's
+       ground is its lot, CA0..CA1, and nothing outside it. */
     T(CA0, CA1, CB0, CB1, 0.6, '#8f867a');                     // the yard, setts
     for(let k=0;k<12;k++) T(CA0, CA1, CB1-60-k*150, CB1-48-k*150, 0.9, shade('#8f867a',.93));
 
@@ -14002,8 +14016,11 @@ const SHOPS = [
        against a 230 shop: 520 of canopy on 1656 read as trim rather than
        as the way in, and a 17 globe was a dot. 700 and 26. */
     const DMID = LW/2, NB = 5, CAN = [DMID-350, DMID+350], COUT = 150;
-
-    T(0, BLK, -BLK, 0, 0.3, '#b3a894');
+    /* NO PAVEMENT ROUND THE CELL (2026-09-17, the fix the museum already
+       had: "drawing over the sidewalk"). This painted 0..BLK -- node to
+       node -- over half of every street round the lot and both pavements.
+       The city draws its own roads, kerbs and pavements; the entry's
+       ground is its lot, CA0..CA1, and nothing outside it. */
 
     const elevation = fr => {
       const L = fr.len;
@@ -14311,8 +14328,11 @@ const SHOPS = [
     const { FR_FRONT, FR_RIGHT, FR_LEFT, FR_BACK, NEAR, FAR, Q, R, bandF, rev, glz, doorF }
       = flatsWallFrames(BW, BD, CA0, BB1);
     const DMID = 1480, PIPE = 1600;
-
-    T(0, BLK, -BLK, 0, 0.3, '#b3a894');
+    /* NO PAVEMENT ROUND THE CELL (2026-09-17, the fix the museum already
+       had: "drawing over the sidewalk"). This painted 0..BLK -- node to
+       node -- over half of every street round the lot and both pavements.
+       The city draws its own roads, kerbs and pavements; the entry's
+       ground is its lot, CA0..CA1, and nothing outside it. */
     T(CA0, CA1, CB0, CB1, 0.6, '#8f8c86');                     // the apron
     for(let i=0;i<6;i++){                                      // bay markings
       const u = CA0 + 120 + i*210;
@@ -14504,8 +14524,11 @@ const SHOPS = [
     const wall = '#eee6d4', trim = '#4d7f95', roofc = '#8a9699';
     const glassT = 'rgba(122,138,146,.88)';
     const GMID = (CA0+CA1)/2, GW = 190;
-
-    T(0, BLK, -BLK, 0, 0.3, '#b3a894');
+    /* NO PAVEMENT ROUND THE CELL (2026-09-17, the fix the museum already
+       had: "drawing over the sidewalk"). This painted 0..BLK -- node to
+       node -- over half of every street round the lot and both pavements.
+       The city draws its own roads, kerbs and pavements; the entry's
+       ground is its lot, CA0..CA1, and nothing outside it. */
     T(CA0, CA1, CB0, CB1, 0.6, '#a99d86');
     T(LA1, RA0, CB0+RD, SB0, 0.9, '#6f8a5e');                  // the court lawn
     T(GMID-70, GMID+70, CB0+RD, SB0, 1.2, '#bdb299');          // the path from the arch
