@@ -1,3 +1,4 @@
+/* GENERATED from game/index.html by tools/build_devvit.py -- do not edit; edit game/index.html and rebuild. */
 "use strict";
 
 /* Reddit/Devvit build only ever plays the daily map — a synchronous
@@ -112,6 +113,7 @@ function requestTpProfile(){
       tpProfile.walletCents = data.walletCents;
       tpProfile.owned = new Set(data.owned);
       tpProfile.equipped = data.equipped;
+      tpMergeServerHoods(data);
       tdFx.followClaimed = !!data.followBonusClaimed;
       /* Restores the retry gate to SERVER truth on every boot (Sir's
          call, 2026-08: "they should still be locked out ... until the
@@ -2568,6 +2570,92 @@ function hoodAt(i, j){
   return HOODS[dr*DISTRICT_COLS + dc];
 }
 function hoodAtWorld(x, y){ return hoodAt(Math.round(x/BLOCK), Math.round(y/BLOCK)); }
+
+/* ==================== THE HOOD LOCK ====================
+   Sir, 2026-09-16: the game starts locked to The Flats. Each hood is a
+   store purchase (later: its own charging station and its own robot),
+   and a robot drives its own hood plus any owned hood touching it. This
+   is step 1 -- one robot, The Flats owned -- built so that owning more
+   is a change to HOOD_LOCK.owned and nothing else.
+
+   WHERE THE LINE IS. A district is DISTRICT_W x DISTRICT_H blocks, and
+   the street between two districts is shared. The line sits at that
+   street's FAR KERB (ROAD_HALF + 40 past its centre), so the whole border
+   street is yours -- your own hood's shops front onto it -- and the far
+   pavement, the side streets and everything past them are not. The
+   outermost districts run on to the world edge. Along a plain block the
+   line IS the kerb, so an invisible wall there reads as one; where a road
+   or the boardwalk crosses it, a Roadblock (labs/shopfront-shops.js)
+   stands on the line.
+
+   CONSOLE, to test (the artifact boots with an empty save):
+     HOOD_LOCK.owned.add(1)      own Boardwalk too (roadblocks update;
+                                 NOT saved -- the store path is below)
+     HOOD_LOCK.active = false    no lock at all */
+const HOOD_LOCK = { active: true, owned: new Set([0]) };   // HOODS indices
+function hoodLockEdge(){ return ROAD_HALF + 40; }
+function hoodCellAt(x, y){
+  const E = hoodLockEdge(), SW = DISTRICT_W*BLOCK, SH = DISTRICT_H*BLOCK;
+  const c = Math.max(0, Math.min(DISTRICT_COLS-1, Math.floor((x - E) / SW)));
+  const r = Math.max(0, Math.min(DISTRICT_ROWS-1, Math.floor((y - E) / SH)));
+  return { c, r, idx: r*DISTRICT_COLS + c };
+}
+function hoodLockAllows(x, y){
+  return !HOOD_LOCK.active || HOOD_LOCK.owned.has(hoodCellAt(x, y).idx);
+}
+/* a body of radius R: any of its four extremes over the line */
+function hoodLockBlocks(x, y, R){
+  if(!HOOD_LOCK.active) return false;
+  return !hoodLockAllows(x + R, y) || !hoodLockAllows(x - R, y) ||
+         !hoodLockAllows(x, y + R) || !hoodLockAllows(x, y - R);
+}
+function hoodOwnsIndex(i){ return !HOOD_LOCK.active || HOOD_LOCK.owned.has(i); }
+function hoodOwnsIJ(i, j){ return hoodOwnsIndex(HOODS.indexOf(hoodAt(i, j))); }
+/* the routing grid, seen through the lock: nodes past the line do not
+   exist, and a block past it cannot hold a door. buildWalk already stops
+   a leg where nodeAt returns null; findGoodS asks blockOK. */
+function hoodLockGridView(grid){
+  if(!HOOD_LOCK.active) return grid;
+  const v = Object.create(grid);
+  v.nodeAt = (i, j) => { const n = grid.nodeAt(i, j); return n && hoodLockAllows(n.x, n.y) ? n : null; };
+  v.blockOK = (bi, bj) => hoodOwnsIJ(bi, bj);
+  return v;
+}
+function hoodLockKey(){ return HOOD_LOCK.active ? [...HOOD_LOCK.owned].sort((a,b)=>a-b).join(',') : 'off'; }
+
+/* ==================== THE HOOD STORE ====================
+   Sir, 2026-09-16: HYBRID unlock. A hood becomes BUYABLE once you have
+   made enough lifetime deliveries, then it is OWNED once you pay for it
+   from the tip wallet. Two steps, never one: hitting the count opens the
+   store card, it does not open the roadblocks. Real money is kept for
+   the next TOWN, never a hood in this one.
+
+   Tiers climb with the hills, so the pricier hoods are also the harder
+   drives. Prices are PLACEHOLDERS until a tip census says what a
+   delivery is actually worth. HOOD_TIER_OF is indexed like HOODS; tier 0
+   is The Flats, owned from the start and never sold.
+
+   Ownership lives in tpProfile.hoodsOwned. HOOD_LOCK.owned is only ever
+   a mirror of it (hoodSyncFromProfile), so everything already reading the
+   lock -- walls, roadblocks, map wash, routing, the tow -- follows a
+   purchase with no further wiring. */
+const HOOD_TIERS = [
+  null,
+  { tier:1, deliveries:10,  priceCents:5000  },
+  { tier:2, deliveries:30,  priceCents:15000 },
+  { tier:3, deliveries:60,  priceCents:40000 },
+  { tier:4, deliveries:100, priceCents:90000 },
+];
+/*                  Flats Brdwk OldTn Scoot Univ  Wareh Sunst Bluff Merid Markt LHarb PalmG */
+const HOOD_TIER_OF = [ 0,    1,    1,    2,    3,    3,    3,    4,    4,    2,    2,    1 ];
+function hoodTier(i){ return HOOD_TIERS[HOOD_TIER_OF[i]] || null; }
+function hoodStoreOrder(){
+  return HOODS.map((h, i) => i).filter(i => hoodTier(i))
+    .sort((a, b) => HOOD_TIER_OF[a] - HOOD_TIER_OF[b] || a - b);
+}
+function hoodIsOwned(i){ return !hoodTier(i) || tpProfile.hoodsOwned.has(i); }
+function hoodIsUnlocked(i){ const t = hoodTier(i); return !t || tpProfile.deliveries >= t.deliveries; }
+function hoodSyncFromProfile(){ HOOD_LOCK.owned = new Set(tpProfile.hoodsOwned); }
 /* whole-map average of each hood knob -- terrain (HILL_AMP), the world
    colour palette, route difficulty, and par time all still read ONE value
    for the whole map rather than varying by district (see generateRoute's
@@ -3060,6 +3148,7 @@ const PEOPLE_SHIRT = [{c:0x3f8f8a,dk:0x2f6b67},{c:0xc2452e,dk:0x963522},{c:0xb15
 const PEOPLE_PANTS = [{c:0x3a4658,dk:0x2c3543},{c:0x2e2e2e,dk:0x1e1e1e},{c:0x6b4a34,dk:0x543a29},{c:0x8a8a8a,dk:0x6d6d6d},{c:0x4a3a5c,dk:0x3a2d47}];
 const PEOPLE_HAIR  = [0x3a2b20, 0x1a1a1a, 0x8a6a3a, 0xd4c088, 0xb03a2e, 0x6b6b6b];
 const PEOPLE_SHOE  = [{c:0x1c1c1c,dk:0x121212},{c:0x5c4530,dk:0x483623},{c:0xf2f0e8,dk:0xc4c2ba}];
+
 /* POLICE UNIFORM — passed to drawPersonHull as its optional `uniform`
    argument. The cap and vest are drawn INSIDE the hull, by the hull's
    own box()/G(), because the hull builds its own head volume: a cap
@@ -3448,6 +3537,7 @@ const CAR_COLORS = [
   { n:"blue",   body:0x5678a8, bodyDk:0x435e87, roof:0x4c6c99 },
   { n:"white",  body:0xe4e6ea, bodyDk:0xc0c3c9, roof:0xd6d9dd }
 ];
+
 /* POLICE CRUISER — kind "policecar". Not a separate vehicle: it is the
    car above with a FIXED livery instead of a seeded colour, plus a roof
    light bar and a door decal. Sharing the car's one rigid geometry is
@@ -3727,10 +3817,36 @@ const FLAT_CULL_PAD = T2 * 2;   /* a tile's own Manhattan corner is T2
                                    (half-width on each axis); doubled so
                                    the tile at the boundary is drawn
                                    whole rather than clipped */
+/* FLAT_CULL_LEAD: the pad above covers a TILE's own size, which is a
+   fixed world quantity and correctly a constant. It does not cover the
+   camera MOVING between the frame the span was computed for and the
+   frame it is drawn on, and that error is proportional to how much
+   world is on screen -- so it grows as you zoom out while the constant
+   pad does not.
+
+   Measured against what the four screen corners actually need
+   (2026-08-28, Sir on-device: "the culling is to tight its causing
+   things to shift on screen when im in view 3"):
+
+     VIEW 1  span  593  needed  409   margin 45%
+     VIEW 2  span 1060  needed  876   margin 21%
+     VIEW 3  span 2227  needed 2043   margin  9%   <- 184 units, two tiles
+
+   At VIEW 3 the whole margin is two tiles. Any camera lead at all eats
+   it and ground tiles cross the boundary mid-drive, popping in and out
+   at the screen edge -- which is the shifting. The 12% term restores a
+   roughly constant PROPORTIONAL margin at every zoom instead of a
+   constant absolute one, so VIEW 3 gets ~245 extra units of slack and
+   VIEW 1 is nearly unchanged (it never had the problem).
+
+   Deliberately not a bigger constant: that would over-draw VIEW 1,
+   where ground is densest per screen pixel, to fix a VIEW 3 symptom. */
+const FLAT_CULL_LEAD = 0.12;
 function flatSpanOf(cx, cy, w, h, K, camZ){
   const ax = Math.max(cx, w - cx) / K;
   const by = 2 * Math.max(Math.abs(cy / K + camZ), Math.abs((h - cy) / K - camZ));
-  return Math.max(ax, by) + FLAT_CULL_PAD;
+  const span = Math.max(ax, by);
+  return span * (1 + FLAT_CULL_LEAD) + FLAT_CULL_PAD;
 }
 
 /* ================= REDUNDANT STYLE ELISION =================
@@ -4190,6 +4306,7 @@ const OW_D = {
      another machine. */
   botR:       30,        // BODY.hx 26 plus slack for the wheels
   clipThresh: 0.115,
+  depotDoorTip: 1.8,     // x clipThresh at a depot doorway: 0.207, ~92% of vMax square on
   clipTilt:   3.2,       // tilt impulse per unit of normal speed on a FRESH contact
   grindTilt:  0.25,      // fraction of that per frame while still in contact
   clipLoss:   0.55,      // fraction of normal-component speed kept after a scrape
@@ -4275,7 +4392,12 @@ function owBuildWorld(route){
       const list = bucket.get((i + a) + ',' + (j + c));
       if(!list) continue;
       for(const b of list)
-        if(x > b.x0 - R && x < b.x1 + R && y > b.y0 - R && y < b.y1 + R) return b;
+        if(x > b.x0 - R && x < b.x1 + R && y > b.y0 - R && y < b.y1 + R){
+          /* the depot's room and doorway are carved out of their block */
+          { const _dl = depotOnBlock(g2, b);
+            if(_dl){ const ds = depotSolidAt(_dl, x, y, R); if(ds === false) continue; if(ds === true) return b; } }
+          return b;
+        }
     }
     return null;
   };
@@ -4413,12 +4535,6 @@ const OW_HZ_R = {
      covers the length, so this is the half-WIDTH only: 45 plus a little
      slack so he stops against the panel rather than inside it. */
   car: 50,
-  /* the charging mast. poleW/2 is 7.5 and the box corner reaches 10.6, so
-     10 is the honest disc for it. Deliberately NOT generous the way the
-     signal is: this is the one obstacle the game deliberately sets the
-     robot down beside, so every unit of slack here comes straight out of
-     the parking clearance (see CHARGE.park). */
-  chargepost: 10,
 };
 /* driven over, not driven into: ground features and triggers */
 const OW_HZ_FLAT = new Set(['crack', 'slab', 'pigeons', 'grade', 'burnoutMark',
@@ -4475,6 +4591,7 @@ const OW_CF_QUERY_R = T2 * 8;
    on. It must be stable across frames -- for city props that is the
    cached record itself, which is why the chunk cache holding onto them
    matters for feel and not just for cost. */
+
 /* ---------- COLLIDER DEBUG READOUT (?dbg=1) ----------
    Ships dark. Every responder that can move the robot calls owDbgHit
    with its own name, so an invisible wall answers the only question
@@ -4577,7 +4694,9 @@ function owDbgDraw(scene){
   const ow = scene.ow;
   const head = 'pos ' + Math.round(ow ? ow.px : 0) + ',' + Math.round(ow ? ow.py : 0) +
                '  sfc ' + ((ow && ow.surface) || '-') +
-               '  tilt ' + (scene.tilt || 0).toFixed(2);
+               '  tilt ' + (scene.tilt || 0).toFixed(2) +
+               '  xray ' + (scene._xrayHits || 0) + '/' + XRAY.fan.length +
+               ' a' + (scene.xrayA || 0).toFixed(2);
   const rows = (scene._owDbg || []).map(h => {
     const age = ((now - h.t) / 1000).toFixed(1);
     return h.k + (h.n > 1 ? ' x' + h.n : '') +
@@ -4692,9 +4811,9 @@ function owContact(scene, ow, D, dYaw, key, type, hx, hy){
     if(dist < D.hzFlat){
       if(!ow.flatOn.has(key)){
         ow.flatOn.add(key);
-        owDbgHit(scene, 'flat', type, key, hx, hy);
         owLeanKick(scene, ow, owTiltSide(ow, dYaw, hx - ow.px, hy - ow.py)
                     * D.hzFlatTilt * (Math.abs(ow.vel) / D.vMax));
+        owDbgHit(scene, 'flat', type, key, hx, hy);
       }
     } else ow.flatOn.delete(key);
     return false;
@@ -5869,6 +5988,7 @@ function owCurbSign(ow, toSfc){
    block reads it a few thousand lines later. */
 function owStep(scene, dt){
   const ow = scene.ow, D = OW_D, W = ow.world;
+
   /* CATCH-ALL, ARMED BEFORE ANYTHING ELSE RUNS. Position at the end of
      the previous step vs. position now: any difference was written by
      something outside owStep -- the drawRobot interaction loop, or a
@@ -5991,8 +6111,11 @@ function owStep(scene, dt){
      the x probe only leads on x, the y probe only on y. */
   const _pR = D.botR;
   const _ox = Math.sign(stepX) * _pR, _oy = Math.sign(stepY) * _pR;
+  /* the hood lock answers as a KERB (OW_CURB_BLOCK): it stops him and
+     never tips him -- a locked street is a closed door, not a crash */
   const blockAt = (x, y, ox, oy) => W.solidAt(x, y, D.botR) ||
-                            (owCurbBlocks(ow, W, x + (ox||0), y + (oy||0)) ? OW_CURB_BLOCK : null);
+                            (owCurbBlocks(ow, W, x + (ox||0), y + (oy||0)) ? OW_CURB_BLOCK : null) ||
+                            (hoodLockBlocks(x, y, D.botR) ? OW_CURB_BLOCK : null);
   const _full = blockAt(ow.px + stepX, ow.py + stepY, _ox, _oy);
   if(!_full){
     ow.px += stepX; ow.py += stepY;
@@ -6007,24 +6130,68 @@ function owStep(scene, dt){
     else if(freeY){ ow.py += stepY; hitNormal = 1; }
     else hitNormal = Math.abs(stepX) > Math.abs(stepY) ? 1 : 2;
 
+    /* A DEPOT WALL END DEFLECTS HIM (Sir, 2026-09-16: "lets fix his exit").
+       The resolve above tries x alone and y alone. Against a straight
+       block face one of them survives and he slides; against the END of a
+       thin wall -- a jamb, which is the only convex corner the city has --
+       both probes land inside the round end and he is pinned, pressed on
+       it frame after frame (measured: 60% speed out of the pad, stuck at
+       the right jamb until he went over). Inside the doorway's `threshold`
+       zone the volume knows the true surface normal, so the step keeps
+       only its component ALONG the surface and he rolls round the jamb.
+       A hit that is square on leaves almost nothing along the surface, so
+       it still stops -- and the tip test below still judges it. */
+    if(!freeX && !freeY && _full !== OW_CURB_BLOCK && W.grid && typeof depotOnBlock === "function"){
+      const _dl0 = depotOnBlock(W.grid, _full);
+      const _n0 = _dl0 && depotContactNormal(_dl0, ow.px, ow.py);
+      if(_n0){
+        const into = stepX*_n0.nx + stepY*_n0.ny;
+        if(into < 0){
+          const tx = stepX - into*_n0.nx, ty = stepY - into*_n0.ny;
+          if(tx*tx + ty*ty > 1e-9 && !blockAt(ow.px + tx, ow.py + ty, Math.sign(tx)*_pR, Math.sign(ty)*_pR)){
+            ow.px += tx; ow.py += ty;
+          }
+        }
+      }
+    }
+
     /* A KERB NEVER TIPS HIM (Sir's call). It is a step, not a bollard:
        it stops the wheels dead and that is the whole punishment. So the
-       kerb skips the tip branch entirely, and when he does not actually
-       move it kills the speed and raises isBlocked -- which is what puts
-       the "?!" over his head, the same signal a building gives.
-       STOPPED means "did not move", not "both axes reported busy":
-       square onto a kerb running along x, stepX is exactly 0, and a
-       zero-length move on x is trivially free, so freeX is true and the
-       slide branch is taken while he travels nowhere. */
-    if(_full === OW_CURB_BLOCK){
+       kerb skips the tip branch entirely, and when both axes fail it
+       kills the speed and raises isBlocked -- which is what puts the
+       "?!" over his head, the same signal a building gives. */
+    const _curbOnly = _full === OW_CURB_BLOCK;
+    if(_curbOnly){
+      /* STOPPED means "did not move", not "both axes reported busy".
+         Square onto a kerb running along x, stepX is exactly 0, and a
+         zero-length move on x is trivially free -- so freeX is true, the
+         slide branch is taken, and he travels nowhere while the code
+         believes he slid. Measured: a head-on run advanced 0 units with
+         both flags clear. Asking the distance instead is the honest
+         question and needs no per-heading case. */
       const _slid = (freeX && Math.abs(stepX) > 1e-6) || (freeY && Math.abs(stepY) > 1e-6);
       if(!_slid) ow.vel = 0;
       else ow.vel *= D.clipLoss;
-      hitNormal = 0;
     } else {
-
-    const vN = Math.abs(hitNormal === 1 ? Math.cos(ow.yaw) : Math.sin(ow.yaw)) * Math.abs(ow.vel);
-    if(vN >= D.clipThresh){
+    let vN = Math.abs(hitNormal === 1 ? Math.cos(ow.yaw) : Math.sin(ow.yaw)) * Math.abs(ow.vel);
+    /* a DEPOT DOORWAY answers with its real normal, not the axis one --
+       see depotContactNormal. Only ever lowers vN for a graze; a square
+       hit on a jamb still reads as square. */
+    let _thresh = D.clipThresh;
+    if(_full && W.grid && typeof depotOnBlock === "function"){
+      const _dl = depotOnBlock(W.grid, _full);
+      const _n = _dl && depotContactNormal(_dl, ow.px, ow.py);
+      if(_n){
+        vN = Math.abs(Math.cos(ow.yaw)*_n.nx + Math.sin(ow.yaw)*_n.ny) * Math.abs(ow.vel);
+        /* AND THE DOORWAY FORGIVES (Sir: "less chance of tipping over from
+           the exit of the depot"). With the true normal, what still tipped
+           was a post taken ~58 degrees on at half speed or more. Here only
+           a hit that is nearly square AND nearly flat out goes over:
+           D.depotDoorTip x clipThresh. The rest of the city is untouched. */
+        _thresh = D.clipThresh * D.depotDoorTip;
+      }
+    }
+    if(vN >= _thresh){
       const sgn2 = Math.sign(Math.cos(ow.yaw) * (hitNormal === 1 ? 1 : 0) +
                              Math.sin(ow.yaw) * (hitNormal === 2 ? 1 : 0)) || 1;
       owTip(scene, sgn2);
@@ -6215,22 +6382,6 @@ function owStep(scene, dt){
     }
   }
 
-  /* ---------- CHARGING MASTS ----------
-     Same class as the signals: drawn, never solid, and you drove through
-     the mast. Only 36 in the whole city, so a Manhattan reject on each is
-     cheaper than any index would be.
-
-     The PAD is not solid and must not be -- it is a flat plate you park
-     on, and it is where owPlaceOnPad sets the robot down. Only the mast
-     answers. */
-  if(scene.route && scene.route.grid){
-    for(const st of getChargeStations(scene.route.grid)){
-      if(Math.abs(ow.px - st.x) + Math.abs(ow.py - st.y) > 300) continue;
-      const pp = chargePoleAt(st);
-      if(owContact(scene, ow, D, dYaw, st, 'chargepost', pp.x, pp.y)) hitNormal = hitNormal || 3;
-      if(scene.state === 'tipped') break;
-    }
-  }
 
   /* the pier: rails and the roundhouse. Cheap enough to run unguarded --
      two distance tests reject a downtown frame before anything else. */
@@ -6292,7 +6443,7 @@ function owStep(scene, dt){
      asks throttle === 1 and has no equivalent question out here. */
   scene.owPush = (ow.stick.active && Math.hypot(ow.stick.dx, ow.stick.dy) > D.dead * D.maxR)
                  || ow.held.size > 0;
-    scene.wheelPhase = (scene.wheelPhase || 0) - ow.vel * dt * 0.28;
+  scene.wheelPhase = (scene.wheelPhase || 0) - ow.vel * dt * 0.28;
 
   /* botS, MEASURED. Last thing in the step, because it reads the pose
      this step just resolved. The hazard loop in drawRobot can still
@@ -6420,11 +6571,12 @@ function owPlaceOnPad(scene, fromX, fromY){
   const near = nearestChargeStation(grid, fromX, fromY);
   if(!near) return null;
   const st = near.station;
-  /* FORWARD OF THE MAST, not on top of it -- the mast is solid now, and
-     the pad centre is inside its contact radius. chargeParkAt owns that
-     arithmetic so the spawn and the art cannot disagree about it. */
-  const pk = chargeParkAt(st);
-  owStandUpAt(scene, pk.x, pk.y, st.a);
+  /* ON THE DEPOT'S BACK-WALL PAD, facing the door. The depot's masts are
+     art against the wall, not solid, so the pad centre is the spot --
+     the same one the home spawn uses. The door opens on its own: he is
+     in the room. */
+  owStandUpAt(scene, st.x, st.y, st.a);
+  battRefill();   // the tow and the pad respawn both arrive charged
   return st;
 }
 
@@ -6553,13 +6705,6 @@ function owSafeSpotNear(scene, x, y){
         if(Math.hypot(px - cp.wx, py - cp.wy) < cr + R) return false;
       }
     }
-    if(grid){
-      for(const st of getChargeStations(grid)){
-        if(Math.abs(px - st.x) + Math.abs(py - st.y) > 300) continue;
-        const pp = chargePoleAt(st);
-        if(Math.hypot(px - pp.x, py - pp.y) < OW_HZ_R.chargepost + R) return false;
-      }
-    }
     return true;
   };
   let road = null;
@@ -6645,6 +6790,8 @@ function tpContSyncBtn(){
   const r = document.getElementById("retryBtn");
   if(!r) return;
   r.style.opacity = "";
+  /* a DEAD BATTERY is towed, never retried or continued */
+  if(tpBatt.dead){ r.textContent = "Tow to Charger"; tdFailLater(false); return; }
   if(!tpContArmed()){ r.textContent = "Retry"; return; }
   if(tpContAfford()){ r.textContent = "Continue " + tpMoney(TP_CONT_CENTS); return; }
   /* BROKE IS AN ANSWER, NOT A DEAD BUTTON (Sir, 2026-08-28: "we need it
@@ -7344,6 +7491,69 @@ const STORE_PALETTES = [
 ];
 const AWNING_STRIPES = [0xffffff, 0xc4c4c4];
 const STORE_DEPTH = T2 * 3; // matches houses
+
+/* ================= X-RAY OCCLUSION =================
+   W() is  sx = (x-y)*K + cx  and  sy = ((x+y)*0.5 - (z - camZ))*K + cy.
+   Stepping s units along world (+1,+1) leaves sx untouched and moves sy
+   DOWN by s*K; raising z by s moves it back UP by exactly s*K. So a
+   body at forward offset s covers a point at height zh if and only if
+   its own top reaches zh + s. That identity is the whole occlusion
+   test -- no screen-space AABBs, no per-item extents, nothing to keep
+   in sync with PROP_EXT when the art changes.
+
+   THE IDENTITY ALSO SETS A HARD RANGE, and it is shorter than it
+   feels. drawHouseUnit's roof is FLAT at H = DOOR_H + 50 + rng()*40,
+   so 234 is the top of the shortest house -- there is no ridge above
+   it. A house can therefore only hide a point at height zh out to
+   (234 - zh) units behind it, and nothing tunable changes that. At
+   zhead 150 that was 84 units, under a single tile, which is why the
+   effect vanished entirely: the sidewalk is SIDEWALK_W = 368 wide and
+   he is rarely that close to a frontage. zhead is the dial that trades
+   range against honesty -- LOW asks only that his feet be covered and
+   fires early, HIGH waits until his lid is under the roofline.
+
+   MUTABLE OBJECT, not bare consts, for the reason the HJ_GEOM note
+   already gives: these are the numbers most likely to need turning
+   after seeing them on device, and a const is a dial the console
+   cannot reach. Tune live with e.g. XRAY.zhead = 40, XRAY.hits = 3.
+   Also exported to window below so the artifact console can see it. */
+const XRAY = {
+  col:   0x8fe3d0,   // teal -- the robot's own accent
+  max:   0.55,       // silhouette alpha at full coverage
+  rise:  0.14,       // lerp in
+  fall:  0.09,       // slower out, so a clipped corner does not strobe
+  probe: 24,         // world units between samples along a ray
+  reach: 400,        // backstop; the height break below fires first
+  zhead: 60,         // height on him that must be covered -- see the range note
+  minH:  DOOR_H + 50,// top of the SHORTEST house; what builtHeightAt returns for a frontage band
+  /* the TALLEST height builtHeightAt can return, and so where the ray
+     march stops. Was minH, which was right while minH was the only
+     answer. The Charge depot is 450 and seen from behind its mass only
+     starts ~150 in along the camera ray, so a march capped at 234 quit
+     before it got there. Raised to the depot's height below, next to
+     DEPOT_H; every other building still returns minH, so a sample
+     past minH still cannot hit one of them -- their result is unchanged. */
+  maxH:  DOOR_H + 50,
+  /* LATERAL FAN. u offsets along world (+1,-1), which is
+     screen-HORIZONTAL and depth-preserving (the components cancel in
+     x+y), so every ray tests the same forward distance at a different
+     screen column. 34 is his own shadow ring radius, i.e. his
+     half-width. A +-68 pair was tried and removed (Sir on-device: "the
+     robot is still glowing when out in the open") -- a body-width out
+     is not his body, and those rays sat over the block's wall band
+     while the wall was nowhere near his screen column. */
+  fan:   [0, -34, 34],
+  hits:  2,          // rays of the fan needed before he counts as hidden
+  /* PROPS. A bin or a hydrant behind a frontage gets the same ghost.
+     Two separate dials because a prop is not a robot: it is short, so
+     it needs a low sample height, and there are a lot of them, so it
+     wants a fainter alpha or the street reads as a light show. Set
+     propMax to 0 to switch prop ghosting off entirely. */
+  propMax: 0.38,     // silhouette alpha for props
+  propZ:   24,       // height on a prop that must be covered
+  propFan: false     // props use the centre ray only -- see xrayCoverageAt
+};
+try { window.XRAY = XRAY; } catch(e){}
 
 /* corner stores get their own, richer palette set -- the block's anchor
    tenant, not another storefront in the run. accent = knob/sign border. */
@@ -8354,9 +8564,16 @@ let gpsNav = null;
    is how the strip and the card end up quoting different distances for
    the same drive. One conversion, one place. */
 const FT_PER_UNIT = 0.6;   // flavor conversion, not a real-world claim
+/* MILES UNTIL THE LAST 500 FT (Sir, 2026-09-15: "it should be in miles
+   until its down to 500 feet"). The switch was at 1000 ft, and the turn
+   prompts never called this at all -- they built their own "in N ft", so
+   a corner three blocks up read "Turn Left in 3,400 ft". Every distance
+   the GPS shows comes through here now. 0.1 mi is 528 ft, so the mile
+   readout never shows 0.0 above the cut. */
+const GPS_FT_CUT = 500;
 function tpDistText(units){
   const ft = (units || 0) * FT_PER_UNIT;
-  return ft > 1000 ? (ft/5280).toFixed(1) + " mi" : Math.round(ft/10)*10 + " ft";
+  return ft > GPS_FT_CUT ? Math.max(0.1, ft/5280).toFixed(1) + " mi" : Math.round(ft/10)*10 + " ft";
 }
 function tpClockText(ms){
   return Math.floor(ms/60000) + ":" + String(Math.floor((ms%60000)/1000)).padStart(2, "0");
@@ -8913,7 +9130,15 @@ function gpsNavTo(scene, id, name, tx, ty){
   if(!gpsNav.path){ gpsNav = null; return false; }
   return true;
 }
-function gpsNavClear(){ gpsNav = null; }
+function gpsNavClear(){
+  /* a PLACE trip is over when its nav is: nothing is left running for
+     GO's "same as running" gate to protect, so re-picking the same depot
+     after a tow must bring GO back. Missions and the delivery key off
+     their mode, not the nav, and are left alone. */
+  if(gpsNav && gpsNav.id === "place" && typeof tpGoneKey !== "undefined"
+     && tpGoneKey && tpGoneKey.indexOf("place:") === 0) tpGoneKey = null;
+  gpsNav = null;
+}
 
 /* ARRIVAL. Deliberately not a radius test around gpsNav.tx/ty: the mat
    already owns "is the robot on me", through owMatContains, and it
@@ -9087,6 +9312,47 @@ function gpsNavToMission(id){
              "Abandon", go);
 }
 
+/* A PLACE IS A DESTINATION TOO. The map pins learned this in August --
+   "the map is where you decide where to GO" -- but only missions got it:
+   every other row in search just panned the view, so a landmark you
+   could find was a landmark you then had to drive to by eye.
+
+   This is gpsNavToMission with the mat lookup taken out, because that is
+   genuinely the only difference. A mission navigates to its mat and can
+   be LAUNCHED on arrival; a place navigates to a point and arriving is
+   simply arriving. gpsNavArrived only ever answers for the mat whose id
+   it was sent to, and gpsNavLaunch returns false for an id it does not
+   know, so id "place" needs no new case in either -- the same way
+   "dropoff" has never needed one.
+
+   The target does not have to be on a road. gpsFindPath runs
+   gpsNearestNode on both ends, so a park's centroid -- which is in the
+   middle of the grass by construction -- snaps to the nearest lattice
+   node like anything else. */
+function gpsNavToPlace(name, tx, ty, toast){
+  const s = (typeof scn === "function") ? scn() : null;
+  if(!s) return;
+  if(!Number.isFinite(tx) || !Number.isFinite(ty)){ tpToast("No pin for " + name + "."); return; }
+  const live = s.mode === "delivery" && s.state === "play";
+  const go = () => {
+    if(live) gpsAbandonDelivery(s);
+    hide("failOverlay"); hide("winOverlay");
+    const s2 = tpEnsureFreeroam(scn());
+    if(!gpsNavTo(s2, "place", name, tx, ty)){
+      tpToast("No route to " + name + ".");
+      return;
+    }
+    /* a caller routing from the road (the HUD battery) has no GO to press */
+    tpToast(toast || ("Routing to " + name + ". Press GO."));
+    tpSyncOrderCard(s2);
+    if(s2 && s2.route){ resizeRouteMap(); drawRouteMap(s2.route); }
+  };
+  if(!live){ go(); return; }
+  gpsConfirm("Abandon today's delivery?",
+             "Driving to " + name + " cancels the order. No tip, no ladder credit.",
+             "Abandon", go);
+}
+
 /* one-off confirm sheet. Deliberately its own tiny element rather than
    a reuse of #failOverlay or the detail sheet: both of those carry
    run state and their own show/hide gates, and borrowing either for a
@@ -9237,7 +9503,8 @@ function getPickupShops(grid){
        0.55 hugs the storefronts and leaves 268 units clear.
 
    CITY_SEED is frozen, so this table is the same forever. */
-const CHARGE_PER_DISTRICT = 3;        // 12 districts -> 36 stations
+/* (CHARGE_PER_DISTRICT is gone: the stations are DEPOT_SITES now, and
+   CHARGE survives for the recovery timing, holdMs.) */
 const CHARGE = {
   padR:      44,        // pad radius. Robot is ~30, so this is "park on it"
   poleH:     96, poleW: 15,
@@ -9260,38 +9527,7 @@ const CHARGE = {
      on top of it. */
   park:      8,
 };
-const CHARGE_PAL = {
-  /* LIGHTER THAN THE LAB'S. At the lab's navy the pad read as a hole in
-     the pavement rather than a plate on top of it — it was darker than
-     the road. Lifted to a mid slate that sits above the sidewalk's own
-     value, so the ring reads as paint and the pad as a surface. */
-  pad: 0x6d7484, padDk: 0x565c6a,
-  ring: 0xffb454, ringDk: 0xd98f34,
-  pole: 0xe8eaef, poleDk: 0xb9bcc6,
-  head: 0x3a4150, headDk: 0x2b313d,
-  glow: 0x7fe3ff, glowHot: 0xd8f7ff,
-  shadow: 0x000000,
-};
 
-/* WHERE THE POLE ACTUALLY STANDS. drawChargeStation puts it at
-   a = -padR*0.62 on the pad's own axis (b = 0), and the sim has to agree
-   with that to the unit or the robot stops short of a charger that is not
-   there. One function, both consumers -- the same rule dogSpotAt and
-   trafficWorldAt already follow.
-
-   NOTE THE SIGN: bx is NEGATIVE and st.a points from the building toward
-   the road, so the pole sits at the BACK of the pad and the robot parks
-   in front of it, nose to the street. */
-function chargePoleAt(st){
-  const bx = -CHARGE.padR * CHARGE.poleAt;
-  return { x: st.x + bx*Math.cos(st.a), y: st.y + bx*Math.sin(st.a) };
-}
-/* WHERE THE ROBOT PARKS. Not the pad centre any more -- see CHARGE.park.
-   Same axis, the other way, so he sits forward of the mast with the
-   charger behind his shoulder. */
-function chargeParkAt(st){
-  return { x: st.x + CHARGE.park*Math.cos(st.a), y: st.y + CHARGE.park*Math.sin(st.a) };
-}
 
 /* ================= PERMANENT CUT LOTS =================
    Sir's call (2026-08-21): the course cutaway is a layout he likes for
@@ -9398,47 +9634,390 @@ function getCrimeSites(grid){
 }
 
 let _chargeStationsCache = null;
-function buildChargeStations(grid){
-  const out = [];
-  const shops = getPickupShops(grid);
-  for(let hoodIdx = 0; hoodIdx < HOODS.length; hoodIdx++){
-    const dc = hoodIdx % DISTRICT_COLS, dr = Math.floor(hoodIdx / DISTRICT_COLS);
-    const i0 = dc*DISTRICT_W, i1 = i0 + DISTRICT_W - 1;
-    const j0 = dr*DISTRICT_H, j1 = j0 + DISTRICT_H - 1;
-    const cand = grid.blocks
-      .filter(b => b.type === "commercial" && b.i >= i0 && b.i <= i1 && b.j >= j0 && b.j <= j1)
-      .sort((a,b) => a.j - b.j || a.i - b.i);
-    if(!cand.length) continue;
-    const taken = new Set(shops.filter(s => s.hoodIndex === hoodIdx)
-                               .map(s => s.blockI + "," + s.blockJ));
-    /* its OWN salt, so the stations are not all in the same corner of
-       their districts as the shops */
-    const rng = mulberry32(((hoodIdx*2654435761) ^ 0xc0ffee) >>> 0);
-    const pool = cand.slice();
-    for(let k = pool.length-1; k > 0; k--){
-      const r = Math.floor(rng()*(k+1));
-      const t = pool[k]; pool[k] = pool[r]; pool[r] = t;
+/* ---------- THE HOME DEPOT ----------
+   ONE of them, in ONE district, at Sir's direction -- not three a
+   district like the roadside chargers. It is the building the game
+   opens inside, so there is exactly one and it is always in the same
+   place: district 0, the first commercial block in raster order, its
+   corner nearest the camera (see depotLot). Deterministic with no rng, because "where is home" is not a thing
+   to roll for.
+
+   THE FRAME COMES FROM cornerUnitsOf, not from a literal. That function
+   already defines a corner lot as (HOUSE_DEPTH + T2*0.3) - CORNER_LOT_INSET
+   by STORE_DEPTH -- 295.6 by 276 -- which is exactly what the entry was
+   drawn to, so the lot and the art cannot drift apart. Lab `a` runs
+   along the edge on dv; lab `b` runs INTO the block, so it maps to -rv. */
+const DEPOT_HOOD = 0;
+/* ---------- THIRTY-SIX OF THEM (Sir, 2026-09-15) ----------
+   "lets get rid of the 36 existing and replace them with 36 depots ...
+   on the near corner". The roadside pad-and-mast chargers are gone; every
+   charge point in the city is now this building, and the home depot is
+   one of them.
+
+   THE TABLE IS AUTHORED, from a census Sir signed off on the map of.
+   Every commercial block (303) has streets on both near sides and
+   pavement at the corner, and no lot or door approach touches the
+   shore, so the near corner fits anywhere commercial. Two rules picked
+   among them:
+     - no PICKUP-SHOP block. A pickup frontage is always edge 1 or 2 --
+       one of the two near sides -- and for f = 3 the route STARTS at
+       the near corner node, which is where the door and mat stand;
+     - three a district, spread CITY-WIDE by round-robin farthest-point
+       from the home depot. Spread per district alone put two on
+       neighbouring blocks across a district line; city-wide the closest
+       pair is 3.2 blocks and the mean nearest neighbour 4.5.
+   CITY_SEED is frozen, so the blocks cannot move under it. depotsOf
+   still checks each entry is commercial and not a pickup block and
+   drops (with a warning) any that is not, rather than drawing a
+   building on something else. [i, j, home]. */
+const DEPOT_SITES = [
+  [2,0,1], [2,8], [6,4],               //  0 The Flats
+  [17,6], [10,2], [10,7],              //  1 Boardwalk
+  [26,0], [19,0], [24,5],              //  2 Old Town
+  [31,7], [32,2], [28,4],              //  3 Scooter Row
+  [0,17], [8,12], [0,12],              //  4 University
+  [15,17], [13,10], [12,14],           //  5 Warehouse Dist.
+  [26,17], [22,11], [18,13],           //  6 Sunset Terrace
+  [34,16], [29,12], [33,11],           //  7 The Bluffs
+  [7,25], [0,25], [5,21],              //  8 Meridian Hts.
+  [17,24], [9,19], [12,23],            //  9 Market Dist.
+  [26,25], [21,20], [25,21],           // 10 Little Harbor
+  [31,21], [31,25], [34,20],           // 11 Palm Gardens
+];
+let _depotsGrid = null, _depots = null, _depotByBlock = null;
+function depotsOf(grid){
+  if(_depotsGrid === grid && _depots) return _depots;
+  _depotsGrid = grid; _depots = []; _depotByBlock = new Map();
+  const byIJ = new Map(grid.blocks.map(b => [b.i + "," + b.j, b]));
+  const taken = new Set(getPickupShops(grid).map(sh => sh.blockI + "," + sh.blockJ));
+  for(const [i, j, home] of DEPOT_SITES){
+    const key = i + "," + j, blk = byIJ.get(key);
+    if(!blk || blk.type !== "commercial" || taken.has(key)){
+      try { console.warn("depot site " + key + " is not a free commercial block; skipped"); } catch(e){}
+      continue;
     }
-    const picks = pool.filter(b => !taken.has(b.i + "," + b.j)).slice(0, CHARGE_PER_DISTRICT);
-    for(const blk of picks){
-      const fRng = mulberry32(((blk.i*7919) ^ (blk.j*104729) ^ 0x5eed) >>> 0);
-      const f = fRng() < 0.5 ? 0 : 3;
-      const pe = blockEdgesOf(blk)[(f + 2) % 4];
-      const seed = ((Math.round(pe.ox*3+pe.dv.x)*7919) ^ (Math.round(pe.oy*3+pe.dv.y)*104729) ^ 0x51b3) >>> 0;
-      const units = packEdgeNoGap(pe.len, mulberry32(seed));
-      const u = units[Math.floor(units.length/2)] || { start:0, w: pe.len };
-      const ux = pe.ox + pe.dv.x*u.start, uy = pe.oy + pe.dv.y*u.start;
-      /* clamped so no dial can push a pad into the road or into a shop */
-      const off = Math.min(SIDEWALK_W - CHARGE.padR*0.5,
-                           Math.max(CHARGE.padR*0.5, T2*CHARGE.offset));
-      const x = ux + pe.dv.x*(u.w/2) + pe.rv.x*off;
-      const y = uy + pe.dv.y*(u.w/2) + pe.rv.y*off;
-      out.push({ hoodIndex: hoodIdx, name: HOODS[hoodIdx].n + " Charging",
-                 blockI: blk.i, blockJ: blk.j, x, y,
-                 a: Math.atan2(pe.rv.y, pe.rv.x) });
-    }
+    const hoodIndex = Math.floor(i / DISTRICT_W) + Math.floor(j / DISTRICT_H) * DISTRICT_COLS;
+    /* NUMBERED within the district, in table order (the home depot is The
+       Flats 1): three a district share the district name, and the map has
+       no per-block street names to tell them apart -- column names repeat
+       down a whole district. */
+    const nth = _depots.filter(x => x.hoodIndex === hoodIndex).length + 1;
+    const lot = { key, blk, cu: depotFrameOf(blk), hoodIndex, home: !!home,
+                  name: HOODS[hoodIndex].n + " Charging " + nth };
+    _depots.push(lot);
+    _depotByBlock.set(blk, lot);
   }
-  return out;
+  return _depots;
+}
+function depotOnBlock(grid, blk){ depotsOf(grid); return _depotByBlock.get(blk) || null; }
+/* THE HOME DEPOT -- the one the game opens inside. `false` when the grid
+   has none, which every caller already tests for. */
+function depotLot(grid){ return depotsOf(grid).find(d => d.home) || false; }
+/* THE NEAR CORNER, in the LAB'S OWN FRAME (Sir: "from this view i cant
+   see the door"). (x1, y1) is the corner nearest this fixed camera, and
+   its two streets face +x and +y: exactly the two faces the lab draws
+   the front and flank on. Every block-edge frame has rv = dv turned -90,
+   a mirror of the lab's (a -> +x, b -> +y), which put the sign on
+   backwards, so the depot takes the lab's frame outright: a runs +x along
+   the y1 street with the chamfer at a = WW on the corner, b = 0 on that
+   street, -b into the block. The lot is the corner square cornerUnitsOf
+   would give (x1 - M .. x1 - CORNER_LOT_INSET by STORE_DEPTH). */
+function depotFrameOf(blk){
+  const WW = depotGeom().WW;
+  const ux = blk.x1 - CORNER_LOT_INSET - WW, uy = blk.y1;
+  return { e: { dv: DIRV[0], rv: DIRV[1] }, ux, uy, w: WW,
+           hx: ux + WW/2, hy: uy, kind: "depot" };
+}
+/* ---------- THE CARVE ----------
+   solidAt is a plain rectangle over the block, so the depot's room and
+   its doorway are solid like everything else and Tipsey cannot get in.
+   This is the one engine change the building needs.
+
+   WORLD -> LAB. dv and rv are orthonormal, so the corner frame inverts
+   by projection: a = (p-u).dv and b = -((p-u).rv), which is the same
+   mapping the draw uses, run backwards.
+
+   TWO REGIONS, not one. The room alone is not enough -- the pavement
+   triangle the chamfer cuts off the corner is also inside the block
+   rect, so without it he is stopped on the doorstep. The passage is
+   everything on the outboard side of the chamfer line, which through
+   CA = (WW-CW, 0) with normal (1,1) is simply a + b > WW - CW. */
+/* THE DEPOT'S GEOMETRY AND VOLUME ARE THE ENTRY'S (Sir, 2026-09-16).
+   There used to be a hand copy here -- DEPOT_ROOM, DEPOT_WW/CW/DD,
+   DEPOT_DOOR, the pad at 200/b0+46, the mat at 266/-30, 300*1.5 -- and
+   every depot bug came out of that copy. Now DEPOT_GEOM and the entry's
+   `vol` (labs/shopfront-shops.js, inside LIB) are the only statement of
+   the building; these read it. Lazy, because LIB is defined further down
+   the file than the code that uses it. */
+function depotGeom(){ return LIB.get('Charge depot').geom; }
+function depotVol(){ return LIB.vol('Charge depot'); }
+function depotZS(){ return LIB.zs('Charge depot'); }
+/* ONE MAPPER, BOTH WAYS. The lot's rv points OUT of the block, so lab b
+   -- which runs INTO the building -- is +rv, not -rv. I had it negated,
+   which drew the whole depot mirrored across its own frontage: standing
+   on the pavement and the road instead of on its lot. Everything else
+   followed from that one sign. solidAt carved a region OUTSIDE the
+   block, so the block stayed solid and he could never drive in, and the
+   spawn pad landed on the footway -- which is exactly what the HUD said,
+   `sfc sidewalk`, while I was hunting a rendering bug.
+
+   The forward and inverse now sit next to each other and share the
+   convention, so they cannot disagree again. */
+/* (The atStart mirror that lived here is gone: depotLot now builds the
+   frame itself, always the lab's handedness, so there is no seeded
+   street pick left to undo.) */
+function depotMap(cu){
+  const e = cu.e;
+  return (a, b, h) => this.W(cu.ux + e.dv.x*a + e.rv.x*b,
+                             cu.uy + e.dv.y*a + e.rv.y*b, h);
+}
+function depotWorld(cu, a, b){
+  const e = cu.e;
+  return { x: cu.ux + e.dv.x*a + e.rv.x*b, y: cu.uy + e.dv.y*a + e.rv.y*b };
+}
+/* every lot function takes the LOT now, not the grid: there are 36 */
+function depotLabXY(d, x, y){
+  if(!d) return null;
+  const e = d.cu.e, dx = x - d.cu.ux, dy = y - d.cu.uy;
+  return { a: dx*e.dv.x + dy*e.dv.y, b: dx*e.rv.x + dy*e.rv.y };
+}
+/* WHO DECIDES A POINT INSIDE THE BLOCK RECT: the depot's volume, or the
+   block. Returns true/false where the depot owns the ground, null where
+   the block rect should answer as it does for any other block.
+
+   The depot owns its lot out to the block's corner and R past the two
+   street lines -- the chamfer's pavement and the door approach are
+   there -- EXCEPT the strips alongside its own walls: beside the flank
+   (the CORNER_LOT_INSET strip) and in front of the front wall, where the
+   block line is the wall line and the block rect already agrees. "Its own
+   walls" is asked of the volume, not written down.
+
+   Inside that, it is volBlockedAt: the declared foot less its walkable
+   opens, and a body of radius R kept off the DERIVED boundary -- which
+   is what makes the jambs thin walls with round ends, and the room's
+   wall faces stop at the doorway, by construction.
+
+   BOLLARDS DO NOT COLLIDE (Sir, 2026-09-16). The entry declares them as
+   solids -- they are there, and the x-ray still reads their height -- but
+   the game asks for the volume without props, so Tipsey drives through
+   them as he always has. DEPOT_PROPS_COLLIDE is that choice. */
+const DEPOT_PROPS_COLLIDE = false;
+function depotSolidAt(d, x, y, R){
+  const p = depotLabXY(d, x, y); if(!p) return null;
+  const v = depotVol(), L = v.lot;
+  if(p.a < 0 || p.b < L.b0 || p.a > L.a1 + CORNER_LOT_INSET + R || p.b > R) return null;
+  if(p.a > L.a1 && volSolidAt(v, L.a1 - 1, p.b, false)) return null;  // beside the flank
+  if(p.b > 0 && volSolidAt(v, p.a, -1, false)) return null;           // in front of the front wall
+  return volBlockedAt(v, p.a, p.b, R, DEPOT_PROPS_COLLIDE);
+}
+
+/* THE DOORWAY'S TRUE SURFACE NORMAL, for the tip test (see owStep). The
+   resolve there is axis-separated, so every contact is judged as an x-
+   or y-face -- wrong for a door that faces 45 (Sir on-device, 2026-09-15:
+   a graze on a jamb read as 71% of full speed into a wall). Inside the
+   entry's `threshold` zone this is the unit normal off the nearest real
+   surface the volume has -- jamb, wall face or bollard -- mapped to WORLD
+   through the lot frame. null anywhere else; the caller keeps the axis. */
+function depotContactNormal(d, x, y){
+  const p = depotLabXY(d, x, y); if(!p) return null;
+  const v = depotVol();
+  if(!v.zones.some(z => z.kind === 'forgive' && volInShape(z, p.a, p.b))) return null;
+  const n = volNearest(v, p.a, p.b, DEPOT_PROPS_COLLIDE);
+  if(!(n.d < Infinity) || (!n.na && !n.nb)) return null;
+  const e = d.cu.e;
+  return { nx: e.dv.x*n.na + e.rv.x*n.nb, ny: e.dv.y*n.na + e.rv.y*n.nb };
+}
+
+/* the spawn pad, in world space: the entry's `spawn` mark (the back-wall
+   pad the door frames square on) */
+function depotPadWorld(d){
+  if(!d) return null;
+  const m = depotVol().marks.spawn;
+  return depotWorld(d.cu, m[0], m[1]);
+}
+/* the door opens while he is in the room or in the entry's `door` zone
+   in front of it */
+function depotDoorWants(d, x, y){
+  const p = depotLabXY(d, x, y); if(!p) return 0;
+  const v = depotVol();
+  const inRoom = v.opens.some(o => o.name === 'room' && volPip(o.poly, p.a, p.b));
+  const near = v.zones.some(z => z.kind === 'door' && volInShape(z, p.a, p.b));
+  return (inRoom || near) ? 1 : 0;
+}
+
+/* ---------- WHICH WAY IT FACES, and HOW TALL IT LOOKS ----------
+   The view test the queue and the entry both make, named once: nearer
+   the camera is larger x + y, so a lab axis faces the eye when a step
+   along it grows x + y. Street view is the lab's own -- door, room and
+   sign toward the camera. */
+function depotStreetView(cu){
+  const o = depotWorld(cu, 0, 0), pa = depotWorld(cu, 1, 0), pb = depotWorld(cu, 0, 1);
+  const k0 = o.x + o.y;
+  return (pa.x + pa.y) > k0 && (pb.x + pb.y) > k0;
+}
+/* THE X-RAY NEEDS WHAT YOU SEE, NOT WHERE YOU CAN DRIVE (Sir on-device,
+   xray 1/3 behind the depot). volBuiltHeight is the visual answer: the
+   mass to its declared h, with the room and doorway see-through only
+   from the street view they open toward, 0 on the chamfer's pavement,
+   null off the lot. Heights come out in the entry's units; zs makes them
+   world. (XRAY.maxH is raised to match right after LIB is defined.) */
+function depotBuiltHeight(d, x, y){
+  if(!d) return null;
+  const p = depotLabXY(d, x, y);
+  const h = volBuiltHeight(depotVol(), p.a, p.b, depotStreetView(d.cu) ? 'street' : 'back', true);
+  return h === null ? null : h * depotZS();
+}
+
+function isDepotBlock(grid, blk){ return !!depotOnBlock(grid, blk); }
+/* ==================== THE BATTERY (Sir, 2026-09-15) ====================
+   "when i get to the next charger what happens?" -- now: it charges you.
+   Agreed shape:
+     - drains from DRIVING (distance) plus a little per bump;
+     - warns at 20%, and the HUD battery routes to the nearest depot;
+     - at 0% it is a FAIL and a TOW to the nearest depot -- no limp mode,
+       no paid Continue (continuing flat would only fail again);
+     - charges by stopping on a depot pad; arriving there ends a trip
+       that was headed for that depot;
+     - SESSION ONLY: full on every page load, nothing saved.
+
+   CAPACITY, MEASURED. Twenty days of routes: the pickup-to-door leg is
+   21,207 units at the median (9,181 .. 36,289) and the home depot sits
+   ~61,600 straight-line from a median pickup. 150,000 is a few
+   deliveries including the drive to each shop, and the 20% warning
+   leaves 30,000 -- several times the 4.5-block mean spacing between
+   depots, so a warning is always recoverable. */
+const BATT = {
+  capU:      150000,   // world units of driving on a full charge
+  warnPct:   20,
+  bumpPct:   0.5,      // per fresh scrape against anything solid
+  fillMs:    4000,     // empty to full, parked on a pad
+  teleportU: 400,      // a frame jump longer than this is a respawn, not driving
+  stillV:    0.02,     // |vel| under this counts as stopped on the pad
+};
+const tpBatt = { pct: 100, warned: false, dead: false, charging: false,
+                 fullToasted: true, lastX: null, lastY: null, lastScrapes: 0 };
+function battRefill(){
+  tpBatt.pct = 100; tpBatt.warned = false; tpBatt.dead = false;
+  tpBatt.charging = false; tpBatt.fullToasted = true; tpBatt.lastX = null;
+}
+/* the depot pad he is stopped on, or null. Both bays count: the left one
+   is waiting on its NPC, but nothing stands on it yet. */
+function battPadAt(scene){
+  const g = scene.route && scene.route.grid;
+  if(!g) return null;
+  for(const d of depotsOf(g)){
+    if(Math.abs(d.cu.ux - scene.botX) + Math.abs(d.cu.uy - scene.botY) > 900) continue;
+    const q = depotLabXY(d, scene.botX, scene.botY);
+    if(depotVol().zones.some(z => z.kind === 'charge' && volInShape(z, q.a, q.b))) return d;
+  }
+  return null;
+}
+/* one frame, inside the play gate, trips only (free roam and delivery):
+   missions run their own frozen worlds and the attract robot is nobody's */
+function battTick(scene, dt){
+  if(scene.attract || !tpContTripMode(scene.mode) || scene.state !== "play" || !scene.ow) return;
+  const ow = scene.ow;
+  /* DRAIN. Distance actually covered, so standing still is free and a
+     respawn or a Continue -- a jump, not a drive -- costs nothing. */
+  if(tpBatt.lastX !== null){
+    const step = Math.hypot(ow.px - tpBatt.lastX, ow.py - tpBatt.lastY);
+    if(step < BATT.teleportU) tpBatt.pct -= 100 * step / BATT.capU;
+  }
+  tpBatt.lastX = ow.px; tpBatt.lastY = ow.py;
+  const sc = ow.clipScrapes || 0;
+  if(sc > tpBatt.lastScrapes) tpBatt.pct -= BATT.bumpPct * (sc - tpBatt.lastScrapes);
+  tpBatt.lastScrapes = sc;
+  /* CHARGE. Stopped on a pad. */
+  const pad = Math.abs(ow.vel || 0) < BATT.stillV ? battPadAt(scene) : null;
+  if(pad){
+    if(!tpBatt.charging){
+      tpBatt.charging = true;
+      /* ARRIVAL: a trip to THIS depot ends on its pad */
+      if(gpsNav && gpsNav.id === "place"){
+        const q = depotDoorWorld(pad);
+        if(Math.hypot(gpsNav.tx - q.x, gpsNav.ty - q.y) < 1){
+          gpsNavClear();
+          if(typeof tpSyncOrderCard === "function") tpSyncOrderCard(scene);
+        }
+      }
+      if(tpBatt.pct < 99.5){ tpBatt.fullToasted = false; tpToast("Charging\u2026"); }
+    }
+    tpBatt.pct += 100 * dt / BATT.fillMs;
+    if(tpBatt.pct >= 100){
+      tpBatt.pct = 100;
+      if(!tpBatt.fullToasted){ tpBatt.fullToasted = true; tpToast("Fully charged."); }
+    }
+  } else {
+    tpBatt.charging = false;
+  }
+  if(tpBatt.pct > BATT.warnPct + 5) tpBatt.warned = false;
+  if(tpBatt.pct <= BATT.warnPct && !tpBatt.warned && tpBatt.pct > 0){
+    tpBatt.warned = true;
+    tpToast("Battery low. Tap the battery to route to the nearest charger.");
+  }
+  if(tpBatt.pct <= 0){ tpBatt.pct = 0; battDie(scene); }
+}
+/* THE DEAD BATTERY IS A FAIL. The robot stays upright and the sim
+   stops -- the same shape "canceled" already has -- and the card offers
+   exactly one thing: the tow. */
+function battDie(scene){
+  const ow = scene.ow;
+  tpBatt.dead = true; tpBatt.charging = false;
+  scene.state = "dead";
+  scene.speed = 0; scene.throttle = 0;
+  if(ow){ ow.vel = 0; ow.failHold = true; }
+  tpCont.armed = false; tpCont.nav = null;
+  gpsNavClear();
+  if(scene.mode === "delivery") reportFail(scene, "battery");
+  else tdFx.gateEligible = false;
+  setTimeout(() => {
+    if(!tpBatt.dead) return;
+    showFail([["Battery dead.", "Towing you back to the nearest charger."]]);
+  }, 900);
+}
+/* THE HUD BATTERY. Tap routes to the nearest depot's door. */
+function battRouteToCharger(){
+  const s = scn();
+  if(!s || !s.route || !s.route.grid) return;
+  const near = nearestChargeStation(s.route.grid, s.botX, s.botY);
+  if(!near) return;
+  const d = near.station.depot, q = depotDoorWorld(d);
+  gpsNavToPlace(d.name, q.x, q.y, "Routing to " + d.name + ".");
+}
+function battSyncHud(scene){
+  const el = document.getElementById("battBtn");
+  if(!el) return;
+  const show = !tpMapUp() && !scene.attract && tpContTripMode(scene.mode)
+            && (scene.state === "play" || scene.state === "dead");
+  el.classList.toggle("hidden", !show);
+  if(!show) return;
+  const pct = Math.max(0, Math.min(100, Math.round(tpBatt.pct)));
+  if(el._pct !== pct){
+    el._pct = pct;
+    el.querySelector(".bPct").textContent = pct;
+    el.querySelector(".bFill").style.width = "calc(" + pct + "% - 2px)";
+  }
+  el.classList.toggle("low", pct <= BATT.warnPct && !tpBatt.charging);
+  el.classList.toggle("chg", tpBatt.charging);
+}
+
+/* WHERE A TRIP TO A DEPOT ENDS: the door mat's centre, cpt(0.5, -64) =
+   lab (266, -30), on the pavement in front of the chamfer. Not the pad --
+   that is inside, and the GPS line's tail should stop at the door the
+   player drives in through. Map pins and search rows both route here. */
+function depotDoorWorld(d){ const m = depotVol().marks.mat; return depotWorld(d.cu, m[0], m[1]); }
+
+/* THE CHARGE STATIONS ARE THE DEPOTS. Same record shape the recovery,
+   Continue and furniture code already read -- x/y is the depot's
+   back-wall pad, `a` faces out of the door so he wakes nose to the
+   street -- plus the lot itself. */
+function buildChargeStations(grid){
+  return depotsOf(grid).map(d => {
+    const dm = depotVol().marks.door;
+    const pad = depotPadWorld(d), door = depotWorld(d.cu, dm[0], dm[1]);
+    return { hoodIndex: d.hoodIndex, name: d.name, blockI: d.blk.i, blockJ: d.blk.j,
+             x: pad.x, y: pad.y, a: Math.atan2(door.y - pad.y, door.x - pad.x), depot: d };
+  });
 }
 function getChargeStations(grid){
   if(!_chargeStationsCache) _chargeStationsCache = buildChargeStations(grid);
@@ -9451,12 +10030,59 @@ function nearestChargeStation(grid, x, y){
   const list = getChargeStations(grid);
   let best = null, bd = Infinity;
   for(const s of list){
+    if(!hoodOwnsIndex(s.hoodIndex)) continue;        // the tow never lands you in a locked hood
     const d = Math.hypot(s.x - x, s.y - y);
     if(d < bd){ bd = d; best = s; }
   }
   return best ? { station: best, dist: bd } : null;
 }
 
+
+/* ==================== HOOD ROADBLOCKS ====================
+   One per crossing of the lock line, found by walking the line and asking
+   the world what is under it -- not a table, so any set of owned hoods
+   gets its own. A run of road or boardwalk 150+ long is a crossing (a
+   street mouth is 720-736). Each is a frame like a depot lot: dv along
+   the line, rv out of the owned side, so the entry's b < 0 is toward you
+   and its barricade band (b -44..-26) stands just past the line. dv x rv
+   keeps the depot's handedness on all four sides. Cached per owned set. */
+let _roadblockCache = null;
+function hoodRoadblocks(grid, W){
+  if(!HOOD_LOCK.active || !W || !W.surfaceAt) return [];
+  const key = hoodLockKey();
+  if(_roadblockCache && _roadblockCache.key === key && _roadblockCache.grid === grid) return _roadblockCache.list;
+  const E = hoodLockEdge(), SW = DISTRICT_W*BLOCK, SH = DISTRICT_H*BLOCK, PAD = 6*BLOCK;
+  const X0 = -PAD, X1 = grid.cols*BLOCK + PAD, Y0 = -PAD, Y1 = grid.rows*BLOCK + PAD;
+  const out = [], STEP = 16, OFF = 10;
+  const open = (x, y) => { const sf = W.surfaceAt(x, y); return sf === 'road' || sf === 'boardwalk'; };
+  const runsAlong = (fx, fy, t0, t1) => {
+    const rs = []; let st = null;
+    for(let t = t0; t <= t1; t += STEP){
+      if(open(fx(t), fy(t))){ if(st === null) st = t; }
+      else if(st !== null){ rs.push([st, t - STEP]); st = null; }
+    }
+    if(st !== null) rs.push([st, t1]);
+    return rs.filter(([a, b]) => b - a >= 150);
+  };
+  for(let r = 0; r < DISTRICT_ROWS; r++) for(let c = 0; c < DISTRICT_COLS; c++){
+    if(!HOOD_LOCK.owned.has(r*DISTRICT_COLS + c)) continue;
+    const x0 = c === 0 ? X0 : c*SW + E, x1 = c === DISTRICT_COLS-1 ? X1 : (c+1)*SW + E;
+    const y0 = r === 0 ? Y0 : r*SH + E, y1 = r === DISTRICT_ROWS-1 ? Y1 : (r+1)*SH + E;
+    const owned = (cc, rr) => cc >= 0 && rr >= 0 && cc < DISTRICT_COLS && rr < DISTRICT_ROWS
+                              ? HOOD_LOCK.owned.has(rr*DISTRICT_COLS + cc) : true;   // world edge: nothing to close
+    const push = (len, ux, uy, dv, rv) => out.push({ len, cu: { ux, uy, e: { dv, rv } } });
+    if(!owned(c+1, r)) for(const [a, b] of runsAlong(() => x1 + OFF, t => t, y0, y1))
+      push(b - a, x1 + 44, b, { x:0, y:-1 }, { x:1, y:0 });
+    if(!owned(c, r+1)) for(const [a, b] of runsAlong(t => t, () => y1 + OFF, x0, x1))
+      push(b - a, a, y1 + 44, { x:1, y:0 }, { x:0, y:1 });
+    if(!owned(c-1, r)) for(const [a, b] of runsAlong(() => x0 - OFF, t => t, y0, y1))
+      push(b - a, x0 - 44, a, { x:0, y:1 }, { x:-1, y:0 });
+    if(!owned(c, r-1)) for(const [a, b] of runsAlong(t => t, () => y0 - OFF, x0, x1))
+      push(b - a, b, y0 - 44, { x:-1, y:0 }, { x:0, y:-1 });
+  }
+  _roadblockCache = { key, grid, list: out };
+  return out;
+}
 
 /* ==================== PERMANENT CITY FURNITURE ====================
    The whole city's sidewalks, furnished once and forever, instead of a
@@ -9751,13 +10377,15 @@ function cityFurnitureForEdge(grid, blk, fi){
      Cleared to padR plus a prop's own reach rather than to padR, so the
      approach is open too and not just the plate. Only the stations on
      THIS block are considered -- 36 in the city, a handful per block. */
-  const _pads = (typeof getChargeStations === "function")
-    ? getChargeStations(grid).filter(st => st.blockI === blk.i && st.blockJ === blk.j)
-    : [];
+  /* now the depot's DOOR APPROACH: the pad is inside the building, and
+     what furniture must not grow on is the mat, the bollards and the
+     pavement in front of the chamfer. Lab (266, -30) is the mat's centre
+     (cpt(0.5, -64)); 150 covers mat, bollards and the corner triangle. */
+  const _dlot = depotOnBlock(grid, blk);
   const onPad = p => {
-    for(const st of _pads)
-      if(Math.hypot(p.x - st.x, p.y - st.y) < CHARGE.padR + CITY_FURN.padClear) return true;
-    return false;
+    if(!_dlot) return false;
+    const q = depotLabXY(_dlot, p.x, p.y);
+    return Math.hypot(q.a - 266, q.b + 30) < 150 + CITY_FURN.padClear;
   };
   const blocked = (a, lane) => {
     const sm = e.len - a;   // compare in the same mirrored frame place() stores
@@ -11219,7 +11847,8 @@ function findGoodS(segs, totalLen, preferredS, scanFromEnd, grid, avoidBlock, mi
     if(!grid) return true; // no grid supplied -> legacy behaviour (never reject)
     const p = segsWorldOf(segs, s, nearOff);
     const bi = Math.floor(p.x / BLOCK), bj = Math.floor(p.y / BLOCK);
-    return bi >= 0 && bi <= grid.cols-2 && bj >= 0 && bj <= grid.rows-2;
+    return bi >= 0 && bi <= grid.cols-2 && bj >= 0 && bj <= grid.rows-2
+        && (!grid.blockOK || grid.blockOK(bi, bj));      // the hood lock's view
   };
   const order = scanFromEnd ? [...segs].reverse() : segs;
   let interiorFallback = null; // interior-facing, but on the avoided block
@@ -12062,13 +12691,20 @@ function _generateRouteFresh(dateStr, opts){
      no longer asks for that branch at all. HJ itself was already immune
      via its own hoodIndex request. */
   const useOldStart = !!(opts && (opts.hoodIndex != null || opts.unanchoredStart));
+  /* THE HOOD LOCK: today's shop is one of the shops in hoods you own, and
+     the walk and the door are looked for through the lock (see
+     hoodLockGridView). A district-anchored route (opts.hoodIndex, the
+     unanchored start) asked for its own hood on purpose and is left be. */
+  const _lockG = useOldStart ? grid : hoodLockGridView(grid);
   const PICKUP_SHOPS = getPickupShops(grid);
-  const todaysShop = PICKUP_SHOPS[seed % PICKUP_SHOPS.length];
+  const _ownShops = useOldStart ? PICKUP_SHOPS : PICKUP_SHOPS.filter(sh => hoodOwnsIJ(sh.blockI, sh.blockJ));
+  const _shopPool = _ownShops.length ? _ownShops : PICKUP_SHOPS;
+  const todaysShop = _shopPool[seed % _shopPool.length];
   const startAnchor = useOldStart ? districtStart : todaysShop.startNode;
   const startHeading = useOldStart ? undefined : todaysShop.f;
-  let walk = buildWalk(grid, rng, startAnchor, undefined, TURN_R, startHeading);
+  let walk = buildWalk(_lockG, rng, startAnchor, undefined, TURN_R, startHeading);
   for(let att = 0; att < 8 && !hasGoodDoorLeg(walk); att++)
-    walk = buildWalk(grid, rng, startAnchor, undefined, TURN_R, startHeading);
+    walk = buildWalk(_lockG, rng, startAnchor, undefined, TURN_R, startHeading);
   /* AFTER the accept loop, never inside it: hasGoodDoorLeg must judge the
      lattice walk on its own merits, since shore legs can't hold a door
      anyway (findGoodS rejects them at isGood). Grafting first would let a
@@ -12076,7 +12712,20 @@ function _generateRouteFresh(dateStr, opts){
      Challenge routes opt out entirely -- a splice moves totalLen, which
      moves parMs, the MIN_ROUTE_UNITS floor and doorS's scan-from-end, and
      both frozen courses are dialed against today's values. */
-  if(!(opts && opts.challenge)) walk = graftShore(walk, grid);
+  if(!(opts && opts.challenge)){
+    /* THE HOOD LOCK: the boardwalk runs the whole west shore, so a splice
+       onto it can carry the route out of an owned hood (measured: a
+       2026-09-09 route ran down it into University). A graft that
+       crosses the line is dropped and the lattice walk stands alone. */
+    const _ungrafted = walk;
+    walk = graftShore(walk, grid);
+    if(_lockG !== grid && walk !== _ungrafted){
+      for(let t = 0; t <= walk.totalLen; t += 200){
+        const q = segsWorldOf(walk.segs, t, 0);
+        if(!hoodLockAllows(q.x, q.y)){ walk = _ungrafted; break; }
+      }
+    }
+  }
   const segs = walk.segs, totalLen = walk.totalLen;
 
   const inCorner = sv => segs.some(sg => sg.type === "arc" && sv > sg.s0 - CORNER_HAZARD_CLEAR && sv < sg.s1 + CORNER_HAZARD_CLEAR);
@@ -12816,13 +13465,13 @@ function _generateRouteFresh(dateStr, opts){
      address; it's fixed now, so address is the one that has to dodge). A
      shared block can only hold one type, which would make the pickup
      render as the address house instead of a shop. */
-  let doorS = findGoodS(segs, totalLen, totalLen - 90, true, grid, pickupBlock, MIN_ROUTE_UNITS);
+  let doorS = findGoodS(segs, totalLen, totalLen - 90, true, _lockG, pickupBlock, MIN_ROUTE_UNITS);
   /* graceful degradation: if no interior good leg exists past the mile
      mark (short-walk day), take the best route the map offers rather
      than none — findGoodS's own final fallback returns preferredS-ish
      even with the floor, so re-run unfloored only if the floored pick
      itself landed short (it only can via that last-resort path). */
-  if(doorS < MIN_ROUTE_UNITS) doorS = Math.max(doorS, findGoodS(segs, totalLen, totalLen - 90, true, grid, pickupBlock));
+  if(doorS < MIN_ROUTE_UNITS) doorS = Math.max(doorS, findGoodS(segs, totalLen, totalLen - 90, true, _lockG, pickupBlock));
 
   /* the address is always a real block, forced to housing (a park or shop
      can't be the delivery destination). Same override the lab used with a
@@ -13047,7 +13696,7 @@ function _generateRouteFresh(dateStr, opts){
         let cur = n0; const dd = DIRV[fh];
         for(let k = 0; k < nB; k++){
           if(!cur || !cur.conn[fh]) return null;
-          cur = grid.nodeAt(cur.i + dd.x, cur.j + dd.y);
+          cur = _lockG.nodeAt(cur.i + dd.x, cur.j + dd.y);   // the lap stays inside the lock
         }
         return cur;
       };
@@ -13057,7 +13706,7 @@ function _generateRouteFresh(dateStr, opts){
            the entry corner's fillet can't eat the stopping zone */
         const aN0 = (Math.floor((aDoor + 60 + R + 20) / BLOCK) + 1) * BLOCK;
         const Ax = d.x !== 0 ? aN0*d.x : cN, Ay = d.x !== 0 ? cN : aN0*d.y;
-        const A = grid.nodeAt(Math.round(Ax/BLOCK), Math.round(Ay/BLOCK));
+        const A = _lockG.nodeAt(Math.round(Ax/BLOCK), Math.round(Ay/BLOCK));
         if(!A) continue;
         /* street sides span L blocks so the door sits safely inside the
            lap's return straight, >= R+90 clear of the re-entry corner —
@@ -13231,7 +13880,7 @@ function _generateRouteFresh(dateStr, opts){
        stream is untouched and every other feature on a given date keeps
        the exact position it had before this existed. Margins match the
        main walk's (+120 / -220 from each end). */
-    {
+    if(loop){   /* no lap on a corner day -- or where the hood lock leaves no room for one: it was read unguarded and threw */
       const lapRng = mulberry32(((dateStr.length*2654435761) ^ (Math.round(loop.sCut)*40503)
                                  ^ (Math.round(loop.sEnd)*97) ^ 0x1a9d) >>> 0);
       /* gated with the main walk's own passes (stage 4): the lap's segs
@@ -13637,6 +14286,2670 @@ const FLAG = { base:{x:-25, y:17}, z0:54, z1:97 };  // anchored to the body's to
    earlier multi-color variety in favor of just this). */
 const ROBOT_NPC = { stripe:0x2e6fd1, stripeDk:0x24569f, flag:0x2e6fd1 };
 
+
+/* =====================================================================
+   THE SHOPFRONT LIBRARY, IN THE GAME -- first entry ported
+   =====================================================================
+   Sir's call: do not teach the park drawer how to build a graveyard,
+   REPLACE the park's own content with a call to the shop body. The
+   library already draws the whole thing -- ground, railing, gates,
+   chapel, two hundred stones -- so the game's job is to hand it a
+   coordinate frame and get out of the way.
+
+   THE SEAM IS ONE FUNCTION. labs/shopfront-phaser.html has proved this
+   on edge units: everything above the seam is the game's, everything
+   below it is the library's, and the only thing between them is
+   P(a, b, z). An edge shop anchors on a unit with dv/rv; a block:true
+   entry anchors on the north-west corner of its own footprint with a
+   running east and b running south, which is exactly what a park
+   component's cells give you.
+
+   IT IS AN IIFE BECAUSE THE NAMES COLLIDE. The kit declares TILE, W, D,
+   STORE_H and PAL at top level and so does this file -- the first cut
+   of this graft died on `Identifier 'TILE' has already been declared`,
+   which is the right failure to get early. Everything the library needs
+   lives inside the closure and the only export is LIB.draw.
+
+   WHAT IS LIFTED, AND FROM WHERE. shopfront-kit.js and
+   shopfront-ctx2phaser.js verbatim, plus the ONE entry this graft
+   needs. Not all 82: the library is 586KB and this file is already 2MB.
+   The entry below is a COPY, and copies drift --
+   labs/shopfront-shops.js is canonical, and a change there has to come
+   back here. Same rule the two game builds already live under.
+
+   ctx2phaser exists because 37 of the 81 bodies drive the 2D context
+   directly. Emulating is what keeps the port honest: if a body had to
+   be edited to run here, what ships would not be what the lab dialled.
+   ===================================================================== */
+/* which named park component carries which library entry. One line per
+   graft, and the key is a PARK NAME from a hood's pool -- see
+   parkNameTable. Gantry Commons is the Warehouse District's sixth, nine
+   cells of staircase on the shipped seed.
+
+   THE MAP HAS TO AGREE WITH THE GROUND. A component carrying a burial
+   ground is not a park any more, and leaving it labelled "Gantry
+   Commons" under a tree pin is the map telling the player something the
+   world contradicts -- which is worse than no label. So the graft
+   carries its own map name and pin, and mapParkName / mapParkIcon are
+   the single place both the map and the minimap read them from.
+
+   The toponym survives the rename because the place does: it is still
+   the ground the Warehouse District calls Gantry, and a cemetery named
+   after where it is is how cemeteries are named.
+
+   The pin is U+1FAA6, which is Unicode 13 (2020). If it ever has to run
+   somewhere older the fallback is a plain filled circle rather than a
+   tofu box -- worth checking on the oldest device the web build has to
+   support before this ships wide. */
+/* A LANDMARK IS NOT A PARK, and `kind` is what says so. Every park row
+   in the search index was pushed as kind "park", so Gantry Cemetery
+   listed as a park and Driftwood Elementary would have too -- the open
+   item about giving map landmarks their own search kind. It is a free
+   string used as the row's label and nothing looks an icon up from it,
+   so a landmark simply names itself.
+
+   Driftwood Elementary is named off Driftwood Beach, which worldgen
+   already puts on the south shore. */
+const PARK_LANDMARKS = {
+  "Gantry Commons":  { shop:"Undertaker", mapName:"Gantry Cemetery",
+                       icon:"\u{1FAA6}", pin:"#6a6a64", kind:"cemetery" },
+  "Peddlers Square": { shop:"School", mapName:"Driftwood Elementary",
+                       icon:"\u{1F3EB}", pin:"#b06a4a", kind:"school" }
+};
+
+/* ---- labs/shopfront-vol.js, VERBATIM. Do not edit here: edit the lab file
+   and re-graft, the same rule as the kit and the entries inside LIB. ---- */
+/* =====================================================================
+   SHOPFRONT VOL -- the 3D half of an entry
+   =====================================================================
+   WHY THIS EXISTS. An entry used to be a draw() and nothing else. The
+   Charge depot port had to re-derive the building as a physical thing
+   from its drawing code -- room rect, door gap, jambs, height, pads,
+   mat -- into ~190 lines of depot-only functions full of numbers copied
+   out of the art. Every on-device bug that port produced (mirrored
+   frame, phantom wall inside the door, x-ray using the walkable carve,
+   jambs tipping 9/18) lived in that hand re-derivation. 82 shops would
+   have been 82 more.
+
+   So an entry now DECLARES its volume, next to its draw(), and this file
+   answers every physical question from the declaration alone. The lab
+   draws it over the art (Vol toggle) so a mismatch is caught on the
+   bench, not on-device. The game reads the same declaration.
+
+   THE DECLARATION -- all in the entry's own frame: a along the frontage,
+   b 0 at the glass and negative into the block. Heights are the entry's
+   OWN z units (before zs); volWorldH() applies zs.
+
+     vol: {
+       foot:   [[a,b], ...]      solid mass footprint (default: 0..ww by -dd..0)
+       h:      300               mass height (default: measured from body())
+       opens:  [{ name, poly, walk, see, h }]
+                                 carved out of the foot.
+                                 walk  true -> Tipsey can be in it
+                                 see   'street' -> see-through only from the
+                                       entry's own (street) view; 'always';
+                                       'never' (drivable under a roof)
+                                 h     what the x-ray reads when see-through
+       solids: [{ name, poly | c:[a,b] + r, h, prop }]
+                                 free-standing volumes (bollards, walls,
+                                 kiosks). prop:true -> only with kerb props on
+       zones:  [{ name, poly | c + r, kind }]   paint / triggers. No volume.
+       marks:  { name: [a,b] }           named points: pads, mat, spawn, door
+     }
+
+   WHAT IS DERIVED, never authored: the collision BOUNDARY. Every edge of
+   the foot, every open and every polygon solid is cut into short pieces,
+   and a piece is kept only where one side of it is solid and the other
+   is not. So a room's wall face that runs into a doorway stops at the
+   doorway by construction -- the phantom wall cannot exist -- and a jamb
+   is a real thin wall with rounded ends and true normals, with nobody
+   having to write a jamb.
+   ===================================================================== */
+
+const VOL_BOT_R = 30;          // botR in game/index.html
+const VOL_PIECE = 2;           // boundary resolution, entry units
+
+function volRect(a0, a1, b0, b1){ return [[a0,b0],[a1,b0],[a1,b1],[a0,b1]]; }
+
+function volPip(poly, a, b){
+  let inside = false;
+  for(let i = 0, j = poly.length - 1; i < poly.length; j = i++){
+    const [ai, bi] = poly[i], [aj, bj] = poly[j];
+    if(((bi > b) !== (bj > b)) && (a < (aj - ai) * (b - bi) / (bj - bi) + ai)) inside = !inside;
+  }
+  return inside;
+}
+
+/* a declared shape: { poly } or { c:[a,b], r } -- solids and zones both */
+function volInShape(s, a, b){
+  return s.c ? Math.hypot(a - s.c[0], b - s.c[1]) < s.r : volPip(s.poly, a, b);
+}
+
+function volSegDist(a, b, s){
+  const dx = s[2] - s[0], dy = s[3] - s[1], L2 = dx*dx + dy*dy || 1e-9;
+  const u = Math.max(0, Math.min(1, ((a - s[0])*dx + (b - s[1])*dy) / L2));
+  const qa = s[0] + u*dx, qb = s[1] + u*dy;
+  return { d: Math.hypot(a - qa, b - qb), qa, qb };
+}
+
+/* the entry's lot rectangle -- what the packer reserves, whatever the
+   mass inside it looks like */
+function volLot(shop, dflt){
+  const w = shop.ww || dflt.W, d = shop.dd || dflt.D;
+  return { a0:0, a1:w, b0:-d, b1:0 };
+}
+
+/* NORMALISE. Unauthored entries get the honest default -- the lot as a
+   solid box to the measured height -- and say so (authored:false), so the
+   bench can show which ones still owe a declaration. */
+function volOf(shop, measured, dflt){
+  const src = shop.vol || null;
+  const lot = volLot(shop, dflt);
+  const v = {
+    authored: !!src,
+    lot,
+    foot:   (src && src.foot) || volRect(lot.a0, lot.a1, lot.b0, lot.b1),
+    h:      (src && src.h != null) ? src.h : (measured && measured.h) || 0,
+    opens:  ((src && src.opens) || []).map(o => Object.assign({ walk:true, see:'street', h:0 }, o)),
+    solids: (src && src.solids) || [],
+    zones:  (src && src.zones) || [],
+    marks:  (src && src.marks) || {},
+    measured: measured || null
+  };
+  v.bound = volBoundary(v);
+  return v;
+}
+
+/* is (a,b) inside SOLID mass? props: whether kerb props count */
+function volSolidAt(v, a, b, props){
+  for(const s of v.solids){
+    if(s.prop && !props) continue;
+    if(volInShape(s, a, b)) return true;
+  }
+  if(!volPip(v.foot, a, b)) return false;
+  for(const o of v.opens) if(o.walk && volPip(o.poly, a, b)) return false;
+  return true;
+}
+
+/* the derived collision boundary: [a0,b0,a1,b1] segments between solid
+   and free. Circles are kept analytic, so props are not in here. */
+function volBoundary(v){
+  const polys = [v.foot, ...v.opens.filter(o => o.walk).map(o => o.poly),
+                 ...v.solids.filter(s => s.poly).map(s => s.poly)];
+  const out = [];
+  const EPS = 0.6;
+  const solid = (a, b) => {
+    for(const s of v.solids) if(s.poly && volPip(s.poly, a, b)) return true;
+    if(!volPip(v.foot, a, b)) return false;
+    for(const o of v.opens) if(o.walk && volPip(o.poly, a, b)) return false;
+    return true;
+  };
+  for(const poly of polys){
+    for(let i = 0; i < poly.length; i++){
+      const [a0, b0] = poly[i], [a1, b1] = poly[(i + 1) % poly.length];
+      const L = Math.hypot(a1 - a0, b1 - b0); if(L < 1e-6) continue;
+      const na = -(b1 - b0) / L, nb = (a1 - a0) / L;
+      const n = Math.max(1, Math.ceil(L / VOL_PIECE));
+      let run = null;
+      for(let k = 0; k < n; k++){
+        const u0 = k / n, u1 = (k + 1) / n, um = (u0 + u1) / 2;
+        const ma = a0 + (a1 - a0)*um, mb = b0 + (b1 - b0)*um;
+        const keep = solid(ma + na*EPS, mb + nb*EPS) !== solid(ma - na*EPS, mb - nb*EPS);
+        if(keep){
+          if(!run) run = [a0 + (a1 - a0)*u0, b0 + (b1 - b0)*u0];
+          run[2] = a0 + (a1 - a0)*u1; run[3] = b0 + (b1 - b0)*u1;
+        } else if(run){ out.push(run); run = null; }
+      }
+      if(run) out.push(run);
+    }
+  }
+  /* coincident edges (a doorway's side lying on a room's side) would be
+     reported twice; drop exact duplicates so the overlay and the census
+     count real surfaces */
+  const seen = new Set();
+  return out.filter(s => {
+    const k = s.map(x => x.toFixed(2)).join(','), r = [s[2],s[3],s[0],s[1]].map(x => x.toFixed(2)).join(',');
+    if(seen.has(k) || seen.has(r)) return false;
+    seen.add(k); return true;
+  });
+}
+
+/* NEAREST SURFACE to a body centre: distance, and the unit normal off it
+   toward the centre. The one query collision and the tip test both need. */
+function volNearest(v, a, b, props){
+  let best = { d: Infinity, na: 0, nb: 0, what: null };
+  for(const s of v.bound){
+    const q = volSegDist(a, b, s);
+    if(q.d < best.d) best = { d: q.d, qa: q.qa, qb: q.qb, what: 'wall' };
+  }
+  for(const s of v.solids){
+    if(!s.c || (s.prop && !props)) continue;
+    const dc = Math.hypot(a - s.c[0], b - s.c[1]), d = Math.abs(dc - s.r);
+    if(d < best.d){
+      const u = dc > 1e-9 ? 1/dc : 0;
+      best = { d, qa: s.c[0] + (a - s.c[0])*u*s.r, qb: s.c[1] + (b - s.c[1])*u*s.r, what: s.name || 'solid' };
+    }
+  }
+  if(best.d < Infinity){
+    const L = best.d || 1e-9;
+    best.na = (a - best.qa) / L; best.nb = (b - best.qb) / L;
+    if(best.d < 1e-6){ best.na = 0; best.nb = 0; }
+  }
+  return best;
+}
+
+/* CAN A BODY OF RADIUS R STAND HERE? */
+function volBlockedAt(v, a, b, R, props){
+  if(volSolidAt(v, a, b, props)) return true;
+  return volNearest(v, a, b, props).d < R;
+}
+
+/* WHAT THE X-RAY SEES. Visual, not walkable: an open room is only
+   see-through from the view it opens toward. null off the lot, 0 on the
+   lot but outside the mass (a chamfer's pavement), else a height in the
+   entry's own z units. */
+function volBuiltHeight(v, a, b, view, props){
+  for(const s of v.solids){
+    if(s.prop && !props) continue;
+    if(volInShape(s, a, b)) return s.h || 0;
+  }
+  const L = v.lot;
+  if(a < L.a0 || a > L.a1 || b < L.b0 || b > L.b1) return null;
+  if(!volPip(v.foot, a, b)) return 0;
+  for(const o of v.opens){
+    if(!volPip(o.poly, a, b)) continue;
+    if(o.see === 'always' || (o.see === 'street' && view === 'street')) return o.h;
+  }
+  return v.h;
+}
+
+function volZoneAt(v, a, b){
+  return v.zones.filter(z => volInShape(z, a, b)).map(z => z.name);
+}
+
+function volWorldH(shop, h, labZs){ return h * (shop.zs === undefined ? labZs : shop.zs); }
+
+/* ---- end labs/shopfront-vol.js ---- */
+
+const LIB = (function(){
+  /* K IS THE PROJECTION'S SCALE, and the kit reads it directly. It is
+     used for exactly one thing -- turning a WORLD line width or radius
+     into a screen one, in plateCircle, ball and the unit-circle
+     helpers -- and the first cut of this graft left it out, so the game
+     threw "K is not defined" the moment a stone with a round top came
+     into view. The bench sets it from its own fit; here it is the
+     scene's own this.K, handed in per draw. */
+  let K = 1;
+  let SHOP_SLOT = null, ZSCALE = 1.5, FLANK_RIGHT = true;
+  const NOPLATE = false;
+  function P(a, b, z){ return SHOP_SLOT ? SHOP_SLOT.G(a, b, z * ZSCALE) : { x:0, y:0 }; }
+  let ctx = null;
+  /* the kit reads state.roof and state.props and nothing else of the
+     lab's state; in the game both are always on. */
+  /* doorT is the Charge depot's roll-up door, 0 shut to 1 fully coiled.
+     The scene drives it; 1 is the safe default so a draw with nobody
+     setting it shows an open door rather than a shut one. */
+  const state = { roof:true, props:true, pal:0, doorT:1, part:null, partW:null };
+
+/* =====================================================================
+   ctx2phaser -- a Canvas2D PATH SUBSET, backed by a Phaser Graphics.
+   =====================================================================
+   Why this exists rather than a rewrite of the shops.
+
+   Censused before writing it: 37 of the 81 shop bodies reach past the
+   kit and drive the 2D context directly -- 75 beginPath, 68 moveTo, 56
+   lineTo, 49 stroke, 25 quadraticCurveTo, 5 arc, 3 bezierCurveTo, 1
+   clip. Those are not stray calls; they are how the bakery's arched
+   gable, the clockmaker's hands and the chapel's tracery are drawn, and
+   there is no version of "port the shops to phaser" that does not
+   either reimplement them or emulate the API they were written against.
+
+   Emulating is the only option that keeps the port HONEST. If a shop
+   body has to be edited to run here, then what this bench renders is
+   not the thing the canvas lab dialled, and the comparison it exists to
+   make is worthless. So the bodies run byte-identical and this file
+   absorbs the difference.
+
+   WHAT THE GAME CANNOT DO, and therefore neither can this:
+     - ctx.clip() has no Phaser equivalent. It is emulated by polygon
+       intersection (Sutherland-Hodgman) against the clip path, which is
+       exact for a CONVEX clip and approximate otherwise. reveal()'s
+       clip is a projected rectangle, so exact. The bakery's arched
+       clip is not convex and is the one place this bench is a model
+       rather than a replica -- flagged rather than hidden, because it
+       means the bakery's coping needs a different construction before
+       it can port.
+     - Curves are flattened to line segments here. The game has no
+       curve primitive either, so anything that survives flattening is
+       portable and anything that does not was never going to ship.
+
+   Everything is applied through a full CTM, because faceT/plateT set a
+   transform and 17 shops then draw in unit-circle space inside it.
+   ===================================================================== */
+function makeCtx2Phaser(){
+  const S = {
+    g: null,
+    fillStyle: '#000', strokeStyle: '#000', lineWidth: 1,
+    lineCap: 'butt', lineJoin: 'miter',
+    m: [1,0,0,1,0,0],            // a b c d e f
+    clip: null,                  // array of screen points, or null
+    subs: [], cur: null, stack: []
+  };
+
+  /* ---- colour: the kit speaks CSS, quadOn speaks int + alpha ---- */
+  const cache = new Map();
+  function col(v){
+    if(cache.has(v)) return cache.get(v);
+    let out;
+    if(typeof v === 'number') out = { c:v, a:1 };
+    else if(v[0] === '#'){
+      let h = v.slice(1);
+      if(h.length === 3) h = h[0]+h[0]+h[1]+h[1]+h[2]+h[2];
+      out = { c: parseInt(h,16), a:1 };
+    } else {
+      const m = /rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)\s*(?:,\s*([\d.]+))?/.exec(v);
+      out = m ? { c: (Math.round(+m[1])<<16) | (Math.round(+m[2])<<8) | Math.round(+m[3]),
+                  a: m[4] === undefined ? 1 : +m[4] }
+              : { c: 0x000000, a: 1 };
+    }
+    cache.set(v, out); return out;
+  }
+
+  /* ---- CTM ---- */
+  const ap = (x,y) => { const m = S.m; return { x: m[0]*x + m[2]*y + m[4], y: m[1]*x + m[3]*y + m[5] }; };
+  const mscale = () => { const m = S.m; return Math.sqrt(Math.abs(m[0]*m[3] - m[1]*m[2])) || 1; };
+
+  /* ---- Sutherland-Hodgman: exact for a convex clip ---- */
+  function clipTo(poly, cp){
+    if(!cp || cp.length < 3) return poly;
+    let out = poly;
+    for(let i=0;i<cp.length && out.length;i++){
+      const A = cp[i], B = cp[(i+1)%cp.length];
+      const side = p => (B.x-A.x)*(p.y-A.y) - (B.y-A.y)*(p.x-A.x);
+      const inp = out; out = [];
+      for(let j=0;j<inp.length;j++){
+        const P = inp[j], Q = inp[(j+1)%inp.length];
+        const sp = side(P), sq = side(Q);
+        if(sp <= 0) out.push(P);
+        if((sp < 0 && sq > 0) || (sp > 0 && sq < 0)){
+          const t = sp/(sp-sq);
+          out.push({ x:P.x + (Q.x-P.x)*t, y:P.y + (Q.y-P.y)*t });
+        }
+      }
+    }
+    return out;
+  }
+  /* the clip polygon's winding decides which side `side() <= 0` keeps,
+     so normalise to a consistent orientation rather than trusting the
+     order the caller happened to build the path in */
+  function orient(p){
+    let s = 0;
+    for(let i=0;i<p.length;i++){ const q = p[(i+1)%p.length]; s += (q.x-p[i].x)*(q.y+p[i].y); }
+    return s > 0 ? p : p.slice().reverse();
+  }
+
+  const ctx = {
+    /* ---- state ---- */
+    save(){ S.stack.push({ fillStyle:S.fillStyle, strokeStyle:S.strokeStyle, lineWidth:S.lineWidth,
+                           lineCap:S.lineCap, lineJoin:S.lineJoin, m:S.m.slice(), clip:S.clip }); },
+    restore(){ const p = S.stack.pop(); if(!p) return;
+               S.fillStyle=p.fillStyle; S.strokeStyle=p.strokeStyle; S.lineWidth=p.lineWidth;
+               S.lineCap=p.lineCap; S.lineJoin=p.lineJoin; S.m=p.m; S.clip=p.clip; },
+    setTransform(a,b,c,d,e,f){ S.m = [a,b,c,d,e,f]; },
+    transform(a,b,c,d,e,f){
+      const m = S.m;
+      S.m = [ m[0]*a + m[2]*b,        m[1]*a + m[3]*b,
+              m[0]*c + m[2]*d,        m[1]*c + m[3]*d,
+              m[0]*e + m[2]*f + m[4], m[1]*e + m[3]*f + m[5] ];
+    },
+
+    /* ---- path ---- */
+    beginPath(){ S.subs = []; S.cur = null; },
+    moveTo(x,y){ S.cur = [ap(x,y)]; S.subs.push(S.cur); },
+    lineTo(x,y){ if(!S.cur) return ctx.moveTo(x,y); S.cur.push(ap(x,y)); },
+    closePath(){ if(S.cur) S.cur.closed = true; },
+    quadraticCurveTo(cx,cy,x,y){
+      if(!S.cur) ctx.moveTo(cx,cy);
+      const p0 = S.cur[S.cur.length-1], N = 16;
+      for(let i=1;i<=N;i++){
+        const t=i/N, u=1-t, c=ap(cx,cy), e=ap(x,y);
+        S.cur.push({ x:u*u*p0.x + 2*u*t*c.x + t*t*e.x, y:u*u*p0.y + 2*u*t*c.y + t*t*e.y });
+      }
+    },
+    bezierCurveTo(c1x,c1y,c2x,c2y,x,y){
+      if(!S.cur) ctx.moveTo(c1x,c1y);
+      const p0 = S.cur[S.cur.length-1], N = 18;
+      const a=ap(c1x,c1y), b=ap(c2x,c2y), e=ap(x,y);
+      for(let i=1;i<=N;i++){
+        const t=i/N, u=1-t;
+        S.cur.push({ x:u*u*u*p0.x + 3*u*u*t*a.x + 3*u*t*t*b.x + t*t*t*e.x,
+                     y:u*u*u*p0.y + 3*u*u*t*a.y + 3*u*t*t*b.y + t*t*t*e.y });
+      }
+    },
+    arc(x,y,r,s,e,ccw){ ctx.ellipse(x,y,r,r,0,s,e,ccw); },
+    ellipse(x,y,rx,ry,rot,s,e,ccw){
+      let d = e - s;
+      if(ccw && d > 0) d -= Math.PI*2;
+      if(!ccw && d < 0) d += Math.PI*2;
+      const N = Math.max(10, Math.ceil(Math.abs(d)/(Math.PI/14)));
+      const cr = Math.cos(rot||0), sr = Math.sin(rot||0);
+      for(let i=0;i<=N;i++){
+        const t = s + d*i/N, px = Math.cos(t)*rx, py = Math.sin(t)*ry;
+        const q = ap(x + px*cr - py*sr, y + px*sr + py*cr);
+        (i === 0 && !S.cur) ? (S.cur = [q], S.subs.push(S.cur)) : S.cur.push(q);
+      }
+    },
+
+    /* ---- paint ---- */
+    fill(){
+      const { c, a } = col(S.fillStyle);
+      for(const sp of S.subs){
+        const p = S.clip ? clipTo(sp, S.clip) : sp;
+        if(p.length < 3) continue;
+        S.g.fillStyle(c, a);
+        S.g.fillPoints(p.map(q => new Phaser.Geom.Point(q.x, q.y)), true, true);
+      }
+    },
+    stroke(){
+      const { c, a } = col(S.strokeStyle);
+      const w = Math.max(0.35, S.lineWidth * mscale());
+      S.g.lineStyle(w, c, a);
+      for(const sp of S.subs){
+        if(sp.length < 2) continue;
+        S.g.strokePoints(sp.map(q => new Phaser.Geom.Point(q.x, q.y)), !!sp.closed);
+      }
+    },
+    clip(){ if(S.subs.length) S.clip = orient(S.subs[0].slice()); },
+
+    /* the bench never needs these, but a shop that calls one should not
+       take the whole render down with it -- it should show up as a
+       missing feature in the report instead */
+    fillRect(){ ctx.__unsupported('fillRect'); },
+    strokeRect(){ ctx.__unsupported('strokeRect'); },
+    drawImage(){ ctx.__unsupported('drawImage'); },
+    createLinearGradient(){ ctx.__unsupported('createLinearGradient'); return '#888'; },
+
+    __unsupported(name){ (ctx.__missing || (ctx.__missing = {}))[name] = (ctx.__missing[name]||0)+1; },
+    __bind(g){ S.g = g; S.m = [1,0,0,1,0,0]; S.clip = null; S.stack.length = 0; S.subs = []; S.cur = null; },
+    __state: S
+  };
+  /* fillStyle etc. are plain properties on the real thing, so they are
+     plain properties here too -- a shop assigning ctx.fillStyle must not
+     have to know it is talking to a shim */
+  ['fillStyle','strokeStyle','lineWidth','lineCap','lineJoin'].forEach(k => {
+    Object.defineProperty(ctx, k, { get:()=>S[k], set:v=>{ S[k]=v; } });
+  });
+  return ctx;
+}
+
+
+/* =====================================================================
+   THE SHARED SHOPFRONT KIT
+   =====================================================================
+   Same reason the shops moved out: there is more than one bench that
+   has to draw them, and a primitive that exists twice is a primitive
+   that will disagree with itself within a session.
+
+   WHAT IS NOT IN HERE, deliberately: the projection. Each bench owns
+   P(a,b,z) and the K it scales by, because that is the ONLY thing that
+   differs between them --
+
+     shopfront-lab.html      one hand-chosen iso view, ZSCALE 1.5
+     shopfront-phaser.html   the game's own W() through a block edge
+
+   -- and keeping it as the single seam is what makes the phaser bench a
+   port test rather than a second implementation. A bench must define,
+   before anything here runs: P(a,b,z), K, ctx, and state{roof,props}.
+   ===================================================================== */
+
+const TILE = 46, T2 = TILE*2;
+const DOOR_W = T2, DOOR_H = T2*2;       // 92 x 184, from DOOR_ART
+const SHOP_DOOR_W = DOOR_W*0.72;        // 66.24  -- drawPickupUnit
+const SHOP_DOOR_H = DOOR_H*0.88;        // 161.92 -- drawShopDoor dZ1
+const STORE_H = 252;                    // mid of drawStoreUnit's 238..266 stack
+const W = 230, D = T2*3;                // one unit: frontage width, depth (276)
+/* `state` is bench-owned: each bench has its own shape for it (the
+   canvas lab tracks a framing cache and a grid toggle it does not
+   share). The kit only ever reads state.roof and state.props. */
+
+/* ================= VERTICAL SCALE =================
+   Measured, not chosen. The lab's shops were hand-set at H = 104..314,
+   median 172, while a real drawStoreUnit wall runs 238..266 -- the lab
+   has been drawing at roughly two thirds of game height throughout. The
+   consequence is not cosmetic: SHOP_DOOR_H is 161.9, taller than most
+   of these shops' entire walls, so no pickup worker could have walked
+   out of one.
+
+   A per-shop `H = STORE_H` swap does NOT fix it. Only about six z
+   values per shop are written relative to H; the rest -- sills, heads,
+   signs, roof kit -- are absolute literals that would stay where they
+   were and leave every shop internally broken.
+
+   What does work is one factor, applied once, here. Every height in the
+   lab reaches the screen through this function: F, S, T, box, slab,
+   cyl, tube, faceCircle and ball all build on P. So scaling z here
+   scales a whole shop uniformly and preserves every proportion already
+   dialled into it. 252/172 rounds to 1.5, which puts a typical shop on
+   the game's one-storey stack and leaves a 314 shop at 471 -- a real
+   three storeys rather than a squashed one.
+
+   A shop that has already been rebuilt on the game anchors opts out
+   with zs:1 so it is not scaled twice. */
+function poly(pts, fill, stroke, lw){
+  ctx.beginPath();
+  pts.forEach((p,i)=> i ? ctx.lineTo(p.x,p.y) : ctx.moveTo(p.x,p.y));
+  ctx.closePath();
+  if(fill){ ctx.fillStyle = fill; ctx.fill(); }
+  if(stroke){ ctx.strokeStyle = stroke; ctx.lineWidth = lw||1; ctx.stroke(); }
+}
+/* front-plane rectangle (the facade); bb nudges it off the wall */
+function F(a0,a1,z0,z1,fill,stroke,lw,bb){
+  const b = bb===undefined ? 0 : bb;
+  poly([P(a0,b,z1),P(a1,b,z1),P(a1,b,z0),P(a0,b,z0)], fill, stroke, lw);
+}
+/* side-plane rectangle on the a = aa face */
+function S(aa,b0,b1,z0,z1,fill,stroke,lw){
+  poly([P(aa,b0,z1),P(aa,b1,z1),P(aa,b1,z0),P(aa,b0,z0)], fill, stroke, lw);
+}
+/* horizontal plate at height z */
+function T(a0,a1,b0,b1,z,fill,stroke,lw){
+  poly([P(a0,b0,z),P(a1,b0,z),P(a1,b1,z),P(a0,b1,z)], fill, stroke, lw);
+}
+/* a small solid box sitting on the roof or the pavement */
+function box(a0,a1,b0,b1,z0,z1,top,front,side){
+  /* WHICH TWO FACES EXIST, asked rather than asserted. This drew F at
+     b1 and S at a1 unconditionally -- the near face and the a = a1 end
+     of ONE projection. Under the game's four block edges neither is a
+     constant: on edge 2 the visible end is a = a0, so the box painted
+     its far end and left its near one open and rendered inside-out, an
+     open shell with its interior on show. Same fault body() already
+     solved with FLANK_RIGHT, and the same fault the kit fixed once for
+     faceT/plateT: one projection hardcoded into a shared primitive.
+
+     A face is visible when its outward normal comes toward the eye, and
+     under this projection nearer is further DOWN the screen, so the
+     test is just the sign of the screen-y step along each axis. Derived
+     from P() so it holds for whatever view the host installed -- and it
+     agrees with FLANK_RIGHT by construction, since that flag is the
+     same dv test written in world terms. */
+  const o = P(a0,b0,z0), pa = P(a0+1,b0,z0), pb = P(a0,b0+1,z0);
+  const nearB = (pb.y - o.y) > 0 ? b1 : b0;   // the b face toward the eye
+  const endA  = (pa.y - o.y) > 0 ? a1 : a0;   // the end wall that is seen
+  T(a0,a1,b0,b1,z1, top);
+  F(a0,a1,z0,z1, front, null,0, nearB);
+  S(endA,b0,b1,z0,z1, side);
+}
+/* ================= ISO-CORRECT PRIMITIVES =================
+   A circle drawn with ctx.arc is a circle ON THE SCREEN. That is only
+   ever right for a sphere. Every other circle in this world lies in a
+   PLANE -- a clock face on a wall, the end of a drum, a bucket rim, a
+   manhole -- and under this projection a plane circle becomes a sheared
+   ellipse. Drawing those with arc() is what makes a prop read as a
+   sticker stuck on the render rather than as a thing standing in the
+   world, and it was the single most common fault in the first pass.
+
+   Derivation, so these can be checked rather than trusted:
+     screen x = (a - b)K,  screen y = ((a + b)/2 - z)K
+   A circle in the FRONTAGE plane (b fixed) is (a + r cos0, z + r sin0):
+     x = x0 + rK cos0
+     y = y0 + (rK/2) cos0 - rK sin0
+   A circle lying FLAT (z fixed) is (a + r cos0, b + r sin0):
+     x = x0 + rK (cos0 - sin0)
+     y = y0 + (rK/2)(cos0 + sin0)
+   Both are linear in (cos0, sin0), so each is just a matrix on a unit
+   circle -- which is what faceT and plateT set up. */
+/* ================= ISO-CORRECT PRIMITIVES =================
+   A circle drawn with ctx.arc is a circle ON THE SCREEN. That is only
+   ever right for a sphere. Every other circle in this world lies in a
+   PLANE -- a clock face on a wall, the end of a drum, a bucket rim, a
+   manhole -- and under an isometric projection a plane circle becomes a
+   sheared ellipse. Drawing those with arc() is what makes a prop read as
+   a sticker stuck on the render rather than as a thing standing in the
+   world, and it was the single most common fault in the first pass.
+
+   THE BASIS IS NOW DERIVED FROM P(), NOT ASSUMED.
+   These used to set the ellipse up with a hardcoded matrix:
+
+       ctx.transform(r*K, r*K*0.5, 0, -r*K, o.x, o.y)
+
+   which says the vertical basis of the projection is exactly (0,-K).
+   Two things were wrong with that. It ignored ZSCALE, so on every shop
+   that did not opt out with zs:1 a face circle came out at 1/1.5 of its
+   true height -- portholes, clocks and dials squashed to two thirds,
+   16 shops affected. And it hardcoded ONE projection, so the same call
+   in the phaser bench, where a shop can sit on any of four block edges
+   with a different (a,b) -> screen mapping on each, would have drawn the
+   ellipse of a view that bench never renders.
+
+   Both faults have one cause and one fix: ask the projection what its
+   basis is instead of asserting it. A circle in a plane is linear in
+   (cos, sin), so two finite differences of P() give the exact ellipse
+   for whatever projection the host installed.
+
+     face  circle lies in the frontage plane (b fixed): spanned by a, z
+     plate circle lies flat            (z fixed): spanned by a, b */
+function basisFace(a,b,z){                 // plane b fixed: spanned by a and z
+  const o = P(a,b,z), pa = P(a+1,b,z), pz = P(a,b,z+1);
+  return { o, ux:pa.x-o.x, uy:pa.y-o.y, vx:pz.x-o.x, vy:pz.y-o.y };
+}
+function basisPlate(a,b,z){                // plane z fixed: spanned by a and b
+  const o = P(a,b,z), pa = P(a+1,b,z), pb = P(a,b+1,z);
+  return { o, ux:pa.x-o.x, uy:pa.y-o.y, vx:pb.x-o.x, vy:pb.y-o.y };
+}
+/* faceT/plateT keep their old contract -- they install a transform and
+   the caller then draws in UNIT-CIRCLE space and restores -- because 17
+   shops call them directly and draw more than a circle inside. Only the
+   matrix changed: it is read off P() now instead of being asserted. */
+function faceT(a,b,z,r){
+  const B = basisFace(a,b,z);
+  ctx.save(); ctx.transform(B.ux*r, B.uy*r, B.vx*r, B.vy*r, B.o.x, B.o.y);
+}
+function plateT(a,b,z,r){
+  const B = basisPlate(a,b,z);
+  ctx.save(); ctx.transform(B.ux*r, B.uy*r, B.vx*r, B.vy*r, B.o.x, B.o.y);
+}
+function unitCircle(fill, stroke, lw, r){
+  ctx.beginPath(); ctx.arc(0,0,1,0,Math.PI*2);
+  if(fill){ ctx.fillStyle = fill; ctx.fill(); }
+  if(stroke){ ctx.strokeStyle = stroke; ctx.lineWidth = (lw||1)/(r*K); ctx.stroke(); }
+}
+function faceCircle(a,b,z,r,fill,stroke,lw){ faceT(a,b,z,r); unitCircle(fill,stroke,lw,r); ctx.restore(); }
+function plateCircle(a,b,z,r,fill,stroke,lw){ plateT(a,b,z,r); unitCircle(fill,stroke,lw,r); ctx.restore(); }
+/* A BAND AROUND A SOLID IS NOT A RING. plateCircle draws the whole
+   ellipse, which is right for a disc lying flat with nothing on top of
+   it -- a manhole, a drain -- and wrong for every hoop that wraps a
+   barrel, drum, silo or dome, because the far half of the band is
+   behind the thing it is wrapping. Drawn as a full ellipse it reads
+   straight across the front of the solid and the solid goes
+   see-through. Same fault as the bakery's stovepipe.
+
+   The visible half is the arc that passes the front, between the two
+   points where the rim turns vertical on screen -- the identical
+   derivation cyl() uses for its silhouette, and now literally the same
+   call, so a hoop drawn here meets the cylinder's own edges exactly. */
+/* THE SILHOUETTE OF A FLAT RIM, derived. A rim point is
+     x = x0 + r(ux cos0 + vx sin0),  y = y0 + r(uy cos0 + vy sin0)
+   with (ux,uy) and (vx,vy) the screen steps of a and b. dx/d0 = 0 at
+   tan0 = vx/ux, so the rim turns vertical at 0s = atan2(vx,ux) and
+   0s+pi -- and the visible half is whichever of the two arcs between
+   them passes the FRONT, i.e. the larger screen y. Both cyl() and
+   plateHoop() had 0s = 3pi/4 written in as a constant, which is only
+   the answer when vx/ux = -1. It is on the canvas lab and on the game's
+   edges 1 and 3; on edges 0 and 2 ux and vx share a sign, both constant
+   angles land on the SAME screen x, and the sweep spans 0.00 of a
+   32.15px drum -- the body collapses to a sliver and only the lid
+   survives, which is why every jar read as a disc on a stem. */
+function plateSweep(a,b,z){
+  const o = P(a,b,z), pa = P(a+1,b,z), pb = P(a,b+1,z);
+  const ux = pa.x-o.x, uy = pa.y-o.y, vx = pb.x-o.x, vy = pb.y-o.y;
+  const ts = Math.atan2(vx, ux);
+  const dir = (uy*Math.cos(ts+Math.PI/2) + vy*Math.sin(ts+Math.PI/2)) > 0 ? 1 : -1;
+  return { ts, dir };
+}
+function plateHoop(a,b,z,r,col,lw){
+  const N = 14, pts = [];
+  const { ts, dir } = plateSweep(a,b,z);
+  for(let i=0;i<=N;i++){
+    const t = ts + dir*Math.PI*i/N;
+    pts.push(P(a + r*Math.cos(t), b + r*Math.sin(t), z));
+  }
+  ctx.beginPath();
+  pts.forEach((q,i)=> i ? ctx.lineTo(q.x,q.y) : ctx.moveTo(q.x,q.y));
+  ctx.strokeStyle = col; ctx.lineWidth = lw||2;
+  ctx.lineCap = 'round'; ctx.stroke(); ctx.lineCap = 'butt';
+}
+/* a sphere IS a screen circle under an orthographic camera, so arc is
+   correct here -- with a shading crescent so it reads as a ball and not
+   as a dot */
+function ball(a,b,z,r,fill,lit){
+  const o = P(a,b,z);
+  ctx.beginPath(); ctx.arc(o.x,o.y,r*K,0,Math.PI*2); ctx.fillStyle=fill; ctx.fill();
+  ctx.beginPath(); ctx.arc(o.x - r*K*0.30, o.y - r*K*0.30, r*K*0.62, 0, Math.PI*2);
+  ctx.fillStyle = lit || shade(fill,1.22); ctx.fill();
+}
+/* VERTICAL CYLINDER. The silhouette runs between the two points where
+   the flat rim turns vertical on screen, and the visible side is the
+   arc between them that passes the front -- both read off P() by
+   plateSweep() rather than written in, so the drum is a drum on all
+   four block edges. Body first, then the lid, so the lid always caps it
+   cleanly. */
+function cyl(a,b,z0,z1,r,col,lid){
+  const N = 14, rim = (t,z) => P(a + r*Math.cos(t), b + r*Math.sin(t), z);
+  const pts = [];
+  const { ts, dir } = plateSweep(a,b,z0);   // see plateSweep: was a constant
+  const ang = i => ts + dir*Math.PI*i/N;
+  for(let i=0;i<=N;i++){ pts.push(rim(ang(i),z0)); }
+  for(let i=N;i>=0;i--){ pts.push(rim(ang(i),z1)); }
+  ctx.beginPath();
+  pts.forEach((q,i)=> i ? ctx.lineTo(q.x,q.y) : ctx.moveTo(q.x,q.y));
+  ctx.closePath(); ctx.fillStyle = col; ctx.fill();
+  ctx.strokeStyle = shade(col,.72); ctx.lineWidth = 1.2; ctx.stroke();
+  plateCircle(a,b,z1,r, lid || shade(col,1.16), shade(col,.78), 1.4);
+}
+/* a run of pipe or rail between any two world points, with rounded ends */
+function tube(a0,b0,z0, a1,b1,z1, r, col){
+  const p0 = P(a0,b0,z0), p1 = P(a1,b1,z1);
+  ctx.strokeStyle = col; ctx.lineWidth = r*2*K; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(p0.x,p0.y); ctx.lineTo(p1.x,p1.y); ctx.stroke();
+  ctx.lineCap = 'butt';
+  ctx.strokeStyle = shade(col,1.2); ctx.lineWidth = r*0.7*K;
+  ctx.beginPath(); ctx.moveTo(p0.x - r*0.4*K, p0.y - r*0.5*K);
+  ctx.lineTo(p1.x - r*0.4*K, p1.y - r*0.5*K); ctx.stroke();
+}
+/* ================= SHOPFRONT DEPTH =================
+   THE LAYERING FAULT, and it was in every unit. A shopfront was being
+   built as: opaque glass pane, then the goods painted ON TOP of it at a
+   b NEARER the street than the glass. So everything that was meant to
+   be standing inside the shop was in fact hanging on the outside of the
+   window, which is why the props never read as being behind anything.
+
+   The fix is an ORDER fix, not a modelling one. Back to front:
+     1. reveal()  -- a shallow jamb, so the opening has a thickness
+     2. anything on show -- inside that jamb, at descending b
+     3. glaze()   -- the pane LAST, and nearly opaque
+   Nothing is drawn at a b in front of the glass except things that are
+   genuinely outside on the pavement. The pane hides the rest: we are
+   not building rooms, we are keeping the eye off the fact that there
+   are none.
+
+   depthSort() exists for the stacking: a pile of crates or a shelf of
+   jars has to be painted far-to-near or the near ones end up underneath.
+   Index order only happens to be right when the loop runs the same way
+   the camera does. */
+function reveal(a0, a1, z0, z1, deep, col){
+  /* WRONG SIGN, AND A DISCARDED ARGUMENT. This took `deep` and threw it
+     away, then hardcoded b = +2. Positive b is toward the street, so the
+     "dark backing behind the pane" was actually sitting 2.4 units in
+     FRONT of the glass and only looked right because the canvas is
+     painted in call order and glaze() came after it. The bakery hit this
+     and had to hand-roll its own backing at b = -1.2 to get rid of a
+     dark sliver down the jamb.
+
+     That is the fault that matters for the port. In the lab, order is
+     everything and depth is decoration; inside queueUnitStrips the
+     opposite is true, and a backing at +2 sorts in front of its own
+     window. So the recess is real now: the back plate sits at b = -deep
+     and `deep` means what it says.
+
+     YOU CAN ONLY SEE INTO A RECESS THROUGH THE OPENING. The first cut of
+     this had the depth right and no clip, and a plate at -deep projects
+     right by deep and up by deep/2 (x = (a-b)K, y = ((a+b)/2 - z)K), so
+     on the laundromat's 13-unit reveal the backing ran 13 units past the
+     right-hand end of the glazing and read as a grey volume standing off
+     the corner of the building. The wall has a hole in it; everything
+     behind that hole is bounded by it. Clipping to the opening quad is
+     what makes that true, and it is what lets `deep` be any value at all
+     without the shop having to know about the projection.
+
+     Inside the clip the plate leaves a gap down the LEFT jamb and along
+     the CILL, so those two returns are drawn and the other two are
+     correctly never seen. Three quads, not a room: the pass that got
+     rejected was the one that furnished the inside, not the one that
+     gave the opening a thickness. */
+  const d = deep === undefined ? 2 : deep;
+  ctx.save();
+  poly([P(a0,0,z1),P(a1,0,z1),P(a1,0,z0),P(a0,0,z0)]);
+  ctx.clip();
+  F(a0, a1, z0, z1, col, null, 0, -d);           // the backing, deepest, so first
+  S(a0, 0, -d, z0, z1, shade(col,.84));          // left return, exposed by the shift
+  T(a0, a1, 0, -d, z0, shade(col,.72));          // cill, exposed by the rise
+  ctx.restore();
+}
+/* THE PANE DOES THE WORK. Glass that you can see through has to have
+   something behind it that stands up to being seen, and nothing we
+   build at this scale does. So the pane is nearly opaque: a tinted
+   sheet with two reflection bands raked across it and a bright edge.
+   Whatever sits behind survives only as a suggestion, which is exactly
+   as much as the illusion needs. */
+function glaze(a0, a1, z0, z1, frame, tint){
+  /* The stack used to run -0.4 for the tint and then -0.6, -0.7 for the
+     reflections and the bright edge -- each highlight DEEPER than the
+     pane it is supposed to be lying on, surviving only because it was
+     painted afterwards. Depth-sorted, every reflection disappears
+     inside the glass. The frame had the same fault at -1: a shopfront
+     frame stands proud of the pane, it does not sit behind it.
+
+     So the stack ascends toward the viewer now, the way the door kit
+     already does: tint, reflections, bright edge, frame. Same picture
+     on this canvas, and the only one of the two that survives a real
+     depth key. */
+  F(a0, a1, z0, z1, tint || 'rgba(104,146,168,.92)', null, 0, -0.4);
+  const w = a1 - a0, h = z1 - z0;
+  poly([P(a0,-0.30,z1),P(a0+w*0.30,-0.30,z1),P(a0+w*0.06,-0.30,z0),P(a0,-0.30,z0)],
+       'rgba(240,250,254,.20)');
+  poly([P(a0+w*0.40,-0.26,z1),P(a0+w*0.52,-0.26,z1),P(a0+w*0.28,-0.26,z0),P(a0+w*0.16,-0.26,z0)],
+       'rgba(240,250,254,.13)');
+  poly([P(a0,-0.22,z1),P(a1,-0.22,z1),P(a1,-0.22,z1-h*0.06),P(a0,-0.22,z1-h*0.06)],
+       'rgba(255,255,255,.16)');
+  if(frame){
+    F(a0-3, a0, z0-3, z1+3, frame, null,0, 0.5);
+    F(a1, a1+3, z0-3, z1+3, frame, null,0, 0.5);
+    F(a0-3, a1+3, z1, z1+3, frame, null,0, 0.5);
+    F(a0-3, a1+3, z0-3, z0, frame, null,0, 0.5);
+  }
+}
+/* paint a set of items far-to-near. Each item is {a, b, z, draw}.
+   THE KEY WAS BOTH THE WRONG DIRECTION AND THE WRONG QUANTITY, which
+   is why it only ever showed on a row whose members overlap on screen.
+
+   Direction first. It sorted b DESCENDING, and its own comment said
+   that was far-to-near because "deeper into the shop is further from
+   the eye" -- true, but deeper into the shop is NEGATIVE b, so
+   descending starts at the largest, which is the NEAREST. Measured
+   rather than argued: P(0,1,0).y - P(0,0,0).y is +0.51, so a step of
+   +1 in b moves an item DOWN the screen, and box() already uses that
+   same sign to decide which b face is toward the eye. The sort was
+   painting near first and far last -- backwards.
+
+   Quantity second, and this is why flipping the sign alone is not the
+   fix. The view direction is the null space of the projection:
+     x = (a - b)K,  y = ((a + b)/2 - z)K
+   is degenerate along (da,db,dz) with da = db = dz, so the camera looks
+   down (1,1,1) and true depth is a + b + z. b alone is only a valid key
+   when a and z are constant across the run, which is exactly the case
+   in four of the six call sites -- and in the two where a varies (the
+   bakery's loaves and the florist's buckets, both laid out along a with
+   b alternating) it put every other item in the row on top of the one
+   in front of it. That is the layering fault visible on the florist.
+
+   So: a + b + z, ascending. `a` is optional and defaults to 0, which
+   degenerates to the old behaviour for a uniform-a run; every call site
+   in this library supplies it. z ascending breaks ties so a thing on a
+   shelf still paints over the shelf. */
+function depthSort(items){
+  const key = it => (it.a || 0) + it.b + (it.z || 0);
+  items.slice().sort((m,n) => (key(m) - key(n)) || ((m.z||0) - (n.z||0)))
+       .forEach(it => it.draw());
+}
+
+/* a flat panel given real thickness, so no sign or parapet is ever a
+   single zero-depth quad seen edge-on */
+function slab(a0,a1,z0,z1,bFront,bBack,front,side,top){
+  /* SAME FAULT box() HAD, and for the same reason: the end return was
+     drawn at a1 unconditionally. a1 is the seen end only where the a
+     axis runs toward the eye, which is edges 1 and 3 and the canvas lab;
+     on edges 0 and 2 a1 is the far end, so every parapet, fascia and
+     sign in the library put its return on the side you cannot see and
+     left the side you can flat. Asked of P() rather than asserted. */
+  const o = P(a0,bFront,z0), pa = P(a0+1,bFront,z0);
+  const endA = (pa.y - o.y) > 0 ? a1 : a0;
+  F(a0,a1,z0,z1, front, null,0, bFront);
+  poly([P(endA,bFront,z1),P(endA,bBack,z1),P(endA,bBack,z0),P(endA,bFront,z0)], side || shade(front,.78));
+  poly([P(a0,bFront,z1),P(a1,bFront,z1),P(a1,bBack,z1),P(a0,bBack,z1)], top || shade(front,1.14));
+}
+
+/* A SHAPED EMBLEM IS ONE SOLID, NOT A PILE OF SLABS. slab() gives a
+   rectangle thickness; anything that is not a rectangle -- a cross, a
+   chevron, an arrow, a letter -- was being built by overlapping two or
+   three of them, and it reads as exactly that: the pieces' own returns
+   and top plates run through the middle of the shape, so the eye sees
+   the joins rather than the emblem.
+
+   prism() takes ONE outline in the frontage plane and extrudes it. The
+   outline has no interior edges, so there is nothing to seam.
+
+   Which of its side faces exist is the same question box() and slab()
+   answer, but an outline has as many faces as it has edges and they do
+   not all face the same way, so it cannot be one test. The general form
+   of that test is the projected winding: every outward-facing face of a
+   closed solid projects with the SAME signed-area sign, and the near b
+   face is outward by construction, so it supplies the sign and each
+   side face is kept or dropped by comparing against it. That is
+   projection-agnostic -- it needs to know nothing about which edge the
+   block sits on -- and on a rectangle it selects the identical end that
+   slab() derives, which is how it was checked.
+
+   A horizontal outline edge extrudes to a plate rather than a return,
+   so it takes the lighter top shade; the undersides that would want the
+   same treatment are culled before they are ever asked about. */
+function prism(pts, b0, b1, front, side, top){
+  const n = pts.length;
+  const o = P(0,b0,0), q1 = P(0,b1,0);
+  const nb = q1.y > o.y ? b1 : b0, fb = q1.y > o.y ? b0 : b1;
+  const area = q => { let A = 0;
+    for(let k=0;k<q.length;k++){ const p = q[k], r = q[(k+1)%q.length];
+      A += p.x*r.y - r.x*p.y; } return A; };
+  const face = pts.map(([a,z]) => P(a,nb,z));
+  const s = Math.sign(area(face));
+  for(let i=0;i<n;i++){
+    const [a0,z0] = pts[i], [a1,z1] = pts[(i+1)%n];
+    const q = [P(a0,nb,z0),P(a0,fb,z0),P(a1,fb,z1),P(a1,nb,z1)];
+    if(Math.sign(area(q)) !== s) continue;
+    poly(q, z0 === z1 ? (top || shade(front,1.14)) : (side || shade(front,.78)));
+  }
+  poly(face, front);
+}
+
+/* the outline of a plus, wound once, for prism(). Half-length and
+   half-thickness are given in WORLD units and the z extents are divided
+   back by ZSCALE, so the arms stay equal whatever vertical scale the
+   shop is drawn at -- the fault that made the pharmacy cross a block
+   with a stick through it. */
+function plusOutline(a, z, half, thick){
+  const L = half, T = thick, k = 1/ZSCALE;
+  return [[a-T,z-L*k],[a+T,z-L*k],[a+T,z-T*k],[a+L,z-T*k],[a+L,z+T*k],
+          [a+T,z+T*k],[a+T,z+L*k],[a-T,z+L*k],[a-T,z+T*k],[a-L,z+T*k],
+          [a-L,z-T*k],[a-T,z-T*k]];
+}
+
+function shade(hex, m){
+  const n = parseInt(hex.slice(1),16);
+  const r = Math.min(255,Math.max(0,((n>>16)&255)*m))|0;
+  const g = Math.min(255,Math.max(0,((n>>8)&255)*m))|0;
+  const b = Math.min(255,Math.max(0,(n&255)*m))|0;
+  return '#'+((1<<24)+(r<<16)+(g<<8)+b).toString(16).slice(1);
+}
+
+/* ---- palettes: three swaps per shop so colour can be dialled apart
+       from form. Index 0 is the intended one. ---- */
+const PAL = [
+  ['#8a3f36','#c4a23a','#2a5c5c'],   // warm / gold / teal
+  ['#3f6b4a','#c46a4a','#2e4d68'],   // green / terracotta / navy
+  ['#3a3a3e','#d98a9e','#c9a56e']    // charcoal / coral / tan
+];
+
+/* =======================================================
+   NINE SHOPS. Each owns its wall colour, parapet profile,
+   sign geometry, roof kit and kerb props — identity comes
+   from the silhouette, not from the facade texture.
+   right flank, and the blank front wall the shop then dresses */
+function body(wall, trim, H, wid, dep){
+  const w = wid===undefined ? W : wid, d = dep===undefined ? D : dep;
+  if(!NOPLATE) T(0,w,-d,0,H, shade(trim,1.05));          // roof
+  /* WHICH END WALL, decided by the host rather than assumed.
+     This drew S(w) unconditionally -- the a = w end -- which is right
+     for the canvas lab's single view and wrong on half the block edges
+     in the game, where drawStoreUnit's own cull (showRight = dvS > 0)
+     says the a = 0 end is the visible one and the a = w end faces away.
+     A shop that always draws S(w) shows no end wall at all on those
+     edges, which reads as a missing face the moment units are not
+     packed shoulder to shoulder.
+     FLANK_RIGHT is the host's copy of that same test, so the library
+     and the shipped stores agree about which end of a unit exists. */
+  if(FLANK_RIGHT) S(w,-d,0,0,H, shade(wall,.78));        // a = w end
+  else            S(0,-d,0,0,H, shade(wall,.72));        // a = 0 end
+  F(0,w,0,H, wall);                                      // front wall
+  ctx.strokeStyle = shade(wall,.55); ctx.lineWidth = 1.5;
+  poly([P(0,0,H),P(w,0,H),P(w,0,0),P(0,0,0)], null, shade(wall,.6), 1.5);
+  F(0,w,0,16, shade(wall,.66), null,0,-0.5);             // stallriser
+}
+
+/* ================= THE DOOR KIT =================
+   Every shop had drawn its own door as a slab -- a box, 92 to 104 tall
+   and 31 to 64 wide, standing proud of the wall. Three faults in one
+   object: it was a volume where a shopfront door is a hole, it was the
+   wrong size, and it was a different wrong size in every shop.
+
+   The real one, from the shipped drawPickupUnit / drawShopDoor:
+     width   min(DOOR_W*0.72, unitW*0.3)  =  66.24
+     height  DOOR_H*0.88                  = 161.92
+
+   dH divides by ZSCALE so the opening comes out at 161.92 in game units
+   whatever vertical scale the shop itself is drawn at -- a shop on the
+   1.5 lab factor and a shop already rebuilt on the anchors both get the
+   same real door.
+
+   Position is the shop's own business. The game centres the PICKUP
+   door on u.w/2, but pickups will be targeted per shop rather than
+   assumed, so the kit takes a midpoint and puts the door there. It
+   clamps only so a door near the end of a frontage cannot run off it.
+
+   Everything is on the frontage plane within 1.2 units. No slab, no
+   return, so nothing casts a second little building onto the flank. */
+/* HALF DOORS ARE A DOOR, NOT A DECORATION. The cantina had a pair of
+   saloon leaves painted onto a full shopfront door, so the shop had two
+   doors in one opening and neither read. A half door REPLACES the leaf:
+   the opening stays open above and below it, which is the whole point
+   of one, and that gap is what has to survive into the game.
+
+   FOR THE PORT. drawShopDoor swings a single leaf on an SL hinge
+   (SHOPDOOR_ART.openAngle). A half door is two leaves hinged at
+   OPPOSITE jambs, both swinging out, over a band that covers roughly
+   z 0.26..0.70 of the opening -- so the worker passes through a gap
+   that is already partly open, and the dark above and below the leaves
+   must not be filled in. Same hinge maths, twice, mirrored. */
+function shopDoor(aMid, wall, trim, glass, wid, base, opts){
+  /* wid: some shops are drawn on a narrower unit (Tailor WW=170,
+     Newsstand WW=150), so the clamp has to be against THEIR frontage,
+     not the default W, or the door slides off the end of the wall. */
+  const uw = wid === undefined ? W : wid;
+  /* base: the floor the door stands on. Zero for a shopfront, but a
+     goods depot's openings sit on a loading dock and a door drawn from
+     the pavement would run through the dock face. */
+  const z = base === undefined ? 0 : base;
+  const hw = SHOP_DOOR_W/2, dH = SHOP_DOOR_H/ZSCALE;
+  const mid = Math.max(hw+5, Math.min(uw-hw-5, aMid));
+  const a0 = mid-hw, a1 = mid+hw;
+  F(a0-4, a1+4, z, z+dH+7, shade(wall,.90), null, 0, 0.3);       // painted surround
+  F(a0, a1, z, z+dH, '#2b2118', null, 0, 0.4);                    // opening
+  /* THE FANLIGHT WAS A PANEL. Transom glass, rail and leaf were all at
+     b = 0.6 -- one flat plane with three colours on it -- and the glass
+     was a 55% wash over the near-black opening, so it came out as a grey
+     slab sitting above the door rather than as a light over it.
+
+     A fanlight is glazed into the head of the opening and the leaf
+     swings in front of it, so the two cannot share a depth. The glass
+     goes BEHIND the leaf line at 0.45, gets a tint from the same family
+     as glaze() instead of a wash, and takes a raked highlight so it
+     reads as glazing. The rail that divides them stands proud at 0.7,
+     which is what a transom rail does. */
+  F(a0+2, a1-2, z+dH-26, z+dH-4, glass || 'rgba(96,132,152,.94)', null,0,0.45);
+  poly([P(a0+2,0.5,z+dH-4),P(a0+(a1-a0)*0.42,0.5,z+dH-4),
+        P(a0+(a1-a0)*0.20,0.5,z+dH-26),P(a0+2,0.5,z+dH-26)],
+       'rgba(240,250,254,.17)');
+  F(a0+2, a1-2, z+dH-30, z+dH-26, shade(trim,.8), null,0,0.7);    // transom rail
+  if(opts && opts.half){
+    /* two leaves, hinged at opposite jambs, over the middle band only */
+    const h0 = z + dH*0.26, h1 = z + dH*0.70, mA = (a0+a1)/2;
+    for(const [la0,la1] of [[a0+2, mA-1], [mA+1, a1-2]]){
+      F(la0, la1, h0, h1, trim, null, 0, 0.6);
+      F(la0, la1, h1-5, h1, shade(trim,.74), null, 0, 0.78);      // top rail
+      F(la0, la1, h0, h0+5, shade(trim,.74), null, 0, 0.78);      // bottom rail
+      for(let k=1;k<3;k++){
+        const zz = h0 + 5 + (h1-h0-10)*k/3;
+        F(la0+2, la1-2, zz-1, zz+1, shade(trim,.62), null, 0, 0.82);
+      }
+    }
+    for(const ha of [a0+4, a1-4])                                  // hinge straps
+      for(const zz of [h0+7, h1-9])
+        F(ha-1.5, ha+9, zz-1.6, zz+1.6, shade(trim,.5), null, 0, 0.9);
+    return { a0, a1, dH, half:true, h0, h1 };
+  }
+  F(a0+2, a1-2, z, z+dH-30, trim, null, 0, 0.6);                  // leaf
+  for(let k=0;k<2;k++)
+    F(a0+8, a1-8, z+dH*0.07+k*dH*0.36, z+dH*0.30+k*dH*0.36, shade(trim,1.18), shade(trim,.7), 1.5, 0.9);
+  F(a1-14, a1-10, z+dH*0.40, z+dH*0.53, '#d8c28a', null, 0, 1.2); // handle
+  return { a0, a1, dH };
+}
+
+/* pavement props shared between shops */
+function kerb(p, kind){
+  if(!state.props) return;
+  if(kind==='crates'){
+    box(W+16,W+62,14,54,0,26,'#c98a4a','#a9703a','#8f5e31');
+    box(W+22,W+56,20,48,26,38,'#b87d3e','#9a6634','#82562c');
+  } else if(kind==='bench'){
+    box(W*0.08,W*0.52,26,44,20,26,'#8b6a4e','#7a5c44','#6a5039');
+    F(W*0.10,W*0.14,0,20,'#6d747c',null,0,34);
+    F(W*0.46,W*0.50,0,20,'#6d747c',null,0,34);
+  } else if(kind==='planters'){
+    for(const aa of [W*0.06, W*0.88]){
+      box(aa-14,aa+14,16,44,0,24,'#b9beb4','#a3a89a','#8f9487');
+      const c=P(aa,30,34); ctx.beginPath(); ctx.arc(c.x,c.y,13*K,0,7);
+      ctx.fillStyle='#4f7a4a'; ctx.fill();
+    }
+  } else if(kind==='stoop'){
+    box(W*0.56,W*0.90,10,34,0,12,'#b9beb4','#a3a89a','#8f9487');
+    box(W*0.58,W*0.88,14,30,12,20,'#c3c8be','#adb2a4','#999e91');
+  } else if(kind==='seats'){
+    for(const aa of [W*0.10, W*0.34]){
+      cyl(aa, 34, 0, 22, 4, '#b9bcc0');
+      cyl(aa, 34, 22, 28, 13, '#e2748c');
+    }
+  } else if(kind==='aboard'){
+    poly([P(W*0.10,30,0),P(W*0.34,30,0),P(W*0.34,30,48),P(W*0.10,30,48)],'#22222a','#e0483c',2);
+    for(let i=0;i<3;i++) F(W*0.13,W*0.31, 12+i*12, 18+i*12, '#f2ece0', null,0,-30);
+  }
+}
+
+
+
+  /* ---- WALL FRAMES, lifted with the entries ----
+     labs/shopfront-shops.js keeps this at file scope so the whole-edge
+     shops share one copy; the School needs it for the same reason the
+     lab does, and it is a COPY here like everything else in this
+     graft. A change there has to come back. ---- */
+  /* AN ORIGIN, because a landmark's building does not start at 0. The four
+     whole-edge shops all fill their lot, so their frontage IS a = 0 and
+     b = 0; a school standing in a park does not, and translating the frame
+     is the only difference between the two cases. oa and ob default to 0,
+     so nothing that already calls this changes. */
+  function wallFrames(WW, DD, OA, OB){
+    const oa = OA || 0, ob = OB || 0;
+    /* ---- the wall frames, and the primitives written against them ---- */
+    const FR_FRONT = { P:(u,n,v)=>[oa+u, ob+n, v],        len:WW, kind:'front' };
+    const FR_RIGHT = { P:(u,n,v)=>[oa+WW+n, ob-u, v],     len:DD, kind:'flank'  };
+    const FR_LEFT  = { P:(u,n,v)=>[oa-n, ob-u, v],        len:DD, kind:'flank'  };
+    const FR_BACK  = { P:(u,n,v)=>[oa+WW-u, ob-DD-n, v],  len:WW, kind:'back'   };
+    const Q = (fr,u,n,v) => { const c = fr.P(u,n,v); return P(c[0],c[1],c[2]); };
+    const R = (fr,u0,u1,v0,v1,n,fill,stroke,lw) =>
+      poly([Q(fr,u0,n,v1),Q(fr,u1,n,v1),Q(fr,u1,n,v0),Q(fr,u0,n,v0)], fill, stroke, lw);
+    /* a panel with real thickness: face, the end return that is seen,
+       and the top plate -- slab(), asked of a frame */
+    /* THE END RETURN IS OPTIONAL, and the corners are why. A course that
+       WRAPS the building has no end -- the next elevation continues it --
+       but bandF was capping every run, and the front is drawn after the
+       flank, so each wrapping band painted a dark end cap straight onto
+       the corner it was supposed to turn. Three courses, a cornice and
+       two corner pilasters, six dark wedges down one corner.
+
+       `em` is a mask of which ends may be capped: bit 0 is the u0 end,
+       bit 1 the u1 end, 3 both, 0 none. The end that WOULD be seen is
+       still derived from P() -- the mask only says whether it exists --
+       so a run that is capped at one end still caps the correct one
+       whichever way the block edge runs.
+
+       And a wrapping run is extended PAST the corner at each end, by its
+       own projection plus two. Extending by exactly the projection is
+       not enough and that was the visible seam Sir found: the front
+       band's face and the flank band's face then abut on the identical
+       screen column, and two antialiased quads that share an edge and
+       do not overlap leave a hairline of background between them. It
+       ran the full height of the corner pier. Two units of overlap is
+       hidden inside the corner and closes it. */
+    const bandF = (fr,u0,u1,v0,v1,n0,n1,front,side,top,em) => {
+      const mask = em === undefined ? 3 : em;
+      R(fr,u0,u1,v0,v1,n0,front);
+      const o = Q(fr,u0,n0,v0), du = Q(fr,u0+1,n0,v0);
+      const hi = (du.y - o.y) > 0, eu = hi ? u1 : u0;
+      if(mask & (hi ? 2 : 1))
+        poly([Q(fr,eu,n0,v1),Q(fr,eu,n1,v1),Q(fr,eu,n1,v0),Q(fr,eu,n0,v0)], side || shade(front,.78));
+      poly([Q(fr,u0,n0,v1),Q(fr,u1,n0,v1),Q(fr,u1,n1,v1),Q(fr,u0,n1,v1)], top || shade(front,1.14));
+    };
+    const rev = (fr,u0,u1,v0,v1,deep,col) => {
+      const o = Q(fr,u0,0,v0), du = Q(fr,u0+1,0,v0), dv = Q(fr,u0,0,v0+1), dn = Q(fr,u0,-1,v0);
+      const ux = du.x-o.x, uy = du.y-o.y, vx = dv.x-o.x, vy = dv.y-o.y;
+      const sx = dn.x-o.x, sy = dn.y-o.y, det = ux*vy - vx*uy;
+      const al = (sx*vy - vx*sy)/det, be = (ux*sy - sx*uy)/det;   // shift, in u and v
+      const ju = al > 0 ? u0 : u1, cv = be > 0 ? v0 : v1;         // gap opens opposite it
+      ctx.save();
+      poly([Q(fr,u0,0,v1),Q(fr,u1,0,v1),Q(fr,u1,0,v0),Q(fr,u0,0,v0)]); ctx.clip();
+      R(fr,u0,u1,v0,v1,-deep,col);
+      poly([Q(fr,ju,0,v0),Q(fr,ju,-deep,v0),Q(fr,ju,-deep,v1),Q(fr,ju,0,v1)], shade(col,.84));
+      poly([Q(fr,u0,0,cv),Q(fr,u1,0,cv),Q(fr,u1,-deep,cv),Q(fr,u0,-deep,cv)], shade(col,.72));
+      ctx.restore();
+    };
+    const glz = (fr,u0,u1,v0,v1,frame,tint) => {
+      const w = u1-u0, h = v1-v0;
+      R(fr,u0,u1,v0,v1,-0.4, tint || 'rgba(104,146,168,.92)');
+      poly([Q(fr,u0,-0.30,v1),Q(fr,u0+w*0.30,-0.30,v1),Q(fr,u0+w*0.06,-0.30,v0),Q(fr,u0,-0.30,v0)],
+           'rgba(240,250,254,.20)');
+      poly([Q(fr,u0,-0.22,v1),Q(fr,u1,-0.22,v1),Q(fr,u1,-0.22,v1-h*0.06),Q(fr,u0,-0.22,v1-h*0.06)],
+           'rgba(255,255,255,.16)');
+      if(frame){
+        R(fr,u0-3,u0,v0-3,v1+3,0.5,frame);  R(fr,u1,u1+3,v0-3,v1+3,0.5,frame);
+        R(fr,u0-3,u1+3,v1,v1+3,0.5,frame);  R(fr,u0-3,u1+3,v0-3,v0,0.5,frame);
+      }
+    };
+    /* shopDoor on a frame. Built from the kit's own SHOP_DOOR_W and
+       SHOP_DOOR_H so the openings on the flanks are the same door the
+       front gets from shopDoor() -- the front still calls the kit, so
+       the one the pickup worker walks out of stays canonical. */
+    const doorF = (fr, uMid, w, t) => {
+      const hw = SHOP_DOOR_W/2, dH = SHOP_DOOR_H/ZSCALE;
+      const mid = Math.max(hw+5, Math.min(fr.len-hw-5, uMid));
+      const u0 = mid-hw, u1 = mid+hw;
+      R(fr,u0-4,u1+4, 0, dH+7, 0.3, shade(w,.90));
+      R(fr,u0,u1, 0, dH, 0.4, '#2b2118');
+      R(fr,u0+2,u1-2, dH-26, dH-4, 0.45, 'rgba(96,132,152,.94)');
+      R(fr,u0+2,u1-2, dH-30, dH-26, 0.7, shade(t,.8));
+      R(fr,u0+2,u1-2, 0, dH-30, 0.6, t);
+      for(let k=0;k<2;k++)
+        R(fr,u0+8,u1-8, dH*0.07+k*dH*0.36, dH*0.30+k*dH*0.36, 0.9, shade(t,1.18), shade(t,.7), 1.5);
+      R(fr,u1-14,u1-10, dH*0.40, dH*0.53, 1.2, '#d8c28a');
+    };
+    /* a solid inside a frame -- the two faces that turn toward the eye and
+       the top, each chosen by the same screen-y test box() and slab() use,
+       so a car parked in a showroom sits the right way round on all four
+       block edges. */
+    const qbox = (fr,u0,u1,n0,n1,v0,v1,top,fu,fn) => {
+      const o = Q(fr,u0,n0,v0), du = Q(fr,u0+1,n0,v0), dn = Q(fr,u0,n0+1,v0);
+      const eu = (du.y - o.y) > 0 ? u1 : u0, en = (dn.y - o.y) > 0 ? n1 : n0;
+      poly([Q(fr,u0,en,v1),Q(fr,u1,en,v1),Q(fr,u1,en,v0),Q(fr,u0,en,v0)], fn);
+      poly([Q(fr,eu,n0,v1),Q(fr,eu,n1,v1),Q(fr,eu,n1,v0),Q(fr,eu,n0,v0)], fu);
+      poly([Q(fr,u0,n0,v1),Q(fr,u1,n0,v1),Q(fr,u1,n1,v1),Q(fr,u0,n1,v1)], top);
+    };
+    return { FR_FRONT, FR_RIGHT, FR_LEFT, FR_BACK, Q, R, bandF, rev, glz, doorF, qbox,
+             NEAR: FLANK_RIGHT ? FR_RIGHT : FR_LEFT,
+             FAR:  FLANK_RIGHT ? FR_LEFT  : FR_RIGHT };
+  }
+
+  /* ---- the ported entries. Two, so far. ---- */
+/* =====================================================================
+   THE CHARGE DEPOT'S GEOMETRY, ONCE -- art and volume both read it.
+   =====================================================================
+   The first port of this building had to fish these numbers back out of
+   draw() by hand (DEPOT_ROOM, the pad at 200/b0+46, the mat at 266/-30,
+   300*1.5) and every on-device bug it produced came from that copy. Now
+   the draw and the vol declaration below take them from here, so the
+   building Tipsey collides with IS the building that is drawn.
+
+   Frame: a along the y1 street, b 0 on it and negative into the block,
+   chamfer on the corner at a = WW. cpt(t, k) is t across the chamfer
+   (0..1) and k in along its inward normal. */
+const DEPOT_GEOM = (() => {
+  const WW = 295.6, DD = 276, H = 300, CW = 150;
+  const DOOR = [0.10, 0.90], DH = 168;
+  const ROOM = { a0:40, a1:WW - 6, b0:-244, b1:-6 };      // RA0 RA1 RB0 RB1
+  const WALL = 6;                                          // shell thickness: front and flank
+  /* THE CHAMFER IS A SKIN, not a 6-thick wall. draw() builds the jambs as
+     one plane on the chamfer line (cpt(t, 0), "chamfer jambs") with no
+     inner face, so a 6-thick chamfer put an inside corner on each jamb
+     that is not in the picture -- and Tipsey caught it leaving: pad exits
+     aimed at the door's right side tipped 3/18 against 1/18. 1 unit is
+     the drawn plane plus enough to be solid. */
+  const CHWALL = 1;
+  const CHPAD = 46;
+  const MAT = { k0:-26, k1:-102 };                         // mat, outward of the chamfer
+  const BOLL = { k:-16, r:11, h:54 };                      // threshold bollards
+  const R2 = Math.SQRT1_2, CA0 = WW - CW;
+  const cpt = (t, k) => [CA0 + t*CW - (k||0)*R2, -t*CW - (k||0)*R2];
+  const PADS = { back:[200, ROOM.b0 + CHPAD], left:[ROOM.a0 + CHPAD, -140] };
+
+  /* THE ROOM IS THE INTERIOR, not a rect. The room rect the art clips to
+     runs right through the chamfer -- its corner (160.6,-15) is already
+     past the jamb -- so used as the carve it deleted the jambs, which is
+     the phantom-wall / tipping-jamb class of bug. The walkable interior
+     is that rect cut by the chamfer wall's INNER face, a + b = CA0 - CHWALL*sqrt2. */
+  const inner = CA0 - CHWALL * Math.SQRT2;
+  const room = [[ROOM.a0, ROOM.b0], [ROOM.a0, ROOM.b1], [inner - ROOM.b1, ROOM.b1],
+                [ROOM.a1, inner - ROOM.a1], [ROOM.a1, ROOM.b0]];
+  /* the doorway: the opening across the chamfer, through the wall */
+  const doorway = [cpt(DOOR[0], -1), cpt(DOOR[1], -1), cpt(DOOR[1], CHWALL + 2), cpt(DOOR[0], CHWALL + 2)];
+  const TA = DOOR[0] + 0.02, TB = DOOR[1] - 0.02;
+
+  const vol = {
+    foot: [[0,0], [CA0,0], [WW,-CW], [WW,-DD], [0,-DD]],
+    h: H,
+    opens: [
+      { name:'room',    poly: room,    walk:true, see:'street', h:0 },
+      { name:'doorway', poly: doorway, walk:true, see:'street', h:0 }
+    ],
+    solids: [
+      { name:'bollard L', c: cpt(DOOR[0] + 0.02, BOLL.k), r: BOLL.r, h: BOLL.h, prop:true },
+      { name:'bollard R', c: cpt(DOOR[1] - 0.02, BOLL.k), r: BOLL.r, h: BOLL.h, prop:true }
+    ],
+    zones: [
+      { name:'mat',  kind:'trigger', poly:[cpt(TA,MAT.k0), cpt(TB,MAT.k0), cpt(TB,MAT.k1), cpt(TA,MAT.k1)] },
+      { name:'pad back', kind:'charge', c: PADS.back, r: 44 },         // CHARGE.padR
+      { name:'pad left', kind:'charge', c: PADS.left, r: 44 },
+      /* the door opens while he is in here (or in the room): 10 inside the
+         chamfer line to 150 out, between a = -40 and WW + 40 */
+      { name:'approach',  kind:'door',    poly: (() => { const IN = CA0 - 10*Math.SQRT2, OUT = CA0 + 150*Math.SQRT2, A0 = -40, A1 = WW + 40;
+                                                        return [[A0, IN-A0], [A1, IN-A1], [A1, OUT-A1], [A0, OUT-A0]]; })() },
+      /* the doorway band: contacts in it take the surface's true normal and
+         the forgiving tip threshold (game: depotContactNormal, depotDoorTip) */
+      { name:'threshold', kind:'forgive', poly:[cpt(-0.3,-90), cpt(1.3,-90), cpt(1.3,90), cpt(-0.3,90)] }
+    ],
+    marks: {
+      spawn:  PADS.back,                      // Tipsey starts on the back-wall pad
+      padBack: PADS.back, padLeft: PADS.left, // left is the NPC bay (rTodo)
+      mat:    cpt(0.5, -64),                  // where a trip to a depot ends
+      door:   cpt(0.5, 0)                     // facing: spawn -> door
+    }
+  };
+  return { WW, DD, H, CW, DOOR, DH, ROOM, WALL, CHWALL, CHPAD, MAT, BOLL, PADS, cpt, vol };
+})();
+
+  const SHOPS = [
+  {
+  name:'Undertaker', tall:true, block:true, place:'park',
+  ww: 4*3128, dd: 5*3128,
+  wTodo:'nine block cells in a staircase -- the packer has no concept of a multi-block, non-rectangular footprint',
+  pTodo:'GANTRY COMMONS specifically, Warehouse District. Measured on buildGrid(36,27,hashStr("2026-08-09")): 9 cells at i,j (10,13)(9,14)(10,14)(9,15)(10,15)(10,16)(11,16)(11,17)(12,17). The chooser places by block type and has no way to name a component',
+  gTodo:'pin to the Gantry Commons component via parkNameTable/mapParkName, the way WG_COAST pins the aquarium to its deck. Anchor is the min-j then min-i cell, (10,13). If worldgen ever reshapes the component the footprint here has to be regenerated from it rather than kept as a literal',
+  cTodo:'perimeter railings on the staircase outline, lych gate, chapel and ~200 headstones need volumes; the walks and the grass are drivable',
+  head:'Burial ground filling Gantry Commons, nine cells of it',
+  tags:['nine-cell footprint','staircase outline','burial ground','chapel of rest','lych gate','drivable walks'],
+  desc:'Not a shopfront and not a block: the undertaker takes the whole of Gantry Commons in the shape the worldgen actually makes it, nine cells running diagonally with the streets between them swallowed, railed round the staircase and walked through.',
+  draw(p){
+    /* ============ THE FOOTPRINT IS A MEASURED PARK, NOT A BLOCK =====
+       At Sir's direction this fills GANTRY COMMONS in the shape the
+       worldgen actually gives it. The cells were read off the real
+       city -- buildGrid(36, 27, hashStr("2026-08-09")), which is
+       DISTRICT_COLS*DISTRICT_W by DISTRICT_ROWS*DISTRICT_H, 910 blocks
+       -- and parkNameTable's component for that name is nine cells:
+
+         (10,13) (9,14) (10,14) (9,15) (10,15) (10,16) (11,16)
+         (11,17) (12,17)
+
+       Normalised to its own origin that is a 4 by 5 bounding box with
+       nine of the twenty cells filled, running as a staircase from the
+       north-west down to the south-east. ww and dd are the bounding
+       box; the SHAPE is the CELLS list.
+
+       A CORRECTION WORTH KEEPING. My first census said Gantry Commons
+       never exists, across 120 runs. That census used buildGrid(12,12)
+       -- a twelfth of the city's area -- and at that size a hood never
+       gets enough park components for the sixth name in its pool to be
+       dealt. The method was right and the parameter was wrong, which is
+       the worst kind of wrong: it produces a confident number. The real
+       grid dimensions were in _generateRouteFresh the whole time.
+
+       WHAT THE SWALLOW PASS MEANS HERE. Where two cells are edge
+       adjacent the street between them is gone, so the grass runs
+       straight through; where a cell has no neighbour on a side, that
+       side is a real street frontage and gets the railing. So the
+       ground is not nine squares, it is one continuous piece with a
+       staircase outline, and the railing is derived from the cell set
+       rather than drawn as a rectangle.
+
+       cTodo IS LARGE AND HONEST. Nine cells at the old 62 by 88 stone
+       pitch would have been about eighteen hundred headstones. At 150
+       by 200 it is around two hundred, which still reads as rows and is
+       a collision bill somebody has to agree to. */
+    /* ---- THE CELL PITCH IS THE GAME'S, MEASURED ----
+       This was 1048.8 with a 90 road, which is the canvas lab's
+       block:true convention, and it is WRONG BY A FACTOR OF THREE. Read
+       off the running game: BLOCK is 34*T2 = 3128, a block's buildable
+       interior is x1-x0 = 1656, and ROAD_HALF is 368 -- so 736 of road,
+       1656 of ground, 736 of road makes the 3128 pitch.
+
+       The graft found it. Standing the robot in Gantry Commons showed
+       grass and a palm and no graveyard, because the burial ground was
+       being drawn at a third of the component's real size, tucked in
+       one corner of nine cells that are each three times bigger than it
+       assumed.
+
+       WORTH CHECKING THE OTHER FIVE. Bathhouse, Chapel, Nursery,
+       Brewery and Print works all use ww = dd = 1048.8 on the same
+       convention, and if that number came from the same place they are
+       all a third of a block. The lab cannot tell -- it frames whatever
+       it is given -- which is exactly why this only surfaced on the
+       first entry to reach the game. */
+    const BLK = 3128, ROAD = 736;
+    const CELLS = [[1,0],[0,1],[1,1],[0,2],[1,2],[1,3],[2,3],[2,4],[3,4]];
+    const has = (ci, cj) => CELLS.some(c => c[0] === ci && c[1] === cj);
+    const grass = '#4a6b46', walk = '#b3a894', iron = '#2a2e33';
+    const stoneA = '#9a9a92', stoneB = '#8a8a82', wall = '#6a6a64', roofc = '#3a3f44';
+    /* the chapel stands in cell (1,1), which is inside the solid 2x2
+       core the component happens to contain -- (0,1)(1,1)(0,2)(1,2) */
+    const CA0 = 1*BLK + 900, CA1 = 1*BLK + 1500, CB0 = -1*BLK - 900, CB1 = -1*BLK - 1450, CH = 250;
+
+    /* ---- the ground, cell by cell, with the swallowed streets ---- */
+    T(0, 4*BLK, -5*BLK, 0, 0.3, '#b3a894');
+    for(const [ci, cj] of CELLS){
+      const a0 = ci*BLK + (has(ci-1,cj) ? 0 : ROAD), a1 = (ci+1)*BLK - (has(ci+1,cj) ? 0 : ROAD);
+      const b1 = -cj*BLK - (has(ci,cj-1) ? 0 : ROAD), b0 = -(cj+1)*BLK + (has(ci,cj+1) ? 0 : ROAD);
+      T(a0, a1, b0, b1, 0.6, grass);
+    }
+    /* ---- the walks, and every one of them ends at a gate ----
+       A walk that runs into a railing is a path to nowhere, and the
+       first cut had three of them doing exactly that -- one overshot
+       onto the pavement outside, one stopped 30 short of the fence and
+       one crossed a cell that is not in the component at all. Each now
+       runs from perimeter to perimeter and the railing opens where it
+       meets one. */
+    T(1*BLK+1120, 1*BLK+1280, -3*BLK, -ROAD, 0.8, walk);          // the spine
+    T(0*BLK+ROAD, 2*BLK-ROAD, -1*BLK-1560, -1*BLK-1720, 0.8, walk);// the cross walk
+    T(2*BLK+ROAD, 4*BLK-ROAD, -4*BLK-760, -4*BLK-920, 0.8, walk); // the lower walk
+
+    /* ---- the railing, derived from the cell set ----
+       Every cell side with no neighbour is a street frontage. Segments
+       run 20 inside the grass edge and overrun 20 at each end so the
+       corners close without a mitre. */
+    /* ---- THE RAILING IS THE BOUNDARY OF THE GRASS, NOT OF THE CELLS ----
+       The first cut put a rail on every cell side with no neighbour and
+       overran each end by 20. That is right along a straight run and
+       wrong at every step of the staircase, which is where the holes
+       Sir photographed were.
+
+       The reason: a cell's grass is inset by ROAD on the sides with no
+       neighbour and NOT inset on the sides with one, so two diagonally
+       adjacent cells produce grass edges that are offset by ROAD in
+       both axes. At a step the boundary has to make two short turns of
+       90 each to get from one cell's edge to the next -- and 20 of
+       overrun does not cover 90.
+
+       So: build the grass rectangle for each cell exactly as the ground
+       pass does, and for each of its four edges emit rail over the part
+       NOT shared with the neighbour on that side. Where there is no
+       neighbour that is the whole edge; where there is one it is the
+       interval difference, which is precisely the little notch at each
+       step. Same rule everywhere, no special case for corners. */
+    const rect = (ci, cj) => [
+      ci*BLK + (has(ci-1,cj) ? 0 : ROAD), (ci+1)*BLK - (has(ci+1,cj) ? 0 : ROAD),
+      -(cj+1)*BLK + (has(ci,cj+1) ? 0 : ROAD), -cj*BLK - (has(ci,cj-1) ? 0 : ROAD)];
+    const railSegs = [];
+    for(const [ci, cj] of CELLS){
+      const [a0, a1, b0, b1] = rect(ci, cj);
+      const span = (lo, hi, nb, along) => {         // the part of an edge that is open
+        if(!nb) return [[lo, hi]];
+        const r = rect(nb[0], nb[1]);
+        const [c0, c1] = along ? [r[0], r[1]] : [r[2], r[3]];
+        const out = [];
+        if(lo < c0) out.push([lo, Math.min(hi, c0)]);
+        if(hi > c1) out.push([Math.max(lo, c1), hi]);
+        return out;
+      };
+      const nb = (i, j) => has(i, j) ? [i, j] : null;
+      for(const [x0, x1] of span(a0, a1, nb(ci, cj-1), true))
+        railSegs.push([x0 - 12, x1 + 12, b1 - 12, b1]);
+      for(const [x0, x1] of span(a0, a1, nb(ci, cj+1), true))
+        railSegs.push([x0 - 12, x1 + 12, b0, b0 + 12]);
+      for(const [y0, y1] of span(b0, b1, nb(ci-1, cj), false))
+        railSegs.push([a0, a0 + 12, y0 - 12, y1 + 12]);
+      for(const [y0, y1] of span(b0, b1, nb(ci+1, cj), false))
+        railSegs.push([a1 - 12, a1, y0 - 12, y1 + 12]);
+    }
+    /* ---- THE GATES, one at every place a walk meets the perimeter ----
+       Four of them: the lych gate on the north street where the spine
+       walk starts, and three iron gates where the cross walk and the
+       lower walk reach the railing. Each is a rectangle the railing
+       opens for, so adding a walk means adding its gate and nothing
+       else has to change. */
+    const GA0 = 1*BLK + 1090, GA1 = 1*BLK + 1310, GB = -ROAD - 6;
+    const GATES = [
+      { a0: GA0,            a1: GA1,            b0: GB-30,        b1: GB+30, lych:true },
+      { a0: 0*BLK+ROAD-30,  a1: 0*BLK+ROAD+30,  b0: -1*BLK-1740,  b1: -1*BLK-1540 },
+      { a0: 2*BLK-ROAD-30,  a1: 2*BLK-ROAD+30,  b0: -1*BLK-1740,  b1: -1*BLK-1540 },
+      { a0: 4*BLK-ROAD-30,  a1: 4*BLK-ROAD+30,  b0: -4*BLK-940,   b1: -4*BLK-740 }
+    ];
+    const railing = (a0, a1, b0, b1) => {
+      for(const g of GATES){
+        if(a0 < g.a1 && a1 > g.a0 && b0 < g.b1 && b1 > g.b0){
+          if((a1 - a0) > Math.abs(b1 - b0)){
+            if(a0 < g.a0) railing(a0, g.a0, b0, b1);
+            if(a1 > g.a1) railing(g.a1, a1, b0, b1);
+          } else {
+            if(b0 < g.b0) railing(a0, a1, b0, g.b0);
+            if(b1 > g.b1) railing(a0, a1, g.b1, b1);
+          }
+          return;
+        }
+      }
+      box(a0, a1, b0, b1, 0, 10, shade(wall,.9), shade(wall,.7), shade(wall,.6));
+      const along = (a1 - a0) > Math.abs(b1 - b0);
+      const n = Math.max(2, Math.round((along ? a1-a0 : Math.abs(b1-b0)) / 30));
+      const mb = (b0+b1)/2, ma = (a0+a1)/2;
+      for(let i=0;i<=n;i++){
+        const t = i/n;
+        cyl(along ? a0 + (a1-a0)*t : ma, along ? mb : b0 + (b1-b0)*t, 10, 60, 2.2, iron);
+      }
+      for(const z of [16, 54])
+        poly(along ? [P(a0,mb,z),P(a1,mb,z),P(a1,mb,z+4),P(a0,mb,z+4)]
+                   : [P(ma,b0,z),P(ma,b1,z),P(ma,b1,z+4),P(ma,b0,z+4)], iron);
+    };
+
+    /* ---- the stones, the yews, and the railing, all one sorted list ---- */
+    const stones = [];
+    let seed = 11;
+    const rnd = () => (seed = (seed*1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
+    for(const [ci, cj] of CELLS)
+      /* 260 by 340 on cells of 1656 gives about 24 stones a cell and
+         216 in all -- the same bill the 150 by 200 pitch gave on cells
+         a third the size, which is the point of re-cutting it rather
+         than letting the rescale multiply it by nine. */
+      for(let aa = ci*BLK + ROAD + 130; aa < (ci+1)*BLK - ROAD - 100; aa += 260)
+        for(let bb = -cj*BLK - ROAD - 130; bb > -(cj+1)*BLK + ROAD + 100; bb -= 340){
+          if(aa > CA0-220 && aa < CA1+220 && bb < CB0+300 && bb > CB1-420) continue;
+          if(aa > 1*BLK+1060 && aa < 1*BLK+1340 && bb > -3*BLK) continue;    // the spine walk
+          if(bb < -1*BLK-1500 && bb > -1*BLK-1780) continue;                 // the cross walk
+          if(bb < -4*BLK-700 && bb > -4*BLK-980) continue;
+          stones.push([aa + rnd()*20, bb - rnd()*20, Math.floor(rnd()*4)]);
+        }
+    const yews = [];
+    for(const [ci, cj] of CELLS)
+      if((ci + cj) % 2 === 0) yews.push([ci*BLK + ROAD + 200 + rnd()*900, -cj*BLK - ROAD - 220 - rnd()*900]);
+
+    const drawStone = ([sa, sb, kind]) => {
+      if(kind === 0){
+        box(sa-15, sa+15, sb-6, sb+6, 0, 46, stoneA, shade(stoneA,1.1), shade(stoneA,.78));
+        const q = [];
+        for(let i=0;i<=12;i++){ const t = Math.PI*i/12;
+          q.push(P(sa - 15*Math.cos(t), sb+6, 46 + 15*Math.sin(t)/ZSCALE)); }
+        poly(q, shade(stoneA,1.1));
+      } else if(kind === 1){
+        box(sa-6, sa+6, sb-6, sb+6, 0, 60, stoneB, shade(stoneB,1.1), shade(stoneB,.78));
+        box(sa-18, sa+18, sb-5, sb+5, 40, 51, stoneB, shade(stoneB,1.1), shade(stoneB,.78));
+      } else if(kind === 2){
+        box(sa-13, sa+13, sb-11, sb+11, 0, 14, stoneB, shade(stoneB,1.05), shade(stoneB,.74));
+        box(sa-9, sa+9, sb-8, sb+8, 14, 72, stoneA, shade(stoneA,1.12), shade(stoneA,.76));
+        poly([P(sa-9,sb+8,72),P(sa+9,sb+8,72),P(sa,sb+8,90)], shade(stoneA,1.12));
+      } else {
+        box(sa-22, sa+22, sb-13, sb+13, 0, 30, stoneB, shade(stoneB,1.06), shade(stoneB,.74));
+        slab(sa-26, sa+26, 30, 37, sb+15, sb-15, shade(stoneA,1.14), null, shade(stoneA,1.2));
+      }
+    };
+    const drawYew = ([ya, yb]) => {
+      cyl(ya, yb, 0, 46, 11, '#4a3c2e');
+      for(let k=0;k<3;k++)
+        ball(ya + (k-1)*15, yb + (k%2 ? 11 : -11), 66 + k*19, 35 - k*6,
+             k%2 ? '#2f5638' : '#365f3e');
+    };
+
+    const inFront = (oa, ob) => {
+      const s0 = oa - ob, key = oa + ob;
+      if(s0 < CA0 - CB0 || s0 > CA1 - CB1) return key > CA1 + CB0;
+      return key > (s0 <= CA1 - CB0 ? s0 + 2*CB0 : 2*CA1 - s0);
+    };
+    const items = []
+      .concat(stones.map(o => [o[0]+o[1], () => drawStone(o), o]))
+      .concat(yews.map(o => [o[0]+o[1], () => drawYew(o), o]))
+      /* ---- LONG RAILS HAVE TO BE CUT UP BEFORE THEY ARE SORTED ----
+         A rail segment can be a whole block long, and a box that long
+         has a different depth key at every point along it. Sorting the
+         whole run on its MIDPOINT key puts it in one place in the
+         queue, so stones near its far end came out in front of it and
+         stones near its near end behind -- which is what the headstones
+         standing on the railing were.
+
+         Same fault as the chapel two passes ago and the same fix as the
+         tea house roof: an object that spans a range cannot be one item
+         in a depth-sorted queue. Cut into 140s, every piece's midpoint
+         is accurate for its own extent, and railing() already spaces
+         its posts by length so the joins do not show. */
+      .concat(railSegs.flatMap(r => {
+        const along = (r[1]-r[0]) > Math.abs(r[3]-r[2]);
+        const len = along ? r[1]-r[0] : r[3]-r[2];
+        const n = Math.max(1, Math.round(len / 140));
+        const out = [];
+        for(let i=0;i<n;i++){
+          const t0 = i/n, t1 = (i+1)/n;
+          const q = along ? [r[0]+(r[1]-r[0])*t0, r[0]+(r[1]-r[0])*t1, r[2], r[3]]
+                          : [r[0], r[1], r[2]+(r[3]-r[2])*t0, r[2]+(r[3]-r[2])*t1];
+          const mid = [(q[0]+q[1])/2, (q[2]+q[3])/2];
+          out.push([mid[0]+mid[1], () => railing(q[0], q[1], q[2], q[3]), mid]);
+        }
+        return out;
+      }));
+    items.sort((u, v) => u[0] - v[0]);
+    for(const [, fn, o] of items) if(!inFront(o[0], o[1])) fn();
+
+    /* ---- the chapel of rest ----
+       Hand-rolled, like every set-back building in this file: reveal(),
+       glaze() and shopDoor() all draw at b 0 and this stands a block in.
+       Back wall first: two planes of one building at different b always
+       overlap on screen by exactly the building's depth. */
+    F(CA0, CA1, 0, CH, shade(wall,.86), null, 0, CB1);
+    {
+      const o = P(0,CB0,0), pa = P(1,CB0,0), ge = (pa.y - o.y) > 0 ? CA1 : CA0;
+      S(ge, CB1, CB0, 0, CH, shade(wall,.74));
+      poly([P(ge,CB0,CH),P(ge,(CB0+CB1)/2,CH+96),P(ge,CB1,CH)], shade(wall,.68));
+    }
+    F(CA0, CA1, 0, CH, wall, null, 0, CB0);
+    F(CA0, CA1, 0, 22, shade(wall,.82), null, 0, CB0+0.4);
+    const CBM = (CB0+CB1)/2;
+    poly([P(CA0-8,CB0+8,CH),P(CA1+8,CB0+8,CH),P(CA1+8,CBM,CH+96),P(CA0-8,CBM,CH+96)],
+         shade(roofc,1.04));
+    for(let i=1;i<9;i++){
+      const t = i/9, bb = CB0+8 + (CBM-CB0-8)*t, zz = CH + 96*t;
+      poly([P(CA0-6,bb,zz),P(CA1+6,bb,zz),P(CA1+6,bb-1.6,zz-2),P(CA0-6,bb-1.6,zz-2)],
+           shade(roofc,.88));
+    }
+    poly([P(CA0-8,CBM,CH+96),P(CA1+8,CBM,CH+96),P(CA1+8,CB1-8,CH),P(CA0-8,CB1-8,CH)],
+         shade(roofc,.74));
+    slab(CA0-10, CA1+10, CH+96, CH+104, CBM+8, CBM-8, shade(roofc,.6));
+    for(const wa of [CA0+80, CA0+230, CA1-80]){
+      F(wa-26, wa+26, 60, 172, shade(wall,1.1), null, 0, CB0-0.6);
+      F(wa-20, wa+20, 66, 156, '#2f3a42', null, 0, CB0-1);
+      const q = [];
+      for(let i=0;i<=10;i++){ const t = Math.PI*i/10;
+        q.push(P(wa - 20*Math.cos(t), CB0-1, 156 + 20*Math.sin(t)/ZSCALE)); }
+      poly(q, '#2f3a42');
+      F(wa-2, wa+2, 66, 170, shade(wall,1.1), null, 0, CB0-1.4);
+    }
+    {
+      const da = (CA0+CA1)/2;
+      F(da-50, da+50, 0, 134, shade(wall,1.06), null, 0, CB0+0.8);
+      F(da-36, da+36, 0, 110, '#241f1c', null, 0, CB0+1.2);
+      const q = [];
+      for(let i=0;i<=10;i++){ const t = Math.PI*i/10;
+        q.push(P(da - 36*Math.cos(t), CB0+1.2, 110 + 36*Math.sin(t)/ZSCALE)); }
+      poly(q, '#241f1c');
+      for(const [d0,d1] of [[da-32, da-2],[da+2, da+32]])
+        F(d0, d1, 4, 106, '#3a3028', shade(wall,.7), 1.4, CB0+1.6);
+    }
+
+    for(const [, fn, o] of items) if(inFront(o[0], o[1])) fn();
+
+    /* ---- the three iron gates, then the lych gate ----
+       Piers with ball caps and an arched overthrow between them, turned
+       to face along whichever axis the opening runs. */
+    for(const g of GATES){
+      if(g.lych) continue;
+      const across = (g.a1 - g.a0) > Math.abs(g.b1 - g.b0);
+      const ma = (g.a0+g.a1)/2, mb = (g.b0+g.b1)/2;
+      const ends = across ? [[g.a0-6, mb],[g.a1+6, mb]] : [[ma, g.b0-6],[ma, g.b1+6]];
+      for(const [pa, pb] of ends){
+        box(pa-15, pa+15, pb-15, pb+15, 0, 92, shade(wall,.95), shade(wall,.75), shade(wall,.62));
+        slab(pa-19, pa+19, 92, 100, pb+19, pb-19, shade(wall,1.1));
+        ball(pa, pb, 112, 13, shade(wall,1.05), shade(wall,1.2));
+      }
+      for(let i=0;i<=10;i++){                                     // the overthrow
+        const t = i/10, zz = 104 + 26*Math.sin(Math.PI*t);
+        const aa = across ? ends[0][0] + (ends[1][0]-ends[0][0])*t : ma;
+        const bb = across ? mb : ends[0][1] + (ends[1][1]-ends[0][1])*t;
+        if(i){
+          const t0 = (i-1)/10, z0 = 104 + 26*Math.sin(Math.PI*t0);
+          const a0 = across ? ends[0][0] + (ends[1][0]-ends[0][0])*t0 : ma;
+          const b0 = across ? mb : ends[0][1] + (ends[1][1]-ends[0][1])*t0;
+          tube(a0, b0, z0, aa, bb, zz, 2.4, iron);
+        }
+      }
+    }
+    {
+      const gb = GB;
+      for(const ga of [GA0, GA1])
+        box(ga-14, ga+14, gb-14, gb+14, 0, 112, shade(wall,.95), shade(wall,.75), shade(wall,.62));
+      box(GA0+12, GA1-12, gb-7, gb+7, 92, 106, '#4a4038','#584c42','#3c332c');
+      for(const [ba, sgn] of [[GA0+14, 1],[GA1-14, -1]])
+        poly([P(ba, gb+7, 92),P(ba + sgn*30, gb+7, 92),P(ba, gb+7, 64)], '#4a4038');
+      poly([P(GA0-32,gb+38,112),P(GA1+32,gb+38,112),P(GA1+32,gb,158),P(GA0-32,gb,158)],
+           shade(roofc,1.04));
+      for(let i=1;i<6;i++){
+        const t = i/6, bb = gb+38 - 38*t, zz = 112 + 46*t;
+        poly([P(GA0-30,bb,zz),P(GA1+30,bb,zz),P(GA1+30,bb-1.6,zz-2),P(GA0-30,bb-1.6,zz-2)],
+             shade(roofc,.88));
+      }
+      poly([P(GA0-32,gb,158),P(GA1+32,gb,158),P(GA1+32,gb-38,112),P(GA0-32,gb-38,112)],
+           shade(roofc,.72));
+      slab(GA0-34, GA1+34, 158, 165, gb+5, gb-5, shade(roofc,.58));
+      const o = P(0,gb,0), pa = P(1,gb,0), ge = (pa.y - o.y) > 0 ? GA1+32 : GA0-32;
+      poly([P(ge,gb+38,112),P(ge,gb,158),P(ge,gb-38,112)], shade(wall,.9));
+    }
+  }
+  },
+  {
+  name:'School', tall:true, block:true, place:'park',
+  ww: 3*3128, dd: 2*3128,
+  wTodo:'four block cells in an L -- the packer has no concept of a multi-block, non-rectangular footprint',
+  pTodo:'PEDDLERS SQUARE specifically, Market District. Measured on buildGrid(36,27,hashStr("2026-08-09")): 4 cells at i,j (10,18)(10,19)(11,19)(12,19). The chooser places by block type and has no way to name a component',
+  gTodo:'DRIFTWOOD ELEMENTARY. Pin to the Peddlers Square component the way Gantry Commons pins the Undertaker: PARK_LANDMARKS["Peddlers Square"] = { shop:"School", mapName:"Driftwood Elementary", icon:"\\u{1F3EB}", pin:"#b06a4a" }, and the entry copied into the game LIB alongside wallFrames. Anchor is the min-j then min-i cell, (10,18). If worldgen ever reshapes the component this footprint has to be regenerated from it rather than kept as a literal',
+  sTodo:'the LIB graft is in game/index.html ONLY -- game-logic.js has no ctx2phaser, no LIB.draw and no parkLandmarkIndex, so the Undertaker has never shipped to Devvit either. Porting a shop to the game is currently a one-build change, which is the thing the two-canonical-files rule exists to stop',
+  cTodo:'perimeter railings on the L outline, gate piers, the school block, the shelter and the trees need volumes; the yard and the walks are drivable',
+  head:'Driftwood Elementary, filling Peddlers Square, four cells of it',
+  tags:['four-cell footprint','L outline','school in its own yard','painted courts','bellcote','drivable yard'],
+  desc:'Not a shopfront and not a block: the school takes the whole of Peddlers Square in the shape the worldgen actually makes it, four cells in an L with the streets between them swallowed, railed round the outline with the building in the near cell and the yard filling the rest.',
+  draw(p){
+    /* ============ THE FOOTPRINT IS A MEASURED PARK ============
+       The Undertaker's treatment, on the park Sir named. The cells were
+       read off the real city -- buildGrid(36, 27, hashStr("2026-08-09")),
+       DISTRICT_COLS*DISTRICT_W by DISTRICT_ROWS*DISTRICT_H -- and
+       parkNameTable's component for PEDDLERS SQUARE is four cells:
+
+         (10,18) (10,19) (11,19) (12,19)
+
+       Normalised to its own origin that is a 3 by 2 bounding box with
+       four of the six cells filled: one cell on the street side and a
+       row of three behind it, an L. ww and dd are the bounding box; the
+       SHAPE is the CELLS list. Anchor -- min-j then min-i -- is (10,18),
+       which is the cell the building stands in.
+
+       THE CELL PITCH IS THE GAME'S. BLOCK is 34*T2 = 3128 and ROAD_HALF
+       is 368, so 736 of road, 1656 of ground, 736 of road makes the
+       3128 pitch. That is the correction the Undertaker's graft forced:
+       the canvas lab's old block:true convention of 1048.8 is a THIRD of
+       a block, and five other shops still carry it.
+
+       WHAT THE SWALLOW PASS MEANS. Where two cells are edge adjacent the
+       street between them is gone and the ground runs straight through;
+       where a cell has no neighbour on a side, that side is a real
+       street frontage and gets the railing. So the ground is not four
+       squares, it is one L, and the railing is derived from the cell set
+       rather than drawn as a rectangle.
+
+       WHAT WAS WRONG with the 230 version. Its own bTodo already said
+       it: "the playground is the yard -- same relationship", which is
+       the landmark test in one line. Beyond that the entry had
+
+         F(W*0.43, W*0.57, 10, 88) at a 98.9..131.1 inside an opening at
+           81.88..148.12 -- a panel across the door, the 28th
+         slab(W*0.36, W*0.64, 96, 108) at a 82.8..147.2, a band through
+           that same doorway under a head of 107.95
+         yard railings at a -6..W+6 on b 44: six past BOTH returns and 44
+           out over the footway, which is what the cTodo counted
+         two fTodo bands at -7, landing 7 past the return
+         and zTodo 1.71, three floors of tall classroom windows on an 82
+           pitch
+
+       The building is 160 + 2 x 140 = 440 now, which is 2.62, and it
+       stands in its own ground so its railings are a boundary rather
+       than somebody else's pavement. */
+    const BLK = 3128, ROAD = 736;
+    const CELLS = [[0,0],[0,1],[1,1],[2,1]];
+    const has = (ci, cj) => CELLS.some(c => c[0] === ci && c[1] === cj);
+    const wall = '#b06a4a', trim = '#e0d6c2', H = 440;
+    const grass = '#4e7a4a', tar = '#6e6f6b', walk = '#b3a894', iron = '#3c4a44';
+    const glassT = 'rgba(106,132,148,.86)';
+    /* the building stands in the anchor cell, whose ground is
+       a 736..2392 by b -3128..-736 */
+    const SA0 = 950, SA1 = 2200, SB0 = -2860, SB1 = -1560;
+    const { FR_FRONT, FR_RIGHT, FR_LEFT, FR_BACK, NEAR, FAR, Q, R, bandF, rev, glz, doorF }
+      = wallFrames(SA1-SA0, SB1-SB0, SA0, SB1);
+
+    /* ---- the ground, cell by cell, with the swallowed streets ---- */
+    const rect = (ci, cj) => [
+      ci*BLK + (has(ci-1,cj) ? 0 : ROAD), (ci+1)*BLK - (has(ci+1,cj) ? 0 : ROAD),
+      -(cj+1)*BLK + (has(ci,cj+1) ? 0 : ROAD), -cj*BLK - (has(ci,cj-1) ? 0 : ROAD)];
+    T(0, 3*BLK, -2*BLK, 0, 0.3, walk);
+    for(const [ci, cj] of CELLS){
+      const [a0, a1, b0, b1] = rect(ci, cj);
+      T(a0, a1, b0, b1, 0.6, tar);
+    }
+    /* EVERY YARD ELEMENT IS CHECKED AGAINST ITS CELL RECTANGLE, because
+       the bounding box is not the ground. The four cells come out
+
+         (0,0)  a  736..2392   b -3128..-736
+         (0,1)  a  736..3128   b -5520..-3128
+         (1,1)  a 3128..6256   b -5520..-3864
+         (2,1)  a 6256..8648   b -5520..-3864
+
+       and the first pass ignored the shape: the pitch's near edge sat at
+       -3548 against a boundary of -3864, 316 outside; the court
+       straddled the step at a 3128; and every tree and the bike shelter
+       were written at b -1180 to -1800, which only exists at ci 0 -- so
+       ten props and a shelter stood on the pavement outside their own
+       railings. That is the cTodo the 230 version had, reproduced at
+       landmark scale by looking at ww by dd instead of at the cells. */
+    T(3428, 8528, -5380, -3960, 0.9, grass);                              // the pitch
+    /* the spine walk runs GATE to DOOR, not gate to back fence: the
+       first cut ran it b -3864..-736 straight through a building
+       standing at -2860..-1560. */
+    T(1475, 1675, -1560, -ROAD, 1.2, walk);
+    { const c0 = 1200, c1 = 2900, d0 = -5200, d1 = -3400;                 // a marked court
+      for(const [x0,x1,y0,y1] of [[c0,c1,d0,d0+16],[c0,c1,d1-16,d1],
+                                  [c0,c0+16,d0,d1],[c1-16,c1,d0,d1],
+                                  [(c0+c1)/2-8,(c0+c1)/2+8,d0,d1]])
+        T(x0, x1, y0, y1, 1.2, '#d8d2c2');
+      for(let k=0;k<26;k++){
+        const t = k/25*Math.PI*2, r = 150;
+        T((c0+c1)/2 + r*Math.cos(t) - 7, (c0+c1)/2 + r*Math.cos(t) + 7,
+          (d0+d1)/2 + r*Math.sin(t) - 7, (d0+d1)/2 + r*Math.sin(t) + 7, 1.2, '#d8d2c2');
+      } }
+
+    /* ---- the railing, derived from the cell set ----
+       Every cell side with no neighbour is a street frontage, and the
+       rail covers the part of that edge NOT shared with a neighbour --
+       the Undertaker's rule, which is what closes the notch where the L
+       steps rather than leaving the hole an overrun leaves. */
+    const railSegs = [];
+    for(const [ci, cj] of CELLS){
+      const [a0, a1, b0, b1] = rect(ci, cj);
+      const nb = (i, j) => has(i, j) ? [i, j] : null;
+      const span = (lo, hi, n2, along) => {
+        if(!n2) return [[lo, hi]];
+        const r = rect(n2[0], n2[1]), [c0, c1] = along ? [r[0], r[1]] : [r[2], r[3]];
+        const out = [];
+        if(lo < c0) out.push([lo, Math.min(hi, c0)]);
+        if(hi > c1) out.push([Math.max(lo, c1), hi]);
+        return out;
+      };
+      for(const [x0, x1] of span(a0, a1, nb(ci, cj-1), true)) railSegs.push([x0-12, x1+12, b1-12, b1]);
+      for(const [x0, x1] of span(a0, a1, nb(ci, cj+1), true)) railSegs.push([x0-12, x1+12, b0, b0+12]);
+      for(const [y0, y1] of span(b0, b1, nb(ci-1, cj), false)) railSegs.push([a0, a0+12, y0-12, y1+12]);
+      for(const [y0, y1] of span(b0, b1, nb(ci+1, cj), false)) railSegs.push([a1-12, a1, y0-12, y1+12]);
+    }
+    const GATE = [1475, 1675];                                   // the one gap, on the spine walk
+    /* ---- CHAIN LINK, not a railing ----
+       A school yard fence is galvanised mesh on line posts, and the
+       difference is not the colour: a palisade is a row of solids and
+       mesh is a TRANSPARENT plane you see the yard through, so it has to
+       be built as a plane rather than as objects.
+
+       The diamonds are two sets of diagonals CLIPPED to the run, which
+       is reveal()'s own trick -- a diagonal that has to stop exactly at
+       a post is arithmetic per line, and a diagonal drawn long and
+       clipped is one rule for every run whatever its length or which
+       axis it lies on. The wash behind them is what stops the mesh
+       reading as bare wire.
+
+       Line posts go to 152 and the mesh to 140, which is 228 and 210 in
+       game units -- a real yard fence rather than the 116 hip-height
+       railing this was, and the top rail is at the mesh head where a
+       chain link top rail actually runs. */
+    const MESH = '#a8b0ae', POST = '#7d8785', FZ0 = 14, FZ1 = 140;
+    const railRun = (x0, x1, y0, y1) => {
+      const along = (x1-x0) > (y1-y0), lo = along ? x0 : y0, hi = along ? x1 : y1;
+      const parts = (along && Math.abs(y1 - (-ROAD)) < 40)
+        ? [[lo, GATE[0]], [GATE[1], hi]] : [[lo, hi]];
+      for(const [q0, q1] of parts){
+        if(q1 - q0 < 30) continue;
+        const A = along ? [q0, q1, (y0+y1)/2, (y0+y1)/2] : [(x0+x1)/2, (x0+x1)/2, q0, q1];
+        const len = q1 - q0;
+        const pt = (t, z) => P(A[0] + (A[1]-A[0])*t, A[2] + (A[3]-A[2])*t, z);
+        poly([pt(0,FZ1), pt(1,FZ1), pt(1,FZ0), pt(0,FZ0)], 'rgba(206,214,212,.14)');
+        /* THE DIAMONDS ARE CLIPPED BY ARITHMETIC, NOT BY ctx.clip().
+           A clip was the obvious way and it is the wrong one HERE: the
+           game emulates ctx.clip() by Sutherland-Hodgman polygon
+           intersection, which clips FILLS. These are strokes, and a
+           stroke is not a polygon -- so a fence that looked right on
+           this canvas could arrive in the game as a run of diagonals
+           overshooting every post.
+
+           A diagonal is a line in (distance-along, height), so solving
+           it is two divides: the line runs from (s, FZ0) to
+           (s + dir*rise, FZ1), and the part with distance-along inside
+           [0, len] is a parameter interval. Same result, no clip, and it
+           ports. */
+        ctx.strokeStyle = MESH; ctx.lineWidth = 1.1;
+        const rise = (FZ1 - FZ0) * ZSCALE, step = 90;
+        for(let k = -2; k <= len/step + 2; k++){
+          for(const dir of [1, -1]){
+            const s0 = k*step, s1 = s0 + dir*rise;
+            let u0 = 0, u1 = 1;
+            if(s1 !== s0){
+              const ua = (0 - s0)/(s1 - s0), ub = (len - s0)/(s1 - s0);
+              u0 = Math.max(0, Math.min(ua, ub));
+              u1 = Math.min(1, Math.max(ua, ub));
+            } else if(s0 < 0 || s0 > len) continue;
+            if(u1 <= u0) continue;
+            const q0 = pt((s0 + (s1-s0)*u0)/len, FZ0 + (FZ1-FZ0)*u0);
+            const q1 = pt((s0 + (s1-s0)*u1)/len, FZ0 + (FZ1-FZ0)*u1);
+            ctx.beginPath(); ctx.moveTo(q0.x, q0.y); ctx.lineTo(q1.x, q1.y); ctx.stroke();
+          }
+        }
+        tube(A[0], A[2], FZ1, A[1], A[3], FZ1, 4, POST);            // top rail
+        tube(A[0], A[2], FZ0, A[1], A[3], FZ0, 2.4, POST);          // bottom tension wire
+        /* THE POSTS ARE TUBES, NOT DRUMS. cyl() builds its silhouette
+           from fourteen rim segments, and at r 5 on a lot 9384 wide that
+           ellipse is under a pixel -- the 1.2px stroke then draws the
+           degenerate polygon, which came out as a trident on top of
+           every post. tube() is one stroked segment with a round cap, so
+           it is right at any scale. Same reason the kit's own note says
+           a sphere IS a screen circle: match the primitive to how small
+           the thing actually lands. */
+        const n = Math.max(2, Math.round(len/380));
+        for(let k=0;k<=n;k++){
+          const t = k/n, xa = A[0] + (A[1]-A[0])*t, ya = A[2] + (A[3]-A[2])*t;
+          const end = (k === 0 || k === n);
+          tube(xa, ya, 0, xa, ya, end ? 158 : 152, end ? 9 : 6.5, POST);
+        }
+      }
+    };
+    for(const s of railSegs) railRun(s[0], s[1], s[2], s[3]);
+    for(const ga of GATE){                                        // gate piers
+      box(ga-34, ga+34, -ROAD-34, -ROAD+34, 0, 210, shade(wall,1.05), wall, shade(wall,.78));
+      box(ga-42, ga+42, -ROAD-42, -ROAD+42, 210, 236, shade(trim,1.05), trim, shade(trim,.8));
+      ball(ga, -ROAD, 254, 20, shade(trim,.9));
+    }
+
+    /* ---- the school block ---- */
+    const elevation = fr => {
+      const L = fr.len, NB = Math.max(3, Math.round(L/180));
+      bandF(fr, -5, L+5, 150, 160, 4, 0, shade(wall,.78), null, shade(wall,1.06), 0);
+      bandF(fr, -5, L+5, 300, 310, 4, 0, shade(wall,.78), null, shade(wall,1.06), 0);
+      bandF(fr, -7, L+7, H, H+16, 5, -1, shade(wall,.66), null, null, 0);
+      bandF(fr, -6, 26,   14, H, 4, 0, trim, null, shade(trim,1.14), 2);
+      bandF(fr, L-26, L+6, 14, H, 4, 0, trim, null, shade(trim,1.14), 1);
+      const dmid = L/2, s0 = dmid - 37.12, s1 = dmid + 37.12;
+      for(let fl=0; fl<3; fl++){
+        const v0 = [30, 190, 336][fl], hh = [90, 82, 82][fl];
+        for(let i=0;i<NB;i++){
+          const c = 30 + (L-60)*(i+0.5)/NB, x0 = c-52, x1 = c+52;
+          if(fl === 0 && x1 > s0 - 14 && x0 < s1 + 14) continue;    // the doorway's bay
+          bandF(fr, x0-7, x1+7, v0-10, v0, 4, -1, shade(trim,.94));
+          rev(fr, x0, x1, v0, v0+hh, 10, shade(wall,.44));
+          glz(fr, x0, x1, v0, v0+hh, trim, glassT);
+          for(let k=1;k<3;k++) R(fr, x0+104*k/3-2.5, x0+104*k/3+2.5, v0, v0+hh, 1, trim);
+          for(let k=1;k<4;k++) R(fr, x0, x1, v0+hh*k/4-2.5, v0+hh*k/4+2.5, 1, trim);
+          bandF(fr, x0-5, x1+5, v0+hh, v0+hh+8, 4, -1, shade(trim,1.02));
+        }
+      }
+      /* the doorway is CUT from the bay run, not drawn over it -- the
+         230 version put a panel and a band through its own opening.
+
+         AND IT CANNOT BE shopDoor. That is nailed to the b = 0 plane,
+         and this building's front face is at b -1560: the first cut
+         called shopDoor(dmid + SA0) and put the school's main entrance
+         1560 units out in the yard, standing on nothing beside the front
+         railing. The census found it -- worst point [1231, 1.2, 57.2],
+         its own painted surround, 737 outside the nearest cell. This is
+         the kit gap the BLOCK LANDMARKS note records and the Nursery and
+         the Bathhouse both work around: a set-back building has to roll
+         its own opening until shopDoor takes a depth. doorF is that,
+         built from the same SHOP_DOOR_W and SHOP_DOOR_H, so the school's
+         door is the game's door in everything but which plane it knows
+         how to reach. */
+      bandF(fr, dmid-60, dmid+60, 12, 126, 6, -1, trim, null, shade(trim,1.16));
+      doorF(fr, dmid, wall, trim);
+      if(fr === FR_FRONT){
+        bandF(fr, dmid-72, dmid+72, 126, 150, 7, -1, shade(trim,1.06), null, shade(trim,1.2));
+        R(fr, dmid-56, dmid+56, 132, 145, 7.5, shade(wall,.62));
+      }
+    };
+    elevation(FR_BACK);
+    elevation(FAR);
+    T(SA0, SA1, SB0, SB1, H, shade(wall,1.02));                    // the roof
+    S((NEAR === FR_RIGHT) ? SA1 : SA0, SB0, SB1, 0, H, shade(wall,.78));
+    F(SA0, SA1, 0, H, wall, null, 0, SB1);
+    elevation(NEAR);
+    elevation(FR_FRONT);
+
+    if(state.roof){
+      const ba = (SA0+SA1)/2, bb = SB1 - 190;
+      slab(ba-90, ba+90, H+16, H+210, bb+60, bb-60, shade(wall,.92), shade(wall,.72), shade(wall,1.06));
+      F(ba-52, ba+52, H+60, H+180, '#3a3026', null, 0, bb+61);
+      cyl(ba, bb, H+140, H+172, 30, '#c9a24a');
+      ball(ba, bb, H+140, 30, '#c9a24a', '#d8b45e');
+      poly([P(ba-112,bb+60,H+210), P(ba,bb+60,H+320), P(ba+112,bb+60,H+210)], shade(wall,.60));
+      poly([P(ba+112,bb+60,H+210), P(ba,bb+60,H+320), P(ba,bb-60,H+320), P(ba+112,bb-60,H+210)],
+           shade(wall,.50));
+      for(const [ca, cb] of [[SA0+220,SB0+240],[SA1-220,SB0+240]])
+        box(ca-70, ca+70, cb-70, cb+70, H+16, H+150, shade(wall,.9), shade(wall,.74), shade(wall,.64));
+    }
+    if(state.props){
+      const tree = (ta, tb) => {
+        cyl(ta, tb, 0, 150, 20, '#6b5a3a');
+        for(let k=0;k<5;k++)
+          ball(ta + 62*Math.cos(k*1.26+0.4), tb + 62*Math.sin(k*1.26+0.4), 210, 66, ['#3f6b4a','#4e8058','#568a5e'][k%3]);
+        ball(ta, tb, 260, 62, '#4e8058');
+      };
+      const shelter = (ca, cb) => {
+        for(const q of [[ca-190,cb-70],[ca+190,cb-70],[ca-190,cb+70],[ca+190,cb+70]])
+          cyl(q[0], q[1], 0, 260, 11, iron);
+        slab(ca-220, ca+220, 260, 286, cb+100, cb-100, shade(trim,.88), null, shade(trim,1.1));
+        for(let k=0;k<4;k++)
+          box(ca-170+k*100, ca-110+k*100, cb-40, cb+40, 60, 78, '#8b6a4e','#7a5c44','#6a5039');
+      };
+      const items = [];
+      for(const [ta, tb] of [[1000,-5220],[2600,-5220],[4200,-5220],[5800,-5220],[7400,-5220],
+                             [8380,-4600],[8380,-4080],[900,-1000],[2240,-1000],[900,-2960]])
+        items.push({ a:ta, b:tb, z:0, draw:() => tree(ta, tb) });
+      items.push({ a:5600, b:-4600, z:0, draw:() => shelter(5600, -4600) });
+      depthSort(items);
+    }
+  }
+  },
+{
+  name:'Charge depot', tall:true, corner:true, ww: DEPOT_GEOM.WW, dd: DEPOT_GEOM.DD,
+  vol: DEPOT_GEOM.vol, geom: DEPOT_GEOM,
+  wTodo:'a CORNER LOT: the game already defines one as (HOUSE_DEPTH + T2*0.3) - CORNER_LOT_INSET = 295.6 by STORE_DEPTH = 276, at the end of one edge turning onto the other. The packer emits frontage slots only',
+  cTodo:'the mass is a volume, but the ROOM IS NOT -- the bay must be carved out of the block rect or Tipsy cannot drive in. solidAt is a plain rectangle test today with no notion of an opening. This is the one engine change the depot needs',
+  mTodo:'THE TRIGGER MAT IS GAME-SIDE. It draws here but it does nothing: the state machine is matHighlightState(scene, m, forMode) with owMatContains for the on/armed test, and MAT_HL is already documented as \'one state machine, three mats\' -- this is the fourth. What it needs is forMode \'freeroam\' and an action that drives doorT rather than loading a mission, plus an entry in whatever builds the mat list. The mat is paint: no volume, Tipsey drives over it. Its own extents run past the lot on the diagonal (a to 359.6, b to +64) because a mat square to a 45 door has to -- the game\'s own mats are 0..SIDEWALK_W deep, which is 368, so that is in keeping',
+  rTodo:'ROBOTS ARE THE GAME\'S JOB, not the lab\'s. Two docks, and which is which matters: the LEFT-WALL bay is the half-hidden one -- the near jamb crosses it and the roll-up head cuts its top -- so it takes an in-game NPC robot, drawn by drawRobot with ROBOT_NPC (blue stripe and flag). The BACK-WALL bay is the one the door frames square on, with clear floor in front of it and nothing across it, so it stays EMPTY for the player: that is where Tipsey sits when the game opens and it is the first thing the camera sees. Both are drawn empty in the lab. Real dimensions for the fit, from game/index.html: BODY hx 26 hy 20 z 14..54, LID hx 22 hy 16 z 54..61, STRIPE z 20..27, WHEEL r 8 z 10 xs [-16,0,16] side 22, FLAG base (-25,17) z 54..97 -- 52 by 44 by 97 to the flag tip, botR 30. The pad is 88 across and the door head is 168, so he clears it by 71',
+  head:'Corner lot: roll-up door on the chamfer, chargers lining both walls',
+  tags:['corner lot','roll-up door that articulates','real interior','two docks on two walls','bots left to the game'],
+  desc:'The home depot. A corner lot with a roll-up door across the chamfer and a room running back behind it, one charge dock on each of the two walls the camera can see -- the back one framed square by the door, which is where the game starts.',
+  draw(p){
+    /* ============ A ROOM, NOT A BAY ============
+       Sir's brief, second pass: a roll-up door and a designed INTERIOR,
+       with the chargers LINING THE WALLS rather than ranked across the
+       front. Straight across the front is a forecourt; down the walls is
+       a depot, and it is the difference between parking and belonging.
+
+       HOW YOU SEE INTO IT -- the Surf shop's method, which is the only
+       interior precedent in this file: a deep reveal into an `inner`
+       colour, then ctx.save() / poly() / ctx.clip() and the contents
+       drawn receding back, then restore. The game's own note records
+       that it emulates clip by polygon intersection on FILLS, so an
+       interior has to be built from fills, not strokes.
+
+       THE ROOM RUNS ON THE CHAMFER'S AXIS, not on a or b. Its inward
+       normal is (-1,-1)/sqrt2, so the side walls run straight back from
+       the door jambs and you look down the length of the room with docks
+       left and right. An axis-aligned room behind a 45 door would put
+       one wall across your view and hide half the chargers.
+
+       AND THERE ARE NO INTERIORS IN THIS GAME. `interior` in the engine
+       means road-graph NODES; solidAt is a plain rectangle over the
+       block and nothing can enter one. The art can read as a room today;
+       DRIVING into it is the cTodo, and it is an engine change. */
+    const { WW, DD, H, CW } = DEPOT_GEOM;
+    /* #ff7a1a IS THE GAME'S ORANGE, not a shade I picked. It is the
+       brand colour in game/index.html -- the active button, the avatar
+       chip, the .brand rule -- and it appears 35 times, more than any
+       other warm colour in the file. The band was #e8a13a, a muted
+       amber, with the letters dark on it: legible but quiet. Dark band,
+       BRAND letters puts the contrast where the word is, and the sign
+       now matches the UI the player is already looking at. */
+    const wall = '#3d4653', trim = '#1f262e', brand = '#ff7a1a', steel = '#8d949a';
+    const inner = '#20303a', floorC = '#55626c';
+    const glassT = 'rgba(122,160,180,.86)';
+    const R2 = Math.SQRT1_2;
+    const CA = [WW-CW, 0];
+    /* t across the chamfer, k into the room along its inward normal */
+    const cpt = (t, k) => [CA[0] + t*CW - (k||0)*R2, CA[1] - t*CW - (k||0)*R2];
+    const P3 = (q, z) => P(q[0], q[1], z);
+    const DOOR = DEPOT_GEOM.DOOR, DH = DEPOT_GEOM.DH, RD = 250;   // opening, head, room depth
+
+    /* ============ WHICH SIDE OF IT THE CAMERA IS ON ============
+       Everything below the back-view block was drawn for ONE projection:
+       the lab's, where +a and +b both come toward the eye and the chamfer
+       is the most square-on face. In the game the lot is laid on whatever
+       corner frame depotMap hands in, and the home corner is the block's
+       FAR corner -- chamfer pointing away. Drawn anyway, the door, room
+       and sign painted over the building's own back walls: the whole
+       front, seen through the building from behind (Sir on-device).
+
+       Asked of P(), the same test box() and slab() already use: a face
+       is toward the eye when stepping along its normal moves DOWN the
+       screen. STREET is the lab's view and runs the art below unchanged.
+       Anything else draws the faces that are actually seen -- the two
+       back walls, the roof and the roof plant.
+
+       state.part / state.partW let the game queue those walls as thin
+       depth strips (like fences) instead of one whole-unit key, so a
+       robot INSIDE the room sorts behind them. Unset -- the lab, and
+       the street view -- means everything, in one draw. */
+    const _o = P(0,0,0), _pa = P(1,0,0), _pb = P(0,1,0);
+    const SEE_A = (_pa.y - _o.y) > 0, SEE_B = (_pb.y - _o.y) > 0;
+    const STREET = SEE_A && SEE_B;
+    const PART = state.part || 'all', PW = state.partW || null;
+    if(!STREET){
+      const BF = 4;                                           // the fascia's projection, as FSC below
+      /* lit the way the lab lights it: the face that steps screen-LEFT
+         (lab +b) takes the wall colour, screen-right (lab +a) the .82 */
+      const lit = (na, nb) => (P(na, nb, 0).x - _o.x) < 0 ? wall : shade(wall,.82);
+      const win = (lo, hi) => PW ? [Math.max(lo, PW[0]), Math.min(hi, PW[1])] : [lo, hi];
+      if(PART === 'all' || PART === 'wallA'){
+        const aw = SEE_A ? WW : 0, span = win(-DD, SEE_A ? -CW : 0);
+        if(span[1] > span[0]) S(aw, span[0], span[1], 0, H, lit(SEE_A ? 1 : -1, 0));
+        /* the fascia's end, where the front band stops at a = 0 */
+        if(!SEE_A && !SEE_B && (!PW || PW[1] >= -0.001))
+          S(0, 0, BF, H-18, H, shade(brand,.78));
+      }
+      if(PART === 'all' || PART === 'wallB'){
+        const bw = SEE_B ? 0 : -DD, span = win(0, SEE_B ? WW-CW : WW);
+        if(span[1] > span[0]) F(span[0], span[1], 0, H, lit(0, SEE_B ? 1 : -1), null, 0, bw);
+        /* and where the flank band stops at b = -DD */
+        if(!SEE_A && !SEE_B && (!PW || PW[1] >= WW-0.001))
+          F(WW, WW+BF, H-18, H, shade(brand,.78), null, 0, -DD);
+      }
+      if(PART === 'all' || PART === 'roof'){
+        /* the roof is the chamfered footprint, not the lot rectangle --
+           T(0,WW,-DD,0) would hang the cut-off corner out past the
+           chamfer wall, and from behind nothing covers it */
+        poly([P(0,0,H), P(WW-CW,0,H), P(WW,-CW,H), P(WW,-DD,H), P(0,-DD,H)], shade(wall,1.12));
+        /* the fascia's top shows as a lip along the far edges */
+        const q0 = cpt(0,-BF), q1 = cpt(1,-BF), r0 = cpt(0,0), r1 = cpt(1,0);
+        poly([P(0,0,H), P(WW-CW,0,H), P(WW-CW,BF,H), P(0,BF,H)], shade(brand,1.2));
+        poly([P3(r0,H), P3(q0,H), P3(q1,H), P3(r1,H)], shade(brand,1.2));
+        poly([P(WW,-CW,H), P(WW+BF,-CW,H), P(WW+BF,-DD,H), P(WW,-DD,H)], shade(brand,1.2));
+      }
+    }
+    /* STREET VIEW ONLY from here to the roof plant -- the lab's art,
+       unchanged. Not re-indented, so the diff stays the two lines. */
+    if(STREET){
+
+    /* ---- STREET VIEW IN PARTS, for the same reason as the back ----
+       Tipsey starts INSIDE this room with the camera looking in through
+       the door, so the building cannot be one draw: the room has to go
+       down before him and the walls that frame it after him. The game
+       queues five parts (see queueCommercialBlock):
+         room   the clipped interior, keyed behind anything in it
+         front  the b = 0 wall, its windows and fascia, in a-strips
+         flank  the a = WW wall, its windows and band, in b-strips
+         door   jambs, header, roll-up, sign, chamfer band, mat,
+                bollards, roof and roof plant -- all on or past the
+                chamfer, which is a constant-x+y plane, so one key
+                orders it exactly
+       PART 'all' (the lab) draws everything in the original order.
+       A window that straddles a strip edge draws in both strips: the
+       later strip's wall fill would otherwise cut it in half. */
+    const PT = n => PART === 'all' || PART === n;
+    const wA = (lo, hi) => PW ? [Math.max(lo, PW[0]), Math.min(hi, PW[1])] : [lo, hi];
+    const hits = (lo, hi) => !PW || (hi > PW[0] && lo < PW[1]);
+
+    /* ---- the shell: two street elevations ---- */
+    if(PT('door')) T(0, WW, -DD, 0, H, shade(wall,1.12));
+    if(PT('front')){ const s = wA(0, WW-CW); if(s[1] > s[0]) F(s[0], s[1], 0, H, wall, null, 0, 0); }
+    if(PT('flank')){ const s = wA(-DD, -CW); if(s[1] > s[0]) S(WW, s[0], s[1], 0, H, shade(wall,.82)); }
+    /* NO a = 0 FACE. It points -x and this camera sees +x, +y and +z, so
+       it is never visible -- and drawn anyway it projects 276 wide on
+       screen against a 145.6 frontage, laid over the front face because
+       it comes after it. That was the phantom wall off the left side.
+       The kit's body() draws the front and ONE flank for this reason;
+       hand-rolling the shell for a corner lot loses that. */
+    if(PT('door')){
+    for(const [t0,t1] of [[0, DOOR[0]], [DOOR[1], 1]]){      // chamfer jambs
+      const q0 = cpt(t0,0), q1 = cpt(t1,0);
+      poly([P3(q0,H), P3(q1,H), P3(q1,0), P3(q0,0)], shade(wall,.94));
+    }
+    poly([P3(cpt(DOOR[0],0),H), P3(cpt(DOOR[1],0),H),
+          P3(cpt(DOOR[1],0),DH+34), P3(cpt(DOOR[0],0),DH+34)], shade(wall,.94));
+    }
+
+    /* ---- THE ROOM, clipped to the door opening ----
+       AXIS-ALIGNED, and that is forced rather than chosen. This camera
+       shows a face when its normal has +x, +y or +z. The chamfer's
+       outward normal is (1,1)/sqrt2 -- +x AND +y -- which is why it is
+       the most square-on face on the building. But a room running back
+       along that same 45 has side walls whose planes CONTAIN the view
+       direction: they project to zero width. I built it that way first
+       and the docked bots came out as coloured stripes, edge-on, with
+       the chargers invisible.
+
+       The two walls that face this camera are a = const and b = const.
+       So the room is square to the block behind a 45 door, and the
+       chargers line its LEFT wall and its BACK wall -- the two the
+       camera can actually see into. */
+    const { a0: RA0, a1: RA1, b0: RB0, b1: RB1 } = DEPOT_GEOM.ROOM;
+    /* ---- THE DOOR ARTICULATES, and the room is clipped to what it
+       leaves open ---- OPEN is 0 shut to 1 fully coiled, read off
+       state.doorT so the game can drive it: opening on launch, and
+       again when Tipsey pulls in to charge.
+
+       The curtain's bottom edge IS the clip's top edge. That is the
+       whole trick -- a door drawn over a fully-clipped room would still
+       show the room through the slats' own gaps and around their edges,
+       and a shut door would reveal the interior it is supposed to hide.
+       Clipping to DH * OPEN means the room simply does not exist above
+       the curtain, so shut is genuinely shut. */
+    const OPEN = (typeof state.doorT === 'number') ? state.doorT : 1;
+    const CBOT = DH * OPEN;                                  // curtain's bottom edge
+    const o0 = cpt(DOOR[0],0), o1 = cpt(DOOR[1],0);
+    if(PT('room')){
+    ctx.save();
+    poly([P3(o0,CBOT), P3(o1,CBOT), P3(o1,0), P3(o0,0)]);
+    ctx.clip();
+    { F(RA0, RA1, 0, DH, inner, null, 0, RB0);                  // back wall
+      S(RA0, RB0, RB1, 0, DH, shade(inner,1.22));               // left wall
+      T(RA0, RA1, RB0, RB1, 0.6, floorC);                       // floor
+      /* LIGHTING GOES ON A WALL, NOT IN THE AIR. These were four
+         horizontal plates at z = DH-4 -- ceiling strips for a room with
+         no ceiling, so they hung in the dark with nothing behind them,
+         which is the pale bars Sir marked.
+
+         A ceiling is not the fix either: this camera looks DOWN into the
+         room, so a plane at DH shows its TOP face and covers everything
+         under it. No shop in the file draws one. The two surfaces the
+         camera can see into a room are the back wall and the left wall,
+         so the light is a cove strip run along both of them, with a
+         housing above it and a wash below. */
+      F(RA0+14, RA1-14, DH-22, DH-14, shade(steel,.8), null, 0, RB0+0.5);
+      F(RA0+14, RA1-14, DH-30, DH-22, '#f2e6c0', null, 0, RB0+1.0);
+      F(RA0+14, RA1-14, DH-58, DH-30, 'rgba(242,230,192,.10)', null, 0, RB0+1.4);
+      S(RA0+0.5, RB0+14, RB1-14, DH-22, DH-14, shade(steel,.72));
+      S(RA0+1.0, RB0+14, RB1-14, DH-30, DH-22, '#e8dcb8');
+      S(RA0+1.4, RB0+14, RB1-14, DH-58, DH-30, 'rgba(242,230,192,.08)');
+      /* bay markings, one per dock, running out from each wall */
+      T(RA0+8, RA0+118, -143, -137, 1.0, '#7c8894');
+      T(197, 203, RB0+8, RB0+118, 1.0, '#7c8894');
+      /* ---- CHARGERS LINING BOTH WALLS ----
+         a cabinet against the wall with a lit head, and a Tipsy docked
+         nose-in to it. Left wall faces +a, back wall faces +b, so each
+         gets the faces that side of it. */
+      /* ---- THE REAL IN-GAME CHARGER, not an invented cabinet ----
+         Lifted from drawChargeStation + CHARGE + CHARGE_PAL in
+         game/index.html so the depot's docks are the same object the
+         player meets on every street:
+
+           padR 44, ringW 5   an elliptical pad with a painted ring
+           poleAt 0.62        the mast stands 27.3 BEHIND the pad centre,
+                              not on it -- that is where Tipsy parks
+           poleW 15, poleH 96
+           headW 21, headH 26 the head box on top
+           glowR 7            the indicator, which breathes in game
+
+         The cabinets I had were a shape I made up; this is the one the
+         game already teaches you to recognise. `side` is which way the
+         mast faces from the pad -- against the wall it serves. */
+      const CHPAD = DEPOT_GEOM.CHPAD;
+      const CH = { padR:44, ringW:5, poleAt:0.62, poleW:15, poleH:96,
+                   headW:21, headH:26, glowR:7 };
+      const CP = { pad:'#6d7484', padDk:'#565c6a', ring:'#ffb454',
+                   pole:'#e8eaef', poleDk:'#b9bcc6',
+                   head:'#3a4150', headDk:'#2b313d',
+                   glow:'rgba(127,227,255,.45)', glowHot:'#d8f7ff' };
+      const charger = (px, py, dx, dy) => {
+        plateCircle(px, py, 0.8, CH.padR, CP.padDk);
+        plateCircle(px, py, 1.2, CH.padR, CP.ring);
+        plateCircle(px, py, 1.6, CH.padR - CH.ringW, CP.pad);
+        const mx = px + dx*CH.padR*CH.poleAt, my = py + dy*CH.padR*CH.poleAt;
+        const hw = CH.poleW/2, hh = CH.headW/2;
+        box(mx-hw, mx+hw, my-hw, my+hw, 0, CH.poleH, CP.pole, CP.poleDk, CP.poleDk);
+        box(mx-hh, mx+hh, my-hh, my+hh, CH.poleH, CH.poleH+CH.headH, CP.head, CP.headDk, CP.headDk);
+        const gz = CH.poleH + CH.headH*0.55;
+        if(dy > 0 || dx > 0){
+          faceCircle(mx, my + (dy>0 ? hh+0.4 : 0), gz, CH.glowR*2.1, CP.glow);
+          faceCircle(mx, my + (dy>0 ? hh+0.8 : 0), gz, CH.glowR, CP.glowHot);
+        }
+      };
+
+      /* far to near on both walls */
+      /* TWO A WALL, NOT THREE. The real pad is padR*2 = 88 across, so at
+         a 72 pitch three of them overlapped each other AND ran into the
+         doorway -- 232 of run against a 238 room, with nothing left for
+         the bay lines. Two a wall at these centres keeps every pad clear
+         of both ends and of the pads on the other wall.
+
+         The pad sits padR off the wall so the MAST, which stands
+         padR*0.62 = 27.3 behind the pad centre, lands against the wall
+         rather than inside it. And the bot parks ON the pad centre --
+         that is what poleAt exists for. */
+      /* TWO DOCKS, one a wall. Four of them at 88 a pad crowded a 249 x 238
+         room -- the pads read as overlapping even where the arithmetic said
+         they cleared, because the MASTS and the robots on them overlap long
+         before the paint does. Sir's brief: one bay for us and one for the
+         other bot, which is also the whole story the depot has to tell.
+
+         BOTH BAYS ARE EMPTY HERE, at Sir's direction -- the lab draws the
+         building, and a robot in it is the game's job. rTodo records
+         which bay gets which. */
+      const BACK = DEPOT_GEOM.PADS.back, LEFT = DEPOT_GEOM.PADS.left;
+      charger(BACK[0], BACK[1], 0, -1);
+      charger(LEFT[0], LEFT[1], -1, 0);
+
+    }
+    ctx.restore();
+    }   // end room
+
+    /* ---- THE ROLL-UP DOOR: drum, rolled slats, guide rails ---- */
+    if(PT('door')) { const hL = cpt(DOOR[0],0), hR = cpt(DOOR[1],0);
+      for(const t of [DOOR[0], DOOR[1]]){                    // guide rails
+        const g0 = cpt(t,-3), g1 = cpt(t,7);
+        poly([P3(g0,0), P3(g1,0), P3(g1,DH+30), P3(g0,DH+30)], shade(steel,.85));
+      }
+      /* THE CURTAIN: real slats from the head down to CBOT. A roll-up
+         door is not a panel that slides -- it is a run of slats that
+         leaves the opening and gathers on the drum, so the slats drawn
+         and the coil's thickness both move with OPEN. */
+      const SLAT = 9;
+      for(let z = CBOT; z < DH - 0.5; z += SLAT){
+        const z1 = Math.min(z + SLAT - 1.2, DH);
+        poly([P3(cpt(DOOR[0]+0.008,-5),z1), P3(cpt(DOOR[1]-0.008,-5),z1),
+              P3(cpt(DOOR[1]-0.008,-5),z), P3(cpt(DOOR[0]+0.008,-5),z)],
+             shade(steel, 1.12));
+        poly([P3(cpt(DOOR[0]+0.008,-5),z), P3(cpt(DOOR[1]-0.008,-5),z),
+              P3(cpt(DOOR[1]-0.008,-5),z-1.2), P3(cpt(DOOR[0]+0.008,-5),z-1.2)],
+             shade(steel, .84));
+      }
+      if(OPEN > 0.02){                                       // a pull handle on the bottom rail
+        poly([P3(cpt(0.46,-7),CBOT), P3(cpt(0.54,-7),CBOT),
+              P3(cpt(0.54,-7),CBOT+4), P3(cpt(0.46,-7),CBOT+4)], shade(steel,.6));
+      }
+      /* THE COIL GROWS. Five fixed wraps read as a decoration; the drum
+         has to thicken as the curtain comes off the opening, or nothing
+         says where the door went. */
+      const wraps = 2 + Math.round(OPEN * 4);
+      poly([P3(cpt(DOOR[0],-4),DH), P3(cpt(DOOR[1],-4),DH),
+            P3(cpt(DOOR[1],-4),DH+30), P3(cpt(DOOR[0],-4),DH+30)], shade(steel,1.05));
+      for(let k=0;k<wraps;k++)
+        poly([P3(cpt(DOOR[0]+0.01,-6-k*2),DH+4+k*5), P3(cpt(DOOR[1]-0.01,-6-k*2),DH+4+k*5),
+              P3(cpt(DOOR[1]-0.01,-6-k*2),DH+9+k*5), P3(cpt(DOOR[0]+0.01,-6-k*2),DH+9+k*5)],
+             shade(steel, 1.18 - k*0.06));
+      /* ---- THE NAME, IN EXTRUDED LETTERS ON THE HEAD BAND ----
+         The Tattoo parlour's method: a letter is ONE outline with a top
+         and a side, so it keeps its thickness at any zoom -- not a
+         painted rectangle. Its counters (the enclosed holes in P and E)
+         are painted on the front face in the band colour rather than
+         cut, because a prism takes a simple polygon and cannot carry a
+         hole; at this depth and angle a painted counter reads as one.
+
+         BUT prism() TAKES (a, z) ON A FIXED b, and this band is on the
+         45. So the chamfer gets its own sweep: the same outlines, run
+         between two offsets along the chamfer's own normal instead of
+         between two b planes. cd(d, k) is distance along the chamfer and
+         offset out of it.
+
+         TIPSEY, not TIPSY -- the game's own title is "TIPSEY -- a clumsy
+         delivery" and the string appears 82 times in game/index.html.
+         Six letters on a 24 box: at the Tattoo's 30 pitch that is 174
+         against a 169.7 band, so the pitch is 27 and it fits with 5
+         either side. */
+      const LCH = CW*Math.SQRT2;
+      const cd = (d, k) => cpt(d/LCH, k);
+      const cprism = (pts, k0, k1, front, side, top) => {
+        const q = (d, z, k) => P3(cd(d, k), z);
+        for(let i=0;i<pts.length;i++){
+          const [d0,z0] = pts[i], [d1,z1] = pts[(i+1)%pts.length];
+          poly([q(d0,z0,k0), q(d1,z1,k0), q(d1,z1,k1), q(d0,z0,k1)],
+               z1 === z0 ? top : side);
+        }
+        poly(pts.map(([d,z]) => q(d,z,k0)), front);
+      };
+      poly([P3(cpt(DOOR[0],-8),DH+36), P3(cpt(DOOR[1],-8),DH+36),
+            P3(cpt(DOOR[1],-8),DH+82), P3(cpt(DOOR[0],-8),DH+82)], trim);
+      { const GL = {
+          T: { out: [[0,27],[8.5,27],[8.5,0],[15.5,0],[15.5,27],[24,27],[24,34],[0,34]] },
+          I: { out: [[0,0],[24,0],[24,7],[15.5,7],[15.5,27],[24,27],[24,34],[0,34],
+                     [0,27],[8.5,27],[8.5,7],[0,7]] },
+          P: { out: [[0,0],[7,0],[7,14],[24,14],[24,34],[0,34]],
+               cut: [[7,21],[17,21],[17,27],[7,27]] },
+          S: { out: [[0,0],[24,0],[24,20],[7,20],[7,27],[24,27],[24,34],[0,34],
+                     [0,14],[17,14],[17,7],[0,7]] },
+          E: { out: [[0,0],[24,0],[24,7],[7,7],[7,14],[20,14],[20,20],[7,20],
+                     [7,27],[24,27],[24,34],[0,34]] },
+          Y: { out: [[0,34],[7,34],[12,22],[17,34],[24,34],[15.5,17],[15.5,0],
+                     [8.5,0],[8.5,17]] }
+        };
+        const ink = brand, d0 = DOOR[0]*LCH + 5.4, z0 = DH + 42;
+        'TIPSEY'.split('').forEach((ch, i) => {
+          const g = GL[ch], sh = ([u,v]) => [d0 + i*27 + u, z0 + v];
+          cprism(g.out.map(sh), -15, -8.4, ink, shade(ink,.66), shade(ink,1.22));
+          if(g.cut) poly(g.cut.map(pt => P3(cd(sh(pt)[0], -15.4), sh(pt)[1])), trim);
+        });
+      }
+    }
+
+    /* ---- THE DOOR TRIGGER MAT ----
+       Sir's ask: a trigger outside the door, like the delivery carpet.
+       The game already has the machinery and calls it general --
+       MAT_HL's own note says "far | near | on | armed, for ANY mat --
+       one state machine, three mats". This is the fourth, and the only
+       new thing it needs game-side is a forMode of "freeroam" and an
+       action that drives doorT instead of loading a mission.
+
+       NOT the red carpet, though. MAT_ART is a doormat: red pile, fibre
+       flecks, a dark border -- it says "a customer lives here". A door
+       trigger is a floor marking, so it takes MAT_HL's language (rim,
+       corner ticks, the three tones) and the depot's own paint.
+
+         MAT_HL.rimW 8, bite 15, toneNear #ffb25a, toneArmed #7ee081
+
+       It lies on the pavement in front of the chamfer, square to the
+       door rather than to the block, because what it is aligned to is
+       the thing you drive INTO. The lab drives its state off doorT so
+       the relationship is visible: amber while the door is shut, green
+       once it is moving. */
+    if(PT('door')) { const TA = DOOR[0] + 0.02, TB = DOOR[1] - 0.02, K0 = DEPOT_GEOM.MAT.k0, K1 = DEPOT_GEOM.MAT.k1;
+      const on = ((typeof state.doorT === 'number') ? state.doorT : 1) > 0.02;
+      const tone = on ? '#7ee081' : '#ffb25a';
+      const c = [cpt(TA,K0), cpt(TB,K0), cpt(TB,K1), cpt(TA,K1)];
+      poly(c.map(q => P3(q, 0.7)), 'rgba(20,24,28,.30)');
+      poly([cpt(TA+0.018,K0-8), cpt(TB-0.018,K0-8),
+            cpt(TB-0.018,K1+8), cpt(TA+0.018,K1+8)].map(q => P3(q, 0.9)), '#2f3740');
+      /* the rim, and corner ticks so it reads by SHAPE not colour alone --
+         MAT_HL's own reason: "so it reads on a phone and never leans on
+         colour alone" */
+      for(const [u0,u1,k0,k1] of [[TA,TB,K0,K0-8],[TA,TB,K1+8,K1],
+                                  [TA,TA+0.018,K0,K1],[TB-0.018,TB,K0,K1]])
+        poly([cpt(u0,k0), cpt(u1,k0), cpt(u1,k1), cpt(u0,k1)].map(q => P3(q, 1.1)), tone);
+      for(const [u,kk,du,dk] of [[TA,K0,0.05,-15],[TB,K0,-0.05,-15],
+                                 [TA,K1,0.05,15],[TB,K1,-0.05,15]]){
+        poly([cpt(u,kk), cpt(u+du,kk), cpt(u+du,kk+dk*0.25), cpt(u,kk+dk*0.25)].map(q => P3(q,1.3)), tone);
+        poly([cpt(u,kk), cpt(u,kk+dk), cpt(u+du*0.25,kk+dk), cpt(u+du*0.25,kk)].map(q => P3(q,1.3)), tone);
+      }
+      /* a chevron pointing at the door, so the mat says which way in */
+      for(let k=0;k<2;k++){
+        const kk = K1 + 34 + k*26;
+        poly([cpt((TA+TB)/2, kk+14), cpt(TB-0.06, kk-6), cpt(TB-0.075, kk-6),
+              cpt((TA+TB)/2, kk+8), cpt(TA+0.075, kk-6), cpt(TA+0.06, kk-6)]
+             .map(q => P3(q, 1.2)), shade(tone,.78));
+      }
+    }
+
+    /* ---- THE THRESHOLD BOLLARDS ARE EXTERIOR ----
+       They guard the door from the PAVEMENT, so they are drawn after the
+       building and outside the clip, at NEGATIVE k -- outward from the
+       chamfer, in the triangle the chamfer cuts off the corner, which is
+       pavement and not room:
+
+         t 0.12, k -16  ->  a 174.9, b  -6.7
+         t 0.88, k -16  ->  a 288.9, b -120.7
+
+       I had them at k +16, which is 16 INSIDE the room, and then drew
+       them after ctx.restore() so the posts were unclipped while the
+       floor they stood on was not -- floating. Moving them into the clip
+       fixed the floating and put them in the wrong building entirely.
+
+       YELLOW, not the brand orange: #ffcc33 is in the game already, and a
+       bollard is a marking rather than signage -- in brand it competed
+       with the sign and the fascia for the same colour. */
+    if(state.props && PT('door')) for(const t of [DOOR[0]+0.02, DOOR[1]-0.02]){
+      const q = cpt(t, DEPOT_GEOM.BOLL.k), YEL = '#ffcc33';
+      plateCircle(q[0], q[1], 0.9, 13, 'rgba(0,0,0,.22)');
+      cyl(q[0], q[1], 0, 6, 11, shade(YEL,.62));
+      cyl(q[0], q[1], 6, 54, 8, YEL, shade(YEL,.7));
+      /* no reflective band. It was F(...) on a b-plane against a cyl()
+         bollard -- a flat rect stuck on a round post, which does not wrap
+         and reads as a square patch rather than a band. A band on a
+         cylinder wants its own ring; the bollard does not need one. */
+      ball(q[0], q[1], 54, 8, shade(YEL,1.15));
+    }
+
+    /* ---- windows on both streets ----
+       THE FLANK PAIR WERE TWO BARE PLANES AND ONE HUNG OFF THE BUILDING.
+       The front pair go through reveal() + glaze(), which is why they
+       read; the flank pair were S(WW-0.5) and S(WW-9) with no reveal, no
+       returns, no sill and no surround -- flat panels stuck on a wall.
+
+       And the flank runs b -276..-150, which is 126 of wall. At
+       -170 - i*74 the second one landed at -244..-298, hanging 22 PAST
+       the back of the building. reveal()/glaze() only work on the b = 0
+       plane, so the flank needs its own: back, four returns, glass and a
+       mullion, built on a = const. */
+    const FW = (q0, q1, z0, z1) => {
+      const DP = 10, A0 = WW, A1 = WW - DP;
+      poly([P(A0,q0,z1), P(A1,q0,z1), P(A1,q0,z0), P(A0,q0,z0)], shade(wall,.58));
+      poly([P(A0,q1,z1), P(A1,q1,z1), P(A1,q1,z0), P(A0,q1,z0)], shade(wall,.46));
+      poly([P(A0,q0,z1), P(A0,q1,z1), P(A1,q1,z1), P(A1,q0,z1)], shade(wall,.5));
+      poly([P(A0,q0,z0), P(A0,q1,z0), P(A1,q1,z0), P(A1,q0,z0)], shade(wall,.74));
+      S(A1,        q1, q0, z0, z1, shade(wall,.5));
+      S(A1+2.5,    q1, q0, z0+2, z1-2, glassT);
+      S(A1+3,      (q0+q1)/2-2, (q0+q1)/2+2, z0, z1, shade(wall,1.22));
+      S(A0-0.4,    q1-5, q0+5, z0-7, z0, shade(wall,1.12));      // sill
+    };
+    for(let i=0;i<2;i++){
+      const x0 = 14 + i*66, x1 = x0 + 50;
+      if(!PT('front') || !hits(x0-5, x1+5)) continue;
+      reveal(x0, x1, 190, 258, 9, shade(wall,.6));
+      glaze(x0, x1, 190, 258, shade(wall,1.3), glassT);
+      slab(x0-5, x1+5, 183, 190, 4, -1, shade(wall,1.12));
+    }
+    if(PT('flank')) for(let i=0;i<2;i++){
+      const q0 = -158 - i*66, q1 = -202 - i*66;
+      if(hits(q1-5, q0+5)) FW(q0, q1, 190, 258);
+    }
+    /* ---- THE FASCIA TURNS BOTH CORNERS ----
+       It ran the front face only, which on a terrace unit is right and on
+       a CORNER LOT is the giveaway: a band that stops dead at the chamfer
+       says the flank is a party wall, and this building has two streets.
+       Front, chamfer and flank, all at H-18..H and all proud by 4.
+
+       Proud on the flank means a > WW, which on a terrace unit would lap
+       the neighbour. Here it cannot: cornerUnitsOf holds the lot
+       CORNER_LOT_INSET = 8 off the perpendicular block line, so a 4
+       projection still has 4 to spare. */
+    const FSC = 4;
+    if(PT('front')){ const s = wA(0, WW-CW);
+      if(s[1] > s[0]) slab(s[0], s[1], H-18, H, FSC, 0, brand, null, shade(brand,1.2)); }
+    if(PT('door')) { const q0 = cpt(0,-FSC), q1 = cpt(1,-FSC), r0 = cpt(0,0), r1 = cpt(1,0);
+      poly([P3(q0,H), P3(q1,H), P3(q1,H-18), P3(q0,H-18)], brand);
+      poly([P3(r0,H), P3(q0,H), P3(q1,H), P3(r1,H)], shade(brand,1.2)); }
+    if(PT('flank')) { const A0 = WW, A1 = WW + FSC, s = wA(-DD, -CW), bl = s[0], bh = s[1];
+      if(bh > bl){
+        poly([P(A1,bh,H), P(A1,bl,H), P(A1,bl,H-18), P(A1,bh,H-18)], shade(brand,.78));
+        poly([P(A0,bh,H), P(A1,bh,H), P(A1,bl,H), P(A0,bl,H)], shade(brand,1.2)); } }
+    }   // end STREET
+
+    if(state.roof && (PART === 'all' || PART === (STREET ? 'door' : 'roof'))){
+      /* ---- THE PLANT, AS A MACHINE RATHER THAN A CRATE ----
+         It was one 89 x 80 x 34 box with three flat discs sitting on top
+         of it and a bare stick beside it -- primitives stacked, which is
+         the clunk. A condenser has parts: it stands on DUNNAGE clear of
+         the deck, its sides are LOUVRED because that is what it breathes
+         through, and its fans sit in WELLS with guards over them rather
+         than as cans on a lid.
+
+         And it is DEPTH-SORTED. Four separate objects on one roof is the
+         order-versus-depth fault this file has hit on four other roofs;
+         a list with one sort at the end costs nothing and cannot get it
+         wrong. */
+      const R = [], deck = H;
+      const UA0 = 46, UA1 = 158, UB0 = -196, UB1 = -122;
+
+      R.push({ a:(UA0+UA1)/2, b:(UB0+UB1)/2, z:0, draw:() => {
+        /* dunnage: two rails, the unit clear of the deck on them */
+        for(const rb of [UB0+12, UB1-12])
+          box(UA0-4, UA1+4, rb-5, rb+5, deck, deck+10, shade(steel,.8), shade(steel,.66), shade(steel,.6));
+        box(UA0, UA1, UB0, UB1, deck+10, deck+52, shade(steel,1.12), shade(steel,.94), shade(steel,.8));
+        /* louvre banks on the two faces the camera sees -- which two
+           depends on the view (SEE_A / SEE_B), same as box() decides */
+        const LB = SEE_B ? UB1+0.4 : UB0-0.4, LA = SEE_A ? UA1+0.4 : UA0-0.4;
+        for(let k=0;k<7;k++){
+          const z = deck+16+k*5;
+          F(UA0+6, UA1-6, z, z+3, shade(steel,.74), null, 0, LB);
+          S(LA, UB0+6, UB1-6, z, z+3, shade(steel,.64));
+        }
+        /* fan wells: recessed, with a guard grille and blades */
+        for(const fa of [UA0+30, UA1-30]){
+          const fb = (UB0+UB1)/2;
+          plateCircle(fa, fb, deck+52.4, 22, shade(steel,.6));
+          plateCircle(fa, fb, deck+50, 19, shade(steel,.5));
+          for(let k=0;k<4;k++){
+            const t = k*Math.PI/2 + 0.5;
+            poly([P(fa,fb,deck+50.6),
+                  P(fa+17*Math.cos(t), fb+17*Math.sin(t), deck+50.6),
+                  P(fa+17*Math.cos(t+0.7), fb+17*Math.sin(t+0.7), deck+50.6)], shade(steel,.86));
+          }
+          for(let k=0;k<3;k++) plateCircle(fa, fb, deck+53 + k*0.1, 8+k*6, null, shade(steel,1.3), 1.4);
+          cyl(fa, fb, deck+50, deck+56, 4, shade(steel,1.2));
+        }
+      }});
+
+      /* the refrigerant run, unit to a roof curb */
+      R.push({ a:200, b:-150, z:0, draw:() => {
+        box(186, 216, -166, -136, deck, deck+14, shade(steel,.9), shade(steel,.76), shade(steel,.68));
+        for(const px of [194, 208]){
+          cyl(px, -151, deck+14, deck+30, 3.4, shade(steel,1.1));
+          tube(px, -151, deck+30, UA1-6, -151, deck+30, 3.4, shade(steel,1.1));
+          tube(UA1-6, -151, deck+30, UA1-6, -151, deck+22, 3.4, shade(steel,1.1));
+        }
+      }});
+
+      /* the antenna, on a corner and on a base plate rather than planted
+         in open deck: a mast with a stay, three elements and a tip */
+      R.push({ a:248, b:-232, z:0, draw:() => {
+        const ma = 248, mb = -232;
+        slab(ma-16, ma+16, deck, deck+6, mb+16, mb-16, shade(steel,.86), null, shade(steel,1.0));
+        cyl(ma, mb, deck+6, deck+112, 3.2, shade(steel,1.15));
+        tube(ma, mb, deck+62, ma+22, mb+22, deck+8, 1.6, shade(steel,.9));
+        for(let k=0;k<3;k++){
+          const z = deck+94 - k*16, half = 9 + k*5;
+          tube(ma-half, mb, z, ma+half, mb, z, 1.5, shade(steel,1.25));
+        }
+        ball(ma, mb, deck+114, 2.6, brand);
+      }});
+
+      /* depthSort keys on a + b, which is the lab's near-ness only. Keyed
+         on the projected ground point instead, so seen from behind the
+         far kit still draws first. Same order as depthSort in the lab. */
+      R.slice().sort((m, n) => P(m.a, m.b, 0).y - P(n.a, n.b, 0).y).forEach(it => it.draw());
+    }
+    kerb(p,'none');
+  }
+},
+{
+  name:'Roadblock', road:true, zs:1, ww: 736, dd: 70,
+  head:'Hood border: the street is closed until you own what is past it',
+  tags:['three A-frame barricades','padlock sign','amber lamps','kerb cones'],
+  desc:'Stands across a street mouth where the hood you are in meets one you have not bought. 736 is the road curb to curb (ROAD_HALF x 2 plus the two curbs), so one entry closes one street; the lock line beside it is the kerb, and the kerb already stops wheels. Striped boards face the way you approach, a yellow padlock sign on the middle frame says why, and a lamp on each end frame reads at night.',
+  vol: {
+    foot: [[0,0],[736,0],[736,-70],[0,-70]], h: 0,      // no mass: open road under it
+    opens: [{ name:'road', poly: [[0,0],[736,0],[736,-70],[0,-70]], walk:true, see:'always', h:0 }],
+    solids: [
+      /* THE CLOSURE is one volume across the whole mouth, not three boxes
+         with gaps between the frames -- a robot must not thread it */
+      { name:'barricade', poly: [[0,-44],[736,-44],[736,-26],[0,-26]], h: 96 },
+      { name:'cone L', c:[22,-20], r:17, h:54, prop:true },      // the rubber base is the footprint
+      { name:'cone R', c:[714,-20], r:17, h:54, prop:true }
+    ],
+    zones: [{ name:'lock', kind:'hood-lock', poly: [[0,0],[736,0],[736,-70],[0,-70]] }],
+    marks: { centre: [368, -35] }
+  },
+  draw(p){
+    const ORANGE = '#f26a1b', WHITE = '#f4f1ea', STEEL = '#8b939b', YEL = '#ffc72c', INK = '#1d2024';
+    const B0 = -39, B1 = -31;                        // board depth
+    /* which board face turns to the eye -- the test box() uses, so the
+       stripes land on the visible face on all four block edges */
+    const faceB = P(0, B1, 0).y - P(0, B0, 0).y > 0 ? B1 : B0;
+    const stripes = (a0, a1, z0, z1) => {
+      box(a0, a1, B0, B1, z0, z1, shade(WHITE,.92), WHITE, shade(WHITE,.8));
+      const w = 26, h = z1 - z0;
+      for(let x = a0 - h; x < a1; x += w*2){
+        const q = [[x, z0], [x + w, z0], [x + w + h, z1], [x + h, z1]]
+          .map(([aa, zz]) => [Math.max(a0, Math.min(a1, aa)), zz]);
+        /* clip the parallelogram to the board by its a-range: an edge
+           that runs past a0/a1 is pinned there, which keeps each stripe
+           inside the board without a clip path */
+        if(q[1][0] - q[0][0] < 0.5 && q[2][0] - q[3][0] < 0.5) continue;
+        poly(q.map(([aa, zz]) => P(aa, faceB, zz)), ORANGE);
+      }
+    };
+    const frame = (c, wid) => {
+      const a0 = c - wid/2, a1 = c + wid/2;
+      for(const aa of [a0 + 14, a1 - 14]){           // A-frame legs, splayed across the board
+        tube(aa, B0 - 22, 0, aa, (B0 + B1)/2, 100, 3.2, STEEL);
+        tube(aa, B1 + 22, 0, aa, (B0 + B1)/2, 100, 3.2, shade(STEEL,1.08));
+      }
+      stripes(a0, a1, 40, 58);
+      stripes(a0, a1, 72, 90);
+    };
+    frame(126, 228); frame(368, 228); frame(610, 228);
+    /* lamps on the end frames */
+    for(const aa of [26, 710]){ cyl(aa, (B0+B1)/2, 90, 100, 5, INK); ball(aa, (B0+B1)/2, 107, 8, '#ffb000', '#fff1b0'); }
+    /* the padlock sign, a yellow diamond on the middle frame's top */
+    const zc = 132, R = 34, sb = faceB + (faceB === B1 ? 2 : -2);
+    tube(368, sb, 90, 368, sb, zc - R + 4, 3, STEEL);
+    poly([P(368, sb, zc + R), P(368 + R, sb, zc), P(368, sb, zc - R), P(368 - R, sb, zc)], YEL, INK, 1.6);
+    /* padlock: shackle as a thick arc of tube, body as a plate */
+    const sh = [];
+    for(let i = 0; i <= 8; i++){ const t = Math.PI * i/8; sh.push([368 + 9*Math.cos(t), zc + 2 + 11*Math.sin(t)]); }
+    for(let i = 0; i < sh.length - 1; i++) tube(sh[i][0], sb, sh[i][1], sh[i+1][0], sb, sh[i+1][1], 2.4, INK);
+    poly([P(355, sb, zc + 3), P(381, sb, zc + 3), P(381, sb, zc - 17), P(355, sb, zc - 17)], INK);
+    poly([P(366, sb, zc - 4), P(370, sb, zc - 4), P(370, sb, zc - 11), P(366, sb, zc - 11)], YEL);
+    /* KERB CONES, round. They were a flat card on one plane (Sir: "the
+       cones have no volume"). A frustum is cyl() with a different radius
+       at each rim: the silhouette is the lit half-sweep plateSweep picks,
+       so it is a cone on all four block edges, and its two sides are
+       shaded so it reads as turning. */
+    const cone = (a, b, z0, z1, r0, r1, col) => {
+      const N = 16, { ts, dir } = plateSweep(a, b, z0);
+      const rim = (i, z, r) => { const t = ts + dir*Math.PI*i/N; return P(a + r*Math.cos(t), b + r*Math.sin(t), z); };
+      const half = (i0, i1, c) => {
+        const pts = [];
+        for(let i = i0; i <= i1; i++) pts.push(rim(i, z0, r0));
+        for(let i = i1; i >= i0; i--) pts.push(rim(i, z1, r1));
+        poly(pts, c);
+      };
+      /* light from the left on every cone: the lit half is whichever
+         half sits further left on screen, not whichever the sweep starts on */
+      const leftFirst = rim(N/4, z0, r0).x < rim(3*N/4, z0, r0).x;
+      half(0, N/2, leftFirst ? col : shade(col, .78));
+      half(N/2, N, leftFirst ? shade(col, .78) : col);
+      const out = []; for(let i = 0; i <= N; i++) out.push(rim(i, z0, r0));
+      for(let i = N; i >= 0; i--) out.push(rim(i, z1, r1));
+      poly(out, null, shade(col, .62), 1);
+    };
+    if(state.props) for(const aa of [22, 714]){
+      const bc = -20;
+      box(aa - 17, aa + 17, bc - 17, bc + 17, 0, 5, shade(INK,1.5), shade(INK,1.2), INK);
+      const rz = z => 14 - (z - 5) * (14 - 2.5) / (54 - 5);     // radius at height z
+      cone(aa, bc, 5, 18, rz(5), rz(18), ORANGE);
+      cone(aa, bc, 18, 31, rz(18), rz(31), WHITE);                // reflective band
+      cone(aa, bc, 31, 54, rz(31), rz(54), ORANGE);
+      plateCircle(aa, bc, 54, rz(54), shade(ORANGE, 1.15), shade(ORANGE, .7), 1);
+    }
+  }
+}
+  ];
+  const BY_NAME = new Map(SHOPS.map(s => [s.name, s]));
+
+  return {
+    get(name){ return BY_NAME.get(name) || null; },
+    /* AN ENTRY'S VOLUME, as it declares it (labs/shopfront-vol.js). What
+       collision, the x-ray, pads, mats and spawn read -- never numbers
+       fished out of draw(). Cached on the entry: the boundary is derived
+       once. `zs` is the factor its heights take into the world. */
+    vol(name){
+      const shop = BY_NAME.get(name);
+      if(!shop) return null;
+      if(!shop._vol) shop._vol = volOf(shop, null, { W, D });
+      return shop._vol;
+    },
+    zs(name){ const shop = BY_NAME.get(name); return shop && shop.zs !== undefined ? shop.zs : 1.5; },
+    /* the Charge depot's roll-up door, 0 shut to 1 fully coiled. The
+       scene drives it; every other entry ignores state.doorT. */
+    setDoor(v){ state.doorT = v; },
+    /* g   -- the Phaser Graphics to draw into
+       G   -- (a, b, h) => screen point, the game's own W() composed with
+              whatever anchor the caller chose
+       pal -- one of the kit's palettes, or undefined for the shop's own */
+    /* part -- optional { part, w:[lo,hi] } for an entry that can draw in
+       depth strips (the Charge depot's back walls); cleared after */
+    draw(name, g, G, pal, k, part){
+      const shop = BY_NAME.get(name);
+      if(!shop) return false;
+      if(!ctx) ctx = makeCtx2Phaser();
+      K = k || 1;
+      ZSCALE = shop.zs === undefined ? 1.5 : shop.zs;
+      FLANK_RIGHT = true;
+      SHOP_SLOT = { G };
+      state.part = part ? part.part : null;
+      state.partW = part ? (part.w || null) : null;
+      ctx.__bind(g);
+      try { shop.draw(pal || PAL[0]); }
+      finally { SHOP_SLOT = null; state.part = null; state.partW = null; }
+      return true;
+    }
+  };
+})();
+/* the x-ray march ceiling: the tallest mass builtHeightAt can return,
+   which is the depot's declared height in world units (see XRAY.maxH) */
+XRAY.maxH = Math.max(XRAY.minH, depotVol().h * depotZS());
+
 class WorldScene extends Phaser.Scene {
   constructor(){ super("world"); }
 
@@ -13693,6 +17006,9 @@ class WorldScene extends Phaser.Scene {
     this.wonT = 0; this.wonFrac = 0; this.wonLiftT = 0; this.wonLidClosing = false; this.wonWalkAt = null; this.wonWalk = 0; this.wonOutT = 0; this.wonOutFrac = 0; this.wonMeet = null;
     this.bagOnBoard = false;
     this.cornerLean = 0;
+    this.xrayA = 0;                   // x-ray silhouette alpha, eased -- see XRAY
+    this._xrayPropCache = new Map();  // static prop occlusion; a new route is a new city
+    this._xrayInProp = false;
     this.corneringSpeedSmooth = 0;   // lagged speed feeding cornering lean —
                                       // see loadRoute() reset for the full note
     this.stuckAmt = 0; this.isBlocked = false;
@@ -13700,7 +17016,26 @@ class WorldScene extends Phaser.Scene {
     this.gSky = this.add.graphics();
     this.gWorld = this.add.graphics();
     this.gFade = this.add.graphics();      // the one wall being faded out/in — separate object so it can have its own alpha
-    this.g = this.add.graphics();
+    /* PROP X-RAY GHOSTS. Its own Graphics rather than sharing gFade,
+       because gFade carries the ROBOT's eased alpha on the layer --
+       that is what makes his overlapping quads composite as one flat
+       body instead of a pile of seams. Props need a different alpha,
+       and a constant one (they do not move, so there is nothing to
+       ease), so they cannot ride the same layer. Created HERE so it
+       slots between gFade and gGlowLo: add.graphics() appends, and the
+       display list order is the whole point of these objects. */
+    this.gXProp = this.add.graphics();
+    /* this.g IS the world layer now, not a layer of its own above it
+       (2026-08-28). Every robot part -- hull, wheels, stripe stars,
+       flag, eyes -- reaches for this.g independently through its own
+       `const g = this.g` or through quad()/edge(), so pointing drawRobot
+       alone at gWorld left all of those still drawing into a layer that
+       nothing cleared, and he smeared a trail of flags and wheels
+       across the frame. One alias moves the whole robot at once and
+       keeps every existing call site honest. The Graphics that used to
+       live here is gone rather than left empty: an unused object in the
+       display list is a thing for someone to wonder about later. */
+    this.g = this.gWorld;
     /* gGlowLo: ADD accents that belong to the SAME depth bracket as the
        things drawn in g -- Tipsey's own eyes/pool/beams, and any lamp
        the depth sort put behind him. Deliberately BELOW gFront so the
@@ -13726,7 +17061,7 @@ class WorldScene extends Phaser.Scene {
        frame that were fragmenting Phaser's batches. Applied to every
        Graphics this scene draws into, including the ones with their own
        alpha and blend mode, since the memo is per instance. */
-    [this.gSky, this.gWorld, this.gFade, this.g, this.gGlowLo, this.gFront,
+    [this.gSky, this.gWorld, this.gFade, this.gXProp, this.g, this.gGlowLo, this.gFront,
      this.gNight, this.gGlow, this.hud].forEach(memoGraphicsStyles);
     this.qtext = this.add.text(0, 0, "?!", { fontSize:"30px", fontStyle:"bold", color:"#ffb04d" })
       .setOrigin(0.5).setDepth(4).setVisible(false);
@@ -14303,7 +17638,7 @@ class WorldScene extends Phaser.Scene {
     if(this.attractTimer){ clearTimeout(this.attractTimer); this.attractTimer = null; }
     document.body.classList.remove("attract");
     document.body.classList.remove("attractBare");   // attractStart() adds this
-                                                       // separately (line ~6323) but
+                                                       // separately (line ~7076) but
                                                        // nothing ever removed it, so
                                                        // #zoomBtn/#globalAvatar/
                                                        // #globalSearch stayed force-
@@ -15101,6 +18436,19 @@ class WorldScene extends Phaser.Scene {
       this.botX = sp.x + (-Math.sin(hdg0))*this.laneOff;
       this.botY = sp.y + Math.cos(hdg0)*this.laneOff;
     }
+    /* ---------- HE STARTS IN THE DEPOT ----------
+       A run has always begun at route.pickupSpot -- the pickup shop --
+       because there was nowhere else to begin. Now there is: the home
+       depot's BACK-WALL pad, the one the roll-up door frames square on.
+       The pickup is unchanged and simply becomes the first place he
+       drives to rather than the place he wakes up.
+
+       botS and the route are untouched, so the moment he moves he is on
+       the same centreline he always was. This is a position override on
+       a standing start, which is exactly what the pickupSpot branch
+       above already is. */
+    const _dp = this.route && this.route.grid && depotPadWorld(depotLot(this.route.grid));
+    if(_dp){ this.botX = _dp.x; this.botY = _dp.y; }
     this.hopAnim = null; this.yaw = 0; this.hopYaw = 0; this.hopKick = 0;
     this.drawAngle = hdg0;   // position teleports on route load — rotation teleports with it
     this.slide = null; this.slipYaw = 0;
@@ -15120,6 +18468,9 @@ class WorldScene extends Phaser.Scene {
     this.slabZ = 0; this.slabRoll = 0;
     this.crossZ = 0; this.crossSlope = 0; this.crossJitter = 0;
     this.cornerLean = 0;
+    this.xrayA = 0;                   // x-ray silhouette alpha, eased -- see XRAY
+    this._xrayPropCache = new Map();  // static prop occlusion; a new route is a new city
+    this._xrayInProp = false;
     this.corneringSpeedSmooth = 0;
     this.stuckAmt = 0; this.isBlocked = false;
     this.doorTheta = 0;   // hull door hinge angle — opens once this.state becomes "won"
@@ -15297,6 +18648,107 @@ class WorldScene extends Phaser.Scene {
     return hi >= 0 && lo <= gw && bot >= 0 && top <= gh;
   }
 
+  /* ---------- x-ray: is he behind something? ----------
+     Height of built mass at a world point, or 0. Conservative by
+     construction: parks are skipped, and only the HOUSE_DEPTH band
+     inside each block edge counts -- a block's middle is yard, not
+     wall, and claiming otherwise would ghost him across open gardens.
+     Fed visBlocks rather than the whole grid, so this is a handful of
+     rect tests and not 200. */
+  builtHeightAt(x, y, blocks, lots){
+    for(const b of blocks){
+      if(b.type === "park") continue;
+      if(x < b.x0 || x > b.x1 || y < b.y0 || y > b.y1) continue;
+      const band = (x - b.x0 < HOUSE_DEPTH) || (b.x1 - x < HOUSE_DEPTH) ||
+                   (y - b.y0 < HOUSE_DEPTH) || (b.y1 - y < HOUSE_DEPTH);
+      /* THE DEPOT'S ROOM IS NOT BUILT-OVER, and this needs the same carve
+         solidAt got. Standing on the pad he is inside the block and well
+         inside the HOUSE_DEPTH band, so the x-ray decided he was behind a
+         frontage and dissolved the whole building around him -- the
+         fascia, windows and roof plant still drawn, the mass gone. He is
+         not behind it, he is IN it, and there is nothing overhead to
+         ghost. I flagged this when the carve went into solidAt and then
+         only carved the one. */
+      /* (and see depotBuiltHeight: the carve is the walkable answer, the
+         x-ray wants the visual one -- from behind, the room is inside
+         walls, not open air) */
+      const _xg = this.route && this.route.grid;
+      const _dl = (band && _xg) ? depotOnBlock(_xg, b) : null;
+      if(_dl){
+        const dh = depotBuiltHeight(_dl, x, y);
+        if(dh !== null) return dh;
+      }
+      return band ? XRAY.minH : 0;
+    }
+    /* the world's outer perimeter builds on extLots, not blocks, and
+       those were missing entirely from v1 -- so the whole outside edge
+       of the city never ghosted. lotRect is the same helper the lot's
+       own render uses, so this cannot drift from where the walls are. */
+    if(lots) for(const l of lots){
+      if(l.type === "park") continue;
+      const r = lotRect(l.ox, l.oy, l.dv, l.rv, l.len, HOUSE_DEPTH);
+      if(x >= r.x0 && x <= r.x1 && y >= r.y0 && y <= r.y1) return XRAY.minH;
+    }
+    return 0;
+  }
+
+  /* March the camera ray out from the robot. See the XRAY constants
+     note: at offset s the occluder needs height zh + s, so once that
+     requirement passes the tallest thing in the city nothing further
+     out can possibly qualify and the loop is done. ~7 iterations. */
+  /* How much of him is behind something, 0..1 -- the fraction of the
+     fan that found an occluder at ANY forward distance. A count rather
+     than the old first-hit boolean, so the answer degrades smoothly:
+     clip one corner of a wall and one ray of three reports, which is
+     under XRAY.hits and correctly shows nothing; walk in behind a
+     frontage and all three report. */
+  /* Which ghost layer the CURRENT draw should mirror into, and at what
+     alpha, or null when nothing is being captured. Exists because the
+     two capture paths differ in both target and alpha -- the robot
+     rides gFade's eased layer alpha at per-shape 1, props ride gXProp
+     at a constant per-shape alpha -- and every primitive that bypasses
+     quadOn (the flag's strokePath, the palm's fronds) would otherwise
+     have to re-derive that distinction itself and get it wrong. */
+  xrayGhost(){
+    if(this._xrayCap)   return { g: this.gFade,  a: 1 };
+    if(this._xrayInProp) return { g: this.gXProp, a: XRAY.propMax };
+    return null;
+  }
+
+  xrayCoverage(blocks, lots){ return this.xrayCoverageAt(this.botX, this.botY, XRAY.zhead, blocks, lots, true); }
+
+  /* Same test at an arbitrary point. wide=false collapses the fan to
+     its centre ray: a prop is a fraction of the robot's width, so the
+     lateral rays would only ever report on mass that is not actually
+     over it -- and props are numerous enough that three rays each is
+     real frame time for an answer one ray already gives. */
+  xrayCoverageAt(bx, by, zh, blocks, lots, wide){
+    const fan = wide ? XRAY.fan : [0];
+    const needHits = wide ? XRAY.hits : 1;
+    let hits = 0;
+    for(let i = 0; i < fan.length; i++){
+      const u = fan[i];
+      /* u is depth-preserving, so every ray in the fan is at the same
+         forward distance s and the height test holds for all of them
+         unchanged. s starts at PROBE, never 0: a body at his EXACT
+         depth is a sort tie, not an occluder, and admitting u offsets
+         at s=0 ghosts him whenever he walks past a wall he is standing
+         beside in plain view. */
+      for(let s = XRAY.probe; s <= XRAY.reach; s += XRAY.probe){
+        const need = zh + s;
+        /* bound against maxH, the tallest value builtHeightAt can return
+           (see XRAY.maxH): once need passes it no sample further out can
+           succeed. Was minH while minH was the only answer; the depot
+           made that false. The old bound was minH + 120 and just burned
+           iterations that could not hit. */
+        if(need > XRAY.maxH) break;
+        if(this.builtHeightAt(bx + s + u, by + s - u, blocks, lots) >= need){ hits++; break; }
+      }
+    }
+    if(wide) this._xrayHits = hits;   // read by the owDbg readout
+    return hits >= needHits ? hits / fan.length : 0;
+  }
+
   /* props: the kind's own MEASURED extent (see PROP_EXT) against the
      viewport. Per-kind rather than one blanket margin because the
      spread is 25x -- a hydrant reaches 15 units sideways and a turn
@@ -15373,6 +18825,29 @@ class WorldScene extends Phaser.Scene {
   quadOn(g, pts, color, alpha=1){
     g.fillStyle(color, alpha);
     g.fillPoints(pts.map(p => new Phaser.Geom.Point(p.x, p.y)), true, true);
+  }
+  /* OPEN outline for a depth-sliced side wall (2026-08-28, Sir
+     on-device: "i see the art braking and showing lines through its
+     segments").
+
+     edgeOn strokes a CLOSED path. That is right for a whole quad and
+     wrong for one piece of a wall that got cut into three: the two
+     verticals where a piece meets its neighbours are interior seams,
+     not silhouette, and stroking them drew a line down the wall at
+     every cut. The wall was solid -- the fills met exactly -- but the
+     outline advertised the joins, which is what reads as the art
+     breaking into segments.
+
+     Quad order is [near-top, far-top, far-bottom, near-bottom], so the
+     top and bottom runs are always real silhouette and the two
+     verticals are drawn only when this piece owns the real end. Same
+     rule the roofs already use for their front and back lips. */
+  wallOutline(g, q, color, hasNear, hasFar, w=1){
+    g.lineStyle(w, color, 1);
+    g.lineBetween(q[0].x, q[0].y, q[1].x, q[1].y);          // top / roofline
+    g.lineBetween(q[2].x, q[2].y, q[3].x, q[3].y);          // bottom / ground
+    if(hasFar)  g.lineBetween(q[1].x, q[1].y, q[2].x, q[2].y);
+    if(hasNear) g.lineBetween(q[3].x, q[3].y, q[0].x, q[0].y);
   }
   edgeOn(g, pts, color=SKIN.outline, w=2){
     g.lineStyle(w, color, 1);
@@ -15844,7 +19319,14 @@ class WorldScene extends Phaser.Scene {
        before the block-wrap pass, not after it. */
     this.gFront.clear();
     const botDepth = this.botX + this.botY;
-    const layerFor = (px, py) => (px + py > botDepth + 14) ? this.gFront : g;
+    /* ONE LAYER. This used to return gFront for anything nearer to
+       camera than the robot, because the robot was composited on top of
+       the world and that was the only way to get a car or a signal post
+       back in front of him. He is inside this sort now (see drawRobot),
+       so "in front of the robot" is just a larger depth key and the
+       sort already handles it. Kept as a function so every call site
+       reads the same; it simply has nothing left to decide. */
+    const layerFor = (px, py) => g;
 
     /* moved up from below: cars/traffic now need world position before
        the body depth-sort runs (see the trafficPts block after the
@@ -15913,6 +19395,70 @@ class WorldScene extends Phaser.Scene {
        changes, when the robot crosses a block seam mid-leg, or through
        corner arcs (all three were reported on-device). A block can
        carry TWO cut edges if both an f=1 and an f=2 leg touch it. */
+    /* THE ROLL-UP DOOR, driven every frame. drawWorld runs from
+       update(t, dt) and rebuilds blockVQ each time, so the entry is
+       redrawn per frame and doorT animates for free -- no invalidation
+       needed. Eased rather than snapped: a shutter takes about a second
+       and a half either way. */
+    if(this.route && this.route.grid && depotLot(this.route.grid)){
+      /* THE SPAWN IS A ONE-SHOT HERE, not in the route loader. Setting
+         botX/botY beside the pickupSpot branch looked right and did
+         nothing: something after it -- the pose restore at _pose, and
+         the camera follow -- puts him back. drawWorld runs after all of
+         that, so a once-per-route snap here is the first point where the
+         position sticks. Keyed on the route's own dateStr so it fires
+         once a route and never fights the player afterwards. */
+      /* HELD, not one-shot. A one-shot keyed on dateStr fired on the
+         first loadRoute and then the SECOND loadRoute at boot -- the
+         file calls it twice -- put him back, with the key already
+         matching so it never re-fired. _doorT going to 1 and then
+         easing away was the tell that the snap had run and been undone.
+
+         So it HOLDS him on the pad while he is standing still at the
+         start of a route, and releases the moment he drives: vel > 1
+         ends it, and runT only grows, so it can never come back. */
+      /* ...UNLESS HE HAS BEEN PUT SOMEWHERE ON PURPOSE. tpFreePlay (the tow,
+         Retry, Maybe later) reloads the route -- runT back to 0 -- and
+         THEN sets him on the nearest pad; this hold snapped him straight
+         back to the home depot on the next frame, so every tow ended at
+         home however far away he fell (measured, 2026-09-15: died by
+         Sunset Terrace Charging 2, woke at The Flats Charging 1).
+         owPlaceOnPad raises _homeHoldOff; boot never calls it. */
+      if(!this._homeHoldOff && this.runT < 2000 && this.ow && Math.abs(this.ow.vel || 0) < 1){
+        const p = depotPadWorld(depotLot(this.route.grid));
+        if(p){
+          /* ow.px / ow.py IS THE POSITION. botX and botY are derived from
+             it every frame in open-world mode, so setting them alone
+             looked like it worked and was gone inside a second -- the
+             probe showed him back at the pickup 1.2s later. ow also
+             carries the rail state it was tracking, so railReacq is
+             cleared: without it he is handed a corridor from wherever he
+             used to be. */
+          this.botX = p.x; this.botY = p.y;
+          this.camX = p.x; this.camY = p.y;
+          if(this.ow){
+            this.ow.px = p.x; this.ow.py = p.y;
+            this.ow.vel = 0; this.ow.railReacq = 0;
+            this.ow.railS = null; this.ow.railD = null;
+          }
+          if(!this._doorTs) this._doorTs = new Map();
+          this._doorTs.set(depotLot(this.route.grid).key, 1);   // he wakes with it open
+        }
+      }
+      /* ONE DOOR EACH. Only depots within reach of him are asked -- a door
+         across the city cannot be approached, so it eases shut; the
+         queue hands each depot its own value (LIB state is shared). */
+      if(!this._doorTs) this._doorTs = new Map();
+      const k = Math.min(1, (this._frameDt || 16) / 700);
+      for(const d of depotsOf(this.route.grid)){
+        const near = Math.abs(d.cu.ux - this.botX) + Math.abs(d.cu.uy - this.botY) < 2400;
+        const want = near ? depotDoorWants(d, this.botX, this.botY) : 0;
+        let t = this._doorTs.has(d.key) ? this._doorTs.get(d.key) : want;
+        t += (want - t) * k;
+        if(Math.abs(want - t) < 0.004) t = want;
+        this._doorTs.set(d.key, t);
+      }
+    }
     this.addrDoorPos = null;
     const blockVQ = [];
     const topLayer = [];
@@ -15950,6 +19496,23 @@ class WorldScene extends Phaser.Scene {
       }
     }
     for(const lot of visLots) this.queueExteriorLot(blockVQ, lot);
+    /* HOOD ROADBLOCKS. Drawn through LIB like the depot, stretched along
+       the crossing (736 is a street mouth; the boardwalk is narrower).
+       He is always on the owned side, so the whole barricade sorts on
+       that side's far edge: behind him when the owned side is nearer the
+       camera, in front of him when it is not. */
+    if(this.ow && this.ow.world){
+      for(const rb of hoodRoadblocks(r.grid, this.ow.world)){
+        const { ux, uy, e } = rb.cu, sA = rb.len / 736;
+        if(Math.abs(ux - this.camX) + Math.abs(uy - this.camY) > BLOCK*3) continue;
+        const wx = (a, b) => ux + e.dv.x*a*sA + e.rv.x*b, wy = (a, b) => uy + e.dv.y*a*sA + e.rv.y*b;
+        const map = (a, b, h) => this.W(wx(a, b), wy(a, b), h);
+        const ks = [[0,0],[736,0],[0,-70],[736,-70]].map(([a, b]) => wx(a, b) + wy(a, b));
+        const ownedNearer = (-e.rv.x - e.rv.y) > 0;
+        const depth = ownedNearer ? Math.min(...ks) - 1 : Math.max(...ks) + 1;
+        blockVQ.push({ depth, fn: (g) => LIB.draw('Roadblock', g, map, null, this.K) });
+      }
+    }
     /* THE AQUARIUM. One item, same vq, same depth key, same body/roof
        split below -- it is an ordinary prop that happens not to belong to
        a block, so it is queued here rather than out of queueBlockContent
@@ -16297,11 +19860,44 @@ class WorldScene extends Phaser.Scene {
        (their body entries are entangled with the customer/worker
        choreography — extraction is stage 2), so this pass now carries
        at most those two roofs. */
+    /* ONE WORLD SORT (2026-08-28, Sir on-device: "im still seeing
+       through buildings" -- an NPC sidewalk robot's flag pole and body
+       painted straight over the roof of the store it was standing
+       behind).
+
+       The cause was structural and this file had already written it
+       down, in queueCityFurniture's own note: hazVQ was flushed as its
+       OWN pass, after every building, every roof and every parked car,
+       so any hazard painted over any building regardless of true
+       depth. That note called the exposure acceptable because hazards
+       "are always in the corridor the robot is driving and effectively
+       never behind a building from the camera". That was true of the
+       rail. It stopped being true the moment the city started dropping
+       its own furniture into route.hazards (cfDrop: sidewalk robots,
+       people, dogs, palms, hydrants on frontages right across the
+       grid) -- those stand behind blocks constantly, and every one of
+       them showed through the block in front of it.
+
+       So bodies, parked cars and hazards stop being three sequential
+       passes that each win against the one before, and become one
+       sort. Nothing new is computed: each of the three was ALREADY
+       carrying a real depth key and ALREADY routing its layer through
+       layerFor/propLayer. The passes existed only because the three
+       were written at different times, and every later pass silently
+       outranked the earlier ones.
+
+       ROOFS STILL DRAW LAST, unchanged. Only the address house and the
+       pickup store still queue whole (their bodies are entangled with
+       the customer/worker choreography -- extraction is stage 2), so
+       their single coarse key cannot be trusted against a neighbour's
+       per-strip keys; that is the exact bug the roofs-last pass was
+       added to fix and it is still live for those two units. The cost
+       of keeping them last is that those two roofs can cover a hazard
+       or a parked car standing in front of them -- two units, and the
+       CLEAR sweep already keeps hazards off the pickup unit and the
+       customer choreography off the address unit. */
     const bodies = blockVQ.filter(it => !it.isRoof), roofs = blockVQ.filter(it => it.isRoof);
-    bodies.sort((a,b) => a.depth - b.depth);
-    for(const item of bodies) item.fn(g, t); // always gWorld — the robot must stay visible over block-wrap dressing, never hidden behind it
-    roofs.sort((a,b) => a.depth - b.depth);
-    for(const item of roofs) item.fn(g, t);
+    const worldVQ = bodies;   // parked cars and hazards join this below; flushed once, after hazVQ is built
     /* parking-row cars draw in a THIRD pass, after roofs — they were
        part of the normal body pass before, so any visible building's
        roof (drawn unconditionally last, globally, regardless of true
@@ -16325,13 +19921,36 @@ class WorldScene extends Phaser.Scene {
        as visibly wrong otherwise (reported on-device, f=1 specifically).
        Still its own pass, still after roofs — this only fixes ordering
        WITHIN the pass, not when the pass itself runs. */
-    topLayer.sort((a, b) => (a.x + a.y) - (b.x + b.y));
-    for(const c of topLayer) this.drawProp(layerFor(c.x, c.y), c.kind, c.x, c.y, t, c.fdir, 0);
+    /* joins the one world sort (see it above) instead of running as a
+       third pass. The reason this was ever split out -- roofs drawn
+       globally last painting over a parked car -- is unchanged, because
+       roofs are still drawn last; what changes is that a car no longer
+       paints over a house that is genuinely in front of it, and a
+       hazard no longer paints over a car that is genuinely in front of
+       IT. Its own sort is dropped: the merged sort does it. */
+    for(const c of topLayer)
+      worldVQ.push({ depth: c.x + c.y,
+                     fn: (gg, tt) => this.drawProp(layerFor(c.x, c.y), c.kind, c.x, c.y, tt, c.fdir, 0) });
 
     /* volumetric props (and ground-kind hazards like curb ramps) are
        handled earlier now -- pushed into blockVQ before the body
        depth-sort so they land correctly against houses and cars; see
        the comments above that block for why. */
+    /* the volumetric HAZARDS below used to draw directly here, in raw
+       spawn-array order -- so a person always lost to every hazard
+       TYPE spawned later in the array (palms, parked/roving robots,
+       hydrants: all pushed after the mixed cone/dog/people/bin loop),
+       and within the mixed loop, order followed route-s, which only
+       matches camera depth on two of the four headings (reported
+       on-device 2026-07-26: props over people regardless of true
+       depth; the line-2072 coin-flip class, and the cone-over-worker
+       sighting documented at the shop-door comment). Fix: queue into
+       hazVQ, sort by real depth at each hazard's EFFECTIVE body
+       position, then draw -- same treatment blockVQ already gave
+       houses/cars/props. Still its own pass after roofs/topLayer, so
+       hazard-vs-building order is unchanged; this only fixes ordering
+       among the hazards themselves. */
+    const hazVQ = [];
     for(const hz of r.hazards){
       if(GROUND_KINDS[hz.type]) continue;
       const wp = worldOf(hz.s + (hz.slide || 0), hazardOffset(hz) + (hz.slideB || 0));
@@ -16356,110 +19975,243 @@ class WorldScene extends Phaser.Scene {
          point it isn't standing on -- Tipsey between anchor and body
          overlapped it in the wrong layer (reported on-device
          2026-07-26). Test at the effective point; the drawProp x,y
-         deliberately stays the anchor, because the robot draw branch
-         applies walkA itself -- one source of truth for position.
-         Knocked robots additionally get the tipped planter/bin
-         nearest-silhouette shift: the fallen shell pivots ~a body
-         height off the wheelbase, so nudge the test point toward
-         Tipsey by up to the fallen radius -- far apart either answer
-         is fine, pressed close this is the point that decides. */
-      let htx = wp.x, hty = wp.y;
-      /* dogs and people with a walk range (walkS0/walkS1) have the
-         exact same anchor-vs-body gap as roving robots -- their spot
-         functions share the .a-offset contract, so the same effective-
-         point test covers all three walkers (reported on-device
-         2026-07-26, follow-up to the rover fix). Idle wanderers stay
-         on the plain anchor test: their +-30 box is smaller than
-         layerFor's own slack. */
-      const isWalker = (hz.type === "dog" || hz.type === "people")
-                       && hz.walkS0 !== undefined && hz.walkS1 !== undefined;
-      if(hz.type === "robot" || isWalker || hz.type === "william"){
+         deliberately stays the anchor, because each draw branch
+         applies its own walk/flee offsets -- one source of truth for
+         position. */
+      /* dogs and people: ALL of them now, not just the ones with a
+         walk range. The old exemption ("idle wanderers' +-30 box is
+         smaller than layerFor's own slack") was written against a
+         slack that is 14 today -- a +-30 idle wander crosses the flip
+         plane while the anchor test says behind, which is exactly the
+         reported Tipsey-over-person case. The spot functions are pure
+         (t, hz) and already cover idle mode, so the effective point
+         is free. Flee/settle are mirrored too (same composition the
+         draw branches use): a fled person settles up to 250 units
+         from the anchor -- anchor-testing THAT is a whole-lane error,
+         not a slack-sized one. */
+      let ebx = wp.x, eby = wp.y;   // effective body position (walk + flee/settle)
+      if(hz.type === "robot" || hz.type === "dog" || hz.type === "people" || hz.type === "william"){
         /* .b too, not just .a: a detouring walker is a full lane off
            its home row while sidestepping a prop (detourBAt), and a
            knocked rover freezes wherever the sidestep had it
-           (knockA/knockB) -- the test point follows both axes. */
-        const effSpot = hz.type === "william" ? ((hz.kst && hz.kst !== "patrol") ? { a: hz.ka || 0, b: hz.kb || 0 } : peopleSpotAt(t, hz))
-                      : hz.type === "people" ? peopleSpotAt(t, hz)
-                      : hz.type === "dog"    ? dogSpotAt(t, hz)
-                      : (!hz.knocked && hz.roving) ? robotSpotAt(t, hz) : null;
-        const effA = effSpot ? effSpot.a : (hz.knocked ? (hz.knockA || 0) : 0);
-        const effB = effSpot ? (effSpot.b || 0) : (hz.knocked ? (hz.knockB || 0) : 0);
+           (knockA/knockB) -- the effective point follows both axes. */
+        let effA = 0, effB = 0;
+        if(hz.type === "robot"){
+          const effSpot = (!hz.knocked && hz.roving) ? robotSpotAt(t, hz) : null;
+          effA = effSpot ? effSpot.a : (hz.knocked ? (hz.knockA || 0) : 0);
+          effB = effSpot ? (effSpot.b || 0) : (hz.knocked ? (hz.knockB || 0) : 0);
+        } else if(hz.type === "william"){
+          /* engaged william: the sim-integrated position; patrolling:
+             the same pure fn the sim/render use */
+          if(hz.kst && hz.kst !== "patrol"){ effA = hz.ka || 0; effB = hz.kb || 0; }
+          else { const ksp = peopleSpotAt(t, hz); effA = ksp.a; effB = ksp.b || 0; }
+        } else {
+          const spot = hz.type === "people" ? peopleSpotAt(t, hz) : dogSpotAt(t, hz);
+          const flee = hz.type === "people" ? peopleFleeAt(t, hz) : dogFleeAt(t, hz);
+          effA = spot.a; effB = spot.b || 0;
+          if(flee && flee.gone){
+            const st = hz.type === "people" ? peopleSettledSpot(hz) : dogSettledSpot(hz);
+            if(st){ effA = st.a; effB = st.b; }
+          } else if(flee){ effA += flee.da; effB += flee.db; }
+        }
         if(effA !== 0 || effB !== 0){
           const effWp = worldOf(hz.s + effA, hazardOffset(hz) + effB);
-          htx = effWp.x; hty = effWp.y;
-        }
-        if(hz.knocked){
-          let kx = this.botX - htx, ky = this.botY - hty;
-          const kd = Math.hypot(kx, ky) || 1;
-          const kR = Math.min(kd, 30);
-          htx += kx/kd*kR; hty += ky/kd*kR;
+          ebx = effWp.x; eby = effWp.y;
         }
       }
+      /* layer test point: effective position, plus the knocked-rover
+         nearest-silhouette shift (fallen shell pivots ~a body height
+         off the wheelbase, so nudge toward Tipsey by up to the fallen
+         radius -- far apart either answer is fine, pressed close this
+         is the point that decides). The shift is a LAYER aid only --
+         it deliberately does not feed the hazVQ sort depth, which
+         must stay the true body position or a knocked rover would
+         sort as if it stood wherever Tipsey is. */
+      let htx = ebx, hty = eby;
+      if(hz.type === "robot" && hz.knocked){
+        let kx = this.botX - htx, ky = this.botY - hty;
+        const kd = Math.hypot(kx, ky) || 1;
+        const kR = Math.min(kd, 30);
+        htx += kx/kd*kR; hty += ky/kd*kR;
+      }
       const hzLayer = (hz.type === "scooter" && hz.phi > 0) ? g : layerFor(htx, hty);
-      if(this.visProp(hz.type, htx, hty)) this.drawProp(hzLayer, hz.type, wp.x, wp.y, t, hz.f, wp.z, null, null, hz);
+      if(this.visProp(hz.type, ebx, eby)){
+        const dhz = hz, dwx = wp.x, dwy = wp.y, dwz = wp.z, dhf = hz.f, dht = hz.type;
+        hazVQ.push({ depth: ebx+eby, fn:(gg,tt)=>this.drawProp(hzLayer, dht, dwx, dwy, tt, dhf, dwz, null, null, dhz) });
+      }
       if(hz.clusterExtras){
         for(const ex of hz.clusterExtras){
           const exWp = worldOf(hz.s + (hz.slide || 0) + ex.ds, hazardOffset(hz) + (hz.slideB || 0) + ex.dOff);
-          if(this.visProp(ex.kind, exWp.x, exWp.y)) this.drawProp(layerFor(exWp.x, exWp.y), ex.kind, exWp.x, exWp.y, t, hz.f, exWp.z);
+          if(!this.visProp(ex.kind, exWp.x, exWp.y)) continue;
+          const exk = ex.kind, exx = exWp.x, exy = exWp.y, exz = exWp.z, exf = hz.f;
+          hazVQ.push({ depth: exx+exy, fn:(gg,tt)=>this.drawProp(layerFor(exx, exy), exk, exx, exy, tt, exf, exz) });
         }
       }
     }
-
-    /* CHARGING STATIONS -- drawn immediately here, NOT queued, for the
-       same reason the signals below are: THIS FILE HAS NO hazVQ (see the
-       signals' own note). Upstream they ride the hazard queue and sort
-       against pedestrians by true depth; here they paint after the
-       hazard loop, so a station always draws over a hazard rather than
-       sorting against one. Same pre-existing ordering weakness this file
-       already carries between its own hazards, not a new one, and it
-       keeps the builds feature-equal until the hazVQ pass is resynced.
-       layerFor still applies, so the robot standing on a pad is still
-       drawn in front of its bollard. */
-    if(r.grid){
-      for(const st of getChargeStations(r.grid)){
-        if(!this.visProp("chargestation", st.x, st.y)) continue;
-        this.drawChargeStation(layerFor(st.x, st.y), st, t);
-      }
-    }
-
-    /* MISSION MATS -- drawn immediately here, NOT queued, for the same
-       reason the charging stations just above and the signals just below
-       are: THIS FILE HAS NO hazVQ (see the signals note). game/index.html
-       pushes its mats into the depth-sorted queue so they interleave with
-       pedestrians by true depth; here they draw in place. layerFor still
-       applies, which is the part that actually matters for a mat -- the
-       robot standing on one is still drawn in front of it. Same placement,
-       same art, same trigger; only the sort differs, and it differs the
-       way every other hazard in this file already does. */
-    for(const mm of getMissionMats(this)){
-      if(!this.visProp("chargestation", mm.mat.x, mm.mat.y)) continue;
-      const lg = layerFor(mm.mat.x, mm.mat.y);
-      this.drawMatAt(lg, mm.ax, mm.ay, mm.dv, mm.rv, 0, 0, mm.style);
-      this.drawMatHighlight(lg, mm.ax, mm.ay, mm.dv, mm.rv, 0, 0,
-        matHighlightState(this, mm.mat, "freeroam"), t);
-    }
-
-    /* SIGNALS -- drawn immediately here, NOT queued.
-
-       game/index.html sorts its hazards through hazVQ and pushes the two
-       signal pieces into it so they interleave with pedestrians by true
-       depth. THIS FILE HAS NO hazVQ: it still draws hazards in spawn-array
-       order, which is the code the depth-sorted pass replaced upstream, so
-       there is nothing here to queue into. Drawing after the loop means a
-       signal always paints over every hazard rather than sorting against
-       them -- the same ordering weakness this file already has between its
-       own hazards, not a new one, and it keeps the two builds feature-equal
-       until the hazVQ pass is resynced across. */
+    /* Signals queue HERE, with the hazards, not into blockVQ. hazVQ is a
+       separate pass after bodies and roofs, so anything in blockVQ is
+       painted over by every pedestrian, palm and cone whatever its depth --
+       which is exactly what the bench showed, because BENCH.queue can only
+       reach blockVQ. Streetlamps never had the problem because they are
+       hazards already. Post and head are queued separately so the head
+       sorts on the spot it actually hangs over rather than on the pole's,
+       a car's width back on the pavement. */
     for(const sg of (r.signals || [])){
       if(!this.visProp("signalpost", sg.x, sg.y)) continue;
-      this.drawProp(layerFor(sg.x, sg.y), "signalpost", sg.x, sg.y, t, sg.armF, 0, null, null, sg);
+      const sx = sg.x, sy = sg.y, sPost = sg.armF;
       const ad = DIRV[sg.armF];
-      /* see game/index.html: pulled back so the case straddles the mast */
+      /* pulled back along the arm by most of the housing's own half-width,
+         so the case straddles the last stretch of mast rather than balancing
+         on the very tip with half of itself past the end */
       const reach = SIGNAL.arm ? Math.max(0, SIGNAL.armLen - SIGNAL.headR*0.9) : 0;
-      const hx = sg.x + ad.x*reach, hy = sg.y + ad.y*reach;
+      const hx = sx + ad.x*reach, hy = sy + ad.y*reach;
       const hf = SIGNAL.readable ? (sg.axis === 0 ? 0 : 1) : sg.headF;
-      this.drawProp(layerFor(hx, hy), "signalhead", hx, hy, t, hf, 0, null, null, sg);
+      /* ONE entry, post-then-head, never two.
+
+         These were queued separately so the head could sort against cars on
+         its own spot. The cost was not worth it and the bug was ugly: the
+         arm points at the node, so on the two headings where that runs away
+         from the camera the head had the SMALLER depth, sorted first, and
+         the mast was then drawn straight over the top of the housing --
+         swallowing the hanger and leaving the head looking stuck behind the
+         arm. Flip 180 degrees and the order reversed and it looked fine,
+         which is why this only showed up at some angles.
+
+         Splitting bought little anyway: the head hangs at ~armZ, high above
+         any car, so it barely competes with one for screen space. Drawn as
+         one object at the pole's ground spot with the head painted last, the
+         housing always covers the arm tip it is mounted on -- which is what
+         is physically true, at every heading, by construction rather than by
+         winning a sort. */
+      hazVQ.push({ depth: sx+sy, fn:(gg,tt)=>{
+        this.drawProp(layerFor(sx, sy), "signalpost", sx, sy, tt, sPost, 0, null, null, sg);
+        this.drawProp(layerFor(hx, hy), "signalhead", hx, hy, tt, hf,    0, null, null, sg);
+      }});
     }
+
+
+    /* MISSION MATS ride the same queue for the same reason the charging
+       stations do: layerFor picks near/far per mat, so a mat is never
+       painted over the robot standing on it -- which is the one frame
+       that matters, since standing on it is how you enter the mission.
+       Drawn flat at h=0 like the pads; the mat is a plate on the
+       pavement, not a thing with height. */
+    for(const mm of getMissionMats(this)){
+      if(!this.visProp("chargestation", mm.mat.x, mm.mat.y)) continue;
+      const _mm = mm, _hl = matHighlightState(this, _mm.mat, "freeroam");
+      /* NEAREST CORNER, NOT THE CENTRE POINT. The mat is a large flat
+         plate the robot STANDS ON, so a single point-depth test at its
+         centre flips exactly the way the slab/crack/curb-ramp pins were
+         written to stop: stand on the near half and the robot's own
+         x+y is SMALLER than the mat centre's, the mat sorts after him,
+         and it paints over the robot (measured: correct at dy>=0,
+         inverted at dy=-9, which is where the on-device report was
+         standing). Keying on the minimum x+y over the plate's four
+         drawn corners makes the mat sort at its near edge, so anything
+         standing anywhere on it has a depth >= the mat's and always
+         draws after. Orientation-independent -- it's a min over all
+         four corners, so it's right on all four headings at once
+         rather than needing a per-heading case. Footprint is the one
+         drawMatAt lays out: +/-T2/2 along dv, 0..SIDEWALK_W along rv. */
+      const _mh = T2/2;
+      let _mdep = Infinity;
+      for(const _s of [-_mh, _mh]) for(const _f of [0, SIDEWALK_W]){
+        const _px = _mm.ax + _mm.dv.x*_s + _mm.rv.x*_f;
+        const _py = _mm.ay + _mm.dv.y*_s + _mm.rv.y*_f;
+        if(_px + _py < _mdep) _mdep = _px + _py;
+      }
+      hazVQ.push({ depth: _mdep,
+                   fn:(gg,tt)=>{
+                     const lg = layerFor(_mm.mat.x, _mm.mat.y);
+                     this.drawMatAt(lg, _mm.ax, _mm.ay, _mm.dv, _mm.rv, 0, 0, _mm.style);
+                     this.drawMatHighlight(lg, _mm.ax, _mm.ay, _mm.dv, _mm.rv, 0, 0, _hl, tt);
+                   } });
+    }
+
+    /* THE one flush (see the ONE WORLD SORT note above the bodies
+       filter). hazVQ is no longer a pass of its own -- its entries were
+       already keyed on each hazard's effective body position, which is
+       the same key the bodies carry, so they merge straight in.
+       Deferring the body flush to here is safe: everything between the
+       two points only PUSHES closures, and the addrDoor* side effects
+       the address unit's render sets are read later in the frame (the
+       win-state camera reframe), never during hazard queueing. */
+    for(const item of hazVQ) worldVQ.push(item);
+    /* ROOFS JOIN THE SORT TOO (2026-08-28, Sir on-device: "im seeing
+       through buildings ... from every angle", with a shot of a store's
+       roof and wall cut straight across the roof of the house in front
+       of it).
+
+       This was the last pass still drawing globally last, and I kept it
+       that way on purpose one round ago -- the reasoning being that the
+       address house and the pickup store are the only units still
+       queued whole, so their single coarse key could lose to a
+       neighbour's per-strip keys, which is the bug the roofs-last pass
+       was originally written to fix.
+
+       That reasoning protected the wrong thing. Losing a sort against a
+       neighbour is a hairline seam between two adjacent frontages.
+       Drawing last means those two roofs paint over EVERY building in
+       the city that stands in front of them, at every heading, which is
+       a whole roof and wall landing on top of a house one block nearer
+       the camera. The first is a blemish, the second is the report.
+       Sorted at their own depth they are wrong in neither direction
+       more often than any other body is. */
+    for(const item of roofs) worldVQ.push(item);
+    /* THE ROBOT IS A BODY. Queued here at his own depth key, so the one
+       sort below places him among the walls, cars and hazards instead
+       of compositing him over all of them. This is the whole fix; every
+       layer decision above it collapses because of this line. dt comes
+       off the frame's own stash (see update) -- drawWorld is handed t
+       only, and drawRobot needs both. */
+    worldVQ.push({ depth: this.botX + this.botY, isRobot: true,
+                   fn: (gg, tt) => this.drawRobot(tt, this._frameDt || 0) });
+    /* X-RAY: the silhouette is captured in the SAME pass he already
+       draws, not by a second drawRobot call. drawRobot advances the
+       pose, runs the hazard interaction loop that writes ow.px, and
+       spawns peel smoke -- calling it twice steps the sim twice. Every
+       robot part reaches for quadOn, so wrapping quadOn for the
+       duration of his ONE queue item stamps each polygon a second
+       time, flat-coloured, into gFade. Union of his own quads at alpha
+       1 with the layer alpha applied once on top, so overlapping parts
+       give a clean flat body instead of a pile of seams.
+
+       gFade sits above gWorld and below gFront/gNight/gGlow, which is
+       exactly right: the walls that sorted AFTER him drew into gWorld,
+       so the ghost reads through them, while the night tint still
+       lands on him because he genuinely is in the world.
+
+       This is also what gFade was declared for and never used to do. */
+    this.gFade.clear();
+    this.gXProp.clear();
+    /* stashed for drawProp, which is called from a dozen queue sites
+       and has no way to be handed these */
+    this._visBlocks = visBlocks; this._visLots = visLots;
+    this._xraySkip = false;   // never inherit a stuck flag from a bailed frame
+    /* alpha SCALES with coverage now instead of snapping to XRAY.max, so
+       a partially hidden robot reads as partially there. */
+    const xrayWant = XRAY.max * this.xrayCoverage(visBlocks, visLots);
+    this.xrayA += (xrayWant - this.xrayA) *
+                  (xrayWant > this.xrayA ? XRAY.rise : XRAY.fall);
+    if(this.xrayA < 0.004) this.xrayA = 0;
+    this.gFade.setAlpha(this.xrayA);
+
+    worldVQ.sort((a, b) => a.depth - b.depth);
+    for(const item of worldVQ){
+      if(item.isRobot && this.xrayA > 0){
+        const qp = this.quadOn;
+        /* own property shadowing the prototype method; deleted rather
+           than reassigned so the class method is the one that survives */
+        this.quadOn = (gg, pts, col, a) => {
+          qp.call(this, gg, pts, col, a);
+          if(!this._xraySkip) qp.call(this, this.gFade, pts, XRAY.col, 1);
+        };
+        this._xrayCap = true;   // read by drawFlag, which bypasses quadOn
+        try { item.fn(g, t); } finally { delete this.quadOn; this._xrayCap = false; }
+      } else item.fn(g, t); // layer per item — layerFor/propLayer already split g vs gFront
+    }
+    /* no roofs pass any more -- they are in worldVQ above, so the sort
+       that just ran placed them. Nothing draws after the world. */
 
     /* addrDoorPos/addrDoorDV/etc. are still set below as a side effect
        of the real address house unit's own render pass (see
@@ -16798,18 +20550,66 @@ class WorldScene extends Phaser.Scene {
     const hasBack = qF <= -D + 0.5;
     const hasFront = qB >= -0.5;
 
+    /* BACK-FACE CULLING (2026-08-28, Sir on-device: "they are see
+       through at times and i can see windows and faces are missing its
+       the buildings themselves").
+
+       Every unit drew all four walls, unconditionally, in a fixed order
+       that ended with the front elevation -- back, left, right, roof,
+       then the whole detailed frontage. That order is only right when
+       the frontage happens to face the camera. Blocks have four edges,
+       so a quarter of the city's units front AWAY from it, and for
+       every one of those the windows, door, trim and sign painted last,
+       straight over the roof and the near wall that should have hidden
+       them. Read as the building being transparent, because you were
+       looking at its far elevation through it.
+
+       dv and rv are DIRV unit vectors, so dv.x+dv.y and rv.x+rv.y are
+       always +/-1, never 0: exactly one of front/back and exactly one
+       of left/right faces the camera, and there is no edge-on tie to
+       break. Depth increases with x+y (the same key the world sort
+       uses), so a face is camera-facing when its outward normal has a
+       positive x+y. Front's outward normal is +rv, back's is -rv,
+       right's is +dv, left's is -dv.
+
+       This is a cull, not a reorder: the faces that stop being drawn
+       are the ones no camera angle can see. It also halves the wall
+       quads per unit. */
+    const dvS = dv.x + dv.y, rvS = rv.x + rv.y;
+    const showFront = rvS > 0, showBack = !showFront;
+    const showRight = dvS > 0, showLeft = !showRight;
+    /* WALL TONE COMES FROM THE FACE'S WORLD DIRECTION, NOT FROM WHICH
+       END OF THE UNIT IT IS (2026-08-28, Sir on-device: "the side faces
+       need some work").
+
+       The tones were bound to the model: the a=0 end was always wallDk
+       and the a=w end always wallLt. Those ends point opposite ways on
+       opposite edges of a block, so the SAME physical orientation was
+       lit two different ways depending on which edge a unit sat on --
+       +x came out light on block edge 0 and dark on edge 2, +y light on
+       edge 1 and dark on edge 3. Neighbouring buildings around a corner
+       disagreed about where the sun was.
+
+       Culling means only two normals are ever drawn, +x and +y, so one
+       lookup covers the whole city: +x is the lit side, +y the shaded
+       one. Light from the right, fixed camera, no per-unit state. The
+       front elevation keeps C.wall either way -- it is the detailed
+       face and carries its own trim, so it reads as the front rather
+       than as a lit or shaded plane. */
+    const toneOf = nx => nx > 0 ? C.wallLt : C.wallDk;
+
     if(part !== 'roof'){
-      if(hasBack){
+      if(hasBack && showBack){
         const back = [G(a0,-D,H), G(a1,-D,H), G(a1,-D,0), G(a0,-D,0)];
-        this.quadOn(g, back, C.wallDk);
+        this.quadOn(g, back, toneOf(-rv.x));
       }
-      if(a0 === 0){
+      if(a0 === 0 && showLeft){
         const left = [G(0,qB,H), G(0,qF,H), G(0,qF,0), G(0,qB,0)];
-        this.quadOn(g, left, C.wallDk); this.edgeOn(g, left, C.trim, 1);
+        this.quadOn(g, left, toneOf(-dv.x)); this.wallOutline(g, left, C.trim, hasFront, hasBack);
       }
-      if(a1 >= w){
+      if(a1 >= w && showRight){
         const right = [G(w,qB,H), G(w,qF,H), G(w,qF,0), G(w,qB,0)];
-        this.quadOn(g, right, C.wallLt); this.edgeOn(g, right, C.trim, 1);
+        this.quadOn(g, right, toneOf(dv.x)); this.wallOutline(g, right, C.trim, hasFront, hasBack);
       }
     }
 
@@ -16837,8 +20637,10 @@ class WorldScene extends Phaser.Scene {
     if(part === 'roof') return;
     /* the whole front elevation -- face, base, trim, seams, windows,
        door -- lives on the frontage plane, so it belongs to the front
-       depth piece and to nothing else. */
-    if(!hasFront) return;
+       depth piece and to nothing else, and to nothing at all when that
+       plane faces away from the camera (see the cull note above: this
+       elevation drawing last was the see-through report). */
+    if(!hasFront || !showFront) return;
 
     const face = [G(a0,0.4,H), G(a1,0.4,H), G(a1,0.4,0), G(a0,0.4,0)];
     this.quadOn(g, face, C.wall);
@@ -16922,13 +20724,23 @@ class WorldScene extends Phaser.Scene {
     const hasBack = qF <= -D + 0.5;
     const hasFront = qB >= -0.5;
 
+    /* same cull as drawHouseUnit -- see its note. A shopfront is the
+       worst offender of the two: glass, awning and sign are the most
+       detailed elevation in the game, so a store fronting away from the
+       camera painted the loudest possible artifact over its own roof. */
+    const dvS = dv.x + dv.y, rvS = rv.x + rv.y;
+    const showFront = rvS > 0, showBack = !showFront;
+    const showRight = dvS > 0, showLeft = !showRight;
+
     if(part !== 'roof'){
-      if(hasBack){
+    /* same tone rule as drawHouseUnit -- see its note. */
+    const toneOf = nx => nx > 0 ? C.wallLt : C.wallDk;
+      if(hasBack && showBack){
         const back = [G(a0,-D,H), G(a1,-D,H), G(a1,-D,0), G(a0,-D,0)];
-        this.quadOn(g, back, C.wallDk);
+        this.quadOn(g, back, toneOf(-rv.x));
       }
-      if(isFirst && a0 === 0){ const l=[G(0,qB,H),G(0,qF,H),G(0,qF,0),G(0,qB,0)]; this.quadOn(g,l,C.wallDk); this.edgeOn(g,l,C.trim,1); }
-      if(isLast && a1 >= w){  const r=[G(w,qB,H),G(w,qF,H),G(w,qF,0),G(w,qB,0)]; this.quadOn(g,r,C.wallLt); this.edgeOn(g,r,C.trim,1); }
+      if(isFirst && a0 === 0 && showLeft){ const l=[G(0,qB,H),G(0,qF,H),G(0,qF,0),G(0,qB,0)]; this.quadOn(g,l,toneOf(-dv.x)); this.wallOutline(g,l,C.trim,hasFront,hasBack); }
+      if(isLast && a1 >= w && showRight){  const r=[G(w,qB,H),G(w,qF,H),G(w,qF,0),G(w,qB,0)]; this.quadOn(g,r,toneOf(dv.x)); this.wallOutline(g,r,C.trim,hasFront,hasBack); }
     }
 
     if(part !== 'body'){
@@ -16949,8 +20761,9 @@ class WorldScene extends Phaser.Scene {
 
     if(part === 'roof') return;
     /* the entire shopfront -- glass, kick, door, awning, sign -- is on
-       the frontage plane and belongs to the front depth piece alone. */
-    if(!hasFront) return;
+       the frontage plane and belongs to the front depth piece alone,
+       and is not drawn at all when that plane faces away (see cull). */
+    if(!hasFront || !showFront) return;
 
     const face = [G(a0,0.4,H), G(a1,0.4,H), G(a1,0.4,0), G(a0,0.4,0)];
     this.quadOn(g, face, C.wall);
@@ -17035,7 +20848,37 @@ class WorldScene extends Phaser.Scene {
      iso camera resolve which wall wins. Under that camera a block's SE
      corner shows the chamfer door head-on, NE/SW are edge-on, NW is
      roof-side -- the same reality every facade in the city lives with. */
-  drawCornerStoreUnit(g, ox, oy, dv, rv, w, seed, cornerAtStart, part='all', a0=0, a1=w){
+  drawCornerStoreUnit(g, ox, oy, dv, rv, w, seed, cornerAtStart, part='all', a0=0, a1=w, b0=null, b1=null){
+    /* THE DEPTH WINDOW, three weeks late (2026-08-28, Sir: "somthing
+       weve done with the other buidings is coliding with the art of the
+       corner house").
+
+       This function has not changed since it was written on 07 Aug --
+       verified by hashing it across all 400 commits that touch this
+       file. It broke anyway, because its NEIGHBOURS changed underneath
+       it. queueUnitStrips grew a depthSliceW parameter; every caller
+       passes T2 except queueCornerUnit, which passed nothing. With
+       STORE_DEPTH = T2*3 that left an ordinary store cut into THREE
+       depth pieces with three fine keys, and the corner store beside it
+       on ONE key describing a single point at mid-depth across its
+       whole 276-unit box.
+
+       That is precisely the condition a58ee167 was written to remove,
+       in its own words: one scalar per box cannot order boxes that
+       interpenetrate in depth, and the loser shows its windows and
+       walls through its neighbour. Houses and stores were fixed. The
+       corner store was left on the old model, pressed against
+       neighbours that now sort three times finer than it -- so it lost,
+       every time, at the one lot guaranteed to be seen from two
+       streets.
+
+       Same contract as drawHouseUnit's: qB is this piece's near edge
+       and qF its far one; hasFront/hasBack say whether this piece owns
+       the real elevations, which is what stops the facade being drawn
+       three times and the back wall appearing at every interior seam.
+       The chamfer spans b in [-CH, 0] and CH === T2 === the slice
+       width, so it falls entirely inside the front piece and rides
+       hasFront with the facade. */
     const rng = mulberry32(seed);
     const G = (a,b,h) => this.W(ox + dv.x*a + rv.x*b, oy + dv.y*a + rv.y*b, h);
     const cs = !!cornerAtStart;
@@ -17049,6 +20892,17 @@ class WorldScene extends Phaser.Scene {
     };
     const C = CORNER_STORE_PALETTES[Math.floor(rng()*CORNER_STORE_PALETTES.length)];
     const D = STORE_DEPTH, CH = CORNER_CHAMFER;
+    const qF = (b0 === null) ? -D : b0;
+    const qB = (b1 === null) ? 0 : b1;
+    const hasBack = qF <= -D + 0.5;
+    const hasFront = qB >= -0.5;
+    /* clip a b-range to this depth piece; returns null when the piece
+       owns none of it. b runs 0 at the street to -D into the block, so
+       `hi` is the street-side edge. */
+    const clipB = (lo, hi) => {
+      const l = Math.max(lo, qF), h2 = Math.min(hi, qB);
+      return (h2 - l < 0.5) ? null : [l, h2];
+    };
     /* same bottom-up height stack as drawStoreUnit, then a taller
        parapet -- the corner store reads as the block's anchor. rng
        calls stay unconditional per the slice contract. */
@@ -17081,15 +20935,41 @@ class WorldScene extends Phaser.Scene {
        actually sees, or the notch leaks lower walls through the roof. */
     const chamSum = ((cs ? -dv.x : dv.x) + rv.x) + ((cs ? -dv.y : dv.y) + rv.y);
     const chamAway = chamSum < -0.01, chamFront = chamSum > 0.01;
+    /* AND THE SAME TEST FOR THE FACADE (2026-08-28, Sir on-device:
+       "why is our corner building broken now?").
+
+       This function already reasoned about the fixed camera twice --
+       chamSum for the chamfer, flankVis for the corner-side flank --
+       but the facade itself, the long frontage carrying the parapet,
+       the full display-glass run, the awning and the sign band, was
+       drawn unconditionally and drawn LAST. On a corner whose frontage
+       points away from the camera that entire elevation painted over
+       its own roof and back wall.
+
+       drawHouseUnit and drawStoreUnit got this cull; this one is a
+       separate function and did not, which is why the corner store was
+       the last building still showing its shopfront through itself.
+       Same rule as theirs: the facade plane's outward normal is +rv,
+       and depth grows with x+y, so it faces the camera when rv sums
+       positive. The chamfer keeps its own chamSum gate -- the two
+       planes face different ways and each needs its own answer. */
+    const faceVis = (rv.x + rv.y) > 0.01;
     const fTop = chamAway ? 0 : -CH;   // corner flank's street-side extent
 
     if(part !== 'roof'){
-      /* back wall */
-      clipQU(0, w, -D, 0, H, C.wallDk);
-      /* far flank: plain cap against the neighbouring frontage */
+      /* back wall: the real rear elevation, so only the piece that owns
+         the back draws it -- otherwise it repeats at every interior
+         depth seam */
+      if(hasBack) clipQU(0, w, -D, 0, H, C.wallDk);
+      /* far flank: plain cap against the neighbouring frontage, clipped
+         to this piece's depth window */
       if(u1 >= w - 0.01){
-        const r = [Gu(w,0,H),Gu(w,-D,H),Gu(w,-D,0),Gu(w,0,0)];
-        this.quadOn(g, r, C.wallDk); this.edgeOn(g, r, C.trim, 1);
+        const fb = clipB(-D, 0);
+        if(fb){
+          const r = [Gu(w,fb[1],H),Gu(w,fb[0],H),Gu(w,fb[0],0),Gu(w,fb[1],0)];
+          this.quadOn(g, r, C.wallDk);
+          this.wallOutline(g, r, C.trim, fb[1] >= -0.01, fb[0] <= -D + 0.01);
+        }
       }
       /* corner-side flank faces the perpendicular STREET: a display
          wall, not a cap -- lit tone, kick strip, its own windows run
@@ -17101,19 +20981,79 @@ class WorldScene extends Phaser.Scene {
            for z >= H + |b| - D) and leak over the back wall otherwise.
            Same normal test as the chamfer; an away flank is a plain cap. */
         const flankVis = ((cs ? -dv.x : dv.x) + (cs ? -dv.y : dv.y)) > 0.01;
-        const f = [Gu(0,fTop,H),Gu(0,-D,H),Gu(0,-D,0),Gu(0,fTop,0)];
+        /* the flank runs the store's full depth, so it is the one
+           elevation that genuinely belongs to EVERY depth piece -- each
+           draws its own band of it, clipped to its window. */
+        const kb = clipB(-D, fTop);
+        if(!kb){ /* this piece owns none of the flank */ }
+        else {
+        const f = [Gu(0,kb[1],H),Gu(0,kb[0],H),Gu(0,kb[0],0),Gu(0,kb[1],0)];
+        /* the flank's real ends: the street end at fTop, the party end
+           at -D. Everything between is an interior depth seam. */
+        const fN = kb[1] >= fTop - 0.01, fF = kb[0] <= -D + 0.01;
         if(!flankVis){
-          this.quadOn(g, f, C.wallDk); this.edgeOn(g, f, C.trim, 1);
+          this.quadOn(g, f, C.wallDk); this.wallOutline(g, f, C.trim, fN, fF);
         } else {
-        this.quadOn(g, f, C.wallLt); this.edgeOn(g, f, C.trim, 1);
-        this.quadOn(g, [Gu(-0.4,fTop-2,kickH),Gu(-0.4,-D+2,kickH),Gu(-0.4,-D+2,0),Gu(-0.4,fTop-2,0)], C.wallDk);
-        const b0 = fTop-10, b1 = -D+10, span = b1-b0;
-        for(let i=0;i<sideWinN;i++){
-          const bc = b0 + span*(i+0.5)/sideWinN;
-          const wHW = Math.min(26, Math.abs(span)/(sideWinN*2)-6);
+        /* THE TRIM TURNS THE CORNER (2026-08-28, Sir on-device: "do you
+           see whats missing?" -- a shot of the parapet, awning and sign
+           running the facade, wrapping the chamfer, then stopping dead
+           at the chamfer's far edge with the perpendicular street face
+           left as bare wall and one lone window).
+
+           This flank already had a "display treatment", but it was only
+           half of one: lit tone, kick strip and windows. The three bands
+           that actually make a shopfront read as a shopfront -- parapet,
+           awning, sign -- were facade-only, so a corner store presented
+           a finished elevation to one street and an unfinished one to
+           the other. The corner store is the block's anchor and is the
+           one building guaranteed to be seen from both.
+
+           Every z band below is the SAME variable the facade uses
+           (H-8..H, awnZ0..awnZ1, signZ0..signZ1) rather than a new
+           constant, so the two elevations cannot drift apart: change
+           the height stack once and both follow. The b axis here plays
+           the role u plays on the facade, and outward is -u, which is
+           why the nudges are negative and the awning's lower lip steps
+           to -0.7 exactly as the facade's steps to +0.7. */
+        this.quadOn(g, f, C.wallLt); this.wallOutline(g, f, C.trim, fN, fF);
+        const kk = clipB(-D+2, fTop-2);
+        if(kk) this.quadOn(g, [Gu(-0.4,kk[1],kickH),Gu(-0.4,kk[0],kickH),Gu(-0.4,kk[0],0),Gu(-0.4,kk[1],0)], C.wallDk);
+        /* windows are laid out across the WHOLE flank, then each is
+           assigned to the piece holding its centre -- the same
+           whole-element-to-one-slice rule the frontage doors and
+           windows already use, so a pane is never cut in half at a
+           depth seam nor drawn twice at one. */
+        const bW0 = fTop-10, bW1 = -D+10, span = bW1-bW0;
+        /* window RUN, not one or two tokens: the flank is the store's
+           full depth, and sideWinN (1-2, the old count) left most of it
+           blank. Spacing is derived from the depth so the rhythm reads
+           the same on a shallow corner lot as a deep one; sideWinN is
+           still consumed for variation, keeping the rng stream and its
+           call order untouched. */
+        const winN = Math.max(sideWinN, Math.round(Math.abs(span) / 96));
+        for(let i=0;i<winN;i++){
+          const bc = bW0 + span*(i+0.5)/winN;
+          if(bc > qB || bc < qF) continue;          // belongs to another depth piece
+          const wHW = Math.min(26, Math.abs(span)/(winN*2)-6);
+          if(wHW <= 2) continue;
           this.quadOn(g, [Gu(-0.4,bc-wHW-2,winZ1+2),Gu(-0.4,bc+wHW+2,winZ1+2),Gu(-0.4,bc+wHW+2,winZ0),Gu(-0.4,bc-wHW-2,winZ0)], C.trim);
           this.quadOn(g, [Gu(-0.5,bc-wHW,winZ1),Gu(-0.5,bc+wHW,winZ1),Gu(-0.5,bc+wHW,winZ0+2),Gu(-0.5,bc-wHW,winZ0+2)], 0x6b93a8);
           this.quadOn(g, [Gu(-0.55,bc-wHW+2,winZ1-3),Gu(-0.55,bc-2,winZ1-3),Gu(-0.55,bc-2,winZ0+5),Gu(-0.55,bc-wHW+2,winZ0+5)], 0x86adc0, 0.55);
+        }
+        /* parapet band -- the cap the facade and chamfer already carry */
+        this.quadOn(g, [Gu(-0.42,kb[1],H),Gu(-0.42,kb[0],H),Gu(-0.42,kb[0],H-8),Gu(-0.42,kb[1],H-8)], C.trim);
+        /* awning: same canvas and the same outward step as the facade's */
+        this.quadOn(g, [Gu(-0.5,kb[1],awnZ1),Gu(-0.5,kb[0],awnZ1),Gu(-0.7,kb[0],awnZ0),Gu(-0.7,kb[1],awnZ0)], C.awn);
+        this.quadOn(g, [Gu(-0.45,kb[1],awnZ1+3),Gu(-0.45,kb[0],awnZ1+3),Gu(-0.45,kb[0],awnZ1),Gu(-0.45,kb[1],awnZ1)], C.trim);
+        /* sign band, inset from both ends like the facade's */
+        const sb = clipB(-D+4, fTop-4);
+        if(sb){
+          const sqF = [Gu(-0.44,sb[1],signZ1),Gu(-0.44,sb[0],signZ1),Gu(-0.44,sb[0],signZ0),Gu(-0.44,sb[1],signZ0)];
+          this.quadOn(g, sqF, C.sign);
+          g.lineStyle(1, C.trim, 1);
+          g.lineBetween(sqF[0].x,sqF[0].y,sqF[1].x,sqF[1].y);
+          g.lineBetween(sqF[3].x,sqF[3].y,sqF[2].x,sqF[2].y);
+        }
         }
         }
       }
@@ -17123,14 +21063,25 @@ class WorldScene extends Phaser.Scene {
       /* roof: the chamfer cuts the street corner off the slab. Street
          boundary bs(u) = min(0, u - CH); a slice straddling the kink
          splits into two exact quads instead of approximating it. */
+      /* street boundary, then clipped to this depth piece. The chamfer
+         kink only exists on the piece that owns the street edge; an
+         interior piece is a plain rectangle running qF..qB, which is
+         why bsC collapses to qB there and the two-quad split below
+         becomes a harmless no-op. */
       const bs = u => chamAway ? 0 : Math.min(0, u - CH);
+      const bsC = u => Math.min(bs(u), qB);
+      const rFar = Math.max(-D, qF);
       const roofQ = (q0, q1) => {
         if(q1 - q0 < 0.5) return;
-        const R = [Gu(q0,bs(q0),H), Gu(q1,bs(q1),H), Gu(q1,-D,H), Gu(q0,-D,H)];
+        if(bsC(q0) - rFar < 0.5 && bsC(q1) - rFar < 0.5) return;   // piece owns none of it
+        const R = [Gu(q0,bsC(q0),H), Gu(q1,bsC(q1),H), Gu(q1,rFar,H), Gu(q0,rFar,H)];
         this.quadOn(g, R, C.trim);
         g.lineStyle(1, C.wallDk, 1);
-        g.lineBetween(R[0].x,R[0].y,R[1].x,R[1].y);
-        g.lineBetween(R[3].x,R[3].y,R[2].x,R[2].y);
+        /* a lip only where the roof really ends -- same rule the house
+           and store roofs follow across depth, so no seam line is drawn
+           across the slab at an interior boundary */
+        if(hasFront) g.lineBetween(R[0].x,R[0].y,R[1].x,R[1].y);
+        if(hasBack)  g.lineBetween(R[3].x,R[3].y,R[2].x,R[2].y);
         if(q0 <= 0.01) g.lineBetween(R[0].x,R[0].y,R[3].x,R[3].y);
         if(q1 >= w - 0.01) g.lineBetween(R[1].x,R[1].y,R[2].x,R[2].y);
       };
@@ -17139,7 +21090,9 @@ class WorldScene extends Phaser.Scene {
     }
     if(part === 'roof') return;
 
-    /* facade proper: from the chamfer edge to the far flank */
+    /* facade proper: from the chamfer edge to the far flank. Skipped
+       whole when that plane faces away -- see faceVis above. */
+    if(faceVis && hasFront){
     clipQU(CH, w, 0.4, 0, H, C.wall);
     clipQU(CH, w, 0.42, H-8, H, C.trim);                 // parapet band
     clipQU(CH+1, w-2, 0.42, 0, kickH, C.wallDk);
@@ -17165,10 +21118,12 @@ class WorldScene extends Phaser.Scene {
       g.lineBetween(sq2[3].x,sq2[3].y,sq2[2].x,sq2[2].y);
     }
 
+    }
+
     /* ---------- the chamfer: wall, corner door, marquee ----------
        discrete elements, assigned whole to the slice holding the face
        centre (u = CH/2), the same assignment rule doors already use */
-    if(!chamAway && inU(CH*0.5)){
+    if(!chamAway && hasFront && inU(CH*0.5)){
       chamQ(0, L, 0, 0, H, C.wall);
       chamQ(0, L, 0.3, H-8, H, C.trim);                  // parapet wraps the corner
       chamQ(0, 7, 0.3, 0, H-8, C.trim);                  // pilasters at both chamfer edges
@@ -17678,6 +21633,9 @@ class WorldScene extends Phaser.Scene {
     end(near);
   }
 
+
+
+
   /* park/commercial scatter: real approved props (palm/planter), not
      lab placeholders — this.drawProp already handles both kinds.
      dv defaults to DIRV[0] for callers that don't care (commercial
@@ -18087,9 +22045,14 @@ class WorldScene extends Phaser.Scene {
        classic neighbourhood corner store -- with its chamfered door
        facing the intersection (drawCornerStoreUnit). cu.kind carries
        the "cornerStore" flag for future systems (names, unlocks). */
-    this.queueUnitStrips(vq, cu.ux, cu.uy, cu.e.dv, cu.e.rv, cu.w, STORE_DEPTH, 0, (g,t,a0,a1)=>{
-      this.drawCornerStoreUnit(g, cu.ux, cu.uy, cu.e.dv, cu.e.rv, cu.w, hseed, cu.atStart, 'body', a0, a1);
-      this.drawCornerStoreUnit(g, cu.ux, cu.uy, cu.e.dv, cu.e.rv, cu.w, hseed, cu.atStart, 'roof', a0, a1);
+    /* depthSliceW: THE omission this whole corner regression came from.
+       Every other caller of queueUnitStrips passes T2 here; this one
+       passed nothing, so the corner store stayed on one depth key per
+       frontage slice while the stores it abuts were cut into three.
+       See drawCornerStoreUnit's own note for the measurement. */
+    this.queueUnitStrips(vq, cu.ux, cu.uy, cu.e.dv, cu.e.rv, cu.w, STORE_DEPTH, 0, (g,t,a0,a1,b0,b1)=>{
+      this.drawCornerStoreUnit(g, cu.ux, cu.uy, cu.e.dv, cu.e.rv, cu.w, hseed, cu.atStart, 'body', a0, a1, b0, b1);
+      this.drawCornerStoreUnit(g, cu.ux, cu.uy, cu.e.dv, cu.e.rv, cu.w, hseed, cu.atStart, 'roof', a0, a1, b0, b1);
     });
   }
   queueHousingBlock(vq, blk, excludeEdges=null, cornerSkip=null){
@@ -18142,6 +22105,70 @@ class WorldScene extends Phaser.Scene {
       this.queueCommercialEdgeAt(vq, e, isPickupBlock && idx === this.route.pickupEdgeIdx, cornerSkip);
     });
     for(const cu of this.liveCornerUnits(blk, excludeEdges)) this.queueCornerUnit(vq, blk, cu);
+    /* THE HOME DEPOT sits on one corner of one commercial block. Drawn
+       through LIB like the park landmarks, but off a CORNER frame rather
+       than a park component's north-west corner: ux/uy is the lot's own
+       origin, dv runs along the edge and -rv runs into the block, which
+       is what the entry's lab `b` means. */
+    /* the grid lives on the ROUTE, not on the scene -- parkLandmarkAt
+       reads `this.route && this.route.grid` for exactly this reason, and
+       this.grid is undefined. */
+    const _dg = this.route && this.route.grid;
+    const _lot = _dg ? depotOnBlock(_dg, blk) : null;
+    if(_lot){
+      const cu = _lot.cu, map0 = depotMap.call(this, cu);
+      /* this depot's own door, set on the shared LIB state before every
+         part it draws */
+      const map = map0, doorOf = () => (this._doorTs && this._doorTs.has(_lot.key)) ? this._doorTs.get(_lot.key) : 0;
+      const LIBDRAW = (g, part) => { LIB.setDoor(doorOf()); return LIB.draw('Charge depot', g, map, null, this.K, part); };
+      /* nearer the camera is larger x + y, so a lab axis faces the eye
+         when a step along it grows x + y -- the entry asks P() the same */
+      const key = (a, b) => { const q = depotWorld(cu, a, b); return q.x + q.y; };
+      const k0 = key(0, 0), seeA = key(1, 0) > k0, seeB = key(0, 1) > k0;
+      const _G = depotGeom(), W0 = _G.WW, D0 = _G.DD, C0 = _G.CW;
+      const strips = (lo, hi, fnKey, part) => {
+        const n = Math.max(1, Math.ceil((hi - lo) / TILE));
+        for(let i = 0; i < n; i++){
+          const s0 = lo + (hi-lo)*i/n, s1 = i === n-1 ? hi : lo + (hi-lo)*(i+1)/n;
+          /* the window laps its neighbours by 2: abutting fills leave a
+             hairline the ground shows through (0.75 still left one at
+             K 0.55, measured), and the lap is the same colour on the
+             same plane, clamped to the wall's own ends by the entry */
+          vq.push({ depth: fnKey((s0+s1)/2), fn: (g) =>
+            LIBDRAW(g, { part, w:[s0 - 2, s1 + 2] }) });
+        }
+      };
+      if(depotStreetView(cu)){
+        /* STREET VIEW, and he starts inside. Four keys, each exact for
+           the plane it stands on (see the entry's PARTS note):
+             room   behind the room's far corner, so anything in the room
+                    draws over its floor, walls and chargers
+             front  and flank as TILE strips on their own planes, like
+                    the back view's walls
+             door   on the chamfer line: x + y is constant along a 45
+                    face, so inside (a + b < WW - CW) sorts before the
+                    jambs and outside after, with no window at all */
+        const part = (p) => (g) => LIBDRAW(g, { part: p });
+        vq.push({ depth: key(_G.ROOM.a0, _G.ROOM.b0) - 1, fn: part('room') });
+        strips(0, W0 - C0, (a) => key(a, 0), 'front');
+        strips(-D0, -C0, (b) => key(W0, b), 'flank');
+        vq.push({ depth: key(W0 - C0, 0) + 0.5, fn: part('door') });
+      } else {
+        /* FROM BEHIND, the building is two walls and a lid, and he can
+           be INSIDE it -- the pad is 78 off the back wall. One whole-unit
+           key cannot put him behind the walls and a palm in front of them
+           at once, so the walls queue as fence-style TILE strips keyed on
+           their own plane (misorder window TILE/4 of contact distance),
+           and the roof at the footprint's nearest corner: nothing on the
+           ground near it stands taller than the walls it sits on. */
+        const aw = seeA ? W0 : 0, bw = seeB ? 0 : -D0;
+        strips(-D0, seeA ? -C0 : 0, (b) => key(aw, b), 'wallA');
+        strips(0, seeB ? W0 - C0 : W0, (a) => key(a, bw), 'wallB');
+        const roofK = Math.max(key(0,0), key(W0-C0,0), key(W0,-C0), key(W0,-D0), key(0,-D0)) + 1;
+        vq.push({ depth: roofK, fn: (g) =>
+          LIBDRAW(g, { part:'roof' }) });
+      }
+    }
     /* Commercial interior fill (1-2 free-standing "plaza" buildings in
        the middle of every commercial block) is OFF citywide -- 2026-08-12,
        Sir's call, it didn't read well on-device. The generator it used
@@ -18155,7 +22182,13 @@ class WorldScene extends Phaser.Scene {
     /* scatter now dodges the interior footprints: same seed and call
        order as before, each piece just re-rolls (bounded) until it
        lands clear -- deterministic per block, retries included */
-    const clear = (x,y) => !interior.some(rc => x > rc.x0-30 && x < rc.x1+30 && y > rc.y0-30 && y < rc.y1+30);
+    /* and off the depot's lot, with room round it: its room is seen
+       through the door, so a bin rolled onto the lot either stands
+       inside the building mass or shows through the opening */
+    const onDepot = (x,y) => { if(!_lot) return false; const p = depotLabXY(_lot, x, y);
+      return p.a > -60 && p.a < depotGeom().WW + 60 && p.b > -depotGeom().DD - 60; };
+    const clear = (x,y) => !interior.some(rc => x > rc.x0-30 && x < rc.x1+30 && y > rc.y0-30 && y < rc.y1+30)
+                           && !onDepot(x, y);
     const roll = () => {
       for(let tr = 0; tr < 6; tr++){
         const x = blk.x0 + rng()*(blk.x1-blk.x0), y = blk.y0 + rng()*(blk.y1-blk.y0);
@@ -18176,7 +22209,86 @@ class WorldScene extends Phaser.Scene {
     this.queueStreetFurniture(vq, blk, excludeEdges);
   }
 
+  /* ---------- PARK LANDMARKS ----------
+     Which park component, if any, a block belongs to as a landmark, and
+     where that component starts. Built once per grid and cached on it.
+
+     THE NAME IS THE HANDLE, and parkNameTable already provides it: it
+     walks the park blocks into connected components, picks each a
+     stable anchor -- min-j then min-i -- and deals it a name from the
+     hood's pool. So "is this block part of Gantry Commons" is a lookup
+     the game already knows how to answer, and the anchor it picks is
+     the same cell every run.
+
+     Measured before wiring: on buildGrid(36, 27, hashStr("2026-08-09"))
+     Gantry Commons is nine cells in a staircase, which is what the
+     entry in the library was drawn to. If the component ever comes out
+     a different shape the entry has to be regenerated from it -- the
+     CELLS list inside it is a literal, and that is the one place this
+     graft can silently disagree with the ground. */
+  parkLandmarkIndex(grid){
+    if(grid._parkLandmarks) return grid._parkLandmarks;
+    const tbl = parkNameTable(grid), byName = new Map();
+    for(const blk of (grid.blocks || [])){
+      if(blk.type !== "park") continue;
+      const nm = tbl.get(Math.round(blk.cx) + "," + Math.round(blk.cy));
+      const lm = PARK_LANDMARKS[nm];
+      if(!lm || !LIB.get(lm.shop)) continue;
+      if(!byName.has(nm)) byName.set(nm, []);
+      byName.get(nm).push(blk);
+    }
+    const out = new Map();
+    for(const [nm, cells] of byName){
+      const anchor = cells.reduce((a, c) => (c.j < a.j || (c.j === a.j && c.i < a.i)) ? c : a);
+      /* THE ORIGIN IS THE BLOCK'S, NOT ITS INTERIOR'S. blk.x0 is where
+         the buildable ground starts -- i*BLOCK + ROAD_HALF*2 -- and the
+         entry's own cell grid counts from the block ORIGIN and insets
+         the road itself. Anchoring on x0 put the graveyard one road
+         width off in both axes, which on a first look reads as "it did
+         not draw" because you are standing in the notch. */
+      let x0 = Infinity, y0 = Infinity;
+      for(const c of cells){ if(c.x0 < x0) x0 = c.x0; if(c.y0 < y0) y0 = c.y0; }
+      x0 -= ROAD_HALF * 2; y0 -= ROAD_HALF * 2;
+      for(const c of cells)
+        out.set(c.i + "," + c.j, { name: PARK_LANDMARKS[nm].shop, anchor: c === anchor, x0, y0 });
+    }
+    grid._parkLandmarks = out;
+    return out;
+  }
+  parkLandmarkAt(blk){
+    const g = this.route && this.route.grid;
+    if(!g || blk.i === undefined) return null;
+    return this.parkLandmarkIndex(g).get(blk.i + "," + blk.j) || null;
+  }
+
   queueParkBlock(vq, blk){
+    /* ---- THE LANDMARK CHECK, FIRST ----
+       A park that carries a landmark is not a park with something on
+       it: the library entry draws its own ground, walks, railing and
+       gates, so the park's grass, frontage furniture and scatter must
+       all stand down. Anything else and two sets of ground fight over
+       the same cells.
+
+       IT RUNS ONCE PER COMPONENT, NOT ONCE PER BLOCK. queueParkBlock is
+       called for every cell; the railing and the chapel are properties
+       of the whole nine-cell shape. So the anchor cell draws the lot
+       and the other eight draw nothing at all -- which is also what
+       keeps the stone count at two hundred rather than eighteen
+       hundred.
+
+       THE FRAME COMES FROM THE COMPONENT, NOT FROM A LITERAL. The
+       entry's own CELLS list is normalised to its own origin; the
+       anchor here is the component's real north-west corner, so the
+       graveyard and the ground under it cannot drift apart if worldgen
+       reshapes the park. */
+    const lm = this.parkLandmarkAt(blk);
+    if(lm){
+      if(!lm.anchor) return;                  // a member cell: draw nothing
+      const x0 = lm.x0, y0 = lm.y0;
+      vq.push({ depth: (blk.x0 + blk.y0), fn: (g) =>
+        LIB.draw(lm.name, g, (a, b, h) => this.W(x0 + a, y0 - b, h), null, this.K) });
+      return;
+    }
     /* FRONTAGE FIRST, ABOVE THE SCATTER GUARD. This call used to sit at
        the BOTTOM of the method, below the WORLD_SCATTER return -- so
        with scatter swept off, a park bailed on line two and its
@@ -18372,9 +22484,31 @@ class WorldScene extends Phaser.Scene {
      slabs and cracks -- where a single centre point flips the layer as
      the robot sweeps past and paints the ground over him. */
   propLayer(g, x, y){
-    if(!(this.ow && this.ow.on)) return g;
-    return (x + y > this.botX + this.botY + 14) ? this.gFront : g;
+    /* ONE LAYER now -- see layerFor in drawWorld and the note in
+       drawRobot. The history is worth keeping because it cost three
+       passes to get here:
+
+       This began as a near/far test against the robot, gated to open
+       world only. On the rail that gate meant every building landed in
+       gWorld, the layer BELOW the one the robot drew into, so nothing
+       was solid: measured, ten units out of ten came back gWorld on the
+       rail against twelve out of twelve correct in free roam.
+
+       Deleting the gate fixed that and broke the corner store, because
+       gFront composites above gWorld AS A WHOLE and this test ran ONCE
+       PER UNIT: two storefronts that abut sit either side of the
+       robot's depth line whenever he stands at the join, so one painted
+       its side wall over the other. Measured: 0 torn pairs with the
+       gate, 16 without.
+
+       Neither answer was available because the question was wrong. A
+       binary split cannot describe a building that is partly in front
+       of the robot and partly behind him, and every building he stands
+       beside is exactly that. Putting him in the world's depth sort
+       deletes the question. */
+    return g;
   }
+
   /* ---------- PERMANENT CITY FURNITURE: DRAWN BY ITS OWN BLOCK ----------
      This queues into the BLOCK's vq, not into hazVQ, and that placement
      is the whole point rather than a detail.
@@ -19147,56 +23281,41 @@ class WorldScene extends Phaser.Scene {
       POLICE_UNIFORM.shirt, POLICE_UNIFORM.pants, hair, POLICE_UNIFORM.shoe,
       0, false, 0, liftT, null, POLICE_UNIFORM);
   }
-
-
-  /* the station's own geometry: hull idiom, orientation transform, one
-     draw. Called from the hazard queue (see drawWorld) so it lands after
-     every building and picks its layer per object the way every other
-     prop does -- which is the whole reason this could not be finished in
-     the bench, where neither reachable layer is both. */
-  drawChargeStation(g, st, t){
-    const cs = Math.cos(st.a), sn = Math.sin(st.a), K = this.K, P = CHARGE_PAL;
-    const W = (a, b, h) => this.W(st.x + a*cs - b*sn, st.y + a*sn + b*cs, h);
-    const o = W(0, 0, 0);
-
-    g.fillStyle(P.shadow, 0.16);
-    g.fillEllipse(o.x, o.y + 3, CHARGE.padR*2.1*K, CHARGE.padR*1.05*K);
-    g.fillStyle(P.padDk, 1);
-    g.fillEllipse(o.x, o.y + 1, CHARGE.padR*2*K, CHARGE.padR*1.0*K);
-    g.fillStyle(P.ring, 0.92);
-    g.fillEllipse(o.x, o.y, CHARGE.padR*2*K, CHARGE.padR*1.0*K);
-    g.fillStyle(P.pad, 1);
-    g.fillEllipse(o.x, o.y, (CHARGE.padR - CHARGE.ringW)*2*K, (CHARGE.padR - CHARGE.ringW)*1.0*K);
-
-    const bx = -CHARGE.padR*CHARGE.poleAt;
-    const box = (x0, x1, y0, y1, z0, z1, top, side) => {
-      const pts = [[x0,y0],[x1,y0],[x1,y1],[x0,y1]].map(p => W(p[0], p[1], z1));
-      g.fillStyle(top, 1);
-      g.beginPath(); g.moveTo(pts[0].x, pts[0].y);
-      for(let i = 1; i < 4; i++) g.lineTo(pts[i].x, pts[i].y);
-      g.closePath(); g.fillPath();
-      g.fillStyle(side, 1);
-      for(const pair of [[[x1,y0],[x1,y1]], [[x0,y1],[x1,y1]]]){
-        const lo = pair.map(p => W(p[0], p[1], z0));
-        const hi = pair.map(p => W(p[0], p[1], z1));
-        g.beginPath(); g.moveTo(hi[0].x, hi[0].y); g.lineTo(hi[1].x, hi[1].y);
-        g.lineTo(lo[1].x, lo[1].y); g.lineTo(lo[0].x, lo[0].y);
-        g.closePath(); g.fillPath();
-      }
-    };
-    const hw = CHARGE.poleW/2, hh = CHARGE.headW/2;
-    box(bx-hw, bx+hw, -hw, hw, 0, CHARGE.poleH, P.pole, P.poleDk);
-    box(bx-hh, bx+hh, -hh, hh, CHARGE.poleH, CHARGE.poleH + CHARGE.headH, P.head, P.headDk);
-
-    /* the indicator breathes: a charger doing nothing still reads live */
-    const u = (Math.sin(t / CHARGE.pulseMs * Math.PI*2) + 1) / 2;
-    const gp = W(bx, -hh, CHARGE.poleH + CHARGE.headH*0.55);
-    g.fillStyle(P.glow, 0.30 + 0.25*u);
-    g.fillCircle(gp.x, gp.y, CHARGE.glowR*2.1*K);
-    g.fillStyle(P.glowHot, 0.75 + 0.25*u);
-    g.fillCircle(gp.x, gp.y, CHARGE.glowR*K);
-  }
   drawProp(g, kind, x, y, t, fdir = 0, z = 0, wheelPhase = null, colorSeed = null, data = null){
+    /* X-RAY FOR PROPS (2026-08-28, Sir: same effect for property hidden
+       by the houses). Hooked HERE rather than at the queue sites
+       because there are a dozen of those -- blockVQ, topLayer, the
+       scatter passes, the perimeter lots -- and drawProp is the single
+       funnel every one of them goes through. One edit, every prop.
+
+       CACHED, and permanently: this camera does not rotate, and both
+       the prop and the buildings are static, so whether a bin is
+       behind a wall is a property of the route and not of the frame.
+       Computing it once per prop position turns a per-frame ray march
+       over ~244 visible pieces into a map lookup. Cleared by
+       loadRoute, since a new route is a new city. */
+    if(XRAY.propMax > 0 && !this._xrayCap && !this._xrayInProp && this._visBlocks){
+      const key = kind + "|" + Math.round(x) + "," + Math.round(y);
+      let hid = this._xrayPropCache.get(key);
+      if(hid === undefined){
+        hid = this.xrayCoverageAt(x, y, XRAY.propZ, this._visBlocks, this._visLots, XRAY.propFan) > 0;
+        this._xrayPropCache.set(key, hid);
+      }
+      if(hid){
+        const qp = this.quadOn;
+        this.quadOn = (gg, pts, col, aa) => {
+          qp.call(this, gg, pts, col, aa);
+          qp.call(this, this.gXProp, pts, XRAY.col, XRAY.propMax);
+        };
+        /* re-entry guard: the recursive call must fall THROUGH this
+           block to the real body, or it re-tests, re-wraps and never
+           terminates. */
+        this._xrayInProp = true;
+        try {
+          return this.drawProp(g, kind, x, y, t, fdir, z, wheelPhase, colorSeed, data);
+        } finally { delete this.quadOn; this._xrayInProp = false; }
+      }
+    }
     /* fdir may now be CONTINUOUS (a float, in quarter-turn units) --
        moving traffic passes its real heading so a car rotates smoothly
        through a corner instead of popping 90 degrees at the arc
@@ -19242,6 +23361,7 @@ class WorldScene extends Phaser.Scene {
         }
       }
       const crown = spine[SEG];
+      const XG = this.xrayGhost();
       const fronds = [];
       for(let i=0; i<P.fronds; i++){
         const baseA = (i/P.fronds)*Math.PI*2 + rng()*0.25;
@@ -19264,17 +23384,32 @@ class WorldScene extends Phaser.Scene {
           const tx2 = nx - px, ty2 = ny - py;
           const tl = Math.hypot(tx2, ty2) || 1;
           const pxn = -ty2/tl, pyn = tx2/tl;
+          /* leaf corners hoisted so the x-ray mirror below draws the
+             SAME two triangles rather than a second copy of the
+             arithmetic that could drift from it */
+          const ax = px + pxn*lw + tx2*0.3, ay = py + pyn*lw + ty2*0.3;
+          const bx = px - pxn*lw + tx2*0.3, by = py - pyn*lw + ty2*0.3;
           g.fillStyle(color, 1);
-          g.fillTriangle(px, py, nx, ny, px + pxn*lw + tx2*0.3, py + pyn*lw + ty2*0.3);
-          g.fillTriangle(px, py, nx, ny, px - pxn*lw + tx2*0.3, py - pyn*lw + ty2*0.3);
+          g.fillTriangle(px, py, nx, ny, ax, ay);
+          g.fillTriangle(px, py, nx, ny, bx, by);
+          /* X-RAY: fronds are fillTriangle, the trunk is quadOn. Only
+             the trunk was reaching the ghost, so an occluded palm read
+             as a bare teal post with no head on it (Sir on-device). */
+          if(XG){
+            XG.g.fillStyle(XRAY.col, XG.a);
+            XG.g.fillTriangle(px, py, nx, ny, ax, ay);
+            XG.g.fillTriangle(px, py, nx, ny, bx, by);
+          }
           px = nx; py = ny;
         }
       };
       for(const f2 of fronds) if(f2.back) drawFrond(f2, P.frondB);
       for(let i=0; i<3; i++){
         const a3 = phase + i*2.1;
+        const ccx = crown.x + Math.cos(a3)*6*K, ccy = crown.y + 4*K + Math.sin(a3)*3*K;
         g.fillStyle(i === 1 ? P.cocoHi : P.coco, 1);
-        g.fillCircle(crown.x + Math.cos(a3)*6*K, crown.y + 4*K + Math.sin(a3)*3*K, 4.2*K);
+        g.fillCircle(ccx, ccy, 4.2*K);
+        if(XG){ XG.g.fillStyle(XRAY.col, XG.a); XG.g.fillCircle(ccx, ccy, 4.2*K); }
       }
       for(const f2 of fronds) if(!f2.back) drawFrond(f2, P.frondA);
     } else if(kind === "scooter"){
@@ -21986,7 +26121,22 @@ class WorldScene extends Phaser.Scene {
 
   /* ---------- robot (approved sprite, driving) ---------- */
   drawRobot(t, dt){
-    const g = this.g; g.clear();
+    /* DRAWS INTO THE WORLD LAYER, FROM INSIDE THE WORLD'S OWN DEPTH SORT
+       (2026-08-28). He used to own this.g and clear it, drawing as a
+       whole pass after drawWorld() had finished -- which is precisely
+       why gFront had to exist: a layer above him to claw back the
+       things that should have been in front. That split could never be
+       right, because it decided ONCE PER BUILDING which side of him a
+       building was on, and a building he stands beside is partly in
+       front of him and partly behind. See propLayer for the two ways
+       that failed and the measurements for each.
+
+       Now he is one more body in worldVQ, keyed at botX+botY like
+       everything else, so a wall in front of him draws after him and
+       covers him because it genuinely is in front. No clear() here:
+       gWorld is cleared once at the top of drawWorld, and clearing it
+       mid-sort would erase every body already drawn. */
+    const g = this.g;   // === gWorld; see the alias in create()
 
     /* house door hinge: opens once the route is won, and swings shut
        again once the customer is carrying the bag back through it
@@ -24244,13 +28394,14 @@ class WorldScene extends Phaser.Scene {
       }
 
       /* stuck on a trunk: wheels churn, robot rattles, dignity evaporates */
-      /* THE "?!" GATE. throttle === 1 is the RAIL asking "is the player
-         holding go"; free roam sets scene.throttle = 0 every step on
-         purpose, so on the open map isBlocked was true and the bubble
-         could never fire. owPush is free roam's answer to the same
-         question, and owCurbStop is owStep's own blocked flag -- kept
-         separate from isBlocked because drawRobot clears that one at
-         the top of its hazard section, after owStep has run. */
+      /* THE "?!" CAME BACK BY FIXING ITS GATE, not by adding a second
+         one. throttle === 1 is the RAIL's "player is holding go"; free
+         roam sets scene.throttle = 0 every step on purpose (the pointer
+         handler that used to set it read screen halves, which is where
+         the stick now lives), so on the open map isBlocked was true and
+         the bubble could never fire. owPush is free roam's answer to
+         the same question -- is the player actually asking to move --
+         so either one counts. */
       const stuckTarget = ((this.isBlocked || this.owCurbStop) && (this.throttle === 1 || this.owPush)) ? 1 : 0;
       this.stuckAmt = Phaser.Math.Linear(this.stuckAmt, stuckTarget, stuckTarget ? 0.12 : 0.1);
       if(this.stuckAmt > 0.05)
@@ -24387,6 +28538,8 @@ class WorldScene extends Phaser.Scene {
       /* NAV. Replot on its own throttle and fire the moment the mat
          says ARMED. Sits inside the same play gate as everything else
          here so a paused or crashed robot cannot arrive anywhere. */
+      battTick(this, dt);
+      if(this.state !== "play") return;   // the battery just died
       if(gpsNav){
         gpsNavReplot(this);
         if(gpsNavArrived(this)){ gpsNavLaunch(this); return; }
@@ -24761,7 +28914,18 @@ class WorldScene extends Phaser.Scene {
       const a=(i/14)*Math.PI*2;
       sh.push(this.P(Math.cos(a)*34, -this.tipT*26*(this.tipDir||1) + Math.sin(a)*(30 + this.tipT*26), 0.5));
     }
+    /* EXCLUDED FROM THE X-RAY GHOST. This goes through quadOn like
+       every other robot part, so the silhouette wrap in drawWorld's
+       flush was stamping it -- putting a flat teal disc of his shadow
+       ring on the ground inside the ghost, which reads as a puddle and
+       not as a robot. The ghost is meant to be the BODY seen through a
+       wall; a shadow is cast on the ground the wall is standing on, so
+       it belongs to the world, not to him. Explicit flag rather than
+       testing col === SKIN.shadow, because that colour is plain black
+       and other parts are free to use it. */
+    this._xraySkip = true;
     this.quadOn(g, sh, SKIN.shadow, 0.16);
+    this._xraySkip = false;
     this.pitch = sp; this.roll = srl;
 
     /* spilled cargo lies in the world, behind the robot */
@@ -25878,18 +30042,43 @@ class WorldScene extends Phaser.Scene {
        already scaled the point positions, so without kScale() the
        pennant keeps its full size on a robot a fifth as big. */
     const ks = this.kScale();
-    g.lineStyle(Math.max(1, 3*ks), SKIN.flagPole, 1);
-    g.beginPath();
-    g.moveTo(pts[0].x, pts[0].y);
-    for(let i=1; i<=seg; i++) g.lineTo(pts[i].x, pts[i].y);
-    g.strokePath();
+    const poleW = Math.max(1, 3*ks);
     const p = pts[seg], q = pts[seg-1];
     let dx = p.x - q.x, dy = p.y - q.y;
     const dl = Math.hypot(dx, dy) || 1; dx /= dl; dy /= dl;
+    /* pennant corners hoisted out of the fill call so the x-ray mirror
+       below draws the SAME triangle rather than a second copy of the
+       arithmetic that could drift from it */
+    const t1x = p.x,                  t1y = p.y;
+    const t2x = p.x - dy*11*ks,       t2y = p.y + dx*11*ks;
+    const t3x = p.x + dx*20*ks,       t3y = p.y + dy*20*ks + 4*ks;
+
+    const stroke = (gg, col) => {
+      gg.lineStyle(poleW, col, 1);
+      gg.beginPath();
+      gg.moveTo(pts[0].x, pts[0].y);
+      for(let i=1; i<=seg; i++) gg.lineTo(pts[i].x, pts[i].y);
+      gg.strokePath();
+    };
+
+    stroke(g, SKIN.flagPole);
     g.fillStyle(SKIN.flag, 1);
-    g.fillTriangle(p.x, p.y,
-                   p.x - dy*11*ks, p.y + dx*11*ks,
-                   p.x + dx*20*ks, p.y + dy*20*ks + 4*ks);
+    g.fillTriangle(t1x, t1y, t2x, t2y, t3x, t3y);
+
+    /* X-RAY: the pole is a strokePath and the pennant a fillTriangle --
+       neither goes through quadOn, so the silhouette wrap in
+       drawWorld's flush never saw them and he lost his flag the moment
+       he went behind a wall (Sir on-device: "we dont see tipsey's flag
+       in the effect"). Mirrored explicitly here rather than by widening
+       the wrap: quadOn is the one primitive every OTHER part shares,
+       and wrapping Graphics' whole API to catch two calls would put a
+       tax on every fill in the frame. */
+    const XG = this.xrayGhost();
+    if(XG){
+      stroke(XG.g, XRAY.col);
+      XG.g.fillStyle(XRAY.col, XG.a);
+      XG.g.fillTriangle(t1x, t1y, t2x, t2y, t3x, t3y);
+    }
   }
 
   /* ---------- THE WILLIAM: TAIL OF THE TIMELINE ----------
@@ -26415,8 +30604,16 @@ class WorldScene extends Phaser.Scene {
     this.updateWilliamIdle(t);
     this.updateCrimeTraffic(t, dt);
     this.updateCrimeTape(t);
+    /* dt stashed for drawRobot, which drawWorld now calls from inside
+       its depth sort (drawWorld takes t only). Written here, before the
+       draw, for the same reason the note above this block gives about
+       postupdate writes landing on a frame already drawn. */
+    this._frameDt = dt;
     this.drawWorld(t);
-    this.drawRobot(t, dt);
+    /* drawRobot is NOT called here any more -- he is queued into
+       worldVQ at his own depth and drawn in sort order with every other
+       body. Calling him here as well would draw him twice, the second
+       time over the walls that had just correctly covered him. */
     this.drawHUD();
     if(this.mode === "challenge") hjUpdateMeter(this);
   }
@@ -26495,6 +30692,7 @@ class WorldScene extends Phaser.Scene {
        this is the second one. tpMapUp asks directly. */
     const zb = document.getElementById("zoomBtn");
     if(zb) zb.classList.toggle("hidden", tpMapUp() || this.attract || this.state !== "play");
+    battSyncHud(this);
     if(this.attract) return;
     const g = this.hud; g.clear();
     /* The tilt gauge, the cargo-condition bar and the GPS turn strip are
@@ -26597,7 +30795,7 @@ class WorldScene extends Phaser.Scene {
            gpsNav, so the chevron stays hidden for them. */
         turnText = nt.dist < 20
           ? verb
-          : `${verb} in ${Math.round(nt.dist*FT_PER_UNIT/10)*10} ft`;
+          : `${verb} in ${tpDistText(nt.dist)}`;
         /* WRONG WAY GETS SAID, NOT IMPLIED (2026-08-27, revised the same
            day after Sir on-device: "the directions didn't seem to notice
            if i was driving the wrong way during the daily route").
@@ -26649,7 +30847,7 @@ class WorldScene extends Phaser.Scene {
         const arrow = nextTurn.sign > 0 ? "→" : "←";
         turnText = distToTurn < 20
           ? `${arrow} Turn ${dir}`
-          : `${arrow} Turn ${dir} in ${Math.round(distToTurn*FT_PER_UNIT/10)*10} ft`;
+          : `${arrow} Turn ${dir} in ${tpDistText(distToTurn)}`;
       } else {
         /* Final approach: name the ADDRESS. "Straight ahead to drop-off"
            told the driver nothing they could act on, and this is the one
@@ -31212,11 +35410,31 @@ function parkNameTable(grid){
   grid._parkNames = table;
   return table;
 }
-function mapParkName(cx, cy, route){
+function mapParkRaw(cx, cy, route){
   const g = route && route.grid;
   if(!g) return hoodAtWorld(cx, cy).parks[0];
   return parkNameTable(g).get(Math.round(cx) + "," + Math.round(cy))
       || hoodAtWorld(cx, cy).parks[0];
+}
+/* the name the MAP shows. A component carrying a landmark shows the
+   landmark's name; everything else is the park's own. Both the map and
+   the minimap go through here, and so does the search index, so a place
+   cannot be called one thing in one of them and another elsewhere. */
+function mapParkName(cx, cy, route){
+  const raw = mapParkRaw(cx, cy, route), lm = PARK_LANDMARKS[raw];
+  return (lm && lm.mapName) || raw;
+}
+/* the pin: glyph and colour, defaulting to the park tree. */
+function mapParkIcon(cx, cy, route){
+  const lm = PARK_LANDMARKS[mapParkRaw(cx, cy, route)];
+  return { icon: (lm && lm.icon) || "\u{1F333}", pin: (lm && lm.pin) || "#3f7a4a" };
+}
+/* and the search kind, which defaults to the park. Same shape as the two
+   above and for the same reason: a place must not be one thing on the
+   map and another in search. */
+function mapParkKind(cx, cy, route){
+  const lm = PARK_LANDMARKS[mapParkRaw(cx, cy, route)];
+  return (lm && lm.kind) || "park";
 }
 /* the coast geometry's shared fractions — drawWorld's terrain pass and
    the landmark index both read THIS table, so a landmark can never
@@ -32471,6 +36689,10 @@ function tpFreePlay(fromX, fromY){
   hide("failOverlay"); hide("winOverlay"); hide("titleOverlay");
   collapseSheet();
   const s = scn(); if(!s) return;
+  /* WHERE HE WAS, taken BEFORE loadRoute: the reload stands him on the
+     home pad, so a caller with no point of its own (Retry, Maybe later)
+     used to ask for the pad nearest HOME and always got home. */
+  const wasX = s.botX, wasY = s.botY;
   { if(s.attractStop) s.attractStop(); s.attract = false; }
   /* WHOEVER SETS AN ERRAND CLEARS THE LAST ONE (2026-08-26). gpsNav was
      cleared in exactly one place -- gpsNavLaunch, on arrival -- so every
@@ -32489,8 +36711,12 @@ function tpFreePlay(fromX, fromY){
      him back on the pickup spot, so without this every return from a
      mission drops him at a shop door again. */
   owPlaceOnPad(s,
-    (typeof fromX === "number") ? fromX : s.botX,
-    (typeof fromY === "number") ? fromY : s.botY);
+    (typeof fromX === "number") ? fromX : wasX,
+    (typeof fromY === "number") ? fromY : wasY);
+  /* and the home spawn hold must not take him back: loadRoute above set
+     runT to 0, which re-arms it (see _homeHoldOff at the hold). Boot
+     never comes through here, so it keeps its home spawn. */
+  s._homeHoldOff = true;
 }
 if(typeof window !== "undefined") window.tpFreePlay = tpFreePlay;
 
@@ -32668,20 +36894,34 @@ function tpMapIndex(route){
      walked g2.blocks, and extLots are not in it), so 40 named parks were
      undiscoverable by search; they are in now. */
   const parkRows = new Map();
-  const addPark = (nm, x, y) => {
+  const addPark = (nm, kd, x, y) => {
     const r = parkRows.get(nm);
     if(r){ r.sx += x; r.sy += y; r.n++; }
-    else parkRows.set(nm, { sx:x, sy:y, n:1 });
+    else parkRows.set(nm, { sx:x, sy:y, n:1, kind:kd });
   };
   for(const b2 of g2.blocks)
     if(b2.type === "park")
-      addPark(mapParkName(b2.cx, b2.cy, route), b2.cx, b2.cy);
+      addPark(mapParkName(b2.cx, b2.cy, route), mapParkKind(b2.cx, b2.cy, route), b2.cx, b2.cy);
   for(const lot of (g2.extLots || []))
     if(lot.type === "park")
-      addPark(mapParkName(lot.cx, lot.cy, route), lot.cx, lot.cy);
+      addPark(mapParkName(lot.cx, lot.cy, route), mapParkKind(lot.cx, lot.cy, route), lot.cx, lot.cy);
+  /* the row's kind comes off the component, not off the loop: a park
+     lists as "park" and a landmark lists as what it is. */
   for(const [nm, r] of parkRows)
-    out.push({ name: nm, kind:"park", x: r.sx/r.n, y: r.sy/r.n });
+    out.push({ name: nm, kind: r.kind, x: r.sx/r.n, y: r.sy/r.n });
   for(const lm of worldgenLandmarks(g2)) out.push(lm);
+  /* THE 36 DEPOTS. Named by district ("Sunset Terrace Charging"), and
+     findable by what a player will actually type -- depot, charger,
+     charging station -- through `alias`, which the search box matches
+     alongside the name. Ordered nearest-first there, not here: the
+     index does not know where the robot is. */
+  if(typeof depotsOf === "function")
+    for(const d of depotsOf(g2)){
+      if(!hoodOwnsIndex(d.hoodIndex)) continue;       // locked hoods' chargers are not yours
+      const q = depotDoorWorld(d);
+      out.push({ name: d.name, kind: "charging", alias: "depot charger charging station",
+                 x: q.x, y: q.y, depotKey: d.key });
+    }
   /* side missions: the mat's own x/y, in the live city. These used to
      come from each mission's frozen grid and carried atlas:true so the
      map swapped backdrops to show them -- see tpMissionPin for why
@@ -32882,9 +37122,20 @@ function tpMapExplore(){
           gpsNavToMission(hit.id);
         }
         else if(hit.id === "daily-delivery") tpBackToDailyRoute();
+        /* a depot pin is a place: route to its door, same as its search row */
+        else if(hit.id.startsWith("charge:")){
+          const s = scn();
+          const d = s && s.route && s.route.grid && depotsOf(s.route.grid).find(x => "charge:" + x.key === hit.id);
+          if(d){ const q = depotDoorWorld(d); tpCollapseMissions(); gpsNavToPlace(d.name, q.x, q.y); }
+        }
         /* the one pin that is not a destination: it is where you already
            are, so tapping it means "put the map away", not "go there". */
         else if(hit.id === "you") tpMapResumeDriving();
+        /* a locked hood is a store card, not a place you can drive to */
+        else if(hit.id.startsWith("hood:")){
+          tpOpenProfile(); tpSetTab("store");
+          tpOpenDetail("hood", parseInt(hit.id.slice(5), 10));
+        }
       } else {
         /* and it puts the drawer down. The list no longer covers the
            map, so a tap here is a deliberate reach past it -- same
@@ -33018,21 +37269,38 @@ function tpMapExplore(){
     if(!s || !s.route) return;
     const q2 = box.value.trim().toLowerCase();
     if(q2.length < 2) return;
-    const hits = tpMapIndex(s.route).filter(h => h.name.toLowerCase().includes(q2)).slice(0, 8);
+    const all = tpMapIndex(s.route).filter(h => (h.name + " " + (h.alias || "")).toLowerCase().includes(q2));
+    /* chargers NEAREST FIRST, after anything else that matched: "charg"
+       should put the closest depot at the top, and the 36 of them in
+       index order would bury it. Straight-line distance, in blocks -- the
+       same rule nearestChargeStation uses to pick where he respawns. */
+    const blk = h => Math.hypot(h.x - s.botX, h.y - s.botY) / BLOCK;
+    const hits = all.filter(h => h.kind !== "charging")
+      .concat(all.filter(h => h.kind === "charging").sort((a, b) => blk(a) - blk(b)))
+      .slice(0, 8);
     if(!hits.length) return;
     res.style.display = "block";
     for(const h of hits){
       const row = document.createElement("div");
       row.style.cssText = "padding:8px 14px;color:#2e3138;font:500 13px/1.2 -apple-system,sans-serif;display:flex;justify-content:space-between;cursor:pointer";
-      row.innerHTML = "<span>" + h.name + "</span><span style='color:#6b6f78;font-size:11px'>" + h.kind + "</span>";
+      const tag = h.kind === "charging" ? ("charging \u00b7 " + blk(h).toFixed(1) + " blk") : h.kind;
+      row.innerHTML = "<span>" + h.name + "</span><span style='color:#6b6f78;font-size:11px'>" + tag + "</span>";
       row.onclick = () => {
         res.style.display = "none"; box.blur();
-        /* a mission with a real pin (x !== undefined -- see tpMapIndex)
-           jumps on the map like any place would; only a mission with
-           nowhere to jump to yet (not playable, no pin function) falls
-           back to opening the list/detail sheet. */
+        /* PICKING A ROW IS CHOOSING A DESTINATION. It used to pan the
+           view and stop there, which left search and the map pins
+           disagreeing about what a tap means: tapping the slalom's PIN
+           plotted a route, tapping its search ROW only looked at it.
+           One rule now -- anything with a pin gets routed to.
+
+           A mission with no pin yet still opens its sheet, because
+           there is nowhere to send you; and the daily delivery is not
+           a place in the city but the errand you already have, so it
+           goes back to the route the same way its own pin does. */
         if(h.kind === "mission" && h.x === undefined){ tpOpenMissions(); tpOpenDetail("mission", h.id); }
-        else { tpCollapseMissions(); tpMapJumpTo(h); }
+        else if(h.id === "daily-delivery"){ tpCollapseMissions(); tpBackToDailyRoute(); }
+        else if(h.kind === "mission"){ tpCollapseMissions(); gpsNavToMission(h.id); }
+        else { tpCollapseMissions(); gpsNavToPlace(h.name, h.x, h.y); }
       };
       res.appendChild(row);
     }
@@ -33528,10 +37796,11 @@ function drawRouteMap(route){
     const anchor = comp.reduce((a,b) => (b.j < a.j || (b.j === a.j && b.i < a.i)) ? b : a);
     const p = toScreen({x:cx, y:cy});
     const r = comp.length > 1 ? Math.min(11, 7 + comp.length) : 7;
-    ctx.fillStyle = "#3f7a4a";
+    const pk = mapParkIcon(anchor.cx, anchor.cy, bgRoute);
+    ctx.fillStyle = pk.pin;
     ctx.beginPath(); ctx.arc(p.x, p.y-8, r, 0, Math.PI*2); ctx.fill();
     ctx.font = Math.round(r+2)+"px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
-    ctx.fillText("🌳", p.x, p.y-8);
+    ctx.fillText(pk.icon, p.x, p.y-8);
     const pname = mapParkName(anchor.cx, anchor.cy, bgRoute);
     ctx.fillStyle = "#2e3138"; ctx.font = "10px sans-serif";
     ctx.fillText(pname, p.x, p.y+8);
@@ -33539,10 +37808,11 @@ function drawRouteMap(route){
   for(const blk of extRects){
     if(blk.type !== "park" || !inView(blk.cx, blk.cy)) continue;
     const p = toScreen({x:blk.cx, y:blk.cy});
-    ctx.fillStyle = "#3f7a4a";
+    const pk = mapParkIcon(blk.cx, blk.cy, bgRoute);
+    ctx.fillStyle = pk.pin;
     ctx.beginPath(); ctx.arc(p.x, p.y-8, 7, 0, Math.PI*2); ctx.fill();
     ctx.font = "9px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
-    ctx.fillText("🌳", p.x, p.y-8);
+    ctx.fillText(pk.icon, p.x, p.y-8);
     const pname = mapParkName(blk.cx, blk.cy, bgRoute);
     ctx.fillStyle = "#2e3138"; ctx.font = "10px sans-serif";
     ctx.fillText(pname, p.x, p.y+8);
@@ -33618,6 +37888,64 @@ function drawRouteMap(route){
   }
 
   tpMapMissionPins.length = 0;
+  /* DEPOT PINS, under the mission pins so a mission is never covered by
+     a charger. Shown until the view is wider than 20 blocks on its short
+     side. The first gate was 7, and Sir's everyday map view is ~10 by 16
+     on an iPad, so the pins never drew at the zoom he actually uses
+     (on-device, 2026-09-15); 14 still dropped them one pinch out from
+     there. Three a district over 81 blocks is under a dozen on screen at
+     20 (measured); only the whole-city overview drops them. Search
+     finds them at any zoom. Tap routes to the door (see the tap handler). */
+  /* LOCKED HOODS read as locked on the map: a dark wash over each one,
+     bounded by the same line the roadblocks stand on */
+  if(HOOD_LOCK.active && route.grid){
+    const E = hoodLockEdge(), SW = DISTRICT_W*BLOCK, SH = DISTRICT_H*BLOCK, PAD = 8*BLOCK;
+    ctx.save(); ctx.fillStyle = "rgba(10,14,20,0.55)";
+    for(let r = 0; r < DISTRICT_ROWS; r++) for(let c = 0; c < DISTRICT_COLS; c++){
+      if(HOOD_LOCK.owned.has(r*DISTRICT_COLS + c)) continue;
+      const x0 = c === 0 ? -PAD : c*SW + E, x1 = c === DISTRICT_COLS-1 ? route.grid.cols*BLOCK + PAD : (c+1)*SW + E;
+      const y0 = r === 0 ? -PAD : r*SH + E, y1 = r === DISTRICT_ROWS-1 ? route.grid.rows*BLOCK + PAD : (r+1)*SH + E;
+      const a = toScreen({ x:x0, y:y0 }), b = toScreen({ x:x1, y:y1 });
+      ctx.fillRect(a.x, a.y, b.x - a.x, b.y - a.y);
+    }
+    ctx.restore();
+    /* HOOD STORE PINS: a lock in the middle of each hood you do not own,
+       saying what it takes. Tap opens that hood's store card. */
+    for(let r = 0; r < DISTRICT_ROWS; r++) for(let c = 0; c < DISTRICT_COLS; c++){
+      const hi = r*DISTRICT_COLS + c;
+      if(HOOD_LOCK.owned.has(hi) || !hoodTier(hi)) continue;
+      const q = { x: (c + 0.5)*SW + E, y: (r + 0.5)*SH + E };
+      if(!inView(q.x, q.y)) continue;
+      const p = toScreen(q), t = hoodTier(hi), ready = hoodIsUnlocked(hi);
+      ctx.fillStyle = ready ? "#ff7a1a" : "#3a3f4a";
+      ctx.beginPath(); ctx.arc(p.x, p.y, 11, 0, Math.PI*2); ctx.fill();
+      ctx.strokeStyle = "#fff"; ctx.lineWidth = 1.5; ctx.stroke();
+      ctx.font = "11px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText(ready ? "\ud83d\udd13" : "\ud83d\udd12", p.x, p.y);
+      ctx.fillStyle = "#fff"; ctx.font = "700 10px sans-serif";
+      ctx.fillText(HOODS[hi].n, p.x, p.y + 19);
+      ctx.font = "600 9px sans-serif";
+      ctx.fillText(ready ? tpMoney(t.priceCents) : `${Math.min(tpProfile.deliveries, t.deliveries)}/${t.deliveries} deliveries`, p.x, p.y + 31);
+      tpMapMissionPins.push({ id: "hood:" + hi, x: p.x, y: p.y, r: 18 });
+    }
+  }
+  if(!usingAtlas && typeof depotsOf === "function" && route.grid
+     && scale * BLOCK >= Math.min(W, H) / 20){
+    for(const d of depotsOf(route.grid)){
+      if(!hoodOwnsIndex(d.hoodIndex)) continue;
+      const q = depotDoorWorld(d);
+      if(!inView(q.x, q.y)) continue;
+      const pp = toScreen(q);
+      ctx.fillStyle = "#1f8aa0";
+      ctx.beginPath(); ctx.arc(pp.x, pp.y, 8, 0, Math.PI*2); ctx.fill();
+      ctx.strokeStyle = "#fff"; ctx.lineWidth = 1.5; ctx.stroke();
+      ctx.font = "10px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText("\u26a1", pp.x, pp.y);
+      ctx.fillStyle = "#2e3138"; ctx.font = "700 9px sans-serif";
+      ctx.fillText("Charging", pp.x, pp.y + 15);
+      tpMapMissionPins.push({ id: "charge:" + d.key, x: pp.x, y: pp.y, r: 14 });
+    }
+  }
   const MISSION_ICON = { hydrant: "🧯", cone: "🚧" };
   for(const m of TP_SIDE_MISSIONS){
     if(m.status !== "playable") continue;
@@ -34227,8 +38555,17 @@ function tpMapSelKey(s){
   if(s.mode === "slalom-pending") return "mission:cone-slalom";
   if(s.mode === "delivery")       return "delivery";
   if(typeof gpsNav !== "undefined" && gpsNav){
-    return (gpsNav.id === "pickup" || gpsNav.id === "dropoff")
-      ? "delivery" : "mission:" + gpsNav.id;
+    if(gpsNav.id === "pickup" || gpsNav.id === "dropoff") return "delivery";
+    /* A PLACE IS KEYED BY WHERE IT IS, not by its id (Sir on-device,
+       2026-09-15: no GO after picking a depot). Every search row and
+       depot pin navigates with the one id "place", so after GO on any
+       place, picking a DIFFERENT one produced the same key and read as
+       "already running" -- GO hidden under a card saying "press GO".
+       Name plus target keeps re-opening the map over the SAME trip
+       GO-less, which is the 8-27 behaviour this key exists for. */
+    if(gpsNav.id === "place")
+      return "place:" + gpsNav.name + "@" + Math.round(gpsNav.tx) + "," + Math.round(gpsNav.ty);
+    return "mission:" + gpsNav.id;
   }
   return "none";
 }
@@ -34296,6 +38633,9 @@ function tpSyncMapChrome(s){
      driving instrument back on a paused screen. */
   const zb = document.getElementById("zoomBtn");
   if(zb && typeof tpMapUp === "function" && tpMapUp()) zb.classList.add("hidden");
+  /* the battery is a driving instrument too, for the same reason */
+  const bb = document.getElementById("battBtn");
+  if(bb && typeof tpMapUp === "function" && tpMapUp()) bb.classList.add("hidden");
   /* THE BANNER GOES WITH IT (Sir, 2026-08-26: "remove the card that is
      showing the address of the pick up too for the free roam map, but
      keep it when the daily route is selected"). Same test, same beat --
@@ -34372,6 +38712,13 @@ function tpLoadProfile(){
        would be worse than resetting neither. */
     dayTipCents: (raw && raw.dayTipCents) || 0,
     dayRuns:     (raw && raw.dayRuns)     || 0,
+    /* THE HOOD STORE (see HOOD_TIERS). The Flats is always owned, even
+       from a save that predates hoods. deliveries is the lifetime count
+       the unlock tiers read; an old save without it starts from its
+       history length, which is one per day delivered -- an undercount,
+       never a free unlock. */
+    hoodsOwned: new Set([0, ...((raw && raw.hoodsOwned) || [])]),
+    deliveries: Math.max((raw && raw.deliveries) || 0, ((raw && raw.history) || []).length),
   };
 }
 /* ---------- THE LADDER ----------
@@ -34397,7 +38744,12 @@ function tpBankDayTip(payout){
   tpRunIndex();                                  // rolls the day over first
   tpProfile.dayTipCents += Math.round((payout || 0) * 100);
   tpProfile.dayRuns += 1;
+  /* lifetime count for the hood store. A tier opening on THIS delivery
+     is announced once, here, rather than left for the player to find. */
+  tpProfile.deliveries += 1;
   tpSaveProfile();
+  const opened = hoodStoreOrder().filter(i => !hoodIsOwned(i) && hoodTier(i).deliveries === tpProfile.deliveries);
+  if(opened.length) tpToast(`Now in the Store: ${opened.map(i => HOODS[i].n).join(", ")}`);
 }
 /* Called when a delivery is BANKED, not when it is won -- what counts
    as banked is pass 2's business (Sir's call: posting to the Delivery
@@ -34426,10 +38778,13 @@ function tpSaveProfile(){
       runIndex: tpProfile.runIndex,
       dayTipCents: tpProfile.dayTipCents,
       dayRuns: tpProfile.dayRuns,
+      hoodsOwned: [...tpProfile.hoodsOwned],   // hood store — see HOOD_TIERS
+      deliveries: tpProfile.deliveries,
     }));
   } catch(e){}
 }
 let tpProfile = tpLoadProfile();
+hoodSyncFromProfile();   // the saved hoods ARE the lock from the first frame
 /* wear the saved skin from the very first frame — otherwise an equipped
    Fire Chief only appeared after you next opened the Store */
 tpApplySkin(tpProfile.equipped);
@@ -34519,9 +38874,47 @@ function tpRenderTrophies(){
   });
 }
 
+/* a district tile for the hood cards: tier colour, a little skyline */
+function tpHoodSvg(i, size){
+  const col = ["#7a8a6a", "#4f9aa8", "#c08a3e", "#8a6fb0", "#b5543a"][HOOD_TIER_OF[i]] || "#7a8a6a";
+  return `<svg viewBox="0 0 40 40" width="${size}" height="${size}">
+    <rect x="2" y="2" width="36" height="36" rx="8" fill="${col}"/>
+    <rect x="7" y="17" width="7" height="15" rx="1" fill="#fff" opacity=".85"/>
+    <rect x="16" y="10" width="8" height="22" rx="1" fill="#fff" opacity=".95"/>
+    <rect x="26" y="20" width="7" height="12" rx="1" fill="#fff" opacity=".8"/>
+    <rect x="6" y="32" width="28" height="2.5" rx="1" fill="#fff" opacity=".6"/>
+  </svg>`;
+}
+function tpStoreHeading(text){
+  const h = document.createElement("div");
+  h.style.cssText = "grid-column:1/-1;font-size:11px;font-weight:800;letter-spacing:.08em;"
+                  + "text-transform:uppercase;color:#8f8571;margin:2px 2px -4px;";
+  h.textContent = text;
+  return h;
+}
 function tpRenderStore(){
   const grid = document.getElementById("tpStoreGrid");
   grid.innerHTML = "";
+  /* HOODS first: they are the progression, skins are the vanity */
+  grid.appendChild(tpStoreHeading("Hoods"));
+  hoodStoreOrder().forEach(i=>{
+    const t = hoodTier(i), owned = hoodIsOwned(i), unlocked = hoodIsUnlocked(i);
+    const card = document.createElement("div");
+    card.id = "tpHoodCard-" + i;
+    card.className = "tpSkinCard" + (!owned && !unlocked ? " tpLocked" : "");
+    let stateHtml;
+    if(owned) stateHtml = `<div class="tpOwnedBadge">Owned</div>`;
+    else if(!unlocked) stateHtml = `<div class="tpLockRow">${tpLockSvg("#8f8571", 14)} ${Math.min(tpProfile.deliveries, t.deliveries)}/${t.deliveries} deliveries</div>`;
+    else stateHtml = `<div class="tpPriceTag${tpProfile.walletCents >= t.priceCents ? "" : " tpShort"}">${tpMoney(t.priceCents)}</div>`;
+    card.innerHTML = `
+      <div class="tpSwatch">${tpHoodSvg(i, 40)}</div>
+      <div class="tpSkinName">${HOODS[i].n}</div>
+      <div class="tpStateRow">${stateHtml}</div>
+    `;
+    card.addEventListener("click", ()=>tpOpenDetail("hood", i));
+    grid.appendChild(card);
+  });
+  grid.appendChild(tpStoreHeading("Skins"));
   TP_SKINS.forEach(skin=>{
     const owned = tpProfile.owned.has(skin.skinId);
     const equipped = tpProfile.equipped === skin.skinId;
@@ -34762,6 +39155,40 @@ function tpOpenDetail(kind, id){
     }
   }
 
+  if(kind === "hood"){
+    const i = id, h = HOODS[i], t = hoodTier(i);
+    const owned = hoodIsOwned(i), unlocked = hoodIsUnlocked(i);
+    document.getElementById("tpDetailSwatch").innerHTML = tpHoodSvg(i, 52);
+    document.getElementById("tpDetailName").textContent = h.n;
+    document.getElementById("tpDetailDesc").textContent =
+      `Tier ${t.tier} hood \u00b7 ${h.streets.slice(0, 2).join(", ")}. Own it to open its streets.`;
+    if(owned){
+      btn.className = "tpDone"; btn.textContent = "Owned"; btn.disabled = true;
+    } else if(!unlocked){
+      progWrap.style.display = "block";
+      document.getElementById("tpDetailProgFill").style.width =
+        Math.min(100, Math.round((tpProfile.deliveries / t.deliveries) * 100)) + "%";
+      document.getElementById("tpDetailProgLabel").textContent = `${tpProfile.deliveries} / ${t.deliveries} deliveries`;
+      btn.className = "tpLockedBtn"; btn.textContent = `Locked \u2014 ${tpMoney(t.priceCents)} once unlocked`; btn.disabled = true;
+      note.textContent = `Make ${t.deliveries - tpProfile.deliveries} more deliveries to unlock.`;
+    } else {
+      const afford = tpProfile.walletCents >= t.priceCents;
+      btn.className = afford ? "tpBuy" : "tpLockedBtn";
+      btn.textContent = `Buy \u2014 ${tpMoney(t.priceCents)}`; btn.disabled = !afford;
+      if(!afford) note.textContent = `Need ${tpMoney(t.priceCents - tpProfile.walletCents)} more in tips`;
+      btn.onclick = ()=>{
+        if(hoodIsOwned(i) || !hoodIsUnlocked(i) || tpProfile.walletCents < t.priceCents) return;
+        tpProfile.walletCents -= t.priceCents;
+        tpProfile.hoodsOwned.add(i);
+        hoodSyncFromProfile();
+        tpSaveProfile(); tpRender(); tpCloseDetail();
+        tpToast(`${h.n} is yours \u2014 the roadblocks are down`);
+        tpPulseEl("tpHoodCard-" + i);
+        tpSubmitHoodPurchase(i);
+      };
+    }
+  }
+
   if(kind === "skin"){
     const skin = tpSkinById(id);
     const owned = tpProfile.owned.has(id);
@@ -34945,6 +39372,34 @@ function tdHideReceipt(){
    wallet balance that db.ts's atomic hIncrBy would have rejected, or a
    trophy the server can't yet verify — see tpcatalog.ts). Fire-and-forget
    on failure, matching every other Devvit bridge call in this file. */
+/* Server truth for the hood store, when the server sends it. Absent
+   fields leave the local values alone, so a server that predates hoods
+   neither strips nor grants anything. */
+function tpMergeServerHoods(data){
+  if(!data) return;
+  if(Array.isArray(data.hoodsOwned)){
+    tpProfile.hoodsOwned = new Set([0, ...data.hoodsOwned]);
+    hoodSyncFromProfile();
+  }
+  if(typeof data.deliveries === "number") tpProfile.deliveries = data.deliveries;
+}
+function tpSubmitHoodPurchase(hoodIndex){
+  if(!IS_DEVVIT_BUILD) return;
+  fetch("api/tipsy/profile/purchase-hood", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ hoodIndex })
+  })
+    .then(rsp => rsp.ok ? rsp.json() : null)
+    .then(data => {
+      if(!data) return;
+      if(typeof data.walletCents === "number") tpProfile.walletCents = data.walletCents;
+      tpMergeServerHoods(data);
+      tpSaveProfile();
+      tpRender();
+    })
+    .catch(()=>{});
+}
 function tpSubmitPurchase(skinId){
   if(!IS_DEVVIT_BUILD) return;
   fetch("api/tipsy/profile/purchase", {
@@ -35032,10 +39487,15 @@ function tpSubmitClaim(trophyId){
 }
 
 /* ---------- navigation ---------- */
-/* this.runT accumulates from the Phaser delta, so a live daily run kept
-   billing you for time spent in the Trophy Case. Pause on open, resume
-   on close -- only when a route is actually RUNNING (#titleOverlay
-   hidden). See game/index.html for the full note. */
+/* The panels are full-screen, so whatever is behind them is unreadable
+   anyway -- but this.runT accumulates from the Phaser delta, so a live
+   daily run kept billing you for the time you spent in the Trophy Case.
+   Pause the scene on open, resume on close.
+   Only when a route is actually RUNNING: #titleOverlay hidden is the
+   test. On the map screen there is no clock to stop, and pausing there
+   would freeze the world behind the map for no reason. hjQuit() shows
+   the title overlay before tpOpenProfile() runs, so leaving the
+   challenge takes the no-pause path too. */
 let tpPausedWorld = false;
 function tpPauseWorld(){
   if(tpPausedWorld) return;
@@ -35667,7 +40127,21 @@ document.getElementById("startBtn").addEventListener("click", () => {
   if(wasAttract) s.loadRoute(s.route ? s.route.dateStr : clientTodayUTC());
   s.state = "play";
 });
+document.getElementById("battBtn").addEventListener("click", battRouteToCharger);
 document.getElementById("retryBtn").addEventListener("click", () => {
+  /* THE BATTERY TOW. Same ride as the broke-trip tow below -- tpFreePlay,
+     which lands on the nearest pad and (owPlaceOnPad) refills. */
+  if(tpBatt.dead){
+    const s0 = scn();
+    const fx = s0 ? s0.botX : undefined, fy = s0 ? s0.botY : undefined;
+    tdFxResolveFail("tow");
+    hide("failOverlay");
+    tdFailLater(false);
+    document.getElementById("retryBtn").textContent = "Retry";
+    tpToast("Towed to the nearest charger.");
+    tpFreePlay(fx, fy);
+    return;
+  }
   /* THE TOW. Broke on a trip: the card said so and this is the ride.
      tpFreePlay is the whole recovery and the one owner of "put him on a
      pad" -- the same three steps MAYBE LATER and the map's Free Play row
@@ -35848,4 +40322,3 @@ document.addEventListener("keydown", e => {
   const fullyHidden = toggle.classList.toggle("hidden");
   document.getElementById("panel").classList.toggle("hidden", fullyHidden);
 });
-
