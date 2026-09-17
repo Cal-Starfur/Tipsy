@@ -985,16 +985,19 @@ const SHOPS = [
   }
 },
 {
-  name:'Tidewater Tea House', base:'Tea house', hood:'The Flats', edited:true, sc:1.3, ww: T2*4.4, dd: 360, boff: -76,
-  /* IN LINE WITH THE OTHER SHOPS (Sir, on-device: "i want to move the
-     teahouse to be in line with the other shops but remove the fake
-     sidewalk that it has so that its posts just hit the regular
-     sidewalk"). The colonnade was drawn at b 76 -- 76 forward of the
-     shop line, standing on the footway -- with a painted forecourt under
-     it. boff moves the whole entry back by exactly that, so the columns
-     land ON the shop line with the neighbours' glass, the eave oversails
-     the real pavement by the 28 it always did, and the paint is gone.
-     dd grows to 360 to cover the depth the shift adds. */
+  name:'Tidewater Tea House', base:'Tea house', hood:'The Flats', edited:true, sc:1.3, ww: T2*4.4, boff: 60,
+  /* FRONT ON THE LINE, WALKWAY OUT TO THE KERB (Sir: "i want the front of
+     it in line with the other shops and the awning to be further out onto
+     the sidewalk ... lets just move it to the edge where it belongs").
+     Two separate things, so two separate levers:
+       boff 60 moves the whole entry forward by SET, which puts the WALL
+       on b 0 -- the line the neighbours' glass sits on.
+       The porch itself is twice as deep (the CB/EB numbers and the lower
+       tier's profile below are scaled x2 about FB), so the colonnade now
+       stands at b 272 and the eave oversails to 328: out at the kerb,
+       where a covered walkway belongs, with the whole footway under it.
+     The painted forecourt it used to stand on is gone; this is the city's
+     own pavement. */
   wTodo:'two packing slots',
   head:'Two-tier red roof, dougong brackets, colonnade over the footway',
   cTodo:'6 colonnade columns need collision volumes -- they stand at b 76, out at the kerb',
@@ -1109,7 +1112,7 @@ const SHOPS = [
     const wall = '#efe9db', trim = '#2c4a6b', H = 288, WW = T2*4.4;   // 404.8
     const tile = '#3f7a8f', gold = '#c9a24a', jade = '#3f6b52', dark = '#26221e';
     const BA0 = 40, BA1 = WW - 40, CN = 64;           // the walls, inside the roof
-    const CB = 76, EB = 104;                          // colonnade, and the eave over it
+    const CB = 212, EB = 268;                         // colonnade, and the eave over it (x2 about FB: 76 -> 212, 104 -> 268)
     /* ---- THE BUILDING IS SET BACK, at Sir's direction ----
        The awning stays where it is, at the kerb, and the wall goes 84
        into the plot instead -- so the covered walkway is 188 deep
@@ -1311,7 +1314,7 @@ const SHOPS = [
        hit seven times. Ordering by depth only works for objects that
        HAVE a depth; an object spanning a range has to be cut where the
        things it interleaves with sit. */
-    tier([[CB,216],[30,228],[-14,242],[FB,264]], tile, false);
+    tier([[CB,216],[120,228],[32,242],[FB,264]], tile, false);   // the profile stretches with it: 30 -> 120, -14 -> 32
 
     /* ---- the colonnade ---- */
     /* FOUR COLUMNS, ON A 60.7 PITCH -- AND THE PITCH IS MEASURED.
