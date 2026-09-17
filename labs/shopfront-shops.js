@@ -759,16 +759,21 @@ const DEPOT_GEOM = (() => {
      the bollards -- and k1 is the corner itself: cpt(0.5, -106) is
      (295.55, -0.05), the square corner at (WW, 0). k0 is 4 off the wall,
      so the wedge starts at the building and ends at the point. */
-  /* AND PAST THE CHAMFER'S OWN ENDS (Sir: "still not quite filling the
-     corner" -- a sliver of pavement left along the side wall). t runs a
-     little beyond 0..1 so the base corners reach the two walls rather
-     than the jambs, k0 sits on the chamfer line itself, and k1 goes 6
-     past the corner point, so the wedge closes on all three sides. */
-  const MAT = { k0:0, k1:-112, t0:-0.06, t1:1.06 };        // mat, outward of the chamfer
+  /* THE TRIANGLE ITSELF, IN a,b (Sir: "still not lining up perfectly and
+     its giving the effect that its floating"). Running it in chamfer
+     coordinates meant the base ran ALONG the chamfer line and, extended
+     past its ends to reach the walls, poked out beyond the building at
+     both -- the two tabs that read as float. The corner the chamfer cuts
+     off is a plain right triangle: (CA0, 0) where the chamfer meets the
+     front wall, (WW, -CW) where it meets the side wall, and (WW, 0), the
+     square corner. That is the mat, inset 1 so it does not z-fight the
+     walls it touches. */
+  const MAT = { inset: 1 };
   const BOLL = { k:-16, r:11, h:54 };                      // threshold bollards
   const R2 = Math.SQRT1_2, CA0 = WW - CW;
   const cpt = (t, k) => [CA0 + t*CW - (k||0)*R2, -t*CW - (k||0)*R2];
   const PADS = { back:[200, ROOM.b0 + CHPAD], left:[ROOM.a0 + CHPAD, -140] };
+  MAT.tri = [[CA0 + MAT.inset, -MAT.inset], [WW - MAT.inset, -CW + MAT.inset], [WW - MAT.inset, -MAT.inset]];
 
   /* THE ROOM IS THE INTERIOR, not a rect. The room rect the art clips to
      runs right through the chamfer -- its corner (160.6,-15) is already
@@ -802,7 +807,7 @@ const DEPOT_GEOM = (() => {
          only pavement the door faces. So the trigger is that shape: a base
          across the doorway MAT.k0 out, and a point at the corner, MAT.k1
          out, instead of a rectangle that had to stop short of both. */
-      { name:'mat',  kind:'trigger', poly:[cpt(MAT.t0,MAT.k0), cpt(MAT.t1,MAT.k0), cpt(0.5,MAT.k1)] },
+      { name:'mat',  kind:'trigger', poly: MAT.tri },
       { name:'pad back', kind:'charge', c: PADS.back, r: 44 },         // CHARGE.padR
       { name:'pad left', kind:'charge', c: PADS.left, r: 44 },
       /* the door opens while he is in here (or in the room): 10 inside the
@@ -14448,39 +14453,38 @@ const SHOPS = [
        the thing you drive INTO. The lab drives its state off doorT so
        the relationship is visible: amber while the door is shut, green
        once it is moving. */
-    if(PT('door')) { const TA = DEPOT_GEOM.MAT.t0, TB = DEPOT_GEOM.MAT.t1, K0 = DEPOT_GEOM.MAT.k0, K1 = DEPOT_GEOM.MAT.k1;
+    if(PT('door')) {
       const on = ((typeof state.doorT === 'number') ? state.doorT : 1) > 0.02;
       const tone = on ? '#7ee081' : '#ffb25a';
-      /* A WEDGE, NOT A RECTANGLE: base across the doorway, point at the
-         corner (see THE MAT IS THE CORNER WEDGE in DEPOT_GEOM). Drawn from
-         the same three points the trigger zone uses, so what he drives
-         onto and what opens the door cannot drift apart. */
-      const TIP = [0.5, K1], BL = [TA, K0], BR = [TB, K0];   // jamb, jamb, corner
-      poly([cpt(BL[0],BL[1]), cpt(BR[0],BR[1]), cpt(TIP[0],TIP[1])].map(q => P3(q, 0.7)), 'rgba(20,24,28,.30)');
-      poly([cpt(BL[0]+0.018, BL[1]-8), cpt(BR[0]-0.018, BR[1]-8), cpt(TIP[0], TIP[1]+14)].map(q => P3(q, 0.9)), '#2f3740');
-      /* the rim: three bands along the three sides, so it reads by SHAPE
-         and not by colour alone (MAT_HL's own reason) */
+      /* THE SAME THREE POINTS THE TRIGGER USES (DEPOT_GEOM.MAT.tri): the
+         chamfer's two ends and the square corner, so what he drives onto
+         and what opens the door cannot drift apart, and the mat's edges
+         lie along the walls rather than across them. */
+      const [BL, BR, TIP] = DEPOT_GEOM.MAT.tri;
       const lerp = (p, q, u) => [p[0] + (q[0]-p[0])*u, p[1] + (q[1]-p[1])*u];
-      const band = (p, q, inw) => {
-        const p2 = lerp(p, inw, 0.16), q2 = lerp(q, inw, 0.16);
-        poly([cpt(p[0],p[1]), cpt(q[0],q[1]), cpt(q2[0],q2[1]), cpt(p2[0],p2[1])].map(v => P3(v, 1.1)), tone);
-      };
-      band(BL, BR, TIP); band(BR, TIP, BL); band(TIP, BL, BR);
-      /* corner ticks, in the darker tone, at each of the three points */
+      const mid = (p, q, r2) => [(p[0]+q[0]+r2[0])/3, (p[1]+q[1]+r2[1])/3];
+      const C = mid(BL, BR, TIP);
+      const shrink = (p, u) => lerp(p, C, u);
+      poly([BL, BR, TIP].map(q => P3(q, 0.7)), 'rgba(20,24,28,.30)');
+      poly([BL, BR, TIP].map(p => shrink(p, 0.16)).map(q => P3(q, 0.9)), '#2f3740');
+      /* the rim: a band down each of the three sides, so it reads by SHAPE
+         and not by colour alone (MAT_HL's own reason) */
+      for(const [p, q] of [[BL,BR],[BR,TIP],[TIP,BL]])
+        poly([p, q, shrink(q, 0.14), shrink(p, 0.14)].map(v => P3(v, 1.1)), tone);
+      /* corner ticks at each point, in the darker tone */
       for(const [c0, c1, c2] of [[BL,BR,TIP],[BR,TIP,BL],[TIP,BL,BR]]){
-        const e1 = lerp(c0, c1, 0.22), e2 = lerp(c0, c2, 0.22);
-        poly([cpt(c0[0],c0[1]), cpt(e1[0],e1[1]), cpt(lerp(e1, c2, 0.18)[0], lerp(e1, c2, 0.18)[1]),
-              cpt(lerp(c0, c2, 0.06)[0], lerp(c0, c2, 0.06)[1])].map(v => P3(v, 1.3)), shade(tone,.82));
-        poly([cpt(c0[0],c0[1]), cpt(e2[0],e2[1]), cpt(lerp(e2, c1, 0.18)[0], lerp(e2, c1, 0.18)[1]),
-              cpt(lerp(c0, c1, 0.06)[0], lerp(c0, c1, 0.06)[1])].map(v => P3(v, 1.3)), shade(tone,.82));
+        const e1 = lerp(c0, c1, 0.2), e2 = lerp(c0, c2, 0.2);
+        poly([c0, e1, shrink(e1, 0.22), shrink(c0, 0.22)].map(v => P3(v, 1.3)), shade(tone,.82));
+        poly([c0, e2, shrink(e2, 0.22), shrink(c0, 0.22)].map(v => P3(v, 1.3)), shade(tone,.82));
       }
-      /* a chevron pointing at the door, so the mat says which way in */
-      for(let k=0;k<2;k++){
-        const kk = K0 - 34 - k*26, w = 0.13 * (1 - k*0.25);
-        poly([cpt(0.5, kk+16), cpt(0.5+w, kk-4), cpt(0.5+w*0.72, kk-4),
-              cpt(0.5, kk+9), cpt(0.5-w*0.72, kk-4), cpt(0.5-w, kk-4)]
-             .map(q => P3(q, 1.2)), shade(tone,.78));
-      }
+      /* a chevron pointing back at the door, along the wedge's own axis */
+      { const base = lerp(BL, BR, 0.5);
+        for(let k=0;k<2;k++){
+          const c0 = lerp(TIP, base, 0.34 + k*0.22), w = 0.20 - k*0.04;
+          const l = lerp(c0, BL, w), r2 = lerp(c0, BR, w), t = lerp(c0, base, 0.34);
+          poly([t, r2, lerp(r2, c0, 0.45), lerp(t, c0, 0.45), lerp(l, c0, 0.45), l]
+               .map(q => P3(q, 1.2)), shade(tone,.78));
+        } }
     }
 
     /* ---- THE THRESHOLD BOLLARDS ARE EXTERIOR ----
