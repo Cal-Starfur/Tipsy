@@ -985,7 +985,16 @@ const SHOPS = [
   }
 },
 {
-  name:'Tidewater Tea House', base:'Tea house', hood:'The Flats', edited:true, sc:1.3, ww: T2*4.4,
+  name:'Tidewater Tea House', base:'Tea house', hood:'The Flats', edited:true, sc:1.3, ww: T2*4.4, dd: 360, boff: -76,
+  /* IN LINE WITH THE OTHER SHOPS (Sir, on-device: "i want to move the
+     teahouse to be in line with the other shops but remove the fake
+     sidewalk that it has so that its posts just hit the regular
+     sidewalk"). The colonnade was drawn at b 76 -- 76 forward of the
+     shop line, standing on the footway -- with a painted forecourt under
+     it. boff moves the whole entry back by exactly that, so the columns
+     land ON the shop line with the neighbours' glass, the eave oversails
+     the real pavement by the 28 it always did, and the paint is gone.
+     dd grows to 360 to cover the depth the shift adds. */
   wTodo:'two packing slots',
   head:'Two-tier red roof, dougong brackets, colonnade over the footway',
   cTodo:'6 colonnade columns need collision volumes -- they stand at b 76, out at the kerb',
@@ -1125,9 +1134,8 @@ const SHOPS = [
        allows rather than as deep as it could be -- 164 of covered
        walkway against the 104 it had, which is what Sir asked for. */
     const SET = 60, FB = -SET;
-    T(BA0-6, BA1+6, FB, 100, 0.6, '#cfc7b6');         // the forecourt, flat paint
-    for(let k=0;k<7;k++)
-      T(BA0-6, BA1+6, FB + (100-FB)*k/7 - 1, FB + (100-FB)*k/7 + 1, 0.8, '#bdb5a4');
+    /* NO FORECOURT PAINT: the colonnade stands on the city's own pavement
+       now (see IN LINE WITH THE OTHER SHOPS above) */
 
     /* ---- ROOF TIERS, AND WHY THE CORNERS ARE PART OF THE SURFACE ----
        The turn-ups had no volume because they were not part of the
