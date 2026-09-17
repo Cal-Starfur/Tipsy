@@ -1280,6 +1280,7 @@ function requestTpProfile(){
       tpProfile.walletCents = data.walletCents;
       tpProfile.owned = new Set(data.owned);
       tpProfile.equipped = data.equipped;
+      tpMergeServerHoods(data);
       tdFx.followClaimed = !!data.followBonusClaimed;
       /* Restores the retry gate to SERVER truth on every boot (Sir's
          call, 2026-08: "they should still be locked out ... until the
@@ -3755,7 +3756,8 @@ function hoodAtWorld(x, y){ return hoodAt(Math.round(x/BLOCK), Math.round(y/BLOC
    stands on the line.
 
    CONSOLE, to test (the artifact boots with an empty save):
-     HOOD_LOCK.owned.add(1)      own Boardwalk too (roadblocks update)
+     HOOD_LOCK.owned.add(1)      own Boardwalk too (roadblocks update;
+                                 NOT saved -- the store path is below)
      HOOD_LOCK.active = false    no lock at all */
 const HOOD_LOCK = { active: true, owned: new Set([0]) };   // HOODS indices
 function hoodLockEdge(){ return ROAD_HALF + 40; }
@@ -3787,6 +3789,40 @@ function hoodLockGridView(grid){
   return v;
 }
 function hoodLockKey(){ return HOOD_LOCK.active ? [...HOOD_LOCK.owned].sort((a,b)=>a-b).join(',') : 'off'; }
+
+/* ==================== THE HOOD STORE ====================
+   Sir, 2026-09-16: HYBRID unlock. A hood becomes BUYABLE once you have
+   made enough lifetime deliveries, then it is OWNED once you pay for it
+   from the tip wallet. Two steps, never one: hitting the count opens the
+   store card, it does not open the roadblocks. Real money is kept for
+   the next TOWN, never a hood in this one.
+
+   Tiers climb with the hills, so the pricier hoods are also the harder
+   drives. Prices are PLACEHOLDERS until a tip census says what a
+   delivery is actually worth. HOOD_TIER_OF is indexed like HOODS; tier 0
+   is The Flats, owned from the start and never sold.
+
+   Ownership lives in tpProfile.hoodsOwned. HOOD_LOCK.owned is only ever
+   a mirror of it (hoodSyncFromProfile), so everything already reading the
+   lock -- walls, roadblocks, map wash, routing, the tow -- follows a
+   purchase with no further wiring. */
+const HOOD_TIERS = [
+  null,
+  { tier:1, deliveries:10,  priceCents:5000  },
+  { tier:2, deliveries:30,  priceCents:15000 },
+  { tier:3, deliveries:60,  priceCents:40000 },
+  { tier:4, deliveries:100, priceCents:90000 },
+];
+/*                  Flats Brdwk OldTn Scoot Univ  Wareh Sunst Bluff Merid Markt LHarb PalmG */
+const HOOD_TIER_OF = [ 0,    1,    1,    2,    3,    3,    3,    4,    4,    2,    2,    1 ];
+function hoodTier(i){ return HOOD_TIERS[HOOD_TIER_OF[i]] || null; }
+function hoodStoreOrder(){
+  return HOODS.map((h, i) => i).filter(i => hoodTier(i))
+    .sort((a, b) => HOOD_TIER_OF[a] - HOOD_TIER_OF[b] || a - b);
+}
+function hoodIsOwned(i){ return !hoodTier(i) || tpProfile.hoodsOwned.has(i); }
+function hoodIsUnlocked(i){ const t = hoodTier(i); return !t || tpProfile.deliveries >= t.deliveries; }
+function hoodSyncFromProfile(){ HOOD_LOCK.owned = new Set(tpProfile.hoodsOwned); }
 /* whole-map average of each hood knob -- terrain (HILL_AMP), the world
    colour palette, route difficulty, and par time all still read ONE value
    for the whole map rather than varying by district (see generateRoute's
@@ -5671,6 +5707,34 @@ const OW_HZ_R = {
 const OW_HZ_FLAT = new Set(['crack', 'slab', 'pigeons', 'grade', 'burnoutMark',
                             'sidewalkend', 'sidewalkbegin']);
 
+/* ---------- WHICH WAY A KICK THROWS HIM ----------
+   Every tilt impulse in the open world took its sign from dYaw, this
+   frame's steering delta. Driving STRAIGHT, err converges, Math.sign(err)
+   returns 0, dYaw is exactly 0 -- and `dYaw >= 0` is TRUE. So on a dead
+   straight road every crack, slab and scrape pushed tilt the SAME way,
+   +1. Nothing cancelled. Against a ~330ms decay half-life and city
+   cracks landing every few hundred units of frontage in four lanes, they
+   stacked into a permanent positive offset: meter filled, robot visibly
+   leaning, on a straight line with no hazard he ever hit hard. The rail
+   never had this because kicks carried the hazard's own hz.kickDir,
+   which alternated per prop; the port swapped that for the thumb.
+
+   The sign is a property of the CONTACT, not of the stick. cx/cy is the
+   direction from the robot TO the thing he touched; its cross product
+   with his heading names the side it sits on, so a crack under the left
+   wheels throws him left, one under the right throws him right, and a
+   run of them averages out instead of integrating. dYaw is the tie-break
+   for a genuinely dead-centre hit -- head-on into a wall has no side --
+   and an alternating per-robot flip is the tie-break for THAT. The one
+   thing this must never return is a constant. */
+function owTiltSide(ow, dYaw, cx, cy){
+  const s = Math.sign(Math.cos(ow.yaw) * cy - Math.sin(ow.yaw) * cx);
+  if(s) return s;
+  if(dYaw > 0) return 1;
+  if(dYaw < 0) return -1;
+  return (ow.tiltFlip = -(ow.tiltFlip || 1));
+}
+
 /* how far around the robot the city-furniture table is queried each
    step. HZ_CELL (the route hazard bucket) is T2*8 and its 3x3 neighbour
    sweep reaches the same distance, so the two sources see the same
@@ -5914,7 +5978,8 @@ function owContact(scene, ow, D, dYaw, key, type, hx, hy){
     if(dist < D.hzFlat){
       if(!ow.flatOn.has(key)){
         ow.flatOn.add(key);
-        owLeanKick(scene, ow, (dYaw >= 0 ? 1 : -1) * D.hzFlatTilt * (Math.abs(ow.vel) / D.vMax));
+        owLeanKick(scene, ow, owTiltSide(ow, dYaw, hx - ow.px, hy - ow.py)
+                    * D.hzFlatTilt * (Math.abs(ow.vel) / D.vMax));
         owDbgHit(scene, 'flat', type, key, hx, hy);
       }
     } else ow.flatOn.delete(key);
@@ -5938,7 +6003,7 @@ function owContact(scene, ow, D, dYaw, key, type, hx, hy){
   if(vN >= D.clipThresh){
     owTip(scene, -(Math.sign(Math.cos(ow.yaw) * nx + Math.sin(ow.yaw) * ny) || 1));
   } else {
-    owLeanKick(scene, ow, (dYaw >= 0 ? 1 : -1) * D.clipTilt * vN * (fresh ? 1 : D.grindTilt));
+    owLeanKick(scene, ow, owTiltSide(ow, dYaw, -nx, -ny) * D.clipTilt * vN * (fresh ? 1 : D.grindTilt));
     ow.vel *= D.clipLoss; if(fresh) ow.clipScrapes++;
   }
   return true;
@@ -5989,7 +6054,7 @@ function owShoreCollide(scene, ow, D, dYaw){
     if(vN >= D.clipThresh){
       owTip(scene, -(Math.sign(Math.cos(ow.yaw)*nx + Math.sin(ow.yaw)*ny) || 1));
     } else {
-      owLeanKick(scene, ow, (dYaw >= 0 ? 1 : -1) * D.clipTilt * vN * D.grindTilt);
+      owLeanKick(scene, ow, owTiltSide(ow, dYaw, -nx, -ny) * D.clipTilt * vN * D.grindTilt);
       ow.vel *= D.clipLoss;
     }
     hit = true;
@@ -7303,7 +7368,13 @@ function owStep(scene, dt){
          accumulated into a topple no single moment deserved: measured, a
          0.225 oblique graze tipped after six frames of touching. */
       const fresh = !ow.inContact;
-      owLeanKick(scene, ow, (dYaw >= 0 ? 1 : -1) * D.clipTilt * vN * (fresh ? 1 : D.grindTilt));
+      /* the blocked axis, pointed the way he was travelling, IS the
+         direction to the face he touched. Square-on gives a zero cross
+         and falls through to the tie-break, which is correct: a head-on
+         wall has no side to throw you toward. */
+      const cxB = hitNormal === 1 ? (Math.sign(stepX) || Math.cos(ow.yaw)) : 0;
+      const cyB = hitNormal === 2 ? (Math.sign(stepY) || Math.sin(ow.yaw)) : 0;
+      owLeanKick(scene, ow, owTiltSide(ow, dYaw, cxB, cyB) * D.clipTilt * vN * (fresh ? 1 : D.grindTilt));
       ow.vel *= D.clipLoss; if(fresh) ow.clipScrapes++;
     }
     }
@@ -38227,6 +38298,11 @@ function tpMapExplore(){
         /* the one pin that is not a destination: it is where you already
            are, so tapping it means "put the map away", not "go there". */
         else if(hit.id === "you") tpMapResumeDriving();
+        /* a locked hood is a store card, not a place you can drive to */
+        else if(hit.id.startsWith("hood:")){
+          tpOpenProfile(); tpSetTab("store");
+          tpOpenDetail("hood", parseInt(hit.id.slice(5), 10));
+        }
       } else {
         /* and it puts the drawer down. The list no longer covers the
            map, so a tap here is a deliberate reach past it -- same
@@ -39000,6 +39076,25 @@ function drawRouteMap(route){
       ctx.fillRect(a.x, a.y, b.x - a.x, b.y - a.y);
     }
     ctx.restore();
+    /* HOOD STORE PINS: a lock in the middle of each hood you do not own,
+       saying what it takes. Tap opens that hood's store card. */
+    for(let r = 0; r < DISTRICT_ROWS; r++) for(let c = 0; c < DISTRICT_COLS; c++){
+      const hi = r*DISTRICT_COLS + c;
+      if(HOOD_LOCK.owned.has(hi) || !hoodTier(hi)) continue;
+      const q = { x: (c + 0.5)*SW + E, y: (r + 0.5)*SH + E };
+      if(!inView(q.x, q.y)) continue;
+      const p = toScreen(q), t = hoodTier(hi), ready = hoodIsUnlocked(hi);
+      ctx.fillStyle = ready ? "#ff7a1a" : "#3a3f4a";
+      ctx.beginPath(); ctx.arc(p.x, p.y, 11, 0, Math.PI*2); ctx.fill();
+      ctx.strokeStyle = "#fff"; ctx.lineWidth = 1.5; ctx.stroke();
+      ctx.font = "11px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText(ready ? "\ud83d\udd13" : "\ud83d\udd12", p.x, p.y);
+      ctx.fillStyle = "#fff"; ctx.font = "700 10px sans-serif";
+      ctx.fillText(HOODS[hi].n, p.x, p.y + 19);
+      ctx.font = "600 9px sans-serif";
+      ctx.fillText(ready ? tpMoney(t.priceCents) : `${Math.min(tpProfile.deliveries, t.deliveries)}/${t.deliveries} deliveries`, p.x, p.y + 31);
+      tpMapMissionPins.push({ id: "hood:" + hi, x: p.x, y: p.y, r: 18 });
+    }
   }
   if(!usingAtlas && typeof depotsOf === "function" && route.grid
      && scale * BLOCK >= Math.min(W, H) / 20){
@@ -39784,6 +39879,13 @@ function tpLoadProfile(){
        would be worse than resetting neither. */
     dayTipCents: (raw && raw.dayTipCents) || 0,
     dayRuns:     (raw && raw.dayRuns)     || 0,
+    /* THE HOOD STORE (see HOOD_TIERS). The Flats is always owned, even
+       from a save that predates hoods. deliveries is the lifetime count
+       the unlock tiers read; an old save without it starts from its
+       history length, which is one per day delivered -- an undercount,
+       never a free unlock. */
+    hoodsOwned: new Set([0, ...((raw && raw.hoodsOwned) || [])]),
+    deliveries: Math.max((raw && raw.deliveries) || 0, ((raw && raw.history) || []).length),
   };
 }
 /* ---------- THE LADDER ----------
@@ -39809,7 +39911,12 @@ function tpBankDayTip(payout){
   tpRunIndex();                                  // rolls the day over first
   tpProfile.dayTipCents += Math.round((payout || 0) * 100);
   tpProfile.dayRuns += 1;
+  /* lifetime count for the hood store. A tier opening on THIS delivery
+     is announced once, here, rather than left for the player to find. */
+  tpProfile.deliveries += 1;
   tpSaveProfile();
+  const opened = hoodStoreOrder().filter(i => !hoodIsOwned(i) && hoodTier(i).deliveries === tpProfile.deliveries);
+  if(opened.length) tpToast(`Now in the Store: ${opened.map(i => HOODS[i].n).join(", ")}`);
 }
 /* Called when a delivery is BANKED, not when it is won -- what counts
    as banked is pass 2's business (Sir's call: posting to the Delivery
@@ -39838,10 +39945,13 @@ function tpSaveProfile(){
       runIndex: tpProfile.runIndex,
       dayTipCents: tpProfile.dayTipCents,
       dayRuns: tpProfile.dayRuns,
+      hoodsOwned: [...tpProfile.hoodsOwned],   // hood store — see HOOD_TIERS
+      deliveries: tpProfile.deliveries,
     }));
   } catch(e){}
 }
 let tpProfile = tpLoadProfile();
+hoodSyncFromProfile();   // the saved hoods ARE the lock from the first frame
 /* wear the saved skin from the very first frame — otherwise an equipped
    Fire Chief only appeared after you next opened the Store */
 tpApplySkin(tpProfile.equipped);
@@ -39931,9 +40041,47 @@ function tpRenderTrophies(){
   });
 }
 
+/* a district tile for the hood cards: tier colour, a little skyline */
+function tpHoodSvg(i, size){
+  const col = ["#7a8a6a", "#4f9aa8", "#c08a3e", "#8a6fb0", "#b5543a"][HOOD_TIER_OF[i]] || "#7a8a6a";
+  return `<svg viewBox="0 0 40 40" width="${size}" height="${size}">
+    <rect x="2" y="2" width="36" height="36" rx="8" fill="${col}"/>
+    <rect x="7" y="17" width="7" height="15" rx="1" fill="#fff" opacity=".85"/>
+    <rect x="16" y="10" width="8" height="22" rx="1" fill="#fff" opacity=".95"/>
+    <rect x="26" y="20" width="7" height="12" rx="1" fill="#fff" opacity=".8"/>
+    <rect x="6" y="32" width="28" height="2.5" rx="1" fill="#fff" opacity=".6"/>
+  </svg>`;
+}
+function tpStoreHeading(text){
+  const h = document.createElement("div");
+  h.style.cssText = "grid-column:1/-1;font-size:11px;font-weight:800;letter-spacing:.08em;"
+                  + "text-transform:uppercase;color:#8f8571;margin:2px 2px -4px;";
+  h.textContent = text;
+  return h;
+}
 function tpRenderStore(){
   const grid = document.getElementById("tpStoreGrid");
   grid.innerHTML = "";
+  /* HOODS first: they are the progression, skins are the vanity */
+  grid.appendChild(tpStoreHeading("Hoods"));
+  hoodStoreOrder().forEach(i=>{
+    const t = hoodTier(i), owned = hoodIsOwned(i), unlocked = hoodIsUnlocked(i);
+    const card = document.createElement("div");
+    card.id = "tpHoodCard-" + i;
+    card.className = "tpSkinCard" + (!owned && !unlocked ? " tpLocked" : "");
+    let stateHtml;
+    if(owned) stateHtml = `<div class="tpOwnedBadge">Owned</div>`;
+    else if(!unlocked) stateHtml = `<div class="tpLockRow">${tpLockSvg("#8f8571", 14)} ${Math.min(tpProfile.deliveries, t.deliveries)}/${t.deliveries} deliveries</div>`;
+    else stateHtml = `<div class="tpPriceTag${tpProfile.walletCents >= t.priceCents ? "" : " tpShort"}">${tpMoney(t.priceCents)}</div>`;
+    card.innerHTML = `
+      <div class="tpSwatch">${tpHoodSvg(i, 40)}</div>
+      <div class="tpSkinName">${HOODS[i].n}</div>
+      <div class="tpStateRow">${stateHtml}</div>
+    `;
+    card.addEventListener("click", ()=>tpOpenDetail("hood", i));
+    grid.appendChild(card);
+  });
+  grid.appendChild(tpStoreHeading("Skins"));
   TP_SKINS.forEach(skin=>{
     const owned = tpProfile.owned.has(skin.skinId);
     const equipped = tpProfile.equipped === skin.skinId;
@@ -40174,6 +40322,40 @@ function tpOpenDetail(kind, id){
     }
   }
 
+  if(kind === "hood"){
+    const i = id, h = HOODS[i], t = hoodTier(i);
+    const owned = hoodIsOwned(i), unlocked = hoodIsUnlocked(i);
+    document.getElementById("tpDetailSwatch").innerHTML = tpHoodSvg(i, 52);
+    document.getElementById("tpDetailName").textContent = h.n;
+    document.getElementById("tpDetailDesc").textContent =
+      `Tier ${t.tier} hood \u00b7 ${h.streets.slice(0, 2).join(", ")}. Own it to open its streets.`;
+    if(owned){
+      btn.className = "tpDone"; btn.textContent = "Owned"; btn.disabled = true;
+    } else if(!unlocked){
+      progWrap.style.display = "block";
+      document.getElementById("tpDetailProgFill").style.width =
+        Math.min(100, Math.round((tpProfile.deliveries / t.deliveries) * 100)) + "%";
+      document.getElementById("tpDetailProgLabel").textContent = `${tpProfile.deliveries} / ${t.deliveries} deliveries`;
+      btn.className = "tpLockedBtn"; btn.textContent = `Locked \u2014 ${tpMoney(t.priceCents)} once unlocked`; btn.disabled = true;
+      note.textContent = `Make ${t.deliveries - tpProfile.deliveries} more deliveries to unlock.`;
+    } else {
+      const afford = tpProfile.walletCents >= t.priceCents;
+      btn.className = afford ? "tpBuy" : "tpLockedBtn";
+      btn.textContent = `Buy \u2014 ${tpMoney(t.priceCents)}`; btn.disabled = !afford;
+      if(!afford) note.textContent = `Need ${tpMoney(t.priceCents - tpProfile.walletCents)} more in tips`;
+      btn.onclick = ()=>{
+        if(hoodIsOwned(i) || !hoodIsUnlocked(i) || tpProfile.walletCents < t.priceCents) return;
+        tpProfile.walletCents -= t.priceCents;
+        tpProfile.hoodsOwned.add(i);
+        hoodSyncFromProfile();
+        tpSaveProfile(); tpRender(); tpCloseDetail();
+        tpToast(`${h.n} is yours \u2014 the roadblocks are down`);
+        tpPulseEl("tpHoodCard-" + i);
+        tpSubmitHoodPurchase(i);
+      };
+    }
+  }
+
   if(kind === "skin"){
     const skin = tpSkinById(id);
     const owned = tpProfile.owned.has(id);
@@ -40357,6 +40539,34 @@ function tdHideReceipt(){
    wallet balance that db.ts's atomic hIncrBy would have rejected, or a
    trophy the server can't yet verify — see tpcatalog.ts). Fire-and-forget
    on failure, matching every other Devvit bridge call in this file. */
+/* Server truth for the hood store, when the server sends it. Absent
+   fields leave the local values alone, so a server that predates hoods
+   neither strips nor grants anything. */
+function tpMergeServerHoods(data){
+  if(!data) return;
+  if(Array.isArray(data.hoodsOwned)){
+    tpProfile.hoodsOwned = new Set([0, ...data.hoodsOwned]);
+    hoodSyncFromProfile();
+  }
+  if(typeof data.deliveries === "number") tpProfile.deliveries = data.deliveries;
+}
+function tpSubmitHoodPurchase(hoodIndex){
+  if(!IS_DEVVIT_BUILD) return;
+  fetch("api/tipsy/profile/purchase-hood", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ hoodIndex })
+  })
+    .then(rsp => rsp.ok ? rsp.json() : null)
+    .then(data => {
+      if(!data) return;
+      if(typeof data.walletCents === "number") tpProfile.walletCents = data.walletCents;
+      tpMergeServerHoods(data);
+      tpSaveProfile();
+      tpRender();
+    })
+    .catch(()=>{});
+}
 function tpSubmitPurchase(skinId){
   if(!IS_DEVVIT_BUILD) return;
   fetch("api/tipsy/profile/purchase", {
