@@ -10917,8 +10917,13 @@ function depotLot(grid){ return depotsOf(grid).find(d => d.home) || false; }
    warning rather than drawn over something else. */
 const HOOD_SHOP_SITES = [
   /* RE-PLANNED FOR 1.3x (2026-09-17): every edge of the 15 blocks, rows
-     flush from their corner (see packHoodShopEdge). All 73 fit; 18 moved
-     block to make room. */
+     flush from their corner (see packHoodShopEdge). All 73 fit.
+     A FULL-EDGE BUILDING HAS ITS EDGE TO ITSELF (Sir, on-device, block
+     8,1): the six 1048.8 buildings -- Playhouse, Press, Marina Flats,
+     Palmline Motors, Tidewater & Co., Grand Pelican -- were sharing their
+     edge with shops packed into the run the pinwheel freed beside them.
+     Now nothing else stands on that edge; the block's other edges still
+     take shops. */
   [2,0, 0, ["Palmline Garage", "Palmline Savings"]],
   [2,0, 1, ["Tidewater Tea House", "Driftwood Books", "Marina Optical"]],
   [2,0, 2, ["Lagoon Coffee Roasters", "Sandpiper Bakery", "Seabreeze Florist"]],
@@ -10932,22 +10937,27 @@ const HOOD_SHOP_SITES = [
   [5,2, 2, ["Saltwater Brewing"]],
   [0,5, 2, ["Dune Home & Garden"]],
   [6,4, 2, ["Pelican Drug"]],
-  [8,1, 0, ["Seabreeze Grocer", "Cove Apothecary", "Marina Pharmacy"]],
+  [8,1, 0, ["The Flats Post Office", "Seabreeze Grocer", "Breakwater Hardware"]],
   [8,1, 1, ["The Tide Gazette"]],
-  [8,1, 2, ["Seabreeze Playhouse", "The Flats Post Office", "Low Tide Barbers"]],
-  [1,6, 0, ["Breakwater Hardware", "Surfside Diner", "Seabreeze Picture House"]],
+  [8,1, 2, ["Seabreeze Playhouse"]],
+  [8,1, 3, ["Low Tide Barbers", "Cove Apothecary", "Marina Pharmacy", "Lagoon Noodle Bar"]],
+  [1,6, 0, ["Low Tide TV & Radio", "Surfside Diner", "Seabreeze Picture House"]],
   [1,6, 1, ["The Flats Fire Station", "Seabreeze Hats"]],
-  [1,6, 2, ["Tidewater Press", "Low Tide TV & Radio", "Lagoon Noodle Bar"]],
-  [7,4, 0, ["Sandpiper Guest House", "Cove Fish Co.", "Tidewater News"]],
+  [1,6, 2, ["Tidewater Press"]],
+  [1,6, 3, ["Sandpiper Guest House", "Cove Fish Co.", "Pelican Cantina", "Tidewater News"]],
+  [7,4, 0, ["The Sandpiper Arms", "Saltwater Sweets", "Tidewater Clocks"]],
   [7,4, 1, ["Breakwater Ironworks", "Sea Glass Exchange"]],
-  [7,4, 2, ["Marina Flats", "The Sandpiper Arms", "Pelican Cantina"]],
-  [7,5, 0, ["Cove Butchers", "Saltwater Sweets", "Tidewater Clocks"]],
+  [7,4, 2, ["Marina Flats"]],
+  [7,4, 3, ["Sunfish Arcade", "Cove Butchers"]],
+  [7,5, 0, ["Seabreeze Fabrics"]],
   [7,5, 1, ["Driftwood Antiques", "Marina Tailors"]],
-  [7,5, 2, ["Palmline Motors", "Seabreeze Fabrics", "Sunfish Arcade"]],
+  [7,5, 2, ["Palmline Motors"]],
+  [4,7, 0, ["Low Tide Music"]],
   [4,7, 1, ["Marina Office", "Cove Locksmith"]],
-  [4,7, 2, ["Tidewater & Co.", "Low Tide Music"]],
+  [4,7, 2, ["Tidewater & Co."]],
+  [0,7, 0, ["Cove Rugs"]],
   [0,7, 1, ["Palmline Surf Co.", "Marina Chandlery"]],
-  [0,7, 2, ["The Grand Pelican", "Cove Rugs"]],
+  [0,7, 2, ["The Grand Pelican"]],
   [2,8, 1, ["Seawall Chambers", "Driftwood Lofts", "Seabreeze Library", "The Flats Police"]],
   [2,8, 2, ["Gull Loft", "Seabreeze Dance", "Kelp & Ink", "Sandcastle Models"]],
 ];
@@ -11176,10 +11186,17 @@ function hoodShopLive(route, sh){
    no street between its cells, and the entry draws its own. */
 const HOOD_BLOCK_LANDMARKS = [
   [3,0, "Tidewater Maritime Museum", 2],
-  [8,0, "Seabreeze Ballroom"],
-  [8,3, "Sandpiper Cottages"],
-  [0,6, "Marina Parking"],
-  [3,8, "Lagoon Market Hall"],
+  /* ALL IN THE EDGE-2 FRAME (2026-09-17). A row without an edge used the
+     old node-corner placement with b flipped, which is a mirror of the
+     lab: the same handedness fault the museum had, on the other four.
+     Now each takes edge 2 like the museum and, drawn whole, gets the
+     MIRROR rule, so it is the lab's building. The 5th field is a lot
+     inset: the market hall is fitted to the cell's buildable square
+     (its entry carries sc 0.6923), which starts 736 in from the node. */
+  [8,0, "Seabreeze Ballroom", 2],
+  [8,3, "Sandpiper Cottages", 2],
+  [0,6, "Marina Parking", 2],
+  [3,8, "Lagoon Market Hall", 2, 736],
 ];
 /* THE FRAME A HOOD LANDMARK STANDS IN (Sir, 2026-09-17: "its heading and
    door should be [on the] camera facing side"). A row with a 4th field
@@ -11193,14 +11210,15 @@ const HOOD_BLOCK_LANDMARKS = [
    keeps the old placement: origin at the cell's north-west node, b
    flipped. toLab() is the exact inverse, for collision and the x-ray. */
 function hoodLandmarkFrame(i, j){
-  let edge = null;
-  for(const row of HOOD_BLOCK_LANDMARKS) if(row[0] === i && row[1] === j){ edge = row[3]; break; }
+  let edge = null, inset = 0;
+  for(const row of HOOD_BLOCK_LANDMARKS) if(row[0] === i && row[1] === j){ edge = row[3]; inset = row[4] || 0; break; }
   let ox, oy, dv, rv, flank;
   if(edge === undefined || edge === null){
     ox = i*BLOCK; oy = j*BLOCK; dv = { x:1, y:0 }; rv = { x:0, y:-1 }; flank = undefined;
   } else {
     const e = blockEdgesOf({ x0: i*BLOCK, x1: (i+1)*BLOCK, y0: j*BLOCK, y1: (j+1)*BLOCK })[edge];
-    ox = e.ox; oy = e.oy; dv = e.dv; rv = e.rv; flank = (dv.x + dv.y) > 0;
+    ox = e.ox + e.dv.x*inset - e.rv.x*inset; oy = e.oy + e.dv.y*inset - e.rv.y*inset;
+    dv = e.dv; rv = e.rv; flank = (dv.x + dv.y) > 0;
   }
   return { ox, oy, dv, rv, flank,
     toWorld: (a, b) => ({ x: ox + dv.x*a + rv.x*b, y: oy + dv.y*a + rv.y*b }),
@@ -16095,9 +16113,24 @@ const LIB = (function(){
      are 1.3x. The body keeps its own units and P() makes it bigger on the
      ground, after any turn. 1 for everything that does not carry it. */
   let SC = 1;
+  /* MIRROR -- THE ONE HANDEDNESS RULE (Sir, 2026-09-17: "there must be a
+     missing flag or something. i don't want the same issues across
+     multiple sites"). Every body was composed and checked in the canvas
+     lab, whose view is exactly a block's edge 2 with a reversed. So on
+     the edges where the seen end is a = 0 -- the (dv.x + dv.y) <= 0 test,
+     edges 0 and 2 -- a shop is drawn with a mirrored about its own lot and
+     FLANK_RIGHT true: the building the lab signed off, a = W end in view,
+     every face in the order it was authored. Bodies that hand-roll their
+     ends (the Playhouse's pilasters, the brewery's yard walls and flanks)
+     were only ever right on edges 1 and 3; this makes them right on all
+     four without touching one of them, and the kit's own P()-derived face
+     tests agree with it by construction. An entry can opt out with
+     mirror:false. 0 = no mirror, else the lot width to mirror in. */
+  let MIRROR = 0;
   const NOPLATE = false;
   function P(a, b, z){
     if(TURN){ a = TURN.w - a; b = -TURN.d - b; }        // see turned() in the kit
+    if(MIRROR) a = MIRROR - a;
     return SHOP_SLOT ? SHOP_SLOT.G(a * SC, b * SC, z * SC * ZSCALE) : { x:0, y:0 };
   }
   let ctx = null;
@@ -25753,7 +25786,6 @@ const TIDEWATER_MUSEUM = (() => {
        scale. The a = WW one is on a face we can see and goes at the
        end with everything else. */
     backElev();
-    flank(-0.5, -1);
     body(wall, trim, H, WW, DD);
     /* The plate body() lays down is shade(trim,1.05), which is right on
        a 230 shop and is 1048 by 620 of near-white here -- the largest
@@ -25763,7 +25795,7 @@ const TIDEWATER_MUSEUM = (() => {
 
     /* ---- the fly tower, behind the auditorium, built as a solid ---- */
     F(CA0+20, CA1-20, H, H+240, shade(wall,.82), shade(wall,.62), 2, -300);
-    S(CA1-20, -560, -300, H, H+240, shade(wall,.66));
+    S(FLANK_RIGHT ? CA1-20 : CA0+20, -560, -300, H, H+240, shade(wall,.66));   // the seen end of the fly tower
     T(CA0+20, CA1-20, -560, -300, H+240, shade(wall,.9));
     slab(CA0+10, CA1-10, H+240, H+254, -298, -562, shade(wall,.72));
     F(440, 610, H+150, H+206, shade(wall,.66), null, 0, -301);      // louvre
@@ -25829,7 +25861,13 @@ const TIDEWATER_MUSEUM = (() => {
     slab(318, 730, 250, 344, -1, -10, shade(wall,1.2), null, trim);
     F(340, 708, 268, 326, trim, null, 0, -0.5);
 
-    flank(WW+0.5, 1);                                 // the near return, after the box
+    /* ONLY THE SEEN END IS DRESSED, and after body(). Both flanks were
+       drawn unconditionally -- the a = 0 one before body(), the a = WW one
+       after -- which is right in the canvas lab's single view and wrong on
+       edges 0 and 2, where a = 0 is the seen end: its dressing was painted
+       over by body's plain end wall, and the far a = WW dressing landed on
+       top of the roof and the facade (Sir, on-device, block 8,1). */
+    if(FLANK_RIGHT) flank(WW+0.5, 1); else flank(-0.5, -1);
 
     if(state.roof){
       /* ---- roof plant ----
@@ -31210,8 +31248,11 @@ const TIDEWATER_MUSEUM = (() => {
     };
     const parked = (ca, cb, cz, liv) =>
       flatsGameCar((a, b, h) => P(ca + b, cb - a, cz + h), FLATS_CAR_COLORS[liv % FLATS_CAR_COLORS.length]);
-
-    T(0, BLK, -BLK, 0, 0.3, '#b3a894');                    // the pavement round the cell
+    /* NO PAVEMENT ROUND THE CELL (2026-09-17, the fix the museum already
+       had: "drawing over the sidewalk"). This painted 0..BLK -- node to
+       node -- over half of every street round the lot and both pavements.
+       The city draws its own roads, kerbs and pavements; the entry's
+       ground is its lot, CA0..CA1, and nothing outside it. */
     T(FA0-20, FA1+20, FB0-20, FB1+20, 0.6, '#7d848a');
 
     /* ================= A FLIGHT IS NOT PART OF A FLOOR ================
@@ -31352,7 +31393,7 @@ const TIDEWATER_MUSEUM = (() => {
   }
 },
 {
-  name:'Lagoon Market Hall', base:'Market hall', hood:'The Flats', edited:true, tall:true, ww: 2392, dd: 2392,
+  name:'Lagoon Market Hall', base:'Market hall', hood:'The Flats', edited:true, tall:true, ww: 2392, dd: 2392, sc: 0.6923,   /* fitted: 2392 x 0.6923 = 1656, the buildable square a park cell now has (roads 368 + pavement 368 a side) -- at 1x it stood on the pavement */
   wTodo:'a whole block edge, 2392 = BLOCK - 2*ROAD_HALF, of which the hall is 460 and the market yard is the rest; the packer emits no wide slot',
   cTodo:'the two stalls are volumes: a 88..134 and 326..372 at b 0..28, on the line and clear of the doorway',
   head:'A nave under one barrel vault, with the market yard filling the block',
@@ -32150,8 +32191,11 @@ const TIDEWATER_MUSEUM = (() => {
        against a 230 shop: 520 of canopy on 1656 read as trim rather than
        as the way in, and a 17 globe was a dot. 700 and 26. */
     const DMID = LW/2, NB = 5, CAN = [DMID-350, DMID+350], COUT = 150;
-
-    T(0, BLK, -BLK, 0, 0.3, '#b3a894');
+    /* NO PAVEMENT ROUND THE CELL (2026-09-17, the fix the museum already
+       had: "drawing over the sidewalk"). This painted 0..BLK -- node to
+       node -- over half of every street round the lot and both pavements.
+       The city draws its own roads, kerbs and pavements; the entry's
+       ground is its lot, CA0..CA1, and nothing outside it. */
 
     const elevation = fr => {
       const L = fr.len;
@@ -32456,8 +32500,11 @@ const TIDEWATER_MUSEUM = (() => {
     const wall = '#eee6d4', trim = '#4d7f95', roofc = '#8a9699';
     const glassT = 'rgba(122,138,146,.88)';
     const GMID = (CA0+CA1)/2, GW = 190;
-
-    T(0, BLK, -BLK, 0, 0.3, '#b3a894');
+    /* NO PAVEMENT ROUND THE CELL (2026-09-17, the fix the museum already
+       had: "drawing over the sidewalk"). This painted 0..BLK -- node to
+       node -- over half of every street round the lot and both pavements.
+       The city draws its own roads, kerbs and pavements; the entry's
+       ground is its lot, CA0..CA1, and nothing outside it. */
     T(CA0, CA1, CB0, CB1, 0.6, '#a99d86');
     T(LA1, RA0, CB0+RD, SB0, 0.9, '#6f8a5e');                  // the court lawn
     T(GMID-70, GMID+70, CB0+RD, SB0, 1.2, '#bdb299');          // the path from the arch
@@ -32771,13 +32818,15 @@ const TIDEWATER_MUSEUM = (() => {
       K = k || 1;
       SC = shop.sc || 1;
       ZSCALE = shop.zs === undefined ? 1.5 : shop.zs;
-      FLANK_RIGHT = flank === undefined ? true : !!flank;
+      const mirrored = flank === false && shop.mirror !== false;
+      MIRROR = mirrored ? (shop.ww || W) : 0;
+      FLANK_RIGHT = mirrored ? true : (flank === undefined ? true : !!flank);
       SHOP_SLOT = { G };
       state.part = part ? part.part : null;
       state.partW = part ? (part.w || null) : null;
       ctx.__bind(g);
       try { (rear && shop.back ? shop.back : shop.draw).call(shop, pal || PAL[0]); }
-      finally { SHOP_SLOT = null; state.part = null; state.partW = null; }
+      finally { SHOP_SLOT = null; MIRROR = 0; state.part = null; state.partW = null; }
       return true;
     }
   };
