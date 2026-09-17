@@ -32816,6 +32816,9 @@ const TIDEWATER_MUSEUM = (() => {
     T(0, LEN, -DEP, 0, 0.4, tar);
     T(0, WA-40, -DEP, 0, 0.6, grass);
     T(WB+40, LEN, -DEP, 0, 0.6, grass);
+    /* the strip behind the range is the school's too, and it is grass:
+       from the back street it was reading as more pavement (Sir) */
+    T(0, LEN, -DEP, BB0-6, 0.6, grass);
     T(MA0-120, MA1+120, BB1, -40, 0.7, walk);
     for(const ga of [2400, 7000]) T(ga-90, ga+90, BB1, -14, 0.9, walk);
     /* the courts, painted on the tarmac in front of the wings */
@@ -32916,7 +32919,10 @@ const TIDEWATER_MUSEUM = (() => {
     { let cur = 0;
       for(const [g0, g1] of GATES){ if(g0 - cur > 30) mesh(cur, -14, g0, -14); cur = g1; }
       if(LEN - cur > 30) mesh(cur, -14, LEN, -14); }
+    /* railed on all four sides: the ends and the back as well as the
+       pavement, so the grounds are enclosed from every street */
     mesh(14, -14, 14, -DEP+14); mesh(LEN-14, -14, LEN-14, -DEP+14);
+    mesh(14, -DEP+14, LEN-14, -DEP+14);
     for(const [g0, g1] of GATES){
       for(const ga of [g0, g1]) box(ga-26, ga+26, -40, 0, 0, 200, shade(brick,1.08), brick, shade(brick,.8));
       for(const ga of [g0, g1]) T(ga-30, ga+30, -44, 4, 204, shade(brick,.72));
@@ -35495,7 +35501,19 @@ class WorldScene extends Phaser.Scene {
        into g unconditionally, so the robot could never be hidden
        behind a house even when it should have been). */
     const visBlocks = r.grid.blocks.filter(b => near(b.cx, b.cy));
-    const visLots = r.grid.extLots.filter(l => near(l.cx, l.cy));
+    /* A RIM SITE IS ONE BUILDING ACROSS SEVERAL LOTS (Sir, on-device:
+       "once i go to the boundry the building cuts away and completely
+       dissapears"). Its anchor lot draws the whole run, so testing the
+       anchor's own centre dropped the school the moment he drove past the
+       middle of it. Every lot of a site passes together, on the site's
+       nearest point rather than a lot centre. */
+    const visLots = r.grid.extLots.filter(l => {
+      const s = typeof hoodRimSiteOfLot === "function" ? hoodRimSiteOfLot(l) : null;
+      if(!s) return near(l.cx, l.cy);
+      const x = Math.max(s.from, Math.min(this.botX, s.to));
+      const y = s.at + s.out*s.depth/2;
+      return near(x, y) || near(s.from, y) || near(s.to, y);
+    });
     for(const blk of visBlocks) this.fillBlockGround(g, blk);
     for(const lot of visLots) this.fillExteriorLot(g, lot);
 
@@ -53851,7 +53869,13 @@ function drawRouteMap(route){
      shape as interior blocks so both draw through the same code below
      instead of needing a separate pass. */
   const lotDepth = BLOCK*0.4;
-  const extRects = bgRoute.grid.extLots.map(lot => {
+  /* a rim landmark is ONE lot on the map too, not the two parks and the
+     commercial strip it was built from (Sir: "we didnt blend ... we have
+     two and then we have the shop block still there") */
+  const rimRects = (typeof hoodRimRects === "function" ? hoodRimRects() : []).map(r2 => ({
+    x0: r2.x0, x1: r2.x1, y0: r2.y0, y1: r2.y1, cx: r2.cx, cy: r2.cy, type: "landmark", rim: r2 }));
+  const extRects = bgRoute.grid.extLots.filter(lot =>
+    !(typeof hoodRimSiteOfLot === "function" && hoodRimSiteOfLot(lot))).map(lot => {
     const p2x = lot.ox + lot.dv.x*lot.len, p2y = lot.oy + lot.dv.y*lot.len;
     const p3x = p2x + lot.rv.x*lotDepth, p3y = p2y + lot.rv.y*lotDepth;
     const p4x = lot.ox + lot.rv.x*lotDepth, p4y = lot.oy + lot.rv.y*lotDepth;
@@ -53862,8 +53886,8 @@ function drawRouteMap(route){
       type: lot.type
     };
   });
-  const allBlocks = bgRoute.grid.blocks.concat(extRects);
-  const blockColor = { housing: "#e3d4b8", park: "#8fbf7a", commercial: "#c4c8cc" };
+  const allBlocks = bgRoute.grid.blocks.concat(extRects, rimRects);
+  const blockColor = { housing: "#e3d4b8", park: "#8fbf7a", commercial: "#c4c8cc", landmark: "#b9c9a6" };
   const byIJ = bgRoute.grid.blockByIJ;
   for(const blk of allBlocks){
     if(!inView(blk.cx, blk.cy)) continue;
@@ -54047,8 +54071,8 @@ function drawRouteMap(route){
     ctx.fillStyle = "#2e3138"; ctx.font = "10px sans-serif";
     ctx.fillText(pname, p.x, p.y+8);
   }
-  for(const blk of extRects){
-    if(blk.type !== "park" || !inView(blk.cx, blk.cy)) continue;
+  for(const blk of extRects.concat(rimRects)){
+    if(!(blk.type === "park" || blk.rim) || !inView(blk.cx, blk.cy)) continue;
     const p = toScreen({x:blk.cx, y:blk.cy});
     const pk = mapParkIcon(blk.cx, blk.cy, bgRoute);
     ctx.fillStyle = pk.pin;
