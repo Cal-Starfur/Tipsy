@@ -75,6 +75,12 @@ export type TpProfileRsp = {
   walletCents: number
   owned: string[]
   equipped: string
+  /** Hood store (see tpcatalog.ts TS_HOODS). HOODS indices owned; 0 (The
+   *  Flats) is always included. deliveries is the lifetime count of
+   *  today's-route deliveries the unlock tiers read. The client mirrors
+   *  both on every requestTpProfile, so server truth wins. */
+  hoodsOwned: number[]
+  deliveries: number
   /** missionId -> best count recorded server-side (see db.ts
    *  dbRecordMission). The client merges this into its local
    *  missionsCompleted/hjBest so progress follows a player across
@@ -114,6 +120,10 @@ export type ResolveFailRsp = TpProfileRsp
  *  catalog (tpcatalog.ts) -- price is never taken from the client. */
 export type PurchaseSkinReq = {skinId: string}
 export type PurchaseSkinRsp = TpProfileRsp
+/** hoodIndex must be a TS_HOODS entry the player does not own, whose
+ *  delivery requirement is met server-side; price comes from TS_HOODS. */
+export type PurchaseHoodReq = {hoodIndex: number}
+export type PurchaseHoodRsp = TpProfileRsp
 /** skinId must already be owned (dbEquipSkin checks tpOwnedKey; 'classic'
  *  is always a valid target). */
 export type EquipSkinReq = {skinId: string}
@@ -342,6 +352,7 @@ export const Endpoint = {
   SubmitReplay: 'api/tipsy/history/submit',
   GetTpProfile: 'api/tipsy/profile',
   PurchaseSkin: 'api/tipsy/profile/purchase',
+  PurchaseHood: 'api/tipsy/profile/purchase-hood',
   ResolveFail: 'api/tipsy/fail/resolve',
   EquipSkin: 'api/tipsy/profile/equip',
   ClaimTrophyReward: 'api/tipsy/profile/claim',
@@ -370,6 +381,7 @@ export const EndpointMethod = {
   [Endpoint.SubmitReplay]: 'POST',
   [Endpoint.GetTpProfile]: 'GET',
   [Endpoint.PurchaseSkin]: 'POST',
+  [Endpoint.PurchaseHood]: 'POST',
   [Endpoint.ResolveFail]: 'POST',
   [Endpoint.EquipSkin]: 'POST',
   [Endpoint.ClaimTrophyReward]: 'POST',
