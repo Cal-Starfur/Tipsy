@@ -5566,7 +5566,7 @@ function owBuildWorld(route){
              its building, railing, piers and garden, with the forecourt and
              the gate open. One that does not stays the solid cell it was. */
           { const _lv = hoodLandmarkVolAt(b);
-            if(_lv){ if(volBlockedAt(_lv.v, x - _lv.x0, _lv.y0 - y, R, true)) return b; continue; } }
+            if(_lv){ const _p = _lv.fr.toLab(x, y); if(volBlockedAt(_lv.v, _p.a, _p.b, R, true)) return b; continue; } }
           /* the depot's room and doorway are carved out of their block */
           { const _dl = depotOnBlock(g2, b);
             if(_dl){ const ds = depotSolidAt(_dl, x, y, R); if(ds === false) continue; if(ds === true) return b; } }
@@ -10920,17 +10920,11 @@ const HOOD_SHOP_SITES = [
   [2,0, 2, ["Lagoon Coffee Roasters", "Sandpiper Bakery", "Seabreeze Florist", "Cove Creamery"]],
   [3,1, 1, ["Sandcastle Toys", "Cove Pottery", "Pelican Pets"]],
   [3,1, 2, ["Palmline Bikes", "Pelican Photo", "Saltwater Sweets", "Low Tide Records"]],
-  [2,3, 1, ["Palmline Garage", "Palmline Savings", "Sandpiper Suds"]],
   [2,3, 2, ["Driftwood Chapel"]],
-  [0,2, 1, ["Seabreeze Fuel", "Surfside Fitness", "Low Tide Barbers"]],
   [0,2, 2, ["Lagoon Baths"]],
-  [1,3, 1, ["Driftwood Home", "Sandpiper Shoes", "Seabreeze Grocer"]],
   [1,3, 2, ["Palmline Nursery"]],
-  [5,2, 1, ["Cove Apothecary", "Marina Pharmacy", "Lagoon Noodle Bar", "Breakwater Hardware"]],
   [5,2, 2, ["Saltwater Brewing"]],
-  [0,5, 1, ["Surfside Diner", "Seabreeze Picture House", "Sandpiper Guest House", "Cove Fish Co."]],
   [0,5, 2, ["Dune Home & Garden"]],
-  [6,4, 1, ["Pelican Cantina", "Tidewater News", "Sunfish Arcade", "Cove Butchers"]],
   [6,4, 2, ["Pelican Drug"]],
   [8,1, 1, ["The Tide Gazette", "The Flats Post Office", "Tidewater Clocks"]],
   [8,1, 2, ["Seabreeze Playhouse"]],
@@ -10946,7 +10940,30 @@ const HOOD_SHOP_SITES = [
   [0,7, 2, ["The Grand Pelican"]],
   [2,8, 1, ["Seawall Chambers", "Driftwood Lofts", "Seabreeze Library", "The Flats Police"]],
   [2,8, 2, ["Gull Loft", "Seabreeze Dance", "Kelp & Ink", "Sandcastle Models"]],
+  /* THE AWAY EDGES (Sir, 2026-09-17). A block with a whole-block building
+     holds that building and nothing else -- it used to take shops on its
+     other front edge and generic stores on both backs, four sides built
+     round one building. The 21 shops that stood beside those six
+     buildings moved to the backs (edges 0 and 3) of three blocks that
+     already carry front shops, in place of generic stores there: planned
+     against the real LIB widths and depths, no footprint on any of those
+     blocks overlapping another. */
+  [2,0, 0, ["Palmline Garage", "Palmline Savings", "Sandpiper Suds"]],
+  [2,0, 3, ["Seabreeze Fuel", "Surfside Fitness", "Low Tide Barbers"]],
+  [3,1, 0, ["Driftwood Home", "Sandpiper Shoes", "Seabreeze Grocer"]],
+  [3,1, 3, ["Cove Apothecary", "Marina Pharmacy", "Lagoon Noodle Bar", "Breakwater Hardware"]],
+  [8,1, 0, ["Surfside Diner", "Seabreeze Picture House", "Sandpiper Guest House", "Cove Fish Co."]],
+  [8,1, 3, ["Pelican Cantina", "Tidewater News", "Sunfish Arcade", "Cove Butchers"]],
 ];
+/* the blocks whose site list includes a whole-block building (block:true):
+   those edges draw, the block's other edges draw nothing */
+function hoodWholeBlockEdge(grid, blk){
+  for(const [i, j, ei, list] of HOOD_SHOP_SITES){
+    if(i !== blk.i || j !== blk.j) continue;
+    if(list.some(n => { const e = LIB.get(n); return !!(e && e.block); })) return ei;
+  }
+  return -1;
+}
 const HOOD_SHOP_ICON = {
   "Coffee roaster":"\u2615", "Bakery":"\u{1F950}", "Florist":"\u{1F490}", "Ice cream":"\u{1F366}",
   "Tea house":"\u{1F375}", "Bookshop":"\u{1F4DA}", "Optician":"\u{1F453}", "Bike shop":"\u{1F6B2}",
@@ -11090,12 +11107,37 @@ function hoodShopLive(route, sh){
    by GPS like any other place. Single-cell parks only: a merged park has
    no street between its cells, and the entry draws its own. */
 const HOOD_BLOCK_LANDMARKS = [
-  [3,0, "Tidewater Maritime Museum"],
+  [3,0, "Tidewater Maritime Museum", 2],
   [8,0, "Seabreeze Ballroom"],
   [8,3, "Sandpiper Cottages"],
   [0,6, "Marina Parking"],
   [3,8, "Lagoon Market Hall"],
 ];
+/* THE FRAME A HOOD LANDMARK STANDS IN (Sir, 2026-09-17: "its heading and
+   door should be [on the] camera facing side"). A row with a 4th field
+   is placed the way a shop on that block edge is: the entry's lab a runs
+   along the edge's dv, lab b is 0 on the street and negative into the
+   cell (+rv*b, rv pointing out of it), and FLANK_RIGHT is the edge's own
+   (dv.x + dv.y) > 0 test -- so the kit picks the flank that is actually
+   seen, which the mirrored placement below got backwards (the museum's
+   near flank never drew). Edges 1 and 2 face the camera. The cell is the
+   whole node-to-node square the entry is drawn to. A row without one
+   keeps the old placement: origin at the cell's north-west node, b
+   flipped. toLab() is the exact inverse, for collision and the x-ray. */
+function hoodLandmarkFrame(i, j){
+  let edge = null;
+  for(const row of HOOD_BLOCK_LANDMARKS) if(row[0] === i && row[1] === j){ edge = row[3]; break; }
+  let ox, oy, dv, rv, flank;
+  if(edge === undefined || edge === null){
+    ox = i*BLOCK; oy = j*BLOCK; dv = { x:1, y:0 }; rv = { x:0, y:-1 }; flank = undefined;
+  } else {
+    const e = blockEdgesOf({ x0: i*BLOCK, x1: (i+1)*BLOCK, y0: j*BLOCK, y1: (j+1)*BLOCK })[edge];
+    ox = e.ox; oy = e.oy; dv = e.dv; rv = e.rv; flank = (dv.x + dv.y) > 0;
+  }
+  return { ox, oy, dv, rv, flank,
+    toWorld: (a, b) => ({ x: ox + dv.x*a + rv.x*b, y: oy + dv.y*a + rv.y*b }),
+    toLab:   (x, y) => ({ a: (x-ox)*dv.x + (y-oy)*dv.y, b: (x-ox)*rv.x + (y-oy)*rv.y }) };
+}
 function hoodLandmarkAtIJ(i, j){
   for(const [a, b, n] of HOOD_BLOCK_LANDMARKS) if(a === i && b === j) return LIB.get(n) ? n : null;
   return null;
@@ -11109,7 +11151,7 @@ function hoodLandmarkVolAt(blk){
   if(!n) return null;
   const shop = LIB.get(n);
   if(!shop || !shop.vol) return null;
-  return { name: n, v: LIB.vol(n), zs: LIB.zs(n), x0: blk.i * BLOCK, y0: blk.j * BLOCK };
+  return { name: n, v: LIB.vol(n), zs: LIB.zs(n), fr: hoodLandmarkFrame(blk.i, blk.j) };
 }
 function hoodLandmarkAtXY(x, y){ return hoodLandmarkAtIJ(Math.floor(x / BLOCK), Math.floor(y / BLOCK)); }
 /* THE NEAR CORNER, in the LAB'S OWN FRAME (Sir: "from this view i cant
@@ -32802,7 +32844,8 @@ class WorldScene extends Phaser.Scene {
            Tipsey behind the museum is behind 660 of stone, not grass */
         const _lv = hoodLandmarkVolAt(b);
         if(_lv && x >= b.x0 && x <= b.x1 && y >= b.y0 && y <= b.y1){
-          const h = volBuiltHeight(_lv.v, x - _lv.x0, _lv.y0 - y, 'street', true);
+          const _p = _lv.fr.toLab(x, y);
+          const h = volBuiltHeight(_lv.v, _p.a, _p.b, 'street', true);
           if(h !== null) return h * _lv.zs;
         }
         continue;
@@ -36266,8 +36309,12 @@ class WorldScene extends Phaser.Scene {
   }
   queueCommercialBlock(vq, blk, excludeEdges=null, cornerSkip=null){
     const isPickupBlock = (blk === this.route.pickupBlock);
+    /* ONE BUILDING ON A WHOLE-BLOCK BLOCK: only its own edge is queued --
+       no shops, generic stores or corner units round the other three */
+    const _wbEdge = (this.route && this.route.grid) ? hoodWholeBlockEdge(this.route.grid, blk) : -1;
     this.blockEdges(blk).forEach((e, idx) => {
       if(excludeEdges && excludeEdges.includes(idx)) return;
+      if(_wbEdge >= 0 && idx !== _wbEdge) return;
       const _hg = this.route && this.route.grid;
       this.queueCommercialEdgeAt(vq, e, isPickupBlock && idx === this.route.pickupEdgeIdx, cornerSkip,
                                  _hg ? hoodShopEdgeUnits(_hg, blk, idx) : null);
@@ -36454,22 +36501,23 @@ class WorldScene extends Phaser.Scene {
        park landmarks below are */
     const _hl = blk.i !== undefined ? hoodLandmarkAtIJ(blk.i, blk.j) : null;
     if(_hl){
-      const x0 = blk.x0 - ROAD_HALF * 2, y0 = blk.y0 - ROAD_HALF * 2;
-      const G = (a, b, h) => this.W(x0 + a, y0 - b, h);
+      const fr = hoodLandmarkFrame(blk.i, blk.j);
+      const G = (a, b, h) => { const q = fr.toWorld(a, b); return this.W(q.x, q.y, h); };
       /* IN PIECES, each at its own world depth (see LIB.collect). One key
          for the whole lot put everything behind its far corner -- Tipsey
          on the back pavement included -- in FRONT of the building. The
          paving goes first, under all of it; an entry that does not hand
          its items over still draws whole, as before. */
-      const items = LIB.collect(_hl, G, this.K);
+      const items = LIB.collect(_hl, G, this.K, fr.flank);
       if(items){
-        vq.push({ depth: x0 + y0, fn: (g) => LIB.ground(_hl, g, G, this.K) });
+        /* the paving under everything: the cell's farthest corner */
+        vq.push({ depth: blk.i*BLOCK + blk.j*BLOCK, fn: (g) => LIB.ground(_hl, g, G, this.K, fr.flank) });
         for(const it of items){
-          const wx = x0 + (it.a || 0), wy = y0 - it.b;
-          vq.push({ depth: wx + wy + (it.z || 0), fn: (g) => LIB.drawItem(_hl, g, G, this.K, it) });
+          const q = fr.toWorld(it.a || 0, it.b);
+          vq.push({ depth: q.x + q.y + (it.z || 0), fn: (g) => LIB.drawItem(_hl, g, G, this.K, it, fr.flank) });
         }
       } else {
-        vq.push({ depth: (blk.x0 + blk.y0), fn: (g) => LIB.draw(_hl, g, G, null, this.K) });
+        vq.push({ depth: (blk.x0 + blk.y0), fn: (g) => LIB.draw(_hl, g, G, null, this.K, null, fr.flank) });
       }
       return;
     }
