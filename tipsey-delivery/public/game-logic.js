@@ -15038,10 +15038,15 @@ const LIB = (function(){
      tests agree with it by construction. An entry can opt out with
      mirror:false. 0 = no mirror, else the lot width to mirror in. */
   let MIRROR = 0;
+  /* BOFF -- the entry's own set-back (`boff`): art drawn forward of the
+     shop line is moved back onto it, so a colonnade that stood on the
+     footway stands with the neighbours' glass instead. */
+  let BOFF = 0;
   const NOPLATE = false;
   function P(a, b, z){
     if(TURN){ a = TURN.w - a; b = -TURN.d - b; }        // see turned() in the kit
     if(MIRROR) a = MIRROR - a;
+    b += BOFF;
     return SHOP_SLOT ? SHOP_SLOT.G(a * SC, b * SC, z * SC * ZSCALE) : { x:0, y:0 };
   }
   let ctx = null;
@@ -18495,7 +18500,16 @@ const TIDEWATER_MUSEUM = (() => {
   }
 },
 {
-  name:'Tidewater Tea House', base:'Tea house', hood:'The Flats', edited:true, sc:1.3, ww: T2*4.4,
+  name:'Tidewater Tea House', base:'Tea house', hood:'The Flats', edited:true, sc:1.3, ww: T2*4.4, dd: 360, boff: -76,
+  /* IN LINE WITH THE OTHER SHOPS (Sir, on-device: "i want to move the
+     teahouse to be in line with the other shops but remove the fake
+     sidewalk that it has so that its posts just hit the regular
+     sidewalk"). The colonnade was drawn at b 76 -- 76 forward of the
+     shop line, standing on the footway -- with a painted forecourt under
+     it. boff moves the whole entry back by exactly that, so the columns
+     land ON the shop line with the neighbours' glass, the eave oversails
+     the real pavement by the 28 it always did, and the paint is gone.
+     dd grows to 360 to cover the depth the shift adds. */
   wTodo:'two packing slots',
   head:'Two-tier red roof, dougong brackets, colonnade over the footway',
   cTodo:'6 colonnade columns need collision volumes -- they stand at b 76, out at the kerb',
@@ -18635,9 +18649,8 @@ const TIDEWATER_MUSEUM = (() => {
        allows rather than as deep as it could be -- 164 of covered
        walkway against the 104 it had, which is what Sir asked for. */
     const SET = 60, FB = -SET;
-    T(BA0-6, BA1+6, FB, 100, 0.6, '#cfc7b6');         // the forecourt, flat paint
-    for(let k=0;k<7;k++)
-      T(BA0-6, BA1+6, FB + (100-FB)*k/7 - 1, FB + (100-FB)*k/7 + 1, 0.8, '#bdb5a4');
+    /* NO FORECOURT PAINT: the colonnade stands on the city's own pavement
+       now (see IN LINE WITH THE OTHER SHOPS above) */
 
     /* ---- ROOF TIERS, AND WHY THE CORNERS ARE PART OF THE SURFACE ----
        The turn-ups had no volume because they were not part of the
@@ -31899,6 +31912,7 @@ const TIDEWATER_MUSEUM = (() => {
     _enter(shop, G, k, flank){
       K = k || 1;
       SC = shop.sc || 1;
+      BOFF = shop.boff || 0;
       ZSCALE = shop.zs === undefined ? 1.5 : shop.zs;
       FLANK_RIGHT = flank === undefined ? true : !!flank;
       SHOP_SLOT = { G };
@@ -31916,13 +31930,14 @@ const TIDEWATER_MUSEUM = (() => {
       ZSCALE = shop.zs === undefined ? 1.5 : shop.zs;
       const mirrored = flank === false && shop.mirror !== false;
       MIRROR = mirrored ? (shop.ww || W) : 0;
+      BOFF = shop.boff || 0;
       FLANK_RIGHT = mirrored ? true : (flank === undefined ? true : !!flank);
       SHOP_SLOT = { G };
       state.part = part ? part.part : null;
       state.partW = part ? (part.w || null) : null;
       ctx.__bind(g);
       try { (rear && shop.back ? shop.back : shop.draw).call(shop, pal || PAL[0]); }
-      finally { SHOP_SLOT = null; MIRROR = 0; state.part = null; state.partW = null; }
+      finally { SHOP_SLOT = null; MIRROR = 0; BOFF = 0; state.part = null; state.partW = null; }
       return true;
     }
   };
@@ -34415,15 +34430,31 @@ class WorldScene extends Phaser.Scene {
         const ck = cutKey + sgn;
         const hit = r.grid._kerbCuts.get(ck);
         if(hit) return hit;
-        const cuts = [];
-        for(let s = 0; s <= len; s += T2*0.5){
-          const px = sx + dv.x*s + rv.x*sgn*598, py = sy + dv.y*s + rv.y*sgn*598;
-          if(!owAtRampMouth(r.grid, px, py)) continue;
-          const last = cuts[cuts.length-1];
-          if(last && s - last[1] <= T2) last[1] = s;
-          else cuts.push([s, s]);
+        /* WHERE A RAMP CROSSES THIS KERB, FROM THE RAMP RECORDS (Sir:
+           "this doesnt look like we fixed it properly"). The first cut
+           probed owAtRampMouth along the lane the ramps stand in, which
+           only matched at the very ends of a run and left a 20-wide nick
+           there -- the notch on device. A ramp prop sits ROAD_HALF + T2
+           off the CROSSED street's centre and is 230 wide, so it straddles
+           that street's kerb line: measure each ramp in this edge's own
+           frame and take the ones whose lateral is that far out. Their pad
+           is the gap. */
+        const RAMP_LAT = ROAD_HALF + T2, RAMP_HALF = 115;
+        const raw = [];
+        for(const rp of (r.grid.curbRamps || [])){
+          const lat = (rp.x - sx)*rv.x + (rp.y - sy)*rv.y;
+          if(sgn * lat < 0 || Math.abs(Math.abs(lat) - RAMP_LAT) > 60) continue;
+          const alo = (rp.x - sx)*dv.x + (rp.y - sy)*dv.y;
+          if(alo + RAMP_HALF < 0 || alo - RAMP_HALF > len) continue;
+          raw.push([Math.max(0, alo - RAMP_HALF), Math.min(len, alo + RAMP_HALF)]);
         }
-        const out = cuts.map(([c0, c1]) => [Math.max(0, c0 - 60), Math.min(len, c1 + 60)]);
+        raw.sort((a, b) => a[0] - b[0]);
+        const out = [];
+        for(const c of raw){
+          const last = out[out.length-1];
+          if(last && c[0] - last[1] <= 8) last[1] = Math.max(last[1], c[1]);
+          else out.push(c);
+        }
         r.grid._kerbCuts.set(ck, out);
         return out;
       };
@@ -34440,13 +34471,17 @@ class WorldScene extends Phaser.Scene {
         const cuts = rampCuts(sgn);
         let cur = 0;
         for(const [c0, c1] of cuts){
-          if(c0 - cur > 1) kerbRun(sgn, cur, c0, KERB_H, KERB_H);
-          /* the dropped kerb: flare down, flush across the mouth, flare up */
-          const FL = Math.min(46, (c1 - c0) / 3), LOW = 1.5;
-          kerbRun(sgn, c0, c0 + FL, KERB_H, LOW);
-          kerbRun(sgn, c0 + FL, c1 - FL, LOW, LOW);
-          kerbRun(sgn, c1 - FL, c1, LOW, KERB_H);
-          cur = c1;
+          /* THE FLARES ARE OUTSIDE THE PAD, the drop is across it: full
+             kerb up to the flare, flare down, flush the width of the pad,
+             flare back up. Both flares used to sit inside the mouth, which
+             left a stub of full kerb at each end of it. */
+          const FL = 64, LOW = 0.6;
+          const f0 = Math.max(cur, c0 - FL), f1 = Math.min(len, c1 + FL);
+          if(f0 - cur > 1) kerbRun(sgn, cur, f0, KERB_H, KERB_H);
+          if(c0 - f0 > 1) kerbRun(sgn, f0, c0, KERB_H, LOW);
+          if(c1 - c0 > 1) kerbRun(sgn, c0, c1, LOW, LOW);
+          if(f1 - c1 > 1) kerbRun(sgn, c1, f1, LOW, KERB_H);
+          cur = f1;
         }
         if(len - cur > 1) kerbRun(sgn, cur, len, KERB_H, KERB_H);
       }
