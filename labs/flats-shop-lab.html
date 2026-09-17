@@ -1,0 +1,529 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<title>Tipsy — The Flats shop lab</title>
+<style>
+  :root{ --bg:#14161a; --panel:#1d2026; --line:#2c313a; --ink:#e8e6e1; --mut:#8d939e; --hot:#ff7a1a; }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font:15px/1.5 ui-sans-serif,system-ui,-apple-system,sans-serif;overflow-x:hidden}
+  header{padding:14px 16px 10px;border-bottom:1px solid var(--line)}
+  h1{margin:0;font-size:15px;letter-spacing:.06em;text-transform:uppercase;color:var(--mut);font-weight:600}
+  #stage{width:100%;display:block;background:linear-gradient(#1b1f26,#0f1114)}
+  .bar{display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid var(--line);
+       background:var(--panel);position:sticky;top:0;z-index:5}
+  button{background:#262b33;color:var(--ink);border:1px solid var(--line);border-radius:9px;
+         padding:12px 16px;font-size:16px;font-weight:600;cursor:pointer;min-width:52px}
+  button:active{background:#333a45}
+  button.on{background:var(--hot);border-color:var(--hot);color:#151515}
+  .name{flex:1;text-align:center;font-size:17px;font-weight:700;letter-spacing:.01em}
+  .idx{color:var(--mut);font-size:13px;font-weight:500}
+  .meta{padding:14px 16px 26px;max-width:720px}
+  .meta h2{font-size:15px;margin:0 0 6px;color:var(--hot);letter-spacing:.04em;text-transform:uppercase}
+  .todo{display:none;margin:0 0 10px;padding:9px 12px;border-radius:8px;
+        background:#3a2a12;border:1px solid #7a5410;color:#f0c674;font-size:13.5px;line-height:1.45}
+  .todo b{color:#ffd98a}
+  .meta p{margin:0 0 10px;color:#c9cdd4;font-size:14.5px}
+  .tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+  .tag{background:#232830;border:1px solid var(--line);border-radius:20px;padding:5px 11px;
+       font-size:12px;color:var(--mut)}
+  .row{display:flex;gap:8px;padding:0 14px 14px;background:var(--panel);border-bottom:1px solid var(--line)}
+  .vol{display:none;margin:0 0 10px;padding:9px 12px;border-radius:8px;background:#10272b;
+       border:1px solid #1f6f78;color:#9fe6ee;font-size:13px;line-height:1.45;font-family:ui-monospace,monospace}
+  .vol b{color:#d4fbff}
+  .row button{flex:1;min-width:0;font-size:13px;padding:10px 6px}
+</style>
+
+<header><h1>Shopfront lab · one shop at a time</h1></header>
+<div class="bar">
+  <button id="prev">‹</button>
+  <div class="name"><span id="nm">—</span><br><span class="idx" id="ix"></span></div>
+  <button id="next">›</button>
+</div>
+<div class="row">
+  <button id="tRoof" class="on">Roof kit</button>
+  <button id="tProps" class="on">Kerb props</button>
+  <button id="tPal">Palette</button>
+  <button id="tScale">True scale</button>
+  <button id="tGrid">Guides</button>
+  <button id="tDoor">Door cycle</button>
+  <button id="tVol">Vol</button>
+</div>
+<canvas id="stage"></canvas>
+<div class="meta">
+  <h2 id="mh">—</h2>
+  <div class="vol" id="mv"></div>
+  <div class="todo" id="mz"></div>
+  <p id="md"></p>
+  <div class="tags" id="mt"></div>
+</div>
+
+<script src="shopfront-kit.js"></script>
+<script src="flats-shops.js"></script>
+<script src="shopfront-vol.js"></script>
+<script>
+/* ---------------------------------------------------------------
+   Same isometric projection the game uses:
+     sx = (x - y) * K
+     sy = ((x + y) * 0.5 - z) * K
+   Unit-local coords: a runs along the frontage, b runs 0 at the
+   frontage to -D into the block, z is height. Front face is b = 0.
+   --------------------------------------------------------------- */
+const SCREEN = document.getElementById('stage');
+let cv = SCREEN, ctx = cv.getContext('2d');
+let K = 1, OX = 0, OY = 0;
+
+/* ---- GAME SCALE ANCHORS ----
+   Measured against the shipped drawStoreUnit rather than chosen. D was
+   already exactly STORE_DEPTH (T2*3 = 276), but the lab's heights were
+   not: shops were hand-set around H = 160-170 while a real store wall
+   runs 238-266, so the lab has been drawing at roughly 0.65 of game
+   scale vertically. The consequence is not cosmetic -- DOOR_H*0.88 =
+   161.9 is the real shopfront door, which is TALLER than the whole
+   168-unit bakery wall was, so the pickup worker who walks out of it
+   would not have fitted through the opening.
+
+   These are the game's own numbers. Height stacks build off DOOR_H the
+   way drawStoreUnit does, so a shop comes out human-scaled by
+   construction instead of by eye. */
+/* doorT is the roll-up door's open fraction, 0 shut to 1 fully coiled.
+   An entry that has a door reads it; everything else ignores it, so the
+   default of 1 leaves all 83 other shops exactly as they were. `doorRun`
+   drives it from a clock -- the bench had no clock at all before this,
+   only toggles, so an articulating anything needed one. */
+const state = { i:0, roof:true, props:true, pal:0, grid:false, scale:false,
+                doorT:1, doorRun:false, vol:false, probe:null };
+const LAB_ZS = 1.5;
+let ZSCALE = LAB_ZS;
+/* VOLCAP: while a volume measure runs, every z that reaches the screen
+   and every body() call is recorded. Null the rest of the time, so the
+   draw path is untouched. */
+let VOLCAP = null;
+function P(a,b,z){
+  if(VOLCAP && z > VOLCAP.zmax) VOLCAP.zmax = z;
+  return { x:(a-b)*K + OX, y:((a+b)*0.5 - z*ZSCALE)*K + OY };
+}
+
+/* this bench has one view and it is the one the library was composed
+   against, where the a = w end of a unit is the visible one. The phaser
+   bench sets this per edge from drawStoreUnit's own showRight test. */
+const FLANK_RIGHT = true;
+
+/* ---- THE FLATS SHOP LAB (2026-09-17) ----
+   A copy of shopfront-lab.html that loads flats-shops.js -- the Flats'
+   own forked shops -- instead of the 81 base bodies. Nothing else
+   differs; edit the shops in flats-shops.js and dial them here.
+   ---- */
+/* ---- THE KIT AND THE 81 SHOPS NOW LIVE IN THEIR OWN FILES ----
+     shopfront-kit.js     every primitive a shop body calls
+     shopfront-shops.js   the 81 bodies themselves
+   Both are loaded by the script tags above this one. What stays here is
+   the only thing this bench does not share with shopfront-phaser.html:
+   its projection (P, K, OX, OY, ZSCALE), its framing pass, and its
+   chrome. That single seam is the whole point -- see the header of
+   shopfront-kit.js. */
+/* ---- THE 81 SHOPS LIVE IN shopfront-shops.js ----
+   Moved out so the phaser bench can run the identical bodies rather
+   than a second copy of them. Loaded by the script tag above this one,
+   so SHOPS is already bound by the time anything here runs. The host
+   contract this file has to satisfy is documented at the top of that
+   file: every primitive a shop body calls is defined in this script. */
+/* ---------------- ground, framing, chrome ---------------- */
+/* A SHOP MAY BE WIDER THAN ONE UNIT. Everything in this bench assumed
+   the frontage was W, because until now nothing was ever wider -- the
+   eleven shops with their own WW are all NARROWER and sit inside the
+   default box. A double-width shop leaves the pavement ending under its
+   own facade and the guide box drawn round the wrong footprint, so both
+   ask the shop instead of assuming. */
+function shopW(){ const s = SHOPS[state.i]; return s.ww || W; }
+/* AND ITS DEPTH, for the same reason. ww taught the bench not to assume
+   the frontage; a block landmark sits on a square lot far deeper than
+   the D=276 a shop unit occupies, so the pavement plate and the guide
+   box have to ask for that too or they end under the building. */
+function shopD(){ const s = SHOPS[state.i]; return s.dd || D; }
+function pavement(){
+  const DD = shopD();
+  const g0=-90, g1=shopW()+90, b0=110, b1=-DD-70;
+  T(g0,g1,b1,b0,0,'#cfc9b8');
+  ctx.strokeStyle='#bdb7a6'; ctx.lineWidth=1;
+  for(let a=g0;a<=g1;a+=46){ const s=P(a,b0,0), e=P(a,b1,0);
+    ctx.beginPath(); ctx.moveTo(s.x,s.y); ctx.lineTo(e.x,e.y); ctx.stroke(); }
+  for(let b=b1;b<=b0;b+=46){ const s=P(g0,b,0), e=P(g1,b,0);
+    ctx.beginPath(); ctx.moveTo(s.x,s.y); ctx.lineTo(e.x,e.y); ctx.stroke(); }
+  T(g0,g1,150,110,0,'#585c63');                            // road strip
+}
+function guides(){
+  ctx.strokeStyle='rgba(255,122,26,.85)'; ctx.lineWidth=1.5; ctx.setLineDash([6,5]);
+  const gw = shopW(), gd = shopD();
+  poly([P(0,0,0),P(gw,0,0),P(gw,-gd,0),P(0,-gd,0)], null,'rgba(255,122,26,.85)',1.5);
+  if(gw !== W)   // the packer's slot boundary, so the overrun is visible
+    poly([P(W,0,0),P(W,-gd,0)], null,'rgba(255,122,26,.45)',1.5);
+  ctx.setLineDash([]);
+  ctx.fillStyle='rgba(255,122,26,.9)'; ctx.font='600 11px ui-monospace,monospace';
+  const t=P(0,0,0);
+  /* IN SLOTS, NOT IN W. The first cut divided by the bench's own W of
+     230 and printed 1.76, which is true and useless: the port's unit is
+     packEdgeNoGap's slot, avgW = T2*2.2 = 202.4, and against that the
+     garage is exactly 2.00. The label has to speak the packer's
+     language or it cannot be acted on. (W 230 is itself 1.14 slots --
+     the bench's default frontage sits above the packer's average, which
+     is worth knowing and is not a fault: slots run 162..243.) */
+  const SLOT = T2*2.2;
+  ctx.fillText('w '+gw.toFixed(0)+'  ·  '+(gw/SLOT).toFixed(2)+' slots  ·  D '+D, t.x, t.y+18);
+}
+
+/* ================= FRAMING BY MEASUREMENT =================
+   The old frame fitted K to (W + D*0.42) with a hand-tuned headroom
+   constant and a `tall` flag to bump it. Measured against the real ink:
+   57 of the 81 shops ran off the canvas, nearly all on the right and
+   bottom, because nothing in that formula knew about the things that
+   live OUTSIDE the unit box -- kerb crates at a > W, pavement props at
+   positive b, roof kit above H, a pylon leaning past the flank.
+
+   So stop predicting the extent and measure it. Draw the shop once to
+   an offscreen canvas at a known K and origin, read the alpha bounding
+   box, and solve for the K and origin that put that box in the middle
+   of the real one. The projection is linear -- screen = K*local + O --
+   so inverting a measured box is exact, not a fit.
+
+   Cached per (shop, roof, props, palette) because the toggles genuinely
+   change the extent: turning the roof kit off on a shop whose identity
+   is a water tank should reframe, not leave a hole at the top. */
+const MCV = document.createElement('canvas');
+/* WIDE ENOUGH FOR A WHOLE BLOCK. Screen-a is a - b, so a square lot of
+   1048.8 spans 2097.6 of screen-a before MK is applied -- 1300 at 0.62,
+   plus MOX 470 is 1770, and at a buffer width of 1500 the far corner of
+   every block landmark fell off the right edge of the MEASURE pass. The
+   bounds box then came back clipped and the framing solved a K for a
+   building it had only seen two thirds of, so the Bathhouse, the Chapel
+   and now the Nursery all drew with their far corner cut off the real
+   canvas as well. It was the same fault MOX was widened for when the
+   first double-width shop arrived, one order of magnitude further on. */
+MCV.width = 7000; MCV.height = 4200;
+const MCTX = MCV.getContext('2d');
+/* MK IS DERIVED NOW, not chased. The buffer has been widened three
+   times -- once for double-width shops, once for block landmarks, once
+   for the Undertaker's nine cells -- and the third time it stopped
+   working: at 0.62 a 12512 by 15640 footprint projects to about 17000
+   pixels across, which no buffer is going to hold. So the measure
+   transform scales itself to the entry instead: big footprints are
+   measured small, and since the bounds are inverted through MK
+   afterwards the fit is exact either way. */
+let MK = 0.62; const MOX = 1400, MOY = 900;  // nominal measure transform
+/* MOX moved left and the canvas widened when the first double-width
+   shop arrived: a 405-wide unit projects to screen-a 405 + D, which ran
+   off the right of the 1100px measure buffer and the bounds pass then
+   framed a clipped box. */
+const boundsCache = new Map();
+let NOPLATE = false;   // measure pass suppresses the plain roof slab
+
+function measureBounds(){
+  const key = state.i + '|' + (state.roof?1:0) + (state.props?1:0) + state.pal;
+  if(boundsCache.has(key)) return boundsCache.get(key);
+  const sCv = cv, sCtx = ctx, sK = K, sOX = OX, sOY = OY;
+  cv = MCV; ctx = MCTX;
+  ctx.setTransform(1,0,0,1,0,0);
+  ctx.clearRect(0,0,MCV.width,MCV.height);
+  { const sh = SHOPS[state.i];
+    MK = Math.min(0.62, 2400 / ((sh.ww || W) + (sh.dd || D))); }
+  K = MK; OX = MOX; OY = MOY;
+  /* THE PLATE IS NOT THE SUBJECT. A 276-deep roof slab projects up and
+     to the right and is simply the largest thing on screen for every
+     shop that has one -- fitting to it shrinks the facade, which is the
+     part being dialled, to a strip down the left. So the measure pass
+     suppresses the plain plate and frames everything else: facade, sign,
+     roof KIT, kerb props, flanks. The plate is still drawn for real and
+     is allowed to run off the top corner, which is what the original
+     hand-tuned frame was reaching for before it got the numbers wrong. */
+  NOPLATE = true;
+  ZSCALE = SHOPS[state.i].zs === undefined ? LAB_ZS : SHOPS[state.i].zs;
+  SHOPS[state.i].draw(PAL[state.pal]);       // shop only -- pavement is not content
+  NOPLATE = false;
+  const d = ctx.getImageData(0,0,MCV.width,MCV.height).data;
+  let x0=1e9,x1=-1e9,y0=1e9,y1=-1e9;
+  for(let y=0;y<MCV.height;y++) for(let x=0;x<MCV.width;x++){
+    if(d[(y*MCV.width+x)*4+3] > 8){
+      if(x<x0)x0=x; if(x>x1)x1=x; if(y<y0)y0=y; if(y>y1)y1=y;
+    }
+  }
+  cv = sCv; ctx = sCtx; K = sK; OX = sOX; OY = sOY;
+  /* back out of screen space into local units */
+  const b = (x1 < x0) ? {lx0:0,lx1:W,ly0:0,ly1:W} : {
+    lx0:(x0-MOX)/MK, lx1:(x1-MOX)/MK, ly0:(y0-MOY)/MK, ly1:(y1-MOY)/MK };
+  boundsCache.set(key, b);
+  return b;
+}
+
+/* ================= THE VOLUME =================
+   See shopfront-vol.js. An entry that declares `vol` is used as written;
+   one that does not gets the lot as a solid box, with its height MEASURED
+   here rather than guessed: the largest H handed to body(), or failing
+   that the highest z the shell reaches with roof kit and props off. */
+{
+  const _body = body;
+  body = function(wall, trim, H, wid, dep){
+    if(VOLCAP) VOLCAP.bodies.push({ H, wid, dep });
+    return _body.apply(this, arguments);
+  };
+}
+const volCache = new Map();
+function measureVol(i){
+  if(volCache.has(i)) return volCache.get(i);
+  const sh = SHOPS[i];
+  const sCv = cv, sCtx = ctx, sK = K, sOX = OX, sOY = OY, sZ = ZSCALE;
+  const sRoof = state.roof, sProps = state.props, sI = state.i;
+  cv = MCV; ctx = MCTX; ctx.setTransform(1,0,0,1,0,0);
+  K = 0.1; OX = 3500; OY = 2100;
+  state.roof = false; state.props = false; state.i = i;
+  ZSCALE = sh.zs === undefined ? LAB_ZS : sh.zs;
+  VOLCAP = { zmax: 0, bodies: [] };
+  try { sh.draw(PAL[0]); } finally {
+    const cap = VOLCAP; VOLCAP = null;
+    ctx.setTransform(1,0,0,1,0,0); ctx.clearRect(0,0,MCV.width,MCV.height);
+    cv = sCv; ctx = sCtx; K = sK; OX = sOX; OY = sOY; ZSCALE = sZ;
+    state.roof = sRoof; state.props = sProps; state.i = sI;
+    const bh = cap.bodies.length ? Math.max(...cap.bodies.map(q => q.H)) : null;
+    const m = { h: bh != null ? bh : cap.zmax, from: bh != null ? 'body()' : 'max z', zmax: cap.zmax,
+                bodies: cap.bodies.length };
+    const v = volOf(sh, m, { W, D });
+    volCache.set(i, v);
+  }
+  return volCache.get(i);
+}
+function curVol(){ return measureVol(state.i); }
+
+function volOverlay(){
+  const sh = SHOPS[state.i], v = curVol();
+  ZSCALE = sh.zs === undefined ? LAB_ZS : sh.zs;
+  /* the field is ~70 samples a side whatever the lot: a block landmark is
+     15000 across and a fixed step would be millions of tests a frame */
+  const L = v.lot, M = 70, STEP = Math.max(12, Math.max(L.a1 - L.a0, L.b1 - L.b0) / 70);
+  const plate = (pts, z) => pts.map(([a,b]) => P(a, b, z));
+  /* 1. where a body of botR can stand: red = blocked */
+  for(let a = L.a0 - M; a <= L.a1 + M; a += STEP)
+    for(let b = L.b0 - M; b <= L.b1 + M; b += STEP){
+      const q = P(a, b, 0);
+      if(volSolidAt(v, a, b, state.props)){ ctx.fillStyle = 'rgba(200,40,40,.55)'; ctx.fillRect(q.x-1.2, q.y-1.2, 2.4, 2.4); }
+      else if(volBlockedAt(v, a, b, VOL_BOT_R, state.props)){ ctx.fillStyle = 'rgba(255,120,90,.9)'; ctx.fillRect(q.x-1.5, q.y-1.5, 3, 3); }
+      else { ctx.fillStyle = 'rgba(120,230,140,.55)'; ctx.fillRect(q.x-1, q.y-1, 2, 2); }
+    }
+  /* 2. the mass: footprint at the ground and at h, and its verticals */
+  poly(plate(v.foot, 0), null, 'rgba(90,220,240,.9)', 1.5);
+  poly(plate(v.foot, v.h), null, 'rgba(90,220,240,.9)', 1.5);
+  for(const [a,b] of v.foot){ const g = P(a,b,0), t = P(a,b,v.h);
+    ctx.strokeStyle = 'rgba(90,220,240,.6)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(g.x,g.y); ctx.lineTo(t.x,t.y); ctx.stroke(); }
+  /* 3. opens */
+  for(const o of v.opens) poly(plate(o.poly, 0.5), 'rgba(110,240,140,.18)', 'rgba(110,240,140,.95)', 1.2);
+  /* 4. the derived collision boundary -- the surfaces he actually hits */
+  ctx.strokeStyle = '#ffe14d'; ctx.lineWidth = 2.4; ctx.lineCap = 'round';
+  for(const sg of v.bound){ const p0 = P(sg[0], sg[1], 0), p1 = P(sg[2], sg[3], 0);
+    ctx.beginPath(); ctx.moveTo(p0.x,p0.y); ctx.lineTo(p1.x,p1.y); ctx.stroke(); }
+  ctx.lineCap = 'butt';
+  /* 5. solids, zones, marks */
+  for(const sd of v.solids){
+    if(sd.prop && !state.props) continue;
+    if(sd.c){ const pts = []; for(let k=0;k<20;k++){ const t=k/20*Math.PI*2; pts.push([sd.c[0]+sd.r*Math.cos(t), sd.c[1]+sd.r*Math.sin(t)]); }
+      poly(plate(pts, 0), 'rgba(255,150,40,.35)', '#ff9628', 1.5); poly(plate(pts, sd.h), null, '#ff9628', 1); }
+    else { poly(plate(sd.poly, 0), 'rgba(255,150,40,.35)', '#ff9628', 1.5); poly(plate(sd.poly, sd.h), null, '#ff9628', 1); }
+  }
+  ctx.setLineDash([4,4]);
+  for(const zn of v.zones){
+    const pts = zn.c ? Array.from({length:32}, (_, k) => { const t = k/32*Math.PI*2; return [zn.c[0]+zn.r*Math.cos(t), zn.c[1]+zn.r*Math.sin(t)]; }) : zn.poly;
+    poly(plate(pts, 1), null, 'rgba(220,120,255,.9)', 1.2);
+  }
+  ctx.setLineDash([]);
+  ctx.font = '600 10px ui-monospace,monospace';
+  /* marks that share a point share a label (spawn IS padBack) */
+  const byPt = new Map();
+  for(const [nm, [a,b]] of Object.entries(v.marks)){
+    const k = a.toFixed(1) + ',' + b.toFixed(1);
+    if(!byPt.has(k)) byPt.set(k, { a, b, names: [] });
+    byPt.get(k).names.push(nm);
+  }
+  for(const { a, b, names } of byPt.values()){
+    const nm = names.join(' = '), q = P(a, b, 0);
+    ctx.fillStyle = '#e57bff'; ctx.beginPath(); ctx.arc(q.x, q.y, 3.5, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#f6d9ff'; ctx.fillText(nm, q.x + 5, q.y - 4);
+  }
+  /* 6. the probe: tap the ground, read what the volume says there */
+  if(state.probe){
+    const [a, b] = state.probe, q = P(a, b, 0);
+    const n = volNearest(v, a, b, state.props);
+    const blk = volBlockedAt(v, a, b, VOL_BOT_R, state.props);
+    const hs = volBuiltHeight(v, a, b, 'street', state.props), hb = volBuiltHeight(v, a, b, 'back', state.props);
+    ctx.strokeStyle = blk ? '#ff5a4a' : '#6cf08a'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.ellipse(q.x, q.y, VOL_BOT_R*K*1.41, VOL_BOT_R*K*0.71, 0, 0, Math.PI*2); ctx.stroke();
+    if(n.d < Infinity){ const e = P(n.qa, n.qb, 0); ctx.strokeStyle = '#fff'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(q.x,q.y); ctx.lineTo(e.x,e.y); ctx.stroke(); }
+    const z = volZoneAt(v, a, b);
+    const lines = [
+      'a ' + a.toFixed(1) + '  b ' + b.toFixed(1),
+      (blk ? 'BLOCKED' : 'free') + '  @R' + VOL_BOT_R + '  surface ' + (n.d === Infinity ? '-' : n.d.toFixed(1)),
+      'normal ' + n.na.toFixed(2) + ', ' + n.nb.toFixed(2),
+      'x-ray h  street ' + (hs == null ? 'off lot' : hs) + '  back ' + (hb == null ? 'off lot' : hb),
+      z.length ? 'zone ' + z.join(', ') : ''
+    ].filter(Boolean);
+    const cw = SCREEN.clientWidth;
+    ctx.fillStyle = 'rgba(8,18,20,.86)'; ctx.fillRect(6, 6, Math.min(cw - 12, 270), lines.length*14 + 8);
+    ctx.fillStyle = '#bff4fa';
+    lines.forEach((ln, k) => ctx.fillText(ln, 12, 20 + k*14));
+  }
+  ZSCALE = 1;
+}
+function volMeta(){
+  const el = document.getElementById('mv'), s = SHOPS[state.i];
+  if(!state.vol){ el.style.display = 'none'; return; }
+  const v = curVol(), zs = s.zs === undefined ? LAB_ZS : s.zs;
+  const m = v.measured;
+  el.style.display = 'block';
+  el.innerHTML = '<b>Vol · ' + (v.authored ? 'AUTHORED' : 'AUTO') + '</b><br>' +
+    'h ' + v.h + ' (world ' + (v.h*zs).toFixed(0) + ')' + (v.authored ? '' : ' measured from ' + m.from) + '<br>' +
+    'foot ' + v.foot.length + ' pts · opens ' + v.opens.length + ' · solids ' + v.solids.length +
+    ' · zones ' + v.zones.length + ' · marks ' + Object.keys(v.marks).length + ' · surfaces ' + v.bound.length +
+    (v.authored ? '' : '<br>No declaration yet: the lot is a solid box. Yards, rooms and pavement props ' +
+     'are not physical until this entry gets a vol block.') +
+    '<br><span style="color:#6fb9c2">tap the ground to probe · red blocked @R30 · yellow = collision surfaces</span>';
+}
+SCREEN.addEventListener('click', e => {
+  if(!state.vol) return;
+  const r = SCREEN.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;
+  /* invert the projection on the ground plane: x = (a-b)K+OX, y = (a+b)/2 K + OY */
+  const d = (x - OX)/K, s2 = 2*(y - OY)/K;
+  state.probe = [(s2 + d)/2, (s2 - d)/2];
+  draw();
+});
+
+function draw(){
+  const dpr = Math.min(2, window.devicePixelRatio||1);
+  const cssW = Math.min(document.body.clientWidth, 900);
+  const cssH = Math.round(Math.min(600, Math.max(400, cssW*0.86)));
+  SCREEN.style.width = cssW+'px'; SCREEN.style.height = cssH+'px';
+  SCREEN.width = cssW*dpr; SCREEN.height = cssH*dpr;
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.clearRect(0,0,cssW,cssH);
+
+  const b = measureBounds();
+  const PAD = 16;
+  const lw = Math.max(1, b.lx1 - b.lx0), lh = Math.max(1, b.ly1 - b.ly0);
+  if(state.scale){
+    /* ================= TRUE SCALE =================
+       The fit-to-frame pass below is the right default for dialling one
+       shop, and it is a liar about every question that involves two.
+       It solves K per shop, so a 104-unit pottery and a 314-unit
+       department store both fill the canvas and read as the same
+       building -- which is exactly the illusion that hides a three
+       storey elevation squeezed into one storey of height.
+       This mode pins K to a constant and puts every shop's ground
+       plane on the same screen line, so heights are comparable by eye.
+       REF is in local screen units: 0..H*ZSCALE vertically for the
+       tallest thing in the library plus its roof kit. */
+    /* REF has to cover the TALLEST thing in the library, and the chapel
+       moved that: its finial is at z 710, which is 1065 local screen
+       units once ZSCALE is applied. At 780 the spire ran off the top of
+       the frame in the one mode whose whole job is showing true height. */
+    const REF = 1180;
+    K = Math.min((cssW - PAD*2)/520, (cssH - PAD*2)/REF);
+    OX = cssW/2 - ((W/2) - (-D/2))*K;
+    OY = cssH - PAD - 24 - (((W/2) + (-D/2))/2)*K;
+  } else {
+    K = Math.min((cssW - PAD*2)/lw, (cssH - PAD*2)/lh);
+    /* centre the measured box, then sit it a little low in the frame so a
+       shop reads as standing on ground rather than floating mid-canvas */
+    OX = (cssW - (b.lx0 + b.lx1)*K)/2;
+    OY = (cssH - (b.ly0 + b.ly1)*K)/2 + Math.min(14, (cssH - lh*K)/4);
+  }
+
+  pavement();
+  ZSCALE = SHOPS[state.i].zs === undefined ? LAB_ZS : SHOPS[state.i].zs;
+  SHOPS[state.i].draw(PAL[state.pal]);
+  ZSCALE = 1;
+  if(state.grid) guides();
+  if(state.vol) volOverlay();
+}
+function sync(){
+  const s = SHOPS[state.i];
+  document.getElementById('nm').textContent = s.name;
+  document.getElementById('ix').textContent = (state.i+1)+' of '+SHOPS.length;
+  document.getElementById('mh').textContent = s.head;
+  document.getElementById('md').textContent = s.desc;
+  /* THE FLAG HAS TO FIND YOU, not wait to be looked for. A shop that has
+     not been sized against the game carries zTodo -- its height in game
+     storeys -- and the bench says so the moment the shop is opened, with
+     the True scale toggle named because that is the mode that shows it. */
+  const mz = document.getElementById('mz'), notes = [];
+  if(s.zTodo)
+    notes.push('<b>Scale review open</b> — this shop stands at <b>' + s.zTodo +
+      '</b> game storeys (one shop storey = 168 lab units). The tall tier was set ' +
+      'by eye; decide a target against what this facade actually depicts, then ' +
+      'clear zTodo. Turn on True scale to see it against the rest.');
+  if(s.fTodo)
+    notes.push('<b>Fascia check open</b> — ' + s.fTodo + '. The name board is ' +
+      'applied signage, so unlike the cornice it may not cross the return; its ' +
+      'lettering goes PROUD of the board face, not behind it; and it is set out ' +
+      'in screen space (a − b), not in a. Clear fTodo when done.');
+  if(s.cTodo)
+    notes.push('<b>Collision</b> — ' + s.cTodo + '. Pavement props are things ' +
+      'Tipsy can drive into and none of them exists to the game yet; they need ' +
+      'volumes registered at port time. Anything outside 0..w in a is standing ' +
+      'on the neighbour, and a kerb prop needs a ≥ b to stay inside the return.');
+  if(s.bTodo)
+    notes.push('<b>Block landmark, open</b> — ' + s.bTodo + '. This shop should take a whole ' +
+      'block edge (usable run 1048.8, five packing slots) and stand in its own yard with an ' +
+      'entrance on every street, the way the Bathhouse does. Not the same as block WIDTH: a ' +
+      'department store takes the edge and builds to the pavement. Size is not the test — the ' +
+      'Bank is the biggest building here and must not get this, because a portico lands ON the ' +
+      'footway. See BLOCK LANDMARKS at the head of shopfront-shops.js.');
+  if(s.block)
+    notes.push('<b>Block landmark</b> — this is not a shop in a run. It takes a whole ' +
+      'block edge (usable run 1048.8 after corner margins, five packing slots of 209.8) ' +
+      'on a 1656 square of block land, set back in its own yard with an entrance on every ' +
+      'street. The port needs a block type that places it INSTEAD of running packEdgeNoGap ' +
+      'on that edge, and four dropoff points rather than one.');
+  if(s.wTodo)
+    notes.push('<b>Wide unit</b> — this shop is ' + s.wTodo +
+      ' and the port cannot place it yet. See the WIDE UNITS note at the head of ' +
+      'shopfront-shops.js.');
+  if(notes.length){ mz.style.display='block'; mz.innerHTML = notes.join('<hr style="border:0;border-top:1px solid #7a5410;margin:8px 0">'); }
+  else mz.style.display = 'none';
+  state.probe = null; volMeta();
+  document.getElementById('mt').innerHTML = s.tags.map(t=>'<span class="tag">'+t+'</span>').join('');
+  draw();
+}
+document.getElementById('prev').onclick = ()=>{ state.i=(state.i+SHOPS.length-1)%SHOPS.length; sync(); };
+document.getElementById('next').onclick = ()=>{ state.i=(state.i+1)%SHOPS.length; sync(); };
+for(const [id,key] of [['tRoof','roof'],['tProps','props'],['tGrid','grid'],['tScale','scale']]){
+  document.getElementById(id).onclick = e => {
+    state[key] = !state[key]; e.currentTarget.classList.toggle('on', state[key]); draw();
+  };
+}
+document.getElementById('tVol').onclick = e => {
+  state.vol = !state.vol; e.currentTarget.classList.toggle('on', state.vol);
+  state.probe = null; volMeta(); draw();
+};
+document.getElementById('tPal').onclick = e => {
+  state.pal = (state.pal+1)%PAL.length;
+  e.currentTarget.classList.toggle('on', state.pal!==0); draw();
+};
+document.getElementById('tDoor').onclick = e => {
+  state.doorRun = !state.doorRun;
+  e.currentTarget.classList.toggle('on', state.doorRun);
+  if(state.doorRun) requestAnimationFrame(doorTick);
+  else { state.doorT = 1; draw(); }
+};
+/* one cycle every 5.2s: shut, dwell, open, dwell -- the dwells are what
+   let you read the closed state, which is the one being designed. */
+function doorTick(now){
+  if(!state.doorRun) return;
+  const u = (now % 5200) / 5200;
+  state.doorT = u < 0.30 ? 1 - u/0.30
+              : u < 0.50 ? 0
+              : u < 0.80 ? (u-0.50)/0.30
+              : 1;
+  draw();
+  requestAnimationFrame(doorTick);
+}
+document.getElementById('tGrid').classList.remove('on');
+document.getElementById('tScale').classList.remove('on');
+addEventListener('resize', draw);
+sync();
+</script>
