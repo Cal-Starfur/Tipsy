@@ -35597,15 +35597,31 @@ class WorldScene extends Phaser.Scene {
         const ck = cutKey + sgn;
         const hit = r.grid._kerbCuts.get(ck);
         if(hit) return hit;
-        const cuts = [];
-        for(let s = 0; s <= len; s += T2*0.5){
-          const px = sx + dv.x*s + rv.x*sgn*598, py = sy + dv.y*s + rv.y*sgn*598;
-          if(!owAtRampMouth(r.grid, px, py)) continue;
-          const last = cuts[cuts.length-1];
-          if(last && s - last[1] <= T2) last[1] = s;
-          else cuts.push([s, s]);
+        /* WHERE A RAMP CROSSES THIS KERB, FROM THE RAMP RECORDS (Sir:
+           "this doesnt look like we fixed it properly"). The first cut
+           probed owAtRampMouth along the lane the ramps stand in, which
+           only matched at the very ends of a run and left a 20-wide nick
+           there -- the notch on device. A ramp prop sits ROAD_HALF + T2
+           off the CROSSED street's centre and is 230 wide, so it straddles
+           that street's kerb line: measure each ramp in this edge's own
+           frame and take the ones whose lateral is that far out. Their pad
+           is the gap. */
+        const RAMP_LAT = ROAD_HALF + T2, RAMP_HALF = 115;
+        const raw = [];
+        for(const rp of (r.grid.curbRamps || [])){
+          const lat = (rp.x - sx)*rv.x + (rp.y - sy)*rv.y;
+          if(sgn * lat < 0 || Math.abs(Math.abs(lat) - RAMP_LAT) > 60) continue;
+          const alo = (rp.x - sx)*dv.x + (rp.y - sy)*dv.y;
+          if(alo + RAMP_HALF < 0 || alo - RAMP_HALF > len) continue;
+          raw.push([Math.max(0, alo - RAMP_HALF), Math.min(len, alo + RAMP_HALF)]);
         }
-        const out = cuts.map(([c0, c1]) => [Math.max(0, c0 - 60), Math.min(len, c1 + 60)]);
+        raw.sort((a, b) => a[0] - b[0]);
+        const out = [];
+        for(const c of raw){
+          const last = out[out.length-1];
+          if(last && c[0] - last[1] <= 8) last[1] = Math.max(last[1], c[1]);
+          else out.push(c);
+        }
         r.grid._kerbCuts.set(ck, out);
         return out;
       };
@@ -35622,13 +35638,17 @@ class WorldScene extends Phaser.Scene {
         const cuts = rampCuts(sgn);
         let cur = 0;
         for(const [c0, c1] of cuts){
-          if(c0 - cur > 1) kerbRun(sgn, cur, c0, KERB_H, KERB_H);
-          /* the dropped kerb: flare down, flush across the mouth, flare up */
-          const FL = Math.min(46, (c1 - c0) / 3), LOW = 1.5;
-          kerbRun(sgn, c0, c0 + FL, KERB_H, LOW);
-          kerbRun(sgn, c0 + FL, c1 - FL, LOW, LOW);
-          kerbRun(sgn, c1 - FL, c1, LOW, KERB_H);
-          cur = c1;
+          /* THE FLARES ARE OUTSIDE THE PAD, the drop is across it: full
+             kerb up to the flare, flare down, flush the width of the pad,
+             flare back up. Both flares used to sit inside the mouth, which
+             left a stub of full kerb at each end of it. */
+          const FL = 64, LOW = 0.6;
+          const f0 = Math.max(cur, c0 - FL), f1 = Math.min(len, c1 + FL);
+          if(f0 - cur > 1) kerbRun(sgn, cur, f0, KERB_H, KERB_H);
+          if(c0 - f0 > 1) kerbRun(sgn, f0, c0, KERB_H, LOW);
+          if(c1 - c0 > 1) kerbRun(sgn, c0, c1, LOW, LOW);
+          if(f1 - c1 > 1) kerbRun(sgn, c1, f1, LOW, KERB_H);
+          cur = f1;
         }
         if(len - cur > 1) kerbRun(sgn, cur, len, KERB_H, KERB_H);
       }
