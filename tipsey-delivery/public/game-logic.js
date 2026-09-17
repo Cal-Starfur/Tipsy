@@ -16125,11 +16125,27 @@ const DEPOT_GEOM = (() => {
      the drawn plane plus enough to be solid. */
   const CHWALL = 1;
   const CHPAD = 46;
-  const MAT = { k0:-26, k1:-102 };                         // mat, outward of the chamfer
+  /* THE WHOLE CORNER (Sir: "we want it bigger so it hits the edge of the
+     depot and covers all of that corner"). t0..t1 is the base across the
+     chamfer -- the full width of it now, jamb to jamb rather than inside
+     the bollards -- and k1 is the corner itself: cpt(0.5, -106) is
+     (295.55, -0.05), the square corner at (WW, 0). k0 is 4 off the wall,
+     so the wedge starts at the building and ends at the point. */
+  /* THE TRIANGLE ITSELF, IN a,b (Sir: "still not lining up perfectly and
+     its giving the effect that its floating"). Running it in chamfer
+     coordinates meant the base ran ALONG the chamfer line and, extended
+     past its ends to reach the walls, poked out beyond the building at
+     both -- the two tabs that read as float. The corner the chamfer cuts
+     off is a plain right triangle: (CA0, 0) where the chamfer meets the
+     front wall, (WW, -CW) where it meets the side wall, and (WW, 0), the
+     square corner. That is the mat, inset 1 so it does not z-fight the
+     walls it touches. */
+  const MAT = { inset: 1 };
   const BOLL = { k:-16, r:11, h:54 };                      // threshold bollards
   const R2 = Math.SQRT1_2, CA0 = WW - CW;
   const cpt = (t, k) => [CA0 + t*CW - (k||0)*R2, -t*CW - (k||0)*R2];
   const PADS = { back:[200, ROOM.b0 + CHPAD], left:[ROOM.a0 + CHPAD, -140] };
+  MAT.tri = [[CA0 + MAT.inset, -MAT.inset], [WW - MAT.inset, -CW + MAT.inset], [WW - MAT.inset, -MAT.inset]];
 
   /* THE ROOM IS THE INTERIOR, not a rect. The room rect the art clips to
      runs right through the chamfer -- its corner (160.6,-15) is already
@@ -16155,7 +16171,15 @@ const DEPOT_GEOM = (() => {
       { name:'bollard R', c: cpt(DOOR[1] - 0.02, BOLL.k), r: BOLL.r, h: BOLL.h, prop:true }
     ],
     zones: [
-      { name:'mat',  kind:'trigger', poly:[cpt(TA,MAT.k0), cpt(TB,MAT.k0), cpt(TB,MAT.k1), cpt(TA,MAT.k1)] },
+      /* THE MAT IS THE CORNER WEDGE (Sir, on-device, with a triangle drawn
+         over the blank corner: "can we reshape the door opening trigger to
+         fit the blank space on the corner"). The chamfer cuts a right
+         triangle off the corner -- its apex, the square corner at (WW, 0),
+         is 106 out along the chamfer's normal -- and that triangle is the
+         only pavement the door faces. So the trigger is that shape: a base
+         across the doorway MAT.k0 out, and a point at the corner, MAT.k1
+         out, instead of a rectangle that had to stop short of both. */
+      { name:'mat',  kind:'trigger', poly: MAT.tri },
       { name:'pad back', kind:'charge', c: PADS.back, r: 44 },         // CHARGE.padR
       { name:'pad left', kind:'charge', c: PADS.left, r: 44 },
       /* the door opens while he is in here (or in the room): 10 inside the
@@ -17572,31 +17596,38 @@ const TIDEWATER_MUSEUM = (() => {
        the thing you drive INTO. The lab drives its state off doorT so
        the relationship is visible: amber while the door is shut, green
        once it is moving. */
-    if(PT('door')) { const TA = DOOR[0] + 0.02, TB = DOOR[1] - 0.02, K0 = DEPOT_GEOM.MAT.k0, K1 = DEPOT_GEOM.MAT.k1;
+    if(PT('door')) {
       const on = ((typeof state.doorT === 'number') ? state.doorT : 1) > 0.02;
       const tone = on ? '#7ee081' : '#ffb25a';
-      const c = [cpt(TA,K0), cpt(TB,K0), cpt(TB,K1), cpt(TA,K1)];
-      poly(c.map(q => P3(q, 0.7)), 'rgba(20,24,28,.30)');
-      poly([cpt(TA+0.018,K0-8), cpt(TB-0.018,K0-8),
-            cpt(TB-0.018,K1+8), cpt(TA+0.018,K1+8)].map(q => P3(q, 0.9)), '#2f3740');
-      /* the rim, and corner ticks so it reads by SHAPE not colour alone --
-         MAT_HL's own reason: "so it reads on a phone and never leans on
-         colour alone" */
-      for(const [u0,u1,k0,k1] of [[TA,TB,K0,K0-8],[TA,TB,K1+8,K1],
-                                  [TA,TA+0.018,K0,K1],[TB-0.018,TB,K0,K1]])
-        poly([cpt(u0,k0), cpt(u1,k0), cpt(u1,k1), cpt(u0,k1)].map(q => P3(q, 1.1)), tone);
-      for(const [u,kk,du,dk] of [[TA,K0,0.05,-15],[TB,K0,-0.05,-15],
-                                 [TA,K1,0.05,15],[TB,K1,-0.05,15]]){
-        poly([cpt(u,kk), cpt(u+du,kk), cpt(u+du,kk+dk*0.25), cpt(u,kk+dk*0.25)].map(q => P3(q,1.3)), tone);
-        poly([cpt(u,kk), cpt(u,kk+dk), cpt(u+du*0.25,kk+dk), cpt(u+du*0.25,kk)].map(q => P3(q,1.3)), tone);
+      /* THE SAME THREE POINTS THE TRIGGER USES (DEPOT_GEOM.MAT.tri): the
+         chamfer's two ends and the square corner, so what he drives onto
+         and what opens the door cannot drift apart, and the mat's edges
+         lie along the walls rather than across them. */
+      const [BL, BR, TIP] = DEPOT_GEOM.MAT.tri;
+      const lerp = (p, q, u) => [p[0] + (q[0]-p[0])*u, p[1] + (q[1]-p[1])*u];
+      const mid = (p, q, r2) => [(p[0]+q[0]+r2[0])/3, (p[1]+q[1]+r2[1])/3];
+      const C = mid(BL, BR, TIP);
+      const shrink = (p, u) => lerp(p, C, u);
+      poly([BL, BR, TIP].map(q => P3(q, 0.7)), 'rgba(20,24,28,.30)');
+      poly([BL, BR, TIP].map(p => shrink(p, 0.16)).map(q => P3(q, 0.9)), '#2f3740');
+      /* the rim: a band down each of the three sides, so it reads by SHAPE
+         and not by colour alone (MAT_HL's own reason) */
+      for(const [p, q] of [[BL,BR],[BR,TIP],[TIP,BL]])
+        poly([p, q, shrink(q, 0.14), shrink(p, 0.14)].map(v => P3(v, 1.1)), tone);
+      /* corner ticks at each point, in the darker tone */
+      for(const [c0, c1, c2] of [[BL,BR,TIP],[BR,TIP,BL],[TIP,BL,BR]]){
+        const e1 = lerp(c0, c1, 0.2), e2 = lerp(c0, c2, 0.2);
+        poly([c0, e1, shrink(e1, 0.22), shrink(c0, 0.22)].map(v => P3(v, 1.3)), shade(tone,.82));
+        poly([c0, e2, shrink(e2, 0.22), shrink(c0, 0.22)].map(v => P3(v, 1.3)), shade(tone,.82));
       }
-      /* a chevron pointing at the door, so the mat says which way in */
-      for(let k=0;k<2;k++){
-        const kk = K1 + 34 + k*26;
-        poly([cpt((TA+TB)/2, kk+14), cpt(TB-0.06, kk-6), cpt(TB-0.075, kk-6),
-              cpt((TA+TB)/2, kk+8), cpt(TA+0.075, kk-6), cpt(TA+0.06, kk-6)]
-             .map(q => P3(q, 1.2)), shade(tone,.78));
-      }
+      /* a chevron pointing back at the door, along the wedge's own axis */
+      { const base = lerp(BL, BR, 0.5);
+        for(let k=0;k<2;k++){
+          const c0 = lerp(TIP, base, 0.34 + k*0.22), w = 0.20 - k*0.04;
+          const l = lerp(c0, BL, w), r2 = lerp(c0, BR, w), t = lerp(c0, base, 0.34);
+          poly([t, r2, lerp(r2, c0, 0.45), lerp(t, c0, 0.45), lerp(l, c0, 0.45), l]
+               .map(q => P3(q, 1.2)), shade(tone,.78));
+        } }
     }
 
     /* ---- THE THRESHOLD BOLLARDS ARE EXTERIOR ----
@@ -34367,32 +34398,58 @@ class WorldScene extends Phaser.Scene {
          like how its eating into the side walk"). Its outer face is the
          wall line; the lip runs back toward the road, so the pavement
          keeps every unit of its own width. */
-      const kerb = sgn => {
+      /* THE RAMPS GET THEIR OWN KERB (Sir, on-device: "the sidwalk end and
+         begin should have their own curb becasue it slops down into the
+         yellow squard which slops down to the road"). A crossing ramp sits
+         on the pavement at laneOffset(2) = 598 out, 230 wide, and its pad
+         runs down to the street -- so a kerb drawn straight across its
+         mouth is a wall where the art has a slope. The run is cut where a
+         ramp is, and the gap takes a DROPPED kerb instead: a short flare
+         down each side and a flush lip across the mouth, which is what the
+         ramp's own drop reads as from the road. */
+      /* cached per edge and side: the ramps never move, and this is ~45
+         hash probes a run otherwise, every frame */
+      const cutKey = edge.a.i + "," + edge.a.j + "," + edge.f + ",";
+      if(!r.grid._kerbCuts) r.grid._kerbCuts = new Map();
+      const rampCuts = sgn => {
+        const ck = cutKey + sgn;
+        const hit = r.grid._kerbCuts.get(ck);
+        if(hit) return hit;
+        const cuts = [];
+        for(let s = 0; s <= len; s += T2*0.5){
+          const px = sx + dv.x*s + rv.x*sgn*598, py = sy + dv.y*s + rv.y*sgn*598;
+          if(!owAtRampMouth(r.grid, px, py)) continue;
+          const last = cuts[cuts.length-1];
+          if(last && s - last[1] <= T2) last[1] = s;
+          else cuts.push([s, s]);
+        }
+        const out = cuts.map(([c0, c1]) => [Math.max(0, c0 - 60), Math.min(len, c1 + 60)]);
+        r.grid._kerbCuts.set(ck, out);
+        return out;
+      };
+      const kerbRun = (sgn, s0, s1, h0, h1) => {
         const oIn = sgn*(ROAD_HALF - KERB_W), oOut = sgn*ROAD_HALF;
-        const face = (off, z0, z1, col) => this.quadOn(g, [
-          this.W(sx + rv.x*off, sy + rv.y*off, z1),
-          this.W(ex + rv.x*off, ey + rv.y*off, z1),
-          this.W(ex + rv.x*off, ey + rv.y*off, z0),
-          this.W(sx + rv.x*off, sy + rv.y*off, z0)
-        ], col);
-        face(oIn, 0, 3, KERB_DK);                               // the shadow at the gutter
-        face(oIn, 3, KERB_H, KERB_FACE);                        // the step's road face
-        this.quadOn(g, [                                        // its top, the lightest of the three
-          this.W(sx + rv.x*oIn, sy + rv.y*oIn, KERB_H),
-          this.W(ex + rv.x*oIn, ey + rv.y*oIn, KERB_H),
-          this.W(ex + rv.x*oOut, ey + rv.y*oOut, KERB_H),
-          this.W(sx + rv.x*oOut, sy + rv.y*oOut, KERB_H)
-        ], KERB_TOP);
-        this.edgeOn(g, [                                        // and its own outline, so the lip has an edge
-          this.W(sx + rv.x*oIn, sy + rv.y*oIn, KERB_H),
-          this.W(ex + rv.x*oIn, ey + rv.y*oIn, KERB_H),
-          this.W(ex + rv.x*oOut, ey + rv.y*oOut, KERB_H),
-          this.W(sx + rv.x*oOut, sy + rv.y*oOut, KERB_H)
-        ], KERB_DK, 1);
-        face(oOut, 0, KERB_H, KERB_FACE);                       // and back down to the pavement
+        const pt = (s, o, z) => this.W(sx + dv.x*s + rv.x*o, sy + dv.y*s + rv.y*o, z);
+        this.quadOn(g, [pt(s0,oIn,h0), pt(s1,oIn,h1), pt(s1,oIn,0), pt(s0,oIn,0)], KERB_FACE);
+        this.quadOn(g, [pt(s0,oIn,Math.min(h0,3)), pt(s1,oIn,Math.min(h1,3)), pt(s1,oIn,0), pt(s0,oIn,0)], KERB_DK);
+        this.quadOn(g, [pt(s0,oIn,h0), pt(s1,oIn,h1), pt(s1,oOut,h1), pt(s0,oOut,h0)], KERB_TOP);
+        this.quadOn(g, [pt(s0,oOut,h0), pt(s1,oOut,h1), pt(s1,oOut,0), pt(s0,oOut,0)], KERB_FACE);
       };
       band(-1); band(1);
-      kerb(-1); kerb(1);
+      for(const sgn of [-1, 1]){
+        const cuts = rampCuts(sgn);
+        let cur = 0;
+        for(const [c0, c1] of cuts){
+          if(c0 - cur > 1) kerbRun(sgn, cur, c0, KERB_H, KERB_H);
+          /* the dropped kerb: flare down, flush across the mouth, flare up */
+          const FL = Math.min(46, (c1 - c0) / 3), LOW = 1.5;
+          kerbRun(sgn, c0, c0 + FL, KERB_H, LOW);
+          kerbRun(sgn, c0 + FL, c1 - FL, LOW, LOW);
+          kerbRun(sgn, c1 - FL, c1, LOW, KERB_H);
+          cur = c1;
+        }
+        if(len - cur > 1) kerbRun(sgn, cur, len, KERB_H, KERB_H);
+      }
     }
     /* ---- THE CORNERS (Sir: "lets make it curve around the block with an
        arc where the corner is ... there can be a drain built under that
