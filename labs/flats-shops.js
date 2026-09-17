@@ -14776,6 +14776,9 @@ const SHOPS = [
     T(0, LEN, -DEP, 0, 0.4, tar);
     T(0, WA-40, -DEP, 0, 0.6, grass);
     T(WB+40, LEN, -DEP, 0, 0.6, grass);
+    /* the strip behind the range is the school's too, and it is grass:
+       from the back street it was reading as more pavement (Sir) */
+    T(0, LEN, -DEP, BB0-6, 0.6, grass);
     T(MA0-120, MA1+120, BB1, -40, 0.7, walk);
     for(const ga of [2400, 7000]) T(ga-90, ga+90, BB1, -14, 0.9, walk);
     /* the courts, painted on the tarmac in front of the wings */
@@ -14876,7 +14879,10 @@ const SHOPS = [
     { let cur = 0;
       for(const [g0, g1] of GATES){ if(g0 - cur > 30) mesh(cur, -14, g0, -14); cur = g1; }
       if(LEN - cur > 30) mesh(cur, -14, LEN, -14); }
+    /* railed on all four sides: the ends and the back as well as the
+       pavement, so the grounds are enclosed from every street */
     mesh(14, -14, 14, -DEP+14); mesh(LEN-14, -14, LEN-14, -DEP+14);
+    mesh(14, -DEP+14, LEN-14, -DEP+14);
     for(const [g0, g1] of GATES){
       for(const ga of [g0, g1]) box(ga-26, ga+26, -40, 0, 0, 200, shade(brick,1.08), brick, shade(brick,.8));
       for(const ga of [g0, g1]) T(ga-30, ga+30, -44, 4, 204, shade(brick,.72));
