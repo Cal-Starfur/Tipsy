@@ -38616,9 +38616,27 @@ class WorldScene extends Phaser.Scene {
        anchor here is the component's real north-west corner, so the
        graveyard and the ground under it cannot drift apart if worldgen
        reshapes the park. */
-    /* A HOOD LANDMARK first (HOOD_BLOCK_LANDMARKS): one cell, the entry
-       draws its own ground, anchored on the cell origin exactly as the
-       park landmarks below are */
+    /* FRONTAGE FURNITURE FIRST, ABOVE THE LANDMARK RETURNS (Sir,
+       on-device: "im hitting an invisible object" -- loop:planter at
+       10362,2607, the museum's cell; and "we want to have obstacles, we
+       need to fix it so they arent made invisible").
+
+       A landmark cell handed the whole block to the entry and returned
+       here, which skipped queueStreetFurniture at the bottom of this
+       method -- so the planters, palms and benches on that frontage were
+       never drawn. cityFurnitureNear builds its props from the block list
+       and has no idea a landmark took the cell, so every one of them was
+       still solid. Exactly the fault the park frontage already had once,
+       one level up.
+
+       The props belong to the PAVEMENT, not to the lot: they sit outside
+       the block edge, where the entry draws nothing. So the frontage is
+       furnished for a landmark cell the same as any other, and only the
+       park's grass, scatter and name stand down. */
+    this.queueStreetFurniture(vq, blk);
+    /* A HOOD LANDMARK (HOOD_BLOCK_LANDMARKS): one cell, the entry draws
+       its own ground, anchored on the cell origin exactly as the park
+       landmarks below are */
     const _hl = blk.i !== undefined ? hoodLandmarkAtIJ(blk.i, blk.j) : null;
     if(_hl){
       const fr = hoodLandmarkFrame(blk.i, blk.j);
@@ -38669,7 +38687,6 @@ class WorldScene extends Phaser.Scene {
 
        Park GRASS is fillBlockGround's job and is unaffected either way,
        so an empty park is still a park. */
-    this.queueStreetFurniture(vq, blk);
     if(!WORLD_SCATTER) return;                 // see WORLD SCATTER: SWEPT
     const rng = mulberry32(((Math.round((blk.x0+blk.x1)/2)*7919) ^ (Math.round((blk.y0+blk.y1)/2)*104729) ^ 0x50a2) >>> 0);
     /* clusters, not isolated single trees — real palms/dwarf palms
