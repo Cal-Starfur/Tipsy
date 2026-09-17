@@ -4378,6 +4378,9 @@ function owBuildWorld(route){
   /* a hood landmark stands on a park cell and is as solid as a shop block */
   const blocks = (g2.blocks || []).filter(b => SOLID.has(b.type) ||
                    (b.type === "park" && typeof hoodLandmarkAtIJ === "function" && hoodLandmarkAtIJ(b.i, b.j)));
+  /* a rim landmark's run is as solid as a block (see HOOD_RIM_SITES) */
+  if(typeof hoodRimRects === "function")
+    for(const r of hoodRimRects()) blocks.push({ x0:r.x0, x1:r.x1, y0:r.y0, y1:r.y1, cx:r.cx, cy:r.cy, type:"commercial" });
   /* bucketed by grid cell so a test is a handful of rect checks rather
      than a scan of ~900 blocks every frame */
   const bucket = new Map();
@@ -9750,8 +9753,13 @@ function depotLot(grid){ return depotsOf(grid).find(d => d.home) || false; }
    warning rather than drawn over something else. */
 const HOOD_SHOP_SITES = [
   /* RE-PLANNED FOR 1.3x (2026-09-17): every edge of the 15 blocks, rows
-     flush from their corner (see packHoodShopEdge). All 73 fit; 18 moved
-     block to make room. */
+     flush from their corner (see packHoodShopEdge). All 73 fit.
+     A FULL-EDGE BUILDING HAS ITS EDGE TO ITSELF (Sir, on-device, block
+     8,1): the six 1048.8 buildings -- Playhouse, Press, Marina Flats,
+     Palmline Motors, Tidewater & Co., Grand Pelican -- were sharing their
+     edge with shops packed into the run the pinwheel freed beside them.
+     Now nothing else stands on that edge; the block's other edges still
+     take shops. */
   [2,0, 0, ["Palmline Garage", "Palmline Savings"]],
   [2,0, 1, ["Tidewater Tea House", "Driftwood Books", "Marina Optical"]],
   [2,0, 2, ["Lagoon Coffee Roasters", "Sandpiper Bakery", "Seabreeze Florist"]],
@@ -9765,22 +9773,27 @@ const HOOD_SHOP_SITES = [
   [5,2, 2, ["Saltwater Brewing"]],
   [0,5, 2, ["Dune Home & Garden"]],
   [6,4, 2, ["Pelican Drug"]],
-  [8,1, 0, ["Seabreeze Grocer", "Cove Apothecary", "Marina Pharmacy"]],
+  [8,1, 0, ["The Flats Post Office", "Seabreeze Grocer", "Breakwater Hardware"]],
   [8,1, 1, ["The Tide Gazette"]],
-  [8,1, 2, ["Seabreeze Playhouse", "The Flats Post Office", "Low Tide Barbers"]],
-  [1,6, 0, ["Breakwater Hardware", "Surfside Diner", "Seabreeze Picture House"]],
+  [8,1, 2, ["Seabreeze Playhouse"]],
+  [8,1, 3, ["Low Tide Barbers", "Cove Apothecary", "Marina Pharmacy", "Lagoon Noodle Bar"]],
+  [1,6, 0, ["Low Tide TV & Radio", "Surfside Diner", "Seabreeze Picture House"]],
   [1,6, 1, ["The Flats Fire Station", "Seabreeze Hats"]],
-  [1,6, 2, ["Tidewater Press", "Low Tide TV & Radio", "Lagoon Noodle Bar"]],
-  [7,4, 0, ["Sandpiper Guest House", "Cove Fish Co.", "Tidewater News"]],
+  [1,6, 2, ["Tidewater Press"]],
+  [1,6, 3, ["Sandpiper Guest House", "Cove Fish Co.", "Pelican Cantina", "Tidewater News"]],
+  [7,4, 0, ["The Sandpiper Arms", "Saltwater Sweets", "Tidewater Clocks"]],
   [7,4, 1, ["Breakwater Ironworks", "Sea Glass Exchange"]],
-  [7,4, 2, ["Marina Flats", "The Sandpiper Arms", "Pelican Cantina"]],
-  [7,5, 0, ["Cove Butchers", "Saltwater Sweets", "Tidewater Clocks"]],
+  [7,4, 2, ["Marina Flats"]],
+  [7,4, 3, ["Sunfish Arcade", "Cove Butchers"]],
+  [7,5, 0, ["Seabreeze Fabrics"]],
   [7,5, 1, ["Driftwood Antiques", "Marina Tailors"]],
-  [7,5, 2, ["Palmline Motors", "Seabreeze Fabrics", "Sunfish Arcade"]],
+  [7,5, 2, ["Palmline Motors"]],
+  [4,7, 0, ["Low Tide Music"]],
   [4,7, 1, ["Marina Office", "Cove Locksmith"]],
-  [4,7, 2, ["Tidewater & Co.", "Low Tide Music"]],
+  [4,7, 2, ["Tidewater & Co."]],
+  [0,7, 0, ["Cove Rugs"]],
   [0,7, 1, ["Palmline Surf Co.", "Marina Chandlery"]],
-  [0,7, 2, ["The Grand Pelican", "Cove Rugs"]],
+  [0,7, 2, ["The Grand Pelican"]],
   [2,8, 1, ["Seawall Chambers", "Driftwood Lofts", "Seabreeze Library", "The Flats Police"]],
   [2,8, 2, ["Gull Loft", "Seabreeze Dance", "Kelp & Ink", "Sandcastle Models"]],
 ];
@@ -10009,10 +10022,17 @@ function hoodShopLive(route, sh){
    no street between its cells, and the entry draws its own. */
 const HOOD_BLOCK_LANDMARKS = [
   [3,0, "Tidewater Maritime Museum", 2],
-  [8,0, "Seabreeze Ballroom"],
-  [8,3, "Sandpiper Cottages"],
-  [0,6, "Marina Parking"],
-  [3,8, "Lagoon Market Hall"],
+  /* ALL IN THE EDGE-2 FRAME (2026-09-17). A row without an edge used the
+     old node-corner placement with b flipped, which is a mirror of the
+     lab: the same handedness fault the museum had, on the other four.
+     Now each takes edge 2 like the museum and, drawn whole, gets the
+     MIRROR rule, so it is the lab's building. The 5th field is a lot
+     inset: the market hall is fitted to the cell's buildable square
+     (its entry carries sc 0.6923), which starts 736 in from the node. */
+  [8,0, "Seabreeze Ballroom", 2],
+  [8,3, "Sandpiper Cottages", 2],
+  [0,6, "Marina Parking", 2],
+  [3,8, "Lagoon Market Hall", 2, 736],
 ];
 /* THE FRAME A HOOD LANDMARK STANDS IN (Sir, 2026-09-17: "its heading and
    door should be [on the] camera facing side"). A row with a 4th field
@@ -10026,14 +10046,15 @@ const HOOD_BLOCK_LANDMARKS = [
    keeps the old placement: origin at the cell's north-west node, b
    flipped. toLab() is the exact inverse, for collision and the x-ray. */
 function hoodLandmarkFrame(i, j){
-  let edge = null;
-  for(const row of HOOD_BLOCK_LANDMARKS) if(row[0] === i && row[1] === j){ edge = row[3]; break; }
+  let edge = null, inset = 0;
+  for(const row of HOOD_BLOCK_LANDMARKS) if(row[0] === i && row[1] === j){ edge = row[3]; inset = row[4] || 0; break; }
   let ox, oy, dv, rv, flank;
   if(edge === undefined || edge === null){
     ox = i*BLOCK; oy = j*BLOCK; dv = { x:1, y:0 }; rv = { x:0, y:-1 }; flank = undefined;
   } else {
     const e = blockEdgesOf({ x0: i*BLOCK, x1: (i+1)*BLOCK, y0: j*BLOCK, y1: (j+1)*BLOCK })[edge];
-    ox = e.ox; oy = e.oy; dv = e.dv; rv = e.rv; flank = (dv.x + dv.y) > 0;
+    ox = e.ox + e.dv.x*inset - e.rv.x*inset; oy = e.oy + e.dv.y*inset - e.rv.y*inset;
+    dv = e.dv; rv = e.rv; flank = (dv.x + dv.y) > 0;
   }
   return { ox, oy, dv, rv, flank,
     toWorld: (a, b) => ({ x: ox + dv.x*a + rv.x*b, y: oy + dv.y*a + rv.y*b }),
@@ -10054,7 +10075,63 @@ function hoodLandmarkVolAt(blk){
   if(!shop || !shop.vol) return null;
   return { name: n, v: LIB.vol(n), zs: LIB.zs(n), fr: hoodLandmarkFrame(blk.i, blk.j) };
 }
-function hoodLandmarkAtXY(x, y){ return hoodLandmarkAtIJ(Math.floor(x / BLOCK), Math.floor(y / BLOCK)); }
+function hoodLandmarkAtXY(x, y){
+  const rim = hoodRimSiteAt(x, y);
+  return rim ? rim.name : hoodLandmarkAtIJ(Math.floor(x / BLOCK), Math.floor(y / BLOCK));
+}
+
+/* ==================== RIM LANDMARKS (Sir, 2026-09-17) ====================
+   "lets fix the dimensions so it doesnt look like a shed ... we can let it
+   swallow that commercial block next to it and merge with tide pool green."
+   A perimeter lot is not a block: buildExteriorLots lays one strip per
+   outer street edge, BLOCK long and EXT_PARK_DEPTH deep, with no i,j. A
+   rim site takes SEVERAL of them as one lot -- here three, the two rim
+   parks and the commercial strip between them, above blocks 6, 7 and 8 of
+   The Flats -- and gives the whole run to one entry.
+
+   THE DEPTH IS WHAT THE WORLD EDGE LEAVES. The pavement line is 736 out
+   from the grid and the shore ring starts at -1720.4, so 940 is the most
+   a building can take here; the entry is drawn to exactly that, long
+   rather than deep, which is why it reads as a school range and not a
+   shed. The entry's frame: a along the run, b 0 on the pavement and
+   negative outward (rv flipped, since a rim lot's rv points away from the
+   city). The anchor lot draws it; the others draw nothing, exactly as a
+   park landmark's member cells do. */
+const HOOD_RIM_SITES = [
+  { name: "Tide Pool Elementary", axis: "x", at: -736, out: -1, from: 6*BLOCK, to: 9*BLOCK, depth: 940,
+    icon: "\u{1F3EB}", pin: "#b06a4a", kind: "school" }   // the same school pin Driftwood Elementary carries
+];
+function hoodRimSiteOfLot(lot){
+  for(const s of HOOD_RIM_SITES){
+    if(s.axis === "x"){
+      if(Math.abs(lot.oy - s.at) > 1 || lot.rv.y !== s.out || lot.dv.x !== 1) continue;
+      if(lot.ox >= s.from - 1 && lot.ox + lot.len <= s.to + 1) return s;
+    }
+  }
+  return null;
+}
+function hoodRimAnchor(lot, s){ return Math.abs(lot.ox - s.from) < 1; }
+function hoodRimFrame(s){
+  /* a runs along the rim, b is 0 on the pavement and negative outward */
+  const dv = { x:1, y:0 }, rv = { x:0, y:-s.out };
+  const ox = s.from, oy = s.at;
+  return { ox, oy, dv, rv, flank: (dv.x + dv.y) > 0,
+    toWorld: (a, b) => ({ x: ox + dv.x*a + rv.x*b, y: oy + dv.y*a + rv.y*b }) };
+}
+function hoodRimSiteAt(x, y){
+  for(const s of HOOD_RIM_SITES){
+    if(s.axis !== "x") continue;
+    const y0 = Math.min(s.at, s.at + s.out*s.depth), y1 = Math.max(s.at, s.at + s.out*s.depth);
+    if(x >= s.from && x <= s.to && y >= y0 && y <= y1) return s;
+  }
+  return null;
+}
+function hoodRimRects(){
+  return HOOD_RIM_SITES.map(s => ({ name: s.name,
+    x0: s.from, x1: s.to,
+    y0: Math.min(s.at, s.at + s.out*s.depth), y1: Math.max(s.at, s.at + s.out*s.depth),
+    cx: (s.from + s.to)/2, cy: s.at + s.out*s.depth/2 }));
+}
 /* THE NEAR CORNER, in the LAB'S OWN FRAME (Sir: "from this view i cant
    see the door"). (x1, y1) is the corner nearest this fixed camera, and
    its two streets face +x and +y: exactly the two faces the lab draws
@@ -14928,9 +15005,24 @@ const LIB = (function(){
      are 1.3x. The body keeps its own units and P() makes it bigger on the
      ground, after any turn. 1 for everything that does not carry it. */
   let SC = 1;
+  /* MIRROR -- THE ONE HANDEDNESS RULE (Sir, 2026-09-17: "there must be a
+     missing flag or something. i don't want the same issues across
+     multiple sites"). Every body was composed and checked in the canvas
+     lab, whose view is exactly a block's edge 2 with a reversed. So on
+     the edges where the seen end is a = 0 -- the (dv.x + dv.y) <= 0 test,
+     edges 0 and 2 -- a shop is drawn with a mirrored about its own lot and
+     FLANK_RIGHT true: the building the lab signed off, a = W end in view,
+     every face in the order it was authored. Bodies that hand-roll their
+     ends (the Playhouse's pilasters, the brewery's yard walls and flanks)
+     were only ever right on edges 1 and 3; this makes them right on all
+     four without touching one of them, and the kit's own P()-derived face
+     tests agree with it by construction. An entry can opt out with
+     mirror:false. 0 = no mirror, else the lot width to mirror in. */
+  let MIRROR = 0;
   const NOPLATE = false;
   function P(a, b, z){
     if(TURN){ a = TURN.w - a; b = -TURN.d - b; }        // see turned() in the kit
+    if(MIRROR) a = MIRROR - a;
     return SHOP_SLOT ? SHOP_SLOT.G(a * SC, b * SC, z * SC * ZSCALE) : { x:0, y:0 };
   }
   let ctx = null;
@@ -16489,7 +16581,10 @@ const TIDEWATER_MUSEUM = (() => {
     const CA0 = 1*BLK + 900, CA1 = 1*BLK + 1500, CB0 = -1*BLK - 900, CB1 = -1*BLK - 1450, CH = 250;
 
     /* ---- the ground, cell by cell, with the swallowed streets ---- */
-    T(0, 4*BLK, -5*BLK, 0, 0.3, '#b3a894');
+    /* NO PAVEMENT OVER THE STREETS (Sir, 2026-09-17). This painted the
+       whole bounding box -- node to node -- over half of every road round
+       the lot and both pavements. The city draws its own roads, kerbs and
+       pavements; the entry's ground is its own cells, below. */
     for(const [ci, cj] of CELLS){
       const a0 = ci*BLK + (has(ci-1,cj) ? 0 : ROAD), a1 = (ci+1)*BLK - (has(ci+1,cj) ? 0 : ROAD);
       const b1 = -cj*BLK - (has(ci,cj-1) ? 0 : ROAD), b0 = -(cj+1)*BLK + (has(ci,cj+1) ? 0 : ROAD);
@@ -16844,7 +16939,10 @@ const TIDEWATER_MUSEUM = (() => {
     const rect = (ci, cj) => [
       ci*BLK + (has(ci-1,cj) ? 0 : ROAD), (ci+1)*BLK - (has(ci+1,cj) ? 0 : ROAD),
       -(cj+1)*BLK + (has(ci,cj+1) ? 0 : ROAD), -cj*BLK - (has(ci,cj-1) ? 0 : ROAD)];
-    T(0, 3*BLK, -2*BLK, 0, 0.3, walk);
+    /* NO PAVEMENT OVER THE STREETS (Sir, 2026-09-17). This painted the
+       whole bounding box -- node to node -- over half of every road round
+       the lot and both pavements. The city draws its own roads, kerbs and
+       pavements; the entry's ground is its own cells, below. */
     for(const [ci, cj] of CELLS){
       const [a0, a1, b0, b1] = rect(ci, cj);
       T(a0, a1, b0, b1, 0.6, tar);
@@ -24586,7 +24684,6 @@ const TIDEWATER_MUSEUM = (() => {
        scale. The a = WW one is on a face we can see and goes at the
        end with everything else. */
     backElev();
-    flank(-0.5, -1);
     body(wall, trim, H, WW, DD);
     /* The plate body() lays down is shade(trim,1.05), which is right on
        a 230 shop and is 1048 by 620 of near-white here -- the largest
@@ -24596,7 +24693,7 @@ const TIDEWATER_MUSEUM = (() => {
 
     /* ---- the fly tower, behind the auditorium, built as a solid ---- */
     F(CA0+20, CA1-20, H, H+240, shade(wall,.82), shade(wall,.62), 2, -300);
-    S(CA1-20, -560, -300, H, H+240, shade(wall,.66));
+    S(FLANK_RIGHT ? CA1-20 : CA0+20, -560, -300, H, H+240, shade(wall,.66));   // the seen end of the fly tower
     T(CA0+20, CA1-20, -560, -300, H+240, shade(wall,.9));
     slab(CA0+10, CA1-10, H+240, H+254, -298, -562, shade(wall,.72));
     F(440, 610, H+150, H+206, shade(wall,.66), null, 0, -301);      // louvre
@@ -24662,7 +24759,13 @@ const TIDEWATER_MUSEUM = (() => {
     slab(318, 730, 250, 344, -1, -10, shade(wall,1.2), null, trim);
     F(340, 708, 268, 326, trim, null, 0, -0.5);
 
-    flank(WW+0.5, 1);                                 // the near return, after the box
+    /* ONLY THE SEEN END IS DRESSED, and after body(). Both flanks were
+       drawn unconditionally -- the a = 0 one before body(), the a = WW one
+       after -- which is right in the canvas lab's single view and wrong on
+       edges 0 and 2, where a = 0 is the seen end: its dressing was painted
+       over by body's plain end wall, and the far a = WW dressing landed on
+       top of the roof and the facade (Sir, on-device, block 8,1). */
+    if(FLANK_RIGHT) flank(WW+0.5, 1); else flank(-0.5, -1);
 
     if(state.roof){
       /* ---- roof plant ----
@@ -30043,8 +30146,11 @@ const TIDEWATER_MUSEUM = (() => {
     };
     const parked = (ca, cb, cz, liv) =>
       flatsGameCar((a, b, h) => P(ca + b, cb - a, cz + h), FLATS_CAR_COLORS[liv % FLATS_CAR_COLORS.length]);
-
-    T(0, BLK, -BLK, 0, 0.3, '#b3a894');                    // the pavement round the cell
+    /* NO PAVEMENT ROUND THE CELL (2026-09-17, the fix the museum already
+       had: "drawing over the sidewalk"). This painted 0..BLK -- node to
+       node -- over half of every street round the lot and both pavements.
+       The city draws its own roads, kerbs and pavements; the entry's
+       ground is its lot, CA0..CA1, and nothing outside it. */
     T(FA0-20, FA1+20, FB0-20, FB1+20, 0.6, '#7d848a');
 
     /* ================= A FLIGHT IS NOT PART OF A FLOOR ================
@@ -30185,7 +30291,7 @@ const TIDEWATER_MUSEUM = (() => {
   }
 },
 {
-  name:'Lagoon Market Hall', base:'Market hall', hood:'The Flats', edited:true, tall:true, ww: 2392, dd: 2392,
+  name:'Lagoon Market Hall', base:'Market hall', hood:'The Flats', edited:true, tall:true, ww: 2392, dd: 2392, sc: 0.6923,   /* fitted: 2392 x 0.6923 = 1656, the buildable square a park cell now has (roads 368 + pavement 368 a side) -- at 1x it stood on the pavement */
   wTodo:'a whole block edge, 2392 = BLOCK - 2*ROAD_HALF, of which the hall is 460 and the market yard is the rest; the packer emits no wide slot',
   cTodo:'the two stalls are volumes: a 88..134 and 326..372 at b 0..28, on the line and clear of the doorway',
   head:'A nave under one barrel vault, with the market yard filling the block',
@@ -30983,8 +31089,11 @@ const TIDEWATER_MUSEUM = (() => {
        against a 230 shop: 520 of canopy on 1656 read as trim rather than
        as the way in, and a 17 globe was a dot. 700 and 26. */
     const DMID = LW/2, NB = 5, CAN = [DMID-350, DMID+350], COUT = 150;
-
-    T(0, BLK, -BLK, 0, 0.3, '#b3a894');
+    /* NO PAVEMENT ROUND THE CELL (2026-09-17, the fix the museum already
+       had: "drawing over the sidewalk"). This painted 0..BLK -- node to
+       node -- over half of every street round the lot and both pavements.
+       The city draws its own roads, kerbs and pavements; the entry's
+       ground is its lot, CA0..CA1, and nothing outside it. */
 
     const elevation = fr => {
       const L = fr.len;
@@ -31289,8 +31398,11 @@ const TIDEWATER_MUSEUM = (() => {
     const wall = '#eee6d4', trim = '#4d7f95', roofc = '#8a9699';
     const glassT = 'rgba(122,138,146,.88)';
     const GMID = (CA0+CA1)/2, GW = 190;
-
-    T(0, BLK, -BLK, 0, 0.3, '#b3a894');
+    /* NO PAVEMENT ROUND THE CELL (2026-09-17, the fix the museum already
+       had: "drawing over the sidewalk"). This painted 0..BLK -- node to
+       node -- over half of every street round the lot and both pavements.
+       The city draws its own roads, kerbs and pavements; the entry's
+       ground is its lot, CA0..CA1, and nothing outside it. */
     T(CA0, CA1, CB0, CB1, 0.6, '#a99d86');
     T(LA1, RA0, CB0+RD, SB0, 0.9, '#6f8a5e');                  // the court lawn
     T(GMID-70, GMID+70, CB0+RD, SB0, 1.2, '#bdb299');          // the path from the arch
@@ -31517,6 +31629,154 @@ const TIDEWATER_MUSEUM = (() => {
     depthSort(items);
     kerb(p,'none');
   }
+},
+{
+  name:'Tide Pool Elementary', base:'School', hood:'The Flats', edited:true, tall:true, block:true,
+  ww: 9384, dd: 940,
+  head:'Tide Pool Elementary, three rim lots wide along the top of The Flats',
+  tags:['three-lot footprint','long shallow site','yard to the street','painted courts','bellcote','chain-link railing'],
+  desc:'The school takes the whole north rim strip -- the two perimeter parks and the commercial lot between them -- as one site. The world edge is 980 out from the pavement, so the range runs long instead of deep: classrooms across the back, the yard and its courts in front of them, railed to the pavement with two gates.',
+  draw(p){
+    /* THE SITE. a runs east along the rim, b is 0 on the pavement and
+       negative outward, away from the city. 9384 = three lots of BLOCK;
+       940 is what the world edge leaves (pavement line -736, edge
+       -1720.4). Everything is laid out from those two numbers. */
+    const LEN = 9384, DEP = 940;
+    const wall = '#e6dcc4', trim = '#2f7f86', brick = '#b06a4a', H = 470, WH = 330;
+    const tar = '#6e6f6b', grass = '#4e7a4a', walk = '#b3a894', glassT = 'rgba(106,138,152,.86)';
+    const MA0 = 3200, MA1 = 6200, WA = 1200, WB = 8184;        // main range and the two wings
+    const BB1 = -300, BB0 = -840;                              // the building's own band
+    /* the site: tarmac yard, grass to the ends, a walk in from each gate */
+    T(0, LEN, -DEP, 0, 0.4, tar);
+    T(0, WA-40, -DEP, 0, 0.6, grass);
+    T(WB+40, LEN, -DEP, 0, 0.6, grass);
+    /* the strip behind the range is the school's too, and it is grass:
+       from the back street it was reading as more pavement (Sir) */
+    T(0, LEN, -DEP, BB0-6, 0.6, grass);
+    T(MA0-120, MA1+120, BB1, -40, 0.7, walk);
+    for(const ga of [2400, 7000]) T(ga-90, ga+90, BB1, -14, 0.9, walk);
+    /* the courts, painted on the tarmac in front of the wings */
+    const court = (c0, c1, d0, d1) => {
+      for(const [x0,x1,y0,y1] of [[c0,c1,d0,d0+12],[c0,c1,d1-12,d1],[c0,c0+12,d0,d1],[c1-12,c1,d0,d1],
+                                  [(c0+c1)/2-6,(c0+c1)/2+6,d0,d1]])
+        T(x0, x1, y0, y1, 1.2, '#e6e2d4');
+      for(let k=0;k<26;k++){ const t = k/25*Math.PI*2, r = Math.min(150, (d1-d0)/2 - 20);
+        T((c0+c1)/2 + r*Math.cos(t) - 6, (c0+c1)/2 + r*Math.cos(t) + 6,
+          (d0+d1)/2 + r*Math.sin(t) - 6, (d0+d1)/2 + r*Math.sin(t) + 6, 1.2, '#e6e2d4'); }
+    };
+    court(1360, 2920, -270, -60);
+    court(6460, 8020, -270, -60);
+    /* hopscotch by the east gate */
+    for(let k=0;k<6;k++) T(6880+k*46, 6880+k*46+34, -206, -172, 1.2, '#e0c88a');
+
+    /* ---- THE RANGE. One two-storey block in the middle with a lower
+       wing each side, all on the same back line so the yard in front is
+       one open piece. Bands are drawn on the front face (b = BB1), the
+       ends by box()'s own visibility test. ---- */
+    const blockOf = (a0, a1, h, col) => {
+      box(a0, a1, BB0, BB1, 0, h, shade(col,1.06), col, shade(col,.78));
+      /* plinth and eaves */
+      F(a0, a1, 0, 26, shade(col,.66), null, 0, BB1+0.4);
+      slab(a0-8, a1+8, h, h+16, BB1+8, BB0-8, shade(col,.72), null, shade(col,1.1));
+    };
+    blockOf(WA, MA0, WH, wall);
+    blockOf(MA1, WB, WH, wall);
+    blockOf(MA0, MA1, H, brick);
+    /* windows: two storeys on the main block, one tall band on the wings */
+    const winRow = (a0, a1, z0, z1, n, col) => {
+      for(let k=0;k<n;k++){
+        const w0 = a0 + (a1-a0)*(k+0.14)/n, w1 = a0 + (a1-a0)*(k+0.86)/n;
+        F(w0-6, w1+6, z0-6, z1+6, shade(col,.72), null, 0, BB1+0.6);
+        F(w0, w1, z0, z1, glassT, null, 0, BB1+1.0);
+        for(let m=1;m<3;m++) F(w0 + (w1-w0)*m/3 - 3, w0 + (w1-w0)*m/3 + 3, z0, z1, shade(col,1.1), null, 0, BB1+1.4);
+        F(w0, w1, z1-6, z1, shade(col,1.12), null, 0, BB1+1.4);
+      }
+    };
+    winRow(WA+70, MA0-70, 60, 230, 5, wall);
+    winRow(MA1+70, WB-70, 60, 230, 5, wall);
+    winRow(MA0+90, MA1-90, 60, 210, 6, brick);
+    winRow(MA0+90, MA1-90, 270, 410, 6, brick);
+    /* the entrance: a recessed porch under a canopy, doors and a sign */
+    const EA0 = (MA0+MA1)/2 - 170, EA1 = (MA0+MA1)/2 + 170;
+    F(EA0, EA1, 0, 250, shade(brick,.62), null, 0, BB1+0.6);
+    for(const [d0,d1] of [[EA0+40, EA0+150],[EA1-150, EA1-40]]){
+      F(d0, d1, 10, 210, '#2b3138', null, 0, BB1+1.2);
+      F(d0+6, d1-6, 20, 200, 'rgba(150,190,206,.80)', null, 0, BB1+1.6);
+      F((d0+d1)/2-3, (d0+d1)/2+3, 10, 210, shade(wall,1.2), null, 0, BB1+2.0);
+    }
+    slab(EA0-24, EA1+24, 250, 272, BB1+70, BB1-2, trim, shade(trim,.72), shade(trim,1.15));
+    for(const ca of [EA0-10, EA1+10]) cyl(ca, BB1+58, 0, 250, 7, shade(wall,.9));
+    F(EA0+30, EA1-30, 286, 330, shade(brick,1.12), null, 0, BB1+0.8);
+    for(let k=0;k<7;k++) F(EA0+50+k*36, EA0+74+k*36, 296, 320, trim, null, 0, BB1+1.2);   // the name board
+    /* bellcote on the main roof, the way the elementary in Peddlers Square has one */
+    { const ba = (MA0+MA1)/2, bz = H + 16, bb0 = BB1 - 130, bb1 = BB1 - 20;
+      box(ba-56, ba+56, bb0, bb1, bz, bz+76, shade(wall,1.04), wall, shade(wall,.8));
+      F(ba-32, ba+32, bz+18, bz+60, '#2b3138', null, 0, bb1+0.6);
+      for(let k=0;k<3;k++) F(ba-32, ba+32, bz+24+k*12, bz+29+k*12, shade(wall,1.1), null, 0, bb1+1.0);
+      poly([P(ba-64, bb1+1, bz+76), P(ba, bb1+1, bz+112), P(ba+64, bb1+1, bz+76)], shade(trim,.95));
+      poly([P(ba-64, bb0, bz+76), P(ba, bb0, bz+112), P(ba+64, bb0, bz+76)], shade(trim,.7));
+      T(ba-64, ba+64, bb0, bb1+1, bz+76, shade(trim,1.05));
+      ball(ba, (bb0+bb1)/2, bz+122, 9, trim); }
+    if(state.roof){
+      for(const [ra, rb] of [[WA+300, -600],[MA1+400, -600]])
+        box(ra, ra+150, rb-60, rb, WH, WH+30, '#9aa0a6', '#7d838a', '#6a7076');
+      box(MA0+260, MA0+460, -700, -620, H, H+34, '#9aa0a6', '#7d838a', '#6a7076');
+    }
+
+    /* ---- THE RAILING, chain link with two gates and brick piers, along
+       the pavement and round both ends ---- */
+    const MESH = '#a8b0ae', POST = '#7d8785', FZ0 = 14, FZ1 = 150;
+    const GATES = [[2310, 2490], [6910, 7090]];
+    const mesh = (x0, y0, x1, y1) => {
+      const len = Math.hypot(x1-x0, y1-y0);
+      const pt = (t, z) => P(x0 + (x1-x0)*t, y0 + (y1-y0)*t, z);
+      poly([pt(0,FZ1), pt(1,FZ1), pt(1,FZ0), pt(0,FZ0)], 'rgba(206,214,212,.14)');
+      ctx.strokeStyle = MESH; ctx.lineWidth = 1.1;
+      const rise = (FZ1 - FZ0) * ZSCALE, step = 90;
+      for(let k = -2; k <= len/step + 2; k++) for(const dir of [1, -1]){
+        const s0 = k*step, s1 = s0 + dir*rise;
+        let u0 = 0, u1 = 1;
+        if(s1 !== s0){ const ua = (0 - s0)/(s1 - s0), ub = (len - s0)/(s1 - s0);
+          u0 = Math.max(0, Math.min(ua, ub)); u1 = Math.min(1, Math.max(ua, ub)); }
+        else if(s0 < 0 || s0 > len) continue;
+        if(u1 <= u0) continue;
+        const q0 = pt((s0 + (s1-s0)*u0)/len, FZ0 + (FZ1-FZ0)*u0);
+        const q1 = pt((s0 + (s1-s0)*u1)/len, FZ0 + (FZ1-FZ0)*u1);
+        ctx.beginPath(); ctx.moveTo(q0.x, q0.y); ctx.lineTo(q1.x, q1.y); ctx.stroke();
+      }
+      tube(x0, y0, FZ1, x1, y1, FZ1, 4, POST);
+      tube(x0, y0, FZ0, x1, y1, FZ0, 2.4, POST);
+      const n = Math.max(2, Math.round(len/380));
+      for(let k=0;k<=n;k++){ const t = k/n, xa = x0 + (x1-x0)*t, ya = y0 + (y1-y0)*t;
+        tube(xa, ya, 0, xa, ya, (k===0||k===n) ? 158 : 152, (k===0||k===n) ? 9 : 6.5, POST); }
+    };
+    { let cur = 0;
+      for(const [g0, g1] of GATES){ if(g0 - cur > 30) mesh(cur, -14, g0, -14); cur = g1; }
+      if(LEN - cur > 30) mesh(cur, -14, LEN, -14); }
+    /* railed on all four sides: the ends and the back as well as the
+       pavement, so the grounds are enclosed from every street */
+    mesh(14, -14, 14, -DEP+14); mesh(LEN-14, -14, LEN-14, -DEP+14);
+    mesh(14, -DEP+14, LEN-14, -DEP+14);
+    for(const [g0, g1] of GATES){
+      for(const ga of [g0, g1]) box(ga-26, ga+26, -40, 0, 0, 200, shade(brick,1.08), brick, shade(brick,.8));
+      for(const ga of [g0, g1]) T(ga-30, ga+30, -44, 4, 204, shade(brick,.72));
+      mesh(g0+26, -14, g1-26, -14);
+    }
+    if(state.props){
+      /* trees on the grass ends, a flagpole by the west gate, benches */
+      for(const [ta, tb] of [[420,-300],[760,-620],[300,-760],[8700,-300],[9040,-640],[8600,-780]]){
+        cyl(ta, tb, 0, 70, 12, '#6d5a44');
+        ball(ta, tb, 120, 62, '#3f7a4a'); ball(ta-28, tb-16, 96, 42, '#4e8a56');
+      }
+      cyl(2260, -120, 0, 300, 6, '#c9ccd0');
+      poly([P(2260,-120,300), P(2260,-120,236), P(2400,-120,268)], '#c2452e');
+      for(const ba of [3000, 4700, 6400]){
+        box(ba-70, ba+70, -80, -52, 30, 40, '#8a6f4e', '#6f5a40', '#5a4834');
+        for(const la of [ba-58, ba+58]) box(la-6, la+6, -78, -54, 0, 30, '#6d747c', '#5d646b', '#4a4f55');
+      }
+    }
+    kerb(p,'none');
+  }
 }
   ];
   const BY_NAME = new Map(SHOPS.map(s => [s.name, s]));
@@ -31604,13 +31864,15 @@ const TIDEWATER_MUSEUM = (() => {
       K = k || 1;
       SC = shop.sc || 1;
       ZSCALE = shop.zs === undefined ? 1.5 : shop.zs;
-      FLANK_RIGHT = flank === undefined ? true : !!flank;
+      const mirrored = flank === false && shop.mirror !== false;
+      MIRROR = mirrored ? (shop.ww || W) : 0;
+      FLANK_RIGHT = mirrored ? true : (flank === undefined ? true : !!flank);
       SHOP_SLOT = { G };
       state.part = part ? part.part : null;
       state.partW = part ? (part.w || null) : null;
       ctx.__bind(g);
       try { (rear && shop.back ? shop.back : shop.draw).call(shop, pal || PAL[0]); }
-      finally { SHOP_SLOT = null; state.part = null; state.partW = null; }
+      finally { SHOP_SLOT = null; MIRROR = 0; state.part = null; state.partW = null; }
       return true;
     }
   };
@@ -34073,7 +34335,19 @@ class WorldScene extends Phaser.Scene {
        into g unconditionally, so the robot could never be hidden
        behind a house even when it should have been). */
     const visBlocks = r.grid.blocks.filter(b => near(b.cx, b.cy));
-    const visLots = r.grid.extLots.filter(l => near(l.cx, l.cy));
+    /* A RIM SITE IS ONE BUILDING ACROSS SEVERAL LOTS (Sir, on-device:
+       "once i go to the boundry the building cuts away and completely
+       dissapears"). Its anchor lot draws the whole run, so testing the
+       anchor's own centre dropped the school the moment he drove past the
+       middle of it. Every lot of a site passes together, on the site's
+       nearest point rather than a lot centre. */
+    const visLots = r.grid.extLots.filter(l => {
+      const s = typeof hoodRimSiteOfLot === "function" ? hoodRimSiteOfLot(l) : null;
+      if(!s) return near(l.cx, l.cy);
+      const x = Math.max(s.from, Math.min(this.botX, s.to));
+      const y = s.at + s.out*s.depth/2;
+      return near(x, y) || near(s.from, y) || near(s.to, y);
+    });
     for(const blk of visBlocks) this.fillBlockGround(g, blk);
     for(const lot of visLots) this.fillExteriorLot(g, lot);
 
@@ -37474,6 +37748,8 @@ class WorldScene extends Phaser.Scene {
   }
 
   fillExteriorLot(g, lot){
+    /* a rim landmark draws its own ground across the whole run */
+    if(typeof hoodRimSiteOfLot === "function" && hoodRimSiteOfLot(lot)) return;
     if(lot.type === "park"){
       const rect = lotRect(lot.ox, lot.oy, lot.dv, lot.rv, lot.len, EXT_PARK_DEPTH);
       return this.fillBlockInterior(g, rect, GRASS);
@@ -37482,6 +37758,16 @@ class WorldScene extends Phaser.Scene {
     this.fillBlockInterior(g, rect, lot.type === "commercial" ? PLAZA : GRASS);
   }
   queueExteriorLot(vq, lot){
+    /* A RIM LANDMARK owns its whole run: the anchor lot draws the entry
+       and the others stand down (see HOOD_RIM_SITES) */
+    const rim = typeof hoodRimSiteOfLot === "function" ? hoodRimSiteOfLot(lot) : null;
+    if(rim){
+      if(!hoodRimAnchor(lot, rim)) return;
+      const fr = hoodRimFrame(rim);
+      const G = (a, b, h) => { const q = fr.toWorld(a, b); return this.W(q.x, q.y, h); };
+      vq.push({ depth: fr.ox + fr.oy, fn: (g) => LIB.draw(rim.name, g, G, null, this.K, null, fr.flank) });
+      return;
+    }
     if(lot.type === "park"){
       const rect = lotRect(lot.ox, lot.oy, lot.dv, lot.rv, lot.len, EXT_PARK_DEPTH);
       return this.queueParkBlock(vq, rect);
@@ -50205,6 +50491,8 @@ function mapParkName(cx, cy, route){
 }
 /* the pin: glyph and colour, defaulting to the park tree. */
 function mapParkIcon(cx, cy, route){
+  const rim = typeof hoodRimSiteAt === "function" ? hoodRimSiteAt(cx, cy) : null;
+  if(rim) return { icon: rim.icon || "\u{1F3EB}", pin: rim.pin || "#b06a4a" };
   const _hl = hoodLandmarkAtXY(cx, cy); if(_hl) return { icon: hoodShopIcon(_hl), pin: "#c2603a" };
   const lm = PARK_LANDMARKS[mapParkRaw(cx, cy, route)];
   return { icon: (lm && lm.icon) || "\u{1F333}", pin: (lm && lm.pin) || "#3f7a4a" };
@@ -50213,6 +50501,8 @@ function mapParkIcon(cx, cy, route){
    above and for the same reason: a place must not be one thing on the
    map and another in search. */
 function mapParkKind(cx, cy, route){
+  const rim = typeof hoodRimSiteAt === "function" ? hoodRimSiteAt(cx, cy) : null;
+  if(rim) return rim.kind || "landmark";
   if(hoodLandmarkAtXY(cx, cy)) return "landmark";
   const lm = PARK_LANDMARKS[mapParkRaw(cx, cy, route)];
   return (lm && lm.kind) || "park";
@@ -51684,8 +51974,11 @@ function tpMapIndex(route){
     if(b2.type === "park")
       addPark(mapParkName(b2.cx, b2.cy, route), mapParkKind(b2.cx, b2.cy, route), b2.cx, b2.cy);
   for(const lot of (g2.extLots || []))
-    if(lot.type === "park")
+    if(lot.type === "park" && !(typeof hoodRimSiteOfLot === "function" && hoodRimSiteOfLot(lot)))
       addPark(mapParkName(lot.cx, lot.cy, route), mapParkKind(lot.cx, lot.cy, route), lot.cx, lot.cy);
+  /* the rim landmarks: one row each, at the middle of their own run */
+  if(typeof hoodRimRects === "function")
+    for(const r of hoodRimRects()) addPark(r.name, "landmark", r.cx, r.cy);
   /* the row's kind comes off the component, not off the loop: a park
      lists as "park" and a landmark lists as what it is. */
   for(const [nm, r] of parkRows)
@@ -52414,7 +52707,20 @@ function drawRouteMap(route){
      shape as interior blocks so both draw through the same code below
      instead of needing a separate pass. */
   const lotDepth = BLOCK*0.4;
-  const extRects = bgRoute.grid.extLots.map(lot => {
+  /* a rim landmark is ONE lot on the map too, not the two parks and the
+     commercial strip it was built from (Sir: "we didnt blend ... we have
+     two and then we have the shop block still there") */
+  /* DRAWN TO THE MAP'S OWN LOT DEPTH, not the building's. Every other
+     perimeter lot on this map is a BLOCK*0.4 strip off the pavement line;
+     a 940-deep rect beside them stepped in and out of the rim (Sir: "it
+     doesnt line up correctly"). Grounds are grass, so it takes the park
+     green like the parks it replaced. */
+  const rimRects = HOOD_RIM_SITES.map(s => {
+    const y0 = Math.min(s.at, s.at + s.out*lotDepth), y1 = Math.max(s.at, s.at + s.out*lotDepth);
+    return { x0: s.from, x1: s.to, y0, y1, cx: (s.from + s.to)/2, cy: (y0 + y1)/2, type: "park", rim: s };
+  });
+  const extRects = bgRoute.grid.extLots.filter(lot =>
+    !(typeof hoodRimSiteOfLot === "function" && hoodRimSiteOfLot(lot))).map(lot => {
     const p2x = lot.ox + lot.dv.x*lot.len, p2y = lot.oy + lot.dv.y*lot.len;
     const p3x = p2x + lot.rv.x*lotDepth, p3y = p2y + lot.rv.y*lotDepth;
     const p4x = lot.ox + lot.rv.x*lotDepth, p4y = lot.oy + lot.rv.y*lotDepth;
@@ -52425,7 +52731,7 @@ function drawRouteMap(route){
       type: lot.type
     };
   });
-  const allBlocks = bgRoute.grid.blocks.concat(extRects);
+  const allBlocks = bgRoute.grid.blocks.concat(extRects, rimRects);
   const blockColor = { housing: "#e3d4b8", park: "#8fbf7a", commercial: "#c4c8cc" };
   const byIJ = bgRoute.grid.blockByIJ;
   for(const blk of allBlocks){
@@ -52610,15 +52916,17 @@ function drawRouteMap(route){
     ctx.fillStyle = "#2e3138"; ctx.font = "10px sans-serif";
     ctx.fillText(pname, p.x, p.y+8);
   }
-  for(const blk of extRects){
-    if(blk.type !== "park" || !inView(blk.cx, blk.cy)) continue;
+  for(const blk of extRects.concat(rimRects)){
+    if(!(blk.type === "park" || blk.rim) || !inView(blk.cx, blk.cy)) continue;
     const p = toScreen({x:blk.cx, y:blk.cy});
-    const pk = mapParkIcon(blk.cx, blk.cy, bgRoute);
+    const qx = blk.rim ? (blk.rim.from + blk.rim.to)/2 : blk.cx;
+    const qy = blk.rim ? blk.rim.at + blk.rim.out*blk.rim.depth/2 : blk.cy;
+    const pk = mapParkIcon(qx, qy, bgRoute);
     ctx.fillStyle = pk.pin;
     ctx.beginPath(); ctx.arc(p.x, p.y-8, 7, 0, Math.PI*2); ctx.fill();
     ctx.font = "9px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
     ctx.fillText(pk.icon, p.x, p.y-8);
-    const pname = mapParkName(blk.cx, blk.cy, bgRoute);
+    const pname = mapParkName(qx, qy, bgRoute);
     ctx.fillStyle = "#2e3138"; ctx.font = "10px sans-serif";
     ctx.fillText(pname, p.x, p.y+8);
   }
