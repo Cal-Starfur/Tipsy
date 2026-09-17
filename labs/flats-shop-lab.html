@@ -96,6 +96,14 @@ const state = { i:0, roof:true, props:true, pal:0, grid:false, scale:false,
                 doorT:1, doorRun:false, vol:false, probe:null, back:false };
 const LAB_ZS = 1.5;
 let ZSCALE = LAB_ZS;
+/* SC -- the shop's own drawn scale, from its entry's `sc` (Sir, 2026-09-17:
+   the single, double and triple lot shops are 1.3x). A body is still
+   written in its own units -- W 230, D 276, the 162 door -- and P() makes
+   it 1.3 times that on the ground, so every host that honours `sc` gets
+   the same building. The pavement and the guides are world furniture and
+   are drawn at SC 1 against the scaled footprint. */
+let SC = 1;
+function shopSC(sh){ return (sh || SHOPS[state.i]).sc || 1; }
 /* VOLCAP: while a volume measure runs, every z that reaches the screen
    and every body() call is recorded. Null the rest of the time, so the
    draw path is untouched. */
@@ -108,6 +116,7 @@ function P(a,b,z){
      kit face test still holds; only the seen end changes (see drawShop). */
   if(TURN){ a = TURN.w - a; b = -TURN.d - b; }             // see turned() in the kit
   if(state.back){ const sh = SHOPS[state.i]; a = (sh.ww || W) - a; b = -(sh.dd || D) - b; }
+  a *= SC; b *= SC; z *= SC;                               // the entry's own scale, last
   return { x:(a-b)*K + OX, y:((a+b)*0.5 - z*ZSCALE)*K + OY };
 }
 
@@ -157,8 +166,9 @@ function shopW(){ const s = SHOPS[state.i]; return s.ww || W; }
    box have to ask for that too or they end under the building. */
 function shopD(){ const s = SHOPS[state.i]; return s.dd || D; }
 function pavement(){
-  const DD = shopD();
-  const g0=-90, g1=shopW()+90, b0=110, b1=-DD-70;
+  const s0 = SC; SC = 1;
+  const DD = shopD()*s0;
+  const g0=-90, g1=shopW()*s0+90, b0=110, b1=-DD-70;
   T(g0,g1,b1,b0,0,'#cfc9b8');
   ctx.strokeStyle='#bdb7a6'; ctx.lineWidth=1;
   for(let a=g0;a<=g1;a+=46){ const s=P(a,b0,0), e=P(a,b1,0);
@@ -166,10 +176,12 @@ function pavement(){
   for(let b=b1;b<=b0;b+=46){ const s=P(g0,b,0), e=P(g1,b,0);
     ctx.beginPath(); ctx.moveTo(s.x,s.y); ctx.lineTo(e.x,e.y); ctx.stroke(); }
   T(g0,g1,150,110,0,'#585c63');                            // road strip
+  SC = s0;
 }
 function guides(){
   ctx.strokeStyle='rgba(255,122,26,.85)'; ctx.lineWidth=1.5; ctx.setLineDash([6,5]);
-  const gw = shopW(), gd = shopD();
+  const s0 = SC; SC = 1;
+  const gw = shopW()*s0, gd = shopD()*s0;
   poly([P(0,0,0),P(gw,0,0),P(gw,-gd,0),P(0,-gd,0)], null,'rgba(255,122,26,.85)',1.5);
   if(gw !== W)   // the packer's slot boundary, so the overrun is visible
     poly([P(W,0,0),P(W,-gd,0)], null,'rgba(255,122,26,.45)',1.5);
@@ -184,7 +196,8 @@ function guides(){
      the bench's default frontage sits above the packer's average, which
      is worth knowing and is not a fault: slots run 162..243.) */
   const SLOT = T2*2.2;
-  ctx.fillText('w '+gw.toFixed(0)+'  ·  '+(gw/SLOT).toFixed(2)+' slots  ·  D '+D, t.x, t.y+18);
+  ctx.fillText('w '+gw.toFixed(0)+'  ·  '+(gw/SLOT).toFixed(2)+' slots  ·  D '+gd.toFixed(0)+(s0 !== 1 ? '  ·  '+s0+'x' : ''), t.x, t.y+18);
+  SC = s0;
 }
 
 /* ================= FRAMING BY MEASUREMENT =================
@@ -240,7 +253,8 @@ function measureBounds(){
   ctx.setTransform(1,0,0,1,0,0);
   ctx.clearRect(0,0,MCV.width,MCV.height);
   { const sh = SHOPS[state.i];
-    MK = Math.min(0.62, 2400 / ((sh.ww || W) + (sh.dd || D))); }
+    MK = Math.min(0.62, 2400 / (((sh.ww || W) + (sh.dd || D)) * shopSC(sh))); }
+  SC = shopSC();
   K = MK; OX = MOX; OY = MOY;
   /* THE PLATE IS NOT THE SUBJECT. A 276-deep roof slab projects up and
      to the right and is simply the largest thing on screen for every
@@ -416,6 +430,7 @@ function draw(){
   SCREEN.width = cssW*dpr; SCREEN.height = cssH*dpr;
   ctx.setTransform(dpr,0,0,dpr,0,0);
   ctx.clearRect(0,0,cssW,cssH);
+  SC = shopSC();
 
   const b = measureBounds();
   const PAD = 16;
@@ -459,7 +474,7 @@ function sync(){
   const s = SHOPS[state.i];
   document.getElementById('nm').textContent = s.name;
   document.getElementById('ix').textContent = (state.i+1)+' of '+SHOPS.length;
-  document.getElementById('mh').textContent = s.head + (state.back ? (s.back ? '  ·  rear elevation' : '  ·  NO REAR YET: this is its front seen from behind') : '');
+  document.getElementById('mh').textContent = s.head + (s.sc ? '  ·  ' + s.sc + 'x' : '') + (state.back ? (s.back ? '  ·  rear elevation' : '  ·  NO REAR YET: this is its front seen from behind') : '');
   document.getElementById('md').textContent = s.desc;
   /* THE FLAG HAS TO FIND YOU, not wait to be looked for. A shop that has
      not been sized against the game carries zTodo -- its height in game
