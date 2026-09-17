@@ -5562,6 +5562,11 @@ function owBuildWorld(route){
       if(!list) continue;
       for(const b of list)
         if(x > b.x0 - R && x < b.x1 + R && y > b.y0 - R && y < b.y1 + R){
+          /* A HOOD LANDMARK THAT DECLARES ITS VOLUME is exactly that volume:
+             its building, railing, piers and garden, with the forecourt and
+             the gate open. One that does not stays the solid cell it was. */
+          { const _lv = hoodLandmarkVolAt(b);
+            if(_lv){ if(volBlockedAt(_lv.v, x - _lv.x0, _lv.y0 - y, R, true)) return b; continue; } }
           /* the depot's room and doorway are carved out of their block */
           { const _dl = depotOnBlock(g2, b);
             if(_dl){ const ds = depotSolidAt(_dl, x, y, R); if(ds === false) continue; if(ds === true) return b; } }
@@ -11095,6 +11100,17 @@ function hoodLandmarkAtIJ(i, j){
   for(const [a, b, n] of HOOD_BLOCK_LANDMARKS) if(a === i && b === j) return LIB.get(n) ? n : null;
   return null;
 }
+/* the landmark's declared volume and its placement: the cell's node corner,
+   b flipped, exactly as queueParkBlock draws it. null for a landmark that
+   declares nothing (it stays a solid cell). */
+function hoodLandmarkVolAt(blk){
+  if(!blk || blk.type !== "park" || blk.i === undefined) return null;
+  const n = hoodLandmarkAtIJ(blk.i, blk.j);
+  if(!n) return null;
+  const shop = LIB.get(n);
+  if(!shop || !shop.vol) return null;
+  return { name: n, v: LIB.vol(n), zs: LIB.zs(n), x0: blk.i * BLOCK, y0: blk.j * BLOCK };
+}
 function hoodLandmarkAtXY(x, y){ return hoodLandmarkAtIJ(Math.floor(x / BLOCK), Math.floor(y / BLOCK)); }
 /* THE NEAR CORNER, in the LAB'S OWN FRAME (Sir: "from this view i cant
    see the door"). (x1, y1) is the corner nearest this fixed camera, and
@@ -16009,6 +16025,9 @@ const LIB = (function(){
    Everything is applied through a full CTM, because faceT/plateT set a
    transform and 17 shops then draw in unit-circle space inside it.
    ===================================================================== */
+/* a Phaser Graphics that swallows every call -- LIB.collect() runs an entry
+   against it to build the entry's item list without drawing anything */
+const NULL_GFX = new Proxy(function(){}, { get: () => NULL_GFX, apply: () => NULL_GFX });
 function makeCtx2Phaser(){
   const S = {
     g: null,
@@ -16548,7 +16567,21 @@ function glaze(a0, a1, z0, z1, frame, tint){
    in this library supplies it. z ascending breaks ties so a thing on a
    shelf still paints over the shelf. */
 function depthSort(items){
-  const key = it => (it.a || 0) + it.b + (it.z || 0);
+  /* SORTED BY WHAT P() SAYS IS NEARER, not by a + b (Sir, 2026-09-17:
+     the Tidewater Maritime Museum's rear railing, hedges and plinths drew
+     OVER its portico). a + b is "nearer" only in the lab's own frame. The
+     game places a block landmark with b flipped -- W(x0 + a, y0 - b) --
+     where nearer is a - b, so the old key drew the whole sculpture garden
+     back to front. P(a, b, 0).y is the ground point's screen height in
+     whatever frame is live, and it is (a + b)K/2 + OY in the lab, so the
+     lab's order is unchanged; z keeps its old weight, one ground unit. */
+  const o = P(0,0,0);
+  const u = (Math.abs(P(1,0,0).y - o.y) + Math.abs(P(0,1,0).y - o.y)) / 2;
+  const key = it => P(it.a || 0, it.b, 0).y + (it.z || 0) * u;
+  /* A HOST MAY TAKE THE ITEMS instead: the game sorts each one into its
+     own world queue, against the robot and everything round the lot, so
+     a building 1656 across is not one depth. */
+  if(typeof state !== 'undefined' && state.emit){ state.emit(items); return; }
   items.slice().sort((m,n) => (key(m) - key(n)) || ((m.z||0) - (n.z||0)))
        .forEach(it => it.draw());
 }
@@ -17254,6 +17287,53 @@ function flatsWallFrames(WW, DD, OA, OB){
            FAR:  FLANK_RIGHT ? FR_LEFT  : FR_RIGHT };
 }
 
+
+/* =====================================================================
+   TIDEWATER MARITIME MUSEUM -- ITS GEOMETRY, ONCE (the depot's rule).
+   draw() and vol read the same numbers, so the railing he hits is the
+   railing that is drawn. Frame: the entry's own, b 0 on the street and
+   negative into the cell; the game flips b when it places the cell.
+   ===================================================================== */
+const TIDEWATER_MUSEUM = (() => {
+  const BLK = 3128, ROAD = 736;
+  const CA0 = ROAD, CA1 = BLK - ROAD, CB1 = -ROAD, CB0 = -(BLK - ROAD);   // the forecourt lot
+  const BA0 = 880, BA1 = 2250, BB0 = -2200, BB1 = -1480, H = 440;          // the building
+  const BW = BA1 - BA0, DMID = BW/2, PA0 = 285, PA1 = 1085;
+  const GATE = [DMID + BA0 - 130, DMID + BA0 + 130];
+  const PLINTHS = [[1020,-1000,0],[1420,-900,1],[2010,-1010,2],[1200,-1300,3],[1900,-1320,0]];
+  const TREES = [[CA0+120,-900],[CA1-120,-900],[CA0+120,-1330],[CA1-120,-1330]];
+  const HEDGES = [[1100,-820],[1560,-820],[2020,-820]];
+  const RAIL = 5;                                 // half-thickness of the railing's volume
+  const rail = (name, a0, b0, a1, b1) => ({ name, h: 116,
+    poly: a0 === a1 ? [[a0-RAIL,b0],[a0+RAIL,b0],[a0+RAIL,b1],[a0-RAIL,b1]]
+                    : [[a0,b0-RAIL],[a1,b0-RAIL],[a1,b0+RAIL],[a0,b0+RAIL]] });
+  const box = (name, a, b, ha, hb, h, prop) => ({ name, h, prop, poly: [[a-ha,b-hb],[a+ha,b-hb],[a+ha,b+hb],[a-ha,b+hb]] });
+  const vol = {
+    /* the building is the mass; the forecourt, lawns and walk are open */
+    foot: [[BA0,BB1],[BA1,BB1],[BA1,BB0],[BA0,BB0]],
+    h: H,
+    solids: [
+      /* the portico and its steps, one volume: nine columns 80 apart are
+         not a gap a robot 60 wide goes through, and the steps are a kerb */
+      { name:'portico', h: 300, poly: [[BA0+PA0-60, BB1],[BA0+PA1+60, BB1],[BA0+PA1+60, BB1+90],[BA0+PA0-60, BB1+90]] },
+      /* the railing, closed on three sides, open at the gate */
+      rail('railing front L', CA0, CB1, GATE[0]-28, CB1),
+      rail('railing front R', GATE[1]+28, CB1, CA1, CB1),
+      rail('railing left',  CA0, CB0, CA0, CB1),
+      rail('railing right', CA1, CB0, CA1, CB1),
+      rail('railing back',  CA0, CB0, CA1, CB0),
+      box('gate pier L', GATE[0], CB1, 28, 28, 247),
+      box('gate pier R', GATE[1], CB1, 28, 28, 247),
+      /* the sculpture garden -- kerb props, so they come and go with them */
+      ...PLINTHS.map(([a,b], k) => box('plinth ' + (k+1), a, b, 44, 44, 230, true)),
+      ...TREES.map(([a,b], k) => ({ name:'tree ' + (k+1), c:[a,b], r: 22, h: 280, prop:true })),
+      ...HEDGES.map(([a,b], k) => box('hedge ' + (k+1), a, b, 110, 22, 46, true))
+    ],
+    zones: [{ name:'forecourt', kind:'walk', poly: [[CA0,CB1],[CA1,CB1],[CA1,CB0],[CA0,CB0]] }],
+    marks: { gate: [BA0 + DMID, CB1], door: [BA0 + DMID, BB1 + 90] }
+  };
+  return { BLK, ROAD, CA0, CA1, CB0, CB1, BA0, BA1, BB0, BB1, H, DMID, PA0, PA1, GATE, PLINTHS, TREES, HEDGES, vol };
+})();
 
   const SHOPS = [
   {
@@ -30165,6 +30245,7 @@ function flatsWallFrames(WW, DD, OA, OB){
 },
 {
   name:'Tidewater Maritime Museum', base:'Museum', hood:'The Flats', edited:true, tall:true, block:true, ww: 3128, dd: 3128,
+  vol: TIDEWATER_MUSEUM.vol,
   wTodo:'a FULL block cell -- BLOCK 3128 with ROAD_HALF 368 each side, so 1656 square of buildable ground; the packer places no landmark',
   cTodo:'the building, the portico columns, the forecourt railing and its gate piers, the plinths and their sculptures are volumes; the forecourt paving is walkable',
   head:'A block cell: portico set back behind its own sculpture garden',
@@ -30203,16 +30284,19 @@ function flatsWallFrames(WW, DD, OA, OB){
        wall, upper glass at -8.5 behind its own surround's back face at
        -8, the fTodo band 10 past the return, and zTodo 1.7 -- storeys on
        a 54 pitch, which is a third of a shop storey for a gallery. */
-    const BLK = 3128, ROAD = 736;
-    const CA0 = ROAD, CA1 = BLK - ROAD, CB1 = -ROAD, CB0 = -(BLK - ROAD);
-    const BA0 = 880, BA1 = 2250, BB0 = -2200, BB1 = -1480;
-    const BW = BA1 - BA0, BD = BB1 - BB0, H = 440;
+    const { BLK, ROAD, CA0, CA1, CB1, CB0, BA0, BA1, BB0, BB1, H } = TIDEWATER_MUSEUM;
+    const BW = BA1 - BA0, BD = BB1 - BB0;
     const wall = '#eee9dc', trim = '#2f5a6b', glassT = 'rgba(95,114,116,.86)';
     const { FR_FRONT, FR_RIGHT, FR_LEFT, FR_BACK, NEAR, FAR, Q, R, bandF, rev, glz, doorF }
       = flatsWallFrames(BW, BD, BA0, BB1);
-    const DMID = BW/2, PA0 = 285, PA1 = 1085, NCOL = 9;
+    const { DMID, PA0, PA1 } = TIDEWATER_MUSEUM, NCOL = 9;
 
-    T(0, BLK, -BLK, 0, 0.3, '#b3a894');                        // pavement round the cell
+    /* NO PAVEMENT ROUND THE CELL (Sir, 2026-09-17: "is it still drawing over
+       the sidewalk and road?"). This painted 0..BLK -- node to node, which
+       is road CENTRE to road centre -- so in the game a flat stone square
+       lay over half of every street round the museum and both pavements.
+       The city draws its own roads, kerbs and pavements; the entry's
+       ground is its lot, the forecourt below. */
     T(CA0, CA1, CB0, CB1, 0.6, '#bdb5a2');                     // the forecourt
     T(DMID+BA0-110, DMID+BA0+110, CB1-20, BB1, 1.1, '#cdc6b4'); // the axis walk
     for(const gx of [[CA0+40, BA0-60],[BA1+60, CA1-40]])       // lawns either side
@@ -30288,7 +30372,7 @@ function flatsWallFrames(WW, DD, OA, OB){
     }});
 
     /* ---- the forecourt railing, segmented so the sort can use it ---- */
-    const GATE = [DMID+BA0-130, DMID+BA0+130];
+    const GATE = TIDEWATER_MUSEUM.GATE;
     const railSeg = (x0,y0,x1,y1) => {
       const len = Math.hypot(x1-x0, y1-y0);
       if(len < 30) return;
@@ -30332,7 +30416,7 @@ function flatsWallFrames(WW, DD, OA, OB){
         else { for(let m=0;m<3;m++)
                  cyl(pa - 16 + m*16, pb, 96, 150 + m*44, 9, ['#8f969d','#7a8a72','#9a8f74'][m]); }
       };
-      [[1020,-1000,0],[1420,-900,1],[2010,-1010,2],[1200,-1300,3],[1900,-1320,0]]
+      TIDEWATER_MUSEUM.PLINTHS
         .forEach(([pa,pb,k]) => items.push({ a:pa, b:pb, z:0, draw:() => plinth(pa,pb,k) }));
       const tree = (ta, tb) => {
         cyl(ta, tb, 0, 130, 17, '#6b5a3a');
@@ -30341,9 +30425,9 @@ function flatsWallFrames(WW, DD, OA, OB){
                ['#3f6b4a','#4e8058','#568a5e'][k%3]);
         ball(ta, tb, 226, 52, '#4e8058');
       };
-      for(const [ta,tb] of [[CA0+120,-900],[CA1-120,-900],[CA0+120,-1330],[CA1-120,-1330]])
+      for(const [ta,tb] of TIDEWATER_MUSEUM.TREES)
         items.push({ a:ta, b:tb, z:0, draw:() => tree(ta,tb) });
-      for(const [ha,hb] of [[1100,-820],[1560,-820],[2020,-820]])
+      for(const [ha,hb] of TIDEWATER_MUSEUM.HEDGES)
         items.push({ a:ha, b:hb, z:0, draw:() => {
           box(ha-110, ha+110, hb-22, hb+22, 0, 46, '#4e7a4a','#416b3e','#3a5f38');
         }});
@@ -30934,6 +31018,52 @@ function flatsWallFrames(WW, DD, OA, OB){
        callers (depot, park landmarks) omit it and keep `true`; a shop on
        a block edge passes the edge's own test, (dv.x + dv.y) > 0, the
        same one drawStoreUnit and shopfront-phaser.html use. */
+    /* A BLOCK LANDMARK IN PIECES (Sir, 2026-09-17: the museum). An entry
+       that ends in depthSort() hands its items over instead of drawing
+       them (state.emit), so the scene can sort each into the world queue
+       at its own depth -- a 1656-square lot is not one depth. collect()
+       runs the entry against a graphics that swallows everything, which
+       builds the item closures and draws nothing; drawItem() runs one
+       closure for real; ground() is the entry's direct drawing -- the
+       paving it lays before its items -- with the items dropped. */
+    collect(name, G, k, flank){
+      const shop = BY_NAME.get(name);
+      if(!shop) return null;
+      if(!ctx) ctx = makeCtx2Phaser();
+      let got = null;
+      this._enter(shop, G, k, flank);
+      state.emit = (items) => { got = items; };
+      ctx.__bind(NULL_GFX);
+      try { shop.draw(PAL[0]); }
+      finally { state.emit = null; SHOP_SLOT = null; }
+      return got;
+    },
+    drawItem(name, g, G, k, item, flank){
+      const shop = BY_NAME.get(name);
+      if(!shop) return false;
+      if(!ctx) ctx = makeCtx2Phaser();
+      this._enter(shop, G, k, flank);
+      ctx.__bind(g);
+      try { item.draw(); } finally { SHOP_SLOT = null; }
+      return true;
+    },
+    ground(name, g, G, k, flank){
+      const shop = BY_NAME.get(name);
+      if(!shop) return false;
+      if(!ctx) ctx = makeCtx2Phaser();
+      this._enter(shop, G, k, flank);
+      state.emit = () => {};
+      ctx.__bind(g);
+      try { shop.draw(PAL[0]); } finally { state.emit = null; SHOP_SLOT = null; }
+      return true;
+    },
+    _enter(shop, G, k, flank){
+      K = k || 1;
+      ZSCALE = shop.zs === undefined ? 1.5 : shop.zs;
+      FLANK_RIGHT = flank === undefined ? true : !!flank;
+      SHOP_SLOT = { G };
+      state.part = null; state.partW = null;
+    },
     draw(name, g, G, pal, k, part, flank){
       const shop = BY_NAME.get(name);
       if(!shop) return false;
@@ -30954,6 +31084,11 @@ function flatsWallFrames(WW, DD, OA, OB){
 /* the x-ray march ceiling: the tallest mass builtHeightAt can return,
    which is the depot's declared height in world units (see XRAY.maxH) */
 XRAY.maxH = Math.max(XRAY.minH, depotVol().h * depotZS());
+/* and the tallest declared hood landmark, so the march reaches its roof */
+for(const [, , n] of HOOD_BLOCK_LANDMARKS){
+  const shop = LIB.get(n);
+  if(shop && shop.vol) XRAY.maxH = Math.max(XRAY.maxH, LIB.vol(n).h * LIB.zs(n));
+}
 
 class WorldScene extends Phaser.Scene {
   constructor(){ super("world"); }
@@ -32662,7 +32797,16 @@ class WorldScene extends Phaser.Scene {
      rect tests and not 200. */
   builtHeightAt(x, y, blocks, lots){
     for(const b of blocks){
-      if(b.type === "park") continue;
+      if(b.type === "park"){
+        /* a landmark that declares its volume is as tall as that says --
+           Tipsey behind the museum is behind 660 of stone, not grass */
+        const _lv = hoodLandmarkVolAt(b);
+        if(_lv && x >= b.x0 && x <= b.x1 && y >= b.y0 && y <= b.y1){
+          const h = volBuiltHeight(_lv.v, x - _lv.x0, _lv.y0 - y, 'street', true);
+          if(h !== null) return h * _lv.zs;
+        }
+        continue;
+      }
       if(x < b.x0 || x > b.x1 || y < b.y0 || y > b.y1) continue;
       const band = (x - b.x0 < HOUSE_DEPTH) || (b.x1 - x < HOUSE_DEPTH) ||
                    (y - b.y0 < HOUSE_DEPTH) || (b.y1 - y < HOUSE_DEPTH);
@@ -36311,8 +36455,22 @@ class WorldScene extends Phaser.Scene {
     const _hl = blk.i !== undefined ? hoodLandmarkAtIJ(blk.i, blk.j) : null;
     if(_hl){
       const x0 = blk.x0 - ROAD_HALF * 2, y0 = blk.y0 - ROAD_HALF * 2;
-      vq.push({ depth: (blk.x0 + blk.y0), fn: (g) =>
-        LIB.draw(_hl, g, (a, b, h) => this.W(x0 + a, y0 - b, h), null, this.K) });
+      const G = (a, b, h) => this.W(x0 + a, y0 - b, h);
+      /* IN PIECES, each at its own world depth (see LIB.collect). One key
+         for the whole lot put everything behind its far corner -- Tipsey
+         on the back pavement included -- in FRONT of the building. The
+         paving goes first, under all of it; an entry that does not hand
+         its items over still draws whole, as before. */
+      const items = LIB.collect(_hl, G, this.K);
+      if(items){
+        vq.push({ depth: x0 + y0, fn: (g) => LIB.ground(_hl, g, G, this.K) });
+        for(const it of items){
+          const wx = x0 + (it.a || 0), wy = y0 - it.b;
+          vq.push({ depth: wx + wy + (it.z || 0), fn: (g) => LIB.drawItem(_hl, g, G, this.K, it) });
+        }
+      } else {
+        vq.push({ depth: (blk.x0 + blk.y0), fn: (g) => LIB.draw(_hl, g, G, null, this.K) });
+      }
       return;
     }
     const lm = this.parkLandmarkAt(blk);
