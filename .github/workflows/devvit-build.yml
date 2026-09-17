@@ -1,0 +1,32 @@
+# Regenerates the Devvit build whenever game/index.html changes, so
+# game-logic.js and game.html can never drift from the canonical build.
+# Pushes that already include fresh outputs find nothing to commit.
+name: Devvit build sync
+on:
+  push:
+    branches: [main]
+    paths:
+      - game/index.html
+      - tools/build_devvit.py
+      - tipsey-delivery/public/game-logic.js
+      - tipsey-delivery/public/game.html
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: python3 tools/build_devvit.py
+      - run: node --check tipsey-delivery/public/game-logic.js
+      - name: Commit if regenerated
+        run: |
+          if git diff --quiet -- tipsey-delivery/public; then echo "Devvit build already in sync"; exit 0; fi
+          git config user.name  "devvit-build-bot"
+          git config user.email "devvit-build-bot@users.noreply.github.com"
+          git add tipsey-delivery/public/game-logic.js tipsey-delivery/public/game.html
+          git commit -m "Devvit build: regenerate from game/index.html [skip ci]"
+          git push
