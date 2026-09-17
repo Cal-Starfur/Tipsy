@@ -33,6 +33,8 @@ import {
   type PostSlalomWinCommentRsp,
   type PostWinCommentReq,
   type PostWinCommentRsp,
+  type PurchaseHoodReq,
+  type PurchaseHoodRsp,
   type PurchaseSkinReq,
   type PurchaseSkinRsp,
   type ResolveFailReq,
@@ -70,6 +72,7 @@ import {
   dbGetTpProfile,
   dbIncrPlays,
   dbMarkAnnounced,
+  dbPurchaseHood,
   dbPurchaseSkin,
   dbResolveDeliveryFail,
   dbRecordMission,
@@ -82,7 +85,7 @@ import {
   dbSweepDeletedUsers,
   todayUTC,
 } from './db.ts'
-import {TS_SKINS} from './tpcatalog.ts'
+import {TS_HOODS, TS_SKINS} from './tpcatalog.ts'
 
 type AnyRsp =
   | GetDailyBestRsp
@@ -91,6 +94,7 @@ type AnyRsp =
   | SubmitReplayRsp
   | TpProfileRsp
   | PurchaseSkinRsp
+  | PurchaseHoodRsp
   | ResolveFailRsp
   | EquipSkinRsp
   | ClaimTrophyRewardRsp
@@ -154,6 +158,9 @@ async function route(
         break
       case Endpoint.PurchaseSkin:
         rsp = await routePurchaseSkin(reqMsg)
+        break
+      case Endpoint.PurchaseHood:
+        rsp = await routePurchaseHood(reqMsg)
         break
       case Endpoint.ResolveFail:
         rsp = await routeResolveFail(reqMsg)
@@ -368,6 +375,28 @@ async function routePurchaseSkin(
     `🛻 **u/${username}** kitted out — bought the **${skinLabel(req.skinId)}** paint job` +
       `${price ? ` for $${(price / 100).toFixed(2)}` : ''}.`,
   )
+  return result.profile
+}
+
+async function routePurchaseHood(
+  reqMsg: IncomingMessage,
+): Promise<PurchaseHoodRsp | ErrorRsp> {
+  const req = await readJson<PurchaseHoodReq>(reqMsg)
+  const user = await getCurrentUserRetrying()
+  const username = user?.username ?? 'anonymous'
+  const result = await dbPurchaseHood(username, req?.hoodIndex)
+  if (!result.ok) {
+    console.error(`routePurchaseHood: ${username} -> ${req?.hoodIndex}: ${result.error}`)
+    return {error: result.error, status: 400}
+  }
+  const h = TS_HOODS[req.hoodIndex]
+  if (h) {
+    await announceMilestone(
+      username,
+      `hood:${req.hoodIndex}`,
+      `🏙️ **u/${username}** expanded the route — bought **${h.name}** for $${(h.priceCents / 100).toFixed(2)}.`,
+    )
+  }
   return result.profile
 }
 
