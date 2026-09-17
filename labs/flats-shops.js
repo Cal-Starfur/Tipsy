@@ -303,6 +303,53 @@ function flatsWallFrames(WW, DD, OA, OB){
            FAR:  FLANK_RIGHT ? FR_LEFT  : FR_RIGHT };
 }
 
+/* =====================================================================
+   TIDEWATER MARITIME MUSEUM -- ITS GEOMETRY, ONCE (the depot's rule).
+   draw() and vol read the same numbers, so the railing he hits is the
+   railing that is drawn. Frame: the entry's own, b 0 on the street and
+   negative into the cell; the game flips b when it places the cell.
+   ===================================================================== */
+const TIDEWATER_MUSEUM = (() => {
+  const BLK = 3128, ROAD = 736;
+  const CA0 = ROAD, CA1 = BLK - ROAD, CB1 = -ROAD, CB0 = -(BLK - ROAD);   // the forecourt lot
+  const BA0 = 880, BA1 = 2250, BB0 = -2200, BB1 = -1480, H = 440;          // the building
+  const BW = BA1 - BA0, DMID = BW/2, PA0 = 285, PA1 = 1085;
+  const GATE = [DMID + BA0 - 130, DMID + BA0 + 130];
+  const PLINTHS = [[1020,-1000,0],[1420,-900,1],[2010,-1010,2],[1200,-1300,3],[1900,-1320,0]];
+  const TREES = [[CA0+120,-900],[CA1-120,-900],[CA0+120,-1330],[CA1-120,-1330]];
+  const HEDGES = [[1100,-820],[1560,-820],[2020,-820]];
+  const RAIL = 5;                                 // half-thickness of the railing's volume
+  const rail = (name, a0, b0, a1, b1) => ({ name, h: 116,
+    poly: a0 === a1 ? [[a0-RAIL,b0],[a0+RAIL,b0],[a0+RAIL,b1],[a0-RAIL,b1]]
+                    : [[a0,b0-RAIL],[a1,b0-RAIL],[a1,b0+RAIL],[a0,b0+RAIL]] });
+  const box = (name, a, b, ha, hb, h, prop) => ({ name, h, prop, poly: [[a-ha,b-hb],[a+ha,b-hb],[a+ha,b+hb],[a-ha,b+hb]] });
+  const vol = {
+    /* the building is the mass; the forecourt, lawns and walk are open */
+    foot: [[BA0,BB1],[BA1,BB1],[BA1,BB0],[BA0,BB0]],
+    h: H,
+    solids: [
+      /* the portico and its steps, one volume: nine columns 80 apart are
+         not a gap a robot 60 wide goes through, and the steps are a kerb */
+      { name:'portico', h: 300, poly: [[BA0+PA0-60, BB1],[BA0+PA1+60, BB1],[BA0+PA1+60, BB1+90],[BA0+PA0-60, BB1+90]] },
+      /* the railing, closed on three sides, open at the gate */
+      rail('railing front L', CA0, CB1, GATE[0]-28, CB1),
+      rail('railing front R', GATE[1]+28, CB1, CA1, CB1),
+      rail('railing left',  CA0, CB0, CA0, CB1),
+      rail('railing right', CA1, CB0, CA1, CB1),
+      rail('railing back',  CA0, CB0, CA1, CB0),
+      box('gate pier L', GATE[0], CB1, 28, 28, 247),
+      box('gate pier R', GATE[1], CB1, 28, 28, 247),
+      /* the sculpture garden -- kerb props, so they come and go with them */
+      ...PLINTHS.map(([a,b], k) => box('plinth ' + (k+1), a, b, 44, 44, 230, true)),
+      ...TREES.map(([a,b], k) => ({ name:'tree ' + (k+1), c:[a,b], r: 22, h: 280, prop:true })),
+      ...HEDGES.map(([a,b], k) => box('hedge ' + (k+1), a, b, 110, 22, 46, true))
+    ],
+    zones: [{ name:'forecourt', kind:'walk', poly: [[CA0,CB1],[CA1,CB1],[CA1,CB0],[CA0,CB0]] }],
+    marks: { gate: [BA0 + DMID, CB1], door: [BA0 + DMID, BB1 + 90] }
+  };
+  return { BLK, ROAD, CA0, CA1, CB0, CB1, BA0, BA1, BB0, BB1, H, DMID, PA0, PA1, GATE, PLINTHS, TREES, HEDGES, vol };
+})();
+
 const SHOPS = [
 {
   name:'Lagoon Coffee Roasters', base:'Coffee roaster', hood:'The Flats', edited:true, tall:true,
@@ -12096,6 +12143,7 @@ const SHOPS = [
 },
 {
   name:'Tidewater Maritime Museum', base:'Museum', hood:'The Flats', edited:true, tall:true, block:true, ww: 3128, dd: 3128,
+  vol: TIDEWATER_MUSEUM.vol,
   wTodo:'a FULL block cell -- BLOCK 3128 with ROAD_HALF 368 each side, so 1656 square of buildable ground; the packer places no landmark',
   cTodo:'the building, the portico columns, the forecourt railing and its gate piers, the plinths and their sculptures are volumes; the forecourt paving is walkable',
   head:'A block cell: portico set back behind its own sculpture garden',
@@ -12134,16 +12182,19 @@ const SHOPS = [
        wall, upper glass at -8.5 behind its own surround's back face at
        -8, the fTodo band 10 past the return, and zTodo 1.7 -- storeys on
        a 54 pitch, which is a third of a shop storey for a gallery. */
-    const BLK = 3128, ROAD = 736;
-    const CA0 = ROAD, CA1 = BLK - ROAD, CB1 = -ROAD, CB0 = -(BLK - ROAD);
-    const BA0 = 880, BA1 = 2250, BB0 = -2200, BB1 = -1480;
-    const BW = BA1 - BA0, BD = BB1 - BB0, H = 440;
+    const { BLK, ROAD, CA0, CA1, CB1, CB0, BA0, BA1, BB0, BB1, H } = TIDEWATER_MUSEUM;
+    const BW = BA1 - BA0, BD = BB1 - BB0;
     const wall = '#eee9dc', trim = '#2f5a6b', glassT = 'rgba(95,114,116,.86)';
     const { FR_FRONT, FR_RIGHT, FR_LEFT, FR_BACK, NEAR, FAR, Q, R, bandF, rev, glz, doorF }
       = flatsWallFrames(BW, BD, BA0, BB1);
-    const DMID = BW/2, PA0 = 285, PA1 = 1085, NCOL = 9;
+    const { DMID, PA0, PA1 } = TIDEWATER_MUSEUM, NCOL = 9;
 
-    T(0, BLK, -BLK, 0, 0.3, '#b3a894');                        // pavement round the cell
+    /* NO PAVEMENT ROUND THE CELL (Sir, 2026-09-17: "is it still drawing over
+       the sidewalk and road?"). This painted 0..BLK -- node to node, which
+       is road CENTRE to road centre -- so in the game a flat stone square
+       lay over half of every street round the museum and both pavements.
+       The city draws its own roads, kerbs and pavements; the entry's
+       ground is its lot, the forecourt below. */
     T(CA0, CA1, CB0, CB1, 0.6, '#bdb5a2');                     // the forecourt
     T(DMID+BA0-110, DMID+BA0+110, CB1-20, BB1, 1.1, '#cdc6b4'); // the axis walk
     for(const gx of [[CA0+40, BA0-60],[BA1+60, CA1-40]])       // lawns either side
@@ -12219,7 +12270,7 @@ const SHOPS = [
     }});
 
     /* ---- the forecourt railing, segmented so the sort can use it ---- */
-    const GATE = [DMID+BA0-130, DMID+BA0+130];
+    const GATE = TIDEWATER_MUSEUM.GATE;
     const railSeg = (x0,y0,x1,y1) => {
       const len = Math.hypot(x1-x0, y1-y0);
       if(len < 30) return;
@@ -12263,7 +12314,7 @@ const SHOPS = [
         else { for(let m=0;m<3;m++)
                  cyl(pa - 16 + m*16, pb, 96, 150 + m*44, 9, ['#8f969d','#7a8a72','#9a8f74'][m]); }
       };
-      [[1020,-1000,0],[1420,-900,1],[2010,-1010,2],[1200,-1300,3],[1900,-1320,0]]
+      TIDEWATER_MUSEUM.PLINTHS
         .forEach(([pa,pb,k]) => items.push({ a:pa, b:pb, z:0, draw:() => plinth(pa,pb,k) }));
       const tree = (ta, tb) => {
         cyl(ta, tb, 0, 130, 17, '#6b5a3a');
@@ -12272,9 +12323,9 @@ const SHOPS = [
                ['#3f6b4a','#4e8058','#568a5e'][k%3]);
         ball(ta, tb, 226, 52, '#4e8058');
       };
-      for(const [ta,tb] of [[CA0+120,-900],[CA1-120,-900],[CA0+120,-1330],[CA1-120,-1330]])
+      for(const [ta,tb] of TIDEWATER_MUSEUM.TREES)
         items.push({ a:ta, b:tb, z:0, draw:() => tree(ta,tb) });
-      for(const [ha,hb] of [[1100,-820],[1560,-820],[2020,-820]])
+      for(const [ha,hb] of TIDEWATER_MUSEUM.HEDGES)
         items.push({ a:ha, b:hb, z:0, draw:() => {
           box(ha-110, ha+110, hb-22, hb+22, 0, 46, '#4e7a4a','#416b3e','#3a5f38');
         }});
