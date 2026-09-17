@@ -476,6 +476,27 @@ const SHOPS = [
       box(W*0.46, W*0.72, -160, -110, H, H+24, '#8f969d','#787f86','#697077');
     }
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#e7dfcf', trim = '#2f7f86', H = 210;
+    slab(0, W, H, H+10, 0, 4, shade(wall,1.35));                    // the front cornice, from the roof side
+    rearBody(wall, trim, H, W, D, '#8c9a98');
+    rearDoor(62, wall, trim);
+    extractor(150, 130, 14);                                   // the roaster's exhaust
+    box(142, 158, -D-16, -D, 144, H+26, '#b87333', '#9a5f2a', '#7f4d22');   // copper flue up the back
+    depthSort([
+      { a: 120, b: -D-33, z: 0, draw: () => crateStack(120, '#6b4a32', 2, D, 24) },
+      { a: 196, b: -D-32, z: 0, draw: () => wheelieBin(196, '#3f6b4a', 0) }
+    ]);
+    if(state.roof){
+    cyl(58, -34, H, H+62, 5, '#8d979f');
+    for(const cz of [H+18, H+40]) plateCircle(58, -34, cz, 7, '#a8aeb4');
+    cyl(58, -34, H+62, H+70, 8, '#7d838a');
+    plateCircle(58, -34, H+70, 8, '#2a2a2e', '#6a7076', 1.6);
+    box(W*0.46, W*0.72, -160, -110, H, H+24, '#8f969d','#787f86','#697077');
+    }
   }
 },
 {
@@ -677,6 +698,36 @@ const SHOPS = [
       cyl(W*0.30, -158, H+47, H+52, 8, '#616870');
     }
     kerb(p, 'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#e8d9bd', trim = '#d9735a', H = STORE_H, GB = -30;
+    const base = H + 40;
+    /* the raised pediment wall stands on the front edge: far side now */
+    slab(0, W, H, base, GB, 0, shade(wall,.80), shade(wall,.70), shade(wall,.86));
+    { ctx.beginPath();
+      const c0 = P(W*0.14,GB,base), c1 = P(W*0.86,GB,base), ap = P(W*0.5,GB,base+92);
+      ctx.moveTo(c0.x,c0.y); ctx.quadraticCurveTo(ap.x, ap.y, c1.x, c1.y); ctx.closePath();
+      ctx.fillStyle = shade(wall,.80); ctx.fill(); }
+    rearBody(wall, trim, H, W, D);
+    rearDoor(170, wall, trim);
+    rearWindow(30, 86, 90, 140, wall);
+    extractor(120, 190, 14);                                   // oven vent
+    depthSort([
+      { a: 60, b: -D-33, z: 0, draw: () => crateStack(60, '#e8e0cc', 3, D, 20) },
+      { a: 208, b: -D-32, z: 0, draw: () => wheelieBin(208, '#6d747c', 0) }
+    ]);
+    if(state.roof){
+    const brick = '#a8674e';
+      
+    box(W*0.58,W*0.80,-176,-124, H, H+58, shade(brick,1.12), brick, shade(brick,.82));
+    slab(W*0.56,W*0.82, H+58, H+66, -122, -178, shade(brick,.74));
+    for(let k=0;k<2;k++) cyl(W*0.62+k*W*0.13, -150, H+66, H+80, 5.5, '#4a3a30');
+    cyl(W*0.30, -158, H, H+40, 9, '#8d949b');
+    cyl(W*0.30, -158, H+40, H+47, 15, '#767d84');
+    cyl(W*0.30, -158, H+47, H+52, 8, '#616870');
+    }
   }
 },
 {
@@ -775,6 +826,22 @@ const SHOPS = [
     }
     if(state.roof) box(W*0.30,W*0.58,-140,-96,H,H+18,'#9aa0a6','#7d838a','#6a7076');
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#f6f7f2', trim = '#4f9e8a', H = 156;
+    rearBody(wall, trim, H, W, D, '#a9b5ae');
+    rearDoor(170, wall, trim);
+    rearWindow(30, 80, 80, 120, wall);
+    downpipe(8, H, '#8a9296');
+    /* buckets and pots waiting to go out front */
+    depthSort([
+      { a: 60, b: -D-30, z: 0, draw: () => { cyl(60, -D-30, 0, 26, 15, '#b9beb4'); ball(60, -D-30, 36, 12, '#4f7a4a'); } },
+      { a: 96, b: -D-34, z: 0, draw: () => { cyl(96, -D-34, 0, 22, 12, '#b86a4a'); ball(96, -D-34, 30, 10, '#5c8a56'); } },
+      { a: 128, b: -D-30, z: 0, draw: () => crateStack(128, '#a8875a', 1, D, 20) }
+    ]);
+    if(state.roof) box(W*0.30,W*0.58,-140,-96,H,H+18,'#9aa0a6','#7d838a','#6a7076');
   }
 },
 {
@@ -870,6 +937,43 @@ const SHOPS = [
     /* stools removed at Sir's direction. With nothing standing on the
        ground this shop carries no collision register at all. */
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#fbf1d2', trim = '#4a9fd1', H = 140;
+    slab(0, W, H, H+10, -12, -1, trim);                 // the front parapet, from the roof side
+    rearBody(wall, trim, H, W, D, '#e3dccb');
+    rearDoor(170, wall, trim);
+    acUnit(76, 80);                                            // the freezers' condenser
+    depthSort([
+      { a: 210, b: -D-32, z: 0, draw: () => wheelieBin(210, '#4a9fd1', 0) }
+    ]);
+    if(state.roof){
+      
+    const ca = W*0.46, cb = -104, cR = 34, zTip = H+16, zTop = H+112;
+    cyl(ca, cb, H, H+16, 22, '#e8dfe2');
+    plateCircle(ca, cb, H+16, 22, '#f2ecee', '#d8ccd0', 2);
+    const sw = plateSweep(ca, cb, 0), arc = u => sw.ts + sw.dir*Math.PI*u;
+    const rim = (u,z) => { const t = arc(u);
+    return P(ca + cR*Math.cos(t), cb + cR*Math.sin(t), z); };
+    const lit = [P(ca,cb,zTip)], dark = [P(ca,cb,zTip)];
+    for(let k=0;k<=20;k++) lit.push(rim(k/20, zTop));
+    for(let k=0;k<=10;k++) dark.push(rim(k/20, zTop));
+    poly(lit, '#e0b26a');
+    poly(dark, shade('#e0b26a',.84));
+    for(let k=1;k<7;k++){
+    const t = rim(k/7, zTop), b2 = P(ca,cb,zTip);
+    ctx.strokeStyle = '#c08f4a'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(t.x,t.y); ctx.lineTo(b2.x,b2.y); ctx.stroke();
+    }
+    plateCircle(ca, cb, zTop, cR, '#d9a75f', '#c08f4a', 2);
+    ball(ca, cb, zTop+8, 30, '#f6c9d4');
+    ball(ca-6, cb, zTop+40, 28, '#cfe6c8');
+    ball(ca+5, cb, zTop+68, 26, '#f4e2b0');
+    ball(ca+5, cb, zTop+92, 6, '#c2452e');
+    box(W*0.72,W*0.94,-190,-154,H,H+18,'#9aa0a6','#7d838a','#6a7076');
+    }
   }
 },
 {
@@ -1255,6 +1359,45 @@ const SHOPS = [
        colonnade it lands on */
     tier([[EB,210],[CB,216]], tile, true, 32, CB);
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#efe9db', trim = '#2c4a6b', H = 288, WW = T2*4.4;
+    const tile = '#3f7a8f', gold = '#c9a24a', jade = '#3f6b52', dark = '#26221e';
+    const BA0 = 40, BA1 = WW - 40, CN = 64, FB = -60;
+    const hump = a => { const d = Math.min(a, WW-a); return d >= CN ? 0 : Math.pow(1 - d/CN, 2); };
+    const XS = (() => { const q=[];
+      for(let i=0;i<=7;i++) q.push(CN*i/7);
+      for(let i=1;i<=7;i++) q.push(WW-CN + CN*i/7);
+      return q.slice(0,8).concat([WW-CN]).concat(q.slice(8)); })();
+    { const o = P(0,-36,0), pa = P(1,-36,0), ge = (pa.y - o.y) > 0 ? BA1 : BA0;
+      poly([P(ge,-36,288),P(ge,-168,372),P(ge,-D-16,288)], shade(wall,.72)); }      // the gable
+    { const o = P(0,FB,0), pa = P(1,FB,0);
+      S((pa.y - o.y) > 0 ? BA1 : BA0, -D, FB, 0, H, shade(wall,.72)); }
+    F(BA0, BA1, 0, H, shade(wall,.93), null, 0, -D);
+    F(BA0, BA1, 0, 18, shade(wall,.7), null, 0, -D-0.5);
+    /* the tea garden's back: a long plain wall, a service gate and a
+       kitchen chimney; the tiered roof above is the same from every side */
+    rearDoor(WW-100, wall, dark);
+    rearWindow(80, 140, 110, 170, wall); rearWindow(180, 240, 110, 170, wall);
+    extractor(300, 200, 12);
+    /* the back slope of the roof is the near one from here: plain tile
+       courses, the eave band, then the ridge and its end ornaments */
+    poly([P(0,-168,372),P(WW,-168,372),P(WW,-D-16,288),P(0,-D-16,288)], shade(tile,.92));
+    for(let c=1;c<6;c++){ const bb = -168 + (-D-16+168)*c/6, zz = 372 + (288-372)*c/6;
+      poly([P(0,bb,zz),P(WW,bb,zz),P(WW,bb,zz-2),P(0,bb,zz-2)], shade(tile,.78)); }
+    poly([P(0,-D-16,288),P(WW,-D-16,288),P(WW,-D-16,277),P(0,-D-16,277)], shade(tile,.62));
+    for(let k=0;k<XS.length-1;k++){
+      const a0=XS[k], a1=XS[k+1], u0=26*hump(a0), u1=26*hump(a1);
+      poly([P(a0,-176,383+u0),P(a1,-176,383+u1),P(a1,-160,383+u1),P(a0,-160,383+u0)], shade(tile,1.0));
+      poly([P(a0,-176,372+u0),P(a1,-176,372+u1),P(a1,-176,383+u1),P(a0,-176,383+u0)], shade(tile,.62));
+    }
+    for(const [oa,dir] of [[9,-1],[WW-9,1]]){
+      const z0 = 383 + 26*hump(oa);
+      poly([P(oa-9,-168,z0),P(oa+9,-168,z0),P(oa+9,-168,z0+17),P(oa-9,-168,z0+26)], shade(tile,1.06));
+      ball(oa, -168, z0+28, 5, shade(tile,1.15));
+    }
   }
 },
 {
@@ -1506,6 +1649,21 @@ const SHOPS = [
     }
     if(state.roof) box(W*0.30,W*0.54,-150,-108,H,H+22,'#8f969d','#787f86','#697077');
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#9c9384', trim = '#f3eee2', H = 336, GF = 168;
+    slab(0, W, H, H+10, -11, -1, shade(wall,.66));                 // the front parapet, from the roof side
+    rearBody(wall, trim, H, W, D, '#b7b1a6');
+    rearDoor(170, wall, trim);
+    for(const am of [60, 170]) rearWindow(am-26, am+26, 210, 290, wall);
+    rearWindow(34, 86, 70, 120, wall);
+    downpipe(8, H, '#8a9296');
+    depthSort([
+      { a: 110, b: -D-33, z: 0, draw: () => crateStack(110, '#b89468', 2, D, 22) }
+    ]);
+    if(state.roof) box(W*0.30,W*0.54,-150,-108,H,H+22,'#8f969d','#787f86','#697077');
   }
 },
 {
@@ -1635,6 +1793,20 @@ const SHOPS = [
 
     if(state.roof) box(W*0.30,W*0.54,-140,-100,H,H+20,'#9aa0a6','#7d838a','#6a7076');
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#f2f2ee', trim = '#1f6f9b', H = 166;
+    slab(0, W, H, H+8, -12, -1, trim);                 // the front parapet, from the roof side
+    rearBody(wall, trim, H, W, D, '#9aa6ad');
+    rearDoor(62, wall, trim);
+    rearWindow(120, 170, 84, 126, wall);
+    downpipe(W-6, H, '#8a9296');
+    depthSort([
+      { a: 190, b: -D-32, z: 0, draw: () => wheelieBin(190, '#1f6f9b', 0) }
+    ]);
+    if(state.roof) box(W*0.30,W*0.54,-140,-100,H,H+20,'#9aa0a6','#7d838a','#6a7076');
   }
 },
 {
@@ -1791,6 +1963,23 @@ const SHOPS = [
        an object. The footway is bare. */
     if(state.roof) box(W*0.28,W*0.52,-140,-100,H,H+20,'#8f969d','#787f86','#697077');
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#3f7a5a', trim = '#f2c14e', H = 210;
+    slab(0, W, H, H+10, -12, -1, trim);                 // the front parapet, from the roof side
+    rearBody(wall, trim, H, W, D, '#2c4a3a');
+    rearShutter(20, 130, 128, wall);                           // bikes come in and out the back
+    rearDoor(180, wall, trim);
+    /* a rack of two bikes against the wall */
+    for(const ra of [150, 160]) tube(ra, -D-8, 0, ra, -D-8, 60, 2.5, '#6d747c');
+    for(const [ca, cc] of [[140, '#f2c14e'], [170, '#e2574c']]){
+      plateHoop(ca-14, -D-18, 18, 16, '#2b2f33', 3);
+      plateHoop(ca+14, -D-18, 18, 16, '#2b2f33', 3);
+      tube(ca-14, -D-18, 18, ca+14, -D-18, 34, 2.5, cc);
+    }
+    if(state.roof) box(W*0.28,W*0.52,-140,-100,H,H+20,'#8f969d','#787f86','#697077');
   }
 },
 {
@@ -1910,6 +2099,21 @@ const SHOPS = [
     F(34.5,204.5, 127.5, 141.5, shade(wall,1.12), null,0,-0.5);
     if(state.roof) box(W*0.62,W*0.86,-30,-6,H,H+18,'#9aa0a6','#7d838a','#6a7076');
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#eeece6', trim = '#4d6a86', H = 172;
+    slab(0, W, H, H+8, -12, -1, trim);                 // the front parapet, from the roof side
+    rearBody(wall, trim, H, W, D);
+    rearDoor(170, wall, trim);
+    F(30, 90, 70, 130, '#2b2f33', null,0,-D-0.8);             // the darkroom: a blacked-out window
+    F(24, 96, 64, 70, shade(wall,.7), null,0,-D-1.0);
+    extractor(120, 140, 10);
+    depthSort([
+      { a: 66, b: -D-32, z: 0, draw: () => wheelieBin(66, '#6d747c', 0) }
+    ]);
+    if(state.roof) box(W*0.62,W*0.86,-30,-6,H,H+18,'#9aa0a6','#7d838a','#6a7076');
   }
 },
 {
@@ -2026,6 +2230,20 @@ const SHOPS = [
 
     if(state.roof) box(WW*0.30,WW*0.54,-140,-100,H,H+18,'#9aa0a6','#7d838a','#6a7076');
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#dff1f0', trim = '#e2574c', H = 162, WW = 196;
+    slab(0, WW, H, H+10, 0, 4, trim);                    // the front cornice, from the roof side
+    rearBody(wall, trim, H, WW, D, '#8fa8a6');
+    rearDoor(140, wall, trim);
+    rearWindow(26, 70, 86, 124, wall);
+    depthSort([
+      { a: 60, b: -D-33, z: 0, draw: () => crateStack(60, '#e2748c', 2, D, 18) },
+      { a: 176, b: -D-32, z: 0, draw: () => wheelieBin(176, '#6d747c', 0) }
+    ]);
+    if(state.roof) box(WW*0.30,WW*0.54,-140,-100,H,H+18,'#9aa0a6','#7d838a','#6a7076');
   }
 },
 {
@@ -2080,6 +2298,24 @@ const SHOPS = [
       tube(W*0.24,-90,H+14, W*0.24,-90,H+70, 2, '#6d747c');
     }
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#1f2f44', trim = '#f2b134', H = 164;
+    slab(0, W, H, H+14, -10, -1, shade(wall,1.5));                 // the front parapet, from the roof side
+    rearBody(wall, trim, H, W, D, '#34404f');
+    rearDoor(62, wall, '#3a3f44');
+    F(130, 200, 60, 140, shade(wall,1.3), null,0,-D-0.8);     // a gig poster pasted up by the door
+    F(136, 194, 66, 134, '#f2b134', null,0,-D-1.2);
+    F(140, 190, 90, 110, '#1f2f44', null,0,-D-1.6);
+    depthSort([
+      { a: 200, b: -D-32, z: 0, draw: () => wheelieBin(200, '#6d747c', 0) }
+    ]);
+    if(state.roof){
+    box(W*0.50,W*0.78,-150,-100,H,H+24,'#8f969d','#787f86','#697077');
+    tube(W*0.24,-90,H+14, W*0.24,-90,H+70, 2, '#6d747c');
+    }
   }
 },
 {
@@ -2203,6 +2439,28 @@ const SHOPS = [
       box(WW*0.80,WW*0.94,-150,-110,H,H+26,'#8f969d','#787f86','#697077');
     }
     kerb(p,'none');   // no pavement props at all, per Sir
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const WW = T2*4.4;
+    const wall = '#f1e3c4', trim = '#2f86c9', H = 252;
+    const BLU = '#2f6fd0', YEL = '#f2c230', GRN = '#3fa85c', ORG = '#e07a2a';
+    slab(0, WW, H, H+14, -14, -1, trim);                 // the front parapet, from the roof side
+    rearBody(wall, trim, H, WW, D, '#d8c9a8');
+    rearShutter(40, 190, 140, wall);                           // deliveries
+    rearDoor(270, wall, trim);
+    for(const am of [100, 300]) rearWindow(am-30, am+30, 180, 220, wall);
+    downpipe(WW-8, H, '#8a9296');
+    depthSort([
+      { a: 350, b: -D-33, z: 0, draw: () => crateStack(350, '#c9a877', 3, D, 24) }
+    ]);
+    if(state.roof){
+      
+    const RB = [[60,-70,GRN],[150,-120,BLU],[236,-64,YEL]];
+    for(const [ra,rb,rc] of RB) box(ra, ra+52, rb-52, rb, H, H+46, rc, shade(rc,.82), shade(rc,1.15));
+    box(WW*0.80,WW*0.94,-150,-110,H,H+26,'#8f969d','#787f86','#697077');
+    }
   }
 },
 {
@@ -2325,6 +2583,35 @@ const SHOPS = [
       plateCircle(198, -96, H+58, 15, '#3a2a22', shade(wall,.7), 2);
     }
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#ece6da', trim = '#b8664a', H = 200;
+    slab(0, W, H, H+10, 0, 4, shade(wall,.7));                    // the front cornice, from the roof side
+    rearBody(wall, trim, H, W, D, '#6e422f');
+    rearDoor(62, wall, trim);
+    box(140, 200, -D-60, -D, 0, 80, '#b8664a', '#9a5438', '#7f432c');   // the kiln shed
+    T(134, 206, -D-66, -D+2, 82, '#6e422f');
+    cyl(186, -D-30, 80, 130, 7, '#6d747c');
+    depthSort([
+      { a: 110, b: -D-33, z: 0, draw: () => crateStack(110, '#c98a4a', 2, D, 18) }
+    ]);
+    if(state.roof){
+      
+    const LA0 = 46, LA1 = 168, LB0 = -54, LB1 = -142;
+    poly([P(LA0,LB0,H),P(LA1,LB0,H),P(LA1,LB0,H+46),P(LA0,LB0,H+46)], 'rgba(160,186,196,.62)');
+    for(let k=1;k<6;k++){
+    const aa = LA0 + (LA1-LA0)*k/6;
+    poly([P(aa-3,LB0+0.4,H),P(aa+3,LB0+0.4,H),P(aa+3,LB0+0.4,H+46),P(aa-3,LB0+0.4,H+46)], shade(wall,.8));
+    }
+    poly([P(LA1,LB0,H),P(LA1,LB1,H),P(LA1,LB1,H+46),P(LA1,LB0,H+46)], shade(wall,.86));
+    poly([P(LA0,LB0,H+46),P(LA1,LB0,H+46),P(LA1,LB1,H+58),P(LA0,LB1,H+58)], shade(wall,.74));
+    slab(LA0-6, LA1+6, H+46, H+54, LB0+6, LB0-4, shade(wall,1.2));
+    cyl(198, -96, H, H+50, 11, shade(wall,.8));
+    cyl(198, -96, H+50, H+58, 15, shade(wall,.94));
+    plateCircle(198, -96, H+58, 15, '#3a2a22', shade(wall,.7), 2);
+    }
   }
 },
 {
@@ -2419,6 +2706,20 @@ const SHOPS = [
        gone too there is no state.props branch left on this shop. */
     if(state.roof) box(W*0.30,W*0.56,-140,-100,H,H+20,'#9aa0a6','#7d838a','#6a7076');
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#e0d3b8', trim = '#3c7fa0', H = 154;
+    slab(0, W, H, H+10, -12, -1, trim);                 // the front parapet, from the roof side
+    rearBody(wall, trim, H, W, D, '#a9b1ab');
+    rearDoor(62, wall, trim);
+    extractor(150, 120, 12);
+    depthSort([
+      { a: 120, b: -D-33, z: 0, draw: () => crateStack(120, '#b89468', 3, D, 18) },
+      { a: 196, b: -D-32, z: 0, draw: () => wheelieBin(196, '#3f6b4a', 0) }
+    ]);
+    if(state.roof) box(W*0.30,W*0.56,-140,-100,H,H+20,'#9aa0a6','#7d838a','#6a7076');
   }
 },
 {
@@ -4104,6 +4405,19 @@ const SHOPS = [
     ball(clA, clB+1.2, clZ, 1.5, shade(trim,.45));               // centre boss
     if(state.roof) box(WW*0.28,WW*0.56,-140,-100,H,H+20,'#9aa0a6','#7d838a','#6a7076');
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#2c4a6b', trim = '#d8c48a', H = 172, WW = 170;
+    slab(0, WW, H, H+8, -12, -1, shade(wall,.7));                 // the front parapet, from the roof side
+    rearBody(wall, trim, H, WW, D, '#243850');
+    rearDoor(116, wall, trim);
+    rearWindow(24, 70, 90, 130, wall);
+    depthSort([
+      { a: 150, b: -D-32, z: 0, draw: () => wheelieBin(150, '#6d747c', 0) }
+    ]);
+    if(state.roof) box(WW*0.28,WW*0.56,-140,-100,H,H+20,'#9aa0a6','#7d838a','#6a7076');
   }
 },
 {
@@ -5279,6 +5593,28 @@ const SHOPS = [
       plateCircle(WW*0.11, -90, H+46, 4.5, '#7c838b', '#5c636b', 1.5);
     }
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#35555a', trim = '#c9a24a', H = 176, WW = 178;
+    slab(0, WW, H, H+10, -12, -1, shade(wall,.7));                 // the front parapet, from the roof side
+    rearBody(wall, trim, H, WW, D, '#2c4448');
+    rearDoor(120, wall, '#3a3f44');
+    rearWindow(26, 70, 90, 130, wall);
+    for(let i=0;i<5;i++) F(30 + i*9, 32 + i*9, 90, 130, '#2b2f33', null,0,-D-1.4);   // bars
+    depthSort([
+      { a: 60, b: -D-32, z: 0, draw: () => wheelieBin(60, '#6d747c', 0) }
+    ]);
+    if(state.roof){
+      
+    box(WW*0.17, WW*0.44, -122, -96, H,    H+6,  '#6e747b','#5d636a','#4f555c');
+    box(WW*0.19, WW*0.42, -118, -100, H+6, H+24, '#8f969d','#787f86','#697077');
+    for(let i=0;i<3;i++)
+    F(WW*0.21, WW*0.40, H+10+i*4, H+12+i*4, '#6b7177', null, 0, -99.5);
+    cyl(WW*0.11, -90, H, H+46, 3.2, '#5c636b');
+    plateCircle(WW*0.11, -90, H+46, 4.5, '#7c838b', '#5c636b', 1.5);
+    }
   }
 },
 {
@@ -5422,6 +5758,21 @@ const SHOPS = [
     }
     if(state.roof) box(W*0.14,W*0.36,-160,-120,H,H+22,'#9aa0a6','#7d838a','#6a7076');
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#eee9dc', trim = '#1f4a6b', H = 186;
+    slab(0, W, H, H+10, -12, -1, trim);                 // the front parapet, from the roof side
+    rearBody(wall, trim, H, W, D, '#a6aca9');
+    rearShutter(20, 140, 132, wall);                           // the sorting-office bay
+    rearDoor(186, wall, trim);
+    /* a mail trolley by the bay */
+    box(150, 186, -D-60, -D-20, 10, 60, '#c2452e', '#a53a26', '#8a3020');
+    depthSort([
+      { a: 110, b: -D-33, z: 0, draw: () => crateStack(110, '#b89468', 1, D, 20) }
+    ]);
+    if(state.roof) box(W*0.14,W*0.36,-160,-120,H,H+22,'#9aa0a6','#7d838a','#6a7076');
   }
 },
 {
@@ -5738,6 +6089,19 @@ const SHOPS = [
 
     if(state.roof) box(WW*0.26,WW*0.52,-140,-100,H,H+20,'#8f969d','#787f86','#697077');
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#3f6f86', trim = '#e8d9c0', H = 176, WW = 190;
+    slab(0, WW, H, H+10, -12, -1, shade(wall,.7));                 // the front parapet, from the roof side
+    rearBody(wall, trim, H, WW, D, '#2f5566');
+    rearDoor(130, wall, trim);
+    rearWindow(26, 74, 90, 130, wall);
+    depthSort([
+      { a: 60, b: -D-33, z: 0, draw: () => crateStack(60, '#e8d9c0', 2, D, 26) }
+    ]);
+    if(state.roof) box(WW*0.26,WW*0.52,-140,-100,H,H+20,'#8f969d','#787f86','#697077');
   }
 },
 {
@@ -6098,6 +6462,23 @@ const SHOPS = [
       cyl(WW*0.72, -60, H+8, H+44, 2.5, '#6d747c');
     }
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#8f8a7e', trim = '#c9a24a', H = 166, WW = 168;
+    slab(0, WW, H, H+8, -12, -1, shade(wall,.72));                 // the front parapet, from the roof side
+    rearBody(wall, trim, H, WW, D, '#6f6b62');
+    rearDoor(120, wall, '#3a3f44');
+    rearWindow(24, 66, 90, 128, wall);
+    for(let i=0;i<4;i++) F(28 + i*11, 30 + i*11, 90, 128, '#2b2f33', null,0,-D-1.4);
+    depthSort([
+      { a: 56, b: -D-32, z: 0, draw: () => wheelieBin(56, '#6d747c', 0) }
+    ]);
+    if(state.roof){
+    box(WW*0.30,WW*0.54,-140,-100,H,H+20,'#8f969d','#787f86','#697077');
+    cyl(WW*0.72, -60, H+8, H+44, 2.5, '#6d747c');
+    }
   }
 },
 {
@@ -6653,6 +7034,45 @@ const SHOPS = [
       box(W*0.86,W*0.98,-150,-120,H,H+18,'#8f969d','#787f86','#697077');
     }
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#9fb3b8', trim = '#1f3f55', H = 158;
+    slab(0, W, H, H+10, -12, -1, trim);                 // the front parapet, from the roof side
+    rearBody(wall, trim, H, W, D, '#7f9095');
+    rearDoor(170, wall, trim);
+    /* the workshop's back door is where the dead sets pile up */
+    depthSort([
+      { a: 60, b: -D-34, z: 0, draw: () => { box(40, 80, -D-54, -D-14, 0, 36, '#5d646b', '#4a4f55', '#3a3f44'); F(46, 74, 6, 30, '#26323a', null,0,-D-54.6); } },
+      { a: 104, b: -D-34, z: 0, draw: () => { box(84, 124, -D-54, -D-14, 0, 30, '#8a6f4e', '#6f5a40', '#5a4834'); F(90, 118, 5, 25, '#26323a', null,0,-D-54.6); } }
+    ]);
+    extractor(120, 124, 10);
+    if(state.roof){
+    const masts = [[W*0.14,-40,120],[W*0.30,-96,88],[W*0.46,-30,140],[W*0.62,-120,96],[W*0.80,-60,110]];
+    for(const [ma,mb,mh] of masts){
+    box(ma-9, ma+9, mb-9, mb+9, H+10, H+16, '#9aa0a6','#8d949a','#7d848a');
+    cyl(ma, mb, H+16, H+16+mh, 2, '#c3c8cc');
+    const n = 3 + (mh>110?2:0);
+    for(let k=0;k<n;k++){
+    const z = H+16+mh - 14 - k*15, half = 20 - k*2;
+    tube(ma-half, mb, z, ma+half, mb, z, 1.1, '#c3c8cc');
+    tube(ma, mb, z, ma, mb, z+6, 0.9, '#c3c8cc');
+    }
+    }
+    const da = W*0.68, db = -20, dz = H+66, dr = 24, zk = 1/ZSCALE;
+    box(da-6, da+6, db-6, db+6, H+10, H+16, '#8d979f','#82888e','#767c82');
+    cyl(da, db, H+16, H+50, 3, '#8f969d');
+    const dish = [];
+    for(let i=0;i<28;i++){
+    const t = Math.PI*2*i/28;
+    dish.push(P(da + dr*Math.cos(t), db, dz + dr*Math.sin(t)*zk));
+    }
+    poly(dish, '#d8dbde', '#a8adb2', 2.5);
+    tube(da, db, dz, da, db+22, dz-8, 1.4, '#8f969d');
+    ball(da, db+22, dz-10, 4, '#6a7076');
+    box(W*0.86,W*0.98,-150,-120,H,H+18,'#8f969d','#787f86','#697077');
+    }
   }
 },
 {
@@ -6930,6 +7350,41 @@ const SHOPS = [
       cowl(940, -300);                                    // key 640
       box(700, 830, -120, -50, H, H+26, '#8f969d','#787f86','#697077');    // key 650
     }
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#2c5a75', trim = '#e8c9a0', H = 420, WW = 1048.8, DD = 620;
+    slab(0, WW, H, H+16, -16, -1, trim);                 // the front parapet, from the roof side
+    rearBody(wall, trim, H, WW, DD, '#223f52');
+    const CA0 = 300, CA1 = 748;
+    box(CA0+20, CA1-20, -560, -300, H, H+240, shade(wall,.9), shade(wall,.82), shade(wall,.66));   // the fly tower
+    slab(CA0+10, CA1-10, H+240, H+254, -562, -298, shade(wall,.72));
+    /* the stage door, the scenery dock and the fly tower's plain back */
+    rearShutter(420, 620, 300, wall, DD);                      // scenery dock, full height
+    rearDoor(200, wall, '#3a3f44', DD); rearDoor(860, wall, '#3a3f44', DD);
+    F(176, 224, 166, 176, '#3fae6a', null,0,-DD-0.8); F(836, 884, 166, 176, '#3fae6a', null,0,-DD-0.8);
+    for(const am of [120, 300, 760, 940]) rearWindow(am-30, am+30, 260, 330, wall, DD);
+    downpipe(8, H, '#6d747c', DD); downpipe(WW-8, H, '#6d747c', DD);
+    if(state.roof){
+      
+    const cowl = (va, vb) => {
+    cyl(va, vb, H, H+30, 13, '#8f969d');
+    plateCircle(va, vb, H+30, 17, '#a6acb2', '#7d838a', 1.6);
+    cyl(va, vb, H+30, H+40, 5, '#7d838a');
+    };
+      
+    cowl(120, -400);
+    cowl(60,  -240);
+    box(150, 280, -170, -100, H, H+26, '#8f969d','#787f86','#697077');
+    for(const tb of [-430, -530]) for(const ta of [830, 970])
+    cyl(ta, tb, H, H+34, 4, '#6a7076');
+    box(800, 1000, -560, -400, H+34, H+96, '#9aa0a6','#828a91','#727981');
+    slab(792, 1008, H+96, H+106, -394, -566, '#7d848a');
+    cowl(830, -230);
+    cowl(940, -300);
+    box(700, 830, -120, -50, H, H+26, '#8f969d','#787f86','#697077');
+    }
   }
 },
 {
@@ -7085,6 +7540,28 @@ const SHOPS = [
       cyl(60, -260, H, H+34, 8, '#8f969d');              // key -200
       cyl(140, -300, H, H+34, 8, '#8f969d');             // key -160
       box(90, 220, -190, -130, H, H+24, '#8f969d','#787f86','#697077');   // key -100..90
+    }
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#a8291f', trim = '#e8ddc8', H = 336, WW = T2*6.6, DD = 420;
+    slab(0, WW, H, H+14, -16, -1, trim);                 // the front parapet, from the roof side
+    rearBody(wall, trim, H, WW, DD, '#6a6f72');
+    const TA0 = 490, TH = H + 340;
+    box(TA0, WW, -90, -1, H+14, TH, shade(wall,.88), shade(wall,.96), shade(wall,.76));   // the drill tower, from behind
+    for(let r=0;r<4;r++) F(TA0+30, WW-30, H+56+r*68, H+96+r*68, '#3a4046', null,0,-91);
+    slab(TA0-6, WW, TH, TH+16, -94, 3, trim);
+    rearShutter(40, 200, 200, wall, DD);                        // the back of the appliance bays
+    rearShutter(240, 400, 200, wall, DD);
+    rearDoor(548, wall, trim, DD);
+    for(const am of [100, 320, 548]) rearWindow(am-30, am+30, 250, 300, wall, DD);
+    downpipe(8, H, '#6d747c', DD);
+    if(state.roof){
+      
+    cyl(60, -260, H, H+34, 8, '#8f969d');
+    cyl(140, -300, H, H+34, 8, '#8f969d');
+    box(90, 220, -190, -130, H, H+24, '#8f969d','#787f86','#697077');
     }
   }
 },
@@ -7248,6 +7725,29 @@ const SHOPS = [
       }
     }
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#1f4a5e', trim = '#d8c48a', H = 504;
+    slab(0, W, H, H+12, -14, -1, shade(wall,.66));                 // the front parapet, from the roof side
+    rearBody(wall, trim, H, W, D, '#243a48');
+    for(let f=0; f<3; f++) for(const am of [60, 170]) rearWindow(am-24, am+24, 190 + f*100, 250 + f*100, wall);
+    rearDoor(170, wall, '#3a3f44');
+    /* the cellar flap and the kegs waiting on it */
+    T(40, 110, -D-60, -D, 1, '#5d646b');
+    downpipe(8, H, '#6d747c');
+    depthSort([
+      { a: 60, b: -D-40, z: 0, draw: () => yardDrum(60, 40, '#b9bec4') },
+      { a: 92, b: -D-44, z: 0, draw: () => yardDrum(92, 44, '#b9bec4') }
+    ]);
+    if(state.roof){
+    for(const ca of [W*0.22, W*0.70]){
+    box(ca-20, ca+20, -120, -80, H, H+52, '#8a5040','#a05c48','#7a4636');
+    slab(ca-24, ca+24, H+52, H+60, -76, -124, '#b06a52');
+    for(let k=0;k<2;k++) cyl(ca-8+k*16, -100, H+60, H+74, 6, '#5a4038');
+    }
+    }
   }
 },
 {
@@ -7413,6 +7913,25 @@ const SHOPS = [
       box(400, 520, -200, -140, H, H+26, '#8f969d','#787f86','#697077');
     }
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#5e7a82', trim = '#d8c9a4', H = 336, WW = T2*6.6, DD = 340;
+    slab(0, WW, H, H+14, -16, -1, shade(wall,.7));                 // the front parapet, from the roof side
+    rearBody(wall, trim, H, WW, DD, '#3f555c');
+    rearShutter(60, 260, 160, wall, DD);                       // the loading bay
+    rearDoor(360, wall, trim, DD);
+    for(const am of [120, 360, 520]) rearWindow(am-34, am+34, 220, 290, wall, DD);
+    downpipe(WW-8, H, '#8a9296', DD);
+    depthSort([
+      { a: 470, b: -DD-33, z: 0, draw: () => crateStack(470, '#a8875a', 3, DD, 30) },
+      { a: 520, b: -DD-33, z: 0, draw: () => crateStack(520, '#a8875a', 2, DD, 30) }
+    ]);
+    if(state.roof){
+    box(90, 210, -200, -140, H, H+26, '#8f969d','#787f86','#697077');
+    box(400, 520, -200, -140, H, H+26, '#8f969d','#787f86','#697077');
+    }
   }
 },
 {
@@ -7561,6 +8080,20 @@ const SHOPS = [
 
     if(state.roof) box(WW*0.24,WW*0.46,-150,-110,H,H+20,'#8f969d','#787f86','#697077');
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#2c5a6b', trim = '#c9a24a', H = 336, WW = 196;
+    slab(0, WW, H, H+10, -12, -1, shade(wall,1.4));                 // the front parapet, from the roof side
+    rearBody(wall, trim, H, WW, D, '#1f3f4a');
+    rearDoor(130, wall, trim);
+    for(const am of [60, 140]) rearWindow(am-24, am+24, 200, 270, wall);
+    downpipe(8, H, '#6d747c');
+    depthSort([
+      { a: 60, b: -D-32, z: 0, draw: () => wheelieBin(60, '#6d747c', 0) }
+    ]);
+    if(state.roof) box(WW*0.24,WW*0.46,-150,-110,H,H+20,'#8f969d','#787f86','#697077');
   }
 },
 {
@@ -7779,6 +8312,20 @@ const SHOPS = [
        forecourt. */
     if(state.roof) box(W*0.32,W*0.58,-140,-100,H,H+20,'#8f969d','#787f86','#697077');
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#d98a7a', trim = '#f0e2d0', H = 158;
+    slab(0, W, H, H+10, 0, 4, trim);                    // the front cornice, from the roof side
+    rearBody(wall, trim, H, W, D, '#b8847a');
+    rearDoor(62, wall, trim);
+    rearWindow(130, 190, 80, 124, wall);
+    depthSort([
+      { a: 140, b: -D-33, z: 0, draw: () => crateStack(140, '#f0e2d0', 3, D, 20) },
+      { a: 196, b: -D-32, z: 0, draw: () => wheelieBin(196, '#6d747c', 0) }
+    ]);
+    if(state.roof) box(W*0.32,W*0.58,-140,-100,H,H+20,'#8f969d','#787f86','#697077');
   }
 },
 {
@@ -7898,6 +8445,19 @@ const SHOPS = [
 
     if(state.roof) box(W*0.28,W*0.52,-140,-100,H,H+20,'#8f969d','#787f86','#697077');
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#2f6a6b', trim = '#c9a24a', H = 224;
+    slab(0, W, H, H+10, 0, 4, trim);                    // the front cornice, from the roof side
+    rearBody(wall, trim, H, W, D, '#224a4b');
+    rearDoor(62, wall, '#3a3f44');
+    for(const am of [100, 170]) rearWindow(am-22, am+22, 150, 196, wall);
+    /* a flight case left out by the door */
+    box(120, 176, -D-50, -D-14, 0, 44, '#2b2f33', '#1e2226', '#14171a');
+    F(126, 170, 18, 26, '#c9a24a', null,0,-D-50.6);
+    if(state.roof) box(W*0.28,W*0.52,-140,-100,H,H+20,'#8f969d','#787f86','#697077');
   }
 },
 {
@@ -8060,6 +8620,33 @@ const SHOPS = [
       box(W*0.66,W*0.88,-150,-116,H,H+18,'#8f969d','#787f86','#697077');
     }
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#24435a', trim = '#c9b48e', H = 200;
+    slab(0, W, H, H+10, 0, 4, trim);                    // the front cornice, from the roof side
+    rearBody(wall, trim, H, W, D, '#1f3548');
+    rearShutter(24, 140, 132, wall);
+    rearDoor(186, wall, trim);
+    /* rope coils and a fender on the step */
+    for(const [ca, cb] of [[60, -D-36], [96, -D-40]]) for(let k=0;k<4;k++) plateHoop(ca, cb, 3+k*5, 16-k, '#c9b48e', 3);
+    ball(150, -D-36, 18, 16, '#e2574c');
+    if(state.roof){
+    const ma = W*0.44, mb = -70;
+    box(ma-14, ma+14, mb-14, mb+14, H+10, H+18, '#8a7a58','#9a8a66','#786a4c');
+    cyl(ma, mb, H+18, H+90, 4, '#b8a880');
+    cyl(ma, mb, H+90, H+150, 2.6, '#c2b088');
+    tube(ma-26, mb, H+112, ma+26, mb, H+112, 2, '#b8a880');
+    const top = P(ma, mb, H+150);
+    ctx.strokeStyle='#b8a880'; ctx.lineWidth=1.6;
+    for(const [ra,rb] of [[W*0.06,-20],[W*0.86,-20],[ma,-190]]){
+    const foot = P(ra, rb, H+10);
+    ctx.beginPath(); ctx.moveTo(top.x,top.y); ctx.lineTo(foot.x,foot.y); ctx.stroke();
+    }
+    poly([P(ma+2,mb,H+150),P(ma+28,mb,H+142),P(ma+28,mb,H+126),P(ma+2,mb,H+132)], '#c2452e');
+    box(W*0.66,W*0.88,-150,-116,H,H+18,'#8f969d','#787f86','#697077');
+    }
   }
 },
 {
@@ -8332,6 +8919,11 @@ const SHOPS = [
       cyl(aa, bb, H+56, H+66, 18, '#9a9282');
       plateCircle(aa, bb, H+66, 18, '#a8a08e', '#7d7566', 2);
     }
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): this one stands in its own yard with a
+       way in from every street, so from behind it is itself turned round. */
+    turned(1048.8, 1048.8, () => this.draw(p));
   }
 },
 {
@@ -8493,6 +9085,35 @@ const SHOPS = [
       }
     }
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#6f8a92', trim = '#e8ddc8', H = 336, WW = 1048.8, DD = 620;
+    slab(0, WW, H, H+14, 0, 4, shade(wall,1.35));                    // the front cornice, from the roof side
+    rearBody(wall, trim, H, WW, DD, '#4f656c');
+    rearShutter(80, 360, 200, wall, DD);                       // paper rolls come in here
+    rearShutter(460, 740, 200, wall, DD);
+    rearDoor(880, wall, trim, DD);
+    for(const am of [140, 300, 520, 680, 900]) rearWindow(am-36, am+36, 250, 310, wall, DD);
+    downpipe(8, H, '#8a9296', DD); downpipe(WW-8, H, '#8a9296', DD);
+    depthSort([
+      { a: 200, b: -DD-40, z: 0, draw: () => { cyl(170, -DD-40, 0, 60, 28, '#e8e3d6'); cyl(230, -DD-40, 0, 60, 28, '#e8e3d6'); } },
+      { a: 980, b: -DD-32, z: 0, draw: () => wheelieBin(980, '#6d747c', 0, DD) }
+    ]);
+    if(state.roof){
+      
+    cyl(86, -120, H, H+180, 22, '#5a4038');
+    cyl(86, -120, H+180, H+196, 27, '#6a4c42');
+    plateCircle(86, -120, H+196, 27, '#7a5a4e', '#4e3730', 2);
+    for(const [ba, bb] of [[300, -150],[600, -110]]){
+    box(ba, ba+130, bb-70, bb, H, H+30, '#8f969d','#787f86','#697077');
+    for(const fa of [ba+34, ba+96]){
+    cyl(fa, bb-35, H+30, H+38, 20, '#7d838a');
+    plateCircle(fa, bb-35, H+38, 20, '#a8aeb4', '#6a7076', 2);
+    }
+    }
+    }
   }
 },
 {
@@ -8893,6 +9514,37 @@ const SHOPS = [
       }
     }
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#5fbcc4', trim = '#f4ecd6', H = 180, WW = T2*4.4, DD = 440;
+    const BA0 = 96, BA1 = 300, FB = 0, BB = -296, YW0 = 20, YW1 = WW - 20, YBK = -DD + 20, FH = 46;
+    T(YW0, YW1, YBK, BB, 0.5, '#c9b48e');                          // the sand yard behind the shop
+    T(BA0-6, BA1+6, BB-6, FB+6, H+10.4, '#2e7a80');
+    slab(BA0-6, BA1+6, H, H+10, BB-6, FB+6, trim);
+    { const o = P(0,FB,0), pa = P(1,FB,0);
+      S((pa.y - o.y) > 0 ? BA1 : BA0, BB, FB, 0, H, shade(wall,.72)); }
+    F(BA0, BA1, 0, H, shade(wall,.9), null, 0, BB);
+    F(BA0, BA1, 0, 20, shade(wall,.7), null, 0, BB-0.5);
+    /* the shop's rear wall is at BB; the yard behind it runs to -DD */
+    rearDoor((BA0+BA1)/2, wall, trim, -BB);
+    rearWindow(BA0+20, BA0+70, 90, 130, wall, -BB);
+    /* boards racked in the yard and the outdoor shower */
+    for(let i=0;i<4;i++){ const ba = BA1 - 30 - i*22;
+      box(ba-3, ba+3, BB-60, BB-20, 0, 150, ['#f4ecd6','#e8a13a','#e2748c','#7ac48a'][i], shade(['#f4ecd6','#e8a13a','#e2748c','#7ac48a'][i],.8), shade(['#f4ecd6','#e8a13a','#e2748c','#7ac48a'][i],.7)); }
+    cyl(BA0+30, BB-50, 0, 150, 3, '#b9bec4');
+    /* and the yard wall, nearest of all */
+    F(YW0, YW1, 0, FH, shade(wall,.82), null, 0, YBK);
+    slab(YW0, YW1, FH, FH+6, YBK, YBK+8, trim);
+
+    if(state.roof){
+    box(150, 236, -140, -86, H, H+26, '#8f969d','#787f86','#697077');
+    for(const [fa, fb] of [[172, -126],[214, -100]].sort((u,v) => (u[0]+u[1]) - (v[0]+v[1]))){
+    cyl(fa, fb, H+26, H+34, 17, '#7d838a');
+    plateCircle(fa, fb, H+34, 17, '#a8aeb4', '#6a7076', 2);
+    }
+    }
   }
 },
 {
@@ -9050,6 +9702,27 @@ const SHOPS = [
       box(380, 500, -220, -160, H, H+26, '#8f969d','#787f86','#697077');
     }
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#5a6a6e', trim = '#c9a24a', H = 280, WW = T2*6.6, DD = 420;
+    slab(0, WW, H, H+12, 0, 4, shade(wall,1.3));                    // the front cornice, from the roof side
+    rearBody(wall, trim, H, WW, DD, '#3f4b4f');
+    rearShutter(80, 300, 200, wall, DD);
+    rearDoor(420, wall, '#3a3f44', DD);
+    for(const am of [140, 420, 540]) rearWindow(am-34, am+34, 216, 260, wall, DD);
+    /* scrap and stock: a rack of bar and two drums */
+    for(let i=0;i<4;i++) box(340, 560, -DD-56, -DD-20, 4+i*8, 10+i*8, '#6d747c', '#5d646b', '#4a4f55');
+    depthSort([
+      { a: 60, b: -DD-34, z: 0, draw: () => yardDrum(60, 34, '#8a4f34', DD) }
+    ]);
+    if(state.roof){
+    cyl(120, -52, H, H+70, 22, '#3a332b');
+    cyl(120, -52, H+70, H+80, 27, '#463d33');
+    plateCircle(120, -52, H+80, 27, '#241d18', '#2f2922', 2);
+    box(380, 500, -220, -160, H, H+26, '#8f969d','#787f86','#697077');
+    }
   }
 },
 {
@@ -9176,6 +9849,22 @@ const SHOPS = [
       plateCircle(W*0.38, -125, H+32, 15, '#a8aeb4', '#6a7076', 2);
     }
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#3f6f86', trim = '#e0c88a', H = 216, railZ = 146, railB = 26;
+    slab(0, W, H, H+10, 0, 4, shade(wall,.7));                    // the front cornice, from the roof side
+    rearBody(wall, trim, H, W, D, '#2f5566');
+    rearDoor(62, wall, trim);
+    rearWindow(130, 190, 120, 170, wall);
+    /* rolled rugs leaning on the wall */
+    for(const [ra, col] of [[130, '#c2452e'], [148, '#3f6f86'], [166, '#c9a24a']]) cyl(ra, -D-12, 0, 110, 8, col);
+    if(state.roof){
+    box(W*0.30, W*0.58, -150, -100, H, H+24, '#8f969d','#787f86','#697077');
+    cyl(W*0.38, -125, H+24, H+32, 15, '#7d838a');
+    plateCircle(W*0.38, -125, H+32, 15, '#a8aeb4', '#6a7076', 2);
+    }
   }
 },
 {
@@ -9302,6 +9991,37 @@ const SHOPS = [
 
     }
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#b9ae98', trim = '#4d6a86', H = 168;
+    slab(0, W, H, H+10, 0, 4, trim);                    // the front cornice, from the roof side
+    rearBody(wall, trim, H, W, D, '#8f887a');
+    rearDoor(62, wall, trim);
+    rearWindow(130, 190, 80, 124, wall);
+    /* the loft ladder up the back */
+    for(const la of [150, 176]) F(la-2, la+2, 0, H, '#6d5a44', null,0,-D-10);
+    for(let z=16; z<H; z+=18) F(150, 176, z-2, z, '#6d5a44', null,0,-D-10.4);
+    if(state.roof){
+    const l0 = W*0.16, l1 = W*0.76, b0 = -150, b1 = -50;
+    F(l0,l1, H+10, H+72, '#a8916a', shade(wall,.6), 2, b1);
+    S(l1, b0, b1, H+10, H+72, '#8f7b58');
+    poly([P(l0-8,b1+10,H+72),P(l1+8,b1+10,H+72),P(l1+8,(b0+b1)/2,H+104),P(l0-8,(b0+b1)/2,H+104)], '#5a4a34');
+    poly([P(l0-8,(b0+b1)/2,H+104),P(l1+8,(b0+b1)/2,H+104),P(l1+8,b0-8,H+72),P(l0-8,b0-8,H+72)], '#6a5840');
+    slab(l0-10, l1+10, H+104, H+111, (b0+b1)/2+7, (b0+b1)/2-7, '#4a3c2a');
+    poly([P(l1+8,b1+10,H+72),P(l1+8,(b0+b1)/2,H+104),P(l1+8,b0-8,H+72)], shade('#8f7b58',.86));
+    for(let i=0;i<5;i++)
+    slab(l0+10+i*((l1-l0-20)/5), l0+10+(i+0.62)*((l1-l0-20)/5), H+30, H+54, b1-1, b1-7, '#3a2f22');
+    poly([P(l0+6,b1,H+26),P(l1-6,b1,H+26),P(l1-6,b1+66,H+18),P(l0+6,b1+66,H+18)], '#a8916a');
+    poly([P(l0+6,b1+66,H+18),P(l1-6,b1+66,H+18),P(l1-6,b1+66,H+12),P(l0+6,b1+66,H+12)], '#8f7b58');
+    for(const aa of [l0+14, l1-14]){
+    poly([P(aa-3,b1,H+26),P(aa+3,b1,H+26),P(aa+3,b1+60,H+19),P(aa-3,b1+60,H+19)], '#8f7b58');
+    poly([P(aa-3,b1,H+8),P(aa-3,b1,H+26),P(aa-3,b1+50,H+20)], shade('#8f7b58',.8));
+    }
+      
+
+    }
   }
 },
 {
@@ -9427,6 +10147,18 @@ const SHOPS = [
 
     if(state.roof) box(W*0.26,W*0.52,-150,-110,H,H+22,'#8f969d','#787f86','#697077');
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#bfe0dc', trim = '#2f6f7a', H = 336;
+    slab(0, W, H, H+12, 0, 4, trim);                    // the front cornice, from the roof side
+    rearBody(wall, trim, H, W, D, '#93b3b0');
+    rearDoor(170, wall, trim);
+    for(const am of [60, 160]) rearWindow(am-34, am+34, 196, 290, wall);    // the studio's tall windows
+    acUnit(76, 60);
+    downpipe(8, H, '#8a9296');
+    if(state.roof) box(W*0.26,W*0.52,-150,-110,H,H+22,'#8f969d','#787f86','#697077');
   }
 },
 {
@@ -9653,6 +10385,21 @@ const SHOPS = [
 
     if(state.roof) box(W*0.30,W*0.56,-150,-108,H,H+22,'#8f969d','#787f86','#697077');
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#1c3440', trim = '#e2574c', H = 200;
+    slab(0, W, H, H+12, 0, 4, shade(wall,2.2));                    // the front cornice, from the roof side
+    rearBody(wall, trim, H, W, D, '#1a2c36');
+    rearDoor(170, wall, '#3a3f44');
+    rearWindow(30, 76, 90, 130, wall);
+    F(34, 72, 94, 126, 'rgba(230,235,240,.4)', null,0,-D-1.2);
+    extractor(116, 150, 10);
+    depthSort([
+      { a: 200, b: -D-32, z: 0, draw: () => wheelieBin(200, '#6d747c', 0) }
+    ]);
+    if(state.roof) box(W*0.30,W*0.56,-150,-108,H,H+22,'#8f969d','#787f86','#697077');
   }
 },
 {
@@ -9852,6 +10599,19 @@ const SHOPS = [
 
     if(state.roof) box(W*0.60,W*0.86,-150,-110,H,H+20,'#8f969d','#787f86','#697077');
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#e8dcc0', trim = '#2f5f8a', iron = '#8d979f', H = 160;
+    slab(0, W, H, H+10, -12, -1, trim);                 // the front parapet, from the roof side
+    rearBody(wall, trim, H, W, D, '#b3a88f');
+    rearDoor(62, wall, trim);
+    rearWindow(130, 196, 70, 126, wall);                        // the workshop bench sits under this
+    depthSort([
+      { a: 150, b: -D-33, z: 0, draw: () => crateStack(150, '#c9a877', 2, D, 20) }
+    ]);
+    if(state.roof) box(W*0.60,W*0.86,-150,-110,H,H+20,'#8f969d','#787f86','#697077');
   }
 },
 {
@@ -10137,6 +10897,11 @@ const SHOPS = [
       if(state.props) for(let x = r0+26; x < r1-18; x += 54)
         ball(x, -16, 24, 16, ['#4e8058','#568a5e','#3f6b4a'][Math.round(x/54)%3]);
     }
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): this one stands in its own yard with a
+       way in from every street, so from behind it is itself turned round. */
+    turned(1048.8, 1048.8, () => this.draw(p));
   }
 },
 {
@@ -10386,6 +11151,11 @@ const SHOPS = [
       if(state.props) for(let x = r0+26; x < r1-18; x += 54)
         ball(x, -15, 24, 15, ['#4e8058','#568a5e','#3f6b4a'][Math.round(x/54)%3]);
     }
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): this one stands in its own yard with a
+       way in from every street, so from behind it is itself turned round. */
+    turned(1048.8, 1048.8, () => this.draw(p));
   }
 },
 {
@@ -10585,6 +11355,30 @@ const SHOPS = [
       }
     }
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#e9e1cf', trim = '#3f7f95', iron = '#3c3a36';
+    const WW = 1048.8, DD = 620, H = 350;
+    rearBody(wall, trim, H, WW, DD, '#6a7076');
+    /* the service side of a big building: floors of plain windows, the
+       staff and goods doors, and the plant */
+    for(let f=0; f<6; f++) for(let c=0; c<7; c++){
+      const am = 90 + c*(WW-180)/(7-1), z0 = 150 + f*82;
+      if(z0 + 60 < H - 20) rearWindow(am-30, am+30, z0, z0+60, wall, DD);
+    }
+    rearShutter(120, 280, 120, wall, DD);
+    rearDoor(850, wall, trim, DD);
+    downpipe(8, H, '#8a9296', DD); downpipe(WW-8, H, '#8a9296', DD);
+    acUnit(360, 30, DD); acUnit(710, 30, DD);
+    depthSort([ { a: 920, b: -DD-32, z: 0, draw: () => wheelieBin(920, '#6d747c', 0, DD) }, { a: 960, b: -DD-32, z: 0, draw: () => wheelieBin(960, '#3f6b4a', 0, DD) } ]);
+    if(state.roof){
+    for(const ca of [150, 430, 700, 950]){
+    box(ca-22, ca+22, -300, -240, H, H+52, '#9aa0a6','#7d838a','#6a7076');
+    for(const cb of [-288, -252]) cyl(ca-10, cb, H+52, H+64, 5, '#5e646b');
+    }
+    }
   }
 },
 {
@@ -10833,6 +11627,27 @@ const SHOPS = [
       cyl(940, -260, H, H+40, 6, '#6d747c');
     }
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#dfe1e3', trim = '#3a4046', band = '#2f9e8f', iron = '#8d949a';
+    const WW = 1048.8, DD = 620, H = 350;
+    rearBody(wall, trim, H, WW, DD, '#6a7076');
+    /* the workshop end: service bays and the parts door */
+    rearShutter(80, 300, 180, wall, DD); rearShutter(360, 580, 180, wall, DD);
+    rearDoor(760, wall, trim, DD);
+    for(const am of [160, 440, 760, 940]) rearWindow(am-40, am+40, 240, 300, wall, DD);
+    downpipe(8, H, '#8a9296', DD); downpipe(WW-8, H, '#8a9296', DD);
+    depthSort([
+      { a: 880, b: -DD-30, z: 0, draw: () => yardDrum(880, 30, '#2f6f8f', DD) },
+      { a: 920, b: -DD-34, z: 0, draw: () => yardDrum(920, 34, '#c2452e', DD) }
+    ]);
+    if(state.roof){
+    for(const ca of [180, 470, 760])
+    box(ca-40, ca+40, -300, -230, H, H+30, '#9aa0a6','#7d838a','#6a7076');
+    cyl(940, -260, H, H+40, 6, '#6d747c');
+    }
   }
 },
 {
@@ -11072,6 +11887,71 @@ const SHOPS = [
       depthSort(roofItems);
     }
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#ece6d8', trim = '#2c4a6b', iron = '#8d979f';
+    const WW = 1048.8, DD = 620, H = 490;
+    const glassT = 'rgba(112,140,158,.84)', showT = 'rgba(134,166,184,.34)';
+    rearBody(wall, trim, H, WW, DD, '#5f666c');
+    /* the service side of a big building: floors of plain windows, the
+       staff and goods doors, and the plant */
+    for(let f=0; f<6; f++) for(let c=0; c<7; c++){
+      const am = 90 + c*(WW-180)/(7-1), z0 = 150 + f*82;
+      if(z0 + 60 < H - 20) rearWindow(am-30, am+30, z0, z0+60, wall, DD);
+    }
+    rearShutter(180, 340, 120, wall, DD);
+    rearDoor(780, wall, trim, DD);
+    downpipe(8, H, '#8a9296', DD); downpipe(WW-8, H, '#8a9296', DD);
+    acUnit(420, 30, DD); acUnit(640, 30, DD);
+    depthSort([ { a: 850, b: -DD-32, z: 0, draw: () => wheelieBin(850, '#6d747c', 0, DD) }, { a: 890, b: -DD-32, z: 0, draw: () => wheelieBin(890, '#3f6b4a', 0, DD) } ]);
+    if(state.roof){
+      
+    const turret = (ta, tb) => {
+    const DR = 46;
+    cyl(ta, tb, H+1,   H+26,  DR+6, shade(wall,.86));
+    cyl(ta, tb, H+26,  H+104, DR,   shade(wall,1.04));
+        
+    const onDrum = (da, inset) => tb + Math.sqrt(Math.max(0, DR*DR - da*da)) - inset;
+    for(let i=0;i<3;i++){
+    const da = -26 + i*26, bb = onDrum(da, 2);
+    F(ta+da-8, ta+da+8, H+44, H+88, glassT, null, 0, bb);
+    F(ta+da-10, ta+da+10, H+88, H+93, shade(wall,.80), null, 0, bb+0.6);
+    }
+    for(let i=0;i<4;i++){
+    const da = -39 + i*26, bb = onDrum(da, 1);
+    F(ta+da-3, ta+da+3, H+30, H+100, shade(wall,1.14), null, 0, bb);
+    }
+    cyl(ta, tb, H+104, H+116, DR+7, trim);
+        
+    { const N = 30, DH = 60, z0 = H+116, prof = t => Math.pow(Math.cos(Math.PI/2*t), 0.55);
+    for(let i=0;i<=N;i++)
+    plateCircle(ta, tb, z0 + DH*i/N, (DR+5)*prof(i/N), shade(trim, 1 + i*0.011)); }
+    cyl(ta, tb, H+176, H+200, 12, shade(wall,1.06));
+    plateCircle(ta, tb, H+200, 13, shade(trim,1.1), shade(trim,.8), 1.5);
+    { const N = 16, SH = 40, z0 = H+200;
+    for(let i=0;i<=N;i++)
+    plateCircle(ta, tb, z0 + SH*i/N, 9*(1 - i/N), shade('#c9a24a', 1 + i*0.012)); }
+    ball(ta, tb, H+244, 5.5, shade('#c9a24a',1.2));
+    };
+    const flag = (fa, fb, col) => {
+    cyl(fa, fb, H+18, H+96, 3, '#c9ccd0');
+    poly([P(fa+2,fb,H+96),P(fa+38,fb,H+86),P(fa+38,fb,H+64),P(fa+2,fb,H+72)], col);
+    };
+    const plant = (ra, rb) => box(ra-46, ra+46, rb-35, rb+35, H, H+30,
+    '#8f969d','#787f86','#697077');
+    const IN = 84, roofItems = [];
+    for(const [ta, tb] of [[WW-IN,-IN],[IN,-IN],[IN,-DD+IN],[WW-IN,-DD+IN]])
+    roofItems.push({ a:ta, b:tb, z:0, draw:() => turret(ta, tb) });
+    ['#7a3b46','#c9a24a','#3f6b6b','#4a4f6b'].forEach((c,i) => {
+    const fa = 260 + i*180;
+    roofItems.push({ a:fa, b:-34, z:0, draw:() => flag(fa, -34, c) });
+    });
+    for(const [ra, rb] of [[420,-300],[700,-300]])
+    roofItems.push({ a:ra, b:rb, z:0, draw:() => plant(ra, rb) });
+    depthSort(roofItems);
+    }
   }
 },
 {
@@ -11193,6 +12073,24 @@ const SHOPS = [
         cyl(ca, -129, H+62, H+80, 5, '#4a4038');
     }
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#dcd6c8', trim = '#2c4a6b', H = 450;
+    slab(0, W, H, H+14, -16, -1, shade(wall,.72));                 // the front parapet, from the roof side
+    rearBody(wall, trim, H, W, D, '#8f969a');
+    for(let f=0; f<4; f++) for(const am of [60, 170]) rearWindow(am-22, am+22, 90 + f*90, 146 + f*90, wall);
+    rearDoor(115, wall, trim);
+    downpipe(8, H, '#8a9296');
+    depthSort([
+      { a: 196, b: -D-32, z: 0, draw: () => wheelieBin(196, '#6d747c', 0) }
+    ]);
+    if(state.roof){
+    box(W*0.18, W*0.44, -150, -108, H+14, H+62, '#8a7a6a','#75665a','#645749');
+    for(const ca of [W*0.22, W*0.31, W*0.40])
+    cyl(ca, -129, H+62, H+80, 5, '#4a4038');
+    }
   }
 },
 {
@@ -11401,6 +12299,30 @@ const SHOPS = [
       for(const ca of [200, 860]) cyl(ca, -300, MZ, MZ+58, 4, '#c9ccd0');
     }
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#f2ede2', trim = '#1f5f7a', gold = '#c9a24a', slate = '#4a5058';
+    const WW = 1048.8, DD = 620, H = 600;
+    const MN = -52, MZ = H+92, HIP = 52;
+    rearBody(wall, trim, H, WW, DD, shade(slate,.70));
+    /* the service side of a big building: floors of plain windows, the
+       staff and goods doors, and the plant */
+    for(let f=0; f<6; f++) for(let c=0; c<8; c++){
+      const am = 90 + c*(WW-180)/(8-1), z0 = 150 + f*82;
+      if(z0 + 60 < H - 20) rearWindow(am-30, am+30, z0, z0+60, wall, DD);
+    }
+    rearShutter(220, 380, 120, wall, DD);
+    rearDoor(740, wall, trim, DD);
+    downpipe(8, H, '#8a9296', DD); downpipe(WW-8, H, '#8a9296', DD);
+    acUnit(460, 30, DD); acUnit(600, 30, DD);
+    depthSort([ { a: 810, b: -DD-32, z: 0, draw: () => wheelieBin(810, '#6d747c', 0, DD) }, { a: 850, b: -DD-32, z: 0, draw: () => wheelieBin(850, '#3f6b4a', 0, DD) } ]);
+    if(state.roof){
+    for(const [ra, rb] of [[320,-300],[720,-300]])
+    box(ra-48, ra+48, rb-36, rb+36, MZ, MZ+32, '#8f969d','#787f86','#697077');
+    for(const ca of [200, 860]) cyl(ca, -300, MZ, MZ+58, 4, '#c9ccd0');
+    }
   }
 },
 {
@@ -11515,6 +12437,23 @@ const SHOPS = [
       cyl(W*0.40, -132, H, H+46, 7, '#6d747c');
     }
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#a89f90', trim = '#4a3a30', H = 460;
+    slab(0, W, H, H+14, -16, -1, shade(wall,.66));                 // the front parapet, from the roof side
+    rearBody(wall, trim, H, W, D, '#6f6a60');
+    for(let f=0; f<4; f++) for(const am of [60, 170]) rearWindow(am-26, am+26, 110 + f*90, 172 + f*90, wall);
+    rearDoor(115, wall, '#3a3f44');
+    /* a fire escape: landings and a ladder */
+    for(let f=1; f<4; f++) slab(30, 200, 100 + f*90, 106 + f*90, -D-40, -D, '#3a3f44');
+    for(const la of [34, 196]) F(la-2, la+2, 190, 380, '#3a3f44', null,0,-D-40);
+    if(state.roof){
+    box(W*0.10, W*0.30, -170, -130, H, H+22, '#8f969d','#787f86','#697077');
+    box(W*0.52, W*0.74, -150, -112, H, H+30, '#8f969d','#787f86','#697077');
+    cyl(W*0.40, -132, H, H+46, 7, '#6d747c');
+    }
   }
 },
 {
@@ -11630,6 +12569,20 @@ const SHOPS = [
       cyl(W*0.66, -140, H, H+40, 7, '#6d747c');
     }
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#d2cbb8', trim = '#3f6f86', H = 360;
+    slab(0, W, H, H+14, -16, -1, shade(wall,.74));                 // the front parapet, from the roof side
+    rearBody(wall, trim, H, W, D, '#9da6a4');
+    for(let f=0; f<3; f++) for(const am of [56, 115, 174]) rearWindow(am-18, am+18, 110 + f*90, 170 + f*90, wall);
+    rearDoor(170, wall, trim);
+    downpipe(8, H, '#8a9296');
+    if(state.roof){
+    box(W*0.24, W*0.48, -160, -120, H, H+22, '#8f969d','#787f86','#697077');
+    cyl(W*0.66, -140, H, H+40, 7, '#6d747c');
+    }
   }
 },
 {
@@ -12236,6 +13189,41 @@ const SHOPS = [
       ctx.beginPath(); ctx.ellipse(c2.x,c2.y,13*K,9*K,-0.2,0,7); ctx.fill();
     }
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#2f4f63', trim = '#e8ddc8', H = 420;
+    const WW = T2*6.6, DD = 460, glassT = 'rgba(127,147,168,.88)';
+    slab(0, WW, H, H+12, -14, -1, shade(wall,1.35));                 // the front parapet, from the roof side
+    rearBody(wall, trim, H, WW, DD, shade(wall,1.06));
+    rearShutter(60, 300, 200, wall, DD);                        // the press hall's loading door
+    rearDoor(420, wall, trim, DD);
+    for(let f=0; f<2; f++) for(const am of [100, 250, 420, 540]) rearWindow(am-34, am+34, 250 + f*80, 300 + f*80, wall, DD);
+    downpipe(8, H, '#8a9296', DD);
+    depthSort([ { a: 520, b: -DD-33, z: 0, draw: () => crateStack(520, '#e8e3d6', 3, DD, 16) } ]);
+    if(state.roof){
+      
+    box(WW*0.10,WW*0.24,-300,-230,H,H+22,'#8f969d','#787f86','#697077');
+    box(WW*0.74,WW*0.90,-300,-230,H,H+26,'#8f969d','#787f86','#697077');
+    const ga = WW*0.50, gb = -120;
+    for(const aa of [ga-34, ga+34]){
+    cyl(aa, gb, H+12, H+52, 4, '#8d979f');
+    tube(aa, gb, H+50, ga, gb, H+30, 1.6, '#8d979f');
+    }
+    slab(ga-38, ga+38, H+48, H+56, gb+8, gb-8, '#8d979f');
+    ball(ga, gb, H+108, 48, '#2f6f8f', '#3f86a8');
+    for(let k=0;k<3;k++)
+    faceCircle(ga, gb, H+108, 48*Math.sin(0.6+k*0.5), null, 'rgba(143,196,216,.8)', 2);
+    for(let k=-1;k<=1;k++)
+        
+    plateCircle(ga, gb, H+108+k*24, 48*Math.cos(Math.abs(k)*0.55), null, 'rgba(143,196,216,.7)', 2);
+    ctx.fillStyle='#4e9a5a';
+    const c1=P(ga-14,gb,H+116);
+    ctx.beginPath(); ctx.ellipse(c1.x,c1.y,17*K,12*K,0.3,0,7); ctx.fill();
+    const c2=P(ga+18,gb,H+94);
+    ctx.beginPath(); ctx.ellipse(c2.x,c2.y,13*K,9*K,-0.2,0,7); ctx.fill();
+    }
   }
 },
 {
@@ -12570,6 +13558,26 @@ const SHOPS = [
       }
     }
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#d8d2c4', trim = '#2f3a4a', H = 450;
+    slab(0, W, H, H+12, -14, -1, shade(wall,.7));                 // the front parapet, from the roof side
+    rearBody(wall, trim, H, W, D, '#8f969a');
+    for(let f=0; f<4; f++) for(const am of [60, 170]) rearWindow(am-20, am+20, 110 + f*80, 160 + f*80, wall);
+    rearDoor(115, wall, '#2f3a4a');
+    F(94, 136, 158, 168, '#2f5fb8', null,0,-D-0.8);           // blue lamp over the yard door
+    downpipe(W-6, H, '#8a9296');
+    if(state.roof){
+    box(W*0.56,W*0.84,-160,-116,H,H+26,'#8f969d','#787f86','#697077');
+    box(W*0.22, W*0.30, -78, -62, H+12, H+18, '#9aa0a6','#8d949a','#7d848a');
+    cyl(W*0.26, -70, H+18, H+140, 2.4, '#c3c8cc');
+    for(let k=0;k<3;k++){
+    const z = H+118-k*26, half = 8+k*5;
+    tube(W*0.26-half, -70, z, W*0.26+half, -70, z, 1.3, '#c3c8cc');
+    }
+    }
   }
 },
 {
@@ -13207,6 +14215,36 @@ const SHOPS = [
       ball(ca, cb, H+188, 4, '#c9a24a');
     }
     kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
+       stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
+    const wall = '#d8d2c0', trim = '#2f5a6b', H = 420;
+    const WW = T2*6.6, DD = 340, glassT = 'rgba(106,138,152,.88)';
+    slab(0, WW, H, H+12, -14, -1, trim);                 // the front parapet, from the roof side
+    rearBody(wall, trim, H, WW, DD, '#9aa6a8');
+    for(let f=0; f<3; f++) for(const am of [90, 230, 380, 520]) rearWindow(am-40, am+40, 120 + f*96, 180 + f*96, wall, DD);
+    rearDoor(300, wall, trim, DD);
+    downpipe(8, H, '#8a9296', DD); downpipe(WW-8, H, '#8a9296', DD);
+    acUnit(160, 40, DD); acUnit(440, 40, DD);
+    if(state.roof){
+      
+    box(WW*0.07, WW*0.23, -300, -240, H, H+20, '#8f969d','#787f86','#697077');
+    const ca = WW*0.50, cb = -110;
+    slab(ca-50, ca+50, H+12, H+24, cb+50, cb-50, shade(wall,1.04), shade(wall,.8));
+    cyl(ca, cb, H+24, H+96, 38, 'rgba(160,196,206,.7)');
+    for(let k=0;k<6;k++){
+    const t = 3*Math.PI/4 - Math.PI*k/5;
+    cyl(ca + 38*Math.cos(t), cb + 38*Math.sin(t), H+24, H+96, 2.4, trim);
+    }
+    plateCircle(ca, cb, H+96, 42, shade(trim,1.1), shade(trim,.8), 2);
+    poly([P(ca-50,cb+50,H+96),P(ca+50,cb+50,H+96),P(ca,cb,H+148)], trim);
+    poly([P(ca+50,cb+50,H+96),P(ca+50,cb-50,H+96),P(ca,cb,H+148)], shade(trim,.76));
+    cyl(ca, cb, H+148, H+184, 2.4, '#c9a24a');
+    tube(ca-18, cb, H+184, ca+18, cb, H+184, 1.8, '#c9a24a');
+    poly([P(ca+5,cb,H+193),P(ca+30,cb,H+184),P(ca+5,cb,H+175)], '#c9a24a');
+    ball(ca, cb, H+188, 4, '#c9a24a');
+    }
   }
 },
 {
