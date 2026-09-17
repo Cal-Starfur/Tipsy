@@ -104,6 +104,12 @@ let ZSCALE = LAB_ZS;
    are drawn at SC 1 against the scaled footprint. */
 let SC = 1;
 function shopSC(sh){ return (sh || SHOPS[state.i]).sc || 1; }
+/* BOFF -- the entry's own set-back (`boff`), in its own units, applied
+   before the scale: an entry whose art stands forward of the shop line
+   (the tea house's colonnade at b 76) is moved back so the line the
+   neighbours' glass sits on is the line it sits on too. */
+let BOFF = 0;
+function shopBOFF(sh){ return (sh || SHOPS[state.i]).boff || 0; }
 /* VOLCAP: while a volume measure runs, every z that reaches the screen
    and every body() call is recorded. Null the rest of the time, so the
    draw path is untouched. */
@@ -116,6 +122,7 @@ function P(a,b,z){
      kit face test still holds; only the seen end changes (see drawShop). */
   if(TURN){ a = TURN.w - a; b = -TURN.d - b; }             // see turned() in the kit
   if(state.back){ const sh = SHOPS[state.i]; a = (sh.ww || W) - a; b = -(sh.dd || D) - b; }
+  b += BOFF;                                              // the entry's own set-back
   a *= SC; b *= SC; z *= SC;                               // the entry's own scale, last
   return { x:(a-b)*K + OX, y:((a+b)*0.5 - z*ZSCALE)*K + OY };
 }
@@ -166,7 +173,7 @@ function shopW(){ const s = SHOPS[state.i]; return s.ww || W; }
    box have to ask for that too or they end under the building. */
 function shopD(){ const s = SHOPS[state.i]; return s.dd || D; }
 function pavement(){
-  const s0 = SC; SC = 1;
+  const s0 = SC, bo = BOFF; SC = 1; BOFF = 0;
   const DD = shopD()*s0;
   const g0=-90, g1=shopW()*s0+90, b0=110, b1=-DD-70;
   T(g0,g1,b1,b0,0,'#cfc9b8');
@@ -176,11 +183,11 @@ function pavement(){
   for(let b=b1;b<=b0;b+=46){ const s=P(g0,b,0), e=P(g1,b,0);
     ctx.beginPath(); ctx.moveTo(s.x,s.y); ctx.lineTo(e.x,e.y); ctx.stroke(); }
   T(g0,g1,150,110,0,'#585c63');                            // road strip
-  SC = s0;
+  SC = s0; BOFF = bo;
 }
 function guides(){
   ctx.strokeStyle='rgba(255,122,26,.85)'; ctx.lineWidth=1.5; ctx.setLineDash([6,5]);
-  const s0 = SC; SC = 1;
+  const s0 = SC, b0 = BOFF; SC = 1; BOFF = 0;
   const gw = shopW()*s0, gd = shopD()*s0;
   poly([P(0,0,0),P(gw,0,0),P(gw,-gd,0),P(0,-gd,0)], null,'rgba(255,122,26,.85)',1.5);
   if(gw !== W)   // the packer's slot boundary, so the overrun is visible
@@ -197,7 +204,7 @@ function guides(){
      is worth knowing and is not a fault: slots run 162..243.) */
   const SLOT = T2*2.2;
   ctx.fillText('w '+gw.toFixed(0)+'  ·  '+(gw/SLOT).toFixed(2)+' slots  ·  D '+gd.toFixed(0)+(s0 !== 1 ? '  ·  '+s0+'x' : ''), t.x, t.y+18);
-  SC = s0;
+  SC = s0; BOFF = b0;
 }
 
 /* ================= FRAMING BY MEASUREMENT =================
@@ -254,7 +261,7 @@ function measureBounds(){
   ctx.clearRect(0,0,MCV.width,MCV.height);
   { const sh = SHOPS[state.i];
     MK = Math.min(0.62, 2400 / (((sh.ww || W) + (sh.dd || D)) * shopSC(sh))); }
-  SC = shopSC();
+  SC = shopSC(); BOFF = shopBOFF();
   K = MK; OX = MOX; OY = MOY;
   /* THE PLATE IS NOT THE SUBJECT. A 276-deep roof slab projects up and
      to the right and is simply the largest thing on screen for every
@@ -430,7 +437,7 @@ function draw(){
   SCREEN.width = cssW*dpr; SCREEN.height = cssH*dpr;
   ctx.setTransform(dpr,0,0,dpr,0,0);
   ctx.clearRect(0,0,cssW,cssH);
-  SC = shopSC();
+  SC = shopSC(); BOFF = shopBOFF();
 
   const b = measureBounds();
   const PAD = 16;
