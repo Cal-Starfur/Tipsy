@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- GENERATED from game/index.html by tools/build_devvit.py -- do not edit; edit game/index.html and rebuild. -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -121,9 +122,11 @@
     font-family:-apple-system,'Helvetica Neue',Arial,sans-serif;-webkit-user-select:none;user-select:none;color:#e8eaef;}
   #wrap{display:flex;flex-direction:column;height:100%;}
   #game{flex:1;min-height:0;}
-  /* 62px BOTH sides — #globalSearch top-left now needs the same gutter
-     #globalAvatar has at top-right. (Devvit hides #panel outright; kept
-     identical to game/index.html so the two never drift.) */
+  /* 62px BOTH sides. The right gutter already existed so #globalAvatar
+     could sit at top-right without fighting RANDOM DAY. #globalSearch is
+     now the same deal at top-left, and 12px of padding put the ROUTE
+     label straight under it — the exact overlap that made the robot
+     "do nothing" on device before its gutter was added. */
   #panel{padding:calc(10px + env(safe-area-inset-top)) 62px 8px 62px;background:#1c1f26;border-bottom:1px solid #2b2f38;}
   #panelToggle{position:fixed;left:50%;top:56px;transform:translateX(-50%);
     color:#8f95a1;font-size:13px;letter-spacing:1px;padding:4px 12px;z-index:5;}
@@ -328,8 +331,12 @@
      those are the record of days delivered and what the trophies read,
      not the replay feature. */
 
-  /* ---------- win/fail: a way back to the route picker. Placed at the
-     top, well clear of the bottom card/button geometry. ---------- */
+  /* ---------- win/fail: a way back to the route picker (Devvit only)
+     Before this feature, Again/Retry were the only buttons because
+     the app only ever had one route to replay. Placed at the top,
+     well clear of the bottom card/button geometry that showWin()
+     measures dynamically (see the ORDER MATTERS note there) — this
+     never has to know the card's height. ---------- */
   /* the fail screen's button is now the same magnifying glass the map
      uses, in the same place and with the same job: open Side Missions.
      .iconBtn supplies the circle; this only positions it. */
@@ -424,15 +431,41 @@
   #zoomBtn:active{opacity:0.6;}
   #zoomBtn .zCap{font-size:8px;letter-spacing:1px;color:#8f95a1;}
   #zoomBtn .zLvl{font-size:17px;font-weight:700;color:#e8eaef;}
+  /* THE BATTERY, under VIEW and built the same: a driving instrument,
+     hidden on the map and off trips. Tap it to route to the nearest
+     depot. .low pulses red at BATT.warnPct and below; .chg is on a pad. */
+  #battBtn{position:fixed;right:14px;
+    top:calc(12px + env(safe-area-inset-top) + 92px);z-index:60;
+    width:38px;height:38px;border-radius:11px;
+    background:rgba(20,23,29,0.62);border:1px solid #363b46;
+    box-shadow:0 2px 6px rgba(0,0,0,.35);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+    cursor:pointer;-webkit-user-select:none;user-select:none;
+    -webkit-tap-highlight-color:transparent;}
+  #battBtn:active{opacity:0.6;}
+  #battBtn .bCell{position:relative;width:22px;height:10px;border:1.5px solid #8f95a1;border-radius:2px;box-sizing:border-box;}
+  #battBtn .bCell::after{content:"";position:absolute;right:-4px;top:2px;width:2px;height:3px;background:#8f95a1;border-radius:0 1px 1px 0;}
+  #battBtn .bFill{position:absolute;left:1px;top:1px;bottom:1px;width:calc(100% - 2px);background:#7ee081;border-radius:1px;}
+  #battBtn .bPct{font-size:11px;font-weight:700;color:#e8eaef;line-height:1;}
+  #battBtn.low{border-color:#c2452e;animation:battPulse 1s ease-in-out infinite;}
+  #battBtn.low .bFill{background:#ff5a4e;}
+  #battBtn.chg .bFill{background:#7fe3ff;}
+  @keyframes battPulse{0%,100%{box-shadow:0 2px 6px rgba(0,0,0,.35);}50%{box-shadow:0 0 0 3px rgba(255,90,78,.45);}}
   .hidden{display:none!important;}
   .big{font-size:42px;margin:2px 0;}
   /* ================= TIPSEY PROFILE — Trophy Case + Store + Side Missions
      (Phase A). Ported from profile-bench.html. All new selectors prefixed
      tp* to guarantee no collision with the rest of this file. ================= */
-  /* FIXED, not absolute, and OUTSIDE #titleOverlay. See game/index.html
-     for the full note: nested inside #screenWrap these panels inherited
-     the map screen's display:none once a route started, so the always-on
-     robot button opened a panel nobody could see. */
+  /* FIXED, not absolute, and OUTSIDE #titleOverlay. These panels used to
+     live inside #screenWrap (inside #titleOverlay) so inset:0 had a
+     positioning context. That coupled them to the map screen's
+     visibility: starting a route calls hide("titleOverlay") ->
+     display:none !important, so the always-on robot button fired,
+     tpOpenProfile() ran, .open was added -- to an element whose ancestor
+     was hard-hidden. The button "did nothing" during the daily route.
+     Top-level + position:fixed means they answer to nothing but
+     themselves. z-index 50 clears .overlay (10) and #hjUI (6); the robot
+     stays above at 60. */
   /* SHEET OVER THE MAP, NOT A PAGE (Sir's call, 2026-08-26: "give it a
      sheet over the map -- i dont want the map to resize we are already
      having issues with that").
@@ -790,9 +823,11 @@
     z-index:60;background:#ff7a1a;cursor:pointer;
     box-shadow:0 2px 6px rgba(0,0,0,.35);}
   #globalAvatar:active{transform:scale(0.94);}
-  /* Same treatment for the magnifying glass — it lived inside #mapCard
-     -> #screenWrap -> #titleOverlay and vanished the instant a route
-     started. See game/index.html for the full note. */
+  /* Same treatment for the magnifying glass. It used to live inside
+     #mapCard -> #screenWrap -> #titleOverlay, so it disappeared the
+     instant a route started — the fail screen carried its own copy
+     (#failMenuBtn) purely to paper over that. One button, outside every
+     overlay, never hidden. */
   /* ---------- boot loader ----------
      The title screen used to paint before the route existed: brand, GO
      button, "Ready for pickup", and an empty map card carrying a literal
@@ -843,7 +878,37 @@
     display:flex;flex-direction:column;align-items:center;gap:10px;}
   /* FLAT 2D FLIP, NOT FAKE VOLUME (2026-08-11, Sir's call: "nothing in
      the game is 3D, it has to be 2D" -- reverts the 2026-08-10 rotateY
-     rig). See game/index.html for the full note. */
+     rig). That version gave the card real depth via a two-faced
+     preserve-3d box plus a synthetic #blRobotSide panel filling the
+     90°/270° edge gap. The panel was a single fixed-width flat-gray
+     slab for the whole card height, with no relation to the actual
+     character silhouette (narrow antenna, narrower head band, wider
+     shoulder band) or its palette (white body, dark visor, red/yellow/
+     gray belt) -- so right as it became the dominant visible surface
+     mid-turn, it read as an unrelated gray bar passing behind a flat
+     character rather than that character's own side. No amount of
+     retuning the slab was going to fix a shape/color mismatch this
+     fundamental, and nothing else in the game pretends to be 3D, so
+     the fix is to stop pretending here too.
+
+     The replacement is a coin-flip, not a turn: #blRobotCard's own
+     transform animates scaleX 1 -> -1 -> 1 (blFlip below), passing
+     through 0 (edge-on, a sliver) twice a cycle exactly where the old
+     rig's edge-on moments were -- #blShadow's existing pulse already
+     shrinks at 25%/75% for that reason and needed no changes. #blRobot
+     and #blRobotBack are stacked directly on top of each other (both
+     position:absolute;inset:0, no preserve-3d, no perspective -- there
+     is no 3D scene here anymore) and swap opacity on their OWN
+     steps(1) animations timed to those same 25%/75% marks, so the
+     swap is an instant cut, not a crossfade -- a crossfade would show
+     both faces overlapping (and one of them mirrored) for the whole
+     thin sliver window, which is exactly the kind of glitch this is
+     replacing. #blRobotBack carries its own static scaleX(-1) so it
+     cancels the shared parent's scaleX(-1) at the moment it's on
+     screen -- the back SVG was already authored to read un-mirrored at
+     the flip point (that's what its old counter-rotateY(180deg) was
+     for), so the art needed zero changes, only the mechanism swapping
+     under it. */
   #blRobotStage{position:relative;width:88px;height:101px;}
   #blRobotCard{position:absolute;inset:0;
     animation:blFlip 1.35s cubic-bezier(.45,.05,.55,.95) infinite;}
@@ -854,9 +919,10 @@
   @keyframes blFlip{0%{transform:scaleX(1);}
                      50%{transform:scaleX(-1);}
                      100%{transform:scaleX(1);}}
-  /* hard cuts, not fades -- see game/index.html for why. Windows match
-     blFlip's own zero-crossings (roughly 25%/75%), with a hair of
-     margin on each side so the swap always lands on a thin sliver. */
+  /* hard cuts, not fades -- see the comment above for why. Windows
+     match blFlip's own zero-crossings (roughly 25%/75% under the same
+     shared easing), with a hair of margin on each side so the swap
+     always lands while the card reads as a thin sliver either way. */
   @keyframes blFaceFront{0%,23%{opacity:1;} 27%,73%{opacity:0;} 77%,100%{opacity:1;}}
   @keyframes blFaceBack{0%,23%{opacity:0;} 27%,73%{opacity:1;} 77%,100%{opacity:0;}}
   /* the shadow is widest face-on and narrowest edge-on, i.e. twice per
@@ -880,10 +946,15 @@
     z-index:60;background:rgba(255,255,255,.92);cursor:pointer;
     box-shadow:0 2px 6px rgba(0,0,0,.35);}
   #globalSearch:active{transform:scale(0.94);}
-  /* globalSearch is fixed and "never hidden" by design so it survives
-     mid-route -- but with no tie to titleOverlay it also rendered on the
-     map/job screen, landing on top of tpMapSearchWrap's own search pill.
-     See game/index.html for the full note. */
+  /* globalSearch is fixed and "never hidden" by design (see the comment
+     above it) so it survives mid-route — but with no tie to titleOverlay
+     it also rendered on the map/job screen, landing right on top of
+     tpMapSearchWrap's own search pill (same corner, same job: Side
+     Missions is now one of the things typing in that pill finds). Sibling
+     combinator, not a body class — titleOverlay and globalSearch are
+     both direct children of body, so this needs no JS hook and can't
+     drift out of sync with show()/hide("titleOverlay"). Reappears the
+     instant a route actually starts. */
   #titleOverlay:not(.hidden) ~ #globalSearch{display:none !important;}
   /* the per-screen copies are retired in favour of the two global ones.
      #winMenuBtn was part of this set and got missed — it was still being
@@ -891,12 +962,14 @@
      deleted outright rather than listed here, since unlike the others it
      had no non-Devvit caller keeping it alive. */
   #avatarIcon,#failAvatarBtn,#searchIcon,#failMenuBtn{display:none !important;}
-  /* ...and the global pair steps aside while a panel is up: both sit at
-     z-index 60 in the corner Profile's header uses for its back button,
-     so #globalSearch was swallowing every tap on #tpProfBack. Side
-     Missions no longer has a back button to protect (cards float
+  /* ...but the two global ones step aside once a panel is up. Both sit
+     at z-index 60 in the exact corner Profile's own header uses for its
+     back button — #globalSearch landed squarely on top of #tpProfBack
+     and swallowed every tap on it. Side Missions no longer has a back
+     button of its own to protect (removed 2026-08-11, cards float
      directly over the map now), but hiding these while it's open too
-     is harmless. */
+     is still harmless — there's nothing on that screen for them to sit
+     on top of. */
   body.tpPanelOpen #globalAvatar, body.tpPanelOpen #globalSearch,
   body.tpPanelOpen #zoomBtn, body.tpPanelOpen #miniMap{display:none !important;}
   /* #tpMapSearch is injected as a string by tpMapExplore, so its inline
@@ -918,6 +991,7 @@
   <div id="game"></div>
   <div id="gpsHud" class="hidden"><svg id="gpsChev" viewBox="0 0 24 24" aria-hidden="true"><polygon points="12,2 21,21 12,16 3,21"/></svg><span id="gpsText"></span></div>
   <div id="zoomBtn" class="hidden"><span class="zCap">VIEW</span><span class="zLvl">1</span></div>
+  <div id="battBtn" class="hidden" aria-label="Battery"><span class="bCell"><span class="bFill"></span></span><span class="bPct">100</span></div>
   <div id="hjUI" class="hidden">
     <div id="hjTitle"></div>
     <div id="hjUnlock"></div>
