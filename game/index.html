@@ -11265,7 +11265,8 @@ function hoodLandmarkAtXY(x, y){
    city). The anchor lot draws it; the others draw nothing, exactly as a
    park landmark's member cells do. */
 const HOOD_RIM_SITES = [
-  { name: "Tide Pool Elementary", axis: "x", at: -736, out: -1, from: 6*BLOCK, to: 9*BLOCK, depth: 940 }
+  { name: "Tide Pool Elementary", axis: "x", at: -736, out: -1, from: 6*BLOCK, to: 9*BLOCK, depth: 940,
+    icon: "\u{1F3EB}", pin: "#b06a4a", kind: "school" }   // the same school pin Driftwood Elementary carries
 ];
 function hoodRimSiteOfLot(lot){
   for(const s of HOOD_RIM_SITES){
@@ -51657,6 +51658,8 @@ function mapParkName(cx, cy, route){
 }
 /* the pin: glyph and colour, defaulting to the park tree. */
 function mapParkIcon(cx, cy, route){
+  const rim = typeof hoodRimSiteAt === "function" ? hoodRimSiteAt(cx, cy) : null;
+  if(rim) return { icon: rim.icon || "\u{1F3EB}", pin: rim.pin || "#b06a4a" };
   const _hl = hoodLandmarkAtXY(cx, cy); if(_hl) return { icon: hoodShopIcon(_hl), pin: "#c2603a" };
   const lm = PARK_LANDMARKS[mapParkRaw(cx, cy, route)];
   return { icon: (lm && lm.icon) || "\u{1F333}", pin: (lm && lm.pin) || "#3f7a4a" };
@@ -51665,6 +51668,8 @@ function mapParkIcon(cx, cy, route){
    above and for the same reason: a place must not be one thing on the
    map and another in search. */
 function mapParkKind(cx, cy, route){
+  const rim = typeof hoodRimSiteAt === "function" ? hoodRimSiteAt(cx, cy) : null;
+  if(rim) return rim.kind || "landmark";
   if(hoodLandmarkAtXY(cx, cy)) return "landmark";
   const lm = PARK_LANDMARKS[mapParkRaw(cx, cy, route)];
   return (lm && lm.kind) || "park";
@@ -53872,8 +53877,15 @@ function drawRouteMap(route){
   /* a rim landmark is ONE lot on the map too, not the two parks and the
      commercial strip it was built from (Sir: "we didnt blend ... we have
      two and then we have the shop block still there") */
-  const rimRects = (typeof hoodRimRects === "function" ? hoodRimRects() : []).map(r2 => ({
-    x0: r2.x0, x1: r2.x1, y0: r2.y0, y1: r2.y1, cx: r2.cx, cy: r2.cy, type: "landmark", rim: r2 }));
+  /* DRAWN TO THE MAP'S OWN LOT DEPTH, not the building's. Every other
+     perimeter lot on this map is a BLOCK*0.4 strip off the pavement line;
+     a 940-deep rect beside them stepped in and out of the rim (Sir: "it
+     doesnt line up correctly"). Grounds are grass, so it takes the park
+     green like the parks it replaced. */
+  const rimRects = HOOD_RIM_SITES.map(s => {
+    const y0 = Math.min(s.at, s.at + s.out*lotDepth), y1 = Math.max(s.at, s.at + s.out*lotDepth);
+    return { x0: s.from, x1: s.to, y0, y1, cx: (s.from + s.to)/2, cy: (y0 + y1)/2, type: "park", rim: s };
+  });
   const extRects = bgRoute.grid.extLots.filter(lot =>
     !(typeof hoodRimSiteOfLot === "function" && hoodRimSiteOfLot(lot))).map(lot => {
     const p2x = lot.ox + lot.dv.x*lot.len, p2y = lot.oy + lot.dv.y*lot.len;
@@ -53887,7 +53899,7 @@ function drawRouteMap(route){
     };
   });
   const allBlocks = bgRoute.grid.blocks.concat(extRects, rimRects);
-  const blockColor = { housing: "#e3d4b8", park: "#8fbf7a", commercial: "#c4c8cc", landmark: "#b9c9a6" };
+  const blockColor = { housing: "#e3d4b8", park: "#8fbf7a", commercial: "#c4c8cc" };
   const byIJ = bgRoute.grid.blockByIJ;
   for(const blk of allBlocks){
     if(!inView(blk.cx, blk.cy)) continue;
@@ -54074,12 +54086,14 @@ function drawRouteMap(route){
   for(const blk of extRects.concat(rimRects)){
     if(!(blk.type === "park" || blk.rim) || !inView(blk.cx, blk.cy)) continue;
     const p = toScreen({x:blk.cx, y:blk.cy});
-    const pk = mapParkIcon(blk.cx, blk.cy, bgRoute);
+    const qx = blk.rim ? (blk.rim.from + blk.rim.to)/2 : blk.cx;
+    const qy = blk.rim ? blk.rim.at + blk.rim.out*blk.rim.depth/2 : blk.cy;
+    const pk = mapParkIcon(qx, qy, bgRoute);
     ctx.fillStyle = pk.pin;
     ctx.beginPath(); ctx.arc(p.x, p.y-8, 7, 0, Math.PI*2); ctx.fill();
     ctx.font = "9px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
     ctx.fillText(pk.icon, p.x, p.y-8);
-    const pname = mapParkName(blk.cx, blk.cy, bgRoute);
+    const pname = mapParkName(qx, qy, bgRoute);
     ctx.fillStyle = "#2e3138"; ctx.font = "10px sans-serif";
     ctx.fillText(pname, p.x, p.y+8);
   }
