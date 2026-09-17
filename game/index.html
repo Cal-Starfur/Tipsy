@@ -34673,6 +34673,38 @@ class WorldScene extends Phaser.Scene {
     return q.x + q.y + q.z*0.4;
   }
 
+  /* A SECURITY GATE across an alley mouth, in the plane b = B of edge e from
+     a0 to a1: steel posts and rails, black bars with a solid black kick
+     panel, spear tips along the top, a steel lock box. Wide alleys (over
+     150) get a pair of leaves meeting on a centre stile. Flat, like the
+     frontage it sits in: it is seen face-on from the street. Heights are
+     world z and match the 1.3x shopfronts' door head. */
+  drawAlleyGate(g, e, a0, a1, B){
+    const STEEL = 0x8d949a, STEEL_DK = 0x5d646b, BLACK = 0x1b1d20, BAR = 0x2a2d31;
+    const GH = 300, KICK = 70, POST = 9;
+    const Pt = (a, z) => this.W(e.ox + e.dv.x*a + e.rv.x*B, e.oy + e.dv.y*a + e.rv.y*B, z);
+    const Q = (x0, x1, z0, z1, col) => this.quadOn(g, [Pt(x0,z1), Pt(x1,z1), Pt(x1,z0), Pt(x0,z0)], col);
+    const i0 = a0 + POST, i1 = a1 - POST;
+    Q(i0, i1, 0, KICK, BLACK);                                   // kick panel
+    Q(i0, i1, KICK-6, KICK, STEEL_DK);
+    const n = Math.max(2, Math.round((i1 - i0) / 15));
+    for(let k = 0; k <= n; k++){                                 // bars
+      const c = i0 + (i1 - i0) * k / n;
+      Q(c - 2.2, c + 2.2, KICK, GH - 14, BAR);
+    }
+    Q(i0, i1, GH*0.55 - 6, GH*0.55, STEEL);                      // mid rail
+    Q(i0, i1, GH - 16, GH - 6, STEEL);                           // top rail
+    for(let k = 0; k <= n; k++){                                 // spear tips
+      const c = i0 + (i1 - i0) * k / n;
+      this.quadOn(g, [Pt(c - 3.5, GH - 6), Pt(c, GH + 12), Pt(c + 3.5, GH - 6), Pt(c, GH - 8)], STEEL);
+    }
+    const wide = (a1 - a0) > 150, lockA = wide ? (i0 + i1) / 2 : i1 - 16;
+    if(wide) Q(lockA - 4, lockA + 4, 0, GH - 6, STEEL);          // centre stile
+    Q(lockA - 12, lockA + 12, 118, 150, STEEL);                   // lock box
+    Q(lockA - 5, lockA + 5, 126, 142, STEEL_DK);
+    Q(a0, i0, 0, GH + 4, STEEL); Q(i1, a1, 0, GH + 4, STEEL);    // posts
+    Q(a0, i0, GH + 4, GH + 8, STEEL_DK); Q(i1, a1, GH + 4, GH + 8, STEEL_DK);
+  }
   quadOn(g, pts, color, alpha=1){
     g.fillStyle(color, alpha);
     g.fillPoints(pts.map(p => new Phaser.Geom.Point(p.x, p.y)), true, true);
@@ -37926,6 +37958,20 @@ class WorldScene extends Phaser.Scene {
        edge is the packer's, byte for byte as before */
     const units = authored || packEdgeNoGap(e.len, mulberry32(eseed));
     const flank = (e.dv.x + e.dv.y) > 0;
+    /* ALLEY GATES (Sir, 2026-09-17: "in the beginning of all those alleys
+       in between shops we need a security door, black and steel"). One at
+       the street mouth of every alley the spreading left between two shops
+       (see ALLEYS in hoodShopsOf), in the glass plane pulled a few units
+       back. Keyed at its own mouth, so on a front edge it draws over the
+       shops' flanks behind it and on an away edge the shops cover it.
+       A crack under 20 is not an alley and gets none. */
+    if(authored) for(let k = 1; k < units.length; k++){
+      const a0 = units[k-1].start + units[k-1].w, a1 = units[k].start;
+      if(a1 - a0 < 20) continue;
+      const B = -6, mid = (a0 + a1) / 2;
+      const kx = e.ox + e.dv.x*mid + e.rv.x*B, ky = e.oy + e.dv.y*mid + e.rv.y*B;
+      vq.push({ depth: kx + ky, fn: (g) => this.drawAlleyGate(g, e, a0, a1, B) });
+    }
     units.forEach((u, idx) => {
       const hx = e.ox + e.dv.x*(u.start + u.w/2), hy = e.oy + e.dv.y*(u.start + u.w/2);
       const hseed = ((Math.round(hx)*7919) ^ (Math.round(hy)*104729)) >>> 0;
