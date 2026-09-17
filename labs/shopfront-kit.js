@@ -621,3 +621,96 @@ function kerb(p, kind){
   }
 }
 
+/* ================= THE REAR KIT (Sir, 2026-09-17) =================
+   "lets just add the back elevations." A shop on an AWAY edge -- block
+   edge 0 or 3, glass facing away from the camera -- shows the camera its
+   back wall, its roof and one end. draw() painted the shopfront anyway,
+   and because the facade is the far face it landed over the shop's own
+   roof: glass, signs and awnings floating on the roof plate.
+
+   So an entry may carry back(p) beside draw(p). The host calls back()
+   when the edge's rv points away from the eye -- (rv.x + rv.y) < 0, the
+   inverse of drawStoreUnit's showFront -- and draw() everywhere else.
+   back() is written in the shop's OWN frame, rear wall at b = -d, so the
+   game needs no transform at all; FLANK_RIGHT is the same dv test on
+   both sides, which picks the right end on edge 0 (a = w) and edge 3
+   (a = 0). The canvas lab's Back toggle turns its frame 180 degrees to
+   show the same thing.
+
+   These are the pieces a rear is made of. Things fixed to the rear wall
+   sit a hair outside it (b = -d - 0.6 and beyond) so nothing z-fights
+   it; things on the ground stand in the yard behind (b < -d). Protruding
+   pieces use slab() with bFront as the OUTER face, which is the one the
+   camera sees from behind. */
+function rearBody(wall, trim, H, wid, dep, roof){
+  const w = wid===undefined ? W : wid, d = dep===undefined ? D : dep;
+  if(!NOPLATE) T(0,w,-d,0,H, roof || shade(trim,1.05));      // roof
+  if(FLANK_RIGHT) S(w,-d,0,0,H, shade(wall,.78));             // the seen end, as body()
+  else            S(0,-d,0,0,H, shade(wall,.72));
+  F(0,w,0,H, shade(wall,.93), null,0,-d);                     // rear wall: plainer than the front
+  poly([P(0,-d,H),P(w,-d,H),P(w,-d,0),P(0,-d,0)], null, shade(wall,.6), 1.5);
+  F(0,w,0,14, shade(wall,.62), null,0,-d-0.5);                // plinth
+}
+/* the front parapet seen from the roof side: its inner face is b = -t */
+function rearParapet(a0, a1, H, h, t, col){ slab(a0, a1, H, H+h, -t, -1, col); }
+/* a plain service door with its frame, push bar and a concrete step */
+function rearDoor(aMid, wall, col, d, h){
+  const dd = d===undefined ? D : d, hh = h || 150, hw = 32, b = -dd - 0.6;
+  F(aMid-hw-6, aMid+hw+6, 0, hh+6, shade(wall,.64), null,0,b);
+  F(aMid-hw, aMid+hw, 0, hh, col, shade(col,.62), 1.5, b-0.4);
+  F(aMid-hw+8, aMid+hw-8, hh*0.52, hh*0.56, shade(col,.72), null,0,b-0.8);
+  box(aMid-hw-10, aMid+hw+10, -dd-22, -dd, 0, 8, shade(wall,.86), shade(wall,.72), shade(wall,.62));
+}
+/* a back window: frame, dark glass with a sky band at the head, a sill */
+function rearWindow(a0, a1, z0, z1, wall, d){
+  const dd = d===undefined ? D : d, b = -dd - 0.6;
+  F(a0-5, a1+5, z0-5, z1+5, shade(wall,.7), null,0,b);
+  F(a0, a1, z0, z1, '#3a4850', null,0,b-0.4);
+  F(a0, a1, z1-(z1-z0)*0.42, z1, 'rgba(170,200,215,.35)', null,0,b-0.6);
+  slab(a0-8, a1+8, z0-10, z0-5, -dd-8, -dd, shade(wall,.82));
+}
+/* a roller shutter: frame, slats, a bottom rail */
+function rearShutter(a0, a1, z1, wall, d){
+  const dd = d===undefined ? D : d, b = -dd - 0.6;
+  F(a0-8, a1+8, 0, z1+10, shade(wall,.64), null,0,b);
+  F(a0, a1, 0, z1, '#a2a8ad', null,0,b-0.4);
+  for(let z=12; z<z1; z+=12) F(a0, a1, z-1.5, z, '#7f868c', null,0,b-0.8);
+  slab(a0-10, a1+10, z1+10, z1+22, -dd-14, -dd, '#8f969d');
+}
+function downpipe(a, H, col, d){
+  const b = -(d===undefined ? D : d) - 1.2;
+  F(a-3.5, a+3.5, 0, H-6, col, null,0,b);
+  F(a-7, a+7, 0, 8, shade(col,.8), null,0,b-0.5);
+}
+function gutter(a0, a1, H, col, d){
+  const dd = d===undefined ? D : d;
+  slab(a0, a1, H-10, H-2, -dd-9, -dd, col);
+}
+/* a square louvred extractor on the wall */
+function extractor(a, z, s, d){
+  const b = -(d===undefined ? D : d) - 0.8;
+  F(a-s, a+s, z-s, z+s, '#9aa0a6', '#5d646b', 1.5, b);
+  for(let i=1;i<4;i++) F(a-s+3, a+s-3, z-s+i*s/2-1.5, z-s+i*s/2+1, '#5d646b', null,0,b-0.5);
+}
+/* a condenser unit bracketed off the wall, fan grille on its face */
+function acUnit(a, z, d){
+  const dd = d===undefined ? D : d;
+  box(a-26, a+26, -dd-28, -dd, z, z+36, '#c3c8cc', '#a8aeb3', '#95999e');
+  faceCircle(a, -dd-28.6, z+18, 13, '#7d838a', '#5d646b', 1.5);
+}
+/* a wheelie bin in the yard, lid a shade darker */
+function wheelieBin(a, col, off, d){
+  const dd = d===undefined ? D : d, o = off || 0, b0 = -dd-14-o, b1 = -dd-50-o;
+  box(a-17, a+17, b1, b0, 0, 50, shade(col,1.12), col, shade(col,.8));
+  T(a-18, a+18, b1-2, b0+1, 52, shade(col,.68));
+}
+/* stacked crates or boxes against the wall */
+function crateStack(a, col, n, d, s){
+  const dd = d===undefined ? D : d, h = s || 22;
+  for(let i=0;i<(n||2);i++) box(a-19, a+19, -dd-52, -dd-14, i*(h+2), i*(h+2)+h, shade(col,1.15), col, shade(col,.8));
+}
+/* an upright drum or keg in the yard */
+function yardDrum(a, off, col, d){
+  const dd = d===undefined ? D : d;
+  cyl(a, -dd-off, 0, 44, 14, col, shade(col,1.18));
+}
