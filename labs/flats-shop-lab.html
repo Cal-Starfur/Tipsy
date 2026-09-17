@@ -48,6 +48,7 @@
   <button id="tGrid">Guides</button>
   <button id="tDoor">Door cycle</button>
   <button id="tVol">Vol</button>
+  <button id="tBack">Back</button>
 </div>
 <canvas id="stage"></canvas>
 <div class="meta">
@@ -92,7 +93,7 @@ let K = 1, OX = 0, OY = 0;
    drives it from a clock -- the bench had no clock at all before this,
    only toggles, so an articulating anything needed one. */
 const state = { i:0, roof:true, props:true, pal:0, grid:false, scale:false,
-                doorT:1, doorRun:false, vol:false, probe:null };
+                doorT:1, doorRun:false, vol:false, probe:null, back:false };
 const LAB_ZS = 1.5;
 let ZSCALE = LAB_ZS;
 /* VOLCAP: while a volume measure runs, every z that reaches the screen
@@ -101,13 +102,26 @@ let ZSCALE = LAB_ZS;
 let VOLCAP = null;
 function P(a,b,z){
   if(VOLCAP && z > VOLCAP.zmax) VOLCAP.zmax = z;
+  /* BACK VIEW (2026-09-17): the frame turned 180 degrees about the lot's
+     centre, so the rear wall (b = -dd) is the near face -- what the game
+     shows of a shop on an away edge. A rotation, not a mirror, so every
+     kit face test still holds; only the seen end changes (see drawShop). */
+  if(state.back){ const sh = SHOPS[state.i]; a = (sh.ww || W) - a; b = -(sh.dd || D) - b; }
   return { x:(a-b)*K + OX, y:((a+b)*0.5 - z*ZSCALE)*K + OY };
 }
 
 /* this bench has one view and it is the one the library was composed
    against, where the a = w end of a unit is the visible one. The phaser
    bench sets this per edge from drawStoreUnit's own showRight test. */
-const FLANK_RIGHT = true;
+let FLANK_RIGHT = true;
+/* one call site for "draw the current shop", so the fit pass and the
+   render agree: in the back view the seen end is a = 0 (the turn puts it
+   on the right of the screen), and a shop with back() draws that */
+function drawShop(sh, p){
+  FLANK_RIGHT = !state.back;
+  try { (state.back && sh.back ? sh.back : sh.draw).call(sh, p); }
+  finally { FLANK_RIGHT = true; }
+}
 
 /* ---- THE FLATS SHOP LAB (2026-09-17) ----
    A copy of shopfront-lab.html that loads flats-shops.js -- the Flats'
@@ -237,7 +251,7 @@ function measureBounds(){
      hand-tuned frame was reaching for before it got the numbers wrong. */
   NOPLATE = true;
   ZSCALE = SHOPS[state.i].zs === undefined ? LAB_ZS : SHOPS[state.i].zs;
-  SHOPS[state.i].draw(PAL[state.pal]);       // shop only -- pavement is not content
+  drawShop(SHOPS[state.i], PAL[state.pal]);  // shop only -- pavement is not content
   NOPLATE = false;
   const d = ctx.getImageData(0,0,MCV.width,MCV.height).data;
   let x0=1e9,x1=-1e9,y0=1e9,y1=-1e9;
@@ -435,7 +449,7 @@ function draw(){
 
   pavement();
   ZSCALE = SHOPS[state.i].zs === undefined ? LAB_ZS : SHOPS[state.i].zs;
-  SHOPS[state.i].draw(PAL[state.pal]);
+  drawShop(SHOPS[state.i], PAL[state.pal]);
   ZSCALE = 1;
   if(state.grid) guides();
   if(state.vol) volOverlay();
@@ -444,7 +458,7 @@ function sync(){
   const s = SHOPS[state.i];
   document.getElementById('nm').textContent = s.name;
   document.getElementById('ix').textContent = (state.i+1)+' of '+SHOPS.length;
-  document.getElementById('mh').textContent = s.head;
+  document.getElementById('mh').textContent = s.head + (state.back ? (s.back ? '  ·  rear elevation' : '  ·  NO REAR YET: this is its front seen from behind') : '');
   document.getElementById('md').textContent = s.desc;
   /* THE FLAG HAS TO FIND YOU, not wait to be looked for. A shop that has
      not been sized against the game carries zTodo -- its height in game
@@ -496,6 +510,10 @@ for(const [id,key] of [['tRoof','roof'],['tProps','props'],['tGrid','grid'],['tS
     state[key] = !state[key]; e.currentTarget.classList.toggle('on', state[key]); draw();
   };
 }
+document.getElementById('tBack').onclick = e => {
+  state.back = !state.back; e.currentTarget.classList.toggle('on', state.back);
+  boundsCache.clear(); sync();
+};
 document.getElementById('tVol').onclick = e => {
   state.vol = !state.vol; e.currentTarget.classList.toggle('on', state.vol);
   state.probe = null; volMeta(); draw();
