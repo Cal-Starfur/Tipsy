@@ -39392,13 +39392,16 @@ function tpSubmitHoodPurchase(hoodIndex){
   })
     .then(rsp => rsp.ok ? rsp.json() : null)
     .then(data => {
-      if(!data) return;
+      /* REFUSED (not unlocked on the server's count, short on funds, or a
+         stale client): the optimistic local buy is undone by reloading
+         server truth -- hoodsOwned and walletCents both come back. */
+      if(!data){ requestTpProfile(); return; }
       if(typeof data.walletCents === "number") tpProfile.walletCents = data.walletCents;
       tpMergeServerHoods(data);
       tpSaveProfile();
       tpRender();
     })
-    .catch(()=>{});
+    .catch(()=>{ requestTpProfile(); });
 }
 function tpSubmitPurchase(skinId){
   if(!IS_DEVVIT_BUILD) return;
