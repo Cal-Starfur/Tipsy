@@ -106,6 +106,7 @@ function P(a,b,z){
      centre, so the rear wall (b = -dd) is the near face -- what the game
      shows of a shop on an away edge. A rotation, not a mirror, so every
      kit face test still holds; only the seen end changes (see drawShop). */
+  if(TURN){ a = TURN.w - a; b = -TURN.d - b; }             // see turned() in the kit
   if(state.back){ const sh = SHOPS[state.i]; a = (sh.ww || W) - a; b = -(sh.dd || D) - b; }
   return { x:(a-b)*K + OX, y:((a+b)*0.5 - z*ZSCALE)*K + OY };
 }
