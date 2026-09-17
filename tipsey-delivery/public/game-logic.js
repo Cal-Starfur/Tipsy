@@ -34300,8 +34300,15 @@ class WorldScene extends Phaser.Scene {
          lip with a top and two faces standing exactly on the wall line.
          Mid-block only, as before: a junction has a crossing, not a
          kerb. */
-      const GUT = 0x5a5d64;                                 // gutter: asphalt, a shade lighter
-      const KERB_H = 7, LIP = 11;
+      /* READ IT FROM THE DRIVING SEAT (Sir: "i dont think its reading as
+         a curb or gutter. im not getting any kind of depth from it"). The
+         first cut was a 7 step in two shades of the same pavement stone,
+         which at this camera is a hairline. So: the gutter is CONCRETE
+         against the asphalt, the stone is twice as tall, and its three
+         surfaces are a real light-to-dark set -- pale top, mid road face,
+         dark shadow line where it meets the gutter. */
+      const GUT = 0x9a9488, KERB_TOP = 0xded8c8, KERB_FACE = 0x8b8578, KERB_DK = 0x6e6a5e;
+      const KERB_H = 15, LIP = 13;
       const band = sgn => {
         const o0 = sgn*ROAD_HALF, o1 = sgn*(ROAD_HALF + CURB_W);
         this.quadOn(g, [
@@ -34311,22 +34318,33 @@ class WorldScene extends Phaser.Scene {
           this.W(sx + rv.x*o1, sy + rv.y*o1, 0.6)
         ], GUT);
       };
+      /* THE STONE STANDS IN THE GUTTER, not on the footway (Sir: "i dont
+         like how its eating into the side walk"). Its outer face is the
+         wall line; the lip runs back toward the road, so the pavement
+         keeps every unit of its own width. */
       const kerb = sgn => {
-        const oIn = sgn*(ROAD_HALF + CURB_W), oOut = sgn*(ROAD_HALF + CURB_W + LIP);
+        const oIn = sgn*(ROAD_HALF + CURB_W - LIP), oOut = sgn*(ROAD_HALF + CURB_W);
         const face = (off, z0, z1, col) => this.quadOn(g, [
           this.W(sx + rv.x*off, sy + rv.y*off, z1),
           this.W(ex + rv.x*off, ey + rv.y*off, z1),
           this.W(ex + rv.x*off, ey + rv.y*off, z0),
           this.W(sx + rv.x*off, sy + rv.y*off, z0)
         ], col);
-        face(oIn, 0, KERB_H, d.paveEdge);                       // the step, off the gutter
-        this.quadOn(g, [                                        // its top
+        face(oIn, 0, 3, KERB_DK);                               // the shadow at the gutter
+        face(oIn, 3, KERB_H, KERB_FACE);                        // the step's road face
+        this.quadOn(g, [                                        // its top, the lightest of the three
           this.W(sx + rv.x*oIn, sy + rv.y*oIn, KERB_H),
           this.W(ex + rv.x*oIn, ey + rv.y*oIn, KERB_H),
           this.W(ex + rv.x*oOut, ey + rv.y*oOut, KERB_H),
           this.W(sx + rv.x*oOut, sy + rv.y*oOut, KERB_H)
-        ], d.pave);
-        face(oOut, 0, KERB_H, d.paveEdge);                      // and back down to the pavement
+        ], KERB_TOP);
+        this.edgeOn(g, [                                        // and its own outline, so the lip has an edge
+          this.W(sx + rv.x*oIn, sy + rv.y*oIn, KERB_H),
+          this.W(ex + rv.x*oIn, ey + rv.y*oIn, KERB_H),
+          this.W(ex + rv.x*oOut, ey + rv.y*oOut, KERB_H),
+          this.W(sx + rv.x*oOut, sy + rv.y*oOut, KERB_H)
+        ], KERB_DK, 1);
+        face(oOut, 0, KERB_H, KERB_FACE);                       // and back down to the pavement
       };
       band(-1); band(1);
       kerb(-1); kerb(1);
