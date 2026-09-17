@@ -14755,5 +14755,147 @@ const SHOPS = [
     depthSort(items);
     kerb(p,'none');
   }
+},
+{
+  name:'Tide Pool Elementary', base:'School', hood:'The Flats', edited:true, tall:true, block:true,
+  ww: 9384, dd: 940,
+  head:'Tide Pool Elementary, three rim lots wide along the top of The Flats',
+  tags:['three-lot footprint','long shallow site','yard to the street','painted courts','bellcote','chain-link railing'],
+  desc:'The school takes the whole north rim strip -- the two perimeter parks and the commercial lot between them -- as one site. The world edge is 980 out from the pavement, so the range runs long instead of deep: classrooms across the back, the yard and its courts in front of them, railed to the pavement with two gates.',
+  draw(p){
+    /* THE SITE. a runs east along the rim, b is 0 on the pavement and
+       negative outward, away from the city. 9384 = three lots of BLOCK;
+       940 is what the world edge leaves (pavement line -736, edge
+       -1720.4). Everything is laid out from those two numbers. */
+    const LEN = 9384, DEP = 940;
+    const wall = '#e6dcc4', trim = '#2f7f86', brick = '#b06a4a', H = 470, WH = 330;
+    const tar = '#6e6f6b', grass = '#4e7a4a', walk = '#b3a894', glassT = 'rgba(106,138,152,.86)';
+    const MA0 = 3200, MA1 = 6200, WA = 1200, WB = 8184;        // main range and the two wings
+    const BB1 = -300, BB0 = -840;                              // the building's own band
+    /* the site: tarmac yard, grass to the ends, a walk in from each gate */
+    T(0, LEN, -DEP, 0, 0.4, tar);
+    T(0, WA-40, -DEP, 0, 0.6, grass);
+    T(WB+40, LEN, -DEP, 0, 0.6, grass);
+    T(MA0-120, MA1+120, BB1, -40, 0.7, walk);
+    for(const ga of [2400, 7000]) T(ga-90, ga+90, BB1, -14, 0.9, walk);
+    /* the courts, painted on the tarmac in front of the wings */
+    const court = (c0, c1, d0, d1) => {
+      for(const [x0,x1,y0,y1] of [[c0,c1,d0,d0+12],[c0,c1,d1-12,d1],[c0,c0+12,d0,d1],[c1-12,c1,d0,d1],
+                                  [(c0+c1)/2-6,(c0+c1)/2+6,d0,d1]])
+        T(x0, x1, y0, y1, 1.2, '#e6e2d4');
+      for(let k=0;k<26;k++){ const t = k/25*Math.PI*2, r = Math.min(150, (d1-d0)/2 - 20);
+        T((c0+c1)/2 + r*Math.cos(t) - 6, (c0+c1)/2 + r*Math.cos(t) + 6,
+          (d0+d1)/2 + r*Math.sin(t) - 6, (d0+d1)/2 + r*Math.sin(t) + 6, 1.2, '#e6e2d4'); }
+    };
+    court(1360, 2920, -270, -60);
+    court(6460, 8020, -270, -60);
+    /* hopscotch by the east gate */
+    for(let k=0;k<6;k++) T(6880+k*46, 6880+k*46+34, -206, -172, 1.2, '#e0c88a');
+
+    /* ---- THE RANGE. One two-storey block in the middle with a lower
+       wing each side, all on the same back line so the yard in front is
+       one open piece. Bands are drawn on the front face (b = BB1), the
+       ends by box()'s own visibility test. ---- */
+    const blockOf = (a0, a1, h, col) => {
+      box(a0, a1, BB0, BB1, 0, h, shade(col,1.06), col, shade(col,.78));
+      /* plinth and eaves */
+      F(a0, a1, 0, 26, shade(col,.66), null, 0, BB1+0.4);
+      slab(a0-8, a1+8, h, h+16, BB1+8, BB0-8, shade(col,.72), null, shade(col,1.1));
+    };
+    blockOf(WA, MA0, WH, wall);
+    blockOf(MA1, WB, WH, wall);
+    blockOf(MA0, MA1, H, brick);
+    /* windows: two storeys on the main block, one tall band on the wings */
+    const winRow = (a0, a1, z0, z1, n, col) => {
+      for(let k=0;k<n;k++){
+        const w0 = a0 + (a1-a0)*(k+0.14)/n, w1 = a0 + (a1-a0)*(k+0.86)/n;
+        F(w0-6, w1+6, z0-6, z1+6, shade(col,.72), null, 0, BB1+0.6);
+        F(w0, w1, z0, z1, glassT, null, 0, BB1+1.0);
+        for(let m=1;m<3;m++) F(w0 + (w1-w0)*m/3 - 3, w0 + (w1-w0)*m/3 + 3, z0, z1, shade(col,1.1), null, 0, BB1+1.4);
+        F(w0, w1, z1-6, z1, shade(col,1.12), null, 0, BB1+1.4);
+      }
+    };
+    winRow(WA+70, MA0-70, 60, 230, 5, wall);
+    winRow(MA1+70, WB-70, 60, 230, 5, wall);
+    winRow(MA0+90, MA1-90, 60, 210, 6, brick);
+    winRow(MA0+90, MA1-90, 270, 410, 6, brick);
+    /* the entrance: a recessed porch under a canopy, doors and a sign */
+    const EA0 = (MA0+MA1)/2 - 170, EA1 = (MA0+MA1)/2 + 170;
+    F(EA0, EA1, 0, 250, shade(brick,.62), null, 0, BB1+0.6);
+    for(const [d0,d1] of [[EA0+40, EA0+150],[EA1-150, EA1-40]]){
+      F(d0, d1, 10, 210, '#2b3138', null, 0, BB1+1.2);
+      F(d0+6, d1-6, 20, 200, 'rgba(150,190,206,.80)', null, 0, BB1+1.6);
+      F((d0+d1)/2-3, (d0+d1)/2+3, 10, 210, shade(wall,1.2), null, 0, BB1+2.0);
+    }
+    slab(EA0-24, EA1+24, 250, 272, BB1+70, BB1-2, trim, shade(trim,.72), shade(trim,1.15));
+    for(const ca of [EA0-10, EA1+10]) cyl(ca, BB1+58, 0, 250, 7, shade(wall,.9));
+    F(EA0+30, EA1-30, 286, 330, shade(brick,1.12), null, 0, BB1+0.8);
+    for(let k=0;k<7;k++) F(EA0+50+k*36, EA0+74+k*36, 296, 320, trim, null, 0, BB1+1.2);   // the name board
+    /* bellcote on the main roof, the way the elementary in Peddlers Square has one */
+    { const ba = (MA0+MA1)/2, bz = H + 16, bb0 = BB1 - 130, bb1 = BB1 - 20;
+      box(ba-56, ba+56, bb0, bb1, bz, bz+76, shade(wall,1.04), wall, shade(wall,.8));
+      F(ba-32, ba+32, bz+18, bz+60, '#2b3138', null, 0, bb1+0.6);
+      for(let k=0;k<3;k++) F(ba-32, ba+32, bz+24+k*12, bz+29+k*12, shade(wall,1.1), null, 0, bb1+1.0);
+      poly([P(ba-64, bb1+1, bz+76), P(ba, bb1+1, bz+112), P(ba+64, bb1+1, bz+76)], shade(trim,.95));
+      poly([P(ba-64, bb0, bz+76), P(ba, bb0, bz+112), P(ba+64, bb0, bz+76)], shade(trim,.7));
+      T(ba-64, ba+64, bb0, bb1+1, bz+76, shade(trim,1.05));
+      ball(ba, (bb0+bb1)/2, bz+122, 9, trim); }
+    if(state.roof){
+      for(const [ra, rb] of [[WA+300, -600],[MA1+400, -600]])
+        box(ra, ra+150, rb-60, rb, WH, WH+30, '#9aa0a6', '#7d838a', '#6a7076');
+      box(MA0+260, MA0+460, -700, -620, H, H+34, '#9aa0a6', '#7d838a', '#6a7076');
+    }
+
+    /* ---- THE RAILING, chain link with two gates and brick piers, along
+       the pavement and round both ends ---- */
+    const MESH = '#a8b0ae', POST = '#7d8785', FZ0 = 14, FZ1 = 150;
+    const GATES = [[2310, 2490], [6910, 7090]];
+    const mesh = (x0, y0, x1, y1) => {
+      const len = Math.hypot(x1-x0, y1-y0);
+      const pt = (t, z) => P(x0 + (x1-x0)*t, y0 + (y1-y0)*t, z);
+      poly([pt(0,FZ1), pt(1,FZ1), pt(1,FZ0), pt(0,FZ0)], 'rgba(206,214,212,.14)');
+      ctx.strokeStyle = MESH; ctx.lineWidth = 1.1;
+      const rise = (FZ1 - FZ0) * ZSCALE, step = 90;
+      for(let k = -2; k <= len/step + 2; k++) for(const dir of [1, -1]){
+        const s0 = k*step, s1 = s0 + dir*rise;
+        let u0 = 0, u1 = 1;
+        if(s1 !== s0){ const ua = (0 - s0)/(s1 - s0), ub = (len - s0)/(s1 - s0);
+          u0 = Math.max(0, Math.min(ua, ub)); u1 = Math.min(1, Math.max(ua, ub)); }
+        else if(s0 < 0 || s0 > len) continue;
+        if(u1 <= u0) continue;
+        const q0 = pt((s0 + (s1-s0)*u0)/len, FZ0 + (FZ1-FZ0)*u0);
+        const q1 = pt((s0 + (s1-s0)*u1)/len, FZ0 + (FZ1-FZ0)*u1);
+        ctx.beginPath(); ctx.moveTo(q0.x, q0.y); ctx.lineTo(q1.x, q1.y); ctx.stroke();
+      }
+      tube(x0, y0, FZ1, x1, y1, FZ1, 4, POST);
+      tube(x0, y0, FZ0, x1, y1, FZ0, 2.4, POST);
+      const n = Math.max(2, Math.round(len/380));
+      for(let k=0;k<=n;k++){ const t = k/n, xa = x0 + (x1-x0)*t, ya = y0 + (y1-y0)*t;
+        tube(xa, ya, 0, xa, ya, (k===0||k===n) ? 158 : 152, (k===0||k===n) ? 9 : 6.5, POST); }
+    };
+    { let cur = 0;
+      for(const [g0, g1] of GATES){ if(g0 - cur > 30) mesh(cur, -14, g0, -14); cur = g1; }
+      if(LEN - cur > 30) mesh(cur, -14, LEN, -14); }
+    mesh(14, -14, 14, -DEP+14); mesh(LEN-14, -14, LEN-14, -DEP+14);
+    for(const [g0, g1] of GATES){
+      for(const ga of [g0, g1]) box(ga-26, ga+26, -40, 0, 0, 200, shade(brick,1.08), brick, shade(brick,.8));
+      for(const ga of [g0, g1]) T(ga-30, ga+30, -44, 4, 204, shade(brick,.72));
+      mesh(g0+26, -14, g1-26, -14);
+    }
+    if(state.props){
+      /* trees on the grass ends, a flagpole by the west gate, benches */
+      for(const [ta, tb] of [[420,-300],[760,-620],[300,-760],[8700,-300],[9040,-640],[8600,-780]]){
+        cyl(ta, tb, 0, 70, 12, '#6d5a44');
+        ball(ta, tb, 120, 62, '#3f7a4a'); ball(ta-28, tb-16, 96, 42, '#4e8a56');
+      }
+      cyl(2260, -120, 0, 300, 6, '#c9ccd0');
+      poly([P(2260,-120,300), P(2260,-120,236), P(2400,-120,268)], '#c2452e');
+      for(const ba of [3000, 4700, 6400]){
+        box(ba-70, ba+70, -80, -52, 30, 40, '#8a6f4e', '#6f5a40', '#5a4834');
+        for(const la of [ba-58, ba+58]) box(la-6, la+6, -78, -54, 0, 30, '#6d747c', '#5d646b', '#4a4f55');
+      }
+    }
+    kerb(p,'none');
+  }
 }
 ];
