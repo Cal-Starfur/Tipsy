@@ -11055,34 +11055,100 @@ function packHoodShopEdge(edgeLen, list, start, whole){
   return list.map((lib, k) => { const u = { start: cur, w: ws[k], shop: { lib, name: lib } }; cur += ws[k]; return u; });
 }
 let _hsGrid = null, _hoodShops = null, _hoodShopEdges = null;
+/* ALLEYS (Sir, 2026-09-17: "every shop has a slight alley instead of being
+   butted up against one another"). Rows are packed flush first, exactly as
+   the table was planned. Then each edge with two or more shops spreads its
+   spare run into EQUAL gaps between them: the first shop stays on its
+   corner, the last one ends where the next edge's corner building begins
+   (or the charge depot, on a depot block), and every gap between is the
+   same. Whole-block buildings are untouched.
+   Guarded: if spreading any edge would make two footprints on the block
+   cross -- a deep building part-way along the next edge -- that block goes
+   back to flush rows and says so. */
+function hoodShopRect(e, u){
+  const d = hoodShopD(u.shop.lib), a0 = u.start, a1 = u.start + u.w;
+  const xs = [], ys = [];
+  for(const a of [a0, a1]) for(const b of [0, -d]){ xs.push(e.ox + e.dv.x*a + e.rv.x*b); ys.push(e.oy + e.dv.y*a + e.rv.y*b); }
+  return [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
+}
 function hoodShopsOf(grid){
   if(_hsGrid === grid && _hoodShops) return _hoodShops;
   _hsGrid = grid; _hoodShops = []; _hoodShopEdges = new Map();
   const byIJ = new Map(grid.blocks.map(b => [b.i + "," + b.j, b]));
   const taken = new Set(getPickupShops(grid).map(sh => sh.blockI + "," + sh.blockJ));
+  const perBlock = new Map();                  // key -> { blk, depot, whole, edges: {ei: units} }
   for(const [i, j, ei, list] of HOOD_SHOP_SITES){
     const key = i + "," + j, blk = byIJ.get(key);
     const bad = !blk ? "no block" : blk.type !== "commercial" ? "not commercial"
               : taken.has(key) ? "pickup block" : list.some(lib => !LIB.get(lib)) ? "shop not in LIB" : null;
     const e = blk && blockEdgesOf(blk)[ei];
     const whole = list.some(n => { const x = LIB.get(n); return !!(x && x.block); });
-    const start = (!whole && ei === 2 && typeof depotOnBlock === "function" && depotOnBlock(grid, blk)) ? 303.6 + 8 : 0;
+    const depot = !!(blk && typeof depotOnBlock === "function" && depotOnBlock(grid, blk));
+    const start = (!whole && ei === 2 && depot) ? 303.6 + 8 : 0;
     const units = !bad ? packHoodShopEdge(e.len, list, start, whole) : null;
     if(bad || !units){
       try { console.warn("hood shop site " + key + "/" + ei + " skipped: " + (bad || "shops do not fit the edge")); } catch(err){}
       continue;
     }
-    _hoodShopEdges.set(key + "/" + ei, units);
-    const hoodIndex = Math.floor(i / DISTRICT_W) + Math.floor(j / DISTRICT_H) * DISTRICT_COLS;
-    for(const u of units){
-      if(!u.shop) continue;
-      /* THE PIN IS ON THE PAVEMENT at the middle of the frontage: rv
-         points out of the block, so +rv is the footway in front of the
-         glass. The GPS line ends there, where he would pull up. */
-      const PAVE = 70, am = u.start + u.w/2;
-      _hoodShops.push({ key: key + "/" + ei + "/" + u.start.toFixed(0), blockKey: key, edge: ei, hoodIndex,
-                        lib: u.shop.lib, name: u.shop.name, icon: hoodShopIcon(u.shop.lib),
-                        x: e.ox + e.dv.x*am + e.rv.x*PAVE, y: e.oy + e.dv.y*am + e.rv.y*PAVE });
+    if(!perBlock.has(key)) perBlock.set(key, { blk, depot, whole: false, edges: {} });
+    const pb = perBlock.get(key); pb.edges[ei] = units; if(whole) pb.whole = true;
+  }
+  for(const [key, pb] of perBlock){
+    const { blk } = pb, E = blockEdgesOf(blk);
+    if(!pb.whole){
+      const rectsOf = () => {
+        const R = [];
+        for(const ei in pb.edges) for(const u of pb.edges[ei]) R.push([+ei, hoodShopRect(E[ei], u), u.shop.lib]);
+        if(pb.depot) R.push([-1, [blk.x1 - 303.6, blk.x1 - 8, blk.y1 - 276, blk.y1], "depot"]);
+        return R;
+      };
+      const crosses = () => {
+        const R = rectsOf();
+        for(let a = 0; a < R.length; a++) for(let c = a + 1; c < R.length; c++){
+          const A = R[a], C = R[c];
+          if(A[0] !== C[0] && A[1][0] < C[1][1] - 0.5 && C[1][0] < A[1][1] - 0.5 && A[1][2] < C[1][3] - 0.5 && C[1][2] < A[1][3] - 0.5)
+            return A[2] + " x " + C[2];
+        }
+        return null;
+      };
+      /* one edge at a time, so a single edge that cannot take alleys (its
+         last shop would meet a deep building on the next edge) stays flush
+         without costing the rest of the block theirs */
+      for(const ei of Object.keys(pb.edges).map(Number)){
+        const units = pb.edges[ei], n = units.length;
+        if(n < 2) continue;
+        const next = pb.edges[(ei + 1) % 4], e = E[ei];
+        /* the run ends where the next edge's buildings reach back into this
+           edge's depth band: any of them starting nearer the corner than this
+           row is deep (on a depot block that is not the first one) */
+        const myD = Math.max(...units.map(u => hoodShopD(u.shop.lib)));
+        let end = e.len;
+        if(next) for(const v of next) if(v.start < myD) end = Math.min(end, e.len - hoodShopD(v.shop.lib));
+        if(pb.depot && ei === 1) end = Math.min(end, e.len - 276 - 8);
+        const last = units[n - 1], spare = end - (last.start + last.w);
+        if(spare <= 1) continue;
+        const was = units.map(u => u.start), gap = spare / (n - 1);
+        units.forEach((u, k) => { u.start += k * gap; });
+        const hit = crosses();
+        if(hit){
+          units.forEach((u, k) => { u.start = was[k]; });
+          try { console.warn("hood shop " + key + "/" + ei + ": no alleys, " + hit); } catch(err){}
+        }
+      }
+    }
+    const hoodIndex = Math.floor(blk.i / DISTRICT_W) + Math.floor(blk.j / DISTRICT_H) * DISTRICT_COLS;
+    for(const ei of Object.keys(pb.edges).map(Number)){
+      const units = pb.edges[ei], e = E[ei];
+      _hoodShopEdges.set(key + "/" + ei, units);
+      for(const u of units){
+        /* THE PIN IS ON THE PAVEMENT at the middle of the frontage: rv
+           points out of the block, so +rv is the footway in front of the
+           glass. The GPS line ends there, where he would pull up. */
+        const PAVE = 70, am = u.start + u.w/2;
+        _hoodShops.push({ key: key + "/" + ei + "/" + u.start.toFixed(0), blockKey: key, edge: ei, hoodIndex,
+                          lib: u.shop.lib, name: u.shop.name, icon: hoodShopIcon(u.shop.lib),
+                          x: e.ox + e.dv.x*am + e.rv.x*PAVE, y: e.oy + e.dv.y*am + e.rv.y*PAVE });
+      }
     }
   }
   return _hoodShops;
