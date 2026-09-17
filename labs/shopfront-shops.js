@@ -14582,5 +14582,98 @@ const SHOPS = [
     }
     kerb(p,'none');
   }
+},
+{
+  name:'Roadblock', road:true, zs:1, ww: 736, dd: 70,
+  head:'Hood border: the street is closed until you own what is past it',
+  tags:['three A-frame barricades','padlock sign','amber lamps','kerb cones'],
+  desc:'Stands across a street mouth where the hood you are in meets one you have not bought. 736 is the road curb to curb (ROAD_HALF x 2 plus the two curbs), so one entry closes one street; the lock line beside it is the kerb, and the kerb already stops wheels. Striped boards face the way you approach, a yellow padlock sign on the middle frame says why, and a lamp on each end frame reads at night.',
+  vol: {
+    foot: [[0,0],[736,0],[736,-70],[0,-70]], h: 0,      // no mass: open road under it
+    opens: [{ name:'road', poly: [[0,0],[736,0],[736,-70],[0,-70]], walk:true, see:'always', h:0 }],
+    solids: [
+      /* THE CLOSURE is one volume across the whole mouth, not three boxes
+         with gaps between the frames -- a robot must not thread it */
+      { name:'barricade', poly: [[0,-44],[736,-44],[736,-26],[0,-26]], h: 96 },
+      { name:'cone L', c:[22,-20], r:17, h:54, prop:true },      // the rubber base is the footprint
+      { name:'cone R', c:[714,-20], r:17, h:54, prop:true }
+    ],
+    zones: [{ name:'lock', kind:'hood-lock', poly: [[0,0],[736,0],[736,-70],[0,-70]] }],
+    marks: { centre: [368, -35] }
+  },
+  draw(p){
+    const ORANGE = '#f26a1b', WHITE = '#f4f1ea', STEEL = '#8b939b', YEL = '#ffc72c', INK = '#1d2024';
+    const B0 = -39, B1 = -31;                        // board depth
+    /* which board face turns to the eye -- the test box() uses, so the
+       stripes land on the visible face on all four block edges */
+    const faceB = P(0, B1, 0).y - P(0, B0, 0).y > 0 ? B1 : B0;
+    const stripes = (a0, a1, z0, z1) => {
+      box(a0, a1, B0, B1, z0, z1, shade(WHITE,.92), WHITE, shade(WHITE,.8));
+      const w = 26, h = z1 - z0;
+      for(let x = a0 - h; x < a1; x += w*2){
+        const q = [[x, z0], [x + w, z0], [x + w + h, z1], [x + h, z1]]
+          .map(([aa, zz]) => [Math.max(a0, Math.min(a1, aa)), zz]);
+        /* clip the parallelogram to the board by its a-range: an edge
+           that runs past a0/a1 is pinned there, which keeps each stripe
+           inside the board without a clip path */
+        if(q[1][0] - q[0][0] < 0.5 && q[2][0] - q[3][0] < 0.5) continue;
+        poly(q.map(([aa, zz]) => P(aa, faceB, zz)), ORANGE);
+      }
+    };
+    const frame = (c, wid) => {
+      const a0 = c - wid/2, a1 = c + wid/2;
+      for(const aa of [a0 + 14, a1 - 14]){           // A-frame legs, splayed across the board
+        tube(aa, B0 - 22, 0, aa, (B0 + B1)/2, 100, 3.2, STEEL);
+        tube(aa, B1 + 22, 0, aa, (B0 + B1)/2, 100, 3.2, shade(STEEL,1.08));
+      }
+      stripes(a0, a1, 40, 58);
+      stripes(a0, a1, 72, 90);
+    };
+    frame(126, 228); frame(368, 228); frame(610, 228);
+    /* lamps on the end frames */
+    for(const aa of [26, 710]){ cyl(aa, (B0+B1)/2, 90, 100, 5, INK); ball(aa, (B0+B1)/2, 107, 8, '#ffb000', '#fff1b0'); }
+    /* the padlock sign, a yellow diamond on the middle frame's top */
+    const zc = 132, R = 34, sb = faceB + (faceB === B1 ? 2 : -2);
+    tube(368, sb, 90, 368, sb, zc - R + 4, 3, STEEL);
+    poly([P(368, sb, zc + R), P(368 + R, sb, zc), P(368, sb, zc - R), P(368 - R, sb, zc)], YEL, INK, 1.6);
+    /* padlock: shackle as a thick arc of tube, body as a plate */
+    const sh = [];
+    for(let i = 0; i <= 8; i++){ const t = Math.PI * i/8; sh.push([368 + 9*Math.cos(t), zc + 2 + 11*Math.sin(t)]); }
+    for(let i = 0; i < sh.length - 1; i++) tube(sh[i][0], sb, sh[i][1], sh[i+1][0], sb, sh[i+1][1], 2.4, INK);
+    poly([P(355, sb, zc + 3), P(381, sb, zc + 3), P(381, sb, zc - 17), P(355, sb, zc - 17)], INK);
+    poly([P(366, sb, zc - 4), P(370, sb, zc - 4), P(370, sb, zc - 11), P(366, sb, zc - 11)], YEL);
+    /* KERB CONES, round. They were a flat card on one plane (Sir: "the
+       cones have no volume"). A frustum is cyl() with a different radius
+       at each rim: the silhouette is the lit half-sweep plateSweep picks,
+       so it is a cone on all four block edges, and its two sides are
+       shaded so it reads as turning. */
+    const cone = (a, b, z0, z1, r0, r1, col) => {
+      const N = 16, { ts, dir } = plateSweep(a, b, z0);
+      const rim = (i, z, r) => { const t = ts + dir*Math.PI*i/N; return P(a + r*Math.cos(t), b + r*Math.sin(t), z); };
+      const half = (i0, i1, c) => {
+        const pts = [];
+        for(let i = i0; i <= i1; i++) pts.push(rim(i, z0, r0));
+        for(let i = i1; i >= i0; i--) pts.push(rim(i, z1, r1));
+        poly(pts, c);
+      };
+      /* light from the left on every cone: the lit half is whichever
+         half sits further left on screen, not whichever the sweep starts on */
+      const leftFirst = rim(N/4, z0, r0).x < rim(3*N/4, z0, r0).x;
+      half(0, N/2, leftFirst ? col : shade(col, .78));
+      half(N/2, N, leftFirst ? shade(col, .78) : col);
+      const out = []; for(let i = 0; i <= N; i++) out.push(rim(i, z0, r0));
+      for(let i = N; i >= 0; i--) out.push(rim(i, z1, r1));
+      poly(out, null, shade(col, .62), 1);
+    };
+    if(state.props) for(const aa of [22, 714]){
+      const bc = -20;
+      box(aa - 17, aa + 17, bc - 17, bc + 17, 0, 5, shade(INK,1.5), shade(INK,1.2), INK);
+      const rz = z => 14 - (z - 5) * (14 - 2.5) / (54 - 5);     // radius at height z
+      cone(aa, bc, 5, 18, rz(5), rz(18), ORANGE);
+      cone(aa, bc, 18, 31, rz(18), rz(31), WHITE);                // reflective band
+      cone(aa, bc, 31, 54, rz(31), rz(54), ORANGE);
+      plateCircle(aa, bc, 54, rz(54), shade(ORANGE, 1.15), shade(ORANGE, .7), 1);
+    }
+  }
 }
 ];
