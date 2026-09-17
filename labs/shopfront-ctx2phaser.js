@@ -109,6 +109,14 @@ function makeCtx2Phaser(){
               m[0]*c + m[2]*d,        m[1]*c + m[3]*d,
               m[0]*e + m[2]*f + m[4], m[1]*e + m[3]*f + m[5] ];
     },
+    /* scale -- The Tide Gazette's clock (Newspaper HQ) calls it, and this
+       emulator had no such method, so that body threw on its first frame
+       here while the canvas lab, a real 2D context, drew it happily.
+       scale(x, y) is transform(x, 0, 0, y, 0, 0). */
+    scale(x, y){
+      const m = S.m;
+      S.m = [ m[0]*x, m[1]*x, m[2]*y, m[3]*y, m[4], m[5] ];
+    },
 
     /* ---- path ---- */
     beginPath(){ S.subs = []; S.cur = null; },
