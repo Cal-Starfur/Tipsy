@@ -4,6 +4,7 @@ import {
   TS_CLAIMABLE_TROPHIES,
   TS_CONTINUE_CENTS,
   TS_MISSIONS,
+  TS_HOODS,
   TS_SKINS,
   type TsMissionState,
 } from './tpcatalog.ts'
@@ -155,6 +156,12 @@ function tpProfileKey(username: string): string {
  *  every read instead of paying for a field on every single user. */
 function tpOwnedKey(username: string): string {
   return `tipsy:global:tpowned:${username}`
+}
+/** One hash field per owned hood index, value '1' -- same presence
+ *  idiom as tpOwnedKey. Hood 0 (The Flats) is never written; it's
+ *  implicitly owned and dbGetTpProfile adds it back on every read. */
+function tpHoodsKey(username: string): string {
+  return `tipsy:global:tphoods:${username}`
 }
 
 /** One hash field per side mission, value = the best count recorded.
@@ -448,6 +455,13 @@ export async function dbGetTpProfile(username: string): Promise<TpProfileRsp> {
   ])
   const walletCents = parseInt(profile.walletCents ?? '0', 10) || 0
   const equipped = profile.equipped || 'classic'
+  const [hoodsRaw, deliveries] = await Promise.all([
+    redis.hGetAll(tpHoodsKey(username)),
+    dbGetDeliveries(username, profile.deliveries),
+  ])
+  const hoodsOwned = [0, ...Object.keys(hoodsRaw ?? {})
+    .map(k => parseInt(k, 10)).filter(i => TS_HOODS[i] !== undefined)]
+    .sort((x, y) => x - y)
   /* missions ships on the profile rather than its own endpoint so a
      player who cleared the course on their phone sees the trophy card
      filled in on desktop -- the client merges this into its local
@@ -456,6 +470,8 @@ export async function dbGetTpProfile(username: string): Promise<TpProfileRsp> {
     walletCents,
     owned: ['classic', ...Object.keys(ownedRaw)],
     equipped,
+    hoodsOwned,
+    deliveries,
     missions,
     followBonusClaimed: profile.followBonus === '1',
     failPending: gate.pending,
@@ -621,6 +637,51 @@ export async function dbPurchaseSkin(
   }
   await redis.hSet(tpOwnedKey(username), {[skinId]: '1'})
   await redis.hSet(key, {equipped: skinId})
+  return {ok: true, profile: await dbGetTpProfile(username)}
+}
+
+/** Lifetime delivery count behind the hood store's unlock tiers. Lives
+ *  in tpProfileKey's `deliveries` field and is bumped by dbSubmitScore
+ *  once per completed today's-route delivery (the same event the client
+ *  counts in tpBankDayTip). A profile that predates the field is seeded
+ *  ONCE from its history -- one entry per day delivered, so an
+ *  undercount, never a free unlock -- via hSetNX, so a delivery landing
+ *  in between is never overwritten. */
+async function dbGetDeliveries(username: string, stored: string | undefined): Promise<number> {
+  if (stored !== undefined) return parseInt(stored, 10) || 0
+  const days = Object.keys((await redis.hGetAll(historyKey(username))) ?? {}).length
+  const key = tpProfileKey(username)
+  await redis.hSetNX(key, 'deliveries', String(days))
+  return parseInt((await redis.hGet(key, 'deliveries')) ?? '0', 10) || 0
+}
+
+/** Server-authoritative hood purchase (Sir, 2026-09-16: hybrid unlock).
+ *  Order matters and each step is the cheap refusal before the costly
+ *  one: known hood -> not already owned (a retry must not charge twice)
+ *  -> delivery requirement met (from the server's own count, never the
+ *  client's) -> debit with dbPurchaseSkin's atomic
+ *  deduct-then-refund-if-negative -> grant. */
+export async function dbPurchaseHood(
+  username: string,
+  hoodIndex: number,
+): Promise<{ok: true; profile: TpProfileRsp} | {ok: false; error: string}> {
+  const idx = typeof hoodIndex === 'number' && Number.isInteger(hoodIndex) ? hoodIndex : -1
+  const h = TS_HOODS[idx]
+  if (!h) return {ok: false, error: `unknown hood: ${hoodIndex}`}
+  if ((await redis.hGet(tpHoodsKey(username), String(idx))) !== undefined) {
+    return {ok: false, error: `${h.name} already owned`}
+  }
+  const key = tpProfileKey(username)
+  const deliveries = await dbGetDeliveries(username, await redis.hGet(key, 'deliveries'))
+  if (deliveries < h.deliveries) {
+    return {ok: false, error: `${h.name} needs ${h.deliveries} deliveries (have ${deliveries})`}
+  }
+  const newBalance = await redis.hIncrBy(key, 'walletCents', -h.priceCents)
+  if (newBalance < 0) {
+    await redis.hIncrBy(key, 'walletCents', h.priceCents) // refund
+    return {ok: false, error: 'insufficient funds'}
+  }
+  await redis.hSet(tpHoodsKey(username), {[String(idx)]: '1'})
   return {ok: true, profile: await dbGetTpProfile(username)}
 }
 
@@ -828,6 +889,10 @@ export async function dbSubmitScore(
   // tpProfileKey) so a later purchase can spend it without touching
   // the leaderboard's immutable lifetime figure.
   await redis.hIncrBy(tpProfileKey(username), 'walletCents', tipCents)
+  // Hood store: one lifetime delivery per completed today's-route run.
+  // Seed first so an old profile's history backfill lands before the +1.
+  await dbGetDeliveries(username, await redis.hGet(tpProfileKey(username), 'deliveries'))
+  await redis.hIncrBy(tpProfileKey(username), 'deliveries', 1)
 
   // Bookkeeping only — keeps today's result available in Past Routes
   // once the day rolls over. Does not affect the unconditional add
@@ -954,6 +1019,7 @@ export async function dbRemoveUser(username: string): Promise<void> {
     redis.del(historyKey(username)),
     redis.del(tpProfileKey(username)),
     redis.del(tpOwnedKey(username)),
+    redis.del(tpHoodsKey(username)),
     /* milestone-announce ledger: same user-scoped lifetime as the two
        keys above, so it has to be dropped here or a deleted account
        would leave a record of what it once unlocked. */
