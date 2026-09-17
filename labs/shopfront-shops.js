@@ -753,7 +753,13 @@ const DEPOT_GEOM = (() => {
      the drawn plane plus enough to be solid. */
   const CHWALL = 1;
   const CHPAD = 46;
-  const MAT = { k0:-26, k1:-102 };                         // mat, outward of the chamfer
+  /* THE WHOLE CORNER (Sir: "we want it bigger so it hits the edge of the
+     depot and covers all of that corner"). t0..t1 is the base across the
+     chamfer -- the full width of it now, jamb to jamb rather than inside
+     the bollards -- and k1 is the corner itself: cpt(0.5, -106) is
+     (295.55, -0.05), the square corner at (WW, 0). k0 is 4 off the wall,
+     so the wedge starts at the building and ends at the point. */
+  const MAT = { k0:-4, k1:-106, t0:0, t1:1 };               // mat, outward of the chamfer
   const BOLL = { k:-16, r:11, h:54 };                      // threshold bollards
   const R2 = Math.SQRT1_2, CA0 = WW - CW;
   const cpt = (t, k) => [CA0 + t*CW - (k||0)*R2, -t*CW - (k||0)*R2];
@@ -791,7 +797,7 @@ const DEPOT_GEOM = (() => {
          only pavement the door faces. So the trigger is that shape: a base
          across the doorway MAT.k0 out, and a point at the corner, MAT.k1
          out, instead of a rectangle that had to stop short of both. */
-      { name:'mat',  kind:'trigger', poly:[cpt(TA,MAT.k0), cpt(TB,MAT.k0), cpt(0.5,MAT.k1)] },
+      { name:'mat',  kind:'trigger', poly:[cpt(MAT.t0,MAT.k0), cpt(MAT.t1,MAT.k0), cpt(0.5,MAT.k1)] },
       { name:'pad back', kind:'charge', c: PADS.back, r: 44 },         // CHARGE.padR
       { name:'pad left', kind:'charge', c: PADS.left, r: 44 },
       /* the door opens while he is in here (or in the room): 10 inside the
@@ -14437,14 +14443,14 @@ const SHOPS = [
        the thing you drive INTO. The lab drives its state off doorT so
        the relationship is visible: amber while the door is shut, green
        once it is moving. */
-    if(PT('door')) { const TA = DOOR[0] + 0.02, TB = DOOR[1] - 0.02, K0 = DEPOT_GEOM.MAT.k0, K1 = DEPOT_GEOM.MAT.k1;
+    if(PT('door')) { const TA = DEPOT_GEOM.MAT.t0, TB = DEPOT_GEOM.MAT.t1, K0 = DEPOT_GEOM.MAT.k0, K1 = DEPOT_GEOM.MAT.k1;
       const on = ((typeof state.doorT === 'number') ? state.doorT : 1) > 0.02;
       const tone = on ? '#7ee081' : '#ffb25a';
       /* A WEDGE, NOT A RECTANGLE: base across the doorway, point at the
          corner (see THE MAT IS THE CORNER WEDGE in DEPOT_GEOM). Drawn from
          the same three points the trigger zone uses, so what he drives
          onto and what opens the door cannot drift apart. */
-      const TIP = [0.5, K1], BL = [TA, K0], BR = [TB, K0];
+      const TIP = [0.5, K1], BL = [TA, K0], BR = [TB, K0];   // jamb, jamb, corner
       poly([cpt(BL[0],BL[1]), cpt(BR[0],BR[1]), cpt(TIP[0],TIP[1])].map(q => P3(q, 0.7)), 'rgba(20,24,28,.30)');
       poly([cpt(BL[0]+0.018, BL[1]-8), cpt(BR[0]-0.018, BR[1]-8), cpt(TIP[0], TIP[1]+14)].map(q => P3(q, 0.9)), '#2f3740');
       /* the rim: three bands along the three sides, so it reads by SHAPE
