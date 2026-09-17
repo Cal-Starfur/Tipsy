@@ -152,3 +152,37 @@ export const TS_CLAIMABLE_TROPHIES: Record<
     check: (_h, _t, missions) => tsMissionComplete(missions, 'cone-slalom'),
   },
 }
+
+/** Server-side mirror of HOOD_TIERS / HOOD_TIER_OF in game/index.html
+ *  (search "THE HOOD STORE"). Same doctrine as TS_SKINS: price AND the
+ *  unlock requirement are never taken from the client. Hybrid unlock
+ *  (Sir, 2026-09-16): a hood is buyable once the player's lifetime
+ *  delivery count reaches its tier's `deliveries`, and owned once paid
+ *  for from the wallet. Index = HOODS index. Hood 0 (The Flats) is the
+ *  starting hood -- owned by everyone, never sold, never stored.
+ *  Must change in the same commit as the client table. */
+export type TsHoodDef = {name: string; tier: number; deliveries: number; priceCents: number}
+const TS_HOOD_TIERS: Record<number, {deliveries: number; priceCents: number}> = {
+  1: {deliveries: 10, priceCents: 5000},
+  2: {deliveries: 30, priceCents: 15000},
+  3: {deliveries: 60, priceCents: 40000},
+  4: {deliveries: 100, priceCents: 90000},
+}
+const hood = (name: string, tier: number): TsHoodDef => {
+  const t = TS_HOOD_TIERS[tier]
+  if (!t) throw new Error(`TS_HOODS: no tier ${tier}`)
+  return {name, tier, ...t}
+}
+export const TS_HOODS: Record<number, TsHoodDef> = {
+  1: hood('Boardwalk', 1),
+  2: hood('Old Town', 1),
+  3: hood('Scooter Row', 2),
+  4: hood('University', 3),
+  5: hood('Warehouse Dist.', 3),
+  6: hood('Sunset Terrace', 3),
+  7: hood('The Bluffs', 4),
+  8: hood('Meridian Hts.', 4),
+  9: hood('Market Dist.', 2),
+  10: hood('Little Harbor', 2),
+  11: hood('Palm Gardens', 1),
+}
