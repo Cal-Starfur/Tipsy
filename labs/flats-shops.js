@@ -985,7 +985,7 @@ const SHOPS = [
   }
 },
 {
-  name:'Tidewater Tea House', xh: 288, base:'Tea house', hood:'The Flats', edited:true, sc:1.3, ww: T2*4.4, boff: 60,
+  name:'Tidewater Tea House', xh: 288, base:'Tea house', hood:'The Flats', edited:true, sc:1.3, ww: T2*4.4, boff: 60, porch: 212,
   /* FRONT ON THE LINE, WALKWAY OUT TO THE KERB (Sir: "i want the front of
      it in line with the other shops and the awning to be further out onto
      the sidewalk ... lets just move it to the edge where it belongs").
@@ -1220,6 +1220,21 @@ const SHOPS = [
       }
     };
 
+    /* ---- TWO PARTS, BECAUSE THE WALKWAY IS OUT ON THE PAVEMENT ----
+       (Sir, on-device: "tipsey is drawing over the posts".) A shop is one
+       queue entry keyed at its own centre, which is fine while all of it
+       stands behind the glass line. This one's colonnade is 272 out on
+       the footway, and Tipsey drives UNDER it: from one key he is always
+       in front of the whole building, so he painted over the columns he
+       was standing behind.
+         So the entry draws in parts, the way the depot does:
+           body   everything from the wall out to the colonnade line
+           porch  the lower eave, columns, beam, brackets and lanterns
+       The game queues them separately, the porch keyed on the column
+       line, so each sorts against the robot on its own terms. 'all' --
+       the lab -- draws both, in this order. */
+    const PART = state.part || 'all';
+    if(PART !== 'porch'){
     /* ---- the main roof, over the building ---- */
     F(BA0, BA1, 0, H, wall, null, 0, FB);             // front wall
     F(BA0, BA1, 0, 18, shade(wall,.78), null, 0, FB+0.4); // base course
@@ -1314,6 +1329,8 @@ const SHOPS = [
        hit seven times. Ordering by depth only works for objects that
        HAVE a depth; an object spanning a range has to be cut where the
        things it interleaves with sit. */
+    }   // end body
+    if(PART !== 'body'){
     tier([[CB,216],[120,228],[32,242],[FB,264]], tile, false);   // the profile stretches with it: 30 -> 120, -14 -> 32
 
     /* ---- the colonnade ---- */
@@ -1377,6 +1394,7 @@ const SHOPS = [
     /* the last 28 of eave, with its fascia and corners, in front of the
        colonnade it lands on */
     tier([[EB,210],[CB,216]], tile, true, 32, CB);
+    }   // end porch
     kerb(p,'none');
   },
   back(p){
