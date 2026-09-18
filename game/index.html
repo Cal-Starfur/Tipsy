@@ -35634,7 +35634,13 @@ class WorldScene extends Phaser.Scene {
          to stop ROAD_HALF short of the node, which left the gutter open
          from there to the crossing. It now ends where the corner arc is
          tangent to it, and kerbCorner() below closes the quadrant. */
-      const KR = KERB_ARC_R, TANG = ROAD_HALF + CURB_W + KR;
+      /* WHERE THE ARC ACTUALLY ENDS (Sir, on-device, with the joins drawn
+         on the photo). The corner sweep is centred ROAD_HALF + KERB_ARC_R
+         in along BOTH axes, so it is tangent to this run at exactly that
+         distance from the node -- not CURB_W further, which is what this
+         used and which left a 46 gap between the arc and the straight
+         kerb at every corner, gutter included. */
+      const KR = KERB_ARC_R, TANG = ROAD_HALF + KR;
       const runLen = Math.hypot(edge.b.x - edge.a.x, edge.b.y - edge.a.y) - 2*TANG;
       const sx = edge.a.x + dv.x*TANG, sy = edge.a.y + dv.y*TANG;
       const len = runLen;
@@ -35769,7 +35775,10 @@ class WorldScene extends Phaser.Scene {
              band between the pad and the road, which is exactly the wall
              the ramp exists to remove: the drop now runs to nothing over
              the flare and the pad's own width carries no kerb at all. */
-          const FL = 64;
+          /* THE OPENING IS THE PAD, near enough: short flares, so the
+             white kerb is broken only across the yellow square rather
+             than for a pad's width either side of it. */
+          const FL = 22;
           const f0 = Math.max(cur, c0 - FL), f1 = Math.min(len, c1 + FL);
           if(f0 - cur > 1) kerbRun(sgn, cur, f0, KERB_H, KERB_H);
           if(c0 - f0 > 1) kerbRun(sgn, f0, c0, KERB_H, 0);
