@@ -45598,9 +45598,25 @@ class WorldScene extends Phaser.Scene {
        most screen pixels (Sir's report, 2026-08-13). Gated on _slAPI so
        delivery and the hydrant jump keep the original feel untouched. */
     const camVmul = (this._slAPI && this._slAPI.SL && this._slAPI.SL.vmul) || 1;
-    this.camX = Phaser.Math.Linear(this.camX, camTargetX, 0.08 * camVmul);
-    this.camY = Phaser.Math.Linear(this.camY, camTargetY, 0.06 * camVmul);
-    this.camZ = Phaser.Math.Linear(this.camZ, camTargetZ, 0.08 * camVmul);
+    /* EASE PER MILLISECOND, NOT PER FRAME (Sir on-device, 2026-09-17:
+       "everything moves while i move", screen recording). The recording
+       shows the iPad presenting frames on an uneven 1/60 - 1/30 s cadence,
+       and on every one of them the city stepped the SAME 2-3 px. The
+       robot already moves by real dt (see realDt), but these three eases
+       were fixed fractions per FRAME -- so on a long frame Tipsey went
+       twice as far while the camera caught up the same amount, and on a
+       short one the reverse. The world shuddered against him every frame
+       the device dropped one.
+
+       rate^(dt/16.667) is the exact per-frame rate at 60fps, so on a
+       steady 60 this camera is byte-for-byte the one it replaces --
+       same lead, same lag, same framing. It only stops the camera's
+       catch-up from depending on how long the last frame took. */
+    const camF = (dt || 16.667) / 16.667;
+    const camA = (r) => 1 - Math.pow(1 - Math.min(r, 1), camF);
+    this.camX = Phaser.Math.Linear(this.camX, camTargetX, camA(0.08 * camVmul));
+    this.camY = Phaser.Math.Linear(this.camY, camTargetY, camA(0.06 * camVmul));
+    this.camZ = Phaser.Math.Linear(this.camZ, camTargetZ, camA(0.08 * camVmul));
 
     /* the "?!" of a machine confronting a tree */
     if(this.stuckAmt > 0.5 && this.state === "play"){
