@@ -4878,6 +4878,20 @@ const SHOPS = [
   head:'Kiosk on one slot, forecourt lot on the other',
   tags:['two packing slots','forecourt is a side lot, not the pavement','pump island','pumps turned side-on','laid out on one grid'],
   desc:'The kiosk takes the first slot and the second is an open lot the same depth as the building, with the canopy, its posts and the pump island all set out from the lot rectangle rather than placed by eye.',
+  /* THE FORECOURT IS DRIVABLE (Sir, on-device: "its open to the gas
+     pumps i shouldnt be hitting a wall"). Without a declaration the whole
+     lot was one solid box, so the open forecourt stopped him at the
+     pavement line. Declared from the same set-out draw() uses: the kiosk
+     is the only mass (a 0..KW by the shop's depth), and the pump island
+     -- the kerb the posts and pumps stand on -- is the one thing on the
+     forecourt he can hit. The canopy is overhead, so it is not here. */
+  vol: {
+    foot:   [[0,0],[180,0],[180,-T2*3],[0,-T2*3]],
+    h:      152,
+    solids: [{ name:'island', h: 9,
+               poly: [[(180+T2*4.4)/2-26, -T2*3*0.76], [(180+T2*4.4)/2+26, -T2*3*0.76],
+                      [(180+T2*4.4)/2+26, -T2*3*0.24], [(180+T2*4.4)/2-26, -T2*3*0.24]] }]
+  },
   draw(p){
     /* ============ THE FLATS PASS (2026-09-17) ============
        Seabreeze Fuel. Red trim goes sea green.
