@@ -23809,10 +23809,25 @@ const TIDEWATER_MUSEUM = (() => {
     const WW = T2*4.4, KW = 180;
     const LA0 = 180, LA1 = WW, LB = -T2*3;
     const wall = '#e6e8e6', trim = '#2f9e8f', H = 152;
-    /* the forecourt first: canopy, pumps and island stand beyond the kiosk
-       wall on this side, and the kiosk's rear is nearer the eye */
+    /* THE KIOSK FIRST, THEN THE FORECOURT (Sir, on-device: "the kiosk seems
+       to be stacked on the canopy"). This used to draw the forecourt first
+       on the reasoning that the kiosk's rear is nearer the eye -- true in b,
+       but the kiosk and the forecourt sit side by side ALONG the frontage,
+       and on both away edges the mirror rule puts the kiosk's end (a 0..KW)
+       at the far end from the camera: the canopy and pumps are nearer. So
+       the kiosk painted over its own canopy. The apron is ground and still
+       goes down before everything. */
     T(LA0, LA1, 0, LB, 0.4, '#d6d8d6');
     for(let i=1;i<4;i++) T(LA0, LA1, LB*i/4-0.8, LB*i/4+0.8, 0.6, '#c6c9c6');
+    rearBody(wall, trim, H, KW, D, '#b9bfbc');
+    rearParapet(0, KW, H, 10, 10, trim);
+    rearDoor(120, wall, trim);
+    rearWindow(30, 66, 80, 118, wall);
+    depthSort([
+      { a: 40, b: -D-32, z: 0, draw: () => wheelieBin(40, '#3f6b4a') },
+      { a: 150, b: -D-33, z: 0, draw: () => crateStack(150, '#b08d55', 2) }
+    ]);
+    if(state.roof) box(40, 128, -150, -110, H, H+22, '#9aa0a6','#7d838a','#6a7076');
     const cA0 = LA0+8, cA1 = LA1-8, cb0 = -8, cb1 = LB+8;
     const iC = (LA0+LA1)/2;
     box(iC-26, iC+26, LB*0.76, LB*0.24, 0, 9, '#c6c9c6','#b4b8b4','#a2a6a2');
@@ -23830,15 +23845,6 @@ const TIDEWATER_MUSEUM = (() => {
     T(cA0, cA1, cb1, cb0, CZ, '#f2f2f0');
     slab(cA0, cA1, CZ-18, CZ, cb1, cb0, '#f2f2f0', shade('#f2f2f0',.82), '#f2f2f0');
     F(cA0, cA1, CZ-18, CZ-12, trim, null, 0, cb1-0.6);
-    rearBody(wall, trim, H, KW, D, '#b9bfbc');
-    rearParapet(0, KW, H, 10, 10, trim);
-    rearDoor(120, wall, trim);
-    rearWindow(30, 66, 80, 118, wall);
-    depthSort([
-      { a: 40, b: -D-32, z: 0, draw: () => wheelieBin(40, '#3f6b4a') },
-      { a: 150, b: -D-33, z: 0, draw: () => crateStack(150, '#b08d55', 2) }
-    ]);
-    if(state.roof) box(40, 128, -150, -110, H, H+22, '#9aa0a6','#7d838a','#6a7076');
   }
 },
 {
