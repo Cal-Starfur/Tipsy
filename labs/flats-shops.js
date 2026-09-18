@@ -985,7 +985,7 @@ const SHOPS = [
   }
 },
 {
-  name:'Tidewater Tea House', xh: 288, base:'Tea house', hood:'The Flats', edited:true, sc:1.3, ww: T2*4.4, boff: 60, porch: 212,
+  name:'Tidewater Tea House', xh: 288, base:'Tea house', hood:'The Flats', edited:true, sc:1.3, ww: T2*4.4, boff: 60, porch: 212, fd: 268,
   /* FRONT ON THE LINE, WALKWAY OUT TO THE KERB (Sir: "i want the front of
      it in line with the other shops and the awning to be further out onto
      the sidewalk ... lets just move it to the edge where it belongs").
