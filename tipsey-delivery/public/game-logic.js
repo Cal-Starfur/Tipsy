@@ -7558,7 +7558,16 @@ const XRAY = {
   rise:  0.14,       // lerp in
   fall:  0.09,       // slower out, so a clipped corner does not strobe
   probe: 24,         // world units between samples along a ray
-  reach: 400,        // backstop; the height break below fires first
+  /* BACKSTOP, and it has to be as far as the tallest building can reach
+     (Sir, on-device, standing in the road with a three-storey shop
+     between him and the camera: "the xray didnt land for tall buildings
+     cz i cant see tipsey in the street here"). The march needs height
+     zhead + s at distance s, so a mass of height h covers him out to
+     s = h - zhead: with the Flats shops at up to 983 that is ~920, and
+     400 quit less than halfway there. Raised next to maxH below, once
+     every entry's height is known; the height break still ends each ray
+     as soon as no sample further out could hit. */
+  reach: 400,
   zhead: 60,         // height on him that must be covered -- see the range note
   minH:  DOOR_H + 50,// top of the SHORTEST house; what builtHeightAt returns for a frontage band
   /* the TALLEST height builtHeightAt can return, and so where the ray
@@ -18506,7 +18515,7 @@ const TIDEWATER_MUSEUM = (() => {
   }
 },
 {
-  name:'Tidewater Tea House', xh: 288, base:'Tea house', hood:'The Flats', edited:true, sc:1.3, ww: T2*4.4, boff: 60, porch: 212,
+  name:'Tidewater Tea House', xh: 288, base:'Tea house', hood:'The Flats', edited:true, sc:1.3, ww: T2*4.4, boff: 60, porch: 212, fd: 268,
   /* FRONT ON THE LINE, WALKWAY OUT TO THE KERB (Sir: "i want the front of
      it in line with the other shops and the awning to be further out onto
      the sidewalk ... lets just move it to the edge where it belongs").
@@ -31972,6 +31981,9 @@ const TIDEWATER_MUSEUM = (() => {
 /* the x-ray march ceiling: the tallest mass builtHeightAt can return,
    which is the depot's declared height in world units (see XRAY.maxH) */
 XRAY.maxH = Math.max(XRAY.minH, depotVol().h * depotZS());
+/* the ray must be able to REACH what maxH says exists: a mass of height h
+   covers his head out to h - zhead, so anything shorter than that stops the
+   march early and anything further is out of its range either way. */
 /* and the tallest declared hood landmark, so the march reaches its roof */
 for(const [, , n] of HOOD_BLOCK_LANDMARKS){
   const shop = LIB.get(n);
@@ -31984,6 +31996,7 @@ for(const nm of new Set(HOOD_SHOP_SITES.flatMap(s => s[3]).concat(HOOD_BLOCK_LAN
   if(shop && shop.xh)
     XRAY.maxH = Math.max(XRAY.maxH, shop.xh * (shop.sc || 1) * (shop.zs === undefined ? 1.5 : shop.zs));
 }
+XRAY.reach = Math.max(XRAY.reach, XRAY.maxH - XRAY.zhead);
 
 class WorldScene extends Phaser.Scene {
   constructor(){ super("world"); }
@@ -33708,12 +33721,20 @@ class WorldScene extends Phaser.Scene {
       const e = E[ei];
       const alo = (x - e.ox)*e.dv.x + (y - e.oy)*e.dv.y;
       const lat = (x - e.ox)*e.rv.x + (y - e.oy)*e.rv.y;   // 0 at the glass, negative into the block
-      if(lat > 1) continue;
       for(const u of us){
         if(!u.shop || alo < u.start || alo > u.start + u.w) continue;
-        if(-lat > hoodShopD(u.shop.lib)) continue;
         const sh = LIB.get(u.shop.lib);
-        if(!sh || !sh.xh) return null;
+        if(!sh || !sh.xh) continue;
+        /* AND UNDER THE AWNING COUNTS AS BUILT (Sir, on-device: "when i
+           go around the corner or if im too close to the building the
+           awning is hiding me"). A shop whose roof reaches out over the
+           footway (`fd`, the tea house's eave at 268) has mass in front
+           of a robot standing UNDER it -- but its footprint stopped at
+           the glass line, so the march found nothing there and never
+           ghosted it. The reach is part of the building for this test. */
+        const reach = sh.fd !== undefined ? (sh.fd + (sh.boff || 0)) * (sh.sc || 1) : 1;
+        if(lat > reach) continue;
+        if(-lat > hoodShopD(u.shop.lib)) continue;
         return sh.xh * (sh.sc || 1) * (sh.zs === undefined ? 1.5 : sh.zs);
       }
     }
@@ -33764,6 +33785,21 @@ class WorldScene extends Phaser.Scene {
         if(dh !== null) return dh;
       }
       return band ? XRAY.minH : 0;
+    }
+    /* AN OVERHANG IS OUTSIDE ITS BLOCK. The loop above only answers for
+       points inside a block rect, and a robot under the tea house's
+       walkway is on the PAVEMENT -- outside it by up to 420. The cell is
+       still the shop's own, so ask that block whether its roof reaches
+       this far out (see hoodShopHeightAt's `reach`). */
+    {
+      const g2 = this.route && this.route.grid;
+      if(g2 && g2.blockByIJ){
+        const nb = g2.blockByIJ.get(Math.floor(x / BLOCK) + "," + Math.floor(y / BLOCK));
+        if(nb && nb.type !== "park"){
+          const h = this.hoodShopHeightAt(g2, nb, x, y);
+          if(h !== null) return h;
+        }
+      }
     }
     /* the world's outer perimeter builds on extLots, not blocks, and
        those were missing entirely from v1 -- so the whole outside edge
