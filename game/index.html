@@ -35648,8 +35648,30 @@ class WorldScene extends Phaser.Scene {
          ever adds tiles when the camera is genuinely out at the city's
          edge looking at the gap. */
       const EXT_RING = BLOCK*WG_COAST.EXT + T2;
-      const bx0 = Math.max(-EXT_RING, this.camX - bsRadius), bx1 = Math.min(gEndBase.x+EXT_RING, this.camX + bsRadius);
-      const by0 = Math.max(-EXT_RING, this.camY - bsRadius), by1 = Math.min(gEndBase.y+EXT_RING, this.camY + bsRadius);
+      /* THE RING NEEDS THE WHOLE SCREEN, NOT bsRadius (2026-09-18, Sir
+         on-device at the north edge: "the hill side disappear and show
+         blue"). Sampled blue was 0x9fd4e8 again -- pal.sky, the clear
+         colour, so the same unpainted ring as the fix above.
+
+         bsRadius is sized off gameSize.WIDTH only. That is fine inside
+         the lattice, where real roads, blocks and sidewalks paint the
+         rest of the frame and the backstop is just a floor under their
+         seams. Out in the EXT ring it is the ONLY thing painting, and on
+         a portrait phone the frame reaches ~2*h/K world units along the
+         iso vertical against a bsRadius of ~0.55*w/K -- roughly 4-5x
+         short. So the ring tiles stopped in a hard world-axis box a few
+         hundred units from the robot and sky showed between them and the
+         foothills band, which starts at Y0.
+
+         Split the bound: ring tiles use flatSpan (flatSpanOf, the same
+         screen-derived span the sidewalk pass already trusts); interior
+         tiles keep bsRadius exactly as before, so the downtown frame
+         draws the same tiles it always did. The skip is pure arithmetic
+         ahead of W(), and onScreen() still rejects anything off-frame. */
+      const ringR = Math.max(bsRadius, flatSpan);
+      const inX0 = -T2, inX1 = gEndBase.x + T2, inY0 = -T2, inY1 = gEndBase.y + T2;
+      const bx0 = Math.max(-EXT_RING, this.camX - ringR), bx1 = Math.min(gEndBase.x+EXT_RING, this.camX + ringR);
+      const by0 = Math.max(-EXT_RING, this.camY - ringR), by1 = Math.min(gEndBase.y+EXT_RING, this.camY + ringR);
       const half = T2/2;
       const i0 = Math.floor(bx0/T2), i1 = Math.ceil(bx1/T2);
       const j0 = Math.floor(by0/T2), j1 = Math.ceil(by1/T2);
@@ -35657,6 +35679,8 @@ class WorldScene extends Phaser.Scene {
         const bx = bi*T2;
         for(let bj = j0; bj <= j1; bj++){
           const by = bj*T2;
+          if(bx >= inX0 && bx <= inX1 && by >= inY0 && by <= inY1 &&
+             (Math.abs(bx - this.camX) > bsRadius || Math.abs(by - this.camY) > bsRadius)) continue;
           const pts = [
             this.W(bx-half, by-half, 0), this.W(bx+half, by-half, 0),
             this.W(bx+half, by+half, 0), this.W(bx-half, by+half, 0)
@@ -35779,78 +35803,6 @@ class WorldScene extends Phaser.Scene {
       if(!this.visProp("sidewalkend", cr.x, cr.y)) continue;
       this.drawProp(g, "sidewalkend", cr.x, cr.y, t, cr.f, 0, null, null, WORLD_RAMP);
     }
-    /* THE KERB AND GUTTER ARE DRAWN LATER (see KERB PASS below). */
-
-    /* moved up from below: block-wrap houses/stores need the same
-       front/back split props already use, so botDepth/layerFor (and
-       the gFront clear that must precede any use of it) have to exist
-       before the block-wrap pass, not after it. */
-    this.gFront.clear();
-    const botDepth = this.botX + this.botY;
-    /* ONE LAYER. This used to return gFront for anything nearer to
-       camera than the robot, because the robot was composited on top of
-       the world and that was the only way to get a car or a signal post
-       back in front of him. He is inside this sort now (see drawRobot),
-       so "in front of the robot" is just a larger depth key and the
-       sort already handles it. Kept as a function so every call site
-       reads the same; it simply has nothing left to decide. */
-    const layerFor = (px, py) => g;
-
-    /* moved up from below: cars/traffic now need world position before
-       the body depth-sort runs (see the trafficPts block after the
-       block-wrap pass), so worldOf has to exist this early too. */
-    const worldOf = (s, offsetUnits) => {
-      const hdg = this.headingAt(s), p = this.posAt(s);
-      const rvx = -Math.sin(hdg), rvy = Math.cos(hdg);
-      return { x: p.x + rvx*offsetUnits, y: p.y + rvy*offsetUnits, z: this.groundZ(s) };
-    };
-    const hazardOffset = hz => hz.row !== undefined ? laneOffset(hz.row) : hz.roadOffset;
-    /* sidewalkend/sidewalkbegin/sidewalkbeginTurn are ADA curb ramps
-       with real height and slope, not flat decals -- "crack" is the
-       only genuinely flat one here. The rest can visually overlap a
-       car or house the same way any other volumetric thing can, so
-       they need the same depth-sort treatment, not an exemption. */
-    const GROUND_KINDS = { crack:1, sidewalkend:1, sidewalkbegin:1, sidewalkbeginTurn:1, slab:1, grade:1, burnoutMark:1 };
-
-    /* ---------- block-wrap: housing/park/commercial beyond the
-       sidewalk's inside line, all around the grid (interior blocks
-       AND the world's outer perimeter lots). Two passes, same fix as
-       the lab: flat ground fills first (order-independent, always into
-       g since flat ground never needs to occlude the robot), THEN one
-       global depth sort for every house/store/fence/scatter-prop —
-       each one individually routed through layerFor so a house that's
-       actually in FRONT of the robot (iso depth) correctly occludes
-       him instead of the robot always painting over every house
-       regardless of true position (the original bug: everything went
-       into g unconditionally, so the robot could never be hidden
-       behind a house even when it should have been). */
-    const visBlocks = r.grid.blocks.filter(b => near(b.cx, b.cy));
-    /* A RIM SITE IS ONE BUILDING ACROSS SEVERAL LOTS (Sir, on-device:
-       "once i go to the boundry the building cuts away and completely
-       dissapears"). Its anchor lot draws the whole run, so testing the
-       anchor's own centre dropped the school the moment he drove past the
-       middle of it. Every lot of a site passes together, on the site's
-       nearest point rather than a lot centre. */
-    const visLots = r.grid.extLots.filter(l => {
-      const s = typeof hoodRimSiteOfLot === "function" ? hoodRimSiteOfLot(l) : null;
-      if(!s) return near(l.cx, l.cy);
-      const x = Math.max(s.from, Math.min(this.botX, s.to));
-      const y = s.at + s.out*s.depth/2;
-      return near(x, y) || near(s.from, y) || near(s.to, y);
-    });
-    for(const blk of visBlocks) this.fillBlockGround(g, blk);
-    for(const lot of visLots) this.fillExteriorLot(g, lot);
-
-    /* ================= KERB PASS (Sir, on-device, by a park: "no curb
-       here by the park. i imagine there are a tone of these spots")
-       =================
-       This ran with the road stripes, BEFORE fillBlockGround and
-       fillExteriorLot. Those two paint a block's own ground -- and a
-       merged park paints the street it swallowed as well -- so anything
-       they cover went over the kerb that had already been laid, and the
-       stone vanished along whole frontages, parks worst of all. Ground
-       first, then its edge: the kerb and the gutter are the last thing
-       the ground pass draws. */
     /* curb: a genuine vertical riser face, not a wide sloped strip —
        zero width ACROSS the curb line, just a height difference from
        bottom to top AT that one lateral position. A sloped quad across
@@ -36163,6 +36115,66 @@ class WorldScene extends Phaser.Scene {
         }
       }
     }
+
+    /* moved up from below: block-wrap houses/stores need the same
+       front/back split props already use, so botDepth/layerFor (and
+       the gFront clear that must precede any use of it) have to exist
+       before the block-wrap pass, not after it. */
+    this.gFront.clear();
+    const botDepth = this.botX + this.botY;
+    /* ONE LAYER. This used to return gFront for anything nearer to
+       camera than the robot, because the robot was composited on top of
+       the world and that was the only way to get a car or a signal post
+       back in front of him. He is inside this sort now (see drawRobot),
+       so "in front of the robot" is just a larger depth key and the
+       sort already handles it. Kept as a function so every call site
+       reads the same; it simply has nothing left to decide. */
+    const layerFor = (px, py) => g;
+
+    /* moved up from below: cars/traffic now need world position before
+       the body depth-sort runs (see the trafficPts block after the
+       block-wrap pass), so worldOf has to exist this early too. */
+    const worldOf = (s, offsetUnits) => {
+      const hdg = this.headingAt(s), p = this.posAt(s);
+      const rvx = -Math.sin(hdg), rvy = Math.cos(hdg);
+      return { x: p.x + rvx*offsetUnits, y: p.y + rvy*offsetUnits, z: this.groundZ(s) };
+    };
+    const hazardOffset = hz => hz.row !== undefined ? laneOffset(hz.row) : hz.roadOffset;
+    /* sidewalkend/sidewalkbegin/sidewalkbeginTurn are ADA curb ramps
+       with real height and slope, not flat decals -- "crack" is the
+       only genuinely flat one here. The rest can visually overlap a
+       car or house the same way any other volumetric thing can, so
+       they need the same depth-sort treatment, not an exemption. */
+    const GROUND_KINDS = { crack:1, sidewalkend:1, sidewalkbegin:1, sidewalkbeginTurn:1, slab:1, grade:1, burnoutMark:1 };
+
+    /* ---------- block-wrap: housing/park/commercial beyond the
+       sidewalk's inside line, all around the grid (interior blocks
+       AND the world's outer perimeter lots). Two passes, same fix as
+       the lab: flat ground fills first (order-independent, always into
+       g since flat ground never needs to occlude the robot), THEN one
+       global depth sort for every house/store/fence/scatter-prop —
+       each one individually routed through layerFor so a house that's
+       actually in FRONT of the robot (iso depth) correctly occludes
+       him instead of the robot always painting over every house
+       regardless of true position (the original bug: everything went
+       into g unconditionally, so the robot could never be hidden
+       behind a house even when it should have been). */
+    const visBlocks = r.grid.blocks.filter(b => near(b.cx, b.cy));
+    /* A RIM SITE IS ONE BUILDING ACROSS SEVERAL LOTS (Sir, on-device:
+       "once i go to the boundry the building cuts away and completely
+       dissapears"). Its anchor lot draws the whole run, so testing the
+       anchor's own centre dropped the school the moment he drove past the
+       middle of it. Every lot of a site passes together, on the site's
+       nearest point rather than a lot centre. */
+    const visLots = r.grid.extLots.filter(l => {
+      const s = typeof hoodRimSiteOfLot === "function" ? hoodRimSiteOfLot(l) : null;
+      if(!s) return near(l.cx, l.cy);
+      const x = Math.max(s.from, Math.min(this.botX, s.to));
+      const y = s.at + s.out*s.depth/2;
+      return near(x, y) || near(s.from, y) || near(s.to, y);
+    });
+    for(const blk of visBlocks) this.fillBlockGround(g, blk);
+    for(const lot of visLots) this.fillExteriorLot(g, lot);
 
     /* north-wall cutaway: heading f===2 (DIRV[2], world -x) is the ONE
        travel direction where this fixed iso camera's height-lift can
