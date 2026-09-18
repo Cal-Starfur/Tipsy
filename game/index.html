@@ -35694,6 +35694,19 @@ class WorldScene extends Phaser.Scene {
          draws the same tiles it always did. The skip is pure arithmetic
          ahead of W(), and onScreen() still rejects anything off-frame. */
       const ringR = Math.max(bsRadius, flatSpan);
+      /* GRASS PAST THE LAST SIDEWALK (2026-09-18, Sir: "replace the small
+         sidewalk grey grid behind the border houses with grass"). Out in
+         the EXT ring nothing else paints, so these tiles WERE the ground
+         behind the border houses -- an open field of sidewalk grid. A
+         tile whose centre lies beyond the outer sidewalk edge of the
+         lattice's edge streets (ROAD_HALF + SIDEWALK_W) by more than a
+         tile is lawn instead: GRASS's two shades, no panel seams, same
+         checker phase. The tile STRADDLING that edge stays pave -- its
+         outer half is the gap between the sidewalk and the frontage
+         pavers, and as grass it showed as a green hairline down every
+         border street. Inside the lattice nothing changes. */
+      const swOut = ROAD_HALF + SIDEWALK_W + T2/2;
+      const gx0 = -swOut, gx1 = gEndBase.x + swOut, gy0 = -swOut, gy1 = gEndBase.y + swOut;
       const inX0 = -T2, inX1 = gEndBase.x + T2, inY0 = -T2, inY1 = gEndBase.y + T2;
       const bx0 = Math.max(-EXT_RING, this.camX - ringR), bx1 = Math.min(gEndBase.x+EXT_RING, this.camX + ringR);
       const by0 = Math.max(-EXT_RING, this.camY - ringR), by1 = Math.min(gEndBase.y+EXT_RING, this.camY + ringR);
@@ -35711,6 +35724,10 @@ class WorldScene extends Phaser.Scene {
             this.W(bx+half, by+half, 0), this.W(bx-half, by+half, 0)
           ];
           if(!onScreen(pts)) continue;
+          if(bx < gx0 || bx > gx1 || by < gy0 || by > gy1){
+            this.quadOn(g, pts, (bi+bj) % 2 === 0 ? GRASS.a : GRASS.b);
+            continue;
+          }
           this.quadOn(g, pts, (bi+bj) % 2 === 0 ? d.pave : d.paveB);
           this.edgeOn(g, pts, d.paveEdge, 1);
         }
