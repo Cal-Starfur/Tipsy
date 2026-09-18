@@ -8725,7 +8725,16 @@ const XRAY = {
   rise:  0.14,       // lerp in
   fall:  0.09,       // slower out, so a clipped corner does not strobe
   probe: 24,         // world units between samples along a ray
-  reach: 400,        // backstop; the height break below fires first
+  /* BACKSTOP, and it has to be as far as the tallest building can reach
+     (Sir, on-device, standing in the road with a three-storey shop
+     between him and the camera: "the xray didnt land for tall buildings
+     cz i cant see tipsey in the street here"). The march needs height
+     zhead + s at distance s, so a mass of height h covers him out to
+     s = h - zhead: with the Flats shops at up to 983 that is ~920, and
+     400 quit less than halfway there. Raised next to maxH below, once
+     every entry's height is known; the height break still ends each ray
+     as soon as no sample further out could hit. */
+  reach: 400,
   zhead: 60,         // height on him that must be covered -- see the range note
   minH:  DOOR_H + 50,// top of the SHORTEST house; what builtHeightAt returns for a frontage band
   /* the TALLEST height builtHeightAt can return, and so where the ray
@@ -33139,6 +33148,9 @@ const TIDEWATER_MUSEUM = (() => {
 /* the x-ray march ceiling: the tallest mass builtHeightAt can return,
    which is the depot's declared height in world units (see XRAY.maxH) */
 XRAY.maxH = Math.max(XRAY.minH, depotVol().h * depotZS());
+/* the ray must be able to REACH what maxH says exists: a mass of height h
+   covers his head out to h - zhead, so anything shorter than that stops the
+   march early and anything further is out of its range either way. */
 /* and the tallest declared hood landmark, so the march reaches its roof */
 for(const [, , n] of HOOD_BLOCK_LANDMARKS){
   const shop = LIB.get(n);
@@ -33151,6 +33163,7 @@ for(const nm of new Set(HOOD_SHOP_SITES.flatMap(s => s[3]).concat(HOOD_BLOCK_LAN
   if(shop && shop.xh)
     XRAY.maxH = Math.max(XRAY.maxH, shop.xh * (shop.sc || 1) * (shop.zs === undefined ? 1.5 : shop.zs));
 }
+XRAY.reach = Math.max(XRAY.reach, XRAY.maxH - XRAY.zhead);
 
 class WorldScene extends Phaser.Scene {
   constructor(){ super("world"); }
