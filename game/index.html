@@ -35918,23 +35918,30 @@ class WorldScene extends Phaser.Scene {
         faceArc(KR, 0, KERB_H, KERB_FACE);                          // down onto the paving (behind the top -- see kerbRun)
         ring(KR, KR + KERB_W, KERB_H, KERB_H, KERB_TOP);            // its top, last
         /* THE GULLY, at the bottom of the sweep where the water goes */
-        const m = at(KR + KERB_W + CURB_W*0.5, 0.5), th = a0 + da*0.5;   // in the gutter, clear of the kerb
-        const ux = Math.cos(th), uy = Math.sin(th), vx = -uy, vy = ux;
-        const GW = 34, GL = 17;
-        this.quadOn(g, [
-          this.W(m.x + vx*GW - ux*GL, m.y + vy*GW - uy*GL, 0.8),
-          this.W(m.x - vx*GW - ux*GL, m.y - vy*GW - uy*GL, 0.8),
-          this.W(m.x - vx*GW + ux*GL, m.y - vy*GW + uy*GL, 0.8),
-          this.W(m.x + vx*GW + ux*GL, m.y + vy*GW + uy*GL, 0.8)
-        ], 0x4a4740);
+        /* A CURVED GRATE, INSIDE THE CHANNEL (Sir, on-device: "its hitting
+           the drain channels edge"). It was a straight 68 x 34 slab laid
+           across a gutter that curves hard here -- the channel runs from
+           radius 46 to 92 around a 24 kerb arc -- so the slab's outer
+           corners reached radius 92.5, past the gutter's edge, and its long
+           straight side cut across the curve. Now it is a sector of the
+           channel itself: the same centre and sweep as the gutter, a margin
+           of 9 inside both of its edges, and bars laid radially the way the
+           water runs in. Same size on the road as before, same colours. */
+        const gR = KR + KERB_W + CURB_W*0.5, gH = CURB_W*0.5 - 9;   // mid-channel, 14 each way
+        const gSpan = 0.22 / Math.max(1e-6, Math.abs(da));           // +/- 0.22 rad of the sweep, in at()'s t
+        const gp = (rad, tt) => at(rad, 0.5 + tt);
+        const sector = (r0, r1, t0, t1, z, col, n) => {
+          for(let k = 0; k < n; k++){
+            const ta = t0 + (t1 - t0)*k/n, tb = t0 + (t1 - t0)*(k+1)/n;
+            const p0 = gp(r0, ta), p1 = gp(r0, tb), p2 = gp(r1, tb), p3 = gp(r1, ta);
+            this.quadOn(g, [this.W(p0.x,p0.y,z), this.W(p1.x,p1.y,z),
+                            this.W(p2.x,p2.y,z), this.W(p3.x,p3.y,z)], col);
+          }
+        };
+        sector(gR - gH, gR + gH, -gSpan, gSpan, 0.8, 0x4a4740, 6);
         for(let s = -2; s <= 2; s++){
-          const o = s*11;
-          this.quadOn(g, [
-            this.W(m.x + vx*(o-3) - ux*(GL-4), m.y + vy*(o-3) - uy*(GL-4), 0.9),
-            this.W(m.x + vx*(o+3) - ux*(GL-4), m.y + vy*(o+3) - uy*(GL-4), 0.9),
-            this.W(m.x + vx*(o+3) + ux*(GL-4), m.y + vy*(o+3) + uy*(GL-4), 0.9),
-            this.W(m.x + vx*(o-3) + ux*(GL-4), m.y + vy*(o-3) + uy*(GL-4), 0.9)
-          ], 0x26241f);
+          const tc = gSpan * s * 0.36, tw = gSpan * 0.085;
+          sector(gR - gH + 3, gR + gH - 3, tc - tw, tc + tw, 0.9, 0x26241f, 1);
         }
       }
     }
