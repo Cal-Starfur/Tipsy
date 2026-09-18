@@ -8753,8 +8753,16 @@ const XRAY = {
      robot is still glowing when out in the open") -- a body-width out
      is not his body, and those rays sat over the block's wall band
      while the wall was nowhere near his screen column. */
-  fan:   [0, -34, 34],
-  hits:  2,          // rays of the fan needed before he counts as hidden
+  /* FIVE RAYS AND ALL OF THEM (Sir, on-device, standing under the tea
+     house walkway: "im not fully covered but im getting the x ray effect
+     but i only want it when im 90% covered"). Three rays two of which
+     had to hit meant 67% of his width behind something was enough, and
+     under a colonnade -- posts with daylight between them -- that fires
+     while most of him is in plain view. Five rays across the same width
+     at 17 apart, and every one of them must be covered, so a gap wide
+     enough to see him through keeps the ghost off. */
+  fan:   [0, -34, -17, 17, 34],
+  hits:  5,          // rays of the fan needed before he counts as hidden
   /* PROPS. A bin or a hydrant behind a frontage gets the same ghost.
      Two separate dials because a prop is not a robot: it is short, so
      it needs a low sample height, and there are a lot of them, so it
@@ -34899,7 +34907,12 @@ class WorldScene extends Phaser.Scene {
            of a robot standing UNDER it -- but its footprint stopped at
            the glass line, so the march found nothing there and never
            ghosted it. The reach is part of the building for this test. */
-        const reach = sh.fd !== undefined ? (sh.fd + (sh.boff || 0)) * (sh.sc || 1) : 1;
+        /* the reach counts from the wall out to EAVE - LIP: the last
+           strip under the lip is open to the camera from the side, which
+           is where Sir was standing when the ghost fired on a robot in
+           plain view. Deep under the roof it still counts. */
+        const LIP = 140;
+        const reach = sh.fd !== undefined ? (sh.fd + (sh.boff || 0)) * (sh.sc || 1) - LIP : 1;
         if(lat > reach) continue;
         if(-lat > hoodShopD(u.shop.lib)) continue;
         return sh.xh * (sh.sc || 1) * (sh.zs === undefined ? 1.5 : sh.zs);
