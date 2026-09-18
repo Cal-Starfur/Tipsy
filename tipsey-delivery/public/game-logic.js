@@ -2803,22 +2803,13 @@ const HJ_SEED_DATE = "2026-07-30";
 const SL_SEED_DATE = "2026-08-09";
 
 /* approved palm (palm lab, 2026-07-07): the Costa Palma house style */
-/* SCALE (2026-09-18, Sir: "they dont have enough size to make sense").
-   One uniform multiplier on the whole tree -- trunk, girth, crown, fronds,
-   coconuts, shadow -- applied as a local K in drawProp, so the approved
-   palm-lab proportions are kept exactly and it simply stands bigger.
-   Was 1.0: a 165-unit palm under 347-unit lamps beside 1.3x storefronts
-   read as a potted plant. PROP_EXT.palm/palmDwarf are scaled to match --
-   change one, change the other, or the cull clips the crown. */
 const PALM = {
-  scale: 1.8,
   height: 165, fronds: 8, droop: 1.0, wind: 1.0, trunkLean: 0.16,
   trunk: 0x8a6a48, trunkDk: 0x6f5439, ring: 0x7a5c40,
   frondA: 0x4e8f4a, frondB: 0x3f7a3e,
   coco: 0x6b4f33, cocoHi: 0x7d5e40, shadow: 0x000000
 };
 const PALM_DWARF = {   // approved in palm lab: bush-type dwarf palm
-  scale: 1.3,
   height: 55, fronds: 8, droop: 0.3, wind: 0.3, spread: 1.0, trunkLean: 0.16,
   trunk: 0x8a6a48, trunkDk: 0x6f5439, ring: 0x7a5c40,
   frondA: 0x4e8f4a, frondB: 0x3f7a3e,
@@ -3826,7 +3817,7 @@ const PROP_EXT = {
      and the 2:1 iso gives |sx| <= (|A| + |B|) = 279.4 and
      |sy| <= (|A| + |B|)/2 = 139.7. Rounded up, before the x1.25 pad. */
   hydrantFlood:[280,280,140,140], lamp:[113,113,347,56],
-  palm:[267,251,639,16], palmDwarf:[108,111,176,11],   /* x PALM.scale 1.8 / PALM_DWARF.scale 1.3 */ paper:[40,40,40,40],
+  palm:[148,139,355,8], palmDwarf:[83,85,135,8], paper:[40,40,40,40],
   people:[83,83,166,37], pigeons:[98,98,60,49], planter:[36,36,67,11],
   policecar:[158,158,153,59], robot:[50,50,129,22], scooter:[36,36,62,17],
   sidewalkbegin:[230,230,117,113], sidewalkbeginTurn:[414,414,209,205],
@@ -4428,10 +4419,6 @@ function owBuildWorld(route){
           /* the depot's room and doorway are carved out of their block */
           { const _dl = depotOnBlock(g2, b);
             if(_dl){ const ds = depotSolidAt(_dl, x, y, R); if(ds === false) continue; if(ds === true) return b; } }
-          /* and a hood shop that DECLARES its volume is that volume -- see
-             hoodShopVolBlocked */
-          { const hs = hoodShopVolBlocked(g2, b, x, y, R);
-            if(hs === false) continue; if(hs === true) return b; }
           return b;
         }
     }
@@ -7942,13 +7929,7 @@ const WORLD_RAMP = {
   cross:       ROAD_HALF + 2.5*T2,    // 598 -- dialled on device 2026-08-01; see below
   bothStreets: true,                  // false = one ramp per corner, alternating by node parity
   baseCross:   1.5*(TILE*2),          // 138 -- half-width of the repainted patch under the ramp
-  baseOutline: 1,                     // 1 -- dialled on device; 2 read as crossed rectangles at a corner
-  /* the landing's height. The shared ramp art puts it at -3, below the
-     road, which on screen dropped every pad corner 3*K under the kerb
-     line it meets (Sir: "the little corners that dont line up"). The
-     world's ramps meet a kerb and gutter at 0.6..0.8, so they land
-     there; the flare's low end uses the same number. */
-  streetZ:     0.8
+  baseOutline: 1                      // 1 -- dialled on device; 2 read as crossed rectangles at a corner
 };
 
 /* ---------- TRAFFIC SIGNALS ----------
@@ -10061,67 +10042,6 @@ function hoodShopsOf(grid){
   return _hoodShops;
 }
 function hoodShopEdgeUnits(grid, blk, ei){ hoodShopsOf(grid); return _hoodShopEdges.get(blk.i + "," + blk.j + "/" + ei) || null; }
-/* A HOOD SHOP'S OWN VOLUME, for collision (Sir, on-device, at Seabreeze
-   Fuel: "its open to the gas pumps i shouldnt be hitting a wall ... or is
-   the gas station have an invisible wall?"). It was the block: solidAt is
-   a rectangle over the whole commercial block, and a shop's open ground --
-   a filling station's forecourt -- sits inside that rectangle, so it was
-   a wall the shape of the block. The landmarks and the depot already
-   answer from their declared volume; this does the same for a shop on a
-   block edge that declares one (entry.vol), and nothing for one that does
-   not, so every undeclared shop is exactly as solid as before.
-
-   The world point goes into the entry's own frame the way LIB.draw puts
-   the entry into the world: a along dv from the unit's start, b along rv
-   (0 at the glass, negative into the block), divided by sc, mirrored about
-   ww on the edges draw() mirrors, and boff taken back off.
-
-   Returns undefined when the point is not in any declared shop's OPEN
-   interior -- inset R from the lot's two sides and its back, so a body
-   next to the neighbour or the block behind still reads the block -- and
-   otherwise the volume's own answer at R. */
-/* a world point in a placed shop's own lab frame -- the inverse of what
-   LIB.draw does to the entry (see hoodShopVolBlocked) */
-function hoodShopLab(e, u, shop, x, y){
-  const SC = shop.sc || 1;
-  const ux = e.ox + e.dv.x*u.start, uy = e.oy + e.dv.y*u.start;
-  let a = ((x - ux)*e.dv.x + (y - uy)*e.dv.y) / SC;
-  let b = ((x - ux)*e.rv.x + (y - uy)*e.rv.y) / SC;
-  if((e.dv.x + e.dv.y) <= 0 && shop.mirror !== false) a = (shop.ww || LIB.vol(u.shop.lib).lot.a1) - a;
-  return { a, b: b - (shop.boff || 0), SC };
-}
-function hoodShopVolBlocked(grid, blk, x, y, R){
-  if(!grid || !blk || blk.type !== "commercial" || blk.i === undefined) return undefined;
-  const es = blockEdgesOf(blk);
-  for(let ei = 0; ei < es.length; ei++){
-    const units = hoodShopEdgeUnits(grid, blk, ei);
-    if(!units) continue;
-    const e = es[ei];
-    for(const u of units){
-      if(!u.shop) continue;
-      const shop = LIB.get(u.shop.lib);
-      if(!shop || !shop.vol) continue;
-      const v = LIB.vol(u.shop.lib), L = v.lot;
-      const { a, b, SC } = hoodShopLab(e, u, shop, x, y);
-      const r = R / SC;
-      /* A SIDE ON THE BLOCK'S CORNER IS OPEN (Sir, on-device, coming off
-         the cross street: "still not making it past this wall"). The inset
-         keeps a body off the neighbour on either side -- but a lot that
-         runs to the end of its edge has no neighbour there, only the other
-         street's pavement past the block rect, which is exactly how the
-         Fuel forecourt meets the corner. Which lab side that is depends on
-         the mirror: lab a = 0 sits at the unit's start unmirrored and at
-         its end mirrored. */
-      const mir = (e.dv.x + e.dv.y) <= 0 && shop.mirror !== false;
-      const atStart = u.start <= 0.5, atEnd = u.start + u.w >= e.len - 0.5;
-      const open0 = mir ? atEnd : atStart, open1 = mir ? atStart : atEnd;
-      if((!open0 && a < L.a0 + r) || (!open1 && a > L.a1 - r) || a < L.a0 - r || a > L.a1 + r
-         || b < L.b0 + r) continue;
-      return volBlockedAt(v, a, b, r, true);
-    }
-  }
-  return undefined;
-}
 /* a shop on an edge the route has cut does not draw, so it has no pin */
 function hoodShopLive(route, sh){
   const cuts = route && route.cutEdges && route.cutEdges[sh.blockKey];
@@ -11086,6 +11006,23 @@ function cityFurnitureForEdge(grid, blk, fi){
     }
   }
 
+  /* ---- palms: lane 3, building side, same as the route's own pass ---- */
+  {
+    const R = mulberry32(cityFurnEdgeSeed(e, 0x9a1b));
+    let a = 0;
+    while(a < e.len){
+      a += (286 + R()*264) * 0.25 * CITY_FURN.sparse * CITY_FURN.cal.palm;
+      const aR = Math.round(a);
+      if(inClear(aR)) continue;
+      if(R() > hood.palms) continue;
+      const lane = 3;
+      const p = pointAt(aR, lane);
+      if(!onWalk(p) || onPad(p) || blocked(aR, lane)) continue;
+      const dwarf = R() < 0.25;
+      place(dwarf ? "palmDwarf" : "palm", aR, lane, p);
+    }
+  }
+
   /* ---- streetlamps: alternating kerb/building side ----
      INFRA IS ITS OWN DIAL. A lamp is not litter -- it is the reason the
      street is lit at night and the reason the pavement has a rhythm.
@@ -11158,47 +11095,6 @@ function cityFurnitureForEdge(grid, blk, fi){
       place("hydrant", aR, 0, p, { burst: startsBurst,
         burstT: startsBurst ? -1e9 : undefined,
         pudDir: startsBurst ? (R() < 0.5 ? -1 : 1) : undefined });
-    }
-  }
-
-  /* ---- palms: KERB side, planted BETWEEN the lamps ----
-     (2026-09-18, Sir: "they are placing randomly in front of doors")
-
-     This used lane 3 -- the building side -- on its own random walk.
-     Lane 3 is the row directly in front of the storefronts, and nothing
-     in this pass knows where a door is (each building kit rolls its own
-     doorLeft/doorX at draw time), so a random walk down that row lands a
-     trunk on a doorstep about as often as it lands anywhere else.
-
-     Real street palms are not planted against shopfronts; they stand in
-     tree wells at the kerb, in the parkway, on the same line as the
-     lamps. So: lane 0, and on the LAMPS' own citywide stride, phased
-     half a step off it, so a street reads lamp - palm - lamp - palm in
-     one file down the block instead of scattered. Moving to the kerb
-     clears every door by construction rather than by detecting doors.
-
-     hood.palms still gates each slot, so The Flats and Palm Gardens
-     line their streets and the Warehouse District mostly doesn't.
-     Density lands close to the old pass: one slot per lamp gap (~950)
-     against the old ~740 average walk.
-
-     RUNS AFTER LAMPS AND HYDRANTS so infrastructure keeps first claim
-     on the kerb; a palm that would crowd a hydrant is the one dropped. */
-  {
-    const R = mulberry32(cityFurnEdgeSeed(e, 0x9a1b));
-    const step = LAMP_ACT.spacing * T2 * CITY_FURN.lampInfra * CITY_FURN.cal.lamp;
-    const proj0 = e.ox*e.dv.x + e.oy*e.dv.y;
-    const a0 = ((-proj0 % step) + step) % step + step*0.5;
-    for(let a = a0 - step; a < e.len; a += step){
-      if(a < 0) continue;
-      const aR = Math.round(a);
-      if(inClear(aR)) continue;
-      if(R() > hood.palms) continue;
-      const lane = 0;
-      const p = pointAt(aR, lane);
-      if(!onWalk(p) || onPad(p) || blocked(aR, lane)) continue;
-      const dwarf = R() < 0.25;
-      place(dwarf ? "palmDwarf" : "palm", aR, lane, p);
     }
   }
 
@@ -22520,20 +22416,6 @@ const TIDEWATER_MUSEUM = (() => {
   head:'Kiosk on one slot, forecourt lot on the other',
   tags:['two packing slots','forecourt is a side lot, not the pavement','pump island','pumps turned side-on','laid out on one grid'],
   desc:'The kiosk takes the first slot and the second is an open lot the same depth as the building, with the canopy, its posts and the pump island all set out from the lot rectangle rather than placed by eye.',
-  /* THE FORECOURT IS DRIVABLE (Sir, on-device: "its open to the gas
-     pumps i shouldnt be hitting a wall"). Without a declaration the whole
-     lot was one solid box, so the open forecourt stopped him at the
-     pavement line. Declared from the same set-out draw() uses: the kiosk
-     is the only mass (a 0..KW by the shop's depth), and the pump island
-     -- the kerb the posts and pumps stand on -- is the one thing on the
-     forecourt he can hit. The canopy is overhead, so it is not here. */
-  vol: {
-    foot:   [[0,0],[180,0],[180,-T2*3],[0,-T2*3]],
-    h:      152,
-    solids: [{ name:'island', h: 9,
-               poly: [[(180+T2*4.4)/2-26, -T2*3*0.76], [(180+T2*4.4)/2+26, -T2*3*0.76],
-                      [(180+T2*4.4)/2+26, -T2*3*0.24], [(180+T2*4.4)/2-26, -T2*3*0.24]] }]
-  },
   draw(p){
     /* ============ THE FLATS PASS (2026-09-17) ============
        Seabreeze Fuel. Red trim goes sea green.
@@ -22675,25 +22557,10 @@ const TIDEWATER_MUSEUM = (() => {
     const WW = T2*4.4, KW = 180;
     const LA0 = 180, LA1 = WW, LB = -T2*3;
     const wall = '#e6e8e6', trim = '#2f9e8f', H = 152;
-    /* THE KIOSK FIRST, THEN THE FORECOURT (Sir, on-device: "the kiosk seems
-       to be stacked on the canopy"). This used to draw the forecourt first
-       on the reasoning that the kiosk's rear is nearer the eye -- true in b,
-       but the kiosk and the forecourt sit side by side ALONG the frontage,
-       and on both away edges the mirror rule puts the kiosk's end (a 0..KW)
-       at the far end from the camera: the canopy and pumps are nearer. So
-       the kiosk painted over its own canopy. The apron is ground and still
-       goes down before everything. */
+    /* the forecourt first: canopy, pumps and island stand beyond the kiosk
+       wall on this side, and the kiosk's rear is nearer the eye */
     T(LA0, LA1, 0, LB, 0.4, '#d6d8d6');
     for(let i=1;i<4;i++) T(LA0, LA1, LB*i/4-0.8, LB*i/4+0.8, 0.6, '#c6c9c6');
-    rearBody(wall, trim, H, KW, D, '#b9bfbc');
-    rearParapet(0, KW, H, 10, 10, trim);
-    rearDoor(120, wall, trim);
-    rearWindow(30, 66, 80, 118, wall);
-    depthSort([
-      { a: 40, b: -D-32, z: 0, draw: () => wheelieBin(40, '#3f6b4a') },
-      { a: 150, b: -D-33, z: 0, draw: () => crateStack(150, '#b08d55', 2) }
-    ]);
-    if(state.roof) box(40, 128, -150, -110, H, H+22, '#9aa0a6','#7d838a','#6a7076');
     const cA0 = LA0+8, cA1 = LA1-8, cb0 = -8, cb1 = LB+8;
     const iC = (LA0+LA1)/2;
     box(iC-26, iC+26, LB*0.76, LB*0.24, 0, 9, '#c6c9c6','#b4b8b4','#a2a6a2');
@@ -22711,6 +22578,15 @@ const TIDEWATER_MUSEUM = (() => {
     T(cA0, cA1, cb1, cb0, CZ, '#f2f2f0');
     slab(cA0, cA1, CZ-18, CZ, cb1, cb0, '#f2f2f0', shade('#f2f2f0',.82), '#f2f2f0');
     F(cA0, cA1, CZ-18, CZ-12, trim, null, 0, cb1-0.6);
+    rearBody(wall, trim, H, KW, D, '#b9bfbc');
+    rearParapet(0, KW, H, 10, 10, trim);
+    rearDoor(120, wall, trim);
+    rearWindow(30, 66, 80, 118, wall);
+    depthSort([
+      { a: 40, b: -D-32, z: 0, draw: () => wheelieBin(40, '#3f6b4a') },
+      { a: 150, b: -D-33, z: 0, draw: () => crateStack(150, '#b08d55', 2) }
+    ]);
+    if(state.roof) box(40, 128, -150, -110, H, H+22, '#9aa0a6','#7d838a','#6a7076');
   }
 },
 {
@@ -31254,27 +31130,12 @@ const TIDEWATER_MUSEUM = (() => {
       };
       TIDEWATER_MUSEUM.PLINTHS
         .forEach(([pa,pb,k]) => items.push({ a:pa, b:pb, z:0, draw:() => plinth(pa,pb,k) }));
-      /* THE TRUNK RUNS UP INTO THE CROWN, AND THE CROWN IS DRAWN FAR TO
-         NEAR (Sir, on-device, circling where each trunk meets its leaves:
-         "can we fix these trees in the museum yard?"). The trunk stopped
-         at 130 under a ring of balls centred at 184 and 56 across, so on
-         screen its flat top cap showed in the gap under the ring, and the
-         five ring balls went down in angle order -- the one behind the
-         trunk could land over the one in front of it. Now the trunk ends
-         at 200, inside the ring where the leaves cover it, and the ring
-         is split around the crown: the far balls, then the crown, then
-         the near ones, by the same a + b the yard's own depthSort uses. */
       const tree = (ta, tb) => {
-        cyl(ta, tb, 0, 200, 17, '#6b5a3a');
-        const ring = [];
-        for(let k=0;k<5;k++){
-          const ba = ta + 54*Math.cos(k*1.26+0.4), bb = tb + 54*Math.sin(k*1.26+0.4);
-          ring.push({ ba, bb, col: ['#3f6b4a','#4e8058','#568a5e'][k%3], key: (ba - ta) + (bb - tb) });
-        }
-        ring.sort((m, n) => m.key - n.key);
-        for(const r of ring) if(r.key < 0) ball(r.ba, r.bb, 184, 56, r.col);
+        cyl(ta, tb, 0, 130, 17, '#6b5a3a');
+        for(let k=0;k<5;k++)
+          ball(ta + 54*Math.cos(k*1.26+0.4), tb + 54*Math.sin(k*1.26+0.4), 184, 56,
+               ['#3f6b4a','#4e8058','#568a5e'][k%3]);
         ball(ta, tb, 226, 52, '#4e8058');
-        for(const r of ring) if(r.key >= 0) ball(r.ba, r.bb, 184, 56, r.col);
       };
       for(const [ta,tb] of TIDEWATER_MUSEUM.TREES)
         items.push({ a:ta, b:tb, z:0, draw:() => tree(ta,tb) });
@@ -33872,19 +33733,6 @@ class WorldScene extends Phaser.Scene {
         if(!u.shop || alo < u.start || alo > u.start + u.w) continue;
         const sh = LIB.get(u.shop.lib);
         if(!sh || !sh.xh) continue;
-        /* A SHOP THAT DECLARES ITS VOLUME IS AS TALL AS THAT SAYS, WHERE
-           IT SAYS (Seabreeze Fuel, 2026-09-17). Its lot is not all
-           building: once the forecourt was drivable, a robot on it read
-           the whole kiosk's xh from every ray and ghosted in plain view
-           (5/5 rays on the open apron, headless). Same answer the
-           landmarks give -- 0 on the open lot, the island's 9 on the
-           island, the kiosk's height over the kiosk. */
-        if(sh.vol){
-          const q = hoodShopLab(e, u, sh, x, y);
-          const h = volBuiltHeight(LIB.vol(u.shop.lib), q.a, q.b, 'street', true);
-          if(h === null) continue;
-          return h * q.SC * (sh.zs === undefined ? 1.5 : sh.zs);
-        }
         /* AND UNDER THE AWNING COUNTS AS BUILT (Sir, on-device: "when i
            go around the corner or if im too close to the building the
            awning is hiding me"). A shop whose roof reaches out over the
@@ -34599,19 +34447,78 @@ class WorldScene extends Phaser.Scene {
         ], d.roadLine);
       }
     }
-    /* THE WORLD'S CURB RAMPS GO DOWN BEFORE THE KERB (Sir: "clean up all
-       the little corners that dont line up"). They are pavement decals and
-       used to ride the ground pass, which flushes AFTER this kerb loop --
-       so each ramp's patch, painted up to the kerb line, landed on top of
-       the stone's raised top where the kerb stands tallest and cut a
-       notch into it at every flare. Drawn here instead, after the paving
-       and road paint and before the stone, the kerb covers what its
-       height really covers. Same layer (g), same visProp gate; only the
-       order against the kerb changed. */
-    for(const cr of (r.curbRamps || [])){
-      if(!this.visProp("sidewalkend", cr.x, cr.y)) continue;
-      this.drawProp(g, "sidewalkend", cr.x, cr.y, t, cr.f, 0, null, null, WORLD_RAMP);
-    }
+    /* THE KERB AND GUTTER ARE DRAWN LATER (see KERB PASS below). */
+
+    /* moved up from below: block-wrap houses/stores need the same
+       front/back split props already use, so botDepth/layerFor (and
+       the gFront clear that must precede any use of it) have to exist
+       before the block-wrap pass, not after it. */
+    this.gFront.clear();
+    const botDepth = this.botX + this.botY;
+    /* ONE LAYER. This used to return gFront for anything nearer to
+       camera than the robot, because the robot was composited on top of
+       the world and that was the only way to get a car or a signal post
+       back in front of him. He is inside this sort now (see drawRobot),
+       so "in front of the robot" is just a larger depth key and the
+       sort already handles it. Kept as a function so every call site
+       reads the same; it simply has nothing left to decide. */
+    const layerFor = (px, py) => g;
+
+    /* moved up from below: cars/traffic now need world position before
+       the body depth-sort runs (see the trafficPts block after the
+       block-wrap pass), so worldOf has to exist this early too. */
+    const worldOf = (s, offsetUnits) => {
+      const hdg = this.headingAt(s), p = this.posAt(s);
+      const rvx = -Math.sin(hdg), rvy = Math.cos(hdg);
+      return { x: p.x + rvx*offsetUnits, y: p.y + rvy*offsetUnits, z: this.groundZ(s) };
+    };
+    const hazardOffset = hz => hz.row !== undefined ? laneOffset(hz.row) : hz.roadOffset;
+    /* sidewalkend/sidewalkbegin/sidewalkbeginTurn are ADA curb ramps
+       with real height and slope, not flat decals -- "crack" is the
+       only genuinely flat one here. The rest can visually overlap a
+       car or house the same way any other volumetric thing can, so
+       they need the same depth-sort treatment, not an exemption. */
+    const GROUND_KINDS = { crack:1, sidewalkend:1, sidewalkbegin:1, sidewalkbeginTurn:1, slab:1, grade:1, burnoutMark:1 };
+
+    /* ---------- block-wrap: housing/park/commercial beyond the
+       sidewalk's inside line, all around the grid (interior blocks
+       AND the world's outer perimeter lots). Two passes, same fix as
+       the lab: flat ground fills first (order-independent, always into
+       g since flat ground never needs to occlude the robot), THEN one
+       global depth sort for every house/store/fence/scatter-prop —
+       each one individually routed through layerFor so a house that's
+       actually in FRONT of the robot (iso depth) correctly occludes
+       him instead of the robot always painting over every house
+       regardless of true position (the original bug: everything went
+       into g unconditionally, so the robot could never be hidden
+       behind a house even when it should have been). */
+    const visBlocks = r.grid.blocks.filter(b => near(b.cx, b.cy));
+    /* A RIM SITE IS ONE BUILDING ACROSS SEVERAL LOTS (Sir, on-device:
+       "once i go to the boundry the building cuts away and completely
+       dissapears"). Its anchor lot draws the whole run, so testing the
+       anchor's own centre dropped the school the moment he drove past the
+       middle of it. Every lot of a site passes together, on the site's
+       nearest point rather than a lot centre. */
+    const visLots = r.grid.extLots.filter(l => {
+      const s = typeof hoodRimSiteOfLot === "function" ? hoodRimSiteOfLot(l) : null;
+      if(!s) return near(l.cx, l.cy);
+      const x = Math.max(s.from, Math.min(this.botX, s.to));
+      const y = s.at + s.out*s.depth/2;
+      return near(x, y) || near(s.from, y) || near(s.to, y);
+    });
+    for(const blk of visBlocks) this.fillBlockGround(g, blk);
+    for(const lot of visLots) this.fillExteriorLot(g, lot);
+
+    /* ================= KERB PASS (Sir, on-device, by a park: "no curb
+       here by the park. i imagine there are a tone of these spots")
+       =================
+       This ran with the road stripes, BEFORE fillBlockGround and
+       fillExteriorLot. Those two paint a block's own ground -- and a
+       merged park paints the street it swallowed as well -- so anything
+       they cover went over the kerb that had already been laid, and the
+       stone vanished along whole frontages, parks worst of all. Ground
+       first, then its edge: the kerb and the gutter are the last thing
+       the ground pass draws. */
     /* curb: a genuine vertical riser face, not a wide sloped strip —
        zero width ACROSS the curb line, just a height difference from
        bottom to top AT that one lateral position. A sloped quad across
@@ -34733,14 +34640,7 @@ class WorldScene extends Phaser.Scene {
            that street's kerb line: measure each ramp in this edge's own
            frame and take the ones whose lateral is that far out. Their pad
            is the gap. */
-        /* THE CUT IS THE PAD (Sir's sketch, 2026-09-17: "our fix on the
-           corners didnt land"). The yellow landing is drawn +/-T2s/2 across
-           its ramp, and T2s there is TILE*2 = 92 -- so the pad is 92 wide,
-           +/-46 about the ramp's centre. 115 cut 230, two and a half pads,
-           which left the kerb stopping ~70 short of the pad on both sides
-           and the flare lost in the gap. Captured from the live draw: pad
-           corners at centre +/-46 along this kerb. */
-        const RAMP_LAT = ROAD_HALF + T2, RAMP_HALF = TILE;
+        const RAMP_LAT = ROAD_HALF + T2, RAMP_HALF = 115;
         const raw = [];
         for(const rp of (r.grid.curbRamps || [])){
           const lat = (rp.x - sx)*rv.x + (rp.y - sy)*rv.y;
@@ -34762,19 +34662,10 @@ class WorldScene extends Phaser.Scene {
       const kerbRun = (sgn, s0, s1, h0, h1) => {
         const oIn = sgn*(ROAD_HALF - KERB_W), oOut = sgn*ROAD_HALF;
         const pt = (s, o, z) => this.W(sx + dv.x*s + rv.x*o, sy + dv.y*s + rv.y*o, z);
-        /* FACES FIRST, TOP LAST (Sir, on-device: "clean up all the little
-           corners that dont line up"). The pavement-side face used to be
-           drawn after the top; on every kerb whose pavement side faces
-           away from the camera that face is hidden in reality, but drawn
-           last it painted a pale band over the top's back half -- a band
-           the flares and the corner arc did not have, so every join
-           showed a step. A top drawn last covers whichever face is behind
-           it and leaves the one facing the camera, on either side of the
-           street, which is all painter's order needs here. */
-        this.quadOn(g, [pt(s0,oOut,h0), pt(s1,oOut,h1), pt(s1,oOut,0), pt(s0,oOut,0)], KERB_FACE);
         this.quadOn(g, [pt(s0,oIn,h0), pt(s1,oIn,h1), pt(s1,oIn,0), pt(s0,oIn,0)], KERB_FACE);
         this.quadOn(g, [pt(s0,oIn,Math.min(h0,3)), pt(s1,oIn,Math.min(h1,3)), pt(s1,oIn,0), pt(s0,oIn,0)], KERB_DK);
         this.quadOn(g, [pt(s0,oIn,h0), pt(s1,oIn,h1), pt(s1,oOut,h1), pt(s0,oOut,h0)], KERB_TOP);
+        this.quadOn(g, [pt(s0,oOut,h0), pt(s1,oOut,h1), pt(s1,oOut,0), pt(s0,oOut,0)], KERB_FACE);
       };
       band(-1); band(1);
       for(const sgn of [-1, 1]){
@@ -34792,10 +34683,7 @@ class WorldScene extends Phaser.Scene {
           /* THE OPENING IS THE PAD, near enough: short flares, so the
              white kerb is broken only across the yellow square rather
              than for a pad's width either side of it. */
-          /* A FLARE AS LONG AS HALF THE PAD (Sir's sketch: the wedge is a
-             long, shallow triangle, not a nub). 40 against an 8-high stone
-             read as a square end on device. */
-          const FL = T2;
+          const FL = 40;
           const f0 = Math.max(cur, c0 - FL), f1 = Math.min(len, c1 + FL);
           /* AND THE STRIP THE KERB WOULD HAVE STOOD ON IS CONCRETE, not
              asphalt (Sir, on-device, with the two gaps painted red: "they
@@ -34812,34 +34700,21 @@ class WorldScene extends Phaser.Scene {
              to nothing at the pad's corner. So the white stone runs on
              underneath and the ramp reads as a funnel with the pad as its
              flat bottom, rather than as a kerb that fades out. */
-          /* THE FULL STONE STOPS WHERE THE FLARE STARTS (Sir, on-device:
-             "our fix on the corners didnt land"). It used to run on at
-             full height to the pad with the wedge drawn over it -- so the
-             upper half of its road face, the part the wedge does not
-             cover, still showed, and the end read as a square block. The
-             wedge replaces the stone over its length instead. */
-          const fs0 = Math.max(cur, c0 - FL);
-          if(fs0 - cur > 1) kerbRun(sgn, cur, fs0, KERB_H, KERB_H);
+          if(c0 - cur > 1) kerbRun(sgn, cur, c0, KERB_H, KERB_H);
           const flare = (sEdge, sPad) => {
             const oIn = sgn*(ROAD_HALF - KERB_W), oOut = sgn*ROAD_HALF;
             const p = (s, o, z) => this.W(sx + dv.x*s + rv.x*o, sy + dv.y*s + rv.y*o, z);
-            /* same order as kerbRun, so the wedge and the stone it
-               continues are built identically and meet without a step:
-               both triangle faces, then the sloping top over them. The
-               low end sits at the pad's own height (WORLD_RAMP.streetZ),
-               so its corner lands on the pad's corner on screen too. */
-            const zT = WORLD_RAMP.streetZ;
-            this.quadOn(g, [p(sEdge,oOut,KERB_H), p(sPad,oOut,zT), p(sPad,oOut,0), p(sEdge,oOut,0)], KERB_FACE);
-            this.quadOn(g, [p(sEdge,oIn,KERB_H), p(sPad,oIn,zT), p(sPad,oIn,0), p(sEdge,oIn,0)], KERB_FACE);
-            this.quadOn(g, [p(sEdge,oIn,Math.min(KERB_H,3)), p(sPad,oIn,zT), p(sPad,oIn,0), p(sEdge,oIn,0)], KERB_DK);
-            this.quadOn(g, [p(sEdge,oIn,KERB_H), p(sEdge,oOut,KERB_H), p(sPad,oOut,zT), p(sPad,oIn,zT)], KERB_TOP);
+            /* the sloping top, from the kerb's top face down to the pad */
+            this.quadOn(g, [p(sEdge,oIn,KERB_H), p(sEdge,oOut,KERB_H), p(sPad,oOut,0.8), p(sPad,oIn,0.8)], KERB_TOP);
+            /* and its road-side face, a triangle, where the stone shows */
+            this.quadOn(g, [p(sEdge,oIn,KERB_H), p(sPad,oIn,0.8), p(sPad,oIn,0), p(sEdge,oIn,0)], KERB_FACE);
+            this.quadOn(g, [p(sEdge,oIn,Math.min(KERB_H,3)), p(sPad,oIn,0.8), p(sPad,oIn,0), p(sEdge,oIn,0)], KERB_DK);
           };
           /* the kerb picks up again at the far edge of the pad; the second
              flare is drawn over ITS first FL, same as the first */
-          flare(fs0, c0);
-          const fs1 = Math.min(len, c1 + FL);
-          flare(fs1, c1);
-          cur = fs1;
+          cur = c1;
+          flare(Math.max(0, c0 - FL), c0);
+          flare(Math.min(len, c1 + FL), c1);
         }
         if(len - cur > 1) kerbRun(sgn, cur, len, KERB_H, KERB_H);
       }
@@ -34894,96 +34769,29 @@ class WorldScene extends Phaser.Scene {
         ring(KR + KERB_W, KR + KERB_W + CURB_W, 0.6, 0.6, GUT);     // the gutter, in the asphalt
         faceArc(KR + KERB_W, 0, 3, KERB_DK);                        // shadow where it meets the gutter
         faceArc(KR + KERB_W, 3, KERB_H, KERB_FACE);                 // the kerb's road face
-        faceArc(KR, 0, KERB_H, KERB_FACE);                          // down onto the paving (behind the top -- see kerbRun)
-        ring(KR, KR + KERB_W, KERB_H, KERB_H, KERB_TOP);            // its top, last
+        ring(KR, KR + KERB_W, KERB_H, KERB_H, KERB_TOP);            // its top
+        faceArc(KR, 0, KERB_H, KERB_FACE);                          // and down onto the paving
         /* THE GULLY, at the bottom of the sweep where the water goes */
-        /* A CURVED GRATE, INSIDE THE CHANNEL (Sir, on-device: "its hitting
-           the drain channels edge"). It was a straight 68 x 34 slab laid
-           across a gutter that curves hard here -- the channel runs from
-           radius 46 to 92 around a 24 kerb arc -- so the slab's outer
-           corners reached radius 92.5, past the gutter's edge, and its long
-           straight side cut across the curve. Now it is a sector of the
-           channel itself: the same centre and sweep as the gutter, a margin
-           of 9 inside both of its edges, and bars laid radially the way the
-           water runs in. Same size on the road as before, same colours. */
-        const gR = KR + KERB_W + CURB_W*0.5, gH = CURB_W*0.5 - 9;   // mid-channel, 14 each way
-        const gSpan = 0.22 / Math.max(1e-6, Math.abs(da));           // +/- 0.22 rad of the sweep, in at()'s t
-        const gp = (rad, tt) => at(rad, 0.5 + tt);
-        const sector = (r0, r1, t0, t1, z, col, n) => {
-          for(let k = 0; k < n; k++){
-            const ta = t0 + (t1 - t0)*k/n, tb = t0 + (t1 - t0)*(k+1)/n;
-            const p0 = gp(r0, ta), p1 = gp(r0, tb), p2 = gp(r1, tb), p3 = gp(r1, ta);
-            this.quadOn(g, [this.W(p0.x,p0.y,z), this.W(p1.x,p1.y,z),
-                            this.W(p2.x,p2.y,z), this.W(p3.x,p3.y,z)], col);
-          }
-        };
-        sector(gR - gH, gR + gH, -gSpan, gSpan, 0.8, 0x4a4740, 6);
+        const m = at(KR + KERB_W + CURB_W*0.5, 0.5), th = a0 + da*0.5;   // in the gutter, clear of the kerb
+        const ux = Math.cos(th), uy = Math.sin(th), vx = -uy, vy = ux;
+        const GW = 34, GL = 17;
+        this.quadOn(g, [
+          this.W(m.x + vx*GW - ux*GL, m.y + vy*GW - uy*GL, 0.8),
+          this.W(m.x - vx*GW - ux*GL, m.y - vy*GW - uy*GL, 0.8),
+          this.W(m.x - vx*GW + ux*GL, m.y - vy*GW + uy*GL, 0.8),
+          this.W(m.x + vx*GW + ux*GL, m.y + vy*GW + uy*GL, 0.8)
+        ], 0x4a4740);
         for(let s = -2; s <= 2; s++){
-          const tc = gSpan * s * 0.36, tw = gSpan * 0.085;
-          sector(gR - gH + 3, gR + gH - 3, tc - tw, tc + tw, 0.9, 0x26241f, 1);
+          const o = s*11;
+          this.quadOn(g, [
+            this.W(m.x + vx*(o-3) - ux*(GL-4), m.y + vy*(o-3) - uy*(GL-4), 0.9),
+            this.W(m.x + vx*(o+3) - ux*(GL-4), m.y + vy*(o+3) - uy*(GL-4), 0.9),
+            this.W(m.x + vx*(o+3) + ux*(GL-4), m.y + vy*(o+3) + uy*(GL-4), 0.9),
+            this.W(m.x + vx*(o-3) + ux*(GL-4), m.y + vy*(o-3) + uy*(GL-4), 0.9)
+          ], 0x26241f);
         }
       }
     }
-
-    /* moved up from below: block-wrap houses/stores need the same
-       front/back split props already use, so botDepth/layerFor (and
-       the gFront clear that must precede any use of it) have to exist
-       before the block-wrap pass, not after it. */
-    this.gFront.clear();
-    const botDepth = this.botX + this.botY;
-    /* ONE LAYER. This used to return gFront for anything nearer to
-       camera than the robot, because the robot was composited on top of
-       the world and that was the only way to get a car or a signal post
-       back in front of him. He is inside this sort now (see drawRobot),
-       so "in front of the robot" is just a larger depth key and the
-       sort already handles it. Kept as a function so every call site
-       reads the same; it simply has nothing left to decide. */
-    const layerFor = (px, py) => g;
-
-    /* moved up from below: cars/traffic now need world position before
-       the body depth-sort runs (see the trafficPts block after the
-       block-wrap pass), so worldOf has to exist this early too. */
-    const worldOf = (s, offsetUnits) => {
-      const hdg = this.headingAt(s), p = this.posAt(s);
-      const rvx = -Math.sin(hdg), rvy = Math.cos(hdg);
-      return { x: p.x + rvx*offsetUnits, y: p.y + rvy*offsetUnits, z: this.groundZ(s) };
-    };
-    const hazardOffset = hz => hz.row !== undefined ? laneOffset(hz.row) : hz.roadOffset;
-    /* sidewalkend/sidewalkbegin/sidewalkbeginTurn are ADA curb ramps
-       with real height and slope, not flat decals -- "crack" is the
-       only genuinely flat one here. The rest can visually overlap a
-       car or house the same way any other volumetric thing can, so
-       they need the same depth-sort treatment, not an exemption. */
-    const GROUND_KINDS = { crack:1, sidewalkend:1, sidewalkbegin:1, sidewalkbeginTurn:1, slab:1, grade:1, burnoutMark:1 };
-
-    /* ---------- block-wrap: housing/park/commercial beyond the
-       sidewalk's inside line, all around the grid (interior blocks
-       AND the world's outer perimeter lots). Two passes, same fix as
-       the lab: flat ground fills first (order-independent, always into
-       g since flat ground never needs to occlude the robot), THEN one
-       global depth sort for every house/store/fence/scatter-prop —
-       each one individually routed through layerFor so a house that's
-       actually in FRONT of the robot (iso depth) correctly occludes
-       him instead of the robot always painting over every house
-       regardless of true position (the original bug: everything went
-       into g unconditionally, so the robot could never be hidden
-       behind a house even when it should have been). */
-    const visBlocks = r.grid.blocks.filter(b => near(b.cx, b.cy));
-    /* A RIM SITE IS ONE BUILDING ACROSS SEVERAL LOTS (Sir, on-device:
-       "once i go to the boundry the building cuts away and completely
-       dissapears"). Its anchor lot draws the whole run, so testing the
-       anchor's own centre dropped the school the moment he drove past the
-       middle of it. Every lot of a site passes together, on the site's
-       nearest point rather than a lot centre. */
-    const visLots = r.grid.extLots.filter(l => {
-      const s = typeof hoodRimSiteOfLot === "function" ? hoodRimSiteOfLot(l) : null;
-      if(!s) return near(l.cx, l.cy);
-      const x = Math.max(s.from, Math.min(this.botX, s.to));
-      const y = s.at + s.out*s.depth/2;
-      return near(x, y) || near(s.from, y) || near(s.to, y);
-    });
-    for(const blk of visBlocks) this.fillBlockGround(g, blk);
-    for(const lot of visLots) this.fillExteriorLot(g, lot);
 
     /* north-wall cutaway: heading f===2 (DIRV[2], world -x) is the ONE
        travel direction where this fixed iso camera's height-lift can
@@ -35425,7 +35233,11 @@ class WorldScene extends Phaser.Scene {
        hazard entry (see buildWorldCurbRamps). Same ground pass and the
        same pinned layer as the route's ramps, so the two sets sort
        identically and a route ramp beside a world ramp is seamless. */
-    /* (drawn with the kerbs now, BEFORE them -- see the note there) */
+    for(const cr of (r.curbRamps || [])){
+      if(!this.visProp("sidewalkend", cr.x, cr.y)) continue;
+      const crx = cr.x, cry = cr.y, crf = cr.f;
+      groundVQ.push({ depth: crx+cry, fn:(g,t)=>this.drawProp(g, "sidewalkend", crx, cry, t, crf, 0, null, null, WORLD_RAMP) });
+    }
 
     /* city pavement damage. wx/wy IS the position -- no worldOf, because
        a permanent prop's `s` is EDGE-LOCAL and feeding it to the rail
@@ -37800,57 +37612,44 @@ class WorldScene extends Phaser.Scene {
       const key = (a, b) => { const q = depotWorld(cu, a, b); return q.x + q.y; };
       const k0 = key(0, 0), seeA = key(1, 0) > k0, seeB = key(0, 1) > k0;
       const _G = depotGeom(), W0 = _G.WW, D0 = _G.DD, C0 = _G.CW;
-      /* ONE PIECE PER WALL (Sir, on-device: "its the slicing that moves
-         the buidling when i move" -- after the shops were made whole on
-         2026-08-31 and this was the building still doing it). The walls
-         used to queue as TILE strips, each with its own key, for the same
-         reason the shops once did: a thin wall has no single scalar key
-         that orders it against a robot both in front of it and inside the
-         room behind it. With only him moving, he crossed those keys one
-         strip at a time and the depot re-composited around him.
-
-         A wall is a PLANE, and a plane has an exact answer: which side of
-         it is he on. So each wall is one entry, keyed at its FARTHEST end
-         (every body out on the pavement in front of it overlaps it at a
-         larger key, so it always draws over the wall) and raised to just
-         past him only when he is on the INSIDE of that plane -- in the
-         room, or anywhere beyond the building from this view. It changes
-         only when he really crosses a wall line, going in or out of the
-         door, never while he drives past. */
-      /* ...and only when he is also IN FRONT OF IT ON SCREEN: raising a
-         wall past him also lifts it past anything keyed between, so a wall
-         he is not overlapping keeps its own key and the props on the
-         pavement around it never trade places with it as he moves. Screen
-         column is x - y; 40 either side covers his body. */
-      const lab = depotLabXY(_lot, this.botX, this.botY);
-      const rk = this.botX + this.botY, ru = this.botX - this.botY, RW = 40;
-      const col = (a, b) => { const q = depotWorld(cu, a, b); return q.x - q.y; };
-      const wall = (part, minK, inside, a0, b0, a1, b1) => {
-        const u0 = col(a0, b0), u1 = col(a1, b1);
-        const over = ru + RW > Math.min(u0, u1) && ru - RW < Math.max(u0, u1);
-        vq.push({ depth: (inside && over) ? Math.max(minK, rk + 0.5) : minK, fn: (g) => LIBDRAW(g, { part }) });
+      const strips = (lo, hi, fnKey, part) => {
+        const n = Math.max(1, Math.ceil((hi - lo) / TILE));
+        for(let i = 0; i < n; i++){
+          const s0 = lo + (hi-lo)*i/n, s1 = i === n-1 ? hi : lo + (hi-lo)*(i+1)/n;
+          /* the window laps its neighbours by 2: abutting fills leave a
+             hairline the ground shows through (0.75 still left one at
+             K 0.55, measured), and the lap is the same colour on the
+             same plane, clamped to the wall's own ends by the entry */
+          vq.push({ depth: fnKey((s0+s1)/2), fn: (g) =>
+            LIBDRAW(g, { part, w:[s0 - 2, s1 + 2] }) });
+        }
       };
       if(depotStreetView(cu)){
-        /* STREET VIEW, and he starts inside. The room keys behind
-           everything in it; the front (b = 0) and flank (a = WW) walls are
-           one piece each; the door sits on the chamfer line, where x + y
-           is constant along the 45 face, so one key orders it exactly. */
+        /* STREET VIEW, and he starts inside. Four keys, each exact for
+           the plane it stands on (see the entry's PARTS note):
+             room   behind the room's far corner, so anything in the room
+                    draws over its floor, walls and chargers
+             front  and flank as TILE strips on their own planes, like
+                    the back view's walls
+             door   on the chamfer line: x + y is constant along a 45
+                    face, so inside (a + b < WW - CW) sorts before the
+                    jambs and outside after, with no window at all */
         const part = (p) => (g) => LIBDRAW(g, { part: p });
-        const frontK = key(0, 0), flankK = key(W0, -D0);
-        vq.push({ depth: Math.min(key(_G.ROOM.a0, _G.ROOM.b0), frontK, flankK) - 1, fn: part('room') });
-        wall('front', frontK, lab.b < 0,  0, 0, W0 - C0, 0);
-        wall('flank', flankK, lab.a < W0, W0, -D0, W0, -C0);
+        vq.push({ depth: key(_G.ROOM.a0, _G.ROOM.b0) - 1, fn: part('room') });
+        strips(0, W0 - C0, (a) => key(a, 0), 'front');
+        strips(-D0, -C0, (b) => key(W0, b), 'flank');
         vq.push({ depth: key(W0 - C0, 0) + 0.5, fn: part('door') });
       } else {
-        /* FROM BEHIND, the building is two walls and a lid, and he can be
-           INSIDE it -- the pad is 78 off the back wall. The walls are the
-           two faces turned to the camera; inside is the side away from
-           it. The roof keys at the footprint's nearest corner: nothing on
-           the ground near it stands taller than the walls it sits on. */
+        /* FROM BEHIND, the building is two walls and a lid, and he can
+           be INSIDE it -- the pad is 78 off the back wall. One whole-unit
+           key cannot put him behind the walls and a palm in front of them
+           at once, so the walls queue as fence-style TILE strips keyed on
+           their own plane (misorder window TILE/4 of contact distance),
+           and the roof at the footprint's nearest corner: nothing on the
+           ground near it stands taller than the walls it sits on. */
         const aw = seeA ? W0 : 0, bw = seeB ? 0 : -D0;
-        const bEnd = seeA ? -C0 : 0, aEnd = seeB ? W0 - C0 : W0;
-        wall('wallA', Math.min(key(aw, -D0), key(aw, bEnd)), seeA ? lab.a < W0 : lab.a > 0, aw, -D0, aw, bEnd);
-        wall('wallB', Math.min(key(0, bw), key(aEnd, bw)),  seeB ? lab.b < 0 : lab.b > -D0, 0, bw, aEnd, bw);
+        strips(-D0, seeA ? -C0 : 0, (b) => key(aw, b), 'wallA');
+        strips(0, seeB ? W0 - C0 : W0, (a) => key(a, bw), 'wallB');
         const roofK = Math.max(key(0,0), key(W0-C0,0), key(W0,-C0), key(W0,-D0), key(0,-D0)) + 1;
         vq.push({ depth: roofK, fn: (g) =>
           LIBDRAW(g, { part:'roof' }) });
@@ -39085,7 +38884,7 @@ class WorldScene extends Phaser.Scene {
       this.drawLampHull(g, W, t, data || {});
     } else if(kind === "palm" || kind === "palmDwarf"){
       /* approved in palm lab — tall (165/8/1.0) and dwarf (55/8/0.3) presets */
-      const P = kind === "palmDwarf" ? PALM_DWARF : PALM, K = this.K * (P.scale || 1);
+      const P = kind === "palmDwarf" ? PALM_DWARF : PALM, K = this.K;
       const o = W(0, 0, 0);
       const seed = ((Math.round(x)*7919) ^ (Math.round(y)*104729)) >>> 0;
       const rng = mulberry32(seed);
@@ -40716,36 +40515,14 @@ class WorldScene extends Phaser.Scene {
            meeting the pavement with no foot, is what read as disjointed. */
         /* slimmer than the first pass: a 22-wide shaft carrying an 18-deep
            arm was heavier than the cones and palms beside it. */
-        /* STACKED, NOT OVERLAPPING (Sir, on-device, circling the foot and
-           the head of the pole: "can we clean up our stop lights too?").
-           These are boxes painted in call order with no depth test, so
-           every box that shared a z-range with the one before it painted
-           across it: the full-height shaft covered the front of its own
-           base collar, the arm collar's top sliced into the shaft above
-           it, a 5-unit sliver of bare shaft showed between that collar and
-           the cap, and the arm -- starting at the pole's centre -- ran its
-           faces straight through the collar.
-
-           Now each piece owns its own z-range and they are drawn bottom
-           to top, which is correct painter's order for a stack: foot,
-           shaft, and ONE head block that is the arm collar and the cap
-           together. The arm starts at the head block's face, and is drawn
-           after the block when it points toward the camera (it is nearer)
-           and before it when it points away (the block hides its root). */
-        const FOOT = 18, HEAD0 = armZ - 13, HEAD1 = SIGNAL.poleH + 7;
-        box(-14, 14, -14, 14, 0, FOOT, C_DARK_X, C_DARK_Y, C_DARK_T);
+        box(-14, 14, -14, 14, 0, 18, C_DARK_X, C_DARK_Y, C_DARK_T);
+        box(-10, 10, -10, 10, 0, SIGNAL.poleH, C_SIDE_X, C_SIDE_Y, C_TOP);
         if(SIGNAL.arm){
-          box(-10, 10, -10, 10, FOOT, HEAD0, C_SIDE_X, C_SIDE_Y, C_TOP);
+          box(-13, 13, -13, 13, armZ-13, armZ+13, C_DARK_X, C_DARK_Y, C_DARK_T);
           /* the arm rides with the post, pointing along fdir = armF */
-          const arm = () => box(13, SIGNAL.armLen, -6, 6, armZ-7, armZ+7, C_SIDE_X, C_SIDE_Y, C_TOP);
-          const armNear = dv.x > 0 || dv.y > 0;
-          if(!armNear) arm();
-          box(-13, 13, -13, 13, HEAD0, HEAD1, C_DARK_X, C_DARK_Y, C_DARK_T);
-          if(armNear) arm();
-        } else {
-          box(-10, 10, -10, 10, FOOT, SIGNAL.poleH, C_SIDE_X, C_SIDE_Y, C_TOP);
-          box(-12, 12, -12, 12, SIGNAL.poleH, SIGNAL.poleH+7, C_DARK_X, C_DARK_Y, C_TOP);
+          box(0, SIGNAL.armLen, -6, 6, armZ-7, armZ+7, C_SIDE_X, C_SIDE_Y, C_TOP);
         }
+        box(-12, 12, -12, 12, SIGNAL.poleH, SIGNAL.poleH+7, C_DARK_X, C_DARK_Y, C_TOP);
       } else {
         const R = SIGNAL.headR, gap = R*2.3;
         const botZ = headTopZ - gap*3.05;
@@ -41469,7 +41246,7 @@ class WorldScene extends Phaser.Scene {
          which carries neither key, so they keep the approved look). */
       const crossHalf = (data && data.baseCross !== undefined) ? data.baseCross : 1.5*T2s;
       const baseOutline = (data && data.baseOutline !== undefined) ? data.baseOutline : 2;
-      const sidewalkZ = 2, streetZ = (data && data.streetZ !== undefined) ? data.streetZ : -3;
+      const sidewalkZ = 2, streetZ = -3;
       this.quadOn(g, [W(-wHalf,-crossHalf,sidewalkZ), W(wHalf,-crossHalf,sidewalkZ),
                       W(wHalf,crossHalf,sidewalkZ), W(-wHalf,crossHalf,sidewalkZ)], 0xb5afa2);
       if(baseOutline > 0)
@@ -44666,25 +44443,9 @@ class WorldScene extends Phaser.Scene {
        most screen pixels (Sir's report, 2026-08-13). Gated on _slAPI so
        delivery and the hydrant jump keep the original feel untouched. */
     const camVmul = (this._slAPI && this._slAPI.SL && this._slAPI.SL.vmul) || 1;
-    /* EASE PER MILLISECOND, NOT PER FRAME (Sir on-device, 2026-09-17:
-       "everything moves while i move", screen recording). The recording
-       shows the iPad presenting frames on an uneven 1/60 - 1/30 s cadence,
-       and on every one of them the city stepped the SAME 2-3 px. The
-       robot already moves by real dt (see realDt), but these three eases
-       were fixed fractions per FRAME -- so on a long frame Tipsey went
-       twice as far while the camera caught up the same amount, and on a
-       short one the reverse. The world shuddered against him every frame
-       the device dropped one.
-
-       rate^(dt/16.667) is the exact per-frame rate at 60fps, so on a
-       steady 60 this camera is byte-for-byte the one it replaces --
-       same lead, same lag, same framing. It only stops the camera's
-       catch-up from depending on how long the last frame took. */
-    const camF = (dt || 16.667) / 16.667;
-    const camA = (r) => 1 - Math.pow(1 - Math.min(r, 1), camF);
-    this.camX = Phaser.Math.Linear(this.camX, camTargetX, camA(0.08 * camVmul));
-    this.camY = Phaser.Math.Linear(this.camY, camTargetY, camA(0.06 * camVmul));
-    this.camZ = Phaser.Math.Linear(this.camZ, camTargetZ, camA(0.08 * camVmul));
+    this.camX = Phaser.Math.Linear(this.camX, camTargetX, 0.08 * camVmul);
+    this.camY = Phaser.Math.Linear(this.camY, camTargetY, 0.06 * camVmul);
+    this.camZ = Phaser.Math.Linear(this.camZ, camTargetZ, 0.08 * camVmul);
 
     /* the "?!" of a machine confronting a tree */
     if(this.stuckAmt > 0.5 && this.state === "play"){
