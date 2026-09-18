@@ -34568,7 +34568,14 @@ class WorldScene extends Phaser.Scene {
            that street's kerb line: measure each ramp in this edge's own
            frame and take the ones whose lateral is that far out. Their pad
            is the gap. */
-        const RAMP_LAT = ROAD_HALF + T2, RAMP_HALF = 115;
+        /* THE CUT IS THE PAD (Sir's sketch, 2026-09-17: "our fix on the
+           corners didnt land"). The yellow landing is drawn +/-T2s/2 across
+           its ramp, and T2s there is TILE*2 = 92 -- so the pad is 92 wide,
+           +/-46 about the ramp's centre. 115 cut 230, two and a half pads,
+           which left the kerb stopping ~70 short of the pad on both sides
+           and the flare lost in the gap. Captured from the live draw: pad
+           corners at centre +/-46 along this kerb. */
+        const RAMP_LAT = ROAD_HALF + T2, RAMP_HALF = TILE;
         const raw = [];
         for(const rp of (r.grid.curbRamps || [])){
           const lat = (rp.x - sx)*rv.x + (rp.y - sy)*rv.y;
@@ -34611,7 +34618,10 @@ class WorldScene extends Phaser.Scene {
           /* THE OPENING IS THE PAD, near enough: short flares, so the
              white kerb is broken only across the yellow square rather
              than for a pad's width either side of it. */
-          const FL = 40;
+          /* A FLARE AS LONG AS HALF THE PAD (Sir's sketch: the wedge is a
+             long, shallow triangle, not a nub). 40 against an 8-high stone
+             read as a square end on device. */
+          const FL = T2;
           const f0 = Math.max(cur, c0 - FL), f1 = Math.min(len, c1 + FL);
           /* AND THE STRIP THE KERB WOULD HAVE STOOD ON IS CONCRETE, not
              asphalt (Sir, on-device, with the two gaps painted red: "they
@@ -34628,7 +34638,14 @@ class WorldScene extends Phaser.Scene {
              to nothing at the pad's corner. So the white stone runs on
              underneath and the ramp reads as a funnel with the pad as its
              flat bottom, rather than as a kerb that fades out. */
-          if(c0 - cur > 1) kerbRun(sgn, cur, c0, KERB_H, KERB_H);
+          /* THE FULL STONE STOPS WHERE THE FLARE STARTS (Sir, on-device:
+             "our fix on the corners didnt land"). It used to run on at
+             full height to the pad with the wedge drawn over it -- so the
+             upper half of its road face, the part the wedge does not
+             cover, still showed, and the end read as a square block. The
+             wedge replaces the stone over its length instead. */
+          const fs0 = Math.max(cur, c0 - FL);
+          if(fs0 - cur > 1) kerbRun(sgn, cur, fs0, KERB_H, KERB_H);
           const flare = (sEdge, sPad) => {
             const oIn = sgn*(ROAD_HALF - KERB_W), oOut = sgn*ROAD_HALF;
             const p = (s, o, z) => this.W(sx + dv.x*s + rv.x*o, sy + dv.y*s + rv.y*o, z);
@@ -34640,9 +34657,10 @@ class WorldScene extends Phaser.Scene {
           };
           /* the kerb picks up again at the far edge of the pad; the second
              flare is drawn over ITS first FL, same as the first */
-          cur = c1;
-          flare(Math.max(0, c0 - FL), c0);
-          flare(Math.min(len, c1 + FL), c1);
+          flare(fs0, c0);
+          const fs1 = Math.min(len, c1 + FL);
+          flare(fs1, c1);
+          cur = fs1;
         }
         if(len - cur > 1) kerbRun(sgn, cur, len, KERB_H, KERB_H);
       }
