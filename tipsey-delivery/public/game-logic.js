@@ -3719,8 +3719,14 @@ const ROAD_HALF = 4*T2;      // road is 8 rows wide, symmetric about the centerl
    drawWorld draws the kerb there too, off the same constant, instead of
    restating the road edge. */
 const CURB_W = T2 * 0.5;
-/* how tightly the kerb turns a corner (2026-09-17) */
-const KERB_ARC_R = T2 * 1.2;
+/* How tightly the kerb turns a corner (2026-09-17). It also decides where
+   the straight runs BEGIN -- ROAD_HALF + CURB_W + KERB_ARC_R from the node
+   -- and a crossing ramp's pad starts 483 out, so an arc bigger than this
+   sweeps across the pad and the kerb reads as a wall in front of the ramp
+   (Sir: "we still havnt fully fixed the curb and how its cutting infront
+   of the ramps"). 24 puts the tangent at 438, which leaves the pad 45
+   of run to flare down in. */
+const KERB_ARC_R = 24;
 const SIDEWALK_ROWS = 4;     // per side — the sidewalk width already live in-game
 const SIDEWALK_W = SIDEWALK_ROWS*T2;
 const OVERSHOOT = ROAD_HALF; // sufficient by construction — see classifyAt
@@ -18500,7 +18506,7 @@ const TIDEWATER_MUSEUM = (() => {
   }
 },
 {
-  name:'Tidewater Tea House', xh: 288, base:'Tea house', hood:'The Flats', edited:true, sc:1.3, ww: T2*4.4, boff: 60,
+  name:'Tidewater Tea House', xh: 288, base:'Tea house', hood:'The Flats', edited:true, sc:1.3, ww: T2*4.4, boff: 60, porch: 212,
   /* FRONT ON THE LINE, WALKWAY OUT TO THE KERB (Sir: "i want the front of
      it in line with the other shops and the awning to be further out onto
      the sidewalk ... lets just move it to the edge where it belongs").
@@ -18735,6 +18741,21 @@ const TIDEWATER_MUSEUM = (() => {
       }
     };
 
+    /* ---- TWO PARTS, BECAUSE THE WALKWAY IS OUT ON THE PAVEMENT ----
+       (Sir, on-device: "tipsey is drawing over the posts".) A shop is one
+       queue entry keyed at its own centre, which is fine while all of it
+       stands behind the glass line. This one's colonnade is 272 out on
+       the footway, and Tipsey drives UNDER it: from one key he is always
+       in front of the whole building, so he painted over the columns he
+       was standing behind.
+         So the entry draws in parts, the way the depot does:
+           body   everything from the wall out to the colonnade line
+           porch  the lower eave, columns, beam, brackets and lanterns
+       The game queues them separately, the porch keyed on the column
+       line, so each sorts against the robot on its own terms. 'all' --
+       the lab -- draws both, in this order. */
+    const PART = state.part || 'all';
+    if(PART !== 'porch'){
     /* ---- the main roof, over the building ---- */
     F(BA0, BA1, 0, H, wall, null, 0, FB);             // front wall
     F(BA0, BA1, 0, 18, shade(wall,.78), null, 0, FB+0.4); // base course
@@ -18829,6 +18850,8 @@ const TIDEWATER_MUSEUM = (() => {
        hit seven times. Ordering by depth only works for objects that
        HAVE a depth; an object spanning a range has to be cut where the
        things it interleaves with sit. */
+    }   // end body
+    if(PART !== 'body'){
     tier([[CB,216],[120,228],[32,242],[FB,264]], tile, false);   // the profile stretches with it: 30 -> 120, -14 -> 32
 
     /* ---- the colonnade ---- */
@@ -18892,6 +18915,7 @@ const TIDEWATER_MUSEUM = (() => {
     /* the last 28 of eave, with its fascia and corners, in front of the
        colonnade it lands on */
     tier([[EB,210],[CB,216]], tile, true, 32, CB);
+    }   // end porch
     kerb(p,'none');
   },
   back(p){
@@ -34525,12 +34549,15 @@ class WorldScene extends Phaser.Scene {
              kerb up to the flare, flare down, flush the width of the pad,
              flare back up. Both flares used to sit inside the mouth, which
              left a stub of full kerb at each end of it. */
-          const FL = 64, LOW = 0.6;
+          /* NOTHING ACROSS THE MOUTH. The flush lip was still a painted
+             band between the pad and the road, which is exactly the wall
+             the ramp exists to remove: the drop now runs to nothing over
+             the flare and the pad's own width carries no kerb at all. */
+          const FL = 64;
           const f0 = Math.max(cur, c0 - FL), f1 = Math.min(len, c1 + FL);
           if(f0 - cur > 1) kerbRun(sgn, cur, f0, KERB_H, KERB_H);
-          if(c0 - f0 > 1) kerbRun(sgn, f0, c0, KERB_H, LOW);
-          if(c1 - c0 > 1) kerbRun(sgn, c0, c1, LOW, LOW);
-          if(f1 - c1 > 1) kerbRun(sgn, c1, f1, LOW, KERB_H);
+          if(c0 - f0 > 1) kerbRun(sgn, f0, c0, KERB_H, 0);
+          if(f1 - c1 > 1) kerbRun(sgn, c1, f1, 0, KERB_H);
           cur = f1;
         }
         if(len - cur > 1) kerbRun(sgn, cur, len, KERB_H, KERB_H);
@@ -37413,10 +37440,27 @@ class WorldScene extends Phaser.Scene {
            0 at the glass and negative into the block, which is +rv*b
            because rv points out of it. */
         const lib = u.shop.lib;
+        const G = (a, b, h) => this.W(ux + e.dv.x*a + e.rv.x*b, uy + e.dv.y*a + e.rv.y*b, h);
+        const rear = (e.rv.x + e.rv.y) < 0;
+        /* A SHOP WITH A PORCH IS TWO ENTRIES (Sir, on-device: "tipsey is
+           drawing over the posts"). An entry that carries `porch` stands
+           part of itself out on the pavement -- the tea house's colonnade
+           is 272 out -- and Tipsey drives under it. One key for the whole
+           building puts him in front of all of it, columns included. So
+           the body queues as usual and the porch queues on its own key,
+           taken on the column line, where it sorts against him properly.
+           The entry draws whichever part it is asked for (state.part). */
+        const _e = LIB.get(lib);
+        const porchB = (_e && _e.porch !== undefined)
+          ? (_e.porch + (_e.boff || 0)) * (_e.sc || 1) : null;
         this.queueUnitStrips(vq, ux, uy, e.dv, e.rv, u.w, Math.max(STORE_DEPTH, hoodShopD(lib)), 0, (g) => {
-          LIB.draw(lib, g, (a, b, h) => this.W(ux + e.dv.x*a + e.rv.x*b, uy + e.dv.y*a + e.rv.y*b, h),
-                   null, this.K, null, flank, (e.rv.x + e.rv.y) < 0);
+          LIB.draw(lib, g, G, null, this.K, porchB === null ? null : { part:'body' }, flank, rear);
         });
+        if(porchB !== null){
+          const px = ux + e.dv.x*(u.w/2) + e.rv.x*porchB, py = uy + e.dv.y*(u.w/2) + e.rv.y*porchB;
+          vq.push({ depth: px + py, fn: (g) =>
+            LIB.draw(lib, this.propLayer(g, px, py), G, null, this.K, { part:'porch' }, flank, rear) });
+        }
         return;
       }
       if(isPickup){
