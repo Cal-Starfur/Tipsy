@@ -38934,44 +38934,57 @@ class WorldScene extends Phaser.Scene {
       const key = (a, b) => { const q = depotWorld(cu, a, b); return q.x + q.y; };
       const k0 = key(0, 0), seeA = key(1, 0) > k0, seeB = key(0, 1) > k0;
       const _G = depotGeom(), W0 = _G.WW, D0 = _G.DD, C0 = _G.CW;
-      const strips = (lo, hi, fnKey, part) => {
-        const n = Math.max(1, Math.ceil((hi - lo) / TILE));
-        for(let i = 0; i < n; i++){
-          const s0 = lo + (hi-lo)*i/n, s1 = i === n-1 ? hi : lo + (hi-lo)*(i+1)/n;
-          /* the window laps its neighbours by 2: abutting fills leave a
-             hairline the ground shows through (0.75 still left one at
-             K 0.55, measured), and the lap is the same colour on the
-             same plane, clamped to the wall's own ends by the entry */
-          vq.push({ depth: fnKey((s0+s1)/2), fn: (g) =>
-            LIBDRAW(g, { part, w:[s0 - 2, s1 + 2] }) });
-        }
+      /* ONE PIECE PER WALL (Sir, on-device: "its the slicing that moves
+         the buidling when i move" -- after the shops were made whole on
+         2026-08-31 and this was the building still doing it). The walls
+         used to queue as TILE strips, each with its own key, for the same
+         reason the shops once did: a thin wall has no single scalar key
+         that orders it against a robot both in front of it and inside the
+         room behind it. With only him moving, he crossed those keys one
+         strip at a time and the depot re-composited around him.
+
+         A wall is a PLANE, and a plane has an exact answer: which side of
+         it is he on. So each wall is one entry, keyed at its FARTHEST end
+         (every body out on the pavement in front of it overlaps it at a
+         larger key, so it always draws over the wall) and raised to just
+         past him only when he is on the INSIDE of that plane -- in the
+         room, or anywhere beyond the building from this view. It changes
+         only when he really crosses a wall line, going in or out of the
+         door, never while he drives past. */
+      /* ...and only when he is also IN FRONT OF IT ON SCREEN: raising a
+         wall past him also lifts it past anything keyed between, so a wall
+         he is not overlapping keeps its own key and the props on the
+         pavement around it never trade places with it as he moves. Screen
+         column is x - y; 40 either side covers his body. */
+      const lab = depotLabXY(_lot, this.botX, this.botY);
+      const rk = this.botX + this.botY, ru = this.botX - this.botY, RW = 40;
+      const col = (a, b) => { const q = depotWorld(cu, a, b); return q.x - q.y; };
+      const wall = (part, minK, inside, a0, b0, a1, b1) => {
+        const u0 = col(a0, b0), u1 = col(a1, b1);
+        const over = ru + RW > Math.min(u0, u1) && ru - RW < Math.max(u0, u1);
+        vq.push({ depth: (inside && over) ? Math.max(minK, rk + 0.5) : minK, fn: (g) => LIBDRAW(g, { part }) });
       };
       if(depotStreetView(cu)){
-        /* STREET VIEW, and he starts inside. Four keys, each exact for
-           the plane it stands on (see the entry's PARTS note):
-             room   behind the room's far corner, so anything in the room
-                    draws over its floor, walls and chargers
-             front  and flank as TILE strips on their own planes, like
-                    the back view's walls
-             door   on the chamfer line: x + y is constant along a 45
-                    face, so inside (a + b < WW - CW) sorts before the
-                    jambs and outside after, with no window at all */
+        /* STREET VIEW, and he starts inside. The room keys behind
+           everything in it; the front (b = 0) and flank (a = WW) walls are
+           one piece each; the door sits on the chamfer line, where x + y
+           is constant along the 45 face, so one key orders it exactly. */
         const part = (p) => (g) => LIBDRAW(g, { part: p });
-        vq.push({ depth: key(_G.ROOM.a0, _G.ROOM.b0) - 1, fn: part('room') });
-        strips(0, W0 - C0, (a) => key(a, 0), 'front');
-        strips(-D0, -C0, (b) => key(W0, b), 'flank');
+        const frontK = key(0, 0), flankK = key(W0, -D0);
+        vq.push({ depth: Math.min(key(_G.ROOM.a0, _G.ROOM.b0), frontK, flankK) - 1, fn: part('room') });
+        wall('front', frontK, lab.b < 0,  0, 0, W0 - C0, 0);
+        wall('flank', flankK, lab.a < W0, W0, -D0, W0, -C0);
         vq.push({ depth: key(W0 - C0, 0) + 0.5, fn: part('door') });
       } else {
-        /* FROM BEHIND, the building is two walls and a lid, and he can
-           be INSIDE it -- the pad is 78 off the back wall. One whole-unit
-           key cannot put him behind the walls and a palm in front of them
-           at once, so the walls queue as fence-style TILE strips keyed on
-           their own plane (misorder window TILE/4 of contact distance),
-           and the roof at the footprint's nearest corner: nothing on the
-           ground near it stands taller than the walls it sits on. */
+        /* FROM BEHIND, the building is two walls and a lid, and he can be
+           INSIDE it -- the pad is 78 off the back wall. The walls are the
+           two faces turned to the camera; inside is the side away from
+           it. The roof keys at the footprint's nearest corner: nothing on
+           the ground near it stands taller than the walls it sits on. */
         const aw = seeA ? W0 : 0, bw = seeB ? 0 : -D0;
-        strips(-D0, seeA ? -C0 : 0, (b) => key(aw, b), 'wallA');
-        strips(0, seeB ? W0 - C0 : W0, (a) => key(a, bw), 'wallB');
+        const bEnd = seeA ? -C0 : 0, aEnd = seeB ? W0 - C0 : W0;
+        wall('wallA', Math.min(key(aw, -D0), key(aw, bEnd)), seeA ? lab.a < W0 : lab.a > 0, aw, -D0, aw, bEnd);
+        wall('wallB', Math.min(key(0, bw), key(aEnd, bw)),  seeB ? lab.b < 0 : lab.b > -D0, 0, bw, aEnd, bw);
         const roofK = Math.max(key(0,0), key(W0-C0,0), key(W0,-C0), key(W0,-D0), key(0,-D0)) + 1;
         vq.push({ depth: roofK, fn: (g) =>
           LIBDRAW(g, { part:'roof' }) });
