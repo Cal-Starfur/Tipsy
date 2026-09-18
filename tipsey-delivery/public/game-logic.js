@@ -34350,6 +34350,31 @@ class WorldScene extends Phaser.Scene {
       band(X1, Y0, X1 + FOOTW, Y1 + BOARD + SANDW, 0xcfc69b);                      // east foothills
       band(X0, Y0 - FOOTW - FAR, X1 + FOOTW + FAR, Y0 - FOOTW, 0xa89b82);          // north range
       band(X1 + FOOTW, Y0 - FOOTW, X1 + FOOTW + FAR, Y1 + BOARD + SANDW, 0xa89b82); // east range
+      /* the bench under Sierra Vista: the notch the hills leave for it is
+         foothill ground, same as the band the rest of the estate sits on */
+      band(X0, Y0 - BLOCK*WG_HILLS.SV_TOE, X0 + BLOCK*(WG_HILLS.SV_X + WG_HILLS.SV_EASE), Y0 - FOOTW, WG_HILLS.bench);
+      /* THE NORTH HILLS climb on top of the flat north range, which stays
+         as the floor under them. See northHillPolys for the shape and why
+         only the north side rises. cy carries camZ so the pure function
+         projects exactly as W() does. */
+      {
+        const gW = this.scale.gameSize.width, gH = this.scale.gameSize.height;
+        const hp = northHillPolys({ xw: X0, xe: X1 + FOOTW + FAR, y0: Y0, far: FAR,
+          camX: this.camX, camY: this.camY, K: this.K,
+          cx: this.cx, cy: this.cy + this.camZ*this.K, w: gW, h: gH });
+        for(const it of hp){
+          if(it.p){
+            const pts = it.p.map(q => this.W(q[0], q[1], q[2]));
+            if(!onScreen(pts)) continue;
+            this.quadOn(g, pts, it.c);
+          } else {
+            const a = this.W(it.l[0][0], it.l[0][1], it.l[0][2]), b2 = this.W(it.l[1][0], it.l[1][1], it.l[1][2]);
+            if(!onScreen([a, b2])) continue;
+            g.lineStyle(it.w, it.c, 1);
+            g.lineBetween(a.x, a.y, b2.x, b2.y);
+          }
+        }
+      }
       /* upscale housing in the hills: Sierra Vista Estates on the shoulder
          east of the marina, Mirador Heights terraced into the eastern
          slope — and the houses LINE the drive. Each district is one
@@ -51291,6 +51316,214 @@ const WG_COAST = { EXT:0.55, SANDW:1.4, FOOTW:1.1, BOARD:0.15, MTN_BASIN:2.2,
      deck; these are built to 782 x 640 for margin. Real piers widen at the
      landward end anyway. */
   FLARE_LEN: 0.29, FLARE_HALF: 0.216 };
+/* ---------- THE NORTH HILLS: terraces + ridgeline ----------
+   (2026-09-18, Sir: "the hill doesn't really read as hill")
+
+   The north side of Costa Palma was two flat bands at z=0 -- foothill
+   tan, then range brown out to FAR. Nothing in them had height, and in
+   this projection height is the ONLY thing that says "hill": it is read
+   off vertical faces and the shade on them, which a flat band has none
+   of. So the range now climbs.
+
+   SHAPE. From just past the city's edge the ground steps up in
+   WG_HILLS.steps terraces, each a sloped riser and a flat
+   shelf, each taller and deeper than the last, the colour drying from
+   foothill grass to range rock as it climbs. The top shelf is a plateau
+   out to FAR, and two rows of peaks stand on it -- a darker near row and
+   a taller, hazier far row, so the skyline has depth rather than one
+   cardboard cut-out.
+
+   THE SIERRA VISTA NOTCH. The estates' lots sit flat on the foothill
+   band at the west end, out to FOOTW + 0.95 blocks. The toe of the
+   first riser is pulled back behind them over their x-span (SV_X) and
+   eases back to the city edge across SV_EASE, so no lot or drive ever
+   has a riser through it. Everywhere else the climb starts TOE_GAP past
+   the ring the city paints -- close enough to be seen from the top
+   street, which is the whole point.
+
+   WHY ONLY NORTH. The north hills are BEHIND the city on screen (north
+   is up-right), so anything raised there climbs further up the frame,
+   away from the streets, and every riser faces +y -- toward the camera.
+   The east hills are the opposite case: east is down-right, IN FRONT of
+   the city, so raised ground there would stand between the camera and
+   the street and every riser would face away from it. That is an
+   occlusion job (the x-ray system, blockVQ), not a paint job, and it is
+   deliberately left flat here.
+
+   ORDER. Everything is emitted far-to-near: plateau core, far peaks,
+   near peaks, then each terrace from the top down, shelf before riser.
+   Every nearer piece is lower on screen than every farther one it abuts,
+   so painter's order is exact without a sort.
+
+   CHEAP BY CONSTRUCTION. Each shelf is one huge straight quad (its
+   CORE, inside the wobble of both its edges -- the same one-quad-per-
+   band trick the flat bands used) plus short strips only along the
+   wobbly edges, and only inside a window around where that edge crosses
+   the frame. An iso frame at world y crosses x near camX + (y - camY),
+   which is what the window is centred on. Off the north edge the whole
+   thing is a handful of quads that onScreen() rejects. */
+const WG_HILLS = {
+  TOE_GAP: 0.12,         // blocks past Y0 before the first riser, plain frontage
+  SV_TOE: 1.1 + 1.05,    // blocks past Y0 over Sierra Vista (FOOTW + its lots' 0.95 + margin)
+  SV_X: 3.5,             // blocks east of X0 the notch holds full depth
+  SV_EASE: 0.9,          // blocks over which it eases back to TOE_GAP
+  /* [depth in blocks, rise, shelf colour] -- riser shades derive from it */
+  steps: [
+    [0.28, 150, 0xc9bf94],
+    [0.30, 190, 0xbdb289],
+    [0.34, 240, 0xb2a683],
+    [0.38, 300, 0xa89b7f],
+    [0.44, 360, 0x9e9179],
+  ],
+  run: 0.30,             // riser slope: horizontal run, fraction of that shelf's depth
+  wob: 0.16,             // edge wobble, fraction of that shelf's depth
+  foot: 0.14,            // shade strip at a riser's foot, fraction of the shelf below's depth
+  bench: 0xcfc69b,       // the foothill band the first riser stands on (drawWorld's own band)
+  seg: 420,              // strip segment length along x
+  peaksBack: 0.6,        // blocks between the deepest last shelf and the near peak row
+  peaks: [               // far row first; the near row paints over it
+    { back: 1.0, gap: 1.25, hw: [0.55, 0.95], h: [1500, 2500], lit: 0xb4b2a6, sh: 0x9b998f, tip: 0xc6c4b9 },
+    { back: 0.0, gap: 0.95, hw: [0.45, 0.80], h: [ 800, 1500], lit: 0xa3957c, sh: 0x857962, tip: 0xb7aa91 },
+  ],
+};
+function hillShade(c, k){
+  const r = Math.min(255, Math.round(((c>>16)&255)*k)),
+        g = Math.min(255, Math.round(((c>>8)&255)*k)),
+        b = Math.min(255, Math.round((c&255)*k));
+  return (r<<16) | (g<<8) | b;
+}
+/* World-space polygons for the north hills, far-to-near. Pure: no
+   `this`, no rng state -- the same camera always yields the same list.
+   o: { xw, xe (x extent), y0 (the city's drawn north edge, Y0),
+        far (plateau depth), camX, camY, and the projection W() uses:
+        K, cx, cy (camZ folded in by the caller), w, h }
+   out: [{ p:[[x,y,z],...], c }] and [{ l:[[x,y,z],[x,y,z]], c, w }] */
+function northHillPolys(o){
+  const B = BLOCK, H = WG_HILLS, out = [];
+  const n = H.steps.length;
+  const cum = [0], hgt = [0], amp = [], ph = [];
+  for(let k = 0; k < n; k++){
+    const d = H.steps[k][0]*B;
+    cum.push(cum[k] + d);
+    hgt.push(hgt[k] + H.steps[k][1]);
+    amp.push(H.wob*d);
+    ph.push([k*1.7 + 0.4, k*2.9 + 1.1]);
+  }
+  const toePlain = o.y0 - H.TOE_GAP*B, toeSV = o.y0 - H.SV_TOE*B;
+  const svX1 = o.xw + H.SV_X*B, svX2 = svX1 + H.SV_EASE*B;
+  const toe = x => {
+    if(x <= svX1) return toeSV;
+    if(x >= svX2) return toePlain;
+    const t = (x - svX1)/(svX2 - svX1), e = t*t*(3 - 2*t);
+    return toeSV + (toePlain - toeSV)*e;
+  };
+  const f1 = Math.PI*2/(2.6*B), f2 = Math.PI*2/(0.9*B);
+  const wob = (k, x) => amp[k]*(0.62*Math.sin(x*f1 + ph[k][0]) + 0.38*Math.sin(x*f2 + ph[k][1]));
+  const runOf = k => H.run*H.steps[k][0]*B;
+  const edgeY = (k, x) => toe(x) - cum[k] + wob(k, x);   // riser foot of shelf k
+  const lipY  = (k, x) => edgeY(k, x) - runOf(k);         // riser crest = shelf k's near edge
+  /* the plateau begins north of every possible last-shelf lip */
+  const yP = toeSV - cum[n-1] - runOf(n-1) - amp[n-1];
+  const zTop = hgt[n];
+
+  /* THE STRIP WINDOW: the x-range over which a line at world y, with
+     heights zLo..zHi, can land on screen at all. Straight from W(): the
+     frame's left/right bounds limit xr - yr, its top/bottom bound
+     (xr + yr)/2 - z, so each gives an x interval and the window is their
+     overlap, padded by `pad` for wobble and footprint. */
+  const win1 = (yy, zLo, zHi, pad) => {
+    const yr = yy - o.camY, K = o.K;
+    const a0 = yr - o.cx/K, a1 = yr + (o.w - o.cx)/K;
+    const b0 = 2*(zLo - o.cy/K) - yr, b1 = 2*(zHi + (o.h - o.cy)/K) - yr;
+    return [Math.max(a0, b0) - pad + o.camX, Math.min(a1, b1) + pad + o.camX];
+  };
+  /* a feature whose y depends on the toe: take the window at every y it
+     can have and keep their span. Empty windows (lo > hi) drop out. */
+  const win = (ys, zLo, zHi, pad) => {
+    let lo = Infinity, hi = -Infinity;
+    for(const yy of ys){
+      const [a, b] = win1(yy, zLo, zHi, pad);
+      if(a <= b){ if(a < lo) lo = a; if(b > hi) hi = b; }
+    }
+    return [Math.max(o.xw, lo), Math.min(o.xe, hi)];
+  };
+  const P = (pts, c) => out.push({ p: pts, c });
+  const L = (a, b, c, w) => out.push({ l: [a, b], c, w });
+  const S = H.seg;
+
+  /* ---- plateau core ---- */
+  P([[o.xw, yP, zTop], [o.xe, yP, zTop], [o.xe, yP - o.far, zTop], [o.xw, yP - o.far, zTop]], H.steps[n-1][2]);
+
+  /* ---- ridgeline ----
+     Square-based, ridge-topped pyramids on the plateau. From this camera
+     only the south (+y, lit) and east (+x, shade) faces can ever show,
+     so those two are drawn. Indexed on a fixed stride along x, so a peak
+     is a property of WHERE it is, and only indices in the window are
+     visited; ascending x is near-to-far-correct within a row because a
+     peak's east neighbour is nearer the camera. */
+  const lerp3 = (a, b, t) => [a[0] + (b[0]-a[0])*t, a[1] + (b[1]-a[1])*t, a[2] + (b[2]-a[2])*t];
+  for(const row of H.peaks){
+    const ay = yP - (H.peaksBack + row.back)*B;
+    const [wx0, wx1] = win([ay], zTop, zTop + row.h[1], row.hw[1]*B*2.5);
+    if(wx0 > wx1) continue;
+    const gap = row.gap*B;
+    for(let i = Math.floor(wx0/gap); i <= Math.ceil(wx1/gap); i++){
+      const rr = mulberry32(((i*2654435761) ^ Math.round(row.back*1000 + 77)) >>> 0);
+      const ax = i*gap + (rr() - 0.5)*gap*0.5;
+      const hw = (row.hw[0] + rr()*(row.hw[1] - row.hw[0]))*B;
+      if(ax - hw < o.xw || ax + hw > o.xe) continue;
+      const hd = hw*(0.7 + rr()*0.3);
+      const h  = zTop + row.h[0] + rr()*(row.h[1] - row.h[0]);
+      const ridge = hw*rr()*0.35;                 // 0 = a point, >0 = a short crest
+      const jx = (rr() - 0.5)*hw*0.4, jy = (rr() - 0.5)*hd*0.3;
+      const sy = ay + hd, ex = ax + hw;
+      const SW = [ax - hw, sy, zTop], SE = [ex, sy, zTop], NE = [ex, ay - hd, zTop];
+      const tA = [ax + jx - ridge, ay + jy, h], tB = [ax + jx + ridge, ay + jy, h];
+      P([SE, NE, tB], row.sh);                    // east face
+      P([SW, SE, tB, tA], row.lit);               // south face
+      P([lerp3(tA, SW, 0.26), lerp3(tB, SE, 0.26), tB, tA], row.tip);  // rock tip
+      L(tB, SE, hillShade(row.sh, 0.88), 1.5);    // the SE arete
+    }
+  }
+
+  /* ---- terraces, top down: shelf, then its riser and crest ---- */
+  for(let k = n - 1; k >= 0; k--){
+    const z0 = hgt[k], z1 = hgt[k+1], col = H.steps[k][2];
+    const farY = k < n - 1 ? (x => edgeY(k+1, x)) : (() => yP);
+    const riserLit = hillShade(col, 0.74), riserMid = hillShade(col, 0.65), riserSh = hillShade(col, 0.56);
+    const footW = k < n - 1 ? H.foot*H.steps[k][0]*B : 0, footC = hillShade(col, 0.9);
+    const crest = hillShade(col, 1.07);
+    const ys = [toePlain - cum[k], toeSV - cum[k], toePlain - cum[k+1], toeSV - cum[k+1]];
+    if(k === n - 1) ys.push(yP);
+    const [a0, a1] = win(ys, z0, z1, (amp[k] + runOf(k))*2 + S);
+    if(a0 > a1) continue;
+    for(let x = Math.floor(a0/S)*S; x < a1; x += S){
+      const xa = Math.max(x, o.xw), xb = Math.min(x + S, o.xe);
+      if(xb <= xa) continue;
+      /* shelf: from this shelf's lip north to the next riser's foot, the
+         last footW of it in the shade that riser casts -- what sets each
+         step down ON the one below instead of stacking flat stripes */
+      P([[xa, lipY(k, xa), z1], [xb, lipY(k, xb), z1], [xb, farY(xb) + footW, z1], [xa, farY(xa) + footW, z1]], col);
+      if(footW) P([[xa, farY(xa) + footW, z1], [xb, farY(xb) + footW, z1], [xb, farY(xb), z1], [xa, farY(xa), z1]], footC);
+      /* riser, shaded by where its face points. An edge run along +x has
+         normal (-dy, dx); light comes from +y and a touch of -x, the side
+         every storefront in the game is lit from. */
+      const dy = edgeY(k, xb) - edgeY(k, xa), dx = xb - xa;
+      const nl = Math.hypot(dy, dx) || 1;
+      const lam = (dy*0.29 + dx*0.96)/nl;
+      const rc = lam > 0.97 ? riserLit : (lam > 0.9 ? riserMid : riserSh);
+      P([[xa, edgeY(k, xa), z0], [xb, edgeY(k, xb), z0], [xb, lipY(k, xb), z1], [xa, lipY(k, xa), z1]], rc);
+      L([xa, lipY(k, xa), z1], [xb, lipY(k, xb), z1], crest, 2);
+      /* the first riser's foot shade lands on the bench, not a shelf */
+      if(k === 0){
+        const fw = H.foot*H.steps[0][0]*B;
+        P([[xa, edgeY(0, xa) + fw, 0], [xb, edgeY(0, xb) + fw, 0], [xb, edgeY(0, xb), 0], [xa, edgeY(0, xa), 0]], hillShade(H.bench, 0.9));
+      }
+    }
+  }
+  return out;
+}
+
 /* ---------- the SHORE lattice ----------
    Ported verbatim out of labs/waterfront.lab.js (page 1) after the
    2026-08-14 audit found the entire waterfront decorative: the 36x27 grid
