@@ -2803,13 +2803,22 @@ const HJ_SEED_DATE = "2026-07-30";
 const SL_SEED_DATE = "2026-08-09";
 
 /* approved palm (palm lab, 2026-07-07): the Costa Palma house style */
+/* SCALE (2026-09-18, Sir: "they dont have enough size to make sense").
+   One uniform multiplier on the whole tree -- trunk, girth, crown, fronds,
+   coconuts, shadow -- applied as a local K in drawProp, so the approved
+   palm-lab proportions are kept exactly and it simply stands bigger.
+   Was 1.0: a 165-unit palm under 347-unit lamps beside 1.3x storefronts
+   read as a potted plant. PROP_EXT.palm/palmDwarf are scaled to match --
+   change one, change the other, or the cull clips the crown. */
 const PALM = {
+  scale: 1.8,
   height: 165, fronds: 8, droop: 1.0, wind: 1.0, trunkLean: 0.16,
   trunk: 0x8a6a48, trunkDk: 0x6f5439, ring: 0x7a5c40,
   frondA: 0x4e8f4a, frondB: 0x3f7a3e,
   coco: 0x6b4f33, cocoHi: 0x7d5e40, shadow: 0x000000
 };
 const PALM_DWARF = {   // approved in palm lab: bush-type dwarf palm
+  scale: 1.3,
   height: 55, fronds: 8, droop: 0.3, wind: 0.3, spread: 1.0, trunkLean: 0.16,
   trunk: 0x8a6a48, trunkDk: 0x6f5439, ring: 0x7a5c40,
   frondA: 0x4e8f4a, frondB: 0x3f7a3e,
@@ -3817,7 +3826,7 @@ const PROP_EXT = {
      and the 2:1 iso gives |sx| <= (|A| + |B|) = 279.4 and
      |sy| <= (|A| + |B|)/2 = 139.7. Rounded up, before the x1.25 pad. */
   hydrantFlood:[280,280,140,140], lamp:[113,113,347,56],
-  palm:[148,139,355,8], palmDwarf:[83,85,135,8], paper:[40,40,40,40],
+  palm:[267,251,639,16], palmDwarf:[108,111,176,11],   /* x PALM.scale 1.8 / PALM_DWARF.scale 1.3 */ paper:[40,40,40,40],
   people:[83,83,166,37], pigeons:[98,98,60,49], planter:[36,36,67,11],
   policecar:[158,158,153,59], robot:[50,50,129,22], scooter:[36,36,62,17],
   sidewalkbegin:[230,230,117,113], sidewalkbeginTurn:[414,414,209,205],
@@ -11077,23 +11086,6 @@ function cityFurnitureForEdge(grid, blk, fi){
     }
   }
 
-  /* ---- palms: lane 3, building side, same as the route's own pass ---- */
-  {
-    const R = mulberry32(cityFurnEdgeSeed(e, 0x9a1b));
-    let a = 0;
-    while(a < e.len){
-      a += (286 + R()*264) * 0.25 * CITY_FURN.sparse * CITY_FURN.cal.palm;
-      const aR = Math.round(a);
-      if(inClear(aR)) continue;
-      if(R() > hood.palms) continue;
-      const lane = 3;
-      const p = pointAt(aR, lane);
-      if(!onWalk(p) || onPad(p) || blocked(aR, lane)) continue;
-      const dwarf = R() < 0.25;
-      place(dwarf ? "palmDwarf" : "palm", aR, lane, p);
-    }
-  }
-
   /* ---- streetlamps: alternating kerb/building side ----
      INFRA IS ITS OWN DIAL. A lamp is not litter -- it is the reason the
      street is lit at night and the reason the pavement has a rhythm.
@@ -11166,6 +11158,47 @@ function cityFurnitureForEdge(grid, blk, fi){
       place("hydrant", aR, 0, p, { burst: startsBurst,
         burstT: startsBurst ? -1e9 : undefined,
         pudDir: startsBurst ? (R() < 0.5 ? -1 : 1) : undefined });
+    }
+  }
+
+  /* ---- palms: KERB side, planted BETWEEN the lamps ----
+     (2026-09-18, Sir: "they are placing randomly in front of doors")
+
+     This used lane 3 -- the building side -- on its own random walk.
+     Lane 3 is the row directly in front of the storefronts, and nothing
+     in this pass knows where a door is (each building kit rolls its own
+     doorLeft/doorX at draw time), so a random walk down that row lands a
+     trunk on a doorstep about as often as it lands anywhere else.
+
+     Real street palms are not planted against shopfronts; they stand in
+     tree wells at the kerb, in the parkway, on the same line as the
+     lamps. So: lane 0, and on the LAMPS' own citywide stride, phased
+     half a step off it, so a street reads lamp - palm - lamp - palm in
+     one file down the block instead of scattered. Moving to the kerb
+     clears every door by construction rather than by detecting doors.
+
+     hood.palms still gates each slot, so The Flats and Palm Gardens
+     line their streets and the Warehouse District mostly doesn't.
+     Density lands close to the old pass: one slot per lamp gap (~950)
+     against the old ~740 average walk.
+
+     RUNS AFTER LAMPS AND HYDRANTS so infrastructure keeps first claim
+     on the kerb; a palm that would crowd a hydrant is the one dropped. */
+  {
+    const R = mulberry32(cityFurnEdgeSeed(e, 0x9a1b));
+    const step = LAMP_ACT.spacing * T2 * CITY_FURN.lampInfra * CITY_FURN.cal.lamp;
+    const proj0 = e.ox*e.dv.x + e.oy*e.dv.y;
+    const a0 = ((-proj0 % step) + step) % step + step*0.5;
+    for(let a = a0 - step; a < e.len; a += step){
+      if(a < 0) continue;
+      const aR = Math.round(a);
+      if(inClear(aR)) continue;
+      if(R() > hood.palms) continue;
+      const lane = 0;
+      const p = pointAt(aR, lane);
+      if(!onWalk(p) || onPad(p) || blocked(aR, lane)) continue;
+      const dwarf = R() < 0.25;
+      place(dwarf ? "palmDwarf" : "palm", aR, lane, p);
     }
   }
 
@@ -39052,7 +39085,7 @@ class WorldScene extends Phaser.Scene {
       this.drawLampHull(g, W, t, data || {});
     } else if(kind === "palm" || kind === "palmDwarf"){
       /* approved in palm lab — tall (165/8/1.0) and dwarf (55/8/0.3) presets */
-      const P = kind === "palmDwarf" ? PALM_DWARF : PALM, K = this.K;
+      const P = kind === "palmDwarf" ? PALM_DWARF : PALM, K = this.K * (P.scale || 1);
       const o = W(0, 0, 0);
       const seed = ((Math.round(x)*7919) ^ (Math.round(y)*104729)) >>> 0;
       const rng = mulberry32(seed);
