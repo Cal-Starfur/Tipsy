@@ -32388,12 +32388,27 @@ const TIDEWATER_MUSEUM = (() => {
       };
       TIDEWATER_MUSEUM.PLINTHS
         .forEach(([pa,pb,k]) => items.push({ a:pa, b:pb, z:0, draw:() => plinth(pa,pb,k) }));
+      /* THE TRUNK RUNS UP INTO THE CROWN, AND THE CROWN IS DRAWN FAR TO
+         NEAR (Sir, on-device, circling where each trunk meets its leaves:
+         "can we fix these trees in the museum yard?"). The trunk stopped
+         at 130 under a ring of balls centred at 184 and 56 across, so on
+         screen its flat top cap showed in the gap under the ring, and the
+         five ring balls went down in angle order -- the one behind the
+         trunk could land over the one in front of it. Now the trunk ends
+         at 200, inside the ring where the leaves cover it, and the ring
+         is split around the crown: the far balls, then the crown, then
+         the near ones, by the same a + b the yard's own depthSort uses. */
       const tree = (ta, tb) => {
-        cyl(ta, tb, 0, 130, 17, '#6b5a3a');
-        for(let k=0;k<5;k++)
-          ball(ta + 54*Math.cos(k*1.26+0.4), tb + 54*Math.sin(k*1.26+0.4), 184, 56,
-               ['#3f6b4a','#4e8058','#568a5e'][k%3]);
+        cyl(ta, tb, 0, 200, 17, '#6b5a3a');
+        const ring = [];
+        for(let k=0;k<5;k++){
+          const ba = ta + 54*Math.cos(k*1.26+0.4), bb = tb + 54*Math.sin(k*1.26+0.4);
+          ring.push({ ba, bb, col: ['#3f6b4a','#4e8058','#568a5e'][k%3], key: (ba - ta) + (bb - tb) });
+        }
+        ring.sort((m, n) => m.key - n.key);
+        for(const r of ring) if(r.key < 0) ball(r.ba, r.bb, 184, 56, r.col);
         ball(ta, tb, 226, 52, '#4e8058');
+        for(const r of ring) if(r.key >= 0) ball(r.ba, r.bb, 184, 56, r.col);
       };
       for(const [ta,tb] of TIDEWATER_MUSEUM.TREES)
         items.push({ a:ta, b:tb, z:0, draw:() => tree(ta,tb) });
