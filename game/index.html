@@ -5586,6 +5586,10 @@ function owBuildWorld(route){
           /* the depot's room and doorway are carved out of their block */
           { const _dl = depotOnBlock(g2, b);
             if(_dl){ const ds = depotSolidAt(_dl, x, y, R); if(ds === false) continue; if(ds === true) return b; } }
+          /* and a hood shop that DECLARES its volume is that volume -- see
+             hoodShopVolBlocked */
+          { const hs = hoodShopVolBlocked(g2, b, x, y, R);
+            if(hs === false) continue; if(hs === true) return b; }
           return b;
         }
     }
@@ -11215,6 +11219,55 @@ function hoodShopsOf(grid){
   return _hoodShops;
 }
 function hoodShopEdgeUnits(grid, blk, ei){ hoodShopsOf(grid); return _hoodShopEdges.get(blk.i + "," + blk.j + "/" + ei) || null; }
+/* A HOOD SHOP'S OWN VOLUME, for collision (Sir, on-device, at Seabreeze
+   Fuel: "its open to the gas pumps i shouldnt be hitting a wall ... or is
+   the gas station have an invisible wall?"). It was the block: solidAt is
+   a rectangle over the whole commercial block, and a shop's open ground --
+   a filling station's forecourt -- sits inside that rectangle, so it was
+   a wall the shape of the block. The landmarks and the depot already
+   answer from their declared volume; this does the same for a shop on a
+   block edge that declares one (entry.vol), and nothing for one that does
+   not, so every undeclared shop is exactly as solid as before.
+
+   The world point goes into the entry's own frame the way LIB.draw puts
+   the entry into the world: a along dv from the unit's start, b along rv
+   (0 at the glass, negative into the block), divided by sc, mirrored about
+   ww on the edges draw() mirrors, and boff taken back off.
+
+   Returns undefined when the point is not in any declared shop's OPEN
+   interior -- inset R from the lot's two sides and its back, so a body
+   next to the neighbour or the block behind still reads the block -- and
+   otherwise the volume's own answer at R. */
+/* a world point in a placed shop's own lab frame -- the inverse of what
+   LIB.draw does to the entry (see hoodShopVolBlocked) */
+function hoodShopLab(e, u, shop, x, y){
+  const SC = shop.sc || 1;
+  const ux = e.ox + e.dv.x*u.start, uy = e.oy + e.dv.y*u.start;
+  let a = ((x - ux)*e.dv.x + (y - uy)*e.dv.y) / SC;
+  let b = ((x - ux)*e.rv.x + (y - uy)*e.rv.y) / SC;
+  if((e.dv.x + e.dv.y) <= 0 && shop.mirror !== false) a = (shop.ww || LIB.vol(u.shop.lib).lot.a1) - a;
+  return { a, b: b - (shop.boff || 0), SC };
+}
+function hoodShopVolBlocked(grid, blk, x, y, R){
+  if(!grid || !blk || blk.type !== "commercial" || blk.i === undefined) return undefined;
+  const es = blockEdgesOf(blk);
+  for(let ei = 0; ei < es.length; ei++){
+    const units = hoodShopEdgeUnits(grid, blk, ei);
+    if(!units) continue;
+    const e = es[ei];
+    for(const u of units){
+      if(!u.shop) continue;
+      const shop = LIB.get(u.shop.lib);
+      if(!shop || !shop.vol) continue;
+      const v = LIB.vol(u.shop.lib), L = v.lot;
+      const { a, b, SC } = hoodShopLab(e, u, shop, x, y);
+      const r = R / SC;
+      if(a < L.a0 + r || a > L.a1 - r || b < L.b0 + r) continue;
+      return volBlockedAt(v, a, b, r, true);
+    }
+  }
+  return undefined;
+}
 /* a shop on an edge the route has cut does not draw, so it has no pin */
 function hoodShopLive(route, sh){
   const cuts = route && route.cutEdges && route.cutEdges[sh.blockKey];
@@ -23589,6 +23642,20 @@ const TIDEWATER_MUSEUM = (() => {
   head:'Kiosk on one slot, forecourt lot on the other',
   tags:['two packing slots','forecourt is a side lot, not the pavement','pump island','pumps turned side-on','laid out on one grid'],
   desc:'The kiosk takes the first slot and the second is an open lot the same depth as the building, with the canopy, its posts and the pump island all set out from the lot rectangle rather than placed by eye.',
+  /* THE FORECOURT IS DRIVABLE (Sir, on-device: "its open to the gas
+     pumps i shouldnt be hitting a wall"). Without a declaration the whole
+     lot was one solid box, so the open forecourt stopped him at the
+     pavement line. Declared from the same set-out draw() uses: the kiosk
+     is the only mass (a 0..KW by the shop's depth), and the pump island
+     -- the kerb the posts and pumps stand on -- is the one thing on the
+     forecourt he can hit. The canopy is overhead, so it is not here. */
+  vol: {
+    foot:   [[0,0],[180,0],[180,-T2*3],[0,-T2*3]],
+    h:      152,
+    solids: [{ name:'island', h: 9,
+               poly: [[(180+T2*4.4)/2-26, -T2*3*0.76], [(180+T2*4.4)/2+26, -T2*3*0.76],
+                      [(180+T2*4.4)/2+26, -T2*3*0.24], [(180+T2*4.4)/2-26, -T2*3*0.24]] }]
+  },
   draw(p){
     /* ============ THE FLATS PASS (2026-09-17) ============
        Seabreeze Fuel. Red trim goes sea green.
@@ -34906,6 +34973,19 @@ class WorldScene extends Phaser.Scene {
         if(!u.shop || alo < u.start || alo > u.start + u.w) continue;
         const sh = LIB.get(u.shop.lib);
         if(!sh || !sh.xh) continue;
+        /* A SHOP THAT DECLARES ITS VOLUME IS AS TALL AS THAT SAYS, WHERE
+           IT SAYS (Seabreeze Fuel, 2026-09-17). Its lot is not all
+           building: once the forecourt was drivable, a robot on it read
+           the whole kiosk's xh from every ray and ghosted in plain view
+           (5/5 rays on the open apron, headless). Same answer the
+           landmarks give -- 0 on the open lot, the island's 9 on the
+           island, the kiosk's height over the kiosk. */
+        if(sh.vol){
+          const q = hoodShopLab(e, u, sh, x, y);
+          const h = volBuiltHeight(LIB.vol(u.shop.lib), q.a, q.b, 'street', true);
+          if(h === null) continue;
+          return h * q.SC * (sh.zs === undefined ? 1.5 : sh.zs);
+        }
         /* AND UNDER THE AWNING COUNTS AS BUILT (Sir, on-device: "when i
            go around the corner or if im too close to the building the
            awning is hiding me"). A shop whose roof reaches out over the
