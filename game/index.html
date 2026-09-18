@@ -39548,8 +39548,21 @@ class WorldScene extends Phaser.Scene {
     const H = L.height * hVar;
     const lean = zz => tilt * zz;
 
-    const box = (aC, bC, ha, hb, z0, z1, cTop, cA, cB, noTop=false) => {
+    const box = (aC, bC, ha, hb, z0, z1, cTop, cA, cB, noTop=false, all4=false) => {
       const c = (sa, sb, zz) => W(aC + sa*ha, bC + sb*hb, zz);
+      /* ALL FOUR WALLS FOR THE BASE (Sir, on-device: "the base of the
+         street lamps doesnt have all its faces"). A standalone box here
+         draws its two camera-facing walls and nothing else, which is
+         right for the pole -- nothing can see behind it. The base is
+         wider than the pole and sits on open pavement, so its two FAR
+         walls are in view whenever the lamp is off to one side of the
+         camera, and without them the base reads as a torn sheet. Far
+         walls first, then the top, then the near ones: the painter order
+         a solid needs. */
+      if(all4){
+        this.quadOn(g, [c(-1,-1,z1), c(-1,1,z1), c(-1,1,z0), c(-1,-1,z0)], cA);
+        this.quadOn(g, [c(-1,-1,z1), c(1,-1,z1), c(1,-1,z0), c(-1,-1,z0)], cB);
+      }
       /* noTop: when another segment of the SAME footprint sits flush
          on top (pole segment -> pole segment), this segment's top cap
          is never actually visible -- the segment above only draws its
@@ -39565,10 +39578,10 @@ class WorldScene extends Phaser.Scene {
       this.quadOn(g, [c(-1,1,z1), c(1,1,z1), c(1,1,z0), c(-1,1,z0)], cB);
     };
 
-    const sh = W(0, 0, 0);
-    g.fillStyle(L.shadow, 0.18);
-    g.fillEllipse(sh.x, sh.y + 1, L.baseW*2.286*K*0.8, L.baseW*K*0.8);
-    box(0, 0, L.baseW/2, L.baseW/2, 0, L.baseH, L.base, L.baseDk, L.base);
+    /* NO CAST SHADOW under the base (Sir: "i want to get rid of its
+       shadow"). Nothing else on this pavement casts one, so the ellipse
+       read as a smudge rather than as light. */
+    box(0, 0, L.baseW/2, L.baseW/2, 0, L.baseH, L.base, L.baseDk, L.base, false, true);
     const segN = 3;
     for(let i = 0; i < segN; i++){
       const z0 = L.baseH + (H - L.baseH)*i/segN, z1 = L.baseH + (H - L.baseH)*(i+1)/segN;
