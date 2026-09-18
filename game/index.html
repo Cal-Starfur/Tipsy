@@ -9096,7 +9096,13 @@ const WORLD_RAMP = {
   cross:       ROAD_HALF + 2.5*T2,    // 598 -- dialled on device 2026-08-01; see below
   bothStreets: true,                  // false = one ramp per corner, alternating by node parity
   baseCross:   1.5*(TILE*2),          // 138 -- half-width of the repainted patch under the ramp
-  baseOutline: 1                      // 1 -- dialled on device; 2 read as crossed rectangles at a corner
+  baseOutline: 1,                     // 1 -- dialled on device; 2 read as crossed rectangles at a corner
+  /* the landing's height. The shared ramp art puts it at -3, below the
+     road, which on screen dropped every pad corner 3*K under the kerb
+     line it meets (Sir: "the little corners that dont line up"). The
+     world's ramps meet a kerb and gutter at 0.6..0.8, so they land
+     there; the flare's low end uses the same number. */
+  streetZ:     0.8
 };
 
 /* ---------- TRAFFIC SIGNALS ----------
@@ -35614,6 +35620,19 @@ class WorldScene extends Phaser.Scene {
         ], d.roadLine);
       }
     }
+    /* THE WORLD'S CURB RAMPS GO DOWN BEFORE THE KERB (Sir: "clean up all
+       the little corners that dont line up"). They are pavement decals and
+       used to ride the ground pass, which flushes AFTER this kerb loop --
+       so each ramp's patch, painted up to the kerb line, landed on top of
+       the stone's raised top where the kerb stands tallest and cut a
+       notch into it at every flare. Drawn here instead, after the paving
+       and road paint and before the stone, the kerb covers what its
+       height really covers. Same layer (g), same visProp gate; only the
+       order against the kerb changed. */
+    for(const cr of (r.curbRamps || [])){
+      if(!this.visProp("sidewalkend", cr.x, cr.y)) continue;
+      this.drawProp(g, "sidewalkend", cr.x, cr.y, t, cr.f, 0, null, null, WORLD_RAMP);
+    }
     /* curb: a genuine vertical riser face, not a wide sloped strip —
        zero width ACROSS the curb line, just a height difference from
        bottom to top AT that one lateral position. A sloped quad across
@@ -35764,10 +35783,19 @@ class WorldScene extends Phaser.Scene {
       const kerbRun = (sgn, s0, s1, h0, h1) => {
         const oIn = sgn*(ROAD_HALF - KERB_W), oOut = sgn*ROAD_HALF;
         const pt = (s, o, z) => this.W(sx + dv.x*s + rv.x*o, sy + dv.y*s + rv.y*o, z);
+        /* FACES FIRST, TOP LAST (Sir, on-device: "clean up all the little
+           corners that dont line up"). The pavement-side face used to be
+           drawn after the top; on every kerb whose pavement side faces
+           away from the camera that face is hidden in reality, but drawn
+           last it painted a pale band over the top's back half -- a band
+           the flares and the corner arc did not have, so every join
+           showed a step. A top drawn last covers whichever face is behind
+           it and leaves the one facing the camera, on either side of the
+           street, which is all painter's order needs here. */
+        this.quadOn(g, [pt(s0,oOut,h0), pt(s1,oOut,h1), pt(s1,oOut,0), pt(s0,oOut,0)], KERB_FACE);
         this.quadOn(g, [pt(s0,oIn,h0), pt(s1,oIn,h1), pt(s1,oIn,0), pt(s0,oIn,0)], KERB_FACE);
         this.quadOn(g, [pt(s0,oIn,Math.min(h0,3)), pt(s1,oIn,Math.min(h1,3)), pt(s1,oIn,0), pt(s0,oIn,0)], KERB_DK);
         this.quadOn(g, [pt(s0,oIn,h0), pt(s1,oIn,h1), pt(s1,oOut,h1), pt(s0,oOut,h0)], KERB_TOP);
-        this.quadOn(g, [pt(s0,oOut,h0), pt(s1,oOut,h1), pt(s1,oOut,0), pt(s0,oOut,0)], KERB_FACE);
       };
       band(-1); band(1);
       for(const sgn of [-1, 1]){
@@ -35816,11 +35844,16 @@ class WorldScene extends Phaser.Scene {
           const flare = (sEdge, sPad) => {
             const oIn = sgn*(ROAD_HALF - KERB_W), oOut = sgn*ROAD_HALF;
             const p = (s, o, z) => this.W(sx + dv.x*s + rv.x*o, sy + dv.y*s + rv.y*o, z);
-            /* the sloping top, from the kerb's top face down to the pad */
-            this.quadOn(g, [p(sEdge,oIn,KERB_H), p(sEdge,oOut,KERB_H), p(sPad,oOut,0.8), p(sPad,oIn,0.8)], KERB_TOP);
-            /* and its road-side face, a triangle, where the stone shows */
-            this.quadOn(g, [p(sEdge,oIn,KERB_H), p(sPad,oIn,0.8), p(sPad,oIn,0), p(sEdge,oIn,0)], KERB_FACE);
-            this.quadOn(g, [p(sEdge,oIn,Math.min(KERB_H,3)), p(sPad,oIn,0.8), p(sPad,oIn,0), p(sEdge,oIn,0)], KERB_DK);
+            /* same order as kerbRun, so the wedge and the stone it
+               continues are built identically and meet without a step:
+               both triangle faces, then the sloping top over them. The
+               low end sits at the pad's own height (WORLD_RAMP.streetZ),
+               so its corner lands on the pad's corner on screen too. */
+            const zT = WORLD_RAMP.streetZ;
+            this.quadOn(g, [p(sEdge,oOut,KERB_H), p(sPad,oOut,zT), p(sPad,oOut,0), p(sEdge,oOut,0)], KERB_FACE);
+            this.quadOn(g, [p(sEdge,oIn,KERB_H), p(sPad,oIn,zT), p(sPad,oIn,0), p(sEdge,oIn,0)], KERB_FACE);
+            this.quadOn(g, [p(sEdge,oIn,Math.min(KERB_H,3)), p(sPad,oIn,zT), p(sPad,oIn,0), p(sEdge,oIn,0)], KERB_DK);
+            this.quadOn(g, [p(sEdge,oIn,KERB_H), p(sEdge,oOut,KERB_H), p(sPad,oOut,zT), p(sPad,oIn,zT)], KERB_TOP);
           };
           /* the kerb picks up again at the far edge of the pad; the second
              flare is drawn over ITS first FL, same as the first */
@@ -35882,8 +35915,8 @@ class WorldScene extends Phaser.Scene {
         ring(KR + KERB_W, KR + KERB_W + CURB_W, 0.6, 0.6, GUT);     // the gutter, in the asphalt
         faceArc(KR + KERB_W, 0, 3, KERB_DK);                        // shadow where it meets the gutter
         faceArc(KR + KERB_W, 3, KERB_H, KERB_FACE);                 // the kerb's road face
-        ring(KR, KR + KERB_W, KERB_H, KERB_H, KERB_TOP);            // its top
-        faceArc(KR, 0, KERB_H, KERB_FACE);                          // and down onto the paving
+        faceArc(KR, 0, KERB_H, KERB_FACE);                          // down onto the paving (behind the top -- see kerbRun)
+        ring(KR, KR + KERB_W, KERB_H, KERB_H, KERB_TOP);            // its top, last
         /* THE GULLY, at the bottom of the sweep where the water goes */
         const m = at(KR + KERB_W + CURB_W*0.5, 0.5), th = a0 + da*0.5;   // in the gutter, clear of the kerb
         const ux = Math.cos(th), uy = Math.sin(th), vx = -uy, vy = ux;
@@ -36406,11 +36439,7 @@ class WorldScene extends Phaser.Scene {
        hazard entry (see buildWorldCurbRamps). Same ground pass and the
        same pinned layer as the route's ramps, so the two sets sort
        identically and a route ramp beside a world ramp is seamless. */
-    for(const cr of (r.curbRamps || [])){
-      if(!this.visProp("sidewalkend", cr.x, cr.y)) continue;
-      const crx = cr.x, cry = cr.y, crf = cr.f;
-      groundVQ.push({ depth: crx+cry, fn:(g,t)=>this.drawProp(g, "sidewalkend", crx, cry, t, crf, 0, null, null, WORLD_RAMP) });
-    }
+    /* (drawn with the kerbs now, BEFORE them -- see the note there) */
 
     /* city pavement damage. wx/wy IS the position -- no worldOf, because
        a permanent prop's `s` is EDGE-LOCAL and feeding it to the rail
@@ -42419,7 +42448,7 @@ class WorldScene extends Phaser.Scene {
          which carries neither key, so they keep the approved look). */
       const crossHalf = (data && data.baseCross !== undefined) ? data.baseCross : 1.5*T2s;
       const baseOutline = (data && data.baseOutline !== undefined) ? data.baseOutline : 2;
-      const sidewalkZ = 2, streetZ = -3;
+      const sidewalkZ = 2, streetZ = (data && data.streetZ !== undefined) ? data.streetZ : -3;
       this.quadOn(g, [W(-wHalf,-crossHalf,sidewalkZ), W(wHalf,-crossHalf,sidewalkZ),
                       W(wHalf,crossHalf,sidewalkZ), W(-wHalf,crossHalf,sidewalkZ)], 0xb5afa2);
       if(baseOutline > 0)
