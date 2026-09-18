@@ -34613,6 +34613,14 @@ class WorldScene extends Phaser.Scene {
              than for a pad's width either side of it. */
           const FL = 22;
           const f0 = Math.max(cur, c0 - FL), f1 = Math.min(len, c1 + FL);
+          /* AND THE STRIP THE KERB WOULD HAVE STOOD ON IS CONCRETE, not
+             asphalt (Sir, on-device, with the two gaps painted red: "they
+             need to be gutter color"). The road quad runs to ROAD_HALF, so
+             wherever the stone is missing the gutter appeared to stop 22
+             short of the paving and the mouth read as tarmac. */
+          { const o0 = sgn*(ROAD_HALF - KERB_W), o1 = sgn*ROAD_HALF;
+            const q = (s, o) => this.W(sx + dv.x*s + rv.x*o, sy + dv.y*s + rv.y*o, 0.6);
+            this.quadOn(g, [q(f0,o0), q(f1,o0), q(f1,o1), q(f0,o1)], GUT); }
           if(f0 - cur > 1) kerbRun(sgn, cur, f0, KERB_H, KERB_H);
           if(c0 - f0 > 1) kerbRun(sgn, f0, c0, KERB_H, 0);
           if(f1 - c1 > 1) kerbRun(sgn, c1, f1, 0, KERB_H);
