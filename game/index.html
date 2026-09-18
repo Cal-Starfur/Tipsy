@@ -35778,7 +35778,7 @@ class WorldScene extends Phaser.Scene {
           /* THE OPENING IS THE PAD, near enough: short flares, so the
              white kerb is broken only across the yellow square rather
              than for a pad's width either side of it. */
-          const FL = 22;
+          const FL = 40;
           const f0 = Math.max(cur, c0 - FL), f1 = Math.min(len, c1 + FL);
           /* AND THE STRIP THE KERB WOULD HAVE STOOD ON IS CONCRETE, not
              asphalt (Sir, on-device, with the two gaps painted red: "they
@@ -35787,11 +35787,29 @@ class WorldScene extends Phaser.Scene {
              short of the paving and the mouth read as tarmac. */
           { const o0 = sgn*(ROAD_HALF - KERB_W), o1 = sgn*ROAD_HALF;
             const q = (s, o) => this.W(sx + dv.x*s + rv.x*o, sy + dv.y*s + rv.y*o, 0.6);
-            this.quadOn(g, [q(f0,o0), q(f1,o0), q(f1,o1), q(f0,o1)], GUT); }
-          if(f0 - cur > 1) kerbRun(sgn, cur, f0, KERB_H, KERB_H);
-          if(c0 - f0 > 1) kerbRun(sgn, f0, c0, KERB_H, 0);
-          if(f1 - c1 > 1) kerbRun(sgn, c1, f1, 0, KERB_H);
-          cur = f1;
+            this.quadOn(g, [q(c0,o0), q(c1,o0), q(c1,o1), q(c0,o1)], GUT); }
+          /* THE FLARE SITS ON THE KERB (Sir's sketch, and then: "it must
+             overlap the white curb"). The kerb runs at full height right
+             up to the pad; the flare is a wedge drawn OVER its last FL,
+             its top falling from the stone's own top face at the far end
+             to nothing at the pad's corner. So the white stone runs on
+             underneath and the ramp reads as a funnel with the pad as its
+             flat bottom, rather than as a kerb that fades out. */
+          if(c0 - cur > 1) kerbRun(sgn, cur, c0, KERB_H, KERB_H);
+          const flare = (sEdge, sPad) => {
+            const oIn = sgn*(ROAD_HALF - KERB_W), oOut = sgn*ROAD_HALF;
+            const p = (s, o, z) => this.W(sx + dv.x*s + rv.x*o, sy + dv.y*s + rv.y*o, z);
+            /* the sloping top, from the kerb's top face down to the pad */
+            this.quadOn(g, [p(sEdge,oIn,KERB_H), p(sEdge,oOut,KERB_H), p(sPad,oOut,0.8), p(sPad,oIn,0.8)], KERB_TOP);
+            /* and its road-side face, a triangle, where the stone shows */
+            this.quadOn(g, [p(sEdge,oIn,KERB_H), p(sPad,oIn,0.8), p(sPad,oIn,0), p(sEdge,oIn,0)], KERB_FACE);
+            this.quadOn(g, [p(sEdge,oIn,Math.min(KERB_H,3)), p(sPad,oIn,0.8), p(sPad,oIn,0), p(sEdge,oIn,0)], KERB_DK);
+          };
+          /* the kerb picks up again at the far edge of the pad; the second
+             flare is drawn over ITS first FL, same as the first */
+          cur = c1;
+          flare(Math.max(0, c0 - FL), c0);
+          flare(Math.min(len, c1 + FL), c1);
         }
         if(len - cur > 1) kerbRun(sgn, cur, len, KERB_H, KERB_H);
       }
