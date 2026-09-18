@@ -40550,14 +40550,36 @@ class WorldScene extends Phaser.Scene {
            meeting the pavement with no foot, is what read as disjointed. */
         /* slimmer than the first pass: a 22-wide shaft carrying an 18-deep
            arm was heavier than the cones and palms beside it. */
-        box(-14, 14, -14, 14, 0, 18, C_DARK_X, C_DARK_Y, C_DARK_T);
-        box(-10, 10, -10, 10, 0, SIGNAL.poleH, C_SIDE_X, C_SIDE_Y, C_TOP);
+        /* STACKED, NOT OVERLAPPING (Sir, on-device, circling the foot and
+           the head of the pole: "can we clean up our stop lights too?").
+           These are boxes painted in call order with no depth test, so
+           every box that shared a z-range with the one before it painted
+           across it: the full-height shaft covered the front of its own
+           base collar, the arm collar's top sliced into the shaft above
+           it, a 5-unit sliver of bare shaft showed between that collar and
+           the cap, and the arm -- starting at the pole's centre -- ran its
+           faces straight through the collar.
+
+           Now each piece owns its own z-range and they are drawn bottom
+           to top, which is correct painter's order for a stack: foot,
+           shaft, and ONE head block that is the arm collar and the cap
+           together. The arm starts at the head block's face, and is drawn
+           after the block when it points toward the camera (it is nearer)
+           and before it when it points away (the block hides its root). */
+        const FOOT = 18, HEAD0 = armZ - 13, HEAD1 = SIGNAL.poleH + 7;
+        box(-14, 14, -14, 14, 0, FOOT, C_DARK_X, C_DARK_Y, C_DARK_T);
         if(SIGNAL.arm){
-          box(-13, 13, -13, 13, armZ-13, armZ+13, C_DARK_X, C_DARK_Y, C_DARK_T);
+          box(-10, 10, -10, 10, FOOT, HEAD0, C_SIDE_X, C_SIDE_Y, C_TOP);
           /* the arm rides with the post, pointing along fdir = armF */
-          box(0, SIGNAL.armLen, -6, 6, armZ-7, armZ+7, C_SIDE_X, C_SIDE_Y, C_TOP);
+          const arm = () => box(13, SIGNAL.armLen, -6, 6, armZ-7, armZ+7, C_SIDE_X, C_SIDE_Y, C_TOP);
+          const armNear = dv.x > 0 || dv.y > 0;
+          if(!armNear) arm();
+          box(-13, 13, -13, 13, HEAD0, HEAD1, C_DARK_X, C_DARK_Y, C_DARK_T);
+          if(armNear) arm();
+        } else {
+          box(-10, 10, -10, 10, FOOT, SIGNAL.poleH, C_SIDE_X, C_SIDE_Y, C_TOP);
+          box(-12, 12, -12, 12, SIGNAL.poleH, SIGNAL.poleH+7, C_DARK_X, C_DARK_Y, C_TOP);
         }
-        box(-12, 12, -12, 12, SIGNAL.poleH, SIGNAL.poleH+7, C_DARK_X, C_DARK_Y, C_TOP);
       } else {
         const R = SIGNAL.headR, gap = R*2.3;
         const botZ = headTopZ - gap*3.05;
