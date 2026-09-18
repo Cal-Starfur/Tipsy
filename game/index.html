@@ -11262,7 +11262,19 @@ function hoodShopVolBlocked(grid, blk, x, y, R){
       const v = LIB.vol(u.shop.lib), L = v.lot;
       const { a, b, SC } = hoodShopLab(e, u, shop, x, y);
       const r = R / SC;
-      if(a < L.a0 + r || a > L.a1 - r || b < L.b0 + r) continue;
+      /* A SIDE ON THE BLOCK'S CORNER IS OPEN (Sir, on-device, coming off
+         the cross street: "still not making it past this wall"). The inset
+         keeps a body off the neighbour on either side -- but a lot that
+         runs to the end of its edge has no neighbour there, only the other
+         street's pavement past the block rect, which is exactly how the
+         Fuel forecourt meets the corner. Which lab side that is depends on
+         the mirror: lab a = 0 sits at the unit's start unmirrored and at
+         its end mirrored. */
+      const mir = (e.dv.x + e.dv.y) <= 0 && shop.mirror !== false;
+      const atStart = u.start <= 0.5, atEnd = u.start + u.w >= e.len - 0.5;
+      const open0 = mir ? atEnd : atStart, open1 = mir ? atStart : atEnd;
+      if((!open0 && a < L.a0 + r) || (!open1 && a > L.a1 - r) || a < L.a0 - r || a > L.a1 + r
+         || b < L.b0 + r) continue;
       return volBlockedAt(v, a, b, r, true);
     }
   }
