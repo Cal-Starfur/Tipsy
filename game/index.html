@@ -4886,8 +4886,14 @@ const ROAD_HALF = 4*T2;      // road is 8 rows wide, symmetric about the centerl
    drawWorld draws the kerb there too, off the same constant, instead of
    restating the road edge. */
 const CURB_W = T2 * 0.5;
-/* how tightly the kerb turns a corner (2026-09-17) */
-const KERB_ARC_R = T2 * 1.2;
+/* How tightly the kerb turns a corner (2026-09-17). It also decides where
+   the straight runs BEGIN -- ROAD_HALF + CURB_W + KERB_ARC_R from the node
+   -- and a crossing ramp's pad starts 483 out, so an arc bigger than this
+   sweeps across the pad and the kerb reads as a wall in front of the ramp
+   (Sir: "we still havnt fully fixed the curb and how its cutting infront
+   of the ramps"). 24 puts the tangent at 438, which leaves the pad 45
+   of run to flare down in. */
+const KERB_ARC_R = 24;
 const SIDEWALK_ROWS = 4;     // per side — the sidewalk width already live in-game
 const SIDEWALK_W = SIDEWALK_ROWS*T2;
 const OVERSHOOT = ROAD_HALF; // sufficient by construction — see classifyAt
@@ -35710,12 +35716,15 @@ class WorldScene extends Phaser.Scene {
              kerb up to the flare, flare down, flush the width of the pad,
              flare back up. Both flares used to sit inside the mouth, which
              left a stub of full kerb at each end of it. */
-          const FL = 64, LOW = 0.6;
+          /* NOTHING ACROSS THE MOUTH. The flush lip was still a painted
+             band between the pad and the road, which is exactly the wall
+             the ramp exists to remove: the drop now runs to nothing over
+             the flare and the pad's own width carries no kerb at all. */
+          const FL = 64;
           const f0 = Math.max(cur, c0 - FL), f1 = Math.min(len, c1 + FL);
           if(f0 - cur > 1) kerbRun(sgn, cur, f0, KERB_H, KERB_H);
-          if(c0 - f0 > 1) kerbRun(sgn, f0, c0, KERB_H, LOW);
-          if(c1 - c0 > 1) kerbRun(sgn, c0, c1, LOW, LOW);
-          if(f1 - c1 > 1) kerbRun(sgn, c1, f1, LOW, KERB_H);
+          if(c0 - f0 > 1) kerbRun(sgn, f0, c0, KERB_H, 0);
+          if(f1 - c1 > 1) kerbRun(sgn, c1, f1, 0, KERB_H);
           cur = f1;
         }
         if(len - cur > 1) kerbRun(sgn, cur, len, KERB_H, KERB_H);
