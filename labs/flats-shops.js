@@ -14859,6 +14859,46 @@ const SHOPS = [
     /* hopscotch by the east gate */
     for(let k=0;k<6;k++) T(6880+k*46, 6880+k*46+34, -206, -172, 1.2, '#e0c88a');
 
+    /* ---- THE RAILING, chain link with two gates and brick piers ----
+       Defined BEFORE the range because half of it stands behind the
+       building (2026-09-18, Sir: "the fences that should be behind the
+       school is drawing over it"). This kit paints in call order, and
+       the back run at b = -DEP sits a full 926 out beyond the building's
+       back wall -- further from the camera, so higher up the frame,
+       right across the roof. Drawn last it painted over it. So the runs
+       are split at the building's own front line, BB1: everything at or
+       beyond BB1 is drawn here, before the range; the pavement side, the
+       gates and the piers are drawn after it, further down. */
+    const MESH = '#a8b0ae', POST = '#7d8785', FZ0 = 14, FZ1 = 150;
+    const GATES = [[2310, 2490], [6910, 7090]];
+    const mesh = (x0, y0, x1, y1) => {
+      const len = Math.hypot(x1-x0, y1-y0);
+      const pt = (t, z) => P(x0 + (x1-x0)*t, y0 + (y1-y0)*t, z);
+      poly([pt(0,FZ1), pt(1,FZ1), pt(1,FZ0), pt(0,FZ0)], 'rgba(206,214,212,.14)');
+      ctx.strokeStyle = MESH; ctx.lineWidth = 1.1;
+      const rise = (FZ1 - FZ0) * ZSCALE, step = 90;
+      for(let k = -2; k <= len/step + 2; k++) for(const dir of [1, -1]){
+        const s0 = k*step, s1 = s0 + dir*rise;
+        let u0 = 0, u1 = 1;
+        if(s1 !== s0){ const ua = (0 - s0)/(s1 - s0), ub = (len - s0)/(s1 - s0);
+          u0 = Math.max(0, Math.min(ua, ub)); u1 = Math.min(1, Math.max(ua, ub)); }
+        else if(s0 < 0 || s0 > len) continue;
+        if(u1 <= u0) continue;
+        const q0 = pt((s0 + (s1-s0)*u0)/len, FZ0 + (FZ1-FZ0)*u0);
+        const q1 = pt((s0 + (s1-s0)*u1)/len, FZ0 + (FZ1-FZ0)*u1);
+        ctx.beginPath(); ctx.moveTo(q0.x, q0.y); ctx.lineTo(q1.x, q1.y); ctx.stroke();
+      }
+      tube(x0, y0, FZ1, x1, y1, FZ1, 4, POST);
+      tube(x0, y0, FZ0, x1, y1, FZ0, 2.4, POST);
+      const n = Math.max(2, Math.round(len/380));
+      for(let k=0;k<=n;k++){ const t = k/n, xa = x0 + (x1-x0)*t, ya = y0 + (y1-y0)*t;
+        tube(xa, ya, 0, xa, ya, (k===0||k===n) ? 158 : 152, (k===0||k===n) ? 9 : 6.5, POST); }
+    };
+
+    /* behind the building: the back run and the rear half of each end */
+    mesh(14, -DEP+14, LEN-14, -DEP+14);
+    mesh(14, BB1, 14, -DEP+14); mesh(LEN-14, BB1, LEN-14, -DEP+14);
+
     /* ---- THE RANGE. One two-storey block in the middle with a lower
        wing each side, all on the same back line so the yard in front is
        one open piece. Bands are drawn on the front face (b = BB1), the
@@ -14869,9 +14909,16 @@ const SHOPS = [
       F(a0, a1, 0, 26, shade(col,.66), null, 0, BB1+0.4);
       slab(a0-8, a1+8, h, h+16, BB1+8, BB0-8, shade(col,.72), null, shade(col,1.1));
     };
+    /* WEST WING, MAIN BLOCK, EAST WING -- in that order, because east is
+       the near side of the frame (2026-09-18, Sir: "this face is drawing
+       over the next part of the building"). The main block is taller, so
+       box()'s visibility test gives it an end face at MA1; drawn last,
+       that face painted over the east wing standing in front of it.
+       Painted far-to-near it is covered to the wing's own roofline and
+       only the part above it shows, which is what you would see. */
     blockOf(WA, MA0, WH, wall);
-    blockOf(MA1, WB, WH, wall);
     blockOf(MA0, MA1, H, brick);
+    blockOf(MA1, WB, WH, wall);
     /* windows: two storeys on the main block, one tall band on the wings */
     const winRow = (a0, a1, z0, z1, n, col) => {
       for(let k=0;k<n;k++){
@@ -14913,40 +14960,12 @@ const SHOPS = [
       box(MA0+260, MA0+460, -700, -620, H, H+34, '#9aa0a6', '#7d838a', '#6a7076');
     }
 
-    /* ---- THE RAILING, chain link with two gates and brick piers, along
-       the pavement and round both ends ---- */
-    const MESH = '#a8b0ae', POST = '#7d8785', FZ0 = 14, FZ1 = 150;
-    const GATES = [[2310, 2490], [6910, 7090]];
-    const mesh = (x0, y0, x1, y1) => {
-      const len = Math.hypot(x1-x0, y1-y0);
-      const pt = (t, z) => P(x0 + (x1-x0)*t, y0 + (y1-y0)*t, z);
-      poly([pt(0,FZ1), pt(1,FZ1), pt(1,FZ0), pt(0,FZ0)], 'rgba(206,214,212,.14)');
-      ctx.strokeStyle = MESH; ctx.lineWidth = 1.1;
-      const rise = (FZ1 - FZ0) * ZSCALE, step = 90;
-      for(let k = -2; k <= len/step + 2; k++) for(const dir of [1, -1]){
-        const s0 = k*step, s1 = s0 + dir*rise;
-        let u0 = 0, u1 = 1;
-        if(s1 !== s0){ const ua = (0 - s0)/(s1 - s0), ub = (len - s0)/(s1 - s0);
-          u0 = Math.max(0, Math.min(ua, ub)); u1 = Math.min(1, Math.max(ua, ub)); }
-        else if(s0 < 0 || s0 > len) continue;
-        if(u1 <= u0) continue;
-        const q0 = pt((s0 + (s1-s0)*u0)/len, FZ0 + (FZ1-FZ0)*u0);
-        const q1 = pt((s0 + (s1-s0)*u1)/len, FZ0 + (FZ1-FZ0)*u1);
-        ctx.beginPath(); ctx.moveTo(q0.x, q0.y); ctx.lineTo(q1.x, q1.y); ctx.stroke();
-      }
-      tube(x0, y0, FZ1, x1, y1, FZ1, 4, POST);
-      tube(x0, y0, FZ0, x1, y1, FZ0, 2.4, POST);
-      const n = Math.max(2, Math.round(len/380));
-      for(let k=0;k<=n;k++){ const t = k/n, xa = x0 + (x1-x0)*t, ya = y0 + (y1-y0)*t;
-        tube(xa, ya, 0, xa, ya, (k===0||k===n) ? 158 : 152, (k===0||k===n) ? 9 : 6.5, POST); }
-    };
     { let cur = 0;
       for(const [g0, g1] of GATES){ if(g0 - cur > 30) mesh(cur, -14, g0, -14); cur = g1; }
       if(LEN - cur > 30) mesh(cur, -14, LEN, -14); }
-    /* railed on all four sides: the ends and the back as well as the
-       pavement, so the grounds are enclosed from every street */
-    mesh(14, -14, 14, -DEP+14); mesh(LEN-14, -14, LEN-14, -DEP+14);
-    mesh(14, -DEP+14, LEN-14, -DEP+14);
+    /* the pavement halves of the end runs; their rear halves and the
+       back run were drawn before the range, above */
+    mesh(14, -14, 14, BB1); mesh(LEN-14, -14, LEN-14, BB1);
     for(const [g0, g1] of GATES){
       for(const ga of [g0, g1]) box(ga-26, ga+26, -40, 0, 0, 200, shade(brick,1.08), brick, shade(brick,.8));
       for(const ga of [g0, g1]) T(ga-30, ga+30, -44, 4, 204, shade(brick,.72));
@@ -14954,10 +14973,21 @@ const SHOPS = [
     }
     if(state.props){
       /* trees on the grass ends, a flagpole by the west gate, benches */
-      for(const [ta, tb] of [[420,-300],[760,-620],[300,-760],[8700,-300],[9040,-640],[8600,-780]]){
-        cyl(ta, tb, 0, 70, 12, '#6d5a44');
-        ball(ta, tb, 120, 62, '#3f7a4a'); ball(ta-28, tb-16, 96, 42, '#4e8a56');
-      }
+      /* TREES (2026-09-18, Sir: "the trees at the school are looking
+         bad"). They were a 70-tall stub under one flat disc of #3f7a4a
+         -- all but invisible, because that green and the yard grass
+         #4e7a4a are the same value, so the crown had nothing to read
+         against and the trunk looked like a post in a lawn. Same build
+         as the Peddlers Square school's trees instead: a proper trunk
+         and a cluster of balls in three greens with a crown on top, so
+         the canopy has its own silhouette and internal shading. */
+      const tree = (ta, tb) => {
+        cyl(ta, tb, 0, 150, 18, '#6b5a3a');
+        for(let k=0;k<5;k++)
+          ball(ta + 58*Math.cos(k*1.26+0.4), tb + 58*Math.sin(k*1.26+0.4), 206, 62, ['#3f6b4a','#4e8058','#568a5e'][k%3]);
+        ball(ta, tb, 254, 58, '#4e8058');
+      };
+      for(const [ta, tb] of [[420,-300],[760,-620],[300,-760],[8700,-300],[9040,-640],[8600,-780]]) tree(ta, tb);
       cyl(2260, -120, 0, 300, 6, '#c9ccd0');
       poly([P(2260,-120,300), P(2260,-120,236), P(2400,-120,268)], '#c2452e');
       for(const ba of [3000, 4700, 6400]){
