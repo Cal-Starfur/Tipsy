@@ -8652,6 +8652,28 @@ const HOUSE_WRAP_PALETTES = [
 ];
 const HOUSE_DEPTH = T2 * 3; // exactly 3 tiles deep — real footprint, not a thin cutout
 
+/* ---------- LEGACY HOUSE ART ----------
+   Sir, 2026-09-21: "do the same thing we did with the shops for the
+   houses ... we can start by turning off the current houses. then we
+   will build a lab to make the new ones." Same move as SHOP_ART_LEGACY,
+   same reasons, same audit:
+
+     solidAt(x, y, R)   tests the worldgen BLOCK rectangle
+     builtHeightAt      tests a HOUSE_DEPTH band off the block edge
+
+   Neither reads anything drawHouseUnit draws, so the art going cannot
+   let Tipsy through a wall. What stays is the LAYOUT -- packEdge, unit
+   starts, widths, per-unit seeds, the address unit's index -- so the
+   house library plugs into exactly the slots the delivery system already
+   picks from. Also untouched: yard fences in the gaps, the cutaway fence
+   rows, and the address door + mat + customer (drawDoorAssembly /
+   drawGateFence / drawMatQuad are their own calls), so a delivery still
+   runs start to finish -- the door just stands without its house.
+
+   A switch, not a deletion, for one pass: flipping it back is one
+   character. The code comes out once the library path is proven. */
+const HOUSE_ART_LEGACY = false;
+
 /* ---------- LEGACY SHOPFRONT ART ----------
    Every commercial unit in the city is drawn by drawStoreUnit: one
    procedural generator seeded off the unit's position, picking a palette
@@ -37395,6 +37417,7 @@ class WorldScene extends Phaser.Scene {
   }
 
   drawHouseUnit(g, ox, oy, dv, rv, w, seed, isAddress=false, part='all', a0=0, a1=w, b0=null, b1=null){
+    if(!HOUSE_ART_LEGACY) return;                // see HOUSE_ART_LEGACY
     const rng = mulberry32(seed);
     /* a = along the edge (0..w), b = depth (0 at the sidewalk-facing
        front, -D back into the block interior). A real box: front,
