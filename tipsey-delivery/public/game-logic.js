@@ -35589,6 +35589,16 @@ class WorldScene extends Phaser.Scene {
         const rp = S.ramps[k-1], zLo = S.z[k-1], yw = S.e[k], cut0 = rp.x - RH - 40, cut1 = rp.x + RH + 40;
         wallFace(S.xw, cut0, yw, zLo, z);
         wallFace(cut1, S.xe, yw, zLo, z);
+        /* THE WALL IS CUT, SO IT HAS ENDS (Sir, on-device, at the foot of
+           R1: "the wall here looks like the ramp is drawing over it"). The
+           retaining wall was one face with no thickness, so where the ramp
+           passes through it the wall simply stopped in mid-air and the
+           ramp's own surface ran across the line -- it read as the ramp
+           painted over the wall. Each side of the gap now shows its end,
+           the 40 of the wall's own thickness, on the face the camera sees
+           (+x, as the estate's east flanks). */
+        for(const cx of [cut0, cut1])
+          Q([[cx, yw, zLo],[cx, yw - 40, zLo],[cx, yw - 40, z],[cx, yw, z]], shade(STONE, .72));
       }
       /* the estate's east flank at this shelf, down to the hillside floor */
       if(z > 0){
@@ -35605,10 +35615,13 @@ class WorldScene extends Phaser.Scene {
     for(let k = 3; k >= 1; k--){
       const rp = S.ramps[k-1], z = S.z[k], zLo = S.z[k-1], yw = S.e[k];
       const cut0 = rp.x - RH - 40, cut1 = rp.x + RH + 40, zMid = (rp.zS + rp.zN)/2;
-      Q([[cut0, rp.yS, rp.zS + 1],[cut1, rp.yS, rp.zS + 1],[cut1, rp.yN, rp.zN + 1],[cut0, rp.yN, rp.zN + 1]], KERB);
+      /* the ramp's shoulders stop 12 short of the wall's ends, so its kerb
+         and the cut ends are never coplanar */
+      const sh0 = cut0 + 12, sh1 = cut1 - 12;
+      Q([[sh0, rp.yS, rp.zS + 1],[sh1, rp.yS, rp.zS + 1],[sh1, rp.yN, rp.zN + 1],[sh0, rp.yN, rp.zN + 1]], KERB);
       Q([[rp.x - RH, rp.yS, rp.zS + 2],[rp.x + RH, rp.yS, rp.zS + 2],[rp.x + RH, rp.yN, rp.zN + 2],[rp.x - RH, rp.yN, rp.zN + 2]], ROADC);
-      Q([[cut1, rp.yS, rp.zS],[cut1, yw, zLo],[cut1, yw, zMid]], shade(STONE, .8));                      // embankment, east face
-      Q([[cut0, yw, z],[cut0, rp.yN, z],[cut0, rp.yN, rp.zN],[cut0, yw, zMid]], shade(STONE, .8));         // cut, west face
+      Q([[sh1, rp.yS, rp.zS],[sh1, yw, zLo],[sh1, yw, zMid]], shade(STONE, .8));                        // embankment, east face
+      Q([[sh0, yw, z],[sh0, rp.yN, z],[sh0, rp.yN, rp.zN],[sh0, yw, zMid]], shade(STONE, .8));            // cut, west face
     }
     /* BODIES: the houses, the perimeter wall (in runs) and the gatehouse */
     const bodies = this._sierraBodies = [];
