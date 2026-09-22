@@ -807,13 +807,25 @@ function houseCanopy(fn){
   F    = (...g) => items.push({ kind:'F',    k:key((g[0]+g[1])/2, g[7] || 0) + 0.01, z:g[2], g });
   try { fn(); } finally { ball = saved.ball; cyl = saved.cyl; tube = saved.tube; F = saved.F; }
   const leaves = items.filter(t => t.kind === 'ball' && t.g[3] >= 8);
+  /* A BALL'S RADIUS IS IN SCREEN UNITS (r*K), BUT ITS HEIGHT IS SCALED BY
+     ZSCALE and the entry's own sc like everything else -- so a ball of
+     radius r only covers r / (ZSCALE*SC) of lab height either side of its
+     centre (Sir, on-device, circling the Brownstone's street tree: "this
+     tree looks disconnected"). The first pass lifted trunks to just inside
+     the lowest ball by its raw r, which at 1.3x leaves the trunk's top cap
+     still showing under the crown. Each trunk now runs up under the leaf
+     ball nearest its axis, to 40% of that ball's true reach below its
+     centre -- where the ball, drawn after it, covers the cap. */
   if(leaves.length){
-    const zc = Math.min(...leaves.map(t => t.g[2] - 0.3*t.g[3]));      // just inside the lowest ball, not through its middle
+    const reach = r => r / ((typeof ZSCALE === 'number' ? ZSCALE : 1.5) * (typeof SC === 'number' ? SC : 1));
+    const target = (a, b) => { let best = null, d = 1e9;
+      for(const t of leaves){ const e = Math.hypot(t.g[0]-a, t.g[1]-b); if(e < d){ d = e; best = t; } }
+      return best.g[2] - 0.4*reach(best.g[3]); };
     for(const t of items){
-      if(t.kind === 'cyl' && t.g[4] <= 9 && t.g[3] >= 40 && t.g[3] < zc) t.g[3] = zc;
-      if(t.kind === 'tube' && t.g[6] <= 9 && t.g[5] >= 40 && t.g[5] < zc){
-        const [a0, b0, z0, a1, b1, z1] = t.g, u = (zc - z0)/((z1 - z0) || 1);
-        t.g[3] = a0 + (a1 - a0)*u; t.g[4] = b0 + (b1 - b0)*u; t.g[5] = zc;
+      if(t.kind === 'cyl' && t.g[4] <= 9 && t.g[3] >= 40){ const zt = target(t.g[0], t.g[1]); if(t.g[3] < zt) t.g[3] = zt; }
+      if(t.kind === 'tube' && t.g[6] <= 9 && t.g[5] >= 40){
+        const [a0, b0, z0, a1, b1, z1] = t.g, zt = target(a1, b1);
+        if(z1 < zt){ const u = (zt - z0)/((z1 - z0) || 1); t.g[3] = a0 + (a1 - a0)*u; t.g[4] = b0 + (b1 - b0)*u; t.g[5] = zt; }
       }
     }
   }
