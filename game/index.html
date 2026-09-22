@@ -37795,6 +37795,23 @@ class WorldScene extends Phaser.Scene {
           cur = fs1;
         }
         if(s1 - cur > 1) kerbRun(sgn, cur, s1, KERB_H, KERB_H);
+        /* AND THE WATER STILL HAS TO GO SOMEWHERE (Sir, on-device on the
+           rim: "we got our curb in these gaps but no drain"). The city's
+           gullies belong to the corner sweeps, and a junction with no
+           street on this side has no sweep -- so the kerb now runs through
+           and the low point has no grate. One goes in the channel at the
+           junction itself. Drawn at node b, and at node a only where the
+           street does not carry on past it, so two edges meeting never
+           both lay one. */
+        const gully = sNode => {
+          const o0 = sgn*(ROAD_HALF - KERB_W - CURB_W + 9), o1 = sgn*(ROAD_HALF - KERB_W - 9);
+          const p = (ds, o, z) => this.W(sx + dv.x*(sNode + ds) + rv.x*o, sy + dv.y*(sNode + ds) + rv.y*o, z);
+          this.quadOn(g, [p(-34,o0,0.8), p(34,o0,0.8), p(34,o1,0.8), p(-34,o1,0.8)], 0x55524a);
+          for(let a = -28; a < 28; a += 9)
+            this.quadOn(g, [p(a,o0,1), p(a + 4,o0,1), p(a + 4,o1,1), p(a,o1,1)], 0x2e2c28);
+        };
+        if(!sideOpen(edge.b, sgn)) gully(len + TANG);
+        if(!sideOpen(edge.a, sgn) && !edge.a.conn[(edge.f + 2) % 4]) gully(-TANG);
       }
     }
     /* ---- THE CORNERS (Sir: "lets make it curve around the block with an
