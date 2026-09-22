@@ -6475,7 +6475,13 @@ function owStep(scene, dt){
      owCurbSign), not from the thumb. */
   const sfc = W.surfaceAt(ow.px, ow.py);
   if(sfc === 'road' || sfc === 'sidewalk'){
-    if(ow.sfcCommit && ow.sfcCommit !== sfc && Math.abs(ow.vel) > 0.03)
+    /* NO KERB KICK WHERE THERE IS NO KERB (Sir, at the estate's mouth: "I'm
+       still not able to make it in on the road"). Sierra Vista's road is
+       drawn ground, so the classifier reads its surface as pavement: the
+       kerb rule was already waived there, but the road -> pavement
+       transition still charged a lean and tipped him at the mouth every
+       time. Inside the estate and up its road there is no kerb to strike. */
+    if(ow.sfcCommit && ow.sfcCommit !== sfc && Math.abs(ow.vel) > 0.03 && !sierraInside(ow.px, ow.py))
       owLeanKick(scene, ow, owCurbSign(ow, sfc) * 0.10 * (Math.abs(ow.vel) / D.vMax));
     ow.sfcCommit = sfc;
   }
@@ -13202,6 +13208,41 @@ function _generateRouteFresh(dateStr, opts){
      restores the original per-caller intent: HJ opts in, the daily
      route and Cone Slalom (which never pass classic) are untouched. */
   const grid = buildGrid(cols, rows, CITY_SEED, { classic: !!(opts && opts.classic) });
+  /* SIERRA VISTA'S ROAD IS A STREET, not paint (Sir, on-device at its
+     mouth: "the road isn't connecting to the other game roads there is a
+     minor gap and the drain doesn't go around the corner we need them to
+     be a part of the same system to pull that off"). Drawn ground could
+     never join the city's: the classifier called it pavement, so the kerb
+     rule walled it and the lean tipped him at the mouth, and the kerb,
+     gutter, corner sweep and gully all come off the lattice, which had no
+     edge there. One node at the gate and one edge down to the top street
+     buys every one of those from the city's own machinery.
+
+     It is added AFTER buildGrid, so nothing derived inside it moves: no
+     sidewalk run, curb ramp or signal is built for it -- an estate drive
+     has no footway -- and buildWalk and buildTraffic, which come later,
+     step with nodeAt(i, j) and get null for j = -1, so no delivery route
+     and no traffic can ever turn up it. */
+  if(WORLDGEN_COAST && !(opts && opts.classic)){
+    const S = sierraGeo(), b = grid.nodeAt(1, 0);
+    if(b){
+      const a = { i:1, j:-1, x:S.gx, y:S.wallY, conn:[false,false,false,false] };
+      a.conn[1] = true; b.conn[3] = true;                       // f = 1 runs +y, gate -> city
+      grid.nodes.push(a);
+      grid.edges.push({ a, b, f:1 });
+      if(grid._allEdges) grid._allEdges.push(grid.edges[grid.edges.length - 1]);
+      for(const n of grid.nodes) n.shape = nodeShape(n);
+      /* nodeAt is index arithmetic over the rectangle, so it answers null
+         for the gate node however real the edge is -- and surfaceAt asks
+         it, cell by cell, which left the northern half of the road reading
+         'void' and the kerb rule standing across it (he stopped halfway
+         up, on tarmac). The lookup answers for the gate node too. Its own
+         conn only runs south, so buildWalk and buildTraffic can arrive and
+         must turn straight back: no route and no traffic up the estate. */
+      const baseNodeAt = grid.nodeAt;
+      grid.nodeAt = (i, j) => (i === a.i && j === a.j) ? a : baseNodeAt(i, j);
+    }
+  }
   /* good-heading guarantee (2026-07-27, "that is unacceptable"): the
      door needs an f===0/f===3 straight leg past the 1-mile mark with
      room for findGoodS's standard 90-unit inset. buildWalk's turnSign
@@ -35743,25 +35784,8 @@ class WorldScene extends Phaser.Scene {
        why the old Sierra Vista's road never showed where it met the city
        (Sir: "the road doesn't connect"). First in the one depth sort, so it
        lies on everything the ground pass laid and under every body. */
-    bodies.push({ depth: -1e12, fn: (gg) => {
-      const Qg = (pts, col) => { const P = pts.map(p => this.W(p[0], p[1], p[2])); if(onScreen(P)) this.quadOn(gg, P, col); };
-      const y0 = S.wallY, y1 = -RH;
-      Qg([[S.gx - RH - 24, y0, 0.5],[S.gx + RH + 24, y0, 0.5],[S.gx + RH + 24, y1, 0.5],[S.gx - RH - 24, y1, 0.5]], KERB);
-      Qg([[S.gx - RH, y0, 1],[S.gx + RH, y0, 1],[S.gx + RH, y1, 1],[S.gx - RH, y1, 1]], ROADC);
-      /* and the entry road's own kerbs and channels, the city's stone */
-      { const KH = 8, KW = 22, GW = 46, GUTC = 0x9a9488, KTOP = 0xf4f1e8, KFACE = 0xe2ded0, KDK = 0x6e6a5e;
-        for(const dir of [1, -1]){
-          const L0 = S.gx + dir*RH, L1 = L0 - dir*KW, L2 = L1 - dir*GW;
-          Qg([[L1, y0, 0.6],[L1, y1, 0.6],[L2, y1, 0.6],[L2, y0, 0.6]], GUTC);
-          Qg([[L0, y0, 0],[L0, y1, 0],[L0, y1, KH],[L0, y0, KH]], KFACE);
-          Qg([[L1, y0, 0],[L1, y1, 0],[L1, y1, KH],[L1, y0, KH]], KFACE);
-          Qg([[L1, y0, 0],[L1, y1, 0],[L1, y1, 3],[L1, y0, 3]], KDK);
-          Qg([[L0, y0, KH],[L0, y1, KH],[L1, y1, KH],[L1, y0, KH]], KTOP);
-          const seam = L0 - dir*KW*0.14;
-          Qg([[L0, y0, KH],[L0, y1, KH],[seam, y1, KH],[seam, y0, KH]], KDK);
-        } }
-      for(let y = y0 + 140; y < y1 - 60; y += 280) Qg([[S.gx - 6, y, 1.5],[S.gx + 6, y, 1.5],[S.gx + 6, y + 140, 1.5],[S.gx - 6, y + 140, 1.5]], 0xe8e2c8);   // centre dashes
-    }});
+    /* (the road in is a lattice street now -- see the node added after
+       buildGrid -- so the city draws it, kerbs, gutters, corners and all) */
     const span = (this.scale.gameSize.width + this.scale.gameSize.height) / this.K;
     for(const lt of S.lots){
       const cx = (lt.x0 + lt.x1)/2, cy = (lt.yF + lt.yB)/2;
@@ -36552,15 +36576,7 @@ class WorldScene extends Phaser.Scene {
          leaves the top street northward at the gate node, and it is drawn
          ground, not a lattice edge -- so conn said "no street this side"
          and the run carried straight across its mouth. */
-      const sideOpen = (n, sgn) => {
-        const f = (edge.f + (sgn > 0 ? 1 : 3)) % 4, d = DIRV[f];
-        if(n.conn[f]) return true;
-        if(WORLDGEN_COAST){
-          const S = sierraGeo();
-          if(d.y < -0.5 && Math.abs(n.x - S.gx) < 1 && Math.abs(n.y) < 1) return true;   // the estate's road
-        }
-        return false;
-      };
+      const sideOpen = (n, sgn) => !!n.conn[(edge.f + (sgn > 0 ? 1 : 3)) % 4];
       for(const sgn of [-1, 1]){
         const cuts = rampCuts(sgn);
         const s0 = sideOpen(edge.a, sgn) ? 0 : -TANG;
@@ -53141,7 +53157,7 @@ const WG_COAST = { EXT:0.55, SANDW:1.4, FOOTW:1.1, BOARD:0.15, MTN_BASIN:2.2,
    thing is a handful of quads that onScreen() rejects. */
 const WG_HILLS = {
   TOE_GAP: 0.12,         // blocks past Y0 before the first riser, plain frontage
-  SV_TOE: 3.4 + 0.2,     // blocks past Y0 over Sierra Vista: its wall, court and three terraces, the top one deep for the grand estate (3.4) + margin
+  SV_TOE: 3.75 + 0.25,   // blocks past Y0 over Sierra Vista: its wall (now on the lattice, a block north of the top street), court and three terraces (3.75) + margin
   SV_X: 3.45,            // blocks east of X0 the notch holds full depth (the estate's east wall is at 3.3)
   SV_EASE: 0.9,          // blocks over which it eases back to TOE_GAP
   /* [depth in blocks, rise, shelf colour] -- riser shades derive from it */
@@ -53210,7 +53226,13 @@ function sierraGeo(){
   const B = BLOCK, X0 = -WG_COAST.EXT*B, Y0 = -WG_COAST.EXT*B, RH = ROAD_HALF;
   const gx = B;                                      // 2nd St
   const xw = X0 + 0.2*B, xe = X0 + 3.3*B;            // the estate's west and east walls
-  const wallY = Y0 - 0.1*B;                          // the perimeter wall, with the gate in it
+  /* THE WALL SITS ON THE LATTICE. The estate's road is a real street now,
+     and the city's classifier reads a street as the cell around its node:
+     an off-lattice end node left the far half of the road classified as
+     nothing, which is what stopped him halfway up it. The gate node is the
+     lattice point one block north of the top street, so the street is a
+     full block like every other and every model agrees along all of it. */
+  const wallY = -B;                                  // the perimeter wall, with the gate in it
   /* the court is 0.55 blocks deep; each house terrace 0.8 -- deep enough for
      a grand lot (552 x SIERRA_HOUSE_SC = 883) behind its drive, and a back
      garden behind that */
@@ -53236,7 +53258,7 @@ function sierraGeo(){
      legs joining each drive to its ramps */
   const R = (xa, xb, ya, yb, k) => ({ x0:Math.min(xa,xb), x1:Math.max(xa,xb), y0:Math.min(ya,yb), y1:Math.max(ya,yb), k });
   const roads = [
-    R(gx - RH, gx + RH, road[0] - RH, 0, 0),                           // 2nd St, through the gate
+    R(gx - RH, gx + RH, road[0] - RH, wallY, 0),                       // up to the gate; the city draws the street below it
     R(gx - RH, xE + RH, road[0] - RH, road[0] + RH, 0),                // S0 east
     R(xE - RH, xE + RH, ramps[0].yS, road[0], 0),
     R(xE - RH, xE + RH, road[1] - RH, ramps[0].yN, 1),
@@ -53313,6 +53335,8 @@ function sierraCrosses(x0, y0, x1, y1, R){
 function sierraInside(x, y){
   if(!WORLDGEN_COAST) return false;
   const S = sierraGeo();
+  /* the road in is a lattice street now, so the city's own kerb rule
+     handles it; this is the ground inside the walls, which is not */
   return x > S.xw && x < S.xe && y < S.wallY && y > S.e[4];
 }
 /* the ground height at (x, y): the shelf you stand on, or the ramp */
