@@ -7329,8 +7329,9 @@ function owStep(scene, dt){
   /* the hood lock answers as a KERB (OW_CURB_BLOCK): it stops him and
      never tips him -- a locked street is a closed door, not a crash */
   const blockAt = (x, y, ox, oy) => W.solidAt(x, y, D.botR) ||
-                            (owCurbBlocks(ow, W, x + (ox||0), y + (oy||0)) ? OW_CURB_BLOCK : null) ||
-                            (hoodLockBlocks(x, y, D.botR) ? OW_CURB_BLOCK : null);
+                            (!sierraInside(x, y) && owCurbBlocks(ow, W, x + (ox||0), y + (oy||0)) ? OW_CURB_BLOCK : null) ||
+                            (hoodLockBlocks(x, y, D.botR) ? OW_CURB_BLOCK : null) ||
+                            (sierraBlocks(x, y, D.botR) || sierraCrosses(ow.px, ow.py, x, y, D.botR) ? OW_CURB_BLOCK : null);   // SIERRA VISTA walls
   const _full = blockAt(ow.px + stepX, ow.py + stepY, _ox, _oy);
   if(!_full){
     ow.px += stepX; ow.py += stepY;
@@ -16325,6 +16326,8 @@ function volWorldH(shop, h, labZs){ return h * (shop.zs === undefined ? labZs : 
 
 /* ---- end labs/shopfront-vol.js ---- */
 
+/* the estate's house scale (see the house kit graft in LIB) */
+const SIERRA_HOUSE_SC = 1.6;
 const LIB = (function(){
   /* K IS THE PROJECTION'S SCALE, and the kit reads it directly. It is
      used for exactly one thing -- turning a WORLD line width or radius
@@ -17868,6 +17871,764 @@ const TIDEWATER_MUSEUM = (() => {
   };
   return { BLK, ROAD, CA0, CA1, CB0, CB1, BA0, BA1, BB0, BB1, H, DMID, PA0, PA1, GATE, PLINTHS, TREES, HEDGES, vol };
 })();
+
+  /* ---- THE HOUSE KIT, labs/houses.js VERBATIM (2026-09-22) ----
+     Everything houses.js adds to the shop kit: convex face-culled roofs,
+     prisms, domes, the yard fence, the tree canopy, the door sized to the
+     game's own. Grafted for Sierra Vista, the first place houses stand in
+     the game. Canonical copy is the lab file -- edit there and re-graft.
+
+     ONE CHANGE: HOUSE_SC. Sir, 2026-09-22: "lets not put five doubles for
+     this we may have to opportunity to scale the houses up to be more
+     grand and give them more yard." The estate draws its houses at
+     SIERRA_HOUSE_SC instead of the city's 1.3. Every doorway in the kit is
+     sized as DOOR / HOUSE_SC, so at the grander scale the door still comes
+     out the game's true 92 x 184 -- the house grows, the door does not. */
+const HOUSE_SC = SIERRA_HOUSE_SC;   // the estate's grand scale, not the city's 1.3 -- see below
+/* Sir, 2026-09-21: "now lets also make them twice as wide". Singles
+   230 -> 460 (598 in game), doubles 404.8 -> 809.6 (1052.5). A 1656
+   edge holds a double + a single (1650.5) or two singles. */
+const HOUSE_SINGLE = 460;        // 460   -> 598 in game
+/* Sir, 2026-09-21: "lets just double their depth". 276 -> 552 own
+   units, 717.6 in game. At that depth two back-to-back lots use 1435 of a
+   1656 block, and an edge that also has houses on both side streets keeps
+   only ~166 of frontage between the corner lots -- placement decides
+   which edges carry houses. */
+const HOUSE_DEPTH_LAB = 552;     // 552   -> 717.6 in game
+const HOUSE_DOUBLE = 809.6;      // 809.6 -> 1052.5 in game
+
+/* census recorder: the lab sets this to [] while it audits an entry */
+let HOUSE_REC = null;
+
+/* A PROP IS A THING HE CAN HIT. Every kerb/yard prop goes through here
+   under a name, and the entry's vol must carry a solid of the SAME name
+   with prop:true -- the census fails any prop drawn without one. That is
+   the gap the shops had: pavement props that looked solid and were not
+   (cTodo), found on-device one at a time. */
+function houseProp(name, fn){
+  if(!state.props) return;
+  if(HOUSE_REC) HOUSE_REC.push({ kind:'prop', name });
+  if(typeof HOUSE_TREE_PROP !== 'undefined' && HOUSE_TREE_PROP.test(name)) houseCanopy(fn);   // trees: see TREES
+  else fn();
+}
+
+/* the game's door, in an entry's own units */
+function houseDoorDims(sc){ return { w: DOOR_W / sc, h: DOOR_H / (ZSCALE * sc) }; }
+/* the game's mat depth (T2 world), in own units */
+function houseMatDepth(sc){ return T2 / sc; }
+
+/* THE DELIVERY DOORWAY. dir +1 on a front face (viewer toward +b), -1 on
+   a rear face. Casing, dark opening, a closed leaf in DOOR_ART's panel
+   layout so the art reads right before the game's door lands on it. */
+function houseDoorway(aMid, bf, sc, casing, leaf, dir){
+  const d = dir || 1, { w, h } = houseDoorDims(sc);
+  const a0 = aMid - w/2, a1 = aMid + w/2;
+  if(HOUSE_REC) HOUSE_REC.push({ kind:'door', a0, a1, z0:0, z1:h, b:bf });
+  F(a0-7, a1+7, 0, h+7, casing, shade(casing,.7), 1, bf + 0.3*d);
+  F(a0, a1, 0, h, '#2b2118', null, 0, bf + 0.4*d);
+  F(a0+1.5, a1-1.5, 0, h-1.5, leaf, null, 0, bf + 0.6*d);
+  const ins = 8/sc;
+  F(a0+ins, a1-ins, h*0.46, h*0.90, shade(leaf,1.14), shade(leaf,.72), 1, bf + 0.8*d);
+  F(a0+ins, a1-ins, h*0.10, h*0.38, shade(leaf,1.14), shade(leaf,.72), 1, bf + 0.8*d);
+  F(a1-ins-4, a1-ins, h*0.44, h*0.48, '#d8c28a', null, 0, bf + 1.0*d);   // knob
+  return { a0, a1, h };
+}
+
+/* a sash window on the plane b = bf. Frame proud of the glass, sky band
+   at the head, glazing bars, a real sill that projects toward the eye. */
+function houseWin(a0, a1, z0, z1, bf, frame, sill, dir, opts){
+  const d = dir || 1, o = opts || {};
+  if(HOUSE_REC) HOUSE_REC.push({ kind:'win', a0: a0-4, a1: a1+4, z0: z0-4, z1: z1+4, b:bf });
+  if(o.shutter){
+    const sw = (a1-a0)*0.42;
+    for(const [s0,s1] of [[a0-6-sw, a0-6], [a1+6, a1+6+sw]]){
+      F(s0, s1, z0-2, z1+2, o.shutter, shade(o.shutter,.7), 1, bf + 0.3*d);
+      for(let z = z0+6; z < z1-2; z += 7) F(s0+2, s1-2, z, z+1.6, shade(o.shutter,.78), null, 0, bf + 0.5*d);
+    }
+  }
+  F(a0-4, a1+4, z0-4, z1+4, frame, shade(frame,.7), 1, bf + 0.3*d);
+  F(a0, a1, z0, z1, '#34424b', null, 0, bf + 0.5*d);
+  F(a0, a1, z1 - (z1-z0)*0.40, z1, 'rgba(170,205,220,.38)', null, 0, bf + 0.6*d);
+  poly([P(a0+2, bf+0.7*d, z1-2), P(a0+(a1-a0)*0.45, bf+0.7*d, z1-2),
+        P(a0+(a1-a0)*0.18, bf+0.7*d, z0+2), P(a0+2, bf+0.7*d, z0+2)], 'rgba(240,250,254,.14)');
+  const am = (a0+a1)/2, zm = (z0+z1)/2;
+  if(o.lead){                                                 // leaded diamond panes
+    const st = 10;
+    for(let t = -(z1-z0); t < (a1-a0); t += st){
+      const c0 = Math.max(0, t), c1 = Math.min(a1-a0, t + (z1-z0));
+      if(c1 > c0) poly([P(a0+c0, bf+0.7*d, z0 + (c0-t)), P(a0+c1, bf+0.7*d, z0 + (c1-t))], null, 'rgba(40,40,44,.55)', 0.8);
+      const e0 = Math.max(0, t), e1 = Math.min(a1-a0, t + (z1-z0));
+      if(e1 > e0) poly([P(a0+e0, bf+0.7*d, z1 - (e0-t)), P(a0+e1, bf+0.7*d, z1 - (e1-t))], null, 'rgba(40,40,44,.55)', 0.8);
+    }
+  }
+  if(!o.plain){
+    F(am-1.5, am+1.5, z0, z1, frame, null, 0, bf + 0.8*d);
+    F(a0, a1, zm-1.5, zm+1.5, frame, null, 0, bf + 0.8*d);
+  }
+  if(d > 0) slab(a0-7, a1+7, z0-9, z0-4, bf+7, bf, sill);
+  else      slab(a0-7, a1+7, z0-9, z0-4, bf-7, bf, sill);
+  if(o.box){                                                  // window box, flowers on top
+    if(d > 0) slab(a0-2, a1+2, z0-24, z0-10, bf+12, bf, o.box);
+    else      slab(a0-2, a1+2, z0-24, z0-10, bf-12, bf, o.box);
+    const bb = bf + 7*d;
+    for(let k = 0; k < 5; k++){
+      const aa = a0 + 3 + (a1-a0-6)*k/4;
+      ball(aa, bb, z0-8, 4.2, k % 2 ? '#e2748c' : '#f2d36a');
+    }
+  }
+}
+
+/* the walls of a rectangular mass: the seen face, the seen end, a plinth.
+   dir +1 draws the front face at bf, -1 the rear face at bb. */
+function houseMass(a0, a1, bf, bb, H, wall, dir, z0){
+  const d = dir || 1, zb = z0 || 0, face = d > 0 ? bf : bb;
+  if(FLANK_RIGHT) S(a1, bb, bf, zb, H, shade(wall,.78));
+  else            S(a0, bb, bf, zb, H, shade(wall,.72));
+  F(a0, a1, zb, H, d > 0 ? wall : shade(wall,.93), null, 0, face);
+  poly([P(a0,face,H),P(a1,face,H),P(a1,face,zb),P(a0,face,zb)], null, shade(wall,.6), 1.2);
+  F(a0, a1, zb, zb+10, shade(wall,.68), null, 0, face + 0.5*d);
+}
+
+/* WINDOWS ON THE SEEN END. At 552 deep the flank a viewer sees is twice
+   as long as the front; left blank it reads as a warehouse. Spaced along
+   b, on whichever end is seen (a1 from the street, a0 from behind). */
+function houseSideWins(a0, a1, bf, bb, rows, frame, opts){
+  const o = opts || {}, aE = FLANK_RIGHT ? a1 : a0, s = FLANK_RIGHT ? 1 : -1;
+  const f0 = bf - (o.skipFront || 30), f1 = bb + (o.skipBack || 30);
+  const n = Math.max(1, Math.floor((f0 - f1) / (o.pitch || 80)));
+  const st = (f0 - f1) / n, w = o.w || 38;
+  for(const [z0, z1] of rows) for(let k = 0; k < n; k++){
+    const bc = f0 - st*(k + 0.5), b0 = bc - w/2, b1 = bc + w/2;
+    S(aE + 0.3*s, b0-4, b1+4, z0-4, z1+4, frame);
+    S(aE + 0.5*s, b0, b1, z0, z1, '#34424b');
+    S(aE + 0.6*s, b0, b1, z1 - (z1-z0)*0.4, z1, 'rgba(170,205,220,.35)');
+    if(!o.plain){ S(aE + 0.7*s, bc-1.5, bc+1.5, z0, z1, frame); S(aE + 0.7*s, b0, b1, (z0+z1)/2-1.5, (z0+z1)/2+1.5, frame); }
+    S(aE + 0.8*s, b0-6, b1+6, z0-9, z0-4, shade(frame,.9));
+  }
+}
+
+/* a pitched roof, ridge parallel to the frontage, gable at the ends.
+   Only the slope toward the eye is drawn (dir), plus the seen gable. */
+function houseGableRoof(a0, a1, bf, bb, He, Hr, o, roof, wall, dir){
+  /* 2026-09-21: rewritten on houseFace. The first version drew only the
+     slope toward the eye and trusted the pitch to hide the other one --
+     true at 276 deep, false at 552, where the same ridge over twice the
+     run is half the pitch and the far slope comes into view. dir is kept
+     for the call sites and no longer used: each face decides. */
+  const mid = (bf+bb)/2, run = (bf-bb)/2, k = (Hr-He)/run, zE = He - o*k;
+  const A0 = a0-o, A1 = a1+o, Bf = bf+o, Bb = bb-o;
+  const wc = [(a0+a1)/2, mid, He + (Hr-He)*0.3];
+  houseFace([[a0,bf,He],[a0,bb,He],[a0,mid,Hr]], wc, shade(wall,.8), shade(wall,.6));
+  houseFace([[a1,bf,He],[a1,bb,He],[a1,mid,Hr]], wc, shade(wall,.8), shade(wall,.6));
+  const ctr = [(a0+a1)/2, mid, zE + (Hr-zE)*0.25], cc = shade(roof,.8), fctr = [(a0+a1)/2, mid, zE-3];
+  const Fq = [[A0,Bf,zE],[A1,Bf,zE],[A1,mid,Hr],[A0,mid,Hr]], Bq = [[A0,Bb,zE],[A1,Bb,zE],[A1,mid,Hr],[A0,mid,Hr]];
+  if(houseFace(Fq, ctr, roof)){ houseCourses(Fq[0], Fq[3], Fq[1], Fq[2], cc, 0.16);
+    houseFace([[A0,Bf,zE],[A1,Bf,zE],[A1,Bf,zE-7],[A0,Bf,zE-7]], fctr, shade(roof,.7)); }
+  if(houseFace(Bq, ctr, roof)){ houseCourses(Bq[0], Bq[3], Bq[1], Bq[2], cc, 0.16);
+    houseFace([[A0,Bb,zE],[A1,Bb,zE],[A1,Bb,zE-7],[A0,Bb,zE-7]], fctr, shade(roof,.7)); }
+  for(const A of [A0, A1]){                                    // barge boards, culled like the rest
+    houseFace([[A,Bf,zE],[A,mid,Hr],[A,mid,Hr-7],[A,Bf,zE-7]], fctr, shade(roof,.66));
+    houseFace([[A,mid,Hr],[A,Bb,zE],[A,Bb,zE-7],[A,mid,Hr-7]], fctr, shade(roof,.58));
+  }
+}
+
+/* a hipped roof over a rectangular mass. ends.lo / ends.hi false means
+   that end dies into a taller neighbour instead of hipping. */
+function houseHipRoof(a0, a1, bf, bb, He, Hr, o, roof, dir, ends){
+  /* now a thin wrapper on houseHip (all faces culled) -- same reason as
+     houseGableRoof above. */
+  houseHip(a0, a1, bf, bb, He, Hr, o, roof, ends);
+}
+
+/* a white picket fence along b, a0..a1 */
+function housePickets(a0, a1, b, h, col){
+  F(a0, a1, h*0.28, h*0.28+3, shade(col,.86), null, 0, b - 0.4);
+  F(a0, a1, h*0.66, h*0.66+3, shade(col,.86), null, 0, b - 0.4);
+  for(let a = a0 + 2; a < a1 - 3; a += 10.5)
+    poly([P(a,b,0), P(a+5,b,0), P(a+5,b,h-3), P(a+2.5,b,h), P(a,b,h-3)], col, shade(col,.7), 0.8);
+}
+/* a square fence / gate post */
+function housePost(a, b, h, col){ box(a-4, a+4, b-4, b+4, 0, h, shade(col,1.05), col, shade(col,.8)); }
+
+/* a lawn with mown stripes, a0..a1 by b0..b1 (b0 deeper) */
+function houseLawn(a0, a1, b0, b1, col){
+  T(a0, a1, b0, b1, 0.4, col);
+  for(let a = a0; a < a1; a += 24) T(a, Math.min(a+12, a1), b0, b1, 0.45, shade(col,1.06));
+}
+
+
+/* ================= CONVEX FACES =================
+   The first two roofs drew only "the slope toward the eye" and relied on
+   the pitch being steep enough that the far slope stays hidden. That is
+   an assumption about pitch, and it is false for any low roof: a slope
+   is hidden only when 1.5 x rise > run (the lab's 1.5 vertical factor).
+   A ranch hip or a craftsman gable fails it and would show a hole where
+   the far slope should be.
+
+   So a roof is a convex solid, and each face decides for itself. A face
+   is given as world points plus a point inside the solid; it is turned
+   to face outward (Newell normal against the interior point), projected,
+   and drawn only if its screen winding matches the winding of an upward
+   plate -- which is always seen. Measuring the reference through P()
+   makes the test survive every host transform, including the game's
+   mirrored edges, where a hard-coded sign would invert. Faces of one
+   convex solid never overlap on screen, so no ordering is needed. */
+function houseArea(q){ let s = 0; for(let i = 0; i < q.length; i++){ const p = q[i], r = q[(i+1) % q.length]; s += p.x*r.y - r.x*p.y; } return s; }
+function houseSeenSign(){ return Math.sign(houseArea([P(0,0,0), P(1,0,0), P(1,1,0), P(0,1,0)])); }
+function houseFace(pts, ctr, fill, stroke){
+  let nx = 0, ny = 0, nz = 0, cx = 0, cy = 0, cz = 0;
+  for(let i = 0; i < pts.length; i++){
+    const p = pts[i], q = pts[(i+1) % pts.length];
+    nx += (p[1]-q[1])*(p[2]+q[2]); ny += (p[2]-q[2])*(p[0]+q[0]); nz += (p[0]-q[0])*(p[1]+q[1]);
+    cx += p[0]; cy += p[1]; cz += p[2];
+  }
+  cx /= pts.length; cy /= pts.length; cz /= pts.length;
+  if(nx*(cx-ctr[0]) + ny*(cy-ctr[1]) + nz*(cz-ctr[2]) < 0) pts = pts.slice().reverse();
+  const q = pts.map(p => P(p[0], p[1], p[2]));
+  if(Math.sign(houseArea(q)) !== houseSeenSign()) return false;
+  poly(q, fill, stroke === undefined ? shade(fill,.6) : stroke, 1);
+  return true;
+}
+/* courses (tiles, shingles) between two edges of a face, p0->p1 and q0->q1 */
+function houseCourses(p0, p1, q0, q1, col, step){
+  for(let t = step || 0.14; t < 0.99; t += step || 0.14){
+    const L = (u, v) => P(u[0]+(v[0]-u[0])*t, u[1]+(v[1]-u[1])*t, u[2]+(v[2]-u[2])*t);
+    poly([L(p0,p1), L(q0,q1)], null, col, 1);
+  }
+}
+
+/* A FULL HIP, every face culled -- for low pitches. lo/hi:false stops an
+   end at the wall line (it dies into a neighbour) and draws no face there. */
+function houseHip(a0, a1, bf, bb, He, Hr, o, roof, opts){
+  const e = opts || {}, lo = e.lo !== false, hi = e.hi !== false;
+  const mid = (bf+bb)/2, run = (bf-bb)/2, k = (Hr-He)/run, zE = He - o*k;
+  const Lo = lo ? a0-o : a0, Hi = hi ? a1+o : a1, Bf = bf+o, Bb = bb-o;
+  const i = Math.min(run+o, (Hi-Lo)/2);
+  const R0 = lo ? Lo+i : Lo, R1 = hi ? Hi-i : Hi;
+  const ctr = [(a0+a1)/2, mid, zE + (Hr-zE)*0.25], cc = shade(roof,.78);
+  const E0 = [Lo,Bf,zE], E1 = [Hi,Bf,zE], E2 = [Hi,Bb,zE], E3 = [Lo,Bb,zE], Q0 = [R0,mid,Hr], Q1 = [R1,mid,Hr];
+  const fctr = [(a0+a1)/2, mid, zE-3];
+  const fasc = (A, B) => houseFace([[A[0],A[1],zE],[B[0],B[1],zE],[B[0],B[1],zE-7],[A[0],A[1],zE-7]], fctr, shade(roof,.62));
+  if(houseFace([E0,E1,Q1,Q0], ctr, roof)){ houseCourses(E0,Q0,E1,Q1,cc); fasc(E0,E1); }
+  if(houseFace([E2,E3,Q0,Q1], ctr, roof)){ houseCourses(E3,Q0,E2,Q1,cc); fasc(E2,E3); }
+  if(hi && houseFace([E1,E2,Q1], ctr, shade(roof,.84))){ houseCourses(E1,Q1,E2,Q1,cc); fasc(E1,E2); }
+  if(lo && houseFace([E3,E0,Q0], ctr, shade(roof,.84))){ houseCourses(E0,Q0,E3,Q0,cc); fasc(E3,E0); }
+  if(R1 > R0) poly([P(R0,mid,Hr), P(R1,mid,Hr)], null, shade(roof,1.15), 2);
+}
+
+/* A FRONT GABLE: ridge runs INTO the block (along b), the gable triangle
+   stands on the street face. back0:true stops the roof at bb with no
+   overhang (a porch gable dying into the main wall). */
+function houseFrontGable(a0, a1, bf, bb, He, Hr, o, roof, wall, dir, opts){
+  const d = dir || 1, e = opts || {}, am = (a0+a1)/2, run = (a1-a0)/2, k = (Hr-He)/run, zE = He - o*k;
+  const A0 = a0-o, A1 = a1+o, Bf = bf + (e.front0 ? 0 : o), Bb = bb - (e.back0 ? 0 : o);
+  const face = d > 0 ? bf : bb;
+  poly([P(a0,face,He), P(a1,face,He), P(am,face,Hr)], e.gable || (d > 0 ? wall : shade(wall,.93)), shade(wall,.6), 1);
+  if(e.shingle) for(let z = He+8; z < Hr-6; z += 8){                 // shingles in the gable
+    const w = run*(Hr-z)/(Hr-He);
+    poly([P(am-w, face + 0.3*d, z), P(am+w, face + 0.3*d, z)], null, shade(e.gable || wall,.82), 1);
+  }
+  const ctr = [am, (bf+bb)/2, zE + (Hr-zE)*0.25], cc = shade(roof,.8);
+  /* valley: a wing's roof running back into a main slope -- eave and
+     ridge stop at different depths, where each meets that slope */
+  const bE = e.valley ? e.valley[0] : Bb, bR = e.valley ? e.valley[1] : Bb;
+  const L = [[A0,Bf,zE],[A0,bE,zE],[am,bR,Hr],[am,Bf,Hr]], R = [[A1,Bf,zE],[A1,bE,zE],[am,bR,Hr],[am,Bf,Hr]];
+  if(houseFace(L, ctr, roof)) houseCourses(L[0], L[3], L[1], L[2], cc);
+  if(houseFace(R, ctr, roof)) houseCourses(R[0], R[3], R[1], R[2], cc);
+  const Bx = d > 0 ? Bf + 0.3 : Bb - 0.3, bc = e.barge || shade(roof,.66);
+  if(d > 0 || !e.back0){
+    poly([P(A0,Bx,zE), P(am,Bx,Hr), P(am,Bx,Hr-8), P(A0,Bx,zE-8)], bc);
+    poly([P(A1,Bx,zE), P(am,Bx,Hr), P(am,Bx,Hr-8), P(A1,Bx,zE-8)], bc);
+  }
+}
+
+/* A DORMER on a side-gable's front slope. The slope is described by the
+   main roof's front wall line bf and eave He, and k = rise per unit of b
+   going back. Its cheeks follow the slope, so nothing is drawn inside
+   the roof. Draw it AFTER the main roof. */
+function houseDormer(a0, a1, bD, z1, zr, slope, wall, roof, trim){
+  const zs = b => slope.He + (slope.bf - b)*slope.k;
+  const z0 = zs(bD), bI = slope.bf - (z1 - slope.He)/slope.k, bR = slope.bf - (zr - slope.He)/slope.k;
+  const am = (a0+a1)/2, o = 5;
+  F(a0, a1, z0, z1, wall, shade(wall,.6), 1, bD);
+  const aS = FLANK_RIGHT ? a1 : a0;
+  poly([P(aS,bD,z0), P(aS,bD,z1), P(aS,bI,z1)], shade(wall,.76), shade(wall,.6), 1);
+  houseWin(a0+8, a1-8, z0+8, z1-6, bD, trim, trim, 1);
+  poly([P(a0,bD,z1), P(a1,bD,z1), P(am,bD,zr)], wall, shade(wall,.6), 1);
+  const ctr = [am, (bD+bR)/2, z1 + (zr-z1)*0.3];
+  houseFace([[a0-o,bD+o,z1],[a0-o,bI,z1],[am,bR,zr],[am,bD+o,zr]], ctr, roof);
+  houseFace([[a1+o,bD+o,z1],[a1+o,bI,z1],[am,bR,zr],[am,bD+o,zr]], ctr, roof);
+  poly([P(a0-o,bD+5.3,z1), P(am,bD+5.3,zr), P(am,bD+5.3,zr-5), P(a0-o,bD+5.3,z1-5)], trim);
+  poly([P(a1+o,bD+5.3,z1), P(am,bD+5.3,zr), P(am,bD+5.3,zr-5), P(a1+o,bD+5.3,z1-5)], trim);
+}
+
+/* an arched surround round a doorway, on its wall plane */
+function houseArch(aMid, bf, h, r, rise, col, d){
+  const pts = [];
+  for(let k = 0; k <= 12; k++){ const t = Math.PI*k/12; pts.push(P(aMid + r*Math.cos(t), bf + 0.25*(d||1), h + rise*Math.sin(t))); }
+  pts.push(P(aMid - r, bf + 0.25*(d||1), 0), P(aMid + r, bf + 0.25*(d||1), 0));
+  poly(pts, col, shade(col,.7), 1);
+}
+/* a flat roof inside a parapet: plate, then the ring far-to-near */
+function houseParapetRoof(a0, a1, bf, bb, H, h, t, wall){
+  T(a0, a1, bb, bf, H, shade(wall,.8));
+  const nearF = !state.back;                                   // near b face: front view bf, back view bb
+  const ringB = (b0, b1) => box(a0, a1, b0, b1, H, H+h, shade(wall,1.04), wall, shade(wall,.8));
+  const sideA = a => box(a-t/2, a+t/2, bb, bf, H, H+h, shade(wall,1.04), wall, shade(wall,.8));
+  if(nearF) ringB(bb, bb+t); else ringB(bf-t, bf);
+  sideA(FLANK_RIGHT ? a0 + t/2 : a1 - t/2);
+  sideA(FLANK_RIGHT ? a1 - t/2 : a0 + t/2);
+  if(nearF) ringB(bf-t, bf); else ringB(bb, bb+t);
+}
+
+/* brick courses on a face plane */
+function houseBrick(a0, a1, z0, z1, b, col, d){
+  F(a0, a1, z0, z1, col, null, 0, b);
+  for(let z = z0 + 6; z < z1; z += 6) poly([P(a0, b + 0.2*(d||1), z), P(a1, b + 0.2*(d||1), z)], null, shade(col,.8), 1);
+}
+/* a small tree: trunk and a canopy of balls */
+function houseTree(a, b, h, leaf){
+  cyl(a, b, 0, h*0.55, 4, '#6b5038');
+  ball(a, b, h*0.7, h*0.28, leaf); ball(a-8, b+4, h*0.6, h*0.2, shade(leaf,1.1)); ball(a+7, b-3, h*0.82, h*0.18, shade(leaf,.92));
+}
+/* a saguaro */
+function houseCactus(a, b, h, col){
+  cyl(a, b, 0, h, 6, col, shade(col,1.15)); ball(a, b, h, 6, shade(col,1.1));
+  cyl(a-14, b, h*0.45, h*0.75, 4.5, col, shade(col,1.15)); F(a-14, a, h*0.43, h*0.5, col, null, 0, b);
+  cyl(a+13, b, h*0.55, h*0.85, 4.5, col, shade(col,1.15)); F(a, a+13, h*0.53, h*0.6, col, null, 0, b);
+}
+
+
+/* ================= MORE SHAPES (houses 12-20) =================
+   All convex solids through houseFace, so every one survives the back
+   view and the game's mirrored edges without a hand-written order. */
+
+/* A ROOF ON ANY CONVEX PROFILE across the frontage: prof is [[b, z], ...]
+   from the front eave to the back eave. Two points = a shed, three = a
+   gable or a saltbox, five = a gambrel. The gable ends at a0 / a1 are
+   filled down to the lower eave; a wall strip fills up to a taller eave.
+   ext0 / ext1 false: no overhang at that eave (a porch roof that dies
+   into a wall). lo / hi false: no gable at that end (dies into a mass). */
+function houseProfileRoof(a0, a1, prof, o, roof, wall, opts){
+  const e = opts || {}, n = prof.length;
+  const zlow = Math.min(prof[0][1], prof[n-1][1]), ztop = Math.max(...prof.map(p => p[1]));
+  const ext = (p, q, on) => { if(!on) return p; const db = p[0]-q[0], dz = p[1]-q[1], L = Math.hypot(db, dz) || 1; return [p[0] + o*db/L, p[1] + o*dz/L]; };
+  const pr = [ext(prof[0], prof[1], e.ext0 !== false), ...prof.slice(1, n-1), ext(prof[n-1], prof[n-2], e.ext1 !== false)];
+  const ctr = [(a0+a1)/2, (prof[0][0] + prof[n-1][0])/2, zlow + (ztop - zlow)*0.3];
+  const dd = pts => pts.filter((p, i) => i === 0 || Math.hypot(p[0]-pts[i-1][0], p[1]-pts[i-1][1], p[2]-pts[i-1][2]) > 0.01);
+  const endPts = a => dd([[a, prof[0][0], zlow], ...prof.map(p => [a, p[0], p[1]]), [a, prof[n-1][0], zlow]]);
+  const gc = e.gable || shade(wall,.8);
+  /* noEnds: the entry draws its own gable ends (a roof that runs out over
+     an open gallery must not fill the gallery with wall) */
+  if(e.lo !== false && !e.noEnds) houseFace(endPts(a0), ctr, gc, shade(wall,.6));
+  if(e.hi !== false && !e.noEnds) houseFace(endPts(a1), ctr, gc, shade(wall,.6));
+  /* wall strips up to a taller eave; onFront / onBack draw their detail
+     (windows, siding) before the slopes, so the eave overhang stays on top */
+  /* noStrips: the entry draws its own walls (a roof that overhangs its
+     eave far out over the street has no wall under that eave) */
+  if(!e.noStrips && prof[0][1] > zlow + 0.5 &&
+     houseFace([[a0,prof[0][0],zlow],[a1,prof[0][0],zlow],[a1,prof[0][0],prof[0][1]],[a0,prof[0][0],prof[0][1]]], ctr, e.front || wall, null) && e.onFront) e.onFront();
+  if(!e.noStrips && prof[n-1][1] > zlow + 0.5 &&
+     houseFace([[a0,prof[n-1][0],zlow],[a1,prof[n-1][0],zlow],[a1,prof[n-1][0],prof[n-1][1]],[a0,prof[n-1][0],prof[n-1][1]]], ctr, shade(e.front || wall,.93), null) && e.onBack) e.onBack();
+  const A0 = a0 - (e.lo === false ? 0 : o), A1 = a1 + (e.hi === false ? 0 : o);
+  for(let i = 0; i < pr.length-1; i++){
+    const p = pr[i], q = pr[i+1];
+    const f = [[A0,p[0],p[1]],[A1,p[0],p[1]],[A1,q[0],q[1]],[A0,q[0],q[1]]];
+    if(houseFace(f, ctr, roof)){
+      if(e.seams) for(let a = A0 + e.seams; a < A1 - 1; a += e.seams) poly([P(a,p[0],p[1]), P(a,q[0],q[1])], null, shade(roof,.78), 1);
+      else houseCourses(f[0], f[3], f[1], f[2], shade(roof,.8), 0.2);
+    }
+    for(const A of [A0, A1]) if((A === A0 && e.lo !== false) || (A === A1 && e.hi !== false))
+      houseFace([[A,p[0],p[1]],[A,q[0],q[1]],[A,q[0],q[1]-7],[A,p[0],p[1]-7]], [ctr[0], ctr[1], ctr[2]-4], e.barge || shade(roof,.62));
+  }
+}
+
+/* A VERTICAL PRISM on a convex footprint [[a, b], ...]: walls lit by
+   which way they face, a top plate. Returns the visible wall faces so
+   windows and bands can go on them. */
+function housePrism(foot, z0, z1, wall, opts){
+  const o = opts || {}, n = foot.length;
+  const ca = foot.reduce((s, p) => s + p[0], 0)/n, cb = foot.reduce((s, p) => s + p[1], 0)/n;
+  const ctr = [ca, cb, (z0+z1)/2], seen = [];
+  for(let i = 0; i < n; i++){
+    const p = foot[i], q = foot[(i+1) % n];
+    let na = q[1]-p[1], nb = -(q[0]-p[0]); const L = Math.hypot(na, nb) || 1; na /= L; nb /= L;
+    const mx = (p[0]+q[0])/2 - ca, my = (p[1]+q[1])/2 - cb; if(na*mx + nb*my < 0){ na = -na; nb = -nb; }
+    const t = Math.abs(nb)/(Math.abs(na) + Math.abs(nb) + 1e-9);
+    const col = shade(wall, 0.76 + 0.24*t);
+    if(houseFace([[p[0],p[1],z0],[q[0],q[1],z0],[q[0],q[1],z1],[p[0],p[1],z1]], ctr, col, o.stroke === undefined ? shade(wall,.6) : o.stroke))
+      seen.push({ p, q, na, nb, col });
+  }
+  if(o.top !== false) houseFace(foot.map(p => [p[0], p[1], z1]), ctr, o.top || shade(wall,1.05));
+  return seen;
+}
+/* a window (or a band) on one prism face, t0..t1 along it */
+function houseFaceWin(f, t0, t1, z0, z1, frame, opts){
+  const o = opts || {}, { p, q, na, nb } = f;
+  const at = (t, z, d) => P(p[0] + (q[0]-p[0])*t + na*d, p[1] + (q[1]-p[1])*t + nb*d, z);
+  const len = Math.hypot(q[0]-p[0], q[1]-p[1]), pad = o.band ? 0 : 4/len;
+  poly([at(t0-pad,z0-(o.band?0:4),0.4), at(t1+pad,z0-(o.band?0:4),0.4), at(t1+pad,z1+(o.band?0:4),0.4), at(t0-pad,z1+(o.band?0:4),0.4)], frame);
+  if(o.band) return;
+  poly([at(t0,z0,0.7), at(t1,z0,0.7), at(t1,z1,0.7), at(t0,z1,0.7)], '#34424b');
+  poly([at(t0,z1-(z1-z0)*0.4,0.8), at(t1,z1-(z1-z0)*0.4,0.8), at(t1,z1,0.8), at(t0,z1,0.8)], 'rgba(170,205,220,.35)');
+  if(!o.plain){ const tm = (t0+t1)/2; poly([at(tm,z0,0.9), at(tm,z1,0.9)], null, frame, 2.4); }
+}
+/* a cone (n-sided) roof, apex over (ca, cb) */
+function houseCone(ca, cb, r, n, z0, z1, roof){
+  const ctr = [ca, cb, z0 + (z1-z0)*0.2], pts = [];
+  for(let k = 0; k < n; k++){ const t = (k + 0.5)/n*Math.PI*2; pts.push([ca + r*Math.cos(t), cb + r*Math.sin(t), z0]); }
+  for(let k = 0; k < n; k++){
+    const f = [pts[k], pts[(k+1) % n], [ca, cb, z1]];
+    if(houseFace(f, ctr, shade(roof, 0.84 + 0.16*Math.sin((k+1)/n*Math.PI*2))))
+      houseCourses(pts[k], [ca,cb,z1], pts[(k+1)%n], [ca,cb,z1], shade(roof,.78), 0.2);
+  }
+}
+/* the regular n-gon footprint of a tower */
+function houseRing(ca, cb, r, n){
+  const out = []; for(let k = 0; k < n; k++){ const t = (k + 0.5)/n*Math.PI*2; out.push([ca + r*Math.cos(t), cb + r*Math.sin(t)]); } return out;
+}
+/* log courses on a face plane, with log ends proud of both corners */
+function houseLogs(a0, a1, z0, z1, b, col, d){
+  const s = d || 1;
+  F(a0, a1, z0, z1, col, null, 0, b);
+  for(let z = z0; z < z1; z += 11){
+    F(a0, a1, z, z+2, shade(col,.72), null, 0, b + 0.3*s);
+    F(a0, a1, z+6, z+8, shade(col,1.12), null, 0, b + 0.3*s);
+  }
+  for(let z = z0 + 5.5; z < z1; z += 11) for(const a of [a0 - 5, a1 + 5])
+    faceCircle(a, b + 1*s, z, 5.4, shade(col,1.2), shade(col,.66), 1);
+}
+/* a palm */
+function housePalm(a, b, h, leaf){
+  for(let z = 0; z < h; z += 12) cyl(a + z*0.04, b, z, z+12, 4.5 - z/h*1.5, z % 24 ? '#8a7258' : '#7a6448');
+  const ta = a + h*0.04, cy = P(ta, b, 0).y;
+  /* fronds far to near around the crown (see TREES): the far ones, the
+     crown, then the near ones -- written in angle order, a back frond
+     could lie over a front one */
+  const fronds = [];
+  for(let k = 0; k < 7; k++){
+    const t = k/7*Math.PI*2, da = Math.cos(t)*38, db = Math.sin(t)*38;
+    fronds.push({ k: P(ta + da, b + db, 0).y, draw: () => poly([P(ta, b, h), P(ta + da*0.5, b + db*0.5, h + 10), P(ta + da, b + db, h - 14), P(ta + da*0.55, b + db*0.55, h + 2)], k % 2 ? leaf : shade(leaf,.85), shade(leaf,.6), 0.8) });
+  }
+  fronds.sort((p, q) => p.k - q.k);
+  for(const f of fronds) if(f.k <= cy) f.draw();
+  ball(ta, b, h, 5, '#6b5038');
+  for(const f of fronds) if(f.k > cy) f.draw();
+}
+/* the footprint of the Streamline Moderne: a rectangle whose street-side
+   seen corner is rounded, radius 70, in six facets */
+const MODERNE_FOOT = (() => {
+  const f = [[40,-110], [350,-110]];
+  for(let k = 1; k <= 6; k++){ const t = k/6*Math.PI/2; f.push([350 + 70*Math.sin(t), -180 + 70*Math.cos(t)]); }
+  f.push([420,-500], [40,-500]);
+  return f;
+})();
+/* log courses along the seen end */
+function houseEndLogs(a0, a1, bf, bb, z0, z1, col){
+  const aE = FLANK_RIGHT ? a1 : a0, s = FLANK_RIGHT ? 1 : -1;
+  for(let z = z0; z < z1; z += 11){ S(aE + 0.3*s, bb, bf, z, z+2, shade(col,.62)); S(aE + 0.3*s, bb, bf, z+6, z+8, shade(col,.9)); }
+}
+
+/* a porch rocker */
+function houseRocker(a, b, col){
+  box(a-11, a+11, b-9, b+9, 14, 18, col, shade(col,.88), shade(col,.76));
+  box(a-11, a+11, b-9, b-5, 18, 48, col, shade(col,.88), shade(col,.76));
+  for(const aa of [a-9, a+9]) box(aa-1.5, aa+1.5, b-8, b+8, 0, 14, shade(col,.8), shade(col,.7), shade(col,.6));
+}
+
+
+/* ================= MORE SHAPES (houses 21-29) ================= */
+
+/* A PROFILE ROOF ALONG b: the same idea as houseProfileRoof turned 90
+   degrees -- prof is [[a, z], ...] from a0 to a1 and is extruded from the
+   street (bf) back to bb, so the profile IS the street gable. Symmetric
+   gables, gambrels, sheds off a taller wall. seams: standing-seam lines
+   running down the slope at that spacing in b. onFront: detail on the
+   street gable before the slopes go on. */
+function houseProfileRoofB(bf, bb, prof, o, roof, wall, opts){
+  const e = opts || {}, n = prof.length;
+  const zlow = Math.min(prof[0][1], prof[n-1][1]), ztop = Math.max(...prof.map(p => p[1]));
+  const ext = (p, q, on) => { if(!on) return p; const da = p[0]-q[0], dz = p[1]-q[1], L = Math.hypot(da, dz) || 1; return [p[0] + o*da/L, p[1] + o*dz/L]; };
+  const pr = [ext(prof[0], prof[1], e.ext0 !== false), ...prof.slice(1, n-1), ext(prof[n-1], prof[n-2], e.ext1 !== false)];
+  const ctr = [(prof[0][0] + prof[n-1][0])/2, (bf+bb)/2, zlow + (ztop - zlow)*0.3];
+  const dd = pts => pts.filter((p, i) => i === 0 || Math.hypot(p[0]-pts[i-1][0], p[1]-pts[i-1][1], p[2]-pts[i-1][2]) > 0.01);
+  const endPts = b => dd([[prof[0][0], b, zlow], ...prof.map(p => [p[0], b, p[1]]), [prof[n-1][0], b, zlow]]);
+  if(houseFace(endPts(bf), ctr, e.gable || wall, shade(wall,.6)) && e.onFront) e.onFront();
+  if(!e.back0 && houseFace(endPts(bb), ctr, shade(e.gable || wall,.93), shade(wall,.6)) && e.onBack) e.onBack();
+  for(const [ix, sgn] of [[0, 1], [n-1, -1]]) if(prof[ix][1] > zlow + 0.5){
+    const a = prof[ix][0];
+    houseFace([[a,bf,zlow],[a,bb,zlow],[a,bb,prof[ix][1]],[a,bf,prof[ix][1]]], ctr, shade(wall,.8), null);
+  }
+  const Bf = bf + o, Bb = bb - (e.back0 ? 0 : o);
+  for(let i = 0; i < pr.length-1; i++){
+    const p = pr[i], q = pr[i+1];
+    const f = [[p[0],Bf,p[1]],[q[0],Bf,q[1]],[q[0],Bb,q[1]],[p[0],Bb,p[1]]];
+    if(houseFace(f, ctr, roof)){
+      if(e.seams) for(let b = Bf - e.seams; b > Bb + 1; b -= e.seams) poly([P(p[0],b,p[1]), P(q[0],b,q[1])], null, shade(roof,.78), 1);
+      else houseCourses(f[0], f[1], f[3], f[2], shade(roof,.8), 0.2);
+    }
+    houseFace([[p[0],Bf,p[1]],[q[0],Bf,q[1]],[q[0],Bf,q[1]-7],[p[0],Bf,p[1]-7]], [ctr[0], ctr[1], ctr[2]-4], e.barge || shade(roof,.62));
+    if(!e.back0) houseFace([[p[0],Bb,p[1]],[q[0],Bb,q[1]],[q[0],Bb,q[1]-7],[p[0],Bb,p[1]-7]], [ctr[0], ctr[1], ctr[2]-4], e.barge || shade(roof,.62));
+  }
+}
+
+/* A MANSARD: a steep frustum from the eave rectangle up to an inset top */
+function houseMansard(a0, a1, bf, bb, He, Hm, i, roof, top){
+  const ctr = [(a0+a1)/2, (bf+bb)/2, He + (Hm-He)*0.3];
+  const E = [[a0,bf,He],[a1,bf,He],[a1,bb,He],[a0,bb,He]];
+  const Tt = [[a0+i,bf-i,Hm],[a1-i,bf-i,Hm],[a1-i,bb+i,Hm],[a0+i,bb+i,Hm]], cc = shade(roof,.78);
+  for(let k = 0; k < 4; k++){
+    const f = [E[k], E[(k+1)%4], Tt[(k+1)%4], Tt[k]];
+    if(houseFace(f, ctr, k % 2 ? shade(roof,.86) : roof)) houseCourses(f[0], f[3], f[1], f[2], cc, 0.16);
+  }
+  houseFace(Tt, ctr, top || shade(roof,1.1));
+}
+
+/* A FACETED DOME, rings of latitude by segs of longitude. glass(i, j)
+   picks the glazed facets. rz is the vertical radius in lab z. */
+function houseDome(ac, bc, r, rz, rings, segs, col, glass, z0){
+  const zb = z0 || 0;                                           // base height: a dome on a roof
+  const pt = (i, j) => { const ph = Math.PI/2*i/rings, th = 2*Math.PI*j/segs + Math.PI/segs;
+    return [ac + r*Math.cos(ph)*Math.cos(th), bc + r*Math.cos(ph)*Math.sin(th), zb + rz*Math.sin(ph)]; };
+  const ctr = [ac, bc, zb + rz*0.3], apex = [ac, bc, zb + rz];
+  for(let i = 0; i < rings; i++) for(let j = 0; j < segs; j++){
+    const f = i === rings-1 ? [pt(i,j), pt(i,j+1), apex] : [pt(i,j), pt(i,j+1), pt(i+1,j+1), pt(i+1,j)];
+    const m = f.reduce((s, p) => [s[0]+p[0]/f.length, s[1]+p[1]/f.length, s[2]+p[2]/f.length], [0,0,0]);
+    const nb = (m[1]-bc)/r, na = (m[0]-ac)/r, nz = (m[2]-zb)/rz;
+    const g = glass && glass(i, j);
+    const lit = g ? '#34424b' : shade(col, 0.72 + 0.18*Math.max(0, nb) + 0.08*Math.max(0, na) + 0.14*nz);
+    if(houseFace(f, ctr, lit, g ? '#d8d4c8' : shade(col,.62)) && g)
+      poly([P(f[0][0],f[0][1],f[0][2]), P(m[0],m[1],m[2])], null, 'rgba(170,205,220,.35)', 1.5);
+  }
+}
+
+/* a thatch fringe hanging off an eave line, at plane b = B (a0..a1) */
+function houseFringe(a0, a1, B, z, col){
+  for(let a = a0; a < a1 - 1; a += 8) poly([P(a,B,z), P(a+8,B,z), P(a+4,B,z-9 - ((a/8) % 3)*2)], col, null);
+}
+
+
+/* ================= MORE SHAPES (houses 30-38) ================= */
+
+/* an arched window on the plane b: round-headed, or pointed (Gothic).
+   The rise is in lab z, so it reads round after the 1.5 vertical factor. */
+function houseArchWin(a0, a1, z0, z1, b, frame, dir, opts){
+  const d = dir || 1, o = opts || {}, w = a1 - a0, am = (a0+a1)/2;
+  const rise = o.pointed ? w*0.62 : w*0.34, zs = z1 - rise;
+  if(HOUSE_REC) HOUSE_REC.push({ kind:'win', a0: a0-4, a1: a1+4, z0: z0-4, z1: z1+4, b });
+  const head = (x0, x1, zb, r) => {
+    const pts = [], hw = (x1-x0)/2, xm = (x0+x1)/2;
+    for(let k = 0; k <= 12; k++){ const t = k/12;
+      if(o.pointed){ const s = t < 0.5 ? t*2 : (1-t)*2, ax = t < 0.5 ? x0 + hw*(1 - Math.cos(s*Math.PI/2)) : x1 - hw*(1 - Math.cos(s*Math.PI/2));
+        pts.push([ax, zb + r*Math.sin(s*Math.PI/2)]); }
+      else { const th = Math.PI*(1-t); pts.push([xm + hw*Math.cos(th), zb + r*Math.sin(th)]); }
+    }
+    return pts;
+  };
+  const draw = (x0, x1, zb0, zb, r, bb, fill, st) => poly([P(x0,bb,zb0), ...head(x0, x1, zb, r).map(([a, z]) => P(a, bb, z)), P(x1,bb,zb0)], fill, st, 1);
+  draw(a0-4, a1+4, z0-4, zs, rise+4, b + 0.3*d, frame, shade(frame,.7));
+  draw(a0, a1, z0, zs, rise, b + 0.5*d, '#34424b');
+  draw(a0+2, a1-2, zs - (zs-z0)*0.2, zs, rise-2, b + 0.6*d, 'rgba(170,205,220,.3)');
+  F(am-1.4, am+1.4, z0, z1 - 1, frame, null, 0, b + 0.8*d);
+  if(!o.pointed) F(a0, a1, zs-1.4, zs+1.4, frame, null, 0, b + 0.8*d);
+  if(d > 0) slab(a0-7, a1+7, z0-9, z0-4, b+7, b, frame); else slab(a0-7, a1+7, z0-9, z0-4, b-7, b, frame);
+}
+/* shoji: a paper screen with a timber grid, a0..a1 on the plane b */
+function houseShoji(a0, a1, z0, z1, b, wood, d){
+  const s = d || 1;
+  F(a0, a1, z0, z1, '#f2eee2', wood, 1.4, b + 0.3*s);
+  for(let a = a0 + 14; a < a1 - 2; a += 14) F(a-0.8, a+0.8, z0, z1, wood, null, 0, b + 0.5*s);
+  for(let z = z0 + 16; z < z1 - 2; z += 16) F(a0, a1, z-0.8, z+0.8, wood, null, 0, b + 0.5*s);
+  for(let a = a0 + 56; a < a1 - 4; a += 56) F(a-2, a+2, z0, z1, wood, null, 0, b + 0.6*s);
+}
+/* corrugated steel on a face plane */
+function houseCorrugated(a0, a1, z0, z1, b, col, d){
+  F(a0, a1, z0, z1, col, shade(col,.6), 1, b);
+  for(let a = a0 + 4; a < a1; a += 6) F(a, a+2, z0 + 2, z1 - 2, shade(col,.82), null, 0, b + 0.3*(d||1));
+}
+/* a cypress: a tall narrow cone of foliage on a stub trunk */
+function houseCypress(a, b, h, col){
+  cyl(a, b, 0, 14, 3, '#6b5038');
+  houseCone(a, b, 14, 8, 12, h, col);
+}
+
+
+/* ================= MORE SHAPES (houses 39-47) ================= */
+/* a birch: white trunk with dark marks, a light open crown */
+function houseBirch(a, b, h, leaf){
+  cyl(a, b, 0, h*0.62, 3.2, '#ece8de');
+  for(let z = 10; z < h*0.6; z += 13) F(a-3, a+1, z, z+2, '#3a3a3e', null, 0, b + 3.4);
+  ball(a, b, h*0.72, h*0.2, leaf); ball(a-9, b+4, h*0.62, h*0.14, shade(leaf,1.1)); ball(a+8, b-3, h*0.84, h*0.13, shade(leaf,.92));
+}
+/* a railing round a rectangle at height z: far sides first, near last */
+function houseRailRing(a0, a1, b0, b1, z, h, col){
+  const nearB = state.back ? b0 : b1, farB = state.back ? b1 : b0;
+  const nearA = FLANK_RIGHT ? a1 : a0, farA = FLANK_RIGHT ? a0 : a1;
+  const bars = (fn, from, to) => { for(let t = from; t < to; t += 9) fn(t); };
+  F(a0, a1, z + h - 2, z + h, col, null, 0, farB);
+  bars(t => F(t, t+1.4, z, z + h, col, null, 0, farB), a0, a1);
+  S(farA, b0, b1, z + h - 2, z + h, col);
+  bars(t => S(farA, t, t+1.4, z, z + h, col), b0, b1);
+  S(nearA, b0, b1, z + h - 2, z + h, col);
+  bars(t => S(nearA, t, t+1.4, z, z + h, col), b0, b1);
+  F(a0, a1, z + h - 2, z + h, col, null, 0, nearB);
+  bars(t => F(t, t+1.4, z, z + h, col, null, 0, nearB), a0, a1);
+}
+
+
+/* ================= MORE SHAPES (houses 48-56) ================= */
+/* crow steps up both rakes of a gable on the seen end (a = a0 or a1) */
+function houseCrowSteps(a0, a1, bf, bb, He, Hr, n, col){
+  const aE = FLANK_RIGHT ? a1 : a0, mid = (bf+bb)/2, st = (bf-mid)/n;
+  const step = (b0, b1, z) => box(aE-7, aE+7, Math.min(b0,b1), Math.max(b0,b1), He, z, shade(col,1.06), col, shade(col,.8));
+  for(let k = n-1; k >= 0; k--) step(bb + k*st, bb + (k+1)*st, He + (Hr-He)*(k+1)/n + 8);
+  for(let k = n-1; k >= 0; k--) step(bf - k*st, bf - (k+1)*st, He + (Hr-He)*(k+1)/n + 8);
+}
+/* a half-round bay (a faceted half prism) standing proud of the wall line b */
+function houseHalfBay(ac, b, r, n, z0, z1, wall){
+  const foot = [];
+  for(let k = 0; k <= n; k++){ const t = Math.PI*k/n; foot.push([ac + r*Math.cos(t), b + r*Math.sin(t)]); }
+  return housePrism(foot, z0, z1, wall, { top:false });
+}
+function houseHalfCone(ac, b, r, n, z0, z1, roof){
+  const ctr = [ac, b + r*0.3, z0 + (z1-z0)*0.2];
+  for(let k = 0; k < n; k++){
+    const t0 = Math.PI*k/n, t1 = Math.PI*(k+1)/n;
+    houseFace([[ac + r*Math.cos(t0), b + r*Math.sin(t0), z0], [ac + r*Math.cos(t1), b + r*Math.sin(t1), z0], [ac, b, z1]], ctr, shade(roof, 0.84 + 0.16*Math.sin((t0+t1)/2)));
+  }
+}
+
+
+/* ================= THE YARD FENCE (bulk fix, 2026-09-21) =================
+   Sir: "houses with fences don't have a fence around their entire yard."
+   Every entry that fences its street front now declares
+
+     yardFence: { style, h, col, cap, pier }      colours: a liv key or a hex
+
+   and gets the same fence carried down both sides of the lot and across
+   the back, in its own style, from one helper -- no per-house fence code.
+   The runs sit just inside the lot line (7 in from the sides, 5 in from the
+   back) and their collision is added to the entry's vol at load.
+
+   ORDER. From the street the far side and the back are behind the house
+   and are drawn with the yard ('far', straight after this.yard); the near
+   side is in front of it and goes last in fore() ('near'). From behind the
+   roles swap: the near side and the back go last in back(). */
+function houseYardRun(f, col, axis, fixed, u0, u1){
+  const Q = (a, b, z0, z1, cl) => axis === 'a' ? F(a, b, z0, z1, cl, null, 0, fixed) : S(fixed, a, b, z0, z1, cl);
+  const pt = (u, z) => axis === 'a' ? P(u, fixed, z) : P(fixed, u, z);
+  const bx = (a, b, t, z0, z1, cl) => axis === 'a' ? box(a, b, fixed - t, fixed + t, z0, z1, shade(cl,1.04), cl, shade(cl,.8))
+                                                   : box(fixed - t, fixed + t, a, b, z0, z1, shade(cl,1.04), cl, shade(cl,.8));
+  const ball2 = (u, z, r, cl) => axis === 'a' ? ball(u, fixed, z, r, cl) : ball(fixed, u, z, r, cl);
+  const h = f.h, c1 = col(f.col), cap = col(f.cap);
+  /* posts never overhang the run's ends, so a run that starts at the lot line stays in the lot */
+  const posts = (every, ph, cl, t) => { for(let u = u0; u <= u1 + 0.1; u += every){ const m = Math.min(Math.max(u, u0 + t), u1 - t); bx(m - t, m + t, t, 0, ph, cl); } };
+  switch(f.style){
+    case 'picket':
+      Q(u0, u1, h*0.28, h*0.28 + 3, shade(c1,.86)); Q(u0, u1, h*0.66, h*0.66 + 3, shade(c1,.86));
+      for(let u = u0 + 2; u < u1 - 3; u += 10.5) poly([pt(u,0), pt(u+5,0), pt(u+5,h-3), pt(u+2.5,h), pt(u,h-3)], c1, shade(c1,.7), 0.8);
+      posts(110, h + 6, c1, axis === 'a' ? 2 : 4); break;
+    case 'iron':
+      Q(u0, u1, 6, 8, c1); Q(u0, u1, h - 6, h - 3, c1);
+      for(let u = u0 + 3; u < u1; u += 7) poly([pt(u,0), pt(u+1.6,0), pt(u+1.6,h), pt(u+0.8,h+4), pt(u,h)], c1);
+      if(f.pier) posts(118, h + 8, col(f.pier), axis === 'a' ? 2 : 6); else posts(120, h + 2, shade(c1,1.3), axis === 'a' ? 2 : 3);
+      break;
+    case 'hedge':
+      bx(u0, u1, 5, 0, h, c1);
+      for(let u = u0 + 8; u < u1; u += 16) ball2(u, h, 5, c1);
+      break;
+    case 'wall':
+      bx(u0, u1, 4, 0, h, c1);
+      if(f.stones) for(let u = u0 + 6; u < u1 - 8; u += 13) Q(u, u + 8, 4 + (u % 3)*3, 11 + (u % 3)*3, shade(c1,.8));
+      if(cap) bx(u0 - 1, u1 + 1, 5, h, h + 4, cap);
+      if(f.balls) for(let u = u0 + 6; u < u1; u += 12) ball2(u, h, 4.2, c1);
+      break;
+    case 'bamboo':
+      Q(u0, u1, 0, h, c1);
+      for(let u = u0 + 3; u < u1; u += 5) Q(u, u + 1.2, 0, h, shade(c1,.84));
+      for(const z of [h*0.3, h*0.7]) Q(u0, u1, z, z + 2.4, col(f.cap) || '#5a4a30');
+      break;
+    case 'wattle':
+      for(let z = 6; z < h; z += 6) Q(u0, u1, z, z + 3.6, (z % 12) ? c1 : shade(c1,.88));
+      posts(24, h + 2, shade(c1,.7), 2);
+      break;
+  }
+}
+/* how far in from the back of the lot each style's rear run stands, and
+   its half-thickness: thin fences hug the lot line, solid ones sit in */
+const HOUSE_YARD_BACK = { picket:[2,2], iron:[2,2], bamboo:[2,2], wattle:[2,2], hedge:[6,5], wall:[6,5] };
+function houseYardFence(sh, c, part){
+  const f = sh.yardFence; if(!f) return;
+  const col = k => (k && c[k]) || k;
+  const W = sh.ww || HOUSE_SINGLE, D = sh.dd || HOUSE_DEPTH_LAB;
+  const aL = 7, aR = W - 7, bF = -8, bR = -(D - HOUSE_YARD_BACK[f.style][0]);
+  const nearA = FLANK_RIGHT ? aR : aL, farA = FLANK_RIGHT ? aL : aR;
+  const side = a => houseYardRun(f, col, 'b', a, bR, bF);
+  const rear = () => houseYardRun(f, col, 'a', bR, aL, aR);
+  if(part === 'far'){ if(!state.back){ rear(); side(farA); } else side(farA); }
+  else { if(!state.back) side(nearA); else { side(nearA); rear(); } }
+}
+/* the fence's collision, added to an entry's vol when HOUSES loads */
+function houseYardSolids(sh){
+  const W = sh.ww || HOUSE_SINGLE, D = sh.dd || HOUSE_DEPTH_LAB, t = 6, h = sh.yardFence.h;
+  const [inb, half] = HOUSE_YARD_BACK[sh.yardFence.style], bc = -(D - inb);
+  return [ { name:'yard fence L', poly:[[1,bc-half],[7+t,bc-half],[7+t,-6],[1,-6]], h },
+           { name:'yard fence R', poly:[[W-7-t,bc-half],[W-1,bc-half],[W-1,-6],[W-7-t,-6]], h },
+           { name:'yard fence back', poly:[[1,bc-half],[W-1,bc-half],[W-1,bc+half],[1,bc+half]], h } ];
+}
+
+
+/* ================= TREES (bulk fix, 2026-09-21) =================
+   The museum-yard fix in the game (2026-09-18) applied to every house
+   tree: THE TRUNK RUNS UP INTO THE CROWN, AND THE CROWN IS DRAWN FAR TO
+   NEAR. Two faults, both in every hand-built tree here:
+     1. a trunk that stops below the lowest leaf ball shows its flat top
+        cap in the gap under the crown;
+     2. balls drawn in the order they were written -- a ball behind the
+        trunk can land over one in front of it.
+   houseCanopy(fn) runs a tree's drawing code with ball / cyl / tube / F
+   captured instead of drawn, lifts any trunk (a cyl or tube of radius <= 9
+   that ends above 40) whose top stops short of the crown up to just inside
+   the lowest leaf ball, then draws everything far to near. Depth is the
+   screen height of the point on the ground under each piece -- measured
+   through P(), so it holds from the back and on mirrored edges too.
+   houseProp applies it to every prop whose name is a tree. */
+const HOUSE_TREE_PROP = /^(tree|oak|pine|olive|breadfruit|pomegranate|acacia|lemon|planter|frangipani|plumeria|birch)/;
+function houseCanopy(fn){
+  const items = [], saved = { ball, cyl, tube, F };
+  const key = (a, b) => P(a, b, 0).y;
+  ball = (...g) => items.push({ kind:'ball', k:key(g[0], g[1]), z:g[2], g });
+  cyl  = (...g) => items.push({ kind:'cyl',  k:key(g[0], g[1]), z:g[2], g });
+  tube = (...g) => items.push({ kind:'tube', k:key(g[0], g[1]), z:g[2], g });
+  F    = (...g) => items.push({ kind:'F',    k:key((g[0]+g[1])/2, g[7] || 0) + 0.01, z:g[2], g });
+  try { fn(); } finally { ball = saved.ball; cyl = saved.cyl; tube = saved.tube; F = saved.F; }
+  const leaves = items.filter(t => t.kind === 'ball' && t.g[3] >= 8);
+  /* A BALL'S RADIUS IS IN SCREEN UNITS (r*K), BUT ITS HEIGHT IS SCALED BY
+     ZSCALE and the entry's own sc like everything else -- so a ball of
+     radius r only covers r / (ZSCALE*SC) of lab height either side of its
+     centre (Sir, on-device, circling the Brownstone's street tree: "this
+     tree looks disconnected"). The first pass lifted trunks to just inside
+     the lowest ball by its raw r, which at 1.3x leaves the trunk's top cap
+     still showing under the crown. Each trunk now runs up under the leaf
+     ball nearest its axis, to 40% of that ball's true reach below its
+     centre -- where the ball, drawn after it, covers the cap. */
+  if(leaves.length){
+    const reach = r => r / ((typeof ZSCALE === 'number' ? ZSCALE : 1.5) * (typeof SC === 'number' ? SC : 1));
+    const target = (a, b) => { let best = null, d = 1e9;
+      for(const t of leaves){ const e = Math.hypot(t.g[0]-a, t.g[1]-b); if(e < d){ d = e; best = t; } }
+      return best.g[2] - 0.4*reach(best.g[3]); };
+    for(const t of items){
+      if(t.kind === 'cyl' && t.g[4] <= 9 && t.g[3] >= 40){ const zt = target(t.g[0], t.g[1]); if(t.g[3] < zt) t.g[3] = zt; }
+      if(t.kind === 'tube' && t.g[6] <= 9 && t.g[5] >= 40){
+        const [a0, b0, z0, a1, b1, z1] = t.g, zt = target(a1, b1);
+        if(z1 < zt){ const u = (zt - z0)/((z1 - z0) || 1); t.g[3] = a0 + (a1 - a0)*u; t.g[4] = b0 + (b1 - b0)*u; t.g[5] = zt; }
+      }
+    }
+  }
+  items.map((t, i) => (t.i = i, t)).sort((p, q) => (p.k - q.k) || (p.z - q.z) || (p.i - q.i))
+       .forEach(t => saved[t.kind](...t.g));
+}
+
 
   const SHOPS = [
   {
@@ -33242,8 +34003,599 @@ const TIDEWATER_MUSEUM = (() => {
     }
     kerb(p,'none');
   }
+},
+/* ---- SIERRA VISTA'S HOUSES: the Mediterranean set from labs/houses.js
+   (Sir, 2026-09-22: "lets do mediterranean hills"). VERBATIM copies; the
+   lab file is canonical. They draw at SIERRA_HOUSE_SC through HOUSE_SC. ---- */
+{
+  name:'San Gabriel Mission Revival', hood:'The Flats', tier:'double', sc:HOUSE_SC, ww:HOUSE_DOUBLE, dd:HOUSE_DEPTH_LAB,
+  head:'Mission Revival: curved parapet gable, quatrefoil, bell wall, red tile',
+  desc:'A white stucco Mission Revival house: a low red-tile roof behind a scrolled Mission parapet gable with a quatrefoil window over the arched door, a pierced bell wall with its bell at the end, round-headed grilled windows, palms and a tiled fountain.',
+  tags:['double','mission revival','parapet','bell wall','spanish'],
+  door:[405, -160],
+  liv:[ { wall:'#f5f0e4', roof:'#b8583a', trim:'#6b4a36', leaf:'#6b4a36', tile:'#2f6f8a' },
+        { wall:'#f2e6d2', roof:'#a84e34', trim:'#3f4a3e', leaf:'#3f4a3e', tile:'#c9622a' },
+        { wall:'#efece6', roof:'#c0613f', trim:'#2e4d68', leaf:'#2e4d68', tile:'#3f8a5a' } ],
+  vol:{
+    foot:[[60,-160],[750,-160],[750,-470],[60,-470]], h:330,
+    solids:[ { name:'bell wall', poly:[[650,-172],[730,-172],[730,-156],[650,-156]], h:330 },
+             { name:'palm L', c:[60,-60], r:7, h:190, prop:true },
+             { name:'palm R', c:[760,-60], r:7, h:190, prop:true },
+             { name:'fountain', c:[250,-70], r:26, h:40, prop:true },
+             { name:'ac unit', poly:[[94,-498],[146,-498],[146,-470],[94,-470]], h:36, prop:true },
+             { name:'bin', poly:[[682,-520],[718,-520],[718,-484],[682,-484]], h:52, prop:true } ],
+    marks:{ door:[405,-160], mat:[405,-160+35.4] }
+  },
+  prof:[[-160,150],[-315,220],[-470,150]],
+  yard(c){
+    houseLawn(0, 809.6, -160, 0, '#86a85e');
+    T(370, 440, -160, 0, 0.6, '#c9a07a');
+  },
+  parapet(c){
+    const L = [[105,150],[105,190],[90,206],[96,224],[70,240],[70,262],[40,262],[40,282]];
+    const top = []; for(let k = 0; k <= 10; k++){ const t = Math.PI*k/10; top.push([40*Math.cos(t), 282 + 26*Math.sin(t)]); }
+    const pts = [...L.map(([x, z]) => [405 + x, z]), ...top.map(([x, z]) => [405 + x, z]), ...L.slice().reverse().map(([x, z]) => [405 - x, z])];
+    poly(pts.map(([a, z]) => P(a, -166, z)), shade(c.wall,.8));
+    poly(pts.map(([a, z]) => P(a, -160, z)), c.wall, shade(c.wall,.6), 1.2);
+    for(const [da, dz] of [[-9,0],[9,0],[0,-9],[0,9]]) faceCircle(405 + da, -159.6, 226 + dz, 9, c.trim);
+    for(const [da, dz] of [[-9,0],[9,0],[0,-9],[0,9]]) faceCircle(405 + da, -159.4, 226 + dz, 6.5, '#34424b');
+  },
+  bellwall(c){
+    box(650, 730, -172, -156, 150, 300, shade(c.wall,1.02), c.wall, shade(c.wall,.8));
+    const top = []; for(let k = 0; k <= 10; k++){ const t = Math.PI*k/10; top.push(P(690 + 40*Math.cos(t), -155.6, 300 + 30*Math.sin(t))); }
+    poly([P(650,-155.6,300), ...top, P(730,-155.6,300)], c.wall, shade(c.wall,.6), 1);
+    const arch = [P(672,-155.4,200)]; for(let k = 0; k <= 10; k++){ const t = Math.PI*(1 - k/10); arch.push(P(690 + 18*Math.cos(t), -155.4, 250 + 18*Math.sin(t))); }
+    arch.push(P(708,-155.4,200)); poly(arch, '#2a2420');
+    ball(690, -160, 236, 10, '#b8903a'); F(689, 691, 246, 268, '#3a3a3e', null, 0, -158);
+  },
+  walls(c, d){
+    houseMass(60, 750, -160, -470, 150, c.wall, d);
+    const face = d > 0 ? -160 : -470;
+    for(let a = 64; a < 750; a += 12) F(a, a+10, 2, 12, a % 24 ? c.tile : shade(c.tile,1.2), null, 0, face + 0.3*d);
+    houseSideWins(60, 750, -160, -470, [[34,110]], c.trim, { w:34 });
+    if(d > 0){
+      houseArch(405, -160, houseDoorDims(HOUSE_SC).h, 46, 18, shade(c.wall,.9), 1);
+      houseDoorway(405, -160, HOUSE_SC, c.trim, c.leaf, 1);
+      for(const [a0, a1] of [[120,170],[220,270],[540,590],[640,690]]){
+        houseArchWin(a0, a1, 34, 124, -160, c.trim, 1);
+        for(let a = a0 + 8; a < a1 - 2; a += 9) F(a, a+1.6, 34, 104, '#2a2a2e', null, 0, -159);
+      }
+    } else {
+      for(const [a0, a1] of [[140,190],[620,670]]) houseArchWin(a0, a1, 34, 124, -470, c.trim, -1);
+      rearDoor(405, c.wall, c.leaf, 470, 92);
+    }
+    houseProfileRoof(60, 750, this.prof, 12, c.roof, c.wall);
+  },
+  fore(p){
+    const c = this.liv[state.pal % this.liv.length];
+    houseProp('palm L', () => housePalm(60, -60, 180, '#5f8f4f'));
+    houseProp('palm R', () => housePalm(760, -60, 180, '#5f8f4f'));
+    houseProp('fountain', () => {
+      cyl(250, -70, 0, 18, 26, c.tile, shade(c.tile,1.3));
+      plateCircle(250, -70, 18.5, 22, '#8fc4d6');
+      cyl(250, -70, 18, 34, 4, shade(c.wall,.9)); ball(250, -70, 38, 5, '#bfe0ea');
+    });
+  },
+  draw(p){
+    const c = this.liv[state.pal % this.liv.length];
+    this.yard(c);
+    this.walls(c, 1);
+    this.parapet(c);
+    this.bellwall(c);
+  },
+  back(p){
+    const c = this.liv[state.pal % this.liv.length];
+    this.yard(c); this.fore(p);
+    this.bellwall(c); this.parapet(c);
+    this.walls(c, -1);
+    houseProp('ac unit', () => acUnit(120, 0, 470));
+    houseProp('bin', () => wheelieBin(700, '#3f6b4a', 0, 470));
+  }
+},
+{
+  name:'Palmline Casita', hood:'The Flats', tier:'double', sc:HOUSE_SC, dd:HOUSE_DEPTH_LAB, ww:HOUSE_DOUBLE,
+  head:'Two-storey Spanish revival: tile hip roofs, garage wing, arched door',
+  desc:'Starter double. Two-storey stucco block with a single-storey garage wing and driveway; low garden wall with a gap for the path; arched delivery door under a tiled hood; iron balconette above it.',
+  tags:['double','two-storey','garage','tile roof'],
+  yardFence:{ style:'wall', h:26, col:'wall', cap:'roof' },
+  door:[500, -60],
+  liv:[ { wall:'#f2e6d2', trim:'#6b4a36', roof:'#c0613f', leaf:'#5a3a28', iron:'#2a2a2e', gar:'#e6dccb' },
+        { wall:'#f4d8c4', trim:'#3f5a4a', roof:'#b85a3c', leaf:'#3f5a4a', iron:'#2a2a2e', gar:'#efe4d4' },
+        { wall:'#e8eef0', trim:'#2e4d68', roof:'#a9553a', leaf:'#2e4d68', iron:'#1f2226', gar:'#dde5e8' } ],
+  vol:{
+    foot:[[24,-60],[784,-60],[784,-498],[24,-498]],
+    h:285,
+    solids:[ { name:'wall L', poly:[[280,-10],[430,-10],[430,-2],[280,-2]], h:30 },
+             { name:'wall R', poly:[[570,-10],[800,-10],[800,-2],[570,-2]], h:30 },
+             { name:'pot L', c:[320,-32], r:11, h:37, prop:true },
+             { name:'pot R', c:[760,-32], r:11, h:37, prop:true },
+             { name:'bin', poly:[[222,-536],[258,-536],[258,-500],[222,-500]], h:52, prop:true },
+             { name:'ac unit', poly:[[554,-526],[606,-526],[606,-498],[554,-498]], h:36, prop:true } ],
+    marks:{ door:[500,-60], mat:[500,-60+35.4] }
+  },
+  yard(c){
+    houseLawn(280, 809.6, -60, 0, '#86a85e');
+    T(36, 280, -60, 0, 0.6, '#b3aea3');                        // driveway
+    poly([P(158,-60,0.7), P(158,0,0.7)], null, '#98938a', 1);
+    for(let b = -45; b < 0; b += 15) poly([P(36,b,0.7), P(280,b,0.7)], null, '#a29d93', 1);
+    T(430, 570, -60, 0, 0.7, '#c9a07a');                       // terracotta path
+    for(let b = -54; b < 0; b += 11) poly([P(430,b,0.8), P(570,b,0.8)], null, '#a8825f', 1);
+  },
+  gwall(c){                                                    // low stucco garden wall, tile cap
+    for(const [a0,a1] of [[280,430],[570,800]]){
+      box(a0, a1, -10, -2, 0, 26, shade(c.wall,.95), c.wall, shade(c.wall,.8));
+      box(a0-1, a1+1, -11, -1, 26, 30, shade(c.roof,1.05), c.roof, shade(c.roof,.8));
+    }
+    for(const [nm, aa] of [['pot L', 320], ['pot R', 760]])     // terracotta pots in the lawn
+      houseProp(nm, () => { cyl(aa, -32, 0, 20, 10, '#b86a4a', shade('#b86a4a',1.15)); ball(aa, -32, 26, 11, '#4f7a4a'); });
+  },
+  arch(aMid, bf, h, col, d){                                   // arched surround over the doorway
+    const r = 44, pts = [];
+    for(let k = 0; k <= 12; k++){ const t = Math.PI*k/12; pts.push(P(aMid + r*Math.cos(t), bf + 0.25*d, h - 2 + r*0.36*Math.sin(t))); }
+    pts.push(P(aMid - r, bf + 0.25*d, 0), P(aMid + r, bf + 0.25*d, 0));
+    poly(pts, shade(col,.93), shade(col,.7), 1);
+  },
+  draw(p){
+    const c = this.liv[state.pal % this.liv.length];
+    this.yard(c); houseYardFence(this, c, 'far');
+    /* garage wing: its hi end dies into the two-storey block */
+    houseMass(24, 300, -60, -498, 124, c.wall, 1);
+    F(52, 268, 0, 92, c.gar, shade(c.gar,.72), 1.2, -59.6);   // up-and-over door
+    for(let z = 18; z < 92; z += 18) F(52, 268, z-1.5, z, shade(c.gar,.8), null, 0, -59.4);
+    houseHipRoof(24, 300, -60, -498, 124, 176, 10, c.roof, 1, { lo:true, hi:false });
+    /* the two-storey block */
+    houseMass(300, 784, -60, -498, 232, c.wall, 1);
+    houseSideWins(300, 784, -60, -498, [[40,96],[150,204]], c.trim);
+    this.arch(500, -60, houseDoorDims(HOUSE_SC).h, c.wall, 1);
+    houseDoorway(500, -60, HOUSE_SC, c.trim, c.leaf, 1);
+    houseWin(636, 744, 36, 96, -60, c.trim, shade(c.wall,.88), 1, { box:c.trim });
+    houseWin(340, 428, 150, 204, -60, c.trim, shade(c.wall,.88), 1);
+    houseWin(456, 544, 150, 204, -60, c.trim, shade(c.wall,.88), 1);
+    houseWin(636, 744, 150, 204, -60, c.trim, shade(c.wall,.88), 1);
+    houseHipRoof(300, 784, -60, -498, 232, 290, 12, c.roof, 1);
+  },
+  fore(p){
+    const c = this.liv[state.pal % this.liv.length];
+    slab(452, 548, 110, 116, -34, -60, shade(c.roof,.8));      // tiled door hood
+    poly([P(452,-34,116), P(548,-34,116), P(548,-60,128), P(452,-60,128)], c.roof, shade(c.roof,.6), 1);
+    slab(440, 560, 136, 140, -44, -60, shade(c.wall,.85));    // balconette floor
+    for(let a = 444; a <= 556; a += 7) F(a, a+1.6, 140, 168, c.iron, null, 0, -44);
+    F(440, 560, 166, 169, c.iron, null, 0, -43.8);
+    this.gwall(c);
+    if(!state.back) houseYardFence(this, this.liv[state.pal % this.liv.length], 'near');
+  },
+  back(p){
+    const c = this.liv[state.pal % this.liv.length];
+    this.yard(c); houseYardFence(this, c, 'far'); this.gwall(c);
+    houseMass(300, 784, -60, -498, 232, c.wall, -1);           // far block first: its a0 end rises over the garage
+    houseSideWins(300, 784, -60, -498, [[150,204]], c.trim);
+    houseWin(352, 440, 150, 204, -498, c.trim, shade(c.wall,.88), -1);
+    houseWin(500, 588, 150, 204, -498, c.trim, shade(c.wall,.88), -1);
+    houseWin(660, 748, 150, 204, -498, c.trim, shade(c.wall,.88), -1);
+    houseWin(660, 748, 40, 96, -498, c.trim, shade(c.wall,.88), -1);
+    rearDoor(472, c.wall, c.leaf, 498, 92);
+    houseHipRoof(300, 784, -60, -498, 232, 290, 12, c.roof, -1);
+    houseMass(24, 300, -60, -498, 124, c.wall, -1);
+    houseSideWins(24, 300, -60, -498, [[40,94]], c.trim);
+    houseWin(100, 192, 44, 90, -498, c.trim, shade(c.wall,.88), -1);
+    houseHipRoof(24, 300, -60, -498, 124, 176, 10, c.roof, -1, { lo:true, hi:false });
+    houseProp('bin', () => wheelieBin(240, '#3f6b4a', -12, 498));
+    houseProp('ac unit', () => acUnit(580, 0, 498));
+    houseYardFence(this, c, 'near');
+  }
+},
+{
+  name:'Rancho Hacienda', hood:'The Flats', tier:'double', sc:HOUSE_SC, ww:HOUSE_DOUBLE, dd:HOUSE_DEPTH_LAB,
+  head:'Hacienda: long tile roof over a seven-arch front arcade, courtyard wall',
+  desc:'A long single-storey Spanish hacienda: a red-tile roof running out over a front arcade of seven arches on thick piers, deep-set grilled windows and a plank door in the shade behind, terracotta floor, a low courtyard wall with an open timber gate, and big clay pots.',
+  tags:['double','hacienda','arcade','tile roof','spanish'],
+  yardFence:{ style:'wall', h:26, col:'wall', cap:'roof' },
+  door:[405, -150],
+  liv:[ { wall:'#efe2cc', roof:'#b8583a', trim:'#5a3a28', leaf:'#5a3a28', floor:'#b86a4a' },
+        { wall:'#f2dcc4', roof:'#a84e34', trim:'#3f4a3e', leaf:'#3f4a3e', floor:'#a8604a' },
+        { wall:'#e8e4da', roof:'#c0613f', trim:'#2e4d68', leaf:'#2e4d68', floor:'#b87050' } ],
+  vol:{
+    foot:[[60,-150],[750,-150],[750,-470],[60,-470]], h:210,
+    solids:[ ...[[60,70],[140,170],[240,270],[340,365],[445,470],[540,570],[640,670],[740,750]].map(([a0, a1], i) =>
+               ({ name:'pier ' + (i+1), poly:[[a0,-96],[a1,-96],[a1,-84],[a0,-84]], h:140 })),
+             { name:'wall L', poly:[[6,-14],[370,-14],[370,-4],[6,-4]], h:30 },
+             { name:'wall R', poly:[[440,-14],[804,-14],[804,-4],[440,-4]], h:30 },
+             { name:'pot L', c:[300,-50], r:14, h:44, prop:true },
+             { name:'pot R', c:[520,-50], r:14, h:44, prop:true },
+             { name:'ac unit', poly:[[94,-498],[146,-498],[146,-470],[94,-470]], h:36, prop:true },
+             { name:'bin', poly:[[682,-520],[718,-520],[718,-484],[682,-484]], h:52, prop:true } ],
+    marks:{ door:[405,-150], mat:[405,-150+35.4] }
+  },
+  prof:[[-84,140],[-280,210],[-470,140]],
+  bays:[[70,140],[170,240],[270,340],[365,445],[470,540],[570,640],[670,740]],
+  yard(c){
+    T(0, 809.6, -84, 0, 0.3, '#ddd2bc');
+    T(60, 750, -150, -84, 1.2, c.floor);
+    for(let a = 72; a < 750; a += 16) poly([P(a,-150,1.3), P(a,-84,1.3)], null, shade(c.floor,.82), 1);
+    for(let b = -140; b < -84; b += 16) poly([P(60,b,1.3), P(750,b,1.3)], null, shade(c.floor,.82), 1);
+    T(370, 440, -84, 0, 0.6, '#c9a07a');
+  },
+  back_wall(c, d){
+    houseMass(60, 750, -150, -470, 140, c.wall, d);
+    const face = d > 0 ? -150 : -470;
+    if(d > 0){
+      houseDoorway(405, -150, HOUSE_SC, c.trim, c.leaf, 1);
+      for(const [a0, a1] of [[180,230],[580,630]]){ houseWin(a0, a1, 36, 100, -150, c.trim, c.trim, 1, { plain:true }); for(let a = a0 + 6; a < a1; a += 9) F(a, a+1.6, 36, 100, '#2a2a2e', null, 0, -149); }
+    } else {
+      for(const [a0, a1] of [[180,230],[580,630]]) houseWin(a0, a1, 36, 100, -470, c.trim, c.trim, -1, { plain:true });
+      rearDoor(405, c.wall, c.leaf, 470, 92);
+    }
+    houseSideWins(60, 750, -150, -470, [[36,100]], c.trim, { plain:true, w:40 });
+    const g = a => [[a,-150,0],[a,-150,162],[a,-280,210],[a,-470,140],[a,-470,0]];
+    houseFace(g(60), [405,-310,90], shade(c.wall,.78), shade(c.wall,.6));
+    houseFace(g(750), [405,-310,90], shade(c.wall,.78), shade(c.wall,.6));
+  },
+  arcade(c){
+    const b = -84, z1 = 140, rise = 24;
+    const piers = [[60,70],[140,170],[240,270],[340,365],[445,470],[540,570],[640,670],[740,750]];
+    for(const [a0, a1] of piers) box(a0, a1, -96, -84, 0, z1, shade(c.wall,1.02), c.wall, shade(c.wall,.8));
+    for(const [a0, a1] of this.bays){
+      const zs = 96, pts = [P(a0,b,z1)];
+      for(let k = 0; k <= 12; k++){ const t = Math.PI*k/12; pts.push(P((a0+a1)/2 - (a1-a0)/2*Math.cos(t), b, zs + rise*Math.sin(t))); }
+      pts.push(P(a1,b,z1));
+      poly(pts, c.wall, shade(c.wall,.7), 1);
+    }
+    F(60, 750, 132, 140, shade(c.wall,.9), null, 0, b + 0.3);
+  },
+  fore(p){
+    const c = this.liv[state.pal % this.liv.length];
+    this.arcade(c);
+    houseProfileRoof(60, 750, this.prof, 12, c.roof, c.wall, { noEnds:true });
+    for(const [a0, a1] of [[6, 370], [440, 804]]){
+      box(a0, a1, -14, -4, 0, 26, shade(c.wall,1.02), c.wall, shade(c.wall,.8));
+      box(a0-1, a1+1, -15, -3, 26, 30, c.roof, shade(c.roof,.9), shade(c.roof,.75));
+    }
+    F(372, 378, 0, 44, c.trim, null, 0, -9); F(432, 438, 0, 44, c.trim, null, 0, -9);
+    for(const [nm, aa] of [['pot L', 300], ['pot R', 520]])
+      houseProp(nm, () => { ball(aa, -50, 18, 16, '#b86a4a'); cyl(aa, -50, 26, 36, 9, '#a55a3c'); ball(aa, -50, 44, 10, '#6b9a5a'); });
+    if(!state.back) houseYardFence(this, this.liv[state.pal % this.liv.length], 'near');
+  },
+  draw(p){
+    const c = this.liv[state.pal % this.liv.length];
+    this.yard(c); houseYardFence(this, c, 'far');
+    this.back_wall(c, 1);
+  },
+  back(p){
+    const c = this.liv[state.pal % this.liv.length];
+    this.yard(c); houseYardFence(this, c, 'far');
+    this.arcade(c);
+    for(const [a0, a1] of [[6, 370], [440, 804]]) box(a0, a1, -14, -4, 0, 26, shade(c.wall,1.02), c.wall, shade(c.wall,.8));
+    houseProp('pot L', () => ball(300, -50, 18, 16, '#b86a4a'));
+    houseProp('pot R', () => ball(520, -50, 18, 16, '#b86a4a'));
+    this.back_wall(c, -1);
+    houseProfileRoof(60, 750, this.prof, 12, c.roof, c.wall, { noEnds:true });
+    houseProp('ac unit', () => acUnit(120, 0, 470));
+    houseProp('bin', () => wheelieBin(700, '#3f6b4a', 0, 470));
+    houseYardFence(this, c, 'near');
+  }
+},
+{
+  name:'Belvedere Italianate', hood:'The Flats', tier:'double', sc:HOUSE_SC, ww:HOUSE_DOUBLE, dd:HOUSE_DEPTH_LAB,
+  head:'Italianate: low hip on paired brackets, round-headed windows, belvedere tower',
+  desc:'An Italianate villa: a two-storey block under a low hip with deep eaves on paired brackets, tall round-headed windows, a bracketed entrance porch, and a square three-storey belvedere tower on the corner with paired arched windows at the top.',
+  tags:['double','italianate','tower','brackets'],
+  door:[340, -140],
+  liv:[ { wall:'#e2c89a', trim:'#f5ecd8', roof:'#5a4a42', leaf:'#4a3020', accent:'#6b4a36' },
+        { wall:'#d8d0c0', trim:'#f7f2e8', roof:'#4a4e52', leaf:'#2e3a30', accent:'#4a5a52' },
+        { wall:'#c9a888', trim:'#f5ead6', roof:'#6b4a3e', leaf:'#3a2a22', accent:'#5a3a2a' } ],
+  vol:{
+    foot:[[60,-140],[620,-140],[620,-120],[760,-120],[760,-260],[620,-260],[620,-480],[60,-480]], h:390,
+    solids:[ { name:'column L', poly:[[292,-100],[304,-100],[304,-88],[292,-88]], h:110 },
+             { name:'column R', poly:[[376,-100],[388,-100],[388,-88],[376,-88]], h:110 },
+             { name:'urn L', c:[240,-50], r:13, h:40, prop:true },
+             { name:'urn R', c:[440,-50], r:13, h:40, prop:true },
+             { name:'ac unit', poly:[[94,-508],[146,-508],[146,-480],[94,-480]], h:36, prop:true },
+             { name:'bin', poly:[[482,-530],[518,-530],[518,-494],[482,-494]], h:52, prop:true } ],
+    marks:{ door:[340,-140], mat:[340,-140+35.4] }
+  },
+  yard(c){
+    houseLawn(0, 809.6, -140, 0, '#7a9e58');
+    T(305, 375, -94, 0, 0.6, '#c9c1b0');
+    T(286, 394, -140, -94, 3, '#d8d2c4');
+  },
+  brackets(a0, a1, b, z, c){ for(let a = a0 + 14; a < a1 - 10; a += 40){ F(a, a+4, z-14, z, c.accent, null, 0, b); F(a+7, a+11, z-14, z, c.accent, null, 0, b); } },
+  main(c, d){
+    houseMass(60, 620, -140, -480, 240, c.wall, d);
+    const face = d > 0 ? -140 : -480;
+    F(60, 620, 120, 126, c.trim, null, 0, face + 0.4*d);
+    this.brackets(60, 620, face + 0.5*d, 240, c);
+    houseSideWins(60, 620, -140, -480, [[40,136],[166,226]], c.trim, { w:34 });
+    if(d > 0){
+      houseDoorway(340, -140, HOUSE_SC, c.trim, c.leaf, 1);
+      for(const [a0, a1] of [[100,150],[200,250],[440,490],[540,590]]) houseArchWin(a0, a1, 36, 140, -140, c.trim, 1);
+      for(const [a0, a1] of [[100,150],[200,250],[315,365],[440,490],[540,590]]) houseArchWin(a0, a1, 166, 228, -140, c.trim, 1);
+    } else {
+      for(const [a0, a1] of [[120,170],[300,350],[480,530]]) houseArchWin(a0, a1, 166, 228, -480, c.trim, -1);
+      houseArchWin(480, 530, 40, 140, -480, c.trim, -1);
+      rearDoor(250, c.wall, c.leaf, 480, 92);
+    }
+    houseHip(60, 620, -140, -480, 240, 290, 30, c.roof);
+  },
+  tower(c){
+    houseMass(620, 760, -120, -260, 340, c.wall, 1);
+    const face = state.back ? -260 : -120, d = state.back ? -1 : 1;
+    F(620, 760, 120, 126, c.trim, null, 0, face + 0.4*d);
+    F(620, 760, 236, 242, c.trim, null, 0, face + 0.4*d);
+    this.brackets(620, 760, face + 0.5*d, 340, c);
+    houseArchWin(660, 720, 40, 140, face, c.trim, d);
+    houseArchWin(660, 720, 166, 228, face, c.trim, d);
+    houseArchWin(644, 684, 266, 326, face, c.trim, d);
+    houseArchWin(696, 736, 266, 326, face, c.trim, d);
+    houseSideWins(620, 760, -120, -260, [[166,228],[266,326]], c.trim, { w:40 });
+    houseHip(620, 760, -120, -260, 340, 380, 20, c.roof);
+  },
+  fore(p){
+    const c = this.liv[state.pal % this.liv.length];
+    for(const aa of [298, 382]) box(aa-6, aa+6, -100, -88, 3, 110, c.trim, shade(c.trim,.92), shade(c.trim,.78));
+    box(286, 394, -140, -84, 110, 120, c.trim, shade(c.trim,.94), shade(c.trim,.8));
+    this.brackets(286, 394, -83.6, 110, c);
+    for(const [nm, aa] of [['urn L', 240], ['urn R', 440]])
+      houseProp(nm, () => { cyl(aa, -50, 0, 10, 7, '#9c968a'); cyl(aa, -50, 10, 28, 13, '#b3ada2', '#c9c3b8'); ball(aa, -50, 32, 11, '#4f7a4a'); });
+  },
+  draw(p){
+    const c = this.liv[state.pal % this.liv.length];
+    this.yard(c);
+    this.main(c, 1);
+    this.tower(c);
+  },
+  back(p){
+    const c = this.liv[state.pal % this.liv.length];
+    this.yard(c); this.fore(p);
+    this.tower(c);
+    this.main(c, -1);
+    houseProp('ac unit', () => acUnit(120, 0, 480));
+    houseProp('bin', () => wheelieBin(500, '#3f6b4a', 0, 480));
+  }
+},
+{
+  name:'Marrakech Riad', hood:'The Flats', tier:'double', sc:HOUSE_SC, ww:HOUSE_DOUBLE, dd:HOUSE_DEPTH_LAB,
+  head:'Moroccan riad: ochre walls, crenellated parapet, horseshoe-arch door, domed roof pavilion',
+  desc:'A Moroccan riad house: tall ochre plaster walls with a zellige tile band, a crenellated parapet, a studded door in a horseshoe arch, small arched and screened windows, a domed pavilion on the roof terrace, brass lanterns and potted lemon trees.',
+  tags:['double','moroccan','horseshoe arch','flat roof','dome'],
+  door:[405, -150],
+  liv:[ { wall:'#d99a6a', trim:'#f2e4c8', leaf:'#2f6f8a', tile1:'#2f6f8a', tile2:'#e8dcc0', dome:'#3f8a6a' },
+        { wall:'#e2b48a', trim:'#f5ead6', leaf:'#8a2f2f', tile1:'#3f7a5a', tile2:'#f0e4cc', dome:'#2f6f8a' },
+        { wall:'#c98a5a', trim:'#efe0c4', leaf:'#3a5a2e', tile1:'#c9622a', tile2:'#f0e6d2', dome:'#c9a24a' } ],
+  vol:{
+    foot:[[60,-150],[750,-150],[750,-470],[60,-470]], h:330,
+    solids:[ { name:'lemon L', c:[300,-70], r:14, h:90, prop:true },
+             { name:'lemon R', c:[510,-70], r:14, h:90, prop:true },
+             { name:'lantern', c:[150,-40], r:8, h:40, prop:true },
+             { name:'ac unit', poly:[[94,-498],[146,-498],[146,-470],[94,-470]], h:36, prop:true },
+             { name:'bin', poly:[[682,-520],[718,-520],[718,-484],[682,-484]], h:52, prop:true } ],
+    marks:{ door:[405,-150], mat:[405,-150+35.4] }
+  },
+  yard(c){
+    T(0, 809.6, -150, 0, 0.3, '#e2d2b0');
+    for(let a = 370; a < 440; a += 14) for(let b = -144; b < -4; b += 14) T(a, a+12, b, b+12, 0.6, (a/14 + b/14) & 1 ? c.tile1 : c.tile2);
+  },
+  horseshoe(a, b, h, r, col, d){
+    const pts = [P(a - r*0.86, b, 0)];
+    for(let k = 0; k <= 16; k++){ const t = -Math.PI/6 + (Math.PI*4/3)*k/16; pts.push(P(a - r*Math.cos(t), b, h + r*0.5*Math.sin(t))); }
+    pts.push(P(a + r*0.86, b, 0));
+    poly(pts, col, shade(col,.7), 1);
+  },
+  walls(c, d){
+    houseMass(60, 750, -150, -470, 220, c.wall, d);
+    const face = d > 0 ? -150 : -470;
+    for(let a = 64; a < 750; a += 10) for(const z of [2, 12]) F(a, a+9, z, z+9, ((a/10 + z/10) | 0) % 2 ? c.tile1 : c.tile2, null, 0, face + 0.3*d);
+    houseSideWins(60, 750, -150, -470, [[150,196]], c.trim, { plain:true, w:26, pitch:90 });
+    if(d > 0){
+      this.horseshoe(405, -149.7, houseDoorDims(HOUSE_SC).h - 6, 56, c.trim, 1);
+      houseDoorway(405, -150, HOUSE_SC, c.trim, c.leaf, 1);
+      for(let z = 10; z < 90; z += 12) for(let a = 376; a < 436; a += 12) ball(a, -148.6, z, 1.6, '#c9a24a');
+      for(const [a0, a1] of [[150,190],[250,290],[520,560],[620,660]]) houseArchWin(a0, a1, 40, 100, -150, c.trim, 1);
+      for(const [a0, a1] of [[150,200],[330,380],[430,480],[610,660]]){
+        F(a0-4, a1+4, 146, 206, shade(c.wall,.8), null, 0, -149.6);
+        for(let a = a0; a <= a1; a += 5) F(a, a+1.4, 150, 202, '#5a3a28', null, 0, -149.4);
+        for(let z = 150; z <= 202; z += 5) F(a0, a1, z, z+1.4, '#5a3a28', null, 0, -149.4);
+      }
+    } else {
+      for(const [a0, a1] of [[150,190],[620,660]]) houseArchWin(a0, a1, 40, 100, -470, c.trim, -1);
+      rearDoor(405, c.wall, c.leaf, 470, 92);
+    }
+    T(60, 750, -470, -150, 220, shade(c.wall,.86));
+    const nearB = d > 0 ? -150 : -470, farB = d > 0 ? -470 : -150;
+    for(let a = 62; a < 748; a += 28) box(a, a+16, farB > nearB ? farB - 8 : farB, farB > nearB ? farB : farB + 8, 220, 240, shade(c.wall,1.04), c.wall, shade(c.wall,.8));
+    for(let a = 62; a < 748; a += 28) box(a, a+16, nearB > farB ? nearB - 8 : nearB, nearB > farB ? nearB : nearB + 8, 220, 240, shade(c.wall,1.04), c.wall, shade(c.wall,.8));
+  },
+  pavilion(c){
+    if(!state.roof) return;
+    box(520, 640, -400, -300, 220, 290, shade(c.trim,1.02), c.trim, shade(c.trim,.8));
+    for(const a of [540, 580, 620]) houseArchWin(a-10, a+10, 236, 280, state.back ? -400 : -300, c.trim, state.back ? -1 : 1);
+    houseDome(580, -350, 54, 50, 4, 12, c.dome, null, 290);
+    ball(580, -350, 344, 4, '#c9a24a');
+  },
+  fore(p){
+    const c = this.liv[state.pal % this.liv.length];
+    for(const [nm, aa] of [['lemon L', 300], ['lemon R', 510]])
+      houseProp(nm, () => { cyl(aa, -70, 0, 24, 14, c.tile1, shade(c.tile1,1.2)); cyl(aa, -70, 24, 50, 2.5, '#6b5038'); ball(aa, -70, 70, 22, '#4f7a3e'); for(let k = 0; k < 5; k++) ball(aa - 14 + k*7, -64, 64 + (k%2)*12, 3, '#f2d36a'); });
+    houseProp('lantern', () => { box(144, 156, -46, -34, 0, 28, '#b8903a', 'rgba(250,210,120,.85)', 'rgba(225,185,100,.85)'); houseCone(150, -40, 9, 6, 28, 40, '#b8903a'); });
+  },
+  draw(p){
+    const c = this.liv[state.pal % this.liv.length];
+    this.yard(c);
+    this.walls(c, 1);
+    this.pavilion(c);
+  },
+  back(p){
+    const c = this.liv[state.pal % this.liv.length];
+    this.yard(c); this.fore(p);
+    this.walls(c, -1);
+    this.pavilion(c);
+    houseProp('ac unit', () => acUnit(120, 0, 470));
+    houseProp('bin', () => wheelieBin(700, '#3f6b4a', 0, 470));
+  }
+},
+{
+  name:'Montalcino Tuscan Villa', hood:'The Flats', tier:'double', sc:HOUSE_SC, ww:HOUSE_DOUBLE, dd:HOUSE_DEPTH_LAB,
+  head:'Tuscan villa: ochre stucco, tile hips, loggia tower, cypresses',
+  desc:'A Tuscan farmhouse villa: an ochre two-storey block with green shutters under a terracotta hip, a stone-arched door, a set-back square tower with an arched loggia at the top, a low wing, and two tall cypresses at the ends of the lot.',
+  tags:['double','tuscan','tower','tile roof','cypress'],
+  door:[310, -150],
+  liv:[ { wall:'#d9a868', roof:'#b8583a', trim:'#efe2c8', leaf:'#5a3a28', shut:'#4f6b3e', stone:'#c9bfae' },
+        { wall:'#e2c49a', roof:'#a84e34', trim:'#f2e6cc', leaf:'#3f2a1e', shut:'#5a7a8a', stone:'#c4bca9' },
+        { wall:'#c98f5a', roof:'#c0613f', trim:'#f5ead6', leaf:'#4a3020', shut:'#3f5a4a', stone:'#cfc6b4' } ],
+  vol:{
+    foot:[[60,-150],[560,-150],[560,-190],[700,-190],[700,-210],[780,-210],[780,-480],[60,-480]], h:380,
+    solids:[ { name:'cypress L', c:[30,-60], r:14, h:260, prop:true },
+             { name:'cypress R', c:[790,-60], r:14, h:260, prop:true },
+             { name:'pot L', c:[250,-80], r:12, h:40, prop:true },
+             { name:'pot R', c:[370,-80], r:12, h:40, prop:true },
+             { name:'ac unit', poly:[[94,-508],[146,-508],[146,-480],[94,-480]], h:36, prop:true },
+             { name:'bin', poly:[[482,-530],[518,-530],[518,-494],[482,-494]], h:52, prop:true } ],
+    marks:{ door:[310,-150], mat:[310,-150+35.4] }
+  },
+  yard(c){
+    T(0, 809.6, -150, 0, 0.3, '#d8ccb0');
+    houseLawn(430, 780, -150, -20, '#8aa05e');
+    T(275, 345, -150, 0, 0.6, c.stone);
+  },
+  main(c, d){
+    houseMass(60, 560, -150, -480, 230, c.wall, d);
+    const face = d > 0 ? -150 : -480;
+    houseSideWins(60, 560, -150, -480, [[40,100],[150,210]], c.trim);
+    if(d > 0){
+      houseArch(310, -150, houseDoorDims(HOUSE_SC).h, 46, 18, c.stone, 1);
+      houseDoorway(310, -150, HOUSE_SC, c.stone, c.leaf, 1);
+      for(const [a0, a1] of [[100,150],[190,238],[384,430],[470,520]]) houseWin(a0, a1, 36, 100, -150, c.trim, c.trim, 1, { shutter:c.shut });
+      for(const [a0, a1] of [[100,150],[190,238],[288,332],[384,430],[470,520]]) houseWin(a0, a1, 150, 210, -150, c.trim, c.trim, 1, { shutter:c.shut });
+    } else {
+      for(const [a0, a1] of [[120,170],[300,350],[440,490]]) houseWin(a0, a1, 150, 210, -480, c.trim, c.trim, -1, { shutter:c.shut });
+      rearDoor(220, c.wall, c.leaf, 480, 92);
+    }
+    houseHip(60, 560, -150, -480, 230, 290, 14, c.roof);
+  },
+  tower(c){
+    houseMass(560, 700, -190, -330, 330, c.wall, 1);
+    const face = state.back ? -330 : -190, d = state.back ? -1 : 1;
+    houseWin(606, 654, 150, 210, face, c.trim, c.trim, d, { shutter:c.shut });
+    for(const [a0, a1] of [[576,620],[640,684]]){
+      const pts = [P(a0, face + 0.4*d, 250)]; for(let k = 0; k <= 12; k++){ const t = Math.PI*(1 - k/12); pts.push(P((a0+a1)/2 + (a1-a0)/2*Math.cos(t), face + 0.4*d, 300 + 16*Math.sin(t))); }
+      pts.push(P(a1, face + 0.4*d, 250)); poly(pts, '#3a2e26', shade(c.wall,.7), 1);
+    }
+    houseSideWins(560, 700, -190, -330, [[250,300]], '#3a2e26', { plain:true, w:36 });
+    houseHip(560, 700, -190, -330, 330, 370, 14, c.roof);
+  },
+  wing(c, d){
+    houseMass(700, 780, -210, -480, 120, c.wall, d);
+    houseSideWins(700, 780, -210, -480, [[36,96]], c.trim);
+    if(d > 0) houseWin(716, 764, 36, 96, -210, c.trim, c.trim, 1);
+    houseHip(700, 780, -210, -480, 120, 160, 12, c.roof, { lo:false });
+  },
+  fore(p){
+    const c = this.liv[state.pal % this.liv.length];
+    for(const [nm, aa] of [['cypress L', 30], ['cypress R', 790]]) houseProp(nm, () => houseCypress(aa, -60, 260, '#2f4a2e'));
+    for(const [nm, aa] of [['pot L', 250], ['pot R', 370]])
+      houseProp(nm, () => { cyl(aa, -80, 0, 28, 12, '#b86a4a', shade('#b86a4a',1.15)); ball(aa, -80, 36, 12, '#6b8a4a'); });
+  },
+  draw(p){
+    const c = this.liv[state.pal % this.liv.length];
+    this.yard(c);
+    this.main(c, 1);
+    this.tower(c);
+    this.wing(c, 1);
+  },
+  back(p){
+    const c = this.liv[state.pal % this.liv.length];
+    this.yard(c); this.fore(p);
+    this.wing(c, -1);
+    this.tower(c);
+    this.main(c, -1);
+    houseProp('ac unit', () => acUnit(120, 0, 480));
+    houseProp('bin', () => wheelieBin(500, '#3f6b4a', 0, 480));
+  }
+},
+{
+  name:'Brenta Palladian Villa', hood:'The Flats', tier:'double', sc:HOUSE_SC, ww:HOUSE_DOUBLE, dd:HOUSE_DEPTH_LAB,
+  head:'Palladian villa: domed centre block, temple portico, low flanking wings',
+  desc:'A Palladian villa: a two-storey centre block under a low hip crowned by a drum and dome, a four-column temple portico with a pediment, two low wings stepping back either side, pedimented windows, a gravel parterre of clipped hedges and stone urns.',
+  tags:['double','palladian','dome','portico','classical'],
+  door:[405, -150],
+  liv:[ { wall:'#f2e6cc', trim:'#fbf8f0', roof:'#b86a4a', leaf:'#4a3a2e', dome:'#8a9a8a' },
+        { wall:'#e8e0d0', trim:'#fbfbf8', roof:'#9c5a42', leaf:'#2e3a30', dome:'#6f7a80' },
+        { wall:'#f0dcc0', trim:'#fbf6ea', roof:'#c0704e', leaf:'#5a3a28', dome:'#9aa88e' } ],
+  vol:{
+    foot:[[60,-190],[250,-190],[250,-150],[560,-150],[560,-190],[750,-190],[750,-430],[560,-430],[560,-470],[250,-470],[250,-430],[60,-430]], h:410,
+    solids:[ ...[290, 360, 450, 520].map((a, i) => ({ name:'column ' + (i+1), c:[a,-96], r:9, h:244 })),
+             { name:'hedge L', poly:[[30,-100],[330,-100],[330,-60],[30,-60]], h:22 },
+             { name:'hedge R', poly:[[480,-100],[780,-100],[780,-60],[480,-60]], h:22 },
+             { name:'urn L', c:[340,-30], r:12, h:40, prop:true },
+             { name:'urn R', c:[470,-30], r:12, h:40, prop:true },
+             { name:'ac unit', poly:[[94,-458],[146,-458],[146,-430],[94,-430]], h:36, prop:true },
+             { name:'bin', poly:[[682,-480],[718,-480],[718,-444],[682,-444]], h:52, prop:true } ],
+    marks:{ door:[405,-150], mat:[405,-150+35.4] }
+  },
+  yard(c){
+    T(0, 809.6, -552, 0, 0.3, '#e2dccc');
+    T(270, 540, -150, -86, 3, '#dcd6c8');
+  },
+  hood(a0, a1, z, b){ poly([P(a0-6,b+0.5,z), P((a0+a1)/2,b+0.5,z+12), P(a1+6,b+0.5,z)], '#fbf8f0', '#b8b4ac', 1); },
+  centre(c, d){
+    houseMass(250, 560, -150, -470, 240, c.wall, d);
+    const face = d > 0 ? -150 : -470;
+    F(250, 560, 120, 126, c.trim, null, 0, face + 0.4*d);
+    houseSideWins(250, 560, -150, -470, [[40,110],[150,214]], c.trim);
+    if(d > 0){
+      houseDoorway(405, -150, HOUSE_SC, c.trim, c.leaf, 1);
+      for(const [a0, a1] of [[270,310],[500,540]]){ houseWin(a0, a1, 40, 110, -150, c.trim, c.trim, 1); this.hood(a0, a1, 116, -150); }
+      for(const [a0, a1] of [[270,310],[340,380],[430,470],[500,540]]) houseWin(a0, a1, 150, 214, -150, c.trim, c.trim, 1);
+    } else {
+      for(const [a0, a1] of [[290,340],[470,520]]) houseWin(a0, a1, 150, 214, -470, c.trim, c.trim, -1);
+      rearDoor(405, c.wall, c.leaf, 470, 92);
+    }
+    houseHip(250, 560, -150, -470, 240, 300, 12, c.roof);
+    if(state.roof){
+      const seen = housePrism(houseRing(405,-310,62,12), 280, 336, c.wall, { top:false });
+      for(const f of seen) houseFaceWin(f, 0.3, 0.7, 296, 324, c.trim, { plain:true });
+      houseDome(405, -310, 66, 60, 4, 12, c.dome, null, 336);
+      cyl(405, -310, 394, 410, 6, c.trim);
+    }
+  },
+  wing(c, a0, a1, d, ends){
+    houseMass(a0, a1, -190, -430, 150, c.wall, d);
+    const face = d > 0 ? -190 : -430;
+    houseSideWins(a0, a1, -190, -430, [[40,110]], c.trim);
+    for(const a of [a0 + 40, a1 - 90]) { houseWin(a, a + 50, 40, 110, face, c.trim, c.trim, d); if(d > 0) this.hood(a, a + 50, 116, face); }
+    houseHip(a0, a1, -190, -430, 150, 190, 10, c.roof, ends);
+  },
+  fore(p){
+    const c = this.liv[state.pal % this.liv.length];
+    for(const aa of [290, 360, 450, 520]){ cyl(aa, -96, 3, 230, 9, c.trim, shade(c.trim,1.02)); box(aa-11, aa+11, -107, -85, 230, 236, c.trim, shade(c.trim,.9), shade(c.trim,.78)); }
+    box(270, 540, -110, -84, 236, 252, c.trim, shade(c.trim,.94), shade(c.trim,.8));
+    houseFrontGable(270, 540, -84, -150, 252, 300, 6, c.roof, c.trim, 1, { back0:true, barge:c.trim, gable:shade(c.trim,.96) });
+    for(const [a0, a1] of [[30, 330], [480, 780]]){
+      for(const [b0, b1] of [[-100,-90],[-70,-60]]) box(a0, a1, b0, b1, 0, 22, '#4f7a42', '#426a38', '#3a5e32');
+      for(const aa of [a0, a1 - 10]) box(aa, aa + 10, -100, -60, 0, 22, '#4f7a42', '#426a38', '#3a5e32');
+    }
+    for(const [nm, aa] of [['urn L', 340], ['urn R', 470]])
+      houseProp(nm, () => { cyl(aa, -30, 0, 10, 7, '#c9c3b8'); cyl(aa, -30, 10, 28, 12, '#d8d2c6', '#e6e0d4'); ball(aa, -30, 32, 10, '#4f7a4a'); });
+  },
+  draw(p){
+    const c = this.liv[state.pal % this.liv.length];
+    this.yard(c);
+    this.wing(c, 60, 250, 1, { hi:false });
+    this.centre(c, 1);
+    this.wing(c, 560, 750, 1, { lo:false });
+  },
+  back(p){
+    const c = this.liv[state.pal % this.liv.length];
+    this.yard(c); this.fore(p);
+    this.wing(c, 560, 750, -1, { lo:false });
+    this.centre(c, -1);
+    this.wing(c, 60, 250, -1, { hi:false });
+    houseProp('ac unit', () => acUnit(120, 0, 430));
+    houseProp('bin', () => wheelieBin(700, '#3f6b4a', 0, 430));
+  }
 }
   ];
+  /* the houses' yard fences carry collision (houses.js, THE YARD FENCE) */
+  for(const sh of SHOPS) if(sh.yardFence && sh.vol) sh.vol.solids = (sh.vol.solids || []).concat(houseYardSolids(sh));
   const BY_NAME = new Map(SHOPS.map(s => [s.name, s]));
 
   return {
@@ -33262,6 +34614,8 @@ const TIDEWATER_MUSEUM = (() => {
     /* the Charge depot's roll-up door, 0 shut to 1 fully coiled. The
        scene drives it; every other entry ignores state.doorT. */
     setDoor(v){ state.doorT = v; },
+    /* which of a house's own liveries (its `liv`) the next draw uses */
+    setLivery(i){ state.pal = i || 0; },
     /* g   -- the Phaser Graphics to draw into
        G   -- (a, b, h) => screen point, the game's own W() composed with
               whatever anchor the caller chose
@@ -35359,6 +36713,141 @@ class WorldScene extends Phaser.Scene {
     Q(a0, i0, 0, GH + 4, STEEL); Q(i1, a1, 0, GH + 4, STEEL);    // posts
     Q(a0, i0, GH + 4, GH + 8, STEEL_DK); Q(i1, a1, GH + 4, GH + 8, STEEL_DK);
   }
+  /* ---------- SIERRA VISTA, drawn (see sierraGeo) ----------
+     Ground pieces go straight onto g, top shelf first: for each shelf its
+     lawn, its drive, then the retaining wall that stands on its back edge
+     with the ramp cut through it. Walls and the gatehouse are BODIES --
+     the robot drives behind them -- so they are queued at their own depth
+     into this._sierraBodies, which drawWorld joins to worldVQ; the long
+     perimeter wall is cut into short runs so each sorts on its own key. */
+  drawSierraVista(g, onScreen, roadCol){
+    const S = sierraGeo(), RH = S.RH;
+    const Q = (pts, col) => { const P = pts.map(p => this.W(p[0], p[1], p[2])); if(onScreen(P)) this.quadOn(g, P, col); };
+    const shade = (c, k) => hillShade(c, k);
+    const LAWN = 0x9fbd6a, LAWN2 = 0x97b563, STONE = 0xc9bd9f, CAP = 0xe2d8c0, ROADC = roadCol, KERB = 0xd8d2c4;
+    const rect = (x0, x1, y0, y1, z, col) => Q([[x0,y0,z],[x1,y0,z],[x1,y1,z],[x0,y1,z]], col);
+    /* a retaining wall on the line y = yw from zLo up to zHi, x0..x1, facing
+       the camera (+y); coursed, capped */
+    const wallFace = (x0, x1, yw, zLo, zHi) => {
+      if(x1 <= x0) return;
+      Q([[x0,yw,zLo],[x1,yw,zLo],[x1,yw,zHi],[x0,yw,zHi]], STONE);
+      for(let zz = zLo + 30; zz < zHi - 8; zz += 30) Q([[x0,yw,zz],[x1,yw,zz],[x1,yw,zz+3],[x0,yw,zz+3]], shade(STONE, .86));
+      Q([[x0,yw,zHi],[x1,yw,zHi],[x1,yw - 40,zHi],[x0,yw - 40,zHi]], CAP);
+    };
+    for(let k = 3; k >= 0; k--){
+      const y0 = S.e[k+1], y1 = S.e[k], z = S.z[k];
+      rect(S.xw, S.xe, y0, y1, z, LAWN);
+      for(let x = S.xw; x < S.xe; x += 520) rect(x, Math.min(x + 260, S.xe), y0, y1, z + 0.3, LAWN2);   // mown stripes
+      /* the drive on this shelf, kerbed */
+      for(const rd of S.roads) if(rd.k === k){
+        rect(rd.x0 - 24, rd.x1 + 24, Math.max(rd.y0 - 24, y0), Math.min(rd.y1 + 24, k === 0 ? rd.y1 + 24 : y1), z + 0.6, KERB);
+      }
+      for(const rd of S.roads) if(rd.k === k) rect(rd.x0, rd.x1, Math.max(rd.y0, y0), Math.min(rd.y1, k === 0 ? rd.y1 : y1), z + 1, ROADC);
+      if(S.circle.k === k){
+        const pts = []; for(let a = 0; a < 20; a++){ const t = a/20*Math.PI*2; pts.push([S.circle.x + Math.cos(t)*S.circle.r, S.circle.y + Math.sin(t)*S.circle.r, z + 1]); }
+        const P = pts.map(p => this.W(p[0], p[1], p[2])); if(onScreen(P)) this.quadOn(g, P, ROADC);
+        const ipts = []; for(let a = 0; a < 16; a++){ const t = a/16*Math.PI*2; ipts.push([S.circle.x + Math.cos(t)*160, S.circle.y + Math.sin(t)*160, z + 1.5]); }
+        const IP = ipts.map(p => this.W(p[0], p[1], p[2])); if(onScreen(IP)) this.quadOn(g, IP, LAWN);
+      }
+      /* the retaining wall on this shelf's FRONT edge (e[k]), down to the
+         shelf below, with its ramp cut through */
+      if(k >= 1){
+        const rp = S.ramps[k-1], zLo = S.z[k-1], yw = S.e[k], cut0 = rp.x - RH - 40, cut1 = rp.x + RH + 40;
+        wallFace(S.xw, cut0, yw, zLo, z);
+        wallFace(cut1, S.xe, yw, zLo, z);
+        /* the ramp: its surface, the embankment it rides over the lower
+           shelf, and the cut it makes into this one. The camera sees +x
+           faces: the embankment's east face, the cut's west face. */
+        Q([[rp.x - RH - 40, rp.yS, rp.zS + 1],[rp.x + RH + 40, rp.yS, rp.zS + 1],[rp.x + RH + 40, rp.yN, rp.zN + 1],[rp.x - RH - 40, rp.yN, rp.zN + 1]], KERB);
+        Q([[rp.x - RH, rp.yS, rp.zS + 2],[rp.x + RH, rp.yS, rp.zS + 2],[rp.x + RH, rp.yN, rp.zN + 2],[rp.x - RH, rp.yN, rp.zN + 2]], ROADC);
+        const zMid = (rp.zS + rp.zN)/2;
+        Q([[cut1, rp.yS, rp.zS],[cut1, yw, zLo],[cut1, yw, zMid]], shade(STONE, .8));                     // embankment, east face
+        Q([[cut0, yw, z],[cut0, rp.yN, z],[cut0, rp.yN, rp.zN],[cut0, yw, zMid]], shade(STONE, .8));        // cut, west face
+      }
+      /* the estate's east flank at this shelf, down to the hillside floor */
+      if(z > 0){
+        Q([[S.xe, y0, 0],[S.xe, y1, 0],[S.xe, y1, z],[S.xe, y0, z]], shade(STONE, .78));
+        for(let zz = 30; zz < z - 8; zz += 30) Q([[S.xe + 0.5, y0, zz],[S.xe + 0.5, y1, zz],[S.xe + 0.5, y1, zz + 3],[S.xe + 0.5, y0, zz + 3]], shade(STONE, .7));
+      }
+    }
+    /* BODIES: the houses, the perimeter wall (in runs) and the gatehouse */
+    const bodies = this._sierraBodies = [];
+    /* THE ROAD IN, laid AFTER the city's ground. It runs from the top street
+       across the city's rim, and the city paints Pelican Park's lawn over
+       that rim after the coast pass -- which is where this was drawn, and
+       why the old Sierra Vista's road never showed where it met the city
+       (Sir: "the road doesn't connect"). First in the one depth sort, so it
+       lies on everything the ground pass laid and under every body. */
+    bodies.push({ depth: -1e12, fn: (gg) => {
+      const Qg = (pts, col) => { const P = pts.map(p => this.W(p[0], p[1], p[2])); if(onScreen(P)) this.quadOn(gg, P, col); };
+      const y0 = S.wallY, y1 = -RH;
+      Qg([[S.gx - RH - 24, y0, 0.5],[S.gx + RH + 24, y0, 0.5],[S.gx + RH + 24, y1, 0.5],[S.gx - RH - 24, y1, 0.5]], KERB);
+      Qg([[S.gx - RH, y0, 1],[S.gx + RH, y0, 1],[S.gx + RH, y1, 1],[S.gx - RH, y1, 1]], ROADC);
+      for(let y = y0 + 140; y < y1 - 60; y += 280) Qg([[S.gx - 6, y, 1.5],[S.gx + 6, y, 1.5],[S.gx + 6, y + 140, 1.5],[S.gx - 6, y + 140, 1.5]], 0xe8e2c8);   // centre dashes
+    }});
+    const span = (this.scale.gameSize.width + this.scale.gameSize.height) / this.K;
+    for(const lt of S.lots){
+      const cx = (lt.x0 + lt.x1)/2, cy = (lt.yF + lt.yB)/2;
+      if(Math.abs(cx - this.camX) + Math.abs(cy - this.camY) > span + lt.x1 - lt.x0) continue;
+      bodies.push({ depth: cx + cy, fn: (gg) => {
+        const G = (a, b, h) => this.W(lt.x0 + a, lt.yF + b, lt.z + h);
+        LIB.setLivery(lt.liv);
+        LIB.draw(lt.name, gg, G, undefined, this.K, null, true, false);
+        LIB.setLivery(0);
+      }});
+    }
+    const WALL_H = 96, yw = S.wallY;
+    const run = (x0, x1) => {
+      for(let x = x0; x < x1 - 1; x += 420){
+        const xa = x, xb = Math.min(x + 420, x1);
+        bodies.push({ depth: (xa + xb)/2 + yw, fn: (gg) => {
+          const Qg = (pts, col) => { const P = pts.map(p => this.W(p[0], p[1], p[2])); if(onScreen(P)) this.quadOn(gg, P, col); };
+          Qg([[xa,yw,0],[xb,yw,0],[xb,yw,WALL_H],[xa,yw,WALL_H]], STONE);
+          for(let zz = 24; zz < WALL_H - 6; zz += 24) Qg([[xa,yw + 0.5,zz],[xb,yw + 0.5,zz],[xb,yw + 0.5,zz + 3],[xa,yw + 0.5,zz + 3]], shade(STONE, .86));
+          Qg([[xa - 4,yw + 8,WALL_H],[xb + 4,yw + 8,WALL_H],[xb + 4,yw - 36,WALL_H],[xa - 4,yw - 36,WALL_H]], CAP);
+          Qg([[xa - 4,yw + 8,WALL_H - 8],[xb + 4,yw + 8,WALL_H - 8],[xb + 4,yw + 8,WALL_H],[xa - 4,yw + 8,WALL_H]], shade(CAP, .9));
+        }});
+      }
+    };
+    run(S.xw, S.gate.x - S.gate.open - 60);
+    run(S.gate.x + S.gate.open + 60, S.xe);
+    /* the gatehouse: two stone piers either side of the drive, a guard booth
+       on the east side, and a boom arm that lifts as the robot comes up */
+    const gx = S.gate.x, near = Math.hypot(this.botX - gx, this.botY - yw) < 900;
+    this._sierraArm = Phaser.Math.Linear(this._sierraArm || 0, near ? 1 : 0, 0.08);
+    const arm = this._sierraArm;
+    const boxW = (gg, x0, x1, y0, y1, z0, z1, top, side, front) => {
+      const Qg = (pts, col) => { const P = pts.map(p => this.W(p[0], p[1], p[2])); if(onScreen(P)) this.quadOn(gg, P, col); };
+      Qg([[x1,y0,z0],[x1,y1,z0],[x1,y1,z1],[x1,y0,z1]], side);
+      Qg([[x0,y1,z0],[x1,y1,z0],[x1,y1,z1],[x0,y1,z1]], front);
+      Qg([[x0,y0,z1],[x1,y0,z1],[x1,y1,z1],[x0,y1,z1]], top);
+    };
+    for(const px of [gx - S.gate.open - 30, gx + S.gate.open + 30])
+      bodies.push({ depth: px + yw + 1, fn: (gg) => {
+        boxW(gg, px - 60, px + 60, yw - 60, yw + 60, 0, 170, CAP, shade(STONE, .82), STONE);
+        boxW(gg, px - 72, px + 72, yw - 72, yw + 72, 170, 186, shade(CAP, 1.02), shade(CAP, .86), CAP);
+        const Qg = (pts, col) => { const P = pts.map(p => this.W(p[0], p[1], p[2])); if(onScreen(P)) this.quadOn(gg, P, col); };
+        const top = []; for(let a = 0; a < 10; a++){ const t = a/10*Math.PI*2; top.push([px + Math.cos(t)*26, yw + Math.sin(t)*26, 200]); }
+        Qg(top, 0xf2d27a);                                                                       // lamp globe
+      }});
+    const bx = gx + S.gate.open + 140;
+    bodies.push({ depth: bx + yw + 60, fn: (gg) => {
+      boxW(gg, bx - 90, bx + 90, yw - 20, yw + 150, 0, 150, 0xefe6d2, 0xd8ccb0, 0xf2e8d6);         // the booth
+      const Qg = (pts, col) => { const P = pts.map(p => this.W(p[0], p[1], p[2])); if(onScreen(P)) this.quadOn(gg, P, col); };
+      Qg([[bx - 70, yw + 150.5, 60],[bx + 70, yw + 150.5, 60],[bx + 70, yw + 150.5, 128],[bx - 70, yw + 150.5, 128]], 0x34424b);   // its window
+      Qg([[bx - 110, yw - 40, 150],[bx + 110, yw - 40, 150],[bx + 110, yw + 170, 150],[bx - 110, yw + 170, 150]], 0xb8583a);        // hipped tile roof, plate
+      Qg([[bx - 110, yw + 170, 150],[bx + 110, yw + 170, 150],[bx + 40, yw + 65, 205],[bx - 40, yw + 65, 205]], 0xc0613f);
+      Qg([[bx + 110, yw - 40, 150],[bx + 110, yw + 170, 150],[bx + 40, yw + 65, 205]], 0xa84e34);
+    }});
+    /* the boom: pivot on the east pier, swings up to vertical */
+    const pvx = gx + S.gate.open + 30, L = S.gate.open * 2 + 40, ang = arm * Math.PI * 0.45;
+    bodies.push({ depth: gx + yw + 2, fn: (gg) => {
+      const tipX = pvx - Math.cos(ang) * L, tipZ = 110 + Math.sin(ang) * L;
+      const Qg = (pts, col) => { const P = pts.map(p => this.W(p[0], p[1], p[2])); if(onScreen(P)) this.quadOn(gg, P, col); };
+      Qg([[pvx, yw + 20, 104],[tipX, yw + 20, tipZ - 6],[tipX, yw + 20, tipZ + 6],[pvx, yw + 20, 116]], 0xf4f2ec);
+      for(let t = 0.1; t < 1; t += 0.2){ const a0 = pvx + (tipX - pvx)*t, z0 = 104 + (tipZ - 110)*t; Qg([[a0, yw + 21, z0],[a0 - Math.cos(ang)*40, yw + 21, z0 + Math.sin(ang)*40],[a0 - Math.cos(ang)*40, yw + 21, z0 + Math.sin(ang)*40 + 12],[a0, yw + 21, z0 + 12]], 0xd9352a); }
+    }});
+  }
   quadOn(g, pts, color, alpha=1){
     g.fillStyle(color, alpha);
     g.fillPoints(pts.map(p => new Phaser.Geom.Point(p.x, p.y)), true, true);
@@ -35641,14 +37130,8 @@ class WorldScene extends Phaser.Scene {
             }
           }
         };
-        /* Sierra Vista: stub up 2nd St, drive east along the shoulder */
-        const svEx = BLOCK, svEy = Y0 - BLOCK*0.08;
-        const svFx = X0 + BLOCK*3.3, svFy = Y0 - FOOTW/2 - BLOCK*0.5;
-        const svCx = X0 + BLOCK*1.7, svCy = Y0 - FOOTW - BLOCK*0.6;
-        band(BLOCK - RW, Y0 - BLOCK*0.08, BLOCK + RW, 0, r.pal.road);
-        drive(svEx, svEy, svFx, svFy, svCx, svCy);
-        lotsAlong(svEx, svEy, svFx, svFy, svCx, svCy, 0xe57a7e5,
-                  X0 + BLOCK*0.15, Y0 - FOOTW - BLOCK*0.95, X0 + BLOCK*3.3, Y0 - BLOCK*0.08);
+        /* Sierra Vista is real ground now: see drawSierraVista */
+        this.drawSierraVista(g, onScreen, r.pal.road);
         /* Mirador Heights: stub east on the j=10 row, drive down the slope */
         const mhEx = X1 + BLOCK*0.08, mhEy = 10*BLOCK;
         const mhFx = (X1 + X1 + FOOTW + BLOCK*0.75)/2, mhFy = Y0 + (Y1 - Y0)*0.92;
@@ -36803,6 +38286,7 @@ class WorldScene extends Phaser.Scene {
        customer choreography off the address unit. */
     const bodies = blockVQ.filter(it => !it.isRoof), roofs = blockVQ.filter(it => it.isRoof);
     const worldVQ = bodies;   // parked cars and hazards join this below; flushed once, after hazVQ is built
+    if(this._sierraBodies) for(const it of this._sierraBodies) worldVQ.push(it);   // SIERRA VISTA walls and gatehouse
     /* parking-row cars draw in a THIRD pass, after roofs — they were
        part of the normal body pass before, so any visible building's
        roof (drawn unconditionally last, globally, regardless of true
@@ -45836,7 +47320,8 @@ class WorldScene extends Phaser.Scene {
        apply underneath the arc. */
     this.botZ = this.groundZ(this.botS) + (this.slabZ || 0) + (this.crossZ || 0)
               + (this.hjAir ? this.hjAir.z : 0)
-              + (this.hjAir ? 0 : this.hjSlabZ(this.botS));   // hjAir.z already carries it
+              + (this.hjAir ? 0 : this.hjSlabZ(this.botS))    // hjAir.z already carries it
+              + (this.ow && this.ow.on ? sierraZ(this.botX, this.botY) : 0);   // SIERRA VISTA: the hills are real ground
     /* MAX_GRADE: hard ceiling at a real 5% grade (atan(0.05) ≈ 2.86°),
        on top of the HILL_AMP retune above — the retune sets the typical
        feel per neighborhood, this guarantees no unlucky noise seed ever
@@ -45856,7 +47341,13 @@ class WorldScene extends Phaser.Scene {
          nose-DOWN on a climb: exactly backwards, on the hill grade and on every
          curb ramp alike. The ramp drop was small enough to pass as noise; a
          Bluffs downhill is not, and it read as a climb on-device. */
-      this.pitch = Math.atan(Phaser.Math.Clamp(this.groundSlope(this.botS) + (this.crossSlope || 0), -MAX_GRADE, MAX_GRADE));
+    {
+      /* SIERRA VISTA ramps are a real grade (about 18%), not the 5%
+         virtual one MAX_GRADE caps, so on a ramp the nose follows it */
+      const _sv = (this.ow && this.ow.on) ? sierraSlope(this.botX, this.botY, this.ow.yaw) : 0;
+      this.pitch = _sv !== 0 ? Math.atan(Phaser.Math.Clamp(_sv, -0.2, 0.2))
+                             : Math.atan(Phaser.Math.Clamp(this.groundSlope(this.botS) + (this.crossSlope || 0), -MAX_GRADE, MAX_GRADE));
+    }
 
     /* camera reframe: at f=3 the worker/customer's walk-out direction
        pushes them far enough sideways on screen that tracking only the
@@ -52601,8 +54092,8 @@ const WG_COAST = { EXT:0.55, SANDW:1.4, FOOTW:1.1, BOARD:0.15, MTN_BASIN:2.2,
    thing is a handful of quads that onScreen() rejects. */
 const WG_HILLS = {
   TOE_GAP: 0.12,         // blocks past Y0 before the first riser, plain frontage
-  SV_TOE: 1.1 + 1.05,    // blocks past Y0 over Sierra Vista (FOOTW + its lots' 0.95 + margin)
-  SV_X: 3.5,             // blocks east of X0 the notch holds full depth
+  SV_TOE: 3.05 + 0.2,    // blocks past Y0 over Sierra Vista: the estate's wall, court and three terraces (3.05) + margin (was FOOTW + 0.95 for the old flat lots)
+  SV_X: 3.45,            // blocks east of X0 the notch holds full depth (the estate's east wall is at 3.3)
   SV_EASE: 0.9,          // blocks over which it eases back to TOE_GAP
   /* [depth in blocks, rise, shelf colour] -- riser shades derive from it */
   steps: [
@@ -52623,6 +54114,189 @@ const WG_HILLS = {
     { back: 0.0, gap: 0.95, hw: [0.45, 0.80], h: [ 800, 1500], lit: 0xa3957c, sh: 0x857962, tip: 0xb7aa91 },
   ],
 };
+
+/* ---------- SIERRA VISTA: the gated community in the hills (2026-09-22) ----------
+   Sir: "This needs to be worked out we planned for an upscale neighborhood
+   here but the road doesn't connect and the design isn't very good. I want
+   it to be a gated community that sits in the hills" -- and then, "the hills
+   need to be real ... let's build it in game."
+
+   WHAT IT REPLACES. The old Sierra Vista was paint: a road band up 2nd St
+   that stopped at the city edge, one quadratic drive that dead-ended 3.3
+   blocks east, and flat white rectangles for houses, all at z=0.
+
+   WHAT IT IS NOW. Real ground. Four flat shelves climbing north behind the
+   city, each a level at its own height, joined by ramps cut through the
+   retaining walls between them:
+
+     S0  the entry court   z   0   behind the gate
+     S1                    z 180
+     S2                    z 360
+     S3  the top           z 540   ends in a turning circle
+
+   2nd St runs on north as a real road through a gatehouse in the
+   perimeter wall. The drive zigzags: east along S0, up R1, west along S1,
+   up R2, east along S2, up R3, west along S3 to the circle. Nothing dead-
+   ends.
+
+   WHY THIS READS AS HILLS IN THIS GAME. W() already projects z against
+   camZ, and camZ already follows botZ. sierraZ() is the ground height here;
+   the open-world pose adds it to botZ, so climbing a ramp lifts the robot
+   AND the camera, and the city slides down the screen behind him. The
+   north side is BEHIND the city on screen (up-right), so raised ground
+   here climbs away from the streets and never stands in front of them --
+   the same reason only the north hills were ever drawn raised (see
+   northHillPolys). A nearer shelf is always lower on screen than the one
+   behind it, so the ground is exact in painter's order, top shelf first.
+
+   WHAT STOPS THE STEP. The shelves are flat and the heights jump at their
+   edges, so the retaining walls are solid (sierraBlocks) everywhere except
+   across a ramp, and the estate has side walls and a back wall. The only
+   way up is the drive. Houses on the shelves are the next phase (the house
+   library port); the lots are laid out and waiting on the uphill side of
+   each shelf's road. */
+let _sierraGeo = null;
+function sierraGeo(){
+  if(_sierraGeo) return _sierraGeo;
+  const B = BLOCK, X0 = -WG_COAST.EXT*B, Y0 = -WG_COAST.EXT*B, RH = ROAD_HALF;
+  const gx = B;                                      // 2nd St
+  const xw = X0 + 0.2*B, xe = X0 + 3.3*B;            // the estate's west and east walls
+  const wallY = Y0 - 0.1*B;                          // the perimeter wall, with the gate in it
+  /* the court is 0.55 blocks deep; each house terrace 0.8 -- deep enough for
+     a grand lot (552 x SIERRA_HOUSE_SC = 883) behind its drive, and a back
+     garden behind that */
+  const e = [wallY]; e.push(wallY - 0.55*B); for(let k = 0; k < 3; k++) e.push(e[e.length-1] - 0.8*B);   // shelf k runs y in (e[k+1], e[k]]
+  const z = [0, 180, 360, 540];
+  const xE = X0 + 3.0*B, xW = X0 + 0.55*B;           // the ramps' two columns, alternating
+  const RL0 = 500;                                   // half a ramp's run (RL, below)
+  /* each shelf's drive centreline (y): on a terrace, clear of the ramp that
+     arrives at its front edge -- a drive that started ON the ramp turned
+     straight into the ramp's own side wall (headless, stuck at the top of R1) */
+  const road = [(wallY + e[1])/2, e[1] - RL0 - RH - 40, e[2] - RL0 - RH - 40, e[3] - RL0 - RH - 40];
+  const RL = RL0;                                    // half a ramp's run either side of its wall
+  const ramps = [
+    { x:xE, yS:e[1] + RL, yN:e[1] - RL, zS:z[0], zN:z[1], k:1 },
+    { x:xW, yS:e[2] + RL, yN:e[2] - RL, zS:z[1], zN:z[2], k:2 },
+    { x:xE, yS:e[3] + RL, yN:e[3] - RL, zS:z[2], zN:z[3], k:3 },
+  ];
+  /* level road pieces: [x0, x1, y0, y1, shelf] -- the drives and the short
+     legs joining each drive to its ramps */
+  const R = (xa, xb, ya, yb, k) => ({ x0:Math.min(xa,xb), x1:Math.max(xa,xb), y0:Math.min(ya,yb), y1:Math.max(ya,yb), k });
+  const roads = [
+    R(gx - RH, gx + RH, road[0] - RH, 0, 0),                           // 2nd St, through the gate
+    R(gx - RH, xE + RH, road[0] - RH, road[0] + RH, 0),                // S0 east
+    R(xE - RH, xE + RH, ramps[0].yS, road[0], 0),
+    R(xE - RH, xE + RH, road[1] - RH, ramps[0].yN, 1),
+    R(xW - RH, xE + RH, road[1] - RH, road[1] + RH, 1),                // S1 west
+    R(xW - RH, xW + RH, ramps[1].yS, road[1], 1),
+    R(xW - RH, xW + RH, road[2] - RH, ramps[1].yN, 2),
+    R(xW - RH, xE + RH, road[2] - RH, road[2] + RH, 2),                // S2 east
+    R(xE - RH, xE + RH, ramps[2].yS, road[2], 2),
+    R(xE - RH, xE + RH, road[3] - RH, ramps[2].yN, 3),
+    R(xW + 300, xE + RH, road[3] - RH, road[3] + RH, 3),               // S3 west to the circle
+  ];
+  const circle = { x:xW + 300, y:road[3], r:RH + 260, k:3 };
+  /* THE HOUSES: three per terrace, not five (Sir: "lets not put five
+     doubles for this ... give them more yard"). Doubles at the estate's
+     grand scale, centred in equal gardens between the ramp columns, each
+     fronting its terrace's drive and facing down the hill. The Mediterranean
+     set (Sir: "lets do mediterranean hills"), grandest at the top. */
+  const HW = 809.6 * SIERRA_HOUSE_SC, HD = 552 * SIERRA_HOUSE_SC;
+  const plan = [
+    [['San Gabriel Mission Revival', 0], ['Palmline Casita', 1],      ['Rancho Hacienda', 0]],
+    [['Belvedere Italianate', 0],        ['Marrakech Riad', 1],       ['Montalcino Tuscan Villa', 2]],
+    [['Brenta Palladian Villa', 0],      ['Montalcino Tuscan Villa', 0], ['Belvedere Italianate', 2]],
+  ];
+  const lots = [];
+  for(let k = 1; k <= 3; k++){
+    const yF = road[k] - RH - 120, xa = xW + RH + 260, xb = xE - RH - 260;
+    const gap = (xb - xa - 3*HW) / 4;
+    plan[k-1].forEach(([name, liv], n) => {
+      const x0 = xa + gap + n*(HW + gap);
+      lots.push({ name, liv, x0, x1:x0 + HW, yF, yB:yF - HD, k, z:z[k], sc:SIERRA_HOUSE_SC });
+    });
+  }
+  const gate = { x:gx, y:wallY, open:RH + 40 };
+  _sierraGeo = { B, X0, Y0, RH, gx, xw, xe, wallY, e, z, ramps, roads, circle, lots, gate, HW, HD };
+  return _sierraGeo;
+}
+/* a step that CROSSES a wall line, whatever its length. The walls are thin
+   (a riser is a line, not a block), so a long frame step can land clean
+   over one -- the city never needed this because its solids are whole
+   blocks. Headless at swiftshader frame rates it tunnelled every wall. */
+function sierraCrosses(x0, y0, x1, y1, R){
+  if(!WORLDGEN_COAST) return false;
+  const S = sierraGeo();
+  if(Math.max(x0, x1) < S.xw - 200 || Math.min(x0, x1) > S.xe + 200 || Math.min(y0, y1) > S.wallY + 200 || Math.max(y0, y1) < S.e[4] - 200) return false;
+  const crossY = (yw, ok) => {                     // a line y = yw, passable where ok(x)
+    if((y0 - yw) * (y1 - yw) > 0) return false;
+    if(y0 === y1) return false;
+    const t = (yw - y0) / (y1 - y0), x = x0 + (x1 - x0) * t;
+    return x >= S.xw - R && x <= S.xe + R && !ok(x);
+  };
+  const crossX = (xw, ya, yb) => {
+    if((x0 - xw) * (x1 - xw) > 0 || x0 === x1) return false;
+    const t = (xw - x0) / (x1 - x0), y = y0 + (y1 - y0) * t;
+    return y <= ya && y >= yb;
+  };
+  if(crossY(S.wallY, x => Math.abs(x - S.gate.x) < S.gate.open - R)) return true;
+  if(crossY(S.e[4], () => false)) return true;
+  for(let k = 1; k <= 3; k++){ const rp = S.ramps[k-1]; if(crossY(S.e[k], x => Math.abs(x - rp.x) <= S.RH + 40 - R)) return true; }
+  if(crossX(S.xw, S.wallY, S.e[4]) || crossX(S.xe, S.wallY, S.e[4])) return true;
+  for(const rp of S.ramps) for(const xw of [rp.x - S.RH - 40, rp.x + S.RH + 40]) if(crossX(xw, rp.yS, rp.yN)) return true;
+  return false;
+}
+/* inside the estate's walls. The city's kerb model reads the lattice, and
+   there is no lattice up here -- it would stop him on phantom kerb lines
+   in the middle of a lawn (headless: two dead stops, 230 short of a wall).
+   Inside the walls, the walls and the retaining walls are the only edges. */
+function sierraInside(x, y){
+  if(!WORLDGEN_COAST) return false;
+  const S = sierraGeo();
+  return x > S.xw && x < S.xe && y < S.wallY && y > S.e[4];
+}
+/* the ground height at (x, y): the shelf you stand on, or the ramp */
+function sierraZ(x, y){
+  if(!WORLDGEN_COAST) return 0;
+  const S = sierraGeo();
+  if(y > S.wallY || y < S.e[4] - 200 || x < S.xw - 200 || x > S.xe + 200) return 0;
+  for(const r of S.ramps)
+    if(Math.abs(x - r.x) <= S.RH + 40 && y <= r.yS && y >= r.yN)
+      return r.zS + (r.zN - r.zS) * ((r.yS - y) / (r.yS - r.yN));
+  for(let k = 0; k < 4; k++) if(y <= S.e[k] && y > S.e[k+1]) return S.z[k];
+  return S.z[3];
+}
+/* uphill slope along a heading, for the robot's pitch */
+function sierraSlope(x, y, yaw){
+  const c = Math.cos(yaw), s2 = Math.sin(yaw);
+  return (sierraZ(x + c*24, y + s2*24) - sierraZ(x - c*24, y - s2*24)) / 48;
+}
+/* the walls: perimeter (gate open), sides, back, and every retaining wall
+   except across its ramp. Answered as a kerb: it stops him, never tips him. */
+function sierraBlocks(x, y, R){
+  if(!WORLDGEN_COAST) return false;
+  const S = sierraGeo(), t = R + 16;
+  if(x < S.xw - t || x > S.xe + t || y > S.wallY + t || y < S.e[4] - t) return false;
+  if(Math.abs(y - S.wallY) < t && Math.abs(x - S.gate.x) > S.gate.open - R) return true;   // front wall, gate gap
+  if(y < S.wallY - 1 && (Math.abs(x - S.xw) < t || Math.abs(x - S.xe) < t)) return true;  // side walls
+  if(Math.abs(y - S.e[4]) < t) return true;                                                // back wall
+  for(let k = 1; k <= 3; k++){
+    if(Math.abs(y - S.e[k]) >= t) continue;
+    const rp = S.ramps[k-1];
+    if(Math.abs(x - rp.x) <= S.RH + 40 - R) continue;                                      // across the ramp
+    return true;
+  }
+  /* the houses: each one's declared volume, in its own lot frame */
+  for(const lt of S.lots){
+    if(x < lt.x0 - t || x > lt.x1 + t || y > lt.yF + t || y < lt.yB - t) continue;
+    const v = LIB.vol(lt.name); if(!v) continue;
+    if(volBlockedAt(v, (x - lt.x0)/lt.sc, (y - lt.yF)/lt.sc, R/lt.sc, true)) return true;
+  }
+  /* a ramp's own side walls: off the side of a ramp you would fall a storey */
+  for(const rp of S.ramps)
+    if(y <= rp.yS + t && y >= rp.yN - t && Math.abs(Math.abs(x - rp.x) - (S.RH + 40)) < t) return true;
+  return false;
+}
 function hillShade(c, k){
   const r = Math.min(255, Math.round(((c>>16)&255)*k)),
         g = Math.min(255, Math.round(((c>>8)&255)*k)),
@@ -54872,14 +56546,24 @@ function drawRouteMap(route){
           }
         }
       };
-      /* Sierra Vista: stub up 2nd St, drive east along the shoulder */
-      const svEx = BLOCK, svEy = cY0 - BLOCK*0.08;
-      const svFx = cX0 + BLOCK*3.3, svFy = cY0 - FOOTW/2 - BLOCK*0.5;
-      const svCx = cX0 + BLOCK*1.7, svCy = cY0 - FOOTW - BLOCK*0.6;
-      cband(BLOCK - RW, cY0 - BLOCK*0.08, BLOCK + RW, 0, hex(pal.road));
-      cdrive(svEx, svEy, svFx, svFy, svCx, svCy);
-      lotsAlong(svEx, svEy, svFx, svFy, svCx, svCy, 0xe57a7e5,
-                cX0 + BLOCK*0.15, cY0 - FOOTW - BLOCK*0.95, cX0 + BLOCK*3.3, cY0 - BLOCK*0.08);
+      /* Sierra Vista: the gated community in the hills (see sierraGeo) --
+         shelves shading darker as they climb, the zigzag drive, the lots
+         waiting on the uphill side of each drive, the walls */
+      {
+        const S = sierraGeo(), shelfC = ["#b9d08a", "#abc47e", "#9db872", "#8fab66"];
+        for(let k = 3; k >= 0; k--) cband(S.xw, S.e[k+1], S.xe, S.e[k], shelfC[k]);
+        for(const lt of S.lots) cband(lt.x0 + lt.sc*40, lt.yB + lt.sc*60, lt.x1 - lt.sc*40, lt.yF - lt.sc*60, "#e2b48a");   // the houses
+        for(const rd of S.roads) cband(rd.x0, rd.y0, rd.x1, rd.y1, hex(pal.road));
+        for(const rp of S.ramps) cband(rp.x - S.RH, rp.yN, rp.x + S.RH, rp.yS, hex(pal.road));
+        cband(S.circle.x - S.circle.r, S.circle.y - S.circle.r, S.circle.x + S.circle.r, S.circle.y + S.circle.r, hex(pal.road));
+        const wallC = "#8a7f68", t = 70;
+        cband(S.xw, S.wallY - t, S.gate.x - S.gate.open, S.wallY + t, wallC);
+        cband(S.gate.x + S.gate.open, S.wallY - t, S.xe, S.wallY + t, wallC);
+        cband(S.xw - t, S.e[4], S.xw + t, S.wallY, wallC); cband(S.xe - t, S.e[4], S.xe + t, S.wallY, wallC);
+        cband(S.xw, S.e[4] - t, S.xe, S.e[4] + t, wallC);
+        for(let k = 1; k <= 3; k++){ const rp = S.ramps[k-1];
+          cband(S.xw, S.e[k] - 30, rp.x - S.RH - 40, S.e[k] + 30, wallC); cband(rp.x + S.RH + 40, S.e[k] - 30, S.xe, S.e[k] + 30, wallC); }
+      }
       /* Mirador Heights: stub east on the j=10 row, drive down the slope */
       const mhEx = cX1 + BLOCK*0.08, mhEy = 10*BLOCK;
       const mhFx = (cX1 + cX1 + FOOTW + BLOCK*0.75)/2, mhFy = cY0 + (cY1 - cY0)*0.92;
