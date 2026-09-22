@@ -36470,14 +36470,17 @@ class WorldScene extends Phaser.Scene {
          22 rather than 46, and 8 high, so the ~16 of ground its height
          hides on screen is gutter rather than pavement. */
       const KERB_H = 8, KERB_W = 22;
-      const band = sgn => {
+      /* THE CHANNEL RUNS AS FAR AS THE KERB DOES (Sir, on-device on the
+         rim, circling the stretch the kerb now carries through a junction:
+         "still not seeing the drain ditch continue here"). The gutter was
+         drawn once for the trimmed run, s = 0..len, while the kerb since
+         gained the junction ends -- so the last TANG of stone at every
+         such junction had asphalt beside it instead of channel, and the
+         grate sat in nothing. It takes the same two ends as the kerb. */
+      const band = (sgn, s0, s1) => {
         const o0 = sgn*(ROAD_HALF - KERB_W - CURB_W), o1 = sgn*(ROAD_HALF - KERB_W);
-        this.quadOn(g, [
-          this.W(sx + rv.x*o0, sy + rv.y*o0, 0.6),
-          this.W(ex + rv.x*o0, ey + rv.y*o0, 0.6),
-          this.W(ex + rv.x*o1, ey + rv.y*o1, 0.6),
-          this.W(sx + rv.x*o1, sy + rv.y*o1, 0.6)
-        ], GUT);
+        const pt = (t, o) => this.W(sx + dv.x*t + rv.x*o, sy + dv.y*t + rv.y*o, 0.6);
+        this.quadOn(g, [pt(s0,o0), pt(s1,o0), pt(s1,o1), pt(s0,o1)], GUT);
       };
       /* THE STONE STANDS IN THE GUTTER, not on the footway (Sir: "i dont
          like how its eating into the side walk"). Its outer face is the
@@ -36559,7 +36562,6 @@ class WorldScene extends Phaser.Scene {
         const oSeam = oIn - (oIn - oOut) * 0.14;
         this.quadOn(g, [pt(s0,oIn,h0), pt(s1,oIn,h1), pt(s1,oSeam,h1), pt(s0,oSeam,h0)], KERB_DK);
       };
-      band(-1); band(1);
       /* A KERB ONLY BREAKS WHERE A STREET LEAVES IT (Sir, on-device, with
          the robot stopped against nothing: "i thought we fixed this issue
          already of not haveing a curb drawing"). Every run stopped TANG
@@ -36581,6 +36583,7 @@ class WorldScene extends Phaser.Scene {
         const cuts = rampCuts(sgn);
         const s0 = sideOpen(edge.a, sgn) ? 0 : -TANG;
         const s1 = len + (sideOpen(edge.b, sgn) ? 0 : TANG);
+        band(sgn, s0, s1);
         let cur = s0;
         for(const [c0, c1] of cuts){
           /* THE FLARES ARE OUTSIDE THE PAD, the drop is across it: full
