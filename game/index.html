@@ -34692,7 +34692,18 @@ function houseCanopy(fn){
       state.part = part ? part.part : null;
       state.partW = part ? (part.w || null) : null;
       ctx.__bind(g);
-      try { (rear && shop.back ? shop.back : shop.draw).call(shop, pal || PAL[0]); }
+      try {
+        /* A HOUSE'S fore() IS PART OF THE HOUSE (Sir, on-device at Sierra
+           Vista, at the Hacienda: "this hose is missing its roof i think").
+           houses.js splits anything standing between the door and the
+           street -- an arcade, a porch, a roof that overhangs the door, a
+           fence -- into fore(), which the lab draws after the game's own
+           door art. Nothing draws a door for these houses here, so draw()
+           alone left the Hacienda without its arcade or its tile roof.
+           back() already carries its own far-side pieces. */
+        (rear && shop.back ? shop.back : shop.draw).call(shop, pal || PAL[0]);
+        if(!(rear && shop.back) && shop.fore) shop.fore.call(shop, pal || PAL[0]);
+      }
       finally { SHOP_SLOT = null; MIRROR = 0; BOFF = 0; state.part = null; state.partW = null; }
       return true;
     }
@@ -36790,6 +36801,105 @@ class WorldScene extends Phaser.Scene {
       Q([[sh1, rp.yS, rp.zS],[sh1, yw, zLo],[sh1, yw, zMid]], shade(STONE, .8));                        // embankment, east face
       Q([[sh0, yw, z],[sh0, rp.yN, z],[sh0, rp.yN, rp.zN],[sh0, yw, zMid]], shade(STONE, .8));            // cut, west face
     }
+    /* ---- KERBS, GUTTERS AND GULLIES (Sir: "does sierra vistas road have
+       curbs and drains?" -- it had a flat painted margin and nothing else).
+       The city's stone, gutter and colours exactly: an 8-high, 22-wide
+       kerb whose outer face is the paving edge, a 46 gutter channel beside
+       it in the asphalt, a dark seam on the paving edge so it reads at
+       night, and a grate where the water goes -- at the foot of each ramp
+       and on the low side of the turning circle.
+
+       The drives cross each other at every ramp column, so each side of
+       each drive is cut where another drive of the same terrace runs over
+       it, and where the turning circle swallows it. Drawn after the ramps,
+       so nothing lays over them. ---- */
+    {
+      const KH = 8, KW = 22, GW = 46;
+      const GUTC = 0x9a9488, KTOP = 0xf4f1e8, KFACE = 0xe2ded0, KDK = 0x6e6a5e;
+      /* a run of kerb along a line: horiz true runs in x at y = line, and
+         dir is +1 when the ROAD is on the larger-coordinate side */
+      const kerb = (horiz, line, u0, u1, z, dir) => {
+        if(u1 - u0 < 4) return;
+        const P3 = (u, v, zz) => horiz ? [u, v, zz] : [v, u, zz];
+        const L0 = line, L1 = line + dir*KW, L2 = line + dir*(KW + GW);
+        Q([P3(u0,L1,z + 0.6), P3(u1,L1,z + 0.6), P3(u1,L2,z + 0.6), P3(u0,L2,z + 0.6)], GUTC);          // the channel
+        Q([P3(u0,L0,z), P3(u1,L0,z), P3(u1,L0,z + KH), P3(u0,L0,z + KH)], KFACE);                        // paving-side face
+        Q([P3(u0,L1,z), P3(u1,L1,z), P3(u1,L1,z + KH), P3(u0,L1,z + KH)], KFACE);                        // road face
+        Q([P3(u0,L1,z), P3(u1,L1,z), P3(u1,L1,z + 3), P3(u0,L1,z + 3)], KDK);                            // its shadow in the channel
+        Q([P3(u0,L0,z + KH), P3(u1,L0,z + KH), P3(u1,L1,z + KH), P3(u0,L1,z + KH)], KTOP);               // the top, last
+        const seam = L0 + dir*KW*0.14;
+        Q([P3(u0,L0,z + KH), P3(u1,L0,z + KH), P3(u1,seam,z + KH), P3(u0,seam,z + KH)], KDK);            // the night seam
+      };
+      /* a gully: a grate laid in the channel */
+      const gully = (horiz, line, u, z, dir) => {
+        const P3 = (a, b2, zz) => horiz ? [a, b2, zz] : [b2, a, zz];
+        const g0 = line + dir*(KW + 9), g1 = line + dir*(KW + GW - 9);
+        Q([P3(u - 34,g0,z + 0.8), P3(u + 34,g0,z + 0.8), P3(u + 34,g1,z + 0.8), P3(u - 34,g1,z + 0.8)], 0x55524a);
+        for(let a = u - 28; a < u + 28; a += 9)
+          Q([P3(a,g0,z + 1), P3(a + 4,g0,z + 1), P3(a + 4,g1,z + 1), P3(a,g1,z + 1)], 0x2e2c28);
+      };
+      /* what cuts a side: any other drive of the same terrace that runs
+         across it, and the turning circle */
+      const cutsFor = (rd, horiz, line, u0, u1) => {
+        const cuts = [];
+        for(const q of S.roads){
+          if(q === rd || q.k !== rd.k) continue;
+          if(horiz){ if(q.y0 - 30 <= line && q.y1 + 30 >= line) cuts.push([q.x0 - 26, q.x1 + 26]); }
+          else     { if(q.x0 - 30 <= line && q.x1 + 30 >= line) cuts.push([q.y0 - 26, q.y1 + 26]); }
+        }
+        if(S.circle.k === rd.k){
+          const c = S.circle, d = Math.abs((horiz ? c.y : c.x) - line);
+          if(d < c.r + KW + GW){ const half = Math.sqrt(Math.max(0, (c.r + 40)*(c.r + 40) - d*d)), m = horiz ? c.x : c.y;
+            cuts.push([m - half, m + half]); }
+        }
+        cuts.sort((a, b) => a[0] - b[0]);
+        const runs = []; let cur = u0;
+        for(const [c0, c1] of cuts){ if(c0 > cur) runs.push([cur, Math.min(c0, u1)]); cur = Math.max(cur, c1); }
+        if(cur < u1) runs.push([cur, u1]);
+        return runs.filter(r2 => r2[1] - r2[0] > 4);
+      };
+      for(let k = 3; k >= 0; k--){
+        const z = S.z[k];
+        for(const rd of S.roads){
+          if(rd.k !== k) continue;
+          const horiz = (rd.x1 - rd.x0) >= (rd.y1 - rd.y0);
+          const lines = horiz ? [[rd.y0, 1], [rd.y1, -1]] : [[rd.x0, 1], [rd.x1, -1]];
+          const u0 = horiz ? rd.x0 : rd.y0, u1 = horiz ? rd.x1 : rd.y1;
+          for(const [line, dir] of lines)
+            for(const [a0, a1] of cutsFor(rd, horiz, line, u0, u1)) kerb(horiz, line, a0, a1, z, dir);
+        }
+        /* the turning circle keeps its own ring of kerb */
+        if(S.circle.k === k){
+          const c = S.circle, N = 28;
+          for(let i = 0; i < N; i++){
+            const t0 = i/N*Math.PI*2, t1 = (i+1)/N*Math.PI*2;
+            const p = (rad, t) => [c.x + Math.cos(t)*rad, c.y + Math.sin(t)*rad, 0];
+            const o0 = p(c.r, t0), o1 = p(c.r, t1), i0 = p(c.r - KW, t0), i1 = p(c.r - KW, t1);
+            const gg0 = p(c.r - KW - GW, t0), gg1 = p(c.r - KW - GW, t1);
+            Q([[i0[0],i0[1],z + 0.6],[i1[0],i1[1],z + 0.6],[gg1[0],gg1[1],z + 0.6],[gg0[0],gg0[1],z + 0.6]], GUTC);
+            Q([[o0[0],o0[1],z],[o1[0],o1[1],z],[o1[0],o1[1],z + KH],[o0[0],o0[1],z + KH]], KFACE);
+            Q([[i0[0],i0[1],z],[i1[0],i1[1],z],[i1[0],i1[1],z + KH],[i0[0],i0[1],z + KH]], KFACE);
+            Q([[o0[0],o0[1],z + KH],[o1[0],o1[1],z + KH],[i1[0],i1[1],z + KH],[i0[0],i0[1],z + KH]], KTOP);
+          }
+          gully(true, c.y + c.r - KW - GW - 2, c.x + 120, z, -1);                 // on its low side
+        }
+        /* a gully in the drive's channel at the foot of each ramp */
+        if(k < 3){
+          const rp = S.ramps[k], rd = S.roads.find(q => q.k === k && (q.x1 - q.x0) >= (q.y1 - q.y0));
+          if(rd) gully(true, rd.y0, rp.x - RH - 140, z, 1);
+        }
+      }
+      /* the ramps: kerb down both shoulders, sloping with the road */
+      for(const rp of S.ramps){
+        for(const sgn of [-1, 1]){
+          const L0 = rp.x + sgn*(RH + 12), L1 = L0 - sgn*KW;
+          const pt = (x, y, zz) => [x, y, zz];
+          Q([pt(L0,rp.yS,rp.zS), pt(L0,rp.yN,rp.zN), pt(L0,rp.yN,rp.zN + KH), pt(L0,rp.yS,rp.zS + KH)], KFACE);
+          Q([pt(L1,rp.yS,rp.zS), pt(L1,rp.yN,rp.zN), pt(L1,rp.yN,rp.zN + KH), pt(L1,rp.yS,rp.zS + KH)], KFACE);
+          Q([pt(L0,rp.yS,rp.zS + KH), pt(L0,rp.yN,rp.zN + KH), pt(L1,rp.yN,rp.zN + KH), pt(L1,rp.yS,rp.zS + KH)], KTOP);
+        }
+      }
+    }
     /* BODIES: the houses, the perimeter wall (in runs) and the gatehouse */
     const bodies = this._sierraBodies = [];
     /* THE ROAD IN, laid AFTER the city's ground. It runs from the top street
@@ -36803,6 +36913,18 @@ class WorldScene extends Phaser.Scene {
       const y0 = S.wallY, y1 = -RH;
       Qg([[S.gx - RH - 24, y0, 0.5],[S.gx + RH + 24, y0, 0.5],[S.gx + RH + 24, y1, 0.5],[S.gx - RH - 24, y1, 0.5]], KERB);
       Qg([[S.gx - RH, y0, 1],[S.gx + RH, y0, 1],[S.gx + RH, y1, 1],[S.gx - RH, y1, 1]], ROADC);
+      /* and the entry road's own kerbs and channels, the city's stone */
+      { const KH = 8, KW = 22, GW = 46, GUTC = 0x9a9488, KTOP = 0xf4f1e8, KFACE = 0xe2ded0, KDK = 0x6e6a5e;
+        for(const dir of [1, -1]){
+          const L0 = S.gx + dir*RH, L1 = L0 - dir*KW, L2 = L1 - dir*GW;
+          Qg([[L1, y0, 0.6],[L1, y1, 0.6],[L2, y1, 0.6],[L2, y0, 0.6]], GUTC);
+          Qg([[L0, y0, 0],[L0, y1, 0],[L0, y1, KH],[L0, y0, KH]], KFACE);
+          Qg([[L1, y0, 0],[L1, y1, 0],[L1, y1, KH],[L1, y0, KH]], KFACE);
+          Qg([[L1, y0, 0],[L1, y1, 0],[L1, y1, 3],[L1, y0, 3]], KDK);
+          Qg([[L0, y0, KH],[L0, y1, KH],[L1, y1, KH],[L1, y0, KH]], KTOP);
+          const seam = L0 - dir*KW*0.14;
+          Qg([[L0, y0, KH],[L0, y1, KH],[seam, y1, KH],[seam, y0, KH]], KDK);
+        } }
       for(let y = y0 + 140; y < y1 - 60; y += 280) Qg([[S.gx - 6, y, 1.5],[S.gx + 6, y, 1.5],[S.gx + 6, y + 140, 1.5],[S.gx - 6, y + 140, 1.5]], 0xe8e2c8);   // centre dashes
     }});
     const span = (this.scale.gameSize.width + this.scale.gameSize.height) / this.K;
@@ -37589,7 +37711,21 @@ class WorldScene extends Phaser.Scene {
          invisible but still a wall to owCurbBlocks. So each side now runs
          on to the node wherever no street leaves on THAT side, and meets
          the next edge's run across the junction. */
-      const sideOpen = (n, sgn) => !!n.conn[(edge.f + (sgn > 0 ? 1 : 3)) % 4];
+      /* A STREET THE LATTICE DOES NOT KNOW ABOUT STILL BREAKS THE KERB
+         (Sir, on-device at the top street: "ok we put the curb across the
+         entrance road of our terrace community"). Sierra Vista's road
+         leaves the top street northward at the gate node, and it is drawn
+         ground, not a lattice edge -- so conn said "no street this side"
+         and the run carried straight across its mouth. */
+      const sideOpen = (n, sgn) => {
+        const f = (edge.f + (sgn > 0 ? 1 : 3)) % 4, d = DIRV[f];
+        if(n.conn[f]) return true;
+        if(WORLDGEN_COAST){
+          const S = sierraGeo();
+          if(d.y < -0.5 && Math.abs(n.x - S.gx) < 1 && Math.abs(n.y) < 1) return true;   // the estate's road
+        }
+        return false;
+      };
       for(const sgn of [-1, 1]){
         const cuts = rampCuts(sgn);
         const s0 = sideOpen(edge.a, sgn) ? 0 : -TANG;
