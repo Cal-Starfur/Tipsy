@@ -15161,6 +15161,8 @@ function volWorldH(shop, h, labZs){ return h * (shop.zs === undefined ? labZs : 
 
 /* the estate's house scale (see the house kit graft in LIB) */
 const SIERRA_HOUSE_SC = 1.6;
+/* and the grand estate at the head of the drive, bigger again */
+const SIERRA_ESTATE_SC = 2.2;
 const LIB = (function(){
   /* K IS THE PROJECTION'S SCALE, and the kit reads it directly. It is
      used for exactly one thing -- turning a WORLD line width or radius
@@ -53122,7 +53124,7 @@ const WG_COAST = { EXT:0.55, SANDW:1.4, FOOTW:1.1, BOARD:0.15, MTN_BASIN:2.2,
    thing is a handful of quads that onScreen() rejects. */
 const WG_HILLS = {
   TOE_GAP: 0.12,         // blocks past Y0 before the first riser, plain frontage
-  SV_TOE: 3.05 + 0.2,    // blocks past Y0 over Sierra Vista: the estate's wall, court and three terraces (3.05) + margin (was FOOTW + 0.95 for the old flat lots)
+  SV_TOE: 3.4 + 0.2,     // blocks past Y0 over Sierra Vista: its wall, court and three terraces, the top one deep for the grand estate (3.4) + margin
   SV_X: 3.45,            // blocks east of X0 the notch holds full depth (the estate's east wall is at 3.3)
   SV_EASE: 0.9,          // blocks over which it eases back to TOE_GAP
   /* [depth in blocks, rise, shelf colour] -- riser shades derive from it */
@@ -53195,7 +53197,11 @@ function sierraGeo(){
   /* the court is 0.55 blocks deep; each house terrace 0.8 -- deep enough for
      a grand lot (552 x SIERRA_HOUSE_SC = 883) behind its drive, and a back
      garden behind that */
-  const e = [wallY]; e.push(wallY - 0.55*B); for(let k = 0; k < 3; k++) e.push(e[e.length-1] - 0.8*B);   // shelf k runs y in (e[k+1], e[k]]
+  /* the top terrace is deeper than the other two: the grand estate at the
+     head of the drive is a bigger house on a bigger lot (Sir, standing in
+     the turning circle: "lets put a grand estate on this property and use
+     the coldesac as the driveway") */
+  const e = [wallY]; e.push(wallY - 0.55*B); e.push(e[1] - 0.8*B); e.push(e[2] - 0.8*B); e.push(e[3] - 1.15*B);
   const z = [0, 180, 360, 540];
   const xE = X0 + 3.0*B, xW = X0 + 0.55*B;           // the ramps' two columns, alternating
   const RL0 = 500;                                   // half a ramp's run (RL, below)
@@ -53235,17 +53241,24 @@ function sierraGeo(){
   const plan = [
     [['San Gabriel Mission Revival', 0], ['Palmline Casita', 1],      ['Rancho Hacienda', 0]],
     [['Belvedere Italianate', 0],        ['Marrakech Riad', 1],       ['Montalcino Tuscan Villa', 2]],
-    [['Brenta Palladian Villa', 0],      ['Montalcino Tuscan Villa', 0], ['Belvedere Italianate', 2]],
+    [['Montalcino Tuscan Villa', 0],     ['Belvedere Italianate', 2]],
   ];
   const lots = [];
   for(let k = 1; k <= 3; k++){
     const yF = road[k] - RH - 120, xa = xW + RH + 260, xb = xE - RH - 260;
     const gap = (xb - xa - 3*HW) / 4;
     plan[k-1].forEach(([name, liv], n) => {
-      const x0 = xa + gap + n*(HW + gap);
+      const x0 = xa + gap + (n + (k === 3 ? 1 : 0))*(HW + gap);   // the top terrace keeps its west end for the estate
       lots.push({ name, liv, x0, x1:x0 + HW, yF, yB:yF - HD, k, z:z[k], sc:SIERRA_HOUSE_SC });
     });
   }
+  /* THE GRAND ESTATE at the head of the drive, on the turning circle: the
+     Palladian villa at its own larger scale, centred on the circle so the
+     cul-de-sac is its forecourt and driveway. */
+  const EW = 809.6 * SIERRA_ESTATE_SC, ED = 552 * SIERRA_ESTATE_SC;
+  const estate = { name:'Brenta Palladian Villa', liv:0, x0:circle.x - EW/2, x1:circle.x + EW/2,
+                   yF:circle.y - circle.r - 90, yB:circle.y - circle.r - 90 - ED, k:3, z:z[3], sc:SIERRA_ESTATE_SC };
+  lots.push(estate);
   const gate = { x:gx, y:wallY, open:RH + 40 };
   _sierraGeo = { B, X0, Y0, RH, gx, xw, xe, wallY, e, z, ramps, roads, circle, lots, gate, HW, HD };
   return _sierraGeo;
