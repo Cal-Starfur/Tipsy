@@ -36750,25 +36750,32 @@ class WorldScene extends Phaser.Scene {
         const IP = ipts.map(p => this.W(p[0], p[1], p[2])); if(onScreen(IP)) this.quadOn(g, IP, LAWN);
       }
       /* the retaining wall on this shelf's FRONT edge (e[k]), down to the
-         shelf below, with its ramp cut through */
+         shelf below, with the gap its ramp passes through. The ramp itself
+         is drawn in its own pass below. */
       if(k >= 1){
         const rp = S.ramps[k-1], zLo = S.z[k-1], yw = S.e[k], cut0 = rp.x - RH - 40, cut1 = rp.x + RH + 40;
         wallFace(S.xw, cut0, yw, zLo, z);
         wallFace(cut1, S.xe, yw, zLo, z);
-        /* the ramp: its surface, the embankment it rides over the lower
-           shelf, and the cut it makes into this one. The camera sees +x
-           faces: the embankment's east face, the cut's west face. */
-        Q([[rp.x - RH - 40, rp.yS, rp.zS + 1],[rp.x + RH + 40, rp.yS, rp.zS + 1],[rp.x + RH + 40, rp.yN, rp.zN + 1],[rp.x - RH - 40, rp.yN, rp.zN + 1]], KERB);
-        Q([[rp.x - RH, rp.yS, rp.zS + 2],[rp.x + RH, rp.yS, rp.zS + 2],[rp.x + RH, rp.yN, rp.zN + 2],[rp.x - RH, rp.yN, rp.zN + 2]], ROADC);
-        const zMid = (rp.zS + rp.zN)/2;
-        Q([[cut1, rp.yS, rp.zS],[cut1, yw, zLo],[cut1, yw, zMid]], shade(STONE, .8));                     // embankment, east face
-        Q([[cut0, yw, z],[cut0, rp.yN, z],[cut0, rp.yN, rp.zN],[cut0, yw, zMid]], shade(STONE, .8));        // cut, west face
       }
       /* the estate's east flank at this shelf, down to the hillside floor */
       if(z > 0){
         Q([[S.xe, y0, 0],[S.xe, y1, 0],[S.xe, y1, z],[S.xe, y0, z]], shade(STONE, .78));
         for(let zz = 30; zz < z - 8; zz += 30) Q([[S.xe + 0.5, y0, zz],[S.xe + 0.5, y1, zz],[S.xe + 0.5, y1, zz + 3],[S.xe + 0.5, y0, zz + 3]], shade(STONE, .7));
       }
+    }
+    /* THE RAMPS, AFTER EVERY SHELF (Sir, on-device, at the foot of R1:
+       "road doesn't connect the terrace"). A ramp's lower half rides over
+       the shelf BELOW it, and the shelves are drawn top to bottom, so the
+       lower shelf's lawn was painted over that half -- the drive appeared
+       to stop at the terrace edge and start again above it. Far to near
+       here too, so each ramp lies on both the shelves it joins. */
+    for(let k = 3; k >= 1; k--){
+      const rp = S.ramps[k-1], z = S.z[k], zLo = S.z[k-1], yw = S.e[k];
+      const cut0 = rp.x - RH - 40, cut1 = rp.x + RH + 40, zMid = (rp.zS + rp.zN)/2;
+      Q([[cut0, rp.yS, rp.zS + 1],[cut1, rp.yS, rp.zS + 1],[cut1, rp.yN, rp.zN + 1],[cut0, rp.yN, rp.zN + 1]], KERB);
+      Q([[rp.x - RH, rp.yS, rp.zS + 2],[rp.x + RH, rp.yS, rp.zS + 2],[rp.x + RH, rp.yN, rp.zN + 2],[rp.x - RH, rp.yN, rp.zN + 2]], ROADC);
+      Q([[cut1, rp.yS, rp.zS],[cut1, yw, zLo],[cut1, yw, zMid]], shade(STONE, .8));                      // embankment, east face
+      Q([[cut0, yw, z],[cut0, rp.yN, z],[cut0, rp.yN, rp.zN],[cut0, yw, zMid]], shade(STONE, .8));         // cut, west face
     }
     /* BODIES: the houses, the perimeter wall (in runs) and the gatehouse */
     const bodies = this._sierraBodies = [];
@@ -36809,8 +36816,16 @@ class WorldScene extends Phaser.Scene {
         }});
       }
     };
+    /* THE BOOTH STANDS IN THE WALL, so the wall does not run through it
+       (Sir, on-device, circling the gatehouse: "first drawing issue is this
+       by the entry gate"). The booth straddles the wall line, and a wall run
+       whose middle is east of the booth sorts AFTER it -- so the run was
+       drawn over the booth's roof and cut the notch out of it. The runs stop
+       at the booth's sides and it closes the gap itself. */
+    const bx = S.gate.x + S.gate.open + 140;
     run(S.xw, S.gate.x - S.gate.open - 60);
-    run(S.gate.x + S.gate.open + 60, S.xe);
+    run(S.gate.x + S.gate.open + 60, bx - 96);
+    run(bx + 96, S.xe);
     /* the gatehouse: two stone piers either side of the drive, a guard booth
        on the east side, and a boom arm that lifts as the robot comes up */
     const gx = S.gate.x, near = Math.hypot(this.botX - gx, this.botY - yw) < 900;
@@ -36830,7 +36845,6 @@ class WorldScene extends Phaser.Scene {
         const top = []; for(let a = 0; a < 10; a++){ const t = a/10*Math.PI*2; top.push([px + Math.cos(t)*26, yw + Math.sin(t)*26, 200]); }
         Qg(top, 0xf2d27a);                                                                       // lamp globe
       }});
-    const bx = gx + S.gate.open + 140;
     bodies.push({ depth: bx + yw + 60, fn: (gg) => {
       boxW(gg, bx - 90, bx + 90, yw - 20, yw + 150, 0, 150, 0xefe6d2, 0xd8ccb0, 0xf2e8d6);         // the booth
       const Qg = (pts, col) => { const P = pts.map(p => this.W(p[0], p[1], p[2])); if(onScreen(P)) this.quadOn(gg, P, col); };
