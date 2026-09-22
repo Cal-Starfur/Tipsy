@@ -36390,11 +36390,31 @@ class WorldScene extends Phaser.Scene {
         this.quadOn(g, [pt(s0,oIn,h0), pt(s1,oIn,h1), pt(s1,oIn,0), pt(s0,oIn,0)], KERB_FACE);
         this.quadOn(g, [pt(s0,oIn,Math.min(h0,3)), pt(s1,oIn,Math.min(h1,3)), pt(s1,oIn,0), pt(s0,oIn,0)], KERB_DK);
         this.quadOn(g, [pt(s0,oIn,h0), pt(s1,oIn,h1), pt(s1,oOut,h1), pt(s0,oOut,h0)], KERB_TOP);
+        /* AND A LINE WHERE IT MEETS THE PAVING. At night the palette pulls
+           the white stone (0xf4f1e8) to about 142,149,180 and the paving to
+           115 -- 30 apart, which is nothing on a phone, so the kerb read as
+           absent even where it was drawn. A dark seam on its pavement edge
+           survives the night tint and gives the step an edge to read. */
+        const oSeam = oIn - (oIn - oOut) * 0.14;
+        this.quadOn(g, [pt(s0,oIn,h0), pt(s1,oIn,h1), pt(s1,oSeam,h1), pt(s0,oSeam,h0)], KERB_DK);
       };
       band(-1); band(1);
+      /* A KERB ONLY BREAKS WHERE A STREET LEAVES IT (Sir, on-device, with
+         the robot stopped against nothing: "i thought we fixed this issue
+         already of not haveing a curb drawing"). Every run stopped TANG
+         short of BOTH nodes for the corner arcs -- but the arcs are only
+         drawn in a quadrant where two streets meet (n.conn[f0] && [f1]).
+         At a T, and all along the city's rim, the side with no street
+         leaving it got neither: a TANG-long gap of kerb at every junction,
+         invisible but still a wall to owCurbBlocks. So each side now runs
+         on to the node wherever no street leaves on THAT side, and meets
+         the next edge's run across the junction. */
+      const sideOpen = (n, sgn) => !!n.conn[(edge.f + (sgn > 0 ? 1 : 3)) % 4];
       for(const sgn of [-1, 1]){
         const cuts = rampCuts(sgn);
-        let cur = 0;
+        const s0 = sideOpen(edge.a, sgn) ? 0 : -TANG;
+        const s1 = len + (sideOpen(edge.b, sgn) ? 0 : TANG);
+        let cur = s0;
         for(const [c0, c1] of cuts){
           /* THE FLARES ARE OUTSIDE THE PAD, the drop is across it: full
              kerb up to the flare, flare down, flush the width of the pad,
@@ -36411,7 +36431,7 @@ class WorldScene extends Phaser.Scene {
              long, shallow triangle, not a nub). 40 against an 8-high stone
              read as a square end on device. */
           const FL = T2;
-          const f0 = Math.max(cur, c0 - FL), f1 = Math.min(len, c1 + FL);
+          const f0 = Math.max(cur, c0 - FL), f1 = Math.min(s1, c1 + FL);
           /* AND THE STRIP THE KERB WOULD HAVE STOOD ON IS CONCRETE, not
              asphalt (Sir, on-device, with the two gaps painted red: "they
              need to be gutter color"). The road quad runs to ROAD_HALF, so
@@ -36452,11 +36472,11 @@ class WorldScene extends Phaser.Scene {
           /* the kerb picks up again at the far edge of the pad; the second
              flare is drawn over ITS first FL, same as the first */
           flare(fs0, c0);
-          const fs1 = Math.min(len, c1 + FL);
+          const fs1 = Math.min(s1, c1 + FL);
           flare(fs1, c1);
           cur = fs1;
         }
-        if(len - cur > 1) kerbRun(sgn, cur, len, KERB_H, KERB_H);
+        if(s1 - cur > 1) kerbRun(sgn, cur, s1, KERB_H, KERB_H);
       }
     }
     /* ---- THE CORNERS (Sir: "lets make it curve around the block with an
@@ -36511,6 +36531,7 @@ class WorldScene extends Phaser.Scene {
         faceArc(KR + KERB_W, 3, KERB_H, KERB_FACE);                 // the kerb's road face
         faceArc(KR, 0, KERB_H, KERB_FACE);                          // down onto the paving (behind the top -- see kerbRun)
         ring(KR, KR + KERB_W, KERB_H, KERB_H, KERB_TOP);            // its top, last
+        ring(KR, KR + KERB_W*0.14, KERB_H, KERB_H, KERB_DK);        // the seam on its paving edge, as kerbRun
         /* THE GULLY, at the bottom of the sweep where the water goes */
         /* A CURVED GRATE, INSIDE THE CHANNEL (Sir, on-device: "its hitting
            the drain channels edge"). It was a straight 68 x 34 slab laid
