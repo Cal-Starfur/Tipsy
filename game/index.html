@@ -47766,6 +47766,18 @@ class WorldScene extends Phaser.Scene {
         : (fwd, side, z) => this.W(this.botX + fwd*hx2 + side*lx,
                                     this.botY + fwd*hy2 + side*ly, z);
       const poolK = (0.6 + 0.4*pulse)*faceK;
+      /* THE POOL LIES ON THE GROUND UNDER IT, NOT ON z = 0 (Sir,
+         on-device on Sierra Vista's top terrace: "as tipsey goes up the
+         levels his headlighrs seem to want to stay on the first level").
+         Absolute 0 was right while every surface in the game was flat.
+         Now the estate's terraces are real ground, so the pool and the
+         beams' far edge take the height of the ground beneath each
+         sampled point -- which also lets the pool bend up a ramp instead
+         of cutting into it. */
+      const gzAt = (fwd, side) => {
+        if(!(this.ow && this.ow.on)) return 0;
+        return sierraZ(this.botX + fwd*hx2 + side*lx, this.botY + fwd*hy2 + side*ly);
+      };
       /* ground pool: three stacked world-space ellipses, long axis along
          travel, sampled and projected point-by-point */
       const poolLayers = [
@@ -47777,7 +47789,8 @@ class WorldScene extends Phaser.Scene {
         const pp = [];
         for(let i = 0; i < 20; i++){
           const t = i/20 * Math.PI * 2;
-          const q = WB(poolDist + Math.cos(t)*L[0], Math.sin(t)*L[1], 0);
+          const fwd = poolDist + Math.cos(t)*L[0], side = Math.sin(t)*L[1];
+          const q = WB(fwd, side, gzAt(fwd, side));
           pp.push(new Phaser.Geom.Point(q.x, q.y));
         }
         gLo.fillStyle(L[2], ga(L[3]*poolK));
@@ -47791,8 +47804,8 @@ class WorldScene extends Phaser.Scene {
         const dv = ey > 0 ? 1 : -1;
         const n0 = WB(beamFwd, ey - dv*2.8, this.botZ + 36);
         const n1 = WB(beamFwd, ey + dv*2.8, this.botZ + 36);
-        const f0 = WB(poolDist, ey*1.85 - dv*8, 0);
-        const f1 = WB(poolDist, ey*1.85 + dv*8, 0);
+        const f0 = WB(poolDist, ey*1.85 - dv*8, gzAt(poolDist, ey*1.85 - dv*8));
+        const f1 = WB(poolDist, ey*1.85 + dv*8, gzAt(poolDist, ey*1.85 + dv*8));
         gLo.fillPoints([
           new Phaser.Geom.Point(n0.x, n0.y),
           new Phaser.Geom.Point(n1.x, n1.y),
