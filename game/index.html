@@ -4903,6 +4903,7 @@ const CURB_W = T2 * 0.5;
    of the ramps"). 24 puts the tangent at 438, which leaves the pad 45
    of run to flare down in. */
 const KERB_ARC_R = 24;
+const L_OUT_R = T2;           // the outside of a 90-degree bend: fillet radius to the kerb's face (the estate's OUT_R too)
 const SIDEWALK_ROWS = 4;     // per side — the sidewalk width already live in-game
 const SIDEWALK_W = SIDEWALK_ROWS*T2;
 const OVERSHOOT = ROAD_HALF; // sufficient by construction — see classifyAt
@@ -5661,6 +5662,13 @@ function owBuildWorld(route){
                     : d <= SW_OUT ? 'sidewalk' : null;
     const bx = liveY ? band(dx) : null;
     const by = liveX ? band(dy) : null;
+    /* OUTSIDE AN L the road's corner is the fillet drawWorld draws (see
+       L_OUT_R): in the quadrant facing away from both streets, the square
+       beyond the arc is kerb, not road */
+    if(bx && by && cn && !nX.svGate && !nearX && !nearY && farX && farY){
+      const k = ROAD_HALF - L_OUT_R;
+      if(dx > k && dy > k && dx <= ROAD_HALF && dy <= ROAD_HALF && Math.hypot(dx - k, dy - k) > L_OUT_R) return 'curb';
+    }
     if(bx && by) return (dx < dy ? bx : by);   // intersection: nearer axis wins
     const wf = waterfrontAt(x, y);
     if(wf) return wf;
@@ -37147,6 +37155,10 @@ class WorldScene extends Phaser.Scene {
     };
     const runBreaks = rn => { const b = [0]; let acc = 0; for(let q = 0; q < rn.pts.length - 1; q++){ acc += Math.hypot(rn.pts[q+1].x - rn.pts[q].x, rn.pts[q+1].y - rn.pts[q].y); b.push(acc); } return b; };
     const streetFeatures = (rampK) => {
+      /* the outside fillet's stone waits for the NEXT run's channel on its
+         side (see THE OUTSIDE FILLET): that channel is farther than the
+         arc's stone where the two meet, so it must go down first */
+      const pendingFil = [];     // a run can start one bend and end another: each waits for its own straight
       S.runs.forEach((rn, n) => {
         const dv = DIRV[rn.f], rv = DIRV[(rn.f + 1) % 4], ax = rn.a.x, ay = rn.a.y;
         const brk = runBreaks(rn);
@@ -37196,12 +37208,100 @@ class WorldScene extends Phaser.Scene {
              takes over -- ROAD_HALF + KERB_ARC_R from the corner -- and the
              arc (below) sweeps stone and channel round to the other street */
           const TANG = RH + KERB_ARC_R;
-          const k0 = rn.prev === null ? 0 : (prevInner ? TANG : -RH);
+          /* outside a bend both ends now stop where the fillet takes over
+             (OUT_R back from the old square corner) -- see OUT_R in sierraGeo */
+          const OR = T2;
+          const k0 = rn.prev === null ? 0 : (prevInner ? TANG : -RH + OR);
           const FX = Math.sqrt((S.circle.r + KERB_ARC_R)**2 - (RH + KERB_ARC_R)**2);   // where the circle's fillet takes over (see the ring)
-          const k1 = rn.next === null ? rn.len - FX : (innerAt(rn.next) ? rn.len - TANG : rn.len + RH);
-          const g0 = rn.prev === null ? 0 : (prevInner ? TANG : -RH + KW);
-          const g1 = rn.next === null ? rn.len - FX : (innerAt(rn.next) ? rn.len - TANG : rn.len + RH - KW);
+          const k1 = rn.next === null ? rn.len - FX : (innerAt(rn.next) ? rn.len - TANG : rn.len + RH - OR);
+          const g0 = rn.prev === null ? 0 : (prevInner ? TANG : -RH + OR);
+          const g1 = rn.next === null ? rn.len - FX : (innerAt(rn.next) ? rn.len - TANG : rn.len + RH - OR);
           const oIn = sgn*(RH - KW), oOut = sgn*RH, oG = sgn*(RH - KW - GW);
+          /* THE OUTSIDE FILLET (see OUT_R in sierraGeo): drawn once per bend,
+             by the run arriving at it, in two halves so painter's order holds
+             across the join. Its GROUND -- the freed wedge, paved, and the
+             channel -- goes down here with this side's own channel, before any
+             stone; its STONE after the straights' (fil.stone below). Drawn in
+             one piece after the stones, the channel's first segment painted
+             over the straight stone's road face at the tangent (measured: a
+             notch on 4 of the 7 bends). Radius grows toward the paving, so
+             the road edge is the SMALLER radius. */
+          let fil = null;
+          /* WHICH PASS DRAWS THE BEND: the later of the two that draw the
+             straights it joins, so both are down before it. The level pass
+             runs after every ramp's, so a bend where one side is a ramp goes
+             with the LEVEL side -- the arriving run's end if that is level,
+             else the leaving run's start. Drawn from the ramp pass, the level
+             straight that followed covered the arc's end (bend 3: the cap
+             that should have hidden the join never showed at all). */
+          const segLevel = (r, q) => r.pts[q].z === r.pts[q+1].z;
+          const endLevel = r => segLevel(r, r.pts.length - 2);
+          const prevRun = n > 0 ? S.runs[n-1] : null;
+          let rnA = null;
+          if(rn.next !== null && !innerAt(rn.next) && endLevel(rn) && clip(rn.len - 1, rn.len + 1).length) rnA = rn;
+          else if(prevRun && prevRun.next !== null && side.x === DIRV[rn.prev].x && side.y === DIRV[rn.prev].y
+                  && !endLevel(prevRun) && segLevel(rn, 0) && clip(-1, 1).length) rnA = prevRun;
+          const filNow = rnA !== null && rnA !== rn;     // drawn by the run leaving it: its straight is this one
+          if(rnA){
+            const rn = rnA, dv = DIRV[rnA.f], side = { x: -DIRV[rnA.next].x, y: -DIRV[rnA.next].y };
+            const zc = runZ(rn, rn.len), NA = 10;
+            const Cx = rn.b.x + (dv.x + side.x)*RH, Cy = rn.b.y + (dv.y + side.y)*RH;
+            const Ox = Cx - (dv.x + side.x)*OR, Oy = Cy - (dv.y + side.y)*OR;
+            const u = t => { const ux = side.x*(1 - t) + dv.x*t, uy = side.y*(1 - t) + dv.y*t, m = Math.hypot(ux, uy) || 1; return { x: ux/m, y: uy/m }; };
+            const A = (rad, t, h) => { const q = u(t); return this.W(Ox + q.x*rad, Oy + q.y*rad, zc + h); };
+            const ringO = (r0, r1, h0, h1, col) => { for(let i = 0; i < NA; i++){ const t0 = i/NA, t1 = (i+1)/NA;
+              quad([A(r0, t0, h0), A(r0, t1, h0), A(r1, t1, h1), A(r1, t0, h1)], col); } };
+            /* A FACE ONLY WHERE IT FACES THE CAMERA. The straights draw both
+               faces and let the top cover the hidden one; the arc is drawn
+               after its own straight, so a hidden face drawn here lands ON
+               that straight's top (measured: a grey triangle at the tangent).
+               Culled per segment by its outward normal against the view,
+               nearer = larger x + y. The paving face faces out along u, the
+               road face in along -u. */
+            const faceO = (rad, sgnN, h0, h1, col) => { for(let i = 0; i < NA; i++){ const t0 = i/NA, t1 = (i+1)/NA, q = u((t0 + t1)/2);
+              if(sgnN*(q.x + q.y) <= 0) continue;
+              quad([A(rad, t0, h0), A(rad, t1, h0), A(rad, t1, h1), A(rad, t0, h1)], col); } };
+            /* the wedge is one paving tile: its own shade by the city's
+               parity, at the ASPHALT's height (the road rects draw at shelf
+               + 1), or a 1.5 px sliver of road shows along its tile edges */
+            const tcx = Math.floor((Cx - (dv.x + side.x)*OR*0.5) / T2), tcy = Math.floor((Cy - (dv.y + side.y)*OR*0.5) / T2);
+            const WEDGE = ((tcx + tcy) & 1) === 0 ? PAVE : PAVEB, Cs = this.W(Cx, Cy, zc + 1);
+            for(let i = 0; i < NA; i++) quad([Cs, Cs, A(OR, i/NA, 1), A(OR, (i+1)/NA, 1)], WEDGE);
+            /* ...and lifted 1 over the tiles it borders, it opened a hairline of
+               lawn along whichever edge faces down-screen. So each straight
+               edge gets a 3-wide lip of the NEIGHBOUR tile's shade at the same
+               height, and the city's joint line on the seam itself. */
+            { const NB = WEDGE === PAVE ? PAVEB : PAVE, LIP = 3;
+              const w = (x, y) => this.W(x, y, zc + 1);
+              const T1x = Ox + side.x*OR, T1y = Oy + side.y*OR, T2x = Ox + dv.x*OR, T2y = Oy + dv.y*OR;
+              const P1 = [w(T1x, T1y), w(Cx, Cy), w(Cx + side.x*LIP, Cy + side.y*LIP), w(T1x + side.x*LIP, T1y + side.y*LIP)];
+              const P2 = [w(T2x, T2y), w(Cx, Cy), w(Cx + dv.x*LIP, Cy + dv.y*LIP), w(T2x + dv.x*LIP, T2y + dv.y*LIP)];
+              quad(P1, NB); quad(P2, NB);
+              if(onScreen(P1)) this.edgeOn(g, [P1[0], P1[1]], PAVEEDGE, 1);
+              if(onScreen(P2)) this.edgeOn(g, [P2[0], P2[1]], PAVEEDGE, 1); }
+            ringO(OR - KW - GW, OR - KW, 0.6, 0.6, GUTC);                          // the channel
+            fil = { side: { x: dv.x, y: dv.y }, now: filNow, stone: () => {
+              faceO(OR, 1, 0, KH, KFACE); faceO(OR - KW, -1, 0, KH, KFACE);        // both faces, the visible side only
+              faceO(OR - KW, -1, 0, 3, KDK);                                       // its shadow in the channel
+              ringO(OR - KW, OR, KH, KH, KTOP);                                    // the top, last
+              ringO(OR - KW, OR - KW*0.86, KH, KH, KDK);                           // the seam, road edge like the straights
+              /* AND ON OVER EACH JOIN by a short length of the straight's own
+                 top and seam. A straight draws its hidden face first and lets
+                 its top cover it, but at its end that face pokes out below
+                 the top by the stone's height (measured: a grey triangle at
+                 the tangent on bend 3). The arc is drawn after both straights,
+                 so its top carried CAP back over each one covers the tip --
+                 same colour as the stone it lies on, so nothing else changes. */
+              const CAP = KH * 2.5;
+              const capOn = (tx, ty, bx, by, ix, iy) => {       // tangent, back along the straight, in toward the road
+                const p = (s2, o2, h) => this.W(tx + bx*s2 + ix*o2, ty + by*s2 + iy*o2, zc + h);
+                quad([p(0, 0, KH), p(CAP, 0, KH), p(CAP, KW, KH), p(0, KW, KH)], KTOP);
+                quad([p(0, KW, KH), p(CAP, KW, KH), p(CAP, KW*0.86, KH), p(0, KW*0.86, KH)], KDK);
+              };
+              capOn(Ox + side.x*OR, Oy + side.y*OR, -dv.x, -dv.y, -side.x, -side.y);   // the arriving run
+              capOn(Ox + dv.x*OR, Oy + dv.y*OR, -side.x, -side.y, -dv.x, -dv.y);       // the run leaving
+            } };
+          }
           /* the channel */
           for(const [a0, a1] of clip(g0, g1)) for(const [b0, b1] of splitAt(a0, a1))
             quad([P(b0, oG, 0.6), P(b1, oG, 0.6), P(b1, oIn, 0.6), P(b0, oIn, 0.6)], GUTC);
@@ -37264,6 +37364,15 @@ class WorldScene extends Phaser.Scene {
             quad([G(-30,-14,0.8), G(30,-14,0.8), G(30,14,0.8), G(-30,14,0.8)], 0x55524a);
             for(let a = -24; a < 24; a += 9) quad([G(a,-14,1), G(a + 4,-14,1), G(a + 4,14,1), G(a,14,1)], 0x2e2c28);
           }
+          /* the last bend's fillet stone, once the straight it meets on this
+             side -- channel AND stone -- is down. Drawn before that channel,
+             the channel painted over the arc's road face at the tangent (4 of
+             7 bends); drawn before that stone, the stone's road face showed
+             past its own end over the arc's top. */
+          for(let q = pendingFil.length - 1; q >= 0; q--)
+            if(pendingFil[q].run === n - 1 && pendingFil[q].side.x === side.x && pendingFil[q].side.y === side.y){ pendingFil[q].stone(); pendingFil.splice(q, 1); }
+          if(fil && fil.now) fil.stone();
+          else if(fil){ fil.run = n; pendingFil.push(fil); }
           /* and at the foot of every ramp, both sides, where the slope's water arrives */
           for(let q = 1; q < rn.pts.length - 1; q++)
             if(rn.pts[q].z === rn.pts[q-1].z && rn.pts[q+1].z !== rn.pts[q].z) grate(brk[q] - 60);
@@ -37280,6 +37389,9 @@ class WorldScene extends Phaser.Scene {
             }
           } }
       });
+      /* a bend whose next channel is not in this call (the next run starts
+         on a ramp, drawn in another pass) still gets its stone */
+      for(const pf of pendingFil) pf.stone();
     };
     for(let k = 3; k >= 0; k--){
       const y0 = S.e[k+1], y1 = S.e[k], z = S.z[k];
@@ -38243,8 +38355,18 @@ class WorldScene extends Phaser.Scene {
       const sideOpen = (n, sgn) => !!n.conn[(edge.f + (sgn > 0 ? 1 : 3)) % 4];
       for(const sgn of [-1, 1]){
         const cuts = rampCuts(sgn);
-        const s0 = sideOpen(edge.a, sgn) ? 0 : -TANG;
-        const s1 = len + (sideOpen(edge.b, sgn) ? 0 : TANG);
+        /* OUTSIDE AN L THE KERB RUNS ON ROUND THE CORNER (Sir, 2026-09-23,
+           after the estate's bends: "we want it in the rest of the game
+           too"). Where a street turns 90 degrees with no cross street, the
+           side facing away from the turn used to stop at the node and leave
+           the asphalt's square outer corner with no kerb at all. It now runs
+           on to where the corner fillet takes over (see L_OUT_R below). */
+        const lOut = (nd, straight) => {
+          const sd = (edge.f + (sgn > 0 ? 1 : 3)) % 4;
+          return !nd.svGate && !nd.conn[sd] && !nd.conn[straight] && !!nd.conn[(sd + 2) % 4];
+        };
+        const s0 = sideOpen(edge.a, sgn) ? 0 : -TANG - (lOut(edge.a, (edge.f + 2) % 4) ? ROAD_HALF - L_OUT_R : 0);
+        const s1 = len + (sideOpen(edge.b, sgn) ? 0 : TANG + (lOut(edge.b, edge.f) ? ROAD_HALF - L_OUT_R : 0));
         band(sgn, s0, s1);
         let cur = s0;
         for(const [c0, c1] of cuts){
@@ -38423,6 +38545,76 @@ class WorldScene extends Phaser.Scene {
           const tc = gSpan * s * 0.36, tw = gSpan * 0.085;
           sector(gR - gH + 3, gR + gH - 3, tc - tw, tc + tw, 0.9, 0x26241f, 1);
         }
+      }
+      /* ---- THE OUTSIDE OF AN L (Sir: "we want it in the rest of the game
+         too", of the estate's curved outer bends). A node with exactly two
+         streets at right angles has one quadrant facing away from both; the
+         road there was square to its corner C with no kerb round it. Now a
+         fillet of L_OUT_R, the estate's same 92, tangent to both kerb lines
+         (the straights run on to meet it, see lOut in the kerb pass): the
+         square it frees is re-laid with the corner cells' own 46 paving in
+         their own parity, the quarter inside the arc goes back to asphalt,
+         then channel and stone as the straights draw them. Faces are drawn
+         only where they face the camera, and the top is carried a short cap
+         over each straight, for the reasons the estate's fillet gives (a
+         hidden face drawn after a straight's top lands on it). ---- */
+      for(let q = 0; q < 4; q++){
+        const [f0, f1] = QUAD[q];
+        const o0 = (f0 + 2) % 4, o1 = (f1 + 2) % 4;       // the streets are on the far side of both
+        if(n.svGate || n.conn[f0] || n.conn[f1] || !n.conn[o0] || !n.conn[o1]) continue;
+        const e0 = DIRV[f0], e1 = DIRV[f1], OR = L_OUT_R, NA = 10;
+        const Cx = n.x + (e0.x + e1.x)*ROAD_HALF, Cy = n.y + (e0.y + e1.y)*ROAD_HALF;
+        const Ox = Cx - (e0.x + e1.x)*OR, Oy = Cy - (e0.y + e1.y)*OR;
+        const u = t => { const ux = e1.x*(1 - t) + e0.x*t, uy = e1.y*(1 - t) + e0.y*t, m = Math.hypot(ux, uy) || 1; return { x: ux/m, y: uy/m }; };
+        const A = (rad, t, h) => { const p = u(t); return this.W(Ox + p.x*rad, Oy + p.y*rad, h); };
+        const quadV = (P, col) => { if(this.ptsOnScreen(P)) this.quadOn(g, P, col); };
+        const ringO = (r0, r1, h0, h1, col) => { for(let i = 0; i < NA; i++){ const t0 = i/NA, t1 = (i+1)/NA;
+          quadV([A(r0, t0, h0), A(r0, t1, h0), A(r1, t1, h1), A(r1, t0, h1)], col); } };
+        const faceO = (rad, sgnN, h0, h1, col) => { for(let i = 0; i < NA; i++){ const t0 = i/NA, t1 = (i+1)/NA, p = u((t0 + t1)/2);
+          if(sgnN*(p.x + p.y) <= 0) continue;
+          quadV([A(rad, t0, h0), A(rad, t1, h0), A(rad, t1, h1), A(rad, t0, h1)], col); } };
+        if(!this.ptsOnScreen([this.W(Cx, Cy, 0), this.W(Ox, Oy, 0), this.W(Cx - (e0.x + e1.x)*OR*2, Cy - (e0.y + e1.y)*OR*2, KERB_H)])) continue;
+        /* the square C..C-OR: four corner cells, their own parity and seams */
+        for(const a of [0.25, 0.75]) for(const b of [0.25, 0.75]){
+          const cx0 = Cx - (e0.x*a + e1.x*b)*OR, cy0 = Cy - (e0.y*a + e1.y*b)*OR, h = CELL/2;
+          const P = [this.W(cx0 - h, cy0 - h, 0), this.W(cx0 + h, cy0 - h, 0), this.W(cx0 + h, cy0 + h, 0), this.W(cx0 - h, cy0 + h, 0)];
+          const par = (Math.round(cx0/CELL) + Math.round(cy0/CELL)) % 2;
+          quadV(P, par === 0 ? d.pave : d.paveB);   // no seam stroke: half of each cell is under the road and it showed there
+        }
+        /* ...and the quarter inside the arc back to asphalt -- only out to
+           the channel, which covers the rest of the road side. Taken on
+           under the stone it showed as a dark wedge wherever a hidden face
+           is skipped: behind the stone is pavement, and the cells are that. */
+        const Os = this.W(Ox, Oy, 0), RR = OR - KERB_W - CURB_W + 1;
+        for(let i = 0; i < NA; i++) quadV([Os, Os, A(RR, (i+1)/NA, 0), A(RR, i/NA, 0)], d.road);
+        ringO(OR - KERB_W - CURB_W, OR - KERB_W, 0.6, 0.6, GUT);                  // the channel
+        /* and both ground pieces lapped 6 onto each straight: their joins
+           with the straight's asphalt and channel run along the square's
+           edges, over the cells, and the anti-aliased seam showed the pale
+           paving through as a hairline across the road */
+        for(const [ax, ay, bx, by] of [[e1.x, e1.y, e0.x, e0.y], [e0.x, e0.y, e1.x, e1.y]]){
+          const p = (rad, back, h) => this.W(Ox + ax*rad - bx*back, Oy + ay*rad - by*back, h);
+          quadV([p(0, 0, 0), p(RR, 0, 0), p(RR, 6, 0), p(0, 6, 0)], d.road);
+          quadV([p(OR - KERB_W - CURB_W, 0, 0.6), p(OR - KERB_W, 0, 0.6), p(OR - KERB_W, 6, 0.6), p(OR - KERB_W - CURB_W, 6, 0.6)], GUT);
+        }
+        faceO(OR, 1, 0, KERB_H, KERB_FACE); faceO(OR - KERB_W, -1, 0, KERB_H, KERB_FACE);
+        faceO(OR - KERB_W, -1, 0, 3, KERB_DK);                                   // shadow where it meets the channel
+        ringO(OR - KERB_W, OR, KERB_H, KERB_H, KERB_TOP);                         // the top
+        ringO(OR - KERB_W, OR - KERB_W*0.86, KERB_H, KERB_H, KERB_DK);            // the seam, road edge as kerbRun
+        const CAP = KERB_H * 2.5;
+        const capOn = (tx, ty, bx, by, ix, iy) => {
+          const p = (s2, o2, h) => this.W(tx + bx*s2 + ix*o2, ty + by*s2 + iy*o2, h);
+          /* the visible face too, so the straight's face end is not a tick */
+          if(-(ix + iy) > 0) quadV([p(0, 0, KERB_H), p(CAP, 0, KERB_H), p(CAP, 0, 0), p(0, 0, 0)], KERB_FACE);
+          if((ix + iy) > 0){
+            quadV([p(0, KERB_W, KERB_H), p(CAP, KERB_W, KERB_H), p(CAP, KERB_W, 0), p(0, KERB_W, 0)], KERB_FACE);
+            quadV([p(0, KERB_W, 3), p(CAP, KERB_W, 3), p(CAP, KERB_W, 0), p(0, KERB_W, 0)], KERB_DK);
+          }
+          quadV([p(0, 0, KERB_H), p(CAP, 0, KERB_H), p(CAP, KERB_W, KERB_H), p(0, KERB_W, KERB_H)], KERB_TOP);
+          quadV([p(0, KERB_W, KERB_H), p(CAP, KERB_W, KERB_H), p(CAP, KERB_W*0.86, KERB_H), p(0, KERB_W*0.86, KERB_H)], KERB_DK);
+        };
+        capOn(Ox + e1.x*OR, Oy + e1.y*OR, -e0.x, -e0.y, -e1.x, -e1.y);
+        capOn(Ox + e0.x*OR, Oy + e0.y*OR, -e1.x, -e1.y, -e0.x, -e0.y);
       }
     }
 
@@ -55124,7 +55316,29 @@ function sierraGeo(){
       }
     }
   });
-  _sierraGeo = { B, X0, Y0, RH, SW, STREET, gx, xw, xe, wallY, e, z, ramps, roads, circle, lots, gate, HW, HD, path, runs, pads };
+  /* THE OUTSIDE OF EVERY BEND IS A CURVE (Sir, on-device 2026-09-23,
+     circling the square corner where the two stones met: "i dont like
+     this over lap and id love to see a curved look like the outer side
+     curves"). Outside a bend the road was square to the corner and both
+     kerbs ran on to it, so the stones overlapped in a notch. Now the
+     road's outer corner is a fillet of radius OUT_R -- the city's corner
+     arc turned inside out, same 92 from the stone's face to the channel's
+     inner edge -- tangent to both kerb lines. The asphalt rectangles stay
+     square; the wedge the fillet frees is paved in the draw, and
+     sierraSurface answers it as kerb and pavement, so the stone you see
+     and the step you hit are the same line. One record per bend: O is the
+     centre, C the old square corner, dv the arriving run's heading, side
+     the outer side. Every C lies on the T2 tile grid (the estate is
+     snapped), so with OUT_R = T2 the wedge is exactly one paving tile. */
+  const OUT_R = T2, outer = [];
+  runs.forEach(rn => {
+    if(rn.next === null) return;
+    const dv = DIRV[rn.f], dn = DIRV[rn.next], side = { x:-dn.x, y:-dn.y };
+    const C = { x: rn.b.x + (dv.x + side.x)*RH, y: rn.b.y + (dv.y + side.y)*RH };
+    outer.push({ C, O: { x: C.x - (dv.x + side.x)*OUT_R, y: C.y - (dv.y + side.y)*OUT_R },
+                 dv, side, R: OUT_R, k: shelfOf(rn.b.z) });
+  });
+  _sierraGeo = { B, X0, Y0, RH, SW, STREET, gx, xw, xe, wallY, e, z, ramps, roads, circle, lots, gate, HW, HD, path, runs, pads, outer };
   return _sierraGeo;
 }
 /* a step that CROSSES a wall line, whatever its length. The walls are thin
@@ -55200,6 +55414,17 @@ function sierraSurface(x, y){
   }
   { const c = S.circle, dc = Math.max(0, Math.hypot(x - c.x, y - c.y) - c.r);
     if(dc < d && Math.abs(sierraZ(x, y) - S.z[c.k]) <= 1) d = dc; }
+  /* outside a bend the road edge is the fillet, not the square corner
+     (see OUT_R in sierraGeo): in the fillet's own quadrant the distance to
+     the road is the distance to its arc. The square rectangles only ever
+     read NEARER than the arc there, so this can only push d outward. */
+  for(const oc of (S.outer || [])){
+    const px = x - oc.O.x, py = y - oc.O.y;
+    if(px*oc.dv.x + py*oc.dv.y < 0 || px*oc.side.x + py*oc.side.y < 0) continue;
+    const r = Math.hypot(px, py);
+    if(r > oc.R + S.SW + CURB_W || Math.abs(sierraZ(x, y) - S.z[oc.k]) > 1) continue;
+    d = Math.max(d, r - oc.R);
+  }
   return d <= 0 ? 'road' : d <= CURB_W ? 'curb' : d <= S.SW ? 'sidewalk' : 'lot';
 }
 /* ...and its crossings, for owAtRampMouth: the same footprint test the
