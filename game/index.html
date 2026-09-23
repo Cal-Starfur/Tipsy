@@ -8681,6 +8681,18 @@ const HOUSE_DEPTH = T2 * 3; // exactly 3 tiles deep — real footprint, not a th
    character. The code comes out once the library path is proven. */
 const HOUSE_ART_LEGACY = false;
 
+/* ---------- LEGACY YARD FENCES ----------
+   The generic yard fences that went with the legacy houses: the random
+   wood/chain run in every gap between house units (drawFenceGap) and
+   the solid wood row a cutaway edge or cut lot gets (drawSolidFenceRow).
+   With the houses off they stood alone on empty lawn. Both are paper-
+   thin art with no collision, so switching them off changes nothing
+   Tipsy can touch. NOT covered: the address gate (drawGateFence) -- a
+   gate-mode delivery still needs its threshold -- and the house
+   library's own yard fences (houseYardFence), which carry collision.
+   Same one-character switch as HOUSE_ART_LEGACY. */
+const YARD_FENCE_LEGACY = false;
+
 /* ---------- LEGACY SHOPFRONT ART ----------
    Every commercial unit in the city is drawn by drawStoreUnit: one
    procedural generator seeded off the unit's position, picking a palette
@@ -39806,6 +39818,7 @@ class WorldScene extends Phaser.Scene {
   }
 
   drawFenceGap(g, ox, oy, dv, rv, w, seed, a0=0, a1=w){
+    if(!YARD_FENCE_LEGACY) return;               // see YARD_FENCE_LEGACY
     if(w < 8) return;
     const rng = mulberry32(seed);
     if(rng() < 0.5) this.drawWoodFence(g, ox, oy, dv, rv, w, a0, a1);
@@ -40068,6 +40081,7 @@ class WorldScene extends Phaser.Scene {
      and can safely run edge-to-edge) — the grass stays, this is just
      the yard boundary instead of a row of houses. */
   drawSolidFenceRow(g, ox, oy, dv, rv, w, seed, a0=0, a1=w){
+    if(!YARD_FENCE_LEGACY) return;               // see YARD_FENCE_LEGACY
     const margin = T2*0.4, iw = w - margin*2;
     if(iw <= 0) return;
     /* translate the row-space slice window into the inset fence's own
