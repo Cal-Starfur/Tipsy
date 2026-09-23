@@ -5611,6 +5611,7 @@ function owBuildWorld(route){
   };
 
   const surfaceAt = (x, y) => {
+    { const sv = sierraSurface(x, y); if(sv) return sv; }   // the estate's streets, city-standard
     const nx = Math.round(x / BLOCK) * BLOCK, ny = Math.round(y / BLOCK) * BLOCK;
     const i = Math.round(x / BLOCK), j = Math.round(y / BLOCK);
     const dx = Math.abs(x - nx), dy = Math.abs(y - ny);
@@ -7093,6 +7094,7 @@ function owRampHash(grid){
 }
 function owAtRampMouth(grid, x, y){
   if(!grid) return true;               // no grid, no gate: never trap the robot
+  if(sierraPadAt(x, y)) return true;   // the estate's own crossings
   const m = owRampHash(grid);
   const ci = Math.floor(x/T2), cj = Math.floor(y/T2);
   for(let i = ci-1; i <= ci+1; i++) for(let j = cj-1; j <= cj+1; j++){
@@ -7329,7 +7331,7 @@ function owStep(scene, dt){
   /* the hood lock answers as a KERB (OW_CURB_BLOCK): it stops him and
      never tips him -- a locked street is a closed door, not a crash */
   const blockAt = (x, y, ox, oy) => W.solidAt(x, y, D.botR) ||
-                            (!sierraInside(x, y) && owCurbBlocks(ow, W, x + (ox||0), y + (oy||0)) ? OW_CURB_BLOCK : null) ||
+                            (owCurbBlocks(ow, W, x + (ox||0), y + (oy||0)) ? OW_CURB_BLOCK : null) ||   // the estate too: its streets have kerbs now
                             (hoodLockBlocks(x, y, D.botR) ? OW_CURB_BLOCK : null) ||
                             (sierraBlocks(x, y, D.botR) || sierraCrosses(ow.px, ow.py, x, y, D.botR) ? OW_CURB_BLOCK : null);   // SIERRA VISTA walls
   const _full = blockAt(ow.px + stepX, ow.py + stepY, _ox, _oy);
@@ -7648,7 +7650,8 @@ function owStep(scene, dt){
        kerb rule was already waived there, but the road -> pavement
        transition still charged a lean and tipped him at the mouth every
        time. Inside the estate and up its road there is no kerb to strike. */
-    if(ow.sfcCommit && ow.sfcCommit !== sfc && Math.abs(ow.vel) > 0.03 && !sierraInside(ow.px, ow.py))
+    /* ...until it had kerbs like the city's (2026-09-22): now it leans the same */
+    if(ow.sfcCommit && ow.sfcCommit !== sfc && Math.abs(ow.vel) > 0.03)
       owLeanKick(scene, ow, owCurbSign(ow, sfc) * 0.10 * (Math.abs(ow.vel) / D.vMax));
     ow.sfcCommit = sfc;
   }
@@ -9671,7 +9674,7 @@ function buildGrid(cols, rows, seed=0, opts){
   if(WORLDGEN_COAST && !classic){
     const S = sierraGeo(), b = nodeAt(1, 0);
     if(b){
-      const a = { i:1, j:-1, x:S.gx, y:S.wallY, conn:[false,false,false,false] };
+      const a = { i:1, j:-1, x:S.gx, y:S.wallY, conn:[false,false,false,false], svGate:true };   // the estate draws its street on from here
       a.conn[1] = true; b.conn[3] = true;                      // f = 1 runs +y, gate -> city
       nodes.push(a);
       const svEdge = { a, b, f:1 };
@@ -36850,8 +36853,48 @@ class WorldScene extends Phaser.Scene {
      the robot drives behind them -- so they are queued at their own depth
      into this._sierraBodies, which drawWorld joins to worldVQ; the long
      perimeter wall is cut into short runs so each sorts on its own key. */
-  drawSierraVista(g, onScreen, roadCol){
-    const S = sierraGeo(), RH = S.RH;
+  drawSierraVista(g, onScreen, roadCol, pal){
+    const S = sierraGeo(), RH = S.RH, SW = S.SW, STREET = S.STREET;
+    const PAVE = pal ? pal.pave : 0xc9c3b4, PAVEB = pal ? pal.paveB : 0xbfb9aa, PAVEEDGE = pal ? pal.paveEdge : 0xa8a294, LINE = pal ? pal.roadLine : 0xd8d2c2;
+    /* THE PAVING, as the city lays it: T2 tiles in the city's two shades
+       with the city's joint line, cached once -- the estate never moves.
+       Level tiles belong to a shelf; a ramp's tiles lie on its slope. */
+    if(!S._tiles){
+      const T = T2, lvl = [[], [], [], []], rmp = S.ramps.map(() => ({ w:[], e:[] }));
+      const inRamp = (x, y) => S.ramps.some(rp => x >= rp.c0 && x <= rp.c1 && y > rp.yN && y < rp.yS);
+      const inBay = (x, y) => S.ramps.some(rp => y <= rp.yF && y > rp.yw && x >= rp.b0 && x <= rp.b1);
+      for(let k = 0; k < 4; k++){
+        const rs = S.roads.filter(rd => rd.k === k);
+        if(!rs.length) continue;
+        const X0 = Math.min(...rs.map(r2 => r2.x0)) - SW, X1 = Math.max(...rs.map(r2 => r2.x1)) + SW;
+        const Y0 = Math.min(...rs.map(r2 => r2.y0)) - SW, Y1 = Math.max(...rs.map(r2 => r2.y1)) + SW;
+        for(let j = Math.floor(Y0 / T); j * T < Y1; j++) for(let i = Math.floor(X0 / T); i * T < X1; i++){
+          const cx = (i + 0.5)*T, cy = (j + 0.5)*T;
+          if(cx < S.xw || cx > S.xe || cy > S.wallY || cy < S.e[4]) continue;
+          if(inRamp(cx, cy) || inBay(cx, cy)) continue;
+          let d = Infinity;
+          for(const rd of rs) d = Math.min(d, Math.max(rd.x0 - cx, 0, cx - rd.x1, rd.y0 - cy, cy - rd.y1));
+          if(d > 0 && d <= SW) lvl[k].push({ x0:i*T, y0:j*T, p:(i + j) & 1 });
+        }
+      }
+      S.ramps.forEach((rp, n) => {
+        for(let j = Math.floor(rp.yN / T); j * T < rp.yS; j++) for(let i = Math.floor((rp.x - STREET) / T); i * T < rp.x + STREET; i++){
+          const cx = (i + 0.5)*T, dx = Math.abs(cx - rp.x);
+          if(dx < RH || dx > STREET) continue;
+          (cx < rp.x ? rmp[n].w : rmp[n].e).push({ x0:i*T, y0:j*T, p:(i + j) & 1 });
+        }
+      });
+      S._tiles = { lvl, rmp };
+    }
+    const tileSpan = (this.scale.gameSize.width + this.scale.gameSize.height) / this.K + 400;
+    const tile = (t0, zf) => {
+      const T = T2, x0 = t0.x0, y0 = t0.y0;
+      if(Math.abs(x0 - this.camX) + Math.abs(y0 - this.camY) > tileSpan) return;
+      const P = [this.W(x0, y0, zf(y0)), this.W(x0 + T, y0, zf(y0)), this.W(x0 + T, y0 + T, zf(y0 + T)), this.W(x0, y0 + T, zf(y0 + T))];
+      if(!onScreen(P)) return;
+      this.quadOn(g, P, t0.p === 0 ? PAVE : PAVEB);
+      this.edgeOn(g, P, PAVEEDGE, 1);
+    };
     const Q = (pts, col) => { const P = pts.map(p => this.W(p[0], p[1], p[2])); if(onScreen(P)) this.quadOn(g, P, col); };
     const shade = (c, k) => hillShade(c, k);
     const LAWN = 0x9fbd6a, LAWN2 = 0x97b563, STONE = 0xc9bd9f, CAP = 0xe2d8c0, ROADC = roadCol, KERB = 0xd8d2c4;
@@ -36864,17 +36907,181 @@ class WorldScene extends Phaser.Scene {
       for(let zz = zLo + 30; zz < zHi - 8; zz += 30) Q([[x0,yw,zz],[x1,yw,zz],[x1,yw,zz+3],[x0,yw,zz+3]], shade(STONE, .86));
       Q([[x0,yw,zHi],[x1,yw,zHi],[x1,yw - 40,zHi],[x0,yw - 40,zHi]], CAP);
     };
+    /* ---- THE STREET FURNITURE OF THE ROAD ITSELF, city-standard (Sir:
+       "it doesnt have the side walk and it doesnt have the curb or the drains
+       or the drain ditch"). Per run of the centreline, each side: the gutter
+       channel (CURB_W of concrete inside the kerb), the painted kerb stone
+       standing on the road's edge (8 high, 22 wide, faces first and top
+       last, a dark seam on its paving edge), broken at every crossing with
+       the city's flares down to the pad, and the dashed centre line. At a
+       corner the outside kerb runs on to meet its partner and the inside
+       one stops at the other street's kerb, and a grate sits in the inside
+       channel. rampK = 0 draws every LEVEL stretch; rampK = k draws only the
+       slope of ramp k, which the ramp pass needs before its east block. ---- */
+    const KH = 8, KW = 22, GW = CURB_W, FL = T2, RAMP_HALF = TILE;
+    const GUTC = 0x9a9488, KTOP = 0xf4f1e8, KFACE = 0xe2ded0, KDK = 0x6e6a5e;
+    const runZ = (rn, sAt) => {                               // height along a run: straight between its points
+      let acc = 0;
+      for(let q = 0; q < rn.pts.length - 1; q++){
+        const p = rn.pts[q], p2 = rn.pts[q+1], L = Math.hypot(p2.x - p.x, p2.y - p.y);
+        if(sAt <= acc + L || q === rn.pts.length - 2) return p.z + (p2.z - p.z) * Math.max(0, Math.min(1, (sAt - acc) / (L || 1)));
+        acc += L;
+      }
+      return rn.a.z;
+    };
+    const runBreaks = rn => { const b = [0]; let acc = 0; for(let q = 0; q < rn.pts.length - 1; q++){ acc += Math.hypot(rn.pts[q+1].x - rn.pts[q].x, rn.pts[q+1].y - rn.pts[q].y); b.push(acc); } return b; };
+    const streetFeatures = (rampK) => {
+      S.runs.forEach((rn, n) => {
+        const dv = DIRV[rn.f], rv = DIRV[(rn.f + 1) % 4], ax = rn.a.x, ay = rn.a.y;
+        const brk = runBreaks(rn);
+        /* the stretch this call owns: the ramp's slope, or everything level */
+        const owned = [];
+        for(let q = 0; q < rn.pts.length - 1; q++){
+          const sloped = rn.pts[q].z !== rn.pts[q+1].z;
+          const rk = sloped ? S.z.indexOf(rn.pts[q+1].z) : 0;
+          if(rampK === 0 ? !sloped : (sloped && rk === rampK)) owned.push([brk[q], brk[q+1]]);
+        }
+        if(!owned.length) return;
+        /* level stretches carry on past the run's own ends -- corners and
+           the outside kerb -- so the ends belong to whichever end is level */
+        const lo = owned[0][0] === 0 ? -1e9 : owned[0][0], hi = owned[owned.length-1][1] === rn.len ? 1e9 : owned[owned.length-1][1];
+        const clip = (s0, s1) => {                           // pieces of [s0,s1] inside what this call owns
+          const out = [];
+          for(const [o0, o1] of owned){
+            const a0 = Math.max(s0, o0 === 0 ? lo : o0), a1 = Math.min(s1, o1 === rn.len ? hi : o1);
+            if(a1 - a0 > 0.5) out.push([a0, a1]);
+          }
+          return out;
+        };
+        const splitAt = (s0, s1) => {                        // at the run's own height breaks, so a kerb bends with the slope
+          const cuts = [s0, ...brk.filter(b => b > s0 + 0.5 && b < s1 - 0.5), s1], out = [];
+          for(let c = 0; c < cuts.length - 1; c++) out.push([cuts[c], cuts[c+1]]);
+          return out;
+        };
+        const P = (sA, o, dz) => this.W(ax + dv.x*sA + rv.x*o, ay + dv.y*sA + rv.y*o, runZ(rn, sA) + dz);
+        const quad = (pts, col) => { if(onScreen(pts)) this.quadOn(g, pts, col); };
+        const circleCut = Math.sqrt(Math.max(0, S.circle.r*S.circle.r - RH*RH));
+        for(const sgn of [-1, 1]){
+          const side = { x:rv.x*sgn, y:rv.y*sgn };
+          const innerAt = dirIdx => dirIdx !== null && DIRV[dirIdx].x === side.x && DIRV[dirIdx].y === side.y;
+          const prevInner = rn.prev !== null && DIRV[rn.prev].x === -side.x && DIRV[rn.prev].y === -side.y;
+          /* WHERE EACH SIDE ENDS, so the channel flows round every corner
+             (Sir, circling the joins: "the drain ditch doesnt flow correctly
+             ... we want it to be smooth like the streets in the game").
+             Outside a bend the stone runs on to meet its partner and the
+             channel stops on the partner's channel. Inside a bend BOTH carry
+             on into the corner by their own width -- the stone by KW, the
+             channel by KW + GW -- so the two streets' stones and channels
+             overlap in a square and read as one kerb and one channel turning
+             the corner, not two that stop short of each other. Into the
+             turning circle, each ends on the ring at its own offset. */
+          const ringS = off => rn.len - Math.sqrt(Math.max(0, (S.circle.r - off)*(S.circle.r - off) - (RH - off)*(RH - off)));
+          /* inside a bend the straight stops where the city's corner arc
+             takes over -- ROAD_HALF + KERB_ARC_R from the corner -- and the
+             arc (below) sweeps stone and channel round to the other street */
+          const TANG = RH + KERB_ARC_R;
+          const k0 = rn.prev === null ? 0 : (prevInner ? TANG : -RH);
+          const FX = Math.sqrt((S.circle.r + KERB_ARC_R)**2 - (RH + KERB_ARC_R)**2);   // where the circle's fillet takes over (see the ring)
+          const k1 = rn.next === null ? rn.len - FX : (innerAt(rn.next) ? rn.len - TANG : rn.len + RH);
+          const g0 = rn.prev === null ? 0 : (prevInner ? TANG : -RH + KW);
+          const g1 = rn.next === null ? rn.len - FX : (innerAt(rn.next) ? rn.len - TANG : rn.len + RH - KW);
+          const oIn = sgn*(RH - KW), oOut = sgn*RH, oG = sgn*(RH - KW - GW);
+          /* the channel */
+          for(const [a0, a1] of clip(g0, g1)) for(const [b0, b1] of splitAt(a0, a1))
+            quad([P(b0, oG, 0.6), P(b1, oG, 0.6), P(b1, oIn, 0.6), P(b0, oIn, 0.6)], GUTC);
+          /* the stone, broken at each crossing on this side */
+          const pads = S.pads.filter(p => p.run === n && p.side === sgn)
+                             .map(p => (p.x - ax)*dv.x + (p.y - ay)*dv.y).sort((a, b) => a - b);
+          const stone = (s0, s1, h0, h1) => {
+            for(const [a0, a1] of clip(s0, s1)) for(const [b0, b1] of splitAt(a0, a1)){
+              const t = u => h0 + (h1 - h0) * ((u - s0) / ((s1 - s0) || 1));
+              const ha = t(b0), hb = t(b1);
+              quad([P(b0,oOut,ha), P(b1,oOut,hb), P(b1,oOut,0), P(b0,oOut,0)], KFACE);
+              quad([P(b0,oIn,ha), P(b1,oIn,hb), P(b1,oIn,0), P(b0,oIn,0)], KFACE);
+              quad([P(b0,oIn,Math.min(ha,3)), P(b1,oIn,Math.min(hb,3)), P(b1,oIn,0), P(b0,oIn,0)], KDK);
+              quad([P(b0,oIn,ha), P(b1,oIn,hb), P(b1,oOut,hb), P(b0,oOut,ha)], KTOP);
+              const oSeam = oIn - (oIn - oOut) * 0.14;
+              quad([P(b0,oIn,ha), P(b1,oIn,hb), P(b1,oSeam,hb), P(b0,oSeam,ha)], KDK);
+            }
+          };
+          let cur = k0;
+          for(const c of pads){
+            const c0 = c - RAMP_HALF, c1 = c + RAMP_HALF;
+            if(c1 < cur || c0 > k1) continue;
+            const fs0 = Math.max(cur, c0 - FL);
+            if(fs0 - cur > 1) stone(cur, fs0, KH, KH);
+            stone(fs0, c0, KH, WORLD_RAMP.streetZ);          // the flare down to the pad
+            for(const [a0, a1] of clip(c0, c1)) quad([P(a0, oIn, 0.6), P(a1, oIn, 0.6), P(a1, oOut, 0.6), P(a0, oOut, 0.6)], GUTC);
+            const fs1 = Math.min(k1, c1 + FL);
+            stone(c1, fs1, WORLD_RAMP.streetZ, KH);          // and back up
+            cur = fs1;
+          }
+          if(k1 - cur > 1) stone(cur, k1, KH, KH);
+          /* a grate in the inside channel at each corner, where the water collects */
+          const grate = sA => {
+            if(!clip(sA - 40, sA + 40).length) return;
+            const o0 = sgn*(RH - KW - GW + 9), o1 = sgn*(RH - KW - 9);
+            quad([P(sA - 34, o0, 0.8), P(sA + 34, o0, 0.8), P(sA + 34, o1, 0.8), P(sA - 34, o1, 0.8)], 0x55524a);
+            for(let a = -28; a < 28; a += 9) quad([P(sA + a, o0, 1), P(sA + a + 4, o0, 1), P(sA + a + 4, o1, 1), P(sA + a, o1, 1)], 0x2e2c28);
+          };
+          /* THE CORNER ARC, exactly the city's: a quarter of channel and
+             stone swept about a centre KERB_ARC_R inside both kerb lines, so it
+             is tangent to both straights -- and the grate at its low point */
+          if(rn.next !== null && innerAt(rn.next) && clip(rn.len - 1, rn.len + 1).length){
+            const KR = KERB_ARC_R, C = RH + KR, zc = runZ(rn, rn.len);
+            const cx = rn.b.x - dv.x*C + side.x*C, cy = rn.b.y - dv.y*C + side.y*C;
+            const NA = 8, at = (rad, t) => { const ux = -side.x*(1 - t) + dv.x*t, uy = -side.y*(1 - t) + dv.y*t, m = Math.hypot(ux, uy) || 1;
+                                             return this.W(cx + rad*ux/m, cy + rad*uy/m, zc + (at.h || 0)); };
+            const ringQ = (r0, r1, h0, h1, col) => { for(let i = 0; i < NA; i++){ const t0 = i/NA, t1 = (i+1)/NA;
+              at.h = h0; const A0 = at(r0, t0), A1 = at(r0, t1); at.h = h1; const B1 = at(r1, t1), B0 = at(r1, t0); at.h = 0;
+              quad([A0, A1, B1, B0], col); } };
+            ringQ(KR + KW, KR + KW + GW, 0.6, 0.6, GUTC);                         // the channel
+            ringQ(KR, KR, 0, KH, KFACE); ringQ(KR + KW, KR + KW, 0, KH, KFACE);    // both faces
+            ringQ(KR + KW, KR + KW, 0, 3, KDK);                                    // its shadow in the channel
+            ringQ(KR, KR + KW, KH, KH, KTOP);                                      // the top, last
+            ringQ(KR, KR + KW*0.14, KH, KH, KDK);                                  // the night seam
+            /* the grate in the channel at the arc's low point */
+            const gm = { x: -side.x + dv.x, y: -side.y + dv.y }, gl = Math.hypot(gm.x, gm.y);
+            const gx = cx + gm.x/gl*(KR + KW + GW/2), gy = cy + gm.y/gl*(KR + KW + GW/2);
+            const tx = (dv.x + side.x)/gl, ty = (dv.y + side.y)/gl, nx = gm.x/gl, ny = gm.y/gl;
+            const G = (a, b, h) => this.W(gx + tx*a + nx*b, gy + ty*a + ny*b, zc + h);
+            quad([G(-30,-14,0.8), G(30,-14,0.8), G(30,14,0.8), G(-30,14,0.8)], 0x55524a);
+            for(let a = -24; a < 24; a += 9) quad([G(a,-14,1), G(a + 4,-14,1), G(a + 4,14,1), G(a,14,1)], 0x2e2c28);
+          }
+          /* and at the foot of every ramp, both sides, where the slope's water arrives */
+          for(let q = 1; q < rn.pts.length - 1; q++)
+            if(rn.pts[q].z === rn.pts[q-1].z && rn.pts[q+1].z !== rn.pts[q].z) grate(brk[q] - 60);
+        }
+        /* the centre line: dashed, a whole number of periods between the corners */
+        { const d0 = rn.prev === null ? 0 : RH, d1 = rn.next === null ? rn.len - S.circle.r : rn.len - RH;
+          const len = d1 - d0;
+          if(len > 0){
+            const cnt = Math.max(1, Math.round(len / (T2 * 2.5))), per = len / cnt, dash = per * 0.5, ph = per * 0.25;
+            for(let i = 0; i < cnt; i++){
+              const s0 = d0 + ph + i*per;
+              for(const [a0, a1] of clip(s0, s0 + dash)) for(const [b0, b1] of splitAt(a0, a1))
+                quad([P(b0, -4, 3), P(b1, -4, 3), P(b1, 4, 3), P(b0, 4, 3)], LINE);
+            }
+          } }
+      });
+    };
     for(let k = 3; k >= 0; k--){
       const y0 = S.e[k+1], y1 = S.e[k], z = S.z[k];
       rect(S.xw, S.xe, y0, y1, z, LAWN);
       for(let x = S.xw; x < S.xe; x += 520) rect(x, Math.min(x + 260, S.xe), y0, y1, z + 0.3, LAWN2);   // mown stripes
-      /* the drive on this shelf, kerbed */
-      for(const rd of S.roads) if(rd.k === k){
-        rect(rd.x0 - 24, rd.x1 + 24, Math.max(rd.y0 - 24, y0), Math.min(rd.y1 + 24, k === 0 ? rd.y1 + 24 : y1), z + 0.6, KERB);
+      /* this shelf's sidewalks, then its asphalt over their inner edge */
+      for(const t0 of S._tiles.lvl[k]) tile(t0, () => z + 0.2);
+      if(S.circle.k === k){                                  // the turning circle's ring of paving
+        const c = S.circle, N = 36;
+        for(let a = 0; a < N; a++){
+          const t0 = a/N*Math.PI*2, t1 = (a+1)/N*Math.PI*2;
+          const P = [[c.r, t0], [c.r + SW, t0], [c.r + SW, t1], [c.r, t1]].map(([rr, tt]) => this.W(c.x + Math.cos(tt)*rr, c.y + Math.sin(tt)*rr, z + 0.2));
+          if(onScreen(P)){ this.quadOn(g, P, a & 1 ? PAVEB : PAVE); this.edgeOn(g, P, PAVEEDGE, 1); }
+        }
       }
-      for(const rd of S.roads) if(rd.k === k) rect(rd.x0, rd.x1, Math.max(rd.y0, y0), Math.min(rd.y1, k === 0 ? rd.y1 : y1), z + 1, ROADC);
+      for(const rd of S.roads) if(rd.k === k) rect(rd.x0, rd.x1, rd.y0, rd.y1 >= S.wallY - 1 ? rd.y1 + 12 : rd.y1, z + 1, ROADC);   // under the city's street end at the gate, so no seam
       if(S.circle.k === k){
-        const pts = []; for(let a = 0; a < 20; a++){ const t = a/20*Math.PI*2; pts.push([S.circle.x + Math.cos(t)*S.circle.r, S.circle.y + Math.sin(t)*S.circle.r, z + 1]); }
+        const pts = []; for(let a = 0; a < 28; a++){ const t = a/28*Math.PI*2; pts.push([S.circle.x + Math.cos(t)*S.circle.r, S.circle.y + Math.sin(t)*S.circle.r, z + 1]); }
         const P = pts.map(p => this.W(p[0], p[1], p[2])); if(onScreen(P)) this.quadOn(g, P, ROADC);
         const ipts = []; for(let a = 0; a < 16; a++){ const t = a/16*Math.PI*2; ipts.push([S.circle.x + Math.cos(t)*160, S.circle.y + Math.sin(t)*160, z + 1.5]); }
         const IP = ipts.map(p => this.W(p[0], p[1], p[2])); if(onScreen(IP)) this.quadOn(g, IP, LAWN);
@@ -36912,7 +37119,7 @@ class WorldScene extends Phaser.Scene {
        here too, so each ramp lies on both the shelves it joins. */
     for(let k = 3; k >= 1; k--){
       const rp = S.ramps[k-1], z = S.z[k], zLo = S.z[k-1], yw = S.e[k];
-      const cut0 = rp.x - RH - 40, cut1 = rp.x + RH + 40, zMid = (rp.zS + rp.zN)/2;
+      const cut0 = rp.c0, cut1 = rp.c1;
       /* the ramp's shoulders stop 12 short of the wall's ends, so its kerb
          and the cut ends are never coplanar */
       const sh0 = cut0 + 12, sh1 = cut1 - 12;
@@ -36930,26 +37137,15 @@ class WorldScene extends Phaser.Scene {
       };
       block(rp.b0, cut0);
       Q([[sh0, rp.yF, z],[sh0, rp.yN, z],[sh0, rp.yN, rp.zN],[sh0, rp.yF, zAt(rp.yF)]], shade(STONE, .8));   // cut, west face
-      Q([[sh0, rp.yS, rp.zS + 1],[sh1, rp.yS, rp.zS + 1],[sh1, rp.yN, rp.zN + 1],[sh0, rp.yN, rp.zN + 1]], KERB);
-      Q([[rp.x - RH, rp.yS, rp.zS + 2],[rp.x + RH, rp.yS, rp.zS + 2],[rp.x + RH, rp.yN, rp.zN + 2],[rp.x - RH, rp.yN, rp.zN + 2]], ROADC);
-      /* kerb down both shoulders, sloping with the road -- HERE, not in the
-         later kerb pass (Sir: "the ramps curb is drawing over"): drawn last,
-         the east kerb painted across the east block standing in front of it */
-      {
-        const KH = 8, KW = 22, KFACE = 0xe2ded0, KTOP = 0xf4f1e8;
-        for(const sgn of [-1, 1]){
-          const L0 = rp.x + sgn*(RH + 12), L1 = L0 - sgn*KW;
-          /* the east kerb only runs to the blocks' front: past it the kerb
-             is down in the cut against the east block, and near the head
-             its top rose the last few units above the lawn and showed as a
-             sliver (Sir, on-device, second pass). The west one is in plain
-             view the whole way, so it runs the full length. */
-          const yE = sgn > 0 ? rp.yF : rp.yN, zE = sgn > 0 ? zAt(rp.yF) : rp.zN;
-          Q([[L0,rp.yS,rp.zS],[L0,yE,zE],[L0,yE,zE + KH],[L0,rp.yS,rp.zS + KH]], KFACE);
-          Q([[L1,rp.yS,rp.zS],[L1,yE,zE],[L1,yE,zE + KH],[L1,rp.yS,rp.zS + KH]], KFACE);
-          Q([[L0,rp.yS,rp.zS + KH],[L0,yE,zE + KH],[L1,yE,zE + KH],[L1,rp.yS,rp.zS + KH]], KTOP);
-        }
-      }
+      /* the street up the slope, in the city's order: paving behind the
+         road, the road, paving in front, then the ramp's stretch of gutter,
+         kerb and centre line -- all before the east block, which stands
+         nearer than every part of it */
+      const zf = y => zAt(Math.max(rp.yN, Math.min(rp.yS, y))) + 0.2;
+      for(const t0 of S._tiles.rmp[k-1].w) tile(t0, zf);
+      Q([[rp.x - RH, rp.yS, rp.zS + 1],[rp.x + RH, rp.yS, rp.zS + 1],[rp.x + RH, rp.yN, rp.zN + 1],[rp.x - RH, rp.yN, rp.zN + 1]], ROADC);
+      for(const t0 of S._tiles.rmp[k-1].e) tile(t0, zf);
+      streetFeatures(k);
       /* the east block, nearer than the ramp, last; its open end faces the
          camera wherever it stops short of the estate wall */
       /* ...and on up to the ramp's head: past the old wall line the ramp is
@@ -36959,7 +37155,7 @@ class WorldScene extends Phaser.Scene {
       /* the east block's lawn comes right to the road's edge, so the ramp's
          east shoulder is under it rather than showing as a tapering sliver
          where the cut runs out at the head */
-      block(rp.x + RH, rp.b1, rp.yN);
+      block(rp.x + STREET, rp.b1, rp.yN);
       if(rp.b1 >= S.xe - 1){                                   // out to the estate's east flank: the flank rises with it
         Q([[S.xe, rp.yF, 0],[S.xe, yw, 0],[S.xe, yw, z],[S.xe, rp.yF, z]], shade(STONE, .78));
         for(let zz = 30; zz < z - 8; zz += 30) Q([[S.xe + 0.5, rp.yF, zz],[S.xe + 0.5, yw, zz],[S.xe + 0.5, yw, zz + 3],[S.xe + 0.5, rp.yF, zz + 3]], shade(STONE, .7));
@@ -36968,96 +37164,57 @@ class WorldScene extends Phaser.Scene {
         for(let zz = zLo + 30; zz < z - 8; zz += 30) Q([[rp.b1 + 0.5, rp.yF, zz],[rp.b1 + 0.5, yw, zz],[rp.b1 + 0.5, yw, zz + 3],[rp.b1 + 0.5, rp.yF, zz + 3]], shade(STONE, .64));
       }
     }
-    /* ---- KERBS, GUTTERS AND GULLIES (Sir: "does sierra vistas road have
-       curbs and drains?" -- it had a flat painted margin and nothing else).
-       The city's stone, gutter and colours exactly: an 8-high, 22-wide
-       kerb whose outer face is the paving edge, a 46 gutter channel beside
-       it in the asphalt, a dark seam on the paving edge so it reads at
-       night, and a grate where the water goes -- at the foot of each ramp
-       and on the low side of the turning circle.
-
-       The drives cross each other at every ramp column, so each side of
-       each drive is cut where another drive of the same terrace runs over
-       it, and where the turning circle swallows it. Drawn after the ramps,
-       so nothing lays over them. ---- */
+    /* ---- THE LEVEL STREETS' KERBS, GUTTERS, GRATES AND CENTRE LINES, after
+       every shelf and ramp, far to near as the shelves are. The crossings
+       go down first, as the city's do, so the kerb covers what its height
+       really covers. The ramps' own stretches were drawn in the ramp pass. ---- */
+    for(const p of S.pads){
+      if(Math.abs(p.x - this.camX) + Math.abs(p.y - this.camY) > tileSpan) continue;
+      this.drawProp(g, "sidewalkend", p.x, p.y, 0, p.f, p.z, null, null, WORLD_RAMP);
+    }
+    streetFeatures(0);
+    /* the turning circle keeps its own ring of kerb, channel and a grate on its low side */
     {
-      const KH = 8, KW = 22, GW = 46;
-      const GUTC = 0x9a9488, KTOP = 0xf4f1e8, KFACE = 0xe2ded0, KDK = 0x6e6a5e;
-      /* a run of kerb along a line: horiz true runs in x at y = line, and
-         dir is +1 when the ROAD is on the larger-coordinate side */
-      const kerb = (horiz, line, u0, u1, z, dir) => {
-        if(u1 - u0 < 4) return;
-        const P3 = (u, v, zz) => horiz ? [u, v, zz] : [v, u, zz];
-        const L0 = line, L1 = line + dir*KW, L2 = line + dir*(KW + GW);
-        Q([P3(u0,L1,z + 0.6), P3(u1,L1,z + 0.6), P3(u1,L2,z + 0.6), P3(u0,L2,z + 0.6)], GUTC);          // the channel
-        Q([P3(u0,L0,z), P3(u1,L0,z), P3(u1,L0,z + KH), P3(u0,L0,z + KH)], KFACE);                        // paving-side face
-        Q([P3(u0,L1,z), P3(u1,L1,z), P3(u1,L1,z + KH), P3(u0,L1,z + KH)], KFACE);                        // road face
-        Q([P3(u0,L1,z), P3(u1,L1,z), P3(u1,L1,z + 3), P3(u0,L1,z + 3)], KDK);                            // its shadow in the channel
-        Q([P3(u0,L0,z + KH), P3(u1,L0,z + KH), P3(u1,L1,z + KH), P3(u0,L1,z + KH)], KTOP);               // the top, last
-        const seam = L0 + dir*KW*0.14;
-        Q([P3(u0,L0,z + KH), P3(u1,L0,z + KH), P3(u1,seam,z + KH), P3(u0,seam,z + KH)], KDK);            // the night seam
-      };
-      /* a gully: a grate laid in the channel */
-      const gully = (horiz, line, u, z, dir) => {
-        const P3 = (a, b2, zz) => horiz ? [a, b2, zz] : [b2, a, zz];
-        const g0 = line + dir*(KW + 9), g1 = line + dir*(KW + GW - 9);
-        Q([P3(u - 34,g0,z + 0.8), P3(u + 34,g0,z + 0.8), P3(u + 34,g1,z + 0.8), P3(u - 34,g1,z + 0.8)], 0x55524a);
-        for(let a = u - 28; a < u + 28; a += 9)
-          Q([P3(a,g0,z + 1), P3(a + 4,g0,z + 1), P3(a + 4,g1,z + 1), P3(a,g1,z + 1)], 0x2e2c28);
-      };
-      /* what cuts a side: any other drive of the same terrace that runs
-         across it, and the turning circle */
-      const cutsFor = (rd, horiz, line, u0, u1) => {
-        const cuts = [];
-        for(const q of S.roads){
-          if(q === rd || q.k !== rd.k) continue;
-          if(horiz){ if(q.y0 - 30 <= line && q.y1 + 30 >= line) cuts.push([q.x0 - 26, q.x1 + 26]); }
-          else     { if(q.x0 - 30 <= line && q.x1 + 30 >= line) cuts.push([q.y0 - 26, q.y1 + 26]); }
-        }
-        if(S.circle.k === rd.k){
-          const c = S.circle, d = Math.abs((horiz ? c.y : c.x) - line);
-          if(d < c.r + KW + GW){ const half = Math.sqrt(Math.max(0, (c.r + 40)*(c.r + 40) - d*d)), m = horiz ? c.x : c.y;
-            cuts.push([m - half, m + half]); }
-        }
-        cuts.sort((a, b) => a[0] - b[0]);
-        const runs = []; let cur = u0;
-        for(const [c0, c1] of cuts){ if(c0 > cur) runs.push([cur, Math.min(c0, u1)]); cur = Math.max(cur, c1); }
-        if(cur < u1) runs.push([cur, u1]);
-        return runs.filter(r2 => r2[1] - r2[0] > 4);
-      };
-      for(let k = 3; k >= 0; k--){
-        const z = S.z[k];
-        for(const rd of S.roads){
-          if(rd.k !== k) continue;
-          const horiz = (rd.x1 - rd.x0) >= (rd.y1 - rd.y0);
-          const lines = horiz ? [[rd.y0, 1], [rd.y1, -1]] : [[rd.x0, 1], [rd.x1, -1]];
-          const u0 = horiz ? rd.x0 : rd.y0, u1 = horiz ? rd.x1 : rd.y1;
-          for(const [line, dir] of lines)
-            for(const [a0, a1] of cutsFor(rd, horiz, line, u0, u1)) kerb(horiz, line, a0, a1, z, dir);
-        }
-        /* the turning circle keeps its own ring of kerb */
-        if(S.circle.k === k){
-          const c = S.circle, N = 28;
-          for(let i = 0; i < N; i++){
-            const t0 = i/N*Math.PI*2, t1 = (i+1)/N*Math.PI*2;
-            const p = (rad, t) => [c.x + Math.cos(t)*rad, c.y + Math.sin(t)*rad, 0];
-            const o0 = p(c.r, t0), o1 = p(c.r, t1), i0 = p(c.r - KW, t0), i1 = p(c.r - KW, t1);
-            const gg0 = p(c.r - KW - GW, t0), gg1 = p(c.r - KW - GW, t1);
-            Q([[i0[0],i0[1],z + 0.6],[i1[0],i1[1],z + 0.6],[gg1[0],gg1[1],z + 0.6],[gg0[0],gg0[1],z + 0.6]], GUTC);
-            Q([[o0[0],o0[1],z],[o1[0],o1[1],z],[o1[0],o1[1],z + KH],[o0[0],o0[1],z + KH]], KFACE);
-            Q([[i0[0],i0[1],z],[i1[0],i1[1],z],[i1[0],i1[1],z + KH],[i0[0],i0[1],z + KH]], KFACE);
-            Q([[o0[0],o0[1],z + KH],[o1[0],o1[1],z + KH],[i1[0],i1[1],z + KH],[i0[0],i0[1],z + KH]], KTOP);
-          }
-          gully(true, c.y + c.r - KW - GW - 2, c.x + 120, z, -1);                 // on its low side
-        }
-        /* a gully in the drive's channel at the foot of each ramp */
-        if(k < 3){
-          const rp = S.ramps[k], rd = S.roads.find(q => q.k === k && (q.x1 - q.x0) >= (q.y1 - q.y0));
-          if(rd) gully(true, rd.y0, rp.x - RH - 140, z, 1);
-        }
+      /* open exactly where the drive comes in: from the angle where its
+         kerb line meets the ring, round to the other one, so the drive's
+         kerbs (which end on the ring) and the ring's meet with no gap */
+      const c = S.circle, z = S.z[c.k], N = 40;
+      const p = (rad, t) => [c.x + Math.cos(t)*rad, c.y + Math.sin(t)*rad];
+      /* WHERE THE DRIVE MEETS THE RING, a fillet like the city's corners
+         (Sir: "just a minor fix needed at the circle" -- the two kerbs met
+         at a cusp). A KERB_ARC_R arc tangent to the drive's kerb line and to
+         the ring: its centre is KERB_ARC_R out from both, so the straight
+         ends at FX and the ring begins at the centre's own angle. */
+      const KR = KERB_ARC_R, FX = Math.sqrt((c.r + KR)**2 - (RH + KR)**2), phiF = Math.atan2(RH + KR, FX);
+      for(const sg of [1, -1]){
+        const Fx = c.x + FX, Fy = c.y + sg*(RH + KR), Fl = Math.hypot(FX, RH + KR);
+        const a0 = Math.atan2(-sg, 0), a1 = Math.atan2(-(RH + KR)*sg / Fl, -FX / Fl);
+        let da = a1 - a0; while(da > Math.PI) da -= 2*Math.PI; while(da < -Math.PI) da += 2*Math.PI;
+        const NA = 8, pt = (rad, t, h) => [Fx + Math.cos(a0 + da*t)*rad, Fy + Math.sin(a0 + da*t)*rad, z + h];
+        const band = (r0, r1, h0, h1, col) => { for(let i = 0; i < NA; i++){ const t0 = i/NA, t1 = (i+1)/NA;
+          Q([pt(r0,t0,h0), pt(r0,t1,h0), pt(r1,t1,h1), pt(r1,t0,h1)], col); } };
+        band(KR + KW, KR + KW + GW, 0.6, 0.6, GUTC);
+        band(KR, KR, 0, KH, KFACE); band(KR + KW, KR + KW, 0, KH, KFACE);
+        band(KR, KR + KW, KH, KH, KTOP);
       }
-      /* the ramps' own kerbs are drawn in the ramp pass, above -- the east
-         one has to go down BEFORE the east block that stands nearer */
+      /* the channel first, opening where the fillet's channel meets it */
+      { const phiG = phiF;
+        for(let i = 0; i < N; i++){
+          const t0 = phiG + (2*Math.PI - 2*phiG) * i/N, t1 = phiG + (2*Math.PI - 2*phiG) * (i+1)/N;
+          const i0 = p(c.r - KW, t0), i1 = p(c.r - KW, t1), gg0 = p(c.r - KW - GW, t0), gg1 = p(c.r - KW - GW, t1);
+          Q([[i0[0],i0[1],z + 0.6],[i1[0],i1[1],z + 0.6],[gg1[0],gg1[1],z + 0.6],[gg0[0],gg0[1],z + 0.6]], GUTC);
+        } }
+      const phi = phiF;
+      for(let i = 0; i < N; i++){
+        const t0 = phi + (2*Math.PI - 2*phi) * i/N, t1 = phi + (2*Math.PI - 2*phi) * (i+1)/N;
+        const o0 = p(c.r, t0), o1 = p(c.r, t1), i0 = p(c.r - KW, t0), i1 = p(c.r - KW, t1);
+        Q([[o0[0],o0[1],z],[o1[0],o1[1],z],[o1[0],o1[1],z + KH],[o0[0],o0[1],z + KH]], KFACE);
+        Q([[i0[0],i0[1],z],[i1[0],i1[1],z],[i1[0],i1[1],z + KH],[i0[0],i0[1],z + KH]], KFACE);
+        Q([[o0[0],o0[1],z + KH],[o1[0],o1[1],z + KH],[i1[0],i1[1],z + KH],[i0[0],i0[1],z + KH]], KTOP);
+      }
+      const gy = c.y + c.r - KW - GW/2, gx = c.x - 120;
+      Q([[gx - 34, gy - 14, z + 0.8],[gx + 34, gy - 14, z + 0.8],[gx + 34, gy + 14, z + 0.8],[gx - 34, gy + 14, z + 0.8]], 0x55524a);
+      for(let a = -28; a < 28; a += 9) Q([[gx + a, gy - 14, z + 1],[gx + a + 4, gy - 14, z + 1],[gx + a + 4, gy + 14, z + 1],[gx + a, gy + 14, z + 1]], 0x2e2c28);
     }
     /* BODIES: the houses, the perimeter wall (in runs) and the gatehouse */
     const bodies = this._sierraBodies = [];
@@ -37131,7 +37288,7 @@ class WorldScene extends Phaser.Scene {
       Qg([[bx + 110, yw - 40, 150],[bx + 110, yw + 170, 150],[bx + 40, yw + 65, 205]], 0xa84e34);
     }});
     /* the boom: pivot on the east pier, swings up to vertical */
-    const pvx = gx + S.gate.open + 30, L = S.gate.open * 2 + 40, ang = arm * Math.PI * 0.45;
+    const pvx = gx + S.RH + 30, L = S.RH * 2 + 40, ang = arm * Math.PI * 0.45;   // the boom spans the road; the sidewalks walk past it
     bodies.push({ depth: gx + yw + 2, fn: (gg) => {
       const tipX = pvx - Math.cos(ang) * L, tipZ = 110 + Math.sin(ang) * L;
       const Qg = (pts, col) => { const P = pts.map(p => this.W(p[0], p[1], p[2])); if(onScreen(P)) this.quadOn(gg, P, col); };
@@ -37422,7 +37579,7 @@ class WorldScene extends Phaser.Scene {
           }
         };
         /* Sierra Vista is real ground now: see drawSierraVista */
-        this.drawSierraVista(g, onScreen, r.pal.road);
+        this.drawSierraVista(g, onScreen, r.pal.road, r.pal);
         /* Mirador Heights: stub east on the j=10 row, drive down the slope */
         const mhEx = X1 + BLOCK*0.08, mhEy = 10*BLOCK;
         const mhFx = (X1 + X1 + FOOTW + BLOCK*0.75)/2, mhFy = Y0 + (Y1 - Y0)*0.92;
@@ -37565,8 +37722,12 @@ class WorldScene extends Phaser.Scene {
     for(const edge of r.grid.edges){
       const dv = DIRV[edge.f], rv = DIRV[(edge.f+1)%4];
       if(!nearSeg(edge.a, edge.b, cullSpan)) continue;
-      const ax = edge.a.x - dv.x*OVERSHOOT, ay = edge.a.y - dv.y*OVERSHOOT;
-      const bx = edge.b.x + dv.x*OVERSHOOT, by = edge.b.y + dv.y*OVERSHOOT;
+      /* NOT PAST THE ESTATE'S GATE (Sir, circling the gate line): the
+         overshoot paved ROAD_HALF of city asphalt inside the wall, over the
+         estate's own kerb and gutter, which start at the wall line */
+      const oA = edge.a.svGate ? 0 : OVERSHOOT, oB = edge.b.svGate ? 0 : OVERSHOOT;
+      const ax = edge.a.x - dv.x*oA, ay = edge.a.y - dv.y*oA;
+      const bx = edge.b.x + dv.x*oB, by = edge.b.y + dv.y*oB;
       this.quadOn(g, [
         this.W(ax - rv.x*ROAD_HALF, ay - rv.y*ROAD_HALF, 0),
         this.W(bx - rv.x*ROAD_HALF, by - rv.y*ROAD_HALF, 0),
@@ -37582,6 +37743,7 @@ class WorldScene extends Phaser.Scene {
     /* broad phase: Manhattan hash on flatSpan. narrow phase: screen AABB. */
     for(const rn of manhattanQuery(paveHash(r.grid, "sidewalkRuns", "swRunHash"),
                                    this.camX, this.camY, flatSpan, this._qRuns)){
+      if(sierraInside(rn.x, rn.y)) continue;             // inside the wall the estate lays its own paving
       const half = T2/2;
       const pts = [
         this.W(rn.x-half, rn.y-half, 0), this.W(rn.x+half, rn.y-half, 0),
@@ -37593,6 +37755,7 @@ class WorldScene extends Phaser.Scene {
     }
     for(const cell of manhattanQuery(paveHash(r.grid, "sidewalkCornerCells", "swCornerHash"),
                                      this.camX, this.camY, flatSpan, this._qCorner)){
+      if(sierraInside(cell.x, cell.y)) continue;
       const half = CELL/2;
       const pts = [
         this.W(cell.x-half, cell.y-half, 0), this.W(cell.x+half, cell.y-half, 0),
@@ -37954,7 +38117,7 @@ class WorldScene extends Phaser.Scene {
             this.quadOn(g, [p(a,o0,1), p(a + 4,o0,1), p(a + 4,o1,1), p(a,o1,1)], 0x2e2c28);
         };
         if(!sideOpen(edge.b, sgn)) gully(len + TANG);
-        if(!sideOpen(edge.a, sgn) && !edge.a.conn[(edge.f + 2) % 4]) gully(-TANG);
+        if(!sideOpen(edge.a, sgn) && !edge.a.conn[(edge.f + 2) % 4] && !edge.a.svGate) gully(-TANG);   // the estate's street carries on through the gate
       }
     }
     /* ---- THE CORNERS (Sir: "lets make it curve around the block with an
@@ -54476,7 +54639,8 @@ const WG_COAST = { EXT:0.55, SANDW:1.4, FOOTW:1.1, BOARD:0.15, MTN_BASIN:2.2,
    thing is a handful of quads that onScreen() rejects. */
 const WG_HILLS = {
   TOE_GAP: 0.12,         // blocks past Y0 before the first riser, plain frontage
-  SV_TOE: 3.75 + 0.25,   // blocks past Y0 over Sierra Vista: its wall (now on the lattice, a block north of the top street), court and three terraces (3.75) + margin
+  SV_TOE: 4.81 + 0.25,   // re-laid with city sidewalks (2026-09-22): 148 T2 from the wall
+    // blocks past Y0 over Sierra Vista: its wall (now on the lattice, a block north of the top street), court and three terraces (3.75) + margin
   SV_X: 3.45,            // blocks east of X0 the notch holds full depth (the estate's east wall is at 3.3)
   SV_EASE: 0.9,          // blocks over which it eases back to TOE_GAP
   /* [depth in blocks, rise, shelf colour] -- riser shades derive from it */
@@ -54559,43 +54723,98 @@ function sierraGeo(){
      head of the drive is a bigger house on a bigger lot (Sir, standing in
      the turning circle: "lets put a grand estate on this property and use
      the coldesac as the driveway") */
-  const e = [wallY]; e.push(wallY - 0.55*B); e.push(e[1] - 0.8*B); e.push(e[2] - 0.8*B); e.push(e[3] - 1.15*B);
+  /* CITY STREETS, UP THE HILL (2026-09-22, Sir: "i want it to match the
+     city and i want it to feel exactly like our road ways"). The drive used
+     to be bare asphalt with a thin kerb and lawn to its edge. It is now laid
+     out as the city lays a street: ROAD_HALF of asphalt each side of the
+     centreline, the kerb and gutter inside that, then SIDEWALK_W of paving,
+     on every drive, every leg and up every ramp. That is 736 each side of a
+     centreline instead of 368, so the estate is re-laid to fit it: the
+     court and each terrace are deeper, the houses sit back behind their
+     sidewalk, and the ramps' cuts carry the sidewalks up.
+
+     Everything is on the T2 lattice (the centrelines, the ramp ends, the
+     terrace lines), so the paving is whole city tiles and its edges are
+     the road's and sidewalk's own lines, as they are in town.
+
+     THE STREET IS ONE CENTRELINE, P[0] at the gate to the turning circle:
+     level runs on each shelf joined at right-angle corners, and a ramp
+     straight up the middle of each climbing run. S.path is it, with each
+     point's height; S.roads (the asphalt rectangles) and every kerb,
+     sidewalk, crossing and grate are derived from it. */
+  const T = T2, SW = SIDEWALK_W;
+  const snap = v => Math.round(v / T) * T;
+  const RL = 6*T;                                    // half a ramp's run either side of its wall
+  const LEG = 2*T;                                   // level street between a ramp's end and the corner's sidewalk
+  const STREET = RH + SW;                            // 736: centreline to the back of the sidewalk
+  const xE = snap(X0 + 3.0*B), xW = snap(X0 + 0.55*B);   // the ramps' two columns, alternating
+  const road = [], e = [wallY];
+  road[0] = wallY - STREET - LEG;                    // the court's drive: a leg up from the gate, then east
+  e[1] = road[0] - STREET - LEG - RL;                // its ramp's foot is clear of the drive's far sidewalk
+  const HD = 552 * SIERRA_HOUSE_SC, HW = 809.6 * SIERRA_HOUSE_SC;
+  for(let k = 1; k <= 3; k++){
+    road[k] = e[k] - RL - LEG - STREET;              // the ramp's head is clear of the drive's near sidewalk
+    /* behind the drive: its far sidewalk, 120 of front lawn, the house,
+       a back garden, then the next terrace's wall */
+    if(k < 3) e[k+1] = road[k] - 22*T;
+  }
+  /* the top terrace: the turning circle, its own ring of sidewalk, the
+     estate on its forecourt and a garden behind */
+  const circle = { x:snap(xW + 300), y:road[3], r:RH + 260, k:3 };
+  const ED = 552 * SIERRA_ESTATE_SC, EW = 809.6 * SIERRA_ESTATE_SC;
+  e[4] = road[3] - 30*T;
   const z = [0, 180, 360, 540];
-  const xE = X0 + 3.0*B, xW = X0 + 0.55*B;           // the ramps' two columns, alternating
-  const RL0 = 500;                                   // half a ramp's run (RL, below)
-  /* each shelf's drive centreline (y): on a terrace, clear of the ramp that
-     arrives at its front edge -- a drive that started ON the ramp turned
-     straight into the ramp's own side wall (headless, stuck at the top of R1) */
-  const road = [(wallY + e[1])/2, e[1] - RL0 - RH - 40, e[2] - RL0 - RH - 40, e[3] - RL0 - RH - 40];
-  const RL = RL0;                                    // half a ramp's run either side of its wall
   const ramps = [
     { x:xE, yS:e[1] + RL, yN:e[1] - RL, zS:z[0], zN:z[1], k:1 },
     { x:xW, yS:e[2] + RL, yN:e[2] - RL, zS:z[1], zN:z[2], k:2 },
     { x:xE, yS:e[3] + RL, yN:e[3] - RL, zS:z[2], zN:z[3], k:3 },
   ];
-  /* level road pieces: [x0, x1, y0, y1, shelf] -- the drives and the short
-     legs joining each drive to its ramps */
-  const R = (xa, xb, ya, yb, k) => ({ x0:Math.min(xa,xb), x1:Math.max(xa,xb), y0:Math.min(ya,yb), y1:Math.max(ya,yb), k });
-  const roads = [
-    R(gx - RH, gx + RH, road[0] - RH, wallY, 0),                       // up to the gate; the city draws the street below it
-    R(gx - RH, xE + RH, road[0] - RH, road[0] + RH, 0),                // S0 east
-    R(xE - RH, xE + RH, ramps[0].yS, road[0], 0),
-    R(xE - RH, xE + RH, road[1] - RH, ramps[0].yN, 1),
-    R(xW - RH, xE + RH, road[1] - RH, road[1] + RH, 1),                // S1 west
-    R(xW - RH, xW + RH, ramps[1].yS, road[1], 1),
-    R(xW - RH, xW + RH, road[2] - RH, ramps[1].yN, 2),
-    R(xW - RH, xE + RH, road[2] - RH, road[2] + RH, 2),                // S2 east
-    R(xE - RH, xE + RH, ramps[2].yS, road[2], 2),
-    R(xE - RH, xE + RH, road[3] - RH, ramps[2].yN, 3),
-    R(xW + 300, xE + RH, road[3] - RH, road[3] + RH, 3),               // S3 west to the circle
+  const path = [
+    { x:gx, y:wallY, z:0 }, { x:gx, y:road[0], z:0 },
+    { x:xE, y:road[0], z:0 }, { x:xE, y:ramps[0].yS, z:0 }, { x:xE, y:ramps[0].yN, z:z[1] }, { x:xE, y:road[1], z:z[1] },
+    { x:xW, y:road[1], z:z[1] }, { x:xW, y:ramps[1].yS, z:z[1] }, { x:xW, y:ramps[1].yN, z:z[2] }, { x:xW, y:road[2], z:z[2] },
+    { x:xE, y:road[2], z:z[2] }, { x:xE, y:ramps[2].yS, z:z[2] }, { x:xE, y:ramps[2].yN, z:z[3] }, { x:xE, y:road[3], z:z[3] },
+    { x:circle.x, y:road[3], z:z[3] },
   ];
-  const circle = { x:xW + 300, y:road[3], r:RH + 260, k:3 };
+  /* the RUNS: the path's straight pieces between corners (a ramp is in the
+     middle of a run, not a corner). Each knows its corners, so a kerb or a
+     sidewalk knows which side of the bend it is on. */
+  const runs = [];
+  {
+    let i = 0;
+    while(i < path.length - 1){
+      let j = i + 1;
+      const dir = (p, q) => Math.abs(q.x - p.x) > Math.abs(q.y - p.y) ? (q.x > p.x ? 0 : 2) : (q.y > p.y ? 1 : 3);
+      const f = dir(path[i], path[i+1]);
+      while(j < path.length - 1 && dir(path[j], path[j+1]) === f) j++;
+      runs.push({ a:path[i], b:path[j], f, pts:path.slice(i, j + 1) });
+      i = j;
+    }
+    runs.forEach((rn, n) => { rn.prev = n > 0 ? runs[n-1].f : null; rn.next = n < runs.length - 1 ? runs[n+1].f : null;
+                              rn.len = Math.hypot(rn.b.x - rn.a.x, rn.b.y - rn.a.y); rn.gate = n === 0; rn.circle = n === runs.length - 1; });
+  }
+  /* level asphalt rectangles, a run's own width, carried RH past each
+     corner so the corner is paved; ramps are their own pieces */
+  const R = (xa, xb, ya, yb, k) => ({ x0:Math.min(xa,xb), x1:Math.max(xa,xb), y0:Math.min(ya,yb), y1:Math.max(ya,yb), k });
+  const shelfOf = zz => z.indexOf(zz);
+  const roads = [];
+  for(const rn of runs){
+    for(let q = 0; q < rn.pts.length - 1; q++){
+      const p = rn.pts[q], p2 = rn.pts[q+1];
+      if(p.z !== p2.z) continue;                     // the ramp
+      const dv = DIRV[rn.f];
+      const ext0 = (q === 0 && rn.prev !== null) ? RH : 0, ext1 = (q === rn.pts.length - 2 && rn.next !== null) ? RH : 0;
+      const ax = p.x - dv.x*ext0, ay = p.y - dv.y*ext0, bx = p2.x + dv.x*ext1, by = p2.y + dv.y*ext1;
+      const px = Math.abs(dv.y) * RH, py = Math.abs(dv.x) * RH;
+      roads.push(R(ax - px, bx + px, ay - py, by + py, shelfOf(p.z)));
+    }
+  }
   /* THE HOUSES: three per terrace, not five (Sir: "lets not put five
      doubles for this ... give them more yard"). Doubles at the estate's
      grand scale, centred in equal gardens between the ramp columns, each
-     fronting its terrace's drive and facing down the hill. The Mediterranean
-     set (Sir: "lets do mediterranean hills"), grandest at the top. */
-  const HW = 809.6 * SIERRA_HOUSE_SC, HD = 552 * SIERRA_HOUSE_SC;
+     fronting its terrace's drive -- behind its sidewalk now -- and facing
+     down the hill. The Mediterranean set (Sir: "lets do mediterranean
+     hills"), grandest at the top. */
   const plan = [
     [['San Gabriel Mission Revival', 0], ['Palmline Casita', 1],      ['Rancho Hacienda', 0]],
     [['Belvedere Italianate', 0],        ['Marrakech Riad', 1],       ['Montalcino Tuscan Villa', 2]],
@@ -54603,7 +54822,7 @@ function sierraGeo(){
   ];
   const lots = [];
   for(let k = 1; k <= 3; k++){
-    const yF = road[k] - RH - 120, xa = xW + RH + 260, xb = xE - RH - 260;
+    const yF = road[k] - STREET - 120, xa = xW + STREET + 260, xb = xE - STREET - 260;
     const gap = (xb - xa - 3*HW) / 4;
     plan[k-1].forEach(([name, liv], n) => {
       const x0 = xa + gap + (n + (k === 3 ? 1 : 0))*(HW + gap);   // the top terrace keeps its west end for the estate
@@ -54612,32 +54831,49 @@ function sierraGeo(){
   }
   /* THE GRAND ESTATE at the head of the drive, on the turning circle: the
      Palladian villa at its own larger scale, centred on the circle so the
-     cul-de-sac is its forecourt and driveway. */
-  const EW = 809.6 * SIERRA_ESTATE_SC, ED = 552 * SIERRA_ESTATE_SC;
+     cul-de-sac is its forecourt -- behind the circle's ring of sidewalk. */
   const estate = { name:'Brenta Palladian Villa', liv:0, x0:circle.x - EW/2, x1:circle.x + EW/2,
-                   yF:circle.y - circle.r - 90, yB:circle.y - circle.r - 90 - ED, k:3, z:z[3], sc:SIERRA_ESTATE_SC };
+                   yF:circle.y - circle.r - SW - 90, yB:circle.y - circle.r - SW - 90 - ED, k:3, z:z[3], sc:SIERRA_ESTATE_SC };
   lots.push(estate);
-  const gate = { x:gx, y:wallY, open:RH + 40 };
+  /* the gate is as wide as the street: road and both sidewalks come through */
+  const gate = { x:gx, y:wallY, open:STREET };
   /* THE TERRACE COMES FORWARD TO THE RAMP (2026-09-22, Sir: "squared
-     off", all three ramps). The ramp's lower half used to ride out over the
-     shelf below on a sloping fill, so beside it there was only a thin
-     triangle of wall and open lawn. Now the upper terrace steps forward on
-     both sides of each ramp, as far as the ramp's foot: a block of lawn at
-     the upper level with a full-height wall across its front, and the ramp
-     runs up between the two blocks in a walled cut.
-       c0..c1  the cut the ramp runs in (its side walls, as before)
+     off", all three ramps). The upper terrace steps forward on both sides
+     of each ramp, as far as the ramp's foot: a block of lawn at the upper
+     level with a full-height wall across its front, and the ramp -- road
+     and both sidewalks -- runs up between the two blocks in a walled cut.
+       c0..c1  the cut: the street's full width, and 40 of verge each side
        b0..c0 and c1..b1  the two blocks; out to the estate wall on the side
                           that faces it, BAY_W on the other
-       yF      the blocks' front face -- the ramp's foot, held 32 back so
-               the lower drive's kerb keeps its line */
+       yF      the blocks' front face -- the ramp's foot, held 32 back */
   const BAY_W = 530;
   for(const rp of ramps){
-    rp.c0 = rp.x - RH - 40; rp.c1 = rp.x + RH + 40;
+    rp.c0 = rp.x - STREET - 40; rp.c1 = rp.x + STREET + 40;
     rp.b0 = rp.x < (xw + xe)/2 ? xw : rp.c0 - BAY_W;
     rp.b1 = rp.x > (xw + xe)/2 ? xe : rp.c1 + BAY_W;
     rp.yF = rp.yS - 32; rp.yw = e[rp.k];
   }
-  _sierraGeo = { B, X0, Y0, RH, gx, xw, xe, wallY, e, z, ramps, roads, circle, lots, gate, HW, HD };
+  /* THE CROSSINGS: at every corner, each of the two streets is crossed
+     just past the corner, exactly where the city puts them -- the pad
+     WORLD_RAMP.along off the crossed street's centreline, WORLD_RAMP.cross
+     along it from the corner, facing the street it drops into. */
+  const pads = [];
+  runs.forEach((rn, n) => {
+    const ends = [];
+    if(rn.prev !== null) ends.push({ p:rn.a, out:DIRV[rn.f] });
+    if(rn.next !== null) ends.push({ p:rn.b, out:{ x:-DIRV[rn.f].x, y:-DIRV[rn.f].y } });
+    for(const en of ends){
+      const rv = DIRV[(rn.f + 1) % 4];
+      for(const sgn of [-1, 1]){
+        const x = en.p.x + en.out.x*WORLD_RAMP.cross + rv.x*sgn*WORLD_RAMP.along;
+        const y = en.p.y + en.out.y*WORLD_RAMP.cross + rv.y*sgn*WORLD_RAMP.along;
+        const toward = { x:-rv.x*sgn, y:-rv.y*sgn };
+        const f = DIRV.findIndex(d => d.x === toward.x && d.y === toward.y);
+        pads.push({ x, y, f, z:en.p.z, run:n, side:sgn });
+      }
+    }
+  });
+  _sierraGeo = { B, X0, Y0, RH, SW, STREET, gx, xw, xe, wallY, e, z, ramps, roads, circle, lots, gate, HW, HD, path, runs, pads };
   return _sierraGeo;
 }
 /* a step that CROSSES a wall line, whatever its length. The walls are thin
@@ -54672,7 +54908,7 @@ function sierraCrosses(x0, y0, x1, y1, R){
       if(bx > S.xw + 1 && bx < S.xe - 1 && crossX(bx, rp.yF, rp.yw)) return true;
   }
   if(crossX(S.xw, S.wallY, S.e[4]) || crossX(S.xe, S.wallY, S.e[4])) return true;
-  for(const rp of S.ramps) for(const xw of [rp.x - S.RH - 40, rp.x + S.RH + 40]) if(crossX(xw, rp.yS, rp.yN)) return true;
+  for(const rp of S.ramps) for(const xw of [rp.c0, rp.c1]) if(crossX(xw, rp.yS, rp.yN)) return true;
   return false;
 }
 /* inside the estate's walls. The city's kerb model reads the lattice, and
@@ -54686,13 +54922,49 @@ function sierraInside(x, y){
      handles it; this is the ground inside the walls, which is not */
   return x > S.xw && x < S.xe && y < S.wallY && y > S.e[4];
 }
+/* WHAT HE IS STANDING ON, IN THE CITY'S OWN WORDS (2026-09-22, Sir: "i
+   want it to feel exactly like our road ways"). The estate's streets are
+   laid as the city's are, so they answer surfaceAt as the city's do:
+   'road' on the asphalt, 'curb' in the CURB_W band past its edge,
+   'sidewalk' out to SIDEWALK_W, and the gardens beyond are 'lot'. With
+   that, the city's kerb rule (owCurbBlocks) and its kerb lean apply here
+   unchanged: no climbing the kerb from the road except at a crossing, a
+   lean when you go down one. Distance to the street is measured square
+   (the larger axis), which is how the city's bands meet at a corner. */
+function sierraSurface(x, y){
+  if(!sierraInside(x, y)) return null;
+  const S = sierraGeo();
+  let d = Infinity;
+  for(const rp of S.ramps)
+    if(y <= rp.yS && y >= rp.yN && x >= rp.c0 && x <= rp.c1) d = Math.min(d, Math.max(0, Math.abs(x - rp.x) - S.RH));
+  for(const rd of S.roads){
+    const dx = Math.max(rd.x0 - x, 0, x - rd.x1), dy = Math.max(rd.y0 - y, 0, y - rd.y1);
+    const dd = Math.max(dx, dy);
+    if(dd < d){
+      /* a street on another shelf is not beside you: a drive and the
+         terrace below its wall can be near in plan and a storey apart */
+      if(dd > 0 && Math.abs(sierraZ(x, y) - S.z[rd.k]) > 1) continue;
+      d = dd;
+    }
+  }
+  { const c = S.circle, dc = Math.max(0, Math.hypot(x - c.x, y - c.y) - c.r);
+    if(dc < d && Math.abs(sierraZ(x, y) - S.z[c.k]) <= 1) d = dc; }
+  return d <= 0 ? 'road' : d <= CURB_W ? 'curb' : d <= S.SW ? 'sidewalk' : 'lot';
+}
+/* ...and its crossings, for owAtRampMouth: the same footprint test the
+   city's ramps get */
+function sierraPadAt(x, y){
+  if(!WORLDGEN_COAST || !sierraInside(x, y)) return false;
+  for(const p of sierraGeo().pads) if(Math.abs(p.x - x) <= T2 && Math.abs(p.y - y) <= T2) return true;
+  return false;
+}
 /* the ground height at (x, y): the shelf you stand on, or the ramp */
 function sierraZ(x, y){
   if(!WORLDGEN_COAST) return 0;
   const S = sierraGeo();
   if(y > S.wallY || y < S.e[4] - 200 || x < S.xw - 200 || x > S.xe + 200) return 0;
   for(const r of S.ramps)
-    if(Math.abs(x - r.x) <= S.RH + 40 && y <= r.yS && y >= r.yN)
+    if(x >= r.c0 && x <= r.c1 && y <= r.yS && y >= r.yN)
       return r.zS + (r.zN - r.zS) * ((r.yS - y) / (r.yS - r.yN));
   for(const r of S.ramps)                                   // the blocks either side of it
     if(y <= r.yF && y > r.yw && x >= r.b0 && x <= r.b1) return r.zN;
@@ -54729,7 +55001,7 @@ function sierraBlocks(x, y, R){
   }
   /* a ramp's own side walls: off the side of a ramp you would fall a storey */
   for(const rp of S.ramps)
-    if(y <= rp.yS + t && y >= rp.yN - t && Math.abs(Math.abs(x - rp.x) - (S.RH + 40)) < t) return true;
+    if(y <= rp.yS + t && y >= rp.yN - t && Math.abs(Math.abs(x - rp.x) - (rp.c1 - rp.x)) < t) return true;
   return false;
 }
 function hillShade(c, k){
@@ -56988,6 +57260,8 @@ function drawRouteMap(route){
         const S = sierraGeo(), shelfC = ["#b9d08a", "#abc47e", "#9db872", "#8fab66"];
         for(let k = 3; k >= 0; k--) cband(S.xw, S.e[k+1], S.xe, S.e[k], shelfC[k]);
         for(const lt of S.lots) cband(lt.x0 + lt.sc*40, lt.yB + lt.sc*60, lt.x1 - lt.sc*40, lt.yF - lt.sc*60, "#e2b48a");   // the houses
+        for(const rd of S.roads) cband(rd.x0 - S.SW, rd.y0 - S.SW, rd.x1 + S.SW, rd.y1 + S.SW, hex(pal.pave));   // the sidewalks
+        for(const rp of S.ramps) cband(rp.x - S.STREET, rp.yN, rp.x + S.STREET, rp.yS, hex(pal.pave));
         for(const rd of S.roads) cband(rd.x0, rd.y0, rd.x1, rd.y1, hex(pal.road));
         for(const rp of S.ramps) cband(rp.x - S.RH, rp.yN, rp.x + S.RH, rp.yS, hex(pal.road));
         cband(S.circle.x - S.circle.r, S.circle.y - S.circle.r, S.circle.x + S.circle.r, S.circle.y + S.circle.r, hex(pal.road));
@@ -56997,7 +57271,8 @@ function drawRouteMap(route){
         cband(S.xw - t, S.e[4], S.xw + t, S.wallY, wallC); cband(S.xe - t, S.e[4], S.xe + t, S.wallY, wallC);
         cband(S.xw, S.e[4] - t, S.xe, S.e[4] + t, wallC);
         for(let k = 1; k <= 3; k++){ const rp = S.ramps[k-1];
-          cband(S.xw, S.e[k] - 30, rp.x - S.RH - 40, S.e[k] + 30, wallC); cband(rp.x + S.RH + 40, S.e[k] - 30, S.xe, S.e[k] + 30, wallC); }
+          cband(S.xw, S.e[k] - 30, rp.b0, S.e[k] + 30, wallC); cband(rp.b1, S.e[k] - 30, S.xe, S.e[k] + 30, wallC);
+          cband(rp.b0, rp.yF - 30, rp.c0, rp.yF + 30, wallC); cband(rp.c1, rp.yF - 30, rp.b1, rp.yF + 30, wallC); }
       }
       /* Mirador Heights: stub east on the j=10 row, drive down the slope */
       const mhEx = cX1 + BLOCK*0.08, mhEy = 10*BLOCK;
