@@ -9241,6 +9241,55 @@ function buildWorldSignals(grid){
       out.push({ x, y, node:{ i:n.i, j:n.j }, axis, armF, headF });
     }
   }
+  /* A STREET THAT LEAVES THE LATTICE gets its own approach signal
+     (2026-09-22, Sir at Sierra Vista: "put a stop light on the corner ...
+     stopping any traffic coming out"). Every corner of such a street lies
+     outside the box above, so its approach had no pole. The pole stands
+     on the kerb to the RIGHT of traffic coming in off it (the lane
+     convention's rv), on the outside of the node, arm out over the lanes
+     it stops. headF is the leaving street, so it phases with that axis
+     like any other head. Only perimeter nodes with an outward street
+     reach this, so nothing inside the city moves. */
+  const { cols, rows } = grid, out2 = [];
+  for(const n of grid.nodes){
+    let k = -1;
+    if(n.j === 0 && n.conn[3]) k = 3;
+    else if(n.j === rows-1 && n.conn[1]) k = 1;
+    else if(n.i === 0 && n.conn[2]) k = 2;
+    else if(n.i === cols-1 && n.conn[0]) k = 0;
+    if(k < 0) continue;
+    if(!n.conn[(k+1)%4] && !n.conn[(k+3)%4]) continue;   // nothing crosses it
+    const inF = (k+2)%4;                                  // travel direction into the node
+    const od = DIRV[k], right = DIRV[(inF+1)%4];
+    const x = n.x + od.x*SIGNAL_APEX + right.x*SIGNAL_APEX;
+    const y = n.y + od.y*SIGNAL_APEX + right.y*SIGNAL_APEX;
+    const armF = (inF+3)%4;                               // back across toward the lanes
+    out2.push({ x, y, node:{ i:n.i, j:n.j }, axis: k % 2, armF, headF: k });
+  }
+  return out.concat(out2);
+}
+/* ...and the hydrant on the OPPOSITE corner (2026-09-22, Sir: "on the
+   opposite corner there should be a hydrant"). Same outward-street test
+   as the signal above; the hydrant stands on the other kerb, the one to
+   the LEFT of traffic coming in, on the corner itself between the two
+   pads -- the same apex spot the signal takes on its corner (Sir: "no i
+   want it on the corner"). City furniture is
+   generated per block edge and these corners belong to no block, so they
+   get their own short list; drawWorld draws it and feeds _owFurn, which
+   is what makes it solid. */
+function buildOutboundFurniture(grid){
+  const out = [], { cols, rows } = grid;
+  for(const n of grid.nodes){
+    let k = -1;
+    if(n.j === 0 && n.conn[3]) k = 3;
+    else if(n.j === rows-1 && n.conn[1]) k = 1;
+    else if(n.i === 0 && n.conn[2]) k = 2;
+    else if(n.i === cols-1 && n.conn[0]) k = 0;
+    if(k < 0) continue;
+    const inF = (k+2)%4, od = DIRV[k], left = DIRV[(inF+3)%4];
+    const along = SIGNAL_APEX, off = SIGNAL_APEX;   // on the corner itself, where the signal stands on its own
+    out.push({ kind:"hydrant", x: n.x + od.x*along + left.x*off, y: n.y + od.y*along + left.y*off, f: inF });
+  }
   return out;
 }
 
@@ -9353,7 +9402,17 @@ function buildWorldCurbRamps(grid){
          faces forward (f) -- both pointing at their own node. */
       const end = (n, dirFromNode, px, py, faceF) => {
         if(!serves(n, e.f) || !hasCrossStreet(n, e.f, side)) return;
-        if(!interior(px, py)) return;
+        /* ...OR the pavement says kerb (2026-09-22, Sir at Sierra Vista:
+           "now its just missing sidewalk ends and sidewalk begins"). The
+           box test is right for every node inside the lattice, but a
+           street that LEAVES it -- the estate road north from the top
+           street -- puts its corners outside the box, so all four of its
+           ramps and the landing across were retired even though every
+           one of them stands on sidewalk. Same pavement question as
+           pavedLanding. Additive: an outside position needs a cross
+           street on its side, and only a street running out of the
+           lattice gives a perimeter node one. */
+        if(!interior(px, py) && !(typeof grid.classify === "function" && grid.classify(px, py) === "sidewalk")) return;
         const cont = hasLanding(n, dirFromNode);
         const land = cont ? null : landingOf(n, dirFromNode, rv, perp);
         if(!cont && !pavedLanding(land)) return;   // the outer ring: nothing across, retire
@@ -9523,7 +9582,19 @@ function buildExteriorLots(grid, seed){
     const s = ((Math.round(cx)*7919) ^ (Math.round(cy)*104729) ^ seed ^ 0x3c11) >>> 0;
     const r = mulberry32(s)();
     const type = r < 1/3 ? "housing" : r < 2/3 ? "park" : "commercial";
-    lots.push({ ox, oy, dv, rv:outward, len:BLOCK, cx, cy, type });
+    /* A STREET THAT LEAVES THE LATTICE (2026-09-22, Sir: "still getting
+       these grasses drawing over the entrance road"). A perimeter lot ran
+       the full block, node to node, which is only safe while nothing goes
+       OUT through those nodes. Sierra Vista's road does: it leaves node
+       (1,0) northward, straight through the two top lots, and their yard
+       fill painted a band of grass across it just past the kerb. Any node
+       with a street heading outward now holds the lot back by the road's
+       half-width plus its sidewalk, the same inset the lot already keeps
+       from the street it fronts. cx/cy stay on the full block so the lot's
+       type, seed and park name are unchanged. */
+    const kOut = DIRV.indexOf(outward);
+    const t0 = e.a.conn[kOut] ? inset : 0, t1 = e.b.conn[kOut] ? inset : 0;
+    lots.push({ ox: ox + dv.x*t0, oy: oy + dv.y*t0, dv, rv:outward, len:BLOCK - t0 - t1, cx, cy, type });
   }
   return lots;
 }
@@ -9616,6 +9687,7 @@ function buildGrid(cols, rows, seed=0, opts){
   grid.sidewalkCornerCells = sw.cornerCells;
   grid.curbRamps = buildWorldCurbRamps(grid);
   grid.signals   = buildWorldSignals(grid);
+  grid.outFurn   = buildOutboundFurniture(grid);
   grid.extLots = buildExteriorLots(grid, seed);
   /* LAST, and after every grid.edges consumer above has already run: the
      shore reads the finished grid's extents and nothing reads it back, so
@@ -14009,6 +14081,7 @@ function worldgenReconcile(grid){
   grid.sidewalkCornerCells = sw.cornerCells;
   grid.curbRamps = buildWorldCurbRamps(grid);
   grid.signals   = buildWorldSignals(grid);
+  grid.outFurn   = buildOutboundFurniture(grid);
   delete grid.swRunHash; delete grid.swCornerHash; delete grid.curbRampHash;
 }
 
@@ -38709,6 +38782,13 @@ class WorldScene extends Phaser.Scene {
         this.drawProp(layerFor(sx, sy), "signalpost", sx, sy, tt, sPost, 0, null, null, sg);
         this.drawProp(layerFor(hx, hy), "signalhead", hx, hy, tt, hf,    0, null, null, sg);
       }});
+    }
+    /* the outbound streets' own corner furniture (buildOutboundFurniture) */
+    for(const fp of ((r.grid && r.grid.outFurn) || [])){
+      if(!this.visProp(fp.kind, fp.x, fp.y)) continue;
+      if(this.ow && this.ow.on) this._owFurn.push({ kind: fp.kind, x: fp.x, y: fp.y });
+      const fx = fp.x, fy = fp.y, fk = fp.kind, ff = fp.f;
+      hazVQ.push({ depth: fx+fy, fn:(gg,tt)=>this.drawProp(layerFor(fx, fy), fk, fx, fy, tt, ff) });
     }
 
 
