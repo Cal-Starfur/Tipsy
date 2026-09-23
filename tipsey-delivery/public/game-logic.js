@@ -11249,7 +11249,35 @@ function cityFurnitureForEdge(grid, blk, fi){
      pavement in front of the chamfer. Lab (266, -30) is the mat's centre
      (cpt(0.5, -64)); 150 covers mat, bollards and the corner triangle. */
   const _dlot = depotOnBlock(grid, blk);
+  /* ---------- AND OFF THE CURB RAMPS ----------
+     (Sir, on-device 2026-09-23, circling a street lamp standing on the
+     yellow pad: "we have to keep the street lights or anything from
+     being placed on a sidewalk end/begin".) Nothing here knew the ramps
+     existed, so any kind -- lamp, palm, hydrant, bin, a slab -- could
+     land on a pad or its flares, in the one place a pedestrian (and the
+     robot) crosses the kerb. Measured on the rim: a lamp 72 from a ramp
+     centre, pole on the pad.
+
+     Tested in THIS frontage's own frame, because that is the kerb the
+     pad cuts: along the kerb the pad is +/-TILE and each flare another
+     T2 (kerbRun's FL), across it the pad is +/-TILE -- so the box spans
+     lanes 0 and 1, the pad and the pavement a walker steps off it onto,
+     and leaves lanes 2 and 3 furnished. Ramps are prefiltered to this
+     frontage once, so the per-prop test costs a handful of compares. */
+  const RAMP_ALONG = TILE + T2 + 20, RAMP_LAT = TILE + 50;
+  const _eMidX = e.ox + e.dv.x*e.len/2, _eMidY = e.oy + e.dv.y*e.len/2;
+  const _ramps = (grid.curbRamps || []).filter(rp =>
+    Math.abs(rp.x - _eMidX) + Math.abs(rp.y - _eMidY) < e.len/2 + SIDEWALK_W + RAMP_ALONG + 200);
+  const onRamp = p => {
+    for(const rp of _ramps){
+      const dx = p.x - rp.x, dy = p.y - rp.y;
+      if(Math.abs(dx*e.dv.x + dy*e.dv.y) < RAMP_ALONG &&
+         Math.abs(dx*e.rv.x + dy*e.rv.y) < RAMP_LAT) return true;
+    }
+    return false;
+  };
   const onPad = p => {
+    if(onRamp(p)) return true;
     if(!_dlot) return false;
     const q = depotLabXY(_dlot, p.x, p.y);
     return Math.hypot(q.a - 266, q.b + 30) < 150 + CITY_FURN.padClear;
