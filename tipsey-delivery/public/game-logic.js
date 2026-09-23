@@ -47018,9 +47018,22 @@ class WorldScene extends Phaser.Scene {
        catch-up from depending on how long the last frame took. */
     const camF = (dt || 16.667) / 16.667;
     const camA = (r) => 1 - Math.pow(1 - Math.min(r, 1), camF);
-    this.camX = Phaser.Math.Linear(this.camX, camTargetX, camA(0.08 * camVmul));
-    this.camY = Phaser.Math.Linear(this.camY, camTargetY, camA(0.06 * camVmul));
-    this.camZ = Phaser.Math.Linear(this.camZ, camTargetZ, camA(0.08 * camVmul));
+    /* ONE CAMERA PER FRAME (Sir, 2026-09-23: "buildings and fence posts
+       move while tipsey moves"). drawRobot runs from INSIDE drawWorld's
+       depth sort, so writing camX/camY/camZ here moved the camera halfway
+       through the frame: every body sorted before him (ground, walls and
+       fences behind him) was projected with last frame's camera, every
+       body after him (fences, posts, buildings in front) with this one.
+       Measured headless: 16 of 16 driving frames drew with two cameras,
+       up to 23.6 px apart -- the front of the city slid against the back
+       every frame he moved, and stopped the moment he did.
+       The ease is computed here exactly as before, but only QUEUED; the
+       top of the next update() commits it, before anything projects. */
+    this._camNext = {
+      x: Phaser.Math.Linear(this.camX, camTargetX, camA(0.08 * camVmul)),
+      y: Phaser.Math.Linear(this.camY, camTargetY, camA(0.06 * camVmul)),
+      z: Phaser.Math.Linear(this.camZ, camTargetZ, camA(0.08 * camVmul)),
+      bx: this.camX, by: this.camY, bz: this.camZ };
 
     /* the "?!" of a machine confronting a tree */
     if(this.stuckAmt > 0.5 && this.state === "play"){
@@ -48650,6 +48663,16 @@ class WorldScene extends Phaser.Scene {
        hazard sim drawRobot calls), so one substitution converts the
        lot and none of them can drift apart later. */
     dt = this.realDt(dt);
+    /* commit last frame's camera ease (see ONE CAMERA PER FRAME in
+       drawRobot) before anything this frame projects. If a snap wrote
+       the camera since the ease was queued (respawn, tow, teleport,
+       slalom pin), the snap wins and the stale ease is dropped. */
+    if(this._camNext){
+      const n = this._camNext; this._camNext = null;
+      if(this.camX === n.bx && this.camY === n.by && this.camZ === n.bz){
+        this.camX = n.x; this.camY = n.y; this.camZ = n.z;
+      }
+    }
     /* desktop throttle */
     /* Attract holds its own gas. This has to come BEFORE the desktop
        keys block, not after: that block's final branch zeroes throttle
