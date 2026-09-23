@@ -9575,6 +9575,29 @@ function buildGrid(cols, rows, seed=0, opts){
       for(const n of nodes) n.shape = nodeShape(n);
     }
   }
+  /* SIERRA VISTA'S ROAD IS A STREET, not paint (Sir: "we need them to be a
+     part of the same system"). One node at the gate, one edge down to the
+     top street -- HERE, before anything derives from the lattice, so the
+     street gets the same pavement, kerb ramps at its crossing and exterior
+     lots held off it as every other street (Sir, after the first attempt
+     added it later: "we are getting lots drawing over it. and we dont have
+     a side walk end or begin on any of it on both sides of the cross
+     road"). The gate node's conn only runs south, and nodeAt answers for
+     it so surfaceAt classifies the whole street; buildWalk and buildTraffic
+     arrive and must turn back, so no route or traffic goes up it. */
+  if(WORLDGEN_COAST && !classic){
+    const S = sierraGeo(), b = nodeAt(1, 0);
+    if(b){
+      const a = { i:1, j:-1, x:S.gx, y:S.wallY, conn:[false,false,false,false] };
+      a.conn[1] = true; b.conn[3] = true;                      // f = 1 runs +y, gate -> city
+      nodes.push(a);
+      const svEdge = { a, b, f:1 };
+      grid.edges.push(svEdge);
+      if(grid._allEdges && grid._allEdges !== grid.edges) grid._allEdges.push(svEdge);
+      grid.nodeAt = (i, j) => (i === 1 && j === -1) ? a : nodeAt(i, j);
+      for(const n of nodes) n.shape = nodeShape(n);
+    }
+  }
   grid.classify = (x, y) => classifyAt(grid.edges, x, y);
   const sw = buildSidewalkGeometry(grid);
   grid.sidewalkRuns = sw.runs;
@@ -14375,41 +14398,9 @@ function _generateRouteFresh(dateStr, opts){
      restores the original per-caller intent: HJ opts in, the daily
      route and Cone Slalom (which never pass classic) are untouched. */
   const grid = buildGrid(cols, rows, CITY_SEED, { classic: !!(opts && opts.classic) });
-  /* SIERRA VISTA'S ROAD IS A STREET, not paint (Sir, on-device at its
-     mouth: "the road isn't connecting to the other game roads there is a
-     minor gap and the drain doesn't go around the corner we need them to
-     be a part of the same system to pull that off"). Drawn ground could
-     never join the city's: the classifier called it pavement, so the kerb
-     rule walled it and the lean tipped him at the mouth, and the kerb,
-     gutter, corner sweep and gully all come off the lattice, which had no
-     edge there. One node at the gate and one edge down to the top street
-     buys every one of those from the city's own machinery.
-
-     It is added AFTER buildGrid, so nothing derived inside it moves: no
-     sidewalk run, curb ramp or signal is built for it -- an estate drive
-     has no footway -- and buildWalk and buildTraffic, which come later,
-     step with nodeAt(i, j) and get null for j = -1, so no delivery route
-     and no traffic can ever turn up it. */
-  if(WORLDGEN_COAST && !(opts && opts.classic)){
-    const S = sierraGeo(), b = grid.nodeAt(1, 0);
-    if(b){
-      const a = { i:1, j:-1, x:S.gx, y:S.wallY, conn:[false,false,false,false] };
-      a.conn[1] = true; b.conn[3] = true;                       // f = 1 runs +y, gate -> city
-      grid.nodes.push(a);
-      grid.edges.push({ a, b, f:1 });
-      if(grid._allEdges) grid._allEdges.push(grid.edges[grid.edges.length - 1]);
-      for(const n of grid.nodes) n.shape = nodeShape(n);
-      /* nodeAt is index arithmetic over the rectangle, so it answers null
-         for the gate node however real the edge is -- and surfaceAt asks
-         it, cell by cell, which left the northern half of the road reading
-         'void' and the kerb rule standing across it (he stopped halfway
-         up, on tarmac). The lookup answers for the gate node too. Its own
-         conn only runs south, so buildWalk and buildTraffic can arrive and
-         must turn straight back: no route and no traffic up the estate. */
-      const baseNodeAt = grid.nodeAt;
-      grid.nodeAt = (i, j) => (i === a.i && j === a.j) ? a : baseNodeAt(i, j);
-    }
-  }
+  /* (Sierra Vista's street is added inside buildGrid, before the sidewalk,
+     the kerb ramps, the signals and the exterior lots derive from the
+     lattice -- see SIERRA VISTA'S ROAD IS A STREET there) */
   /* good-heading guarantee (2026-07-27, "that is unacceptable"): the
      door needs an f===0/f===3 straight leg past the 1-mile mark with
      room for findGoodS's standard 90-unit inset. buildWalk's turnSign
