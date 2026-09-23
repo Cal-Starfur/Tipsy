@@ -7140,6 +7140,79 @@ function owDropTick(scene, ow, dt){
   if(t > 5*P.settleMs){ ow.drop = null; ow.dropZ = 0; ow.dropPitch = 0; ow.dropJolt = 0; }
 }
 
+/* ---------- RIDING A CROSSING (2026-09-22, Sir: "add the rumble and the
+   tilt back to our side walk end and sidewalk begin for free roam"). The
+   rail model (crossingGroundAt) gave every crossing a feel -- a slope, a
+   dome rumble on the yellow pad, a lean off the flared sides -- but it runs
+   on route-s and lanes, which free roam has neither of, so a crossing was
+   just flat ground there. This is the same three things, read off the
+   robot's position against the nearest crossing (the city's curbRamps and
+   the estate's pads alike), in that ramp's own frame: u along f toward
+   the street (the slope tile u in [-92,0], the pad [0,92]), v across it
+   (the ramp +/-46, its flared sides out to +/-138, the width the prop's
+   base patch is drawn).
+     - SLOPE: the nose follows the ramp's grade, projected on the way he
+       is going: down toward the street, up away from it. The grade is
+       the kerb's height over the slope tile.
+     - PAD: the truncated domes rattle him -- the rail's +/-0.05 roll,
+       drawn only (never into tilt), while he is moving on it.
+     - FLARES: the sloped sides lean him toward the ramp, in proportion to
+       how squarely he is moving across the fall line, so running
+       straight down the middle is clean and cutting across a flare is
+       not. The rail's rate was tuned against its own speed units; this
+       one settles at about 0.24 against the tilt decay, at any speed,
+       well short of trouble on its own.
+   All in OW_RAMP. ---------- */
+const OW_RAMP = {
+  grade:  8 / 92,     // the kerb's height over one slope tile
+  jitter: 0.1,        // pad rumble: roll in (-jitter/2, +jitter/2), the rail's number
+  flare:  0.0005,     // lean per ms on a flared side, fully across its fall line (settles ~0.24 against tiltDecay)
+};
+function owNearestCrossing(W, x, y){
+  let best = null, bd = Infinity;
+  const consider = (r, z) => {
+    const d = Math.max(Math.abs(r.x - x), Math.abs(r.y - y));
+    if(d < bd && d <= 2*T2){ bd = d; best = { r, z:z || 0 }; }
+  };
+  if(sierraInside(x, y)) for(const p of sierraGeo().pads) consider(p, p.z);
+  const grid = W && W.grid;
+  if(grid){
+    const m = owRampHash(grid), ci = Math.floor(x/T2), cj = Math.floor(y/T2);
+    for(let i = ci-2; i <= ci+2; i++) for(let j = cj-2; j <= cj+2; j++){
+      const a = m.get(i + "," + j);
+      if(a) for(const r of a) consider(r, 0);
+    }
+  }
+  return best;
+}
+function owRampFeel(scene, ow, W, dt){
+  ow.rampPitch = 0; ow.padJitter = 0;
+  const c = owNearestCrossing(W, ow.px, ow.py);
+  if(!c) return;
+  const dv = DIRV[c.r.f], rv = DIRV[(c.r.f + 1) % 4];
+  const dx = ow.px - c.r.x, dy = ow.py - c.r.y;
+  const u = dx*dv.x + dy*dv.y, v = dx*rv.x + dy*rv.y;
+  if(u < -T2 || u > T2 || Math.abs(v) > 1.5*T2) return;
+  const dir = Math.sign(ow.vel) || 1, hx = Math.cos(ow.yaw)*dir, hy = Math.sin(ow.yaw)*dir;
+  const moving = Math.abs(ow.vel) > 0.01;
+  if(Math.abs(v) <= T2/2){
+    if(u < 0){
+      /* the slope tile: the ground falls toward +u, so going that way is downhill */
+      const along = hx*dv.x + hy*dv.y;
+      ow.rampPitch = Math.atan(-OW_RAMP.grade * along);
+    } else if(moving){
+      ow.padJitter = (Math.random() - 0.5) * OW_RAMP.jitter;
+    }
+  } else if(moving){
+    /* a flared side: the ground falls toward the ramp (v -> 0). Uphill is
+       away from it; lean toward the low side, as dropping off does -- by
+       how squarely he is moving across that fall line. */
+    const up = { x:rv.x*Math.sign(v), y:rv.y*Math.sign(v) };
+    const across = Math.cos(ow.yaw)*up.y - Math.sin(ow.yaw)*up.x;
+    owLeanKick(scene, ow, -across * OW_RAMP.flare * dt * Math.min(1, Math.abs(ow.vel) / 0.05));
+  }
+}
+
 /* An impact. Lands in the impact channel and recomposes at once, so a
    hard hit can put you over inside the same frame it happened rather
    than waiting for the next step. */
@@ -7765,6 +7838,7 @@ function owStep(scene, dt){
   }
   if(sfc === 'sidewalk' || sfc === 'curb') ow._lastOff = { x:ow.px, y:ow.py };   // the last bit of pavement he stood on
   owDropTick(scene, ow, dt);
+  owRampFeel(scene, ow, W, dt);
   /* the jolt rides on the screen centre layout() set */
   if(scene._cyBase === undefined) scene._cyBase = scene.cy;
   scene.cy = scene._cyBase + (ow.dropJolt || 0);
@@ -47912,7 +47986,8 @@ class WorldScene extends Phaser.Scene {
       if(!this.hjFace)
         this.roll = Phaser.Math.Linear(this.tipStartRoll, this.tipDir * (Math.PI*0.5), this.tipT);
     } else {
-      this.roll = Phaser.Math.Clamp(this.tilt, -1, 1) * 0.5 + this.cornerLean + (this.slabRoll || 0) + (this.crossJitter || 0);
+      this.roll = Phaser.Math.Clamp(this.tilt, -1, 1) * 0.5 + this.cornerLean + (this.slabRoll || 0) + (this.crossJitter || 0)
+                + (this.ow && this.ow.on ? (this.ow.padJitter || 0) : 0);   // the dome rumble, free roam
     }
     this.simItems(dt);
 
@@ -47997,6 +48072,7 @@ class WorldScene extends Phaser.Scene {
       this.pitch = _sv !== 0 ? Math.atan(Phaser.Math.Clamp(_sv, -0.2, 0.2))
                              : Math.atan(Phaser.Math.Clamp(this.groundSlope(this.botS) + (this.crossSlope || 0), -MAX_GRADE, MAX_GRADE));
       if(this.ow && this.ow.on && this.ow.dropPitch) this.pitch += this.ow.dropPitch;   // the kerb drop's nod
+      if(this.ow && this.ow.on && this.ow.rampPitch) this.pitch += this.ow.rampPitch;   // down or up a crossing's slope
     }
 
     /* camera reframe: at f=3 the worker/customer's walk-out direction
