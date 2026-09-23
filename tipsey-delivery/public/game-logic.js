@@ -36060,7 +36060,7 @@ class WorldScene extends Phaser.Scene {
             ringQ(KR, KR, 0, KH, KFACE); ringQ(KR + KW, KR + KW, 0, KH, KFACE);    // both faces
             ringQ(KR + KW, KR + KW, 0, 3, KDK);                                    // its shadow in the channel
             ringQ(KR, KR + KW, KH, KH, KTOP);                                      // the top, last
-            ringQ(KR, KR + KW*0.14, KH, KH, KDK);                                  // the night seam
+            ringQ(KR + KW*0.86, KR + KW, KH, KH, KDK);                             // the night seam, road edge like the straights (see THE SEAM ON THE SAME EDGE)
             /* the grate in the channel at the arc's low point */
             const gm = { x: -side.x + dv.x, y: -side.y + dv.y }, gl = Math.hypot(gm.x, gm.y);
             const gx = cx + gm.x/gl*(KR + KW + GW/2), gy = cy + gm.y/gl*(KR + KW + GW/2);
@@ -37193,7 +37193,15 @@ class WorldScene extends Phaser.Scene {
         faceArc(KR + KERB_W, 3, KERB_H, KERB_FACE);                 // the kerb's road face
         faceArc(KR, 0, KERB_H, KERB_FACE);                          // down onto the paving (behind the top -- see kerbRun)
         ring(KR, KR + KERB_W, KERB_H, KERB_H, KERB_TOP);            // its top, last
-        ring(KR, KR + KERB_W*0.14, KERB_H, KERB_H, KERB_DK);        // the seam on its paving edge, as kerbRun
+        /* THE SEAM ON THE SAME EDGE AS THE STRAIGHTS (Sir, on-device,
+           2026-09-23: "the dark line is on the inside of the curve but it
+           should be on the outside and connect the other dark lines").
+           kerbRun lays its seam from oIn -- the stone's ROAD edge -- 14%
+           of the way in. Here radius grows toward the road, so KR is the
+           paving edge and KR + KERB_W the road edge; the arc had its
+           seam on KR, the opposite edge, so it floated inside the curve
+           and met neither straight. Now the last 14% before the road. */
+        ring(KR + KERB_W*0.86, KR + KERB_W, KERB_H, KERB_H, KERB_DK);  // the seam on its road edge, as kerbRun
         /* THE GULLY, at the bottom of the sweep where the water goes */
         /* A CURVED GRATE, INSIDE THE CHANNEL (Sir, on-device: "its hitting
            the drain channels edge"). It was a straight 68 x 34 slab laid
