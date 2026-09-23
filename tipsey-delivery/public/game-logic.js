@@ -35716,9 +35716,12 @@ class WorldScene extends Phaser.Scene {
          shelf below, with the gap its ramp passes through. The ramp itself
          is drawn in its own pass below. */
       if(k >= 1){
-        const rp = S.ramps[k-1], zLo = S.z[k-1], yw = S.e[k], cut0 = rp.x - RH - 40, cut1 = rp.x + RH + 40;
-        wallFace(S.xw, cut0, yw, zLo, z);
-        wallFace(cut1, S.xe, yw, zLo, z);
+        const rp = S.ramps[k-1], zLo = S.z[k-1], yw = S.e[k];
+        /* the terrace wall stops where its blocks come forward (see the
+           bays in sierraGeo); the blocks and their front are drawn with the
+           ramps, after every shelf, so the shelf below can't lay over them */
+        wallFace(S.xw, rp.b0, yw, zLo, z);
+        wallFace(rp.b1, S.xe, yw, zLo, z);
         /* THE WALL IS CUT, SO IT HAS ENDS (Sir, on-device, at the foot of
            R1: "the wall here looks like the ramp is drawing over it"). The
            retaining wall was one face with no thickness, so where the ramp
@@ -35727,8 +35730,6 @@ class WorldScene extends Phaser.Scene {
            painted over the wall. Each side of the gap now shows its end,
            the 40 of the wall's own thickness, on the face the camera sees
            (+x, as the estate's east flanks). */
-        for(const cx of [cut0, cut1])
-          Q([[cx, yw, zLo],[cx, yw - 40, zLo],[cx, yw - 40, z],[cx, yw, z]], shade(STONE, .72));
       }
       /* the estate's east flank at this shelf, down to the hillside floor */
       if(z > 0){
@@ -35748,10 +35749,57 @@ class WorldScene extends Phaser.Scene {
       /* the ramp's shoulders stop 12 short of the wall's ends, so its kerb
          and the cut ends are never coplanar */
       const sh0 = cut0 + 12, sh1 = cut1 - 12;
+      const zAt = y => rp.zS + (rp.zN - rp.zS) * ((rp.yS - y) / (rp.yS - rp.yN));
+      /* the west block, then the cut's west wall the whole way up -- both
+         behind the ramp from the camera, so under it */
+      const block = (x0, x1, yTop = yw, yFr = rp.yF, face = true) => {
+        if(x1 - x0 < 1) return;
+        rect(x0, x1, yFr, yTop, z, LAWN);
+        for(let x = S.xw; x < x1; x += 520){                   // the terrace's own mown stripes, carried on
+          const s0 = Math.max(x, x0), s1 = Math.min(x + 260, x1);
+          if(s1 > s0) rect(s0, s1, yFr, yTop, z + 0.3, LAWN2);
+        }
+        if(face) wallFace(x0, x1, yFr, zLo, z);
+      };
+      block(rp.b0, cut0);
+      Q([[sh0, rp.yF, z],[sh0, rp.yN, z],[sh0, rp.yN, rp.zN],[sh0, rp.yF, zAt(rp.yF)]], shade(STONE, .8));   // cut, west face
       Q([[sh0, rp.yS, rp.zS + 1],[sh1, rp.yS, rp.zS + 1],[sh1, rp.yN, rp.zN + 1],[sh0, rp.yN, rp.zN + 1]], KERB);
       Q([[rp.x - RH, rp.yS, rp.zS + 2],[rp.x + RH, rp.yS, rp.zS + 2],[rp.x + RH, rp.yN, rp.zN + 2],[rp.x - RH, rp.yN, rp.zN + 2]], ROADC);
-      Q([[sh1, rp.yS, rp.zS],[sh1, yw, zLo],[sh1, yw, zMid]], shade(STONE, .8));                        // embankment, east face
-      Q([[sh0, yw, z],[sh0, rp.yN, z],[sh0, rp.yN, rp.zN],[sh0, yw, zMid]], shade(STONE, .8));            // cut, west face
+      /* kerb down both shoulders, sloping with the road -- HERE, not in the
+         later kerb pass (Sir: "the ramps curb is drawing over"): drawn last,
+         the east kerb painted across the east block standing in front of it */
+      {
+        const KH = 8, KW = 22, KFACE = 0xe2ded0, KTOP = 0xf4f1e8;
+        for(const sgn of [-1, 1]){
+          const L0 = rp.x + sgn*(RH + 12), L1 = L0 - sgn*KW;
+          /* the east kerb only runs to the blocks' front: past it the kerb
+             is down in the cut against the east block, and near the head
+             its top rose the last few units above the lawn and showed as a
+             sliver (Sir, on-device, second pass). The west one is in plain
+             view the whole way, so it runs the full length. */
+          const yE = sgn > 0 ? rp.yF : rp.yN, zE = sgn > 0 ? zAt(rp.yF) : rp.zN;
+          Q([[L0,rp.yS,rp.zS],[L0,yE,zE],[L0,yE,zE + KH],[L0,rp.yS,rp.zS + KH]], KFACE);
+          Q([[L1,rp.yS,rp.zS],[L1,yE,zE],[L1,yE,zE + KH],[L1,rp.yS,rp.zS + KH]], KFACE);
+          Q([[L0,rp.yS,rp.zS + KH],[L0,yE,zE + KH],[L1,yE,zE + KH],[L1,rp.yS,rp.zS + KH]], KTOP);
+        }
+      }
+      /* the east block, nearer than the ramp, last; its open end faces the
+         camera wherever it stops short of the estate wall */
+      /* ...and on up to the ramp's head: past the old wall line the ramp is
+         cut into the terrace itself, whose lawn was laid before the ramp, so
+         the east kerb painted over that too (Sir: "you didnt quite get it
+         all"). Same lawn, same level, laid again over the kerb. */
+      /* the east block's lawn comes right to the road's edge, so the ramp's
+         east shoulder is under it rather than showing as a tapering sliver
+         where the cut runs out at the head */
+      block(rp.x + RH, rp.b1, rp.yN);
+      if(rp.b1 >= S.xe - 1){                                   // out to the estate's east flank: the flank rises with it
+        Q([[S.xe, rp.yF, 0],[S.xe, yw, 0],[S.xe, yw, z],[S.xe, rp.yF, z]], shade(STONE, .78));
+        for(let zz = 30; zz < z - 8; zz += 30) Q([[S.xe + 0.5, rp.yF, zz],[S.xe + 0.5, yw, zz],[S.xe + 0.5, yw, zz + 3],[S.xe + 0.5, rp.yF, zz + 3]], shade(STONE, .7));
+      } else {
+        Q([[rp.b1, rp.yF, zLo],[rp.b1, yw, zLo],[rp.b1, yw, z],[rp.b1, rp.yF, z]], shade(STONE, .72));
+        for(let zz = zLo + 30; zz < z - 8; zz += 30) Q([[rp.b1 + 0.5, rp.yF, zz],[rp.b1 + 0.5, yw, zz],[rp.b1 + 0.5, yw, zz + 3],[rp.b1 + 0.5, rp.yF, zz + 3]], shade(STONE, .64));
+      }
     }
     /* ---- KERBS, GUTTERS AND GULLIES (Sir: "does sierra vistas road have
        curbs and drains?" -- it had a flat painted margin and nothing else).
@@ -35841,16 +35889,8 @@ class WorldScene extends Phaser.Scene {
           if(rd) gully(true, rd.y0, rp.x - RH - 140, z, 1);
         }
       }
-      /* the ramps: kerb down both shoulders, sloping with the road */
-      for(const rp of S.ramps){
-        for(const sgn of [-1, 1]){
-          const L0 = rp.x + sgn*(RH + 12), L1 = L0 - sgn*KW;
-          const pt = (x, y, zz) => [x, y, zz];
-          Q([pt(L0,rp.yS,rp.zS), pt(L0,rp.yN,rp.zN), pt(L0,rp.yN,rp.zN + KH), pt(L0,rp.yS,rp.zS + KH)], KFACE);
-          Q([pt(L1,rp.yS,rp.zS), pt(L1,rp.yN,rp.zN), pt(L1,rp.yN,rp.zN + KH), pt(L1,rp.yS,rp.zS + KH)], KFACE);
-          Q([pt(L0,rp.yS,rp.zS + KH), pt(L0,rp.yN,rp.zN + KH), pt(L1,rp.yN,rp.zN + KH), pt(L1,rp.yS,rp.zS + KH)], KTOP);
-        }
-      }
+      /* the ramps' own kerbs are drawn in the ramp pass, above -- the east
+         one has to go down BEFORE the east block that stands nearer */
     }
     /* BODIES: the houses, the perimeter wall (in runs) and the gatehouse */
     const bodies = this._sierraBodies = [];
@@ -53411,6 +53451,25 @@ function sierraGeo(){
                    yF:circle.y - circle.r - 90, yB:circle.y - circle.r - 90 - ED, k:3, z:z[3], sc:SIERRA_ESTATE_SC };
   lots.push(estate);
   const gate = { x:gx, y:wallY, open:RH + 40 };
+  /* THE TERRACE COMES FORWARD TO THE RAMP (2026-09-22, Sir: "squared
+     off", all three ramps). The ramp's lower half used to ride out over the
+     shelf below on a sloping fill, so beside it there was only a thin
+     triangle of wall and open lawn. Now the upper terrace steps forward on
+     both sides of each ramp, as far as the ramp's foot: a block of lawn at
+     the upper level with a full-height wall across its front, and the ramp
+     runs up between the two blocks in a walled cut.
+       c0..c1  the cut the ramp runs in (its side walls, as before)
+       b0..c0 and c1..b1  the two blocks; out to the estate wall on the side
+                          that faces it, BAY_W on the other
+       yF      the blocks' front face -- the ramp's foot, held 32 back so
+               the lower drive's kerb keeps its line */
+  const BAY_W = 530;
+  for(const rp of ramps){
+    rp.c0 = rp.x - RH - 40; rp.c1 = rp.x + RH + 40;
+    rp.b0 = rp.x < (xw + xe)/2 ? xw : rp.c0 - BAY_W;
+    rp.b1 = rp.x > (xw + xe)/2 ? xe : rp.c1 + BAY_W;
+    rp.yF = rp.yS - 32; rp.yw = e[rp.k];
+  }
   _sierraGeo = { B, X0, Y0, RH, gx, xw, xe, wallY, e, z, ramps, roads, circle, lots, gate, HW, HD };
   return _sierraGeo;
 }
@@ -53435,7 +53494,16 @@ function sierraCrosses(x0, y0, x1, y1, R){
   };
   if(crossY(S.wallY, x => Math.abs(x - S.gate.x) < S.gate.open - R)) return true;
   if(crossY(S.e[4], () => false)) return true;
-  for(let k = 1; k <= 3; k++){ const rp = S.ramps[k-1]; if(crossY(S.e[k], x => Math.abs(x - rp.x) <= S.RH + 40 - R)) return true; }
+  for(let k = 1; k <= 3; k++){
+    const rp = S.ramps[k-1];
+    /* the old wall line is open across the ramp AND across its blocks,
+       which are the upper terrace carried forward */
+    if(crossY(S.e[k], x => x >= rp.b0 && x <= rp.b1)) return true;
+    /* the blocks' front: shut across both blocks, open across the cut */
+    if(crossY(rp.yF, x => x > rp.c0 + R && x < rp.c1 - R)) return true;
+    for(const bx of [rp.b0, rp.b1])
+      if(bx > S.xw + 1 && bx < S.xe - 1 && crossX(bx, rp.yF, rp.yw)) return true;
+  }
   if(crossX(S.xw, S.wallY, S.e[4]) || crossX(S.xe, S.wallY, S.e[4])) return true;
   for(const rp of S.ramps) for(const xw of [rp.x - S.RH - 40, rp.x + S.RH + 40]) if(crossX(xw, rp.yS, rp.yN)) return true;
   return false;
@@ -53459,6 +53527,8 @@ function sierraZ(x, y){
   for(const r of S.ramps)
     if(Math.abs(x - r.x) <= S.RH + 40 && y <= r.yS && y >= r.yN)
       return r.zS + (r.zN - r.zS) * ((r.yS - y) / (r.yS - r.yN));
+  for(const r of S.ramps)                                   // the blocks either side of it
+    if(y <= r.yF && y > r.yw && x >= r.b0 && x <= r.b1) return r.zN;
   for(let k = 0; k < 4; k++) if(y <= S.e[k] && y > S.e[k+1]) return S.z[k];
   return S.z[3];
 }
@@ -53477,10 +53547,12 @@ function sierraBlocks(x, y, R){
   if(y < S.wallY - 1 && (Math.abs(x - S.xw) < t || Math.abs(x - S.xe) < t)) return true;  // side walls
   if(Math.abs(y - S.e[4]) < t) return true;                                                // back wall
   for(let k = 1; k <= 3; k++){
-    if(Math.abs(y - S.e[k]) >= t) continue;
     const rp = S.ramps[k-1];
-    if(Math.abs(x - rp.x) <= S.RH + 40 - R) continue;                                      // across the ramp
-    return true;
+    if(Math.abs(y - S.e[k]) < t && (x < rp.b0 || x > rp.b1)) return true;                  // the terrace wall, beside the blocks
+    if(Math.abs(y - rp.yF) < t && x >= rp.b0 - t && x <= rp.b1 + t
+       && !(x > rp.c0 + R && x < rp.c1 - R)) return true;                                  // the blocks' front, open across the cut
+    for(const bx of [rp.b0, rp.b1])
+      if(bx > S.xw + 1 && bx < S.xe - 1 && Math.abs(x - bx) < t && y <= rp.yF + t && y >= rp.yw - t) return true;
   }
   /* the houses: each one's declared volume, in its own lot frame */
   for(const lt of S.lots){
