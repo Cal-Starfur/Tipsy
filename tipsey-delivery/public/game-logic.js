@@ -7697,7 +7697,7 @@ const BENCH_ART = {
 
 /* ground tones — grass for housing/park, warm pavers for commercial,
    distinct from the sidewalk's own concrete tone */
-const GRASS = { a:0x5a9c52, b:0x519246, edge:0x3f7a3a };
+const GRASS = { a:0x5a9c52, b:0x519246 };   // no edge: one seamless lawn (see fillBlockInterior)
 const PLAZA = { a:0xd9c9a8, b:0xceba95, edge:0xb09b74 };
 
 const EXT_YARD_DEPTH = 220, EXT_PARK_DEPTH = 380; // exterior (world-perimeter) lot depths
@@ -37951,11 +37951,27 @@ class WorldScene extends Phaser.Scene {
      (DOOR_H/DOOR_W) and a real person (PERSON_H), not picked
      independently — see PERSON_H's own comment. ================= */
   fillBlockInterior(g, blk, tone){
+    /* ONE WORLD CHECKER (2026-09-22, Sir: "unify grass... so its all one
+       thing"). Tiles used to start at each rect's own x0/y0, so every
+       block, park strip and exterior lot laid its own checker at its own
+       phase, and where two met -- a lot yard against the ring lawn past
+       the last sidewalk -- the squares visibly didn't line up. Now every
+       fill uses the same world lattice the ring lawn already uses (tile
+       centred on bi*T2, bj*T2, shade by (bi+bj)%2) and clips the edge
+       tiles to the rect, so any two grass fills that touch read as one
+       lawn. GRASS also lost its per-tile outline (the ring never had
+       one); PLAZA keeps its. */
     const half = T2/2;
-    for(let y = blk.y0 + half; y < blk.y1; y += T2){
-      for(let x = blk.x0 + half; x < blk.x1; x += T2){
-        const parity = (Math.round((x-blk.x0)/T2) + Math.round((y-blk.y0)/T2)) % 2;
-        const pts = [this.W(x-half,y-half,0), this.W(x+half,y-half,0), this.W(x+half,y+half,0), this.W(x-half,y+half,0)];
+    const i0 = Math.round(blk.x0/T2), i1 = Math.round(blk.x1/T2);
+    const j0 = Math.round(blk.y0/T2), j1 = Math.round(blk.y1/T2);
+    for(let bj = j0; bj <= j1; bj++){
+      const ty0 = Math.max(blk.y0, bj*T2 - half), ty1 = Math.min(blk.y1, bj*T2 + half);
+      if(ty1 - ty0 < 0.5) continue;
+      for(let bi = i0; bi <= i1; bi++){
+        const tx0 = Math.max(blk.x0, bi*T2 - half), tx1 = Math.min(blk.x1, bi*T2 + half);
+        if(tx1 - tx0 < 0.5) continue;
+        const parity = ((bi + bj) % 2 + 2) % 2;
+        const pts = [this.W(tx0,ty0,0), this.W(tx1,ty0,0), this.W(tx1,ty1,0), this.W(tx0,ty1,0)];
         /* the single largest command source in the frame: whole
            blocks were painted tile by tile with no screen test at all,
            ~63,000 graphics commands a frame from five calls. */
