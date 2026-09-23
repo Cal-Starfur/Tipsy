@@ -37796,6 +37796,14 @@ class WorldScene extends Phaser.Scene {
             this.quadOn(g, [p(sEdge,oIn,KERB_H), p(sPad,oIn,zT), p(sPad,oIn,0), p(sEdge,oIn,0)], KERB_FACE);
             this.quadOn(g, [p(sEdge,oIn,Math.min(KERB_H,3)), p(sPad,oIn,zT), p(sPad,oIn,0), p(sEdge,oIn,0)], KERB_DK);
             this.quadOn(g, [p(sEdge,oIn,KERB_H), p(sEdge,oOut,KERB_H), p(sPad,oOut,zT), p(sPad,oIn,zT)], KERB_TOP);
+            /* AND THE SEAM RUNS DOWN THE FLARE TOO (Sir, on-device, circling
+               a ramp wedge: "i think we are missing the dark line on the
+               down slope part of the curbs"). kerbRun lays a dark line on
+               the kerb's paving edge so the step reads at night; the wedge
+               is drawn instead of the stone over its length, and carried
+               no such line, so the seam stopped dead at every ramp. */
+            const oSeam = oIn - (oIn - oOut) * 0.14;
+            this.quadOn(g, [p(sEdge,oIn,KERB_H), p(sEdge,oSeam,KERB_H), p(sPad,oSeam,zT), p(sPad,oIn,zT)], KERB_DK);
           };
           /* the kerb picks up again at the far edge of the pad; the second
              flare is drawn over ITS first FL, same as the first */
