@@ -7039,6 +7039,107 @@ function owLeanCompose(scene, ow){
   scene.tilt = s + (ow.leanI || 0);
 }
 
+/* ---------- DROPPING OFF THE KERB (2026-09-22, Sir: "i dont see much
+   reaction of driving off the curb into the street" -> "lets try all of
+   that"). The only answer used to be a 0.10 lean at full speed, sideways
+   even when you went off square, gone in a third of a second. A kerb is 8
+   high; going off one is a fall, and it now reads as one:
+     - the body DROPS the kerb's height as the wheels leave it and lands
+       with a damped bounce (ow.dropZ, added to botZ)
+     - square-on, the nose PITCHES down and rebounds (ow.dropPitch);
+       at an angle, it ROLLS toward the side that went off first, up to
+       0.35 at full speed -- the old rail stumble's number -- and never
+       past CURB_DROP_TILT_CAP on its own, so it punishes a lean you
+       already had without being a tip by itself
+     - a THUMP (WebAudio, synthesised; the game had no sound) and a short
+       screen JOLT, both scaled by speed
+     - it SCRUBS speed, more square-on, and a fast drop costs the cargo
+       a little (the same damage meter every other knock feeds)
+   A dropped kerb -- a crossing pad -- is flush, so none of this fires
+   there. All tunables in OW_DROP. ---------- */
+const OW_DROP = {
+  z:        8,       // the kerb's height: how far he falls
+  bounceMs: 240,     // one bounce period
+  settleMs: 150,     // bounce decay constant
+  pitch:    0.22,    // nose-down radians at full speed, square-on
+  roll:     0.35,    // lean impulse at full speed, fully sideways
+  scrub:    0.10,    // speed lost at any angle...
+  scrubSq:  0.12,    // ...plus this much more square-on
+  jolt:     6,       // screen px at full speed
+  dmgFrom:  0.5,     // speed fraction above which the cargo feels it
+  dmg:      3,       // damage points at full speed, square-on
+};
+const SFX = { ctx:null };
+function sfxUnlock(){
+  try{
+    if(!SFX.ctx){ const AC = window.AudioContext || window.webkitAudioContext; if(AC) SFX.ctx = new AC(); }
+    if(SFX.ctx && SFX.ctx.state === "suspended") SFX.ctx.resume();
+  }catch(e){}
+}
+if(typeof window !== "undefined"){
+  window.addEventListener("pointerdown", sfxUnlock, { passive:true });
+  window.addEventListener("keydown", sfxUnlock, { passive:true });
+}
+/* a low, short body-thump: a falling sine for the weight, a tick of noise
+   for the wheels meeting the tarmac */
+function sfxThump(power){
+  const c = SFX.ctx;
+  if(!c || c.state !== "running") return;
+  try{
+    const t = c.currentTime, g = c.createGain(), o = c.createOscillator();
+    o.type = "sine"; o.frequency.setValueAtTime(110, t); o.frequency.exponentialRampToValueAtTime(42, t + 0.14);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.12 + 0.5*power, t + 0.008);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.18);
+    o.connect(g).connect(c.destination); o.start(t); o.stop(t + 0.2);
+    const n = c.createBufferSource(), buf = c.createBuffer(1, Math.floor(c.sampleRate*0.03), c.sampleRate), d = buf.getChannelData(0);
+    for(let i = 0; i < d.length; i++) d[i] = (Math.random()*2 - 1) * (1 - i/d.length);
+    const ng = c.createGain(); ng.gain.value = 0.05 + 0.18*power; n.buffer = buf; n.connect(ng).connect(c.destination); n.start(t);
+  }catch(e){}
+}
+/* the kerb's outward normal (road -> pavement) where he is, read off the
+   ground itself so it is right on any street, a corner arc or the estate's */
+function owKerbNormal(W, x, y){
+  const off = (px, py) => { const s2 = W.surfaceAt(px, py); return s2 === 'sidewalk' || s2 === 'curb' ? 1 : 0; };
+  const d = 70, nx = off(x + d, y) - off(x - d, y), ny = off(x, y + d) - off(x, y - d), l = Math.hypot(nx, ny);
+  return l ? { x:nx/l, y:ny/l } : null;
+}
+function owCurbDrop(scene, ow, W){
+  const D = OW_D, P = OW_DROP;
+  const v01 = Math.min(1, Math.abs(ow.vel) / D.vMax);
+  const n = owKerbNormal(W, ow._lastOff ? ow._lastOff.x : ow.px, ow._lastOff ? ow._lastOff.y : ow.py) || owKerbNormal(W, ow.px, ow.py);
+  const hx = Math.cos(ow.yaw) * Math.sign(ow.vel || 1), hy = Math.sin(ow.yaw) * Math.sign(ow.vel || 1);
+  const sq = n ? Math.min(1, Math.abs(hx*n.x + hy*n.y)) : 1;          // 1 = square off the kerb
+  const sideA = Math.sqrt(Math.max(0, 1 - sq*sq));
+  /* the side that went off first: the cross of travel with the normal,
+     the same boundary rule owCurbSign uses, dropping (so the minus) */
+  const side = n ? (Math.sign(Math.cos(ow.yaw)*n.y - Math.sin(ow.yaw)*n.x) || 1) : 1;
+  const before = Math.abs(scene.tilt || 0);
+  owLeanKick(scene, ow, -side * P.roll * v01 * sideA);
+  if(Math.abs(scene.tilt) > CURB_DROP_TILT_CAP && before <= CURB_DROP_TILT_CAP){
+    ow.leanI -= Math.sign(scene.tilt) * (Math.abs(scene.tilt) - CURB_DROP_TILT_CAP);
+    owLeanCompose(scene, ow);
+  }
+  ow.vel *= 1 - (P.scrub + P.scrubSq*sq) * v01;
+  ow.drop = { t:0, v01, sq };
+  if(v01 > P.dmgFrom && typeof scene.damage === "number")
+    scene.damage = Math.min(95, scene.damage + P.dmg * (v01 - P.dmgFrom)/(1 - P.dmgFrom) * (0.5 + 0.5*sq));
+  sfxThump(0.25 + 0.75*v01);
+}
+/* the fall and bounce, advanced every step; everything reads ow.dropZ /
+   dropPitch / dropJolt, all zero when no drop is running */
+function owDropTick(scene, ow, dt){
+  const P = OW_DROP, dr = ow.drop;
+  if(!dr){ ow.dropZ = 0; ow.dropPitch = 0; ow.dropJolt = 0; return; }
+  dr.t += dt;
+  const t = dr.t, amp = 0.45 + 0.55*dr.v01;
+  /* down the kerb's height in the first quarter-bounce, back up past
+     level on the rebound, settling: a damped sine starting downward */
+  ow.dropZ = -P.z * amp * Math.exp(-t / P.settleMs) * Math.sin(2*Math.PI * t / P.bounceMs);
+  ow.dropPitch = -P.pitch * dr.v01 * dr.sq * Math.exp(-t / (P.settleMs*0.9)) * Math.cos(2*Math.PI * t / (P.bounceMs*1.2));
+  ow.dropJolt = P.jolt * dr.v01 * Math.exp(-t / 80) * Math.cos(2*Math.PI * t / 110);
+  if(t > 5*P.settleMs){ ow.drop = null; ow.dropZ = 0; ow.dropPitch = 0; ow.dropJolt = 0; }
+}
+
 /* An impact. Lands in the impact channel and recomposes at once, so a
    hard hit can put you over inside the same frame it happened rather
    than waiting for the next step. */
@@ -7651,10 +7752,22 @@ function owStep(scene, dt){
        transition still charged a lean and tipped him at the mouth every
        time. Inside the estate and up its road there is no kerb to strike. */
     /* ...until it had kerbs like the city's (2026-09-22): now it leans the same */
-    if(ow.sfcCommit && ow.sfcCommit !== sfc && Math.abs(ow.vel) > 0.03)
-      owLeanKick(scene, ow, owCurbSign(ow, sfc) * 0.10 * (Math.abs(ow.vel) / D.vMax));
+    if(ow.sfcCommit && ow.sfcCommit !== sfc && Math.abs(ow.vel) > 0.03){
+      /* off the kerb into the road: a fall, unless it was a crossing's
+         dropped kerb, which is flush */
+      const lo = ow._lastOff, down = ow.sfcCommit === 'sidewalk' && sfc === 'road';
+      const atRamp = down ? (lo ? owAtRampMouth(W.grid, lo.x, lo.y) : false) : owAtRampMouth(W.grid, ow.px, ow.py);
+      if(atRamp){ /* a crossing's kerb is dropped flush: nothing to strike */ }
+      else if(down) owCurbDrop(scene, ow, W);
+      else owLeanKick(scene, ow, owCurbSign(ow, sfc) * 0.10 * (Math.abs(ow.vel) / D.vMax));
+    }
     ow.sfcCommit = sfc;
   }
+  if(sfc === 'sidewalk' || sfc === 'curb') ow._lastOff = { x:ow.px, y:ow.py };   // the last bit of pavement he stood on
+  owDropTick(scene, ow, dt);
+  /* the jolt rides on the screen centre layout() set */
+  if(scene._cyBase === undefined) scene._cyBase = scene.cy;
+  scene.cy = scene._cyBase + (ow.dropJolt || 0);
   ow.lastSfc = sfc;
   ow.surface = sfc;
 
@@ -36439,6 +36552,7 @@ class WorldScene extends Phaser.Scene {
     this.cx = w/2;
     /* center the view on the middle of the lane band, not the top lane */
     this.cy = h/2 - TILE*0.5*this.K + 10;
+    this._cyBase = this.cy;   // the kerb-drop jolt offsets from here
   }
 
   /* ---------- path + terrain (s = distance along the route) ---------- */
@@ -47855,7 +47969,8 @@ class WorldScene extends Phaser.Scene {
     this.botZ = this.groundZ(this.botS) + (this.slabZ || 0) + (this.crossZ || 0)
               + (this.hjAir ? this.hjAir.z : 0)
               + (this.hjAir ? 0 : this.hjSlabZ(this.botS))    // hjAir.z already carries it
-              + (this.ow && this.ow.on ? sierraZ(this.botX, this.botY) : 0);   // SIERRA VISTA: the hills are real ground
+              + (this.ow && this.ow.on ? sierraZ(this.botX, this.botY) : 0)    // SIERRA VISTA: the hills are real ground
+              + (this.ow && this.ow.on ? (this.ow.dropZ || 0) : 0);            // off the kerb: the fall and its bounce
     /* MAX_GRADE: hard ceiling at a real 5% grade (atan(0.05) ≈ 2.86°),
        on top of the HILL_AMP retune above — the retune sets the typical
        feel per neighborhood, this guarantees no unlucky noise seed ever
@@ -47881,6 +47996,7 @@ class WorldScene extends Phaser.Scene {
       const _sv = (this.ow && this.ow.on) ? sierraSlope(this.botX, this.botY, this.ow.yaw) : 0;
       this.pitch = _sv !== 0 ? Math.atan(Phaser.Math.Clamp(_sv, -0.2, 0.2))
                              : Math.atan(Phaser.Math.Clamp(this.groundSlope(this.botS) + (this.crossSlope || 0), -MAX_GRADE, MAX_GRADE));
+      if(this.ow && this.ow.on && this.ow.dropPitch) this.pitch += this.ow.dropPitch;   // the kerb drop's nod
     }
 
     /* camera reframe: at f=3 the worker/customer's walk-out direction
