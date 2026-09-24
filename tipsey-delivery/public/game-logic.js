@@ -40524,6 +40524,40 @@ class WorldScene extends Phaser.Scene {
       const kx = e.ox + e.dv.x*mid + e.rv.x*B, ky = e.oy + e.dv.y*mid + e.rv.y*B;
       vq.push({ depth: kx + ky, fn: (g) => this.drawAlleyGate(g, e, a0, a1, B) });
     }
+    /* ...AND BESIDE A CHARGE DEPOT (Sir, 2026-09-23, circling the open
+       slot between Tipsey's depot and the glasses shop: "we should have a
+       gate here"). The loop above only gates the gap between two SHOPS;
+       the depot is drawn off its own corner frame, not as a unit, so the
+       alley between it and the next shop was never seen. Its footprint is
+       projected onto this edge: where one of its sides lies on this
+       frontage, the nearest shop either end of it gets the same gate,
+       same plane, same 20 minimum. */
+    {
+      const dg = this.route && this.route.grid;
+      if(dg && units.length){
+        const G = depotGeom();
+        for(const d of depotsOf(dg)){
+          const pts = [[0,0],[G.WW,0],[G.WW,-G.DD],[0,-G.DD]].map(([da,db]) => depotWorld(d.cu, da, db));
+          const la = pts.map(p => (p.x - e.ox)*e.rv.x + (p.y - e.oy)*e.rv.y);
+          if(Math.max(...la) > 12 || Math.max(...la) < -12) continue;   // no side on this frontage
+          const al = pts.map(p => (p.x - e.ox)*e.dv.x + (p.y - e.oy)*e.dv.y);
+          const p0 = Math.min(...al), p1 = Math.max(...al);
+          if(p1 < 0 || p0 > e.len) continue;
+          let before = -Infinity, after = Infinity;
+          for(const u of units){
+            if(u.start + u.w <= p0 + 1) before = Math.max(before, u.start + u.w);
+            if(u.start >= p1 - 1) after = Math.min(after, u.start);
+          }
+          const B = -6;
+          for(const [a0, a1] of [[before, p0], [p1, after]]){
+            if(!isFinite(a0) || !isFinite(a1) || a1 - a0 < 20 || a1 - a0 > 600) continue;
+            const mid = (a0 + a1) / 2;
+            const kx = e.ox + e.dv.x*mid + e.rv.x*B, ky = e.oy + e.dv.y*mid + e.rv.y*B;
+            vq.push({ depth: kx + ky, fn: (g) => this.drawAlleyGate(g, e, a0, a1, B) });
+          }
+        }
+      }
+    }
     units.forEach((u, idx) => {
       const hx = e.ox + e.dv.x*(u.start + u.w/2), hy = e.oy + e.dv.y*(u.start + u.w/2);
       const hseed = ((Math.round(hx)*7919) ^ (Math.round(hy)*104729)) >>> 0;
