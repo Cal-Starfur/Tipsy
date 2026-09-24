@@ -909,27 +909,50 @@
      for), so the art needed zero changes, only the mechanism swapping
      under it. */
   #blRobotStage{position:relative;width:88px;height:101px;}
+  /* ONE CLOCK FOR SPIN AND FACE (2026-09-23, Sir: "not fluid enough when
+     spinning and it doesn't know when to have blue eyes vs no eyes").
+     The coin-flip above drove the squash and the face swap from THREE
+     separate animations: blFlip on the card, and a steps(1) opacity
+     animation on each face. WebKit hands transform animations to the
+     compositor but cannot accelerate steps() timing, so the two face
+     swaps ran on the main thread -- the very thread the route build
+     is blocking while this loader is up. On device the card kept
+     turning while the swap lagged behind it: eyes on the back half,
+     blank visor on the front half.
+     Fix: the card now turns with rotateY and each face hides itself
+     with backface-visibility, so which face shows is decided by the
+     same transform that does the turning -- one animation, one clock,
+     nothing left to fall out of step. Still flat 2D: there is no
+     perspective anywhere, so rotateY(a) paints exactly what
+     scaleX(cos a) would (a horizontal squash, no depth, no side panel).
+     linear timing = constant turning speed, so the squash follows a
+     true cosine all the way round instead of dwelling face-on and then
+     snapping through the edge. #blRobotBack's rotateY(180deg) replaces
+     its old static scaleX(-1): same job, cancels the card's own half
+     turn so the back art reads un-mirrored when it faces the camera. */
   #blRobotCard{position:absolute;inset:0;
-    animation:blFlip 1.35s cubic-bezier(.45,.05,.55,.95) infinite;}
+    -webkit-transform-style:preserve-3d;transform-style:preserve-3d;
+    will-change:transform;
+    animation:blSpin 2.7s linear infinite;}
   .blFace{position:absolute;inset:0;
-    animation:blFaceFront 1.35s steps(1) infinite;}
-  .blBack{transform:scaleX(-1);
-    animation-name:blFaceBack;}
-  @keyframes blFlip{0%{transform:scaleX(1);}
-                     50%{transform:scaleX(-1);}
-                     100%{transform:scaleX(1);}}
-  /* hard cuts, not fades -- see the comment above for why. Windows
-     match blFlip's own zero-crossings (roughly 25%/75% under the same
-     shared easing), with a hair of margin on each side so the swap
-     always lands while the card reads as a thin sliver either way. */
-  @keyframes blFaceFront{0%,23%{opacity:1;} 27%,73%{opacity:0;} 77%,100%{opacity:1;}}
-  @keyframes blFaceBack{0%,23%{opacity:0;} 27%,73%{opacity:1;} 77%,100%{opacity:0;}}
+    -webkit-backface-visibility:hidden;backface-visibility:hidden;}
+  .blBack{transform:rotateY(180deg);}
+  @keyframes blSpin{from{transform:rotateY(0deg);} to{transform:rotateY(360deg);}}
   /* the shadow is widest face-on and narrowest edge-on, i.e. twice per
-     turn, which is what sells the rotation as depth rather than a flip */
+     turn, which is what sells the rotation as depth rather than a flip.
+     Keyframed at every 45deg of the spin (linear between) so its width
+     tracks the card's cosine instead of easing on its own curve. */
   #blShadow{width:52px;height:9px;border-radius:50%;background:#000;
-    animation:blShad 1.35s cubic-bezier(.45,.05,.55,.95) infinite;}
+    animation:blShad 2.7s linear infinite;}
   @keyframes blShad{0%,50%,100%{transform:scaleX(1);opacity:.42;}
+                     12.5%,37.5%,62.5%,87.5%{transform:scaleX(.84);opacity:.36;}
                      25%,75%{transform:scaleX(.46);opacity:.22;}}
+  /* LOADER ART + PACE (2026-09-23, worked up in labs/loader-lab.html):
+     pennant flag like drawFlag (straight edge on the pole's outer edge) that
+     crosses to the far side on the back, plain back (no visor), red stripe
+     all round with the pale 0xfff3b0 headlight bar on the front only,
+     full-width undercarriage, edge-on tyres outboard of the hull. One turn
+     is 2.7s (Sir picked half the old 1.35s). */
   #blText{margin-top:6px;font:700 12px/1 system-ui,-apple-system,sans-serif;
     letter-spacing:2.5px;text-transform:uppercase;color:#ff7a1a;opacity:.85;}
   /* the probe's readout. Rides inside the loader because the loader is
@@ -1105,34 +1128,34 @@
  <div id="blInner">
   <div id="blRobotStage">
    <div id="blRobotCard">
-    <svg id="blRobot" class="blFace" viewBox="0 0 40 46" width="88" height="101" aria-hidden="true">
-      <line x1="13" y1="5" x2="13" y2="11" stroke="#2e3138" stroke-width="1.5"/>
-      <circle cx="13" cy="5" r="2" fill="#ff5722"/>
+    <svg id="blRobot" overflow="visible" class="blFace" viewBox="0 0 40 46" width="88" height="101" aria-hidden="true">
+      <line x1="13" y1="5.5" x2="13" y2="11" stroke="#2e3138" stroke-width="1.5"/>
+      <polygon points="12.25,5.5 16.05,5.5 12.25,0" fill="#ff5722"/>
       <rect x="9" y="11" width="22" height="7" fill="#f7f8fa" stroke="#30343d" stroke-width="1.2"/>
       <rect x="5" y="18" width="30" height="21" fill="#f7f8fa" stroke="#30343d" stroke-width="1.2"/>
       <rect x="9" y="22" width="22" height="8" fill="#22242b"/>
       <circle cx="16" cy="26" r="1.9" fill="#7fe3ff"/>
       <circle cx="24" cy="26" r="1.9" fill="#7fe3ff"/>
-      <rect x="5" y="32" width="30" height="4" fill="#c2452e"/>
-      <rect x="5" y="34" width="30" height="3" fill="#ffcc33" stroke="#c9a020" stroke-width="0.5"/>
-      <rect x="5" y="36" width="30" height="3" fill="#494e58"/>
+      <rect x="5" y="32.2" width="30" height="3.7" fill="#c2452e"/>
+      <rect x="8" y="34.8" width="24" height="2.1" fill="#fff3b0"/>
+      <rect x="5" y="39" width="30" height="4.7" fill="#3f434c"/><rect x="0.2" y="37.9" width="4.8" height="8.4" rx="0.6" fill="#24262c" stroke="#1a1c21" stroke-width="0.6"/><rect x="35" y="37.9" width="4.8" height="8.4" rx="0.6" fill="#24262c" stroke="#1a1c21" stroke-width="0.6"/>
     </svg>
-    <svg id="blRobotBack" class="blFace blBack" viewBox="0 0 40 46" width="88" height="101" aria-hidden="true">
-      <line x1="13" y1="5" x2="13" y2="11" stroke="#2e3138" stroke-width="1.5"/>
-      <circle cx="13" cy="5" r="2" fill="#7a2e1a"/>
+    <svg id="blRobotBack" overflow="visible" class="blFace blBack" viewBox="0 0 40 46" width="88" height="101" aria-hidden="true">
+      <line x1="27" y1="5.5" x2="27" y2="11" stroke="#2e3138" stroke-width="1.5"/>
+      <polygon points="27.75,5.5 23.95,5.5 27.75,0" fill="#ff5722"/>
       <rect x="9" y="11" width="22" height="7" fill="#dcdde1" stroke="#30343d" stroke-width="1.2"/>
       <rect x="5" y="18" width="30" height="21" fill="#dcdde1" stroke="#30343d" stroke-width="1.2"/>
-      <rect x="9" y="22" width="22" height="8" fill="#3a3e46"/>
-      <rect x="13" y="24" width="2" height="4" fill="#22242b"/>
-      <rect x="21" y="24" width="2" height="4" fill="#22242b"/>
-      <rect x="5" y="32" width="30" height="4" fill="#c2452e"/>
-      <rect x="5" y="34" width="30" height="3" fill="#ffcc33" stroke="#c9a020" stroke-width="0.5"/>
-      <rect x="5" y="36" width="30" height="3" fill="#494e58"/>
+      
+      
+      
+      <rect x="5" y="32.2" width="30" height="3.7" fill="#c2452e"/>
+      
+      <rect x="5" y="39" width="30" height="4.7" fill="#3f434c"/><rect x="0.2" y="37.9" width="4.8" height="8.4" rx="0.6" fill="#24262c" stroke="#1a1c21" stroke-width="0.6"/><rect x="35" y="37.9" width="4.8" height="8.4" rx="0.6" fill="#24262c" stroke="#1a1c21" stroke-width="0.6"/>
     </svg>
    </div>
   </div>
   <div id="blShadow"></div>
-  <div id="blText">Plotting route</div>
+  <div id="blText">Tipsey</div>
  </div>
  <div id="blDiag"></div>
 </div>
