@@ -7163,6 +7163,166 @@ const HOUSES = [
     houseProp('shower', () => { cyl(440, -300, 0, 110, 2, '#b8bcc0'); tube(440, -300, 110, 440, -316, 110, 1.4, '#b8bcc0'); cyl(440, -316, 104, 108, 5, '#b8bcc0'); T(424, 456, -316, -284, 1, '#a8835c'); });
     houseProp('ac unit', () => acUnit(160, 0, 480));
   }
+},
+/* ---- A SPLIT-LEVEL for Sierra Vista's first terrace wall (Sir,
+   2026-09-23, sketching over the straddling house: "for the split level on
+   the terrace we dont have a design for it i guess but i want it to be on
+   both levels of ground not just centered on the split"). Authored in the game (index.html, beside the Sierra Vista set) and copied
+   here so the lab stays the canonical list; the two must match.
+   Two wings on two grounds:
+     LOWER WING  on the court, b -90..-270, two storeys to 130; its back
+                 wall IS the retaining wall line, and its flat roof is a
+                 terrace -- parapet, pots -- looking down the hill.
+     UPPER WING  on the terrace's own lawn, SPLIT_Z up (the 180 step, in
+                 lab units), b -270..-530, set in from both ends, its own
+                 three storeys under a tile hip; French doors step out from it
+                 onto the lower wing's roof.
+   Placed with its b = -270 on the wall line (see split in sierraGeo), so
+   each wing stands on real ground and nothing is buried. ---- */
+{
+  name:'Terrazza Split-Level', hood:'The Flats', tier:'double', sc:HOUSE_SC, ww:HOUSE_DOUBLE, dd:HOUSE_DEPTH_LAB,
+  head:'Split-level: a two-storey wing on the lower ground, a second wing on the terrace above, roof terrace between',
+  desc:'A Mediterranean split-level built into a terrace wall: a two-storey stucco wing on the lower ground with a flat roof terrace, and behind it a second two-storey wing standing on the terrace itself under a red tile hip roof, its French doors opening onto the roof terrace.',
+  tags:['double','split level','mediterranean','roof terrace','hillside'],
+  door:[405, -90],
+  splitB:-270, splitZ:75,
+  liv:[ { wall:'#f2e8d6', roof:'#b8583a', trim:'#5a4636', leaf:'#4a5a3a', cap:'#e2d8c0' },
+        { wall:'#efe0c8', roof:'#a84e34', trim:'#2e4d68', leaf:'#2e4d68', cap:'#e8dcc4' },
+        { wall:'#f5f0e4', roof:'#c0613f', trim:'#3f5a3e', leaf:'#6b4a36', cap:'#ddd2ba' } ],
+  vol:{
+    foot:[[60,-90],[750,-90],[750,-270],[690,-270],[690,-530],[150,-530],[150,-270],[60,-270]], h:265,
+    solids:[ { name:'palm L', c:[40,-60], r:7, h:190, prop:true },
+             { name:'olive R', c:[780,-70], r:16, h:90, prop:true } ],
+    marks:{ door:[405,-90], mat:[405,-90+35.4] }
+  },
+  yard(c){
+    houseLawn(0, 809.6, -90, 0, '#86a85e');
+    T(372, 438, -90, 0, 0.6, '#c9a07a');
+  },
+  upper(c, d){
+    /* DEEPER AND TALLER (Sir: "the upper building needs to be deeper and
+       taller"): three storeys over the terrace, 260 deep -- its back still
+       clears the terrace street's sidewalk by a strip of lawn */
+    const Z = this.splitZ, bf = this.splitB, bb = -530, H = Z + 190;
+    houseMass(150, 690, bf, bb, H, c.wall, d, Z);
+    houseSideWins(150, 690, bf, bb, [[Z + 20, Z + 58], [Z + 78, Z + 112], [Z + 136, Z + 170]], c.trim, { w:34 });
+    if(d > 0){
+      /* the two storeys that clear the lower wing's roof: windows either
+         side of the French doors onto the roof terrace, and a full row
+         above */
+      for(const [a0, a1] of [[200,250],[290,340],[520,570],[610,660]]) houseWin(a0, a1, Z + 78, Z + 112, bf, c.trim, shade(c.wall,.92), 1, { shutter: shade(c.trim,1.3) });
+      for(const [a0, a1] of [[200,250],[290,340],[405,455],[520,570],[610,660]]) houseWin(a0, a1, Z + 136, Z + 170, bf, c.trim, shade(c.wall,.92), 1, { shutter: shade(c.trim,1.3) });
+      F(392, 468, 130, 130 + 62, shade(c.trim,.9), shade(c.trim,.6), 1, bf + 0.3);      // French door casing
+      F(398, 462, 130, 130 + 58, '#34424b', null, 0, bf + 0.5);
+      F(429, 431, 130, 130 + 58, shade(c.trim,.9), null, 0, bf + 0.7);
+      F(398, 462, 130 + 36, 130 + 58, 'rgba(170,205,220,.35)', null, 0, bf + 0.6);
+    } else {
+      for(const zr of [[Z + 78, Z + 112], [Z + 136, Z + 170]])
+        for(const [a0, a1] of [[220,270],[380,430],[570,620]]) houseWin(a0, a1, zr[0], zr[1], bb, c.trim, shade(c.wall,.92), -1);
+      rearDoor(420, c.wall, c.leaf, -bb, 92);
+    }
+    houseHip(150, 690, bf, bb, H, H + 56, 12, c.roof);
+  },
+  lower(c, d){
+    const bf = -90, bb = this.splitB, H = 130;
+    houseMass(60, 750, bf, bb, H, c.wall, d);
+    houseSideWins(60, 750, bf, bb, [[26,64],[80,114]], c.trim, { w:34 });
+    if(d > 0){
+      houseArch(405, bf, houseDoorDims(HOUSE_SC).h, 40, 16, shade(c.wall,.9), 1);
+      houseDoorway(405, bf, HOUSE_SC, c.trim, c.leaf, 1);
+      for(const [a0, a1] of [[110,160],[210,260],[550,600],[650,700]]){
+        houseArchWin(a0, a1, 26, 70, bf, c.trim, 1);
+        houseWin(a0, a1, 82, 114, bf, c.trim, shade(c.wall,.92), 1, { shutter: shade(c.trim,1.3) });
+      }
+    }
+    /* the flat roof is a DECK (Sir: "have a hand rail on its lower roof
+       like a deck"): tiled floor, a low curb round the open edges, and an
+       open rail on it -- posts, balusters and a top rail -- along the front
+       and both ends. Far end first, then the front, then the seen end, so
+       each rail stands in front of what is behind it. Pots inside the rail. */
+    T(60, 750, bb, bf, H, shade(c.cap,.92));
+    for(let a = 72; a < 750; a += 40) T(a, a + 20, bb, bf, H + 0.2, shade(c.cap,.86));
+    const RH = 30, rail = shade(c.trim,.95), post = c.trim;
+    for(const a of [90, 720]){ cyl(a, bf - 26, H, H + 20, 11, '#b8683a', '#5f8f4f'); ball(a, bf - 26, H + 28, 12, '#5f8f4f'); }
+    const sideRail = aS => {                                 // an end rail, on the plane a = aS
+      box(aS - 3, aS + 3, bb, bf, H, H + 5, c.cap, shade(c.wall,.96), shade(c.wall,.8));
+      for(let b = bb + 6; b < bf - 2; b += 12) S(aS, b, b + 2.4, H + 5, H + RH, rail);
+      for(const b of [bb + 3, (bb + bf)/2, bf - 3]) box(aS - 2.5, aS + 2.5, b - 2.5, b + 2.5, H + 5, H + RH + 3, shade(post,1.1), post, shade(post,.8));
+      box(aS - 3, aS + 3, bb, bf, H + RH, H + RH + 4, shade(rail,1.15), rail, shade(rail,.8));
+    };
+    sideRail(64);
+    if(d > 0) this.deckKit(c, H, bb, bf);                    // inside the far rail, behind the front one
+    box(60, 750, bf - 6, bf, H, H + 5, c.cap, shade(c.wall,.96), shade(c.wall,.8));
+    for(let a = 66; a < 746; a += 12) F(a, a + 2.4, H + 5, H + RH, rail, null, 0, bf - 3);
+    for(let a = 64; a <= 746; a += 138) box(a - 2.5, a + 2.5, bf - 5.5, bf - 0.5, H + 5, H + RH + 3, shade(post,1.1), post, shade(post,.8));
+    box(60, 750, bf - 6, bf, H + RH, H + RH + 4, shade(rail,1.15), rail, shade(rail,.8));
+    sideRail(746);
+  },
+  /* ON THE DECK (Sir: "one should have a swimming pool and furniture on
+     its roof deck the other just needs furniture"). Which one comes off
+     the lot (_deck, set by the estate before it draws): 'pool' lays a
+     raised pool basin east of the French doors with loungers and an
+     umbrella by it; anything else lays an outdoor dining set under an
+     umbrella there instead. Both keep the doors' path (a 390..470) clear
+     and put two loungers and a side table on the west end. Everything is
+     drawn far to near (b, then a) so it stacks on screen as it stands. */
+  deckKit(c, H, bb, bf){
+    const wood = '#8a6a4a', frame = '#e8e2d6', cush = ['#f2ece0', '#d9c6a0', '#e8eef0'][state.pal % 3];
+    const lounger = (a0, b0) => {                            // foot toward the front, backrest at the back
+      box(a0, a0 + 26, b0, b0 + 66, H + 3, H + 9, cush, shade(frame,.9), shade(frame,.75));
+      for(const [da, db] of [[2, 4], [22, 4], [2, 60], [22, 60]]) box(a0 + da, a0 + da + 2, b0 + db, b0 + db + 2, H, H + 3, frame, frame, shade(frame,.8));
+      poly([P(a0, b0 + 16, H + 9), P(a0 + 26, b0 + 16, H + 9), P(a0 + 26, b0 + 2, H + 30), P(a0, b0 + 2, H + 30)], shade(cush,.96), shade(cush,.7), 0.8);
+    };
+    const umbrella = (a, b, col) => {
+      cyl(a, b, H, H + 74, 1.8, '#6b5a44');
+      plateCircle(a, b, H + 72, 44, shade(col,.82));
+      plateCircle(a, b, H + 76, 38, col);
+      ball(a, b, H + 80, 3.5, '#e8e2d6');
+    };
+    const sideTable = (a, b) => { cyl(a, b, H, H + 16, 2, '#6b5a44'); plateCircle(a, b, H + 16, 10, frame); };
+    /* the west end: two loungers and a side table, for both */
+    lounger(110, bb + 12); lounger(156, bb + 12); sideTable(200, bb + 40);
+    if(this._deck === 'pool'){
+      /* a raised basin: stone coping, the water a step down inside it, a
+         deeper band along the far wall, ripple lines, and a ladder */
+      const a0 = 492, a1 = 704, b0 = bb + 14, b1 = bf - 40;
+      box(a0, a1, b0, b1, H, H + 10, shade(c.cap,1.04), shade(c.cap,.9), shade(c.cap,.78));
+      T(a0 + 8, a1 - 8, b0 + 8, b1 - 8, H + 8, '#4f9fc4');
+      T(a0 + 8, a1 - 8, b0 + 8, b0 + 22, H + 8.2, '#3f86ad');
+      for(let k = 0; k < 4; k++){ const bk = b0 + 30 + k*((b1 - b0 - 50)/3); T(a0 + 24 + k*18, a0 + 84 + k*18, bk, bk + 2.5, H + 8.4, 'rgba(220,244,252,.55)'); }
+      for(const aa of [a1 - 30, a1 - 18]) box(aa, aa + 2, b1 - 6, b1 - 4, H + 8, H + 24, '#dfe6ea', '#c9d2d8', '#aab4ba');
+      umbrella(250, bb + 40, '#2f6f8a');
+    } else {
+      /* an outdoor dining set under an umbrella */
+      const ta = 590, tb = (bb + bf)/2;
+      const chair = (a, b, backB) => {
+        box(a - 9, a + 9, b - 9, b + 9, H + 11, H + 14, wood, shade(wood,.85), shade(wood,.7));
+        for(const [da, db] of [[-8, -8], [6, -8], [-8, 6], [6, 6]]) box(a + da, a + da + 2, b + db, b + db + 2, H, H + 11, shade(wood,.8), shade(wood,.8), shade(wood,.65));
+        box(a - 9, a + 9, backB - 1.5, backB + 1.5, H + 14, H + 32, shade(wood,1.05), wood, shade(wood,.7));
+      };
+      chair(ta - 22, tb - 34, tb - 43); chair(ta + 22, tb - 34, tb - 43);          // the far pair first
+      box(ta - 40, ta + 40, tb - 22, tb + 22, H + 22, H + 25, shade(wood,1.1), wood, shade(wood,.75));
+      for(const [da, db] of [[-36, -18], [34, -18], [-36, 16], [34, 16]]) box(ta + da, ta + da + 2.5, tb + db, tb + db + 2.5, H, H + 22, shade(wood,.8), shade(wood,.8), shade(wood,.65));
+      chair(ta - 22, tb + 34, tb + 43); chair(ta + 22, tb + 34, tb + 43);
+      umbrella(ta, tb, '#c9622a');
+    }
+  },
+  fore(p){
+    houseProp('palm L', () => housePalm(40, -60, 180, '#5f8f4f'));
+    houseProp('olive R', () => { cyl(780, -70, 0, 34, 4, '#6b5a44'); ball(780, -70, 62, 30, '#7a8f5a'); });
+  },
+  draw(p){
+    const c = this.liv[state.pal % this.liv.length];
+    this.yard(c);
+    this.upper(c, 1);          // the far wing first: the near one stands in front of its foot
+    this.lower(c, 1);
+  },
+  back(p){
+    const c = this.liv[state.pal % this.liv.length];
+    this.yard(c); this.fore(p);
+    this.lower(c, -1);
+    this.upper(c, -1);
+  }
 }
 
 ];
