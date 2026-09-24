@@ -49030,6 +49030,7 @@ class WorldScene extends Phaser.Scene {
     const fn = this.R(1, 0, 0);
     const F = (y, z) => this.P(BODY.hx + 0.8, y, z + bobZ);
     const ks = this.kScale();
+    let mouthPolys = null;              // this frame's mouth, for the night glow below
     if(fn.x + fn.y + fn.z > 0){
       this.quadOn(g, [F(-13,40), F(13,40), F(13,50), F(-13,50)], SKIN.visor);
       this.edgeOn(g, [F(-13,40), F(13,40), F(13,50), F(-13,50)], SKIN.outline, this.kw(1.5));
@@ -49070,7 +49071,23 @@ class WorldScene extends Phaser.Scene {
           }
         }
       }
-      this.quadOn(g, [F(-16,18), F(16,18), F(16,22), F(-16,22)], 0xfff3b0);
+      /* HIS MOUTH IS THE LIGHT BAR (Sir, 2026-09-24: "i thought of the
+         light bar as his mouth so now it feels like he is having two
+         mouths"). Stock, it is the pale bar across the stripe, as it always
+         was. A garage mouth (MOUTH_SHAPES) REPLACES the bar, drawn where
+         the bar sits and, unpicked, in the bar's own light -- the bar
+         reshaped. Glow uses his eye colour. */
+      /* stock Deadpan in a picked colour is drawn as the 'flat' shape (the
+         bar's exact footprint) so it takes the colour and the glow */
+      const _ms = MOUTH_SHAPES[SKIN.mouth || ((SKIN.mouthCol != null || SKIN.mouthGlow) ? 'flat' : '')];
+      if(_ms){
+        const st = { alert: Math.abs(this.tilt) > 0.6 || this.slide, stuck: this.stuckAmt > 0.4, driving };
+        mouthPolys = this.state === "tipped" ? MOUTH_SHAPES._dizzy : (_ms.fn ? _ms.fn(t, st) : _ms.polys);
+        const ink = SKIN.mouthGlow ? SKIN.eye : (SKIN.mouthCol != null ? SKIN.mouthCol : MOUTH_BAR);
+        for(const q of mouthPolys){
+          this.quadOn(g, (q.p || q).map(([dy, dz]) => F(dy*MOUTH_KX, MOUTH_Z + dz*MOUTH_KZ)), q.c ? MOUTH_PART[q.c] : ink);
+        }
+      } else this.quadOn(g, [F(-16,18), F(16,18), F(16,22), F(-16,22)], MOUTH_BAR);
     }
     /* a hue projection turns his eye colour -- and so beams and pool --
        round the wheel. Written onto SKIN, which is his live palette. */
@@ -49154,6 +49171,17 @@ class WorldScene extends Phaser.Scene {
         gLo.fillEllipse(c.x, c.y, (8 + 2.5*pulse)*ks, (7 + 2.5*pulse)*ks);
         gLo.fillStyle(0xffffff, ga((0.5 + 0.35*pulse)*faceK));
         gLo.fillEllipse(c.x, c.y, (3.5 + 1*pulse)*ks, (3 + 1*pulse)*ks);
+      }
+      /* a GLOW mouth is lit like the shaped eyes: soft copy, then the ink
+         parts lit (teeth and tongue stay unlit) */
+      if(mouthPolys && SKIN.mouthGlow){
+        for(const q of mouthPolys){
+          if(q.c) continue;
+          gLo.fillStyle(SKIN.eye, ga((0.10 + 0.08*pulse)*faceK));
+          gLo.fillPoints(q.map(([dy, dz]) => { const p = F(dy*MOUTH_KX*1.12, MOUTH_Z + dz*MOUTH_KZ*1.25); return new Phaser.Geom.Point(p.x, p.y); }), true);
+          gLo.fillStyle(SKIN.eye, ga((0.40 + 0.25*pulse)*faceK));
+          gLo.fillPoints(q.map(([dy, dz]) => { const p = F(dy*MOUTH_KX, MOUTH_Z + dz*MOUTH_KZ); return new Phaser.Geom.Point(p.x, p.y); }), true);
+        }
       }
       /* headlights: pool + beams, ALL geometry generated in world space
          off botX/botY + drawAngle alone (not a full R() through
@@ -51389,6 +51417,103 @@ const EYE_PROJ = (() => {
                   const r1 = ring(0, 0, 22), r2 = ring(0, 0, 20.6).reverse();
                   P(r1.concat([r1[0], r2[r2.length-1]], r2), 0x9dff7a, 0.3); } }
   };
+})();
+
+/* ---------- GARAGE MOUTHS (Sir, 2026-09-24: "the next class of upgrade
+   his mouth") ----------
+   His mouth is the light bar. SKIN.mouth picks a shape that takes the
+   bar's place; absent (every skin, and stock) is the bar itself, so stock
+   Tipsey is what he always was. A mouth is painted ON his front face where
+   the bar sits (z 18..22, across the stripe's lower edge), through
+   drawRobot's F(), so it foreshortens with the face and scales with the
+   camera like the eye shapes. Each polygon is [along the face, up] about
+   (0, MOUTH_Z); the body starts at z 14, so a mouth keeps to about +/-5.
+   Open mouths have an ink rim round a dark cavity, so the ink (the bar's
+   light, a colour, or glow) always reads as the mouth.
+   A polygon is either a bare point list (drawn in the mouth's INK) or
+   { p, c } with c a fixed part colour from MOUTH_PART (teeth, tongue,
+   metal). fn(t, st) entries animate; st is his state this frame
+   ({ alert, stuck, driving }), so a mouth can react to how he is doing. */
+/* SCALED TO THE BAR (Sir, 2026-09-24: "the light bar ... is basically the
+   deadpan look but the scale of the mouths are much smaller"). Deadpan is
+   +/-6.5 by +/-0.9 in the catalogue, so MOUTH_KX / MOUTH_KZ make it the
+   bar's own 32 x 4 -- and every other mouth comes up with it. Centred just
+   above the bar's line so the tallest (the grin's belly, z -3.6) still
+   stops at the body's bottom edge, z 14. */
+const MOUTH_Z = 22, MOUTH_KX = 2.46, MOUTH_KZ = 2.2;
+const MOUTH_BAR = 0xfff3b0;          // the light bar's colour: stock mouth, and the stock ink
+const MOUTH_PART = { teeth: 0xfafaf4, tongue: 0xff6f86, metal: 0x3a3e47, cavity: 0x23252b };
+const MOUTH_SHAPES = (() => {
+  const ell = (rx, rz, n = 18, cx = 0, cz = 0) => {
+    const o = []; for(let i = 0; i < n; i++){ const a = i/n*Math.PI*2; o.push([cx + Math.cos(a)*rx, cz + Math.sin(a)*rz]); } return o;
+  };
+  /* a polyline given a thickness w: both offset edges, one reversed */
+  const stroke = (pts, w) => {
+    const L = [], R = [];
+    for(let i = 0; i < pts.length; i++){
+      const a = pts[Math.max(0, i-1)], b = pts[Math.min(pts.length-1, i+1)];
+      let tx = b[0]-a[0], tz = b[1]-a[1]; const m = Math.hypot(tx, tz) || 1; tx /= m; tz /= m;
+      L.push([pts[i][0] - tz*w/2, pts[i][1] + tx*w/2]);
+      R.push([pts[i][0] + tz*w/2, pts[i][1] - tx*w/2]);
+    }
+    return L.concat(R.reverse());
+  };
+  const curve = (x0, x1, f, n = 14) => { const o = []; for(let i = 0; i <= n; i++){ const x = x0 + (x1-x0)*i/n; o.push([x, f(x)]); } return o; };
+  const smile = (rx, sag) => curve(-rx, rx, x => -sag*(1 - (x/rx)*(x/rx)) + sag*0.35);
+  /* an open "D": flat top at zt, round belly down to zb */
+  const dMouth = (rx, zt, zb, n = 16) => {
+    const o = [[-rx, zt], [rx, zt]];
+    for(let i = 1; i < n; i++){ const a = i/n*Math.PI; o.push([Math.cos(a)*rx, zt - Math.sin(a)*(zt - zb)]); }
+    return o;
+  };
+  const rect = (x0, z0, x1, z1) => [[x0,z0],[x1,z0],[x1,z1],[x0,z1]];
+  const tri = (x0, x1, zt, zb) => [[x0, zt], [x1, zt], [(x0+x1)/2, zb]];
+  const T = p => ({ p, c: 'teeth' });
+  const C = p => ({ p, c: 'cavity' });
+  const M = p => ({ p, c: 'metal' });
+  const half = [[0,0.9],[1.6,1.8],[3.6,1.6],[5.4,0.6],[6.9,1.1],[7.7,2.4],[7.1,2.9],[6.6,1.6],[5.5,-0.8],[3.5,-1.2],[1.5,-0.7],[0,-0.1]];
+  const moustache = [half.map(([x,z]) => [x, z + 1.2]), half.map(([x,z]) => [-x, z + 1.2]).reverse()];
+  const grin = dMouth(7, 1.8, -3.6), grinIn = dMouth(5.9, 1.1, -2.7);
+  const grille = (w) => { const o = [rect(-6.8,-3.2,6.8,3.2)];
+    for(let k = 0; k < 3; k++){ const z = -1.9 + k*1.9, h = 0.45 * (w ? w(k) : 1); o.push(M(rect(-5.6, z-h, 5.6, z+h))); }
+    return o; };
+  const ooh = [ell(2.5, 3.1), C(ell(1.6, 2.1))];
+  const shapes = {
+    smile:     { polys: [stroke(smile(6.5, 2.6), 1.5)] },
+    grin:      { polys: [grin, C(grinIn), T(rect(-5.2, 0.2, 5.2, 1.1))] },
+    flat:      { polys: [rect(-6.5, -1.8, 6.5, 0)] },         // = the light bar, exactly where it sits (z 18..22)
+    ooh:       { polys: ooh },
+    cat:       { polys: [stroke(curve(-5.2, 5.2, x => 0.7 - 1.5*Math.abs(Math.sin(x/5.2*Math.PI)), 20), 1.3)] },
+    smirk:     { polys: [stroke([[-5,-0.2],[-2,-0.9],[1.5,-0.8],[4.3,0.3],[5.8,1.7]], 1.4)] },
+    blep:      { polys: [{ p: ell(1.9, 2.2, 14, 2.2, -0.9), c: 'tongue' }, rect(-5.2, 0.4, 5.2, 1.7)] },
+    fangs:     { polys: [grin, C(grinIn), T(tri(-4.3, -2.3, 1.1, -1.4)), T(tri(2.3, 4.3, 1.1, -1.4))] },
+    grille:    { polys: grille() },
+    stitched:  { polys: [rect(-6.2, -0.45, 6.2, 0.45)].concat([-4.6,-2.3,0,2.3,4.6].map(x => rect(x-0.45, -1.7, x+0.45, 1.7))) },
+    moustache: { polys: moustache },
+
+    /* ANIMATED -- periodic, nothing random, nothing strobes */
+    talk:      { fn: (t) => { const o = 0.35 + 2.7*Math.abs(Math.sin(t*0.013) * Math.sin(t*0.0047 + 1));
+                   return [ell(3.8, o + 0.7, 18, 0, -0.3), C(ell(2.9, Math.max(0.05, o - 0.1), 18, 0, -0.3))]; } },
+    chomp:     { fn: (t) => { const h = 0.5 + 2.4*(0.5 + 0.5*Math.sin(t*0.009));
+                   const o = [rect(-6.8, -h - 0.8, 6.8, h + 0.8), C(rect(-6, -h, 6, h))];
+                   for(let k = 0; k < 4; k++){ const x = -4.5 + k*3;
+                     o.push(T(tri(x-1.2, x+1.2, h, h-1.3)), T([[x+0.3, -h], [x+2.7, -h], [x+1.5, -h+1.3]])); }
+                   return o; } },
+    wave:      { fn: (t) => [stroke(curve(-7, 7, x => 1.8*Math.sin(x*0.95 - t*0.008)*(1 - (x/7)*(x/7)), 24), 1.1)] },
+    whistle:   { fn: (t) => { const u = (t % 2400) / 2400, b = 1 + 0.12*Math.sin(t*0.02);
+                   const o = [ell(1.7*b, 2.1*b, 14, -1, 0), C(ell(0.8*b, 1.1*b, 12, -1, 0))];
+                   if(u < 0.85){ const x = 2.8 + u*3.4, z = -2.4 + u*2.4 + Math.sin(u*9)*0.3;   // a note drifting off
+                     o.push(ell(1.5, 1.1, 12, x, z), rect(x - 1.55, z, x - 0.9, z + 3.6), rect(x - 3, z + 2.8, x - 0.9, z + 3.6)); }   // +y is HIS left, your right-to-left: stem and flag on the -y side read as a proper note
+                   return o; } },
+    speaker:   { fn: (t) => grille(k => 0.5 + 0.9*Math.abs(Math.sin(t*0.011 + k*1.9))) },
+    moody:     { fn: (t, st) => st && st.alert ? ooh
+                                 : st && st.stuck ? [stroke([[-5,-0.6],[-2.5,0.4],[0,-0.6],[2.5,0.4],[5,-0.6]], 1.2)]
+                                 : st && st.driving ? [grin, C(grinIn), T(rect(-5.2, 0.2, 5.2, 1.1))]
+                                 : [stroke(smile(6.5, 2.6), 1.5)] }
+  };
+  /* knocked over, whatever he wears: a dizzy wobble */
+  shapes._dizzy = [stroke(curve(-5.5, 5.5, x => 0.9*Math.sin(x*1.6), 18), 1.2)];
+  return shapes;
 })();
 
 /* ---------- SKIN EQUIP ---------- */
@@ -61358,7 +61483,13 @@ document.addEventListener("keydown", e => {
    STEP 3a -- EYES. Shape and colour, same try-on/buy rules. The shapes
    themselves are EYE_SHAPES in game/index.html, drawn by drawRobot on the
    visor plane; this tab only picks SKIN.eyeShape and SKIN.eye. Stock dot
-   and stock cyan are free. Other tabs are still placeholders.
+   and stock cyan are free.
+   STEP 3b -- MOUTH. Shape, animated and colour, same rules. The mouths are
+   MOUTH_SHAPES in game/index.html, painted by drawRobot on his face under
+   the visor; this tab picks SKIN.mouth and its ink. Stock is the light bar
+   (his mouth all along), sold as Deadpan, and the bar's own light is the
+   free ink. Glow
+   borrows his eye colour and lights up after dark.
 
    LAB-ONLY STORAGE (port = step 4): owned colours and the colour overrides
    are kept in localStorage here, and colour buys are NOT sent to the
@@ -61549,6 +61680,8 @@ document.addEventListener("keydown", e => {
        flip it between them every frame; `still` below holds him dead
        still for the close-ups instead (see scene._garage.still). */
     eyes:   { yaw: Math.PI / 4, zoom: 1.8, pt: [26, 0, 44], still: true },
+    /* the whole face, eyes and mouth, so you see them together */
+    mouth:  { yaw: Math.PI / 4, zoom: 1.7, pt: [26, 0, 32], still: true },
     /* a projection is shown with his lights on, framing him AND the pool
        100 ahead of him, where the pattern lands */
     lights: { yaw: Math.PI / 4, zoom: 1.05, pt: [72, 0, 8], still: true }
@@ -61681,6 +61814,38 @@ document.addEventListener("keydown", e => {
     { id: 'violet', name: 'Violet',     hex: 0xb58cff, cents: 300 },
     { id: 'gold',   name: 'Gold',       hex: 0xffd24a, cents: 300 }
   ];
+  const MOUTH_LIST = [
+    /* stock: the light bar, which IS Deadpan (Sir: "lets just make dead pan
+       the default and get rid of duplication") -- so there is no paid flat */
+    { id: 'none',      name: 'Deadpan',   cents: 0 },
+    { id: 'smile',     name: 'Smile',     cents: 300 },
+    { id: 'ooh',       name: 'Ooh',       cents: 300 },
+    { id: 'smirk',     name: 'Smirk',     cents: 400 },
+    { id: 'cat',       name: 'Cat',       cents: 400 },
+    { id: 'stitched',  name: 'Stitched',  cents: 400 },
+    { id: 'grin',      name: 'Big grin',  cents: 500 },
+    { id: 'blep',      name: 'Blep',      cents: 500 },
+    { id: 'grille',    name: 'Grille',    cents: 600 },
+    { id: 'fangs',     name: 'Fangs',     cents: 600 },
+    { id: 'moustache', name: 'Moustache', cents: 700 },
+    /* animated (MOUTH_SHAPES fn entries) */
+    { id: 'talk',      name: 'Chatter',   cents: 1000, tier: 2 },
+    { id: 'whistle',   name: 'Whistle',   cents: 1000, tier: 2 },
+    { id: 'wave',      name: 'Sound wave', cents: 1200, tier: 2 },
+    { id: 'speaker',   name: 'Speaker',   cents: 1200, tier: 2 },
+    { id: 'chomp',     name: 'Chomp',     cents: 1400, tier: 2 },
+    { id: 'moody',     name: 'Moody',     cents: 1600, tier: 2, note: 'reacts to how he drives' }
+  ];
+  const MOUTH_COL = [
+    { id: 'auto',  name: 'Stock light', hex: 0xfff3b0, cents: 0 },
+    { id: 'black', name: 'Black',     hex: 0x26282e, cents: 250 },
+    { id: 'white', name: 'White',     hex: 0xf6f6f2, cents: 250 },
+    { id: 'red',   name: 'Red',       hex: 0xc8322a, cents: 250 },
+    { id: 'pink',  name: 'Pink',      hex: 0xff5fa2, cents: 250 },
+    { id: 'navy',  name: 'Navy',      hex: 0x24365f, cents: 250 },
+    { id: 'gold',  name: 'Gold',      hex: 0xd9a320, cents: 300 },
+    { id: 'glow',  name: 'Glow',      hex: 0x7fe3ff, cents: 800 }
+  ];
   const byId = (list, id) => list.find(c => c.id === id) || null;
   const shade = (c, k) => {
     const r = Math.round(((c >> 16) & 255) * k), g = Math.round(((c >> 8) & 255) * k), b = Math.round((c & 255) * k);
@@ -61691,12 +61856,13 @@ document.addEventListener("keydown", e => {
   const LOOK_KEY = 'tipsy.look', OWN_KEY = 'tipsy.paintOwned';
   const load = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (e) { return d; } };
   const paintOwned = new Set(load(OWN_KEY, []));
-  const FIELDS = ['body', 'stripe', 'eyeShape', 'eyeCol', 'eyeProj'];
+  const FIELDS = ['body', 'stripe', 'eyeShape', 'eyeCol', 'eyeProj', 'mouth', 'mouthCol'];
   const pick = L => { const o = {}; for (const k of FIELDS) o[k] = L[k] || null; return o; };
   let look = Object.assign(pick({}), load(LOOK_KEY, {}));
   const saveLook = () => { try { localStorage.setItem(LOOK_KEY, JSON.stringify(pick(look)));
                                  localStorage.setItem(OWN_KEY, JSON.stringify([...paintOwned])); } catch (e) {} };
-  const LISTS = { body: BODY, stripe: STRIPE, eyeShape: EYE_SHAPE_LIST, eyeCol: EYE_COL, eyeProj: EYE_PROJ_LIST };
+  const LISTS = { body: BODY, stripe: STRIPE, eyeShape: EYE_SHAPE_LIST, eyeCol: EYE_COL, eyeProj: EYE_PROJ_LIST,
+                  mouth: MOUTH_LIST, mouthCol: MOUTH_COL };
   const ownsPaint = (kind, id) => { const c = byId(LISTS[kind], id); return !c || c.cents === 0 || paintOwned.has(kind + ':' + id); };
   const ownsSkin = id => id === 'classic' || tpProfile.owned.has(id);
 
@@ -61711,6 +61877,9 @@ document.addEventListener("keydown", e => {
     if (ecl) SKIN.eye = ecl.hex;
     const pj = byId(EYE_PROJ_LIST, L.eyeProj);
     if (pj) { SKIN.eye = pj.hex; SKIN.proj = pj.id; }
+    const mo = byId(MOUTH_LIST, L.mouth), mc = byId(MOUTH_COL, L.mouthCol);
+    if (mo && mo.id !== 'none') SKIN.mouth = mo.id;
+    if (mc && mc.id === 'glow') SKIN.mouthGlow = true; else if (mc) SKIN.mouthCol = mc.hex;
     if (b) Object.assign(SKIN, { bodyTop: b.hex, bodyRight: shade(b.hex, 0.91), bodyLeft: shade(b.hex, 0.79),
                                  outline: shade(b.hex, b.hex > 0x808080 ? 0.22 : 0.45) });
     if (st) Object.assign(SKIN, { stripe: st.hex, stripeDk: shade(st.hex, 0.8) });
@@ -61826,10 +61995,46 @@ document.addEventListener("keydown", e => {
     if (vt) vt.onclick = () => { lightsView = !lightsView; renderTab(); };
   }
 
+  /* =============================== MOUTH TAB =============================== */
+  /* icons straight from MOUTH_SHAPES on a patch of his face */
+  function mouthIcon(id, ink) {
+    const sh = MOUTH_SHAPES[id];
+    const polys = sh ? (sh.fn ? sh.fn(900, null) : sh.polys) : [];
+    const PART = { teeth: '#fafaf4', tongue: '#ff6f86', metal: '#3a3e47', cavity: '#23252b' };
+    const X = y => (20 - y*MOUTH_KX*0.8).toFixed(1), Y = z => (13 - z*MOUTH_KZ*0.8).toFixed(1);   // world units, 0.8px each, centred on MOUTH_Z
+    const d = polys.map(q => `<path d="M${(q.p || q).map(([y, z]) => X(y) + ' ' + Y(z)).join('L')}Z" fill="${q.c ? PART[q.c] : ink}"/>`).join('');
+    /* his face round the bar: the stripe above the bar's centre line, body below */
+    /* stripe z 20..27 -> y 14.6..9, the bar z 18..22 -> 16.2..13, +/-16 wide */
+    const bar = sh ? '' : `<rect x="7.2" y="13" width="25.6" height="3.2" fill="${ink}"/>`;
+    return `<svg viewBox="0 0 40 24" width="56" height="34"><rect x="1" y="1" width="38" height="22" rx="4" fill="#eceef1"/><rect x="1" y="9" width="38" height="5.6" fill="#c2452e"/>${bar}${d}</svg>`;
+  }
+  function renderMouth(P) {
+    P.className = 'grList';
+    const L = pv || worn(), curS = L.mouth || 'none', curC = L.mouthCol || 'auto';
+    const ink = curC === 'glow' ? '#7fe3ff' : hex((byId(MOUTH_COL, curC) || MOUTH_COL[0]).hex);
+    const card = c => {
+      const own = ownsPaint('mouth', c.id), sel = curS === c.id;
+      return `<button class="grSkin${sel ? ' sel' : ''}" data-mouth="${c.id}">${mouthIcon(c.id, ink)}<span>${c.name}</span>${own ? '<i class="own">Owned</i>' : '<i>' + tpMoney(c.cents) + '</i>'}</button>`;
+    };
+    const shapes = MOUTH_LIST.filter(c => !c.tier).map(card).join('');
+    const anim = MOUTH_LIST.filter(c => c.tier === 2).map(card).join('');
+    const cols = MOUTH_COL.map(c => {
+      const own = ownsPaint('mouthCol', c.id), sel = curC === c.id;
+      const bg = c.id === 'glow' ? 'radial-gradient(#fff 0 18%, #7fe3ff 40%, #1e4d5c 100%)' : hex(c.hex);
+      return `<button class="grSw${sel ? ' sel' : ''}" data-mouthcol="${c.id}" aria-label="${c.name}"><b style="background:${bg}"></b>${own ? (c.id === 'glow' ? 'Glow' : '&nbsp;') : '<i>' + (c.id === 'glow' ? 'Glow ' : '') + tpMoney(c.cents) + '</i>'}</button>`;
+    }).join('');
+    P.innerHTML = `<div class="grSec">SHAPE</div><div class="grRow">${shapes}</div>
+      <div class="grSec">ANIMATED — MOODY REACTS TO HOW HE DRIVES</div><div class="grRow">${anim}</div>
+      <div class="grSec">COLOUR — GLOW MATCHES HIS EYES AND LIGHTS UP AT NIGHT</div><div class="grRow">${cols}</div>`;
+    for (const b of P.querySelectorAll('[data-mouth]')) b.onclick = () => tryOn(Object.assign({}, pv || worn(), { mouth: b.dataset.mouth === 'none' ? null : b.dataset.mouth }));
+    for (const b of P.querySelectorAll('[data-mouthcol]')) b.onclick = () => tryOn(Object.assign({}, pv || worn(), { mouthCol: b.dataset.mouthcol === 'auto' ? null : b.dataset.mouthcol }));
+  }
+
   /* =============================== PAINT TAB =============================== */
   function renderTab() {
     const P = $('grPanel');
     if (tab === 'eyes') { renderEyes(P); return; }
+    if (tab === 'mouth') { renderMouth(P); return; }
     if (tab !== 'paint') {
       const names = { eyes: 'Eye shapes and colours', mouth: 'Mouths', wheels: 'Tyres and hubs',
         antenna: 'Poles and toppers', decals: 'Stars, skull and more' };
