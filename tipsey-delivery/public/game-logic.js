@@ -47734,8 +47734,19 @@ class WorldScene extends Phaser.Scene {
     } else this.qtext.setVisible(false);
 
     const driving = this.state === "play" && this.speed > 0.01;
-    const bobZ = (this.state === "tipped" || (this._garage && this._garage.still)) ? 0
-               : (driving ? Math.sin(t*0.012)*1.1 : Math.sin(t*0.0022)*1.4);
+    /* RUNNING GEAR lift (gearSpec): big tyres raise the body, a lowrider
+       slams it and hops on its hydraulics when parked, hover pads float */
+    const G = gearSpec(), _calm = this.state === "tipped" || (this._garage && this._garage.still);
+    /* ROLLING = his wheels turned since last frame. "driving" is only true
+       in the route's play state; free-roam and the garage's show-roll move
+       wheelPhase too, and a walker should step whenever the wheels would */
+    const rolling = this._gearWP !== undefined && Math.abs(this.wheelPhase - this._gearWP) > 1e-5;
+    this._gearWP = this.wheelPhase;
+    let gLift = G.lift;
+    if(G.hop && !_calm && !rolling) gLift += Math.pow(Math.max(0, Math.sin(t*0.004)), 2) * 5;
+    if(G.bob && !_calm) gLift += Math.sin(t*0.003) * 1.8;
+    const bobZ = gLift + (_calm ? 0
+               : (driving ? Math.sin(t*0.012)*1.1 : Math.sin(t*0.0022)*1.4));
     const leanTarget = driving ? -0.3*(this.speed/0.15) : Math.sin(t*0.0022)*0.08;
     this.flagLean = Phaser.Math.Linear(this.flagLean, leanTarget, 0.06);
 
@@ -47786,9 +47797,17 @@ class WorldScene extends Phaser.Scene {
          "near" by 1e-17 -- painted over the hull on his right while his
          left row sat behind it. A face seen edge-on hides nothing. */
       const sideNear = (wnorm.x + wnorm.y + wnorm.z) > 1e-6;
-      for(const wx of WHEEL.xs){
-        const c = {x:wx, y:side*WHEEL.side, z:WHEEL.z};
-        wheels.push({ c, side, near: sideNear, d: this.depth(c.x, c.y, c.z) });
+      /* one item per wheel / track / leg / caster; hover pads and the ball
+         sit UNDER him, so they are always drawn before the body */
+      const xs = G.kind === 'wheels' ? G.xs : G.kind === 'tank' ? [0]
+               : G.kind === 'walker' ? [-17, 17] : G.kind === 'cart' ? [-18, 18]
+               : G.kind === 'hover' ? [-16, 16] : (side === 1 ? [0] : []);
+      const gy = G.kind === 'wheels' || G.kind === 'tank' ? G.side : G.kind === 'hover' ? 13 : G.kind === 'ball' ? 0 : 15;
+      const gz = G.kind === 'wheels' ? G.r + 2 : 8;
+      const under = G.kind === 'hover' || G.kind === 'ball';
+      for(const wx of xs){
+        const c = {x:wx, y:side*gy, z:gz};
+        wheels.push({ c, side, near: sideNear && !under, d: this.depth(c.x, c.y, c.z) });
       }
     }
     /* the 3 wheels on a given side (front/mid/rear along the body) were
@@ -47798,14 +47817,18 @@ class WorldScene extends Phaser.Scene {
        front-to-back order at every angle instead of just at the ones
        where the fixed order happened to already match. */
     wheels.sort((a,b) => a.d - b.d);
-    for(const w of wheels) if(!w.near) this.drawWheel(w.c, w.side);
+    for(const w of wheels) if(!w.near) this.drawGearItem(w, G, t, gLift, rolling);
 
     /* the open lid can swing to the far side of the body — draw it first there */
     const lidBox = {...LID, z0:LID.z0+bobZ, z1:LID.z1+bobZ};
     const lidIsNear = this.lidNear();
     if(!lidIsNear) this.drawLid(lidBox);
 
-    this.drawBox({hx:24, hy:17, z0:6, z1:BODY.z0+1}, 0x3f434c, 0x3a3d45, 0x2e3138, false);
+    if(G.axles){   // monster truck: a frame and two axles down to the hubs
+      for(const ax of G.xs) this.drawBox({hx:2.2, hy:G.side - 2, z0:G.r, z1:G.r + 4, ox:ax}, 0x3a3d45, 0x34373e, 0x2a2c32, false);
+      this.drawBox({hx:20, hy:3, z0:G.r + 1, z1:6 + gLift}, 0x3a3d45, 0x34373e, 0x2a2c32, false);
+    }
+    this.drawBox({hx:24, hy:17, z0:6 + gLift, z1:BODY.z0+1 + gLift}, 0x3f434c, 0x3a3d45, 0x2e3138, false);
     this.drawBox({...BODY, z0:BODY.z0+bobZ, z1:BODY.z1+bobZ}, SKIN.bodyTop, SKIN.bodyRight, SKIN.bodyLeft);
     this.drawBox({hx:BODY.hx+0.6, hy:BODY.hy+0.6, z0:STRIPE.z0+bobZ, z1:STRIPE.z1+bobZ},
                  null, SKIN.stripe, SKIN.stripeDk, false, true);
@@ -48117,7 +48140,7 @@ class WorldScene extends Phaser.Scene {
         ], true);
       }
     }
-    for(const w of wheels) if(w.near) this.drawWheel(w.c, w.side);
+    for(const w of wheels) if(w.near) this.drawGearItem(w, G, t, gLift, rolling);
     if(this.peel && this.peel.smoke.length) this.drawBurnoutSmoke();
     if(this.flagNear()) this.drawFlag(bobZ);
   }
@@ -48694,19 +48717,14 @@ class WorldScene extends Phaser.Scene {
     if(outlineC !== undefined) this.edgeOn(this.g, pts, outlineC, this.kw(2));
   }
 
-  drawWheel(c, sideSign){
+  drawWheel(c, sideSign, G){
     /* was: 6 depth-sorted flat discs stacked along the wheel's width.
        Each disc alone degenerates to a hairline exactly when residual
-       yaw hits +/-45 deg (screen width is proportional to cos(yaw)-sin(yaw),
-       which is zero right there) - and every turn's facing-snap sweeps
-       through exactly that angle, so every corner clipped the wheels to
-       slices. The scooter and traffic props (drawProp's swheel/wheel)
-       never had this problem because they build the tread as a single
-       convexHull spanning TWO rings offset along the width axis, instead
-       of one ring's own outline - the guaranteed gap between the two
-       rings contributes width independent of the collapsing term, so it
-       can't go to zero. Porting that same construction here. */
-    const W2 = 7.5;
+       yaw hits +/-45 deg -- so the tread is a convexHull spanning TWO
+       rings offset along the width axis (drawProp's swheel construction).
+       G (gearSpec) sizes it; stock G is WHEEL.r and W2 7.5. */
+    G = G || gearSpec();
+    const W2 = G.W2, R = G.r;
     const ring = (oy, r) => {
       const pts = [];
       for(let i=0; i<14; i++){
@@ -48716,15 +48734,205 @@ class WorldScene extends Phaser.Scene {
       return pts;
     };
     const b0 = c.y - W2/2, b1 = c.y + W2/2;
-    this.quadOn(this.g, convexHull(ring(b0, WHEEL.r).concat(ring(b1, WHEEL.r))), SKIN.wheelDark);
     const face = this.depth(c.x, b1, c.z) > this.depth(c.x, b0, c.z) ? b1 : b0;
-    const faceRing = ring(face, WHEEL.r);
-    this.quadOn(this.g, faceRing, SKIN.wheel);
-    this.edgeOn(this.g, faceRing, SKIN.outline, this.kw(2));
-    this.disc({x:c.x, y:face, z:c.z}, WHEEL.r*0.55, SKIN.wheelHubFace);
-    const a = this.wheelPhase + c.x*0.2;
-    this.disc({ x:c.x + Math.cos(a)*WHEEL.r*0.34, y:face,
-                z:c.z + Math.sin(a)*WHEEL.r*0.34 }, 2.4, SKIN.wheelHub);
+    const a = this.wheelPhase*(8/R) + c.x*0.2;           // a bigger tyre turns slower for the same road
+    const style = WHEEL_STYLES[SKIN.wheelStyle || G.style], tread = G.tread || SKIN.tyre, wall = SKIN.wall || G.wall;
+    if(!style && !tread && !wall && R === WHEEL.r){        // STOCK: exactly as it always was
+      this.quadOn(this.g, convexHull(ring(b0, R).concat(ring(b1, R))), SKIN.wheelDark);
+      const faceRing = ring(face, R);
+      this.quadOn(this.g, faceRing, SKIN.wheel);
+      this.edgeOn(this.g, faceRing, SKIN.outline, this.kw(2));
+      this.disc({x:c.x, y:face, z:c.z}, R*0.55, SKIN.wheelHubFace);
+      this.disc({ x:c.x + Math.cos(a)*R*0.34, y:face,
+                  z:c.z + Math.sin(a)*R*0.34 }, 2.4, SKIN.wheelHub);
+      return;
+    }
+    const t = this.time.now;
+    const onFace = (pts, ang, oy = face) => { const ca = Math.cos(ang), sa = Math.sin(ang);
+      return pts.map(([x, z]) => this.P(c.x + (x*ca - z*sa)*R, oy, c.z + (x*sa + z*ca)*R)); };
+    /* TREAD: lugs roll with the wheel (knobby big, all-terrain fine) */
+    const lugs = tread === 'knobby' ? [24, 1.13] : tread === 'allterrain' ? [36, 1.06] : null;
+    if(lugs){
+      const lug = []; for(let i = 0; i < lugs[0]; i++){ const q = i/lugs[0]*Math.PI*2, rr = i % 2 ? 1.0 : lugs[1]; lug.push([Math.cos(q)*rr, Math.sin(q)*rr]); }
+      this.quadOn(this.g, onFace(lug, a, face === b1 ? b0 : b1), SKIN.wheelDark);
+      this.quadOn(this.g, convexHull(ring(b0, R).concat(ring(b1, R))), SKIN.wheelDark);
+      const fr = onFace(lug, a);
+      this.quadOn(this.g, fr, SKIN.wheel);
+      this.edgeOn(this.g, fr, SKIN.outline, this.kw(2));
+    } else {
+      this.quadOn(this.g, convexHull(ring(b0, R).concat(ring(b1, R))), SKIN.wheelDark);
+      const faceRing = ring(face, R);
+      this.quadOn(this.g, faceRing, SKIN.wheel);
+      this.edgeOn(this.g, faceRing, SKIN.outline, this.kw(2));
+    }
+    const disc = (r, col) => this.quadOn(this.g, ring(face, R*r), col);
+    if(tread === 'slick'){          // a slick shines: a fixed highlight, it doesn't roll
+      const hl = []; for(let i = 0; i <= 8; i++){ const q = 0.25*Math.PI + i/8*0.55*Math.PI; hl.push([Math.cos(q)*0.95, Math.sin(q)*0.95]); }
+      for(let i = 8; i >= 0; i--){ const q = 0.25*Math.PI + i/8*0.55*Math.PI; hl.push([Math.cos(q)*0.84, Math.sin(q)*0.84]); }
+      this.quadOn(this.g, onFace(hl, 0), 0x565b66);
+    }
+    /* SIDEWALL */
+    if(wall === 'whitewall'){ disc(0.9, 0xf2f1ea); disc(0.76, SKIN.wheel); }
+    if(wall === 'redline'){ disc(0.9, 0xd8322a); disc(0.84, SKIN.wheel); }
+    if(wall === 'neon'){ disc(0.93, SKIN.wheelHub); disc(0.84, SKIN.wheel); }
+    /* RIM */
+    if(!style){
+      this.disc({x:c.x, y:face, z:c.z}, R*0.55, SKIN.wheelHubFace);
+      this.disc({ x:c.x + Math.cos(a)*R*0.34, y:face, z:c.z + Math.sin(a)*R*0.34 }, 2.4*R/8, SKIN.wheelHub);
+    } else {
+      const role = this.rimRoles();
+      for(const q of style.polys) this.quadOn(this.g, onFace(q.p, a), typeof q.c === 'number' ? q.c : role[q.c]);
+    }
+    if(wall === 'neon' && this.isNightLit()){
+      const pulse = 0.5 + 0.5*Math.sin(t / 650), gl = this.gGlowLo;
+      gl.fillStyle(SKIN.wheelHub, Math.min(1, (0.16 + 0.1*pulse) * GLOW_UNDER_TINT));
+      gl.fillPoints(ring(face, R*1.2).map(p => new Phaser.Geom.Point(p.x, p.y)), true);
+    }
+  }
+  /* the stock hub's dark grey disappears into the well once it is a
+     spoked rim, so a styled rim on stock colour is cast in alloy */
+  rimRoles(){
+    const stockHub = SKIN.wheelHubFace === SKIN_BASE.wheelHubFace;
+    return { face: stockHub ? 0xa7aeb8 : SKIN.wheelHubFace, acc: stockHub ? 0xe4e8ee : SKIN.wheelHub, dark: 0x16171b };
+  }
+  isNightLit(){ return !!(((this.route && this.route.night) || this._lightsPreview) && this.gGlowLo); }
+
+  /* ONE RUNNING-GEAR ITEM (see gearSpec). Wheels go to drawWheel; the
+     specialties are drawn here, all in his own frame through this.P so
+     they turn, tip and scale with him. */
+  drawGearItem(w, G, t, lift, driving){
+    const g = this.g, c = w.c, side = w.side, P = (x, y, z) => this.P(x, y, z);
+    const pts = a => a.map(p => new Phaser.Geom.Point(p.x, p.y));
+    const role = this.rimRoles(), still = this._garage && this._garage.still;
+    const _u0 = P(0, 0, 0), _u1 = P(0, 0, 1), U = Math.hypot(_u1.x - _u0.x, _u1.y - _u0.y);   // px per world unit, here
+    const beam = (A, B, wd, col) => {      // a limb or post: a screen-space thick segment with round ends
+      const dx = B.x - A.x, dy = B.y - A.y, m = Math.hypot(dx, dy) || 1, k = wd*U*0.5;
+      const nx = -dy/m*k, ny = dx/m*k;
+      g.fillStyle(col, 1);
+      g.fillPoints(pts([{x:A.x+nx, y:A.y+ny}, {x:B.x+nx, y:B.y+ny}, {x:B.x-nx, y:B.y-ny}, {x:A.x-nx, y:A.y-ny}]), true);
+      g.fillCircle(A.x, A.y, k); g.fillCircle(B.x, B.y, k);
+    };
+    if(G.kind === 'wheels') return this.drawWheel(c, side, G);
+
+    if(G.kind === 'tank'){
+      /* a stadium loop each side, road wheels inside, cleats that run
+         round it with the distance he covers */
+      const L0 = -17, L1 = 17, zc = 9, r = 7, W2 = G.W2;
+      const loop = (oy, rr, n = 8) => { const o = [];
+        for(let i = 0; i <= n; i++){ const q = -Math.PI/2 + i/n*Math.PI; o.push(P(L1 + Math.cos(q)*rr, oy, zc + Math.sin(q)*rr)); }
+        for(let i = 0; i <= n; i++){ const q = Math.PI/2 + i/n*Math.PI; o.push(P(L0 + Math.cos(q)*rr, oy, zc + Math.sin(q)*rr)); }
+        return o; };
+      const b0 = c.y - W2/2, b1 = c.y + W2/2;
+      const face = this.depth(0, b1, zc) > this.depth(0, b0, zc) ? b1 : b0;
+      this.quadOn(g, convexHull(loop(b0, r).concat(loop(b1, r))), SKIN.wheelDark);
+      const fl = loop(face, r);
+      this.quadOn(g, fl, SKIN.wheel);
+      this.edgeOn(g, fl, SKIN.outline, this.kw(2));
+      this.quadOn(g, loop(face, r*0.72), 0x2b2e35);
+      for(const x of [-17, -5.7, 5.7, 17]){
+        this.disc({x, y:face, z:zc}, 3.4, role.face);
+        this.disc({x, y:face, z:zc}, 1.3, role.acc);
+      }
+      /* cleats: stations round the perimeter, moved by wheelPhase */
+      const straight = L1 - L0, per = 2*straight + 2*Math.PI*r, N = 22;
+      const at = d => { d = ((d % per) + per) % per;
+        if(d < straight) return [L0 + d, zc + r, 0, 1];
+        d -= straight; if(d < Math.PI*r){ const q = Math.PI/2 - d/r; return [L1 + Math.cos(q)*r, zc + Math.sin(q)*r, Math.cos(q), Math.sin(q)]; }
+        d -= Math.PI*r; if(d < straight) return [L1 - d, zc - r, 0, -1];
+        d -= straight; const q = -Math.PI/2 - d/r; return [L0 + Math.cos(q)*r, zc + Math.sin(q)*r, Math.cos(q), Math.sin(q)]; };
+      const off = -this.wheelPhase*8;
+      for(let k = 0; k < N; k++){
+        const [x, z, nx, nz] = at(k/N*per + off), tx = -nz, tz = nx;
+        this.quadOn(g, [P(x - tx*0.9, face, z - tz*0.9), P(x + tx*0.9, face, z + tz*0.9),
+                        P(x + tx*0.9 - nx*1.6, face, z + tz*0.9 - nz*1.6), P(x - tx*0.9 - nx*1.6, face, z - tz*0.9 - nz*1.6)], 0x14151a);
+      }
+      return;
+    }
+
+    if(G.kind === 'hover'){
+      /* a pad under each corner, a light column to the ground */
+      const pz = 5 + lift, pr = 7.5;
+      const ring = (x, y, z, rr, n = 16) => { const o = []; for(let i = 0; i < n; i++){ const q = i/n*Math.PI*2; o.push(P(x + Math.cos(q)*rr, y + Math.sin(q)*rr, z)); } return o; };
+      const pulse = 0.5 + 0.5*Math.sin(t*0.006 + c.x);
+      const top = ring(c.x, c.y, pz, 4.5), bot = ring(c.x, c.y, 1, 7.5);
+      g.fillStyle(SKIN.eye, 0.16 + 0.08*pulse); g.fillPoints(pts(convexHull(top.concat(bot))), true);
+      this.quadOn(g, convexHull(ring(c.x, c.y, pz, pr).concat(ring(c.x, c.y, pz + 2.5, pr))), 0x2e3138);
+      this.quadOn(g, ring(c.x, c.y, pz, pr*0.7), SKIN.eye);
+      this.quadOn(g, ring(c.x, c.y, pz, pr*0.35), 0xffffff);
+      if(this.isNightLit()){
+        this.gGlowLo.fillStyle(SKIN.eye, Math.min(1, (0.2 + 0.12*pulse)*GLOW_UNDER_TINT));
+        this.gGlowLo.fillPoints(pts(ring(c.x, c.y, 0.6, 11)), true);
+      }
+      return;
+    }
+
+    if(G.kind === 'ball'){
+      /* a sphere is an ellipse under this (affine) projection: its outline
+         is centre + R*sqrt(M) round a unit circle, M = sum of the axes' e e^T */
+      const Rb = 15, zc = 1 + Rb;
+      const o = P(0, 0, zc), ex = P(1, 0, zc), ey = P(0, 1, zc), ez = P(0, 0, zc + 1);
+      const E = [[ex.x - o.x, ex.y - o.y], [ey.x - o.x, ey.y - o.y], [ez.x - o.x, ez.y - o.y]];
+      let a11 = 0, a12 = 0, a22 = 0; for(const [u, v] of E){ a11 += u*u; a12 += u*v; a22 += v*v; }
+      const tr = a11 + a22, det = a11*a22 - a12*a12, sq = Math.sqrt(det), st = Math.sqrt(tr + 2*sq);
+      const s11 = (a11 + sq)/st, s12 = a12/st, s22 = (a22 + sq)/st;     // sqrt of the 2x2
+      const ell = (k) => { const o2 = []; for(let i = 0; i < 28; i++){ const q = i/28*Math.PI*2, u = Math.cos(q)*Rb*k, v = Math.sin(q)*Rb*k;
+        o2.push({ x: o.x + s11*u + s12*v, y: o.y + s12*u + s22*v }); } return o2; };
+      this.quadOn(g, ell(1), SKIN.wheel);
+      this.edgeOn(g, ell(1), SKIN.outline, this.kw(2));
+      /* panel dots on the surface, rolled by wheelPhase round his side axis */
+      const roll = this.wheelPhase*(8/Rb);
+      for(const lat of [-0.55, 0, 0.55]) for(let k = 0; k < 6; k++){
+        const th = k/6*Math.PI*2 + roll + lat*2, cl = Math.cos(lat);
+        const nx = cl*Math.sin(th), ny = Math.sin(lat), nz = cl*Math.cos(th), wn = this.R(nx, ny, nz);
+        if(wn.x + wn.y + wn.z < 0.25) continue;
+        this.disc({x: nx*Rb, y: ny*Rb, z: zc + nz*Rb}, 1.6, lat === 0 ? role.acc : role.face);
+      }
+      /* a soft highlight up toward the light */
+      const hl = ell(0.3).map(p => ({ x: p.x - Rb*0.35*U, y: p.y - Rb*0.4*U }));
+      g.fillStyle(0xffffff, 0.12); g.fillPoints(pts(hl), true);
+      /* the yoke that holds him on it */
+      this.drawBox({hx:9, hy:9, z0:zc + Rb - 3, z1:6 + lift + 0.5}, 0x3a3d45, 0x34373e, 0x2a2c32, false);
+      return;
+    }
+
+    if(G.kind === 'cart'){
+      /* swivel casters: a post down from the undercarriage, a fork, and a
+         small wheel whose plane swings about the post -- wobbling while he
+         drives, left askew when he stops */
+      const i = (c.x > 0 ? 1 : 0) + (side > 0 ? 2 : 0);
+      const sw = driving ? Math.sin(t*0.021 + i*1.9)*0.55 + Math.sin(t*0.047 + i)*0.2 : [0.4, -0.7, 1.1, -0.3][i];
+      const cz = 5.4, r = 4.4, ux = Math.cos(sw), uy = Math.sin(sw);
+      const top = P(c.x, c.y, 6 + lift), mid = P(c.x, c.y, cz + r + 1.2);
+      beam(top, mid, 1.6, 0x8a919c);
+      const wheelRing = (off) => { const o = []; for(let k = 0; k < 14; k++){ const q = k/14*Math.PI*2;
+        o.push(P(c.x + ux*Math.cos(q)*r - uy*off, c.y + uy*Math.cos(q)*r + ux*off, cz + Math.sin(q)*r)); } return o; };
+      this.quadOn(g, convexHull(wheelRing(-1.3).concat(wheelRing(1.3))), SKIN.wheelDark);
+      const fA = this.depth(c.x - uy*1.3, c.y + ux*1.3, cz) > this.depth(c.x + uy*1.3, c.y - ux*1.3, cz) ? 1.3 : -1.3;
+      const fr = wheelRing(fA);
+      this.quadOn(g, fr, SKIN.wheel); this.edgeOn(g, fr, SKIN.outline, this.kw(1.5));
+      this.disc({x: c.x - uy*fA*1.05, y: c.y + ux*fA*1.05, z: cz}, 1.4, role.acc);
+      beam(mid, P(c.x - uy*fA*1.2, c.y + ux*fA*1.2, cz), 1.1, 0x8a919c);   // the fork arm on your side
+      return;
+    }
+
+    if(G.kind === 'walker'){
+      /* four legs, diagonal pairs in step, their gait driven by the
+         distance he covers; standing still they plant */
+      const pair = (c.x > 0) === (side > 0) ? 0 : Math.PI;
+      const ph = -this.wheelPhase*0.55 + pair, moving = driving;   // driving here = rolling
+      const hip = {x: c.x, y: c.y, z: 6 + lift};
+      const fx = c.x + (moving ? Math.sin(ph)*5 : 0), fz = 1.5 + (moving ? Math.max(0, Math.cos(ph))*4 : 0);
+      const foot = {x: fx, y: c.y + side*3, z: fz};
+      const knee = {x: (hip.x + fx)/2 + (c.x > 0 ? 3 : -3), y: c.y + side*10, z: (hip.z + fz)/2 + 4};
+      const H = P(hip.x, hip.y, hip.z), K = P(knee.x, knee.y, knee.z), Fo = P(foot.x, foot.y, foot.z);
+      beam(H, K, 5, 0x3a3d45);
+      beam(K, Fo, 4, 0x4a4f59);
+      g.fillStyle(role.face, 1); g.fillCircle(K.x, K.y, 2.8*U);
+      g.fillStyle(role.acc, 1); g.fillCircle(H.x, H.y, 2.2*U);
+      const pad = []; for(let k = 0; k < 12; k++){ const q = k/12*Math.PI*2; pad.push(P(fx + Math.cos(q)*3.2, foot.y + Math.sin(q)*2.4, fz - 0.4)); }
+      this.quadOn(g, pad, 0x2a2c32);
+      return;
+    }
   }
 
   /* ============ PEEL OUT — SIM ============
@@ -48916,8 +49124,8 @@ class WorldScene extends Phaser.Scene {
      drawFlag's, so it leans and whips through a tip-over the same way. */
   drawJollyRoger(bobZ){
     const g = this.g;
-    const L = FLAG.z1 - FLAG.z0;
-    const bend = this.flagLean*0.5 + this.tipT*0.7*(this.tipDir || 1);
+    const L = (FLAG.z1 - FLAG.z0) * this.poleK();
+    const bend = this.flagLean*0.5 + this.tipT*0.7*(this.tipDir || 1) + this.poleWobble();
     const seg = 6, pts = [];
     for(let i=0;i<=seg;i++){
       const s = i/seg, a = bend*s;
@@ -48931,6 +49139,7 @@ class WorldScene extends Phaser.Scene {
     g.moveTo(pts[0].x, pts[0].y);
     for(let i=1;i<=seg;i++) g.lineTo(pts[i].x, pts[i].y);
     g.strokePath();
+    this.drawPoleCoil(pts, ks);
 
     const p = pts[seg], q = pts[seg-1];
     let dx = p.x - q.x, dy = p.y - q.y;
@@ -48939,7 +49148,7 @@ class WorldScene extends Phaser.Scene {
     const Wf = 21*ks, Hf = 14*ks;
     const c = (a,b) => ({ x: p.x + ux*a + dx*b, y: p.y + uy*a + dy*b });
     const A = c(0,0), B = c(Wf,0), C = c(Wf,-Hf), D = c(0,-Hf);
-    g.fillStyle(SKIN.flag, 1);
+    g.fillStyle(SKIN.topper === 'pirate' && !SKIN.flagPicked ? 0x14141a : SKIN.flag, 1);
     g.fillTriangle(A.x,A.y,B.x,B.y,C.x,C.y);
     g.fillTriangle(A.x,A.y,C.x,C.y,D.x,D.y);
 
@@ -48959,11 +49168,273 @@ class WorldScene extends Phaser.Scene {
     bar(c(2*ks,-Hf+2*ks), c(Wf-2*ks,-2*ks));
   }
 
+  /* ---------- GARAGE ANTENNA (Sir, 2026-09-24) ----------
+     SKIN.pole sizes the whip (poleK) or makes it a spring (coil + wobble);
+     SKIN.topper replaces the pennant at the tip (drawTopper). Neither set
+     is the stock pennant on the stock whip, drawn exactly as before. The
+     Jolly Roger is a topper too ('pirate'); a skin that carries it still
+     shows it when no topper is picked. */
+  poleK(){ return ({ short: 0.62, tall: 1.35 })[SKIN.pole] || 1; }
+  poleWobble(){
+    if(SKIN.pole !== 'spring' || this.state === "tipped") return 0;
+    const t = this.time.now;
+    return Math.sin(t*0.0085)*0.22 + Math.sin(t*0.019)*0.07;
+  }
+  drawPoleCoil(pts, ks){
+    if(SKIN.pole !== 'spring') return;
+    const g = this.g, n = pts.length - 1, turns = 9, A = 3.2*ks;
+    g.lineStyle(Math.max(1, 1.6*ks), SKIN.flagPole, 1);
+    g.beginPath();
+    for(let i = 0; i <= turns*8; i++){
+      const u = i/(turns*8), fi = Math.min(n - 1e-6, u*n*0.82), k = Math.floor(fi), f = fi - k;
+      const a = pts[k], b = pts[k + 1];
+      const x = a.x + (b.x - a.x)*f, y = a.y + (b.y - a.y)*f;
+      let tx = b.x - a.x, ty = b.y - a.y; const m = Math.hypot(tx, ty) || 1; tx /= m; ty /= m;
+      const w = Math.sin(u*turns*Math.PI*2)*A;
+      if(i === 0) g.moveTo(x - ty*w, y + tx*w); else g.lineTo(x - ty*w, y + tx*w);
+    }
+    g.strokePath();
+  }
+  /* a topper at the whip's tip p. (dx, dy) is up the pole on screen; out
+     is (-dy, dx), the side the stock pennant flies. Screen pixels, scaled
+     by ks like the pennant. Returns a ghost disc for the x-ray. */
+  drawTopper(top, p, dx, dy, ks){
+    const g = this.g, t = this.time.now, ux = -dy, uy = dx;
+    const c = (a, b) => ({ x: p.x + ux*a*ks + dx*b*ks, y: p.y + uy*a*ks + dy*b*ks });
+    const poly = (ptsA, col, al = 1) => { g.fillStyle(col, al); g.fillPoints(ptsA.map(q => new Phaser.Geom.Point(q.x, q.y)), true); };
+    const circ = (a, b, r, col, al = 1) => { const o = c(a, b); g.fillStyle(col, al); g.fillCircle(o.x, o.y, r*ks); };
+    const F = SKIN.flag, dark = SKIN.flagPole;
+    const lighten = (col, k) => { const f = v => Math.min(255, Math.round(v + (255 - v)*k)); return (f(col >> 16 & 255) << 16) | (f(col >> 8 & 255) << 8) | f(col & 255); };
+    const night = this.isNightLit && this.isNightLit();
+    /* VOLUME (Sir, 2026-09-24: "make sure they have volume"). Three tools:
+       extrude() stacks darker copies of a flat shape toward the back --
+       "back" is his own forward axis on screen, pointed away from the
+       camera, so the thickness turns with him; bevel() lays a lighter,
+       shrunken copy toward the light (up-left on screen); sphere() is a
+       shaded ball: dark disc, lit disc toward the light, a highlight. */
+    const shade = (col, k) => { const f = v => Math.max(0, Math.round(v*k)); return (f(col >> 16 & 255) << 16) | (f(col >> 8 & 255) << 8) | f(col & 255); };
+    const Lc = pts => pts.map(([a, b]) => c(a, b));
+    const _q0 = this.P(FLAG.base.x, FLAG.base.y, 80), _q1 = this.P(FLAG.base.x + 1, FLAG.base.y, 80), _fx = this.R(1, 0, 0);
+    let bvx = _q1.x - _q0.x, bvy = _q1.y - _q0.y;
+    if(_fx.x + _fx.y + _fx.z > 0){ bvx = -bvx; bvy = -bvy; }
+    const extrude = (parts, col, depth) => {         // parts: [[a,b],...] lists; backs first, then every face
+      const S = parts.map(Lc), n = 8;        // 8 thin steps read as one smooth side
+      for(const P2 of S) for(let i = n; i >= 1; i--){ const k = depth*0.55*i/n;
+        poly(P2.map(q => ({ x: q.x + bvx*k, y: q.y + bvy*k })), shade(col, 0.56 + 0.18*(1 - i/n))); }
+      for(const P2 of S) poly(P2, col);
+      return S;
+    };
+    const bevel = (S, col, k = 0.62, al = 0.55) => {
+      let mx = 0, my = 0; for(const q of S){ mx += q.x; my += q.y; } mx /= S.length; my /= S.length;
+      const off = 1.1*ks;
+      poly(S.map(q => ({ x: mx + (q.x - mx)*k - off, y: my + (q.y - my)*k - off })), lighten(col, 0.35), al);
+    };
+    const sphere = (a, b, r, col) => {
+      const o = c(a, b), R = r*ks;
+      g.fillStyle(shade(col, 0.66), 1); g.fillCircle(o.x, o.y, R);
+      g.fillStyle(col, 1); g.fillCircle(o.x - 0.13*R, o.y - 0.15*R, R*0.84);
+      g.fillStyle(lighten(col, 0.6), 0.9); g.fillCircle(o.x - 0.38*R, o.y - 0.42*R, R*0.24);
+    };
+    const ell = (cx, cz, rx, rz, n = 20, rot = 0) => { const o = []; for(let i = 0; i < n; i++){ const q = i/n*Math.PI*2, x = Math.cos(q)*rx, z = Math.sin(q)*rz;
+      o.push([cx + x*Math.cos(rot) - z*Math.sin(rot), cz + x*Math.sin(rot) + z*Math.cos(rot)]); } return o; };
+    const rrect = (x0, z0, x1, z1, r) => { const o = [], k = 5;
+      for(const [cx, cz, a0] of [[x1 - r, z0 + r, -Math.PI/2], [x1 - r, z1 - r, 0], [x0 + r, z1 - r, Math.PI/2], [x0 + r, z0 + r, Math.PI]])
+        for(let i = 0; i <= k; i++){ const q = a0 + i/k*Math.PI/2; o.push([cx + Math.cos(q)*r, cz + Math.sin(q)*r]); }
+      return o; };
+    const arc = (cx, cz, r, a0, a1, w, n = 14) => { const o = [], iN = [];
+      for(let i = 0; i <= n; i++){ const q = a0 + (a1 - a0)*i/n; o.push([cx + Math.cos(q)*(r + w/2), cz + Math.sin(q)*(r + w/2)]); iN.push([cx + Math.cos(q)*(r - w/2), cz + Math.sin(q)*(r - w/2)]); }
+      return o.concat(iN.reverse()); };
+    const ring = (cx, cz, ro, ri, n = 28, wob = null) => { const o = [], iN = [];
+      for(let i = 0; i <= n; i++){ const q = i/n*Math.PI*2, r = ro + (wob ? wob(q) : 0); o.push([cx + Math.cos(q)*r, cz + Math.sin(q)*r]); iN.push([cx + Math.cos(q)*ri, cz + Math.sin(q)*ri]); }
+      return o.concat(iN.reverse()); };
+    switch(top){
+      case 'square':
+        poly([c(0,0), c(20,0), c(20,-13), c(0,-13)], F); return 7;
+      case 'swallow':
+        poly([c(0,0), c(23,0), c(15,-6.5), c(23,-13), c(0,-13)], F); return 7;
+      case 'checker': {
+        for(let i = 0; i < 5; i++) for(let j = 0; j < 3; j++)
+          poly([c(i*4.2, -j*4.4), c((i+1)*4.2, -j*4.4), c((i+1)*4.2, -(j+1)*4.4), c(i*4.2, -(j+1)*4.4)], (i + j) % 2 ? 0x1b1c20 : 0xf4f4f0);
+        return 7;
+      }
+      case 'ball':
+        sphere(0, 6.5, 6.8, F); return 7;
+      case 'star': {
+        const o = []; for(let i = 0; i < 10; i++){ const a = Math.PI/2 + i*Math.PI/5, r = i % 2 ? 4.4 : 10.5; o.push([Math.cos(a)*r, 9 + Math.sin(a)*r]); }
+        bevel(extrude([o], F, 2.6)[0], F); return 8;
+      }
+      case 'heart': {
+        const o = []; for(let i = 0; i < 24; i++){ const a = i/24*Math.PI*2, x = 16*Math.pow(Math.sin(a), 3);
+          const z = 13*Math.cos(a) - 5*Math.cos(2*a) - 2*Math.cos(3*a) - Math.cos(4*a); o.push([x*0.58, 8.5 + z*0.58]); }
+        bevel(extrude([o], F, 2.6)[0], F); return 8;
+      }
+      /* ---------- NOVELTY (Sir, 2026-09-24) ---------- */
+      case 'alien': {
+        const G = 0x7ddc5a, head = [];
+        for(let i = 0; i < 28; i++){ const q = i/28*Math.PI*2; let x = Math.cos(q)*7.6; const z = Math.sin(q)*8.4;
+          if(z < 0) x *= 0.55 + 0.45*(1 + Math.sin(q)); head.push([x, 10 + z]); }
+        for(const sx of [-1, 1]){ poly(Lc([[sx*2.2, 16.5], [sx*5.4, 22.3], [sx*5.9, 21.9], [sx*2.9, 16.2]]), shade(G, 0.7)); sphere(sx*5.7, 22.4, 1.5, G); }
+        bevel(extrude([head], G, 2.6)[0], G, 0.6, 0.45);
+        for(const sx of [-1, 1]){ poly(Lc(ell(sx*3.1, 10.1, 3.1, 1.7, 18, sx*0.45)), 0x101412); circ(sx*3.1 - 0.9, 10.7, 0.6, 0xffffff, 0.9); }
+        poly(Lc([[-1.1, 4.3], [1.1, 4.3], [1.1, 4.8], [-1.1, 4.8]]), shade(G, 0.45));
+        return 10;
+      }
+      case 'smiley': {
+        const Y = 0xffd23a;
+        sphere(0, 8.5, 7.8, Y);
+        for(const sx of [-1, 1]) poly(Lc(ell(sx*2.6, 10.2, 0.95, 1.7, 12)), 0x1a1a1a);
+        poly(Lc(arc(0, 8.8, 4.4, Math.PI + 0.45, Math.PI*2 - 0.45, 1.1)), 0x1a1a1a);
+        return 9;
+      }
+      case 'hand': {
+        const palm = rrect(-5, 1.5, 5, 13.5, 2.4), finger = rrect(-1.9, 11, 1.9, 24, 1.9), thumb = rrect(-7.4, 5.5, -3.8, 11.5, 1.7);
+        const S = extrude([thumb, palm, finger], F, 3);
+        bevel(S[1], F, 0.55, 0.4); bevel(S[2], F, 0.5, 0.4);
+        const W = 0xfafafa;
+        poly(Lc([[-0.6, 4.5], [0.7, 4.5], [0.7, 10.5], [-0.6, 10.5]]), W); poly(Lc([[-0.6, 10.5], [0.2, 10.5], [-1.9, 8.9], [-2.3, 9.5]]), W);
+        return 12;
+      }
+      case 'duck': {
+        const Y = 0xffd23a, body = ell(0, 5, 8.2, 5, 22).concat([[-9.6, 8.2]]), head = ell(3.8, 11.8, 4.3, 4.3, 18);
+        const S = extrude([body, head], Y, 3);
+        bevel(S[0], Y, 0.55, 0.45); bevel(S[1], Y, 0.55, 0.45);
+        poly(Lc(ell(-1.4, 5.6, 3.8, 2.1, 16, 0.25)), shade(Y, 0.86));
+        poly(Lc([[7.4, 12.6], [11.6, 11.8], [7.4, 10.4]]), 0xff8a1f);
+        circ(5.1, 13.2, 0.85, 0x1a1a1a); circ(4.8, 13.5, 0.3, 0xffffff);
+        return 10;
+      }
+      case 'pineapple': {
+        const Au = 0xe0ad35, Gr = 0x3f9a4a, leaves = [];
+        for(let k = -2; k <= 2; k++) leaves.push([[k*1.1 - 0.9, 14.2], [k*1.1 + 0.9, 14.2], [k*3.1, 22.5 - Math.abs(k)*1.9]]);
+        extrude(leaves, Gr, 1.2);
+        const S = extrude([ell(0, 8, 5.6, 7.6, 22)], Au, 2.6);
+        bevel(S[0], Au, 0.6, 0.35);
+        for(let r = 0; r < 6; r++) for(let q = -2; q <= 2; q++){ const z = 2.4 + r*2.2, x = q*2.2 + (r % 2 ? 1.1 : 0);
+          if((x*x)/(5*5) + ((z - 8)*(z - 8))/(7*7) > 0.8) continue;
+          poly(Lc([[x, z - 0.8], [x + 0.6, z], [x, z + 0.8], [x - 0.6, z]]), shade(Au, 0.7)); }
+        return 12;
+      }
+      case 'eyeball': {
+        /* the pupil follows the way he is turning, and looks about idle */
+        const lk = Phaser.Math.Clamp((this._topLook || 0) + Math.sin(t*0.0011)*0.35*(1 - Math.abs(this._topLook || 0)), -1, 1);
+        sphere(0, 8.5, 7.8, 0xf6f5ef);
+        for(const [a0, b0, a1, b1] of [[-7.2, 7, -4.4, 8.1], [6.9, 6, 4.6, 7.4], [-5, 3.2, -3.4, 5.2]])
+          poly(Lc([[a0, b0], [a1, b1], [a1, b1 + 0.35], [a0, b0 + 0.35]]), 0xd9534f, 0.8);
+        const ix = lk*2.9;
+        poly(Lc(ell(ix, 8.7, 3.4*(1 - Math.abs(lk)*0.18), 3.4, 18)), SKIN.flagPicked ? F : 0x3d8fd6);
+        poly(Lc(ell(ix, 8.7, 1.6*(1 - Math.abs(lk)*0.18), 1.6, 14)), 0x111111);
+        circ(ix - 1, 9.8, 0.6, 0xffffff, 0.9);
+        return 9;
+      }
+      case 'skull': {
+        const Bn = 0xece4cf, D = 0x1c1a17;
+        const S = extrude([rrect(-4.4, 2.4, 4.4, 7.2, 1.6), ell(0, 11, 7, 6.8, 22)], Bn, 2.6);
+        bevel(S[1], Bn, 0.6, 0.45);
+        for(const sx of [-1, 1]) poly(Lc(ell(sx*2.7, 10.2, 2, 2.3, 16)), D);
+        poly(Lc([[-0.9, 6.9], [0.9, 6.9], [0, 8.4]]), D);
+        for(const x of [-2, 0, 2]) poly(Lc([[x - 0.18, 2.8], [x + 0.18, 2.8], [x + 0.18, 5.3], [x - 0.18, 5.3]]), shade(Bn, 0.55));
+        return 10;
+      }
+      case 'pizza': {
+        const Ch = 0xf6cf4a, Cr = 0xc98a3c, arcZ = x => 15 + 2.2*(1 - (x/8)*(x/8));
+        const top = []; for(let i = 0; i <= 12; i++){ const x = 8 - i*16/12; top.push([x, arcZ(x)]); }
+        extrude([[[0, 0.5]].concat(top)], Ch, 1.8);
+        const band = top.map(([x, z]) => [x, z]).concat(top.slice().reverse().map(([x, z]) => [x*0.96, z - 2.6]));
+        poly(Lc(band), Cr); bevel(Lc(band), Cr, 0.8, 0.35);
+        for(const [x, z, r] of [[-2.8, 10.4, 1.5], [2.6, 11.4, 1.5], [0, 5.8, 1.2]]){ poly(Lc(ell(x, z, r, r, 14)), 0xb8322a); circ(x - 0.4, z + 0.4, r*0.35, 0xe06a5a, 0.8); }
+        return 11;
+      }
+      case 'donut': {
+        const Dg = 0xd39a5a, Ic = 0xff8fc4;
+        extrude([ring(0, 9, 7.8, 2.8)], Dg, 3);
+        poly(Lc(ring(0, 9, 6.9, 3.6, 36, q => 0.55*Math.sin(q*6))), Ic);
+        bevel(Lc(ring(0, 9, 6.2, 4.2, 28)), Ic, 1, 0.25);
+        const cols = [0xffffff, 0x4fc3f7, 0xffd23a, 0x8fd14f, 0xb58cff];
+        for(let k = 0; k < 11; k++){ const q = k*2.3 + 0.4, r = 5.1 + (k % 3)*0.5, x = Math.cos(q)*r, z = 9 + Math.sin(q)*r, a = q*1.7;
+          poly(Lc([[x - Math.cos(a)*0.8, z - Math.sin(a)*0.8], [x + Math.cos(a)*0.8, z + Math.sin(a)*0.8],
+                   [x + Math.cos(a)*0.8 - Math.sin(a)*0.35, z + Math.sin(a)*0.8 + Math.cos(a)*0.35], [x - Math.cos(a)*0.8 - Math.sin(a)*0.35, z - Math.sin(a)*0.8 + Math.cos(a)*0.35]]), cols[k % 5]); }
+        return 9;
+      }
+      case 'palm': {
+        const Tr = 0x8a5a2b, Lf = 0x3aa655, tx = 2.5, tz = 15;
+        const L2 = [], R2 = [];
+        for(let i = 0; i <= 10; i++){ const u = i/10, x = tx*Math.pow(u, 1.5), z = tz*u, w = 1.9 - 0.8*u; L2.push([x - w/2, z]); R2.push([x + w/2, z]); }
+        const trunk = extrude([L2.concat(R2.reverse())], Tr, 1.6)[0];
+        for(let i = 1; i < 10; i += 2){ const u = i/10, x = tx*Math.pow(u, 1.5), z = tz*u, w = 1.9 - 0.8*u;
+          poly(Lc([[x - w/2, z], [x + w/2, z], [x + w/2, z + 0.3], [x - w/2, z + 0.3]]), shade(Tr, 0.7)); }
+        const fr = [];
+        for(let k = 0; k < 6; k++){ const ang = -0.35 + k*0.72 + (k > 2 ? 0.55 : 0), dx0 = Math.cos(ang), dz0 = Math.sin(ang)*0.55 + 0.35, Lf2 = 9;
+          const A2 = [], B2 = [];
+          for(let i = 0; i <= 8; i++){ const u = i/8, x = tx + dx0*Lf2*u*(ang > Math.PI/2 ? 1 : 1), z = tz + dz0*Lf2*u - 4.5*u*u, w = 2.2*Math.sin(Math.PI*Math.min(1, u*1.05 + 0.02));
+            A2.push([x, z + w/2]); B2.push([x, z - w/2]); }
+          fr.push(A2.concat(B2.reverse())); }
+        extrude(fr, Lf, 1.2);
+        sphere(tx - 0.9, tz - 1.1, 1.4, 0x6b4423); sphere(tx + 1.1, tz - 1.4, 1.4, 0x6b4423);
+        return 12;
+      }
+      case 'crown': {
+        const Au = 0xf2c14e;
+        const cr = [[-7, 2], [7, 2], [7, 13], [5.25, 8.6], [3.5, 13], [1.75, 8.6], [0, 13.6], [-1.75, 8.6], [-3.5, 13], [-5.25, 8.6], [-7, 13]];
+        const S = extrude([cr], Au, 2.2);
+        bevel(S[0], Au, 0.62, 0.4);
+        poly(Lc([[-7, 2], [7, 2], [7, 4.6], [-7, 4.6]]), shade(Au, 0.84));
+        sphere(0, 3.3, 1.35, 0xd8322a); for(const sx of [-1, 1]) sphere(sx*4.5, 3.3, 1.1, 0x2e6fd1);
+        for(const [x, z] of [[-7, 13], [-3.5, 13], [0, 13.6], [3.5, 13], [7, 13]]) sphere(x, z + 0.5, 0.95, lighten(Au, 0.25));
+        return 10;
+      }
+      case 'partyhat': {
+        const wAt = b => 6.2*(1 - (b - 1.5)/17.5), cone = [[-6.2, 1.5], [6.2, 1.5], [0, 19]];
+        poly(Lc(cone), F);
+        /* confetti dots, not bands: orange with white bands is a traffic cone */
+        const dots = [[-3, 4, 0xffd23a], [2.4, 5.2, 0x4fc3f7], [-0.6, 8.6, 0xffffff], [2.2, 11, 0x8fd14f], [-1.4, 13.2, 0xffd23a], [0.6, 16, 0x4fc3f7], [-3.6, 7.6, 0x8fd14f], [3.8, 2.8, 0xffffff]];
+        for(const [x, z, col] of dots) if(Math.abs(x) < wAt(z) - 0.9) circ(x, z, 0.95, col);
+        poly(Lc([[0, 1.5], [6.2, 1.5], [0, 19]]), 0x000000, 0.18);          // the shaded side of the cone
+        poly(Lc([[-6.9, 0.6], [6.9, 0.6], [6.9, 2], [-6.9, 2]]), shade(F, 0.75));
+        sphere(0, 19.8, 2.7, 0xf7f7f2);
+        return 11;
+      }
+      case 'propeller': {
+        /* a beanie cap and two blades turning about the pole: seen from
+           above-ish, a horizontal circle projects to a flat ellipse, so a
+           blade tip is (cos s * R, sin s * R * 0.35) */
+        const s0 = t*0.022;
+        for(const k of [0, 1]){
+          const s1 = s0 + k*Math.PI, bx = Math.cos(s1)*18, by = Math.sin(s1)*5.4;
+          const nx = -by, ny = bx, m = Math.hypot(nx, ny) || 1, w = 2.8;
+          poly([c(0 + nx/m*w*0.4, 5.5 + ny/m*w*0.4), c(bx + nx/m*w, 5.5 + by + ny/m*w), c(bx - nx/m*w, 5.5 + by - ny/m*w), c(0 - nx/m*w*0.4, 5.5 - ny/m*w*0.4)],
+               k ? F : lighten(F, 0.45));
+        }
+        circ(0, 5.5, 2.6, dark); circ(0, 2, 4.2, F);
+        return 9;
+      }
+      case 'siren': {
+        /* a dome that sweeps a bright wedge round; after dark it throws
+           a soft pulse into his glow layer, no hard strobe */
+        poly([c(-6.5,0), c(6.5,0), c(6.5,2.5), c(-6.5,2.5)], 0x3a3d45);
+        const dome = []; for(let i = 0; i <= 12; i++){ const a = i/12*Math.PI; dome.push(c(Math.cos(a)*6, 2.5 + Math.sin(a)*8)); }
+        poly(dome, F);
+        const sw = Math.sin(t*0.009), wx = sw*4.2;
+        poly([c(wx - 1.7, 3), c(wx + 1.7, 3), c(wx*0.6 + 1, 9.6), c(wx*0.6 - 1, 9.6)], lighten(F, 0.7), 0.9);
+        if(night){ const o = c(0, 5), pulse = 0.5 + 0.5*Math.sin(t*0.009*2);
+          this.gGlowLo.fillStyle(F, Math.min(1, (0.18 + 0.2*pulse)*GLOW_UNDER_TINT)); this.gGlowLo.fillCircle(o.x, o.y, 16*ks); }
+        return 7;
+      }
+      case 'bulb': {
+        poly([c(-3,0), c(3,0), c(3,3.8), c(-3,3.8)], 0x9aa1ad);
+        circ(0, 10, 7, lighten(F, 0.35)); circ(-2, 12, 2.1, 0xffffff, 0.7);
+        if(night){ const o = c(0, 10), pulse = 0.5 + 0.5*Math.sin(t/650);
+          this.gGlowLo.fillStyle(F, Math.min(1, (0.2 + 0.12*pulse)*GLOW_UNDER_TINT)); this.gGlowLo.fillCircle(o.x, o.y, 15*ks);
+          this.gGlowLo.fillStyle(0xffffff, Math.min(1, 0.35*GLOW_UNDER_TINT)); this.gGlowLo.fillCircle(o.x, o.y, 4*ks); }
+        return 8;
+      }
+    }
+    return 0;
+  }
   drawFlag(bobZ){
-    if(SKIN.jolly) return this.drawJollyRoger(bobZ);
+    if(SKIN.topper === 'pirate' || (SKIN.jolly && !SKIN.topper)) return this.drawJollyRoger(bobZ);
     const g = this.g;
-    const L = FLAG.z1 - FLAG.z0;
-    const bend = this.flagLean*0.5 + this.tipT*0.7*(this.tipDir||1);
+    const L = (FLAG.z1 - FLAG.z0) * this.poleK();
+    const bend = this.flagLean*0.5 + this.tipT*0.7*(this.tipDir||1) + this.poleWobble();
     const seg = 6, pts = [];
     for(let i=0; i<=seg; i++){
       const s = i/seg, a = bend*s;
@@ -48995,8 +49466,19 @@ class WorldScene extends Phaser.Scene {
     };
 
     stroke(g, SKIN.flagPole);
-    g.fillStyle(SKIN.flag, 1);
-    g.fillTriangle(t1x, t1y, t2x, t2y, t3x, t3y);
+    this.drawPoleCoil(pts, ks);
+    const top = SKIN.topper && SKIN.topper !== 'pennant' ? SKIN.topper : null;
+    if(top === 'eyeball'){             // how fast he is turning, smoothed: the eyeball looks that way
+      const _a = this.drawAngle || 0, _d = _a - (this._topA === undefined ? _a : this._topA); this._topA = _a;
+      const _w = Math.atan2(Math.sin(_d), Math.cos(_d));
+      this._topLook = (this._topLook || 0) + (Phaser.Math.Clamp(_w*25, -1, 1) - (this._topLook || 0))*0.08;
+    }
+    let ghostR = 0;
+    if(top) ghostR = this.drawTopper(top, p, dx, dy, ks);
+    else {
+      g.fillStyle(SKIN.flag, 1);
+      g.fillTriangle(t1x, t1y, t2x, t2y, t3x, t3y);
+    }
 
     /* X-RAY: the pole is a strokePath and the pennant a fillTriangle --
        neither goes through quadOn, so the silhouette wrap in
@@ -49010,7 +49492,8 @@ class WorldScene extends Phaser.Scene {
     if(XG){
       stroke(XG.g, XRAY.col);
       XG.g.fillStyle(XRAY.col, XG.a);
-      XG.g.fillTriangle(t1x, t1y, t2x, t2y, t3x, t3y);
+      if(top) XG.g.fillCircle(p.x, p.y, ghostR*ks);
+      else XG.g.fillTriangle(t1x, t1y, t2x, t2y, t3x, t3y);
     }
   }
 
@@ -50323,6 +50806,81 @@ const MOUTH_SHAPES = (() => {
   shapes._dizzy = [stroke(curve(-5.5, 5.5, x => 0.9*Math.sin(x*1.6), 18), 1.2)];
   return shapes;
 })();
+
+/* ---------- GARAGE WHEELS (Sir, 2026-09-24: "ok lets do the Wheels now") ----------
+   Three independent picks, all drawn by drawWheel on the tread face that
+   faces the camera:
+     SKIN.wheelStyle -- the rim art (WHEEL_STYLES). Absent = the stock hub
+                        disc and single bolt, drawn exactly as before.
+     SKIN.tyre       -- the tyre (whitewall, redline, knobby, neon).
+     SKIN.wheelHubFace / SKIN.wheelHub -- the rim colour and its accent,
+                        the same two keys the skins already set.
+   Rim polygons are in units of WHEEL.r, [along him, up] about the axle,
+   and turn with wheelPhase exactly as the stock bolt does (spin: 'own'
+   turns on its own clock -- a spinner keeps going when he stops). A
+   polygon's c is a colour role: face (rim colour), acc (accent), dark
+   (the wheel well behind the rim), or a hex. */
+const WHEEL_STYLES = (() => {
+  const circ = (r, n = 16, cx = 0, cz = 0) => { const o = []; for(let i = 0; i < n; i++){ const a = i/n*Math.PI*2; o.push([cx + Math.cos(a)*r, cz + Math.sin(a)*r]); } return o; };
+  const bar = (a, r0, r1, w) => { const c = Math.cos(a), s = Math.sin(a), px = -s*w/2, pz = c*w/2;
+    return [[c*r0 + px, s*r0 + pz], [c*r1 + px, s*r1 + pz], [c*r1 - px, s*r1 - pz], [c*r0 - px, s*r0 - pz]]; };
+  const P = (p, c) => ({ p, c });
+  const spokes = (n, w, r1 = 0.72, c = 'face', a0 = 0) => Array.from({ length: n }, (_, k) => P(bar(a0 + k*Math.PI*2/n, 0.1, r1, w), c));
+  const star = (n, ro, ri) => { const o = []; for(let i = 0; i < n*2; i++){ const a = i*Math.PI/n - Math.PI/2, r = i % 2 ? ri : ro; o.push([Math.cos(a)*r, Math.sin(a)*r]); } return o; };
+  const blade = (a, r0, r1, sweep, w) => { const o = [], n = 6;
+    for(let i = 0; i <= n; i++){ const u = i/n, b = a + u*sweep, r = r0 + (r1 - r0)*u; o.push([Math.cos(b)*r, Math.sin(b)*r]); }
+    for(let i = n; i >= 0; i--){ const u = i/n, b = a + u*sweep + w, r = r0 + (r1 - r0)*u; o.push([Math.cos(b)*r, Math.sin(b)*r]); }
+    return o; };
+  const petal = (a) => circ(0.2, 10, Math.cos(a)*0.42, Math.sin(a)*0.42).map(([x, z]) => {
+    const dx = x - Math.cos(a)*0.42, dz = z - Math.sin(a)*0.42;          // stretch along the petal
+    return [Math.cos(a)*0.42 + dx*1 + Math.cos(a)*(dx*Math.cos(a) + dz*Math.sin(a))*0.7,
+            Math.sin(a)*0.42 + dz*1 + Math.sin(a)*(dx*Math.cos(a) + dz*Math.sin(a))*0.7]; });
+  const well = P(circ(0.76, 18), 'dark');
+  const cap = (r = 0.18, c = 'acc') => P(circ(r, 12), c);
+  const S = {
+    spokes:  { polys: [well, P(circ(0.76, 18).map(([x,z]) => [x*1, z*1]), 'dark')].concat(spokes(5, 0.2), [P(circ(0.26, 12), 'face'), cap(0.13)]) },
+    mag:     { polys: [P(circ(0.74, 18), 'face')].concat(Array.from({ length: 5 }, (_, k) => { const a = k*Math.PI*2/5; return P(circ(0.15, 10, Math.cos(a)*0.46, Math.sin(a)*0.46), 'dark'); }), [cap(0.16)]) },
+    steelie: { polys: [P(circ(0.74, 18), 'face')].concat(Array.from({ length: 4 }, (_, k) => { const a = k*Math.PI/2 + Math.PI/4; return P(circ(0.12, 10, Math.cos(a)*0.52, Math.sin(a)*0.52), 'dark'); }),
+                 [P(circ(0.3, 14), 'acc')], Array.from({ length: 4 }, (_, k) => { const a = k*Math.PI/2; return P(circ(0.06, 8, Math.cos(a)*0.2, Math.sin(a)*0.2), 'dark'); })) },
+    star:    { polys: [well, P(star(5, 0.74, 0.3), 'face'), cap()] },
+    dish:    { polys: [P(circ(0.8, 18), 'acc'), P(circ(0.6, 18), 'face'), P(circ(0.2, 12), 'acc'), P(bar(0, 0.62, 0.78, 0.12), 'dark')] },
+    turbine: { polys: [well].concat(Array.from({ length: 7 }, (_, k) => P(blade(k*Math.PI*2/7, 0.16, 0.74, 0.9, 0.34), 'face')), [cap()]) },
+    wire:    { polys: [well].concat(spokes(12, 0.07, 0.74, 'acc'), spokes(12, 0.07, 0.74, 'acc', Math.PI/12 + 0.12), [P(circ(0.22, 12), 'face'), cap(0.1)]) },
+    wagon:   { polys: [well].concat(spokes(8, 0.13, 0.7), [P(circ(0.74, 18).concat([[0.74, 0], [0.64, 0]], circ(0.64, 18).reverse()), 'face'), P(circ(0.24, 12), 'face'), cap(0.12)]) },
+    flower:  { polys: [P(circ(0.74, 18), 'face')].concat(Array.from({ length: 6 }, (_, k) => P(petal(k*Math.PI/3), 'acc')), [P(circ(0.17, 12), 0xffd24a)]) },
+
+  };
+  return S;
+})();
+
+/* ---------- RUNNING GEAR (Sir, 2026-09-24: tyres that "range in size and
+   tred", and specialty wheel-and-tyre combos: monster truck, tank treads,
+   lowrider, hover pads, ball bot, shopping cart, walker) ----------
+   gearSpec() is what he is standing on this frame. SKIN.rig picks a
+   specialty; otherwise SKIN.tyreSize sizes the stock six. Every rig puts
+   its ground contact on z ~2 like the stock tyres and LIFTS the whole body
+   by .lift (drawRobot adds it to bobZ and to the undercarriage), so big
+   tyres raise him and a lowrider slams him. Stock: r 8, W2 7.5, lift 0 --
+   the stock numbers, so stock Tipsey is unchanged. */
+const TYRE_SIZE = {
+  low:    { r: 6.5,  W2: 6.5,  lift: -1.5 },
+  chunky: { r: 9.5,  W2: 9,    lift: 1.5 },
+  big:    { r: 11.5, W2: 10.5, lift: 3.5, xs: [-17, 17] }   // two a side: three this big would overlap
+};
+function gearSpec(){
+  switch(SKIN.rig){
+    case 'monster':  return { kind: 'wheels', r: 15, W2: 12, xs: [-19, 19], side: 25, lift: 14, tread: 'knobby', axles: true };
+    case 'lowrider': return { kind: 'wheels', r: 6, W2: 6, xs: WHEEL.xs, side: 21, lift: -3, style: 'wire', wall: 'whitewall', hop: true };
+    case 'tank':     return { kind: 'tank', side: 22, W2: 10, lift: 2 };
+    case 'hover':    return { kind: 'hover', lift: 13, bob: true };
+    case 'ball':     return { kind: 'ball', lift: 32 };
+    case 'cart':     return { kind: 'cart', lift: 6 };
+    case 'walker':   return { kind: 'walker', lift: 17 };
+  }
+  const z = TYRE_SIZE[SKIN.tyreSize];
+  return z ? { kind: 'wheels', r: z.r, W2: z.W2, xs: z.xs || WHEEL.xs, side: WHEEL.side, lift: z.lift }
+           : { kind: 'wheels', r: WHEEL.r, W2: 7.5, xs: WHEEL.xs, side: WHEEL.side, lift: 0 };
+}
 
 /* ---------- SKIN EQUIP ---------- */
 const SKIN_BASE = {...SKIN};
@@ -60292,6 +60850,14 @@ document.addEventListener("keydown", e => {
    themselves are EYE_SHAPES in game/index.html, drawn by drawRobot on the
    visor plane; this tab only picks SKIN.eyeShape and SKIN.eye. Stock dot
    and stock cyan are free.
+   STEP 3d -- ANTENNA. Topper, pole and flag colour, same rules. drawFlag /
+   drawTopper in game/index.html; this tab picks SKIN.topper, SKIN.pole and
+   SKIN.flag. Owning the Porch Pirate skin owns the Jolly Roger topper.
+   STEP 3c -- WHEELS. Specialty rigs, rims, tread, sidewall, size and rim
+   colour, same rules (gearSpec in game/index.html says what each does). WHEEL_STYLES in
+   game/index.html, drawn by drawWheel; this tab picks SKIN.wheelStyle,
+   SKIN.tyre and the two hub colours the skins already carry. The close-up
+   turns him side-on and rolls the wheels slowly so the rims show turning.
    STEP 3b -- MOUTH. Shape, animated and colour, same rules. The mouths are
    MOUTH_SHAPES in game/index.html, painted by drawRobot on his face under
    the visor; this tab picks SKIN.mouth and its ink. Stock is the light bar
@@ -60443,8 +61009,10 @@ document.addEventListener("keydown", e => {
     }
     const s = scn(); if (s && s.ow) s.ow.vel = 0;   // he never drives off mid-garage
     const f = focusNow();
-    if (s) s._lightsPreview = !!(tab === 'eyes' && pv && pv.eyeProj);   // on in both views
+    if (s) s._lightsPreview = !!((tab === 'eyes' && pv && pv.eyeProj) ||   // on in both views
+                                 (tab === 'antenna' && pv && (pv.topper === 'siren' || pv.topper === 'bulb')));
     if (s && s._garage) s._garage.still = !!(f && f.still && !dragging);
+    if (s && tab === 'wheels') s.wheelPhase = (s.wheelPhase || 0) - dt * 0.0018;   // roll them for the show
     if (s && s.ow) {
       if (f && !dragging && t - lastTouch > 500) {
         let d = f.yaw - s.ow.yaw;
@@ -60490,6 +61058,19 @@ document.addEventListener("keydown", e => {
     eyes:   { yaw: Math.PI / 4, zoom: 1.8, pt: [26, 0, 44], still: true },
     /* the whole face, eyes and mouth, so you see them together */
     mouth:  { yaw: Math.PI / 4, zoom: 1.7, pt: [26, 0, 32], still: true },
+    /* side-on, framed on the row nearest you (the -y side at this yaw),
+       low on the wheels with the stripe above them */
+    /* the whip from the side, the tip high in the frame */
+    get antenna() {
+      const L = pv || worn(), k = L.pole === 'tall' ? 1.35 : L.pole === 'short' ? 0.62 : 1;
+      return { yaw: Math.PI / 4 + Math.PI / 2, zoom: k > 1 ? 1.55 : 1.9, pt: [-25, 17, 50 + 38*k], still: true };
+    },
+    get wheels() {   // closer on the stock six; back off for big tyres and the specialties
+      const L = pv || worn(), rg = L.rig, big = L.tyreSize === 'big' || L.tyreSize === 'chunky';
+      if (rg === 'monster' || rg === 'walker' || rg === 'ball') return { yaw: Math.PI / 4 + Math.PI / 2, zoom: 1.25, pt: [0, -18, 24], still: true };
+      if (rg) return { yaw: Math.PI / 4 + Math.PI / 2, zoom: 1.45, pt: [0, -18, 18], still: true };
+      return { yaw: Math.PI / 4 + Math.PI / 2, zoom: big ? 1.7 : 2.1, pt: [0, -22, big ? 17 : 14], still: true };
+    },
     /* a projection is shown with his lights on, framing him AND the pool
        100 ahead of him, where the pattern lands */
     lights: { yaw: Math.PI / 4, zoom: 1.05, pt: [72, 0, 8], still: true }
@@ -60654,6 +61235,103 @@ document.addEventListener("keydown", e => {
     { id: 'gold',  name: 'Gold',      hex: 0xd9a320, cents: 300 },
     { id: 'glow',  name: 'Glow',      hex: 0x7fe3ff, cents: 800 }
   ];
+  const WHEEL_LIST = [
+    { id: 'stock',   name: 'Stock hub', cents: 0 },
+    { id: 'spokes',  name: '5-spoke',   cents: 400 },
+    { id: 'mag',     name: 'Mags',      cents: 400 },
+    { id: 'steelie', name: 'Steelies',  cents: 400 },
+    { id: 'star',    name: 'Star',      cents: 500 },
+    { id: 'dish',    name: 'Deep dish', cents: 500 },
+    { id: 'flower',  name: 'Flower',    cents: 500 },
+    { id: 'wagon',   name: 'Wagon',     cents: 600 },
+    { id: 'turbine', name: 'Turbine',   cents: 700 },
+    { id: 'wire',    name: 'Wire',      cents: 800 }
+  ];
+  /* TYRES: tread, sidewall and size are three picks (gearSpec, drawWheel) */
+  const TYRE_LIST = [
+    { id: 'stock',      name: 'Street',      cents: 0 },
+    { id: 'slick',      name: 'Slick',       cents: 400 },
+    { id: 'allterrain', name: 'All-terrain', cents: 500 },
+    { id: 'knobby',     name: 'Knobby',      cents: 700 }
+  ];
+  const WALL_LIST = [
+    { id: 'stock',     name: 'Plain',     cents: 0 },
+    { id: 'whitewall', name: 'Whitewall', cents: 500 },
+    { id: 'redline',   name: 'Redline',   cents: 500 },
+    { id: 'neon',      name: 'Neon',      cents: 1200 }
+  ];
+  const SIZE_LIST = [
+    { id: 'low',    name: 'Low-profile', cents: 600 },
+    { id: 'stock',  name: 'Stock',       cents: 0 },
+    { id: 'chunky', name: 'Chunky',      cents: 800 },
+    { id: 'big',    name: 'Big',         cents: 1200 }
+  ];
+  /* SPECIALTY: a whole wheel-and-tyre combo that replaces the six */
+  const RIG_LIST = [
+    { id: 'stock',    name: 'None',          cents: 0 },
+    { id: 'monster',  name: 'Monster truck', cents: 3000 },
+    { id: 'tank',     name: 'Tank treads',   cents: 3000 },
+    { id: 'lowrider', name: 'Lowrider',      cents: 2500 },
+    { id: 'hover',    name: 'Hover pads',    cents: 3500 },
+    { id: 'ball',     name: 'Ball bot',      cents: 3000 },
+    { id: 'cart',     name: 'Shopping cart', cents: 1500 },
+    { id: 'walker',   name: 'Walker',        cents: 4000 }
+  ];
+  /* rim colour: face and accent together, like the skins set them */
+  const TOPPER_LIST = [
+    { id: 'pennant',   name: 'Pennant',     cents: 0 },
+    { id: 'square',    name: 'Square flag', cents: 300 },
+    { id: 'swallow',   name: 'Swallowtail', cents: 400 },
+    { id: 'checker',   name: 'Checkered',   cents: 600 },
+    { id: 'pirate',    name: 'Jolly Roger', cents: 800 },
+    { id: 'ball',      name: 'Ball',        cents: 300 },
+    { id: 'star',      name: 'Star',        cents: 500 },
+    { id: 'heart',     name: 'Heart',       cents: 500 },
+    { id: 'alien',     name: 'Alien',       cents: 1000, tier: 3 },
+    { id: 'smiley',    name: 'Smiley',      cents: 600,  tier: 3 },
+    { id: 'hand',      name: 'Foam hand',   cents: 800,  tier: 3 },
+    { id: 'duck',      name: 'Duck',        cents: 800,  tier: 3 },
+    { id: 'pineapple', name: 'Pineapple',   cents: 800,  tier: 3 },
+    { id: 'eyeball',   name: 'Eyeball',     cents: 1000, tier: 3 },
+    { id: 'skull',     name: 'Skull',       cents: 900,  tier: 3 },
+    { id: 'pizza',     name: 'Pizza slice', cents: 700,  tier: 3 },
+    { id: 'donut',     name: 'Donut',       cents: 700,  tier: 3 },
+    { id: 'palm',      name: 'Palm tree',   cents: 900,  tier: 3 },
+    { id: 'crown',     name: 'Crown',       cents: 1200, tier: 3 },
+    { id: 'partyhat',  name: 'Party hat',   cents: 800,  tier: 3 },
+    { id: 'propeller', name: 'Propeller',   cents: 1200, tier: 2 },
+    { id: 'siren',     name: 'Siren',       cents: 1400, tier: 2 },
+    { id: 'bulb',      name: 'Light bulb',  cents: 1000, tier: 2 }
+  ];
+  const POLE_LIST = [
+    { id: 'stock',  name: 'Stock whip', cents: 0 },
+    { id: 'short',  name: 'Stubby',     cents: 300 },
+    { id: 'tall',   name: 'Tall',       cents: 500 },
+    { id: 'spring', name: 'Spring',     cents: 800 }
+  ];
+  const FLAG_COL = [
+    { id: 'stock',  name: 'Stock',  hex: 0xff5722, cents: 0 },
+    { id: 'red',    name: 'Red',    hex: 0xe0443c, cents: 200 },
+    { id: 'yellow', name: 'Yellow', hex: 0xf6d04d, cents: 200 },
+    { id: 'lime',   name: 'Lime',   hex: 0x8fd14f, cents: 200 },
+    { id: 'teal',   name: 'Teal',   hex: 0x1fb5a8, cents: 200 },
+    { id: 'blue',   name: 'Blue',   hex: 0x2e6fd1, cents: 200 },
+    { id: 'purple', name: 'Purple', hex: 0x8a63d2, cents: 250 },
+    { id: 'pink',   name: 'Pink',   hex: 0xff4fa0, cents: 250 },
+    { id: 'white',  name: 'White',  hex: 0xf4f2ec, cents: 250 },
+    { id: 'black',  name: 'Black',  hex: 0x1e1f24, cents: 250 }
+  ];
+  const RIM_COL = [
+    { id: 'stock',  name: 'Stock',  hex: 0x3d424c, acc: 0x8a919c, cents: 0 },
+    { id: 'chrome', name: 'Chrome', hex: 0xc7ccd4, acc: 0xf4f7fa, cents: 400 },
+    { id: 'gold',   name: 'Gold',   hex: 0xc99a2e, acc: 0xffe08a, cents: 500 },
+    { id: 'black',  name: 'Black',  hex: 0x202227, acc: 0x646b77, cents: 300 },
+    { id: 'white',  name: 'White',  hex: 0xeef0f2, acc: 0xa9b0ba, cents: 300 },
+    { id: 'red',    name: 'Red',    hex: 0xc2302a, acc: 0xffb0a8, cents: 300 },
+    { id: 'blue',   name: 'Blue',   hex: 0x2e6fd1, acc: 0xa8ccff, cents: 300 },
+    { id: 'lime',   name: 'Lime',   hex: 0x7cc43f, acc: 0xe0ffb0, cents: 300 },
+    { id: 'pink',   name: 'Pink',   hex: 0xff4fa0, acc: 0xffd0e6, cents: 300 }
+  ];
   const byId = (list, id) => list.find(c => c.id === id) || null;
   const shade = (c, k) => {
     const r = Math.round(((c >> 16) & 255) * k), g = Math.round(((c >> 8) & 255) * k), b = Math.round((c & 255) * k);
@@ -60664,14 +61342,18 @@ document.addEventListener("keydown", e => {
   const LOOK_KEY = 'tipsy.look', OWN_KEY = 'tipsy.paintOwned';
   const load = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (e) { return d; } };
   const paintOwned = new Set(load(OWN_KEY, []));
-  const FIELDS = ['body', 'stripe', 'eyeShape', 'eyeCol', 'eyeProj', 'mouth', 'mouthCol'];
+  const FIELDS = ['body', 'stripe', 'eyeShape', 'eyeCol', 'eyeProj', 'mouth', 'mouthCol', 'wheel', 'tyre', 'wall', 'tyreSize', 'rig', 'rimCol', 'topper', 'pole', 'flagCol'];
   const pick = L => { const o = {}; for (const k of FIELDS) o[k] = L[k] || null; return o; };
   let look = Object.assign(pick({}), load(LOOK_KEY, {}));
   const saveLook = () => { try { localStorage.setItem(LOOK_KEY, JSON.stringify(pick(look)));
                                  localStorage.setItem(OWN_KEY, JSON.stringify([...paintOwned])); } catch (e) {} };
   const LISTS = { body: BODY, stripe: STRIPE, eyeShape: EYE_SHAPE_LIST, eyeCol: EYE_COL, eyeProj: EYE_PROJ_LIST,
-                  mouth: MOUTH_LIST, mouthCol: MOUTH_COL };
-  const ownsPaint = (kind, id) => { const c = byId(LISTS[kind], id); return !c || c.cents === 0 || paintOwned.has(kind + ':' + id); };
+                  mouth: MOUTH_LIST, mouthCol: MOUTH_COL, wheel: WHEEL_LIST, tyre: TYRE_LIST, wall: WALL_LIST,
+                  tyreSize: SIZE_LIST, rig: RIG_LIST, rimCol: RIM_COL,
+                  topper: TOPPER_LIST, pole: POLE_LIST, flagCol: FLAG_COL };
+  const ownsPaint = (kind, id) => { const c = byId(LISTS[kind], id);
+    if (kind === 'topper' && id === 'pirate' && tpProfile.owned.has('porch-pirate')) return true;   // the skin's flag, kept
+    return !c || c.cents === 0 || paintOwned.has(kind + ':' + id); };
   const ownsSkin = id => id === 'classic' || tpProfile.owned.has(id);
 
   /* the ONE composer: skin, then colours over it. A body colour carries its
@@ -60688,6 +61370,19 @@ document.addEventListener("keydown", e => {
     const mo = byId(MOUTH_LIST, L.mouth), mc = byId(MOUTH_COL, L.mouthCol);
     if (mo && mo.id !== 'none') SKIN.mouth = mo.id;
     if (mc && mc.id === 'glow') SKIN.mouthGlow = true; else if (mc) SKIN.mouthCol = mc.hex;
+    const wh = byId(WHEEL_LIST, L.wheel), ty = byId(TYRE_LIST, L.tyre), rc = byId(RIM_COL, L.rimCol);
+    if (wh && wh.id !== 'stock') SKIN.wheelStyle = wh.id;
+    if (ty && ty.id !== 'stock') SKIN.tyre = ty.id;
+    const wl = byId(WALL_LIST, L.wall), sz = byId(SIZE_LIST, L.tyreSize), rg = byId(RIG_LIST, L.rig);
+    if (wl && wl.id !== 'stock') SKIN.wall = wl.id;
+    if (sz && sz.id !== 'stock') SKIN.tyreSize = sz.id;
+    if (rg && rg.id !== 'stock') SKIN.rig = rg.id;
+    const tp = byId(TOPPER_LIST, L.topper), pl = byId(POLE_LIST, L.pole), fc = byId(FLAG_COL, L.flagCol);
+    if (tp && tp.id !== 'pennant') SKIN.topper = tp.id;
+    else if (tp && SKIN.jolly) SKIN.topper = 'pennant';     // picking the pennant on a pirate skin swaps the Jolly Roger out
+    if (pl && pl.id !== 'stock') SKIN.pole = pl.id;
+    if (fc && fc.id !== 'stock') { SKIN.flag = fc.hex; SKIN.flagPicked = true; }
+    if (rc && rc.id !== 'stock') { SKIN.wheelHubFace = rc.hex; SKIN.wheelHub = rc.acc; }
     if (b) Object.assign(SKIN, { bodyTop: b.hex, bodyRight: shade(b.hex, 0.91), bodyLeft: shade(b.hex, 0.79),
                                  outline: shade(b.hex, b.hex > 0x808080 ? 0.22 : 0.45) });
     if (st) Object.assign(SKIN, { stripe: st.hex, stripeDk: shade(st.hex, 0.8) });
@@ -60803,6 +61498,129 @@ document.addEventListener("keydown", e => {
     if (vt) vt.onclick = () => { lightsView = !lightsView; renderTab(); };
   }
 
+  /* =============================== ANTENNA TAB =============================== */
+  function antennaIcon(top, pole, col, picked) {
+    const C = hex(col), ph = pole === 'short' ? 9 : pole === 'tall' ? 19 : 14, x = 15, y0 = 22, y1 = y0 - ph;
+    let polePath = `<path d="M${x} ${y0}L${x} ${y1}" stroke="#2e3138" stroke-width="1.4"/>`;
+    if (pole === 'spring') { let d = `M${x} ${y0}`; for (let i = 1; i <= 12; i++) d += `L${x + (i % 2 ? 1.6 : -1.6)} ${y0 - i*ph/12}`; polePath = `<path d="${d}" stroke="#2e3138" stroke-width="1" fill="none"/>`; }
+    const y = y1;
+    const T = {
+      pennant: `<path d="M${x} ${y}L${x + 11} ${y + 2.5}L${x} ${y + 5.5}Z" fill="${C}"/>`,
+      square:  `<rect x="${x}" y="${y}" width="10" height="6.5" fill="${C}"/>`,
+      swallow: `<path d="M${x} ${y}h11.5l-4 3.25 4 3.25h-11.5Z" fill="${C}"/>`,
+      checker: [0,1,2,3,4].map(i => [0,1,2].map(j => `<rect x="${x + i*2.1}" y="${y + j*2.2}" width="2.1" height="2.2" fill="${(i + j) % 2 ? '#1b1c20' : '#f4f4f0'}"/>`).join('')).join(''),
+      pirate:  `<rect x="${x}" y="${y}" width="10.5" height="7" fill="#14141a"/><path d="M${x + 1.5} ${y + 1.2}L${x + 9} ${y + 5.8}M${x + 9} ${y + 1.2}L${x + 1.5} ${y + 5.8}" stroke="#e8e2d0" stroke-width=".9"/>`,
+      ball:    `<circle cx="${x}" cy="${y - 2.5}" r="3" fill="${C}"/>`,
+      star:    `<path d="M${x} ${y - 7.5}l1.5 3.2 3.4.4-2.5 2.3.7 3.4-3.1-1.7-3.1 1.7.7-3.4-2.5-2.3 3.4-.4z" fill="${C}"/>`,
+      heart:   `<path d="M${x} ${y}c-1-1.4-4.2-1.8-4.2-4.2 0-1.5 1.1-2.4 2.3-2.4 1 0 1.6.6 1.9 1.2.3-.6.9-1.2 1.9-1.2 1.2 0 2.3.9 2.3 2.4 0 2.4-3.2 2.8-4.2 4.2z" fill="${C}"/>`,
+      propeller: `<path d="M${x - 8} ${y - 3.5}L${x + 8} ${y - 2.5}" stroke="${C}" stroke-width="2" stroke-linecap="round"/><circle cx="${x}" cy="${y - 1}" r="2.2" fill="${C}"/>`,
+      siren:   `<rect x="${x - 3}" y="${y - 1}" width="6" height="1.4" fill="#3a3d45"/><path d="M${x - 2.8} ${y - 1}a2.8 3.6 0 0 1 5.6 0z" fill="${C}"/><circle cx="${x}" cy="${y - 3}" r="6" fill="${C}" opacity=".18"/>`,
+      bulb:    `<rect x="${x - 1.3}" y="${y - 2}" width="2.6" height="2" fill="#9aa1ad"/><circle cx="${x}" cy="${y - 5}" r="3.3" fill="${C}" opacity=".85"/><circle cx="${x}" cy="${y - 5}" r="6" fill="${C}" opacity=".18"/>`
+    };
+    /* novelty: a short pole and the topper drawn big, in the game's own units (y up is -b) */
+    const N = {
+      alien:     `<path d="M-2.2 -16.5L-5.4 -22.3M2.2 -16.5L5.4 -22.3" stroke="#5fae45" stroke-width="1.2"/><circle cx="-5.7" cy="-22.4" r="1.5" fill="#7ddc5a"/><circle cx="5.7" cy="-22.4" r="1.5" fill="#7ddc5a"/><path d="M0 -18.4C5 -18.4 7.6 -14 7.6 -10 7.6 -5 3.5 -1.6 0 -1.6-3.5 -1.6-7.6 -5-7.6 -10-7.6 -14-5 -18.4 0 -18.4Z" fill="#7ddc5a"/><ellipse cx="-3.1" cy="-10.1" rx="3.1" ry="1.7" transform="rotate(-26 -3.1 -10.1)" fill="#101412"/><ellipse cx="3.1" cy="-10.1" rx="3.1" ry="1.7" transform="rotate(26 3.1 -10.1)" fill="#101412"/>`,
+      smiley:    `<circle cy="-8.5" r="7.8" fill="#ffd23a"/><ellipse cx="-2.6" cy="-10.2" rx="1" ry="1.7" fill="#1a1a1a"/><ellipse cx="2.6" cy="-10.2" rx="1" ry="1.7" fill="#1a1a1a"/><path d="M-4 -7a4.4 4.4 0 0 0 8 0" stroke="#1a1a1a" stroke-width="1.2" fill="none"/>`,
+      hand:      `<rect x="-7.4" y="-11.5" width="3.6" height="6" rx="1.7" fill="${C}"/><rect x="-5" y="-13.5" width="10" height="12" rx="2.4" fill="${C}"/><rect x="-1.9" y="-24" width="3.8" height="13" rx="1.9" fill="${C}"/><path d="M0 -4.5V-10.5l-2 1.6" stroke="#fff" stroke-width="1.3" fill="none"/>`,
+      duck:      `<ellipse cy="-5" rx="8.2" ry="5" fill="#ffd23a"/><circle cx="3.8" cy="-11.8" r="4.3" fill="#ffd23a"/><path d="M7.4 -12.6L11.6 -11.8 7.4 -10.4Z" fill="#ff8a1f"/><circle cx="5.1" cy="-13.2" r=".85" fill="#1a1a1a"/>`,
+      pineapple: `<path d="M-2 -14.2L-6.2 -18.7M-1 -14.2L-3.1 -20.6M0 -14.2V-22.5M1 -14.2L3.1 -20.6M2 -14.2L6.2 -18.7" stroke="#3f9a4a" stroke-width="1.8"/><ellipse cy="-8" rx="5.6" ry="7.6" fill="#e0ad35"/><path d="M-4 -4l8 -8M-4 -10l6 -6M-2 -2l6 -6M4 -4l-8 -8M4 -10l-6 -6M2 -2l-6 -6" stroke="#a87e22" stroke-width=".6"/>`,
+      eyeball:   `<circle cy="-8.5" r="7.8" fill="#f6f5ef"/><circle cy="-8.7" r="3.4" fill="${picked ? C : '#3d8fd6'}"/><circle cy="-8.7" r="1.6" fill="#111"/><path d="M-7.2 -7l2.8 -1.1" stroke="#d9534f" stroke-width=".4"/>`,
+      skull:     `<rect x="-4.4" y="-7.2" width="8.8" height="4.8" rx="1.6" fill="#ece4cf"/><ellipse cy="-11" rx="7" ry="6.8" fill="#ece4cf"/><ellipse cx="-2.7" cy="-10.2" rx="2" ry="2.3" fill="#1c1a17"/><ellipse cx="2.7" cy="-10.2" rx="2" ry="2.3" fill="#1c1a17"/><path d="M-.9 -6.9h1.8L0 -8.4Z" fill="#1c1a17"/>`,
+      pizza:     `<path d="M0 -.5L8 -15Q0 -19.4 -8 -15Z" fill="#f6cf4a"/><path d="M8 -15Q0 -19.4 -8 -15L-7.7 -12.4Q0 -16.8 7.7 -12.4Z" fill="#c98a3c"/><circle cx="-2.8" cy="-10.4" r="1.5" fill="#b8322a"/><circle cx="2.6" cy="-11.4" r="1.5" fill="#b8322a"/><circle cy="-5.8" r="1.2" fill="#b8322a"/>`,
+      donut:     `<circle cy="-9" r="5.3" fill="none" stroke="#d39a5a" stroke-width="5"/><circle cy="-9" r="5.25" fill="none" stroke="#ff8fc4" stroke-width="3.3"/>`,
+      palm:      `<path d="M0 0Q.5 -8 2.5 -15" stroke="#8a5a2b" stroke-width="1.7" fill="none"/><path d="M2.5 -15q5 -2 9 2M2.5 -15q4 -5 8 -5M2.5 -15q-1 -5 -5 -6M2.5 -15q-5 -2 -9 1M2.5 -15q0 5 -3 7" stroke="#3aa655" stroke-width="2" fill="none" stroke-linecap="round"/>`,
+      crown:     `<path d="M-7 -2H7V-13L5.25 -8.6 3.5 -13 1.75 -8.6 0 -13.6 -1.75 -8.6 -3.5 -13 -5.25 -8.6 -7 -13Z" fill="#f2c14e"/><circle cy="-3.3" r="1.35" fill="#d8322a"/><circle cx="-4.5" cy="-3.3" r="1.1" fill="#2e6fd1"/><circle cx="4.5" cy="-3.3" r="1.1" fill="#2e6fd1"/>`,
+      partyhat:  `<path d="M-6.2 -1.5H6.2L0 -19Z" fill="${C}"/><circle cx="-3" cy="-4" r="1" fill="#ffd23a"/><circle cx="2.4" cy="-5.2" r="1" fill="#4fc3f7"/><circle cx="-.6" cy="-8.6" r="1" fill="#fff"/><circle cx="1.2" cy="-12" r="1" fill="#8fd14f"/><circle cy="-19.8" r="2.7" fill="#f7f7f2"/>`
+    };
+    if (N[top]) return `<svg viewBox="0 0 40 24" width="56" height="34"><rect x="8" y="21" width="24" height="3" rx="1" fill="#eceef1"/><path d="M20 22V18" stroke="#2e3138" stroke-width="1.4"/><g transform="translate(20 18) scale(.66)">${N[top]}</g></svg>`;
+    return `<svg viewBox="0 0 40 24" width="56" height="34"><rect x="8" y="21" width="24" height="3" rx="1" fill="#eceef1"/>${polePath}${T[top] || ''}</svg>`;
+  }
+  function renderAntenna(P) {
+    P.className = 'grList';
+    const L = pv || worn(), curT = L.topper || ((SKIN_PALETTES[L.skin] || {}).jolly ? 'pirate' : 'pennant'),
+          curP = L.pole || 'stock', curC = L.flagCol || 'stock';
+    const col = (byId(FLAG_COL, curC) || FLAG_COL[0]).id === 'stock' ? (SKIN.flag || 0xff5722) : byId(FLAG_COL, curC).hex;
+    const tag = (kind, c) => ownsPaint(kind, c.id) ? '<i class="own">Owned</i>' : '<i>' + tpMoney(c.cents) + '</i>';
+    const card = (kind, c, sel, icon) => `<button class="grSkin${sel ? ' sel' : ''}" data-${kind.toLowerCase()}="${c.id}">${icon}<span>${c.name}</span>${tag(kind, c)}</button>`;
+    const tops = t => TOPPER_LIST.filter(c => (c.tier || 1) === t).map(c => card('topper', c, curT === c.id, antennaIcon(c.id, curP, col, curC !== 'stock'))).join('');
+    const poles = POLE_LIST.map(c => card('pole', c, curP === c.id, antennaIcon(curT, c.id, col, curC !== 'stock'))).join('');
+    const cols = FLAG_COL.map(c => `<button class="grSw${curC === c.id ? ' sel' : ''}" data-flagcol="${c.id}" aria-label="${c.name}"><b style="background:${hex(c.id === 'stock' ? (SKIN_BASE.flag || c.hex) : c.hex)}"></b>${ownsPaint('flagCol', c.id) ? '&nbsp;' : '<i>' + tpMoney(c.cents) + '</i>'}</button>`).join('');
+    P.innerHTML = `<div class="grSec">TOPPER</div><div class="grRow">${tops(1)}</div>
+      <div class="grSec">NOVELTY</div><div class="grRow">${tops(3)}</div>
+      <div class="grSec">SPECIAL — SIREN AND BULB LIGHT UP AT NIGHT</div><div class="grRow">${tops(2)}</div>
+      <div class="grSec">POLE</div><div class="grRow">${poles}</div>
+      <div class="grSec">COLOUR</div><div class="grRow">${cols}</div>`;
+    const bind = (sel, key, stock) => { for (const b of P.querySelectorAll('[data-' + sel + ']')) b.onclick = () =>
+      tryOn(Object.assign({}, pv || worn(), { [key]: b.dataset[sel] === stock ? null : b.dataset[sel] })); };
+    /* the pennant is only "no pick" on a skin without its own flag; on the
+       pirate skin it has to be written so it can replace the Jolly Roger */
+    for (const b of P.querySelectorAll('[data-topper]')) b.onclick = () => tryOn(Object.assign({}, pv || worn(),
+      { topper: b.dataset.topper === 'pennant' && !(SKIN_PALETTES[(pv || worn()).skin] || {}).jolly ? null : b.dataset.topper }));
+    bind('pole', 'pole', 'stock'); bind('flagcol', 'flagCol', 'stock');
+  }
+
+  /* =============================== WHEELS TAB =============================== */
+  /* icons straight from WHEEL_STYLES on a stock tyre, in the picked rim colour */
+  function wheelIcon(id, rc, o = {}) {
+    const sh = WHEEL_STYLES[id];
+    const polys = sh ? sh.polys : [{ p: Array.from({ length: 16 }, (_, i) => [Math.cos(i/16*6.283)*0.55, Math.sin(i/16*6.283)*0.55]), c: 'face' },
+                                   { p: Array.from({ length: 10 }, (_, i) => [0.34 + Math.cos(i/10*6.283)*0.3, Math.sin(i/10*6.283)*0.3]), c: 'acc' }];
+    const alloy = sh && rc.id === 'stock';           // matches drawWheel's alloy cast
+    const role = { face: alloy ? '#a7aeb8' : hex(rc.hex), acc: alloy ? '#e4e8ee' : hex(rc.acc), dark: '#16171b' };
+    const k = o.scale || 1, R = 10*k;
+    const d = polys.map(q => `<path d="M${q.p.map(([x, z]) => (20 + x*R).toFixed(1) + ' ' + (12 - z*R).toFixed(1)).join('L')}Z" fill="${typeof q.c === 'number' ? hex(q.c) : role[q.c]}"/>`).join('');
+    const w = o.wall, tr = o.tread;
+    const wall = w === 'whitewall' ? `<circle cx="20" cy="12" r="${8.3*k}" fill="none" stroke="#f2f1ea" stroke-width="${1.4*k}"/>`
+               : w === 'redline' ? `<circle cx="20" cy="12" r="${8.7*k}" fill="none" stroke="#d8322a" stroke-width="${0.7*k}"/>`
+               : w === 'neon' ? `<circle cx="20" cy="12" r="${8.9*k}" fill="none" stroke="${hex(rc.acc)}" stroke-width="${0.9*k}"/>` : '';
+    const lugs = tr === 'knobby' ? `<circle cx="20" cy="12" r="${10.8*k}" fill="none" stroke="#24262c" stroke-width="${1.6*k}" stroke-dasharray="${1.4*k} ${1.4*k}"/>`
+               : tr === 'allterrain' ? `<circle cx="20" cy="12" r="${10.4*k}" fill="none" stroke="#24262c" stroke-width="${0.9*k}" stroke-dasharray="${0.8*k} ${0.8*k}"/>` : '';
+    const shine = tr === 'slick' ? `<path d="M${20 - 6.5*k} ${12 - 6.5*k}A${9.3*k} ${9.3*k} 0 0 1 ${20 + 6.5*k} ${12 - 6.5*k}" fill="none" stroke="#6a707c" stroke-width="${1*k}"/>` : '';
+    return `<svg viewBox="0 0 40 24" width="56" height="34">${lugs}<circle cx="20" cy="12" r="${R}" fill="#24262c"/>${shine}${wall}${d}</svg>`;
+  }
+  /* specialty pictograms: little side views, rim colour where it shows */
+  function rigIcon(id, rc) {
+    const f = hex(rc.id === 'stock' ? 0xa7aeb8 : rc.hex), a = hex(rc.id === 'stock' ? 0xe4e8ee : rc.acc), T = '#24262c';
+    const body = (y, h = 7) => `<rect x="11" y="${y}" width="18" height="${h}" rx="1.5" fill="#eceef1"/><rect x="11" y="${y + h - 3}" width="18" height="1.8" fill="#c2452e"/>`;
+    const wh = (x, y, r) => `<circle cx="${x}" cy="${y}" r="${r}" fill="${T}"/><circle cx="${x}" cy="${y}" r="${r*0.5}" fill="${f}"/>`;
+    switch (id) {
+      case 'stock':    return `<svg viewBox="0 0 40 24" width="56" height="34">${body(6)}${wh(14, 17, 3.2)}${wh(20, 17, 3.2)}${wh(26, 17, 3.2)}</svg>`;
+      case 'monster':  return `<svg viewBox="0 0 40 24" width="56" height="34">${body(1, 6)}<rect x="12" y="8" width="16" height="2" fill="#3a3d45"/>${wh(13, 15.5, 6.5)}${wh(27, 15.5, 6.5)}</svg>`;
+      case 'tank':     return `<svg viewBox="0 0 40 24" width="56" height="34">${body(4)}<rect x="8" y="13" width="24" height="9" rx="4.5" fill="${T}"/>${[12, 17.3, 22.7, 28].map(x => `<circle cx="${x}" cy="17.5" r="2" fill="${f}"/>`).join('')}</svg>`;
+      case 'lowrider': return `<svg viewBox="0 0 40 24" width="56" height="34">${body(9)}${[14, 20, 26].map(x => `<circle cx="${x}" cy="19" r="2.5" fill="${T}"/><circle cx="${x}" cy="19" r="1.7" fill="#f2f1ea"/><circle cx="${x}" cy="19" r="1.2" fill="${a}"/>`).join('')}</svg>`;
+      case 'hover':    return `<svg viewBox="0 0 40 24" width="56" height="34">${body(2)}<path d="M12 12h5l2 9h-9zM23 12h5l2 9h-9z" fill="${hex(SKIN.eye)}" opacity=".35"/><rect x="11" y="10.5" width="7" height="2" rx="1" fill="${hex(SKIN.eye)}"/><rect x="22" y="10.5" width="7" height="2" rx="1" fill="${hex(SKIN.eye)}"/></svg>`;
+      case 'ball':     return `<svg viewBox="0 0 40 24" width="56" height="34">${body(0, 6)}<rect x="16" y="6" width="8" height="2" fill="#3a3d45"/><circle cx="20" cy="15" r="7.5" fill="${T}"/><circle cx="17" cy="13" r="1.2" fill="${a}"/><circle cx="22" cy="16" r="1.2" fill="${f}"/><circle cx="18" cy="18.5" r="1.2" fill="${f}"/></svg>`;
+      case 'cart':     return `<svg viewBox="0 0 40 24" width="56" height="34">${body(5)}${[13, 27].map(x => `<rect x="${x - 0.6}" y="12" width="1.2" height="4.5" fill="#8a919c"/><circle cx="${x + 1}" cy="18.5" r="2.2" fill="${T}"/>`).join('')}</svg>`;
+      case 'walker':   return `<svg viewBox="0 0 40 24" width="56" height="34">${body(1, 6)}<path d="M13 7l-3 7 2 8M27 7l3 7-2 8M16 7l-1 7 2 8M24 7l1 7-2 8" stroke="#3a3d45" stroke-width="1.6" fill="none" stroke-linecap="round"/><circle cx="10" cy="14" r="1.2" fill="${f}"/><circle cx="30" cy="14" r="1.2" fill="${f}"/></svg>`;
+    }
+    return '';
+  }
+  function renderWheels(P) {
+    P.className = 'grList';
+    const L = pv || worn(), curW = L.wheel || 'stock', curT = L.tyre || 'stock', curWall = L.wall || 'stock',
+          curS = L.tyreSize || 'stock', curR = L.rig || 'stock', curC = L.rimCol || 'stock';
+    const rc = byId(RIM_COL, curC) || RIM_COL[0];
+    const tag = (kind, c) => ownsPaint(kind, c.id) ? '<i class="own">Owned</i>' : '<i>' + tpMoney(c.cents) + '</i>';
+    const look = { tread: curT, wall: curWall };
+    const card = (kind, c, sel, icon) => `<button class="grSkin${sel ? ' sel' : ''}" data-${kind.toLowerCase()}="${c.id}">${icon}<span>${c.name}</span>${tag(kind, c)}</button>`;
+    const rims = WHEEL_LIST.map(c => card('wheel', c, curW === c.id, wheelIcon(c.id, rc, look))).join('');
+    const treads = TYRE_LIST.map(c => card('tyre', c, curT === c.id, wheelIcon(curW, rc, { tread: c.id, wall: curWall }))).join('');
+    const walls = WALL_LIST.map(c => card('wall', c, curWall === c.id, wheelIcon(curW, rc, { tread: curT, wall: c.id }))).join('');
+    const sizes = SIZE_LIST.map(c => card('tyreSize', c, curS === c.id, wheelIcon(curW, rc, { tread: curT, wall: curWall, scale: { low: 0.72, stock: 0.85, chunky: 1.0, big: 1.15 }[c.id] }))).join('');
+    const rigs = RIG_LIST.map(c => card('rig', c, curR === c.id, rigIcon(c.id, rc))).join('');
+    const cols = RIM_COL.map(c => `<button class="grSw${curC === c.id ? ' sel' : ''}" data-rimcol="${c.id}" aria-label="${c.name}"><b style="background:radial-gradient(${hex(c.acc)} 0 28%, ${hex(c.hex)} 30%)"></b>${ownsPaint('rimCol', c.id) ? '&nbsp;' : '<i>' + tpMoney(c.cents) + '</i>'}</button>`).join('');
+    const rigOn = curR !== 'stock', dim = rigOn ? ' style="opacity:.45"' : '';
+    P.innerHTML = `<div class="grSec">SPECIALTY — REPLACES ALL SIX WHEELS</div><div class="grRow">${rigs}</div>
+      <div class="grSec">RIMS</div><div class="grRow">${rims}</div>
+      <div class="grSec">TREAD${rigOn ? ' — THE SPECIALTY SETS ITS OWN' : ''}</div><div class="grRow"${dim}>${treads}</div>
+      <div class="grSec">SIDEWALL — NEON GLOWS AT NIGHT</div><div class="grRow">${walls}</div>
+      <div class="grSec">SIZE — BIGGER TYRES LIFT HIM${rigOn ? '; THE SPECIALTY SETS ITS OWN' : ''}</div><div class="grRow"${dim}>${sizes}</div>
+      <div class="grSec">RIM COLOUR</div><div class="grRow">${cols}</div>`;
+    const bind = (sel, key) => { for (const b of P.querySelectorAll('[data-' + sel + ']')) b.onclick = () =>
+      tryOn(Object.assign({}, pv || worn(), { [key]: b.dataset[sel] === 'stock' ? null : b.dataset[sel] })); };
+    bind('wheel', 'wheel'); bind('tyre', 'tyre'); bind('wall', 'wall'); bind('tyresize', 'tyreSize'); bind('rig', 'rig'); bind('rimcol', 'rimCol');
+  }
+
   /* =============================== MOUTH TAB =============================== */
   /* icons straight from MOUTH_SHAPES on a patch of his face */
   function mouthIcon(id, ink) {
@@ -60843,6 +61661,8 @@ document.addEventListener("keydown", e => {
     const P = $('grPanel');
     if (tab === 'eyes') { renderEyes(P); return; }
     if (tab === 'mouth') { renderMouth(P); return; }
+    if (tab === 'wheels') { renderWheels(P); return; }
+    if (tab === 'antenna') { renderAntenna(P); return; }
     if (tab !== 'paint') {
       const names = { eyes: 'Eye shapes and colours', mouth: 'Mouths', wheels: 'Tyres and hubs',
         antenna: 'Poles and toppers', decals: 'Stars, skull and more' };
