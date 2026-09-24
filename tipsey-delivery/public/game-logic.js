@@ -18727,10 +18727,16 @@ function houseCanopy(fn){
     const OPEN = (typeof state.doorT === 'number') ? state.doorT : 1;
     const CBOT = DH * OPEN;                                  // curtain's bottom edge
     const o0 = cpt(DOOR[0],0), o1 = cpt(DOOR[1],0);
+    /* THE GARAGE CUTAWAY (state.cutaway, set by the scene while the
+       garage is up): the street walls and roof are lifted off, so the
+       room is seen whole rather than through the door opening */
+    const CUT = !!state.cutaway;
     if(PT('room')){
     ctx.save();
+    if(!CUT){
     poly([P3(o0,CBOT), P3(o1,CBOT), P3(o1,0), P3(o0,0)]);
     ctx.clip();
+    }
     { F(RA0, RA1, 0, DH, inner, null, 0, RB0);                  // back wall
       S(RA0, RB0, RB1, 0, DH, shade(inner,1.22));               // left wall
       T(RA0, RA1, RB0, RB1, 0.6, floorC);                       // floor
@@ -34027,6 +34033,8 @@ function houseCanopy(fn){
     /* the Charge depot's roll-up door, 0 shut to 1 fully coiled. The
        scene drives it; every other entry ignores state.doorT. */
     setDoor(v){ state.doorT = v; },
+    /* the garage lifts the depot's street walls and roof away (see CUT) */
+    setCutaway(v){ state.cutaway = !!v; },
     /* which of a house's own liveries (its `liv`) the next draw uses */
     setLivery(i){ state.pal = i || 0; },
     /* g   -- the Phaser Graphics to draw into
@@ -37846,10 +37854,21 @@ class WorldScene extends Phaser.Scene {
       const k = Math.min(1, (this._frameDt || 16) / 700);
       for(const d of depotsOf(this.route.grid)){
         const near = Math.abs(d.cu.ux - this.botX) + Math.abs(d.cu.uy - this.botY) < 2400;
-        const want = near ? depotDoorWants(d, this.botX, this.botY) : 0;
+        /* SHUT FROM THE PAD (see tpAvatarPadGate): the robot button closes
+           this depot's door behind him until he drives off the pad */
+        const want = (this._doorShut === d.key) ? 0 : (near ? depotDoorWants(d, this.botX, this.botY) : 0);
         let t = this._doorTs.has(d.key) ? this._doorTs.get(d.key) : want;
-        t += (want - t) * k;
-        if(Math.abs(want - t) < 0.004) t = want;
+        /* a shut from the pad rolls down at a steady rate and reaches the
+           ground -- the ease below never quite does, and the profile
+           waits for it (see bindGlobalAvatar) */
+        /* on the wall clock, not frame dt, so a stalled frame cannot leave
+           the list waiting on a door that is behind schedule */
+        if(this._doorShut === d.key)
+          t = Math.max(0, (this._doorShutFrom || 0) - (performance.now() - (this._doorShutT0 || 0)) / DOOR_SHUT_MS);
+        else {
+          t += (want - t) * k;
+          if(Math.abs(want - t) < 0.004) t = want;
+        }
         this._doorTs.set(d.key, t);
       }
     }
@@ -40643,7 +40662,16 @@ class WorldScene extends Phaser.Scene {
       /* this depot's own door, set on the shared LIB state before every
          part it draws */
       const map = map0, doorOf = () => (this._doorTs && this._doorTs.has(_lot.key)) ? this._doorTs.get(_lot.key) : 0;
-      const LIBDRAW = (g, part) => { LIB.setDoor(doorOf()); return LIB.draw('Charge depot', g, map, null, this.K, part); };
+      const LIBDRAW = (g, part) => {
+        LIB.setDoor(doorOf());
+        /* THE GARAGE (Sir, 2026-09-23): with the robot button tapped on
+           this depot's pad, its street walls, door and roof are lifted
+           away and the room is drawn whole, so we are standing in it */
+        const cut = !!(this._garage && this._garage.key === _lot.key);
+        LIB.setCutaway(cut);
+        if(cut && part && GARAGE_HIDE.has(part.part)) return;
+        return LIB.draw('Charge depot', g, map, null, this.K, part);
+      };
       /* nearer the camera is larger x + y, so a lab axis faces the eye
          when a step along it grows x + y -- the entry asks P() the same */
       const key = (a, b) => { const q = depotWorld(cu, a, b); return q.x + q.y; };
@@ -47805,15 +47833,33 @@ class WorldScene extends Phaser.Scene {
         if(this.blinkT < -3200 + Math.random()*80) this.blinkT = 130;
         const open = this.blinkT > 0 ? 0.15 : 1;
         const ec = (Math.abs(this.tilt) > 0.6 || this.stuckAmt > 0.4 || this.slide) ? SKIN.eyeAlert : SKIN.eye;
-        for(const ey of [-7, 7]){
-          const c = F(ey, 45);
-          g.fillStyle(ec, 1);
-          g.fillEllipse(c.x, c.y, 7*ks, 7*ks*open);
+        const shape = EYE_SHAPES[SKIN.eyeShape];
+        if(!shape){
+          for(const ey of [-7, 7]){
+            const c = F(ey, 45);
+            g.fillStyle(ec, 1);
+            g.fillEllipse(c.x, c.y, 7*ks, 7*ks*open);
+          }
+        } else {
+          /* A GARAGE EYE SHAPE (see EYE_SHAPES): drawn ON the visor plane
+             through F, so it foreshortens with the face as he turns --
+             the stock dot stays the screen-space ellipse above, byte for
+             byte. A blink squashes the shape toward its own centre line. */
+          for(const ey of (shape.single ? [0] : [-7, 7])){
+            for(const poly of (shape.fn ? shape.fn(t, ey) : shape.polys)){
+              this.quadOn(g, poly.map(([dy, dz]) => F(ey + dy, 45 + dz*open)), ec);
+            }
+          }
         }
       }
       this.quadOn(g, [F(-16,18), F(16,18), F(16,22), F(-16,22)], 0xfff3b0);
     }
-    if(this.route && this.route.night){
+    /* a hue projection turns his eye colour -- and so beams and pool --
+       round the wheel. Written onto SKIN, which is his live palette. */
+    const _proj = EYE_PROJ[SKIN.proj];
+    if(_proj && _proj.hue) SKIN.eye = _proj.hue(t);
+    /* the garage switches his lights on to show a projection off */
+    if((this.route && this.route.night) || this._lightsPreview){
       /* the eyes stay lit after dark. A single flat wash doesn't read
          against the navy night multiply — same finding the lamp lab
          already hit (see the streetlamp's own layered gl.fillStyle
@@ -47867,6 +47913,21 @@ class WorldScene extends Phaser.Scene {
          under-tint compensation; see GLOW_UNDER_TINT. */
       const gLo = this.gGlowLo;
       const ga = v => Math.min(1, v * GLOW_UNDER_TINT);
+      const _gs = EYE_SHAPES[SKIN.eyeShape];
+      if(_gs && this.state !== "tipped"){
+        /* A SHAPED EYE GLOWS IN ITS OWN SHAPE. The round halo stack below
+           is sized for the stock dot and, at night, painted a white disc
+           straight over hearts, bars and scanners. Here the glow is the
+           shape itself: a soft enlarged copy, then the shape lit. */
+        for(const ey of (_gs.single ? [0] : [-7, 7])){
+          for(const poly of (_gs.fn ? _gs.fn(t, ey) : _gs.polys)){
+            gLo.fillStyle(SKIN.eye, ga((0.12 + 0.10*pulse)*faceK));
+            gLo.fillPoints(poly.map(([dy, dz]) => { const q = F(ey + dy*1.7, 45 + dz*1.7); return new Phaser.Geom.Point(q.x, q.y); }), true);
+            gLo.fillStyle(SKIN.eye, ga((0.45 + 0.25*pulse)*faceK));
+            gLo.fillPoints(poly.map(([dy, dz]) => { const q = F(ey + dy, 45 + dz); return new Phaser.Geom.Point(q.x, q.y); }), true);
+          }
+        }
+      } else
       for(const ey of [-7, 7]){
         const c = F(ey, 45);
         gLo.fillStyle(SKIN.eye, ga((0.14 + 0.12*pulse)*faceK));
@@ -47945,7 +48006,14 @@ class WorldScene extends Phaser.Scene {
       };
       /* ground pool: three stacked world-space ellipses, long axis along
          travel, sampled and projected point-by-point */
-      const poolLayers = [
+      /* a projection needs a screen to land on: the pool opens up half as
+         big again and loses its hot white core, which would wash the
+         pattern out */
+      const PJ = _proj && _proj.draw, PS = PJ ? 1.5 : 1;
+      const poolLayers = PJ ? [
+        [27*PS, 21*PS, SKIN.eye, 0.11],
+        [18*PS, 14*PS, SKIN.eye, 0.12]
+      ] : [
         [27, 21, SKIN.eye, 0.30],
         [18, 14, SKIN.eye, 0.52],
         [9.5, 7, 0xffffff, 0.70]
@@ -47961,6 +48029,19 @@ class WorldScene extends Phaser.Scene {
         gLo.fillStyle(L[2], ga(L[3]*poolK));
         gLo.fillPoints(pp, true);
       }
+      /* THE PROJECTION, into the pool: pattern points are [fwd, side]
+         about the pool's centre, laid on the ground like the pool is */
+      if(PJ){
+        /* straight alpha, not ga(): the under-tint boost is sized for a
+           soft wash and blows a crisp pattern out to white */
+        _proj.draw((pts, col, a) => {
+          gLo.fillStyle(col, Math.min(1, a * 1.25 * poolK));
+          gLo.fillPoints(pts.map(([fw, sd]) => {
+            const q = WB(poolDist + fw*PS, sd*PS, gzAt(poolDist + fw*PS, sd*PS));
+            return new Phaser.Geom.Point(q.x, q.y);
+          }), true);
+        }, t);
+      }
       /* beams: one trapezoid per eye. Near edge sits just under eye
          height 10 units past the footprint; far edge lands inside the
          pool's cross-travel half-width (21) so beam and pool meet. */
@@ -47969,8 +48050,11 @@ class WorldScene extends Phaser.Scene {
         const dv = ey > 0 ? 1 : -1;
         const n0 = WB(beamFwd, ey - dv*2.8, this.botZ + 36);
         const n1 = WB(beamFwd, ey + dv*2.8, this.botZ + 36);
-        const f0 = WB(poolDist, ey*1.85 - dv*8, gzAt(poolDist, ey*1.85 - dv*8));
-        const f1 = WB(poolDist, ey*1.85 + dv*8, gzAt(poolDist, ey*1.85 + dv*8));
+        /* with a projection the beams stop at the pool's near rim: light is
+           additive here, and beams over the pattern would white it out */
+        const fd = PJ ? poolDist - 27*PS*0.85 : poolDist;
+        const f0 = WB(fd, ey*1.85 - dv*8, gzAt(fd, ey*1.85 - dv*8));
+        const f1 = WB(fd, ey*1.85 + dv*8, gzAt(fd, ey*1.85 + dv*8));
         gLo.fillPoints([
           new Phaser.Geom.Point(n0.x, n0.y),
           new Phaser.Geom.Point(n1.x, n1.y),
@@ -49956,6 +50040,138 @@ const SK_PORCH_PIRATE = {
 };
 
 const HJ_STRIPE2 = { z0:15.5, z1:19.5 };   // the red band under the blue one
+
+/* ---------- GARAGE EYE SHAPES (Sir, 2026-09-23: the garage) ----------
+   SKIN.eyeShape picks one; absent (every skin, and stock) is the original
+   round dot, drawn exactly as it always was. Each shape is a list of
+   polygons in the VISOR's own plane, [along the face, up], about each eye's
+   centre (+/-7, z 45) -- the visor spans +/-13 by 40..50. `single` shapes
+   are drawn once, centred, instead of once per eye. */
+const EYE_SHAPES = (() => {
+  const ell = (rx, rz, n = 18, a0 = 0, a1 = Math.PI*2) => {
+    const o = [];
+    for(let i = 0; i < n; i++){ const a = a0 + (a1 - a0) * i/(n - (a1 - a0 < 6 ? 1 : 0)); o.push([Math.cos(a)*rx, Math.sin(a)*rz]); }
+    return o;
+  };
+  const arch = (ro, ri, zc) => {          // a thick upward arc: ^
+    const o = [], n = 10, a0 = 0.35, a1 = Math.PI - 0.35;
+    for(let i = 0; i <= n; i++){ const a = a0 + (a1-a0)*i/n; o.push([Math.cos(a)*ro, zc + Math.sin(a)*ro]); }
+    for(let i = n; i >= 0; i--){ const a = a0 + (a1-a0)*i/n; o.push([Math.cos(a)*ri, zc + Math.sin(a)*ri]); }
+    return o;
+  };
+  const heart = () => {
+    const o = [];
+    for(let i = 0; i < 24; i++){
+      const t = i/24*Math.PI*2, x = 16*Math.pow(Math.sin(t), 3);
+      const z = 13*Math.cos(t) - 5*Math.cos(2*t) - 2*Math.cos(3*t) - Math.cos(4*t);
+      o.push([x*0.17, z*0.17 + 0.4]);
+    }
+    return o;
+  };
+  return {
+    oval:   { polys: [ell(2.1, 3.4)] },
+    wide:   { polys: [ell(3.9, 1.5)] },
+    square: { polys: [[[-2.3,-2.3],[2.3,-2.3],[2.3,2.3],[-2.3,2.3]]] },
+    sleepy: { polys: [ell(3.2, 2.7, 12, Math.PI, Math.PI*2).concat([[3.2,0.3],[-3.2,0.3]])] },
+    happy:  { polys: [arch(3.6, 1.9, -1.4)] },
+    heart:  { polys: [heart()] },
+    visor:  { single: true, polys: [[[-10.5,-1.4],[10.5,-1.4],[10.5,1.4],[-10.5,1.4]]] },
+
+    /* MID TIER -- ANIMATED. fn(t, ey) returns this frame's polygons; t is
+       the scene clock drawRobot already has. All periodic, nothing random,
+       so two robots side by side stay readable and nothing strobes. */
+    scanner: { single: true, fn: (t) => {           // a light sweeping the bar
+      const x = Math.sin(t * 0.0032) * 8.2;
+      return [[[x-2.4,-1.3],[x+2.4,-1.3],[x+2.4,1.3],[x-2.4,1.3]],
+              [[x-4.2,-0.5],[x+4.2,-0.5],[x+4.2,0.5],[x-4.2,0.5]]];
+    } },
+    glance:  { fn: (t) => {                          // dots that look about
+      const ph = (t % 5200) / 5200, ang = Math.floor(ph * 4) * Math.PI/2 + 0.4;
+      const k = Math.min(1, ((ph * 4) % 1) * 6);     // snap to a new spot, hold
+      const dx = Math.cos(ang) * 1.6 * k, dz = Math.sin(ang) * 1.0 * k;
+      return [ell(2.3, 2.3, 16).map(([a, b]) => [a + dx, b + dz])];
+    } },
+    wink:    { fn: (t, ey) => {                      // the right eye winks
+      const ph = (t % 3400) / 3400;
+      const shut = ey > 0 && ph > 0.86 ? Math.abs(Math.sin((ph - 0.86) / 0.14 * Math.PI)) : 0;
+      return shut > 0.6 ? [arch(3.2, 2.0, -1.3)] : [ell(2.2, 3.2 * (1 - shut), 16)];
+    } },
+    loader:  { fn: (t) => {                          // spinning ring segments
+      const out = [], a0 = t * 0.006;
+      for(let k = 0; k < 3; k++){
+        const s0 = a0 + k * Math.PI*2/3, o = [], n = 6;
+        for(let i = 0; i <= n; i++){ const a = s0 + i/n*1.2; o.push([Math.cos(a)*3.1, Math.sin(a)*3.1]); }
+        for(let i = n; i >= 0; i--){ const a = s0 + i/n*1.2; o.push([Math.cos(a)*1.9, Math.sin(a)*1.9]); }
+        out.push(o);
+      }
+      return out;
+    } },
+    heartbeat: { fn: (t) => {                        // lub-dub
+      const ph = (t % 1100) / 1100;
+      const b = 1 + 0.28*Math.max(0, Math.sin(ph*Math.PI*6)) * (ph < 0.34 ? 1 : 0);
+      return [heart().map(([a, z]) => [a*b, z*b])];
+    } },
+    equalizer: { single: true, fn: (t) => {          // five bouncing bars
+      const out = [];
+      for(let k = 0; k < 5; k++){
+        const x = -8 + k*4, h = 0.7 + 1.7*(0.5 + 0.5*Math.sin(t*0.009 + k*1.3) * Math.sin(t*0.0041 + k*0.7));
+        out.push([[x-1.3,-h],[x+1.3,-h],[x+1.3,h],[x-1.3,h]]);
+      }
+      return out;
+    } },
+    twinkle: { fn: (t, ey) => {                      // four-point stars, turning
+      const a0 = t*0.0012 + (ey > 0 ? 0.8 : 0), sc = 0.85 + 0.2*Math.sin(t*0.004 + ey);
+      const o = [];
+      for(let i = 0; i < 8; i++){ const a = a0 + i*Math.PI/4, r = (i % 2 ? 1.1 : 3.4)*sc; o.push([Math.cos(a)*r, Math.sin(a)*r]); }
+      return [o];
+    } }
+  };
+})();
+
+/* ---------- GARAGE PROJECTIONS (the headlight tier) ----------
+   SKIN.proj picks one. Drawn by drawRobot's night lighting INTO the headlight
+   pool, on the ground, through the same WB/gzAt the pool uses -- so it lies
+   on terraces and turns with him. `hue` entries also drive his eye colour
+   (and so the beams and pool) round the wheel. */
+const EYE_PROJ = (() => {
+  const hsv = (h) => {                     // h in turns -> 0xrrggbb, full sat
+    const f = (n) => { const k = (n + h*6) % 6; return Math.round(255 * (1 - Math.max(0, Math.min(k, 4 - k, 1)))); };
+    return (f(5) << 16) | (f(3) << 8) | f(1);
+  };
+  const ring = (fwd, side, r, n = 20) => { const o = []; for(let i = 0; i < n; i++){ const a = i/n*Math.PI*2; o.push([fwd + Math.cos(a)*r, side + Math.sin(a)*r*0.8]); } return o; };
+  return {
+    hsv,
+    aurora:   { hue: (t) => hsv((t * 0.00008) % 1),
+                draw: (P, t) => { for(let k = 0; k < 3; k++) P(ring(0, 0, 8 + k*6), hsv(((t*0.00008) + k*0.12) % 1), 0.22); } },
+    disco:    { draw: (P, t) => { for(let k = 0; k < 9; k++){
+                  const a = t*0.0015 + k*0.7, r = 5 + (k % 3)*6;
+                  P(ring(Math.cos(a)*r, Math.sin(a)*r, 2.4, 10), hsv((k/9 + t*0.0002) % 1), 0.6); } } },
+    ripple:   { draw: (P, t) => { for(let k = 0; k < 3; k++){
+                  const u = ((t*0.0006) + k/3) % 1;
+                  const r0 = 3 + u*20, o = ring(0, 0, r0 + 1.6), i = ring(0, 0, r0).reverse();
+                  P(o.concat([o[0], i[i.length-1]], i), 0xffffff, 0.45*(1 - u)); } } },
+    starlight:{ draw: (P, t) => { for(let k = 0; k < 6; k++){
+                  const a = k*1.05 + 0.3, r = 7 + (k % 2)*9, tw = 0.5 + 0.5*Math.sin(t*0.005 + k*1.7);
+                  const cf = Math.cos(a)*r, cs = Math.sin(a)*r, o = [];
+                  for(let i = 0; i < 8; i++){ const b = i*Math.PI/4, rr = (i % 2 ? 0.8 : 3.2)*(0.6 + 0.4*tw); o.push([cf + Math.cos(b)*rr, cs + Math.sin(b)*rr]); }
+                  P(o, 0xffffff, 0.35 + 0.5*tw); } } },
+    heartbeam:{ draw: (P, t) => {
+                  const ph = (t % 1100)/1100, b = 1 + 0.25*Math.max(0, Math.sin(ph*Math.PI*6))*(ph < 0.34 ? 1 : 0), o = [];
+                  for(let i = 0; i < 24; i++){ const a = i/24*Math.PI*2, x = 16*Math.pow(Math.sin(a), 3);
+                    const z = 13*Math.cos(a) - 5*Math.cos(2*a) - 2*Math.cos(3*a) - Math.cos(4*a);
+                    o.push([-z*0.55*b, x*0.55*b]); }   // lobes away from him: upright to the viewer
+                  P(o, 0xff7ac8, 0.55); } },
+    plasma:   { draw: (P, t) => { for(let arm = 0; arm < 3; arm++){ const o = [];
+                  for(let i = 0; i <= 14; i++){ const u = i/14, a = t*0.002 + arm*2.09 + u*3.2, r = 2 + u*17; o.push([Math.cos(a)*r, Math.sin(a)*r*0.8]); }
+                  for(let i = 14; i >= 0; i--){ const u = i/14, a = t*0.002 + arm*2.09 + u*3.2 + 0.35, r = 2 + u*17; o.push([Math.cos(a)*r, Math.sin(a)*r*0.8]); }
+                  P(o, 0xd08cff, 0.4); } } },
+    radar:    { draw: (P, t) => { const a = t*0.0025, o = [[0, 0]];
+                  for(let i = 0; i <= 8; i++){ const b = a - i*0.08; o.push([Math.cos(b)*22, Math.sin(b)*18]); }
+                  P(o, 0x9dff7a, 0.45);
+                  const r1 = ring(0, 0, 22), r2 = ring(0, 0, 20.6).reverse();
+                  P(r1.concat([r1[0], r2[r2.length-1]], r2), 0x9dff7a, 0.3); } }
+  };
+})();
 
 /* ---------- SKIN EQUIP ---------- */
 const SKIN_BASE = {...SKIN};
@@ -59169,6 +59385,25 @@ document.getElementById("avatarIcon").addEventListener("click", tpOpenProfile);
    device; this used "click" on a <div>, which is precisely the case an
    iOS webview treats as non-interactive and may never fire. Bound on
    both, guarded so one press cannot run it twice. */
+/* THE ROBOT BUTTON IS THE DEPOT'S (Sir, 2026-09-23: "lets only have the
+   orange robot button when we are on a charger in a depot and if we click
+   it the depot door closes"). While driving -- free roam or a delivery,
+   in play -- it shows only while he stands on a charging pad (the same
+   battPadAt the battery charges from); everywhere else in those modes it
+   is hidden. Menus, missions and the map keep it as before. Driving off
+   the pad also lifts the door-shut, so the door works normally again.
+   Polled, not per-frame: the button is DOM, and a quarter second is
+   well inside the time it takes to roll onto a pad and stop. */
+const DOOR_SHUT_MS = 900;   // pad shut: full roll-down time
+const GARAGE_HIDE = new Set(['front', 'flank', 'door', 'roof', 'wallA', 'wallB']);
+function tpAvatarPadGate(){
+  const s = (typeof scn === "function") ? scn() : null;
+  const drive = !!(s && s.ow && !s.attract && s.state === "play" && tpContTripMode(s.mode));
+  const pad = drive ? battPadAt(s) : null;
+  document.body.classList.toggle("tpOffPad", drive && !pad);
+  if(s && s._doorShut && (!pad || pad.key !== s._doorShut)) s._doorShut = null;
+}
+setInterval(tpAvatarPadGate, 250);
 (function bindGlobalAvatar(){
   const el = document.getElementById("globalAvatar");
   let last = 0;
@@ -59204,6 +59439,20 @@ document.getElementById("avatarIcon").addEventListener("click", tpOpenProfile);
        the game in a half-torn-down state closing the profile panel
        couldn't recover from. */
     if(s && s._slAPI) tpSlalomQuit();
+    /* on a depot pad the button is the garage: the door rolls down */
+    const pd = (s && s.ow && tpContTripMode(s.mode)) ? battPadAt(s) : null;
+    if(pd){
+      /* ...and the list waits for it (Sir: "we still want to see the
+         rolling door go close first then see the list"). Opens the moment
+         the shutter is down; a safety cap in case frames stall; dropped if
+         he drives off the pad before it lands. */
+      const from = (s._doorTs && s._doorTs.has(pd.key)) ? s._doorTs.get(pd.key) : 0;
+      s._doorShutFrom = from; s._doorShutT0 = performance.now(); s._doorShut = pd.key;
+      /* the same clock the door runs on: it is down after from*DOOR_SHUT_MS,
+         plus a beat so the last frame of it is actually seen */
+      setTimeout(() => { if(s._doorShut === pd.key) tpOpenProfile(); }, from * DOOR_SHUT_MS + 150);
+      return;
+    }
     tpOpenProfile();
   };
   /* Three bindings, guarded. During play Phaser's input manager is live
@@ -59859,3 +60108,538 @@ document.addEventListener("keydown", e => {
   const fullyHidden = toggle.classList.toggle("hidden");
   document.getElementById("panel").classList.toggle("hidden", fullyHidden);
 });
+
+/* ===========================================================================
+   THE GARAGE (Sir, 2026-09-23). Built lab-first in the bench, now the game's own.
+   ===========================================================================
+   Sir, 2026-09-23: "like tony hawk create a skater or editing your snoo ...
+   feel like we are in the depot and we can touch tipsey to see what he looks
+   like from all around and the trophy case is secondary".
+
+   Tap the robot button on a depot pad -> the shutter rolls down (already in
+   game/index.html) -> instead of the list, THIS: the camera closes in on him
+   on his pad, the depot's street walls and roof lift away so we are looking
+   into the room, and dragging turns him all the way round. Idle, he turns
+   slowly on his own, like a turntable. The trophy case is a button in the
+   tray, not the screen.
+
+   NOTHING IS A COPY. He is the game's own drawRobot at the game's own
+   camera: turning him is ow.yaw, which drawAngle already follows every frame
+   in free roam; the zoom is scene.K; the cutaway is the depot's own LIB
+   parts, skipped by name while the garage is up. So what you see here is
+   exactly what the city draws.
+
+   STEP 2 -- THE LOOK AND THE PAINT TAB. A look is { skin, body, stripe }:
+   the skin is the store skin (tpProfile.equipped, unchanged), body and
+   stripe are optional colour overrides painted over it (null = the skin's
+   own). Picking a skin clears the overrides -- a skin is a whole paint job
+   -- and changing a colour after makes it your custom version of that skin.
+   Everything is buy once, mix freely: tap anything to try it on HIM, in the
+   garage; what you own is kept the moment you tap it; what you don't shows
+   a Buy bar, and leaving the garage puts back anything unpaid for.
+   STEP 3a -- EYES. Shape and colour, same try-on/buy rules. The shapes
+   themselves are EYE_SHAPES in game/index.html, drawn by drawRobot on the
+   visor plane; this tab only picks SKIN.eyeShape and SKIN.eye. Stock dot
+   and stock cyan are free. Other tabs are still placeholders.
+
+   LAB-ONLY STORAGE (port = step 4): owned colours and the colour overrides
+   are kept in localStorage here, and colour buys are NOT sent to the
+   server -- on Reddit a reload will drop them until the server catalog
+   knows about paints. Skin buys and equips use the game's real flow
+   (tpSubmitPurchase / tpSubmitEquip) and persist everywhere.
+
+   PORT NOTES (for step 2): the tpOpenProfile hook becomes the pad branch in
+   bindGlobalAvatar, and the camera pin a garage branch in the camera ease.
+   Both are marked below. The cutaway is already in the game.
+   =========================================================================== */
+(() => {
+  if (window.__garage) return;
+  window.__garage = true;
+
+  const G = {
+    K: 3.3,            // garage zoom (VIEW 1 is 1.5)
+    idleSpin: 0.45,    // rad/s turntable when untouched
+    idleAfter: 1600,   // ms after a release before the turntable resumes
+    dragK: 0.011,      // rad per px dragged
+    friction: 0.92     // flick coast per frame
+  };
+  /* the cutaway itself lives in game/index.html: GARAGE_HIDE and
+     LIB.setCutaway, keyed on scene._garage */
+
+  /* ---------------------------- the overlay ---------------------------- */
+  const css = document.createElement('style');
+  css.textContent = `
+  body.tpGarage #globalAvatar, body.tpGarage #globalSearch, body.tpGarage #miniMap,
+  body.tpGarage #zoomBtn, body.tpGarage #battBtn,
+  body.tpGarage #gpsHud, body.tpGarage #owDbgPanel, body.tpGarage #owDbgWatch { display:none !important; }
+  /* the ROUTE / TODAY / RANDOM DAY row: hidden, not removed, so the canvas
+     keeps its size and the frame he is fitted into does not jump */
+  body.tpGarage #panel { visibility:hidden !important; }
+  #garage{position:fixed;inset:0;z-index:180;display:none;flex-direction:column;
+    padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom);
+    font:600 14px/1.2 system-ui,-apple-system,sans-serif;color:#f3f1ec;
+    -webkit-user-select:none;user-select:none;touch-action:none}
+  body.tpGarage #garage{display:flex}
+  #grTop{display:flex;align-items:center;gap:10px;padding:12px 14px}
+  #grTop b{font-size:13px;letter-spacing:3px;color:#ff9c4d;
+    text-shadow:0 1px 6px rgba(0,0,0,.6)}
+  #grTop span{flex:1}
+  #grClose{width:44px;height:44px;border-radius:50%;border:0;background:rgba(20,22,26,.78);
+    color:#fff;font-size:20px;line-height:44px;padding:0}
+  #grSpin{flex:1;cursor:grab}
+  #grHint{text-align:center;font-size:12px;color:rgba(255,255,255,.72);
+    text-shadow:0 1px 4px rgba(0,0,0,.7);padding-bottom:8px;transition:opacity .4s}
+  #grTray{background:rgba(18,20,24,.94);border-top:1px solid #2c3038;
+    border-radius:18px 18px 0 0;padding:12px 12px 14px}
+  #grTabs{display:flex;gap:8px;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:10px}
+  #grTabs button{flex:0 0 auto;min-height:40px;padding:0 14px;border-radius:20px;
+    border:1px solid #363b46;background:#23262d;color:#e8eaef;font:inherit}
+  #grTabs button.on{background:#ff7a1a;border-color:#ff7a1a;color:#1a0d00}
+  #grPanel{min-height:84px;display:flex;align-items:center;justify-content:center;
+    color:#8f95a1;font-weight:500;font-size:13px;text-align:center}
+  #grTop .grWal{font-size:13px;color:#e8eaef;background:rgba(20,22,26,.78);
+    padding:8px 12px;border-radius:16px}
+  #grPanel.grList{display:block;max-height:28vh;overflow-y:auto;-webkit-overflow-scrolling:touch;
+    color:#e8eaef;text-align:left}
+  .grSec{font-size:11px;letter-spacing:1.5px;color:#8f95a1;margin:4px 2px 8px}
+  .grRow{display:flex;gap:10px;overflow-x:auto;-webkit-overflow-scrolling:touch;padding:2px 2px 12px}
+  .grSkin{flex:0 0 76px;border-radius:12px;border:2px solid #2c3038;background:#1c1f25;
+    padding:8px 4px 6px;display:flex;flex-direction:column;align-items:center;gap:4px;
+    color:#e8eaef;font:600 11px/1.15 system-ui,-apple-system,sans-serif}
+  .grSkin.sel,.grSw.sel{border-color:#ff7a1a}
+  .grSkin i,.grSw i{font-style:normal;font-size:10px;color:#ffb36b}
+  .grSkin i.own{color:#7fd88f} .grSkin i.lock{color:#8f95a1}
+  .grViewT{width:100%;min-height:40px;margin:0 0 10px;border-radius:20px;border:1px solid #ff7a1a;
+    background:transparent;color:#ffb36b;font:700 13px system-ui,-apple-system,sans-serif}
+  .grSw{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;gap:4px;
+    border:0;background:none;padding:0;color:inherit;font:600 10px system-ui,sans-serif}
+  .grSw b{display:block;width:38px;height:38px;border-radius:50%;border:3px solid #2c3038;
+    box-shadow:inset 0 -6px 0 rgba(0,0,0,.18)}
+  .grSw.sel b{border-color:#ff7a1a}
+  #grBar{display:none;gap:8px;margin-top:10px}
+  #grBar.on{display:flex}
+  #grBar button{flex:1;min-height:46px;border-radius:12px;border:0;font:700 14px system-ui,-apple-system,sans-serif}
+  #grBuy{background:#ff7a1a;color:#1a0d00} #grBuy:disabled{background:#3a3e46;color:#9aa0aa}
+  #grBack{flex:0 0 34% !important;background:#262a31;color:#e8eaef}
+  /* LANDSCAPE: the tray becomes a side panel and he stands in the rest */
+  @media (orientation: landscape){
+    #garage{display:none;flex-direction:row;flex-wrap:wrap}
+    body.tpGarage #garage{display:grid;grid-template-columns:1fr min(46vw,440px);
+      grid-template-rows:auto 1fr auto}
+    #grTop{grid-column:1 / 3;grid-row:1}
+    #grSpin{grid-column:1;grid-row:2 / 4}
+    #grHint{grid-column:1;grid-row:3;align-self:end}
+    #grTray{grid-column:2;grid-row:2 / 4;border-radius:18px 0 0 0;overflow-y:auto;
+      display:flex;flex-direction:column}
+    #grPanel.grList{max-height:none;flex:1 1 auto;min-height:0;overflow-y:auto}
+    #grTabs,#grBar,#grTrophy{flex:0 0 auto}
+  }
+  #grTrophy{width:100%;min-height:44px;margin-top:10px;border-radius:12px;border:1px solid #363b46;
+    background:#1c1f25;color:#e8eaef;font:inherit}`;
+  document.head.appendChild(css);
+
+  const el = document.createElement('div');
+  el.id = 'garage';
+  el.innerHTML = `
+    <div id="grTop"><b>GARAGE</b><span></span><em class="grWal" id="grWal"></em><button id="grClose" aria-label="Leave garage">\u2715</button></div>
+    <div id="grSpin"></div>
+    <div id="grHint">Drag to turn him</div>
+    <div id="grTray">
+      <div id="grTabs">
+        <button class="on" data-t="paint">Paint</button><button data-t="eyes">Eyes</button>
+        <button data-t="mouth">Mouth</button><button data-t="wheels">Wheels</button>
+        <button data-t="antenna">Antenna</button><button data-t="decals">Decals</button>
+      </div>
+      <div id="grPanel"></div>
+      <div id="grBar"><button id="grBack">Put back</button><button id="grBuy">Buy</button></div>
+      <button id="grTrophy">Trophy case</button>
+    </div>`;
+  document.body.appendChild(el);
+  const $ = id => document.getElementById(id);
+
+  /* ---------------------------- spin control ---------------------------- */
+  let open = false, dragging = false, lastX = 0, vel = 0, lastTouch = 0, prevT = 0, saved = null;
+  const spinEl = $('grSpin');
+  const yawOf = () => { const s = scn(); return (s && s.ow) ? s.ow.yaw : 0; };
+  const setYaw = y => { const s = scn(); if (s && s.ow) { s.ow.yaw = y; s.ow.vel = 0; } };
+
+  spinEl.addEventListener('pointerdown', e => {
+    dragging = true; lastX = e.clientX; vel = 0; lastTouch = performance.now();
+    spinEl.setPointerCapture(e.pointerId); $('grHint').style.opacity = 0;
+  });
+  spinEl.addEventListener('pointermove', e => {
+    if (!dragging) return;
+    const dx = e.clientX - lastX; lastX = e.clientX;
+    const d = -dx * G.dragK;       // drag right turns his right side toward you
+    setYaw(yawOf() + d); vel = d; lastTouch = performance.now();
+  });
+  const up = () => { dragging = false; lastTouch = performance.now(); };
+  spinEl.addEventListener('pointerup', up);
+  spinEl.addEventListener('pointercancel', up);
+
+  const loop = t => {
+    if (!open) return;
+    const dt = prevT ? Math.min(50, t - prevT) : 16; prevT = t;
+    if (!dragging) {
+      if (!focusNow() && Math.abs(vel) > 0.0004) { setYaw(yawOf() + vel); vel *= G.friction; }
+      else if (!focusNow() && t - lastTouch > G.idleAfter) setYaw(yawOf() + G.idleSpin * dt / 1000);
+    }
+    const s = scn(); if (s && s.ow) s.ow.vel = 0;   // he never drives off mid-garage
+    const f = focusNow();
+    if (s) s._lightsPreview = !!(tab === 'eyes' && pv && pv.eyeProj);   // on in both views
+    if (s && s.ow) {
+      if (f && !dragging && t - lastTouch > 500) {
+        let d = f.yaw - s.ow.yaw;
+        d = Math.atan2(Math.sin(d), Math.cos(d));          // the short way round
+        s.ow.yaw += d * Math.min(1, dt / 160);
+      }
+      const e = Math.min(1, dt / 140);
+      s.K += ((f ? fr.K * f.zoom : fr.K) - s.K) * e;
+      if (f) {
+        const p = s.P(f.pt[0], f.pt[1], f.pt[2]);
+        s.cx += (fr.ax - p.x) * e; s.cy += (fr.ay - p.y) * e;
+      } else { s.cx += (fr.cx - s.cx) * e; s.cy += (fr.cy - s.cy) * e; }
+      s._cyBase = s.cy;
+    }
+    requestAnimationFrame(loop);
+  };
+
+  /* ------------------------------ open / close ------------------------------ */
+  /* ---- PORT: becomes a garage branch in the camera ease. The camera
+     leads his nose while driving; in the garage it must not, or turning
+     him swings the view off him. Pinned before every update. ---- */
+  let pinBound = false;
+  function pinCam() {
+    const s = scn();
+    if (!s || !s._garage) return;
+    s._camNext = null; s.camX = s.botX; s.camY = s.botY;
+  }
+  /* FRAME HIM IN WHAT THE TRAY LEAVES. He is ~115 world units tall to the
+     flag tip; zoom to fit the gap between the top bar and the tray (never
+     past G.K), and stand him so his flag clears the bar. Re-run whenever
+     the tray changes height or the screen turns. */
+  const fr = { K: G.K, cx: 0, cy: 0, ax: 0, ay: 0, init: false };
+  /* PART CLOSE-UPS (Sir: "when we select eyes ... focused on that part of
+     his face"). A tab with an entry here stops the turntable, turns his
+     face square to the camera, zooms in, and keeps that point of him
+     centred in the space the tray leaves. Drag still turns him; let go
+     and he settles back to face you. pt is in his own model frame. */
+  const FOCUS = {
+    eyes:   { yaw: Math.PI / 4, zoom: 1.8, pt: [26, 0, 44] },
+    /* a projection is shown with his lights on, framing him AND the pool
+       100 ahead of him, where the pattern lands */
+    lights: { yaw: Math.PI / 4, zoom: 1.05, pt: [72, 0, 8] }
+  };
+  /* shapes and projections COMBINE (Sir: "we need the projections to combo
+     with the different eye shapes and the animated eyes too"): any shape,
+     animated or not, with any projection. With a projection on, his lights
+     stay on in the Eyes tab and the view follows what you last touched --
+     a projection shows the pool, a shape shows his face -- and the
+     Face / Lights toggle flips between the two. */
+  let lightsView = false;
+  const focusNow = () => (tab === 'eyes' && pv && pv.eyeProj && lightsView) ? FOCUS.lights : FOCUS[tab];
+  function fit(s) {
+    s = s || scn(); if (!s || !open) return;
+    /* page coords -> canvas coords: the canvas does not start at the top of
+       the page (the route row sits above it in #wrap), so measure it */
+    const cr = s.game.canvas.getBoundingClientRect();
+    const r = s.scale.gameSize.height / cr.height;
+    const top = Math.max(0, ($('grTop').getBoundingClientRect().bottom - cr.top) * r);
+    const tr = $('grTray').getBoundingClientRect();
+    const side = window.innerWidth > window.innerHeight;          // tray at the side
+    const bot = side ? s.scale.gameSize.height : (tr.top - cr.top) * r;
+    const avail = Math.max(120, bot - top);
+    /* the WHOLE-ROBOT frame; loop() eases toward it, or toward a part's
+       close-up (FOCUS) when a part tab is open */
+    fr.K = Math.max(1.2, Math.min(G.K, (avail - 60) / 135));
+    fr.cy = top + 24 + 118 * fr.K;
+    fr.cx = side ? (tr.left - cr.left) * r / 2 : s.scale.gameSize.width / 2;
+    fr.ax = fr.cx; fr.ay = (top + bot) / 2;
+    if (!fr.init) { s.K = fr.K; s.cx = fr.cx; s.cy = s._cyBase = fr.cy; fr.init = true; }
+  }
+  window.addEventListener('resize', () => setTimeout(fit, 60));
+  function garageOpen(s) {
+    if (open) return;
+    open = true;
+    if (!pinBound) { s.events.on('preupdate', pinCam); s.events.on('postupdate', pinCam); pinBound = true; }
+    saved = { K: s.K, cy: s.cy, cx: s.cx, cyB: s._cyBase };
+    s._garage = { key: s._doorShut, at: performance.now() };
+    fit(s);
+    s.camX = s.botX; s.camY = s.botY;
+    document.body.classList.add('tpGarage');
+    $('grHint').style.opacity = 1;
+    fr.init = false; pv = worn(); renderTab(); renderBar(); fit(s);
+    lastTouch = performance.now(); prevT = 0; vel = 0;
+    requestAnimationFrame(loop);
+  }
+  function garageClose() {
+    const s = scn();
+    if (!open) return;
+    open = false;
+    if (s && saved) { s.K = saved.K; s.cy = saved.cy; s.cx = saved.cx; s._cyBase = saved.cyB; }
+    if (s) { s._garage = null; s._lightsPreview = false; }
+    document.body.classList.remove('tpGarage');
+    /* you only leave wearing what you own */
+    if (pv && unpaid(pv).length) tpApplySkin(tpProfile.equipped);
+    pv = null;
+  }
+  $('grClose').addEventListener('click', garageClose);
+  $('grTrophy').addEventListener('click', () => { garageClose(); _openProfile(); });
+  let tab = 'paint';
+  for (const b of el.querySelectorAll('#grTabs button')) b.addEventListener('click', () => {
+    for (const x of el.querySelectorAll('#grTabs button')) x.classList.toggle('on', x === b);
+    tab = b.dataset.t; renderTab();
+  });
+
+  /* =============================== THE LOOK =============================== */
+  /* colour catalog. Stock white and stock red are free, so the defaults are
+     always a full set. cents are tips, same unit as the store. */
+  const BODY = [
+    { id: 'white',  name: 'Stock white', hex: 0xf7f8fa, cents: 0 },
+    { id: 'cream',  name: 'Cream',       hex: 0xf3e6c8, cents: 300 },
+    { id: 'sky',    name: 'Sky',         hex: 0x9fd4ec, cents: 400 },
+    { id: 'mint',   name: 'Mint',        hex: 0xa8e0c2, cents: 400 },
+    { id: 'blush',  name: 'Blush',       hex: 0xf4b8c4, cents: 400 },
+    { id: 'lemon',  name: 'Lemon',       hex: 0xf6e27a, cents: 400 },
+    { id: 'tang',   name: 'Tangerine',   hex: 0xff9a4a, cents: 600 },
+    { id: 'cherry', name: 'Cherry',      hex: 0xe0443c, cents: 600 },
+    { id: 'grape',  name: 'Grape',       hex: 0x8a63d2, cents: 600 },
+    { id: 'navy',   name: 'Navy',        hex: 0x2f4a86, cents: 600 },
+    { id: 'forest', name: 'Forest',      hex: 0x3f7a4e, cents: 600 },
+    { id: 'slate',  name: 'Slate',       hex: 0x5c6470, cents: 500 },
+    { id: 'ink',    name: 'Ink',         hex: 0x2a2c33, cents: 800 }
+  ];
+  const STRIPE = [
+    { id: 'red',    name: 'Stock red',   hex: 0xc2452e, cents: 0 },
+    { id: 'orange', name: 'Orange',      hex: 0xff7a1a, cents: 250 },
+    { id: 'gold',   name: 'Gold',        hex: 0xf2c14e, cents: 250 },
+    { id: 'lime',   name: 'Lime',        hex: 0x8fd14f, cents: 250 },
+    { id: 'teal',   name: 'Teal',        hex: 0x1fb5a8, cents: 250 },
+    { id: 'blue',   name: 'Blue',        hex: 0x2e6fd1, cents: 250 },
+    { id: 'pink',   name: 'Hot pink',    hex: 0xff3ea5, cents: 300 },
+    { id: 'black',  name: 'Black',       hex: 0x1e1f24, cents: 300 },
+    { id: 'white',  name: 'White',       hex: 0xf4f2ec, cents: 250 }
+  ];
+  const EYE_SHAPE_LIST = [
+    { id: 'dot',    name: 'Stock dots', cents: 0 },
+    { id: 'oval',   name: 'Ovals',      cents: 300 },
+    { id: 'wide',   name: 'Wide',       cents: 300 },
+    { id: 'square', name: 'Pixels',     cents: 300 },
+    { id: 'sleepy', name: 'Sleepy',     cents: 400 },
+    { id: 'happy',  name: 'Happy',      cents: 500 },
+    { id: 'heart',  name: 'Hearts',     cents: 600 },
+    { id: 'visor',  name: 'Visor bar',  cents: 700 },
+    /* mid tier: animated (EYE_SHAPES fn entries) */
+    { id: 'scanner',   name: 'Scanner',   cents: 1000, tier: 2 },
+    { id: 'glance',    name: 'Glance',    cents: 1000, tier: 2 },
+    { id: 'wink',      name: 'Wink',      cents: 1000, tier: 2 },
+    { id: 'loader',    name: 'Loading',   cents: 1200, tier: 2 },
+    { id: 'heartbeat', name: 'Heartbeat', cents: 1200, tier: 2 },
+    { id: 'equalizer', name: 'Equalizer', cents: 1400, tier: 2 },
+    { id: 'twinkle',   name: 'Twinkle',   cents: 1400, tier: 2 }
+  ];
+  /* headlight projections (EYE_PROJ): an eye colour whose lights, after
+     dark, throw a pattern into the pool ahead of him */
+  const EYE_PROJ_LIST = [
+    { id: 'aurora',    name: 'Aurora',     hex: 0x7fe3ff, cents: 2000 },
+    { id: 'disco',     name: 'Disco',      hex: 0xffffff, cents: 1800 },
+    { id: 'ripple',    name: 'Ripple',     hex: 0x9fe8ff, cents: 1200 },
+    { id: 'starlight', name: 'Starlight',  hex: 0xfff4c2, cents: 1400 },
+    { id: 'heartbeam', name: 'Heartbeam',  hex: 0xff8ad0, cents: 1400 },
+    { id: 'plasma',    name: 'Plasma',     hex: 0xb58cff, cents: 1600 },
+    { id: 'radar',     name: 'Radar',      hex: 0xa6f06a, cents: 1600 }
+  ];
+  const EYE_COL = [
+    { id: 'cyan',   name: 'Stock cyan', hex: 0x7fe3ff, cents: 0 },
+    { id: 'white',  name: 'White',      hex: 0xf4f6fa, cents: 200 },
+    { id: 'lime',   name: 'Lime',       hex: 0xa6f06a, cents: 250 },
+    { id: 'pink',   name: 'Pink',       hex: 0xff8ad0, cents: 250 },
+    { id: 'red',    name: 'Red',        hex: 0xff4a3c, cents: 300 },
+    { id: 'violet', name: 'Violet',     hex: 0xb58cff, cents: 300 },
+    { id: 'gold',   name: 'Gold',       hex: 0xffd24a, cents: 300 }
+  ];
+  const byId = (list, id) => list.find(c => c.id === id) || null;
+  const shade = (c, k) => {
+    const r = Math.round(((c >> 16) & 255) * k), g = Math.round(((c >> 8) & 255) * k), b = Math.round((c & 255) * k);
+    return (Math.min(255, r) << 16) | (Math.min(255, g) << 8) | Math.min(255, b);
+  };
+  const hex = c => '#' + c.toString(16).padStart(6, '0');
+
+  const LOOK_KEY = 'tipsy.look', OWN_KEY = 'tipsy.paintOwned';
+  const load = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (e) { return d; } };
+  const paintOwned = new Set(load(OWN_KEY, []));
+  const FIELDS = ['body', 'stripe', 'eyeShape', 'eyeCol', 'eyeProj'];
+  const pick = L => { const o = {}; for (const k of FIELDS) o[k] = L[k] || null; return o; };
+  let look = Object.assign(pick({}), load(LOOK_KEY, {}));
+  const saveLook = () => { try { localStorage.setItem(LOOK_KEY, JSON.stringify(pick(look)));
+                                 localStorage.setItem(OWN_KEY, JSON.stringify([...paintOwned])); } catch (e) {} };
+  const LISTS = { body: BODY, stripe: STRIPE, eyeShape: EYE_SHAPE_LIST, eyeCol: EYE_COL, eyeProj: EYE_PROJ_LIST };
+  const ownsPaint = (kind, id) => { const c = byId(LISTS[kind], id); return !c || c.cents === 0 || paintOwned.has(kind + ':' + id); };
+  const ownsSkin = id => id === 'classic' || tpProfile.owned.has(id);
+
+  /* the ONE composer: skin, then colours over it. A body colour carries its
+     own three faces and outline (top as picked, right and left darker, the
+     same value spread stock has); the lid reads the same faces. */
+  const applySkinOrig = tpApplySkin;
+  function paintOver(L) {
+    const b = byId(BODY, L.body), st = byId(STRIPE, L.stripe);
+    const es = byId(EYE_SHAPE_LIST, L.eyeShape), ecl = byId(EYE_COL, L.eyeCol);
+    if (es && es.id !== 'dot') SKIN.eyeShape = es.id;
+    if (ecl) SKIN.eye = ecl.hex;
+    const pj = byId(EYE_PROJ_LIST, L.eyeProj);
+    if (pj) { SKIN.eye = pj.hex; SKIN.proj = pj.id; }
+    if (b) Object.assign(SKIN, { bodyTop: b.hex, bodyRight: shade(b.hex, 0.91), bodyLeft: shade(b.hex, 0.79),
+                                 outline: shade(b.hex, b.hex > 0x808080 ? 0.22 : 0.45) });
+    if (st) Object.assign(SKIN, { stripe: st.hex, stripeDk: shade(st.hex, 0.8) });
+  }
+  function applyLook(L) { applySkinOrig(L.skin); paintOver(L); }
+  /* ---- PORT: becomes tpApplyLook, called wherever tpApplySkin(equipped)
+     is today. Every existing caller that repaints the EQUIPPED skin (load,
+     challenge preview restore) now gets the colours back on top. ---- */
+  tpApplySkin = function (id) {
+    applySkinOrig(id);
+    if (id === tpProfile.equipped) paintOver(look);
+  };
+  tpApplySkin(tpProfile.equipped);
+
+  /* ============================ TRY-ON STATE ============================ */
+  let pv = null;                       // what he is wearing in the garage
+  const worn = () => Object.assign({ skin: tpProfile.equipped || 'classic' }, pick(look));
+  function unpaid(L) {
+    const out = [];
+    if (!ownsSkin(L.skin)) out.push({ kind: 'skin', id: L.skin, item: tpSkinById(L.skin) });
+    for (const k of FIELDS) if (L[k] && !ownsPaint(k, L[k])) out.push({ kind: k, id: L[k], item: byId(LISTS[k], L[k]) });
+    return out;
+  }
+  function commit(L) {                  // everything in L is owned: wear it
+    if (L.skin !== tpProfile.equipped) {
+      tpProfile.equipped = L.skin; tpSaveProfile();
+      try { tpSubmitEquip(L.skin); } catch (e) {}
+    }
+    Object.assign(look, pick(L)); saveLook();
+    tpApplySkin(tpProfile.equipped);
+  }
+  function tryOn(L) {
+    pv = L;
+    if (!unpaid(pv).length) commit(pv); else applyLook(pv);
+    renderTab(); renderBar();
+  }
+  function renderBar() {
+    setTimeout(fit, 0);
+    const bar = $('grBar'), buy = $('grBuy');
+    const need = pv ? unpaid(pv) : [];
+    $('grWal').textContent = tpMoney(tpProfile.walletCents);
+    if (!need.length) { bar.classList.remove('on'); return; }
+    bar.classList.add('on');
+    const earn = need.find(n => n.kind === 'skin' && n.item && n.item.unlockType === 'achievement');
+    if (earn) {
+      const tr = tpTrophyForSkin(earn.id);
+      buy.disabled = true; buy.textContent = 'Earn it: ' + (tr ? tr.name : 'trophy');
+      return;
+    }
+    const cost = need.reduce((a, n) => a + (n.kind === 'skin' ? n.item.priceCents : n.item.cents), 0);
+    const label = need.length === 1 ? (n => n.kind === 'skin' ? n.item.displayName : n.item.name)(need[0]) : need.length + ' items';
+    buy.disabled = tpProfile.walletCents < cost;
+    buy.textContent = buy.disabled ? 'Need ' + tpMoney(cost - tpProfile.walletCents) + ' more'
+                                   : 'Buy ' + label + ' ' + tpMoney(cost);
+  }
+  $('grBuy').addEventListener('click', () => {
+    const need = unpaid(pv);
+    const cost = need.reduce((a, n) => a + (n.kind === 'skin' ? n.item.priceCents : n.item.cents), 0);
+    if (!need.length || tpProfile.walletCents < cost) return;
+    tpProfile.walletCents -= cost;
+    for (const n of need) {
+      if (n.kind === 'skin') { tpProfile.owned.add(n.id); try { tpSubmitPurchase(n.id); } catch (e) {} }
+      else paintOwned.add(n.kind + ':' + n.id);
+    }
+    tpSaveProfile();
+    commit(pv);
+    tpToast(need.length === 1 ? 'Bought ' + (need[0].kind === 'skin' ? need[0].item.displayName : need[0].item.name) : 'Bought ' + need.length + ' items');
+    renderTab(); renderBar();
+  });
+  $('grBack').addEventListener('click', () => { pv = worn(); applyLook(pv); tpApplySkin(tpProfile.equipped); renderTab(); renderBar(); });
+
+  /* =============================== EYES TAB =============================== */
+  /* icons straight from EYE_SHAPES, so the tray shows the shape he draws */
+  function eyeIcon(id) {
+    const sh = EYE_SHAPES[id];
+    const polys = sh ? (sh.fn ? sh.fn(1300, 7) : sh.polys) : [Array.from({ length: 16 }, (_, i) => [Math.cos(i/16*6.283)*2.3, Math.sin(i/16*6.283)*2.3])];
+    const eyes = (sh && sh.single) ? [0] : [-7, 7];
+    const d = eyes.map(ey => polys.map(p => 'M' + p.map(([y, z]) => (20 + (ey + y)*1.35).toFixed(1) + ' ' + (12 - z*1.35).toFixed(1)).join('L') + 'Z').join('')).join('');
+    return `<svg viewBox="0 0 40 24" width="56" height="34"><rect x="1" y="3" width="38" height="18" rx="3" fill="#22242b"/><path d="${d}" fill="#7fe3ff"/></svg>`;
+  }
+  function projIcon(c) {
+    return `<svg viewBox="0 0 40 24" width="56" height="34"><rect x="1" y="3" width="38" height="18" rx="3" fill="#10131a"/>
+      <ellipse cx="20" cy="14" rx="15" ry="6" fill="${hex(c.hex)}" opacity=".35"/><ellipse cx="20" cy="14" rx="8" ry="3.2" fill="${hex(c.hex)}" opacity=".7"/>
+      <circle cx="13" cy="8" r="1.8" fill="${hex(c.hex)}"/><circle cx="27" cy="8" r="1.8" fill="${hex(c.hex)}"/></svg>`;
+  }
+  function renderEyes(P) {
+    P.className = 'grList';
+    const L = pv || worn(), curS = L.eyeShape || 'dot', curC = L.eyeProj ? null : (L.eyeCol || 'cyan');
+    const card = c => {
+      const own = ownsPaint('eyeShape', c.id), sel = curS === c.id;
+      return `<button class="grSkin${sel ? ' sel' : ''}" data-eyeshape="${c.id}">${eyeIcon(c.id)}<span>${c.name}</span>${own ? '<i class="own">Owned</i>' : '<i>' + tpMoney(c.cents) + '</i>'}</button>`;
+    };
+    const shapes = EYE_SHAPE_LIST.filter(c => !c.tier).map(card).join('');
+    const anim = EYE_SHAPE_LIST.filter(c => c.tier === 2).map(card).join('');
+    const curP = L.eyeProj;
+    const projs = EYE_PROJ_LIST.map(c => {
+      const own = ownsPaint('eyeProj', c.id), sel = curP === c.id;
+      return `<button class="grSkin${sel ? ' sel' : ''}" data-eyeproj="${c.id}">${projIcon(c)}<span>${c.name}</span>${own ? '<i class="own">Owned</i>' : '<i>' + tpMoney(c.cents) + '</i>'}</button>`;
+    }).join('');
+    const cols = EYE_COL.map(c => {
+      const own = ownsPaint('eyeCol', c.id), sel = curC === c.id;
+      return `<button class="grSw${sel ? ' sel' : ''}" data-eyecol="${c.id}" aria-label="${c.name}"><b style="background:${hex(c.hex)}"></b>${own ? '&nbsp;' : '<i>' + tpMoney(c.cents) + '</i>'}</button>`;
+    }).join('');
+    const view = L.eyeProj ? `<button id="grView" class="grViewT">${lightsView ? 'Show his face' : 'Show the lights'}</button>` : '';
+    P.innerHTML = `${view}<div class="grSec">SHAPE</div><div class="grRow">${shapes}</div>
+      <div class="grSec">ANIMATED</div><div class="grRow">${anim}</div>
+      <div class="grSec">COLOUR</div><div class="grRow">${cols}</div>
+      <div class="grSec">HEADLIGHT PROJECTIONS — LIGHTS ON TO SEE</div><div class="grRow">${projs}</div>`;
+    for (const b of P.querySelectorAll('[data-eyeshape]')) b.onclick = () => { lightsView = false; tryOn(Object.assign({}, pv || worn(), { eyeShape: b.dataset.eyeshape === 'dot' ? null : b.dataset.eyeshape })); };
+    for (const b of P.querySelectorAll('[data-eyecol]')) b.onclick = () => tryOn(Object.assign({}, pv || worn(), { eyeCol: b.dataset.eyecol === 'cyan' ? null : b.dataset.eyecol, eyeProj: null }));
+    for (const b of P.querySelectorAll('[data-eyeproj]')) b.onclick = () => { lightsView = true; tryOn(Object.assign({}, pv || worn(), { eyeProj: b.dataset.eyeproj, eyeCol: null })); };
+    const vt = P.querySelector('#grView');
+    if (vt) vt.onclick = () => { lightsView = !lightsView; renderTab(); };
+  }
+
+  /* =============================== PAINT TAB =============================== */
+  function renderTab() {
+    const P = $('grPanel');
+    if (tab === 'eyes') { renderEyes(P); return; }
+    if (tab !== 'paint') {
+      const names = { eyes: 'Eye shapes and colours', mouth: 'Mouths', wheels: 'Tyres and hubs',
+        antenna: 'Poles and toppers', decals: 'Stars, skull and more' };
+      P.className = ''; P.textContent = names[tab] + ' land here next.'; return;
+    }
+    P.className = 'grList';
+    const L = pv || worn();
+    const skins = TP_SKINS.map(k => {
+      const own = ownsSkin(k.skinId), sel = L.skin === k.skinId && !L.body && !L.stripe;
+      const tag = own ? (tpProfile.equipped === k.skinId ? '<i class="own">Wearing</i>' : '<i class="own">Owned</i>')
+                : k.unlockType === 'achievement' ? '<i class="lock">Trophy</i>' : '<i>' + tpMoney(k.priceCents) + '</i>';
+      return `<button class="grSkin${sel ? ' sel' : ''}" data-skin="${k.skinId}">${tpRobotSvg(k.filter, 34, k.skinId)}<span>${k.displayName}</span>${tag}</button>`;
+    }).join('');
+    const sw = (kind, list, cur) => list.map(c => {
+      const own = ownsPaint(kind, c.id), sel = cur === c.id;
+      return `<button class="grSw${sel ? ' sel' : ''}" data-${kind}="${c.id}" aria-label="${c.name}"><b style="background:${hex(c.hex)}"></b>${own ? '&nbsp;' : '<i>' + tpMoney(c.cents) + '</i>'}</button>`;
+    }).join('');
+    P.innerHTML = `<div class="grSec">SKINS</div><div class="grRow">${skins}</div>
+      <div class="grSec">BODY</div><div class="grRow">${sw('body', BODY, L.body)}</div>
+      <div class="grSec">STRIPE</div><div class="grRow">${sw('stripe', STRIPE, L.stripe)}</div>`;
+    for (const b of P.querySelectorAll('[data-skin]')) b.onclick = () => tryOn(Object.assign({}, pv || worn(), { skin: b.dataset.skin, body: null, stripe: null }));
+    for (const b of P.querySelectorAll('[data-body]')) b.onclick = () => tryOn(Object.assign({}, pv || worn(), { body: b.dataset.body }));
+    for (const b of P.querySelectorAll('[data-stripe]')) b.onclick = () => tryOn(Object.assign({}, pv || worn(), { stripe: b.dataset.stripe }));
+  }
+
+  /* ---- PORT: becomes the pad branch in bindGlobalAvatar ---- */
+  const _openProfile = tpOpenProfile;
+  tpOpenProfile = function () {
+    const s = scn();
+    if (s && s._doorShut && s.ow && tpContTripMode(s.mode)) return garageOpen(s);
+    return _openProfile.apply(this, arguments);
+  };
+
+  window.garageOpen = () => garageOpen(scn());
+  window.garageClose = garageClose;
+})();
