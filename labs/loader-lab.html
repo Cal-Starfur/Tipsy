@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Loader lab</title>
+<style>
+:root{--bg:#14161a;--panel:#1d2026;--line:#2c3038;--ink:#e8eaee;--dim:#8a909b;--orange:#ff7a1a;--cyan:#7fe3ff;--bad:#ff4d4d;
+  box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);}
+*{box-sizing:inherit}
+html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);font:15px/1.4 system-ui,-apple-system,sans-serif}
+body{display:flex;flex-direction:column}
+#stage{flex:1;display:flex;align-items:center;justify-content:center;min-height:260px;position:relative}
+#blInner{display:flex;flex-direction:column;align-items:center;gap:10px;transform:scale(1.6)}
+#blText{margin-top:6px;font:700 12px/1 system-ui,-apple-system,sans-serif;letter-spacing:2.5px;text-transform:uppercase;color:var(--orange);opacity:.85}
+#read{position:absolute;left:14px;top:12px;font:13px/1.5 ui-monospace,Menlo,monospace;color:var(--dim)}
+#read b{color:var(--ink);font-weight:600}
+#read .eyes{color:var(--cyan)} #read .bad{color:var(--bad)}
+#panel{background:var(--panel);border-top:1px solid var(--line);padding:12px 14px 16px;display:grid;gap:10px}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.row>span{color:var(--dim);font-size:13px;min-width:54px}
+button{font:600 14px system-ui,-apple-system,sans-serif;color:var(--ink);background:#262a31;border:1px solid var(--line);
+  border-radius:8px;padding:9px 12px;min-width:44px;min-height:40px}
+button.on{background:var(--orange);color:#1a0d00;border-color:var(--orange)}
+button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+input[type=range]{flex:1;accent-color:var(--orange);min-width:160px}
+  .old #blRobotStage{position:relative;width:88px;height:101px;}
+  .old #blRobotCard{position:absolute;inset:0;
+    animation:oldblFlip 1.35s cubic-bezier(.45,.05,.55,.95) infinite;}
+  .old .blFace{position:absolute;inset:0;
+    animation:oldblFaceFront 1.35s steps(1) infinite;}
+  .old .blBack{transform:scaleX(-1);
+    animation-name:oldblFaceBack;}
+  @keyframes oldblFlip{0%{transform:scaleX(1);}
+                     50%{transform:scaleX(-1);}
+                     100%{transform:scaleX(1);}}
+  /* hard cuts, not fades -- see the comment above for why. Windows
+     match oldblFlip's own zero-crossings (roughly 25%/75% under the same
+     shared easing), with a hair of margin on each side so the swap
+     always lands while the card reads as a thin sliver either way. */
+  @keyframes oldblFaceFront{0%,23%{opacity:1;} 27%,73%{opacity:0;} 77%,100%{opacity:1;}}
+  @keyframes oldblFaceBack{0%,23%{opacity:0;} 27%,73%{opacity:1;} 77%,100%{opacity:0;}}
+  /* the shadow is widest face-on and narrowest edge-on, i.e. twice per
+     turn, which is what sells the rotation as depth rather than a flip */
+  .old #blShadow{width:52px;height:9px;border-radius:50%;background:#000;
+    animation:oldblShad 1.35s cubic-bezier(.45,.05,.55,.95) infinite;}
+  @keyframes oldblShad{0%,50%,100%{transform:scaleX(1);opacity:.42;}
+                     25%,75%{transform:scaleX(.46);opacity:.22;}}
+
+  .new #blRobotStage{position:relative;width:88px;height:101px;}
+  /* ONE CLOCK FOR SPIN AND FACE (2026-09-23, Sir: "not fluid enough when
+     spinning and it doesn't know when to have blue eyes vs no eyes").
+     The coin-flip above drove the squash and the face swap from THREE
+     separate animations: newblFlip on the card, and a steps(1) opacity
+     animation on each face. WebKit hands transform animations to the
+     compositor but cannot accelerate steps() timing, so the two face
+     swaps ran on the main thread -- the very thread the route build
+     is blocking while this loader is up. On device the card kept
+     turning while the swap lagged behind it: eyes on the back half,
+     blank visor on the front half.
+     Fix: the card now turns with rotateY and each face hides itself
+     with backface-visibility, so which face shows is decided by the
+     same transform that does the turning -- one animation, one clock,
+     nothing left to fall out of step. Still flat 2D: there is no
+     perspective anywhere, so rotateY(a) paints exactly what
+     scaleX(cos a) would (a horizontal squash, no depth, no side panel).
+     linear timing = constant turning speed, so the squash follows a
+     true cosine all the way round instead of dwelling face-on and then
+     snapping through the edge. #blRobotBack's rotateY(180deg) replaces
+     its old static scaleX(-1): same job, cancels the card's own half
+     turn so the back art reads un-mirrored when it faces the camera. */
+  .new #blRobotCard{position:absolute;inset:0;
+    -webkit-transform-style:preserve-3d;transform-style:preserve-3d;
+    will-change:transform;
+    animation:newblSpin 2.7s linear infinite;}
+  .new .blFace{position:absolute;inset:0;
+    -webkit-backface-visibility:hidden;backface-visibility:hidden;}
+  .new .blBack{transform:rotateY(180deg);}
+  @keyframes newblSpin{from{transform:rotateY(0deg);} to{transform:rotateY(360deg);}}
+  /* the shadow is widest face-on and narrowest edge-on, i.e. twice per
+     turn, which is what sells the rotation as depth rather than a flip.
+     Keyframed at every 45deg of the spin (linear between) so its width
+     tracks the card's cosine instead of easing on its own curve. */
+  .new #blShadow{width:52px;height:9px;border-radius:50%;background:#000;
+    animation:newblShad 2.7s linear infinite;}
+  @keyframes newblShad{0%,50%,100%{transform:scaleX(1);opacity:.42;}
+                     12.5%,37.5%,62.5%,87.5%{transform:scaleX(.84);opacity:.36;}
+                     25%,75%{transform:scaleX(.46);opacity:.22;}}
+
+</style></head>
+<body>
+<div id="stage" class="new">
+ <div id="read"></div>
+ 
+ <div id="blInner">
+  <div id="blRobotStage">
+   <div id="blRobotCard">
+    <svg id="blRobot" overflow="visible" class="blFace" viewBox="0 0 40 46" width="88" height="101" aria-hidden="true">
+      <line x1="13" y1="5.5" x2="13" y2="11" stroke="#2e3138" stroke-width="1.5"/>
+      <polygon points="12.25,5.5 16.05,5.5 12.25,0" fill="#ff5722"/>
+      <rect x="9" y="11" width="22" height="7" fill="#f7f8fa" stroke="#30343d" stroke-width="1.2"/>
+      <rect x="5" y="18" width="30" height="21" fill="#f7f8fa" stroke="#30343d" stroke-width="1.2"/>
+      <rect x="9" y="22" width="22" height="8" fill="#22242b"/>
+      <circle cx="16" cy="26" r="1.9" fill="#7fe3ff"/>
+      <circle cx="24" cy="26" r="1.9" fill="#7fe3ff"/>
+      <rect x="5" y="32.2" width="30" height="3.7" fill="#c2452e"/>
+      <rect x="8" y="34.8" width="24" height="2.1" fill="#fff3b0"/>
+      <rect x="5" y="39" width="30" height="4.7" fill="#3f434c"/><rect x="0.2" y="37.9" width="4.8" height="8.4" rx="0.6" fill="#24262c" stroke="#1a1c21" stroke-width="0.6"/><rect x="35" y="37.9" width="4.8" height="8.4" rx="0.6" fill="#24262c" stroke="#1a1c21" stroke-width="0.6"/>
+    </svg>
+    <svg id="blRobotBack" overflow="visible" class="blFace blBack" viewBox="0 0 40 46" width="88" height="101" aria-hidden="true">
+      <line x1="27" y1="5.5" x2="27" y2="11" stroke="#2e3138" stroke-width="1.5"/>
+      <polygon points="27.75,5.5 23.95,5.5 27.75,0" fill="#ff5722"/>
+      <rect x="9" y="11" width="22" height="7" fill="#dcdde1" stroke="#30343d" stroke-width="1.2"/>
+      <rect x="5" y="18" width="30" height="21" fill="#dcdde1" stroke="#30343d" stroke-width="1.2"/>
+      
+      
+      
+      <rect x="5" y="32.2" width="30" height="3.7" fill="#c2452e"/>
+      
+      <rect x="5" y="39" width="30" height="4.7" fill="#3f434c"/><rect x="0.2" y="37.9" width="4.8" height="8.4" rx="0.6" fill="#24262c" stroke="#1a1c21" stroke-width="0.6"/><rect x="35" y="37.9" width="4.8" height="8.4" rx="0.6" fill="#24262c" stroke="#1a1c21" stroke-width="0.6"/>
+    </svg>
+   </div>
+  </div>
+  <div id="blShadow"></div>
+  <div id="blText">Tipsey</div>
+ </div>
+ 
+</div>
+<div id="panel">
+ <div class="row"><span>Rig</span><button data-rig="new" class="on">New (rotateY)</button><button data-rig="old">Old (live now)</button></div>
+ <div class="row"><span>Play</span><button id="pp">Pause</button><button data-st="-5">−5°</button><button data-st="5">+5°</button><button id="stall">Stall 2s</button></div>
+ <div class="row"><span>Speed</span><button data-sp="0.05">0.05×</button><button data-sp="0.1">0.1×</button><button data-sp="0.25">0.25×</button><button data-sp="0.5">0.5×</button><button data-sp="1" class="on">1×</button></div>
+ <div class="row"><span>Turn</span><input id="scrub" type="range" min="0" max="360" step="1" value="0"><span id="deg" style="min-width:40px">0°</span></div>
+</div>
+<script>
+(function(){
+let DUR=2700; const stage=document.getElementById('stage');
+const TPL=document.getElementById('blInner').outerHTML;
+let card, front;
+function bind(){card=document.getElementById('blRobotCard'); front=document.getElementById('blRobot');}
+bind();
+const scrub=document.getElementById('scrub'), deg=document.getElementById('deg'), read=document.getElementById('read'), pp=document.getElementById('pp');
+let rate=1, paused=false, dragging=false;
+function anims(){return document.getAnimations().filter(a=>a.effect&&a.effect.target&&stage.contains(a.effect.target));}
+function applyRate(){anims().forEach(a=>{a.playbackRate=rate; paused?a.pause():a.play();});}
+function setPhase(t){DUR=dur();anims().forEach(a=>{a.currentTime=((t%DUR)+DUR)%DUR;});}
+function dur(){const a=anims()[0]; return a?a.effect.getTiming().duration:DUR;}
+function phase(){DUR=dur();const a=anims()[0]; return a?((a.currentTime%DUR)+DUR)%DUR:0;}
+function sx(){const m=new DOMMatrix(getComputedStyle(card).transform); return m.a;}
+function face(){
+  if(stage.classList.contains('new')) return sx()>=0?'front':'back';
+  return +getComputedStyle(front).opacity>0.5?'front':'back';
+}
+function tick(){
+  const t=phase(), d=Math.round(t/DUR*360), s=sx(), f=face(), want=s>=0?'front':'back';
+  if(!dragging){scrub.value=d; deg.textContent=d+'°';}
+  const ok=f===want;
+  read.innerHTML='turn <b>'+d+'°</b><br>width <b>'+Math.round(Math.abs(s)*100)+'%</b><br>face <b class="'+(f==='front'?'eyes':'')+'">'+(f==='front'?'blue eyes':'back')+'</b>'+
+    (ok?'':'<br><b class="bad">WRONG FACE (should be '+(want==='front'?'eyes':'back')+')</b>');
+  requestAnimationFrame(tick);
+}
+document.querySelectorAll('[data-rig]').forEach(b=>b.onclick=()=>{
+  const f=phase()/DUR; stage.className=b.dataset.rig;
+  /* fresh nodes: a CSS animation the lab has paused/scrubbed can outlive its class swap */
+  document.getElementById('blInner').outerHTML=TPL; bind();
+  document.querySelectorAll('[data-rig]').forEach(x=>x.classList.toggle('on',x===b));
+  requestAnimationFrame(()=>{DUR=dur(); setPhase(f*DUR); applyRate();});
+});
+document.querySelectorAll('[data-sp]').forEach(b=>b.onclick=()=>{
+  rate=+b.dataset.sp; document.querySelectorAll('[data-sp]').forEach(x=>x.classList.toggle('on',x===b)); applyRate();
+});
+pp.onclick=()=>{paused=!paused; pp.textContent=paused?'Play':'Pause'; pp.classList.toggle('on',paused); applyRate();};
+document.querySelectorAll('[data-st]').forEach(b=>b.onclick=()=>{
+  if(!paused) pp.onclick(); setPhase(phase()+(+b.dataset.st)/360*DUR);
+});
+scrub.addEventListener('input',()=>{dragging=true; if(!paused) pp.onclick(); setPhase(scrub.value/360*DUR); deg.textContent=scrub.value+'°';});
+scrub.addEventListener('change',()=>{dragging=false;});
+/* same thing the route build does on device: a synchronous block */
+document.getElementById('stall').onclick=()=>{const e=performance.now()+2000; while(performance.now()<e){}};
+applyRate(); requestAnimationFrame(tick);
+})();
+</script>
+</body></html>
