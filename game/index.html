@@ -36961,6 +36961,15 @@ class WorldScene extends Phaser.Scene {
 
   /* ---------- projection: yaw, pitch, roll, then facing ---------- */
   T(x, y, z){
+    /* HELD STILL IN A GARAGE CLOSE-UP (Sir, 2026-09-24: "i want him to be
+       straight on at the camera maybe we stop the idle wobble"). Square to
+       the camera his face sits exactly between the two side shades, and
+       the small idle yaw/pitch/roll flipped it light-dark every frame.
+       With the close-up up, only his heading turns him. */
+    if(this._garage && this._garage.still){
+      const c = Math.cos(this.drawAngle), s = Math.sin(this.drawAngle);
+      return { x: x*c - y*s, y: x*s + y*c, z };
+    }
     if(this.yaw !== 0){   // small local perturbations only now (hop nose-dip, hazard slip)
       const c = Math.cos(this.yaw), s = Math.sin(this.yaw);
       const x2 = x*c - y*s; y = x*s + y*c; x = x2;
@@ -36989,6 +36998,12 @@ class WorldScene extends Phaser.Scene {
     return { x, y, z };
   }
   R(nx, ny, nz){
+    /* GARAGE CLOSE-UP (scene._garage.still): no pose wobble at all -- see
+       T() for why */
+    if(this._garage && this._garage.still){
+      const cy = Math.cos(this.drawAngle), sy = Math.sin(this.drawAngle);
+      return { x: nx*cy - ny*sy, y: nx*sy + ny*cy, z: nz };
+    }
     if(this.yaw !== 0){
       const cy = Math.cos(this.yaw), sy = Math.sin(this.yaw);
       const nx2 = nx*cy - ny*sy; ny = nx*sy + ny*cy; nx = nx2;
@@ -39812,10 +39827,16 @@ class WorldScene extends Phaser.Scene {
     this._xraySkip = false;   // never inherit a stuck flag from a bailed frame
     /* alpha SCALES with coverage now instead of snapping to XRAY.max, so
        a partially hidden robot reads as partially there. */
-    const xrayWant = XRAY.max * this.xrayCoverage(visBlocks, visLots);
+    /* NO X-RAY IN THE GARAGE (Sir, 2026-09-24: "the draw ordering is making
+       him flicker"). Standing on his pad he is inside the depot's volume,
+       so the x-ray fan still counts him covered with the walls lifted
+       away, and the ghost stamped a flat tint over him at whatever the
+       coverage was that frame -- 2/5 one frame, 3/5 the next, so his whole
+       body pulsed light and dark. Nothing hides him in there. */
+    const xrayWant = this._garage ? 0 : XRAY.max * this.xrayCoverage(visBlocks, visLots);
     this.xrayA += (xrayWant - this.xrayA) *
                   (xrayWant > this.xrayA ? XRAY.rise : XRAY.fall);
-    if(this.xrayA < 0.004) this.xrayA = 0;
+    if(this.xrayA < 0.004 || this._garage) this.xrayA = 0;
     this.gFade.setAlpha(this.xrayA);
 
     worldVQ.sort((a, b) => a.depth - b.depth);
@@ -48905,7 +48926,8 @@ class WorldScene extends Phaser.Scene {
     } else this.qtext.setVisible(false);
 
     const driving = this.state === "play" && this.speed > 0.01;
-    const bobZ = this.state === "tipped" ? 0 : (driving ? Math.sin(t*0.012)*1.1 : Math.sin(t*0.0022)*1.4);
+    const bobZ = (this.state === "tipped" || (this._garage && this._garage.still)) ? 0
+               : (driving ? Math.sin(t*0.012)*1.1 : Math.sin(t*0.0022)*1.4);
     const leanTarget = driving ? -0.3*(this.speed/0.15) : Math.sin(t*0.0022)*0.08;
     this.flagLean = Phaser.Math.Linear(this.flagLean, leanTarget, 0.06);
 
@@ -48951,7 +48973,11 @@ class WorldScene extends Phaser.Scene {
        continuous, all 4 headings by construction. */
     for(const side of [-1, 1]){
       const wnorm = this.R(0, side, 0);
-      const sideNear = (wnorm.x + wnorm.y + wnorm.z) > 0;
+      /* edge-on is FAR: square to the camera (the garage's face close-up)
+         the side face is exactly edge-on, and float noise made one row
+         "near" by 1e-17 -- painted over the hull on his right while his
+         left row sat behind it. A face seen edge-on hides nothing. */
+      const sideNear = (wnorm.x + wnorm.y + wnorm.z) > 1e-6;
       for(const wx of WHEEL.xs){
         const c = {x:wx, y:side*WHEEL.side, z:WHEEL.z};
         wheels.push({ c, side, near: sideNear, d: this.depth(c.x, c.y, c.z) });
@@ -61479,6 +61505,7 @@ document.addEventListener("keydown", e => {
     const s = scn(); if (s && s.ow) s.ow.vel = 0;   // he never drives off mid-garage
     const f = focusNow();
     if (s) s._lightsPreview = !!(tab === 'eyes' && pv && pv.eyeProj);   // on in both views
+    if (s && s._garage) s._garage.still = !!(f && f.still && !dragging);
     if (s && s.ow) {
       if (f && !dragging && t - lastTouch > 500) {
         let d = f.yaw - s.ow.yaw;
@@ -61517,10 +61544,14 @@ document.addEventListener("keydown", e => {
      centred in the space the tray leaves. Drag still turns him; let go
      and he settles back to face you. pt is in his own model frame. */
   const FOCUS = {
-    eyes:   { yaw: Math.PI / 4, zoom: 1.8, pt: [26, 0, 44] },
+    /* square to the camera. At exactly PI/4 his face sits on the line
+       between the renderer's two side shades, so the idle wobble used to
+       flip it between them every frame; `still` below holds him dead
+       still for the close-ups instead (see scene._garage.still). */
+    eyes:   { yaw: Math.PI / 4, zoom: 1.8, pt: [26, 0, 44], still: true },
     /* a projection is shown with his lights on, framing him AND the pool
        100 ahead of him, where the pattern lands */
-    lights: { yaw: Math.PI / 4, zoom: 1.05, pt: [72, 0, 8] }
+    lights: { yaw: Math.PI / 4, zoom: 1.05, pt: [72, 0, 8], still: true }
   };
   /* shapes and projections COMBINE (Sir: "we need the projections to combo
      with the different eye shapes and the animated eyes too"): any shape,
