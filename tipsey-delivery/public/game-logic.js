@@ -3740,7 +3740,18 @@ const L_OUT_R = T2;           // the outside of a 90-degree bend: fillet radius 
 const SIDEWALK_ROWS = 4;     // per side — the sidewalk width already live in-game
 const SIDEWALK_W = SIDEWALK_ROWS*T2;
 const OVERSHOOT = ROAD_HALF; // sufficient by construction — see classifyAt
-const CELL = TILE;           // sidewalk classification/render resolution
+/* ONE PAVING TILE, EVERYWHERE (Sir, 2026-09-23, circling a patch of
+   half-size tiles at a junction: "how do we fix these sections of smaller
+   tiles for sidewalks?"). The junction zone was laid in 46 cells while
+   mid-block used T2 tiles, so every block end showed a patch of quarter-
+   size paving. Every boundary the classifier has -- ROAD_HALF, SIDEWALK_W,
+   OVERSHOOT, BLOCK -- is a whole number of T2 from the node, so a T2 tile
+   classified at its centre is exact and nothing needs the finer grid. */
+const CELL = T2;             // sidewalk classification/render resolution
+/* and one checker for the whole city: parity of the T2 cell a tile sits
+   in, so shades carry straight through a junction instead of each run and
+   the corner cells keeping their own phase */
+const paveParity = (x, y) => (Math.floor(x / T2) + Math.floor(y / T2)) & 1;
 
 /* ================= MANHATTAN SPATIAL HASH =================
    drawWorld's cull test is Manhattan: |dx| + |dy| < R. In the rotated
@@ -7998,7 +8009,7 @@ function buildSidewalkGeometry(grid){
             const along = OVERSHOOT + (ai+0.5)*T2;
             const x = e.a.x + dv.x*along + rv.x*perp;
             const y = e.a.y + dv.y*along + rv.y*perp;
-            runs.push({ x, y, parity: (ai + t) % 2 });
+            runs.push({ x, y, parity: paveParity(x, y) });
           }
         }
     }
@@ -8051,7 +8062,8 @@ function buildSidewalkGeometry(grid){
     const localEdges = nearbyEdgesForEdge(e);
     for(const end of [0, 1]){
       for(let ai = 0; ai <= alongSteps; ai++){
-        const along = end === 0 ? (-OVERSHOOT + ai*CELL) : (BLOCK - OVERSHOOT + ai*CELL);
+        if(ai >= alongSteps) break;                    // tile CENTRES now: alongSteps tiles, not alongSteps+1 samples
+        const along = end === 0 ? (-OVERSHOOT + (ai+0.5)*CELL) : (BLOCK - OVERSHOOT + (ai+0.5)*CELL);
         for(const side of [-1, 1])
         for(let pi = 0; pi < perpSteps; pi++){
           const perp = side * (ROAD_HALF + (pi+0.5)*CELL);
@@ -8061,7 +8073,7 @@ function buildSidewalkGeometry(grid){
           if(seen.has(key)) continue;
           seen.add(key);
           if(classifyAt(localEdges, x, y) === "sidewalk"){
-            cornerCells.push({ x, y, parity: (Math.round(x/CELL) + Math.round(y/CELL)) % 2 });
+            cornerCells.push({ x, y, parity: paveParity(x, y) });
           }
         }
       }
@@ -8100,7 +8112,7 @@ function buildSidewalkGeometry(grid){
         if(seen.has(key)) continue;
         seen.add(key);
         if(classifyAt(localEdges, x, y) === "sidewalk"){
-          cornerCells.push({ x, y, parity: (Math.round(x/CELL) + Math.round(y/CELL)) % 2 });
+          cornerCells.push({ x, y, parity: paveParity(x, y) });
         }
       }
     }
@@ -8187,7 +8199,16 @@ const WORLD_RAMP = {
      line it meets (Sir: "the little corners that dont line up"). The
      world's ramps meet a kerb and gutter at 0.6..0.8, so they land
      there; the flare's low end uses the same number. */
-  streetZ:     0.8
+  streetZ:     0.8,
+  /* NO APRON (Sir, 2026-09-23: "are we able to get that every where?",
+     of the sidewalk put on one tile size). The shared ramp art lays a flat
+     2x3-tile patch under the ramp in a fixed light stone, ruled every 57 --
+     a patch of small tiles, in a colour the day palette never tints, over
+     paving that is already there on the same grid. The world's ramps skip
+     it and stand on the city's own tiles; the ramp tile and the pad stay.
+     The slope starts from the pavement's own height for the same reason. */
+  basePatch:   false,
+  sidewalkZ:   0
 };
 
 /* ---------- TRAFFIC SIGNALS ----------
@@ -36855,12 +36876,21 @@ class WorldScene extends Phaser.Scene {
       const bx0 = Math.max(-EXT_RING, this.camX - ringR), bx1 = Math.min(gEndBase.x+EXT_RING, this.camX + ringR);
       const by0 = Math.max(-EXT_RING, this.camY - ringR), by1 = Math.min(gEndBase.y+EXT_RING, this.camY + ringR);
       const half = T2/2;
-      const i0 = Math.floor(bx0/T2), i1 = Math.ceil(bx1/T2);
-      const j0 = Math.floor(by0/T2), j1 = Math.ceil(by1/T2);
+      /* ON THE SIDEWALK'S OWN GRID (Sir, 2026-09-23: "are we able to get
+         that every where?", of the junction paving put on one tile and one
+         checker). These were centred ON the T2 lines -- half a tile off the
+         real sidewalk, whose tiles run between them -- and chequered by
+         (bi+bj) % 2, which is -1 for negative sums: so wherever this layer
+         showed (a gap, the rim ring) its seams missed the pavement beside
+         it by 46 and its shade phase flipped west and north of the origin.
+         Centres are now at (k + 0.5)*T2 and the shade is paveParity, the
+         one the sidewalk and the estate use. */
+      const i0 = Math.floor(bx0/T2) - 1, i1 = Math.ceil(bx1/T2);
+      const j0 = Math.floor(by0/T2) - 1, j1 = Math.ceil(by1/T2);
       for(let bi = i0; bi <= i1; bi++){
-        const bx = bi*T2;
+        const bx = (bi + 0.5)*T2;
         for(let bj = j0; bj <= j1; bj++){
-          const by = bj*T2;
+          const by = (bj + 0.5)*T2;
           if(bx >= inX0 && bx <= inX1 && by >= inY0 && by <= inY1 &&
              (Math.abs(bx - this.camX) > bsRadius || Math.abs(by - this.camY) > bsRadius)) continue;
           const pts = [
@@ -36869,10 +36899,10 @@ class WorldScene extends Phaser.Scene {
           ];
           if(!onScreen(pts)) continue;
           if(bx < gx0 || bx > gx1 || by < gy0 || by > gy1){
-            this.quadOn(g, pts, (bi+bj) % 2 === 0 ? GRASS.a : GRASS.b);
+            this.quadOn(g, pts, paveParity(bx, by) === 0 ? GRASS.a : GRASS.b);
             continue;
           }
-          this.quadOn(g, pts, (bi+bj) % 2 === 0 ? d.pave : d.paveB);
+          this.quadOn(g, pts, paveParity(bx, by) === 0 ? d.pave : d.paveB);
           this.edgeOn(g, pts, d.paveEdge, 1);
         }
       }
@@ -37407,13 +37437,12 @@ class WorldScene extends Phaser.Scene {
           if(sgnN*(p.x + p.y) <= 0) continue;
           quadV([A(rad, t0, h0), A(rad, t1, h0), A(rad, t1, h1), A(rad, t0, h1)], col); } };
         if(!this.ptsOnScreen([this.W(Cx, Cy, 0), this.W(Ox, Oy, 0), this.W(Cx - (e0.x + e1.x)*OR*2, Cy - (e0.y + e1.y)*OR*2, KERB_H)])) continue;
-        /* the square C..C-OR: four corner cells, their own parity and seams */
-        for(const a of [0.25, 0.75]) for(const b of [0.25, 0.75]){
-          const cx0 = Cx - (e0.x*a + e1.x*b)*OR, cy0 = Cy - (e0.y*a + e1.y*b)*OR, h = CELL/2;
+        /* the square C..C-OR is exactly one paving tile (OR = T2 = CELL):
+           the city's own checker shade, no seam stroke -- half of it is
+           under the road and a stroke showed there */
+        { const cx0 = Cx - (e0.x + e1.x)*OR*0.5, cy0 = Cy - (e0.y + e1.y)*OR*0.5, h = CELL/2;
           const P = [this.W(cx0 - h, cy0 - h, 0), this.W(cx0 + h, cy0 - h, 0), this.W(cx0 + h, cy0 + h, 0), this.W(cx0 - h, cy0 + h, 0)];
-          const par = (Math.round(cx0/CELL) + Math.round(cy0/CELL)) % 2;
-          quadV(P, par === 0 ? d.pave : d.paveB);   // no seam stroke: half of each cell is under the road and it showed there
-        }
+          quadV(P, paveParity(cx0, cy0) === 0 ? d.pave : d.paveB); }
         /* ...and the quarter inside the arc back to asphalt -- only out to
            the channel, which covers the rest of the road side. Taken on
            under the stone it showed as a dark wedge wherever a hidden face
@@ -38660,16 +38689,21 @@ class WorldScene extends Phaser.Scene {
        tiles to the rect, so any two grass fills that touch read as one
        lawn. GRASS also lost its per-tile outline (the ring never had
        one); PLAZA keeps its. */
-    const half = T2/2;
-    const i0 = Math.round(blk.x0/T2), i1 = Math.round(blk.x1/T2);
-    const j0 = Math.round(blk.y0/T2), j1 = Math.round(blk.y1/T2);
+    /* ...AND THAT LATTICE IS NOW THE SIDEWALK'S (2026-09-23, Sir: "are we
+       able to get that every where?"). The ring lawn and this fill were
+       centred on the T2 lines, half a tile off the pavement's own tiles;
+       the ring moved onto the pavement grid, so this moves with it --
+       tile k spans k*T2..(k+1)*T2, shade by paveParity -- and lawn, plaza
+       and sidewalk are one lattice and one checker. */
+    const i0 = Math.floor(blk.x0/T2), i1 = Math.ceil(blk.x1/T2) - 1;
+    const j0 = Math.floor(blk.y0/T2), j1 = Math.ceil(blk.y1/T2) - 1;
     for(let bj = j0; bj <= j1; bj++){
-      const ty0 = Math.max(blk.y0, bj*T2 - half), ty1 = Math.min(blk.y1, bj*T2 + half);
+      const ty0 = Math.max(blk.y0, bj*T2), ty1 = Math.min(blk.y1, (bj + 1)*T2);
       if(ty1 - ty0 < 0.5) continue;
       for(let bi = i0; bi <= i1; bi++){
-        const tx0 = Math.max(blk.x0, bi*T2 - half), tx1 = Math.min(blk.x1, bi*T2 + half);
+        const tx0 = Math.max(blk.x0, bi*T2), tx1 = Math.min(blk.x1, (bi + 1)*T2);
         if(tx1 - tx0 < 0.5) continue;
-        const parity = ((bi + bj) % 2 + 2) % 2;
+        const parity = (bi + bj) & 1;               // === paveParity of the tile's centre
         const pts = [this.W(tx0,ty0,0), this.W(tx1,ty0,0), this.W(tx1,ty1,0), this.W(tx0,ty1,0)];
         /* the single largest command source in the frame: whole
            blocks were painted tile by tile with no screen test at all,
@@ -44022,16 +44056,19 @@ class WorldScene extends Phaser.Scene {
          which carries neither key, so they keep the approved look). */
       const crossHalf = (data && data.baseCross !== undefined) ? data.baseCross : 1.5*T2s;
       const baseOutline = (data && data.baseOutline !== undefined) ? data.baseOutline : 2;
-      const sidewalkZ = 2, streetZ = (data && data.streetZ !== undefined) ? data.streetZ : -3;
-      this.quadOn(g, [W(-wHalf,-crossHalf,sidewalkZ), W(wHalf,-crossHalf,sidewalkZ),
-                      W(wHalf,crossHalf,sidewalkZ), W(-wHalf,crossHalf,sidewalkZ)], 0xb5afa2);
-      if(baseOutline > 0)
-        this.edgeOn(g, [W(-wHalf,-crossHalf,sidewalkZ), W(wHalf,-crossHalf,sidewalkZ),
-                        W(wHalf,crossHalf,sidewalkZ), W(-wHalf,crossHalf,sidewalkZ)], 0x968f81, baseOutline);
-      g.lineStyle(1.5, 0x968f81, 0.9);
-      for(const u of [-0.62, 0, 0.62]){
-        const a = W(wHalf*u,-crossHalf,sidewalkZ), b = W(wHalf*u,crossHalf,sidewalkZ);
-        g.lineBetween(a.x, a.y, b.x, b.y);
+      const sidewalkZ = (data && data.sidewalkZ !== undefined) ? data.sidewalkZ : 2,
+            streetZ = (data && data.streetZ !== undefined) ? data.streetZ : -3;
+      if(!(data && data.basePatch === false)){           // the world's ramps stand on the city's tiles -- see WORLD_RAMP
+        this.quadOn(g, [W(-wHalf,-crossHalf,sidewalkZ), W(wHalf,-crossHalf,sidewalkZ),
+                        W(wHalf,crossHalf,sidewalkZ), W(-wHalf,crossHalf,sidewalkZ)], 0xb5afa2);
+        if(baseOutline > 0)
+          this.edgeOn(g, [W(-wHalf,-crossHalf,sidewalkZ), W(wHalf,-crossHalf,sidewalkZ),
+                          W(wHalf,crossHalf,sidewalkZ), W(-wHalf,crossHalf,sidewalkZ)], 0x968f81, baseOutline);
+        g.lineStyle(1.5, 0x968f81, 0.9);
+        for(const u of [-0.62, 0, 0.62]){
+          const a = W(wHalf*u,-crossHalf,sidewalkZ), b = W(wHalf*u,crossHalf,sidewalkZ);
+          g.lineBetween(a.x, a.y, b.x, b.y);
+        }
       }
       // tile 1: slopes sidewalk->street. tile 2: flat landing at street height.
       this.quadOn(g, [W(-wHalf,-T2s/2,sidewalkZ), W(0,-T2s/2,streetZ),
