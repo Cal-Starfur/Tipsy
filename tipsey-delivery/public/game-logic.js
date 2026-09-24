@@ -44386,6 +44386,26 @@ class WorldScene extends Phaser.Scene {
           g.lineBetween(a.x, a.y, b.x, b.y);
         }
       }
+      /* THE WINGS (Sir, 2026-09-23: "when fixing the side walk we lost the
+         wings to the sidewalk end/begin"). NO APRON took the whole 2x3
+         patch away from the world's ramps, and the patch's side panels were
+         the only thing that showed the ramp's flared sides. They come back
+         as what they are: a triangle each side of the pad, from its back
+         corner out to the kerb a tile past it -- the same
+         tile the kerb's own wedge (FL = T2) drops across, so paving flare
+         and stone flare meet at the kerb. Drawn in the ramp's stone, under
+         the slope and the pad, on the city's tiles rather than a patch. */
+      if(data && data.basePatch === false){
+        for(const sg of [-1, 1]){
+          /* alongside the PAD only (Sir's sketch, 2026-09-23: the wing
+             starts at the pad's back corner, not the slope's) -- a short,
+             steep flare reads as a drop, where the long one read flat */
+          const wing = [W(0, sg*T2s/2, sidewalkZ), W(wHalf, sg*T2s/2, streetZ),
+                        W(wHalf, sg*crossHalf, sidewalkZ)];
+          this.quadOn(g, wing, 0xb5afa2);
+          this.edgeOn(g, wing, 0x968f81, 1.5);
+        }
+      }
       // tile 1: slopes sidewalk->street. tile 2: flat landing at street height.
       this.quadOn(g, [W(-wHalf,-T2s/2,sidewalkZ), W(0,-T2s/2,streetZ),
                       W(0,T2s/2,streetZ), W(-wHalf,T2s/2,sidewalkZ)], 0xb5afa2);
