@@ -17483,11 +17483,10 @@ function housePickets(a0, a1, b, h, col){
 /* a square fence / gate post */
 function housePost(a, b, h, col){ box(a-4, a+4, b-4, b+4, 0, h, shade(col,1.05), col, shade(col,.8)); }
 
-/* a lawn with mown stripes, a0..a1 by b0..b1 (b0 deeper) */
-function houseLawn(a0, a1, b0, b1, col){
-  T(a0, a1, b0, b1, 0.4, col);
-  for(let a = a0; a < a1; a += 24) T(a, Math.min(a+12, a1), b0, b1, 0.45, shade(col,1.06));
-}
+/* NO HOUSE LAWNS (Sir, 2026-09-25, at Sierra Vista: "our houses have their
+   own grass but we want to get rid of that so its not painting over the
+   grass that already exists"). A house's yard() lays only paving -- paths,
+   drives, courts; the ground it stands on is the estate's own lawn. */
 
 
 /* ================= CONVEX FACES =================
@@ -33475,8 +33474,10 @@ function houseCanopy(fn){
     marks:{ door:[405,-90], mat:[405,-90+35.4] }
   },
   yard(c){
-    houseLawn(0, 809.6, -90, 0, '#86a85e');
-    T(372, 438, -90, 0, 0.6, '#c9a07a');
+    /* the path runs on to the sidewalk where the house fronts a street
+       (Sir: "the path to the front door need to go to the side walk"):
+       _walk is the lawn's depth in front of the lot, set by the estate */
+    T(372, 438, -90, this._walk || 0, 0.6, '#c9a07a');
   },
   upper(c, d){
     /* DEEPER AND TALLER (Sir: "the upper building needs to be deeper and
@@ -33603,6 +33604,112 @@ function houseCanopy(fn){
     this.upper(c, -1);
   }
 },
+/* ---- SIERRA VISTA'S GARAGES (Sir, 2026-09-25: first "can we get a
+   garage that matches the house here?" at the east split-level, then "i
+   want all the houses in the sierra hights to have a driveway and a garage
+   that matches the house"). One garage, dressed by the house it serves
+   (_host, set by the estate before it draws, with the house's own livery
+   index): its stucco, its roof, its door timber and window trim, and the
+   detail each house is known by -- the Italianate's stone surrounds, eave
+   brackets and low slate hip; the Riad's horseshoe arches, flat parapet
+   roof and zellige band; the Tuscan's stone surrounds; the Mission's
+   azulejo band. Frame: the garage stands a 50..300, b 0..-180, front at
+   b 0; a 0 is 50 west of it, where the split-level's garden wall starts
+   (the Terrazza Garage, derived below, is this one with that wall). Two
+   arched carriage doors in their surrounds, a lantern on the pier between,
+   windows down the seen end. The drive's pavers run in under the doors
+   (see THE DRIVEWAYS in sierraGeo). ---- */
+{
+  name:'Sierra Garage', hood:'The Flats', tier:'outbuilding', sc:HOUSE_SC, ww:300, dd:180,
+  head:'Garage: two arched carriage doors, dressed to match the house beside it',
+  desc:'A two-bay garage beside a Sierra Vista house, in its stucco and roof: arched timber carriage doors with iron strap hinges in surrounds, a lantern on the pier between them, windows down its side, and the house\'s own details -- tile roof or parapet, stone surrounds, brackets, a tile band.',
+  tags:['garage','outbuilding','mediterranean'],
+  vol:{ foot:[[50,0],[300,0],[300,-180],[50,-180]], h:140, solids:[], marks:{} },
+  /* the house's look, in the garage's words */
+  style(){
+    const host = BY_NAME.get(this._host) || BY_NAME.get('Terrazza Split-Level');
+    const L = host.liv[state.pal % host.liv.length], n = host.name;
+    const st = { wall:L.wall, roof:L.roof || null, rise:40, win:L.trim, wood:'#7a5236', sur:shade(L.wall,.9),
+                 cap:L.cap || shade(L.wall,1.03), iron:L.iron || '#26282a', arch:'round', lites:true, band:null, brackets:null };
+    if(n === 'San Gabriel Mission Revival'){ st.wood = L.leaf; st.band = [L.tile, '#f2ece0']; }
+    else if(n === 'Palmline Casita' || n === 'Rancho Hacienda'){ st.wood = L.leaf; }
+    else if(n === 'Belvedere Italianate'){ st.wood = L.leaf; st.sur = L.trim; st.brackets = L.accent; st.rise = 24; }
+    else if(n === 'Marrakech Riad'){ st.wood = L.leaf; st.sur = L.trim; st.roof = null; st.arch = 'horseshoe'; st.lites = false; st.band = [L.tile1, L.tile2]; }
+    else if(n === 'Montalcino Tuscan Villa'){ st.wood = L.leaf; st.sur = L.stone; }
+    return st;
+  },
+  carriage(am, c){                            // one carriage door, centred on a = am, on the front face
+    const hw = 42, b = 0, horse = c.arch === 'horseshoe';
+    /* a round head: a low segmental arch of rise 16 over H0 70. A
+       horseshoe: a circle of the door's own half-width, carried past its
+       half so it closes in at the springing, over H0 52 */
+    const H0 = horse ? 52 : 70, rise = 16;
+    const arch = (r, z0, zs, rs, bb) => {
+      const pts = [];
+      if(horse){
+        const a0 = -Math.PI*0.14, a1 = Math.PI*1.14;
+        pts.push(P(am + r*Math.cos(a0), bb, z0));
+        for(let k = 0; k <= 16; k++){ const t = a0 + (a1 - a0)*k/16; pts.push(P(am + r*Math.cos(t), bb, zs + r*Math.sin(t))); }
+        pts.push(P(am + r*Math.cos(a1), bb, z0));
+      } else {
+        pts.push(P(am - r, bb, z0));
+        for(let k = 0; k <= 14; k++){ const t = Math.PI*(1 - k/14); pts.push(P(am + r*Math.cos(t), bb, zs + rs*Math.sin(t))); }
+        pts.push(P(am + r, bb, z0));
+      }
+      return pts;
+    };
+    const zTop = a => horse ? H0 + Math.sqrt(Math.max(0, hw*hw - (a - am)**2))
+                            : H0 + rise*Math.sqrt(Math.max(0, 1 - ((a - am)/hw)**2));
+    poly(arch(hw + 8, 0, H0, rise + 6, b + 0.3), c.sur, shade(c.sur,.7), 1);                  // the surround
+    poly(arch(hw, 0, H0, rise, b + 0.5), '#1f2427');                                          // the reveal
+    poly(arch(hw - 3, 0, H0, rise - 3, b + 0.7), c.wood, shade(c.wood,.6), 1);                // the two leaves
+    for(let a = am - hw + 9; a < am + hw - 5; a += 8.5)                                        // their boards
+      poly([P(a, b + 0.8, 1), P(a, b + 0.8, zTop(a) - 4)], null, shade(c.wood,.72), 0.8);
+    poly([P(am, b + 0.9, 0), P(am, b + 0.9, zTop(am) - 3)], null, shade(c.wood,.45), 1.6);   // the meeting stiles
+    if(c.lites) for(const a0 of [am - hw + 6, am + 4]){                                       // a row of lites across each leaf
+      for(let k = 0; k < 3; k++){ const x0 = a0 + k*11.5, x1 = x0 + 9;
+        F(x0, x1, 52, 64, '#34424b', null, 0, b + 1);
+        F(x0, x1, 58, 64, 'rgba(170,205,220,.38)', null, 0, b + 1.1); }
+    }
+    else for(let z = 12; z < H0; z += 12) for(let a = am - hw + 10; a < am + hw - 6; a += 12)   // the Riad's studs
+      if(Math.abs(a - am) > 3) F(a, a + 2.4, z, z + 2.4, c.iron, null, 0, b + 1);
+    for(const z of [16, 40]){                                                                  // iron strap hinges
+      F(am - hw + 2, am - 10, z, z + 3, c.iron, null, 0, b + 1.2);
+      F(am + 10, am + hw - 2, z, z + 3, c.iron, null, 0, b + 1.2);
+    }
+    for(const a of [am - 5, am + 3]) F(a, a + 2, 28, 38, c.iron, null, 0, b + 1.3);          // ring pulls
+    slab(am - hw - 8, am + hw + 8, -2, 0, b + 4, b, shade(c.cap,.9));                           // the threshold
+  },
+  lantern(a, z, c){
+    box(a - 1.5, a + 1.5, 0, 6, z + 14, z + 17, c.iron, c.iron, shade(c.iron,.7));            // the bracket, off the pier
+    box(a - 5, a + 5, 2, 12, z, z + 16, '#f0d48a', '#e2c070', '#b89850');                    // the glass, lit
+    box(a - 6, a + 6, 1, 13, z + 16, z + 19, shade(c.iron,1.1), c.iron, shade(c.iron,.7));   // its cap
+    box(a - 6, a + 6, 1, 13, z - 3, z, shade(c.iron,1.1), c.iron, shade(c.iron,.7));         // and base
+  },
+  gardenWall(c){                              // the split-level's: back to the house's east wall
+    box(-4, 50, -44, -34, 0, 42, shade(c.wall,.95), c.wall, shade(c.wall,.8));
+    box(-5, 51, -45, -33, 42, 48, shade(c.roof,1.05), c.roof, shade(c.roof,.8));
+    F(-4, 50, 0, 6, shade(c.wall,.68), null, 0, -33.5);
+  },
+  draw(p){
+    const c = this.style();
+    const a0 = 50, a1 = 300, bf = 0, bb = -180, H = 100;
+    if(this.gwall) this.gardenWall(c);
+    houseMass(a0, a1, bf, bb, H, c.wall, 1);
+    houseSideWins(a0, a1, bf, bb, [[38, 70]], c.win, { w:30, pitch:90, skipFront:36, skipBack:40 });
+    F(a0, a1, H - 8, H, shade(c.cap,.96), shade(c.wall,.6), 1, bf + 0.4);                    // the eave band
+    if(c.band) for(let a = a0 + 4, k = 0; a < a1 - 4; a += 10, k++)                           // a tile band under it
+      F(a, Math.min(a + 10, a1 - 4), H - 20, H - 11, c.band[k & 1], null, 0, bf + 0.5);
+    this.carriage(118, c);
+    this.carriage(232, c);
+    this.lantern(175, c.arch === 'horseshoe' ? 60 : 64, c);
+    if(c.roof){
+      if(c.brackets) for(let a = a0 + 12; a < a1 - 8; a += 30){ F(a, a + 4, H - 12, H, c.brackets, null, 0, bf + 0.6); F(a + 7, a + 11, H - 12, H, c.brackets, null, 0, bf + 0.6); }
+      houseHip(a0, a1, bf, bb, H, H + c.rise, 10, c.roof);
+    } else houseParapetRoof(a0, a1, bf, bb, H, 14, 6, c.wall);
+  },
+  back(p){ this.draw(p); }
+},
 /* ---- SIERRA VISTA'S HOUSES: the Mediterranean set from labs/houses.js
    (Sir, 2026-09-22: "lets do mediterranean hills"). VERBATIM copies; the
    lab file is canonical. They draw at SIERRA_HOUSE_SC through HOUSE_SC. ---- */
@@ -33627,7 +33734,6 @@ function houseCanopy(fn){
   },
   prof:[[-160,150],[-315,220],[-470,150]],
   yard(c){
-    houseLawn(0, 809.6, -160, 0, '#86a85e');
     T(370, 440, -160, 0, 0.6, '#c9a07a');
   },
   parapet(c){
@@ -33713,10 +33819,11 @@ function houseCanopy(fn){
     marks:{ door:[500,-60], mat:[500,-60+35.4] }
   },
   yard(c){
-    houseLawn(280, 809.6, -60, 0, '#86a85e');
-    T(36, 280, -60, 0, 0.6, '#b3aea3');                        // driveway
-    poly([P(158,-60,0.7), P(158,0,0.7)], null, '#98938a', 1);
-    for(let b = -45; b < 0; b += 15) poly([P(36,b,0.7), P(280,b,0.7)], null, '#a29d93', 1);
+    if(!this._paved){                                          // unless the estate has laid its drive to the door
+      T(36, 280, -60, 0, 0.6, '#b3aea3');                      // driveway
+      poly([P(158,-60,0.7), P(158,0,0.7)], null, '#98938a', 1);
+      for(let b = -45; b < 0; b += 15) poly([P(36,b,0.7), P(280,b,0.7)], null, '#a29d93', 1);
+    }
     T(430, 570, -60, 0, 0.7, '#c9a07a');                       // terracotta path
     for(let b = -54; b < 0; b += 11) poly([P(430,b,0.8), P(570,b,0.8)], null, '#a8825f', 1);
   },
@@ -33893,7 +34000,6 @@ function houseCanopy(fn){
     marks:{ door:[340,-140], mat:[340,-140+35.4] }
   },
   yard(c){
-    houseLawn(0, 809.6, -140, 0, '#7a9e58');
     T(305, 375, -94, 0, 0.6, '#c9c1b0');
     T(286, 394, -140, -94, 3, '#d8d2c4');
   },
@@ -34052,7 +34158,6 @@ function houseCanopy(fn){
   },
   yard(c){
     T(0, 809.6, -150, 0, 0.3, '#d8ccb0');
-    houseLawn(430, 780, -150, -20, '#8aa05e');
     T(275, 345, -150, 0, 0.6, c.stone);
   },
   main(c, d){
@@ -34195,6 +34300,11 @@ function houseCanopy(fn){
   ];
   /* the houses' yard fences carry collision (houses.js, THE YARD FENCE) */
   for(const sh of SHOPS) if(sh.yardFence && sh.vol) sh.vol.solids = (sh.vol.solids || []).concat(houseYardSolids(sh));
+  /* the split-level's garage: the Sierra Garage with its garden wall back
+     to the house, which is a solid too (see SIERRA VISTA'S GARAGES) */
+  { const g0 = SHOPS.find(s => s.name === 'Sierra Garage');
+    if(g0) SHOPS.push(Object.assign({}, g0, { name:'Terrazza Garage', gwall:true,
+      vol:Object.assign({}, g0.vol, { solids:[ { name:'garden wall', poly:[[-4,-44],[50,-44],[50,-34],[-4,-34]], h:48 } ] }) })); }
   const BY_NAME = new Map(SHOPS.map(s => [s.name, s]));
 
   return {
@@ -36463,7 +36573,10 @@ class WorldScene extends Phaser.Scene {
       this.quadOn(g, P, t0.p === 0 ? PAVE : PAVEB);
       this.edgeOn(g, P, PAVEEDGE, 1);
     };
-    const Q = (pts, col) => { const P = pts.map(p => this.W(p[0], p[1], p[2])); if(onScreen(P)) this.quadOn(g, P, col); };
+    /* qg: the graphics Q lays into -- the ground's, except while a body
+       re-lays a terrace block over itself (see THE BLOCKS STAND IN FRONT) */
+    let qg = g;
+    const Q = (pts, col) => { const P = pts.map(p => this.W(p[0], p[1], p[2])); if(onScreen(P)) this.quadOn(qg, P, col); };
     const shade = (c, k) => hillShade(c, k);
     const LAWN = 0x9fbd6a, LAWN2 = 0x97b563, STONE = 0xc9bd9f, CAP = 0xe2d8c0, ROADC = roadCol, KERB = 0xd8d2c4;
     const rect = (x0, x1, y0, y1, z, col) => Q([[x0,y0,z],[x1,y0,z],[x1,y1,z],[x0,y1,z]], col);
@@ -36666,10 +36779,34 @@ class WorldScene extends Phaser.Scene {
               quad([P(b0,oIn,ha), P(b1,oIn,hb), P(b1,oSeam,hb), P(b0,oSeam,ha)], KDK);
             }
           };
+          /* a driveway's dropped kerb (see THE DRIVEWAYS in sierraGeo): the
+             stone eases down to a rolled lip over DFL, runs across the mouth
+             at the lip and eases back up -- smoothstep, so neither end of a
+             flare is a kink. The channel beside it is not touched. */
+          const LIP = 1.5;
+          const ease = (s0, s1, h0, h1) => {
+            const N = 6;
+            for(let i = 0; i < N; i++){
+              const t0 = i/N, t1 = (i + 1)/N, e0 = t0*t0*(3 - 2*t0), e1 = t1*t1*(3 - 2*t1);
+              stone(s0 + (s1 - s0)*t0, s0 + (s1 - s0)*t1, h0 + (h1 - h0)*e0, h0 + (h1 - h0)*e1);
+            }
+          };
           let cur = k0;
-          for(const c of pads){
-            const c0 = c - RAMP_HALF, c1 = c + RAMP_HALF;
+          const cuts = [...pads.map(c => ({ c0:c - RAMP_HALF, c1:c + RAMP_HALF })),
+                        ...S.drives.filter(d => d.run === n && d.side === sgn).map(d => ({ c0:d.s0, c1:d.s1, d }))]
+                       .sort((a, b) => a.c0 - b.c0);
+          for(const cc of cuts){
+            const c0 = cc.c0, c1 = cc.c1;
             if(c1 < cur || c0 > k1) continue;
+            if(cc.d){
+              const fs0 = Math.max(cur, c0 - cc.d.DFL), fs1 = Math.min(k1, c1 + cc.d.DFL);
+              if(fs0 - cur > 1) stone(cur, fs0, KH, KH);
+              ease(fs0, c0, KH, LIP);
+              stone(c0, c1, LIP, LIP);
+              ease(c1, fs1, LIP, KH);
+              cur = fs1;
+              continue;
+            }
             const fs0 = Math.max(cur, c0 - FL);
             if(fs0 - cur > 1) stone(cur, fs0, KH, KH);
             stone(fs0, c0, KH, WORLD_RAMP.streetZ);          // the flare down to the pad
@@ -36739,6 +36876,64 @@ class WorldScene extends Phaser.Scene {
          on a ramp, drawn in another pass) still gets its stone */
       for(const pf of pendingFil) pf.stone();
     };
+    /* THE DRIVEWAYS' GROUND (see THE DRIVEWAYS in sierraGeo), under the
+       kerb that drops across their mouths: the apron and its wings behind
+       the kerb, then the drive from the back of the apron ACROSS the
+       sidewalk to the terrace wall (Sir: "the patern needs to across the
+       sidewalk to the down ramp") -- sandstone pavers in running bond
+       inside a soldier course. Heights lie just over the tiles and stripes
+       they cover.
+       LAID WITH ITS SHELF'S GROUND, not after the ramps (Sir: "the drive
+       way is drawing over the retaining wall"). The ramp pass stands each
+       terrace's forward blocks up after every shelf, and a block's front
+       face rises over the drive's far end on screen; drawn after it, the
+       drive painted across that wall. Called from the shelf loop instead,
+       so every wall and block drawn later covers it, as ground should be. */
+    const drawDrives = k => { for(const d of S.drives){
+      if(S.z.indexOf(d.z) !== k) continue;
+      const rn = S.runs[d.run], dv = DIRV[rn.f], rv = DIRV[(rn.f + 1) % 4];
+      const F = (s, o, h) => this.W(rn.a.x + dv.x*s + rv.x*d.side*o, rn.a.y + dv.y*s + rv.y*d.side*o, d.z + h);
+      if(Math.abs(rn.a.x + dv.x*(d.s0 + d.s1)/2 - this.camX) + Math.abs(d.yK - this.camY) > tileSpan + d.oEnd) continue;
+      const q4 = (sA, sB, oA, oB, h, col) => quad4([F(sA, oA, h), F(sB, oA, h), F(sB, oB, h), F(sA, oB, h)], col);
+      const quad4 = (P, col) => { if(onScreen(P)) this.quadOn(g, P, col); };
+      const line = (P, col) => { if(onScreen(P)) this.edgeOn(g, P, col, 1); };
+      /* the apron: a tile row of concrete, darker toward the kerb where it
+         falls to the channel, so the drop reads without a step */
+      const APR = 0xdcd6c8, APJ = 0xaaa396, o0 = RH, o1 = RH + d.AP;
+      for(let i = 0; i < 3; i++)
+        q4(d.s0, d.s1, o0 + (o1 - o0)*i/3, o0 + (o1 - o0)*(i + 1)/3, 0.35, shade(APR, 0.93 + 0.035*i));
+      /* the wings, over the kerb's flares: from the flare's top down to the
+         apron's back corner */
+      for(const [sa, sb] of [[d.s0 - d.DFL, d.s0], [d.s1 + d.DFL, d.s1]]){
+        quad4([F(sa, o0, 0.35), F(sb, o0, 0.35), F(sb, o1, 0.35), F(sb, o1, 0.35)], shade(APR, 0.95));
+        line([F(sa, o0, 0.4), F(sb, o1, 0.4)], APJ);
+      }
+      line([F(d.s0, o0, 0.4), F(d.s0, o1, 0.4)], APJ);
+      line([F(d.s1, o0, 0.4), F(d.s1, o1, 0.4)], APJ);
+      line([F(d.s0, o1, 0.4), F(d.s1, o1, 0.4)], APJ);
+      line([F((d.s0 + d.s1)/2, o0, 0.4), F((d.s0 + d.s1)/2, o1, 0.4)], APJ);     // the control joint
+      /* the drive */
+      const BW = 23, P0 = RH + d.AP, P1 = d.oEnd;
+      const BORD = 0xab9270, FIELD = [0xd6c29e, 0xccb690, 0xdac8a6], JNT = 0xb39d79;
+      q4(d.s0, d.s1, P0, P1, 0.4, BORD);
+      const fs0 = d.s0 + BW, fs1 = d.s1 - BW, fo0 = P0 + BW, fo1 = P1 - BW, PL = 92, PD = 46;
+      for(let r = 0, o = fo0; o < fo1 - 0.5; r++, o += PD){
+        const oB = Math.min(o + PD, fo1);
+        for(let s = fs0 - (r & 1 ? PL/2 : 0), c = 0; s < fs1 - 0.5; s += PL, c++){
+          const sa = Math.max(s, fs0), sb = Math.min(s + PL, fs1);
+          q4(sa, sb, o, oB, 0.45, FIELD[(r*7 + c*3 + (r >> 1)) % 3]);
+          if(sa > fs0 + 0.5) line([F(sa, o, 0.5), F(sa, oB, 0.5)], JNT);
+        }
+        line([F(fs0, o, 0.5), F(fs1, o, 0.5)], JNT);
+      }
+      for(let s = d.s0 + BW; s < d.s1 - 1; s += PD) line([F(s, P0, 0.5), F(s, P0 + BW, 0.5)], JNT);   // the soldier course's own joints
+      line([F(fs0, fo0, 0.5), F(fs0, fo1, 0.5)], JNT); line([F(fs1, fo0, 0.5), F(fs1, fo1, 0.5)], JNT);
+      line([F(fs0, fo1, 0.5), F(fs1, fo1, 0.5)], JNT);
+      /* its edges on the lawn and the sidewalk, and its joint with the apron */
+      line([F(d.s0, P0, 0.5), F(d.s0, P1, 0.5)], shade(BORD, .75));
+      line([F(d.s1, P0, 0.5), F(d.s1, P1, 0.5)], shade(BORD, .75));
+      line([F(d.s0, P0, 0.5), F(d.s1, P0, 0.5)], PAVEEDGE);
+    } };
     for(let k = 3; k >= 0; k--){
       const y0 = S.e[k+1], y1 = S.e[k], z = S.z[k];
       rect(S.xw, S.xe, y0, y1, z, LAWN);
@@ -36760,6 +36955,7 @@ class WorldScene extends Phaser.Scene {
         const ipts = []; for(let a = 0; a < 16; a++){ const t = a/16*Math.PI*2; ipts.push([S.circle.x + Math.cos(t)*160, S.circle.y + Math.sin(t)*160, z + 1.5]); }
         const IP = ipts.map(p => this.W(p[0], p[1], p[2])); if(onScreen(IP)) this.quadOn(g, IP, LAWN);
       }
+      drawDrives(k);                                         // this shelf's driveways, on its paving (see THE DRIVEWAYS' GROUND)
       /* the retaining wall on this shelf's FRONT edge (e[k]), down to the
          shelf below, with the gap its ramp passes through. The ramp itself
          is drawn in its own pass below. */
@@ -36791,6 +36987,18 @@ class WorldScene extends Phaser.Scene {
        lower shelf's lawn was painted over that half -- the drive appeared
        to stop at the terrace edge and start again above it. Far to near
        here too, so each ramp lies on both the shelves it joins. */
+    /* a terrace block: its lawn at the upper level, the terrace's own mown
+       stripes carried on, and (face) the retaining wall across its front */
+    const layBlock = (rp, x0, x1, yTop, yFr, face) => {
+      if(x1 - x0 < 1) return;
+      const z = S.z[rp.k], zLo = S.z[rp.k - 1];
+      rect(x0, x1, yFr, yTop, z, LAWN);
+      for(let x = S.xw; x < x1; x += 520){                     // the terrace's own mown stripes, carried on
+        const s0 = Math.max(x, x0), s1 = Math.min(x + 260, x1);
+        if(s1 > s0) rect(s0, s1, yFr, yTop, z + 0.3, LAWN2);
+      }
+      if(face) wallFace(x0, x1, yFr, zLo, z);
+    };
     for(let k = 3; k >= 1; k--){
       const rp = S.ramps[k-1], z = S.z[k], zLo = S.z[k-1], yw = S.e[k];
       const cut0 = rp.c0, cut1 = rp.c1;
@@ -36814,15 +37022,7 @@ class WorldScene extends Phaser.Scene {
       };
       /* the west block, then the cut's west wall the whole way up -- both
          behind the ramp from the camera, so under it */
-      const block = (x0, x1, yTop = yw, yFr = rp.yF, face = true) => {
-        if(x1 - x0 < 1) return;
-        rect(x0, x1, yFr, yTop, z, LAWN);
-        for(let x = S.xw; x < x1; x += 520){                   // the terrace's own mown stripes, carried on
-          const s0 = Math.max(x, x0), s1 = Math.min(x + 260, x1);
-          if(s1 > s0) rect(s0, s1, yFr, yTop, z + 0.3, LAWN2);
-        }
-        if(face) wallFace(x0, x1, yFr, zLo, z);
-      };
+      const block = (x0, x1, yTop = yw, yFr = rp.yF, face = true) => layBlock(rp, x0, x1, yTop, yFr, face);
       block(rp.b0, cut0);
       cutWall(cut0);
       cutCap(cut0 - rp.t, cut0);
@@ -36920,12 +37120,35 @@ class WorldScene extends Phaser.Scene {
     for(const lt of S.lots){
       const cx = (lt.x0 + lt.x1)/2, cy = (lt.yF + lt.yB)/2;
       if(Math.abs(cx - this.camX) + Math.abs(cy - this.camY) > span + lt.x1 - lt.x0) continue;
+      /* blocks this lot stands behind and within reach of (a storey and
+         a half of x + y), on its own shelf */
+      const occl = S.ramps.filter(rp => S.z[rp.k - 1] === lt.z && lt.x1 <= rp.b0 + 1 && lt.x1 > rp.b0 - 480
+                                        && lt.yF <= rp.yF && lt.yB >= rp.yw - 1);
       bodies.push({ depth: cx + cy, fn: (gg) => {
         const G = (a, b, h) => this.W(lt.x0 + a, lt.yF + b, lt.z + h);
         LIB.setLivery(lt.liv);
         const sh = LIB.get(lt.name); if(sh) sh._deck = lt.deck || null;   // the split-level's roof deck (see deckKit)
+        if(sh) sh._walk = lt.walk || 0;                                       // its front path's run to the sidewalk (see yard)
+        if(sh) sh._host = lt.host || null;                                    // a garage's house (see SIERRA VISTA'S GARAGES)
+        if(sh) sh._paved = !!lt.paved;                                        // the estate laid its drive (see THE CASITA HAS ITS OWN)
         LIB.draw(lt.name, gg, G, undefined, this.K, null, true, false);
         LIB.setLivery(0);
+        /* THE BLOCKS STAND IN FRONT (Sir, 2026-09-25, at the split-level's
+           garage: "the garage is painting over the retaing wall"). A
+           terrace block is ground, laid before every body; but a building
+           standing behind one and just west of it is partly hidden by it
+           -- the view ray climbs 1 of height for each 1 of x + y, so the
+           block's 180 hides the garage's east face below 180 - 58 = 122.
+           Drawn after, the garage painted across the block. A lot entirely
+           behind a block's front and west of it can never be in front of
+           any of it, so re-laying that block's lawn, front and cut cap
+           over the lot is always right. */
+        for(const rp of occl){
+          qg = gg;
+          layBlock(rp, rp.b0, rp.c0, rp.yw, rp.yF, true);
+          Q([[rp.c0 - rp.t, rp.yF, S.z[rp.k]],[rp.c0, rp.yF, S.z[rp.k]],[rp.c0, rp.yN, S.z[rp.k]],[rp.c0 - rp.t, rp.yN, S.z[rp.k]]], CAP);   // the cut wall's cap (cutCap)
+          qg = g;
+        }
       }});
     }
     const WALL_H = 96, yw = S.wallY;
@@ -56121,7 +56344,9 @@ function sierraGeo(){
     /* and what is on each roof deck: a pool on every other one, a dining
        set on the rest, so no two neighbours match */
     split.forEach(([x0, name, liv], i) =>
-      lots.push({ name, liv, x0, x1:x0 + HW, yF:yFs, yB:yFs - HD, k:0, z:z[0], sc:SIERRA_HOUSE_SC, split:1, deck: i % 2 ? 'dining' : 'pool' }));
+      lots.push({ name, liv, x0, x1:x0 + HW, yF:yFs, yB:yFs - HD, k:0, z:z[0], sc:SIERRA_HOUSE_SC, split:1, deck: i % 2 ? 'dining' : 'pool',
+                  /* the two on the drive walk on to its sidewalk; the two over the harbour front open lawn */
+                  walk: x0 >= drive0 ? (road[0] - STREET - yFs) / SIERRA_HOUSE_SC : 0 }));
   }
   /* THE GRAND ESTATE at the head of the drive, on the turning circle: the
      Palladian villa at its own larger scale, centred on the circle so the
@@ -56200,7 +56425,75 @@ function sierraGeo(){
     outer.push({ C, O: { x: C.x - (dv.x + side.x)*OUT_R, y: C.y - (dv.y + side.y)*OUT_R },
                  dv, side, R: OUT_R, k: shelfOf(rn.b.z) });
   });
-  _sierraGeo = { B, X0, Y0, RH, SW, STREET, gx, xw, xe, wallY, e, z, ramps, roads, circle, round, lots, gate, HW, HD, path, runs, pads, outer };
+  /* THE DRIVEWAYS (2026-09-25, Sir, drawing one in beside the east
+     split-level on the court: "put in a drive way that crosses the side
+     walk and have the curb and the drain ditch all flow properly this is a
+     high scale place so it has to look correct and smooth"). Laid as a
+     real one is, in its street's own frame -- s along the run, o out from
+     the centreline on the drive's side:
+       the KERB drops to a rolled lip across the drive's width and eases
+         back up over DFL each side (the flares), never a step;
+       the CHANNEL runs on across the mouth untouched, so the water flows
+         past it as it does the length of the street;
+       the APRON -- one tile row of concrete behind the kerb, with wings
+         over the flares -- carries the drop;
+       the DRIVE itself, stone pavers in a border, from the back of the
+         apron across the sidewalk to the terrace wall behind.
+     s0..s1 is exactly four paving tiles, on the T2 lattice, so its edges
+     are the sidewalk's own joints. The kerb gate lets him in across the
+     mouth as it does at a crossing (sierraDriveAt). */
+  const drives = [];
+  {
+    const T = T2, DFL = 1.5*T, AP = T;
+    /* WHICH SIDE EACH GARAGE GOES (Sir: "all the houses in the sierra
+       hights"). The houses stand in columns of HW + gap, so the gap
+       between two lots is exactly a garage and its drive; each row puts
+       every garage on the same side of its house, the side where all of
+       them front the row's street: terrace 1 west (its east house runs
+       past the street's end), terrace 2 east (its west house is past the
+       street's start), terrace 3 west (the same at its east end). The
+       court's split-levels take the gap east of the house, with the
+       garden wall back to it. The grand estate (its cul-de-sac is its
+       drive) and the two split-levels over the harbour (no street before
+       them) have none here. */
+    const gap = ((xE - STREET - 260) - (xW + STREET + 260) - 3*HW) / 4;
+    const rowSide = { 1:-1, 2:1, 3:-1 };
+    for(const lt of lots.slice()){                       // a copy: the garages go on the same list
+      const split = !!lt.split;
+      if(lt.sc !== SIERRA_HOUSE_SC || (split && lt.x0 < gx - STREET)) continue;
+      const side = split ? 1 : rowSide[lt.k];
+      /* THE CASITA HAS ITS OWN (a single-storey garage wing, door a 52..268
+         on its b -60 front): no second garage, just the drive, laid to that
+         door in place of the casita's own strip of concrete (paved) */
+      const own = lt.name === 'Palmline Casita';
+      /* the street before it: the level run nearest in front, over it */
+      const cands = runs.map((rn, n) => ({ rn, n })).filter(({ rn }) => rn.a.y === rn.b.y && rn.a.y > lt.yF && rn.a.z === lt.z);
+      const x0 = split ? Math.ceil(lt.x1 / T) * T
+               : own ? Math.round((lt.x0 + 160*lt.sc - 2*T) / T) * T
+                     : Math.round(((side > 0 ? lt.x1 + gap/2 : lt.x0 - gap/2) - 2*T) / T) * T;
+      const x1 = x0 + 4*T;
+      const hit = cands.filter(({ rn }) => Math.min(rn.a.x, rn.b.x) <= x0 && Math.max(rn.a.x, rn.b.x) >= x1)
+                       .sort((a, b) => b.rn.a.y - a.rn.a.y).pop();
+      if(!hit) continue;
+      const rn = hit.rn, dv = DIRV[rn.f], rv = DIRV[(rn.f + 1) % 4];
+      const sd = Math.sign((lt.yF - rn.a.y)*rv.y);
+      const sa = (x0 - rn.a.x)*dv.x, sb = (x1 - rn.a.x)*dv.x;
+      /* the garage's front is flush with the house's own front wall */
+      const fv = LIB.vol(lt.name);
+      const frontB = fv ? Math.max(...fv.foot.map(q => q[1])) : -150;
+      const gyF = lt.yF + frontB*lt.sc;
+      drives.push({ run:hit.n, side:sd, s0:Math.min(sa, sb), s1:Math.max(sa, sb), x0, x1,
+                    oEnd:Math.abs(gyF - rn.a.y), z:rn.a.z, DFL, AP,
+                    yK:rn.a.y + rv.y*sd*RH, ySw:rn.a.y + rv.y*sd*STREET, yEnd:gyF });
+      if(own){ lt.paved = true; continue; }
+      /* and the garage, overhanging the drive by 16 each side; its frame's
+         a 0 is 50 west of it (see SIERRA VISTA'S GARAGES) */
+      const gx0 = x0 - 16 - 50*lt.sc;
+      lots.push({ name: split ? 'Terrazza Garage' : 'Sierra Garage', host:lt.name, liv:lt.liv,
+                  x0:gx0, x1:gx0 + 300*lt.sc, yF:gyF, yB:gyF - 180*lt.sc, k:lt.k, z:lt.z, sc:lt.sc, garage:1 });
+    }
+  }
+  _sierraGeo = { B, X0, Y0, RH, SW, STREET, gx, xw, xe, wallY, e, z, ramps, roads, circle, round, lots, gate, HW, HD, path, runs, pads, outer, drives };
   return _sierraGeo;
 }
 /* a step that CROSSES a wall line, whatever its length. The walls are thin
@@ -56229,8 +56522,13 @@ function sierraCrosses(x0, y0, x1, y1, R){
     /* the old wall line is open across the ramp AND across its blocks,
        which are the upper terrace carried forward */
     if(crossY(S.e[k], x => x >= rp.b0 && x <= rp.b1)) return true;
-    /* the blocks' front: shut across both blocks, open across the cut */
-    if(crossY(rp.yF, x => x > rp.c0 + R && x < rp.c1 - R)) return true;
+    /* the blocks' front: shut across both blocks, open across the cut --
+       and open beyond the blocks' ends, where there is no wall at all.
+       The line ran the estate's whole width, so the court's lawn had an
+       invisible wall across it at the blocks' depth (found driving up the
+       split-level's drive, 2026-09-25: stopped dead 230 short of the
+       garage doors). sierraBlocks already bounds it by b0..b1. */
+    if(crossY(rp.yF, x => x < rp.b0 - R || x > rp.b1 + R || (x > rp.c0 + R && x < rp.c1 - R))) return true;
     for(const bx of [rp.b0, rp.b1])
       if(bx > S.xw + 1 && bx < S.xe - 1 && crossX(bx, rp.yF, rp.yw)) return true;
   }
@@ -56321,6 +56619,17 @@ function sierraRoundSurface(x, y){
 function sierraPadAt(x, y){
   if(!WORLDGEN_COAST || !sierraInside(x, y)) return false;
   for(const p of sierraGeo().pads) if(Math.abs(p.x - x) <= T2 && Math.abs(p.y - y) <= T2) return true;
+  return sierraDriveAt(x, y);
+}
+/* ...and a driveway's mouth is a dropped kerb too (see THE DRIVEWAYS in
+   sierraGeo): across its width, from a tile into the road back through
+   the sidewalk, the kerb neither stops him nor drops him */
+function sierraDriveAt(x, y){
+  for(const d of sierraGeo().drives){
+    if(x < d.x0 || x > d.x1) continue;
+    const yA = d.yK - Math.sign(d.ySw - d.yK)*T2;          // a tile out into the road
+    if(y >= Math.min(yA, d.ySw) && y <= Math.max(yA, d.ySw)) return true;
+  }
   return false;
 }
 /* the ground height at (x, y): the shelf you stand on, or the ramp */
