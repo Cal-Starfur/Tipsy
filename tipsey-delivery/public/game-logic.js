@@ -56364,7 +56364,14 @@ function sierraSlope(x, y, yaw){
    (sierraGateStep), read by the collision (sierraGateShut) and by the
    draw -- so the boom you see and the boom you hit are the same boom. */
 const SV_GATE = { w:0, e:0, leaving:false, g:{ mode:'booth', x:0, y:0, th:Math.PI/2, side:1, moving:false, posted:false, idleT:0 } };
-function sierraGateAdmits(scene){ return false; }
+/* THE DEV PASS (2026-09-25, Sir: "i need a way to get past the guard at
+   the shack so i can keep dialing in sierra vista"). While the debug
+   switch is on (five taps on the VIEW badge; stored, so it holds in the
+   home-screen app and on Reddit) the estate admits him: the lane in lifts
+   and the guard stays in the booth. The first gameplay effect that switch
+   has ever had, so the step says so on screen when it lets him in. The
+   real rule -- an order for a Sierra Vista address -- goes here later. */
+function sierraGateAdmits(scene){ return !!OW_DBG; }
 const SV_GUARD_R = 26, SV_GUARD_RUN = 0.5, SV_GUARD_WALK = 0.14;
 function sierraGateStep(scene, dt){
   if(!WORLDGEN_COAST || !scene) return;
@@ -56378,7 +56385,10 @@ function sierraGateStep(scene, dt){
   else if(!inside && d > RD.out + 200) G.leaving = false;
   const k = 1 - Math.pow(0.92, dt / 16.7);
   G.w += ((d < 1100 && (inside || admit || G.leaving) ? 1 : 0) - G.w) * k;   // the lane out
-  G.e += ((d < 1100 && admit && !inside ? 1 : 0) - G.e) * k;                 // the lane in
+  G.e += ((d < 1100 && admit ? 1 : 0) - G.e) * k;                            // the lane in: up while he is admitted and near, both sides of the line
+  if(admit && !inside && d < RD.out + 400){
+    if(!G.passTold){ G.passTold = true; owDbgToast('gate: dev pass (debug on)'); }
+  } else if(d > RD.out + 800) G.passTold = false;
   /* is he trying it? outside, near, and either on the pavement round a
      boom or right up against one. Out to RD.out + 400 to start, + 600 to
      stop, so the edge of the zone cannot flicker him in and out. */
