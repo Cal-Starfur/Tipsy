@@ -3216,6 +3216,18 @@ const POLICE_UNIFORM = {
   cap:   { c:0x1e2840, dk:0x141c2d, top:0x243052, badge:0xe8c96a }
 };
 
+/* SECURITY UNIFORM (2026-09-25, Sir: "the guard can be modeled off of
+   our police but be wearing a tan uniform"). Same hull, same cap and
+   vest as POLICE_UNIFORM -- only the cloth changes: tan shirt and vest,
+   brown trousers and cap, the same gold badge. Sierra Vista's gate guard. */
+const SECURITY_UNIFORM = {
+  shirt: { c:0xcdb68a, dk:0xa8926a },
+  pants: { c:0x6e5a3e, dk:0x54442f },
+  shoe:  { c:0x2a2118, dk:0x1c1610 },
+  vest:  { c:0xbba273, dk:0x957f57 },
+  cap:   { c:0x5e4b33, dk:0x463827, top:0x6b573c, badge:0xe8c96a }
+};
+
 /* ================= THE WILLIAM — wrap-around-lap hostile pedestrian.
    Original homage to the robot-kicking midlife-crisis-brewer sitcom
    archetype: bucket hat + LOUD matching vacation shirt/bermuda set
@@ -36782,10 +36794,24 @@ class WorldScene extends Phaser.Scene {
     for(let k = 3; k >= 1; k--){
       const rp = S.ramps[k-1], z = S.z[k], zLo = S.z[k-1], yw = S.e[k];
       const cut0 = rp.c0, cut1 = rp.c1;
-      /* the ramp's shoulders stop 12 short of the wall's ends, so its kerb
-         and the cut ends are never coplanar */
-      const sh0 = cut0 + 12, sh1 = cut1 - 12;
       const zAt = y => rp.zS + (rp.zN - rp.zS) * ((rp.yS - y) / (rp.yS - rp.yN));
+      const yAt = zz => rp.yS - (zz - rp.zS) / (rp.zN - rp.zS) * (rp.yS - rp.yN);
+      /* THE CUT WALL, dressed as every retaining wall is (see CUT_T in
+         sierraGeo): its face on the back of the sidewalk from the blocks'
+         front up to the ramp's head, standing on the slope, in the +x
+         shade the estate's east flanks use; the SAME courses as the front
+         face (zLo + 30 up), so they turn the corner with it and run out
+         where the slope climbs past them; and the cap on top, CUT_T deep,
+         meeting the front face's cap at the corner. Only the west one faces
+         the camera; the east one gets its cap. */
+      const cutCap = (xa, xb) => Q([[xa, rp.yF, z],[xb, rp.yF, z],[xb, rp.yN, z],[xa, rp.yN, z]], CAP);
+      const cutWall = x => {
+        Q([[x, rp.yF, zAt(rp.yF)],[x, rp.yN, rp.zN],[x, rp.yN, z],[x, rp.yF, z]], shade(STONE, .78));
+        for(let zz = zLo + 30; zz < z - 8; zz += 30){
+          if(zz + 3 <= zAt(rp.yF)) continue;
+          Q([[x + 0.5, rp.yF, zz],[x + 0.5, Math.min(rp.yF, yAt(zz)), zz],[x + 0.5, Math.min(rp.yF, yAt(zz + 3)), zz + 3],[x + 0.5, rp.yF, zz + 3]], shade(STONE, .7));
+        }
+      };
       /* the west block, then the cut's west wall the whole way up -- both
          behind the ramp from the camera, so under it */
       const block = (x0, x1, yTop = yw, yFr = rp.yF, face = true) => {
@@ -36798,7 +36824,8 @@ class WorldScene extends Phaser.Scene {
         if(face) wallFace(x0, x1, yFr, zLo, z);
       };
       block(rp.b0, cut0);
-      Q([[sh0, rp.yF, z],[sh0, rp.yN, z],[sh0, rp.yN, rp.zN],[sh0, rp.yF, zAt(rp.yF)]], shade(STONE, .8));   // cut, west face
+      cutWall(cut0);
+      cutCap(cut0 - rp.t, cut0);
       /* the street up the slope, in the city's order: paving behind the
          road, the road, paving in front, then the ramp's stretch of gutter,
          kerb and centre line -- all before the east block, which stands
@@ -36817,7 +36844,8 @@ class WorldScene extends Phaser.Scene {
       /* the east block's lawn comes right to the road's edge, so the ramp's
          east shoulder is under it rather than showing as a tapering sliver
          where the cut runs out at the head */
-      block(rp.x + STREET, rp.b1, rp.yN);
+      block(cut1, rp.b1, rp.yN);
+      cutCap(cut1, cut1 + rp.t);
       if(rp.b1 >= S.xe - 1){                                   // out to the estate's east flank: the flank rises with it
         Q([[S.xe, rp.yF, 0],[S.xe, yw, 0],[S.xe, yw, z],[S.xe, rp.yF, z]], shade(STONE, .78));
         for(let zz = 30; zz < z - 8; zz += 30) Q([[S.xe + 0.5, rp.yF, zz],[S.xe + 0.5, yw, zz],[S.xe + 0.5, yw, zz + 3],[S.xe + 0.5, rp.yF, zz + 3]], shade(STONE, .7));
@@ -36954,14 +36982,12 @@ class WorldScene extends Phaser.Scene {
        gate", "pivot from the island"). A post on the island's edge each side
        of the booth, on the old gate line, and a boom from it across that
        side's lane to the outer kerb: west is the lane out, east the lane in.
-       Each lifts on its own as the robot comes up on its side. */
+       How far each is up is SV_GATE's (see THE GATE, RUN): the lane out
+       lifts for him leaving, the lane in only for someone admitted. */
     const RD = S.round, POST = RD.ri - 40, L = RD.r - POST - 14;
-    const near = Math.hypot(this.botX - gx, this.botY - yw) < 1100;
-    const arms = this._sierraArms || (this._sierraArms = { w:0, e:0 });
+    const arms = SV_GATE;
     for(const sd of [-1, 1]){
       const key = sd < 0 ? 'w' : 'e';
-      const mine = near && (this.botX - gx) * sd > -RD.ri;             // his side of the round, or its middle
-      arms[key] = Phaser.Math.Linear(arms[key], mine ? 1 : 0, 0.08);
       const ang = arms[key] * Math.PI * 0.45, pvx = gx + sd*POST, PZ = ISL + 104;
       bodies.push({ depth: pvx + sd*L*0.5 + yw + 2, fn: (gg) => {
         boxW(gg, pvx - 16, pvx + 16, yw - 16, yw + 16, ISL, PZ + 18, 0xf2efe6, 0xcfc9b8, 0xe6e1d4);                   // the post
@@ -36973,6 +36999,25 @@ class WorldScene extends Phaser.Scene {
           const a0 = pvx + (tipX - pvx)*t, z0 = PZ - 6 + (tipZ - PZ)*t;
           Qg([[a0, yw + 22, z0],[a0 + sd*Math.cos(ang)*40, yw + 22, z0 + Math.sin(ang)*40],[a0 + sd*Math.cos(ang)*40, yw + 22, z0 + Math.sin(ang)*40 + 12],[a0, yw + 22, z0 + 12]], 0xd9352a);
         }
+      }});
+    }
+    /* THE GUARD, out of his booth (see THE GATE, RUN): the police
+       officer's hull in SECURITY_UNIFORM, running when he runs, the stop
+       arm up once he holds the line. Stands on the island's raised ground
+       while he is on it. */
+    const gd = SV_GATE.g;
+    if(gd.mode !== 'booth'){
+      const gz = Math.hypot(gd.x - gx, gd.y - yw) < RD.ri ? ISL : 0;
+      bodies.push({ depth: gd.x + gd.y, fn: (gg, t) => {
+        const tt = t || this.time.now;
+        const rng = mulberry32(0x5e7a >>> 0);
+        const build = PEOPLE_BUILD[Math.floor(rng()*PEOPLE_BUILD.length)];
+        const skin = PEOPLE_SKIN[Math.floor(rng()*PEOPLE_SKIN.length)];
+        const hair = PEOPLE_HAIR[Math.floor(rng()*PEOPLE_HAIR.length)];
+        const walk = gd.moving ? Math.sin(tt * PEOPLE_ART.walkSpeed * 1.8) : 0;
+        this.drawPersonHull(gg, gd.x, gd.y, gz, gd.th, build, skin,
+          SECURITY_UNIFORM.shirt, SECURITY_UNIFORM.pants, hair, SECURITY_UNIFORM.shoe,
+          walk, gd.moving, 0, gd.posted ? 0.92 : 0, null, SECURITY_UNIFORM);
       }});
     }
   }
@@ -50438,7 +50483,7 @@ class WorldScene extends Phaser.Scene {
     if(OW_ARMED && !this.ow && this.route && this.state === "play"
        && (this.mode === "freeroam" || this.mode === "delivery")) owInstall(this);
     if(this.ow && this.ow.on){
-      if(this.state === "play"){ owStep(this, Math.min(dt, 40)); navTick(this, t); }
+      if(this.state === "play"){ owStep(this, Math.min(dt, 40)); sierraGateStep(this, Math.min(dt, 40)); navTick(this, t); }
       else { this.throttle = 0; owRespawnTick(this, t); }
     }
     else if(this.attract){ this.attractDrive(); }
@@ -55310,10 +55355,16 @@ function tpMiniDraw(scene){
     }
   }
   ctx.strokeStyle = hex(pal.road);
-  /* 1.118 is |(dx-dy, (dx+dy)/2)| for a unit normal on either lattice
-     axis -- both axes project to the same width, so one number covers
-     the whole grid and the roads stay the width of the gap they fill. */
-  ctx.lineWidth = Math.max(1.5, 2*ROAD_HALF*scale*1.118);
+  /* A lattice street's width on this canvas. Either axis projects to
+     direction (1, 1/2) (length 1.118), and a width w across it lands
+     1.118 long along the projected normal -- but a stroke's width is
+     measured PERPENDICULAR to its line, which is w / 1.118, not w * 1.118.
+     The old number drew every street 25% too fat, so the town read
+     chunkier than Sierra Vista's streets beside it, which are filled as
+     true quads (2026-09-25, Sir: "the scale is off a bit for the Sierra
+     Vista compared to the blocks of town"). Measured: a quad and a stroke
+     of the same road now land the same pixel width. */
+  ctx.lineWidth = Math.max(1.5, 2*ROAD_HALF*scale/1.118);
   ctx.lineCap = "butt";
   const near = p => Math.abs(p.x - cx) < span*1.5 && Math.abs(p.y - cy) < span*1.5;
   for(const e of (grid.edges || [])){
@@ -55322,6 +55373,51 @@ function tpMiniDraw(scene){
     ctx.beginPath(); ctx.moveTo(pa.x, pa.y); ctx.lineTo(pb.x, pb.y); ctx.stroke();
   }
   ctx.lineCap = "round";
+
+  /* SIERRA VISTA (2026-09-25, Sir, driving past its gate: "why dont we
+     see Sierra Vista on our little map? lets get it on there"). The
+     estate is not on the lattice -- it is sierraGeo's own ground behind
+     its wall -- so the block and edge passes above never knew it was
+     there and the minimap showed blank pavement north of the gate. Drawn
+     here as the big map draws it (same layers, same colours: shelves
+     darker as they climb, houses, sidewalks, the drive and its ramps,
+     the turning circle, the walls, the gate round), through this map's
+     own projection. Only when the estate is near enough to be seen. */
+  if(WORLDGEN_COAST && typeof sierraGeo === "function"){
+    const S = sierraGeo();
+    if(cx > S.xw - span*1.5 && cx < S.xe + span*1.5 && cy > S.e[4] - span*1.5 && cy < S.wallY + span*1.5){
+      const band = (x0, y0, x1, y1, col) => { ctx.fillStyle = col; quad(Math.min(x0, x1), Math.min(y0, y1), Math.max(x0, x1), Math.max(y0, y1)); };
+      const disc = (ox, oy, rad, col) => {
+        ctx.fillStyle = col; ctx.beginPath();
+        for(let a = 0; a < 32; a++){ const t = a/32*Math.PI*2, q = T({ x: ox + Math.cos(t)*rad, y: oy + Math.sin(t)*rad }); a ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y); }
+        ctx.closePath(); ctx.fill();
+      };
+      const shelfC = ["#b9d08a", "#abc47e", "#9db872", "#8fab66"], PAVE = hex(pal.pave), ROAD = hex(pal.road);
+      for(let k = 3; k >= 0; k--) band(S.xw, S.e[k+1], S.xe, S.e[k], shelfC[k]);
+      for(const lt of S.lots) band(lt.x0 + lt.sc*40, lt.yB + lt.sc*60, lt.x1 - lt.sc*40, lt.yF - lt.sc*60, "#e2b48a");   // the houses
+      for(const rd of S.roads) band(rd.x0 - S.SW, rd.y0 - S.SW, rd.x1 + S.SW, rd.y1 + S.SW, PAVE);                     // the sidewalks
+      for(const rp of S.ramps) band(rp.c0, rp.yN, rp.c1, rp.yS, PAVE);
+      disc(S.circle.x, S.circle.y, S.circle.r + S.SW, PAVE);
+      for(const rd of S.roads) band(rd.x0, rd.y0, rd.x1, rd.y1, ROAD);
+      for(const rp of S.ramps) band(rp.x - S.RH, rp.yN, rp.x + S.RH, rp.yS, ROAD);
+      disc(S.circle.x, S.circle.y, S.circle.r, ROAD);
+      disc(S.circle.x, S.circle.y, 160, shelfC[3]);
+      const wallC = "#8a7f68", t = 70;
+      band(S.xw, S.wallY - t, S.gate.x - S.gate.open, S.wallY + t, wallC);
+      band(S.gate.x + S.gate.open, S.wallY - t, S.xe, S.wallY + t, wallC);
+      band(S.xw - t, S.e[4], S.xw + t, S.wallY, wallC); band(S.xe - t, S.e[4], S.xe + t, S.wallY, wallC);
+      band(S.xw, S.e[4] - t, S.xe, S.e[4] + t, wallC);
+      for(let k = 1; k <= 3; k++){ const rp = S.ramps[k-1];
+        band(S.xw, S.e[k] - 30, rp.b0, S.e[k] + 30, wallC); band(rp.b1, S.e[k] - 30, S.xe, S.e[k] + 30, wallC);
+        band(rp.b0, rp.yF - 30, rp.c0, rp.yF + 30, wallC); band(rp.c1, rp.yF - 30, rp.b1, rp.yF + 30, wallC); }
+      /* the gate round last: it straddles the wall and the city street's end */
+      const c = S.round;
+      disc(c.x, c.y, c.out, PAVE);
+      band(c.x - S.RH, c.y - c.out, c.x + S.RH, c.y + c.out, ROAD);
+      disc(c.x, c.y, c.r, ROAD);
+      disc(c.x, c.y, c.ri, "#9fbd6a");
+    }
+  }
 
   /* the errand's own line, offset onto the walk by the SAME gpsWalkPts
      the big map draws through -- one geometry, two canvases, so the
@@ -56040,15 +56136,26 @@ function sierraGeo(){
      of each ramp, as far as the ramp's foot: a block of lawn at the upper
      level with a full-height wall across its front, and the ramp -- road
      and both sidewalks -- runs up between the two blocks in a walled cut.
-       c0..c1  the cut: the street's full width, and 40 of verge each side
+       c0..c1  the cut: exactly the street's width, back of sidewalk to
+               back of sidewalk -- the cut walls' faces ARE its edges
        b0..c0 and c1..b1  the two blocks; out to the estate wall on the side
-                          that faces it, BAY_W on the other
-       yF      the blocks' front face -- the ramp's foot, held 32 back */
-  const BAY_W = 530;
+                          that faces it, BAY_W + CUT_T on the other
+       yF      the blocks' front face -- the ramp's foot, held 32 back
+     THE CUT WALLS BUTT THE SIDEWALK (2026-09-25, Sir, on-device at R2 and
+     R3: "give them a polish so they match the rest of the wall features
+     and are cleanly butted to the sidewalk and existing walls"). The cut
+     used to be 40 wider than the street each side, so the ramp's paving
+     stopped short of the wall and the shelf below showed through the gap
+     as a sliver of lawn. The wall's CUT_T of thickness (the cap's depth on
+     every retaining wall) now stands on the block, outside the cut, and
+     the face, the paving's edge, the kerb band and the collision line are
+     one line. */
+  const BAY_W = 530, CUT_T = 40;
   for(const rp of ramps){
-    rp.c0 = rp.x - STREET - 40; rp.c1 = rp.x + STREET + 40;
-    rp.b0 = rp.x < (xw + xe)/2 ? xw : rp.c0 - BAY_W;
-    rp.b1 = rp.x > (xw + xe)/2 ? xe : rp.c1 + BAY_W;
+    rp.c0 = rp.x - STREET; rp.c1 = rp.x + STREET;
+    rp.b0 = rp.x < (xw + xe)/2 ? xw : rp.c0 - CUT_T - BAY_W;
+    rp.b1 = rp.x > (xw + xe)/2 ? xe : rp.c1 + CUT_T + BAY_W;
+    rp.t = CUT_T;
     rp.yF = rp.yS - 32; rp.yw = e[rp.k];
   }
   /* THE CROSSINGS: at every corner, each of the two streets is crossed
@@ -56115,7 +56222,7 @@ function sierraCrosses(x0, y0, x1, y1, R){
     const t = (xw - x0) / (x1 - x0), y = y0 + (y1 - y0) * t;
     return y <= ya && y >= yb;
   };
-  if(crossY(S.wallY, x => Math.abs(x - S.gate.x) < S.gate.open - R)) return true;
+  if(crossY(S.wallY, x => Math.abs(x - S.gate.x) < S.gate.open - R && !sierraGateShut(x, R))) return true;
   if(crossY(S.e[4], () => false)) return true;
   for(let k = 1; k <= 3; k++){
     const rp = S.ramps[k-1];
@@ -56234,6 +56341,91 @@ function sierraSlope(x, y, yaw){
   const c = Math.cos(yaw), s2 = Math.sin(yaw);
   return (sierraZ(x + c*24, y + s2*24) - sierraZ(x - c*24, y - s2*24)) / 48;
 }
+/* ---------- THE GATE, RUN (2026-09-25) ----------
+   Sir: "the gate should not go up automatically for tipsey. and if he
+   tries to go around there should be a security guard that comes out and
+   stops him."
+
+   The booms used to be paint: each lifted as he came up on its side and
+   nothing ever stopped him, so the round was an open road with a booth
+   in it. Now they are the gate:
+     THE BOOMS are solid across their lanes while down (arm < 0.6). The
+       lane IN (east) lifts only for someone the estate admits --
+       sierraGateAdmits, which nothing does yet; the hook is where a
+       Sierra Vista delivery would open it. The lane OUT (west) lifts for
+       anyone leaving, as an exit gate does, so he is never shut in.
+     THE GUARD waits in the booth. Come at the gate from the city on the
+       pavement round a boom (or sit at a boom), and he comes out at a
+       run to the gate line on your side, keeps himself between you and
+       the gap, arm up, and says so once. While he holds the gate line
+       that side's pavement is shut; he is solid himself wherever he
+       stands. Back off and he walks back to the booth.
+   One state, SV_GATE, stepped once a frame from the scene's update
+   (sierraGateStep), read by the collision (sierraGateShut) and by the
+   draw -- so the boom you see and the boom you hit are the same boom. */
+const SV_GATE = { w:0, e:0, leaving:false, g:{ mode:'booth', x:0, y:0, th:Math.PI/2, side:1, moving:false, posted:false, idleT:0 } };
+function sierraGateAdmits(scene){ return false; }
+const SV_GUARD_R = 26, SV_GUARD_RUN = 0.5, SV_GUARD_WALK = 0.14;
+function sierraGateStep(scene, dt){
+  if(!WORLDGEN_COAST || !scene) return;
+  const S = sierraGeo(), RD = S.round, gx = S.gate.x, yw = S.wallY, G = SV_GATE, gd = G.g;
+  const bx = scene.botX, by = scene.botY, d = Math.hypot(bx - gx, by - yw);
+  const inside = by < yw, admit = sierraGateAdmits(scene);
+  /* LEAVING lasts until he is clear of the round: the moment he crosses
+     the line he is outside, and the boom must not drop on him, nor the
+     guard come out at a robot on his way home */
+  if(inside && d < 1100) G.leaving = true;
+  else if(!inside && d > RD.out + 200) G.leaving = false;
+  const k = 1 - Math.pow(0.92, dt / 16.7);
+  G.w += ((d < 1100 && (inside || admit || G.leaving) ? 1 : 0) - G.w) * k;   // the lane out
+  G.e += ((d < 1100 && admit && !inside ? 1 : 0) - G.e) * k;                 // the lane in
+  /* is he trying it? outside, near, and either on the pavement round a
+     boom or right up against one. Out to RD.out + 400 to start, + 600 to
+     stop, so the edge of the zone cannot flicker him in and out. */
+  const side = bx >= gx ? 1 : -1, ax = Math.abs(bx - gx);
+  const reach = RD.out + (gd.mode === 'out' ? 600 : 400);
+  const trying = !admit && !inside && !G.leaving && d < reach && (ax > RD.r - 40 || by - yw < 220);
+  const home = { x: gx, y: yw + 100 };
+  if(trying){
+    gd.idleT = 0;
+    if(gd.mode === 'booth'){
+      gd.mode = 'out'; gd.x = home.x; gd.y = home.y; gd.side = side; gd.told = false;
+    }
+    if(gd.mode === 'back') gd.mode = 'out';
+    gd.side = side;
+  } else if(gd.mode === 'out' && (gd.idleT += dt) > 1500) gd.mode = 'back';
+  if(gd.mode === 'booth'){ gd.posted = false; gd.moving = false; return; }
+  /* his spot: on the gate line, a step inside it, between the robot and
+     the gap -- anywhere along his side from the island to the pier */
+  const tx = gd.mode === 'back' ? home.x : gx + gd.side * Math.max(RD.ri + 60, Math.min(RD.out - 40, ax)),
+        ty = gd.mode === 'back' ? home.y : yw - 45;
+  const dx = tx - gd.x, dy = ty - gd.y, dd = Math.hypot(dx, dy);
+  const v = (dd > 120 ? SV_GUARD_RUN : SV_GUARD_WALK) * dt;
+  gd.moving = dd > 4;
+  if(dd > 0.5){ const st = Math.min(dd, v); gd.x += dx / dd * st; gd.y += dy / dd * st; }
+  /* he does not walk through the robot to get there */
+  const rd = Math.hypot(gd.x - bx, gd.y - by), keep = SV_GUARD_R + 34;
+  if(rd < keep && rd > 0.01){ gd.x = bx + (gd.x - bx) / rd * keep; gd.y = by + (gd.y - by) / rd * keep; }
+  gd.posted = gd.mode === 'out' && Math.abs(gd.y - (yw - 45)) < 80 && Math.sign(gd.x - gx) === gd.side && Math.abs(gd.x - gx) > RD.ri;
+  /* the hull faces along its b axis (-sin th, cos th), so a heading
+     (fx, fy) is th = atan2(-fx, fy) */
+  const fx = gd.posted || dd < 40 ? bx - gd.x : dx, fy = gd.posted || dd < 40 ? by - gd.y : dy;
+  gd.th = Math.atan2(-fx, fy);
+  if(gd.posted && !gd.told){
+    gd.told = true;
+    if(typeof tpToast === 'function') try { tpToast('\u{1F6D1} Security: Sierra Vista is residents only'); } catch(e){}
+  }
+  if(gd.mode === 'back' && dd < 6){ gd.mode = 'booth'; gd.posted = false; gd.moving = false; }
+}
+if(typeof window !== 'undefined') window.SV_GATE = SV_GATE;
+/* the gate line at x: shut to a body of radius R? A boom that is down
+   shuts its lane (the island is its own solid); the guard, holding the
+   line, shuts the pavement on his side. */
+function sierraGateShut(x, R){
+  const S = sierraGeo(), RD = S.round, dx = x - S.gate.x, G = SV_GATE;
+  if(Math.abs(dx) < RD.r + R) return (dx < 0 ? G.w : G.e) < 0.6;
+  return G.g.posted && Math.sign(dx) === G.g.side;
+}
 /* the walls: perimeter (gate open), sides, back, and every retaining wall
    except across its ramp. Answered as a kerb: it stops him, never tips him. */
 function sierraBlocks(x, y, R){
@@ -56244,6 +56436,8 @@ function sierraBlocks(x, y, R){
   if(Math.hypot(x - S.round.x, y - S.round.y) < S.round.ri + 22 + R) return true;
   if(x < S.xw - t || x > S.xe + t || y > S.wallY + t || y < S.e[4] - t) return false;
   if(Math.abs(y - S.wallY) < t && Math.abs(x - S.gate.x) > S.gate.open - R) return true;   // front wall, gate gap
+  if(Math.abs(y - S.wallY) < t && sierraGateShut(x, R)) return true;                        // the booms, and the guard's side
+  if(SV_GATE.g.mode !== 'booth' && Math.hypot(x - SV_GATE.g.x, y - SV_GATE.g.y) < SV_GUARD_R + R) return true;   // the guard himself
   if(y < S.wallY - 1 && (Math.abs(x - S.xw) < t || Math.abs(x - S.xe) < t)) return true;  // side walls
   if(Math.abs(y - S.e[4]) < t) return true;                                                // back wall
   for(let k = 1; k <= 3; k++){
