@@ -36574,6 +36574,10 @@ class WorldScene extends Phaser.Scene {
           (cx < rp.x ? rmp[n].w : rmp[n].e).push({ x0:i*T, y0:j*T, p:(i + j) & 1 });
         }
       });
+      /* THE HARBOUR WALK's tiles, on its shelf, with the city's parity */
+      for(const wk of S.walks)
+        for(let j = Math.round(wk.y0 / T); j * T < wk.y1 - 0.5; j++) for(let i = Math.round(wk.x0 / T); i * T < wk.x1 - 0.5; i++)
+          lvl[S.z.indexOf(wk.z)].push({ x0:i*T, y0:j*T, p:(i + j) & 1 });
       S._tiles = { lvl, rmp };
     }
     const tileSpan = (this.scale.gameSize.width + this.scale.gameSize.height) / this.K + 400;
@@ -36947,6 +36951,35 @@ class WorldScene extends Phaser.Scene {
       { const N = 28, ring = (rr, h) => Array.from({ length:N }, (_, j) => P(rr, j/N*2*Math.PI, h));
         qd(ring(IR, .55), 0xd8d0bc); qd(ring(IR - 12, .6), LAWN); }
     };
+    /* THE TENNIS COURT, its ground (see sierraGeo): a hard court -- the
+       green surround out to the fence, the blue court inside the doubles
+       lines, and the white lines, 5 wide, laid inside their measures as
+       real lines are: baselines, doubles and singles sidelines, service
+       lines, the centre service line and the centre marks. Then the path
+       up from the harbour walk to the gate. The fence and net are bodies. */
+    const drawTennis = () => {
+      const tc = S.tennis, z = tc.z;
+      if(Math.abs(tc.cx - this.camX) + Math.abs(tc.cy - this.camY) > tileSpan + 3000) return;
+      const w = (x, y, h) => this.W(x, y, z + h);
+      const rc = (x0, x1, y0, y1, h, col) => { const P = [w(x0, y0, h), w(x1, y0, h), w(x1, y1, h), w(x0, y1, h)]; if(onScreen(P)) this.quadOn(g, P, col); };
+      const GRN = 0x4c8a5e, BLU = 0x3b6ea8, LINE = 0xf2f2ec, LW = 5;
+      rc(tc.x0, tc.x1, tc.y0, tc.y1, .4, GRN);
+      const cx = tc.cx, cy = tc.cy;
+      rc(cx - tc.hx, cx + tc.hx, cy - tc.hy, cy + tc.hy, .45, BLU);
+      const hline = (x0, x1, y) => rc(x0, x1, y - LW/2, y + LW/2, .5, LINE);
+      const vline = (x, y0, y1) => rc(x - LW/2, x + LW/2, y0, y1, .5, LINE);
+      for(const sg of [-1, 1]){
+        vline(cx + sg*(tc.hx - LW/2), cy - tc.hy, cy + tc.hy);                  // the baselines
+        hline(cx - tc.hx, cx + tc.hx, cy + sg*(tc.hy - LW/2));                  // the doubles sidelines
+        hline(cx - tc.hx, cx + tc.hx, cy + sg*(tc.sy - LW/2));                  // the singles sidelines
+        vline(cx + sg*tc.svc, cy - tc.sy, cy + tc.sy);                          // the service lines
+        rc(cx + sg*(tc.hx - 0.10*TN.m), cx + sg*tc.hx, cy - LW/2, cy + LW/2, .5, LINE);   // the centre marks
+      }
+      hline(cx - tc.svc, cx + tc.svc, cy);                                      // the centre service line
+      /* the path up from the walk to the gate */
+      const wk = S.walks[0];
+      rc(tc.gate[0], tc.gate[1], wk.y1, tc.y0, .42, 0xcfc9ba);
+    };
     const drawDrives = k => { for(const d of S.drives){
       if(S.z.indexOf(d.z) !== k) continue;
       const rn = S.runs[d.run], dv = DIRV[rn.f], rv = DIRV[(rn.f + 1) % 4];
@@ -37015,6 +37048,7 @@ class WorldScene extends Phaser.Scene {
       }
       drawDrives(k);                                         // this shelf's driveways, on its paving (see THE DRIVEWAYS' GROUND)
       if(S.circle.k === k) drawCourt(z);                     // the estate's motor court (see THE MOTOR COURT)
+      if(S.z.indexOf(S.tennis.z) === k) drawTennis();        // the tennis court's surface and lines (see THE TENNIS COURT)
       /* the retaining wall on this shelf's FRONT edge (e[k]), down to the
          shelf below, with the gap its ramp passes through. The ramp itself
          is drawn in its own pass below. */
@@ -37177,6 +37211,80 @@ class WorldScene extends Phaser.Scene {
     }
     /* BODIES: the houses, the perimeter wall (in runs) and the gatehouse */
     const bodies = this._sierraBodies = [];
+    /* THE TENNIS COURT'S FENCE AND NET (see THE TENNIS COURT): green
+       chain link, TN.fenceH high, on green posts at TN.m*3.05 centres,
+       with a top rail, a bottom rail and a mid rail; the link itself a
+       translucent green with its diamond read as a lighter lattice, so the
+       court shows through it. Each panel between two posts is its own body
+       at its own depth, so the far fences go down behind the court's
+       players and the near ones in front. The gate is two panels' worth of
+       open frame. The net: posts, a dark mesh, its white tape and the
+       centre strap. */
+    { const tc = S.tennis, zc = tc.z;
+      if(Math.abs(tc.cx - this.camX) + Math.abs(tc.cy - this.camY) < tileSpan + 3000){
+        const FH = TN.fenceH, PC = 3.05*TN.m, POST = 0x2f5a3a, LINK = 0x3f7a4c, RAIL = 0x2a5034;
+        const panel = (ax, ay, bx, by, open) => {
+          const L = Math.hypot(bx - ax, by - ay);
+          bodies.push({ depth: (ax + bx)/2 + (ay + by)/2, fn: (gg) => {
+            const w = (x, y, h) => this.W(x, y, zc + h);
+            const q = (P, col, al) => { if(onScreen(P)) this.quadOn(gg, P, col, al); };
+            const ln = (P, col, lw) => { if(onScreen(P)) this.edgeOn(gg, P, col, lw); };
+            if(!open){
+              q([w(ax, ay, 0), w(bx, by, 0), w(bx, by, FH), w(ax, ay, FH)], LINK, 0.28);
+              const n = Math.max(2, Math.round(L / 24));
+              for(let i = 0; i <= n; i++){                         // the diamond, as two lattices of diagonals
+                const t0 = i/n;
+                const x0 = ax + (bx - ax)*t0, y0 = ay + (by - ay)*t0;
+                for(const sgn of [1, -1]){
+                  const t1 = Math.max(0, Math.min(1, t0 + sgn*FH/L)), x1 = ax + (bx - ax)*t1, y1 = ay + (by - ay)*t1, h1 = Math.abs(t1 - t0)*L;
+                  ln([w(x0, y0, 0), w(x1, y1, h1)], 0x6fa37a, 0.5);
+                }
+              }
+            }
+            for(const h of open ? [FH - 2] : [4, FH*0.5, FH - 2]) ln([w(ax, ay, h), w(bx, by, h)], RAIL, 2);   // rails; over the gate, its header only
+            ln([w(ax, ay, 0), w(ax, ay, FH + 6)], POST, 3);             // its post
+          }});
+        };
+        const side = (ax, ay, bx, by, gate) => {
+          const L = Math.hypot(bx - ax, by - ay), n = Math.max(1, Math.round(L / PC));
+          for(let i = 0; i < n; i++){
+            const t0 = i/n, t1 = (i + 1)/n;
+            const x0 = ax + (bx - ax)*t0, y0 = ay + (by - ay)*t0, x1 = ax + (bx - ax)*t1, y1 = ay + (by - ay)*t1;
+            if(gate && y0 === y1 && Math.max(x0, x1) > gate[0] && Math.min(x0, x1) < gate[1]){
+              /* the gate: fence up to its jamb, the opening, fence on */
+              if(Math.min(x0, x1) < gate[0]) panel(Math.min(x0, x1), y0, gate[0], y0, false);
+              panel(gate[0], y0, gate[1], y0, true);
+              if(Math.max(x0, x1) > gate[1]) panel(gate[1], y0, Math.max(x0, x1), y0, false);
+            } else panel(x0, y0, x1, y1, false);
+          }
+        };
+        side(tc.x0, tc.y0, tc.x1, tc.y0, tc.gate);                 // north, with the gate
+        side(tc.x0, tc.y0, tc.x0, tc.y1);                           // west
+        side(tc.x0, tc.y1, tc.x1, tc.y1);                           // south
+        side(tc.x1, tc.y0, tc.x1, tc.y1);                           // east
+        panel(tc.x1, tc.y1, tc.x1, tc.y1, true);                    // the last corner's post
+        /* the net, across the court at its middle */
+        bodies.push({ depth: tc.cx + tc.cy, fn: (gg) => {
+          const w = (y, h) => this.W(tc.cx, y, zc + h);
+          const q = (P, col, al) => { if(onScreen(P)) this.quadOn(gg, P, col, al); };
+          const ln = (P, col, lw) => { if(onScreen(P)) this.edgeOn(gg, P, col, lw); };
+          const y0 = tc.cy - tc.post, y1 = tc.cy + tc.post, hP = 1.07*TN.m, hC = 0.914*TN.m;
+          const top = y => hC + (hP - hC) * Math.abs(y - tc.cy) / tc.post;
+          const N = 8;
+          for(let i = 0; i < N; i++){
+            const ya = y0 + (y1 - y0)*i/N, yb = y0 + (y1 - y0)*(i + 1)/N;
+            q([w(ya, 6), w(yb, 6), w(yb, top(yb)), w(ya, top(ya))], 0x1c2226, 0.55);
+          }
+          for(let h = 14; h < hC; h += 10) ln([w(y0, h), w(y1, h)], 0x2c3438, 0.5);
+          for(let i = 0; i < N; i++){
+            const ya = y0 + (y1 - y0)*i/N, yb = y0 + (y1 - y0)*(i + 1)/N;
+            q([w(ya, top(ya) - 5), w(yb, top(yb) - 5), w(yb, top(yb)), w(ya, top(ya))], 0xf4f4f0);   // the tape
+          }
+          q([w(tc.cy - 2.5, 0), w(tc.cy + 2.5, 0), w(tc.cy + 2.5, hC), w(tc.cy - 2.5, hC)], 0xf4f4f0);   // the centre strap
+          for(const y of [y0, y1]) ln([w(y, 0), w(y, hP + 4)], 0x2f5a3a, 4);                          // the posts
+        }});
+      }
+    }
     /* THE FOUNTAIN on the motor court's island (see THE MOTOR COURT): a
        stone basin of SV_FOUNTAIN_R, its water, a pedestal carrying a bowl,
        a smaller bowl and a finial. Round solids, so only the faces toward
@@ -56454,8 +56562,8 @@ function sierraGeo(){
        set on the rest, so no two neighbours match */
     split.forEach(([x0, name, liv], i) =>
       lots.push({ name, liv, x0, x1:x0 + HW, yF:yFs, yB:yFs - HD, k:0, z:z[0], sc:SIERRA_HOUSE_SC, split:1, deck: i % 2 ? 'dining' : 'pool',
-                  /* the two on the drive walk on to its sidewalk; the two over the harbour front open lawn */
-                  walk: x0 >= drive0 ? (road[0] - STREET - yFs) / SIERRA_HOUSE_SC : 0 }));
+                  /* all four walk on to the sidewalk in front: the drive's, and its run on west (see THE HARBOUR WALK) */
+                  walk: (road[0] - STREET - yFs) / SIERRA_HOUSE_SC }));
   }
   /* THE GRAND ESTATE, at the end of the cul-de-sac (see circle above):
      the Palladian villa at the estate's scale, TURNED to face east down the
@@ -56622,7 +56730,31 @@ function sierraGeo(){
                   x0:gx0, x1:gx0 + 300*lt.sc, yF:gyF, yB:gyF - 180*lt.sc, k:lt.k, z:lt.z, sc:lt.sc, garage:1 });
     }
   }
-  _sierraGeo = { B, X0, Y0, RH, SW, STREET, gx, xw, xe, wallY, e, z, ramps, roads, circle, round, lots, gate, HW, HD, path, runs, pads, outer, drives, court };
+  /* THE HARBOUR WALK (Sir, 2026-09-25, over the two split-levels on the
+     west lawn: "the side walk needs to turn and go in front of these two
+     split levels"). The court drive's north sidewalk, carried on west past
+     the gate road's corner as a sidewalk of its own -- the same band
+     (road[0] - STREET .. road[0] - RH), the same city tiles -- in front of
+     both houses, whose paths now walk on to it, to 83 short of the west
+     wall. Its east end meets the corner's paving at the gate road's back
+     of sidewalk, on the tile lattice. */
+  const walks = [{ x0:Math.ceil((xw + 60) / T) * T, x1:gx - STREET, y0:road[0] - STREET, y1:road[0] - RH, z:0 }];
+  /* THE TENNIS COURT in front of them (Sir: "i want a tenis court in front
+     of them with a fence around it that is green chain link the court will
+     be a typical hard court"). Regulation, at TN.m world units to the
+     metre: a doubles court of 23.77 x 10.97 inside a fenced 36.58 x 18.29,
+     its long axis along x, centred between the two houses, one tile of
+     lawn below the harbour walk; its gate near the east end of the north
+     fence, with a path up from the walk. */
+  const tennis = (() => {
+    const M = TN.m, hl = lots.filter(l => l.split && l.x1 < gx - STREET);
+    const cx = hl.reduce((a, l) => a + (l.x0 + l.x1)/2, 0) / (hl.length || 1);
+    const yN = walks[0].y1 + T, FW = 36.58*M, FH = 18.29*M;
+    return { cx, cy: yN + FH/2, x0: cx - FW/2, x1: cx + FW/2, y0: yN, y1: yN + FH,
+             hx: 23.77*M/2, hy: 10.97*M/2, sy: 8.23*M/2, svc: 6.40*M, post: (10.97/2 + 0.914)*M,
+             gate: [cx + FW/2 - 4.8*M, cx + FW/2 - 1.6*M], z:0 };   // a double gate, 3.2 wide: room for him on the stick
+  })();
+  _sierraGeo = { B, X0, Y0, RH, SW, STREET, gx, xw, xe, wallY, e, z, ramps, roads, circle, round, lots, gate, HW, HD, path, runs, pads, outer, drives, court, walks, tennis };
   return _sierraGeo;
 }
 /* a step that CROSSES a wall line, whatever its length. The walls are thin
@@ -56687,9 +56819,13 @@ function sierraInside(x, y){
    (the larger axis), which is how the city's bands meet at a corner. */
 /* the fountain's basin radius, on the motor court's island (r 160) */
 const SV_FOUNTAIN_R = 124;
+/* the tennis court's measures (see THE TENNIS COURT): world units to the
+   metre, and its fence's height */
+const TN = { m: 80, fenceH: 3.05*80 };
 function sierraSurface(x, y){
   if(!sierraInside(x, y)) return null;
   const S = sierraGeo();
+  for(const wk of S.walks) if(x >= wk.x0 && x <= wk.x1 && y >= wk.y0 && y <= wk.y1) return 'sidewalk';   // THE HARBOUR WALK
   let d = Infinity;
   for(const rp of S.ramps)
     if(y <= rp.yS && y >= rp.yN && x >= rp.c0 && x <= rp.c1) d = Math.min(d, Math.max(0, Math.abs(x - rp.x) - S.RH));
@@ -56907,6 +57043,13 @@ function sierraBlocks(x, y, R){
     const la = lt.rot ? (y - lt.oy)/lt.sc : (x - lt.x0)/lt.sc, lb = lt.rot ? (x - lt.ox)/lt.sc : (y - lt.yF)/lt.sc;   // a turned lot (see THE GRAND ESTATE)
     if(volBlockedAt(v, la, lb, R/lt.sc, true)) return true;
   }
+  /* the tennis court's fence (open at its gate) and its net */
+  { const tc = S.tennis;
+    if(x > tc.x0 - t && x < tc.x1 + t && y > tc.y0 - t && y < tc.y1 + t){
+      if(Math.abs(y - tc.y0) < t && !(x > tc.gate[0] + R && x < tc.gate[1] - R)) return true;
+      if(Math.abs(y - tc.y1) < t || Math.abs(x - tc.x0) < t || Math.abs(x - tc.x1) < t) return true;
+      if(Math.abs(x - tc.cx) < t && Math.abs(y - tc.cy) < tc.post + 6) return true;
+    } }
   /* the motor court's fountain, on the circle's island */
   if(S.court && Math.hypot(x - S.circle.x, y - S.circle.y) < SV_FOUNTAIN_R + R) return true;
   /* a ramp's own side walls: off the side of a ramp you would fall a storey */
