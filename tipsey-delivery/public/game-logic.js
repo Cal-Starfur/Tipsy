@@ -33636,6 +33636,7 @@ function houseCanopy(fn){
     else if(n === 'Belvedere Italianate'){ st.wood = L.leaf; st.sur = L.trim; st.brackets = L.accent; st.rise = 24; }
     else if(n === 'Marrakech Riad'){ st.wood = L.leaf; st.sur = L.trim; st.roof = null; st.arch = 'horseshoe'; st.lites = false; st.band = [L.tile1, L.tile2]; }
     else if(n === 'Montalcino Tuscan Villa'){ st.wood = L.leaf; st.sur = L.stone; }
+    else if(n.startsWith('Brenta Palladian')){ st.wood = L.leaf; st.sur = L.trim; st.win = L.trim; st.rise = 30; }
     return st;
   },
   carriage(am, c){                            // one carriage door, centred on a = am, on the front face
@@ -34236,7 +34237,7 @@ function houseCanopy(fn){
     marks:{ door:[405,-150], mat:[405,-150+35.4] }
   },
   yard(c){
-    T(0, 809.6, -552, 0, 0.3, '#e2dccc');
+    if(!this.court) T(0, 809.6, -552, 0, 0.3, '#e2dccc');   // the estate's court is laid by the estate (see THE FORECOURT)
     T(270, 540, -150, -86, 3, '#dcd6c8');
   },
   hood(a0, a1, z, b){ poly([P(a0-6,b+0.5,z), P((a0+a1)/2,b+0.5,z+12), P(a1+6,b+0.5,z)], '#fbf8f0', '#b8b4ac', 1); },
@@ -34273,7 +34274,7 @@ function houseCanopy(fn){
     for(const aa of [290, 360, 450, 520]){ cyl(aa, -96, 3, 230, 9, c.trim, shade(c.trim,1.02)); box(aa-11, aa+11, -107, -85, 230, 236, c.trim, shade(c.trim,.9), shade(c.trim,.78)); }
     box(270, 540, -110, -84, 236, 252, c.trim, shade(c.trim,.94), shade(c.trim,.8));
     houseFrontGable(270, 540, -84, -150, 252, 300, 6, c.roof, c.trim, 1, { back0:true, barge:c.trim, gable:shade(c.trim,.96) });
-    for(const [a0, a1] of [[30, 330], [480, 780]]){
+    for(const [a0, a1] of (this.hedges || [[30, 330], [480, 780]])){
       for(const [b0, b1] of [[-100,-90],[-70,-60]]) box(a0, a1, b0, b1, 0, 22, '#4f7a42', '#426a38', '#3a5e32');
       for(const aa of [a0, a1 - 10]) box(aa, aa + 10, -100, -60, 0, 22, '#4f7a42', '#426a38', '#3a5e32');
     }
@@ -34305,6 +34306,17 @@ function houseCanopy(fn){
   { const g0 = SHOPS.find(s => s.name === 'Sierra Garage');
     if(g0) SHOPS.push(Object.assign({}, g0, { name:'Terrazza Garage', gwall:true,
       vol:Object.assign({}, g0.vol, { solids:[ { name:'garden wall', poly:[[-4,-44],[50,-44],[50,-34],[-4,-34]], h:48 } ] }) })); }
+  /* THE GRAND ESTATE (see sierraGeo): the Palladian villa at the estate's
+     own scale -- it was drawn at the houses' 1.6 while its lot and its
+     collision were laid at 2.2 -- its court paved by the estate, not by
+     its yard, and its parterre hedges held inside the wings so the garage
+     wings' doors open clear; and the garage at the same scale */
+  { const v0 = SHOPS.find(s => s.name === 'Brenta Palladian Villa'), g0 = SHOPS.find(s => s.name === 'Sierra Garage');
+    const H2 = [[60, 330], [480, 750]];
+    if(v0) SHOPS.push(Object.assign({}, v0, { name:'Brenta Palladian Estate', sc:SIERRA_ESTATE_SC, court:true, hedges:H2,
+      vol:Object.assign({}, v0.vol, { solids:v0.vol.solids.map(so => so.name === 'hedge L' ? Object.assign({}, so, { poly:[[60,-100],[330,-100],[330,-60],[60,-60]] })
+                                                                : so.name === 'hedge R' ? Object.assign({}, so, { poly:[[480,-100],[750,-100],[750,-60],[480,-60]] }) : so) }) }));
+    if(g0) SHOPS.push(Object.assign({}, g0, { name:'Estate Garage', sc:SIERRA_ESTATE_SC })); }
   const BY_NAME = new Map(SHOPS.map(s => [s.name, s]));
 
   return {
@@ -36889,6 +36901,52 @@ class WorldScene extends Phaser.Scene {
        face rises over the drive's far end on screen; drawn after it, the
        drive painted across that wall. Called from the shelf loop instead,
        so every wall and block drawn later covers it, as ground should be. */
+    /* THE MOTOR COURT (see THE GRAND ESTATE in sierraGeo): the forecourt
+       from the garage wings' fronts to the circle's axis in large stone
+       flags, running bond, inside a soldier course; the circle itself
+       paved in concentric courses as the estate's drive, the street's
+       asphalt ending on it; and the island laid
+       again over the flags, with a stone kerb round it for the fountain.
+       On the shelf's ground, after its sidewalk ring, street and drives:
+       the ring's kerb (dropped along the court) and the fountain come
+       after, as they stand on it. */
+    const drawCourt = z => {
+      const C = S.court, c = S.circle;
+      if(!C || C.x0 === undefined) return;
+      if(Math.abs(c.x - this.camX) + Math.abs(c.y - this.camY) > tileSpan + 3200) return;
+      const BORD = 0xab9270, FIELD = [0xd6c29e, 0xccb690, 0xdac8a6], JNT = 0xb39d79;
+      const w = (x, y, h) => this.W(x, y, z + h);
+      const qd = (P, col) => { if(onScreen(P)) this.quadOn(g, P, col); };
+      const ln = (P, col) => { if(onScreen(P)) this.edgeOn(g, P, col, 1); };
+      /* the forecourt: its border, then flags of FD (x) by FL (y) */
+      const BW = 23, FD = 92, FL = 138;
+      qd([w(C.x0, C.y0, .4), w(C.x1, C.y0, .4), w(C.x1, C.y1, .4), w(C.x0, C.y1, .4)], BORD);
+      const fx0 = C.x0 + BW, fy0 = C.y0 + BW, fy1 = C.y1 - BW, fx1 = C.x1;
+      for(let r = 0, x = fx0; x < fx1 - 0.5; r++, x += FD){
+        const xb = Math.min(x + FD, fx1);
+        for(let y = fy0 - (r & 1 ? FL/2 : 0), k2 = 0; y < fy1 - 0.5; y += FL, k2++){
+          const ya = Math.max(y, fy0), yb = Math.min(y + FL, fy1);
+          qd([w(x, ya, .45), w(xb, ya, .45), w(xb, yb, .45), w(x, yb, .45)], FIELD[(r*7 + k2*3 + (r >> 1)) % 3]);
+          if(ya > fy0 + 0.5) ln([w(x, ya, .5), w(xb, ya, .5)], JNT);
+        }
+        ln([w(x, fy0, .5), w(x, fy1, .5)], JNT);
+      }
+      ln([w(fx0, fy0, .5), w(fx1, fy0, .5)], JNT); ln([w(fx0, fy1, .5), w(fx1, fy1, .5)], JNT);
+      /* the circle: concentric courses from the island out to the ring's
+         channel, each cut into flags about FD long */
+      const IR = 160, P = (rr, t, h) => w(c.x + Math.cos(t)*rr, c.y + Math.sin(t)*rr, h);
+      for(let i = 0, r0 = IR; r0 < c.r - 0.5; i++, r0 += 46){
+        const r1 = Math.min(r0 + 46, c.r), n = Math.max(12, Math.round(2*Math.PI*(r0 + r1)/2 / FD)), off = (i & 1) ? 0.5 : 0;
+        for(let j = 0; j < n; j++){
+          const t0 = (j + off)/n*2*Math.PI, t1 = (j + 1 + off)/n*2*Math.PI;
+          qd([P(r0, t0, .45), P(r0, t1, .45), P(r1, t1, .45), P(r1, t0, .45)], FIELD[(i*5 + j*3 + (j >> 2)) % 3]);
+          ln([P(r0, t0, .5), P(r1, t0, .5)], JNT);
+        }
+      }
+      /* the island: lawn again, inside a low stone kerb */
+      { const N = 28, ring = (rr, h) => Array.from({ length:N }, (_, j) => P(rr, j/N*2*Math.PI, h));
+        qd(ring(IR, .55), 0xd8d0bc); qd(ring(IR - 12, .6), LAWN); }
+    };
     const drawDrives = k => { for(const d of S.drives){
       if(S.z.indexOf(d.z) !== k) continue;
       const rn = S.runs[d.run], dv = DIRV[rn.f], rv = DIRV[(rn.f + 1) % 4];
@@ -36956,6 +37014,7 @@ class WorldScene extends Phaser.Scene {
         const IP = ipts.map(p => this.W(p[0], p[1], p[2])); if(onScreen(IP)) this.quadOn(g, IP, LAWN);
       }
       drawDrives(k);                                         // this shelf's driveways, on its paving (see THE DRIVEWAYS' GROUND)
+      if(S.circle.k === k) drawCourt(z);                     // the estate's motor court (see THE MOTOR COURT)
       /* the retaining wall on this shelf's FRONT edge (e[k]), down to the
          shelf below, with the gap its ramp passes through. The ramp itself
          is drawn in its own pass below. */
@@ -37095,12 +37154,22 @@ class WorldScene extends Phaser.Scene {
           Q([[i0[0],i0[1],z + 0.6],[i1[0],i1[1],z + 0.6],[gg1[0],gg1[1],z + 0.6],[gg0[0],gg0[1],z + 0.6]], GUTC);
         } }
       const phi = phiF;
-      for(let i = 0; i < N; i++){
-        const t0 = phi + (2*Math.PI - 2*phi) * i/N, t1 = phi + (2*Math.PI - 2*phi) * (i+1)/N;
+      /* DROPPED ALONG THE ESTATE'S COURT (see THE MOTOR COURT): across the
+         circle's west half, which opens onto the forecourt, the stone is a
+         rolled lip, easing up to full height over DFL each side as a
+         drive's kerb does; the channel runs on beneath it */
+      const KLIP = 1.5, WF = (1.5*T2) / c.r, W0 = Math.PI/2, W1 = 3*Math.PI/2, ez = u => u*u*(3 - 2*u);
+      const hAt = t => !(S.court && S.court.x0 !== undefined) ? KH
+                     : t >= W0 && t <= W1 ? KLIP
+                     : t > W0 - WF && t < W0 ? KH + (KLIP - KH)*ez((t - (W0 - WF))/WF)
+                     : t > W1 && t < W1 + WF ? KLIP + (KH - KLIP)*ez((t - W1)/WF) : KH;
+      const NK = 96;                                         // finer than N, so the flares ease smoothly
+      for(let i = 0; i < NK; i++){
+        const t0 = phi + (2*Math.PI - 2*phi) * i/NK, t1 = phi + (2*Math.PI - 2*phi) * (i+1)/NK, h0 = hAt(t0), h1 = hAt(t1);
         const o0 = p(c.r, t0), o1 = p(c.r, t1), i0 = p(c.r - KW, t0), i1 = p(c.r - KW, t1);
-        Q([[o0[0],o0[1],z],[o1[0],o1[1],z],[o1[0],o1[1],z + KH],[o0[0],o0[1],z + KH]], KFACE);
-        Q([[i0[0],i0[1],z],[i1[0],i1[1],z],[i1[0],i1[1],z + KH],[i0[0],i0[1],z + KH]], KFACE);
-        Q([[o0[0],o0[1],z + KH],[o1[0],o1[1],z + KH],[i1[0],i1[1],z + KH],[i0[0],i0[1],z + KH]], KTOP);
+        Q([[o0[0],o0[1],z],[o1[0],o1[1],z],[o1[0],o1[1],z + h1],[o0[0],o0[1],z + h0]], KFACE);
+        Q([[i0[0],i0[1],z],[i1[0],i1[1],z],[i1[0],i1[1],z + h1],[i0[0],i0[1],z + h0]], KFACE);
+        Q([[o0[0],o0[1],z + h0],[o1[0],o1[1],z + h1],[i1[0],i1[1],z + h1],[i0[0],i0[1],z + h0]], KTOP);
       }
       const gy = c.y + c.r - KW - GW/2, gx = c.x - 120;
       Q([[gx - 34, gy - 14, z + 0.8],[gx + 34, gy - 14, z + 0.8],[gx + 34, gy + 14, z + 0.8],[gx - 34, gy + 14, z + 0.8]], 0x55524a);
@@ -37108,6 +37177,37 @@ class WorldScene extends Phaser.Scene {
     }
     /* BODIES: the houses, the perimeter wall (in runs) and the gatehouse */
     const bodies = this._sierraBodies = [];
+    /* THE FOUNTAIN on the motor court's island (see THE MOTOR COURT): a
+       stone basin of SV_FOUNTAIN_R, its water, a pedestal carrying a bowl,
+       a smaller bowl and a finial. Round solids, so only the faces toward
+       the camera (+x, +y) are drawn, then each top. */
+    if(S.court && S.court.x0 !== undefined){
+      const c = S.circle, zc = S.z[c.k];
+      if(Math.abs(c.x - this.camX) + Math.abs(c.y - this.camY) < tileSpan + 600)
+        bodies.push({ depth: c.x + c.y, fn: (gg) => {
+          const N = 28, at = (r, t, h) => this.W(c.x + Math.cos(t)*r, c.y + Math.sin(t)*r, zc + h);
+          const q = (P, col) => { if(onScreen(P)) this.quadOn(gg, P, col); };
+          const cyl = (r, h0, h1, side, top) => {
+            for(let i = 0; i < N; i++){
+              const t0 = i/N*2*Math.PI, t1 = (i + 1)/N*2*Math.PI, tm = (t0 + t1)/2;
+              if(Math.cos(tm) + Math.sin(tm) <= 0) continue;
+              q([at(r, t0, h0), at(r, t1, h0), at(r, t1, h1), at(r, t0, h1)], hillShade(side, 0.82 + 0.18*Math.cos(tm - Math.PI/4)));
+            }
+            if(top !== null) q(Array.from({ length:N }, (_, i) => at(r, i/N*2*Math.PI, h1)), top);
+          };
+          const STN = 0xe2dccc, STN2 = 0xd4ccb8, WAT = 0x5aa7c9;
+          cyl(SV_FOUNTAIN_R, 0, 26, STN2, STN);                 // the basin
+          q(Array.from({ length:N }, (_, i) => at(SV_FOUNTAIN_R - 12, i/N*2*Math.PI, 22)), WAT);
+          q(Array.from({ length:N }, (_, i) => at(SV_FOUNTAIN_R - 40, i/N*2*Math.PI, 22.2)), hillShade(WAT, 1.08));
+          cyl(22, 22, 78, STN2, STN);                           // the pedestal
+          cyl(64, 78, 90, STN2, STN);                           // the bowl
+          q(Array.from({ length:N }, (_, i) => at(56, i/N*2*Math.PI, 88)), WAT);
+          cyl(10, 90, 124, STN2, STN);                          // the upper stem
+          cyl(30, 124, 132, STN2, STN);                         // the small bowl
+          q(Array.from({ length:N }, (_, i) => at(24, i/N*2*Math.PI, 131)), WAT);
+          cyl(6, 132, 150, STN2, STN);                          // the finial
+        }});
+    }
     /* THE ROAD IN, laid AFTER the city's ground. It runs from the top street
        across the city's rim, and the city paints Pelican Park's lawn over
        that rim after the coast pass -- which is where this was drawn, and
@@ -37125,7 +37225,8 @@ class WorldScene extends Phaser.Scene {
       const occl = S.ramps.filter(rp => S.z[rp.k - 1] === lt.z && lt.x1 <= rp.b0 + 1 && lt.x1 > rp.b0 - 480
                                         && lt.yF <= rp.yF && lt.yB >= rp.yw - 1);
       bodies.push({ depth: cx + cy, fn: (gg) => {
-        const G = (a, b, h) => this.W(lt.x0 + a, lt.yF + b, lt.z + h);
+        const G = lt.rot ? (a, b, h) => this.W(lt.ox + b, lt.oy + a, lt.z + h)     // a turned lot (see THE GRAND ESTATE)
+                         : (a, b, h) => this.W(lt.x0 + a, lt.yF + b, lt.z + h);
         LIB.setLivery(lt.liv);
         const sh = LIB.get(lt.name); if(sh) sh._deck = lt.deck || null;   // the split-level's roof deck (see deckKit)
         if(sh) sh._walk = lt.walk || 0;                                       // its front path's run to the sidewalk (see yard)
@@ -56237,8 +56338,16 @@ function sierraGeo(){
   }
   /* the top terrace: the turning circle, its own ring of sidewalk, the
      estate on its forecourt and a garden behind */
-  const circle = { x:snap(xW + 300), y:road[3], r:RH + 260, k:3 };
+  /* THE ESTATE AT THE END OF THE CUL-DE-SAC (Sir, 2026-09-25: "the grand
+     estate needs to be moved to the end of the culdesac and then have its
+     own garage flanking and tying into the circle that whole circle is
+     pretty much what the drive way would be it need to really be a grand
+     estate"). The villa stands on the street's own axis, west of the
+     circle, facing straight down it; the circle is set so its ring of
+     paving meets the villa's lot front, and the villa's back garden keeps
+     60 inside the estate's west wall. */
   const ED = 552 * SIERRA_ESTATE_SC, EW = 809.6 * SIERRA_ESTATE_SC;
+  const circle = { x:Math.ceil((xw + 60 + ED + (RH + 260) + SW) / T) * T, y:road[3], r:RH + 260, k:3 };
   e[4] = road[3] - 30*T;
   const z = [0, 180, 360, 540];
   const ramps = [
@@ -56327,7 +56436,7 @@ function sierraGeo(){
   {
     const col = n => xW + STREET + 260 + ((xE - STREET - 260) - (xW + STREET + 260) - 3*HW) / 4 * (n + 1) + n*HW;
     const onTerrace = [[1, 3, 'Marrakech Riad', 2], [2, -1, 'San Gabriel Mission Revival', 1],
-                       [3, 0, 'Palmline Casita', 2], [3, 3, 'Rancho Hacienda', 1]];
+                       [3, 3, 'Rancho Hacienda', 1]];   // terrace 3's first column is the estate's grounds now
     for(const [k, n, name, liv] of onTerrace){
       const x0 = col(n), yF = road[k] - STREET - 120;
       lots.push({ name, liv, x0, x1:x0 + HW, yF, yB:yF - HD, k, z:z[k], sc:SIERRA_HOUSE_SC });
@@ -56348,12 +56457,32 @@ function sierraGeo(){
                   /* the two on the drive walk on to its sidewalk; the two over the harbour front open lawn */
                   walk: x0 >= drive0 ? (road[0] - STREET - yFs) / SIERRA_HOUSE_SC : 0 }));
   }
-  /* THE GRAND ESTATE at the head of the drive, on the turning circle: the
-     Palladian villa at its own larger scale, centred on the circle so the
-     cul-de-sac is its forecourt -- behind the circle's ring of sidewalk. */
-  const estate = { name:'Brenta Palladian Villa', liv:0, x0:circle.x - EW/2, x1:circle.x + EW/2,
-                   yF:circle.y - circle.r - SW - 90, yB:circle.y - circle.r - SW - 90 - ED, k:3, z:z[3], sc:SIERRA_ESTATE_SC };
-  lots.push(estate);
+  /* THE GRAND ESTATE, at the end of the cul-de-sac (see circle above):
+     the Palladian villa at the estate's scale, TURNED to face east down the
+     street. A turned lot (rot) maps the kit's (a, b) to world (oy + a,
+     ox + b): its front (+b) faces +x and its seen end (+a) faces +y, both
+     toward the camera, and a + b is still x + y, so the kit's far-to-near
+     order holds. It is a mirror, which the villa's symmetry never shows.
+     Its door is on the street's centreline; ox, the lot's front, is the
+     ring of paving's outer edge. x0..x1 / yB..yF are its world bounds. */
+  const eox = circle.x - circle.r - SW, eoy = circle.y - 405*SIERRA_ESTATE_SC;
+  lots.push({ name:'Brenta Palladian Estate', liv:0, rot:1, ox:eox, oy:eoy,
+              x0:eox - ED, x1:eox, yB:eoy, yF:eoy + EW, k:3, z:z[3], sc:SIERRA_ESTATE_SC });
+  /* ITS GARAGE WINGS, flanking it: the Sierra Garage at the estate's scale
+     and in its livery, turned with it, attached to each wing's end (the
+     villa's wings stand a 60..750) with their fronts flush with the
+     wings' (b -190), their doors onto the forecourt */
+  const court = { ox:eox };
+  {
+    const sc = SIERRA_ESTATE_SC, gfx = eox - 190*sc;
+    const ends = [eoy + 60*sc - 300*sc, eoy + 750*sc - 50*sc];      // each garage's frame origin (a 0), north and south
+    ends.forEach(goy => lots.push({ name:'Estate Garage', host:'Brenta Palladian Estate', liv:0, rot:1, ox:gfx, oy:goy,
+                                    x0:gfx - 180*sc, x1:gfx, yB:goy + 50*sc, yF:goy + 300*sc, k:3, z:z[3], sc, garage:1 }));
+    /* THE FORECOURT: from the wings' fronts to the circle's axis, the
+       width of villa and both garages. Paved as the drives are; the
+       circle's west half opens onto it (its kerb dropped, see the ring). */
+    Object.assign(court, { x0:gfx, x1:circle.x, y0:ends[0] + 50*sc, y1:ends[1] + 300*sc });
+  }
   /* the gate is as wide as the round: its ring of sidewalk comes through */
   const gate = { x:gx, y:wallY, open:round.out };
   /* THE TERRACE COMES FORWARD TO THE RAMP (2026-09-22, Sir: "squared
@@ -56493,7 +56622,7 @@ function sierraGeo(){
                   x0:gx0, x1:gx0 + 300*lt.sc, yF:gyF, yB:gyF - 180*lt.sc, k:lt.k, z:lt.z, sc:lt.sc, garage:1 });
     }
   }
-  _sierraGeo = { B, X0, Y0, RH, SW, STREET, gx, xw, xe, wallY, e, z, ramps, roads, circle, round, lots, gate, HW, HD, path, runs, pads, outer, drives };
+  _sierraGeo = { B, X0, Y0, RH, SW, STREET, gx, xw, xe, wallY, e, z, ramps, roads, circle, round, lots, gate, HW, HD, path, runs, pads, outer, drives, court };
   return _sierraGeo;
 }
 /* a step that CROSSES a wall line, whatever its length. The walls are thin
@@ -56556,6 +56685,8 @@ function sierraInside(x, y){
    unchanged: no climbing the kerb from the road except at a crossing, a
    lean when you go down one. Distance to the street is measured square
    (the larger axis), which is how the city's bands meet at a corner. */
+/* the fountain's basin radius, on the motor court's island (r 160) */
+const SV_FOUNTAIN_R = 124;
 function sierraSurface(x, y){
   if(!sierraInside(x, y)) return null;
   const S = sierraGeo();
@@ -56625,6 +56756,8 @@ function sierraPadAt(x, y){
    sierraGeo): across its width, from a tile into the road back through
    the sidewalk, the kerb neither stops him nor drops him */
 function sierraDriveAt(x, y){
+  const C = sierraGeo().court;                             // the estate's forecourt: the circle's kerb is dropped along it
+  if(C && C.x0 !== undefined && x >= C.x0 && x <= C.x1 && y >= C.y0 && y <= C.y1) return true;
   for(const d of sierraGeo().drives){
     if(x < d.x0 || x > d.x1) continue;
     const yA = d.yK - Math.sign(d.ySw - d.yK)*T2;          // a tile out into the road
@@ -56771,8 +56904,11 @@ function sierraBlocks(x, y, R){
   for(const lt of S.lots){
     if(x < lt.x0 - t || x > lt.x1 + t || y > lt.yF + t || y < lt.yB - t) continue;
     const v = LIB.vol(lt.name); if(!v) continue;
-    if(volBlockedAt(v, (x - lt.x0)/lt.sc, (y - lt.yF)/lt.sc, R/lt.sc, true)) return true;
+    const la = lt.rot ? (y - lt.oy)/lt.sc : (x - lt.x0)/lt.sc, lb = lt.rot ? (x - lt.ox)/lt.sc : (y - lt.yF)/lt.sc;   // a turned lot (see THE GRAND ESTATE)
+    if(volBlockedAt(v, la, lb, R/lt.sc, true)) return true;
   }
+  /* the motor court's fountain, on the circle's island */
+  if(S.court && Math.hypot(x - S.circle.x, y - S.circle.y) < SV_FOUNTAIN_R + R) return true;
   /* a ramp's own side walls: off the side of a ramp you would fall a storey */
   for(const rp of S.ramps)
     if(y <= rp.yS + t && y >= rp.yN - t && Math.abs(Math.abs(x - rp.x) - (rp.c1 - rp.x)) < t) return true;
