@@ -872,7 +872,14 @@
      sits inside a wrapper div and the robot is a direct child of body. */
   body:has(#battBtn:not(.hidden)) #globalAvatar{top:calc(12px + env(safe-area-inset-top) + 46px);}
   /* the robot button lives on the charging pad now -- see tpAvatarPadGate */
-  body.tpOffPad #globalAvatar{display:none !important;}
+  /* ...and OFF the pad it stays put, GHOSTED (Sir, 2026-09-25: "i dont
+     want the robot to disappear ... it loses its color instead ... its
+     just inactive until tipsey is on the charger"): grey, faded, no press
+     feedback, and a tap does nothing (bindGlobalAvatar checks the same
+     class). Kept in the rail rather than hidden, so the rail never
+     reshuffles as he rolls on and off a pad. */
+  body.tpOffPad #globalAvatar{filter:grayscale(1);opacity:.38;cursor:default;}
+  body.tpOffPad #globalAvatar:active{transform:none;}
   /* Same treatment for the magnifying glass. It used to live inside
      #mapCard -> #screenWrap -> #titleOverlay, so it disappeared the
      instant a route started — the fail screen carried its own copy

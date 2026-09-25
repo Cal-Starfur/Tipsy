@@ -871,7 +871,14 @@
      sits inside a wrapper div and the robot is a direct child of body. */
   body:has(#battBtn:not(.hidden)) #globalAvatar{top:calc(12px + env(safe-area-inset-top) + 46px);}
   /* the robot button lives on the charging pad now -- see tpAvatarPadGate */
-  body.tpOffPad #globalAvatar{display:none !important;}
+  /* ...and OFF the pad it stays put, GHOSTED (Sir, 2026-09-25: "i dont
+     want the robot to disappear ... it loses its color instead ... its
+     just inactive until tipsey is on the charger"): grey, faded, no press
+     feedback, and a tap does nothing (bindGlobalAvatar checks the same
+     class). Kept in the rail rather than hidden, so the rail never
+     reshuffles as he rolls on and off a pad. */
+  body.tpOffPad #globalAvatar{filter:grayscale(1);opacity:.38;cursor:default;}
+  body.tpOffPad #globalAvatar:active{transform:none;}
   /* Same treatment for the magnifying glass. It used to live inside
      #mapCard -> #screenWrap -> #titleOverlay, so it disappeared the
      instant a route started — the fail screen carried its own copy
@@ -12139,6 +12146,25 @@ function depotFrameOf(blk){
    the file than the code that uses it. */
 function depotGeom(){ return LIB.get('Charge depot').geom; }
 function depotVol(){ return LIB.vol('Charge depot'); }
+/* THE TROPHY WALL (Sir, 2026-09-25). The garage's trophies, on the
+   wall you see from his pad -- no button of their own (see the garage).
+   The depot's LEFT wall -- lab plane a = ROOM.a0 = 40, facing +a, one of
+   the two walls the camera sees into the room -- carries two shelves
+   the length of the wall (its charger came out to make room). Slot order is TP_TROPHIES order and reads like
+   a page: top shelf first, and along each shelf by b descending, which
+   is left to right on screen (screen column runs a - b). All lab units
+   (z before the depot's zs). */
+const TROPHY_WALL = (() => {
+  const A = 40, AC = 48, SHELF_Z = [88, 44];
+  /* kept back from the front corner (b > -44): the camera never shows
+     past the room (clampTarget, the garage camera limit), and on a portrait screen the room's front
+     end is where it has to crop */
+  const GROUPS = [[-236, -44, [-216, -178, -140, -102, -64]]];
+  const slots = [];
+  const bs = GROUPS.flatMap(g => g[2]).sort((p, q) => q - p);
+  for(const z of SHELF_Z) for(const b of bs) slots.push({ a: AC, b, z: z + 4 });
+  return { A, AC, SHELF_Z, GROUPS, slots, depth: 18, mid: { a: 48, b: -128, z: 72 } };
+})();
 function depotZS(){ return LIB.zs('Charge depot'); }
 /* ONE MAPPER, BOTH WAYS. The lot's rv points OUT of the block, so lab b
    -- which runs INTO the building -- is +rv, not -rv. I had it negated,
@@ -17452,6 +17478,33 @@ function unitCircle(fill, stroke, lw, r){
 }
 function faceCircle(a,b,z,r,fill,stroke,lw){ faceT(a,b,z,r); unitCircle(fill,stroke,lw,r); ctx.restore(); }
 function plateCircle(a,b,z,r,fill,stroke,lw){ plateT(a,b,z,r); unitCircle(fill,stroke,lw,r); ctx.restore(); }
+/* Drawn by the depot's room (lab primitives, lab units). st[i] is the
+   slot's { tier, earned }: an earned trophy stands in the metal of its
+   tier, and a slot not yet earned is simply empty shelf. */
+const TROPHY_METAL = {
+  gold:   ['#ffd766', '#e0b43c', '#b8902a'],
+  silver: ['#eef1f5', '#c3c9d1', '#9aa2ad'],
+  bronze: ['#eab07a', '#c07f48', '#9a6034']
+};
+function depotTrophyWall(st){
+  const TW = TROPHY_WALL, A = TW.A, D = TW.depth;
+  const WOOD = ['#8a6446', '#6e4f38', '#5b412e'], BRK = ['#3a4150', '#2b313d', '#232830'];
+  for(const z of TW.SHELF_Z) for(const [b0, b1] of TW.GROUPS){
+    for(const bb of [b0 + 8, (b0 + b1) / 2, b1 - 8]) box(A, A + D - 4, bb - 2, bb + 2, z - 12, z, BRK[0], BRK[1], BRK[2]);   // brackets
+    box(A, A + D, b0, b1, z, z + 4, WOOD[0], WOOD[1], WOOD[2]);                                             // plank
+  }
+  TW.slots.forEach((q, i) => {
+    const t = st[i];
+    if(!t || !t.earned) return;
+    const a = q.a, b = q.b, z = q.z;
+    const m = TROPHY_METAL[t.tier] || TROPHY_METAL.bronze;
+    box(a - 6, a + 6, b - 6, b + 6, z, z + 4, '#4a3a2e', '#3b2e24', '#30251d');   // plinth
+    box(a - 1.5, a + 1.5, b - 1.5, b + 1.5, z + 4, z + 11, m[0], m[1], m[2]);                            // stem
+    box(a - 6, a + 6, b - 6, b + 6, z + 11, z + 24, m[0], m[1], m[2]);                                  // cup
+    box(a - 1.2, a + 1.2, b - 10, b - 6, z + 15, z + 21, m[0], m[1], m[2]);                             // handles
+    box(a - 1.2, a + 1.2, b + 6, b + 10, z + 15, z + 21, m[0], m[1], m[2]);
+  });
+}
 /* A BAND AROUND A SOLID IS NOT A RING. plateCircle draws the whole
    ellipse, which is right for a disc lying flat with nothing on top of
    it -- a manhole, a drain -- and wrong for every hoop that wraps a
@@ -18206,7 +18259,10 @@ const DEPOT_GEOM = (() => {
          out, instead of a rectangle that had to stop short of both. */
       { name:'mat',  kind:'trigger', poly: MAT.tri },
       { name:'pad back', kind:'charge', c: PADS.back, r: 44 },         // CHARGE.padR
-      { name:'pad left', kind:'charge', c: PADS.left, r: 44 },
+      /* no 'pad left' any more: its charger came out for the trophy wall
+         (Sir, 2026-09-25: "get rid of the charger thats blocking the
+         wall"), and a charge zone with no charger over it would be an
+         invisible one */
       /* the door opens while he is in here (or in the room): 10 inside the
          chamfer line to 150 out, between a = -40 and WW + 40 */
       { name:'approach',  kind:'door',    poly: (() => { const IN = CA0 - 10*Math.SQRT2, OUT = CA0 + 150*Math.SQRT2, A0 = -40, A1 = WW + 40;
@@ -18217,7 +18273,7 @@ const DEPOT_GEOM = (() => {
     ],
     marks: {
       spawn:  PADS.back,                      // Tipsey starts on the back-wall pad
-      padBack: PADS.back, padLeft: PADS.left, // left is the NPC bay (rTodo)
+      padBack: PADS.back,                     // the one bay (the left wall is the trophy wall)
       mat:    cpt(0.5, -64),                  // where a trip to a depot ends
       door:   cpt(0.5, 0)                     // facing: spawn -> door
     }
@@ -20205,7 +20261,6 @@ function houseCanopy(fn){
       S(RA0+1.0, RB0+14, RB1-14, DH-30, DH-22, '#e8dcb8');
       S(RA0+1.4, RB0+14, RB1-14, DH-58, DH-30, 'rgba(242,230,192,.08)');
       /* bay markings, one per dock, running out from each wall */
-      T(RA0+8, RA0+118, -143, -137, 1.0, '#7c8894');
       T(197, 203, RB0+8, RB0+118, 1.0, '#7c8894');
       /* ---- CHARGERS LINING BOTH WALLS ----
          a cabinet against the wall with a lit head, and a Tipsy docked
@@ -20268,9 +20323,11 @@ function houseCanopy(fn){
          BOTH BAYS ARE EMPTY HERE, at Sir's direction -- the lab draws the
          building, and a robot in it is the game's job. rTodo records
          which bay gets which. */
-      const BACK = DEPOT_GEOM.PADS.back, LEFT = DEPOT_GEOM.PADS.left;
+      const BACK = DEPOT_GEOM.PADS.back;
+      /* the trophy wall, in the garage only. The LEFT charger is gone --
+         that wall is the trophy wall now (Sir, 2026-09-25) */
+      if(CUT && state.trophies) depotTrophyWall(state.trophies);
       charger(BACK[0], BACK[1], 0, -1);
-      charger(LEFT[0], LEFT[1], -1, 0);
 
     }
     ctx.restore();
@@ -35605,6 +35662,9 @@ function houseCanopy(fn){
     setDoor(v){ state.doorT = v; },
     /* the garage lifts the depot's street walls and roof away (see CUT) */
     setCutaway(v){ state.cutaway = !!v; },
+    /* the garage's trophy wall: an array of slot states (see
+       depotTrophyWall), or null for a bare wall */
+    setTrophies(v){ state.trophies = v || null; },
     /* which of a house's own liveries (its `liv`) the next draw uses */
     setLivery(i){ state.pal = i || 0; },
     /* g   -- the Phaser Graphics to draw into
@@ -35830,6 +35890,20 @@ class WorldScene extends Phaser.Scene {
        GLOW_UNDER_TINT for the brightness compensation. */
     this.gGlowLo = this.add.graphics();
     this.gGlowLo.setBlendMode(Phaser.BlendModes.ADD);
+    /* HIS OWN LIGHT, depth-tested (Sir, on-device: "tipseys eyes are
+       showing though all types of things" -- through the depot's shut
+       door, through a signal post in front of him). gGlowLo stacks above
+       ALL of gWorld, so only gFront could ever cover his glow; a wall or
+       a post sorted in front of him in worldVQ painted first and his eyes
+       and beams went on top of it. His eyes, beams, pool and topper lights
+       now go here instead -- same slot, same ADD -- and this layer is
+       masked by everything opaque that worldVQ draws AFTER him near him
+       (see drawWorld's capture), which is exactly what stands in front of
+       him. Lamp glows stay on gGlowLo, unmasked. */
+    this.gBotGlow = this.add.graphics();
+    this.gBotGlow.setBlendMode(Phaser.BlendModes.ADD);
+    this.gBotMask = this.make.graphics({ x: 0, y: 0, add: false });
+    { const m = this.gBotMask.createGeometryMask(); m.setInvertAlpha(true); this.gBotGlow.setMask(m); }
     this.gFront = this.add.graphics();     // hazards nearer the camera than the robot
     this.gNight = this.add.graphics();     // NIGHT: one multiply rect over the world (night-lab v1: NAVY 0.65)
     this.gNight.setBlendMode(Phaser.BlendModes.MULTIPLY);
@@ -35840,7 +35914,7 @@ class WorldScene extends Phaser.Scene {
        frame that were fragmenting Phaser's batches. Applied to every
        Graphics this scene draws into, including the ones with their own
        alpha and blend mode, since the memo is per instance. */
-    [this.gSky, this.gWorld, this.gFade, this.gXProp, this.g, this.gGlowLo, this.gFront,
+    [this.gSky, this.gWorld, this.gFade, this.gXProp, this.g, this.gGlowLo, this.gBotGlow, this.gFront,
      this.gNight, this.gGlow, this.hud].forEach(memoGraphicsStyles);
     this.qtext = this.add.text(0, 0, "?!", { fontSize:"30px", fontStyle:"bold", color:"#ffb04d" })
       .setOrigin(0.5).setDepth(4).setVisible(false);
@@ -39159,6 +39233,49 @@ class WorldScene extends Phaser.Scene {
   }
 
   /* ---------- world drawing ---------- */
+  /* WHAT STANDS IN FRONT OF HIM, as a mask for his light (see gBotGlow
+     in create()). Armed when worldVQ reaches his item: from then on every
+     OPAQUE fill into gWorld near him is also stamped into gBotMask -- the
+     sort is painter's order, so everything after him that overlaps him on
+     screen is in front of him. Translucent fills (shadows, washes) do not
+     count, or a prop's shadow would punch a hole in his headlight pool.
+     The current fill alpha is read off memoGraphicsStyles' own record
+     (__mfa), so only the fill calls are wrapped, and they are prototype
+     methods: deleting the wrappers restores them exactly. */
+  botOccluderCapture(on){
+    const gw = this.gWorld, m = this.gBotMask;
+    const NAMES = ['fillPoints', 'fillRect', 'fillTriangle', 'fillCircle', 'fillEllipse'];
+    if(!on || !m){ for(const k of NAMES) delete gw[k]; return; }
+    const p = this.W(this.botX, this.botY, 40), R = 340 * this.K;
+    const x0 = p.x - R, x1 = p.x + R, y0 = p.y - R, y1 = p.y + R;
+    const P = Object.getPrototypeOf(gw), self = this;
+    const solid = () => !self._occSkip && (gw.__mfa === undefined || gw.__mfa === null || gw.__mfa >= 0.85);
+    const inBox = (ax, ay, bx, by) => bx >= x0 && ax <= x1 && by >= y0 && ay <= y1;
+    gw.fillPoints = function(pts, cs, cp){
+      if(solid() && pts && pts.length > 2){
+        let a = Infinity, b = -Infinity, c = Infinity, d = -Infinity;
+        for(const q of pts){ if(q.x < a) a = q.x; if(q.x > b) b = q.x; if(q.y < c) c = q.y; if(q.y > d) d = q.y; }
+        if(inBox(a, c, b, d)) m.fillPoints(pts, true);
+      }
+      return P.fillPoints.call(this, pts, cs, cp);
+    };
+    gw.fillRect = function(x, y, w, h){
+      if(solid() && inBox(x, y, x + w, y + h)) m.fillRect(x, y, w, h);
+      return P.fillRect.call(this, x, y, w, h);
+    };
+    gw.fillTriangle = function(ax, ay, bx, by, cx, cy){
+      if(solid() && inBox(Math.min(ax, bx, cx), Math.min(ay, by, cy), Math.max(ax, bx, cx), Math.max(ay, by, cy))) m.fillTriangle(ax, ay, bx, by, cx, cy);
+      return P.fillTriangle.call(this, ax, ay, bx, by, cx, cy);
+    };
+    gw.fillCircle = function(x, y, r){
+      if(solid() && inBox(x - r, y - r, x + r, y + r)) m.fillCircle(x, y, r);
+      return P.fillCircle.call(this, x, y, r);
+    };
+    gw.fillEllipse = function(x, y, w, h, sm){
+      if(solid() && inBox(x - w/2, y - h/2, x + w/2, y + h/2)) m.fillEllipse(x, y, w, h, sm);
+      return P.fillEllipse.call(this, x, y, w, h, sm);
+    };
+  }
   drawWorld(t){
     const d = this.d, g = this.gWorld, r = this.route; g.clear();
     /* the frame clock, parked where drawHouseUnit's descendants can
@@ -39175,6 +39292,7 @@ class WorldScene extends Phaser.Scene {
 
 /* THE NIGHT — screen-space multiply rect; glows redraw per-frame */
     this.gNight.clear(); this.gGlow.clear(); this.gGlowLo.clear();
+    if(this.gBotGlow){ this.gBotGlow.clear(); this.gBotMask.clear(); this.gBotMask.fillStyle(0xffffff, 1); }
     if(r.night){
       this.gNight.fillStyle(NIGHT_MULT, 1);
       this.gNight.fillRect(0, 0, this.scale.gameSize.width, this.scale.gameSize.height);
@@ -41078,7 +41196,12 @@ class WorldScene extends Phaser.Scene {
     }
 
     worldVQ.sort((a, b) => a.depth - b.depth);
+    let _occ = false;
+    try {
     for(const item of worldVQ){
+      /* armed at his item, and only while his lights are on (night, or the
+         garage's preview) -- by day there is no glow to cover */
+      if(item.isRobot && !_occ && this.isNightLit()){ this.botOccluderCapture(true); _occ = true; }
       if(item.isRobot && this.xrayA > 0){
         const qp = this.quadOn;
         /* own property shadowing the prototype method; deleted rather
@@ -41088,9 +41211,14 @@ class WorldScene extends Phaser.Scene {
           if(!this._xraySkip) qp.call(this, this.gFade, pts, XRAY.col, 1);
         };
         this._xrayCap = true;   // read by drawFlag, which bypasses quadOn
-        try { item.fn(g, t); } finally { delete this.quadOn; this._xrayCap = false; }
+        this._occSkip = true;
+        try { item.fn(g, t); } finally { delete this.quadOn; this._xrayCap = false; this._occSkip = false; }
+      } else if(item.isRobot){
+        this._occSkip = true;    // he does not occlude his own light (faceK handles his body)
+        try { item.fn(g, t); } finally { this._occSkip = false; }
       } else item.fn(g, t); // layer per item — layerFor/propLayer already split g vs gFront
     }
+    } finally { if(_occ) this.botOccluderCapture(false); }
     /* no roofs pass any more -- they are in worldVQ above, so the sort
        that just ran placed them. Nothing draws after the world. */
 
@@ -43120,6 +43248,7 @@ class WorldScene extends Phaser.Scene {
            away and the room is drawn whole, so we are standing in it */
         const cut = !!(this._garage && this._garage.key === _lot.key);
         LIB.setCutaway(cut);
+        LIB.setTrophies(cut ? this._garage.trophies : null);
         if(cut && part && GARAGE_HIDE.has(part.part)) return;
         return LIB.draw('Charge depot', g, map, null, this.K, part);
       };
@@ -50407,7 +50536,7 @@ class WorldScene extends Phaser.Scene {
          ever softened the through-BODY case, it could do nothing about
          the beam painting over the rest of the world. ga() carries the
          under-tint compensation; see GLOW_UNDER_TINT. */
-      const gLo = this.gGlowLo;
+      const gLo = this.gBotGlow || this.gGlowLo;   // his own, depth-tested -- see create()
       const ga = v => Math.min(1, v * GLOW_UNDER_TINT);
       const _gs = EYE_SHAPES[SKIN.eyeShape];
       if(_gs && this.state !== "tipped"){
@@ -51214,7 +51343,7 @@ class WorldScene extends Phaser.Scene {
       for(const q of style.polys) this.quadOn(this.g, onFace(q.p, a), typeof q.c === 'number' ? q.c : role[q.c]);
     }
     if(wall === 'neon' && this.isNightLit()){
-      const pulse = 0.5 + 0.5*Math.sin(t / 650), gl = this.gGlowLo;
+      const pulse = 0.5 + 0.5*Math.sin(t / 650), gl = this.gBotGlow || this.gGlowLo;
       gl.fillStyle(SKIN.wheelHub, Math.min(1, (0.16 + 0.1*pulse) * GLOW_UNDER_TINT));
       gl.fillPoints(ring(face, R*1.2).map(p => new Phaser.Geom.Point(p.x, p.y)), true);
     }
@@ -51290,8 +51419,9 @@ class WorldScene extends Phaser.Scene {
       this.quadOn(g, ring(c.x, c.y, pz, pr*0.7), SKIN.eye);
       this.quadOn(g, ring(c.x, c.y, pz, pr*0.35), 0xffffff);
       if(this.isNightLit()){
-        this.gGlowLo.fillStyle(SKIN.eye, Math.min(1, (0.2 + 0.12*pulse)*GLOW_UNDER_TINT));
-        this.gGlowLo.fillPoints(pts(ring(c.x, c.y, 0.6, 11)), true);
+        const gB = this.gBotGlow || this.gGlowLo;
+        gB.fillStyle(SKIN.eye, Math.min(1, (0.2 + 0.12*pulse)*GLOW_UNDER_TINT));
+        gB.fillPoints(pts(ring(c.x, c.y, 0.6, 11)), true);
       }
       return;
     }
@@ -51846,15 +51976,16 @@ class WorldScene extends Phaser.Scene {
         const sw = Math.sin(t*0.009), wx = sw*4.2;
         poly([c(wx - 1.7, 3), c(wx + 1.7, 3), c(wx*0.6 + 1, 9.6), c(wx*0.6 - 1, 9.6)], lighten(F, 0.7), 0.9);
         if(night){ const o = c(0, 5), pulse = 0.5 + 0.5*Math.sin(t*0.009*2);
-          this.gGlowLo.fillStyle(F, Math.min(1, (0.18 + 0.2*pulse)*GLOW_UNDER_TINT)); this.gGlowLo.fillCircle(o.x, o.y, 16*ks); }
+          const gB = this.gBotGlow || this.gGlowLo; gB.fillStyle(F, Math.min(1, (0.18 + 0.2*pulse)*GLOW_UNDER_TINT)); gB.fillCircle(o.x, o.y, 16*ks); }
         return 7;
       }
       case 'bulb': {
         poly([c(-3,0), c(3,0), c(3,3.8), c(-3,3.8)], 0x9aa1ad);
         circ(0, 10, 7, lighten(F, 0.35)); circ(-2, 12, 2.1, 0xffffff, 0.7);
         if(night){ const o = c(0, 10), pulse = 0.5 + 0.5*Math.sin(t/650);
-          this.gGlowLo.fillStyle(F, Math.min(1, (0.2 + 0.12*pulse)*GLOW_UNDER_TINT)); this.gGlowLo.fillCircle(o.x, o.y, 15*ks);
-          this.gGlowLo.fillStyle(0xffffff, Math.min(1, 0.35*GLOW_UNDER_TINT)); this.gGlowLo.fillCircle(o.x, o.y, 4*ks); }
+          const gB = this.gBotGlow || this.gGlowLo;
+          gB.fillStyle(F, Math.min(1, (0.2 + 0.12*pulse)*GLOW_UNDER_TINT)); gB.fillCircle(o.x, o.y, 15*ks);
+          gB.fillStyle(0xffffff, Math.min(1, 0.35*GLOW_UNDER_TINT)); gB.fillCircle(o.x, o.y, 4*ks); }
         return 8;
       }
     }
@@ -63023,9 +63154,10 @@ document.getElementById("avatarIcon").addEventListener("click", tpOpenProfile);
 /* THE ROBOT BUTTON IS THE DEPOT'S (Sir, 2026-09-23: "lets only have the
    orange robot button when we are on a charger in a depot and if we click
    it the depot door closes"). While driving -- free roam or a delivery,
-   in play -- it shows only while he stands on a charging pad (the same
+   in play -- it is live only while he stands on a charging pad (the same
    battPadAt the battery charges from); everywhere else in those modes it
-   is hidden. Menus, missions and the map keep it as before. Driving off
+   is ghosted and inert (body.tpOffPad -- grey, faded, taps ignored; it
+   used to be hidden). Menus, missions and the map keep it as before. Driving off
    the pad also lifts the door-shut, so the door works normally again.
    Polled, not per-frame: the button is DOM, and a quarter second is
    well inside the time it takes to roll onto a pad and stop. */
@@ -63044,6 +63176,9 @@ setInterval(tpAvatarPadGate, 250);
   let last = 0;
   const go = (e) => {
     if(e){ e.preventDefault(); e.stopPropagation(); }
+    /* ghosted off the pad: swallow the tap (so it cannot fall through to
+       the city under it) and do nothing */
+    if(document.body.classList.contains("tpOffPad")) return;
     const now = performance.now();
     if(now - last < 700) return;          // pointerdown + click both fired
     last = now;
@@ -63881,10 +64016,8 @@ document.addEventListener("keydown", e => {
     #grTray{grid-column:2;grid-row:2 / 4;border-radius:18px 0 0 0;overflow-y:auto;
       display:flex;flex-direction:column}
     #grPanel.grList{max-height:none;flex:1 1 auto;min-height:0;overflow-y:auto}
-    #grTabs,#grBar,#grTrophy{flex:0 0 auto}
-  }
-  #grTrophy{width:100%;min-height:44px;margin-top:10px;border-radius:12px;border:1px solid #363b46;
-    background:#1c1f25;color:#e8eaef;font:inherit}`;
+    #grTabs,#grBar{flex:0 0 auto}
+  }`;
   document.head.appendChild(css);
 
   const el = document.createElement('div');
@@ -63901,7 +64034,6 @@ document.addEventListener("keydown", e => {
       </div>
       <div id="grPanel"></div>
       <div id="grBar"><button id="grBack">Put back</button><button id="grBuy">Buy</button></div>
-      <button id="grTrophy">Trophy case</button>
     </div>`;
   document.body.appendChild(el);
   const $ = id => document.getElementById(id);
@@ -63946,11 +64078,15 @@ document.addEventListener("keydown", e => {
         s.ow.yaw += d * Math.min(1, dt / 160);
       }
       const e = Math.min(1, dt / 140);
-      s.K += ((f ? fr.K * f.zoom : fr.K) - s.K) * e;
+      const Kt = f ? fr.K * f.zoom : fr.K;
+      let T;
       if (f) {
         const p = s.P(f.pt[0], f.pt[1], f.pt[2]);
-        s.cx += (fr.ax - p.x) * e; s.cy += (fr.ay - p.y) * e;
-      } else { s.cx += (fr.cx - s.cx) * e; s.cy += (fr.cy - s.cy) * e; }
+        const ax = (p.x - s.cx) / s.K, ay = (p.y - s.cy) / s.K;
+        T = { K: Kt, cx: fr.ax - ax * Kt, cy: fr.ay - ay * Kt };
+      } else T = { K: Kt, cx: fr.cx, cy: fr.cy };
+      T = clampTarget(s, T);
+      s.K += (T.K - s.K) * e; s.cx += (T.cx - s.cx) * e; s.cy += (T.cy - s.cy) * e;
       s._cyBase = s.cy;
     }
     requestAnimationFrame(loop);
@@ -64012,6 +64148,133 @@ document.addEventListener("keydown", e => {
      Face / Lights toggle flips between the two. */
   let lightsView = false;
   const focusNow = () => (tab === 'eyes' && pv && pv.eyeProj && lightsView) ? FOCUS.lights : FOCUS[tab];
+
+  /* ============================ THE TROPHY WALL ============================
+     The trophies stand on shelves on the depot's LEFT wall -- TROPHY_WALL,
+     drawn by the depot's own room in the cutaway -- in plain sight from
+     his pad. No button and no view of their own (Sir, 2026-09-25: "we can
+     pretty much see them from our tipsey point of view already"), and a
+     trophy is only on the shelf once it is earned ("get rid of the
+     trophies on the shelf until they get unlocked"). Claiming a reward is
+     the Trophy Case's job, as before. */
+  const trProg = tr => tr.progress(tpProfile.history, tpProfile.allTimeTotal, tpProfile.missionsCompleted);
+  function syncTrophies() {
+    const s = scn(); if (!s || !s._garage) return;
+    s._garage.trophies = TP_TROPHIES.map((tr, i) => {
+      const p = trProg(tr), earned = p.current >= p.target;
+      return { tier: tr.tier, earned };
+    });
+  }
+  /* lab point on this depot -> canvas px, through the scene's own W() and
+     the depot's zs, which is exactly how the room itself reaches the screen */
+  const lotOf = s => (s._garage && s.route && s.route.grid) ? depotsOf(s.route.grid).find(d => d.key === s._garage.key) : null;
+  function labPt(s, a, b, z) {
+    const lot = lotOf(s);
+    if (!lot) return null;
+    const q = depotWorld(lot.cu, a, b);
+    return s.W(q.x, q.y, z * depotZS());
+  }
+  /* ---- NOTHING BUT THE GARAGE (Sir, on-device: "i really dont like
+     seeing outside of the garage") ---- everything outside the room is
+     painted out, both views. The room's outline on screen is the hull of
+     its floor (the walkable room, chamfer and all -- depotVol's 'room'
+     opening) and the tops of the two walls the camera sees into; outside
+     that hull is solid dark. Drawn as one quad per hull edge pushed out
+     to infinity plus the wedge at each corner -- no hole-in-polygon, which
+     Phaser's fills cannot do. On postupdate, after drawWorld, so it uses
+     the very camera the room was just drawn with and never lags it. */
+  const MASK = { col: 0x10151b, depth: 8000 };
+  function roomHull(s) {
+    const lot = lotOf(s); if (!lot) return null;
+    const v = depotVol(), room = (v.opens || []).find(o => o.name === 'room');
+    const floor = room ? room.poly : [[40, -244], [40, -6], [289.6, -6], [289.6, -244]];
+    const DH = 168, pts = [];
+    for (const [a, b] of floor) pts.push(labPt(s, a, b, 0));
+    for (const [a, b] of [[40, -244], [40, -6], [289.6, -244]]) pts.push(labPt(s, a, b, DH));
+    /* convex hull, monotone chain */
+    const P = pts.filter(Boolean).sort((p, q) => p.x - q.x || p.y - q.y);
+    const cr = (o, a, b) => (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
+    const lo = [], up = [];
+    for (const p of P) { while (lo.length >= 2 && cr(lo[lo.length - 2], lo[lo.length - 1], p) <= 0) lo.pop(); lo.push(p); }
+    for (let i = P.length - 1; i >= 0; i--) { const p = P[i]; while (up.length >= 2 && cr(up[up.length - 2], up[up.length - 1], p) <= 0) up.pop(); up.push(p); }
+    return lo.slice(0, -1).concat(up.slice(0, -1));   // counter-clockwise in screen y-down
+  }
+  let gMask = null;
+  function drawMask() {
+    const s = scn();
+    if (!s) return;
+    if (!gMask || gMask.scene !== s || !gMask.active) { gMask = s.add.graphics(); gMask.setDepth(MASK.depth); }
+    gMask.clear();
+    if (!open || !s._garage) return;
+    const H = roomHull(s); if (!H || H.length < 3) return;
+    const L = 20000, n = H.length, V = (x, y) => new Phaser.Geom.Point(x, y);
+    /* outward normal of edge i (hull is CCW on a y-down screen, so the
+       outside is to the right of travel... measured below, not assumed) */
+    let area = 0; for (let i = 0; i < n; i++) { const a = H[i], b = H[(i + 1) % n]; area += a.x * b.y - b.x * a.y; }
+    const sg = area > 0 ? 1 : -1;
+    const nrm = i => { const a = H[i], b = H[(i + 1) % n], dx = b.x - a.x, dy = b.y - a.y, l = Math.hypot(dx, dy) || 1;
+      return { x: sg * dy / l, y: -sg * dx / l }; };
+    gMask.fillStyle(MASK.col, 1);
+    for (let i = 0; i < n; i++) {
+      const a = H[i], b = H[(i + 1) % n], m = nrm(i), mp = nrm((i - 1 + n) % n);
+      gMask.fillPoints([V(a.x, a.y), V(b.x, b.y), V(b.x + m.x * L, b.y + m.y * L), V(a.x + m.x * L, a.y + m.y * L)], true);
+      gMask.fillPoints([V(a.x, a.y), V(a.x + mp.x * L, a.y + mp.y * L), V(a.x + m.x * L, a.y + m.y * L)], true);
+    }
+  }
+  /* ---- AND NO BLACK EITHER (Sir: "now we have black border") ----
+     The mask above paints out what is outside the room; this makes sure
+     there is nothing outside the room to paint: the whole visible box
+     (fr.vx0..vy1, between the top bar and the tray) must lie inside the
+     room's outline. It limits the camera's TARGET, never the camera
+     itself -- clamping the eased camera fought the ease every frame (Sir,
+     on-device: "the camera is fighting against something": ease pulled
+     it out, the clamp shoved it back a 3% step, round and round). Now the
+     ease heads for a target that is already legal and simply arrives.
+
+     The outline scales about the camera centre with K (q below is it in
+     camera-relative, K-free units -- independent of where the camera
+     is), so "box inside the hull" is one linear constraint on (cx, cy)
+     per hull edge; alternating projections from the wanted centre find a
+     legal one, and the least K that has one is bisected, not stepped.
+     Not enlarging the depot: it is a building in the city. */
+  function hullQ(s) {
+    const H = roomHull(s);
+    if (!H || H.length < 3) return null;
+    return H.map(p => ({ x: (p.x - s.cx) / s.K, y: (p.y - s.cy) / s.K }));
+  }
+  function legalAt(q, K, cx, cy) {
+    const V = [[fr.vx0, fr.vy0], [fr.vx1, fr.vy0], [fr.vx1, fr.vy1], [fr.vx0, fr.vy1]], n = q.length;
+    let area = 0; for (let i = 0; i < n; i++) { const a = q[i], b = q[(i + 1) % n]; area += a.x * b.y - b.x * a.y; }
+    const sg = area > 0 ? -1 : 1, E = [];
+    for (let i = 0; i < n; i++) {
+      const a = q[i], b = q[(i + 1) % n], dx = (b.x - a.x) * K, dy = (b.y - a.y) * K, l = Math.hypot(dx, dy) || 1;
+      const nx = sg * dy / l, ny = -sg * dx / l;
+      let bnd = Infinity;
+      for (const [vx, vy] of V) bnd = Math.min(bnd, (vx - a.x * K) * nx + (vy - a.y * K) * ny);
+      E.push([nx, ny, bnd]);
+    }
+    let worst = 0;
+    for (let it = 0; it < 120; it++) {
+      worst = 0;
+      for (const [nx, ny, bnd] of E) {
+        const d = cx * nx + cy * ny - bnd;
+        if (d > 0) { cx -= nx * d; cy -= ny * d; worst = Math.max(worst, d); }
+      }
+      if (worst < 0.05) return { cx, cy };
+    }
+    return null;
+  }
+  function clampTarget(s, T) {
+    const q = hullQ(s);
+    if (!q || fr.vx1 === undefined) return T;
+    const at = legalAt(q, T.K, T.cx, T.cy);
+    if (at) return { K: T.K, cx: at.cx, cy: at.cy };
+    let lo = T.K, hi = T.K * 1.5;
+    while (!legalAt(q, hi, T.cx, T.cy) && hi < T.K * 12) { lo = hi; hi *= 1.5; }
+    for (let k = 0; k < 14; k++) { const m = (lo + hi) / 2; if (legalAt(q, m, T.cx, T.cy)) hi = m; else lo = m; }
+    const c = legalAt(q, hi, T.cx, T.cy) || { cx: T.cx, cy: T.cy };
+    return { K: hi, cx: c.cx, cy: c.cy };
+  }
   function fit(s) {
     s = s || scn(); if (!s || !open) return;
     /* page coords -> canvas coords: the canvas does not start at the top of
@@ -64029,20 +64292,24 @@ document.addEventListener("keydown", e => {
     fr.cy = top + 24 + 118 * fr.K;
     fr.cx = side ? (tr.left - cr.left) * r / 2 : s.scale.gameSize.width / 2;
     fr.ax = fr.cx; fr.ay = (top + bot) / 2;
+    fr.aw = side ? (tr.left - cr.left) * r : s.scale.gameSize.width; fr.ah = bot - top;
+    /* the part of the canvas the player actually sees between the bars --
+       clampTarget keeps all of it inside the room */
+    fr.vx0 = 0; fr.vx1 = fr.aw; fr.vy0 = top; fr.vy1 = bot;
     if (!fr.init) { s.K = fr.K; s.cx = fr.cx; s.cy = s._cyBase = fr.cy; fr.init = true; }
   }
   window.addEventListener('resize', () => setTimeout(fit, 60));
   function garageOpen(s) {
     if (open) return;
     open = true;
-    if (!pinBound) { s.events.on('preupdate', pinCam); s.events.on('postupdate', pinCam); pinBound = true; }
+    if (!pinBound) { s.events.on('preupdate', pinCam); s.events.on('postupdate', pinCam); s.events.on('postupdate', drawMask); pinBound = true; }
     saved = { K: s.K, cy: s.cy, cx: s.cx, cyB: s._cyBase };
     s._garage = { key: s._doorShut, at: performance.now() };
     fit(s);
     s.camX = s.botX; s.camY = s.botY;
     document.body.classList.add('tpGarage');
     $('grHint').style.opacity = 1;
-    fr.init = false; pv = worn(); renderTab(); renderBar(); fit(s);
+    fr.init = false; pv = worn(); renderTab(); renderBar(); syncTrophies(); fit(s);
     lastTouch = performance.now(); prevT = 0; vel = 0;
     requestAnimationFrame(loop);
   }
@@ -64052,13 +64319,13 @@ document.addEventListener("keydown", e => {
     open = false;
     if (s && saved) { s.K = saved.K; s.cy = saved.cy; s.cx = saved.cx; s._cyBase = saved.cyB; }
     if (s) { s._garage = null; s._lightsPreview = false; }
+    if (gMask) gMask.clear();
     document.body.classList.remove('tpGarage');
     /* you only leave wearing what you own */
     if (pv && unpaid(pv).length) tpApplySkin(tpProfile.equipped);
     pv = null;
   }
   $('grClose').addEventListener('click', garageClose);
-  $('grTrophy').addEventListener('click', () => { garageClose(); _openProfile(); });
   let tab = 'paint';
   for (const b of el.querySelectorAll('#grTabs button')) b.addEventListener('click', () => {
     for (const x of el.querySelectorAll('#grTabs button')) x.classList.toggle('on', x === b);
