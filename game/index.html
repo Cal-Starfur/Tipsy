@@ -8236,7 +8236,10 @@ function owContinueHere(scene){
         && gpsNav.path && gpsNav.path.pts && gpsNav.path.pts.length){
     /* point him AT the trip he just paid for. Keeping the old yaw would
        stand him up nose-to-nose with whatever knocked him over. */
-    const p = gpsNav.path.pts[0];
+    /* the path starts at his own foot on the walk now, so aim at the
+       first point that is actually somewhere else */
+    const P = gpsNav.path.pts;
+    const p = P.find(q => Math.hypot(q.x - ow.px, q.y - ow.py) > T2) || P[P.length - 1];
     ow.yaw = Math.atan2(p.y - ow.py, p.x - ow.px);
   }
   return true;
@@ -10020,90 +10023,222 @@ function buildGrid(cols, rows, seed=0, opts){
    0 = +i east, 1 = +j south, 2 = -i west, 3 = -j north. */
 const GPS_DI = [1, 0, -1, 0];
 const GPS_DJ = [0, 1, 0, -1];
-/* In blocks. A 90 is worth a third of a block and a reversal a block
-   and a half -- enough that the search stops treating a staircase as
-   free, not so much that it drives across town to dodge one corner.
-   These are the ONLY tuning knobs here and they answer one question
-   each; nothing else borrows them. */
-const GPS_TURN_COST  = 0.35;
-const GPS_UTURN_COST = 1.60;
+/* In blocks. Tipsey is a sidewalk robot that pivots on the spot, so a
+   corner or a turn-around costs him seconds, not a block of driving --
+   the old car-sized 0.35 / 1.60 sent him a block the WRONG way round
+   rather than let him turn around on his own sidewalk (Sir, 2026-09-24,
+   the Palmline Garage route that left south for a garage on his own
+   block). GPS_CROSS_COST is charged on top of the crossing's length for
+   every street crossed, so the route keeps to one side of a street
+   unless changing sides actually saves distance. These are the ONLY
+   tuning knobs here and nothing else borrows them. */
+const GPS_TURN_COST  = 0.10;
+const GPS_UTURN_COST = 0.25;
+const GPS_CROSS_COST = 0.10;
 
-/* nearest lattice node to a world point. Nodes sit exactly on
-   i*BLOCK, j*BLOCK, so the first guess is a round and a clamp.
+/* ---------- THE SIDEWALK GRAPH (Sir, 2026-09-24: "he should get routed
+   via sidewalks and only cross into the street at sidewalk end/begin") --
+   The lattice this used to search is street CENTRELINES. gpsWalkPts then
+   shoved each leg sideways onto the walk for drawing, but always onto the
+   leg's right-hand side and always from a node in the middle of the
+   junction, so the line began with a diagonal off the robot into the road,
+   ended with one into the pin, and a destination on his OWN block was
+   reached by leaving it and coming back.
 
-   ...but it cannot STOP there. Measured on the live city: the lattice
-   is 14 connected components -- one of 959 nodes and thirteen single
-   nodes each walled in on all four sides by merged parkland, which the
-   swallow pass legitimately strips every street from. Snapping blindly
-   to the closest node lands on one of those islands for any point near
-   a big park, and the caller gets "no route" for a destination with
-   perfectly good streets one block away. So: take the nearest node
-   that actually has an exit, widening a ring at a time. Thirteen out
-   of 972 means this almost never runs, which is exactly why it would
-   have been a rare unreproducible "GPS just doesn't work here" report
-   rather than something anyone could pin down. */
-function gpsNodeHasExit(grid, n){
-  if(!n) return false;
-  for(let d = 0; d < 4; d++){
-    if(!n.conn[d]) continue;
-    const ni = n.i + GPS_DI[d], nj = n.j + GPS_DJ[d];
-    if(ni >= 0 && ni < grid.cols && nj >= 0 && nj < grid.rows) return true;
+   So the search now runs on the walk itself. Every junction has four
+   corners, one per quadrant, at WORLD_RAMP.cross from the node on both
+   axes -- the line the world's curb ramps (sidewalkend/sidewalkbegin)
+   sit on, so a crossing between two corners runs pad to pad. Edges:
+     along  corner -> corner down one side of a street, the sidewalk
+     cross  corner -> corner over a street arm: the ONLY road the route
+            ever touches, and only where that arm exists
+     join   corner -> corner past a MISSING arm (T, L, park edge): the
+            block's own sidewalk runs straight across there
+   Every edge is sampled against grid.classify before it is kept -- along
+   and join must be sidewalk the whole way, a cross must be road and
+   sidewalk only -- so a swallowed street, a park interior or anything
+   else the classifier calls "block" can never carry the route. The graph
+   is built once per grid and cached on it; the city is permanent. */
+function gpsWalkGraph(grid){
+  if(grid._gpsWalk) return grid._gpsWalk;
+  const cols = grid.cols, rows = grid.rows, C = WORLD_RAMP.cross;
+  const QX = [-1, 1, 1, -1], QY = [-1, -1, 1, 1];      // NW NE SE SW
+  const NC = cols * rows * 4;
+  const vx = new Float64Array(NC), vy = new Float64Array(NC);
+  const live = new Uint8Array(NC);
+  /* grid.classify, bucketed. classifyAt walks every street edge per
+     call, and this build asks it ~150k questions -- 1.7 s on desktop
+     Chromium, a visible hang on the first route. An edge can only answer
+     for points within ROAD_HALF + SIDEWALK_W of itself (and OVERSHOOT
+     past its ends), all less than a BLOCK, so only edges whose `a` node
+     sits in the 3x3 cells round the point can change the answer; the
+     Sierra gate street is not lattice-length and is always asked. Same
+     loop, same early "road" return, so the answer is identical. */
+  const bucket = new Map(), always = [];
+  for(const e of grid.edges){
+    if(e.a.j < 0 || e.a.svGate || e.b.svGate){ always.push(e); continue; }
+    const k = e.a.i + "," + e.a.j;
+    if(!bucket.has(k)) bucket.set(k, []);
+    bucket.get(k).push(e);
   }
-  return false;
-}
-function gpsNearestNode(grid, x, y){
-  if(!grid || !grid.nodeAt) return null;
-  const i0 = Math.max(0, Math.min(grid.cols - 1, Math.round(x / BLOCK)));
-  const j0 = Math.max(0, Math.min(grid.rows - 1, Math.round(y / BLOCK)));
-  const first = grid.nodeAt(i0, j0);
-  if(gpsNodeHasExit(grid, first)) return first;
-  /* ring search. Bounded at 4 because an island is a single node by
-     definition -- if four blocks in every direction is still nothing
-     the grid is broken in a way no fallback should paper over. */
-  for(let r = 1; r <= 4; r++){
-    let best = null, bestD = Infinity;
-    for(let dj = -r; dj <= r; dj++) for(let di = -r; di <= r; di++){
-      if(Math.max(Math.abs(di), Math.abs(dj)) !== r) continue;
-      const n = grid.nodeAt(i0 + di, j0 + dj);
-      if(!gpsNodeHasExit(grid, n)) continue;
-      const d = (n.x - x)*(n.x - x) + (n.y - y)*(n.y - y);
-      if(d < bestD){ bestD = d; best = n; }
+  const near = new Map();
+  const cls = (x, y) => {
+    const ci = Math.floor(x / BLOCK), cj = Math.floor(y / BLOCK), key = ci + "," + cj;
+    let list = near.get(key);
+    if(!list){
+      list = always.slice();
+      for(let dj = -1; dj <= 1; dj++) for(let di = -1; di <= 1; di++){
+        const b = bucket.get((ci + di) + "," + (cj + dj));
+        if(b) list.push(...b);
+      }
+      near.set(key, list);
     }
-    if(best) return best;
+    return classifyAt(list, x, y);
+  };
+  for(let j = 0; j < rows; j++) for(let i = 0; i < cols; i++){
+    const n = grid.nodes[j*cols + i];
+    for(let q = 0; q < 4; q++){
+      const v = (j*cols + i)*4 + q;
+      vx[v] = n.x + QX[q]*C; vy[v] = n.y + QY[q]*C;
+      live[v] = cls(vx[v], vy[v]) === "sidewalk" ? 1 : 0;
+    }
   }
-  return first;
+  const adj = Array.from({ length: NC }, () => []);
+  const segs = [];                                      // for projection
+  const STEP = T2 * 0.5;
+  const ok = (a, b, kind) => {
+    const L = Math.hypot(vx[b] - vx[a], vy[b] - vy[a]);
+    const n = Math.max(2, Math.ceil(L / STEP));
+    let road = 0;
+    for(let k = 1; k < n; k++){
+      const t = k / n, c = cls(vx[a] + (vx[b] - vx[a])*t, vy[a] + (vy[b] - vy[a])*t);
+      if(c === "road") road++;
+      else if(c !== "sidewalk") return false;
+    }
+    return kind === "cross" ? road > 0 : road === 0;
+  };
+  const link = (a, b, kind) => {
+    if(!live[a] || !live[b] || !ok(a, b, kind)) return;
+    const L = Math.hypot(vx[b] - vx[a], vy[b] - vy[a]);
+    const cost = L + (kind === "cross" ? BLOCK * GPS_CROSS_COST : 0);
+    adj[a].push({ v: b, cost, len: L, kind });
+    adj[b].push({ v: a, cost, len: L, kind });
+    segs.push({ a, b, kind });
+  };
+  const V = (i, j, q) => (j*cols + i)*4 + q;
+  for(let j = 0; j < rows; j++) for(let i = 0; i < cols; i++){
+    const n = grid.nodes[j*cols + i];
+    /* along: east to (i+1, j), both sides; south to (i, j+1), both sides */
+    if(n.conn[0] && i + 1 < cols){
+      link(V(i,j,1), V(i+1,j,0), "along");              // north side
+      link(V(i,j,2), V(i+1,j,3), "along");              // south side
+    }
+    if(n.conn[1] && j + 1 < rows){
+      link(V(i,j,3), V(i,j+1,0), "along");              // west side
+      link(V(i,j,2), V(i,j+1,1), "along");              // east side
+    }
+    /* round the junction: arm d separates two corners */
+    const armPairs = [[1,2],[2,3],[3,0],[0,1]];          // E, S, W, N
+    for(let d = 0; d < 4; d++){
+      const ni = n.i + GPS_DI[d], nj = n.j + GPS_DJ[d];
+      /* grid.nodeAt, not a bounds test: it also answers for Sierra Vista's
+         gate node, whose street leaves the lattice northward and is
+         crossed like any other */
+      const arm = n.conn[d] && !!grid.nodeAt(ni, nj);
+      link(V(i,j,armPairs[d][0]), V(i,j,armPairs[d][1]), arm ? "cross" : "join");
+    }
+  }
+  return (grid._gpsWalk = { vx, vy, adj, segs, NC });
+}
+
+/* nearest point on the walk graph to a world point: { seg, t, x, y }.
+   Crossings count for the START (a robot caught mid-crosswalk is on his
+   route, not off it) and never for the END (nothing is delivered in the
+   road). Brute force over every edge: a few thousand dot products, at the
+   GPS_REPLOT_MS throttle, is nothing. */
+function gpsWalkProject(W, x, y, allowCross){
+  let best = null, bd = Infinity;
+  for(const s of W.segs){
+    if(!allowCross && s.kind === "cross") continue;
+    const ax = W.vx[s.a], ay = W.vy[s.a], dx = W.vx[s.b] - ax, dy = W.vy[s.b] - ay;
+    const L2 = dx*dx + dy*dy;
+    let t = L2 ? ((x - ax)*dx + (y - ay)*dy) / L2 : 0;
+    t = t < 0 ? 0 : t > 1 ? 1 : t;
+    const px = ax + dx*t, py = ay + dy*t;
+    const d = (x - px)*(x - px) + (y - py)*(y - py);
+    if(d < bd){ bd = d; best = { seg: s, t, x: px, y: py }; }
+  }
+  return best;
+}
+
+/* heading 0-3 of an axis move, same convention as GPS_DI/GPS_DJ */
+function gpsAxisF(dx, dy){
+  return Math.abs(dx) >= Math.abs(dy) ? (dx >= 0 ? 0 : 2) : (dy >= 0 ? 1 : 3);
+}
+
+/* In a depot's room (or its doorway)? Then { mat, walk }: the mat in front
+   of the door, and the first sidewalk point straight out through it. null
+   anywhere else. Depots are the only rooms he drives into. */
+function gpsDepotExit(grid, x, y){
+  if(!grid || typeof depotsOf !== "function") return null;
+  for(const d of depotsOf(grid)){
+    if(!depotDoorWants(d, x, y)) continue;
+    const pad = depotPadWorld(d), mat = depotDoorWorld(d);
+    let ux = mat.x - pad.x, uy = mat.y - pad.y;
+    const L = Math.hypot(ux, uy) || 1; ux /= L; uy /= L;
+    for(let k = 0; k <= 40; k++){
+      const wx = mat.x + ux*k*T2*0.5, wy = mat.y + uy*k*T2*0.5;
+      if(grid.classify(wx, wy) === "sidewalk") return { mat, walk: { x: wx, y: wy } };
+    }
+    return null;
+  }
+  return null;
 }
 
 /* fromXY/toXY are world points; startF is the robot's current heading
-   (0-3) or null for "no constraint", which seeds all four and lets the
-   first move be free. Returns null when there is no route at all --
-   callers must handle that rather than assume a path exists, because
-   the swallow pass genuinely can strand a node inside merged parkland.
+   (0-3) or null for "no constraint". Returns null when there is no route
+   at all -- callers must handle that rather than assume a path exists.
 
-   { nodes, pts, len, turns } -- len is true world distance with the
-   turn penalties taken back out, so it can be fed straight to the par
-   formula without double-counting corners that formula already prices
-   at 2000ms each. */
+   { nodes, pts, len, turns, crossings, startF } -- pts is the route AS
+   DRIVEN: it starts at the robot's own foot on the walk, runs corner to
+   corner along sidewalks, crosses only between ramp corners, and ends on
+   the walk in front of the destination. pts.onWalk tells gpsWalkPts there
+   is nothing left to offset. len is true distance with every penalty taken
+   back out, so it feeds the ETA/par formula without double-counting. */
 function gpsFindPath(grid, fromXY, toXY, startF){
-  const a = gpsNearestNode(grid, fromXY.x, fromXY.y);
-  const b = gpsNearestNode(grid, toXY.x,   toXY.y);
-  if(!a || !b) return null;
-  const cols = grid.cols, rows = grid.rows;
-  const N = grid.nodes.length, S = N * 4;
-  const goal = b.j * cols + b.i;
-  const turnPen = BLOCK * GPS_TURN_COST, uPen = BLOCK * GPS_UTURN_COST;
-  /* Manhattan on the lattice, in world units. Admissible because every
-     move is exactly one BLOCK along an axis and the turn penalties are
-     charged to g only -- adding them here too would overestimate and
-     the first path found would stop being the shortest one. */
-  const h = k => (Math.abs((k % cols) - b.i) + Math.abs(Math.floor(k / cols) - b.j)) * BLOCK;
+  if(!grid || !grid.classify) return null;
+  const W = gpsWalkGraph(grid);
+  const A = gpsWalkProject(W, fromXY.x, fromXY.y, true);
+  const B = gpsWalkProject(W, toXY.x, toXY.y, false);
+  if(!A || !B) return null;
+  const NC = W.NC, SV = NC, GV = NC + 1;               // two virtual vertices
+  const px = v => v === SV ? A.x : v === GV ? B.x : W.vx[v];
+  const py = v => v === SV ? A.y : v === GV ? B.y : W.vy[v];
+  /* the virtual ends hang off the two corners of the edge they sit on;
+     same edge -> straight along it */
+  const extra = new Map();
+  const addX = (u, v, len, kind) => {
+    if(!extra.has(u)) extra.set(u, []);
+    extra.get(u).push({ v, cost: len, len, kind });
+  };
+  const dist = (x0, y0, x1, y1) => Math.hypot(x1 - x0, y1 - y0);
+  for(const c of [A.seg.a, A.seg.b]) addX(SV, c, dist(A.x, A.y, W.vx[c], W.vy[c]), A.seg.kind);
+  for(const c of [B.seg.a, B.seg.b]) addX(c, GV, dist(W.vx[c], W.vy[c], B.x, B.y), "along");
+  if(A.seg === B.seg) addX(SV, GV, dist(A.x, A.y, B.x, B.y), "along");
+  const out = v => {
+    const e = extra.get(v);
+    return v < NC ? (e ? W.adj[v].concat(e) : W.adj[v]) : (e || []);
+  };
 
+  const turnPen = BLOCK * GPS_TURN_COST, uPen = BLOCK * GPS_UTURN_COST;
+  /* Manhattan to the goal: every move is axis-aligned and penalties only
+     ever add, so this never overestimates. */
+  const h = v => Math.abs(px(v) - B.x) + Math.abs(py(v) - B.y);
+  /* state = vertex*5 + heading; heading 4 = "none yet" (the start) */
+  const S = (NC + 2) * 5;
   const g = new Float64Array(S).fill(Infinity);
   const prev = new Int32Array(S).fill(-1);
   const done = new Uint8Array(S);
-  /* binary heap. 972 nodes x 4 headings is small enough that a linear
-     scan would also finish, but this runs on a pin tap while the world
-     is stepping and a hitch there is visible. */
   const hp = [];
   const push = (f, s) => {
     hp.push({ f, s });
@@ -10130,42 +10265,59 @@ function gpsFindPath(grid, fromXY, toXY, startF){
     }
     return top;
   };
-
-  const start = a.j * cols + a.i;
-  const seeds = (startF == null || startF < 0) ? [0,1,2,3] : [startF & 3];
-  for(const d of seeds){ const s = start*4 + d; g[s] = 0; push(h(start), s); }
-
+  const f0 = (startF == null || startF < 0) ? 4 : (startF & 3);
+  const s0 = SV*5 + f0;
+  g[s0] = 0; push(h(SV), s0);
   let end = -1;
   while(hp.length){
     const s = pop().s;
     if(done[s]) continue;
     done[s] = 1;
-    const k = s >> 2, d0 = s & 3;
-    if(k === goal){ end = s; break; }
-    const n = grid.nodes[k];
-    for(let d = 0; d < 4; d++){
-      if(!n.conn[d]) continue;
-      const ni = n.i + GPS_DI[d], nj = n.j + GPS_DJ[d];
-      if(ni < 0 || ni >= cols || nj < 0 || nj >= rows) continue;
-      const ns = (nj*cols + ni)*4 + d;
+    const u = (s / 5) | 0, d0 = s % 5;
+    if(u === GV){ end = s; break; }
+    for(const e of out(u)){
+      const dx = px(e.v) - px(u), dy = py(e.v) - py(u);
+      /* a zero-length hop (the robot standing on a corner) keeps its
+         heading rather than inventing one */
+      const d = (Math.abs(dx) + Math.abs(dy) < 1) ? d0 : gpsAxisF(dx, dy);
+      const ns = e.v*5 + d;
       if(done[ns]) continue;
-      const turn = ((d - d0) % 4 + 4) % 4;
-      const ng = g[s] + BLOCK + (turn === 0 ? 0 : turn === 2 ? uPen : turnPen);
-      if(ng < g[ns]){ g[ns] = ng; prev[ns] = s; push(ng + h(nj*cols + ni), ns); }
+      let pen = 0;
+      if(d0 < 4 && d < 4 && d !== d0) pen = ((d - d0 + 4) % 4) === 2 ? uPen : turnPen;
+      const ng = g[s] + e.cost + pen;
+      if(ng < g[ns]){ g[ns] = ng; prev[ns] = s; push(ng + h(e.v), ns); }
     }
   }
   if(end < 0) return null;
 
   const chain = [];
-  for(let s = end; s >= 0; s = prev[s]) chain.push(s);
+  for(let s = end; s >= 0; s = prev[s]) chain.push((s / 5) | 0);
   chain.reverse();
-  const nodes = chain.map(s => grid.nodes[s >> 2]);
-  const pts = nodes.map(n => ({ x: n.x, y: n.y }));
-  let turns = 0;
-  for(let q = 2; q < chain.length; q++)
-    if((chain[q] & 3) !== (chain[q-1] & 3)) turns++;
-  return { nodes, pts, len: (nodes.length - 1) * BLOCK, turns,
-           startF: chain.length ? (chain[0] & 3) : null };
+  /* dedupe and drop collinear midpoints: a corner walked straight
+     through (or a crossing continued straight onto the next walk) is not
+     a maneuver, and gpsNavTurn reads every vertex as a candidate one */
+  const raw = chain.map(v => ({ x: px(v), y: py(v) }));
+  const pts = [];
+  for(const q of raw){
+    const l = pts[pts.length - 1];
+    if(l && Math.abs(l.x - q.x) < 1 && Math.abs(l.y - q.y) < 1) continue;
+    pts.push(q);
+  }
+  for(let q = pts.length - 2; q >= 1; q--){
+    const a = pts[q-1], b = pts[q], c = pts[q+1];
+    if(Math.abs((b.x - a.x)*(c.y - b.y) - (b.y - a.y)*(c.x - b.x)) < 1
+       && (b.x - a.x)*(c.x - b.x) + (b.y - a.y)*(c.y - b.y) > 0) pts.splice(q, 1);
+  }
+  let len = 0, turns = 0, crossings = 0;
+  for(let q = 1; q < pts.length; q++) len += Math.hypot(pts[q].x - pts[q-1].x, pts[q].y - pts[q-1].y);
+  for(let q = 1; q < pts.length - 1; q++) turns++;     // every surviving interior vertex is a turn
+  for(let q = 1; q < chain.length; q++){
+    const e = out(chain[q-1]).find(e => e.v === chain[q]);
+    if(e && e.kind === "cross" && chain[q-1] < NC && chain[q] < NC) crossings++;
+  }
+  pts.onWalk = true;
+  const sf = pts.length > 1 ? gpsAxisF(pts[1].x - pts[0].x, pts[1].y - pts[0].y) : null;
+  return { nodes: pts, pts, len, turns, crossings, startF: sf };
 }
 
 /* ETA for a driven leg, in ms. Deliberately the SAME shape as the par
@@ -10265,11 +10417,23 @@ function gpsNavReplot(scene, force){
   const now = performance.now();
   if(!force && now - gpsNav.plottedAt < GPS_REPLOT_MS) return;
   gpsNav.plottedAt = now;
-  const p = gpsFindPath(scene.route.grid,
-                        { x: scene.botX, y: scene.botY },
+  const grid = scene.route.grid;
+  /* LEAVING A DEPOT BY ITS DOOR (2026-09-24). Inside the charging room
+     the nearest sidewalk can be the one behind a side wall -- at the home
+     depot's pad the east walk is 242 away and the south walk the door
+     opens onto is 336 -- so from in there the route is found from the
+     walk straight out of the door, and the door's mat leads it. */
+  const ex = gpsDepotExit(grid, scene.botX, scene.botY);
+  const p = gpsFindPath(grid,
+                        ex ? ex.walk : { x: scene.botX, y: scene.botY },
                         { x: gpsNav.tx,  y: gpsNav.ty },
-                        gpsHeadingOf(scene));
+                        ex ? null : gpsHeadingOf(scene));
   if(!p) return;                       // keep the last good line
+  if(ex && p.pts.length){
+    p.len += Math.hypot(p.pts[0].x - ex.mat.x, p.pts[0].y - ex.mat.y);
+    if(p.pts.length > 1) p.turns++;
+    p.pts.unshift({ x: ex.mat.x, y: ex.mat.y });
+  }
   gpsNav.path = p;
   /* straight-line remainder from the robot to the first node, so the
      readout moves while crossing a block rather than sitting still
@@ -10749,6 +10913,9 @@ if(typeof window !== "undefined") window.gpsNavTurn = gpsNavTurn;
 const GPS_WALK_LANE = 1.5;
 function gpsWalkPts(pts){
   if(!pts || pts.length < 2) return pts || [];
+  /* a sidewalk-graph path (gpsFindPath since 2026-09-24) is already on the
+     walk -- offsetting it again would push it into the block */
+  if(pts.onWalk) return pts;
   const OFF = laneOffset(GPS_WALK_LANE);
   /* heading index of a leg, from the leg itself rather than from the
      A* state word -- gpsFindPath already discards the per-node heading
