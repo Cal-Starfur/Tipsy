@@ -10900,10 +10900,26 @@ function depotVol(){ return LIB.vol('Charge depot'); }
    wall you see from his pad -- no button of their own (see the garage).
    The depot's LEFT wall -- lab plane a = ROOM.a0 = 40, facing +a, one of
    the two walls the camera sees into the room -- carries two shelves
-   the length of the wall (its charger came out to make room). Slot order is TP_TROPHIES order and reads like
-   a page: top shelf first, and along each shelf by b descending, which
-   is left to right on screen (screen column runs a - b). All lab units
-   (z before the depot's zs). */
+   the length of the wall (its charger came out to make room). Slot order
+   is TP_TROPHIES order, filled from where you can see (below). All lab
+   units (z before the depot's zs). */
+/* which slots have a trophy standing in them, in TROPHY_WALL order. Read
+   off the same progress the Trophy Case uses; cached for a second, since
+   every depot room asks every frame and progress only moves when a run
+   ends. */
+let _tpShelf = null, _tpShelfAt = -1e9;
+function tpTrophyShelfState(){
+  const now = (typeof performance !== "undefined") ? performance.now() : Date.now();
+  if(_tpShelf && now - _tpShelfAt < 1000) return _tpShelf;
+  _tpShelfAt = now;
+  try {
+    _tpShelf = TP_TROPHIES.map(tr => {
+      const p = tr.progress(tpProfile.history, tpProfile.allTimeTotal, tpProfile.missionsCompleted);
+      return { tier: tr.tier, earned: p.current >= p.target };
+    });
+  } catch(e){ _tpShelf = null; }   // profile not loaded yet: bare shelves this second
+  return _tpShelf;
+}
 const TROPHY_WALL = (() => {
   const A = 40, AC = 48, SHELF_Z = [88, 44];
   /* kept back from the front corner (b > -44): the camera never shows
@@ -10911,8 +10927,15 @@ const TROPHY_WALL = (() => {
      end is where it has to crop */
   const GROUPS = [[-236, -44, [-216, -178, -140, -102, -64]]];
   const slots = [];
-  const bs = GROUPS.flatMap(g => g[2]).sort((p, q) => q - p);
-  for(const z of SHELF_Z) for(const b of bs) slots.push({ a: AC, b, z: z + 4 });
+  /* FILLED FROM WHERE YOU CAN SEE: the LOWER shelf first, then the top.
+     Through the open door from the street the jamb hides the front of the
+     wall, the header hides the top shelf and the very back of the lower
+     one (it rises on screen), so the first trophies a player earns go in
+     the doorway's clear window -- measured on screenshots: b -140 and
+     -178 whole, -216 partly, -102 and -64 behind the jamb (Sir: "my
+     trophy shelf is missing in the shop"). */
+  const ORDER = [-140, -178, -216, -102, -64];
+  for(const z of [SHELF_Z[1], SHELF_Z[0]]) for(const b of ORDER) slots.push({ a: AC, b, z: z + 4 });
   return { A, AC, SHELF_Z, GROUPS, slots, depth: 18, mid: { a: 48, b: -128, z: 72 } };
 })();
 function depotZS(){ return LIB.zs('Charge depot'); }
@@ -19074,9 +19097,12 @@ function houseCanopy(fn){
          building, and a robot in it is the game's job. rTodo records
          which bay gets which. */
       const BACK = DEPOT_GEOM.PADS.back;
-      /* the trophy wall, in the garage only. The LEFT charger is gone --
-         that wall is the trophy wall now (Sir, 2026-09-25) */
-      if(CUT && state.trophies) depotTrophyWall(state.trophies);
+      /* the trophy wall. The LEFT charger is gone -- that wall is the
+         trophy wall now (Sir, 2026-09-25) -- and it is part of the room
+         whether or not the garage is up: seen through the open door from
+         the street as well (Sir: "my trophy shelf is missing in the shop
+         when we are just launching") */
+      if(state.trophies) depotTrophyWall(state.trophies);
       charger(BACK[0], BACK[1], 0, -1);
 
     }
@@ -41998,7 +42024,7 @@ class WorldScene extends Phaser.Scene {
            away and the room is drawn whole, so we are standing in it */
         const cut = !!(this._garage && this._garage.key === _lot.key);
         LIB.setCutaway(cut);
-        LIB.setTrophies(cut ? this._garage.trophies : null);
+        LIB.setTrophies(tpTrophyShelfState());
         if(cut && part && GARAGE_HIDE.has(part.part)) return;
         return LIB.draw('Charge depot', g, map, null, this.K, part);
       };
@@ -62899,22 +62925,10 @@ document.addEventListener("keydown", e => {
   let lightsView = false;
   const focusNow = () => (tab === 'eyes' && pv && pv.eyeProj && lightsView) ? FOCUS.lights : FOCUS[tab];
 
-  /* ============================ THE TROPHY WALL ============================
-     The trophies stand on shelves on the depot's LEFT wall -- TROPHY_WALL,
-     drawn by the depot's own room in the cutaway -- in plain sight from
-     his pad. No button and no view of their own (Sir, 2026-09-25: "we can
-     pretty much see them from our tipsey point of view already"), and a
-     trophy is only on the shelf once it is earned ("get rid of the
-     trophies on the shelf until they get unlocked"). Claiming a reward is
+  /* THE TROPHY WALL is the depot room's own (TROPHY_WALL /
+     tpTrophyShelfState): in plain sight from his pad, no button or view of
+     its own (Sir, 2026-09-25), earned trophies only. Claiming a reward is
      the Trophy Case's job, as before. */
-  const trProg = tr => tr.progress(tpProfile.history, tpProfile.allTimeTotal, tpProfile.missionsCompleted);
-  function syncTrophies() {
-    const s = scn(); if (!s || !s._garage) return;
-    s._garage.trophies = TP_TROPHIES.map((tr, i) => {
-      const p = trProg(tr), earned = p.current >= p.target;
-      return { tier: tr.tier, earned };
-    });
-  }
   /* lab point on this depot -> canvas px, through the scene's own W() and
      the depot's zs, which is exactly how the room itself reaches the screen */
   const lotOf = s => (s._garage && s.route && s.route.grid) ? depotsOf(s.route.grid).find(d => d.key === s._garage.key) : null;
@@ -63059,7 +63073,7 @@ document.addEventListener("keydown", e => {
     s.camX = s.botX; s.camY = s.botY;
     document.body.classList.add('tpGarage');
     $('grHint').style.opacity = 1;
-    fr.init = false; pv = worn(); renderTab(); renderBar(); syncTrophies(); fit(s);
+    fr.init = false; pv = worn(); renderTab(); renderBar(); fit(s);
     lastTouch = performance.now(); prevT = 0; vel = 0;
     requestAnimationFrame(loop);
   }
