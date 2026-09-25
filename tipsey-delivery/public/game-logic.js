@@ -55694,6 +55694,51 @@ function resizeRouteMap(){
 const MINI_BLOCKS = 3.2;      // blocks visible from centre to edge
 const MINI_MS     = 110;      // ~9fps: it is a map, not an animation
 let _miniAt = 0;
+/* collapsed into #miniBtn by the player. Persisted like the VIEW depth,
+   so a reload or a new route does not spring it back open. */
+const MINI_OFF_KEY = "tpMiniOff";
+let tpMiniOff = false;
+try { tpMiniOff = localStorage.getItem(MINI_OFF_KEY) === "1"; } catch(e){}
+function tpMiniToggle(){
+  tpMiniOff = !tpMiniOff;
+  try { localStorage.setItem(MINI_OFF_KEY, tpMiniOff ? "1" : "0"); } catch(e){}
+  const wrap = document.getElementById("miniMap");
+  const btn = document.getElementById("miniBtn");
+  /* swap them NOW, not on the next drawHUD tick -- the tap has to answer
+     under the finger. Only ever reached from a visible one of the two,
+     so the gate is already open. _miniAt cleared and a draw forced so
+     the map comes up with a fresh picture, not a stale one. */
+  const pop = (el) => { if(!el) return; el.classList.remove("grow"); void el.offsetWidth; el.classList.add("grow"); };
+  if(tpMiniOff){
+    if(wrap) wrap.classList.add("hidden");
+    if(btn){ btn.classList.remove("hidden"); pop(btn); }
+  } else {
+    if(btn) btn.classList.add("hidden");
+    if(wrap){ wrap.classList.remove("hidden"); pop(wrap); }
+    _miniAt = 0;
+    const s = (typeof scn === "function") ? scn() : null;
+    if(s) tpMiniDraw(s);
+  }
+}
+/* the map collapses, the button expands -- same handler on both. ONE
+   shared guard, not one each: the swap happens on pointerdown, so the
+   same tap's click lands on whichever element is now under the finger
+   -- with separate guards that click would undo the tap it came from. */
+let _miniTapAt = 0;
+["miniBtn", "miniMap"].forEach(function bindMini(id){
+  const el = document.getElementById(id);
+  if(!el) return;
+  const go = (e) => {
+    if(e){ e.preventDefault(); e.stopPropagation(); }
+    const now = performance.now();
+    if(now - _miniTapAt < 700) return;    // pointerdown + click both fired
+    _miniTapAt = now;
+    tpMiniToggle();
+  };
+  el.addEventListener("touchstart", go, {passive:false, capture:true});
+  el.addEventListener("pointerdown", go, {capture:true});
+  el.addEventListener("click", go, {capture:true});
+});
 function tpMiniDraw(scene){
   const wrap = document.getElementById("miniMap");
   if(!wrap) return;
@@ -55706,8 +55751,11 @@ function tpMiniDraw(scene){
                 && scene.mode !== "challenge" && !scene._slAPI
                 && Number.isFinite(scene.botX) && Number.isFinite(scene.botY)
                 && !(typeof tpMapUp === "function" && tpMapUp()));
-  wrap.classList.toggle("hidden", !on);
-  if(!on) return;
+  /* same gate for both; tpMiniOff picks which of the two is up */
+  const btn = document.getElementById("miniBtn");
+  if(btn) btn.classList.toggle("hidden", !on || !tpMiniOff);
+  wrap.classList.toggle("hidden", !on || tpMiniOff);
+  if(!on || tpMiniOff) return;
   const now = (typeof performance !== "undefined" && performance.now)
     ? performance.now() : Date.now();
   if(now - _miniAt < MINI_MS) return;
@@ -61458,7 +61506,7 @@ function tpCloseMissions(){
 
 function tpInitStaticIcons(){
   document.getElementById("searchIcon").innerHTML = tpSearchSvg("#2e3138", 18);
-  document.getElementById("globalSearch").innerHTML = tpSearchSvg("#2e3138", 18);
+  document.getElementById("globalSearch").innerHTML = tpSearchSvg("#e8eaef", 18);   // on the dark glass
   const fmb = document.getElementById("failMenuBtn");
   if(fmb) fmb.innerHTML = tpSearchSvg("#2e3138", 18);
   document.getElementById("tpDetailClose").innerHTML = tpCloseSvg("#fff", 13);
@@ -62269,7 +62317,7 @@ document.addEventListener("keydown", e => {
   /* ---------------------------- the overlay ---------------------------- */
   const css = document.createElement('style');
   css.textContent = `
-  body.tpGarage #globalAvatar, body.tpGarage #globalSearch, body.tpGarage #miniMap,
+  body.tpGarage #globalAvatar, body.tpGarage #globalSearch, body.tpGarage #miniMap, body.tpGarage #miniBtn,
   body.tpGarage #zoomBtn, body.tpGarage #battBtn,
   body.tpGarage #gpsHud, body.tpGarage #owDbgPanel, body.tpGarage #owDbgWatch { display:none !important; }
   /* the ROUTE / TODAY / RANDOM DAY row: hidden, not removed, so the canvas

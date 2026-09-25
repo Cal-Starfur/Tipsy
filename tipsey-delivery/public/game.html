@@ -219,6 +219,7 @@
   body.attractBare #panelToggle,
   body.attractBare #gpsHud,
   body.attractBare #miniMap,
+  body.attractBare #miniBtn,
   body.attractBare #zoomBtn,
   body.attractBare #bottomSheet,
   body.attractBare #globalAvatar,
@@ -398,13 +399,20 @@
      were spoken for at the TOP (#globalSearch, #globalAvatar, #zoomBtn)
      and the bottom centre is #gpsHud's strip, which is centre-anchored
      and grows both ways -- so the left corner, lifted clear of the
-     strip's line. pointer-events:none because it is an instrument, not
-     a control; the glass opens the real map. */
+     strip's line. It is a control now too (Sir, 2026-09-25): tap it and
+     it collapses into #miniBtn, tap that and it grows back -- the glass
+     still opens the real map. */
   #miniMap{position:fixed;left:14px;bottom:calc(38px + env(safe-area-inset-bottom));
     z-index:5;width:104px;height:104px;border-radius:14px;overflow:hidden;
     background:rgba(20,23,29,0.62);border:1px solid #363b46;
-    box-shadow:0 2px 8px rgba(0,0,0,.35);pointer-events:none;}
+    box-shadow:0 2px 8px rgba(0,0,0,.35);cursor:pointer;
+    transform-origin:0 100%;-webkit-tap-highlight-color:transparent;}
   #miniMap canvas{display:block;width:100%;height:100%;}
+  /* one control, two sizes, one corner: both are anchored bottom-left
+     at the same point, so expanding grows the map out of the button and
+     collapsing shrinks it back in. 104/40 = 2.6 is the size ratio. */
+  #miniMap.grow{animation:miniGrow .18s ease-out;}
+  @keyframes miniGrow{from{transform:scale(0.385);opacity:0.5;}to{transform:none;opacity:1;}}
   /* the map screen pauses the world, so a minimap under it is frozen and
      meaningless -- and during attract the overlay above it is
      transparent. Same combinator, same reasoning, as #globalSearch's own
@@ -412,6 +420,27 @@
   #titleOverlay:not(.hidden) ~ #miniMap{display:none !important;}
   body.tdFailUp #miniMap, body.tdWinUp #miniMap,
   body.slFailUp #miniMap{display:none !important;}
+  /* THE MINIMAP, COLLAPSED (Sir, 2026-09-25): the map folds down into
+     this button in its own corner, and the button unfolds back into the
+     map. Exactly one of the two is ever up (tpMiniDraw owns that), and
+     only when the minimap COULD show -- every rule that force-hides the
+     minimap lists this too. Same dark glass as the rails. */
+  #miniBtn{position:fixed;left:14px;
+    bottom:calc(38px + env(safe-area-inset-bottom));z-index:60;
+    transform-origin:0 100%;
+    width:38px;height:38px;border-radius:11px;
+    background:rgba(20,23,29,0.62);border:1px solid #363b46;
+    box-shadow:0 2px 6px rgba(0,0,0,.35);
+    display:flex;align-items:center;justify-content:center;
+    cursor:pointer;-webkit-user-select:none;user-select:none;
+    -webkit-tap-highlight-color:transparent;}
+  #miniBtn:active{opacity:0.6;}
+  #miniBtn svg{display:block;}
+  #miniBtn.grow{animation:miniShrink .18s ease-out;}
+  @keyframes miniShrink{from{transform:scale(2.6);opacity:0.5;}to{transform:none;opacity:1;}}
+  #titleOverlay:not(.hidden) ~ #miniBtn{display:none !important;}
+  body.tdFailUp #miniBtn, body.tdWinUp #miniBtn,
+  body.slFailUp #miniBtn{display:none !important;}
   /* camera depth toggle (see ZOOM_K). Sits in the RIGHT RAIL, directly
      under #globalAvatar — every other edge is already spoken for:
      #globalAvatar top-right, #globalSearch top-left, #panelToggle
@@ -420,7 +449,10 @@
      column; squared corners rather than the rail's circles because
      this is a setting, not navigation. z-index 60 matches the rail so
      it clears .overlay (10) and #hjUI (6). */
-  #zoomBtn{position:fixed;right:14px;
+  /* LEFT RAIL now (Sir, 2026-09-25): VIEW sits directly under the
+     magnifying glass, freeing the right rail for battery + robot. Still
+     inside #panel's 62px left gutter, so it never lands on ROUTE. */
+  #zoomBtn{position:fixed;left:14px;
     top:calc(12px + env(safe-area-inset-top) + 46px);z-index:60;
     width:38px;height:38px;border-radius:11px;
     background:rgba(20,23,29,0.62);border:1px solid #363b46;
@@ -431,11 +463,14 @@
   #zoomBtn:active{opacity:0.6;}
   #zoomBtn .zCap{font-size:8px;letter-spacing:1px;color:#8f95a1;}
   #zoomBtn .zLvl{font-size:17px;font-weight:700;color:#e8eaef;}
-  /* THE BATTERY, under VIEW and built the same: a driving instrument,
-     hidden on the map and off trips. Tap it to route to the nearest
-     depot. .low pulses red at BATT.warnPct and below; .chg is on a pad. */
+  /* THE BATTERY, top of the right rail, built like VIEW: a driving
+     instrument, hidden on the map and off trips. Tap it to route to the
+     nearest depot. .low pulses red at BATT.warnPct and below; .chg is on
+     a pad. It swapped slots with the robot (Sir, 2026-09-25): while it
+     shows, the robot drops to the slot under it -- see the
+     body:has(#battBtn) rule by #globalAvatar. */
   #battBtn{position:fixed;right:14px;
-    top:calc(12px + env(safe-area-inset-top) + 92px);z-index:60;
+    top:calc(12px + env(safe-area-inset-top));z-index:60;
     width:38px;height:38px;border-radius:11px;
     background:rgba(20,23,29,0.62);border:1px solid #363b46;
     box-shadow:0 2px 6px rgba(0,0,0,.35);
@@ -819,10 +854,23 @@
      the engine happened to favour, which is why this button "did
      nothing" on device and worked in headless. Sitting under the strip
      means it can never fight it. */
+  /* Rounded square in the battery's dark glass, not an orange circle
+     (Sir, 2026-09-25) -- the rails read as one family of instruments.
+     Same skin on #globalSearch. */
   #globalAvatar{position:fixed;top:calc(12px + env(safe-area-inset-top));right:14px;
-    z-index:60;background:#ff7a1a;cursor:pointer;
+    z-index:60;cursor:pointer;box-sizing:border-box;width:40px;height:40px;padding:0;
+    border-radius:11px;background:rgba(20,23,29,0.62);border:1px solid #363b46;
     box-shadow:0 2px 6px rgba(0,0,0,.35);}
   #globalAvatar:active{transform:scale(0.94);}
+  /* BATTERY AND ROBOT SWAP SLOTS while the battery is up (driving): the
+     battery takes the corner, the robot the slot right under it (VIEW
+     moved to the left rail, so that slot is free). Keyed off
+     the battery's own .hidden rather than a body class, so every path
+     that hides it (battSyncHud, tpSyncMapChrome's map-up hide) puts the
+     robot straight back in the corner -- the map search bar's right:62px
+     lines up with it there. :has, not a sibling combinator: the battery
+     sits inside a wrapper div and the robot is a direct child of body. */
+  body:has(#battBtn:not(.hidden)) #globalAvatar{top:calc(12px + env(safe-area-inset-top) + 46px);}
   /* the robot button lives on the charging pad now -- see tpAvatarPadGate */
   body.tpOffPad #globalAvatar{display:none !important;}
   /* Same treatment for the magnifying glass. It used to live inside
@@ -968,7 +1016,8 @@
     font:11px/1.35 ui-monospace,SFMono-Regular,Menlo,monospace;
     color:#7fe3ff;opacity:.9;pointer-events:none;text-align:left;}
   #globalSearch{position:fixed;top:calc(12px + env(safe-area-inset-top));left:14px;
-    z-index:60;background:rgba(255,255,255,.92);cursor:pointer;
+    z-index:60;cursor:pointer;box-sizing:border-box;width:40px;height:40px;padding:0;
+    border-radius:11px;background:rgba(20,23,29,0.62);border:1px solid #363b46;
     box-shadow:0 2px 6px rgba(0,0,0,.35);}
   #globalSearch:active{transform:scale(0.94);}
   /* globalSearch is fixed and "never hidden" by design (see the comment
@@ -996,7 +1045,7 @@
      is still harmless — there's nothing on that screen for them to sit
      on top of. */
   body.tpPanelOpen #globalAvatar, body.tpPanelOpen #globalSearch,
-  body.tpPanelOpen #zoomBtn, body.tpPanelOpen #miniMap{display:none !important;}
+  body.tpPanelOpen #zoomBtn, body.tpPanelOpen #miniMap, body.tpPanelOpen #miniBtn{display:none !important;}
   /* #tpMapSearch is injected as a string by tpMapExplore, so its inline
      style cannot reach ::placeholder -- that pseudo needs a real rule.
      Lives here for exactly that one reason; everything else about the
@@ -1104,7 +1153,7 @@
   <div id="tdReceipt"></div>
 
 <button class="iconBtn" id="globalAvatar" aria-label="Profile"><svg viewBox="0 0 40 46" width="23" height="27">
-      <line x1="13" y1="5" x2="13" y2="11" stroke="#2e3138" stroke-width="1.5"/>
+      <line x1="13" y1="5" x2="13" y2="11" stroke="#8f95a1" stroke-width="1.5"/>
       <circle cx="13" cy="5" r="2" fill="#ff5722"/>
       <rect x="9" y="11" width="22" height="7" fill="#f7f8fa" stroke="#30343d" stroke-width="1.2"/>
       <rect x="5" y="18" width="30" height="21" fill="#f7f8fa" stroke="#30343d" stroke-width="1.2"/>
@@ -1127,6 +1176,8 @@
      the identical rule for the identical reason, rather than up beside
      #gpsHud where it visually belongs. -->
 <div id="miniMap" class="hidden"><canvas id="miniMapC"></canvas></div>
+<!-- the minimap's toggle: after #titleOverlay for the same sibling-rule reason -->
+<div id="miniBtn" class="hidden" role="button" aria-label="Minimap"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#e8eaef" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true"><polygon points="3,6.5 9,4 15,6.5 21,4 21,17.5 15,20 9,17.5 3,20"/><line x1="9" y1="4" x2="9" y2="17.5"/><line x1="15" y1="6.5" x2="15" y2="20"/></svg></div>
 <div id="bootLoader">
  <div id="blInner">
   <div id="blRobotStage">
