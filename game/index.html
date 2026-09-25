@@ -5692,6 +5692,7 @@ function owBuildWorld(route){
   };
 
   const surfaceAt = (x, y) => {
+    { const sr = sierraRoundSurface(x, y); if(sr) return sr; }   // the estate's gate round, which straddles the wall
     { const sv = sierraSurface(x, y); if(sv) return sv; }   // the estate's streets, city-standard
     const nx = Math.round(x / BLOCK) * BLOCK, ny = Math.round(y / BLOCK) * BLOCK;
     const i = Math.round(x / BLOCK), j = Math.round(y / BLOCK);
@@ -37734,10 +37735,12 @@ class WorldScene extends Phaser.Scene {
           /* outside a bend both ends now stop where the fillet takes over
              (OUT_R back from the old square corner) -- see OUT_R in sierraGeo */
           const OR = T2;
-          const k0 = rn.prev === null ? 0 : (prevInner ? TANG : -RH + OR);
+          /* the leg out of the gate round starts where the round's fillet
+             ends (see round in sierraGeo; the fillet is drawn with the round) */
+          const k0 = rn.prev === null ? (rn.gate ? S.round.fx : 0) : (prevInner ? TANG : -RH + OR);
           const FX = Math.sqrt((S.circle.r + KERB_ARC_R)**2 - (RH + KERB_ARC_R)**2);   // where the circle's fillet takes over (see the ring)
           const k1 = rn.next === null ? rn.len - FX : (innerAt(rn.next) ? rn.len - TANG : rn.len + RH - OR);
-          const g0 = rn.prev === null ? 0 : (prevInner ? TANG : -RH + OR);
+          const g0 = rn.prev === null ? (rn.gate ? S.round.fx : 0) : (prevInner ? TANG : -RH + OR);
           const g1 = rn.next === null ? rn.len - FX : (innerAt(rn.next) ? rn.len - TANG : rn.len + RH - OR);
           const oIn = sgn*(RH - KW), oOut = sgn*RH, oG = sgn*(RH - KW - GW);
           /* THE OUTSIDE FILLET (see OUT_R in sierraGeo): drawn once per bend,
@@ -37901,7 +37904,7 @@ class WorldScene extends Phaser.Scene {
             if(rn.pts[q].z === rn.pts[q-1].z && rn.pts[q+1].z !== rn.pts[q].z) grate(brk[q] - 60);
         }
         /* the centre line: dashed, a whole number of periods between the corners */
-        { const d0 = rn.prev === null ? 0 : RH, d1 = rn.next === null ? rn.len - S.circle.r : rn.len - RH;
+        { const d0 = rn.prev === null ? (rn.gate ? S.round.r : 0) : RH, d1 = rn.next === null ? rn.len - S.circle.r : rn.len - RH;
           const len = d1 - d0;
           if(len > 0){
             const cnt = Math.max(1, Math.round(len / (T2 * 2.5))), per = len / cnt, dash = per * 0.5, ph = per * 0.25;
@@ -38102,28 +38105,20 @@ class WorldScene extends Phaser.Scene {
         }});
       }
     };
-    /* THE BOOTH STANDS IN THE WALL, so the wall does not run through it
-       (Sir, on-device, circling the gatehouse: "first drawing issue is this
-       by the entry gate"). The booth straddles the wall line, and a wall run
-       whose middle is east of the booth sorts AFTER it -- so the run was
-       drawn over the booth's roof and cut the notch out of it. The runs stop
-       at the booth's sides and it closes the gap itself. */
-    const bx = S.gate.x + S.gate.open + 140;
-    run(S.xw, S.gate.x - S.gate.open - 60);
-    run(S.gate.x + S.gate.open + 60, bx - 96);
-    run(bx + 96, S.xe);
-    /* the gatehouse: two stone piers either side of the drive, a guard booth
-       on the east side, and a boom arm that lifts as the robot comes up */
-    const gx = S.gate.x, near = Math.hypot(this.botX - gx, this.botY - yw) < 900;
-    this._sierraArm = Phaser.Math.Linear(this._sierraArm || 0, near ? 1 : 0, 0.08);
-    const arm = this._sierraArm;
+    /* THE WALL STOPS AT THE ROUND'S PIERS (2026-09-24): the booth has moved
+       off the wall line onto the round's island, so the wall no longer has a
+       booth to stop at -- it runs from each side wall in to a pier standing
+       just outside the round's ring of paving. */
+    const gx = S.gate.x, gOpen = S.gate.open, PIER = gOpen + 60;
+    run(S.xw, gx - PIER - 30);
+    run(gx + PIER + 30, S.xe);
     const boxW = (gg, x0, x1, y0, y1, z0, z1, top, side, front) => {
       const Qg = (pts, col) => { const P = pts.map(p => this.W(p[0], p[1], p[2])); if(onScreen(P)) this.quadOn(gg, P, col); };
       Qg([[x1,y0,z0],[x1,y1,z0],[x1,y1,z1],[x1,y0,z1]], side);
       Qg([[x0,y1,z0],[x1,y1,z0],[x1,y1,z1],[x0,y1,z1]], front);
       Qg([[x0,y0,z1],[x1,y0,z1],[x1,y1,z1],[x0,y1,z1]], top);
     };
-    for(const px of [gx - S.gate.open - 30, gx + S.gate.open + 30])
+    for(const px of [gx - PIER, gx + PIER])
       bodies.push({ depth: px + yw + 1, fn: (gg) => {
         boxW(gg, px - 60, px + 60, yw - 60, yw + 60, 0, 170, CAP, shade(STONE, .82), STONE);
         boxW(gg, px - 72, px + 72, yw - 72, yw + 72, 170, 186, shade(CAP, 1.02), shade(CAP, .86), CAP);
@@ -38131,22 +38126,236 @@ class WorldScene extends Phaser.Scene {
         const top = []; for(let a = 0; a < 10; a++){ const t = a/10*Math.PI*2; top.push([px + Math.cos(t)*26, yw + Math.sin(t)*26, 200]); }
         Qg(top, 0xf2d27a);                                                                       // lamp globe
       }});
-    bodies.push({ depth: bx + yw + 60, fn: (gg) => {
-      boxW(gg, bx - 90, bx + 90, yw - 20, yw + 150, 0, 150, 0xefe6d2, 0xd8ccb0, 0xf2e8d6);         // the booth
+    /* THE BOOTH, ON THE ISLAND (Sir: "move the security tower into the middle
+       of the entrance road"). Same booth, same hipped tile roof, standing at
+       the round's centre on the island's raised ground, glazed on the two
+       faces the camera sees -- the guard looks down both lanes. */
+    const ISL = 8;                                                     // the island's ground, at kerb height
+    const bx = gx, by = yw;
+    bodies.push({ depth: bx + by, fn: (gg) => {
+      const z0 = ISL, z1 = ISL + 150;
+      boxW(gg, bx - 90, bx + 90, by - 85, by + 85, z0, z1, 0xefe6d2, 0xd8ccb0, 0xf2e8d6);          // the booth
       const Qg = (pts, col) => { const P = pts.map(p => this.W(p[0], p[1], p[2])); if(onScreen(P)) this.quadOn(gg, P, col); };
-      Qg([[bx - 70, yw + 150.5, 60],[bx + 70, yw + 150.5, 60],[bx + 70, yw + 150.5, 128],[bx - 70, yw + 150.5, 128]], 0x34424b);   // its window
-      Qg([[bx - 110, yw - 40, 150],[bx + 110, yw - 40, 150],[bx + 110, yw + 170, 150],[bx - 110, yw + 170, 150]], 0xb8583a);        // hipped tile roof, plate
-      Qg([[bx - 110, yw + 170, 150],[bx + 110, yw + 170, 150],[bx + 40, yw + 65, 205],[bx - 40, yw + 65, 205]], 0xc0613f);
-      Qg([[bx + 110, yw - 40, 150],[bx + 110, yw + 170, 150],[bx + 40, yw + 65, 205]], 0xa84e34);
+      Qg([[bx - 70, by + 85.5, z0 + 60],[bx + 70, by + 85.5, z0 + 60],[bx + 70, by + 85.5, z0 + 128],[bx - 70, by + 85.5, z0 + 128]], 0x34424b);   // front window
+      Qg([[bx + 90.5, by - 65, z0 + 60],[bx + 90.5, by + 65, z0 + 60],[bx + 90.5, by + 65, z0 + 128],[bx + 90.5, by - 65, z0 + 128]], 0x2d3a42);   // side window
+      Qg([[bx - 110, by - 105, z1],[bx + 110, by - 105, z1],[bx + 110, by + 105, z1],[bx - 110, by + 105, z1]], 0xb8583a);      // hipped tile roof, plate
+      Qg([[bx - 110, by + 105, z1],[bx + 110, by + 105, z1],[bx + 40, by, z1 + 55],[bx - 40, by, z1 + 55]], 0xc0613f);
+      Qg([[bx + 110, by - 105, z1],[bx + 110, by + 105, z1],[bx + 40, by, z1 + 55]], 0xa84e34);
     }});
-    /* the boom: pivot on the east pier, swings up to vertical */
-    const pvx = gx + S.RH + 30, L = S.RH * 2 + 40, ang = arm * Math.PI * 0.45;   // the boom spans the road; the sidewalks walk past it
-    bodies.push({ depth: gx + yw + 2, fn: (gg) => {
-      const tipX = pvx - Math.cos(ang) * L, tipZ = 110 + Math.sin(ang) * L;
-      const Qg = (pts, col) => { const P = pts.map(p => this.W(p[0], p[1], p[2])); if(onScreen(P)) this.quadOn(gg, P, col); };
-      Qg([[pvx, yw + 20, 104],[tipX, yw + 20, tipZ - 6],[tipX, yw + 20, tipZ + 6],[pvx, yw + 20, 116]], 0xf4f2ec);
-      for(let t = 0.1; t < 1; t += 0.2){ const a0 = pvx + (tipX - pvx)*t, z0 = 104 + (tipZ - 110)*t; Qg([[a0, yw + 21, z0],[a0 - Math.cos(ang)*40, yw + 21, z0 + Math.sin(ang)*40],[a0 - Math.cos(ang)*40, yw + 21, z0 + Math.sin(ang)*40 + 12],[a0, yw + 21, z0 + 12]], 0xd9352a); }
-    }});
+    /* TWO GATES, EACH FROM THE ISLAND (Sir: "each side will have its own
+       gate", "pivot from the island"). A post on the island's edge each side
+       of the booth, on the old gate line, and a boom from it across that
+       side's lane to the outer kerb: west is the lane out, east the lane in.
+       Each lifts on its own as the robot comes up on its side. */
+    const RD = S.round, POST = RD.ri - 40, L = RD.r - POST - 14;
+    const near = Math.hypot(this.botX - gx, this.botY - yw) < 1100;
+    const arms = this._sierraArms || (this._sierraArms = { w:0, e:0 });
+    for(const sd of [-1, 1]){
+      const key = sd < 0 ? 'w' : 'e';
+      const mine = near && (this.botX - gx) * sd > -RD.ri;             // his side of the round, or its middle
+      arms[key] = Phaser.Math.Linear(arms[key], mine ? 1 : 0, 0.08);
+      const ang = arms[key] * Math.PI * 0.45, pvx = gx + sd*POST, PZ = ISL + 104;
+      bodies.push({ depth: pvx + sd*L*0.5 + yw + 2, fn: (gg) => {
+        boxW(gg, pvx - 16, pvx + 16, yw - 16, yw + 16, ISL, PZ + 18, 0xf2efe6, 0xcfc9b8, 0xe6e1d4);                   // the post
+        boxW(gg, pvx - 20, pvx + 20, yw - 20, yw + 20, PZ - 14, PZ + 6, 0xd9352a, 0xa82a22, 0xc2302a);                 // its motor housing
+        const Qg = (pts, col) => { const P = pts.map(p => this.W(p[0], p[1], p[2])); if(onScreen(P)) this.quadOn(gg, P, col); };
+        const tipX = pvx + sd*Math.cos(ang) * L, tipZ = PZ + Math.sin(ang) * L;
+        Qg([[pvx, yw + 21, PZ - 6],[tipX, yw + 21, tipZ - 6],[tipX, yw + 21, tipZ + 6],[pvx, yw + 21, PZ + 6]], 0xf4f2ec);
+        for(let t = 0.1; t < 1; t += 0.2){
+          const a0 = pvx + (tipX - pvx)*t, z0 = PZ - 6 + (tipZ - PZ)*t;
+          Qg([[a0, yw + 22, z0],[a0 + sd*Math.cos(ang)*40, yw + 22, z0 + Math.sin(ang)*40],[a0 + sd*Math.cos(ang)*40, yw + 22, z0 + Math.sin(ang)*40 + 12],[a0, yw + 22, z0 + 12]], 0xd9352a);
+        }
+      }});
+    }
+  }
+  /* ---------- THE GATE ROUND, drawn (see round in sierraGeo) ----------
+     Ground only; the booth, posts and booms are bodies (drawSierraVista).
+     Drawn LAST in the ground pass, after the city's streets, kerbs and
+     corners: the round sits across the end of a city street, and the
+     city lays that street's asphalt, paving and centre line right up to
+     the gate. So everything within its ring is laid again here, in order:
+     paving (the city's own T2 tiles, clipped to the ring), asphalt (the
+     disc, the two streets through it and the fillet wedges), the island,
+     then channel and stone round the outside, each fillet and the island.
+     Its straights' kerbs (the city's south, the estate's north) start at
+     the fillets' ends -- see round.fx where they are drawn. */
+  drawSierraRound(g, d){
+    if(!WORLDGEN_COAST) return;
+    const S = sierraGeo(), c = S.round, RH = S.RH, SW = S.SW;
+    const span = (this.scale.gameSize.width + this.scale.gameSize.height) / this.K + c.out;
+    if(Math.abs(c.x - this.camX) + Math.abs(c.y - this.camY) > span) return;
+    const W = (x, y, z) => this.W(c.x + x, c.y + y, z);
+    const quad = (P, col) => { if(this.ptsOnScreen(P)) this.quadOn(g, P, col); };
+    const poly = (pts, z, col) => quad(pts.map(p => W(p[0], p[1], z)), col);
+    const KH = 8, KW = 22, GW = CURB_W, GUTC = 0x9a9488, KTOP = 0xf4f1e8, KFACE = 0xe2ded0, KDK = 0x6e6a5e;
+    const LAWN = 0x9fbd6a, LAWN2 = 0x97b563, ROADC = d.road;
+    /* the ring as a 72-gon, for clipping the paving */
+    const NR = 72, ring = [];
+    for(let i = 0; i < NR; i++){ const t = i/NR*Math.PI*2; ring.push([Math.cos(t)*c.out, Math.sin(t)*c.out]); }
+    /* ---- 1. THE PAVING: the city's tiles, on the city's grid and parity,
+       clipped to the ring (Sutherland-Hodgman against the convex 72-gon) ---- */
+    const clip = sq => {
+      let out = sq;
+      for(let i = 0; i < NR && out.length; i++){
+        const A = ring[i], B = ring[(i + 1) % NR], inp = out; out = [];
+        const side = p => (B[0] - A[0])*(p[1] - A[1]) - (B[1] - A[1])*(p[0] - A[0]);
+        for(let k = 0; k < inp.length; k++){
+          const P = inp[k], Q = inp[(k + 1) % inp.length], sp = side(P), sq2 = side(Q);
+          if(sp >= 0) out.push(P);
+          if((sp >= 0) !== (sq2 >= 0)){ const t = sp / (sp - sq2); out.push([P[0] + (Q[0] - P[0])*t, P[1] + (Q[1] - P[1])*t]); }
+        }
+      }
+      return out;
+    };
+    const T = T2, i0 = Math.floor((c.x - c.out) / T), i1 = Math.floor((c.x + c.out) / T);
+    const j0 = Math.floor((c.y - c.out) / T), j1 = Math.floor((c.y + c.out) / T);
+    for(let i = i0; i <= i1; i++) for(let j = j0; j <= j1; j++){
+      const x0 = i*T - c.x, y0 = j*T - c.y, x1 = x0 + T, y1 = y0 + T;
+      const far = Math.max(Math.hypot(x0, y0), Math.hypot(x1, y0), Math.hypot(x1, y1), Math.hypot(x0, y1));
+      const nearR = Math.hypot(Math.max(x0, 0, -x1), Math.max(y0, 0, -y1));
+      if(nearR >= c.out) continue;                                   // outside the ring
+      if(far < c.r - KW) continue;                                   // under the asphalt
+      if(Math.max(Math.abs(x0), Math.abs(x1)) <= RH) continue;       // on a street through it (RH is on the tile grid)
+      /* not over a crossing's ramp: the street's own tile is under it */
+      if(S.pads.some(pd => Math.abs(pd.x - c.x - (x0 + x1)/2) < 2*T && Math.abs(pd.y - c.y - (y0 + y1)/2) < 2*T)) continue;
+      const sq = [[x0,y0],[x1,y0],[x1,y1],[x0,y1]];
+      const pts = far <= c.out ? sq : clip(sq);
+      if(pts.length < 3) continue;
+      const P = pts.map(p => W(p[0], p[1], 0.2));
+      if(!this.ptsOnScreen(P)) continue;
+      this.quadOn(g, P, paveParity((i + 0.5)*T, (j + 0.5)*T) === 0 ? d.pave : d.paveB);
+      /* the joint lines: the tile's own sides always; its cut edge on the
+         ring only where the ring meets lawn -- inside the streets' own
+         sidewalks the paving runs on past the ring, and a line there showed
+         the ring's edge across their tiles */
+      const onSide = (a, b) => (Math.abs(a[0] - b[0]) < 0.01 && (Math.abs(a[0] - x0) < 0.01 || Math.abs(a[0] - x1) < 0.01))
+                            || (Math.abs(a[1] - b[1]) < 0.01 && (Math.abs(a[1] - y0) < 0.01 || Math.abs(a[1] - y1) < 0.01));
+      const lawnSide = Math.min(Math.abs(x0), Math.abs(x1)) >= S.STREET;
+      g.lineStyle(1, d.paveEdge, 1);
+      for(let k = 0; k < pts.length; k++){
+        const a = pts[k], b = pts[(k + 1) % pts.length];
+        if(onSide(a, b) || lawnSide) g.lineBetween(P[k].x, P[k].y, P[(k + 1) % P.length].x, P[(k + 1) % P.length].y);
+      }
+    }
+    /* ---- 2. THE ASPHALT: the disc, the two streets across the ring, and
+       each fillet's wedge (street line -> ring -> back round the fillet) ---- */
+    const NA = 64, disc = [];
+    for(let i = 0; i < NA; i++){ const t = i/NA*Math.PI*2; disc.push([Math.cos(t)*c.r, Math.sin(t)*c.r]); }
+    poly(disc, 0.4, ROADC);
+    /* the streets only as far as the fillets: past them the asphalt and its
+       kerb are the street's own (the city's south, the estate's north) */
+    for(const sy of [-1, 1]) poly([[-RH, 0], [RH, 0], [RH, sy*c.fx], [-RH, sy*c.fx]], 0.4, ROADC);
+    const fxc = RH + c.rf, fyc = c.fx, FL = Math.hypot(fxc, fyc), NF = 10;
+    const fillets = [];
+    for(const sx of [-1, 1]) for(const sy of [-1, 1]){
+      const F = [sx*fxc, sy*fyc];
+      const a1 = Math.atan2(0, -sx);                                  // toward the street
+      const a2 = Math.atan2(-sy*fyc, -sx*fxc);                        // toward the centre
+      let da = a2 - a1; while(da > Math.PI) da -= 2*Math.PI; while(da < -Math.PI) da += 2*Math.PI;
+      const at = (rad, t) => [F[0] + Math.cos(a1 + da*t)*rad, F[1] + Math.sin(a1 + da*t)*rad];
+      fillets.push({ F, a1, da, at, sx, sy });
+      /* the wedge: from the street tangent along the street line to where it
+         meets the ring, round the ring to the ring tangent, back on the arc */
+      const Ly = sy*Math.sqrt(c.r*c.r - RH*RH), T2p = at(c.rf, 1);
+      const w = [at(c.rf, 0), [sx*RH, Ly]];
+      const g0 = Math.atan2(Ly, sx*RH), g1 = Math.atan2(T2p[1], T2p[0]);
+      for(let k = 1; k <= 4; k++){ const t = g0 + (g1 - g0)*k/4; w.push([Math.cos(t)*c.r, Math.sin(t)*c.r]); }
+      for(let k = NF; k >= 0; k--) w.push(at(c.rf - 0.5, k/NF));
+      poly(w, 0.4, ROADC);
+    }
+    /* stop bars where each lane meets its gate: the lane in (east) is met
+       coming north, the lane out (west) coming south */
+    { const xa = c.ri + KW + GW + 12, xb = c.r - KW - GW - 12;
+      poly([[xa, 70], [xb, 70], [xb, 90], [xa, 90]], 1.2, 0xf1eee4);
+      poly([[-xb, -70], [-xa, -70], [-xa, -90], [-xb, -90]], 1.2, 0xf1eee4); }
+    /* ---- 3. THE OUTER KERB: channel then stone, round each side of the ring
+       from fillet to fillet; faces only where they face the camera ---- */
+    const angT = Math.atan2(fyc, fxc);                                // each fillet's ring tangent, from the centre
+    const arcs = [[-angT, angT], [Math.PI - angT, Math.PI + angT]];  // east side, west side (screen-y down)
+    const band = (a0, a1, r0, r1, h0, h1, col, n) => {
+      for(let i = 0; i < n; i++){
+        const t0 = a0 + (a1 - a0)*i/n, t1 = a0 + (a1 - a0)*(i+1)/n;
+        quad([W(Math.cos(t0)*r0, Math.sin(t0)*r0, h0), W(Math.cos(t1)*r0, Math.sin(t1)*r0, h0),
+              W(Math.cos(t1)*r1, Math.sin(t1)*r1, h1), W(Math.cos(t0)*r1, Math.sin(t0)*r1, h1)], col);
+      }
+    };
+    const face = (a0, a1, rad, sgnN, h0, h1, col, n) => {             // sgnN +1: faces out from the centre
+      for(let i = 0; i < n; i++){
+        const t0 = a0 + (a1 - a0)*i/n, t1 = a0 + (a1 - a0)*(i+1)/n, tm = (t0 + t1)/2;
+        if(sgnN*(Math.cos(tm) + Math.sin(tm)) <= 0) continue;
+        quad([W(Math.cos(t0)*rad, Math.sin(t0)*rad, h0), W(Math.cos(t1)*rad, Math.sin(t1)*rad, h0),
+              W(Math.cos(t1)*rad, Math.sin(t1)*rad, h1), W(Math.cos(t0)*rad, Math.sin(t0)*rad, h1)], col);
+      }
+    };
+    for(const [a0, a1] of arcs) band(a0, a1, c.r - KW - GW, c.r - KW, 0.6, 0.6, GUTC, 28);
+    /* the fillets' channels, radius growing toward the road */
+    const fband = (f, r0, r1, h0, h1, col) => { for(let i = 0; i < NF; i++){ const t0 = i/NF, t1 = (i+1)/NF;
+      const A0 = f.at(r0, t0), A1 = f.at(r0, t1), B1 = f.at(r1, t1), B0 = f.at(r1, t0);
+      quad([W(A0[0], A0[1], h0), W(A1[0], A1[1], h0), W(B1[0], B1[1], h1), W(B0[0], B0[1], h1)], col); } };
+    const fface = (f, rad, sgnN, h0, h1, col) => { for(let i = 0; i < NF; i++){ const t0 = i/NF, t1 = (i+1)/NF, tm = f.a1 + f.da*(t0 + t1)/2;
+      if(sgnN*(Math.cos(tm) + Math.sin(tm)) <= 0) continue;
+      const A0 = f.at(rad, t0), A1 = f.at(rad, t1);
+      quad([W(A0[0], A0[1], h0), W(A1[0], A1[1], h0), W(A1[0], A1[1], h1), W(A0[0], A0[1], h1)], col); } };
+    for(const f of fillets) fband(f, c.rf + KW, c.rf + KW + GW, 0.6, 0.6, GUTC);
+    /* a grate at each side's low point, mid-channel */
+    for(const t of [0, Math.PI]){
+      const gr = c.r - KW - GW/2, ux = Math.cos(t), uy = Math.sin(t);    // across the channel; along it is (-uy, ux)
+      const G = (a, b, h) => W(ux*gr - uy*a + ux*b, uy*gr + ux*a + uy*b, h);
+      quad([G(-34,-14,0.8), G(34,-14,0.8), G(34,14,0.8), G(-34,14,0.8)], 0x55524a);
+      for(let a = -28; a < 28; a += 9) quad([G(a,-14,1), G(a + 4,-14,1), G(a + 4,14,1), G(a,14,1)], 0x2e2c28);
+    }
+    for(const [a0, a1] of arcs){
+      face(a0, a1, c.r, 1, 0, KH, KFACE, 28);                         // paving face
+      face(a0, a1, c.r - KW, -1, 0, KH, KFACE, 28);                   // road face
+      face(a0, a1, c.r - KW, -1, 0, 3, KDK, 28);                      // its shadow in the channel
+      band(a0, a1, c.r - KW, c.r, KH, KH, KTOP, 28);                  // the top
+      band(a0, a1, c.r - KW, c.r - KW*0.86, KH, KH, KDK, 28);         // the seam, road edge as the straights
+    }
+    for(const f of fillets){
+      fface(f, c.rf, -1, 0, KH, KFACE); fface(f, c.rf + KW, 1, 0, KH, KFACE);
+      fface(f, c.rf + KW, 1, 0, 3, KDK);
+      fband(f, c.rf, c.rf + KW, KH, KH, KTOP);
+      fband(f, c.rf + KW*0.86, c.rf + KW, KH, KH, KDK);
+    }
+    /* AND ON OVER EACH JOIN, as the estate's fillets do: a short length of
+       the stone it meets -- the street's straight, and the ring -- laid again
+       over the arc's end, top and visible face, so neither shows its cut end
+       as a tick on the other */
+    { const CAPL = KH * 2.5;
+      for(const f of fillets){
+        const tx = f.sx*RH, ty = f.sy*c.fx, bx = 0, by = f.sy, ix = -f.sx, iy = 0;
+        const p = (s2, o2, h) => W(tx + bx*s2 + ix*o2, ty + by*s2 + iy*o2, h);
+        if(-(ix + iy) > 0) quad([p(0, 0, KH), p(CAPL, 0, KH), p(CAPL, 0, 0), p(0, 0, 0)], KFACE);
+        if((ix + iy) > 0){
+          quad([p(0, KW, KH), p(CAPL, KW, KH), p(CAPL, KW, 0), p(0, KW, 0)], KFACE);
+          quad([p(0, KW, 3), p(CAPL, KW, 3), p(CAPL, KW, 0), p(0, KW, 0)], KDK);
+        }
+        quad([p(0, 0, KH), p(CAPL, 0, KH), p(CAPL, KW, KH), p(0, KW, KH)], KTOP);
+        quad([p(0, KW, KH), p(CAPL, KW, KH), p(CAPL, KW*0.86, KH), p(0, KW*0.86, KH)], KDK);
+        /* the ring's end: from the fillet's ring tangent, a few degrees on
+           round the ring away from the street */
+        const aT = Math.atan2(f.sy*fyc, f.sx*fxc), dA = -f.sx*f.sy*CAPL / c.r;   // toward the ring's own side
+        const lo = Math.min(aT, aT + dA), hi = Math.max(aT, aT + dA);
+        face(lo, hi, c.r, 1, 0, KH, KFACE, 2); face(lo, hi, c.r - KW, -1, 0, KH, KFACE, 2); face(lo, hi, c.r - KW, -1, 0, 3, KDK, 2);
+        band(lo, hi, c.r - KW, c.r, KH, KH, KTOP, 2);
+        band(lo, hi, c.r - KW, c.r - KW*0.86, KH, KH, KDK, 2);
+      }
+    }
+    /* ---- 4. THE ISLAND: its channel, its stone, then its raised lawn with
+       a paved apron under the booth ---- */
+    const TAU = Math.PI*2;
+    band(0, TAU, c.ri + KW, c.ri + KW + GW, 0.6, 0.6, GUTC, 40);
+    face(0, TAU, c.ri + KW, 1, 0, KH, KFACE, 40);
+    face(0, TAU, c.ri + KW, 1, 0, 3, KDK, 40);
+    const isl = []; for(let i = 0; i < 40; i++){ const t = i/40*TAU; isl.push([Math.cos(t)*c.ri, Math.sin(t)*c.ri]); }
+    poly(isl, KH, LAWN);
+    const isl2 = []; for(let i = 0; i < 40; i++){ const t = i/40*TAU; isl2.push([Math.cos(t)*(c.ri - 40), Math.sin(t)*(c.ri - 40)]); }
+    poly(isl2, KH + 0.2, LAWN2);
+    band(0, TAU, c.ri, c.ri + KW, KH, KH, KTOP, 40);
+    band(0, TAU, c.ri + KW*0.86, c.ri + KW, KH, KH, KDK, 40);
+    poly([[-130, -120], [130, -120], [130, 120], [-130, 120]], KH + 0.4, 0xd9d0bc);             // the booth's apron
+    poly([[-130, -8], [-c.ri + 30, -8], [-c.ri + 30, 8], [-130, 8]], KH + 0.4, 0xd9d0bc);      // and a path out to each gate post
+    poly([[130, -8], [c.ri - 30, -8], [c.ri - 30, 8], [130, 8]], KH + 0.4, 0xd9d0bc);
   }
   quadOn(g, pts, color, alpha=1){
     g.fillStyle(color, alpha);
@@ -38668,7 +38877,11 @@ class WorldScene extends Phaser.Scene {
     for(const edge of r.grid.edges){
       if(!nearSeg(edge.a, edge.b, cullSpan)) continue;
       const dv = DIRV[edge.f], rv = DIRV[(edge.f+1)%4];
-      const { sx, sy, len } = midRun(edge.a, edge.b, dv);
+      let { sx, sy, len } = midRun(edge.a, edge.b, dv);
+      if(edge.a.svGate){                                  // no centre line across the estate's gate round
+        const cut = sierraGeo().round.r - ROAD_HALF;
+        sx += dv.x*cut; sy += dv.y*cut; len -= cut;
+      }
       if(len <= 0) continue;
       const n = Math.max(1, Math.round(len / DASH_TARGET));
       const per = len / n, dash = per*0.5, phase = per*0.25;
@@ -38898,7 +39111,10 @@ class WorldScene extends Phaser.Scene {
           const sd = (edge.f + (sgn > 0 ? 1 : 3)) % 4;
           return !nd.svGate && !nd.conn[sd] && !nd.conn[straight] && !!nd.conn[(sd + 2) % 4];
         };
-        const s0 = sideOpen(edge.a, sgn) ? 0 : -TANG - (lOut(edge.a, (edge.f + 2) % 4) ? ROAD_HALF - L_OUT_R : 0);
+        /* the street into the estate's gate round: its kerb starts where the
+           round's fillet ends (see round in sierraGeo, drawSierraRound) */
+        const s0 = edge.a.svGate ? sierraGeo().round.fx - TANG
+                 : sideOpen(edge.a, sgn) ? 0 : -TANG - (lOut(edge.a, (edge.f + 2) % 4) ? ROAD_HALF - L_OUT_R : 0);
         const s1 = len + (sideOpen(edge.b, sgn) ? 0 : TANG + (lOut(edge.b, edge.f) ? ROAD_HALF - L_OUT_R : 0));
         band(sgn, s0, s1);
         let cur = s0;
@@ -39149,6 +39365,9 @@ class WorldScene extends Phaser.Scene {
         capOn(Ox + e0.x*OR, Oy + e0.y*OR, -e1.x, -e1.y, -e0.x, -e0.y);
       }
     }
+    /* SIERRA VISTA'S GATE ROUND, over the end of the city street it sits on
+       (see drawSierraRound) -- last in the ground pass */
+    this.drawSierraRound(g, d);
 
     /* moved up from below: block-wrap houses/stores need the same
        front/back split props already use, so botDepth/layerFor (and
@@ -56749,7 +56968,7 @@ const WG_COAST = { EXT:0.55, SANDW:1.4, FOOTW:1.1, BOARD:0.15, MTN_BASIN:2.2,
    thing is a handful of quads that onScreen() rejects. */
 const WG_HILLS = {
   TOE_GAP: 0.12,         // blocks past Y0 before the first riser, plain frontage
-  SV_TOE: 4.81 + 0.25,   // re-laid with city sidewalks (2026-09-22): 148 T2 from the wall
+  SV_TOE: 4.81 + 0.25 + 7/34,   // re-laid with city sidewalks (2026-09-22): 148 T2 from the wall; + the gate round's ROUND_LEG (7 T2, 2026-09-24)
     // blocks past Y0 over Sierra Vista: its wall (now on the lattice, a block north of the top street), court and three terraces (3.75) + margin
   SV_X: 3.45,            // blocks east of X0 the notch holds full depth (the estate's east wall is at 3.3)
   SV_EASE: 0.9,          // blocks over which it eases back to TOE_GAP
@@ -56793,7 +57012,8 @@ const WG_HILLS = {
      S3  the top           z 540   ends in a turning circle
 
    2nd St runs on north as a real road through a gatehouse in the
-   perimeter wall. The drive zigzags: east along S0, up R1, west along S1,
+   perimeter wall -- since 2026-09-24 a roundabout on the wall line, the
+   guard booth on its island and a gate across each lane (see round). The drive zigzags: east along S0, up R1, west along S1,
    up R2, east along S2, up R3, west along S3 to the circle. Nothing dead-
    ends.
 
@@ -56858,8 +57078,28 @@ function sierraGeo(){
   const LEG = 2*T;                                   // level street between a ramp's end and the corner's sidewalk
   const STREET = RH + SW;                            // 736: centreline to the back of the sidewalk
   const xE = snap(X0 + 3.0*B), xW = snap(X0 + 0.55*B);   // the ramps' two columns, alternating
+  /* THE GATE IS A ROUNDABOUT (2026-09-24, Sir, circling the booth on the
+     corner and the one boom across the road: "move the security tower
+     into the middle of the entrance road and put it on a circular drive
+     like the culdesac ... creating a round about and each side will have
+     its own gate"; then "pivot from the island" and "center it where the
+     arm crosses now"). Centred on the gate point (gx, wallY), straddling
+     the wall: the city's street comes up into its south side and the
+     estate's leg leaves its north side. Its outer kerb is the turning
+     circle's own radius (RH + 260); the booth stands on a raised island of
+     RO - RH = 260, so the ring is exactly one lane (RH) wide all round.
+     A ring of sidewalk goes round the outside, so the pavements of the
+     city street and of the leg run on round it with no crossing. Where
+     each street meets the ring the kerb turns through a fillet of RF,
+     tangent to both, as the turning circle's does. The leg is carried up
+     the hill by ROUND_LEG so the ring and its paving clear the court's
+     drive (the drive's near sidewalk was 552 from the gate; the ring's
+     asphalt alone is 628) -- the whole estate moves up with it. */
+  const RO = RH + 260, RI = 260, RF = 2*T;
+  const ROUND_LEG = 7*T;
+  const round = { x:gx, y:wallY, r:RO, ri:RI, rf:RF, fx:Math.sqrt((RO + RF)**2 - (RH + RF)**2), out:RO + SW };
   const road = [], e = [wallY];
-  road[0] = wallY - STREET - LEG;                    // the court's drive: a leg up from the gate, then east
+  road[0] = wallY - STREET - LEG - ROUND_LEG;        // the court's drive: a leg up from the round, then east
   e[1] = road[0] - STREET - LEG - RL;                // its ramp's foot is clear of the drive's far sidewalk
   const HD = 552 * SIERRA_HOUSE_SC, HW = 809.6 * SIERRA_HOUSE_SC;
   for(let k = 1; k <= 3; k++){
@@ -56985,8 +57225,8 @@ function sierraGeo(){
   const estate = { name:'Brenta Palladian Villa', liv:0, x0:circle.x - EW/2, x1:circle.x + EW/2,
                    yF:circle.y - circle.r - SW - 90, yB:circle.y - circle.r - SW - 90 - ED, k:3, z:z[3], sc:SIERRA_ESTATE_SC };
   lots.push(estate);
-  /* the gate is as wide as the street: road and both sidewalks come through */
-  const gate = { x:gx, y:wallY, open:STREET };
+  /* the gate is as wide as the round: its ring of sidewalk comes through */
+  const gate = { x:gx, y:wallY, open:round.out };
   /* THE TERRACE COMES FORWARD TO THE RAMP (2026-09-22, Sir: "squared
      off", all three ramps). The upper terrace steps forward on both sides
      of each ramp, as far as the ramp's foot: a block of lawn at the upper
@@ -57045,7 +57285,7 @@ function sierraGeo(){
     outer.push({ C, O: { x: C.x - (dv.x + side.x)*OUT_R, y: C.y - (dv.y + side.y)*OUT_R },
                  dv, side, R: OUT_R, k: shelfOf(rn.b.z) });
   });
-  _sierraGeo = { B, X0, Y0, RH, SW, STREET, gx, xw, xe, wallY, e, z, ramps, roads, circle, lots, gate, HW, HD, path, runs, pads, outer };
+  _sierraGeo = { B, X0, Y0, RH, SW, STREET, gx, xw, xe, wallY, e, z, ramps, roads, circle, round, lots, gate, HW, HD, path, runs, pads, outer };
   return _sierraGeo;
 }
 /* a step that CROSSES a wall line, whatever its length. The walls are thin
@@ -57134,6 +57374,33 @@ function sierraSurface(x, y){
   }
   return d <= 0 ? 'road' : d <= CURB_W ? 'curb' : d <= S.SW ? 'sidewalk' : 'lot';
 }
+/* THE GATE ROUND, in the city's words (see round in sierraGeo). It
+   straddles the wall, so neither the estate's classifier (inside the wall
+   only) nor the city's lattice (a straight street) knows it: this answers
+   first, for everything within its ring of paving. The asphalt is the
+   ring disc, the two streets through it, and the four fillet wedges where
+   they meet; the island in the middle is kerb and then planted ground.
+   Distance to the asphalt is measured as the city measures it -- 'curb'
+   in the CURB_W band past the edge, 'sidewalk' out to SIDEWALK_W -- and
+   the ring of paving is exactly that band, so what you see is what you
+   stand on. Beyond the ring the city and the estate answer as before. */
+function sierraRoundSurface(x, y){
+  if(!WORLDGEN_COAST) return null;
+  const S = sierraGeo(), c = S.round, dx = x - c.x, dy = y - c.y;
+  if(Math.abs(dx) > c.out + 1 || Math.abs(dy) > c.out + 1) return null;
+  const r = Math.hypot(dx, dy);
+  if(r > c.out) return null;
+  if(r < c.ri) return r < c.ri - CURB_W ? 'lot' : 'curb';          // the island, and its kerb
+  let d = Math.min(Math.max(0, r - c.r), Math.max(0, Math.abs(dx) - S.RH));
+  /* the fillets: inside the fillet's circle, in the sector facing the road,
+     the edge is its arc (it only ever reads nearer than the two straights) */
+  const fxc = S.RH + c.rf, fyc = c.fx, ax = Math.abs(dx), ay = Math.abs(dy);
+  const px = ax - fxc, py = ay - fyc, pr = Math.hypot(px, py);
+  /* the sector between its tangent on the street (-x from the fillet's
+     centre) and its tangent on the ring (toward the round's centre) */
+  if(py <= 0 && py * fxc - px * fyc >= 0) d = Math.min(d, Math.max(0, c.rf - pr));
+  return d <= 0 ? 'road' : d <= CURB_W ? 'curb' : 'sidewalk';
+}
 /* ...and its crossings, for owAtRampMouth: the same footprint test the
    city's ramps get */
 function sierraPadAt(x, y){
@@ -57164,6 +57431,9 @@ function sierraSlope(x, y, yaw){
 function sierraBlocks(x, y, R){
   if(!WORLDGEN_COAST) return false;
   const S = sierraGeo(), t = R + 16;
+  /* the gate round's island: the booth and the two gates' posts stand on it,
+     and its kerb is a wall from the ring road, as every island's is */
+  if(Math.hypot(x - S.round.x, y - S.round.y) < S.round.ri + 22 + R) return true;
   if(x < S.xw - t || x > S.xe + t || y > S.wallY + t || y < S.e[4] - t) return false;
   if(Math.abs(y - S.wallY) < t && Math.abs(x - S.gate.x) > S.gate.open - R) return true;   // front wall, gate gap
   if(y < S.wallY - 1 && (Math.abs(x - S.xw) < t || Math.abs(x - S.xe) < t)) return true;  // side walls
@@ -59612,6 +59882,17 @@ function drawRouteMap(route){
     ctx.beginPath(); ctx.moveTo(pa.x, pa.y); ctx.lineTo(pb.x, pb.y); ctx.stroke();
   }
   ctx.lineCap = "round";
+  /* SIERRA VISTA'S GATE ROUND, after the streets: it sits across the end of
+     one, whose stroke would otherwise pave over its island */
+  if(WORLDGEN_COAST){
+    const S = sierraGeo(), c = S.round, o = toScreen({ x:c.x, y:c.y }), k = Math.abs(toScreen({ x:c.x + 1000, y:c.y }).x - o.x) / 1000;
+    if(inView(c.x, c.y)){
+      const disc = (rad, col) => { ctx.fillStyle = col; ctx.beginPath(); ctx.arc(o.x, o.y, rad*k, 0, Math.PI*2); ctx.fill(); };
+      disc(c.out, hex(pal.pave)); disc(c.r, hex(pal.road));
+      ctx.fillStyle = hex(pal.road); ctx.fillRect(o.x - S.RH*k, o.y - c.out*k, 2*S.RH*k, 2*c.out*k);
+      disc(c.ri, "#9fbd6a");
+    }
+  }
 
   /* street name labels — one per row/col (not per grid-cell segment,
      which would repeat the same street's name many times). Horizontal
