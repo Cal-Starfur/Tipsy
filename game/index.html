@@ -9169,7 +9169,32 @@ const XRAY = {
      propMax to 0 to switch prop ghosting off entirely. */
   propMax: 0.38,     // silhouette alpha for props
   propZ:   24,       // height on a prop that must be covered
-  propFan: false     // props use the centre ray only -- see xrayCoverageAt
+  propFan: false,    // props use the centre ray only -- see xrayCoverageAt
+  /* THE WAY UP, GHOSTED (Sir, 2026-09-25: "i need to be able to see the
+     side walk end/begin with the x ray so i can get onto the sidewalk in
+     a blind spot" ... "i liked that the curb was there and that it was
+     the blue x ray i want the same thing for the ramps and you can
+     include the curb that connects them"). While he is ghosted, the
+     hidden kerb near him and every hidden world curb ramp are
+     drawn through the buildings in the x-ray teal. The kerb is traced
+     where the WALL is -- the road's own edge, i.e. the painted stone --
+     not the 'curb' band past it (see xrayCurbs).
+     Ramps and kerb both plain x-ray teal. Only what is
+     itself hidden is drawn, and it shows the whole time he is driving
+     (own layer, gXWay), not only while he is ghosted. xR 0 switches it
+     off. */
+  xR:       750,     // world units around him, kerb and ramps alike
+  wayA:     0.5,     // gXWay layer alpha (his own ghost eases on gFade)
+  curbCell: 23,      // kerb sample pitch: divides ROAD_HALF and BLOCK, so a cell IS the 22 stone
+  curbA:    1,       // kerb fill alpha inside gXWay (strength is wayA, on the layer: no seams)
+  /* THE WALL HE IS UP AGAINST (Sir, on-device, pinned behind a shop:
+     "a line showing where tipsey impacts on the building in x ray").
+     While he is ghosted, the foot of every hidden wall near him is traced
+     on the ground on his ghost layer: the exact edge solidAt reports at
+     R = 0, i.e. the face he collides with, carve-outs and all. wallR 0
+     switches it off. */
+  wallR:    420,     // world units around him
+  wallW:    12       // line width, world units, laid on the open side of the face
 };
 try { window.XRAY = XRAY; } catch(e){}
 
@@ -35753,6 +35778,11 @@ class WorldScene extends Phaser.Scene {
     this.cornerLean = 0;
     this.xrayA = 0;                   // x-ray silhouette alpha, eased -- see XRAY
     this._xrayPropCache = new Map();  // static prop occlusion; a new route is a new city
+    this._xrayRampCache = new Map();  // world ramp key -> hidden behind a building?
+    this._xrayCurbCache = new Map();  // kerb-trace cells: 1 road, 2 curb band, 0 other
+    this._xrayStoneCache = new Map(); // kerb-edge cells -> hidden behind a building?
+    this._xrayWallCache = new Map();  // cell -> solid? (solidAt, R 0)
+    this._xrayFaceCache = new Map();  // cell+side -> [exact face position, hidden?]
     this._xrayInProp = false;
     this.corneringSpeedSmooth = 0;   // lagged speed feeding cornering lean —
                                       // see loadRoute() reset for the full note
@@ -35770,6 +35800,10 @@ class WorldScene extends Phaser.Scene {
        slots between gFade and gGlowLo: add.graphics() appends, and the
        display list order is the whole point of these objects. */
     this.gXProp = this.add.graphics();
+    /* the hidden kerb + curb ramps (XRAY.xR). Its own layer: they show
+       whenever he is driving, not only while HE is hidden, so they
+       cannot ride gFade's eased alpha. */
+    this.gXWay = this.add.graphics();
     /* this.g IS the world layer now, not a layer of its own above it
        (2026-08-28). Every robot part -- hull, wheels, stripe stars,
        flag, eyes -- reaches for this.g independently through its own
@@ -37288,6 +37322,11 @@ class WorldScene extends Phaser.Scene {
     this.cornerLean = 0;
     this.xrayA = 0;                   // x-ray silhouette alpha, eased -- see XRAY
     this._xrayPropCache = new Map();  // static prop occlusion; a new route is a new city
+    this._xrayRampCache = new Map();  // world ramp key -> hidden behind a building?
+    this._xrayCurbCache = new Map();  // kerb-trace cells: 1 road, 2 curb band, 0 other
+    this._xrayStoneCache = new Map(); // kerb-edge cells -> hidden behind a building?
+    this._xrayWallCache = new Map();  // cell -> solid? (solidAt, R 0)
+    this._xrayFaceCache = new Map();  // cell+side -> [exact face position, hidden?]
     this._xrayInProp = false;
     this.corneringSpeedSmooth = 0;
     this.stuckAmt = 0; this.isBlocked = false;
@@ -37641,6 +37680,208 @@ class WorldScene extends Phaser.Scene {
   }
 
   xrayCoverage(blocks, lots){ return this.xrayCoverageAt(this.botX, this.botY, XRAY.zhead, blocks, lots, true); }
+
+  /* The hidden kerb and curb ramps around him, into gXWay -- see XRAY.xR.
+     Both are classified once and cached (the city does not move, and
+     neither does the camera's angle). */
+  xrayWayUp(){
+    if(!(XRAY.xR > 0) || !this._visBlocks) return;
+    this.xrayCurbs();
+    this.xrayRamps();
+  }
+  /* The foot of the wall he would hit -- see XRAY.wallR. Cells of the
+     curbCell grid are classified solid/open with the collision's own
+     solidAt at R 0; where an open cell meets a solid one, the face
+     between them is found to within a unit by bisection (so it follows
+     the real block edge, not the grid), and drawn as a thin strip on the
+     open side, at ground level. Only faces whose foot is hidden are
+     drawn -- a wall facing the camera needs no x-ray. All cached: the
+     city and the camera angle are fixed. */
+  xrayWall(){
+    const wd = this.ow && this.ow.world;
+    if(!(XRAY.wallR > 0) || !wd || !wd.solidAt || !this._visBlocks) return;
+    const S = XRAY.curbCell, R = XRAY.wallR, R2 = R*R, bx = this.botX, by = this.botY, LW = XRAY.wallW;
+    const sol = this._xrayWallCache || (this._xrayWallCache = new Map());
+    const face = this._xrayFaceCache || (this._xrayFaceCache = new Map());
+    if(sol.size > 200000){ sol.clear(); face.clear(); }
+    const key = (ix, iy) => (ix + 60000)*200000 + (iy + 60000);
+    const solidC = (ix, iy) => {
+      const k = key(ix, iy);
+      let v = sol.get(k);
+      if(v === undefined){ v = !!wd.solidAt((ix + 0.5)*S, (iy + 0.5)*S, 0); sol.set(k, v); }
+      return v;
+    };
+    const SIDES = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+    const ix0 = Math.floor((bx - R)/S), ix1 = Math.floor((bx + R)/S);
+    const iy0 = Math.floor((by - R)/S), iy1 = Math.floor((by + R)/S);
+    const gf = this.gFade, col = XRAY.col;
+    for(let iy = iy0; iy <= iy1; iy++){
+      const cy = (iy + 0.5)*S;
+      for(let ix = ix0; ix <= ix1; ix++){
+        const cx = (ix + 0.5)*S;
+        if((cx - bx)*(cx - bx) + (cy - by)*(cy - by) > R2) continue;
+        if(solidC(ix, iy)) continue;
+        for(let sd = 0; sd < 4; sd++){
+          const ux = SIDES[sd][0], uy = SIDES[sd][1];
+          if(!solidC(ix + ux, iy + uy)) continue;
+          const fk = key(ix, iy)*4 + sd;
+          let f = face.get(fk);
+          if(f === undefined){
+            /* bisect open (t=0, this centre) -> solid (t=S, the next) */
+            let lo = 0, hi = S;
+            for(let n = 0; n < 6; n++){
+              const m = (lo + hi)/2;
+              if(wd.solidAt(cx + ux*m, cy + uy*m, 0)) hi = m; else lo = m;
+            }
+            const e = (lo + hi)/2;
+            const fx = cx + ux*e, fy = cy + uy*e;
+            const hid = this.xrayCoverageAt(fx - ux*2, fy - uy*2, 0, this._visBlocks, this._visLots, false) > 0;
+            f = [e, hid];
+            face.set(fk, f);
+          }
+          if(!f[1]) continue;
+          const e = f[0];
+          /* the strip: from the face back LW into the open cell, spanning
+             the cell's width along the face */
+          const a0 = e - LW, a1 = e;
+          let pts;
+          if(ux !== 0){
+            const x0 = cx + ux*a0, x1 = cx + ux*a1, y0 = iy*S, y1 = y0 + S;
+            pts = [this.W(x0, y0, 0), this.W(x1, y0, 0), this.W(x1, y1, 0), this.W(x0, y1, 0)];
+          } else {
+            const y0 = cy + uy*a0, y1 = cy + uy*a1, x0 = ix*S, x1 = x0 + S;
+            pts = [this.W(x0, y0, 0), this.W(x1, y0, 0), this.W(x1, y1, 0), this.W(x0, y1, 0)];
+          }
+          this.quadOn(gf, pts, col, 1);
+        }
+      }
+    }
+  }
+
+  /* THE KERB, WHERE HE HITS IT (Sir, on-device: "the x ray curb and the
+     white curb dont line up why is that?"). The first cut ghosted the
+     'curb' band, ROAD_HALF..ROAD_HALF+CURB_W -- but that band is the
+     one-way vestibule DOWN off the pavement, not the wall. owCurbBlocks
+     refuses road -> anything-not-road, so from the roadway the step is
+     the road's own edge. MEASURED, 40 mid-block runs driven outward on
+     CITY_SEED: every one stopped at exactly ROAD_HALF = 368, the back
+     face of the painted stone (drawn ROAD_HALF-22..ROAD_HALF). So this
+     traces THAT boundary: a road cell with a 'curb' cell beside it. The
+     pitch divides ROAD_HALF and BLOCK exactly, so that cell is the stone
+     itself, and at corners and Sierra Vista it follows whatever the
+     classifier does, because it is the same question the gate asks.
+     Drawn on the stone's top (z = its 8). Runs merged both ways -- rows
+     first, then leftover single cells down columns -- so an E-W street
+     and a N-S street both read as one strip. */
+  xrayCurbs(){
+    const wd = this.ow && this.ow.world;
+    if(!wd || !wd.surfaceAt) return;
+    const S = XRAY.curbCell, R = XRAY.xR, R2 = R*R, bx = this.botX, by = this.botY, KZ = 8;
+    const cls = this._xrayCurbCache || (this._xrayCurbCache = new Map());
+    const hidC = this._xrayStoneCache || (this._xrayStoneCache = new Map());
+    if(cls.size > 200000){ cls.clear(); hidC.clear(); }   // a long drive; refills around him
+    const key = (ix, iy) => (ix + 60000)*200000 + (iy + 60000);
+    const clsAt = (ix, iy) => {          // 1 road, 2 curb band, 0 anything else
+      const k = key(ix, iy);
+      let v = cls.get(k);
+      if(v === undefined){
+        const sf = wd.surfaceAt((ix + 0.5)*S, (iy + 0.5)*S);
+        v = sf === 'road' ? 1 : sf === 'curb' ? 2 : 0;
+        cls.set(k, v);
+      }
+      return v;
+    };
+    const ix0 = Math.floor((bx - R)/S), ix1 = Math.floor((bx + R)/S);
+    const iy0 = Math.floor((by - R)/S), iy1 = Math.floor((by + R)/S);
+    const nx = ix1 - ix0 + 1, ny = iy1 - iy0 + 1;
+    const on = new Uint8Array(nx*ny);
+    for(let iy = iy0; iy <= iy1; iy++){
+      const cy = (iy + 0.5)*S;
+      for(let ix = ix0; ix <= ix1; ix++){
+        const cx = (ix + 0.5)*S;
+        if((cx - bx)*(cx - bx) + (cy - by)*(cy - by) > R2) continue;
+        if(clsAt(ix, iy) !== 1) continue;
+        if(clsAt(ix+1, iy) !== 2 && clsAt(ix-1, iy) !== 2 && clsAt(ix, iy+1) !== 2 && clsAt(ix, iy-1) !== 2) continue;
+        const k = key(ix, iy);
+        let h = hidC.get(k);
+        if(h === undefined){
+          h = this.xrayCoverageAt(cx, cy, KZ, this._visBlocks, this._visLots, false) > 0;
+          hidC.set(k, h);
+        }
+        if(h) on[(iy - iy0)*nx + (ix - ix0)] = 1;
+      }
+    }
+    const quad = (ax, ay, bx2, by2) => {
+      const x0 = ax*S, y0 = ay*S, x1 = (bx2 + 1)*S, y1 = (by2 + 1)*S;
+      this.quadOn(this.gXWay, [this.W(x0, y0, KZ), this.W(x1, y0, KZ),
+                               this.W(x1, y1, KZ), this.W(x0, y1, KZ)], XRAY.col, XRAY.curbA);
+    };
+    const single = new Uint8Array(nx*ny);
+    for(let y = 0; y < ny; y++){                 // rows: runs of 2+ are one quad
+      let x = 0;
+      while(x < nx){
+        if(!on[y*nx + x]){ x++; continue; }
+        let e = x; while(e + 1 < nx && on[y*nx + e + 1]) e++;
+        if(e > x) quad(ix0 + x, iy0 + y, ix0 + e, iy0 + y); else single[y*nx + x] = 1;
+        x = e + 1;
+      }
+    }
+    for(let x = 0; x < nx; x++){                 // columns: what is left
+      let y = 0;
+      while(y < ny){
+        if(!single[y*nx + x]){ y++; continue; }
+        let e = y; while(e + 1 < ny && single[(e + 1)*nx + x]) e++;
+        quad(ix0 + x, iy0 + y, ix0 + x, iy0 + e);
+        y = e + 1;
+      }
+    }
+  }
+
+  /* The ramps: drawn by the ramp's own drawProp body -- so the ghost is
+     the real ramp's shape -- with every quad forced to solid x-ray teal
+     and the body's direct draws (dots, edges) dropped. The world pass cannot ghost these
+     itself: the ramps paint in the kerb pass, before gXProp is cleared
+     for the frame, so a prop-style ghost would be wiped. */
+  xrayRamps(){
+    const r = this.route;
+    if(!r || !r.curbRamps) return;
+    const R2 = XRAY.xR*XRAY.xR, bx = this.botX, by = this.botY;
+    const cache = this._xrayRampCache || (this._xrayRampCache = new Map());
+    const gf = this.gXWay;
+    /* rebuilt if create() has made a new gXWay since (a route reload).
+       Its own direct draws -- the dome dots, the edge lines -- are
+       dropped (Sir: "lets get rid of the lighter teal highlights on the
+       ramp"): the ghost is the ramp's quads alone, in plain x-ray teal. */
+    if(this._xrayTealFor !== gf){ this._xrayTealFor = gf; this._xrayTealG = null; }
+    const noop = () => {};
+    const teal = this._xrayTealG || (this._xrayTealG = new Proxy(gf, {
+      get(tg, k){
+        if(typeof tg[k] === "function") return noop;
+        return tg[k];
+      }
+    }));
+    const qp = this.quadOn;
+    for(const cr of r.curbRamps){
+      const dx = cr.x - bx, dy = cr.y - by;
+      if(dx*dx + dy*dy > R2) continue;
+      const key = Math.round(cr.x) + "," + Math.round(cr.y) + "," + cr.f;
+      let hid = cache.get(key);
+      if(hid === undefined){
+        hid = this.xrayCoverageAt(cr.x, cr.y, 0, this._visBlocks, this._visLots, false) > 0;
+        cache.set(key, hid);
+      }
+      if(!hid) continue;
+      /* quads -> solid teal (the proxy swallows everything else).
+         _xrayInProp skips drawProp's own prop-ghost wrapper: this call
+         IS the ghost. */
+      this.quadOn = (gg, pts, col, a) => qp.call(this, gf, pts, XRAY.col, 1);
+      this._xrayInProp = true;
+      try { this.drawProp(teal, "sidewalkend", cr.x, cr.y, 0, cr.f, 0, null, null, WORLD_RAMP); }
+      finally { delete this.quadOn; this._xrayInProp = false; }
+    }
+  }
+
+
 
   /* Same test at an arbitrary point. wide=false collapses the fan to
      its centre ray: a prop is a fraction of the robot's width, so the
@@ -40825,6 +41066,16 @@ class WorldScene extends Phaser.Scene {
                   (xrayWant > this.xrayA ? XRAY.rise : XRAY.fall);
     if(this.xrayA < 0.004 || this._garage) this.xrayA = 0;
     this.gFade.setAlpha(this.xrayA);
+    if(this.xrayA > 0) this.xrayWall();    // the wall he is against, under his own ghost
+    /* the hidden way up, whenever he is out driving -- not just while he
+       is ghosted (Sir, on-device: "its not showing up" -- he was in the
+       open with the ramps behind a building, which is exactly when a
+       player is planning the climb) */
+    if(this.gXWay){
+      this.gXWay.clear();
+      this.gXWay.setAlpha(XRAY.wayA);
+      if(this.ow && !this._garage && !this.attract && this.state === "play") this.xrayWayUp();
+    }
 
     worldVQ.sort((a, b) => a.depth - b.depth);
     for(const item of worldVQ){
@@ -61032,8 +61283,14 @@ function drawRouteMap(route){
   }
   /* HOOD SHOP PINS. Shops stand 230 apart, and the map's closest zoom
      is BLOCK*1.6 on the short side -- 230 comes out at ~20px on a phone,
-     ~35 on an iPad. So a pin each only once neighbours stop overlapping
-     (14px between centres, 6px pins), and no names on the map at all:
+     ~35 on an iPad. A pin each down to 6px between centres (Sir,
+     2026-09-25: "id like to be able to zoom out and still click a pin"
+     -- at the old 14px cut the pins grouped just two zoom steps out of
+     the closest view on an iPad). The pin shrinks from 6.5 to 4.5 as
+     they close up so a row reads as a row, not a smear; the tap stays
+     9px and the map's tap is nearest-centre, so neighbours whose hit
+     circles overlap still resolve to the one under the thumb. And no
+     names on the map at all:
      nine bold letters are ~90px and would collide at every zoom the map
      allows. The icon says what it is, the tap's toast says which. Further
      out, down to the depots' 12-block gate, a block is ONE pin with its
@@ -61041,7 +61298,8 @@ function drawRouteMap(route){
      at any zoom. */
   if(!usingAtlas && typeof hoodShopsOf === "function" && route.grid
      && scale * BLOCK >= Math.min(W, H) / 12){
-    const each = scale * 230 >= 14;
+    const sp = scale * 230, each = sp >= 6;
+    const pr = Math.max(4.5, Math.min(6.5, sp * 0.47));   // pin radius
     const rows = new Map();
     for(const sh of hoodShopsOf(route.grid)){
       if(!hoodOwnsIndex(sh.hoodIndex) || !hoodShopLive(route, sh)) continue;
@@ -61049,9 +61307,9 @@ function drawRouteMap(route){
         if(!inView(sh.x, sh.y)) continue;
         const pp = toScreen(sh);
         ctx.fillStyle = "#c2603a";
-        ctx.beginPath(); ctx.arc(pp.x, pp.y, 6.5, 0, Math.PI*2); ctx.fill();
-        ctx.strokeStyle = "#fff"; ctx.lineWidth = 1.2; ctx.stroke();
-        ctx.font = "8px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+        ctx.beginPath(); ctx.arc(pp.x, pp.y, pr, 0, Math.PI*2); ctx.fill();
+        ctx.strokeStyle = "#fff"; ctx.lineWidth = pr < 6 ? 1 : 1.2; ctx.stroke();
+        ctx.font = Math.round(pr * 1.25) + "px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
         ctx.fillText(sh.icon, pp.x, pp.y);
         tpMapMissionPins.push({ id: "shop:" + sh.key, x: pp.x, y: pp.y, r: 9 });
       } else {
