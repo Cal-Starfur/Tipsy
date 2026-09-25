@@ -37805,35 +37805,81 @@ class WorldScene extends Phaser.Scene {
     const face = this._xrayFaceCache || (this._xrayFaceCache = new Map());
     if(sol.size > 200000){ sol.clear(); face.clear(); }
     const key = (ix, iy) => (ix + 60000)*200000 + (iy + 60000);
+    /* A CELL IS SOLID IF ANYTHING SOLID IS WITHIN HALF A CELL OF ITS
+       CENTRE (Sir, on-device at the museum: "tipsey isnt hitting the
+       wall hes hitting the fence"). Sampled at R 0 on the 23 grid, the
+       museum's back railing -- 10 thick, y 731..741 -- fell between two
+       centres (724.5, 747.5) and was never seen: the line was drawn on
+       the building wall 190 behind the thing he actually stops at.
+       Inflating by S/2 means nothing thinner than the pitch can slip
+       between samples; the face itself is then found at R 0 below. */
     const solidC = (ix, iy) => {
       const k = key(ix, iy);
       let v = sol.get(k);
-      if(v === undefined){ v = !!wd.solidAt((ix + 0.5)*S, (iy + 0.5)*S, 0); sol.set(k, v); }
+      if(v === undefined){ v = !!wd.solidAt((ix + 0.5)*S, (iy + 0.5)*S, S * 0.5); sol.set(k, v); }
       return v;
     };
     const SIDES = [[1, 0], [-1, 0], [0, 1], [0, -1]];
     const ix0 = Math.floor((bx - R)/S), ix1 = Math.floor((bx + R)/S);
     const iy0 = Math.floor((by - R)/S), iy1 = Math.floor((by + R)/S);
     const gf = this.gFade, col = XRAY.col;
+    /* ONLY WHAT HE CAN REACH (Sir: "the new double line is accurate but we
+       dont need the old line"). At the museum the fence is the wall that
+       counts -- it stands on the pavement's edge -- and the building wall
+       behind it, across the yard, is something he can never touch. So
+       flood the open cells out from his own, within range; a face is drawn
+       only from a cell the flood got to. Behind a fence, a hedge or any
+       closed wall is simply not in the flood. For an ordinary shop the
+       open pavement he stands on runs right up to the wall, so nothing
+       there changes. */
+    const nX = ix1 - ix0 + 1, nY = iy1 - iy0 + 1;
+    const reach = new Uint8Array(nX * nY);
+    const inR = (ix, iy) => { const cx = (ix + 0.5)*S, cy = (iy + 0.5)*S; return (cx - bx)*(cx - bx) + (cy - by)*(cy - by) <= R2; };
+    {
+      let sx = Math.floor(bx / S), sy = Math.floor(by / S);
+      if(solidC(sx, sy)){                      // hard against a face: start from the open neighbour
+        let best = null, bd = Infinity;
+        for(let dy = -2; dy <= 2; dy++) for(let dx = -2; dx <= 2; dx++){
+          if(solidC(sx + dx, sy + dy)) continue;
+          const d = dx*dx + dy*dy; if(d < bd){ bd = d; best = [sx + dx, sy + dy]; }
+        }
+        if(best){ sx = best[0]; sy = best[1]; }
+      }
+      const q = [sx, sy];
+      if(sx >= ix0 && sx <= ix1 && sy >= iy0 && sy <= iy1 && !solidC(sx, sy)) reach[(sy - iy0)*nX + (sx - ix0)] = 1;
+      else q.length = 0;
+      for(let h = 0; h < q.length; h += 2){
+        const x = q[h], y = q[h + 1];
+        for(const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]){
+          const nx2 = x + dx, ny2 = y + dy;
+          if(nx2 < ix0 || nx2 > ix1 || ny2 < iy0 || ny2 > iy1) continue;
+          const id = (ny2 - iy0)*nX + (nx2 - ix0);
+          if(reach[id] || !inR(nx2, ny2) || solidC(nx2, ny2)) continue;
+          reach[id] = 1; q.push(nx2, ny2);
+        }
+      }
+    }
     for(let iy = iy0; iy <= iy1; iy++){
       const cy = (iy + 0.5)*S;
       for(let ix = ix0; ix <= ix1; ix++){
         const cx = (ix + 0.5)*S;
-        if((cx - bx)*(cx - bx) + (cy - by)*(cy - by) > R2) continue;
-        if(solidC(ix, iy)) continue;
+        if(!reach[(iy - iy0)*nX + (ix - ix0)]) continue;   // not his side of anything
         for(let sd = 0; sd < 4; sd++){
           const ux = SIDES[sd][0], uy = SIDES[sd][1];
           if(!solidC(ix + ux, iy + uy)) continue;
           const fk = key(ix, iy)*4 + sd;
           let f = face.get(fk);
           if(f === undefined){
-            /* bisect open (t=0, this centre) -> solid (t=S, the next) */
-            let lo = 0, hi = S;
-            for(let n = 0; n < 6; n++){
-              const m = (lo + hi)/2;
-              if(wd.solidAt(cx + ux*m, cy + uy*m, 0)) hi = m; else lo = m;
+            /* the FIRST solid at R 0 stepping out from this centre, a unit
+               at a time, up to the far side of the next cell (the inflated
+               test says something is within S/2 of its centre). Stepped,
+               not bisected: a bisection between two open ends cannot see
+               a fence between them, which is the bug this replaces. */
+            let e = -1;
+            for(let t = 1; t <= S * 1.5; t += 1){
+              if(wd.solidAt(cx + ux*t, cy + uy*t, 0)){ e = t - 0.5; break; }
             }
-            const e = (lo + hi)/2;
+            if(e < 0){ face.set(fk, [0, false]); continue; }   // solid lies off this axis: the neighbouring cells draw it
             const fx = cx + ux*e, fy = cy + uy*e;
             const hid = this.xrayCoverageAt(fx - ux*2, fy - uy*2, 0, this._visBlocks, this._visLots, false) > 0;
             f = [e, hid];
