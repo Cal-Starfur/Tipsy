@@ -5874,11 +5874,28 @@ function owBuildWorld(route){
     }
     return out;
   };
+  /* ---------- shop posts on the pavement ---------- (see hoodShopPostsOf) */
+  const PO = (g2 && typeof hoodShopPostsOf === 'function') ? hoodShopPostsOf(g2) : [];
+  const poBucket = new Map();
+  for(const s of PO){
+    const k = Math.floor(s.x / HZ_CELL) + ',' + Math.floor(s.y / HZ_CELL);
+    if(!poBucket.has(k)) poBucket.set(k, []);
+    poBucket.get(k).push(s);
+  }
+  const poNear = (x, y) => {
+    const out = [];
+    const i = Math.floor(x / HZ_CELL), j = Math.floor(y / HZ_CELL);
+    for(let a = -1; a <= 1; a++) for(let c = -1; c <= 1; c++){
+      const l = poBucket.get((i + a) + ',' + (j + c));
+      if(l) out.push(...l);
+    }
+    return out;
+  };
   /* grid comes back out because the kerb gate needs curbRamps and the
      world is the thing that already knows which grid it was built from.
      Same object as route.grid, not a copy, so a rebuilt world cannot
      answer with a stale city. */
-  return { surfaceAt, solidAt, hzNear, sgNear, HZ, SG, waterfrontAt, grid: g2 };
+  return { surfaceAt, solidAt, hzNear, sgNear, poNear, HZ, SG, PO, waterfrontAt, grid: g2 };
 }
 
 const OW_HZ_R = {
@@ -5894,6 +5911,9 @@ const OW_HZ_R = {
      half-width (14) plus a little slack, erring generous so he stops just
      short of the shaft rather than clipping into it. */
   signalpost: 16,
+  /* a shop's post out on the pavement (hoodShopPostsOf): the tea house
+     colonnade's plinth, r 12 x sc 1.3 = 15.6, rounded out like the pole */
+  column: 16,
   /* a stopped car's body. The capsule axis from carAxisPoint already
      covers the length, so this is the half-WIDTH only: 45 plus a little
      slack so he stops against the panel rather than inside it. */
@@ -7894,6 +7914,12 @@ function owStep(scene, dt){
      he can plainly drive beneath. */
   if(W.sgNear) for(const sg of W.sgNear(ow.px, ow.py)){
     if(owContact(scene, ow, D, dYaw, sg, 'signalpost', sg.x, sg.y)) hitNormal = hitNormal || 3;
+    if(scene.state === 'tipped') break;
+  }
+  /* shop posts out on the pavement -- the tea house colonnade (see
+     hoodShopPostsOf). Same contact as the signal pole: a post, not a wall. */
+  if(W.poNear && scene.state !== 'tipped') for(const po of W.poNear(ow.px, ow.py)){
+    if(owContact(scene, ow, D, dYaw, po, po.kind, po.x, po.y)) hitNormal = hitNormal || 3;
     if(scene.state === 'tipped') break;
   }
 
@@ -12002,6 +12028,44 @@ function hoodShopLab(e, u, shop, x, y){
   let b = ((x - ux)*e.rv.x + (y - uy)*e.rv.y) / SC;
   if((e.dv.x + e.dv.y) <= 0 && shop.mirror !== false) a = (shop.ww || LIB.vol(u.shop.lib).lot.a1) - a;
   return { a, b: b - (shop.boff || 0), SC };
+}
+/* A SHOP'S POSTS ON THE PAVEMENT, in world space: every placed unit
+   whose entry declares `posts` (lab a, b, r in its draw frame), taken
+   out through hoodShopLab's frame run forwards -- the mirror, sc and boff
+   -- so a post lands exactly where draw() stood it on any edge. Once per
+   grid; owBuildWorld indexes them and owStep collides them. */
+/* lab (a, b) of a placed shop -> world: hoodShopLab run forwards */
+function hoodShopWorld(e, u, shop, a, b){
+  const SC = shop.sc || 1, ux = e.ox + e.dv.x*u.start, uy = e.oy + e.dv.y*u.start;
+  const mir = (e.dv.x + e.dv.y) <= 0 && shop.mirror !== false;
+  const WWl = shop.ww || (shop.vol ? LIB.vol(u.shop.lib).lot.a1 : 0);
+  const al = (mir ? WWl - a : a) * SC, bl = (b + (shop.boff || 0)) * SC;
+  return { x: ux + e.dv.x*al + e.rv.x*bl, y: uy + e.dv.y*al + e.rv.y*bl };
+}
+let _hpGrid = null, _hoodPosts = null;
+function hoodShopPostsOf(grid){
+  if(_hpGrid === grid && _hoodPosts) return _hoodPosts;
+  _hpGrid = grid; _hoodPosts = [];
+  if(!grid || !grid.blocks) return _hoodPosts;
+  hoodShopsOf(grid);
+  for(const blk of grid.blocks){
+    if(blk.type !== "commercial" || blk.i === undefined) continue;
+    const es = blockEdgesOf(blk);
+    for(let ei = 0; ei < es.length; ei++){
+      const units = hoodShopEdgeUnits(grid, blk, ei);
+      if(!units) continue;
+      const e = es[ei];
+      for(const u of units){
+        const shop = u.shop && LIB.get(u.shop.lib);
+        if(!shop || !shop.posts) continue;
+        for(const q of shop.posts){
+          const w = hoodShopWorld(e, u, shop, q.a, q.b);
+          _hoodPosts.push({ x: w.x, y: w.y, r: q.r * (shop.sc || 1), kind: q.kind || 'column', lib: u.shop.lib });
+        }
+      }
+    }
+  }
+  return _hoodPosts;
 }
 function hoodShopVolBlocked(grid, blk, x, y, R){
   if(!grid || !blk || blk.type !== "commercial" || blk.i === undefined) return undefined;
@@ -21588,7 +21652,14 @@ function houseCanopy(fn){
      own pavement. */
   wTodo:'two packing slots',
   head:'Two-tier red roof, dougong brackets, colonnade over the footway',
-  cTodo:'6 colonnade columns need collision volumes -- they stand at b 76, out at the kerb',
+  /* THE COLONNADE IS SOLID (Sir, 2026-09-26: "i can drive through these
+     pedistals"). The six columns draw() stands at a = 50 + i*60.96 on the
+     colonnade line b = CB = 212, on a plinth of r 12 -- the widest part at
+     his height, so that is the radius. Declared here in the entry's own
+     draw frame; the game places them (hoodShopPostsOf) and they collide
+     as 'column'. They are out on the pavement, past the block rect, so a
+     vol could not reach them: solidAt only asks the block. */
+  posts: [0,1,2,3,4,5].map(i => ({ a: 50 + i*60.96, b: 212, r: 12 })),
   tags:['double eave','dougong bracket sets','vermilion colonnade','ice-ray lattice','name plaque','walkway over the whole footway'],
   desc:'A proper tea house rather than a shop with a pitched roof: two tiers of grey glazed tile on concave eaves, stepped dougong bracket sets carrying them, a vermilion colonnade standing right out at the kerb so the walkway covers the full width of the footway, ice-ray lattice screens and a lacquered name plaque over the doors.',
   draw(p){
@@ -21822,7 +21893,7 @@ function houseCanopy(fn){
        line, so each sorts against the robot on its own terms. 'all' --
        the lab -- draws both, in this order. */
     const PART = state.part || 'all';
-    if(PART !== 'porch'){
+    if(PART === 'all' || PART === 'body'){
     /* ---- the main roof, over the building ---- */
     F(BA0, BA1, 0, H, wall, null, 0, FB);             // front wall
     F(BA0, BA1, 0, 18, shade(wall,.78), null, 0, FB+0.4); // base course
@@ -21919,6 +21990,19 @@ function houseCanopy(fn){
        things it interleaves with sit. */
     }   // end body
     if(PART !== 'body'){
+    /* THE PORCH IN THREE, NOT ONE (Sir, 2026-09-26: "looks like you missed
+       at least 1 pillar" -- he was behind a column and drawn over it). One
+       key on the column line is one depth, but the line runs ALONG the
+       street, so its six columns span the whole frontage in x + y: past
+       the middle he out-keyed the columns he stood behind. So the game
+       queues (see the porch queue in the shop loop):
+         porchBack the roof behind the columns, on the line's middle, as before
+         col       one plinth and column (part.col), on its own base
+         porchTop  beam, band, dougong, lanterns and the front eave -- they
+                   sit ON the columns, so they key past the nearest one
+       'porch' (and 'all', the lab) still draws the whole porch. */
+    const PT_ = n => PART === 'all' || PART === 'porch' || PART === n;
+    if(PT_('porchBack'))
     tier([[CB,216],[120,228],[32,242],[FB,264]], tile, false);   // the profile stretches with it: 30 -> 120, -14 -> 32
 
     /* ---- the colonnade ---- */
@@ -21934,6 +22018,7 @@ function houseCanopy(fn){
        10.3, which reads as a colonnade with lanterns in it rather than
        a row of things in contact. */
     for(let i=0;i<6;i++){
+      if(!PT_('col') || (PART === 'col' && state.partCol !== i)) continue;
       const ca = 50 + i*60.96;
       /* ---- THE PLINTH, WHICH WAS A COLLAR ----
          It was a drum of r 9 running z 0..16 with the column at r 8
@@ -21956,6 +22041,7 @@ function houseCanopy(fn){
       plateCircle(ca, CB, 19, 9, '#b6afa2', '#8a8478', 1.4);
       cyl(ca, CB, 19, 162, 8, trim);                                // the column, standing on it
     }
+    if(PT_('porchTop')){
     poly([P(BA0-6,CB,176),P(BA1+6,CB,176),P(BA1+6,CB,160),P(BA0-6,CB,160)], shade(trim,1.12));   // beam
     /* the painted band sits on the beam's STREET face, so b CB + 0.4.
        At CB - 0.4 it was four tenths of a unit BEHIND the beam and
@@ -21982,6 +22068,7 @@ function houseCanopy(fn){
     /* the last 28 of eave, with its fascia and corners, in front of the
        colonnade it lands on */
     tier([[EB,210],[CB,216]], tile, true, 32, CB);
+    }   // end porchTop
     }   // end porch
     kerb(p,'none');
   },
@@ -36526,6 +36613,7 @@ function houseCanopy(fn){
       SHOP_SLOT = { G };
       state.part = part ? part.part : null;
       state.partW = part ? (part.w || null) : null;
+      state.partCol = (part && part.col !== undefined) ? part.col : null;   // one post of a split porch
       ctx.__bind(g);
       try {
         /* A HOUSE'S fore() IS PART OF THE HOUSE (Sir, on-device at Sierra
@@ -36539,7 +36627,7 @@ function houseCanopy(fn){
         (rear && shop.back ? shop.back : shop.draw).call(shop, pal || PAL[0]);
         if(!(rear && shop.back) && shop.fore) shop.fore.call(shop, pal || PAL[0]);
       }
-      finally { SHOP_SLOT = null; MIRROR = 0; BOFF = 0; state.part = null; state.partW = null; }
+      finally { SHOP_SLOT = null; MIRROR = 0; BOFF = 0; state.part = null; state.partW = null; state.partCol = null; }
       return true;
     }
   };
@@ -44074,6 +44162,26 @@ class WorldScene extends Phaser.Scene {
         });
         if(porchB !== null){
           const px = ux + e.dv.x*(u.w/2) + e.rv.x*porchB, py = uy + e.dv.y*(u.w/2) + e.rv.y*porchB;
+          /* ...AND ITS POSTS EACH ON THEIR OWN BASE (Sir, 2026-09-26: "you
+             missed at least 1 pillar"). The column line runs along the
+             street, so one key on its middle was wrong for every column
+             past it: he drew over the ones he stood behind. An entry that
+             declares `posts` (the same ones that collide) is split: the
+             roof behind them on the middle as before, each post on its own
+             x + y, and what sits on top of them past the nearest. */
+          if(_e.posts && !rear){
+            vq.push({ depth: px + py, fn: (g) =>
+              LIB.draw(lib, this.propLayer(g, px, py), G, null, this.K, { part:'porchBack' }, flank, rear) });
+            let near = -Infinity;
+            _e.posts.forEach((q, i) => {
+              const w = hoodShopWorld(e, u, _e, q.a, q.b);
+              near = Math.max(near, w.x + w.y);
+              vq.push({ depth: w.x + w.y, fn: (g) =>
+                LIB.draw(lib, this.propLayer(g, w.x, w.y), G, null, this.K, { part:'col', col:i }, flank, rear) });
+            });
+            vq.push({ depth: near + 0.5, fn: (g) =>
+              LIB.draw(lib, this.propLayer(g, px, py), G, null, this.K, { part:'porchTop' }, flank, rear) });
+          } else
           vq.push({ depth: px + py, fn: (g) =>
             LIB.draw(lib, this.propLayer(g, px, py), G, null, this.K, { part:'porch' }, flank, rear) });
         }
