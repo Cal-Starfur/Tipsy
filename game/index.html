@@ -9135,7 +9135,14 @@ const XRAY = {
   max:   0.55,       // silhouette alpha at full coverage
   rise:  0.14,       // lerp in
   fall:  0.09,       // slower out, so a clipped corner does not strobe
-  probe: 24,         // world units between samples along a ray
+  probe: 24,         // world units to the first sample along a ray
+  /* and between samples after it (2026-09-26). At 24 a ray that only
+     clips a building's corner -- measured behind Driftwood Chapel's nave,
+     7.6 units of the ray inside it -- stepped straight over it, one of the
+     five rays missed, and he vanished behind the nave unghosted. The first
+     sample stays at probe (a body at his own depth is a sort tie, not an
+     occluder); past it, 8 cannot miss anything a body could hide behind. */
+  step: 8,
   /* BACKSTOP, and it has to be as far as the tallest building can reach
      (Sir, on-device, standing in the road with a three-storey shop
      between him and the camera: "the xray didnt land for tall buildings
@@ -11996,8 +12003,10 @@ function hoodShopVolBlocked(grid, blk, x, y, R){
       const mir = (e.dv.x + e.dv.y) <= 0 && shop.mirror !== false;
       const atStart = u.start <= 0.5, atEnd = u.start + u.w >= e.len - 0.5;
       const open0 = mir ? atEnd : atStart, open1 = mir ? atStart : atEnd;
+      /* and a whole-block lot's back edge is a street too (a back gate, a
+         service drive), so only a shallower lot keeps it closed */
       if((!open0 && a < L.a0 + r) || (!open1 && a > L.a1 - r) || a < L.a0 - r || a > L.a1 + r
-         || b < L.b0 + r) continue;
+         || b < L.b0 + (shop.block ? -r : r)) continue;
       return volBlockedAt(v, a, b, r, true);
     }
   }
@@ -17192,6 +17201,15 @@ function volBlockedAt(v, a, b, R, props){
 function volBuiltHeight(v, a, b, view, props){
   for(const s of v.solids){
     if(s.prop && !props) continue;
+    /* bounding box first (game-side, 2026-09-26): the x-ray asks this
+       dozens of times a frame, and a whole-block landmark declares a
+       hundred-odd solids */
+    if(!s._bb){
+      if(s.c) s._bb = [s.c[0]-s.r, s.c[0]+s.r, s.c[1]-s.r, s.c[1]+s.r];
+      else { const as = s.poly.map(q => q[0]), bs = s.poly.map(q => q[1]);
+             s._bb = [Math.min(...as), Math.max(...as), Math.min(...bs), Math.max(...bs)]; }
+    }
+    if(a < s._bb[0] || a > s._bb[1] || b < s._bb[2] || b > s._bb[3]) continue;
     if(volInShape(s, a, b)) return s.h || 0;
   }
   const L = v.lot;
@@ -25593,7 +25611,26 @@ function houseCanopy(fn){
 {
   name:'Driftwood Chapel', xh: 300, base:'Chapel', hood:'The Flats', edited:true, tall:true, block:true, ww: 1656, dd: 1656,
   /* nave and tower, for the x-ray (see hoodShopHeightAt) */
-  built: [663.6, 1153.6, -170, -830],
+  /* THE GROUNDS ARE DRIVABLE (Sir, 2026-09-26: "is tipsey able to drive
+     into the grounds?" -- he was not: an undeclared shop is its whole block
+     as one solid). Declared from the same numbers draw() uses: what stands
+     up is solid, the ground is not, and the lot's own boundary is only
+     where a hedge, rail or wall is drawn, so the gates and driveways are
+     the ways in. Trees and small stock are props. */
+  vol: (() => {
+    const LOT = 1656, OA = 303.6, nA0 = 360+OA, nA1 = 690+OA, nB0 = -170, nB1 = -830, tA1 = 850+OA, tB1 = -330;
+    const CA = (nA0+nA1)/2, WN0 = -454, WN1 = -546, WT0 = -154, WT1 = -246, R = volRect;
+    const fA = (bb, a0, a1) => ({ poly: R(a0, a1, bb-9, bb+9), h: 46 }), fB = (aa, b0, b1) => ({ poly: R(aa-9, aa+9, b1, b0), h: 46 });
+    const solids = [
+      fA(0, 0, CA-46), fA(0, CA+46, LOT), fA(-LOT, 0, CA-46), fA(-LOT, CA+46, LOT),
+      fB(0, 0, WN0), fB(0, WN1, -LOT), fB(LOT, 0, WT0), fB(LOT, WT1, -LOT),
+      { poly: R(440, 1220, -1250, -1010), h: 290 },                                 // the school
+      { c: [1290, -940], r: 14, h: 300 },                                            // its flagpole
+    ];
+    for(const [ya, yb] of [[120,-160],[120,-1500],[CA-300,-1560],[CA+300,-1560],[LOT-120,-700],[LOT-120,-1500]])
+      solids.push({ c: [ya, yb], r: 30, h: 130, prop: true });
+    return { foot: [[nA0,nB0],[tA1,nB0],[tA1,tB1],[nA1,tB1],[nA1,nB1],[nA0,nB1]], h: 300, solids };
+  })(),
   wTodo:'a whole block edge -- five packing slots, and the packer places none of them',
   head:'Chapel in its own churchyard, tower and spire, four gates',
   tags:['block landmark','churchyard on four sides','pitched nave','tower and pyramid spire','tallest thing in the library'],
@@ -25644,8 +25681,8 @@ function houseCanopy(fn){
        1048.8 square and a block is 1656. It is the block now, with the
        chapel where it stood on the street (a shifted by OA = 303.6) and
        the gates re-derived from the walks rather than typed, so every gap
-       still lands on its path. The ground it gained is churchyard: rows
-       of headstones round three sides and a few yews. */
+       still lands on its path. The ground it gained is lawn with a few
+       yews. */
     const LOT = 1656, OA = 303.6, Y = 130;
     const wall = '#f2efe6', trim = '#5a7f95', H = 300;
     const nA0 = 360+OA, nA1 = 690+OA, nB0 = -170, nB1 = -830;
@@ -25657,7 +25694,8 @@ function houseCanopy(fn){
     /* ---- the churchyard ---- */
     T(0, LOT, -LOT, 0, 0, '#93a67f');
     T(CA-46, CA+46, nB0, 0, 0.5, '#cfc9b8');                 // west walk, to the great door
-    T(CA-46, CA+46, -LOT, nB1, 0.5, '#cfc9b8');              // east walk, to the chancel door
+    T(CA-46, CA+46, -1010, nB1, 0.5, '#cfc9b8');             // east walk, chancel door to the school
+    T(CA-46, CA+46, -LOT, -1250, 0.5, '#cfc9b8');            // and the back gate to the school's back
     T(0, nA0, -546, -454, 0.5, '#cfc9b8');                   // north walk, to the nave door
     T(tA1, LOT, tB0-46-30, tB0-30+46, 0.5, '#cfc9b8');       // east-side walk, to the TOWER door
     for(let i=0;i<3;i++){                                    // steps up to the west door
@@ -25698,47 +25736,108 @@ function houseCanopy(fn){
       box(aa-5, aa+5, s1, s0, 0, WH, shade(wall,.9), shade(wall,.76), shade(wall,.66));
       for(let y=s0-14; y>s1+8; y-=30) cyl(aa, y, WH, RH, 2.2, iron);
       tube(aa, s0, RH-4, aa, s1, RH-4, 2.2, iron); } };
-    fenceB(0,    [[0,WN0],[WN1,-LOT]]);                      // far, left
-    fenceA(-LOT, [[0,CA-46],[CA+46,LOT]]);                   // far, back
-    for(const [pa,pb] of [[0,WN0],[0,WN1],[CA-46,-LOT],[CA+46,-LOT]]) pier(pa,pb);
+    /* IN PIECES (Sir, on-device: Tipsey inside the gate drew over the
+       railing). Everything that stands up is an item for depthSort(), so
+       the game can sort each into the world queue against him -- the
+       lawn and walks above are the ground, drawn first. The railing goes
+       in 60-long runs: one key for a 1656 rail would put him in front of
+       all of it or behind all of it. */
+    const items = [];
+    /* A RUN IS SAFE UP TO ~140 LONG. Collision keeps him at least ~35 off
+       a fence or hedge, and the pieces that overlap him on screen then key
+       2*35 +- n/2 nearer or farther than he does -- the right side of him
+       for any n under 140. So runs are as long as that allows: every piece
+       is a box and a rail of its own, and 60-long runs doubled the frame's
+       primitive count for no gain. */
+    const chunk = (s0, s1, n = 120) => { const out = [], d = s1 > s0 ? 1 : -1;
+      for(let x = s0; d > 0 ? x < s1 - 0.5 : x > s1 + 0.5; x += d*n) out.push([x, d > 0 ? Math.min(s1, x+n) : Math.max(s1, x-n)]);
+      return out; };
+    const railA = (bb, segs) => { for(const [s0,s1] of segs) for(const c of chunk(s0, s1))
+      items.push({ a: (c[0]+c[1])/2, b: bb, draw: () => fenceA(bb, [c]) }); };
+    const railB = (aa, segs) => { for(const [s0,s1] of segs) for(const c of chunk(s0, s1))
+      items.push({ a: aa, b: (c[0]+c[1])/2, draw: () => fenceB(aa, [c]) }); };
+    railB(0,    [[0,WN0],[WN1,-LOT]]);                        // left
+    railA(-LOT, [[0,CA-46],[CA+46,LOT]]);                     // back
+    railA(0,    [[0,CA-46],[CA+46,LOT]]);                     // front
+    railB(LOT,  [[0,WT0],[WT1,-LOT]]);                        // right
+    for(const [pa,pb] of [[0,WN0],[0,WN1],[CA-46,-LOT],[CA+46,-LOT],[CA-46,0],[CA+46,0],[LOT,WT0],[LOT,WT1]])
+      items.push({ a: pa, b: pb, draw: () => pier(pa, pb) });
 
-    /* Headstones, which are what says churchyard louder than anything
-       else on the building. They stand in the LOT, not on the pavement:
-       the yard is the shop's own ground and Tipsy drives the road and
-       the footway, so these are not the kerb-prop class the cTodo
-       census counts. Kept off the walks and out of the nave's shadow. */
-    /* The churchyard the block added is rows of them: down the left of
-       the nave, across the back behind the chancel walk, and down the
-       right behind the tower -- set out on a grid, jittered a little,
-       kept off every walk, and drawn far to near. */
-    const stones = [];
-    const offWalk = (ga, gb) => !(Math.abs(ga - CA) < 70 && (gb > nB0 || gb < nB1))
-                              && !(ga < nA0 && gb < WN0 + 30 && gb > WN1 - 30)
-                              && !(ga > tA1 && gb < WT0 + 30 && gb > WT1 - 30);
-    for(let gb = -120; gb > -LOT + 80; gb -= 76)
-      for(let ga = 70; ga < LOT - 60; ga += 64){
-        if(ga > nA0 - 60 && ga < tA1 + 60 && gb > nB1 - 70) continue;   // the chapel and its apron
-        if(!offWalk(ga, gb)) continue;
-        const j = Math.sin(ga*12.9898 + gb*78.233)*43758.5453, u = j - Math.floor(j);
-        stones.push([ga + (u - 0.5)*14, gb + (u*7 % 1 - 0.5)*12, 24 + Math.round(u*12)]);
-      }
+    /* NO HEADSTONES (Sir, 2026-09-26: "i dont think they are necessary").
+       The yard is lawn, walks and a few yews; the railing and the chapel
+       say churchyard on their own. */
     const yews = [[120,-160],[120,-1500],[CA-300,-1560],[CA+300,-1560],[LOT-120,-700],[LOT-120,-1500]];
     const yew = (ya, yb) => {
       cyl(ya, yb, 0, 30, 7, '#5a4a30');
       for(let k=0;k<4;k++) ball(ya, yb, 40 + k*26, 34 - k*7, ['#2f5a3a','#356045','#2f5a3a','#3f6b4a'][k]);
     };
-    const nearKey = (x) => x[0] + x[1];
-    const farStones = stones.filter(g => !(g[0] > nA1 && g[1] > nB1) && !(g[1] > nB0)).sort((u,v) => nearKey(u) - nearKey(v));
-    const nearStones = stones.filter(g => (g[0] > nA1 && g[1] > nB1) || g[1] > nB0).sort((u,v) => nearKey(u) - nearKey(v));
-    const stone = ([ga, gb, gh]) => {
-      box(ga-11, ga+11, gb-7, gb+7, 0, gh, shade(wall,.9), shade(wall,.76), shade(wall,.66));
-      poly([P(ga-11,gb+7,gh),P(ga,gb+7,gh+9),P(ga+11,gb+7,gh)], shade(wall,.82));
-    };
-    if(state.props){
-      for(const y of yews.filter(y => y[0] < nA1).sort((u,v) => nearKey(u) - nearKey(v))) yew(...y);
-      for(const g of farStones) stone(g);
-    }
+    if(state.props) for(const [ya, yb] of yews) items.push({ a: ya, b: yb, draw: () => yew(ya, yb) });
 
+    /* ============ THE SCHOOL (Sir, 2026-09-26) ============
+       "behind the chapel we want a small school, same colour scheme,
+       perpendicular to the chapel". The nave runs on b, so the school's
+       long axis runs on a, across the back of the churchyard: a one-room
+       schoolhouse of the chapel's whitewash and sea blue, pitched roof on
+       a ridge along a, a bell cupola astride it, tall windows down the
+       front, and its door on the chancel walk's axis so the walk from
+       the chapel's east door ends at the school's. It is behind the
+       nave, so it is painted before it. */
+    items.push({ a: 830, b: -1130, draw: () => { const SA0 = 440, SA1 = 1220, SB0 = -1010, SB1 = -1250, EH = 190, RZ = 290;
+      const bm = (SB0 + SB1)/2, glassC = '#6f8fa8';
+      const endR = (q0, q1, z0, z1, c) => poly([P(SA1+0.5,q0,z0),P(SA1+0.5,q1,z0),P(SA1+0.5,q1,z1),P(SA1+0.5,q0,z1)], c);
+      box(SA0, SA1, SB1, SB0, 0, EH, shade(wall,.88), shade(wall,1.0), shade(wall,.78));
+      slab(SA0, SA1, 0, 22, SB0, SB0-8, shade(wall,.8));                    // plinth
+      endR(SB0, SB1, 0, 22, shade(wall,.7));
+      /* the roof: far slope, the seen gable, then the near slope */
+      poly([P(SA0-10,bm,RZ),P(SA1+10,bm,RZ),P(SA1+10,SB1-14,EH-6),P(SA0-10,SB1-14,EH-6)], shade(trim,.78));
+      poly([P(SA1,SB0,EH),P(SA1,bm,RZ),P(SA1,SB1,EH)], wall);
+      for(const [b0, z0, b1, z1] of [[SB0, EH, bm, RZ], [bm, RZ, SB1, EH]]){   // barge boards
+        const n = 8;
+        for(let i=0;i<n;i++)
+          poly([P(SA1+1.2, b0+(b1-b0)*i/n, z0+(z1-z0)*i/n), P(SA1+1.2, b0+(b1-b0)*(i+1)/n, z0+(z1-z0)*(i+1)/n),
+                P(SA1+1.2, b0+(b1-b0)*(i+1)/n, z0+(z1-z0)*(i+1)/n-10), P(SA1+1.2, b0+(b1-b0)*i/n, z0+(z1-z0)*i/n-10)], shade(trim,1.15));
+      }
+      poly([P(SA0-10,SB0+14,EH-6),P(SA1+10,SB0+14,EH-6),P(SA1+10,bm,RZ),P(SA0-10,bm,RZ)], trim);
+      /* the front: tall windows either side of the door, a name board */
+      slab(SA0, SA1, 150, 158, SB0, SB0-8, shade(wall,.86));               // string course
+      for(const xa of [500, 580, 660, 740, 920, 1000, 1080, 1160]){
+        F(xa-17, xa+17, 40, 140, glassC, trim, 3, SB0-0.5);
+        F(xa-1.5, xa+1.5, 40, 140, trim, null, 0, SB0-0.8);
+        F(xa-17, xa+17, 88, 91, trim, null, 0, SB0-0.8);
+      }
+      F(CA-34, CA+34, 0, 128, shade(trim,1.1), null, 0, SB0-0.4);           // the door
+      F(CA-27, CA+27, 0, 120, shade(wall,.4), null, 0, SB0-0.8);
+      F(CA-1.5, CA+1.5, 4, 116, shade(trim,.6), null, 0, SB0-1.2);
+      slab(CA-56, CA+56, 134, 144, SB0+34, SB0-2, trim, null, shade(trim,1.2));   // door canopy
+      F(CA-110, CA+110, 160, 184, trim, null, 0, SB0-0.5);                  // name board
+      for(let k=0;k<6;k++) F(CA-96+k*33, CA-74+k*33, 165, 179, shade(wall,1.1), null, 0, SB0-0.9);
+      for(let i=0;i<3;i++){ const rr = 10 - i*3;                             // step
+        T(CA-40+i*3, CA+40-i*3, SB0+rr, SB0, 2+i*4, shade(wall,.92)); }
+      /* the seen end: two windows */
+      for(const qb of [-1080, -1180]){ endR(qb+17, qb-17, 40, 140, trim); endR(qb+13, qb-13, 44, 136, glassC); }
+      /* the bell cupola, astride the ridge over the door */
+      if(state.roof){
+        box(CA-26, CA+26, bm-26, bm+26, RZ-30, RZ+44, shade(wall,.9), wall, shade(wall,.78));
+        F(CA-16, CA+16, RZ+4, RZ+36, shade(wall,.3), null, 0, bm+26.5);
+        ball(CA, bm, RZ+18, 9, '#c9a24a');
+        const cap = P(CA, bm, RZ+86);
+        poly([P(CA-32,bm+32,RZ+44), P(CA+32,bm+32,RZ+44), cap], trim);
+        poly([P(CA+32,bm+32,RZ+44), P(CA+32,bm-32,RZ+44), cap], shade(trim,.72));
+      }
+    } });
+    /* the flagpole, out front at the school's seen end */
+    if(state.props) items.push({ a: 1290, b: -940, draw: () => {
+        const fa = 1290, fb = -940;
+        box(fa-14, fa+14, fb-14, fb+14, 0, 10, shade(wall,.9), shade(wall,.76), shade(wall,.66));
+        cyl(fa, fb, 10, 300, 3, '#c9ced2');
+        ball(fa, fb, 304, 5, '#c9a24a');
+        F(fa+3, fa+63, 250, 290, trim, null, 0, fb);
+        F(fa+3, fa+63, 262, 278, shade(wall,1.1), null, 0, fb+0.4);
+    } });
+
+    /* ---- THE CHAPEL, one item: nave, roof, fronts and tower keep their
+       authored order inside it ---- */
+    items.push({ a: CA, b: -500, draw: () => {
     /* ---- the nave ----
        Far faces first, then the box, then the near elevations. The east
        and north doors are on faces pointing away from this camera, and
@@ -25835,15 +25934,8 @@ function houseCanopy(fn){
     slab((tA0+tA1)/2-10, (tA0+tA1)/2+10, sTop+8, sTop+12,
          (tB0+tB1)/2+2.4, (tB0+tB1)/2-2.4, '#c9a24a');
     ball((tA0+tA1)/2, (tB0+tB1)/2, sTop+30, 5, '#c9a24a');
-    /* the near two runs, after the chapel, so the rails read in front of
-       it rather than being swallowed by the nave */
-    if(state.props){
-      for(const g of nearStones) stone(g);
-      for(const y of yews.filter(y => y[0] >= nA1).sort((u,v) => nearKey(u) - nearKey(v))) yew(...y);
-    }
-    fenceA(0,   [[0,CA-46],[CA+46,LOT]]);                    // near, front
-    fenceB(LOT, [[0,WT0],[WT1,-LOT]]);                       // near, right
-    for(const [pa,pb] of [[CA-46,0],[CA+46,0],[LOT,WT0],[LOT,WT1]]) pier(pa,pb);
+    } });
+    depthSort(items);
     kerb(p,'none');
   }
 },
@@ -26721,7 +26813,27 @@ function houseCanopy(fn){
 },
 {
   name:'Lagoon Baths', xh: 336, base:'Bathhouse', hood:'The Flats', edited:true, tall:true, block:true, ww: 1656, dd: 1656,
-  built: [433.6, 1222.4, -130, -918.8],
+  /* THE GROUNDS ARE DRIVABLE (Sir, 2026-09-26: "is tipsey able to drive
+     into the grounds?" -- he was not: an undeclared shop is its whole block
+     as one solid). Declared from the same numbers draw() uses: what stands
+     up is solid, the ground is not, and the lot's own boundary is only
+     where a hedge, rail or wall is drawn, so the gates and driveways are
+     the ways in. Trees and small stock are props. */
+  vol: (() => {
+    const LOT = 1656, OA = 303.6, Y = 130, bx0 = Y + OA, bx1 = 1048.8 - Y + OA, bb0 = -Y, bb1 = -(1048.8 - Y);
+    const CA = (bx0+bx1)/2, CB = (bb0+bb1)/2, R = volRect;
+    const hA = (a0, a1, bb) => ({ poly: R(a0, a1, bb-14, bb+14), h: 30 }), hB = (b0, b1, aa) => ({ poly: R(aa-14, aa+14, b1, b0), h: 30 });
+    const solids = [
+      hA(24, CA-70, -LOT+24), hA(CA+70, LOT-24, -LOT+24), hA(24, CA-70, -24), hA(CA+70, LOT-24, -24),
+      hB(-24, CB+70, 24), hB(CB-70, -LOT+24, 24), hB(-24, CB+70, LOT-24), hB(CB-70, -LOT+24, LOT-24),
+      { poly: R(CA-274, CA+274, bb1-484, bb1-136), h: 14 },                          // the pool
+      { poly: R(CA-46-24-220, CA-46-24, -100, -40), h: 10 }, { poly: R(CA+70, CA+290, -100, -40), h: 10 },   // beds
+    ];
+    for(const [ta, tb] of [[150,-1500],[150,-1200],[150,-420],[150,-160],[CA-420,-1520],[CA+420,-1520],[CA-420,bb1-120],[CA+420,bb1-120],
+                           [bx1+180,-220],[bx1+180,CB-240],[bx1+180,CB+240],[bx1+180,-800],[LOT-150,-1500],[LOT-150,-1200],[CA-420,-60],[CA+420,-60]])
+      solids.push({ c: [ta, tb], r: 14, h: 90, prop: true });
+    return { foot: R(bx0, bx1, bb1, bb0), h: 336, solids };
+  })(),
   wTodo:'a whole block edge -- five packing slots, and the packer places none of them',
   head:'Block landmark in its own yard, entrance on every street',
   tags:['block landmark','yard on four sides','four entrances','great arched portal','onion dome'],
@@ -26805,15 +26917,32 @@ function houseCanopy(fn){
     }
     /* ---- the grounds, far to near ---- */
     const leaf = ['#3f6b4a','#4e8058','#568a5e'], hedgeC = '#4e7a50';
+    /* IN PIECES: what stands up is an item for depthSort(), sorted into
+       the world against Tipsey; the lawn, walks, pool and beds are the
+       ground. Hedges go in 60-long runs, one key each. */
+    const items = [];
+    /* A RUN IS SAFE UP TO ~140 LONG. Collision keeps him at least ~35 off
+       a fence or hedge, and the pieces that overlap him on screen then key
+       2*35 +- n/2 nearer or farther than he does -- the right side of him
+       for any n under 140. So runs are as long as that allows: every piece
+       is a box and a rail of its own, and 60-long runs doubled the frame's
+       primitive count for no gain. */
+    const chunk = (s0, s1, n = 120) => { const out = [], d = s1 > s0 ? 1 : -1;
+      for(let x = s0; d > 0 ? x < s1 - 0.5 : x > s1 + 0.5; x += d*n) out.push([x, d > 0 ? Math.min(s1, x+n) : Math.max(s1, x-n)]);
+      return out; };
     const tree = (ta, tb, s = 1) => {
       if(!state.props) return;
+      items.push({ a: ta, b: tb, draw: () => {
       cyl(ta, tb, 0, 46*s, 6*s, '#6b5a3a');
       for(let k=0;k<5;k++) ball(ta + 16*s*Math.cos(k*1.26+0.3), tb + 16*s*Math.sin(k*1.26+0.3), 58*s, 18*s, leaf[k%3]);
       ball(ta, tb, 74*s, 17*s, '#4e8058');
+      } });
     };
     /* a low clipped hedge along the lot edge, open where a walk meets it */
-    const hedgeRunA = (a0, a1, bb) => box(a0, a1, bb-14, bb+14, 0, 30, shade(hedgeC,1.08), hedgeC, shade(hedgeC,.8));
-    const hedgeRunB = (b0, b1, aa) => box(aa-14, aa+14, b1, b0, 0, 30, shade(hedgeC,1.08), hedgeC, shade(hedgeC,.8));
+    const hedgeRunA = (a0, a1, bb) => { for(const [c0, c1] of chunk(a0, a1)) items.push({ a: (c0+c1)/2, b: bb, draw: () =>
+      box(c0, c1, bb-14, bb+14, 0, 30, shade(hedgeC,1.08), hedgeC, shade(hedgeC,.8)) }); };
+    const hedgeRunB = (b0, b1, aa) => { for(const [c0, c1] of chunk(b0, b1)) items.push({ a: aa, b: (c0+c1)/2, draw: () =>
+      box(aa-14, aa+14, c1, c0, 0, 30, shade(hedgeC,1.08), hedgeC, shade(hedgeC,.8)) }); };
     hedgeRunA(24, CA-70, -LOT+24); hedgeRunA(CA+70, LOT-24, -LOT+24);       // back
     hedgeRunB(-24, CB+70, 24);     hedgeRunB(CB-70, -LOT+24, 24);           // left side street
     /* the reflecting pool, on the axis behind the back entrance */
@@ -26824,6 +26953,9 @@ function houseCanopy(fn){
     for(const [ta, tb] of [[150,-1500],[150,-1200],[150,-420],[150,-160],[CA-420,-1520],[CA+420,-1520],
                            [CA-420,bb1-120],[CA+420,bb1-120]].sort((u,v) => (u[0]+u[1]) - (v[0]+v[1]))) tree(ta, tb);
 
+    /* ---- THE BATHHOUSE, one item: entrances, box, elevations, portal,
+       band and dome keep their authored order inside it ---- */
+    items.push({ a: CA, b: CB, draw: () => {
     /* ---- the volume ----
        Drawn directly rather than through body(), which starts at b 0
        and runs to the fixed D. This one is set back 130 and is 788.8
@@ -26970,6 +27102,7 @@ function houseCanopy(fn){
         cyl(va, vb, H+56, H+66, 16, '#aeb4b8');
       }
     }
+    } });
     /* ---- the grounds in front of the building's seen faces ---- */
     for(const sgn of [-1, 1]){                                 // beds flanking the front walk
       const a0 = sgn < 0 ? CA-46-24-220 : CA+46+24, a1 = a0 + 220;
@@ -26982,6 +27115,7 @@ function houseCanopy(fn){
                            [CA-420,-60],[CA+420,-60]].sort((u,v) => (u[0]+u[1]) - (v[0]+v[1]))) tree(ta, tb);
     hedgeRunB(-24, CB+70, LOT-24); hedgeRunB(CB-70, -LOT+24, LOT-24);      // near side street
     hedgeRunA(24, CA-70, -24);     hedgeRunA(CA+70, LOT-24, -24);          // the street
+    depthSort(items);
     kerb(p,'none');
   }
 },
@@ -27317,7 +27451,27 @@ function houseCanopy(fn){
 },
 {
   name:'Palmline Nursery', xh: 300, base:'Nursery', hood:'The Flats', edited:true, block:true, ww: 1656, dd: 1656,
-  built: [688.6, 968.6, -220, -440],
+  /* THE GROUNDS ARE DRIVABLE (Sir, 2026-09-26: "is tipsey able to drive
+     into the grounds?" -- he was not: an undeclared shop is its whole block
+     as one solid). Declared from the same numbers draw() uses: what stands
+     up is solid, the ground is not, and the lot's own boundary is only
+     where a hedge, rail or wall is drawn, so the gates and driveways are
+     the ways in. Trees and small stock are props. */
+  vol: (() => {
+    const LOT = 1656, OA = 303.6, GB = -300, GAP0 = 780, GAP1 = 876, R = volRect;
+    const hA0 = 385+OA, hA1 = 665+OA, hB0 = -220, hB1 = -440;
+    const rA = (bb, a0, a1) => ({ poly: R(a0-7, a1+7, bb-7, bb+7), h: 40 }), rB = (aa, b0, b1) => ({ poly: R(aa-7, aa+7, b1-7, b0+7), h: 40 });
+    const solids = [
+      rA(-LOT+18, 18, GAP0), rA(-LOT+18, GAP1, LOT-18), rA(-18, 18, GAP0), rA(-18, GAP1, LOT-18),
+      rB(18, -18, -GAP0), rB(18, -GAP1, -LOT+18), rB(LOT-18, -18, -GAP0), rB(LOT-18, -GAP1, -LOT+18),
+      { poly: R(60+OA, 450+OA, -990+GB, -600+GB), h: 148 }, { poly: R(600+OA, 990+OA, -990+GB, -600+GB), h: 148 },   // glasshouses
+    ];
+    for(let r=0;r<6;r++) for(const o of [OA, OA + 300]){ const bb = -120 - r*108; solids.push({ poly: R(720+o, 1020+o, bb-22, bb+22), h: 80, prop: true }); }
+    for(let r=0;r<7;r++) for(let c=0;c<5;c++) solids.push({ c: [70 + c*90, -70 - r*110], r: 14, h: 140, prop: true });   // the grove
+    for(let r=0;r<6;r++) for(const ta of [70, 170, 270]) solids.push({ c: [ta, -930 - r*110], r: 14, h: 140, prop: true });
+    for(let r=0;r<3;r++) for(let c=0;c<20;c++){ const sa = 60 + c*78; if(!(sa > GAP0-30 && sa < GAP1+30)) solids.push({ c: [sa, -1600 + r*90], r: 12, h: 50, prop: true }); }
+    return { foot: R(hA0, hA1, hB1, hB0), h: 150, solids };
+  })(),
   wTodo:'a whole block edge -- five packing slots, and the packer places none of them',
   cTodo:'fence line, sales hut and two glasshouses need volumes; the yard itself is drivable',
   head:'Garden centre on a whole block: small hut, big yard, two glasshouses',
@@ -27396,7 +27550,7 @@ function houseCanopy(fn){
     const LOT = 1656, OA = 303.6, GB = -300;          // GB: the glasshouses' step back
     const wall = '#e6dcc4', trim = '#3f8a6a', tim = '#8a6f4e';
     const pane = 'rgba(180,214,204,.50)';
-    const GAP0 = 793, GAP1 = 863;                 // the gate gap, both axes
+    const GAP0 = 780, GAP1 = 876;                 // the gate gap, both axes: 82 clear between the posts, for a 60-wide Tipsey
 
     /* ---- the ground: gravel, then the cross of paths on top of it ---- */
     T(0, LOT, -LOT, 0, 0, '#b3aa93');
@@ -27411,29 +27565,37 @@ function houseCanopy(fn){
        that only exists on the faces we happen to be looking at is the
        FLANK_RIGHT mistake in a different costume. */
     const FH = 40;
+    /* IN PIECES: what stands up is an item for depthSort(), sorted into
+       the world against Tipsey; the gravel and paths are the ground. The
+       fence goes in runs of one post-bay (about 62), one key each. */
+    const items = [];
     const railA = (bb, a0, a1) => {
-      for(const z of [FH-8, FH-24]) tube(a0, bb, z, a1, bb, z, 2.5, shade(trim,1.1));
-      for(let a=a0; a<=a1+0.1; a+=Math.max(1,(a1-a0)/Math.round((a1-a0)/62)))
-        cyl(a, bb, 0, FH, 5, trim);
+      const n = Math.max(1, Math.round((a1-a0)/124)), st = (a1-a0)/n;   // two post-bays a piece (see the Chapel's run note)
+      for(let i=0;i<n;i++){ const c0 = a0 + i*st, c1 = c0 + st;
+        items.push({ a: (c0+c1)/2, b: bb, draw: () => {
+          for(const z of [FH-8, FH-24]) tube(c0, bb, z, c1, bb, z, 2.5, shade(trim,1.1));
+          cyl(c0, bb, 0, FH, 5, trim); cyl((c0+c1)/2, bb, 0, FH, 5, trim); if(i === n-1) cyl(c1, bb, 0, FH, 5, trim); } }); }
     };
     const railB = (aa, b0, b1) => {
-      for(const z of [FH-8, FH-24]) tube(aa, b0, z, aa, b1, z, 2.5, shade(trim,1.1));
-      for(let b=b0; b>=b1-0.1; b-=Math.max(1,(b0-b1)/Math.round((b0-b1)/62)))
-        cyl(aa, b, 0, FH, 5, trim);
+      const n = Math.max(1, Math.round((b0-b1)/124)), st = (b0-b1)/n;
+      for(let i=0;i<n;i++){ const c0 = b0 - i*st, c1 = c0 - st;
+        items.push({ a: aa, b: (c0+c1)/2, draw: () => {
+          for(const z of [FH-8, FH-24]) tube(aa, c0, z, aa, c1, z, 2.5, shade(trim,1.1));
+          cyl(aa, c0, 0, FH, 5, trim); cyl(aa, (c0+c1)/2, 0, FH, 5, trim); if(i === n-1) cyl(aa, c1, 0, FH, 5, trim); } }); }
     };
     /* a gate: two tall posts and a name board across them, on every
        street. archA spans the a axis (front and back), archB the b. */
-    const archA = (bb) => {
+    const archA = (bb) => items.push({ a: (GAP0+GAP1)/2, b: bb, draw: () => {
       for(const a of [GAP0, GAP1]) cyl(a, bb, 0, 104, 7, tim);
       slab(GAP0-10, GAP1+10, 104, 132, bb+5, bb-5, tim, null, shade(tim,1.2));
       F(GAP0+2, GAP1-2, 110, 126, shade(wall,1.14), null, 0, bb+5.5);
-    };
-    const archB = (aa) => {
+    } });
+    const archB = (aa) => items.push({ a: aa, b: -(GAP0+GAP1)/2, draw: () => {
       for(const b of [-GAP0, -GAP1]) cyl(aa, b, 0, 104, 7, tim);
       poly([P(aa,-GAP0-10,104),P(aa,-GAP1+10,104),P(aa,-GAP1+10,132),P(aa,-GAP0-10,132)], tim);
       poly([P(aa+0.5,-GAP0-2,110),P(aa+0.5,-GAP1+2,110),
             P(aa+0.5,-GAP1+2,126),P(aa+0.5,-GAP0-2,126)], shade(wall,1.14));
-    };
+    } });
     railA(-LOT+18, 18, GAP0);  railA(-LOT+18, GAP1, LOT-18);      // back
     railB(18, -18, -GAP0);     railB(18, -GAP1, -LOT+18);          // left
     archA(-LOT+18);            archB(18);
@@ -27462,19 +27624,19 @@ function houseCanopy(fn){
     };
     /* ---- the stock the block added, all behind the hut: the back rows
        of shrubs, the tree fields down each side of the glasshouses ---- */
-    const shrub = (sa, sb, c) => {
+    const shrub = (sa, sb, c) => items.push({ a: sa, b: sb, draw: () => {
       cyl(sa, sb, 0, 18, 12, '#9a8a68');
       plateCircle(sa, sb, 18, 10, '#5a4a30');
       ball(sa, sb, 32, 17, ['#4e8058','#3f6b4a','#568a5e','#c26a7e','#e8c34a'][c%5]);
-    };
+    } });
     if(state.props){
       for(let r=0;r<3;r++) for(let c=0;c<20;c++){
         const sa = 60 + c*78; if(sa > GAP0-30 && sa < GAP1+30) continue;
         shrub(sa, -1600 + r*90, r*3 + c);
       }
     }
-    glasshouse(60+OA, 450+OA, -600+GB, -990+GB, 88, 148);
-    glasshouse(600+OA, 990+OA, -600+GB, -990+GB, 88, 148);
+    for(const g0 of [60+OA, 600+OA])
+      items.push({ a: g0 + 195, b: -795+GB, draw: () => glasshouse(g0, g0+390, -600+GB, -990+GB, 88, 148) });
 
     /* ---- specimen trees, the FAR row, before the hut ----
        A stacking fault on the first pass: every tree was drawn in one
@@ -27484,7 +27646,7 @@ function houseCanopy(fn){
        rule the glasshouse's own slopes and the staging ranks follow;
        the hut is simply another thing in the queue rather than a
        backdrop the props are laid on. */
-    const tree = (ta, tb, th) => {
+    const tree = (ta, tb, th) => items.push({ a: ta, b: tb, draw: () => {
       cyl(ta, tb, 0, 22, 14, '#9a8a68');
       plateCircle(ta, tb, 22, 11, '#5a4a30');
       cyl(ta, tb, 22, th, 4, '#6b5a3a');
@@ -27493,7 +27655,7 @@ function houseCanopy(fn){
         ball(ta + 14*Math.cos(q), tb + 14*Math.sin(q), th-6, 14, ['#3f6b4a','#4e8058','#356045'][k%3]);
       }
       ball(ta, tb, th+6, 15, '#4e8058');
-    };
+    } });
     const hA0 = 385+OA, hA1 = 665+OA, hB0 = -220, hB1 = -440, hH = 150, FB = hB0 + 0.5;
     /* the tree fields down the sides, behind the cross walk */
     if(state.props) for(let r=0;r<6;r++) for(const ta of [70, 170, 270]){
@@ -27538,6 +27700,7 @@ function houseCanopy(fn){
        280 x 220, timber, with a plain overhanging roof. Door and
        windows are drawn on the b = -220 face, which is the one turned
        toward the front street, at a b just proud of it. */
+    items.push({ a: (hA0+hA1)/2, b: (hB0+hB1)/2, draw: () => {
     box(hA0, hA1, hB1, hB0, 0, hH, shade(tim,1.1), tim, shade(tim,.78));
     slab(hA0-14, hA1+14, hH, hH+14, hB0+14, hB1-14, shade(trim,.9), null, shade(trim,1.1));
     F(hA0+4, hA1-4, 0, 20, shade(tim,.72), null, 0, FB);           // plinth
@@ -27557,6 +27720,7 @@ function houseCanopy(fn){
       poly([P(hA1+0.7,hB0-4,24+k*17),P(hA1+0.7,hB1+4,24+k*17),
             P(hA1+0.7,hB1+4,26+k*17),P(hA1+0.7,hB0-4,26+k*17)], shade(tim,.7));
     if(state.roof) cyl(hA1-40, hB1+40, hH+14, hH+64, 7, '#6d747c');  // flue
+    } });
 
     if(state.props){
       /* ---- four ranks of staging, front right, out in the open ----
@@ -27567,6 +27731,7 @@ function houseCanopy(fn){
          and a second out to the side street, far rank to near */
       for(let r=5;r>=0;r--) for(const o of [OA, OA + 300]){
         const bb = -120 - r*108;
+        items.push({ a: 870+o, b: bb, draw: () => {
         slab(720+o, 1020+o, 42, 50, bb+22, bb-22, tim, null, shade(tim,1.18));
         for(const la of [734+o, 870+o, 1006+o]) cyl(la, bb, 0, 42, 6, shade(tim,.8));
         for(let i=0;i<7;i++){
@@ -27575,6 +27740,7 @@ function houseCanopy(fn){
           plateCircle(sa, bb, 68, 9, '#5a4a30');
           ball(sa, bb, 78, 13, ['#4e8058','#c26a7e','#e8c34a','#3f6b4a','#b4674a'][(i+r)%5]);
         }
+        } });
       }
       /* the NEAR row of specimens, after the hut for the same reason */
       for(const t of GROVE) if(t[1] >= hB0) tree(...t);
@@ -27590,6 +27756,7 @@ function houseCanopy(fn){
        edge is b 0 rather than a coordinate you have to type. */
     railA(-18, 18, GAP0);       railA(-18, GAP1, LOT-18);            // front
     archB(LOT-18);              archA(-18);
+    depthSort(items);
   }
 },
 {
@@ -29344,7 +29511,31 @@ function houseCanopy(fn){
 },
 {
   name:'Saltwater Brewing', xh: 420, base:'Brewery tap', hood:'The Flats', edited:true, tall:true, block:true, ww: 1656, dd: 1656,
-  built: [483.6, 1029.6, -20, -660],
+  /* THE GROUNDS ARE DRIVABLE (Sir, 2026-09-26: "is tipsey able to drive
+     into the grounds?" -- he was not: an undeclared shop is its whole block
+     as one solid). Declared from the same numbers draw() uses: what stands
+     up is solid, the ground is not, and the lot's own boundary is only
+     where a hedge, rail or wall is drawn, so the gates and driveways are
+     the ways in. Trees and small stock are props. */
+  vol: (() => {
+    const LOT = 1656, OA = 303.6, BA0 = 180+OA, BA1 = 660+OA, FB = -40, BB = -660;
+    const YW0 = 24, YW1 = LOT - 24, YB = -20, YBK = -LOT + 24, G1 = [330, 450], G2 = [866+OA, 994+OA];
+    const R = volRect, W = (a0, a1, b0, b1) => ({ poly: R(a0, a1, b0, b1), h: 72 });
+    const solids = [
+      W(YW0, YW1, YBK, YBK+12), W(YW0, YW0+12, YBK, YB), W(YW1-12, YW1, YBK, YB),
+      W(YW0, G1[0], YB-12, YB), W(G1[1], BA0-12, YB-12, YB), W(BA1+12, G2[0], YB-12, YB), W(G2[1], YW1, YB-12, YB),
+      { poly: R(BA1, BA1+66, -620, -110), h: 34 },                                  // the dock
+      { poly: R(300+OA, 430+OA, -900, -800), h: 104 },                              // crates behind
+      { poly: R(408, 582, -1226, -1168), h: 68 },                                   // cask ranks
+      { poly: R(1230, 1350, -1150, -878), h: 118 },                                 // the dray
+    ];
+    for(const [ca, cb] of [[120,-1440],[300,-1460],[120,-1260],[720,-1440],[900,-1420]]) solids.push({ poly: R(ca, ca+120, cb-90, cb), h: 104 });
+    for(const [ca, cb] of [[540+OA,-780],[572+OA,-780],[556+OA,-816],[900+OA,-700],[932+OA,-700],[840+OA,-420],[872+OA,-420],[856+OA,-456]])
+      solids.push({ c: [ca, cb], r: 12, h: 34 });
+    for(let r=0;r<4;r++) for(const ta of [110, 240]) solids.push({ poly: R(ta-48, ta+48, -120 - r*130 - 44, -120 - r*130 + 44), h: 46, prop: true });
+    for(const pb of [-70, -640]) solids.push({ poly: R(60, 290, pb-18, pb+18), h: 50, prop: true });
+    return { foot: R(BA0, BA1, BB, FB), h: 420, solids };
+  })(),
   drive: [
     { side:'front', from: 1169.6, to: 1297.6, col:'#9a917f', arrows:'in' },   // the cart gate, by the dock
     { side:'front', from: 330, to: 450, col:'#9a917f', arrows:'out' },          // and out round the circuit
@@ -29426,9 +29617,26 @@ function houseCanopy(fn){
     const BAYS = [[216+OA,376+OA],[466+OA,626+OA]];
     const G1 = [330, 450], G2 = [866+OA, 994+OA];             // out gate, cart gate
     const FH = 72;
+    /* IN PIECES: every standing thing is an item for depthSort(), which
+       the game sorts into the world against Tipsey; the paving and the
+       gravel are the ground. A wall run goes in 60-long pieces along its
+       length, one key each. */
+    const items = [];
+    /* A RUN IS SAFE UP TO ~140 LONG. Collision keeps him at least ~35 off
+       a fence or hedge, and the pieces that overlap him on screen then key
+       2*35 +- n/2 nearer or farther than he does -- the right side of him
+       for any n under 140. So runs are as long as that allows: every piece
+       is a box and a rail of its own, and 60-long runs doubled the frame's
+       primitive count for no gain. */
+    const chunk = (s0, s1, n = 120) => { const out = [];
+      for(let x = s0; x < s1 - 0.5; x += n) out.push([x, Math.min(s1, x+n)]); return out; };
     const yWall = (a0,a1,b0,b1) => {
-      box(a0, a1, b0, b1, 0, FH, shade(wall,.9), shade(wall,.66), shade(wall,.54));
-      slab(a0-3, a1+3, FH, FH+8, b1+3, b0-3, shade(wall,1.05), null, shade(wall,1.2));
+      const piece = (p0, p1, q0, q1) => items.push({ a: (p0+p1)/2, b: (q0+q1)/2, draw: () => {
+        box(p0, p1, q0, q1, 0, FH, shade(wall,.9), shade(wall,.66), shade(wall,.54));
+        slab(p0-3, p1+3, FH, FH+8, q1+3, q0-3, shade(wall,1.05), null, shade(wall,1.2));
+      } });
+      if(a1 - a0 >= b1 - b0) for(const [c0, c1] of chunk(a0, a1)) piece(c0, c1, b0, b1);
+      else for(const [c0, c1] of chunk(b0, b1)) piece(a0, a1, c0, c1);
     };
 
     /* ---- the ground: pavement all round, gravel over the whole yard ---- */
@@ -29456,9 +29664,9 @@ function houseCanopy(fn){
        over the slates. The yard has to be split at the building the way
        the tea house's roof had to be split at its colonnade -- an
        object spanning a circuit is not one item in the queue. */
-    for(let k=0;k<4;k++)
+    items.push({ a: 365+OA, b: -850, draw: () => { for(let k=0;k<4;k++)
       box(300+OA+k*3, 430+OA-k*3, -800+k*3, -900+k*3, k*26, k*26+24,
-          '#7d6650','#6b5540','#5c4836');
+          '#7d6650','#6b5540','#5c4836'); } });
     /* CASKS GO IN DEPTH ORDER, NOT IN THE ORDER THEY WERE TYPED. A
        group of them written [540,-780], [572,-780], [556,-816] has keys
        of a + b at -240, -208 and -260, so the last one listed is the
@@ -29472,20 +29680,19 @@ function houseCanopy(fn){
       for(const hz of [z0+7, z0+17, z0+27]) plateHoop(ca, cb, hz, 12, '#5c4632', 2);
       plateCircle(ca, cb, z0+34, 11, '#a06a3e', '#75492a', 1.6);
     };
-    for(const [ca, cb] of [[540+OA,-780],[572+OA,-780],[556+OA,-816]]
-        .sort((u,v) => (u[0]+u[1]) - (v[0]+v[1]))) cask(ca, cb, 0);
+    for(const [ca, cb] of [[540+OA,-780],[572+OA,-780],[556+OA,-816]]) items.push({ a: ca, b: cb, draw: () => cask(ca, cb, 0) });
 
     /* ---- THE BACK YARD AND THE BEER GARDEN, all behind the brewhouse's
        seen faces, so before it. Far to near. ---- */
-    const crates = (ca, cb, n) => {
+    const crates = (ca, cb, n) => items.push({ a: ca + 60, b: cb - 45, draw: () => {
       for(let k=0;k<n;k++)
         box(ca+k*3, ca+120-k*3, cb-k*3, cb-90+k*3, k*26, k*26+24, '#7d6650','#6b5540','#5c4836');
-    };
+    } });
     for(const [ca, cb, n] of [[120,-1440,4],[300,-1460,3],[120,-1260,2],[720,-1440,4],[900,-1420,3]]) crates(ca, cb, n);
-    { const rows = [];
+    items.push({ a: 495, b: -1197, draw: () => { const rows = [];
       for(let r=0;r<2;r++) for(let c=0;c<6;c++) rows.push([420 + c*30, -1180 - r*34]);
       for(const [ca, cb] of rows.sort((u,v) => (u[0]+u[1]) - (v[0]+v[1]))) cask(ca, cb, 0);
-      for(let c=0;c<5;c++) cask(435 + c*30, -1197, 34); }
+      for(let c=0;c<5;c++) cask(435 + c*30, -1197, 34); } });
     if(state.props){
       /* the beer garden: picnic tables down the left arm, a planter at
          each end of the run */
@@ -29494,13 +29701,16 @@ function houseCanopy(fn){
         slab(ta-48, ta+48, 40, 46, tb+22, tb-22, '#9a7f5a', null, shade('#9a7f5a',1.2));
         for(const la of [ta-36, ta+36]) box(la-3, la+3, tb-30, tb+30, 0, 40, '#6b5540','#5c4836','#4a3a2a');
       };
-      for(let r=0;r<4;r++) for(const ta of [110, 240]) table(ta, -120 - r*130);
-      for(const pb of [-70, -640]){
+      for(let r=0;r<4;r++) for(const ta of [110, 240]) items.push({ a: ta, b: -120 - r*130, draw: () => table(ta, -120 - r*130) });
+      for(const pb of [-70, -640]) items.push({ a: 175, b: pb, draw: () => {
         box(60, 290, pb-18, pb+18, 0, 30, shade(wall,.9), shade(wall,.72), shade(wall,.6));
         for(let x = 80; x < 280; x += 40) ball(x, pb, 36, 16, ['#4e8058','#3f6b4a','#568a5e'][(x/40)%3|0]);
-      }
+      } });
     }
 
+    /* ---- THE BREWHOUSE, one item: back wall, flanks, tap room, upper
+       floor and the dock keep their authored order inside it ---- */
+    items.push({ a: (BA0+BA1)/2, b: (FB+BB)/2, draw: () => {
     /* ---- the back wall of the brewhouse ---- */
     F(BA0, BA1, 0, H, shade(wall,.86), null, 0, BB);
     F(BA0, BA1, 0, 24, shade(wall,.66), null, 0, BB-0.4);
@@ -29623,19 +29833,20 @@ function houseCanopy(fn){
     for(const [r0,r1] of [[-110,-64],[-620,-666]])
       poly([P(BA1,r0,34),P(BA1,r1,0),P(BA1+66,r1,0),P(BA1+66,r0,34)], '#5c4836');
     for(let i=3;i>=0;i--) cask(BA1+33, -180-i*120, 34);   // far to near along the deck
+    } });
 
     /* ---- the stock on the NEAR run, and then the near wall ---- */
-    for(const [ca, cb] of [[900+OA,-700],[932+OA,-700],[840+OA,-420],[872+OA,-420],[856+OA,-456]]
-        .sort((u,v) => (u[0]+u[1]) - (v[0]+v[1]))) cask(ca, cb, 0);
+    for(const [ca, cb] of [[900+OA,-700],[932+OA,-700],[840+OA,-420],[872+OA,-420],[856+OA,-456]])
+      items.push({ a: ca, b: cb, draw: () => cask(ca, cb, 0) });
     /* the dray, parked up on the near arm behind the dock: a flatbed and
        cab at a real vehicle's size (CARC 225 x 90), loaded with casks */
-    { const da = 1290, db = -1000;
+    items.push({ a: 1290, b: -1000, draw: () => { const da = 1290, db = -1000;
       for(const wb of [db-110, db-30, db+90]) for(const wa of [da-54, da+54])     // tyres, side on
         box(wa-6, wa+6, wb-17, wb+17, 0, 32, '#2b2119', '#231a14', '#1c1510');
       box(da-50, da+50, db-150, db+60, 14, 44, '#5c4836', '#4a3a2a', '#3a2c20');       // bed
       box(da-48, da+48, db+60, db+122, 14, 118, shade(wall,1.1), shade(wall,.86), shade(wall,.7));   // cab
       F(da-40, da+40, 72, 108, '#3f5a68', null, 0, db+122.4);
-      for(const [ca, cb] of [[da-22,-1110],[da+22,-1110],[da-22,-1060],[da+22,-1060]]) cask(ca, cb, 44); }
+      for(const [ca, cb] of [[da-22,-1110],[da+22,-1110],[da-22,-1060],[da+22,-1060]]) cask(ca, cb, 44); } });
     yWall(YW1-12, YW1, YBK, YB);                                       // the right run
     /* ---- the street wall, and the circuit has a gate at EACH end ----
        The left return of the yard was closed with a plain wall run and
@@ -29660,14 +29871,14 @@ function houseCanopy(fn){
       slab(g0-12, g1+12, 116, 140, YB+3, YB-15, trim, null, shade(trim,1.1));
       F(g0, g1, 122, 134, shade(wall,1.2), null, 0, YB+3.6);
     };
-    gate(G2[0], G2[1]);
-    gate(G1[0], G1[1]);
+    for(const G of [G2, G1]) items.push({ a: (G[0]+G[1])/2, b: YB-6, draw: () => gate(G[0], G[1]) });
 
-    if(state.roof) for(const [aa,bb] of [[260+OA,-180],[400+OA,-360],[560+OA,-220],[330+OA,-560]]){
+    if(state.roof) items.push({ a: (BA0+BA1)/2, b: (FB+BB)/2, z: H, draw: () => { for(const [aa,bb] of [[260+OA,-180],[400+OA,-360],[560+OA,-220],[330+OA,-560]]){
       cyl(aa, bb, H, H+56, 13, '#8a8272');
       cyl(aa, bb, H+56, H+66, 18, '#9a9282');
       plateCircle(aa, bb, H+66, 18, '#a8a08e', '#7d7566', 2);
-    }
+    } } });
+    depthSort(items);
   },
   back(p){
     /* REAR ELEVATION (2026-09-17): this one stands in its own yard with a
@@ -31365,7 +31576,29 @@ function houseCanopy(fn){
 },
 {
   name:'Dune Home & Garden', xh: 236, base:'Home store', hood:'The Flats', edited:true, block:true, ww: 1656, dd: 1656,
-  built: [343.6, 1323.6, -816, -1390],
+  /* THE GROUNDS ARE DRIVABLE (Sir, 2026-09-26: "is tipsey able to drive
+     into the grounds?" -- he was not: an undeclared shop is its whole block
+     as one solid). Declared from the same numbers draw() uses: what stands
+     up is solid, the ground is not, and the lot's own boundary is only
+     where a hedge, rail or wall is drawn, so the gates and driveways are
+     the ways in. Trees and small stock are props. */
+  vol: (() => {
+    const LOT = 1656, OA = 303.6, DB = -380, BD = 260;
+    const SA0 = 40+OA, SA1 = 760+OA, SB0 = -500+DB, SB1 = -1010+DB, GA1 = 1020+OA, GB1 = -860+DB;
+    const EA0 = 330+OA, EA1 = 540+OA, EB = -436+DB, R1 = -60, R2 = SB0 + 60, DR0 = 680, DR1 = 920;
+    const R = volRect, hA = (a0, a1, bb) => ({ poly: R(a0, a1, bb-13, bb+13), h: 30 }), hB = (b0, b1, aa) => ({ poly: R(aa-13, aa+13, b1, b0), h: 30 });
+    const bed = (a0, a1, b0, b1) => ({ poly: R(a0, a1, b1, b0), h: 12 });
+    const solids = [
+      hA(0, 1080, -LOT+15), hA(1320, LOT, -LOT+15), hA(0, DR0-20, -15), hA(DR1+20, LOT, -15),
+      hB(-40, R1-BD-10, 15), hB(R2+BD+10, -LOT+40, 15), hB(-40, -LOT+40, LOT-15),
+      bed(40, SA0-60, SB0-30, SB1+30), bed(GA1+60, LOT-60, SB0-30, SB1+30),
+      bed(40, 180, R2+BD, R2), bed(1520, LOT-40, R2+BD, R2), bed(40, 180, R1, R1-BD), bed(1540, LOT-40, R1, R1-BD),
+      bed(DR0-8, DR0-2, R1, R1-BD), bed(DR1+2, DR1+8, R1, R1-BD),
+      { poly: R(202, 298, R2+100, R2+160), h: 62, prop: true }, { poly: R(1402, 1498, R2+100, R2+160), h: 62, prop: true },   // trolley bays
+    ];
+    for(let i=0;i<9;i++){ const ba = SA0 + 30 + i*110; if(!(ba > EA0-30 && ba < EA1+30)) solids.push({ c: [ba, SB0+48], r: 7, h: 30, prop: true }); }
+    return { foot: [[SA0,SB0],[EA0,SB0],[EA0,EB],[EA1,EB],[EA1,SB0],[GA1,SB0],[GA1,GB1],[SA1,GB1],[SA1,SB1],[SA0,SB1]], h: 236, solids };
+  })(),
   drive: [
     { side:'front', from: 680, to: 920, col:'#6b6f6c', arrows:'both' },     // the car park
     { side:'a0', from: -330, to: -550, col:'#6b6f6c', arrows:'both' },       // the side street, into the aisle
@@ -31457,14 +31690,27 @@ function houseCanopy(fn){
 
     /* ---- the ground, and everything painted on it ---- */
     T(0, LOT, -LOT, 0, 0, asph);
-    const hedgeA = (a0, a1, bb) => {                         // kerb + shrubs running along a
-      box(a0, a1, bb-13, bb+13, 0, 14, shade(conc,1.04), shade(conc,.82), shade(conc,.68));
-      if(state.props) for(let x = a0+26; x < a1-18; x += 54) ball(x, bb, 24, 15, leaf[Math.round(x/54)%3]);
-    };
-    const hedgeB = (b0, b1, aa) => {                         // kerb + shrubs running along b (b0 > b1)
-      box(aa-13, aa+13, b1, b0, 0, 14, shade(conc,1.04), shade(conc,.82), shade(conc,.68));
-      if(state.props) for(let y = b1+26; y < b0-18; y += 54) ball(aa, y, 24, 15, leaf[Math.round(-y/54)%3]);
-    };
+    /* IN PIECES, as Pelican Drug: what stands up is an item for
+       depthSort(), sorted into the world against Tipsey; paint and the
+       islands' low kerbs are the ground. Hedges go in 54-long runs. */
+    const items = [];
+    /* A RUN IS SAFE UP TO ~140 LONG. Collision keeps him at least ~35 off
+       a fence or hedge, and the pieces that overlap him on screen then key
+       2*35 +- n/2 nearer or farther than he does -- the right side of him
+       for any n under 140. So runs are as long as that allows: every piece
+       is a box and a rail of its own, and 60-long runs doubled the frame's
+       primitive count for no gain. */
+    const chunk = (s0, s1, n = 108) => { const out = [], d = s1 > s0 ? 1 : -1;
+      for(let x = s0; d > 0 ? x < s1 - 0.5 : x > s1 + 0.5; x += d*n) out.push([x, d > 0 ? Math.min(s1, x+n) : Math.max(s1, x-n)]);
+      return out; };
+    const hedgeA = (a0, a1, bb) => { for(const [c0, c1] of chunk(a0, a1)) items.push({ a: (c0+c1)/2, b: bb, draw: () => {
+      box(c0, c1, bb-13, bb+13, 0, 14, shade(conc,1.04), shade(conc,.82), shade(conc,.68));
+      if(state.props) for(let x = c0+27; x < c1; x += 54) ball(x, bb, 24, 15, leaf[Math.round(x/54)%3]);
+    } }); };
+    const hedgeB = (b0, b1, aa) => { for(const [c0, c1] of chunk(b0, b1)) items.push({ a: aa, b: (c0+c1)/2, draw: () => {
+      box(aa-13, aa+13, c1, c0, 0, 14, shade(conc,1.04), shade(conc,.82), shade(conc,.68));
+      if(state.props) for(let y = c0-27; y > c1; y -= 54) ball(aa, y, 24, 15, leaf[Math.round(-y/54)%3]);
+    } }); };
     hedgeA(0, 1080, -LOT+15); hedgeA(1320, LOT, -LOT+15);   // the far kerbs first, open at the yard
     for(const [r0, r1] of [[-40, R1-BD-10], [R2+BD+10, -LOT+40]]) hedgeB(r0, r1, 15);
     T(SA0-24, GA1, SB0, SB0+60, 4, conc);                    // the front walk
@@ -31488,11 +31734,11 @@ function houseCanopy(fn){
       const ab = (R1 - BD + R2 + BD)/2; arrowA(90, ab-55, 1); arrowA(90, ab+55, -1); }
 
     /* ---- behind the store's faces: before it ---- */
-    const tree = (ta, tb) => {
+    const tree = (ta, tb) => items.push({ a: ta, b: tb, draw: () => {
       cyl(ta, tb, 12, 46, 5, '#6b5a3a');
       for(let k=0;k<4;k++) ball(ta + 11*Math.cos(k*1.57+0.5), tb + 11*Math.sin(k*1.57+0.5), 56, 13, leaf[k%3]);
       ball(ta, tb, 66, 12, '#4e8058');
-    };
+    } });
     const bed = (a0, a1, b0, b1, trees) => {                 // a planted island, b0 > b1
       box(a0, a1, b1, b0, 0, 12, shade(conc,1.06), shade(conc,.84), shade(conc,.70));
       T(a0+8, a1-8, b1+8, b0-8, 12.5, '#557a4c');
@@ -31500,15 +31746,19 @@ function houseCanopy(fn){
     };
     const mast = (ma, mb) => {
       if(!state.props) return;
+      items.push({ a: ma, b: mb, draw: () => {
       cyl(ma, mb, 0, 16, 11, shade(conc,.8));
       cyl(ma, mb, 16, 172, 5, '#8d949a');
       for(const d of [-26, 26]){
         tube(ma, mb, 172, ma+d, mb, 176, 2.4, '#8d949a');
         box(ma+d-20, ma+d+20, mb-13, mb+13, 170, 180, '#c9ced2','#a6acb1','#8d949a');
       }
+      } });
     };
     bed(40, SA0-60, SB0-30, SB1+30, [[120, SB0-120], [220, SB0-260], [120, SB0-400]]);
 
+    /* ---- THE STORE, one item: dock, box, front and entrance tower ---- */
+    items.push({ a: (SA0+SA1)/2, b: (SB0+SB1)/2, draw: () => {
     /* ---- the service dock, at the back ----
        Three of the four streets look at this side, so it is built even
        though this camera never sees it -- the Bathhouse's note about far
@@ -31572,7 +31822,10 @@ function houseCanopy(fn){
     F(EA0-18, EA1+18, 164, 172, band, null, 0, EB+34.5);
     for(const ca of [EA0+4, (EA0+EA1)/2, EA1-4])                             // canopy ties
       tube(ca, EB+2, 186, ca, EB+32, 178, 1.6, shade(wall,1.2));
+    } });
 
+    /* ---- THE GARDEN CENTRE, its own item ---- */
+    items.push({ a: (GA0+GA1)/2, b: (GB0+GB1)/2, draw: () => {
     /* ---- the garden centre, caged, on the right flank ----
        Open to the sky under a shade lattice, which is the whole
        difference between a garden centre and another room: it is a
@@ -31626,6 +31879,7 @@ function houseCanopy(fn){
     for(const ga of [GA0+84, GA1-84]) cyl(ga, GB0-6, 0, GH+8, 6, shade(wall,.78));
     slab(GA0+78, GA1-78, GH+8, GH+34, GB0-1, GB0-11, shade(wall,1.10), null, shade(wall,1.28));
     F(GA0+92, GA1-92, GH+14, GH+28, band, null, 0, GB0-0.5);
+    } });
 
     /* ---- in front of the store's faces: after it ---- */
     bed(GA1+60, LOT-60, SB0-30, SB1+30, [[(GA1+LOT)/2, SB0-110], [(GA1+LOT)/2, SB0-270], [(GA1+LOT)/2, SB0-430]]);
@@ -31633,13 +31887,15 @@ function houseCanopy(fn){
       for(let i=0;i<9;i++){                                    // bollards on the walk
         const ba = SA0 + 30 + i*110;
         if(ba > EA0-30 && ba < EA1+30) continue;
-        cyl(ba, SB0+48, 0, 30, 6, band);
-        plateHoop(ba, SB0+48, 21, 6, shade(band,.6), 3);
-        ball(ba, SB0+48, 30, 6, shade(band,1.14));
+        items.push({ a: ba, b: SB0+48, draw: () => {
+          cyl(ba, SB0+48, 0, 30, 6, band);
+          plateHoop(ba, SB0+48, 21, 6, shade(band,.6), 3);
+          ball(ba, SB0+48, 30, 6, shade(band,1.14)); } });
       }
     }
     const corral = (ca, cb) => {
       if(!state.props) return;
+      items.push({ a: ca + 48, b: cb, draw: () => {
       for(const aa of [ca, ca+96]) for(const z of [30, 58])
         tube(aa, cb+30, z, aa, cb-30, z, 1.8, '#9aa0a2');
       for(const aa of [ca, ca+96]) for(const bb of [cb+30, cb-30]) cyl(aa, bb, 0, 62, 3, '#9aa0a2');
@@ -31648,6 +31904,7 @@ function houseCanopy(fn){
         box(x, x+26, cb-18, cb+18, 12, 40, '#b8bec2','#9aa0a2','#868c90');
         for(const bb of [cb-18, cb+18]) tube(x+2, bb, 12, x+2, bb, 46, 1.4, '#9aa0a2');
       }
+      } });
     };
     /* the walk rank first (farther), then the street rank */
     bed(40, 180, R2+BD, R2, [[110, R2+80]]);  mast(110, R2+190);
@@ -31658,17 +31915,18 @@ function houseCanopy(fn){
     bed(DR0-10+2, DR0-2, R1, R1-BD, []); bed(DR1+2, DR1+10-2, R1, R1-BD, []);
 
     /* ---- the pylon sign, on the corner island ---- */
-    { const PA = 110, PB = R1 - 80;
+    items.push({ a: 110, b: R1 - 80, draw: () => { const PA = 110, PB = R1 - 80;
       for(const d of [-38, 38]) cyl(PA+d, PB, 0, 196, 8, shade(wall,.72));
       slab(PA-68, PA+68, 196, 312, PB+9, PB-9, shade(wall,1.12), null, shade(wall,1.3));
       F(PA-60, PA+60, 203, 305, band, null, 0, PB+9.5);
       for(let k=0;k<4;k++) F(PA-46, PA+46, 213+k*23, 228+k*23, shade(wall,.40), null, 0, PB+10);
-    }
+    } });
 
     /* ---- the near kerbs: the street, open at the entrance, and the
        a = LOT side street ---- */
     hedgeA(0, DR0-20, -15); hedgeA(DR1+20, LOT, -15);
     hedgeB(-40, -LOT+40, LOT-15);
+    depthSort(items);
   },
   back(p){
     /* REAR ELEVATION (2026-09-17): this one stands in its own yard with a
@@ -31680,7 +31938,29 @@ function houseCanopy(fn){
   name:'Pelican Drug', xh: 236, base:'Drugstore', hood:'The Flats', edited:true, block:true, ww: 1656, dd: 1656,
   /* the part that stands up, for the x-ray: store, entrance tower, canopy
      and bin store, in lab units (see hoodShopHeightAt) */
-  built: [523.6, 1149.6, -840, -1332],
+  /* THE GROUNDS ARE DRIVABLE (Sir, 2026-09-26: "is tipsey able to drive
+     into the grounds?" -- he was not: an undeclared shop is its whole block
+     as one solid). Declared from the same numbers draw() uses: what stands
+     up is solid, the ground is not, and the lot's own boundary is only
+     where a hedge, rail or wall is drawn, so the gates and driveways are
+     the ways in. Trees and small stock are props. */
+  vol: (() => {
+    const LOT = 1656, OA = 303.6, DB = -340, BD = 260;
+    const SA0 = 220+OA, SA1 = 760+OA, SB0 = -540+DB, SB1 = -900+DB, EA0 = 258+OA, EA1 = 408+OA, EB = -500+DB;
+    const LA0 = 800+OA, LA1 = 960+OA, RA0 = SB1 - 100, RA1 = RA0 - 240, R1 = -60, R2 = SB0 + 60, PK0 = 180, PK1 = PK0 + 7*120;
+    const R = volRect, hA = (a0, a1, bb) => ({ poly: R(a0, a1, bb-13, bb+13), h: 30 }), hB = (b0, b1, aa) => ({ poly: R(aa-13, aa+13, b1, b0), h: 30 });
+    const bed = (a0, a1, b0, b1) => ({ poly: R(a0, a1, b1, b0), h: 12 });
+    const solids = [
+      hA(0, LA0-20, -15), hA(LA1+20, LOT, -15), hA(0, LOT, -LOT+15),
+      hB(-40, R1-BD-10, 15), hB(R2+BD+10, RA0-10, 15), hB(RA1+10, -LOT+40, 15),
+      hB(-40, RA0-10, LOT-15), hB(RA1+10, -LOT+40, LOT-15),
+      bed(40, PK0-10, R1, R1-BD), bed(40, PK0-10, R2+BD, R2), bed(PK1+10, LA0-20, R1, R1-BD), bed(PK1+10, LA0-20, R2+BD, R2),
+      bed(40, SA0-60, SB0-30, SB1+30), bed(LA1+60, LOT-60, -40, RA0-20),
+      { poly: R(SA0+40, SA0+180, SB1-92, SB1-16), h: 74 },                  // bin store
+    ];
+    for(let i=0;i<5;i++){ const ba = 250 + OA + i*118; if(!(ba > EA0-16 && ba < EA1+16)) solids.push({ c: [ba, EB+4], r: 7, h: 30, prop: true }); }
+    return { foot: [[SA0,SB0],[EA0,SB0],[EA0,EB],[EA1,EB],[EA1,SB0],[SA1,SB0],[SA1,SB1],[SA0,SB1]], h: 232, solids };
+  })(),
   /* the drive lane's mouth, lab a -- see hoodDrivewaysOf */
   drive: [
     { side:'front', from: 1103.6, to: 1263.6, col:'#909390', lines:true, arrows:'in' },   // the drive-through
@@ -31786,14 +32066,28 @@ function houseCanopy(fn){
 
     /* ---- the ground ---- */
     T(0, LOT, -LOT, 0, 0, asph);
-    const hedgeA = (a0, a1, bb) => {                         // kerb + shrubs running along a
-      box(a0, a1, bb-13, bb+13, 0, 14, shade(conc,1.04), shade(conc,.82), shade(conc,.68));
-      if(state.props) for(let x = a0+26; x < a1-18; x += 54) ball(x, bb, 24, 15, leaf[Math.round(x/54)%3]);
-    };
-    const hedgeB = (b0, b1, aa) => {                         // kerb + shrubs running along b (b0 > b1)
-      box(aa-13, aa+13, b1, b0, 0, 14, shade(conc,1.04), shade(conc,.82), shade(conc,.68));
-      if(state.props) for(let y = b1+26; y < b0-18; y += 54) ball(aa, y, 24, 15, leaf[Math.round(-y/54)%3]);
-    };
+    /* IN PIECES: what stands up is an item for depthSort(), which the game
+       sorts into the world against Tipsey (see queueCommercialEdgeAt); the
+       paint, walks and the low kerbs of the islands are the ground, drawn
+       directly and first. Hedges go in 54-long runs, one key each. */
+    const items = [];
+    /* A RUN IS SAFE UP TO ~140 LONG. Collision keeps him at least ~35 off
+       a fence or hedge, and the pieces that overlap him on screen then key
+       2*35 +- n/2 nearer or farther than he does -- the right side of him
+       for any n under 140. So runs are as long as that allows: every piece
+       is a box and a rail of its own, and 60-long runs doubled the frame's
+       primitive count for no gain. */
+    const chunk = (s0, s1, n = 108) => { const out = [], d = s1 > s0 ? 1 : -1;
+      for(let x = s0; d > 0 ? x < s1 - 0.5 : x > s1 + 0.5; x += d*n) out.push([x, d > 0 ? Math.min(s1, x+n) : Math.max(s1, x-n)]);
+      return out; };
+    const hedgeA = (a0, a1, bb) => { for(const [c0, c1] of chunk(a0, a1)) items.push({ a: (c0+c1)/2, b: bb, draw: () => {
+      box(c0, c1, bb-13, bb+13, 0, 14, shade(conc,1.04), shade(conc,.82), shade(conc,.68));
+      if(state.props) for(let x = c0+27; x < c1; x += 54) ball(x, bb, 24, 15, leaf[Math.round(x/54)%3]);
+    } }); };
+    const hedgeB = (b0, b1, aa) => { for(const [c0, c1] of chunk(b0, b1)) items.push({ a: aa, b: (c0+c1)/2, draw: () => {
+      box(aa-13, aa+13, c1, c0, 0, 14, shade(conc,1.04), shade(conc,.82), shade(conc,.68));
+      if(state.props) for(let y = c0-27; y > c1; y -= 54) ball(aa, y, 24, 15, leaf[Math.round(-y/54)%3]);
+    } }); };
     /* the far kerbs first -- the back street and the a = 0 side street,
        open where the service aisle meets it */
     hedgeA(0, LOT, -LOT+15);
@@ -31838,11 +32132,11 @@ function houseCanopy(fn){
     }
 
     /* ---- props BEHIND the store: before it, so it paints over them ---- */
-    const tree = (ta, tb) => {
+    const tree = (ta, tb) => items.push({ a: ta, b: tb, draw: () => {
       cyl(ta, tb, 12, 46, 5, '#6b5a3a');
       for(let k=0;k<4;k++) ball(ta + 11*Math.cos(k*1.57+0.5), tb + 11*Math.sin(k*1.57+0.5), 56, 13, leaf[k%3]);
       ball(ta, tb, 66, 12, '#4e8058');
-    };
+    } });
     const bed = (a0, a1, b0, b1, trees) => {                 // a planted island, b0 > b1
       box(a0, a1, b1, b0, 0, 12, shade(conc,1.06), shade(conc,.84), shade(conc,.70));
       T(a0+8, a1-8, b1+8, b0-8, 12.5, '#557a4c');
@@ -31850,17 +32144,22 @@ function houseCanopy(fn){
     };
     const mast = (ma, mb) => {
       if(!state.props) return;
+      items.push({ a: ma, b: mb, draw: () => {
       cyl(ma, mb, 0, 16, 11, shade(conc,.8));
       cyl(ma, mb, 16, 168, 5, '#8d949a');
       for(const d of [-24, 24]){
         tube(ma, mb, 168, ma+d, mb, 172, 2.4, '#8d949a');
         box(ma+d-18, ma+d+18, mb-12, mb+12, 166, 176, '#c9ced2','#a6acb1','#8d949a');
       }
+      } });
     };
     /* the back strip, and the wing beside the store */
     if(state.props) for(let x = 90; x < LOT-60; x += 190) tree(x, RA1 - 24);
     bed(40, SA0-60, SB0-30, SB1+30, [[150, SB0-120], [330, SB0-200], [170, SB1+120]]);
 
+    /* ---- THE STORE, one item: bin store, box, fronts, tower, the
+       drive-through and its canopy keep their authored order inside it ---- */
+    items.push({ a: (SA0+SA1)/2, b: (SB0+SB1)/2, draw: () => {
     /* ---- the back: bin store and a staff door, because three of the
        four streets look at this side ---- */
     box(SA0+40, SA0+180, SB1-92, SB1-16, 0, 74, shade(dark,1.24), dark, shade(dark,.86));
@@ -31961,8 +32260,9 @@ function houseCanopy(fn){
     for(let k=0;k<3;k++) S(AA+1.2, CB0-16-k*40, CB0-44-k*40, CZ+5, CZ+17, shade(wall,1.16));
     for(const cb of [CB0-10, CB1+10])                                     // tie rods
       tube(SA1+4, cb, CZ+40, AA-8, cb, CZ+2, 2.2, shade(trim,.86));
+    } });
 
-    /* ---- IN FRONT of the store's faces: after it ---- */
+    /* ---- in front of the store ---- */
     /* end islands on the two ranks: the pylon on the corner one, masts
        at both ends */
     bed(40, PK0-10, R1, R1-BD, [[100, R1-210]]);
@@ -31974,25 +32274,27 @@ function houseCanopy(fn){
       for(let i=0;i<5;i++){                                               // bollards on the walk
         const ba = 250 + OA + i*118;
         if(ba > EA0-16 && ba < EA1+16) continue;
-        cyl(ba, EB+4, 0, 30, 6, dark);
-        ball(ba, EB+4, 30, 6, shade(dark,1.24));
+        items.push({ a: ba, b: EB+4, draw: () => {
+          cyl(ba, EB+4, 0, 30, 6, dark);
+          ball(ba, EB+4, 30, 6, shade(dark,1.24)); } });
       }
     }
     /* the planted strip on the lane's far side, to the service aisle */
     bed(LA1+60, LOT-60, -40, RA0-20, [...Array(6)].map((_, k) => [(LA1+LOT)/2, -150 - k*205]));
 
     /* ---- the pylon sign, on the corner island ---- */
-    { const PA = 105, PB = R1 - 70;
+    items.push({ a: 105, b: R1 - 70, draw: () => { const PA = 105, PB = R1 - 70;
       for(const d of [-30, 30]) cyl(PA+d, PB, 0, 176, 7, dark);
       slab(PA-56, PA+56, 176, 278, PB+8, PB-8, shade(wall,1.10), null, shade(wall,1.26));
       F(PA-49, PA+49, 183, 271, band, null, 0, PB+8.5);
       for(let k=0;k<3;k++) F(PA-38, PA+38, 194+k*26, 210+k*26, shade(wall,1.12), null, 0, PB+9);
-    }
+    } });
 
     /* ---- the near kerbs: the street, broken at the lane mouth, and the
        a = LOT side street, open at the service aisle ---- */
     hedgeA(0, LA0-20, -15); hedgeA(LA1+20, LOT, -15);
     for(const [r0, r1] of [[-40, RA0-10], [RA1+10, -LOT+40]]) hedgeB(r0, r1, LOT-15);
+    depthSort(items);
   },
   back(p){
     /* REAR ELEVATION (2026-09-17): this one stands in its own yard with a
@@ -36110,43 +36412,49 @@ function houseCanopy(fn){
        builds the item closures and draws nothing; drawItem() runs one
        closure for real; ground() is the entry's direct drawing -- the
        paving it lays before its items -- with the items dropped. */
-    collect(name, G, k, flank){
+    /* edge -- true when the caller is a shop on a block EDGE (the hood
+       shops' whole-block landmarks): apply draw()'s MIRROR rule, which the
+       park landmarks, placed in their own lab frame, never take. Without it
+       every piece of a landmark on edge 2 came out mirrored. */
+    collect(name, G, k, flank, edge){
       const shop = BY_NAME.get(name);
       if(!shop) return null;
       if(!ctx) ctx = makeCtx2Phaser();
       let got = null;
-      this._enter(shop, G, k, flank);
+      this._enter(shop, G, k, flank, edge);
       state.emit = (items) => { got = items; };
       ctx.__bind(NULL_GFX);
       try { shop.draw(PAL[0]); }
-      finally { state.emit = null; SHOP_SLOT = null; }
+      finally { state.emit = null; SHOP_SLOT = null; MIRROR = 0; BOFF = 0; }
       return got;
     },
-    drawItem(name, g, G, k, item, flank){
+    drawItem(name, g, G, k, item, flank, edge){
       const shop = BY_NAME.get(name);
       if(!shop) return false;
       if(!ctx) ctx = makeCtx2Phaser();
-      this._enter(shop, G, k, flank);
+      this._enter(shop, G, k, flank, edge);
       ctx.__bind(g);
-      try { item.draw(); } finally { SHOP_SLOT = null; }
+      try { item.draw(); } finally { SHOP_SLOT = null; MIRROR = 0; BOFF = 0; }
       return true;
     },
-    ground(name, g, G, k, flank){
+    ground(name, g, G, k, flank, edge){
       const shop = BY_NAME.get(name);
       if(!shop) return false;
       if(!ctx) ctx = makeCtx2Phaser();
-      this._enter(shop, G, k, flank);
+      this._enter(shop, G, k, flank, edge);
       state.emit = () => {};
       ctx.__bind(g);
-      try { shop.draw(PAL[0]); } finally { state.emit = null; SHOP_SLOT = null; }
+      try { shop.draw(PAL[0]); } finally { state.emit = null; SHOP_SLOT = null; MIRROR = 0; BOFF = 0; }
       return true;
     },
-    _enter(shop, G, k, flank){
+    _enter(shop, G, k, flank, edge){
       K = k || 1;
       SC = shop.sc || 1;
       BOFF = shop.boff || 0;
       ZSCALE = shop.zs === undefined ? 1.5 : shop.zs;
-      FLANK_RIGHT = flank === undefined ? true : !!flank;
+      const mirrored = !!edge && flank === false && shop.mirror !== false;
+      MIRROR = mirrored ? (shop.ww || W) : 0;
+      FLANK_RIGHT = mirrored ? true : (flank === undefined ? true : !!flank);
       SHOP_SLOT = { G };
       state.part = null; state.partW = null;
     },
@@ -38073,18 +38381,6 @@ class WorldScene extends Phaser.Scene {
            strip under the lip is open to the camera from the side, which
            is where Sir was standing when the ghost fired on a robot in
            plain view. Deep under the roof it still counts. */
-        /* A WHOLE-BLOCK LOT IS MOSTLY CAR PARK (Pelican Drug, 2026-09-26).
-           Its lot is the block, so xh over the footprint made the whole
-           block a 236 wall and ghosted him on the back street in plain
-           view. An entry that says where it stands up (`built`) is that
-           tall there, and elsewhere the lot is not this shop's to answer
-           -- the depot's corner and the open ground fall through to what
-           the bare block always said. */
-        if(sh.built){
-          const q = hoodShopLab(e, u, sh, x, y), B = sh.built;
-          if(q.a < B[0] || q.a > B[1] || q.b > B[2] || q.b < B[3]) continue;
-          return sh.xh * q.SC * (sh.zs === undefined ? 1.5 : sh.zs);
-        }
         const LIP = 140;
         const reach = sh.fd !== undefined ? (sh.fd + (sh.boff || 0)) * (sh.sc || 1) - LIP : 1;
         if(lat > reach) continue;
@@ -38457,7 +38753,7 @@ class WorldScene extends Phaser.Scene {
          depth is a sort tie, not an occluder, and admitting u offsets
          at s=0 ghosts him whenever he walks past a wall he is standing
          beside in plain view. */
-      for(let s = XRAY.probe; s <= XRAY.reach; s += XRAY.probe){
+      for(let s = XRAY.probe; s <= XRAY.reach; s += XRAY.step){
         const need = zh + s;
         /* bound against maxH, the tallest value builtHeightAt can return
            (see XRAY.maxH): once need passes it no sample further out can
@@ -43720,6 +44016,38 @@ class WorldScene extends Phaser.Scene {
            taken on the column line, where it sorts against him properly.
            The entry draws whichever part it is asked for (state.part). */
         const _e = LIB.get(lib);
+        /* A WHOLE-BLOCK LANDMARK GOES IN PIECES (Sir, on-device: Tipsey
+           inside the chapel's railing was painted over it). As one queue
+           entry it had one depth -- the middle of a 1656 lot -- so in the
+           front half of the grounds he drew over the railings, hedges and
+           trees in front of him, and in the back half the lawn drew over
+           him. An entry that hands its items to depthSort() is queued the
+           way the park landmarks are: its ground (everything it draws
+           directly) at the lot's far corner, under all of it, and each
+           item at its own world depth, mapped through the same mirror
+           hoodShopLab uses. */
+        if(_e && _e.block && !rear){
+          /* collected ONCE per placed unit: an item looks the camera up
+             through P() when it draws, not when it is made, so the list is
+             good for every frame after -- re-collecting cost a whole extra
+             run of the entry's draw() per frame per landmark */
+          const _lk = lib + "|" + Math.round(ux) + "," + Math.round(uy) + "|" + flank;
+          const _lc = this._lmItems || (this._lmItems = new Map());
+          let items = _lc.get(_lk);
+          if(items === undefined){ items = LIB.collect(lib, G, this.K, flank, true); _lc.set(_lk, items); }
+          if(items){
+            const SC = _e.sc || 1, mir = (e.dv.x + e.dv.y) <= 0 && _e.mirror !== false;
+            const toW = (a, b) => { const al = (mir ? _e.ww - a : a)*SC;
+              return { x: ux + e.dv.x*al + e.rv.x*b*SC, y: uy + e.dv.y*al + e.rv.y*b*SC }; };
+            const far = Math.min(...[[0,0],[_e.ww,0],[0,-_e.dd],[_e.ww,-_e.dd]].map(([a, b]) => { const q = toW(a, b); return q.x + q.y; }));
+            vq.push({ depth: far, fn: (g) => LIB.ground(lib, g, G, this.K, flank, true) });
+            for(const it of items){
+              const q = toW(it.a || 0, it.b);
+              vq.push({ depth: q.x + q.y + (it.z || 0), fn: (g) => LIB.drawItem(lib, g, G, this.K, it, flank, true) });
+            }
+            return;
+          }
+        }
         const porchB = (_e && _e.porch !== undefined)
           ? (_e.porch + (_e.boff || 0)) * (_e.sc || 1) : null;
         this.queueUnitStrips(vq, ux, uy, e.dv, e.rv, u.w, Math.max(STORE_DEPTH, hoodShopD(lib)), 0, (g) => {
