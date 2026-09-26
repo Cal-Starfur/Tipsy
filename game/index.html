@@ -8178,8 +8178,13 @@ function owStandUpAt(scene, x, y, yaw){
      8% a frame, which is right for driving and wrong for a teleport: the
      pad can be thousands of units from where he fell, so easing reads as
      a long slow flight over the city before the game is playable again.
-     The lab hit this too and snapped for the same reason. */
-  scene.camX = x; scene.camY = y;
+     The lab hit this too and snapped for the same reason.
+
+     TO WHERE IT RESTS, not onto him: the follow target is 95 ahead
+     along his heading (camLead, see the camera block), so a snap onto
+     the robot was followed by a glide of 95 -- the view moving on its
+     own a beat after every respawn and at launch. */
+  scene.camX = x + Math.cos(yaw)*95; scene.camY = y + Math.sin(yaw)*95;
   scene.state = "play";
   scene.tilt = 0; scene.roll = 0; scene.pitch = 0;
   scene.tipT = 0; scene.tipStartRoll = 0; scene.speed = 0;
@@ -8556,6 +8561,26 @@ function owInstall(scene){
   window.addEventListener('mouseup',   ow.onUp);
   window.addEventListener('keydown', ow.onKeyDown);
   window.addEventListener('keyup',   ow.onKeyUp);
+
+  /* A FRESH ROUTE STARTS ON THE HOME PAD (see _padStart in loadRoute).
+     Once, here, where the free pose is born -- not the per-frame hold the
+     draw used to run for the first 2s of every route, which snapped him
+     back and zeroed his speed each frame and so ate the player's input
+     until runT reached 2000 (its "vel > 1" release could never fire: top
+     speed is ~0.1), then let the camera glide 95 to its look-ahead.
+     owStandUpAt sets state "play"; the caller's state is kept. */
+  if(scene._padStart){
+    scene._padStart = false;
+    const lot = r.grid && depotLot(r.grid), pad = lot && depotPadWorld(lot);
+    const near = pad && nearestChargeStation(r.grid, pad.x, pad.y);
+    if(near){
+      const st0 = scene.state;
+      owStandUpAt(scene, near.station.x, near.station.y, near.station.a);
+      scene.state = st0;
+      if(!scene._doorTs) scene._doorTs = new Map();
+      scene._doorTs.set(lot.key, 1);                        // he wakes with it open
+    }
+  }
 
   owMountUI();
   return ow;
@@ -38208,6 +38233,13 @@ class WorldScene extends Phaser.Scene {
       this.camX = _pose.camX; this.camY = _pose.camY;
       this.camZ = Number.isFinite(_pose.camZ) ? _pose.camZ : this.botZ;
     }
+    /* THE DEPOT START IS OWNED BY owInstall (2026-09-26). The botX/botY
+       override above does not survive to the first driveable frame: this
+       load uninstalls open world, and until it is back the rail pose
+       re-derives botX from botS every frame -- the pickup. So the start is
+       recorded here and owInstall, which seeds the free pose, stands him on
+       the pad. A kept pose is somewhere on purpose and keeps it. */
+    this._padStart = !!_dp && !_pose;
     this.pickupLidClosing = false; // latches true while the lid still owes a close-out on
                                     // that flipped hinge, even after loading itself has ended
     this.state = "idle";
@@ -41216,50 +41248,11 @@ class WorldScene extends Phaser.Scene {
        needed. Eased rather than snapped: a shutter takes about a second
        and a half either way. */
     if(this.route && this.route.grid && depotLot(this.route.grid)){
-      /* THE SPAWN IS A ONE-SHOT HERE, not in the route loader. Setting
-         botX/botY beside the pickupSpot branch looked right and did
-         nothing: something after it -- the pose restore at _pose, and
-         the camera follow -- puts him back. drawWorld runs after all of
-         that, so a once-per-route snap here is the first point where the
-         position sticks. Keyed on the route's own dateStr so it fires
-         once a route and never fights the player afterwards. */
-      /* HELD, not one-shot. A one-shot keyed on dateStr fired on the
-         first loadRoute and then the SECOND loadRoute at boot -- the
-         file calls it twice -- put him back, with the key already
-         matching so it never re-fired. _doorT going to 1 and then
-         easing away was the tell that the snap had run and been undone.
-
-         So it HOLDS him on the pad while he is standing still at the
-         start of a route, and releases the moment he drives: vel > 1
-         ends it, and runT only grows, so it can never come back. */
-      /* ...UNLESS HE HAS BEEN PUT SOMEWHERE ON PURPOSE. tpFreePlay (the tow,
-         Retry, Maybe later) reloads the route -- runT back to 0 -- and
-         THEN sets him on the nearest pad; this hold snapped him straight
-         back to the home depot on the next frame, so every tow ended at
-         home however far away he fell (measured, 2026-09-15: died by
-         Sunset Terrace Charging 2, woke at The Flats Charging 1).
-         owPlaceOnPad raises _homeHoldOff; boot never calls it. */
-      if(!this._homeHoldOff && this.runT < 2000 && this.ow && Math.abs(this.ow.vel || 0) < 1){
-        const p = depotPadWorld(depotLot(this.route.grid));
-        if(p){
-          /* ow.px / ow.py IS THE POSITION. botX and botY are derived from
-             it every frame in open-world mode, so setting them alone
-             looked like it worked and was gone inside a second -- the
-             probe showed him back at the pickup 1.2s later. ow also
-             carries the rail state it was tracking, so railReacq is
-             cleared: without it he is handed a corridor from wherever he
-             used to be. */
-          this.botX = p.x; this.botY = p.y;
-          this.camX = p.x; this.camY = p.y;
-          if(this.ow){
-            this.ow.px = p.x; this.ow.py = p.y;
-            this.ow.vel = 0; this.ow.railReacq = 0;
-            this.ow.railS = null; this.ow.railD = null;
-          }
-          if(!this._doorTs) this._doorTs = new Map();
-          this._doorTs.set(depotLot(this.route.grid).key, 1);   // he wakes with it open
-        }
-      }
+      /* THE HOME SPAWN HOLD IS GONE (2026-09-26). It stood him back on the
+         pad every frame for the first 2s of a route, to undo a second boot
+         loadRoute that no longer happens; its "vel > 1" release could
+         never fire, so it ate 2s of input at every launch. The depot
+         start is placed once, in owInstall (see _padStart). */
       /* ONE DOOR EACH. Only depots within reach of him are asked -- a door
          across the city cannot be approached, so it eases shut; the
          queue hands each depot its own value (LIB state is shared). */
@@ -58799,7 +58792,11 @@ function _bootLoaderDismiss(){
        and the shop are all still there, a block or two away) and it
        moves day to day with the seed, for free. Must run AFTER owInstall
        -- install seeds ow.px/py from botX/botY, so placing first would
-       be overwritten on the same line. */
+       be overwritten on the same line.
+
+       (2026-09-26) owInstall now stands a fresh route on the HOME pad
+       itself (_padStart), so botX/botY here are that pad and this lands
+       on it -- the charge top-up is what this call still adds. */
     owPlaceOnPad(s0, s0.botX, s0.botY);
   }
   const el = document.getElementById("bootLoader");
@@ -61195,10 +61192,8 @@ function tpFreePlay(fromX, fromY){
   owPlaceOnPad(s,
     (typeof fromX === "number") ? fromX : wasX,
     (typeof fromY === "number") ? fromY : wasY);
-  /* and the home spawn hold must not take him back: loadRoute above set
-     runT to 0, which re-arms it (see _homeHoldOff at the hold). Boot
-     never comes through here, so it keeps its home spawn. */
-  s._homeHoldOff = true;
+  /* (no home-hold opt-out any more: the hold is gone, and owPlaceOnPad
+     above is the last word on where he stands -- see _padStart) */
 }
 if(typeof window !== "undefined") window.tpFreePlay = tpFreePlay;
 
