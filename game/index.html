@@ -5750,6 +5750,14 @@ function owBuildWorld(route){
              hoodShopVolBlocked */
           { const hs = hoodShopVolBlocked(g2, b, x, y, R);
             if(hs === false) continue; if(hs === true) return b; }
+          /* A SHOP BLOCK IS ITS BUILDINGS, not its rectangle: the plaza
+             behind them and the open corners that lead to it are ground
+             (see commercialFootprintsOf). */
+          if(b.type === "commercial"){
+            const fp = commercialFootprintsOf(g2, b);
+            if(fp && !fp.some(r => x > r[0] - R && x < r[1] + R && y > r[2] - R && y < r[3] + R
+                                   && (!r.gate || (CY_GATES.get(r.gate) || 0) < CY_GATE_SHUT))) continue;
+          }
           return b;
         }
     }
@@ -5875,7 +5883,11 @@ function owBuildWorld(route){
     return out;
   };
   /* ---------- shop posts on the pavement ---------- (see hoodShopPostsOf) */
-  const PO = (g2 && typeof hoodShopPostsOf === 'function') ? hoodShopPostsOf(g2) : [];
+  const PO = (g2 && typeof hoodShopPostsOf === 'function') ? hoodShopPostsOf(g2).slice() : [];
+  /* ...and the planters and benches on the shop blocks' plazas, which he
+     can reach now (commercialScatterOf) */
+  if(g2 && typeof commercialScatterOf === 'function')
+    for(const blk of g2.blocks) if(blk.type === 'commercial') for(const sp of commercialScatterOf(g2, blk)) PO.push(sp);
   const poBucket = new Map();
   for(const s of PO){
     const k = Math.floor(s.x / HZ_CELL) + ',' + Math.floor(s.y / HZ_CELL);
@@ -12000,6 +12012,188 @@ function hoodShopsOf(grid){
   return _hoodShops;
 }
 function hoodShopEdgeUnits(grid, blk, ei){ hoodShopsOf(grid); return _hoodShopEdges.get(blk.i + "," + blk.j + "/" + ei) || null; }
+/* ==================== THE SHOP BLOCK'S LAYOUT, ONCE ====================
+   (Sir, 2026-09-26: "i want to be able to access these shop block court
+   yards like im able to go into the full block shops".) A commercial block
+   was one solid rectangle to the robot, though what stands on it is four
+   frontage runs 276 deep with an open plaza between them and, since the
+   corner units went (CORNER_ART_LEGACY), an open 303.6 square at every
+   corner -- the way in. The draw already knew all of that; collision did
+   not. So the layout is stated here once and both read it: the draw
+   (queueCommercialEdgeAt, queueCommercialBlock) and the robot (solidAt,
+   builtHeightAt, the prop index in owBuildWorld).
+
+   An edge's units: its authored shops (HOOD_SHOP_SITES) or the packer's
+   seeded run, byte for byte what the draw has always used. */
+function commercialEdgeUnitsOf(e, authored){
+  if(authored) return authored;
+  const eseed = ((Math.round(e.ox*3+e.dv.x)*7919) ^ (Math.round(e.oy*3+e.dv.y)*104729) ^ 0x51b3) >>> 0;
+  return packEdgeNoGap(e.len, mulberry32(eseed));
+}
+/* The alley gates on an edge, as [a0, a1] spans in the glass plane pulled
+   back to b -6: between two authored shops, and either side of a depot
+   whose side lies on this frontage. The alleys are the way into a
+   courtyard, and a gate is PERMISSIONED (see COURTYARD GATES): shut and
+   solid unless courtyardGateAdmits lets him in. */
+function commercialEdgeGatesOf(grid, e, units, authored){
+  const out = [];
+  if(authored) for(let k = 1; k < units.length; k++){
+    const a0 = units[k-1].start + units[k-1].w, a1 = units[k].start;
+    if(a1 - a0 >= 20) out.push([a0, a1]);
+  }
+  if(grid && units.length && typeof depotsOf === "function"){
+    const G = depotGeom();
+    for(const d of depotsOf(grid)){
+      const pts = [[0,0],[G.WW,0],[G.WW,-G.DD],[0,-G.DD]].map(([da,db]) => depotWorld(d.cu, da, db));
+      const la = pts.map(p => (p.x - e.ox)*e.rv.x + (p.y - e.oy)*e.rv.y);
+      if(Math.max(...la) > 12 || Math.max(...la) < -12) continue;   // no side on this frontage
+      const al = pts.map(p => (p.x - e.ox)*e.dv.x + (p.y - e.oy)*e.dv.y);
+      const p0 = Math.min(...al), p1 = Math.max(...al);
+      if(p1 < 0 || p0 > e.len) continue;
+      let before = -Infinity, after = Infinity;
+      for(const u of units){
+        if(u.start + u.w <= p0 + 1) before = Math.max(before, u.start + u.w);
+        if(u.start >= p1 - 1) after = Math.min(after, u.start);
+      }
+      for(const [a0, a1] of [[before, p0], [p1, after]])
+        if(isFinite(a0) && isFinite(a1) && a1 - a0 >= 20 && a1 - a0 <= 600) out.push([a0, a1]);
+    }
+  }
+  return out;
+}
+/* What stands on a commercial block, as world rects [x0, x1, y0, y1]:
+   every unit (a generic store STORE_DEPTH deep, a library shop its own
+   depth), and every alley gate -- a sliver at b -8..-4 carrying `.gate`,
+   its key in CY_GATES, solid while that gate is shut. null for a whole-block
+   building, which answers for its block itself (hoodShopVolBlocked). The
+   depot is not listed: depotSolidAt already answers on its own lot. */
+let _cfGrid = null, _cfMap = null;
+function commercialFootprintsOf(grid, blk){
+  if(_cfGrid !== grid){ _cfGrid = grid; _cfMap = new Map(); }
+  if(_cfMap.has(blk)) return _cfMap.get(blk);
+  let out = null;
+  if(blk.type === "commercial" && hoodWholeBlockEdge(grid, blk) < 0){
+    out = [];
+    const rect = (e, a0, a1, b0, b1) => {
+      const xs = [], ys = [];
+      for(const a of [a0, a1]) for(const b of [b0, b1]){ xs.push(e.ox + e.dv.x*a + e.rv.x*b); ys.push(e.oy + e.dv.y*a + e.rv.y*b); }
+      return [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
+    };
+    blockEdgesOf(blk).forEach((e, ei) => {
+      const authored = (blk.i !== undefined) ? hoodShopEdgeUnits(grid, blk, ei) : null;
+      const units = commercialEdgeUnitsOf(e, authored);
+      for(const u of units) out.push(rect(e, u.start, u.start + u.w, u.shop ? -hoodShopD(u.shop.lib) : -STORE_DEPTH, 0));
+      for(const [a0, a1] of commercialEdgeGatesOf(grid, e, units, authored)){
+        const r = rect(e, a0, a1, -8, -4);
+        r.gate = courtyardGateKey(e, a0, a1); r.blk = blk;
+        out.push(r);
+      }
+    });
+  }
+  _cfMap.set(blk, out);
+  return out;
+}
+/* ==================== COURTYARD GATES (Sir, 2026-09-26) ====================
+   "that needs to be a feature for pickups and side missions when they
+   happen in the courtyard of the block but lets not open the gates
+   automatically. it needs to be permissioned. but when we have our debug
+   open it is automatic similar to the guard at sierra vista."
+
+   So the Sierra Vista gate's shape: one state, CY_GATES (gate key -> how
+   open, 0..1), stepped once a frame from the scene's update
+   (courtyardGateStep), read by the collision (solidAt, through the gate
+   rects in commercialFootprintsOf) and by the draw (drawAlleyGate) -- the
+   gate you see is the gate you hit. A gate opens for him when he is near
+   it AND its block admits him:
+     - the debug switch is on (the dev pass, as sierraGateAdmits), or
+     - the trip he is on ends in that block's courtyard (gpsNav's target
+       inside the block and outside its buildings). Nothing sends him to a
+       courtyard yet; the pickup or side mission that first does gets its
+       gate opened by this line, with nothing else to wire. */
+const CY_GATES = new Map();
+const CY_GATE_NEAR = 260, CY_GATE_SHUT = 0.6;
+function courtyardGateKey(e, a0, a1){
+  const B = -6, mx = e.ox + e.dv.x*(a0 + a1)/2 + e.rv.x*B, my = e.oy + e.dv.y*(a0 + a1)/2 + e.rv.y*B;
+  return Math.round(mx) + "," + Math.round(my);
+}
+function courtyardHas(grid, blk, x, y){
+  if(x <= blk.x0 || x >= blk.x1 || y <= blk.y0 || y >= blk.y1) return false;
+  const fp = commercialFootprintsOf(grid, blk);
+  return !!fp && !fp.some(r => !r.gate && x > r[0] && x < r[1] && y > r[2] && y < r[3]);
+}
+function courtyardGateAdmits(scene, blk){
+  if(OW_DBG) return true;
+  const g = scene && scene.route && scene.route.grid;
+  return !!(g && typeof gpsNav !== "undefined" && gpsNav && courtyardHas(g, blk, gpsNav.tx, gpsNav.ty));
+}
+function courtyardGateStep(scene, dt){
+  const g = scene && scene.route && scene.route.grid;
+  if(!g || !g.blockByIJ) return;
+  const k = 1 - Math.pow(0.92, dt / 16.7), bx = scene.botX, by = scene.botY;
+  const want = new Map();
+  const bi = Math.floor(bx / BLOCK), bj = Math.floor(by / BLOCK);
+  for(let a = -1; a <= 1; a++) for(let c = -1; c <= 1; c++){
+    const blk = g.blockByIJ.get((bi + a) + "," + (bj + c));
+    if(!blk || blk.type !== "commercial") continue;
+    const fp = commercialFootprintsOf(g, blk);
+    if(!fp) continue;
+    let admit = null;                                        // asked once a block, only if a gate is near
+    for(const r of fp){
+      if(!r.gate) continue;
+      const mx = (r[0] + r[1]) / 2, my = (r[2] + r[3]) / 2;
+      if(Math.hypot(bx - mx, by - my) >= CY_GATE_NEAR) continue;
+      if(admit === null) admit = courtyardGateAdmits(scene, blk);
+      want.set(r.gate, admit ? 1 : 0);
+      if(admit && OW_DBG && !CY_GATES.get(r.gate)){ try { owDbgToast('gate: dev pass (debug on)'); } catch(e){} }
+    }
+  }
+  for(const key of new Set([...CY_GATES.keys(), ...want.keys()])){
+    const w = want.get(key) || 0;
+    let t = CY_GATES.get(key) || 0;
+    t += (w - t) * k;
+    if(Math.abs(w - t) < 0.004) t = w;
+    if(t === 0 && !w) CY_GATES.delete(key); else CY_GATES.set(key, t);
+  }
+}
+if(typeof window !== "undefined") window.CY_GATES = CY_GATES;
+/* The planters and benches rolled onto a commercial block's plaza: the
+   draw's own seed and call order (moved here from queueCommercialBlock),
+   so the ones the robot meets are the ones on screen. */
+let _csGrid = null, _csMap = null;
+function commercialScatterOf(grid, blk){
+  if(_csGrid !== grid){ _csGrid = grid; _csMap = new Map(); }
+  if(_csMap.has(blk)) return _csMap.get(blk);
+  const out = [];
+  const _lot = grid ? depotOnBlock(grid, blk) : null;
+  const cx = (blk.x0+blk.x1)/2, cy = (blk.y0+blk.y1)/2;
+  const rng = mulberry32(((Math.round(cx)*7919) ^ (Math.round(cy)*104729) ^ 0x71c4) >>> 0);
+  /* off the depot's lot, with room round it: its room is seen through the
+     door, so a bin rolled onto the lot either stands inside the building
+     mass or shows through the opening */
+  const onDepot = (x,y) => { if(!_lot) return false; const p = depotLabXY(_lot, x, y);
+    return p.a > -60 && p.a < depotGeom().WW + 60 && p.b > -depotGeom().DD - 60; };
+  /* and off a whole-block building's lot (Pelican Drug fills the block
+     now): a bench rolled onto it stands in the car park */
+  let _wbRect = null;
+  { const _we = grid ? hoodWholeBlockEdge(grid, blk) : -1;
+    const _wu = _we >= 0 ? hoodShopEdgeUnits(grid, blk, _we) : null;
+    if(_wu && _wu.length) _wbRect = hoodShopRect(blockEdgesOf(blk)[_we], _wu[0]); }
+  const onWhole = (x,y) => !!_wbRect && x > _wbRect[0]-30 && x < _wbRect[1]+30 && y > _wbRect[2]-30 && y < _wbRect[3]+30;
+  const clear = (x,y) => !onDepot(x, y) && !onWhole(x, y);
+  const roll = () => {
+    for(let tr = 0; tr < 6; tr++){
+      const x = blk.x0 + rng()*(blk.x1-blk.x0), y = blk.y0 + rng()*(blk.y1-blk.y0);
+      if(clear(x, y)) return { x, y };
+    }
+    return null;
+  };
+  const nPlanter = 2 + Math.floor(rng()*2);
+  for(let k=0;k<nPlanter;k++){ const sp = roll(); if(sp) out.push({ kind:"planter", x:sp.x, y:sp.y }); }
+  const nBench = 1 + Math.floor(rng()*2);
+  for(let k=0;k<nBench;k++){ const sp = roll(); if(sp) out.push({ kind:"bench", x:sp.x, y:sp.y }); }
+  _csMap.set(blk, out);
+  return out;
+}
 /* A HOOD SHOP'S OWN VOLUME, for collision (Sir, on-device, at Seabreeze
    Fuel: "its open to the gas pumps i shouldnt be hitting a wall ... or is
    the gas station have an invisible wall?"). It was the block: solidAt is
@@ -38580,6 +38774,11 @@ class WorldScene extends Phaser.Scene {
         const dh = depotBuiltHeight(_dl, x, y);
         if(dh !== null) return dh;
       }
+      /* a shop block's plaza and open corners are not built over */
+      if(band && b.type === "commercial" && _xg){
+        const fp = commercialFootprintsOf(_xg, b);
+        if(fp && !fp.some(r => !r.gate && x > r[0] && x < r[1] && y > r[2] && y < r[3])) return 0;
+      }
       return band ? XRAY.minH : 0;
     }
     /* AN OVERHANG IS OUTSIDE ITS BLOCK. The loop above only answers for
@@ -38999,21 +39198,38 @@ class WorldScene extends Phaser.Scene {
     const Pt = (a, z) => this.W(e.ox + e.dv.x*a + e.rv.x*B, e.oy + e.dv.y*a + e.rv.y*B, z);
     const Q = (x0, x1, z0, z1, col) => this.quadOn(g, [Pt(x0,z1), Pt(x1,z1), Pt(x1,z0), Pt(x0,z0)], col);
     const i0 = a0 + POST, i1 = a1 - POST;
-    Q(i0, i1, 0, KICK, BLACK);                                   // kick panel
-    Q(i0, i1, KICK-6, KICK, STEEL_DK);
-    const n = Math.max(2, Math.round((i1 - i0) / 15));
-    for(let k = 0; k <= n; k++){                                 // bars
-      const c = i0 + (i1 - i0) * k / n;
-      Q(c - 2.2, c + 2.2, KICK, GH - 14, BAR);
+    const wide = (a1 - a0) > 150;
+    /* A CONCERTINA (Sir, 2026-09-26). The alleys are the way into a shop
+       block's courtyard; when the gate is let open (COURTYARD GATES) it
+       folds back to its post -- a wide one parts at the stile, each leaf
+       to its own post -- and closes behind him. How open is CY_GATES's,
+       the same number the collision reads. */
+    const FOLD = 0.86;
+    const ot = CY_GATES.get(courtyardGateKey(e, a0, a1)) || 0;
+    const f = 1 - FOLD * ot;                                     // how much of its run each leaf still spans
+    /* the leaves as [from, to] runs: bars spread evenly over each */
+    const mid = (i0 + i1) / 2;
+    const leaves = wide ? [[i0, i0 + (mid - i0) * f], [i1 - (i1 - mid) * f, i1]]
+                        : [[i1 - (i1 - i0) * f, i1]];
+    const nAll = Math.max(2, Math.round((i1 - i0) / 15));
+    for(const [l0, l1] of leaves){
+      const n = wide ? Math.max(1, Math.round(nAll / 2)) : nAll;
+      Q(l0, l1, 0, KICK, BLACK);                                 // kick panel
+      Q(l0, l1, KICK-6, KICK, STEEL_DK);
+      for(let k = 0; k <= n; k++){                               // bars
+        const c = l0 + (l1 - l0) * k / n;
+        Q(c - 2.2, c + 2.2, KICK, GH - 14, BAR);
+      }
+      Q(l0, l1, GH*0.55 - 6, GH*0.55, STEEL);                    // mid rail
+      Q(l0, l1, GH - 16, GH - 6, STEEL);                         // top rail
+      for(let k = 0; k <= n; k++){                               // spear tips
+        const c = l0 + (l1 - l0) * k / n;
+        this.quadOn(g, [Pt(c - 3.5, GH - 6), Pt(c, GH + 12), Pt(c + 3.5, GH - 6), Pt(c, GH - 8)], STEEL);
+      }
     }
-    Q(i0, i1, GH*0.55 - 6, GH*0.55, STEEL);                      // mid rail
-    Q(i0, i1, GH - 16, GH - 6, STEEL);                           // top rail
-    for(let k = 0; k <= n; k++){                                 // spear tips
-      const c = i0 + (i1 - i0) * k / n;
-      this.quadOn(g, [Pt(c - 3.5, GH - 6), Pt(c, GH + 12), Pt(c + 3.5, GH - 6), Pt(c, GH - 8)], STEEL);
-    }
-    const wide = (a1 - a0) > 150, lockA = wide ? (i0 + i1) / 2 : i1 - 16;
-    if(wide) Q(lockA - 4, lockA + 4, 0, GH - 6, STEEL);          // centre stile
+    /* the stile and lock ride the leading edge of the leaf */
+    const lockA = wide ? leaves[0][1] : leaves[0][0] + 16;
+    if(wide){ Q(leaves[0][1] - 4, leaves[0][1], 0, GH - 6, STEEL); Q(leaves[1][0], leaves[1][0] + 4, 0, GH - 6, STEEL); }
     Q(lockA - 12, lockA + 12, 118, 150, STEEL);                   // lock box
     Q(lockA - 5, lockA + 5, 126, 142, STEEL_DK);
     Q(a0, i0, 0, GH + 4, STEEL); Q(i1, a1, 0, GH + 4, STEEL);    // posts
@@ -44044,10 +44260,10 @@ class WorldScene extends Phaser.Scene {
   }
 
   queueCommercialEdgeAt(vq, e, isPickupEdge=false, cornerSkip=null, authored=null){
-    const eseed = ((Math.round(e.ox*3+e.dv.x)*7919) ^ (Math.round(e.oy*3+e.dv.y)*104729) ^ 0x51b3) >>> 0;
     /* an authored edge (HOOD_SHOP_SITES) packs to its shops; every other
-       edge is the packer's, byte for byte as before */
-    const units = authored || packEdgeNoGap(e.len, mulberry32(eseed));
+       edge is the packer's, byte for byte as before (commercialEdgeUnitsOf,
+       which collision reads too) */
+    const units = commercialEdgeUnitsOf(e, authored);
     const flank = (e.dv.x + e.dv.y) > 0;
     /* ALLEY GATES (Sir, 2026-09-17: "in the beginning of all those alleys
        in between shops we need a security door, black and steel"). One at
@@ -44056,46 +44272,12 @@ class WorldScene extends Phaser.Scene {
        back. Keyed at its own mouth, so on a front edge it draws over the
        shops' flanks behind it and on an away edge the shops cover it.
        A crack under 20 is not an alley and gets none. */
-    if(authored) for(let k = 1; k < units.length; k++){
-      const a0 = units[k-1].start + units[k-1].w, a1 = units[k].start;
-      if(a1 - a0 < 20) continue;
+    /* ...and beside a charge depot (Sir, 2026-09-23: "we should have a
+       gate here"). Both kinds come from commercialEdgeGatesOf. */
+    for(const [a0, a1] of commercialEdgeGatesOf(this.route && this.route.grid, e, units, authored)){
       const B = -6, mid = (a0 + a1) / 2;
       const kx = e.ox + e.dv.x*mid + e.rv.x*B, ky = e.oy + e.dv.y*mid + e.rv.y*B;
       vq.push({ depth: kx + ky, fn: (g) => this.drawAlleyGate(g, e, a0, a1, B) });
-    }
-    /* ...AND BESIDE A CHARGE DEPOT (Sir, 2026-09-23, circling the open
-       slot between Tipsey's depot and the glasses shop: "we should have a
-       gate here"). The loop above only gates the gap between two SHOPS;
-       the depot is drawn off its own corner frame, not as a unit, so the
-       alley between it and the next shop was never seen. Its footprint is
-       projected onto this edge: where one of its sides lies on this
-       frontage, the nearest shop either end of it gets the same gate,
-       same plane, same 20 minimum. */
-    {
-      const dg = this.route && this.route.grid;
-      if(dg && units.length){
-        const G = depotGeom();
-        for(const d of depotsOf(dg)){
-          const pts = [[0,0],[G.WW,0],[G.WW,-G.DD],[0,-G.DD]].map(([da,db]) => depotWorld(d.cu, da, db));
-          const la = pts.map(p => (p.x - e.ox)*e.rv.x + (p.y - e.oy)*e.rv.y);
-          if(Math.max(...la) > 12 || Math.max(...la) < -12) continue;   // no side on this frontage
-          const al = pts.map(p => (p.x - e.ox)*e.dv.x + (p.y - e.oy)*e.dv.y);
-          const p0 = Math.min(...al), p1 = Math.max(...al);
-          if(p1 < 0 || p0 > e.len) continue;
-          let before = -Infinity, after = Infinity;
-          for(const u of units){
-            if(u.start + u.w <= p0 + 1) before = Math.max(before, u.start + u.w);
-            if(u.start >= p1 - 1) after = Math.min(after, u.start);
-          }
-          const B = -6;
-          for(const [a0, a1] of [[before, p0], [p1, after]]){
-            if(!isFinite(a0) || !isFinite(a1) || a1 - a0 < 20 || a1 - a0 > 600) continue;
-            const mid = (a0 + a1) / 2;
-            const kx = e.ox + e.dv.x*mid + e.rv.x*B, ky = e.oy + e.dv.y*mid + e.rv.y*B;
-            vq.push({ depth: kx + ky, fn: (g) => this.drawAlleyGate(g, e, a0, a1, B) });
-          }
-        }
-      }
     }
     units.forEach((u, idx) => {
       const hx = e.ox + e.dv.x*(u.start + u.w/2), hy = e.oy + e.dv.y*(u.start + u.w/2);
@@ -44316,43 +44498,10 @@ class WorldScene extends Phaser.Scene {
        below, so removing it shifted no other seeded randomness. The
        scatter dodge below (`clear`) takes the empty array happily:
        nothing to dodge, same code path. */
-    const interior = [];
-    const cx = (blk.x0+blk.x1)/2, cy = (blk.y0+blk.y1)/2;
-    const rng = mulberry32(((Math.round(cx)*7919) ^ (Math.round(cy)*104729) ^ 0x71c4) >>> 0);
-    /* scatter now dodges the interior footprints: same seed and call
-       order as before, each piece just re-rolls (bounded) until it
-       lands clear -- deterministic per block, retries included */
-    /* and off the depot's lot, with room round it: its room is seen
-       through the door, so a bin rolled onto the lot either stands
-       inside the building mass or shows through the opening */
-    const onDepot = (x,y) => { if(!_lot) return false; const p = depotLabXY(_lot, x, y);
-      return p.a > -60 && p.a < depotGeom().WW + 60 && p.b > -depotGeom().DD - 60; };
-    /* and off a whole-block building's lot (Pelican Drug fills the block
-       now): a bench rolled onto it stands in the car park */
-    let _wbRect = null;
-    { const _hg = this.route && this.route.grid, _we = _hg ? hoodWholeBlockEdge(_hg, blk) : -1;
-      const _wu = _we >= 0 ? hoodShopEdgeUnits(_hg, blk, _we) : null;
-      if(_wu && _wu.length) _wbRect = hoodShopRect(blockEdgesOf(blk)[_we], _wu[0]); }
-    const onWhole = (x,y) => !!_wbRect && x > _wbRect[0]-30 && x < _wbRect[1]+30 && y > _wbRect[2]-30 && y < _wbRect[3]+30;
-    const clear = (x,y) => !interior.some(rc => x > rc.x0-30 && x < rc.x1+30 && y > rc.y0-30 && y < rc.y1+30)
-                           && !onDepot(x, y) && !onWhole(x, y);
-    const roll = () => {
-      for(let tr = 0; tr < 6; tr++){
-        const x = blk.x0 + rng()*(blk.x1-blk.x0), y = blk.y0 + rng()*(blk.y1-blk.y0);
-        if(clear(x, y)) return { x, y };
-      }
-      return null;
-    };
-    const nPlanter = 2 + Math.floor(rng()*2);
-    for(let k=0;k<nPlanter;k++){
-      const sp = roll(); if(!sp) continue;
-      vq.push({ depth:sp.x+sp.y, fn:(g,t)=>this.scatterBlockProp(this.propLayer(g, sp.x, sp.y), sp.x, sp.y, "planter", t) });
-    }
-    const nBench = 1 + Math.floor(rng()*2);
-    for(let k=0;k<nBench;k++){
-      const sp = roll(); if(!sp) continue;
-      vq.push({ depth:sp.x+sp.y, fn:(g,t)=>this.scatterBlockProp(this.propLayer(g, sp.x, sp.y), sp.x, sp.y, "bench", t) });
-    }
+    /* the plaza's planters and benches: commercialScatterOf, the same
+       list the robot collides with */
+    for(const sp of commercialScatterOf(this.route && this.route.grid, blk))
+      vq.push({ depth:sp.x+sp.y, fn:(g,t)=>this.scatterBlockProp(this.propLayer(g, sp.x, sp.y), sp.x, sp.y, sp.kind, t) });
     this.queueStreetFurniture(vq, blk, excludeEdges);
   }
 
@@ -53722,7 +53871,7 @@ class WorldScene extends Phaser.Scene {
     if(OW_ARMED && !this.ow && this.route && this.state === "play"
        && (this.mode === "freeroam" || this.mode === "delivery")) owInstall(this);
     if(this.ow && this.ow.on){
-      if(this.state === "play"){ owStep(this, Math.min(dt, 40)); sierraGateStep(this, Math.min(dt, 40)); navTick(this, t); }
+      if(this.state === "play"){ owStep(this, Math.min(dt, 40)); sierraGateStep(this, Math.min(dt, 40)); courtyardGateStep(this, Math.min(dt, 40)); navTick(this, t); }
       else { this.throttle = 0; owRespawnTick(this, t); }
     }
     else if(this.attract){ this.attractDrive(); }
