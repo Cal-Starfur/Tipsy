@@ -10644,7 +10644,7 @@ function hoodShopsOf(grid){
       const rectsOf = () => {
         const R = [];
         for(const ei in pb.edges) for(const u of pb.edges[ei]) R.push([+ei, hoodShopRect(E[ei], u), u.shop.lib]);
-        if(pb.depot) R.push([-1, [blk.x1 - 303.6, blk.x1 - 8, blk.y1 - 276, blk.y1], "depot"]);
+        if(pb.depot) R.push([-1, [blk.x1 - 295.6, blk.x1, blk.y1 - 276, blk.y1], "depot"]);   // depotFrameOf: flank on the block line
         return R;
       };
       const crosses = () => {
@@ -10975,10 +10975,18 @@ function hoodRimRects(){
    backwards, so the depot takes the lab's frame outright: a runs +x along
    the y1 street with the chamfer at a = WW on the corner, b = 0 on that
    street, -b into the block. The lot is the corner square cornerUnitsOf
-   would give (x1 - M .. x1 - CORNER_LOT_INSET by STORE_DEPTH). */
+   would give (x1 - M .. x1 - CORNER_LOT_INSET by STORE_DEPTH).
+
+   ...EXCEPT THE INSET (Sir, 2026-09-26: "whats with this exposed strip
+   of shop ground?"). CORNER_LOT_INSET exists to keep a corner HOUSE's
+   flank off its yard fence; the depot has no fence, and its front already
+   sits on the y1 block line. Held 8 off the x1 line, the flank left an
+   8-wide strip of block plaza between its wall and the pavement, running
+   the whole flank and down the mat's side to the corner. So the flank
+   sits on the block line too: a = WW is x1, the way b = 0 is y1. */
 function depotFrameOf(blk){
   const WW = depotGeom().WW;
-  const ux = blk.x1 - CORNER_LOT_INSET - WW, uy = blk.y1;
+  const ux = blk.x1 - WW, uy = blk.y1;
   return { e: { dv: DIRV[0], rv: DIRV[1] }, ux, uy, w: WW,
            hx: ux + WW/2, hy: uy, kind: "depot" };
 }
@@ -17147,12 +17155,19 @@ const DEPOT_GEOM = (() => {
      front wall, (WW, -CW) where it meets the side wall, and (WW, 0), the
      square corner. That is the mat, inset 1 so it does not z-fight the
      walls it touches. */
-  const MAT = { inset: 1 };
+  /* ...AND NOT INSET, LAPPED (Sir, 2026-09-26: "still just the slightest
+     amount peeking out under the corner"). An inset of 1 on all three
+     sides left a 1-wide line of block plaza showing down both legs --
+     but the legs touch no wall: they lie on the two block lines, where
+     the pavement begins. So the legs lap 1 OUT onto the pavement (paint
+     over paint, no seam) and the base stays on the chamfer line, its two
+     ends slid along it to meet them. */
+  const MAT = { lap: 1 };
   const BOLL = { k:-16, r:11, h:54 };                      // threshold bollards
   const R2 = Math.SQRT1_2, CA0 = WW - CW;
   const cpt = (t, k) => [CA0 + t*CW - (k||0)*R2, -t*CW - (k||0)*R2];
   const PADS = { back:[200, ROOM.b0 + CHPAD], left:[ROOM.a0 + CHPAD, -140] };
-  MAT.tri = [[CA0 + MAT.inset, -MAT.inset], [WW - MAT.inset, -CW + MAT.inset], [WW - MAT.inset, -MAT.inset]];
+  MAT.tri = [[CA0 - MAT.lap, MAT.lap], [WW + MAT.lap, -CW - MAT.lap], [WW + MAT.lap, MAT.lap]];
 
   /* THE ROOM IS THE INTERIOR, not a rect. The room rect the art clips to
      runs right through the chamfer -- its corner (160.6,-15) is already
@@ -19100,10 +19115,12 @@ function houseCanopy(fn){
          room   the clipped interior, keyed behind anything in it
          front  the b = 0 wall, its windows and fascia, in a-strips
          flank  the a = WW wall, its windows and band, in b-strips
-         door   jambs, header, roll-up, sign, chamfer band, mat,
+         door   jambs, header, roll-up, sign, chamfer band,
                 bollards, roof and roof plant -- all on or past the
                 chamfer, which is a constant-x+y plane, so one key
                 orders it exactly
+         mat    the door trigger on the pavement: GROUND, keyed with
+                the room so it is under everything (see the mat)
        PART 'all' (the lab) draws everything in the original order.
        A window that straddles a strip edge draws in both strips: the
        later strip's wall fill would otherwise cut it in half. */
@@ -19372,8 +19389,17 @@ function houseCanopy(fn){
        door rather than to the block, because what it is aligned to is
        the thing you drive INTO. The lab drives its state off doorT so
        the relationship is visible: amber while the door is shut, green
-       once it is moving. */
-    if(PT('door')) {
+       once it is moving.
+
+       ITS OWN PART, KEYED AS GROUND (Sir, 2026-09-26: "its drawing over
+       my headlights its drawing over tipsey at times ... it seems like
+       its floating"). It rode in 'door', keyed on the chamfer line --
+       and he is BEHIND that line whenever he is in the room, so the
+       door part drew after him and the mat painted over his wheels and
+       over the headlight pool he throws out through the door. Paint on
+       the pavement occludes nothing, so the game queues it with the
+       room, before anything that can stand on it or light it. */
+    if(PT('mat')) {
       const on = ((typeof state.doorT === 'number') ? state.doorT : 1) > 0.02;
       const tone = on ? '#7ee081' : '#ffb25a';
       /* THE SAME THREE POINTS THE TRIGGER USES (DEPOT_GEOM.MAT.tri): the
@@ -19476,9 +19502,9 @@ function houseCanopy(fn){
        Front, chamfer and flank, all at H-18..H and all proud by 4.
 
        Proud on the flank means a > WW, which on a terrace unit would lap
-       the neighbour. Here it cannot: cornerUnitsOf holds the lot
-       CORNER_LOT_INSET = 8 off the perpendicular block line, so a 4
-       projection still has 4 to spare. */
+       the neighbour. Here it cannot: the flank is on the block line (see
+       depotFrameOf), so a 4 projection overhangs the pavement exactly as
+       the front's does. */
     const FSC = 4;
     if(PT('front')){ const s = wA(0, WW-CW);
       if(s[1] > s[0]) slab(s[0], s[1], H-18, H, FSC, 0, brand, null, shade(brand,1.2)); }
@@ -42911,6 +42937,9 @@ class WorldScene extends Phaser.Scene {
         const part = (p) => (g) => LIBDRAW(g, { part: p });
         const frontK = key(0, 0), flankK = key(W0, -D0);
         vq.push({ depth: Math.min(key(_G.ROOM.a0, _G.ROOM.b0), frontK, flankK) - 1, fn: part('room') });
+        /* the door mat is ground paint: same key as the room, under him
+           and his headlight pool wherever he is (see THE DOOR TRIGGER MAT) */
+        vq.push({ depth: Math.min(key(_G.ROOM.a0, _G.ROOM.b0), frontK, flankK) - 1, fn: part('mat') });
         wall('front', frontK, lab.b < 0,  0, 0, W0 - C0, 0);
         wall('flank', flankK, lab.a < W0, W0, -D0, W0, -C0);
         vq.push({ depth: key(W0 - C0, 0) + 0.5, fn: part('door') });
@@ -62965,7 +62994,7 @@ document.getElementById("avatarIcon").addEventListener("click", tpOpenProfile);
    Polled, not per-frame: the button is DOM, and a quarter second is
    well inside the time it takes to roll onto a pad and stop. */
 const DOOR_SHUT_MS = 900;   // pad shut: full roll-down time
-const GARAGE_HIDE = new Set(['front', 'flank', 'door', 'roof', 'wallA', 'wallB']);
+const GARAGE_HIDE = new Set(['front', 'flank', 'door', 'mat', 'roof', 'wallA', 'wallB']);
 function tpAvatarPadGate(){
   const s = (typeof scn === "function") ? scn() : null;
   const drive = !!(s && s.ow && !s.attract && s.state === "play" && tpContTripMode(s.mode));
