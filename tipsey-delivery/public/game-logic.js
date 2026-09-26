@@ -10475,6 +10475,22 @@ const HOOD_SHOP_SITES = [
 ];
 /* the blocks whose site list includes a whole-block building (block:true):
    those edges draw, the block's other edges draw nothing */
+/* "i,j" of every block a whole-block landmark stands on, from the site
+   table -- what the door search keeps delivery addresses away from. The
+   address forcing retypes the block beside the door to housing, so an
+   address beside a landmark deleted it for the day: that is what "hood
+   shop site 2,3/2 skipped: not commercial" was. 2,3 is a commercial
+   block; the Chapel was only ever missing on days whose route ended
+   there (measured: 10 of 240 routes hit a landmark block). */
+let _wholeIJ = null;
+function wholeBlockLandmarkIJ(i, j){
+  if(!_wholeIJ){
+    _wholeIJ = new Set();
+    for(const [si, sj, , list] of HOOD_SHOP_SITES)
+      if(list.some(n => { const e = LIB.get(n); return !!(e && e.block); })) _wholeIJ.add(si + "," + sj);
+  }
+  return _wholeIJ.has(i + "," + j);
+}
 function hoodWholeBlockEdge(grid, blk){
   for(const [i, j, ei, list] of HOOD_SHOP_SITES){
     if(i !== blk.i || j !== blk.j) continue;
@@ -13205,7 +13221,8 @@ function findGoodS(segs, totalLen, preferredS, scanFromEnd, grid, avoidBlock, mi
     const p = segsWorldOf(segs, s, nearOff);
     const bi = Math.floor(p.x / BLOCK), bj = Math.floor(p.y / BLOCK);
     return bi >= 0 && bi <= grid.cols-2 && bj >= 0 && bj <= grid.rows-2
-        && (!grid.blockOK || grid.blockOK(bi, bj));      // the hood lock's view
+        && (!grid.blockOK || grid.blockOK(bi, bj))       // the hood lock's view
+        && !wholeBlockLandmarkIJ(bi, bj);                // never a door on a landmark's block
   };
   const order = scanFromEnd ? [...segs].reverse() : segs;
   let interiorFallback = null; // interior-facing, but on the avoided block
@@ -14022,10 +14039,23 @@ function _generateRouteFresh(dateStr, opts){
     return best;
   };
 
+  /* A DOOR LEG HAS TO HAVE A HOUSE TO PUT THE DOOR ON (2026-09-26).
+     Measured over 240 routes before this: 10 put the address beside a
+     whole-block landmark -- the walk's only door leg past the mile faced
+     it, findGoodS took it as its last resort, and the address forcing
+     retyped the block to housing, so the Brewery, the Baths or Pelican
+     Drug simply vanished that day in favour of houses. A leg only counts
+     now if the block it faces is not a landmark's. Challenge and slalom
+     walks are frozen, dialled courses and keep the old test exactly. */
+  const _frozenWalk = !!(opts && (opts.challenge || opts.unanchoredStart));
+  const _doorOff = ROBOT_SIDE * (ROAD_HALF + SIDEWALK_W + T2*2);   // findGoodS's probe
   const hasGoodDoorLeg = w => w.segs.some(sg => {
     if(sg.type !== "line" || !GOOD_LEG_HEADING[sg.f]) return false;
     const inset = Math.min(90, (sg.s1 - sg.s0)*0.3);
-    return sg.s1 - inset >= Math.max(sg.s0 + inset, MIN_ROUTE_UNITS);
+    if(!(sg.s1 - inset >= Math.max(sg.s0 + inset, MIN_ROUTE_UNITS))) return false;
+    if(_frozenWalk) return true;
+    const q = segsWorldOf(w.segs, sg.s1 - inset, _doorOff);
+    return !wholeBlockLandmarkIJ(Math.floor(q.x / BLOCK), Math.floor(q.y / BLOCK));
   });
   /* walk starts inside the requested district now, not wherever the rng
      happens to land in a map twelve times the size it used to be. Only
@@ -24311,7 +24341,9 @@ function houseCanopy(fn){
   }
 },
 {
-  name:'Driftwood Chapel', xh: 300, base:'Chapel', hood:'The Flats', edited:true, tall:true, block:true, ww: 1048.8, dd: 1048.8,
+  name:'Driftwood Chapel', xh: 300, base:'Chapel', hood:'The Flats', edited:true, tall:true, block:true, ww: 1656, dd: 1656,
+  /* nave and tower, for the x-ray (see hoodShopHeightAt) */
+  built: [663.6, 1153.6, -170, -830],
   wTodo:'a whole block edge -- five packing slots, and the packer places none of them',
   head:'Chapel in its own churchyard, tower and spire, four gates',
   tags:['block landmark','churchyard on four sides','pitched nave','tower and pyramid spire','tallest thing in the library'],
@@ -24357,12 +24389,20 @@ function houseCanopy(fn){
        door, because the tower is what occupies that side of the lot --
        a walk to the middle of the right-hand face would have arrived at
        a blank flank. */
-    const LOT = 1048.8, Y = 130;
+    /* ============ THE WHOLE BLOCK (2026-09-26) ============
+       Same correction as the other landmarks: the churchyard was the lab's
+       1048.8 square and a block is 1656. It is the block now, with the
+       chapel where it stood on the street (a shifted by OA = 303.6) and
+       the gates re-derived from the walks rather than typed, so every gap
+       still lands on its path. The ground it gained is churchyard: rows
+       of headstones round three sides and a few yews. */
+    const LOT = 1656, OA = 303.6, Y = 130;
     const wall = '#f2efe6', trim = '#5a7f95', H = 300;
-    const nA0 = 360, nA1 = 690, nB0 = -170, nB1 = -830;
+    const nA0 = 360+OA, nA1 = 690+OA, nB0 = -170, nB1 = -830;
     const ridge = (nA0+nA1)/2, apex = 440;
-    const tA0 = 690, tA1 = 850, tB0 = -170, tB1 = -330, tTop = 500, sTop = 680;
+    const tA0 = 690+OA, tA1 = 850+OA, tB0 = -170, tB1 = -330, tTop = 500, sTop = 680;
     const CA = (nA0+nA1)/2;
+    const WN0 = -454, WN1 = -546, WT0 = tB0-30+46, WT1 = tB0-30-46;   // north walk, tower walk (b)
 
     /* ---- the churchyard ---- */
     T(0, LOT, -LOT, 0, 0, '#93a67f');
@@ -24408,20 +24448,45 @@ function houseCanopy(fn){
       box(aa-5, aa+5, s1, s0, 0, WH, shade(wall,.9), shade(wall,.76), shade(wall,.66));
       for(let y=s0-14; y>s1+8; y-=30) cyl(aa, y, WH, RH, 2.2, iron);
       tube(aa, s0, RH-4, aa, s1, RH-4, 2.2, iron); } };
-    fenceB(0,    [[0,-454],[-546,-LOT]]);                    // far, left
-    fenceA(-LOT, [[0,479],[571,LOT]]);                       // far, back
-    for(const [pa,pb] of [[0,-454],[0,-546],[479,-LOT],[571,-LOT]]) pier(pa,pb);
+    fenceB(0,    [[0,WN0],[WN1,-LOT]]);                      // far, left
+    fenceA(-LOT, [[0,CA-46],[CA+46,LOT]]);                   // far, back
+    for(const [pa,pb] of [[0,WN0],[0,WN1],[CA-46,-LOT],[CA+46,-LOT]]) pier(pa,pb);
 
     /* Headstones, which are what says churchyard louder than anything
        else on the building. They stand in the LOT, not on the pavement:
        the yard is the shop's own ground and Tipsy drives the road and
        the footway, so these are not the kerb-prop class the cTodo
        census counts. Kept off the walks and out of the nave's shadow. */
-    for(const [ga,gb,gh] of [[150,-260,34],[196,-330,28],[132,-410,31],[210,-470,26],
-                             [148,-640,33],[206,-700,29],[140,-780,27],[196,-860,32],
-                             [790,-560,30],[850,-640,26],[806,-720,33]]){
+    /* The churchyard the block added is rows of them: down the left of
+       the nave, across the back behind the chancel walk, and down the
+       right behind the tower -- set out on a grid, jittered a little,
+       kept off every walk, and drawn far to near. */
+    const stones = [];
+    const offWalk = (ga, gb) => !(Math.abs(ga - CA) < 70 && (gb > nB0 || gb < nB1))
+                              && !(ga < nA0 && gb < WN0 + 30 && gb > WN1 - 30)
+                              && !(ga > tA1 && gb < WT0 + 30 && gb > WT1 - 30);
+    for(let gb = -120; gb > -LOT + 80; gb -= 76)
+      for(let ga = 70; ga < LOT - 60; ga += 64){
+        if(ga > nA0 - 60 && ga < tA1 + 60 && gb > nB1 - 70) continue;   // the chapel and its apron
+        if(!offWalk(ga, gb)) continue;
+        const j = Math.sin(ga*12.9898 + gb*78.233)*43758.5453, u = j - Math.floor(j);
+        stones.push([ga + (u - 0.5)*14, gb + (u*7 % 1 - 0.5)*12, 24 + Math.round(u*12)]);
+      }
+    const yews = [[120,-160],[120,-1500],[CA-300,-1560],[CA+300,-1560],[LOT-120,-700],[LOT-120,-1500]];
+    const yew = (ya, yb) => {
+      cyl(ya, yb, 0, 30, 7, '#5a4a30');
+      for(let k=0;k<4;k++) ball(ya, yb, 40 + k*26, 34 - k*7, ['#2f5a3a','#356045','#2f5a3a','#3f6b4a'][k]);
+    };
+    const nearKey = (x) => x[0] + x[1];
+    const farStones = stones.filter(g => !(g[0] > nA1 && g[1] > nB1) && !(g[1] > nB0)).sort((u,v) => nearKey(u) - nearKey(v));
+    const nearStones = stones.filter(g => (g[0] > nA1 && g[1] > nB1) || g[1] > nB0).sort((u,v) => nearKey(u) - nearKey(v));
+    const stone = ([ga, gb, gh]) => {
       box(ga-11, ga+11, gb-7, gb+7, 0, gh, shade(wall,.9), shade(wall,.76), shade(wall,.66));
       poly([P(ga-11,gb+7,gh),P(ga,gb+7,gh+9),P(ga+11,gb+7,gh)], shade(wall,.82));
+    };
+    if(state.props){
+      for(const y of yews.filter(y => y[0] < nA1).sort((u,v) => nearKey(u) - nearKey(v))) yew(...y);
+      for(const g of farStones) stone(g);
     }
 
     /* ---- the nave ----
@@ -24478,7 +24543,7 @@ function houseCanopy(fn){
     ctx.strokeStyle=shade(wall,.6); ctx.lineWidth=2; ctx.stroke();
     for(let k=0;k<14;k++)
       poly([dp(k/14,nB0),dp((k+1)/14,nB0),dp((k+1)/14,nB0-10),dp(k/14,nB0-10)], shade(wall,1.08));
-    for(const xa of [408, 468, 582, 642]){                    // lancets
+    for(const xa of [408+OA, 468+OA, 582+OA, 642+OA]){        // lancets
       F(xa-14, xa+14, 196, 268, '#6f8fa8', trim, 3, nB0-0.5);
       const ap = (t,bb) => { const u=1-t;
         return P((xa-14)*u + (xa+14)*t, bb, u*u*268 + 2*u*t*296 + t*t*268); };
@@ -24522,9 +24587,13 @@ function houseCanopy(fn){
     ball((tA0+tA1)/2, (tB0+tB1)/2, sTop+30, 5, '#c9a24a');
     /* the near two runs, after the chapel, so the rails read in front of
        it rather than being swallowed by the nave */
-    fenceA(0,   [[0,479],[571,LOT]]);                        // near, front
-    fenceB(LOT, [[0,-154],[-246,-LOT]]);                     // near, right
-    for(const [pa,pb] of [[479,0],[571,0],[LOT,-154],[LOT,-246]]) pier(pa,pb);
+    if(state.props){
+      for(const g of nearStones) stone(g);
+      for(const y of yews.filter(y => y[0] >= nA1).sort((u,v) => nearKey(u) - nearKey(v))) yew(...y);
+    }
+    fenceA(0,   [[0,CA-46],[CA+46,LOT]]);                    // near, front
+    fenceB(LOT, [[0,WT0],[WT1,-LOT]]);                       // near, right
+    for(const [pa,pb] of [[CA-46,0],[CA+46,0],[LOT,WT0],[LOT,WT1]]) pier(pa,pb);
     kerb(p,'none');
   }
 },
