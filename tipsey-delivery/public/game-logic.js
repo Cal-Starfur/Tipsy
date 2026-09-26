@@ -10751,9 +10751,15 @@ function hoodShopVolBlocked(grid, blk, x, y, R){
    along that edge, rv out of the block -- so al runs along the kerb and
    the kerb line is SIDEWALK_W out, whichever street it is on. A spec is
    { side, from, to, col, lines, arrows }: side 'front' spans lab a
-   (from..to) on the shop's own edge; 'a0' / 'a1' are the lot's two
-   flanks at lab a = 0 / ww (a whole-block lot's side streets) and span
-   lab b. The mirror is hoodShopLab's, run forwards. */
+   (from..to) on the shop's own edge, 'back' spans lab a on the far edge
+   (b = -dd); 'a0' / 'a1' are the lot's two flanks at lab a = 0 / ww (a
+   whole-block lot's side streets) and span lab b. The mirror is
+   hoodShopLab's, run forwards.
+
+   KEEP A DRIVE 250 CLEAR OF THE LOT'S CORNERS. Every block corner has a
+   crossing ramp on each kerb: its pad and flares cut the kerb from the
+   corner out to about 230 along it, and a drive laid over that merges
+   with the crossing into one long gap. */
 function hoodDrivewaysOf(grid){
   if(grid._drives) return grid._drives;
   const out = [];
@@ -10778,6 +10784,11 @@ function hoodDrivewaysOf(grid){
           if(dr.side === "front"){
             const m0 = mir ? sh.ww - dr.to : dr.from, m1 = mir ? sh.ww - dr.from : dr.to;
             Object.assign(rec, { e, al0: u.start + m0*SC, al1: u.start + m1*SC });
+          } else if(dr.side === "back"){
+            /* the lot's far edge, lab b = -dd: along it is lab a, out is -rv */
+            const O = toW(0, -sh.dd), A = toW(1, -sh.dd), av = { x: A.x - O.x, y: A.y - O.y }, al = Math.hypot(av.x, av.y);
+            const f = { ox: O.x, oy: O.y, dv: { x: av.x/al, y: av.y/al }, rv: { x: -e.rv.x, y: -e.rv.y } };
+            Object.assign(rec, { e: f, al0: Math.min(dr.from, dr.to)*SC, al1: Math.max(dr.from, dr.to)*SC, edge: -1 });
           } else {
             /* a flank: along it is lab b (world +rv), and out of the block
                is the way lab a runs off that side of the lot */
@@ -25390,7 +25401,8 @@ function houseCanopy(fn){
   }
 },
 {
-  name:'Lagoon Baths', xh: 336, base:'Bathhouse', hood:'The Flats', edited:true, tall:true, block:true, ww: 1048.8, dd: 1048.8,
+  name:'Lagoon Baths', xh: 336, base:'Bathhouse', hood:'The Flats', edited:true, tall:true, block:true, ww: 1656, dd: 1656,
+  built: [433.6, 1222.4, -130, -918.8],
   wTodo:'a whole block edge -- five packing slots, and the packer places none of them',
   head:'Block landmark in its own yard, entrance on every street',
   tags:['block landmark','yard on four sides','four entrances','great arched portal','onion dome'],
@@ -25444,8 +25456,17 @@ function houseCanopy(fn){
        dropoff registrations rather than one. The type dispatch already
        picks housing/park/commercial per block, so a fourth type is the
        hook. */
-    const LOT = 1048.8, Y = 130;
-    const bx0 = Y, bx1 = LOT - Y, bb0 = -Y, bb1 = -(LOT - Y);
+    /* ============ THE WHOLE BLOCK (2026-09-26) ============
+       The lot was the canvas lab's 1048.8 square on a 1656 block, so the
+       yard stopped 300 short of each side street and 600 short of the
+       back, in bare paving. The yard is the block: the bathhouse keeps its
+       place (a shifted by OA = 303.6, the old lot's origin), its four
+       walks run out to the four streets, and the lawn it gained is laid
+       out as grounds -- a low hedge round the edge open at each walk,
+       trees, beds flanking the front walk, and a lagoon-blue reflecting
+       pool on the axis behind. Far before near, as the box itself says. */
+    const LOT = 1656, OA = 303.6, Y = 130;
+    const bx0 = Y + OA, bx1 = 1048.8 - Y + OA, bb0 = -Y, bb1 = -(1048.8 - Y);
     const CA = (bx0+bx1)/2, CB = (bb0+bb1)/2;               // 524.4, -524.4
     const wall = '#dfe4e2', trim = '#2f8f9e', H = 336;
     const MOS = ['#2a7a8c','#c9a24a','#7fa8b4','#b4674a'];
@@ -25463,6 +25484,26 @@ function houseCanopy(fn){
       const r = 12 - i*4;
       T(CA-40+i*3, CA+40-i*3, bb0-r, bb0, 2+i*4, shade(wall,.92));
     }
+    /* ---- the grounds, far to near ---- */
+    const leaf = ['#3f6b4a','#4e8058','#568a5e'], hedgeC = '#4e7a50';
+    const tree = (ta, tb, s = 1) => {
+      if(!state.props) return;
+      cyl(ta, tb, 0, 46*s, 6*s, '#6b5a3a');
+      for(let k=0;k<5;k++) ball(ta + 16*s*Math.cos(k*1.26+0.3), tb + 16*s*Math.sin(k*1.26+0.3), 58*s, 18*s, leaf[k%3]);
+      ball(ta, tb, 74*s, 17*s, '#4e8058');
+    };
+    /* a low clipped hedge along the lot edge, open where a walk meets it */
+    const hedgeRunA = (a0, a1, bb) => box(a0, a1, bb-14, bb+14, 0, 30, shade(hedgeC,1.08), hedgeC, shade(hedgeC,.8));
+    const hedgeRunB = (b0, b1, aa) => box(aa-14, aa+14, b1, b0, 0, 30, shade(hedgeC,1.08), hedgeC, shade(hedgeC,.8));
+    hedgeRunA(24, CA-70, -LOT+24); hedgeRunA(CA+70, LOT-24, -LOT+24);       // back
+    hedgeRunB(-24, CB+70, 24);     hedgeRunB(CB-70, -LOT+24, 24);           // left side street
+    /* the reflecting pool, on the axis behind the back entrance */
+    { const p0 = CA-260, p1 = CA+260, q0 = bb1-150, q1 = bb1-470;
+      box(p0-14, p1+14, q1-14, q0+14, 0, 14, shade(wall,.96), shade(wall,.82), shade(wall,.7));
+      T(p0, p1, q1, q0, 12, '#3f8fa0');
+      T(p0+20, p1-20, q1+20, q0-20, 12.3, '#57a9b8'); }
+    for(const [ta, tb] of [[150,-1500],[150,-1200],[150,-420],[150,-160],[CA-420,-1520],[CA+420,-1520],
+                           [CA-420,bb1-120],[CA+420,bb1-120]].sort((u,v) => (u[0]+u[1]) - (v[0]+v[1]))) tree(ta, tb);
 
     /* ---- the volume ----
        Drawn directly rather than through body(), which starts at b 0
@@ -25495,7 +25536,7 @@ function houseCanopy(fn){
        builds and what gives the arch something to be great against.
        Frames 40 wide on a 61 pitch: screen gap is pitch - width - 7, so
        that is 14 of pier between them. */
-    for(const fx0 of [160,221,282,343, 665.8,726.8,787.8,848.8]){
+    for(const fx0 of [160+OA,221+OA,282+OA,343+OA, 665.8+OA,726.8+OA,787.8+OA,848.8+OA]){
       slab(fx0, fx0+40, 150, 244, bb0, bb0-8, trim);
       F(fx0+4, fx0+36, 158, 236, '#7fa8b4', null,0, bb0-4.5);
       F(fx0+18.5, fx0+21.5, 158, 236, trim, null,0, bb0-3.8);
@@ -25610,6 +25651,18 @@ function houseCanopy(fn){
         cyl(va, vb, H+56, H+66, 16, '#aeb4b8');
       }
     }
+    /* ---- the grounds in front of the building's seen faces ---- */
+    for(const sgn of [-1, 1]){                                 // beds flanking the front walk
+      const a0 = sgn < 0 ? CA-46-24-220 : CA+46+24, a1 = a0 + 220;
+      box(a0, a1, -100, -40, 0, 10, shade(wall,.92), shade(wall,.78), shade(wall,.66));
+      T(a0+6, a1-6, -94, -46, 10.5, '#6b5a3a');
+      if(state.props) for(let x = a0+22; x < a1-10; x += 32)
+        ball(x, -70, 22, 11, ['#c26a7e','#e8c34a','#7fa8b4','#c9a24a'][Math.round(x/32)%4]);
+    }
+    for(const [ta, tb] of [[bx1+180,-220],[bx1+180,CB-240],[bx1+180,CB+240],[bx1+180,-800],[LOT-150,-1500],[LOT-150,-1200],
+                           [CA-420,-60],[CA+420,-60]].sort((u,v) => (u[0]+u[1]) - (v[0]+v[1]))) tree(ta, tb);
+    hedgeRunB(-24, CB+70, LOT-24); hedgeRunB(CB-70, -LOT+24, LOT-24);      // near side street
+    hedgeRunA(24, CA-70, -24);     hedgeRunA(CA+70, LOT-24, -24);          // the street
     kerb(p,'none');
   }
 },
@@ -25944,7 +25997,8 @@ function houseCanopy(fn){
   }
 },
 {
-  name:'Palmline Nursery', xh: 300, base:'Nursery', hood:'The Flats', edited:true, block:true, ww: 1048.8, dd: 1048.8,
+  name:'Palmline Nursery', xh: 300, base:'Nursery', hood:'The Flats', edited:true, block:true, ww: 1656, dd: 1656,
+  built: [688.6, 968.6, -220, -440],
   wTodo:'a whole block edge -- five packing slots, and the packer places none of them',
   cTodo:'fence line, sales hut and two glasshouses need volumes; the yard itself is drivable',
   head:'Garden centre on a whole block: small hut, big yard, two glasshouses',
@@ -26010,15 +26064,25 @@ function houseCanopy(fn){
        kit gaps the BLOCK LANDMARKS note already records; the hut rolls
        its own opening the way the Bathhouse and the Chapel do. kerb()
        is the other, and is simply not called. */
-    const LOT = 1048.8;
+    /* ============ THE WHOLE BLOCK (2026-09-26) ============
+       The lot was the canvas lab's 1048.8 square on a 1656 block, so the
+       fence stood 300 in from each side street and 600 short of the back
+       one. The yard is the block now. The cross of paths re-centres on
+       it (GAP 793..863 on both axes), which by construction lands the
+       front gate back on the hut's door: the hut keeps its place on the
+       street, a shifted by OA = 303.6. The glasshouses move back past the
+       new cross walk, the staging doubles, and the ground the block added
+       -- down both sides and across the back -- is stock: tree fields and
+       shrub rows. Far before near, split at the hut as before. */
+    const LOT = 1656, OA = 303.6, GB = -300;          // GB: the glasshouses' step back
     const wall = '#e6dcc4', trim = '#3f8a6a', tim = '#8a6f4e';
     const pane = 'rgba(180,214,204,.50)';
-    const GAP0 = 490, GAP1 = 560;                 // the gate gap, both axes
+    const GAP0 = 793, GAP1 = 863;                 // the gate gap, both axes
 
     /* ---- the ground: gravel, then the cross of paths on top of it ---- */
     T(0, LOT, -LOT, 0, 0, '#b3aa93');
     T(GAP0, GAP1, -220, 0, 0.5, '#d6d0bd');       // front gate to the hut door
-    T(GAP0, GAP1, -LOT, -440, 0.5, '#d6d0bd');    // back gate to the cross walk
+    T(GAP0, GAP1, -LOT, -440, 0.5, '#d6d0bd');    // back gate to the hut
     T(0, LOT, -GAP1, -GAP0, 0.5, '#d6d0bd');
 
     /* ---- the boundary, and the four gates ----
@@ -26077,8 +26141,21 @@ function houseCanopy(fn){
         poly([P(aa-26,bm,rz+2),P(aa+26,bm,rz+2),P(aa+26,bm-46,rz-12),P(aa-26,bm-46,rz-12)],
              'rgba(200,228,220,.62)', shade(trim,1.25), 2);
     };
-    glasshouse(60, 450, -600, -990, 88, 148);
-    glasshouse(600, 990, -600, -990, 88, 148);
+    /* ---- the stock the block added, all behind the hut: the back rows
+       of shrubs, the tree fields down each side of the glasshouses ---- */
+    const shrub = (sa, sb, c) => {
+      cyl(sa, sb, 0, 18, 12, '#9a8a68');
+      plateCircle(sa, sb, 18, 10, '#5a4a30');
+      ball(sa, sb, 32, 17, ['#4e8058','#3f6b4a','#568a5e','#c26a7e','#e8c34a'][c%5]);
+    };
+    if(state.props){
+      for(let r=0;r<3;r++) for(let c=0;c<20;c++){
+        const sa = 60 + c*78; if(sa > GAP0-30 && sa < GAP1+30) continue;
+        shrub(sa, -1600 + r*90, r*3 + c);
+      }
+    }
+    glasshouse(60+OA, 450+OA, -600+GB, -990+GB, 88, 148);
+    glasshouse(600+OA, 990+OA, -600+GB, -990+GB, 88, 148);
 
     /* ---- specimen trees, the FAR row, before the hut ----
        A stacking fault on the first pass: every tree was drawn in one
@@ -26098,7 +26175,12 @@ function houseCanopy(fn){
       }
       ball(ta, tb, th+6, 15, '#4e8058');
     };
-    const hA0 = 385, hA1 = 665, hB0 = -220, hB1 = -440, hH = 150, FB = hB0 + 0.5;
+    const hA0 = 385+OA, hA1 = 665+OA, hB0 = -220, hB1 = -440, hH = 150, FB = hB0 + 0.5;
+    /* the tree fields down the sides, behind the cross walk */
+    if(state.props) for(let r=0;r<6;r++) for(const ta of [70, 170, 270]){
+      const tb = -930 - r*110;
+      tree(ta, tb, [150,120,138,114,132,126][(r+ta/100|0)%6]);
+    }
     /* ---- the tree field, front left ----
        Moving the hut onto the gate axis emptied the whole front-left
        quarter, and at Sir's direction it fills with stock rather than
@@ -26125,7 +26207,7 @@ function houseCanopy(fn){
        -400, so the back rows are short and the front two run the full
        width -- which is also what a nursery bed looks like, tapering
        away behind the building rather than marching under it. */
-    const ROWS = [[-70, 5],[-180, 5],[-290, 3],[-400, 2]];
+    const ROWS = [[-70, 5],[-180, 5],[-290, 5],[-400, 5],[-510, 5],[-620, 5],[-730, 5]];
     const GROVE = [];
     ROWS.forEach(([tb, n], r) => {
       for(let c=0;c<n;c++)
@@ -26142,11 +26224,11 @@ function houseCanopy(fn){
     F(hA0+4, hA1-4, 0, 20, shade(tim,.72), null, 0, FB);           // plinth
     for(let k=0;k<7;k++)                                            // boarding
       F(hA0+4, hA1-4, 24+k*17, 26+k*17, shade(tim,.86), null, 0, FB+0.2);
-    F(494, 556, 0, 108, '#2b2118', null, 0, FB+0.4);                // the doorway, on 525
-    F(498, 552, 0, 82, trim, null, 0, FB+0.9);                      // leaf
-    F(498, 552, 84, 104, 'rgba(122,158,178,.72)', null, 0, FB+0.7); // fanlight
-    F(544, 548, 40, 52, '#d8c28a', null, 0, FB+1.2);                // handle
-    for(const w0 of [430, 620]){                                    // two windows
+    F(494+OA, 556+OA, 0, 108, '#2b2118', null, 0, FB+0.4);          // the doorway, on 525
+    F(498+OA, 552+OA, 0, 82, trim, null, 0, FB+0.9);                // leaf
+    F(498+OA, 552+OA, 84, 104, 'rgba(122,158,178,.72)', null, 0, FB+0.7); // fanlight
+    F(544+OA, 548+OA, 40, 52, '#d8c28a', null, 0, FB+1.2);          // handle
+    for(const w0 of [430+OA, 620+OA]){                              // two windows
       slab(w0-30, w0+30, 44, 112, FB+1, FB-7, shade(trim,.9));
       F(w0-25, w0+25, 50, 106, 'rgba(122,158,178,.72)', null, 0, FB+1.6);
       F(w0-1.5, w0+1.5, 50, 106, shade(trim,.9), null, 0, FB+2);
@@ -26162,12 +26244,14 @@ function houseCanopy(fn){
          The bench is a real trestle at z 42 and the pots stand ON it;
          each rank is drawn far to near so the near pots are not painted
          under the rank behind them. */
-      for(let r=3;r>=0;r--){
+      /* the staging, two blocks of ranks now: the old one beside the hut
+         and a second out to the side street, far rank to near */
+      for(let r=5;r>=0;r--) for(const o of [OA, OA + 300]){
         const bb = -120 - r*108;
-        slab(720, 1020, 42, 50, bb+22, bb-22, tim, null, shade(tim,1.18));
-        for(const la of [734, 870, 1006]) cyl(la, bb, 0, 42, 6, shade(tim,.8));
+        slab(720+o, 1020+o, 42, 50, bb+22, bb-22, tim, null, shade(tim,1.18));
+        for(const la of [734+o, 870+o, 1006+o]) cyl(la, bb, 0, 42, 6, shade(tim,.8));
         for(let i=0;i<7;i++){
-          const sa = 740 + i*45;
+          const sa = 740 + o + i*45;
           cyl(sa, bb, 50, 68, 11, '#9a8a68');
           plateCircle(sa, bb, 68, 9, '#5a4a30');
           ball(sa, bb, 78, 13, ['#4e8058','#c26a7e','#e8c34a','#3f6b4a','#b4674a'][(i+r)%5]);
@@ -27940,7 +28024,12 @@ function houseCanopy(fn){
   }
 },
 {
-  name:'Saltwater Brewing', xh: 420, base:'Brewery tap', hood:'The Flats', edited:true, tall:true, block:true, ww: 1048.8, dd: 1048.8,
+  name:'Saltwater Brewing', xh: 420, base:'Brewery tap', hood:'The Flats', edited:true, tall:true, block:true, ww: 1656, dd: 1656,
+  built: [483.6, 1029.6, -20, -660],
+  drive: [
+    { side:'front', from: 1169.6, to: 1297.6, col:'#9a917f', arrows:'in' },   // the cart gate, by the dock
+    { side:'front', from: 330, to: 450, col:'#9a917f', arrows:'out' },          // and out round the circuit
+  ],
   wTodo:'a whole block edge -- five packing slots, and the packer places none of them',
   cTodo:'yard wall, gate posts and the dock platform need volumes; the yard itself is drivable',
   head:'Brewery on a whole block: tap room to the street, yard wrapping three sides',
@@ -27996,11 +28085,27 @@ function houseCanopy(fn){
        end on screen-a 231 against a return at 230 with the lettering
        behind its own backing. zTodo 1.11 goes with the height: H 420 is
        2.5 storeys, which is what a still two storeys tall stands in. */
-    const wall = '#8a9a96', trim = '#e0c88a', H = 420, LOT = 1048.8;
+    /* ============ THE WHOLE BLOCK (2026-09-26) ============
+       The yard was the canvas lab's 1048.8 square on a 1656 block, so the
+       wall stood 300 in from each side street and 600 short of the back
+       one, in a band of bare paving. The yard is the block now: the wall
+       runs 24 inside every edge, and the brewhouse keeps its place on the
+       street (a shifted by OA = 303.6, the old lot's origin).
+
+       The ground that bought: the back of the circuit is a real working
+       yard -- crate stacks, cask ranks, a dray parked up -- all kept LOW
+       (under 160), so nothing standing there hides Tipsey on the back
+       street. The left arm, beside the out-gate's cartway, is a beer
+       garden. Both gates moved in from the corners (see `drive`: a gate
+       within ~230 of a corner lands on the corner crossing's kerb cut)
+       and each has a driveway to the street: in by the dock, out at the
+       other, the circuit the wrap was for. */
+    const wall = '#8a9a96', trim = '#e0c88a', H = 420, LOT = 1656, OA = 303.6;
     const inner = '#231710', copper = '#b87333', glass = 'rgba(150,132,104,.34)';
-    const BA0 = 180, BA1 = 660, FB = -40, BB = -660;    // the brewhouse island
+    const BA0 = 180+OA, BA1 = 660+OA, FB = -40, BB = -660;    // the brewhouse island
     const YW0 = 24, YW1 = LOT - 24, YB = -20, YBK = -LOT + 24;
-    const BAYS = [[216,376],[466,626]];
+    const BAYS = [[216+OA,376+OA],[466+OA,626+OA]];
+    const G1 = [330, 450], G2 = [866+OA, 994+OA];             // out gate, cart gate
     const FH = 72;
     const yWall = (a0,a1,b0,b1) => {
       box(a0, a1, b0, b1, 0, FH, shade(wall,.9), shade(wall,.66), shade(wall,.54));
@@ -28033,7 +28138,7 @@ function houseCanopy(fn){
        the tea house's roof had to be split at its colonnade -- an
        object spanning a circuit is not one item in the queue. */
     for(let k=0;k<4;k++)
-      box(300+k*3, 430-k*3, -800+k*3, -900+k*3, k*26, k*26+24,
+      box(300+OA+k*3, 430+OA-k*3, -800+k*3, -900+k*3, k*26, k*26+24,
           '#7d6650','#6b5540','#5c4836');
     /* CASKS GO IN DEPTH ORDER, NOT IN THE ORDER THEY WERE TYPED. A
        group of them written [540,-780], [572,-780], [556,-816] has keys
@@ -28048,13 +28153,39 @@ function houseCanopy(fn){
       for(const hz of [z0+7, z0+17, z0+27]) plateHoop(ca, cb, hz, 12, '#5c4632', 2);
       plateCircle(ca, cb, z0+34, 11, '#a06a3e', '#75492a', 1.6);
     };
-    for(const [ca, cb] of [[540,-780],[572,-780],[556,-816]]
+    for(const [ca, cb] of [[540+OA,-780],[572+OA,-780],[556+OA,-816]]
         .sort((u,v) => (u[0]+u[1]) - (v[0]+v[1]))) cask(ca, cb, 0);
+
+    /* ---- THE BACK YARD AND THE BEER GARDEN, all behind the brewhouse's
+       seen faces, so before it. Far to near. ---- */
+    const crates = (ca, cb, n) => {
+      for(let k=0;k<n;k++)
+        box(ca+k*3, ca+120-k*3, cb-k*3, cb-90+k*3, k*26, k*26+24, '#7d6650','#6b5540','#5c4836');
+    };
+    for(const [ca, cb, n] of [[120,-1440,4],[300,-1460,3],[120,-1260,2],[720,-1440,4],[900,-1420,3]]) crates(ca, cb, n);
+    { const rows = [];
+      for(let r=0;r<2;r++) for(let c=0;c<6;c++) rows.push([420 + c*30, -1180 - r*34]);
+      for(const [ca, cb] of rows.sort((u,v) => (u[0]+u[1]) - (v[0]+v[1]))) cask(ca, cb, 0);
+      for(let c=0;c<5;c++) cask(435 + c*30, -1197, 34); }
+    if(state.props){
+      /* the beer garden: picnic tables down the left arm, a planter at
+         each end of the run */
+      const table = (ta, tb) => {
+        for(const d of [-34, 34]) slab(ta-40, ta+40, 22, 28, tb+d+10, tb+d-10, '#8a6f4e', null, shade('#8a6f4e',1.2));
+        slab(ta-48, ta+48, 40, 46, tb+22, tb-22, '#9a7f5a', null, shade('#9a7f5a',1.2));
+        for(const la of [ta-36, ta+36]) box(la-3, la+3, tb-30, tb+30, 0, 40, '#6b5540','#5c4836','#4a3a2a');
+      };
+      for(let r=0;r<4;r++) for(const ta of [110, 240]) table(ta, -120 - r*130);
+      for(const pb of [-70, -640]){
+        box(60, 290, pb-18, pb+18, 0, 30, shade(wall,.9), shade(wall,.72), shade(wall,.6));
+        for(let x = 80; x < 280; x += 40) ball(x, pb, 36, 16, ['#4e8058','#3f6b4a','#568a5e'][(x/40)%3|0]);
+      }
+    }
 
     /* ---- the back wall of the brewhouse ---- */
     F(BA0, BA1, 0, H, shade(wall,.86), null, 0, BB);
     F(BA0, BA1, 0, 24, shade(wall,.66), null, 0, BB-0.4);
-    for(const wa of [280, 560]){
+    for(const wa of [280+OA, 560+OA]){
       F(wa-44, wa+44, 250, 330, shade(wall,1.1), null, 0, BB-0.6);
       F(wa-38, wa+38, 256, 324, '#3f5a68', null, 0, BB-1);
       F(wa-2, wa+2, 256, 324, shade(wall,1.1), null, 0, BB-1.4);
@@ -28105,7 +28236,7 @@ function houseCanopy(fn){
       ctx.clip();
       slab(x0+6, x1-6, 24, 30, FB-10, FB-44, shade(wall,.86), null, shade(wall,1.0));
       if(n === 0){
-        const sa = 296, sb = FB-38;
+        const sa = 296+OA, sb = FB-38;
         cyl(sa, sb, 22, 26, 24, '#3a2e26');
         F(sa-13, sa+13, 24, 38, '#e8a13a', null, 0, sb-24.4);
         cyl(sa, sb, 30, 84, 30, copper);
@@ -28116,11 +28247,11 @@ function houseCanopy(fn){
         cyl(sa+48, sb, 52, 104, 9, '#a8672c');
         plateCircle(sa+48, sb, 104, 9, '#c9803a');
       } else {
-        cyl(516, FB-38, 30, 96, 30, '#8a7a58');
-        for(const hz of [44, 62, 80]) plateHoop(516, FB-38, hz, 31, '#5c4632', 2.5);
-        plateCircle(516, FB-38, 96, 30, '#9a8a66', '#75674a', 2);
+        cyl(516+OA, FB-38, 30, 96, 30, '#8a7a58');
+        for(const hz of [44, 62, 80]) plateHoop(516+OA, FB-38, hz, 31, '#5c4632', 2.5);
+        plateCircle(516+OA, FB-38, 96, 30, '#9a8a66', '#75674a', 2);
         for(let r=0;r<2;r++) for(let c=0;c<3;c++){
-          const ca = 566 + c*22, cz = 30 + r*38, cb = FB-24 - r*8;
+          const ca = 566 + OA + c*22, cz = 30 + r*38, cb = FB-24 - r*8;
           cyl(ca, cb, cz, cz+34, 11, '#8a5a34');
           for(const hz of [cz+7, cz+17, cz+27]) plateHoop(ca, cb, hz, 12, '#5c4632', 2);
           plateCircle(ca, cb, cz+34, 11, '#a06a3e', '#75492a', 1.6);
@@ -28133,18 +28264,18 @@ function houseCanopy(fn){
     });
     /* the tap-room door, hand-rolled: the frontage is 40 back and
        shopDoor draws at b 0 */
-    F(384, 458, 0, 150, shade(wall,1.14), null, 0, FB+6.4);
-    F(390, 452, 0, 120, '#2b2119', null, 0, FB+6.8);
-    for(const [d0,d1] of [[394,419],[423,448]]){
+    F(384+OA, 458+OA, 0, 150, shade(wall,1.14), null, 0, FB+6.4);
+    F(390+OA, 452+OA, 0, 120, '#2b2119', null, 0, FB+6.8);
+    for(const [d0,d1] of [[394+OA,419+OA],[423+OA,448+OA]]){
       F(d0, d1, 4, 112, trim, shade(trim,.7), 1.6, FB+7.2);
       F(d0+3, d1-3, 62, 106, shade(wall,.8), null, 0, FB+7.6);
     }
-    F(390, 452, 122, 144, 'rgba(200,214,224,.7)', null, 0, FB+7.2);
+    F(390+OA, 452+OA, 122, 144, 'rgba(200,214,224,.7)', null, 0, FB+7.2);
 
     slab(BA0, BA1, 156, 200, FB+6, FB, shade(wall,1.25), null, trim);  // fascia
     F(BA0+24, BA1-24, 166, 190, trim, null,0, FB+6.6);
     for(let i=0;i<5;i++){                                              // upper floor
-      const c = 232 + i*88;
+      const c = 232 + OA + i*88;
       slab(c-38, c+38, 214, 314, FB+3, FB-13, shade(wall,1.1), null, trim);
       F(c-30, c+30, 222, 306, '#3f5a68', null, 0, FB-14);
       F(c-30, c+30, 222, 306, 'rgba(126,108,84,.72)', null, 0, FB+0.4);
@@ -28175,8 +28306,17 @@ function houseCanopy(fn){
     for(let i=3;i>=0;i--) cask(BA1+33, -180-i*120, 34);   // far to near along the deck
 
     /* ---- the stock on the NEAR run, and then the near wall ---- */
-    for(const [ca, cb] of [[900,-700],[932,-700],[840,-420],[872,-420],[856,-456]]
+    for(const [ca, cb] of [[900+OA,-700],[932+OA,-700],[840+OA,-420],[872+OA,-420],[856+OA,-456]]
         .sort((u,v) => (u[0]+u[1]) - (v[0]+v[1]))) cask(ca, cb, 0);
+    /* the dray, parked up on the near arm behind the dock: a flatbed and
+       cab at a real vehicle's size (CARC 225 x 90), loaded with casks */
+    { const da = 1290, db = -1000;
+      for(const wb of [db-110, db-30, db+90]) for(const wa of [da-54, da+54])     // tyres, side on
+        box(wa-6, wa+6, wb-17, wb+17, 0, 32, '#2b2119', '#231a14', '#1c1510');
+      box(da-50, da+50, db-150, db+60, 14, 44, '#5c4836', '#4a3a2a', '#3a2c20');       // bed
+      box(da-48, da+48, db+60, db+122, 14, 118, shade(wall,1.1), shade(wall,.86), shade(wall,.7));   // cab
+      F(da-40, da+40, 72, 108, '#3f5a68', null, 0, db+122.4);
+      for(const [ca, cb] of [[da-22,-1110],[da+22,-1110],[da-22,-1060],[da+22,-1060]]) cask(ca, cb, 44); }
     yWall(YW1-12, YW1, YBK, YB);                                       // the right run
     /* ---- the street wall, and the circuit has a gate at EACH end ----
        The left return of the yard was closed with a plain wall run and
@@ -28192,7 +28332,7 @@ function houseCanopy(fn){
        the other -- which is what the wrap was for, and it puts two of
        the landmark's four entrances on the same street as the tap room
        rather than leaving them on faces the camera never shows. */
-    for(const [a0,a1] of [[672, 866],[994, YW1]]) yWall(a0, a1, YB-12, YB);
+    for(const [a0,a1] of [[YW0, G1[0]], [G1[1], BA0-12], [BA1+12, G2[0]], [G2[1], YW1]]) yWall(a0, a1, YB-12, YB);
     const gate = (g0, g1) => {
       for(const ga of [g0, g1]){
         cyl(ga, YB-6, 0, 116, 10, shade(wall,.62));
@@ -28201,10 +28341,10 @@ function houseCanopy(fn){
       slab(g0-12, g1+12, 116, 140, YB+3, YB-15, trim, null, shade(trim,1.1));
       F(g0, g1, 122, 134, shade(wall,1.2), null, 0, YB+3.6);
     };
-    gate(866, 994);
-    gate(36, 156);
+    gate(G2[0], G2[1]);
+    gate(G1[0], G1[1]);
 
-    if(state.roof) for(const [aa,bb] of [[260,-180],[400,-360],[560,-220],[330,-560]]){
+    if(state.roof) for(const [aa,bb] of [[260+OA,-180],[400+OA,-360],[560+OA,-220],[330+OA,-560]]){
       cyl(aa, bb, H, H+56, 13, '#8a8272');
       cyl(aa, bb, H+56, H+66, 18, '#9a9282');
       plateCircle(aa, bb, H+66, 18, '#a8a08e', '#7d7566', 2);
@@ -28213,7 +28353,7 @@ function houseCanopy(fn){
   back(p){
     /* REAR ELEVATION (2026-09-17): this one stands in its own yard with a
        way in from every street, so from behind it is itself turned round. */
-    turned(1048.8, 1048.8, () => this.draw(p));
+    turned(1656, 1656, () => this.draw(p));
   }
 },
 {
@@ -29905,7 +30045,13 @@ function houseCanopy(fn){
   }
 },
 {
-  name:'Dune Home & Garden', xh: 236, base:'Home store', hood:'The Flats', edited:true, block:true, ww: 1048.8, dd: 1048.8,
+  name:'Dune Home & Garden', xh: 236, base:'Home store', hood:'The Flats', edited:true, block:true, ww: 1656, dd: 1656,
+  built: [343.6, 1323.6, -816, -1390],
+  drive: [
+    { side:'front', from: 680, to: 920, col:'#6b6f6c', arrows:'both' },     // the car park
+    { side:'a0', from: -330, to: -550, col:'#6b6f6c', arrows:'both' },       // the side street, into the aisle
+    { side:'back', from: 1100, to: 1300, col:'#6b6f6c', arrows:'both' },     // the service yard, off the back street
+  ],
   wTodo:'a whole block edge -- five packing slots, and the packer places none of them',
   cTodo:'store box, entrance tower, garden cage, pylon sign, light masts, islands and trolley bays need volumes; the car park itself is drivable',
   head:'Big-box home store on a whole block: car park, garden centre, pylon sign',
@@ -29961,28 +30107,88 @@ function houseCanopy(fn){
 
        NO BRAND. The band and the sign panel carry blocks where letters
        would be, the way every other name board in this file does. */
-    const LOT = 1048.8;
+    /* ============ THE WHOLE BLOCK (2026-09-26) ============
+       Same correction as Pelican Drug. The lot was the canvas lab's
+       block:true square, 1048.8 -- one edge's usable run -- on a block
+       whose land is 1656 square, so it sat centred on its edge in 300 of
+       bare paving each side and 600 behind. And its bays were the lab's
+       48 x 86 against a game car of CARC 225 x 90 drawn 1:1: a third of a
+       car each (Sir had just caught exactly that on Pelican).
+
+       The lot is the block. The store keeps its place along the street
+       (a shifted by OA = 303.6, the old lot's origin) and steps back
+       DB = -380 so two ranks of BW x BD = 120 x 260 bays and a 240 aisle
+       fit in front of the walk. The garden centre stays on its flank;
+       planted beds take the ground either side, the service dock gets a
+       yard behind, and three driveways (see `drive`) come in off three
+       streets -- the front into the aisle, the a = 0 side street into the
+       aisle, the back street into the service yard.
+
+       ORDER IS DEPTH, as on Pelican: nearer is +a and +b, so what stands
+       behind the store's visible faces is drawn before it. */
+    const LOT = 1656, OA = 303.6, DB = -380, BW = 120, BD = 260;
     const wall = '#d9d2c2', band = '#2f8a8f', conc = '#a2a6a4', asph = '#6b6f6c';
     const roofc = '#a3a89f', glass = 'rgba(126,166,186,.72)';
-    const SA0 = 40, SA1 = 760, SB0 = -500, SB1 = -1010, PZ = 236, RD = 220;
-    const GA0 = 760, GA1 = 1020, GB0 = -500, GB1 = -860, GH = 148;
-    const EA0 = 330, EA1 = 540, EB = -436, EZ = 288;      // entrance tower
-    const XO = [[120,268],[610,758]];                      // the two crossovers
+    const SA0 = 40+OA, SA1 = 760+OA, SB0 = -500+DB, SB1 = -1010+DB, PZ = 236, RD = 220;
+    const GA0 = 760+OA, GA1 = 1020+OA, GB0 = -500+DB, GB1 = -860+DB, GH = 148;
+    const EA0 = 330+OA, EA1 = 540+OA, EB = -436+DB, EZ = 288;   // entrance tower
+    const R1 = -60, R2 = SB0 + 60;                              // the ranks' back lines
+    const DR0 = 680, DR1 = 920;                                 // the front entrance, lab a
+    const line = '#d9d5c6', leaf = ['#3f6b4a','#4e8058','#568a5e'];
 
     /* ---- the ground, and everything painted on it ---- */
     T(0, LOT, -LOT, 0, 0, asph);
-    T(SA0-24, GA1, SB0, -440, 4, conc);                    // the front walk
-    const stall = (b0, b1) => {                            // one row of painted bays
-      T(56, 1000, b1-3, b1+3, 0.6, '#d9d5c6');
-      for(let x=56; x<=1000.1; x+=48) T(x-2.5, x+2.5, b0, b1, 0.6, '#d9d5c6');
+    const hedgeA = (a0, a1, bb) => {                         // kerb + shrubs running along a
+      box(a0, a1, bb-13, bb+13, 0, 14, shade(conc,1.04), shade(conc,.82), shade(conc,.68));
+      if(state.props) for(let x = a0+26; x < a1-18; x += 54) ball(x, bb, 24, 15, leaf[Math.round(x/54)%3]);
     };
-    stall(-86, -172); stall(-172, -258); stall(-344, -430);
-    for(let i=0;i<2;i++){                                  // accessible bays, by the entrance
-      const x0 = 392 + i*48;
-      T(x0+2, x0+46, -344, -430, 0.7, '#3f6b9a');
-      T(x0+18, x0+30, -370, -404, 0.9, '#d9d5c6');
+    const hedgeB = (b0, b1, aa) => {                         // kerb + shrubs running along b (b0 > b1)
+      box(aa-13, aa+13, b1, b0, 0, 14, shade(conc,1.04), shade(conc,.82), shade(conc,.68));
+      if(state.props) for(let y = b1+26; y < b0-18; y += 54) ball(aa, y, 24, 15, leaf[Math.round(-y/54)%3]);
+    };
+    hedgeA(0, 1080, -LOT+15); hedgeA(1320, LOT, -LOT+15);   // the far kerbs first, open at the yard
+    for(const [r0, r1] of [[-40, R1-BD-10], [R2+BD+10, -LOT+40]]) hedgeB(r0, r1, 15);
+    T(SA0-24, GA1, SB0, SB0+60, 4, conc);                    // the front walk
+    const rank = (bBack, dir, a0, a1) => {                   // bay lines out from the back line
+      const bOpen = bBack + dir*BD, n = Math.floor((a1 - a0)/BW + 0.01), e1 = a0 + n*BW;
+      T(a0, e1, bBack-3, bBack+3, 0.6, line);
+      for(let x = a0; x <= e1+0.1; x += BW) T(x-3, x+3, Math.min(bBack, bOpen), Math.max(bBack, bOpen), 0.6, line);
+    };
+    rank(R1, -1, 190, DR0-10); rank(R1, -1, DR1+10, 1530);   // along the street, split by the entrance
+    rank(R2, +1, 190, 1510);                                 // along the walk
+    for(const x0 of [190 + 3*BW, 190 + 4*BW]){               // accessible bays, by the entrance
+      T(x0+6, x0+BW-6, R2+6, R2+BD-6, 0.7, '#3f6b9a');
+      T(x0+BW/2-14, x0+BW/2+14, R2+100, R2+160, 0.9, line);
     }
-    for(const [c0,c1] of XO) T(c0, c1, -30, 0, 0.6, conc); // crossover aprons
+    /* the entrance and the side street's: IN / OUT at the aisle mouth */
+    { const arrowB = (am, bb, k) => poly([P(am,bb-k*40,0),P(am-22,bb-k*6,0),P(am-8,bb-k*6,0),P(am-8,bb+k*34,0),
+                                          P(am+8,bb+k*34,0),P(am+8,bb-k*6,0),P(am+22,bb-k*6,0)], line);
+      const dm = (DR0+DR1)/2; arrowB(dm-55, -190, 1); arrowB(dm+55, -190, -1);
+      const arrowA = (am, bb, k) => poly([P(am+k*40,bb,0),P(am+k*6,bb-22,0),P(am+k*6,bb-8,0),P(am-k*34,bb-8,0),
+                                          P(am-k*34,bb+8,0),P(am+k*6,bb+8,0),P(am+k*6,bb+22,0)], line);
+      const ab = (R1 - BD + R2 + BD)/2; arrowA(90, ab-55, 1); arrowA(90, ab+55, -1); }
+
+    /* ---- behind the store's faces: before it ---- */
+    const tree = (ta, tb) => {
+      cyl(ta, tb, 12, 46, 5, '#6b5a3a');
+      for(let k=0;k<4;k++) ball(ta + 11*Math.cos(k*1.57+0.5), tb + 11*Math.sin(k*1.57+0.5), 56, 13, leaf[k%3]);
+      ball(ta, tb, 66, 12, '#4e8058');
+    };
+    const bed = (a0, a1, b0, b1, trees) => {                 // a planted island, b0 > b1
+      box(a0, a1, b1, b0, 0, 12, shade(conc,1.06), shade(conc,.84), shade(conc,.70));
+      T(a0+8, a1-8, b1+8, b0-8, 12.5, '#557a4c');
+      if(state.props) for(const [ta, tb] of trees) tree(ta, tb);
+    };
+    const mast = (ma, mb) => {
+      if(!state.props) return;
+      cyl(ma, mb, 0, 16, 11, shade(conc,.8));
+      cyl(ma, mb, 16, 172, 5, '#8d949a');
+      for(const d of [-26, 26]){
+        tube(ma, mb, 172, ma+d, mb, 176, 2.4, '#8d949a');
+        box(ma+d-20, ma+d+20, mb-13, mb+13, 170, 180, '#c9ced2','#a6acb1','#8d949a');
+      }
+    };
+    bed(40, SA0-60, SB0-30, SB1+30, [[120, SB0-120], [220, SB0-260], [120, SB0-400]]);
 
     /* ---- the service dock, at the back ----
        Three of the four streets look at this side, so it is built even
@@ -29992,7 +30198,7 @@ function houseCanopy(fn){
     T(SA0, SA1, SB1, SB1+70, 46, shade(conc,1.10));
     F(SA0, SA1, 0, 46, shade(conc,.70), null, 0, SB1+70);
     for(let i=0;i<3;i++){
-      const x0 = 120 + i*200;
+      const x0 = 120 + OA + i*200;
       F(x0, x0+130, 46, 158, '#20242a', null, 0, SB1+1);
       slab(x0-7, x0+137, 158, 174, SB1-9, SB1+2, shade(wall,1.14));
     }
@@ -30001,11 +30207,11 @@ function houseCanopy(fn){
     box(SA0, SA1, SB1, SB0, 0, PZ, shade(wall,1.16), wall, shade(wall,.80));
     T(SA0+12, SA1-12, SB1+12, SB0-12, RD, roofc);
     if(state.roof){
-      for(const [ra,rb] of [[180,-620],[340,-780],[520,-640],[640,-840]]){   // rooftop plant
+      for(const [ra,rb] of [[180+OA,-620+DB],[340+OA,-780+DB],[520+OA,-640+DB],[640+OA,-840+DB]]){   // rooftop plant
         box(ra-46, ra+46, rb-34, rb+34, RD, RD+26, shade(roofc,1.30), shade(roofc,1.06), shade(roofc,.86));
         box(ra-30, ra+30, rb-20, rb+20, RD+26, RD+32, shade(roofc,1.40), shade(roofc,1.14), shade(roofc,.92));
       }
-      cyl(SA1-70, -900, RD, RD+44, 7, '#6d747c');
+      cyl(SA1-70, -900+DB, RD, RD+44, 7, '#6d747c');
     }
 
     /* ---- the front elevation ---- */
@@ -30015,7 +30221,7 @@ function houseCanopy(fn){
     F(SA0+2, SA1-2, 182, 218, band, null, 0, SB0+1.2);                       // the name band
     for(let k=0;k<9;k++) F(SA0+34+k*76, SA0+86+k*76, 190, 210, shade(wall,.42), null, 0, SB0+1.7);
     F(SA0+2, SA1-2, 218, 225, shade(band,.72), null, 0, SB0+1.2);
-    for(const [w0,w1] of [[176,318],[556,700]]){                             // glazed runs
+    for(const [w0,w1] of [[176+OA,318+OA],[556+OA,700+OA]]){                             // glazed runs
       slab(w0-6, w1+6, 14, 152, SB0+7, SB0-2, shade(wall,.72));
       F(w0, w1, 20, 146, glass, null, 0, SB0+7.5);
       for(let k=1;k<5;k++) F(w0+(w1-w0)*k/5-2, w0+(w1-w0)*k/5+2, 20, 146, shade(wall,1.2), null, 0, SB0+8);
@@ -30102,96 +30308,53 @@ function houseCanopy(fn){
     slab(GA0+78, GA1-78, GH+8, GH+34, GB0-1, GB0-11, shade(wall,1.10), null, shade(wall,1.28));
     F(GA0+92, GA1-92, GH+14, GH+28, band, null, 0, GB0-0.5);
 
+    /* ---- in front of the store's faces: after it ---- */
+    bed(GA1+60, LOT-60, SB0-30, SB1+30, [[(GA1+LOT)/2, SB0-110], [(GA1+LOT)/2, SB0-270], [(GA1+LOT)/2, SB0-430]]);
     if(state.props){
-      /* ---- the car park, far to near ---- */
-      const island = (a0, a1, bb) => {
-        box(a0, a1, bb-38, bb+38, 0, 12, shade(conc,1.06), shade(conc,.84), shade(conc,.70));
-        for(const ta of [a0+34, (a0+a1)/2, a1-34]){
-          cyl(ta, bb, 12, 46, 5, '#6b5a3a');
-          for(let k=0;k<4;k++) ball(ta + 11*Math.cos(k*1.57+0.5), bb + 11*Math.sin(k*1.57+0.5), 56, 13, ['#3f6b4a','#4e8058','#568a5e'][k%3]);
-          ball(ta, bb, 66, 12, '#4e8058');
-        }
-      };
-      const mast = (ma, mb) => {
-        cyl(ma, mb, 0, 16, 11, shade(conc,.8));
-        cyl(ma, mb, 16, 172, 5, '#8d949a');
-        for(const d of [-26, 26]){
-          tube(ma, mb, 172, ma+d, mb, 176, 2.4, '#8d949a');
-          box(ma+d-20, ma+d+20, mb-13, mb+13, 170, 180, '#c9ced2','#a6acb1','#8d949a');
-        }
-      };
-      const corral = (ca, cb) => {
-        for(const aa of [ca, ca+96]) for(const z of [30, 58])
-          tube(aa, cb+30, z, aa, cb-30, z, 1.8, '#9aa0a2');
-        for(const aa of [ca, ca+96]) for(const bb of [cb+30, cb-30]) cyl(aa, bb, 0, 62, 3, '#9aa0a2');
-        for(let k=0;k<4;k++){
-          const x = ca + 16 + k*20;
-          box(x, x+26, cb-18, cb+18, 12, 40, '#b8bec2','#9aa0a2','#868c90');
-          for(const bb of [cb-18, cb+18]) tube(x+2, bb, 12, x+2, bb, 46, 1.4, '#9aa0a2');
-        }
-      };
-      /* ---- ORDER VERSUS DEPTH, and it was drawn backwards ----
-         The car park was painted islands, masts, corrals, then the front
-         walk -- and the front walk is the FARTHEST thing in this block.
-         The walk bollards sit at b -452 against masts at b -301, so two
-         of them were painted straight through a mast that stands 150
-         units in front of them.
-
-         Measured rather than eyeballed, because only one of the two is
-         visible enough to notice. Screen-a is a - b:
-
-           bollard a 280  ->  732      mast a 430  ->  731     1 apart
-           bollard a 720  -> 1172      mast a 880  -> 1181     9 apart
-
-         Two fixes, and both are needed. The block is ordered far to near
-         now -- b -452, then -301, then -58 -- which makes the occlusion
-         correct. But correct occlusion of a bollard that stands exactly
-         behind a mast base is still a bollard nobody can see, so the
-         masts move off the line as well: 470 and 820 put 39 and 51
-         between them and the nearest bollard.
-
-         The bagged goods on the walk are gone at Sir's direction. */
-      for(let i=0;i<7;i++){                                    // front walk, farthest
-        const ba = 60 + i*110;
+      for(let i=0;i<9;i++){                                    // bollards on the walk
+        const ba = SA0 + 30 + i*110;
         if(ba > EA0-30 && ba < EA1+30) continue;
-        cyl(ba, -452, 0, 30, 6, band);
-        plateHoop(ba, -452, 21, 6, shade(band,.6), 3);
-        ball(ba, -452, 30, 6, shade(band,1.14));
+        cyl(ba, SB0+48, 0, 30, 6, band);
+        plateHoop(ba, SB0+48, 21, 6, shade(band,.6), 3);
+        ball(ba, SB0+48, 30, 6, shade(band,1.14));
       }
-      island(64, 260, -301);  island(560, 756, -301);          // then the back row
-      mast(470, -301);        mast(820, -301);
-      corral(300, -301);
-      island(64, 260, -58);   island(800, 996, -58);           // then the front row
-      mast(430, -58);
-      corral(560, -58);
     }
+    const corral = (ca, cb) => {
+      if(!state.props) return;
+      for(const aa of [ca, ca+96]) for(const z of [30, 58])
+        tube(aa, cb+30, z, aa, cb-30, z, 1.8, '#9aa0a2');
+      for(const aa of [ca, ca+96]) for(const bb of [cb+30, cb-30]) cyl(aa, bb, 0, 62, 3, '#9aa0a2');
+      for(let k=0;k<4;k++){
+        const x = ca + 16 + k*20;
+        box(x, x+26, cb-18, cb+18, 12, 40, '#b8bec2','#9aa0a2','#868c90');
+        for(const bb of [cb-18, cb+18]) tube(x+2, bb, 12, x+2, bb, 46, 1.4, '#9aa0a2');
+      }
+    };
+    /* the walk rank first (farther), then the street rank */
+    bed(40, 180, R2+BD, R2, [[110, R2+80]]);  mast(110, R2+190);
+    bed(1520, LOT-40, R2+BD, R2, [[1570, R2+80]]); mast(1570, R2+190);
+    corral(202, R2+130); corral(1402, R2+130);
+    bed(40, 180, R1, R1-BD, [[110, R1-215]]);
+    bed(1540, LOT-40, R1, R1-BD, [[1590, R1-80]]); mast(1590, R1-200);
+    bed(DR0-10+2, DR0-2, R1, R1-BD, []); bed(DR1+2, DR1+10-2, R1, R1-BD, []);
 
-    /* ---- the pylon sign, out on the corner ---- */
-    { const PA = 196, PB = -62;
+    /* ---- the pylon sign, on the corner island ---- */
+    { const PA = 110, PB = R1 - 80;
       for(const d of [-38, 38]) cyl(PA+d, PB, 0, 196, 8, shade(wall,.72));
       slab(PA-68, PA+68, 196, 312, PB+9, PB-9, shade(wall,1.12), null, shade(wall,1.3));
       F(PA-60, PA+60, 203, 305, band, null, 0, PB+9.5);
       for(let k=0;k<4;k++) F(PA-46, PA+46, 213+k*23, 228+k*23, shade(wall,.40), null, 0, PB+10);
-      box(PA-46, PA+46, PB-26, PB+26, 0, 18, shade(conc,1.06), shade(conc,.84), shade(conc,.70));
     }
 
-    /* ---- the kerb and planting on the street line ----
-       Nearest thing on the lot, so it is drawn last, and broken at the
-       two crossovers -- the front boundary is the one place the sign of
-       b can still go wrong, because it is the only side whose edge is
-       b 0 rather than a coordinate you have to type. */
-    const runs = [[0, XO[0][0]], [XO[0][1], XO[1][0]], [XO[1][1], LOT]];
-    for(const [r0,r1] of runs){
-      if(r1 - r0 < 6) continue;
-      box(r0, r1, -30, -2, 0, 14, shade(conc,1.04), shade(conc,.82), shade(conc,.68));
-      if(state.props) for(let x = r0+26; x < r1-18; x += 54)
-        ball(x, -16, 24, 16, ['#4e8058','#568a5e','#3f6b4a'][Math.round(x/54)%3]);
-    }
+    /* ---- the near kerbs: the street, open at the entrance, and the
+       a = LOT side street ---- */
+    hedgeA(0, DR0-20, -15); hedgeA(DR1+20, LOT, -15);
+    hedgeB(-40, -LOT+40, LOT-15);
   },
   back(p){
     /* REAR ELEVATION (2026-09-17): this one stands in its own yard with a
        way in from every street, so from behind it is itself turned round. */
-    turned(1048.8, 1048.8, () => this.draw(p));
+    turned(1656, 1656, () => this.draw(p));
   }
 },
 {
@@ -38838,7 +39001,7 @@ class WorldScene extends Phaser.Scene {
         arrow(am - q, SW/2, true); arrow(am + q, SW/2, false);
         for(let lat = 20; lat < SW - 20; lat += 70)
           this.quadOn(g, [P(am-3, lat), P(am+3, lat), P(am+3, lat+36), P(am-3, lat+36)], PAINT);
-      } else arrow(am, SW/2, true);
+      } else arrow(am, SW/2, d.arrows !== "out");
     }
     /* curb: a genuine vertical riser face, not a wide sloped strip —
        zero width ACROSS the curb line, just a height difference from
