@@ -6185,6 +6185,11 @@ function owAtRampMouth(grid, x, y){
     if(!a) continue;
     for(const r of a) if(Math.abs(r.x - x) <= T2 && Math.abs(r.y - y) <= T2) return true;
   }
+  /* a driveway's mouth is a dropped kerb the width of the drive */
+  for(const d of hoodDrivewaysOf(grid)){
+    const q = driveFrame(d, x, y);
+    if(q.al >= d.al0 && q.al <= d.al1 && Math.abs(q.lat - SIDEWALK_W) <= T2) return true;
+  }
   return false;
 }
 /* Blocks ONLY the climb, and only from a committed road position, so
@@ -10352,7 +10357,7 @@ const DEPOT_HOOD = 0;
    drops (with a warning) any that is not, rather than drawing a
    building on something else. [i, j, home]. */
 const DEPOT_SITES = [
-  [2,0,1], [2,8], [6,4],               //  0 The Flats
+  [2,0,1], [2,8], [7,4],               //  0 The Flats
   [17,6], [10,2], [10,7],              //  1 Boardwalk
   [26,0], [19,0], [24,5],              //  2 Old Town
   [31,7], [32,2], [28,4],              //  3 Scooter Row
@@ -10731,6 +10736,68 @@ function hoodShopVolBlocked(grid, blk, x, y, R){
     }
   }
   return undefined;
+}
+/* ==================== DRIVEWAYS (Sir, 2026-09-26) ====================
+   "can we make the driveway go all the way to the street? give it
+   shoulders too" -- Pelican Drug's drive lane ended at its own hedge, with
+   the pavement and a full kerb between it and the road. An entry that
+   declares `drive: [[a0, a1], ...]` (lab a, the lane's own edges) gets a
+   real one: a concrete apron across the footway, the kerb cut with the
+   same dropped flares a crossing ramp gets (those ARE the shoulders), the
+   climb gate open across it, and street furniture kept off it.
+
+   Worked out once per grid from the placed units. Each record carries
+   its own frame `e` -- origin on the block edge the drive crosses, dv
+   along that edge, rv out of the block -- so al runs along the kerb and
+   the kerb line is SIDEWALK_W out, whichever street it is on. A spec is
+   { side, from, to, col, lines, arrows }: side 'front' spans lab a
+   (from..to) on the shop's own edge; 'a0' / 'a1' are the lot's two
+   flanks at lab a = 0 / ww (a whole-block lot's side streets) and span
+   lab b. The mirror is hoodShopLab's, run forwards. */
+function hoodDrivewaysOf(grid){
+  if(grid._drives) return grid._drives;
+  const out = [];
+  if(typeof hoodShopEdgeUnits !== "function") return (grid._drives = out);
+  for(const blk of grid.blocks || []){
+    if(blk.type !== "commercial" || blk.i === undefined) continue;
+    const E = blockEdgesOf(blk);
+    for(let ei = 0; ei < 4; ei++){
+      const us = hoodShopEdgeUnits(grid, blk, ei);
+      if(!us) continue;
+      const e = E[ei];
+      for(const u of us){
+        const sh = u.shop && LIB.get(u.shop.lib);
+        if(!sh || !sh.drive) continue;
+        const SC = sh.sc || 1, mir = (e.dv.x + e.dv.y) <= 0 && sh.mirror !== false;
+        const ux = e.ox + e.dv.x*u.start, uy = e.oy + e.dv.y*u.start;
+        const toW = (a, b) => { const al = (mir ? sh.ww - a : a)*SC;
+          return { x: ux + e.dv.x*al + e.rv.x*b*SC, y: uy + e.dv.y*al + e.rv.y*b*SC }; };
+        for(const dr of sh.drive){
+          const rec = { col: dr.col, lines: !!dr.lines, arrows: dr.arrows || "in",
+                        blockKey: blk.i + "," + blk.j, edge: ei };
+          if(dr.side === "front"){
+            const m0 = mir ? sh.ww - dr.to : dr.from, m1 = mir ? sh.ww - dr.from : dr.to;
+            Object.assign(rec, { e, al0: u.start + m0*SC, al1: u.start + m1*SC });
+          } else {
+            /* a flank: along it is lab b (world +rv), and out of the block
+               is the way lab a runs off that side of the lot */
+            const aS = dr.side === "a0" ? 0 : sh.ww, O = toW(aS, 0), A = toW(aS + 1, 0);
+            const s = dr.side === "a0" ? -1 : 1;
+            const ov = { x: s*(A.x - O.x), y: s*(A.y - O.y) }, ol = Math.hypot(ov.x, ov.y);
+            const f = { ox: O.x, oy: O.y, dv: e.rv, rv: { x: ov.x/ol, y: ov.y/ol } };
+            Object.assign(rec, { e: f, al0: Math.min(dr.from, dr.to)*SC, al1: Math.max(dr.from, dr.to)*SC, edge: -1 });
+          }
+          out.push(rec);
+        }
+      }
+    }
+  }
+  return (grid._drives = out);
+}
+/* along / out-from-the-block of a point, in a driveway's own frame */
+function driveFrame(d, x, y){
+  const dx = x - d.e.ox, dy = y - d.e.oy;
+  return { al: dx*d.e.dv.x + dy*d.e.dv.y, lat: dx*d.e.rv.x + dy*d.e.rv.y };
 }
 /* a shop on an edge the route has cut does not draw, so it has no pin */
 function hoodShopLive(route, sh){
@@ -11602,8 +11669,16 @@ function cityFurnitureForEdge(grid, blk, fi){
     }
     return false;
   };
+  const _drv = hoodDrivewaysOf(grid);
+  const onDrive = p => {
+    for(const d of _drv){
+      const q = driveFrame(d, p.x, p.y);
+      if(q.al > d.al0 - T2 - 120 && q.al < d.al1 + T2 + 120 && q.lat > -20 && q.lat < SIDEWALK_W + 20) return true;
+    }
+    return false;
+  };
   const onPad = p => {
-    if(onRamp(p)) return true;
+    if(onRamp(p) || onDrive(p)) return true;
     if(!_dlot) return false;
     const q = depotLabXY(_dlot, p.x, p.y);
     return Math.hypot(q.a - 266, q.b + 30) < 150 + CITY_FURN.padClear;
@@ -30120,7 +30195,15 @@ function houseCanopy(fn){
   }
 },
 {
-  name:'Pelican Drug', xh: 236, base:'Drugstore', hood:'The Flats', edited:true, block:true, ww: 1048.8, dd: 1048.8,
+  name:'Pelican Drug', xh: 236, base:'Drugstore', hood:'The Flats', edited:true, block:true, ww: 1656, dd: 1656,
+  /* the part that stands up, for the x-ray: store, entrance tower, canopy
+     and bin store, in lab units (see hoodShopHeightAt) */
+  built: [523.6, 1149.6, -840, -1332],
+  /* the drive lane's mouth, lab a -- see hoodDrivewaysOf */
+  drive: [
+    { side:'front', from: 1103.6, to: 1263.6, col:'#909390', lines:true, arrows:'in' },   // the drive-through
+    { side:'a0', from: -330, to: -550, col:'#6b6f6c', arrows:'both' },                     // the car park, off the side street
+  ],
   wTodo:'a whole block edge -- five packing slots, and the packer places none of them',
   cTodo:'store, entrance tower, canopy and columns, pylon sign, kerb islands and the bin store need volumes; the car park and the drive lane are both drivable',
   pTodo:'the drive lane sits on ONE flank, so on the two mirrored headings it is behind the building -- the plan is handed and the packer has to know which way round to place the lot',
@@ -30182,40 +30265,119 @@ function houseCanopy(fn){
 
        and the fTodo fascia, 6 of margin against 9 of recess with the
        lettering half a unit behind the board's own back face. */
-    const LOT = 1048.8;
+    /* ============ THE WHOLE BLOCK (2026-09-26) ============
+       Sir, on-device at block 6,4: "why is this full block shop not
+       expanding to the full block?" The lot was drawn to the canvas
+       lab's old block:true square, 1048.8, which is one edge's usable
+       run -- a block's land is 1656 x 1656. Centred on its edge that
+       left 303.6 of bare paving down each side and 607 behind. The lot
+       is the block now; the plan's a is shifted by OA = 303.6, the old
+       lot's origin, so the store keeps its place along the street.
+
+       AND THE BAYS ARE THE GAME'S CARS (Sir: "the parking spaces dont
+       look scaled to our ingame cars"). The lab ranks were 46 x 86; a
+       car is CARC 225 x 90 and this entry draws 1:1 in world units, so
+       every bay was a third of a car. Bays are BW x BD = 120 x 260 now
+       (a 90-wide car with its doors, a 225-long one with its bumpers)
+       across 240 aisles. Two ranks and an aisle need 760 in front of the
+       walk, so the store stepped back DB = -340; behind it a service
+       aisle runs street to street, which is where the drive lane lets
+       out.
+
+       ORDER IS DEPTH. Nearer is +a and +b on this entry, and props are
+       painted in call order, so everything behind the store's visible
+       faces (b < SB0 with a < SA1) is drawn BEFORE the store box, and
+       everything in front of them after -- the old "every prop at
+       b > -500" rule, generalised to a lot that now has a back. */
+    const LOT = 1656, OA = 303.6, DB = -340, BW = 120, BD = 260;
     const wall = '#d2cabb', band = '#2f7f9e', conc = '#a8aca8', asph = '#6b6f6c';
     const trim = '#b0aa9e', dark = '#7a746a', glass = 'rgba(126,166,186,.72)', roofc = '#6a7076';
-    const SA0 = 220, SA1 = 760, SB0 = -540, SB1 = -900, PZ = 232, RD = 216;
-    const EA0 = 258, EA1 = 408, EB = -500, EZ = 288;         // entrance tower
-    const LA0 = 800, LA1 = 960;                              // the drive lane
-    const CB0 = -646, CB1 = -816, AA = 846, CZ = 176;        // the awning
-    const PW0 = -690, PW1 = -772;                            // the pickup window in b
+    const SA0 = 220+OA, SA1 = 760+OA, SB0 = -540+DB, SB1 = -900+DB, PZ = 232, RD = 216;
+    const EA0 = 258+OA, EA1 = 408+OA, EB = -500+DB, EZ = 288;   // entrance tower
+    const LA0 = 800+OA, LA1 = 960+OA;                           // the drive lane
+    const CB0 = -646+DB, CB1 = -816+DB, AA = 846+OA, CZ = 176;  // the awning
+    const PW0 = -690+DB, PW1 = -772+DB;                         // the pickup window in b
+    const RA0 = SB1 - 100, RA1 = RA0 - 240;                     // the service aisle behind
+    const PK0 = 180, PK1 = PK0 + 7*BW;                          // seven bays a rank
+    const R1 = -60, R2 = SB0 + 60;                              // the ranks' back lines
+    const line = '#d9d5c6', leaf = ['#3f6b4a','#4e8058','#568a5e'];
 
     /* ---- the ground ---- */
     T(0, LOT, -LOT, 0, 0, asph);
-    T(SA0-32, LA1, SB0, -480, 4, conc);                      // the walk at the store front
+    const hedgeA = (a0, a1, bb) => {                         // kerb + shrubs running along a
+      box(a0, a1, bb-13, bb+13, 0, 14, shade(conc,1.04), shade(conc,.82), shade(conc,.68));
+      if(state.props) for(let x = a0+26; x < a1-18; x += 54) ball(x, bb, 24, 15, leaf[Math.round(x/54)%3]);
+    };
+    const hedgeB = (b0, b1, aa) => {                         // kerb + shrubs running along b (b0 > b1)
+      box(aa-13, aa+13, b1, b0, 0, 14, shade(conc,1.04), shade(conc,.82), shade(conc,.68));
+      if(state.props) for(let y = b1+26; y < b0-18; y += 54) ball(aa, y, 24, 15, leaf[Math.round(-y/54)%3]);
+    };
+    /* the far kerbs first -- the back street and the a = 0 side street,
+       open where the service aisle meets it */
+    hedgeA(0, LOT, -LOT+15);
+    for(const [r0, r1] of [[-40, R1-BD-10], [R2+BD+10, RA0-10], [RA1+10, -LOT+40]]) hedgeB(r0, r1, 15);
+    T(SA0-32, LA1, SB0, SB0+60, 4, conc);
+    /* the side-street entrance runs straight into the aisle between the
+       ranks: in on one half, out on the other (see its `drive` spec) */
+    { const ab = (R1 - BD + R2 + BD)/2, h = 55;
+      const arrowA = (am, bb, k) => poly([P(am+k*40,bb,0),P(am+k*6,bb-22,0),P(am+k*6,bb-8,0),P(am-k*34,bb-8,0),
+                                           P(am-k*34,bb+8,0),P(am+k*6,bb+8,0),P(am+k*6,bb+22,0)], line);
+      arrowA(90, ab - h, 1); arrowA(90, ab + h, -1); }                    // the walk at the store front
     /* THE LANE HAS TO READ AS A LANE. First pass laid it in
        shade(asph,1.12) on asphalt, which is a shade nobody sees; it is
        a paved strip with painted edges now, the way a drive-through
        lane is marked out on the ground in the world. */
-    T(LA0, LA1, -40, -980, 1.5, shade(conc,.86));            // the drive lane
-    for(const la of [LA0+6, LA1-6]) T(la-3, la+3, -40, -980, 2, '#d9d5c6');
-    for(const ab of [-150, -330, -510]){                     // lane arrows, pointing IN
+    /* FLUSH WITH THE GROUND (Sir, on-device, circling the join with the
+       driveway: "can we fix this seem?"). The lane stood 1.5 proud of the
+       asphalt, which lifts it on screen and bares a sliver of the dark lot
+       under its front edge -- right where the driveway, at road level on
+       the footway, has to meet it. Painter's order already puts it over
+       the asphalt; it needs no height to win. */
+    T(LA0, LA1, 0, RA0, 0, shade(conc,.86));                 // the drive lane, out to the footway
+    for(const la of [LA0+6, LA1-6]) T(la-3, la+3, 0, RA0, 0, line);
+    for(const ab of [-200, -480, -760]){                     // lane arrows, pointing IN
       const am = (LA0+LA1)/2;
-      poly([P(am,ab-40,2),P(am-22,ab-6,2),P(am-8,ab-6,2),P(am-8,ab+34,2),
-            P(am+8,ab+34,2),P(am+8,ab-6,2),P(am+22,ab-6,2)], '#d9d5c6');
+      poly([P(am,ab-40,0),P(am-22,ab-6,0),P(am-8,ab-6,0),P(am-8,ab+34,0),
+            P(am+8,ab+34,0),P(am+8,ab-6,0),P(am+22,ab-6,0)], line);
     }
-    T(LA0, LA1, PW0+18, PW0+26, 2, '#d9d5c6');               // stop line at the window
-    const rank = (b0, b1) => {
-      T(40, 780, b1-3, b1+3, 0.6, '#d9d5c6');
-      for(let x=40; x<=780.1; x+=46) T(x-2.5, x+2.5, b0, b1, 0.6, '#d9d5c6');
+    T(LA0, LA1, PW0+18, PW0+26, 0, line);                    // stop line at the window
+    for(let x = 60; x < LOT-60; x += 120) T(x, x+60, (RA0+RA1)/2-3, (RA0+RA1)/2+3, 0.6, line);  // aisle centre line
+    /* a rank: bay lines out from the back line to the aisle */
+    const rank = (bBack, dir) => {
+      const bOpen = bBack + dir*BD;
+      T(PK0, PK1, bBack-3, bBack+3, 0.6, line);
+      for(let x = PK0; x <= PK1+0.1; x += BW) T(x-3, x+3, Math.min(bBack, bOpen), Math.max(bBack, bOpen), 0.6, line);
     };
-    rank(-110, -196); rank(-196, -282); rank(-350, -436);
-    for(let i=0;i<2;i++){                                     // accessible bays, on the door axis
-      const x0 = EA0 + 8 + i*46;
-      T(x0+2, x0+44, -350, -436, 0.7, '#3f6b9a');
-      T(x0+16, x0+30, -378, -410, 0.9, '#d9d5c6');
+    rank(R1, -1);                                            // along the street, noses to the hedge
+    rank(R2, +1);                                            // along the walk, noses to the store
+    for(const x0 of [PK0 + 3*BW, PK0 + 4*BW]){               // accessible bays, at the door
+      T(x0+6, x0+BW-6, R2+6, R2+BD-6, 0.7, '#3f6b9a');
+      T(x0+BW/2-14, x0+BW/2+14, R2+100, R2+160, 0.9, line);
     }
+
+    /* ---- props BEHIND the store: before it, so it paints over them ---- */
+    const tree = (ta, tb) => {
+      cyl(ta, tb, 12, 46, 5, '#6b5a3a');
+      for(let k=0;k<4;k++) ball(ta + 11*Math.cos(k*1.57+0.5), tb + 11*Math.sin(k*1.57+0.5), 56, 13, leaf[k%3]);
+      ball(ta, tb, 66, 12, '#4e8058');
+    };
+    const bed = (a0, a1, b0, b1, trees) => {                 // a planted island, b0 > b1
+      box(a0, a1, b1, b0, 0, 12, shade(conc,1.06), shade(conc,.84), shade(conc,.70));
+      T(a0+8, a1-8, b1+8, b0-8, 12.5, '#557a4c');
+      if(state.props) for(const [ta, tb] of trees) tree(ta, tb);
+    };
+    const mast = (ma, mb) => {
+      if(!state.props) return;
+      cyl(ma, mb, 0, 16, 11, shade(conc,.8));
+      cyl(ma, mb, 16, 168, 5, '#8d949a');
+      for(const d of [-24, 24]){
+        tube(ma, mb, 168, ma+d, mb, 172, 2.4, '#8d949a');
+        box(ma+d-18, ma+d+18, mb-12, mb+12, 166, 176, '#c9ced2','#a6acb1','#8d949a');
+      }
+    };
+    /* the back strip, and the wing beside the store */
+    if(state.props) for(let x = 90; x < LOT-60; x += 190) tree(x, RA1 - 24);
+    bed(40, SA0-60, SB0-30, SB1+30, [[150, SB0-120], [330, SB0-200], [170, SB1+120]]);
 
     /* ---- the back: bin store and a staff door, because three of the
        four streets look at this side ---- */
@@ -30228,11 +30390,11 @@ function houseCanopy(fn){
     box(SA0, SA1, SB1, SB0, 0, PZ, shade(wall,1.14), wall, shade(wall,.82));
     T(SA0+12, SA1-12, SB1+12, SB0-12, RD, roofc);
     if(state.roof){
-      for(const [ra,rb] of [[340,-660],[500,-760],[640,-620]]){
+      for(const [ra,rb] of [[340+OA,-660+DB],[500+OA,-760+DB],[640+OA,-620+DB]]){
         box(ra-40, ra+40, rb-30, rb+30, RD, RD+24, shade(roofc,1.34), shade(roofc,1.10), shade(roofc,.88));
         box(ra-26, ra+26, rb-18, rb+18, RD+24, RD+30, shade(roofc,1.44), shade(roofc,1.18), shade(roofc,.94));
       }
-      cyl(SA0+58, -840, RD, RD+42, 6, '#6d747c');
+      cyl(SA0+58, -840+DB, RD, RD+42, 6, '#6d747c');
     }
 
     /* ---- the front elevation ---- */
@@ -30318,59 +30480,42 @@ function houseCanopy(fn){
     for(const cb of [CB0-10, CB1+10])                                     // tie rods
       tube(SA1+4, cb, CZ+40, AA-8, cb, CZ+2, 2.2, shade(trim,.86));
 
+    /* ---- IN FRONT of the store's faces: after it ---- */
+    /* end islands on the two ranks: the pylon on the corner one, masts
+       at both ends */
+    bed(40, PK0-10, R1, R1-BD, [[100, R1-210]]);
+    bed(40, PK0-10, R2+BD, R2, [[100, R2+70]]);
+    bed(PK1+10, LA0-20, R1, R1-BD, []);
+    bed(PK1+10, LA0-20, R2+BD, R2, []);
+    mast(100, R2+190); mast((PK1+LA0)/2 - 5, R1-130); mast((PK1+LA0)/2 - 5, R2+130);
     if(state.props){
-      /* ---- the car park, all of it in FRONT of the store frontage ---- */
-      const tree = (ta, tb) => {
-        cyl(ta, tb, 12, 46, 5, '#6b5a3a');
-        for(let k=0;k<4;k++) ball(ta + 11*Math.cos(k*1.57+0.5), tb + 11*Math.sin(k*1.57+0.5), 56, 13, ['#3f6b4a','#4e8058','#568a5e'][k%3]);
-        ball(ta, tb, 66, 12, '#4e8058');
-      };
-      const islandA = (a0, a1, bb) => {                                   // a strip running along a
-        box(a0, a1, bb-30, bb+30, 0, 12, shade(conc,1.06), shade(conc,.84), shade(conc,.70));
-        for(let k=0;k<3;k++) tree(a0 + 46 + k*(a1-a0-92)/2, bb);
-      };
-      const mast = (ma, mb) => {
-        cyl(ma, mb, 0, 16, 11, shade(conc,.8));
-        cyl(ma, mb, 16, 168, 5, '#8d949a');
-        for(const d of [-24, 24]){
-          tube(ma, mb, 168, ma+d, mb, 172, 2.4, '#8d949a');
-          box(ma+d-18, ma+d+18, mb-12, mb+12, 166, 176, '#c9ced2','#a6acb1','#8d949a');
-        }
-      };
-      islandA(40, 300, -316);   islandA(520, 780, -316);                  // far, at the aisle
-      mast(410, -316);
       for(let i=0;i<5;i++){                                               // bollards on the walk
-        const ba = 250 + i*118;
+        const ba = 250 + OA + i*118;
         if(ba > EA0-16 && ba < EA1+16) continue;
-        cyl(ba, -496, 0, 30, 6, dark);
-        ball(ba, -496, 30, 6, shade(dark,1.24));
+        cyl(ba, EB+4, 0, 30, 6, dark);
+        ball(ba, EB+4, 30, 6, shade(dark,1.24));
       }
-      islandA(40, 300, -78);    islandA(520, 780, -78);                   // near, at the street
-      mast(410, -78);
     }
+    /* the planted strip on the lane's far side, to the service aisle */
+    bed(LA1+60, LOT-60, -40, RA0-20, [...Array(6)].map((_, k) => [(LA1+LOT)/2, -150 - k*205]));
 
-    /* ---- the pylon sign, on the corner ---- */
-    { const PA = 150, PB = -58;
+    /* ---- the pylon sign, on the corner island ---- */
+    { const PA = 105, PB = R1 - 70;
       for(const d of [-30, 30]) cyl(PA+d, PB, 0, 176, 7, dark);
       slab(PA-56, PA+56, 176, 278, PB+8, PB-8, shade(wall,1.10), null, shade(wall,1.26));
       F(PA-49, PA+49, 183, 271, band, null, 0, PB+8.5);
       for(let k=0;k<3;k++) F(PA-38, PA+38, 194+k*26, 210+k*26, shade(wall,1.12), null, 0, PB+9);
-      box(PA-38, PA+38, PB-22, PB+22, 0, 16, shade(conc,1.06), shade(conc,.84), shade(conc,.70));
     }
 
-    /* ---- kerb and planting on the street line, broken at the parking
-       crossover and at the lane mouth ---- */
-    for(const [r0,r1] of [[0, 250],[430, LA0-40],[LA1+20, LOT]]){
-      if(r1 - r0 < 6) continue;
-      box(r0, r1, -28, -2, 0, 14, shade(conc,1.04), shade(conc,.82), shade(conc,.68));
-      if(state.props) for(let x = r0+26; x < r1-18; x += 54)
-        ball(x, -15, 24, 15, ['#4e8058','#568a5e','#3f6b4a'][Math.round(x/54)%3]);
-    }
+    /* ---- the near kerbs: the street, broken at the lane mouth, and the
+       a = LOT side street, open at the service aisle ---- */
+    hedgeA(0, LA0-20, -15); hedgeA(LA1+20, LOT, -15);
+    for(const [r0, r1] of [[-40, RA0-10], [RA1+10, -LOT+40]]) hedgeB(r0, r1, LOT-15);
   },
   back(p){
     /* REAR ELEVATION (2026-09-17): this one stands in its own yard with a
        way in from every street, so from behind it is itself turned round. */
-    turned(1048.8, 1048.8, () => this.draw(p));
+    turned(1656, 1656, () => this.draw(p));
   }
 },
 {
@@ -36446,6 +36591,18 @@ class WorldScene extends Phaser.Scene {
            strip under the lip is open to the camera from the side, which
            is where Sir was standing when the ghost fired on a robot in
            plain view. Deep under the roof it still counts. */
+        /* A WHOLE-BLOCK LOT IS MOSTLY CAR PARK (Pelican Drug, 2026-09-26).
+           Its lot is the block, so xh over the footprint made the whole
+           block a 236 wall and ghosted him on the back street in plain
+           view. An entry that says where it stands up (`built`) is that
+           tall there, and elsewhere the lot is not this shop's to answer
+           -- the depot's corner and the open ground fall through to what
+           the bare block always said. */
+        if(sh.built){
+          const q = hoodShopLab(e, u, sh, x, y), B = sh.built;
+          if(q.a < B[0] || q.a > B[1] || q.b > B[2] || q.b < B[3]) continue;
+          return sh.xh * q.SC * (sh.zs === undefined ? 1.5 : sh.zs);
+        }
         const LIP = 140;
         const reach = sh.fd !== undefined ? (sh.fd + (sh.boff || 0)) * (sh.sc || 1) - LIP : 1;
         if(lat > reach) continue;
@@ -38639,6 +38796,50 @@ class WorldScene extends Phaser.Scene {
       if(!this.visProp("sidewalkend", cr.x, cr.y)) continue;
       this.drawProp(g, "sidewalkend", cr.x, cr.y, t, cr.f, 0, null, null, WORLD_RAMP);
     }
+    /* DRIVEWAY APRONS, in the same pass for the same reason: a pavement
+       decal the kerb must draw over. The apron runs from the lot to the
+       kerb line the width of the drive; the shoulders are the two wedges
+       flaring out to the kerb flares either side, FL long like them, so
+       the dropped kerb and the paving meet corner to corner. */
+    for(const d of hoodDrivewaysOf(r.grid)){
+      const cuts = r.cutEdges && r.cutEdges[d.blockKey];
+      if(cuts && d.edge >= 0 && cuts.includes(d.edge)) continue;
+      const e = d.e, FL = T2, SW = SIDEWALK_W;
+      const P = (al, lat) => this.W(e.ox + e.dv.x*al + e.rv.x*lat, e.oy + e.dv.y*al + e.rv.y*lat, 0);
+      if(!this.visProp("sidewalkend", e.ox + e.dv.x*(d.al0 + d.al1)/2 + e.rv.x*SW/2,
+                                      e.oy + e.dv.y*(d.al0 + d.al1)/2 + e.rv.y*SW/2)) continue;
+      /* THE DRIVE LANE, CARRIED ON (Sir, on-device: "the drive way is the
+         wrong color can we have it match the drive through color and have
+         arrows and all removing the segments in it"). Same concrete as the
+         lane -- the entry's shade(conc,.86) -- the lane's two painted edge
+         lines run through to the kerb, and an IN arrow sits mid-footway.
+         No joints: it reads as the lane, not as paving. The shoulders are
+         the same surface flaring out to the kerb flares. */
+      /* each drive wears what it leads into: the drive-through's concrete
+         and edge lines, or the car park's asphalt */
+      const APRON = d.col ? parseInt(d.col.slice(1), 16) : 0x909390, PAINT = 0xd9d5c6;
+      this.quadOn(g, [P(d.al0, 0), P(d.al1, 0), P(d.al1, SW), P(d.al0, SW)], APRON);
+      for(const [a, s] of [[d.al0, -1], [d.al1, 1]]){
+        this.quadOn(g, [P(a, SW - FL), P(a, SW), P(a + s*FL, SW)], APRON);
+        if(!d.lines) continue;
+        const la = a - s*6;                                   // the lane's edge line, 6 in
+        this.quadOn(g, [P(la-3, 0), P(la+3, 0), P(la+3, SW), P(la-3, SW)], PAINT);
+      }
+      /* the arrows: the lane's own shape, laid in (along, out). IN points
+         at the lot (lat falling). A two-way drive gets one each way, on
+         its own half, with a dashed centre line between them. */
+      const arrow = (am, ab, dirIn) => {
+        const k = dirIn ? 1 : -1, A = (da, dl) => P(am + da, ab + k*dl);
+        this.quadOn(g, [A(0,-40), A(-22,-6), A(-8,-6), A(-8,34), A(8,34), A(8,-6), A(22,-6)], PAINT);
+      };
+      const am = (d.al0 + d.al1)/2;
+      if(d.arrows === "both"){
+        const q = (d.al1 - d.al0)/4;
+        arrow(am - q, SW/2, true); arrow(am + q, SW/2, false);
+        for(let lat = 20; lat < SW - 20; lat += 70)
+          this.quadOn(g, [P(am-3, lat), P(am+3, lat), P(am+3, lat+36), P(am-3, lat+36)], PAINT);
+      } else arrow(am, SW/2, true);
+    }
     /* curb: a genuine vertical riser face, not a wide sloped strip —
        zero width ACROSS the curb line, just a height difference from
        bottom to top AT that one lateral position. A sloped quad across
@@ -38778,6 +38979,17 @@ class WorldScene extends Phaser.Scene {
           const alo = (rp.x - sx)*dv.x + (rp.y - sy)*dv.y;
           if(alo + RAMP_HALF < 0 || alo - RAMP_HALF > len) continue;
           raw.push([Math.max(0, alo - RAMP_HALF), Math.min(len, alo + RAMP_HALF)]);
+        }
+        /* and every driveway whose mouth is on this kerb (see hoodDrivewaysOf) */
+        for(const d of hoodDrivewaysOf(r.grid)){
+          const e = d.e, ends = [d.al0, d.al1].map(al => {
+            const px = e.ox + e.dv.x*al + e.rv.x*SIDEWALK_W, py = e.oy + e.dv.y*al + e.rv.y*SIDEWALK_W;
+            return { lat: (px - sx)*rv.x + (py - sy)*rv.y, alo: (px - sx)*dv.x + (py - sy)*dv.y };
+          });
+          if(ends.some(q => Math.abs(sgn*q.lat - ROAD_HALF) > 30)) continue;
+          const c0 = Math.min(ends[0].alo, ends[1].alo), c1 = Math.max(ends[0].alo, ends[1].alo);
+          if(c1 < 0 || c0 > len) continue;
+          raw.push([Math.max(0, c0), Math.min(len, c1)]);
         }
         raw.sort((a, b) => a[0] - b[0]);
         const out = [];
@@ -42175,8 +42387,15 @@ class WorldScene extends Phaser.Scene {
        inside the building mass or shows through the opening */
     const onDepot = (x,y) => { if(!_lot) return false; const p = depotLabXY(_lot, x, y);
       return p.a > -60 && p.a < depotGeom().WW + 60 && p.b > -depotGeom().DD - 60; };
+    /* and off a whole-block building's lot (Pelican Drug fills the block
+       now): a bench rolled onto it stands in the car park */
+    let _wbRect = null;
+    { const _hg = this.route && this.route.grid, _we = _hg ? hoodWholeBlockEdge(_hg, blk) : -1;
+      const _wu = _we >= 0 ? hoodShopEdgeUnits(_hg, blk, _we) : null;
+      if(_wu && _wu.length) _wbRect = hoodShopRect(blockEdgesOf(blk)[_we], _wu[0]); }
+    const onWhole = (x,y) => !!_wbRect && x > _wbRect[0]-30 && x < _wbRect[1]+30 && y > _wbRect[2]-30 && y < _wbRect[3]+30;
     const clear = (x,y) => !interior.some(rc => x > rc.x0-30 && x < rc.x1+30 && y > rc.y0-30 && y < rc.y1+30)
-                           && !onDepot(x, y);
+                           && !onDepot(x, y) && !onWhole(x, y);
     const roll = () => {
       for(let tr = 0; tr < 6; tr++){
         const x = blk.x0 + rng()*(blk.x1-blk.x0), y = blk.y0 + rng()*(blk.y1-blk.y0);
