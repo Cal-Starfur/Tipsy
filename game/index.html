@@ -4828,10 +4828,10 @@ function carAxisPoint(wp, fc, px, py){
   return { x: wp.x + ax*c, y: wp.y + ay*c };
 }
 
-/* Is this car actually standing still right now? Its hold clock only
-   advances while something is making it wait -- a signal, a yield, the
-   crime cordon -- so a hold that grew this frame means stopped, and one
-   that did not means rolling. Read off holdFrame rather than by
+/* Is this car actually standing still right now? holdFrame is stamped
+   when the crime cordon holds it outright, or when updateTrafficMotion
+   has braked it to a crawl -- so a stamp this frame means stopped, and
+   none means rolling. Read off holdFrame rather than by
    differencing positions, because position is a pure function of t and
    two samples a frame apart would just re-derive what holdFrame already
    states exactly. */
@@ -9560,8 +9560,15 @@ const WORLD_RAMP = {
    compiles inside this realm, where a const binding cannot be reassigned but
    an object's properties can. */
 const SIGNAL = {
-  /* dialled on device 2026-08-02 via labs/_bench.html?lab=corner-light */
-  cycle:    20000,  // full both-axes cycle, ms
+  /* dialled on device 2026-08-02 via labs/_bench.html?lab=corner-light;
+     cycle raised 20000 -> 40000 when traffic started actually obeying it.
+     A car needs 7-12s to cross a box (736 wide plus its own length, at
+     0.10-0.14 u/ms, from a standing start), so a 10s phase could never
+     clear the last car in before the cross street's whole green was gone
+     -- a busy street starved the other one for minutes. 20s a street
+     leaves 16.7s of green, of which the late cars from the other street
+     can take at most CLAIM_GRACE. */
+  cycle:    40000,  // full both-axes cycle, ms
   amber:     2600,  // amber at the tail of each green
   allRed:     700,  // both red between phases (not exposed in the tuner)
   poleH:      330,
@@ -9582,10 +9589,9 @@ function signalPhaseAt(node, t){
   const axis = u < half ? 0 : 1;              // the axis holding green
   const inHalf = u % half;
   const g = half - SIGNAL.amber - SIGNAL.allRed;
-  return { axis, state: inHalf < g ? "green" : (inHalf < g + SIGNAL.amber ? "amber" : "red") };
+  return { axis, state: inHalf < g ? "green" : (inHalf < g + SIGNAL.amber ? "amber" : "red"),
+           left: half - inHalf };   // ms until the other axis's phase begins
 }
-const signalAxisGo    = (node, t, axis) => { const p = signalPhaseAt(node, t);
-                                             return p.axis === axis && p.state !== "red"; };
 const signalAxisState = (node, t, axis) => { const p = signalPhaseAt(node, t);
                                              return p.axis === axis ? p.state : "red"; };
 
@@ -13913,6 +13919,19 @@ function tourCloses(grid, start, legs){
 /* the closed seg emitter. Same fillet math as buildSegsFromLegs, with the
    one difference that matters: it emits an arc after the LAST leg too,
    turning back into leg 0. That closing arc is the whole fix. */
+/* Traffic's own corner radius. At CORNER_R (736) the inside lane runs a
+   552 arc whose centre sits at (736,736) from the node, which passes 510
+   from the kerb nose at (375,375): 42 of clearance for a body 45 wide, so
+   every right turn dragged the car over the kerb and the corner of the
+   sidewalk. Clearance is (R - CAR_LANE) - sqrt2*(R - 375), i.e. it grows
+   as R SHRINKS. 6*T2 = 552 gives 118 (73 past the body) and still
+   clears every lane offset traffic uses, crime straddle included. The
+   robot's routes keep CORNER_R / TURN_R; this is traffic only. */
+const TRAFFIC_TURN_R = ROAD_HALF + CAR_LANE;
+/* updateTrafficMotion's ramps. A linear ramp from the fastest cruise
+   (0.14 u/ms) covers 0.14*BRAKE_MS/2 = 32 units stopping, rounded up. */
+const TRAF_BRAKE_MS = 450, TRAF_ACCEL_MS = 1400;
+const TRAF_BRAKE_D  = 40;
 function tourEmitClosed(start, legs, R){
   const corners = [];
   let i = start.i, j = start.j;
@@ -14050,7 +14069,7 @@ function buildTourCircuit(grid, rng, covered, edgeKey){
     }
     if(bad) continue;
     if(!tourCloses(grid, start, all)) continue;
-    const built = tourEmitClosed(start, all, CORNER_R);
+    const built = tourEmitClosed(start, all, TRAFFIC_TURN_R);
     if(!built) continue;
     built.path = tourLegsToPath(start, all);
     return built;
@@ -14126,7 +14145,10 @@ function buildCityTraffic(grid){
         const tr = {
           walk, arcs: walk.arcs,
           sBase: L*c/n,
-          speed: 0.055 + rng()*0.03,
+          /* 0.10-0.14 u/ms: at 0.055-0.085 cars cruised slower than the
+             robot (~0.10) and read as crawling. They pull away and brake
+             now (updateTrafficMotion), so a stop no longer snaps. */
+          speed: 0.10 + rng()*0.04,
           dir, laneOffset: dir > 0 ? CAR_LANE : -CAR_LANE,
           kind: rng() < 0.6 ? "car" : "truck",
           colorSeed: Math.floor(rng()*0xffffffff) >>> 0,
@@ -52206,35 +52228,189 @@ class WorldScene extends Phaser.Scene {
     }
   }
 
-  /* ---------- TRAFFIC OBEYS THE LIGHT ----------
+  /* ---------- JUNCTIONS: THE LIGHT, AND KEEP THE BOX CLEAR ----------
      Same `hold` field trafficWorldAt already subtracts -- the mechanism curb
      queues and the crime scene share -- stepped by real elapsed t via
      _trafHoldStep and holdFrame-guarded, so no car takes two steps in one
      frame and drives backward.
 
-     A car only holds inside a short band just before the stop line, so it
-     rolls up to the line instead of freezing wherever it happened to be when
-     the light changed. Past the line it is committed and clears the box
-     rather than parking in the middle of the intersection. Cars mid-corner
-     are skipped: they are not approaching any line. */
+     Measured before this rewrite (headless, 2 min at a downtown junction):
+     cars held over 20s went 0 -> 15 and kept climbing, and crossing cars
+     sat on top of each other in the box. Four causes, all fixed here:
+
+     - The light was read from the car's HEADING, and a turner's heading
+       drifts before the stop band (its fillet started 736 out), so every
+       turning car ran every red. The approach is now found along the car's
+       own path: walk it forward until it enters a box. A turner and a
+       straight car are asked the same question in the same place.
+     - The stop line was the car's CENTRE at the box edge, which parks half
+       a car in the box. The NOSE stops at the line now.
+     - Amber counted as go, and a car takes far longer than amber + all-red
+       to clear the box, so the cross street got green onto a full box.
+       Amber is stop for anyone not yet at the line, and a car has to
+       CLAIM the box before it enters: no claim while any car from another
+       approach -- crossing street, or oncoming and turning across -- holds
+       the box or is in it with the rest of its lane still crossing this
+       car's. That is the real clearance rule; the lights just take turns.
+       It has to be per conflict point, not per box: a car needed 12-18s to
+       cross (736 of box at the old 55-85 u/s) against a 10s phase, so "wait for
+       an empty box" starved the cross street for whole cycles (measured:
+       71s). The claim is what makes it deadlock-free -- whoever reaches
+       the line first holds it, later arrivals check against it, and a
+       holder never re-checks.
+     - Nobody checked for room on the far side, so a queue backed through
+       the junction and locked both streets. A car enters only when the
+       spot one car past the box on its own path is clear.
+
+     A car past the line is committed and never held here: stopping in the
+     box is the gridlock this exists to prevent. */
+  _trafPathPt(tr, s0, ahead){
+    const tot = tr.walk.totalLen;
+    const s = ((s0 + tr.dir*ahead) % tot + tot) % tot;
+    return segsWorldOf(tr.walk.segs, s, tr.laneOffset);
+  }
+  /* the part of the car's own lane still ahead of it inside box `key`,
+     from its TAIL on, so a car stops blocking a crossing the moment its
+     back bumper is past it. */
+  _trafBoxPath(c, key, boxOf){
+    if(c.path) return c.path;
+    const HALF = CARC.len/2, out = [];
+    let seen = false, past = 0;
+    for(let a = -HALF; a < c.d + 4*ROAD_HALF && past < 3; a += 40){
+      const p = a === 0 ? c.wp : this._trafPathPt(c.tr, c.trS, a);
+      const inside = boxOf(p) === key;
+      if(inside) seen = true; else if(seen) past++;
+      if(seen) out.push(p);
+    }
+    return (c.path = out);
+  }
   updateSignalHolds(t){
-    if(!SIGNAL.aware) return;
+    const CLAIM_GRACE = 8000;
+    const traffic = this.trafficActive(t);
+    if(!traffic) return;
+    const HALF = CARC.len/2, STEP = 40, LINE = 24;
+    const LOOK = HALF + LINE + SIGNAL.stopBand;
+    const CLEAR_SQ = 150*150;
+    const boxOf = (p) => {
+      const i = Math.round(p.x/BLOCK), j = Math.round(p.y/BLOCK);
+      return (Math.abs(p.x - i*BLOCK) < ROAD_HALF && Math.abs(p.y - j*BLOCK) < ROAD_HALF) ? i + "," + j : null;
+    };
+    const cars = [];
+    /* box key -> who is in it or has it: { c, axis, f }. f is the approach
+       direction, so the car in front on the same approach is left to the
+       following rule and everyone else is checked for a crossing. */
+    const occ = new Map();
+    const occupy = (key, c, axis, f) => { let o = occ.get(key); if(!o) occ.set(key, o = []); o.push({ c, axis, f }); };
+    for(const tr of traffic){
+      const { wp, fc, trS } = trafficWorldAt(tr, t);
+      const c = { tr, wp, trS, key: null, d: 0, axis: 0, f: 0, path: null };
+      /* the next box on this car's own path, and how far its centre is from it */
+      for(let a = 0; a <= LOOK; a += STEP){
+        const p = a === 0 ? wp : this._trafPathPt(tr, trS, a);
+        const k = boxOf(p);
+        if(k){
+          const q = this._trafPathPt(tr, trS, a + STEP), dx = q.x - p.x, dy = q.y - p.y;
+          c.key = k; c.d = a;
+          c.axis = Math.abs(dx) >= Math.abs(dy) ? 0 : 1;
+          c.f = c.axis === 0 ? (dx > 0 ? 0 : 2) : (dy > 0 ? 1 : 3);
+          break;
+        }
+      }
+      /* in the box = any part of the body past the line: nose (scan),
+         centre, or tail still in it */
+      const tailKey = boxOf(this._trafPathPt(tr, trS, -HALF));
+      const bodyKey = (c.key && c.d - HALF < LINE) ? c.key : tailKey;
+      if(bodyKey){
+        if(tr.jnKey !== bodyKey){
+          tr.jnKey = bodyKey;
+          if(bodyKey === c.key){ tr.jnAxis = c.axis; tr.jnF = c.f; }
+          else { const r = ((Math.round(fc) % 4) + 4) % 4; tr.jnAxis = r % 2; tr.jnF = r; }
+        }
+        occupy(bodyKey, c, tr.jnAxis, tr.jnF);
+      }
+      /* a claim lasts until the car is through that box */
+      if(tr.claim && tr.claim !== c.key && tr.claim !== bodyKey) tr.claim = null;
+      if(tr.claim && tr.claim !== bodyKey) occupy(tr.claim, c, c.axis, c.f);
+      cars.push(c);
+    }
+    /* nearest the line decides first, so the car that gets there first
+       gets the box */
+    const gate = cars.filter(c => c.key && c.d - HALF >= LINE && c.d - HALF <= LINE + SIGNAL.stopBand)
+                     .sort((a, b) => a.d - b.d);
+    for(const c of gate){
+      const tr = c.tr;
+      const [i, j] = c.key.split(",").map(Number);
+      const ph = signalPhaseAt({ i, j }, t);
+      let go = !(SIGNAL.aware && (ph.axis !== c.axis || ph.state !== "green"));
+      /* A car holding a claim was already checked against everyone who
+         held one before it, and nobody after it could claim over it --
+         so it doesn't re-check, or two claimants could each wait on the
+         other forever. */
+      if(go && tr.claim !== c.key){
+        for(const o of occ.get(c.key) || []){
+          if(o.c === c || o.f === c.f) continue;       // same approach: that's following, not crossing
+          const P = this._trafBoxPath(c, c.key, boxOf), Q = this._trafBoxPath(o.c, c.key, boxOf);
+          let hit = false;
+          for(const p of P){ for(const q of Q){ const dx = p.x - q.x, dy = p.y - q.y; if(dx*dx + dy*dy < CLEAR_SQ){ hit = true; break; } } if(hit) break; }
+          if(hit){ go = false; break; }
+        }
+      }
+      if(go){
+        /* room on the far side: walk on through the box, then one car on */
+        let a = c.d;
+        while(a < c.d + 3*ROAD_HALF && boxOf(this._trafPathPt(tr, c.trS, a)) === c.key) a += STEP;
+        /* and time: no entering a box this car can't be out of within
+           CLAIM_GRACE of the cross street's green, or the tail of one
+           green eats the next one */
+        if(SIGNAL.aware && tr.claim !== c.key && (a + HALF) / tr.speed > ph.left + CLAIM_GRACE) go = false;
+        if(go){
+          const E = this._trafPathPt(tr, c.trS, a + HALF + 20);
+          const R2 = (CARC.len*0.7)*(CARC.len*0.7);
+          for(const o of cars){
+            if(o === c) continue;
+            const dx = o.wp.x - E.x, dy = o.wp.y - E.y;
+            if(dx*dx + dy*dy < R2){ go = false; break; }
+          }
+        }
+      }
+      if(go){
+        if(tr.claim !== c.key){ tr.claim = c.key; occupy(c.key, c, c.axis, c.f); }
+        continue;
+      }
+      if(tr.claim === c.key){
+        tr.claim = null;
+        const o = occ.get(c.key); if(o){ const k = o.findIndex(e => e.c === c); if(k >= 0) o.splice(k, 1); }
+      }
+      tr.stopAt = t;
+    }
+  }
+
+  /* ---------- PULL AWAY AND BRAKE ----------
+     Spacing and the junction gate no longer stop a car themselves; they
+     stamp tr.stopAt, and this turns that into motion. tr.v is the car's
+     fraction of its cruising speed, eased down over TRAF_BRAKE_MS and back
+     up over TRAF_ACCEL_MS, and a frame adds hDt*(1-v) of hold -- the same
+     hold trafficWorldAt already subtracts, so art and hitbox still move
+     together, and 0 <= 1-v <= 1 means hold can never outrun t and send a
+     car backward. Before this every stop and start was a single-frame snap.
+
+     Runs AFTER the crime cordon, which still holds outright: a car it
+     stamped this frame is left alone. holdFrame (what carIsStopped reads:
+     solid to the robot, and not a car that can knock him over) is stamped
+     only once a car is down to a crawl. */
+  updateTrafficMotion(t){
     const traffic = this.trafficActive(t);
     if(!traffic) return;
     const hDt = this._trafHoldDt !== undefined ? this._trafHoldDt : 0;
     for(const tr of traffic){
-      const { wp, fc } = trafficWorldAt(tr, t);
-      if(Math.abs(fc - Math.round(fc)) > 0.1) continue;
-      const f = ((Math.round(fc) % 4) + 4) % 4, d = DIRV[f];
-      const onX = d.x !== 0;
-      const pos = onX ? wp.x : wp.y, dir = onX ? d.x : d.y;
-      const nodeCoord = dir > 0 ? Math.ceil(pos/BLOCK)*BLOCK : Math.floor(pos/BLOCK)*BLOCK;
-      const dist = Math.abs(nodeCoord - pos);
-      if(dist < ROAD_HALF || dist > ROAD_HALF + SIGNAL.stopBand) continue;
-      const node = onX ? { i: Math.round(nodeCoord/BLOCK), j: Math.round(wp.y/BLOCK) }
-                       : { i: Math.round(wp.x/BLOCK),      j: Math.round(nodeCoord/BLOCK) };
-      if(signalAxisGo(node, t, onX ? 0 : 1)) continue;
-      if(tr.holdFrame !== t){ tr.hold = (tr.hold || 0) + hDt; tr.holdFrame = t; }
+      /* back in range after free-running out of it: it was cruising */
+      if(tr.vT === undefined || t - tr.vT > 500) tr.v = 1;
+      tr.vT = t;
+      if(tr.holdFrame === t){ tr.v = 0; continue; }          // cordon owns it
+      tr.v = tr.stopAt === t ? Math.max(0, tr.v - hDt/TRAF_BRAKE_MS)
+                             : Math.min(1, tr.v + hDt/TRAF_ACCEL_MS);
+      if(tr.v < 1){ tr.hold = (tr.hold || 0) + hDt*(1 - tr.v); tr.easeFrame = t; }
+      if(tr.v < 0.15) tr.holdFrame = t;
     }
   }
 
@@ -52279,12 +52455,17 @@ class WorldScene extends Phaser.Scene {
     const hDt = this._trafHoldStep(t);
     const traffic = this.trafficActive(t);
     if(!traffic || traffic.length < 2) return;
-    const GAP = CARC.len * 1.15, GAP_SQ = GAP*GAP, MAX_YIELD = 6000;
+    /* +TRAF_BRAKE_D: a car now takes a braking distance to stop, so it has
+       to see the one ahead that much sooner or it stops on its bumper.
+       Still well under the 368 between opposing lanes. */
+    const GAP = CARC.len * 1.15 + TRAF_BRAKE_D, GAP_SQ = GAP*GAP, MAX_YIELD = 6000;
     const pos = [];
     for(const tr of traffic){
       const { wp, fc } = trafficWorldAt(tr, t);
       const th = fc * (Math.PI/2);
-      pos.push({ tr, x: wp.x, y: wp.y, dx: Math.cos(th), dy: Math.sin(th) });
+      const ni = Math.round(wp.x/BLOCK), nj = Math.round(wp.y/BLOCK);
+      const inBox = Math.abs(wp.x - ni*BLOCK) < ROAD_HALF && Math.abs(wp.y - nj*BLOCK) < ROAD_HALF;
+      pos.push({ tr, x: wp.x, y: wp.y, dx: Math.cos(th), dy: Math.sin(th), inBox });
     }
     /* THE ROBOT IS TRAFFIC TOO. Without this a car treats him as empty
        road: it drives into him, tips him, and carries on through the
@@ -52296,7 +52477,7 @@ class WorldScene extends Phaser.Scene {
     const botAhead = { x: this.botX, y: this.botY };
     for(let i = 0; i < pos.length; i++){
       const a = pos[i];
-      let blocked = false;
+      let blocked = false, hard = false;
       {
         const rx = botAhead.x - a.x, ry = botAhead.y - a.y, dSq = rx*rx + ry*ry;
         if(dSq < GAP_SQ && dSq > 1e-6){
@@ -52304,7 +52485,11 @@ class WorldScene extends Phaser.Scene {
           if((rx*a.dx + ry*a.dy) / d >= 0.7) blocked = true;
         }
       }
-      for(let j = 0; j < pos.length && !blocked; j++){
+      /* every car, not just up to the first blocker: MAX_YIELD may only
+         release a car when NONE of its blockers is one it would hit, and
+         stopping at the first (say, a crossing tie-break) hid the car in
+         front -- released after 6s, it drove into it. */
+      for(let j = 0; j < pos.length && !hard; j++){
         if(j === i) continue;
         const b = pos[j];
         const rx = b.x - a.x, ry = b.y - a.y, dSq = rx*rx + ry*ry;
@@ -52327,14 +52512,30 @@ class WorldScene extends Phaser.Scene {
            array index: arbitrary, but stable and deterministic, which
            is all a right-of-way rule has to be. Deterministic also
            means no deadlock: exactly one car of any pair ever waits. */
-        if(ahead >= 0.7 || j < i) blocked = true;
+        if(ahead >= 0.7){
+          blocked = true;
+          /* only a HEAD-ON pair (two loops, one lane) may ever be released
+             by MAX_YIELD. Releasing a car stuck behind the one in front
+             drives it straight through that car -- that was the pile of
+             overlapping cars in the junction. */
+          if(a.dx*b.dx + a.dy*b.dy > -0.5) hard = true;
+          continue;
+        }
+        /* A crossing conflict is only one if the other car is in front of
+           me; a car that has just left the box with me behind it at an
+           angle must not stop and wall the exit. And a car IN the box
+           always has the right of way over one that is not: it is
+           committed, and stopping it there is how the box locks. Index
+           still breaks the remaining ties, so any pair has one waiter. */
+        if(ahead < -0.2) continue;
+        let yieldTo = false;
+        if(a.inBox !== b.inBox){ if(b.inBox) yieldTo = true; }
+        else if(j < i) yieldTo = true;
+        if(yieldTo){ blocked = true; if(d < CARC.len) hard = true; }
       }
-      if(blocked && (a.tr.yieldMs || 0) < MAX_YIELD){
+      if(blocked && (hard || (a.tr.yieldMs || 0) < MAX_YIELD)){
         a.tr.yieldMs = (a.tr.yieldMs || 0) + hDt;
-        /* holdFrame guards against the phase machine adding a step to
-           the same car in the same frame: two increments in one frame
-           makes hold outrun t and the car drives BACKWARD. */
-        if(a.tr.holdFrame !== t){ a.tr.hold = (a.tr.hold || 0) + hDt; a.tr.holdFrame = t; }
+        a.tr.stopAt = t;          // updateTrafficMotion brakes it
       } else if(!blocked){
         a.tr.yieldMs = 0;
       }
@@ -52662,6 +52863,7 @@ class WorldScene extends Phaser.Scene {
     this.updateSignalHolds(t);
     this.updateWilliamIdle(t);
     this.updateCrimeTraffic(t, dt);
+    this.updateTrafficMotion(t);
     this.updateCrimeTape(t);
     /* dt stashed for drawRobot, which drawWorld now calls from inside
        its depth sort (drawWorld takes t only). Written here, before the
@@ -56280,7 +56482,7 @@ function tpSlalomOn(){
 
     const hDt = scene._trafHoldDt !== undefined ? scene._trafHoldDt : dt;
     for (const tr of scene.trafficActive(t)){
-      if (tr.holdFrame === t) continue;              // someone else owns it
+      if (tr.holdFrame === t || tr.easeFrame === t) continue;   // someone else owns it
       const { wp, f } = trafficWorldAt(tr, t);
       const dv = DIRV[f], rv = DIRV[(f + 1) % 4];
       /* RELEASE BEATS HOLD (2026-08-13 fix, "cars stopped dead in the turn,
