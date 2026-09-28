@@ -22,3 +22,6 @@
 - Any change has to work in both the web and Reddit (Devvit) builds.
 - Changes that depend on saved state: say so, and give a console line to seed it
   (the artifact boots with empty localStorage).
+- No secondary grass: a house, shop or landmark never paints its own lawn over the
+  block's ground. The game's house kit keeps `houseLawn` empty (NO HOUSE LAWNS);
+  when copying from `labs/houses.js`, never restore it or add grass plates.
