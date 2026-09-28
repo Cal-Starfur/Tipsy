@@ -2538,7 +2538,7 @@ const SHOP_MENUS = {
 };
 
 const HOODS = [
-  { n:"The Flats",       hill:0.0, pave:0.9, litter:0.2, palms:0.9, streets:["Palmline Ave","Pelican St","Marina Way"], parks:["Pelican Park","Driftwood Green","Marina Commons","Tidewater Green","Sandpiper Field","Cove Grove","Seabreeze Gardens","Lagoon Point"], shops:["Pelican Coffee","Marina Provisions","Driftwood Deli"] },
+  { n:"The Flats",       hill:0.0, pave:0.9, litter:0.2, palms:0.9, streets:["Palmline Ave","Pelican St","Marina Way"], parks:["Pelican Park","Driftwood Green","Marina Commons","Tidewater Green","Sandpiper Field","Cove Grove","Seabreeze Gardens","Lagoon Point"], shops:["Lagoon Coffee Roasters","Sandpiper Bakery","Cove Creamery"] },
   { n:"Boardwalk",       hill:0.0, pave:0.6, litter:1.0, palms:1.0, streets:["Pier Ave","Saltbox Ln","Tide St"], parks:["Tide Pool Green","Carousel Square","Salt Air Park","Arcade Plaza","Ferris Field","Shoreline Esplanade","Funhouse Yard","Taffy Grove","Pier's End","Sun Deck Terrace","Boardwalk Commons","Skeeball Court","Ticket Booth Triangle"], shops:["Tide Pool Tacos","Carousel Creamery","Salt Air Surf Shop"] },
   { n:"Old Town",        hill:0.2, pave:0.2, litter:0.4, palms:0.4, streets:["Founders St","Cobble Ct","Lantern Row"], parks:["Founders Square","Lantern Green","Ivy Grove","Cobblestone Commons","Heritage Park","Chapel Yard","Brickyard Field","Archway Plaza","Old Bell Green","Cornerstone Court","Millwright Grove","Tannery Field","Printer's Row Green","Gaslight Square","Almshouse Lawn","Wagon Yard","Stonecutter's Park"], shops:["Founders Hardware","Lantern Books","Cobblestone Bakery"] },
   { n:"Scooter Row",     hill:0.1, pave:0.5, litter:1.0, palms:0.6, streets:["Beryl Ave","Kickstand St","Charger Way"], parks:["Volt Park","Spoke & Wheel Green","Recharge Plaza","Throttle Field","Gearhead Yard","Battery Commons","Piston Grove","Ignition Square","Rev Circle","Torque Terrace","Kickstand Green","Handlebar Park","Freewheel Field","Sprocket Yard","Dynamo Grove","Coasting Commons","Halfshaft Triangle","Chainlink Walk"], shops:["Volt Bike Co.","Kickstand Cafe","Charger Depot"] },
@@ -10178,9 +10178,26 @@ if(typeof window !== "undefined"){
    block the route happened to wander past (position -> name via
    hoodAtWorld().shops[hash % 3]) -- same name could land anywhere, a
    different name every day even in the same spot. Now the name IS a real,
-   fixed place. */
-let _pickupShopsCache = null;
-function buildPickupShops(grid){
+   fixed place.
+
+   REAL SHOPS ARE PICKUPS (Sir, 2026-09-26: "align the pick ups that were
+   from our old generic shops to our new real shops"). SHOP_ART_LEGACY
+   took the generic storefronts away, so The Flats' three pickups --
+   Pelican Coffee, Marina Provisions, Driftwood Deli -- stood on blocks
+   1,4 / 5,8 / 8,5 that drew nothing: the day's order came out of an
+   empty lot. A HOODS[].shops name that is a HOOD_SHOP_SITES shop is now
+   that shop -- its block, its edge, its own door (realPickupOf) -- and
+   only the names that are not keep the generic placement below. So a
+   hood moves over by renaming its list, nothing else.
+
+   The generic ones are built on their own (getGenericPickupShops)
+   because they are what hoodShopsOf and depotsOf keep off: a real pickup
+   IS a hood shop, and resolving it needs hoodShopsOf, which would loop. */
+function isRealShopName(name){
+  return HOOD_SHOP_SITES.some(s => s[3].includes(name));
+}
+let _genericPickupCache = null, _pickupShopsCache = null;
+function buildGenericPickupShops(grid){
   const shops = [];
   for(let hoodIdx = 0; hoodIdx < HOODS.length; hoodIdx++){
     const hood = HOODS[hoodIdx];
@@ -10200,6 +10217,7 @@ function buildPickupShops(grid){
     }
     const picks = pool.slice(0, Math.min(3, pool.length));
     hood.shops.forEach((name, si) => {
+      if(isRealShopName(name)) return;          // see realPickupOf
       const blk = picks[si] || picks[0];
       if(!blk) return; // shouldn't happen -- ~1/3 of a 9x9 district's 81 blocks are commercial
       const fRng = mulberry32(((blk.i*7919)^(blk.j*104729)^0x2a11)>>>0);
@@ -10218,6 +10236,67 @@ function buildPickupShops(grid){
       shops.push({ name, hoodIndex: hoodIdx, blockI: blk.i, blockJ: blk.j,
                    f, startNode, pickupEdgeIdx, pickupUnitIdx, x, y });
     });
+  }
+  return shops;
+}
+function getGenericPickupShops(grid){
+  if(!_genericPickupCache) _genericPickupCache = buildGenericPickupShops(grid);
+  return _genericPickupCache;
+}
+/* WHERE THE DOOR IS, in the entry's own lab `a` on a 230 lot -- read off
+   each body's shopDoor() call (W 230, SHOP_DOOR_W 66.24 inside LIB),
+   since a lab shop's door is wherever its art put it, not the middle of
+   the lot. The worker walks out of it and
+   the robot pulls up in front of it. A real pickup not listed here uses
+   the middle of its lot. */
+const PICKUP_DOOR_A = {
+  "Lagoon Coffee Roasters": 180,                          // shopDoor(180, ...)
+  "Sandpiper Bakery":       230 - 9 - 66.24/2,            // dx1 = W - 9, dx0 = dx1 - dW
+  "Cove Creamery":          230*0.84,                     // shopDoor(W*0.84, ...)
+};
+/* ONE REAL SHOP AS A PICKUP. The same fields buildGenericPickupShops
+   produces, so generateRoute and the renderer cannot tell them apart --
+   except pickupUnitIdx indexes the edge's AUTHORED units (the list
+   queueCommercialEdgeAt is handed), and doorA says where along the unit
+   the door is. Refused, with a warning, rather than placed wrong:
+     - an edge other than 1 or 2. The route's first leg traces the pickup
+       frontage and only f = 0 / 3 are good headings, so a pickup faces
+       the camera or it is not one (a back edge also draws the shop's
+       back, with no door to come out of);
+     - edge 1 on a charge-depot block: f = 3 starts the walk at the near
+       corner, which is the depot's door and mat (see DEPOT_SITES). */
+function realPickupOf(grid, hoodIdx, name){
+  const warn = why => { try { console.warn("pickup " + name + ": " + why); } catch(e){} return null; };
+  const sh = hoodShopsOf(grid).find(h => h.name === name);
+  if(!sh) return warn("not placed by hoodShopsOf");
+  if(sh.edge !== 1 && sh.edge !== 2) return warn("edge " + sh.edge + " does not face the street the route starts on");
+  const blk = grid.blockByIJ.get(sh.blockKey);
+  const f = sh.edge === 2 ? 0 : 3;
+  if(f === 3 && depotOnBlock(grid, blk)) return warn("edge 1 on a depot block");
+  const units = hoodShopEdgeUnits(grid, blk, sh.edge);
+  const idx = units ? units.findIndex(u => u.shop && u.shop.name === name) : -1;
+  if(idx < 0) return warn("no unit on its edge");
+  const u = units[idx], e = blockEdgesOf(blk)[sh.edge], ent = LIB.get(u.shop.lib) || {};
+  /* the lab frame to the unit's: the same mirror queueCommercialEdgeAt
+     draws the body with, then the entry's scale */
+  const lotW = ent.ww || 230, SC = ent.sc || 1;
+  const mir = (e.dv.x + e.dv.y) <= 0 && ent.mirror !== false;
+  const da = PICKUP_DOOR_A[name] !== undefined ? PICKUP_DOOR_A[name] : lotW/2;
+  const doorA = (mir ? lotW - da : da) * SC;
+  const along = u.start + doorA, out = T2*2.1;           // the generic pickup's standoff
+  return { name, hoodIndex: hoodIdx, blockI: blk.i, blockJ: blk.j, real: true,
+           f, startNode: f === 0 ? { i: blk.i, j: blk.j+1 } : { i: blk.i+1, j: blk.j+1 },
+           pickupEdgeIdx: sh.edge, pickupUnitIdx: idx, doorA,
+           x: e.ox + e.dv.x*along + e.rv.x*out, y: e.oy + e.dv.y*along + e.rv.y*out };
+}
+function buildPickupShops(grid){
+  const generic = getGenericPickupShops(grid), shops = [];
+  for(let hoodIdx = 0; hoodIdx < HOODS.length; hoodIdx++){
+    for(const name of HOODS[hoodIdx].shops){
+      const sh = isRealShopName(name) ? realPickupOf(grid, hoodIdx, name)
+                                      : generic.find(g => g.name === name && g.hoodIndex === hoodIdx);
+      if(sh) shops.push(sh);
+    }
   }
   return shops;
 }
@@ -10445,7 +10524,7 @@ function depotsOf(grid){
   if(_depotsGrid === grid && _depots) return _depots;
   _depotsGrid = grid; _depots = []; _depotByBlock = new Map();
   const byIJ = new Map(grid.blocks.map(b => [b.i + "," + b.j, b]));
-  const taken = new Set(getPickupShops(grid).map(sh => sh.blockI + "," + sh.blockJ));
+  const taken = new Set(getGenericPickupShops(grid).map(sh => sh.blockI + "," + sh.blockJ));
   for(const [i, j, home] of DEPOT_SITES){
     const key = i + "," + j, blk = byIJ.get(key);
     if(!blk || blk.type !== "commercial" || taken.has(key)){
@@ -10683,7 +10762,7 @@ function hoodShopsOf(grid){
   if(_hsGrid === grid && _hoodShops) return _hoodShops;
   _hsGrid = grid; _hoodShops = []; _hoodShopEdges = new Map();
   const byIJ = new Map(grid.blocks.map(b => [b.i + "," + b.j, b]));
-  const taken = new Set(getPickupShops(grid).map(sh => sh.blockI + "," + sh.blockJ));
+  const taken = new Set(getGenericPickupShops(grid).map(sh => sh.blockI + "," + sh.blockJ));
   const perBlock = new Map();                  // key -> { blk, depot, whole, edges: {ei: units} }
   for(const [i, j, ei, list] of HOOD_SHOP_SITES){
     const key = i + "," + j, blk = byIJ.get(key);
@@ -15136,6 +15215,7 @@ function _generateRouteFresh(dateStr, opts){
   const pickupUnitIdx = todaysShop.pickupUnitIdx;
   const pickupSpot = { x: todaysShop.x, y: todaysShop.y };
   const pickupShopName = todaysShop.name;
+  const pickupDoorA = todaysShop.real ? todaysShop.doorA : null;   // see realPickupOf
   let pickupS = SPAWN_S;
   {
     const sg0 = segs[0];
@@ -15938,7 +16018,7 @@ function _generateRouteFresh(dateStr, opts){
       })()
     : null;
   return stampWorldCoords({ addressMat, pickupMat, cfTaken, hood: addressHood, grid, segs, totalLen: loop ? loop.sEnd : totalLen, loop, tiles, hazards, props, pal, night, traffic, trafficFleet, crossings, cutEdges, cutExt, challenge, crime, routeCells, curbRamps, signals: grid.signals,
-           address:`${number} ${street}`, doorS, pickupS, pickupSpot, pickupShopName, addressBlock, pickupBlock, addressEdgeIdx, pickupEdgeIdx, addressUnitIdx, pickupUnitIdx, addressUsesGate, order, parMs, dateStr, runIndex  });
+           address:`${number} ${street}`, doorS, pickupS, pickupSpot, pickupShopName, pickupDoorA, addressBlock, pickupBlock, addressEdgeIdx, pickupEdgeIdx, addressUnitIdx, pickupUnitIdx, addressUsesGate, order, parMs, dateStr, runIndex  });
 }
 
 /* ---------- robot palette (approved in sprite lab) ---------- */
@@ -37152,6 +37232,7 @@ class WorldScene extends Phaser.Scene {
     if(opts && opts.challenge){
       this.route.pickupSpot = null;
       this.route.pickupShopName = null;
+      this.route.pickupDoorA = null;
       this.route.pickupBlock = null;
     }
     /* the challenge starts you a little way BEFORE the course so you
@@ -42252,7 +42333,11 @@ class WorldScene extends Phaser.Scene {
     this.quadOn(g, front, B.paper);
   }
 
-  drawPickupUnit(g, ox, oy, dv, rv, doorCenterX, seed, t){
+  /* noDoor: a REAL shop (realPickupOf) is the pickup, and its art has its
+     own door, so this draws only the worker and the bag -- and only once
+     he is out through the glass line, since there is no leaf of ours for
+     him to pass behind (dy < 0 is inside the shop). */
+  drawPickupUnit(g, ox, oy, dv, rv, doorCenterX, seed, t, noDoor=false){
     if(!this.route.pickupSpot) return;
     this.pickupDoorDV = dv; this.pickupDoorRV = rv;
     this.pickupDoorUX = ox; this.pickupDoorUY = oy; this.pickupDoorCenterX = doorCenterX;
@@ -42269,7 +42354,8 @@ class WorldScene extends Phaser.Scene {
     const unitW = doorCenterX*2;
     const doorW = Math.min(DOOR_W*0.72, unitW*0.3);
     const dZ1 = DOOR_H*0.88;
-    const drawDoor = () => this.drawShopDoor(g, ox, oy, dv, rv, doorCenterX, doorW, dZ1, dz, this.doorSwing);
+    const drawDoor = noDoor ? () => {}
+      : () => this.drawShopDoor(g, ox, oy, dv, rv, doorCenterX, doorW, dZ1, dz, this.doorSwing);
 
     /* stay visible until he's both arrived (walkT===0) AND the door has
        actually swung shut behind him — previously this cut him at
@@ -42386,7 +42472,8 @@ class WorldScene extends Phaser.Scene {
        painted over it, which only looked right while dy>=0 (still out
        front). Once "go" sends him walking back in past the door plane
        (dy<0), he needs to be the one that gets painted over instead. */
-    if(dy < 0){ drawWorker(); drawDoor(); }
+    if(noDoor){ if(dy >= 0) drawWorker(); }
+    else if(dy < 0){ drawWorker(); drawDoor(); }
     else { drawDoor(); drawWorker(); }
   }
 
@@ -43039,6 +43126,18 @@ class WorldScene extends Phaser.Scene {
       const isPickup = isPickupEdge && idx === this.route.pickupUnitIdx;
       if(cornerSkip && !isPickup && cornerSkip(hx, hy)) return;    // corner-loom trim
       if(u.shop){
+        /* TODAY'S PICKUP IS A REAL SHOP (realPickupOf): the worker and his
+           bag on their own entry, keyed a tile out on the pavement in
+           front of the door, so he draws over the frontage he walks out
+           of and under nothing of it. The fields drawPickupUnit stamps
+           drive the whole load/walk choreography, exactly as off the old
+           generic unit. */
+        if(isPickup && this.route.pickupDoorA != null){
+          const da = this.route.pickupDoorA;
+          const qx = ux + e.dv.x*da + e.rv.x*T2, qy = uy + e.dv.y*da + e.rv.y*T2;
+          vq.push({ depth: qx + qy, fn: (g, t) =>
+            this.drawPickupUnit(g, ux, uy, e.dv, e.rv, da, hseed, t, true) });
+        }
         /* A LIBRARY SHOP, one queue entry like every building (see
            queueUnitStrips), drawn in its own frame: lab a along dv, lab b
            0 at the glass and negative into the block, which is +rv*b
@@ -56538,7 +56637,7 @@ function tpSlalomOn(){
   function slQuietOpening(){
     scene.mode = 'challenge';
     const r = scene.route;
-    r.pickupSpot = null; r.pickupShopName = null; r.pickupBlock = null;
+    r.pickupSpot = null; r.pickupShopName = null; r.pickupBlock = null; r.pickupDoorA = null;
     scene.pickupDoorDV = null; scene.pickupDoorRV = null;
     scene.walkAt = null; scene.doorSwing = 0;
     scene.pickupOut = 1; scene.pickupOutAt = null; scene.pickupOutMs = null;
