@@ -3783,7 +3783,7 @@ const SHOP_MENUS = {
 };
 
 const HOODS = [
-  { n:"The Flats",       hill:0.0, pave:0.9, litter:0.2, palms:0.9, streets:["Palmline Ave","Pelican St","Marina Way"], parks:["Pelican Park","Driftwood Green","Marina Commons","Tidewater Green","Sandpiper Field","Cove Grove","Seabreeze Gardens","Lagoon Point"], shops:["Lagoon Coffee Roasters","Sandpiper Bakery","Cove Creamery"] },
+  { n:"The Flats",       hill:0.0, pave:0.9, litter:0.2, palms:0.9, streets:["Palmline Ave","Pelican St","Marina Way"], parks:["Veterans Memorial Park","Driftwood Green","Marina Commons","Tidewater Green","Sandpiper Field","Cove Grove","Seabreeze Gardens","Lagoon Point"], shops:["Lagoon Coffee Roasters","Sandpiper Bakery","Cove Creamery"] },
   { n:"Boardwalk",       hill:0.0, pave:0.6, litter:1.0, palms:1.0, streets:["Pier Ave","Saltbox Ln","Tide St"], parks:["Tide Pool Green","Carousel Square","Salt Air Park","Arcade Plaza","Ferris Field","Shoreline Esplanade","Funhouse Yard","Taffy Grove","Pier's End","Sun Deck Terrace","Boardwalk Commons","Skeeball Court","Ticket Booth Triangle"], shops:["Tide Pool Tacos","Carousel Creamery","Salt Air Surf Shop"] },
   { n:"Old Town",        hill:0.2, pave:0.2, litter:0.4, palms:0.4, streets:["Founders St","Cobble Ct","Lantern Row"], parks:["Founders Square","Lantern Green","Ivy Grove","Cobblestone Commons","Heritage Park","Chapel Yard","Brickyard Field","Archway Plaza","Old Bell Green","Cornerstone Court","Millwright Grove","Tannery Field","Printer's Row Green","Gaslight Square","Almshouse Lawn","Wagon Yard","Stonecutter's Park"], shops:["Founders Hardware","Lantern Books","Cobblestone Bakery"] },
   { n:"Scooter Row",     hill:0.1, pave:0.5, litter:1.0, palms:0.6, streets:["Beryl Ave","Kickstand St","Charger Way"], parks:["Volt Park","Spoke & Wheel Green","Recharge Plaza","Throttle Field","Gearhead Yard","Battery Commons","Piston Grove","Ignition Square","Rev Circle","Torque Terrace","Kickstand Green","Handlebar Park","Freewheel Field","Sprocket Yard","Dynamo Grove","Coasting Commons","Halfshaft Triangle","Chainlink Walk"], shops:["Volt Bike Co.","Kickstand Cafe","Charger Depot"] },
@@ -5883,6 +5883,9 @@ function owBuildWorld(route){
   /* ...and the Ferris Taylor monument's plinth, as three posts along it */
   { const fm = g2 && typeof ferrisMonumentOf === 'function' ? ferrisMonumentOf(g2) : null;
     if(fm) for(const q of fm.posts) PO.push({ kind:"monument", x: q.x, y: q.y }); }
+  /* ...and Veterans Memorial Park's trees and shrubs along the trail */
+  { const vt = g2 && typeof vetTrailOf === 'function' ? vetTrailOf(g2) : null;
+    if(vt) for(const q of vt.posts) PO.push(q); }
   const poBucket = new Map();
   for(const s of PO){
     const k = Math.floor(s.x / HZ_CELL) + ',' + Math.floor(s.y / HZ_CELL);
@@ -5916,6 +5919,8 @@ const OW_HZ_R = {
   /* the Ferris Taylor monument's plinth: three of these along its 470 x 260
      step (see ferrisMonumentOf) */
   monument: 125,
+  /* Veterans Memorial Park (see vetTrailOf): a trunk, and a shrub's body */
+  parktree: 26, shrub: 30,
   /* the traffic signal's POLE. Not the head or the mast arm -- those hang
      at armZ ~312, far over the robot. 16 is the drawn base collar's own
      half-width (14) plus a little slack, erring generous so he stops just
@@ -12471,6 +12476,144 @@ function ferrisMonumentOf(grid){
   const h = { x: 1, y: 0 }, sv = { x: 0, y: 1 };
   const posts = [-150, 0, 150].map(t => ({ x: x + h.x*t, y: y + h.y*t }));
   return (grid._ferrisMon = { anchor: a, x, y, h, s: sv, posts });
+}
+/* VETERANS MEMORIAL PARK'S TRAIL (Sir, 2026-09-29, on the map: "lets
+   rename this 'veterans Memorial Park' and put a wood chip running path
+   were ive drawn the line in the center of it. i want it to be heavily
+   landscaped along the trail"). The park is the Flats' big merged
+   component (0,0 ... 6,5 -- seventeen cells, their swallowed streets
+   between them). His line runs down the middle of it, which is exactly
+   the park's own adjacency: a straight run from each cell's centre to
+   every neighbouring park cell's centre. The component is a tree (no
+   2x2 of park), so that is the line, with no loops he did not draw.
+
+   Worked out once per grid; the ground pass lays the chips
+   (fillParkTrail), the park draws the planting (queueParkTrail), the
+   world collides the trees and shrubs (owBuildWorld's posts) and the map
+   draws the line. Every plant is placed here, seeded, so the draw and the
+   collision are the same list. null if the park is not there. */
+const VET_TRAIL = { cell: "3,4", halfW: 120, loopR: 250 };
+function vetTrailOf(grid){
+  if(!grid || !grid.blockByIJ) return null;
+  if(grid._vetTrail !== undefined) return grid._vetTrail;
+  const M = grid.blockByIJ, pk = k => { const b = M.get(k); return b && b.type === "park" ? b : null; };
+  const start = pk(VET_TRAIL.cell);
+  if(!start || start.i === undefined) return (grid._vetTrail = null);
+  const cells = new Map(), q = [start]; cells.set(VET_TRAIL.cell, start);
+  while(q.length){
+    const c = q.pop();
+    for(const [di, dj] of [[1,0],[-1,0],[0,1],[0,-1]]){
+      const k = (c.i + di) + "," + (c.j + dj);
+      if(cells.has(k)) continue;
+      const n = pk(k); if(n){ cells.set(k, n); q.push(n); }
+    }
+  }
+  if(cells.size < 8) return (grid._vetTrail = null);
+  const H = VET_TRAIL.halfW, segs = [], deg = new Map();
+  for(const [k, c] of cells) for(const [di, dj] of [[1,0],[0,1]]){
+    const n = cells.get((c.i + di) + "," + (c.j + dj)); if(!n) continue;
+    segs.push({ x0: c.cx, y0: c.cy, x1: n.cx, y1: n.cy });
+    deg.set(k, (deg.get(k) || 0) + 1); deg.set(n.i + "," + n.j, (deg.get(n.i + "," + n.j) || 0) + 1);
+  }
+  /* the joints: every cell centre, a dead end opens into a turnaround */
+  const nodes = [...cells].map(([k, c]) => ({ x: c.cx, y: c.cy, end: (deg.get(k) || 0) === 1 }));
+  const R = n => n.end ? VET_TRAIL.loopR : H;
+  /* THROUGH EACH TURNAROUND AND OUT (Sir, 2026-09-29: "i want the paths
+     to continue on the other side of them creating an exit to the
+     sidewalks"). A dead end's run carries straight on past its loop, the
+     way it came, to its cell's edge -- where the sidewalk starts. */
+  for(const [k, c] of cells){
+    if((deg.get(k) || 0) !== 1) continue;
+    let dx = 0, dy = 0;
+    for(const [di, dj] of [[1,0],[-1,0],[0,1],[0,-1]]) if(cells.has((c.i + di) + "," + (c.j + dj))){ dx = -di; dy = -dj; }
+    const ex = dx > 0 ? c.x1 : dx < 0 ? c.x0 : c.cx, ey = dy > 0 ? c.y1 : dy < 0 ? c.y0 : c.cy;
+    segs.push({ x0: c.cx, y0: c.cy, x1: ex, y1: ey, exit: true });
+  }
+  /* how far a point stands from the chips (negative inside) */
+  const off = (x, y) => {
+    let d = Infinity;
+    for(const s of segs){
+      const t = Math.max(0, Math.min(1, ((x - s.x0)*(s.x1 - s.x0) + (y - s.y0)*(s.y1 - s.y0)) / ((s.x1 - s.x0)**2 + (s.y1 - s.y0)**2)));
+      d = Math.min(d, Math.hypot(x - (s.x0 + (s.x1 - s.x0)*t), y - (s.y0 + (s.y1 - s.y0)*t)) - H);
+    }
+    for(const n of nodes) d = Math.min(d, Math.hypot(x - n.x, y - n.y) - R(n));
+    return d;
+  };
+  /* inside the park's own grass: a cell's lawn, or the street it swallowed
+     between two park cells, kept 60 back from the pavement */
+  const inPark = (x, y) => {
+    for(const c of cells.values()){
+      const m = 60;
+      if(x > c.x0 + m && x < c.x1 - m && y > c.y0 + m && y < c.y1 - m) return true;
+      const nx = cells.get((c.i + 1) + "," + c.j), ny = cells.get(c.i + "," + (c.j + 1));
+      if(nx && x >= c.x1 - m && x <= nx.x0 + m && y > c.y0 + m && y < c.y1 - m) return true;
+      if(ny && y >= c.y1 - m && y <= ny.y0 + m && x > c.x0 + m && x < c.x1 - m) return true;
+    }
+    return false;
+  };
+  const rng = mulberry32(0x7e75a1);
+  const plants = [];
+  const clear = (x, y, r) => plants.every(p => Math.hypot(p.x - x, p.y - y) > (p.r + r)*0.8);
+  const put = (p, gap) => {
+    const o = off(p.x, p.y);
+    if(o < gap || !inPark(p.x, p.y) || !clear(p.x, p.y, p.r)) return false;
+    plants.push(p); return true;
+  };
+  const SHRUB = [0x4f7f45, 0x5d8f4c, 0x46743f, 0x6a9a52], BLOOM = [0xf2f0e6, 0xe86a8a, 0xf2c14e, 0xb07ad8, 0xe8743c];
+  for(const s of segs){
+    const L = Math.hypot(s.x1 - s.x0, s.y1 - s.y0), dx = (s.x1 - s.x0)/L, dy = (s.y1 - s.y0)/L;
+    const at = (t, o) => ({ x: s.x0 + dx*t - dy*o, y: s.y0 + dy*t + dx*o });
+    for(const side of [-1, 1]){
+      /* a bench each side, facing the chips, with the border opened round it */
+      const tb = L*(0.3 + rng()*0.4), pb = at(tb, side*(H + 46));
+      put({ kind: "bench", x: pb.x, y: pb.y, r: 70, dv: Math.abs(dx) > 0.5 ? DIRV[0] : DIRV[1] }, 20);
+      /* the border: clumps of three to five shrubs close along the edge */
+      for(let t = 80; t < L - 80; ){
+        const run = 3 + Math.floor(rng()*3), bloom = rng() < 0.45 ? BLOOM[Math.floor(rng()*BLOOM.length)] : null;
+        const col = SHRUB[Math.floor(rng()*SHRUB.length)];
+        for(let k = 0; k < run && t < L - 80; k++, t += 68 + rng()*14){
+          const r = 30 + rng()*12, p = at(t, side*(H + 44 + rng()*14));
+          put({ kind: "shrub", x: p.x, y: p.y, r, col, bloom }, 12);
+        }
+        t += 90 + rng()*150;
+      }
+      /* flower beds, set back behind the border */
+      for(let t = 300 + rng()*200; t < L - 260; t += 560 + rng()*260){
+        const p = at(t, side*(H + 170 + rng()*30));
+        put({ kind: "bed", x: p.x, y: p.y, r: 90, ax: dx, ay: dy, len: 130 + rng()*60,
+              bloom: BLOOM[Math.floor(rng()*BLOOM.length)], bloom2: BLOOM[Math.floor(rng()*BLOOM.length)] }, 60);
+      }
+      /* the trees (Sir: "more trees pleas"): a close avenue along the
+         trail, then a second, looser row behind it out toward the park's
+         edge -- shade trees mostly, palms among them */
+      for(const [o0, o1, step, jig] of [[260, 360, 190, 110], [480, 640, 230, 150]])
+        for(let t = 90 + rng()*120; t < L - 60; t += step + rng()*jig){
+          const p = at(t, side*(H + o0 + rng()*(o1 - o0))), roll = rng();
+          const kind = roll < 0.66 ? "tree" : roll < 0.86 ? "palm" : "palmDwarf";
+          put({ kind, x: p.x, y: p.y, r: kind === "tree" ? 64 : 42, h: 0.8 + rng()*0.4,
+                col: [0x5a8f45, 0x4f8440, 0x679a4e, 0x7aa04a, 0x3f7a3c][Math.floor(rng()*5)] }, 120);
+        }
+    }
+  }
+  /* each turnaround ringed in shrubs, a tree behind */
+  for(const n of nodes) if(n.end){
+    plants.push({ kind: "tree", x: n.x, y: n.y, r: 60, h: 0.9, col: 0x679a4e });   // on the island the loop runs round
+    const col = SHRUB[Math.floor(rng()*SHRUB.length)], bloom = BLOOM[Math.floor(rng()*BLOOM.length)];
+    for(let a = 0; a < Math.PI*2; a += 0.34){
+      const r = VET_TRAIL.loopR + 50;
+      put({ kind: "shrub", x: n.x + Math.cos(a)*r, y: n.y + Math.sin(a)*r, r: 32 + rng()*8, col, bloom: rng() < 0.5 ? bloom : null }, 12);
+    }
+    for(let a = 0.4; a < Math.PI*2; a += 1.3)
+      put({ kind: "tree", x: n.x + Math.cos(a)*(VET_TRAIL.loopR + 260), y: n.y + Math.sin(a)*(VET_TRAIL.loopR + 260), r: 70, h: 1 + rng()*0.25, col: 0x5a8f45 }, 120);
+  }
+  /* what stops him: trunks and shrubs, not the flower beds */
+  const posts = [];
+  for(const p of plants){
+    if(p.kind === "tree" || p.kind === "palm" || p.kind === "palmDwarf") posts.push({ kind: "parktree", x: p.x, y: p.y });
+    else if(p.kind === "shrub") posts.push({ kind: "shrub", x: p.x, y: p.y });
+    else if(p.kind === "bench") posts.push({ kind: "bench", x: p.x, y: p.y });
+  }
+  return (grid._vetTrail = { cells, segs, nodes, plants, posts, halfW: H, R, off });
 }
 /* ==================== THE SHOP BLOCK'S LAYOUT, ONCE ====================
    (Sir, 2026-09-26: "i want to be able to access these shop block court
@@ -45867,6 +46010,7 @@ class WorldScene extends Phaser.Scene {
       return near(x, y) || near(s.from, y) || near(s.to, y);
     });
     for(const blk of visBlocks) this.fillBlockGround(g, blk);
+    this.fillParkTrail(g);                  // Veterans Memorial Park's chips, over its grass (see vetTrailOf)
     for(const lot of visLots) this.fillExteriorLot(g, lot);
 
     /* route.cutEdges carries only the permanent cut lots now (the route
@@ -48949,6 +49093,127 @@ class WorldScene extends Phaser.Scene {
     return this.parkLandmarkIndex(g).get(blk.i + "," + blk.j) || null;
   }
 
+  /* VETERANS MEMORIAL PARK'S TRAIL, the ground (see vetTrailOf): timber
+     edging, then the chips, then the grass islands in the turnarounds,
+     then the chip texture -- seeded specks, only on the runs in view.
+     Laid after every block's grass, so a neighbouring cell's lawn and the
+     street it swallowed cannot paint back over the half it owns. */
+  fillParkTrail(g){
+    const vt = this.route && vetTrailOf(this.route.grid);
+    if(!vt) return;
+    const H = vt.halfW, z = 0.5;
+    const span = (this.scale.gameSize.width + this.scale.gameSize.height) / this.K;
+    const near = (x0, y0, x1, y1) => Math.abs(Math.max(Math.min(this.camX, Math.max(x0, x1)), Math.min(x0, x1)) - this.camX)
+                                   + Math.abs(Math.max(Math.min(this.camY, Math.max(y0, y1)), Math.min(y0, y1)) - this.camY) < span + 400;
+    const segs = vt.segs.filter(s => near(s.x0, s.y0, s.x1, s.y1)), nodes = vt.nodes.filter(n => near(n.x, n.y, n.x, n.y));
+    if(!segs.length && !nodes.length) return;
+    /* a turnaround is a ring round a lawn island: the run stops at the
+       island's edging, and the ring is laid as a band of quads, so the
+       world's own lawn checker shows through the middle untouched */
+    const ISL = 100, isEnd = (x, y) => vt.nodes.some(n => n.end && n.x === x && n.y === y);
+    const band = (s, w) => { const hx = s.y0 === s.y1 ? 0 : w, hy = s.y0 === s.y1 ? w : 0;
+      const L = Math.hypot(s.x1 - s.x0, s.y1 - s.y0), ux = (s.x1 - s.x0)/L, uy = (s.y1 - s.y0)/L;
+      const c0 = isEnd(s.x0, s.y0) ? ISL : 0, c1 = isEnd(s.x1, s.y1) ? ISL : 0;
+      const ax = s.x0 + ux*c0, ay = s.y0 + uy*c0, bx = s.x1 - ux*c1, by = s.y1 - uy*c1;
+      return [this.W(ax - hx, ay - hy, z), this.W(bx - hx, by - hy, z), this.W(bx + hx, by + hy, z), this.W(ax + hx, ay + hy, z)]; };
+    const disc = (x, y, r, zz) => Array.from({ length: 28 }, (_, k) => { const t = k/28*Math.PI*2; return this.W(x + Math.cos(t)*r, y + Math.sin(t)*r, zz); });
+    const ring = (x, y, r0, r1, col) => { const N = 36;
+      for(let k = 0; k < N; k++){ const t0 = k/N*Math.PI*2, t1 = (k + 1.02)/N*Math.PI*2;
+        this.quadOn(g, [this.W(x + Math.cos(t0)*r0, y + Math.sin(t0)*r0, z), this.W(x + Math.cos(t1)*r0, y + Math.sin(t1)*r0, z),
+                        this.W(x + Math.cos(t1)*r1, y + Math.sin(t1)*r1, z), this.W(x + Math.cos(t0)*r1, y + Math.sin(t0)*r1, z)], col); } };
+    const EDGE = 0x7a5a3a, CHIP = 0xa27850;
+    for(const s of segs) this.quadOn(g, band(s, H + 12), EDGE);
+    for(const n of nodes) n.end ? ring(n.x, n.y, ISL, vt.R(n) + 12, EDGE) : this.quadOn(g, disc(n.x, n.y, vt.R(n) + 12, z), EDGE);
+    for(const s of segs) this.quadOn(g, band(s, H), CHIP);
+    for(const n of nodes) n.end ? ring(n.x, n.y, ISL + 12, vt.R(n), CHIP) : this.quadOn(g, disc(n.x, n.y, vt.R(n), z), CHIP);
+    /* the chips themselves: light and dark flecks, fixed per run */
+    if(!vt._specks){
+      const rr = mulberry32(0x5c1a9);
+      vt._specks = vt.segs.map(s => {
+        const out = [], L = Math.hypot(s.x1 - s.x0, s.y1 - s.y0), n = Math.round(L*2*H/2200);
+        const dx = (s.x1 - s.x0)/L, dy = (s.y1 - s.y0)/L;
+        for(let k = 0; k < n; k++){
+          const t = rr()*L, o = (rr()*2 - 1)*(H - 8), x = s.x0 + dx*t - dy*o, y = s.y0 + dy*t + dx*o;
+          if(vt.nodes.some(q => q.end && Math.hypot(q.x - x, q.y - y) < 118)) continue;
+          out.push(x, y, rr() < 0.5 ? 0xc49a68 : rr() < 0.6 ? 0x7d5634 : 0xb68656);
+        }
+        return out;
+      });
+    }
+    const K = this.K;
+    for(let i = 0; i < vt.segs.length; i++){
+      const s = vt.segs[i]; if(!segs.includes(s)) continue;
+      const sp = vt._specks[i];
+      for(let k = 0; k < sp.length; k += 3){
+        const p = this.W(sp[k], sp[k + 1], z);
+        g.fillStyle(sp[k + 2], 1);
+        g.fillRect(p.x - 2.2*K, p.y - 0.9*K, 4.4*K, 1.8*K);
+      }
+    }
+  }
+  /* ...and its planting: every plant whose nearest cell centre is this
+     cell, each keyed at its own foot. Shrubs and shade trees are drawn
+     here, round and soft (screen circles -- a round thing looks the same
+     from every side); the palms and benches are the city's own props. */
+  queueParkTrail(vq, vt, blk){
+    if(!vt._byCell){
+      vt._byCell = new Map();
+      for(const p of vt.plants){
+        let best = null, bd = Infinity;
+        for(const [k, c] of vt.cells){ const d = Math.abs(c.cx - p.x) + Math.abs(c.cy - p.y); if(d < bd){ bd = d; best = k; } }
+        if(!vt._byCell.has(best)) vt._byCell.set(best, []);
+        vt._byCell.get(best).push(p);
+      }
+    }
+    const list = vt._byCell.get(blk.i + "," + blk.j);
+    if(!list) return;
+    const shadeC = (c, k) => ((Math.min(255, ((c >> 16) & 255)*k)|0) << 16) | ((Math.min(255, ((c >> 8) & 255)*k)|0) << 8) | (Math.min(255, (c & 255)*k)|0);
+    for(const p of list){
+      const x = p.x, y = p.y;
+      vq.push({ depth: x + y, fn: (g0, t) => {
+        const g = this.propLayer(g0, x, y), K = this.K;
+        const dot = (wx, wy, wz, r, col, a = 1) => { const c = this.W(wx, wy, wz); g.fillStyle(col, a); g.fillCircle(c.x, c.y, r*K); };
+        const shadow = (r) => { const c = this.W(x + r*0.25, y + r*0.25, 0); g.fillStyle(0x2c4a24, 0.28); g.fillEllipse(c.x, c.y, r*2.3*K, r*1.15*K); };
+        const rr = mulberry32(((Math.round(x)*7919) ^ (Math.round(y)*104729)) >>> 0);
+        if(p.kind === "shrub"){
+          const r = p.r;
+          shadow(r);
+          dot(x, y, r*0.7, r*1.08, shadeC(p.col, 0.72));
+          dot(x - r*0.12, y - r*0.12, r*0.9, r*0.95, p.col);
+          dot(x - r*0.35, y - r*0.25, r*1.15, r*0.5, shadeC(p.col, 1.18));
+          if(p.bloom) for(let k = 0; k < 7; k++){
+            const a = rr()*Math.PI*2, d = rr()*r*0.75;
+            dot(x + Math.cos(a)*d*0.6, y + Math.sin(a)*d*0.6, r*0.9 + rr()*r*0.5, 4.2, p.bloom);
+          }
+        } else if(p.kind === "bed"){
+          const L = p.len, Wd = 58, ax = p.ax, ay = p.ay;
+          const ell = (l, w, z) => Array.from({ length: 24 }, (_, k) => { const th = k/24*Math.PI*2;
+            const u = Math.cos(th)*l, v = Math.sin(th)*w; return this.W(x + ax*u - ay*v, y + ay*u + ax*v, z); });
+          this.quadOn(g, ell(L + 10, Wd + 10, 0.8), 0x9c9484);          // the stone edging
+          this.quadOn(g, ell(L, Wd, 1), 0x5a3d28);                      // the mulch
+          for(let k = 0; k < 34; k++){
+            const u = (rr()*2 - 1)*L*0.85, v = (rr()*2 - 1)*Wd*0.7*Math.sqrt(1 - (u/L)**2);
+            const fx = x + ax*u - ay*v, fy = y + ay*u + ax*v;
+            dot(fx, fy, 8, 7, 0x4f7f45);
+            dot(fx, fy, 16, 4.6, rr() < 0.6 ? p.bloom : p.bloom2);
+          }
+        } else if(p.kind === "tree"){
+          const h = p.h || 1;                                 // no ground shadow (Sir: "lose the shadows under the trees")
+          const b0 = this.W(x, y, 0), b1 = this.W(x, y, 140*h);
+          this.quadOn(g, [{ x: b0.x - 7*K, y: b0.y }, { x: b0.x + 7*K, y: b0.y }, { x: b1.x + 4*K, y: b1.y }, { x: b1.x - 4*K, y: b1.y }], 0x6b4f36);
+          g.fillStyle(0x543d29, 1); g.fillRect(b0.x, b1.y, 4*K, b0.y - b1.y);
+          const C = [[0,0,195,70],[-44,18,172,50],[40,-22,178,52],[22,34,160,44],[-28,-30,208,46],[0,-6,238,44]];
+          for(const [ox, oy, z, r] of C) dot(x + ox*h, y + oy*h, z*h, r*h + 6, shadeC(p.col, 0.7));
+          for(const [ox, oy, z, r] of C) dot(x + ox*h - 8, y + oy*h - 8, z*h + 6, r*h, p.col);
+          for(const [ox, oy, z, r] of C) dot(x + ox*h - 22, y + oy*h - 22, z*h + 18, r*h*0.45, shadeC(p.col, 1.2));
+        } else if(p.kind === "bench"){
+          this.drawBenchProp(g, x, y, p.dv);
+        } else {
+          this.drawProp(g, p.kind, x, y, t);
+        }
+      }});
+    }
+  }
   /* THE FERRIS TAYLOR MONUMENT (see ferrisMonumentOf). The plaza is ground,
      keyed under everything near it; plinth, horse and rider are one body
      on the centre. There is no horse anywhere else in the game, so the
@@ -49260,6 +49525,10 @@ class WorldScene extends Phaser.Scene {
        ferrisMonumentOf) -- permanent, so above the scatter guard */
     { const fm = this.route && ferrisMonumentOf(this.route.grid);
       if(fm && fm.anchor === blk) this.queueFerrisMonument(vq, fm); }
+    /* Veterans Memorial Park's planting, each cell its own share (see
+       vetTrailOf) -- permanent, so above the scatter guard too */
+    { const vt = this.route && vetTrailOf(this.route.grid);
+      if(vt && blk.i !== undefined && vt.cells.has(blk.i + "," + blk.j)) this.queueParkTrail(vq, vt, blk); }
     if(!WORLD_SCATTER) return;                 // see WORLD SCATTER: SWEPT
     const rng = mulberry32(((Math.round((blk.x0+blk.x1)/2)*7919) ^ (Math.round((blk.y0+blk.y1)/2)*104729) ^ 0x50a2) >>> 0);
     /* clusters, not isolated single trees — real palms/dwarf palms
@@ -67152,6 +67421,21 @@ function drawRouteMap(route){
     }
   }
 
+  /* Veterans Memorial Park's trail (see vetTrailOf), at its real width */
+  { const vt = !bgRoute.grid.classic && vetTrailOf(bgRoute.grid);
+    if(vt){
+      const o = toScreen({ x: 0, y: 0 }), u = toScreen({ x: 1000, y: 0 });
+      const px = Math.hypot(u.x - o.x, u.y - o.y)/1000;
+      ctx.save();
+      ctx.strokeStyle = "#b08658"; ctx.fillStyle = "#b08658"; ctx.lineCap = "round";
+      ctx.lineWidth = Math.max(2, vt.halfW*2*px);
+      ctx.beginPath();
+      for(const sg of vt.segs){ const a = toScreen({ x: sg.x0, y: sg.y0 }), b = toScreen({ x: sg.x1, y: sg.y1 }); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); }
+      ctx.stroke();
+      for(const n of vt.nodes) if(n.end){ const c = toScreen({ x: n.x, y: n.y }); ctx.beginPath(); ctx.arc(c.x, c.y, Math.max(3, vt.R(n)*px), 0, Math.PI*2); ctx.fill(); }
+      ctx.restore();
+    }
+  }
   /* REAL STREETS AT THEIR REAL WIDTH (Sir, 2026-08-26: "its a little
      funny how thin the road is on the map").
 
