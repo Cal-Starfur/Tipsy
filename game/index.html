@@ -126,13 +126,11 @@
      now the same deal at top-left, and 12px of padding put the ROUTE
      label straight under it — the exact overlap that made the robot
      "do nothing" on device before its gutter was added. */
-  #panel{padding:calc(10px + env(safe-area-inset-top)) 62px 8px 62px;background:#1c1f26;border-bottom:1px solid #2b2f38;}
-  #panelToggle{position:fixed;left:50%;top:56px;transform:translateX(-50%);
-    color:#8f95a1;font-size:13px;letter-spacing:1px;padding:4px 12px;z-index:5;}
-  #panelToggle:active{opacity:0.6;}
-  #panelToggle.flipped{transform:translateX(-50%) rotate(180deg);}
-  .row{display:flex;gap:8px;align-items:center;}
-  .lbl{font-size:11px;letter-spacing:1.5px;color:#8f95a1;width:56px;text-transform:uppercase;}
+  /* THE ROUTE / TODAY / RANDOM DAY STRIP IS GONE (Sir, 2026-09-29: "we need
+     to get rid of today and random from all versions of this game"). The
+     Devvit build had always hidden it; now neither build has it, its "︿"
+     collapse tab or its H-key toggle, and the game gets the strip's
+     height back. Today's route is simply what loads. */
   button{flex:1;background:#262a33;color:#e8eaef;border:1px solid #363b46;border-radius:10px;
     padding:10px 4px;font-size:13px;font-weight:600;}
   button.on{background:#ff7a1a;border-color:#ff7a1a;color:#fff;}
@@ -214,8 +212,6 @@
      worse than either alone. display:none rather than opacity so none
      of it can take a tap that belongs to the splash. */
   body.attractBare #titleOverlay,
-  body.attractBare #panel,
-  body.attractBare #panelToggle,
   body.attractBare #gpsHud,
   body.attractBare #miniMap,
   body.attractBare #miniBtn,
@@ -1061,13 +1057,6 @@
 </head>
 <body>
 <div id="wrap">
-  <div id="panel">
-    <div class="row">
-      <span class="lbl">Route</span>
-      <button class="on" id="todayBtn">TODAY</button>
-      <button id="rerollBtn">RANDOM DAY</button>
-    </div>
-  </div>
   <div id="game"></div>
   <div id="gpsHud" class="hidden"><svg id="gpsChev" viewBox="0 0 24 24" aria-hidden="true"><polygon points="12,2 21,21 12,16 3,21"/></svg><span id="gpsText"></span></div>
   <div id="zoomBtn" class="hidden"><span class="zCap">VIEW</span><span class="zLvl">1</span></div>
@@ -1083,7 +1072,6 @@
     <button id="hjTap">TAP</button>
     <button id="hjTapR">TAP</button>
   </div>
-  <div id="panelToggle">︿</div>
 </div>
 
 <div id="titleOverlay" class="overlay">
@@ -1277,7 +1265,6 @@ const IS_DEVVIT_BUILD = new URLSearchParams(location.search).get("platform") ===
    Devvit and only on the win overlay, at left:14px, which is where
    #globalSearch already lives, so it spent its whole life hidden
    underneath the magnifying glass. */
-if(IS_DEVVIT_BUILD){ hide("panel"); hide("panelToggle"); }
 /* the fail screen's magnifier + robot are for EVERY build, not just
    Devvit — the web daily had no way out of a crash except Retry. */
 show("failMenuBtn");
@@ -5750,8 +5737,8 @@ function owBuildWorld(route){
              hoodShopVolBlocked */
           { const hs = hoodShopVolBlocked(g2, b, x, y, R);
             if(hs === false) continue; if(hs === true) return b; }
-          /* and a Maritime block is its houses (see maritimeVolBlocked) */
-          { const mv = maritimeVolBlocked(g2, b, x, y, R, route.cutEdges && route.cutEdges[b.i + "," + b.j]);
+          /* and a Maritime block is its houses (see houseVolBlocked) */
+          { const mv = houseVolBlocked(g2, b, x, y, R, route.cutEdges && route.cutEdges[b.i + "," + b.j]);
             if(mv === false) continue; if(mv === true) return b; }
           /* A SHOP BLOCK IS ITS BUILDINGS, not its rectangle: the plaza
              behind them and the open corners that lead to it are ground
@@ -5891,6 +5878,9 @@ function owBuildWorld(route){
      can reach now (commercialScatterOf) */
   if(g2 && typeof commercialScatterOf === 'function')
     for(const blk of g2.blocks) if(blk.type === 'commercial') for(const sp of commercialScatterOf(g2, blk)) PO.push(sp);
+  /* ...and the Ferris Taylor monument's plinth, as three posts along it */
+  { const fm = g2 && typeof ferrisMonumentOf === 'function' ? ferrisMonumentOf(g2) : null;
+    if(fm) for(const q of fm.posts) PO.push({ kind:"monument", x: q.x, y: q.y }); }
   const poBucket = new Map();
   for(const s of PO){
     const k = Math.floor(s.x / HZ_CELL) + ',' + Math.floor(s.y / HZ_CELL);
@@ -5921,6 +5911,9 @@ const OW_HZ_R = {
   /* scatter-only kinds: the route never spawns these two, so they had
      no entry until street furniture became solid */
   bench: 30, cone: 18,
+  /* the Ferris Taylor monument's plinth: three of these along its 470 x 260
+     step (see ferrisMonumentOf) */
+  monument: 125,
   /* the traffic signal's POLE. Not the head or the mast arm -- those hang
      at armZ ~312, far over the robot. 16 is the drawn base collar's own
      half-width (14) plus a little slack, erring generous so he stops just
@@ -11660,7 +11653,7 @@ function buildPermanentCuts(grid){
        their north edge, and so their back row of houses, as a cut lot
        every day. The roll is taken exactly as before, so every other block
        in the city cuts the same edge it always did. */
-    if(MARITIME_SITES.some(st => st[0] === blk.i && st[1] === blk.j && st[2] === ei)) continue;
+    if(HOUSE_SITES.some(st => st[0] === blk.i && st[1] === blk.j && st[2] === ei)) continue;
     out[blk.i + "," + blk.j] = [ ei ];
   }
   return out;
@@ -12139,86 +12132,71 @@ const MARITIME_SITES = [
 ];
 /* the neighbourhood's own name, for the map and the order card */
 const MARITIME_NAME = "Maritime";
-function maritimeOwnsIJ(i, j){ return MARITIME_SITES.some(s => s[0] === i && s[1] === j); }
-/* CAN A DOOR GO HERE: the block a door leg heading f faces, from the
-   pavement. Never a whole-block landmark's (see hasGoodDoorLeg), and on a
-   Maritime block only an edge that has houses -- its side streets show
-   the corner houses' flanks, and a door there would stand in a garden. */
-function doorLegBlockOK(bi, bj, f){
-  if(wholeBlockLandmarkIJ(bi, bj)) return false;
-  if(!maritimeOwnsIJ(bi, bj)) return true;
-  const ei = (f + 2) % 4;
-  return MARITIME_SITES.some(s => s[0] === bi && s[1] === bj && s[2] === ei);
-}
-let _mtGrid = null, _mtEdges = null;
-function maritimeEdgeUnits(grid, blk, ei){
-  if(!grid || !blk) return null;
-  if(_mtGrid !== grid || !_mtEdges){
-    _mtGrid = grid; _mtEdges = new Map();
-    for(const [i, j, e, list] of MARITIME_SITES){
-      const b = grid.blockByIJ && grid.blockByIJ.get(i + "," + j), key = i + "," + j + "/" + e;
-      const bad = !b ? "no block" : b.type !== "housing" ? "not housing"
-                : list.some(n => !LIB.get(n)) ? "house not in LIB" : null;
-      if(bad){ try { console.warn("maritime site " + key + " skipped: " + bad); } catch(err){} continue; }
-      const len = blockEdgesOf(b)[e].len, W = n => hoodShopW(n);
-      /* a livery apiece, dealt off the lot so neighbours differ and a
-         house wears the same colours every day */
-      const pal = k => (i*5 + j*3 + e + k*2) % 3;
-      const H = (n, k) => ({ w: W(n), shop: { lib: n, name: n }, house: true, pal: pal(k) });
-      const Gr = (n, k, dbl) => { const g = dbl ? 'Maritime Double Garage' : 'Maritime Garage';
-        return { w: W(g), shop: { lib: g, name: g }, host: n, pal: pal(k) }; };
-      const row = list.length === 1 ? [H(list[0], 0), Gr(list[0], 0, true)]
-                                    : [H(list[0], 0), Gr(list[0], 0), Gr(list[1], 1), H(list[1], 1)];
-      const run = row.reduce((a, u) => a + u.w, 0);
-      if(run > len + 0.5){ try { console.warn("maritime site " + key + " skipped: " + run.toFixed(1) + " > " + len); } catch(err){} continue; }
-      /* a pair fills the edge, its spare split at the two ends; a double
-         stands on its corner with its garage just off its flank */
-      let cur = list.length === 1 ? 0 : (len - run) / 2;
-      for(const u of row){ u.start = cur; cur += u.w + (list.length === 1 && u.house ? 4 : 0); }
-      _mtEdges.set(key, row);
-    }
-  }
-  return _mtEdges.get(blk.i + "," + blk.j + "/" + ei) || null;
-}
-/* A HOUSE'S DOOR on its edge: along the edge from the unit's start (the
-   mirror LIB.draw uses, then the entry's scale) and out from the block
-   line (negative: in the yard). What the address, the door, the mat and
-   the customer all stand on. */
-function maritimeDoorOf(e, u){
-  const ent = LIB.get(u.shop.lib);
-  if(!ent || !ent.door) return { al: u.w/2, b: 0 };
-  const SC = ent.sc || 1, mir = (e.dv.x + e.dv.y) <= 0 && ent.mirror !== false;
-  const lotW = ent.ww || 230;
-  return { al: (mir ? lotW - ent.door[0] : ent.door[0]) * SC, b: (ent.door[1] + (ent.boff || 0)) * SC };
-}
-/* A MARITIME BLOCK IS ITS HOUSES, not its rectangle (Sir, 2026-09-28:
-   "we are able to drive into the yards like the commercial shop blocks so
-   its not just 1 big square"). Each house and garage declares its volume
-   (houses.js: vol.foot is the house MASS, fences are solids with a gate
-   gap), so the front yards, the drives, the gaps between lots and the
-   garden behind are ground, the way a shop block's plaza is. true: a
-   unit's mass or fence is within R. false: open ground on a Maritime
-   block. undefined: not a Maritime block, ask the block rect as before.
-   Every unit whose lot (grown by R) holds the point is asked, so a body
-   straddling two lots meets both. */
-function maritimeVolBlocked(grid, blk, x, y, R, cuts){
-  if(!grid || !blk || blk.type !== "housing" || blk.i === undefined || !maritimeOwnsIJ(blk.i, blk.j)) return undefined;
-  const E = blockEdgesOf(blk);
-  for(let ei = 0; ei < 4; ei++){
-    /* a row the day's route has cut away is not drawn, so it is not there */
-    if(cuts && cuts.includes(ei)) continue;
-    const us = maritimeEdgeUnits(grid, blk, ei);
-    if(!us) continue;
-    for(const u of us){
-      const sh = LIB.get(u.shop.lib);
-      if(!sh || !sh.vol) continue;
-      const v = LIB.vol(u.shop.lib), L = v.lot;
-      const q = hoodShopLab(E[ei], u, sh, x, y), r = R / q.SC;
-      if(q.a < L.a0 - r || q.a > L.a1 + r || q.b < L.b0 - r || q.b > L.b1 + r) continue;
-      if(volBlockedAt(v, q.a, q.b, r, true)) return true;
-    }
-  }
-  return false;
+/* ==================== FERRIS TAYLOR (Sir, 2026-09-29) ====================
+   "this neighborhod in the flass can be called Ferris Taylor ... The Park
+   will have a monument of Ferris Taylor". The middle of The Flats: the
+   housing blocks between Pelican Park and Ferris Field, round the brewery,
+   the drugstore and the shops at 7,4. Town, not beach -- so the houses
+   are the ones a main-street neighbourhood of about a century ago would
+   have: Victorians and a Queen Anne, foursquares, Dutch colonials, a
+   Gothic cottage and a storybook one, a shotgun and a Creole cottage, and
+   on the doubles an airplane bungalow, a Prairie house, a Georgian, a
+   Greek Revival, a Second Empire, a farmhouse and a Tudor. They keep the
+   lab's own liveries. Laid out, garaged and wired exactly as Maritime's
+   (MARITIME'S STREETS); the monument stands in Ferris Field (see
+   FERRIS_TAYLOR_MONUMENT). */
+const FERRIS_TAYLOR_NAME = "Ferris Taylor";
+const FERRIS_TAYLOR_SITES = [
+  [4,2, 2, ['Elmhurst Foursquare', 'Gambrel Dutch Colonial']],
+  [4,2, 0, ['Gingerbread Victorian', 'Wickham Gothic Cottage']],
+  [6,2, 2, ['Beacon Hill Georgian']],
+  [6,2, 0, ['Hollyhock Storybook', 'Elmhurst Foursquare']],
+  [7,2, 2, ['Rosewood Queen Anne', 'Gingerbread Victorian']],
+  [7,2, 0, ['Oakpark Prairie']],
+  [4,3, 2, ['Pasadena Airplane Bungalow']],
+  [4,3, 0, ['Marigny Creole Cottage', 'Bywater Shotgun']],
+  [5,3, 2, ['Magnolia Greek Revival']],
+  [5,3, 0, ['Gambrel Dutch Colonial', 'Rosewood Queen Anne']],
+  [6,3, 2, ['Wickham Gothic Cottage', 'Hollyhock Storybook']],
+  [6,3, 0, ['Harvest Farmhouse']],
+  [7,3, 2, ['Lafayette Second Empire']],
+  [7,3, 0, ['Elmhurst Foursquare', 'Gingerbread Victorian']],
+  [4,4, 2, ['Oakpark Prairie']],
+  [4,4, 0, ['Bywater Shotgun', 'Marigny Creole Cottage']],
+  [8,4, 2, ['Heron Tudor']],
+  [8,4, 0, ['Gambrel Dutch Colonial', 'Hollyhock Storybook']],
+];
+/* EVERY placed house row in the city, each tagged with its neighbourhood:
+   [i, j, edge, [house, ...], name]. What the streets, collision, cuts,
+   addresses and the map all read. */
+const HOUSE_SITES = MARITIME_SITES.map(s => s.concat([MARITIME_NAME]))
+  .concat(FERRIS_TAYLOR_SITES.map(s => s.concat([FERRIS_TAYLOR_NAME])));
+/* THE FERRIS TAYLOR MONUMENT, in Ferris Field: the middle of the park's
+   open grass, the 8,2 cell (8,3 is Sandpiper Cottages). An equestrian
+   bronze (Sir, 2026-09-29: "make it twice as big i want Taylor on a
+   hourse") on a long granite plinth, in a round paved plaza -- no benches.
+   Worked out once per grid; the park draws it (queueFerrisMonument) and
+   the world collides the plinth (owBuildWorld's posts: three along its
+   length). null if the park is not both cells. */
+const FERRIS_MONUMENT = { plaza: 500, M: 142, plinthA: 235, plinthB: 130 };   // M: world units a metre, twice life
+function ferrisMonumentOf(grid){
+  if(!grid || !grid.blockByIJ) return null;
+  if(grid._ferrisMon !== undefined) return grid._ferrisMon;
+  const a = grid.blockByIJ.get("8,2"), b = grid.blockByIJ.get("8,3");
+  if(!a || !b || a.type !== "park" || b.type !== "park") return (grid._ferrisMon = null);
+  /* THE MIDDLE OF THE GRASS (corrected 2026-09-29, Sir: "what building is
+     that on the end of the park?"). 8,3 is the park's cell on the map, but
+     Sandpiper Cottages (HOOD_BLOCK_LANDMARKS) stands on it, whole cell --
+     so the green you see is 8,2 alone, and the monument goes in its
+     middle, clear of the cottages' lot. It first stood on the line
+     between the two cells, which is that lot's edge. */
+  const x = (a.x0 + a.x1)/2, y = (a.y0 + a.y1)/2;
+  /* the horse walks along +x, square to the streets: the camera sees its
+     near flank (+y) and its chest (+x), so the bronze reads as a solid.
+     h along it, s across it (toward the camera). */
+  const h = { x: 1, y: 0 }, sv = { x: 0, y: 1 };
+  const posts = [-150, 0, 150].map(t => ({ x: x + h.x*t, y: y + h.y*t }));
+  return (grid._ferrisMon = { anchor: a, x, y, h, s: sv, posts });
 }
 /* ==================== THE SHOP BLOCK'S LAYOUT, ONCE ====================
    (Sir, 2026-09-26: "i want to be able to access these shop block court
@@ -12300,6 +12278,88 @@ function commercialFootprintsOf(grid, blk){
   }
   _cfMap.set(blk, out);
   return out;
+}
+/* which named neighbourhood a block's houses belong to, or null */
+function houseSiteHoodIJ(i, j){ const st = HOUSE_SITES.find(s => s[0] === i && s[1] === j); return st ? st[4] : null; }
+/* CAN A DOOR GO HERE: the block a door leg heading f faces, from the
+   pavement. Never a whole-block landmark's (see hasGoodDoorLeg), and on a
+   Maritime block only an edge that has houses -- its side streets show
+   the corner houses' flanks, and a door there would stand in a garden. */
+function doorLegBlockOK(bi, bj, f){
+  if(wholeBlockLandmarkIJ(bi, bj)) return false;
+  if(!houseSiteHoodIJ(bi, bj)) return true;
+  const ei = (f + 2) % 4;
+  return HOUSE_SITES.some(s => s[0] === bi && s[1] === bj && s[2] === ei);
+}
+let _mtGrid = null, _mtEdges = null;
+function houseEdgeUnits(grid, blk, ei){
+  if(!grid || !blk) return null;
+  if(_mtGrid !== grid || !_mtEdges){
+    _mtGrid = grid; _mtEdges = new Map();
+    for(const [i, j, e, list] of HOUSE_SITES){
+      const b = grid.blockByIJ && grid.blockByIJ.get(i + "," + j), key = i + "," + j + "/" + e;
+      const bad = !b ? "no block" : b.type !== "housing" ? "not housing"
+                : list.some(n => !LIB.get(n)) ? "house not in LIB" : null;
+      if(bad){ try { console.warn("maritime site " + key + " skipped: " + bad); } catch(err){} continue; }
+      const len = blockEdgesOf(b)[e].len, W = n => hoodShopW(n);
+      /* a livery apiece, dealt off the lot so neighbours differ and a
+         house wears the same colours every day */
+      const pal = k => (i*5 + j*3 + e + k*2) % 3;
+      const H = (n, k) => ({ w: W(n), shop: { lib: n, name: n }, house: true, pal: pal(k) });
+      const Gr = (n, k, dbl) => { const g = dbl ? 'Street Double Garage' : 'Street Garage';
+        return { w: W(g), shop: { lib: g, name: g }, host: n, pal: pal(k) }; };
+      const row = list.length === 1 ? [H(list[0], 0), Gr(list[0], 0, true)]
+                                    : [H(list[0], 0), Gr(list[0], 0), Gr(list[1], 1), H(list[1], 1)];
+      const run = row.reduce((a, u) => a + u.w, 0);
+      if(run > len + 0.5){ try { console.warn("maritime site " + key + " skipped: " + run.toFixed(1) + " > " + len); } catch(err){} continue; }
+      /* a pair fills the edge, its spare split at the two ends; a double
+         stands on its corner with its garage just off its flank */
+      let cur = list.length === 1 ? 0 : (len - run) / 2;
+      for(const u of row){ u.start = cur; cur += u.w + (list.length === 1 && u.house ? 4 : 0); }
+      _mtEdges.set(key, row);
+    }
+  }
+  return _mtEdges.get(blk.i + "," + blk.j + "/" + ei) || null;
+}
+/* A HOUSE'S DOOR on its edge: along the edge from the unit's start (the
+   mirror LIB.draw uses, then the entry's scale) and out from the block
+   line (negative: in the yard). What the address, the door, the mat and
+   the customer all stand on. */
+function houseDoorOf(e, u){
+  const ent = LIB.get(u.shop.lib);
+  if(!ent || !ent.door) return { al: u.w/2, b: 0 };
+  const SC = ent.sc || 1, mir = (e.dv.x + e.dv.y) <= 0 && ent.mirror !== false;
+  const lotW = ent.ww || 230;
+  return { al: (mir ? lotW - ent.door[0] : ent.door[0]) * SC, b: (ent.door[1] + (ent.boff || 0)) * SC };
+}
+/* A MARITIME BLOCK IS ITS HOUSES, not its rectangle (Sir, 2026-09-28:
+   "we are able to drive into the yards like the commercial shop blocks so
+   its not just 1 big square"). Each house and garage declares its volume
+   (houses.js: vol.foot is the house MASS, fences are solids with a gate
+   gap), so the front yards, the drives, the gaps between lots and the
+   garden behind are ground, the way a shop block's plaza is. true: a
+   unit's mass or fence is within R. false: open ground on a Maritime
+   block. undefined: not a Maritime block, ask the block rect as before.
+   Every unit whose lot (grown by R) holds the point is asked, so a body
+   straddling two lots meets both. */
+function houseVolBlocked(grid, blk, x, y, R, cuts){
+  if(!grid || !blk || blk.type !== "housing" || blk.i === undefined || !houseSiteHoodIJ(blk.i, blk.j)) return undefined;
+  const E = blockEdgesOf(blk);
+  for(let ei = 0; ei < 4; ei++){
+    /* a row the day's route has cut away is not drawn, so it is not there */
+    if(cuts && cuts.includes(ei)) continue;
+    const us = houseEdgeUnits(grid, blk, ei);
+    if(!us) continue;
+    for(const u of us){
+      const sh = LIB.get(u.shop.lib);
+      if(!sh || !sh.vol) continue;
+      const v = LIB.vol(u.shop.lib), L = v.lot;
+      const q = hoodShopLab(E[ei], u, sh, x, y), r = R / q.SC;
+      if(q.a < L.a0 - r || q.a > L.a1 + r || q.b < L.b0 - r || q.b > L.b1 + r) continue;
+      if(volBlockedAt(v, q.a, q.b, r, true)) return true;
+    }
+  }
+  return false;
 }
 /* ==================== COURTYARD GATES (Sir, 2026-09-26) ====================
    "that needs to be a feature for pickups and side missions when they
@@ -12533,11 +12593,11 @@ function hoodDrivewaysOf(grid){
   for(const blk of grid.blocks || []){
     /* ...and a Maritime garage's drive, off a housing block the same way
        (see MARITIME'S STREETS) */
-    const housing = blk.type === "housing" && typeof maritimeEdgeUnits === "function";
+    const housing = blk.type === "housing" && typeof houseEdgeUnits === "function";
     if((blk.type !== "commercial" && !housing) || blk.i === undefined) continue;
     const E = blockEdgesOf(blk);
     for(let ei = 0; ei < 4; ei++){
-      const us = housing ? maritimeEdgeUnits(grid, blk, ei) : hoodShopEdgeUnits(grid, blk, ei);
+      const us = housing ? houseEdgeUnits(grid, blk, ei) : hoodShopEdgeUnits(grid, blk, ei);
       if(!us) continue;
       const e = E[ei];
       for(const u of us){
@@ -16653,10 +16713,10 @@ function _generateRouteFresh(dateStr, opts){
     const ae = abEdges[addressEdgeIdx];
     const aeseed = ((Math.round(ae.ox*3+ae.dv.x)*7919) ^ (Math.round(ae.oy*3+ae.dv.y)*104729) ^ 0x9e3779b9) >>> 0;
     /* A MARITIME EDGE'S ADDRESS IS ONE OF ITS HOUSES (MARITIME'S STREETS):
-       the renderer draws that edge from maritimeEdgeUnits, so the address
+       the renderer draws that edge from houseEdgeUnits, so the address
        has to be picked from the same row, nearest by its own door, and
        never a garage */
-    const mtUnits = maritimeEdgeUnits(grid, addressBlock, addressEdgeIdx);
+    const mtUnits = houseEdgeUnits(grid, addressBlock, addressEdgeIdx);
     const aunits = mtUnits || packEdge(ae.len, mulberry32(aeseed));
     if(aunits.length){
       const aPos = segsPosAt(segs, doorS);
@@ -16665,7 +16725,7 @@ function _generateRouteFresh(dateStr, opts){
         let bestD = Infinity;
         mtUnits.forEach((u, k) => {
           if(!u.house) return;
-          const d = Math.abs(u.start + maritimeDoorOf(ae, u).al - aAlong);
+          const d = Math.abs(u.start + houseDoorOf(ae, u).al - aAlong);
           if(d < bestD){ bestD = d; addressUnitIdx = k; }
         });
       } else addressUnitIdx = closestUnitIndex(aunits, aAlong);
@@ -16680,7 +16740,7 @@ function _generateRouteFresh(dateStr, opts){
          match it below, same fix pickupS already had for the shop. */
       const au = aunits[addressUnitIdx];
       const aux = ae.ox + ae.dv.x*au.start, auy = ae.oy + ae.dv.y*au.start;
-      const aDoor = mtUnits ? maritimeDoorOf(ae, au).al : au.w/2;
+      const aDoor = mtUnits ? houseDoorOf(ae, au).al : au.w/2;
       addressSpot = { x: aux + ae.dv.x*aDoor, y: auy + ae.dv.y*aDoor };
       /* THE MAT, STAMPED IN WORLD SPACE, for the arrival test.
          Same three numbers drawMatQuad draws it from -- the unit's own
@@ -17141,7 +17201,7 @@ function _generateRouteFresh(dateStr, opts){
        between the camera and him; Maritime's houses declare their volume,
        so the x-ray ghosts exactly the house in the way instead (see
        hoodShopHeightAt), and the street keeps its houses every day. */
-    if(MARITIME_SITES.some(st => st[0] === bi && st[1] === bj && st[2] === edge)) return;
+    if(HOUSE_SITES.some(st => st[0] === bi && st[1] === bj && st[2] === edge)) return;
     const k = bi + "," + bj;
     if(!cutEdges[k]) cutEdges[k] = [];
     if(!cutEdges[k].includes(edge)) cutEdges[k].push(edge);
@@ -17420,7 +17480,7 @@ function _generateRouteFresh(dateStr, opts){
     : null;
   return stampWorldCoords({ addressMat, pickupMat, cfTaken, hood: addressHood, grid, segs, totalLen: loop ? loop.sEnd : totalLen, loop, tiles, hazards, props, pal, night, traffic, trafficFleet, crossings, cutEdges, cutExt, challenge, crime, routeCells, curbRamps, signals: grid.signals,
            address:`${number} ${street}`, doorS, pickupS, pickupSpot, pickupShopName, pickupDoorA, addressBlock,
-           addressArea: (addressBlock && maritimeOwnsIJ(addressBlock.i, addressBlock.j)) ? MARITIME_NAME : null, pickupBlock, addressEdgeIdx, pickupEdgeIdx, addressUnitIdx, pickupUnitIdx, addressUsesGate, order, parMs, dateStr, runIndex  });
+           addressArea: (addressBlock && houseSiteHoodIJ(addressBlock.i, addressBlock.j)) || null, pickupBlock, addressEdgeIdx, pickupEdgeIdx, addressUnitIdx, pickupUnitIdx, addressUsesGate, order, parMs, dateStr, runIndex  });
 }
 
 /* ---------- robot palette (approved in sprite lab) ---------- */
@@ -17835,7 +17895,7 @@ const MARITIME_LIV = (() => {
   };
 })();
 /* the flat-roofed ones: their garage is a flat-roofed box to match */
-const MARITIME_MODERN = new Set(['Palm Springs Modern', 'Streamline Moderne', 'Miami Deco Tower House', 'Coastline Modern']);
+const MODERN_HOUSES = new Set(['Palm Springs Modern', 'Streamline Moderne', 'Miami Deco Tower House', 'Coastline Modern']);
 
 const LIB = (function(){
   /* K IS THE PROJECTION'S SCALE, and the kit reads it directly. It is
@@ -20118,7 +20178,15 @@ function houseYardFence(sh, c, part){
   const aL = 7, aR = W - 7, bF = -8, bR = -(D - HOUSE_YARD_BACK[f.style][0]);
   const nearA = FLANK_RIGHT ? aR : aL, farA = FLANK_RIGHT ? aL : aR;
   const side = a => houseYardRun(f, col, 'b', a, bR, bF);
-  const rear = () => houseYardRun(f, col, 'a', bR, aL, aR);
+  /* A BACK GATE (game-side, 2026-09-29, Ferris Taylor: "we want access to
+     their back yards"). A city lot backs onto the open middle of its
+     block, so a fenced yard there takes a gap in its rear run, centred,
+     backGate either side -- the same gap houseYardSolids leaves in its
+     solid. Set on the city copies only (see FERRIS TAYLOR'S HOUSES);
+     Sierra's houses and the lab carry no backGate and draw as before. */
+  const gA = f.backGate ? W/2 - f.backGate : 0, gB = f.backGate ? W/2 + f.backGate : 0;
+  const rear = () => { if(!f.backGate) houseYardRun(f, col, 'a', bR, aL, aR);
+                       else { houseYardRun(f, col, 'a', bR, aL, gA); houseYardRun(f, col, 'a', bR, gB, aR); } };
   if(part === 'far'){ if(!state.back){ rear(); side(farA); } else side(farA); }
   else { if(!state.back) side(nearA); else { side(nearA); rear(); } }
 }
@@ -20126,9 +20194,12 @@ function houseYardFence(sh, c, part){
 function houseYardSolids(sh){
   const W = sh.ww || HOUSE_SINGLE, D = sh.dd || HOUSE_DEPTH_LAB, t = 6, h = sh.yardFence.h;
   const [inb, half] = HOUSE_YARD_BACK[sh.yardFence.style], bc = -(D - inb);
+  const g = sh.yardFence.backGate;                 // the back gate's gap (see houseYardFence)
+  const back = g ? [ { name:'yard fence back', poly:[[1,bc-half],[W/2-g,bc-half],[W/2-g,bc+half],[1,bc+half]], h },
+                     { name:'yard fence back R', poly:[[W/2+g,bc-half],[W-1,bc-half],[W-1,bc+half],[W/2+g,bc+half]], h } ]
+                 : [ { name:'yard fence back', poly:[[1,bc-half],[W-1,bc-half],[W-1,bc+half],[1,bc+half]], h } ];
   return [ { name:'yard fence L', poly:[[1,bc-half],[7+t,bc-half],[7+t,-6],[1,-6]], h },
-           { name:'yard fence R', poly:[[W-7-t,bc-half],[W-1,bc-half],[W-1,-6],[W-7-t,-6]], h },
-           { name:'yard fence back', poly:[[1,bc-half],[W-1,bc-half],[W-1,bc+half],[1,bc+half]], h } ];
+           { name:'yard fence R', poly:[[W-7-t,bc-half],[W-1,bc-half],[W-1,-6],[W-7-t,-6]], h } ].concat(back);
 }
 
 
@@ -37953,6 +38024,1248 @@ function houseCanopy(fn){
     houseProp('ac unit', () => acUnit(300, 0, 506));
   }
 },
+/* ---- FERRIS TAYLOR'S HOUSES: the town set from labs/houses.js (see
+   FERRIS TAYLOR). VERBATIM copies but for the scale word, exactly as
+   MARITIME'S HOUSES: HOUSE_SC reads CITY_HOUSE_SC. They keep the lab's own
+   liveries, and their lawns do not draw (NO HOUSE LAWNS). ---- */
+{
+  name:'Elmhurst Foursquare', hood:'The Flats', tier:'single', sc:CITY_HOUSE_SC, ww:HOUSE_SINGLE, dd:HOUSE_DEPTH_LAB,
+  head:'American Foursquare: boxy two storeys, hip roof, dormer, full porch',
+  desc:'A square two-storey Foursquare under a broad hip with a gabled dormer, clapboard below and shingle above, and a full-width porch on square columns over brick piers with a rail either side of the steps.',
+  tags:['single','foursquare','hip','porch','dormer'],
+  yardFence:{ style:'hedge', h:24, col:'#5c8a4c' },
+  door:[230, -160],
+  liv:[ { wall:'#c9b98f', upper:'#8a9a7a', trim:'#f5f0e2', roof:'#4a4642', leaf:'#5a3a28', brick:'#9c5a44' },
+        { wall:'#b8c4cc', upper:'#6f7f8a', trim:'#f7f4ec', roof:'#44403c', leaf:'#8a2f2f', brick:'#8a5444' },
+        { wall:'#e2cfa6', upper:'#b08a5a', trim:'#fbf6ea', roof:'#3e4448', leaf:'#2e4d68', brick:'#a5604a' } ],
+  vol:{
+    foot:[[60,-160],[400,-160],[400,-480],[60,-480]], h:300,
+    solids:[ { name:'pier 1', poly:[[61,-106],[79,-106],[79,-92],[61,-92]], h:106 },
+             { name:'pier 2', poly:[[161,-106],[179,-106],[179,-92],[161,-92]], h:106 },
+             { name:'pier 3', poly:[[281,-106],[299,-106],[299,-92],[281,-92]], h:106 },
+             { name:'pier 4', poly:[[381,-106],[399,-106],[399,-92],[381,-92]], h:106 },
+             { name:'rail L', poly:[[70,-100],[170,-100],[170,-94],[70,-94]], h:34 },
+             { name:'rail R', poly:[[290,-100],[390,-100],[390,-94],[290,-94]], h:34 },
+             { name:'hedge L', poly:[[6,-18],[190,-18],[190,-6],[6,-6]], h:26 },
+             { name:'hedge R', poly:[[270,-18],[454,-18],[454,-6],[270,-6]], h:26 },
+             { name:'rocker', c:[110,-130], r:14, h:48, prop:true },
+             { name:'planter', c:[350,-130], r:12, h:34, prop:true },
+             { name:'ac unit', poly:[[94,-508],[146,-508],[146,-480],[94,-480]], h:36, prop:true } ],
+    marks:{ door:[230,-160], mat:[230,-160+35.4] }
+  },
+  yard(c){
+    houseLawn(0, 460, -160, 0, '#7fa35a');
+    T(195, 265, -96, 0, 0.6, '#c9c1b0');
+    T(60, 400, -160, -96, 3, shade(c.trim,.84));
+    F(60, 400, 0, 3, shade(c.trim,.66), null, 0, -96);
+  },
+  walls(c, d){
+    houseMass(60, 400, -160, -480, 230, c.wall, d);
+    const face = d > 0 ? -160 : -480;
+    F(60, 400, 118, 230, c.upper, null, 0, face + 0.2*d);
+    for(let z = 12; z < 116; z += 7) poly([P(60,face+0.3*d,z), P(400,face+0.3*d,z)], null, shade(c.wall,.86), 1);
+    for(let z = 124; z < 228; z += 6) poly([P(60,face+0.3*d,z), P(400,face+0.3*d,z)], null, shade(c.upper,.84), 1);
+    F(60, 400, 114, 120, c.trim, null, 0, face + 0.4*d);
+    houseSideWins(60, 400, -160, -480, [[36,96],[146,206]], c.trim);
+  },
+  fore(p){
+    const c = this.liv[state.pal % this.liv.length];
+    for(const aa of [70, 170, 290, 390]){
+      box(aa-9, aa+9, -106, -92, 3, 38, shade(c.brick,1.06), c.brick, shade(c.brick,.8));
+      box(aa-6, aa+6, -104, -94, 38, 106, c.trim, shade(c.trim,.92), shade(c.trim,.78));
+    }
+    for(const [a0, a1] of [[79, 161], [299, 381]]){
+      F(a0, a1, 30, 34, c.trim, null, 0, -97); F(a0, a1, 8, 11, c.trim, null, 0, -97);
+      for(let a = a0 + 5; a < a1 - 2; a += 8) F(a, a+2, 11, 30, c.trim, null, 0, -97);
+    }
+    houseProfileRoof(60, 400, [[-96,106],[-160,128]], 8, c.roof, c.wall, { ext1:false, gable:shade(c.trim,.9) });
+    for(const [a0, a1] of [[6, 190], [270, 454]]){
+      box(a0, a1, -18, -6, 0, 24, '#5c8a4c', '#4f7a42', '#426a38');
+      for(let a = a0 + 8; a < a1; a += 16) ball(a, -12, 24, 7, '#5c8a4c');
+    }
+    houseProp('rocker', () => houseRocker(110, -130, '#8a5a3a'));
+    houseProp('planter', () => { cyl(350, -130, 3, 24, 12, '#6b6660', '#7a756e'); ball(350, -130, 32, 12, '#4f8a4a'); });
+    if(!state.back) houseYardFence(this, this.liv[state.pal % this.liv.length], 'near');
+  },
+  draw(p){
+    const c = this.liv[state.pal % this.liv.length];
+    this.yard(c); houseYardFence(this, c, 'far');
+    this.walls(c, 1);
+    houseDoorway(230, -160, CITY_HOUSE_SC, c.trim, c.leaf, 1);
+    for(const [a0, a1] of [[90,150],[310,370]]) houseWin(a0, a1, 34, 96, -160, c.trim, c.trim, 1);
+    for(const [a0, a1] of [[90,150],[200,260],[310,370]]) houseWin(a0, a1, 146, 206, -160, c.trim, c.trim, 1);
+    houseHip(60, 400, -160, -480, 230, 300, 16, c.roof);
+    houseDormer(200, 260, -180, 272, 290, { bf:-160, He:230, k:70/160 }, c.upper, c.roof, c.trim);
+  },
+  back(p){
+    const c = this.liv[state.pal % this.liv.length];
+    this.yard(c); houseYardFence(this, c, 'far'); this.fore(p);
+    this.walls(c, -1);
+    houseWin(90, 150, 146, 206, -480, c.trim, c.trim, -1);
+    houseWin(310, 370, 146, 206, -480, c.trim, c.trim, -1);
+    houseWin(310, 370, 36, 96, -480, c.trim, c.trim, -1);
+    rearDoor(170, c.wall, c.leaf, 480, 92);
+    houseHip(60, 400, -160, -480, 230, 300, 16, c.roof);
+    houseProp('ac unit', () => acUnit(120, 0, 480));
+    houseYardFence(this, c, 'near');
+  }
+},
+{
+  name:'Gambrel Dutch Colonial', hood:'The Flats', tier:'single', sc:CITY_HOUSE_SC, ww:HOUSE_SINGLE, dd:HOUSE_DEPTH_LAB,
+  head:'Dutch Colonial: gambrel roof, long shed dormer, stone end chimney',
+  desc:'Clapboard Dutch Colonial under a flared gambrel: a long shed dormer with three windows across the lower slope, a fanlit door under a small hood, shutters, a fieldstone chimney up the seen end and a clipped hedge.',
+  tags:['single','dutch colonial','gambrel','dormer','chimney'],
+  yardFence:{ style:'hedge', h:24, col:'#5c8a4c' },
+  door:[230, -110],
+  liv:[ { wall:'#efe0b0', trim:'#fbf8f0', roof:'#4a4e52', leaf:'#2e4d68', shut:'#3f5a4a', stone:'#a8a296' },
+        { wall:'#c9d6da', trim:'#fbfaf6', roof:'#44403c', leaf:'#8a2f2f', shut:'#2e4d68', stone:'#9c978c' },
+        { wall:'#e8c9c0', trim:'#fbf8f2', roof:'#474c4e', leaf:'#2f3a30', shut:'#6b3a3a', stone:'#aaa396' } ],
+  vol:{
+    foot:[[40,-110],[420,-110],[420,-500],[40,-500]], h:330,
+    solids:[ { name:'chimney', poly:[[420,-320],[444,-320],[444,-290],[420,-290]], h:330 },
+             { name:'hedge L', poly:[[6,-18],[195,-18],[195,-6],[6,-6]], h:26 },
+             { name:'hedge R', poly:[[265,-18],[454,-18],[454,-6],[265,-6]], h:26 },
+             { name:'bench', poly:[[70,-62],[116,-62],[116,-48],[70,-48]], h:24, prop:true },
+             { name:'ac unit', poly:[[94,-528],[146,-528],[146,-500],[94,-500]], h:36, prop:true },
+             { name:'bin', poly:[[382,-538],[418,-538],[418,-502],[382,-502]], h:52, prop:true } ],
+    marks:{ door:[230,-110], mat:[230,-110+35.4] }
+  },
+  prof:[[-110,120],[-150,210],[-305,262],[-460,210],[-500,120]],
+  yard(c){
+    houseLawn(0, 460, -110, 0, '#7fa35a');
+    T(195, 265, -110, 0, 0.6, '#b0654a');
+    for(let b = -104; b < 0; b += 9) poly([P(195,b,0.7), P(265,b,0.7)], null, '#8f5038', 1);
+  },
+  chimney(c){
+    box(420, 444, -320, -290, 0, 330, shade(c.stone,1.06), c.stone, shade(c.stone,.8));
+    for(let z = 10; z < 330; z += 14) S(444.3, -320, -290, z, z+1.4, shade(c.stone,.74));
+  },
+  dormer(c){
+    const zs = b => 120 + (-110 - b)*90/40, z0 = zs(-126);
+    F(90, 370, z0, 200, c.wall, shade(c.wall,.6), 1, -126);
+    const aS = FLANK_RIGHT ? 370 : 90;
+    poly([P(aS,-126,z0), P(aS,-126,200), P(aS,-145.6,200)], shade(c.wall,.76), shade(c.wall,.6), 1);
+    for(const [a0, a1] of [[110,160],[205,255],[300,350]]) houseWin(a0, a1, 166, 194, -126, c.trim, c.trim, 1, { plain:true });
+    poly([P(84,-120,206), P(376,-120,206), P(376,-152,211), P(84,-152,211)], c.roof, shade(c.roof,.6), 1);
+    F(84, 376, 200, 206, shade(c.roof,.7), null, 0, -120);
+  },
+  fore(p){
+    const c = this.liv[state.pal % this.liv.length];
+    slab(188, 272, 110, 116, -88, -110, shade(c.roof,.85));
+    for(const aa of [192, 268]) poly([P(aa,-109,100), P(aa,-89,110), P(aa,-109,110)], c.trim);
+    for(const [a0, a1] of [[6, 195], [265, 454]]){
+      box(a0, a1, -18, -6, 0, 24, '#5c8a4c', '#4f7a42', '#426a38');
+      for(let a = a0 + 8; a < a1; a += 16) ball(a, -12, 24, 7, '#5c8a4c');
+    }
+    houseProp('bench', () => {
+      box(70, 116, -62, -48, 16, 20, '#a8835c', '#96744f', '#836544');
+      for(const aa of [74, 112]) box(aa-2, aa+2, -60, -50, 0, 16, '#6b5038', '#5a4230', '#4d3828');
+    });
+    if(!state.back) houseYardFence(this, this.liv[state.pal % this.liv.length], 'near');
+  },
+  draw(p){
+    const c = this.liv[state.pal % this.liv.length];
+    this.yard(c); houseYardFence(this, c, 'far');
+    houseMass(40, 420, -110, -500, 120, c.wall, 1);
+    for(let z = 12; z < 118; z += 7) poly([P(40,-110.2,z), P(420,-110.2,z)], null, shade(c.wall,.86), 1);
+    houseSideWins(40, 420, -110, -500, [[36,96]], c.trim);
+    const dh = houseDoorDims(CITY_HOUSE_SC).h, fan = [];
+    for(let k = 0; k <= 10; k++){ const t = Math.PI*k/10; fan.push(P(230 + 30*Math.cos(t), -109.6, dh + 8 + 14*Math.sin(t))); }
+    poly(fan, '#34424b', c.trim, 2);
+    houseDoorway(230, -110, CITY_HOUSE_SC, c.trim, c.leaf, 1);
+    houseWin(80, 140, 30, 96, -110, c.trim, c.trim, 1, { shutter:c.shut });
+    houseWin(320, 380, 30, 96, -110, c.trim, c.trim, 1, { shutter:c.shut });
+    houseProfileRoof(40, 420, this.prof, 12, c.roof, c.wall);
+    this.dormer(c);
+    this.chimney(c);
+  },
+  back(p){
+    const c = this.liv[state.pal % this.liv.length];
+    this.yard(c); houseYardFence(this, c, 'far'); this.fore(p); this.chimney(c);
+    houseMass(40, 420, -110, -500, 120, c.wall, -1);
+    for(let z = 12; z < 118; z += 7) poly([P(40,-500.2,z), P(420,-500.2,z)], null, shade(c.wall,.82), 1);
+    houseSideWins(40, 420, -110, -500, [[36,96]], c.trim);
+    houseWin(80, 140, 34, 96, -500, c.trim, c.trim, -1);
+    rearDoor(300, c.wall, c.leaf, 500, 92);
+    houseProfileRoof(40, 420, this.prof, 12, c.roof, c.wall);
+    houseProp('ac unit', () => acUnit(120, 0, 500));
+    houseProp('bin', () => wheelieBin(400, '#3f6b4a', -12, 500));
+    houseYardFence(this, c, 'near');
+  }
+},
+{
+  name:'Gingerbread Victorian', hood:'The Flats', tier:'single', sc:CITY_HOUSE_SC, ww:HOUSE_SINGLE, dd:HOUSE_DEPTH_LAB,
+  head:'Victorian: two storeys, steep front gable, bay window, spindle porch',
+  desc:'Narrow two-storey painted lady: steep front gable with fish-scale shingles, a canted-roof bay window, a spindle-frieze porch over the door and an iron fence with a gate gap.',
+  tags:['single','two-storey','victorian','bay window','porch'],
+  yardFence:{ style:'iron', h:32, col:'#2a2a2e' },
+  door:[300, -80],
+  liv:[ { wall:'#8fa98c', trim:'#f4ecd8', roof:'#4a4652', leaf:'#7a2e3a', gable:'#b0506a', accent:'#7a2e3a' },
+        { wall:'#d9a6a6', trim:'#f7f1e4', roof:'#3e4a56', leaf:'#2e4d68', gable:'#5a7a9a', accent:'#2e4d68' },
+        { wall:'#e2c77a', trim:'#fbf6ea', roof:'#4a3e3a', leaf:'#3f6b4a', gable:'#3f6b4a', accent:'#9c3b34' } ],
+  vol:{
+    foot:[[60,-80],[400,-80],[400,-520],[60,-520]], h:318,
+    solids:[ { name:'bay', poly:[[80,-80],[200,-80],[200,-52],[80,-52]], h:132 },
+             { name:'post L', poly:[[216,-46],[224,-46],[224,-38],[216,-38]], h:104 },
+             { name:'post R', poly:[[388,-46],[396,-46],[396,-38],[388,-38]], h:104 },
+             { name:'fence L', poly:[[12,-9],[240,-9],[240,-3],[12,-3]], h:34 },
+             { name:'fence R', poly:[[360,-9],[448,-9],[448,-3],[360,-3]], h:34 },
+             { name:'lamp', c:[52,-24], r:6, h:96, prop:true },
+             { name:'ac unit', poly:[[314,-548],[366,-548],[366,-520],[314,-520]], h:36, prop:true } ],
+    marks:{ door:[300,-80], mat:[300,-80+35.4] }
+  },
+  yard(c){
+    houseLawn(0, 460, -80, 0, '#7fa35a');
+    T(236, 364, -40, 0, 0.6, '#c9c1b0');
+    T(212, 400, -80, -40, 1.2, shade(c.trim,.86));
+  },
+  fence(c){
+    for(const [a0, a1] of [[12, 240], [360, 448]]){
+      F(a0, a1, 26, 29, '#2a2a2e', null, 0, -6);
+      F(a0, a1, 6, 8, '#2a2a2e', null, 0, -6);
+      for(let a = a0 + 3; a < a1; a += 7) poly([P(a,-6,0), P(a+1.6,-6,0), P(a+1.6,-6,30), P(a+0.8,-6,34), P(a,-6,30)], '#2a2a2e');
+      for(const aa of [a0, a1]) box(aa-3, aa+3, -9, -3, 0, 36, '#3a3a3e', '#2a2a2e', '#1f1f22');
+    }
+  },
+  porch(c){
+    for(const aa of [220, 392]){
+      box(aa-4, aa+4, -46, -38, 0, 104, c.trim, shade(c.trim,.92), shade(c.trim,.78));
+      for(const z of [20, 50, 80]) box(aa-5.5, aa+5.5, -47.5, -36.5, z, z+5, c.trim, shade(c.trim,.88), shade(c.trim,.74));
+    }
+    F(212, 400, 88, 104, shade(c.trim,.96), shade(c.trim,.7), 1, -40);
+    for(let a = 220; a < 396; a += 6) F(a, a+2, 90, 102, c.accent, null, 0, -39.6);
+    houseHip(208, 404, -40, -80, 104, 118, 5, c.roof, { hi:false, lo:false });
+  },
+  fore(p){
+    const c = this.liv[state.pal % this.liv.length];
+    this.porch(c); this.fence(c);
+    houseProp('lamp', () => {
+      cyl(52, -24, 0, 84, 2.5, '#2a2a2e');
+      box(46, 58, -30, -18, 84, 98, '#3a3a3e', 'rgba(250,230,160,.85)', 'rgba(230,205,140,.85)');
+    });
+    if(!state.back) houseYardFence(this, this.liv[state.pal % this.liv.length], 'near');
+  },
+  draw(p){
+    const c = this.liv[state.pal % this.liv.length];
+    this.yard(c); houseYardFence(this, c, 'far');
+    houseMass(60, 400, -80, -520, 232, c.wall, 1);
+    houseSideWins(60, 400, -80, -520, [[36,96],[140,196]], c.trim);
+    for(let z = 16; z < 230; z += 8) poly([P(60,-80.2,z), P(400,-80.2,z)], null, shade(c.wall,.9), 1);
+    F(60, 400, 118, 124, c.trim, null, 0, -79.6);                 // belt course
+    houseDoorway(300, -80, CITY_HOUSE_SC, c.trim, c.leaf, 1);
+    houseWin(92, 184, 140, 200, -80, c.trim, c.trim, 1);
+    houseWin(256, 348, 140, 200, -80, c.trim, c.trim, 1);
+    houseFrontGable(60, 400, -80, -520, 232, 318, 10, c.roof, c.wall, 1, { gable:c.gable, shingle:true, barge:c.trim });
+    houseWin(208, 252, 250, 280, -80, c.trim, c.trim, 1, { plain:true });
+    /* the bay: a box on the ground floor with its own low hip */
+    box(80, 200, -80, -52, 0, 112, shade(c.wall,1.02), c.wall, shade(c.wall,.78));
+    houseWin(96, 184, 30, 94, -52, c.trim, c.trim, 1);
+    houseHip(80, 200, -52, -80, 112, 132, 4, c.roof, { hi:true, lo:true });
+  },
+  back(p){
+    const c = this.liv[state.pal % this.liv.length];
+    this.yard(c); houseYardFence(this, c, 'far'); this.fore(p);
+    box(80, 200, -80, -52, 0, 112, shade(c.wall,1.02), c.wall, shade(c.wall,.78));
+    houseHip(80, 200, -52, -80, 112, 132, 4, c.roof, { hi:true, lo:true });
+    houseMass(60, 400, -80, -520, 232, c.wall, -1);
+    houseSideWins(60, 400, -80, -520, [[36,96],[140,196]], c.trim);
+    for(let z = 16; z < 230; z += 8) poly([P(60,-520.2,z), P(400,-520.2,z)], null, shade(c.wall,.86), 1);
+    houseWin(112, 192, 140, 196, -520, c.trim, c.trim, -1);
+    houseWin(268, 348, 140, 196, -520, c.trim, c.trim, -1);
+    houseWin(260, 352, 40, 96, -520, c.trim, c.trim, -1);
+    rearDoor(140, c.wall, c.leaf, 520, 92);
+    houseFrontGable(60, 400, -80, -520, 232, 318, 10, c.roof, c.wall, -1, { gable:c.gable, shingle:true, barge:c.trim });
+    houseProp('ac unit', () => acUnit(340, 0, 520));
+    houseYardFence(this, c, 'near');
+  }
+},
+{
+  name:'Wickham Gothic Cottage', hood:'The Flats', tier:'single', sc:CITY_HOUSE_SC, ww:HOUSE_SINGLE, dd:HOUSE_DEPTH_LAB,
+  head:'Gothic Revival: board-and-batten, steep centre gable, pointed window, gingerbread',
+  desc:'Carpenter Gothic cottage: board-and-batten walls under a steep side gable, a tall centre cross gable with gingerbread barge boards and a finial, a pointed-arch window above the door, hooded windows and a picket fence.',
+  tags:['single','gothic revival','cross gable','board and batten'],
+  yardFence:{ style:'picket', h:36, col:'#f7f5ee' },
+  door:[230, -130],
+  liv:[ { wall:'#d8dcd2', trim:'#f7f5ee', roof:'#4a4652', leaf:'#7a2e3a', accent:'#7a2e3a' },
+        { wall:'#e6d6b8', trim:'#fbf8f0', roof:'#3e4a44', leaf:'#2e4d68', accent:'#2e4d68' },
+        { wall:'#c9b4c8', trim:'#f7f2ec', roof:'#44403c', leaf:'#3f5a4a', accent:'#3f5a4a' } ],
+  vol:{
+    foot:[[50,-130],[410,-130],[410,-480],[50,-480]], h:320,
+    solids:[ { name:'fence L', poly:[[4,-9],[195,-9],[195,-1],[4,-1]], h:36 },
+             { name:'fence R', poly:[[265,-9],[456,-9],[456,-1],[265,-1]], h:36 },
+             { name:'lamp', c:[40,-40], r:6, h:96, prop:true },
+             { name:'ac unit', poly:[[294,-508],[346,-508],[346,-480],[294,-480]], h:36, prop:true } ],
+    marks:{ door:[230,-130], mat:[230,-130+35.4] }
+  },
+  prof:[[-130,118],[-305,300],[-480,118]],
+  yard(c){
+    houseLawn(0, 460, -130, 0, '#7fa35a');
+    T(195, 265, -130, 0, 0.6, '#c9c1b0');
+  },
+  walls(c, d){
+    houseMass(50, 410, -130, -480, 118, c.wall, d);
+    const face = d > 0 ? -130 : -480;
+    for(let a = 58; a < 410; a += 12) F(a, a+2, 0, 118, shade(c.wall,.88), null, 0, face + 0.2*d);
+    houseSideWins(50, 410, -130, -480, [[30,92]], c.trim);
+  },
+  hood(a0, a1, z, b){ poly([P(a0-8,b+0.5,z), P((a0+a1)/2,b+0.5,z+14), P(a1+8,b+0.5,z), P(a1+8,b+0.5,z-4), P((a0+a1)/2,b+0.5,z+10), P(a0-8,b+0.5,z-4)], '#f7f5ee', '#b8b4ac', 1); },
+  gable(c){
+    const k = 182/175, bR = -130 - (290-118)/k;
+    houseFrontGable(160, 300, -130, -130, 118, 290, 10, c.roof, c.wall, 1, { valley:[-130, bR], barge:c.trim });
+    for(let a = 168; a < 292; a += 12){ const zt = 118 + 172*(1 - Math.abs(a+1-230)/70); if(zt > 124) F(a, a+2, 118, zt - 4, shade(c.wall,.88), null, 0, -129.8); }
+    houseArchWin(212, 248, 150, 236, -130, c.trim, 1, { pointed:true });
+    if(!state.back) for(let t = 0.06; t < 0.94; t += 0.08) for(const s of [-1, 1]){
+      const a = 230 + s*80*t, z = 290 + 10 - (182)*t*(80/70) ;
+      poly([P(a-3,-120.4,z-8), P(a+3,-120.4,z-8), P(a,-120.4,z-15)], c.trim);
+    }
+    if(state.roof){ cyl(230, -124, 290, 318, 1.8, c.trim); ball(230, -124, 320, 3.4, c.trim); }
+  },
+  fore(p){
+    const c = this.liv[state.pal % this.liv.length];
+    for(const [a0, a1] of [[4, 195], [265, 456]]){
+      housePickets(a0, a1, -5, 36, '#f7f5ee');
+      for(const aa of [a0 + 4, a1 - 4]) housePost(aa, -5, 42, '#f7f5ee');
+    }
+    houseProp('lamp', () => { cyl(40, -40, 0, 84, 2.5, '#2a2a2e'); box(34, 46, -46, -34, 84, 98, '#3a3a3e', 'rgba(250,230,160,.85)', 'rgba(230,205,140,.85)'); });
+    if(!state.back) houseYardFence(this, this.liv[state.pal % this.liv.length], 'near');
+  },
+  draw(p){
+    const c = this.liv[state.pal % this.liv.length];
+    this.yard(c); houseYardFence(this, c, 'far');
+    this.walls(c, 1);
+    houseDoorway(230, -130, CITY_HOUSE_SC, c.trim, c.leaf, 1);
+    for(const [a0, a1] of [[80,130],[330,380]]){ houseWin(a0, a1, 30, 92, -130, c.trim, c.trim, 1); this.hood(a0, a1, 100, -130); }
+    houseProfileRoof(50, 410, this.prof, 12, c.roof, c.wall, { barge:c.trim });
+    this.gable(c);
+  },
+  back(p){
+    const c = this.liv[state.pal % this.liv.length];
+    this.yard(c); houseYardFence(this, c, 'far'); this.fore(p);
+    this.gable(c);
+    this.walls(c, -1);
+    houseWin(80, 130, 30, 92, -480, c.trim, c.trim, -1);
+    rearDoor(230, c.wall, c.leaf, 480, 92);
+    houseProfileRoof(50, 410, this.prof, 12, c.roof, c.wall, { barge:c.trim });
+    houseProp('ac unit', () => acUnit(320, 0, 480));
+    houseYardFence(this, c, 'near');
+  }
+},
+{
+  name:'Beacon Hill Georgian', hood:'The Flats', tier:'double', sc:CITY_HOUSE_SC, ww:HOUSE_DOUBLE, dd:HOUSE_DEPTH_LAB,
+  head:'Georgian: symmetrical brick, hip roof, dormers, columned portico',
+  desc:'Five-bay Georgian in red brick with white quoins and a belt course, a hipped roof with three dormers and twin chimneys, a fanlit door under a columned, pedimented portico, topiaries, and iron railings on brick piers.',
+  tags:['double','georgian','brick','portico','dormers'],
+  yardFence:{ style:'iron', h:34, col:'iron', pier:'brick' },
+  door:[405, -120],
+  liv:[ { brick:'#9c4a3a', trim:'#f7f4ec', roof:'#3e4448', leaf:'#1f2a24', iron:'#1f1f22' },
+        { brick:'#b0664e', trim:'#fbf8f0', roof:'#44403c', leaf:'#2e3a5a', iron:'#222226' },
+        { brick:'#8a5444', trim:'#f5f2ea', roof:'#3a4046', leaf:'#5a1f24', iron:'#1f1f22' } ],
+  vol:{
+    foot:[[60,-120],[750,-120],[750,-480],[60,-480]], h:380,
+    solids:[ { name:'column L', c:[362,-84], r:7, h:124 },
+             { name:'column R', c:[448,-84], r:7, h:124 },
+             { name:'fence L', poly:[[6,-10],[365,-10],[365,-2],[6,-2]], h:40 },
+             { name:'fence R', poly:[[445,-10],[804,-10],[804,-2],[445,-2]], h:40 },
+             { name:'topiary L', c:[318,-100], r:13, h:56, prop:true },
+             { name:'topiary R', c:[492,-100], r:13, h:56, prop:true },
+             { name:'ac unit', poly:[[94,-508],[146,-508],[146,-480],[94,-480]], h:36, prop:true },
+             { name:'bin', poly:[[682,-530],[718,-530],[718,-494],[682,-494]], h:52, prop:true } ],
+    marks:{ door:[405,-120], mat:[405,-120+35.4] }
+  },
+  slope:{ bf:-120, He:240, k:80/180 },
+  yard(c){
+    houseLawn(0, 809.6, -120, 0, '#7a9e58');
+    T(370, 440, -76, 0, 0.6, '#b0654a');
+    for(let b = -70; b < 0; b += 9) poly([P(370,b,0.7), P(440,b,0.7)], null, '#8f5038', 1);
+    T(346, 464, -120, -76, 2, '#d8d2c4');
+  },
+  facade(c){
+    houseBrick(60, 750, 0, 240, -120, c.brick);
+    for(let z = 0, k = 0; z < 240; z += 16, k++){
+      F(60, 60 + (k % 2 ? 14 : 24), z+1, z+15, c.trim, null, 0, -119.6);
+      F(750 - (k % 2 ? 14 : 24), 750, z+1, z+15, c.trim, null, 0, -119.6);
+    }
+    F(60, 750, 124, 130, c.trim, null, 0, -119.5);
+    const dh = houseDoorDims(CITY_HOUSE_SC).h, fan = [], spokes = [];
+    for(let k = 0; k <= 12; k++){ const t = Math.PI*k/12; fan.push(P(405 + 34*Math.cos(t), -119.5, dh + 8 + 20*Math.sin(t))); }
+    poly(fan, '#34424b', c.trim, 2.5);
+    for(let k = 1; k < 6; k++){ const t = Math.PI*k/6; poly([P(405,-119.3,dh+8), P(405 + 34*Math.cos(t), -119.3, dh + 8 + 20*Math.sin(t))], null, c.trim, 1.2); }
+    houseDoorway(405, -120, CITY_HOUSE_SC, c.trim, c.leaf, 1);
+    for(const [a0, a1] of [[120,180],[240,300],[510,570],[630,690]]){
+      houseWin(a0, a1, 36, 110, -120, c.trim, c.trim, 1);
+      F((a0+a1)/2 - 5, (a0+a1)/2 + 5, 114, 124, c.trim, null, 0, -119.4);
+    }
+    for(const [a0, a1] of [[120,180],[240,300],[375,435],[510,570],[630,690]]) houseWin(a0, a1, 150, 220, -120, c.trim, c.trim, 1);
+  },
+  chimneys(){
+    if(!state.roof) return;
+    for(const a of [236, 544]){ box(a, a+30, -315, -285, 300, 380, '#a8604a', '#8f513e', '#7a4535'); box(a-3, a+33, -318, -282, 372, 380, '#b86a52', '#9c5a46', '#844c3c'); }
+  },
+  fore(p){
+    const c = this.liv[state.pal % this.liv.length];
+    for(const aa of [362, 448]){ cyl(aa, -84, 2, 114, 6, c.trim, shade(c.trim,1.02)); cyl(aa, -84, 110, 114, 8, shade(c.trim,.95)); }
+    box(346, 464, -90, -76, 114, 124, c.trim, shade(c.trim,.92), shade(c.trim,.8));
+    houseFrontGable(346, 464, -76, -120, 124, 150, 4, c.roof, c.trim, 1, { back0:true, barge:c.trim });
+    for(const [a0, a1] of [[6, 365], [445, 804]]){
+      F(a0, a1, 30, 33, c.iron, null, 0, -6); F(a0, a1, 8, 10, c.iron, null, 0, -6);
+      for(let a = a0 + 3; a < a1; a += 7) poly([P(a,-6,0), P(a+1.6,-6,0), P(a+1.6,-6,34), P(a+0.8,-6,38), P(a,-6,34)], c.iron);
+      for(let a = a0 + 6; a < a1; a += 118) box(a-6, a+6, -12, 0, 0, 44, shade(c.brick,1.08), c.brick, shade(c.brick,.8));
+      box(a1-12, a1, -12, 0, 0, 44, shade(c.brick,1.08), c.brick, shade(c.brick,.8));
+    }
+    for(const [nm, aa] of [['topiary L', 318], ['topiary R', 492]])
+      houseProp(nm, () => { cyl(aa, -100, 0, 18, 11, '#3a3a3e', '#4a4a50'); ball(aa, -100, 32, 13, '#3f6b3e'); ball(aa, -100, 50, 7, '#4a7a48'); });
+    if(!state.back) houseYardFence(this, this.liv[state.pal % this.liv.length], 'near');
+  },
+  draw(p){
+    const c = this.liv[state.pal % this.liv.length];
+    this.yard(c); houseYardFence(this, c, 'far');
+    houseMass(60, 750, -120, -480, 240, c.brick, 1);
+    this.facade(c);
+    houseSideWins(60, 750, -120, -480, [[40,110],[150,220]], c.trim);
+    houseHip(60, 750, -120, -480, 240, 320, 10, c.roof);
+    for(const a0 of [220, 380, 540]) houseDormer(a0, a0 + 50, -150, 290, 305, this.slope, c.trim, c.roof, c.trim);
+    this.chimneys();
+  },
+  back(p){
+    const c = this.liv[state.pal % this.liv.length];
+    this.yard(c); houseYardFence(this, c, 'far'); this.fore(p);
+    houseMass(60, 750, -120, -480, 240, c.brick, -1);
+    houseBrick(60, 750, 0, 240, -480, c.brick, -1);
+    F(60, 750, 124, 130, c.trim, null, 0, -480.5);
+    houseSideWins(60, 750, -120, -480, [[40,110],[150,220]], c.trim);
+    for(const [a0, a1] of [[120,180],[240,300],[510,570],[630,690]]) houseWin(a0, a1, 150, 220, -480, c.trim, c.trim, -1);
+    houseWin(120, 180, 40, 110, -480, c.trim, c.trim, -1);
+    houseWin(630, 690, 40, 110, -480, c.trim, c.trim, -1);
+    rearDoor(405, c.brick, c.leaf, 480, 92);
+    houseHip(60, 750, -120, -480, 240, 320, 10, c.roof);
+    this.chimneys();
+    houseProp('ac unit', () => acUnit(120, 0, 480));
+    houseProp('bin', () => wheelieBin(700, '#3f6b4a', 0, 480));
+    houseYardFence(this, c, 'near');
+  }
+},
+{
+  name:'Hollyhock Storybook', hood:'The Flats', tier:'single', sc:CITY_HOUSE_SC, ww:HOUSE_SINGLE, dd:HOUSE_DEPTH_LAB,
+  head:'Storybook cottage: very steep roofs, arched door in a tall front gable, tapered chimney',
+  desc:'Fairy-tale cottage: very steep side gable and a tall, steep entry gable with an arched plank door in a stone surround, diamond-leaded casements, a tapering stone chimney on the front, a cottage garden and an arbour gate in the picket fence.',
+  tags:['single','storybook','steep roof','chimney'],
+  yardFence:{ style:'picket', h:36, col:'#f4efe4' },
+  door:[215, -90],
+  liv:[ { wall:'#efe2c4', roof:'#5a4e5e', trim:'#6b4a36', leaf:'#6b4a36', stone:'#a8a296' },
+        { wall:'#e8d8c8', roof:'#4a5a52', trim:'#4a3a2e', leaf:'#3a4a3a', stone:'#9c968a' },
+        { wall:'#f2e8d0', roof:'#6a4a3a', trim:'#5a3a2a', leaf:'#8a3a2a', stone:'#b3ada2' } ],
+  vol:{
+    foot:[[40,-120],[140,-120],[140,-90],[290,-90],[290,-120],[400,-120],[400,-480],[40,-480]], h:340,
+    solids:[ { name:'chimney', poly:[[100,-120],[134,-120],[134,-100],[100,-100]], h:360 },
+             { name:'fence L', poly:[[4,-9],[180,-9],[180,-1],[4,-1]], h:36 },
+             { name:'fence R', poly:[[250,-9],[456,-9],[456,-1],[250,-1]], h:36 },
+             { name:'birdbath', c:[360,-54], r:10, h:36, prop:true },
+             { name:'ac unit', poly:[[274,-508],[326,-508],[326,-480],[274,-480]], h:36, prop:true } ],
+    marks:{ door:[215,-90], mat:[215,-90+35.4] }
+  },
+  prof:[[-120,110],[-300,330],[-480,110]],
+  yard(c){
+    houseLawn(0, 460, -120, 0, '#7a9e58');
+    for(const [a, b] of [[210,-80],[222,-62],[214,-44],[224,-26],[216,-10]]) plateCircle(a, b, 0.8, 10, c.stone);
+  },
+  garden(c){
+    const cols = ['#e2748c','#f2d36a','#a88ad6','#f29a5a','#e8e8f0'];
+    for(let a = 20; a < 440; a += 14){ if(a > 170 && a < 260) continue;
+      ball(a, -24, 10, 8, '#4f7a4a'); ball(a + 2, -23, 18, 4.5, cols[(a/14|0) % cols.length]); }
+  },
+  chimney(c){
+    box(100, 134, -120, -100, 0, 120, shade(c.stone,1.06), c.stone, shade(c.stone,.8));
+    box(104, 130, -118, -102, 120, 250, shade(c.stone,1.06), c.stone, shade(c.stone,.8));
+    box(108, 126, -116, -104, 250, 360, shade(c.stone,1.06), c.stone, shade(c.stone,.8));
+    box(106, 128, -118, -102, 352, 362, shade(c.stone,1.1), shade(c.stone,.9), shade(c.stone,.72));
+  },
+  fore(p){
+    const c = this.liv[state.pal % this.liv.length];
+    this.garden(c);
+    for(const [a0, a1] of [[4, 180], [250, 456]]) housePickets(a0, a1, -5, 36, '#f4efe4');
+    for(const aa of [180, 250]) box(aa-4, aa+4, -9, -1, 0, 78, '#8a6848', '#7a5a3c', '#6a4e34');
+    const arch = []; for(let k = 0; k <= 12; k++){ const t = Math.PI*k/12; arch.push(P(215 + 35*Math.cos(t), -5, 78 + 22*Math.sin(t))); }
+    for(let k = 0; k < 12; k++) poly([arch[k], arch[k+1]], null, '#7a5a3c', 4);
+    for(let k = 1; k < 12; k += 2) ball(215 + 35*Math.cos(Math.PI*k/12), -5, 78 + 22*Math.sin(Math.PI*k/12), 4, '#e2748c');
+    houseProp('birdbath', () => { cyl(360, -54, 0, 28, 4, c.stone); plateCircle(360, -54, 28, 11, shade(c.stone,1.06), shade(c.stone,.7), 1); plateCircle(360, -54, 29, 8, '#8fc4d6'); });
+    if(!state.back) houseYardFence(this, this.liv[state.pal % this.liv.length], 'near');
+  },
+  draw(p){
+    const c = this.liv[state.pal % this.liv.length];
+    this.yard(c); houseYardFence(this, c, 'far');
+    houseMass(40, 400, -120, -480, 110, c.wall, 1);
+    houseSideWins(40, 400, -120, -480, [[30,86]], c.trim);
+    houseWin(60, 96, 30, 86, -120, c.trim, c.trim, 1, { lead:true, plain:true });
+    houseWin(320, 370, 30, 86, -120, c.trim, c.trim, 1, { lead:true, plain:true });
+    houseProfileRoof(40, 400, this.prof, 10, c.roof, c.wall);
+    houseMass(140, 290, -90, -120, 110, c.wall, 1);
+    const k = 220/180, bR = -120 - (300-110)/k;
+    houseFrontGable(140, 290, -90, -120, 110, 300, 8, c.roof, c.wall, 1, { valley:[-120, bR], barge:c.trim });
+    houseArch(215, -90, houseDoorDims(CITY_HOUSE_SC).h, 46, 26, c.stone, 1);
+    houseDoorway(215, -90, CITY_HOUSE_SC, c.trim, c.leaf, 1);
+    houseWin(202, 228, 150, 196, -90, c.trim, c.trim, 1, { lead:true, plain:true });
+    this.chimney(c);
+  },
+  back(p){
+    const c = this.liv[state.pal % this.liv.length];
+    this.yard(c); houseYardFence(this, c, 'far'); this.fore(p); this.chimney(c);
+    houseMass(140, 290, -90, -120, 110, c.wall, 1);
+    houseFrontGable(140, 290, -90, -120, 110, 300, 8, c.roof, c.wall, 1, { valley:[-120, -120 - 190/(220/180)], barge:c.trim });
+    houseMass(40, 400, -120, -480, 110, c.wall, -1);
+    houseSideWins(40, 400, -120, -480, [[30,86]], c.trim);
+    houseWin(80, 130, 30, 86, -480, c.trim, c.trim, -1, { lead:true, plain:true });
+    rearDoor(200, c.wall, c.leaf, 480, 92);
+    houseProfileRoof(40, 400, this.prof, 10, c.roof, c.wall);
+    houseProp('ac unit', () => acUnit(300, 0, 480));
+    houseYardFence(this, c, 'near');
+  }
+},
+{
+  name:'Rosewood Queen Anne', hood:'The Flats', tier:'single', sc:CITY_HOUSE_SC, ww:HOUSE_SINGLE, dd:HOUSE_DEPTH_LAB,
+  head:'Queen Anne: octagonal turret, fish-scale cross gable, spindle porch',
+  desc:'Two-storey Queen Anne under a big hip: an octagonal turret with a tall cone on the street corner, a projecting cross-gabled wing in fish-scale shingle, a spindle-frieze porch at the door, pickets and a gas lamp.',
+  tags:['single','queen anne','turret','cross gable','porch'],
+  yardFence:{ style:'picket', h:36, col:'#f7f4ec' },
+  door:[270, -110],
+  liv:[ { wall:'#6f5a7a', trim:'#f3ead6', roof:'#3e3a44', leaf:'#2f6f6a', gable:'#c9a24a', accent:'#2f6f6a' },
+        { wall:'#4f7f7a', trim:'#f5eedc', roof:'#44383a', leaf:'#9c3b34', gable:'#d98a5a', accent:'#9c3b34' },
+        { wall:'#b5645a', trim:'#f7f0de', roof:'#3a3f44', leaf:'#2e4d68', gable:'#e2c77a', accent:'#2e4d68' } ],
+  vol:{
+    foot:[[40,-70],[210,-70],[210,-110],[400,-110],[400,-500],[30,-500],[30,-110],[40,-110]], h:396,
+    solids:[ { name:'turret', poly:houseRing(380,-110,50,8), h:380 },
+             { name:'post L', poly:[[216,-70],[224,-70],[224,-62],[216,-62]], h:104 },
+             { name:'post R', poly:[[316,-70],[324,-70],[324,-62],[316,-62]], h:104 },
+             { name:'fence L', poly:[[4,-9],[234,-9],[234,-1],[4,-1]], h:36 },
+             { name:'fence R', poly:[[306,-9],[456,-9],[456,-1],[306,-1]], h:36 },
+             { name:'lamp', c:[26,-30], r:6, h:96, prop:true },
+             { name:'bench', poly:[[90,-52],[140,-52],[140,-38],[90,-38]], h:24, prop:true },
+             { name:'ac unit', poly:[[274,-528],[326,-528],[326,-500],[274,-500]], h:36, prop:true } ],
+    marks:{ door:[270,-110], mat:[270,-110+35.4] }
+  },
+  yard(c){
+    houseLawn(0, 460, -110, 0, '#7fa35a');
+    T(234, 306, -64, 0, 0.6, '#c9c1b0');
+    T(214, 326, -110, -64, 1.2, shade(c.trim,.86));
+  },
+  wing(c){
+    houseMass(40, 210, -70, -110, 226, c.wall, 1);
+    for(let z = 16; z < 224; z += 8) poly([P(40,-70.2,z), P(210,-70.2,z)], null, shade(c.wall,.88), 1);
+    F(40, 210, 116, 122, c.trim, null, 0, -69.6);
+    houseWin(80, 170, 34, 100, -70, c.trim, c.trim, 1);
+    houseWin(90, 160, 140, 200, -70, c.trim, c.trim, 1);
+    houseFrontGable(40, 210, -70, -110, 226, 290, 10, c.roof, c.wall, 1, { gable:c.gable, shingle:true, barge:c.trim, valley:[-110, -279] });
+    houseWin(110, 140, 238, 262, -70, c.trim, c.trim, 1, { plain:true });
+  },
+  turret(c){
+    const seen = housePrism(houseRing(380,-110,50,8), 0, 262, c.wall, { top:false });
+    for(const f of seen){
+      houseFaceWin(f, 0.26, 0.74, 40, 100, c.trim);
+      houseFaceWin(f, 0.26, 0.74, 150, 210, c.trim);
+      houseFaceWin(f, 0, 1, 116, 122, c.trim, { band:true });
+    }
+    houseCone(380, -110, 58, 8, 256, 380, c.roof);
+    if(state.roof){ cyl(380, -110, 380, 396, 1.5, '#2a2a2e'); ball(380, -110, 398, 3, '#c9a24a'); }
+  },
+  porch(c){
+    for(const aa of [220, 320]){
+      box(aa-4, aa+4, -70, -62, 0, 104, c.trim, shade(c.trim,.92), shade(c.trim,.78));
+      for(const z of [20, 50, 80]) box(aa-5.5, aa+5.5, -71.5, -60.5, z, z+5, c.trim, shade(c.trim,.88), shade(c.trim,.74));
+    }
+    F(214, 326, 88, 104, shade(c.trim,.96), shade(c.trim,.7), 1, -64);
+    for(let a = 218; a < 324; a += 6) F(a, a+2, 90, 102, c.accent, null, 0, -63.6);
+    houseHip(214, 326, -64, -110, 104, 120, 5, c.roof, { lo:false, hi:false });
+  },
+  fence(){
+    for(const [a0, a1] of [[4, 234], [306, 456]]){
+      housePickets(a0, a1, -5, 36, '#f7f4ec');
+      for(const aa of [a0 + 4, a1 - 4]) housePost(aa, -5, 42, '#f7f4ec');
+    }
+  },
+  fore(p){
+    const c = this.liv[state.pal % this.liv.length];
+    this.porch(c); this.fence();
+    houseProp('lamp', () => { cyl(26, -30, 0, 84, 2.5, '#2a2a2e'); box(20, 32, -36, -24, 84, 98, '#3a3a3e', 'rgba(250,230,160,.85)', 'rgba(230,205,140,.85)'); });
+    houseProp('bench', () => {
+      box(90, 140, -52, -38, 16, 20, '#a8835c', '#96744f', '#836544');
+      for(const aa of [94, 136]) box(aa-2, aa+2, -50, -40, 0, 16, '#6b5038', '#5a4230', '#4d3828');
+    });
+    if(!state.back) houseYardFence(this, this.liv[state.pal % this.liv.length], 'near');
+  },
+  draw(p){
+    const c = this.liv[state.pal % this.liv.length];
+    this.yard(c); houseYardFence(this, c, 'far');
+    houseMass(30, 400, -110, -500, 226, c.wall, 1);
+    for(let z = 16; z < 224; z += 8) poly([P(30,-110.2,z), P(400,-110.2,z)], null, shade(c.wall,.88), 1);
+    F(30, 400, 116, 122, c.trim, null, 0, -109.6);
+    houseSideWins(30, 400, -110, -500, [[36,96],[140,196]], c.trim, { skipFront:90 });
+    houseDoorway(270, -110, CITY_HOUSE_SC, c.trim, c.leaf, 1);
+    houseWin(240, 300, 140, 200, -110, c.trim, c.trim, 1);
+    houseHip(30, 400, -110, -500, 226, 300, 12, c.roof);
+    this.wing(c);
+    this.turret(c);
+  },
+  back(p){
+    const c = this.liv[state.pal % this.liv.length];
+    this.yard(c); houseYardFence(this, c, 'far'); this.fore(p);
+    this.turret(c); this.wing(c);
+    houseMass(30, 400, -110, -500, 226, c.wall, -1);
+    for(let z = 16; z < 224; z += 8) poly([P(30,-500.2,z), P(400,-500.2,z)], null, shade(c.wall,.84), 1);
+    houseSideWins(30, 400, -110, -500, [[36,96],[140,196]], c.trim, { skipFront:60 });
+    houseWin(70, 130, 140, 200, -500, c.trim, c.trim, -1);
+    houseWin(260, 320, 140, 200, -500, c.trim, c.trim, -1);
+    houseWin(260, 320, 40, 96, -500, c.trim, c.trim, -1);
+    rearDoor(150, c.wall, c.leaf, 500, 92);
+    houseHip(30, 400, -110, -500, 226, 300, 12, c.roof);
+    houseProp('ac unit', () => acUnit(300, 0, 500));
+    houseYardFence(this, c, 'near');
+  }
+},
+{
+  name:'Oakpark Prairie', hood:'The Flats', tier:'double', sc:CITY_HOUSE_SC, ww:HOUSE_DOUBLE, dd:HOUSE_DEPTH_LAB,
+  head:'Prairie style: stacked low hips, deep eaves, ribbon windows, urns',
+  desc:'Wright-flavoured Prairie house: a long ground floor and a narrower upper floor, each under a low hip with a deep overhang, dark timber bands, ribbon windows, a broad low chimney, a low garden wall and two planter urns flanking the walk.',
+  tags:['double','prairie','hip','deep eaves'],
+  yardFence:{ style:'wall', h:22, col:'wall', cap:'wood' },
+  door:[405, -120],
+  liv:[ { wall:'#e2d2b0', wood:'#5a4030', roof:'#4e5a52', leaf:'#5a4030', urn:'#a89a80' },
+        { wall:'#d8c7a8', wood:'#3f4a3e', roof:'#5a4a3e', leaf:'#3f4a3e', urn:'#9c9280' },
+        { wall:'#e8dcc4', wood:'#6b3a2a', roof:'#44525a', leaf:'#6b3a2a', urn:'#b0a088' } ],
+  vol:{
+    foot:[[50,-120],[760,-120],[760,-470],[50,-470]], h:280,
+    solids:[ { name:'wall L', poly:[[8,-14],[360,-14],[360,-4],[8,-4]], h:26 },
+             { name:'wall R', poly:[[450,-14],[802,-14],[802,-4],[450,-4]], h:26 },
+             { name:'urn L', c:[300,-44], r:14, h:40, prop:true },
+             { name:'urn R', c:[510,-44], r:14, h:40, prop:true },
+             { name:'ac unit', poly:[[94,-498],[146,-498],[146,-470],[94,-470]], h:36, prop:true },
+             { name:'bin', poly:[[682,-520],[718,-520],[718,-484],[682,-484]], h:52, prop:true } ],
+    marks:{ door:[405,-120], mat:[405,-120+35.4] }
+  },
+  yard(c){
+    houseLawn(0, 809.6, -120, 0, '#7fa35a');
+    T(370, 440, -120, 0, 0.6, '#cfc6b0');
+  },
+  lower(c, d){
+    houseMass(50, 760, -120, -470, 110, c.wall, d);
+    const face = d > 0 ? -120 : -470;
+    F(50, 760, 0, 12, c.wood, null, 0, face + 0.4*d);
+    F(50, 760, 96, 104, c.wood, null, 0, face + 0.4*d);
+    houseSideWins(50, 760, -120, -470, [[40,90]], c.wood, { plain:true, w:50 });
+    if(d > 0){
+      for(const a0 of [90, 145, 200, 255, 510, 565, 620, 675]) houseWin(a0, a0+48, 40, 90, -120, c.wood, c.wood, 1, { plain:true });
+      houseDoorway(405, -120, CITY_HOUSE_SC, c.wood, c.leaf, 1);
+    } else {
+      for(const a0 of [100, 155, 560, 615]) houseWin(a0, a0+48, 40, 90, -470, c.wood, c.wood, -1, { plain:true });
+      rearDoor(400, c.wall, c.leaf, 470, 92);
+    }
+  },
+  roofs(c, d){
+    houseHip(50, 760, -120, -470, 110, 150, 40, c.roof);
+    houseMass(220, 590, -170, -420, 210, c.wall, d, 121);
+    const face = d > 0 ? -170 : -420;
+    F(220, 590, 196, 204, c.wood, null, 0, face + 0.4*d);
+    F(220, 590, 138, 144, c.wood, null, 0, face + 0.4*d);
+    for(const a0 of [250, 310, 370, 430, 490]) houseWin(a0, a0+54, 150, 192, face, c.wood, c.wood, d, { plain:true });
+    houseSideWins(220, 590, -170, -420, [[150,192]], c.wood, { plain:true, w:50 });
+    houseHip(220, 590, -170, -420, 210, 245, 34, c.roof);
+    if(state.roof) box(380, 430, -310, -280, 225, 275, '#9c6a52', '#8a5a44', '#744a38');
+  },
+  gwall(c){
+    for(const [a0, a1] of [[8, 360], [450, 802]]){
+      box(a0, a1, -14, -4, 0, 22, shade(c.wall,1.02), c.wall, shade(c.wall,.8));
+      box(a0-1, a1+1, -15, -3, 22, 26, c.wood, shade(c.wood,.9), shade(c.wood,.75));
+    }
+  },
+  urns(c){
+    for(const [nm, aa] of [['urn L', 300], ['urn R', 510]])
+      houseProp(nm, () => { cyl(aa, -44, 0, 10, 7, shade(c.urn,.85)); cyl(aa, -44, 10, 30, 14, c.urn, shade(c.urn,1.1)); ball(aa, -44, 34, 12, '#5c8a56'); });
+  },
+  fore(p){
+    const c = this.liv[state.pal % this.liv.length];
+    this.roofs(c, 1); this.gwall(c); this.urns(c);
+    if(!state.back) houseYardFence(this, this.liv[state.pal % this.liv.length], 'near');
+  },
+  draw(p){
+    const c = this.liv[state.pal % this.liv.length];
+    this.yard(c); houseYardFence(this, c, 'far');
+    this.lower(c, 1);
+  },
+  back(p){
+    const c = this.liv[state.pal % this.liv.length];
+    this.yard(c); houseYardFence(this, c, 'far'); this.gwall(c); this.urns(c);
+    this.lower(c, -1);
+    this.roofs(c, -1);
+    houseProp('ac unit', () => acUnit(120, 0, 470));
+    houseProp('bin', () => wheelieBin(700, '#3f6b4a', 0, 470));
+    houseYardFence(this, c, 'near');
+  }
+},
+{
+  name:'Pasadena Airplane Bungalow', hood:'The Flats', tier:'double', sc:CITY_HOUSE_SC, ww:HOUSE_DOUBLE, dd:HOUSE_DEPTH_LAB,
+  head:'Airplane bungalow: wide low gable, pop-up "cockpit" room, gabled porch',
+  desc:'A Craftsman airplane bungalow: a long low side gable with deep eaves and rafter tails, a small "cockpit" room popping up through the ridge with windows all round, a shingled porch gable on tapered columns and ribbon windows.',
+  tags:['double','craftsman','bungalow','porch'],
+  door:[310, -150],
+  liv:[ { wall:'#5a6e4e', trim:'#efe6d2', roof:'#4a3e36', leaf:'#8a4e2e', shing:'#9a7a50', stone:'#a39b8d' },
+        { wall:'#7a5a44', trim:'#f0e4c8', roof:'#3e4448', leaf:'#2f5a4a', shing:'#b0885a', stone:'#9c978c' },
+        { wall:'#6a7a86', trim:'#f2ece0', roof:'#44403a', leaf:'#a2432f', shing:'#a8845c', stone:'#aaa396' } ],
+  vol:{
+    foot:[[60,-150],[750,-150],[750,-470],[60,-470]], h:280,
+    solids:[ { name:'pier L', poly:[[119,-94],[141,-94],[141,-78],[119,-78]], h:100 },
+             { name:'pier C', poly:[[219,-94],[241,-94],[241,-78],[219,-78]], h:100 },
+             { name:'pier D', poly:[[379,-94],[401,-94],[401,-78],[379,-78]], h:100 },
+             { name:'pier R', poly:[[479,-94],[501,-94],[501,-78],[479,-78]], h:100 },
+             { name:'rocker', c:[170,-120], r:14, h:48, prop:true },
+             { name:'birdbath', c:[640,-60], r:10, h:36, prop:true },
+             { name:'ac unit', poly:[[94,-498],[146,-498],[146,-470],[94,-470]], h:36, prop:true },
+             { name:'bin', poly:[[682,-520],[718,-520],[718,-484],[682,-484]], h:52, prop:true } ],
+    marks:{ door:[310,-150], mat:[310,-150+35.4] }
+  },
+  prof:[[-150,118],[-310,196],[-470,118]],
+  yard(c){
+    houseLawn(0, 809.6, -150, 0, '#7fa35a');
+    T(275, 345, -80, 0, 0.6, '#cbc4b2');
+    T(116, 504, -150, -80, 2, shade(c.trim,.84));
+  },
+  walls(c, d){
+    houseMass(60, 750, -150, -470, 118, c.wall, d);
+    const face = d > 0 ? -150 : -470;
+    for(let z = 12; z < 116; z += 8) poly([P(60,face+0.3*d,z), P(750,face+0.3*d,z)], null, shade(c.wall,.86), 1);
+    houseSideWins(60, 750, -150, -470, [[34,96]], c.trim);
+    if(d > 0){
+      houseDoorway(310, -150, CITY_HOUSE_SC, c.trim, c.leaf, 1);
+      for(const [a0, a1] of [[150,200],[420,470],[560,610],[616,666],[672,722]]) houseWin(a0, a1, 34, 96, -150, c.trim, c.trim, 1);
+    } else {
+      for(const [a0, a1] of [[120,170],[400,450],[600,650]]) houseWin(a0, a1, 34, 96, -470, c.trim, c.trim, -1);
+      rearDoor(260, c.wall, c.leaf, 470, 92);
+    }
+  },
+  roofs(c, d){
+    houseProfileRoof(60, 750, this.prof, 30, c.roof, c.wall);
+    if(d > 0) for(let a = 40; a < 776; a += 24) F(a, a+4, 118 - 30*78/160 - 12, 118 - 30*78/160 - 5, c.trim, null, 0, -120);
+    box(300, 510, -380, -240, 162, 240, shade(c.wall,1.04), c.wall, shade(c.wall,.8));
+    const face = d > 0 ? -240 : -380;
+    for(const [a0, a1] of [[330,380],[430,480]]) houseWin(a0, a1, 176, 226, face, c.trim, c.trim, d, { plain:true });
+    houseSideWins(300, 510, -240, -380, [[176,226]], c.trim, { plain:true, skipFront:20, skipBack:20, pitch:50, w:30 });
+    houseProfileRoof(300, 510, [[-240,240],[-310,276],[-380,240]], 20, c.roof, c.wall);
+  },
+  fore(p){
+    const c = this.liv[state.pal % this.liv.length];
+    for(const aa of [130, 230, 390, 490]){
+      box(aa-11, aa+11, -94, -78, 2, 40, shade(c.stone,1.06), c.stone, shade(c.stone,.8));
+      box(aa-7, aa+7, -91, -81, 40, 100, c.trim, shade(c.trim,.92), shade(c.trim,.78));
+    }
+    F(120, 500, 100, 108, c.trim, shade(c.trim,.7), 1, -80);
+    houseFrontGable(120, 500, -80, -150, 108, 160, 10, c.roof, c.trim, 1, { back0:true, gable:c.shing, shingle:true, barge:c.trim });
+    houseProp('rocker', () => houseRocker(170, -120, '#8a5a3a'));
+    houseProp('birdbath', () => { cyl(640, -60, 0, 28, 4, c.stone); plateCircle(640, -60, 28, 11, shade(c.stone,1.06), shade(c.stone,.7), 1); plateCircle(640, -60, 29, 8, '#8fc4d6'); });
+  },
+  draw(p){
+    const c = this.liv[state.pal % this.liv.length];
+    this.yard(c);
+    this.walls(c, 1);
+    this.roofs(c, 1);
+  },
+  back(p){
+    const c = this.liv[state.pal % this.liv.length];
+    this.yard(c); this.fore(p);
+    this.walls(c, -1);
+    this.roofs(c, -1);
+    houseProp('ac unit', () => acUnit(120, 0, 470));
+    houseProp('bin', () => wheelieBin(700, '#3f6b4a', 0, 470));
+  }
+},
+{
+  name:'Marigny Creole Cottage', hood:'The Flats', tier:'single', sc:CITY_HOUSE_SC, ww:HOUSE_SINGLE, dd:HOUSE_DEPTH_LAB,
+  head:'Creole cottage: steep side gable run out over a front gallery, four shuttered openings',
+  desc:'Low pastel Creole cottage whose steep roof carries straight on over a full-width front gallery on slender posts; four tall shuttered openings across the front (one is the door), a low iron fence and a gas lamp.',
+  tags:['single','creole','gallery','side gable'],
+  yardFence:{ style:'iron', h:30, col:'#2a2a2e' },
+  door:[180, -140],
+  liv:[ { wall:'#c9b3d6', trim:'#f7f2e8', roof:'#4a4e52', leaf:'#3f6b4a', shut:'#3f6b4a', floor:'#8f8a80' },
+        { wall:'#b9dcc8', trim:'#f7f4ec', roof:'#55504a', leaf:'#8a3a30', shut:'#2e4d68', floor:'#a0968a' },
+        { wall:'#f0b9a0', trim:'#fbf6ee', roof:'#474c4e', leaf:'#2e4d68', shut:'#2f5a4a', floor:'#8a8478' } ],
+  vol:{
+    foot:[[30,-140],[430,-140],[430,-500],[30,-500]], h:300,
+    solids:[ { name:'post 1', c:[36,-66], r:4, h:108 }, { name:'post 2', c:[130,-66], r:4, h:108 },
+             { name:'post 3', c:[230,-66], r:4, h:108 }, { name:'post 4', c:[330,-66], r:4, h:108 },
+             { name:'post 5', c:[424,-66], r:4, h:108 },
+             { name:'fence L', poly:[[4,-9],[145,-9],[145,-1],[4,-1]], h:34 },
+             { name:'fence R', poly:[[215,-9],[456,-9],[456,-1],[215,-1]], h:34 },
+             { name:'pot L', c:[70,-110], r:11, h:34, prop:true },
+             { name:'pot R', c:[300,-110], r:11, h:34, prop:true },
+             { name:'lamp', c:[420,-30], r:6, h:96, prop:true },
+             { name:'ac unit', poly:[[94,-528],[146,-528],[146,-500],[94,-500]], h:36, prop:true } ],
+    marks:{ door:[180,-140], mat:[180,-140+35.4] }
+  },
+  prof:[[-60,108],[-300,300],[-500,130]],
+  yard(c){
+    houseLawn(0, 460, -60, 0, '#7fa35a');
+    T(145, 215, -60, 0, 0.6, '#b8b0a0');
+    T(30, 430, -140, -60, 3, c.floor);
+    for(let a = 40; a < 430; a += 20) poly([P(a,-140,3.1), P(a,-60,3.1)], null, shade(c.floor,.84), 1);
+    F(30, 430, 0, 3, shade(c.floor,.7), null, 0, -60);
+  },
+  ends(c){
+    const g = a => [[a,-140,0],[a,-140,172],[a,-300,300],[a,-500,130],[a,-500,0]];
+    const ctr = [230, -320, 100];
+    houseFace(g(30), ctr, shade(c.wall,.78), shade(c.wall,.6));
+    houseFace(g(430), ctr, shade(c.wall,.78), shade(c.wall,.6));
+  },
+  front(c){
+    F(30, 430, 0, 172, c.wall, shade(c.wall,.6), 1, -140);
+    for(let z = 12; z < 170; z += 8) poly([P(30,-139.8,z), P(430,-139.8,z)], null, shade(c.wall,.9), 1);
+    for(const [a0, a1] of [[60,100],[260,300],[360,400]]) houseWin(a0, a1, 8, 100, -140, c.trim, c.trim, 1, { shutter:c.shut });
+    for(const a of [131, 223]) F(a, a+11, 0, 100, c.shut, shade(c.shut,.7), 1, -139.6);
+    houseDoorway(180, -140, CITY_HOUSE_SC, c.trim, c.leaf, 1);
+    F(138, 222, 104, 118, 'rgba(170,205,220,.45)', c.trim, 1.5, -139.5);
+  },
+  fore(p){
+    const c = this.liv[state.pal % this.liv.length];
+    for(const aa of [36, 130, 230, 330, 424]) box(aa-3, aa+3, -69, -63, 3, 108, c.trim, shade(c.trim,.9), shade(c.trim,.76));
+    houseProfileRoof(30, 430, this.prof, 10, c.roof, c.wall, { noEnds:true });
+    for(const [a0, a1] of [[4, 145], [215, 456]]){
+      F(a0, a1, 26, 29, '#2a2a2e', null, 0, -5); F(a0, a1, 6, 8, '#2a2a2e', null, 0, -5);
+      for(let a = a0 + 3; a < a1; a += 7) poly([P(a,-5,0), P(a+1.6,-5,0), P(a+1.6,-5,30), P(a+0.8,-5,34), P(a,-5,30)], '#2a2a2e');
+    }
+    for(const [nm, aa] of [['pot L', 70], ['pot R', 300]])
+      houseProp(nm, () => { cyl(aa, -110, 3, 22, 11, '#b86a4a', shade('#b86a4a',1.15)); ball(aa, -110, 30, 12, '#4f8a4a'); });
+    houseProp('lamp', () => { cyl(420, -30, 0, 84, 2.5, '#2a2a2e'); box(414, 426, -36, -24, 84, 98, '#3a3a3e', 'rgba(250,210,120,.85)', 'rgba(225,185,100,.85)'); });
+    if(!state.back) houseYardFence(this, this.liv[state.pal % this.liv.length], 'near');
+  },
+  draw(p){
+    const c = this.liv[state.pal % this.liv.length];
+    this.yard(c); houseYardFence(this, c, 'far');
+    this.front(c);
+    this.ends(c);
+    houseSideWins(30, 430, -140, -500, [[30,100]], c.trim, { skipFront:40 });
+  },
+  back(p){
+    const c = this.liv[state.pal % this.liv.length];
+    this.yard(c); houseYardFence(this, c, 'far');
+    this.front(c);
+    this.fore(p);
+    houseMass(30, 430, -140, -500, 130, c.wall, -1);
+    for(let z = 12; z < 128; z += 8) poly([P(30,-500.2,z), P(430,-500.2,z)], null, shade(c.wall,.86), 1);
+    this.ends(c);
+    houseSideWins(30, 430, -140, -500, [[30,100]], c.trim, { skipFront:40 });
+    houseWin(80, 130, 30, 100, -500, c.trim, c.trim, -1, { shutter:c.shut });
+    houseWin(320, 370, 30, 100, -500, c.trim, c.trim, -1, { shutter:c.shut });
+    rearDoor(230, c.wall, c.leaf, 500, 92);
+    houseProfileRoof(30, 430, this.prof, 10, c.roof, c.wall, { noEnds:true });
+    houseProp('ac unit', () => acUnit(120, 0, 500));
+    houseYardFence(this, c, 'near');
+  }
+},
+{
+  name:'Bywater Shotgun', hood:'The Flats', tier:'single', sc:CITY_HOUSE_SC, ww:HOUSE_SINGLE, dd:HOUSE_DEPTH_LAB,
+  head:'Shotgun house: one room wide and deep, front gable, bracketed porch, side yards',
+  desc:'A narrow, deep shotgun house one room wide under a steep street gable with shingles in the peak, a full-width porch with turned posts and scroll brackets, a tall window beside the door, a gravel drive on one side and a banana-plant garden on the other.',
+  tags:['single','shotgun','front gable','porch'],
+  door:[195, -120],
+  liv:[ { wall:'#f2c94a', trim:'#fbfaf5', roof:'#4a4e52', leaf:'#2e6f8a', gable:'#2e6f8a' },
+        { wall:'#6ac0b8', trim:'#fbfaf5', roof:'#44403c', leaf:'#d9573c', gable:'#d9573c' },
+        { wall:'#e88aa0', trim:'#fbfaf5', roof:'#3e4448', leaf:'#3f6b4a', gable:'#3f6b4a' } ],
+  vol:{
+    foot:[[150,-120],[310,-120],[310,-520],[150,-520]], h:240,
+    solids:[ { name:'post L', c:[146,-66], r:4, h:108 }, { name:'post R', c:[314,-66], r:4, h:108 },
+             { name:'banana', c:[400,-80], r:10, h:120, prop:true },
+             { name:'planter', c:[290,-90], r:10, h:30, prop:true },
+             { name:'ac unit', poly:[[340,-332],[368,-332],[368,-280],[340,-280]], h:36, prop:true } ],
+    marks:{ door:[195,-120], mat:[195,-120+35.4] }
+  },
+  yard(c){
+    houseLawn(0, 460, -552, 0, '#7fa35a');
+    T(10, 140, -552, 0, 0.5, '#bdb8ae');
+    T(170, 220, -60, 0, 0.6, '#c9c1b0');
+    T(140, 320, -120, -60, 3, shade(c.trim,.84));
+    F(140, 320, 0, 3, shade(c.trim,.66), null, 0, -60);
+  },
+  walls(c, d){
+    houseMass(150, 310, -120, -520, 150, c.wall, d);
+    const face = d > 0 ? -120 : -520;
+    for(let z = 12; z < 148; z += 8) poly([P(150,face+0.3*d,z), P(310,face+0.3*d,z)], null, shade(c.wall,.88), 1);
+    houseSideWins(150, 310, -120, -520, [[26,110]], c.trim, { pitch:90 });
+    houseFrontGable(150, 310, -120, -520, 150, 230, 10, c.roof, c.wall, d, { gable:c.gable, shingle:true, barge:c.trim });
+    if(d > 0){
+      houseDoorway(195, -120, CITY_HOUSE_SC, c.trim, c.leaf, 1);
+      houseWin(250, 294, 10, 110, -120, c.trim, c.trim, 1);
+      houseWin(218, 242, 170, 196, -120, c.trim, c.trim, 1, { plain:true });
+    } else {
+      houseWin(180, 220, 30, 100, -520, c.trim, c.trim, -1);
+      rearDoor(270, c.wall, c.leaf, 520, 92);
+    }
+  },
+  fore(p){
+    const c = this.liv[state.pal % this.liv.length];
+    for(const aa of [146, 314]){
+      box(aa-3, aa+3, -69, -63, 3, 108, c.trim, shade(c.trim,.9), shade(c.trim,.76));
+      for(const z of [30, 60]) box(aa-4.5, aa+4.5, -70.5, -61.5, z, z+4, c.trim, shade(c.trim,.88), shade(c.trim,.74));
+      const s = aa < 230 ? 1 : -1;
+      poly([P(aa,-64,96), P(aa + 22*s,-64,108), P(aa,-64,108)], c.trim, shade(c.trim,.7), 1);
+    }
+    houseHip(140, 320, -60, -120, 108, 124, 6, c.roof, { lo:true, hi:true });
+    houseProp('banana', () => { cyl(400, -80, 0, 70, 5, '#8a9a5a'); for(let k = 0; k < 6; k++){ const t = k/6*Math.PI*2; poly([P(400,-80,70), P(400 + Math.cos(t)*34, -80 + Math.sin(t)*34, 96), P(400 + Math.cos(t)*40, -80 + Math.sin(t)*40, 84)], k % 2 ? '#5f9a4a' : '#4f8a3e'); } });
+    houseProp('planter', () => { cyl(290, -90, 3, 22, 10, '#6b6660'); ball(290, -90, 28, 11, '#d9573c'); });
+  },
+  draw(p){
+    const c = this.liv[state.pal % this.liv.length];
+    this.yard(c);
+    this.walls(c, 1);
+  },
+  back(p){
+    const c = this.liv[state.pal % this.liv.length];
+    this.yard(c); this.fore(p);
+    /* the side-yard unit is on the far side from behind: before the walls */
+    houseProp('ac unit', () => { box(340, 368, -332, -280, 0, 36, '#c9ccce', '#b8bbbd', '#a4a7a9'); faceCircle(354, -280, 18, 12, '#8a8d90'); });
+    this.walls(c, -1);
+  }
+},
+{
+  name:'Magnolia Greek Revival', hood:'The Flats', tier:'double', sc:CITY_HOUSE_SC, ww:HOUSE_DOUBLE, dd:HOUSE_DEPTH_LAB,
+  head:'Greek Revival: full-height temple portico, four columns, pediment',
+  desc:'White clapboard Greek Revival: a two-storey temple portico on four big columns with an entablature and a pediment carrying an oculus, a door with sidelights and transom, black shutters, end chimneys, two broad shade trees and boxwood hedges.',
+  tags:['double','greek revival','portico','columns'],
+  yardFence:{ style:'hedge', h:22, col:'#4f7a42' },
+  door:[405, -170],
+  liv:[ { wall:'#f4f1ea', trim:'#ffffff', roof:'#4a4e52', leaf:'#1f2a24', shut:'#1f2a24' },
+        { wall:'#efe6d2', trim:'#fbf8f0', roof:'#55504a', leaf:'#2e3a5a', shut:'#2e3a5a' },
+        { wall:'#e8ecec', trim:'#fbfbf8', roof:'#3e4448', leaf:'#5a1f24', shut:'#3f4a3e' } ],
+  vol:{
+    foot:[[60,-170],[750,-170],[750,-490],[60,-490]], h:380,
+    solids:[ { name:'column 1', c:[250,-82], r:12, h:242 }, { name:'column 2', c:[350,-82], r:12, h:242 },
+             { name:'column 3', c:[460,-82], r:12, h:242 }, { name:'column 4', c:[560,-82], r:12, h:242 },
+             { name:'hedge L', poly:[[8,-20],[370,-20],[370,-8],[8,-8]], h:26 },
+             { name:'hedge R', poly:[[440,-20],[802,-20],[802,-8],[440,-8]], h:26 },
+             { name:'tree L', c:[110,-70], r:9, h:230, prop:true },
+             { name:'tree R', c:[700,-70], r:9, h:230, prop:true },
+             { name:'ac unit', poly:[[94,-518],[146,-518],[146,-490],[94,-490]], h:36, prop:true },
+             { name:'bin', poly:[[682,-540],[718,-540],[718,-504],[682,-504]], h:52, prop:true } ],
+    marks:{ door:[405,-170], mat:[405,-170+35.4] }
+  },
+  prof:[[-170,240],[-330,330],[-490,240]],
+  yard(c){
+    houseLawn(0, 809.6, -170, 0, '#7a9e58');
+    T(370, 440, -76, 0, 0.6, '#b0654a');
+    T(222, 588, -170, -76, 3, '#dcd6c8');
+    F(222, 588, 0, 3, '#c4bdae', null, 0, -76);
+  },
+  facade(c){
+    for(let z = 12; z < 238; z += 8) poly([P(60,-170.2,z), P(750,-170.2,z)], null, shade(c.wall,.9), 1);
+    for(const a of [60, 744]) F(a, a+6, 0, 240, c.trim, null, 0, -169.6);
+    houseDoorway(405, -170, CITY_HOUSE_SC, c.trim, c.leaf, 1);
+    if(HOUSE_REC) HOUSE_REC.push({ kind:'win', a0:350, a1:460, z0:100, z1:118, b:-170 });
+    for(const [a0, a1] of [[352,360],[450,458]]) F(a0, a1, 6, 96, 'rgba(170,205,220,.5)', c.trim, 1, -169.5);
+    F(352, 458, 102, 118, 'rgba(170,205,220,.5)', c.trim, 1.5, -169.5);
+    for(const [a0, a1] of [[100,160],[240,300],[510,570],[650,710]]) houseWin(a0, a1, 36, 120, -170, c.trim, c.trim, 1, { shutter:c.shut });
+    for(const [a0, a1] of [[100,160],[240,300],[375,435],[510,570],[650,710]]) houseWin(a0, a1, 150, 225, -170, c.trim, c.trim, 1, { shutter: a0 === 375 ? null : c.shut });
+  },
+  chimneys(){
+    if(!state.roof) return;
+    for(const a of [70, 710]) box(a, a+30, -345, -315, 300, 380, '#a8604a', '#8f513e', '#7a4535');
+  },
+  fore(p){
+    const c = this.liv[state.pal % this.liv.length];
+    for(const aa of [250, 350, 460, 560]){
+      cyl(aa, -82, 3, 226, 11, c.trim, shade(c.trim,1.02));
+      for(let da = -8; da <= 8; da += 4) poly([P(aa+da,-70.5,6), P(aa+da,-70.5,224)], null, shade(c.trim,.86), 1);
+      box(aa-14, aa+14, -96, -68, 226, 232, c.trim, shade(c.trim,.9), shade(c.trim,.78));
+      box(aa-14, aa+14, -96, -68, 0, 5, c.trim, shade(c.trim,.9), shade(c.trim,.78));
+    }
+    box(222, 588, -96, -68, 232, 254, c.trim, shade(c.trim,.94), shade(c.trim,.8));
+    const k = 90/160, bR = -170 - (320-254)/k;
+    houseFrontGable(222, 588, -68, -170, 254, 320, 8, c.roof, c.trim, 1, { valley:[-170, bR], barge:c.trim, gable:shade(c.trim,.96) });
+    faceCircle(405, -67.6, 280, 13, c.trim, shade(c.trim,.7), 1);
+    faceCircle(405, -67.4, 280, 9, '#34424b');
+    for(const [a0, a1] of [[8, 370], [440, 802]]){
+      box(a0, a1, -20, -8, 0, 22, '#4f7a42', '#426a38', '#3a5e32');
+      for(let a = a0 + 8; a < a1; a += 16) ball(a, -14, 22, 7, '#4f7a42');
+    }
+    for(const [nm, aa] of [['tree L', 110], ['tree R', 700]])
+      houseProp(nm, () => { cyl(aa, -70, 0, 120, 8, '#6b5038'); ball(aa, -70, 170, 60, '#3f6b3e'); ball(aa-30, -60, 150, 40, '#4a7a48'); ball(aa+28, -78, 190, 36, '#36603a'); });
+    if(!state.back) houseYardFence(this, this.liv[state.pal % this.liv.length], 'near');
+  },
+  draw(p){
+    const c = this.liv[state.pal % this.liv.length];
+    this.yard(c); houseYardFence(this, c, 'far');
+    houseMass(60, 750, -170, -490, 240, c.wall, 1);
+    this.facade(c);
+    houseSideWins(60, 750, -170, -490, [[40,120],[150,225]], c.trim);
+    houseProfileRoof(60, 750, this.prof, 10, c.roof, c.wall, { barge:c.trim });
+    this.chimneys();
+  },
+  back(p){
+    const c = this.liv[state.pal % this.liv.length];
+    this.yard(c); houseYardFence(this, c, 'far'); this.fore(p);
+    houseMass(60, 750, -170, -490, 240, c.wall, -1);
+    for(let z = 12; z < 238; z += 8) poly([P(60,-490.2,z), P(750,-490.2,z)], null, shade(c.wall,.86), 1);
+    houseSideWins(60, 750, -170, -490, [[40,120],[150,225]], c.trim);
+    for(const [a0, a1] of [[100,160],[240,300],[510,570],[650,710]]) houseWin(a0, a1, 150, 225, -490, c.trim, c.trim, -1, { shutter:c.shut });
+    houseWin(100, 160, 40, 120, -490, c.trim, c.trim, -1, { shutter:c.shut });
+    houseWin(650, 710, 40, 120, -490, c.trim, c.trim, -1, { shutter:c.shut });
+    rearDoor(405, c.wall, c.leaf, 490, 92);
+    houseProfileRoof(60, 750, this.prof, 10, c.roof, c.wall, { barge:c.trim });
+    this.chimneys();
+    houseProp('ac unit', () => acUnit(120, 0, 490));
+    houseProp('bin', () => wheelieBin(700, '#3f6b4a', 0, 490));
+    houseYardFence(this, c, 'near');
+  }
+},
+{
+  name:'Harvest Farmhouse', hood:'The Flats', tier:'double', sc:CITY_HOUSE_SC, ww:HOUSE_DOUBLE, dd:HOUSE_DEPTH_LAB,
+  head:'Farmhouse: board-and-batten, standing-seam roof, centre gable, full porch',
+  desc:'Long white two-storey farmhouse in board-and-batten under a standing-seam metal roof, a centre cross gable over the door, a full-width porch with a shed roof, posts and a spindle rail, two rockers and a mailbox by the walk.',
+  tags:['double','farmhouse','porch','metal roof','cross gable'],
+  door:[405, -150],
+  liv:[ { wall:'#f4f1ea', trim:'#ffffff', roof:'#6b6f73', leaf:'#2f3a44', accent:'#2f3a44', deck:'#a8835c' },
+        { wall:'#e9e2cf', trim:'#fbfaf5', roof:'#8a3a30', leaf:'#8a3a30', accent:'#3f4a3e', deck:'#9a7a58' },
+        { wall:'#dfe6e2', trim:'#fbfbf8', roof:'#3e4a44', leaf:'#3e4a44', accent:'#5a4030', deck:'#a88a64' } ],
+  vol:{
+    foot:[[30,-150],[780,-150],[780,-500],[30,-500]], h:380,
+    solids:[ { name:'rail L', poly:[[32,-88],[374,-88],[374,-80],[32,-80]], h:36 },
+             { name:'rail R', poly:[[436,-88],[778,-88],[778,-80],[436,-80]], h:36 },
+             { name:'rocker L', c:[200,-118], r:14, h:48, prop:true },
+             { name:'rocker R', c:[610,-118], r:14, h:48, prop:true },
+             { name:'mailbox', poly:[[470,-18],[486,-18],[486,-4],[470,-4]], h:52, prop:true },
+             { name:'ac unit', poly:[[94,-528],[146,-528],[146,-500],[94,-500]], h:36, prop:true },
+             { name:'bin', poly:[[682,-550],[718,-550],[718,-514],[682,-514]], h:52, prop:true } ],
+    marks:{ door:[405,-150], mat:[405,-150+35.4] }
+  },
+  prof:[[-150,226],[-325,330],[-500,226]],
+  yard(c){
+    houseLawn(0, 809.6, -150, 0, '#86a85e');
+    T(370, 440, -80, 0, 0.6, '#cbbf9f');
+    T(30, 780, -150, -80, 1.4, c.deck);
+    for(let a = 40; a < 780; a += 10) poly([P(a,-150,1.5), P(a,-80,1.5)], null, shade(c.deck,.84), 1);
+  },
+  fore(p){
+    const c = this.liv[state.pal % this.liv.length];
+    for(const aa of [36, 150, 260, 370, 440, 550, 660, 774]) box(aa-4, aa+4, -88, -80, 0, 112, c.trim, shade(c.trim,.9), shade(c.trim,.76));
+    for(const [a0, a1] of [[40, 366], [444, 770]]){
+      F(a0, a1, 30, 34, c.trim, null, 0, -84); F(a0, a1, 6, 9, c.trim, null, 0, -84);
+      for(let a = a0 + 5; a < a1 - 2; a += 8) F(a, a+2, 9, 30, c.trim, null, 0, -84);
+    }
+    houseProfileRoof(30, 780, [[-80,112],[-150,136]], 8, c.roof, c.wall, { seams:14, ext1:false, gable:shade(c.trim,.9) });
+    houseProp('rocker L', () => houseRocker(200, -118, '#8a5a3a'));
+    houseProp('rocker R', () => houseRocker(610, -118, '#8a5a3a'));
+    houseProp('mailbox', () => {
+      box(476, 480, -13, -9, 0, 40, '#6b5038', '#5a4230', '#4d3828');
+      box(470, 486, -18, -4, 40, 52, c.accent, shade(c.accent,.8), shade(c.accent,.65));
+    });
+  },
+  draw(p){
+    const c = this.liv[state.pal % this.liv.length];
+    this.yard(c);
+    houseMass(30, 780, -150, -500, 226, c.wall, 1);
+    for(let a = 42; a < 780; a += 12) F(a, a+1.4, 10, 226, shade(c.wall,.9), null, 0, -149.8);
+    houseSideWins(30, 780, -150, -500, [[36,100],[140,200]], c.trim);
+    houseDoorway(405, -150, CITY_HOUSE_SC, c.trim, c.leaf, 1);
+    for(const [a0, a1] of [[90,150],[230,290],[520,580],[660,720]]){
+      houseWin(a0, a1, 30, 100, -150, c.trim, c.trim, 1, { shutter:c.accent });
+      houseWin(a0, a1, 140, 200, -150, c.trim, c.trim, 1, { shutter:c.accent });
+    }
+    houseProfileRoof(30, 780, this.prof, 14, c.roof, c.wall, { seams:14 });
+    const k = 104/175, bR = -150 - (320-226)/k;
+    houseFrontGable(330, 480, -150, -150, 226, 320, 8, c.roof, c.wall, 1, { valley:[-150, bR], barge:c.trim });
+    houseWin(390, 420, 240, 280, -150, c.trim, c.trim, 1, { plain:true });
+    if(state.roof) box(630, 660, -340, -310, 300, 380, '#a8604a', '#8f513e', '#7a4535');
+  },
+  back(p){
+    const c = this.liv[state.pal % this.liv.length];
+    this.yard(c); this.fore(p);
+    houseMass(30, 780, -150, -500, 226, c.wall, -1);
+    for(let a = 42; a < 780; a += 12) F(a, a+1.4, 10, 226, shade(c.wall,.86), null, 0, -500.2);
+    houseSideWins(30, 780, -150, -500, [[36,100],[140,200]], c.trim);
+    for(const [a0, a1] of [[120,180],[300,360],[450,510],[630,690]]) houseWin(a0, a1, 140, 200, -500, c.trim, c.trim, -1);
+    houseWin(120, 180, 36, 100, -500, c.trim, c.trim, -1);
+    houseWin(630, 690, 36, 100, -500, c.trim, c.trim, -1);
+    rearDoor(400, c.wall, c.leaf, 500, 92);
+    houseProfileRoof(30, 780, this.prof, 14, c.roof, c.wall, { seams:14 });
+    if(state.roof) box(630, 660, -340, -310, 300, 380, '#a8604a', '#8f513e', '#7a4535');
+    houseProp('ac unit', () => acUnit(120, 0, 500));
+    houseProp('bin', () => wheelieBin(700, '#3f6b4a', 0, 500));
+  }
+},
+{
+  name:'Lafayette Second Empire', hood:'The Flats', tier:'double', sc:CITY_HOUSE_SC, ww:HOUSE_DOUBLE, dd:HOUSE_DEPTH_LAB,
+  head:'Second Empire: slate mansard, taller centre pavilion, bracketed cornice',
+  desc:'Two storeys under a fish-scale slate mansard with box dormers, a bracketed cornice, tall hooded windows, and a projecting centre pavilion that rises into its own taller mansard with iron cresting; urns and iron railings out front.',
+  tags:['double','second empire','mansard','pavilion'],
+  yardFence:{ style:'iron', h:30, col:'iron' },
+  door:[405, -100],
+  liv:[ { wall:'#d8d0c0', trim:'#f5f0e6', roof:'#4e5058', leaf:'#3a2a22', iron:'#1f1f22', top:'#6a6c72' },
+        { wall:'#c8bca8', trim:'#f2ece0', roof:'#5a4e58', leaf:'#2e3a30', iron:'#222226', top:'#76686e' },
+        { wall:'#e2d6c6', trim:'#fbf6ee', roof:'#44525a', leaf:'#5a2a24', iron:'#1f1f22', top:'#5e6a70' } ],
+  vol:{
+    foot:[[50,-130],[330,-130],[330,-100],[480,-100],[480,-130],[760,-130],[760,-480],[50,-480]], h:390,
+    solids:[ { name:'fence L', poly:[[6,-9],[365,-9],[365,-1],[6,-1]], h:36 },
+             { name:'fence R', poly:[[445,-9],[804,-9],[804,-1],[445,-1]], h:36 },
+             { name:'urn L', c:[300,-50], r:13, h:40, prop:true },
+             { name:'urn R', c:[510,-50], r:13, h:40, prop:true },
+             { name:'ac unit', poly:[[94,-508],[146,-508],[146,-480],[94,-480]], h:36, prop:true },
+             { name:'bin', poly:[[682,-530],[718,-530],[718,-494],[682,-494]], h:52, prop:true } ],
+    marks:{ door:[405,-100], mat:[405,-100+35.4] }
+  },
+  yard(c){
+    houseLawn(0, 809.6, -130, 0, '#7a9e58');
+    T(370, 440, -100, 0, 0.6, '#c9c1b0');
+  },
+  cornice(a0, a1, b, c){
+    F(a0, a1, 222, 230, c.trim, shade(c.trim,.7), 1, b);
+    for(let a = a0 + 8; a < a1 - 4; a += 20) F(a, a+5, 212, 222, c.trim, null, 0, b + 0.3);
+  },
+  hooded(a0, a1, z0, z1, b, c, d){
+    houseWin(a0, a1, z0, z1, b, c.trim, c.trim, d);
+    F(a0-8, a1+8, z1+6, z1+12, c.trim, shade(c.trim,.7), 1, b + 0.4*(d||1));
+  },
+  main(c, d){
+    houseMass(50, 760, -130, -480, 230, c.wall, d);
+    const face = d > 0 ? -130 : -480;
+    this.cornice(50, 760, face + 0.4*d, c);
+    houseSideWins(50, 760, -130, -480, [[36,116],[146,210]], c.trim);
+    const cols = d > 0 ? [[100,150],[190,240],[570,620],[660,710]] : [[100,150],[190,240],[300,350],[460,510],[570,620],[660,710]];
+    for(const [a0, a1] of cols){ this.hooded(a0, a1, 36, 116, face, c, d); this.hooded(a0, a1, 146, 206, face, c, d); }
+    if(d < 0) rearDoor(405, c.wall, c.leaf, 480, 92);
+    houseMansard(50, 760, -130, -480, 230, 320, 34, c.roof, c.top);
+    const dz = d > 0 ? -150 : -460, dw = d > 0 ? -138 : -472;
+    for(const a0 of [110, 200, 560, 650]){
+      box(a0, a0 + 44, Math.min(dz, dw), Math.max(dz, dw), 244, 300, c.trim, shade(c.trim,.94), shade(c.trim,.8));
+      houseWin(a0 + 8, a0 + 36, 254, 290, dw, c.trim, c.trim, d, { plain:true });
+    }
+  },
+  pavilion(c){
+    houseMass(330, 480, -100, -160, 230, c.wall, 1);
+    this.cornice(330, 480, -99.6, c);
+    houseDoorway(405, -100, CITY_HOUSE_SC, c.trim, c.leaf, 1);
+    F(360, 450, 104, 110, c.trim, shade(c.trim,.7), 1, -99.5);
+    this.hooded(380, 430, 146, 206, -100, c, 1);
+    houseMansard(330, 480, -100, -160, 230, 370, 26, c.roof, c.top);
+    box(386, 424, -120, -108, 262, 330, c.trim, shade(c.trim,.94), shade(c.trim,.8));
+    houseWin(394, 416, 276, 318, -108, c.trim, c.trim, 1, { plain:true });
+    if(state.roof) for(let a = 360; a <= 450; a += 10) F(a, a+1.5, 370, 384, c.iron, null, 0, -126);
+  },
+  fore(p){
+    const c = this.liv[state.pal % this.liv.length];
+    for(const [a0, a1] of [[6, 365], [445, 804]]){
+      F(a0, a1, 26, 29, c.iron, null, 0, -5); F(a0, a1, 6, 8, c.iron, null, 0, -5);
+      for(let a = a0 + 3; a < a1; a += 7) poly([P(a,-5,0), P(a+1.6,-5,0), P(a+1.6,-5,30), P(a+0.8,-5,34), P(a,-5,30)], c.iron);
+    }
+    for(const [nm, aa] of [['urn L', 300], ['urn R', 510]])
+      houseProp(nm, () => { cyl(aa, -50, 0, 10, 7, '#9c968a'); cyl(aa, -50, 10, 28, 13, '#b3ada2', '#c9c3b8'); ball(aa, -50, 32, 11, '#4f7a4a'); });
+    if(!state.back) houseYardFence(this, this.liv[state.pal % this.liv.length], 'near');
+  },
+  draw(p){
+    const c = this.liv[state.pal % this.liv.length];
+    this.yard(c); houseYardFence(this, c, 'far');
+    this.main(c, 1);
+    this.pavilion(c);
+  },
+  back(p){
+    const c = this.liv[state.pal % this.liv.length];
+    this.yard(c); houseYardFence(this, c, 'far'); this.fore(p);
+    this.pavilion(c);
+    this.main(c, -1);
+    houseProp('ac unit', () => acUnit(120, 0, 480));
+    houseProp('bin', () => wheelieBin(700, '#3f6b4a', 0, 480));
+    houseYardFence(this, c, 'near');
+  }
+},
+{
+  name:'Heron Tudor', hood:'The Flats', tier:'double', sc:CITY_HOUSE_SC, dd:HOUSE_DEPTH_LAB, ww:HOUSE_DOUBLE,
+  head:'Tudor revival: steep side gable, half-timbered cross wing, front chimney',
+  desc:'Brick ground floor, stucco and dark half-timber above, a steep cross-gabled wing that runs back into the main roof in a valley, a tall brick chimney on the front, leaded windows, an arched door and a clipped hedge.',
+  tags:['double','tudor','cross gable','half-timber','chimney'],
+  yardFence:{ style:'hedge', h:26, col:'#5c8a4c' },
+  door:[280, -80],
+  liv:[ { brick:'#9c5a44', stucco:'#efe6d2', timber:'#3e2e24', roof:'#4a4442', leaf:'#5a3a28', stone:'#c9bfae' },
+        { brick:'#8a4e3e', stucco:'#e9e2d0', timber:'#2e2a26', roof:'#3e3a3c', leaf:'#2f5a4a', stone:'#c4bca9' },
+        { brick:'#a8664c', stucco:'#f2ead8', timber:'#4a3626', roof:'#55504c', leaf:'#7a2e3a', stone:'#cfc6b4' } ],
+  vol:{
+    foot:[[28,-80],[784,-80],[784,-512],[28,-512],[28,-80]], h:322,
+    solids:[ { name:'wing', poly:[[560,-80],[784,-80],[784,-54],[560,-54]], h:300 },
+             { name:'chimney', poly:[[434,-80],[462,-80],[462,-62],[434,-62]], h:360 },
+             { name:'hedge L', poly:[[16,-18],[200,-18],[200,-6],[16,-6]], h:26 },
+             { name:'hedge R', poly:[[360,-18],[792,-18],[792,-6],[360,-6]], h:26 },
+             { name:'birdbath', c:[120,-44], r:10, h:36, prop:true },
+             { name:'ac unit', poly:[[134,-540],[186,-540],[186,-512],[134,-512]], h:36, prop:true } ],
+    marks:{ door:[280,-80], mat:[280,-80+35.4] }
+  },
+  yard(c){
+    houseLawn(0, 809.6, -80, 0, '#7a9e58');
+    T(200, 360, -80, 0, 0.6, c.stone);
+    for(let b = -72; b < 0; b += 12) poly([P(200,b,0.7), P(360,b,0.7)], null, shade(c.stone,.8), 1);
+  },
+  timber(a0, a1, z0, z1, b, c){
+    F(a0, a1, z0, z1, c.stucco, null, 0, b);
+    F(a0, a1, z0, z0+5, c.timber, null, 0, b+0.3); F(a0, a1, z1-5, z1, c.timber, null, 0, b+0.3);
+    const n = Math.max(2, Math.round((a1-a0)/30));
+    for(let k = 0; k <= n; k++){ const a = a0 + (a1-a0)*k/n; F(a-2.5, a+2.5, z0, z1, c.timber, null, 0, b+0.3);
+      if(k < n && k % 2 === 0){ const a2 = a0 + (a1-a0)*(k+1)/n;
+        poly([P(a+2,b+0.4,z0+5), P(a+6,b+0.4,z0+5), P(a2-2,b+0.4,z1-5), P(a2-6,b+0.4,z1-5)], c.timber); } }
+  },
+  hedge(){
+    for(const [a0, a1] of [[16, 200], [360, 792]]){
+      box(a0, a1, -18, -6, 0, 26, '#5c8a4c', '#4f7a42', '#426a38');
+      for(let a = a0 + 8; a < a1; a += 16) ball(a, -12, 26, 7, '#5c8a4c');
+    }
+  },
+  wing(c, dir){
+    houseMass(560, 784, -54, -80, 220, c.brick, 1);
+    houseBrick(560, 784, 0, 112, -54, c.brick);
+    this.timber(560, 784, 112, 220, -54, c);
+    houseWin(612, 732, 34, 96, -54, '#e8e0cc', '#e8e0cc', 1, { lead:true, plain:true });
+    houseWin(624, 720, 140, 196, -54, '#e8e0cc', '#e8e0cc', 1, { lead:true, plain:true });
+    const k = 102/216, bR = -80 - (300-220)/k;
+    houseFrontGable(560, 784, -54, -80, 220, 300, 8, c.roof, c.stucco, 1, { gable:c.stucco, barge:c.timber, valley:[-80, bR] });
+    for(const aa of [616, 672, 728]){ const zt = 220 + 80*(1 - Math.abs(aa-672)/112); F(aa-2.5, aa+2.5, 220, zt - 3, c.timber, null, 0, -53.6); }
+    houseWin(652, 692, 238, 262, -54, '#e8e0cc', '#e8e0cc', 1, { lead:true, plain:true });
+  },
+  chimney(c){
+    box(434, 462, -80, -62, 0, 360, shade(c.brick,1.08), c.brick, shade(c.brick,.78));
+    for(let z = 8; z < 360; z += 8) F(434, 462, z, z+1, shade(c.brick,.78), null, 0, -61.6);
+    box(431, 465, -83, -59, 346, 356, shade(c.brick,1.1), shade(c.brick,.9), shade(c.brick,.72));
+    for(const aa of [434, 462]) cyl(aa, -71, 356, 372, 4, '#8a5040', '#6a3a2e');
+  },
+  fore(p){
+    const c = this.liv[state.pal % this.liv.length];
+    this.hedge();
+    houseProp('birdbath', () => { cyl(120, -44, 0, 28, 4, c.stone); plateCircle(120, -44, 28, 11, shade(c.stone,1.06), shade(c.stone,.7), 1); plateCircle(120, -44, 29, 8, '#8fc4d6'); });
+    if(!state.back) houseYardFence(this, this.liv[state.pal % this.liv.length], 'near');
+  },
+  draw(p){
+    const c = this.liv[state.pal % this.liv.length];
+    this.yard(c); houseYardFence(this, c, 'far');
+    houseMass(28, 784, -80, -512, 220, c.brick, 1);
+    houseSideWins(28, 784, -80, -512, [[36,96],[136,196]], '#e8e0cc');
+    houseBrick(28, 560, 0, 112, -80, c.brick);
+    this.timber(28, 560, 112, 220, -80, c);
+    houseArch(280, -80, houseDoorDims(CITY_HOUSE_SC).h, 44, 14, c.stone, 1);
+    houseDoorway(280, -80, CITY_HOUSE_SC, c.stone, c.leaf, 1);
+    houseWin(60, 152, 34, 96, -80, '#e8e0cc', '#e8e0cc', 1, { lead:true, plain:true });
+    houseWin(80, 172, 136, 196, -80, '#e8e0cc', '#e8e0cc', 1, { lead:true, plain:true });
+    houseWin(240, 332, 136, 196, -80, '#e8e0cc', '#e8e0cc', 1, { lead:true, plain:true });
+    houseGableRoof(28, 784, -80, -512, 220, 322, 10, c.roof, c.stucco, 1);
+    this.wing(c, 1);
+    this.chimney(c);
+  },
+  back(p){
+    const c = this.liv[state.pal % this.liv.length];
+    this.yard(c); houseYardFence(this, c, 'far'); this.fore(p);
+    this.wing(c, 1);
+    this.chimney(c);
+    houseMass(28, 784, -80, -512, 220, c.brick, -1);
+    houseSideWins(28, 784, -80, -512, [[36,96],[136,196]], '#e8e0cc');
+    houseBrick(28, 784, 0, 112, -512, c.brick, -1);
+    this.timber(28, 784, 112, 220, -512.2, c);
+    houseWin(100, 192, 136, 196, -512, '#e8e0cc', '#e8e0cc', -1, { lead:true, plain:true });
+    houseWin(600, 692, 136, 196, -512, '#e8e0cc', '#e8e0cc', -1, { lead:true, plain:true });
+    houseWin(600, 692, 34, 96, -512, '#e8e0cc', '#e8e0cc', -1, { lead:true, plain:true });
+    rearDoor(400, c.brick, c.leaf, 512, 92);
+    houseGableRoof(28, 784, -80, -512, 220, 322, 10, c.roof, c.stucco, -1);
+    box(434, 462, -80, -62, 250, 360, shade(c.brick,1.08), c.brick, shade(c.brick,.78));
+    houseProp('ac unit', () => acUnit(160, 0, 512));
+    houseYardFence(this, c, 'near');
+  }
+},
 /* ---- THE MARITIME GARAGE (Sir, 2026-09-28: "we never thought about
    adding in garages to the houses i think they would have them"). The
    houses were drawn without one, so every Maritime house gets this beside
@@ -37968,7 +39281,7 @@ function houseCanopy(fn){
    the city's driveway takes it across the pavement (see DRIVEWAYS,
    `drive`). bays 1 or 2 -- the double is derived below. ---- */
 {
-  name:'Maritime Garage', hood:'The Flats', tier:'outbuilding', sc:CITY_HOUSE_SC, ww:175, dd:HOUSE_DEPTH_LAB, bays:1,
+  name:'Street Garage', hood:'The Flats', tier:'outbuilding', sc:CITY_HOUSE_SC, ww:175, dd:HOUSE_DEPTH_LAB, bays:1,
   head:'Garage: a carriage house in its Maritime house\'s colours',
   desc:'A garage beside a Maritime house: clapboard walls, corner boards, a front gable and a panelled overhead door in the house\'s trim, a lantern beside it -- or, beside a modern house, a flat-roofed box with a ribbed door in the house\'s accent.',
   tags:['garage','outbuilding','coastal'],
@@ -37976,9 +39289,14 @@ function houseCanopy(fn){
   drive:[{ side:'front', from:26, to:149, col:'#c4bfb3', arrows:'none' }],
   style(){
     const host = BY_NAME.get(this._host) || BY_NAME.get('Seabreeze Bungalow');
-    const L = host.liv[state.pal % host.liv.length], modern = MARITIME_MODERN.has(host.name);
-    return { wall: L.wall, roof: L.roof || MARITIME_PAL.slate, trim: L.trim || MARITIME_PAL.harbourWhite,
-             door: modern ? (L.accent || L.band || L.clad || L.leaf) : (L.trim || MARITIME_PAL.harbourWhite),
+    const L = host.liv[state.pal % host.liv.length], modern = MODERN_HOUSES.has(host.name);
+    /* a house that is not painted walls says so in its keys: the Georgian
+       is brick, the Tudor brick, stucco and timber -- its garage is brick
+       too, with no clapboard lines, trimmed in the house's timber */
+    const trim = L.trim || L.timber || L.wood || MARITIME_PAL.harbourWhite;
+    return { wall: L.wall || L.brick || L.stucco || MARITIME_PAL.sailcloth, plain: !L.wall,
+             roof: L.roof || MARITIME_PAL.slate, trim,
+             door: modern ? (L.accent || L.band || L.clad || L.leaf) : trim,
              modern };
   },
   frame(){ return { A0: 10, A1: this.ww - 10, BF: -70, BB: -300, H: 96 }; },
@@ -38007,7 +39325,7 @@ function houseCanopy(fn){
     const { A0, A1, BF, BB, H } = this.frame(), face = dir > 0 ? BF : BB;
     houseMass(A0, A1, BF, BB, H, c.wall, dir);
     if(!c.modern){
-      for(let z = 12; z < H - 2; z += 8) poly([P(A0, face + 0.2*dir, z), P(A1, face + 0.2*dir, z)], null, shade(c.wall,.86), 0.8);
+      if(!c.plain) for(let z = 12; z < H - 2; z += 8) poly([P(A0, face + 0.2*dir, z), P(A1, face + 0.2*dir, z)], null, shade(c.wall,.86), 0.8);
       F(A0, A0 + 6, 0, H, c.trim, null, 0, face + 0.3*dir);                                        // corner boards
       F(A1 - 6, A1, 0, H, c.trim, null, 0, face + 0.3*dir);
     } else F(A0, A1, H - 16, H - 8, c.door, null, 0, face + 0.3*dir);                               // the band
@@ -38039,6 +39357,10 @@ function houseCanopy(fn){
   }
 }
   ];
+  /* a city house's fenced yard backs onto the middle of its block, so it
+     gets a back gate (see houseYardFence) -- 55 either side, 143 wide in
+     the world against Tipsey's 60 */
+  for(const sh of SHOPS) if(sh.yardFence && sh.sc === CITY_HOUSE_SC) sh.yardFence = Object.assign({}, sh.yardFence, { backGate: 55 });
   /* the houses' yard fences carry collision (houses.js, THE YARD FENCE) */
   for(const sh of SHOPS) if(sh.yardFence && sh.vol) sh.vol.solids = (sh.vol.solids || []).concat(houseYardSolids(sh));
   /* the split-level's garage: the Sierra Garage with its garden wall back
@@ -38072,8 +39394,8 @@ function houseCanopy(fn){
       head:"Keeper's cottage: white clapboard, profile roof, picket fence, buoy and lobster traps",
       tags:['double','cottage','nautical'], tower(){},
       vol:Object.assign({}, lh.vol, { h:230, solids:lh.vol.solids.filter(so => so.name !== 'tower') }) })); }
-  { const g0 = SHOPS.find(s => s.name === 'Maritime Garage');
-    if(g0) SHOPS.push(Object.assign({}, g0, { name:'Maritime Double Garage', ww:300, bays:2,
+  { const g0 = SHOPS.find(s => s.name === 'Street Garage');
+    if(g0) SHOPS.push(Object.assign({}, g0, { name:'Street Double Garage', ww:300, bays:2,
       vol:Object.assign({}, g0.vol, { foot:[[10,-70],[290,-70],[290,-300],[10,-300]] }),
       drive:[{ side:'front', from:24, to:276, col:'#c4bfb3', arrows:'none' }] })); }
   const BY_NAME = new Map(SHOPS.map(s => [s.name, s]));
@@ -38224,7 +39546,7 @@ for(const nm of new Set(HOOD_SHOP_SITES.flatMap(s => s[3]).concat(HOOD_BLOCK_LAN
     XRAY.maxH = Math.max(XRAY.maxH, shop.xh * (shop.sc || 1) * (shop.zs === undefined ? 1.5 : shop.zs));
 }
 /* ...and Maritime's houses, by their declared volume (the lighthouse) */
-for(const nm of new Set(MARITIME_SITES.flatMap(s => s[3]))){
+for(const nm of new Set(HOUSE_SITES.flatMap(s => s[3]))){
   const shop = LIB.get(nm);
   if(shop && shop.vol) XRAY.maxH = Math.max(XRAY.maxH, LIB.vol(nm).h * (shop.sc || 1) * LIB.zs(nm));
 }
@@ -40076,7 +41398,7 @@ class WorldScene extends Phaser.Scene {
     const housing = blk.type === "housing";
     const E = blockEdgesOf(blk);
     for(let ei = 0; ei < 4; ei++){
-      const us = housing ? maritimeEdgeUnits(grid, blk, ei) : hoodShopEdgeUnits(grid, blk, ei);
+      const us = housing ? houseEdgeUnits(grid, blk, ei) : hoodShopEdgeUnits(grid, blk, ei);
       if(!us || !us.length) continue;
       const e = E[ei];
       const alo = (x - e.ox)*e.dv.x + (y - e.oy)*e.dv.y;
@@ -40163,7 +41485,7 @@ class WorldScene extends Phaser.Scene {
         if(dh !== null) return dh;
       }
       /* a Maritime block's yards and garden are not built over */
-      if(b.type === "housing" && _xg && maritimeOwnsIJ(b.i, b.j)) return 0;
+      if(b.type === "housing" && _xg && houseSiteHoodIJ(b.i, b.j)) return 0;
       /* a shop block's plaza and open corners are not built over */
       if(band && b.type === "commercial" && _xg){
         const fp = commercialFootprintsOf(_xg, b);
@@ -45420,7 +46742,7 @@ class WorldScene extends Phaser.Scene {
     LIB.draw(u.shop.lib, g, G, null, this.K, null, (e.dv.x + e.dv.y) > 0, (e.rv.x + e.rv.y) < 0, layer);
     LIB.setLivery(0);
   }
-  /* authored: the edge's Maritime row (maritimeEdgeUnits), drawn from the
+  /* authored: the edge's Maritime row (houseEdgeUnits), drawn from the
      house library in place of the packer's slots. Every other edge is the
      packer's, byte for byte as before. */
   queueHousingEdgeAt(vq, e, isAddressEdge=false, cornerSkip=null, trim=null, authored=null){
@@ -45440,7 +46762,7 @@ class WorldScene extends Phaser.Scene {
            mat stays on the pavement at the lot front, in front of it, where
            the robot can reach it. A gate is on the lot line whatever. */
         const lib = !!u.shop;
-        const dr = lib ? maritimeDoorOf(e, u) : null;
+        const dr = lib ? houseDoorOf(e, u) : null;
         const doorCenterX = dr ? dr.al : u.w/2;
         const dB = (dr && !isGateMode) ? dr.b : 0;
         const dux = ux + e.rv.x*dB, duy = uy + e.rv.y*dB;
@@ -45690,7 +47012,7 @@ class WorldScene extends Phaser.Scene {
       if(excludeEdges && excludeEdges.includes(idx)) return;
       const _hg = this.route && this.route.grid;
       this.queueHousingEdgeAt(vq, e, isAddressBlock && idx === this.route.addressEdgeIdx, cornerSkip, trims[idx],
-                              _hg ? maritimeEdgeUnits(_hg, blk, idx) : null);
+                              _hg ? houseEdgeUnits(_hg, blk, idx) : null);
     });
     for(const cu of corners) this.queueCornerUnit(vq, blk, cu);
     this.queueStreetFurniture(vq, blk, excludeEdges);
@@ -46006,6 +47328,222 @@ class WorldScene extends Phaser.Scene {
     return this.parkLandmarkIndex(g).get(blk.i + "," + blk.j) || null;
   }
 
+  /* THE FERRIS TAYLOR MONUMENT (see ferrisMonumentOf). The plaza is ground,
+     keyed under everything near it; plinth, horse and rider are one body
+     on the centre. There is no horse anywhere else in the game, so the
+     bronze is built here from oriented blocks in the monument's own frame
+     -- a along the horse, b across it (toward the camera), z up, metres
+     times M -- the way drawPersonHull builds a person: each block draws
+     only the faces that turn toward the camera, and the blocks go down
+     far to near. A walking horse with its near foreleg raised, Taylor
+     upright in the saddle with the near arm up, hat on. */
+  queueFerrisMonument(vq, m){
+    const FM = FERRIS_MONUMENT, R = FM.plaza, N = 48, x = m.x, y = m.y, h = m.h, sv = m.s;
+    const ring = (r, z) => Array.from({ length: N }, (_, k) => { const t = k/N*Math.PI*2; return this.W(x + Math.cos(t)*r, y + Math.sin(t)*r, z); });
+    vq.push({ depth: x + y - R*2, fn: (g) => {
+      this.quadOn(g, ring(R, 0.4), 0xb9ae98);                     // the kerb of the plaza
+      this.quadOn(g, ring(R - 22, 0.5), 0xd3cab8);                // its paving
+      this.quadOn(g, ring(R*0.62, 0.6), 0xc4b9a4);                // the inner circle, round the plinth
+    }});
+    vq.push({ depth: x + y, fn: (g0) => {
+      const g = this.propLayer(g0, x, y);
+      const Wp = (a, b, z) => this.W(x + h.x*a + sv.x*b, y + h.y*a + sv.y*b, z);
+      const parts = [];
+      /* one block: centre (a, b, z), half sizes, tipped by `pitch` in the
+         a-z plane (positive lifts its +a end); colours top, side, end */
+      const blk = (ca, cb, cz, ha, hb, hz, pitch, top, side, end) => {
+        const c = Math.cos(pitch || 0), sn = Math.sin(pitch || 0);
+        const V = (ua, ub, uz) => { const la = ua*ha, lz = uz*hz;
+          return [ca + la*c - lz*sn, cb + ub*hb, cz + la*sn + lz*c]; };
+        const N3 = (na, nz) => [na*c - nz*sn, na*sn + nz*c];
+        const faces = [
+          [[1,-1,-1],[1,1,-1],[1,1,1],[1,-1,1]].map(v => V(...v)).concat([N3(1,0), 0, end]),
+          [[-1,-1,-1],[-1,1,-1],[-1,1,1],[-1,-1,1]].map(v => V(...v)).concat([N3(-1,0), 0, end]),
+          [[-1,1,-1],[1,1,-1],[1,1,1],[-1,1,1]].map(v => V(...v)).concat([[0,0], 1, side]),
+          [[-1,-1,-1],[1,-1,-1],[1,-1,1],[-1,-1,1]].map(v => V(...v)).concat([[0,0], -1, side]),
+          [[-1,-1,1],[1,-1,1],[1,1,1],[-1,1,1]].map(v => V(...v)).concat([N3(0,1), 0, top]),
+          [[-1,-1,-1],[1,-1,-1],[1,1,-1],[-1,1,-1]].map(v => V(...v)).concat([N3(0,-1), 0, top])];
+        const wx = h.x*ca + sv.x*cb, wy = h.y*ca + sv.y*cb;
+        parts.push({ key: wx + wy + cz*0.35, draw: () => {
+          for(const f of faces){
+            const [na, nz] = f[4], nb = f[5];
+            /* world normal toward the camera: its x + y, and up counts */
+            const nx = h.x*na + sv.x*nb, ny = h.y*na + sv.y*nb;
+            if(nx + ny + nz*1.2 <= 0.02) continue;
+            this.quadOn(g, f.slice(0, 4).map(q => Wp(q[0], q[1], q[2])), f[6]);
+          }
+        }});
+      };
+      const M = FM.M, A = FM.plinthA, B = FM.plinthB;
+      /* THE PLINTH, granite, long along the horse */
+      const gr = (ha, hb, z0, z1, t, s2, e) => blk(0, 0, (z0 + z1)/2, ha, hb, (z1 - z0)/2, 0, t, s2, e);
+      gr(A, B, 0, 30, 0xa8a399, 0x8f8b82, 0x7d7971);                 // the step
+      gr(A - 32, B - 28, 30, 250, 0xbdb8ae, 0xb4afa6, 0x979388);     // the die
+      gr(A - 16, B - 12, 250, 278, 0xcac5bb, 0xa9a49a, 0x96918a);    // the cornice
+      const plinth = parts.splice(0);
+      const Z = 278 + 10;                                            // the bronze stands here
+      const BZ = [0x9a7a48, 0x7d6036, 0x5f482a], BD = [0x8a6a3e, 0x6b5030, 0x523e24];
+      const br = (ca, cb, cz, ha, hb, hz, pitch, dark) => { const k = dark ? BD : BZ;
+        blk(ca*M, cb*M, Z + cz*M, ha*M, hb*M, hz*M, pitch, k[0], k[1], k[2]); };
+      br(0, 0, -0.035, 1.25, 0.45, 0.035, 0, true);                  // the bronze's own base plate
+      /* THE BRONZE, SCULPTED (Sir, 2026-09-29: "the horse still looks bad
+         do we have to use voxel type paintings?" -- no). Each piece is a
+         smooth side outline in the monument's a-z plane (metres), given
+         its thickness across b by laying copies from its far side to its
+         near side: the far copies in shadow, the near face lit and
+         outlined -- a cast solid, seen from the one side the camera ever
+         sees. Pieces go down far to near, so the far legs sit behind the
+         barrel and the near leg and the rider in front of it. */
+      const CR = (pts, n) => {                                        // a closed Catmull-Rom loop through pts
+        const out = [], L = pts.length;
+        for(let i = 0; i < L; i++){
+          const p0 = pts[(i - 1 + L) % L], p1 = pts[i], p2 = pts[(i + 1) % L], p3 = pts[(i + 2) % L];
+          for(let k = 0; k < n; k++){ const t = k/n, t2 = t*t, t3 = t2*t;
+            out.push([0.5*((2*p1[0]) + (-p0[0] + p2[0])*t + (2*p0[0] - 5*p1[0] + 4*p2[0] - p3[0])*t2 + (-p0[0] + 3*p1[0] - 3*p2[0] + p3[0])*t3),
+                      0.5*((2*p1[1]) + (-p0[1] + p2[1])*t + (2*p0[1] - 5*p1[1] + 4*p2[1] - p3[1])*t2 + (-p0[1] + 3*p1[1] - 3*p2[1] + p3[1])*t3)]); }
+        }
+        return out;
+      };
+      /* a limb from its centreline: [a, z, half-width] joints, smoothed,
+         offset either side and capped round */
+      const limb = (joints) => {
+        const P = [];
+        for(let i = 0; i < joints.length - 1; i++){ const j0 = joints[i], j1 = joints[i + 1];
+          for(let k = 0; k < 4; k++){ const t = k/4; P.push([j0[0] + (j1[0]-j0[0])*t, j0[1] + (j1[1]-j0[1])*t, j0[2] + (j1[2]-j0[2])*t]); } }
+        P.push(joints[joints.length - 1]);
+        const L = [], Rt = [];
+        for(let i = 0; i < P.length; i++){
+          const q0 = P[Math.max(0, i - 1)], q1 = P[Math.min(P.length - 1, i + 1)];
+          let da = q1[0] - q0[0], dz = q1[1] - q0[1]; const d = Math.hypot(da, dz) || 1; da /= d; dz /= d;
+          L.push([P[i][0] - dz*P[i][2], P[i][1] + da*P[i][2]]); Rt.push([P[i][0] + dz*P[i][2], P[i][1] - da*P[i][2]]);
+        }
+        const e0 = P[0], e1 = P[P.length - 1];
+        const cap = (e, q, sgn) => { const d = Math.hypot(q[0] - e[0], q[1] - e[1]) || 1; return [e[0] + sgn*(e[0] - q[0])/d*e[2]*0.7, e[1] + sgn*(e[1] - q[1])/d*e[2]*0.7]; };
+        return L.concat([cap(e1, P[P.length - 2], 1)], Rt.reverse(), [cap(e0, P[1], 1)]);
+      };
+      const BRONZE = { face: 0x8f6e40, top: 0xa3804c, side: 0x6b5130, under: 0x4f3b22, line: 0x3f2f1b };
+      const shadeHex = (c, k) => { const r = Math.min(255, ((c >> 16) & 255)*k)|0, g2 = Math.min(255, ((c >> 8) & 255)*k)|0, b2 = Math.min(255, (c & 255)*k)|0; return (r << 16) | (g2 << 8) | b2; };
+      /* one sculpted piece: outline (a, z) metres, cast from b0 to b1
+         across. A true solid, not a stack: its far face, then every piece
+         of its side wall that turns toward the camera -- lit on the top of
+         a curve, shadowed underneath -- then its near face, outlined. */
+      /* tone: dark (true) for the smaller shadowed parts; 'saddle' in the
+         deeper leather patina; 'rider' a shade lighter than the horse, so
+         the three read apart at a glance */
+      const TONES = { saddle: { face: 0x5c4326, side: 0x46331d }, rider: { face: 0x9c7a4c, side: 0x755a36 } };
+      const piece = (outline, b0, b1, dark, round) => {
+        const tn = typeof dark === "string" ? TONES[dark] : null;
+        const FACE = tn ? tn.face : dark ? BRONZE.side : BRONZE.face, SIDE = tn ? tn.side : dark ? BRONZE.side : BRONZE.face;
+        const n = outline.length;
+        let area = 0, ca = 0, cz = 0;
+        for(let i = 0; i < n; i++){ const p1 = outline[i], p2 = outline[(i + 1) % n]; area += p1[0]*p2[1] - p2[0]*p1[1]; ca += p1[0]; cz += p1[1]; }
+        ca /= n; cz /= n;
+        const sgn = area > 0 ? 1 : -1;                                // outward normal of an edge is (dz, -da) * sgn
+        /* ROUNDED (round = an inset in metres): the outline is full size at
+           the middle of its thickness and drawn in by `round` on its two
+           faces, so the solid curves away at its edges instead of ending
+           in a flat wall -- a barrel, not a tube */
+        const inset = d => outline.map((p0, i) => {
+          if(!d) return p0;
+          const pa = outline[(i - 1 + n) % n], pb = outline[(i + 1) % n];
+          let na = (pb[1] - pa[1])*sgn, nz = -(pb[0] - pa[0])*sgn; const l = Math.hypot(na, nz) || 1;
+          return [p0[0] - na/l*d, p0[1] - nz/l*d];
+        });
+        const bm = (b0 + b1)/2;
+        const layers = round ? [[inset(round), b0], [outline, bm], [inset(round), b1]] : [[outline, b0], [outline, b1]];
+        const L3 = layers.map(([o, b]) => o.map(q => [q[0], b, q[1]]));
+        const W3 = q => Wp(q[0]*M, q[1]*M, Z + q[2]*M);
+        this.quadOn(g, L3[0].map(W3), BRONZE.under);
+        for(let k = 0; k < L3.length - 1; k++){
+          const A = L3[k], Bq = L3[k + 1];
+          for(let i = 0; i < n; i++){
+            const j = (i + 1) % n, q1 = A[i], q2 = A[j], q3 = Bq[j], q4 = Bq[i];
+            /* the quad's normal, turned outward from the piece's middle */
+            const e = [q2[0] - q1[0], q2[1] - q1[1], q2[2] - q1[2]], c = [q4[0] - q1[0], q4[1] - q1[1], q4[2] - q1[2]];
+            let na = e[1]*c[2] - e[2]*c[1], nb = e[2]*c[0] - e[0]*c[2], nz = e[0]*c[1] - e[1]*c[0];
+            const mid = [(q1[0] + q3[0])/2 - ca, (q1[1] + q3[1])/2 - bm, (q1[2] + q3[2])/2 - cz];
+            if(na*mid[0] + nb*mid[1] + nz*mid[2] < 0){ na = -na; nb = -nb; nz = -nz; }
+            const l = Math.hypot(na, nb, nz) || 1; na /= l; nb /= l; nz /= l;
+            const nx = h.x*na + sv.x*nb, ny = h.y*na + sv.y*nb;
+            if(nx + ny + nz*1.2 <= 0) continue;                        // turned away
+            const lit = 0.72 + 0.34*Math.max(0, nz) - 0.12*Math.max(0, -nz) + 0.1*Math.max(0, nb);
+            this.quadOn(g, [q1, q2, q3, q4].map(W3), shadeHex(SIDE, lit));
+          }
+        }
+        const near = L3[L3.length - 1].map(W3);
+        this.quadOn(g, near, FACE);
+        this.edgeOn(g, near, BRONZE.line, 1);
+      };
+      const sculpt = [];
+      const S = (key, fn) => sculpt.push({ key, fn });
+      /* the legs: elbow/stifle to hoof, a bump at knee and fetlock, the hoof wider at the ground */
+      const foreStand = [[0.64, 1.02, 0.11], [0.66, 0.78, 0.085], [0.67, 0.55, 0.075], [0.68, 0.24, 0.052], [0.69, 0.13, 0.06], [0.72, 0.05, 0.068], [0.74, 0.0, 0.075]];
+      const foreRaised = [[0.66, 1.02, 0.11], [0.78, 0.8, 0.085], [0.86, 0.6, 0.078], [0.76, 0.42, 0.055], [0.69, 0.3, 0.058], [0.7, 0.22, 0.066]];
+      const hind = [[-0.66, 1.05, 0.15], [-0.74, 0.8, 0.11], [-0.82, 0.55, 0.075], [-0.76, 0.26, 0.052], [-0.72, 0.13, 0.06], [-0.69, 0.05, 0.068], [-0.67, 0.0, 0.075]];
+      const hindFar = hind.map(j => [j[0] + 0.06, j[1], j[2]]);
+      /* THE ORDER IS THE DEPTH (Sir, 2026-09-29: "there are some depth and
+         order issues"). Everything the barrel's near face stands in front
+         of goes down first -- all four legs, the tail, the neck and head --
+         so the barrel covers where they join it rather than a leg's top
+         painting over the flank. Then the saddle, which is wider than the
+         horse; then Taylor from the far side to the near, the reins last. */
+      S(0, () => piece(limb(foreStand), -0.24, -0.1, true));         // far foreleg
+      S(1, () => piece(limb(hindFar), -0.26, -0.1, true));           // far hind leg
+      S(2, () => piece(limb(hind), 0.1, 0.26));                      // near hind leg
+      S(3, () => piece(limb(foreRaised), 0.1, 0.24));                // near foreleg, raised
+      S(4, () => piece(limb([[-0.9, 1.5, 0.07], [-1.08, 1.58, 0.085], [-1.22, 1.48, 0.1], [-1.3, 1.24, 0.1], [-1.3, 0.98, 0.08], [-1.24, 0.78, 0.04]]), -0.07, 0.07, true));   // tail
+      /* the neck, broad where it meets the chest -- its front edge IS the
+         chest line, so the barrel no longer bulges out past it (Sir,
+         2026-09-29, marked up: "these things are looking funky") */
+      S(5, () => piece(limb([[0.78, 1.2, 0.27], [0.86, 1.52, 0.23], [0.95, 1.84, 0.16], [1.03, 2.06, 0.12]]), -0.22, 0.22, false, 0.06));   // neck and chest
+      S(6, () => piece(CR([[1.0, 2.22], [1.14, 2.14], [1.3, 1.96], [1.44, 1.8], [1.5, 1.7], [1.46, 1.62], [1.36, 1.62], [1.22, 1.72], [1.1, 1.86], [0.98, 2.02]], 5), -0.11, 0.11, false, 0.035));   // head
+      S(7, () => { for(const eb of [-0.06, 0.08]) piece([[1.0, 2.16], [1.01, 2.34], [1.08, 2.2]], eb - 0.02, eb, true); });   // ears
+      S(8, () => piece(limb([[0.6, 1.64, 0.04], [0.8, 1.94, 0.05], [0.98, 2.18, 0.04]]), -0.05, 0.05, true));                 // mane
+      /* the barrel and quarters, over all of that */
+      S(9, () => piece(CR([[0.55, 1.62], [0.2, 1.54], [-0.22, 1.56], [-0.55, 1.62], [-0.8, 1.62], [-0.98, 1.5], [-1.03, 1.28],
+                           [-0.96, 1.08], [-0.72, 0.94], [-0.35, 0.9], [0.1, 0.88], [0.46, 0.92], [0.64, 0.98], [0.74, 1.1], [0.76, 1.32], [0.7, 1.52]], 6), -0.28, 0.28, false, 0.09));
+      /* THE MUSCLE OVER THE LEGS (Sir, 2026-09-29, tracing it on the
+         picture): a leg does not come out from under the belly, it comes
+         out of the quarters. The haunch sweeps from the croup round the
+         buttock and down into the gaskin; the shoulder runs from the
+         withers down the chest into the forearm. Both over the barrel on
+         the near side, so their outlines are the contour lines he drew. */
+      S(9.1, () => piece(CR([[-0.5, 1.52], [-0.78, 1.6], [-0.97, 1.46], [-1.03, 1.24], [-0.97, 1.02], [-0.88, 0.82], [-0.78, 0.7],
+                             [-0.68, 0.8], [-0.6, 1.0], [-0.5, 1.26]], 5), 0.12, 0.3, false, 0.05));          // near haunch
+      S(9.2, () => piece(CR([[0.34, 1.5], [0.58, 1.62], [0.74, 1.44], [0.8, 1.16], [0.76, 0.94], [0.68, 0.84], [0.58, 0.92],
+                             [0.5, 1.1], [0.4, 1.3]], 5), 0.12, 0.3, false, 0.05));                         // near shoulder
+      /* THE SADDLE (Sir: "there is no saddle"): the seat with its cantle
+         behind and pommel in front, wider than the horse; the flap down
+         its near side, the girth under the belly, the stirrup leather and
+         its iron */
+      S(10, () => piece(CR([[-0.4, 1.64], [-0.34, 1.76], [-0.26, 1.64], [-0.08, 1.6], [0.14, 1.62], [0.28, 1.68], [0.34, 1.78], [0.4, 1.7], [0.36, 1.56], [0.0, 1.53], [-0.36, 1.55]], 5), -0.32, 0.32, "saddle", 0.03));
+      S(11, () => piece(CR([[-0.2, 1.58], [0.28, 1.58], [0.3, 1.36], [0.2, 1.26], [-0.14, 1.28]], 4), 0.28, 0.315, "saddle"));      // flap
+      S(12, () => piece(limb([[0.16, 1.3, 0.035], [0.2, 1.1, 0.035], [0.22, 0.92, 0.03]]), 0.28, 0.3, "saddle"));                   // girth
+      S(13, () => piece(limb([[0.06, 1.44, 0.012], [0.3, 1.02, 0.012]]), 0.315, 0.33, "saddle"));                                   // stirrup leather
+      S(14, () => piece(CR([[0.26, 1.02], [0.38, 1.02], [0.4, 0.94], [0.36, 0.9], [0.28, 0.9], [0.24, 0.94]], 3), 0.3, 0.36, "saddle"));   // stirrup iron
+      /* Taylor, seated IN the saddle: hips on the seat, the thigh out of
+         the hip and over the flap, the shin down to the iron */
+      S(15, () => piece(limb([[0.06, 2.0, 0.055], [0.26, 1.82, 0.05], [0.46, 1.76, 0.042]]), -0.24, -0.14, "rider"));                    // far arm to the reins
+      S(16, () => piece(CR([[-0.14, 1.6], [0.2, 1.6], [0.22, 1.72], [0.2, 1.86], [0.16, 2.03], [0.08, 2.09], [-0.06, 2.07], [-0.13, 1.86], [-0.16, 1.7]], 5), -0.2, 0.2, "rider", 0.05));   // hips, body and coat
+      S(17, () => piece(CR([[0.0, 2.08], [0.12, 2.1], [0.16, 2.2], [0.12, 2.32], [0.02, 2.34], [-0.04, 2.24]], 5), -0.1, 0.1, "rider"));   // head
+      S(18, () => piece([[-0.16, 2.3], [0.26, 2.3], [0.26, 2.34], [-0.16, 2.34]], -0.17, 0.17, true));                         // hat brim
+      S(19, () => piece(CR([[-0.06, 2.33], [0.14, 2.33], [0.13, 2.47], [0.05, 2.5], [-0.05, 2.46]], 4), -0.1, 0.1, true));     // hat crown
+      /* the near leg, one piece from the hip: over the flap to the knee,
+         down the horse's side, the boot turned forward in the iron */
+      S(20, () => piece(limb([[-0.04, 1.66, 0.1], [0.12, 1.52, 0.09], [0.26, 1.4, 0.075], [0.3, 1.22, 0.065], [0.31, 1.04, 0.058], [0.36, 0.99, 0.05], [0.46, 0.99, 0.042]]), 0.29, 0.38, "rider"));
+      S(23, () => piece(limb([[0.04, 2.0, 0.055], [0.1, 2.32, 0.05], [0.14, 2.62, 0.045], [0.15, 2.7, 0.05]]), 0.18, 0.3, "rider"));   // the near arm, raised
+      S(24, () => piece(limb([[0.46, 1.76, 0.008], [1.36, 1.68, 0.008]]), 0.1, 0.12, true));                                   // the reins, over the neck
+      parts.sort((p1, p2) => p1.key - p2.key);
+      for(const p of plinth) p.draw();
+      /* the plaque, on the long face toward the street */
+      const Pq = (da, z) => Wp(da, B - 28 + 0.6, z);
+      this.quadOn(g, [Pq(-70, 190), Pq(70, 190), Pq(70, 100), Pq(-70, 100)], 0x6e5430);
+      this.quadOn(g, [Pq(-64, 184), Pq(64, 184), Pq(64, 106), Pq(-64, 106)], 0x8c6c3e);
+      for(const z of [170, 156, 142, 128, 116]) this.quadOn(g, [Pq(-50, z + 3), Pq(50, z + 3), Pq(50, z), Pq(-50, z)], 0x5b4527);
+      for(const p of parts) p.draw();
+      for(const sp of sculpt) sp.fn();
+    }});
+  }
   queueParkBlock(vq, blk){
     /* ---- THE LANDMARK CHECK, FIRST ----
        A park that carries a landmark is not a park with something on
@@ -46097,6 +47635,10 @@ class WorldScene extends Phaser.Scene {
 
        Park GRASS is fillBlockGround's job and is unaffected either way,
        so an empty park is still a park. */
+    /* the Ferris Taylor monument, from its park's first cell (see
+       ferrisMonumentOf) -- permanent, so above the scatter guard */
+    { const fm = this.route && ferrisMonumentOf(this.route.grid);
+      if(fm && fm.anchor === blk) this.queueFerrisMonument(vq, fm); }
     if(!WORLD_SCATTER) return;                 // see WORLD SCATTER: SWEPT
     const rng = mulberry32(((Math.round((blk.x0+blk.x1)/2)*7919) ^ (Math.round((blk.y0+blk.y1)/2)*104729) ^ 0x50a2) >>> 0);
     /* clusters, not isolated single trees — real palms/dwarf palms
@@ -59549,7 +61091,7 @@ function tpSlalomQuit(){
 }
 
 function hjChrome(on){
-  const ids = ["gpsHud","panel","panelToggle","mapCard","orderCard","bottomSheet"];
+  const ids = ["gpsHud","mapCard","orderCard","bottomSheet"];
   for(const id of ids){
     const el = document.getElementById(id);
     if(el) el.classList.toggle("hjHidden", on);
@@ -64017,23 +65559,24 @@ function drawRouteMap(route){
       }
     }
   }
-  /* MARITIME, lettered across its row of houses once the view is close
-     enough to read a street -- a neighbourhood inside The Flats, so it is
-     the hood label's weight in the palette's navy (see MARITIME) */
+  /* THE NEIGHBOURHOODS, lettered across their houses once the view is
+     close enough to read a street -- named places inside The Flats, so
+     the hood label's weight in Maritime's navy (see MARITIME, FERRIS
+     TAYLOR). Each spans the row of blocks it is named across. */
   if(blocksVisible <= DISTRICT_W*1.6 && bgRoute.grid.blockByIJ){
-    const b0 = bgRoute.grid.blockByIJ.get("4,0"), b1 = bgRoute.grid.blockByIJ.get("7,0");
-    if(b0 && b1){
+    for(const [name, k0, k1] of [[MARITIME_NAME, "4,0", "7,0"], [FERRIS_TAYLOR_NAME, "4,3", "7,3"]]){
+      const b0 = bgRoute.grid.blockByIJ.get(k0), b1 = bgRoute.grid.blockByIJ.get(k1);
+      if(!b0 || !b1) continue;
       const wx = (b0.x0 + b1.x1)/2, wy = (b0.y0 + b0.y1)/2;
-      if(inView(wx, wy)){
-        const p = toScreen({ x:wx, y:wy });
-        ctx.save();
-        ctx.font = "italic 700 15px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
-        if("letterSpacing" in ctx) ctx.letterSpacing = "3px";
-        ctx.lineWidth = 3.5; ctx.lineJoin = "round"; ctx.strokeStyle = "rgba(255,255,255,0.85)"; ctx.fillStyle = MARITIME_PAL.nauticalNavy;
-        ctx.strokeText(MARITIME_NAME.toUpperCase(), p.x, p.y);
-        ctx.fillText(MARITIME_NAME.toUpperCase(), p.x, p.y);
-        ctx.restore();
-      }
+      if(!inView(wx, wy)) continue;
+      const p = toScreen({ x:wx, y:wy });
+      ctx.save();
+      ctx.font = "italic 700 15px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      if("letterSpacing" in ctx) ctx.letterSpacing = "3px";
+      ctx.lineWidth = 3.5; ctx.lineJoin = "round"; ctx.strokeStyle = "rgba(255,255,255,0.85)"; ctx.fillStyle = MARITIME_PAL.nauticalNavy;
+      ctx.strokeText(name.toUpperCase(), p.x, p.y);
+      ctx.fillText(name.toUpperCase(), p.x, p.y);
+      ctx.restore();
     }
   }
 
@@ -66595,22 +68138,6 @@ document.getElementById("failLaterBtn").addEventListener("click", () => {
   tdFailLater(false);
   tpFreePlay();
 });
-document.getElementById("todayBtn").addEventListener("click", e => {
-  document.getElementById("rerollBtn").classList.remove("on");
-  e.target.classList.add("on");
-  hide("failOverlay"); hide("winOverlay");
-  show("titleOverlay");
-  scn().loadRoute(new Date().toISOString().slice(0,10));
-});
-document.getElementById("rerollBtn").addEventListener("click", e => {
-  document.getElementById("todayBtn").classList.remove("on");
-  e.target.classList.add("on");
-  hide("failOverlay"); hide("winOverlay");
-  const off = 1 + Math.floor(Math.random()*3650);
-  const d = new Date(Date.now() + off*86400000);
-  show("titleOverlay");
-  scn().loadRoute(d.toISOString().slice(0,10));
-});
 /* THE GRAB HANDLE. The one touch affordance that raises the drawer --
    the map's search icon does it too, but that is a button you have to
    find; this is the edge of the sheet itself, which is where a thumb
@@ -66618,10 +68145,6 @@ document.getElementById("rerollBtn").addEventListener("click", e => {
 document.getElementById("sheetGrab").addEventListener("click", () => {
   document.getElementById("tpMissionsPanel").classList.contains("open")
     ? tpCollapseMissions() : tpOpenMissions();
-});
-document.getElementById("panelToggle").addEventListener("click", () => {
-  const collapsed = document.getElementById("panel").classList.toggle("hidden");
-  document.getElementById("panelToggle").classList.toggle("flipped", collapsed);
 });
 
 /* expandSheet/openPastRoutes/prGoToRoute/renderPastRoutes are GONE.
@@ -66674,13 +68197,6 @@ document.getElementById("failMenuBtn").addEventListener("click", () => {
    fail that happens locally inside the window still wins. */
 tdFxLoadSnaps();
 requestTpProfile();
-document.addEventListener("keydown", e => {
-  if(IS_DEVVIT_BUILD) return;
-  if(e.key.toLowerCase() !== "h") return;
-  const toggle = document.getElementById("panelToggle");
-  const fullyHidden = toggle.classList.toggle("hidden");
-  document.getElementById("panel").classList.toggle("hidden", fullyHidden);
-});
 
 /* ===========================================================================
    THE GARAGE (Sir, 2026-09-23). Built lab-first in the bench, now the game's own.
@@ -66759,9 +68275,6 @@ document.addEventListener("keydown", e => {
   body.tpGarage #globalAvatar, body.tpGarage #globalSearch, body.tpGarage #miniMap, body.tpGarage #miniBtn,
   body.tpGarage #zoomBtn, body.tpGarage #battBtn,
   body.tpGarage #gpsHud, body.tpGarage #owDbgPanel, body.tpGarage #owDbgWatch { display:none !important; }
-  /* the ROUTE / TODAY / RANDOM DAY row: hidden, not removed, so the canvas
-     keeps its size and the frame he is fitted into does not jump */
-  body.tpGarage #panel { visibility:hidden !important; }
   #garage{position:fixed;inset:0;z-index:180;display:none;flex-direction:column;
     padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom);
     font:600 14px/1.2 system-ui,-apple-system,sans-serif;color:#f3f1ec;

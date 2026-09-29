@@ -127,13 +127,11 @@
      now the same deal at top-left, and 12px of padding put the ROUTE
      label straight under it — the exact overlap that made the robot
      "do nothing" on device before its gutter was added. */
-  #panel{padding:calc(10px + env(safe-area-inset-top)) 62px 8px 62px;background:#1c1f26;border-bottom:1px solid #2b2f38;}
-  #panelToggle{position:fixed;left:50%;top:56px;transform:translateX(-50%);
-    color:#8f95a1;font-size:13px;letter-spacing:1px;padding:4px 12px;z-index:5;}
-  #panelToggle:active{opacity:0.6;}
-  #panelToggle.flipped{transform:translateX(-50%) rotate(180deg);}
-  .row{display:flex;gap:8px;align-items:center;}
-  .lbl{font-size:11px;letter-spacing:1.5px;color:#8f95a1;width:56px;text-transform:uppercase;}
+  /* THE ROUTE / TODAY / RANDOM DAY STRIP IS GONE (Sir, 2026-09-29: "we need
+     to get rid of today and random from all versions of this game"). The
+     Devvit build had always hidden it; now neither build has it, its "︿"
+     collapse tab or its H-key toggle, and the game gets the strip's
+     height back. Today's route is simply what loads. */
   button{flex:1;background:#262a33;color:#e8eaef;border:1px solid #363b46;border-radius:10px;
     padding:10px 4px;font-size:13px;font-weight:600;}
   button.on{background:#ff7a1a;border-color:#ff7a1a;color:#fff;}
@@ -215,8 +213,6 @@
      worse than either alone. display:none rather than opacity so none
      of it can take a tap that belongs to the splash. */
   body.attractBare #titleOverlay,
-  body.attractBare #panel,
-  body.attractBare #panelToggle,
   body.attractBare #gpsHud,
   body.attractBare #miniMap,
   body.attractBare #miniBtn,
@@ -1062,13 +1058,6 @@
 </head>
 <body>
 <div id="wrap">
-  <div id="panel">
-    <div class="row">
-      <span class="lbl">Route</span>
-      <button class="on" id="todayBtn">TODAY</button>
-      <button id="rerollBtn">RANDOM DAY</button>
-    </div>
-  </div>
   <div id="game"></div>
   <div id="gpsHud" class="hidden"><svg id="gpsChev" viewBox="0 0 24 24" aria-hidden="true"><polygon points="12,2 21,21 12,16 3,21"/></svg><span id="gpsText"></span></div>
   <div id="zoomBtn" class="hidden"><span class="zCap">VIEW</span><span class="zLvl">1</span></div>
@@ -1084,7 +1073,6 @@
     <button id="hjTap">TAP</button>
     <button id="hjTapR">TAP</button>
   </div>
-  <div id="panelToggle">︿</div>
 </div>
 
 <div id="titleOverlay" class="overlay">
