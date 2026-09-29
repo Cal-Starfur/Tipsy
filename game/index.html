@@ -64373,9 +64373,10 @@ function tpDailyDeliveryPin(){
    are looking for when you open a map mid-drive, and "tap me to go back
    to me" needs no label to explain it. It is also the only exit that is
    correct with an errand live: GO would START something and a close
-   button would have to decide whether to keep the route. This decides
-   nothing. gpsNav is not touched, the route is not reloaded, the robot
-   does not move -- the map simply stops covering the city.
+   button would have to decide whether to keep the route. It keeps what
+   GO started and nothing else: an unconfirmed pick is dropped (see
+   below), the route is not reloaded, the robot does not move -- the map
+   simply stops covering the city.
 
    The gate carve-outs are GO's own, verbatim: an unposted delivery
    fail/win must land back on its retry screen rather than buying a free
@@ -64396,6 +64397,34 @@ function tpMapResumeDriving(){
     return true;
   }
   if(typeof tpCollapseMissions === "function") tpCollapseMissions();
+  /* A PICK WITHOUT GO IS NOT A TRIP (Sir on-device, 2026-09-29: "i need
+     to not get the gps if i dont select go if i just tap the robot it
+     should null and return me to the game"). Picking a place or mission
+     on the map sets gpsNav straight away, so the card, the dashed line
+     and the in-game arrow were all live before anything was confirmed,
+     and the robot -- which "decides nothing" -- carried the unconfirmed
+     pick into the world. tpGoneKey is what GO actually started; a nav
+     whose key differs from it was never confirmed, so the robot drops
+     it. A delivery's own legs (pickup / dropoff) are never dropped
+     here: those are the running order's, not a pick. */
+  if(typeof gpsNav !== "undefined" && gpsNav && s.mode === "freeroam"
+     && gpsNav.id !== "pickup" && gpsNav.id !== "dropoff"
+     && tpMapSelKey(s) !== tpGoneKey){
+    /* a trip GO started is still running under the new pick: hand THAT
+       back (re-plotted from here) rather than no GPS at all. Only when
+       the saved nav is still the one tpGoneKey names -- an arrival or a
+       tow clears the key, and a stale trip must not come back. */
+    const back = tpGoneNav;
+    gpsNav = back;
+    if(back && tpGoneKey && tpMapSelKey(s) === tpGoneKey){
+      back.plottedAt = -1e9;
+      if(typeof gpsNavReplot === "function") gpsNavReplot(s, true);
+      if(!gpsNav || !gpsNav.path) gpsNav = null;
+    } else {
+      gpsNav = null;
+    }
+    if(typeof tpSyncMapChrome === "function") tpSyncMapChrome(s);
+  }
   /* the glass's own flag: whoever raised the map is no longer holding
      it up, and leaving this set would have tpCloseMissions hide an
      overlay that is already down. */
@@ -65998,7 +66027,7 @@ function drawRouteMap(route){
          has. Same cream the map's own chrome uses, so it reads as a
          control rather than another street name. y+26 clears the cone's
          throat; the marker box is only 12 tall but the cone is not. */
-      const _cap = "Tap to drive";
+      const _cap = "Exit map";   // Sir, 2026-09-29: was "Tap to drive"
       ctx.font = "700 10px sans-serif";
       ctx.textAlign = "center"; ctx.textBaseline = "middle";
       const _cw = ctx.measureText(_cap).width + 12, _cy = herePt.y + 26;
@@ -66500,6 +66529,9 @@ function tpMapSelKey(s){
 /* Set by #startBtn and by nothing else, because "already hit go" is
    literally what it records. Null until the first GO of the session. */
 let tpGoneKey = null;
+/* ...and the nav GO started, so backing out of a DIFFERENT pick with the
+   robot puts the running trip back instead of leaving no GPS at all */
+let tpGoneNav = null;
 
 function tpSyncMapChrome(s){
   const go = document.getElementById("startBtn");
@@ -66519,7 +66551,7 @@ function tpSyncMapChrome(s){
 
      The test is the marker's own: tpSearchMap (the glass raised this
      over a live run) or tpPausedWorld (something else did). Exactly the
-     condition under which the "Tap to drive" caption is drawn, so the
+     condition under which the "Exit map" caption is drawn, so the
      button can only be withdrawn when its replacement is on screen. On
      the boot title neither is true -- nothing is running, GO is the way
      in, and it stays. */
@@ -68077,6 +68109,7 @@ document.getElementById("startBtn").addEventListener("click", () => {
      freeroam+gpsNav reading ("mission:cone-slalom"), which is the same
      key the run will report once its own mode is set. */
   tpGoneKey = tpMapSelKey(s);
+  tpGoneNav = (typeof gpsNav !== "undefined") ? gpsNav : null;   // what the robot hands back (tpMapResumeDriving)
   tpSearchMap = false;
   tpResumeWorld();
   if(s.mode === "challenge"){ hjBegin(); return; }
