@@ -4055,7 +4055,7 @@ const PALM_DWARF = {   // approved in palm lab: bush-type dwarf palm
   coco: 0x6b4f33, cocoHi: 0x7d5e40, shadow: 0x000000
 };
 
-/* TREE WELLS AND CAST SHADOWS FOR PALMS (Sir, 2026-09-23: "our palms
+/* TREE WELLS FOR PALMS (Sir, 2026-09-23: "our palms
    should have like a street grate type thing they are in not just a
    regular sidewalk square ... also the shadow isnt convincing").
    A kerb palm now stands in a cast-iron tree grate that REPLACES the
@@ -4064,14 +4064,9 @@ const PALM_DWARF = {   // approved in palm lab: bush-type dwarf palm
    kerb row's tile centre across the walk; placement now snaps them to the
    tile centre along it too (cityFurnitureForEdge), so every well is one
    whole tile, never straddling a joint.
-   The shadow was a 13% blob round the base. A 300-unit palm's shade does
-   not land under it: it is a long trunk stroke running away along the sun
-   and a star of frond shadows where the crown's shade falls. Both are
-   cast from the SAME trunk curve and frond set drawProp paints (palmSpec,
-   below -- one seeded roll, two readers), and both are drawn in the
-   ground pass, so nothing standing on the ground is ever under them.
-   ang is the sun's world bearing of the shade (1.96 = down-left on
-   screen); len is shade length per unit height. */
+   PALMS CAST NO SHADOW (Sir, 2026-09-29: "lets get rid of the shadow from
+   the palms"). The long cast shade this block used to describe, and the
+   13% blob before it, are both gone. */
 const PALM_WELL = {
   on: true,
   half: 44, plate: 40,                 // frame / plate half-width (tile is 46)
@@ -4079,7 +4074,6 @@ const PALM_WELL = {
   rings: [17, 25, 33], slots: [10, 14, 18], slotLen: 5, slotW: 2.2,
   frame: 0x5a5d61, iron: 0x3f4246, slot: 0x1f2123, soil: 0x4b3b2d, lip: 0x6a6d71
 };
-const PALM_SHADOW = { on: true, ang: 1.96, len: 0.55, a: 0.16, night: 0.4 };
 /* the seeded roll drawProp's palm branch has always made, pulled out so
    the ground shadow reads the same lean, height and fronds rather than a
    second copy of the arithmetic that could drift from it. Call order is
@@ -44723,16 +44717,18 @@ class WorldScene extends Phaser.Scene {
        today's route. Pinned to g for the same reason the route's own
        cracks and slabs are: flat paint the robot drives straight over,
        which must never point-depth-flip to in front of him. */
-    /* PALM GROUND: the tree well and the cast shadow ride the ground pass
-       (see PALM_WELL). The trunk and crown stay bodies in the prop pass;
-       _pgF tells drawProp this palm's shade is already on the ground. */
-    const pgF = this._pgF = (this._pgF | 0) + 1;
-    if(cityFurn && (PALM_WELL.on || PALM_SHADOW.on)) for(const cp of cityFurn){
+    /* PALM GROUND: the tree well rides the ground pass (see PALM_WELL);
+       the trunk and crown stay bodies in the prop pass.
+       A PALM THE ROUTE HARVESTED KEEPS ITS WELL (Sir, 2026-09-29: "look
+       into if every palm had a grate"). All 2,209 city palms stand on a
+       paving tile centre, but the six today's route took over (cfTaken)
+       were skipped here with the rest of their ground, so the palms
+       along the drive -- the ones you see most -- grew out of bare
+       paving. The route owns the body and the contact, not the grate. */
+    if(cityFurn && PALM_WELL.on) for(const cp of cityFurn){
       if(cp.type !== "palm" && cp.type !== "palmDwarf") continue;
-      if(r.cfTaken && r.cfTaken.has(cp.key)) continue;
       if(owCorridorHas(this.owCorridor, cp.wx, cp.wy)) continue;
       if(!this.visProp(cp.type, cp.wx, cp.wy)) continue;
-      if(PALM_SHADOW.on) cp._pgF = pgF;
       const pgt = cp.type, pgx = cp.wx, pgy = cp.wy;
       groundVQ.push({ depth: pgx+pgy, fn:(g,t)=>this.drawPalmGround(g, pgt, pgx, pgy, t) });
     }
@@ -48679,11 +48675,10 @@ class WorldScene extends Phaser.Scene {
       POLICE_UNIFORM.shirt, POLICE_UNIFORM.pants, hair, POLICE_UNIFORM.shoe,
       0, false, 0, liftT, null, POLICE_UNIFORM);
   }
-  /* tree well + cast shadow for one palm -- see PALM_WELL. Ground paint:
+  /* the tree well for one palm -- see PALM_WELL. Ground paint:
      world-plane geometry through this.W, no heading term, so it reads the
      same at f0..f3 by construction. */
   drawPalmGround(g, kind, x, y, t){
-    const P = kind === "palmDwarf" ? PALM_DWARF : PALM, sc = P.scale || 1;
     const grid = this.route && this.route.grid;
     const PW = PALM_WELL;
     /* a well only where he grows out of paving, on a tile centre */
@@ -48724,47 +48719,6 @@ class WorldScene extends Phaser.Scene {
         this.quadOn(g, disc(PW.hole + 1.6), PW.lip);
         this.quadOn(g, disc(PW.hole), PW.soil);
       }
-    }
-    if(!PALM_SHADOW.on) return;
-    /* CAST SHADOW. drawProp builds the trunk in screen space: lean*H*u^2
-       of sideways screen x at height H*u. A screen-x offset of d is the
-       world step (d/2, -d/2) on the ground, so the trunk's ground track is
-       that, and its shade is the track plus sun * height * len. */
-    const SH = PALM_SHADOW, PS = palmSpec(P, x, y), H = PS.H * sc;
-    const sx = Math.cos(SH.ang), sy = Math.sin(SH.ang);
-    const alpha = SH.a * ((this.route && this.route.night) ? SH.night : 1);
-    const at = (u, z) => {
-      const d = PS.lean * PS.H * u*u * sc / 2;
-      return { x: x + d + sx*z*SH.len, y: y - d + sy*z*SH.len };
-    };
-    const px = -sy, py = sx;            // across the shade, on the ground
-    const SEG = 8, L = [], Rr = [];
-    for(let i=0; i<=SEG; i++){
-      const u = i/SEG, c = at(u, H*u), w = (7.5 - 4.5*u) * sc * 0.5;
-      L.push(this.W(c.x + px*w, c.y + py*w, 0));
-      Rr.push(this.W(c.x - px*w, c.y - py*w, 0));
-    }
-    this.quadOn(g, L.concat(Rr.reverse()), P.shadow, alpha);
-    /* crown: each frond's shade, from the same angles/lengths drawProp
-       draws. Screen direction (cos a, 0.5 sin a) is world
-       ((cos a + sin a)/2, (sin a - cos a)/2). Droop lowers the tips, which
-       pulls their shade back toward the crown's. */
-    const crown = at(1, H);
-    for(let i=0; i<PS.fa.length; i++){
-      const a = PS.fa[i], len = PS.fl[i] * (P.spread || 1) * sc;
-      const dx = (Math.cos(a) + Math.sin(a))/2, dy = (Math.sin(a) - Math.cos(a))/2;
-      const nl = Math.hypot(dx, dy) || 1, fx = dx/nl, fy = dy/nl, qx = -fy, qy = fx;
-      const reach = len * nl;           // world length whose screen footprint is the frond's
-      const A = [], B = [];
-      for(let k=0; k<=6; k++){
-        const u = k/6;
-        const drop = (P.droop * 30 * u*u - 0.12 * len * u) * sc * 0.6;
-        const gx = crown.x + fx*reach*u - sx*drop*SH.len, gy = crown.y + fy*reach*u - sy*drop*SH.len;
-        const w = (9 - 7*u) * sc * 0.55;
-        A.push(this.W(gx + qx*w, gy + qy*w, 0));
-        B.push(this.W(gx - qx*w, gy - qy*w, 0));
-      }
-      this.quadOn(g, A.concat(B.reverse()), P.shadow, alpha);
     }
   }
   drawProp(g, kind, x, y, t, fdir = 0, z = 0, wheelPhase = null, colorSeed = null, data = null){
@@ -48823,12 +48777,8 @@ class WorldScene extends Phaser.Scene {
       const lean = PS.lean, H = PS.H, phase = PS.phase;
       const sway = Math.sin(t*0.0011 + phase) * 3.2 * P.wind;
 
-      /* the old blob stays for any palm the ground pass did not cast a
-         real shadow for this frame (route-owned and scatter palms) */
-      if(!(data && data._pgF === this._pgF)){
-        g.fillStyle(P.shadow, 0.13);
-        g.fillEllipse(o.x + lean*22*K, o.y + 3, (36 + H*0.14)*K, 12*K);
-      }
+      /* NO SHADOW (Sir, 2026-09-29: "lets get rid of the shadow from the
+         palms"): the cast shade and the base blob are both gone. */
 
       const SEG = 8, spine = [];
       for(let i=0; i<=SEG; i++){
