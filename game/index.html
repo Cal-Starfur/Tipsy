@@ -12172,7 +12172,7 @@ const FERRIS_TAYLOR_SITES = [
 const HOUSE_SITES = MARITIME_SITES.map(s => s.concat([MARITIME_NAME]))
   .concat(FERRIS_TAYLOR_SITES.map(s => s.concat([FERRIS_TAYLOR_NAME])));
 /* THE FERRIS TAYLOR MONUMENT, in Ferris Field: the middle of the park's
-   open grass, the 8,2 cell (8,3 is Sandpiper Cottages). An equestrian
+   open grass, the 8,2 cell (8,3 is Ferris Taylor Cottages). An equestrian
    bronze (Sir, 2026-09-29: "make it twice as big i want Taylor on a
    hourse") on a long granite plinth, in a round paved plaza -- no benches.
    Worked out once per grid; the park draws it (queueFerrisMonument) and
@@ -12186,7 +12186,7 @@ function ferrisMonumentOf(grid){
   if(!a || !b || a.type !== "park" || b.type !== "park") return (grid._ferrisMon = null);
   /* THE MIDDLE OF THE GRASS (corrected 2026-09-29, Sir: "what building is
      that on the end of the park?"). 8,3 is the park's cell on the map, but
-     Sandpiper Cottages (HOOD_BLOCK_LANDMARKS) stands on it, whole cell --
+     Ferris Taylor Cottages (HOOD_BLOCK_LANDMARKS) stands on it, whole cell --
      so the green you see is 8,2 alone, and the monument goes in its
      middle, clear of the cottages' lot. It first stood on the line
      between the two cells, which is that lot's edge. */
@@ -12591,6 +12591,23 @@ function hoodDrivewaysOf(grid){
   const out = [];
   if(typeof hoodShopEdgeUnits !== "function") return (grid._drives = out);
   for(const blk of grid.blocks || []){
+    /* a hood landmark's drive (Ferris Taylor Cottages' carriage arch): its
+       frame is the cell edge the row names, lab a straight along dv from
+       the edge origin (see hoodLandmarkFrame). Front drives only. */
+    if(blk.type === "park" && blk.i !== undefined && typeof hoodLandmarkAtIJ === "function"){
+      const nm = hoodLandmarkAtIJ(blk.i, blk.j), sh = nm && LIB.get(nm);
+      const row = sh && sh.drive && HOOD_BLOCK_LANDMARKS.find(r => r[0] === blk.i && r[1] === blk.j);
+      if(row && row[3] != null && !row[4]){
+        const ei = row[3], e = blockEdgesOf(blk)[ei], fr = hoodLandmarkFrame(blk.i, blk.j);
+        /* the frame starts at the node, the edge at the block's corner
+           (736 on): lab a shifts by that much to become al */
+        const off = (fr.ox - e.ox)*e.dv.x + (fr.oy - e.oy)*e.dv.y;
+        for(const dr of sh.drive) if(dr.side === "front")
+          out.push({ col: dr.col, lines: !!dr.lines, arrows: dr.arrows || "in",
+                     blockKey: blk.i + "," + blk.j, edge: ei, e, al0: dr.from + off, al1: dr.to + off });
+      }
+      continue;
+    }
     /* ...and a Maritime garage's drive, off a housing block the same way
        (see MARITIME'S STREETS) */
     const housing = blk.type === "housing" && typeof houseEdgeUnits === "function";
@@ -12669,7 +12686,7 @@ const HOOD_BLOCK_LANDMARKS = [
      inset: the market hall is fitted to the cell's buildable square
      (its entry carries sc 0.6923), which starts 736 in from the node. */
   [8,0, "Seabreeze Ballroom", 2],
-  [8,3, "Sandpiper Cottages", 2],
+  [8,3, "Ferris Taylor Cottages", 2],
   [0,6, "Marina Parking", 2],
   [3,8, "Lagoon Market Hall", 2, 736],
 ];
@@ -19445,7 +19462,11 @@ const TIDEWATER_MUSEUM = (() => {
   const GATE = [DMID + BA0 - 130, DMID + BA0 + 130];
   const PLINTHS = [[1020,-1000,0],[1420,-900,1],[2010,-1010,2],[1200,-1300,3],[1900,-1320,0]];
   const TREES = [[CA0+120,-900],[CA1-120,-900],[CA0+120,-1330],[CA1-120,-1330]];
-  const HEDGES = [[1100,-820],[1560,-820],[2020,-820]];
+  /* NO MIDDLE HEDGE (Sir, 2026-09-29: "i think there is a bush blocking
+     its entrance"). The third one stood at 1450..1670, square across the
+     gate (1463..1667) and the axis walk, 57 behind the railing -- under
+     Tipsey's 60 -- so the forecourt was sealed. The outer two stay. */
+  const HEDGES = [[1100,-820],[2020,-820]];
   const RAIL = 5;                                 // half-thickness of the railing's volume
   const rail = (name, a0, b0, a1, b1) => ({ name, h: 116,
     poly: a0 === a1 ? [[a0-RAIL,b0],[a0+RAIL,b0],[a0+RAIL,b1],[a0-RAIL,b1]]
@@ -35246,6 +35267,8 @@ function houseCanopy(fn){
 {
   name:'Tidewater Maritime Museum', xh: 440, base:'Museum', hood:'The Flats', edited:true, tall:true, block:true, ww: 3128, dd: 3128,
   vol: TIDEWATER_MUSEUM.vol,
+  /* a drive to the gate, as Ferris Taylor Cottages' arch has (see hoodDrivewaysOf) */
+  drive:[{ side:'front', from:1455, to:1675, col:'#cdc6b4', arrows:'none' }],   // the axis walk's width and stone
   wTodo:'a FULL block cell -- BLOCK 3128 with ROAD_HALF 368 each side, so 1656 square of buildable ground; the packer places no landmark',
   cTodo:'the building, the portico columns, the forecourt railing and its gate piers, the plinths and their sculptures are volumes; the forecourt paving is walkable',
   head:'A block cell: portico set back behind its own sculpture garden',
@@ -35298,9 +35321,10 @@ function houseCanopy(fn){
        The city draws its own roads, kerbs and pavements; the entry's
        ground is its lot, the forecourt below. */
     T(CA0, CA1, CB0, CB1, 0.6, '#bdb5a2');                     // the forecourt
-    T(DMID+BA0-110, DMID+BA0+110, CB1-20, BB1, 1.1, '#cdc6b4'); // the axis walk
-    for(const gx of [[CA0+40, BA0-60],[BA1+60, CA1-40]])       // lawns either side
-      T(gx[0], gx[1], BB1-40, CB1-120, 1.0, '#6f8a5e');
+    /* the axis walk runs right to the lot line, where the drive meets it
+       (Sir, 2026-09-29: "the path is disconnected and different colors") */
+    T(DMID+BA0-110, DMID+BA0+110, CB1, BB1, 1.1, '#cdc6b4'); // the axis walk
+    /* no lawns either side of the walk: NO SECONDARY GRASS (CLAUDE.md) */
 
     const items = [];
 
@@ -35756,7 +35780,35 @@ function houseCanopy(fn){
   }
 },
 {
-  name:'Sandpiper Cottages', xh: 300, base:'Almshouses', hood:'The Flats', edited:true, tall:true, block:true, ww: 3128, dd: 3128,
+  name:'Ferris Taylor Cottages', xh: 300, base:'Almshouses', hood:'The Flats', edited:true, tall:true, block:true, ww: 3128, dd: 3128,
+  /* THE COURT IS DRIVEN (Sir, 2026-09-29: "i want to be able to drive in
+     there like with the houses"). Undeclared, the cell was one solid
+     block and the carriage arch was a picture of a way in. Now the eight
+     cottages, the two gate piers and the gate railings are the volume;
+     the arch and the court are ground. No foot mass -- the cottages are
+     separate buildings, so each is its own solid. Symmetric about GMID
+     1564, so the landmark frame's mirror does not move any of it. */
+  vol: (() => {
+    const H = 380, bx = (name, a0, a1, b0, b1, h, prop) => ({ name, h, prop, poly: [[a0,b0],[a1,b0],[a1,b1],[a0,b1]] });
+    return {
+      foot: [[0,0],[0,0],[0,0]],
+      h: H,
+      solids: [
+        bx('street cottage L', 736, 1236, -1000, -736, H),  bx('street cottage R', 1892, 2392, -1000, -736, H),
+        bx('left cottage N', 736, 1000, -2392, -1752, H),   bx('left cottage S', 736, 1000, -1640, -1000, H),
+        bx('right cottage N', 2128, 2392, -2392, -1752, H), bx('right cottage S', 2128, 2392, -1640, -1000, H),
+        bx('back cottage L', 1000, 1528, -2392, -2128, H),  bx('back cottage R', 1600, 2128, -2392, -2128, H),
+        bx('gate pier L', 1344, 1404, -1000, -736, 250),    bx('gate pier R', 1724, 1784, -1000, -736, 250),
+        bx('gate rail L', 1236, 1344, -727, -717, 92),      bx('gate rail R', 1784, 1892, -727, -717, 92),
+        bx('pump', 1538, 1590, -1586, -1534, 134, true),
+        ...[[1180,-1240],[1950,-1240],[1180,-1880],[1950,-1880]].map(([a,b], k) => ({ name:'tree ' + (k+1), c:[a,b], r: 13, h: 212, prop: true }))
+      ],
+      zones: [{ name:'court', kind:'walk', poly: [[1000,-1000],[2128,-1000],[2128,-2128],[1000,-2128]] }],
+      marks: { gate: [1564, -736] }
+    };
+  })(),
+  /* and the arch is reached from the road, like a house's garage */
+  drive:[{ side:'front', from:1404, to:1724, col:'#bdb299', arrows:'none' }],   // the court path's width and colour
   wTodo:'a FULL block cell -- BLOCK 3128 with ROAD_HALF 368 each side, so 1656 square of buildable ground, arranged as three ranges round a court',
   cTodo:'the three ranges, the gate piers and the court pump are volumes; the courtyard and the carriage arch are walkable',
   head:'Three ranges round a court, the carriage arch on the street',
@@ -35764,7 +35816,7 @@ function houseCanopy(fn){
   desc:'Almshouses as they are actually built: ranges of small dwellings round an open court, each with its own door, the side and back ranges opening onto the court and the street range reached through a carriage arch.',
   draw(p){
     /* ============ THE FLATS PASS (2026-09-17) ============
-       Sandpiper Cottages. Sandstone goes whitewash, brown goes
+       Ferris Taylor Cottages. Sandstone goes whitewash, brown goes
        sea blue, the red roof goes grey slate.
        Geometry untouched: every edit is a colour. */
     /* ============ AN ARCADE OF THREE DWELLINGS DOES NOT FIT 230 =======
@@ -35813,9 +35865,19 @@ function houseCanopy(fn){
        node -- over half of every street round the lot and both pavements.
        The city draws its own roads, kerbs and pavements; the entry's
        ground is its lot, CA0..CA1, and nothing outside it. */
-    T(CA0, CA1, CB0, CB1, 0.6, '#a99d86');
-    T(LA1, RA0, CB0+RD, SB0, 0.9, '#6f8a5e');                  // the court lawn
-    T(GMID-70, GMID+70, CB0+RD, SB0, 1.2, '#bdb299');          // the path from the arch
+    /* NO PAVING OVER THE LOT EITHER (Sir, 2026-09-29: "why dont they
+       have the grass from the park in their courtyard?"). The lot was
+       painted '#a99d86' node-edge to node-edge, which hid Ferris Field's
+       own grass under the court and between the cottages. The cell is
+       the park's, so its ground shows; only the path is laid on it. */
+    /* NO COURT LAWN (Sir, 2026-09-29: "sand piper cottages has its own
+       grass we need to get rid of that"). The court is the lot's own
+       paving, which is also what you drive in on; the path from the arch
+       stays as a lighter track across it. */
+    /* the drive carried on: through the arch and across the court to the
+       back row, the drive's own width and colour, so road to court is one
+       surface */
+    T(GMID-160, GMID+160, CB0+RD, CB1, 1.2, '#bdb299');        // the path from the arch
 
     const items = [];
 
