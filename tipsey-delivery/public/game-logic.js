@@ -5697,12 +5697,49 @@ if(new URLSearchParams(location.search).get("verifyMats") === "1")
    have no scene. Excluded once mode is "delivery": the mat's whole job
    is to start the run, and once the run is going it is just a rug
    outside a shop the player has already left. */
+/* EVERY SHOP HAS AN ORDER (Sir, 2026-09-29: "can we have multiple
+   availible across the flatts at the same time?"). The day's pool of
+   pickup shops -- the hoods you own, the same pool generateRoute picks
+   the day's shop from -- each offer an order on the current rung, built
+   by name (opts.pickupShop): its own mat outside its own door, its own
+   address. Stop on any of them and that order starts (tpPickupHere).
+   Finishing one moves the rung on, so the whole board turns over.
+   Cached per date and rung: three routes the first time, nothing after. */
+let _tpOffersCache = null;
+function tpPickupOffers(scene){
+  const s = scene || ((typeof scn === "function") ? scn() : null);
+  const grid = s && s.route && s.route.grid;
+  if(!grid) return [];
+  const today = clientTodayUTC();
+  const rung = (typeof tpRunIndex === "function") ? tpRunIndex() : 1;
+  const all = getPickupShops(grid);
+  const own = all.filter(sh => hoodOwnsIJ(sh.blockI, sh.blockJ));
+  const pool = own.length ? own : all;
+  const key = today + "|" + rung + "|" + pool.map(sh => sh.name).join(",");
+  if(_tpOffersCache && _tpOffersCache.key === key) return _tpOffersCache.list;
+  const list = [];
+  for(const sh of pool){
+    let r = null;
+    try { r = generateRoute(today, { runIndex: rung, pickupShop: sh.name }); } catch(e){ r = null; }
+    if(!r || !r.pickupMat) continue;
+    list.push({ shop: sh.name, mat: r.pickupMat, address: r.address, order: r.order,
+                x: r.pickupMat.mat.x, y: r.pickupMat.mat.y });
+  }
+  _tpOffersCache = { key, list };
+  return list;
+}
+if(typeof window !== "undefined") window.tpPickupOffers = tpPickupOffers;
 function getMissionMats(scene){
   if(!_missionMatsCache) _missionMatsCache = buildMissionMats();
   const r = scene && scene.route;
-  return (r && r.pickupMat && scene.mode !== "delivery")
-    ? _missionMatsCache.concat(r.pickupMat)
-    : _missionMatsCache;
+  if(!(r && r.pickupMat && scene.mode !== "delivery")) return _missionMatsCache;
+  /* today's live city: every offered shop's mat. A past date (a replay)
+     keeps its own one mat. */
+  if(r.dateStr === clientTodayUTC()){
+    const offers = tpPickupOffers(scene);
+    if(offers.length) return _missionMatsCache.concat(offers.map(o => o.mat));
+  }
+  return _missionMatsCache.concat(r.pickupMat);
 }
 /* which mission mat, if any, the robot is standing inside. Same
    containment test the delivery address uses -- one geometry, three
@@ -9912,6 +9949,7 @@ function gpsNavArrived(scene){
   if(!gpsNav || !scene) return null;
   const mm = owMissionMatAt(scene);
   if(!mm || mm.id !== gpsNav.id) return null;
+  if(mm.id === "pickup" && gpsNav.shop && mm.shop !== gpsNav.shop) return null;   // a different shop's rug
   return matHighlightState(scene, mm.mat, "freeroam") === "armed" ? mm : null;
 }
 
@@ -9923,11 +9961,11 @@ function gpsNavArrived(scene){
 function gpsNavLaunch(scene){
   const mm = gpsNavArrived(scene);
   if(!mm) return false;
-  const id = gpsNav.id;
+  const id = gpsNav.id, shop = gpsNav.shop || mm.shop;
   gpsNavClear();
   if(id === "jump-hydrant") hjStart();
   else if(id === "cone-slalom") tpSlalomStart();
-  else if(id === "pickup") return tpPickupHere(scene);
+  else if(id === "pickup") return tpPickupHere(scene, shop);
   else return false;
   return true;
 }
@@ -9955,7 +9993,7 @@ function gpsNavLaunch(scene){
 
    state is forced back to "play" because loadRoute ends on "idle", the
    map-screen resting state. There is no map up on this path. */
-function tpPickupHere(scene){
+function tpPickupHere(scene, shop){
   if(!scene || !scene.route) return false;
   scene.mode = "delivery";
   /* keepPose closes the seam this comment used to call out as deferred.
@@ -9963,13 +10001,18 @@ function tpPickupHere(scene){
      on it is already within the mat's own grace of where loadRoute would
      have put it -- and keepPose removes even that, plus the rotation
      snap, which was the more visible of the two. */
-  scene.loadRoute(clientTodayUTC(), { keepPose: true });
+  /* the order of the shop you stopped at (tpPickupOffers); unnamed is
+     the day's own shop, as before */
+  scene.loadRoute(clientTodayUTC(), shop ? { keepPose: true, pickupShop: shop } : { keepPose: true });
   /* countPlay() is the GO button's job on every other entry into a run,
      and driving onto the mat is now an entry into a run. Without it a
      delivery you drove to was invisible to the play counter, so the
      "Regular -- play 5 different days" trophy silently ignored exactly
      the flow the game now steers people into. */
   countPlay();
+  /* the order is running now, however it was reached (GO on its route,
+     or just stopping on the rug): that is what GO would have started */
+  if(typeof tpGoneKey !== "undefined") tpGoneKey = "delivery";
   scene.state = "play";
   hide("titleOverlay");
   /* THE GPS DOES NOT HANG UP AT THE SHOP (2026-08-27, Sir on-device: "i
@@ -14532,7 +14575,8 @@ function generateRoute(dateStr, opts){
   const key = dateStr + "|" + (opts && opts.hoodIndex != null ? opts.hoodIndex : "")
             + "|" + !!(opts && opts.classic) + "|" + !!(opts && opts.challenge)
             + "|" + !!(opts && opts.unanchoredStart)
-            + "|r" + runIndex;   // or every rung would serve rung one from cache
+            + "|r" + runIndex    // or every rung would serve rung one from cache
+            + "|s" + ((opts && opts.pickupShop) || "");   // one route per offered shop (tpPickupOffers)
   let cached = _routeGenCache.get(key);
   if(!cached){
     cached = _generateRouteFresh(dateStr, opts);
@@ -14543,7 +14587,7 @@ function generateRoute(dateStr, opts){
 function _generateRouteFresh(dateStr, opts){
   const runIndex = (opts && opts.runIndex) || 1;
   const seed = hashStr(routeSeedStr(dateStr, runIndex));
-  const rng = mulberry32(seed);
+  let rng = mulberry32(seed);   // re-seeded for a named shop's own order, see _named below
   /* THE CITY IS PERMANENT NOW (2026-08-10, Sir's call). cols/rows/grid
      used to come off the SAME daily `seed` as everything else in this
      function, which is exactly why the street layout used to be a new
@@ -14731,7 +14775,24 @@ function _generateRouteFresh(dateStr, opts){
   const PICKUP_SHOPS = getPickupShops(grid);
   const _ownShops = useOldStart ? PICKUP_SHOPS : PICKUP_SHOPS.filter(sh => hoodOwnsIJ(sh.blockI, sh.blockJ));
   const _shopPool = _ownShops.length ? _ownShops : PICKUP_SHOPS;
-  const todaysShop = _shopPool[seed % _shopPool.length];
+  /* A NAMED SHOP (Sir, 2026-09-29: "can we have multiple available across
+     the flatts at the same time?"). Every shop in the pool offers an
+     order on this rung (tpPickupOffers); the one you stop on is built
+     here by name. Unnamed is the day's own pick, byte-for-byte as before
+     -- and naming that same shop gives the same route, since the seed,
+     the anchor and the heading are all the same. */
+  const _named = (opts && opts.pickupShop && !useOldStart)
+    ? _shopPool.find(sh => sh.name === opts.pickupShop) : null;
+  const todaysShop = _named || _shopPool[seed % _shopPool.length];
+  /* ITS OWN ORDER, NOT A COPY. Two pickup shops on one block edge share
+     a start corner and a heading, so on the day's stream they walk the
+     same streets to the same door (measured: Lagoon Coffee Roasters and
+     Sandpiper Bakery both delivering to 3701 Palmline Ave). A named shop
+     that is NOT the day's own pick draws from a stream of its own, so
+     each shop's order goes somewhere different. The day's own shop keeps
+     the day's stream untouched. */
+  if(_named && _named !== _shopPool[seed % _shopPool.length])
+    rng = mulberry32(hashStr(routeSeedStr(dateStr, runIndex) + "|" + _named.name));
   const startAnchor = useOldStart ? districtStart : todaysShop.startNode;
   const startHeading = useOldStart ? undefined : todaysShop.f;
   let walk = buildWalk(_lockG, rng, startAnchor, undefined, TURN_R, startHeading);
@@ -16234,14 +16295,15 @@ function _generateRouteFresh(dateStr, opts){
            and every other mat in this file */
         const rv = { x: -ROBOT_SIDE*r0.x, y: -ROBOT_SIDE*r0.y };
         const ax = pickupSpot.x - rv.x*(T2/2), ay = pickupSpot.y - rv.y*(T2/2);
-        return { id: "pickup", name: "Pickup \u2014 " + pickupShopName,
+        return { id: "pickup", name: "Pickup \u2014 " + pickupShopName, shop: pickupShopName,
                  style: "rug", lane: null,
                  mat: owMatFrame(ax, ay, dv, rv), ax, ay, dv, rv };
       })()
     : null;
   return stampWorldCoords({ addressMat, pickupMat, cfTaken, hood: addressHood, grid, segs, totalLen: loop ? loop.sEnd : totalLen, loop, tiles, hazards, props, pal, night, traffic, trafficFleet, crossings, cutEdges, challenge, crime, routeCells, curbRamps, signals: grid.signals,
            address:`${number} ${street}`, doorS, pickupS, pickupSpot, pickupShopName, pickupDoorA, addressBlock,
-           addressArea: (addressBlock && houseSiteHoodIJ(addressBlock.i, addressBlock.j)) || null, pickupBlock, addressEdgeIdx, pickupEdgeIdx, addressUnitIdx, pickupUnitIdx, addressUsesGate, order, parMs, dateStr, runIndex  });
+           addressArea: (addressBlock && houseSiteHoodIJ(addressBlock.i, addressBlock.j)) || null, pickupBlock, addressEdgeIdx, pickupEdgeIdx, addressUnitIdx, pickupUnitIdx, addressUsesGate, order, parMs, dateStr, runIndex,
+           pickupShopReq: (_named && _named.name) || null  });
 }
 
 /* ---------- robot palette (approved in sprite lab) ---------- */
@@ -39990,6 +40052,15 @@ class WorldScene extends Phaser.Scene {
       const isChallenge = !!(opts && opts.challenge);
       opts = Object.assign({}, opts, { runIndex: (isToday && !isChallenge) ? tpRunIndex() : 1 });
     }
+    /* THE SAME SHOP ON A RETRY. With every shop offering an order
+       (tpPickupOffers), a delivery is one shop's route, not the day's --
+       so reloading the SAME run mid-delivery (the retry button's bare
+       loadRoute) keeps the shop it was for, rather than handing back the
+       day's default shop and a different address. */
+    if(opts.pickupShop === undefined && this.mode === "delivery" && this.route
+       && this.route.pickupShopReq && this.route.dateStr === dateStr
+       && this.route.runIndex === opts.runIndex)
+      opts = Object.assign({}, opts, { pickupShop: this.route.pickupShopReq });
     /* A route load is the certain end of any lap in progress -- leaving
        'victory' behind would spawn the next delivery in a state the
        play-gated sim refuses to drive. */
@@ -52936,7 +53007,7 @@ class WorldScene extends Phaser.Scene {
              picked from search first (gpsNavLaunch). Driving up to today's
              shop and stopping on it is the order, the way it was meant to
              be (2026-08-26: "a matt i land on to trigger the pick up"). */
-          else if(mm.id === "pickup"){ gpsNavClear(); tpPickupHere(this); return; }
+          else if(mm.id === "pickup"){ gpsNavClear(); tpPickupHere(this, mm.shop); return; }
         }
       }
       /* overshot the door: clamp to whichever is closer — the edge of the
@@ -63082,10 +63153,14 @@ function tpDailyDeliveryPin(){
   const rung = (typeof tpRunIndex === "function") ? tpRunIndex() : 1;
   const _s = (typeof scn === "function") ? scn() : null;
   const leg = (_s && _s.mode === "delivery") ? "door" : "pickup";
+  /* the order ON BOARD, not the day's default one: with every shop
+     offering an order (tpPickupOffers), the door you are carrying the bag
+     to is the loaded route's, whichever shop it came from */
+  const shopReq = (leg === "door" && _s && _s.route && _s.route.pickupShopReq) || null;
   if(_tpDailyPinCache && _tpDailyPinCache.dateStr === today
      && _tpDailyPinCache.runIndex === rung
-     && _tpDailyPinCache.leg === leg) return _tpDailyPinCache;
-  const r = generateRoute(today, { runIndex: rung });
+     && _tpDailyPinCache.leg === leg && _tpDailyPinCache.shopReq === shopReq) return _tpDailyPinCache;
+  const r = generateRoute(today, shopReq ? { runIndex: rung, pickupShop: shopReq } : { runIndex: rung });
   /* the MAT, not segsPosAt(pickupS): the mat is what the GPS is steering
      at and what arrival is tested against, so the pin has to be the same
      point or the map is telling you to stop somewhere that will not
@@ -63094,7 +63169,7 @@ function tpDailyDeliveryPin(){
   const p = (leg === "door")
     ? segsPosAt(r.segs, r.doorS)
     : (r.pickupMat ? r.pickupMat.mat : segsPosAt(r.segs, r.pickupS));
-  _tpDailyPinCache = { dateStr: today, runIndex: rung, leg, x: p.x, y: p.y,
+  _tpDailyPinCache = { dateStr: today, runIndex: rung, leg, shopReq, x: p.x, y: p.y,
                        address: r.address, shop: r.pickupShopName };
   return _tpDailyPinCache;
 }
@@ -63167,10 +63242,10 @@ function tpMapResumeDriving(){
      and the robot -- which "decides nothing" -- carried the unconfirmed
      pick into the world. tpGoneKey is what GO actually started; a nav
      whose key differs from it was never confirmed, so the robot drops
-     it. A delivery's own legs (pickup / dropoff) are never dropped
-     here: those are the running order's, not a pick. */
+     it. A route to a shop's pickup is a pick like any other; the
+     drop-off leg is the running order's and is never dropped here. */
   if(typeof gpsNav !== "undefined" && gpsNav && s.mode === "freeroam"
-     && gpsNav.id !== "pickup" && gpsNav.id !== "dropoff"
+     && gpsNav.id !== "dropoff"
      && tpMapSelKey(s) !== tpGoneKey){
     /* a trip GO started is still running under the new pick: hand THAT
        back (re-plotted from here) rather than no GPS at all. Only when
@@ -63352,7 +63427,7 @@ function tdReleaseToFreePlay(s){
 }
 if(typeof window !== "undefined") window.tdReleaseToFreePlay = tdReleaseToFreePlay;
 
-function tpBackToDailyRoute(){
+function tpBackToDailyRoute(shop){
   /* Close the profile chrome FIRST, same opening line hjStart and
      slalomMapSelect both carry (2026-08-13). This is the third entry
      into a route and it was the only one relying entirely on its
@@ -63427,7 +63502,10 @@ function tpBackToDailyRoute(){
   gpsNavClear();
   show("titleOverlay");                  // the map, with GO -- before any measuring
   const s2 = tpEnsureFreeroam(s);
-  const pm = s2 && s2.route && s2.route.pickupMat;
+  /* a named shop's order is its own mat (tpPickupOffers); unnamed is the
+     day's own shop, as before */
+  const _off = shop ? tpPickupOffers(s2).find(o => o.shop === shop) : null;
+  const pm = _off ? _off.mat : (s2 && s2.route && s2.route.pickupMat);
   if(!pm){
     /* no shop mat (a route that never got a pickupSpot). Fall back to
        the old direct entry rather than stranding the player with a row
@@ -63438,7 +63516,8 @@ function tpBackToDailyRoute(){
     tpToast("No route to the pickup.");
     return;
   } else {
-    tpToast("Routing to " + s2.route.pickupShopName + ". Press GO.");
+    gpsNav.shop = pm.shop || shop || null;             // the arrival matches this shop's rug only
+    tpToast("Routing to " + (pm.shop || s2.route.pickupShopName) + ". Press GO.");
   }
   tpSyncOrderCard(s2);
   /* and one more pass once layout has settled, so a late reflow cannot
@@ -63541,9 +63620,11 @@ function tpMapIndex(route){
          thing a player will actually type once the header has been
          telling them to drive to Terrace Coffee. Same dp the pin uses,
          so search and pin cannot point at different corners. */
-      if(dp.leg === "pickup" && dp.shop)
-        for(const nm of [dp.shop, "Pickup"])
-          out.push({ name: nm, kind:"delivery", x: dp.x, y: dp.y });
+      /* every shop with an order is findable, by its name and as a pickup */
+      if(dp.leg === "pickup" && typeof tpPickupOffers === "function")
+        for(const o of tpPickupOffers())
+          for(const nm of [o.shop, "Pickup \u2014 " + o.shop])
+            out.push({ name: nm, kind:"pickup", id: "pickup:" + o.shop, x: o.x, y: o.y });
     }
   }
   for(const m of TP_SIDE_MISSIONS){
@@ -63714,6 +63795,8 @@ function tpMapExplore(){
           gpsNavToMission(hit.id);
         }
         else if(hit.id === "daily-delivery") tpBackToDailyRoute();
+        /* a shop with an order: route to its mat (tpPickupOffers) */
+        else if(hit.id.startsWith("pickup:")) tpBackToDailyRoute(hit.id.slice(7));
         /* a depot pin is a place: route to its door, same as its search row */
         else if(hit.id.startsWith("charge:")){
           const s = scn();
@@ -63908,6 +63991,7 @@ function tpMapExplore(){
            goes back to the route the same way its own pin does. */
         if(h.kind === "mission" && h.x === undefined){ tpOpenMissions(); tpOpenDetail("mission", h.id); }
         else if(h.id === "daily-delivery"){ tpCollapseMissions(); tpBackToDailyRoute(); }
+        else if(h.id && h.id.startsWith("pickup:")){ tpCollapseMissions(); tpBackToDailyRoute(h.id.slice(7)); }
         else if(h.kind === "mission"){ tpCollapseMissions(); gpsNavToMission(h.id); }
         else { tpCollapseMissions(); gpsNavToPlace(h.name, h.x, h.y); }
       };
@@ -63917,9 +64001,36 @@ function tpMapExplore(){
 }
 tpMapExplore();
 
+/* THE PULSE IS DOM, not canvas: the map only redraws when something
+   changes, so an animated ring on the canvas would need the whole city
+   redrawn every frame. One CSS ring per offered shop, laid over the
+   canvas at the pin's own CSS-pixel spot (the canvas is CSS-sized in
+   #mapCard, which is position:relative), placed each time the map draws.
+   Pointer-transparent, so the tap still lands on the canvas pin. */
+function tpMapSyncPulses(list){
+  const mc = document.getElementById("mapCard");
+  if(!mc) return;
+  let layer = document.getElementById("tpPulseLayer");
+  if(!layer){
+    layer = document.createElement("div");
+    layer.id = "tpPulseLayer";
+    mc.appendChild(layer);
+  }
+  while(layer.children.length > list.length) layer.lastChild.remove();
+  while(layer.children.length < list.length){
+    const d = document.createElement("div");
+    d.className = "tpPulse";
+    layer.appendChild(d);
+  }
+  list.forEach((p, i) => {
+    const d = layer.children[i];
+    d.style.left = p.x + "px"; d.style.top = p.y + "px";
+  });
+}
 function drawRouteMap(route){
   const canvas = document.getElementById("routeMap");
   if(!canvas) return;
+  tpMapSyncPulses([]);        // an early return below must not leave last draw's rings up
   const ctx = canvas.getContext("2d");
   const W = canvas.clientWidth, H = canvas.clientHeight;
   ctx.clearRect(0, 0, W, H);
@@ -64629,6 +64740,19 @@ function drawRouteMap(route){
      out, down to the depots' 12-block gate, a block is ONE pin with its
      count, and tapping it zooms onto that block. Search finds every shop
      at any zoom. */
+  /* SHOPS WITH AN ORDER PULSE (Sir, 2026-09-29: "there is just the shop
+     instead of a separate pick up pin. and if the shop has a pickup it
+     has a red pulse around its pin"). The pickup is the shop's own pin:
+     a red ring on it, and a CSS pulse laid over it (tpMapSyncPulses --
+     the map canvas is drawn on demand, not every frame). Tapping it
+     routes to that shop's mat. Offers only show while no order is on
+     board; with one aboard, the door pin below is the errand. */
+  const _offerMode = !usingAtlas && typeof tpPickupOffers === "function"
+    && !(typeof scn === "function" && scn() && scn().mode === "delivery");
+  const _offers = _offerMode ? tpPickupOffers() : [];
+  const _offerShops = new Set(_offers.map(o => o.shop));
+  const _offerDrawn = new Set();
+  const _pulses = [];
   if(!usingAtlas && typeof hoodShopsOf === "function" && route.grid
      && scale * BLOCK >= Math.min(W, H) / 12){
     const sp = scale * 230, each = sp >= 6;
@@ -64639,6 +64763,7 @@ function drawRouteMap(route){
       if(each){
         if(!inView(sh.x, sh.y)) continue;
         const pp = toScreen(sh);
+        if(_offerShops.has(sh.name)) continue;          // drawn with the offers below, on top
         ctx.fillStyle = "#c2603a";
         ctx.beginPath(); ctx.arc(pp.x, pp.y, pr, 0, Math.PI*2); ctx.fill();
         ctx.strokeStyle = "#fff"; ctx.lineWidth = pr < 6 ? 1 : 1.2; ctx.stroke();
@@ -64662,6 +64787,26 @@ function drawRouteMap(route){
       ctx.fillStyle = "#2e3138"; ctx.font = "700 9px sans-serif";
       ctx.fillText(r.n + " shops", pp.x, pp.y + 17);
       tpMapMissionPins.push({ id: "shopblk:" + rk + "|" + q.x.toFixed(0) + "|" + q.y.toFixed(0), x: pp.x, y: pp.y, r: 16 });
+    }
+  }
+  /* the offered shops, at EVERY zoom: their own pin (never folded into a
+     block's count, never gated out far away), a red ring, and a pulse */
+  if(_offers.length && route.grid){
+    const sps = hoodShopsOf(route.grid);
+    const pr = Math.max(6, Math.min(8, scale * 230 * 0.47));
+    for(const o of _offers){
+      const sh = sps.find(h => h.name === o.shop);
+      const at = sh || o;
+      if(!inView(at.x, at.y)) continue;
+      const pp = toScreen(at);
+      ctx.fillStyle = "#c2603a";
+      ctx.beginPath(); ctx.arc(pp.x, pp.y, pr, 0, Math.PI*2); ctx.fill();
+      ctx.strokeStyle = "#e0262b"; ctx.lineWidth = 2.2; ctx.stroke();
+      ctx.font = Math.round(pr * 1.25) + "px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText(sh ? sh.icon : "\u{1F4E6}", pp.x, pp.y);
+      tpMapMissionPins.push({ id: "pickup:" + o.shop, x: pp.x, y: pp.y, r: 12 });
+      _pulses.push({ x: pp.x, y: pp.y });
+      _offerDrawn.add(o.shop);
     }
   }
   const MISSION_ICON = { hydrant: "🧯", cone: "🚧" };
@@ -64823,7 +64968,9 @@ function drawRouteMap(route){
      frame during a drag. */
   {
     const dp = tpDailyDeliveryPin();
-    if(inView(dp.x, dp.y)){
+    /* NO SEPARATE PICKUP PIN: the pickup is the shop's own pin, pulsing
+       (see the offers above). Only the door is pinned, once aboard. */
+    if(dp.leg !== "pickup" && inView(dp.x, dp.y)){
       const p = toScreen(dp);
       const onPickup = dp.leg === "pickup";
       /* orange for the shop, the deep red for the customer's door --
@@ -64840,6 +64987,7 @@ function drawRouteMap(route){
       tpMapMissionPins.push({ id: "daily-delivery", x: p.x, y: p.y, r: 16 });
     }
   }
+  tpMapSyncPulses(_pulses);
   bootLoaderDone();
 }
 
@@ -65274,7 +65422,13 @@ function tpMapSelKey(s){
   if(s.mode === "slalom-pending") return "mission:cone-slalom";
   if(s.mode === "delivery")       return "delivery";
   if(typeof gpsNav !== "undefined" && gpsNav){
-    if(gpsNav.id === "pickup" || gpsNav.id === "dropoff") return "delivery";
+    /* a pickup is keyed by ITS SHOP now that every shop offers one
+       (tpPickupOffers): picking a different shop is a different errand,
+       and GO comes back to confirm it. Once the bag is aboard the key is
+       "delivery" -- tpPickupHere writes that into tpGoneKey itself, so
+       reopening the map mid-delivery still finds GO already spent. */
+    if(gpsNav.id === "pickup") return "pickup:" + (gpsNav.shop || "");
+    if(gpsNav.id === "dropoff") return "delivery";
     /* A PLACE IS KEYED BY WHERE IT IS, not by its id (Sir on-device,
        2026-09-15: no GO after picking a depot). Every search row and
        depot pin navigates with the one id "place", so after GO on any

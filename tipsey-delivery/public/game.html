@@ -254,6 +254,13 @@
     position:relative;
     --sheetH:calc(58px + env(safe-area-inset-bottom));} /* positioning context for the tp* panels' inset:0 */
   #mapCard{position:relative;width:100%;flex:1;min-height:0;overflow:hidden;}
+  /* a shop with an order waiting: a red ring breathing out from its pin */
+  #tpPulseLayer{position:absolute;inset:0;pointer-events:none;overflow:hidden;}
+  .tpPulse{position:absolute;width:16px;height:16px;margin:-8px 0 0 -8px;border-radius:50%;
+    border:2.5px solid #e0262b;box-sizing:border-box;pointer-events:none;
+    animation:tpPulse 1.6s ease-out infinite;}
+  @keyframes tpPulse{0%{transform:scale(1);opacity:.95;}100%{transform:scale(3.2);opacity:0;}}
+  body.attract #tpPulseLayer{display:none;}
   #mapCard .brand{position:absolute;top:14px;left:50%;transform:translateX(-50%);margin:0;text-shadow:0 1px 4px rgba(181,84,14,.9),0 1px 4px rgba(181,84,14,.9);}
   #mapCard .card{position:absolute;top:60px;left:12px;right:12px;margin:0;background:rgba(240,236,224,.55);color:#2e3138;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);}
   #mapCard .card b{color:#b5540e;}
