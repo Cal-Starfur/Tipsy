@@ -4562,8 +4562,15 @@ function peopleSettledSpot(hz){
 }
 
 /* approved in bin lab: height 34 · base 11 · lid 13 · band 3 (standing) / 0 (knocked) */
+/* TWICE THE SIZE (Sir, 2026-09-29: "lets scale them up 2x"). `scale`
+   is what the bin's own draw multiplies its fixed details by (knob,
+   hinge, pedal, lid lift); the four sizes below are already doubled, so
+   the tip physics -- pivot, balance angle, fall reach -- stays matched
+   to the art. Contact radius hzBin and the cull extent PROP_EXT.bin
+   doubled with it. */
 const BIN = {
-  height: 34, baseR: 11, lidR: 13, band: 3,
+  scale: 2,
+  height: 68, baseR: 22, lidR: 26, band: 6,
   body: 0x3f5147, bodyDk: 0x2e3d35,
   band_c: 0xd8dade,
   lid: 0x4a5d52, lidDk: 0x384539,
@@ -5106,7 +5113,7 @@ const paveParity = (x, y) => (Math.floor(x / T2) + Math.floor(y / T2)) & 1;
    labs/prop-extents if prop art changes. */
 const PROP_EXT_PAD = 1.25, PROP_EXT_MIN = 24;
 const PROP_EXT = {
-  bin:[19,19,45,7], burrito:[40,40,40,40], can:[40,40,40,40],
+  bin:[38,38,90,14], burrito:[40,40,40,40], can:[40,40,40,40],
   car:[158,158,153,59], cone:[18,18,43,9], crack:[88,88,45,49],
   dog:[73,73,54,32], grade:[72,72,36,36], hydrant:[15,15,26,6],
   hydrantBurst:[107,107,54,53],
@@ -5631,7 +5638,7 @@ const OW_D = {
      lateral work; in world space distance is the ONLY test, so a bare 14
      would let you clip through a lamp post sideways. Rail standoffs
      widened to the thing's actual footprint. */
-  hzLamp: 22, hzPalm: 30, hzHydrant: 26, hzBin: 30, hzPlanter: 34,
+  hzLamp: 22, hzPalm: 30, hzHydrant: 26, hzBin: 60, hzPlanter: 34,
   hzRobot: 34, hzScooter: 28, hzTrash: 28, hzPeople: 22, hzDog: 20,
   hzFlat: 34,            // drive-over trigger radius for cracks and slabs
   /* FLAT KICK, DELIBERATELY UNABLE TO CHAIN. First value was 0.42 and
@@ -13695,6 +13702,13 @@ function cityFurnitureForEdge(grid, blk, fi){
       else type = pickSpaced([["dog",0.25],["people",0.23],["bin",0.25],["planter",0.27]]);
       if(!type) continue;
       lastAt[type] = a;
+      /* NO BINS FROM THE DICE (Sir, 2026-09-29: "we want to not have them
+         randomly placed ... the sidewalk lane closest to the street").
+         A bin's slot still takes its rolls -- pick and spawn state, into a
+         throwaway -- so every other prop on the frontage stays exactly
+         where it was. The bins themselves come from the kerb pass at the
+         end of this function. */
+      if(type === "bin"){ propSpawnState(type, { type }, R, walkRange); continue; }
       propSpawnState(type, place(type, aR, lane, p), R, walkRange);
     }
   }
@@ -13985,6 +13999,40 @@ function cityFurnitureForEdge(grid, blk, fi){
         { len: 24 + Math.floor(R()*49), surface: "road" });
       delete ob.row;
       ob.roadOffset = out0 - kerbOut;
+    }
+  }
+
+  /* ---- litter bins: on the KERB, at the CORNER ----
+     (Sir, 2026-09-29: "they need to be where a garbage bin would be in
+     the real world which i think its the sidewalk lane closest to the
+     street".) A council bin stands in the furniture strip at the kerb,
+     by the crossing, where people waiting to cross drop things -- not at
+     a random spot in a random lane. The clutter pass above used to put
+     637 of them in all four lanes about equally.
+
+     Each frontage's START corner is a different block corner from every
+     other frontage's, so "the start" gives each corner at most one bin.
+     How many corners get one is the block's use: two diagonal corners of
+     a shop block, one of a park, one on every other house block -- about
+     the old count (637) and a half, not three times it. The
+     bin stands just past the curb ramp and steps along a tile at a time
+     until it has clear kerb, so it never lands on a ramp, a drive, a
+     charger or another prop. LAST in this function so nothing placed
+     before it moves, and its keys come after everyone else's. */
+  {
+    const want = blk.type === "commercial" ? (fi % 2 === 0)
+               : blk.type === "park" ? fi === 0
+               : fi === 0 && ((blk.i + blk.j) % 2 === 0);
+    if(want){
+      const R = mulberry32(cityFurnEdgeSeed(e, 0xb1a5));
+      for(let k = 0; k < 6; k++){
+        const aR = Math.round(CITY_FURN.cornerClear + TILE + k*T2);
+        if(aR > e.len/2) break;
+        const p = pointAt(aR, 0);
+        if(!onWalk(p) || onPad(p) || blocked(aR, 0)) continue;
+        propSpawnState("bin", place("bin", aR, 0, p), R, walkRange);
+        break;
+      }
     }
   }
 
@@ -50871,7 +50919,7 @@ class WorldScene extends Phaser.Scene {
          the fall, and plays the same role the old per-tile rotation
          did. The lid rides shut until phi crosses the balance angle,
          then springs open — same trigger that flings the trash. */
-      const B = BIN, K = this.K;
+      const B = BIN, K = this.K, bs = BIN.scale;
       const seed = ((Math.round(x)*7919) ^ (Math.round(y)*104729) ^ 0x8177) >>> 0;
       const rng = mulberry32(seed);
       /* a BOX squared to the curb — seeded quarter (faces street, walk,
@@ -50928,22 +50976,31 @@ class WorldScene extends Phaser.Scene {
       const sh = W((mid.u*kk + slide)*fc, (mid.u*kk + slide)*fsn, 0);
       g.fillStyle(B.shadow, 0.14);
       g.fillEllipse(sh.x, sh.y + 2,
-        (B.lidR*2.1 + (H + 20 - B.lidR*2.1)*kk) * K * 0.42,
-        (B.lidR*0.95 + (22 - B.lidR*0.95)*kk) * K * 0.42);
+        (B.lidR*2.1 + (H + 20*bs - B.lidR*2.1)*kk) * K * 0.42,
+        (B.lidR*0.95 + (22*bs - B.lidR*0.95)*kk) * K * 0.42);
 
+      /* THE MOUTH IS THE END (Sir, 2026-09-29, marking up a knocked bin:
+         "top opening" on the white rim, "remove" on the barrel past it).
+         The rim and liner sit at b0..b1, about two thirds up, and the
+         barrel carried on to H beyond them -- so a bin that had lost its
+         lid showed its opening with a stub of can sticking out past it.
+         Once the lid is off, the body stops at the rim: HB is b1, the
+         opening is the end, and the lid lies just off it. Shut, it is
+         the full height as before. */
+      const b0 = H*0.6, b1 = Math.min(b0 + B.band, H*0.92);
+      const HB = (phi >= BIN_HIT.phiBal && B.band > 0) ? b1 : H;
       const bbody = () => {
         const n = 6, all = [];
-        for(let i=0; i<=n; i++) all.push(...place(i/n*H, binR(i/n*H)));
+        for(let i=0; i<=n; i++) all.push(...place(i/n*HB, binR(i/n*HB)));
         this.quadOn(g, convexHull(all), B.body);
         const ribN = 6, ribs = [];
-        for(let i=0; i<=ribN; i++) ribs.push(place(i/ribN*H, binR(i/ribN*H)));
+        for(let i=0; i<=ribN; i++) ribs.push(place(i/ribN*HB, binR(i/ribN*HB)));
         for(let i=0; i<ribN; i++){
           this.quadOn(g, convexHull(ribs[i].concat(ribs[i+1])), i % 2 === 0 ? B.body : B.bodyDk);
         }
         const lowerN = 3, lower = [];
         for(let i=0; i<=lowerN; i++) lower.push(...place(i/lowerN*(H*0.5), binR(i/lowerN*(H*0.5))));
         this.quadOn(g, convexHull(lower), B.bodyDk, 0.2);
-        const b0 = H*0.6, b1 = Math.min(b0 + B.band, H*0.92);
         if(B.band > 0){
           this.quadOn(g, convexHull(place(b0, binR(b0)+0.3).concat(place(b1, binR(b1)+0.3))), B.band_c);
           this.quadOn(g, place(b1, binR(b1)*0.7, 12), B.liner);
@@ -50953,7 +51010,7 @@ class WorldScene extends Phaser.Scene {
            the view direction) */
         const nu = cphi, nh = -sphi;
         const mouthFacing = (nu*fc + nu*fsn + nh) > 0.05;
-        if(mouthFacing) this.quadOn(g, place(H - 0.5, binR(H)*0.86, 12), B.liner);
+        if(mouthFacing && HB === H) this.quadOn(g, place(H - 0.5*bs, binR(H)*0.86, 12), B.liner);
       };
       const lidOpen = phi >= BIN_HIT.phiBal;
       const blid = () => {
@@ -50963,46 +51020,53 @@ class WorldScene extends Phaser.Scene {
           const dome = [];
           for(let i=0; i<12; i++){
             const psi = (i/12)*Math.PI*2, r2 = B.lidR*0.82;
-            dome.push(L(Math.cos(psi)*r2, Math.sin(psi)*r2, H + 2.6));
+            dome.push(L(Math.cos(psi)*r2, Math.sin(psi)*r2, H + 2.6*bs));
           }
           this.quadOn(g, dome, B.lid);
-          const knob = L(0, 0, H + 4.4);
+          const knob = L(0, 0, H + 4.4*bs);
           g.fillStyle(B.lidDk, 1);
-          g.fillCircle(knob.x, knob.y, 2.6*K*0.45);
-          const hinge = L(-B.lidR*0.85, 0, H + 0.6);
+          g.fillCircle(knob.x, knob.y, 2.6*bs*K*0.45);
+          const hinge = L(-B.lidR*0.85, 0, H + 0.6*bs);
           g.fillStyle(B.pedalDk, 1);
-          g.fillCircle(hinge.x, hinge.y, 1.6*K*0.45);
+          g.fillCircle(hinge.x, hinge.y, 1.6*bs*K*0.45);
         } else {
-          const La = H + B.lidR*0.75;
+          /* THE LID IS OFF, AND ON THE GROUND. It used to ride the tip
+             rotation like a hinged flap, which stood it on edge and sank
+             it below the pavement -- a sliver under the kerb when the bin
+             fell away from the camera. It lies flat now, just past the
+             mouth along the fall direction: GL is the same frame as L
+             without the tip, at pavement height. */
+          const GL = (u, v, h) => W(u*fc - v*fsn, u*fsn + v*fc, h);
+          const La = binR(0) + HB*sphi + B.lidR + 4*bs;
           const disc = [], inner = [];
           for(let i=0; i<12; i++){
             const psi = (i/12)*Math.PI*2;
-            disc.push(L(La + Math.cos(psi)*B.lidR, Math.sin(psi)*B.lidR, 1));
+            disc.push(GL(La + Math.cos(psi)*B.lidR, Math.sin(psi)*B.lidR, 1*bs));
             const r2 = B.lidR*0.8;
-            inner.push(L(La + Math.cos(psi)*r2, Math.sin(psi)*r2, 1.7));
+            inner.push(GL(La + Math.cos(psi)*r2, Math.sin(psi)*r2, 1.7*bs));
           }
           this.quadOn(g, disc, B.lidDk);
           this.quadOn(g, inner, B.lid);
-          const knob = L(La, 0, 2.3);
+          const knob = GL(La, 0, 2.3*bs);
           g.fillStyle(B.lidDk, 1);
-          g.fillCircle(knob.x, knob.y, 2.2*K*0.45);
+          g.fillCircle(knob.x, knob.y, 2.2*bs*K*0.45);
         }
       };
       const bpedal = () => {
         if(phi > 0.05) return;
-        const a0 = L(B.baseR*0.55, 0, 1.5);
-        const a1 = L(B.baseR*0.95, 0, 5.5);
-        g.lineStyle(Math.max(1.5, 1.4*K*0.4), B.pedalDk, 1);
+        const a0 = L(B.baseR*0.55, 0, 1.5*bs);
+        const a1 = L(B.baseR*0.95, 0, 5.5*bs);
+        g.lineStyle(Math.max(1.5, 1.4*bs*K*0.4), B.pedalDk, 1);
         g.lineBetween(a0.x, a0.y, a1.x, a1.y);
-        const p0 = L(B.baseR*0.95, -3.2, 0.6), p1 = L(B.baseR*1.25, 3.2, 0.6);
+        const p0 = L(B.baseR*0.95, -3.2*bs, 0.6*bs), p1 = L(B.baseR*1.25, 3.2*bs, 0.6*bs);
         g.fillStyle(B.pedal, 1);
-        g.fillEllipse((p0.x+p1.x)/2, (p0.y+p1.y)/2, 7*K*0.42, 3*K*0.42);
+        g.fillEllipse((p0.x+p1.x)/2, (p0.y+p1.y)/2, 7*bs*K*0.42, 3*bs*K*0.42);
       };
 
       const bparts = [
-        { d: dAt(0, 0, 1.5), fn: bbody },
-        { d: dAt(B.baseR*0.9, 0, 3), fn: bpedal },
-        { d: lidOpen ? dAt(H + B.lidR*0.75, 0, 1) : dAt(0, 0, H*0.95), fn: blid }
+        { d: dAt(0, 0, 1.5*bs), fn: bbody },
+        { d: dAt(B.baseR*0.9, 0, 3*bs), fn: bpedal },
+        { d: lidOpen ? (binR(0) + HB*sphi + B.lidR + 4*bs)*(fc + fsn) + 0.4*bs : dAt(0, 0, H*0.95), fn: blid }
       ];
       bparts.sort((p1, p2) => p1.d - p2.d);
       for(const pt of bparts) pt.fn();
