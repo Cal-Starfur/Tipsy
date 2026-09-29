@@ -3970,15 +3970,8 @@ const WORLD_SCATTER = false;
    are separate array entries, not branches tangled through a shared
    function. */
 
-/* f===1 cuts the near block's WEST edge (3); f===2 cuts its NORTH
-   edge (0) — the only two travel directions where this fixed iso
-   camera's height-lift can push a nearby block's wall over the
-   robot's own screen position. See the block-wrap cutaway below. */
-const NORTH_WALL_CUT_EDGE = [null, 3, 0, null];
-
-/* f===0/f===3 are the two directions the cutaway above never
-   touches — the only legs safe to place a door/pickup on. See
-   findGoodS. */
+/* f===0/f===3 are the two headings whose door edge (2 / 1) faces the
+   camera -- the only legs a door/pickup goes on. See findGoodS. */
 const GOOD_LEG_HEADING = [true, false, false, true];
 
 /* The Hydrant Challenge lives at ONE address in Costa Palma. The Flats
@@ -11623,7 +11616,7 @@ const CHARGE = {
 
    EDGES 0 AND 3 ONLY, and not arbitrarily: those are the two frontages
    whose buildings sit between a robot standing on them and this fixed iso
-   camera -- the same two NORTH_WALL_CUT_EDGE names, for the same
+   camera -- the pair the old route cutaway took down, for the same
    projection reason. They are also the pair the fence row's art was
    tuned against. Cutting edge 1 or 2 instead would hide the row behind
    the block's own houses, which is a lot of work to see nothing.
@@ -11654,6 +11647,11 @@ function buildPermanentCuts(grid){
        every day. The roll is taken exactly as before, so every other block
        in the city cuts the same edge it always did. */
     if(HOUSE_SITES.some(st => st[0] === blk.i && st[1] === blk.j && st[2] === ei)) continue;
+    /* NOR IS A NAMED SHOP BLOCK (2026-09-29): 8,1 rolled edge 0, so The
+       Flats Post Office, Seabreeze Grocer and Breakwater Hardware never
+       drew -- a parking row stood where they are placed. An edge whose
+       shops are authored (HOOD_SHOP_SITES) keeps them. */
+    if(HOOD_SHOP_SITES.some(st => st[0] === blk.i && st[1] === blk.j && st[2] === ei)) continue;
     out[blk.i + "," + blk.j] = [ ei ];
   }
   return out;
@@ -11840,7 +11838,7 @@ const HOOD_SHOP_SITES = [
   [2,0, 0, ["Palmline Garage", "Palmline Savings"]],
   [2,0, 1, ["Tidewater Tea House", "Driftwood Books", "Marina Optical"]],
   [2,0, 2, ["Lagoon Coffee Roasters", "Sandpiper Bakery", "Seabreeze Florist"]],
-  [2,0, 3, ["Seabreeze Fuel", "Surfside Fitness"]],
+  [2,0, 3, ["Low Tide Juice Bar", "Surfside Fitness"]],   // was Seabreeze Fuel (2026-09-29)
   [3,1, 0, ["Driftwood Home", "Sandpiper Shoes"]],
   [3,1, 1, ["Sandcastle Toys", "Cove Pottery", "Pelican Pets"]],
   [3,1, 2, ["Cove Creamery", "Palmline Bikes", "Pelican Photo", "Low Tide Records", "Sandpiper Suds"]],
@@ -11921,6 +11919,7 @@ const HOOD_SHOP_ICON = {
   "Newsagent":"\u{1F4F0}",
   "Bank":"\u{1F3E6}",
   "Fuel station":"\u26FD",
+  "Juice bar":"\u{1F964}",
   "Chapel":"\u26EA",
   "Arcade":"\u{1F579}",
   "Butcher":"\u{1F969}",
@@ -17181,89 +17180,30 @@ function _generateRouteFresh(dateStr, opts){
     }
   }
 
-  /* ---------- precomputed cutaway edges ----------
-     The north-wall cutaway (NORTH_WALL_CUT_EDGE: f=1 cuts a block's
-     west edge, f=2 its north — the two headings where the fixed iso
-     camera can push the near block's wall over the robot) used to be
-     evaluated LIVE per frame against the current seg + the block the
-     robot stood in. That made it snap three ways: houses vanished the
-     instant the heading seg flipped, jumped block-to-block mid-leg,
-     and popped back through every corner arc. The route is fully
-     known here, so the whole thing is now computed ONCE: every block
-     the robot's lane traverses on a cut-heading leg goes into a
-     static map, block(i,j) -> [edges], permanent for the route —
-     those edges show their fence/parking replacement from frame one
-     and never change. Arcs contribute BOTH neighbor legs' cut edges
-     to the blocks they sweep, so corners are covered without any
-     transition. The address door's edge and the pickup shop's edge
-     are never cut — the live version would happily vanish the
-     customer's house if you approached it westbound. */
+  /* ---------- cut edges: the permanent lots only ----------
+     route.cutEdges maps block(i,j) -> [edge] for the city's permanent cut
+     lots (getPermanentCuts: a parking row in front of a shop block, a
+     fenced lawn on a housing block). The day's address door and pickup
+     frontage are never cut.
+
+     THE ROUTE CUTAWAY IS GONE (Sir, 2026-09-29: "this is no longer needed
+     lets remove it"). It took down the near side of every block an
+     f=1/f=2 leg ran past, so the robot could not go behind it -- and so
+     real shops vanished on the days a route ran by them (Seabreeze Fuel
+     on 2,0/3 under the Sandpiper Bakery pickup). The x-ray ghosts the one
+     building in the way instead (see hoodShopHeightAt), so a street keeps
+     its buildings every day. */
   const cutEdges = {};
-  /* cutExt (2026-07-27, "still getting f=1"): world-space spans of
-     every cut-heading leg portion whose near-side probe leaves the
-     interior grid — i.e. the robot's side faces an EXTERIOR LOT.
-     Exterior lots aren't in the block grid, so the cutEdges map above
-     can't reach them; before this, a perimeter f=1/f=2 leg showed
-     full, un-cut houses at the robot's side (queueExteriorLot never
-     consulted the cutaway at all). The render side (queueExteriorLot)
-     tests each lot unit against these spans and swaps house/store for
-     the same solid fence row an interior cut edge gets. */
-  const cutExt = [];
   const addCut = (bi, bj, edge) => {
-    if(edge == null) return;
     if(addressBlock && bi === addressBlock.i && bj === addressBlock.j && edge === addressEdgeIdx) return;
     if(pickupBlock && bi === pickupBlock.i && bj === pickupBlock.j && edge === pickupEdgeIdx) return;
-    /* A MARITIME ROW STAYS UP (Sir, 2026-09-28: "the back of these blocks
-       are missing housing"). A cut takes a row down so it cannot stand
-       between the camera and him; Maritime's houses declare their volume,
-       so the x-ray ghosts exactly the house in the way instead (see
-       hoodShopHeightAt), and the street keeps its houses every day. */
-    if(HOUSE_SITES.some(st => st[0] === bi && st[1] === bj && st[2] === edge)) return;
     const k = bi + "," + bj;
     if(!cutEdges[k]) cutEdges[k] = [];
     if(!cutEdges[k].includes(edge)) cutEdges[k].push(edge);
   };
-  /* THE PERMANENT LOTS GO IN FIRST, through addCut rather than straight
-     into the map, so they inherit its two exemptions for free: a
-     permanent cut is dropped if it would land on the day's address door
-     or the day's pickup shop frontage. Without that the city could
-     legitimately have vanished the customer's house on the one block the
-     delivery is aimed at -- the exact failure the live cutaway used to
-     produce, arriving by a different road.
-
-     Merged rather than replacing: a block can be a permanent cut lot AND
-     be traversed on a cut heading, and it wants the same single edge
-     either way. addCut de-duplicates. */
-  if(typeof getPermanentCuts === "function")
-    for(const [k, edges] of Object.entries(getPermanentCuts(grid))){
-      const c = k.split(",");
-      for(const e of edges) addCut(+c[0], +c[1], e);
-    }
-
-  for(const sg of segs){
-    const eIn = NORTH_WALL_CUT_EDGE[sg.f];
-    const eOut = sg.type === "arc" ? NORTH_WALL_CUT_EDGE[(sg.f + sg.sign + 4) % 4] : null;
-    if(eIn == null && eOut == null) continue;
-    let prevWp = null;
-    for(let s = sg.s0; ; s += T2){
-      const sv = Math.min(s, sg.s1);
-      const wp = segsWorldOf(segs, sv, laneOffset(1));   // any lane row lands in the same block
-      const bi = Math.floor(wp.x/BLOCK), bj = Math.floor(wp.y/BLOCK);
-      const offGrid = bi < 0 || bi > grid.cols-2 || bj < 0 || bj > grid.rows-2;
-      if(offGrid){
-        /* beside an exterior lot — record the step as a cut span
-           (consecutive step points chain into a polyline; arcs come
-           out as short chords, which is all the render test needs).
-           addCut skipped: it used to file these under nonexistent
-           block keys like "-1,3" that nothing ever read. */
-        if(prevWp) cutExt.push({ x0: prevWp.x, y0: prevWp.y, x1: wp.x, y1: wp.y });
-      } else {
-        if(sg.type === "line") addCut(bi, bj, eIn);
-        else { addCut(bi, bj, eIn); addCut(bi, bj, eOut); }
-      }
-      prevWp = wp;
-      if(sv >= sg.s1) break;
-    }
+  for(const [k, edges] of Object.entries(getPermanentCuts(grid))){
+    const c = k.split(",");
+    for(const e of edges) addCut(+c[0], +c[1], e);
   }
 
   /* STREETLAMPS (approved lamp lab v2): the night feature's anchor
@@ -17495,7 +17435,7 @@ function _generateRouteFresh(dateStr, opts){
                  mat: owMatFrame(ax, ay, dv, rv), ax, ay, dv, rv };
       })()
     : null;
-  return stampWorldCoords({ addressMat, pickupMat, cfTaken, hood: addressHood, grid, segs, totalLen: loop ? loop.sEnd : totalLen, loop, tiles, hazards, props, pal, night, traffic, trafficFleet, crossings, cutEdges, cutExt, challenge, crime, routeCells, curbRamps, signals: grid.signals,
+  return stampWorldCoords({ addressMat, pickupMat, cfTaken, hood: addressHood, grid, segs, totalLen: loop ? loop.sEnd : totalLen, loop, tiles, hazards, props, pal, night, traffic, trafficFleet, crossings, cutEdges, challenge, crime, routeCells, curbRamps, signals: grid.signals,
            address:`${number} ${street}`, doorS, pickupS, pickupSpot, pickupShopName, pickupDoorA, addressBlock,
            addressArea: (addressBlock && houseSiteHoodIJ(addressBlock.i, addressBlock.j)) || null, pickupBlock, addressEdgeIdx, pickupEdgeIdx, addressUnitIdx, pickupUnitIdx, addressUsesGate, order, parMs, dateStr, runIndex  });
 }
@@ -26351,6 +26291,114 @@ function houseCanopy(fn){
     T(cA0, cA1, cb1, cb0, CZ, '#f2f2f0');
     slab(cA0, cA1, CZ-18, CZ, cb1, cb0, '#f2f2f0', shade('#f2f2f0',.82), '#f2f2f0');
     F(cA0, cA1, CZ-18, CZ-12, trim, null, 0, cb1-0.6);
+  }
+},
+{
+  name:'Low Tide Juice Bar', xh: 140, base:'Juice bar', hood:'The Flats', edited:true, sc:1.3, ww: T2*4.4,
+  head:'Juice kiosk on one slot, a tiled patio with umbrella tables on the other',
+  tags:['two packing slots','patio is a side lot, not the pavement','striped awning','fruit sign','drivable patio'],
+  desc:'A small cream kiosk with an orange-and-white awning over its serving window and a row of fruit on the fascia; the second slot is an open tiled patio the depth of the lot, with four bistro tables under striped umbrellas and planters along the back.',
+  /* IN PLACE OF SEABREEZE FUEL (Sir, 2026-09-29: "the service station
+     wasn't ideal there anyway so we can put something else there" -- a
+     juice bar with a patio). Same two-slot set-out as the fuel station it
+     replaces: the kiosk is a 0..KW, the patio the open lot KW..WW the
+     shop's own depth. The patio is DRIVABLE: the kiosk is the only mass,
+     and the tables and the back planters are the things on it he can
+     hit. Umbrellas are overhead, so they are not here. */
+  vol: {
+    foot:   [[0,0],[180,0],[180,-T2*3],[0,-T2*3]],
+    h:      140,
+    solids: [
+      ...[[236,-66],[352,-104],[244,-184],[354,-222]].map(([a, b], k) => ({ name:'table' + k, h: 30,
+        poly: [[a-16,b-16],[a+16,b-16],[a+16,b+16],[a-16,b+16]] })),
+      { name:'planters', h: 24, poly: [[188,-T2*3+4],[T2*4.4-8,-T2*3+4],[T2*4.4-8,-T2*3+30],[188,-T2*3+30]] }
+    ]
+  },
+  kit(){
+    const WW = T2*4.4, KW = 180, LA0 = 180, LA1 = WW, LB = -T2*3;
+    return { WW, KW, LA0, LA1, LB, H: 140,
+      /* NOT PAVEMENT-COLOURED (Sir, on-device: "this wall of the smoothies
+         doesn't show up because the color"). On edge 2,0/3 the camera
+         looks down on the kiosk's roof and its back, and a cream wall
+         under a #c9c2b2 roof read as the footway itself. Mango walls, a
+         slate roof: both clear of the pavement's beige. */
+      wall: '#f4b860', roof: '#7f8b87', trim: '#e8743b', lime: '#8cc63f', tile: '#e6c9a2', grout: '#d3b18a',
+      tables: [[236,-66],[352,-104],[244,-184],[354,-222]],
+      shades: ['#e8743b', '#8cc63f', '#f2c230', '#e8743b'] };
+  },
+  /* the patio floor and its back planters: ground, so drawn before the
+     sort (see the fuel island's note on a long kerb and depth keys) */
+  patioGround(k){
+    const { LA0, LA1, LB, tile, grout } = k;
+    T(LA0, LA1, 0, LB, 0.4, tile);
+    for(let a = LA0 + 32; a < LA1 - 4; a += 32) T(a - 0.8, a + 0.8, 0, LB, 0.6, grout);
+    for(let b = -32; b > LB + 4; b -= 32) T(LA0, LA1, b - 0.8, b + 0.8, 0.6, grout);
+    box(LA0 + 8, LA1 - 8, LB + 4, LB + 30, 0, 24, '#c98b5a', '#b0774a', '#94623b');
+    for(let a = LA0 + 22; a < LA1 - 16; a += 26) ball(a, LB + 17, 32, 11, a % 52 < 26 ? '#5f9a4a' : '#6fae52');
+  },
+  /* one bistro set: two chairs, the table, the umbrella. Everything
+     stands on the ground, so the sort key is a + b (see the fuel lot). */
+  patioSets(k){
+    const wood = '#7a5a3c', top = '#f2f2ee';
+    return k.tables.map(([a, b], i) => ({ a, b, z: 0, draw: () => {
+      const chair = (ca, cb, back) => {
+        box(ca - 7, ca + 7, cb - 7, cb + 7, 16, 19, shade(wood,1.1), wood, shade(wood,.75));
+        cyl(ca, cb, 0, 16, 1.6, shade(wood,.8));
+        if(back) box(ca - 7, ca + 7, cb - 8, cb - 5, 19, 34, shade(wood,1.05), wood, shade(wood,.7));
+      };
+      chair(a, b - 24, true);                                  // the far chair first
+      cyl(a, b, 0, 28, 2.2, '#4a4f55');
+      plateCircle(a, b, 28, 16, top, shade(top,.7), 1);
+      ball(a - 5, b + 3, 32, 3.5, i % 2 ? '#f29b3a' : '#9ccf4a');   // a glass on the table
+      chair(a, b + 24, false);
+      const col = k.shades[i % k.shades.length];
+      cyl(a, b, 28, 96, 1.6, '#e8e2d6');
+      plateCircle(a, b, 92, 42, shade(col,.78));
+      plateCircle(a, b, 96, 36, col);
+      plateCircle(a, b, 97, 20, '#fbf6ea');
+      ball(a, b, 100, 3.5, '#fbf6ea');
+    } }));
+  },
+  draw(p){
+    const k = this.kit(), { KW, H, wall, trim, lime } = k;
+    body(wall, trim, H, KW);
+    T(0, KW, -D, 0, H+0.4, k.roof);
+    slab(0, KW, H, H+10, -1, -10, trim);
+    /* the fascia: a lime board with a row of fruit on it */
+    slab(10, KW-10, 110, 134, -1, -8, lime);
+    F(18, KW-18, 114, 130, '#fbf6ea', null, 0, -0.5);
+    const fruit = ['#f29b3a', '#e8463b', '#f2c230', '#8cc63f', '#f29b3a', '#e8463b'];
+    fruit.forEach((c, i) => faceCircle(32 + i*23, 0.4, 122, 6, c, shade(c,.6), 1));
+    /* the serving window, a counter under it and a striped awning over */
+    F(14, 94, 30, 98, '#8fc3cf', shade(wall,.6), 3);
+    box(10, 98, 0, 12, 36, 42, '#fbf6ea', shade(wall,.8), shade(wall,.65));
+    for(let i = 0; i < 8; i++){
+      const a0 = 8 + i*11, a1 = a0 + 11;
+      poly([P(a0,0,106), P(a1,0,106), P(a1,36,90), P(a0,36,90)], i % 2 ? '#fbf6ea' : trim);
+    }
+    F(8, 96, 84, 90, trim, null, 0, 36);
+    shopDoor(129.88, wall, trim);
+    S(KW, k.LB, 0, 0, H, shade(wall,.78));                       // the flank the patio looks at
+    this.patioGround(k);
+    depthSort(this.patioSets(k));
+    if(state.roof) box(40, 128, -150, -110, H, H+22, '#9aa0a6','#7d838a','#6a7076');
+    kerb(p,'none');
+  },
+  back(p){
+    /* REAR ELEVATION: the kiosk first, then the patio (the Seabreeze Fuel
+       note: on an away edge the kiosk's end is the far one) */
+    const k = this.kit(), { KW, H, wall, trim } = k;
+    this.patioGround(k);
+    rearBody(wall, trim, H, KW, D, k.roof);
+    rearParapet(0, KW, H, 10, 10, trim);
+    rearDoor(120, wall, trim);
+    rearWindow(30, 66, 70, 106, wall);
+    depthSort([
+      { a: 40, b: -D-32, z: 0, draw: () => wheelieBin(40, '#3f6b4a') },
+      { a: 150, b: -D-33, z: 0, draw: () => crateStack(150, '#b08d55', 2) }
+    ]);
+    if(state.roof) box(40, 128, -150, -110, H, H+22, '#9aa0a6','#7d838a','#6a7076');
+    depthSort(this.patioSets(k));
   }
 },
 {
@@ -44286,40 +44334,9 @@ class WorldScene extends Phaser.Scene {
     for(const blk of visBlocks) this.fillBlockGround(g, blk);
     for(const lot of visLots) this.fillExteriorLot(g, lot);
 
-    /* north-wall cutaway: heading f===2 (DIRV[2], world -x) is the ONE
-       travel direction where this fixed iso camera's height-lift can
-       push a nearby block's north wall over the robot's own screen
-       position (confirmed from the W() projection math: world -x maps
-       to up-and-left on screen, matching the reported angle exactly).
-       Every other heading is untouched — this is a single-direction
-       fix, not a general occlusion system, so it can't over-trigger
-       across unrelated blocks. Only the CURRENT block's north edge is
-       cut, identified by precise cell index, not distance.
-       Segment TYPE matters too: this.f is a rounded snapshot of the
-       continuous heading, and during an ARC (turning through a corner)
-       that heading sweeps through all four cardinal directions —
-       briefly rounding to 2 mid-turn even on a corner that isn't a
-       sustained westbound leg. Gating on segAt().type==="line" as well
-       means the cut only ever fires on a real straight westbound walk,
-       never during the turn itself. */
-    /* two headings need this, not one — f===2 (up-left) cuts the
-       block's NORTH edge (edge 0), f===1 (down-left) cuts its WEST
-       edge (edge 3). Same derivation both times: the robot's fixed
-       sidewalk lane (ROBOT_SIDE) relative to travel direction puts it
-       on one consistent side of the street, and that determines which
-       single edge of the adjacent block is the "near" wall that can
-       loom over his screen position under this fixed iso camera. */
-    /* north-wall cutaway — STATIC now. The which-edge derivation is
-       unchanged (NORTH_WALL_CUT_EDGE: f=2's westbound walk puts the
-       block's north wall over the robot under this fixed iso camera,
-       f=1 the west wall — confirmed from the W() projection math),
-       but the trigger moved to route generation: route.cutEdges maps
-       block(i,j) -> [edges] for every block the route's cut-heading
-       legs traverse, permanent for the whole route. No live heading
-       test, no live block test — so nothing snaps when the heading
-       changes, when the robot crosses a block seam mid-leg, or through
-       corner arcs (all three were reported on-device). A block can
-       carry TWO cut edges if both an f=1 and an f=2 leg touch it. */
+    /* route.cutEdges carries only the permanent cut lots now (the route
+       cutaway was removed 2026-09-29): a cut commercial edge draws a
+       parking row, a cut housing edge a solid fence row. */
     /* THE ROLL-UP DOOR, driven every frame. drawWorld runs from
        update(t, dt) and rebuilds blockVQ each time, so the entry is
        redrawn per frame and doorT animates for free -- no invalidation
@@ -48112,33 +48129,6 @@ class WorldScene extends Phaser.Scene {
       return this.queueParkBlock(vq, rect);
     }
     const faceIn = { x:-lot.rv.x, y:-lot.rv.y }; // body sits outside the grid, front faces back IN toward the sidewalk
-    /* cutaway for exterior lots (2026-07-27, "still getting f=1"):
-       interior blocks get their near walls fenced on f=1/f=2 legs via
-       route.cutEdges, but lots live outside the grid and never
-       consulted it — full houses drew beside the robot on exactly the
-       headings the cutaway exists for. route.cutExt holds the world
-       spans of every cut-heading leg portion that runs along the
-       perimeter; any unit whose center sits near one of those spans
-       renders as the same solid fence row an interior cut edge gets
-       (commercial included — no parking-row here because this path
-       has no topLayer plumbing for the parked cars, and a fence is
-       the same safe, view-clearing replacement). Per-unit test, so a
-       long lot only fences the portion the route actually passes.
-       Radius 0.75*BLOCK: probe runs one lane-band inward of the lot
-       front, and modest over-reach past a leg's end just fences a
-       little extra — the safe direction. */
-    const cutExt = (this.route && this.route.cutExt) || [];
-    const unitCut = (px, py) => {
-      for(const sg2 of cutExt){
-        const vx = sg2.x1 - sg2.x0, vy = sg2.y1 - sg2.y0;
-        const L2 = vx*vx + vy*vy || 1;
-        let tt = ((px - sg2.x0)*vx + (py - sg2.y0)*vy) / L2;
-        tt = Math.max(0, Math.min(1, tt));
-        const dx2 = px - (sg2.x0 + vx*tt), dy2 = py - (sg2.y0 + vy*tt);
-        if(dx2*dx2 + dy2*dy2 < (BLOCK*0.75)*(BLOCK*0.75)) return true;
-      }
-      return false;
-    };
     if(lot.type === "commercial"){
       const eseed = ((Math.round(lot.ox*3+lot.dv.x)*7919) ^ (Math.round(lot.oy*3+lot.dv.y)*104729) ^ 0x51b3) >>> 0;
       const units = packEdgeNoGap(lot.len, mulberry32(eseed));
@@ -48146,10 +48136,6 @@ class WorldScene extends Phaser.Scene {
         const hx = lot.ox + lot.dv.x*(u.start+u.w/2), hy = lot.oy + lot.dv.y*(u.start+u.w/2);
         const hseed = ((Math.round(hx)*7919) ^ (Math.round(hy)*104729)) >>> 0;
         const ux = lot.ox+lot.dv.x*u.start, uy = lot.oy+lot.dv.y*u.start;
-        if(unitCut(hx, hy)){
-          this.queueUnitStrips(vq, ux, uy, lot.dv, faceIn, u.w, 0, TILE, (g,t,a0,a1)=>this.drawSolidFenceRow(g, ux, uy, lot.dv, faceIn, u.w, hseed, a0, a1));
-          return;
-        }
         const isFirst = idx===0, isLast = idx===units.length-1;
         this.queueUnitStrips(vq, ux, uy, lot.dv, faceIn, u.w, STORE_DEPTH, 0, (g,t,a0,a1,b0,b1)=>{
           this.drawStoreUnit(g, ux, uy, lot.dv, faceIn, u.w, hseed, isFirst, isLast, 'body', a0, a1, null, b0, b1);
@@ -48163,10 +48149,6 @@ class WorldScene extends Phaser.Scene {
         const hx = lot.ox + lot.dv.x*(u.start+u.w/2), hy = lot.oy + lot.dv.y*(u.start+u.w/2);
         const hseed = ((Math.round(hx)*7919) ^ (Math.round(hy)*104729)) >>> 0;
         const ux = lot.ox+lot.dv.x*u.start, uy = lot.oy+lot.dv.y*u.start;
-        if(unitCut(hx, hy)){
-          this.queueUnitStrips(vq, ux, uy, lot.dv, faceIn, u.w, 0, TILE, (g,t,a0,a1)=>this.drawSolidFenceRow(g, ux, uy, lot.dv, faceIn, u.w, hseed, a0, a1));
-          return;
-        }
         this.queueUnitStrips(vq, ux, uy, lot.dv, faceIn, u.w, HOUSE_DEPTH, 0, (g,t,a0,a1,b0,b1)=>{
           this.drawHouseUnit(g, ux, uy, lot.dv, faceIn, u.w, hseed, false, 'body', a0, a1, b0, b1);
           this.drawHouseUnit(g, ux, uy, lot.dv, faceIn, u.w, hseed, false, 'roof', a0, a1, b0, b1);
@@ -54171,6 +54153,14 @@ class WorldScene extends Phaser.Scene {
           this.speed = 0; this.throttle = 0;
           if(mm.id === "jump-hydrant" && typeof hjStart === "function") hjStart();
           else if(mm.id === "cone-slalom" && typeof tpSlalomStart === "function") tpSlalomStart();
+          /* AND THE PICKUP (Sir, 2026-09-29, stopped on the bakery's rug:
+             "it doesn't trigger anything"). The pickup mat is on this list
+             in free roam (getMissionMats), but only the two courses were
+             handled here, so the rug did nothing unless the order had been
+             picked from search first (gpsNavLaunch). Driving up to today's
+             shop and stopping on it is the order, the way it was meant to
+             be (2026-08-26: "a matt i land on to trigger the pick up"). */
+          else if(mm.id === "pickup"){ gpsNavClear(); tpPickupHere(this); return; }
         }
       }
       /* overshot the door: clamp to whichever is closer — the edge of the
